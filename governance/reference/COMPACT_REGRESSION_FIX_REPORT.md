@@ -1,16 +1,16 @@
-# COMPACT REGRESSION FIX REPORT
+# BÁO CÁO SỬA LỖI HỒI QUY COMPACT (COMPACT REGRESSION FIX REPORT)
 
 ## F-14 — PROJECT_PROFILE_STANDARD
 
-Source words: 358
-Compact words: 358
+Số từ nguồn: 358
+Số từ Compact: 358
 
 Status:
 PASS
 
-The Compact file is restored from the V3.2 Final source-of-truth and only canonical paths are changed.
+File Compact được khôi phục từ nguồn chuẩn (source-of-truth) của V3.2 Final và chỉ có các đường dẫn canonical là được thay đổi.
 
-Required restored sections checked manually/source-preservation:
+Các section bắt buộc được khôi phục, đã kiểm tra thủ công/bảo toàn nguồn:
 - Profile Selection Inputs
 - Use for
 - Ceremony
@@ -18,23 +18,23 @@ Required restored sections checked manually/source-preservation:
 
 ## F-15 — CLAUDE.md
 
-Source words: 531
-Compact words: 600
+Số từ nguồn: 531
+Số từ Compact: 600
 
-The difference is the intentional `Compact Directory Layout` note.
-Original semantic content is retained with path substitutions.
+Sự khác biệt là do ghi chú `Compact Directory Layout` được thêm có chủ đích.
+Nội dung ngữ nghĩa gốc được giữ nguyên với các đường dẫn được thay thế.
 
-Verified mechanisms:
-- Full Task Lifecycle present
-- BLOCKED / DEFERRED / CANCELLED present
-- CONFLICT DETECTED present
+Các cơ chế đã được xác minh:
+- Toàn bộ Task Lifecycle có mặt đầy đủ
+- BLOCKED / DEFERRED / CANCELLED có mặt
+- CONFLICT DETECTED có mặt
 
 ## F-10 — Empty Completion Gate Fixture
 
 Fixture:
 - Status: DONE
 - Risk: 5/5
-- Completion Gate: empty
+- Completion Gate: rỗng
 
 Expected:
 FAIL
@@ -45,7 +45,7 @@ TASK COMPLETION: FAIL
 - TASK-F10-FIXTURE.md: Status=DONE but no REQUIRED Completion Gate checks were found.
 ```
 
-Regression test result:
+Kết quả regression test:
 PASS
 
 ## Validators
@@ -57,14 +57,14 @@ Checked 21 required paths.
 ```
 
 ### Project State
-Expected FAIL before S000:
+Kỳ vọng FAIL trước khi chạy S000:
 ```text
 PROJECT STATE: FAIL
 - PROJECT/PROJECT_PROFILE.md must contain a valid Selected Profile: AUDIT, PRODUCT, SOLO_LITE, TEAM_PRODUCTION
 - PROJECT_PROGRESS.md must contain a valid Profile value: AUDIT, PRODUCT, SOLO_LITE, TEAM_PRODUCTION
 ```
 
-### Task Completion (normal package)
+### Task Completion (package thông thường)
 ```text
 TASK COMPLETION: PASS
 Checked 0 DONE task(s).
@@ -82,9 +82,9 @@ PRESERVATION: PASS
 Profile selection content preserved; lifecycle/conflict mechanisms present.
 ```
 
-## Refactor Rule Going Forward
+## Quy tắc Refactor về sau
 
-Pure directory restructuring must be path-only.
+Việc tái cấu trúc thư mục thuần túy chỉ được thay đổi đường dẫn.
 
-Do not summarize or rewrite governance content during a move.
-Semantic changes require a separately declared change and regression test.
+Không được tóm tắt hoặc viết lại nội dung governance trong lúc di chuyển.
+Các thay đổi ngữ nghĩa phải được khai báo riêng và có regression test kèm theo.

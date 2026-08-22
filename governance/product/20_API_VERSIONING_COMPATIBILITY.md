@@ -1,53 +1,53 @@
-# 20 — API Versioning & Compatibility Rules
+# 20 — Quy Tắc Versioning & Tương Thích API
 
-## Objective
-Prevent client/server changes from silently breaking existing consumers.
+## Mục Tiêu
+Ngăn các thay đổi client/server âm thầm phá vỡ các consumer hiện có.
 
-## Rules
+## Quy Tắc
 
-### 1. Treat published API contracts as interfaces
-Do not change response/request meaning casually.
+### 1. Coi các hợp đồng API đã publish là interface
+Không thay đổi ý nghĩa của request/response một cách tùy tiện.
 
-### 2. Classify changes
+### 2. Phân loại thay đổi
 
-Non-breaking examples:
-- adding optional response field,
-- adding optional request field with safe default.
+Ví dụ không gây breaking:
+- thêm trường response tùy chọn (optional),
+- thêm trường request tùy chọn với default an toàn.
 
-Potentially breaking:
-- removing field,
-- renaming field,
-- changing type,
-- changing status meaning,
-- changing authorization behavior,
-- changing endpoint semantics.
+Có khả năng gây breaking:
+- xóa trường,
+- đổi tên trường,
+- thay đổi kiểu dữ liệu,
+- thay đổi ý nghĩa của status,
+- thay đổi hành vi authorization,
+- thay đổi ngữ nghĩa (semantics) của endpoint.
 
-### 3. Breaking changes require migration strategy
-Options may include:
-- versioned endpoint,
-- compatibility adapter,
-- staged rollout,
-- coordinated client deployment.
+### 3. Thay đổi gây breaking cần có chiến lược migration
+Các lựa chọn có thể bao gồm:
+- endpoint có version,
+- adapter tương thích,
+- rollout theo giai đoạn,
+- phối hợp triển khai client.
 
-### 4. Error contracts
-Use predictable error categories.
+### 4. Hợp đồng lỗi (Error contracts)
+Sử dụng các nhóm lỗi có thể dự đoán được.
 
-### 5. Enum/status expansion
-Consumers should be considered when adding new states.
+### 5. Mở rộng enum/status
+Cần cân nhắc đến consumer khi thêm state mới.
 
-### 6. Deprecation
-When an API is deprecated:
-- mark it,
-- identify consumers,
-- set migration path,
-- remove only after migration criteria are met.
+### 6. Deprecation (loại bỏ dần)
+Khi một API bị deprecate:
+- đánh dấu nó,
+- xác định các consumer,
+- thiết lập lộ trình migration,
+- chỉ xóa sau khi các tiêu chí migration được đáp ứng.
 
-### 7. Internal APIs
-Even internal APIs require compatibility thinking if multiple modules/services consume them.
+### 7. API nội bộ
+Ngay cả API nội bộ cũng cần tư duy về tính tương thích nếu có nhiều module/service tiêu thụ nó.
 
-## API Review
-Before changing an API ask:
-- Who consumes this?
-- Are older clients still active?
-- Can deployment order break the system?
-- Can the change be backward compatible?
+## Review API
+Trước khi thay đổi một API, hãy tự hỏi:
+- Ai đang tiêu thụ API này?
+- Các client cũ có còn hoạt động không?
+- Thứ tự deploy có thể làm hỏng hệ thống không?
+- Thay đổi có thể backward compatible không?

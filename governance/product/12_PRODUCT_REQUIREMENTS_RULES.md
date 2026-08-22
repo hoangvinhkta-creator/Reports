@@ -1,84 +1,84 @@
 # 12 — Product Requirements Rules
 
-## Objective
-Ensure the team and AI agent understand what must be built, why it matters, who may use it, and what “done” means before implementation begins.
+## Mục tiêu
+Đảm bảo team và AI agent hiểu rõ cái gì cần được xây dựng, tại sao nó quan trọng, ai được phép sử dụng, và "hoàn thành" nghĩa là gì trước khi bắt đầu implementation.
 
-## Core Rule
-Do not implement a non-trivial feature from an informal sentence alone when important business behavior remains undefined.
+## Quy tắc cốt lõi
+Không implement một feature không tầm thường chỉ từ một câu mô tả không chính thức khi hành vi nghiệp vụ quan trọng vẫn còn chưa được xác định.
 
-A feature specification should be created or confirmed before code changes.
+Một feature specification cần được tạo hoặc xác nhận trước khi thay đổi code.
 
-## Minimum Feature Specification
+## Feature Specification tối thiểu
 
-### 1. Problem
-What user/business problem is being solved?
+### 1. Problem (Vấn đề)
+Vấn đề người dùng/nghiệp vụ nào đang được giải quyết?
 
-### 2. Business Goal
-What outcome should improve?
+### 2. Business Goal (Mục tiêu nghiệp vụ)
+Kết quả nào cần được cải thiện?
 
-Examples:
-- reduce manual follow-up,
-- reduce pricing errors,
-- increase response speed,
-- prevent unauthorized data exposure.
+Ví dụ:
+- giảm việc theo dõi thủ công,
+- giảm lỗi định giá,
+- tăng tốc độ phản hồi,
+- ngăn chặn việc lộ dữ liệu trái phép.
 
-### 3. Users / Roles
-Who uses the feature?
+### 3. Users / Roles (Người dùng / Vai trò)
+Ai sử dụng feature này?
 
-Examples:
+Ví dụ:
 - sales,
 - sales_manager,
 - admin,
 - customer_service.
 
-### 4. User Flow
-Describe the expected main workflow.
+### 4. User Flow (Luồng người dùng)
+Mô tả luồng công việc chính được kỳ vọng.
 
-### 5. Functional Requirements
-Clearly state required system behavior.
+### 5. Functional Requirements (Yêu cầu chức năng)
+Nêu rõ hành vi hệ thống bắt buộc.
 
-### 6. Acceptance Criteria
-Use testable statements.
+### 6. Acceptance Criteria (Tiêu chí nghiệm thu)
+Sử dụng các phát biểu có thể kiểm thử được.
 
-Example:
-- Sales Manager can export assigned customer data.
-- Sales role cannot export the full customer database.
-- Every export creates an audit event.
+Ví dụ:
+- Sales Manager có thể export dữ liệu khách hàng được giao.
+- Vai trò Sales không thể export toàn bộ cơ sở dữ liệu khách hàng.
+- Mỗi lần export đều tạo ra một audit event.
 
-### 7. Out of Scope
-Explicitly state what this task does NOT include.
+### 7. Out of Scope (Nằm ngoài phạm vi)
+Nêu rõ những gì task này KHÔNG bao gồm.
 
-### 8. Data Requirements
-Identify:
-- entities read,
-- entities written,
-- fields displayed,
-- sensitive fields,
-- retention implications.
+### 8. Data Requirements (Yêu cầu dữ liệu)
+Xác định:
+- entity được đọc,
+- entity được ghi,
+- các field được hiển thị,
+- các field nhạy cảm,
+- ảnh hưởng đến retention (thời gian lưu trữ).
 
-### 9. Permission Requirements
-Define who can:
-- view,
-- create,
-- update,
-- delete,
+### 9. Permission Requirements (Yêu cầu phân quyền)
+Xác định ai có thể:
+- xem (view),
+- tạo (create),
+- cập nhật (update),
+- xóa (delete),
 - export,
-- approve.
+- phê duyệt (approve).
 
-### 10. Edge Cases
-Examples:
-- empty data,
-- missing linked record,
-- duplicate action,
-- expired session,
-- user loses permission mid-flow,
-- network/API failure.
+### 10. Edge Cases (Trường hợp biên)
+Ví dụ:
+- dữ liệu rỗng,
+- bản ghi liên kết bị thiếu,
+- hành động bị trùng lặp,
+- session hết hạn,
+- người dùng bị mất quyền giữa chừng luồng xử lý,
+- lỗi network/API.
 
-### 11. Success Metric
-When relevant, define how success is measured.
+### 11. Success Metric (Chỉ số thành công)
+Khi phù hợp, xác định cách đo lường thành công.
 
-## Requirement Ambiguity Rule
-If implementation requires guessing a business rule that could materially change behavior, flag it as:
+## Requirement Ambiguity Rule (Quy tắc về sự mơ hồ trong yêu cầu)
+Nếu việc implementation đòi hỏi phải đoán một business rule có thể làm thay đổi đáng kể hành vi hệ thống, hãy gắn cờ nó là:
 
 REQUIREMENT GAP
 
@@ -94,11 +94,11 @@ Risk of guessing:
 Recommended default:
 ...
 
-For low-risk implementation details, use the safest architecture-compatible default and document it.
+Đối với các chi tiết implementation có rủi ro thấp, hãy dùng giá trị mặc định an toàn nhất tương thích với kiến trúc và ghi chú lại.
 
-## Change Rule
-If requirements change after implementation begins:
-- update the specification,
-- re-run impact analysis,
-- identify data/security/test impact,
-- do not silently alter behavior.
+## Quy tắc thay đổi
+Nếu yêu cầu thay đổi sau khi implementation đã bắt đầu:
+- cập nhật specification,
+- chạy lại impact analysis (phân tích tác động),
+- xác định tác động đến data/security/test,
+- không được âm thầm thay đổi hành vi hệ thống.

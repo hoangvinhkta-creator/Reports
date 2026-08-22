@@ -10,7 +10,7 @@ Task Mode:
 SPIKE
 
 Project Profile:
-AUDIT (read-only)
+AUDIT (chỉ đọc)
 
 Status:
 DONE
@@ -24,59 +24,65 @@ Branch:
 Baseline commit at session open:
 `0394267`
 
-## Result
+## Kết Quả
 
-Collected the discovery baseline for `hoangvinhkta-creator/Reports`, recorded
-12 findings with severity and evidence, and produced a 3-phase / 7-task
-remediation roadmap.
+Đã thu thập discovery baseline cho `hoangvinhkta-creator/Reports`, ghi nhận
+12 findings kèm mức độ nghiêm trọng và bằng chứng, và tạo ra một roadmap khắc
+phục gồm 3 phase / 7 task.
 
-The repository contains no application code. All 73 tracked files are the
-AI Engineering Constitution Template V3.2 FINAL COMPACT governance package, so
-the real audit surface was governance deployment integrity and governance
-package internal consistency (DEC-002).
+Repository không chứa mã ứng dụng nào. Toàn bộ 73 file được track là gói
+governance AI Engineering Constitution Template V3.2 FINAL COMPACT, nên phạm
+vi audit thực sự là tính toàn vẹn của việc triển khai governance và tính nhất
+quán nội bộ của gói governance (DEC-002).
 
-Headline results:
+Kết quả nổi bật:
 
-- The governance package is deployed **nested one directory below the
-  repository root**, so `CLAUDE.md` is not the root entry point. This is the
-  exact layout the package's own START_HERE guide marks "Không nên" (FIND-001,
-  HIGH).
-- **S000 was never executed.** All three `PROJECT/` files were placeholder
-  templates and `validate_project_state.py` FAILed (FIND-002, HIGH).
-- The shipped `governance/reference/COMPACT_STRUCTURE_VALIDATION.md` asserts "Broken canonical path
-  references: 0 — PASS" while three such references actually exist (FIND-005,
-  MEDIUM, with FIND-003/FIND-004/FIND-011 as the underlying defects).
-- No shipped validator can detect the FIND-001 class of defect, because every
-  validator resolves ROOT from its own file location. `validate_structure.py`
-  returns PASS on this mis-deployed repository (FIND-007, MEDIUM).
+- Gói governance được triển khai **lồng bên trong một thư mục con, thấp hơn
+  một cấp so với repository root**, khiến `CLAUDE.md` không phải là entry
+  point ở root. Đây chính xác là cấu trúc mà tài liệu START_HERE của gói tự
+  đánh dấu là "Không nên" (FIND-001, HIGH).
+- **S000 chưa từng được thực thi.** Cả ba file `PROJECT/` đều là template
+  placeholder và `validate_project_state.py` bị FAIL (FIND-002, HIGH).
+- Tài liệu `governance/reference/COMPACT_STRUCTURE_VALIDATION.md` đi kèm
+  trong gói khẳng định "Broken canonical path references: 0 — PASS" trong khi
+  thực tế tồn tại ba tham chiếu như vậy (FIND-005, MEDIUM, với
+  FIND-003/FIND-004/FIND-011 là các lỗi nền tảng gây ra điều này).
+- Không có validator nào đi kèm trong gói có thể phát hiện loại lỗi thuộc
+  nhóm FIND-001, vì mọi validator đều resolve ROOT dựa trên vị trí file của
+  chính nó. `validate_structure.py` trả về PASS trên repository bị triển khai
+  sai vị trí này (FIND-007, MEDIUM).
 
-No CRITICAL finding. No production data, no auth surface, no secrets, no
-deployed runtime in scope.
+Không có finding CRITICAL nào. Không có dữ liệu production, không có bề mặt
+auth, không có secret, không có runtime đang triển khai nằm trong phạm vi.
 
-Severity distribution: 0 CRITICAL / 2 HIGH / 5 MEDIUM / 4 LOW / 1 INFO.
+Phân bố mức độ nghiêm trọng: 0 CRITICAL / 2 HIGH / 5 MEDIUM / 4 LOW / 1 INFO.
 
-## Subtasks Completed
-- Session Open Protocol executed (blocked at step 2 by FIND-002; resolved via the DEC-001 bootstrap)
-- Repository inventory and application-code sweep
-- All five validators executed and results recorded
-- Repository-relative reference integrity scan across 67 `.md` files
-- Package manifest reconciliation (73 tracked / 73 on disk / 73 declared)
-- Discovery Baseline written from `governance/audit/DISCOVERY_BASELINE_TEMPLATE.md`
-- 12 findings written from `governance/audit/AUDIT_FINDINGS_TEMPLATE.md`
-- Severity assigned and mapped to priority
-- Remediation roadmap with dependency graph and preliminary gates
-- Project state initialized (profile, progress, decisions)
-- Phase-01 task definition files created in PLANNED state
+## Subtask Đã Hoàn Thành
+- Session Open Protocol đã được thực thi (bị chặn ở bước 2 do FIND-002; đã
+  giải quyết thông qua bootstrap DEC-001)
+- Kiểm kê repository và rà soát mã ứng dụng
+- Cả năm validator đã được chạy và ghi lại kết quả
+- Quét tính toàn vẹn tham chiếu tương đối trong repository trên 67 file `.md`
+- Đối chiếu package manifest (73 được track / 73 trên đĩa / 73 được khai báo)
+- Discovery Baseline được viết dựa trên
+  `governance/audit/DISCOVERY_BASELINE_TEMPLATE.md`
+- 12 findings được viết dựa trên `governance/audit/AUDIT_FINDINGS_TEMPLATE.md`
+- Mức độ nghiêm trọng được gán và ánh xạ sang priority
+- Roadmap khắc phục kèm dependency graph và các gate sơ bộ
+- Khởi tạo project state (profile, progress, decisions)
+- Tạo các file định nghĩa task Phase-01 ở trạng thái PLANNED
 
-## Subtasks Remaining
-- S002 — Roadmap Finalization (freeze Phase-01 gates, decide profile transition, mark REM-T01 READY)
-- All REM-T* implementation. Nothing was remediated in this session, per
-  `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 6 item 7.
+## Subtask Còn Lại
+- S002 — Roadmap Finalization (freeze các gate của Phase-01, quyết định việc
+  chuyển đổi profile, đánh dấu REM-T01 READY)
+- Toàn bộ việc implement REM-T*. Chưa có gì được khắc phục trong session này,
+  theo `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 6 mục 7.
 
-## Completion Gate Summary
+## Tóm Tắt Completion Gate
 
-Required:
-5 (S001-G1 … S001-G5 — SPIKE learning gate per `governance/core/TASK_MODE_STANDARD.md`)
+Yêu cầu:
+5 (S001-G1 … S001-G5 — SPIKE learning gate theo
+`governance/core/TASK_MODE_STANDARD.md`)
 
 PASS:
 5
@@ -95,32 +101,33 @@ NOT_TESTED:
 | Check ID | Status | Evidence Level | Evidence | Executed By | Timestamp |
 |---|---|---|---|---|---|
 | CHK-S001-01 | PASS | E1 | `validate_structure.py` → `GOVERNANCE STRUCTURE: PASS`, 21 paths, exit 0 | S001 agent | 2026-08-22T14:03Z |
-| CHK-S001-02 | FAIL | E1 | `validate_project_state.py` → `PROJECT STATE: FAIL`, 2 errors, exit 1 (baseline; now PASS after DEC-001 bootstrap) | S001 agent | 2026-08-22T14:03Z |
-| CHK-S001-03 | PASS | E1 | `validate_task_completion.py` → `TASK COMPLETION: PASS`, 0 DONE tasks | S001 agent | 2026-08-22T14:03Z |
-| CHK-S001-04 | PASS | E1 | `validate_evidence.py` → `EVIDENCE VALIDATION: PASS`, 0 records | S001 agent | 2026-08-22T14:03Z |
-| CHK-S001-05 | PASS | E1 | `validate_structure.py` invoked from the git root returned PASS despite `CLAUDE.md` being absent there — basis for FIND-007 | S001 agent | 2026-08-22T14:03Z |
-| CHK-S001-06 | FAIL | E1 | Reference resolution scan over 67 `.md` files → 3 unresolvable canonical references | S001 agent | 2026-08-22T14:04Z |
-| CHK-S001-07 | PASS | E1 | `git ls-files` 73 / `find` 73 / manifest declares 73 — consistent | S001 agent | 2026-08-22T14:05Z |
-| CHK-S001-08 | PASS | E1 | `ls -A` at repo root → only `.git` and the package directory — basis for FIND-001 | S001 agent | 2026-08-22T14:05Z |
-| CHK-S001-09 | PASS | E1 | Application-code sweep (`*.js`,`*.ts`,`*.json`,`*.html`,`*.yml`,`*.yaml`) → 0 matches | S001 agent | 2026-08-22T14:05Z |
-| CHK-S001-10 | PASS | E1 | `validate_project_state.py` re-run after the DEC-001 bootstrap → `PROJECT STATE: PASS`, exit 0 | S001 agent | 2026-08-22T14:12Z |
+| CHK-S001-02 | FAIL | E1 | `validate_project_state.py` → `PROJECT STATE: FAIL`, 2 errors, exit 1 (baseline; nay đã PASS sau bootstrap DEC-001) | S001 agent | 2026-08-22T14:03Z |
+| CHK-S001-03 | PASS | E1 | `validate_task_completion.py` → `TASK COMPLETION: PASS`, 0 task DONE | S001 agent | 2026-08-22T14:03Z |
+| CHK-S001-04 | PASS | E1 | `validate_evidence.py` → `EVIDENCE VALIDATION: PASS`, 0 bản ghi | S001 agent | 2026-08-22T14:03Z |
+| CHK-S001-05 | PASS | E1 | `validate_structure.py` khi chạy từ git root vẫn trả về PASS dù `CLAUDE.md` không tồn tại ở đó — cơ sở cho FIND-007 | S001 agent | 2026-08-22T14:03Z |
+| CHK-S001-06 | FAIL | E1 | Quét resolve tham chiếu trên 67 file `.md` → 3 tham chiếu canonical không resolve được | S001 agent | 2026-08-22T14:04Z |
+| CHK-S001-07 | PASS | E1 | `git ls-files` 73 / `find` 73 / manifest khai báo 73 — nhất quán | S001 agent | 2026-08-22T14:05Z |
+| CHK-S001-08 | PASS | E1 | `ls -A` tại repo root → chỉ có `.git` và thư mục gói — cơ sở cho FIND-001 | S001 agent | 2026-08-22T14:05Z |
+| CHK-S001-09 | PASS | E1 | Rà soát mã ứng dụng (`*.js`,`*.ts`,`*.json`,`*.html`,`*.yml`,`*.yaml`) → 0 kết quả khớp | S001 agent | 2026-08-22T14:05Z |
+| CHK-S001-10 | PASS | E1 | `validate_project_state.py` chạy lại sau bootstrap DEC-001 → `PROJECT STATE: PASS`, exit 0 | S001 agent | 2026-08-22T14:12Z |
 
-Rule observed: CHK-S001-02 and CHK-S001-06 are recorded as FAIL because they
-failed. They are the evidence behind FIND-002 and FIND-003/004/011, not
-defects in this session's work.
+Quy tắc được tuân thủ: CHK-S001-02 và CHK-S001-06 được ghi nhận là FAIL vì
+chúng thực sự thất bại. Đây là bằng chứng đằng sau FIND-002 và
+FIND-003/004/011, không phải lỗi trong công việc của session này.
 
 E2 status:
-NOT_OBTAINED. No CI, no staging, no independent reviewer session exists. Per
-`governance/core/EVIDENCE_STANDARD.md` this limitation is recorded rather than
-worked around. Findings whose remediation touches the agent read path
-(FIND-001, FIND-003, FIND-005, FIND-007) should obtain E2 before their tasks
-are marked DONE — REM-T02's CHECK-T02-05 already requires it.
+NOT_OBTAINED. Không có CI, không có staging, không có session reviewer độc
+lập nào tồn tại. Theo `governance/core/EVIDENCE_STANDARD.md`, hạn chế này
+được ghi nhận thay vì tìm cách lách qua. Các finding mà việc khắc phục chạm
+vào đường đọc của agent (FIND-001, FIND-003, FIND-005, FIND-007) nên đạt được
+E2 trước khi task của chúng được đánh dấu DONE — CHECK-T02-05 của REM-T02 đã
+yêu cầu điều này.
 
-## Files Changed
+## File Đã Thay Đổi
 
-All paths relative to `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`.
+Tất cả đường dẫn tương đối so với `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`.
 
-Created:
+Đã tạo:
 - `docs/audit/S001_DISCOVERY_BASELINE.md`
 - `docs/audit/S001_AUDIT_FINDINGS.md`
 - `docs/audit/REMEDIATION_ROADMAP.md`
@@ -129,71 +136,82 @@ Created:
 - `docs/tasks/TASK-REM-T03-validator-hardening.md`
 - `docs/sessions/S001-discovery.md`
 
-Modified:
-- `PROJECT/PROJECT_PROFILE.md` (was an uninitialized template)
-- `PROJECT/PROJECT_PROGRESS.md` (was an uninitialized template)
-- `PROJECT/PROJECT_DECISIONS.md` (was an uninitialized template)
+Đã sửa:
+- `PROJECT/PROJECT_PROFILE.md` (trước đó là template chưa khởi tạo)
+- `PROJECT/PROJECT_PROGRESS.md` (trước đó là template chưa khởi tạo)
+- `PROJECT/PROJECT_DECISIONS.md` (trước đó là template chưa khởi tạo)
 
-Deleted:
-- None
+Đã xóa:
+- Không có
 
-**No file under `governance/` was modified.** AUDIT read-only was respected.
+**Không có file nào dưới `governance/` bị sửa đổi.** Nguyên tắc chỉ đọc của
+AUDIT đã được tuân thủ.
 
-## Key Decisions
-- DEC-001 — S000 bootstrap performed inside S001 so Session Open Protocol could complete
-- DEC-002 — Audit scoped to governance deployment + package integrity; baseline sections 1–8 marked NOT_APPLICABLE_AT_BASELINE
-- DEC-003 — Audit artifacts stored under a new `docs/audit/` directory
-- DEC-004 — S001 artifacts written inside the nested package directory, not at the git root, because all validators resolve ROOT from their own file location
+## Quyết Định Chính
+- DEC-001 — Bootstrap S000 được thực hiện bên trong S001 để Session Open
+  Protocol có thể hoàn tất
+- DEC-002 — Phạm vi audit giới hạn ở việc triển khai governance + tính toàn
+  vẹn nội bộ của gói; các mục 1–8 của baseline được đánh dấu
+  NOT_APPLICABLE_AT_BASELINE
+- DEC-003 — Các artifact của audit được lưu trong thư mục `docs/audit/` mới
+- DEC-004 — Các artifact của S001 được ghi vào bên trong thư mục gói lồng
+  nhau, không phải tại git root, vì mọi validator đều resolve ROOT dựa trên
+  vị trí file của chính nó
 
-## Risks / Blockers
+## Rủi Ro / Blocker
 
-Blockers:
-- BLK-001 — No task is READY. S002 has not run, so no Ready Gate has been
-  evaluated and no Completion Gate is frozen.
-- BLK-002 — Profile is AUDIT (read-only). No remediation may be implemented
-  until the transition is explicitly confirmed.
+Blocker:
+- BLK-001 — Không có task nào ở trạng thái READY. S002 chưa chạy, nên chưa có
+  Ready Gate nào được đánh giá và chưa có Completion Gate nào được freeze.
+- BLK-002 — Profile hiện là AUDIT (chỉ đọc). Không được implement bất kỳ
+  remediation nào cho đến khi việc chuyển đổi được xác nhận rõ ràng.
 
-Risks:
-- RSK-001 — The governance system is both mis-deployed and unable to detect
-  that it is mis-deployed. Pair REM-T02 with REM-T03.
-- RSK-002 — Until REM-T05 lands, do not treat anything under
-  `governance/reference/` as evidence without re-deriving it.
-- RSK-003 — REM-T02 has Blast Radius 5/5. Path-only move, `git diff -M` proof,
-  E2 review before DONE.
-- RSK-004 — No E2 evidence path currently exists.
+Rủi ro:
+- RSK-001 — Hệ thống governance vừa bị triển khai sai vị trí vừa không thể
+  phát hiện điều đó. Ghép REM-T02 với REM-T03.
+- RSK-002 — Cho đến khi REM-T05 hoàn tất, không được coi bất kỳ nội dung nào
+  dưới `governance/reference/` là bằng chứng mà không tái xác minh lại.
+- RSK-003 — REM-T02 có Blast Radius 5/5. Chỉ di chuyển đường dẫn, cần bằng
+  chứng `git diff -M`, review E2 trước khi DONE.
+- RSK-004 — Hiện chưa có đường bằng chứng E2 nào tồn tại.
 
 ## Regression Items
-- None. No implementation occurred, so nothing can have regressed.
+- Không có. Chưa có implementation nào xảy ra, nên không có gì có thể bị
+  regress.
 
-## Do Not Change Yet
-- Any file under `governance/` — the profile is AUDIT and every repair is
-  scheduled into a REM-T* task with its own gate.
-- `governance/reference/history/**` — frozen archive. FIND-011 is fixed by
-  scoping the validator, not by rewriting history (see REM-T03.4).
-- The S001 audit artifacts under `docs/audit/` — they are the audit record.
-  Later sessions update finding **Status** in `PROJECT/PROJECT_PROGRESS.md` and
-  the roadmap's traceability table, not the finding text.
+## Chưa Nên Thay Đổi
+- Bất kỳ file nào dưới `governance/` — profile hiện là AUDIT và mọi sửa chữa
+  đều được lên lịch vào một task REM-T* với gate riêng của nó.
+- `governance/reference/history/**` — kho lưu trữ đã đóng băng. FIND-011
+  được khắc phục bằng cách giới hạn phạm vi validator, không phải bằng cách
+  viết lại lịch sử (xem REM-T03.4).
+- Các artifact audit của S001 dưới `docs/audit/` — đây là bản ghi audit. Các
+  session sau chỉ cập nhật **Status** của finding trong
+  `PROJECT/PROJECT_PROGRESS.md` và bảng traceability của roadmap, không sửa
+  nội dung finding.
 
-## Next Recommended Session
+## Session Tiếp Theo Được Đề Xuất
 
 S002 — Roadmap Finalization
 
-Purpose:
-1. Review the S001 baseline, findings and roadmap.
-2. Decide the AUDIT → PRODUCT or AUDIT → SOLO_LITE transition (resolves BLK-002, unblocks REM-T07).
-3. Confirm Task Mode, dependencies and Scope Lock for each REM-T* task.
-4. Freeze Completion Gates for **Phase-01 only**; leave Phase-02/03 unfrozen.
-5. Attach evidence levels, including the E2 requirement on REM-T02.
-6. Assign primary and escalation tiers.
-7. Mark REM-T01 READY only if its Ready Gate passes (resolves BLK-001).
+Mục đích:
+1. Xem lại baseline, findings và roadmap của S001.
+2. Quyết định việc chuyển đổi AUDIT → PRODUCT hoặc AUDIT → SOLO_LITE (giải
+   quyết BLK-002, gỡ block cho REM-T07).
+3. Xác nhận Task Mode, dependency và Scope Lock cho từng task REM-T*.
+4. Freeze Completion Gate cho **chỉ Phase-01**; để Phase-02/03 chưa freeze.
+5. Gắn evidence level, bao gồm yêu cầu E2 trên REM-T02.
+6. Gán primary tier và escalation tier.
+7. Chỉ đánh dấu REM-T01 READY nếu Ready Gate của nó PASS (giải quyết
+   BLK-001).
 
-Do NOT implement any remediation in S002.
+KHÔNG được implement bất kỳ remediation nào trong S002.
 
-## Files Next Agent Should Read
+## File Agent Tiếp Theo Nên Đọc
 1. `CLAUDE.md`
 2. `PROJECT/PROJECT_PROFILE.md`
 3. `PROJECT/PROJECT_PROGRESS.md`
-4. `docs/sessions/S001-discovery.md`  ← this file
+4. `docs/sessions/S001-discovery.md`  ← file này
 5. `docs/audit/REMEDIATION_ROADMAP.md`
 6. `docs/audit/S001_AUDIT_FINDINGS.md`
 7. `docs/audit/S001_DISCOVERY_BASELINE.md`
@@ -201,7 +219,7 @@ Do NOT implement any remediation in S002.
 9. `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
 10. `governance/core/PROJECT_PROFILE_STANDARD.md`
 
-## Prompt To Open The Next Session
+## Prompt Để Mở Session Tiếp Theo
 
 ```text
 Đây là S002 — Roadmap Finalization. Tiếp tục từ repository state, không dựa

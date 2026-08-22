@@ -1,48 +1,48 @@
-# COMPACT STRUCTURE VALIDATION
+# XÁC THỰC CẤU TRÚC COMPACT (COMPACT STRUCTURE VALIDATION)
 
-## Root Design
+## Thiết kế Root
 
-Governance-related root entries:
+Các mục ở root liên quan đến governance:
 - `CLAUDE.md`
 - `PROJECT/`
 - `docs/`
 - `governance/`
 
-Root-level governance standards:
+Số standard governance ở cấp root:
 0
 
-Only `CLAUDE.md` remains as the root governance entry point.
+Chỉ còn `CLAUDE.md` là điểm vào (entry point) governance ở root.
 
-## Read-before-work Safety
+## An toàn "đọc trước khi làm việc"
 
-The compact structure preserves the mandatory reading behavior.
+Cấu trúc compact vẫn bảo toàn hành vi đọc bắt buộc.
 
 ### S000
-`CLAUDE.md` routes the agent to:
+`CLAUDE.md` điều hướng agent đến:
 1. `governance/core/PROJECT_PROFILE_STANDARD.md`
 2. `governance/core/RULE_PRECEDENCE.md`
 3. `governance/core/TASK_MODE_STANDARD.md`
 4. `governance/core/00_SESSION_ORCHESTRATION.md`
 
-### Normal Major Task Session
-The agent reads:
+### Phiên làm việc Major Task thông thường
+Agent đọc:
 1. `PROJECT/PROJECT_PROFILE.md`
 2. `PROJECT/PROJECT_PROGRESS.md`
-3. current task under `docs/tasks/`
-4. only applicable governance files
-5. Ready Gate before coding
+3. task hiện tại dưới `docs/tasks/`
+4. chỉ các file governance áp dụng được
+5. Ready Gate trước khi code
 
-### Progress-only Question
-The agent reads:
+### Câu hỏi chỉ về tiến độ (Progress-only)
+Agent đọc:
 `PROJECT/PROJECT_PROGRESS.md`
-first.
+trước tiên.
 
 ### Audit
-The selected AUDIT profile explicitly routes to the required core/product/audit rules.
+Profile AUDIT được chọn sẽ điều hướng rõ ràng đến các rule core/product/audit bắt buộc.
 
-Therefore moving static rules under `governance/` does not weaken the read-before-work requirements.
+Do đó, việc di chuyển các rule tĩnh vào dưới `governance/` không làm suy yếu các yêu cầu đọc-trước-khi-làm-việc.
 
-## Validator Results
+## Kết quả Validator
 
 ### Structure
 ```text
@@ -51,7 +51,7 @@ Checked 21 required paths.
 ```
 
 ### Project State
-Expected to fail before S000 because no real profile is selected yet.
+Kỳ vọng FAIL trước khi chạy S000 vì chưa có profile thực sự nào được chọn.
 ```text
 PROJECT STATE: FAIL
 - PROJECT/PROJECT_PROFILE.md must contain a valid Selected Profile: AUDIT, PRODUCT, SOLO_LITE, TEAM_PRODUCTION
@@ -70,8 +70,8 @@ EVIDENCE VALIDATION: PASS
 Checked 0 REQUIRED PASS evidence record(s).
 ```
 
-## Repository-relative Reference Integrity
+## Tính toàn vẹn tham chiếu tương đối trong repository
 
-Broken canonical path references: 0
+Số tham chiếu canonical path bị hỏng: 0
 
-PASS — no broken canonical repository-relative `.md`/`.py`/`.svg` references detected.
+PASS — không phát hiện tham chiếu canonical repository-relative `.md`/`.py`/`.svg` nào bị hỏng.

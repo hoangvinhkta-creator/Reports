@@ -1,48 +1,48 @@
-# 21 — Accessibility & UI Quality Rules
+# 21 — Quy Tắc Accessibility & Chất Lượng UI
 
-## Objective
-Ensure interfaces remain usable, understandable, consistent, and accessible.
+## Mục Tiêu
+Đảm bảo giao diện luôn dễ sử dụng, dễ hiểu, nhất quán và có khả năng tiếp cận (accessible).
 
-## Rules
+## Quy Tắc
 
-### 1. Semantic UI
-Use appropriate semantic elements and controls.
+### 1. UI ngữ nghĩa (Semantic)
+Sử dụng các element và control ngữ nghĩa phù hợp.
 
-### 2. Keyboard usability
-Core workflows should not require a mouse where standard keyboard interaction is expected.
+### 2. Khả năng thao tác bằng bàn phím
+Các luồng công việc cốt lõi không nên yêu cầu chuột ở nơi tương tác bàn phím tiêu chuẩn được kỳ vọng.
 
-### 3. Labels
-Inputs and controls need understandable labels.
+### 3. Nhãn (Labels)
+Input và control cần có nhãn dễ hiểu.
 
 ### 4. Focus
-Dialogs, menus, and route changes should preserve sensible focus behavior.
+Dialog, menu, và thay đổi route nên duy trì hành vi focus hợp lý.
 
-### 5. Error communication
-Do not rely only on color to communicate errors or state.
+### 5. Truyền đạt lỗi
+Không chỉ dựa vào màu sắc để truyền đạt lỗi hoặc trạng thái.
 
-### 6. Loading / Empty / Error States
-Major data views should define:
+### 6. Trạng Thái Loading / Empty / Error
+Các view dữ liệu chính cần định nghĩa:
 - loading,
 - empty,
 - error,
 - success.
 
-### 7. Destructive actions
-Clearly distinguish destructive operations.
-Use confirmation when impact is significant.
+### 7. Hành động phá hủy (Destructive actions)
+Phân biệt rõ ràng các thao tác mang tính phá hủy.
+Sử dụng xác nhận (confirmation) khi tác động là đáng kể.
 
-### 8. Consistency
-Reuse design system/components instead of creating visually different controls for the same function.
+### 8. Tính nhất quán
+Tái sử dụng design system/component thay vì tạo ra các control có hình thức khác nhau cho cùng một chức năng.
 
-### 9. Responsive behavior
-Core workflows should remain usable at supported viewport sizes.
+### 9. Hành vi responsive
+Các luồng công việc cốt lõi cần duy trì khả năng sử dụng ở các kích thước viewport được hỗ trợ.
 
-### 10. Accessibility regression
-UI refactoring should not remove existing:
-- labels,
-- keyboard support,
-- focus indicators,
-- semantic roles.
+### 10. Thoái hóa accessibility (Regression)
+Việc refactor UI không được làm mất đi các yếu tố hiện có sau:
+- nhãn,
+- hỗ trợ bàn phím,
+- chỉ báo focus,
+- vai trò ngữ nghĩa (semantic roles).
 
-## AI Agent Rule
-Do not optimize visual appearance by removing necessary labels, states, warnings, or accessibility behavior.
+## Quy Tắc Cho AI Agent
+Không tối ưu hình thức hiển thị bằng cách loại bỏ các nhãn, trạng thái, cảnh báo, hoặc hành vi accessibility cần thiết.

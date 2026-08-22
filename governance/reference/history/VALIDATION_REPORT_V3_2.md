@@ -1,4 +1,4 @@
-# V3.2 VALIDATION REPORT
+# BÁO CÁO KIỂM TRA (VALIDATION REPORT) — V3.2
 
 ## validate_structure.py
 ```
@@ -6,13 +6,13 @@ GOVERNANCE STRUCTURE: PASS
 Checked 17 required paths.
 ```
 
-Result: PASS
+Kết quả: PASS
 
 ## validate_project_state.py
-This validator is expected to fail in the reusable template package until S000 initializes the project profile.
+Validator này được dự kiến là sẽ fail trong package template tái sử dụng cho đến khi S000 khởi tạo project profile.
 ```
 PROJECT STATE: FAIL
 - PROJECT/PROJECT_PROFILE.md is still uninitialized.
 ```
 
-Template-package result: EXPECTED_UNINITIALIZED
+Kết quả cho package template: EXPECTED_UNINITIALIZED

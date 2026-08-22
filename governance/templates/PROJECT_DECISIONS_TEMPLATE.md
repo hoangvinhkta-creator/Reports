@@ -1,6 +1,6 @@
-# PROJECT DECISIONS
+# QUYẾT ĐỊNH DỰ ÁN (PROJECT DECISIONS)
 
-Use this file for tactical project decisions that are important across sessions but are not significant enough for a full ADR.
+Dùng file này cho các quyết định chiến thuật của dự án — quan trọng xuyên suốt nhiều session nhưng chưa đủ tầm để cần một ADR đầy đủ.
 
 ## DEC-001
 

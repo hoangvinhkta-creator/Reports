@@ -1,7 +1,7 @@
 # PROJECT DECISIONS
 
-Use this file for tactical project decisions that are important across sessions
-but are not significant enough for a full ADR.
+Dùng file này cho các quyết định chiến thuật của dự án có ý nghĩa xuyên suốt
+các session nhưng chưa đủ trọng lượng để viết thành một ADR đầy đủ.
 
 ## DEC-001
 
@@ -11,31 +11,30 @@ Date:
 Task:
 S001 — Discovery & Baseline
 
-Decision:
-Perform the minimum S000 bootstrap (profile selection + project state
-initialization) inside S001, rather than refusing to open S001.
+Quyết Định:
+Thực hiện bootstrap S000 tối thiểu (chọn profile + khởi tạo project state)
+bên trong S001, thay vì từ chối mở S001.
 
-Reason:
-`governance/core/00_SESSION_ORCHESTRATION.md` Session Open Protocol requires
-reading `PROJECT/PROJECT_PROFILE.md` and `PROJECT/PROJECT_PROGRESS.md` and
-identifying a current task. Both files were unmodified templates
-(`Status: UNINITIALIZED`), so S001 could not legitimately open. The two options
-were to stop with nothing delivered, or to perform the bootstrap explicitly and
-record it. The bootstrap is governance-only work, which S000 permits
-("S000 must not modify production feature code unless explicitly required for
-bootstrap/governance"), and there is no production code in this repository at
-all.
+Lý Do:
+Session Open Protocol trong `governance/core/00_SESSION_ORCHESTRATION.md` yêu
+cầu đọc `PROJECT/PROJECT_PROFILE.md` và `PROJECT/PROJECT_PROGRESS.md` và xác
+định task hiện tại. Cả hai file đều là template chưa sửa
+(`Status: UNINITIALIZED`), nên S001 không thể mở hợp lệ. Hai lựa chọn là: dừng
+lại không giao được gì, hoặc thực hiện bootstrap một cách tường minh và ghi
+lại. Bootstrap là công việc thuần governance, được S000 cho phép
+("S000 không được sửa production feature code trừ khi thực sự cần thiết
+cho bootstrap/governance"), và repo này hoàn toàn không có production code nào.
 
-Impact:
-`PROJECT/PROJECT_PROFILE.md`, `PROJECT/PROJECT_PROGRESS.md` and this file were
-written during S001. This is **not** a substitute for a full S000: phase/task
-decomposition, dependency graphing, difficulty/risk estimation across the
-future project and preliminary gates for non-remediation work remain owed. That
-remaining work is tracked as REM-T01, and FIND-002 stays OPEN rather than being
-closed by this decision.
+Tác Động:
+`PROJECT/PROJECT_PROFILE.md`, `PROJECT/PROJECT_PROGRESS.md` và file này được
+viết trong S001. Đây **không phải** là thay thế cho một S000 đầy đủ: việc phân
+rã phase/task, vẽ dependency graph, ước lượng difficulty/risk cho toàn bộ dự
+án tương lai, và preliminary gate cho công việc ngoài remediation vẫn còn nợ.
+Phần việc còn lại đó được track dưới dạng REM-T01, và FIND-002 vẫn giữ OPEN
+thay vì được đóng bởi quyết định này.
 
-Can Revisit After:
-REM-T01 completes.
+Có Thể Xem Lại Sau:
+REM-T01 hoàn tất.
 
 ## DEC-002
 
@@ -45,26 +44,26 @@ Date:
 Task:
 S001 — Discovery & Baseline
 
-Decision:
-Scope the S001 audit to (a) governance deployment integrity and (b) governance
-package internal consistency. Record sections 1–8 of the Discovery Baseline
-template as NOT_APPLICABLE_AT_BASELINE rather than leaving them blank.
+Quyết Định:
+Giới hạn phạm vi audit S001 vào (a) tính toàn vẹn của việc deploy governance
+và (b) tính nhất quán nội bộ của gói governance. Ghi mục 1–8 của template
+Discovery Baseline là NOT_APPLICABLE_AT_BASELINE thay vì để trống.
 
-Reason:
-The repository contains no application code, no runtime, no data store, no
-authentication and no external integration — 73 tracked files, all of them the
-governance package (FIND-010, E1). The template's architecture/routing/data/
-auth/security/logic/API/environment sections have no subject. Leaving them
-blank would be indistinguishable from an incomplete audit; marking them
-explicitly preserves that distinction for future sessions.
+Lý Do:
+Repo không chứa code ứng dụng, không có runtime, không có data store, không có
+authentication và không có tích hợp bên ngoài — 73 file tracked, tất cả đều là
+gói governance (FIND-010, E1). Các mục architecture/routing/data/auth/
+security/logic/API/environment của template không có đối tượng để mô tả. Để
+trống sẽ không phân biệt được với một audit chưa hoàn tất; đánh dấu tường minh
+giữ lại sự phân biệt đó cho các session sau.
 
-Impact:
-The finding set is dominated by governance-integrity issues rather than product
-risk. Sections 1–8 must be re-baselined in a new discovery session when
-application code is first introduced.
+Tác Động:
+Tập finding bị chi phối bởi vấn đề toàn vẹn governance hơn là rủi ro sản phẩm.
+Mục 1–8 phải được re-baseline trong một session discovery mới khi có code ứng
+dụng đầu tiên.
 
-Can Revisit After:
-First application code lands in the repository.
+Có Thể Xem Lại Sau:
+Code ứng dụng đầu tiên xuất hiện trong repo.
 
 ## DEC-003
 
@@ -74,27 +73,27 @@ Date:
 Task:
 S001 — Discovery & Baseline
 
-Decision:
-Store audit artifacts under `docs/audit/` — a new directory — rather than in
-`docs/tasks/`, `docs/sessions/` or `docs/reviews/`.
+Quyết Định:
+Lưu artifact audit dưới `docs/audit/` — một thư mục mới — thay vì trong
+`docs/tasks/`, `docs/sessions/` hay `docs/reviews/`.
 
-Reason:
-`CLAUDE.md` assigns `docs/` to runtime tasks, sessions, reviews and ADRs, and
-the existing subdirectories each have a declared, different purpose per their
-READMEs. Discovery baselines and audit findings are a fourth runtime artifact
-class with no designated home. Putting them in `docs/reviews/` would collide
-with the E2 independent-review artifacts that
-`governance/core/EVIDENCE_STANDARD.md` reserves that directory for.
+Lý Do:
+`CLAUDE.md` gán `docs/` cho task, session, review và ADR vận hành, và các thư
+mục con hiện có mỗi cái đều có mục đích riêng theo README của chúng. Discovery
+baseline và audit finding là một lớp artifact vận hành thứ tư chưa có nơi định
+danh. Đặt chúng trong `docs/reviews/` sẽ xung đột với artifact E2
+independent-review mà `governance/core/EVIDENCE_STANDARD.md` dành riêng thư
+mục đó.
 
-Impact:
-New directory `docs/audit/` containing `docs/audit/S001_DISCOVERY_BASELINE.md`,
-`docs/audit/S001_AUDIT_FINDINGS.md` and `docs/audit/REMEDIATION_ROADMAP.md`. This is an additive
-convention, not a change to any governance rule; no file under `governance/`
-was modified. If a future version of the framework designates an official
-location for audit artifacts, migrate to it.
+Tác Động:
+Thư mục mới `docs/audit/` chứa `docs/audit/S001_DISCOVERY_BASELINE.md`,
+`docs/audit/S001_AUDIT_FINDINGS.md` và `docs/audit/REMEDIATION_ROADMAP.md`.
+Đây là một quy ước bổ sung, không phải thay đổi luật governance nào; không có
+file nào dưới `governance/` bị sửa. Nếu một phiên bản framework tương lai định
+danh vị trí chính thức cho artifact audit, di chuyển sang đó.
 
-Can Revisit After:
-Any framework upgrade that defines an official audit artifact path.
+Có Thể Xem Lại Sau:
+Bất kỳ nâng cấp framework nào định nghĩa đường dẫn artifact audit chính thức.
 
 ## DEC-004
 
@@ -104,26 +103,26 @@ Date:
 Task:
 S001 — Discovery & Baseline
 
-Decision:
-Write S001 artifacts inside the nested package directory
-(`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`) rather than at the
-git repository root, despite FIND-001 identifying that nesting as a defect.
+Quyết Định:
+Viết artifact S001 bên trong thư mục package bị lồng
+(`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`) thay vì ở
+repository root của git, mặc dù FIND-001 xác định việc lồng đó là một lỗi.
 
-Reason:
-All five validators resolve their ROOT from their own file location
-(`Path(__file__).resolve().parents[3]`), which is the package directory. Writing
-project state or audit artifacts at the git root would place them outside every
-validator's view and make `validate_project_state.py` unfixable. Correcting the
-layout is itself a finding with Blast Radius 5/5 (FIND-001 → REM-T02) and must
-not be done as a side effect of an audit session, which is read-only.
+Lý Do:
+Cả 5 validator đều resolve ROOT của chúng từ vị trí file của chính chúng
+(`Path(__file__).resolve().parents[3]`), tức là thư mục package. Viết project
+state hay artifact audit ở git root sẽ đặt chúng ngoài tầm nhìn của mọi
+validator và khiến `validate_project_state.py` không thể sửa được. Sửa layout
+tự nó là một finding với Blast Radius 5/5 (FIND-001 → REM-T02) và không được
+làm như một tác dụng phụ của một audit session, vốn là read-only.
 
-Impact:
-Artifacts move with everything else when REM-T02 promotes the package to the
-repository root. Their paths relative to `CLAUDE.md` do not change, so no
-reference in any artifact needs rewriting at that point.
+Tác Động:
+Artifact sẽ di chuyển cùng mọi thứ khác khi REM-T02 dời package lên repository
+root. Đường dẫn của chúng tương đối so với `CLAUDE.md` không đổi, nên không
+reference nào trong artifact cần viết lại tại thời điểm đó.
 
-Can Revisit After:
-REM-T02 completes.
+Có Thể Xem Lại Sau:
+REM-T02 hoàn tất.
 
 ## DEC-005
 
@@ -133,37 +132,36 @@ Date:
 Task:
 S002 — Roadmap Finalization
 
-Decision:
-Transition the project profile from AUDIT to PRODUCT.
+Quyết Định:
+Chuyển profile dự án từ AUDIT sang PRODUCT.
 
-Reason:
-Owner instruction, taken after S001 completed the audit and produced findings
-with severity, evidence and a remediation roadmap — the precondition
-`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7 sets for the
-transition.
+Lý Do:
+Chỉ đạo của chủ dự án, đưa ra sau khi S001 hoàn tất audit và tạo ra finding
+kèm severity, evidence và remediation roadmap — điều kiện tiên quyết mà
+`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7 đặt ra cho việc
+chuyển đổi.
 
-AUDIT is read-only by default and cannot execute remediation, so remaining
-there would block all remediation tasks indefinitely. Between the two
-realistic alternatives, SOLO_LITE would drop `PHASE_RELEASE_GATE_STANDARD` and
-the architecture/data rule groups, and the remediation set contains a
-repository-wide move with Blast Radius 5/5 (REM-T02) that warrants phase-level
-verification. TEAM_PRODUCTION would add CODEOWNERS, incident response and API
-versioning ceremony a single-owner documentation repository cannot meaningfully
-satisfy.
+AUDIT mặc định read-only và không thể thực thi remediation, nên ở lại đó sẽ
+chặn mọi task remediation vô thời hạn. Giữa hai lựa chọn thực tế, SOLO_LITE sẽ
+bỏ đi `PHASE_RELEASE_GATE_STANDARD` và nhóm luật architecture/data, trong khi
+tập remediation có một thao tác di chuyển toàn repo với Blast Radius 5/5
+(REM-T02) cần verify ở mức phase. TEAM_PRODUCTION sẽ thêm nghi thức CODEOWNERS,
+incident response và API versioning mà một repo tài liệu một chủ sở hữu không
+thể thực sự đáp ứng.
 
-Impact:
-Eleven additional rule groups become mandatory. Most have no subject today and
-are recorded as DORMANT in the Profile Compliance Matrix in
-`PROJECT/PROJECT_PROFILE.md` — mandatory, but with nothing to govern yet.
-DORMANT is not a waiver. One genuine gap surfaced: GAP-01 (Backup / DR), where
-the GitHub remote is the only copy of the repository.
+Tác Động:
+Mười một nhóm luật bổ sung trở thành bắt buộc. Phần lớn chưa có đối tượng hôm
+nay và được ghi là DORMANT trong Ma Trận Tuân Thủ Profile ở
+`PROJECT/PROJECT_PROFILE.md` — bắt buộc, nhưng chưa có gì để quản. DORMANT
+không phải là miễn trừ. Một gap thật sự xuất hiện: GAP-01 (Backup / DR), nơi
+GitHub remote là bản sao duy nhất của repo.
 
-Production code changes are now permitted; the AUDIT read-only restriction is
-lifted. Scope Lock still applies per task.
+Giờ đã cho phép thay đổi production code; hạn chế read-only của AUDIT được gỡ
+bỏ. Scope Lock vẫn áp dụng cho từng task.
 
-Can Revisit After:
-Application code lands, at which point every DORMANT row must be re-checked and
-TEAM_PRODUCTION reconsidered if the team grows.
+Có Thể Xem Lại Sau:
+Khi có code ứng dụng, lúc đó phải kiểm tra lại mọi dòng DORMANT và cân nhắc lại
+TEAM_PRODUCTION nếu team lớn lên.
 
 ## DEC-006
 
@@ -173,25 +171,25 @@ Date:
 Task:
 S002 — Roadmap Finalization
 
-Decision:
-Map every remediation task to the Tier A–D vocabulary in
-`governance/core/AGENT_CAPABILITY_MATRIX.md`, and record Tier D as
-NOT_APPLICABLE for this project.
+Quyết Định:
+Ánh xạ mọi task remediation vào bộ từ vựng Tier A–D trong
+`governance/core/AGENT_CAPABILITY_MATRIX.md`, và ghi Tier D là NOT_APPLICABLE
+cho dự án này.
 
-Reason:
-S001 assigned tiers using invented labels ("standard", "senior") that do not
-exist in the capability matrix. The matrix exists precisely so planning is not
-hard-coded to ad-hoc names. `governance/core/AGENT_CAPABILITY_MATRIX.md` also requires Tier D
-to be defined per project rather than assumed.
+Lý Do:
+S001 gán tier bằng nhãn tự đặt ("standard", "senior") không tồn tại trong
+capability matrix. Ma trận này tồn tại chính xác để việc lập kế hoạch không bị
+hard-code vào tên gọi tùy tiện. `governance/core/AGENT_CAPABILITY_MATRIX.md`
+cũng yêu cầu Tier D phải được định nghĩa theo từng dự án chứ không mặc định.
 
-Impact:
-REM-T02 is Tier C (repository-wide move, Blast Radius 5/5). REM-T03, REM-T05
-and REM-T07 are Tier B. REM-T04 and REM-T06 are Tier A. Tier D is
-NOT_APPLICABLE — this project has no UI, visual design or content-presentation
-work. Re-define Tier D if an application with a user interface is added.
+Tác Động:
+REM-T02 là Tier C (di chuyển toàn repo, Blast Radius 5/5). REM-T03, REM-T05 và
+REM-T07 là Tier B. REM-T04 và REM-T06 là Tier A. Tier D là NOT_APPLICABLE — dự
+án này không có UI, thiết kế thị giác hay công việc trình bày nội dung. Định
+nghĩa lại Tier D nếu có ứng dụng với giao diện người dùng được thêm vào.
 
-Can Revisit After:
-Any change to the available agent roster, or the addition of UI work.
+Có Thể Xem Lại Sau:
+Bất kỳ thay đổi nào về đội ngũ agent khả dụng, hoặc khi thêm công việc UI.
 
 ## DEC-007
 
@@ -201,38 +199,38 @@ Date:
 Task:
 S002 — Roadmap Finalization
 
-Decision:
-Adopt CI voluntarily (REM-T07) even though
-`governance/core/PROJECT_PROFILE_STANDARD.md` does not make
-`governance/product/14_CI_CD_RELEASE_RULES.md` mandatory at PRODUCT, and
-sequence it first in PHASE-01. Separately, confirm REM-T04 stays MICRO.
+Quyết Định:
+Chủ động áp dụng CI (REM-T07) dù
+`governance/core/PROJECT_PROFILE_STANDARD.md` không bắt buộc
+`governance/product/14_CI_CD_RELEASE_RULES.md` ở PRODUCT, và xếp nó đầu tiên
+trong PHASE-01. Riêng biệt, xác nhận REM-T04 vẫn là MICRO.
 
-Reason:
-Two separate calls, recorded together because both were made while finalizing
+Lý Do:
+Hai quyết định riêng biệt, ghi chung vì cả hai được đưa ra cùng lúc finalize
 PHASE-01.
 
-CI first: `governance/core/EVIDENCE_STANDARD.md` lists CI results as an E2
-source. REM-T02's CHECK-T02-05 requires E2, and the project currently has no E2
-path at all (RSK-004). Building CI before the highest-blast-radius task means
-that task has independent evidence available when it needs it, rather than
-depending solely on a reviewer session that may not happen.
+CI trước: `governance/core/EVIDENCE_STANDARD.md` liệt kê kết quả CI là một
+nguồn E2. CHECK-T02-05 của REM-T02 yêu cầu E2, và dự án hiện chưa có nguồn E2
+nào cả (RSK-004). Xây CI trước task có blast-radius cao nhất nghĩa là task đó
+có evidence độc lập sẵn sàng khi cần, thay vì chỉ phụ thuộc vào một session
+reviewer có thể không xảy ra.
 
-REM-T04 stays MICRO: it satisfies every eligibility condition in
+REM-T04 vẫn là MICRO: nó thỏa mọi điều kiện đủ tiêu chuẩn trong
 `governance/core/TASK_MODE_STANDARD.md` — Difficulty 1, Risk 2, Blast Radius 2,
-no architecture, auth, schema, destructive-data or cross-module change. It
-touches `CLAUDE.md`, which is the agent read path, but the change repairs three
-broken path tokens rather than redesigning anything. The promotion rule stands:
-if the repair needs more than those three lines, stop and promote to MAJOR.
+không có thay đổi architecture, auth, schema, destructive-data hay
+cross-module. Nó đụng tới `CLAUDE.md`, là agent read path, nhưng thay đổi chỉ
+sửa ba path token bị gãy chứ không redesign gì. Quy tắc promotion vẫn giữ:
+nếu việc sửa cần nhiều hơn ba dòng đó, dừng lại và promote lên MAJOR.
 
-Impact:
-REM-T07 moves PHASE-03 → PHASE-01 position 1 (ROADMAP CHANGE CH-02). REM-T02
-gains a dependency on it. REM-T07 carries a Critical Design Constraint — the
-workflow must discover validators at runtime rather than hard-code paths —
-because a hard-coded path would break at REM-T02's move and force a content
-edit inside a Scope Lock that forbids one.
+Tác Động:
+REM-T07 dời từ PHASE-03 → vị trí 1 của PHASE-01 (ROADMAP CHANGE CH-02). REM-T02
+có thêm một dependency vào nó. REM-T07 mang một Critical Design Constraint —
+workflow phải tự phát hiện validator lúc chạy thay vì hard-code path — vì một
+path hard-code sẽ gãy khi REM-T02 di chuyển và buộc phải sửa nội dung bên
+trong một Scope Lock cấm điều đó.
 
-Can Revisit After:
-REM-T07 completes, or if CI proves impractical on the available runner.
+Có Thể Xem Lại Sau:
+REM-T07 hoàn tất, hoặc nếu CI tỏ ra không khả thi trên runner khả dụng.
 
 ## DEC-008
 
@@ -242,38 +240,38 @@ Date:
 Task:
 S002 — Roadmap Finalization
 
-Decision:
-Cancel REM-T01 as ABSORBED and mark FIND-002 RESOLVED.
+Quyết Định:
+Hủy REM-T01 với lý do ABSORBED và đánh dấu FIND-002 RESOLVED.
 
-Reason:
-REM-T01 existed to complete the S000 procedure FIND-002 showed had never run.
-Re-checking requirements with current project knowledge — step 1 of Roadmap
-Finalization in `governance/core/00_SESSION_ORCHESTRATION.md` — showed that all
-fifteen steps of the canonical S000 procedure have now been executed across S001
-and S002. The step-by-step mapping is recorded in
+Lý Do:
+REM-T01 tồn tại để hoàn tất quy trình S000 mà FIND-002 cho thấy chưa từng
+chạy. Kiểm tra lại yêu cầu với kiến thức dự án hiện tại — bước 1 của Roadmap
+Finalization trong `governance/core/00_SESSION_ORCHESTRATION.md` — cho thấy cả
+mười lăm bước của quy trình S000 canonical đã được thực hiện xuyên suốt S001
+và S002. Bảng đối chiếu từng bước được ghi trong
 `docs/tasks/TASK-REM-T01-project-state-init.md`.
 
-FIND-002's stated Verification Required is met:
-`validate_project_state.py` exits 0 (E1), and `PROJECT/PROJECT_PROGRESS.md`
-carries a non-placeholder roadmap with a named Current Task (E1). E2 was not
-obtained and is recorded as a limitation, not asserted.
+Verification Required của FIND-002 đã được thỏa:
+`validate_project_state.py` exit 0 (E1), và `PROJECT/PROJECT_PROGRESS.md`
+mang một roadmap không placeholder với Current Task được đặt tên (E1). E2 chưa
+đạt được và được ghi là một giới hạn, không phải khẳng định đã có.
 
-Keeping the task open would create work whose entire Completion Gate is already
-satisfiable at creation time.
+Giữ task này mở sẽ tạo ra công việc mà toàn bộ Completion Gate của nó đã thỏa
+mãn ngay từ lúc tạo.
 
-Impact:
-PHASE-01 loses its head node; REM-T07 becomes the entry point. The task file is
-retained with a full Cancellation Record rather than deleted, so a later session
-can see that S000 was executed rather than skipped. Issued formally as ROADMAP
-CHANGE CH-01 in `docs/audit/REMEDIATION_ROADMAP.md`.
+Tác Động:
+PHASE-01 mất node đầu của nó; REM-T07 trở thành điểm vào. File task được giữ
+lại kèm một Cancellation Record đầy đủ thay vì xóa, để một session sau có thể
+thấy rằng S000 đã được thực hiện chứ không phải bị bỏ qua. Phát hành chính
+thức dưới dạng ROADMAP CHANGE CH-01 trong `docs/audit/REMEDIATION_ROADMAP.md`.
 
-Reversal is documented in the task file: restore `Status: PLANNED`, set FIND-002
-back to OPEN in the progress file and the traceability table, and re-insert
-REM-T01 at the head of PHASE-01.
+Cách hoàn tác được ghi trong file task: khôi phục `Status: PLANNED`, đặt
+FIND-002 trở lại OPEN trong progress file và bảng traceability, và chèn lại
+REM-T01 vào đầu PHASE-01.
 
-Can Revisit After:
-Owner review of this session. This is the one S002 decision that changes the
-roadmap's shape rather than only its metadata.
+Có Thể Xem Lại Sau:
+Chủ dự án review lại session này. Đây là quyết định duy nhất của S002 làm đổi
+hình dạng roadmap chứ không chỉ metadata.
 
 ## DEC-009
 
@@ -281,44 +279,130 @@ Date:
 2026-08-22
 
 Task:
-REM-T02 (executed as S003)
+REM-T02 (thực hiện dưới dạng S003)
 
-Decision:
-Execute REM-T02 (root promotion) ahead of REM-T07 (CI enforcement), reversing
-the PHASE-01 execution order set by CH-02 / DEC-007. Obtain CHECK-T02-05 (E2)
-via the Solo Independent Review Procedure instead of CI, since CI does not yet
-exist.
+Quyết Định:
+Thực hiện REM-T02 (dời root) trước REM-T07 (CI enforcement), đảo ngược thứ tự
+thực thi PHASE-01 mà CH-02 / DEC-007 đã đặt ra. Lấy CHECK-T02-05 (E2) qua Solo
+Independent Review Procedure thay vì CI, vì CI chưa tồn tại.
 
-Reason:
-CH-02 sequenced REM-T07 first specifically so REM-T02 would have a CI-based E2
-source when it ran. That rationale assumed no external pressure to reorder.
-Owner reported, with a screenshot, that links into `docs/tasks/`,
-`docs/audit/`, etc. return 404 on GitHub, because those paths did not exist at
-the repository root — they existed one level down, inside
-`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`. This is FIND-001
-surfacing as an active usability defect, not a hypothetical one. The owner was
-asked directly (AskUserQuestion) whether to fix FIND-001 now or hold the frozen
-order, and chose to fix it now.
+Lý Do:
+CH-02 xếp REM-T07 trước cụ thể để REM-T02 có nguồn E2 dựa trên CI khi chạy. Lý
+do đó giả định không có áp lực bên ngoài để đổi thứ tự. Chủ dự án báo cáo, kèm
+ảnh chụp màn hình, rằng link vào `docs/tasks/`, `docs/audit/`, v.v. trả về 404
+trên GitHub, vì các đường dẫn đó không tồn tại ở repository root — chúng tồn
+tại một cấp bên dưới, trong
+`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`. Đây là FIND-001
+đang biểu hiện thành một lỗi usability đang hoạt động, không phải giả thuyết.
+Chủ dự án được hỏi trực tiếp (AskUserQuestion) có muốn sửa FIND-001 ngay hay
+giữ đúng thứ tự đã freeze, và chọn sửa ngay.
 
-`governance/core/EVIDENCE_STANDARD.md` names the Solo Independent Review
-Procedure as a valid E2 path when "a separate reviewer-agent session" performs
-independent verification. That path is used here in place of CI.
+`governance/core/EVIDENCE_STANDARD.md` nêu tên Solo Independent Review
+Procedure như một con đường E2 hợp lệ khi "a separate reviewer-agent session"
+thực hiện việc verify độc lập. Con đường đó được dùng ở đây thay cho CI.
 
-Impact:
-- REM-T02's frozen Completion Gate (`docs/tasks/TASK-REM-T02-root-promotion.md`)
-  is executed unchanged — same 5 REQUIRED checks, same evidence-level
-  requirements. Only the source of CHECK-T02-05's E2 evidence changes: an
-  independent reviewer session/agent instead of CI, consistent with what the
-  Ready Gate always allowed ("Solo Independent Review... is acceptable but
-  slower").
-- REM-T07 remains READY and unblocked; it becomes PHASE-01's next task instead
-  of its first. It still supplies the durable E2 source for all future
-  high-risk changes.
-- A backup ref was pushed before the move, per REM-T02 subtask 02.1:
-  branch `backup/pre-root-promotion-s003` at commit `5bf460a`.
-- The move itself is isolated in commit `699b105`: 84 files changed,
-  0 insertions, 0 deletions — renames only.
+Tác Động:
+- Frozen Completion Gate của REM-T02
+  (`docs/tasks/TASK-REM-T02-root-promotion.md`) được thực thi không đổi — vẫn
+  5 check REQUIRED, vẫn yêu cầu evidence level như cũ. Chỉ nguồn evidence của
+  CHECK-T02-05 thay đổi: một session/agent reviewer độc lập thay vì CI, nhất
+  quán với những gì Ready Gate luôn cho phép ("Solo Independent Review... is
+  acceptable but slower").
+- REM-T07 vẫn giữ READY và không bị chặn; nó trở thành task tiếp theo của
+  PHASE-01 thay vì task đầu tiên. Nó vẫn cung cấp nguồn E2 bền vững cho mọi
+  thay đổi rủi ro cao trong tương lai.
+- Một backup ref đã được push trước khi di chuyển, theo subtask 02.1 của
+  REM-T02: branch `backup/pre-root-promotion-s003` tại commit `5bf460a`.
+- Bản thân việc di chuyển được cô lập trong commit `699b105`: 84 file thay
+  đổi, 0 dòng thêm, 0 dòng xóa — chỉ rename.
 
-Can Revisit After:
-REM-T07 completes and CI becomes available as a durable E2 source for future
-high-blast-radius changes.
+Có Thể Xem Lại Sau:
+REM-T07 hoàn tất và CI trở thành nguồn E2 bền vững cho các thay đổi
+high-blast-radius trong tương lai.
+
+## DEC-010
+
+Date:
+2026-08-22
+
+Task:
+Điều phối trạng thái repo đa nhánh (không thuộc REM-T nào)
+
+Quyết Định:
+Đóng PR #1 (`claude/sweet-thompson-hqs98c` → nhánh mặc định) và merge nhánh
+làm việc `claude/s001-discovery-pka3fu` (đã bao gồm S001–S003) vào nhánh mặc
+định `claude/extract-upload-repo-gq2ws4`.
+
+Lý Do:
+Chủ dự án phát hiện repo có 2 luồng công việc Claude Code độc lập: (1) nhánh
+làm việc của session này, và (2) một PR mở riêng biệt từ một session khác
+(`claude/sweet-thompson-hqs98c`), tách ra từ commit gốc, dùng quy ước đặt tên
+task hoàn toàn khác (`TASK-000`, `GATE-00`...), đang conflict với nhánh mặc
+định. Đồng thời, nhánh mặc định của repo (`claude/extract-upload-repo-gq2ws4`)
+đã merge một phần công việc S001/S002 của session này (tới commit `5bf460a`)
+nhưng CHƯA có phần REM-T02 (dời root) — khiến bất kỳ ai bấm vào repo không
+chọn nhánh cụ thể vẫn thấy layout cũ và mọi link vào các file mới đều 404.
+
+Chủ dự án được hỏi trực tiếp qua AskUserQuestion và chọn: đóng PR #1 (đã bị
+thay thế bởi công việc đầy đủ hơn của session này), và merge ngay nhánh làm
+việc vào nhánh mặc định.
+
+Tác Động:
+- PR #1 đóng (không xóa nhánh nguồn `claude/sweet-thompson-hqs98c`).
+- Merge commit (`git merge --no-edit`) đưa toàn bộ S001–S003 vào nhánh mặc
+  định `claude/extract-upload-repo-gq2ws4`, không có conflict (merge sạch).
+  Nhánh mặc định giờ có layout root đúng.
+- Không đụng tới nội dung của `claude/sweet-thompson-hqs98c` — nhánh nguồn vẫn
+  còn nguyên, chỉ PR bị đóng.
+
+Có Thể Xem Lại Sau:
+Nếu chủ dự án muốn khôi phục hoặc xem xét nội dung của PR #1 sau này.
+
+## DEC-011
+
+Date:
+2026-08-22
+
+Task:
+Điều phối trạng thái repo đa nhánh (không thuộc REM-T nào)
+
+Quyết Định:
+Thêm quy tắc "Ngôn Ngữ Nội Dung" vào `CLAUDE.md`: toàn bộ prose trong file đẩy
+lên repo phải viết bằng tiếng Việt, với ngoại lệ rõ ràng cho các trường/giá
+trị bị 5 script validator đọc bằng regex, toàn bộ file `.py`, và tên
+file/đường dẫn. Sau đó dịch toàn bộ ~80 file `.md` hiện có trong repo sang
+tiếng Việt theo cùng quy tắc.
+
+Lý Do:
+Chỉ đạo trực tiếp của chủ dự án. Trước khi thực hiện, đã xác nhận với chủ dự
+án phạm vi dịch cụ thể qua AskUserQuestion — chọn phương án: dịch toàn bộ
+prose trong file `.md`, giữ nguyên file `.py` và tên file, vì nhiều task/audit
+đã trích dẫn nguyên văn output tiếng Anh của validator làm bằng chứng E1/E2 —
+dịch các output đó sẽ khiến bằng chứng cũ không còn khớp với hành vi thực tế
+của hệ thống, vi phạm nguyên tắc "không bịa bằng chứng" của
+`governance/core/EVIDENCE_STANDARD.md`.
+
+Việc dịch được phân cho nhiều agent chạy song song, mỗi agent phụ trách một
+cụm thư mục, dùng chung một bộ quy tắc dịch tường minh (giữ nguyên nhãn
+trường, giá trị enum, ID, signal phrase, đoạn Evidence trích dẫn nguyên văn
+lệnh đã thực thi; dịch phần văn xuôi giải thích).
+
+Tác Động:
+- `CLAUDE.md` có thêm section "Ngôn Ngữ Nội Dung" và được dịch toàn bộ.
+- Toàn bộ file `.md` còn lại trong repo (governance/core, governance/product,
+  governance/reference (kể cả history/), governance/audit, governance/templates,
+  docs/adr, docs/audit, docs/reviews, docs/sessions, docs/tasks, PROJECT/*)
+  được dịch sang tiếng Việt, giữ nguyên cấu trúc, nhãn trường, giá trị enum,
+  ID, và mọi khối Evidence trích dẫn output lệnh thật.
+- Tiện thể sửa 2 broken reference đã biết từ FIND-003/FIND-004
+  (`OPTIONAL_ENFORCEMENT_LAYER.md` trong `CLAUDE.md` và
+  `governance/core/PROJECT_PROFILE_STANDARD.md`, và `templates/` →
+  `governance/templates/` trong `CLAUDE.md`) trong lúc dịch các file đó — đây
+  là các sửa nhỏ đã biết cần làm (thuộc REM-T04/MICRO-001), không phải mở rộng
+  phạm vi ngoài dự kiến. MICRO-001 cần một lượt xác nhận scan
+  reference-integrity riêng trước khi đánh DONE chính thức.
+- File `.py` validator không bị đụng tới.
+
+Có Thể Xem Lại Sau:
+Khi có code ứng dụng đầu tiên (áp dụng quy tắc ngôn ngữ cho code mới nếu phù
+hợp với ngôn ngữ lập trình được chọn).

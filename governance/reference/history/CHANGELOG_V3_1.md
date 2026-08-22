@@ -1,26 +1,26 @@
 # CHANGELOG — V3.1
 
-## Fixed
-- Added actual `docs/tasks/` and `docs/sessions/` files so folders are included in ZIP.
-- Moved reusable templates into `/templates`.
-- Reduced runtime/template ambiguity.
-- Removed governance assumption that Fable is inherently a design-specialized model.
+## Đã sửa (Fixed)
+- Thêm các file thực tế cho `docs/tasks/` và `docs/sessions/` để các thư mục này được đưa vào ZIP.
+- Chuyển các template tái sử dụng vào `/templates`.
+- Giảm sự mơ hồ giữa runtime/template.
+- Bỏ giả định trong governance rằng Fable vốn dĩ là một model chuyên biệt cho thiết kế.
 
-## Added
-- Project Profiles: SOLO_LITE, PRODUCT, TEAM_PRODUCTION, AUDIT.
-- Rule precedence.
-- Evidence Levels E0/E1/E2.
-- Risk-based evidence requirements.
-- Micro Task mode.
-- Spike/Exploratory mode.
-- Discovery Baseline template.
-- Audit Findings template with severity.
-- Optional machine enforcement layer.
-- Runtime `PROJECT_PROFILE.md`.
-- Acceptance checklist for framework review.
+## Đã thêm (Added)
+- Project Profile: SOLO_LITE, PRODUCT, TEAM_PRODUCTION, AUDIT.
+- Rule precedence (thứ tự ưu tiên quy tắc).
+- Evidence Level E0/E1/E2.
+- Yêu cầu evidence theo risk.
+- Chế độ Micro Task.
+- Chế độ Spike/Exploratory.
+- Template Discovery Baseline.
+- Template Audit Findings có severity.
+- Lớp enforcement bằng máy tùy chọn (optional machine enforcement layer).
+- File runtime `PROJECT_PROFILE.md`.
+- Bảng kiểm chấp nhận (acceptance checklist) để rà soát framework.
 
-## Changed
-- S000 now selects project profile before detailed roadmap finalization.
-- Completion Gates are preliminary during early planning, finalized/frozen at READY.
-- Governance depth is proportional to project risk/size.
-- AUDIT profile defaults to read-only.
+## Đã thay đổi (Changed)
+- S000 giờ đây chọn profile dự án trước khi hoàn thiện roadmap chi tiết.
+- Completion Gate là sơ bộ trong giai đoạn lập kế hoạch ban đầu, được hoàn thiện/frozen (đóng băng) khi đạt READY.
+- Độ sâu governance tương xứng với risk/quy mô dự án.
+- Profile AUDIT mặc định là chỉ đọc (read-only).

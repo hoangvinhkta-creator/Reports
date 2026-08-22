@@ -1,92 +1,92 @@
 # 15 — Logging, Audit & Observability Rules
 
-## Objective
-Make production behavior diagnosable without leaking sensitive data.
+## Mục tiêu
+Giúp hành vi của production có thể chẩn đoán được mà không làm lộ dữ liệu nhạy cảm.
 
-## Three Different Concepts
+## Ba khái niệm khác nhau
 
-### Application Logs
-Technical events used to troubleshoot the system.
+### Application Logs (Log ứng dụng)
+Các sự kiện kỹ thuật dùng để xử lý sự cố (troubleshoot) hệ thống.
 
-### Metrics / Monitoring
-Aggregated signals such as:
-- error rate,
-- latency,
-- failed requests,
-- job failure count.
+### Metrics / Monitoring (Chỉ số / Giám sát)
+Các tín hiệu được tổng hợp như:
+- tỷ lệ lỗi (error rate),
+- độ trễ (latency),
+- các request thất bại,
+- số lượng job thất bại.
 
-### Audit Log
-Business/security record of who changed what.
+### Audit Log (Nhật ký kiểm toán)
+Bản ghi nghiệp vụ/bảo mật về việc ai đã thay đổi cái gì.
 
-Do not confuse these systems.
+Không được nhầm lẫn giữa các hệ thống này.
 
-## Logging Rules
+## Các quy tắc Logging
 
-### 1. Log meaningful failures
-Include enough context to diagnose the issue without exposing secrets.
+### 1. Log lại các lỗi có ý nghĩa
+Bao gồm đủ ngữ cảnh để chẩn đoán vấn đề mà không làm lộ secrets.
 
-### 2. Use structured context
-When possible include:
-- event name,
+### 2. Sử dụng structured context (ngữ cảnh có cấu trúc)
+Khi có thể, hãy bao gồm:
+- tên sự kiện (event name),
 - request/correlation ID,
 - module,
-- safe entity ID,
-- user ID where appropriate,
+- entity ID an toàn,
+- user ID khi phù hợp,
 - environment.
 
-### 3. Never log secrets
-Do not log:
-- passwords,
+### 3. Không bao giờ log secrets
+Không được log:
+- mật khẩu (passwords),
 - access tokens,
 - refresh tokens,
 - private keys,
 - secret API credentials.
 
-### 4. Minimize sensitive personal data
-Do not log full customer data unless absolutely necessary.
+### 4. Giảm thiểu dữ liệu cá nhân nhạy cảm
+Không log toàn bộ dữ liệu khách hàng trừ khi thực sự cần thiết.
 
-### 5. Error visibility
-Critical backend failures should not disappear silently.
+### 5. Khả năng thấy lỗi (Error visibility)
+Các lỗi backend nghiêm trọng không được biến mất một cách âm thầm.
 
-## Monitoring
-Consider alerts for:
-- elevated error rate,
-- auth failures,
-- database failures,
-- queue/job failures,
-- unusual latency,
-- storage capacity,
-- failed integrations.
+## Monitoring (Giám sát)
+Cân nhắc thiết lập cảnh báo (alert) cho:
+- tỷ lệ lỗi tăng cao,
+- lỗi xác thực (auth failures),
+- lỗi database,
+- lỗi queue/job,
+- độ trễ bất thường,
+- dung lượng lưu trữ (storage capacity),
+- các tích hợp bị lỗi.
 
 ## Audit Logging
 
-High-value actions should consider an immutable or protected audit record.
+Các hành động có giá trị cao nên cân nhắc có một bản ghi audit bất biến (immutable) hoặc được bảo vệ.
 
-Typical events:
-- login security events,
-- role/permission changes,
-- customer export,
-- record deletion,
-- quote/price override,
-- approval/rejection,
-- configuration changes.
+Các sự kiện điển hình:
+- các sự kiện bảo mật liên quan đến đăng nhập,
+- thay đổi role/permission,
+- export dữ liệu khách hàng,
+- xóa bản ghi,
+- ghi đè báo giá/giá (quote/price override),
+- phê duyệt/từ chối,
+- thay đổi cấu hình.
 
-Recommended fields:
+Các field được khuyến nghị:
 - auditEventId,
 - timestamp,
 - actorUserId,
 - action,
 - resourceType,
 - resourceId,
-- safe before/after values where appropriate,
+- giá trị before/after an toàn khi phù hợp,
 - source/request ID.
 
-## Audit Security
-Normal users must not be able to alter historical audit records.
+## Audit Security (Bảo mật Audit)
+Người dùng thông thường không được phép thay đổi các bản ghi audit lịch sử.
 
-## Privacy
-Audit logging does not justify storing unnecessary sensitive data.
+## Privacy (Quyền riêng tư)
+Việc ghi audit log không phải là lý do để lưu trữ dữ liệu nhạy cảm không cần thiết.
 
-## Diagnostic Correlation
-Where practical, propagate a request/correlation ID across:
-frontend → API → backend → external integration.
+## Diagnostic Correlation (Liên kết chẩn đoán)
+Ở nơi khả thi, lan truyền một request/correlation ID xuyên suốt:
+frontend → API → backend → tích hợp bên ngoài.

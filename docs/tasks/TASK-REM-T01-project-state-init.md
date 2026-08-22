@@ -1,4 +1,4 @@
-# TASK-REM-T01 — Initialize project state (complete S000)
+# TASK-REM-T01 — Khởi tạo trạng thái project (hoàn tất S000)
 
 ## Metadata
 Status:
@@ -8,10 +8,10 @@ Cancelled In:
 S002 — Roadmap Finalization (2026-08-22)
 
 Cancellation Reason:
-ABSORBED. The S000 procedure this task existed to complete was fully executed
-across S001 and S002. See the "Cancellation Record" section at the end of this
-file, ROADMAP CHANGE CH-01 in `PROJECT/PROJECT_DECISIONS.md` (DEC-008), and the
-S002 handoff.
+ABSORBED. Quy trình S000 mà task này tồn tại để hoàn tất đã được thực thi đầy
+đủ xuyên suốt S001 và S002. Xem phần "Cancellation Record" ở cuối file này,
+ROADMAP CHANGE CH-01 trong `PROJECT/PROJECT_DECISIONS.md` (DEC-008), và bản
+handoff của S002.
 
 Original Status:
 PLANNED
@@ -38,68 +38,69 @@ Blast Radius:
 2/5
 
 Project Profile:
-AUDIT (transitions during this task)
+AUDIT (chuyển đổi trong quá trình thực hiện task này)
 
 Closes Finding:
 FIND-002 (HIGH)
 
-## Objective
-Complete the S000 — PROJECT OPEN procedure that was never executed against this
-repository, so that Session Open Protocol works for every later session and a
-real profile governs the remediation work.
+## Mục Tiêu (Objective)
+Hoàn tất quy trình S000 — PROJECT OPEN chưa từng được thực thi đối với
+repository này, để Session Open Protocol hoạt động đúng cho mọi session sau
+này và để một profile thực sự chi phối công việc remediation.
 
-S001 performed a minimum bootstrap only (DEC-001). This task finishes the job.
+S001 chỉ thực hiện một bootstrap tối thiểu (DEC-001). Task này hoàn tất phần
+việc còn lại.
 
-## Scope
+## Phạm Vi (Scope)
 - `PROJECT/PROJECT_PROFILE.md`
 - `PROJECT/PROJECT_PROGRESS.md`
 - `PROJECT/PROJECT_DECISIONS.md`
 
-## Out of Scope
-- Any file under `governance/`
-- Any remediation of another finding
-- Any application code
+## Ngoài Phạm Vi (Out of Scope)
+- Bất kỳ file nào nằm trong `governance/`
+- Bất kỳ hoạt động remediation nào cho finding khác
+- Bất kỳ application code nào
 
-## Dependencies
-- S002 — Roadmap Finalization must mark this task READY.
+## Phụ Thuộc (Dependencies)
+- S002 — Roadmap Finalization phải đánh dấu task này là READY.
 
-## Blocks
-- REM-T02, REM-T03, REM-T04, REM-T05, REM-T06, REM-T07 (all gated on a real
-  profile and a real progress file).
-- REM-T07 specifically depends on subtask 01.1's profile decision.
+## Chặn (Blocks)
+- REM-T02, REM-T03, REM-T04, REM-T05, REM-T06, REM-T07 (tất cả đều bị gate bởi
+  yêu cầu phải có một profile thực sự và một progress file thực sự).
+- REM-T07 cụ thể phụ thuộc vào quyết định profile của subtask 01.1.
 
-## Parallel-Safe With
-- None. This is the first task.
+## An Toàn Để Chạy Song Song Với (Parallel-Safe With)
+- Không có. Đây là task đầu tiên.
 
-## Expected Touch Area
+## Phạm Vi Tác Động Dự Kiến (Expected Touch Area)
 
 Allowed:
 - `PROJECT/*.md`
 
-Do not touch without Scope Expansion:
+Không được đụng vào nếu chưa có Scope Expansion (Do not touch without Scope Expansion):
 - `governance/**`
-- `docs/audit/**` (S001 artifacts are the audit record; do not rewrite them)
+- `docs/audit/**` (các artifact của S001 là bản ghi audit; không được viết lại chúng)
 
-## Subtasks
-- [ ] 01.1 Confirm or revise the post-audit profile (AUDIT → PRODUCT or SOLO_LITE), with written justification
-- [ ] 01.2 Record mandatory / conditional / not-applicable rule groups for the chosen profile
-- [ ] 01.3 Complete phase and task decomposition in `PROJECT/PROJECT_PROGRESS.md`
-- [ ] 01.4 Record preliminary Completion Gates for Phase-01 tasks
-- [ ] 01.5 Re-run `validate_project_state.py`
-- [ ] 01.6 Record the profile-transition decision as DEC-005
+## Subtask (Subtasks)
+- [ ] 01.1 Xác nhận hoặc điều chỉnh profile hậu-audit (AUDIT → PRODUCT hoặc SOLO_LITE), kèm giải trình bằng văn bản
+- [ ] 01.2 Ghi nhận các nhóm rule mandatory / conditional / not-applicable cho profile đã chọn
+- [ ] 01.3 Hoàn tất việc phân rã phase và task trong `PROJECT/PROJECT_PROGRESS.md`
+- [ ] 01.4 Ghi nhận các Completion Gate sơ bộ (preliminary) cho các task của Phase-01
+- [ ] 01.5 Chạy lại `validate_project_state.py`
+- [ ] 01.6 Ghi nhận quyết định chuyển đổi profile dưới dạng DEC-005
 
 ## Ready Gate
-Use `governance/core/TASK_READY_GATE_STANDARD.md`.
+Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 
-- [ ] S002 has run and this task's Completion Gate is frozen
-- [ ] Profile transition question has been put to the owner
-- [ ] Scope Lock loaded
+- [ ] S002 đã chạy và Completion Gate của task này đã được frozen
+- [ ] Câu hỏi về chuyển đổi profile đã được đặt ra cho owner
+- [ ] Scope Lock đã được load
 
 ## Completion Gate
-Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
+Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `governance/core/EVIDENCE_STANDARD.md`.
 
 Status of this gate:
-PRELIMINARY — NOT FROZEN. Freeze in S002.
+PRELIMINARY — NOT FROZEN. Sẽ được freeze trong S002.
 
 ### Governance
 
@@ -122,8 +123,8 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-`python3 governance/scripts/governance/validate_project_state.py` exits 0.
+Yêu cầu:
+`python3 governance/scripts/governance/validate_project_state.py` thoát với exit code 0.
 
 #### CHECK-T01-02
 Priority:
@@ -144,8 +145,8 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-No `...` placeholder value remains in `PROJECT/PROJECT_PROFILE.md`.
+Yêu cầu:
+Không còn giá trị placeholder `...` nào trong `PROJECT/PROJECT_PROFILE.md`.
 
 #### CHECK-T01-03
 Priority:
@@ -166,9 +167,9 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-`PROJECT/PROJECT_PROGRESS.md` names a Current Task and a Next Recommended Task,
-and its roadmap contains no placeholder entries.
+Yêu cầu:
+`PROJECT/PROJECT_PROGRESS.md` nêu tên một Current Task và một Next Recommended
+Task, và roadmap của nó không còn mục nào là placeholder.
 
 #### CHECK-T01-04
 Priority:
@@ -189,25 +190,25 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-The profile transition decision is recorded in `PROJECT/PROJECT_DECISIONS.md`
-with a justification. E0 is acceptable here because this is a recorded human
-decision, not an executable check.
+Yêu cầu:
+Quyết định chuyển đổi profile được ghi nhận trong `PROJECT/PROJECT_DECISIONS.md`
+kèm giải trình. E0 được chấp nhận ở đây vì đây là một quyết định của con người
+đã được ghi lại, không phải một executable check.
 
-## Exit Criteria
+## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [ ] 100% REQUIRED checks PASS
-- [ ] No critical unresolved defect
-- [ ] Required evidence level satisfied
-- [ ] Required documentation updated
-- [ ] Project progress updated
-- [ ] Session handoff written
+- [ ] Không có lỗi nghiêm trọng (critical) chưa xử lý
+- [ ] Đạt mức evidence yêu cầu
+- [ ] Tài liệu bắt buộc đã được cập nhật
+- [ ] Tiến độ dự án đã được cập nhật
+- [ ] Đã viết Session Handoff
 
-## Escalation Triggers
-- The owner declines to choose a post-audit profile → task BLOCKED, do not guess.
-- Decomposition reveals application scope not covered by the S001 baseline →
-  ROADMAP CHANGE PROPOSAL before continuing.
+## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
+- Owner từ chối chọn một profile hậu-audit → task BLOCKED, không được đoán mò.
+- Việc phân rã phát hiện ra phạm vi application không nằm trong baseline của
+  S001 → cần ROADMAP CHANGE PROPOSAL trước khi tiếp tục.
 
-## Changed Files Registry
+## Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 
 Created:
 - ...
@@ -221,66 +222,68 @@ Deleted:
 Migration Impact:
 - None.
 
-## Notes
-FIND-002 remains OPEN until this task is DONE. The S001 bootstrap (DEC-001)
-mitigated it enough to run discovery; it did not close it.
+## Ghi Chú (Notes)
+FIND-002 vẫn ở trạng thái OPEN cho đến khi task này DONE. Bootstrap của S001
+(DEC-001) đã giảm nhẹ đủ để chạy discovery; nó không đóng finding này.
 
 
 ---
 
-# Cancellation Record — S002
+# Bản Ghi Hủy (Cancellation Record) — S002
 
-## Why this task no longer has work
+## Vì Sao Task Này Không Còn Việc Cần Làm (Why This Task No Longer Has Work)
 
-REM-T01 was created in S001 to finish the S000 — PROJECT OPEN procedure that
-FIND-002 showed had never run. Between S001's bootstrap (DEC-001) and S002's
-profile transition and roadmap finalization, every step of the canonical S000
-procedure in `governance/core/00_SESSION_ORCHESTRATION.md` has been executed:
+REM-T01 được tạo trong S001 để hoàn tất quy trình S000 — PROJECT OPEN mà
+FIND-002 cho thấy chưa từng được chạy. Giữa bootstrap của S001 (DEC-001) và
+việc chuyển đổi profile cùng hoàn thiện roadmap của S002, mọi bước của quy
+trình S000 chuẩn trong `governance/core/00_SESSION_ORCHESTRATION.md` đã được
+thực thi:
 
-| S000 Step | Executed In | Artifact |
+| Bước S000 | Thực Thi Tại | Artifact |
 |---|---|---|
-| 0. Select project profile | S001 (AUDIT), S002 (→ PRODUCT) | `PROJECT/PROJECT_PROFILE.md`, DEC-001, DEC-005 |
-| 1. Write/update PROJECT_PROFILE.md | S001, S002 | `PROJECT/PROJECT_PROFILE.md` |
-| 2. Understand objective and project type | S001 | Baseline §Executive Summary |
-| 3. Determine size and governance depth | S002 | Profile Compliance Matrix |
-| 4. Inspect repository context | S001 | Baseline §1–§9, CHK-S001-01…09 |
-| 5. Decide whether to begin in AUDIT mode | S001 | DEC-001 (yes), DEC-005 (exit) |
-| 6. Create major phases | S001 | PHASE-01/02/03 |
-| 7. Create Major/Micro/Spike tasks | S001, S002 | REM-T02…T07 |
-| 8. Create preliminary subtasks | S001 | Per task file |
-| 9. Create preliminary dependency graph | S001, revised S002 | `docs/audit/REMEDIATION_ROADMAP.md` |
-| 10. Estimate Difficulty / Risk / Blast Radius | S001 | Per task file |
-| 11. Recommend capability tier | S002 | Tier A–D mapping, DEC-006 |
-| 12. Create preliminary Completion Gates | S001 | Per task file |
-| 13. Initialize/update PROJECT_PROGRESS.md | S001, S002 | `PROJECT/PROJECT_PROGRESS.md` |
-| 14. Record initial tactical decisions | S001, S002 | DEC-001…DEC-008 |
+| 0. Chọn project profile | S001 (AUDIT), S002 (→ PRODUCT) | `PROJECT/PROJECT_PROFILE.md`, DEC-001, DEC-005 |
+| 1. Viết/cập nhật PROJECT_PROFILE.md | S001, S002 | `PROJECT/PROJECT_PROFILE.md` |
+| 2. Hiểu mục tiêu và loại project | S001 | Baseline §Executive Summary |
+| 3. Xác định quy mô và độ sâu governance | S002 | Profile Compliance Matrix |
+| 4. Khảo sát bối cảnh repository | S001 | Baseline §1–§9, CHK-S001-01…09 |
+| 5. Quyết định có bắt đầu ở chế độ AUDIT hay không | S001 | DEC-001 (có), DEC-005 (thoát) |
+| 6. Tạo các phase chính | S001 | PHASE-01/02/03 |
+| 7. Tạo các task Major/Micro/Spike | S001, S002 | REM-T02…T07 |
+| 8. Tạo các subtask sơ bộ | S001 | Theo từng task file |
+| 9. Tạo sơ đồ phụ thuộc sơ bộ | S001, sửa lại tại S002 | `docs/audit/REMEDIATION_ROADMAP.md` |
+| 10. Ước tính Difficulty / Risk / Blast Radius | S001 | Theo từng task file |
+| 11. Đề xuất capability tier | S002 | Ánh xạ Tier A–D, DEC-006 |
+| 12. Tạo các Completion Gate sơ bộ | S001 | Theo từng task file |
+| 13. Khởi tạo/cập nhật PROJECT_PROGRESS.md | S001, S002 | `PROJECT/PROJECT_PROGRESS.md` |
+| 14. Ghi nhận các quyết định chiến thuật ban đầu | S001, S002 | DEC-001…DEC-008 |
 
-No step remains. Keeping REM-T01 open would create a task whose entire
-Completion Gate is already satisfiable at creation time, which is busy-work
-rather than governance.
+Không còn bước nào tồn đọng. Việc giữ REM-T01 ở trạng thái mở sẽ tạo ra một
+task mà toàn bộ Completion Gate của nó đã có thể thỏa mãn ngay tại thời điểm
+tạo ra, đó là việc làm hình thức chứ không phải governance thực sự.
 
-## FIND-002 disposition
+## Xử Lý FIND-002 (FIND-002 Disposition)
 
-FIND-002 is RESOLVED, not waived. Its stated Verification Required is met:
+FIND-002 là RESOLVED, không phải waived. Verification Required đã nêu của nó
+đã được đáp ứng:
 
-| Requirement | Result | Evidence Level | Timestamp |
+| Yêu Cầu | Kết Quả | Evidence Level | Timestamp |
 |---|---|---|---|
 | `validate_project_state.py` → PASS | `PROJECT STATE: PASS`, exit 0 | E1 | 2026-08-22T14:2xZ (S002) |
-| `PROJECT/PROJECT_PROGRESS.md` has a non-placeholder roadmap and a Current Task | Confirmed by inspection | E1 | 2026-08-22 (S002) |
+| `PROJECT/PROJECT_PROGRESS.md` có roadmap không phải placeholder và có Current Task | Xác nhận qua kiểm tra thực tế | E1 | 2026-08-22 (S002) |
 
-E2 not obtained — no independent reviewer ran against this. Recorded as a
-limitation per `governance/core/EVIDENCE_STANDARD.md`, not asserted as
-satisfied.
+E2 chưa đạt được — chưa có reviewer độc lập nào chạy đối chiếu việc này. Được
+ghi nhận là một hạn chế theo `governance/core/EVIDENCE_STANDARD.md`, không
+được khẳng định là đã thỏa mãn.
 
-## What is NOT closed by this cancellation
+## Những Gì KHÔNG Được Đóng Bởi Việc Hủy Này (What Is NOT Closed By This Cancellation)
 
-- The DORMANT governance domains in the Profile Compliance Matrix. They are
-  mandatory under PRODUCT and simply have no subject yet.
-- GAP-01 (Backup / DR), which remains open against a mandatory domain.
+- Các domain governance ở trạng thái DORMANT trong Profile Compliance Matrix.
+  Chúng là bắt buộc dưới PRODUCT và đơn giản là chưa có đối tượng để áp dụng.
+- GAP-01 (Backup / DR), vẫn còn mở đối với một domain bắt buộc.
 
-## Reversal
+## Đảo Ngược (Reversal)
 
-This file is retained rather than deleted. If the owner disagrees, restore
-`Status: PLANNED`, set FIND-002 back to OPEN in `PROJECT/PROJECT_PROGRESS.md`
-and in the roadmap traceability table, and re-insert REM-T01 at the head of
-PHASE-01.
+File này được giữ lại thay vì xóa. Nếu owner không đồng ý, khôi phục
+`Status: PLANNED`, đặt lại FIND-002 về OPEN trong `PROJECT/PROJECT_PROGRESS.md`
+và trong bảng truy vết (traceability table) của roadmap, và chèn lại REM-T01
+vào đầu PHASE-01.

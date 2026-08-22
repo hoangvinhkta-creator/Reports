@@ -1,13 +1,13 @@
-# Session Handoffs
+# Bàn Giao Session (Session Handoffs)
 
-Store one handoff file per significant task session.
+Lưu một file handoff cho mỗi task session quan trọng.
 
-Recommended naming:
+Cách đặt tên đề xuất:
 
-- S000-project-open.md (example generated filename)
-- S001-discovery.md (example generated filename)
-- S002-routing.md (example generated filename)
+- S000-project-open.md (ví dụ tên file được tạo)
+- S001-discovery.md (ví dụ tên file được tạo)
+- S002-routing.md (ví dụ tên file được tạo)
 
-Create from:
+Tạo từ:
 
 `governance/templates/SESSION_HANDOFF_TEMPLATE.md`

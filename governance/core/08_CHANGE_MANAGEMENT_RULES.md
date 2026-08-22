@@ -1,42 +1,42 @@
 # 08 — Change Management Rules
 
 ## Objective
-Keep AI-generated modifications bounded, reviewable, reversible, and understandable.
+Giữ cho các thay đổi do AI tạo ra có giới hạn, có thể review, có thể hoàn tác (reversible), và dễ hiểu.
 
 ## Mandatory Impact Analysis
-Before code changes identify:
+Trước khi thay đổi code, xác định:
 
-- requested outcome,
-- files likely affected,
-- modules affected,
-- routes affected,
-- data/schema affected,
-- API affected,
-- permissions/security affected,
-- migration requirement,
-- regression risks,
-- tests required.
+- kết quả được yêu cầu,
+- các file có khả năng bị ảnh hưởng,
+- các module bị ảnh hưởng,
+- các route bị ảnh hưởng,
+- data/schema bị ảnh hưởng,
+- API bị ảnh hưởng,
+- permissions/security bị ảnh hưởng,
+- yêu cầu migration,
+- rủi ro regression,
+- các test cần thiết.
 
 ## Scope Rule
-Do not change unrelated code because it could be improved.
+Không thay đổi code không liên quan chỉ vì nó có thể được cải thiện.
 
-A request to add a feature is not permission for a codebase-wide cleanup.
+Một yêu cầu thêm tính năng không phải là sự cho phép để dọn dẹp toàn bộ codebase.
 
 ## Separate Concerns Across Changes
-Avoid combining:
+Tránh gộp chung:
 - architecture refactor,
 - database migration,
-- unrelated cleanup,
-- new feature,
-- UI redesign
+- dọn dẹp không liên quan,
+- tính năng mới,
+- thiết kế lại UI
 
-in a single uncontrolled change.
+trong một thay đổi không được kiểm soát.
 
-Prefer staged changes when risk is meaningful.
+Ưu tiên các thay đổi theo giai đoạn (staged changes) khi rủi ro đáng kể.
 
 ## Example
 
-Bad:
+Không tốt:
 
 Add customer export
 + rewrite customer module
@@ -44,23 +44,23 @@ Add customer export
 + replace router
 + install state library
 
-Good:
+Tốt:
 
-1. Add export contract/service.
-2. Add permission checks.
-3. Add UI entry point.
-4. Add tests.
-5. Separately propose larger refactor if needed.
+1. Thêm export contract/service.
+2. Thêm permission checks.
+3. Thêm UI entry point.
+4. Thêm tests.
+5. Đề xuất riêng một refactor lớn hơn nếu cần.
 
 ## Migration Rule
-Persisted data changes require:
+Các thay đổi dữ liệu đã lưu (persisted data) yêu cầu:
 - migration plan,
 - compatibility plan,
 - validation,
-- rollback consideration.
+- cân nhắc rollback.
 
 ## Backward Compatibility
-Consider current:
+Cân nhắc các yếu tố hiện tại:
 - URLs,
 - data,
 - APIs,
@@ -69,7 +69,7 @@ Consider current:
 - integrations.
 
 ## Change Report
-At completion report:
+Khi hoàn thành, báo cáo:
 
 Files changed:
 ...
@@ -96,4 +96,4 @@ Known risks / follow-up:
 ...
 
 ## Rollback Mindset
-Prefer changes that can be reverted without damaging unrelated parts of the system.
+Ưu tiên các thay đổi có thể hoàn tác mà không gây hại cho các phần không liên quan khác của hệ thống.

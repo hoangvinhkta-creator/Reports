@@ -1,4 +1,4 @@
-# ADR-000 — Decision Title
+# ADR-000 — Tiêu đề Quyết định
 
 ## Status
 Proposed
@@ -7,17 +7,17 @@ Proposed
 YYYY-MM-DD
 
 ## Context
-Describe the problem, constraints, current state, and why a durable decision is needed.
+Mô tả vấn đề, các ràng buộc, hiện trạng, và lý do vì sao cần một quyết định lâu dài.
 
 ## Decision
-State the chosen approach precisely.
+Nêu chính xác cách tiếp cận được chọn.
 
 ## Alternatives Considered
-1. Alternative A
-2. Alternative B
+1. Phương án A
+2. Phương án B
 
 ## Rationale
-Explain why the chosen option best fits the project.
+Giải thích vì sao phương án được chọn phù hợp nhất với dự án.
 
 ## Consequences
 

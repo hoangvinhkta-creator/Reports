@@ -1,4 +1,4 @@
-# Audit Findings — S001
+# Báo cáo Audit Findings — S001
 
 Project:
 `hoangvinhkta-creator/Reports`
@@ -10,7 +10,7 @@ Date:
 2026-08-22 (UTC)
 
 Profile:
-AUDIT (read-only)
+AUDIT (chỉ đọc)
 
 Baseline commit:
 `0394267`
@@ -21,11 +21,11 @@ Severity standard:
 Evidence standard:
 `governance/core/EVIDENCE_STANDARD.md`
 
-All paths below are relative to
-`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/` unless a path is
-explicitly described as repository-root relative.
+Tất cả các đường dẫn bên dưới đều tương đối so với
+`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`, trừ khi đường dẫn
+được mô tả rõ là tương đối theo repository root.
 
-## Summary Table
+## Bảng Tóm tắt (Summary Table)
 
 | ID | Severity | Category | Affected Area | Status |
 |---|---|---|---|---|
@@ -42,7 +42,7 @@ explicitly described as repository-root relative.
 | FIND-011 | LOW | Documentation | `governance/reference/history/CHANGELOG_V3_1.md` | OPEN |
 | FIND-012 | LOW | Documentation | `governance/scripts/governance/README.md` | OPEN |
 
-Counts — CRITICAL 0 / HIGH 2 / MEDIUM 5 / LOW 4 / INFO 1. Total 12.
+Số lượng — CRITICAL 0 / HIGH 2 / MEDIUM 5 / LOW 4 / INFO 1. Tổng 12.
 
 ---
 
@@ -58,23 +58,24 @@ Category:
 Architecture
 
 Affected Area:
-Repository deployment layout (repository root)
+Layout triển khai của repository (repository root)
 
 Current Behavior:
-The entire governance package is nested one directory below the repository
-root, inside `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`.
-The repository root contains only `.git` and that one directory. `CLAUDE.md`
-is therefore not at the repository root.
+Toàn bộ gói governance bị lồng sâu thêm một cấp thư mục dưới repository root,
+bên trong `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`.
+Repository root chỉ chứa `.git` và duy nhất thư mục đó. Do đó `CLAUDE.md`
+không nằm ở repository root.
 
 Expected Behavior:
-`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` (PHẦN 1) requires the
-four entries `CLAUDE.md`, `PROJECT/`, `docs/`, `governance/` to be merged into
-the repository root, and explicitly marks the nested-folder layout under a
-"Không nên" (should not do) heading, with the stated reason: "Framework phải
-nằm cùng cấp với code của project để agent coi nó là governance của chính repo."
+`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` (PHẦN 1) yêu cầu bốn
+mục `CLAUDE.md`, `PROJECT/`, `docs/`, `governance/` phải được merge vào
+repository root, và đánh dấu rõ ràng layout dạng thư mục lồng dưới một
+heading "Không nên" (should not do), với lý do được nêu: "Framework phải
+nằm cùng cấp với code của project để agent coi nó là governance của chính
+repo."
 
 Evidence:
-Repository root listing, executed 2026-08-22T14:05Z:
+Danh sách repository root, thực thi lúc 2026-08-22T14:05Z:
 
 ```text
 $ ls -A /home/user/Reports
@@ -82,8 +83,8 @@ $ ls -A /home/user/Reports
 AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT
 ```
 
-Source of the expected layout — `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md`,
-"### Không nên" block:
+Nguồn của layout kỳ vọng — `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md`,
+block "### Không nên":
 
 ```text
 CRM/
@@ -97,36 +98,39 @@ Evidence Level:
 E1
 
 Risk:
-An agent or human opening the repository does not land on `CLAUDE.md` and has
-no signal that governance exists. The mandatory read-before-work ordering
-defined in `governance/core/00_SESSION_ORCHESTRATION.md` is silently skipped
-rather than loudly failed. Every subsequent session inherits the omission.
-The defect is invisible to the shipped validators (see FIND-007).
+Một agent hoặc con người mở repository sẽ không đến được `CLAUDE.md` và
+không có tín hiệu nào cho biết governance tồn tại. Thứ tự read-before-work
+bắt buộc được định nghĩa trong `governance/core/00_SESSION_ORCHESTRATION.md`
+bị bỏ qua một cách âm thầm thay vì fail rõ ràng. Mọi phiên tiếp theo đều kế
+thừa sự thiếu sót này. Lỗi này vô hình đối với các validator được đi kèm
+(xem FIND-007).
 
 Likely Cause:
-The package was committed as an extracted archive directory rather than merged
-into the repository root.
+Gói này được commit dưới dạng một thư mục archive đã được giải nén thay vì
+được merge vào repository root.
 
 Recommended Fix:
-`git mv` all four top-level entries of the package to the repository root and
-remove the now-empty wrapper directory. Path-only move; no content edit, per
-the content-preservation rule in `governance/README.md`. Re-run all validators
-after the move to confirm ROOT resolution is unchanged.
+`git mv` cả bốn mục top-level của gói lên repository root và xóa thư mục
+wrapper nay đã rỗng. Chỉ move path; không chỉnh sửa nội dung, theo rule
+content-preservation trong `governance/README.md`. Chạy lại toàn bộ
+validator sau khi move để xác nhận việc resolve ROOT không thay đổi.
 
 Suggested Task:
 REM-T02
 
 Dependencies:
-Should land before REM-T04 so canonical path references are repaired once, not
-twice.
+Nên được thực hiện trước REM-T04 để các canonical path reference chỉ cần
+được sửa một lần, không phải hai lần.
 
 Status:
 OPEN
 
 Verification Required:
-- `ls -A` at repository root shows `CLAUDE.md`, `PROJECT/`, `docs/`, `governance/`.
-- `validate_structure.py` PASS after the move (E1).
-- `git log --follow` confirms history preserved for a sample moved file (E1).
+- `ls -A` tại repository root hiển thị `CLAUDE.md`, `PROJECT/`, `docs/`,
+  `governance/`.
+- `validate_structure.py` PASS sau khi move (E1).
+- `git log --follow` xác nhận history được bảo toàn cho một file mẫu đã
+  move (E1).
 
 ---
 
@@ -146,20 +150,21 @@ Affected Area:
 `PROJECT/PROJECT_DECISIONS.md`
 
 Current Behavior:
-At the S001 baseline all three project state files were unmodified templates.
-`PROJECT/PROJECT_PROFILE.md` carried `Status: UNINITIALIZED` and
-`Selected Profile: TO_BE_SELECTED_IN_S000`. `PROJECT/PROJECT_PROGRESS.md`
-contained only placeholder `...` values and an empty roadmap skeleton.
-S000 — PROJECT OPEN was never executed against this repository.
+Tại baseline S001, cả ba file project state đều là template chưa được
+chỉnh sửa. `PROJECT/PROJECT_PROFILE.md` mang giá trị `Status: UNINITIALIZED`
+và `Selected Profile: TO_BE_SELECTED_IN_S000`. `PROJECT/PROJECT_PROGRESS.md`
+chỉ chứa các giá trị placeholder `...` và một roadmap skeleton rỗng. S000 —
+PROJECT OPEN chưa từng được thực thi đối với repository này.
 
 Expected Behavior:
-`governance/core/00_SESSION_ORCHESTRATION.md` requires S000 to select a profile
-and initialize `PROJECT/PROJECT_PROFILE.md` and `PROJECT/PROJECT_PROGRESS.md`
-before any discovery or task session. `CLAUDE.md` requires every implementation
-session to read those files and determine the current task from them.
+`governance/core/00_SESSION_ORCHESTRATION.md` yêu cầu S000 phải chọn một
+profile và khởi tạo `PROJECT/PROJECT_PROFILE.md` cùng
+`PROJECT/PROJECT_PROGRESS.md` trước bất kỳ phiên discovery hay task nào.
+`CLAUDE.md` yêu cầu mọi phiên implementation phải đọc các file đó và xác
+định task hiện tại từ chúng.
 
 Evidence:
-`validate_project_state.py`, executed 2026-08-22T14:03Z, Python 3.11.15:
+`validate_project_state.py`, thực thi lúc 2026-08-22T14:03Z, Python 3.11.15:
 
 ```text
 PROJECT STATE: FAIL
@@ -172,36 +177,36 @@ Evidence Level:
 E1
 
 Risk:
-Session Open Protocol cannot complete. No profile means no defined governance
-depth, so no rule set is authoritative and no Ready Gate can be evaluated. Any
-session that proceeds does so on conversational memory, which
-`CLAUDE.md` ("Progress Questions") explicitly forbids as a basis for answering
-progress questions.
+Session Open Protocol không thể hoàn tất. Không có profile nghĩa là không
+có governance depth được định nghĩa, nên không có rule set nào có thẩm
+quyền và không thể evaluate Ready Gate nào. Bất kỳ phiên nào vẫn tiếp tục
+sẽ phải dựa vào conversational memory — điều mà `CLAUDE.md` (mục "Progress
+Questions") cấm rõ ràng khi dùng làm cơ sở trả lời các câu hỏi về tiến độ.
 
 Likely Cause:
-The package was committed without running S000.
+Gói này được commit mà không chạy S000.
 
 Recommended Fix:
-Execute S000 properly: select and justify a profile, populate the progress file
-with a real roadmap, and record the initial decisions. S001 performed the
-minimum bootstrap needed to run discovery at all (profile selection + state
-initialization, recorded as DEC-001); a full S000 pass should still confirm
-phase/task decomposition and preliminary gates for the post-audit profile.
+Thực thi S000 đúng cách: chọn và biện minh cho một profile, điền vào file
+progress một roadmap thật, và ghi nhận các decision ban đầu. S001 đã thực
+hiện bootstrap tối thiểu cần thiết để có thể chạy discovery (chọn profile +
+khởi tạo state, được ghi nhận là DEC-001); một lượt S000 đầy đủ vẫn nên xác
+nhận việc phân rã phase/task và các gate sơ bộ cho profile hậu-audit.
 
 Suggested Task:
 REM-T01
 
 Dependencies:
-None.
+Không có.
 
 Status:
-OPEN — partially mitigated in S001 by the DEC-001 bootstrap; the full S000
-decomposition remains outstanding.
+OPEN — được giảm nhẹ một phần trong S001 nhờ bootstrap DEC-001; việc phân
+rã S000 đầy đủ vẫn còn tồn đọng.
 
 Verification Required:
 - `validate_project_state.py` → `PROJECT STATE: PASS` (E1).
-- `PROJECT/PROJECT_PROGRESS.md` contains a non-placeholder roadmap and a
-  Current Task (E1, file inspection).
+- `PROJECT/PROJECT_PROGRESS.md` chứa một roadmap không còn là placeholder
+  và một Current Task (E1, file inspection).
 
 ---
 
@@ -217,24 +222,25 @@ Category:
 Documentation
 
 Affected Area:
-`CLAUDE.md` line 215; `governance/core/PROJECT_PROFILE_STANDARD.md` line 77
+`CLAUDE.md` dòng 215; `governance/core/PROJECT_PROFILE_STANDARD.md` dòng 77
 
 Current Behavior:
-Both files reference `OPTIONAL_ENFORCEMENT_LAYER.md` as a repository-root
-relative path. The file does not exist at that path. Its actual location is
+Cả hai file đều tham chiếu `OPTIONAL_ENFORCEMENT_LAYER.md` như một đường
+dẫn tương đối theo repository root. File này không tồn tại tại đường dẫn
+đó. Vị trí thực tế của nó là
 `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`.
 
 Expected Behavior:
-The compact refactor rule in `governance/README.md` permits moving files and
-updating canonical paths, and `governance/reference/PACKAGE_MANIFEST.md`
-correctly lists the file at `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`.
-Both references should use that canonical path.
+Rule compact refactor trong `governance/README.md` cho phép move file và
+cập nhật canonical path, và `governance/reference/PACKAGE_MANIFEST.md` liệt
+kê đúng file này tại `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`.
+Cả hai tham chiếu nên dùng canonical path đó.
 
 Evidence:
-Repository-relative reference resolution scan over all 67 tracked `.md` files (67 md + 5 py + 1 svg = 73),
-executed 2026-08-22T14:04Z. A reference was reported broken only when it
-resolved from neither the package root nor the referencing file's own
-directory:
+Scan resolve tham chiếu tương đối theo repository trên toàn bộ 67 file
+`.md` được track (67 md + 5 py + 1 svg = 73), thực thi lúc 2026-08-22T14:04Z.
+Một tham chiếu chỉ được báo cáo là bị hỏng khi nó không resolve được từ cả
+package root lẫn thư mục chứa chính file tham chiếu:
 
 ```text
 CLAUDE.md
@@ -245,7 +251,7 @@ governance/reference/history/CHANGELOG_V3_1.md
    -> PROJECT_PROFILE.md
 ```
 
-Corroborating grep, same session:
+Grep xác nhận thêm, cùng phiên:
 
 ```text
 $ grep -rn 'OPTIONAL_ENFORCEMENT_LAYER' --include=*.md .
@@ -259,31 +265,35 @@ Evidence Level:
 E1
 
 Risk:
-`CLAUDE.md` is the single agent entry point and
-`governance/core/PROJECT_PROFILE_STANDARD.md` defines the TEAM_PRODUCTION rule set. An agent
-following either reference gets a missing file. The likely failure mode is
-silent: the agent treats the enforcement layer as absent and proceeds without
-it, which is precisely the rule group intended to add CI enforcement.
+`CLAUDE.md` là entry point duy nhất của agent và
+`governance/core/PROJECT_PROFILE_STANDARD.md` định nghĩa rule set cho
+TEAM_PRODUCTION. Một agent đi theo bất kỳ tham chiếu nào trong hai tham
+chiếu này sẽ gặp một file bị thiếu. Chế độ fail nhiều khả năng xảy ra là âm
+thầm: agent coi enforcement layer là không tồn tại và tiếp tục mà không có
+nó — chính là rule group được dự định để thêm CI enforcement.
 
 Likely Cause:
-Path substitution during the compact refactor missed these two occurrences.
+Việc substitute path trong quá trình compact refactor đã bỏ sót hai lần
+xuất hiện này.
 
 Recommended Fix:
-Update both references to `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`.
-Text-only edit; no semantic change.
+Cập nhật cả hai tham chiếu thành
+`governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`. Chỉ chỉnh sửa text;
+không thay đổi ngữ nghĩa.
 
 Suggested Task:
 REM-T04
 
 Dependencies:
-REM-T02 (perform after the root promotion so paths are repaired once).
+REM-T02 (thực hiện sau root promotion để path chỉ cần được sửa một lần).
 
 Status:
 OPEN
 
 Verification Required:
-- Reference resolution scan reports 0 broken canonical references (E1).
-- `grep -rn 'OPTIONAL_ENFORCEMENT_LAYER'` shows no bare-root reference (E1).
+- Scan resolve tham chiếu báo cáo 0 canonical reference bị hỏng (E1).
+- `grep -rn 'OPTIONAL_ENFORCEMENT_LAYER'` không cho thấy tham chiếu
+  bare-root nào (E1).
 
 ---
 
@@ -299,16 +309,17 @@ Category:
 Documentation
 
 Affected Area:
-`CLAUDE.md` line 27
+`CLAUDE.md` dòng 27
 
 Current Behavior:
-The "Core Principle" section maps "Reusable forms" to `templates/`. That
-directory does not exist. The templates live at `governance/templates/`.
+Section "Core Principle" map "Reusable forms" tới `templates/`. Thư mục đó
+không tồn tại. Các template thực sự nằm tại `governance/templates/`.
 
 Expected Behavior:
-The same file's "Compact Directory Layout" section (lines 3–14) states that
-static governance is stored under `governance/`, and every other reference in
-`CLAUDE.md` uses the `governance/templates/...` form. Line 27 should match.
+Section "Compact Directory Layout" (dòng 3–14) của cùng file này nói rằng
+static governance được lưu dưới `governance/`, và mọi tham chiếu khác
+trong `CLAUDE.md` đều dùng dạng `governance/templates/...`. Dòng 27 nên
+khớp với điều đó.
 
 Evidence:
 ```text
@@ -334,15 +345,16 @@ Evidence Level:
 E1
 
 Risk:
-Lower than FIND-003 because the correct path appears elsewhere in the same
-file, so an agent is likely to recover. Still a contradiction inside the single
-canonical entry point, and it is the kind of drift that accumulates.
+Thấp hơn FIND-003 vì đường dẫn đúng xuất hiện ở nơi khác trong cùng file,
+nên một agent nhiều khả năng sẽ tự phục hồi được. Tuy vậy đây vẫn là một
+mâu thuẫn bên trong entry point canonical duy nhất, và là kiểu drift sẽ
+tích lũy dần theo thời gian.
 
 Likely Cause:
-Same incomplete path substitution as FIND-003.
+Cùng một kiểu substitute path chưa hoàn chỉnh như FIND-003.
 
 Recommended Fix:
-Change line 27 to `governance/templates/`.
+Đổi dòng 27 thành `governance/templates/`.
 
 Suggested Task:
 REM-T04
@@ -354,7 +366,7 @@ Status:
 OPEN
 
 Verification Required:
-- Reference resolution scan reports 0 broken canonical references (E1).
+- Scan resolve tham chiếu báo cáo 0 canonical reference bị hỏng (E1).
 
 ---
 
@@ -370,10 +382,10 @@ Category:
 Operations
 
 Affected Area:
-`governance/reference/COMPACT_STRUCTURE_VALIDATION.md` line 75
+`governance/reference/COMPACT_STRUCTURE_VALIDATION.md` dòng 75
 
 Current Behavior:
-The shipped validation report asserts:
+Validation report được đi kèm khẳng định:
 
 ```text
 ## Repository-relative Reference Integrity
@@ -383,48 +395,52 @@ Broken canonical path references: 0
 PASS — no broken canonical repository-relative `.md`/`.py`/`.svg` references detected.
 ```
 
-The repository state contradicts this. FIND-003 and FIND-004 document three
-unresolvable canonical references in the same package the report validates.
+Trạng thái thực tế của repository mâu thuẫn với điều này. FIND-003 và
+FIND-004 ghi nhận ba canonical reference không thể resolve trong chính gói
+mà report này validate.
 
 Expected Behavior:
-Per `governance/core/EVIDENCE_STANDARD.md` ("Evidence Integrity"), a recorded
-result must correspond to an actual executed check. A shipped artifact
-asserting PASS must be re-derivable from the repository as shipped.
+Theo `governance/core/EVIDENCE_STANDARD.md` (mục "Evidence Integrity"),
+một kết quả được ghi nhận phải tương ứng với một check đã thực sự được
+thực thi. Một artifact được đi kèm mà khẳng định PASS phải có thể được
+re-derive (suy ra lại) từ chính repository như khi được ship.
 
 Evidence:
-The report's claim:
+Khẳng định của report:
 
 ```text
 $ grep -n 'Broken canonical path references' governance/reference/COMPACT_STRUCTURE_VALIDATION.md
 75:Broken canonical path references: 0
 ```
 
-Contradicting scan output from this session is reproduced in full under
-FIND-003 (three broken references across two current files and one historical
-file).
+Output scan mâu thuẫn từ phiên này được tái hiện đầy đủ trong FIND-003 (ba
+tham chiếu bị hỏng trải trên hai file hiện tại và một file lịch sử).
 
 Evidence Level:
 E1
 
 Risk:
-This is the highest-order concern in the MEDIUM band. The package's central
-promise is that gates pass on evidence rather than narrative. A shipped
-validation artifact that asserts a false PASS is exactly the failure mode
-`governance/core/EVIDENCE_STANDARD.md` exists to prevent, and it teaches future sessions to
-trust reference reports without re-derivation.
+Đây là mối lo ngại nghiêm trọng nhất trong dải MEDIUM. Cam kết trung tâm
+của gói này là các gate pass dựa trên evidence chứ không phải trên
+narrative. Một validation artifact được đi kèm mà khẳng định một PASS sai
+chính là failure mode mà `governance/core/EVIDENCE_STANDARD.md` tồn tại để
+ngăn chặn, và nó dạy các phiên trong tương lai tin tưởng các reference
+report mà không re-derive.
 
 Likely Cause:
-The reference-integrity check was either not executed, or executed with a
-matcher that did not resolve backtick-quoted bare filenames.
+Check reference-integrity hoặc là chưa từng được thực thi, hoặc được thực
+thi với một matcher không resolve được các tên file trần được quote bằng
+backtick.
 
 Recommended Fix:
-Two-part. (1) After REM-T04 repairs the references, re-run the check and update
-the report with the actual command and output rather than a bare assertion.
-(2) Implement the check as a script under `governance/scripts/governance/` so
-the claim is machine-reproducible instead of hand-written.
+Gồm hai phần. (1) Sau khi REM-T04 sửa các reference, chạy lại check và
+cập nhật report bằng lệnh và output thực tế thay vì một khẳng định suông.
+(2) Implement check này thành một script dưới
+`governance/scripts/governance/` để khẳng định có thể được máy tái tạo lại
+thay vì viết tay.
 
 Suggested Task:
-REM-T05 (report truth-up), REM-T03 (script implementation)
+REM-T05 (truth-up report), REM-T03 (implement script)
 
 Dependencies:
 REM-T02, REM-T04.
@@ -433,10 +449,10 @@ Status:
 OPEN
 
 Verification Required:
-- New reference-integrity validator exits 0 (E1).
-- Report content matches that validator's actual output (E1).
-- E2 re-derivation by an independent reviewer session, per
-  `governance/core/EVIDENCE_STANDARD.md` "Solo Independent Review Procedure".
+- Validator reference-integrity mới exit 0 (E1).
+- Nội dung report khớp với output thực tế của validator đó (E1).
+- E2 re-derivation bởi một phiên reviewer độc lập, theo mục "Solo
+  Independent Review Procedure" của `governance/core/EVIDENCE_STANDARD.md`.
 
 ---
 
@@ -452,17 +468,17 @@ Category:
 Documentation
 
 Affected Area:
-`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` lines 83, 85, 144, 146, 179
+`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` dòng 83, 85, 144, 146, 179
 
 Current Behavior:
-The file opens with the compact layout ("Bản Compact KHÔNG đổ 60+ file
-governance ra root", four root entries only), but PHẦN 1, PHẦN 2 and PHẦN 3
-lower in the same file still present the pre-compact V3.2 layout with
-`templates/` and `scripts/` as repository-root entries.
+File này mở đầu bằng compact layout ("Bản Compact KHÔNG đổ 60+ file
+governance ra root", chỉ có bốn mục root), nhưng PHẦN 1, PHẦN 2 và PHẦN 3
+ở phía dưới trong cùng file vẫn trình bày layout V3.2 trước-compact với
+`templates/` và `scripts/` như các mục ở repository root.
 
 Expected Behavior:
-The whole guide should describe one layout. Under the compact structure the
-root entries are `CLAUDE.md`, `PROJECT/`, `docs/`, `governance/`.
+Toàn bộ guide nên mô tả một layout duy nhất. Theo compact structure, các
+mục ở root là `CLAUDE.md`, `PROJECT/`, `docs/`, `governance/`.
 
 Evidence:
 ```text
@@ -476,41 +492,41 @@ $ grep -n -E '^(templates|scripts)/$' governance/reference/START_HERE_USAGE_GUID
 146:scripts/
 ```
 
-Line 144/146 sit inside the PHẦN 2 "structure check after install" block, i.e.
-a human following the guide's own verification step would look for two
-directories that must not exist in a compact deployment.
+Dòng 144/146 nằm trong block PHẦN 2 "structure check after install", tức
+là một người đi theo đúng bước verification của guide sẽ tìm hai thư mục
+vốn không được phép tồn tại trong một deployment compact.
 
 Evidence Level:
 E1
 
 Risk:
-The onboarding document is self-contradictory at the exact step where a user
-verifies deployment correctness. This is plausibly a contributing cause of
-FIND-001: a reader working from an inconsistent guide is more likely to get
-the layout wrong.
+Tài liệu onboarding tự mâu thuẫn chính tại bước mà người dùng verify tính
+đúng đắn của deployment. Đây nhiều khả năng là một nguyên nhân góp phần
+gây ra FIND-001: một người đọc làm theo một guide không nhất quán sẽ dễ
+làm sai layout hơn.
 
 Likely Cause:
-The compact section was prepended to the V3.2 guide without reconciling the
-body.
+Section compact được prepend vào guide V3.2 mà không reconcile (đối
+chiếu, thống nhất) lại phần thân bên dưới.
 
 Recommended Fix:
-Update PHẦN 1, PHẦN 2 and PHẦN 3 to the compact layout, and change the PHẦN 2
-verification block to list the four compact root entries.
+Cập nhật PHẦN 1, PHẦN 2 và PHẦN 3 theo compact layout, và đổi block
+verification ở PHẦN 2 để liệt kê bốn mục root của compact.
 
 Suggested Task:
 REM-T05
 
 Dependencies:
-REM-T02 (so the guide documents the layout the repository actually has).
+REM-T02 (để guide tài liệu hóa đúng layout mà repository thực sự có).
 
 Status:
 OPEN
 
 Verification Required:
-- No occurrence of `templates/` or `scripts/` as a root-level entry remains in
-  the guide (E1, grep).
-- The guide's verification block matches `validate_structure.py`'s required
-  paths (E1).
+- Không còn xuất hiện `templates/` hay `scripts/` như một mục root-level
+  nào trong guide (E1, grep).
+- Block verification của guide khớp với các required path của
+  `validate_structure.py` (E1).
 
 ---
 
@@ -531,26 +547,26 @@ Affected Area:
 `validate_task_completion.py`, `validate_refactor_preservation.py`
 
 Current Behavior:
-Every validator resolves its ROOT from its own file location:
+Mọi validator đều resolve ROOT của nó từ vị trí file của chính nó:
 
 ```python
 ROOT = Path(__file__).resolve().parents[3]
 ```
 
-`parents[3]` from `governance/scripts/governance/<script>.py` is the package
-directory. Consequently the validators always validate the package directory,
-regardless of where the repository root actually is or where the command is
-invoked from. `validate_structure.py` returns PASS on this repository even
-though the deployment layout is wrong (FIND-001).
+`parents[3]` tính từ `governance/scripts/governance/<script>.py` chính là
+thư mục của package. Do đó các validator luôn validate thư mục package,
+bất kể repository root thực sự nằm ở đâu hay lệnh được gọi từ đâu.
+`validate_structure.py` trả về PASS trên repository này dù layout triển
+khai bị sai (FIND-001).
 
 Expected Behavior:
-The validators correctly ignore the caller's working directory — that part is
-sound and should be kept. What is missing is any check that the package root
-*is* the repository root. No shipped validator can detect the FIND-001 class of
-defect.
+Các validator bỏ qua working directory của caller một cách đúng đắn —
+phần đó hợp lý và nên được giữ nguyên. Điều còn thiếu là bất kỳ check nào
+xác nhận rằng package root *chính là* repository root. Không có validator
+nào được đi kèm có thể phát hiện lớp lỗi của FIND-001.
 
 Evidence:
-Executed from the actual git repository root, 2026-08-22T14:03Z:
+Thực thi từ chính git repository root thực tế, lúc 2026-08-22T14:03Z:
 
 ```text
 $ cd /home/user/Reports
@@ -560,9 +576,10 @@ Checked 21 required paths.
 exit=0
 ```
 
-A PASS was returned while `CLAUDE.md` was absent from the repository root.
+Một PASS đã được trả về trong khi `CLAUDE.md` lại vắng mặt ở repository
+root.
 
-Source, `validate_structure.py` line 5:
+Nguồn, `validate_structure.py` dòng 5:
 
 ```python
 ROOT = Path(__file__).resolve().parents[3]
@@ -572,34 +589,35 @@ Evidence Level:
 E1
 
 Risk:
-False assurance. `validate_structure.py` is the check the START_HERE guide
-tells users to run to confirm a correct install, and it passes on an install
-the same guide marks as wrong. Any deployment defect at this level goes
-undetected and is inherited by every session.
+Sự đảm bảo giả (false assurance). `validate_structure.py` là check mà
+guide START_HERE bảo người dùng chạy để xác nhận một install đúng, và nó
+pass trên một install mà chính guide đó đánh dấu là sai. Bất kỳ lỗi triển
+khai nào ở cấp độ này đều không bị phát hiện và bị mọi phiên kế thừa.
 
 Likely Cause:
-The validators were written to be robust to the caller's working directory, and
-deployment-root correctness was treated as a human responsibility.
+Các validator được viết để robust trước working directory của caller, và
+tính đúng đắn của deployment-root được coi là trách nhiệm của con người.
 
 Recommended Fix:
-Add a deployment-root assertion: locate the git root (e.g. `.git` discovered by
-walking upward) and verify it equals the resolved ROOT; FAIL with an explicit
-message when it does not. Where no git root exists, report the check as
-NOT_APPLICABLE rather than silently passing. Keep the existing `__file__`-based
-resolution.
+Thêm một assertion cho deployment-root: xác định git root (ví dụ bằng
+cách tìm `.git` đi ngược lên) và verify rằng nó bằng với ROOT đã resolve;
+FAIL với một message rõ ràng khi không khớp. Khi không có git root nào
+tồn tại, báo cáo check này là NOT_APPLICABLE thay vì âm thầm pass. Giữ
+nguyên cách resolve dựa trên `__file__` hiện có.
 
 Suggested Task:
 REM-T03
 
 Dependencies:
-REM-T02 should be decided first, since the check encodes the expected layout.
+REM-T02 nên được quyết định trước, vì check này mã hóa layout kỳ vọng.
 
 Status:
 OPEN
 
 Verification Required:
-- New check FAILs against a deliberately nested fixture (E1, regression fixture).
-- New check PASSes against the corrected root layout (E1).
+- Check mới FAIL trên một fixture bị lồng có chủ đích (E1, regression
+  fixture).
+- Check mới PASS trên layout root đã được sửa (E1).
 
 ---
 
@@ -615,18 +633,18 @@ Category:
 Operations
 
 Affected Area:
-CI / enforcement layer (repository-root `.github/`)
+CI / enforcement layer (`.github/` tại repository root)
 
 Current Behavior:
-No `.github/` directory exists. The five validators are runnable only by hand.
-`governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md` is shipped but not wired
-to any pipeline.
+Không có thư mục `.github/` nào tồn tại. Năm validator chỉ có thể được
+chạy bằng tay. `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md` được
+đi kèm nhưng chưa được wire vào pipeline nào.
 
 Expected Behavior:
-`governance/core/PROJECT_PROFILE_STANDARD.md` requires the optional enforcement
-layer "with CI integration where practical" only for TEAM_PRODUCTION. Under
-AUDIT or SOLO_LITE, CI may legitimately be recorded NOT_APPLICABLE with a
-justification.
+`governance/core/PROJECT_PROFILE_STANDARD.md` chỉ yêu cầu optional
+enforcement layer "with CI integration where practical" đối với
+TEAM_PRODUCTION. Dưới AUDIT hoặc SOLO_LITE, CI có thể hợp lệ được ghi nhận
+là NOT_APPLICABLE kèm theo lý giải.
 
 Evidence:
 ```text
@@ -638,33 +656,36 @@ Evidence Level:
 E1
 
 Risk:
-Low at the current profile. Manual validator runs are acceptable for AUDIT
-work. The risk is that manual-only enforcement degrades: FIND-002 and FIND-005
-are both instances of a check that was supposed to be run and was not.
+Thấp ở profile hiện tại. Chạy validator bằng tay là chấp nhận được đối
+với công việc AUDIT. Rủi ro là enforcement chỉ-bằng-tay sẽ suy giảm dần:
+FIND-002 và FIND-005 đều là các ví dụ về một check đáng lẽ phải được chạy
+nhưng đã không được chạy.
 
 Likely Cause:
-Profile-appropriate omission; no profile was ever recorded, so the omission was
-never justified either.
+Sự thiếu sót phù hợp với profile; nhưng vì chưa từng có profile nào được
+ghi nhận, nên sự thiếu sót này cũng chưa từng được lý giải.
 
 Recommended Fix:
-Deferred. Decide when the post-audit profile is selected. If PRODUCT or
-TEAM_PRODUCTION is chosen, add a workflow running all five validators on push
-and pull request. If SOLO_LITE, record CI as NOT_APPLICABLE with justification
-in `PROJECT/PROJECT_PROFILE.md` as that standard permits.
+Deferred (hoãn lại). Quyết định khi profile hậu-audit được chọn. Nếu
+PRODUCT hoặc TEAM_PRODUCTION được chọn, thêm một workflow chạy cả năm
+validator trên push và pull request. Nếu SOLO_LITE, ghi nhận CI là
+NOT_APPLICABLE kèm lý giải trong `PROJECT/PROJECT_PROFILE.md` như standard
+đó cho phép.
 
 Suggested Task:
 REM-T07
 
 Dependencies:
-Post-audit profile transition (see `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7).
+Chuyển đổi profile hậu-audit (xem
+`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7).
 
 Status:
-OPEN — DEFERRED pending profile decision.
+OPEN — DEFERRED, chờ quyết định profile.
 
 Verification Required:
-- Either a green CI run executing all five validators (E2), or an explicit
-  NOT_APPLICABLE justification recorded in the profile (E0 is sufficient for a
-  recorded profile decision).
+- Hoặc một lượt chạy CI xanh (green) thực thi cả năm validator (E2), hoặc
+  một lý giải NOT_APPLICABLE rõ ràng được ghi nhận trong profile (E0 là đủ
+  đối với một quyết định profile đã ghi nhận).
 
 ---
 
@@ -680,17 +701,18 @@ Category:
 Operations
 
 Affected Area:
-Repository root
+Root của repository
 
 Current Behavior:
-The repository root has no `README.md`, no `LICENSE`, and no `.gitignore`.
+Repository root không có `README.md`, không có `LICENSE`, và không có
+`.gitignore`.
 
 Expected Behavior:
-`governance/product/23_DOCUMENTATION_STANDARDS.md` applies at TEAM_PRODUCTION.
-Independent of profile, a repository whose sole content is a reusable
-governance package benefits from a root README stating what it is and how to
-deploy it, and from a `.gitignore` preventing `__pycache__/` from the validator
-runs being committed.
+`governance/product/23_DOCUMENTATION_STANDARDS.md` áp dụng ở
+TEAM_PRODUCTION. Bất kể profile nào, một repository mà toàn bộ nội dung
+chỉ là một gói governance có thể tái sử dụng sẽ có lợi từ một README ở
+root nói rõ nó là gì và cách deploy nó, cũng như từ một `.gitignore` ngăn
+`__pycache__/` sinh ra từ các lượt chạy validator bị commit.
 
 Evidence:
 ```text
@@ -703,31 +725,31 @@ Evidence Level:
 E1
 
 Risk:
-Minor. A newcomer has no orientation at the repository root — which compounds
-FIND-001, since there is currently nothing at root pointing to the governance
-package either. Absent `.gitignore`, Python bytecode caches produced by
-validator runs can be committed accidentally.
+Nhỏ. Một người mới không có định hướng gì ở repository root — điều này
+càng làm trầm trọng thêm FIND-001, vì hiện tại cũng không có gì ở root trỏ
+đến gói governance cả. Thiếu `.gitignore`, các cache bytecode Python sinh
+ra từ các lượt chạy validator có thể bị commit nhầm.
 
 Likely Cause:
-Repository created solely to hold the uploaded package.
+Repository được tạo chỉ nhằm mục đích chứa gói đã được upload.
 
 Recommended Fix:
-Add a short root `README.md` pointing to `CLAUDE.md`, and a `.gitignore`
-covering `__pycache__/` and `*.pyc`. `LICENSE` is a business decision, not an
-engineering one — raise it, do not choose it.
+Thêm một `README.md` ngắn ở root trỏ đến `CLAUDE.md`, và một `.gitignore`
+bao phủ `__pycache__/` và `*.pyc`. `LICENSE` là một quyết định kinh doanh,
+không phải kỹ thuật — hãy nêu vấn đề này lên, đừng tự chọn.
 
 Suggested Task:
 REM-T06
 
 Dependencies:
-REM-T02 (add the README after the root layout is settled).
+REM-T02 (thêm README sau khi layout root đã ổn định).
 
 Status:
 OPEN
 
 Verification Required:
-- Files present at repository root (E1).
-- `git status` clean after a full validator run (E1).
+- Các file hiện diện tại repository root (E1).
+- `git status` sạch sau một lượt chạy validator đầy đủ (E1).
 
 ---
 
@@ -743,17 +765,19 @@ Category:
 Architecture
 
 Affected Area:
-Application surface (whole repository)
+Bề mặt ứng dụng (toàn bộ repository)
 
 Current Behavior:
-The repository contains no application code, no runtime, no dependency
-manifest, no database, no authentication surface and no external integration.
-All 73 tracked files are the governance package.
+Repository này không chứa mã ứng dụng nào, không có runtime, không có
+dependency manifest, không có database, không có bề mặt authentication và
+không có external integration. Toàn bộ 73 file được track đều là gói
+governance.
 
 Expected Behavior:
-Not a defect. Recorded so that sections 1–8 of the Discovery Baseline are
-explicitly NOT_APPLICABLE_AT_BASELINE rather than silently blank, and so a
-future session can tell "not audited" apart from "nothing to audit".
+Không phải một lỗi. Được ghi nhận để các section 1–8 của Discovery
+Baseline được đánh dấu rõ ràng là NOT_APPLICABLE_AT_BASELINE thay vì âm
+thầm để trống, và để một phiên trong tương lai có thể phân biệt "chưa được
+audit" với "không có gì để audit".
 
 Evidence:
 ```text
@@ -767,34 +791,35 @@ $ find . -path ./.git -prune -o -type f \( -name '*.js' -o -name '*.ts' -o -name
 (no output)
 ```
 
-Tracked file count, filesystem count, and the shipped manifest's declared
-count all agree at 73. Package inventory integrity: PASS.
+Số lượng file được track, số lượng trên filesystem, và số lượng được khai
+báo trong manifest đi kèm đều khớp nhau ở con số 73. Tính toàn vẹn của
+package inventory: PASS.
 
 Evidence Level:
 E1
 
 Risk:
-None at baseline. The note exists to prevent a future session misreading the
-empty inventory sections as an incomplete audit.
+Không có ở baseline. Ghi chú này tồn tại để ngăn một phiên trong tương lai
+đọc nhầm các section inventory rỗng là một audit chưa hoàn chỉnh.
 
 Likely Cause:
-N/A — expected state for a governance-only repository.
+N/A — trạng thái được kỳ vọng đối với một repository chỉ chứa governance.
 
 Recommended Fix:
-No action. Re-run discovery for sections 1–8 when application code is first
-introduced.
+Không cần hành động. Chạy lại discovery cho các section 1–8 khi mã ứng
+dụng lần đầu được đưa vào.
 
 Suggested Task:
-None.
+Không có.
 
 Dependencies:
-None.
+Không có.
 
 Status:
-OPEN — informational, no remediation intended.
+OPEN — mang tính thông tin, không dự định remediate.
 
 Verification Required:
-None.
+Không có.
 
 ---
 
@@ -810,17 +835,18 @@ Category:
 Documentation
 
 Affected Area:
-`governance/reference/history/CHANGELOG_V3_1.md` line 19
+`governance/reference/history/CHANGELOG_V3_1.md` dòng 19
 
 Current Behavior:
-References `PROJECT_PROFILE.md` as a bare filename. It does not resolve from
-the package root; the file is at `PROJECT/PROJECT_PROFILE.md`.
+Tham chiếu `PROJECT_PROFILE.md` như một tên file trần. Nó không resolve
+được từ package root; file này thực sự nằm ở `PROJECT/PROJECT_PROFILE.md`.
 
 Expected Behavior:
-Historical archive files are frozen records and are not expected to carry
-current canonical paths. However, the reference-integrity claim in
-`governance/reference/COMPACT_STRUCTURE_VALIDATION.md` (FIND-005) does not exclude `history/`, so
-either the reference or the claim's scope should be corrected.
+Các file archive lịch sử là bản ghi đông cứng (frozen) và không được kỳ
+vọng phải mang canonical path hiện hành. Tuy nhiên, khẳng định về
+reference-integrity trong `governance/reference/COMPACT_STRUCTURE_VALIDATION.md`
+(FIND-005) không loại trừ `history/`, nên hoặc tham chiếu, hoặc phạm vi
+của khẳng định đó cần được sửa lại.
 
 Evidence:
 ```text
@@ -832,29 +858,29 @@ Evidence Level:
 E1
 
 Risk:
-Negligible operationally. Relevant only because it is one of the three
-references contradicting the shipped 0-broken-references claim.
+Không đáng kể về mặt vận hành. Chỉ liên quan vì đây là một trong ba tham
+chiếu mâu thuẫn với khẳng định 0-broken-references được đi kèm.
 
 Likely Cause:
-Archived pre-compact content retained verbatim, which is correct behavior for
-a historical record.
+Nội dung pre-compact được archive giữ nguyên văn, đây là hành vi đúng đắn
+đối với một bản ghi lịch sử.
 
 Recommended Fix:
-Do not rewrite the historical file. Instead scope the reference-integrity
-validator to exclude `governance/reference/history/`, and state that exclusion
-explicitly in the validation report so the claim is precise.
+Không viết lại file lịch sử. Thay vào đó, giới hạn phạm vi của validator
+reference-integrity để loại trừ `governance/reference/history/`, và nêu rõ
+sự loại trừ đó trong validation report để khẳng định được chính xác.
 
 Suggested Task:
-REM-T03 (validator scope), REM-T05 (report wording)
+REM-T03 (phạm vi validator), REM-T05 (câu chữ của report)
 
 Dependencies:
-None.
+Không có.
 
 Status:
 OPEN
 
 Verification Required:
-- Validator's exclusion list is documented in the report (E1).
+- Danh sách loại trừ của validator được tài liệu hóa trong report (E1).
 
 ---
 
@@ -873,16 +899,16 @@ Affected Area:
 `governance/scripts/governance/README.md`
 
 Current Behavior:
-The validator README documents two of the five validators
+README của validator chỉ tài liệu hóa hai trong số năm validator
 (`validate_structure.py`, `validate_project_state.py`).
-`validate_task_completion.py`, `validate_evidence.py` and
-`validate_refactor_preservation.py` are not mentioned, including
-`validate_refactor_preservation.py`'s required positional argument.
+`validate_task_completion.py`, `validate_evidence.py` và
+`validate_refactor_preservation.py` không được nhắc đến, bao gồm cả
+positional argument bắt buộc của `validate_refactor_preservation.py`.
 
 Expected Behavior:
-The README is the discovery surface for the enforcement tooling. The START_HERE
-guide (PHẦN 2) already tells users to run four of the five; the README should
-at minimum match that, and document the fifth script's argument.
+README là bề mặt discovery cho enforcement tooling. Guide START_HERE
+(PHẦN 2) đã bảo người dùng chạy bốn trong số năm validator; README ít
+nhất nên khớp với điều đó, và tài liệu hóa argument của script thứ năm.
 
 Evidence:
 ```text
@@ -892,7 +918,7 @@ python governance/scripts/governance/validate_structure.py
 python governance/scripts/governance/validate_project_state.py
 ```
 
-Undocumented invocation contract, observed 2026-08-22T14:03Z:
+Invocation contract chưa được tài liệu hóa, quan sát lúc 2026-08-22T14:03Z:
 
 ```text
 $ python3 governance/scripts/governance/validate_refactor_preservation.py
@@ -904,33 +930,34 @@ Evidence Level:
 E1
 
 Risk:
-Low. Two enforcement checks that exist are less likely to be run, which
-weakens the same manual-discipline assumption noted in FIND-008.
+Thấp. Hai check enforcement đang tồn tại ít có khả năng được chạy hơn,
+điều này làm suy yếu chính giả định về kỷ luật-thủ-công đã nêu trong
+FIND-008.
 
 Likely Cause:
-README written before the later validators were added.
+README được viết trước khi các validator sau này được thêm vào.
 
 Recommended Fix:
-List all five validators with purpose, invocation and expected exit codes; note
-that `validate_refactor_preservation.py` requires a comparison directory and is
-only meaningful during a structure refactor.
+Liệt kê cả năm validator kèm mục đích, cách invoke và exit code kỳ vọng;
+ghi chú rằng `validate_refactor_preservation.py` yêu cầu một thư mục so
+sánh và chỉ có ý nghĩa trong khi thực hiện structure refactor.
 
 Suggested Task:
 REM-T05
 
 Dependencies:
-None.
+Không có.
 
 Status:
 OPEN
 
 Verification Required:
-- README lists all five scripts present in the directory (E1, diff against
+- README liệt kê cả năm script hiện có trong thư mục (E1, diff so với
   `ls governance/scripts/governance/*.py`).
 
 ---
 
-## Evidence Ledger
+## Evidence Ledger (Sổ ghi Evidence)
 
 | Check | Command | Result | Level | Executed By | Timestamp |
 |---|---|---|---|---|---|
@@ -945,8 +972,9 @@ Verification Required:
 | CHK-S001-09 | Application-code sweep (`*.js`,`*.ts`,`*.json`,`*.html`,`*.yml`,`*.yaml`) | 0 matches | E1 | S001 agent | 2026-08-22T14:05Z |
 
 E2 status:
-NOT_OBTAINED. No CI, no staging and no independent reviewer session ran against
-these findings. Per `governance/core/EVIDENCE_STANDARD.md`, this limitation is
-recorded rather than papered over. Findings whose remediation touches the agent
-read path (FIND-001, FIND-003, FIND-005, FIND-007) should obtain E2 via an
-independent reviewer session before their tasks are marked DONE.
+NOT_OBTAINED. Không có CI, không có staging và không có phiên reviewer độc
+lập nào chạy đối chiếu các finding này. Theo
+`governance/core/EVIDENCE_STANDARD.md`, hạn chế này được ghi nhận thay vì
+bị che giấu. Các finding mà việc remediation chạm vào read path của agent
+(FIND-001, FIND-003, FIND-005, FIND-007) nên đạt được E2 thông qua một
+phiên reviewer độc lập trước khi task của chúng được đánh dấu DONE.

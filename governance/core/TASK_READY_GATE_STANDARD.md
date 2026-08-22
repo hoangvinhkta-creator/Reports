@@ -1,59 +1,59 @@
 # Task Ready Gate Standard
 
-## Purpose
-Define when a task is allowed to enter implementation.
+## Mục đích
+Định nghĩa khi nào một task được phép bước vào giai đoạn triển khai (implementation).
 
-## Principle
-A task must not start merely because it exists on the roadmap.
+## Nguyên tắc
+Một task không được bắt đầu chỉ vì nó tồn tại trên roadmap.
 
 ## MICRO Ready Gate
-For eligible MICRO tasks use `governance/templates/MICRO_TASK_CHECKLIST.md`.
+Đối với các MICRO task đủ điều kiện, sử dụng `governance/templates/MICRO_TASK_CHECKLIST.md`.
 
-Do not force the full Major Task Ready Gate onto Micro Tasks.
+Không được áp đặt toàn bộ Major Task Ready Gate lên các Micro Task.
 
 ## MAJOR Ready Gate
 
-Required before READY:
+Yêu cầu trước khi READY:
 
-- [ ] Objective is clear.
-- [ ] Scope is defined.
-- [ ] Out-of-scope is defined.
-- [ ] Dependencies are DONE or explicitly waived.
-- [ ] Expected touch area is identified.
-- [ ] Relevant requirements are understood.
-- [ ] Data impact is known.
-- [ ] Security impact is known.
-- [ ] Routing/API impact is known where relevant.
-- [ ] Migration prerequisites are available where relevant.
-- [ ] Difficulty is scored.
-- [ ] Risk is scored.
-- [ ] Blast Radius is scored.
-- [ ] Primary agent tier is assigned.
-- [ ] Escalation triggers are defined.
-- [ ] Completion Gate is finalized.
-- [ ] Completion Gate is frozen before implementation.
+- [ ] Objective rõ ràng.
+- [ ] Scope đã được xác định.
+- [ ] Out-of-scope đã được xác định.
+- [ ] Các dependency đã DONE hoặc được miễn trừ (waived) một cách rõ ràng.
+- [ ] Vùng tác động dự kiến (expected touch area) đã được xác định.
+- [ ] Các yêu cầu liên quan đã được hiểu rõ.
+- [ ] Tác động đến dữ liệu (data impact) đã được biết rõ.
+- [ ] Tác động bảo mật (security impact) đã được biết rõ.
+- [ ] Tác động routing/API đã được biết rõ khi liên quan.
+- [ ] Các điều kiện tiên quyết cho migration đã sẵn sàng khi liên quan.
+- [ ] Difficulty đã được chấm điểm.
+- [ ] Risk đã được chấm điểm.
+- [ ] Blast Radius đã được chấm điểm.
+- [ ] Agent tier chính đã được chỉ định.
+- [ ] Các escalation trigger đã được xác định.
+- [ ] Completion Gate đã được hoàn thiện.
+- [ ] Completion Gate đã được frozen trước khi triển khai.
 
 ## SPIKE / EXPLORATORY Ready Gate
-Required:
-- [ ] Unknown/question is clearly stated.
-- [ ] Hypothesis or learning objective is defined.
-- [ ] Scope/time-box is defined.
-- [ ] Evidence method is defined.
-- [ ] No premature production acceptance criteria are forced.
-- [ ] Output format for findings/recommendation is defined.
+Yêu cầu:
+- [ ] Điều chưa biết/câu hỏi đã được nêu rõ ràng.
+- [ ] Giả thuyết hoặc mục tiêu học hỏi (learning objective) đã được xác định.
+- [ ] Scope/time-box đã được xác định.
+- [ ] Phương pháp thu thập evidence đã được xác định.
+- [ ] Không có tiêu chí nghiệm thu production nào bị ép buộc quá sớm.
+- [ ] Định dạng output cho kết quả/khuyến nghị đã được xác định.
 
 ## Ready Status
 - `PLANNED`
 - `READY`
 - `BLOCKED`
 
-## Rule
-A task cannot transition:
+## Quy tắc
+Một task không thể chuyển trực tiếp:
 
 PLANNED
 → IN_PROGRESS
 
-It must transition:
+Nó phải chuyển qua:
 
 PLANNED
 → READY
