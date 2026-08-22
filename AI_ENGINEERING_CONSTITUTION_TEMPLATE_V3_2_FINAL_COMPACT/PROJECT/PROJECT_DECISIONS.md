@@ -124,3 +124,153 @@ reference in any artifact needs rewriting at that point.
 
 Can Revisit After:
 REM-T02 completes.
+
+## DEC-005
+
+Date:
+2026-08-22
+
+Task:
+S002 — Roadmap Finalization
+
+Decision:
+Transition the project profile from AUDIT to PRODUCT.
+
+Reason:
+Owner instruction, taken after S001 completed the audit and produced findings
+with severity, evidence and a remediation roadmap — the precondition
+`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7 sets for the
+transition.
+
+AUDIT is read-only by default and cannot execute remediation, so remaining
+there would block all remediation tasks indefinitely. Between the two
+realistic alternatives, SOLO_LITE would drop `PHASE_RELEASE_GATE_STANDARD` and
+the architecture/data rule groups, and the remediation set contains a
+repository-wide move with Blast Radius 5/5 (REM-T02) that warrants phase-level
+verification. TEAM_PRODUCTION would add CODEOWNERS, incident response and API
+versioning ceremony a single-owner documentation repository cannot meaningfully
+satisfy.
+
+Impact:
+Eleven additional rule groups become mandatory. Most have no subject today and
+are recorded as DORMANT in the Profile Compliance Matrix in
+`PROJECT/PROJECT_PROFILE.md` — mandatory, but with nothing to govern yet.
+DORMANT is not a waiver. One genuine gap surfaced: GAP-01 (Backup / DR), where
+the GitHub remote is the only copy of the repository.
+
+Production code changes are now permitted; the AUDIT read-only restriction is
+lifted. Scope Lock still applies per task.
+
+Can Revisit After:
+Application code lands, at which point every DORMANT row must be re-checked and
+TEAM_PRODUCTION reconsidered if the team grows.
+
+## DEC-006
+
+Date:
+2026-08-22
+
+Task:
+S002 — Roadmap Finalization
+
+Decision:
+Map every remediation task to the Tier A–D vocabulary in
+`governance/core/AGENT_CAPABILITY_MATRIX.md`, and record Tier D as
+NOT_APPLICABLE for this project.
+
+Reason:
+S001 assigned tiers using invented labels ("standard", "senior") that do not
+exist in the capability matrix. The matrix exists precisely so planning is not
+hard-coded to ad-hoc names. `governance/core/AGENT_CAPABILITY_MATRIX.md` also requires Tier D
+to be defined per project rather than assumed.
+
+Impact:
+REM-T02 is Tier C (repository-wide move, Blast Radius 5/5). REM-T03, REM-T05
+and REM-T07 are Tier B. REM-T04 and REM-T06 are Tier A. Tier D is
+NOT_APPLICABLE — this project has no UI, visual design or content-presentation
+work. Re-define Tier D if an application with a user interface is added.
+
+Can Revisit After:
+Any change to the available agent roster, or the addition of UI work.
+
+## DEC-007
+
+Date:
+2026-08-22
+
+Task:
+S002 — Roadmap Finalization
+
+Decision:
+Adopt CI voluntarily (REM-T07) even though
+`governance/core/PROJECT_PROFILE_STANDARD.md` does not make
+`governance/product/14_CI_CD_RELEASE_RULES.md` mandatory at PRODUCT, and
+sequence it first in PHASE-01. Separately, confirm REM-T04 stays MICRO.
+
+Reason:
+Two separate calls, recorded together because both were made while finalizing
+PHASE-01.
+
+CI first: `governance/core/EVIDENCE_STANDARD.md` lists CI results as an E2
+source. REM-T02's CHECK-T02-05 requires E2, and the project currently has no E2
+path at all (RSK-004). Building CI before the highest-blast-radius task means
+that task has independent evidence available when it needs it, rather than
+depending solely on a reviewer session that may not happen.
+
+REM-T04 stays MICRO: it satisfies every eligibility condition in
+`governance/core/TASK_MODE_STANDARD.md` — Difficulty 1, Risk 2, Blast Radius 2,
+no architecture, auth, schema, destructive-data or cross-module change. It
+touches `CLAUDE.md`, which is the agent read path, but the change repairs three
+broken path tokens rather than redesigning anything. The promotion rule stands:
+if the repair needs more than those three lines, stop and promote to MAJOR.
+
+Impact:
+REM-T07 moves PHASE-03 → PHASE-01 position 1 (ROADMAP CHANGE CH-02). REM-T02
+gains a dependency on it. REM-T07 carries a Critical Design Constraint — the
+workflow must discover validators at runtime rather than hard-code paths —
+because a hard-coded path would break at REM-T02's move and force a content
+edit inside a Scope Lock that forbids one.
+
+Can Revisit After:
+REM-T07 completes, or if CI proves impractical on the available runner.
+
+## DEC-008
+
+Date:
+2026-08-22
+
+Task:
+S002 — Roadmap Finalization
+
+Decision:
+Cancel REM-T01 as ABSORBED and mark FIND-002 RESOLVED.
+
+Reason:
+REM-T01 existed to complete the S000 procedure FIND-002 showed had never run.
+Re-checking requirements with current project knowledge — step 1 of Roadmap
+Finalization in `governance/core/00_SESSION_ORCHESTRATION.md` — showed that all
+fifteen steps of the canonical S000 procedure have now been executed across S001
+and S002. The step-by-step mapping is recorded in
+`docs/tasks/TASK-REM-T01-project-state-init.md`.
+
+FIND-002's stated Verification Required is met:
+`validate_project_state.py` exits 0 (E1), and `PROJECT/PROJECT_PROGRESS.md`
+carries a non-placeholder roadmap with a named Current Task (E1). E2 was not
+obtained and is recorded as a limitation, not asserted.
+
+Keeping the task open would create work whose entire Completion Gate is already
+satisfiable at creation time.
+
+Impact:
+PHASE-01 loses its head node; REM-T07 becomes the entry point. The task file is
+retained with a full Cancellation Record rather than deleted, so a later session
+can see that S000 was executed rather than skipped. Issued formally as ROADMAP
+CHANGE CH-01 in `docs/audit/REMEDIATION_ROADMAP.md`.
+
+Reversal is documented in the task file: restore `Status: PLANNED`, set FIND-002
+back to OPEN in the progress file and the traceability table, and re-insert
+REM-T01 at the head of PHASE-01.
+
+Can Revisit After:
+Owner review of this session. This is the one S002 decision that changes the
+roadmap's shape rather than only its metadata.

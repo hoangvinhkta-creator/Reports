@@ -11,10 +11,10 @@ Task Mode:
 MAJOR
 
 Primary Agent Tier:
-standard
+Tier B — Implementation
 
 Escalation Tier:
-senior
+Tier C — Advanced Reasoning
 
 Difficulty:
 3/5
@@ -26,7 +26,13 @@ Blast Radius:
 2/5
 
 Project Profile:
-Set by REM-T01.1
+PRODUCT
+
+Ready Gate Verified In:
+S002 — Roadmap Finalization (2026-08-22)
+
+Completion Gate Status:
+**FROZEN** — 2026-08-22, S002
 
 Closes Finding:
 FIND-007 (MEDIUM); enables machine verification for FIND-005 and FIND-011
@@ -84,18 +90,43 @@ Do not touch without Scope Expansion:
 - [ ] 03.5 Build a nested-layout regression fixture that must FAIL
 - [ ] 03.6 Update `governance/scripts/governance/README.md` to cover all validators
 
-## Ready Gate
-Use `governance/core/TASK_READY_GATE_STANDARD.md`.
+## Ready Gate — PARTIALLY VERIFIED
 
-- [ ] REM-T02 DONE
-- [ ] Completion Gate frozen in S002
-- [ ] Resolution rule for a reference agreed: resolve from repo root first, then from the referencing file's own directory
+Per `governance/core/TASK_READY_GATE_STANDARD.md`, MAJOR Ready Gate:
+
+- [x] Objective is clear.
+- [x] Scope is defined.
+- [x] Out-of-scope is defined.
+- [ ] **Dependencies are DONE or explicitly waived** — REM-T02 is not yet DONE.
+      This is the one open item.
+- [x] Expected touch area is identified.
+- [x] Relevant requirements are understood.
+- [x] Data impact is known — none.
+- [x] Security impact is known — none; validators are read-only and use only
+      the Python standard library.
+- [x] Routing/API impact is known where relevant — NOT_APPLICABLE.
+- [x] Migration prerequisites are available where relevant — NOT_APPLICABLE.
+- [x] Difficulty is scored — 3/5.
+- [x] Risk is scored — 2/5.
+- [x] Blast Radius is scored — 2/5.
+- [x] Primary agent tier is assigned — Tier B.
+- [x] Escalation triggers are defined.
+- [x] Completion Gate is finalized.
+- [x] Completion Gate is frozen before implementation.
+
+Design decision fixed in S002 — the reference resolution rule is: resolve from
+the repository root first, then from the referencing file's own directory; a
+reference is broken only when neither resolves. This is the rule S001's manual
+scan used (CHK-S001-06), so CHECK-T03-03 is a genuine reproduction test.
+
+Status: **PLANNED** — becomes READY when REM-T02 is DONE.
 
 ## Completion Gate
 Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
 
 Status of this gate:
-PRELIMINARY — NOT FROZEN. Freeze in S002.
+**FROZEN** — 2026-08-22, S002. Do not remove or weaken a REQUIRED check to make
+this task pass. Use COMPLETION GATE CHANGE PROPOSAL if a change is warranted.
 
 ### Regression
 
