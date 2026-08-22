@@ -1,45 +1,45 @@
 # Phase & Release Gate Standard
 
-## Purpose
-Individual task success does not prove the integrated system is healthy.
+## Mục đích
+Việc một task riêng lẻ thành công không chứng minh rằng hệ thống đã tích hợp là khỏe mạnh.
 
-## Gate Levels
+## Các cấp Gate
 
 ### 1. Task Gate
-Validates one Major Task.
+Xác thực một Major Task.
 
 ### 2. Phase Gate
-Validates that all tasks in a phase work together.
+Xác thực rằng tất cả các task trong một phase hoạt động tốt cùng nhau.
 
 ### 3. Release Gate
-Validates production readiness.
+Xác thực mức độ sẵn sàng cho production.
 
 ## Phase Gate
-Run after a defined set of related tasks.
+Chạy sau khi hoàn tất một tập hợp các task liên quan đã được xác định.
 
-Typical checks:
-- all required tasks DONE;
-- cross-module integration works;
-- routes remain valid;
-- authentication/authorization regressions absent;
-- data contracts remain compatible;
-- build passes;
-- integration/regression suite passes;
-- no critical open regression item.
+Các check điển hình:
+- tất cả required task đã DONE;
+- tích hợp liên module hoạt động đúng;
+- các route vẫn hợp lệ;
+- không có regression về authentication/authorization;
+- các data contract vẫn tương thích;
+- build pass;
+- bộ test integration/regression pass;
+- không còn hạng mục regression nghiêm trọng nào đang mở.
 
 ## Release Gate
-Before production, verify as relevant:
-- required phases passed;
-- migrations ready;
-- backup/rollback prepared;
-- production environment verified;
-- secrets/config verified;
-- critical security checks passed;
-- release notes prepared;
-- observability available;
-- deployment plan clear;
-- post-deploy checks defined.
+Trước khi lên production, xác minh những điều sau khi phù hợp:
+- các phase bắt buộc đã pass;
+- migration đã sẵn sàng;
+- backup/rollback đã được chuẩn bị;
+- môi trường production đã được xác minh;
+- secrets/config đã được xác minh;
+- các check bảo mật quan trọng đã pass;
+- release notes đã chuẩn bị xong;
+- observability khả dụng;
+- kế hoạch deployment rõ ràng;
+- các check sau deploy đã được xác định.
 
-## Rule
-Task DONE does not imply Phase DONE.
-Phase DONE does not imply RELEASE READY.
+## Quy tắc
+Task DONE không có nghĩa là Phase DONE.
+Phase DONE không có nghĩa là RELEASE READY.

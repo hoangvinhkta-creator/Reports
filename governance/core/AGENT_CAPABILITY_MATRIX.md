@@ -1,74 +1,74 @@
 # Agent Capability Matrix
 
 ## Purpose
-Avoid hard-coding project planning to model names that may change over time.
+Tránh hard-code việc lập kế hoạch dự án theo tên model có thể thay đổi theo thời gian.
 
-Tasks should be assigned to capability tiers first, then mapped to currently available agents/models.
+Task nên được gán vào các capability tier trước, sau đó mới ánh xạ (map) sang các agent/model hiện đang khả dụng.
 
 ## Tier A — Lightweight
-Best for:
-- trivial edits,
-- documentation updates,
-- repetitive bounded changes,
-- simple test additions,
-- low-risk UI corrections.
+Phù hợp nhất cho:
+- các chỉnh sửa nhỏ (trivial edits),
+- cập nhật documentation,
+- các thay đổi lặp lại có giới hạn,
+- bổ sung test đơn giản,
+- các sửa lỗi UI rủi ro thấp.
 
-Typical current mapping:
+Ánh xạ hiện tại điển hình:
 Haiku.
 
 ## Tier B — Implementation
-Best default for:
+Lựa chọn mặc định tốt nhất cho:
 - CRUD,
 - forms,
 - routes,
-- service implementation,
-- standard API work,
-- bounded refactors,
-- normal test work.
+- triển khai service,
+- công việc API tiêu chuẩn,
+- refactor có giới hạn,
+- công việc test thông thường.
 
-Typical current mapping:
+Ánh xạ hiện tại điển hình:
 Sonnet.
 
 ## Tier C — Advanced Reasoning
-Use for:
+Dùng cho:
 - architecture,
 - authentication/authorization,
-- complex migrations,
-- high-risk data changes,
-- cross-module refactors,
-- difficult debugging,
-- root-cause analysis,
-- production incidents.
+- migration phức tạp,
+- thay đổi dữ liệu rủi ro cao,
+- refactor xuyên module,
+- debugging khó,
+- phân tích nguyên nhân gốc (root-cause analysis),
+- sự cố production.
 
-Typical current mapping:
+Ánh xạ hiện tại điển hình:
 Opus.
 
 ## Tier D — Design / Creative
-Use where the available agent is optimized for:
-- UX exploration,
-- visual design,
-- interface concepts,
-- design-system ideation,
-- content-heavy presentation work.
+Dùng khi agent khả dụng được tối ưu hóa cho:
+- khám phá UX,
+- thiết kế trực quan,
+- ý tưởng giao diện,
+- xây dựng ý tưởng design-system,
+- công việc trình bày nội dung chuyên sâu.
 
-Current mapping:
-Project-specific. Define during S000 based on the actual available agent capabilities.
+Ánh xạ hiện tại:
+Tùy theo project. Định nghĩa trong S000 dựa trên năng lực agent thực tế đang khả dụng.
 
-Do not use a design-focused tier as final authority for security/data architecture.
+Không sử dụng một tier tập trung vào thiết kế làm thẩm quyền cuối cùng cho kiến trúc security/data.
 
 ## Scoring Inputs
-Agent assignment should consider:
+Việc gán agent nên cân nhắc:
 
 - Difficulty: 1–5
 - Risk: 1–5
 - Blast Radius: 1–5
-- Ambiguity
-- Security impact
-- Data impact
-- Architecture impact
+- Ambiguity (mức độ mơ hồ)
+- Security impact (tác động bảo mật)
+- Data impact (tác động dữ liệu)
+- Architecture impact (tác động kiến trúc)
 
 ## Escalation
-Every task should define:
+Mỗi task nên định nghĩa:
 - Primary Tier
 - Escalation Tier
 - Escalation triggers

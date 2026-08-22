@@ -1,14 +1,14 @@
 # Task Files
 
-Create one file per Major Task when the task is not a Micro Task.
+Tạo một file cho mỗi Major Task khi task đó không phải là Micro Task.
 
-Recommended naming:
+Quy ước đặt tên đề xuất:
 
-- TASK-01-system-discovery.md (example generated filename)
-- TASK-02-routing-foundation.md (example generated filename)
+- TASK-01-system-discovery.md (ví dụ tên file được tạo)
+- TASK-02-routing-foundation.md (ví dụ tên file được tạo)
 
-Each task should be created from:
+Mỗi task nên được tạo từ:
 
 `governance/templates/TASK_DEFINITION_TEMPLATE.md`
 
-Micro Tasks may be tracked inline in `PROJECT/PROJECT_PROGRESS.md` when permitted by `governance/core/TASK_MODE_STANDARD.md`.
+Micro Task có thể được theo dõi trực tiếp trong `PROJECT/PROJECT_PROGRESS.md` khi được cho phép bởi `governance/core/TASK_MODE_STANDARD.md`.

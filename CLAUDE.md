@@ -1,81 +1,94 @@
-# CLAUDE.md — Project Governance Entry Point
+# CLAUDE.md — Điểm Vào Governance Của Dự Án
 
-## Compact Directory Layout
+## Bố Cục Thư Mục Compact
 
-This package stores static governance under `governance/` to keep repository root thin.
+Gói này lưu governance tĩnh dưới `governance/` để giữ root repo gọn nhẹ.
 
-- `CLAUDE.md` = governance entry point at root.
-- `PROJECT/` = current project state.
-- `docs/` = runtime tasks, sessions, reviews, ADRs.
-- `governance/` = static rules, templates, validators, references.
+- `CLAUDE.md` = điểm vào governance ở root.
+- `PROJECT/` = trạng thái hiện tại của dự án.
+- `docs/` = task, session, review, ADR vận hành.
+- `governance/` = luật tĩnh, template, validator, tài liệu tham khảo.
 
-Do not move governance files back to root.
-The mandatory read order and all original governance mechanisms remain unchanged; only canonical paths differ.
+Không đưa các file governance quay lại root dưới dạng phẳng (không dùng lại cấu trúc pre-compact).
+Thứ tự đọc bắt buộc và toàn bộ cơ chế governance gốc không đổi; chỉ đường dẫn canonical là khác.
 
+## Ngôn Ngữ Nội Dung
 
-## Core Principle
-Do not code first and organize later.
+Toàn bộ văn xuôi (prose) trong các file đẩy lên repo — hướng dẫn, giải thích, mô tả, lý do, ghi chú — phải viết bằng **tiếng Việt**.
 
-The repository is the shared memory:
-- Rules → governance files
-- Current state → `PROJECT/PROJECT_PROGRESS.md`
-- Project profile → `PROJECT/PROJECT_PROFILE.md`
-- Tactical decisions → `PROJECT/PROJECT_DECISIONS.md`
-- Architecture decisions → `docs/adr/`
-- Task definitions → `docs/tasks/`
-- Session history/handoffs → `docs/sessions/`
-- Reusable forms → `templates/`
+Ngoại lệ — PHẢI giữ nguyên tiếng Anh, không dịch:
+- Tên file và đường dẫn thư mục.
+- Toàn bộ mã nguồn `.py` trong `governance/scripts/governance/`, kể cả comment, docstring, và chuỗi in ra (output). Nhiều task/audit trích dẫn nguyên văn output các script này làm bằng chứng E1/E2 — dịch sẽ khiến bằng chứng cũ không còn khớp với hành vi thực tế của hệ thống.
+- Các nhãn trường mà validator đọc bằng regex: `Status:`, `Priority:`, `Evidence Level:`, `Evidence:`, `Executed By:`, `Timestamp:`, `Risk:`, `Selected Profile:`, `Profile:`, `Current Task Mode:`.
+- Các giá trị enum mà validator so khớp chính xác: tên Profile (`SOLO_LITE`, `PRODUCT`, `TEAM_PRODUCTION`, `AUDIT`), Task Mode (`MICRO`, `MAJOR`, `SPIKE`), trạng thái check (`PASS`, `FAIL`, `BLOCKED`, `NOT_TESTED`, `NOT_APPLICABLE`), trạng thái task (`PLANNED`, `READY`, `IN_PROGRESS`, `IMPLEMENTED`, `VERIFYING`, `DONE`, `BLOCKED`, `DEFERRED`, `CANCELLED`), Evidence Level (`E0`, `E1`, `E2`), Priority (`REQUIRED`, `RECOMMENDED`, `OPTIONAL`).
+- ID và định danh: `TASK-XX`, `REM-TXX`, `FIND-XXX`, `DEC-XXX`, `ADR-XXX`, `CHECK-XXX`, mã commit git.
+- Đoạn Evidence trích dẫn nguyên văn output lệnh đã thực thi — đây là bản ghi lịch sử, không phải văn xuôi để dịch.
 
-## S000 — First Actions
+Nếu việc tuân thủ quy tắc này làm hỏng khả năng parse của validator (`governance/scripts/governance/*.py`), giữ hệ thống chạy được được ưu tiên hơn việc dịch triệt để.
 
-S000 has ONE canonical procedure.
+## Nguyên Tắc Cốt Lõi
+Không code trước rồi tổ chức sau.
 
-1. Read `governance/core/PROJECT_PROFILE_STANDARD.md`.
-2. Read `governance/core/RULE_PRECEDENCE.md`.
-3. Read `governance/core/TASK_MODE_STANDARD.md`.
-4. Then execute the full ordered S000 procedure in `governance/core/00_SESSION_ORCHESTRATION.md`.
+Repo là bộ nhớ chung:
+- Luật → file governance
+- Trạng thái hiện tại → `PROJECT/PROJECT_PROGRESS.md`
+- Profile dự án → `PROJECT/PROJECT_PROFILE.md`
+- Quyết định chiến thuật → `PROJECT/PROJECT_DECISIONS.md`
+- Quyết định kiến trúc → `docs/adr/`
+- Định nghĩa task → `docs/tasks/`
+- Lịch sử/bàn giao session → `docs/sessions/`
+- Biểu mẫu tái sử dụng → `governance/templates/`
 
-Do not maintain a second S000 checklist in this file.
+## S000 — Hành Động Đầu Tiên
+
+S000 có DUY NHẤT một quy trình canonical.
+
+1. Đọc `governance/core/PROJECT_PROFILE_STANDARD.md`.
+2. Đọc `governance/core/RULE_PRECEDENCE.md`.
+3. Đọc `governance/core/TASK_MODE_STANDARD.md`.
+4. Sau đó thực hiện đầy đủ quy trình S000 theo thứ tự trong `governance/core/00_SESSION_ORCHESTRATION.md`.
+
+Không duy trì một checklist S000 thứ hai trong file này.
 
 ## Project Profiles
 
-Use `governance/core/PROJECT_PROFILE_STANDARD.md`.
+Dùng `governance/core/PROJECT_PROFILE_STANDARD.md`.
 
-Profiles:
+Các profile:
 - SOLO_LITE
 - PRODUCT
 - TEAM_PRODUCTION
 - AUDIT
 
-Profile selection determines governance depth; it does not dictate a specific technical stack.
+Việc chọn profile quyết định độ sâu governance; không quyết định stack kỹ thuật cụ thể.
 
-## Rule Conflicts
+## Xung Đột Luật
 
-Use `governance/core/RULE_PRECEDENCE.md`.
+Dùng `governance/core/RULE_PRECEDENCE.md`.
 
-Do not resolve material rule conflicts silently.
+Không âm thầm tự giải quyết xung đột luật có tính chất trọng yếu.
 
-## Every Implementation Session
+## Mỗi Session Triển Khai
 
-1. Read `PROJECT/PROJECT_PROGRESS.md`.
-2. Read `PROJECT/PROJECT_PROFILE.md`.
-3. Identify current task and Task Mode.
-4. For MAJOR tasks, read the task file under `docs/tasks/`.
-5. Verify the appropriate Ready Gate.
-6. Load Scope Lock.
-7. Load the finalized/frozen Completion Gate.
-8. Read relevant governance files.
-9. Begin implementation only when READY.
+1. Đọc `PROJECT/PROJECT_PROGRESS.md`.
+2. Đọc `PROJECT/PROJECT_PROFILE.md`.
+3. Xác định task hiện tại và Task Mode.
+4. Với task MAJOR, đọc file task dưới `docs/tasks/`.
+5. Kiểm tra Ready Gate phù hợp.
+6. Nạp Scope Lock.
+7. Nạp Completion Gate đã finalize/frozen.
+8. Đọc các file governance liên quan.
+9. Chỉ bắt đầu triển khai khi đã READY.
 
 ## Task Modes
 
-Use `governance/core/TASK_MODE_STANDARD.md`.
+Dùng `governance/core/TASK_MODE_STANDARD.md`.
 
-- MICRO — low-risk bounded work with compact checklist.
-- MAJOR — full task file + dedicated session + gates + handoff.
-- SPIKE / EXPLORATORY — reduces uncertainty before implementation.
+- MICRO — việc rủi ro thấp, phạm vi hẹp, dùng checklist gọn.
+- MAJOR — đầy đủ file task + session riêng + gate + bàn giao.
+- SPIKE / EXPLORATORY — giảm bất định trước khi triển khai.
 
-## Task Lifecycle
+## Vòng Đời Task
 
 NOT_PLANNED
 → PLANNED
@@ -85,72 +98,72 @@ NOT_PLANNED
 → VERIFYING
 → DONE
 
-Alternative states:
+Trạng thái thay thế:
 BLOCKED / DEFERRED / CANCELLED
 
-## Evidence
+## Bằng Chứng (Evidence)
 
-Use `governance/core/EVIDENCE_STANDARD.md`.
+Dùng `governance/core/EVIDENCE_STANDARD.md`.
 
-Never invent evidence.
+Không bao giờ bịa bằng chứng.
 
-For executable checks:
-- Risk 3 → E1 required for REQUIRED checks.
-- Risk 4–5 → E1 required; security/data-critical checks should seek E2.
+Với các check thực thi được:
+- Risk 3 → bắt buộc E1 cho check REQUIRED.
+- Risk 4–5 → bắt buộc E1; check liên quan security/data nên hướng tới E2.
 
-If not executed:
+Nếu chưa thực thi:
 Status = NOT_TESTED.
 
-## Completion
+## Hoàn Thành (Completion)
 
-Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md`.
+Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md`.
 
 CODE COMPLETE ≠ TASK COMPLETE.
 
-A task is DONE only when:
-- all REQUIRED checks PASS,
-- required evidence levels are satisfied,
-- Exit Criteria are satisfied.
+Một task chỉ DONE khi:
+- toàn bộ check REQUIRED PASS,
+- evidence level bắt buộc được thỏa mãn,
+- Exit Criteria được thỏa mãn.
 
-## Integration
+## Tích Hợp (Integration)
 
-Use `governance/core/PHASE_RELEASE_GATE_STANDARD.md`.
+Dùng `governance/core/PHASE_RELEASE_GATE_STANDARD.md`.
 
 Task DONE ≠ Phase DONE.
 Phase DONE ≠ Release Ready.
 
 ## Escalation
 
-Use `governance/core/ESCALATION_PROTOCOL.md`.
+Dùng `governance/core/ESCALATION_PROTOCOL.md`.
 
-Do not repeatedly patch a failing implementation.
+Không liên tục vá một triển khai đang thất bại.
 
-## Progress Questions
+## Câu Hỏi Về Tiến Độ
 
-If the user asks:
-- current progress,
-- current step,
-- remaining work,
-- next step,
+Nếu người dùng hỏi:
+- tiến độ hiện tại,
+- bước hiện tại,
+- công việc còn lại,
+- bước tiếp theo,
 - checklist,
 
-READ `PROJECT/PROJECT_PROGRESS.md` FIRST.
+ĐỌC `PROJECT/PROJECT_PROGRESS.md` TRƯỚC TIÊN.
 
-Do not answer from conversational memory.
+Không trả lời dựa trên trí nhớ hội thoại.
 
-## Scope Expansion
+## Mở Rộng Phạm Vi (Scope Expansion)
 
-Do not silently edit outside a task's Scope Lock.
+Không âm thầm sửa ngoài Scope Lock của task.
 
-If required:
+Nếu cần thiết:
 
 SCOPE EXPANSION REQUIRED
 
-Then reassess impact before continuing.
+Sau đó đánh giá lại tác động trước khi tiếp tục.
 
-## Conflict Rule
+## Quy Tắc Xung Đột
 
-If documentation, implementation, data, security, or current behavior conflict:
+Nếu documentation, implementation, data, security, hoặc hành vi hiện tại xung đột với nhau:
 
 CONFLICT DETECTED
 
@@ -166,9 +179,9 @@ Risk:
 Recommended resolution:
 ...
 
-Do not guess silently.
+Không âm thầm đoán mò.
 
-## Relevant Governance Files
+## Các File Governance Liên Quan
 
 ### Session / Planning
 - `governance/core/00_SESSION_ORCHESTRATION.md`
@@ -182,7 +195,7 @@ Do not guess silently.
 - `governance/core/RULE_PRECEDENCE.md`
 - `governance/core/EVIDENCE_STANDARD.md`
 
-### Engineering
+### Kỹ Thuật (Engineering)
 - `governance/core/01_PROJECT_ARCHITECTURE_RULES.md`
 - `governance/core/02_ROUTING_RULES.md`
 - `governance/core/03_DATA_MODEL_RULES.md`
@@ -195,7 +208,7 @@ Do not guess silently.
 - `governance/core/10_AI_AGENT_EXECUTION_PROTOCOL.md`
 - `governance/core/11_FORBIDDEN_ACTIONS.md`
 
-### Product / Operations
+### Sản Phẩm / Vận Hành (Product / Operations)
 - `governance/product/12_PRODUCT_REQUIREMENTS_RULES.md`
 - `governance/product/13_ENVIRONMENT_CONFIGURATION.md`
 - `governance/product/14_CI_CD_RELEASE_RULES.md`
@@ -212,8 +225,8 @@ Do not guess silently.
 ### Audit / Enforcement
 - `governance/audit/DISCOVERY_BASELINE_TEMPLATE.md`
 - `governance/audit/AUDIT_FINDINGS_TEMPLATE.md`
-- `OPTIONAL_ENFORCEMENT_LAYER.md`
+- `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`
 
-## Final Rule
+## Luật Cuối Cùng
 
-The agent must prove completion through artifacts and evidence, not through narrative confidence.
+Agent phải chứng minh việc hoàn thành bằng artifact và bằng chứng, không phải bằng sự tự tin trong lời kể.

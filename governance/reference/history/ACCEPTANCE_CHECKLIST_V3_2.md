@@ -1,52 +1,52 @@
-# ACCEPTANCE CHECKLIST — V3.2
+# BẢNG KIỂM CHẤP NHẬN — V3.2
 
-## A. Runtime Wiring
-- [ ] Task Definition includes Task Mode.
-- [ ] Task Definition includes Evidence Level.
-- [ ] Task Definition includes Executed By and Timestamp.
-- [ ] Session Handoff includes evidence table.
-- [ ] Project Progress includes Profile.
-- [ ] Project Progress includes Current Task Mode.
-- [ ] Project Progress includes inline Micro Task section.
+## A. Kết nối Runtime (Runtime Wiring)
+- [ ] Task Definition bao gồm Task Mode.
+- [ ] Task Definition bao gồm Evidence Level.
+- [ ] Task Definition bao gồm Executed By và Timestamp.
+- [ ] Session Handoff bao gồm bảng evidence.
+- [ ] Project Progress bao gồm Profile.
+- [ ] Project Progress bao gồm Current Task Mode.
+- [ ] Project Progress bao gồm mục Micro Task nội tuyến (inline).
 
 ## B. Micro Task
-- [ ] `governance/templates/MICRO_TASK_CHECKLIST.md` exists.
-- [ ] Micro Ready Gate exists.
-- [ ] Micro Completion Gate exists.
-- [ ] Promotion to MAJOR is defined.
+- [ ] `governance/templates/MICRO_TASK_CHECKLIST.md` tồn tại.
+- [ ] Micro Ready Gate tồn tại.
+- [ ] Micro Completion Gate tồn tại.
+- [ ] Việc nâng cấp (promotion) lên MAJOR được định nghĩa.
 
 ## C. Evidence
-- [ ] Completion Gate directly references `governance/core/EVIDENCE_STANDARD.md`.
-- [ ] Risk-based evidence requirements are explicit.
-- [ ] Unexecuted checks become NOT_TESTED.
-- [ ] Forbidden Actions prohibits fabricated evidence.
-- [ ] Solo E2 independent review procedure exists.
+- [ ] Completion Gate tham chiếu trực tiếp đến `governance/core/EVIDENCE_STANDARD.md`.
+- [ ] Yêu cầu evidence theo risk được nêu rõ ràng.
+- [ ] Các check chưa được thực thi trở thành NOT_TESTED.
+- [ ] Forbidden Actions nghiêm cấm việc bịa đặt evidence.
+- [ ] Quy trình Solo E2 Independent Review (rà soát độc lập) tồn tại.
 
-## D. Integrated Governance
-- [ ] `CLAUDE.md` has one integrated top-level structure.
-- [ ] S000 begins with Profile Selection.
-- [ ] `governance/core/00_SESSION_ORCHESTRATION.md` includes profile selection in the main ordered flow.
-- [ ] Relevant Governance Files includes all new V3.1/V3.2 standards.
+## D. Governance Tích hợp
+- [ ] `CLAUDE.md` có một cấu trúc top-level tích hợp thống nhất.
+- [ ] S000 bắt đầu bằng Profile Selection.
+- [ ] `governance/core/00_SESSION_ORCHESTRATION.md` bao gồm việc chọn profile trong luồng chính có thứ tự của S000.
+- [ ] Relevant Governance Files bao gồm tất cả các standard mới của V3.1/V3.2.
 
-## E. Profiles
-- [ ] SOLO_LITE inheritance is explicit.
-- [ ] PRODUCT inheritance is explicit.
-- [ ] TEAM_PRODUCTION inheritance is explicit.
-- [ ] AUDIT required rules are explicitly listed.
-- [ ] AUDIT defaults to READ ONLY.
+## E. Profile
+- [ ] Tính kế thừa của SOLO_LITE được nêu rõ ràng.
+- [ ] Tính kế thừa của PRODUCT được nêu rõ ràng.
+- [ ] Tính kế thừa của TEAM_PRODUCTION được nêu rõ ràng.
+- [ ] Bộ quy tắc bắt buộc của AUDIT được liệt kê rõ ràng.
+- [ ] AUDIT mặc định là READ ONLY.
 
 ## F. Enforcement
-- [ ] `governance/scripts/governance/validate_structure.py` exists.
-- [ ] `governance/scripts/governance/validate_project_state.py` exists.
-- [ ] Both validators execute successfully on initialized package structure where applicable.
+- [ ] `governance/scripts/governance/validate_structure.py` tồn tại.
+- [ ] `governance/scripts/governance/validate_project_state.py` tồn tại.
+- [ ] Cả hai validator đều thực thi thành công trên cấu trúc package đã được khởi tạo, ở những nơi áp dụng được.
 
 ## G. Package
-- [ ] No root/runtime template ambiguity.
-- [ ] `docs/tasks/` exists.
-- [ ] `docs/sessions/` exists.
-- [ ] Manifest count matches package contents.
+- [ ] Không còn mơ hồ giữa root/runtime template.
+- [ ] `docs/tasks/` tồn tại.
+- [ ] `docs/sessions/` tồn tại.
+- [ ] Số lượng trong manifest khớp với nội dung package.
 
-## Final Result
+## Kết quả Cuối cùng
 ACCEPTED / CHANGES_REQUIRED
 
 Reviewer:

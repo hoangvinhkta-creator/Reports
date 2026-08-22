@@ -1,6 +1,6 @@
 # PACKAGE MANIFEST — V3.2 FINAL COMPACT
 
-Total files: 73
+Tổng số file: 73
 
 - `CLAUDE.md`
 - `PROJECT/PROJECT_DECISIONS.md`

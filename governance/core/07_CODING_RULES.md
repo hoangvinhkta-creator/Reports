@@ -1,95 +1,95 @@
 # 07 — Coding Rules
 
 ## Objective
-Produce readable, maintainable code that does not rely on hidden shortcuts.
+Tạo ra code dễ đọc, dễ bảo trì, không phụ thuộc vào các shortcut ẩn.
 
 ## Rules
 
-### 1. Prefer clarity over cleverness
-Code should be understandable by another developer and future AI agent.
+### 1. Ưu tiên sự rõ ràng hơn sự khôn khéo
+Code phải dễ hiểu đối với một developer khác và AI agent trong tương lai.
 
-### 2. Functions should have clear responsibilities
-Avoid large functions doing unrelated work.
+### 2. Function phải có trách nhiệm rõ ràng
+Tránh các function lớn làm nhiều việc không liên quan.
 
-### 3. Components should remain focused
-Split large components when responsibilities become distinct.
+### 3. Component nên giữ tính tập trung
+Tách nhỏ component lớn khi các trách nhiệm trở nên khác biệt.
 
-### 4. No silent error swallowing
-Avoid:
+### 4. Không được nuốt lỗi âm thầm
+Tránh:
 
 try {
   ...
 } catch (e) {}
 
-Errors must be handled, propagated, or intentionally recorded.
+Lỗi phải được xử lý, lan truyền (propagated), hoặc ghi nhận có chủ đích.
 
-### 5. Do not suppress type errors as a default fix
-Avoid:
+### 5. Không mặc định che giấu type errors
+Tránh:
 - `@ts-ignore`
 - unsafe casts
-- disabling compiler checks
+- tắt các kiểm tra của compiler
 
-unless explicitly justified.
+trừ khi có lý do biện minh rõ ràng.
 
-### 6. Avoid magic values
-Do not hard-code:
-- role names,
+### 6. Tránh magic values
+Không hard-code:
+- tên role,
 - statuses,
 - route paths,
 - limits,
-- important durations,
+- các khoảng thời gian quan trọng,
 - configuration values
 
-throughout the codebase.
+xuyên suốt codebase.
 
-Use centralized constants/config/enums.
+Sử dụng constants/config/enums tập trung.
 
-### 7. Reuse before duplicating
-Before creating a new:
+### 7. Tái sử dụng trước khi tạo trùng lặp
+Trước khi tạo mới một:
 - helper,
 - service,
 - component,
 - type,
 - utility,
 
-search for an existing equivalent.
+hãy tìm kiếm phần tương đương đã tồn tại.
 
-### 8. Do not install dependencies unnecessarily
-Before installing a package:
-- inspect current dependencies,
-- assess maintenance/security,
-- confirm existing tools cannot solve the problem.
+### 8. Không cài đặt dependency khi không cần thiết
+Trước khi cài một package:
+- kiểm tra các dependency hiện có,
+- đánh giá khả năng bảo trì/bảo mật,
+- xác nhận các công cụ hiện có không thể giải quyết vấn đề.
 
-### 9. Follow existing conventions
-Do not introduce a completely different style without architectural reason.
+### 9. Tuân theo các convention hiện có
+Không đưa vào một style hoàn toàn khác mà không có lý do kiến trúc.
 
-### 10. Comments explain why, not obvious syntax
-Use comments for non-obvious decisions, constraints, or tradeoffs.
+### 10. Comment giải thích lý do (why), không phải cú pháp hiển nhiên
+Dùng comment cho các quyết định, ràng buộc, hoặc đánh đổi (tradeoff) không hiển nhiên.
 
 ### 11. Naming
-Names should communicate business meaning.
+Tên gọi phải truyền tải ý nghĩa nghiệp vụ.
 
-Prefer:
+Ưu tiên:
 calculateQuoteTotal()
 
-over:
+thay vì:
 calc()
 
-### 12. No dead code
-Remove obsolete code created by the same task when safe and scoped.
+### 12. Không để lại dead code
+Xóa code lỗi thời được tạo ra bởi cùng task khi an toàn và nằm trong phạm vi.
 
-Do not perform unrelated cleanup.
+Không thực hiện dọn dẹp không liên quan.
 
-### 13. Configuration separation
-Environment-specific settings belong in configuration, not scattered implementation.
+### 13. Tách biệt configuration
+Các thiết lập đặc thù theo môi trường thuộc về configuration, không rải rác trong implementation.
 
-### 14. Production code must not depend on debug hacks
-Temporary bypasses must not remain as permanent behavior.
+### 14. Code production không được phụ thuộc vào debug hack
+Các bypass tạm thời không được trở thành hành vi vĩnh viễn.
 
 ## Code Review Questions
-- Is this the smallest coherent solution?
-- Is responsibility placed in the correct layer?
-- Did we duplicate logic?
-- Is there a hidden shortcut?
-- Is failure behavior explicit?
-- Will another developer understand this later?
+- Đây có phải là giải pháp nhỏ nhất còn mạch lạc không?
+- Trách nhiệm có được đặt đúng layer không?
+- Chúng ta có lặp lại logic không?
+- Có shortcut ẩn nào không?
+- Hành vi khi thất bại (failure behavior) có tường minh không?
+- Một developer khác sau này có hiểu được điều này không?

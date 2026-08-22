@@ -1,10 +1,10 @@
-# 01 — Project Architecture Rules
+# 01 — Quy tắc Kiến trúc Dự án
 
-## Objective
-Keep the system modular, predictable, testable, secure, and resistant to uncontrolled AI-generated code growth.
+## Mục tiêu
+Giữ hệ thống modular, dễ dự đoán, dễ kiểm thử, an toàn, và chống lại việc mã nguồn do AI sinh ra phình to mất kiểm soát.
 
-## Required Layering
-Prefer a structure conceptually similar to:
+## Phân lớp Bắt buộc
+Ưu tiên một cấu trúc về mặt khái niệm tương tự như sau:
 
 UI / Pages
 ↓
@@ -16,14 +16,14 @@ Repository / API Client
 ↓
 Database / External Services
 
-Exact folder names may differ, but responsibilities must remain separated.
+Tên thư mục cụ thể có thể khác nhau, nhưng trách nhiệm (responsibility) phải được tách biệt.
 
-## Rules
+## Quy tắc
 
-### 1. Define module boundaries
-Each major business capability should live in a distinct module.
+### 1. Định nghĩa ranh giới module
+Mỗi năng lực nghiệp vụ (business capability) chính nên nằm trong một module riêng biệt.
 
-Examples:
+Ví dụ:
 - customers
 - quotes
 - orders
@@ -33,51 +33,51 @@ Examples:
 - reports
 - settings
 
-### 2. Avoid feature mixing
-A module must not directly manipulate another module's internal state or database implementation.
+### 2. Tránh trộn lẫn feature
+Một module không được trực tiếp thao tác trạng thái nội bộ hoặc phần triển khai database của một module khác.
 
-Cross-module operations should use public services/interfaces.
+Các thao tác liên module nên dùng service/interface công khai (public).
 
-### 3. Separate concerns
-Do not mix:
-- presentation,
+### 3. Tách biệt các mối quan tâm (separation of concerns)
+Không được trộn lẫn:
+- presentation (trình bày),
 - routing,
-- business rules,
-- data access,
-- authorization,
-- persistence
+- business rules (quy tắc nghiệp vụ),
+- data access (truy cập dữ liệu),
+- authorization (phân quyền),
+- persistence (lưu trữ)
 
-inside one component or file.
+trong cùng một component hoặc file.
 
-### 4. No circular dependencies
-Module A → Module B → Module A is prohibited.
+### 4. Không có dependency vòng (circular dependency)
+Module A → Module B → Module A là bị cấm.
 
-If shared behavior exists, extract it into a stable shared/domain layer.
+Nếu có hành vi dùng chung, hãy tách nó ra thành một lớp shared/domain ổn định.
 
-### 5. Prefer stable public interfaces
-Internal implementation may change, but other modules should depend on interfaces/services rather than implementation details.
+### 5. Ưu tiên interface công khai ổn định
+Cách triển khai nội bộ có thể thay đổi, nhưng các module khác nên phụ thuộc vào interface/service thay vì chi tiết triển khai.
 
-### 6. Do not redesign unrelated architecture
-A feature request is not permission to rewrite working architecture.
+### 6. Không tái thiết kế kiến trúc không liên quan
+Một yêu cầu feature không phải là giấy phép để viết lại kiến trúc đang hoạt động tốt.
 
-### 7. Architecture changes require explicit justification
-Before changing architectural boundaries, document:
-- current limitation,
-- proposed change,
-- affected modules,
-- migration cost,
-- compatibility impact,
-- rollback strategy.
+### 7. Thay đổi kiến trúc cần có lý do rõ ràng
+Trước khi thay đổi ranh giới kiến trúc, phải ghi lại tài liệu:
+- giới hạn hiện tại,
+- thay đổi đề xuất,
+- các module bị ảnh hưởng,
+- chi phí migration,
+- tác động đến khả năng tương thích (compatibility impact),
+- chiến lược rollback.
 
-### 8. Shared code must truly be shared
-Do not place code into `shared/` merely because it is convenient.
+### 8. Code dùng chung phải thực sự là dùng chung
+Không đặt code vào `shared/` chỉ vì tiện.
 
-Shared code should:
-- have no feature-specific assumptions,
-- be reusable by at least two legitimate consumers,
-- have a stable responsibility.
+Code dùng chung nên:
+- không có giả định đặc thù cho một feature cụ thể,
+- có thể tái sử dụng bởi ít nhất hai bên tiêu thụ (consumer) hợp lệ,
+- có trách nhiệm ổn định.
 
-## Preferred Example Structure
+## Cấu trúc Ví dụ Được khuyến nghị
 
 src/
 ├── app/
@@ -97,7 +97,7 @@ src/
 ├── services/
 └── config/
 
-A module may contain:
+Một module có thể chứa:
 
 module/
 ├── pages/
@@ -109,11 +109,11 @@ module/
 ├── types/
 └── tests/
 
-## Architecture Review Questions
-Before implementation:
-- Which module owns this behavior?
-- Is this logic UI, business, data, or infrastructure?
-- Does an existing service already own it?
-- Will this create coupling?
-- Will another feature need to know implementation details?
-- Can this be tested independently?
+## Câu hỏi Rà soát Kiến trúc
+Trước khi triển khai:
+- Module nào sở hữu hành vi này?
+- Logic này thuộc về UI, business, data, hay infrastructure?
+- Đã có service hiện hữu nào sở hữu nó chưa?
+- Việc này có tạo ra coupling (kết dính) không?
+- Feature khác có cần biết chi tiết triển khai của nó không?
+- Việc này có thể được kiểm thử độc lập không?

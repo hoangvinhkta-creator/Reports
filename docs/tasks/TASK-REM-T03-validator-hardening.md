@@ -1,4 +1,4 @@
-# TASK-REM-T03 — Deployment-root and reference-integrity validators
+# TASK-REM-T03 — Validator kiểm tra deployment-root và reference-integrity
 
 ## Metadata
 Status:
@@ -35,98 +35,107 @@ Completion Gate Status:
 **FROZEN** — 2026-08-22, S002
 
 Closes Finding:
-FIND-007 (MEDIUM); enables machine verification for FIND-005 and FIND-011
+FIND-007 (MEDIUM); giúp có thể xác minh bằng máy cho FIND-005 và FIND-011
 
-## Objective
-Make two defect classes machine-detectable that S001 could only find by hand:
+## Mục Tiêu (Objective)
+Biến hai loại lỗi mà S001 chỉ có thể phát hiện bằng tay thành có thể phát hiện
+bằng máy:
 
-1. A governance package deployed somewhere other than the repository root
-   (the FIND-001 class).
-2. Broken canonical repository-relative references (the FIND-003/FIND-004
-   class, which a shipped report wrongly certified as clean — FIND-005).
+1. Một governance package được deploy ở nơi khác ngoài gốc repository (loại
+   lỗi FIND-001).
+2. Các canonical reference tương đối trong repository bị hỏng (loại lỗi
+   FIND-003/FIND-004, mà một báo cáo đã phát hành lại chứng nhận sai là sạch —
+   FIND-005).
 
-## Scope
+## Phạm Vi (Scope)
 - `governance/scripts/governance/validate_structure.py`
-- New `governance/scripts/governance/validate_reference_integrity.py`
-- `governance/scripts/governance/README.md` (overlaps REM-T05 — coordinate)
-- A regression fixture directory for the nested-layout case
+- `governance/scripts/governance/validate_reference_integrity.py` mới
+- `governance/scripts/governance/README.md` (chồng lấn với REM-T05 — cần phối hợp)
+- Một thư mục regression fixture cho trường hợp nested-layout
 
-## Out of Scope
-- Governance rule text
+## Ngoài Phạm Vi (Out of Scope)
+- Nội dung câu chữ của governance rule
 - CI wiring (REM-T07)
-- Repairing the references themselves (REM-T04)
+- Sửa chữa bản thân các reference (REM-T04)
 
-## Dependencies
-- REM-T02 DONE (the check encodes the expected root layout)
+## Phụ Thuộc (Dependencies)
+- REM-T02 DONE (check này mã hóa lại layout gốc kỳ vọng)
 
-## Blocks
-- REM-T05 (the report can only cite output from a validator that exists)
+## Chặn (Blocks)
+- REM-T05 (báo cáo chỉ có thể trích dẫn output từ một validator thực sự tồn tại)
 
-## Parallel-Safe With
-- REM-T04. This task touches only `governance/scripts/`; REM-T04 touches only
-  `.md` prose.
+## An Toàn Để Chạy Song Song Với (Parallel-Safe With)
+- REM-T04. Task này chỉ đụng vào `governance/scripts/`; REM-T04 chỉ đụng vào
+  văn xuôi `.md`.
 
-## Expected Touch Area
+## Phạm Vi Tác Động Dự Kiến (Expected Touch Area)
 
 Allowed:
 - `governance/scripts/governance/**`
-- Test fixtures under a clearly named fixture directory
+- Test fixture nằm trong một thư mục fixture được đặt tên rõ ràng
 
-Do not touch without Scope Expansion:
+Không được đụng vào nếu chưa có Scope Expansion (Do not touch without Scope Expansion):
 - `governance/core/**`, `governance/product/**`, `CLAUDE.md`
 
-## Subtasks
-- [ ] 03.1 Add git-root discovery (walk upward for `.git`) and assert it equals the resolved `ROOT`
-- [ ] 03.2 Report NOT_APPLICABLE — not PASS — when no git root is found
-- [ ] 03.3 Add `validate_reference_integrity.py` resolving backtick-quoted `.md` / `.py` / `.svg` references
-- [ ] 03.4 Define and document the scan's exclusion and handling rules in the script:
-  - exclude `governance/reference/history/` (frozen archive — FIND-011)
-  - exclude `docs/audit/` (immutable audit record; it quotes defect tokens such
-    as the bare `OPTIONAL_ENFORCEMENT_LAYER.md` verbatim as evidence)
-  - skip glob patterns (`PROJECT/*.md`, `docs/tasks/TASK-REM-*.md`) rather than
-    reporting them broken
-  - skip references to files a PLANNED task will create (forward references),
-    or report them at a distinct severity from genuinely broken links
-- [ ] 03.5 Build a nested-layout regression fixture that must FAIL
-- [ ] 03.6 Update `governance/scripts/governance/README.md` to cover all validators
+## Subtask (Subtasks)
+- [ ] 03.1 Thêm cơ chế phát hiện git-root (đi ngược lên tìm `.git`) và assert
+      rằng nó bằng `ROOT` đã resolve
+- [ ] 03.2 Báo cáo NOT_APPLICABLE — không phải PASS — khi không tìm thấy git root
+- [ ] 03.3 Thêm `validate_reference_integrity.py` để resolve các reference
+      `.md` / `.py` / `.svg` được trích trong dấu backtick
+- [ ] 03.4 Định nghĩa và tài liệu hóa các quy tắc loại trừ (exclusion) và xử lý
+      của bản scan trong script:
+  - loại trừ `governance/reference/history/` (kho lưu trữ đã đóng băng — FIND-011)
+  - loại trừ `docs/audit/` (bản ghi audit bất biến; nó trích dẫn nguyên văn các
+    token lỗi như `OPTIONAL_ENFORCEMENT_LAYER.md` trần trụi làm evidence)
+  - bỏ qua các glob pattern (`PROJECT/*.md`, `docs/tasks/TASK-REM-*.md`) thay
+    vì báo cáo chúng là hỏng
+  - bỏ qua các reference trỏ tới file mà một task PLANNED sẽ tạo ra (forward
+    reference), hoặc báo cáo chúng ở một mức độ nghiêm trọng khác biệt so với
+    link thực sự bị hỏng
+- [ ] 03.5 Xây dựng một regression fixture nested-layout bắt buộc phải FAIL
+- [ ] 03.6 Cập nhật `governance/scripts/governance/README.md` để bao phủ toàn
+      bộ các validator
 
 ## Ready Gate — PARTIALLY VERIFIED
 
-Per `governance/core/TASK_READY_GATE_STANDARD.md`, MAJOR Ready Gate:
+Theo `governance/core/TASK_READY_GATE_STANDARD.md`, MAJOR Ready Gate:
 
-- [x] Objective is clear.
-- [x] Scope is defined.
-- [x] Out-of-scope is defined.
-- [ ] **Dependencies are DONE or explicitly waived** — REM-T02 is not yet DONE.
-      This is the one open item.
-- [x] Expected touch area is identified.
-- [x] Relevant requirements are understood.
-- [x] Data impact is known — none.
-- [x] Security impact is known — none; validators are read-only and use only
-      the Python standard library.
-- [x] Routing/API impact is known where relevant — NOT_APPLICABLE.
-- [x] Migration prerequisites are available where relevant — NOT_APPLICABLE.
-- [x] Difficulty is scored — 3/5.
-- [x] Risk is scored — 2/5.
-- [x] Blast Radius is scored — 2/5.
-- [x] Primary agent tier is assigned — Tier B.
-- [x] Escalation triggers are defined.
-- [x] Completion Gate is finalized.
-- [x] Completion Gate is frozen before implementation.
+- [x] Mục tiêu đã rõ ràng.
+- [x] Scope đã được xác định.
+- [x] Out-of-scope đã được xác định.
+- [ ] **Dependencies đã DONE hoặc được waive rõ ràng** — REM-T02 chưa DONE.
+      Đây là mục còn mở duy nhất.
+- [x] Phạm vi tác động dự kiến đã được xác định.
+- [x] Các yêu cầu liên quan đã được hiểu rõ.
+- [x] Tác động đến dữ liệu đã được biết rõ — không có.
+- [x] Tác động đến bảo mật đã được biết rõ — không có; các validator chỉ đọc
+      (read-only) và chỉ dùng Python standard library.
+- [x] Tác động đến routing/API đã được biết rõ nếu liên quan — NOT_APPLICABLE.
+- [x] Điều kiện tiên quyết cho migration đã sẵn sàng nếu liên quan — NOT_APPLICABLE.
+- [x] Difficulty đã được chấm điểm — 3/5.
+- [x] Risk đã được chấm điểm — 2/5.
+- [x] Blast Radius đã được chấm điểm — 2/5.
+- [x] Primary agent tier đã được gán — Tier B.
+- [x] Escalation triggers đã được xác định.
+- [x] Completion Gate đã được finalize.
+- [x] Completion Gate đã được frozen trước khi implementation.
 
-Design decision fixed in S002 — the reference resolution rule is: resolve from
-the repository root first, then from the referencing file's own directory; a
-reference is broken only when neither resolves. This is the rule S001's manual
-scan used (CHK-S001-06), so CHECK-T03-03 is a genuine reproduction test.
+Quyết định thiết kế đã chốt tại S002 — quy tắc resolve reference là: resolve
+trước từ gốc repository, sau đó từ thư mục riêng của file đang tham chiếu; một
+reference chỉ bị coi là hỏng khi cả hai đều không resolve được. Đây chính là
+quy tắc mà bản scan thủ công của S001 đã dùng (CHK-S001-06), nên CHECK-T03-03
+là một test tái hiện (reproduction test) thực sự.
 
-Status: **PLANNED** — becomes READY when REM-T02 is DONE.
+Status: **PLANNED** — trở thành READY khi REM-T02 DONE.
 
 ## Completion Gate
-Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
+Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `governance/core/EVIDENCE_STANDARD.md`.
 
 Status of this gate:
-**FROZEN** — 2026-08-22, S002. Do not remove or weaken a REQUIRED check to make
-this task pass. Use COMPLETION GATE CHANGE PROPOSAL if a change is warranted.
+**FROZEN** — 2026-08-22, S002. Không được xóa hoặc làm yếu đi một REQUIRED
+check để khiến task này pass. Sử dụng COMPLETION GATE CHANGE PROPOSAL nếu một
+thay đổi là chính đáng.
 
 ### Regression
 
@@ -149,9 +158,9 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-A deliberately nested fixture produces a non-zero exit with an explicit message
-naming the expected root. This is the check that would have caught FIND-001.
+Yêu cầu:
+Một fixture bị nested một cách cố ý tạo ra exit khác 0 kèm thông báo rõ ràng
+nêu tên gốc kỳ vọng. Đây là check lẽ ra đã bắt được FIND-001.
 
 #### CHECK-T03-02
 Priority:
@@ -172,8 +181,8 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-The corrected root layout produces exit 0.
+Yêu cầu:
+Layout gốc đã được sửa đúng tạo ra exit 0.
 
 ### Reference Integrity
 
@@ -196,13 +205,13 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-Run against the pre-REM-T04 tree (e.g. baseline commit `0394267`), the new
-validator reproduces exactly the three references S001 found by hand:
+Yêu cầu:
+Chạy trên cây thư mục trước-REM-T04 (ví dụ commit baseline `0394267`),
+validator mới tái hiện chính xác ba reference mà S001 đã tìm thấy bằng tay:
 `CLAUDE.md` → `OPTIONAL_ENFORCEMENT_LAYER.md`,
 `governance/core/PROJECT_PROFILE_STANDARD.md` → `OPTIONAL_ENFORCEMENT_LAYER.md`,
-and `CLAUDE.md` → `templates/`. This is the check that proves the validator
-works, rather than merely passing.
+và `CLAUDE.md` → `templates/`. Đây là check chứng minh validator thực sự hoạt
+động, chứ không chỉ đơn thuần pass.
 
 #### CHECK-T03-04
 Priority:
@@ -223,24 +232,25 @@ Executed By:
 Timestamp:
 ...
 
-Requirement:
-Run against the post-REM-T04 tree, the validator exits 0.
+Yêu cầu:
+Chạy trên cây thư mục sau-REM-T04, validator exit 0.
 
-## Exit Criteria
+## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [ ] 100% REQUIRED checks PASS
-- [ ] No critical unresolved defect
-- [ ] Required evidence level satisfied
-- [ ] `governance/scripts/governance/README.md` updated
-- [ ] Project progress updated
-- [ ] Session handoff written
+- [ ] Không có lỗi nghiêm trọng (critical) chưa xử lý
+- [ ] Đạt mức evidence yêu cầu
+- [ ] `governance/scripts/governance/README.md` đã được cập nhật
+- [ ] Tiến độ dự án đã được cập nhật
+- [ ] Đã viết Session Handoff
 
-## Escalation Triggers
-- The reference resolution rule produces false positives on legitimate prose →
-  stop and agree the rule before hardening further.
-- Git-root discovery proves unreliable in a submodule or worktree layout →
-  escalate rather than weakening the check to a warning.
+## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
+- Nếu quy tắc resolve reference tạo ra false positive trên văn xuôi hợp lệ →
+  dừng lại và thống nhất quy tắc trước khi hardening thêm.
+- Nếu cơ chế phát hiện git-root chứng minh không đáng tin cậy trong layout
+  submodule hoặc worktree → escalate thay vì làm yếu check thành một cảnh báo
+  (warning).
 
-## Changed Files Registry
+## Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 
 Created:
 - ...
@@ -252,10 +262,10 @@ Deleted:
 - ...
 
 Migration Impact:
-- None. New and extended checks only; no governance semantics change.
+- None. Chỉ có các check mới và mở rộng; không thay đổi ngữ nghĩa governance.
 
-## Notes
-Keep the existing `Path(__file__).resolve().parents[3]` resolution. It is
-correct and deliberately independent of the caller's working directory
-(verified in S001, CHK-S001-05). What is being added is a separate assertion
-that this resolved root *is* the repository root.
+## Ghi Chú (Notes)
+Giữ nguyên cách resolve `Path(__file__).resolve().parents[3]` hiện tại. Nó
+đúng và cố ý độc lập với working directory của caller (đã được xác minh trong
+S001, CHK-S001-05). Điều đang được thêm vào là một assertion riêng biệt rằng
+gốc đã resolve này *chính là* gốc repository.

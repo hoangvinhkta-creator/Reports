@@ -1,16 +1,16 @@
 # Architecture Decision Records (ADR)
 
-Use this folder for durable architectural decisions.
+Sử dụng thư mục này cho các quyết định kiến trúc lâu dài.
 
 ## File Naming
-Use sequential files:
+Dùng các file theo thứ tự:
 
 - `ADR-001-<short-title>.md`
 - `ADR-002-<short-title>.md`
 
 ## Template
 
-# ADR-XXX — Decision Title
+# ADR-XXX — Tiêu đề Quyết định
 
 ## Status
 Proposed / Accepted / Deprecated / Superseded
@@ -19,16 +19,16 @@ Proposed / Accepted / Deprecated / Superseded
 YYYY-MM-DD
 
 ## Context
-What problem or constraint requires a decision?
+Vấn đề hoặc ràng buộc nào đòi hỏi một quyết định?
 
 ## Decision
-What was decided?
+Điều gì đã được quyết định?
 
 ## Alternatives Considered
-What other realistic options were evaluated?
+Những phương án khả thi khác nào đã được đánh giá?
 
 ## Rationale
-Why was this option selected?
+Vì sao phương án này được chọn?
 
 ## Consequences
 

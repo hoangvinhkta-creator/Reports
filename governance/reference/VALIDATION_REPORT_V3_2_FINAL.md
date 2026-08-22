@@ -1,4 +1,4 @@
-# VALIDATION REPORT — V3.2 FINAL
+# BÁO CÁO XÁC THỰC (VALIDATION REPORT) — V3.2 FINAL
 
 Executed By:
 Automated Python validation during package build
@@ -36,7 +36,7 @@ PROJECT STATE: FAIL
 ```
 
 Note:
-The reusable template is intentionally uninitialized before S000, so project-state validation is expected to fail until a real project profile is selected.
+Template tái sử dụng này có chủ đích chưa được khởi tạo (uninitialized) trước khi chạy S000, do đó việc xác thực project-state được kỳ vọng là sẽ fail cho đến khi một profile dự án thực sự được chọn.
 
 ## CHECK-TASK-COMPLETION-VALIDATOR
 

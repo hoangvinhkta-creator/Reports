@@ -1,57 +1,57 @@
-# 22 — Code Ownership & Review Rules
+# 22 — Quy Tắc Ownership & Review Code
 
-## Objective
-Clarify accountability for high-risk areas and prevent unreviewed changes.
+## Mục Tiêu
+Làm rõ trách nhiệm giải trình đối với các khu vực rủi ro cao và ngăn chặn các thay đổi không được review.
 
 ## Ownership
-Projects should identify owners for critical domains when the team size supports it.
+Các dự án nên xác định owner cho các domain quan trọng khi quy mô đội ngũ cho phép.
 
-Examples:
+Ví dụ:
 - authentication/security,
 - data model/migrations,
 - pricing,
 - infrastructure,
 - integrations.
 
-## Review Levels
+## Các Mức Review
 
 ### Standard Review
-Normal bounded changes.
+Các thay đổi bình thường, có phạm vi giới hạn.
 
 ### Elevated Review
-Recommended for:
+Được khuyến nghị cho:
 - authentication,
 - authorization,
-- customer data export,
-- pricing logic,
-- destructive operations,
+- xuất dữ liệu khách hàng,
+- logic pricing,
+- thao tác phá hủy (destructive operations),
 - migrations,
-- production infrastructure,
+- hạ tầng production,
 - secrets/configuration.
 
-## Review Questions
-Reviewer should confirm:
-- requirement is correct,
-- scope is bounded,
-- architecture is respected,
-- data migration is safe,
-- permissions are enforced,
-- tests are sufficient,
-- rollback is possible.
+## Các Câu Hỏi Khi Review
+Reviewer cần xác nhận:
+- yêu cầu (requirement) là đúng,
+- phạm vi (scope) được giới hạn,
+- kiến trúc được tuân thủ,
+- data migration an toàn,
+- quyền hạn (permissions) được thực thi đầy đủ,
+- tests đầy đủ,
+- có thể rollback được.
 
-## AI-Generated Code
-AI-generated changes are not exempt from review.
+## Code Do AI Tạo Ra
+Các thay đổi do AI tạo ra không được miễn trừ khỏi việc review.
 
-For high-risk code, review the resulting implementation rather than trusting the generated explanation.
+Đối với code rủi ro cao, hãy review kết quả implementation thực tế thay vì tin tưởng vào giải thích do AI đưa ra.
 
 ## CODEOWNERS
-Where supported, use repository ownership rules for critical paths.
+Ở những nơi được hỗ trợ, sử dụng quy tắc ownership của repository cho các đường dẫn quan trọng.
 
-Example conceptual ownership:
+Ví dụ ownership mang tính khái niệm:
 - `/security/**`
 - `/migrations/**`
 - `/infra/**`
 - `/modules/pricing/**`
 
-## Separation of Duties
-For highly sensitive operations, consider requiring a second human approval instead of allowing one person/tool to both author and approve.
+## Phân Tách Trách Nhiệm (Separation of Duties)
+Đối với các thao tác nhạy cảm cao, hãy cân nhắc yêu cầu một phê duyệt (approval) thứ hai từ con người thay vì để một người/công cụ vừa tạo ra vừa tự phê duyệt thay đổi.

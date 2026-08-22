@@ -1,8 +1,8 @@
-# Reference Material
+# Tài liệu tham khảo
 
-This folder contains non-runtime reference material for AI Engineering Constitution V3.2 Final Compact.
+Thư mục này chứa tài liệu tham khảo không thuộc runtime cho AI Engineering Constitution V3.2 Final Compact.
 
-## Shipped Reference Files
+## Các file tham khảo được đóng gói sẵn
 
 - `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md`
 - `governance/reference/CHANGELOG.md`
@@ -13,9 +13,9 @@ This folder contains non-runtime reference material for AI Engineering Constitut
 - `governance/reference/MINDMAP_WORKFLOW_BILINGUAL.md`
 - `governance/reference/MINDMAP_WORKFLOW_BILINGUAL.svg`
 
-## Optional Project Artifacts
+## Artifact dự án tùy chọn
 
-A real project may later generate documents such as:
+Một dự án thực tế sau này có thể sinh ra các tài liệu như:
 
 - ARCHITECTURE.md
 - DATA_MODEL.md
@@ -28,6 +28,6 @@ A real project may later generate documents such as:
 - DEPLOYMENT_RUNBOOK.md
 - BACKUP_RESTORE_RUNBOOK.md
 
-These optional artifacts are NOT required to exist in the reusable template.
+Các artifact tùy chọn này KHÔNG bắt buộc phải tồn tại trong template tái sử dụng.
 
-If generated, place them in an appropriate project documentation location and record the canonical path in `PROJECT/PROJECT_PROGRESS.md` or the relevant task.
+Nếu được sinh ra, hãy đặt chúng vào vị trí tài liệu dự án phù hợp và ghi lại đường dẫn chuẩn (canonical path) trong `PROJECT/PROJECT_PROGRESS.md` hoặc task liên quan.
