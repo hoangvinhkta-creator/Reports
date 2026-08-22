@@ -157,7 +157,7 @@ Task Mode:
 MAJOR
 
 Status:
-BLOCKED — waiting on the owner
+VERIFYING — waiting on owner approval of `docs/analysis/`
 
 Required Gate Progress:
 6 / 6 analysis documents written; 3 / 3 ADRs written; 0 / 1 approvals
@@ -170,20 +170,27 @@ Escalation Tier:
 
 ### What GATE-00 is waiting for
 
-Five questions in `docs/analysis/` need an answer before Phase 1 can produce a
-number anyone should trust:
+One thing only: the owner reads `docs/analysis/` and confirms the mapping and
+the business rules are right. Phase 1 starts on that approval.
 
-| # | Question | Where |
-|---|---|---|
-| C1 | Should Tín Phát default to `TINPHAT_ADS`? Its current 7.5% equals the ADS rate, so the ADS rule would move its figures. | 06 §6.3 |
-| C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | 05 §A3 |
-| C4 | The raw file has a `Chiết khấu` column with 408 non-zero rows; the report has no matching column. Deduct from sales or from profit? | 01 §2 |
-| C5 | Confirm the line-classification table — which line types count toward products, sales, profit and order count. | 03 |
-| C7 | For historical ADS orders, override order by order, or enter a migrated monthly figure? | 06 §6.3 |
+### Open questions and when each is actually needed
+
+None of these block the start of Phase 1. Each has a stated default so work
+proceeds, and each has a point beyond which the default stops being safe.
+
+| # | Question | Default while unanswered | Needed by |
+|---|---|---|---|
+| C1 | Should Tín Phát default to `TINPHAT_ADS`? Its current 7.5% equals the ADS rate, so applying the ADS rule moves its figures. | `default_lead_source: PERSONAL` per spec section 5, and the reconciliation report shows the resulting difference | **GATE-01** — before any figure is published |
+| C7 | For historical ADS orders: override order by order, or enter a migrated monthly figure? | Per-order override; the 14 hand-typed values in `04 §2` are the reconciliation target | GATE-01 |
+| C5 | Confirm the line-classification table — which line types count toward products, sales, profit, order count. | Seeded from the sample workbook's own `COUNTIF` terms (`03`) | GATE-01 |
+| C4 | 408 raw rows carry a non-zero `Chiết khấu` with no matching report column. Deduct from sales or from profit? | Carried through untouched and surfaced in the review queue — not silently applied either way | TASK-107 |
+| C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | Sum once; report the difference against the sample | TASK-404 (Phase 4 channel sheets) |
+| C3 | Commission rule — the note says a target-based tier, the numbers say per-employee-per-month. | Load the observed table as data | TASK-403 |
+| C6 | Does the ERP let staff edit `Diễn giải`, or does it overwrite with `"Bán hàng " + Tên KH`? | Rule reads `Diễn giải` as specified | Before the ADS convention is rolled out |
 
 Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
-of converted revenue (05 §A2), and Kiên carries the identical hand-typed ADS
-figure `7565` across three consecutive months (05 §B2).
+of converted revenue (`05 §A2`), and Kiên carries the identical hand-typed ADS
+figure `7565` across three consecutive months (`05 §B2`).
 
 ## Micro Tasks (Inline)
 
@@ -265,9 +272,9 @@ Recommended Session:
 S001 — Phase 1, TASK-101 onward
 
 Purpose:
-Begin the calculation engine, once GATE-00 is approved. Do not start before the
-owner has answered C1, C2, C4, C5 and C7 — C1 alone changes Tín Phát's reported
-converted revenue.
+Begin the calculation engine, once GATE-00 is approved. The open questions run
+alongside on the defaults recorded above; C1, C5 and C7 must be answered before
+GATE-01 closes, because that is the point where the numbers become publishable.
 
 Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md`
