@@ -139,6 +139,11 @@ checks recorded now:
   01.2026 and 146 for 06.2026 against the real raw file (E1). Every remaining
   difference against the sample report must be explained in writing, not
   averaged away.
+- TASK-108: with the DEC-012 migration figures loaded, total converted revenue
+  for Hoàng and Kiên across 01–08.2026 must equal 13,883,242 thousand VND (E1).
+- TASK-108: migration figures and rule-classified ADS orders must be mutually
+  exclusive per employee-month; an overlap raises a review-queue conflict rather
+  than summing (E1).
 - TASK-104: all 8 ADS test cases from spec section 29 PASS (E1).
 - TASK-108: `TotalConvertedRevenue == PersonalConvertedRevenue + AdsConvertedRevenue`
   holds for every employee-month, and no code path divides a combined profit by
@@ -185,12 +190,12 @@ proceeds, and each has a point beyond which the default stops being safe.
 | C1 | Should Tín Phát default to `TINPHAT_ADS`? | **Yes** — every Tín Phát order converts at 7.5% regardless of the note. DEC-009. Its historical figures now need no migration. |
 | C5 | Which line types count toward products, sales, profit, order count? | Money-bearing non-product lines **do** count toward sales and profit, not toward product count, and every one goes to a manual review queue where it is kept or excluded. DEC-010. |
 | C6 | Can staff edit `Diễn giải`? | **Yes.** ERP default stays; staff edit only for ADS orders. DEC-011. |
+| C7 | Historical ADS profit for Hoàng and Kiên? | **Enter the 14 monthly figures as migration data.** DEC-012. Per-order recovery is impossible — nothing records which orders were ADS. |
 
 ### Still open
 
 | # | Question | Default while unanswered | Needed by |
 |---|---|---|---|
-| C7 | Historical ADS profit for **Hoàng and Kiên only** (C1 removed Tín Phát from scope): ignore it, or enter the 14 monthly figures as migration data? Ignoring credits them 837,503 thousand VND (6.0%) more converted revenue over 8 months, ≈3.0 million VND in bonus. | Nothing applied; the reconciliation report states the difference rather than hiding it | **GATE-01** |
 | C4 | 408 raw rows carry a non-zero `Chiết khấu` with no matching report column. Deduct from sales or from profit? | Carried through untouched and surfaced in the review queue — not silently applied either way | TASK-107 |
 | C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | Sum once; report the difference against the sample | TASK-404 (Phase 4 channel sheets) |
 | C3 | Commission rule — the note says a target-based tier, the numbers say per-employee-per-month. | Load the observed table as data | TASK-403 |

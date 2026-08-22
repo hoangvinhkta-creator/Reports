@@ -188,7 +188,7 @@ cho việc này **không thể bị bỏ quên trong im lặng**:
 |---|---|---|
 | **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-009.** `default_lead_source: TINPHAT_ADS`. Xem §7. |
 | **C6** | ERP có cho sửa `Diễn giải` không? | **Đã chốt — DEC-011.** Sửa được; mặc định giữ nguyên, chỉ sửa khi là đơn ADS. |
-| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Còn mở.** Xem §8. |
+| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Đã chốt — DEC-012.** Nhập 14 số theo nhân viên-tháng làm dữ liệu di trú. Xem §8. |
 
 ---
 
@@ -260,16 +260,26 @@ nghìn đồng ≈ 837 triệu** doanh thu quy đổi trong 8 tháng, kéo theo 
 **2.967 nghìn ≈ 3,0 triệu đồng tiền thưởng** tính theo đúng tỉ lệ thưởng từng
 tháng ở tài liệu 04 §4.
 
-### Ba phương án
+### Quyết định — DEC-012
 
-| | Cách làm | Công sức | Độ chính xác |
-|---|---|---|---|
-| **A** | Bỏ qua lịch sử. Rule ADS chỉ áp dụng từ tháng bắt đầu quy ước mới. | Không | Số cũ giữ nguyên trong file Excel; số mới của công cụ cao hơn 6 % cho 2 người này |
-| **B** | Nhập số tổng lợi nhuận ADS theo nhân viên-tháng, đánh dấu là dữ liệu di trú. | 14 ô | Khớp tuyệt đối với báo cáo hiện tại |
-| **C** | Truy từng đơn ADS lịch sử và override ở cấp OrderID. | Phải nhớ lại từng đơn của 8 tháng | Chính xác nhất, nhưng dữ liệu để truy đã không còn |
+**Nhập 14 số ở cột `X` trong bảng trên làm dữ liệu di trú**, theo nhân viên và
+tháng, đánh dấu rõ là số khai báo cho quá khứ chứ không phải số do rule tính ra.
 
-Phương án **C không khả thi**: không có dấu vết nào trong bất kỳ file nào cho
-biết đơn nào là ADS. Con số `3770+16190` của Hoàng tháng 05 cho thấy chúng được
-cộng tay từ một nguồn nằm ngoài hệ thống.
+Phương án truy từng đơn đã bị loại vì **không khả thi**: không có dấu vết nào
+trong bất kỳ file nào cho biết đơn nào là ADS. Con số `3770+16190` của Hoàng
+tháng 05 cho thấy chúng được cộng tay từ một nguồn nằm ngoài hệ thống.
 
-**Chưa quyết định. Cần trước GATE-01.**
+### Yêu cầu kỹ thuật kéo theo
+
+1. `conversion_engine` cần một đường vào riêng cho số di trú, bỏ qua phân loại
+   ở cấp đơn.
+2. Số di trú phải **hiển thị khác** số do rule sinh ra, cả trên UI lẫn trong
+   file xuất. Đó là một lời khai về quá khứ, không phải một phép tính.
+3. Hai đường phải **loại trừ nhau** trong cùng một nhân viên-tháng. Nếu một
+   tháng vừa có số di trú vừa có đơn được rule phân loại ADS thì đó là **xung
+   đột đưa vào Review Queue**, không phải hai số cộng lại.
+4. Tháng bắt đầu áp dụng quy ước mới (cut-over) là cấu hình: trước tháng đó
+   dùng số di trú, từ tháng đó trở đi dùng rule.
+5. **Mốc đối chiếu bắt buộc (REQUIRED check của TASK-108):** với 14 số đã nạp,
+   tổng doanh thu quy đổi của Hoàng + Kiên trong 01–08.2026 phải bằng đúng
+   **13.883.242** nghìn đồng.

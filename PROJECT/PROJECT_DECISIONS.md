@@ -303,3 +303,44 @@ which is possible but worth seeing rather than assuming.
 
 Can Revisit After:
 The first month under the new convention.
+
+## DEC-012
+
+Date:
+2026-08-22
+
+Task:
+GATE-00 — resolves open question C7
+
+Decision:
+Historical ADS profit for Hoàng and Kiên (01–08.2026) is entered as 14
+per-employee-per-month figures, flagged as migration data and clearly separated
+from figures the ADS rule produced. The values are the ones already recorded in
+`docs/analysis/04_HARDCODED_VALUES.md` §2 and `06_ADS_RULE_VERIFICATION.md` §8.
+
+Reason:
+Owner's decision. Per-order recovery is impossible — nothing in either workbook
+records which orders were ADS, and `3770+16190` in Hoàng's May formula shows the
+figures were summed by hand from a source outside the system. Entering the
+monthly totals costs 14 cells once and makes the tool's output match the
+existing report exactly, so nobody has to explain a 6.0% jump in two people's
+converted revenue.
+
+Impact:
+- `conversion_engine` needs a migration input path: a per-(employee, month)
+  ADS profit amount that bypasses order-level classification.
+- Migration figures must be visibly distinct from rule-derived ones in the UI
+  and in the export. They are an assertion about the past, not a computation,
+  and must never be mistaken for one.
+- The two paths must be mutually exclusive per employee-month. If a month has
+  both a migration figure and orders classified ADS by the rule, that is a
+  conflict for the review queue, not a sum.
+- A cut-over month must be recorded in configuration: migration applies before
+  it, the rule after it.
+- Reconciliation target: with the 14 values loaded, total converted revenue for
+  Hoàng and Kiên across 01–08.2026 must equal **13.883.242** thousand VND. This
+  becomes a REQUIRED check on TASK-108.
+
+Can Revisit After:
+Once the ADS convention has been running long enough that 2026 history stops
+mattering.
