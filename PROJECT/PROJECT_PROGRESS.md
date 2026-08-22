@@ -178,15 +178,23 @@ the business rules are right. Phase 1 starts on that approval.
 None of these block the start of Phase 1. Each has a stated default so work
 proceeds, and each has a point beyond which the default stops being safe.
 
+### Answered 2026-08-22
+
+| # | Question | Answer |
+|---|---|---|
+| C1 | Should Tín Phát default to `TINPHAT_ADS`? | **Yes** — every Tín Phát order converts at 7.5% regardless of the note. DEC-009. Its historical figures now need no migration. |
+| C5 | Which line types count toward products, sales, profit, order count? | Money-bearing non-product lines **do** count toward sales and profit, not toward product count, and every one goes to a manual review queue where it is kept or excluded. DEC-010. |
+| C6 | Can staff edit `Diễn giải`? | **Yes.** ERP default stays; staff edit only for ADS orders. DEC-011. |
+
+### Still open
+
 | # | Question | Default while unanswered | Needed by |
 |---|---|---|---|
-| C1 | Should Tín Phát default to `TINPHAT_ADS`? Its current 7.5% equals the ADS rate, so applying the ADS rule moves its figures. | `default_lead_source: PERSONAL` per spec section 5, and the reconciliation report shows the resulting difference | **GATE-01** — before any figure is published |
-| C7 | For historical ADS orders: override order by order, or enter a migrated monthly figure? | Per-order override; the 14 hand-typed values in `04 §2` are the reconciliation target | GATE-01 |
-| C5 | Confirm the line-classification table — which line types count toward products, sales, profit, order count. | Seeded from the sample workbook's own `COUNTIF` terms (`03`) | GATE-01 |
+| C7 | Historical ADS profit for **Hoàng and Kiên only** (C1 removed Tín Phát from scope): ignore it, or enter the 14 monthly figures as migration data? Ignoring credits them 837,503 thousand VND (6.0%) more converted revenue over 8 months, ≈3.0 million VND in bonus. | Nothing applied; the reconciliation report states the difference rather than hiding it | **GATE-01** |
 | C4 | 408 raw rows carry a non-zero `Chiết khấu` with no matching report column. Deduct from sales or from profit? | Carried through untouched and surfaced in the review queue — not silently applied either way | TASK-107 |
 | C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | Sum once; report the difference against the sample | TASK-404 (Phase 4 channel sheets) |
 | C3 | Commission rule — the note says a target-based tier, the numbers say per-employee-per-month. | Load the observed table as data | TASK-403 |
-| C6 | Does the ERP let staff edit `Diễn giải`, or does it overwrite with `"Bán hàng " + Tên KH`? | Rule reads `Diễn giải` as specified | Before the ADS convention is rolled out |
+| C8 | Does product count exclude money-bearing non-product lines? DEC-010 kept the sample workbook's behaviour without separate confirmation. | Excluded, as the sample does | GATE-01 |
 
 Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
 of converted revenue (`05 §A2`), and Kiên carries the identical hand-typed ADS
@@ -227,19 +235,21 @@ content change. Commit `8f77e20`.
 
 ## Active Risks
 
-- **RISK-01 — The ADS rule has no data to stand on.** The string "ADS" occurs
-  0 times in the raw sales book and 0 times in the report workbook. The rule is
-  built to specification, but it only starts producing non-default output once
-  data entry changes. Until then every historical order classifies PERSONAL.
+- **RISK-01 — The ADS keyword has no data to stand on.** The string "ADS"
+  occurs 0 times in the raw sales book and 0 times in the report workbook. The
+  keyword rule is built to specification, but it only starts matching once data
+  entry changes. DEC-009 covers the largest share — Tín Phát's 1,108 orders
+  (12.7%) classify as ADS from the employee default rather than the keyword —
+  so what remains unmarked is ADS work done by the other salespeople.
   Mitigation: manual override at OrderID level with audit trail; the tool
   reports how many orders matched the rule on each import so a month of silent
   zeroes is visible rather than assumed correct.
 
-- **RISK-02 — Tín Phát's conversion rate changes meaning under the new rule.**
-  Tín Phát currently converts at 7.5% for every order, which equals the ADS
-  rate. Under the ADS rule an unmarked Tín Phát order falls to PERSONAL 5.5%
-  and the reported figure moves. Open item C1, to be confirmed by the owner at
-  GATE-01 before any number is published.
+- **RISK-02 — RESOLVED 2026-08-22.** Tín Phát defaults to `TINPHAT_ADS`
+  (DEC-009), so its 7.5% is preserved and no figure moves. Residual: marking an
+  order ADS *lowers* converted revenue (5.5% divides into a larger number than
+  7.5%), so an over-eager ADS marker costs a salesperson money. The review
+  queue must surface newly-ADS orders, not just newly-PERSONAL ones.
 
 - **RISK-03 — Purchase price is absent at source.** The raw file carries no
   purchase price, only an ERP-computed profit. By the owner's decision the

@@ -88,18 +88,32 @@ và đưa vào Review Queue nếu chứa dấu trừ mà không parse được.
 
 Từ file thô, cột `Tên hàng trên chứng từ`:
 
-| Loại dòng | Số dòng | Tính vào Số SP? | Doanh số? | Lợi nhuận? | Số đơn? |
-|---|---|---|---|---|---|
-| `Chi phí vận chuyển` (mọi biến thể) | ~1.110 | **Không** | Có | Có | Không tạo đơn riêng |
-| `Chi phí lắp đặt` / `Công lắp đặt` | ~85 | **Không** | Có | Có | Không tạo đơn riêng |
-| `Chênh VAT` (25 %, 30 %, …) | ~43 | **Không** | Có | Có | Không tạo đơn riêng |
-| `Chi phí giao hộ …` | ~8 | **Không** | Có | Có | Không tạo đơn riêng |
-| `Phí đổi trả` | 2 | **Không** | Có | Có | Không tạo đơn riêng |
-| Sản phẩm thật | phần còn lại | Có | Có | Có | Có |
+**Đã chốt theo DEC-010.**
 
-Giá trị ở cột "Tính vào …" là **đề xuất** dựa trên `COUNTIF` có sẵn trong file
-mẫu (`chân máy giặt đa năng`, `giá treo tivi`, `vận chuyển` đều bị trừ khỏi số
-SP). **Cần chủ dự án duyệt** — xem mục mở C5.
+| Loại dòng | Số dòng | Số SP? | Doanh số? | Lợi nhuận? | Số đơn? | Vào hàng đợi duyệt? |
+|---|---|---|---|---|---|---|
+| `Chi phí vận chuyển` (mọi biến thể) | ~1.110 | Không | **Có** | **Có** | Không tạo đơn riêng | **Có** |
+| `Chi phí lắp đặt` / `Công lắp đặt` | ~85 | Không | **Có** | **Có** | Không tạo đơn riêng | **Có** |
+| `Chênh VAT` (25 %, 30 %, …) | ~43 | Không | **Có** | **Có** | Không tạo đơn riêng | **Có** |
+| `Chi phí giao hộ …` | ~8 | Không | **Có** | **Có** | Không tạo đơn riêng | **Có** |
+| `Phí đổi trả` | 2 | Không | **Có** | **Có** | Không tạo đơn riêng | **Có** |
+| Sản phẩm thật | phần còn lại | Có | Có | Có | Có | Không |
+
+Quyết định của chủ dự án: *"tất cả dòng phụ nếu có liên quan đến giá trị tiền
+hàng vẫn thêm vào doanh số từng nhân viên nhưng sẽ được duyệt thủ công bằng
+cách xoá dòng hoặc giữ lại dòng"*.
+
+**"Xoá dòng" là loại trừ mềm, không phải xoá thật.** RAW bất biến theo ADR-002.
+Thao tác đặt cờ `excluded_from_report` kèm lý do và một bản ghi audit, và hoàn
+tác được bất cứ lúc nào.
+
+Khoảng **1.250 dòng** trong 6 tháng mẫu thuộc nhóm này — màn hình duyệt phải
+thao tác được theo lô (lọc theo loại, chọn nhiều dòng, một lần bấm). Duyệt từng
+dòng một sẽ không ai dùng nổi.
+
+Cột "Số SP = Không" giữ theo đúng cách file mẫu đang làm (`COUNTIF` trừ
+`chân máy giặt đa năng`, `giá treo tivi`, `vận chuyển` khỏi số SP). Chủ dự án
+chưa xác nhận riêng điểm này — cần duyệt ở GATE-01.
 
 ---
 

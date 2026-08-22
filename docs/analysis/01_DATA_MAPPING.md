@@ -134,22 +134,26 @@ Công cụ **xuất một layout duy nhất** cho mọi nhân viên và mọi k�
 
 ## 5. Mapping nhân viên đã chốt (DEC-004)
 
-| Raw NVBH | Số dòng | Normalized | Active | Include in KPI |
-|---|---|---|---|---|
-| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes |
-| `Vũ Hạnh Ly 0868345633` | 735 | Ly | Yes | Yes |
-| `Lê Mạnh Hoàng 0865111533` | 531 | Hoàng | Yes | Yes |
-| `Đức Kiên - Tân Á 0867666533` | 524 | Kiên | Yes | Yes |
-| `Phước Thắng 0865909022` | 411 | Thắng | Yes | Yes |
-| `Đức Hiệp` | 4.342 | **Nội thành** | Yes | Yes |
-| `Mr Quý` | 2.246 | **Nội thành** | Yes | Yes |
-| `Mr Vinh` | 1.448 | **Nội thành** | Yes | Yes |
-| `Thảo Linh` | 63 | *chưa map* | — | — |
-| `Tống Khánh Linh 0865111033` | 14 | *chưa map* | — | — |
-| `Lê Quang Trường 0589691228` | 6 | *chưa map* | — | — |
-| `Lê Văn Quân 0865111033` | 2 | *chưa map* | — | — |
-| `Nguyễn Thị Minh Bảo` | 1 | *chưa map* | — | — |
-| *(rỗng)* | 2 | *chưa map* | — | — |
+| Raw NVBH | Số dòng | Normalized | Active | Include in KPI | Default lead source |
+|---|---|---|---|---|---|
+| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes | **`TINPHAT_ADS`** (DEC-009) |
+| `Vũ Hạnh Ly 0868345633` | 735 | Ly | Yes | Yes | `PERSONAL` |
+| `Lê Mạnh Hoàng 0865111533` | 531 | Hoàng | Yes | Yes | `PERSONAL` |
+| `Đức Kiên - Tân Á 0867666533` | 524 | Kiên | Yes | Yes | `PERSONAL` |
+| `Phước Thắng 0865909022` | 411 | Thắng | Yes | Yes | `PERSONAL` |
+| `Đức Hiệp` | 4.342 | **Nội thành** | Yes | Yes | `PERSONAL` |
+| `Mr Quý` | 2.246 | **Nội thành** | Yes | Yes | `PERSONAL` |
+| `Mr Vinh` | 1.448 | **Nội thành** | Yes | Yes | `PERSONAL` |
+| `Thảo Linh` | 63 | *chưa map* | — | — | — |
+| `Tống Khánh Linh 0865111033` | 14 | *chưa map* | — | — | — |
+| `Lê Quang Trường 0589691228` | 6 | *chưa map* | — | — | — |
+| `Lê Văn Quân 0865111033` | 2 | *chưa map* | — | — | — |
+| `Nguyễn Thị Minh Bảo` | 1 | *chưa map* | — | — | — |
+| *(rỗng)* | 2 | *chưa map* | — | — | — |
+
+> Nội thành và Gia dụng có tỉ lệ quy đổi riêng (2 % và 8 %) đặt ở cấp nhân
+> viên, nên `default_lead_source` của họ không ảnh hưởng tới con số — vẫn để
+> `PERSONAL` cho nhất quán.
 
 **88 dòng chưa map.** Chúng **không bị bỏ** — vào Review Queue loại `Missing`
 để người quản lý quyết định. `Fanpage` không xuất hiện trong file thô 6 tháng

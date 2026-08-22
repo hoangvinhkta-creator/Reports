@@ -14,8 +14,12 @@
 |---|---|
 | Số ô chứa "ADS" trong `So_chi_tiet_ban_hang.xlsx` | **0** / 11.765 dòng |
 | Số ô chứa "ADS" trong `Bao_cao_Kinh_doanh_2026.xlsx` | **0** / 59 sheet |
-| Số Số BH được rule phân loại `TINPHAT_ADS` | **0** / 8.714 |
-| Số Số BH được rule phân loại `PERSONAL` | **8.714** / 8.714 |
+| Số Số BH khớp **rule từ khóa** | **0** / 8.714 |
+| Số Số BH thành `TINPHAT_ADS` nhờ **mặc định cấp nhân viên** (DEC-009) | **1.108** / 8.714 = 12,7 % |
+| Số Số BH còn lại là `PERSONAL` | **7.606** / 8.714 |
+
+Dòng thứ tư là toàn bộ đơn của `Tín Phát` — chúng thành ADS nhờ cấu hình mặc
+định, không nhờ từ khóa. Xem §7.
 
 Tìm kiếm không phân biệt hoa/thường, sau khi chuẩn hóa Unicode NFC và gộp
 khoảng trắng — đúng quy trình mục 13 đặc tả. Cũng đã quét cả **công thức**, chứ
@@ -70,10 +74,12 @@ Kết quả dò các từ khóa có thể liên quan đến kênh quảng cáo:
 Không có dấu hiệu nào cho thấy nguồn đơn từng được ghi nhận trong file thô,
 dưới bất kỳ hình thức nào.
 
-**Điểm cần chủ dự án xác nhận:** cột `Diễn giải` vừa chứa chuỗi ERP tự sinh vừa
-chứa ghi chú gõ tay. Cần chắc rằng nhân viên **sửa được** ô này trong ERP để
-thêm chữ "ADS", chứ không chỉ đọc được. Nếu ERP ghi đè trường này khi lưu
-chứng từ, cần đổi sang phương án đánh dấu khác (mục mở, xem §6).
+**Đã xác nhận (DEC-011):** cột `Diễn giải` **sửa được**. Quy ước vận hành:
+ERP để mặc định `"Bán hàng " + Tên KH`; nhân viên chỉ sửa khi đơn là ADS.
+
+Hệ quả cho engine: ghi chú dạng mẫu ERP là **trường hợp bình thường**, không
+phải dấu hiệu thiếu dữ liệu. Không được đưa vào Review Queue chỉ vì ghi chú
+trông tự động.
 
 ---
 
@@ -176,10 +182,94 @@ cho việc này **không thể bị bỏ quên trong im lặng**:
 - Danh sách từ khóa nằm ở `config/lead_source.yaml`. Thêm `QUẢNG CÁO`, `WEB`
   hay bất kỳ ký hiệu nào khác **không cần sửa code**.
 
-### 6.3. Vấn đề còn mở
+### 6.3. Trạng thái các câu hỏi
 
-| # | Câu hỏi | Cần trước |
+| # | Câu hỏi | Trạng thái |
 |---|---|---|
-| **C1** | Tín Phát hiện quy đổi 7,5 % cho **mọi** đơn — bằng đúng tỉ lệ ADS. Theo rule mới, đơn Tín Phát không ghi "ADS" sẽ rơi xuống 5,5 % và **số liệu thay đổi**. Có nên đặt `default_lead_source: TINPHAT_ADS` riêng cho Tín Phát không? | GATE-01 |
-| **C6** | ERP có cho phép nhân viên sửa cột `Diễn giải` không, hay nó bị ghi đè bằng `"Bán hàng " + Tên KH` khi lưu chứng từ? | Trước khi phổ biến quy ước |
-| **C7** | Có xử lý ngược lại cho dữ liệu lịch sử không (truy từng đơn, hay nhập số tổng theo tháng)? | GATE-01 |
+| **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-009.** `default_lead_source: TINPHAT_ADS`. Xem §7. |
+| **C6** | ERP có cho sửa `Diễn giải` không? | **Đã chốt — DEC-011.** Sửa được; mặc định giữ nguyên, chỉ sửa khi là đơn ADS. |
+| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Còn mở.** Xem §8. |
+
+---
+
+## 7. Thứ tự ưu tiên sau DEC-009
+
+```
+LeadSourceFinal =
+    1. Manual Override                    → SourceOfValue = "Manual"
+    2. Rule ADS trên Diễn giải            → "Auto:ADS Rule"
+    3. Default của nhân viên (nếu có)     → "Auto:Employee Default (<tên>)"
+    4. Default toàn hệ thống (PERSONAL)   → "Auto:Default"
+```
+
+Default cấp nhân viên nằm **dưới** rule ADS và **trên** default toàn hệ thống.
+Vì vậy nó chỉ có thể nâng một đơn lên ADS, **không bao giờ hạ** một đơn mà rule
+đã bắt được. Override tay vẫn thắng cả hai.
+
+Không có gì trong code biết tới cái tên "Tín Phát" — đó là một dòng trong
+`config/employees.yaml`. Bất kỳ nhân viên hay kênh nào cũng đặt được mặc định
+riêng.
+
+Kiểm chứng (case 13–17 trong `verify_ads_rule.py`, **18/18 PASS**):
+
+```
+  [PASS] 13 Tín Phát, ghi chú mặc định ERP, không có ADS      -> TINPHAT_ADS  (Auto:Employee Default (Tín Phát))
+  [PASS] 14 Tín Phát, ghi chú có ADS                          -> TINPHAT_ADS  (Auto:ADS Rule)
+  [PASS] 15 Tín Phát, quản lý override về PERSONAL            -> PERSONAL     (Manual)
+  [PASS] 16 Ly, ghi chú mặc định ERP — không ăn theo Tín Phát -> PERSONAL     (Auto:Default)
+  [PASS] 17 Ly, ghi chú có ADS                                -> TINPHAT_ADS  (Auto:ADS Rule)
+```
+
+**Hệ quả tốt:** số liệu lịch sử của Tín Phát **không cần di trú gì cả** — vốn
+đã là 7,5 %. Phạm vi của C7 thu hẹp lại chỉ còn Hoàng và Kiên.
+
+---
+
+## 8. C7 — dữ liệu ADS lịch sử của Hoàng và Kiên
+
+### Vấn đề
+
+Chia cho tỉ lệ nhỏ hơn thì ra số lớn hơn. Quy đổi ở 5,5 % cho **nhiều** doanh
+thu quy đổi hơn quy đổi ở 7,5 %. Nói cách khác: **đánh dấu một đơn là ADS làm
+GIẢM doanh thu quy đổi của nhân viên** — đúng logic kinh doanh, vì lead do công
+ty chạy quảng cáo mang lại thì công của nhân viên ít hơn.
+
+Hệ quả: nếu không đánh dấu các đơn ADS lịch sử, Hoàng và Kiên được tính **cao
+hơn** con số đang báo cáo.
+
+| NV / kỳ | LN KPI | X (ADS) | CR có tách | CR không tách | Chênh | % |
+|---|---:|---:|---:|---:|---:|---:|
+| 01.2026 Hoàng | 83.120 | 2.750 | 1.497.939 | 1.511.273 | 13.333 | 0,9 % |
+| 02.2026 Hoàng | 65.190 | 35.520 | 1.013.055 | 1.185.273 | 172.218 | **17,0 %** |
+| 03.2026 Hoàng | 48.039 | 7.790 | 835.667 | 873.436 | 37.770 | 4,5 % |
+| 04.2026 Hoàng | 59.891 | 17.200 | 1.005.533 | 1.088.927 | 83.394 | 8,3 % |
+| 05.2026 Hoàng | 56.660 | 19.960 | 933.406 | 1.030.182 | 96.776 | 10,4 % |
+| 06.2026 Hoàng | 20.866 | 0 | 379.382 | 379.382 | 0 | 0 % |
+| 01.2026 Kiên | 97.270 | 37.270 | 1.587.842 | 1.768.545 | 180.703 | **11,4 %** |
+| 02.2026 Kiên | 58.655 | 1.500 | 1.059.182 | 1.066.455 | 7.273 | 0,7 % |
+| 03.2026 Kiên | 45.390 | 11.000 | 771.939 | 825.273 | 53.333 | 6,9 % |
+| 04.2026 Kiên | 37.840 | 9.230 | 643.248 | 688.000 | 44.752 | 7,0 % |
+| 05.2026 Kiên | 56.920 | 7.820 | 996.994 | 1.034.909 | 37.915 | 3,8 % |
+| 06.2026 Kiên | 39.870 | 7.565 | 688.230 | 724.909 | 36.679 | 5,3 % |
+| 07.2026 Kiên | 98.260 | 7.565 | 1.749.867 | 1.786.545 | 36.679 | 2,1 % |
+| 08.2026 Kiên | 41.670 | 7.565 | 720.958 | 757.636 | 36.679 | 5,1 % |
+| **TỔNG** | | | **13.883.242** | **14.720.745** | **837.503** | **6,0 %** |
+
+Đơn vị nghìn đồng. Nếu bỏ qua hoàn toàn, hai người được cộng thêm **837.503
+nghìn đồng ≈ 837 triệu** doanh thu quy đổi trong 8 tháng, kéo theo khoảng
+**2.967 nghìn ≈ 3,0 triệu đồng tiền thưởng** tính theo đúng tỉ lệ thưởng từng
+tháng ở tài liệu 04 §4.
+
+### Ba phương án
+
+| | Cách làm | Công sức | Độ chính xác |
+|---|---|---|---|
+| **A** | Bỏ qua lịch sử. Rule ADS chỉ áp dụng từ tháng bắt đầu quy ước mới. | Không | Số cũ giữ nguyên trong file Excel; số mới của công cụ cao hơn 6 % cho 2 người này |
+| **B** | Nhập số tổng lợi nhuận ADS theo nhân viên-tháng, đánh dấu là dữ liệu di trú. | 14 ô | Khớp tuyệt đối với báo cáo hiện tại |
+| **C** | Truy từng đơn ADS lịch sử và override ở cấp OrderID. | Phải nhớ lại từng đơn của 8 tháng | Chính xác nhất, nhưng dữ liệu để truy đã không còn |
+
+Phương án **C không khả thi**: không có dấu vết nào trong bất kỳ file nào cho
+biết đơn nào là ADS. Con số `3770+16190` của Hoàng tháng 05 cho thấy chúng được
+cộng tay từ một nguồn nằm ngoài hệ thống.
+
+**Chưa quyết định. Cần trước GATE-01.**
