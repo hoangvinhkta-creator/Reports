@@ -28,21 +28,21 @@ Current Phase:
 PHASE-00 — Governance bootstrap and source analysis
 
 Current Task:
-TASK-002 — Source workbook analysis documents
+GATE-00 — awaiting owner approval of `docs/analysis/`
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-003 — Architecture Decision Records
+TASK-101 — importer + normalizer (blocked by GATE-00)
 
 ## Overall Roadmap
 
 - [x] PHASE-00 — Governance bootstrap and source analysis
   - [x] TASK-000 — Promote governance package to repository root (MICRO)
   - [x] TASK-001 — S000: profile selection and project state initialization (MAJOR)
-  - [ ] TASK-002 — Source workbook analysis, 6 documents per spec section 27 (MAJOR)
-  - [ ] TASK-003 — ADR-001/002/003 (MICRO)
+  - [x] TASK-002 — Source workbook analysis, 6 documents per spec section 27 (MAJOR)
+  - [x] TASK-003 — ADR-001/002/003 (MICRO)
   - [ ] GATE-00 — Owner approves `docs/analysis/` before any application code
 
 - [ ] PHASE-01 — Calculation engine (pure Python, no UI, no database)
@@ -151,16 +151,16 @@ checks recorded now:
 ## Current Task Snapshot
 
 Task:
-TASK-002 — Source workbook analysis documents
+GATE-00 — owner approval of the source analysis
 
 Task Mode:
 MAJOR
 
 Status:
-IN_PROGRESS
+BLOCKED — waiting on the owner
 
 Required Gate Progress:
-0 / 6 documents complete
+6 / 6 analysis documents written; 3 / 3 ADRs written; 0 / 1 approvals
 
 Primary Agent Tier:
 C
@@ -168,10 +168,40 @@ C
 Escalation Tier:
 —
 
+### What GATE-00 is waiting for
+
+Five questions in `docs/analysis/` need an answer before Phase 1 can produce a
+number anyone should trust:
+
+| # | Question | Where |
+|---|---|---|
+| C1 | Should Tín Phát default to `TINPHAT_ADS`? Its current 7.5% equals the ADS rate, so the ADS rule would move its figures. | 06 §6.3 |
+| C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | 05 §A3 |
+| C4 | The raw file has a `Chiết khấu` column with 408 non-zero rows; the report has no matching column. Deduct from sales or from profit? | 01 §2 |
+| C5 | Confirm the line-classification table — which line types count toward products, sales, profit and order count. | 03 |
+| C7 | For historical ADS orders, override order by order, or enter a migrated monthly figure? | 06 §6.3 |
+
+Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
+of converted revenue (05 §A2), and Kiên carries the identical hand-typed ADS
+figure `7565` across three consecutive months (05 §B2).
+
 ## Micro Tasks (Inline)
 
 Canonical checklist:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
+
+### MICRO-003 — Architecture Decision Records
+Status:
+DONE
+
+Checklist Reference:
+`governance/templates/MICRO_TASK_CHECKLIST.md`
+
+Evidence Summary:
+E1 — `docs/adr/ADR-001-architecture-and-stack.md`,
+`ADR-002-three-layer-data-model-and-audit.md`,
+`ADR-003-currency-unit-standard.md` exist and follow `docs/adr/README.md`
+naming and section structure.
 
 ### MICRO-000 — Promote governance package to repository root
 Status:
@@ -225,17 +255,19 @@ content change. Commit `8f77e20`.
 - S000 — PROJECT OPEN — 2026-08-22 — Read the specification and both sample
   workbooks; verified business rules against real data; selected the PRODUCT
   profile; created the roadmap, dependency graph, scoring and preliminary gates;
-  recorded 8 tactical decisions and 4 active risks.
+  recorded 8 tactical decisions and 4 active risks. Then completed TASK-002
+  (six analysis documents, backed by a re-runnable evidence extractor) and
+  TASK-003 (three ADRs). Held at GATE-00.
 
 ## Next Session
 
 Recommended Session:
-S001 — TASK-002 completion and TASK-003
+S001 — Phase 1, TASK-101 onward
 
 Purpose:
-Finish the six analysis documents required by specification section 27, write
-the three ADRs, then hold at GATE-00 for owner approval before writing any
-application code.
+Begin the calculation engine, once GATE-00 is approved. Do not start before the
+owner has answered C1, C2, C4, C5 and C7 — C1 alone changes Tín Phát's reported
+converted revenue.
 
 Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md`

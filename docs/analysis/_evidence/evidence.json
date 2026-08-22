@@ -1,0 +1,1887 @@
+{
+  "raw": {
+    "line_count": 11765,
+    "distinct_order_count": 8714,
+    "date_min": "2026-01-01 00:00:00",
+    "date_max": "2026-06-30 00:00:00",
+    "employees": [
+      [
+        "Đức Hiệp",
+        4342
+      ],
+      [
+        "Mr Quý",
+        2246
+      ],
+      [
+        "Mr Vinh",
+        1448
+      ],
+      [
+        "Tín Phát 0869931931",
+        1440
+      ],
+      [
+        "Vũ Hạnh Ly 0868345633",
+        735
+      ],
+      [
+        "Lê Mạnh Hoàng 0865111533",
+        531
+      ],
+      [
+        "Đức Kiên - Tân Á 0867666533",
+        524
+      ],
+      [
+        "Phước Thắng 0865909022",
+        411
+      ],
+      [
+        "Thảo Linh",
+        63
+      ],
+      [
+        "Tống Khánh Linh 0865111033",
+        14
+      ],
+      [
+        "Lê Quang Trường 0589691228",
+        6
+      ],
+      [
+        "",
+        2
+      ],
+      [
+        "Lê Văn Quân 0865111033",
+        2
+      ],
+      [
+        "Nguyễn Thị Minh Bảo",
+        1
+      ]
+    ],
+    "orders_matching_ads_rule": 0,
+    "ads_sample_order_ids": [],
+    "lines_per_order_distribution": {
+      "1": 6575,
+      "2": 1573,
+      "3": 370,
+      "4": 115,
+      "5": 40,
+      "6": 26,
+      "7": 5,
+      "8": 8,
+      "9": 1,
+      "10": 1
+    },
+    "multi_line_order_count": 2139,
+    "rows_missing_employee": 2,
+    "rows_missing_qty": 52,
+    "rows_negative_profit": 1912,
+    "rows_with_discount": 408,
+    "non_product_line_types": {
+      "Chi phí vận chuyển": 1074,
+      "Chi phí lắp đặt": 84,
+      "Chênh VAT": 33,
+      "Chi phí vận chuyển + lắp": 27,
+      "Chênh VAT 25%": 6,
+      "Chi phí vận chuyển + lắp đặt": 4,
+      "Chi phí vận chuyển + Lắp đặt": 2,
+      "Chi phí vận chuyển + lắp đặt ( 150k công lắp+ 150k dây cấp)": 2,
+      "Chi phí vận chuyển - chỉ giao": 2,
+      "Chi phí vận chuyển + Lắp": 2,
+      "Phí đổi trả": 2,
+      "Chi phí giao hộ 65C6K x1": 2,
+      "Chênh VAT (25%)": 2,
+      "Chênh VAT 30%": 2,
+      "Chi phí giao hộ EWF1342R9SC x1": 2,
+      "Công lắp đặt + dây cấp ( Chưa bao gồm phụ kiện ngoài phát sinh nếu có ạ)": 1,
+      "Chi phí vận chuyển, chỉ giao": 1,
+      "Chi phí giao hộ 55p638": 1,
+      "Chi phí giao hộ ĐH AQA12NQ x37 + TV AQT50K800UG x1 + Nồi chiên APH-2510 x1 + ĐH AQAR10 x10": 1,
+      "Chi phí giao hộ 50U8500F + GT": 1,
+      "Chi phí Lắp đặt máy hút mùi": 1,
+      "Chênh VAT 25% = 200 *25% = 50": 1,
+      "Chi phí giao hộ X198SL x2 + 75NG1 x2": 1,
+      "Chi phí lắp đặt ống nước thải MS DVHP50M": 1,
+      "Chi phí giao hộ 85S30 x1c": 1,
+      "Chi phí giao hộ WT1410NHB x1": 1,
+      "Chi phí giao hộ Hút mùi HM019 x1c, lọc nước TN100, Bếp từ BI368": 1,
+      "Chi phí vận chuyển 205VN x1c": 1,
+      "Chi phí vận chuyển - thu hồi tivi về 55C6K": 1,
+      "Chi phí giao hộ sấy tóc EH-ND37K645 x15": 1
+    }
+  },
+  "raw_by_month_employee": {
+    "01.2026|": {
+      "orders": 1,
+      "qty": 0.0,
+      "sales_thousands": 0.0,
+      "profit_thousands": 4050.0
+    },
+    "01.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 86,
+      "qty": 173.0,
+      "sales_thousands": 1355063.0,
+      "profit_thousands": 77730.0
+    },
+    "01.2026|Mr Quý": {
+      "orders": 284,
+      "qty": 490.0,
+      "sales_thousands": 3544250.0,
+      "profit_thousands": 101742.0
+    },
+    "01.2026|Mr Vinh": {
+      "orders": 183,
+      "qty": 416.0,
+      "sales_thousands": 2886770.0,
+      "profit_thousands": 106819.0
+    },
+    "01.2026|Nguyễn Thị Minh Bảo": {
+      "orders": 1,
+      "qty": 1.0,
+      "sales_thousands": 800.0,
+      "profit_thousands": 800.0
+    },
+    "01.2026|Phước Thắng 0865909022": {
+      "orders": 65,
+      "qty": 182.0,
+      "sales_thousands": 1642235.0,
+      "profit_thousands": 107998.0
+    },
+    "01.2026|Thảo Linh": {
+      "orders": 7,
+      "qty": 7.0,
+      "sales_thousands": 59350.0,
+      "profit_thousands": 3692.0
+    },
+    "01.2026|Tín Phát 0869931931": {
+      "orders": 254,
+      "qty": 407.0,
+      "sales_thousands": 3564610.0,
+      "profit_thousands": 240033.0
+    },
+    "01.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 100,
+      "qty": 198.0,
+      "sales_thousands": 1775850.0,
+      "profit_thousands": 121436.0
+    },
+    "01.2026|Đức Hiệp": {
+      "orders": 783,
+      "qty": 1246.0,
+      "sales_thousands": 9329518.0,
+      "profit_thousands": 226208.0
+    },
+    "01.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 100,
+      "qty": 148.0,
+      "sales_thousands": 1327240.0,
+      "profit_thousands": 88852.0
+    },
+    "02.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 81,
+      "qty": 112.0,
+      "sales_thousands": 1064750.0,
+      "profit_thousands": 57007.0
+    },
+    "02.2026|Lê Văn Quân 0865111033": {
+      "orders": 1,
+      "qty": 2.0,
+      "sales_thousands": 18800.0,
+      "profit_thousands": 862.0
+    },
+    "02.2026|Mr Quý": {
+      "orders": 524,
+      "qty": 777.0,
+      "sales_thousands": 5768145.0,
+      "profit_thousands": 147223.0
+    },
+    "02.2026|Mr Vinh": {
+      "orders": 216,
+      "qty": 354.0,
+      "sales_thousands": 2811108.0,
+      "profit_thousands": 95566.0
+    },
+    "02.2026|Phước Thắng 0865909022": {
+      "orders": 55,
+      "qty": 83.0,
+      "sales_thousands": 882750.0,
+      "profit_thousands": 34865.0
+    },
+    "02.2026|Thảo Linh": {
+      "orders": 4,
+      "qty": 39.0,
+      "sales_thousands": 60010.0,
+      "profit_thousands": 8291.0
+    },
+    "02.2026|Tín Phát 0869931931": {
+      "orders": 231,
+      "qty": 315.0,
+      "sales_thousands": 2680927.0,
+      "profit_thousands": 208626.0
+    },
+    "02.2026|Tống Khánh Linh 0865111033": {
+      "orders": 2,
+      "qty": 2.0,
+      "sales_thousands": 14650.0,
+      "profit_thousands": 1228.0
+    },
+    "02.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 90,
+      "qty": 135.0,
+      "sales_thousands": 1185480.0,
+      "profit_thousands": 64108.0
+    },
+    "02.2026|Đức Hiệp": {
+      "orders": 624,
+      "qty": 1017.0,
+      "sales_thousands": 8242831.0,
+      "profit_thousands": 243245.0
+    },
+    "02.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 53,
+      "qty": 226.0,
+      "sales_thousands": 1069200.0,
+      "profit_thousands": 80841.0
+    },
+    "03.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 60,
+      "qty": 89.0,
+      "sales_thousands": 793330.0,
+      "profit_thousands": 49485.0
+    },
+    "03.2026|Mr Quý": {
+      "orders": 282,
+      "qty": 531.0,
+      "sales_thousands": 3097341.0,
+      "profit_thousands": 73028.0
+    },
+    "03.2026|Mr Vinh": {
+      "orders": 137,
+      "qty": 223.0,
+      "sales_thousands": 1396850.0,
+      "profit_thousands": 32823.0
+    },
+    "03.2026|Phước Thắng 0865909022": {
+      "orders": 46,
+      "qty": 79.0,
+      "sales_thousands": 577170.0,
+      "profit_thousands": 40961.0
+    },
+    "03.2026|Thảo Linh": {
+      "orders": 13,
+      "qty": 26.0,
+      "sales_thousands": 168450.0,
+      "profit_thousands": 15294.0
+    },
+    "03.2026|Tín Phát 0869931931": {
+      "orders": 156,
+      "qty": 271.0,
+      "sales_thousands": 2180880.0,
+      "profit_thousands": 121392.0
+    },
+    "03.2026|Tống Khánh Linh 0865111033": {
+      "orders": 8,
+      "qty": 16.0,
+      "sales_thousands": 115200.0,
+      "profit_thousands": 8825.0
+    },
+    "03.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 77,
+      "qty": 116.0,
+      "sales_thousands": 808868.0,
+      "profit_thousands": 52225.0
+    },
+    "03.2026|Đức Hiệp": {
+      "orders": 506,
+      "qty": 813.0,
+      "sales_thousands": 5789403.0,
+      "profit_thousands": 144674.0
+    },
+    "03.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 66,
+      "qty": 100.0,
+      "sales_thousands": 658370.0,
+      "profit_thousands": 45032.0
+    },
+    "04.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 75,
+      "qty": 127.0,
+      "sales_thousands": 1049850.0,
+      "profit_thousands": 55502.0
+    },
+    "04.2026|Mr Quý": {
+      "orders": 201,
+      "qty": 333.0,
+      "sales_thousands": 2162270.0,
+      "profit_thousands": 65535.0
+    },
+    "04.2026|Mr Vinh": {
+      "orders": 151,
+      "qty": 240.0,
+      "sales_thousands": 1566149.0,
+      "profit_thousands": 63392.0
+    },
+    "04.2026|Phước Thắng 0865909022": {
+      "orders": 42,
+      "qty": 62.0,
+      "sales_thousands": 502865.0,
+      "profit_thousands": 36225.0
+    },
+    "04.2026|Thảo Linh": {
+      "orders": 6,
+      "qty": 10.0,
+      "sales_thousands": 67000.0,
+      "profit_thousands": 3433.0
+    },
+    "04.2026|Tín Phát 0869931931": {
+      "orders": 160,
+      "qty": 245.0,
+      "sales_thousands": 2065127.0,
+      "profit_thousands": 130975.0
+    },
+    "04.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 79,
+      "qty": 126.0,
+      "sales_thousands": 796450.0,
+      "profit_thousands": 48463.0
+    },
+    "04.2026|Đức Hiệp": {
+      "orders": 444,
+      "qty": 715.0,
+      "sales_thousands": 4671277.0,
+      "profit_thousands": 142689.0
+    },
+    "04.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 52,
+      "qty": 75.0,
+      "sales_thousands": 598350.0,
+      "profit_thousands": 38577.0
+    },
+    "05.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 33,
+      "qty": 105.0,
+      "sales_thousands": 875800.0,
+      "profit_thousands": 46380.0
+    },
+    "05.2026|Mr Quý": {
+      "orders": 212,
+      "qty": 408.0,
+      "sales_thousands": 2777380.0,
+      "profit_thousands": 62767.0
+    },
+    "05.2026|Mr Vinh": {
+      "orders": 167,
+      "qty": 239.0,
+      "sales_thousands": 1724880.0,
+      "profit_thousands": 66322.0
+    },
+    "05.2026|Phước Thắng 0865909022": {
+      "orders": 47,
+      "qty": 69.0,
+      "sales_thousands": 690758.0,
+      "profit_thousands": 35990.0
+    },
+    "05.2026|Thảo Linh": {
+      "orders": 8,
+      "qty": 57.0,
+      "sales_thousands": 59420.0,
+      "profit_thousands": 7758.0
+    },
+    "05.2026|Tín Phát 0869931931": {
+      "orders": 161,
+      "qty": 265.0,
+      "sales_thousands": 2049510.0,
+      "profit_thousands": 113930.0
+    },
+    "05.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 93,
+      "qty": 132.0,
+      "sales_thousands": 954570.0,
+      "profit_thousands": 72349.0
+    },
+    "05.2026|Đức Hiệp": {
+      "orders": 383,
+      "qty": 675.0,
+      "sales_thousands": 4690160.0,
+      "profit_thousands": 95435.0
+    },
+    "05.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 78,
+      "qty": 95.0,
+      "sales_thousands": 846250.0,
+      "profit_thousands": 50490.0
+    },
+    "06.2026|": {
+      "orders": 1,
+      "qty": 1.0,
+      "sales_thousands": 9350.0,
+      "profit_thousands": 450.0
+    },
+    "06.2026|Lê Mạnh Hoàng 0865111533": {
+      "orders": 31,
+      "qty": 55.0,
+      "sales_thousands": 380375.0,
+      "profit_thousands": 19254.0
+    },
+    "06.2026|Lê Quang Trường 0589691228": {
+      "orders": 1,
+      "qty": 6.0,
+      "sales_thousands": 29300.0,
+      "profit_thousands": 1466.0
+    },
+    "06.2026|Mr Quý": {
+      "orders": 278,
+      "qty": 570.0,
+      "sales_thousands": 3278868.0,
+      "profit_thousands": 65578.0
+    },
+    "06.2026|Mr Vinh": {
+      "orders": 202,
+      "qty": 551.0,
+      "sales_thousands": 1836250.0,
+      "profit_thousands": 91690.0
+    },
+    "06.2026|Phước Thắng 0865909022": {
+      "orders": 31,
+      "qty": 51.0,
+      "sales_thousands": 342581.0,
+      "profit_thousands": 20709.0
+    },
+    "06.2026|Thảo Linh": {
+      "orders": 8,
+      "qty": 246.0,
+      "sales_thousands": 241400.0,
+      "profit_thousands": 34774.0
+    },
+    "06.2026|Tín Phát 0869931931": {
+      "orders": 146,
+      "qty": 210.0,
+      "sales_thousands": 1925272.0,
+      "profit_thousands": 95957.0
+    },
+    "06.2026|Vũ Hạnh Ly 0868345633": {
+      "orders": 89,
+      "qty": 157.0,
+      "sales_thousands": 1156490.0,
+      "profit_thousands": 60236.0
+    },
+    "06.2026|Đức Hiệp": {
+      "orders": 387,
+      "qty": 685.0,
+      "sales_thousands": 4677315.0,
+      "profit_thousands": 107624.0
+    },
+    "06.2026|Đức Kiên - Tân Á 0867666533": {
+      "orders": 52,
+      "qty": 70.0,
+      "sales_thousands": 596945.0,
+      "profit_thousands": 25870.0
+    }
+  },
+  "report": {
+    "sheet_count": 59,
+    "layouts": [
+      {
+        "sheets": [
+          "01.2026 Tín Phát",
+          "02.2026 Tín Phát",
+          "05.2026 Hoàng",
+          "06.2026 Hoàng",
+          "04.2026 Hoàng",
+          "05.2026 Fanpage",
+          "03.2026 Hoàng",
+          "01.2026 Ly",
+          "03.2026 Fanpage",
+          "04.2026 Fanpage",
+          "02.2026 Fanpage"
+        ],
+        "sheet_count": 11,
+        "header": [
+          "Date",
+          "Trans",
+          "Nơi nhập",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Địa chỉ",
+          ",",
+          "IMEI",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B605)",
+          "C1": "=(SUMIF(C3:C605,\"Kho\",H3:H605)/H1)",
+          "D1": "=COUNTIF(D2:D605,\"chân máy giặt đa năng\")+COUNTIF(D2:D605,\"giá treo tivi\")+COUNTIF(D2:D605,\"vận chuyển\")",
+          "E1": "=SUM(E3:E605)-D1-C1",
+          "G1": "=SUMIF(C:C,\"Kho\",H:H)/H1",
+          "H1": "=SUM(H3:H605)",
+          "I1": "=SUM(I3:I605)",
+          "J1": "=I1/H1",
+          "K1": "=SUM(K3:K605)",
+          "M1": "=SUM(M3:M605)",
+          "R1": ","
+        }
+      },
+      {
+        "sheets": [
+          "07.2026 Tín Phát",
+          "08.2026 Tín Phát",
+          "07.2026 Ly",
+          "08.2026 Ly",
+          "06.2026 Tín Phát",
+          "06.2026 Thắng",
+          "06.2026 Ly",
+          "07.2026 Kiên",
+          "08.2026 Kiên",
+          "05.2026 Thắng",
+          "03.2026 Ly",
+          "04.2026 Ly",
+          "05.2026 Ly",
+          "05.2026 Kiên",
+          "06.2026 Kiên",
+          "02.2026 Ly",
+          "03.2026 Kiên",
+          "04.2026 Kiên"
+        ],
+        "sheet_count": 18,
+        "header": [
+          "Date",
+          "Trans",
+          "Nơi nhập",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Địa chỉ",
+          "Hãng",
+          "IMEI",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B945)",
+          "C1": "=(SUMIF(C3:C945,\"Kho\",H3:H945)/H1)",
+          "D1": "=COUNTIF(D2:D945,\"chân máy giặt đa năng\")+COUNTIF(D2:D945,\"giá treo tivi\")+COUNTIF(D2:D945,\"vận chuyển\")",
+          "E1": "=SUM(E3:E945)-D1-C1",
+          "G1": "=SUMIF(C:C,\"Kho\",H:H)/H1",
+          "H1": "=SUM(H3:H945)",
+          "I1": "=SUM(I3:I945)",
+          "J1": "=I1/H1",
+          "K1": "=SUM(K3:K945)",
+          "M1": "=SUM(M3:M945)",
+          "R1": ","
+        }
+      },
+      {
+        "sheets": [
+          "05.2026 Tín Phát",
+          "04.2026 Tín Phát",
+          "03.2026 Tín Phát"
+        ],
+        "sheet_count": 3,
+        "header": [
+          "Date",
+          "Trans",
+          "Nơi nhập",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Địa chỉ",
+          ".",
+          "IMEI",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B401)",
+          "C1": "=(SUMIF(C3:C401,\"Kho\",H3:H401)/H1)",
+          "D1": "=COUNTIF(D2:D401,\"chân máy giặt đa năng\")+COUNTIF(D2:D401,\"giá treo tivi\")+COUNTIF(D2:D401,\"vận chuyển\")",
+          "E1": "=SUM(E3:E401)-D1-C1",
+          "G1": "=SUMIF(C:C,\"Kho\",H:H)/H1",
+          "H1": "=SUM(H3:H401)",
+          "I1": "=SUM(I3:I401)",
+          "J1": "=I1/H1",
+          "K1": "=SUM(K3:K401)",
+          "M1": "=SUM(M3:M401)",
+          "R1": "."
+        }
+      },
+      {
+        "sheets": [
+          "08.2026 Gia dụng",
+          "07.2026 Gia dụng",
+          "07.2026 Nội thành",
+          "08.2026 Nội thành",
+          "06.2026 Gia dụng",
+          "06.2026 Nội thành",
+          "05.2026 Gia dụng",
+          "05.2026 Nội thành",
+          "02.2026 Gia dụng",
+          "04.2026 Gia dụng",
+          "04.2026 Nội thành",
+          "03.2026 Gia dụng",
+          "02.2026 Nội thành",
+          "03.2026 Nội thành",
+          "01.2026 Nội thành",
+          "01.2026 Gia dụng"
+        ],
+        "sheet_count": 16,
+        "header": [
+          "Date",
+          "Trans",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Hãng",
+          "=H2/G2",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B452)",
+          "C1": "=COUNTIF(C2:C452,\"chân máy giặt đa năng\")+COUNTIF(C2:C452,\"giá treo tivi\")+COUNTIF(C2:C452,\"vận chuyển\")",
+          "D1": "=SUM(D3:D452)-C1",
+          "G1": "=SUM(G3:G452)/2",
+          "H1": "=SUM(H3:H452)/2",
+          "I1": "=H1/G1",
+          "J1": "=SUM(J3:J452)",
+          "L1": "=SUM(L2:L452)",
+          "Q1": "=H1/G1",
+          "R1": "=SUMIF(Q:Q,\"<1%\",G:G)",
+          "S1": "=SUMIF(Q:Q,\"<1%\",H:H)"
+        }
+      },
+      {
+        "sheets": [
+          "02.2026 Thắng",
+          "03.2026 Thắng",
+          "04.2026 Thắng",
+          "02.2026 Kiên",
+          "01.2026 Kiên",
+          "01.2026 Thắng"
+        ],
+        "sheet_count": 6,
+        "header": [
+          "Date",
+          "Trans",
+          "Nơi nhập",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Địa chỉ",
+          "Hãng",
+          "IMEI",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B802)",
+          "C1": "=(SUMIF(C3:C802,\"Kho\",H3:H802)/H1)",
+          "D1": "=COUNTIF(D2:D802,\"chân máy giặt đa năng\")+COUNTIF(D2:D802,\"giá treo tivi\")+COUNTIF(D2:D802,\"vận chuyển\")",
+          "E1": "=SUM(E3:E802)-D1-C1",
+          "G1": "=SUMIF(C:C,\"Kho\",H:H)/H1",
+          "H1": "=SUM(H3:H802)",
+          "I1": "=SUM(I3:I802)",
+          "J1": "=I1/H1",
+          "K1": "=SUM(K3:K802)",
+          "M1": "=SUM(M3:M802)",
+          "R1": ","
+        }
+      },
+      {
+        "sheets": [
+          "01.2026 Hoàng",
+          "02.2026 Hoàng"
+        ],
+        "sheet_count": 2,
+        "header": [
+          "Date",
+          "Trans",
+          "Nơi nhập",
+          "Mã Sản phẩm",
+          "Số lượng",
+          "Giá nhập TT",
+          "Giá bán",
+          "Tổng bán",
+          "Lợi nhuận",
+          "Giao hàng",
+          "Chi phí giao",
+          "Giá thực nhập",
+          "Lợi nhuận gộp",
+          "Tên khách hàng",
+          "Số điện thoại",
+          "Địa chỉ",
+          ",",
+          "IMEI",
+          "Tình trạng bảo hành"
+        ],
+        "row1_formulas": {
+          "B1": "=count(B3:B856)",
+          "C1": "=(SUMIF(C3:C856,\"Kho\",H3:H856)/H1)",
+          "D1": "=COUNTIF(D2:D856,\"chân máy giặt đa năng\")+COUNTIF(D2:D856,\"giá treo tivi\")+COUNTIF(D2:D856,\"vận chuyển\")",
+          "E1": "=SUM(E3:E856)-D1-C1",
+          "H1": "=SUM(H3:H856)",
+          "I1": "=SUM(I3:I856)",
+          "J1": "=I1/H1",
+          "K1": "=SUM(K3:K856)",
+          "M1": "=SUM(M3:M856)",
+          "R1": ","
+        }
+      }
+    ],
+    "conversion_rows": [
+      {
+        "summary": "Summary 2026",
+        "period": null,
+        "employee": "=31+B12+B21+B31",
+        "converted_revenue_formula": "=E3/M3",
+        "target": 345474000.0,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G4/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F4*0.5%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G5/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F5*0.5%",
+        "workdays": 26.5
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G6/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F6*0.25%",
+        "workdays": 27.5
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=(G7-2750)/5.5%+2750/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F7*0.45%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G8-37270)/5.5%+37270/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F8*0.5%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G9/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F9*0.02%",
+        "workdays": 31.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "01.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G10/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G13/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F13*0.3%",
+        "workdays": 22.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G14/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F14*0.3%",
+        "workdays": 21.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G15/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F15*0.15%",
+        "workdays": 20.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=(G16-35520)/5.5%+35520/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F16*0.3%",
+        "workdays": 22.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G17-1500)/5.5%+1500/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F17*0.3%",
+        "workdays": 22.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G18/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F18*0.02%",
+        "workdays": 23.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "02.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G19/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G22/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F22*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G23/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F23*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G24/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F24*0.15%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=(G25-7790)/5.5%+7790/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F25*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G26-11000)/5.5%+11000/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F26*0.3%",
+        "workdays": 27.5
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Linh",
+        "converted_revenue_formula": "=G27/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F27*0.3%",
+        "workdays": 12.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G28/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F28*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "03.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G29/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G32/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F32*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G33/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F33*0.3%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G34/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F34*0.15%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=(G35-17200)/5.5%+17200/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F35*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G36-9230)/5.5%+9230/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F36*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Fanpage",
+        "converted_revenue_formula": "=G37/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F37*0.3%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G38/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F38*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "04.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G39/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G42/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F42*0.3%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G43/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F43*0.3%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G44/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F44*0.15%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=(G45-3770-16190)/5.5%+(3770+16190)/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F45*0.3%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G46-7820)/5.5%+7820/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F46*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Fanpage",
+        "converted_revenue_formula": "=G47/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F47*0.3%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G48/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F48*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "05.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G49/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G52/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F52*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Thắng",
+        "converted_revenue_formula": "=G53/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F53*0.3%",
+        "workdays": 27.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G54/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F54*0.15%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Hoàng",
+        "converted_revenue_formula": "=G55/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F55*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G56-7565)/5.5%+7565/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F56*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G57/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F57*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "06.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G58/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "07.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G61/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F61*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "07.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G62/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F62*0.15%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "07.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G63-7565)/5.5%+7565/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F63*0.5%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "07.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G64/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F64*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "07.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G65/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "08.2026",
+        "employee": "Ly",
+        "converted_revenue_formula": "=G68/5.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F68*0.3%",
+        "workdays": 28.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "08.2026",
+        "employee": "Tín Phát",
+        "converted_revenue_formula": "=G69/7.5%",
+        "target": 2700000.0,
+        "bonus_formula": "=F69*0.15%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "08.2026",
+        "employee": "Kiên",
+        "converted_revenue_formula": "=(G70-7565)/5.5%+7565/7.5%",
+        "target": 1300000.0,
+        "bonus_formula": "=F70*0.3%",
+        "workdays": 26.0
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "08.2026",
+        "employee": "Nội thành",
+        "converted_revenue_formula": "=G71/2%",
+        "target": 12000000.0,
+        "bonus_formula": "=F71*0.02%",
+        "workdays": null
+      },
+      {
+        "summary": "Summary 2026",
+        "period": "08.2026",
+        "employee": "Gia dụng",
+        "converted_revenue_formula": "=G72/8%",
+        "target": null,
+        "bonus_formula": null,
+        "workdays": null
+      }
+    ],
+    "purchase_source_top": [
+      [
+        "",
+        22029
+      ],
+      [
+        "Kho",
+        2417
+      ],
+      [
+        "Việt Hải",
+        348
+      ],
+      [
+        "179.0",
+        318
+      ],
+      [
+        "Trung Xuân",
+        184
+      ],
+      [
+        "Thăng Long",
+        136
+      ],
+      [
+        "Văn Quân",
+        125
+      ],
+      [
+        "Tuấn Ngoan",
+        109
+      ],
+      [
+        "Hương Anh",
+        52
+      ],
+      [
+        "Minh Ngọc",
+        51
+      ],
+      [
+        "Bếp Đức",
+        49
+      ],
+      [
+        "Lân Hương",
+        47
+      ],
+      [
+        "SNK",
+        47
+      ],
+      [
+        "Samnec",
+        43
+      ],
+      [
+        "Tân Thuỷ",
+        42
+      ],
+      [
+        "Đất Việt",
+        42
+      ],
+      [
+        "Việt Hàn",
+        39
+      ],
+      [
+        "Thành Phát",
+        32
+      ],
+      [
+        "Nhân Việt",
+        32
+      ],
+      [
+        "Tuyến Dũng",
+        31
+      ],
+      [
+        "Hoàng Vinh",
+        30
+      ],
+      [
+        "Hiếu KG",
+        28
+      ],
+      [
+        "NCC",
+        26
+      ],
+      [
+        "Minh Long",
+        25
+      ],
+      [
+        "Hưng Thịnh",
+        24
+      ]
+    ],
+    "adjustment_notes_top": [
+      [
+        "Kích",
+        487
+      ],
+      [
+        "KHBH -50",
+        169
+      ],
+      [
+        "Thợ lắp -200, KHBH -50",
+        109
+      ],
+      [
+        "NCC giao -100",
+        69
+      ],
+      [
+        "Qua kho -100",
+        58
+      ],
+      [
+        "Qua kho -100, KHBH -50",
+        22
+      ],
+      [
+        "NCC giao -50",
+        19
+      ],
+      [
+        "Qua kho -50",
+        19
+      ],
+      [
+        "Qua kho -200",
+        16
+      ],
+      [
+        "Thợ lắp -200,KHBH -50",
+        8
+      ],
+      [
+        "NCc giao -100",
+        5
+      ],
+      [
+        "NCC giao -100, KHBH -50",
+        4
+      ],
+      [
+        "Quét",
+        4
+      ],
+      [
+        "NCC giao -200",
+        3
+      ],
+      [
+        "qua kho -100",
+        3
+      ],
+      [
+        "Thợ lắp -100, KHBH -50",
+        3
+      ],
+      [
+        "Trả hàng",
+        2
+      ],
+      [
+        "Thợ lắp -100",
+        2
+      ],
+      [
+        "Huỷ",
+        1
+      ],
+      [
+        "Hoàn",
+        1
+      ],
+      [
+        "Qua lấy -100, KHBH -50",
+        1
+      ],
+      [
+        "Bù trừ",
+        1
+      ],
+      [
+        "NGG giao -100, KHBH -50",
+        1
+      ],
+      [
+        "Thợ lắp -200",
+        1
+      ],
+      [
+        "Qua kho -100, KHBh -50",
+        1
+      ]
+    ],
+    "manual_price_overrides": 635,
+    "price_cells_total": 18148,
+    "sheet_totals": {
+      "01.2026 Tín Phát": {
+        "orders": 254,
+        "products": 387.6271681,
+        "sales": 3544010,
+        "profit": 238115,
+        "gross_profit": 238775
+      },
+      "07.2026 Tín Phát": {
+        "orders": 140,
+        "products": 210.74645,
+        "sales": 1807020,
+        "profit": 132669,
+        "gross_profit": 130919
+      },
+      "08.2026 Tín Phát": {
+        "orders": 82,
+        "products": 155.7459656,
+        "sales": 1135535,
+        "profit": 86400,
+        "gross_profit": 85650
+      },
+      "07.2026 Ly": {
+        "orders": 103,
+        "products": 181.7466601,
+        "sales": 1116800,
+        "profit": 66132,
+        "gross_profit": 64332
+      },
+      "08.2026 Ly": {
+        "orders": 69,
+        "products": 283.8745243,
+        "sales": 1707900,
+        "profit": 68318,
+        "gross_profit": 66918
+      },
+      "06.2026 Tín Phát": {
+        "orders": 146,
+        "products": 178.8029801,
+        "sales": 1799920,
+        "profit": 119236,
+        "gross_profit": 121086
+      },
+      "05.2026 Tín Phát": {
+        "orders": 166,
+        "products": 270.7412685,
+        "sales": 2115023,
+        "profit": 138173,
+        "gross_profit": 135373
+      },
+      "06.2026 Thắng": {
+        "orders": 28,
+        "products": 46.70544979,
+        "sales": 320930,
+        "profit": 20730,
+        "gross_profit": 19530
+      },
+      "06.2026 Ly": {
+        "orders": 98,
+        "products": 180.7689665,
+        "sales": 1158490,
+        "profit": 63010,
+        "gross_profit": 60460
+      },
+      "07.2026 Kiên": {
+        "orders": 94,
+        "products": 207.7859171,
+        "sales": 1655620,
+        "profit": 98260,
+        "gross_profit": 93210
+      },
+      "08.2026 Kiên": {
+        "orders": 54,
+        "products": 96.55363629,
+        "sales": 619450,
+        "profit": 41670,
+        "gross_profit": 40670
+      },
+      "08.2026 Gia dụng": {
+        "orders": 0,
+        "products": 54,
+        "sales": 40400,
+        "profit": 690,
+        "gross_profit": 1380
+      },
+      "07.2026 Gia dụng": {
+        "orders": 0,
+        "products": 77,
+        "sales": 83165,
+        "profit": 3865,
+        "gross_profit": 7730
+      },
+      "07.2026 Nội thành": {
+        "orders": 0,
+        "products": null,
+        "sales": 9601850,
+        "profit": 197775,
+        "gross_profit": 195655
+      },
+      "08.2026 Nội thành": {
+        "orders": 0,
+        "products": null,
+        "sales": 6385400,
+        "profit": 90785,
+        "gross_profit": 90785
+      },
+      "05.2026 Thắng": {
+        "orders": 44,
+        "products": 57.67653951,
+        "sales": 580380,
+        "profit": 41030,
+        "gross_profit": 38140
+      },
+      "04.2026 Tín Phát": {
+        "orders": 157,
+        "products": 225.7156805,
+        "sales": 2060710,
+        "profit": 144025,
+        "gross_profit": 151425.6
+      },
+      "03.2026 Tín Phát": {
+        "orders": 156,
+        "products": 236.6998667,
+        "sales": 2070380,
+        "profit": 142045,
+        "gross_profit": 137505
+      },
+      "02.2026 Tín Phát": {
+        "orders": 223,
+        "products": 290.5086939,
+        "sales": 2516130,
+        "profit": 176735,
+        "gross_profit": 169645
+      },
+      "02.2026 Thắng": {
+        "orders": 56,
+        "products": 77.54805136,
+        "sales": 883950,
+        "profit": 60150,
+        "gross_profit": 59200
+      },
+      "03.2026 Thắng": {
+        "orders": 44,
+        "products": 75.60113128,
+        "sales": 548050,
+        "profit": 39370,
+        "gross_profit": 40720
+      },
+      "04.2026 Thắng": {
+        "orders": 44,
+        "products": 60.7702578,
+        "sales": 574470,
+        "profit": 33790,
+        "gross_profit": 31700
+      },
+      "03.2026 Ly": {
+        "orders": 78,
+        "products": 147.765616,
+        "sales": 776269,
+        "profit": 47654,
+        "gross_profit": 45554
+      },
+      "04.2026 Ly": {
+        "orders": 78,
+        "products": 133.6845365,
+        "sales": 775050,
+        "profit": 44840,
+        "gross_profit": 41820
+      },
+      "05.2026 Ly": {
+        "orders": 88,
+        "products": 151.6663135,
+        "sales": 934440,
+        "profit": 52800,
+        "gross_profit": 49200
+      },
+      "05.2026 Kiên": {
+        "orders": 82,
+        "products": 95.72470389,
+        "sales": 886500,
+        "profit": 56920,
+        "gross_profit": 54470
+      },
+      "06.2026 Kiên": {
+        "orders": 53,
+        "products": 62.63542798,
+        "sales": 561590,
+        "profit": 39870,
+        "gross_profit": 37420
+      },
+      "05.2026 Hoàng": {
+        "orders": 33,
+        "products": 99.83229351,
+        "sales": 873550,
+        "profit": 56660,
+        "gross_profit": 55460
+      },
+      "06.2026 Hoàng": {
+        "orders": 31,
+        "products": 54.46938243,
+        "sales": 382950,
+        "profit": 20866,
+        "gross_profit": 21266
+      },
+      "06.2026 Gia dụng": {
+        "orders": 0,
+        "products": 656,
+        "sales": 210799,
+        "profit": 23079.5,
+        "gross_profit": 46159
+      },
+      "06.2026 Nội thành": {
+        "orders": 0,
+        "products": 587.0,
+        "sales": 9754245,
+        "profit": 189804,
+        "gross_profit": 180874
+      },
+      "02.2026 Ly": {
+        "orders": 91,
+        "products": 169.57982,
+        "sales": 1168880,
+        "profit": 56965,
+        "gross_profit": 53455
+      },
+      "02.2026 Kiên": {
+        "orders": 46,
+        "products": 218.7022875,
+        "sales": 1025150,
+        "profit": 58655,
+        "gross_profit": 58255
+      },
+      "03.2026 Kiên": {
+        "orders": 66,
+        "products": 94.61324929,
+        "sales": 659960,
+        "profit": 45390,
+        "gross_profit": 45250
+      },
+      "04.2026 Kiên": {
+        "orders": 52,
+        "products": 61.65894847,
+        "sales": 574400,
+        "profit": 37840,
+        "gross_profit": 35690
+      },
+      "04.2026 Hoàng": {
+        "orders": 72,
+        "products": 117.8202704,
+        "sales": 1048130,
+        "profit": 59891,
+        "gross_profit": 55091
+      },
+      "05.2026 Fanpage": {
+        "orders": 2,
+        "products": 2.379120879,
+        "sales": 18200,
+        "profit": 1400,
+        "gross_profit": 1400
+      },
+      "05.2026 Gia dụng": {
+        "orders": 0,
+        "products": 54,
+        "sales": 72825,
+        "profit": 2150,
+        "gross_profit": 4100
+      },
+      "05.2026 Nội thành": {
+        "orders": 0,
+        "products": 587.0,
+        "sales": 8980910,
+        "profit": 182020,
+        "gross_profit": 166060
+      },
+      "03.2026 Hoàng": {
+        "orders": 60,
+        "products": 81.67347925,
+        "sales": 786290,
+        "profit": 48039,
+        "gross_profit": 45389
+      },
+      "01.2026 Ly": {
+        "orders": 99,
+        "products": 227.6509545,
+        "sales": 1715865,
+        "profit": 90115,
+        "gross_profit": 88455
+      },
+      "01.2026 Kiên": {
+        "orders": 97,
+        "products": 148.6785979,
+        "sales": 1387110,
+        "profit": 97270,
+        "gross_profit": 94370
+      },
+      "01.2026 Hoàng": {
+        "orders": 79,
+        "products": 176.532013,
+        "sales": 1384985,
+        "profit": 83120,
+        "gross_profit": 89070
+      },
+      "02.2026 Hoàng": {
+        "orders": 81,
+        "products": 119.3784579,
+        "sales": 1063130,
+        "profit": 65190,
+        "gross_profit": 61820
+      },
+      "02.2026 Gia dụng": {
+        "orders": 0,
+        "products": 110,
+        "sales": 199120,
+        "profit": 8655,
+        "gross_profit": 17310
+      },
+      "03.2026 Fanpage": {
+        "orders": 8,
+        "products": 11.79355401,
+        "sales": 114800,
+        "profit": 9850,
+        "gross_profit": 9850
+      },
+      "01.2026 Thắng": {
+        "orders": 59,
+        "products": 170.7921992,
+        "sales": 1579060,
+        "profit": 101390,
+        "gross_profit": 101340
+      },
+      "04.2026 Fanpage": {
+        "orders": 6,
+        "products": 9.558290155,
+        "sales": 77200,
+        "profit": 5140,
+        "gross_profit": 5140
+      },
+      "04.2026 Gia dụng": {
+        "orders": 0,
+        "products": 77,
+        "sales": 106430,
+        "profit": 6015,
+        "gross_profit": 12130
+      },
+      "04.2026 Nội thành": {
+        "orders": 0,
+        "products": 929,
+        "sales": 8003818,
+        "profit": 163828,
+        "gross_profit": 166708
+      },
+      "03.2026 Gia dụng": {
+        "orders": 0,
+        "products": 83,
+        "sales": 110785,
+        "profit": 7665,
+        "gross_profit": 15330
+      },
+      "02.2026 Nội thành": {
+        "orders": 0,
+        "products": 1585,
+        "sales": 16161280,
+        "profit": 282965,
+        "gross_profit": 283515
+      },
+      "03.2026 Nội thành": {
+        "orders": 0,
+        "products": 1220,
+        "sales": 10337100,
+        "profit": 212680,
+        "gross_profit": 215780
+      },
+      "01.2026 Nội thành": {
+        "orders": 0,
+        "products": 1517,
+        "sales": 15164960,
+        "profit": 289040,
+        "gross_profit": 288070
+      },
+      "02.2026 Fanpage": {
+        "orders": 1,
+        "products": 0,
+        "sales": 10400,
+        "profit": 900,
+        "gross_profit": 900
+      },
+      "01.2026 Gia dụng": {
+        "orders": 0,
+        "products": 186,
+        "sales": 388720.5,
+        "profit": 14970,
+        "gross_profit": 29940
+      }
+    }
+  },
+  "ads_keyword_cell_hits": {
+    "raw_workbook": 0,
+    "report_workbook": 0
+  }
+}
