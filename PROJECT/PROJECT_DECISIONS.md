@@ -274,3 +274,51 @@ REM-T01 at the head of PHASE-01.
 Can Revisit After:
 Owner review of this session. This is the one S002 decision that changes the
 roadmap's shape rather than only its metadata.
+
+## DEC-009
+
+Date:
+2026-08-22
+
+Task:
+REM-T02 (executed as S003)
+
+Decision:
+Execute REM-T02 (root promotion) ahead of REM-T07 (CI enforcement), reversing
+the PHASE-01 execution order set by CH-02 / DEC-007. Obtain CHECK-T02-05 (E2)
+via the Solo Independent Review Procedure instead of CI, since CI does not yet
+exist.
+
+Reason:
+CH-02 sequenced REM-T07 first specifically so REM-T02 would have a CI-based E2
+source when it ran. That rationale assumed no external pressure to reorder.
+Owner reported, with a screenshot, that links into `docs/tasks/`,
+`docs/audit/`, etc. return 404 on GitHub, because those paths did not exist at
+the repository root — they existed one level down, inside
+`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`. This is FIND-001
+surfacing as an active usability defect, not a hypothetical one. The owner was
+asked directly (AskUserQuestion) whether to fix FIND-001 now or hold the frozen
+order, and chose to fix it now.
+
+`governance/core/EVIDENCE_STANDARD.md` names the Solo Independent Review
+Procedure as a valid E2 path when "a separate reviewer-agent session" performs
+independent verification. That path is used here in place of CI.
+
+Impact:
+- REM-T02's frozen Completion Gate (`docs/tasks/TASK-REM-T02-root-promotion.md`)
+  is executed unchanged — same 5 REQUIRED checks, same evidence-level
+  requirements. Only the source of CHECK-T02-05's E2 evidence changes: an
+  independent reviewer session/agent instead of CI, consistent with what the
+  Ready Gate always allowed ("Solo Independent Review... is acceptable but
+  slower").
+- REM-T07 remains READY and unblocked; it becomes PHASE-01's next task instead
+  of its first. It still supplies the durable E2 source for all future
+  high-risk changes.
+- A backup ref was pushed before the move, per REM-T02 subtask 02.1:
+  branch `backup/pre-root-promotion-s003` at commit `5bf460a`.
+- The move itself is isolated in commit `699b105`: 84 files changed,
+  0 insertions, 0 deletions — renames only.
+
+Can Revisit After:
+REM-T07 completes and CI becomes available as a durable E2 source for future
+high-blast-radius changes.
