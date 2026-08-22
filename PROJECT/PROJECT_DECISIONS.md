@@ -344,3 +344,131 @@ Impact:
 Can Revisit After:
 Once the ADS convention has been running long enough that 2026 history stops
 mattering.
+
+## DEC-013
+
+Date:
+2026-08-22
+
+Task:
+GATE-00 — resolves open question C8
+
+Decision:
+Money-bearing non-product lines are excluded from the product count, confirming
+the assumption DEC-010 carried. `Tổng số SP` is kept as a Summary column to
+match the existing report, but it is demoted: no feature is built on it and it
+is not a reconciliation criterion at any gate.
+
+Reason:
+Owner's decision — *"loại số SP ra. có vẻ dữ liệu này không cần thiết"*.
+
+Impact:
+Removes the sample workbook's fractional product counts (387,6 / 178,8 / 62,6),
+which came from subtracting a percentage from a quantity — see
+`docs/analysis/05_EXCEPTIONS.md` §A1. The tool's product count will be a whole
+number and slightly higher than the sample's.
+
+Because the metric is low value, that difference does not need explaining
+line by line at GATE-01. Every other reconciliation difference still does.
+
+Can Revisit After:
+Anytime — dropping the column later costs nothing.
+
+## DEC-014
+
+Date:
+2026-08-22
+
+Task:
+GATE-00 — resolves open question C4
+
+Decision:
+`Chiết khấu` is deducted from sales:
+
+```
+TotalSales = SellPrice × Quantity − Discount
+```
+
+Reason:
+Owner's decision. Verified against the raw file: in all 408 discounted rows
+`Doanh số bán` equals `Đơn giá × SL` exactly and never the discounted figure, so
+the ERP column is gross and the discount has not already been applied. Deducting
+it is a real correction, not a double count.
+
+Impact:
+Six-month total: 36.750 thousand VND across 408 rows — 0,03 % of company sales.
+Concentrated on one person: Ly has 302 of the 408 rows and 26.300 thousand,
+0,39 % of her sales. Nobody else exceeds 0,07 %.
+
+**Open assumption, flagged for GATE-01:** the discount is also deducted from
+profit by the same amount, so
+`EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts + OtherKpiAdjustment`.
+The owner said "deduct from sales" and did not speak to profit. Reducing sales
+without reducing profit would report a margin higher than the business actually
+earned, which is the reading this project cannot take silently — a discount is
+money given away. Stated here rather than assumed.
+
+Can Revisit After:
+GATE-01, on the profit half only.
+
+## DEC-015
+
+Date:
+2026-08-22
+
+Task:
+GATE-00 — resolves open question C2
+
+Decision:
+The `/2` in the Nội thành and Gia dụng sheets is explained: those sheets carry a
+per-day subtotal row **inside** the data region, so a plain `SUM` counts every
+figure twice. Halving the total is a correct workaround for that layout.
+
+The tool does not reproduce either the embedded subtotal rows or the halving.
+Data rows stay data; subtotals are computed separately and, in the export,
+emitted as Excel outline/group rows carrying an explicit `RowType` marker that
+keeps them outside every `SUM` range.
+
+Reason:
+Owner explained the cause and asked for a better representation:
+*"nếu có cách thể hiện khoa học hơn, hãy làm"*.
+
+Impact:
+- `05_EXCEPTIONS.md` §A3 moves from "unexplained, needs investigation" to
+  "explained, deliberately not reproduced".
+- The halving was never wrong for the layout it lives in — but it is invisible.
+  Anyone adding a row in the wrong place, or reading the sheet without knowing,
+  gets a figure that is out by 2×. A `RowType` column makes the distinction
+  something you can see and filter rather than something you have to know.
+- Every total in the tool sums each figure exactly once, with no compensating
+  divisor anywhere in the codebase. A `/2` appearing in aggregation logic is to
+  be treated as a defect.
+
+Can Revisit After:
+Never — a hidden compensating divisor is not a design this project adopts.
+
+## DEC-016
+
+Date:
+2026-08-22
+
+Task:
+GATE-00 — resolves open question C3
+
+Decision:
+Commission is driven by target achievement — paid on reaching and exceeding KPI.
+Formalizing it is deferred to a later phase, as planned in TASK-403.
+
+Reason:
+Owner's decision. The observed rates (0,15 %–0,5 %, varying by person and month)
+do not derive from any single tiered rule, so the policy has to be stated in
+full before it can be encoded.
+
+Impact:
+Phase 1 loads the observed per-employee-per-month rate table as data, exactly as
+it appears in the sample workbook. No tier logic is inferred or invented.
+Commission figures the tool produces before TASK-403 reproduce history; they do
+not predict what a new month should pay.
+
+Can Revisit After:
+TASK-403, once the full policy is stated.

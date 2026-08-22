@@ -73,7 +73,7 @@ hơn tổng của cả 5 nhân viên cá nhân cộng lại.
 chính sách thật sự là loại kênh khỏi tổng DS quy đổi, đó là cấu hình
 `include_in_company_total`, không phải một khoảng `SUM` bị gõ thiếu.
 
-### A3. Sheet kênh chia đôi mọi tổng — **mức độ: cần giải thích**
+### A3. Sheet kênh chia đôi mọi tổng — **ĐÃ GIẢI THÍCH (DEC-015)**
 
 ```
 Nội thành / Gia dụng:  G1 = SUM(G3:G452)/2      H1 = SUM(H3:H452)/2
@@ -82,13 +82,26 @@ Nội thành / Gia dụng:  G1 = SUM(G3:G452)/2      H1 = SUM(H3:H452)/2
 Nhưng `L1 = SUM(L2:L452)` **không chia 2** — và bắt đầu từ dòng 2 chứ không
 phải dòng 3.
 
-Chia 2 thường là dấu hiệu vùng `SUM` đang cộng cả dòng tổng phụ nằm lẫn trong
-dữ liệu. Cùng kiểu đó ở `Summary 2026!E3 = SUM(E4:E902)/2` — nơi lý do rõ ràng:
-vùng chứa cả dòng nhân viên lẫn dòng tổng tháng.
+**Nguyên nhân (chủ dự án xác nhận):** sheet kênh có **dòng tổng theo ngày nằm
+lẫn ngay trong vùng dữ liệu**. `SUM` cộng cả dòng chi tiết lẫn dòng tổng ngày,
+nên mọi con số bị nhân đôi. Chia 2 là cách bù đúng cho layout đó.
 
-**Chưa xác định được nguyên nhân trong sheet kênh.** Đây là mục mở **C2**, phải
-làm rõ trước khi làm sheet kênh ở Phase 3. Công cụ sẽ cộng đúng một lần và
-báo cáo chênh lệch so với file mẫu.
+Cùng cơ chế ở `Summary 2026!E3 = SUM(E4:E902)/2`: vùng chứa cả dòng nhân viên
+lẫn dòng tổng tháng.
+
+**Vậy phép chia 2 không sai — nhưng nó vô hình.** Ai thêm một dòng sai chỗ, hoặc
+đọc sheet mà không biết quy ước này, sẽ nhận một con số lệch đúng 2 lần. Không
+có gì trong sheet cho biết dòng nào là chi tiết, dòng nào là tổng.
+
+**Cách công cụ làm thay (DEC-015):**
+
+1. Dòng dữ liệu chỉ là dữ liệu. Không có dòng tổng nào nằm trong vùng dữ liệu.
+2. Tổng tính riêng từ tập dòng chi tiết, mỗi con số cộng đúng **một** lần.
+3. Khi xuất Excel, dòng tổng ngày/tháng vẫn hiện — nhưng dưới dạng **outline /
+   group row** của Excel và mang cột `RowType` (`DETAIL` / `DAY_TOTAL` /
+   `MONTH_TOTAL`) để nằm ngoài mọi vùng `SUM`, đồng thời lọc được.
+4. **Không có phép chia bù nào trong toàn bộ mã nguồn.** Một `/2` xuất hiện
+   trong logic tổng hợp được coi là lỗi.
 
 ### A4. Tham chiếu sai sheet — **mức độ: cao, sai số liệu trực tiếp**
 
@@ -240,8 +253,8 @@ thay vì làm tròn cho khớp.
 | # | Vấn đề | Ảnh hưởng số liệu | Cần chủ dự án quyết? |
 |---|---|---|---|
 | A2 | Tổng tháng bỏ sót nhân viên | **Rất lớn** — thiếu > 50 % DS quy đổi tháng | Có |
-| A3 | Sheet kênh chia 2 | **Lớn** — sai 2 lần nếu hiểu nhầm | **Có — C2** |
-| A1 | Số SP trừ nhầm tỉ lệ | Nhỏ (0,05–0,3 SP) | Không |
+| A3 | Sheet kênh chia 2 | Không còn — đã giải thích, không tái tạo | Xong — DEC-015 |
+| A1 | Số SP trừ nhầm tỉ lệ | Nhỏ (0,05–0,3 SP), và Số SP đã bị hạ ưu tiên | Xong — DEC-013 |
 | A4 | Tham chiếu sai sheet | Lớn, 1 ô | Không |
 | B2 | Kiên lặp `7565` 3 tháng | Không rõ | Có |
 | B1 | Hoàng mất tách bucket từ T06 | Không rõ | Có |

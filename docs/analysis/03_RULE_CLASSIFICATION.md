@@ -17,12 +17,12 @@ Ba loại:
 
 | Công thức | Nguồn |
 |---|---|
-| `TotalSales = SellPrice × Quantity` | `Hn = Gn*En` |
+| `TotalSales = SellPrice × Quantity − Discount` | `Hn = Gn*En` + DEC-014 |
 | `AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity` | `Mn = (Gn-Ln)*En` |
-| `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − EligibleCosts + OtherKpiAdjustment` | `In = (Gn-Fn)*En` + mục 11 đặc tả |
+| `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts + OtherKpiAdjustment` | `In = (Gn-Fn)*En` + mục 11 đặc tả + DEC-014 |
 | `KpiPurchasePrice = AccountingPurchasePrice + KpiPurchaseAdjustment` | mục 11 đặc tả |
 | `TotalOrders = COUNT DISTINCT OrderID` | `B1 = count(B3:Bn)` + mục 3 đặc tả |
-| `TotalProducts = SUM(Quantity)` sau Classification | `E1` (đã sửa lỗi) |
+| `TotalProducts = SUM(Quantity)` chỉ trên dòng sản phẩm thật | `E1` (đã sửa lỗi) + DEC-013 |
 | `ProfitMargin = Profit / Sales` | `J1 = I1/H1` |
 | `AutoConvertedRevenue = EligibleKpiProfit / ConversionRate` | `F = G/rate` |
 | `TotalConvertedRevenue = PersonalCR + AdsCR` | mục 6 đặc tả |
@@ -111,9 +111,33 @@ Khoảng **1.250 dòng** trong 6 tháng mẫu thuộc nhóm này — màn hình 
 thao tác được theo lô (lọc theo loại, chọn nhiều dòng, một lần bấm). Duyệt từng
 dòng một sẽ không ai dùng nổi.
 
-Cột "Số SP = Không" giữ theo đúng cách file mẫu đang làm (`COUNTIF` trừ
-`chân máy giặt đa năng`, `giá treo tivi`, `vận chuyển` khỏi số SP). Chủ dự án
-chưa xác nhận riêng điểm này — cần duyệt ở GATE-01.
+Cột "Số SP = Không" **đã được chủ dự án xác nhận (DEC-013)**. Kèm theo đó,
+`Tổng số SP` bị hạ ưu tiên: vẫn xuất ra cho khớp báo cáo cũ, nhưng không xây
+tính năng nào dựa trên nó và không dùng làm tiêu chí đối chiếu ở bất kỳ gate nào.
+
+### Chiết khấu (DEC-014)
+
+408/11.765 dòng có `Chiết khấu` ≠ 0. Đã kiểm chứng: **`Doanh số bán` trong file
+thô là số gross** — bằng đúng `Đơn giá × SL` ở cả 408 dòng, chưa trừ chiết khấu
+lần nào. Nên việc trừ là một phép sửa thật, không phải trừ hai lần.
+
+| Nhân viên | Doanh số (nghìn) | Chiết khấu (nghìn) | % DS | Số dòng |
+|---|---:|---:|---:|---:|
+| Ly | 6.677.708 | **26.300** | **0,39 %** | **302** |
+| Hoàng | 5.519.168 | 3.800 | 0,07 % | 40 |
+| Tín Phát | 14.466.326 | 3.600 | 0,02 % | 33 |
+| Thắng | 4.638.359 | 2.100 | 0,05 % | 22 |
+| Nội thành | 70.250.765 | 500 | 0,00 % | 4 |
+| Kiên | 5.096.355 | 450 | 0,01 % | 7 |
+| **Tổng** | | **36.750** | **0,03 %** | **408** |
+
+Tác động tổng thể rất nhỏ, nhưng tập trung gần hết vào một người: Ly chiếm 302
+trong 408 dòng. Với riêng Ly, trừ chiết khấu làm giảm doanh số 0,39 %.
+
+**Giả định còn chờ xác nhận (GATE-01):** chiết khấu cũng trừ khỏi lợi nhuận
+đúng số đó. Chủ dự án nói "trừ vào doanh số" và chưa nói tới lợi nhuận. Giảm
+doanh số mà không giảm lợi nhuận sẽ báo tỉ suất cao hơn thực tế — chiết khấu là
+tiền đã cho đi. Ghi ra đây thay vì lặng lẽ áp dụng.
 
 ---
 
