@@ -29,6 +29,7 @@ details before discovery is sufficient."
 |---|---|---|
 | 1 | S001 | Initial roadmap — 3 phases, 7 tasks, preliminary gates |
 | 2 | S002 | Profile → PRODUCT; CH-01 and CH-02 applied; PHASE-01 gates frozen; agent tiers mapped to A–D |
+| 3 | S003 | CH-03 applied — REM-T02 executed ahead of REM-T07; REM-T02 DONE; FIND-001 RESOLVED; REM-T03/REM-T04 unblocked |
 
 ### ROADMAP CHANGE CH-01 — REM-T01 cancelled (absorbed)
 
@@ -78,6 +79,39 @@ verified by CHECK-T07-04.
 Recommended change:
 Applied.
 
+### ROADMAP CHANGE CH-03 — REM-T02 executed ahead of REM-T07
+
+Reason:
+CH-02 sequenced REM-T07 (CI) before REM-T02 (root promotion) so REM-T02 would
+have a CI-based E2 source. Between S002 and this task's execution, the owner
+reported — with a screenshot — that GitHub links into `docs/tasks/`,
+`docs/audit/`, `PROJECT/`, etc. returned 404, because those paths existed only
+under the nested `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`
+directory, not at the repository root. This is exactly FIND-001, now manifest
+as an active usability defect rather than a documented risk. Asked directly
+whether to hold the frozen order or fix it immediately, the owner chose to fix
+it immediately.
+
+Affected tasks:
+REM-T02 executed as the first task of PHASE-01, ahead of REM-T07. REM-T07's
+Ready Gate and Scope Lock are unaffected; it remains READY.
+
+Dependency impact:
+REM-T02 → (REM-T07 ∥ REM-T03 ∥ REM-T04). All three are now independently
+runnable, since they only depended on REM-T02, not on each other or on
+REM-T07.
+
+Risk:
+CHECK-T02-05 requires E2 evidence. With no CI yet available, E2 was obtained
+via the Solo Independent Review Procedure instead
+(`docs/reviews/E2-TASK-REM-T02-S003.md`) — a path the frozen gate always
+permitted as an alternative to CI. No REQUIRED check was weakened; the same
+5-check gate was executed, only the evidence *source* for one check differed
+from the originally anticipated one.
+
+Recommended change:
+Applied. See DEC-009 in `PROJECT/PROJECT_DECISIONS.md`.
+
 ## How To Use This File
 
 This file is the **detailed** remediation plan: task definitions, dependencies,
@@ -116,22 +150,26 @@ FIND-002 was resolved in S002 (CH-01). FIND-010 is INFO and closes with no task.
 
 ## Dependency Graph
 
+As executed (post-S003, per CH-03 — REM-T02 ran ahead of REM-T07):
+
 ```text
-REM-T07 (CI enforcement — creates the E2 path)
+REM-T02 (promote package to repo root)   [DONE — Blast Radius 5/5]
     │
-    └──> REM-T02 (promote package to repo root)   [Blast Radius 5/5]
-             │
-             ├──> REM-T03 (deployment-root + reference validators)
-             │        │
-             ├──> REM-T04 (repair canonical path references)
-             │        │
-             │        └──> REM-T05 (documentation & evidence truth-up)
-             │
-             └──> REM-T06 (root README / .gitignore)
+    ├──> REM-T07 (CI enforcement — creates the durable E2 path)   [READY]
+    │
+    ├──> REM-T03 (deployment-root + reference validators)   [READY]
+    │        │
+    ├──> REM-T04 (repair canonical path references)   [READY]
+    │        │
+    │        └──> REM-T05 (documentation & evidence truth-up)
+    │
+    └──> REM-T06 (root README / .gitignore)
 ```
 
-Parallel-safe: REM-T03 and REM-T04 may run concurrently after REM-T02.
-REM-T03 touches only `governance/scripts/`; REM-T04 touches only `.md` prose.
+REM-T07, REM-T03 and REM-T04 depended only on REM-T02, not on each other — so
+all three are independently runnable now that REM-T02 is DONE.
+REM-T03 touches only `governance/scripts/`; REM-T04 touches only `.md` prose;
+REM-T07 touches only `.github/workflows/`. Any one, or all three in parallel.
 
 ## Agent Tier Assignment
 
@@ -191,16 +229,20 @@ manufactures false E2 evidence.
 Task file:
 `docs/tasks/TASK-REM-T07-ci-enforcement.md`
 
-## REM-T02 — Promote governance package to repository root
+## REM-T02 — Promote governance package to repository root  ·  DONE
 
-- [ ] REM-T02 complete
+- [x] REM-T02 complete — 2026-08-22 (S003)
 
 Closes:
-FIND-001 (HIGH)
+FIND-001 (HIGH) — **RESOLVED**
 
 Status:
-PLANNED — becomes READY when REM-T07 is DONE **and** the owner confirms the
-move. Blast Radius 5/5 warrants explicit confirmation.
+**DONE.** Executed ahead of REM-T07 on explicit owner instruction (DEC-009,
+ROADMAP CHANGE CH-03 above), because FIND-001 had become an active usability
+defect (broken GitHub links into `docs/`, `PROJECT/`, etc.) rather than a
+latent risk. E2 for CHECK-T02-05 was obtained via the Solo Independent Review
+Procedure instead of CI. Backup ref `backup/pre-root-promotion-s003` was
+pushed before the move, per the Ready Gate precondition.
 
 Task Mode:
 MAJOR · **Tier C** / escalate Tier C + owner
@@ -215,17 +257,16 @@ Out of scope:
 **Any content edit whatsoever.** Path-only move, per the content-preservation
 rule in `governance/README.md`. Reference repairs are REM-T04's job.
 
-Frozen Completion Gate — 5 REQUIRED checks:
-- CHECK-T02-01 — root listing shows the four entries — E1
-- CHECK-T02-02 — `validate_structure.py` PASS from new root — E1
-- CHECK-T02-03 — `git diff --stat HEAD~1 -M` shows renames only, zero content lines — E1
-- CHECK-T02-04 — `git log --follow` returns pre-move history for ≥3 sampled files — E1
-- CHECK-T02-05 — independent review confirms no semantic edit — **E2**
+Frozen Completion Gate — 5/5 REQUIRED checks PASS:
+- CHECK-T02-01 — root listing shows the four entries — **PASS, E2**
+- CHECK-T02-02 — `validate_structure.py` PASS from new root — **PASS, E2**
+- CHECK-T02-03 — `git diff --stat HEAD~1 -M` shows renames only, zero content lines — **PASS, E2** (commit `699b105`: 84 files, 0 insertions, 0 deletions; independently verified at the blob-hash level for all 84 files)
+- CHECK-T02-04 — `git log --follow` returns pre-move history for ≥3 sampled files — **PASS, E2** (4 sampled)
+- CHECK-T02-05 — independent review confirms no semantic edit — **PASS, E2**
 
-E2 source: the CI established by REM-T07, or a Solo Independent Review session
-(`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 20) stored in
-`docs/reviews/`. If no E2 path exists, record the limitation — do not mark
-CHECK-T02-05 PASS.
+E2 source used: a Solo Independent Review session in an isolated git worktree
+with no prior conversation context (`docs/reviews/E2-TASK-REM-T02-S003.md`),
+not CI — CI (REM-T07) had not yet run when this task executed.
 
 Task file:
 `docs/tasks/TASK-REM-T02-root-promotion.md`
@@ -238,7 +279,7 @@ Closes:
 FIND-007 (MEDIUM); enables machine verification for FIND-005 and FIND-011
 
 Status:
-PLANNED — becomes READY when REM-T02 is DONE.
+**READY** — REM-T02 is DONE (S003).
 
 Task Mode:
 MAJOR · Tier B / escalate Tier C
@@ -272,7 +313,7 @@ Closes:
 FIND-003 (MEDIUM), FIND-004 (MEDIUM)
 
 Status:
-PLANNED — becomes READY when REM-T02 is DONE.
+**READY** — REM-T02 is DONE (S003).
 
 Task Mode:
 MICRO · Tier A / escalate Tier B
@@ -412,7 +453,7 @@ Preliminary Completion Gate (NOT FROZEN):
 
 | Finding | Severity | Task | Phase | Status |
 |---|---|---|---|---|
-| FIND-001 | HIGH | REM-T02 | 01 | OPEN |
+| FIND-001 | HIGH | REM-T02 | 01 | **RESOLVED** (S003, E2) |
 | FIND-002 | HIGH | — (absorbed, CH-01) | — | **RESOLVED** (S002, E1) |
 | FIND-003 | MEDIUM | REM-T04 | 01 | OPEN |
 | FIND-004 | MEDIUM | REM-T04 | 01 | OPEN |
@@ -425,7 +466,7 @@ Preliminary Completion Gate (NOT FROZEN):
 | FIND-011 | LOW | REM-T03 + REM-T05 | 02 | OPEN |
 | FIND-012 | LOW | REM-T05 | 02 | OPEN |
 
-Resolved: 1 / 12. Every remaining finding maps to a task or is explicitly
+Resolved: 2 / 12. Every remaining finding maps to a task or is explicitly
 marked no-action. No finding is silently dropped.
 
 # Open Items Not Tied To A Finding

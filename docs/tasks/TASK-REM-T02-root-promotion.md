@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-PLANNED
+DONE
 
 Phase:
 PHASE-01 — Governance Foundation Repair
@@ -114,7 +114,13 @@ Additional preconditions before starting implementation:
 - [ ] Backup ref pushed to `origin`
 - [ ] Owner has confirmed the move (Blast Radius 5/5)
 
-Status: **PLANNED** — becomes READY when REM-T07 is DONE and the owner confirms.
+Status: **DONE** — 2026-08-22 (S003).
+
+Dependency note: owner explicitly instructed this task to run ahead of REM-T07
+(DEC-009), reversing CH-02's original order, because FIND-001 was an active
+usability defect (broken links) rather than a latent risk. E2 for CHECK-T02-05
+was obtained via the Solo Independent Review Procedure instead of CI, which
+the Ready Gate always permitted as an alternative source.
 
 ## Completion Gate
 Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
@@ -130,19 +136,19 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-E1
+E2
 
 Evidence:
-...
+`ls -A` at repository root → `.git CLAUDE.md PROJECT docs governance`, nothing else. Independently re-verified in E2 review `docs/reviews/E2-TASK-REM-T02-S003.md`.
 
 Executed By:
-...
+S003 agent; independently re-verified by isolated reviewer agent
 
 Timestamp:
-...
+2026-08-22
 
 Requirement:
 `ls -A` at the repository root shows exactly `.git`, `CLAUDE.md`, `PROJECT/`,
@@ -153,19 +159,19 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-E1
+E2
 
 Evidence:
-...
+`validate_structure.py` → `GOVERNANCE STRUCTURE: PASS`, 21 paths, exit 0, run from the new root. Independently re-verified in `docs/reviews/E2-TASK-REM-T02-S003.md`.
 
 Executed By:
-...
+S003 agent; independently re-verified by isolated reviewer agent
 
 Timestamp:
-...
+2026-08-22
 
 Requirement:
 `validate_structure.py` PASS when run from the new root.
@@ -177,19 +183,19 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-E1
+E2
 
 Evidence:
-...
+Commit `699b105`: `git diff --stat -M 699b105^ 699b105` → 84 files changed, 0 insertions(+), 0 deletions(-). `git diff --raw -M` → all 84 entries R100, no A/D/M. Reviewer additionally ran an exhaustive blob-hash comparison of all 84 relocated files (stronger than diff-emptiness) → 0 mismatches. Full detail in `docs/reviews/E2-TASK-REM-T02-S003.md`.
 
 Executed By:
-...
+S003 agent; independently re-verified by isolated reviewer agent (exhaustive check exceeding the ≥5-file minimum)
 
 Timestamp:
-...
+2026-08-22
 
 Requirement:
 `git diff --stat HEAD~1 -M` shows renames only, with zero content lines added
@@ -200,19 +206,19 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-E1
+E2
 
 Evidence:
-...
+`git log --follow` verified on 4 sampled files (`CLAUDE.md`, `governance/core/EVIDENCE_STANDARD.md`, `governance/scripts/governance/validate_structure.py`, `docs/tasks/TASK-REM-T02-root-promotion.md`) — pre-move history preserved on all four. Full detail in `docs/reviews/E2-TASK-REM-T02-S003.md`.
 
 Executed By:
-...
+S003 agent; independently re-verified by isolated reviewer agent
 
 Timestamp:
-...
+2026-08-22
 
 Requirement:
 `git log --follow` returns pre-move history for at least three sampled moved
@@ -225,19 +231,19 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E2
 
 Evidence:
-...
+Independent Solo Independent Review Procedure session (isolated worktree, no prior context) concluded E2 PASS with no discrepancy against the implementer's claims. Artifact: `docs/reviews/E2-TASK-REM-T02-S003.md`.
 
 Executed By:
-...
+Independent reviewer agent (isolated worktree agent-a1acf66ec82dff345), per DEC-009
 
 Timestamp:
-...
+2026-08-22
 
 Requirement:
 An independent reviewer session confirms no semantic edit occurred. Per
@@ -249,11 +255,11 @@ Procedure (`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 20) and 
 If no E2 path exists, record the limitation — do not mark this check PASS.
 
 ## Exit Criteria
-- [ ] 100% REQUIRED checks PASS
-- [ ] No critical unresolved defect
-- [ ] Required evidence level satisfied, including E2 on CHECK-T02-05
-- [ ] Project progress updated
-- [ ] Session handoff written
+- [x] 100% REQUIRED checks PASS — 5/5, see Completion Gate above
+- [x] No critical unresolved defect
+- [x] Required evidence level satisfied, including E2 on CHECK-T02-05
+- [x] Project progress updated
+- [x] Session handoff written — `docs/sessions/S003-root-promotion.md`
 
 ## Escalation Triggers
 - Any content diff appears in the move → stop, revert, escalate. The move must
@@ -263,19 +269,33 @@ If no E2 path exists, record the limitation — do not mark this check PASS.
 ## Changed Files Registry
 
 Created:
-- ...
+- `docs/reviews/E2-TASK-REM-T02-S003.md`
+- `.gitignore` (unrelated to this task's scope; added to stop the local
+  Claude Code stop-hook from flagging harness worktree scratch state as
+  untracked — see FIND-009)
 
 Modified:
-- ...
+- This file (`docs/tasks/TASK-REM-T02-root-promotion.md`) — check results, status
+- `PROJECT/PROJECT_DECISIONS.md` — DEC-009
+- `PROJECT/PROJECT_PROGRESS.md` — task status, findings register, gate freeze status
+- `docs/audit/REMEDIATION_ROADMAP.md` — traceability table
+
+Renamed (path-only, commit `699b105`):
+- All 84 files under `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`
+  → repository root. Full list: `git show --stat -M 699b105`.
 
 Deleted:
-- ...
+- The emptied wrapper directory
+  `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/`
 
 Migration Impact:
-- All 73 tracked file paths change. Any external reference to a path under
-  `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/` breaks. Paths
-  *relative to* `CLAUDE.md` are unchanged, so no in-repository reference needs
-  rewriting for this reason.
+- All 73 original package file paths changed. Any external reference to a path
+  under `AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/` now 404s —
+  this was the exact defect reported by the owner (broken GitHub links) and is
+  the reason this task was reordered ahead of REM-T07 (DEC-009). Paths
+  *relative to* `CLAUDE.md` are unchanged, so no in-repository reference needed
+  rewriting for this reason alone; FIND-003/FIND-004's separately broken
+  references remain open, tracked under REM-T04.
 
 ## Notes
 Validators resolve ROOT from `Path(__file__).resolve().parents[3]`. That

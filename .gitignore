@@ -1,0 +1,7 @@
+# Claude Code harness scratch state (agent worktrees, local session data).
+# Not project content — see FIND-009 in docs/audit/S001_AUDIT_FINDINGS.md.
+.claude/
+
+# Python bytecode from running the governance validators locally.
+__pycache__/
+*.pyc
