@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1650" viewBox="0 0 1600 1650">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="800" y="40" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700">AI ENGINEERING WORKFLOW / QUY TRÌNH PHÁT TRIỂN DỰ ÁN VỚI AI AGENT</text>
+<rect x="130" y="70" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="112" font-family="Arial, sans-serif" font-size="24" font-weight="700">1. PROJECT INITIATION</text>
+<text x="165" y="142" font-family="Arial, sans-serif" font-size="21" font-weight="700">KHỞI TẠO DỰ ÁN</text>
+<text x="165" y="178" font-family="Arial, sans-serif" font-size="17">Session Open → Baseline → Initial Roadmap</text>
+<text x="165" y="203" font-family="Arial, sans-serif" font-size="17">Mở dự án, xác định hiện trạng và roadmap sơ bộ.</text>
+<line x1="800" y1="220" x2="800" y2="254" stroke="#222" stroke-width="3"/>
+<polygon points="790,244 810,244 800,254" fill="#222"/>
+<rect x="130" y="260" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="302" font-family="Arial, sans-serif" font-size="24" font-weight="700">2. DISCOVERY &amp; PLANNING</text>
+<text x="165" y="332" font-family="Arial, sans-serif" font-size="21" font-weight="700">KHẢO SÁT &amp; LẬP KẾ HOẠCH</text>
+<text x="165" y="368" font-family="Arial, sans-serif" font-size="17">Discovery → Task Decomposition → Dependencies → Difficulty/Risk/Blast Radius → Agent Assignment</text>
+<text x="165" y="393" font-family="Arial, sans-serif" font-size="17">Hiểu hệ thống, chia việc, xác định phụ thuộc và chọn agent.</text>
+<line x1="800" y1="410" x2="800" y2="444" stroke="#222" stroke-width="3"/>
+<polygon points="790,434 810,434 800,444" fill="#222"/>
+<rect x="130" y="450" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="492" font-family="Arial, sans-serif" font-size="24" font-weight="700">3. ROADMAP FINALIZATION</text>
+<text x="165" y="522" font-family="Arial, sans-serif" font-size="21" font-weight="700">CHỐT ROADMAP</text>
+<text x="165" y="558" font-family="Arial, sans-serif" font-size="17">Scope Lock → Ready Gate → Final Completion Gate → Project Progress</text>
+<text x="165" y="583" font-family="Arial, sans-serif" font-size="17">Khóa phạm vi, chốt điều kiện bắt đầu và tiêu chuẩn nghiệm thu.</text>
+<line x1="800" y1="600" x2="800" y2="634" stroke="#222" stroke-width="3"/>
+<polygon points="790,624 810,624 800,634" fill="#222"/>
+<rect x="130" y="640" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="682" font-family="Arial, sans-serif" font-size="24" font-weight="700">4. TASK EXECUTION</text>
+<text x="165" y="712" font-family="Arial, sans-serif" font-size="21" font-weight="700">THỰC THI TASK</text>
+<text x="165" y="748" font-family="Arial, sans-serif" font-size="17">Session Open → Implement → Scope Control → Escalation</text>
+<text x="165" y="773" font-family="Arial, sans-serif" font-size="17">Mỗi Major Task làm trong một session riêng, không vượt phạm vi.</text>
+<line x1="800" y1="790" x2="800" y2="824" stroke="#222" stroke-width="3"/>
+<polygon points="790,814 810,814 800,824" fill="#222"/>
+<rect x="130" y="830" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="872" font-family="Arial, sans-serif" font-size="24" font-weight="700">5. VERIFY &amp; ACCEPT TASK</text>
+<text x="165" y="902" font-family="Arial, sans-serif" font-size="21" font-weight="700">KIỂM TRA &amp; NGHIỆM THU TASK</text>
+<text x="165" y="938" font-family="Arial, sans-serif" font-size="17">Verify → Completion Gate → Exit Criteria → Task Done → Handoff</text>
+<text x="165" y="963" font-family="Arial, sans-serif" font-size="17">Task chỉ DONE khi toàn bộ REQUIRED checks PASS có evidence.</text>
+<line x1="800" y1="980" x2="800" y2="1014" stroke="#222" stroke-width="3"/>
+<polygon points="790,1004 810,1004 800,1014" fill="#222"/>
+<rect x="130" y="1020" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="1062" font-family="Arial, sans-serif" font-size="24" font-weight="700">6. PHASE INTEGRATION</text>
+<text x="165" y="1092" font-family="Arial, sans-serif" font-size="21" font-weight="700">TÍCH HỢP THEO GIAI ĐOẠN</text>
+<text x="165" y="1128" font-family="Arial, sans-serif" font-size="17">Phase Gate → Regression Check</text>
+<text x="165" y="1153" font-family="Arial, sans-serif" font-size="17">Kiểm tra các task khi ghép lại và phát hiện hồi quy.</text>
+<line x1="800" y1="1170" x2="800" y2="1204" stroke="#222" stroke-width="3"/>
+<polygon points="790,1194 810,1194 800,1204" fill="#222"/>
+<rect x="130" y="1210" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="1252" font-family="Arial, sans-serif" font-size="24" font-weight="700">7. RELEASE READINESS</text>
+<text x="165" y="1282" font-family="Arial, sans-serif" font-size="21" font-weight="700">SẴN SÀNG PHÁT HÀNH</text>
+<text x="165" y="1318" font-family="Arial, sans-serif" font-size="17">Release Gate → Deployment → Post-Deploy Verification</text>
+<text x="165" y="1343" font-family="Arial, sans-serif" font-size="17">Kiểm tra security, migration, backup, rollback và production readiness.</text>
+<line x1="800" y1="1360" x2="800" y2="1394" stroke="#222" stroke-width="3"/>
+<polygon points="790,1384 810,1384 800,1394" fill="#222"/>
+<rect x="130" y="1400" rx="22" ry="22" width="1340" height="150" fill="#f7f7f7" stroke="#222" stroke-width="2"/>
+<text x="165" y="1442" font-family="Arial, sans-serif" font-size="24" font-weight="700">8. FINAL ACCEPTANCE</text>
+<text x="165" y="1472" font-family="Arial, sans-serif" font-size="21" font-weight="700">NGHIỆM THU CUỐI</text>
+<text x="165" y="1508" font-family="Arial, sans-serif" font-size="17">End-to-End → Business Acceptance → Operational Handoff → Project Complete</text>
+<text x="165" y="1533" font-family="Arial, sans-serif" font-size="17">Nghiệm thu toàn hệ thống, nghiệp vụ và bàn giao vận hành.</text>
+</svg>
