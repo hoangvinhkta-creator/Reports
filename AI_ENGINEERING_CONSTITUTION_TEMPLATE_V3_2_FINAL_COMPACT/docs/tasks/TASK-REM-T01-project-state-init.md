@@ -2,6 +2,18 @@
 
 ## Metadata
 Status:
+CANCELLED
+
+Cancelled In:
+S002 — Roadmap Finalization (2026-08-22)
+
+Cancellation Reason:
+ABSORBED. The S000 procedure this task existed to complete was fully executed
+across S001 and S002. See the "Cancellation Record" section at the end of this
+file, ROADMAP CHANGE CH-01 in `PROJECT/PROJECT_DECISIONS.md` (DEC-008), and the
+S002 handoff.
+
+Original Status:
 PLANNED
 
 Phase:
@@ -212,3 +224,63 @@ Migration Impact:
 ## Notes
 FIND-002 remains OPEN until this task is DONE. The S001 bootstrap (DEC-001)
 mitigated it enough to run discovery; it did not close it.
+
+
+---
+
+# Cancellation Record — S002
+
+## Why this task no longer has work
+
+REM-T01 was created in S001 to finish the S000 — PROJECT OPEN procedure that
+FIND-002 showed had never run. Between S001's bootstrap (DEC-001) and S002's
+profile transition and roadmap finalization, every step of the canonical S000
+procedure in `governance/core/00_SESSION_ORCHESTRATION.md` has been executed:
+
+| S000 Step | Executed In | Artifact |
+|---|---|---|
+| 0. Select project profile | S001 (AUDIT), S002 (→ PRODUCT) | `PROJECT/PROJECT_PROFILE.md`, DEC-001, DEC-005 |
+| 1. Write/update PROJECT_PROFILE.md | S001, S002 | `PROJECT/PROJECT_PROFILE.md` |
+| 2. Understand objective and project type | S001 | Baseline §Executive Summary |
+| 3. Determine size and governance depth | S002 | Profile Compliance Matrix |
+| 4. Inspect repository context | S001 | Baseline §1–§9, CHK-S001-01…09 |
+| 5. Decide whether to begin in AUDIT mode | S001 | DEC-001 (yes), DEC-005 (exit) |
+| 6. Create major phases | S001 | PHASE-01/02/03 |
+| 7. Create Major/Micro/Spike tasks | S001, S002 | REM-T02…T07 |
+| 8. Create preliminary subtasks | S001 | Per task file |
+| 9. Create preliminary dependency graph | S001, revised S002 | `docs/audit/REMEDIATION_ROADMAP.md` |
+| 10. Estimate Difficulty / Risk / Blast Radius | S001 | Per task file |
+| 11. Recommend capability tier | S002 | Tier A–D mapping, DEC-006 |
+| 12. Create preliminary Completion Gates | S001 | Per task file |
+| 13. Initialize/update PROJECT_PROGRESS.md | S001, S002 | `PROJECT/PROJECT_PROGRESS.md` |
+| 14. Record initial tactical decisions | S001, S002 | DEC-001…DEC-008 |
+
+No step remains. Keeping REM-T01 open would create a task whose entire
+Completion Gate is already satisfiable at creation time, which is busy-work
+rather than governance.
+
+## FIND-002 disposition
+
+FIND-002 is RESOLVED, not waived. Its stated Verification Required is met:
+
+| Requirement | Result | Evidence Level | Timestamp |
+|---|---|---|---|
+| `validate_project_state.py` → PASS | `PROJECT STATE: PASS`, exit 0 | E1 | 2026-08-22T14:2xZ (S002) |
+| `PROJECT/PROJECT_PROGRESS.md` has a non-placeholder roadmap and a Current Task | Confirmed by inspection | E1 | 2026-08-22 (S002) |
+
+E2 not obtained — no independent reviewer ran against this. Recorded as a
+limitation per `governance/core/EVIDENCE_STANDARD.md`, not asserted as
+satisfied.
+
+## What is NOT closed by this cancellation
+
+- The DORMANT governance domains in the Profile Compliance Matrix. They are
+  mandatory under PRODUCT and simply have no subject yet.
+- GAP-01 (Backup / DR), which remains open against a mandatory domain.
+
+## Reversal
+
+This file is retained rather than deleted. If the owner disagrees, restore
+`Status: PLANNED`, set FIND-002 back to OPEN in `PROJECT/PROJECT_PROGRESS.md`
+and in the roadmap traceability table, and re-insert REM-T01 at the head of
+PHASE-01.

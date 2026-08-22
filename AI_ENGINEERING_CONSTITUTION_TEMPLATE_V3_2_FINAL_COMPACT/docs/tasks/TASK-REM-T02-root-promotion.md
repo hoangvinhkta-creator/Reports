@@ -11,10 +11,10 @@ Task Mode:
 MAJOR
 
 Primary Agent Tier:
-senior
+Tier C — Advanced Reasoning
 
 Escalation Tier:
-senior + human confirmation
+Tier C + owner confirmation
 
 Difficulty:
 2/5
@@ -26,7 +26,13 @@ Blast Radius:
 5/5
 
 Project Profile:
-Set by REM-T01.1
+PRODUCT
+
+Ready Gate Verified In:
+S002 — Roadmap Finalization (2026-08-22)
+
+Completion Gate Status:
+**FROZEN** — 2026-08-22, S002
 
 Closes Finding:
 FIND-001 (HIGH)
@@ -51,7 +57,12 @@ content-preservation rule in `governance/README.md`:
 Reference repairs belong to REM-T04. Validator changes belong to REM-T03.
 
 ## Dependencies
-- REM-T01 DONE
+- REM-T07 DONE — supplies the CI-based E2 evidence source that CHECK-T02-05
+  requires. Without it, CHECK-T02-05 must be satisfied by a Solo Independent
+  Review session instead (`governance/core/EVIDENCE_STANDARD.md`), which is
+  acceptable but slower.
+- REM-T01 was CANCELLED in S002 (absorbed — see ROADMAP CHANGE CH-01). It is no
+  longer a dependency.
 
 ## Blocks
 - REM-T03, REM-T04, REM-T05, REM-T06
@@ -75,19 +86,42 @@ Do not touch without Scope Expansion:
 - [ ] 02.5 Verify git history follows for a sample of moved files
 - [ ] 02.6 Obtain E2 independent review
 
-## Ready Gate
-Use `governance/core/TASK_READY_GATE_STANDARD.md`.
+## Ready Gate — PARTIALLY VERIFIED
 
-- [ ] REM-T01 DONE
-- [ ] Completion Gate frozen in S002
+Per `governance/core/TASK_READY_GATE_STANDARD.md`, MAJOR Ready Gate:
+
+- [x] Objective is clear.
+- [x] Scope is defined.
+- [x] Out-of-scope is defined.
+- [ ] **Dependencies are DONE or explicitly waived** — REM-T07 is READY but not
+      yet DONE. This is the one open item.
+- [x] Expected touch area is identified.
+- [x] Relevant requirements are understood.
+- [x] Data impact is known — none; no data store exists.
+- [x] Security impact is known — none; no secrets or permissions change.
+- [x] Routing/API impact is known where relevant — NOT_APPLICABLE.
+- [x] Migration prerequisites are available where relevant — a pushed backup ref
+      is required by subtask 02.1.
+- [x] Difficulty is scored — 2/5.
+- [x] Risk is scored — 3/5.
+- [x] Blast Radius is scored — 5/5.
+- [x] Primary agent tier is assigned — Tier C.
+- [x] Escalation triggers are defined.
+- [x] Completion Gate is finalized.
+- [x] Completion Gate is frozen before implementation.
+
+Additional preconditions before starting implementation:
 - [ ] Backup ref pushed to `origin`
 - [ ] Owner has confirmed the move (Blast Radius 5/5)
+
+Status: **PLANNED** — becomes READY when REM-T07 is DONE and the owner confirms.
 
 ## Completion Gate
 Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
 
 Status of this gate:
-PRELIMINARY — NOT FROZEN. Freeze in S002.
+**FROZEN** — 2026-08-22, S002. Do not remove or weaken a REQUIRED check to make
+this task pass. Use COMPLETION GATE CHANGE PROPOSAL if a change is warranted.
 
 ### Structural
 

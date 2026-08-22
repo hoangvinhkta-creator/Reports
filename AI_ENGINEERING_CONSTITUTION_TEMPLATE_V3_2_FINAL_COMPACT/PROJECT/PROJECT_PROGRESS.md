@@ -20,116 +20,133 @@ Project Type:
 LEGACY
 
 Profile:
-AUDIT
+PRODUCT
+
+Profile History:
+AUDIT (S001 bootstrap) → PRODUCT (S002, DEC-005)
 
 Last Updated:
-2026-08-22 — end of S001
+2026-08-22 — end of S002
 
 Overall Status:
-PLANNING
+IN_PROGRESS
 
 Current Phase:
-PHASE-00 — Audit (S001 complete; roadmap not yet finalized)
+PHASE-01 — Governance Foundation Repair
 
 Current Task:
-S001 — Discovery & Baseline (COMPLETE)
+REM-T07 — CI enforcement layer
 
 Current Task Mode:
-SPIKE
+MAJOR
 
 Next Recommended Task:
-REM-T01 — Initialize project state (complete S000)
-Requires S002 — Roadmap Finalization first. REM-T01 is **not READY**.
+REM-T02 — Promote governance package to repository root
+(blocked until REM-T07 is DONE and the owner confirms the move)
 
 ## Overall Roadmap
 
-Legend: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCKED · `[-]` DEFERRED
+Legend: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCKED · `[-]` CANCELLED
 
 - [x] PHASE-00 — Audit
-  - [x] S000 — Project Open *(bootstrap only, executed inside S001 — see DEC-001; full decomposition still owed via REM-T01)*
+  - [x] S000 — Project Open — executed across S001 bootstrap + S002 (see DEC-008)
   - [x] S001 — Discovery & Baseline — SPIKE — DONE
-  - [ ] S002 — Roadmap Finalization — MAJOR — NOT_STARTED
+  - [x] S002 — Roadmap Finalization — MAJOR — DONE
 
-- [ ] PHASE-01 — Governance Foundation Repair
-  - [ ] REM-T01 — Initialize project state (complete S000) — MAJOR — D2/R2/B2 — closes FIND-002
-  - [ ] REM-T02 — Promote governance package to repository root — MAJOR — D2/R3/**B5** — closes FIND-001
-  - [ ] REM-T03 — Deployment-root + reference-integrity validators — MAJOR — D3/R2/B2 — closes FIND-007
-  - [ ] REM-T04 — Repair broken canonical path references — MICRO — D1/R2/B2 — closes FIND-003, FIND-004
+- [ ] PHASE-01 — Governance Foundation Repair  ·  gates FROZEN
+  - [ ] **REM-T07** — CI enforcement layer — MAJOR — Tier B — D2/R2/B2 — **READY** — closes FIND-008, resolves RSK-004
+  - [ ] REM-T02 — Promote governance package to repository root — MAJOR — **Tier C** — D2/R3/**B5** — PLANNED — closes FIND-001
+  - [ ] REM-T03 — Deployment-root + reference-integrity validators — MAJOR — Tier B — D3/R2/B2 — PLANNED — closes FIND-007
+  - [ ] REM-T04 — Repair broken canonical path references — MICRO — Tier A — D1/R2/B2 — PLANNED — closes FIND-003, FIND-004
   - [ ] Phase Gate 01
+  - [-] ~~REM-T01 — Initialize project state~~ — CANCELLED (absorbed, CH-01/DEC-008)
 
-- [ ] PHASE-02 — Documentation & Evidence Truth-Up
-  - [ ] REM-T05 — Correct documentation and validation artifacts — MAJOR — D2/R2/B3 — closes FIND-005, FIND-006, FIND-011, FIND-012
+- [ ] PHASE-02 — Documentation & Evidence Truth-Up  ·  gates PRELIMINARY
+  - [ ] REM-T05 — Correct documentation and validation artifacts — MAJOR — Tier B — D2/R2/B3 — closes FIND-005, FIND-006, FIND-011, FIND-012
   - [ ] Phase Gate 02
 
-- [ ] PHASE-03 — Repository Hygiene & Enforcement
-  - [ ] REM-T06 — Repository root hygiene — MICRO — D1/R1/B1 — closes FIND-009
-  - [-] REM-T07 — CI enforcement decision — DEFERRED pending profile transition — closes FIND-008
+- [ ] PHASE-03 — Repository Hygiene  ·  gates PRELIMINARY
+  - [ ] REM-T06 — Repository root hygiene — MICRO — Tier A — D1/R1/B1 — closes FIND-009
   - [ ] Phase Gate 03
 
 Dependency order:
-REM-T01 → REM-T02 → (REM-T03 ∥ REM-T04) → REM-T05 → REM-T06.
-REM-T07 is gated on the post-audit profile decision made in REM-T01.1.
+REM-T07 → REM-T02 → (REM-T03 ∥ REM-T04) → REM-T05 → REM-T06.
 
 ## Current Task Snapshot
 
 Task:
-S001 — Discovery & Baseline
+REM-T07 — CI enforcement layer
 
 Task Mode:
-SPIKE
+MAJOR
 
 Status:
-DONE
+READY
 
 Required Gate Progress:
-5 / 5 PASS
+0 / 6 PASS  (6 REQUIRED + 1 RECOMMENDED, all NOT_TESTED)
 
-S001 was a SPIKE. Per `governance/core/TASK_MODE_STANDARD.md`, its gate
-validates learning rather than production acceptance:
+Task File:
+`docs/tasks/TASK-REM-T07-ci-enforcement.md`
 
-| Check | Requirement | Status | Evidence Level |
-|---|---|---|---|
-| S001-G1 | Baseline collected using `governance/audit/DISCOVERY_BASELINE_TEMPLATE.md` | PASS | E1 |
-| S001-G2 | Findings recorded using `governance/audit/AUDIT_FINDINGS_TEMPLATE.md` with all required fields | PASS | E1 |
-| S001-G3 | Severity assigned to every finding | PASS | E1 |
-| S001-G4 | Remediation roadmap produced with dependencies and preliminary gates | PASS | E1 |
-| S001-G5 | No finding remediated in-session (AUDIT read-only respected) | PASS | E1 |
-
-Evidence detail:
-`docs/audit/S001_AUDIT_FINDINGS.md` → "Evidence Ledger" (CHK-S001-01 … 09)
-
-E2 status:
-NOT_OBTAINED — no CI, no staging, no independent reviewer session. Recorded as
-a limitation per `governance/core/EVIDENCE_STANDARD.md`, not asserted as
-satisfied.
+Completion Gate:
+FROZEN 2026-08-22 (S002)
 
 Primary Agent Tier:
-standard
+Tier B — Implementation
 
 Escalation Tier:
-senior
+Tier C — Advanced Reasoning
+
+Scope Lock:
+`.github/workflows/governance.yml` at the git repository root. Nothing else.
+
+Critical constraint:
+The workflow must discover validator scripts at runtime, not hard-code their
+paths — a hard-coded path would break at REM-T02's move and force a content
+edit inside a Scope Lock that forbids one.
+
+Non-negotiable check:
+CHECK-T07-03 — the workflow must be observed FAILING on a deliberate breakage.
+A CI never seen to fail manufactures false E2 evidence.
+
+## Gate Freeze Status
+
+| Task | Ready Gate | Completion Gate | REQUIRED checks |
+|---|---|---|---|
+| REM-T07 | VERIFIED — READY | **FROZEN** | 6 |
+| REM-T02 | 15/16 — open: dependency | **FROZEN** | 5 (incl. one E2) |
+| REM-T03 | 15/16 — open: dependency | **FROZEN** | 4 |
+| REM-T04 | MICRO compact — see MICRO-001 | **FROZEN** | see MICRO-001 |
+| REM-T05 | not finalized | PRELIMINARY | 5 draft |
+| REM-T06 | not finalized | PRELIMINARY | 2 draft |
+
+PHASE-02 and PHASE-03 gates are deliberately unfrozen, per
+`governance/core/00_SESSION_ORCHESTRATION.md`: "Do not freeze distant task
+details before discovery is sufficient."
 
 ## Findings Register (S001)
 
-Full detail: `docs/audit/S001_AUDIT_FINDINGS.md`
+Full detail: `docs/audit/S001_AUDIT_FINDINGS.md` (immutable record — track state
+here, not there).
 
 | ID | Severity | Summary | Task | Status |
 |---|---|---|---|---|
 | FIND-001 | HIGH | Package nested below repo root; `CLAUDE.md` not at root | REM-T02 | OPEN |
-| FIND-002 | HIGH | S000 never executed; project state was placeholder | REM-T01 | OPEN (partly mitigated) |
+| FIND-002 | HIGH | S000 never executed; project state was placeholder | — | **RESOLVED** (S002, E1) |
 | FIND-003 | MEDIUM | Broken canonical ref to `OPTIONAL_ENFORCEMENT_LAYER.md` (×2) | REM-T04 | OPEN |
 | FIND-004 | MEDIUM | `CLAUDE.md:27` points at non-existent `templates/` | REM-T04 | OPEN |
 | FIND-005 | MEDIUM | Shipped validation report asserts a false PASS | REM-T05 | OPEN |
 | FIND-006 | MEDIUM | START_HERE guide contradicts itself on layout | REM-T05 | OPEN |
 | FIND-007 | MEDIUM | Validators cannot detect a mis-deployed root | REM-T03 | OPEN |
-| FIND-008 | LOW | No CI wiring for the enforcement layer | REM-T07 | OPEN — DEFERRED |
+| FIND-008 | LOW | No CI wiring for the enforcement layer | REM-T07 | OPEN |
 | FIND-009 | LOW | No root README / LICENSE / .gitignore | REM-T06 | OPEN |
 | FIND-010 | INFO | No application code in scope (recorded, not a defect) | — | No action |
 | FIND-011 | LOW | Historical changelog holds an unresolvable bare ref | REM-T03/T05 | OPEN |
 | FIND-012 | LOW | Validator README documents 2 of 5 scripts | REM-T05 | OPEN |
 
 Totals — CRITICAL 0 · HIGH 2 · MEDIUM 5 · LOW 4 · INFO 1 · **12 total**.
-RESOLVED so far: 0 / 12.
+**RESOLVED: 1 / 12.**
 
 ## Micro Tasks (Inline)
 
@@ -142,20 +159,36 @@ Do NOT duplicate or rewrite the checklist here.
 Status:
 PLANNED
 
+Agent Tier:
+Tier A / escalate Tier B
+
 Blocked by:
 REM-T02 (repair after the root move so paths are corrected once)
 
 Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
+Compact Completion Gate — FROZEN 2026-08-22 (S002).
+Beyond the canonical checklist, this task requires:
+- Reference-integrity scan reports 0 broken references outside the documented
+  exclusions — Evidence Level E1
+- `git diff` shows only path-token changes on exactly three lines — Evidence Level E1
+
+Promotion rule:
+If the repair needs more than three lines, STOP treating it as MICRO and
+promote to MAJOR per `governance/core/TASK_MODE_STANDARD.md`.
+
 Evidence Summary:
-Not started. Target scope is three lines — `CLAUDE.md:215`,
+Not started. Target scope: `CLAUDE.md:215`,
 `governance/core/PROJECT_PROFILE_STANDARD.md:77`, `CLAUDE.md:27` at baseline
-commit `0394267`. Promote to MAJOR if scope exceeds those three lines.
+commit `0394267`. Re-locate by content, not by line number.
 
 ### MICRO-002 — REM-T06 — Repository root hygiene
 Status:
 PLANNED
+
+Agent Tier:
+Tier A / escalate Tier B
 
 Blocked by:
 REM-T02
@@ -163,18 +196,18 @@ REM-T02
 Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
+Compact Completion Gate:
+PRELIMINARY — finalize before PHASE-03.
+
 Evidence Summary:
 Not started.
 
 ## Active Blockers
 
-- **BLK-001** — No task is READY. S002 — Roadmap Finalization has not run, so
-  no Ready Gate has been evaluated and no Completion Gate is frozen. Blocks:
-  all REM-T* tasks. Resolution: run S002.
-- **BLK-002** — Profile is AUDIT (read-only). No remediation may be implemented
-  until the AUDIT → PRODUCT/SOLO_LITE transition is explicitly confirmed, per
-  `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7. Blocks: all REM-T* implementation.
-  Resolution: confirm the transition in S002.
+- None.
+
+BLK-001 (no task READY) and BLK-002 (AUDIT read-only) were both resolved in
+S002. REM-T07 is READY and implementation is permitted.
 
 ## Active Risks
 
@@ -186,62 +219,85 @@ Not started.
   the repository contradicts. Until REM-T05 lands, do not treat anything under
   `governance/reference/` as evidence without re-deriving it.
 - **RSK-003** — REM-T02 has Blast Radius 5/5 (moves all 73 tracked files).
-  Mitigation: path-only `git mv`, `git diff -M` must show renames with zero
-  content change, and E2 independent review before DONE.
-- **RSK-004** — No E2 evidence path exists (no CI, no staging, no second
-  reviewer). Recorded, not worked around. Mitigation: either add CI in REM-T07
-  or use the Solo Independent Review Procedure in a separate session.
+  Mitigation: path-only `git mv`, `git diff -M` proof of renames-only, E2
+  independent review, pushed backup ref, and explicit owner confirmation before
+  starting.
+- **RSK-004** — No E2 evidence path exists. **Mitigation in progress**: REM-T07
+  is sequenced first specifically to create one. Until CHECK-T07-03 passes, do
+  not treat any CI green as evidence.
+- **RSK-005** (new, S002) — REM-T07 produces a CI workflow whose paths REM-T02
+  will change. If the workflow hard-codes paths, REM-T02 must edit content and
+  breaks its own Scope Lock. Mitigation: REM-T07's Critical Design Constraint
+  plus CHECK-T07-04.
 
 ## Open Regression Items
 
 - None. No implementation has occurred, so nothing can have regressed.
 
+## Profile Compliance
+
+Matrix: `PROJECT/PROJECT_PROFILE.md` → "Profile Compliance Matrix".
+
+- **GAP-01** — Backup / DR. `governance/product/16_BACKUP_DISASTER_RECOVERY.md`
+  is mandatory at PRODUCT; the GitHub remote is the only copy of the
+  repository. Not scheduled into PHASE-01. Re-assess at Phase Gate 03.
+- **DORMANT domains** — several PRODUCT-mandatory rule groups have no subject
+  because no application code exists. DORMANT is not a waiver; re-check every
+  row when application code lands.
+
 ## Recent Decisions
 
-- DEC-001 — S000 bootstrap performed inside S001 (profile selection + state init)
+- DEC-001 — S000 bootstrap performed inside S001
 - DEC-002 — Audit subject scoped to governance deployment + package integrity
 - DEC-003 — Audit artifacts stored under `docs/audit/`
+- DEC-004 — S001 artifacts written inside the nested package directory
+- DEC-005 — Profile transitioned AUDIT → PRODUCT
+- DEC-006 — Agent tiers mapped to Tier A–D; Tier D NOT_APPLICABLE
+- DEC-007 — CI adopted voluntarily and sequenced first; REM-T04 confirmed MICRO
+- DEC-008 — REM-T01 cancelled as absorbed; FIND-002 RESOLVED
 
 See `PROJECT/PROJECT_DECISIONS.md`.
 
+Architecture decisions:
+- ADR-001 — Governance package lives at the repository root
+  (`docs/adr/ADR-001-governance-package-at-repository-root.md`)
+
 ## Session History
 
-- S000 — PROJECT OPEN — **bootstrap only**, executed inside S001 on 2026-08-22.
-  Profile AUDIT selected; project state initialized. Full phase/task
-  decomposition still owed via REM-T01. See DEC-001.
+- S000 — PROJECT OPEN — bootstrap inside S001; completed across S001 + S002.
+  See DEC-001, DEC-008.
 - S001 — DISCOVERY & BASELINE — 2026-08-22 — DONE.
   Outputs: `docs/audit/S001_DISCOVERY_BASELINE.md`,
   `docs/audit/S001_AUDIT_FINDINGS.md` (12 findings),
-  `docs/audit/REMEDIATION_ROADMAP.md` (7 tasks / 3 phases).
+  `docs/audit/REMEDIATION_ROADMAP.md` rev 1.
   Handoff: `docs/sessions/S001-discovery.md`.
+- S002 — ROADMAP FINALIZATION — 2026-08-22 — DONE.
+  Profile → PRODUCT. PHASE-01 gates frozen. ROADMAP CHANGE CH-01 (REM-T01
+  cancelled, FIND-002 resolved) and CH-02 (REM-T07 to PHASE-01) applied.
+  ADR-001 accepted. REM-T07 marked READY.
+  Handoff: `docs/sessions/S002-roadmap-finalization.md`.
 
 ## Next Session
 
 Recommended Session:
-S002 — Roadmap Finalization
+S003 — REM-T07 — CI enforcement layer
 
 Purpose:
-1. Review the S001 baseline, findings and remediation roadmap.
-2. Decide the AUDIT → PRODUCT or AUDIT → SOLO_LITE transition (resolves BLK-002
-   and unblocks REM-T07).
-3. Confirm Task Mode, dependencies and Scope Lock for each REM-T* task.
-4. Finalize and **freeze** Completion Gates for Phase-01 tasks only — leave
-   Phase-02 and Phase-03 gates unfrozen, per
-   `governance/core/00_SESSION_ORCHESTRATION.md` ("Do not freeze distant task
-   details before discovery is sufficient").
-5. Attach required evidence levels, including the E2 requirement on REM-T02.
-6. Assign primary and escalation capability tiers.
-7. Mark REM-T01 READY only if its Ready Gate passes (resolves BLK-001).
+Implement the frozen Completion Gate of REM-T07. This is the first
+implementation session of the project.
 
-Do NOT implement any remediation in S002.
+Constraints:
+- Scope Lock is `.github/workflows/governance.yml` only.
+- Do not hard-code validator paths (RSK-005).
+- Do not mark CHECK-T07-03 PASS without having observed CI actually fail.
+- Do not weaken a frozen REQUIRED check; use COMPLETION GATE CHANGE PROPOSAL.
 
 Files to read first:
 1. `CLAUDE.md`
 2. `PROJECT/PROJECT_PROFILE.md`
 3. `PROJECT/PROJECT_PROGRESS.md`  ← this file
-4. `docs/sessions/S001-discovery.md`
-5. `docs/audit/REMEDIATION_ROADMAP.md`
-6. `docs/audit/S001_AUDIT_FINDINGS.md`
-7. `docs/audit/S001_DISCOVERY_BASELINE.md`
-8. `governance/core/TASK_READY_GATE_STANDARD.md`
-9. `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
+4. `docs/tasks/TASK-REM-T07-ci-enforcement.md`
+5. `docs/sessions/S002-roadmap-finalization.md`
+6. `governance/product/14_CI_CD_RELEASE_RULES.md`
+7. `governance/core/EVIDENCE_STANDARD.md`
+8. `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
