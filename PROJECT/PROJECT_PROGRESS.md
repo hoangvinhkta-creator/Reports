@@ -144,6 +144,12 @@ checks recorded now:
 - TASK-108: migration figures and rule-classified ADS orders must be mutually
   exclusive per employee-month; an overlap raises a review-queue conflict rather
   than summing (E1).
+- TASK-109/111: no compensating divisor anywhere in aggregation. Every figure is
+  summed exactly once; subtotal rows carry a `RowType` marker and sit outside
+  every SUM range (DEC-015). A `/2` in aggregation logic is a defect
+  (E1, grep-verifiable).
+- TASK-101: `Chiết khấu` deducted from sales on all 408 affected rows; six-month
+  total 36,750 thousand VND, of which 26,300 is Ly's (E1).
 - TASK-104: all 8 ADS test cases from spec section 29 PASS (E1).
 - TASK-108: `TotalConvertedRevenue == PersonalConvertedRevenue + AdsConvertedRevenue`
   holds for every employee-month, and no code path divides a combined profit by
@@ -165,7 +171,9 @@ Status:
 VERIFYING — waiting on owner approval of `docs/analysis/`
 
 Required Gate Progress:
-6 / 6 analysis documents written; 3 / 3 ADRs written; 0 / 1 approvals
+6 / 6 analysis documents written; 3 / 3 ADRs written; 16 / 16 decisions
+recorded; 8 / 8 blocking questions answered (C1–C8); 1 stated assumption
+carried (C4b); 0 / 1 approvals
 
 Primary Agent Tier:
 C
@@ -178,10 +186,6 @@ Escalation Tier:
 One thing only: the owner reads `docs/analysis/` and confirms the mapping and
 the business rules are right. Phase 1 starts on that approval.
 
-### Open questions and when each is actually needed
-
-None of these block the start of Phase 1. Each has a stated default so work
-proceeds, and each has a point beyond which the default stops being safe.
 
 ### Answered 2026-08-22
 
@@ -191,19 +195,26 @@ proceeds, and each has a point beyond which the default stops being safe.
 | C5 | Which line types count toward products, sales, profit, order count? | Money-bearing non-product lines **do** count toward sales and profit, not toward product count, and every one goes to a manual review queue where it is kept or excluded. DEC-010. |
 | C6 | Can staff edit `Diễn giải`? | **Yes.** ERP default stays; staff edit only for ADS orders. DEC-011. |
 | C7 | Historical ADS profit for Hoàng and Kiên? | **Enter the 14 monthly figures as migration data.** DEC-012. Per-order recovery is impossible — nothing records which orders were ADS. |
+| C8 | Does product count exclude money-bearing non-product lines? | **Yes**, and the metric itself is low value — kept as a column, dropped as a gate criterion. DEC-013. |
+| C4 | Where does `Chiết khấu` go? | **Deducted from sales.** DEC-014. Verified the ERP figure is gross, so this is a real correction, not a double count. |
+| C2 | Why the `/2` on channel sheets? | **Per-day subtotal rows sit inside the data region**, so a plain SUM double-counts. Explained, not reproduced — subtotals move outside the SUM range behind a `RowType` marker. DEC-015. |
+| C3 | Commission rule? | **Target-achievement based**; formalized in TASK-403 as planned. Phase 1 loads the observed rate table as data. DEC-016. |
 
 ### Still open
 
-| # | Question | Default while unanswered | Needed by |
+| # | Question | Default applied | Needed by |
 |---|---|---|---|
-| C4 | 408 raw rows carry a non-zero `Chiết khấu` with no matching report column. Deduct from sales or from profit? | Carried through untouched and surfaced in the review queue — not silently applied either way | TASK-107 |
-| C2 | Why do the Nội thành / Gia dụng sheets divide every total by 2? | Sum once; report the difference against the sample | TASK-404 (Phase 4 channel sheets) |
-| C3 | Commission rule — the note says a target-based tier, the numbers say per-employee-per-month. | Load the observed table as data | TASK-403 |
-| C8 | Does product count exclude money-bearing non-product lines? DEC-010 kept the sample workbook's behaviour without separate confirmation. | Excluded, as the sample does | GATE-01 |
+| C4b | Does `Chiết khấu` also reduce profit by the same amount? The owner specified sales only. | Deducted from profit too. Reducing sales without reducing profit would report a margin the business did not earn — a discount is money given away. | GATE-01 |
+
+C4b is a stated assumption, not an unknown: the tool applies it, DEC-014 and
+`03_RULE_CLASSIFICATION.md` record it, and reversing it is one config change.
+No question blocks GATE-00.
 
 Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
 of converted revenue (`05 §A2`), and Kiên carries the identical hand-typed ADS
-figure `7565` across three consecutive months (`05 §B2`).
+figure `7565` across three consecutive months (`05 §B2`). Neither is a question
+for the owner now — both are recorded so the tool's figures can be explained
+when they differ from the spreadsheet's.
 
 ## Micro Tasks (Inline)
 
