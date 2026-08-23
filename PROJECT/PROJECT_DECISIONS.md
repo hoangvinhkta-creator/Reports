@@ -1495,3 +1495,59 @@ Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), một dòng t
 sẽ được điền ngày trước khi vào báo cáo, nên tình huống này tự hết. Nếu sau
 này chủ dự án muốn một cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó
 là một loại mới và cần một quyết định riêng — DEC-130 cố ý **không** tạo nó.
+
+## DEC-131
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #4 (FAIL, 2 provenance defect + 1 Human Decision)
+
+Decision:
+
+**HD-110-05 — F3 chỉ được đánh giá khi dòng thô có ngày giao dịch.**
+
+Nếu một dòng thô thiếu ngày:
+
+- **phát `Missing.date`** theo rule hiện tại;
+- **KHÔNG phát F3**;
+- **không** suy luận những employee/master record nào đang cùng hiệu lực;
+- **không** biến các cửa sổ hiệu lực **rời nhau** thành ambiguity;
+- **không** tạo thêm loại warning mới trong TASK-110.
+
+Reason:
+
+F3 mang nghĩa **"nhiều master record cùng hợp lệ tại thời điểm của dòng đó"**.
+Không có ngày thì không có thời điểm, nên không đủ bằng chứng để khẳng định
+điều đó.
+
+Bản trước dùng biểu thức `(when is None or _overlaps(...))` — nghĩa là một
+dòng thiếu ngày khớp **mọi** prefix bất kể cửa sổ hiệu lực. Hệ quả: hai bản
+ghi bàn giao có cửa sổ **rời nhau** (đúng cách DEC-121 diễn đạt một lần chuyển
+giao) bị biến thành một đụng độ, chỉ vì dòng đó thiếu ngày.
+
+Đây là cùng một nguyên tắc đã chốt ở **HD-110-04** cho F6, nay áp cho F3: một
+cáo buộc về master data không được dựng lên từ một ẩn số. Dòng đó đã được
+`Missing.date` báo — và đó mới là thứ cần sửa; sửa xong thì F3 tự trả lời được
+ở lần import sau.
+
+Impact:
+
+- Guard đặt trong `collect_mapping_stats` (bộ thu của **production**), **không**
+  trong `evaluate_raw_mapping`. Script phân tích
+  `tools/analysis/reconcile_conversion.py` tự dựng `ambiguities` của nó và phải
+  giữ nguyên hành vi đã ký ở CHECK-108A1-15.
+- Cùng lý do đó, việc **quy một dòng về một bản ghi config** (`rows_by_record`,
+  nền của F1 và F6) cũng chỉ làm cho dòng **có ngày**. Không có ngày thì bộ lọc
+  cửa sổ hiệu lực không áp dụng được, nên bản ghi chọn ra sẽ là phỏng đoán.
+  Đây là hệ quả trực tiếp của HD-110-04/HD-110-05, **không** phải một rule mới:
+  nó chỉ khiến `affected_count` của F1 thận trọng hơn, không tạo cảnh báo nào.
+- **Không** đổi hành vi `EmployeeMapper` / Conversion / KPI trong TASK-110.
+- Bảng phạm vi TASK-110, dòng V7: F3 nay ghi rõ **cần có ngày giao dịch**.
+
+Can Revisit After:
+Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), dòng thiếu ngày sẽ
+được điền trước khi vào báo cáo nên tình huống tự hết. Nếu chủ dự án muốn một
+cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó là một loại mới và cần
+quyết định riêng — DEC-131 cố ý **không** tạo nó, đúng như DEC-130.

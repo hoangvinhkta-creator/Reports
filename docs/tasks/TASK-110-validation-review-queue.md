@@ -3,22 +3,22 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — repair after Independent Review #3.**
-**Chưa merge. Chưa DONE.**
+**IMPLEMENTED — repairing after Independent Review #4.**
+**NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
 
-Completion Gate **FROZEN** 2026-08-23. Ba vòng review, cả ba đều FAIL và đều
-đã sửa xong:
+Completion Gate **FROZEN** 2026-08-23. Bốn vòng review, **cả bốn đều FAIL**;
+bản sửa của vòng #4 đã xong nhưng **chưa được review nào PASS**:
 
 - **Review #1 — FAIL, 6 finding** (S017). Ba Human Decision → **DEC-129**.
 - **Review #2 — FAIL, 4 finding** (S018). Không phát sinh Human Decision mới.
-- **Review #3 — FAIL, 3 finding** (S019). Một Human Decision — **HD-110-04**
-  → **DEC-130**.
+- **Review #3 — FAIL, 3 finding** (S019). **HD-110-04** → **DEC-130**.
+- **Review #4 — FAIL, 2 provenance defect** (S020). **HD-110-05** → **DEC-131**.
 
 16/17 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
-chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **285/285 test
-PASS** (134 mới so với baseline `c7a1b24`, 0 regression).
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **298/298 test
+PASS** (147 mới so với baseline `c7a1b24`, 0 regression).
 
-Chờ **Independent Review #4**.
+Chờ **Independent Review #5**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -80,7 +80,7 @@ V7 là TD-001, mở rộng thành F1–F6 theo **DEC-129** (HD-110-01, HD-110-03
 | V4 | `Order inconsistency` | Cùng `order_id`, khác `employee_normalized` (hoặc khác `date`) | **Chỉ phát hiện**, không đổi cách tính (DEC-128 §4) |
 | V5 | `Source classification` | `lead_source_manual` có giá trị và khác `lead_source_auto` | Phase 1 chưa có nguồn ghi override → 0 phát hiện thật, kiểm bằng fixture |
 | V6 | `Duplicate` | Trùng `row_hash` **trong cùng một lần import** | WARNING, không phải lỗi (DEC-128 §3) |
-| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production. F3 lưu provenance **theo từng dòng thật sự ambiguous**; F4 **chỉ** áp cho raw identity có giá trị mà không map được, và giữ **mọi biến thể raw nguyên bản**; F6 chấm **theo ngày của từng dòng, theo từng bản ghi config**, và **không phát khi thiếu ngày** | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) + **HD-110-04** (F6 cần ngày, DEC-130) + Review #2/#3 |
+| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production. **Provenance của mỗi finding được dựng TỪ CHÍNH tập row tạo ra finding đó, không bao giờ từ canonical identity** (Review #4). F3 chỉ gồm dòng thật sự ambiguous và **cần có ngày giao dịch**; F4 chỉ gồm dòng **unmapped** có raw identity, giữ **mọi biến thể raw nguyên bản** của đúng các dòng đó; F6 chấm theo từng bản ghi config, **cần có ngày** | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) + **HD-110-04** (F6 cần ngày, DEC-130) + **HD-110-05** (F3 cần ngày, DEC-131) + Review #2/#3/#4 |
 
 Ngoài ra:
 - Mỗi mục trong queue mang: mã loại, mức độ (`INFO`/`WARNING`/`ERROR`), một
@@ -203,6 +203,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.R1 — Sửa 6 finding của Independent Review #1 (S017).
 - [x] 110.R2 — Sửa 4 finding của Independent Review #2 (S018).
 - [x] 110.R3 — Sửa 3 finding của Independent Review #3 (S019), gồm HD-110-04.
+- [x] 110.R4 — Sửa 2 provenance defect của Independent Review #4 (S020), gồm HD-110-05.
 
 ## Ready Gate
 
@@ -474,15 +475,15 @@ Evidence Level:
 E1
 
 Evidence:
-`test_f2_reaches_the_production_review_queue` — F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`. Provenance: `test_f2_carries_batch_provenance_and_an_honest_zero_count` (`scope=batch`, `dataset_range`, `batch_rows`, `affected_count == 0` — con số thật).
+`test_f2_reaches_the_production_review_queue` — F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`. Provenance: `test_f2_carries_batch_provenance_and_an_honest_zero_count`.
 
-**Review #2, Finding 2 — F6 chấm theo effective dating của TỪNG DÒNG.** Bản trước gộp theo `normalized` name rồi áp một boolean `active` cho mọi bản ghi cùng tên; một bàn giao (DEC-121) cố ý dùng lại tên nên bản ghi cũ **mượn giao dịch của bản ghi mới** và bắn F6 oan. Nay `evaluate_inactive_records()` phân giải từng dòng theo ngày của chính nó tới một **bản ghi cụ thể** (`select_effective_record`, cùng semantics `EmployeeMapper.resolve`), gom theo bản ghi. F6 rời `evaluate_raw_mapping` nên hàm đó trở lại **đúng F1–F5** như bản ký ở CHECK-108A1-15.
+**HD-110-04 (DEC-130) — F6 cần ngày.** Ba test bắt buộc: `test_missing_date_produces_missing_date_and_never_f6`, `test_a_date_inside_the_inactive_window_still_raises_f6`, `test_a_date_inside_the_active_window_raises_no_f6`.
 
-**Review #3, Finding 2 — HD-110-04 (DEC-130): thiếu ngày thì KHÔNG phát F6.** Đo được trước khi sửa: dòng không có ngày → mapper trả `inactive` (vì `as_of is None` bỏ qua lọc `effective_rows`) → F6 = 1. Đó là cáo buộc dựng từ một ẩn số. Guard đặt ở `evaluate_inactive_records`, **không** ở `select_effective_record` — hàm đó phải tiếp tục phản chiếu mapper nguyên vẹn.
+**HD-110-05 (DEC-131) — F3 cần ngày.** Bốn case bắt buộc, đo trực tiếp: thiếu ngày + cửa sổ **rời nhau** → `Missing.date`, **F3=0**; thiếu ngày + **overlap** → `Missing.date`, **F3=0**; có ngày **trong** overlap → **F3=1**; có ngày **ngoài** overlap → **F3=0**. Test: `test_missing_date_with_disjoint_windows_gives_missing_date_and_no_f3`, `test_missing_date_with_overlapping_windows_still_gives_no_f3`, `test_a_date_inside_the_overlap_raises_f3`, `test_a_date_outside_the_overlap_raises_no_f3`, `test_an_undated_row_never_hides_a_dated_ambiguous_one`, `test_hd_110_05_does_not_change_employee_mapper_behaviour`.
 
-Ba test bắt buộc: `test_missing_date_produces_missing_date_and_never_f6` (thiếu ngày + cặp bàn giao cùng prefix → **0** F6, **1** `Missing.date`), `test_a_date_inside_the_inactive_window_still_raises_f6` (**1** F6), `test_a_date_inside_the_active_window_raises_no_f6` (**0** F6). Thêm `test_dateless_rows_are_dropped_without_hiding_the_dated_ones` và `test_hd_110_04_does_not_change_mapping_status_for_a_dateless_row`.
+Guard của cả hai HD đặt ở **bộ thu production** (`collect_mapping_stats`) chứ không trong `evaluate_raw_mapping` — script phân tích tự dựng `ambiguities` và phải giữ nguyên hành vi CHECK-108A1-15.
 
-Kiểm chứng F1–F6 khác: `test_f6_record_selection_agrees_with_the_production_employee_mapper` (8 case đối chiếu `EmployeeMapper` thật), `test_a_batch_spanning_both_windows_attributes_each_row_to_its_own_record`, `test_two_inactive_records_sharing_a_name_are_reported_separately`, `test_f6_never_changes_mapping_status_or_group`.
+Kiểm chứng khác: `test_f6_record_selection_agrees_with_the_production_employee_mapper` (8 case đối chiếu `EmployeeMapper` thật), `test_a_batch_spanning_both_windows_attributes_each_row_to_its_own_record`, `test_f6_never_changes_mapping_status_or_group`.
 
 Executed By:
 Claude (S016)
@@ -503,15 +504,15 @@ E1
 Evidence:
 (a) `test_f4_reaches_the_production_review_queue`. (b) `test_f2_and_f4_never_raise_and_never_empty_the_queue_of_other_findings` — không raise.
 
-**Review #1, Finding 1 — provenance:** `test_f4_names_the_rows_it_is_about` (`scope=row`, `source_row`, `source_rows`, `affected_count` thật). Tương tự F1 và F5.
+**Bất biến provenance (Review #4).** `MappingFinding` nay mang `affected_rows` — **chính tập row tạo ra finding** — và `affected_count`, `source_rows`, `raw_variants()` đều là **thuộc tính dẫn xuất** từ đó, không gán được. `MappingStats` bỏ hẳn `rows_by_raw_value` / `rows_by_employee`; chỉ còn accessor **có phạm vi**: `unmapped_rows()`, `ambiguous_rows()`, `rows_for_record()`, `all_unmapped_rows()`. Không còn đường tra theo canonical identity để mà lùi về.
 
-**Review #2, Finding 1 — `employee_raw` rỗng không tham gia F4.** `test_blank_employee_produces_only_missing_and_never_an_f4` (3 dạng rỗng → 0 F4, 3 `Missing.employee`), `test_a_real_unmapped_identity_still_raises_a_fully_traceable_f4`, `test_blank_rows_do_not_inflate_the_f4_threshold_either`.
+**Review #4, Finding 1 — F3.** Trước: `source_rows='6'`, `n=1` nhưng `raw_variants="'Đức Kiên' → 6, 7"`. Sau: `raw_variants="'Đức Kiên' → 6"`; `test_f3_provenance_never_mentions_a_row_outside_the_ambiguous_set` khẳng định chuỗi `"7"` **không xuất hiện trong bất kỳ trường provenance nào**; `test_f3_raw_variants_keep_only_the_spellings_of_ambiguous_rows`.
 
-**Review #3, Finding 1 — F3 provenance theo từng dòng thật sự ambiguous.** Trước khi sửa, ambiguity ghi theo raw *value* nên mọi dòng mang value đó đều bị đánh dấu: đo được `rows="6, 7"`, `n=2` trong khi dòng 7 chỉ có **một** bản ghi hiệu lực. Nay `AmbiguousRow` ghi theo dòng, giữ raw identity + `source_file`/`source_row` + **ngày giao dịch** + **các bản ghi master xung đột**. `test_f3_names_only_the_rows_that_are_really_ambiguous` → `rows="6"`, `n=1`; `test_f3_provenance_carries_identity_row_date_and_conflicting_records` (khẳng định `2026-05-10` **không** xuất hiện); `test_f3_counts_every_ambiguous_row_when_several_collide`; `test_no_overlap_at_all_means_no_f3`.
+**Review #4, Finding 2 — F4.** Trước: `source_rows='6, 7'`, `n=1` (mâu thuẫn), dòng 6 là **mapped**. Sau: `source_rows='7'`, `n=1`, `raw_variants="'Thảo Linh' → 7"`. Fixture dùng effective dating thật (`Thảo Linh` chỉ hiệu lực tháng 1) nên cùng một chuỗi raw vừa mapped vừa unmapped — `test_f4_provenance_never_mentions_a_mapped_row_of_the_same_identity` (tự khẳng định fixture thật sự trộn mapped/unmapped), `test_f4_keeps_several_unmapped_variants_but_no_mapped_one` (dấu cách đôi + NFC/NFD + nhiều biến thể, dòng mapped **không** xuất hiện).
 
-**Review #3, Finding 3 — F4 giữ nguyên mọi biến thể raw.** Canonical form dùng để **gom nhóm**; bản gốc là **bằng chứng**. `test_f4_keeps_every_original_raw_spelling_with_its_own_rows` — 3 biến thể (`'Thảo Linh …'`, dấu cách đôi, NFD) cùng một canonical identity: **1** finding, `affected_count == 3`, `source_rows="11, 12, 13"`, và `raw_variants` giữ đủ cả ba bản gốc kèm dòng riêng. Test tự khẳng định NFD **thật sự khác** NFC trước khi so. `test_raw_variants_use_repr_so_invisible_differences_stay_visible` (dấu cách đôi in bằng `repr` mới nhìn thấy), `test_a_single_spelling_still_records_itself`.
+**Bất biến, kiểm trên object:** `test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set` — với **mọi** finding: `affected_count == len(affected_rows)`, `source_rows ⊆` tập row của nó, và mỗi raw variant phải có ít nhất một row thuộc tập đó. `test_the_invariant_test_would_actually_catch_a_widened_provenance` chứng minh phép kiểm phân biệt được. `test_every_mapping_item_in_a_real_import_obeys_the_invariant` chạy end-to-end qua `run_import()`.
 
-**F3 × F6 interaction:** `test_f3_and_f6_describe_the_same_batch_without_contradicting_each_other` (F3 chỉ dòng chồng lấn, F6 chỉ dòng phân giải về bản ghi inactive, không bên nào nhận dòng 7), `test_f3_fires_but_f6_stays_silent_when_the_dates_are_unknown`.
+**Review #2/#3 giữ nguyên:** blank `NVBH` không vào F4; F6 theo bản ghi config; F4 giữ mọi biến thể raw.
 
 Executed By:
 Claude (S016)
@@ -551,7 +552,7 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/ -q` → **285 passed**. Baseline tại `c7a1b24` là 151 → **134 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → **285** (Review #3).
+`python3 -m pytest tests/ -q` → **298 passed**. Baseline tại `c7a1b24` là 151 → **147 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → 285 (Review #3) → **298** (Review #4).
 
 Executed By:
 Claude (S016)
@@ -690,13 +691,13 @@ Created:
 - `app/modules/validation/employee_mapping.py` — F1–F5 (dời từ `tools/analysis/`) + `collect_mapping_stats`
 - `app/modules/validation/validator.py` — orchestrator
 - `tests/test_validation_rules.py` (33 test)
-- `tests/test_validation_employee_mapping.py` (44 test)
+- `tests/test_validation_employee_mapping.py` (57 test)
 - `tests/test_validation_pipeline.py` (26 test)
 - `tests/test_validation_text.py` (31 test — falsification cho Findings 4/5)
 
 Modified:
 - `app/pipeline.py` — bước 11, `ImportResult.review_queue`
-- `PROJECT/PROJECT_DECISIONS.md` — **DEC-129** (HD-110-01/02/03), **DEC-130** (HD-110-04)
+- `PROJECT/PROJECT_DECISIONS.md` — **DEC-129** (HD-110-01/02/03), **DEC-130** (HD-110-04), **DEC-131** (HD-110-05)
 - `tools/analysis/reconcile_conversion.py` — **chỉ trích xuất**: F1–F5 dời sang
   `app/modules/validation/employee_mapping.py` và import ngược lại dưới đúng
   tên cũ. Hành vi, output và exit code không đổi (CHECK-110-14).
@@ -839,3 +840,47 @@ sai**. F3 kết luận đúng là có ambiguity nhưng chỉ sai người; F6 d�
 buộc từ một ẩn số; F4 gom nhóm đúng nhưng phi tang bằng chứng. Ở một hàng chờ
 duyệt tay, provenance **là** sản phẩm — một mục mà người duyệt không thể kiểm
 lại được thì gần như vô dụng, dù kết luận của nó đúng.
+
+### Review #4 — FAIL, 2 provenance defect (2026-08-23, commit `35b398f`)
+
+Bản nộp có 285/285 test nội bộ PASS. Cả hai defect đã **tái hiện bằng script
+trước khi sửa**. Một Human Decision — **HD-110-05** → **DEC-131**.
+
+| # | Finding | Đã sửa thế nào |
+|---|---|---|
+| 1 | **F3 provenance scoping.** `source_rows` đã đúng ở vòng #3, nhưng `raw_variants` vẫn kéo mọi dòng cùng canonical identity: `source_rows='6'`, `n=1`, mà `raw_variants="'Đức Kiên' → 6, 7"` | Provenance dựng từ `finding.affected_rows` |
+| 2 | **F4 provenance scoping.** Đếm đúng từ unmapped rows nhưng provenance kéo cả dòng **mapped** cùng identity: `source_rows='6, 7'` trong khi `n=1`, dòng 6 mapped | `unmapped_rows()` — accessor có phạm vi, chỉ trả dòng không map được |
+
+**Sửa kiến trúc, không vá từng case.** Review yêu cầu đúng điều này, và hai
+vòng liền tái phát cùng một lớp lỗi cho thấy vá lẻ không đủ:
+
+- `AffectedRow` — đơn vị provenance: file, dòng, **raw identity nguyên bản**, ngày.
+- `MappingFinding.affected_rows` — **tập row tạo ra chính finding đó**.
+  `affected_count`, `source_rows`, `raw_variants()`, `render_variants()`,
+  `source_file` đều là **thuộc tính dẫn xuất**, **không gán được**. Bất biến
+  `affected_count == len(affected_rows)` đúng theo cấu trúc, không phải theo
+  quy ước.
+- `MappingStats` **bỏ hẳn** `rows_by_raw_value` / `rows_by_employee` /
+  `raw_variants`. Chỉ còn accessor **có phạm vi**, mỗi cái trả lời đúng một câu
+  hỏi mà một criterion được phép hỏi: `unmapped_rows()` (F4),
+  `ambiguous_rows()` (F3), `rows_for_record()` (F1/F6), `all_unmapped_rows()`
+  (F5).
+- `Validator._mapping_item()` **không còn tra cứu theo identity**. Không còn
+  đường để lùi về.
+
+`MappingFinding.batch_scoped` cho criterion tự khai nó nói về **cả batch**:
+F5 ("không nhân viên nào map được") vẫn mang đủ row để `affected_count` chính
+xác, nhưng không in 14.000 số dòng vào một dòng hàng chờ.
+
+**HD-110-05 (DEC-131) — F3 cần ngày giao dịch.** Biểu thức cũ
+`(when is None or _overlaps(...))` khiến một dòng thiếu ngày khớp **mọi**
+prefix bất kể cửa sổ hiệu lực — biến hai cửa sổ **rời nhau** (đúng cách
+DEC-121 diễn đạt một lần bàn giao) thành một đụng độ. Cùng nguyên tắc
+HD-110-04: không dựng cáo buộc từ một ẩn số.
+
+**Bài học.** Vòng #3 tôi sửa `source_rows` và tưởng đã đóng lớp lỗi
+"provenance rộng hơn finding" — nhưng chỉ đóng **một trường**. `raw_variants`
+vẫn đi qua `stats.render_variants(canonical)`, và F4 vẫn đi qua
+`rows_by_raw_value`. Chừng nào còn một hàm tra theo canonical identity, còn
+chỗ để lỗi này tái phát ở trường tiếp theo. Cách sửa đúng là **xóa khả năng
+tra cứu đó**, không phải sửa từng nơi gọi.

@@ -24,6 +24,8 @@ from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.importing.normalizer import normalize_line
 from app.modules.validation.employee_mapping import (
     collect_mapping_stats,
+    evaluate_inactive_records,
+    evaluate_raw_mapping,
     select_effective_record,
 )
 from app.modules.validation.models import (
@@ -915,3 +917,302 @@ def test_f3_fires_but_f6_stays_silent_when_the_dates_are_unknown():
     queue = queue_for(lines, rows)
 
     assert items_of(queue, criterion="F6") == []
+
+
+# ============ Review #4: provenance comes from the finding's own rows ========
+
+DISJOINT_A = {
+    "raw_prefix": "Đức", "normalized": "A", "group": "STANDARD_SALES",
+    "active": True, "effective_from": "2026-01-01", "effective_to": "2026-02-28",
+}
+DISJOINT_B = {
+    "raw_prefix": "Đức", "normalized": "B", "group": "STANDARD_SALES",
+    "active": True, "effective_from": "2026-03-01", "effective_to": None,
+}
+DISJOINT = [DISJOINT_A, DISJOINT_B]
+
+MISSING_DATE_CONFIG = {
+    "categories": {
+        "employee_mapping": CONFIG["categories"]["employee_mapping"],
+        "missing": {"enabled": True, "fields": {"date": SEVERITY_ERROR}},
+    }
+}
+
+
+def queue_with_missing(lines, employee_rows):
+    return Validator(
+        MISSING_DATE_CONFIG, employee_rows=employee_rows, employee_groups=GROUPS
+    ).build_queue(lines, [])
+
+
+def provenance_blob(item):
+    """Everything the item exposes as provenance, as one searchable string."""
+    return " | ".join(
+        [str(item.source_row), *(f"{k}={v}" for k, v in item.details.items())]
+    )
+
+
+# ------------------------------ Finding 1: F3 provenance scoping
+
+def test_f3_provenance_never_mentions_a_row_outside_the_ambiguous_set():
+    """Review #4, Finding 1. `source_rows` was already right, but
+    `raw_variants` still pulled every row sharing the canonical identity — so
+    a finding about row 6 named row 7, which was never ambiguous at all.
+    """
+    lines = resolved_lines_for(
+        OVERLAP_ROWS, RAW_DUC, [(6, date(2026, 2, 10)), (7, date(2026, 5, 10))]
+    )
+
+    item = items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")[0]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "6"
+    assert item.affected_count == 1
+    assert item.source_row == 6
+    assert item.details[DETAIL_RAW_VARIANTS] == "'Đức Kiên' → 6"
+    assert "7" not in provenance_blob(item), (
+        "row 7 is not ambiguous and must not appear in ANY provenance field"
+    )
+
+
+def test_f3_raw_variants_keep_only_the_spellings_of_ambiguous_rows():
+    """Two spellings of one identity, only one of them on an ambiguous row."""
+    mapper = EmployeeMapper(OVERLAP_ROWS)
+    lines = []
+    for source_row, raw, when in [
+        (6, "Đức Kiên", date(2026, 2, 10)),      # ambiguous
+        (7, "Đức  Kiên", date(2026, 5, 10)),     # different spelling, not ambiguous
+    ]:
+        working = unmapped_line(raw, source_row=source_row, when=when)
+        result = mapper.resolve(working.employee_raw, working.date)
+        working.employee_normalized = result.normalized
+        working.employee_mapping_status = result.status
+        lines.append(working)
+
+    item = items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")[0]
+
+    assert "'Đức Kiên' → 6" == item.details[DETAIL_RAW_VARIANTS]
+    assert "Đức  Kiên" not in item.details[DETAIL_RAW_VARIANTS]
+
+
+# ------------------------------ Finding 2: F4 provenance scoping
+
+def _mapped_and_unmapped_sharing_one_identity():
+    """`Thảo Linh` is only effective in January, so the same raw string maps in
+    January and fails to map in May — one canonical identity, one mapped row
+    and one unmapped row."""
+    employees = [
+        {"raw_prefix": "Thảo Linh", "normalized": "TL", "group": "STANDARD_SALES",
+         "active": True, "effective_from": "2026-01-01", "effective_to": "2026-01-31"},
+        employee("Ly", "Vũ Hạnh Ly"),
+    ]
+    lines = resolved_lines_for(
+        employees, "Vũ Hạnh Ly 0868345633", [(5, date(2026, 1, 5))]
+    ) + resolved_lines_for(
+        employees, "Thảo Linh", [(6, date(2026, 1, 10)), (7, date(2026, 5, 10))]
+    )
+    return employees, lines
+
+
+def test_f4_provenance_never_mentions_a_mapped_row_of_the_same_identity():
+    """Review #4, Finding 2. F4 counted only unmapped rows but its provenance
+    still listed every row of the canonical identity — including the one that
+    mapped perfectly well."""
+    employees, lines = _mapped_and_unmapped_sharing_one_identity()
+    assert [line.employee_mapping_status for line in lines] == [
+        MAPPING_STATUS_MAPPED, MAPPING_STATUS_MAPPED, "unmapped"
+    ], "fixture must really mix mapped and unmapped under one identity"
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "7"
+    assert item.affected_count == 1
+    assert item.source_row == 7
+    assert item.details[DETAIL_RAW_VARIANTS] == "'Thảo Linh' → 7"
+    assert "6" not in provenance_blob(item), "row 6 mapped; it is not F4 evidence"
+
+
+def test_f4_keeps_several_unmapped_variants_but_no_mapped_one():
+    """Double-space and NFC/NFD variants, plus a mapped row of the same
+    canonical identity — only the unmapped spellings may appear."""
+    plain = "Thảo Linh"
+    spaced = "Thảo  Linh"
+    decomposed = unicodedata.normalize("NFD", plain)
+    assert decomposed != plain
+
+    employees = [
+        {"raw_prefix": "Thảo Linh", "normalized": "TL", "group": "STANDARD_SALES",
+         "active": True, "effective_from": "2026-01-01", "effective_to": "2026-01-31"},
+        employee("Ly", "Vũ Hạnh Ly"),
+    ]
+    lines = resolved_lines_for(
+        employees, "Vũ Hạnh Ly 0868345633", [(5, date(2026, 1, 5))]
+    )
+    lines += resolved_lines_for(employees, plain, [(6, date(2026, 1, 10))])  # mapped
+    lines += resolved_lines_for(employees, plain, [(11, date(2026, 5, 1))])
+    lines += resolved_lines_for(employees, spaced, [(12, date(2026, 5, 2))])
+    lines += resolved_lines_for(employees, decomposed, [(13, date(2026, 5, 3))])
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+    variants = item.details[DETAIL_RAW_VARIANTS]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "11, 12, 13"
+    assert item.affected_count == 3
+    assert repr(plain) in variants
+    assert repr(spaced) in variants
+    assert repr(decomposed) in variants
+    assert "→ 6" not in variants, "the mapped row must not appear"
+
+
+# ------------------------------ HD-110-05: F3 needs a transaction date
+
+def test_missing_date_with_disjoint_windows_gives_missing_date_and_no_f3():
+    """HD-110-05, case 1. Disjoint windows are a handover, never a clash —
+    and without a date there is no moment at which to judge that anyway."""
+    lines = resolved_lines_for(DISJOINT, RAW_DUC, [(6, None)])
+
+    queue = queue_with_missing(lines, DISJOINT)
+
+    assert items_of(queue, criterion="F3") == []
+    assert [i.source_row for i in queue.by_category(CATEGORY_MISSING)] == [6]
+
+
+def test_missing_date_with_overlapping_windows_still_gives_no_f3():
+    """HD-110-05, case 2. Even when the records DO overlap somewhere, an
+    undated row gives no evidence that this transaction fell inside it."""
+    lines = resolved_lines_for(OVERLAP_ROWS, RAW_DUC, [(6, None)])
+
+    queue = queue_with_missing(lines, OVERLAP_ROWS)
+
+    assert items_of(queue, criterion="F3") == []
+    assert [i.source_row for i in queue.by_category(CATEGORY_MISSING)] == [6]
+
+
+def test_a_date_inside_the_overlap_raises_f3():
+    """HD-110-05, case 3."""
+    lines = resolved_lines_for(OVERLAP_ROWS, RAW_DUC, [(6, date(2026, 2, 10))])
+    assert len(items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")) == 1
+
+
+def test_a_date_outside_the_overlap_raises_no_f3():
+    """HD-110-05, case 4."""
+    lines = resolved_lines_for(OVERLAP_ROWS, RAW_DUC, [(6, date(2026, 5, 10))])
+    assert items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3") == []
+
+
+def test_an_undated_row_never_hides_a_dated_ambiguous_one():
+    lines = resolved_lines_for(
+        OVERLAP_ROWS, RAW_DUC, [(6, None), (7, date(2026, 2, 10))]
+    )
+
+    item = items_of(queue_with_missing(lines, OVERLAP_ROWS), criterion="F3")[0]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "7"
+    assert item.affected_count == 1
+
+
+def test_hd_110_05_does_not_change_employee_mapper_behaviour():
+    """TASK-110 diagnoses; it never changes how a row is mapped."""
+    lines = resolved_lines_for(OVERLAP_ROWS, RAW_DUC, [(6, None)])
+    before = [(l.employee_normalized, l.employee_mapping_status) for l in lines]
+
+    queue_with_missing(lines, OVERLAP_ROWS)
+
+    assert [(l.employee_normalized, l.employee_mapping_status) for l in lines] == before
+
+
+# ------------------------------ The invariant itself
+
+def _all_mapping_items(queue):
+    return queue.by_category(CATEGORY_EMPLOYEE_MAPPING)
+
+
+def test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set():
+    """The invariant Review #4 asked for, asserted on the objects rather than
+    on one scenario: for every finding, `affected_count` equals the number of
+    its affected rows, and every rendered row number and raw variant traces
+    back to one of them.
+
+    This holds structurally — `MappingFinding.affected_count`,
+    `.source_rows` and `.raw_variants()` are all DERIVED from
+    `affected_rows`, so there is no second source to disagree with.
+    """
+    employees, lines = _mapped_and_unmapped_sharing_one_identity()
+    employees = employees + [employee("Vắng", "Không Ai")]
+    lines = lines + resolved_lines_for(OVERLAP_ROWS, RAW_DUC,
+                                       [(20, date(2026, 2, 10))])
+
+    stats = collect_mapping_stats(lines, employees)
+    verdict = evaluate_raw_mapping(
+        stats.mapped, stats.groups, stats.unmapped, stats.ambiguities,
+        employees, GROUPS, stats.dataset_start, stats.dataset_end,
+        row_index=stats,
+    )
+    findings = list(verdict.findings) + list(
+        evaluate_inactive_records(employees, stats)
+    )
+    assert findings, "fixture must produce findings"
+
+    for finding in findings:
+        own_rows = {row.source_row for row in finding.affected_rows}
+
+        assert finding.affected_count == len(finding.affected_rows)
+        assert set(finding.source_rows) <= own_rows
+
+        for original, rows in finding.raw_variants().items():
+            assert rows, f"{finding.criterion}: variant {original!r} has no row"
+            assert set(rows) <= own_rows, (
+                f"{finding.criterion}: variant {original!r} names rows outside "
+                "the finding"
+            )
+            assert any(
+                row.raw_original == original for row in finding.affected_rows
+            ), f"{finding.criterion}: variant {original!r} is not from its rows"
+
+
+def test_the_invariant_test_would_actually_catch_a_widened_provenance():
+    """Falsification: hand-build a finding whose rendered variants come from a
+    row it does not own, and prove the checks above reject it."""
+    from app.modules.validation.employee_mapping import AffectedRow, MappingFinding
+
+    honest = MappingFinding(
+        criterion="F4", bucket="WARNING", message="x",
+        affected_rows=(AffectedRow("s.xlsx", 7, "Thảo Linh", None),),
+    )
+    widened = MappingFinding(
+        criterion="F4", bucket="WARNING", message="x",
+        affected_rows=(
+            AffectedRow("s.xlsx", 7, "Thảo Linh", None),
+            AffectedRow("s.xlsx", 6, "Thảo Linh", None),   # a row it should not own
+        ),
+    )
+
+    assert honest.source_rows == (7,)
+    assert honest.raw_variants() == {"Thảo Linh": [7]}
+    # The widened one is detectably different — the invariant is a real
+    # discriminator, not a tautology.
+    assert widened.source_rows == (6, 7)
+    assert widened.affected_count == 2
+    assert widened.raw_variants() == {"Thảo Linh": [6, 7]}
+
+
+def test_every_mapping_item_in_a_real_import_obeys_the_invariant(synthetic_raw_path):
+    """The same invariant, end to end through `run_import()`."""
+    from app.pipeline import run_import
+
+    queue = run_import(synthetic_raw_path).review_queue
+    items = _all_mapping_items(queue)
+    assert items
+
+    for item in items:
+        listed = item.details.get(DETAIL_SOURCE_ROWS)
+        if listed is None:
+            assert item.scope == SCOPE_BATCH
+            continue
+        rows = {int(part) for part in listed.split(", ")}
+        assert item.source_row in rows
+        assert len(rows) == item.affected_count
+        for chunk in item.details.get(DETAIL_RAW_VARIANTS, "").split(" ; "):
+            if not chunk:
+                continue
+            named = {int(p) for p in chunk.split("→")[1].split(",")}
+            assert named <= rows

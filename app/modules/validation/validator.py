@@ -214,7 +214,7 @@ class Validator:
             declared_groups=self._employee_groups,
             dataset_start=stats.dataset_start,
             dataset_end=stats.dataset_end,
-            ambiguity_rows=stats.ambiguity_rows,
+            row_index=stats,
         )
 
         severities = {
@@ -227,7 +227,7 @@ class Validator:
         # `evaluate_inactive_records` (Review #2, Finding 2).
         findings = [
             *verdict.findings,
-            *evaluate_inactive_records(lines, self._employee_rows),
+            *evaluate_inactive_records(self._employee_rows, stats),
         ]
         return [
             self._mapping_item(finding, severities[finding.bucket], stats)
@@ -240,13 +240,17 @@ class Validator:
     ) -> ReviewItem:
         """Turn one F1–F6 verdict into a traceable queue item.
 
-        Independent Review #1, Finding 1: a criterion that names an employee
-        or a raw `NVBH` value but not the rows it is about leaves a reader
-        with nothing to open. So a finding tied to specific rows becomes a
-        row-scoped item pointing at the first of them, with the full list and
-        the true count alongside; a finding about the batch as a whole stays
-        batch-scoped and says which batch, over what date range, out of how
-        many rows.
+        **Every provenance field comes from `finding.affected_rows` — the rows
+        that actually produced the finding — and from nothing else.**
+        Independent Review #1 (Finding 1) asked for provenance; Review #3
+        (Finding 1) and Review #4 (Findings 1 and 2) then found it being built
+        from a wider set: "every row sharing this canonical identity". So a
+        finding about one ambiguous row named a second, unambiguous one; an F4
+        about an unmapped row named a mapped row beside it.
+
+        There is no identity-keyed lookup left here to regress to. A finding
+        that knows no rows is batch-scoped and says which batch, over what date
+        range, out of how many rows — it never borrows rows to look complete.
         """
         details: dict[str, str] = {DETAIL_CRITERION: finding.criterion}
         details.update(finding.details)
@@ -258,40 +262,28 @@ class Validator:
             details[DETAIL_RAW_PREFIX] = str(finding.raw_prefix)
         if finding.declared_group:
             details[DETAIL_DECLARED_GROUP] = finding.declared_group
-        # Review #3, Finding 3: canonical form groups, originals are evidence.
-        if finding.raw_value:
-            variants = stats.render_variants(finding.raw_value)
+
+        rows = () if finding.batch_scoped else finding.source_rows
+        if rows:
+            details[DETAIL_SOURCE_ROWS] = ", ".join(str(row) for row in rows)
+            variants = finding.render_variants()
             if variants:
                 details[DETAIL_RAW_VARIANTS] = variants
-
-        # A finding that already knows its own rows wins: F6 is attributed to
-        # one config RECORD, and two records can share a `normalized` name, so
-        # looking rows up by name would hand one record the other's
-        # transactions (Review #2, Finding 2).
-        rows: list[int] = list(finding.source_rows)
-        if not rows and finding.raw_value:
-            rows = stats.rows_by_raw_value.get(finding.raw_value, [])
-        elif not rows and finding.employee:
-            rows = stats.rows_by_employee.get(finding.employee, [])
-
-        if rows:
-            ordered = sorted(rows)
-            details[DETAIL_SOURCE_ROWS] = ", ".join(str(row) for row in ordered)
             return ReviewItem(
                 category=CATEGORY_EMPLOYEE_MAPPING,
                 severity=severity,
                 message=finding.message,
                 scope=SCOPE_ROW,
-                source_file=stats.source_file,
-                source_row=ordered[0],
-                affected_count=finding.affected_count or len(ordered),
+                source_file=finding.source_file or stats.source_file,
+                source_row=rows[0],
+                affected_count=finding.affected_count,
                 details=details,
             )
 
-        # No rows behind it — F2 ("configured employee matched nothing"), F5
-        # ("nothing mapped at all"), or an F1 for an employee absent from this
-        # batch. `affected_count` stays at the finding's own number, which for
-        # F2 is honestly 0: reporting 1 would invent a row.
+        # Nothing to point at — F2 ("configured employee matched nothing"), an
+        # F1 for a record absent from this batch — or a finding that is about
+        # the batch itself (F5). `affected_count` stays exact either way, and
+        # for F2 it is honestly 0: inventing a 1 would claim a row.
         details[DETAIL_DATASET_RANGE] = stats.dataset_range()
         details[DETAIL_BATCH_ROWS] = str(stats.total_rows)
         return ReviewItem(
