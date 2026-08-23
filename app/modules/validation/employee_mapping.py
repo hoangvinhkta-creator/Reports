@@ -69,16 +69,21 @@ from typing import Optional
 
 from typing import Any
 
+from app.modules.domain.canonical import (  # noqa: F401  (`SealedConstruction` re-export)
+    FrozenCounter,
+    FrozenMapping,
+    SealedConstruction,
+    canonical,
+    factory_for,
+    frozen_tuple_map,
+)
 from app.modules.domain.models import WorkingLine
 from app.modules.validation.models import (
     AffectedRow,
     AmbiguousRow,
     Diagnostics,
     RowProvenance,
-    SealedConstruction,
 )
-
-_STATS_SEAL = object()
 from app.modules.validation.text import normalize_text
 
 BUCKET_HARD = "HARD"
@@ -244,7 +249,8 @@ class _RawView:
         self.source_row = item.source_row
 
 
-@dataclass(frozen=True)
+@canonical(sealed=True)
+@dataclass(frozen=True, slots=True)
 class MappingStats:
     """Nguồn sự thật CANONICAL cho một lượt chẩn đoán mapping (RC-3).
 
@@ -256,27 +262,66 @@ class MappingStats:
 
     Ở đây chúng không thể bất đồng: cả hai được dựng trong một vòng lặp duy
     nhất, và mọi con số render ra đều đọc từ `provenance`.
+
+    **Repair R1 chỉ chạm vào AN TOÀN DỰNG của kiểu này, không chạm truth
+    model.** Hai việc, và chỉ hai việc: (1) cổng dựng chuyển từ field `_seal`
+    sang cơ chế canonical không sao chép được, nên
+    `dataclasses.replace(stats, total_rows=-1, mapper=None)` và subclass không
+    còn dựng được stats giả; (2) mọi container được SAO CHÉP sang dạng bất
+    biến, nên object sealed này không còn giữ mutable alias — Review #8 nêu
+    đích danh lớp lỗi đó ở R1.
+
+    Việc `mapped`/`groups`/`ambiguities` là một biểu diễn **song song** với
+    row collections, và phải được DẪN XUẤT từ chúng, là **R2** và **không**
+    được sửa ở đây. Cấu trúc dữ liệu, cách gom và mọi con số đều giữ nguyên.
     """
 
     mapper: Any
-    mapped: Counter
-    groups: dict
-    unmapped: Counter
-    ambiguities: dict
+    mapped: FrozenCounter
+    groups: FrozenMapping
+    unmapped: FrozenCounter
+    ambiguities: FrozenMapping
     dataset_start: Optional[date]
     dataset_end: Optional[date]
     source_file: Optional[str]
     total_rows: int
-    _unmapped_rows: dict
-    _rows_by_record: dict
-    _ambiguous_rows: dict
-    _seal: Any = None
+    _unmapped_rows: FrozenMapping
+    _rows_by_record: FrozenMapping
+    _ambiguous_rows: FrozenMapping
 
     def __post_init__(self) -> None:
-        if self._seal is not _STATS_SEAL:
-            raise SealedConstruction(
-                "MappingStats chỉ dựng được qua `collect_mapping_stats()`."
+        # LỚP 1 (R1) — SAO CHÉP sang container bất biến, không chỉ kiểm tra.
+        # `frozen=True` chỉ cấm gán lại thuộc tính; nó không cấm sửa `Counter`
+        # mà thuộc tính đó trỏ tới, nên trước đây `stats.mapped["BỊA"] = 999`
+        # sửa được một canonical object đã sealed.
+        object.__setattr__(self, "mapped", FrozenCounter(self.mapped))
+        object.__setattr__(self, "unmapped", FrozenCounter(self.unmapped))
+        object.__setattr__(self, "groups", FrozenMapping(self.groups))
+        object.__setattr__(
+            self, "ambiguities",
+            FrozenMapping(
+                {key: frozenset(value) for key, value in dict(self.ambiguities).items()}
+            ),
+        )
+        for name in ("_unmapped_rows", "_rows_by_record", "_ambiguous_rows"):
+            object.__setattr__(self, name, frozen_tuple_map(getattr(self, name)))
+        if type(self.total_rows) is not int:
+            raise TypeError(
+                f"`total_rows` phải là int thuần, gặp {self.total_rows!r}."
             )
+        if self.total_rows < 0:
+            raise ValueError(
+                f"`total_rows` không thể âm ({self.total_rows}) — nó đếm số dòng "
+                "đã đi qua collector."
+            )
+        for name in ("resolve_record", "candidate_records", "record", "records",
+                     "ref_for_index"):
+            if not hasattr(self.mapper, name):
+                raise TypeError(
+                    f"`mapper` phải là một EmployeeMapper — thiếu `{name}`. "
+                    "Một stats không có mapper thật thì mọi kết luận F2–F6 của "
+                    "nó là phỏng đoán."
+                )
 
     def unmapped_rows(self, raw_value: str) -> tuple:
         """F4: các dòng của identity này KHÔNG map được."""
@@ -301,6 +346,12 @@ class MappingStats:
         if self.dataset_start and self.dataset_end:
             return f"{self.dataset_start.isoformat()}..{self.dataset_end.isoformat()}"
         return "không xác định"
+
+
+@factory_for(MappingStats)
+def _materialise_stats(**values: Any) -> MappingStats:
+    """Materialiser DUY NHẤT của `MappingStats` (Lớp 2, R1)."""
+    return MappingStats(**values)
 
 
 def collect_mapping_stats(inputs, mapper) -> MappingStats:
@@ -363,7 +414,7 @@ def collect_mapping_stats(inputs, mapper) -> MappingStats:
                 )
             )
 
-    return MappingStats(
+    return _materialise_stats(
         mapper=mapper,
         mapped=mapped,
         groups=groups,
@@ -376,7 +427,6 @@ def collect_mapping_stats(inputs, mapper) -> MappingStats:
         _unmapped_rows={k: tuple(v) for k, v in unmapped_rows.items()},
         _rows_by_record={k: tuple(v) for k, v in rows_by_record.items()},
         _ambiguous_rows={k: tuple(v) for k, v in ambiguous_rows.items()},
-        _seal=_STATS_SEAL,
     )
 
 

@@ -127,12 +127,21 @@ ROW_BEARING_DETAIL_KEYS = frozenset(
 )
 
 
-from app.modules.mapping.employee_mapper import SealedConstruction  # noqa: E402
+# `SealedConstruction` được re-export ở đây cho các import cũ. Cơ chế thật
+# nằm ở `app/modules/domain/canonical.py`; Repair R1 đã xoá field `_seal` khỏi
+# mọi canonical type vì field thì đọc lại, sao chép và truyền vào được.
+from app.modules.domain.canonical import (  # noqa: E402,F401  (re-export)
+    CanonicalSubclassRejected,
+    SealedConstruction,
+    canonical,
+    factory_for,
+    as_exact_date,
+    as_exact_str,
+)
 
-_SEAL = object()
 
-
-@dataclass(frozen=True)
+@canonical(sealed=True)
+@dataclass(frozen=True, slots=True)
 class AffectedRow:
     """Một dòng thô mà finding thực sự nói về.
 
@@ -151,32 +160,40 @@ class AffectedRow:
     source_row: int
     raw_original: str = ""
     when: Optional[date] = None
-    _seal: Any = None
 
     def __post_init__(self) -> None:
-        if self._seal is not _SEAL:
-            raise SealedConstruction(
-                "AffectedRow chỉ dựng được qua `AffectedRow.from_line()` — "
-                "provenance phải dẫn từ một dòng thô có thật (RC-1)."
-            )
+        # LỚP 1 (R1). Không còn `_seal` để kiểm: cổng dựng nằm ở `__new__` và
+        # KHÔNG phải một field, nên `dataclasses.replace(row, source_row=99999)`
+        # không mượn được nó nữa. Chỗ này chỉ còn luật giá trị.
         if type(self.source_row) is not int:
             raise TypeError(
                 f"source_row phải là int thuần, gặp {self.source_row!r}."
             )
+        if self.source_file is not None:
+            object.__setattr__(self, "source_file", as_exact_str(self.source_file))
+        object.__setattr__(self, "raw_original", as_exact_str(self.raw_original))
+        if self.when is not None:
+            object.__setattr__(
+                self, "when", as_exact_date(self.when, "AffectedRow.when")
+            )
 
     @classmethod
     def from_line(cls, line) -> "AffectedRow":
-        """Đường DUY NHẤT tạo provenance: từ một `WorkingLine` thật."""
-        return cls(
+        """Đường DUY NHẤT tạo provenance: từ một `WorkingLine` thật.
+
+        Mọi thuộc tính của `line` được đọc XONG trước khi permit mở, nên một
+        `line` giả mạo không lợi dụng được cửa sổ dựng của materialiser.
+        """
+        return _materialise_affected_row(
             source_file=line.raw.source_file,
             source_row=line.raw.source_row,
             raw_original=line.employee_raw or "",
             when=line.date,
-            _seal=_SEAL,
         )
 
 
-@dataclass(frozen=True)
+@canonical(sealed=True)
+@dataclass(frozen=True, slots=True)
 class AmbiguousRow(AffectedRow):
     """Một dòng thô thực sự ambiguous, kèm lý do.
 
@@ -190,7 +207,12 @@ class AmbiguousRow(AffectedRow):
     records: tuple = ()
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        # Gọi TƯỜNG MINH, không dùng `super()` không tham số: `slots=True` làm
+        # `@dataclass` TẠO LẠI class, còn cell `__class__` mà `super()` đọc vẫn
+        # trỏ vào class cũ. Đây là hệ quả đã biết của `slots=True`, không phải
+        # lựa chọn phong cách.
+        AffectedRow.__post_init__(self)
+        object.__setattr__(self, "raw_value", as_exact_str(self.raw_value))
         # ÉP SANG TUPLE + SAO CHÉP (INVARIANT C). Truyền một list vào `records`
         # rồi sửa list đó từ bên ngoài từng làm đổi chuỗi `conflicting_records`
         # đã "dẫn xuất". Dẫn xuất từ dữ liệu mutable thì không phải dẫn xuất.
@@ -198,12 +220,11 @@ class AmbiguousRow(AffectedRow):
 
     @classmethod
     def from_line(cls, line, raw_value: str, records) -> "AmbiguousRow":
-        return cls(
+        return _materialise_ambiguous_row(
             source_file=line.raw.source_file,
             source_row=line.raw.source_row,
             raw_original=line.employee_raw or "",
             when=line.date,
-            _seal=_SEAL,
             raw_value=raw_value,
             records=tuple(records),
         )
@@ -213,7 +234,8 @@ class AmbiguousRow(AffectedRow):
         return f"dòng {self.source_row} ({stamp}) → {', '.join(self.records)}"
 
 
-@dataclass(frozen=True)
+@canonical(sealed=True)
+@dataclass(frozen=True, slots=True)
 class RowProvenance:
     """Tập dòng canonical của một finding, cùng MỌI representation của nó.
 
@@ -230,13 +252,8 @@ class RowProvenance:
 
     rows: tuple = ()
     batch_scoped: bool = False
-    _seal: Any = None
 
     def __post_init__(self) -> None:
-        if self._seal is not _SEAL:
-            raise SealedConstruction(
-                "RowProvenance chỉ dựng được qua `RowProvenance.of()`."
-            )
         # Review #6 P3: truyền một list vào `rows` rồi append vào list đó làm
         # `affected_count` nhảy từ 1 lên 2 SAU khi item đã dựng xong.
         # `frozen=True` chỉ cấm gán lại thuộc tính, không cấm sửa đối tượng nó
@@ -247,10 +264,20 @@ class RowProvenance:
                 raise TypeError(
                     f"provenance chỉ nhận AffectedRow, gặp {type(row).__name__}"
                 )
+        # `batch_scoped` chỉ đổi CÁCH RENDER, nhưng nó quyết định `source_row`
+        # trả `None` hay một số dòng thật, nên một giá trị truthy không phải
+        # bool là một câu trả lời mơ hồ cho một câu hỏi nhị phân (R1).
+        if type(self.batch_scoped) is not bool:
+            raise TypeError(
+                f"`batch_scoped` phải là bool thuần, gặp "
+                f"{type(self.batch_scoped).__name__} ({self.batch_scoped!r})."
+            )
 
     @classmethod
     def of(cls, rows=(), batch_scoped: bool = False) -> "RowProvenance":
-        return cls(rows=tuple(rows), batch_scoped=batch_scoped, _seal=_SEAL)
+        return _materialise_provenance(
+            rows=tuple(rows), batch_scoped=batch_scoped
+        )
 
     @classmethod
     def batch(cls, rows=()) -> "RowProvenance":
@@ -323,7 +350,34 @@ class RowProvenance:
         return rendered
 
 
-@dataclass(frozen=True)
+# ─────────────────────────────────────────── Materialiser (Lớp 2, R1)
+#
+# Mỗi sealed canonical type có ĐÚNG MỘT materialiser, thân chỉ có lời gọi
+# constructor. Permit vì thế mở trong cửa sổ hẹp nhất có thể: mọi việc đọc dữ
+# liệu của caller (`line.raw.source_file`, `tuple(rows)`, ...) đã xong trước
+# khi permit mở, nên một đối tượng caller giả mạo không lợi dụng được nó.
+#
+# `factory_for` từ chối đăng ký nếu hàm không nằm trong chính module này, nên
+# không có cách nào "thêm một factory" từ bên ngoài.
+
+
+@factory_for(AffectedRow)
+def _materialise_affected_row(**values: Any) -> AffectedRow:
+    return AffectedRow(**values)
+
+
+@factory_for(AmbiguousRow)
+def _materialise_ambiguous_row(**values: Any) -> AmbiguousRow:
+    return AmbiguousRow(**values)
+
+
+@factory_for(RowProvenance)
+def _materialise_provenance(**values: Any) -> RowProvenance:
+    return RowProvenance(**values)
+
+
+@canonical()
+@dataclass(frozen=True, slots=True)
 class Diagnostics:
     """Metadata chẩn đoán CÓ KIỂU — thay cho `dict[str, str]` tuỳ ý (DEC-133).
 
@@ -412,7 +466,8 @@ class Diagnostics:
 PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
 
 
-@dataclass(frozen=True)
+@canonical()
+@dataclass(frozen=True, slots=True)
 class ReviewItem:
     """Một finding.
 
@@ -489,6 +544,13 @@ class ReviewItem:
         return MappingProxyType(merged)
 
     def __post_init__(self) -> None:
+        # Ép `str` thuần, cùng lý do đã ghi ở `Diagnostics`: một lớp con của
+        # `str` với `__str__` đổi theo lần gọi qua được mọi `isinstance` và làm
+        # cùng một field trả hai giá trị khác nhau giữa hai lần đọc (Audit P4).
+        for name in ("batch_source_file", "order_id"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, as_exact_str(value))
         if self.category not in CATEGORIES:
             raise ValueError(f"Unknown review category: {self.category!r}")
         if self.severity not in SEVERITIES:
