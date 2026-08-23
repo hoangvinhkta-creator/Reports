@@ -1,65 +1,65 @@
-# PROJECT PROFILE
+# HỒ SƠ DỰ ÁN
 
 Status:
-INITIALIZED — S000 completed 2026-08-22
+INITIALIZED — S000 hoàn tất 2026-08-22
 
 Selected Profile:
 PRODUCT
 
-Project:
-Tín Phát — Business Report Automation Tool
+Dự án:
+Tín Phát — Công cụ tự động tạo Báo cáo Kinh doanh
 
-## Profile Inputs
+## Các yếu tố đầu vào của Profile
 
 Team Size:
-1 developer (AI-assisted) + 1 business owner acting as reviewer/approver.
-Report consumers: the whole sales team (~6–10 people) plus management.
+1 lập trình viên (có AI hỗ trợ) + 1 chủ dự án đóng vai trò người duyệt.
+Người dùng báo cáo: toàn bộ đội bán hàng (~6–10 người) cùng ban quản lý.
 
 Production Data:
-YES. The tool ingests the real accounting/ERP sales book and produces the
-numbers that drive employee KPI, commission and payroll. Wrong output has
-direct financial consequences for real people.
+CÓ. Công cụ nạp sổ bán hàng thật từ kế toán/ERP và tạo ra những con số quyết
+định KPI, hoa hồng và lương của nhân viên. Kết quả sai có hậu quả tài chính
+trực tiếp cho người thật.
 
 Personal/Customer Data:
-YES. The raw sales book carries customer full name, mobile phone number and
-delivery address on every line (11,765 lines in the current sample), plus
-device IMEI/serial. Employee names and salary-related figures are also present.
-`governance/product/17_DATA_GOVERNANCE_PRIVACY.md` therefore applies and is
-mandatory, not optional.
+CÓ. Sổ bán hàng thô mang họ tên, số điện thoại di động và địa chỉ giao hàng
+của khách trên mọi dòng (11.765 dòng trong mẫu hiện tại), cộng thêm IMEI/số
+serial thiết bị. Tên nhân viên và số liệu liên quan lương cũng có mặt.
+Vì vậy `governance/product/17_DATA_GOVERNANCE_PRIVACY.md` áp dụng và là bắt
+buộc, không phải tuỳ chọn.
 
 Authentication:
-REQUIRED. The tool is multi-user and every override must record `ChangedBy`
-for the audit trail mandated by spec section 19. Roles: viewer / editor / admin.
+BẮT BUỘC. Công cụ nhiều người dùng, mọi lần ghi đè phải lưu `ChangedBy` cho
+audit trail theo yêu cầu mục 19 đặc tả. Vai trò: viewer / editor / admin.
 
 External Users:
-NO. Internal company use only. No customer-facing surface.
+KHÔNG. Chỉ dùng nội bộ công ty. Không có bề mặt hướng ra khách hàng.
 
 CI/CD:
-NOT YET. No pipeline exists. Conditional — to be introduced if and when the
-tool is deployed to a shared internal server.
+CHƯA CÓ. Chưa tồn tại pipeline nào. Có điều kiện — sẽ đưa vào khi công cụ
+được triển khai lên server dùng chung.
 
 Staging:
-NOT YET. Local development environment only at MVP stage.
+CHƯA CÓ. Chỉ có môi trường phát triển local ở giai đoạn MVP.
 
 Backup:
-REQUIRED once the database exists (Phase 2). The database becomes the system
-of record for manual overrides that exist nowhere else — the raw ERP export can
-be re-downloaded, but a month of manual KPI adjustments cannot be reconstructed.
+BẮT BUỘC khi database tồn tại (Phase 2). Database trở thành hệ thống lưu trữ
+chính cho các override tay không tồn tại ở đâu khác — file xuất ERP thô tải
+lại được, nhưng một tháng điều chỉnh KPI thủ công thì không thể dựng lại.
 
 Monitoring:
-BASIC. Structured application logging plus the business-level audit log.
-Full observability tooling is out of scope for the MVP.
+CƠ BẢN. Log ứng dụng có cấu trúc cộng với audit log ở tầng nghiệp vụ. Công cụ
+observability đầy đủ nằm ngoài phạm vi MVP.
 
 Uncertainty Level:
-MEDIUM.
-- Business rules are well evidenced from the sample workbooks (LOW uncertainty).
-- The ADS classification rule has ZERO supporting data in the current files —
-  the keyword "ADS" appears 0 times across both workbooks — and depends on a
-  future change in data-entry behaviour (HIGH uncertainty).
-- Purchase price is absent from the raw file and depends on an external price
-  tool that does not exist yet (MEDIUM uncertainty).
+TRUNG BÌNH.
+- Business rule đã có bằng chứng rõ ràng từ hai workbook mẫu (độ bất định THẤP).
+- Rule phân loại ADS **không có dữ liệu hỗ trợ nào** trong các file hiện tại —
+  từ khóa "ADS" xuất hiện 0 lần trong cả hai workbook — và phụ thuộc vào một
+  thay đổi trong tương lai ở cách nhập liệu (độ bất định CAO).
+- Giá nhập vắng mặt trong file thô và phụ thuộc vào một công cụ bảng giá bên
+  ngoài chưa tồn tại (độ bất định TRUNG BÌNH).
 
-## Governance Depth
+## Độ sâu Governance
 
 Mandatory Governance:
 - CLAUDE.md
@@ -88,40 +88,43 @@ Mandatory Governance:
 - governance/product/17_DATA_GOVERNANCE_PRIVACY.md
 
 Conditional Governance:
-- governance/product/14_CI_CD_RELEASE_RULES.md — applies from the first shared
-  deployment onward; NOT_APPLICABLE while development is local-only.
-- governance/product/19_DEPENDENCY_MANAGEMENT.md — applies from Phase 2, when
-  the dependency surface grows beyond the analysis toolchain.
-- governance/product/20_API_VERSIONING_COMPATIBILITY.md — applies from Phase 2,
-  when the HTTP API exists.
-- governance/product/21_ACCESSIBILITY_UI_RULES.md — applies from Phase 3.
-- governance/product/23_DOCUMENTATION_STANDARDS.md — applies from Phase 1.
+- governance/product/14_CI_CD_RELEASE_RULES.md — áp dụng kể từ lần triển khai
+  dùng chung đầu tiên; NOT_APPLICABLE khi còn đang phát triển local-only.
+- governance/product/19_DEPENDENCY_MANAGEMENT.md — áp dụng từ Phase 2, khi bề
+  mặt dependency vượt ra ngoài bộ công cụ phân tích.
+- governance/product/20_API_VERSIONING_COMPATIBILITY.md — áp dụng từ Phase 2,
+  khi HTTP API tồn tại.
+- governance/product/21_ACCESSIBILITY_UI_RULES.md — áp dụng từ Phase 3.
+- governance/product/23_DOCUMENTATION_STANDARDS.md — áp dụng từ Phase 1.
 
 Not Applicable:
-- governance/product/18_INCIDENT_RESPONSE.md — no production deployment and no
-  external users yet. Re-evaluate at the Phase 3 release gate.
-- governance/product/22_CODE_OWNERSHIP_REVIEW.md — single-developer project;
-  CODEOWNERS has no meaning with one contributor. Re-evaluate if the team grows.
+- governance/product/18_INCIDENT_RESPONSE.md — chưa triển khai production,
+  chưa có người dùng bên ngoài. Đánh giá lại ở Phase 3 release gate.
+- governance/product/22_CODE_OWNERSHIP_REVIEW.md — dự án một lập trình viên;
+  CODEOWNERS vô nghĩa với một người đóng góp duy nhất. Đánh giá lại nếu đội
+  ngũ lớn thêm.
 
-## Justification
+## Lý do lựa chọn
 
-SOLO_LITE was rejected. This is not a low-risk single-file utility: it holds
-customer personal data, it computes the figures behind employee pay, it needs
-multi-user persistence with an audit trail, and it replaces a spreadsheet the
-business already depends on.
+SOLO_LITE bị loại. Đây không phải một tiện ích một-file rủi ro thấp: nó giữ
+dữ liệu cá nhân khách hàng, tính ra những con số quyết định lương nhân viên,
+cần lưu trữ nhiều người dùng có audit trail, và thay thế một file Excel doanh
+nghiệp đang phụ thuộc vào.
 
-TEAM_PRODUCTION was rejected as premature. There is no team, no CI, no staging
-and no external user. Imposing CODEOWNERS, incident response and release
-engineering now would be ceremony without a corresponding risk.
+TEAM_PRODUCTION bị loại vì còn quá sớm. Chưa có đội nhóm, chưa có CI, chưa có
+staging, chưa có người dùng bên ngoài. Áp CODEOWNERS, incident response và kỹ
+thuật release ngay lúc này sẽ chỉ là hình thức không tương xứng với rủi ro
+thật.
 
-PRODUCT is the honest fit: full product/business/data governance, with the
-delivery-and-operations layer promoted from Conditional to Mandatory at the
-Phase 3 release gate rather than pretended into existence at Phase 0.
+PRODUCT là lựa chọn đúng thực chất: đầy đủ governance sản phẩm/nghiệp
+vụ/dữ liệu, với tầng vận hành-triển khai được nâng từ Conditional lên
+Mandatory tại release gate của Phase 3, thay vì giả vờ như nó đã tồn tại từ
+Phase 0.
 
-## Evidence Tier Rule for This Project
+## Quy tắc mức bằng chứng cho dự án này
 
-Per `governance/core/EVIDENCE_STANDARD.md` with Risk 4 on the calculation
-engine: E1 is mandatory for every executable REQUIRED check, and the numeric
-correctness checks in Phase 1 SHOULD reach E2. No CI and no second human
-reviewer exist, so E2 is produced through the Solo Independent Review
-Procedure and persisted under `docs/reviews/`.
+Theo `governance/core/EVIDENCE_STANDARD.md` với Risk 4 trên engine tính toán:
+E1 bắt buộc cho mọi REQUIRED check có thể thực thi, và các check kiểm tra độ
+đúng số liệu ở Phase 1 NÊN đạt E2. Không có CI và không có người review độc
+lập thứ hai, nên E2 được tạo ra qua Solo Independent Review Procedure và lưu
+lại dưới `docs/reviews/`.

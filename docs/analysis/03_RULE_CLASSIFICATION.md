@@ -17,12 +17,12 @@ Ba loại:
 
 | Công thức | Nguồn |
 |---|---|
-| `TotalSales = SellPrice × Quantity − Discount` | `Hn = Gn*En` + DEC-014 |
+| `TotalSales = SellPrice × Quantity − Discount` | `Hn = Gn*En` + DEC-114 |
 | `AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity` | `Mn = (Gn-Ln)*En` |
-| `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts + OtherKpiAdjustment` | `In = (Gn-Fn)*En` + mục 11 đặc tả + DEC-014 |
+| `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts + OtherKpiAdjustment` | `In = (Gn-Fn)*En` + mục 11 đặc tả + DEC-114 |
 | `KpiPurchasePrice = AccountingPurchasePrice + KpiPurchaseAdjustment` | mục 11 đặc tả |
 | `TotalOrders = COUNT DISTINCT OrderID` | `B1 = count(B3:Bn)` + mục 3 đặc tả |
-| `TotalProducts = SUM(Quantity)` chỉ trên dòng sản phẩm thật | `E1` (đã sửa lỗi) + DEC-013 |
+| `TotalProducts = SUM(Quantity)` chỉ trên dòng sản phẩm thật | `E1` (đã sửa lỗi) + DEC-113 |
 | `ProfitMargin = Profit / Sales` | `J1 = I1/H1` |
 | `AutoConvertedRevenue = EligibleKpiProfit / ConversionRate` | `F = G/rate` |
 | `TotalConvertedRevenue = PersonalCR + AdsCR` | mục 6 đặc tả |
@@ -88,7 +88,7 @@ và đưa vào Review Queue nếu chứa dấu trừ mà không parse được.
 
 Từ file thô, cột `Tên hàng trên chứng từ`:
 
-**Đã chốt theo DEC-010.**
+**Đã chốt theo DEC-110.**
 
 | Loại dòng | Số dòng | Số SP? | Doanh số? | Lợi nhuận? | Số đơn? | Vào hàng đợi duyệt? |
 |---|---|---|---|---|---|---|
@@ -103,7 +103,7 @@ Quyết định của chủ dự án: *"tất cả dòng phụ nếu có liên q
 hàng vẫn thêm vào doanh số từng nhân viên nhưng sẽ được duyệt thủ công bằng
 cách xoá dòng hoặc giữ lại dòng"*.
 
-**"Xoá dòng" là loại trừ mềm, không phải xoá thật.** RAW bất biến theo ADR-002.
+**"Xoá dòng" là loại trừ mềm, không phải xoá thật.** RAW bất biến theo ADR-102.
 Thao tác đặt cờ `excluded_from_report` kèm lý do và một bản ghi audit, và hoàn
 tác được bất cứ lúc nào.
 
@@ -111,11 +111,11 @@ Khoảng **1.250 dòng** trong 6 tháng mẫu thuộc nhóm này — màn hình 
 thao tác được theo lô (lọc theo loại, chọn nhiều dòng, một lần bấm). Duyệt từng
 dòng một sẽ không ai dùng nổi.
 
-Cột "Số SP = Không" **đã được chủ dự án xác nhận (DEC-013)**. Kèm theo đó,
+Cột "Số SP = Không" **đã được chủ dự án xác nhận (DEC-113)**. Kèm theo đó,
 `Tổng số SP` bị hạ ưu tiên: vẫn xuất ra cho khớp báo cáo cũ, nhưng không xây
 tính năng nào dựa trên nó và không dùng làm tiêu chí đối chiếu ở bất kỳ gate nào.
 
-### Chiết khấu (DEC-014)
+### Chiết khấu (DEC-114)
 
 408/11.765 dòng có `Chiết khấu` ≠ 0. Đã kiểm chứng: **`Doanh số bán` trong file
 thô là số gross** — bằng đúng `Đơn giá × SL` ở cả 408 dòng, chưa trừ chiết khấu

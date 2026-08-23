@@ -190,7 +190,7 @@ có `effective_from` / `effective_to` — **không hard-code** (mục 12 đặc 
 | `P15` | `=J15/350` — target/ngày, mẫu số **350** chứ không phải 365 |
 
 > `AJ2` và `J15` lệch nhau 1.000 lần về đơn vị trong cùng một sheet. Đây đúng
-> là loại lỗi mà DEC-006 (lưu chuẩn VND nguyên) tồn tại để ngăn.
+> là loại lỗi mà DEC-106 (lưu chuẩn VND nguyên) tồn tại để ngăn.
 
 Toàn bộ vùng `B3:AF14` sẽ được `summary_engine` sinh tự động từ Working Data
 thay vì nhập tay.

@@ -62,7 +62,7 @@ Nội thành/Gia dụng lệch trái 1 cột vì không có `Nơi nhập` — xe
 | Working field | Report field | Nguồn |
 |---|---|---|
 | `PurchaseSource` | `C: Nơi nhập` | **Không có trong file thô.** Nhập tay hoặc từ hệ thống kho sau. 22.029 ô trong các sheet cá nhân của báo cáo mẫu đang để trống. |
-| `AccountingPurchasePrice` | `L: Giá thực nhập` | **Pending** (DEC-003). Sau này từ Price Master. |
+| `AccountingPurchasePrice` | `L: Giá thực nhập` | **Pending** (DEC-103). Sau này từ Price Master. |
 | `KpiPurchasePrice` | `F: Giá nhập TT` | `AccountingPurchasePrice + KpiPurchaseAdjustment`. |
 | `KpiAdjustment` | `J: Giao hàng` | Parse từ ghi chú điều chỉnh — xem tài liệu 03. |
 | `AccountingProfit` | `M: Lợi nhuận gộp` | `(SellPrice − AccountingPurchasePrice) × Quantity` |
@@ -83,7 +83,7 @@ Nội thành/Gia dụng lệch trái 1 cột vì không có `Nơi nhập` — xe
 ## 3. Vì sao `Lợi nhuận` của ERP không được dùng làm giá nhập
 
 File thô có `Lợi nhuận`, nên về mặt số học có thể suy ra
-`GiaNhap = DonGia − LoiNhuan / SL`. **Công cụ không làm việc này** (DEC-003):
+`GiaNhap = DonGia − LoiNhuan / SL`. **Công cụ không làm việc này** (DEC-103):
 
 - Chủ dự án yêu cầu để trống, chờ công cụ bảng giá.
 - `Lợi nhuận` của ERP đã gồm những khoản mà công cụ chưa biết cấu thành:
@@ -132,11 +132,11 @@ Công cụ **xuất một layout duy nhất** cho mọi nhân viên và mọi k�
 
 ---
 
-## 5. Mapping nhân viên đã chốt (DEC-004)
+## 5. Mapping nhân viên đã chốt (DEC-104)
 
 | Raw NVBH | Số dòng | Normalized | Active | Include in KPI | Default lead source |
 |---|---|---|---|---|---|
-| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes | **`TINPHAT_ADS`** (DEC-009) |
+| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes | **`TINPHAT_ADS`** (DEC-109) |
 | `Vũ Hạnh Ly 0868345633` | 735 | Ly | Yes | Yes | `PERSONAL` |
 | `Lê Mạnh Hoàng 0865111533` | 531 | Hoàng | Yes | Yes | `PERSONAL` |
 | `Đức Kiên - Tân Á 0867666533` | 524 | Kiên | Yes | Yes | `PERSONAL` |
@@ -160,4 +160,4 @@ Công cụ **xuất một layout duy nhất** cho mọi nhân viên và mọi k�
 đầu 2026 nên không cần map (đặc tả cũng đã loại khỏi phạm vi).
 
 Bảng này nằm ở `config/employees.yaml` với `effective_from` / `effective_to`,
-nên thêm nhân viên mới hoặc cho nghỉ **không cần sửa code** (DEC-004).
+nên thêm nhân viên mới hoặc cho nghỉ **không cần sửa code** (DEC-104).
