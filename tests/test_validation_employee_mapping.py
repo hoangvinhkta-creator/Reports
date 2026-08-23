@@ -15,6 +15,7 @@ they now run on the import path itself.
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date
 from decimal import Decimal
 
@@ -28,11 +29,14 @@ from app.modules.validation.employee_mapping import (
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
     CATEGORY_MISSING,
+    DETAIL_AMBIGUOUS_ROWS,
     DETAIL_BATCH_ROWS,
+    DETAIL_CONFLICTING_RECORDS,
     DETAIL_CRITERION,
     DETAIL_DATASET_RANGE,
     DETAIL_EMPLOYEE,
     DETAIL_RAW_VALUE,
+    DETAIL_RAW_VARIANTS,
     DETAIL_SOURCE_ROWS,
     SCOPE_BATCH,
     SCOPE_ROW,
@@ -535,6 +539,20 @@ def resolved_lines(employee_rows, dated_rows):
     return lines
 
 
+def resolved_lines_for(employee_rows, raw_value, dated_rows):
+    """`resolved_lines` for an arbitrary raw identity."""
+    mapper = EmployeeMapper(employee_rows)
+    lines = []
+    for source_row, when in dated_rows:
+        working = unmapped_line(raw_value, source_row=source_row, when=when)
+        result = mapper.resolve(working.employee_raw, working.date)
+        working.employee_normalized = result.normalized
+        working.employee_mapping_status = result.status
+        working.employee_group = result.group
+        lines.append(working)
+    return lines
+
+
 def test_a_closed_record_never_borrows_the_active_record_s_transactions():
     """The defect Review #2 found: F6 aggregated by normalized name and then
     applied one boolean `active` to every record sharing it. A handover
@@ -636,3 +654,264 @@ def test_f6_never_changes_mapping_status_or_group():
         for line in lines
     ]
     assert after == before
+
+
+# --------------- Review #3, Finding 1: F3 provenance is per raw ROW
+
+AMBIGUOUS_A = {
+    "raw_prefix": "Đức", "normalized": "A", "group": "STANDARD_SALES",
+    "active": True, "effective_from": "2026-01-01", "effective_to": None,
+}
+AMBIGUOUS_B = {
+    "raw_prefix": "Đức", "normalized": "B", "group": "STANDARD_SALES",
+    "active": True, "effective_from": "2026-01-01", "effective_to": "2026-02-28",
+}
+OVERLAP_ROWS = [AMBIGUOUS_A, AMBIGUOUS_B]
+RAW_DUC = "Đức Kiên"
+
+
+def mapped_as(normalized, raw, source_row, when):
+    working = unmapped_line(raw, source_row=source_row, when=when)
+    working.employee_normalized = normalized
+    working.employee_mapping_status = MAPPING_STATUS_MAPPED
+    working.employee_group = "STANDARD_SALES"
+    return working
+
+
+def test_f3_names_only_the_rows_that_are_really_ambiguous():
+    """The same raw identity, one row inside the overlap and one outside.
+
+    F3 is judged against **each row's own date** (DEC-121): two prefixes that
+    only ever existed in disjoint periods are a handover, not a clash. Keying
+    ambiguity by raw *value* tarred every row carrying that value — row 7 has
+    exactly one record in force and is not ambiguous at all.
+    """
+    lines = [
+        mapped_as("A", RAW_DUC, 6, date(2026, 2, 10)),   # both records in force
+        mapped_as("A", RAW_DUC, 7, date(2026, 5, 10)),   # only A in force
+    ]
+
+    item = items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")[0]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "6"
+    assert item.affected_count == 1
+    assert item.source_row == 6
+    assert item.scope == SCOPE_ROW
+
+
+def test_f3_provenance_carries_identity_row_date_and_conflicting_records():
+    """Everything a reviewer needs to re-check the verdict without the file."""
+    lines = [
+        mapped_as("A", RAW_DUC, 6, date(2026, 2, 10)),
+        mapped_as("A", RAW_DUC, 7, date(2026, 5, 10)),
+    ]
+
+    item = items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")[0]
+    detail = item.details[DETAIL_AMBIGUOUS_ROWS]
+
+    assert item.source_file == "synthetic_raw_sample.xlsx"
+    assert item.details[DETAIL_RAW_VALUE] == RAW_DUC
+    assert "dòng 6" in detail
+    assert "2026-02-10" in detail, "transaction date of the ambiguous row"
+    assert "2026-05-10" not in detail, "the non-ambiguous row must not appear"
+    # The colliding master RECORDS, not just their names — two records can
+    # deliberately share a name (DEC-121).
+    conflicting = item.details[DETAIL_CONFLICTING_RECORDS]
+    assert "A[Đức|2026-01-01..9999-12-31]" in conflicting
+    assert "B[Đức|2026-01-01..2026-02-28]" in conflicting
+
+
+def test_f3_counts_every_ambiguous_row_when_several_collide():
+    lines = [
+        mapped_as("A", RAW_DUC, 6, date(2026, 1, 10)),
+        mapped_as("A", RAW_DUC, 7, date(2026, 2, 20)),
+        mapped_as("A", RAW_DUC, 9, date(2026, 6, 1)),   # outside the overlap
+    ]
+
+    item = items_of(queue_for(lines, OVERLAP_ROWS), criterion="F3")[0]
+
+    assert item.details[DETAIL_SOURCE_ROWS] == "6, 7"
+    assert item.affected_count == 2
+
+
+def test_no_overlap_at_all_means_no_f3():
+    """A clean handover: the two records never coexist, so nothing collides."""
+    old = dict(AMBIGUOUS_B, effective_from="2026-01-01", effective_to="2026-02-28")
+    new = dict(AMBIGUOUS_A, effective_from="2026-03-01", effective_to=None)
+    lines = [
+        mapped_as("B", RAW_DUC, 6, date(2026, 2, 10)),
+        mapped_as("A", RAW_DUC, 7, date(2026, 5, 10)),
+    ]
+
+    assert items_of(queue_for(lines, [old, new]), criterion="F3") == []
+
+
+# ------------------------ HD-110-04: F6 needs a transaction date
+
+def test_missing_date_produces_missing_date_and_never_f6():
+    """HD-110-04. With no date there is no evidence for which master record
+    was in force. Picking the first match would manufacture a verdict out of
+    an unknown."""
+    config = {
+        "categories": {
+            "employee_mapping": CONFIG["categories"]["employee_mapping"],
+            "missing": {"enabled": True, "fields": {"date": SEVERITY_ERROR}},
+        }
+    }
+    lines = resolved_lines(HANDOVER, [(6, None)])
+
+    queue = Validator(
+        config, employee_rows=HANDOVER, employee_groups=GROUPS
+    ).build_queue(lines, [])
+
+    assert items_of(queue, criterion="F6") == []
+    assert [i.source_row for i in queue.by_category(CATEGORY_MISSING)] == [6]
+
+
+def test_a_date_inside_the_inactive_window_still_raises_f6():
+    lines = resolved_lines(HANDOVER, [(6, date(2026, 2, 10))])
+    assert len(items_of(queue_for(lines, HANDOVER), criterion="F6")) == 1
+
+
+def test_a_date_inside_the_active_window_raises_no_f6():
+    lines = resolved_lines(HANDOVER, [(6, date(2026, 5, 10))])
+    assert items_of(queue_for(lines, HANDOVER), criterion="F6") == []
+
+
+def test_dateless_rows_are_dropped_without_hiding_the_dated_ones():
+    """A batch mixing both: the dateless row is silent for F6, the dated one
+    inside the closed window still speaks."""
+    lines = resolved_lines(HANDOVER, [(6, None), (7, date(2026, 2, 10))])
+
+    found = items_of(queue_for(lines, HANDOVER), criterion="F6")
+
+    assert len(found) == 1
+    assert found[0].details[DETAIL_SOURCE_ROWS] == "7"
+    assert found[0].affected_count == 1
+
+
+def test_hd_110_04_does_not_change_mapping_status_for_a_dateless_row():
+    """Diagnostic only: `EmployeeMapper` still resolves however it resolves —
+    TASK-110 does not touch its behaviour."""
+    lines = resolved_lines(HANDOVER, [(6, None)])
+    before = [line.employee_mapping_status for line in lines]
+
+    queue_for(lines, HANDOVER)
+
+    assert [line.employee_mapping_status for line in lines] == before
+
+
+# -------------- Review #3, Finding 3: F4 keeps every raw variant
+
+def test_f4_keeps_every_original_raw_spelling_with_its_own_rows():
+    """Canonical form is right for GROUPING; the originals are the evidence.
+
+    Whitespace and Unicode variants normalize to one identity — that is what
+    makes the grouping correct — but an audit trail that only kept the
+    canonical form has destroyed the difference somebody actually typed.
+    """
+    plain = "Thảo Linh 0900000001"
+    spaced = "Thảo  Linh 0900000001"
+    decomposed = unicodedata.normalize("NFD", plain)
+    assert decomposed != plain, "fixture must really differ, else this proves nothing"
+
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line(plain, source_row=11),
+        unmapped_line(spaced, source_row=12),
+        unmapped_line(decomposed, source_row=13),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+    variants = item.details[DETAIL_RAW_VARIANTS]
+
+    # One canonical identity, one finding, all three rows.
+    assert item.details[DETAIL_RAW_VALUE] == plain
+    assert item.affected_count == 3
+    assert item.details[DETAIL_SOURCE_ROWS] == "11, 12, 13"
+
+    # …and every original spelling preserved, each with its own row.
+    assert repr(plain) in variants
+    assert repr(spaced) in variants, "the doubled space must survive"
+    assert repr(decomposed) in variants, "the NFD spelling must survive"
+    assert "→ 12" in variants and "→ 13" in variants
+
+
+def test_raw_variants_use_repr_so_invisible_differences_stay_visible():
+    """A doubled space printed plainly is indistinguishable from one space."""
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line("Thảo  Linh", source_row=11),
+        unmapped_line("Thảo  Linh", source_row=12),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+
+    assert "'Thảo  Linh'" in item.details[DETAIL_RAW_VARIANTS]
+
+
+def test_a_single_spelling_still_records_itself():
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line("Thảo Linh", source_row=11),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+
+    assert item.details[DETAIL_RAW_VARIANTS] == "'Thảo Linh' → 11"
+
+
+# ------------------------------------------------- F3 × F6 interaction
+
+def test_f3_and_f6_describe_the_same_batch_without_contradicting_each_other():
+    """One raw identity, two records that overlap, one of them inactive.
+
+    F3 must name only the rows where both records were in force; F6 must name
+    only the rows that resolved to the inactive record. They answer different
+    questions about the same data and must not borrow each other's rows.
+    """
+    active = {
+        "raw_prefix": "Đức", "normalized": "A", "group": "STANDARD_SALES",
+        "active": True, "effective_from": "2026-01-01", "effective_to": None,
+    }
+    closed_inactive = {
+        "raw_prefix": "Đức Kiên", "normalized": "B", "group": "STANDARD_SALES",
+        "active": False, "effective_from": "2026-01-01", "effective_to": "2026-02-28",
+    }
+    rows = [active, closed_inactive]
+
+    lines = resolved_lines_for(rows, RAW_DUC, [(6, date(2026, 2, 10)),
+                                               (7, date(2026, 5, 10))])
+
+    queue = queue_for(lines, rows)
+    f3 = items_of(queue, criterion="F3")
+    f6 = items_of(queue, criterion="F6")
+
+    # Row 6: both records effective -> ambiguous. Row 7: only `active`.
+    assert f3[0].details[DETAIL_SOURCE_ROWS] == "6"
+    # Row 6 resolves to the longer prefix, which is the inactive record.
+    assert f6[0].details[DETAIL_SOURCE_ROWS] == "6"
+    assert f6[0].affected_count == 1
+    # Neither claims row 7.
+    assert "7" not in f3[0].details[DETAIL_SOURCE_ROWS]
+    assert "7" not in f6[0].details[DETAIL_SOURCE_ROWS]
+
+
+def test_f3_fires_but_f6_stays_silent_when_the_dates_are_unknown():
+    """HD-110-04 applies to F6 only. F3's own semantics are unchanged by this
+    round, so a dateless row keeps whatever verdict it had — but it must not
+    leak into F6."""
+    closed_inactive = {
+        "raw_prefix": "Đức Kiên", "normalized": "B", "group": "STANDARD_SALES",
+        "active": False, "effective_from": "2026-01-01", "effective_to": "2026-02-28",
+    }
+    rows = [AMBIGUOUS_A, closed_inactive]
+
+    lines = resolved_lines_for(rows, RAW_DUC, [(6, None)])
+
+    queue = queue_for(lines, rows)
+
+    assert items_of(queue, criterion="F6") == []

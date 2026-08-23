@@ -106,6 +106,10 @@ class MappingFinding:
     # looking rows up by name would hand one record the other's transactions
     # (Independent Review #2, Finding 2).
     source_rows: tuple[int, ...] = ()
+    # Extra provenance the criterion itself computed. Merged into the queue
+    # item's `details` verbatim. F3 uses it to name which rows were ambiguous,
+    # on what date, against which master records (Review #3, Finding 1).
+    details: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -157,6 +161,7 @@ def evaluate_raw_mapping(
     declared_groups: set[str],
     dataset_start: Optional[date] = None,
     dataset_end: Optional[date] = None,
+    ambiguity_rows: Optional[dict[str, list["AmbiguousRow"]]] = None,
 ) -> RawMappingVerdict:
     """Criteria for the raw employee-mapping reconciliation.
 
@@ -191,6 +196,21 @@ def evaluate_raw_mapping(
             )
 
     for raw_value, matches in ambiguities.items():
+        # `ambiguity_rows` is optional so `reconcile_conversion.py` — which
+        # calls this positionally and only prints strings — keeps working
+        # byte-for-byte (CHECK-110-14). Production passes it, and only then
+        # does the finding know WHICH rows collided: recording ambiguity per
+        # raw *value* tarred every row carrying that value, including rows
+        # where exactly one record was in force (Review #3, Finding 1).
+        rows = list((ambiguity_rows or {}).get(raw_value, []))
+        details: dict[str, str] = {}
+        if rows:
+            details = {
+                "ambiguous_rows": " ; ".join(row.render() for row in rows),
+                "conflicting_records": ", ".join(
+                    sorted({label for row in rows for label in row.records})
+                ),
+            }
         findings.append(
             MappingFinding(
                 criterion="F3",
@@ -200,7 +220,11 @@ def evaluate_raw_mapping(
                     f"ngày của dòng đó: {sorted(matches)}"
                 ),
                 raw_value=raw_value,
-                affected_count=unmapped.get(raw_value, 0),
+                affected_count=(
+                    len(rows) if rows else unmapped.get(raw_value, 0)
+                ),
+                source_rows=tuple(sorted(row.source_row for row in rows)),
+                details=details,
             )
         )
 
@@ -361,6 +385,15 @@ def evaluate_inactive_records(
     records: dict[tuple, dict] = {}
 
     for line in lines:
+        if line.date is None:
+            # HD-110-04. With no transaction date there is no evidence for
+            # which master record was in force, so there is nothing to accuse.
+            # Picking the first match would manufacture a verdict out of an
+            # unknown, and asserting the row falls inside any effective window
+            # would be a claim the data does not support. The row is already
+            # reported as `Missing.date`; fix that first, and F6 becomes
+            # answerable on the next import.
+            continue
         record = select_effective_record(employee_rows, line.employee_raw, line.date)
         if record is None or record.get("active", True):
             continue
@@ -396,6 +429,41 @@ def evaluate_inactive_records(
 
 
 @dataclass(frozen=True)
+class AmbiguousRow:
+    """One raw row that really is ambiguous, and why.
+
+    Independent Review #3, Finding 1: F3 is judged against **this row's own
+    date** (DEC-121 — two prefixes that only ever existed in disjoint periods
+    are a handover, not a clash). Recording ambiguity per raw *value* therefore
+    tarred every row carrying that value, including rows where exactly one
+    record was in force. Everything a reviewer needs to re-check the verdict
+    lives here: the identity as typed, where the row is, its transaction date,
+    and the master records that actually collided.
+    """
+
+    raw_value: str
+    raw_original: str
+    source_file: Optional[str]
+    source_row: int
+    when: Optional[date]
+    records: tuple[str, ...]
+
+    def render(self) -> str:
+        stamp = self.when.isoformat() if self.when else "không có ngày"
+        return f"dòng {self.source_row} ({stamp}) → {', '.join(self.records)}"
+
+
+def _record_label(record: dict) -> str:
+    """A record identity a human can act on — name alone is not enough when
+    two records deliberately share it (DEC-121)."""
+    starts, ends = _effective_window(record)
+    return (
+        f"{norm(record.get('normalized'))}"
+        f"[{record.get('raw_prefix')}|{starts.isoformat()}..{ends.isoformat()}]"
+    )
+
+
+@dataclass(frozen=True)
 class MappingStats:
     """The inputs `evaluate_raw_mapping` needs, collected from working lines.
 
@@ -419,6 +487,29 @@ class MappingStats:
     rows_by_employee: dict[str, list[int]]
     source_file: Optional[str]
     total_rows: int
+    # canonical identity -> {raw string exactly as typed: its source rows}.
+    # Canonical form is right for GROUPING; throwing the originals away would
+    # destroy the audit trail (Review #3, Finding 3).
+    raw_variants: dict[str, dict[str, list[int]]]
+    # canonical identity -> only the rows that are genuinely ambiguous, judged
+    # on each row's own date (Review #3, Finding 1).
+    ambiguity_rows: dict[str, list[AmbiguousRow]]
+
+    def render_variants(self, raw_value: str) -> str:
+        """Every original spelling of one canonical identity, with its rows.
+
+        `!r` on purpose: a doubled space or a stray tab is invisible when
+        printed plainly, and those are exactly the differences this exists to
+        preserve.
+        """
+        variants = self.raw_variants.get(raw_value, {})
+        parts = [
+            f"{original!r} → {', '.join(str(r) for r in sorted(rows))}"
+            for original, rows in sorted(
+                variants.items(), key=lambda kv: (min(kv[1]), kv[0])
+            )
+        ]
+        return " ; ".join(parts)
 
     def dataset_range(self) -> str:
         if self.dataset_start and self.dataset_end:
@@ -442,6 +533,10 @@ def collect_mapping_stats(
     ambiguities: dict[str, set] = {}
     rows_by_raw_value: dict[str, list[int]] = defaultdict(list)
     rows_by_employee: dict[str, list[int]] = defaultdict(list)
+    raw_variants: dict[str, dict[str, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    ambiguity_rows: dict[str, list[AmbiguousRow]] = defaultdict(list)
     dataset_start: Optional[date] = None
     dataset_end: Optional[date] = None
     source_file: Optional[str] = None
@@ -451,6 +546,8 @@ def collect_mapping_stats(
         when = line.date
         source_file = source_file or line.raw.source_file
         rows_by_raw_value[raw_value].append(line.raw.source_row)
+        if line.employee_raw is not None:
+            raw_variants[raw_value][line.employee_raw].append(line.raw.source_row)
 
         if when:
             dataset_start = when if dataset_start is None else min(dataset_start, when)
@@ -466,14 +563,31 @@ def collect_mapping_stats(
 
         # Ambiguity is judged on THIS row's own date: two prefixes that only
         # ever existed in disjoint periods are a handover, not a clash.
-        hits = {
-            name
+        matching = [
+            (name, emp_row)
             for prefix, name, emp_row in prefixes
             if raw_value.startswith(prefix)
             and (when is None or _overlaps(emp_row, when, when))
-        }
+        ]
+        hits = {name for name, _ in matching}
         if len(hits) > 1:
+            # The verdict stays keyed by identity — that is what the analysis
+            # script consumes and what CHECK-108A1-15 signed off. The ROWS are
+            # recorded separately so the queue can name only the rows that are
+            # really ambiguous (Review #3, Finding 1).
             ambiguities[raw_value] = hits
+            ambiguity_rows[raw_value].append(
+                AmbiguousRow(
+                    raw_value=raw_value,
+                    raw_original=line.employee_raw or "",
+                    source_file=line.raw.source_file,
+                    source_row=line.raw.source_row,
+                    when=when,
+                    records=tuple(
+                        sorted(_record_label(emp_row) for _, emp_row in matching)
+                    ),
+                )
+            )
 
     return MappingStats(
         mapped=mapped,
@@ -486,4 +600,6 @@ def collect_mapping_stats(
         rows_by_employee=dict(rows_by_employee),
         source_file=source_file,
         total_rows=len(lines),
+        raw_variants={k: dict(v) for k, v in raw_variants.items()},
+        ambiguity_rows=dict(ambiguity_rows),
     )

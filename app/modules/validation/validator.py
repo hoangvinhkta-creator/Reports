@@ -34,6 +34,7 @@ from app.modules.validation.models import (
     DETAIL_EMPLOYEE,
     DETAIL_RAW_PREFIX,
     DETAIL_RAW_VALUE,
+    DETAIL_RAW_VARIANTS,
     DETAIL_SOURCE_ROWS,
     ReviewItem,
     ReviewQueue,
@@ -213,6 +214,7 @@ class Validator:
             declared_groups=self._employee_groups,
             dataset_start=stats.dataset_start,
             dataset_end=stats.dataset_end,
+            ambiguity_rows=stats.ambiguity_rows,
         )
 
         severities = {
@@ -247,6 +249,7 @@ class Validator:
         many rows.
         """
         details: dict[str, str] = {DETAIL_CRITERION: finding.criterion}
+        details.update(finding.details)
         if finding.employee:
             details[DETAIL_EMPLOYEE] = finding.employee
         if finding.raw_value:
@@ -255,6 +258,11 @@ class Validator:
             details[DETAIL_RAW_PREFIX] = str(finding.raw_prefix)
         if finding.declared_group:
             details[DETAIL_DECLARED_GROUP] = finding.declared_group
+        # Review #3, Finding 3: canonical form groups, originals are evidence.
+        if finding.raw_value:
+            variants = stats.render_variants(finding.raw_value)
+            if variants:
+                details[DETAIL_RAW_VARIANTS] = variants
 
         # A finding that already knows its own rows wins: F6 is attributed to
         # one config RECORD, and two records can share a `normalized` name, so

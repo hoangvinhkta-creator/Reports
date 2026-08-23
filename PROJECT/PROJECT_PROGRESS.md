@@ -51,13 +51,14 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (S018 — **Independent Review #2 FAIL, 4 finding, đã sửa toàn bộ**:
-F4 không còn nhận `employee_raw` rỗng; **F6 nay chấm theo ngày của từng dòng
-và theo từng BẢN GHI config**, không gộp theo tên nhân viên; đồng bộ mô tả
-trạng thái hiện tại; oracle non-mutation nay chụp trạng thái **trước** lần
-validation đầu tiên. **271/271 test** — 120 mới so với baseline, 0 regression.
-TASK-110 vẫn **IMPLEMENTED**, chưa merge, chờ Review #3. Trước đó: S017 sửa
-Review #1 + DEC-129, S016 triển khai, S015 Gate Review + DEC-128.)
+2026-08-23 (S019 — **Independent Review #3 FAIL, 3 finding, đã sửa toàn bộ**:
+**F3 nay lưu provenance theo từng dòng thật sự ambiguous** (kèm ngày giao dịch
+và các bản ghi master xung đột), không đánh dấu cả nhóm cùng `raw_value`;
+**F6 không phát khi thiếu ngày** — **HD-110-04 → DEC-130**; **F4 giữ nguyên
+mọi biến thể raw** bên cạnh canonical identity. **285/285 test** — 134 mới so
+với baseline, 0 regression. TASK-110 vẫn **IMPLEMENTED**, chưa merge, chờ
+Review #4. Trước đó: S018 sửa Review #2, S017 sửa Review #1 + DEC-129, S016
+triển khai, S015 Gate Review + DEC-128.)
 
 Overall Status:
 IN_PROGRESS
@@ -67,17 +68,18 @@ PHASE-01 — Engine tính toán
 
 Current Task:
 TASK-110 — validation + Review Queue — **IMPLEMENTED — repair after
-Independent Review #2**. Chưa merge, chưa DONE, CHECK-110-16 BLOCKED.
-Review #1 (6 finding) và Review #2 (4 finding) đều đã sửa xong; chờ Review #3.
+Independent Review #3**. Chưa merge, chưa DONE, CHECK-110-16 BLOCKED.
+Review #1 (6 finding), #2 (4 finding) và #3 (3 finding) đều đã sửa xong;
+chờ Review #4.
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Independent Review #3 cho TASK-110.** Review #1 (6 finding) và Review #2
-(4 finding) đều FAIL và đều đã sửa xong; mỗi finding có regression hoặc
-falsification test riêng. Task vẫn **chưa merge, chưa DONE**. Tiền lệ
-TASK-108A-1: 4 vòng review mới PASS.
+**Independent Review #4 cho TASK-110.** Ba vòng review đều FAIL và đều đã sửa
+xong (6 + 4 + 3 finding); mỗi finding có regression hoặc falsification test
+riêng. Task vẫn **chưa merge, chưa DONE**. Tiền lệ TASK-108A-1: 4 vòng review
+mới PASS.
 
 Sau đó: **TASK-111 (excel_exporter)** dùng được đầu ra Review Queue cho sheet
 Audit/Overrides.
@@ -195,11 +197,12 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
   - [ ] TASK-110 — validation + Review Queue. **IMPLEMENTED — repair after
-        Independent Review #2.** Review #1 (6 finding, S017) và Review #2
-        (4 finding, S018) đều đã sửa xong. **Chưa merge, chưa DONE**, chờ
-        Review #3. 16/17 REQUIRED check PASS; CHECK-110-16 (đối chiếu dữ liệu
-        thật) BLOCKED vì thiếu file thô production — chủ dự án cho phép giữ,
-        chặn DONE không chặn IMPLEMENTED. **271/271 test** (120 mới). Phạm vi
+        Independent Review #3.** Review #1 (6 finding, S017), #2 (4 finding,
+        S018) và #3 (3 finding, S019) đều đã sửa xong. **Chưa merge, chưa
+        DONE**, chờ Review #4. 16/17 REQUIRED check PASS; CHECK-110-16 (đối
+        chiếu dữ liệu thật) BLOCKED vì thiếu file thô production — chủ dự án
+        cho phép giữ, chặn DONE không chặn IMPLEMENTED. **285/285 test**
+        (134 mới). Phạm vi
         thật **7 loại** sau DEC-128 (V7 mở thành **F1–F6** theo DEC-129),
         không phải 5 — xem `docs/tasks/TASK-110-validation-review-queue.md`.
         Mục §18 đặc tả, 5 loại gốc:
@@ -377,9 +380,11 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Review #1 yêu cầu bổ sung provenance cho
-từng mục (S017); Review #2 yêu cầu F4 bỏ qua `employee_raw` rỗng và F6 chấm
-theo effective dating từng dòng (S018). Chờ Review #3 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Ba vòng review siết dần provenance:
+#1 yêu cầu mỗi mục phải truy vết được (S017); #2 yêu cầu F4 bỏ qua
+`employee_raw` rỗng và F6 chấm theo effective dating từng dòng (S018); #3 yêu
+cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
+không phát khi thiếu ngày — HD-110-04/DEC-130 (S019). Chờ Review #4 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
@@ -527,7 +532,7 @@ Task Mode:
 MAJOR
 
 Status:
-**IMPLEMENTED — repair after Independent Review #2.**
+**IMPLEMENTED — repair after Independent Review #3.**
 **Chưa merge. Chưa DONE.**
 
 Completion Gate đã **FROZEN** (chủ dự án, 2026-08-23) — Gate không còn ở trạng
@@ -536,7 +541,9 @@ thái chờ duyệt, và code đã viết xong. Lịch sử hai vòng review:
 - **Independent Review #1 — FAIL, 6 finding** → đã sửa toàn bộ (S017), ba
   Human Decision ghi thành **DEC-129**.
 - **Independent Review #2 — FAIL, 4 finding** → đã sửa toàn bộ (S018).
-  Chờ **Independent Review #3**.
+- **Independent Review #3 — FAIL, 3 finding** → đã sửa toàn bộ (S019); một
+  Human Decision (**HD-110-04**) ghi thành **DEC-130**.
+  Chờ **Independent Review #4**.
 
 16/17 REQUIRED check PASS. **CHECK-110-16 (đối chiếu dữ liệu thật) vẫn
 BLOCKED** — file thô production không có trong repo (đúng
@@ -549,7 +556,8 @@ check REQUIRED). Bốn khoảng trống nghiệp vụ của §18 đã đóng b�
 
 File: `docs/tasks/TASK-110-validation-review-queue.md`.
 Handoff: `docs/sessions/S015-*.md` (Gate), `S016-*.md` (triển khai),
-`S017-*.md` (sửa Review #1), `S018-*.md` (sửa Review #2).
+`S017-*.md` (sửa Review #1), `S018-*.md` (sửa Review #2),
+`S019-*.md` (sửa Review #3).
 
 ### TASK-108A-1 (task liền trước)
 
@@ -562,7 +570,7 @@ PASS, đã merge tại `c7a1b24`.
 
 Required Gate Progress:
 GATE-00 PASS (DEC-122). TASK-101, TASK-105, TASK-106, TASK-107, TASK-108A-1
-đều **DONE**. Bộ test hiện tại: **271/271 PASS** (`pytest tests/ -q`) —
+đều **DONE**. Bộ test hiện tại: **285/285 PASS** (`pytest tests/ -q`) —
 xem "Trạng thái Task hiện tại" cho TASK-110. Chi tiết từng task:
 `docs/tasks/TASK-101-importer-normalizer.md`,
 `docs/tasks/TASK-105-price-engine.md`,
@@ -1113,9 +1121,11 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Review #1 yêu cầu bổ sung provenance cho
-từng mục (S017); Review #2 yêu cầu F4 bỏ qua `employee_raw` rỗng và F6 chấm
-theo effective dating từng dòng (S018). Chờ Review #3 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Ba vòng review siết dần provenance:
+#1 yêu cầu mỗi mục phải truy vết được (S017); #2 yêu cầu F4 bỏ qua
+`employee_raw` rỗng và F6 chấm theo effective dating từng dòng (S018); #3 yêu
+cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
+không phát khi thiếu ngày — HD-110-04/DEC-130 (S019). Chờ Review #4 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),

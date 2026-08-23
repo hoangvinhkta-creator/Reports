@@ -1437,3 +1437,61 @@ Can Revisit After:
 không phải để lại chạy song song. Điểm 3 nên xem lại ở GATE-01 nếu chủ dự án
 muốn `inactive` không nhận tỉ lệ (đó sẽ là đổi business calculation, cần một
 DEC riêng và sửa `conversion_engine`). Điểm 1 là nền tảng, không dự kiến đổi.
+
+## DEC-130
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #3 (FAIL, 3 finding)
+
+Decision:
+
+**HD-110-04 — Giao dịch thiếu ngày không được phát F6.**
+
+Một dòng thô không có ngày (`date is None`) **không bao giờ** sinh cảnh báo F6
+(nhân viên `active: false` mà vẫn có dòng). Lý do: không có ngày thì **không
+đủ bằng chứng** để xác định bản ghi master data nào đang có hiệu lực cho dòng
+đó.
+
+Ràng buộc kèm theo, chủ dự án nêu tường minh:
+
+- `Missing.date` **vẫn phải phát** — dòng đó vẫn là dữ liệu thiếu, và đó mới
+  là việc cần sửa trước.
+- **Không** chọn bản ghi đầu tiên (hay bất kỳ bản ghi nào) để suy ra F6.
+- **Không** khẳng định giao dịch nằm trong cửa sổ hiệu lực nào khi ngày chưa
+  biết.
+- **Không** tạo loại business rule mới cho tình huống này.
+- **Không** đổi hành vi `EmployeeMapper` / Conversion / KPI trong TASK-110.
+
+Reason:
+
+`select_effective_record` mô phỏng đúng `EmployeeMapper.resolve`, và mapper —
+khi `as_of is None` — bỏ qua bộ lọc `effective_rows` rồi chọn prefix dài nhất.
+Với một cặp bản ghi bàn giao (bản cũ `active: false` đã đóng `effective_to`,
+bản mới `active: true`), điều đó khiến F6 bắn từ bản ghi cũ **chỉ vì dòng
+không có ngày** — đo được: mapper trả `inactive`, F6 = 1.
+
+Đó là một cáo buộc dựng lên từ một ẩn số. Cảnh báo "người này đã nghỉ mà vẫn
+có doanh số" là cáo buộc về master data của một người thật; phát nó khi không
+biết dòng thuộc kỳ nào là biến một dữ liệu thiếu thành một kết luận. Im lặng ở
+đây **không** phải nuốt tín hiệu — dòng đó đã được `Missing.date` báo, và khi
+ngày được điền thì F6 tự trả lời được ở lần import sau.
+
+Impact:
+
+- `evaluate_inactive_records()` bỏ qua dòng `date is None`, có ghi chú lý do
+  ngay tại chỗ.
+- Guard đặt ở `evaluate_inactive_records`, **không** ở `select_effective_record`
+  — hàm đó phải tiếp tục phản chiếu `EmployeeMapper` nguyên vẹn, và
+  `test_f6_record_selection_agrees_with_the_production_employee_mapper` khẳng
+  định điều đó.
+- Không đổi `employee_mapping_status`, không đổi conversion, không đổi KPI.
+- Bảng phạm vi TASK-110, dòng V7: F6 nay ghi rõ **cần có ngày giao dịch**.
+
+Can Revisit After:
+Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), một dòng thiếu ngày
+sẽ được điền ngày trước khi vào báo cáo, nên tình huống này tự hết. Nếu sau
+này chủ dự án muốn một cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó
+là một loại mới và cần một quyết định riêng — DEC-130 cố ý **không** tạo nó.

@@ -10,11 +10,42 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã qua hai vòng soát xét, cả hai
-> đều bị trả về, đã sửa xong cả hai, đang chờ soát xét vòng 3** (xem "Có gì
+> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã qua ba vòng soát xét, cả ba
+> đều bị trả về, đã sửa xong cả ba, đang chờ soát xét vòng 4** (xem "Có gì
 > mới" ngay bên dưới). Trước đó: bước 12 đã xong và đã qua soát xét độc lập.
 
-## Có gì mới — bước 14 qua vòng soát xét thứ hai, bị trả 4 lỗi, đã sửa (2026-08-23)
+## Có gì mới — bước 14 qua vòng soát xét thứ ba, bị trả 3 lỗi, đã sửa (2026-08-23)
+
+**Cả 3 lỗi đều cùng một dạng: kết luận đúng nhưng bằng chứng kèm theo sai.**
+Với một hàng chờ để người duyệt kiểm tay, bằng chứng **chính là** sản phẩm —
+một cảnh báo mà người duyệt không lần lại được thì gần như vô dụng, dù kết
+luận của nó đúng.
+
+1. **Cảnh báo "một tên khớp hai nhân viên" đánh dấu nhầm cả những dòng không
+   liên quan.** Ví dụ thật: dòng ngày 10/02 rơi đúng vào khoảng thời gian hai
+   nhân viên cùng hiệu lực → đúng là mập mờ. Nhưng dòng ngày 10/05 thì chỉ còn
+   một người hiệu lực → hoàn toàn rõ ràng. Công cụ trước đây đánh dấu **cả
+   hai**. Nay chỉ đánh dấu dòng thật sự mập mờ, và ghi kèm **ngày của dòng đó**
+   cùng **danh sách bản ghi nhân viên bị đụng nhau**.
+2. **Cảnh báo "nhân viên đã nghỉ mà vẫn có đơn" phát cả khi dòng không có
+   ngày.** Không có ngày thì **không đủ căn cứ** để biết dòng đó thuộc thời kỳ
+   nào — phát cảnh báo lúc đó là dựng một cáo buộc từ một ẩn số, về master data
+   của một người thật. Sếp đã quyết: **không phát**. Dòng đó vẫn được báo ở
+   loại "thiếu ngày" — và đó mới là việc cần sửa trước; sửa xong thì lần nạp
+   sau cảnh báo kia tự trả lời được.
+3. **Cảnh báo "tên lạ bán nhiều hàng" làm mất cách viết gốc.** `"Thảo Linh"`
+   viết một dấu cách, hai dấu cách, hay gõ dấu kiểu khác đều quy về **một**
+   người — gom nhóm như vậy là đúng. Nhưng công cụ vứt luôn bản gốc, nên người
+   duyệt không còn thấy dữ liệu thật sự được nhập thế nào. Nay giữ **đủ mọi
+   cách viết gốc** kèm dòng của từng cách.
+
+**Không đổi cách tính tiền, không đổi ai nhận doanh số. Vẫn chưa gộp vào nhánh
+chính.**
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 qua vòng soát xét thứ hai (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
 
 **Cả 4 lỗi đều đã sửa, mỗi lỗi kèm bài kiểm tra riêng.** Hai lỗi đáng kể về
 nghiệp vụ:
@@ -396,7 +427,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
-| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Soát xét vòng 1 (6 lỗi) và vòng 2 (4 lỗi) đều đã sửa xong; chờ vòng 3** — 16/17 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
+| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Soát xét vòng 1 (6 lỗi), vòng 2 (4 lỗi) và vòng 3 (3 lỗi) đều đã sửa xong; chờ vòng 4** — 16/17 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
 | ⬜ | 16. TASK-112 (MICRO, D1/R2/B2) — Đóng gói thành công cụ chạy được | Bước cuối để bắt đầu dùng thử trên máy | A | Sau bước 15 |
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |

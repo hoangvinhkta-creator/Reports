@@ -95,6 +95,19 @@ DETAIL_DECLARED_GROUP = "declared_group"
 DETAIL_DATASET_RANGE = "dataset_range"
 DETAIL_BATCH_ROWS = "batch_rows"
 
+# Added by Independent Review #3.
+#
+# `raw_variants` (Finding 3): canonical normalization is right for grouping, but
+# an audit trail that only keeps the canonical form has destroyed evidence —
+# two spellings that normalize alike are still two different things somebody
+# typed. The queue keeps every original verbatim, with its own rows.
+#
+# `ambiguous_rows` / `conflicting_records` (Finding 1): F3 is decided per raw
+# row, against that row's own date, so its provenance has to be per row too.
+DETAIL_RAW_VARIANTS = "raw_variants"
+DETAIL_AMBIGUOUS_ROWS = "ambiguous_rows"
+DETAIL_CONFLICTING_RECORDS = "conflicting_records"
+
 # Never allowed inside a `ReviewItem`. Kept as data so the guard is one list
 # rather than a habit somebody has to remember (CHECK-110-17).
 PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
