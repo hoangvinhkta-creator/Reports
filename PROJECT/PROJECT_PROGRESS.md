@@ -1,5 +1,30 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## Đồng Bộ Nhánh
+
+Nhánh mặc định (canonical) trên GitHub remote hiện tại:
+`claude/extract-upload-repo-gq2ws4` — xác nhận bằng `git remote show origin`
+→ "HEAD branch". Tên này là do lịch sử tạo nhánh, không phải "main" theo
+nghĩa đen — coi nó là "main" của dự án cho tới khi owner đổi tên chính thức.
+
+Trước khi đọc phần còn lại của file này, xác nhận bạn đang đứng trên nhánh
+đó và đã `git fetch` mới nhất. Xem `CLAUDE.md` → "Đồng Bộ Nhánh" và
+`governance/core/00_SESSION_ORCHESTRATION.md` → "Giao thức Mở Phiên" bước 0.
+File này từng bị đọc từ một nhánh lỗi thời 14 commit, dẫn tới báo cáo tiến độ
+sai — xem DEC-118.
+
+## Hai Track Song Song
+
+Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
+đều track trong chính file này:
+
+- **Track A — Sản phẩm Tín Phát** (phần "Tóm tắt dự án" → "Session tiếp
+  theo" ngay bên dưới) — xây dựng công cụ báo cáo kinh doanh. Đây là track
+  đang hoạt động chính (GATE-00 đang chờ owner duyệt).
+- **Track B — Governance Remediation** (mục "Track Governance — Bảo Trì Nền
+  Tảng (PHASE-GOV)" phía dưới) — sửa chữa chính khung governance của repo.
+  Chạy song song, không chặn Track A trừ khi ghi rõ dependency.
+
 ## Tóm tắt dự án
 
 Project:
@@ -39,7 +64,10 @@ TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
 ## Roadmap tổng thể
 
 - [x] PHASE-00 — Bootstrap governance và phân tích nguồn
-  - [x] TASK-000 — Đưa gói governance lên gốc repository (MICRO)
+  - [x] TASK-000 — Đưa gói governance lên gốc repository (MICRO). **Trùng
+        việc với REM-T02 của Track Governance** — cả hai làm trên hai nhánh
+        khác nhau, không biết về nhau, cùng hội tụ đúng một kết quả. Xem
+        "Track Governance" bên dưới và DEC-118.
   - [x] TASK-001 — S000: chọn profile và khởi tạo trạng thái dự án (MAJOR)
   - [x] TASK-002 — Phân tích workbook nguồn, 6 tài liệu theo mục 27 đặc tả (MAJOR)
   - [x] TASK-003 — ADR-101/102/103 (MICRO)
@@ -121,6 +149,71 @@ Toàn bộ 31 mục của `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` đ�
 truy vết tới một artifact và một task trong `docs/analysis/07_SPEC_COVERAGE.md`.
 Không mục nào chưa được giao. Mục 27, 29 và 31 đã hoàn thành; các mục còn lại
 đã phân tích hoặc ghi nhận, chờ Phase 1.
+
+## Track Governance — Bảo Trì Nền Tảng (PHASE-GOV)
+
+Track thứ hai, độc lập với roadmap sản phẩm Tín Phát ở trên. Track này audit
+và sửa chính khung governance của repo (không phải tính năng Tín Phát). Chạy
+song song, KHÔNG chặn PHASE-00..04 của Tín Phát trừ khi ghi rõ dependency.
+
+Lịch sử: chạy trên nhánh `claude/s001-discovery-pka3fu` qua 7 session
+(S001–S007, 2026-08-22 → 2026-08-23), merge vào nhánh mặc định qua PR#4/#5
+(2026-08-23). Trong lúc merge, nội dung phần này từng bị nhánh Tín Phát ghi
+đè hoàn toàn khỏi `PROJECT_PROGRESS.md` — không mất dữ liệu thật (mọi file
+vẫn còn dưới `docs/audit/`, `docs/tasks/TASK-REM-*.md`), nhưng mất khả năng
+nhìn thấy trong checklist canonical, khiến REM-T05 (đã READY, gate frozen)
+trông như không tồn tại. Khôi phục lại ở đây theo DEC-118.
+
+Chi tiết đầy đủ (không lặp lại ở đây — chỉ tóm tắt trạng thái):
+`docs/audit/REMEDIATION_ROADMAP.md`, `docs/audit/S001_AUDIT_FINDINGS.md`,
+`docs/audit/DECISIONS.md` (DEC-001..016 của riêng track này — đánh số trùng
+với DEC-101..117 của Tín Phát chỉ là trùng dải số cũ trước khi tách theo
+DEC-117, không phải cùng một quyết định).
+
+### Trạng thái
+
+- [x] **PHASE-01 — Governance Foundation Repair — DONE.** Phase Gate 01 PASS
+      (10/10 check, S006). REM-T02, REM-T03, REM-T04, REM-T07 đều DONE.
+      **Lưu ý:** REM-T02 (dời governance package lên root) trùng việc với
+      TASK-000 của Track Tín Phát — xem ghi chú ở PHASE-00 phía trên. Cả hai
+      hội tụ đúng cùng một kết quả, xác nhận bằng `validate_structure.py`
+      PASS trên state hiện tại. Không cần làm lại; ghi nhận như bài học về
+      chi phí của việc thiếu bước "đồng bộ nhánh" (DEC-118).
+- [ ] PHASE-02 — Documentation & Evidence Truth-Up
+  - [ ] **REM-T05** — Sửa tài liệu và artifact kiểm chứng — MAJOR — Tier B —
+        **READY, Completion Gate FROZEN** (từ S007) — **0/4 check REQUIRED
+        đã chạy, chưa implement**. Đóng FIND-005, FIND-006, FIND-011,
+        FIND-012. File: `docs/tasks/TASK-REM-T05-documentation-truth-up.md`.
+  - [ ] Phase Gate 02
+- [ ] PHASE-03 — Repository Hygiene
+  - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — PLANNED, gate
+        PRELIMINARY (chưa frozen). Đóng FIND-009 (một phần đã xử lý —
+        `.gitignore` đã có từ S003).
+  - [ ] Phase Gate 03 — đánh giá lại GAP-01 (Backup/DR)
+
+### Finding còn OPEN
+
+Không tự đóng chỉ vì bị mồ côi khỏi checklist ở lần merge trước:
+
+| ID | Severity | Tóm tắt | Đóng bởi |
+|---|---|---|---|
+| FIND-005 | MEDIUM | Báo cáo validation đã ship khẳng định một PASS sai sự thật | REM-T05 |
+| FIND-006 | MEDIUM | START_HERE guide tự mâu thuẫn về layout | REM-T05 |
+| FIND-009 | LOW | Thiếu root README/LICENSE (một phần đã xử lý) | REM-T06 |
+| FIND-011 | LOW | Bare reference không resolve trong changelog lịch sử | REM-T05 |
+| FIND-012 | LOW | README validator từng thiếu tài liệu hóa (đã làm tiện thể ở REM-T03, chờ REM-T05 xác nhận chính thức) | REM-T05 |
+
+### Việc phụ tồn đọng (không thuộc task nào)
+
+- Owner xóa thủ công nhánh `scratch/ci-failure-test` trên GitHub (DEC-014,
+  proxy chặn agent xóa).
+- Owner cân nhắc bật branch protection cho check `governance`.
+
+### Session tiếp theo cho track này
+
+S008 — Implement REM-T05 (gate đã frozen, sẵn sàng bắt tay ngay). Không chặn
+Track Tín Phát — có thể xen kẽ vào bất kỳ lúc nào một session rảnh, hoặc sau
+khi GATE-00 duyệt, tùy chủ dự án quyết định thứ tự ưu tiên.
 
 ## Sơ đồ phụ thuộc sơ bộ
 
@@ -323,7 +416,10 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
 - Chưa có — chưa tồn tại mã ứng dụng nào.
 
 ## Quyết định gần đây
-- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-117.
+- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-118 (track Tín Phát,
+  bao gồm DEC-118 — hợp nhất track Governance + cơ chế đồng bộ nhánh).
+- Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
+  dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
 - S000 — MỞ DỰ ÁN — 2026-08-22 — Đọc đặc tả và cả hai workbook mẫu; xác minh
@@ -343,11 +439,30 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   `governance/scripts/governance/README.md` đang trích dẫn. Đã chạy lại cả 5
   validator của governance và bộ test rule ADS sau khi sửa — toàn bộ PASS.
   Nội dung roadmap của dự án Tín Phát không đổi qua lần merge này.
+- 2026-08-23 — **Hợp nhất hai track (DEC-118).** Một session được yêu cầu rà
+  soát tiến độ phát hiện nhánh local đang lỗi thời 14 commit so với nhánh mặc
+  định thật trên origin, dẫn tới một câu trả lời sai trước đó ("3 file đặc tả
+  Report chưa được intake"). Sau khi fast-forward về đúng state, phát hiện
+  track Governance (S001–S007) đã bị merge PR#4/#5 ghi đè khỏi
+  `PROJECT_PROGRESS.md` — REM-T05 (READY, gate frozen) và REM-T06 không còn
+  xuất hiện trong checklist canonical nào. Khôi phục lại dưới mục "Track
+  Governance — Bảo Trì Nền Tảng (PHASE-GOV)" phía trên. Xác nhận TASK-000 và
+  REM-T02 đã làm trùng một việc (dời governance lên root) trên hai nhánh
+  khác nhau — cả hai hội tụ đúng kết quả, không cần làm lại. Thêm cơ chế bắt
+  buộc đồng bộ nhánh cho mọi session tương lai: SessionStart hook
+  (`.claude/hooks/session-start.sh` + `.claude/settings.json`, nới
+  `.gitignore` để commit được hai file này), bước 0 mới trong
+  `governance/core/00_SESSION_ORCHESTRATION.md` → "Giao thức Mở Phiên", và
+  mục "Đồng Bộ Nhánh" mới trong `CLAUDE.md`. Đã chạy lại cả 5 validator sau
+  toàn bộ thay đổi — PASS. Push thẳng lên nhánh mặc định theo yêu cầu trực
+  tiếp của chủ dự án.
 
 ## Session tiếp theo
 
-Recommended Session:
-S001 — Phase 1, từ TASK-101 trở đi
+Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
+không có ràng buộc kỹ thuật bắt buộc cái nào trước:
+
+### Track A (Tín Phát) — Recommended Session: S001 — Phase 1, từ TASK-101
 
 Purpose:
 Bắt đầu engine tính toán, ngay khi GATE-00 được duyệt. C4b vẫn còn mở, cần
@@ -361,3 +476,21 @@ Files to read first:
 - `PROJECT/PROJECT_DECISIONS.md`
 - `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx`
 - `docs/analysis/`
+
+### Track B (Governance) — Recommended Session: S008 — Implement REM-T05
+
+Purpose:
+Gate đã frozen từ S007, task đã READY — bắt tay implement trực tiếp, không
+cần thêm vòng Roadmap Finalization. Xem "Track Governance — Bảo Trì Nền
+Tảng" phía trên để có chi tiết đầy đủ.
+
+Files to read first:
+- `PROJECT/PROJECT_PROGRESS.md` (mục "Track Governance")
+- `docs/tasks/TASK-REM-T05-documentation-truth-up.md`
+- `docs/audit/S001_AUDIT_FINDINGS.md`
+
+### Bắt buộc cho cả hai track
+
+Trước khi mở bất kỳ session nào ở trên: thực hiện "Đồng Bộ Nhánh" (đầu file
+này) trước tiên. Đây chính là bước từng bị bỏ qua dẫn tới sự cố cần hợp nhất
+hôm nay (DEC-118).

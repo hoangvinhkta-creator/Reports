@@ -529,3 +529,81 @@ Impact:
 
 Can Revisit After:
 Không cần — đây là một việc sửa một lần, không lặp lại.
+
+## DEC-118
+
+Date:
+2026-08-23
+
+Task:
+Hợp nhất hai track công việc bị phân tán (không thuộc riêng task nào —
+theo yêu cầu trực tiếp của chủ dự án)
+
+Decision:
+1. Khôi phục track Governance Remediation (S001–S007, REM-T05/T06, Phase
+   Gate 02/03, 5 finding OPEN) vào lại `PROJECT/PROJECT_PROGRESS.md` dưới
+   một mục riêng "Track Governance — Bảo Trì Nền Tảng (PHASE-GOV)", song
+   song với roadmap Tín Phát, không chặn nhau trừ khi ghi rõ dependency.
+2. Ghi nhận chính thức: `TASK-000` (track Tín Phát) và `REM-T02` (track
+   Governance) đã làm trùng cùng một việc — dời gói governance lên
+   repository root — trên hai nhánh tách biệt, không biết về nhau. Cả hai
+   hội tụ đúng cùng kết quả (xác nhận bằng `validate_structure.py` PASS
+   trên HEAD hiện tại). Không cần làm lại; không rollback bên nào.
+3. Thêm cơ chế đồng bộ nhánh bắt buộc cho mọi session tương lai:
+   - `.claude/hooks/session-start.sh` — SessionStart hook tự động fetch
+     nhánh mặc định trên origin và in cảnh báo nếu session đang lỗi thời
+     hoặc đứng trên một nhánh cô lập, trong môi trường Claude Code on the
+     web (`CLAUDE_CODE_REMOTE=true`).
+   - `.claude/settings.json` — đăng ký hook trên.
+   - Nới `.gitignore`: `.claude/settings.json` và `.claude/hooks/` giờ ĐƯỢC
+     commit (trước đây toàn bộ `.claude/` bị ignore, xem FIND-009); scratch
+     state khác của harness tiếp tục bị ignore qua `.claude/*` +
+     exception cho hai đường dẫn trên.
+   - Thêm bước 0 "Đồng bộ nhánh" vào đầu "Giao thức Mở Phiên" trong
+     `governance/core/00_SESSION_ORCHESTRATION.md`.
+   - Thêm mục "Đồng Bộ Nhánh" vào `CLAUDE.md`, áp dụng cho mọi session
+     (không chỉ Major Task) — vì sự cố vừa xảy ra không giới hạn ở phiên
+     Major Task.
+
+Reason:
+Một session được yêu cầu rà soát tiến độ dự án phát hiện: nhánh local của
+session đang đứng lỗi thời 14 commit so với nhánh mặc định thật trên origin,
+khiến câu trả lời đầu tiên về "3 file đặc tả Report" bị đánh giá sai thành
+"CONFLICT DETECTED / không tồn tại", trong khi thực ra track Tín Phát đã
+hoàn tất phần lớn PHASE-00 trên nhánh mặc định từ trước. Nguyên nhân gốc:
+không có bước bắt buộc nào trong `governance/core/00_SESSION_ORCHESTRATION.md`
+yêu cầu xác nhận đồng bộ nhánh trước khi đọc `PROJECT_PROGRESS.md`. Hai
+track hình thành độc lập vì tách nhánh từ cùng một điểm gốc và không session
+nào kiểm tra lại origin trước khi tự tạo roadmap riêng — dẫn tới việc
+`TASK-000`/`REM-T02` làm trùng việc, và merge PR#4/#5 sau đó ghi đè (không
+hợp nhất) nội dung `PROJECT_PROGRESS.md`, làm mồ côi REM-T05/T06.
+
+Risk:
+Thấp cho việc hợp nhất tài liệu (chỉ gộp nội dung đã tồn tại dưới
+`docs/audit/`, `docs/tasks/`, không sửa logic nghiệp vụ Tín Phát). Trung
+bình cho việc phụ thuộc vào SessionStart hook — hook chỉ hoạt động trong môi
+trường Claude Code on the web; giảm thiểu bằng cách cũng ghi rule bằng văn
+bản vào `CLAUDE.md` và `governance/core/00_SESSION_ORCHESTRATION.md` làm lớp
+phòng vệ thứ hai, không phụ thuộc hoàn toàn vào cơ chế tự động.
+
+Impact:
+- `PROJECT/PROJECT_PROGRESS.md`: thêm mục "Đồng Bộ Nhánh", "Hai Track Song
+  Song" ở đầu; mục "Track Governance — Bảo Trì Nền Tảng (PHASE-GOV)"; cập
+  nhật "Quyết định gần đây", "Lịch sử Session" và "Session tiếp theo".
+- `CLAUDE.md`: thêm mục "Đồng Bộ Nhánh (Bắt Buộc Cho Mọi Session)".
+- `governance/core/00_SESSION_ORCHESTRATION.md`: thêm bước 0 vào "Giao thức
+  Mở Phiên".
+- `.gitignore`, `.claude/settings.json`, `.claude/hooks/session-start.sh`:
+  file mới/sửa.
+- Không sửa nội dung nghiệp vụ Tín Phát (roadmap PHASE-00..04, chấm điểm,
+  completion gate sơ bộ) và không sửa nội dung kỹ thuật của track Governance
+  (`docs/audit/`, `docs/tasks/TASK-REM-*.md`) — chỉ khôi phục khả năng nhìn
+  thấy trong checklist canonical.
+- Đã chạy lại cả 5 validator governance sau toàn bộ thay đổi trước khi push.
+
+Can Revisit After:
+Nếu owner xác nhận muốn đổi tên nhánh mặc định thành `main` theo nghĩa đen
+trên GitHub — khi đó cập nhật lại các đoạn văn bản nêu tên nhánh cụ thể
+(`claude/extract-upload-repo-gq2ws4`) trong `CLAUDE.md` và
+`PROJECT_PROGRESS.md`; script hook không cần sửa vì nó tự phát hiện động qua
+`git ls-remote --symref origin HEAD`, không hard-code tên nhánh.

@@ -120,6 +120,17 @@ Không ép buộc áp dụng tiêu chí nghiệm thu production quá sớm.
 
 Vào đầu mỗi phiên Major Task:
 
+0. Đồng bộ nhánh: xác định nhánh mặc định thật trên origin (`git remote show
+   origin` → "HEAD branch" — không giả định tên nhánh, kể cả "main"),
+   `git fetch origin <nhánh mặc định>`, và xác nhận HEAD cục bộ khớp/không
+   lỗi thời so với nhánh đó trước khi đọc bất kỳ file nào bên dưới. Nếu đang
+   đứng trên một nhánh khác hoặc lỗi thời, đồng bộ trước — không đọc trạng
+   thái từ một nhánh cô lập rồi hành động như thể đó là trạng thái chính
+   thức. Môi trường Claude Code on the web tự động in cảnh báo này qua
+   `.claude/hooks/session-start.sh`; các môi trường khác phải tự kiểm tra
+   bằng tay. Xem DEC-118 (`PROJECT/PROJECT_DECISIONS.md`) — sự cố đã xảy ra
+   thật: `TASK-000` và `REM-T02` cùng làm một việc trên hai nhánh khác nhau
+   vì thiếu bước này.
 1. Đọc `CLAUDE.md`.
 2. Đọc `PROJECT/PROJECT_PROFILE.md`.
 3. Đọc `PROJECT/PROJECT_PROGRESS.md`.

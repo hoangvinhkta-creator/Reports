@@ -12,6 +12,30 @@ Gói này lưu governance tĩnh dưới `governance/` để giữ root repo gọ
 Không đưa các file governance quay lại root dưới dạng phẳng (không dùng lại cấu trúc pre-compact).
 Thứ tự đọc bắt buộc và toàn bộ cơ chế governance gốc không đổi; chỉ đường dẫn canonical là khác.
 
+## Đồng Bộ Nhánh (Bắt Buộc Cho Mọi Session)
+
+Repo này từng có nhiều session Claude Code chạy song song trên các nhánh
+khác nhau, dẫn tới hai track công việc tách rời và một lần trùng lặp công
+việc thật (`TASK-000` và `REM-T02` cùng dời gói governance lên repository
+root, trên hai nhánh khác nhau, không biết về nhau — xem DEC-118 trong
+`PROJECT/PROJECT_PROGRESS.md`). Nhánh mặc định trên GitHub remote
+(`git remote show origin` → "HEAD branch") là bản ghi chính thống duy nhất —
+không giả định tên nhánh, kể cả "main"; tên nhánh mặc định hiện tại của repo
+này không phải là "main" theo nghĩa đen.
+
+Trước khi đọc bất kỳ file governance nào khác — kể cả trước S000 — mọi
+session (Major, Micro hay Spike) phải:
+1. Xác định nhánh mặc định thật trên origin.
+2. `git fetch origin <nhánh mặc định>` và xác nhận HEAD cục bộ đã đồng bộ.
+3. Nếu lỗi thời hoặc đang đứng trên một nhánh cô lập khác, đồng bộ trước khi
+   đọc `PROJECT/PROJECT_PROGRESS.md` hay bắt đầu bất kỳ task nào.
+
+Cơ chế thực thi: `.claude/hooks/session-start.sh` (SessionStart hook) tự
+động in cảnh báo này khi có lệch nhánh, trong môi trường Claude Code on the
+web. Đây là lớp phòng vệ tự động; quy trình đầy đủ và bắt buộc bằng văn bản
+vẫn nằm ở `governance/core/00_SESSION_ORCHESTRATION.md` → "Giao thức Mở
+Phiên", bước 0.
+
 ## Ngôn Ngữ Nội Dung
 
 Toàn bộ văn xuôi (prose) trong các file đẩy lên repo — hướng dẫn, giải thích, mô tả, lý do, ghi chú — phải viết bằng **tiếng Việt**.

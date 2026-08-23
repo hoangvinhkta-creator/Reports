@@ -1,6 +1,11 @@
 # Claude Code harness scratch state (agent worktrees, local session data).
 # Not project content — see FIND-009 in docs/audit/S001_AUDIT_FINDINGS.md.
-.claude/
+# Ngoại lệ: settings.json và hooks/ ĐƯỢC commit — chúng cấu hình SessionStart
+# hook kiểm tra đồng bộ nhánh mặc định cho mọi session tương lai (DEC-118).
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
 
 # --- Dữ liệu thật: KHÔNG commit ---
 # File doanh số thô và file báo cáo chứa dữ liệu cá nhân khách hàng
