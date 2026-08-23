@@ -607,3 +607,58 @@ mà token của session này không có).
 
 Có Thể Xem Lại Sau:
 Sau khi owner xóa nhánh thủ công — không cần hành động gì thêm từ agent.
+
+## DEC-015
+
+Date:
+2026-08-23
+
+Task:
+Phase Gate 01 (thực hiện trong S006)
+
+Quyết Định:
+**Phase Gate 01 PASS.** PHASE-01 (Governance Foundation Repair) được xác nhận
+hoàn tất.
+
+Lý Do:
+Chạy đủ 10/10 check trong checklist Phase Gate 01
+(`docs/audit/REMEDIATION_ROADMAP.md`), mỗi check với evidence thu thập lại từ
+đầu trong S006 — không lấy lời khai của S005 làm bằng chứng, đúng chỉ dẫn đã
+ghi trong `PROJECT/PROJECT_PROGRESS.md` "Session Tiếp Theo" của S005.
+
+| # | Check | Kết quả | Evidence |
+|---|---|---|---|
+| 1 | REM-T02/T03/T04/T07 đều DONE, REQUIRED PASS | PASS | `Status: DONE` xác nhận trong cả 3 task file + MICRO-001; `validate_task_completion.py` → PASS, 3 DONE task |
+| 2 | `validate_structure.py` PASS từ gốc | PASS | Chạy trực tiếp, exit 0 |
+| 3 | `validate_project_state.py` PASS | PASS | Chạy trực tiếp, exit 0 |
+| 4 | `validate_task_completion.py` PASS | PASS | Chạy trực tiếp, exit 0 |
+| 5 | `validate_evidence.py` PASS | PASS | Chạy trực tiếp, exit 0, 15 REQUIRED PASS record |
+| 6 | `validate_reference_integrity.py` PASS | PASS | Chạy trực tiếp, exit 0, 0 reference hỏng |
+| 7 | CI xanh trên head commit | PASS | Run `32613864730` (nhánh làm việc, `4c584e9`) và run `32613882668` (nhánh mặc định, merge commit `0b1f668`) — cả hai `conclusion: success` |
+| 8 | E2 evidence cho REM-T02 CHECK-T02-05 | PASS | `docs/reviews/E2-TASK-REM-T02-S003.md` tồn tại (6336 byte); CHECK-T02-05 trong task file: `Status: PASS`, `Evidence Level: E2` |
+| 9 | `CLAUDE.md` ở gốc, mọi canonical reference resolve | PASS | Xác nhận trong git tree; scan riêng 40/40 reference trong `CLAUDE.md` resolve được |
+| 10 | Không có regression item mở do PHASE-01 | PASS | `PROJECT_PROGRESS.md` mục "Hạng Mục Regression Đang Mở" và "Blocker Đang Hoạt Động" đều "Không có" |
+
+Risk:
+Không có rủi ro mới phát sinh từ việc PASS gate này — đây là bước xác nhận,
+không phải triển khai.
+
+Hai hạng mục ngoài phạm vi checklist chính thức, không chặn gate nhưng chưa
+đóng:
+- Nhánh `scratch/ci-failure-test` còn tồn tại trên GitHub, không xóa được từ
+  session (DEC-014, RSK-008) — cần owner xử lý thủ công.
+- Branch protection cho check `governance` chưa được owner bật (khuyến nghị
+  từ REM-T07, subtask 07.7) — quyết định của owner, không phải governance gap.
+
+Impact:
+PHASE-01 chuyển từ `[~] IN_PROGRESS` sang `[x] DONE` trong
+`PROJECT/PROJECT_PROGRESS.md`. PHASE-02 (REM-T05) được phép bắt đầu quy trình
+Roadmap Finalization (finalize + freeze gate) khi có session tiếp theo. Task
+DONE không tự động nghĩa Phase DONE (`CLAUDE.md` → "Tích Hợp") — quyết định
+này là bước xác nhận tường minh đó.
+
+Có Thể Xem Lại Sau:
+Không cần — Phase Gate là một xác nhận tại một thời điểm, không phải một
+trạng thái cần bảo trì liên tục. Nếu một thay đổi sau này làm PHASE-01 hồi
+quy, dùng "Regression Invalidation" trong
+`governance/core/00_SESSION_ORCHESTRATION.md`, không sửa lại quyết định này.
