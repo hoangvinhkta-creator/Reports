@@ -4,7 +4,7 @@ Status:
 INITIALIZED — S000 completed 2026-08-22
 
 Selected Profile:
-PRODUCT (Profile B)
+PRODUCT
 
 Project:
 Tín Phát — Business Report Automation Tool

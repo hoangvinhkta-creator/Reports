@@ -1,36 +1,36 @@
 # CHANGELOG — V3.2
 
-## Runtime Wiring
-- Added Task Mode to Task Definition template.
-- Added Evidence Level, Evidence, Executed By, Timestamp to gate records.
-- Added evidence table to Session Handoff.
-- Added Profile and Current Task Mode to Project Progress.
-- Added inline Micro Task tracking.
+## Kết nối Runtime (Runtime Wiring)
+- Thêm Task Mode vào template Task Definition.
+- Thêm Evidence Level, Evidence, Executed By, Timestamp vào các bản ghi gate.
+- Thêm bảng evidence vào Session Handoff.
+- Thêm Profile và Current Task Mode vào Project Progress.
+- Thêm theo dõi Micro Task nội tuyến (inline).
 
 ## Micro Task
-- Added real `governance/templates/MICRO_TASK_CHECKLIST.md`.
-- Added separate MICRO / MAJOR / SPIKE Ready Gates.
+- Thêm file thực tế `governance/templates/MICRO_TASK_CHECKLIST.md`.
+- Thêm các Ready Gate riêng biệt cho MICRO / MAJOR / SPIKE.
 
 ## Evidence
-- Completion Gate now directly references Evidence Standard.
-- Added risk-based evidence requirements to Completion Gate.
-- Added explicit prohibition on fabricated evidence to Forbidden Actions.
-- Added Solo Independent Review Procedure for E2.
+- Completion Gate giờ đây tham chiếu trực tiếp đến Evidence Standard.
+- Thêm yêu cầu evidence theo risk vào Completion Gate.
+- Thêm quy định nghiêm cấm rõ ràng việc bịa đặt evidence vào Forbidden Actions.
+- Thêm Solo Independent Review Procedure (quy trình rà soát độc lập cho cá nhân) cho E2.
 
-## Integration
-- Rewrote CLAUDE.md instead of using an appended addendum.
-- Rewrote Session Orchestration so Profile Selection is step 0 in the actual S000 flow.
-- Added new standards to the main governance index.
+## Tích hợp (Integration)
+- Viết lại CLAUDE.md thay vì dùng một addendum (phụ lục) được gắn thêm vào.
+- Viết lại Session Orchestration để Profile Selection trở thành bước 0 trong luồng S000 thực tế.
+- Thêm các standard mới vào chỉ mục governance chính.
 
-## Profiles
-- Made profile inheritance explicit.
-- Added explicit AUDIT ruleset.
-- AUDIT remains read-only by default.
+## Profile
+- Làm rõ ràng tính kế thừa của profile.
+- Thêm bộ quy tắc AUDIT rõ ràng.
+- AUDIT vẫn mặc định là chỉ đọc (read-only).
 
 ## Enforcement
-- Added executable Python validators:
+- Thêm các validator Python có thể thực thi:
   - `governance/scripts/governance/validate_structure.py`
   - `governance/scripts/governance/validate_project_state.py`
 
-## Acceptance
-- Added `ACCEPTANCE_CHECKLIST_V3_2.md`.
+## Chấp nhận (Acceptance)
+- Thêm `ACCEPTANCE_CHECKLIST_V3_2.md`.

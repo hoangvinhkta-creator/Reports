@@ -1,52 +1,52 @@
-# 19 — Dependency Management Rules
+# 19 — Quy Tắc Quản Lý Dependency
 
-## Objective
-Prevent unnecessary, insecure, abandoned, or conflicting dependencies.
+## Mục Tiêu
+Ngăn ngừa các dependency không cần thiết, không an toàn, không còn được duy trì, hoặc xung đột.
 
-## Before Adding a Dependency
-Check:
-1. Is equivalent functionality already present?
-2. Can the platform/native library solve it safely?
-3. Is the package actively maintained?
-4. Is its license acceptable?
-5. Does it introduce known security risk?
-6. Is its bundle/runtime cost reasonable?
-7. Will it create vendor lock-in or architecture coupling?
+## Trước Khi Thêm Một Dependency
+Kiểm tra:
+1. Đã có chức năng tương đương chưa?
+2. Nền tảng/thư viện native có thể giải quyết an toàn không?
+3. Package có đang được duy trì tích cực không?
+4. License của nó có chấp nhận được không?
+5. Nó có gây ra rủi ro bảo mật đã biết không?
+6. Chi phí bundle/runtime của nó có hợp lý không?
+7. Nó có tạo ra vendor lock-in hoặc coupling kiến trúc không?
 
-## Rules
+## Quy Tắc
 
-### 1. Use lockfiles
-Commit the appropriate lockfile.
+### 1. Sử dụng lockfile
+Commit lockfile phù hợp.
 
-### 2. Avoid duplicate libraries
-Do not install several packages solving the same problem without justification.
+### 2. Tránh trùng lặp thư viện
+Không cài nhiều package cùng giải quyết một vấn đề mà không có lý do chính đáng.
 
-### 3. Pin/constraint versions appropriately
-Follow ecosystem best practice.
+### 3. Pin/giới hạn phiên bản phù hợp
+Tuân theo best practice của hệ sinh thái.
 
-### 4. Security updates
-Regularly review dependency vulnerabilities.
+### 4. Cập nhật bảo mật
+Thường xuyên rà soát lỗ hổng của dependency.
 
-### 5. Major upgrades
-Major version upgrades require:
-- compatibility review,
-- migration notes,
+### 5. Nâng cấp phiên bản lớn (Major upgrade)
+Nâng cấp major version yêu cầu:
+- đánh giá tương thích,
+- ghi chú migration,
 - tests.
 
-### 6. Remove unused dependencies
-Do not keep packages that no longer have a valid consumer.
+### 6. Loại bỏ dependency không sử dụng
+Không giữ lại các package không còn consumer hợp lệ.
 
-### 7. AI Agent Requirement
-Before running an install command, report:
+### 7. Yêu Cầu Đối Với AI Agent
+Trước khi chạy lệnh install, báo cáo:
 - package,
-- purpose,
-- existing alternatives checked,
-- expected impact.
+- mục đích,
+- các phương án thay thế đã kiểm tra,
+- tác động dự kiến.
 
-## Dependency Change Report
-For significant dependency changes document:
-- old version,
-- new version,
+## Báo Cáo Thay Đổi Dependency
+Đối với các thay đổi dependency quan trọng, cần tài liệu hóa:
+- phiên bản cũ,
+- phiên bản mới,
 - breaking changes,
 - migration,
-- verification.
+- xác minh (verification).

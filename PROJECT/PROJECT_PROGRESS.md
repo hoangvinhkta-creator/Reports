@@ -248,7 +248,7 @@ the business rules are right. Phase 1 starts on that approval.
 | C4b | Does `Chiết khấu` also reduce profit by the same amount? The owner specified sales only. | Deducted from profit too. Reducing sales without reducing profit would report a margin the business did not earn — a discount is money given away. | GATE-01 |
 
 C4b is a stated assumption, not an unknown: the tool applies it, DEC-014 and
-`03_RULE_CLASSIFICATION.md` record it, and reversing it is one config change.
+`docs/analysis/03_RULE_CLASSIFICATION.md` record it, and reversing it is one config change.
 No question blocks GATE-00.
 
 Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
@@ -271,8 +271,8 @@ Checklist Reference:
 
 Evidence Summary:
 E1 — `docs/adr/ADR-001-architecture-and-stack.md`,
-`ADR-002-three-layer-data-model-and-audit.md`,
-`ADR-003-currency-unit-standard.md` exist and follow `docs/adr/README.md`
+`docs/adr/ADR-002-three-layer-data-model-and-audit.md`,
+`docs/adr/ADR-003-currency-unit-standard.md` exist and follow `docs/adr/README.md`
 naming and section structure.
 
 ### MICRO-000 — Promote governance package to repository root

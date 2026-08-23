@@ -1,9 +1,9 @@
 # 14 — CI/CD & Release Rules
 
-## Objective
-Make production changes repeatable, testable, reviewable, and reversible.
+## Mục tiêu
+Làm cho các thay đổi trên production trở nên có thể lặp lại (repeatable), có thể kiểm thử được, có thể review được, và có thể đảo ngược được.
 
-## Recommended Delivery Flow
+## Delivery Flow được khuyến nghị
 
 feature branch
 → pull request
@@ -14,81 +14,81 @@ feature branch
 → production
 → post-deploy verification
 
-## Mandatory Rules
+## Các quy tắc bắt buộc
 
-### 1. Do not treat local success as release readiness
-Production deployment requires relevant verification.
+### 1. Không được xem thành công ở local là sẵn sàng release
+Việc deploy lên production đòi hỏi phải có xác minh phù hợp.
 
 ### 2. Automated checks
-Where supported, CI should run:
-- dependency install using lockfile,
+Ở nơi được hỗ trợ, CI nên chạy:
+- cài đặt dependency bằng lockfile,
 - lint,
 - typecheck,
 - unit/integration tests,
 - production build,
-- security/dependency checks where configured.
+- security/dependency checks khi đã được cấu hình.
 
-### 3. Protect production branch
-Avoid uncontrolled direct commits to the production branch.
+### 3. Bảo vệ production branch
+Tránh việc commit trực tiếp không kiểm soát vào production branch.
 
-### 4. Production deployment
-High-risk changes should not be deployed directly by an AI agent without the project's required approval process.
+### 4. Deploy lên production
+Các thay đổi rủi ro cao không nên được AI agent deploy trực tiếp mà không qua quy trình phê duyệt bắt buộc của dự án.
 
 ### 5. Database migrations
-Migrations must be coordinated with deployment order.
+Migrations phải được phối hợp với thứ tự deployment.
 
-Prefer backward-compatible deployment sequences.
+Ưu tiên các trình tự deployment tương thích ngược (backward-compatible).
 
 ### 6. Release notes
-Material releases should document:
-- features,
-- fixes,
+Các release quan trọng nên được tài liệu hóa:
+- tính năng (features),
+- các bản sửa lỗi (fixes),
 - migrations,
-- security changes,
-- known limitations.
+- các thay đổi bảo mật,
+- các giới hạn đã biết (known limitations).
 
 ### 7. Rollback
-Before high-risk release identify:
-- code rollback method,
-- database compatibility,
-- irreversible operations,
-- feature flag fallback if available.
+Trước khi release rủi ro cao, xác định:
+- phương pháp rollback code,
+- khả năng tương thích của database,
+- các thao tác không thể đảo ngược,
+- phương án dự phòng bằng feature flag nếu có.
 
-### 8. Post-deployment verification
-Verify critical paths after deployment.
+### 8. Post-deployment verification (Xác minh sau khi deploy)
+Xác minh các luồng quan trọng sau khi deploy.
 
-Examples:
-- login,
-- main dashboard,
-- critical CRUD,
-- permissions,
-- key integrations.
+Ví dụ:
+- đăng nhập (login),
+- dashboard chính,
+- các thao tác CRUD quan trọng,
+- phân quyền,
+- các tích hợp then chốt.
 
-### 9. Failed deployment
-Do not repeatedly patch production blindly.
+### 9. Deployment thất bại
+Không được liên tục vá lỗi (patch) production một cách mù quáng.
 
-Stop, inspect the failing stage, and determine whether to:
+Dừng lại, kiểm tra giai đoạn bị lỗi, và xác định nên:
 - rollback,
-- fix forward,
-- disable affected feature.
+- fix forward (sửa tiếp lên phía trước),
+- vô hiệu hóa feature bị ảnh hưởng.
 
-## Release Risk Levels
+## Các mức độ rủi ro của Release
 
-### Low
-UI/text change without data/security impact.
+### Low (Thấp)
+Thay đổi UI/text không có ảnh hưởng đến data/security.
 
-### Medium
-Normal feature with bounded data/API impact.
+### Medium (Trung bình)
+Feature bình thường có ảnh hưởng data/API trong phạm vi giới hạn.
 
-### High
-Includes:
-- auth,
-- authorization,
-- billing,
-- pricing,
-- bulk mutation,
+### High (Cao)
+Bao gồm:
+- auth (xác thực),
+- authorization (phân quyền),
+- billing (thanh toán),
+- pricing (định giá),
+- bulk mutation (thay đổi dữ liệu hàng loạt),
 - schema migration,
-- deletion,
-- production infrastructure.
+- deletion (xóa dữ liệu),
+- hạ tầng production.
 
-High-risk changes require stronger review and rollback preparation.
+Các thay đổi rủi ro cao đòi hỏi review chặt chẽ hơn và chuẩn bị phương án rollback.

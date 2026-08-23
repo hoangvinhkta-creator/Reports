@@ -1,18 +1,18 @@
-# 18 — Incident Response Rules
+# 18 — Quy Tắc Ứng Phó Sự Cố
 
-## Objective
-Respond to production incidents systematically instead of applying uncontrolled patches.
+## Mục Tiêu
+Ứng phó với sự cố production một cách có hệ thống thay vì áp dụng các bản vá thiếu kiểm soát.
 
-## Incident Examples
-- production outage,
-- unauthorized access,
-- data exposure,
-- incorrect bulk update,
-- failed migration,
-- severe performance degradation,
-- critical integration failure.
+## Ví Dụ Về Sự Cố
+- sập hệ thống production,
+- truy cập trái phép,
+- rò rỉ dữ liệu,
+- cập nhật hàng loạt sai,
+- migration thất bại,
+- suy giảm hiệu năng nghiêm trọng,
+- lỗi tích hợp nghiêm trọng.
 
-## Incident Workflow
+## Quy Trình Xử Lý Sự Cố
 
 INCIDENT DETECTED
 ↓
@@ -30,72 +30,72 @@ VERIFY
 ↓
 POSTMORTEM
 
-## 1. Assess
-Determine:
-- affected users,
-- affected systems,
-- data risk,
-- security risk,
-- business severity,
-- start time.
+## 1. Đánh Giá (Assess)
+Xác định:
+- người dùng bị ảnh hưởng,
+- hệ thống bị ảnh hưởng,
+- rủi ro dữ liệu,
+- rủi ro bảo mật,
+- mức độ nghiêm trọng đối với business,
+- thời điểm bắt đầu.
 
-## 2. Contain
-Examples:
-- disable affected feature,
-- revoke compromised credential,
-- block dangerous mutation,
-- roll back release.
+## 2. Ngăn Chặn (Contain)
+Ví dụ:
+- vô hiệu hóa tính năng bị ảnh hưởng,
+- thu hồi credential bị lộ,
+- chặn mutation nguy hiểm,
+- rollback bản release.
 
-Prefer containment over speculative rewrites.
+Ưu tiên ngăn chặn hơn là viết lại theo suy đoán.
 
-## 3. Preserve Evidence
-Do not destroy useful:
+## 3. Bảo Toàn Bằng Chứng (Preserve Evidence)
+Không phá hủy các thông tin hữu ích sau:
 - logs,
 - audit records,
 - request IDs,
-- deployment details,
+- chi tiết deployment,
 - timestamps.
 
-## 4. Diagnose
-Identify the actual root cause or the narrowest confirmed failure.
+## 4. Chẩn Đoán (Diagnose)
+Xác định root cause thực sự hoặc phạm vi lỗi hẹp nhất đã được xác nhận.
 
-## 5. Recovery
-Choose:
+## 5. Khôi Phục (Recovery)
+Lựa chọn:
 - rollback,
 - restore,
-- configuration correction,
-- minimal hotfix,
-- controlled fix-forward.
+- sửa cấu hình,
+- hotfix tối thiểu,
+- fix-forward có kiểm soát.
 
-## 6. Verify
-Confirm:
-- service restored,
-- security restored,
-- data integrity,
-- no ongoing errors,
-- affected flows work.
+## 6. Xác Minh (Verify)
+Xác nhận:
+- dịch vụ đã được khôi phục,
+- bảo mật đã được khôi phục,
+- tính toàn vẹn dữ liệu,
+- không còn lỗi tiếp diễn,
+- các luồng bị ảnh hưởng hoạt động bình thường.
 
-## 7. Postmortem
-Document:
+## 7. Rút Kinh Nghiệm (Postmortem)
+Tài liệu hóa:
 - timeline,
-- impact,
+- tác động (impact),
 - root cause,
-- why defenses failed,
-- corrective actions,
-- prevention.
+- lý do các cơ chế phòng vệ thất bại,
+- hành động khắc phục,
+- biện pháp phòng ngừa.
 
-## AI Agent Incident Rule
-During an incident:
-- do not perform unrelated refactoring,
-- do not make several speculative fixes at once,
-- do not erase evidence,
-- prefer minimal reversible changes,
-- clearly report assumptions.
+## Quy Tắc Cho AI Agent Khi Xử Lý Sự Cố
+Trong lúc xử lý sự cố:
+- không thực hiện refactor không liên quan,
+- không thực hiện nhiều bản sửa mang tính suy đoán cùng lúc,
+- không xóa bằng chứng,
+- ưu tiên các thay đổi tối thiểu và có thể đảo ngược,
+- báo cáo rõ ràng các giả định đang sử dụng.
 
-## Security Incident
-If credential/data compromise is suspected:
-- rotate/revoke credentials,
-- restrict access,
-- preserve logs,
-- assess exposed data,
-- follow applicable organizational/legal notification process.
+## Sự Cố Bảo Mật
+Nếu nghi ngờ credential/dữ liệu bị xâm phạm:
+- xoay vòng/thu hồi credential,
+- hạn chế quyền truy cập,
+- bảo toàn logs,
+- đánh giá dữ liệu bị lộ,
+- tuân theo quy trình thông báo hợp pháp/của tổ chức áp dụng.

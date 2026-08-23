@@ -1,8 +1,8 @@
-# Governance Directory
+# Thư Mục Governance
 
-This directory contains STATIC governance.
+Thư mục này chứa governance TĨNH (STATIC).
 
-## Structure
+## Cấu Trúc
 
 ```text
 governance/
@@ -14,23 +14,23 @@ governance/
 └── reference/  # guide, changelog, history, acceptance material
 ```
 
-## Important
+## Lưu Ý Quan Trọng
 
-Do not move these files back to repository root.
+Không di chuyển các file này trở lại thư mục gốc repository.
 
-The root entry point is:
+Điểm bắt đầu (entry point) ở thư mục gốc là:
 `CLAUDE.md`
 
-Every session should start from `CLAUDE.md`, then load only the files required for the selected project profile and current task.
+Mỗi session nên bắt đầu từ `CLAUDE.md`, sau đó chỉ tải các file cần thiết cho project profile đã chọn và task hiện tại.
 
 
-## Content-preservation rule
+## Quy Tắc Bảo Toàn Nội Dung
 
-Directory refactors MUST NOT rewrite, summarize, shorten, or delete governance semantics.
+Việc tái cấu trúc thư mục KHÔNG ĐƯỢC viết lại, tóm tắt, rút gọn, hoặc xóa bỏ ngữ nghĩa governance.
 
-Allowed during a pure structure refactor:
-- move files,
-- update canonical paths,
-- update validator path resolution.
+Được phép trong một lần tái cấu trúc thuần cấu trúc:
+- di chuyển file,
+- cập nhật đường dẫn canonical,
+- cập nhật cách validator resolve đường dẫn.
 
-Any semantic edit must be separately identified, justified, and tested.
+Bất kỳ thay đổi mang tính ngữ nghĩa nào cũng phải được xác định riêng, có lý do rõ ràng, và được kiểm thử.

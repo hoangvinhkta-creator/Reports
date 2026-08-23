@@ -1,30 +1,30 @@
-# Audit Findings
+# Phát Hiện Kiểm Toán
 
-## Severity Standard
+## Chuẩn Mức Độ Nghiêm Trọng
 
 ### CRITICAL
-Immediate or near-immediate risk of:
-- severe data exposure,
-- account takeover,
-- destructive data loss,
-- production compromise,
-- catastrophic business failure.
+Rủi ro tức thời hoặc gần như tức thời về:
+- rò rỉ dữ liệu nghiêm trọng,
+- chiếm quyền tài khoản,
+- mất dữ liệu mang tính phá hủy,
+- xâm phạm hệ thống production,
+- thất bại kinh doanh thảm khốc.
 
 ### HIGH
-Material risk requiring priority remediation.
+Rủi ro đáng kể, cần khắc phục ưu tiên.
 
 ### MEDIUM
-Meaningful weakness with bounded impact.
+Điểm yếu có ý nghĩa với phạm vi tác động giới hạn.
 
 ### LOW
-Minor weakness, maintainability issue, or defense-in-depth improvement.
+Điểm yếu nhỏ, vấn đề về khả năng bảo trì, hoặc cải thiện phòng thủ theo chiều sâu.
 
 ### INFO
-Observation, recommendation, or non-defect note.
+Quan sát, khuyến nghị, hoặc ghi chú không phải lỗi.
 
 ---
 
-## FINDING TEMPLATE
+## MẪU PHÁT HIỆN
 
 Finding ID:
 ...

@@ -1,10 +1,10 @@
-# 23 — Documentation Standards
+# 23 — Tiêu Chuẩn Documentation
 
-## Objective
-Keep documentation useful as a real source of truth rather than stale decoration.
+## Mục Tiêu
+Giữ cho documentation luôn hữu ích như một nguồn sự thật (source of truth) thực sự, thay vì trở thành trang trí lỗi thời.
 
-## Required Documentation Categories
-Depending on project size:
+## Các Danh Mục Documentation Bắt Buộc
+Tùy theo quy mô dự án:
 - README,
 - architecture,
 - routes,
@@ -17,48 +17,48 @@ Depending on project size:
 - incident runbook,
 - ADRs.
 
-## Rules
+## Quy Tắc
 
-### 1. Documentation changes with behavior
-If code intentionally changes:
+### 1. Documentation thay đổi cùng với hành vi
+Nếu code thay đổi một cách có chủ đích:
 - schema,
 - route,
 - API,
 - permission,
 - architecture,
-- deployment process,
+- quy trình deployment,
 
-update corresponding documentation in the same change.
+hãy cập nhật documentation tương ứng trong cùng một thay đổi.
 
-### 2. Prefer current truth
-Remove or mark obsolete instructions.
+### 2. Ưu tiên sự thật hiện tại
+Xóa hoặc đánh dấu các hướng dẫn đã lỗi thời.
 
-### 3. Examples must be safe
-Never place real secrets, customer data, or production credentials in documentation.
+### 3. Ví dụ phải an toàn
+Không bao giờ đặt secret thật, dữ liệu khách hàng, hoặc credential production vào trong documentation.
 
-### 4. Commands
-Operational commands should state:
-- environment,
-- prerequisites,
-- destructive risk where relevant.
+### 4. Lệnh (Commands)
+Các lệnh vận hành cần nêu rõ:
+- môi trường (environment),
+- điều kiện tiên quyết (prerequisites),
+- rủi ro phá hủy nếu có liên quan.
 
-### 5. Source-of-truth ownership
-Avoid duplicating authoritative definitions in many files.
+### 5. Sở hữu nguồn sự thật (Source-of-truth ownership)
+Tránh trùng lặp các định nghĩa mang tính thẩm quyền (authoritative) ở nhiều file.
 
-Reference the authoritative document instead.
+Thay vào đó, tham chiếu đến tài liệu gốc có thẩm quyền.
 
-### 6. ADRs
-Use Architecture Decision Records for durable architectural choices.
+### 6. ADR
+Sử dụng Architecture Decision Records cho các lựa chọn kiến trúc mang tính lâu dài.
 
-### 7. Runbooks
-Operational procedures should be executable by someone other than the original author.
+### 7. Runbook
+Các quy trình vận hành cần có thể thực thi được bởi người khác, không chỉ tác giả gốc.
 
-## Documentation Quality Test
-A new developer/AI agent should be able to determine:
-- how to run the project,
-- how it is structured,
-- where data lives,
-- how permissions work,
-- how to test,
-- how to deploy safely,
-- what not to change casually.
+## Bài Kiểm Tra Chất Lượng Documentation
+Một developer/AI agent mới cần có khả năng xác định:
+- cách chạy dự án,
+- cấu trúc dự án như thế nào,
+- dữ liệu nằm ở đâu,
+- permission hoạt động ra sao,
+- cách test,
+- cách deploy an toàn,
+- những gì không nên thay đổi tùy tiện.

@@ -1,8 +1,8 @@
-# Optional Enforcement Layer
+# Lớp thực thi tùy chọn (Optional Enforcement Layer)
 
-## Included Validators
+## Các Validator đi kèm
 
-V3.2 Final ships executable validators:
+V3.2 Final đi kèm các validator có thể thực thi được:
 
 ```bash
 python governance/scripts/governance/validate_structure.py
@@ -11,43 +11,43 @@ python governance/scripts/governance/validate_task_completion.py
 python governance/scripts/governance/validate_evidence.py
 ```
 
-## What They Enforce
+## Những gì chúng thực thi
 
 ### validate_structure.py
-Checks mandatory governance paths exist.
+Kiểm tra các đường dẫn governance bắt buộc có tồn tại hay không.
 
 ### validate_project_state.py
-Checks project profile values semantically:
-- Selected Profile must be one of the allowed profiles.
-- Progress Profile must be valid.
-- Current Task Mode, when populated, must be MICRO / MAJOR / SPIKE.
+Kiểm tra ngữ nghĩa các giá trị profile của dự án:
+- Selected Profile phải là một trong các profile được phép.
+- Progress Profile phải hợp lệ.
+- Current Task Mode, khi được điền, phải là MICRO / MAJOR / SPIKE.
 
 ### validate_task_completion.py
-For task files with `Status: DONE`:
-- REQUIRED checks cannot be FAIL / BLOCKED / NOT_TESTED.
-- REQUIRED PASS checks must include Evidence Level.
-- REQUIRED PASS checks must include concrete Evidence.
+Đối với các task file có `Status: DONE`:
+- Các check REQUIRED không được là FAIL / BLOCKED / NOT_TESTED.
+- Các check REQUIRED PASS phải bao gồm Evidence Level.
+- Các check REQUIRED PASS phải bao gồm Evidence cụ thể.
 
 ### validate_evidence.py
-For REQUIRED PASS checks:
-- Risk >= 3 requires E1/E2.
-- E1/E2 requires Executed By.
-- E1/E2 requires Timestamp.
+Đối với các check REQUIRED PASS:
+- Risk >= 3 yêu cầu E1/E2.
+- E1/E2 yêu cầu Executed By.
+- E1/E2 yêu cầu Timestamp.
 
-## CI Integration
+## Tích hợp CI
 
 TEAM_PRODUCTION:
-Run all validators in CI where practical.
+Chạy tất cả các validator trong CI khi khả thi.
 
 PRODUCT:
-Recommended at least before Phase/Release Gate.
+Khuyến nghị chạy ít nhất trước Phase/Release Gate.
 
 SOLO_LITE:
-Run manually when useful.
+Chạy thủ công khi cần thiết.
 
 AUDIT:
-Structure/state validation is useful; completion validators apply when remediation tasks begin.
+Việc kiểm tra structure/state hữu ích; các validator completion áp dụng khi các task khắc phục (remediation) bắt đầu.
 
-## Principle
+## Nguyên tắc
 
-Machine enforcement supplements governance; it does not replace real tests or independent review.
+Việc thực thi bằng máy chỉ bổ sung cho governance; nó không thay thế cho các bài test thực tế hay đánh giá độc lập.

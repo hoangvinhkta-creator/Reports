@@ -1,4 +1,4 @@
-# TASK-XX — Task Name
+# TASK-XX — Tên Task
 
 ## Metadata
 Status:
@@ -28,43 +28,43 @@ Blast Radius:
 Project Profile:
 ...
 
-## Objective
+## Mục Tiêu (Objective)
 ...
 
-## Scope
+## Phạm Vi (Scope)
 ...
 
-## Out of Scope
+## Ngoài Phạm Vi (Out of Scope)
 ...
 
-## Dependencies
+## Phụ Thuộc (Dependencies)
 - ...
 
-## Blocks
+## Chặn (Blocks)
 - ...
 
-## Parallel-Safe With
+## An Toàn Để Chạy Song Song Với (Parallel-Safe With)
 - ...
 
-## Expected Touch Area
+## Phạm Vi Tác Động Dự Kiến (Expected Touch Area)
 
 Allowed:
 - ...
 
-Do not touch without Scope Expansion:
+Không được đụng vào nếu chưa có Scope Expansion (Do not touch without Scope Expansion):
 - ...
 
-## Subtasks
+## Subtask (Subtasks)
 - [ ] XX.1 ...
 - [ ] XX.2 ...
 
 ## Ready Gate
-Use `governance/core/TASK_READY_GATE_STANDARD.md`.
+Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 
 - [ ] ...
 
 ## Completion Gate
-Use `governance/core/TASK_COMPLETION_GATE_STANDARD.md` and `governance/core/EVIDENCE_STANDARD.md`.
+Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `governance/core/EVIDENCE_STANDARD.md`.
 
 ### Functional
 
@@ -88,20 +88,20 @@ Timestamp:
 ...
 
 ### Security / Data / API / Regression
-Add only categories relevant to this task.
+Chỉ thêm các hạng mục liên quan đến task này.
 
-## Exit Criteria
+## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [ ] 100% REQUIRED checks PASS
-- [ ] No critical unresolved defect
-- [ ] Required evidence level satisfied
-- [ ] Required documentation updated
-- [ ] Project progress updated
-- [ ] Session handoff written if required by task mode
+- [ ] Không có lỗi nghiêm trọng (critical) chưa xử lý
+- [ ] Đạt mức evidence yêu cầu
+- [ ] Tài liệu bắt buộc đã được cập nhật
+- [ ] Tiến độ dự án đã được cập nhật
+- [ ] Đã viết Session Handoff nếu Task Mode yêu cầu
 
-## Escalation Triggers
+## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 - ...
 
-## Changed Files Registry
+## Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 
 Created:
 - ...
@@ -115,5 +115,5 @@ Deleted:
 Migration Impact:
 - ...
 
-## Notes
+## Ghi Chú (Notes)
 ...

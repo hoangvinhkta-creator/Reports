@@ -1,10 +1,10 @@
 # 06 — Database & API Rules
 
 ## Objective
-Prevent uncontrolled database access and create explicit boundaries between application logic and persistence.
+Ngăn chặn truy cập database không kiểm soát và tạo ranh giới rõ ràng giữa application logic và persistence.
 
 ## Required Flow
-Prefer:
+Ưu tiên:
 
 UI
 → Use Case / Service
@@ -13,13 +13,13 @@ UI
 
 ## Rules
 
-### 1. UI components should not directly access the database
-Avoid database SDK calls scattered across pages/components.
+### 1. UI components không được truy cập database trực tiếp
+Tránh các lệnh gọi database SDK rải rác khắp pages/components.
 
-### 2. Centralize persistence
-Use repositories/services/API clients.
+### 2. Tập trung hóa persistence
+Sử dụng repositories/services/API clients.
 
-### 3. Validate all external input
+### 3. Validate mọi input từ bên ngoài
 Validate:
 - types,
 - required fields,
@@ -30,10 +30,10 @@ Validate:
 - permission.
 
 ### 4. Server authority
-Sensitive calculations and authorization decisions should use trusted server-side information.
+Các phép tính nhạy cảm và quyết định phân quyền nên dùng thông tin server-side đáng tin cậy.
 
-### 5. API contracts must be explicit
-Define:
+### 5. API contracts phải tường minh
+Định nghĩa:
 - request,
 - response,
 - errors,
@@ -41,41 +41,41 @@ Define:
 - validation,
 - side effects.
 
-### 6. Do not expose internal implementation unnecessarily
-Frontend should not depend tightly on raw storage structure.
+### 6. Không phơi bày implementation nội bộ khi không cần thiết
+Frontend không nên phụ thuộc chặt chẽ vào cấu trúc lưu trữ thô.
 
 ### 7. Idempotency
-For operations likely to be retried, evaluate whether repeated requests could:
-- create duplicates,
-- charge twice,
-- send twice,
-- create duplicate tasks.
+Đối với các thao tác có khả năng bị retry, đánh giá xem request lặp lại có thể:
+- tạo bản trùng lặp,
+- tính phí hai lần,
+- gửi hai lần,
+- tạo task trùng lặp.
 
-Use idempotency controls where appropriate.
+Sử dụng cơ chế idempotency khi phù hợp.
 
 ### 8. Transactions
-Use transactional behavior when multiple writes must succeed or fail together.
+Sử dụng hành vi transactional khi nhiều thao tác ghi phải cùng thành công hoặc cùng thất bại.
 
 ### 9. Pagination
-Large datasets should not be loaded entirely without reason.
+Không nên tải toàn bộ tập dữ liệu lớn mà không có lý do.
 
 ### 10. Query access boundaries
-Queries must respect permission filters and ownership rules.
+Các truy vấn phải tuân thủ bộ lọc quyền và quy tắc ownership.
 
 ### 11. Error handling
-Differentiate:
-- validation errors,
-- authorization errors,
+Phân biệt:
+- lỗi validation,
+- lỗi authorization,
 - not found,
 - conflicts,
-- infrastructure failures.
+- lỗi hạ tầng (infrastructure failures).
 
 ### 12. Destructive operations
-Delete operations should consider:
+Các thao tác xóa nên cân nhắc:
 - dependencies,
 - soft delete,
 - audit trail,
-- restoration,
+- khả năng khôi phục,
 - permission.
 
 ## API Contract Template

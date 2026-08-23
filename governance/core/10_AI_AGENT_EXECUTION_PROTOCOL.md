@@ -1,77 +1,77 @@
 # 10 — AI Agent Execution Protocol
 
 ## Objective
-Force a disciplined workflow for Claude Code or another AI coding agent.
+Buộc thực hiện một quy trình làm việc kỷ luật cho Claude Code hoặc một AI coding agent khác.
 
 # PHASE 1 — DISCOVER
 
-Read relevant:
-- repository instructions,
+Đọc các nội dung liên quan:
+- hướng dẫn của repository,
 - architecture,
 - routes,
 - schemas,
 - security rules,
 - business rules,
-- existing implementation,
+- implementation hiện có,
 - tests.
 
-Do NOT modify code yet.
+CHƯA được sửa code.
 
-Output internally or in task report:
-- relevant files,
-- current behavior,
-- existing pattern.
+Xuất ra (nội bộ hoặc trong task report):
+- các file liên quan,
+- hành vi hiện tại,
+- pattern hiện có.
 
 # PHASE 2 — ANALYZE
 
-Determine:
+Xác định:
 
-- owning module,
-- affected modules,
-- affected routes,
-- data impact,
-- schema impact,
-- security impact,
-- API impact,
-- dependency impact,
-- migration requirement,
-- regression risk.
+- module sở hữu (owning module),
+- các module bị ảnh hưởng,
+- các route bị ảnh hưởng,
+- tác động đến data,
+- tác động đến schema,
+- tác động đến security,
+- tác động đến API,
+- tác động đến dependency,
+- yêu cầu migration,
+- rủi ro regression.
 
-Do not assume.
+Không được giả định.
 
 # PHASE 3 — DESIGN
 
-Choose the smallest coherent implementation compatible with the existing architecture.
+Chọn implementation nhỏ nhất còn mạch lạc, tương thích với kiến trúc hiện có.
 
-Define:
-- files to change,
+Định nghĩa:
+- các file cần thay đổi,
 - interfaces/contracts,
 - validation,
 - authorization,
 - error behavior,
 - test plan.
 
-Do not invent a new architecture without necessity.
+Không tự tạo ra một kiến trúc mới khi không cần thiết.
 
 # PHASE 4 — IMPLEMENT
 
-Rules:
-- stay within defined scope,
-- reuse existing patterns,
-- maintain layer boundaries,
-- preserve compatibility where required,
-- do not bypass security,
-- do not add unrelated refactors.
+Quy tắc:
+- giữ trong phạm vi đã định,
+- tái sử dụng pattern hiện có,
+- duy trì ranh giới layer,
+- bảo toàn tính tương thích khi cần,
+- không bypass security,
+- không thêm refactor không liên quan.
 
 # PHASE 5 — VERIFY
 
-Run applicable:
+Chạy các kiểm tra áp dụng được:
 - build,
 - lint,
 - typecheck,
 - tests.
 
-Manually/automatically verify:
+Xác minh thủ công/tự động:
 - route,
 - auth,
 - permission,
@@ -81,38 +81,38 @@ Manually/automatically verify:
 
 # PHASE 6 — REPORT
 
-Final report must contain:
+Báo cáo cuối cùng phải bao gồm:
 
 ## Summary
-What changed.
+Những gì đã thay đổi.
 
 ## Files Changed
-File + reason.
+File + lý do.
 
 ## Architecture Impact
-None / describe.
+Không có / mô tả.
 
 ## Routing Impact
-None / describe.
+Không có / mô tả.
 
 ## Data Impact
-None / describe.
+Không có / mô tả.
 
 ## Security Impact
-None / describe.
+Không có / mô tả.
 
 ## Migration
-None / required steps.
+Không có / các bước cần thiết.
 
 ## Verification
-Checks performed and results.
+Các kiểm tra đã thực hiện và kết quả.
 
 ## Remaining Risks
-Known unresolved concerns.
+Các vấn đề còn tồn đọng đã biết.
 
 ## Follow-up
-Optional future work, clearly separated from current task.
+Công việc tương lai tùy chọn, tách biệt rõ ràng khỏi task hiện tại.
 
 # Important
-Never claim completion only because code was written.
-Verification is part of implementation.
+Không bao giờ được tuyên bố hoàn thành chỉ vì code đã được viết.
+Verification là một phần của implementation.

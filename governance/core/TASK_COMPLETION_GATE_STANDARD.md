@@ -1,48 +1,48 @@
 # Task Completion Gate Standard
 
-## Purpose
-Define how each task proves it is correctly completed.
+## Mục đích
+Định nghĩa cách mỗi task chứng minh rằng nó đã được hoàn thành đúng đắn.
 
-## Core Rule
+## Quy tắc cốt lõi
 CODE COMPLETE ≠ TASK COMPLETE.
 
-A task is DONE only when:
-- all REQUIRED checks PASS,
-- the required evidence level is satisfied,
-- Exit Criteria are satisfied.
+Một task chỉ DONE khi:
+- tất cả các REQUIRED check đều PASS,
+- required evidence level được thỏa mãn,
+- Exit Criteria được thỏa mãn.
 
-## Mandatory Evidence Link
-Every Completion Gate check must follow `governance/core/EVIDENCE_STANDARD.md`.
+## Liên kết Evidence bắt buộc
+Mỗi check trong Completion Gate phải tuân theo `governance/core/EVIDENCE_STANDARD.md`.
 
-A PASS without the required evidence level is not a valid PASS.
+Một PASS mà không có evidence level yêu cầu thì không phải là một PASS hợp lệ.
 
-If a check was not actually executed:
+Nếu một check chưa thực sự được thực thi:
 Status = NOT_TESTED.
 
-## Gate Creation Timing
+## Thời điểm tạo Gate
 
-### During S000 / Planning
-Create preliminary Completion Gates for future tasks.
+### Trong S000 / Planning
+Tạo trước các Completion Gate sơ bộ cho các task trong tương lai.
 
-### Before Task Becomes READY
-Review and finalize the gate using current project knowledge.
+### Trước khi Task chuyển sang READY
+Rà soát và hoàn thiện gate dựa trên hiểu biết hiện tại về project.
 
-### After Freeze
-The agent must not remove or weaken REQUIRED checks simply to make the task pass.
+### Sau khi Freeze
+Agent không được xóa bỏ hoặc làm suy yếu các REQUIRED check chỉ để khiến task pass.
 
 ## Task Mode
 
 ### MICRO
-Use `governance/templates/MICRO_TASK_CHECKLIST.md`.
+Sử dụng `governance/templates/MICRO_TASK_CHECKLIST.md`.
 
 ### MAJOR
-Use the full gate structure below.
+Sử dụng cấu trúc gate đầy đủ bên dưới.
 
 ### SPIKE / EXPLORATORY
-Gate focuses on learning outcomes, evidence, constraints discovered, alternatives compared, and recommendation produced.
+Gate tập trung vào kết quả học hỏi (learning outcomes), evidence, các ràng buộc đã phát hiện, các phương án thay thế đã so sánh, và khuyến nghị được đưa ra.
 
-## Check Categories
-Use only categories relevant to the task:
+## Danh mục Check
+Chỉ sử dụng các danh mục liên quan đến task:
 
 - Functional
 - Architecture
@@ -65,16 +65,16 @@ Use only categories relevant to the task:
 - Audit
 - Backup / Rollback
 
-## Check Priority
-Each check is:
+## Mức độ ưu tiên của Check
+Mỗi check có mức:
 
 - REQUIRED
 - RECOMMENDED
 - OPTIONAL
 
-Any REQUIRED check that is FAIL, BLOCKED, or NOT_TESTED prevents DONE unless explicitly NOT_APPLICABLE with valid justification.
+Bất kỳ REQUIRED check nào là FAIL, BLOCKED, hoặc NOT_TESTED đều ngăn task đạt DONE, trừ khi được đánh dấu rõ ràng là NOT_APPLICABLE kèm lý do hợp lệ.
 
-## Check Status
+## Trạng thái Check
 - NOT_TESTED
 - PASS
 - FAIL
@@ -82,7 +82,7 @@ Any REQUIRED check that is FAIL, BLOCKED, or NOT_TESTED prevents DONE unless exp
 - NOT_APPLICABLE
 
 ## Evidence Record
-Each important check must include:
+Mỗi check quan trọng phải bao gồm:
 
 Check ID:
 ...
@@ -105,29 +105,29 @@ Executed By:
 Timestamp:
 ...
 
-## Risk-Based Evidence
-Follow `governance/core/EVIDENCE_STANDARD.md`.
+## Evidence dựa theo Risk
+Tuân theo `governance/core/EVIDENCE_STANDARD.md`.
 
-Summary:
-- Risk 1–2: E0/E1 depending on check.
-- Risk 3: E1 mandatory for executable REQUIRED checks.
-- Risk 4–5: E1 mandatory; security/data-critical checks should seek E2.
+Tóm tắt:
+- Risk 1–2: E0/E1 tùy theo check.
+- Risk 3: E1 bắt buộc cho các REQUIRED check có thể thực thi được.
+- Risk 4–5: E1 bắt buộc; các check liên quan bảo mật/dữ liệu quan trọng nên tìm cách đạt E2.
 
 ## Exit Criteria
-Typical exit criteria:
+Các exit criteria điển hình:
 
-1. 100% REQUIRED checks PASS.
-2. Required evidence levels are satisfied.
-3. 0 critical unresolved defects.
-4. 0 unresolved required security failures.
-5. Relevant build/type/lint checks PASS.
-6. Relevant regression checks PASS.
-7. Required documentation is updated.
-8. `PROJECT/PROJECT_PROGRESS.md` is updated.
-9. Session handoff is written when required by task mode.
+1. 100% REQUIRED check PASS.
+2. Required evidence level được thỏa mãn.
+3. 0 lỗi nghiêm trọng (critical defect) chưa được giải quyết.
+4. 0 required security failure chưa được giải quyết.
+5. Các check build/type/lint liên quan đều PASS.
+6. Các check regression liên quan đều PASS.
+7. Tài liệu bắt buộc đã được cập nhật.
+8. `PROJECT/PROJECT_PROGRESS.md` đã được cập nhật.
+9. Session handoff đã được viết khi task mode yêu cầu.
 
-## Gate Change Control
-Use:
+## Kiểm soát thay đổi Gate
+Sử dụng:
 
 COMPLETION GATE CHANGE PROPOSAL
 
@@ -146,4 +146,4 @@ Risk:
 Impact:
 ...
 
-Do not silently lower quality criteria.
+Không được âm thầm hạ thấp tiêu chí chất lượng.

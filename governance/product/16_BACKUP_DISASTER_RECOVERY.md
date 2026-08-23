@@ -1,82 +1,82 @@
 # 16 — Backup & Disaster Recovery Rules
 
-## Objective
-Protect the business from accidental deletion, corruption, failed migrations, account compromise, and infrastructure failure.
+## Mục tiêu
+Bảo vệ doanh nghiệp khỏi việc xóa nhầm, hỏng dữ liệu, migration thất bại, tài khoản bị xâm nhập, và lỗi hạ tầng.
 
-## Core Principle
-A backup is only useful if it can be restored.
+## Nguyên tắc cốt lõi
+Một bản backup chỉ hữu ích nếu nó có thể được restore (khôi phục).
 
-## Required Decisions
+## Các quyết định bắt buộc
 
-### RPO — Recovery Point Objective
-Maximum acceptable amount of data loss measured in time.
+### RPO — Recovery Point Objective (Mục tiêu điểm khôi phục)
+Lượng dữ liệu mất mát tối đa có thể chấp nhận được, đo bằng thời gian.
 
-Example:
-RPO = 24 hours.
+Ví dụ:
+RPO = 24 giờ.
 
-### RTO — Recovery Time Objective
-Target maximum time to restore critical service.
+### RTO — Recovery Time Objective (Mục tiêu thời gian khôi phục)
+Thời gian tối đa mục tiêu để khôi phục dịch vụ quan trọng.
 
-Example:
-RTO = 4 hours.
+Ví dụ:
+RTO = 4 giờ.
 
-Project-specific values must be defined based on business importance.
+Các giá trị riêng của từng dự án phải được xác định dựa trên mức độ quan trọng đối với nghiệp vụ.
 
-## Backup Rules
+## Các quy tắc Backup
 
-### 1. Identify critical data
-Examples:
-- customers,
-- orders,
-- quotes,
+### 1. Xác định dữ liệu quan trọng
+Ví dụ:
+- khách hàng (customers),
+- đơn hàng (orders),
+- báo giá (quotes),
 - configuration,
-- audit records,
-- critical files.
+- bản ghi audit,
+- các file quan trọng.
 
-### 2. Define backup frequency
-Based on RPO and change rate.
+### 2. Xác định tần suất backup
+Dựa trên RPO và tốc độ thay đổi dữ liệu.
 
-### 3. Define retention
-Examples:
-- daily,
-- weekly,
-- monthly retention.
+### 3. Xác định thời gian lưu trữ (retention)
+Ví dụ:
+- lưu trữ theo ngày,
+- theo tuần,
+- theo tháng.
 
-### 4. Protect backups
-Backup access should follow least privilege.
+### 4. Bảo vệ backups
+Quyền truy cập backup nên tuân theo nguyên tắc least privilege (đặc quyền tối thiểu).
 
-### 5. Separate failure domains
-Where practical, avoid keeping the only backup in the same logical failure domain as production.
+### 5. Tách biệt failure domain (vùng lỗi)
+Ở nơi khả thi, tránh việc chỉ lưu bản backup duy nhất trong cùng một failure domain logic với production.
 
-### 6. Test restoration
-Periodically test:
-- backup integrity,
-- restore process,
+### 6. Kiểm thử việc restore
+Định kỳ kiểm thử:
+- tính toàn vẹn của backup,
+- quy trình restore,
 - credentials,
-- documented steps.
+- các bước đã được tài liệu hóa.
 
 ### 7. Schema migrations
-Take appropriate backup/snapshot before risky destructive migrations.
+Thực hiện backup/snapshot phù hợp trước các migration mang tính phá hủy có rủi ro.
 
-### 8. Bulk destructive operations
-Before mass delete/update:
-- validate target scope,
-- require appropriate authorization,
-- consider snapshot/backup,
-- provide dry-run where practical.
+### 8. Các thao tác phá hủy hàng loạt (Bulk destructive operations)
+Trước khi xóa/cập nhật hàng loạt:
+- xác thực phạm vi mục tiêu (target scope),
+- yêu cầu ủy quyền (authorization) phù hợp,
+- cân nhắc snapshot/backup,
+- cung cấp dry-run (chạy thử) khi khả thi.
 
-## Disaster Recovery Runbook
-Document:
-1. incident declaration,
-2. service containment,
-3. identify last known good state,
-4. select recovery point,
-5. restore,
-6. validate integrity,
-7. restore application traffic,
-8. monitor,
-9. document incident.
+## Disaster Recovery Runbook (Quy trình khôi phục sau thảm họa)
+Tài liệu hóa:
+1. công bố sự cố (incident declaration),
+2. ngăn chặn (containment) dịch vụ,
+3. xác định trạng thái tốt cuối cùng đã biết (last known good state),
+4. chọn điểm khôi phục (recovery point),
+5. thực hiện restore,
+6. xác minh tính toàn vẹn,
+7. khôi phục lưu lượng truy cập ứng dụng,
+8. giám sát (monitor),
+9. tài liệu hóa sự cố.
 
-## AI Agent Rule
-An AI coding agent must not assume a backup exists.
-Before recommending destructive migration, explicitly identify backup/rollback requirements.
+## Quy tắc dành cho AI Agent
+Một AI coding agent không được mặc định rằng đã tồn tại một bản backup.
+Trước khi đề xuất một migration mang tính phá hủy, phải xác định rõ ràng các yêu cầu về backup/rollback.

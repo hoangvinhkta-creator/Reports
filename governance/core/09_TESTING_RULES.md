@@ -1,7 +1,7 @@
 # 09 — Testing Rules
 
 ## Objective
-A feature is complete only when relevant behavior and failure modes have been verified.
+Một tính năng chỉ được coi là hoàn thành khi hành vi liên quan và các chế độ lỗi (failure modes) đã được xác minh.
 
 ## Minimum Verification Where Applicable
 
@@ -18,59 +18,59 @@ A feature is complete only when relevant behavior and failure modes have been ve
 - regression checks
 
 ## Feature Test Cases
-For important features consider:
+Đối với các tính năng quan trọng, cân nhắc:
 
 ### Happy path
-Valid authorized user completes normal workflow.
+Người dùng hợp lệ, được phân quyền hoàn thành quy trình bình thường.
 
 ### Invalid input
-Incorrect or incomplete input is rejected safely.
+Input sai hoặc không đầy đủ bị từ chối một cách an toàn.
 
 ### Unauthorized
-Authenticated user without permission cannot perform the action.
+Người dùng đã xác thực nhưng không có quyền không thể thực hiện hành động.
 
 ### Unauthenticated
-Protected operations reject unauthenticated access.
+Các thao tác được bảo vệ từ chối truy cập chưa xác thực.
 
 ### Missing data
-Missing/deleted related records do not crash the application.
+Các bản ghi liên quan bị thiếu/đã xóa không làm ứng dụng crash.
 
 ### Duplicate/retry
-Repeated request does not produce dangerous duplicate side effects.
+Request lặp lại không tạo ra side effect trùng lặp nguy hiểm.
 
 ### Backend failure
-Failure produces a controlled error state.
+Lỗi tạo ra một trạng thái lỗi được kiểm soát.
 
 ### Boundary values
-Check important:
+Kiểm tra các giá trị quan trọng:
 - zero,
 - max/min,
-- empty arrays,
-- large values,
-- date boundaries.
+- mảng rỗng,
+- giá trị lớn,
+- boundary về ngày tháng.
 
 ## Security Testing
-Test access by modifying:
+Kiểm tra quyền truy cập bằng cách chỉnh sửa:
 - URL IDs,
 - request body IDs,
 - owner IDs,
 - roles,
-- hidden fields.
+- các trường ẩn (hidden fields).
 
-Do not assume UI restrictions are sufficient.
+Không được giả định rằng giới hạn ở UI là đủ.
 
 ## Regression
-Verify adjacent existing behavior likely affected by the change.
+Xác minh các hành vi hiện có lân cận có khả năng bị ảnh hưởng bởi thay đổi.
 
 ## Completion Rule
-Do not report “done” if:
-- build is broken,
-- tests fail,
-- known permission issue remains,
-- schema migration is incomplete,
-- critical path was not verified.
+Không được báo cáo "done" nếu:
+- build bị lỗi,
+- tests thất bại,
+- vấn đề permission đã biết vẫn còn tồn tại,
+- schema migration chưa hoàn tất,
+- critical path chưa được xác minh.
 
-If a check cannot be executed, clearly report:
-- what was not tested,
-- why,
-- resulting risk.
+Nếu một kiểm tra không thể thực thi, phải báo cáo rõ ràng:
+- những gì chưa được test,
+- lý do,
+- rủi ro phát sinh.

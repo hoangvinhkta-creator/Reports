@@ -316,7 +316,7 @@ Decision:
 Historical ADS profit for Hoàng and Kiên (01–08.2026) is entered as 14
 per-employee-per-month figures, flagged as migration data and clearly separated
 from figures the ADS rule produced. The values are the ones already recorded in
-`docs/analysis/04_HARDCODED_VALUES.md` §2 and `06_ADS_RULE_VERIFICATION.md` §8.
+`docs/analysis/04_HARDCODED_VALUES.md` §2 and `docs/analysis/06_ADS_RULE_VERIFICATION.md` §8.
 
 Reason:
 Owner's decision. Per-order recovery is impossible — nothing in either workbook
@@ -434,7 +434,7 @@ Owner explained the cause and asked for a better representation:
 *"nếu có cách thể hiện khoa học hơn, hãy làm"*.
 
 Impact:
-- `05_EXCEPTIONS.md` §A3 moves from "unexplained, needs investigation" to
+- `docs/analysis/05_EXCEPTIONS.md` §A3 moves from "unexplained, needs investigation" to
   "explained, deliberately not reproduced".
 - The halving was never wrong for the layout it lives in — but it is invisible.
   Anyone adding a row in the wrong place, or reading the sheet without knowing,

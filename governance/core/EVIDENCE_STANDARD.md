@@ -1,73 +1,73 @@
 # Evidence Standard
 
-## Purpose
-Prevent an AI agent from marking gates PASS using unsupported narrative claims.
+## Mục đích
+Ngăn một AI agent đánh dấu gate là PASS chỉ dựa trên các tuyên bố tường thuật không có căn cứ.
 
 ## Evidence Levels
 
 ### E0 — Claim
-Agent-written description only.
+Chỉ là mô tả do agent tự viết.
 
-Example:
+Ví dụ:
 "Permission test passed."
 
-Use:
-- informational notes,
-- low-risk non-critical checks only.
+Sử dụng cho:
+- ghi chú mang tính thông tin,
+- các check rủi ro thấp, không quan trọng.
 
-E0 MUST NOT be accepted as sole evidence for high-risk required gates.
+E0 KHÔNG được chấp nhận là evidence duy nhất cho các required gate có rủi ro cao.
 
 ### E1 — Execution Evidence
-Output from an actual executed check.
+Output từ một check đã thực sự được thực thi.
 
-Examples:
-- test command output,
-- build/lint/typecheck output,
-- HTTP response code,
-- database rule emulator output,
-- generated artifact checksum,
-- screenshot of actual result,
-- browser/devtool verification result when appropriate.
+Ví dụ:
+- output của lệnh test,
+- output build/lint/typecheck,
+- mã phản hồi HTTP,
+- output từ database rule emulator,
+- checksum của artifact được tạo ra,
+- ảnh chụp màn hình kết quả thực tế,
+- kết quả xác minh bằng browser/devtool khi phù hợp.
 
 ### E2 — Independent Evidence
-Verification independent from the implementing claim.
+Xác minh độc lập với bên đưa ra tuyên bố triển khai.
 
-Examples:
-- CI result,
-- external security scanner,
-- staging check,
-- second agent review,
-- human reviewer,
-- independent test run.
+Ví dụ:
+- kết quả CI,
+- công cụ quét bảo mật độc lập bên ngoài,
+- kiểm tra trên staging,
+- review bởi agent thứ hai,
+- người review (human reviewer),
+- lần chạy test độc lập.
 
-## Minimum Evidence by Risk
+## Evidence tối thiểu theo Risk
 
 ### Risk 1–2
 Required checks:
-- E0 or E1 depending on check type.
-- Functional correctness should prefer E1 where executable.
+- E0 hoặc E1 tùy theo loại check.
+- Với functional correctness nên ưu tiên E1 khi có thể thực thi được.
 
 ### Risk 3
 Required checks:
-- E1 mandatory for executable verification.
+- E1 bắt buộc cho các xác minh có thể thực thi được.
 
 ### Risk 4–5
 Required checks:
-- E1 mandatory.
-- Security/data-critical checks SHOULD have E2.
-- If E2 is unavailable, record the limitation and prevent production release where independent verification is required by profile.
+- E1 bắt buộc.
+- Các check liên quan bảo mật/dữ liệu quan trọng NÊN có E2.
+- Nếu E2 không khả dụng, phải ghi lại hạn chế này và ngăn việc release lên production ở những nơi mà profile yêu cầu phải có xác minh độc lập.
 
-## Evidence Integrity
+## Tính toàn vẹn của Evidence
 
-Do not invent:
-- command output,
-- test results,
-- HTTP status,
-- screenshots,
-- CI results,
-- human approvals.
+Không được bịa ra:
+- output lệnh,
+- kết quả test,
+- mã trạng thái HTTP,
+- ảnh chụp màn hình,
+- kết quả CI,
+- sự phê duyệt của con người.
 
-If not executed:
+Nếu chưa được thực thi:
 Status = NOT_TESTED.
 
 ## Evidence Record
@@ -90,34 +90,34 @@ Executed By:
 Timestamp:
 ...
 
-## Solo Independent Review Procedure
+## Quy trình Review độc lập cho Solo Developer
 
-For a solo developer without CI/staging/another human reviewer, E2 may be produced by a separate reviewer-agent session.
+Đối với một solo developer không có CI/staging/người review khác, E2 có thể được tạo ra bởi một reviewer-agent session riêng biệt.
 
-The reviewer session must:
-1. Start from repository state, not from implementer claims.
-2. Read the frozen task gate.
-3. Inspect the actual diff/code.
-4. Re-run the required checks independently where possible.
-5. Record its own evidence.
-6. Treat implementer-written PASS statements as untrusted narrative.
+Reviewer session phải:
+1. Bắt đầu từ trạng thái thực tế của repository, không phải từ các tuyên bố của người triển khai (implementer).
+2. Đọc frozen task gate.
+3. Kiểm tra diff/code thực tế.
+4. Chạy lại các required check một cách độc lập khi có thể.
+5. Ghi lại evidence của chính mình.
+6. Xem các tuyên bố PASS do người triển khai viết là tường thuật không đáng tin cậy.
 
-The reviewer must see the code/diff being reviewed; independence means independent verification, not blindness to the implementation.
+Reviewer phải nhìn thấy code/diff đang được review; tính độc lập nghĩa là xác minh độc lập, không phải là không biết gì về phần triển khai.
 
-If no credible E2 path exists:
-- record the limitation;
-- do not pretend E2 exists;
-- follow the project profile's release rule.
+Nếu không có con đường E2 nào đáng tin cậy:
+- ghi lại hạn chế này;
+- không giả vờ rằng E2 tồn tại;
+- tuân theo quy tắc release của project profile.
 
 
-## E2 Artifact Storage
+## Lưu trữ Artifact của E2
 
-Independent review output must be persisted under:
+Output của independent review phải được lưu trữ lâu dài tại:
 
 `docs/reviews/`
 
-Use:
+Sử dụng:
 
 `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`
 
-Do not leave E2 results only in chat history.
+Không được để kết quả E2 chỉ tồn tại trong lịch sử chat.

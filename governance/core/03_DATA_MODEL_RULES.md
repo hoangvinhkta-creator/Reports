@@ -1,36 +1,36 @@
-# 03 — Data Model Rules
+# 03 — Quy tắc Mô hình Dữ liệu
 
-## Objective
-Data structure must be designed intentionally before feature code is built.
+## Mục tiêu
+Cấu trúc dữ liệu phải được thiết kế có chủ đích trước khi feature code được xây dựng.
 
-## Rule: No schema-by-accident
-A new feature must identify all affected entities and fields before implementation.
+## Quy tắc: Không tạo schema một cách tình cờ (no schema-by-accident)
+Một feature mới phải xác định tất cả các entity và field bị ảnh hưởng trước khi triển khai.
 
-## Every Entity Should Define
-- entity name,
-- purpose,
-- identifier,
-- fields,
-- types,
-- required/optional status,
-- defaults,
-- relationships,
-- ownership,
-- created timestamp,
-- updated timestamp,
-- lifecycle/status where applicable.
+## Mỗi Entity Nên Định nghĩa
+- tên entity,
+- mục đích,
+- định danh (identifier),
+- các field,
+- kiểu dữ liệu,
+- trạng thái bắt buộc/tùy chọn,
+- giá trị mặc định,
+- mối quan hệ (relationship),
+- quyền sở hữu (ownership),
+- timestamp tạo,
+- timestamp cập nhật,
+- vòng đời/trạng thái (lifecycle/status) nếu áp dụng.
 
-## Field Classification
-Each important field should be classified as one of:
+## Phân loại Field
+Mỗi field quan trọng nên được phân loại thành một trong các nhóm sau:
 
-- Public
-- Internal business data
-- Sensitive business data
-- Personal/customer data
-- System data
-- Secret / server-only
+- Public (công khai)
+- Internal business data (dữ liệu nghiệp vụ nội bộ)
+- Sensitive business data (dữ liệu nghiệp vụ nhạy cảm)
+- Personal/customer data (dữ liệu cá nhân/khách hàng)
+- System data (dữ liệu hệ thống)
+- Secret / server-only (bí mật / chỉ dành cho server)
 
-## Example
+## Ví dụ
 
 Customer
 - id
@@ -52,63 +52,63 @@ Quote
 - createdAt
 - updatedAt
 
-## Rules
+## Quy tắc
 
-### 1. One authoritative representation
-Avoid storing the same business fact in multiple locations unless denormalization is intentional and synchronized.
+### 1. Một biểu diễn có thẩm quyền duy nhất (one authoritative representation)
+Tránh lưu cùng một sự kiện nghiệp vụ ở nhiều nơi, trừ khi việc phi chuẩn hóa (denormalization) là có chủ đích và được đồng bộ.
 
-### 2. Stable identifiers
-Do not use display labels as primary identity.
+### 2. Định danh ổn định
+Không dùng nhãn hiển thị (display label) làm định danh chính (primary identity).
 
-### 3. Explicit relationships
-Relationships must be represented intentionally.
+### 3. Quan hệ rõ ràng
+Các mối quan hệ phải được biểu diễn một cách có chủ đích.
 
-### 4. Validate data at boundaries
-Incoming external/client data must be validated before persistence.
+### 4. Validate dữ liệu tại ranh giới
+Dữ liệu bên ngoài/từ client gửi vào phải được validate trước khi lưu trữ (persistence).
 
-### 5. Do not trust missing/null semantics implicitly
-Define whether:
-- missing,
+### 5. Không ngầm định tin tưởng vào ngữ nghĩa missing/null
+Xác định rõ liệu:
+- missing (thiếu),
 - null,
-- empty string,
-- zero
+- empty string (chuỗi rỗng),
+- zero (số 0)
 
-have different meanings.
+có ý nghĩa khác nhau hay không.
 
-### 6. Schema changes require compatibility analysis
-Before changing a persisted schema, identify:
-- old schema,
-- new schema,
-- existing records,
-- migration need,
+### 6. Thay đổi schema cần phân tích tính tương thích
+Trước khi thay đổi một schema đã được lưu trữ (persisted), phải xác định:
+- schema hiện tại,
+- schema mới,
+- các bản ghi hiện có,
+- nhu cầu migration,
 - rollback,
-- backward compatibility.
+- khả năng tương thích ngược (backward compatibility).
 
-### 7. No destructive rename/delete without migration
-Do not rename or remove production fields and assume old data will adapt automatically.
+### 7. Không rename/delete mang tính phá hủy mà thiếu migration
+Không được rename hoặc xóa field production rồi mặc định rằng dữ liệu cũ sẽ tự thích ứng.
 
-### 8. Timestamps
-Use a consistent timestamp strategy.
+### 8. Timestamp
+Dùng một chiến lược timestamp nhất quán.
 
-### 9. Status fields
-Use defined enums/state values rather than arbitrary strings.
+### 9. Field trạng thái (status field)
+Dùng enum/giá trị trạng thái đã được định nghĩa thay vì chuỗi tùy ý.
 
-### 10. Sensitive values
-Do not expose sensitive fields merely because the frontend does not display them.
+### 10. Giá trị nhạy cảm
+Không để lộ các field nhạy cảm chỉ vì lý do frontend không hiển thị chúng.
 
-## Migration Template
-For persisted schema changes document:
+## Mẫu Migration
+Đối với các thay đổi schema đã lưu trữ, hãy ghi lại tài liệu:
 
-Current schema:
+Schema hiện tại:
 ...
 
-Target schema:
+Schema mục tiêu:
 ...
 
 Migration:
 ...
 
-Backward compatibility:
+Khả năng tương thích ngược:
 ...
 
 Validation:

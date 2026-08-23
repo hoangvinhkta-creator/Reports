@@ -22,7 +22,7 @@ tại: toàn bộ 31 mục hiện dừng ở mức yêu cầu đã được nắ
 
 | § | Nội dung đặc tả | Nắm ở đâu trong repo | Task thực thi | Trạng thái |
 |---|---|---|---|---|
-| 1 | Mục tiêu sản phẩm (8 gạch đầu dòng) | `PROJECT_PROGRESS.md` → Objective; toàn bộ roadmap | Cả 4 phase | PHÂN TÍCH XONG |
+| 1 | Mục tiêu sản phẩm (8 gạch đầu dòng) | `PROJECT/PROJECT_PROGRESS.md` → Objective; toàn bộ roadmap | Cả 4 phase | PHÂN TÍCH XONG |
 | 2 | File đầu vào để đối chiếu | `00_README.md`; `data/samples/` | TASK-002 ✅ | PHÂN TÍCH XONG |
 | 3 | Cấu trúc file thô (17 cột) | `01_DATA_MAPPING.md` §1–2 — đủ 17 cột, header 2 tầng dòng 4–5, dữ liệu từ dòng 6 | TASK-101 | PHÂN TÍCH XONG |
 | 4 | Ba lớp RAW / WORKING / REPORT | `ADR-002` | TASK-101, TASK-201 | PHÂN TÍCH XONG |

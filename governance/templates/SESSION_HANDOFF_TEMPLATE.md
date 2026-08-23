@@ -1,4 +1,4 @@
-# SESSION HANDOFF
+# BÀN GIAO SESSION (SESSION HANDOFF)
 
 Session ID:
 SXXX
@@ -15,16 +15,16 @@ Project Profile:
 Status:
 ...
 
-## Result
+## Kết Quả (Result)
 ...
 
-## Subtasks Completed
+## Subtask Đã Hoàn Thành (Subtasks Completed)
 - ...
 
-## Subtasks Remaining
+## Subtask Còn Lại (Subtasks Remaining)
 - ...
 
-## Completion Gate Summary
+## Tóm Tắt Completion Gate (Completion Gate Summary)
 
 Required:
 ...
@@ -41,18 +41,18 @@ BLOCKED:
 NOT_TESTED:
 ...
 
-## Verification Evidence
+## Evidence Xác Minh (Verification Evidence)
 
 | Check ID | Status | Evidence Level | Evidence | Executed By | Timestamp |
 |---|---|---|---|---|---|
 | ... | ... | E0/E1/E2 | ... | ... | ... |
 
 Rule:
-- Do not claim a check was executed unless actual evidence exists.
-- If a command/test/check was not run, use `NOT_TESTED`.
-- For risk-based minimum evidence, follow `governance/core/EVIDENCE_STANDARD.md`.
+- Không được khẳng định một kiểm tra đã được thực thi trừ khi có evidence thực tế.
+- Nếu một lệnh/test/kiểm tra chưa được chạy, dùng `NOT_TESTED`.
+- Về mức evidence tối thiểu theo rủi ro, tuân theo `governance/core/EVIDENCE_STANDARD.md`.
 
-## Files Changed
+## File Đã Thay Đổi (Files Changed)
 
 Created:
 - ...
@@ -63,22 +63,22 @@ Modified:
 Deleted:
 - ...
 
-## Key Decisions
+## Quyết Định Chính (Key Decisions)
 - ...
 
-## Risks / Blockers
+## Rủi Ro / Vướng Mắc (Risks / Blockers)
 - ...
 
-## Regression Items
+## Hạng Mục Regression (Regression Items)
 - ...
 
-## Do Not Change Yet
+## Chưa Được Thay Đổi (Do Not Change Yet)
 - ...
 
-## Next Recommended Session
+## Session Tiếp Theo Được Khuyến Nghị (Next Recommended Session)
 ...
 
-## Files Next Agent Should Read
+## File Agent Tiếp Theo Cần Đọc (Files Next Agent Should Read)
 - `CLAUDE.md`
 - `PROJECT/PROJECT_PROGRESS.md`
 - ...

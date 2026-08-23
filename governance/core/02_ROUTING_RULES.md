@@ -1,12 +1,12 @@
-# 02 — Routing Rules
+# 02 — Quy tắc Routing
 
-## Objective
-Routes must reflect application structure instead of concentrating unrelated functions behind one static URL.
+## Mục tiêu
+Route phải phản ánh cấu trúc ứng dụng thay vì dồn các chức năng không liên quan vào phía sau một URL tĩnh duy nhất.
 
-## Rules
+## Quy tắc
 
-### 1. Major capabilities require explicit routes
-Examples:
+### 1. Các năng lực chính phải có route rõ ràng
+Ví dụ:
 
 /dashboard
 /customers
@@ -19,58 +19,58 @@ Examples:
 /reports
 /settings/users
 
-### 2. Do not hide the entire application behind one route
-Switching major application sections only through local tab state is discouraged.
+### 2. Không ẩn toàn bộ ứng dụng phía sau một route duy nhất
+Việc chuyển đổi giữa các phần chính của ứng dụng chỉ thông qua local tab state là không được khuyến khích.
 
-Tabs are acceptable for secondary views inside one logical resource.
+Tab có thể chấp nhận được cho các view phụ bên trong một resource logic duy nhất.
 
-### 3. Routes must be refresh-safe
-Opening or refreshing a valid deep link must render the intended page.
+### 3. Route phải an toàn khi refresh
+Mở hoặc refresh một deep link hợp lệ phải render đúng trang dự kiến.
 
-### 4. Browser history must work
-Back/forward navigation should reflect meaningful application navigation.
+### 4. Lịch sử trình duyệt phải hoạt động
+Điều hướng Back/Forward phải phản ánh đúng việc điều hướng có ý nghĩa trong ứng dụng.
 
-### 5. Route parameters must be explicit
-Use stable identifiers such as:
+### 5. Tham số route phải rõ ràng
+Dùng các định danh ổn định như:
 
 /customers/:customerId
 
-Do not rely on hidden transient state for critical page identity.
+Không dựa vào trạng thái ẩn/tạm thời cho danh tính (identity) trang quan trọng.
 
-### 6. Authentication guards
-Protected routes must require authenticated identity.
+### 6. Bảo vệ xác thực (authentication guard)
+Các route được bảo vệ phải yêu cầu danh tính đã xác thực (authenticated identity).
 
-### 7. Authorization guards
-Sensitive routes must check required permission/role before rendering.
+### 7. Bảo vệ phân quyền (authorization guard)
+Các route nhạy cảm phải kiểm tra quyền/vai trò cần thiết trước khi render.
 
-Examples:
+Ví dụ:
 /settings/users
 /admin
 /pricing/cost
 
-### 8. Frontend guards are not security boundaries
-Backend/database authorization must still enforce access.
+### 8. Frontend guard không phải là ranh giới bảo mật
+Việc phân quyền ở backend/database vẫn phải được thực thi.
 
-### 9. Define route ownership
-Every route must belong to one module.
+### 9. Xác định quyền sở hữu route
+Mỗi route phải thuộc về một module.
 
-### 10. Route changes require impact review
-Check:
-- navigation links,
-- bookmarks,
-- redirects,
-- permissions,
-- tests,
+### 10. Thay đổi route cần rà soát tác động
+Kiểm tra:
+- link điều hướng,
+- bookmark,
+- redirect,
+- quyền hạn,
+- test,
 - analytics,
-- API assumptions,
-- deep links.
+- các giả định về API,
+- deep link.
 
-## Routing Checklist
-Before completing a route change:
-- Direct URL works.
-- Refresh works.
-- Back/forward works.
-- Unauthorized access is blocked.
-- Not-found state exists.
-- Loading state exists when needed.
-- Route parameters are validated.
+## Checklist Routing
+Trước khi hoàn tất một thay đổi route:
+- URL trực tiếp hoạt động.
+- Refresh hoạt động.
+- Back/forward hoạt động.
+- Truy cập trái phép bị chặn.
+- Có trạng thái not-found.
+- Có trạng thái loading khi cần.
+- Tham số route được validate.

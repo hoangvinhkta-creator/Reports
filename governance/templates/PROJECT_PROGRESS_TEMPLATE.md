@@ -1,6 +1,6 @@
-# PROJECT PROGRESS
+# TIẾN ĐỘ DỰ ÁN (PROJECT PROGRESS)
 
-## Project Summary
+## Tóm Tắt Dự Án (Project Summary)
 Project:
 ...
 
@@ -31,7 +31,7 @@ MICRO / MAJOR / SPIKE
 Next Recommended Task:
 ...
 
-## Overall Roadmap
+## Roadmap Tổng Thể (Overall Roadmap)
 
 - [ ] PHASE-01 — ...
   - [ ] TASK-01 — ...
@@ -40,7 +40,7 @@ Next Recommended Task:
 - [ ] PHASE-02 — ...
   - [ ] TASK-03 — ...
 
-## Current Task Snapshot
+## Ảnh Chụp Task Hiện Tại (Current Task Snapshot)
 
 Task:
 ...
@@ -60,14 +60,14 @@ Primary Agent Tier:
 Escalation Tier:
 ...
 
-## Micro Tasks (Inline)
+## Micro Task (Inline)
 
-Use this section only when `governance/core/TASK_MODE_STANDARD.md` allows MICRO mode.
+Chỉ dùng section này khi `governance/core/TASK_MODE_STANDARD.md` cho phép chế độ MICRO.
 
-Canonical checklist:
+Checklist chuẩn (canonical):
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
-Do NOT duplicate or rewrite the checklist here.
+KHÔNG được sao chép lại hoặc viết lại checklist tại đây.
 
 ### MICRO-001 — ...
 Status:
@@ -79,23 +79,23 @@ Checklist Reference:
 Evidence Summary:
 ...
 
-## Active Blockers
+## Vướng Mắc Đang Hoạt Động (Active Blockers)
 - None
 
-## Active Risks
+## Rủi Ro Đang Hoạt Động (Active Risks)
 - None
 
-## Open Regression Items
+## Hạng Mục Regression Còn Mở (Open Regression Items)
 - None
 
-## Recent Decisions
-- See `PROJECT/PROJECT_DECISIONS.md`
+## Quyết Định Gần Đây (Recent Decisions)
+- Xem `PROJECT/PROJECT_DECISIONS.md`
 
-## Session History
+## Lịch Sử Session (Session History)
 - S000 — PROJECT OPEN — ...
 - S001 — ...
 
-## Next Session
+## Session Tiếp Theo (Next Session)
 
 Recommended Session:
 ...

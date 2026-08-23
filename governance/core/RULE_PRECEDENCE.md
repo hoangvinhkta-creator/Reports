@@ -1,9 +1,9 @@
 # Rule Precedence
 
-## Purpose
-Resolve genuine conflicts between governance rules without silent improvisation.
+## Mục đích
+Giải quyết các xung đột thực sự giữa các quy tắc governance mà không tự ý dàn xếp một cách âm thầm.
 
-## Precedence Order
+## Thứ tự ưu tiên
 
 1. Safety / Security
 2. Data Integrity
@@ -16,15 +16,15 @@ Resolve genuine conflicts between governance rules without silent improvisation.
 9. Performance
 10. Code Style / Developer Convenience
 
-## Important Rule
+## Quy tắc quan trọng
 
-Precedence is used ONLY when two requirements genuinely cannot both be satisfied.
+Thứ tự ưu tiên CHỈ được áp dụng khi hai yêu cầu thực sự không thể cùng được thỏa mãn.
 
-A higher-priority rule does not grant permission to ignore a lower-priority rule when both can coexist.
+Một quy tắc có mức ưu tiên cao hơn không cấp phép để bỏ qua một quy tắc có mức ưu tiên thấp hơn khi cả hai có thể cùng tồn tại.
 
-## Conflict Procedure
+## Quy trình xử lý xung đột
 
-When a real conflict exists, record:
+Khi có một xung đột thực sự, hãy ghi lại:
 
 RULE CONFLICT
 
@@ -46,4 +46,4 @@ Proposed resolution:
 Required decision:
 ...
 
-Do not resolve material conflicts silently.
+Không được tự ý giải quyết các xung đột quan trọng một cách âm thầm.
