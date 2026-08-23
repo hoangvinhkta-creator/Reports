@@ -39,6 +39,7 @@ viết từ trí nhớ.
 | 05 | [`05_EXCEPTIONS.md`](05_EXCEPTIONS.md) | Exception và công thức không đồng nhất |
 | 06 | [`06_ADS_RULE_VERIFICATION.md`](06_ADS_RULE_VERIFICATION.md) | Xác nhận cách cột Ghi chú/Diễn giải lưu chuỗi ADS |
 | 07 | [`07_SPEC_COVERAGE.md`](07_SPEC_COVERAGE.md) | *(ngoài mục 27)* Ma trận truy vết cả 31 mục đặc tả → artifact → task |
+| 10 | [`10_OPEN_QUESTIONS.md`](10_OPEN_QUESTIONS.md) | *(ngoài mục 27)* Câu hỏi nghiệp vụ còn mở, mặc định đang áp dụng, mốc cần trả lời |
 
 ## Kết luận ngắn gọn cho người duyệt
 
@@ -52,3 +53,14 @@ viết từ trí nhớ.
    trong cả hai file. Xem tài liệu 06.
 4. **File mẫu có 6 lỗi công thức.** Công cụ sẽ tính đúng và báo cáo chênh lệch,
    không sao chép lỗi. Xem tài liệu 05 và DEC-107.
+5. **Nguồn đơn và tỉ lệ quy đổi là hai thứ khác nhau** (DEC-119, ADR-104).
+   Nội thành bán đơn `PERSONAL` nhưng quy đổi ở 2 %, không phải 5,5 %. Mô hình
+   phải diễn đạt được điều đó bằng cấu hình, không bằng ngoại lệ trong code.
+6. **Lịch sử 2026 sẽ không khớp tuyệt đối với workbook cũ** (DEC-120). Doanh
+   thu quy đổi của Hoàng và Kiên cao hơn **6,0 %** vì không di trú số ADS lịch
+   sử. Đây là chênh lệch đã được chấp nhận có ý thức, không phải lỗi — 2026 là
+   giai đoạn chuyển đổi, mốc chuẩn chính thức là 01/01/2027 (DEC-121).
+
+> **Cập nhật 2026-08-23.** Bộ tài liệu này đã được rà soát lại theo 10 xác nhận
+> nghiệp vụ của chủ dự án. Các điểm thay đổi so với bản 2026-08-22 đều được ghi
+> chú tại chỗ trong từng file, kèm mã DEC tương ứng.

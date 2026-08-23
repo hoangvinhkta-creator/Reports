@@ -11,20 +11,35 @@ adjustment trong source code"*).
 
 ## 1. Tỉ lệ quy đổi doanh thu → `config/conversion_rates.yaml`
 
-| Scheme / Đối tượng | Tỉ lệ | Ô nguồn |
-|---|---|---|
-| PERSONAL (Ly, Thắng, Hoàng, Kiên, Linh, Fanpage) | **5,5 %** | `Summary 2026!F4`, `F5`, `F22`… |
-| ADS | **7,5 %** | vế sau của `F7`, `F8` |
-| Tín Phát | **7,5 %** | `Summary 2026!F6` |
-| Nội thành | **2 %** | `Summary 2026!F9` |
-| Gia dụng | **8 %** | `Summary 2026!F10` |
+Tra theo khóa `(employee, lead_source, ngày của đơn)`; dòng cụ thể nhất thắng
+(DEC-119, ADR-104):
+
+| employee | lead_source | scheme | Tỉ lệ | effective_from | Ô nguồn |
+|---|---|---|---|---|---|
+| `*` | `PERSONAL` | `PERSONAL_5_5` | **5,5 %** | 2026-01-01 | `Summary 2026!F4`, `F5`, `F22`… |
+| `*` | `ADS` | `ADS_7_5` | **7,5 %** | 2026-01-01 | `Summary 2026!F6`; vế sau của `F7`, `F8` |
+| `Nội thành` | `PERSONAL` | `NOI_THANH_2` | **2 %** | 2026-01-01 | `Summary 2026!F9` |
+| `Gia dụng` | `PERSONAL` | `GIA_DUNG_8` | **8 %** | 2026-01-01 | `Summary 2026!F10` |
+
+Tín Phát, Hoàng, Kiên, Ly **không cần dòng riêng** — họ rơi vào hai dòng `*`.
+7,5 % của Tín Phát suy ra từ nguồn đơn, không phải từ tên nhân viên.
 
 Không có kỳ nào trong 2026 dùng tỉ lệ khác → seed một dòng hiệu lực từ
-`2026-01-01`, `effective_to` để trống.
+`2026-01-01`, `effective_to` để trống. Mốc 01/01/2027 (DEC-121) triển khai bằng
+cách **thêm dòng mới** có `effective_from: 2027-01-01`, không sửa dòng cũ — để
+báo cáo 2026 in lại vào 2028 vẫn ra đúng số của 2026.
+
+**Chưa định nghĩa:** `(Nội thành, ADS)` và `(Gia dụng, ADS)`. Xem
+`10_OPEN_QUESTIONS.md` — C9.
 
 ---
 
-## 2. Lợi nhuận ADS nhập tay → **biến mất, được thay bằng rule ADS**
+## 2. Lợi nhuận ADS nhập tay → **biến mất, không được thay bằng gì cả**
+
+> **Cập nhật 2026-08-23 — DEC-120.** Bảng này **không còn là dữ liệu di trú**
+> phải nạp vào hệ thống. Nó là một **bảng đối chiếu tham khảo**: chỗ duy nhất
+> định lượng được chênh lệch giữa cách làm cũ và cách làm mới. Lịch sử không có
+> dấu hiệu ADS phân loại thành `PERSONAL`, và đó là kết quả cuối cùng.
 
 Con số `X` trong `=(G−X)/5.5% + X/7.5%`:
 
@@ -42,10 +57,19 @@ Con số `X` trong `=(G−X)/5.5% + X/7.5%`:
 **Tổng 2026 tính đến 08: Hoàng 83.220 · Kiên 89.515** (nghìn đồng lợi nhuận
 được quy đổi ở 7,5 % thay vì 5,5 %).
 
-Đây là dữ liệu lịch sử. Sau khi công cụ chạy, `X` sẽ do rule ADS + override
-sinh ra, không còn ai gõ tay. **Bảng này được giữ lại để đối chiếu**: khi các
-đơn ADS lịch sử được đánh dấu bằng override, tổng lợi nhuận ADS mỗi kỳ phải
-hội tụ về đúng những con số trên.
+Đây là dữ liệu lịch sử. Với dữ liệu **mới**, `X` sẽ do rule ADS + override sinh
+ra, không còn ai gõ tay. Với dữ liệu **cũ**, `X` đơn giản là 0 — không di trú
+(DEC-120).
+
+**Hai cách dùng bảng này về sau:**
+
+1. **Định lượng chênh lệch.** Công cụ sẽ báo doanh thu quy đổi 01–08.2026 của
+   Hoàng + Kiên là **14.720.745** thay vì **13.883.242** — cao hơn 837.503
+   nghìn (+6,0 %). Bảng này là chỗ giải thích con số đó khi ai đó hỏi.
+2. **REQUIRED check của TASK-108.** Nạp lợi nhuận KPI theo nhân viên-tháng
+   **và** 14 giá trị `X` này vào `conversion_engine`; kết quả phải tái hiện
+   đúng cột `F` của `Summary 2026` ở cả 14 kỳ. Đây là phép kiểm engine cài đúng
+   phép toán — không phải một lệnh nạp dữ liệu vào production.
 
 ---
 

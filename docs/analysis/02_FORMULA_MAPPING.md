@@ -131,12 +131,17 @@ Ví dụ dòng 4 (`01.2026 Ly`):
 
 **Dạng chuẩn:** `DS quy đổi = Lợi nhuận KPI / tỉ lệ`
 
-| Đối tượng | Tỉ lệ | Số kỳ dùng |
-|---|---|---|
-| Ly, Thắng, Linh, Fanpage | **5,5 %** | mọi kỳ |
-| Tín Phát | **7,5 %** | mọi kỳ |
-| Nội thành | **2 %** | mọi kỳ |
-| Gia dụng | **8 %** | mọi kỳ |
+Bảng dưới là **tỉ lệ quan sát được trong workbook**. Cột "Suy ra từ" cho biết
+tỉ lệ đó đến từ đâu trong mô hình sau DEC-119 — nguồn đơn hay nhân viên:
+
+| Đối tượng | Tỉ lệ | Suy ra từ | Số kỳ dùng |
+|---|---|---|---|
+| Ly, Thắng, Linh, Fanpage | **5,5 %** | `LeadSource = PERSONAL` | mọi kỳ |
+| Tín Phát | **7,5 %** | `LeadSource = ADS` (mặc định NV) | mọi kỳ |
+| Nội thành | **2 %** | **nhân viên** — dòng scheme riêng | mọi kỳ |
+| Gia dụng | **8 %** | **nhân viên** — dòng scheme riêng | mọi kỳ |
+
+Hai dòng cuối là bằng chứng cho việc `PERSONAL` không đồng nghĩa 5,5 %.
 
 **Dạng tách 2 bucket (chỉ Hoàng và Kiên):**
 
@@ -156,23 +161,42 @@ Ví dụ dòng 4 (`01.2026 Ly`):
 | 08.2026 | *(không có sheet)* | 7.565 |
 
 > **Đây chính là chức năng chính của công cụ.** `X` là phần lợi nhuận đến từ
-> đơn Tín Phát Ads, hiện đang được **gõ tay vào công thức mỗi tháng**. Trong
-> `05.2026 Hoàng` nó thậm chí là tổng của hai số rời (`3770+16190`) — dấu vết
-> của việc cộng tay từng đơn.
+> các đơn có nguồn ADS **của chính Hoàng/Kiên** — không phải đơn của Tín Phát —
+> hiện đang được **gõ tay vào công thức mỗi tháng**. Trong `05.2026 Hoàng` nó
+> thậm chí là tổng của hai số rời (`3770+16190`) — dấu vết của việc cộng tay
+> từng đơn.
 >
 > Kiên giữ nguyên `7565` suốt 06, 07, 08.2026 — nhiều khả năng là copy công
 > thức tháng trước chứ không phải tính lại. Không kiểm chứng được.
 
-**Ánh xạ sang engine:**
+**Ánh xạ sang engine (DEC-119, DEC-120):**
+
+`X` **không còn là đầu vào**. Engine tự tổng hợp hai bucket từ phân loại cấp
+đơn:
 
 ```
-PersonalConvertedRevenue = PersonalEligibleProfit / rate(PERSONAL, kỳ)   # 5,5%
-AdsConvertedRevenue      = AdsEligibleProfit      / rate(ADS, kỳ)        # 7,5%
+PersonalProfit = Σ EligibleKpiProfit của các đơn có LeadSourceFinal = PERSONAL
+AdsProfit      = Σ EligibleKpiProfit của các đơn có LeadSourceFinal = ADS
+
+PersonalConvertedRevenue = PersonalProfit / rate(employee, PERSONAL, ngày)
+AdsConvertedRevenue      = AdsProfit      / rate(employee, ADS,      ngày)
 TotalConvertedRevenue    = PersonalConvertedRevenue + AdsConvertedRevenue
 ```
 
-Tỉ lệ tra theo `(scheme, employee, ngày)` từ `config/conversion_rates.yaml`,
-có `effective_from` / `effective_to` — **không hard-code** (mục 12 đặc tả).
+Với chính sách hiện hành của Hoàng/Kiên, cái này rút gọn về đúng công thức tay
+ở trên — `PersonalProfit / 5,5% + AdsProfit / 7,5%` — nhưng `X` giờ là kết quả
+của một phép tổng có truy vết được, không phải một con số gõ vào ô công thức.
+
+Ba ràng buộc bắt buộc:
+
+1. Tỉ lệ tra theo `(employee, lead_source, **ngày của đơn**)` từ
+   `config/conversion_rates.yaml`, có `effective_from` / `effective_to` —
+   **không hard-code** (mục 12 đặc tả, DEC-121).
+2. **Không có đường code nào chia một lợi nhuận gộp cho một tỉ lệ duy nhất.**
+   Kiểm chứng: `(PersonalProfit + AdsProfit) / 5,5%` cho ra một số khác, và
+   check trong bản tham chiếu chứng minh chênh lệch đó khác 0.
+3. Không nhân viên nào là trường hợp đặc biệt. Hoàng và Kiên có hai bucket vì
+   họ *có* đơn cả hai loại, không vì có một nhánh code mang tên họ.
 
 ---
 

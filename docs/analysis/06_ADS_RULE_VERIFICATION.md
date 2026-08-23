@@ -3,6 +3,11 @@
 Đáp ứng mục 27.6 đặc tả: *"Xác nhận cách cột Ghi chú/Diễn giải trong file thô
 đang lưu chuỗi ADS và kiểm thử rule ở cấp OrderID."*
 
+> **Cập nhật 2026-08-23 — DEC-119.** `LeadSource` và `ConversionScheme` giờ là
+> hai khái niệm độc lập. `LeadSource` có đúng hai giá trị `PERSONAL` và `ADS`;
+> giá trị `TINPHAT_ADS` đã bị loại bỏ. Tài liệu này nói về **bước phân giải
+> nguồn đơn**; bước phân giải tỉ lệ nằm ở §9 và ADR-104.
+
 ---
 
 ## 1. Kết luận đứng đầu
@@ -15,11 +20,14 @@
 | Số ô chứa "ADS" trong `So_chi_tiet_ban_hang.xlsx` | **0** / 11.765 dòng |
 | Số ô chứa "ADS" trong `Bao_cao_Kinh_doanh_2026.xlsx` | **0** / 59 sheet |
 | Số Số BH khớp **rule từ khóa** | **0** / 8.714 |
-| Số Số BH thành `TINPHAT_ADS` nhờ **mặc định cấp nhân viên** (DEC-109) | **1.108** / 8.714 = 12,7 % |
+| Số Số BH thành `ADS` nhờ **mặc định cấp nhân viên** (DEC-109) | **1.108** / 8.714 = 12,7 % |
 | Số Số BH còn lại là `PERSONAL` | **7.606** / 8.714 |
 
 Dòng thứ tư là toàn bộ đơn của `Tín Phát` — chúng thành ADS nhờ cấu hình mặc
 định, không nhờ từ khóa. Xem §7.
+
+Lưu ý: đây là con số **nguồn đơn**, không phải tỉ lệ. Việc 1.108 đơn này quy
+đổi ở 7,5% là kết quả của bước thứ hai (§9), không phải của bảng trên.
 
 Tìm kiếm không phân biệt hoa/thường, sau khi chuẩn hóa Unicode NFC và gộp
 khoảng trắng — đúng quy trình mục 13 đặc tả. Cũng đã quét cả **công thức**, chứ
@@ -112,32 +120,31 @@ Chạy:
 python tools/analysis/verify_ads_rule.py --raw data/samples/So_chi_tiet_ban_hang.xlsx
 ```
 
-Kết quả thực tế (2026-08-22):
+Kết quả thực tế (2026-08-23, sau DEC-119):
 
 ```
-Spec section 29 — minimum test cases for the ADS rule
-------------------------------------------------------------------------------
-  [PASS] 1  Một order 1 dòng, ghi chú 'ADS'                   -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 2  Ghi chú 'ads facebook'                            -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 3  Ghi chú 'Đơn Ads web'                             -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 4  Order 4 dòng, dòng 3 có 'ADS', còn lại trống      -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 5  Không dòng nào có ADS                             -> PERSONAL     (Auto:Default)
-  [PASS] 6  Rule auto = ADS nhưng user override PERSONAL      -> PERSONAL     (Manual)
-  [PASS] 7  User reset override                               -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 8a Nhân viên có đơn ADS trong tháng                  -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 8b Cùng nhân viên, đơn không ADS                     -> PERSONAL     (Auto:Default)
-  [PASS] 9  Chữ thường hoàn toàn                              -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 10 Khoảng trắng thừa                                 -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 11 Ghi chú None                                      -> PERSONAL     (Auto:Default)
-  [PASS] 12 Override sang ADS khi auto = PERSONAL             -> TINPHAT_ADS  (Manual)
-------------------------------------------------------------------------------
-  13/13 passed
-
-Real raw file — So_chi_tiet_ban_hang.xlsx
-------------------------------------------------------------------------------
-  distinct orders           : 8714
-  classified TINPHAT_ADS    : 0
-  classified PERSONAL       : 8714
+LeadSource — spec section 29 + section 13 edge cases + DEC-109
+------------------------------------------------------------------------------------------
+  [PASS] 1  Một order 1 dòng, ghi chú 'ADS'                   -> ADS      (Auto:ADS Rule)
+  [PASS] 2  Ghi chú 'ads facebook'                            -> ADS      (Auto:ADS Rule)
+  [PASS] 3  Ghi chú 'Đơn Ads web'                             -> ADS      (Auto:ADS Rule)
+  [PASS] 4  Order 4 dòng, dòng 3 có 'ADS', còn lại trống      -> ADS      (Auto:ADS Rule)
+  [PASS] 5  Không dòng nào có ADS                             -> PERSONAL (Auto:Default)
+  [PASS] 6  Rule auto = ADS nhưng user override PERSONAL      -> PERSONAL (Manual)
+  [PASS] 7  User reset override                               -> ADS      (Auto:ADS Rule)
+  [PASS] 8a Nhân viên có đơn ADS trong tháng                  -> ADS      (Auto:ADS Rule)
+  [PASS] 8b Cùng nhân viên, đơn không ADS                     -> PERSONAL (Auto:Default)
+  [PASS] 9  Chữ thường hoàn toàn                              -> ADS      (Auto:ADS Rule)
+  [PASS] 10 Khoảng trắng thừa                                 -> ADS      (Auto:ADS Rule)
+  [PASS] 11 Ghi chú None                                      -> PERSONAL (Auto:Default)
+  [PASS] 12 Override sang ADS khi auto = PERSONAL             -> ADS      (Manual)
+  [PASS] 13 Tín Phát, ghi chú mặc định ERP, không có ADS      -> ADS      (Auto:Employee Default (Tín Phát))
+  [PASS] 14 Tín Phát, ghi chú có ADS                          -> ADS      (Auto:ADS Rule)
+  [PASS] 15 Tín Phát, quản lý override về PERSONAL            -> PERSONAL (Manual)
+  [PASS] 16 Ly, ghi chú mặc định ERP — không ăn theo Tín Phát -> PERSONAL (Auto:Default)
+  [PASS] 17 Ly, ghi chú có ADS                                -> ADS      (Auto:ADS Rule)
+------------------------------------------------------------------------------------------
+  18/18 passed
 ```
 
 - **Case 1–8** là 8 test case bắt buộc của mục 29 đặc tả. Case 8 tách làm 8a/8b
@@ -146,8 +153,17 @@ Real raw file — So_chi_tiet_ban_hang.xlsx
 - **Case 9–12** là bốn case bổ sung cho các yêu cầu ở mục 13 mà mục 29 không
   liệt kê: chữ thường, khoảng trắng thừa, ghi chú rỗng, và override theo chiều
   ngược lại.
+- **Case 13–17** kiểm chứng mặc định cấp nhân viên của DEC-109.
 - Cột trong ngoặc là `SourceOfValue` theo mục 7 đặc tả — mỗi dòng phải nói được
   giá trị của nó từ đâu ra.
+
+Case A–G do chủ dự án chỉ định (DEC-119) kiểm chứng cả nguồn đơn **lẫn** tỉ lệ
+phân giải ra — xem §9.
+
+Phần quét file thô không chạy lại được trong session này — `data/samples/`
+không nằm trong git theo DEC-108. Con số 0/8.714 ở §1 là kết quả đã ghi nhận
+ngày 2026-08-22 và không có gì trong DEC-119 làm nó thay đổi: việc đổi tên
+`TINPHAT_ADS` → `ADS` không tạo ra một lần khớp từ khóa nào.
 
 Mã nguồn: `tools/analysis/verify_ads_rule.py`. Đây là bản tham chiếu của rule;
 `lead_source_engine` ở TASK-104 phải cho kết quả giống hệt trên cùng bộ case.
@@ -156,26 +172,37 @@ Mã nguồn: `tools/analysis/verify_ads_rule.py`. Đây là bản tham chiếu c
 
 ## 6. Hệ quả và việc phải làm
 
-### 6.1. Với dữ liệu lịch sử 01–06.2026
+### 6.1. Với dữ liệu lịch sử 01–06.2026 — DEC-120
 
-Toàn bộ 8.714 đơn sẽ ra `PERSONAL`. Nếu chạy công cụ trên dữ liệu này và xuất
-báo cáo, **doanh thu quy đổi của Hoàng và Kiên sẽ thấp hơn báo cáo hiện tại**,
-vì phần lợi nhuận đang được quy đổi ở 7,5 % sẽ rơi về 5,5 %.
+Toàn bộ 8.714 đơn ra `PERSONAL`, trừ 1.108 đơn của Tín Phát vào `ADS` qua mặc
+định cấp nhân viên. **Đó là kết quả cuối cùng — không di trú, không override
+hàng loạt** (DEC-120).
 
-Cách xử lý: dùng Manual Override ở cấp OrderID cho các đơn ADS lịch sử. Bảng ở
-tài liệu 04 §2 là mục tiêu để đối chiếu — khi override xong, tổng lợi nhuận ADS
-mỗi kỳ phải khớp với con số đang gõ tay trong công thức.
+Hệ quả bằng số, cần nói thẳng: quy đổi ở 5,5 % cho ra số **lớn hơn** quy đổi ở
+7,5 %, nên khi phần lợi nhuận ADS lịch sử của Hoàng và Kiên rơi về 5,5 %, doanh
+thu quy đổi của hai người **cao hơn** báo cáo hiện tại:
 
-Nếu chủ dự án không muốn truy lại từng đơn lịch sử, phương án thay thế là nhập
-thẳng số lợi nhuận ADS theo nhân viên-tháng cho giai đoạn trước khi áp dụng quy
-ước mới, đánh dấu rõ là dữ liệu di trú. Cần quyết định ở GATE-01.
+| | 01–08.2026 (nghìn đồng) |
+|---|---:|
+| Workbook hiện tại đang báo cáo (có tách bucket tay) | 13.883.242 |
+| Công cụ sẽ tính (lịch sử mặc định PERSONAL) | **14.720.745** |
+| Chênh lệch | **+837.503 (+6,0 %)** |
+| Tiền thưởng kéo theo | khoảng +2.967 (~3,0 triệu đồng) |
+
+Chủ dự án đã chấp nhận chênh lệch này có ý thức: 2026 là giai đoạn chuyển đổi
+(DEC-121), không phải một năm bị tính sai. Bảng 14 số ở tài liệu 04 §2 giữ lại
+làm **mốc đối chiếu**, không phải đầu vào của engine.
+
+Phương án di trú vẫn còn nguyên vẹn trong DEC-112 nếu GATE-01 kết luận chênh
+lệch 6,0 % là không chấp nhận được.
 
 ### 6.2. Với dữ liệu mới
 
 Rule chỉ bắt đầu có tác dụng khi nhân viên thực sự gõ "ADS". Công cụ phải làm
 cho việc này **không thể bị bỏ quên trong im lặng**:
 
-- Mỗi lần import, hiển thị rõ: `X / Y đơn được phân loại TINPHAT_ADS`.
+- Mỗi lần import, hiển thị rõ: `X / Y đơn được phân loại ADS`, tách riêng số
+  đến từ rule từ khóa và số đến từ mặc định cấp nhân viên.
 - Nếu một tháng có **0 đơn ADS**, đưa cảnh báo vào Review Queue thay vì coi là
   bình thường — vì với lịch sử đang có, 0 nhiều khả năng nghĩa là "chưa ai gõ"
   chứ không phải "tháng này không có đơn ADS".
@@ -186,9 +213,9 @@ cho việc này **không thể bị bỏ quên trong im lặng**:
 
 | # | Câu hỏi | Trạng thái |
 |---|---|---|
-| **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-109.** `default_lead_source: TINPHAT_ADS`. Xem §7. |
+| **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-109, sửa đổi bởi DEC-119.** `default_lead_source: ADS`. Xem §7. |
 | **C6** | ERP có cho sửa `Diễn giải` không? | **Đã chốt — DEC-111.** Sửa được; mặc định giữ nguyên, chỉ sửa khi là đơn ADS. |
-| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Đã chốt — DEC-112.** Nhập 14 số theo nhân viên-tháng làm dữ liệu di trú. Xem §8. |
+| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Đã chốt lại — DEC-120 thay thế DEC-112.** Không di trú; lịch sử mặc định `PERSONAL`. Xem §6.1 và §8. |
 
 ---
 
@@ -202,6 +229,8 @@ LeadSourceFinal =
     4. Default toàn hệ thống (PERSONAL)   → "Auto:Default"
 ```
 
+Chuỗi này chỉ quyết định **nguồn đơn**. Nó không quyết định tỉ lệ — xem §9.
+
 Default cấp nhân viên nằm **dưới** rule ADS và **trên** default toàn hệ thống.
 Vì vậy nó chỉ có thể nâng một đơn lên ADS, **không bao giờ hạ** một đơn mà rule
 đã bắt được. Override tay vẫn thắng cả hai.
@@ -210,22 +239,26 @@ Không có gì trong code biết tới cái tên "Tín Phát" — đó là một
 `config/employees.yaml`. Bất kỳ nhân viên hay kênh nào cũng đặt được mặc định
 riêng.
 
-Kiểm chứng (case 13–17 trong `verify_ads_rule.py`, **18/18 PASS**):
+Kiểm chứng (case 13–17 trong `verify_ads_rule.py`, **18/18 PASS**) — xem output
+đầy đủ ở §5.
 
-```
-  [PASS] 13 Tín Phát, ghi chú mặc định ERP, không có ADS      -> TINPHAT_ADS  (Auto:Employee Default (Tín Phát))
-  [PASS] 14 Tín Phát, ghi chú có ADS                          -> TINPHAT_ADS  (Auto:ADS Rule)
-  [PASS] 15 Tín Phát, quản lý override về PERSONAL            -> PERSONAL     (Manual)
-  [PASS] 16 Ly, ghi chú mặc định ERP — không ăn theo Tín Phát -> PERSONAL     (Auto:Default)
-  [PASS] 17 Ly, ghi chú có ADS                                -> TINPHAT_ADS  (Auto:ADS Rule)
-```
+Case 15 đáng chú ý: chủ dự án nói *"100% đơn đứng tên Tín Phát được coi là
+`LeadSource = ADS`"*, nhưng điều đó nói về **rule tự động**. Override tay vẫn
+thắng, đúng theo xác nhận số 9 — nếu quản lý cần hạ một đơn Tín Phát về
+PERSONAL vì một lý do có thật, hệ thống phải cho phép, có ghi lý do và audit.
 
 **Hệ quả tốt:** số liệu lịch sử của Tín Phát **không cần di trú gì cả** — vốn
-đã là 7,5 %. Phạm vi của C7 thu hẹp lại chỉ còn Hoàng và Kiên.
+đã là 7,5 %. Phạm vi của C7 thu hẹp lại chỉ còn Hoàng và Kiên, và DEC-120 đã
+đóng luôn phần đó bằng cách bỏ di trú.
 
 ---
 
 ## 8. C7 — dữ liệu ADS lịch sử của Hoàng và Kiên
+
+> **Trạng thái: ĐÃ ĐÓNG bằng DEC-120 (2026-08-23) — không di trú.** Toàn bộ mục
+> này giữ lại vì bảng số bên dưới vẫn là **mốc đối chiếu** hợp lệ và là chỗ duy
+> nhất định lượng được chênh lệch mà quyết định không-di-trú tạo ra. Cột "CR
+> không tách" chính là con số công cụ sẽ tính ra.
 
 ### Vấn đề
 
@@ -260,26 +293,131 @@ nghìn đồng ≈ 837 triệu** doanh thu quy đổi trong 8 tháng, kéo theo 
 **2.967 nghìn ≈ 3,0 triệu đồng tiền thưởng** tính theo đúng tỉ lệ thưởng từng
 tháng ở tài liệu 04 §4.
 
-### Quyết định — DEC-112
+### Quyết định — DEC-120 (thay thế DEC-112)
 
-**Nhập 14 số ở cột `X` trong bảng trên làm dữ liệu di trú**, theo nhân viên và
-tháng, đánh dấu rõ là số khai báo cho quá khứ chứ không phải số do rule tính ra.
+**Không di trú.** Lịch sử không có dấu hiệu ADS phân loại thành `PERSONAL`.
+Công cụ sẽ tính ra cột **"CR không tách" = 14.720.745**, không phải cột "CR có
+tách". Chênh lệch +6,0 % là hệ quả đã được chấp nhận có ý thức, vì 2026 là giai
+đoạn chuyển đổi (DEC-121).
 
-Phương án truy từng đơn đã bị loại vì **không khả thi**: không có dấu vết nào
-trong bất kỳ file nào cho biết đơn nào là ADS. Con số `3770+16190` của Hoàng
-tháng 05 cho thấy chúng được cộng tay từ một nguồn nằm ngoài hệ thống.
+Phương án truy từng đơn đã bị loại từ đầu vì **không khả thi**: không có dấu vết
+nào trong bất kỳ file nào cho biết đơn nào là ADS. Con số `3770+16190` của Hoàng
+tháng 05 cho thấy chúng được cộng tay từ một nguồn nằm ngoài hệ thống. Phương án
+nhập 14 số di trú (DEC-112) sau đó cũng bị loại, theo hướng ưu tiên đơn giản hóa
+và chuẩn hóa dữ liệu mới.
 
-### Yêu cầu kỹ thuật kéo theo
+### Yêu cầu kỹ thuật — đã gỡ khỏi phạm vi TASK-108
 
-1. `conversion_engine` cần một đường vào riêng cho số di trú, bỏ qua phân loại
-   ở cấp đơn.
-2. Số di trú phải **hiển thị khác** số do rule sinh ra, cả trên UI lẫn trong
-   file xuất. Đó là một lời khai về quá khứ, không phải một phép tính.
-3. Hai đường phải **loại trừ nhau** trong cùng một nhân viên-tháng. Nếu một
-   tháng vừa có số di trú vừa có đơn được rule phân loại ADS thì đó là **xung
-   đột đưa vào Review Queue**, không phải hai số cộng lại.
-4. Tháng bắt đầu áp dụng quy ước mới (cut-over) là cấu hình: trước tháng đó
-   dùng số di trú, từ tháng đó trở đi dùng rule.
-5. **Mốc đối chiếu bắt buộc (REQUIRED check của TASK-108):** với 14 số đã nạp,
-   tổng doanh thu quy đổi của Hoàng + Kiên trong 01–08.2026 phải bằng đúng
-   **13.883.242** nghìn đồng.
+Bốn yêu cầu mà DEC-112 kéo theo **không còn cần triển khai**: đường vào riêng
+cho số di trú, cách hiển thị phân biệt, logic loại trừ giữa hai đường, và cấu
+hình cut-over theo tháng. Chúng vẫn được ghi lại nguyên văn trong DEC-112 phòng
+khi GATE-01 quyết định kích hoạt lại.
+
+### REQUIRED check thay thế cho TASK-108
+
+Mốc **13.883.242** không còn là tiêu chí gate — nó mô tả một hành vi mà công cụ
+không còn thực hiện. Thay bằng một check **tái lập được từ dữ liệu**, không cần
+di trú:
+
+> Nạp lợi nhuận KPI theo nhân viên-tháng **và** 14 giá trị `X` của chính
+> workbook vào `conversion_engine`. Kết quả phải tái hiện đúng cột `F` của
+> `Summary 2026` ở cả 14 kỳ (E1).
+
+Check này chứng minh engine cài đúng phép toán mà con người đang làm tay, mà
+không buộc production phải mang theo dữ liệu di trú. Danh sách REQUIRED check
+đầy đủ của TASK-108: xem `PROJECT/PROJECT_PROGRESS.md`.
+
+---
+
+## 9. ConversionScheme — bước phân giải thứ hai (DEC-119)
+
+`LeadSource` trả lời *"đơn này đến từ đâu"*. Nó **không** trả lời *"tỉ lệ nào
+quy đổi nó"*. Hai câu hỏi có hai bảng riêng.
+
+Bằng chứng cho thấy vì sao phải tách: **Nội thành bán đơn `PERSONAL` nhưng quy
+đổi ở 2 %**, Gia dụng ở 8 %. Nếu `PERSONAL` kéo theo 5,5 %, hai nhóm này không
+diễn đạt được trong mô hình.
+
+### Bảng phân giải — `config/conversion_rates.yaml`
+
+Tra theo khóa `(employee, lead_source, ngày của đơn)`; dòng cụ thể nhất thắng.
+
+| employee | lead_source | scheme | rate | effective_from |
+|---|---|---|---|---|
+| `*` | `PERSONAL` | `PERSONAL_5_5` | 5,5 % | 2026-01-01 |
+| `*` | `ADS` | `ADS_7_5` | 7,5 % | 2026-01-01 |
+| `Nội thành` | `PERSONAL` | `NOI_THANH_2` | 2 % | 2026-01-01 |
+| `Gia dụng` | `PERSONAL` | `GIA_DUNG_8` | 8 % | 2026-01-01 |
+
+Tín Phát, Hoàng, Kiên, Ly **không cần dòng riêng** — họ rơi vào hai dòng `*`.
+Đó là điểm mấu chốt: 7,5 % của Tín Phát suy ra từ *nguồn đơn*, không phải từ
+*tên nhân viên*.
+
+**Không có tỉ lệ mặc định cuối cùng.** Tổ hợp không khớp dòng nào trả về
+`Unresolved` và vào Review Queue.
+
+### Kiểm thử case A–G — E1
+
+Chạy `python tools/analysis/verify_ads_rule.py`, kết quả thực tế 2026-08-23:
+
+```
+LeadSource + ConversionScheme — DEC-119 cases A–G
+------------------------------------------------------------------------------------------
+  [PASS] A  Tín Phát, không có chữ ADS                -> ADS / ADS_7_5 / 7.500%             (Auto:LeadSource (ADS_7_5))
+  [PASS] B  Kiên, không có ADS                        -> PERSONAL / PERSONAL_5_5 / 5.500%   (Auto:LeadSource (PERSONAL_5_5))
+  [PASS] C  Kiên, một dòng trong OrderID có ADS       -> ADS / ADS_7_5 / 7.500%             (Auto:LeadSource (ADS_7_5))
+  [PASS] D  Hoàng, order nhiều SP, chỉ 1 dòng có ADS  -> ADS / ADS_7_5 / 7.500%             (Auto:LeadSource (ADS_7_5))
+  [PASS] E  Vinh → Nội thành, không ADS               -> PERSONAL / NOI_THANH_2 / 2.000%    (Auto:Employee (NOI_THANH_2))
+  [PASS] F  Quý/Hiệp → Nội thành, không ADS           -> PERSONAL / NOI_THANH_2 / 2.000%    (Auto:Employee (NOI_THANH_2))
+  [PASS] G1 Kiên trong tháng — phần PERSONAL          -> PERSONAL / PERSONAL_5_5 / 5.500%   (Auto:LeadSource (PERSONAL_5_5))
+  [PASS] G2 Kiên trong tháng — phần ADS               -> ADS / ADS_7_5 / 7.500%             (Auto:LeadSource (ADS_7_5))
+------------------------------------------------------------------------------------------
+  8/8 passed
+```
+
+Case E và F là bằng chứng trực tiếp cho việc tách: cùng `LeadSource = PERSONAL`
+như case B, nhưng ra 2 % thay vì 5,5 %.
+
+### Case G end-to-end — hai bucket
+
+```
+Case G — hai bucket quy đổi độc lập (Kiên, một tháng)
+------------------------------------------------------------------------------------------
+  PersonalProfit       30,000 / 5.5% =        545,455
+  AdsProfit             7,565 / 7.5% =        100,867
+  Total                                     =        646,321
+
+  [PASS] Total == Personal + Ads
+  [PASS] Khác với quy đổi gộp một tỉ lệ (683,000, lệch 36,679)
+------------------------------------------------------------------------------------------
+  2/2 passed
+```
+
+Check thứ hai là cái quan trọng: quy đổi gộp một tỉ lệ duy nhất cho ra
+**683.000** thay vì **646.321**. Chênh **36.679** — đúng bằng con số delta của
+Kiên tháng 06, 07, 08.2026 trong bảng §8, xác nhận bản cài đặt tham chiếu tái
+hiện đúng số học đang có trong workbook.
+
+### Tra theo thời điểm — DEC-121
+
+```
+Tra tỉ lệ theo thời điểm — DEC-121
+------------------------------------------------------------------------------------------
+  [PASS] 15/03/2026 -> ADS_7_5 7.5%
+  [PASS] 01/06/2027 -> ADS_7_5 7.5% (chưa có chính sách mới nào hiệu lực)
+  [PASS] 31/12/2025 -> Unresolved (trước effective_from, không đoán tỉ lệ)
+------------------------------------------------------------------------------------------
+  3/3 passed
+```
+
+Tra bằng **ngày của đơn**, không bao giờ bằng "hôm nay". Đây là điều kiện để một
+chính sách đổi vào 2027 không làm thay đổi báo cáo 2026 đã phát hành.
+
+### Câu hỏi còn mở
+
+Bảng trên **chưa định nghĩa** tỉ lệ cho `(Nội thành, ADS)` và `(Gia dụng, ADS)`.
+Với chuỗi phân giải hiện tại, một đơn Nội thành có chữ "ADS" sẽ rơi vào dòng
+`* + ADS` và quy đổi ở **7,5 %** thay vì 2 %. Xem `10_OPEN_QUESTIONS.md` — C9.
+
+Đây là một dòng cấu hình, không phải một thay đổi code, dù chủ dự án chọn hướng
+nào.

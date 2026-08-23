@@ -218,8 +218,13 @@ GATE-00 — trả lời câu hỏi mở C1
 
 Decision:
 Mọi đơn do `Tín Phát` lên đều quy đổi ở tỉ lệ ADS (7,5%), bất kể ghi chú có
-chứa "ADS" hay không. Cài đặt bằng `default_lead_source: TINPHAT_ADS` cho
+chứa "ADS" hay không. Cài đặt bằng `default_lead_source: ADS` cho
 nhân viên đó trong `config/employees.yaml`, không phải một tỉ lệ hard-code.
+
+> **Sửa đổi 2026-08-23 (DEC-119).** Giá trị cấu hình đổi từ `TINPHAT_ADS`
+> thành `ADS`. Bản chất quyết định không đổi — Tín Phát vẫn 100% ADS, vẫn
+> 7,5% — nhưng 7,5% giờ suy ra từ *nguồn đơn* qua bảng scheme, không phải từ
+> *tên nhân viên* nằm trong một giá trị enum. Xem ADR-104.
 
 Reason:
 Quyết định của chủ dự án. `Tín Phát` là tài khoản site/ads của chính công ty —
@@ -308,6 +313,14 @@ Can Revisit After:
 Tháng đầu tiên dưới quy ước mới.
 
 ## DEC-112
+
+> **⚠️ ĐÃ BỊ THAY THẾ BỞI DEC-120 (2026-08-23).** Chủ dự án xác nhận không cần
+> di trú dữ liệu ADS lịch sử; lịch sử không có dấu hiệu ADS mặc định
+> `PERSONAL`. Bảng 14 số dưới đây **vẫn giữ nguyên giá trị làm mốc đối chiếu**,
+> nhưng không còn là đầu vào bắt buộc của `conversion_engine`, và mốc
+> 13.883.242 không còn là REQUIRED check của TASK-108. Giữ lại nguyên văn vì
+> phần "Yêu cầu kỹ thuật kéo theo" vẫn mô tả đúng ràng buộc nếu sau này ai đó
+> chọn nhập số di trú. Đọc DEC-120 trước khi hành động theo quyết định này.
 
 Date:
 2026-08-22
@@ -607,3 +620,145 @@ trên GitHub — khi đó cập nhật lại các đoạn văn bản nêu tên n
 (`claude/extract-upload-repo-gq2ws4`) trong `CLAUDE.md` và
 `PROJECT_PROGRESS.md`; script hook không cần sửa vì nó tự phát hiện động qua
 `git ls-remote --symref origin HEAD`, không hard-code tên nhánh.
+
+## DEC-119
+
+Date:
+2026-08-23
+
+Task:
+Xác nhận nghiệp vụ trước khi chuyển Phase (không thuộc riêng task nào — theo
+yêu cầu trực tiếp của chủ dự án)
+
+Decision:
+`LeadSource` và `ConversionScheme` là hai khái niệm độc lập, hai trường riêng,
+hai bước phân giải riêng.
+
+- `LeadSource` có **đúng hai giá trị**: `PERSONAL` và `ADS`. Giá trị
+  `TINPHAT_ADS` bị loại bỏ hoàn toàn khỏi mọi tài liệu và mã nguồn.
+- `ConversionScheme` tra từ `config/conversion_rates.yaml` theo khóa
+  `(employee, lead_source, ngày của đơn)`, dòng cụ thể nhất thắng, không có
+  tỉ lệ mặc định cuối cùng.
+
+Chi tiết đầy đủ, bảng chính sách và chuỗi ưu tiên: ADR-104.
+
+Reason:
+Quyết định của chủ dự án, xác nhận ngày 2026-08-23: *"`PERSONAL` không đồng
+nghĩa với hệ số 5,5%"*. Thiết kế cũ gộp hai khái niệm và không diễn đạt được
+trường hợp có thật: Nội thành bán đơn `PERSONAL` nhưng quy đổi ở 2%, Gia dụng
+ở 8%. Tài liệu cũ phải mô tả hai nhóm này như một ngoại lệ nằm ngoài mô hình
+("tỉ lệ đặt ở cấp nhân viên, nên `default_lead_source` không ảnh hưởng tới con
+số") — đó là dấu hiệu mô hình sai, không phải một chú thích.
+
+Tên `TINPHAT_ADS` còn nói sai sự thật khi Hoàng hoặc Kiên có đơn ADS: đơn đó
+không phải của Tín Phát.
+
+Impact:
+- Không con số nào của báo cáo thay đổi vì riêng quyết định này. Tín Phát vẫn
+  7,5%, Nội thành vẫn 2%, Gia dụng vẫn 8% — chỉ khác ở chỗ 7,5% giờ suy ra từ
+  nguồn đơn qua bảng config, không phải từ tên nhân viên nằm trong enum.
+- `orders` mang hai cặp trường override song song: `lead_source_*` và
+  `conversion_scheme_*`. Người dùng sửa được từng cái độc lập, cả hai qua audit
+  trail của ADR-102, cả hai bắt buộc `reason`.
+- Báo cáo tách Personal/ADS giờ có nghĩa cho **mọi** nhân viên kể cả kênh, đúng
+  yêu cầu §15 và §16 đặc tả. Trước đây phần tách này vô nghĩa với Nội thành và
+  Gia dụng.
+- Một tổ hợp `(employee, lead_source, date)` không khớp dòng config nào trả về
+  `Unresolved` và vào Review Queue — không bao giờ mượn tỉ lệ của người khác.
+- Bản cài đặt tham chiếu `tools/analysis/verify_ads_rule.py` tách thành hai hàm
+  `classify_lead_source()` và `resolve_conversion_scheme()`, bổ sung 8 case
+  A–G do chủ dự án chỉ định. Toàn bộ 31 check PASS.
+
+Can Revisit After:
+Không nên — việc gộp hai khái niệm là lỗi mô hình, không phải một lựa chọn
+đánh đổi.
+
+## DEC-120
+
+Date:
+2026-08-23
+
+Task:
+Xác nhận nghiệp vụ trước khi chuyển Phase — thay thế DEC-112
+
+Decision:
+Không di trú dữ liệu ADS lịch sử. Đơn lịch sử không có dấu hiệu ADS phân loại
+thành `PERSONAL` theo mặc định. Không xây giá trị `UNKNOWN` cho `LeadSource`.
+
+14 số lợi nhuận ADS gõ tay của Hoàng và Kiên
+(`docs/analysis/04_HARDCODED_VALUES.md` §2) giữ
+lại làm **bảng đối chiếu tham khảo**, không phải đầu vào của
+`conversion_engine`.
+
+Mốc **13.883.242** nghìn đồng bị **gỡ khỏi danh sách REQUIRED check của
+TASK-108** và thay bằng một check tái lập được từ dữ liệu — xem mục Impact.
+
+Reason:
+Quyết định của chủ dự án: *"Không cần làm phức tạp việc migration dữ liệu cũ…
+Không cần xây `UNKNOWN LeadSource` chỉ để phục vụ dữ liệu cũ. Mục tiêu chính
+là chuẩn hóa dữ liệu mới."* Kết hợp với DEC-121 (2026 là giai đoạn chuyển
+đổi), việc số 2026 không khớp tuyệt đối với workbook cũ là hệ quả được chấp
+nhận có ý thức, không phải một lỗi cần che.
+
+Impact:
+- **Hệ quả bằng số, cần nói rõ:** với lịch sử mặc định `PERSONAL`, tổng doanh
+  thu quy đổi 01–08.2026 của Hoàng và Kiên là **14.720.745** nghìn đồng thay vì
+  **13.883.242** như workbook đang báo cáo — **cao hơn 837.503 nghìn (~837
+  triệu), tức 6,0%**, kéo theo khoảng **2.967 nghìn (~3,0 triệu đồng)** tiền
+  thưởng cộng thêm cho hai người trong 8 tháng. Chiều lệch là *có lợi* cho nhân
+  viên, vì quy đổi ở 5,5% cho ra số lớn hơn quy đổi ở 7,5%.
+- REQUIRED check thay thế cho TASK-108 (E1, tái lập được, không cần dữ liệu di
+  trú): nạp lợi nhuận KPI theo nhân viên-tháng **và** 14 giá trị `X` của chính
+  workbook vào `conversion_engine`, kết quả phải tái hiện đúng cột `F` của
+  `Summary 2026` ở cả 14 kỳ. Check này chứng minh engine cài đúng phép toán mà
+  con người đang làm tay, mà không buộc production phải mang dữ liệu di trú.
+- `conversion_engine` **không cần** đường nhập di trú riêng, không cần cấu hình
+  cut-over theo tháng, không cần logic loại trừ giữa số di trú và số do rule
+  sinh ra. Ba yêu cầu kỹ thuật này của DEC-112 được gỡ khỏi phạm vi TASK-108.
+- Phần "Yêu cầu kỹ thuật kéo theo" của DEC-112 vẫn được giữ nguyên văn trong
+  sổ quyết định, phòng khi sau này chủ dự án đổi ý và muốn nhập số di trú.
+
+Can Revisit After:
+GATE-01 — nếu khi đối chiếu số thật, chênh lệch 6,0% của Hoàng và Kiên bị đánh
+giá là không chấp nhận được, DEC-112 vẫn còn nguyên vẹn để kích hoạt lại.
+
+## DEC-121
+
+Date:
+2026-08-23
+
+Task:
+Xác nhận nghiệp vụ trước khi chuyển Phase
+
+Decision:
+Giai đoạn hiện tại là **giai đoạn chuyển đổi**. Từ **01/01/2027**, quy trình
+mới trở thành chuẩn chính thức.
+
+Mọi business rule có tính chính sách — tỉ lệ quy đổi, mặc định nguồn đơn cấp
+nhân viên, danh sách từ khóa ADS, target, tỉ lệ thưởng — mang `effective_from`
+và `effective_to`.
+
+Việc tra cứu dùng **ngày nghiệp vụ của đơn / của kỳ báo cáo**, không bao giờ
+dùng "hôm nay".
+
+Reason:
+Quyết định của chủ dự án. Một chính sách đổi vào 2027 không được phép làm thay
+đổi con số của một báo cáo 2026 đã phát hành. Nếu tra cứu dùng thời điểm chạy
+báo cáo, in lại báo cáo tháng 3/2026 vào năm 2028 sẽ ra một con số khác — và
+không ai biết bản nào đúng.
+
+Impact:
+- Là một REQUIRED check kiểm chứng được của TASK-108: chạy lại một kỳ lịch sử
+  sau khi thêm một dòng chính sách có `effective_from` trong tương lai phải cho
+  ra **kết quả không đổi**. Đã có case trong bản tham chiếu
+  (`run_temporal_check()`, 3/3 PASS).
+- Tra cứu trước `effective_from` sớm nhất trả về `Unresolved`, không đoán tỉ
+  lệ. Đã kiểm chứng: ngày 31/12/2025 → `Unresolved`.
+- 2026 được chấp nhận là năm có số liệu không khớp tuyệt đối với workbook cũ
+  (xem DEC-120). Đây chính là lý do việc đó chấp nhận được: 2026 là giai đoạn
+  chuyển đổi có tuyên bố, không phải một năm bị tính sai.
+- Cần một quyết định riêng trước 01/01/2027 nếu chính sách 2027 khác 2026.
+  Hiện chưa có thông tin nào về nội dung thay đổi — chỉ có mốc thời gian.
+
+Can Revisit After:
+Trước 01/01/2027, khi chính sách của năm 2027 được phát biểu.

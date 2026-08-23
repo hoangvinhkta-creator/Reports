@@ -10,7 +10,38 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23.
+> Cập nhật lần cuối: 2026-08-23 (rà soát theo đợt xác nhận nghiệp vụ của chủ
+> dự án — xem "Có gì mới" ngay bên dưới).
+
+## Có gì mới — đợt xác nhận nghiệp vụ 2026-08-23
+
+Sếp đã gửi 10 điểm xác nhận về cách tính. Toàn bộ tài liệu đã được sửa lại
+theo. **Số bước và thứ tự các bước không đổi** — chỉ nội dung bên trong bước
+số 8 và số 12 được làm rõ hơn.
+
+Ba điều đáng biết, nói không dùng thuật ngữ:
+
+1. **"Đơn từ đâu" và "tính tiền theo tỷ lệ nào" giờ là hai việc tách rời.**
+   Trước đây hệ thống gộp làm một, nên không diễn tả được trường hợp có thật:
+   nhóm Nội thành bán đơn khách tự tìm đến, nhưng quy đổi ở 2 % chứ không phải
+   5,5 % như các bạn khác. Giờ đổi tỷ lệ cho bất kỳ ai chỉ là sửa một dòng cấu
+   hình, không phải sửa phần mềm.
+
+2. **Số liệu cũ của năm 2026 sẽ không khớp y hệt file Excel đang dùng.** Sếp
+   đã chọn không nhập lại dữ liệu quảng cáo cũ cho gọn. Hệ quả: doanh thu quy
+   đổi của Hoàng và Kiên trong 8 tháng đầu 2026 sẽ **cao hơn khoảng 6 %** so
+   với file hiện tại (tương đương khoảng 3 triệu đồng tiền thưởng cho cả hai
+   người cộng lại). Đây là chênh lệch đã biết trước và tính được chính xác,
+   không phải lỗi — vì 2026 được coi là năm chuyển đổi.
+
+3. **Từ 01/01/2027 quy trình mới thành chuẩn chính thức.** Hệ thống được thiết
+   kế sao cho nếu sau này công ty đổi tỷ lệ, các báo cáo cũ đã in ra vẫn giữ
+   nguyên con số cũ — không bị tính lại theo tỷ lệ mới.
+
+**Còn 4 câu hỏi nhỏ chưa có câu trả lời**, không câu nào chặn việc bắt đầu
+làm. Chi tiết ở `docs/analysis/10_OPEN_QUESTIONS.md`. Câu đáng chú ý nhất:
+nếu một bạn ở nhóm Nội thành ghi chữ "ADS" vào đơn, đơn đó nên tính 2 % hay
+7,5 %? Hiện đang để 7,5 %; đề xuất đổi về 2 %.
 
 ## Dự án này làm gì, tóm tắt 1 câu
 
@@ -73,11 +104,11 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ⬜ | 5. TASK-101 (MAJOR, D3/R3/B3) — Nạp và làm sạch dữ liệu bán hàng thô | Biến file Excel lộn xộn từ ERP thành dữ liệu tính toán được | B | **GIAI ĐOẠN 1** — sau Điểm duyệt 1 |
 | ⬜ | 6. TASK-102 (MAJOR, D2/R3/B3) — Gán đúng nhân viên phụ trách từng dòng bán hàng | Biết ai bán để tính đúng hoa hồng cho từng người | B | Sau bước 5 |
 | ⬜ | 7. TASK-103 (MAJOR, D2/R4/B4) — Gộp các dòng hàng thành từng đơn hàng hoàn chỉnh | Một đơn có thể có nhiều dòng sản phẩm, cần gộp lại đúng | B | Sau bước 6 |
-| ⬜ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận | C | Sau bước 7 |
+| ⬜ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. Chỉ xác định *nguồn đơn*; việc chọn tỷ lệ là bước 12 | C | Sau bước 7 |
 | ⬜ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận | B | Sau bước 8 (làm song song được với bước 10–11) |
 | ⬜ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng | C | Sau bước 9 |
 | ⬜ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | Sau bước 10 |
-| ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | Sau bước 11 |
+| ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | Sau bước 11 |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

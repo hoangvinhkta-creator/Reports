@@ -51,7 +51,7 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-22 (S000)
+2026-08-23 (rà soát xác nhận nghiệp vụ — DEC-119, DEC-120, DEC-121)
 
 Overall Status:
 IN_PROGRESS
@@ -89,14 +89,20 @@ TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
         số (DEC-114).
   - [ ] TASK-102 — employee_mapper
   - [ ] TASK-103 — order_builder
-  - [ ] TASK-104 — lead_source_engine (rule ADS)
+  - [ ] TASK-104 — lead_source_engine (rule ADS). Phân giải `LeadSource` ở cấp
+        OrderID, đúng hai giá trị `PERSONAL`/`ADS`, chuỗi 4 bậc: override tay →
+        rule từ khóa → mặc định cấp nhân viên → mặc định hệ thống (DEC-119,
+        ADR-104). **Không** quyết định tỉ lệ — đó là việc của TASK-108.
   - [ ] TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc
         tả: tra giá nhập nếu có Price Master, chưa có thì Pending.
   - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả.
   - [ ] TASK-107 — profit_engine. Bước 11 của §22 đặc tả, phần lợi nhuận.
   - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
-        của §22 đặc tả: chọn scheme theo nguồn đơn và thời gian, sau đó quy
-        đổi từng bucket độc lập.
+        của §22 đặc tả. Phân giải `ConversionScheme` **độc lập** với
+        `LeadSource`, tra config theo `(employee, lead_source, ngày của đơn)`
+        (DEC-119, DEC-121, ADR-104), sau đó quy đổi từng bucket độc lập rồi
+        cộng lại. Engine tự tổng hợp `PersonalProfit`/`AdsProfit` từ phân loại
+        cấp đơn — `X` không còn là đầu vào (DEC-120).
   - [ ] TASK-109 — summary_engine. Mục §15 đặc tả: Summary tháng có 3 cột
         Personal / ADS / Total cho Tổng đơn, Số SP, Doanh số, LN KPI, DS quy
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
@@ -279,11 +285,25 @@ check sơ bộ ghi nhận ngay bây giờ:
   146 cho 06.2026 đối chiếu với file thô thật (E1). Mọi chênh lệch còn lại so
   với báo cáo mẫu phải được giải thích bằng văn bản, không được làm tròn cho
   khớp.
-- TASK-108: sau khi nạp số di trú của DEC-112, tổng doanh thu quy đổi của
-  Hoàng và Kiên trong 01–08.2026 phải bằng 13.883.242 nghìn đồng (E1).
-- TASK-108: số di trú và đơn được rule phân loại ADS phải loại trừ nhau trong
-  cùng một nhân viên-tháng; nếu chồng nhau phải đưa vào review queue, không
-  được cộng dồn (E1).
+- TASK-104: `LeadSource` chỉ nhận đúng hai giá trị `PERSONAL` và `ADS`. Không
+  literal `TINPHAT_ADS` nào còn tồn tại trong mã nguồn hay tài liệu (E1, kiểm
+  chứng bằng grep) — DEC-119.
+- TASK-104: phân loại quyết định ở cấp OrderID và áp cho mọi dòng của đơn; hai
+  dòng cùng `OrderID` không bao giờ mang hai `LeadSource` khác nhau (E1).
+- TASK-108: `ConversionScheme` tra từ config theo `(employee, lead_source,
+  ngày của đơn)`. Không đường code nào suy tỉ lệ trực tiếp từ `LeadSource`
+  (E1). Case E/F của DEC-119 là phép kiểm: cùng `PERSONAL` như Kiên nhưng Nội
+  thành phải ra 2 %, không phải 5,5 %.
+- TASK-108: tra tỉ lệ dùng **ngày của đơn**, không dùng thời điểm chạy. Thêm
+  một dòng chính sách có `effective_from` trong tương lai rồi chạy lại một kỳ
+  lịch sử phải cho kết quả **không đổi** (E1) — DEC-121.
+- TASK-108: nạp lợi nhuận KPI theo nhân viên-tháng **và** 14 giá trị `X` của
+  workbook vào `conversion_engine` phải tái hiện đúng cột `F` của
+  `Summary 2026` ở cả 14 kỳ (E1). Đây là phép kiểm engine cài đúng phép toán,
+  thay cho mốc 13.883.242 đã gỡ theo DEC-120.
+- TASK-108: một tổ hợp `(employee, lead_source, ngày)` không khớp dòng config
+  nào phải trả về `Unresolved` và vào Review Queue — không bao giờ mượn tỉ lệ
+  của nhân viên khác, không bao giờ mặc định về một tỉ lệ nào (E1).
 - TASK-109/111: không có phép chia bù nào trong logic tổng hợp. Mọi con số
   cộng đúng một lần; dòng tổng phụ mang nhãn `RowType` và nằm ngoài mọi vùng
   SUM (DEC-115). Một phép `/2` trong logic tổng hợp là một lỗi
@@ -312,9 +332,12 @@ Status:
 VERIFYING — chờ chủ dự án duyệt `docs/analysis/`
 
 Required Gate Progress:
-7/7 tài liệu phân tích đã viết; 3/3 ADR đã viết; 31/31 mục đặc tả đã truy vết;
-16/16 quyết định đã ghi nhận; 8/8 câu hỏi chặn đã trả lời (C1–C8); 1 giả định
-đã nêu rõ còn treo (C4b); 0/1 lượt duyệt.
+8/8 tài liệu phân tích đã viết (thêm `docs/analysis/10_OPEN_QUESTIONS.md`);
+4/4 ADR đã viết
+(thêm ADR-104); 31/31 mục đặc tả đã truy vết; 21/21 quyết định đã ghi nhận
+(DEC-101..121); 8/8 câu hỏi chặn đã trả lời (C1–C8); 4 giả định đã nêu rõ còn
+treo (C4b, C9, C10, C11), không câu nào chặn; 31/31 check của bản cài đặt tham
+chiếu PASS; **0/1 lượt duyệt**.
 
 Primary Agent Tier:
 C
@@ -326,6 +349,26 @@ Escalation Tier:
 
 Đúng một việc: chủ dự án đọc `docs/analysis/` và xác nhận mapping cùng
 business rule là đúng. Phase 1 bắt đầu ngay khi có xác nhận đó.
+
+**Cập nhật 2026-08-23.** Chủ dự án đã gửi một đợt xác nhận nghiệp vụ gồm 10
+điểm, kèm chỉ thị *"Chưa bắt đầu Phase tiếp theo ngay… Không tự chuyển Phase
+cho đến khi người dùng xác nhận."* Toàn bộ tài liệu phân tích, ADR và
+completion gate đã được rà soát và cập nhật theo (DEC-119, DEC-120, DEC-121;
+ADR-104; `docs/analysis/10_OPEN_QUESTIONS.md`). GATE-00 **vẫn mở** — đợt xác
+nhận này là đầu
+vào cho việc duyệt, không phải bản thân lượt duyệt. Lượt duyệt còn thiếu vẫn
+là 0/1.
+
+Ba điểm chủ dự án nên biết trước khi duyệt, vì chúng làm thay đổi con số so
+với bản 2026-08-22:
+
+1. **Lịch sử 2026 sẽ không khớp workbook cũ** — Hoàng và Kiên cao hơn 6,0 %
+   (+837.503 nghìn, ~3,0 triệu tiền thưởng) do bỏ di trú (DEC-120).
+2. **C9 mới phát sinh** — đơn của Nội thành/Gia dụng có chữ "ADS" hiện sẽ quy
+   đổi ở 7,5 % thay vì 2 %. Chưa từng xảy ra trong dữ liệu thật; khuyến nghị
+   chọn hướng B ở `docs/analysis/10_OPEN_QUESTIONS.md`.
+3. **C10 mới phát sinh** — chính sách 2027 khác 2026 ở điểm nào thì chưa biết,
+   cần trước 01/12/2026.
 
 ### Đã trả lời ngày 2026-08-22
 
@@ -342,13 +385,20 @@ business rule là đúng. Phase 1 bắt đầu ngay khi có xác nhận đó.
 
 ### Còn mở
 
+Danh sách đầy đủ kèm mặc định đang áp dụng và hệ quả nếu mặc định sai:
+`docs/analysis/10_OPEN_QUESTIONS.md`.
+
 | # | Câu hỏi | Mặc định đang áp dụng | Cần trước |
 |---|---|---|---|
-| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? Chủ dự án chỉ nói về doanh số. | Trừ vào cả lợi nhuận. Giảm doanh số mà không giảm lợi nhuận sẽ báo một tỉ suất lợi nhuận công ty không thực sự đạt được — chiết khấu là tiền đã cho đi. | GATE-01 |
+| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? Chủ dự án chỉ nói về doanh số. | Trừ vào cả lợi nhuận — chiết khấu là tiền đã cho đi. | GATE-01 |
+| C9 | Đơn của Nội thành/Gia dụng có chữ "ADS" quy đổi ở tỉ lệ nào? | 7,5 % (rơi vào dòng `* + ADS`). **Khuyến nghị đổi sang 2 %** — xem hướng B. | GATE-01 |
+| C10 | Chính sách từ 01/01/2027 khác 2026 ở điểm nào? | Không đổi — chưa có dòng config nào cho 2027. | 01/12/2026 |
+| C11 | 88 dòng nhân viên chưa map xử lý thế nào khi lên production? | Review Queue loại `Missing`, không tính vào KPI của ai. | GATE-01 |
 
-C4b là một giả định đã nêu rõ, không phải một ẩn số: công cụ áp dụng nó,
-DEC-114 và `docs/analysis/03_RULE_CLASSIFICATION.md` ghi nhận nó, và đảo lại
-chỉ mất một thay đổi cấu hình. Không câu hỏi nào chặn GATE-00.
+Không câu nào trong bốn câu này chặn GATE-00 hay chặn việc bắt đầu Phase 1 —
+tất cả đều là một dòng cấu hình hoặc một quyết định ở gate sau. Cả bốn đều là
+giả định **đã nêu rõ**, không phải ẩn số: công cụ áp dụng chúng, tài liệu ghi
+nhận chúng, và đảo lại đều không cần sửa code.
 
 Cũng đã ghi nhận, không chặn: tổng tháng trong Summary mẫu bỏ sót 60,0% doanh
 thu quy đổi (`05 §A2`), và Kiên mang cùng một số ADS gõ tay `7565` suốt ba
@@ -401,12 +451,22 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   đơn khớp rule mỗi lần import, để một tháng toàn số 0 hiện ra rõ ràng thay vì
   bị mặc nhiên coi là đúng.
 
-- **RISK-02 — ĐÃ XỬ LÝ 2026-08-22.** Tín Phát mặc định `TINPHAT_ADS`
-  (DEC-109), nên tỉ lệ 7,5% được giữ nguyên, không con số nào thay đổi. Còn
+- **RISK-02 — ĐÃ XỬ LÝ 2026-08-22.** Tín Phát mặc định `ADS` (DEC-109, sửa đổi
+  bởi DEC-119), nên tỉ lệ 7,5% được giữ nguyên, không con số nào thay đổi. Còn
   lại: đánh dấu một đơn là ADS *làm giảm* doanh thu quy đổi (5,5% chia ra số
   lớn hơn 7,5%), nên đánh dấu ADS quá tay sẽ khiến nhân viên mất tiền. Review
   queue phải hiện cả đơn mới chuyển sang ADS, không chỉ đơn mới chuyển về
   PERSONAL.
+
+- **RISK-05 — Chênh lệch 6,0% của Hoàng và Kiên trên dữ liệu lịch sử.** Hệ quả
+  trực tiếp của DEC-120 (không di trú): doanh thu quy đổi 01–08.2026 của hai
+  người sẽ là 14.720.745 thay vì 13.883.242 nghìn đồng đang báo cáo — cao hơn
+  837.503 nghìn, kéo theo khoảng 3,0 triệu đồng tiền thưởng. Chiều lệch *có
+  lợi* cho nhân viên.
+  Giảm thiểu: chênh lệch đã được định lượng chính xác và ghi tại
+  `docs/analysis/06_ADS_RULE_VERIFICATION.md` §6.1 và §8, nên giải thích được
+  bất cứ lúc nào. DEC-112 vẫn còn nguyên vẹn để kích hoạt lại nếu GATE-01 kết
+  luận chênh lệch này không chấp nhận được.
 
 - **RISK-03 — Giá nhập vắng mặt ở nguồn.** File thô không mang giá nhập, chỉ
   có lợi nhuận do ERP tính sẵn. Theo quyết định của chủ dự án, trường này giữ
@@ -423,8 +483,15 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
 - Chưa có — chưa tồn tại mã ứng dụng nào.
 
 ## Quyết định gần đây
-- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-118 (track Tín Phát,
-  bao gồm DEC-118 — hợp nhất track Governance + cơ chế đồng bộ nhánh).
+- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-121 (track Tín Phát).
+  Ba quyết định mới nhất, từ đợt xác nhận nghiệp vụ 2026-08-23:
+  - **DEC-119** — tách `LeadSource` khỏi `ConversionScheme`; `TINPHAT_ADS` bị
+    loại bỏ. Xem ADR-104.
+  - **DEC-120** — không di trú dữ liệu ADS lịch sử; thay thế DEC-112. Gỡ mốc
+    13.883.242 khỏi REQUIRED check của TASK-108.
+  - **DEC-121** — 2026 là giai đoạn chuyển đổi; mốc chuẩn chính thức
+    01/01/2027; mọi business rule mang `effective_from`/`effective_to` và tra
+    theo ngày của đơn.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 
@@ -463,6 +530,26 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   mục "Đồng Bộ Nhánh" mới trong `CLAUDE.md`. Đã chạy lại cả 5 validator sau
   toàn bộ thay đổi — PASS. Push thẳng lên nhánh mặc định theo yêu cầu trực
   tiếp của chủ dự án.
+
+- 2026-08-23 — **Rà soát xác nhận nghiệp vụ trước khi chuyển Phase.** Chủ dự
+  án gửi 10 xác nhận nghiệp vụ kèm chỉ thị không tự chuyển Phase. Rà soát lại
+  toàn bộ tài liệu phân tích, ADR, data mapping, formula mapping và acceptance
+  criteria theo các xác nhận đó. Phát hiện và xử lý ba mâu thuẫn thật: (1)
+  `TINPHAT_ADS` là một giá trị enum nguồn đơn có chứa tên nhân viên, khiến
+  `PERSONAL` bị hiểu là đồng nghĩa 5,5% và khiến Nội thành/Gia dụng chỉ tồn
+  tại được dưới dạng ngoại lệ ngoài mô hình → tách thành `LeadSource` và
+  `ConversionScheme` (DEC-119, ADR-104 mới); (2) xác nhận số 6 phủ định
+  DEC-112 và làm mất hiệu lực một REQUIRED check đã ghi trong completion gate
+  (mốc 13.883.242) → DEC-120 thay thế DEC-112, thay bằng một check tái lập
+  được, ghi rõ chênh lệch +6,0% mà quyết định này tạo ra (RISK-05 mới); (3)
+  yêu cầu mốc 2027 chưa có chỗ nào trong thiết kế → DEC-121, kèm ràng buộc tra
+  cứu theo ngày của đơn. Bổ sung 8 test case A–G do chủ dự án chỉ định, 2
+  check hai bucket end-to-end và 3 check tra theo thời điểm vào
+  `tools/analysis/verify_ads_rule.py` — **31/31 PASS**. Sửa một tham chiếu
+  DEC-009 lỗi thời còn sót trong script sau đợt renumber DEC-117. Ghi 4 câu
+  hỏi nghiệp vụ còn mở vào `docs/analysis/10_OPEN_QUESTIONS.md` (C4b, và C9,
+  C10, C11 mới). GATE-00 giữ nguyên trạng thái VERIFYING — đợt xác nhận này là
+  đầu vào cho việc duyệt, không phải bản thân lượt duyệt.
 
 ## Session tiếp theo
 

@@ -67,10 +67,12 @@ Nội thành/Gia dụng lệch trái 1 cột vì không có `Nơi nhập` — xe
 | `KpiAdjustment` | `J: Giao hàng` | Parse từ ghi chú điều chỉnh — xem tài liệu 03. |
 | `AccountingProfit` | `M: Lợi nhuận gộp` | `(SellPrice − AccountingPurchasePrice) × Quantity` |
 | `EligibleKpiProfit` | `I: Lợi nhuận` | `(SellPrice − KpiPurchasePrice) × Quantity − EligibleCosts + OtherKpiAdjustment` |
-| `LeadSourceAuto` | *(không có)* | Rule ADS trên `NoteRaw`. |
+| `LeadSourceAuto` | *(không có)* | Rule ADS trên `NoteRaw`. Cấp OrderID. |
 | `LeadSourceManual` | *(không có)* | Override tay. |
-| `LeadSourceFinal` | *(cần thêm)* | Cột mới, badge `PERSONAL`/`ADS`. |
-| `ConversionScheme` | *(không có)* | Từ `LeadSourceFinal`. |
+| `LeadSourceFinal` | *(cần thêm)* | Cột mới, badge `PERSONAL`/`ADS`. Đúng hai giá trị (DEC-119). |
+| `ConversionSchemeAuto` | *(không có)* | Tra `(employee, lead_source, ngày)` từ config. **Không** suy từ `LeadSourceFinal` (DEC-119, ADR-104). |
+| `ConversionSchemeManual` | *(không có)* | Override tay, độc lập với override nguồn đơn. |
+| `ConversionSchemeFinal` | *(cần thêm)* | Cột mới, hiển thị cạnh `LeadSourceFinal` để người đọc không phải tự suy tỉ lệ. |
 | `AutoConvertedRevenue` | *(chỉ có ở Summary)* | `EligibleKpiProfit / ConversionRate` |
 | `ManualConvertedRevenue` | — | Override tay. |
 | `FinalConvertedRevenue` | *(cần thêm)* | Cột mới ở sheet chi tiết. |
@@ -134,26 +136,33 @@ Công cụ **xuất một layout duy nhất** cho mọi nhân viên và mọi k�
 
 ## 5. Mapping nhân viên đã chốt (DEC-104)
 
-| Raw NVBH | Số dòng | Normalized | Active | Include in KPI | Default lead source |
-|---|---|---|---|---|---|
-| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes | **`TINPHAT_ADS`** (DEC-109) |
-| `Vũ Hạnh Ly 0868345633` | 735 | Ly | Yes | Yes | `PERSONAL` |
-| `Lê Mạnh Hoàng 0865111533` | 531 | Hoàng | Yes | Yes | `PERSONAL` |
-| `Đức Kiên - Tân Á 0867666533` | 524 | Kiên | Yes | Yes | `PERSONAL` |
-| `Phước Thắng 0865909022` | 411 | Thắng | Yes | Yes | `PERSONAL` |
-| `Đức Hiệp` | 4.342 | **Nội thành** | Yes | Yes | `PERSONAL` |
-| `Mr Quý` | 2.246 | **Nội thành** | Yes | Yes | `PERSONAL` |
-| `Mr Vinh` | 1.448 | **Nội thành** | Yes | Yes | `PERSONAL` |
-| `Thảo Linh` | 63 | *chưa map* | — | — | — |
-| `Tống Khánh Linh 0865111033` | 14 | *chưa map* | — | — | — |
-| `Lê Quang Trường 0589691228` | 6 | *chưa map* | — | — | — |
-| `Lê Văn Quân 0865111033` | 2 | *chưa map* | — | — | — |
-| `Nguyễn Thị Minh Bảo` | 1 | *chưa map* | — | — | — |
-| *(rỗng)* | 2 | *chưa map* | — | — | — |
+Cột `Default lead source` khai báo **nguồn đơn**, cột `Scheme khi PERSONAL`
+khai báo **tỉ lệ** — hai thứ độc lập kể từ DEC-119. Xem ADR-104.
 
-> Nội thành và Gia dụng có tỉ lệ quy đổi riêng (2 % và 8 %) đặt ở cấp nhân
-> viên, nên `default_lead_source` của họ không ảnh hưởng tới con số — vẫn để
-> `PERSONAL` cho nhất quán.
+| Raw NVBH | Số dòng | Normalized | Active | Include in KPI | Default lead source | Scheme khi PERSONAL |
+|---|---|---|---|---|---|---|
+| `Tín Phát 0869931931` | 1.440 | Tín Phát | Yes | Yes | **`ADS`** (DEC-109) | *(không áp dụng)* |
+| `Vũ Hạnh Ly 0868345633` | 735 | Ly | Yes | Yes | `PERSONAL` | `PERSONAL_5_5` |
+| `Lê Mạnh Hoàng 0865111533` | 531 | Hoàng | Yes | Yes | `PERSONAL` | `PERSONAL_5_5` |
+| `Đức Kiên - Tân Á 0867666533` | 524 | Kiên | Yes | Yes | `PERSONAL` | `PERSONAL_5_5` |
+| `Phước Thắng 0865909022` | 411 | Thắng | Yes | Yes | `PERSONAL` | `PERSONAL_5_5` |
+| `Đức Hiệp` | 4.342 | **Nội thành** | Yes | Yes | `PERSONAL` | **`NOI_THANH_2`** |
+| `Mr Quý` | 2.246 | **Nội thành** | Yes | Yes | `PERSONAL` | **`NOI_THANH_2`** |
+| `Mr Vinh` | 1.448 | **Nội thành** | Yes | Yes | `PERSONAL` | **`NOI_THANH_2`** |
+| `Thảo Linh` | 63 | *chưa map* | — | — | — | — |
+| `Tống Khánh Linh 0865111033` | 14 | *chưa map* | — | — | — | — |
+| `Lê Quang Trường 0589691228` | 6 | *chưa map* | — | — | — | — |
+| `Lê Văn Quân 0865111033` | 2 | *chưa map* | — | — | — | — |
+| `Nguyễn Thị Minh Bảo` | 1 | *chưa map* | — | — | — | — |
+| *(rỗng)* | 2 | *chưa map* | — | — | — | — |
+
+> **Nội thành và Gia dụng là lý do mô hình phải tách hai khái niệm.** Họ bán
+> đơn `PERSONAL` nhưng quy đổi ở 2 % và 8 %, không phải 5,5 %. Trong mô hình
+> cũ điều này phải mô tả như một ngoại lệ nằm ngoài enum; giờ nó là một dòng
+> bình thường trong bảng scheme. Xem `06_ADS_RULE_VERIFICATION.md` §9.
+>
+> Cột `Scheme khi PERSONAL` ở trên chỉ là cách đọc cho tiện — nguồn sự thật là
+> `config/conversion_rates.yaml`, không phải `config/employees.yaml`.
 
 **88 dòng chưa map.** Chúng **không bị bỏ** — vào Review Queue loại `Missing`
 để người quản lý quyết định. `Fanpage` không xuất hiện trong file thô 6 tháng

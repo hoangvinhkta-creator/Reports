@@ -68,6 +68,25 @@ cho override, không phải xóa.
 `lead_source_final`; `working_rows` tham chiếu tới order chứ không giữ bản sao
 độc lập. Không thể xảy ra tình trạng 4 dòng của một đơn có 2 nguồn khác nhau.
 
+**ConversionScheme là một trường độc lập, không phải một giá trị dẫn xuất từ
+LeadSource** (ADR-104, DEC-119). `orders` giữ hai cặp override song song:
+
+| Nguồn đơn | Tỉ lệ quy đổi |
+|---|---|
+| `lead_source_auto` | `conversion_scheme_auto` |
+| `lead_source_manual` | `conversion_scheme_manual` |
+| `lead_source_final` | `conversion_scheme_final` |
+
+Cả hai cặp theo đúng khuôn override ở trên: giá trị tự động không bao giờ bị
+mất, reset về Auto là đặt `active = false`. Người dùng sửa được nguồn đơn mà giữ
+nguyên tỉ lệ, hoặc ngược lại — hai thao tác độc lập, hai bản ghi audit riêng,
+cả hai bắt buộc có `reason`.
+
+`conversion_scheme_auto` được tra theo `(employee, lead_source_final, ngày của
+đơn)`. Tra bằng **ngày của đơn**, không bao giờ bằng thời điểm chạy báo cáo — đó
+là điều kiện để một chính sách đổi trong tương lai không viết lại một báo cáo đã
+phát hành (DEC-121).
+
 **REPORT không được lưu.** Mọi con số Summary tính lại từ WORKING. Một Summary
 được lưu là một Summary sẽ lệch với dữ liệu vào lúc nào đó không ai biết.
 
@@ -125,4 +144,6 @@ một con số sai âm thầm trên bảng lương.
 None
 
 ## Superseded By
-None
+Không bị thay thế. **Được bổ sung bởi ADR-104** (2026-08-23): mục "Decision"
+thêm cặp trường `conversion_scheme_*` song song với `lead_source_*`. Phần còn
+lại của ADR này không đổi.

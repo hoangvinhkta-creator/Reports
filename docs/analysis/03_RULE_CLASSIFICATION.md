@@ -39,12 +39,12 @@ Các công thức này **không được** cấu hình. Sửa chúng là sửa �
 
 | Rule | Giá trị hiện tại | File config | Chiều thay đổi |
 |---|---|---|---|
-| Tỉ lệ quy đổi PERSONAL | 5,5 % | `conversion_rates.yaml` | theo thời gian |
-| Tỉ lệ quy đổi ADS | 7,5 % | `conversion_rates.yaml` | theo thời gian |
-| Tỉ lệ quy đổi kênh Nội thành | 2 % | `conversion_rates.yaml` | theo nhân viên + thời gian |
-| Tỉ lệ quy đổi kênh Gia dụng | 8 % | `conversion_rates.yaml` | theo nhân viên + thời gian |
+| Scheme `PERSONAL_5_5` | 5,5 % | `conversion_rates.yaml` | theo thời gian |
+| Scheme `ADS_7_5` | 7,5 % | `conversion_rates.yaml` | theo thời gian |
+| Scheme `NOI_THANH_2` | 2 % | `conversion_rates.yaml` | theo nhân viên + thời gian |
+| Scheme `GIA_DUNG_8` | 8 % | `conversion_rates.yaml` | theo nhân viên + thời gian |
 | Từ khóa nhận diện ADS | `["ADS"]` | `lead_source.yaml` | danh sách mở rộng được |
-| Nguồn đơn mặc định | `PERSONAL` | `lead_source.yaml` | ghi đè được ở cấp nhân viên (mở — C1) |
+| Nguồn đơn mặc định | `PERSONAL` | `lead_source.yaml` | ghi đè được ở cấp nhân viên (DEC-109) |
 | Mapping nhân viên | 8 raw → 6 chuẩn | `employees.yaml` | thêm/nghỉ không cần code |
 | Target nhân viên/tháng | 1.300.000 / 2.700.000 / 12.000.000 | `targets.yaml` | theo nhân viên + thời gian |
 | Target công ty/tháng | 28.790.000 | `targets.yaml` | theo thời gian |
@@ -165,10 +165,37 @@ nào được phép làm mất giá trị tự động — luôn Reset về Auto
 FinalValue = Manual Override ?? Business Rule ?? Master Data ?? Raw Data ?? Missing
 ```
 
-Riêng LeadSource (mục 7 đặc tả):
+Riêng LeadSource (mục 7 đặc tả, mở rộng bởi DEC-109 và DEC-119):
 
 ```
-LeadSourceFinal = Manual Override → Rule ADS → Default
+LeadSourceFinal = Manual Override
+                → Rule ADS trên Diễn giải
+                → Default cấp nhân viên
+                → Default toàn hệ thống (PERSONAL)
 ```
 
-Mỗi dòng hiển thị `SourceOfValue`: `Manual` / `Auto:ADS Rule` / `Auto:Default`.
+Mỗi dòng hiển thị `SourceOfValue`: `Manual` / `Auto:ADS Rule` /
+`Auto:Employee Default (<tên>)` / `Auto:Default`.
+
+**ConversionScheme là một chuỗi phân giải riêng, không suy từ chuỗi trên**
+(DEC-119, ADR-104):
+
+```
+ConversionSchemeFinal = Manual Override
+                      → Tra config theo (employee, lead_source, ngày của đơn)
+                      → Unresolved  → Review Queue
+```
+
+Không có tỉ lệ mặc định cuối cùng. Một tổ hợp không khớp dòng config nào là một
+mục Review Queue, không bao giờ là một tỉ lệ mượn của người khác.
+
+### Vì sao hai chuỗi phải tách
+
+`PERSONAL` không kéo theo 5,5 %. Nội thành bán đơn `PERSONAL` ở **2 %**, Gia
+dụng ở **8 %**. Gộp hai chuỗi lại thì hai nhóm này chỉ tồn tại được dưới dạng
+ngoại lệ hard-code — đúng thứ tiêu chí 14 mục 28 đặc tả cấm.
+
+### Cả hai trường đều override được độc lập
+
+Người dùng sửa được nguồn đơn mà giữ nguyên tỉ lệ, hoặc ngược lại. Cả hai đi qua
+audit trail của ADR-102, cả hai bắt buộc có `reason`.

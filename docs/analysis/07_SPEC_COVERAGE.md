@@ -26,14 +26,14 @@ tại: toàn bộ 31 mục hiện dừng ở mức yêu cầu đã được nắ
 | 2 | File đầu vào để đối chiếu | `00_README.md`; `data/samples/` | TASK-002 ✅ | PHÂN TÍCH XONG |
 | 3 | Cấu trúc file thô (17 cột) | `01_DATA_MAPPING.md` §1–2 — đủ 17 cột, header 2 tầng dòng 4–5, dữ liệu từ dòng 6 | TASK-101 | PHÂN TÍCH XONG |
 | 4 | Ba lớp RAW / WORKING / REPORT | `ADR-102` | TASK-101, TASK-201 | PHÂN TÍCH XONG |
-| 5 | **Rule ADS cấp OrderID** | `06_ADS_RULE_VERIFICATION.md`; DEC-102, DEC-109 | TASK-104 | PHÂN TÍCH XONG |
-| 6 | **Hai bucket quy đổi PERSONAL / ADS** | `02_FORMULA_MAPPING.md` §4 — tìm ra công thức tách tay của Hoàng/Kiên | TASK-108 | PHÂN TÍCH XONG |
-| 7 | Thứ tự ưu tiên LeadSource | `06` §7 — chuỗi 4 bậc sau DEC-109 | TASK-104 | PHÂN TÍCH XONG |
+| 5 | **Rule ADS cấp OrderID** | `06_ADS_RULE_VERIFICATION.md`; DEC-102, DEC-109, DEC-119 | TASK-104 | PHÂN TÍCH XONG |
+| 6 | **Hai bucket quy đổi PERSONAL / ADS** | `02_FORMULA_MAPPING.md` §4 — engine tự tổng hợp, `X` không còn là đầu vào (DEC-119/120) | TASK-108 | PHÂN TÍCH XONG |
+| 7 | Thứ tự ưu tiên LeadSource | `06` §7 — chuỗi 4 bậc; chuỗi scheme riêng ở `06` §9 | TASK-104 | PHÂN TÍCH XONG |
 | 8 | Employee Mapping | `01` §5 — 14 NVBH thật, 88 dòng chưa map; DEC-104 | TASK-102 | PHÂN TÍCH XONG |
 | 9 | Working Data schema (35 field) | `01` §2 — đủ 35 field, ghi rõ field nào không có nguồn thô | TASK-101 | PHÂN TÍCH XONG |
 | 10 | Giá nhập kế toán vs giá nhập KPI | `02` §1 — giải mã được `F` = KPI, `L` = kế toán; DEC-103 | TASK-105 | PHÂN TÍCH XONG |
 | 11 | Adjustment nghiệp vụ (qua kho) | `03` — từ vựng thật: `Qua kho`, `KHBH`, `Thợ lắp`, `NCC giao` | TASK-106 | PHÂN TÍCH XONG |
-| 12 | Conversion Rule Engine | `04` §1 — 5 tỉ lệ; `03` — bảng config | TASK-108 | PHÂN TÍCH XONG |
+| 12 | Conversion Rule Engine | `06` §9 + `ADR-104` — bảng scheme tra theo `(employee, lead_source, ngày)`; `04` §1 | TASK-108 | PHÂN TÍCH XONG |
 | 13 | Xử lý ghi chú ADS (kỹ thuật) | `06` §2–4; DEC-111 | TASK-104 | PHÂN TÍCH XONG |
 | 14 | Chi tiết nhân viên theo tháng (22 cột) | `01` §2, §4 — ánh xạ 6 layout về 1 | TASK-111, TASK-302 | PHÂN TÍCH XONG |
 | 15 | **Summary tháng Personal/ADS/Total + YTD** | `02` §3; **YTD bổ sung vào TASK-109** | TASK-109 | ĐÃ GHI NHẬN |
@@ -50,7 +50,7 @@ tại: toàn bộ 31 mục hiện dừng ở mức yêu cầu đã được nắ
 | 26 | Thứ tự ưu tiên dữ liệu | `03` cuối — `Manual ?? Rule ?? Master ?? Raw ?? Missing` | TASK-104…108 | PHÂN TÍCH XONG |
 | 27 | **Phải phân tích trước khi code** | `docs/analysis/` 01–06 + `tools/analysis/` | TASK-002 ✅ | **HOÀN THÀNH** |
 | 28 | Tiêu chí nghiệm thu MVP (14 mục) | Xem §"14 tiêu chí" bên dưới | GATE-03 | ĐÃ GHI NHẬN |
-| 29 | Test case rule ADS (8 case) | `tools/analysis/verify_ads_rule.py` — **18/18 PASS** | TASK-104 | **HOÀN THÀNH** |
+| 29 | Test case rule ADS (8 case) | `tools/analysis/verify_ads_rule.py` — **31/31 PASS** (18 LeadSource + 8 case A–G + 2 two-bucket + 3 temporal) | TASK-104, TASK-108 | **HOÀN THÀNH** |
 | 30 | Tách dữ liệu kế toán và dữ liệu KPI | `ADR-102`; `02` §1; DEC-103 | TASK-107 | PHÂN TÍCH XONG |
 | 31 | Prompt khởi động gợi ý | Đã thực hiện — chính là quy trình S000 → GATE-00 | — | **HOÀN THÀNH** |
 
@@ -66,12 +66,12 @@ Không tiêu chí nào đã đạt — Phase 1 chưa bắt đầu. Cột cuối 
 | 1 | Upload file thô, giữ nguyên Raw Data | TASK-101 | `ADR-102` — RAW bất biến, có `source_row` |
 | 2 | Nhận diện đúng ngày/tháng, NVBH, OrderID | TASK-101/102/103 | Đối chiếu 30 kỳ × nhân viên |
 | 3 | **Đếm đúng unique Số BH** | TASK-103 | Tín Phát 01.2026 = 254, 06.2026 = 146 |
-| 4 | Rule ADS: 1 dòng có ADS → cả đơn ADS | TASK-104 | Case 4, `verify_ads_rule.py` |
-| 5 | Không có ADS → PERSONAL | TASK-104 | Case 5 |
+| 4 | Rule ADS: 1 dòng có ADS → cả đơn ADS | TASK-104 | Case 4, C, D |
+| 5 | Không có ADS → PERSONAL | TASK-104 | Case 5, B |
 | 6 | Override nguồn đơn theo OrderID, đồng bộ mọi line | TASK-104/202 | Case 6, 7, 15 |
-| 7 | **Tách đúng Personal Profit và Ads Profit** | TASK-108 | Case 8a/8b |
-| 8 | Áp đúng ConversionScheme theo nguồn đơn | TASK-108 | Bảng tỉ lệ `04` §1 |
-| 9 | **Total CR = tổng hai bucket** | TASK-108 | REQUIRED check, Hoàng+Kiên = 13.883.242 |
+| 7 | **Tách đúng Personal Profit và Ads Profit** | TASK-108 | Case 8a/8b, G1/G2 |
+| 8 | Áp đúng ConversionScheme theo nguồn đơn **và nhân viên** | TASK-108 | Case A–F; bảng scheme `06` §9 |
+| 9 | **Total CR = tổng hai bucket** | TASK-108 | Case G end-to-end; tái hiện cột `F` của Summary ở 14 kỳ |
 | 10 | Nhập/sửa được giá nhập và giá nhập KPI | TASK-105 | DEC-103 |
 | 11 | Có adjustment nghiệp vụ và audit trail | TASK-106/202 | Từ vựng `03`; 8 field audit |
 | 12 | Summary cập nhật ngay sau chỉnh sửa | TASK-205 | Recalc incremental |
@@ -84,8 +84,10 @@ Không tiêu chí nào đã đạt — Phase 1 chưa bắt đầu. Cột cuối 
 
 ### Rule ADS (§5, §7, §13, §29)
 Đã có bản cài đặt tham chiếu chạy được: `tools/analysis/verify_ads_rule.py`,
-**18/18 case PASS** (8 case bắt buộc của đặc tả + 4 case biên + 5 case cho mặc
-định cấp nhân viên của DEC-109). Chạy lại bất cứ lúc nào:
+**31/31 check PASS** — 18 case LeadSource (8 bắt buộc của đặc tả + 4 case biên +
+5 case mặc định cấp nhân viên + 1 tách 8a/8b), 8 case A–G do chủ dự án chỉ định,
+2 check hai bucket end-to-end, 3 check tra theo thời điểm. Chạy lại bất cứ lúc
+nào:
 
 ```bash
 python tools/analysis/verify_ads_rule.py --raw data/samples/So_chi_tiet_ban_hang.xlsx
@@ -95,7 +97,14 @@ python tools/analysis/verify_ads_rule.py --raw data/samples/So_chi_tiet_ban_hang
 Không chỉ hiểu yêu cầu mà đã **tìm được nó đang tồn tại dưới dạng thủ công**:
 Hoàng và Kiên dùng `=(G−X)/5.5% + X/7.5%` với `X` gõ tay 14 lần trong 8 tháng.
 Tỉ lệ PERSONAL 5,5 % và ADS 7,5 % lấy từ chính workbook, không phải phỏng đoán.
-Mốc đối chiếu **13.883.242 nghìn đồng** đã thành REQUIRED check của TASK-108.
+
+Sau DEC-119, `X` **không còn là đầu vào**: engine tự tổng hợp hai bucket từ phân
+loại cấp đơn. Tỉ lệ tra từ bảng scheme theo `(employee, lead_source, ngày)`, nên
+Nội thành (`PERSONAL` ở 2 %) diễn đạt được trong cùng một mô hình.
+
+REQUIRED check của TASK-108: tái hiện đúng cột `F` của `Summary 2026` ở cả 14 kỳ
+khi nạp lợi nhuận KPI **và** 14 giá trị `X` của workbook — một phép kiểm engine
+cài đúng phép toán, không cần dữ liệu di trú (DEC-120).
 
 ### Tách dữ liệu kế toán và KPI (§10, §30)
 Giải mã được hai cột giá nhập bị đặt tên gây nhầm: `Giá nhập TT` (`F`) là giá
