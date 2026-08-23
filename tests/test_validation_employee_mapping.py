@@ -23,6 +23,14 @@ from app.modules.importing.normalizer import normalize_line
 from app.modules.validation.employee_mapping import collect_mapping_stats
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
+    DETAIL_BATCH_ROWS,
+    DETAIL_CRITERION,
+    DETAIL_DATASET_RANGE,
+    DETAIL_EMPLOYEE,
+    DETAIL_RAW_VALUE,
+    DETAIL_SOURCE_ROWS,
+    SCOPE_BATCH,
+    SCOPE_ROW,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
@@ -78,11 +86,17 @@ def queue_for(lines, employee_rows, groups=GROUPS):
     return validator.build_queue(lines, [])
 
 
-def messages(queue, severity=None):
+def items_of(queue, criterion=None, severity=None):
     items = queue.by_category(CATEGORY_EMPLOYEE_MAPPING)
+    if criterion:
+        items = [i for i in items if i.details.get(DETAIL_CRITERION) == criterion]
     if severity:
-        items = [item for item in items if item.severity == severity]
-    return [item.message for item in items]
+        items = [i for i in items if i.severity == severity]
+    return items
+
+
+def messages(queue, severity=None):
+    return [item.message for item in items_of(queue, severity=severity)]
 
 
 # --------------------------------------------------------- CHECK-110-12 (F2)
@@ -230,3 +244,185 @@ def test_quantity_is_untouched_by_the_mapping_diagnostics():
 
     assert working.quantity == before == Decimal("1")
     assert working.employee_normalized == "Ly"
+
+
+# ------------------- Review #1, Finding 1: every criterion must be traceable
+
+def test_f4_names_the_rows_it_is_about():
+    """A criterion that says "this name has 2 rows" but cannot say WHICH rows
+    leaves a reader with nothing to open. That was Finding 1."""
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line("Thảo Linh 0900000001", source_row=11),
+        unmapped_line("Thảo Linh 0900000001", source_row=14),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F4")[0]
+
+    assert item.scope == SCOPE_ROW
+    assert item.source_file == "synthetic_raw_sample.xlsx"
+    assert item.source_row == 11, "points at the first row of the unmapped name"
+    assert item.details[DETAIL_SOURCE_ROWS] == "11, 14"
+    assert item.details[DETAIL_RAW_VALUE] == "Thảo Linh 0900000001"
+    assert item.affected_count == 2, "the real count, not a placeholder 1"
+
+
+def test_f2_carries_batch_provenance_and_an_honest_zero_count():
+    """F2 is precisely "this employee matched NO row", so there are no rows to
+    point at. It gets batch provenance instead — which import, over what date
+    range, out of how many rows — and `affected_count == 0`, because claiming
+    1 would invent a row that does not exist."""
+    employees = [employee("Ly", "Vũ Hạnh Ly"), employee("Kiên", "Đức Kiên")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6, when=date(2026, 1, 5)),
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=7, when=date(2026, 3, 9)),
+    ]
+
+    item = [
+        i for i in items_of(queue_for(lines, employees), criterion="F2")
+        if i.severity == SEVERITY_WARNING
+    ][0]
+
+    assert item.scope == SCOPE_BATCH
+    assert item.source_file == "synthetic_raw_sample.xlsx"
+    assert item.source_row is None
+    assert item.details[DETAIL_EMPLOYEE] == "Kiên"
+    assert item.details[DETAIL_DATASET_RANGE] == "2026-01-05..2026-03-09"
+    assert item.details[DETAIL_BATCH_ROWS] == "2"
+    assert item.affected_count == 0
+
+
+def test_f1_points_at_the_rows_of_the_employee_whose_group_is_undeclared():
+    employees = [employee("Ly", "Vũ Hạnh Ly", group="GHOST_GROUP")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=9),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F1")[0]
+
+    assert item.scope == SCOPE_ROW
+    assert item.details[DETAIL_SOURCE_ROWS] == "6, 9"
+    assert item.affected_count == 2
+
+
+def test_f5_is_batch_scoped_and_counts_every_orphaned_row():
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        unmapped_line("Người Lạ 0900000009", source_row=6),
+        unmapped_line("Người Lạ 0900000009", source_row=7),
+    ]
+
+    item = items_of(queue_for(lines, employees), criterion="F5")[0]
+
+    assert item.scope == SCOPE_BATCH
+    assert item.source_file == "synthetic_raw_sample.xlsx"
+    assert item.affected_count == 2
+
+
+def test_every_employee_mapping_item_satisfies_the_reference_invariant():
+    employees = [
+        employee("Ly", "Vũ Hạnh Ly"),
+        employee("Kiên", "Đức Kiên"),
+        employee("Nghỉ", "Người Đã Nghỉ", active=False),
+    ]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line("Thảo Linh 0900000001", source_row=7),
+    ]
+
+    produced = items_of(queue_for(lines, employees))
+    assert produced
+
+    for item in produced:
+        assert item.source_file, item
+        assert item.details.get(DETAIL_CRITERION), item
+        if item.scope == SCOPE_ROW:
+            assert item.source_row is not None, item
+            assert item.details.get(DETAIL_SOURCE_ROWS), item
+        else:
+            assert item.scope == SCOPE_BATCH, item
+            assert item.details.get(DETAIL_DATASET_RANGE), item
+
+
+# --------------------------------- HD-110-03: F6, inactive employee with rows
+
+def test_f6_reports_an_inactive_employee_that_still_has_rows():
+    """Contradictory master data: flagged as having left, yet selling.
+
+    Before HD-110-03 this was reported as `Missing.employee` — wrong, the
+    seller is known (Review #1, Finding 3). Dropping it instead would have
+    left a real defect with no signal at all while the revenue kept counting
+    toward that person's KPI.
+    """
+    employees = [employee("Ly", "Vũ Hạnh Ly", active=False)]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=8),
+    ]
+
+    found = items_of(queue_for(lines, employees), criterion="F6")
+
+    assert len(found) == 1
+    item = found[0]
+    assert item.severity == SEVERITY_WARNING
+    assert item.scope == SCOPE_ROW
+    assert item.details[DETAIL_SOURCE_ROWS] == "6, 8"
+    assert item.details[DETAIL_EMPLOYEE] == "Ly"
+    assert item.affected_count == 2
+    assert "active: false" in item.message
+
+
+def test_f6_stays_silent_for_an_active_employee():
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6)]
+    assert items_of(queue_for(lines, employees), criterion="F6") == []
+
+
+def test_f6_and_f2_never_describe_the_same_employee_at_once():
+    """F2's INFO branch is "inactive AND no rows"; F6 is "inactive AND rows".
+    They are complements — an employee must land in exactly one."""
+    employees = [
+        employee("Ly", "Vũ Hạnh Ly", active=False),
+        employee("Nghỉ", "Người Đã Nghỉ", active=False),
+    ]
+    lines = [mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6)]
+
+    queue = queue_for(lines, employees)
+    f6 = {i.details[DETAIL_EMPLOYEE] for i in items_of(queue, criterion="F6")}
+    f2 = {
+        i.details[DETAIL_EMPLOYEE]
+        for i in items_of(queue, criterion="F2")
+        if DETAIL_EMPLOYEE in i.details
+    }
+
+    assert f6 == {"Ly"}
+    assert f2 == {"Nghỉ"}
+    assert not (f6 & f2)
+
+
+def test_f6_does_not_change_what_the_analysis_script_reports_for_healthy_data():
+    """CHECK-110-14: adding F6 must not shift `reconcile_conversion.py`'s
+    output. It cannot fire unless master data contradicts itself."""
+    from app.modules.validation.employee_mapping import evaluate_raw_mapping
+    from collections import Counter
+
+    verdict = evaluate_raw_mapping(
+        Counter({"Ly": 10}),
+        {"Ly": "STANDARD_SALES"},
+        Counter(),
+        {},
+        [employee("Ly", "Vũ Hạnh Ly")],
+        {"STANDARD_SALES"},
+        date(2026, 1, 1),
+        date(2026, 6, 30),
+    )
+    assert verdict.hard_failures == []
+    assert verdict.warnings == []
+
+
+def test_empty_batch_produces_no_mapping_noise():
+    """F5 ("nothing mapped at all") on a file with no rows is noise, not a
+    finding — and there would be no source_file to point at either."""
+    assert queue_for([], [employee("Ly", "Vũ Hạnh Ly")]).items == []

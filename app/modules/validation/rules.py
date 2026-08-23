@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Pattern
 
 from app.modules.domain.models import (
-    MAPPING_STATUS_MAPPED,
+    MAPPING_STATUS_UNMAPPED,
     Order,
     PRICE_SOURCE_PENDING,
     WorkingLine,
@@ -38,27 +38,39 @@ from app.modules.validation.models import (
     DETAIL_RULE,
     DETAIL_SOURCE_ROWS,
     ReviewItem,
+    SCOPE_BATCH,
+    SCOPE_ORDER,
+    SCOPE_ROW,
 )
+from app.modules.validation.text import matches_any
 
 _ZERO = Decimal("0")
 
 
-def is_non_product_line(line: WorkingLine, keywords: list[str]) -> bool:
+def is_non_product_line(line: WorkingLine, patterns: list[Pattern[str]]) -> bool:
     """Does this line look like a money-carrying non-product row (DEC-110)?
 
     Shipping, installation, VAT difference, discount and voucher lines legally
     carry `Quantity = 0` or `SellPrice = 0` — flagging them as suspicious
-    would bury the real findings under ~1.261 rows of normal business
-    (DEC-128 §3). This is noise reduction only: deciding what such a line
-    counts toward is Product/Transaction Classification, TASK-103.
+    would bury the real findings under a mass of normal business (DEC-128 §3).
+    This is noise reduction only: deciding what such a line counts toward is
+    Product/Transaction Classification, TASK-103.
+
+    Matching goes through `text.matches_any`, so both sides are NFC-normalized,
+    whitespace-collapsed and case-folded, and a keyword only matches as a whole
+    word or phrase (Review #1, Findings 4 and 5; HD-110-02). The boundary is
+    what keeps `phí` off `bàn phím`.
+
+    **Temporary by decision (HD-110-02).** This heuristic exists only because
+    TASK-103 does not, and it must never be tuned to reproduce a historical
+    count.
     """
-    haystack = (line.product_raw or "").lower()
-    return any(keyword in haystack for keyword in keywords)
+    return matches_any(line.product_raw, patterns)
 
 
 def _severity_for(line: WorkingLine, configured: str, downgrade_to: str,
-                  keywords: list[str]) -> str:
-    if is_non_product_line(line, keywords):
+                  patterns: list[Pattern[str]]) -> str:
+    if is_non_product_line(line, patterns):
         return downgrade_to
     return configured
 
@@ -80,13 +92,14 @@ def _is_missing(line: WorkingLine, field: str) -> bool:
     if field == "order_id":
         return not (line.order_id or "").strip()
     if field == "employee":
-        # An `inactive` mapping still names a real person, so it is not
-        # "missing" — it is a different finding. Only a line no configured
-        # employee claims counts here (DEC-104, C11).
-        return (
-            not line.employee_normalized
-            or line.employee_mapping_status != MAPPING_STATUS_MAPPED
-        )
+        # ONLY `unmapped` (DEC-104, C11). An `inactive` mapping named a real
+        # person — the seller is known, so nothing is missing. Reporting it
+        # here was Independent Review #1, Finding 3.
+        #
+        # An inactive employee that still has rows is contradictory master
+        # data and is NOT dropped in silence: criterion F6 reports it under
+        # `EmployeeMapping` (HD-110-03).
+        return line.employee_mapping_status == MAPPING_STATUS_UNMAPPED
     if field == "quantity":
         return line.quantity is None
     if field == "total_sales":
@@ -107,6 +120,7 @@ def detect_missing(
                     category=CATEGORY_MISSING,
                     severity=severity,
                     message=f"Thiếu {_MISSING_LABELS[field]}.",
+                    scope=SCOPE_ROW,
                     source_file=line.raw.source_file,
                     source_row=line.raw.source_row,
                     order_id=line.order_id or None,
@@ -139,6 +153,7 @@ def detect_missing_purchase_price(
                 category=CATEGORY_MISSING_PURCHASE_PRICE,
                 severity=severity,
                 message="Thiếu giá nhập (chờ Price Master).",
+                scope=SCOPE_ROW,
                 source_file=line.raw.source_file,
                 source_row=line.raw.source_row,
                 order_id=line.order_id or None,
@@ -155,6 +170,7 @@ def detect_missing_purchase_price(
                 "(DEC-103). Đây là trạng thái đã biết của hệ thống, không phải "
                 "lỗi dữ liệu của từng dòng."
             ),
+            scope=SCOPE_BATCH,
             source_file=pending[0].raw.source_file,
             affected_count=len(pending),
         )
@@ -200,7 +216,7 @@ def detect_suspicious(
     lines: list[WorkingLine],
     rules: dict[str, str],
     downgrade_to: str,
-    keywords: list[str],
+    patterns: list[Pattern[str]],
 ) -> list[ReviewItem]:
     items: list[ReviewItem] = []
     for line in lines:
@@ -211,8 +227,9 @@ def detect_suspicious(
             items.append(
                 ReviewItem(
                     category=CATEGORY_SUSPICIOUS,
-                    severity=_severity_for(line, severity, downgrade_to, keywords),
+                    severity=_severity_for(line, severity, downgrade_to, patterns),
                     message=message,
+                    scope=SCOPE_ROW,
                     source_file=line.raw.source_file,
                     source_row=line.raw.source_row,
                     order_id=line.order_id or None,
@@ -228,7 +245,7 @@ def detect_suspicious_erp(
     lines: list[WorkingLine],
     severity: str,
     downgrade_to: str,
-    keywords: list[str],
+    patterns: list[Pattern[str]],
 ) -> list[ReviewItem]:
     """DEC-128 §2 — a separate category, explicitly labelled as unverified.
 
@@ -245,12 +262,13 @@ def detect_suspicious_erp(
         items.append(
             ReviewItem(
                 category=CATEGORY_SUSPICIOUS_ERP,
-                severity=_severity_for(line, severity, downgrade_to, keywords),
+                severity=_severity_for(line, severity, downgrade_to, patterns),
                 message=(
                     f"ERP báo lợi nhuận âm ({line.source_profit}). Tín hiệu từ "
                     "ERP, CHƯA kiểm chứng — không dùng để suy ra giá nhập "
                     "(DEC-103)."
                 ),
+                scope=SCOPE_ROW,
                 source_file=line.raw.source_file,
                 source_row=line.raw.source_row,
                 order_id=line.order_id or None,
@@ -291,6 +309,8 @@ def detect_order_inconsistency(
     """
     items: list[ReviewItem] = []
     for order in orders:
+        if not order.lines:
+            continue  # nothing to compare, and no row to point a reader at
         identities: dict[str, list[int]] = defaultdict(list)
         for line in order.lines:
             identities[_selling_identity(line)].append(line.raw.source_row)
@@ -315,7 +335,8 @@ def detect_order_inconsistency(
                         "tiên, đó là hành vi legacy, KHÔNG phải quyền sở hữu "
                         "đã được xác minh. Cần người quyết định."
                     ),
-                    source_file=order.lines[0].raw.source_file if order.lines else None,
+                    scope=SCOPE_ORDER,
+                    source_file=order.lines[0].raw.source_file,
                     order_id=order.order_id,
                     affected_count=len(order.lines),
                     details={
@@ -336,7 +357,8 @@ def detect_order_inconsistency(
                         f"Đơn {order.order_id} có {len(dates)} ngày khác nhau "
                         "trên các dòng."
                     ),
-                    source_file=order.lines[0].raw.source_file if order.lines else None,
+                    scope=SCOPE_ORDER,
+                    source_file=order.lines[0].raw.source_file,
                     order_id=order.order_id,
                     affected_count=len(order.lines),
                     details={
@@ -367,7 +389,7 @@ def detect_source_classification(
     items: list[ReviewItem] = []
     for order in orders:
         manual = order.lead_source_manual
-        if not manual or manual == order.lead_source_auto:
+        if not order.lines or not manual or manual == order.lead_source_auto:
             continue
         items.append(
             ReviewItem(
@@ -377,7 +399,8 @@ def detect_source_classification(
                     f"Đơn {order.order_id}: override tay `{manual}` khác kết "
                     f"quả rule tự động `{order.lead_source_auto}`."
                 ),
-                source_file=order.lines[0].raw.source_file if order.lines else None,
+                scope=SCOPE_ORDER,
+                source_file=order.lines[0].raw.source_file,
                 order_id=order.order_id,
             )
         )
@@ -415,6 +438,7 @@ def detect_duplicates(
                     f"{', '.join(str(r) for r in rows)}). Có thể hợp lệ — hai "
                     "dòng phụ kiện giống nhau trong một đơn — cần người xem."
                 ),
+                scope=SCOPE_ROW,
                 source_file=group[0].raw.source_file,
                 source_row=rows[0],
                 order_id=group[0].order_id or None,

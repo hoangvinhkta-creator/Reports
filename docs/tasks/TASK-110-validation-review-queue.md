@@ -3,12 +3,14 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — awaiting Independent Review.** Completion Gate **FROZEN** bởi
-chủ dự án 2026-08-23. 16/17 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần
-file thô production, đã được chủ dự án cho phép giữ BLOCKED — chặn DONE, không
-chặn IMPLEMENTED). 207/207 test PASS (56 mới, không regression).
+**IMPLEMENTED — awaiting Independent Review #2.** Completion Gate **FROZEN**
+2026-08-23. **Independent Review #1: FAIL, 6 finding — đã sửa toàn bộ**
+(S017); ba Human Decision phát sinh ghi thành **DEC-129**. 16/17 REQUIRED
+check PASS; **CHECK-110-16 BLOCKED** (cần file thô production, chủ dự án cho
+phép giữ — chặn DONE, không chặn IMPLEMENTED). **260/260 test PASS** (109 mới
+so với baseline `c7a1b24`, 0 regression).
 
-**Không tự chuyển sang DONE.** Chờ Independent Review.
+**Không tự chuyển sang DONE. Chưa merge.**
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -59,7 +61,7 @@ Queue là kết quả *bên cạnh* dữ liệu đã xử lý, không phải c�
 ## Phạm Vi (Scope)
 
 Bảy loại cảnh báo. Năm loại đầu là §18 đặc tả; V3 tách ra theo DEC-128 §2;
-V7 là TD-001.
+V7 là TD-001, mở rộng thành F1–F6 theo **DEC-129** (HD-110-01, HD-110-03).
 
 | Mã | Loại | Cơ sở phát hiện | Ghi chú |
 |---|---|---|---|
@@ -70,14 +72,26 @@ V7 là TD-001.
 | V4 | `Order inconsistency` | Cùng `order_id`, khác `employee_normalized` (hoặc khác `date`) | **Chỉ phát hiện**, không đổi cách tính (DEC-128 §4) |
 | V5 | `Source classification` | `lead_source_manual` có giá trị và khác `lead_source_auto` | Phase 1 chưa có nguồn ghi override → 0 phát hiện thật, kiểm bằng fixture |
 | V6 | `Duplicate` | Trùng `row_hash` **trong cùng một lần import** | WARNING, không phải lỗi (DEC-128 §3) |
-| V7 | `Employee mapping` | F2 và F4 của `reconcile_conversion.py`, chuyển vào luồng production | **TD-001** |
+| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) |
 
 Ngoài ra:
-- Mỗi mục trong queue mang: mã loại, mức độ (`INFO`/`WARNING`/`ERROR`), tham
-  chiếu ngược `source_file` + `source_row` (hoặc `order_id`), và một câu mô tả
-  đọc được bằng tiếng Việt.
+- Mỗi mục trong queue mang: mã loại, mức độ (`INFO`/`WARNING`/`ERROR`), một
+  câu mô tả đọc được bằng tiếng Việt, và **tham chiếu ngược bắt buộc**. Sau
+  Independent Review #1 (Finding 1, Finding 6), ràng buộc này là **cấu trúc**
+  chứ không phải quy ước: `ReviewItem.scope` ∈ `row` | `order` | `batch`, và
+  `__post_init__` từ chối dựng một mục không truy vết được —
+  `row` cần `source_file` + `source_row`, `order` cần `source_file` +
+  `order_id`, `batch` cần `source_file`. Không mục nào được phép để trống
+  toàn bộ tham chiếu.
+- `affected_count` là **số dòng thô thật** đứng sau mục đó, kể cả khi bằng
+  **0** — F2 nói đúng nghĩa "nhân viên này không khớp dòng nào", nên ghi 1 ở
+  đó là bịa ra một dòng không tồn tại.
 - Toàn bộ **từ khóa dòng phụ** và mọi ngưỡng nghiệp vụ nằm trong
   `config/validation.yaml`. Không literal nào trong `app/`.
+- Khớp từ khóa theo **HD-110-02**: chuẩn hóa Unicode NFC + gộp khoảng trắng +
+  case-folding, áp cho **cả hai phía**, rồi khớp theo **biên từ** (nguyên một
+  từ hoặc nguyên một cụm). Không dùng substring, không dùng dấu cách cuối làm
+  mẹo thay cho biên. Ngữ nghĩa này sống ở `app/modules/validation/text.py`.
 - `run_import()` trả thêm `review_queue` trong `ImportResult`.
 
 ## Ngoài Phạm Vi (Out of Scope)
@@ -92,10 +106,14 @@ Không được đụng tới nếu chưa có SCOPE EXPANSION:
 - **Product / Transaction Classification đầy đủ** (§17 đặc tả, bảng cấu hình
   từng loại tính vào SP/doanh số/lợi nhuận/DS quy đổi) — TASK-103. TASK-110
   chỉ dùng một danh sách từ khóa để **hạ mức cảnh báo**, không phải để quyết
-  định dòng nào tính vào đâu.
+  định dòng nào tính vào đâu. **HD-110-02: đây là giải pháp TẠM THỜI —
+  TASK-103 phải THAY THẾ nó, không kế thừa nó.**
 - **Chống trùng khi import lại cùng một file** (cần persistence) — TASK-201.
 - **Đổi hành vi của `order_builder`** — hiện lấy nhân viên của dòng đầu tiên.
   DEC-128 §4 giữ nguyên hành vi này; đổi nó cần một DEC mới.
+- **Đổi cách tính cho nhân viên `inactive`.** F6 chỉ **báo** (HD-110-03).
+  `conversion_engine` vẫn cho `inactive` đi qua như `mapped`; đổi điều đó là
+  đổi business calculation và KPI ownership, cần một DEC riêng.
 - **TASK-108B** (Converted Revenue) và **TASK-109** (summary_engine).
 - Thêm bất kỳ field nào vào `WorkingLine` / `Order`.
 
@@ -141,13 +159,15 @@ Không được đụng tới nếu chưa có SCOPE EXPANSION:
 ## Phạm Vi Tác Động Dự Kiến (Expected Touch Area)
 
 Allowed:
-- `app/modules/validation/` (mới)
+- `app/modules/validation/` (mới) — gồm `text.py` (chuẩn hóa + khớp biên từ,
+  thêm ở vòng sửa Independent Review #1, HD-110-02)
 - `config/validation.yaml` (mới)
 - `app/pipeline.py` — chỉ thêm bước 11 và trường `review_queue` vào `ImportResult`
 - `tests/test_validation_*.py` (mới)
 - `tools/analysis/reconcile_conversion.py` — chỉ **trích xuất** logic F2/F4 ra
   chỗ dùng chung; hành vi và output của script phải **không đổi**
-- `docs/tasks/TASK-110-validation-review-queue.md`, `docs/sessions/S015-*.md`
+- `docs/tasks/TASK-110-validation-review-queue.md`, `docs/sessions/S015-*.md`,
+  `docs/sessions/S016-*.md`, `docs/sessions/S017-*.md`
 - `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`
 
 Không được đụng vào nếu chưa có Scope Expansion:
@@ -170,6 +190,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.8 — V7: trích F2/F4 ra module dùng chung, nối vào `run_import()`; giữ nguyên hành vi `reconcile_conversion.py`.
 - [x] 110.9 — Nối vào `app/pipeline.py` làm bước 11.
 - [ ] 110.10 — Đối chiếu trên dữ liệu thật (CHECK-110-16) — **BLOCKED**, cần file thô production.
+- [x] 110.R1 — Sửa 6 finding của Independent Review #1 (S017), xem "Lịch Sử Independent Review".
 
 ## Ready Gate
 
@@ -270,7 +291,9 @@ Evidence Level:
 E1
 
 Evidence:
-`test_missing_fires_once_per_missing_field` — 4 dòng dựng sẵn → đúng 6 mục, đúng field trên từng dòng (`date`; `quantity`+`total_sales`; `order_id`+`quantity`+`total_sales`). Bổ sung `test_missing_employee_counts_unmapped_not_merely_absent_name`.
+`test_missing_fires_once_per_missing_field` — 4 dòng dựng sẵn → đúng 6 mục, đúng field trên từng dòng.
+
+**Sửa Independent Review #1, Finding 3:** `Missing.employee` nay CHỈ bắn cho `unmapped`. Một nhân viên `inactive` đã được nhận diện — không có gì "thiếu". Kiểm chứng: `test_inactive_employee_is_not_reported_as_missing_employee`, `test_only_unmapped_counts_as_a_missing_employee` (bảng 3 trạng thái), `test_blank_employee_still_counts_as_missing` (C11 vẫn được bảo vệ).
 
 Executed By:
 Claude (S016)
@@ -327,7 +350,16 @@ Evidence Level:
 E1
 
 Evidence:
-`test_non_product_line_is_downgraded_but_real_product_is_not` — `Chi phí vận chuyển` SL=0 → `INFO`; `Máy giặt Test-1` SL=0 → `WARNING`. `test_keyword_match_is_case_insensitive_and_covers_measured_variants` phủ 4 biến thể đã đo (`Chi phí lắp đặt`, `Chi phí giao hộ …`, `Phí đổi trả`, `CHÊNH VAT 25%`).
+`test_non_product_line_is_downgraded_but_real_product_is_not` — `Chi phí vận chuyển` SL=0 → `INFO`; `Máy giặt Test-1` SL=0 → `WARNING`.
+
+**Sửa Independent Review #1, Findings 4 và 5 (HD-110-02).** Khớp nay đi qua `app/modules/validation/text.py`: NFC + gộp khoảng trắng + case-fold trên **cả hai phía**, rồi khớp **biên từ**. `"phí "` đã bị thay bằng `"phí"`.
+
+Falsification (`tests/test_validation_text.py`, 31 test):
+- **NFD/NFC**: `test_nfd_and_nfc_spellings_are_the_same_word` (test tự khẳng định hai chuỗi thật sự khác byte trước khi so), `test_a_keyword_written_in_nfd_still_compiles_to_the_same_matcher`.
+- **Khoảng trắng**: 4 biến thể (space đôi, tab, thừa hai đầu, newline giữa ô).
+- **False positive**: `test_phi_does_not_match_ban_phim` — `Bàn phím cơ Logitech` **KHÔNG** khớp, và test khẳng định trước rằng substring `phí` thật sự nằm trong đó, nên chỉ biên từ mới cứu được. Thêm 4 sản phẩm thật đều không khớp.
+- **False negative**: `test_a_keyword_at_the_very_end_of_the_value_still_matches` — `Thu chi phí` khớp, đúng ca mà mẹo dấu-cách-cuối luôn bỏ sót; `test_multiword_keyword_needs_the_whole_phrase`; `test_blank_keywords_are_dropped_rather_than_matching_everything`.
+- Ở tầng detector: `test_real_products_keep_their_severity_through_the_detector`.
 
 Executed By:
 Claude (S016)
@@ -346,7 +378,9 @@ Evidence Level:
 E1
 
 Evidence:
-`grep -rnE "Tín Phát|Vũ Hạnh Ly|Lê Mạnh Hoàng|Đức Kiên|Phước Thắng|Mr Vinh|Mr Quý|Đức Hiệp|NOI_THANH|Decimal\(\"0\.[0-9]+\"\)" app/modules/validation/*.py` → **0 kết quả**. Tự động hóa bằng `test_no_business_values_are_hardcoded_in_the_validation_module` (quét tên nhân viên, từ khóa dòng phụ và literal hình dạng tỉ lệ, sau khi bỏ comment/docstring). `test_config_keyword_list_matches_the_measured_evidence_filter` khóa danh sách từ khóa vào đúng bộ lọc đã đo ra 1.261 dòng.
+`grep -rnE "<8 tên nhân viên>|NOI_THANH|Decimal(\"0.N\")" app/modules/validation/*.py` → **0 kết quả**. Tự động hóa bằng `test_no_business_values_are_hardcoded_in_the_validation_module`.
+
+**Sửa Independent Review #1 (HD-110-02):** test khóa danh sách từ khóa vào bộ lọc lịch sử đã bị **gỡ bỏ** — nó chính là kiểu tune theo con số 1.261 mà quyết định cấm, và nó chỉ chứng minh rule mới khớp rule cũ chứ không chứng minh rule đúng. Thay bằng `test_keyword_config_expresses_semantics_not_a_historical_count`, khẳng định **hình dạng** mà ngữ nghĩa đòi hỏi: không từ khóa nào được dựa vào khoảng trắng đệm (`keyword == keyword.strip()`), tất cả đã case-fold. Hành vi do `tests/test_validation_text.py` phủ.
 
 Executed By:
 Claude (S016)
@@ -365,7 +399,9 @@ Evidence Level:
 E1
 
 Evidence:
-(a) `test_multi_employee_order_is_detected` — đơn 2 nhân viên → đúng 1 mục. (b) `test_building_the_queue_changes_nothing_about_the_data` — snapshot 11 trường của mọi dòng (gồm `conversion_scheme_final`, `conversion_rate_final`) **trước và sau** khi dựng queue: giống hệt; `test_order_builder_still_selects_the_first_line_untouched` xác nhận hành vi legacy không đổi. Provenance theo yêu cầu freeze: `test_multi_employee_finding_carries_the_provenance_the_owner_required` (OrderID, `employees_found`, `source_rows`, `legacy_selected`).
+(a) `test_multi_employee_order_is_detected` — đơn 2 nhân viên → đúng 1 mục. Provenance theo yêu cầu freeze: `test_multi_employee_finding_carries_the_provenance_the_owner_required` (OrderID, `employees_found`, `source_rows`, `legacy_selected`).
+
+(b) **Sửa Independent Review #1, Finding 6.** Bản trước snapshot **11 field liệt kê tay** — một field thêm sau sẽ lặng lẽ thoát khỏi bảo đảm. Nay `_snapshot()` duyệt `dataclasses.fields` **đệ quy** trên toàn bộ `Order` → `WorkingLine` → `RawRow`, nên không thể tụt lại sau model. Hai test bọc quanh nó: `test_the_snapshot_actually_covers_every_frozen_field` (≥30 field, gồm `conversion_rate_final`) và `test_the_non_mutation_snapshot_would_actually_catch_a_write` — cố tình sửa một field sâu và khẳng định snapshot **phát hiện được**, để việc nó PASS có nghĩa. `test_order_builder_still_selects_the_first_line_untouched` giữ nguyên.
 
 Executed By:
 Claude (S016)
@@ -422,7 +458,9 @@ Evidence Level:
 E1
 
 Evidence:
-`test_f2_reaches_the_production_review_queue` — nhân viên `active`, hiệu lực trong kỳ, không khớp dòng nào → mục F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`, không chỉ trong `tools/analysis/`. `test_f2_stays_silent_for_an_employee_legitimately_absent` giữ đúng phân biệt WARNING/INFO của tiêu chí gốc.
+`test_f2_reaches_the_production_review_queue` — nhân viên `active`, hiệu lực trong kỳ, không khớp dòng nào → mục F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`, không chỉ trong `tools/analysis/`.
+
+**Sửa Independent Review #1, Finding 1 — provenance.** `test_f2_carries_batch_provenance_and_an_honest_zero_count`: mục F2 mang `scope=batch`, `source_file`, `dataset_range` (`2026-01-05..2026-03-09`), `batch_rows`, và `affected_count == 0` — con số thật, vì F2 nghĩa là *không* khớp dòng nào; ghi 1 sẽ là bịa ra một dòng.
 
 Executed By:
 Claude (S016)
@@ -441,7 +479,13 @@ Evidence Level:
 E1
 
 Evidence:
-(a) `test_f4_reaches_the_production_review_queue` — tên chưa map có 2 dòng ≥ nhân viên nhỏ nhất (1 dòng) → mục F4 trong queue. (b) `test_f2_and_f4_never_raise_and_never_empty_the_queue_of_other_findings` — không raise. Quan sát trực tiếp trên fixture tổng hợp: `run_import()` trả 3 mục F2 + 1 mục F4.
+(a) `test_f4_reaches_the_production_review_queue`. (b) `test_f2_and_f4_never_raise_and_never_empty_the_queue_of_other_findings` — không raise.
+
+**Sửa Independent Review #1, Finding 1 — provenance.** `test_f4_names_the_rows_it_is_about`: mục F4 mang `scope=row`, `source_row=11` (dòng đầu của tên chưa map), `source_rows="11, 14"`, `raw_value`, và `affected_count == 2` — **số thật**, không phải placeholder 1. Tương tự cho F1 (`test_f1_points_at_the_rows_of_the_employee_whose_group_is_undeclared`) và F5 (`test_f5_is_batch_scoped_and_counts_every_orphaned_row`).
+
+**HD-110-03 — tiêu chí F6:** `test_f6_reports_an_inactive_employee_that_still_has_rows` (WARNING, `source_rows="6, 8"`, `affected_count == 2`), `test_f6_stays_silent_for_an_active_employee`, `test_f6_and_f2_never_describe_the_same_employee_at_once` (F2-INFO và F6 là hai nửa bù nhau).
+
+Bất biến chung: `test_every_employee_mapping_item_satisfies_the_reference_invariant`.
 
 Executed By:
 Claude (S016)
@@ -460,7 +504,9 @@ Evidence Level:
 E1
 
 Evidence:
-`tests/test_reconcile_raw_criteria.py` và `tests/test_reconcile_raw_integration.py` **không sửa một dòng nào** (`git diff` rỗng trên hai file) và **24/24 PASS** sau khi trích F1–F5 sang `app/modules/validation/employee_mapping.py`. `python3 tools/analysis/reconcile_conversion.py --help` chạy bình thường (exit 0).
+`tests/test_reconcile_raw_criteria.py` và `tests/test_reconcile_raw_integration.py` **không sửa một dòng nào** (`git diff --stat HEAD` rỗng trên hai file) và **24/24 PASS**, cả sau vòng sửa Independent Review #1. `python3 tools/analysis/reconcile_conversion.py --help` exit 0.
+
+`RawMappingVerdict` nay giữ `findings` có cấu trúc, nhưng vẫn phơi `hard_failures`/`warnings`/`info` dưới dạng **đúng các list chuỗi cũ, đúng thứ tự cũ** — script không thấy khác biệt nào. F6 mới thêm không thể bắn với master data lành mạnh, kiểm chứng bằng `test_f6_does_not_change_what_the_analysis_script_reports_for_healthy_data`.
 
 Executed By:
 Claude (S016)
@@ -479,7 +525,7 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/ -q` → **207 passed in 1.30s**. Baseline tại `c7a1b24` là 151 → **56 test mới, 0 regression**.
+`python3 -m pytest tests/ -q` → **260 passed in 1.65s**. Baseline tại `c7a1b24` là 151 → **109 test mới, 0 regression**. Vòng Independent Review #1 thêm 53 test so với `e2c0c18` (207).
 
 Executed By:
 Claude (S016)
@@ -501,16 +547,29 @@ Evidence:
 chạy validation trên file thô thật, số phát hiện từng loại đối chiếu
 với các con số đã đo trong `docs/analysis/_evidence/evidence.json`:
 
-| Loại | Số đã đo (bộ 6 tháng, 11.765 dòng) |
+| Loại | **Mốc tham chiếu** (bộ 6 tháng, 11.765 dòng) |
 |---|---:|
 | `Missing` — thiếu nhân viên | 2 |
 | `Missing` — thiếu SL | 52 |
 | V3 — ERP báo lợi nhuận âm | 1.912 |
-| Dòng phụ (hạ xuống INFO) | 1.261 (30 loại) |
+| Dòng phụ (hạ xuống INFO) | 1.261 (30 loại) — **xem cảnh báo bên dưới** |
 | V1-P — chờ giá nhập | 11.765 (1 mục tổng hợp) |
 
 Mọi chênh lệch phải giải thích bằng văn bản, **không được** chỉnh ngưỡng cho
 khớp — cùng quy tắc đã áp ở CHECK-101-08.
+
+**HD-110-02 làm rõ cách đọc con số 1.261 (không nới lỏng check).** Con số đó
+do bộ lọc substring cũ trong `tools/analysis/extract_evidence.py` đo ra
+(`chi phí vận chuyển|công lắp đặt|chênh vat|chiết khấu|voucher|phí `). Ngữ
+nghĩa biên từ mới **có thể cho ra một con số khác một cách chính đáng** — ví
+dụ nó bắt được cả giá trị kết thúc bằng chữ "phí" mà mẹo dấu-cách-cuối luôn
+bỏ sót. Vì vậy 1.261 là **mốc tham chiếu**, không phải mục tiêu:
+
+- Chênh lệch phải được **giải thích bằng văn bản**, kèm ví dụ dòng cụ thể.
+- **Cấm chỉnh danh sách từ khóa để đưa con số về 1.261.** Làm vậy là biến
+  phép kiểm thành phép chép rule cũ.
+- Nếu chênh lệch cho thấy ngữ nghĩa mới **sai** (bắt nhầm sản phẩm thật), đó
+  là một finding phải sửa — nhưng sửa bằng ngữ nghĩa, không bằng con số.
 
 Executed By:
 —
@@ -536,7 +595,9 @@ Evidence Level:
 E1
 
 Evidence:
-`test_no_review_item_carries_customer_identifying_data` — thu mọi giá trị `customer`/`customer_code`/`phone`/`address` có thật trên fixture (test tự khẳng định tập này không rỗng, nếu không phép kiểm vô nghĩa), rồi khẳng định không giá trị nào xuất hiện trong `message` hay `details` của bất kỳ mục nào. `test_review_items_reference_rows_not_people` xác nhận tham chiếu ngược chỉ là file + số dòng.
+`test_no_review_item_carries_customer_identifying_data` — thu mọi giá trị `customer`/`customer_code`/`phone`/`address` có thật trên fixture (test tự khẳng định tập này không rỗng), rồi khẳng định không giá trị nào xuất hiện trong `message` hay `details` của bất kỳ mục nào — kể cả các mục `EmployeeMapping` mới có thêm `details`.
+
+`test_every_queue_item_from_a_real_import_is_traceable` thay cho `test_review_items_reference_rows_not_people` cũ: khẳng định **mỗi** mục có tham chiếu hợp lệ theo `scope`, thay vì chấp nhận mục có tham chiếu toàn `None` (Review #1, Finding 6). `test_an_untraceable_item_cannot_even_be_constructed` khóa bất biến ở tầng model.
 
 Executed By:
 Claude (S016)
@@ -596,16 +657,20 @@ Leo lên Tier C nếu gặp bất kỳ điều nào:
 Created:
 - `config/validation.yaml`
 - `app/modules/validation/__init__.py`
+- `app/modules/validation/text.py` — chuẩn hóa NFC + gộp khoảng trắng +
+  case-fold + khớp biên từ (Review #1, Findings 4/5, HD-110-02)
 - `app/modules/validation/models.py` — `ReviewItem`, `ReviewQueue`, hằng số loại/mức độ
 - `app/modules/validation/rules.py` — bảy detector
 - `app/modules/validation/employee_mapping.py` — F1–F5 (dời từ `tools/analysis/`) + `collect_mapping_stats`
 - `app/modules/validation/validator.py` — orchestrator
-- `tests/test_validation_rules.py` (25 test)
-- `tests/test_validation_employee_mapping.py` (11 test)
-- `tests/test_validation_pipeline.py` (20 test)
+- `tests/test_validation_rules.py` (33 test)
+- `tests/test_validation_employee_mapping.py` (21 test)
+- `tests/test_validation_pipeline.py` (24 test)
+- `tests/test_validation_text.py` (31 test — falsification cho Findings 4/5)
 
 Modified:
 - `app/pipeline.py` — bước 11, `ImportResult.review_queue`
+- `PROJECT/PROJECT_DECISIONS.md` — **DEC-129** (HD-110-01/02/03)
 - `tools/analysis/reconcile_conversion.py` — **chỉ trích xuất**: F1–F5 dời sang
   `app/modules/validation/employee_mapping.py` và import ngược lại dưới đúng
   tên cũ. Hành vi, output và exit code không đổi (CHECK-110-14).
@@ -662,22 +727,52 @@ một dòng đã map đứng cạnh một dòng chưa map trên cùng đơn vẫ
 
 ### Ghi chú triển khai cần reviewer soi
 
-**1 — F1/F3/F5 cũng vào hàng chờ, không chỉ F2/F4.** Bảng phạm vi đã freeze
-ghi V7 là "F2 và F4". `evaluate_raw_mapping()` trả cả `hard_failures`
-(F1/F3/F5) trong cùng một lượt. Tôi đưa cả ba vào queue ở mức `ERROR` thay vì
-bỏ đi. Lý do: chúng là invariant — không thể đúng với master data lành mạnh —
-và nuốt một invariant đã vi phạm là đúng thứ TASK-110 tồn tại để chặn. Đây là
-**tập cha** của phạm vi đã freeze: không đổi quyết định nào, không đổi check
-nào, không chặn import nào. **Ghi ra đây tường minh để reviewer bác nếu thấy
-không nên.**
+**1 — F1/F3/F5 vào hàng chờ. ĐÃ GIẢI QUYẾT.** Vòng trước tôi đưa cả
+`hard_failures` vào queue trong khi bảng phạm vi freeze chỉ ghi "F2 và F4", và
+tự ghi chú "reviewer bác nếu thấy không nên". Independent Review #1 xếp đó là
+**Finding 2 — scope creep**, và đúng: một hành vi có thể biện minh được nhưng
+nằm ngoài phạm vi đã freeze vẫn là scope creep, ghi chú tự thú không làm nó
+hợp lệ. Chủ dự án đã duyệt chính thức (**HD-110-01**); bảng phạm vi V7 nay ghi
+**F1–F6** và **DEC-129** là bản ghi canonical.
 
 **2 — Tám mã loại cho bảy *loại*.** `Missing` có hai mã (`Missing` per-row và
 `Missing.PurchasePrice` tổng hợp) vì DEC-128 §1 tách chúng theo hình dạng.
-Đây là đúng bảng phạm vi đã freeze (8 dòng V1, V1-P, V2…V7), không phải thêm
-loại mới.
+Đúng bảng phạm vi đã freeze, không phải thêm loại mới.
 
 **3 — Chưa nối `note_raw` vào loại `Order inconsistency`.** §18 đặc tả viết
 "cùng OrderID nhưng khác nhân viên **hoặc dữ liệu nguồn mâu thuẫn**". Vế sau
 chưa có định nghĩa nghiệp vụ nào nói "mâu thuẫn" nghĩa là gì ngoài nhân viên
-và ngày. Tôi triển khai hai vế đo được (nhân viên, ngày) và **không đoán** vế
-thứ ba. Nếu chủ dự án muốn nó, cần một định nghĩa trước.
+và ngày. Tôi triển khai hai vế đo được và **không đoán** vế thứ ba. Cần một
+định nghĩa trước nếu chủ dự án muốn nó.
+
+**4 — F6 là chẩn đoán, không phải cơ chế cưỡng chế.** Một nhân viên
+`active: false` vẫn nhận tỉ lệ quy đổi như cũ; F6 chỉ làm mâu thuẫn master
+data nhìn thấy được. Nếu chủ dự án muốn `inactive` không nhận tỉ lệ, đó là đổi
+business calculation + KPI ownership → cần DEC riêng và sửa
+`conversion_engine` (ngoài Expected Touch Area hiện tại).
+
+**5 — `affected_count == 0` là cố ý.** Mục F2 nói "nhân viên này không khớp
+dòng nào", nên số dòng thật đứng sau nó là 0. Ghi 1 cho "đẹp" sẽ là bịa ra một
+dòng không tồn tại, và `ReviewQueue.affected_rows()` sẽ nói dối về quy mô.
+
+## Lịch Sử Independent Review
+
+### Review #1 — FAIL, 6 finding (2026-08-23, commit `e2c0c18`)
+
+Bản nộp có 207/207 test nội bộ PASS và 16/17 REQUIRED check tự báo PASS.
+Reviewer độc lập vẫn tìm ra 6 finding. Ba trong số đó cần chủ dự án quyết
+(HD-110-01, HD-110-02, HD-110-03 → **DEC-129**).
+
+| # | Finding | Đã sửa thế nào |
+|---|---|---|
+| 1 | Mục `EmployeeMapping` **không có provenance** — F4 không truy được file/dòng, `affected_count` không thật, F2 thiếu provenance batch | `RawMappingVerdict` nay giữ `MappingFinding` có cấu trúc (criterion / employee / raw_value / affected_count); `MappingStats` thêm `rows_by_raw_value`, `rows_by_employee`, `source_file`, `total_rows`; `Validator._mapping_item()` dựng mục row-scope khi có dòng thật, batch-scope kèm `dataset_range` + `batch_rows` khi không |
+| 2 | F1/F3/F5 trong queue là **scope creep** | HD-110-01 duyệt; bảng phạm vi V7 → **F1–F6**; **DEC-129** ghi canonical |
+| 3 | `Missing.employee` báo nhầm cho nhân viên **`inactive`** | Chỉ `unmapped` mới là Missing. Khoảng trống lộ ra (inactive có đơn thì im lặng hoàn toàn) → **STOP và hỏi** → HD-110-03 → tiêu chí **F6** |
+| 4 | Thiếu chuẩn hóa Unicode/khoảng trắng/hoa thường | `app/modules/validation/text.py` mới: NFC + gộp khoảng trắng + case-fold, áp **cả hai phía**; test NFD/NFC và 4 biến thể khoảng trắng |
+| 5 | Literal `"phí "` làm semantic | Thay bằng khớp **biên từ** `(?<!\w)…(?!\w)`; config `"phí "` → `"phí"`; test false-positive `Bàn phím cơ` và false-negative `Thu chi phí`; **gỡ** test khóa danh sách vào con số 1.261 |
+| 6 | Snapshot non-mutation chỉ phủ 11 field liệt kê tay; test provenance chấp nhận reference toàn `None` | Snapshot duyệt `dataclasses.fields` đệ quy toàn `Order`/`WorkingLine`/`RawRow`, kèm test tự-falsify; `ReviewItem.scope` + `__post_init__` khiến mục không truy vết được **không dựng nổi** |
+
+**Bài học.** Vòng trước tôi ghi ra đúng vấn đề của Finding 2 ("ghi ra để
+reviewer bác nếu thấy không nên") nhưng vẫn ship nó như một hành vi. Nêu ra
+một sai lệch không làm nó hết sai lệch — thứ phải làm là **hỏi trước**, đúng
+như đã làm với Finding 3 ở vòng này.

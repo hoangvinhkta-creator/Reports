@@ -1355,3 +1355,85 @@ Can Revisit After:
 Điểm 1 tự hết hiệu lực khi TASK-401 có Price Master. Điểm 3 (Duplicate) mở lại
 ở TASK-201 khi có persistence. Điểm 4 nên mở lại ở GATE-01, sau khi đo được
 thật sự có bao nhiêu đơn bị mâu thuẫn nhân viên và số tiền liên quan.
+
+## DEC-129
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #1 (FAIL, 6 finding)
+
+Decision:
+
+Ba quyết định của chủ dự án trong đợt Independent Review #1. Ghi lại để chúng
+trở thành **canonical**, không còn là hành vi triển khai nằm ngoài Scope Lock —
+đây chính là Finding 2 của đợt review.
+
+**1 — HD-110-01: F1–F5 được phép vào Review Queue (Scope Expansion APPROVED).**
+Bảng phạm vi freeze ban đầu ghi V7 là "F2 và F4". Bản triển khai đưa cả
+`hard_failures` (F1/F3/F5) vào hàng chờ ở mức `ERROR`. Reviewer xếp đó là
+scope creep — đúng về thủ tục, kể cả khi kết quả là thứ nên có. Chủ dự án
+**duyệt chính thức**: F1/F3/F5 là invariant nghiêm trọng và được phép vào
+queue. Bảng phạm vi của TASK-110 sửa V7 thành **F1–F6**.
+
+**2 — HD-110-02: heuristic từ khóa dòng phụ được duyệt TẠM THỜI.**
+Phase 1 được dùng heuristic từ khóa vì TASK-103 (Product/Transaction
+Classification, mục §17 đặc tả) chưa có. Hai ràng buộc kèm theo:
+- **Không chấp nhận literal `"phí "`** (dấu cách cuối) làm semantic lâu dài.
+  Khớp phải có chuẩn hóa và ngữ nghĩa biên từ rõ ràng.
+- **Cấm chỉnh rule để tái tạo con số lịch sử 1.261.** Con số đó do bộ lọc
+  regex cũ trong `tools/analysis/extract_evidence.py` đo ra; nó là **mốc tham
+  chiếu**, không phải mục tiêu. Chênh lệch phải giải thích, không được tune.
+- Đây là **giải pháp tạm**, **TASK-103 phải thay thế** chứ không kế thừa.
+
+**3 — HD-110-03: thêm tiêu chí F6 — nhân viên `inactive` mà vẫn có dòng.**
+Finding 3 yêu cầu gỡ `inactive` khỏi `Missing.employee` (đúng: nhân viên đã
+được nhận diện, không có gì "thiếu"). Nhưng gỡ xong thì trạng thái đó **không
+còn tín hiệu nào ở đâu cả**: `conversion_engine` cho `inactive` đi qua y hệt
+`mapped` (chỉ `unmapped` bị chặn về `Unresolved` theo DEC-127 §8), nên doanh
+số vẫn chảy vào KPI của người đã bị đánh dấu là nghỉ. Không quyết định nào
+(§18, DEC-104, DEC-127, DEC-128, F1–F5) phủ trường hợp này.
+
+Chủ dự án chọn: báo bằng một tiêu chí **F6** trong loại `EmployeeMapping` đã
+có, mức `WARNING`, kèm provenance (tên nhân viên, số dòng, dòng nguồn).
+**Không** thêm mã loại mới, **không** đổi cách tính, **không** đổi KPI
+ownership.
+
+Reason:
+
+Điểm 1: một hành vi đúng nhưng nằm ngoài phạm vi đã freeze vẫn là scope creep.
+Cách sửa là làm cho phạm vi nói ra điều đó, không phải biện minh cho hành vi.
+
+Điểm 2: `"phí "` không phải một nghĩa, nó là một mẹo thay cho "hết từ ở đây".
+Nó bỏ sót giá trị kết thúc bằng từ đó, và mời người sau gỡ dấu cách — lúc đó
+`"phí"` khớp `"bàn phím"` và một sản phẩm thật bị hạ xuống INFO mà không ai
+biết. Còn việc khóa danh sách vào con số 1.261 biến một phép kiểm thành một
+phép chép: nó chỉ chứng minh rule khớp với rule cũ, không chứng minh rule đúng.
+
+Điểm 3: im lặng ở đây là đúng loại im lặng mà TASK-110 tồn tại để chặn — một
+người bị đánh dấu đã nghỉ nhưng vẫn đang bán hàng, và tiền vẫn chạy về tên họ.
+Nhưng sửa cách tính là việc của một quyết định riêng, nên F6 chỉ **báo**.
+
+Impact:
+
+- Bảng phạm vi TASK-110: V7 = **F1–F6**, không phải "F2 và F4".
+- `app/modules/validation/text.py` (mới) sở hữu chuẩn hóa NFC + gộp khoảng
+  trắng + case-folding + khớp biên từ, dùng chung cho cả từ khóa lẫn
+  `ProductRaw`.
+- `config/validation.yaml`: `"phí "` → `"phí"`; danh sách rút về 5 từ khóa
+  mang nghĩa, kèm ghi chú cấm tune theo con số lịch sử.
+- **CHECK-110-16 đổi cách đọc, không đổi mức độ nghiêm ngặt:** bảng số trong
+  check đó (2 / 52 / 1.912 / **1.261** / 11.765) nay là **mốc tham chiếu**.
+  Con số 1.261 do bộ lọc substring cũ đo ra; ngữ nghĩa biên từ mới có thể cho
+  con số khác một cách chính đáng. Chênh lệch phải **giải thích bằng văn bản**
+  — vẫn cấm chỉnh ngưỡng cho khớp, và nay cấm cả chiều ngược lại.
+- F6 tạo một phụ thuộc mềm lên master data: nếu người nào được set
+  `active: false` mà `effective_to` chưa đóng, F6 sẽ kêu mỗi lần import cho
+  tới khi config được sửa. Đó là hành vi mong muốn, không phải nhiễu.
+
+Can Revisit After:
+Điểm 2 hết hiệu lực khi **TASK-103** làm xong — lúc đó heuristic phải bị gỡ,
+không phải để lại chạy song song. Điểm 3 nên xem lại ở GATE-01 nếu chủ dự án
+muốn `inactive` không nhận tỉ lệ (đó sẽ là đổi business calculation, cần một
+DEC riêng và sửa `conversion_engine`). Điểm 1 là nền tảng, không dự kiến đổi.

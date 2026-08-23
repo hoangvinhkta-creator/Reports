@@ -51,11 +51,13 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (S016 — **TASK-110 IMPLEMENTED**, chờ Independent Review. Chủ dự án
-freeze Completion Gate kèm làm rõ F-05. **16/17 REQUIRED check PASS**,
-CHECK-110-16 BLOCKED (cần file thô production, được phép giữ). **207/207 test**
-— 56 mới, 0 regression. **TD-001 đã đóng**: F2/F4 nay hiển thị trong Review
-Queue của luồng production. Trước đó S015 — Gate Review, DEC-128.)
+2026-08-23 (S017 — **Independent Review #1 FAIL, 6 finding, đã sửa toàn bộ**.
+Ba Human Decision → **DEC-129**: HD-110-01 (F1–F5 vào queue, hết scope creep),
+HD-110-02 (heuristic từ khóa tạm thời + bỏ literal `"phí "`, cấm tune theo con
+số 1.261), HD-110-03 (tiêu chí **F6** cho nhân viên `inactive` vẫn có đơn).
+**260/260 test** — 109 mới so với baseline, 0 regression. TASK-110 vẫn
+**IMPLEMENTED**, chưa merge, chờ Independent Review #2. Trước đó: S016 triển
+khai, S015 Gate Review + DEC-128.)
 
 Overall Status:
 IN_PROGRESS
@@ -65,15 +67,15 @@ PHASE-01 — Engine tính toán
 
 Current Task:
 TASK-110 — validation + Review Queue (**IMPLEMENTED — awaiting Independent
-Review**, chưa merge)
+Review #2**, chưa merge; Review #1 FAIL đã sửa xong 6/6 finding)
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Independent Review cho TASK-110.** Task đã IMPLEMENTED, **chưa merge**, theo
-đúng chỉ đạo. Tiền lệ TASK-108A-1: 119/119 test nội bộ PASS mà reviewer độc
-lập vẫn tìm ra 8 finding qua 3 vòng, gồm một lỗi CRITICAL ảnh hưởng tiền lương.
+**Independent Review #2 cho TASK-110.** Review #1 FAIL với 6 finding; cả 6 đã
+sửa, mỗi finding có regression/falsification test riêng. Task vẫn **chưa
+merge**. Tiền lệ TASK-108A-1: 4 vòng review mới PASS.
 
 Sau đó: **TASK-111 (excel_exporter)** dùng được đầu ra Review Queue cho sheet
 Audit/Overrides.
@@ -190,14 +192,14 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
-  - [ ] TASK-110 — validation + Review Queue. **IMPLEMENTED (S016,
-        2026-08-23), chờ Independent Review, chưa merge.** 16/17 REQUIRED
-        check PASS; CHECK-110-16 (đối chiếu dữ liệu thật) BLOCKED vì thiếu file
-        thô production — chủ dự án cho phép giữ, chặn DONE không chặn
-        IMPLEMENTED. 207/207 test (56 mới). Phạm vi thật **7 loại** sau
-        DEC-128, không phải 5 — xem
-        `docs/tasks/TASK-110-validation-review-queue.md`. Mục §18 đặc tả,
-        5 loại gốc:
+  - [ ] TASK-110 — validation + Review Queue. **IMPLEMENTED (S016), Independent
+        Review #1 FAIL 6 finding, đã sửa toàn bộ (S017). Chờ Review #2, chưa
+        merge.** 16/17 REQUIRED check PASS; CHECK-110-16 (đối chiếu dữ liệu
+        thật) BLOCKED vì thiếu file thô production — chủ dự án cho phép giữ,
+        chặn DONE không chặn IMPLEMENTED. **260/260 test** (109 mới). Phạm vi
+        thật **7 loại** sau DEC-128 (V7 mở thành **F1–F6** theo DEC-129),
+        không phải 5 — xem `docs/tasks/TASK-110-validation-review-queue.md`.
+        Mục §18 đặc tả, 5 loại gốc:
         `Missing` (thiếu ngày, OrderID, nhân viên, số lượng, doanh số, giá
         nhập), `Suspicious` (SL ≤ 0, giá bán = 0, giá nhập > giá bán, lợi
         nhuận âm — 1.912 dòng như vậy trong mẫu), `Order inconsistency` (cùng
@@ -372,8 +374,8 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110. **ĐÃ XỬ LÝ (S016, 2026-08-23) — chờ Independent Review xác
-nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016), Independent Review #1 soi lại và yêu cầu
+bổ sung provenance cho từng mục — đã sửa (S017). Chờ Review #2 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
@@ -1097,8 +1099,8 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110. **ĐÃ XỬ LÝ (S016, 2026-08-23) — chờ Independent Review xác
-nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016), Independent Review #1 soi lại và yêu cầu
+bổ sung provenance cho từng mục — đã sửa (S017). Chờ Review #2 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),

@@ -10,9 +10,38 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã làm xong, đang chờ người soát
-> xét độc lập** (xem "Có gì mới" ngay bên dưới). Trước đó: bước 12 đã xong và
-> đã qua soát xét độc lập.
+> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã qua vòng soát xét thứ nhất,
+> bị trả về 6 lỗi, đã sửa xong, đang chờ soát xét vòng 2** (xem "Có gì mới"
+> ngay bên dưới). Trước đó: bước 12 đã xong và đã qua soát xét độc lập.
+
+## Có gì mới — bước 14 bị trả về, đã sửa xong (2026-08-23)
+
+**Người soát xét độc lập trả bước 14 về với 6 lỗi**, dù bản nộp đã chạy đúng
+toàn bộ 207 bài kiểm tra tự động. Lại đúng bài học của bước 12: *tự mình kiểm
+tra thấy đạt thì chưa đủ.* Cả 6 đã sửa, mỗi lỗi kèm một bài kiểm tra riêng để
+lần sau không tái diễn.
+
+**Ba việc sếp đã quyết trong đợt này:**
+
+1. **Cho phép báo thêm 3 loại lỗi nghiêm trọng về danh sách nhân viên.** Trước
+   đó công cụ đã báo chúng, nhưng đó là làm vượt phạm vi đã chốt — nay được
+   duyệt chính thức nên không còn là làm vượt nữa.
+2. **Cách nhận biết "dòng phụ" (chi phí vận chuyển, chênh VAT…) chỉ là tạm
+   thời.** Nó tồn tại vì bước 7 (chuẩn hóa loại dòng) chưa làm, và **bước 7
+   sẽ phải thay thế nó**. Đồng thời cấm chỉnh cách nhận biết chỉ để ra đúng
+   con số cũ (1.261 dòng) — con số đó là mốc tham khảo, không phải đích đến.
+3. **Nhân viên đã đánh dấu nghỉ mà vẫn có đơn** thì công cụ báo lên hàng chờ.
+   Trước đây chỗ này báo nhầm là "thiếu nhân viên" (sai — biết rõ là ai);
+   nhưng nếu chỉ gỡ đi thì sẽ **im lặng hoàn toàn** trong khi doanh số vẫn
+   chạy vào tên người đó. Tôi đã **dừng lại hỏi sếp** thay vì tự quyết.
+
+**Một lỗi đáng nhớ nhất:** cách nhận biết dòng phụ dùng chữ `"phí "` (có dấu
+cách ở cuối) như một mẹo. Nếu ai đó gỡ dấu cách, `"phí"` sẽ khớp cả
+**"bàn phím"** — một sản phẩm thật bị công cụ coi là dòng phụ và hạ mức cảnh
+báo, không ai biết. Nay công cụ khớp theo **nguyên từ**, và có hẳn một bài
+kiểm tra dùng "Bàn phím cơ Logitech" để chặn đúng tình huống đó.
+
+**Vẫn chưa gộp vào nhánh chính** — chờ soát xét vòng 2.
 
 ## Có gì mới — bước 14 đã làm xong, chờ soát xét (2026-08-23)
 
@@ -333,7 +362,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
-| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã làm xong, đang chờ người soát xét độc lập** — 16/17 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
+| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Soát xét vòng 1 trả về 6 lỗi, đã sửa xong; chờ soát xét vòng 2** — 16/17 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
 | ⬜ | 16. TASK-112 (MICRO, D1/R2/B2) — Đóng gói thành công cụ chạy được | Bước cuối để bắt đầu dùng thử trên máy | A | Sau bước 15 |
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |

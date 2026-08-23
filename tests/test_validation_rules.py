@@ -19,6 +19,7 @@ import pytest
 
 from app.modules.domain.models import (
     ADS,
+    MAPPING_STATUS_INACTIVE,
     MAPPING_STATUS_MAPPED,
     MAPPING_STATUS_UNMAPPED,
     PERSONAL,
@@ -39,10 +40,14 @@ from app.modules.validation.models import (
     DETAIL_LEGACY_SELECTED,
     DETAIL_RULE,
     DETAIL_SOURCE_ROWS,
+    SCOPE_BATCH,
+    SCOPE_ORDER,
+    SCOPE_ROW,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
 )
+from app.modules.validation.text import compile_keyword_patterns
 from app.modules.validation.rules import (
     detect_duplicates,
     detect_missing,
@@ -54,7 +59,11 @@ from app.modules.validation.rules import (
 )
 from tests.factories import make_raw_row
 
-KEYWORDS = ["chi phí vận chuyển", "công lắp đặt", "chênh vat", "phí "]
+# The production keyword list, compiled with the boundary semantics HD-110-02
+# requires. Full falsification coverage lives in `tests/test_validation_text.py`.
+PATTERNS = compile_keyword_patterns(
+    ["phí", "công lắp đặt", "chênh vat", "chiết khấu", "voucher"]
+)
 
 MISSING_FIELDS = {
     "date": SEVERITY_ERROR,
@@ -173,7 +182,7 @@ def test_computed_profit_rules_stay_dormant_while_price_is_pending():
         assert working.accounting_purchase_price is None
         assert working.accounting_profit is None
 
-    items = detect_suspicious(lines, SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS)
+    items = detect_suspicious(lines, SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
     fired = rules_of(items)
     assert "purchase_price_above_sell_price" not in fired
     assert "accounting_profit_negative" not in fired
@@ -184,7 +193,7 @@ def test_computed_profit_rules_fire_once_a_real_price_exists():
     working.accounting_purchase_price = Decimal("1500")
     working.accounting_profit = Decimal("-500")
 
-    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS)
+    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
     fired = rules_of(items)
     assert "purchase_price_above_sell_price" in fired
     assert "accounting_profit_negative" in fired
@@ -192,7 +201,7 @@ def test_computed_profit_rules_fire_once_a_real_price_exists():
 
 def test_quantity_and_sell_price_rules_use_configured_severity():
     working = line(source_row=6, quantity=Decimal("0"), sell_price=Decimal("0"))
-    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS)
+    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
     assert rules_of(items) == ["quantity_not_positive", "sell_price_zero"]
     assert {item.severity for item in items} == {SEVERITY_WARNING}
 
@@ -200,7 +209,7 @@ def test_quantity_and_sell_price_rules_use_configured_severity():
 def test_a_rule_absent_from_config_simply_does_not_fire():
     working = line(source_row=6, quantity=Decimal("0"))
     items = detect_suspicious([working], {"sell_price_zero": SEVERITY_WARNING},
-                              SEVERITY_INFO, KEYWORDS)
+                              SEVERITY_INFO, PATTERNS)
     assert items == []
 
 
@@ -214,7 +223,7 @@ def test_non_product_line_is_downgraded_but_real_product_is_not():
     product = line(source_row=7, product_raw="Máy giặt Test-1", quantity=Decimal("0"))
 
     items = detect_suspicious(
-        [shipping, product], SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS
+        [shipping, product], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS
     )
     by_row = {item.source_row: item.severity for item in items}
     assert by_row[6] == SEVERITY_INFO
@@ -223,12 +232,22 @@ def test_non_product_line_is_downgraded_but_real_product_is_not():
 
 @pytest.mark.parametrize(
     "product_raw",
-    ["Chi phí lắp đặt", "Chi phí giao hộ 65C6K x1", "Phí đổi trả", "CHÊNH VAT 25%"],
+    ["Chi phí lắp đặt", "Chi phí giao hộ 65C6K x1", "Phí đổi trả", "CHÊNH VAT 25%",
+     "Chi  phí\tvận chuyển"],
 )
-def test_keyword_match_is_case_insensitive_and_covers_measured_variants(product_raw):
+def test_auxiliary_variants_are_downgraded_through_the_detector(product_raw):
     working = line(source_row=6, product_raw=product_raw, quantity=Decimal("0"))
-    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS)
+    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
     assert [item.severity for item in items] == [SEVERITY_INFO]
+
+
+@pytest.mark.parametrize("product_raw", ["Bàn phím cơ Logitech", "Điều hòa Casper"])
+def test_real_products_keep_their_severity_through_the_detector(product_raw):
+    """Review #1, Finding 5: the boundary has to hold at the detector level,
+    not only in the matcher's own unit tests."""
+    working = line(source_row=6, product_raw=product_raw, quantity=Decimal("0"))
+    items = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
+    assert [item.severity for item in items] == [SEVERITY_WARNING]
 
 
 # ------------------------------------------------- CHECK-110-06 Suspicious ERP
@@ -236,8 +255,8 @@ def test_keyword_match_is_case_insensitive_and_covers_measured_variants(product_
 def test_erp_negative_profit_is_its_own_category_never_merged():
     working = line(source_row=6, source_profit=Decimal("-250000"))
 
-    erp = detect_suspicious_erp([working], SEVERITY_INFO, SEVERITY_INFO, KEYWORDS)
-    computed = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, KEYWORDS)
+    erp = detect_suspicious_erp([working], SEVERITY_INFO, SEVERITY_INFO, PATTERNS)
+    computed = detect_suspicious([working], SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS)
 
     assert len(erp) == 1
     assert erp[0].category == CATEGORY_SUSPICIOUS_ERP
@@ -251,7 +270,7 @@ def test_erp_rule_ignores_zero_and_positive_profit():
         line(source_row=7, source_profit=Decimal("1")),
         line(source_row=8, source_profit=None),
     ]
-    assert detect_suspicious_erp(lines, SEVERITY_INFO, SEVERITY_INFO, KEYWORDS) == []
+    assert detect_suspicious_erp(lines, SEVERITY_INFO, SEVERITY_INFO, PATTERNS) == []
 
 
 # ------------------------------------------ CHECK-110-09 Order inconsistency
@@ -360,3 +379,96 @@ def test_rows_differing_by_one_character_are_not_duplicates():
     first = line(source_row=6, row_hash="abc123")
     second = line(source_row=7, row_hash="abc124")
     assert detect_duplicates([first, second], SEVERITY_WARNING) == []
+
+
+# ------------------------- Review #1, Finding 3: inactive is not "Missing"
+
+def test_inactive_employee_is_not_reported_as_missing_employee():
+    """An `inactive` mapping named a real person — the seller is known.
+
+    Calling that "thiếu nhân viên" was Independent Review #1, Finding 3. The
+    contradictory-master-data signal it deserves is criterion F6 under
+    `EmployeeMapping` (HD-110-03), covered in
+    `tests/test_validation_employee_mapping.py`.
+    """
+    inactive = line(source_row=6)
+    inactive.employee_mapping_status = MAPPING_STATUS_INACTIVE
+
+    items = detect_missing([inactive], MISSING_FIELDS)
+
+    assert rules_of(items) == [], "an identified employee is never Missing"
+
+
+def test_only_unmapped_counts_as_a_missing_employee():
+    statuses = {
+        MAPPING_STATUS_UNMAPPED: True,
+        MAPPING_STATUS_INACTIVE: False,
+        MAPPING_STATUS_MAPPED: False,
+    }
+    for status, should_fire in statuses.items():
+        working = line(source_row=6)
+        working.employee_mapping_status = status
+        items = detect_missing([working], {"employee": SEVERITY_ERROR})
+        assert bool(items) is should_fire, status
+
+
+def test_blank_employee_still_counts_as_missing():
+    """A row with no `NVBH` at all resolves to `unmapped`, so the rule that
+    matters most for C11 keeps firing after the Finding 3 fix."""
+    blank = line(mapped=False, source_row=6, employee_raw=None)
+    blank.employee_mapping_status = MAPPING_STATUS_UNMAPPED
+    assert len(detect_missing([blank], {"employee": SEVERITY_ERROR})) == 1
+
+
+# --------------------- Review #1, Finding 6: every item carries a reference
+
+def test_every_detector_stamps_a_scope_and_a_matching_reference():
+    ly = line(source_row=6, order_id="BH9100", row_hash="dup")
+    twin = line(source_row=7, order_id="BH9100", row_hash="dup")
+    twin.employee_raw = "Đức Kiên - Tân Á 0867666533"
+    twin.employee_normalized = "Kiên"
+    twin.source_profit = Decimal("-5")
+    lines = [ly, twin]
+    orders = build_orders(lines)
+    orders[0].lead_source_auto = PERSONAL
+    orders[0].lead_source_manual = ADS
+
+    produced = [
+        *detect_missing(lines, MISSING_FIELDS),
+        *detect_missing_purchase_price(lines, SEVERITY_INFO, aggregate=True),
+        *detect_suspicious(lines, SUSPICIOUS_RULES, SEVERITY_INFO, PATTERNS),
+        *detect_suspicious_erp(lines, SEVERITY_INFO, SEVERITY_INFO, PATTERNS),
+        *detect_order_inconsistency(orders, SEVERITY_ERROR, SEVERITY_WARNING),
+        *detect_source_classification(orders, SEVERITY_WARNING),
+        *detect_duplicates(lines, SEVERITY_WARNING),
+    ]
+    assert produced, "fixture must actually produce findings"
+
+    for item in produced:
+        assert item.source_file, item
+        if item.scope == SCOPE_ROW:
+            assert item.source_row is not None, item
+        elif item.scope == SCOPE_ORDER:
+            assert item.order_id, item
+        else:
+            assert item.scope == SCOPE_BATCH, item
+
+    scopes = {item.scope for item in produced}
+    assert scopes == {SCOPE_ROW, SCOPE_ORDER, SCOPE_BATCH}
+
+
+def test_an_order_with_no_lines_is_skipped_rather_than_crashing():
+    from app.modules.domain.models import Order
+
+    empty = Order(
+        order_id="BH9101",
+        date=None,
+        employee_raw=None,
+        employee_normalized=None,
+        employee_mapping_status=MAPPING_STATUS_UNMAPPED,
+    )
+    empty.lead_source_auto = PERSONAL
+    empty.lead_source_manual = ADS
+
+    assert detect_order_inconsistency([empty], SEVERITY_ERROR, SEVERITY_WARNING) == []
+    assert detect_source_classification([empty], SEVERITY_WARNING) == []

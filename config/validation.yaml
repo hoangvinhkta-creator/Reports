@@ -91,12 +91,17 @@ categories:
     enabled: true
     severity: WARNING
 
-  # V7 — TD-001. F2/F4 của tools/analysis/reconcile_conversion.py, nay chạy
-  # trong luồng production (CHECK-110-12, CHECK-110-13).
+  # V7 — TD-001. Toàn bộ F1–F6 của app/modules/validation/employee_mapping.py
+  # chạy trong luồng production (CHECK-110-12, CHECK-110-13).
   #
-  # F1/F3/F5 là invariant: chúng không thể đúng với master data lành mạnh.
-  # Trong luồng production chúng vào hàng chờ ở mức ERROR — nuốt một invariant
-  # đã vi phạm là đúng thứ TASK-110 tồn tại để chặn.
+  # F1/F3/F5 là invariant — không thể đúng với master data lành mạnh — nên vào
+  # hàng chờ ở mức ERROR. **HD-110-01 (Independent Review #1) đã duyệt chính
+  # thức việc này**, xem DEC-129: nuốt một invariant đã vi phạm là đúng thứ
+  # TASK-110 tồn tại để chặn.
+  #
+  # F6 (HD-110-03): nhân viên `active: false` mà vẫn có dòng trong kỳ. Master
+  # data mâu thuẫn — doanh số vẫn đang tính cho họ. Mức WARNING; KHÔNG đổi cách
+  # tính, KHÔNG đổi KPI ownership.
   employee_mapping:
     enabled: true
     hard_failure_severity: ERROR
@@ -108,25 +113,39 @@ categories:
 # BÌNH THƯỜNG, không phải lỗi — nên hạ xuống `INFO` thay vì kêu như bất thường
 # (DEC-128 §3, CHECK-110-07).
 #
-# Đây là biện pháp GIẢM NHIỄU, KHÔNG phải Product/Transaction Classification.
-# Bảng Classification đầy đủ (mục §17 đặc tả — mỗi loại tính vào SP/doanh số/
-# lợi nhuận/DS quy đổi hay không) vẫn là TASK-103. Khi TASK-103 làm, nó PHẢI
-# rà lại danh sách này để hai chỗ không nói hai điều khác nhau về cùng một dòng.
+# ---------------------------------------------------------------------------
+# HD-110-02 (Independent Review #1) — ĐÂY LÀ GIẢI PHÁP TẠM THỜI.
 #
-# Từ khóa khớp KHÔNG phân biệt hoa thường, trên cột sản phẩm (`ProductRaw`),
-# sau khi chuẩn hóa NFC và gộp khoảng trắng.
+# Heuristic từ khóa chỉ được phép tồn tại vì Product/Transaction Classification
+# (mục §17 đặc tả, TASK-103) chưa có. **TASK-103 phải thay thế nó**, không phải
+# kế thừa nó. Bảng Classification đầy đủ quyết định mỗi loại dòng tính vào
+# SP/doanh số/lợi nhuận/DS quy đổi hay không; danh sách dưới đây chỉ hạ mức
+# cảnh báo, không quyết định gì về tiền.
 #
-# Danh sách này tái hiện đúng bộ lọc đã đo ra con số 1.261 dòng / 30 loại
-# trong docs/analysis/_evidence/evidence.json — giữ nguyên để CHECK-110-16
-# đối chiếu được. `"phí "` có dấu cách cuối là cố ý: nó bắt "Chi phí lắp đặt",
-# "Chi phí giao hộ", "Phí đổi trả" mà không bắt nhầm một tên sản phẩm chứa
-# "phí" liền chữ khác.
+# **Cấm tune danh sách này để tái tạo một con số lịch sử.** Bộ lọc regex cũ
+# trong `tools/analysis/extract_evidence.py` từng đo ra 1.261 dòng / 30 loại;
+# con số đó là MỐC THAM CHIẾU, không phải mục tiêu. Nếu semantics đúng cho ra
+# một con số khác, giải thích chênh lệch — đừng sửa rule cho khớp.
+# ---------------------------------------------------------------------------
+#
+# Cách khớp (`app/modules/validation/text.py`), áp cho CẢ HAI phía — từ khóa và
+# cột sản phẩm `ProductRaw`:
+#
+#   1. Chuẩn hóa Unicode NFC — "phí" gõ liền và "phí" gõ rời dấu là một.
+#   2. Gộp mọi chuỗi khoảng trắng (kể cả tab) thành một dấu cách.
+#   3. Case-folding — không phân biệt hoa thường.
+#   4. Khớp theo BIÊN TỪ: từ khóa phải là nguyên một từ / nguyên một cụm.
+#
+# Bước 4 là lý do `"phí"` ở đây KHÔNG có dấu cách cuối như bản trước. Dấu cách
+# đó là một mẹo thay cho "hết từ ở đây": nó bỏ sót giá trị kết thúc bằng từ đó,
+# và nếu ai gỡ dấu cách thì `"phí"` bắt đầu khớp `"bàn phím"` — một sản phẩm
+# thật bị hạ xuống INFO mà không ai biết. Biên từ nói đúng ý định đó bằng
+# ngữ nghĩa, không bằng mẹo.
 non_product_lines:
   downgrade_to: INFO
   keywords:
-    - "chi phí vận chuyển"
+    - "phí"            # Chi phí vận chuyển / lắp đặt / giao hộ, Phí đổi trả
     - "công lắp đặt"
     - "chênh vat"
     - "chiết khấu"
     - "voucher"
-    - "phí "

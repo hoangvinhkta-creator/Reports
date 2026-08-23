@@ -10,7 +10,7 @@ These run `run_import()` against the synthetic workbook with production config
 from __future__ import annotations
 
 import re
-from dataclasses import replace
+from dataclasses import fields, is_dataclass, replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +20,7 @@ from app.modules.domain.models import (
     PERSONAL,
     PRICE_SOURCE_PRICE_MASTER,
 )
+from app.modules.domain.models import WorkingLine
 from app.modules.importing.normalizer import normalize_line
 from app.modules.orders.order_builder import build_orders
 from app.modules.validation.models import (
@@ -34,6 +35,9 @@ from app.modules.validation.models import (
     CATEGORY_SUSPICIOUS_ERP,
     PII_FIELD_NAMES,
     ReviewQueue,
+    SCOPE_BATCH,
+    SCOPE_ORDER,
+    SCOPE_ROW,
     SEVERITY_ERROR,
     SEVERITY_INFO,
 )
@@ -164,34 +168,60 @@ def test_aggregate_pending_item_disappears_once_prices_resolve():
 
 # ------------------------------------------ CHECK-110-09(b) validation is inert
 
+def _freeze(value):
+    """A hashable, comparable snapshot of any domain value."""
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return tuple(
+            (f.name, _freeze(getattr(value, f.name))) for f in fields(value)
+        )
+    return repr(value)
+
+
+def _snapshot(orders):
+    """EVERY field of every Order and WorkingLine, by introspection.
+
+    Independent Review #1, Finding 6: the previous version listed 11 fields by
+    hand, so a field added later would silently escape the guarantee. Walking
+    `dataclasses.fields` means the snapshot cannot drift behind the model.
+    """
+    return _freeze(list(orders))
+
+
+def test_the_snapshot_actually_covers_every_frozen_field():
+    """A guard on the guard: if this ever stops naming a real field, the
+    non-mutation test below would be passing vacuously."""
+    covered = {f.name for f in fields(WorkingLine)}
+    assert {"conversion_rate_final", "conversion_scheme_final", "accounting_profit",
+            "lead_source_final", "product_group_final", "employee_normalized",
+            "price_source", "quantity", "total_sales", "discount"} <= covered
+    assert len(covered) >= 30, f"WorkingLine has {len(covered)} fields"
+
+
 def test_building_the_queue_changes_nothing_about_the_data(synthetic_raw_path):
     """Validation reads. If it ever wrote, a conversion rate could move
     without a business decision behind it — DEC-128 §4 forbids exactly that.
+
+    The snapshot covers every field of every `Order` and `WorkingLine`,
+    including the nested immutable `RawRow` (Review #1, Finding 6).
     """
     result = run_import(synthetic_raw_path)
     lines = [line for order in result.orders for line in order.lines]
 
-    def snapshot():
-        return [
-            (
-                line.order_id,
-                line.employee_normalized,
-                line.employee_mapping_status,
-                line.lead_source_final,
-                line.product_group_final,
-                line.conversion_scheme_final,
-                line.conversion_rate_final,
-                line.accounting_profit,
-                line.price_source,
-                line.quantity,
-                line.total_sales,
-            )
-            for line in lines
-        ]
-
-    before = snapshot()
+    before = _snapshot(result.orders)
     Validator.from_config_dir(REPO_ROOT / "config").build_queue(lines, result.orders)
-    assert snapshot() == before
+    assert _snapshot(result.orders) == before
+
+
+def test_the_non_mutation_snapshot_would_actually_catch_a_write(synthetic_raw_path):
+    """Falsification: prove the snapshot is sensitive, so its passing means
+    something. A hand-written mutation of one deep field must be detected."""
+    result = run_import(synthetic_raw_path)
+    before = _snapshot(result.orders)
+
+    result.orders[0].lines[0].conversion_rate_final = Decimal("0.99")
+    assert _snapshot(result.orders) != before
 
 
 def test_order_builder_still_selects_the_first_line_untouched(synthetic_raw_path):
@@ -274,20 +304,65 @@ def test_no_business_values_are_hardcoded_in_the_validation_module():
         )
 
 
-def test_config_keyword_list_matches_the_measured_evidence_filter():
-    """The keyword list must stay the one that measured 1.261 rows / 30 types
-    in `docs/analysis/_evidence/evidence.json`, or CHECK-110-16 cannot compare
-    against a known number."""
+def test_keyword_config_expresses_semantics_not_a_historical_count():
+    """HD-110-02: the auxiliary-line list is a temporary heuristic, and it must
+    NOT be pinned to the 1.261 rows the old regex filter happened to measure.
+
+    So this asserts the *shape* the semantics require — real keywords, no
+    trailing-space tricks standing in for a word boundary — and leaves the
+    behaviour to `tests/test_validation_text.py`. The previous version of this
+    test locked the list to the legacy filter, which is exactly the tuning the
+    decision forbids.
+    """
     from app.modules.config.loader import load_yaml
 
     config = load_yaml(REPO_ROOT / "config" / "validation.yaml")
-    keywords = {k.lower() for k in config["non_product_lines"]["keywords"]}
+    keywords = config["non_product_lines"]["keywords"]
 
-    measured = {
-        "chi phí vận chuyển", "công lắp đặt", "chênh vat",
-        "chiết khấu", "voucher", "phí ",
-    }
-    assert keywords == measured
+    assert keywords, "the heuristic needs at least one keyword to do anything"
+    for keyword in keywords:
+        assert keyword == keyword.strip(), (
+            f"{keyword!r} relies on padding; boundaries belong in the matcher"
+        )
+        assert keyword == keyword.lower(), f"{keyword!r} should be case-folded already"
+
+
+def test_every_queue_item_from_a_real_import_is_traceable(synthetic_raw_path):
+    """Review #1, Finding 6: assert a valid reference per item, rather than
+    tolerating items whose references are all None."""
+    queue = run_import(synthetic_raw_path).review_queue
+    assert len(queue) > 0
+
+    for item in queue:
+        assert item.source_file, item
+        assert item.source_file.endswith(".xlsx"), item
+        assert item.affected_count >= 0, item
+        if item.scope == SCOPE_ROW:
+            assert isinstance(item.source_row, int), item
+        elif item.scope == SCOPE_ORDER:
+            assert item.order_id, item
+        else:
+            assert item.scope == SCOPE_BATCH, item
+
+
+def test_an_untraceable_item_cannot_even_be_constructed():
+    """The invariant is structural, not a convention somebody must remember."""
+    import pytest
+
+    from app.modules.validation.models import ReviewItem
+
+    with pytest.raises(ValueError, match="source_file"):
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+                   scope=SCOPE_ROW, source_row=6)
+    with pytest.raises(ValueError, match="source_row"):
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+                   scope=SCOPE_ROW, source_file="s.xlsx")
+    with pytest.raises(ValueError, match="order_id"):
+        ReviewItem(category=CATEGORY_ORDER_INCONSISTENCY, severity=SEVERITY_ERROR,
+                   message="x", scope=SCOPE_ORDER, source_file="s.xlsx")
+    with pytest.raises(ValueError, match="scope"):
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+                   scope="galaxy", source_file="s.xlsx", source_row=6)
 
 
 # ------------------------------------------------------------- config plumbing
@@ -314,9 +389,11 @@ def test_unknown_category_or_severity_is_rejected_loudly():
     from app.modules.validation.models import ReviewItem
 
     with pytest.raises(ValueError):
-        ReviewItem(category="NotACategory", severity=SEVERITY_ERROR, message="x")
+        ReviewItem(category="NotACategory", severity=SEVERITY_ERROR, message="x",
+                   source_file="s.xlsx", source_row=6)
     with pytest.raises(ValueError):
-        ReviewItem(category=CATEGORY_MISSING, severity="LOUD", message="x")
+        ReviewItem(category=CATEGORY_MISSING, severity="LOUD", message="x",
+                   source_file="s.xlsx", source_row=6)
 
 
 def test_queue_helpers_report_scale_not_just_item_count():
@@ -362,7 +439,8 @@ def test_replace_keeps_review_item_frozen_and_valid():
     from app.modules.validation.models import ReviewItem
 
     item = ReviewItem(
-        category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x", source_row=6
+        category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+        scope=SCOPE_ROW, source_file="s.xlsx", source_row=6
     )
     moved = replace(item, source_row=7)
     assert moved.source_row == 7 and item.source_row == 6
