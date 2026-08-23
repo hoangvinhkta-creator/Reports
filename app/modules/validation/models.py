@@ -26,6 +26,7 @@ TASK-305.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Optional
 
 # Severity is a READING ORDER label, not a gate. §18 đặc tả: "Không block toàn
@@ -108,6 +109,141 @@ DETAIL_RAW_VARIANTS = "raw_variants"
 DETAIL_AMBIGUOUS_ROWS = "ambiguous_rows"
 DETAIL_CONFLICTING_RECORDS = "conflicting_records"
 
+# Các khóa MANG THÔNG TIN DÒNG. Chúng thuộc quyền sở hữu của `RowProvenance`
+# và do chính `ReviewItem` render ra; không caller nào được phép tự ghi chúng
+# (DEC-132, điểm 12). Independent Review #5 chứng minh vì sao: `details` là
+# một dict tùy ý, nên một finding về dòng 6 vẫn kèm được `ambiguous_rows` nói
+# về dòng 7, và `ReviewItem` sao chép nguyên trạng. Đóng băng dataclass không
+# cứu được — `frozen=True` chỉ đóng băng tham chiếu tới dict, không đóng băng
+# nội dung nó.
+ROW_BEARING_DETAIL_KEYS = frozenset(
+    {
+        "source_rows",
+        "raw_variants",
+        "ambiguous_rows",
+        "conflicting_records",
+    }
+)
+
+
+@dataclass(frozen=True)
+class AffectedRow:
+    """Một dòng thô mà finding thực sự nói về.
+
+    Đơn vị provenance duy nhất trong toàn hệ thống. `raw_original` là danh
+    tính đúng như đã gõ — dạng canonical dùng để gom nhóm, còn bản gốc mới là
+    thứ người soát cần nhìn thấy.
+    """
+
+    source_file: Optional[str]
+    source_row: int
+    raw_original: str = ""
+    when: Optional[date] = None
+
+
+@dataclass(frozen=True)
+class AmbiguousRow(AffectedRow):
+    """Một dòng thô thực sự ambiguous, kèm lý do.
+
+    F3 được chấm theo **ngày của chính dòng đó** (DEC-121 — hai prefix chỉ
+    từng tồn tại ở các kỳ rời nhau là một lượt bàn giao, không phải xung đột).
+    Ghi ambiguity theo raw *value* vì thế bôi đen cả những dòng chỉ có đúng
+    một record hiệu lực. Mọi thứ người soát cần để chấm lại đều nằm đây.
+    """
+
+    raw_value: str = ""
+    records: tuple[str, ...] = ()
+
+    def render(self) -> str:
+        stamp = self.when.isoformat() if self.when else "không có ngày"
+        return f"dòng {self.source_row} ({stamp}) → {', '.join(self.records)}"
+
+
+@dataclass(frozen=True)
+class RowProvenance:
+    """Tập dòng canonical của một finding, cùng MỌI representation của nó.
+
+    Đây là câu trả lời cấu trúc cho Independent Review #5. Trước đây
+    `affected_count` là một field gán tay còn `source_rows` là một chuỗi nối
+    tay ở chỗ khác, nên hai bên bất đồng được. Ở đây chúng là property dẫn
+    xuất từ đúng một tuple: trạng thái "count nói X, rows nói Y" không còn
+    biểu diễn được bằng bất kỳ cách gọi nào.
+
+    `batch_scoped` chỉ đổi CÁCH RENDER, không đổi phép đếm: F5 ("không map
+    được gì cả") là phát biểu về cả lô, và in ra 14.000 số dòng sẽ chôn mất
+    câu duy nhất đáng đọc. Số đếm vẫn chính xác.
+    """
+
+    rows: tuple[AffectedRow, ...] = ()
+    batch_scoped: bool = False
+
+    @property
+    def affected_count(self) -> int:
+        """Dẫn xuất, không bao giờ được gán. `0` là một câu trả lời thật:
+        tiêu chí F2 nghĩa là "không khớp dòng nào"."""
+        return len(self.rows)
+
+    @property
+    def source_rows(self) -> tuple[int, ...]:
+        return tuple(sorted(row.source_row for row in self.rows))
+
+    @property
+    def source_file(self) -> Optional[str]:
+        for row in self.rows:
+            if row.source_file:
+                return row.source_file
+        return None
+
+    @property
+    def primary_row(self) -> Optional[int]:
+        rows = self.source_rows
+        return rows[0] if rows else None
+
+    def raw_variants(self) -> dict[str, list[int]]:
+        """Mọi cách gõ gốc **bên trong finding này**, kèm dòng của chính nó."""
+        variants: dict[str, list[int]] = {}
+        for row in self.rows:
+            if row.raw_original:
+                variants.setdefault(row.raw_original, []).append(row.source_row)
+        return {key: sorted(value) for key, value in variants.items()}
+
+    def render_variants(self) -> str:
+        """`!r` có chủ đích: một khoảng trắng đôi hay một cách dựng NFD là vô
+        hình khi in thường, mà đó đúng là khác biệt cần giữ lại."""
+        return " ; ".join(
+            f"{original!r} → {', '.join(str(r) for r in rows)}"
+            for original, rows in sorted(
+                self.raw_variants().items(), key=lambda kv: (min(kv[1]), kv[0])
+            )
+        )
+
+    def rendered_details(self) -> dict[str, str]:
+        """Các khóa mang thông tin dòng, render TỪ CHÍNH tuple này.
+
+        Đây là con đường duy nhất để một số dòng đi vào `ReviewItem.details`.
+        """
+        if self.batch_scoped or not self.rows:
+            return {}
+        rendered = {"source_rows": ", ".join(str(row) for row in self.source_rows)}
+        variants = self.render_variants()
+        if variants:
+            rendered["raw_variants"] = variants
+
+        # Provenance của F3 cũng DẪN XUẤT, không phải một dict truyền tay:
+        # trước đây `ambiguous_rows` / `conflicting_records` được tính ở
+        # `evaluate_raw_mapping` rồi sao chép qua `details`, và chính đó là
+        # đường thoát mà Independent Review #5 chỉ ra.
+        ambiguous = [row for row in self.rows if isinstance(row, AmbiguousRow)]
+        if ambiguous:
+            rendered["ambiguous_rows"] = " ; ".join(
+                row.render() for row in sorted(ambiguous, key=lambda r: r.source_row)
+            )
+            rendered["conflicting_records"] = ", ".join(
+                sorted({label for row in ambiguous for label in row.records})
+            )
+        return rendered
+
+
 # Never allowed inside a `ReviewItem`. Kept as data so the guard is one list
 # rather than a habit somebody has to remember (CHECK-110-17).
 PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
@@ -115,24 +251,60 @@ PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
 
 @dataclass(frozen=True)
 class ReviewItem:
-    """One finding.
+    """Một finding.
 
-    `affected_count` is how many raw rows sit behind this item: 1 for a
-    per-row finding, N for an aggregate one (DEC-128 §1). It may legitimately
-    be **0** — criterion F2 is precisely "a configured employee that matched
-    no row", and reporting a fake 1 there would misstate the only fact the
-    finding carries.
+    **Mọi representation nói về dòng thô đều dẫn xuất từ `provenance`, và
+    không từ đâu khác** (DEC-132). `affected_count` và `source_row` từng là
+    field gán tay; giờ chúng là property. Đó không phải thay đổi phong cách —
+    đó là điều khiến trạng thái mà Independent Review #5 mô tả không còn biểu
+    diễn được: không tồn tại lời gọi nào tạo ra một item nói "1 dòng, dòng 6"
+    trong khi provenance của nó chứa dòng 7.
+
+    `affected_count` có thể hợp lệ bằng **0** — tiêu chí F2 đúng nghĩa là "một
+    nhân viên đã cấu hình mà không khớp dòng nào", và báo 1 giả ở đó là khai
+    man đúng cái sự thật duy nhất mà finding mang.
+
+    Caller ghi metadata chẩn đoán qua `diagnostics`; `details` là bề mặt ĐỌC,
+    gộp diagnostics với các khóa mang dòng do provenance render ra.
     """
 
     category: str
     severity: str
     message: str
     scope: str = SCOPE_ROW
-    source_file: Optional[str] = None
-    source_row: Optional[int] = None
+    provenance: RowProvenance = field(default_factory=RowProvenance)
+    # Chỉ dùng khi provenance KHÔNG có dòng nào (F2, hoặc một finding về cả
+    # lô): không có dòng thì không suy ra được tên file. Khi đã có dòng, đặt
+    # trường này là lỗi — đó sẽ là kênh thứ hai để bất đồng với provenance.
+    batch_source_file: Optional[str] = None
     order_id: Optional[str] = None
-    affected_count: int = 1
-    details: dict[str, str] = field(default_factory=dict)
+    diagnostics: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def source_file(self) -> Optional[str]:
+        return self.provenance.source_file or self.batch_source_file
+
+    @property
+    def source_row(self) -> Optional[int]:
+        """Dẫn xuất. Một item phạm vi dòng trỏ vào dòng nhỏ nhất mà nó SỞ HỮU."""
+        if self.provenance.batch_scoped:
+            return None
+        return self.provenance.primary_row
+
+    @property
+    def affected_count(self) -> int:
+        return self.provenance.affected_count
+
+    @property
+    def details(self) -> dict[str, str]:
+        """Bề mặt đọc: metadata chẩn đoán + provenance đã render.
+
+        Các khóa mang dòng không thể bị caller ghi đè — chúng được ghi SAU
+        cùng, từ provenance.
+        """
+        merged = dict(self.diagnostics)
+        merged.update(self.provenance.rendered_details())
+        return merged
 
     def __post_init__(self) -> None:
         if self.category not in CATEGORIES:
@@ -141,10 +313,25 @@ class ReviewItem:
             raise ValueError(f"Unknown review severity: {self.severity!r}")
         if self.scope not in SCOPES:
             raise ValueError(f"Unknown review scope: {self.scope!r}")
-        if self.affected_count < 0:
-            raise ValueError(f"affected_count cannot be negative: {self.affected_count}")
 
-        # Traceability is structural, not a convention (Review #1, Finding 1).
+        # Không kênh thứ hai nào được phép mang thông tin dòng (điểm 12).
+        offending = ROW_BEARING_DETAIL_KEYS.intersection(self.diagnostics)
+        if offending:
+            raise ValueError(
+                f"ReviewItem({self.category}): {sorted(offending)} thuộc quyền "
+                "sở hữu của RowProvenance và được render từ đó. Đặt chúng vào "
+                "`diagnostics` sẽ tạo lại đúng đường thoát provenance mà "
+                "Independent Review #5 đã bác bỏ."
+            )
+        if self.provenance.rows and self.batch_source_file is not None:
+            raise ValueError(
+                f"ReviewItem({self.category}): `batch_source_file` chỉ dành cho "
+                "item không có dòng nào; khi đã có dòng, tên file lấy từ chính "
+                "các dòng đó."
+            )
+
+        # Truy vết được là chuyện cấu trúc, không phải quy ước (Review #1,
+        # Finding 1).
         if not self.source_file:
             raise ValueError(
                 f"ReviewItem({self.category}) needs source_file to be traceable"

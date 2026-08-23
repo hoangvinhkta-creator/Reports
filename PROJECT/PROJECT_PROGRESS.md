@@ -51,21 +51,27 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (S020 — **Independent Review #4 FAIL, 2 provenance defect, đã sửa
-toàn bộ**. Sửa kiến trúc chứ không vá từng case: provenance của mỗi finding
-nay dựng **từ chính tập row tạo ra finding** (`MappingFinding.affected_rows`),
-mọi trường provenance là **thuộc tính dẫn xuất**, và các accessor tra theo
-canonical identity (`rows_by_raw_value` / `rows_by_employee`) đã bị **xóa bỏ**
-— không còn đường để lỗi tái phát ở trường tiếp theo. **HD-110-05 → DEC-131**:
-F3 chỉ đánh giá khi dòng có ngày giao dịch. **298/298 test**, 147 mới so với
-baseline `c7a1b24`, 0 regression.
+2026-08-23 (S021 — **Independent Review #5 FAIL, 4 finding, đã sửa toàn bộ
+bằng ARCHITECTURE REPAIR**, không phải một vòng patch cục bộ. Audit trước khi
+code chỉ ra cả bốn finding là bốn biểu hiện của **một** root cause: validation
+tái tạo lại các sự thật production đã biết thay vì nhận lại chúng — và audit
+tìm thêm một drift thứ năm reviewer chưa nêu (F3 khớp prefix trên chuỗi đã
+normalize trong khi production khớp trên chuỗi thô). Đã **xóa** nguồn sự thật
+thứ hai (`select_effective_record`, `_record_key`, vòng khớp prefix riêng);
+`EmployeeMapper` nay là nguồn duy nhất và trả `RecordRef` — danh tính của bản
+ghi đã load, nên collision là **bất khả**. `MappingFinding` mất hẳn trường
+`details`; `ReviewItem` mất hẳn field `affected_count`/`source_row` — tất cả
+dẫn xuất từ `RowProvenance`. Ba Human Decision (**HD-110-06/07/08**) ghi thành
+**DEC-132**. **330/330 test**, 179 mới so với baseline `c7a1b24`, 0 regression;
+L1/L2/L3 chứng minh 0 dịch chuyển nghiệp vụ.
 
-TASK-110 = **IMPLEMENTED — repairing after Independent Review #4**,
-**NOT MERGED, NOT DONE**, CHECK-110-16 **BLOCKED**, chờ Review #5.
+TASK-110 = **IMPLEMENTED — architecture repair sau Independent Review #5**,
+**NOT MERGED, NOT DONE**, CHECK-110-16 **BLOCKED**, chờ Review #6.
 
-Lịch sử: S019 sửa Review #3 (3 finding, DEC-130), S018 sửa Review #2
-(4 finding), S017 sửa Review #1 (6 finding, DEC-129), S016 triển khai,
-S015 Gate Review (DEC-128). **Chưa vòng review nào PASS.**)
+Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
+(3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
+(6 finding, DEC-129), S016 triển khai, S015 Gate Review (DEC-128).
+**Chưa vòng review nào PASS.**)
 
 Overall Status:
 IN_PROGRESS
@@ -393,7 +399,10 @@ Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Bốn vòng review siết dần provena
 cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
 không phát khi thiếu ngày — HD-110-04/DEC-130 (S019); #4 yêu cầu **mọi**
 provenance dựng từ chính tập row của finding, và F3 cũng cần ngày —
-HD-110-05/DEC-131 (S020). **Chưa vòng nào PASS**; chờ Review #5 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
+thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
+(`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
+(S021). **Chưa vòng nào PASS**; chờ Review #6 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
@@ -554,10 +563,15 @@ thái chờ duyệt, và code đã viết xong. Lịch sử hai vòng review:
   Human Decision (**HD-110-04**) ghi thành **DEC-130**.
 - **Independent Review #4 — FAIL, 2 provenance defect** → đã sửa toàn bộ
   (S020); một Human Decision (**HD-110-05**) ghi thành **DEC-131**.
+- **Independent Review #5 — FAIL, 4 finding** → đã sửa toàn bộ bằng
+  **Architecture Repair** (S021); ba Human Decision (**HD-110-06/07/08**) ghi
+  thành **DEC-132**. Hai finding provenance đã tái xuất ở representation khác
+  nhau qua các vòng trước, nên vòng này sửa **cơ chế sinh ra chúng** thay vì
+  sửa representation: trạng thái sai không còn **biểu diễn được**.
 
-**Chưa vòng review nào PASS.** Chờ **Independent Review #5**.
+**Chưa vòng review nào PASS.** Chờ **Independent Review #6**.
 
-16/17 REQUIRED check PASS. **CHECK-110-16 (đối chiếu dữ liệu thật) vẫn
+21/22 REQUIRED check PASS. **CHECK-110-16 (đối chiếu dữ liệu thật) vẫn
 BLOCKED** — file thô production không có trong repo (đúng
 `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`) và không có trong
 container. Check này **chặn DONE, không chặn IMPLEMENTED**.
@@ -567,7 +581,8 @@ DEC-129. Chấm điểm: Difficulty 3, **Risk 3** (kéo theo E1 bắt buộc cho
 check REQUIRED). Bốn khoảng trống nghiệp vụ của §18 đã đóng bằng **DEC-128**.
 
 File: `docs/tasks/TASK-110-validation-review-queue.md`.
-Handoff: `docs/sessions/S015-*.md` (Gate), `S016-*.md` (triển khai),
+Handoff: `docs/sessions/S021-*.md` (Architecture Repair, mới nhất),
+`S015-*.md` (Gate), `S016-*.md` (triển khai),
 `S017-*.md` (sửa Review #1), `S018-*.md` (sửa Review #2),
 `S019-*.md` (sửa Review #3), `S020-*.md` (sửa Review #4).
 
@@ -1139,7 +1154,10 @@ Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Bốn vòng review siết dần provena
 cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
 không phát khi thiếu ngày — HD-110-04/DEC-130 (S019); #4 yêu cầu **mọi**
 provenance dựng từ chính tập row của finding, và F3 cũng cần ngày —
-HD-110-05/DEC-131 (S020). **Chưa vòng nào PASS**; chờ Review #5 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
+thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
+(`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
+(S021). **Chưa vòng nào PASS**; chờ Review #6 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),

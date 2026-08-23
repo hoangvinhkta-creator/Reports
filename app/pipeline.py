@@ -65,6 +65,11 @@ class WorkingData:
     preview: ImportPreview
     lines: list[WorkingLine]
     orders: list[Order]
+    # CHÍNH instance đã resolve các dòng trên. Validation nhận nó để hỏi lại
+    # "record nào" thay vì đoán lại bằng giá trị (DEC-132). Đây là một trường
+    # của `WorkingData`, KHÔNG phải của `WorkingLine`/`Order` — hai lớp đó
+    # nằm ngoài phạm vi TASK-110 và không đổi.
+    employee_mapper: EmployeeMapper
 
 
 @dataclass(frozen=True)
@@ -106,7 +111,12 @@ def build_working_data(
         orders, resolver, product_group_provider or DefaultProductGroupProvider()
     )
 
-    return WorkingData(preview=preview, lines=lines, orders=orders)
+    return WorkingData(
+        preview=preview,
+        lines=lines,
+        orders=orders,
+        employee_mapper=employee_mapper,
+    )
 
 
 def run_import(
@@ -121,9 +131,9 @@ def run_import(
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a
     # report that travels beside the data, never a stage that edits it.
-    review_queue = Validator.from_config_dir(config_dir).build_queue(
-        working.lines, working.orders
-    )
+    review_queue = Validator.from_config_dir(
+        config_dir, employee_mapper=working.employee_mapper
+    ).build_queue(working.lines, working.orders)
 
     unmapped_lines = [
         line

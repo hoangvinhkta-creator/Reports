@@ -387,24 +387,35 @@ def test_every_queue_item_from_a_real_import_is_traceable(synthetic_raw_path):
             assert item.scope == SCOPE_BATCH, item
 
 
+def _one_row():
+    from app.modules.validation.models import AffectedRow, RowProvenance
+
+    return RowProvenance((AffectedRow("s.xlsx", 6),))
+
+
 def test_an_untraceable_item_cannot_even_be_constructed():
     """The invariant is structural, not a convention somebody must remember."""
     import pytest
 
     from app.modules.validation.models import ReviewItem
 
+    from app.modules.validation.models import AffectedRow, RowProvenance
+
+    # Không có dòng và cũng không có tên file lô: không lần ngược về đâu được.
     with pytest.raises(ValueError, match="source_file"):
         ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
-                   scope=SCOPE_ROW, source_row=6)
+                   scope=SCOPE_ROW)
+    # Có tên file nhưng provenance rỗng: phạm vi dòng mà không có dòng nào.
     with pytest.raises(ValueError, match="source_row"):
         ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
-                   scope=SCOPE_ROW, source_file="s.xlsx")
+                   scope=SCOPE_ROW, batch_source_file="s.xlsx")
     with pytest.raises(ValueError, match="order_id"):
         ReviewItem(category=CATEGORY_ORDER_INCONSISTENCY, severity=SEVERITY_ERROR,
-                   message="x", scope=SCOPE_ORDER, source_file="s.xlsx")
+                   message="x", scope=SCOPE_ORDER,
+                   provenance=RowProvenance((AffectedRow("s.xlsx", 6),)))
     with pytest.raises(ValueError, match="scope"):
         ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
-                   scope="galaxy", source_file="s.xlsx", source_row=6)
+                   scope="galaxy", provenance=_one_row())
 
 
 # ------------------------------------------------------------- config plumbing
@@ -432,10 +443,10 @@ def test_unknown_category_or_severity_is_rejected_loudly():
 
     with pytest.raises(ValueError):
         ReviewItem(category="NotACategory", severity=SEVERITY_ERROR, message="x",
-                   source_file="s.xlsx", source_row=6)
+                   provenance=_one_row())
     with pytest.raises(ValueError):
         ReviewItem(category=CATEGORY_MISSING, severity="LOUD", message="x",
-                   source_file="s.xlsx", source_row=6)
+                   provenance=_one_row())
 
 
 def test_queue_helpers_report_scale_not_just_item_count():
@@ -478,14 +489,22 @@ def test_erp_signal_survives_the_real_pipeline_as_its_own_category(tmp_path):
 
 
 def test_replace_keeps_review_item_frozen_and_valid():
-    from app.modules.validation.models import ReviewItem
+    """`dataclasses.replace` vẫn đi qua `__post_init__`.
+
+    Sau Review #5, `source_row` là property dẫn xuất chứ không còn là field —
+    nên cách duy nhất để dời một item sang dòng khác là dời chính provenance
+    của nó. Đó đúng là điều mong muốn: số dòng không thể bị sửa rời khỏi tập
+    dòng mà item sở hữu.
+    """
+    from app.modules.validation.models import AffectedRow, ReviewItem, RowProvenance
 
     item = ReviewItem(
         category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
-        scope=SCOPE_ROW, source_file="s.xlsx", source_row=6
+        scope=SCOPE_ROW, provenance=RowProvenance((AffectedRow("s.xlsx", 6),))
     )
-    moved = replace(item, source_row=7)
+    moved = replace(item, provenance=RowProvenance((AffectedRow("s.xlsx", 7),)))
     assert moved.source_row == 7 and item.source_row == 6
+    assert moved.affected_count == 1
 
 
 def test_dates_mismatch_detected_through_the_validator(synthetic_raw_path):

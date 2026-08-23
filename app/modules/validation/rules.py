@@ -24,6 +24,8 @@ from app.modules.domain.models import (
     WorkingLine,
 )
 from app.modules.validation.models import (
+    AffectedRow,
+    RowProvenance,
     CATEGORY_DUPLICATE,
     CATEGORY_MISSING,
     CATEGORY_MISSING_PURCHASE_PRICE,
@@ -36,7 +38,6 @@ from app.modules.validation.models import (
     DETAIL_LEGACY_SELECTED,
     DETAIL_ROW_HASH,
     DETAIL_RULE,
-    DETAIL_SOURCE_ROWS,
     ReviewItem,
     SCOPE_BATCH,
     SCOPE_ORDER,
@@ -121,10 +122,11 @@ def detect_missing(
                     severity=severity,
                     message=f"Thiếu {_MISSING_LABELS[field]}.",
                     scope=SCOPE_ROW,
-                    source_file=line.raw.source_file,
-                    source_row=line.raw.source_row,
+                    provenance=RowProvenance(
+                        (AffectedRow(line.raw.source_file, line.raw.source_row),)
+                    ),
                     order_id=line.order_id or None,
-                    details={DETAIL_RULE: field},
+                    diagnostics={DETAIL_RULE: field},
                 )
             )
     return items
@@ -154,8 +156,9 @@ def detect_missing_purchase_price(
                 severity=severity,
                 message="Thiếu giá nhập (chờ Price Master).",
                 scope=SCOPE_ROW,
-                source_file=line.raw.source_file,
-                source_row=line.raw.source_row,
+                provenance=RowProvenance(
+                    (AffectedRow(line.raw.source_file, line.raw.source_row),)
+                ),
                 order_id=line.order_id or None,
             )
             for line in pending
@@ -171,8 +174,12 @@ def detect_missing_purchase_price(
                 "lỗi dữ liệu của từng dòng."
             ),
             scope=SCOPE_BATCH,
-            source_file=pending[0].raw.source_file,
-            affected_count=len(pending),
+            provenance=RowProvenance(
+                tuple(
+                    AffectedRow(l.raw.source_file, l.raw.source_row)
+                    for l in pending
+                )
+            ),
         )
     ]
 
@@ -230,10 +237,11 @@ def detect_suspicious(
                     severity=_severity_for(line, severity, downgrade_to, patterns),
                     message=message,
                     scope=SCOPE_ROW,
-                    source_file=line.raw.source_file,
-                    source_row=line.raw.source_row,
+                    provenance=RowProvenance(
+                        (AffectedRow(line.raw.source_file, line.raw.source_row),)
+                    ),
                     order_id=line.order_id or None,
-                    details={DETAIL_RULE: rule},
+                    diagnostics={DETAIL_RULE: rule},
                 )
             )
     return items
@@ -269,8 +277,9 @@ def detect_suspicious_erp(
                     "(DEC-103)."
                 ),
                 scope=SCOPE_ROW,
-                source_file=line.raw.source_file,
-                source_row=line.raw.source_row,
+                provenance=RowProvenance(
+                    (AffectedRow(line.raw.source_file, line.raw.source_row),)
+                ),
                 order_id=line.order_id or None,
             )
         )
@@ -336,13 +345,16 @@ def detect_order_inconsistency(
                         "đã được xác minh. Cần người quyết định."
                     ),
                     scope=SCOPE_ORDER,
-                    source_file=order.lines[0].raw.source_file,
+                    provenance=RowProvenance(
+                    tuple(
+                        AffectedRow(l.raw.source_file, l.raw.source_row)
+                        for l in order.lines
+                    )
+                ),
                     order_id=order.order_id,
-                    affected_count=len(order.lines),
-                    details={
+                    diagnostics={
                         DETAIL_EMPLOYEES_FOUND: " | ".join(sorted(identities)),
                         DETAIL_LEGACY_SELECTED: legacy,
-                        DETAIL_SOURCE_ROWS: ", ".join(str(r) for r in rows),
                     },
                 )
             )
@@ -358,15 +370,16 @@ def detect_order_inconsistency(
                         "trên các dòng."
                     ),
                     scope=SCOPE_ORDER,
-                    source_file=order.lines[0].raw.source_file,
+                    provenance=RowProvenance(
+                    tuple(
+                        AffectedRow(l.raw.source_file, l.raw.source_row)
+                        for l in order.lines
+                    )
+                ),
                     order_id=order.order_id,
-                    affected_count=len(order.lines),
-                    details={
+                    diagnostics={
                         DETAIL_DATES_FOUND: ", ".join(
                             d.isoformat() for d in sorted(dates)
-                        ),
-                        DETAIL_SOURCE_ROWS: ", ".join(
-                            str(line.raw.source_row) for line in order.lines
                         ),
                     },
                 )
@@ -400,7 +413,12 @@ def detect_source_classification(
                     f"quả rule tự động `{order.lead_source_auto}`."
                 ),
                 scope=SCOPE_ORDER,
-                source_file=order.lines[0].raw.source_file,
+                provenance=RowProvenance(
+                    tuple(
+                        AffectedRow(l.raw.source_file, l.raw.source_row)
+                        for l in order.lines
+                    )
+                ),
                 order_id=order.order_id,
             )
         )
@@ -439,14 +457,14 @@ def detect_duplicates(
                     "dòng phụ kiện giống nhau trong một đơn — cần người xem."
                 ),
                 scope=SCOPE_ROW,
-                source_file=group[0].raw.source_file,
-                source_row=rows[0],
+                provenance=RowProvenance(
+                    tuple(
+                        AffectedRow(l.raw.source_file, l.raw.source_row)
+                        for l in group
+                    )
+                ),
                 order_id=group[0].order_id or None,
-                affected_count=len(group),
-                details={
-                    DETAIL_ROW_HASH: row_hash,
-                    DETAIL_SOURCE_ROWS: ", ".join(str(r) for r in rows),
-                },
+                diagnostics={DETAIL_ROW_HASH: row_hash},
             )
         )
     return items

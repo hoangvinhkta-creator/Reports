@@ -16,6 +16,8 @@ they now run on the import path itself.
 from __future__ import annotations
 
 import unicodedata
+
+import pytest
 from datetime import date
 from decimal import Decimal
 
@@ -26,7 +28,6 @@ from app.modules.validation.employee_mapping import (
     collect_mapping_stats,
     evaluate_inactive_records,
     evaluate_raw_mapping,
-    select_effective_record,
 )
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
@@ -92,8 +93,21 @@ def unmapped_line(employee_raw, *, source_row=6, when=date(2026, 1, 15)):
     )
 
 
+def mapper_for(employee_rows):
+    """Mapper production mà validation sẽ hỏi lại (DEC-132).
+
+    `validate=False` vì một số fixture dưới đây cố ý dựng master data mâu
+    thuẫn (group không khai báo, `active: false` mà vẫn có dòng) để quan sát
+    F1/F6 — đó chính là thứ các tiêu chí này tồn tại để báo. Schema fail-fast
+    của HD-110-06 được kiểm riêng ở nhóm F9.
+    """
+    return EmployeeMapper(employee_rows, validate=False)
+
+
 def queue_for(lines, employee_rows, groups=GROUPS):
-    validator = Validator(CONFIG, employee_rows=employee_rows, employee_groups=groups)
+    validator = Validator(
+        CONFIG, employee_mapper=mapper_for(employee_rows), employee_groups=groups
+    )
     return validator.build_queue(lines, [])
 
 
@@ -219,7 +233,7 @@ def test_stats_are_collected_from_lines_the_production_mapper_resolved():
         unmapped_line("Người Lạ 0900000009", source_row=8, when=date(2026, 2, 1)),
     ]
 
-    stats = collect_mapping_stats(lines, employees)
+    stats = collect_mapping_stats(lines, mapper_for(employees))
 
     assert stats.mapped["Ly"] == 2
     assert stats.unmapped["Người Lạ 0900000009"] == 1
@@ -232,7 +246,7 @@ def test_stats_tolerate_lines_with_no_date():
     employees = [employee("Ly", "Vũ Hạnh Ly")]
     line_without_date = mapped_line("Ly", "Vũ Hạnh Ly 0868345633", when=None)
 
-    stats = collect_mapping_stats([line_without_date], employees)
+    stats = collect_mapping_stats([line_without_date], mapper_for(employees))
 
     assert stats.dataset_start is None
     assert stats.mapped["Ly"] == 1
@@ -240,7 +254,7 @@ def test_stats_tolerate_lines_with_no_date():
 
 def test_disabled_category_produces_no_items():
     config = {"categories": {"employee_mapping": {"enabled": False}}}
-    validator = Validator(config, employee_rows=[employee("Ly", "Vũ Hạnh Ly")])
+    validator = Validator(config, employee_mapper=mapper_for([employee("Ly", "Vũ Hạnh Ly")]))
     queue = validator.build_queue([unmapped_line("Ai Đó 0900000000")], [])
     assert queue.by_category(CATEGORY_EMPLOYEE_MAPPING) == []
 
@@ -465,7 +479,7 @@ def test_blank_employee_produces_only_missing_and_never_an_f4():
     ]
 
     queue = Validator(
-        config, employee_rows=employees, employee_groups=GROUPS
+        config, employee_mapper=mapper_for(employees), employee_groups=GROUPS
     ).build_queue(lines, [])
 
     assert items_of(queue, criterion="F4") == []
@@ -612,33 +626,28 @@ def test_two_inactive_records_sharing_a_name_are_reported_separately():
     assert all(i.affected_count == 1 for i in found)
 
 
-def test_f6_record_selection_agrees_with_the_production_employee_mapper():
-    """`select_effective_record` is a second reading of a production rule, so
-    something has to prove the two agree rather than assume it."""
-    rows = HANDOVER + [employee("Kiên", "Đức Kiên")]
-    mapper = EmployeeMapper(rows)
+def test_validation_has_no_second_record_selection_implementation():
+    """F4 — bản cài đặt thứ hai không còn TỒN TẠI, chứ không phải "đã đồng ý".
 
-    cases = [
-        (RAW_LY, date(2026, 2, 10)),
-        (RAW_LY, date(2026, 3, 31)),
-        (RAW_LY, date(2026, 4, 1)),
-        (RAW_LY, date(2026, 5, 10)),
-        ("Đức Kiên - Tân Á 0867666533", date(2026, 5, 10)),
-        ("Người Lạ 0900000009", date(2026, 5, 10)),
-        ("", date(2026, 5, 10)),
-        (None, date(2026, 5, 10)),
-    ]
+    Trước Independent Review #5, chỗ này là một test đồng thuận: chạy
+    `select_effective_record` và `EmployeeMapper.resolve` trên tám case rồi
+    khẳng định hai bên khớp. Một chứng minh như vậy chỉ mạnh bằng ma trận
+    case của nó — và ma trận đó thiếu đúng case `raw_prefix` rỗng, nên bản
+    validation loại prefix rỗng trong khi production nhận nó, suốt bốn vòng
+    review mà không ai thấy.
 
-    for raw_value, when in cases:
-        record = select_effective_record(rows, raw_value, when)
-        result = mapper.resolve(raw_value, when)
+    Cách chứng minh mạnh không phải là thêm case, mà là bỏ đi nguồn sự thật
+    thứ hai. Test này khẳng định chính điều đó.
+    """
+    import app.modules.validation.employee_mapping as module
 
-        if record is None:
-            assert result.normalized is None, (raw_value, when)
-            continue
-        assert record["normalized"] == result.normalized, (raw_value, when)
-        expected_inactive = not record.get("active", True)
-        assert expected_inactive is (result.status == "inactive"), (raw_value, when)
+    assert not hasattr(module, "select_effective_record")
+    assert not hasattr(module, "_record_key")
+
+    with pytest.raises(ImportError):
+        from app.modules.validation.employee_mapping import (  # noqa: F401
+            select_effective_record,
+        )
 
 
 def test_f6_never_changes_mapping_status_or_group():
@@ -763,7 +772,7 @@ def test_missing_date_produces_missing_date_and_never_f6():
     lines = resolved_lines(HANDOVER, [(6, None)])
 
     queue = Validator(
-        config, employee_rows=HANDOVER, employee_groups=GROUPS
+        config, employee_mapper=mapper_for(HANDOVER), employee_groups=GROUPS
     ).build_queue(lines, [])
 
     assert items_of(queue, criterion="F6") == []
@@ -941,7 +950,7 @@ MISSING_DATE_CONFIG = {
 
 def queue_with_missing(lines, employee_rows):
     return Validator(
-        MISSING_DATE_CONFIG, employee_rows=employee_rows, employee_groups=GROUPS
+        MISSING_DATE_CONFIG, employee_mapper=mapper_for(employee_rows), employee_groups=GROUPS
     ).build_queue(lines, [])
 
 
@@ -1141,7 +1150,7 @@ def test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set():
     lines = lines + resolved_lines_for(OVERLAP_ROWS, RAW_DUC,
                                        [(20, date(2026, 2, 10))])
 
-    stats = collect_mapping_stats(lines, employees)
+    stats = collect_mapping_stats(lines, mapper_for(employees))
     verdict = evaluate_raw_mapping(
         stats.mapped, stats.groups, stats.unmapped, stats.ambiguities,
         employees, GROUPS, stats.dataset_start, stats.dataset_end,
@@ -1167,32 +1176,6 @@ def test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set():
             assert any(
                 row.raw_original == original for row in finding.affected_rows
             ), f"{finding.criterion}: variant {original!r} is not from its rows"
-
-
-def test_the_invariant_test_would_actually_catch_a_widened_provenance():
-    """Falsification: hand-build a finding whose rendered variants come from a
-    row it does not own, and prove the checks above reject it."""
-    from app.modules.validation.employee_mapping import AffectedRow, MappingFinding
-
-    honest = MappingFinding(
-        criterion="F4", bucket="WARNING", message="x",
-        affected_rows=(AffectedRow("s.xlsx", 7, "Thảo Linh", None),),
-    )
-    widened = MappingFinding(
-        criterion="F4", bucket="WARNING", message="x",
-        affected_rows=(
-            AffectedRow("s.xlsx", 7, "Thảo Linh", None),
-            AffectedRow("s.xlsx", 6, "Thảo Linh", None),   # a row it should not own
-        ),
-    )
-
-    assert honest.source_rows == (7,)
-    assert honest.raw_variants() == {"Thảo Linh": [7]}
-    # The widened one is detectably different — the invariant is a real
-    # discriminator, not a tautology.
-    assert widened.source_rows == (6, 7)
-    assert widened.affected_count == 2
-    assert widened.raw_variants() == {"Thảo Linh": [6, 7]}
 
 
 def test_every_mapping_item_in_a_real_import_obeys_the_invariant(synthetic_raw_path):

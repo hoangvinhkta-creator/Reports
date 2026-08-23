@@ -1,0 +1,169 @@
+{
+  "lines": [
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.055",
+      "conversion_scheme_final": "PERSONAL_5_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Ly",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0001",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 6
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.075",
+      "conversion_scheme_final": "ADS_7_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Hoàng",
+      "lead_source_final": "ADS",
+      "order_id": "BH0002",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 7
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.075",
+      "conversion_scheme_final": "ADS_7_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Hoàng",
+      "lead_source_final": "ADS",
+      "order_id": "BH0002",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 8
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.075",
+      "conversion_scheme_final": "ADS_7_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "order_id": "BH0003",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 9
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.055",
+      "conversion_scheme_final": "PERSONAL_5_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Ly",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0004",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 10
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": null,
+      "conversion_scheme_final": "Unresolved",
+      "employee_group": null,
+      "employee_mapping_status": "unmapped",
+      "employee_normalized": null,
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0005",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 11
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.020",
+      "conversion_scheme_final": "NOI_THANH_2",
+      "employee_group": "NOI_THANH",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Vinh",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0006",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 12
+    },
+    {
+      "accounting_profit": null,
+      "accounting_purchase_price": null,
+      "conversion_rate_final": "0.055",
+      "conversion_scheme_final": "PERSONAL_5_5",
+      "employee_group": "STANDARD_SALES",
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Thắng",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0007",
+      "product_group_final": "DIEN_MAY",
+      "source_row": 13
+    }
+  ],
+  "orders": [
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Ly",
+      "employee_raw": "Vũ Hạnh Ly 0868345633",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0001"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Hoàng",
+      "employee_raw": "Lê Mạnh Hoàng 0865111533",
+      "lead_source_final": "ADS",
+      "order_id": "BH0002"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Tín Phát",
+      "employee_raw": "Tín Phát 0869931931",
+      "lead_source_final": "ADS",
+      "order_id": "BH0003"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Ly",
+      "employee_raw": "Vũ Hạnh Ly 0868345633",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0004"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "unmapped",
+      "employee_normalized": null,
+      "employee_raw": "Người Lạ Test 0900000009",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0005"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Vinh",
+      "employee_raw": "Mr Vinh",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0006"
+    },
+    {
+      "employee_group": null,
+      "employee_mapping_status": "mapped",
+      "employee_normalized": "Thắng",
+      "employee_raw": "Phước Thắng 0865909022",
+      "lead_source_final": "PERSONAL",
+      "order_id": "BH0007"
+    }
+  ],
+  "unmapped_line_rows": [
+    11
+  ]
+}

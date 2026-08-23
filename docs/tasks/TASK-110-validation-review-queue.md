@@ -3,22 +3,27 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — repairing after Independent Review #4.**
+**IMPLEMENTED — architecture repair sau Independent Review #5.**
 **NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
 
-Completion Gate **FROZEN** 2026-08-23. Bốn vòng review, **cả bốn đều FAIL**;
-bản sửa của vòng #4 đã xong nhưng **chưa được review nào PASS**:
+Completion Gate **FROZEN** 2026-08-23. Năm vòng review, **cả năm đều FAIL**;
+bản sửa của vòng #5 đã xong nhưng **chưa được review nào PASS**:
 
 - **Review #1 — FAIL, 6 finding** (S017). Ba Human Decision → **DEC-129**.
 - **Review #2 — FAIL, 4 finding** (S018). Không phát sinh Human Decision mới.
 - **Review #3 — FAIL, 3 finding** (S019). **HD-110-04** → **DEC-130**.
 - **Review #4 — FAIL, 2 provenance defect** (S020). **HD-110-05** → **DEC-131**.
+- **Review #5 — FAIL, 4 finding** (S021). Đây **không** phải một vòng patch cục
+  bộ: Architecture Audit chỉ ra cả bốn finding là bốn biểu hiện của **một**
+  root cause, và audit tìm thêm một drift thứ năm mà reviewer chưa nêu (F3
+  khớp prefix trên chuỗi đã normalize trong khi production khớp trên chuỗi
+  thô). Ba Human Decision — **HD-110-06/07/08** → **DEC-132**.
 
 16/17 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
-chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **298/298 test
-PASS** (147 mới so với baseline `c7a1b24`, 0 regression).
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **330/330 test
+PASS** (179 mới so với baseline `c7a1b24`, 0 regression).
 
-Chờ **Independent Review #5**.
+Chờ **Independent Review #6**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -80,7 +85,7 @@ V7 là TD-001, mở rộng thành F1–F6 theo **DEC-129** (HD-110-01, HD-110-03
 | V4 | `Order inconsistency` | Cùng `order_id`, khác `employee_normalized` (hoặc khác `date`) | **Chỉ phát hiện**, không đổi cách tính (DEC-128 §4) |
 | V5 | `Source classification` | `lead_source_manual` có giá trị và khác `lead_source_auto` | Phase 1 chưa có nguồn ghi override → 0 phát hiện thật, kiểm bằng fixture |
 | V6 | `Duplicate` | Trùng `row_hash` **trong cùng một lần import** | WARNING, không phải lỗi (DEC-128 §3) |
-| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production. **Provenance của mỗi finding được dựng TỪ CHÍNH tập row tạo ra finding đó, không bao giờ từ canonical identity** (Review #4). F3 chỉ gồm dòng thật sự ambiguous và **cần có ngày giao dịch**; F4 chỉ gồm dòng **unmapped** có raw identity, giữ **mọi biến thể raw nguyên bản** của đúng các dòng đó; F6 chấm theo từng bản ghi config, **cần có ngày** | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) + **HD-110-04** (F6 cần ngày, DEC-130) + **HD-110-05** (F3 cần ngày, DEC-131) + Review #2/#3/#4 |
+| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production. **Provenance của mỗi finding được dựng TỪ CHÍNH tập row tạo ra finding đó, không bao giờ từ canonical identity** (Review #4). F3 chỉ gồm dòng thật sự ambiguous và **cần có ngày giao dịch**; F4 chỉ gồm dòng **unmapped** có raw identity, giữ **mọi biến thể raw nguyên bản** của đúng các dòng đó; F6 chấm theo từng bản ghi config, **cần có ngày** | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) + **HD-110-04** (F6 cần ngày, DEC-130) + **HD-110-05** (F3 cần ngày, DEC-131) + **HD-110-06/07/08** (DEC-132) + Review #2/#3/#4/#5 |
 
 Ngoài ra:
 - Mỗi mục trong queue mang: mã loại, mức độ (`INFO`/`WARNING`/`ERROR`), một
@@ -204,6 +209,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.R2 — Sửa 4 finding của Independent Review #2 (S018).
 - [x] 110.R3 — Sửa 3 finding của Independent Review #3 (S019), gồm HD-110-04.
 - [x] 110.R4 — Sửa 2 provenance defect của Independent Review #4 (S020), gồm HD-110-05.
+- [x] 110.R5 — **Architecture repair** sau Independent Review #5 (S021), gồm HD-110-06/07/08 (DEC-132): xóa nguồn sự thật thứ hai cho việc chọn employee record, xóa kênh provenance song song, fail-fast cho master data hỏng.
 
 ## Ready Gate
 
@@ -552,7 +558,7 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/ -q` → **298 passed**. Baseline tại `c7a1b24` là 151 → **147 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → 285 (Review #3) → **298** (Review #4).
+`python3 -m pytest tests/ -q` → **330 passed**. Baseline tại `c7a1b24` là 151 → **179 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → 285 (Review #3) → 298 (Review #4) → **330** (Review #5).
 
 Executed By:
 Claude (S016)
@@ -634,6 +640,140 @@ Timestamp:
 
 ### Review
 
+#### CHECK-110-19 — Ma trận `EmployeeMapper.resolve()` bất biến (L1)
+Priority:
+REQUIRED
+
+Status:
+PASS
+
+Evidence Level:
+E1
+
+Evidence:
+Ảnh chụp `tests/fixtures/baseline/employee_resolve_matrix.json` sinh tại commit
+`8386d345b04b754c061ce03b79116e75f0dfae4e` — **trước** dòng code sửa chữa đầu
+tiên — gồm **972 tổ hợp** raw × as_of (mọi `raw_prefix` cấu hình × hậu tố thật
+× 7 biến thể lệch × 6 mốc ngày biên DEC-121), serialize **toàn bộ**
+`MappingResult` chứ không riêng `normalized`.
+`python3 -m pytest tests/test_task110_non_regression.py -q` → PASS, 0 khác biệt.
+Ảnh chụp được chứng minh là bộ phân biệt thật: 245/972 case `mapped`, phần còn
+lại `unmapped` — một ma trận toàn `None` sẽ PASS kể cả khi mapping hỏng hoàn
+toàn, nên điều đó được assert riêng.
+
+Executed By:
+Claude (S021)
+
+Timestamp:
+2026-08-23
+
+#### CHECK-110-20 — Đầu ra nghiệp vụ đầu-cuối bất biến (L2)
+Priority:
+REQUIRED
+
+Status:
+PASS
+
+Evidence Level:
+E1
+
+Evidence:
+Ảnh chụp `tests/fixtures/baseline/business_output.json` sinh tại cùng commit,
+gồm 8 dòng / 7 đơn với đúng các trường chủ dự án chỉ định:
+`employee_normalized`, `employee_mapping_status`, `employee_group`,
+`conversion_scheme_final`, `conversion_rate_final`, `product_group_final`,
+`accounting_purchase_price`, `accounting_profit`, `lead_source_final`, và các
+trường employee cấp Order. Review Queue **cố ý** không nằm trong so sánh —
+chính nó đang được sửa.
+`python3 -m pytest tests/test_task110_non_regression.py -q` → PASS, 0 khác biệt.
+
+Executed By:
+Claude (S021)
+
+Timestamp:
+2026-08-23
+
+#### CHECK-110-21 — Bằng chứng đã đóng băng của TASK-108A-1 còn nguyên (L3)
+Priority:
+REQUIRED
+
+Status:
+PASS
+
+Evidence Level:
+E1
+
+Evidence:
+`sha256sum -c` trên ba file đóng băng → tất cả **OK**, không sửa một byte:
+`tools/analysis/reconcile_conversion.py`, `tests/test_reconcile_raw_criteria.py`,
+`tests/test_reconcile_raw_integration.py`.
+Chữ ký vị trí của `evaluate_raw_mapping` (8 tham số + `row_index` optional) và
+khả năng import `norm` / `_overlaps` được assert bằng test, không chỉ bằng mắt.
+Script tự dựng `ambiguities` của nó rồi truyền vào, nên thay đổi ngữ nghĩa F3
+ở phía production (HD-110-08) **không** chạm tới output đã ký ở CHECK-108A1-15.
+
+Executed By:
+Claude (S021)
+
+Timestamp:
+2026-08-23
+
+#### CHECK-110-22 — Provenance sai không biểu diễn được (F1–F6)
+Priority:
+REQUIRED
+
+Status:
+PASS
+
+Evidence Level:
+E1
+
+Evidence:
+`python3 -m pytest tests/test_provenance_invariant.py -q` → **26 passed**.
+F1 `MappingFinding(details=...)` → `TypeError`; F2
+`ReviewItem(affected_count=...)` → `TypeError`; F3 mỗi khóa mang thông tin dòng
+bị từ chối bằng `ValueError`; F4 `select_effective_record` không import được;
+F5 quét **mọi chuỗi** của `ReviewItem` đã serialize (message, mọi khóa và mọi
+giá trị của `details`) tìm số dòng thuộc lô mà không thuộc item — không dùng
+whitelist trường; F6 **mutation test** tiêm dòng lạ qua `message` và assert
+rằng chính oracle F5 **FAIL** — nếu không, mọi PASS của F5 là vô nghĩa. Đây là
+điều test cũ không làm được: nó đưa dòng lạ vào `affected_rows` rồi khẳng định
+dòng đó xuất hiện, tức là một tautology.
+
+Executed By:
+Claude (S021)
+
+Timestamp:
+2026-08-23
+
+#### CHECK-110-23 — Record identity, drift và master data hỏng (F7–F9)
+Priority:
+REQUIRED
+
+Status:
+PASS
+
+Evidence Level:
+E1
+
+Evidence:
+Cùng lệnh pytest trên.
+F7 — hai bản ghi trùng khít `normalized` + `raw_prefix` + cửa sổ hiệu lực,
+khác `active`/`group`: F6 chỉ phát trên bản ghi production **thực sự chọn**, và
+`rows_for_record` của bản ghi kia trả `()`. Mặt còn lại cũng được canh: một bản
+ghi `active: false` được chọn thật thì F6 vẫn phát.
+F8 — ma trận 10 raw × 6 ngày: `resolve()` luôn khớp `resolve_record()`, và việc
+quy dòng về bản ghi không bao giờ gán dòng cho một bản ghi mà production để
+`unmapped`; F3 không kết luận ambiguity trên chuỗi mà production để `unmapped`.
+F9 — 8 dạng master data hỏng bị từ chối ngay khi load; prefix rỗng được chứng
+minh **thật sự** là catch-all nếu lọt qua; `config/employees.yaml` thật vẫn hợp lệ.
+
+Executed By:
+Claude (S021)
+
+Timestamp:
+2026-08-23
+
 #### CHECK-110-18 — Independent review
 Priority:
 RECOMMENDED
@@ -657,12 +797,16 @@ Timestamp:
 
 ### Tổng
 
-REQUIRED: 17 · RECOMMENDED: 1 · **PASS: 16** · **BLOCKED: 1** (CHECK-110-16,
+REQUIRED: 22 · RECOMMENDED: 1 · **PASS: 21** · **BLOCKED: 1** (CHECK-110-16,
 chủ dự án cho phép giữ) · FAIL: 0 · NOT_TESTED: 1 (CHECK-110-18, RECOMMENDED)
+
+Năm check mới của vòng Architecture Repair (DEC-132): CHECK-110-19 (L1),
+CHECK-110-20 (L2), CHECK-110-21 (L3), CHECK-110-22 (F1–F6), CHECK-110-23
+(F7–F9). Risk 3 ⇒ **E1 bắt buộc** cho cả năm, và cả năm đều có E1.
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 
-- [ ] 17/17 REQUIRED check PASS — **16/17**, CHECK-110-16 BLOCKED (cần dữ liệu thật).
+- [ ] 22/22 REQUIRED check PASS — **21/22**, CHECK-110-16 BLOCKED (cần dữ liệu thật).
 - [x] Không có lỗi critical chưa xử lý.
 - [x] Đạt E1 cho mọi check REQUIRED đã chạy.
 - [x] `PROJECT/PROJECT_PROGRESS.md` và `PROJECT/LO_TRINH_DE_HIEU.md` cập nhật cùng một lần sửa.

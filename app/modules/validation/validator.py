@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from app.modules.config.loader import load_yaml
 from app.modules.domain.models import Order, WorkingLine
+from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.validation.employee_mapping import (
     BUCKET_HARD,
     BUCKET_INFO,
@@ -28,14 +29,7 @@ from app.modules.validation.employee_mapping import (
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
     DETAIL_BATCH_ROWS,
-    DETAIL_CRITERION,
     DETAIL_DATASET_RANGE,
-    DETAIL_DECLARED_GROUP,
-    DETAIL_EMPLOYEE,
-    DETAIL_RAW_PREFIX,
-    DETAIL_RAW_VALUE,
-    DETAIL_RAW_VARIANTS,
-    DETAIL_SOURCE_ROWS,
     ReviewItem,
     ReviewQueue,
     SCOPE_BATCH,
@@ -67,7 +61,7 @@ class Validator:
     def __init__(
         self,
         config: dict[str, Any],
-        employee_rows: Optional[list[dict]] = None,
+        employee_mapper: Optional[EmployeeMapper] = None,
         employee_groups: Optional[set[str]] = None,
     ):
         self._config = config or {}
@@ -79,22 +73,34 @@ class Validator:
         self._patterns = compile_keyword_patterns(
             non_product.get("keywords", []) or []
         )
-        self._employee_rows = employee_rows or []
+        # CHÍNH instance mapper mà production đã dùng để resolve các dòng này
+        # (DEC-132). Validation không giữ list employee riêng và không load
+        # `employees.yaml` lần thứ hai: một không gian danh tính duy nhất là
+        # điều khiến `RecordRef` có nghĩa.
+        self._mapper = employee_mapper or EmployeeMapper([])
         self._employee_groups = employee_groups or set()
 
+    @property
+    def _employee_rows(self) -> tuple[dict, ...]:
+        return self._mapper.records
+
     @classmethod
-    def from_config_dir(cls, config_dir: Path) -> "Validator":
+    def from_config_dir(
+        cls, config_dir: Path, employee_mapper: Optional[EmployeeMapper] = None
+    ) -> "Validator":
         """Load `validation.yaml`, plus the employee master data F1–F5 need.
 
-        `employees.yaml` is read here rather than handed down from the
-        pipeline so the validator stays self-contained; it is a read, and
-        nothing in TASK-110 writes to employee master data.
+        `employee_mapper` nên được TRUYỀN VÀO từ pipeline: khi đó validation
+        soi đúng các bản ghi mà production vừa dùng để map, thay vì đúng nhờ
+        cùng đọc lại một file. Khi không truyền, validator tự dựng một mapper
+        từ chính file ấy để caller cũ vẫn chạy được.
         """
         config = load_yaml(config_dir / "validation.yaml")
         employees = load_yaml(config_dir / "employees.yaml")
         return cls(
             config=config,
-            employee_rows=employees.get("employees", []),
+            employee_mapper=employee_mapper
+            or EmployeeMapper(employees.get("employees", [])),
             employee_groups={
                 group.get("code")
                 for group in employees.get("employee_groups", []) or []
@@ -204,7 +210,7 @@ class Validator:
         if not lines:
             return []
 
-        stats = collect_mapping_stats(lines, self._employee_rows)
+        stats = collect_mapping_stats(lines, self._mapper)
         verdict = evaluate_raw_mapping(
             mapped=stats.mapped,
             groups=stats.groups,
@@ -238,52 +244,37 @@ class Validator:
     def _mapping_item(
         finding: MappingFinding, severity: str, stats: MappingStats
     ) -> ReviewItem:
-        """Turn one F1–F6 verdict into a traceable queue item.
+        """Biến một verdict F1–F6 thành một item hàng chờ truy vết được.
 
-        **Every provenance field comes from `finding.affected_rows` — the rows
-        that actually produced the finding — and from nothing else.**
-        Independent Review #1 (Finding 1) asked for provenance; Review #3
-        (Finding 1) and Review #4 (Findings 1 and 2) then found it being built
-        from a wider set: "every row sharing this canonical identity". So a
-        finding about one ambiguous row named a second, unambiguous one; an F4
-        about an unmapped row named a mapped row beside it.
+        **Mọi provenance đều đến từ `finding.provenance` — các dòng thật sự
+        sinh ra finding — và không từ đâu khác.** Review #1 (Finding 1) đòi
+        provenance; Review #3, #4 rồi #5 lần lượt bắt gặp nó được dựng từ một
+        tập rộng hơn, và lần cuối là qua `details.update(finding.details)`:
+        một dict tùy ý sao chép nguyên trạng, nên một finding về dòng 6 vẫn
+        kèm được `ambiguous_rows` nói về dòng 7.
 
-        There is no identity-keyed lookup left here to regress to. A finding
-        that knows no rows is batch-scoped and says which batch, over what date
-        range, out of how many rows — it never borrows rows to look complete.
+        Dòng `details.update` đó không còn nữa, và không thể quay lại: finding
+        không còn dict để mà sao chép, `diagnostic_details()` theo cấu trúc
+        chỉ đọc các trường vô hướng, còn các khóa mang thông tin dòng do chính
+        `RowProvenance` render ra.
         """
-        details: dict[str, str] = {DETAIL_CRITERION: finding.criterion}
-        details.update(finding.details)
-        if finding.employee:
-            details[DETAIL_EMPLOYEE] = finding.employee
-        if finding.raw_value:
-            details[DETAIL_RAW_VALUE] = finding.raw_value
-        if finding.raw_prefix:
-            details[DETAIL_RAW_PREFIX] = str(finding.raw_prefix)
-        if finding.declared_group:
-            details[DETAIL_DECLARED_GROUP] = finding.declared_group
+        details = finding.diagnostic_details()
 
-        rows = () if finding.batch_scoped else finding.source_rows
-        if rows:
-            details[DETAIL_SOURCE_ROWS] = ", ".join(str(row) for row in rows)
-            variants = finding.render_variants()
-            if variants:
-                details[DETAIL_RAW_VARIANTS] = variants
+        if finding.provenance.rows and not finding.batch_scoped:
             return ReviewItem(
                 category=CATEGORY_EMPLOYEE_MAPPING,
                 severity=severity,
                 message=finding.message,
                 scope=SCOPE_ROW,
-                source_file=finding.source_file or stats.source_file,
-                source_row=rows[0],
-                affected_count=finding.affected_count,
-                details=details,
+                provenance=finding.provenance,
+                diagnostics=details,
             )
 
-        # Nothing to point at — F2 ("configured employee matched nothing"), an
-        # F1 for a record absent from this batch — or a finding that is about
-        # the batch itself (F5). `affected_count` stays exact either way, and
-        # for F2 it is honestly 0: inventing a 1 would claim a row.
+        # Không có gì để trỏ tới — F2 ("nhân viên đã cấu hình không khớp dòng
+        # nào"), một F1 cho record vắng mặt trong lô — hoặc một finding về
+        # chính cả lô (F5). `affected_count` vẫn chính xác trong cả hai
+        # trường hợp, và với F2 nó thành thật bằng 0: bịa ra 1 là nhận vơ một
+        # dòng.
         details[DETAIL_DATASET_RANGE] = stats.dataset_range()
         details[DETAIL_BATCH_ROWS] = str(stats.total_rows)
         return ReviewItem(
@@ -291,7 +282,9 @@ class Validator:
             severity=severity,
             message=finding.message,
             scope=SCOPE_BATCH,
-            source_file=stats.source_file,
-            affected_count=finding.affected_count,
-            details=details,
+            provenance=finding.provenance,
+            batch_source_file=(
+                None if finding.provenance.rows else stats.source_file
+            ),
+            diagnostics=details,
         )

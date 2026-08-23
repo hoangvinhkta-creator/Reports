@@ -1551,3 +1551,118 @@ Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), dòng thiếu
 được điền trước khi vào báo cáo nên tình huống tự hết. Nếu chủ dự án muốn một
 cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó là một loại mới và cần
 quyết định riêng — DEC-131 cố ý **không** tạo nó, đúng như DEC-130.
+
+## DEC-132
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Repair sau Independent Review #5
+
+Decision:
+
+Ba quyết định của chủ dự án (HD-110-06, HD-110-07, HD-110-08), chốt sau khi
+Architecture Audit chỉ ra rằng bốn finding của Review #5 chỉ là bốn biểu hiện
+của **một** root cause: validation TÁI TẠO LẠI các sự thật mà production đã
+biết, thay vì NHẬN LẠI chúng — cộng thêm việc data model của finding còn chừa
+một kênh song song cho provenance đi vào từ ngoài đường dẫn xuất.
+
+**1 — HD-110-06: `raw_prefix` rỗng hoặc thiếu là CẤU HÌNH SAI.**
+
+Master data nhân viên bị từ chối ngay khi load nếu một bản ghi:
+thiếu `raw_prefix`, để `raw_prefix` rỗng, hoặc để `raw_prefix` chỉ có khoảng
+trắng. Ngữ nghĩa `raw_prefix: "" = catch-all` **không** được hỗ trợ.
+
+Cùng lúc, schema tối thiểu của mỗi bản ghi được cưỡng chế: `raw_prefix` và
+`normalized` bắt buộc và không rỗng sau khi trim; `group` bắt buộc; `active`
+bắt buộc và phải là boolean thật.
+
+Phần validate này đặt ở `app/modules/mapping/employee_mapper.py`, **không**
+đặt vào `config/loader.py`: loader tuyên bố ngay trong docstring rằng nó chỉ
+giữ cơ chế generic, còn ngữ nghĩa đặc thù domain thuộc về consumer.
+
+**2 — HD-110-07: chỉ còn MỘT nguồn sự thật cho việc chọn employee record.**
+
+`EmployeeMapper` công bố `RecordRef`, `resolve_record()`,
+`candidate_records()`, `record()` và `records`. `resolve()` được viết TRÊN
+`resolve_record()`. `WorkingData` mang chính instance mapper của production và
+truyền nó cho `Validator`; validation hỏi lại mapper thay vì đoán lại bằng
+giá trị.
+
+Xóa hẳn: `select_effective_record`, `_record_key`, và vòng khớp prefix riêng
+trong `collect_mapping_stats`. `_record_label` chỉ còn dùng để render cho
+người đọc, tuyệt đối không làm khóa tra cứu.
+
+**KHÔNG** thêm field nào vào `WorkingLine` / `Order`.
+
+**3 — HD-110-08: F3 dùng đúng matching semantics của production.**
+
+Nếu production coi một chuỗi raw là `unmapped` thì validation không được
+normalize theo một bản cài đặt riêng rồi kết luận F3 ambiguity. Thay đổi
+diagnostic output do loại bỏ drift này được chấp thuận.
+
+**4 — Provenance phải bất khả biểu diễn sai, không phải "nhớ đừng làm sai".**
+
+`MappingFinding` **không còn** trường `details: dict`. `ReviewItem` **không
+còn** field `affected_count` và `source_row` — cả hai là property dẫn xuất từ
+`RowProvenance`. Các khóa mang thông tin dòng (`source_rows`, `raw_variants`,
+`ambiguous_rows`, `conflicting_records`) thuộc quyền sở hữu của
+`RowProvenance` và bị từ chối nếu caller cố ghi vào `diagnostics`.
+
+Reason:
+
+Bốn vòng review liên tiếp đều đóng đúng cái representation mà reviewer chỉ
+ra, rồi vòng sau tìm ra cái kế tiếp: `source_row` → `source_rows` →
+`raw_variants` → `ambiguous_rows` → `details`. Đó là đóng một cửa trong một
+căn phòng còn nhiều cửa. Cơ chế sinh ra chúng vẫn nguyên vẹn suốt cả bốn vòng.
+
+Đoán lại một sự thật bằng giá trị có đúng hai chế độ hỏng, và cả hai đã xảy ra
+và đã được đo tại commit `8386d34`:
+
+- **drift** — `EmployeeMapper` nhận `raw_prefix` rỗng, `select_effective_record`
+  loại nó; `EmployeeMapper` raise `KeyError` khi thiếu key, validation trả
+  `None`; `collect_mapping_stats` khớp trên chuỗi đã normalize còn production
+  khớp trên chuỗi thô, nên `'Đức  Kiên 0867'` bị F3 (mức ERROR) kết tội
+  ambiguous trong khi production để nó `unmapped`;
+- **collision** — hai bản ghi trùng khít `normalized` + `raw_prefix` + cửa sổ
+  hiệu lực nhưng khác `active`/`group` cho ra cùng một `_record_key`, nên F6
+  của bản ghi đã đóng nhặt đúng các dòng mà production gán cho bản ghi đang
+  hoạt động, và tố cáo một nhân viên đang làm việc.
+
+Còn `details` là kênh khóa tùy ý được `validator.py` sao chép nguyên trạng:
+`frozen=True` chỉ đóng băng tham chiếu tới dict chứ không đóng băng nội dung
+nó, nên "frozen dataclass" ở đây là bảo đảm giả.
+
+Prefix rỗng bị cấm vì `"".startswith` khớp **mọi** chuỗi: nó lặng lẽ biến
+thành catch-all và dời quyền sở hữu KPI của mọi dòng chưa map sang một người,
+do một lỗi gõ. Nổ to lúc load tốt hơn tính sai lặng lẽ lúc chạy. Việc này
+**không** xung đột §18: §18 cấm chặn import vì **dữ liệu xấu**, còn cấu hình
+hỏng luôn được phép fail-fast — cùng lằn ranh mà `validator.py` đã phát biểu
+từ đầu cho một severity gõ sai trong `validation.yaml`.
+
+Impact:
+
+- Không đổi: employee business mapping result, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109. Chứng minh bằng CHECK-110-18 (ma trận 972 tổ hợp raw × as_of) và
+  CHECK-110-19 (đầu ra nghiệp vụ đầu-cuối), cả hai so với ảnh chụp lấy tại
+  commit `8386d345b04b754c061ce03b79116e75f0dfae4e` **trước** dòng sửa đầu tiên.
+- `tools/analysis/reconcile_conversion.py` không sửa một byte; `norm`,
+  `_overlaps` và chữ ký vị trí của `evaluate_raw_mapping` giữ nguyên
+  (CHECK-110-20, CHECK-110-14, CHECK-108A1-15).
+- HD-110-03, HD-110-04, HD-110-05 và DEC-129/130/131 giữ nguyên toàn bộ — audit
+  không tìm thấy xung đột canonical nào với chúng.
+- `Validator.__init__` nhận `employee_mapper` thay cho `employee_rows`;
+  `ReviewItem` nhận `provenance` / `batch_source_file` / `diagnostics` thay cho
+  `source_file` / `source_row` / `affected_count` / `details`. `details` vẫn đọc
+  được như cũ, dưới dạng property dẫn xuất.
+- CHECK-110-16 tiếp tục **BLOCKED** — vẫn cần file thô production.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence cho Review Queue, `RowProvenance` sẽ là thứ được
+ghi xuống; lúc đó cần xem lại biểu diễn lưu trữ, nhưng bất biến thì không đổi.
+Nếu về sau master data nhân viên cần một `id` ổn định (ví dụ để tham chiếu
+xuyên file), đó là phương án A trong Architecture Repair Plan và cần một DEC
+riêng — DEC-132 cố ý chưa tạo nó, vì `RecordRef` đã đủ để loại bỏ collision
+trong phạm vi một mapper instance canonical.

@@ -23,6 +23,19 @@
 # trong tương lai, thêm dòng mới thay vì sửa dòng cũ, để không viết lại một
 # báo cáo đã phát hành. Nhân viên nghỉ dùng `active: false`, KHÔNG xóa.
 #
+# `raw_prefix` BẮT BUỘC, không rỗng, không chỉ có khoảng trắng (HD-110-06,
+# DEC-132). Một prefix rỗng khớp MỌI chuỗi, nên nó lặng lẽ biến thành catch-all
+# và hút toàn bộ dòng lẽ ra `unmapped` về một người — tức là dời quyền sở hữu
+# KPI vì một lỗi gõ. Ngữ nghĩa `raw_prefix: ""` = catch-all bị bác bỏ dứt
+# khoát. `normalized`, `group`, `active` cũng bắt buộc; `active` phải là
+# boolean thật (chuỗi "false" là truthy trong Python và sẽ khiến một người đã
+# nghỉ vẫn được tính là đang làm).
+#
+# Vi phạm bị từ chối NGAY KHI LOAD, trước khi import chạy
+# (`app/modules/mapping/employee_mapper.py` → `validate_employee_records`).
+# Đây là master data hỏng, không phải dữ liệu import xấu: §18 đặc tả cấm chặn
+# import vì dữ liệu xấu, còn cấu hình hỏng thì luôn được phép fail-fast.
+#
 # Nhân viên chưa có mặt ở đây (raw NVBH không khớp prefix nào) không bị bỏ —
 # dòng đó được flag `unmapped` bởi employee_mapper và ConversionScheme trả
 # `Unresolved` (DEC-104, DEC-127 §8, C11 — xem docs/analysis/10_OPEN_QUESTIONS.md).
