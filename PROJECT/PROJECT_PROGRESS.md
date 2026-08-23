@@ -193,11 +193,14 @@ DEC-117, không phải cùng một quyết định).
       PASS trên state hiện tại. Không cần làm lại; ghi nhận như bài học về
       chi phí của việc thiếu bước "đồng bộ nhánh" (DEC-118).
 - [ ] PHASE-02 — Documentation & Evidence Truth-Up
-  - [ ] **REM-T05** — Sửa tài liệu và artifact kiểm chứng — MAJOR — Tier B —
-        **READY, Completion Gate FROZEN** (từ S007) — **0/4 check REQUIRED
-        đã chạy, chưa implement**. Đóng FIND-005, FIND-006, FIND-011,
-        FIND-012. File: `docs/tasks/TASK-REM-T05-documentation-truth-up.md`.
-  - [ ] Phase Gate 02
+  - [x] **REM-T05** — Sửa tài liệu và artifact kiểm chứng — MAJOR — Tier B —
+        **DONE** (S008, 2026-08-23) — 4/4 check REQUIRED PASS (E1);
+        CHECK-T05-05 (RECOMMENDED, E2) NOT_TESTED — không có reviewer độc
+        lập khả dụng trong session solo, ghi giới hạn tường minh, không
+        chặn DONE. Đóng FIND-005, FIND-006, FIND-011, FIND-012. File:
+        `docs/tasks/TASK-REM-T05-documentation-truth-up.md`, handoff:
+        `docs/sessions/S008-rem-t05-documentation-truth-up.md`.
+  - [ ] Phase Gate 02 — chờ REM-T06
 - [ ] PHASE-03 — Repository Hygiene
   - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — PLANNED, gate
         PRELIMINARY (chưa frozen). Đóng FIND-009 (một phần đã xử lý —
@@ -210,11 +213,16 @@ Không tự đóng chỉ vì bị mồ côi khỏi checklist ở lần merge tr�
 
 | ID | Severity | Tóm tắt | Đóng bởi |
 |---|---|---|---|
-| FIND-005 | MEDIUM | Báo cáo validation đã ship khẳng định một PASS sai sự thật | REM-T05 |
-| FIND-006 | MEDIUM | START_HERE guide tự mâu thuẫn về layout | REM-T05 |
 | FIND-009 | LOW | Thiếu root README/LICENSE (một phần đã xử lý) | REM-T06 |
-| FIND-011 | LOW | Bare reference không resolve trong changelog lịch sử | REM-T05 |
-| FIND-012 | LOW | README validator từng thiếu tài liệu hóa (đã làm tiện thể ở REM-T03, chờ REM-T05 xác nhận chính thức) | REM-T05 |
+
+### Finding đã RESOLVED (S008, 2026-08-23)
+
+| ID | Severity | Tóm tắt | Đóng bởi | Bằng chứng |
+|---|---|---|---|---|
+| FIND-005 | MEDIUM | Báo cáo validation đã ship khẳng định một PASS sai sự thật | REM-T05 | `governance/reference/COMPACT_STRUCTURE_VALIDATION.md` nay trích dẫn lệnh + output thật của cả 5 validator (CHECK-T05-01) |
+| FIND-006 | MEDIUM | START_HERE guide tự mâu thuẫn về layout | REM-T05 | 5 vị trí trong `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` đã sửa về layout compact (CHECK-T05-02) |
+| FIND-011 | LOW | Bare reference không resolve trong changelog lịch sử | REM-T05 | Ghi rõ tường minh 2 loại trừ (`governance/reference/history/`, `docs/audit/`) trong báo cáo validation, không sửa file lịch sử |
+| FIND-012 | LOW | README validator từng thiếu tài liệu hóa | REM-T05 | Re-verify CHECK-T05-03 PASS — đã DONE tiện thể ở REM-T03/S005, xác nhận chính thức ở đây |
 
 ### Việc phụ tồn đọng (không thuộc task nào)
 
@@ -224,9 +232,10 @@ Không tự đóng chỉ vì bị mồ côi khỏi checklist ở lần merge tr�
 
 ### Session tiếp theo cho track này
 
-S008 — Implement REM-T05 (gate đã frozen, sẵn sàng bắt tay ngay). Không chặn
-Track Tín Phát — có thể xen kẽ vào bất kỳ lúc nào một session rảnh, hoặc sau
-khi GATE-00 duyệt, tùy chủ dự án quyết định thứ tự ưu tiên.
+S009 — REM-T06 (vệ sinh repository root, MICRO, Tier A, gate chưa frozen) →
+sau đó Phase Gate 02 → Phase Gate 03. Không chặn Track Tín Phát — có thể xen
+kẽ vào bất kỳ lúc nào một session rảnh, hoặc sau khi GATE-00 duyệt, tùy chủ
+dự án quyết định thứ tự ưu tiên.
 
 ## Sơ đồ phụ thuộc sơ bộ
 
@@ -530,6 +539,23 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   mục "Đồng Bộ Nhánh" mới trong `CLAUDE.md`. Đã chạy lại cả 5 validator sau
   toàn bộ thay đổi — PASS. Push thẳng lên nhánh mặc định theo yêu cầu trực
   tiếp của chủ dự án.
+- 2026-08-23 — **S008 — REM-T05 DONE (Track Governance).** Đồng bộ nhánh
+  trước tiên (bước 0), xác nhận HEAD khớp origin default branch. Chạy lại
+  toàn bộ 5 validator tại thời điểm thực thi (không copy baseline S007) và
+  dán output thật vào `governance/reference/COMPACT_STRUCTURE_VALIDATION.md`,
+  kèm nêu rõ 2 loại trừ của `validate_reference_integrity.py`. Sửa 5 vị trí
+  layout pre-compact trong `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` (4 dòng đã biết
+  trước — 83, 85, 144, 146 — cộng 1 dòng phát hiện thêm khi thực thi, dòng
+  179 PHẦN 3, cùng loại lỗi, đã sửa và ghi nhận minh bạch thay vì âm thầm mở
+  rộng); rút gọn khối liệt kê tay 21 required path ở PHẦN 2 thành hướng dẫn
+  chạy validator để tránh tái diễn chính vấn đề FIND-005/006 mô tả (hai
+  nguồn sự thật dễ lệch nhau). Re-verify README validator vẫn liệt kê đủ mọi
+  script (kể cả `regression_nested_layout.py` mới từ S007) — không cần sửa.
+  Xác nhận `governance/reference/history/` không bị đụng bằng `git diff`.
+  4/4 REQUIRED check PASS (E1); CHECK-T05-05 (RECOMMENDED, E2) NOT_TESTED —
+  không có reviewer độc lập trong session solo, ghi giới hạn rõ ràng, không
+  chặn DONE theo đúng điều kiện task đã ghi. Đóng FIND-005, FIND-006,
+  FIND-011, FIND-012.
 
 - 2026-08-23 — **Rà soát xác nhận nghiệp vụ trước khi chuyển Phase.** Chủ dự
   án gửi 10 xác nhận nghiệp vụ kèm chỉ thị không tự chuyển Phase. Rà soát lại
@@ -571,17 +597,19 @@ Files to read first:
 - `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx`
 - `docs/analysis/`
 
-### Track B (Governance) — Recommended Session: S008 — Implement REM-T05
+### Track B (Governance) — Recommended Session: S009 — REM-T06
 
 Purpose:
-Gate đã frozen từ S007, task đã READY — bắt tay implement trực tiếp, không
-cần thêm vòng Roadmap Finalization. Xem "Track Governance — Bảo Trì Nền
-Tảng" phía trên để có chi tiết đầy đủ.
+REM-T05 đã DONE (S008). REM-T06 (vệ sinh repository root, MICRO, Tier A) là
+task còn lại trước Phase Gate 02/03 — nhưng gate của nó chưa frozen
+(PRELIMINARY), nên cần hoàn thiện Ready Gate trước khi implement, theo
+"Hoàn thiện Roadmap" trong `governance/core/00_SESSION_ORCHESTRATION.md`.
+Xem "Track Governance — Bảo Trì Nền Tảng" phía trên để có chi tiết đầy đủ.
 
 Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md` (mục "Track Governance")
-- `docs/tasks/TASK-REM-T05-documentation-truth-up.md`
-- `docs/audit/S001_AUDIT_FINDINGS.md`
+- `docs/sessions/S008-rem-t05-documentation-truth-up.md`
+- `docs/audit/S001_AUDIT_FINDINGS.md` (FIND-009)
 
 ### Bắt buộc cho cả hai track
 

@@ -80,9 +80,9 @@ CRM/
 ├── governance/core/00_SESSION_ORCHESTRATION.md
 ├── ...
 ├── PROJECT/
-├── templates/
+├── governance/templates/
 ├── docs/
-├── scripts/
+├── governance/scripts/
 ├── src/
 ├── package.json
 └── ...
@@ -128,37 +128,32 @@ chore: add AI engineering governance V3.2
 
 # PHẦN 2 — KIỂM TRA CẤU TRÚC SAU KHI THÊM
 
-Ở root repo phải có tối thiểu:
-
-```text
-CLAUDE.md
-governance/core/00_SESSION_ORCHESTRATION.md
-governance/core/PROJECT_PROFILE_STANDARD.md
-governance/core/RULE_PRECEDENCE.md
-governance/core/EVIDENCE_STANDARD.md
-governance/core/TASK_MODE_STANDARD.md
-governance/core/TASK_READY_GATE_STANDARD.md
-governance/core/TASK_COMPLETION_GATE_STANDARD.md
-
-PROJECT/
-templates/
-docs/
-scripts/
-```
-
-Nếu dùng terminal trong Claude Code, có thể chạy:
+Danh sách đầy đủ các required path (21 file, gồm `governance/core/`,
+`PROJECT/`, `docs/*/README.md`, `governance/templates/`) không được liệt kê
+tay ở đây — một danh sách tay là một nguồn sự thật thứ hai, dễ lệch khỏi
+validator thật khi có path mới được thêm (đây chính là drift đã gây ra
+FIND-006). Nguồn sự thật duy nhất là chính script:
 
 ```bash
-python governance/scripts/governance/validate_structure.py
-python governance/scripts/governance/validate_project_state.py
-python governance/scripts/governance/validate_task_completion.py
-python governance/scripts/governance/validate_evidence.py
+python3 governance/scripts/governance/validate_structure.py
 ```
 
-Kỳ vọng:
+Kỳ vọng đầu ra dạng:
 
 ```text
 GOVERNANCE STRUCTURE: PASS
+Deployment root: PASS — <đường dẫn repo>
+Checked N required paths.
+```
+
+Nếu dùng terminal trong Claude Code, có thể chạy đủ 5 validator:
+
+```bash
+python3 governance/scripts/governance/validate_structure.py
+python3 governance/scripts/governance/validate_project_state.py
+python3 governance/scripts/governance/validate_task_completion.py
+python3 governance/scripts/governance/validate_evidence.py
+python3 governance/scripts/governance/validate_reference_integrity.py
 ```
 
 `governance/scripts/governance/validate_project_state.py` có thể FAIL trước S000 vì profile chưa được khởi tạo. Đây là bình thường.
@@ -176,7 +171,7 @@ Agent phải nhìn thấy cùng lúc:
 - `CLAUDE.md`,
 - `PROJECT/`,
 - `docs/`,
-- `templates/`,
+- `governance/templates/`,
 - governance rules.
 
 ---
