@@ -46,6 +46,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_DIR = Path(__file__).resolve().parent / "baseline"
 CONFIG_DIR = REPO_ROOT / "config"
 
+L1_V1_PATH = BASELINE_DIR / "employee_resolve_matrix_v1.json"
 L1_PATH = BASELINE_DIR / "employee_resolve_matrix.json"
 L2_PATH = BASELINE_DIR / "business_output.json"
 
@@ -160,8 +161,14 @@ def raw_matrix() -> list[Optional[str]]:
     return values
 
 
-def build_l1() -> list[dict[str, Any]]:
-    """L1 — `resolve()` trên tích Descartes raw × as_of.
+def build_l1_v1() -> list[dict[str, Any]]:
+    """L1 **bản v1 (lịch sử)** — whitelist 5 trường, giữ nguyên làm bằng chứng.
+
+    Independent Review #7 / Architecture Closure Audit chứng minh bản này bỏ
+    sót `MappingResult.record` (O3). Nó KHÔNG bị xoá: nó là bằng chứng đã ký
+    của CHECK-110-19 và vẫn được so song song với bản structural.
+
+    Nguyên bản: `resolve()` trên tích Descartes raw × as_of.
 
     Serialize TOÀN BỘ `MappingResult`, không chỉ `normalized`: `status`,
     `group`, `include_in_kpi` và `default_lead_source` đều là đầu vào của
@@ -186,6 +193,46 @@ def build_l1() -> list[dict[str, Any]]:
                     "default_lead_source": result.default_lead_source,
                 }
             )
+    return rows
+
+
+
+
+def _mapping_result_snapshot(result: Any) -> dict[str, Any]:
+    """Mọi trường của `MappingResult`, DẪN XUẤT — không liệt kê (HD-110-14).
+
+    `record` là một `RecordRef`, tự nó cũng là dataclass, nên được mở structural
+    luôn: một trường thêm vào `RecordRef` ngày mai cũng tự động được canh.
+    """
+    out: dict[str, Any] = {}
+    for f in dataclasses.fields(result):
+        value = getattr(result, f.name)
+        if dataclasses.is_dataclass(value):
+            out[f.name] = {
+                sub.name: _plain(getattr(value, sub.name))
+                for sub in dataclasses.fields(value)
+            }
+        else:
+            out[f.name] = _plain(value)
+    return out
+
+
+def build_l1() -> list[dict[str, Any]]:
+    """L1 **structural** — phủ MỌI trường của `MappingResult` (HD-110-14).
+
+    Bản v1 liệt kê tay 5 trường và vì thế mù với `record`. Ở đây tập trường
+    lấy từ `dataclasses.fields()`, nên không trường nào có thể bị bỏ sót — kể
+    cả trường thêm vào sau này.
+    """
+    from app.modules.mapping.employee_mapper import EmployeeMapper
+
+    mapper = EmployeeMapper.from_yaml(CONFIG_DIR / "employees.yaml")
+    rows: list[dict[str, Any]] = []
+    for raw_value in raw_matrix():
+        for as_of in AS_OF_DATES:
+            record = {"raw": raw_value, "as_of": as_of.isoformat() if as_of else None}
+            record.update(_mapping_result_snapshot(mapper.resolve(raw_value, as_of)))
+            rows.append(record)
     return rows
 
 
@@ -218,7 +265,17 @@ def build_l2(raw_path: Path) -> dict[str, Any]:
         for order in result.orders
     ]
 
+    # **Graph Order -> Lines theo THỨ TỰ** (mục 7). Bản trước làm phẳng lines
+    # rồi sort, nên dời một line từ Order A sang Order B mà giữ nguyên mọi
+    # scalar là **vô hình** với oracle (Audit, O2). Membership và thứ tự là
+    # business state thật: `Order.total_sales` và `line_count` đọc từ nó.
+    order_graph = {
+        order.order_id: [line.raw.source_row for line in order.lines]
+        for order in result.orders
+    }
+
     return {
+        "order_graph": order_graph,
         "raw_rows": sorted(raws, key=lambda r: (r["source_row"], r["order_id"])),
         "lines": sorted(lines, key=lambda r: (r["_source_row"], r["order_id"])),
         "orders": sorted(orders, key=lambda r: r["order_id"]),
@@ -248,11 +305,13 @@ def main() -> None:
 
     from tests.fixtures.synthetic_workbook import build_synthetic_workbook
 
+    _write(L1_V1_PATH, build_l1_v1())
     _write(L1_PATH, build_l1())
     with tempfile.TemporaryDirectory() as tmp:
         raw_path = Path(tmp) / "synthetic_raw_sample.xlsx"
         build_synthetic_workbook(raw_path)
         _write(L2_PATH, build_l2(raw_path))
+    print(f"L1v1 -> {L1_V1_PATH}")
     print(f"L1 -> {L1_PATH}")
     print(f"L2 -> {L2_PATH}")
 
