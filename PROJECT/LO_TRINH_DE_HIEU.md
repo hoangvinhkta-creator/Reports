@@ -59,9 +59,12 @@ File này gồm **hai bảng độc lập, không chặn nhau**:
 - **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 5/34 dòng, **Điểm
   duyệt 1 đã PASS** — sẵn sàng bắt đầu Giai đoạn 1 (dòng 🟡, bước 5 —
   TASK-101).
-- **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 5/9 dòng,
-  một việc đang READY chờ làm (REM-T05), không ảnh hưởng ngày ra mắt sản
+- **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 6/9 dòng,
+  một việc đang sẵn sàng làm (REM-T06), không ảnh hưởng ngày ra mắt sản
   phẩm.
+
+Cuối file có thêm mục **"Bảo mật và phân chia luồng"** trả lời câu hỏi ngày
+2026-08-23 về việc lưu dữ liệu qua máy chủ và tách riêng từng luồng việc.
 
 ## Cách đọc bảng bên dưới
 
@@ -117,8 +120,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |
 | ⬜ | 17. TASK-201 (MAJOR, D3/R4/B5) — Thiết kế nơi lưu dữ liệu lâu dài | Để nhiều người cùng xem/sửa dữ liệu mỗi ngày, không chỉ chạy 1 lần trên máy | C | **GIAI ĐOẠN 2** — sau Điểm duyệt 2 |
 | ⬜ | 18. TASK-202 (MAJOR, D3/R4/B4) — Ghi lại lịch sử ai sửa gì, khi nào | Truy vết được khi có sai lệch, ai đã đổi số liệu | C | Sau bước 17 |
-| ⬜ | 19. TASK-203 (MAJOR, D3/R3/B4) — Kết nối phần lưu trữ với giao diện sử dụng | Để các bước 22–27 (giao diện web) có dữ liệu để hiển thị | B | Sau bước 18 |
-| ⬜ | 20. TASK-204 (MAJOR, D3/R5/B5) — Thêm đăng nhập, phân quyền xem/sửa theo từng người | Bảo vệ dữ liệu lương và thông tin khách hàng, đúng người mới xem/sửa được | C | Sau bước 19 |
+| ⬜ | 19. TASK-203 (MAJOR, D3/R3/B4) — Kết nối phần lưu trữ với giao diện sử dụng | Để các bước 22–27 (giao diện web) có dữ liệu để hiển thị. **Đã có bản thiết kế sơ bộ 24 đường kết nối, tách riêng theo từng luồng việc** — xem "Bảo mật và phân chia luồng" cuối file | B | Sau bước 18 |
+| ⬜ | 20. TASK-204 (MAJOR, D3/R5/B5) — Thêm đăng nhập, phân quyền xem/sửa theo từng người | Bảo vệ dữ liệu lương và thông tin khách hàng, đúng người mới xem/sửa được. **Đã có bảng phân quyền sơ bộ 3 vai trò** — xem cuối file, còn 3 câu cần sếp trả lời | C | Sau bước 19 |
 | ⬜ | 21. TASK-205 (MAJOR, D4/R4/B4) — Cho phép tính lại nhanh khi có dữ liệu mới | Không phải tính lại từ đầu mỗi lần có đơn hàng mới | C | Sau bước 20 |
 | ⬜ | 22. TASK-301 (MAJOR, D3/R2/B3) — Màn hình tải file lên, xem trước | Kiểm tra dữ liệu trước khi nhập chính thức vào hệ thống | B | **GIAI ĐOẠN 3** — sau bước 21 |
 | ⬜ | 23. TASK-302 (MAJOR, D3/R2/B3) — Bảng chi tiết theo nhân viên/tháng, sửa trực tiếp | Người dùng chỉnh sửa số liệu hằng ngày ngay trên web | B | Sau bước 22 |
@@ -156,13 +159,66 @@ cẩn thận. `Tier` dùng chung thang A–D như bảng Track A ở trên.
 | ✅ | REM-T03 (MAJOR, D3/R2/B2) — Xây công cụ tự động kiểm tra cấu trúc + tham chiếu | Máy tự phát hiện khi ai đó (người hoặc AI) làm lệch cấu trúc, thay vì phải tin lời khai | B | DONE (S005) |
 | ✅ | REM-T07 (MAJOR, D2/R2/B2) — Bật kiểm tra tự động (CI) trên mỗi lần đẩy code | Có nguồn xác nhận độc lập, bền vững cho các thay đổi rủi ro cao trong tương lai | B | DONE (S005) |
 | ✅ | Phase Gate 01 — Xác nhận PHASE-01 hoàn tất | Chốt chính thức trước khi coi giai đoạn dọn nền governance là xong | Gate | PASS (S006) — 10/10 check |
-| ⬜ | REM-T05 (MAJOR, D2/R2/B3) — Sửa tài liệu tham khảo đang ghi sai thực tế | Một báo cáo cũ đang khẳng định "đã kiểm tra PASS" không đúng sự thật — sửa để tài liệu đáng tin lại | B | **READY, sẵn sàng làm ngay** — 0/4 việc kiểm tra bắt buộc đã chạy |
-| ⬜ | Phase Gate 02 — Xác nhận PHASE-02 hoàn tất | Chốt sau khi REM-T05 xong | Gate | Sau REM-T05 |
-| ⬜ | REM-T06 (MICRO, D1/R1/B1) — Dọn dẹp thư mục gốc repo (thêm README/LICENSE) | Repo có tài liệu giới thiệu chuẩn khi người ngoài ghé xem | A | Kế hoạch đã có, chưa chốt chi tiết cuối cùng |
+| ✅ | REM-T05 (MAJOR, D2/R2/B3) — Sửa tài liệu tham khảo đang ghi sai thực tế | Một báo cáo cũ đang khẳng định "đã kiểm tra PASS" không đúng sự thật — sửa để tài liệu đáng tin lại | B | DONE (S008) — 4/4 việc kiểm tra bắt buộc PASS |
+| ⬜ | Phase Gate 02 — Xác nhận PHASE-02 hoàn tất | Chốt sau khi REM-T06 xong | Gate | Sau REM-T06 |
+| 🟡 | REM-T06 (MICRO, D1/R1/B1) — Dọn dẹp thư mục gốc repo (thêm README/LICENSE) | Repo có tài liệu giới thiệu chuẩn khi người ngoài ghé xem | A | **Sẵn sàng làm ngay** — kế hoạch đã chốt xong |
 | ⬜ | Phase Gate 03 — Xác nhận PHASE-03 hoàn tất, xem lại việc sao lưu dữ liệu | Chốt toàn bộ track dọn nền governance | Gate | Sau REM-T06 |
 
 *(REM-T01 không có trong bảng — đã hủy vì trùng việc đã làm xong ở nơi
 khác, không phải việc bị bỏ sót.)*
+
+## Bảo mật và phân chia luồng — trả lời câu hỏi ngày 2026-08-23
+
+Sếp hỏi hai câu: (1) có phần nào bảo mật thông tin, lưu qua máy chủ thay vì
+để lộ hết ở màn hình người dùng không, và (2) đã có kế hoạch tách riêng từng
+luồng việc thay vì dồn tất cả vào một trang duy nhất chưa.
+
+**Trả lời ngắn: có cả hai, đã có thiết kế sơ bộ, nhưng chưa tới lúc làm.**
+
+### Về bảo mật
+
+Nguyên tắc đã chốt từ đầu (bước 4 trong bảng Track A):
+
+- Mọi phép tính ra tiền — lợi nhuận, hoa hồng, doanh thu quy đổi — **chạy trên
+  máy chủ**, không chạy trên máy người dùng. Máy người dùng chỉ nhận kết quả
+  đã tính xong.
+- Người dùng **không nhận được dữ liệu mà vai trò của họ không được xem**. Đây
+  là chặn từ máy chủ, không phải chỉ ẩn cột trên màn hình — ẩn cột thì người
+  biết kỹ thuật vẫn xem được.
+- Ba vai trò: **người xem** (chỉ đọc báo cáo), **người sửa** (sửa dữ liệu hằng
+  ngày), **quản trị** (đổi cấu hình, chốt số liệu, cấp tài khoản).
+
+Bốn việc được xếp riêng cho vai trò quản trị, vì chúng đổi tiền của người khác
+mà khó phát hiện: chốt một lần nạp dữ liệu, sửa giá nhập, đổi tỷ lệ/target, và
+cấp quyền cho người khác.
+
+### Về phân chia luồng
+
+Mỗi màn hình có đường dẫn riêng, mở thẳng được, bấm Back/Forward đúng — không
+dồn tất cả sau một link. Ví dụ: `/dashboard` (tổng quan), `/review` (duyệt dữ
+liệu bất thường), `/settings/users` (quản lý người dùng). Tổng cộng 14 màn
+hình và 24 đường kết nối dữ liệu, mỗi cái gắn với đúng một bước trong bảng
+Track A.
+
+### Ba câu cần sếp trả lời (chưa gấp)
+
+Chỉ cần trả lời trước khi làm tới bước 20 (TASK-204), còn khá xa:
+
+| # | Câu hỏi | Đang tạm áp dụng |
+|---|---|---|
+| C12 | Nhân viên có được xem số của nhân viên khác không? | Xem được (như file Excel hiện tại), nhưng chỉ **sửa** được đơn của chính mình |
+| C13 | Ai được xem giá nhập và biên lợi nhuận? | Chỉ vai trò quản trị |
+| C14 | Ai được bấm nút chốt số liệu hằng tháng? | Chỉ vai trò quản trị |
+
+Đây là **mặc định tạm do bên kỹ thuật chọn theo hướng an toàn**, không phải
+quyết định của sếp. Cả ba đều đổi được dễ dàng khi có câu trả lời. Chi tiết
+đầy đủ: `docs/analysis/10_OPEN_QUESTIONS.md`.
+
+### Lưu ý
+
+Đây mới là **bản thiết kế sơ bộ**, chưa phải cam kết cuối cùng — sẽ được rà
+soát lại chính thức khi tới Giai đoạn 2. Bản kỹ thuật đầy đủ:
+`docs/adr/ADR-105-route-map-and-authorization-model.md`.
 
 ## Ghi chú quan trọng
 

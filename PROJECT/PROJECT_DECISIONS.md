@@ -822,3 +822,80 @@ Không cần cho phần GATE-00/C4b/C9 — đã duyệt chính thức, không ph
 tạm thời. Riêng C11 — khi chủ dự án xác định được 88 dòng đó là nhân viên
 nghỉ việc, thời vụ, hay lỗi nhập liệu. C10 — trước 01/12/2026 nếu chính sách
 2027 được công bố.
+
+## DEC-123
+
+Date:
+2026-08-23
+
+Task:
+Roadmap Finalization sơ bộ cho TASK-203 / TASK-204 (không thuộc session
+triển khai nào — theo yêu cầu trực tiếp của chủ dự án)
+
+Decision:
+Soạn `docs/adr/ADR-105-route-map-and-authorization-model.md` — bản đồ route
+backend (24 endpoint), bản đồ route frontend (14 route gán cho TASK-301…306),
+ma trận phân quyền 3 vai trò × 13 năng lực, và ba phát biểu ràng buộc về ranh
+giới bảo mật backend/frontend. Mở rộng mô tả TASK-203/TASK-204 trong
+`PROJECT/PROJECT_PROGRESS.md` từ một dòng một câu thành phạm vi cụ thể, và bổ
+sung 6 check PRELIMINARY vào mục "Completion Gate sơ bộ".
+
+**ADR-105 để ở trạng thái `Proposed`, KHÔNG phải `Accepted`. Không freeze
+Completion Gate của TASK-203/204.**
+
+Reason:
+Chủ dự án hỏi trực tiếp hai câu: roadmap có phần nào bảo mật thông tin qua
+backend thay vì để lộ ở frontend không, và đã có kế hoạch phân chia router cho
+từng luồng chưa. Rà soát cho kết quả: **nguyên tắc có đủ, thiết kế cụ thể thì
+không**. `ADR-101` đã chốt phân lớp và cấm business rule nằm ở router;
+`governance/core/04_SECURITY_RULES.md` và `governance/core/02_ROUTING_RULES.md` đều là Mandatory theo profile
+PRODUCT và đã cấm thẳng những thứ chủ dự án lo. Nhưng TASK-203 và TASK-204
+trong roadmap mỗi cái chỉ là một dòng một câu, ba vai trò `viewer`/`editor`/
+`admin` được đặt tên mà chưa ai định nghĩa vai trò nào đọc được gì, và không
+có danh sách route nào tồn tại ở bất kỳ đâu trong repo.
+
+Khoảng trống đó thuộc loại dễ bị lấp bằng ứng biến lúc code — đúng thứ
+`CLAUDE.md` → "Không code trước rồi tổ chức sau" cấm.
+
+Vì sao **không** freeze: `governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn
+thiện Roadmap" ghi rõ *"Không đóng băng chi tiết của các task còn xa trước khi
+việc discovery đã đủ."* TASK-203/204 nằm ở PHASE-02, cách task hiện tại
+(TASK-101) hơn một phase và một gate. Quan trọng hơn: ma trận phân quyền chứa
+ba câu hỏi **nghiệp vụ**, không phải kỹ thuật, mà chủ dự án chưa được hỏi —
+nhân viên có xem được số của nhau không (C12), ai được xem giá nhập (C13), ai
+được chốt một lần nạp (C14). Tự quyết ba câu đó rồi đóng băng thành gate sẽ
+là bịa ra yêu cầu của chủ dự án. Ba câu được ghi vào
+`docs/analysis/10_OPEN_QUESTIONS.md` kèm mặc định đang áp dụng, đúng khuôn mà
+C4b đã dùng.
+
+Risk:
+Thấp cho hiện tại — không dòng nào ảnh hưởng PHASE-01, và `ADR-101` vẫn cấm
+PHASE-01 import `fastapi`/`sqlalchemy`.
+
+Rủi ro thật nằm ở chiều ngược lại: một session sau đọc ADR-105 và tưởng đó là
+gate đã chốt. Giảm thiểu bằng ba lớp — trạng thái `Proposed` ghi ở dòng đầu
+ADR, đoạn "Lưu ý cho session sau" ngay dưới các check PRELIMINARY trong
+`PROJECT_PROGRESS.md`, và mục "Migration / Implementation Notes" của ADR-105
+yêu cầu đóng C12/C13/C14 trước khi chuyển sang Accepted.
+
+Mặc định `employee_scope` hạn chế (ADR-105 §5) chặt hơn hiện trạng — hôm nay
+cả đội dùng chung một file Excel nên ai cũng thấy số của tất cả. Chọn chiều
+chặt trước vì nới ra là một dòng cấu hình, còn siết lại sau khi mọi người đã
+quen làm được mọi thứ thì khó hơn nhiều.
+
+Impact:
+- File mới: `docs/adr/ADR-105-route-map-and-authorization-model.md`.
+- `PROJECT/PROJECT_PROGRESS.md`: TASK-203, TASK-204 có phạm vi cụ thể;
+  TASK-301…306 và GATE-03 được gán route; 6 check PRELIMINARY thêm vào
+  "Completion Gate sơ bộ" kèm cảnh báo không-phải-gate-đã-freeze.
+- `docs/analysis/10_OPEN_QUESTIONS.md`: thêm C12, C13, C14 (còn mở, không chặn
+  PHASE-01); phần mở đầu sửa lại vì file giờ chứa cả câu hỏi PHASE-02.
+- `PROJECT/LO_TRINH_DE_HIEU.md`: cập nhật theo "Giao thức Đóng Phiên".
+- **Không** sửa `ADR-101`, `ADR-102`, `ADR-104` — ADR-105 bổ sung chi tiết
+  triển khai cho phân lớp mà ADR-101 đã chốt, không thay thế gì.
+- **Không** đổi thứ tự task, không thêm/bớt task, không đổi Current Task.
+  TASK-101 vẫn là việc tiếp theo.
+
+Can Revisit After:
+PHASE-02 mở. Lúc đó chạy Roadmap Finalization đầy đủ cho TASK-203/204, đóng
+C12/C13/C14, rồi mới freeze Completion Gate và chuyển ADR-105 sang Accepted.

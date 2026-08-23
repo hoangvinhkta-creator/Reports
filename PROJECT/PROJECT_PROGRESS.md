@@ -132,23 +132,47 @@ TASK-101 — importer + normalizer (không còn bị chặn — GATE-00 PASS)
 - [ ] PHASE-02 — Lưu trữ và API
   - [ ] TASK-201 — schema database + migration
   - [ ] TASK-202 — audit_service
-  - [ ] TASK-203 — HTTP API
-  - [ ] TASK-204 — authentication và phân quyền
+  - [ ] TASK-203 — HTTP API. Triển khai bản đồ route backend trong **ADR-105**
+        §2: 24 endpoint dưới tiền tố `/api/v1`, nhóm theo 9 module của
+        ADR-101. **Không viết endpoint ghi vào RAW** — `raw_rows` không có
+        UPDATE/DELETE theo ADR-102, ở đây điều đó nghĩa là code không được
+        phép tồn tại (kiểm chứng bằng `grep`). Mỗi endpoint phải điền đủ
+        `API Contract Template` (`governance/core/06_DATABASE_API_RULES.md`),
+        mục Authorization không được để trống.
+  - [ ] TASK-204 — authentication và phân quyền. Triển khai ma trận phân quyền
+        trong **ADR-105** §4 (3 vai trò `viewer`/`editor`/`admin`, 13 năng
+        lực, default deny) và phạm vi dữ liệu theo người dùng ở §5. Ranh giới
+        bảo mật đặt ở backend: frontend **không bao giờ nhận** field mà vai
+        trò đang đăng nhập không được đọc — lọc ở tầng repository/serializer,
+        không phải ẩn cột trên UI. Test bắt buộc: mỗi ô ❌ trong ma trận có
+        một test gọi thẳng API bằng token vai trò đó và khẳng định `403`.
+        **Phụ thuộc nghiệp vụ:** C12, C13, C14 (`docs/analysis/10_OPEN_QUESTIONS.md`)
+        phải đóng trước khi bắt đầu — nếu chưa, áp mặc định của ADR-105 và ghi
+        rõ là mặc định chưa xác nhận.
   - [ ] TASK-205 — recalculate tăng dần (incremental)
 
 - [ ] PHASE-03 — Giao diện Web
-  - [ ] TASK-301 — upload và xem trước khi import
-  - [ ] TASK-302 — lưới chi tiết nhân viên theo tháng, sửa inline
+  - [ ] TASK-301 — upload và xem trước khi import. Route: `/imports`,
+        `/imports/new`, `/imports/{batchId}` (ADR-105 §3)
+  - [ ] TASK-302 — lưới chi tiết nhân viên theo tháng, sửa inline. Route:
+        `/employees/{employeeId}/{period}` (ADR-105 §3)
   - [ ] TASK-303 — Summary tháng và dashboard năm. Mục §16 đặc tả: chuyển đổi
         metric giữa Orders / Sales / Converted Revenue / Accounting Profit /
         KPI Profit / % Target; lọc theo nguồn đơn All / Personal / ADS; so
         sánh nhân viên theo doanh thu quy đổi Personal và Ads riêng biệt;
         trend theo tháng cho từng nguồn đơn; tỉ trọng ADS trên tổng doanh thu
-        quy đổi của mỗi người.
-  - [ ] TASK-304 — màn hình cấu hình
-  - [ ] TASK-305 — màn hình review queue và audit
-  - [ ] TASK-306 — xuất Excel
-  - [ ] GATE-03 — Nghiệm thu MVP, mục 28 đặc tả, đủ 14 tiêu chí
+        quy đổi của mỗi người. Route: `/dashboard`, `/summary/{period}`
+        (ADR-105 §3)
+  - [ ] TASK-304 — màn hình cấu hình. Route: `/settings/employees`,
+        `/settings/conversion`, `/settings/adjustments`, `/settings/targets`
+        (ADR-105 §3)
+  - [ ] TASK-305 — màn hình review queue và audit. Route: `/review`, `/audit`
+        (ADR-105 §3)
+  - [ ] TASK-306 — xuất Excel. Route: `/exports` (ADR-105 §3)
+  - [ ] GATE-03 — Nghiệm thu MVP, mục 28 đặc tả, đủ 14 tiêu chí. Bổ sung:
+        mọi route ở ADR-105 §3 phải mở trực tiếp được, refresh được,
+        back/forward đúng, và chặn đúng khi truy cập trái quyền
+        (`governance/core/02_ROUTING_RULES.md` → "Checklist Routing")
 
 - [ ] PHASE-04 — Hoàn thiện
   - [ ] TASK-401 — tích hợp PriceMasterProvider. Schema mục §20 đặc tả:
@@ -331,9 +355,32 @@ check sơ bộ ghi nhận ngay bây giờ:
   gộp cho một tỉ lệ duy nhất (E1).
 - TASK-201/204: không có dữ liệu cá nhân khách hàng trong log ứng dụng; kiểm
   tra vai trò thực hiện ở phía server (E1, hướng tới E2).
+- TASK-203: không tồn tại endpoint nào ghi vào `raw_rows` — không UPDATE,
+  không DELETE, không PATCH. Kiểm chứng bằng `grep` trên toàn bộ định nghĩa
+  router (E1). Đây là hệ quả trực tiếp của ADR-102, xem ADR-105 §2.
+- TASK-203: mọi endpoint có mục Authorization được điền trong `API Contract
+  Template`, không endpoint nào để trống (E1).
+- TASK-204: với **mỗi ô ❌** trong ma trận phân quyền của ADR-105 §4, có một
+  test gọi thẳng API bằng token của vai trò đó và khẳng định `403` — không
+  phải khẳng định nút bị ẩn trên UI (E1, hướng tới E2 vì đây là bề mặt bảo
+  mật).
+- TASK-204: response JSON cho vai trò `viewer` không chứa
+  `accounting_purchase_price` và không chứa field biên lợi nhuận, kiểm chứng
+  bằng cách gọi API thật chứ không đọc code (E1).
+- TASK-301…306 / GATE-03: mọi route ở ADR-105 §3 mở trực tiếp được, refresh
+  được, back/forward đúng, có trạng thái not-found; không có màn hình chính
+  nào chỉ tới được bằng tab state (E1, theo "Checklist Routing" của
+  `governance/core/02_ROUTING_RULES.md`).
 - Mọi phase: không tên nhân viên, tỉ lệ quy đổi, target, số tiền adjustment
   hay từ khóa ADS nào xuất hiện dưới dạng literal trong mã nguồn ứng dụng
   (E1, kiểm chứng được bằng grep).
+
+**Lưu ý cho session sau — các check PHASE-02/03 ở trên là PRELIMINARY.**
+Chúng đến từ `ADR-105`, hiện ở trạng thái **Proposed**, không phải Accepted.
+Không được coi là gate đã đóng băng, và không được viện dẫn như một cam kết
+của chủ dự án. Quy trình đúng khi PHASE-02 mở: chạy Roadmap Finalization đầy
+đủ cho TASK-203/204 (`governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn
+thiện Roadmap"), đóng C12/C13/C14 trước, rồi mới freeze. Xem DEC-123.
 
 ## Trạng thái Task hiện tại
 
@@ -483,11 +530,43 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   trường dữ liệu cá nhân không được lọt vào log ứng dụng.
 
 ## Regression còn tồn đọng
-- Chưa có — chưa tồn tại mã ứng dụng nào.
+
+- **REG-01 (mới, 2026-08-23) — `validate_reference_integrity.py` đang FAIL
+  trên nhánh mặc định.** Ba reference không phân giải được, tất cả trong
+  `docs/tasks/TASK-REM-T06-repository-root-hygiene.md`: README, CONTRIBUTING
+  và CODE_OF_CONDUCT ở gốc repo (cố ý viết không có backtick ở đây — xem đoạn
+  cuối mục này).
+
+  Đây là **forward-reference tới chính các file mà REM-T06 sẽ tạo** — task
+  file mô tả sản phẩm bàn giao của nó bằng backtick, và validator coi mọi
+  chuỗi backtick kết thúc bằng `.md` là một reference cần phân giải.
+
+  Xuất hiện từ commit `2d5cf9b` ("Hoàn thiện Ready Gate REM-T06"), **không
+  phải** do session soạn ADR-105 gây ra — đã kiểm chứng bằng cách stash toàn
+  bộ thay đổi của session này rồi chạy lại validator: vẫn đúng 3 lỗi đó.
+  Nghĩa là CI trên nhánh mặc định đang đỏ kể từ `2d5cf9b`.
+
+  **Chưa sửa, có chủ đích.** Sửa nội dung task file của REM-T06 khi gate của
+  nó đã FROZEN là đụng vào Scope Lock của một task khác — đúng thứ DEC-012 đã
+  rút kinh nghiệm ("khi phát hiện một sửa đổi thuộc task khác trong lúc làm
+  việc, ghi nhận nó thay vì tự sửa"). Tiền lệ ngược lại cũng có: S005 từng sửa
+  ngay reference do chính task đó tạo ra (commit `1da459d`) — nhưng khi ấy là
+  task đang implement, không phải task đã frozen chờ session khác.
+
+  **Đóng ở S009 (REM-T06)** — session đó vừa tạo ba file thật, vừa làm ba
+  reference này phân giải được, nên lỗi tự biến mất mà không cần sửa văn bản.
+  Nếu S009 bị hoãn lâu, cân nhắc một MICRO riêng để bỏ backtick khỏi ba tên
+  file đó trong task file.
+
+  **Bẫy cần biết cho mọi session:** viết tên một file *chưa tồn tại* trong
+  backtick sẽ làm validator FAIL — kể cả khi đang mô tả nó như một sản phẩm
+  sắp tạo, và kể cả trong chính ghi chú về lỗi đó. Session này vấp đúng bẫy
+  ấy khi soạn mục REG-01 và phải viết lại không dùng backtick. Khi cần nhắc
+  tên một file sắp tạo, viết trần (README.md) thay vì trong backtick.
 
 ## Quyết định gần đây
-- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-121 (track Tín Phát).
-  Ba quyết định mới nhất, từ đợt xác nhận nghiệp vụ 2026-08-23:
+- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-123 (track Tín Phát).
+  Các quyết định mới nhất:
   - **DEC-119** — tách `LeadSource` khỏi `ConversionScheme`; `TINPHAT_ADS` bị
     loại bỏ. Xem ADR-104.
   - **DEC-120** — không di trú dữ liệu ADS lịch sử; thay thế DEC-112. Gỡ mốc
@@ -495,6 +574,10 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   - **DEC-121** — 2026 là giai đoạn chuyển đổi; mốc chuẩn chính thức
     01/01/2027; mọi business rule mang `effective_from`/`effective_to` và tra
     theo ngày của đơn.
+  - **DEC-122** — GATE-00 PASS; PHASE-01 mở khóa.
+  - **DEC-123** — Roadmap Finalization **sơ bộ** cho TASK-203/204; ADR-105
+    (route map + ma trận phân quyền) ở trạng thái `Proposed`, **chưa freeze**;
+    C12/C13/C14 còn mở.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 
@@ -581,6 +664,20 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   `origin/claude/extract-upload-repo-gq2ws4` (REM-T05 DONE, Track Governance,
   không chồng lấn nội dung với thay đổi Track A) trước khi push. Chạy lại cả
   5 validator governance — PASS.
+- 2026-08-23 — **Roadmap Finalization sơ bộ cho TASK-203/204 (DEC-123).** Chủ
+  dự án hỏi roadmap đã tính tới bảo mật qua backend và phân chia router chưa.
+  Rà soát cho kết quả: nguyên tắc có đủ (`ADR-101` phân lớp, `04_SECURITY_RULES`
+  và `02_ROUTING_RULES` đều Mandatory và cấm thẳng những thứ được hỏi), nhưng
+  TASK-203/204 mỗi cái chỉ là một dòng một câu, ba vai trò được đặt tên mà
+  chưa định nghĩa, và không có danh sách route nào trong repo. Soạn `ADR-105`
+  (24 endpoint backend, 14 route frontend gán cho TASK-301…306, ma trận 3 vai
+  trò × 13 năng lực, ba phát biểu ràng buộc ranh giới backend/frontend). Mở
+  rộng TASK-203/204, gán route cho TASK-301…306 và GATE-03, thêm 6 check
+  PRELIMINARY. **Cố ý không freeze** — ADR-105 ở trạng thái `Proposed`, vì
+  PHASE-02 còn xa và vì ma trận phân quyền chứa ba câu hỏi nghiệp vụ chủ dự án
+  chưa được hỏi (C12/C13/C14 mới trong `docs/analysis/10_OPEN_QUESTIONS.md`).
+  Không đổi thứ tự task, không đổi Current Task — TASK-101 vẫn là việc tiếp
+  theo. Chạy lại cả 5 validator governance — PASS.
 
 ## Session tiếp theo
 
@@ -617,6 +714,24 @@ Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md` (mục "Track Governance")
 - `docs/sessions/S008-rem-t05-documentation-truth-up.md`
 - `docs/audit/S001_AUDIT_FINDINGS.md` (FIND-009)
+
+### Ghi chú cho session nào mở PHASE-02 (chưa phải bây giờ)
+
+`ADR-105` đã dựng sẵn bản đồ route và ma trận phân quyền cho TASK-203/204
+(DEC-123, 2026-08-23). **Nó ở trạng thái `Proposed`, không phải gate đã
+freeze.** Đừng implement thẳng từ nó và cũng đừng bỏ qua nó.
+
+Quy trình đúng khi PHASE-02 mở:
+1. Hỏi chủ dự án C12, C13, C14 (`docs/analysis/10_OPEN_QUESTIONS.md`) — ba câu
+   hỏi nghiệp vụ về phân quyền, không tự quyết.
+2. Chạy Roadmap Finalization đầy đủ cho TASK-203 và TASK-204
+   (`governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn thiện Roadmap",
+   9 bước), dùng ADR-105 làm bản nháp đầu vào chứ không phải kết luận.
+3. Freeze Completion Gate, rồi chuyển ADR-105 sang `Accepted`.
+
+Nếu PHASE-02 bắt đầu mà C12/C13/C14 vẫn mở: áp mặc định của ADR-105 và **ghi
+rõ trong task file rằng đó là mặc định chưa xác nhận**, không được viết như
+thể đó là yêu cầu của chủ dự án.
 
 ### Bắt buộc cho cả hai track
 
