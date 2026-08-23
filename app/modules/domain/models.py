@@ -27,6 +27,14 @@ MAPPING_STATUS_MAPPED = "mapped"
 MAPPING_STATUS_UNMAPPED = "unmapped"
 MAPPING_STATUS_INACTIVE = "inactive"
 
+# Provenance of accounting_purchase_price (DEC-103, TASK-105). "Pending" is
+# the correct value for every line in Phase 1 — no Price Master exists yet,
+# not a test-environment limitation. "PriceMaster" is reserved for TASK-401's
+# real integration; "Manual" for when override/audit trail exists (TASK-202).
+PRICE_SOURCE_PENDING = "Pending"
+PRICE_SOURCE_PRICE_MASTER = "PriceMaster"
+PRICE_SOURCE_MANUAL = "Manual"
+
 
 @dataclass(frozen=True)
 class RawRow:
@@ -101,6 +109,13 @@ class WorkingLine:
     source_profit: Optional[Decimal] = None
 
     lead_source_final: Optional[str] = None
+
+    # Bước 8 §22 đặc tả (TASK-105). `None` means Pending — never coerced to
+    # 0, per DEC-103 and 03_DATA_MODEL_RULES §5 (missing/null/0 are distinct
+    # facts). `price_source` names where the value came from, mirroring the
+    # SourceOfValue pattern already used for LeadSource.
+    accounting_purchase_price: Optional[Decimal] = None
+    price_source: str = PRICE_SOURCE_PENDING
 
 
 @dataclass

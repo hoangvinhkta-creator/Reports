@@ -10,10 +10,25 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 5 (nạp dữ liệu) đã xong hoàn toàn,
-> kiểm tra đúng trên số liệu thật** (xem "Có gì mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 9 (tính giá nhập) đã xong** (xem
+> "Có gì mới" ngay bên dưới).
 
-## Có gì mới — bước 5 xong hoàn toàn, đã kiểm tra bằng số liệu thật (2026-08-23)
+## Có gì mới — bước 9 xong (2026-08-23)
+
+**Bước 9 (TASK-105 — tính giá nhập hàng) đã xong.** Vì công ty chưa có bảng
+giá nhập điện tử (Price Master) nào, hệ thống hiện để **mọi giá nhập ở
+trạng thái "Chờ nhập"** — đúng như đã thống nhất từ đầu (không suy đoán giá,
+không tự gán bằng 0). Phần khung sẵn sàng để sau này cắm bảng giá thật vào
+mà không phải sửa lại phần đã làm.
+
+**Bước 10 (tính điều chỉnh KPI, ví dụ "Qua kho -100") đang tạm dừng để làm
+rõ một điểm:** rà lại tài liệu phân tích phát hiện danh sách điều chỉnh này
+(Qua kho, KHBH, Thợ lắp, NCC giao) hiện chỉ có trong file báo cáo cũ — do
+người làm báo cáo **gõ tay**, không nằm trong file dữ liệu thô từ ERP. Cần
+làm rõ với đội kỹ thuật/ERP xem có lấy được cột này tự động không, trước khi
+viết tiếp bước 10.
+
+## Có gì mới trước đó — bước 5 xong hoàn toàn, đã kiểm tra bằng số liệu thật (2026-08-23)
 
 **Bước 5 (TASK-101 — nạp và làm sạch dữ liệu) đã xong hoàn toàn.** Cùng lúc,
 ba bước 6–8 (gán nhân viên, gộp đơn hàng, xác định nguồn quảng cáo) cũng
@@ -71,9 +86,9 @@ số liệu bán hàng thô, tự tính hoa hồng/lợi nhuận, tự lên báo
 
 File này gồm **hai bảng độc lập, không chặn nhau**:
 
-- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 8/34 dòng (bước 1–8,
-  trong đó bước 6–8 xong luôn cùng bước 5, đã kiểm tra bằng số liệu thật).
-  Sẵn sàng bắt đầu bước 9.
+- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 9/34 dòng (bước 1–9,
+  trong đó bước 6–8 xong luôn cùng bước 5). Bước 10 (🟡) tạm dừng, cần làm
+  rõ một điểm về nguồn dữ liệu trước khi viết tiếp.
 - **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 6/9 dòng,
   một việc đang sẵn sàng làm (REM-T06), không ảnh hưởng ngày ra mắt sản
   phẩm.
@@ -124,8 +139,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 6. TASK-102 (MAJOR, D2/R3/B3) — Gán đúng nhân viên phụ trách từng dòng bán hàng | Biết ai bán để tính đúng hoa hồng cho từng người. **Đã xây xong trong bước 5**, không phải làm riêng | B | Xong cùng bước 5 |
 | ✅ | 7. TASK-103 (MAJOR, D2/R4/B4) — Gộp các dòng hàng thành từng đơn hàng hoàn chỉnh | Một đơn có thể có nhiều dòng sản phẩm, cần gộp lại đúng. **Đã xây xong trong bước 5** | B | Xong cùng bước 5 |
 | ✅ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. **Đã xây xong trong bước 5**, đã kiểm đủ 18 tình huống chuẩn | C | Xong cùng bước 5 |
-| 🟡 | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận | B | Sẵn sàng bắt đầu ngay |
-| ⬜ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng | C | Sau bước 9 |
+| ✅ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận. **Xong — hiện để "Chờ nhập" vì chưa có bảng giá điện tử** | B | Xong |
+| 🟡 | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Tạm dừng — cần làm rõ nguồn dữ liệu trước** (xem "Có gì mới") | C | Đang chờ làm rõ |
 | ⬜ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | Sau bước 10 |
 | ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | Sau bước 11 |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |

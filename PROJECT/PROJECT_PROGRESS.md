@@ -51,8 +51,8 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-101 DONE — đối chiếu dữ liệu thật Tín Phát 01.2026/06.2026,
-254/146 đơn khớp tuyệt đối)
+2026-08-23 (TASK-105 DONE — price_engine + PriceProvider, 9/9 REQUIRED check
+PASS, 57/57 test tổng)
 
 Overall Status:
 IN_PROGRESS
@@ -61,14 +61,17 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-105 — price_engine + interface PriceProvider
+TASK-106 — adjustment_engine
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc tả:
-tra giá nhập nếu có Price Master, chưa có thì Pending (DEC-103).
+TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả: parse từ vựng điều
+chỉnh (`Qua kho`, `KHBH`, `Thợ lắp`, `NCC giao`) thành
+`kpi_purchase_adjustment`. **Cần làm rõ nguồn dữ liệu trước khi code** — từ
+vựng này trích từ cột J của REPORT (gõ tay), **không có trong 17 cột raw**.
+Xem "Session tiếp theo" → Track A bên dưới trước khi bắt đầu.
 
 ## Roadmap tổng thể
 
@@ -114,9 +117,22 @@ tra giá nhập nếu có Price Master, chưa có thì Pending (DEC-103).
         `tools/analysis/verify_ads_rule.py` (31/31 PASS) trên 18 case
         LeadSource dùng chung. **Không** quyết định tỉ lệ — đó là việc của
         TASK-108 (ConversionScheme, bước phân giải độc lập).
-  - [ ] TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc
-        tả: tra giá nhập nếu có Price Master, chưa có thì Pending.
-  - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả.
+  - [x] TASK-105 — price_engine + interface PriceProvider. **DONE**
+        (2026-08-23). Bước 8 của §22 đặc tả: tra giá nhập nếu có Price
+        Master, chưa có thì Pending (DEC-103). `PriceProvider` là Protocol
+        ổn định (`lookup(product_code, sale_date) -> Optional[Decimal]`);
+        `PendingPriceProvider` là implementation mặc định — đúng cho 100%
+        dòng ở Phase 1 vì chưa có Price Master nào tồn tại, không phải giới
+        hạn tạm thời. Không bao giờ coi giá thiếu là 0 (kiểm chứng bằng
+        test kể cả với provider "thật" nhưng miss một sản phẩm). 9/9
+        REQUIRED check PASS, 57/57 test tổng (8 mới, không regression trên
+        49 test TASK-101). Chi tiết: `docs/tasks/TASK-105-price-engine.md`.
+  - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả. **Nguồn dữ
+        liệu chưa rõ** — từ vựng điều chỉnh (`Qua kho`, `KHBH`, `Thợ lắp`,
+        `NCC giao`) trích từ cột J của REPORT (gõ tay khi lắp báo cáo thủ
+        công), không có trong 17 cột raw (`docs/analysis/01_DATA_MAPPING.md`
+        mục "không có nguồn thô"). Cần làm rõ trước khi implement — xem
+        "Session tiếp theo" → Track A.
   - [ ] TASK-107 — profit_engine. Bước 11 của §22 đặc tả, phần lợi nhuận.
   - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
         của §22 đặc tả. Phân giải `ConversionScheme` **độc lập** với
@@ -404,25 +420,38 @@ thiện Roadmap"), đóng C12/C13/C14 trước, rồi mới freeze. Xem DEC-123.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-105 — price_engine + interface PriceProvider
+TASK-106 — adjustment_engine
 
 Task Mode:
 MAJOR
 
 Status:
-PLANNED — TASK-101 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-105.
+PLANNED — TASK-105 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-106.
 
 Required Gate Progress:
-GATE-00 PASS (DEC-122). TASK-101 **DONE** — 49/49 test PASS
-(`pytest tests/ -q`); 13/13 REQUIRED check PASS, gồm đối chiếu trên dữ liệu
-thật Tín Phát 01.2026 (254 đơn) và 06.2026 (146 đơn), khớp tuyệt đối. Chi
-tiết đầy đủ: `docs/tasks/TASK-101-importer-normalizer.md`.
+GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE** — 57/57 test
+PASS (`pytest tests/ -q`); TASK-105: 9/9 REQUIRED check PASS. Chi tiết đầy
+đủ: `docs/tasks/TASK-101-importer-normalizer.md`,
+`docs/tasks/TASK-105-price-engine.md`.
 
 Primary Agent Tier:
 B
 
 Escalation Tier:
 C
+
+### TASK-105 — DONE (2026-08-23)
+
+`PriceProvider` (Protocol) + `PendingPriceProvider` + `price_engine.apply_prices()`,
+nối vào `run_import()` làm bước 8. Vì chưa có Price Master nào tồn tại ở
+Phase 1, mọi dòng đều `Pending` — đúng hành vi kỳ vọng, không phải giới hạn
+tạm thời. Không bao giờ coi giá thiếu là 0 (DEC-103), kiểm chứng cả khi
+provider có dữ liệu cho sản phẩm khác trong cùng lần chạy. Provider tùy
+chỉnh cắm được qua dependency injection (`run_import(price_provider=...)`)
+mà không sửa `price_engine`/`provider.py` — chuẩn bị sẵn cho TASK-401
+(Phase 4) tích hợp Price Master thật. 9/9 REQUIRED check PASS, 57/57 test
+tổng (8 mới, không regression). Chi tiết:
+`docs/tasks/TASK-105-price-engine.md`.
 
 ### TASK-101 — DONE (2026-08-23)
 
@@ -783,30 +812,67 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   CHECK-101-08 chuyển PASS, TASK-101 chuyển DONE (13/13 REQUIRED check
   PASS). File thật xóa khỏi môi trường sau khi dùng, chưa từng commit
   (DEC-108). Current Task chuyển sang TASK-105.
+- 2026-08-23 — **TASK-105 DONE (price_engine + PriceProvider).** Tạo
+  `docs/tasks/TASK-105-price-engine.md`, freeze Completion Gate trước khi
+  code. Mở rộng `WorkingLine` thêm `accounting_purchase_price` và
+  `price_source` (default `Pending`, không bao giờ suy ra 0 — DEC-103, khớp
+  nguyên tắc 03_DATA_MODEL_RULES §5 đã dùng cho quantity/sell_price ở
+  TASK-101). Định nghĩa `PriceProvider` (Protocol) ổn định cho TASK-401 sau
+  này, và `PendingPriceProvider` — implementation đúng cho 100% dòng ở
+  Phase 1 vì thật sự chưa có Price Master nào, không phải giới hạn của môi
+  trường test (khác TASK-101, không cần dữ liệu thật để đối chiếu). Nối
+  `apply_prices()` vào `run_import()` làm bước 8, thêm tham số
+  `price_provider` tùy chọn cho dependency injection. 8 test mới (provider,
+  price_engine, 2 test tích hợp pipeline dùng provider giả lập) — xác nhận
+  cả trường hợp provider "thật" miss một sản phẩm vẫn giữ Pending, không
+  âm thầm dùng giá của sản phẩm khác. 9/9 REQUIRED check PASS, 57/57 test
+  tổng, không regression trên 49 test TASK-101. Current Task chuyển sang
+  TASK-106.
 
 ## Session tiếp theo
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 
-### Track A (Tín Phát) — Recommended Session: TASK-105 (price_engine)
+### Track A (Tín Phát) — Recommended Session: TASK-106 (adjustment_engine)
 
 Purpose:
-**TASK-101 đã DONE** (2026-08-23, CHECK-101-08 đóng bằng dữ liệu thật). Bắt
-tay ngay TASK-105 — `price_engine` + interface `PriceProvider` (bước 8 của
-§22 đặc tả): tra giá nhập nếu có Price Master, chưa có thì Pending (DEC-103).
-Đọc `docs/tasks/TASK-101-importer-normalizer.md` trước để hiểu đúng những gì
-đã có (đừng viết lại `employee_mapper`/`order_builder`/`lead_source`
-classifier — chúng đã tồn tại và đã test trên cả fixture lẫn dữ liệu thật).
+**TASK-105 đã DONE** (2026-08-23) — `accounting_purchase_price` đã có mặt
+trên `WorkingLine`, luôn Pending cho tới khi Price Master thật xuất hiện.
+TASK-106 là bước 9 của §22 đặc tả: parse từ vựng điều chỉnh (`Qua kho -100`,
+`KHBH -50`, `Thợ lắp -200`, `NCC giao -100`, cộng dồn nhiều điều chỉnh
+trong một ô, không phân biệt hoa/thường) thành `kpi_purchase_adjustment`.
+
+**⚠️ Cần xác định nguồn dữ liệu trước khi code — đây không phải việc chỉ đọc
+tài liệu rồi làm theo.** `docs/analysis/01_DATA_MAPPING.md` mục "Field trong
+Working Data không có nguồn thô" ghi rõ: `KpiAdjustment` **không có cột nào
+trong file thô** `So_chi_tiet_ban_hang.xlsx` — 17 cột raw đã map hết
+(`RawRow` ở `app/modules/domain/models.py` đã đủ 17 field, không field nào
+là "Giao hàng"/adjustment note). Từ vựng adjustment ở
+`03_RULE_CLASSIFICATION.md` được trích từ **cột J của REPORT** (workbook
+`Bao_cao_Kinh_doanh_2026.xlsx`, sheet nhân viên), tức dữ liệu người làm báo
+cáo **gõ tay** khi lắp báo cáo thủ công — không phải dữ liệu ERP xuất ra.
+
+Vậy TASK-106 không thể "parse từ RawRow" theo cách TASK-101/104 đã làm với
+`Diễn giải`. Trước khi implement, phiên tiếp theo cần làm rõ với chủ dự án
+hoặc tự phân tích thêm: (a) liệu ERP có xuất được cột ghi chú điều chỉnh này
+trong lần export sau, hay (b) đây là dữ liệu chỉ nhập tay được sau khi
+import (nghĩa là `kpi_purchase_adjustment` là một override field, không có
+giá trị mặc định từ raw — gần giống cách `PurchaseSource`/`WarrantyStatus`
+đang được xử lý). Đừng tự suy đoán rồi code theo giả định sai — đúng bài
+học vừa xảy ra khi soạn note này lần đầu (nhầm cột `delivery_cost` là nguồn
+của adjustment, đã tự phát hiện và sửa trước khi commit).
 
 Files to read first:
-- `docs/tasks/TASK-101-importer-normalizer.md` — trạng thái thật, Completion
-  Gate, mục "Đối Chiếu Dữ Liệu Thật"
-- `app/pipeline.py`, `app/modules/` — code đã có
-- `PROJECT/PROJECT_PROGRESS.md` (mục "Trạng thái Task hiện tại")
-- `PROJECT/PROJECT_DECISIONS.md` (đặc biệt DEC-103, DEC-119, DEC-120,
-  DEC-121, DEC-122)
-- `docs/adr/ADR-104-lead-source-vs-conversion-scheme.md`
+- `docs/analysis/01_DATA_MAPPING.md` mục "Field trong Working Data không có
+  nguồn thô" — đọc **trước tiên**, đừng bỏ qua
+- `docs/analysis/03_RULE_CLASSIFICATION.md` — từ vựng adjustment đầy đủ,
+  nguồn trích (REPORT, không phải RAW)
+- `docs/tasks/TASK-105-price-engine.md` — ranh giới với TASK-106
+  (`kpi_purchase_price = accounting_purchase_price + kpi_purchase_adjustment`
+  là việc của TASK-106, TASK-105 chỉ set `accounting_purchase_price`)
+- `app/pipeline.py`, `app/modules/domain/models.py` — code đã có
+- `PROJECT/PROJECT_DECISIONS.md` (DEC-103)
 
 ### Track B (Governance) — Recommended Session: S009 — REM-T06
 

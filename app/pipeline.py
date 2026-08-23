@@ -1,4 +1,4 @@
-"""Import pipeline entrypoint (TASK-101): the 7 steps of spec §22.
+"""Import pipeline entrypoint: the first 8 steps of spec §22.
 
     1. Read `.xlsx`                         -> raw_reader.read_raw_rows
     2. Metadata preview before normalizing   -> preview.build_preview
@@ -7,10 +7,11 @@
     5. Group by OrderID                      -> orders.build_orders
     6. LeadSource rule at order level        -> lead_source.LeadSourceClassifier
     7. Propagate LeadSourceFinal to lines    -> (done inside step 6's apply())
+    8. Price lookup (Pending if no Price Master) -> pricing.price_engine
 
 Out of scope here (later tasks): product/transaction classification
-(TASK-103), pricing/adjustments/profit/conversion (TASK-105–108), Review
-Queue persistence (TASK-110), export (TASK-111), CLI (TASK-112).
+(TASK-103), adjustments/profit/conversion (TASK-106–108), Review Queue
+persistence (TASK-110), export (TASK-111), CLI (TASK-112).
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ from app.modules.importing.raw_reader import read_raw_rows
 from app.modules.lead_source.classifier import LeadSourceClassifier
 from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
+from app.modules.pricing.price_engine import apply_prices
+from app.modules.pricing.provider import PendingPriceProvider, PriceProvider
 
 DEFAULT_CONFIG_DIR = Path("config")
 
@@ -37,7 +40,9 @@ class ImportResult:
 
 
 def run_import(
-    raw_path: Path, config_dir: Path = DEFAULT_CONFIG_DIR
+    raw_path: Path,
+    config_dir: Path = DEFAULT_CONFIG_DIR,
+    price_provider: PriceProvider | None = None,
 ) -> ImportResult:
     raw_rows = read_raw_rows(raw_path)
     preview = build_preview(raw_rows)
@@ -51,6 +56,8 @@ def run_import(
 
     classifier = LeadSourceClassifier.from_yaml(config_dir / "lead_source.yaml")
     classifier.apply(orders, employee_mapper)
+
+    apply_prices(lines, price_provider or PendingPriceProvider())
 
     unmapped_lines = [
         line

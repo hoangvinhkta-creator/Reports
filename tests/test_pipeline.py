@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
+from typing import Optional
 
-from app.modules.domain.models import ADS, MAPPING_STATUS_MAPPED, PERSONAL
+from app.modules.domain.models import (
+    ADS,
+    MAPPING_STATUS_MAPPED,
+    PERSONAL,
+    PRICE_SOURCE_PENDING,
+    PRICE_SOURCE_PRICE_MASTER,
+)
 from app.pipeline import run_import
 
 
@@ -69,3 +77,33 @@ def test_unmapped_employee_is_visible_not_dropped(synthetic_raw_path, config_dir
     # And it must still be present among the built orders — not silently lost.
     order = _order(result, "BH0005")
     assert order.employee_mapping_status != MAPPING_STATUS_MAPPED
+
+
+def test_default_run_leaves_every_price_pending(synthetic_raw_path, config_dir):
+    result = run_import(synthetic_raw_path, config_dir=config_dir)
+    all_lines = [line for order in result.orders for line in order.lines]
+    assert all_lines  # sanity: fixture actually has lines
+    assert all(line.accounting_purchase_price is None for line in all_lines)
+    assert all(line.price_source == PRICE_SOURCE_PENDING for line in all_lines)
+
+
+class _FixedPriceProvider:
+    def lookup(self, product_code: Optional[str], sale_date: Optional[date]):
+        return Decimal("999000") if product_code == "Máy giặt Test-1" else None
+
+
+def test_custom_price_provider_injected_without_touching_price_engine(
+    synthetic_raw_path, config_dir
+):
+    result = run_import(
+        synthetic_raw_path, config_dir=config_dir, price_provider=_FixedPriceProvider()
+    )
+    order = _order(result, "BH0001")
+    assert order.lines[0].accounting_purchase_price == Decimal("999000")
+    assert order.lines[0].price_source == PRICE_SOURCE_PRICE_MASTER
+
+    # Unmatched product in the same run stays Pending — the provider is real,
+    # a miss is still a miss, never guessed.
+    other_order = _order(result, "BH0004")
+    assert other_order.lines[0].accounting_purchase_price is None
+    assert other_order.lines[0].price_source == PRICE_SOURCE_PENDING
