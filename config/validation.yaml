@@ -1,0 +1,132 @@
+# config/validation.yaml
+#
+# Cấu hình Review Queue — mục §18 đặc tả, TASK-110, DEC-128.
+#
+# MỌI ngưỡng, từ khóa và mức độ cảnh báo nằm ở đây, không nằm trong mã nguồn
+# (CHECK-110-08). Đổi cách một loại cảnh báo hành xử là sửa file này, không
+# phải sửa code.
+#
+# `severity` chỉ là NHÃN để người duyệt sắp thứ tự đọc. Nó KHÔNG bao giờ chặn
+# import — §18 đặc tả nói rõ "Không block toàn bộ import", và CHECK-110-02
+# kiểm chứng điều đó. Một mục `ERROR` nghĩa là "đọc cái này trước", không phải
+# "dừng lại".
+#
+# Giá trị hợp lệ của severity: INFO | WARNING | ERROR.
+
+version: 1
+
+categories:
+
+  # V1 — Missing, mức từng dòng.
+  missing:
+    enabled: true
+    fields:
+      date: ERROR
+      order_id: ERROR
+      employee: ERROR
+      quantity: WARNING
+      total_sales: WARNING
+
+  # V1-P — Missing giá nhập. DEC-128 §1: `price_source == Pending` là trạng
+  # thái hệ thống đã biết (chưa có Price Master — DEC-103), KHÔNG phải lỗi dữ
+  # liệu của từng dòng. Nén thành ĐÚNG MỘT mục mang `affected_count`, không
+  # phải N mục (CHECK-110-03).
+  #
+  # Khi TASK-401 có Price Master thật, đổi `aggregate: false` để quay về cảnh
+  # báo từng dòng — lúc đó một dòng thiếu giá mới thực sự là bất thường.
+  missing_purchase_price:
+    enabled: true
+    aggregate: true
+    severity: INFO
+
+  # V2 — Suspicious, dựa trên số công cụ TỰ TÍNH.
+  #
+  # Ở Phase 1, `purchase_price_above_sell_price` và `accounting_profit_negative`
+  # cho 0 phát hiện vì `accounting_purchase_price is None` ở 100% dòng. Đó là
+  # đúng — quy tắc được viết đúng và nằm im, không phải bị bỏ quên
+  # (CHECK-110-05).
+  suspicious:
+    enabled: true
+    rules:
+      quantity_not_positive: WARNING
+      sell_price_zero: WARNING
+      purchase_price_above_sell_price: ERROR
+      accounting_profit_negative: WARNING
+
+  # V3 — Suspicious, dựa trên cột `Lợi nhuận` của ERP (`source_profit`).
+  #
+  # DEC-128 §2: đây là LOẠI RIÊNG, không bao giờ trộn vào `suspicious`.
+  # docs/analysis/01_DATA_MAPPING.md §3 quyết định con số này KHÔNG đáng tin
+  # làm dữ liệu kế toán — nên nó vào hàng chờ với nhãn "tín hiệu ERP chưa kiểm
+  # chứng", ở mức INFO, và KHÔNG BAO GIỜ được dùng để suy ra giá nhập
+  # (CHECK-110-06).
+  suspicious_erp:
+    enabled: true
+    severity: INFO
+
+  # V4 — Order inconsistency. DEC-128 §4 + làm rõ của chủ dự án khi freeze:
+  # CHỈ phát hiện. Không sửa employee, không chia KPI, không chọn người nhận
+  # doanh số. Mỗi mục phải mang đủ provenance để sau này quyết định được
+  # (CHECK-110-09).
+  order_inconsistency:
+    enabled: true
+    employee_mismatch: ERROR
+    date_mismatch: WARNING
+
+  # V5 — Source classification: manual override khác rule ADS tự động.
+  # Phase 1 chưa có nguồn nào ghi `lead_source_manual` (chưa có UI/persistence),
+  # nên loại này cho 0 phát hiện trên dữ liệu thật THEO CẤU TẠO — kiểm bằng
+  # fixture, không phải bằng dữ liệu thật (CHECK-110-10).
+  source_classification:
+    enabled: true
+    severity: WARNING
+
+  # V6 — Duplicate. DEC-128 §3: định nghĩa của đặc tả (`cùng source_file +
+  # source_row`) bất khả thi trong một lần import vì cặp đó duy nhất theo cấu
+  # tạo. Thay bằng trùng `row_hash` TRONG CÙNG một lần import, mức WARNING —
+  # hai dòng phụ kiện giống hệt nhau có thể hoàn toàn hợp lệ.
+  #
+  # Chống trùng khi import LẠI cùng một file cần persistence → TASK-201.
+  duplicate:
+    enabled: true
+    severity: WARNING
+
+  # V7 — TD-001. F2/F4 của tools/analysis/reconcile_conversion.py, nay chạy
+  # trong luồng production (CHECK-110-12, CHECK-110-13).
+  #
+  # F1/F3/F5 là invariant: chúng không thể đúng với master data lành mạnh.
+  # Trong luồng production chúng vào hàng chờ ở mức ERROR — nuốt một invariant
+  # đã vi phạm là đúng thứ TASK-110 tồn tại để chặn.
+  employee_mapping:
+    enabled: true
+    hard_failure_severity: ERROR
+    warning_severity: WARNING
+    info_severity: INFO
+
+# Dòng phụ có giá trị tiền (DEC-110, DEC-113). Không phải sản phẩm, nhưng vẫn
+# tính vào doanh số/lợi nhuận. `SL = 0` hay `giá bán = 0` ở những dòng này là
+# BÌNH THƯỜNG, không phải lỗi — nên hạ xuống `INFO` thay vì kêu như bất thường
+# (DEC-128 §3, CHECK-110-07).
+#
+# Đây là biện pháp GIẢM NHIỄU, KHÔNG phải Product/Transaction Classification.
+# Bảng Classification đầy đủ (mục §17 đặc tả — mỗi loại tính vào SP/doanh số/
+# lợi nhuận/DS quy đổi hay không) vẫn là TASK-103. Khi TASK-103 làm, nó PHẢI
+# rà lại danh sách này để hai chỗ không nói hai điều khác nhau về cùng một dòng.
+#
+# Từ khóa khớp KHÔNG phân biệt hoa thường, trên cột sản phẩm (`ProductRaw`),
+# sau khi chuẩn hóa NFC và gộp khoảng trắng.
+#
+# Danh sách này tái hiện đúng bộ lọc đã đo ra con số 1.261 dòng / 30 loại
+# trong docs/analysis/_evidence/evidence.json — giữ nguyên để CHECK-110-16
+# đối chiếu được. `"phí "` có dấu cách cuối là cố ý: nó bắt "Chi phí lắp đặt",
+# "Chi phí giao hộ", "Phí đổi trả" mà không bắt nhầm một tên sản phẩm chứa
+# "phí" liền chữ khác.
+non_product_lines:
+  downgrade_to: INFO
+  keywords:
+    - "chi phí vận chuyển"
+    - "công lắp đặt"
+    - "chênh vat"
+    - "chiết khấu"
+    - "voucher"
+    - "phí "

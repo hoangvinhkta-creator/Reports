@@ -10,12 +10,17 @@
     8. Price lookup (Pending if no Price Master) -> pricing.price_engine
     9. AccountingProfit (Universal formula, no KPI Adjustment) -> profit.profit_engine
    10. ProductGroup + ConversionScheme, PER LINE -> conversion.conversion_engine
+   11. Validation + Review Queue (spec section 18) -> validation.Validator
+
+Step 11 never blocks: it reports, it does not gate. An import whose every row
+is defective still returns a full `ImportResult` (spec section 18, DEC-128).
 
 Out of scope here (later tasks): product/transaction classification
 (TASK-103), Adjustment persistence + EligibleKpiProfit (TASK-202/302/305,
 DEC-126 — needs confirmed Adjustment records, not just the suggested-amount
 resolver from TASK-106), Converted Revenue (TASK-108B — blocked, see C15
-`EligibleCosts`), Review Queue persistence (TASK-110), export (TASK-111),
+`EligibleCosts`), Review Queue persistence (TASK-201), audit trail and real
+overrides (TASK-202), the review screen (TASK-305), export (TASK-111),
 CLI (TASK-112).
 """
 
@@ -40,6 +45,8 @@ from app.modules.product.product_group import (
     ProductGroupProvider,
 )
 from app.modules.profit.profit_engine import apply_accounting_profit
+from app.modules.validation.models import ReviewQueue
+from app.modules.validation.validator import Validator
 
 DEFAULT_CONFIG_DIR = Path("config")
 
@@ -49,6 +56,7 @@ class ImportResult:
     preview: ImportPreview
     orders: list[Order]
     unmapped_lines: list[WorkingLine]
+    review_queue: ReviewQueue
 
 
 def run_import(
@@ -81,10 +89,17 @@ def run_import(
         orders, resolver, product_group_provider or DefaultProductGroupProvider()
     )
 
+    review_queue = Validator.from_config_dir(config_dir).build_queue(lines, orders)
+
     unmapped_lines = [
         line
         for line in lines
         if line.employee_mapping_status != MAPPING_STATUS_MAPPED
     ]
 
-    return ImportResult(preview=preview, orders=orders, unmapped_lines=unmapped_lines)
+    return ImportResult(
+        preview=preview,
+        orders=orders,
+        unmapped_lines=unmapped_lines,
+        review_queue=review_queue,
+    )

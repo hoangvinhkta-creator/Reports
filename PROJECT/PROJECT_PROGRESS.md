@@ -51,10 +51,11 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (S015 — **TASK-110 Gate / Readiness Review**. Không code. Ready Gate
-16/17, chờ owner freeze Completion Gate. **DEC-128** đóng 4 khoảng trống nghiệp
-vụ của §18; phạm vi thật 7 loại cảnh báo, Risk nâng 2 → 3. Trước đó:
-TASK-108A-1 **DONE**, Independent Review #4 PASS, đã merge, 151/151 test.)
+2026-08-23 (S016 — **TASK-110 IMPLEMENTED**, chờ Independent Review. Chủ dự án
+freeze Completion Gate kèm làm rõ F-05. **16/17 REQUIRED check PASS**,
+CHECK-110-16 BLOCKED (cần file thô production, được phép giữ). **207/207 test**
+— 56 mới, 0 regression. **TD-001 đã đóng**: F2/F4 nay hiển thị trong Review
+Queue của luồng production. Trước đó S015 — Gate Review, DEC-128.)
 
 Overall Status:
 IN_PROGRESS
@@ -63,17 +64,19 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-110 — validation + Review Queue (chưa bắt đầu, chờ chủ dự án duyệt)
+TASK-110 — validation + Review Queue (**IMPLEMENTED — awaiting Independent
+Review**, chưa merge)
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**TASK-110 — validation + Review Queue.** Là task PHASE-01 duy nhất còn lại
-**không** phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`. Gate Review đã
-xong (S015); **hành động tiếp theo là chủ dự án freeze Completion Gate**, sau
-đó mới triển khai. Nó cũng là nơi bắt buộc phải hiển thị hai cảnh báo F2/F4
-của `reconcile_conversion.py` — xem "Nợ Kỹ Thuật / Cảnh Báo Vận Hành" bên dưới.
+**Independent Review cho TASK-110.** Task đã IMPLEMENTED, **chưa merge**, theo
+đúng chỉ đạo. Tiền lệ TASK-108A-1: 119/119 test nội bộ PASS mà reviewer độc
+lập vẫn tìm ra 8 finding qua 3 vòng, gồm một lỗi CRITICAL ảnh hưởng tiền lương.
+
+Sau đó: **TASK-111 (excel_exporter)** dùng được đầu ra Review Queue cho sheet
+Audit/Overrides.
 
 **TASK-109 (summary_engine) bị chặn một phần** — cột "DS quy đổi" và "LN KPI"
 cần TASK-108B. Không nên bắt đầu trước khi C15 đóng, nếu không sẽ phải làm
@@ -187,9 +190,13 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
-  - [ ] TASK-110 — validation + Review Queue. **Gate Review xong, chờ owner
-        freeze** (S015). Phạm vi thật **7 loại** sau DEC-128, không phải 5 —
-        xem `docs/tasks/TASK-110-validation-review-queue.md`. Mục §18 đặc tả,
+  - [ ] TASK-110 — validation + Review Queue. **IMPLEMENTED (S016,
+        2026-08-23), chờ Independent Review, chưa merge.** 16/17 REQUIRED
+        check PASS; CHECK-110-16 (đối chiếu dữ liệu thật) BLOCKED vì thiếu file
+        thô production — chủ dự án cho phép giữ, chặn DONE không chặn
+        IMPLEMENTED. 207/207 test (56 mới). Phạm vi thật **7 loại** sau
+        DEC-128, không phải 5 — xem
+        `docs/tasks/TASK-110-validation-review-queue.md`. Mục §18 đặc tả,
         5 loại gốc:
         `Missing` (thiếu ngày, OrderID, nhân viên, số lượng, doanh số, giá
         nhập), `Suspicious` (SL ≤ 0, giá bán = 0, giá nhập > giá bán, lợi
@@ -365,12 +372,19 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue). **Gate đã ràng buộc điều này
-thành check kiểm chứng được:** CHECK-110-12 (F2 phải có mặt trong
-`ImportResult.review_queue`, không chỉ trong `tools/analysis/`), CHECK-110-13
-(F4, và F2/F4 không được làm `run_import()` raise), CHECK-110-14
-(`reconcile_conversion.py` giữ nguyên hành vi). Xem
-`docs/tasks/TASK-110-validation-review-queue.md`.
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016, 2026-08-23) — chờ Independent Review xác
+nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
+chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
+**CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
+**CHECK-110-14** (`reconcile_conversion.py` giữ nguyên hành vi, 24/24 test
+không sửa). Cả ba PASS. Tiêu chí F1–F5 đã dời sang
+`app/modules/validation/employee_mapping.py`; script phân tích import ngược
+lại đúng các tên đó, nên hai đường dùng chung một bộ tiêu chí thay vì hai bản
+cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
+
+**Chưa đóng hoàn toàn:** màn hình duyệt thật vẫn là TASK-305 — hiện F2/F4 nằm
+trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo cho track này
 
@@ -1083,12 +1097,19 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue). **Gate đã ràng buộc điều này
-thành check kiểm chứng được:** CHECK-110-12 (F2 phải có mặt trong
-`ImportResult.review_queue`, không chỉ trong `tools/analysis/`), CHECK-110-13
-(F4, và F2/F4 không được làm `run_import()` raise), CHECK-110-14
-(`reconcile_conversion.py` giữ nguyên hành vi). Xem
-`docs/tasks/TASK-110-validation-review-queue.md`.
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016, 2026-08-23) — chờ Independent Review xác
+nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
+chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
+**CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
+**CHECK-110-14** (`reconcile_conversion.py` giữ nguyên hành vi, 24/24 test
+không sửa). Cả ba PASS. Tiêu chí F1–F5 đã dời sang
+`app/modules/validation/employee_mapping.py`; script phân tích import ngược
+lại đúng các tên đó, nên hai đường dùng chung một bộ tiêu chí thay vì hai bản
+cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
+
+**Chưa đóng hoàn toàn:** màn hình duyệt thật vẫn là TASK-305 — hiện F2/F4 nằm
+trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo
 
