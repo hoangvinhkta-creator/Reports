@@ -25,6 +25,13 @@ Repo này chứa **hai track công việc độc lập**, cả hai đều canoni
   Tảng (PHASE-GOV)" phía dưới) — sửa chữa chính khung governance của repo.
   Chạy song song, không chặn Track A trừ khi ghi rõ dependency.
 
+**Bản dễ hiểu cho người ngoài dự án:** `PROJECT/LO_TRINH_DE_HIEU.md` — cùng
+một lộ trình Track A, viết lại không dùng thuật ngữ kỹ thuật, dành cho chủ
+dự án/quản lý không rành code. File đó KHÔNG tự động đồng bộ — **bất kỳ
+session nào sửa roadmap Track A trong file này cũng phải cập nhật file đó
+theo, cùng một lần sửa** (xem `governance/core/00_SESSION_ORCHESTRATION.md`
+→ "Giao thức Đóng Phiên").
+
 ## Tóm tắt dự án
 
 Project:
