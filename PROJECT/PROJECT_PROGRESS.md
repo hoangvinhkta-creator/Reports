@@ -876,7 +876,7 @@ Working Data không có nguồn thô" ghi rõ: `KpiAdjustment` **không có cộ
 trong file thô** `So_chi_tiet_ban_hang.xlsx` — 17 cột raw đã map hết
 (`RawRow` ở `app/modules/domain/models.py` đã đủ 17 field, không field nào
 là "Giao hàng"/adjustment note). Từ vựng adjustment ở
-`03_RULE_CLASSIFICATION.md` được trích từ **cột J của REPORT** (workbook
+`docs/analysis/03_RULE_CLASSIFICATION.md` được trích từ **cột J của REPORT** (workbook
 `Bao_cao_Kinh_doanh_2026.xlsx`, sheet nhân viên), tức dữ liệu người làm báo
 cáo **gõ tay** khi lắp báo cáo thủ công — không phải dữ liệu ERP xuất ra.
 

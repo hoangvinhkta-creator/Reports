@@ -130,7 +130,8 @@ Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 - [x] Vùng tác động dự kiến đã được xác định.
 - [x] Yêu cầu liên quan đã hiểu rõ (đặc tả §10/§20/§22 bước 8, DEC-103).
 - [x] Tác động dữ liệu đã biết rõ: không có dữ liệu cá nhân mới; giá nhập là
-      dữ liệu nghiệp vụ nhạy cảm (`04_SECURITY_RULES.md`) nhưng chưa lộ ra
+      dữ liệu nghiệp vụ nhạy cảm (`governance/core/04_SECURITY_RULES.md`)
+      nhưng chưa lộ ra
       UI/API ở Phase 1.
 - [x] Tác động bảo mật đã biết rõ: không có, chưa có network/DB.
 - [x] Không liên quan routing/API (Phase 1 thuần Python).
@@ -291,9 +292,10 @@ Status:
 PASS
 
 Evidence Level:
-E1 (grep)
+E1
 
 Evidence:
+Output lệnh `grep` thực thi:
 ```
 $ grep -rnE "[0-9]{6,}" app/modules/pricing/ app/pipeline.py
 (không có kết quả)
@@ -320,7 +322,8 @@ Evidence Level:
 E1
 
 Evidence:
-`accounting_purchase_price: Optional[Decimal]` trong `domain/models.py`.
+`accounting_purchase_price: Optional[Decimal]` trong
+`app/modules/domain/models.py`.
 `PriceProvider.lookup()` khai kiểu trả về `Optional[Decimal]`. Grep xác nhận
 không có `float(` nào trong `app/modules/pricing/`.
 
