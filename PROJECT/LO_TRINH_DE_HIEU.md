@@ -9,6 +9,11 @@
 > lộ trình — **không phải một lộ trình khác**. Khi bản kỹ thuật thay đổi,
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối).
 >
+> Bản sơ đồ trực quan (không cần đọc bảng, chỉ cần nhìn): xuất bản lúc
+> 2026-08-23 tại https://claude.ai/code/artifact/a1352611-9616-4f66-9572-376eedc99e7a
+> — link riêng tư, chỉ người được chia sẻ mới xem được. Đây là ảnh chụp tại
+> một thời điểm, không tự cập nhật theo file này; tạo lại khi cần bản mới.
+>
 > Cập nhật lần cuối: 2026-08-23.
 
 ## Dự án này làm gì, tóm tắt 1 câu
