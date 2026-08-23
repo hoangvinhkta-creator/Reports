@@ -10,21 +10,29 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 5 (nạp dữ liệu) đã viết code xong,
-> đang chờ 1 file để kiểm tra số** (xem "Có gì mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 5 (nạp dữ liệu) đã xong hoàn toàn,
+> kiểm tra đúng trên số liệu thật** (xem "Có gì mới" ngay bên dưới).
 
-## Có gì mới — bước 5 viết xong, đang chờ đối chiếu số (2026-08-23)
+## Có gì mới — bước 5 xong hoàn toàn, đã kiểm tra bằng số liệu thật (2026-08-23)
 
-**Bước 5 (TASK-101 — nạp và làm sạch dữ liệu) đã viết xong.** Cùng lúc, ba
-bước 6–8 (gán nhân viên, gộp đơn hàng, xác định nguồn quảng cáo) cũng đã xong
-luôn — vì chúng nằm chung một khối công việc, không tách được. Đã kiểm tra kỹ
-bằng 49 tình huống giả lập, tất cả đều đúng.
+**Bước 5 (TASK-101 — nạp và làm sạch dữ liệu) đã xong hoàn toàn.** Cùng lúc,
+ba bước 6–8 (gán nhân viên, gộp đơn hàng, xác định nguồn quảng cáo) cũng
+xong luôn — vì chúng nằm chung một khối công việc, không tách được.
 
-**Chỉ còn thiếu một việc để coi bước 5 là "xong hẳn":** cần file dữ liệu bán
-hàng thật của công ty (`So_chi_tiet_ban_hang.xlsx`) để đối chiếu — kiểm tra
-xem hệ thống đếm đúng 254 đơn tháng 01/2026 và 146 đơn tháng 06/2026 hay
-không. File này **không được lưu vào hệ thống** (chứa thông tin khách hàng),
-nên mỗi lần cần kiểm tra phải đặt file vào máy đang chạy việc.
+Sếp đã gửi 2 file dữ liệu thật của Tín Phát (tháng 01/2026 và 06/2026) để
+kiểm tra. Kết quả: **hệ thống đếm đúng tuyệt đối — 254 đơn tháng 01/2026 và
+146 đơn tháng 06/2026**, khớp chính xác với số sếp đưa ra làm mốc kiểm tra.
+Đối chiếu thêm bằng dòng "Tổng cộng" có sẵn trong chính file Excel (không
+phải do hệ thống tự tính) — doanh số và chiết khấu cũng khớp tuyệt đối ở cả
+hai tháng.
+
+Có phát hiện một khoảng lệch nhỏ giữa số "Doanh số bán" ghi trong file thô và
+số hệ thống tính ra — nhưng đây **không phải lỗi mới**, mà đúng như đã biết
+từ trước: cột doanh số trong file thô ERP chưa trừ chiết khấu, hệ thống trừ
+đúng theo quy tắc đã thống nhất. Không cần sửa gì.
+
+File dữ liệu thật đã được xóa khỏi máy chạy việc ngay sau khi kiểm tra xong
+— đúng quy định không lưu dữ liệu khách hàng vào hệ thống.
 
 **Trước đó**, sếp đã duyệt Điểm duyệt 1 (GATE-00) và xem đợt rà soát 10 điểm
 xác nhận về cách tính, trả lời trực tiếp 4 câu:
@@ -63,9 +71,9 @@ số liệu bán hàng thô, tự tính hoa hồng/lợi nhuận, tự lên báo
 
 File này gồm **hai bảng độc lập, không chặn nhau**:
 
-- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 8/34 dòng (bước 1–4
-  và bước 6–8 — bước 6–8 xong luôn cùng bước 5). Bước 5 (🟡) đã viết code
-  xong, đang chờ 1 file dữ liệu thật để kiểm tra số cuối cùng.
+- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 8/34 dòng (bước 1–8,
+  trong đó bước 6–8 xong luôn cùng bước 5, đã kiểm tra bằng số liệu thật).
+  Sẵn sàng bắt đầu bước 9.
 - **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 6/9 dòng,
   một việc đang sẵn sàng làm (REM-T06), không ảnh hưởng ngày ra mắt sản
   phẩm.
@@ -112,11 +120,11 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 3. TASK-002 (MAJOR, D3/R2/B1) — Đọc và đối chiếu dữ liệu mẫu | Hiểu đúng cách công ty đang bán hàng và tính lợi nhuận, trước khi viết bất kỳ dòng code nào | C | Sau bước 2 |
 | ✅ | 4. TASK-003 (MICRO, D2/R2/B2) — Ghi lại các quyết định kỹ thuật lớn | Chọn cách tổ chức hệ thống ngay từ đầu, tránh phải đập đi làm lại giữa chừng | C | Sau bước 3 |
 | ✅ | **GATE-00 — Điểm duyệt 1 — Sếp xác nhận dữ liệu** | Đọc phần phân tích dữ liệu, xác nhận đúng thực tế công ty. **PASS 2026-08-23.** | Duyệt | Sau bước 4 — đã xong |
-| 🟡 | 5. TASK-101 (MAJOR, D3/R3/B3) — Nạp và làm sạch dữ liệu bán hàng thô | Biến file Excel lộn xộn từ ERP thành dữ liệu tính toán được. **Đã viết code xong, đang chờ file dữ liệu thật để đối chiếu số** (xem "Có gì mới" đầu file) | B | **GIAI ĐOẠN 1** — đang làm dở, chờ 1 việc |
+| ✅ | 5. TASK-101 (MAJOR, D3/R3/B3) — Nạp và làm sạch dữ liệu bán hàng thô | Biến file Excel lộn xộn từ ERP thành dữ liệu tính toán được. **Xong hoàn toàn — đã kiểm tra đúng trên dữ liệu thật** (xem "Có gì mới" đầu file) | B | **GIAI ĐOẠN 1** — xong |
 | ✅ | 6. TASK-102 (MAJOR, D2/R3/B3) — Gán đúng nhân viên phụ trách từng dòng bán hàng | Biết ai bán để tính đúng hoa hồng cho từng người. **Đã xây xong trong bước 5**, không phải làm riêng | B | Xong cùng bước 5 |
 | ✅ | 7. TASK-103 (MAJOR, D2/R4/B4) — Gộp các dòng hàng thành từng đơn hàng hoàn chỉnh | Một đơn có thể có nhiều dòng sản phẩm, cần gộp lại đúng. **Đã xây xong trong bước 5** | B | Xong cùng bước 5 |
 | ✅ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. **Đã xây xong trong bước 5**, đã kiểm đủ 18 tình huống chuẩn | C | Xong cùng bước 5 |
-| ⬜ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận | B | Sau bước 8 (làm song song được với bước 10–11) |
+| 🟡 | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận | B | Sẵn sàng bắt đầu ngay |
 | ⬜ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng | C | Sau bước 9 |
 | ⬜ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | Sau bước 10 |
 | ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | Sau bước 11 |
