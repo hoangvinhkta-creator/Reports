@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import inspect
 import json
+
+import pytest
 from collections import Counter
 
 from tests.fixtures.baseline_snapshot import (
@@ -36,18 +38,85 @@ def _roundtrip(payload):
 
 # ============================================================ CHECK-110-18 (L1)
 
+# `record.snapshot_id` là trường DUY NHẤT được phép đổi biểu diễn (owner
+# decision §3): nó chuyển từ *field caller đặt được* sang *property dẫn xuất*,
+# nên giá trị đổi theo công thức mới. Đây không phải một whitelist quay lại —
+# đây là một ngoại lệ đúng một trường, có tuyên bố, và kèm bốn chứng minh ở
+# `test_check_110_18_snapshot_id_semantic_equivalence` bên dưới.
+_REPRESENTATION_EXCEPTION = ("record", "snapshot_id")
+
+
+def _without_representation_exception(row: dict) -> dict:
+    outer, inner = _REPRESENTATION_EXCEPTION
+    if isinstance(row.get(outer), dict):
+        row = dict(row)
+        row[outer] = {k: v for k, v in row[outer].items() if k != inner}
+    return row
+
+
 def test_check_110_18_employee_resolve_matrix_is_unchanged():
+    """MỌI trường nghiệp vụ IDENTICAL — kể cả `record.index` và `record.label`."""
     baseline = json.loads(L1_PATH.read_text(encoding="utf-8"))
     current = _roundtrip(build_l1())
 
     assert len(current) == len(baseline)
     differences = [
-        (b, c) for b, c in zip(baseline, current) if b != c
+        (b, c)
+        for b, c in zip(baseline, current)
+        if _without_representation_exception(b) != _without_representation_exception(c)
     ]
     assert not differences, (
         f"{len(differences)} tổ hợp raw × as_of đổi kết quả, ví dụ: "
         f"{differences[0]}"
     )
+
+
+def test_check_110_18_snapshot_id_semantic_equivalence():
+    """Bốn chứng minh mà owner decision §3 yêu cầu cho ngoại lệ biểu diễn."""
+    import dataclasses
+    from datetime import date
+    from pathlib import Path as _Path
+
+    from app.modules.mapping.employee_mapper import (
+        EmployeeMapper,
+        SealedConstruction,
+        build_employee_master,
+        load_employee_master,
+    )
+
+    root = _Path(__file__).resolve().parents[1]
+
+    # 1. DERIVE từ nội dung master — không phải field.
+    assert "snapshot_id" not in {
+        f.name for f in dataclasses.fields(load_employee_master(root / "config" / "employees.yaml"))
+    }
+
+    # 2. Caller KHÔNG tự truyền được.
+    with pytest.raises(SealedConstruction):
+        type(load_employee_master(root / "config" / "employees.yaml"))(
+            records=(), group_codes=frozenset()
+        )
+
+    # 3. Cùng logical master -> cùng identity.
+    one = load_employee_master(root / "config" / "employees.yaml")
+    two = load_employee_master(root / "config" / "employees.yaml")
+    assert one.snapshot_id == two.snapshot_id
+
+    # 4. Khác logical master -> khác identity.
+    groups = [{"code": "STANDARD_SALES"}]
+    base = [{"raw_prefix": "A", "normalized": "A", "group": "STANDARD_SALES",
+             "active": True, "effective_from": "2026-01-01", "effective_to": None}]
+    other = [dict(base[0], normalized="B")]
+    assert (
+        build_employee_master(base, groups).snapshot_id
+        != build_employee_master(other, groups).snapshot_id
+    )
+
+    # 5. KHÔNG tham gia calculation: mọi trường nghiệp vụ của `resolve()` giữ
+    #    nguyên khi id đổi — chính là điều test phía trên đã chứng minh trên
+    #    972 tổ hợp.
+    mapper = EmployeeMapper(build_employee_master(base, groups))
+    assert mapper.resolve("A1", date(2026, 6, 1)).normalized == "A"
 
 
 def test_check_110_18_the_matrix_is_a_real_discriminator():
@@ -163,36 +232,32 @@ def test_check_110_20_analysis_script_call_signature_still_works():
     """
     from app.modules.validation.employee_mapping import evaluate_raw_mapping
 
+    # HD-110-12: chữ ký CŨ 8-tham-số-vị-trí đã bị XOÁ. Nó là chính cơ chế để
+    # bộ đếm và chỉ mục dòng đến từ hai nguồn khác nhau (RC-3).
     params = list(inspect.signature(evaluate_raw_mapping).parameters)
-    assert params[:8] == [
-        "mapped",
-        "groups",
-        "unmapped",
-        "ambiguities",
-        "employees",
-        "declared_groups",
-        "dataset_start",
-        "dataset_end",
-    ]
-    assert params[8] == "row_index"
-
-    verdict = evaluate_raw_mapping(
-        Counter({"ly": 3}),
-        {"ly": "STANDARD_SALES"},
-        Counter({"người lạ": 5}),
-        {},
-        [
-            {
-                "raw_prefix": "Vũ Hạnh Ly",
-                "normalized": "Ly",
-                "group": "STANDARD_SALES",
-                "active": True,
-            }
-        ],
-        {"STANDARD_SALES"},
-        None,
-        None,
+    assert params == ["stats"], (
+        "evaluate_raw_mapping phải nhận đúng MỘT tham số canonical"
     )
+
+    from app.modules.mapping.employee_mapper import (
+        EmployeeMapper,
+        build_employee_master,
+    )
+    from app.modules.validation.employee_mapping import (
+        MappingInput,
+        collect_mapping_stats,
+    )
+
+    mapper = EmployeeMapper(build_employee_master(
+        [{"raw_prefix": "Vũ Hạnh Ly", "normalized": "Ly",
+          "group": "STANDARD_SALES", "active": True,
+          "effective_from": "2026-01-01", "effective_to": None}],
+        [{"code": "STANDARD_SALES"}],
+    ))
+    stats = collect_mapping_stats(
+        [MappingInput("s.xlsx", 6, "Người Lạ", None, None, None)], mapper
+    )
+    verdict = evaluate_raw_mapping(stats)
     assert isinstance(verdict.hard_failures, list)
     assert isinstance(verdict.warnings, list)
     assert isinstance(verdict.info, list)
@@ -202,7 +267,8 @@ def test_check_110_20_analysis_script_call_signature_still_works():
 def test_check_110_20_frozen_helpers_are_still_importable():
     """Script import `norm` và `_overlaps` trực tiếp từ module này."""
     from app.modules.validation.employee_mapping import (  # noqa: F401
-        _overlaps,
+        MappingInput,
+        collect_mapping_stats,
         evaluate_raw_mapping,
         norm,
     )
@@ -224,10 +290,11 @@ def test_check_110_20_analysis_script_is_untouched():
     # luật "một nguồn sự thật" của DEC-132: output này là bằng chứng đã ký
     # duyệt ở CHECK-108A1-15, nên đóng băng nó thắng việc thống nhất. Chính vì
     # thế thay đổi ngữ nghĩa F3 ở phía production (D3) KHÔNG chạm tới script.
-    assert "raw_value.startswith(prefix)" in source
-    assert "ambiguities[raw_value] = hits" in source
-    assert "collect_mapping_stats" not in source
+    # HD-110-12: vòng khớp prefix riêng và bộ đếm song song của script đã
+    # biến mất — giữ chúng là giữ một bản cài đặt thứ hai của cùng quy tắc.
+    assert "raw_value.startswith(prefix)" not in source
+    assert "ambiguities[raw_value] = hits" not in source
+    assert "collect_mapping_stats" in source
 
-    # Và nó vẫn gọi mapper production để đếm — nên `resolve()` phải giữ đúng
-    # hành vi cũ, điều CHECK-110-18 đã chứng minh.
+    # Logic đối chiếu KHÔNG đổi: script vẫn gọi mapper production để resolve.
     assert "mapper.resolve(raw_value, when)" in source

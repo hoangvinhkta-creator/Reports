@@ -121,11 +121,8 @@ def detect_missing(
                 ReviewItem(
                     category=CATEGORY_MISSING,
                     severity=severity,
-                    message=f"Thiếu {_MISSING_LABELS[field]}.",
                     scope=SCOPE_ROW,
-                    provenance=RowProvenance(
-                        (AffectedRow(line.raw.source_file, line.raw.source_row),)
-                    ),
+                    provenance=RowProvenance.of((AffectedRow.from_line(line),)),
                     order_id=line.order_id or None,
                     diagnostics=Diagnostics(rule=field),
                 )
@@ -155,11 +152,8 @@ def detect_missing_purchase_price(
             ReviewItem(
                 category=CATEGORY_MISSING_PURCHASE_PRICE,
                 severity=severity,
-                message="Thiếu giá nhập (chờ Price Master).",
                 scope=SCOPE_ROW,
-                provenance=RowProvenance(
-                    (AffectedRow(line.raw.source_file, line.raw.source_row),)
-                ),
+                provenance=RowProvenance.of((AffectedRow.from_line(line),)),
                 order_id=line.order_id or None,
             )
             for line in pending
@@ -169,33 +163,28 @@ def detect_missing_purchase_price(
         ReviewItem(
             category=CATEGORY_MISSING_PURCHASE_PRICE,
             severity=severity,
-            message=(
-                f"{len(pending)} dòng đang chờ giá nhập — chưa có Price Master "
-                "(DEC-103). Đây là trạng thái đã biết của hệ thống, không phải "
-                "lỗi dữ liệu của từng dòng."
-            ),
             scope=SCOPE_BATCH,
-            provenance=RowProvenance(
-                tuple(
-                    AffectedRow(l.raw.source_file, l.raw.source_row)
-                    for l in pending
-                )
-            ),
+            provenance=RowProvenance.of(AffectedRow.from_line(l) for l in pending),
+            diagnostics=Diagnostics(),
         )
     ]
 
 
 # ------------------------------------------------------------- V2 Suspicious
 
-def _suspicious_checks(line: WorkingLine) -> list[tuple[str, str]]:
-    """`(rule name, message)` for each computed-basis anomaly on this line."""
-    found: list[tuple[str, str]] = []
+def _suspicious_checks(line: WorkingLine) -> list:
+    """`(rule name, observed value)` cho mỗi bất thường trên dòng này.
+
+    Trả GIÁ TRỊ QUAN SÁT ĐƯỢC, không trả câu văn: câu văn do `renderer.py`
+    sinh ra từ payload có kiểu (RC-2).
+    """
+    found: list = []
 
     if line.quantity is not None and line.quantity <= _ZERO:
-        found.append(("quantity_not_positive", f"Số lượng ≤ 0 ({line.quantity})."))
+        found.append(("quantity_not_positive", str(line.quantity)))
 
     if line.sell_price is not None and line.sell_price == _ZERO:
-        found.append(("sell_price_zero", "Giá bán = 0."))
+        found.append(("sell_price_zero", None))
 
     # Both of the following stay silent through Phase 1: with no Price Master,
     # `accounting_purchase_price` is None on every line, so neither comparison
@@ -206,16 +195,10 @@ def _suspicious_checks(line: WorkingLine) -> list[tuple[str, str]]:
         and line.sell_price is not None
         and line.accounting_purchase_price > line.sell_price
     ):
-        found.append((
-            "purchase_price_above_sell_price",
-            "Giá nhập lớn hơn giá bán.",
-        ))
+        found.append(("purchase_price_above_sell_price", None))
 
     if line.accounting_profit is not None and line.accounting_profit < _ZERO:
-        found.append((
-            "accounting_profit_negative",
-            f"Lợi nhuận kế toán âm ({line.accounting_profit}).",
-        ))
+        found.append(("accounting_profit_negative", str(line.accounting_profit)))
 
     return found
 
@@ -228,7 +211,7 @@ def detect_suspicious(
 ) -> list[ReviewItem]:
     items: list[ReviewItem] = []
     for line in lines:
-        for rule, message in _suspicious_checks(line):
+        for rule, observed in _suspicious_checks(line):
             severity = rules.get(rule)
             if severity is None:
                 continue
@@ -236,13 +219,10 @@ def detect_suspicious(
                 ReviewItem(
                     category=CATEGORY_SUSPICIOUS,
                     severity=_severity_for(line, severity, downgrade_to, patterns),
-                    message=message,
                     scope=SCOPE_ROW,
-                    provenance=RowProvenance(
-                        (AffectedRow(line.raw.source_file, line.raw.source_row),)
-                    ),
+                    provenance=RowProvenance.of((AffectedRow.from_line(line),)),
                     order_id=line.order_id or None,
-                    diagnostics=Diagnostics(rule=rule),
+                    diagnostics=Diagnostics(rule=rule, observed_value=observed),
                 )
             )
     return items
@@ -272,16 +252,13 @@ def detect_suspicious_erp(
             ReviewItem(
                 category=CATEGORY_SUSPICIOUS_ERP,
                 severity=_severity_for(line, severity, downgrade_to, patterns),
-                message=(
-                    f"ERP báo lợi nhuận âm ({line.source_profit}). Tín hiệu từ "
-                    "ERP, CHƯA kiểm chứng — không dùng để suy ra giá nhập "
-                    "(DEC-103)."
-                ),
                 scope=SCOPE_ROW,
-                provenance=RowProvenance(
-                    (AffectedRow(line.raw.source_file, line.raw.source_row),)
-                ),
+                provenance=RowProvenance.of((AffectedRow.from_line(line),)),
                 order_id=line.order_id or None,
+                diagnostics=Diagnostics(
+                    rule="erp_profit_negative",
+                    observed_value=str(line.source_profit),
+                ),
             )
         )
     return items
@@ -338,22 +315,11 @@ def detect_order_inconsistency(
                 ReviewItem(
                     category=CATEGORY_ORDER_INCONSISTENCY,
                     severity=employee_severity,
-                    message=(
-                        f"Đơn {order.order_id} có {len(identities)} nhân viên "
-                        "khác nhau trên các dòng. Công cụ KHÔNG tự chọn chủ "
-                        "đơn — hiện `order_builder` lấy nhân viên của dòng đầu "
-                        "tiên, đó là hành vi legacy, KHÔNG phải quyền sở hữu "
-                        "đã được xác minh. Cần người quyết định."
-                    ),
                     scope=SCOPE_ORDER,
-                    provenance=RowProvenance(
-                    tuple(
-                        AffectedRow(l.raw.source_file, l.raw.source_row)
-                        for l in order.lines
-                    )
-                ),
+                    provenance=RowProvenance.of(AffectedRow.from_line(l) for l in order.lines),
                     order_id=order.order_id,
                     diagnostics=Diagnostics(
+                        order_id=order.order_id,
                         employees_found=tuple(sorted(identities)),
                         legacy_selected=legacy,
                     ),
@@ -366,19 +332,11 @@ def detect_order_inconsistency(
                 ReviewItem(
                     category=CATEGORY_ORDER_INCONSISTENCY,
                     severity=date_severity,
-                    message=(
-                        f"Đơn {order.order_id} có {len(dates)} ngày khác nhau "
-                        "trên các dòng."
-                    ),
                     scope=SCOPE_ORDER,
-                    provenance=RowProvenance(
-                    tuple(
-                        AffectedRow(l.raw.source_file, l.raw.source_row)
-                        for l in order.lines
-                    )
-                ),
+                    provenance=RowProvenance.of(AffectedRow.from_line(l) for l in order.lines),
                     order_id=order.order_id,
                     diagnostics=Diagnostics(
+                        order_id=order.order_id,
                         dates_found=tuple(d.isoformat() for d in sorted(dates)),
                     ),
                 )
@@ -407,18 +365,14 @@ def detect_source_classification(
             ReviewItem(
                 category=CATEGORY_SOURCE_CLASSIFICATION,
                 severity=severity,
-                message=(
-                    f"Đơn {order.order_id}: override tay `{manual}` khác kết "
-                    f"quả rule tự động `{order.lead_source_auto}`."
-                ),
                 scope=SCOPE_ORDER,
-                provenance=RowProvenance(
-                    tuple(
-                        AffectedRow(l.raw.source_file, l.raw.source_row)
-                        for l in order.lines
-                    )
-                ),
+                provenance=RowProvenance.of(AffectedRow.from_line(l) for l in order.lines),
                 order_id=order.order_id,
+                diagnostics=Diagnostics(
+                    order_id=order.order_id,
+                    manual_value=manual,
+                    auto_value=order.lead_source_auto,
+                ),
             )
         )
     return items
@@ -450,18 +404,8 @@ def detect_duplicates(
             ReviewItem(
                 category=CATEGORY_DUPLICATE,
                 severity=severity,
-                message=(
-                    f"{len(group)} dòng có nội dung giống hệt nhau (dòng "
-                    f"{', '.join(str(r) for r in rows)}). Có thể hợp lệ — hai "
-                    "dòng phụ kiện giống nhau trong một đơn — cần người xem."
-                ),
                 scope=SCOPE_ROW,
-                provenance=RowProvenance(
-                    tuple(
-                        AffectedRow(l.raw.source_file, l.raw.source_row)
-                        for l in group
-                    )
-                ),
+                provenance=RowProvenance.of(AffectedRow.from_line(l) for l in group),
                 order_id=group[0].order_id or None,
                 diagnostics=Diagnostics(row_hash=row_hash),
             )

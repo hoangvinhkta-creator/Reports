@@ -28,7 +28,7 @@ from app.modules.mapping.employee_mapper import (
 )
 from app.modules.importing.normalizer import normalize_line
 from app.modules.validation.employee_mapping import (
-    collect_mapping_stats,
+    collect_stats_from_lines,
     evaluate_inactive_records,
     evaluate_raw_mapping,
 )
@@ -106,15 +106,15 @@ def mapper_for(employee_rows):
     của HD-110-06 được kiểm riêng ở nhóm F9.
     """
     return EmployeeMapper(
-        build_employee_master(employee_rows, GROUP_ROWS, validate=False)
+        build_employee_master(employee_rows, GROUP_ROWS)
     )
 
 
 def queue_for(lines, employee_rows, groups=GROUPS):
     validator = Validator(
-        CONFIG, employee_mapper=mapper_for(employee_rows), employee_groups=groups
+        CONFIG, employee_mapper=mapper_for(employee_rows)
     )
-    return validator.build_queue(lines, [])
+    return validator._build(lines, [])
 
 
 def items_of(queue, criterion=None, severity=None):
@@ -188,15 +188,26 @@ def test_f2_and_f4_never_raise_and_never_empty_the_queue_of_other_findings():
 
 # ------------------------------------------------ Invariants F1 / F3 / F5
 
-def test_hard_failures_are_surfaced_rather_than_dropped():
-    """F1: a group nobody declared. An already-violated invariant reaching the
-    queue is surfacing only — it changes no result and blocks no import."""
-    employees = [employee("Ly", "Vũ Hạnh Ly", group="GHOST_GROUP")]
-    lines = [mapped_line("Ly", "Vũ Hạnh Ly 0868345633")]
+def test_an_undeclared_group_never_reaches_the_queue_at_all():
+    """HD-110-17: F1 được THAY THẾ bởi fail-fast tại biên master.
 
-    errors = messages(queue_for(lines, employees), SEVERITY_ERROR)
+    Trạng thái "group không ai khai" không còn tới được Review Queue, vì master
+    ấy không parse được. Đây không phải bỏ kiểm tra — đây là chuyển nó lên
+    sớm hơn và chặt hơn: `employee_group` là một chiều tra tỉ lệ quy đổi, nên
+    một group ma dời tỉ lệ trong im lặng (2,0 % → 5,5 %), và một dòng ERROR
+    không chặn import chưa bao giờ là câu trả lời tương xứng.
+    """
+    import pytest
 
-    assert any("F1" in message for message in errors)
+    from app.modules.mapping.employee_mapper import (
+        InvalidEmployeeConfig,
+        build_employee_master,
+    )
+
+    with pytest.raises(InvalidEmployeeConfig, match="employee_groups"):
+        build_employee_master(
+            [employee("Ly", "Vũ Hạnh Ly", group="GHOST_GROUP")], GROUP_ROWS
+        )
 
 
 def test_f5_fires_when_nothing_maps_at_all():
@@ -220,12 +231,22 @@ def test_f3_fires_only_when_effective_windows_actually_overlap():
         "F3" in m for m in messages(queue_for(lines, handover), SEVERITY_ERROR)
     )
 
+    # Prefix LỒNG NHAU, cùng hiệu lực: vẫn là F3 thật. Trùng khít bị chặn tại
+    # biên master (HD-110-15) nên không dựng được nữa — và đó là điều đúng:
+    # trùng khít chồng cửa sổ làm một người mất sạch doanh số, không phải một
+    # chẩn đoán để đưa vào hàng chờ.
     overlapping = [
-        employee("A", "Đức", effective_from="2026-01-01"),
-        employee("B", "Đức", effective_from="2026-01-01"),
+        employee("A", "Đức"),
+        employee("B", "Đức Kiên"),
     ]
     assert any(
-        "F3" in m for m in messages(queue_for(lines, overlapping), SEVERITY_ERROR)
+        "F3" in m
+        for m in messages(
+            queue_for(
+                [unmapped_line("Đức Kiên 0867", source_row=6)], overlapping
+            ),
+            SEVERITY_ERROR,
+        )
     )
 
 
@@ -239,7 +260,7 @@ def test_stats_are_collected_from_lines_the_production_mapper_resolved():
         unmapped_line("Người Lạ 0900000009", source_row=8, when=date(2026, 2, 1)),
     ]
 
-    stats = collect_mapping_stats(lines, mapper_for(employees))
+    stats = collect_stats_from_lines(lines, mapper_for(employees))
 
     assert stats.mapped["Ly"] == 2
     assert stats.unmapped["Người Lạ 0900000009"] == 1
@@ -252,7 +273,7 @@ def test_stats_tolerate_lines_with_no_date():
     employees = [employee("Ly", "Vũ Hạnh Ly")]
     line_without_date = mapped_line("Ly", "Vũ Hạnh Ly 0868345633", when=None)
 
-    stats = collect_mapping_stats([line_without_date], mapper_for(employees))
+    stats = collect_stats_from_lines([line_without_date], mapper_for(employees))
 
     assert stats.dataset_start is None
     assert stats.mapped["Ly"] == 1
@@ -261,7 +282,7 @@ def test_stats_tolerate_lines_with_no_date():
 def test_disabled_category_produces_no_items():
     config = {"categories": {"employee_mapping": {"enabled": False}}}
     validator = Validator(config, employee_mapper=mapper_for([employee("Ly", "Vũ Hạnh Ly")]))
-    queue = validator.build_queue([unmapped_line("Ai Đó 0900000000")], [])
+    queue = validator._build([unmapped_line("Ai Đó 0900000000")], [])
     assert queue.by_category(CATEGORY_EMPLOYEE_MAPPING) == []
 
 
@@ -324,18 +345,20 @@ def test_f2_carries_batch_provenance_and_an_honest_zero_count():
     assert item.affected_count == 0
 
 
-def test_f1_points_at_the_rows_of_the_employee_whose_group_is_undeclared():
-    employees = [employee("Ly", "Vũ Hạnh Ly", group="GHOST_GROUP")]
-    lines = [
-        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
-        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=9),
-    ]
+def test_an_undeclared_group_is_rejected_before_any_row_is_processed():
+    """Mặt còn lại của HD-110-17: chặn TRƯỚC khi xử lý giao dịch."""
+    import pytest
 
-    item = items_of(queue_for(lines, employees), criterion="F1")[0]
+    from app.modules.mapping.employee_mapper import (
+        InvalidEmployeeConfig,
+        build_employee_master,
+    )
 
-    assert item.scope == SCOPE_ROW
-    assert item.details[DETAIL_SOURCE_ROWS] == "6, 9"
-    assert item.affected_count == 2
+    with pytest.raises(InvalidEmployeeConfig) as excinfo:
+        build_employee_master(
+            [employee("Ly", "Vũ Hạnh Ly", group="GHOST_GROUP")], GROUP_ROWS
+        )
+    assert "GHOST_GROUP" in str(excinfo.value)
 
 
 def test_f5_is_batch_scoped_and_counts_every_orphaned_row():
@@ -439,16 +462,10 @@ def test_f6_does_not_change_what_the_analysis_script_reports_for_healthy_data():
     from app.modules.validation.employee_mapping import evaluate_raw_mapping
     from collections import Counter
 
-    verdict = evaluate_raw_mapping(
-        Counter({"Ly": 10}),
-        {"Ly": "STANDARD_SALES"},
-        Counter(),
-        {},
-        [employee("Ly", "Vũ Hạnh Ly")],
-        {"STANDARD_SALES"},
-        date(2026, 1, 1),
-        date(2026, 6, 30),
-    )
+    verdict = evaluate_raw_mapping(collect_stats_from_lines(
+        [mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6)],
+        mapper_for([employee("Ly", "Vũ Hạnh Ly")]),
+    ))
     assert verdict.hard_failures == []
     assert verdict.warnings == []
 
@@ -485,8 +502,8 @@ def test_blank_employee_produces_only_missing_and_never_an_f4():
     ]
 
     queue = Validator(
-        config, employee_mapper=mapper_for(employees), employee_groups=GROUPS
-    ).build_queue(lines, [])
+        config, employee_mapper=mapper_for(employees)
+    )._build(lines, [])
 
     assert items_of(queue, criterion="F4") == []
     assert sorted(i.source_row for i in queue.by_category(CATEGORY_MISSING)) == [7, 8, 9]
@@ -680,7 +697,11 @@ AMBIGUOUS_A = {
     "active": True, "effective_from": "2026-01-01", "effective_to": None,
 }
 AMBIGUOUS_B = {
-    "raw_prefix": "Đức", "normalized": "B", "group": "STANDARD_SALES",
+    # Prefix LỒNG NHAU (`"Đức"` ⊂ `"Đức Kiên"`), không trùng khít: hai người
+    # thật cùng khớp `"Đức Kiên …"` trong cùng một kỳ — đúng nghĩa F3. Trùng
+    # khít + chồng cửa sổ nay bị chặn tại biên master (HD-110-15) vì nó làm
+    # một người mất sạch doanh số chứ không phải sinh ra một chẩn đoán.
+    "raw_prefix": "Đức Kiên", "normalized": "B", "group": "STANDARD_SALES",
     "active": True, "effective_from": "2026-01-01", "effective_to": "2026-02-28",
 }
 OVERLAP_ROWS = [AMBIGUOUS_A, AMBIGUOUS_B]
@@ -734,8 +755,8 @@ def test_f3_provenance_carries_identity_row_date_and_conflicting_records():
     # The colliding master RECORDS, not just their names — two records can
     # deliberately share a name (DEC-121).
     conflicting = item.details[DETAIL_CONFLICTING_RECORDS]
-    assert "A[Đức|2026-01-01..9999-12-31]" in conflicting
-    assert "B[Đức|2026-01-01..2026-02-28]" in conflicting
+    assert "A[Đức|2026-01-01..—]" in conflicting
+    assert "B[Đức Kiên|2026-01-01..2026-02-28]" in conflicting
 
 
 def test_f3_counts_every_ambiguous_row_when_several_collide():
@@ -778,8 +799,8 @@ def test_missing_date_produces_missing_date_and_never_f6():
     lines = resolved_lines(HANDOVER, [(6, None)])
 
     queue = Validator(
-        config, employee_mapper=mapper_for(HANDOVER), employee_groups=GROUPS
-    ).build_queue(lines, [])
+        config, employee_mapper=mapper_for(HANDOVER)
+    )._build(lines, [])
 
     assert items_of(queue, criterion="F6") == []
     assert [i.source_row for i in queue.by_category(CATEGORY_MISSING)] == [6]
@@ -956,8 +977,8 @@ MISSING_DATE_CONFIG = {
 
 def queue_with_missing(lines, employee_rows):
     return Validator(
-        MISSING_DATE_CONFIG, employee_mapper=mapper_for(employee_rows), employee_groups=GROUPS
-    ).build_queue(lines, [])
+        MISSING_DATE_CONFIG, employee_mapper=mapper_for(employee_rows)
+    )._build(lines, [])
 
 
 def provenance_blob(item):
@@ -1156,14 +1177,10 @@ def test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set():
     lines = lines + resolved_lines_for(OVERLAP_ROWS, RAW_DUC,
                                        [(20, date(2026, 2, 10))])
 
-    stats = collect_mapping_stats(lines, mapper_for(employees))
-    verdict = evaluate_raw_mapping(
-        stats.mapped, stats.groups, stats.unmapped, stats.ambiguities,
-        employees, GROUPS, stats.dataset_start, stats.dataset_end,
-        row_index=stats,
-    )
+    stats = collect_stats_from_lines(lines, mapper_for(employees))
+    verdict = evaluate_raw_mapping(stats)
     findings = list(verdict.findings) + list(
-        evaluate_inactive_records(mapper_for(employees), stats)
+        evaluate_inactive_records(stats)
     )
     assert findings, "fixture must produce findings"
 

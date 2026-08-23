@@ -57,7 +57,8 @@ from app.modules.mapping.employee_mapper import (  # noqa: E402
 # so this script's behaviour and output stay exactly as signed off in
 # CHECK-108A1-15 — that output is shipped evidence, not a draft.
 from app.modules.validation.employee_mapping import (  # noqa: E402
-    _overlaps,
+    MappingInput,
+    collect_mapping_stats,
     evaluate_raw_mapping,
     norm,
 )
@@ -193,61 +194,45 @@ def reconcile_summary(
 
 
 def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
-    # HD-110-10: cùng một biên canonical (INVARIANT L).
-    master = load_employee_master(CONFIG / "employees.yaml")
-    employee_rows = list(master.records)
-    declared_groups = set(master.group_codes)
-    prefixes = [
-        (norm(row["raw_prefix"]), norm(row["normalized"]), row)
-        for row in employee_rows
-    ]
-
+    # HD-110-12: script dựng ĐÚNG một `MappingStats` canonical rồi trao cho
+    # tiêu chí, thay vì tự đếm và tự khớp prefix song song với production. Nhờ
+    # `enumerate` từ `min_row=6` mà nó có số dòng thật, nên provenance của mọi
+    # finding dẫn từ dòng thô có thật — và con số trong message đọc từ chính
+    # provenance đó, không từ một counter thứ hai (RC-3).
+    #
+    # Vòng khớp prefix riêng của script đã biến mất cùng bộ đếm song song:
+    # giữ nó lại là giữ một bản cài đặt thứ hai của cùng một quy tắc, đúng
+    # thứ INVARIANT A tồn tại để loại bỏ. Output trên config hợp lệ không đổi,
+    # và điều đó được kiểm bằng L3/CHECK-108A1-15.
     wb = openpyxl.load_workbook(raw, read_only=True, data_only=True)
-    mapped: Counter = Counter()
-    groups: dict[str, str] = {}
-    unmapped: Counter = Counter()
-    ambiguities: dict[str, set] = {}
-    dataset_start: date | None = None
-    dataset_end: date | None = None
-    for row in wb.active.iter_rows(min_row=6, values_only=True):
+    inputs = []
+    for offset, row in enumerate(wb.active.iter_rows(min_row=6, values_only=True)):
         if not row[1] or len(row) < 13 or not row[12]:
             continue
         raw_value = norm(row[12])
         when = row[0].date() if hasattr(row[0], "date") else row[0]
         when = when if isinstance(when, date) else None
-        if when:
-            dataset_start = when if dataset_start is None else min(dataset_start, when)
-            dataset_end = when if dataset_end is None else max(dataset_end, when)
-
         result = mapper.resolve(raw_value, when)
-        if result.normalized:
-            mapped[result.normalized] += 1
-            groups[result.normalized] = result.group or "—"
-        else:
-            unmapped[raw_value] += 1
-
-        # Ambiguity is judged on THIS row's own date: two prefixes that only
-        # ever existed in disjoint periods are a handover, not a clash.
-        hits = {
-            name
-            for prefix, name, emp_row in prefixes
-            if raw_value.startswith(prefix)
-            and (when is None or _overlaps(emp_row, when, when))
-        }
-        if len(hits) > 1:
-            ambiguities[raw_value] = hits
+        inputs.append(
+            MappingInput(
+                source_file=raw.name,
+                source_row=6 + offset,
+                employee_raw=raw_value,
+                when=when,
+                normalized=result.normalized,
+                group=result.group,
+            )
+        )
     wb.close()
 
-    verdict = evaluate_raw_mapping(
-        mapped,
-        groups,
-        unmapped,
-        ambiguities,
-        employee_rows,
-        declared_groups,
-        dataset_start,
-        dataset_end,
-    )
+    stats = collect_mapping_stats(inputs, mapper)
+    mapped = stats.mapped
+    unmapped = stats.unmapped
+    groups = stats.groups
+    dataset_start = stats.dataset_start
+    dataset_end = stats.dataset_end
+
+    verdict = evaluate_raw_mapping(stats)
 
     span = (f"{dataset_start} .. {dataset_end}"
             if dataset_start and dataset_end else "không xác định")
@@ -270,7 +255,7 @@ def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
             print(f"      {line}")
     else:
         print(f"      F1 group referential integrity : OK "
-              f"({len(declared_groups)} group khai báo)")
+              f"({len(mapper.master.group_codes)} group khai báo)")
         print("      F3 không đụng độ prefix cùng kỳ : OK")
         print("      F5 mapping không rỗng           : OK")
 

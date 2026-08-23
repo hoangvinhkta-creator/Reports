@@ -27,7 +27,7 @@ from app.modules.validation.employee_mapping import (
     BUCKET_WARNING,
     MappingFinding,
     MappingStats,
-    collect_mapping_stats,
+    collect_stats_from_lines,
     evaluate_inactive_records,
     evaluate_raw_mapping,
 )
@@ -86,19 +86,16 @@ class Validator:
         # `employees.yaml` lần thứ hai: một không gian danh tính duy nhất là
         # điều khiến `RecordRef` có nghĩa.
         self._mapper = employee_mapper or EmployeeMapper(build_employee_master([], []))
-        # `employee_groups` KHÔNG còn là tham số độc lập: nó thuộc chính master
-        # snapshot mà mapper đang giữ (DEC-133). Trước đây `from_config_dir`
-        # đọc `employees.yaml` lần thứ hai chỉ để lấy nó, nên hai nửa của cùng
-        # một master có thể đến từ hai lần đọc khác nhau.
-        self._employee_groups = (
-            employee_groups
-            if employee_groups is not None
-            else self._mapper.master.group_codes
-        )
 
     @property
-    def _employee_rows(self) -> tuple:
-        return self._mapper.records
+    def _employee_groups(self) -> frozenset:
+        """Đọc từ chính master — tham số `employee_groups` đã bị XOÁ (RC-1).
+
+        Khi nó còn là tham số, `Validator` nhận được một tập group mâu thuẫn
+        với master mà không ai so hai bên: hai nguồn sự thật cho cùng một câu
+        hỏi "group nào hợp lệ".
+        """
+        return self._mapper.master.group_codes
 
     @classmethod
     def from_config_dir(
@@ -144,9 +141,9 @@ class Validator:
                 f"giữ {self._mapper.snapshot_id!r}. Hai master data khác nhau: "
                 "mọi quy dòng-về-record sau đây sẽ nói về những nhân viên khác."
             )
-        return self.build_queue(working.lines, working.orders)
+        return self._build(working.lines, working.orders)
 
-    def build_queue(
+    def _build(
         self, lines: list[WorkingLine], orders: list[Order]
     ) -> ReviewQueue:
         queue = ReviewQueue()
@@ -243,18 +240,8 @@ class Validator:
         if not lines:
             return []
 
-        stats = collect_mapping_stats(lines, self._mapper)
-        verdict = evaluate_raw_mapping(
-            mapped=stats.mapped,
-            groups=stats.groups,
-            unmapped=stats.unmapped,
-            ambiguities=stats.ambiguities,
-            employees=self._employee_rows,
-            declared_groups=self._employee_groups,
-            dataset_start=stats.dataset_start,
-            dataset_end=stats.dataset_end,
-            row_index=stats,
-        )
+        stats = collect_stats_from_lines(lines, self._mapper)
+        verdict = evaluate_raw_mapping(stats)
 
         severities = {
             BUCKET_HARD: entry.get("hard_failure_severity", SEVERITY_ERROR),
@@ -266,7 +253,7 @@ class Validator:
         # `evaluate_inactive_records` (Review #2, Finding 2).
         findings = [
             *verdict.findings,
-            *evaluate_inactive_records(self._mapper, stats),
+            *evaluate_inactive_records(stats),
         ]
         return [
             self._mapping_item(finding, severities[finding.bucket], stats)
@@ -291,13 +278,12 @@ class Validator:
         chỉ đọc các trường vô hướng, còn các khóa mang thông tin dòng do chính
         `RowProvenance` render ra.
         """
-        diagnostics = finding.diagnostics()
+        diagnostics = finding.diagnostics
 
         if finding.provenance.rows and not finding.batch_scoped:
             return ReviewItem(
                 category=CATEGORY_EMPLOYEE_MAPPING,
                 severity=severity,
-                message=finding.message,
                 scope=SCOPE_ROW,
                 provenance=finding.provenance,
                 diagnostics=diagnostics,
@@ -311,7 +297,6 @@ class Validator:
         return ReviewItem(
             category=CATEGORY_EMPLOYEE_MAPPING,
             severity=severity,
-            message=finding.message,
             scope=SCOPE_BATCH,
             provenance=finding.provenance,
             batch_source_file=(

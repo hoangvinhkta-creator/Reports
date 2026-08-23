@@ -64,7 +64,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
-from app.modules.config.loader import effective_rows, load_yaml
+from app.modules.config.loader import as_date, load_yaml
 from app.modules.domain.models import (
     MAPPING_STATUS_INACTIVE,
     MAPPING_STATUS_MAPPED,
@@ -134,142 +134,290 @@ def _clean(value: Any) -> str:
     return str(value).strip() if value is not None else ""
 
 
-def validate_employee_records(rows: list[dict], groups: list = None) -> None:
-    """Schema tối thiểu của master data nhân viên — HD-110-06, DEC-132.
+_SEAL = object()
 
-    Đặt ở `mapping/` chứ không ở `config/loader.py`: loader tuyên bố ngay
-    trong docstring rằng nó chỉ giữ cơ chế generic (đọc YAML, lọc theo ngày),
-    còn ngữ nghĩa đặc thù domain thuộc về consumer của từng config. Quy tắc
-    "một employee phải có prefix dùng được" là ngữ nghĩa domain.
 
-    **Referential integrity (HD-110-09, DEC-133).** `employee.group` phải có
-    trong `employee_groups`. Đây KHÔNG phải luật vệ sinh: `employee_group` là
-    một chiều tra `conversion_rates.yaml`, nên một group gõ sai rơi khỏi dòng
-    cụ thể và rớt xuống dòng `"*"`. Đo được: `NOI_THANH` → `NOI_THAN_2` rate
-    **2.0%**, còn `NOI_THAN` (thiếu một chữ H) → `PERSONAL_5_5` rate **5.5%**.
-    Một lỗi gõ dời tỉ lệ quy đổi 175%, im lặng, và tín hiệu duy nhất trước đây
-    là một dòng ERROR trong hàng chờ *không chặn import*.
+class SealedConstruction(TypeError):
+    """Một canonical object bị dựng ngoài factory đã parse (DEC-134, RC-1).
 
-    DEC-129 §1 từng đặt việc này vào Review Queue (tiêu chí F1). DEC-133 **thu
-    hẹp** phần đó dựa trên bằng chứng trên — bằng chứng chưa tồn tại khi
-    DEC-129 được chốt. DEC-129 không bị sửa hay xoá; F1 vẫn tồn tại và vẫn
-    chạy trên đường phân tích và test bypass validate.
+    Architecture Closure Audit chứng minh đây là root cause sâu nhất: biên
+    canonical trước đây là một HÀM (`build_employee_master`), không phải một
+    KIỂU. Giữ một `EmployeeMaster` vì thế **không chứng minh** nó đã validate,
+    đã đóng băng hay đã được định danh — `EmployeeMaster(...)` công khai đi
+    vòng qua cả ba, và đo được là nó chấp nhận prefix rỗng, group ma,
+    `active="no"`, cùng dict thô sửa được từ bên ngoài.
 
-    `raw_prefix` rỗng là ca nguy hiểm nhất và là lý do luật này tồn tại:
-    `"".startswith` khớp **mọi** chuỗi, nên một prefix rỗng lặng lẽ biến thành
-    catch-all và hút toàn bộ dòng lẽ ra `unmapped` về một người — tức là dời
-    quyền sở hữu KPI vì một lỗi gõ. HD-110-06 bác bỏ ngữ nghĩa đó dứt khoát:
-    prefix rỗng là cấu hình sai, không phải một tính năng.
+    Với seal, **việc giữ được object chính là bằng chứng nó hợp lệ**. Một chỗ
+    thì đi vòng được; một kiểu thì không.
     """
-    for index, row in enumerate(rows):
-        where = f"employees[{index}]"
-        if not isinstance(row, dict):
-            raise InvalidEmployeeConfig(f"{where}: phải là một mapping, gặp {type(row).__name__}")
 
-        for field_name in ("raw_prefix", "normalized"):
-            if field_name not in row:
-                raise InvalidEmployeeConfig(f"{where}: thiếu `{field_name}` bắt buộc")
-            if not _clean(row.get(field_name)):
-                raise InvalidEmployeeConfig(
-                    f"{where}: `{field_name}` rỗng hoặc chỉ có khoảng trắng "
-                    f"({row.get(field_name)!r}). Prefix rỗng khớp mọi chuỗi và "
-                    "sẽ nhận nhầm doanh số của người khác — HD-110-06 cấm."
-                )
 
-        if not _clean(row.get("group")):
-            raise InvalidEmployeeConfig(
-                f"{where}: thiếu `group` bắt buộc hoặc để rỗng"
+@dataclass(frozen=True)
+class DateWindow:
+    """Cửa sổ hiệu lực ĐÃ PARSE (DEC-121, RC-4).
+
+    Parse, đừng validate: khi cửa sổ đã là hai `date` thật thì "ngày méo mó"
+    không còn là điều kiện ai đó phải nhớ kiểm — nó là một phép parse thất bại
+    tại biên master. Audit đo được bản trước chấp nhận `"hôm qua"`,
+    `"2026-13-45"` và `20260101` lúc load rồi nổ `ValueError`/`TypeError`
+    **giữa lúc xử lý giao dịch**.
+    """
+
+    start: date
+    end: date
+
+    def covers(self, when: date) -> bool:
+        return self.start <= when <= self.end
+
+
+@dataclass(frozen=True)
+class EmployeeRecord:
+    """Một bản ghi employee ĐÃ PARSE sang trạng thái hợp lệ.
+
+    Mọi trường đã đúng kiểu; `window` đã parse và đã kiểm `start <= end`.
+    Không consumer nào còn phải tự phòng thủ.
+
+    `__getitem__`/`get` là **cùng một dữ liệu, hai cú pháp đọc** — không phải
+    bản sao thứ hai. Chúng tồn tại để `reconcile_conversion.py` đọc được mà
+    không phải viết lại logic đối chiếu đã freeze.
+    """
+
+    raw_prefix: str
+    normalized: str
+    group: str
+    active: bool
+    window: DateWindow
+    default_lead_source: Optional[str]
+    include_in_kpi: Optional[bool]
+    _seal: Any = None
+
+    def __post_init__(self) -> None:
+        if self._seal is not _SEAL:
+            raise SealedConstruction(
+                "EmployeeRecord chỉ dựng được qua `parse_employee_record()`."
             )
 
-        if "active" not in row:
-            raise InvalidEmployeeConfig(f"{where}: thiếu `active` bắt buộc")
-        if not isinstance(row.get("active"), bool):
+    def __getitem__(self, key: str) -> Any:
+        if key in ("raw_prefix", "normalized", "group", "active",
+                   "default_lead_source", "include_in_kpi"):
+            return getattr(self, key)
+        if key == "effective_from":
+            return self.window.start
+        if key == "effective_to":
+            return self.window.end
+        raise KeyError(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+def _parse_date(value: Any, where: str, field_name: str) -> Optional[date]:
+    try:
+        return as_date(value)
+    except (TypeError, ValueError) as exc:
+        raise InvalidEmployeeConfig(
+            f"{where}: `{field_name}` không phải một ngày hợp lệ ({value!r}) — {exc}"
+        ) from exc
+
+
+def parse_employee_record(row: Any, index: int, declared: frozenset) -> EmployeeRecord:
+    """Biến một dòng YAML thô thành `EmployeeRecord` hợp lệ, hoặc raise.
+
+    Đây là **toàn bộ** định nghĩa "master hợp lệ" của hệ thống. Không có danh
+    sách điều kiện nào ở nơi khác: cái gì không parse được ở đây thì không tồn
+    tại ở hạ nguồn.
+    """
+    where = f"employees[{index}]"
+    if not isinstance(row, dict):
+        raise InvalidEmployeeConfig(
+            f"{where}: phải là một mapping, gặp {type(row).__name__}"
+        )
+
+    for field_name in ("raw_prefix", "normalized"):
+        if field_name not in row:
+            raise InvalidEmployeeConfig(f"{where}: thiếu `{field_name}` bắt buộc")
+        value = row.get(field_name)
+        if type(value) is not str:
             raise InvalidEmployeeConfig(
-                f"{where}: `active` phải là boolean, gặp "
-                f"{row.get('active')!r}. Một chuỗi \"false\" là truthy trong "
-                "Python và sẽ khiến một người đã nghỉ vẫn được tính active."
+                f"{where}: `{field_name}` phải là chuỗi thuần, gặp "
+                f"{type(value).__name__} ({value!r}). Một prefix không phải "
+                "chuỗi sẽ nổ `startswith` giữa lúc xử lý giao dịch; một lớp con "
+                "của `str` có thể đổi giá trị giữa hai lần đọc."
+            )
+        if not value.strip():
+            raise InvalidEmployeeConfig(
+                f"{where}: `{field_name}` rỗng hoặc chỉ có khoảng trắng "
+                f"({value!r}). Prefix rỗng khớp mọi chuỗi và sẽ nhận nhầm "
+                "doanh số của người khác — HD-110-06 cấm."
             )
 
-    if groups is None:
-        return
+    group = row.get("group")
+    if type(group) is not str or not group.strip():
+        raise InvalidEmployeeConfig(
+            f"{where}: thiếu `group` bắt buộc hoặc không phải chuỗi ({group!r})"
+        )
+    if group not in declared:
+        raise InvalidEmployeeConfig(
+            f"{where}: `group` {group!r} không có trong `employee_groups` "
+            f"(đã khai: {sorted(declared)}). Group là một chiều tra tỉ lệ quy "
+            'đổi — một group không tồn tại sẽ rơi xuống dòng `"*"` và đổi tỉ lệ '
+            "trong im lặng (HD-110-09)."
+        )
 
-    declared = {str(g.get("code")) for g in groups if isinstance(g, dict) and g.get("code")}
-    for index, row in enumerate(rows):
-        group = _clean(row.get("group"))
-        if group not in declared:
+    if "active" not in row:
+        raise InvalidEmployeeConfig(f"{where}: thiếu `active` bắt buộc")
+    if type(row.get("active")) is not bool:
+        raise InvalidEmployeeConfig(
+            f"{where}: `active` phải là boolean, gặp {row.get('active')!r}. "
+            'Một chuỗi "false" là truthy trong Python và sẽ khiến một người đã '
+            "nghỉ vẫn được tính active."
+        )
+
+    for optional, kinds in (("default_lead_source", (str,)), ("include_in_kpi", (bool,))):
+        value = row.get(optional)
+        if value is not None and type(value) not in kinds:
             raise InvalidEmployeeConfig(
-                f"employees[{index}]: `group` {group!r} không có trong "
-                f"`employee_groups` (đã khai: {sorted(declared)}). Group là một "
-                "chiều tra tỉ lệ quy đổi — một group không tồn tại sẽ rơi xuống "
-                "dòng `\"*\"` và đổi tỉ lệ trong im lặng (HD-110-09)."
+                f"{where}: `{optional}` phải là {kinds[0].__name__} hoặc null, "
+                f"gặp {type(value).__name__} ({value!r})"
             )
 
+    starts = _parse_date(row.get("effective_from"), where, "effective_from") or date.min
+    ends = _parse_date(row.get("effective_to"), where, "effective_to") or date.max
+    if starts > ends:
+        raise InvalidEmployeeConfig(
+            f"{where}: cửa sổ hiệu lực bất khả — `effective_from` {starts} sau "
+            f"`effective_to` {ends}. Bản ghi này không bao giờ khớp dòng nào, "
+            "nên toàn bộ doanh số của người đó biến mất trong im lặng."
+        )
 
-def _freeze(value: Any) -> Any:
-    """Ép sâu sang cấu trúc bất biến (INVARIANT I).
-
-    `frozen=True` chỉ cấm gán lại thuộc tính; nó không cấm sửa đối tượng mà
-    thuộc tính trỏ tới. Một record là `dict` nên nếu giữ nguyên tham chiếu của
-    caller thì master "bất biến" vẫn đổi được từ bên ngoài — và `snapshot_id`
-    đã tính xong sẽ nói dối. Nên ở biên này ta **sao chép và đóng băng**, chứ
-    không chỉ kiểm tra.
-    """
-    if isinstance(value, dict):
-        return MappingProxyType({k: _freeze(v) for k, v in value.items()})
-    if isinstance(value, (list, tuple)):
-        return tuple(_freeze(v) for v in value)
-    return value
-
-
-def _snapshot_id(records: tuple, groups: tuple) -> str:
-    """Danh tính DẪN TỪ NỘI DUNG của master snapshot.
-
-    Dẫn từ nội dung chứ không phải `id()` hay một số đếm, để "hai master này
-    là cùng một master data" trở thành mệnh đề **chứng minh được**. Nhờ vậy
-    `Validator.from_config_dir()` tự dựng mapper từ cùng file vẫn hợp lệ, và
-    hai lần đọc một file không đổi bằng nhau một cách chính đáng.
-
-    `sort_keys` + `default=str` để thứ tự khoá trong YAML và các kiểu ngày
-    không làm id nhảy loạn giữa hai lần chạy.
-    """
-    payload = json.dumps(
-        {"employees": records, "employee_groups": groups},
-        sort_keys=True,
-        ensure_ascii=False,
-        default=str,
+    return EmployeeRecord(
+        raw_prefix=str(row["raw_prefix"]),
+        normalized=str(row["normalized"]),
+        group=str(group),
+        active=row["active"],
+        window=DateWindow(starts, ends),
+        default_lead_source=(
+            None if row.get("default_lead_source") is None
+            else str(row["default_lead_source"])
+        ),
+        include_in_kpi=row.get("include_in_kpi"),
+        _seal=_SEAL,
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def parse_employee_master_rows(rows: list, groups: list):
+    """Parse toàn bộ master + kiểm các bất biến CHỈ thấy được ở cấp tập hợp."""
+    declared = frozenset(
+        g.get("code")
+        for g in (groups or [])
+        if isinstance(g, dict) and type(g.get("code")) is str and g.get("code")
+    )
+    parsed = tuple(
+        parse_employee_record(row, index, declared)
+        for index, row in enumerate(rows or [])
+    )
+
+    # `raw_prefix` TRÙNG KHÍT giữa hai employee KHÁC NHAU (HD-110-15).
+    # `resolve` chọn bản ghi đầu tiên, nên người còn lại mất toàn bộ doanh số
+    # mà không có tín hiệu nào — cùng lớp lỗi với group gõ sai ở HD-110-09.
+    # Prefix LỒNG NHAU vẫn hợp lệ: `"Vũ Hạnh"` và `"Vũ Hạnh Ly"` là hai người
+    # thật, và luật "prefix dài nhất thắng" phân biệt được họ.
+    # Chỉ cấm khi CỬA SỔ HIỆU LỰC CHỒNG NHAU. Đó đúng là tình huống gây hại mà
+    # HD-110-15 nhắm tới: `resolve` chọn bản ghi đầu tiên, nên người còn lại
+    # mất toàn bộ doanh số trong im lặng.
+    #
+    # Cùng prefix với cửa sổ RỜI NHAU **không** phải lỗi — đó chính là cách
+    # DEC-121 diễn đạt một lượt BÀN GIAO: đóng dòng cũ bằng `effective_to`, mở
+    # dòng mới bằng `effective_from`. Cấm nó sẽ phá một quy tắc nghiệp vụ
+    # canonical, và không có dòng nào bị mất vì bộ lọc hiệu lực phân biệt được
+    # hai bản ghi theo ngày của chính dòng đó.
+    for index, record in enumerate(parsed):
+        for earlier in range(index):
+            other = parsed[earlier]
+            if record.raw_prefix != other.raw_prefix:
+                continue
+            if record.window.start > other.window.end or other.window.start > record.window.end:
+                continue  # bàn giao (DEC-121) — hợp lệ
+            raise InvalidEmployeeConfig(
+                f"employees[{index}]: `raw_prefix` {record.raw_prefix!r} trùng "
+                f"khít với employees[{earlier}] ({other.normalized!r}) và hai "
+                "cửa sổ hiệu lực CHỒNG NHAU. Chỉ một trong hai từng khớp được "
+                "dòng nào; người kia mất toàn bộ doanh số trong im lặng "
+                "(HD-110-15). Prefix LỒNG NHAU, và cùng prefix với cửa sổ RỜI "
+                "NHAU (bàn giao, DEC-121), vẫn hợp lệ."
+            )
+
+    return parsed, declared
+
+
+def _snapshot_payload(records: tuple, groups: frozenset) -> str:
+    """Nội dung LOGIC của master, chuẩn hoá — nền của danh tính dẫn xuất."""
+    return json.dumps(
+        {
+            "employees": [
+                [r.raw_prefix, r.normalized, r.group, r.active,
+                 r.window.start.isoformat(), r.window.end.isoformat(),
+                 r.default_lead_source, r.include_in_kpi]
+                for r in records
+            ],
+            "employee_groups": sorted(groups),
+        },
+        ensure_ascii=False,
+    )
 
 
 @dataclass(frozen=True)
 class EmployeeMaster:
-    """Master data nhân viên đã validate, bất biến, CÓ DANH TÍNH (DEC-133).
+    """Master nhân viên: VALIDATED + DEEP IMMUTABLE + IDENTIFIED + SEALED.
 
-    Sở hữu **cả** `employees` lẫn `employee_groups`. Trước đây `Validator` đọc
-    `employee_groups` bằng một lần `load_yaml` riêng kể cả khi đã được truyền
-    mapper, nên hai nửa của một master có thể đến từ hai lần đọc khác nhau.
-    Gộp chúng lại cũng chính là thứ cho referential integrity một cái nhà:
-    `employee.group ∈ employee_groups` chỉ kiểm được khi một đối tượng biết cả
-    hai (HD-110-09).
+    Bốn tính chất đó nay là **một**: chỉ `_build_master()` dựng được object
+    này, và nó chỉ dựng từ `EmployeeRecord` đã parse. Giữ được một
+    `EmployeeMaster` chính là bằng chứng cả bốn đều đúng — không còn "một hàm
+    nào đó lẽ ra đã kiểm" (RC-1).
+
+    **Bất biến sâu là hệ quả, không phải một bước riêng.** `records` là tuple
+    các `EmployeeRecord` frozen, mọi trường vô hướng đã parse — không còn dict
+    thô nào để alias từ bên ngoài, nên `_freeze()` thủ công biến mất cùng với
+    lớp lỗi của nó.
+
+    `snapshot_id` là **property dẫn xuất**, không còn là field: khi nó là
+    field, caller đặt được giá trị tuỳ ý và phép so của `Validator` bị qua mặt
+    bằng cách dựng master nội dung B mang id của A.
     """
 
-    records: tuple[Mapping[str, Any], ...]
-    groups: tuple[Mapping[str, Any], ...]
-    snapshot_id: str
-    refs: tuple[RecordRef, ...] = field(default_factory=tuple)
+    records: tuple
+    group_codes: frozenset
+    _seal: Any = None
+
+    def __post_init__(self) -> None:
+        if self._seal is not _SEAL:
+            raise SealedConstruction(
+                "EmployeeMaster chỉ dựng được qua `load_employee_master()` hoặc "
+                "`build_employee_master()`. Dựng trực tiếp sẽ đi vòng qua parse, "
+                "đóng băng và định danh — đó là RC-1 của Architecture Closure Audit."
+            )
 
     @property
-    def group_codes(self) -> frozenset:
-        return frozenset(
-            str(g.get("code")) for g in self.groups if g.get("code")
+    def snapshot_id(self) -> str:
+        """Dẫn từ NỘI DUNG LOGIC, nên 'hai master là cùng một master data' là
+        mệnh đề chứng minh được — và không ai đặt được nó bằng tay."""
+        return hashlib.sha256(
+            _snapshot_payload(self.records, self.group_codes).encode("utf-8")
+        ).hexdigest()[:16]
+
+    @property
+    def refs(self) -> tuple:
+        snapshot_id = self.snapshot_id
+        return tuple(
+            RecordRef(snapshot_id=snapshot_id, index=i, label=_employee_label(r))
+            for i, r in enumerate(self.records)
         )
 
-    def record(self, ref: RecordRef) -> Mapping[str, Any]:
-        """Đọc lại record theo danh tính — TỪ CHỐI ref của snapshot khác.
-
-        Đây là điểm mà Review #6 M1 nổ ra: bản trước index thẳng vào list và
-        trả về một nhân viên khác hẳn, im lặng.
-        """
+    def record(self, ref: RecordRef) -> EmployeeRecord:
+        """Đọc lại record theo danh tính — TỪ CHỐI ref của snapshot khác."""
         if ref.snapshot_id != self.snapshot_id:
             raise ForeignRecordRef(
                 f"RecordRef thuộc snapshot {ref.snapshot_id!r} nhưng đang được "
@@ -282,52 +430,53 @@ class EmployeeMaster:
     def ref_for_index(self, index: int) -> RecordRef:
         return self.refs[index]
 
+    def effective(self, as_of: Optional[date]) -> tuple:
+        """Chỉ số các record đang hiệu lực tại `as_of`.
+
+        Nguồn sự thật DUY NHẤT cho effective-dating của employee (T7): trước
+        đây quy tắc này có ba bản cài đặt (`effective_rows`, `_overlaps`, và
+        vòng riêng của script).
+        """
+        if as_of is None:
+            return tuple(range(len(self.records)))
+        return tuple(
+            i for i, r in enumerate(self.records) if r.window.covers(as_of)
+        )
+
+
+def _build_master(records: list, groups: list) -> EmployeeMaster:
+    parsed, declared = parse_employee_master_rows(records, groups)
+    return EmployeeMaster(records=parsed, group_codes=declared, _seal=_SEAL)
+
 
 def load_employee_master(path: Path) -> EmployeeMaster:
-    """Biên canonical DUY NHẤT để nạp master nhân viên (INVARIANT L, DEC-133).
-
-    Mọi consumer đi qua đây. Trước Review #6 có sáu điểm nạp `employees.yaml`,
-    ba trong số đó là `load_yaml` thô không validate gì — nên fail-fast không
-    có điểm nghẽn và referential integrity không có nhà.
-    """
+    """Biên canonical DUY NHẤT để nạp master nhân viên (INVARIANT L)."""
     data = load_yaml(path)
-    return build_employee_master(
+    return _build_master(
         data.get("employees", []) or [], data.get("employee_groups", []) or []
     )
 
 
-def build_employee_master(
-    records: list, groups: list, validate: bool = True
-) -> EmployeeMaster:
-    """Dựng snapshot từ dữ liệu đã đọc sẵn.
+def build_employee_master(records: list, groups: list) -> EmployeeMaster:
+    """Dựng snapshot từ dữ liệu đã đọc sẵn — luôn parse, không có cửa tắt.
 
-    `validate=False` CHỈ dành cho test cần dựng cố ý master mâu thuẫn để quan
-    sát hành vi hạ nguồn (ví dụ F6 cần một record `active: false` có dòng).
-    Luồng production không bao giờ dùng nó.
+    Tham số `validate=False` đã bị **XOÁ** (RC-1): nó là một bypass production
+    tồn tại chỉ để phục vụ test. Test cần master mâu thuẫn thì dựng nó bằng
+    dữ liệu hợp lệ nhưng mâu thuẫn về nghiệp vụ (ví dụ `active: false` mà vẫn
+    có dòng), chứ không bằng cách tắt phép parse.
     """
-    if validate:
-        validate_employee_records(records, groups)
-    frozen_records = tuple(_freeze(r) for r in records)
-    frozen_groups = tuple(_freeze(g) for g in groups)
-    snapshot_id = _snapshot_id(frozen_records, frozen_groups)
-    refs = tuple(
-        RecordRef(snapshot_id=snapshot_id, index=i, label=_employee_label(r))
-        for i, r in enumerate(frozen_records)
-    )
-    return EmployeeMaster(
-        records=frozen_records,
-        groups=frozen_groups,
-        snapshot_id=snapshot_id,
-        refs=refs,
-    )
+    return _build_master(records, groups)
 
 
-def _employee_label(record: dict) -> str:
+def _employee_label(record: EmployeeRecord) -> str:
     """Danh tính người đọc hành động được — chỉ riêng tên là không đủ khi hai
-    record cố ý dùng chung tên trong một lượt bàn giao (DEC-121)."""
-    starts = record.get("effective_from") or "—"
-    ends = record.get("effective_to") or "—"
-    return f"{_clean(record.get('normalized'))}[{_clean(record.get('raw_prefix'))}|{starts}..{ends}]"
+    record cố ý dùng chung tên trong một lượt bàn giao (DEC-121).
+
+    CHỈ để render cho người đọc. Không bao giờ là khoá tra cứu.
+    """
+    starts = "—" if record.window.start == date.min else record.window.start.isoformat()
+    ends = "—" if record.window.end == date.max else record.window.end.isoformat()
+    return f"{record.normalized}[{record.raw_prefix}|{starts}..{ends}]"
 
 
 class EmployeeMapper:
@@ -374,7 +523,7 @@ class EmployeeMapper:
     def refs(self) -> tuple[RecordRef, ...]:
         return self._master.refs
 
-    def record(self, ref: RecordRef) -> Mapping[str, Any]:
+    def record(self, ref: RecordRef) -> EmployeeRecord:
         """Uỷ quyền cho master, nên kiểm tra sở hữu không thể bị đi vòng."""
         return self._master.record(ref)
 
@@ -394,24 +543,11 @@ class EmployeeMapper:
         """
         if not employee_raw:
             return ()
-        if as_of:
-            # So khớp theo ĐỊNH DANH ĐỐI TƯỢNG, không theo bằng nhau về giá
-            # trị: `effective_rows` trả về chính các dict đã truyền vào, còn
-            # hai record trùng nhau từng trường vẫn là hai record khác nhau
-            # (đó là toàn bộ nội dung Finding 3). Dùng `in` ở đây sẽ gộp chúng
-            # lại đúng theo cách vừa bị loại bỏ.
-            effective = {id(row) for row in effective_rows(self._rows, as_of)}
-            indexes = [
-                index
-                for index, row in enumerate(self._rows)
-                if id(row) in effective
-            ]
-        else:
-            indexes = list(range(len(self._rows)))
+        refs = self.refs
         return tuple(
-            self.refs[index]
-            for index in indexes
-            if employee_raw.startswith(self._rows[index]["raw_prefix"])
+            refs[index]
+            for index in self._master.effective(as_of)
+            if employee_raw.startswith(self._master.records[index].raw_prefix)
         )
 
     def resolve_record(
@@ -427,7 +563,7 @@ class EmployeeMapper:
             return None
         # Prefix cụ thể nhất thắng nếu nhiều hơn một dòng cấu hình cùng khớp.
         # `max` giữ phần tử đầu tiên khi hòa, y hệt hành vi trước đây.
-        return max(candidates, key=lambda ref: len(self.record(ref)["raw_prefix"]))
+        return max(candidates, key=lambda ref: len(self.record(ref).raw_prefix))
 
     def resolve(
         self, employee_raw: Optional[str], as_of: Optional[date]
@@ -437,13 +573,13 @@ class EmployeeMapper:
             return MappingResult(None, MAPPING_STATUS_UNMAPPED, None, None)
 
         best = self.record(ref)
-        status = MAPPING_STATUS_MAPPED if best.get("active", True) else MAPPING_STATUS_INACTIVE
+        status = MAPPING_STATUS_MAPPED if best.active else MAPPING_STATUS_INACTIVE
         return MappingResult(
-            normalized=best["normalized"],
+            normalized=best.normalized,
             status=status,
-            default_lead_source=best.get("default_lead_source"),
-            include_in_kpi=best.get("include_in_kpi"),
-            group=best.get("group"),
+            default_lead_source=best.default_lead_source,
+            include_in_kpi=best.include_in_kpi,
+            group=best.group,
             record=ref,
         )
 

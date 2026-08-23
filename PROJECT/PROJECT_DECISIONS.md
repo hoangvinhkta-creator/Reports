@@ -1796,3 +1796,106 @@ Can Revisit After:
 Khi TASK-201 thêm persistence cho Review Queue: `RowProvenance` và
 `Diagnostics` là thứ được ghi xuống, nên biểu diễn lưu trữ cần xem lại — bất
 biến thì không đổi.
+
+## DEC-134
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Closure, sau Independent Review #7
+
+Decision:
+
+Hai quyết định của chủ dự án (HD-110-16, HD-110-17), cộng một chấp thuận về
+biểu diễn, chốt sau Architecture Closure Audit.
+
+**1 — HD-110-16: nới MUST NOT CHANGE cho đúng một file.**
+
+`tests/test_reconcile_raw_criteria.py` được phép sửa để: chuyển 15 lời gọi
+`evaluate_raw_mapping(...)` 8-tham-số-vị-trí sang **một** `MappingStats`
+canonical, và migrate đúng 2 test F1 sang `pytest.raises(InvalidEmployeeConfig)`.
+Ý định từng test giữ nguyên, không test nào bị xoá: 13 test trước → 13 test sau.
+
+Không được tạo shim 8-tham-số, không giữ hai implementation song song, không
+tạo bypass production, không dùng `validate=False`.
+
+**2 — HD-110-17: F1 được SUPERSEDED, không phải bị bỏ.**
+
+Ngữ nghĩa canonical mới:
+
+    master nhân viên không hợp lệ
+    → fail-fast tại `load_employee_master()` / `EmployeeMaster`
+    → TRƯỚC khi xử lý bất kỳ giao dịch nào
+    → Review Queue không bao giờ nhận được trạng thái đó
+
+F1 ("group phải khai trong `employee_groups`") vì thế trở thành bất khả đạt và
+được gỡ khỏi bộ tiêu chí. DEC-129 §1 và DEC-133 **không** bị sửa; quyết định
+này ghi lại việc thay thế và liên kết lịch sử.
+
+**3 — Biểu diễn `snapshot_id`.**
+
+`snapshot_id` chuyển từ *field caller đặt được* sang *property dẫn xuất từ nội
+dung master*. Chấp thuận với điều kiện — và đã chứng minh — rằng: mọi trường
+nghiệp vụ IDENTICAL (`normalized`, `status`, `group`, `include_in_kpi`,
+`default_lead_source`, `record.index`, `record.label`) trên toàn bộ 972 tổ hợp;
+id dẫn từ nội dung; caller không truyền được; cùng logical master → cùng id;
+khác logical master → khác id; id không tham gia bất kỳ phép tính nghiệp vụ nào.
+
+**4 — Năm root cause được đóng bằng cấu trúc.**
+
+- **RC-1 — biên canonical là KIỂU, không phải HÀM.** `EmployeeMaster`,
+  `EmployeeRecord`, `AffectedRow`, `RowProvenance` đều **sealed**: chỉ factory
+  đã parse dựng được. Giữ được object chính là bằng chứng nó hợp lệ.
+- **RC-2 — không còn văn bản tự do tại canonical boundary.**
+  `ReviewItem.message` không còn là tham số; nó là property do
+  `app/modules/validation/renderer.py` sinh ra từ đúng `(Diagnostics,
+  RowProvenance)` của chính item. Renderer không có đầu vào nào khác nên không
+  thể nêu một dòng ngoài provenance. Không blacklist, không regex.
+- **RC-3 — hai sự thật không còn là hai tham số.** `evaluate_raw_mapping(stats)`
+  nhận đúng một `MappingStats` sở hữu đồng thời bộ đếm, chỉ mục dòng và mapper.
+  Mọi con số "bao nhiêu dòng" trong message đọc từ `provenance`.
+- **RC-4 — parse, đừng validate.** `EmployeeRecord` + `DateWindow` là trạng
+  thái đã parse; ngày méo mó, sai kiểu, cửa sổ bất khả, group ma, prefix trùng
+  khít chồng cửa sổ đều là **parse thất bại tại biên master**.
+- **RC-5 — oracle kiểm STRUCTURE.** L1 phủ `MappingResult` bằng
+  `dataclasses.fields()`; L2 phủ RawRow + WorkingLine + Order và giữ
+  `order_graph` (Order → source_row theo thứ tự); không regex-over-message.
+
+Reason:
+
+Architecture Closure Audit chứng minh một câu: **mọi invariant của TASK-110
+được cưỡng chế tại một CHỖ (một hàm, một check, một test) thay vì được MANG bởi
+một KIỂU. Một chỗ thì đi vòng được; một kiểu thì không.** Đó là lý do sáu vòng
+review không hội tụ — mỗi vòng thêm một chỗ, vòng sau tìm con đường không đi
+qua chỗ đó.
+
+Bằng chứng đo tại `2d1da98`, tất cả nay đã đóng: `EmployeeMaster(...)` công
+khai nhận prefix rỗng + group ma + `active="no"` + dict thô sửa được từ ngoài;
+`ReviewItem(message="…dòng 7777")` dựng được trên item sở hữu dòng 6; một lớp
+con của `str` làm `details` trả giá trị khác nhau giữa hai lần đọc;
+`AffectedRow("KHONG_TON_TAI.xlsx", 99999)` dựng được; `evaluate_raw_mapping`
+nhận Counter nói "50 dòng" cùng provenance nói 0; oracle bỏ sót
+`MappingResult.record` và mù hoàn toàn với việc dời một line giữa hai Order.
+
+**Ghi chú thực thi về HD-110-15.** Luật "cấm `raw_prefix` trùng khít" được áp
+**chỉ khi hai cửa sổ hiệu lực chồng nhau**. Đó đúng là tình huống gây hại mà
+HD-110-15 mô tả (một người mất sạch doanh số trong im lặng). Cùng prefix với
+cửa sổ **rời nhau** là cách DEC-121 diễn đạt một lượt **bàn giao** — cấm nó sẽ
+phá một quy tắc nghiệp vụ canonical, và không dòng nào bị mất vì bộ lọc hiệu
+lực phân biệt được hai bản ghi theo ngày của chính dòng đó.
+
+Impact:
+
+- Không đổi: employee mapping trên config hợp lệ, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109, output `reconcile_conversion.py` trên config hợp lệ.
+- L1 semantic IDENTICAL (972 tổ hợp), L1 v1 IDENTICAL, L2 scalar IDENTICAL,
+  L2 graph IDENTICAL — so với baseline `e221924` chụp tại `2d1da98`.
+- 20/20 case falsification của Audit = CLOSED.
+- DEC-128 → DEC-133 **không** bị sửa.
+- CHECK-110-16 tiếp tục **BLOCKED**.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence: `RowProvenance` và `Diagnostics` là thứ được ghi
+xuống, nên biểu diễn lưu trữ cần xem lại — bất biến thì không đổi.

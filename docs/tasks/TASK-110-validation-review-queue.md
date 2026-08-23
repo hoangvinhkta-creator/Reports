@@ -3,16 +3,21 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — architecture repair #2 sau Independent Review #6.**
+**IMPLEMENTED — ARCHITECTURE CLOSURE sau Independent Review #7.**
 **NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
 
-Completion Gate **FROZEN** 2026-08-23. Sáu vòng review, **cả sáu đều FAIL**;
-bản sửa của vòng #6 đã xong nhưng **chưa được review nào PASS**:
+Completion Gate **FROZEN** 2026-08-23. Bảy vòng review, **cả bảy đều FAIL**;
+bản sửa của vòng #7 đã xong nhưng **chưa được review nào PASS**:
 
 - **Review #1 — FAIL, 6 finding** (S017). Ba Human Decision → **DEC-129**.
 - **Review #2 — FAIL, 4 finding** (S018). Không phát sinh Human Decision mới.
 - **Review #3 — FAIL, 3 finding** (S019). **HD-110-04** → **DEC-130**.
 - **Review #4 — FAIL, 2 provenance defect** (S020). **HD-110-05** → **DEC-131**.
+- **Review #7 — FAIL** (S023). **Architecture Closure**: audit chứng minh mọi
+  invariant được cưỡng chế tại một *chỗ* thay vì được mang bởi một *kiểu*, nên
+  vòng nào cũng còn một đường vòng. Năm root cause RC-1→RC-5 đóng bằng cấu
+  trúc; **20/20** case falsification CLOSED (trước: 7/20). Hai Human Decision —
+  **HD-110-16/17** → **DEC-134**.
 - **Review #6 — FAIL, 6 finding** (S022). Architecture Repair #2: root cause
   chính là cơ chế của bản sửa lần trước — **enumeration** (danh sách đen, chỉ
   số vị trí, danh sách trắng) làm cơ chế cưỡng chế ở mọi biên. Audit tìm thêm
@@ -25,12 +30,14 @@ bản sửa của vòng #6 đã xong nhưng **chưa được review nào PASS**:
   thô). Ba Human Decision — **HD-110-06/07/08** → **DEC-132**.
 
 21/22 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
-chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **342/342 test
-PASS** (191 mới so với baseline `c7a1b24`, 0 regression). Xung đột canonical
-phát sinh khi triển khai HD-110-09 đã được giải quyết bằng phương án A — xem
-DEC-133, mục "Canonical migration của expected failure mode".
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED).
 
-Chờ **Independent Review #7**.
+Điều kiện Closure — **không** dùng số lượng test làm bằng chứng: RC-1→RC-5
+CLOSED · **20/20** falsification CLOSED · 7/7 mutation class chứng minh oracle
+có thể FAIL · business non-regression PASS (L1 semantic, L1 v1, L2 scalar,
+L2 graph đều IDENTICAL) · TASK-108A-1 24/24 PASS.
+
+Chờ **Independent Review #8**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -216,6 +223,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.R2 — Sửa 4 finding của Independent Review #2 (S018).
 - [x] 110.R3 — Sửa 3 finding của Independent Review #3 (S019), gồm HD-110-04.
 - [x] 110.R4 — Sửa 2 provenance defect của Independent Review #4 (S020), gồm HD-110-05.
+- [x] 110.R7 — **Architecture Closure** sau Independent Review #7 (S023), gồm HD-110-16/17 (DEC-134): sealed construction, message/details dẫn xuất, một tham số canonical, parse-đừng-validate, oracle structural + graph.
 - [x] 110.R6 — **Architecture repair #2** sau Independent Review #6 (S022), gồm HD-110-09/10/11 (DEC-133): invariant P/I/M/C/L/O; xoá kênh `dict[str, str]` lưu trữ; `EmployeeMaster` có `snapshot_id`; một biên nạp master canonical; oracle structural.
 - [x] 110.R5 — **Architecture repair** sau Independent Review #5 (S021), gồm HD-110-06/07/08 (DEC-132): xóa nguồn sự thật thứ hai cho việc chọn employee record, xóa kênh provenance song song, fail-fast cho master data hỏng.
 

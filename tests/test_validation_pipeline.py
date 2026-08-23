@@ -99,7 +99,7 @@ def test_every_category_code_is_reachable_and_distinct():
     orders[1].lead_source_auto = PERSONAL
     orders[1].lead_source_manual = "ADS"  # Source classification
 
-    queue = Validator.from_config_dir(REPO_ROOT / "config").build_queue(lines, orders)
+    queue = Validator.from_config_dir(REPO_ROOT / "config")._build(lines, orders)
     found = set(queue.counts_by_category())
 
     assert found == set(CATEGORIES), f"missing: {set(CATEGORIES) - found}"
@@ -161,7 +161,7 @@ def test_aggregate_pending_item_disappears_once_prices_resolve():
     working.employee_normalized = "Ly"
     working.employee_mapping_status = MAPPING_STATUS_MAPPED
 
-    queue = Validator.from_config_dir(REPO_ROOT / "config").build_queue([working], [])
+    queue = Validator.from_config_dir(REPO_ROOT / "config")._build([working], [])
 
     assert queue.by_category(CATEGORY_MISSING_PURCHASE_PRICE) == []
 
@@ -216,7 +216,7 @@ def test_building_the_queue_changes_nothing_about_the_data(synthetic_raw_path):
     working = build_working_data(synthetic_raw_path)
 
     before = _snapshot(working.lines, working.orders)
-    Validator.from_config_dir(REPO_ROOT / "config").build_queue(
+    Validator.from_config_dir(REPO_ROOT / "config")._build(
         working.lines, working.orders
     )
     after = _snapshot(working.lines, working.orders)
@@ -388,9 +388,9 @@ def test_every_queue_item_from_a_real_import_is_traceable(synthetic_raw_path):
 
 
 def _one_row():
-    from app.modules.validation.models import AffectedRow, RowProvenance
+    from tests.support.rows import provenance
 
-    return RowProvenance((AffectedRow("s.xlsx", 6),))
+    return provenance(6)
 
 
 def test_an_untraceable_item_cannot_even_be_constructed():
@@ -399,22 +399,21 @@ def test_an_untraceable_item_cannot_even_be_constructed():
 
     from app.modules.validation.models import ReviewItem
 
-    from app.modules.validation.models import AffectedRow, RowProvenance
+    from tests.support.rows import provenance
 
     # Không có dòng và cũng không có tên file lô: không lần ngược về đâu được.
     with pytest.raises(ValueError, match="source_file"):
-        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR,
                    scope=SCOPE_ROW)
     # Có tên file nhưng provenance rỗng: phạm vi dòng mà không có dòng nào.
     with pytest.raises(ValueError, match="source_row"):
-        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR,
                    scope=SCOPE_ROW, batch_source_file="s.xlsx")
     with pytest.raises(ValueError, match="order_id"):
-        ReviewItem(category=CATEGORY_ORDER_INCONSISTENCY, severity=SEVERITY_ERROR,
-                   message="x", scope=SCOPE_ORDER,
-                   provenance=RowProvenance((AffectedRow("s.xlsx", 6),)))
+        ReviewItem(category=CATEGORY_ORDER_INCONSISTENCY, severity=SEVERITY_ERROR, scope=SCOPE_ORDER,
+                   provenance=_one_row())
     with pytest.raises(ValueError, match="scope"):
-        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
+        ReviewItem(category=CATEGORY_MISSING, severity=SEVERITY_ERROR,
                    scope="galaxy", provenance=_one_row())
 
 
@@ -430,7 +429,7 @@ def test_disabling_a_category_in_config_silences_exactly_that_category():
     working = normalize_line(make_raw_row(source_row=6, date_=None, row_hash="d"))
     twin = normalize_line(make_raw_row(source_row=7, date_=None, row_hash="d"))
 
-    queue = Validator(config).build_queue([working, twin], [])
+    queue = Validator(config)._build([working, twin], [])
 
     assert queue.by_category(CATEGORY_MISSING) == []
     assert len(queue.by_category(CATEGORY_DUPLICATE)) == 1
@@ -442,16 +441,16 @@ def test_unknown_category_or_severity_is_rejected_loudly():
     from app.modules.validation.models import ReviewItem
 
     with pytest.raises(ValueError):
-        ReviewItem(category="NotACategory", severity=SEVERITY_ERROR, message="x",
+        ReviewItem(category="NotACategory", severity=SEVERITY_ERROR,
                    provenance=_one_row())
     with pytest.raises(ValueError):
-        ReviewItem(category=CATEGORY_MISSING, severity="LOUD", message="x",
+        ReviewItem(category=CATEGORY_MISSING, severity="LOUD",
                    provenance=_one_row())
 
 
 def test_queue_helpers_report_scale_not_just_item_count():
     working = normalize_line(make_raw_row(source_row=6))
-    queue = Validator.from_config_dir(REPO_ROOT / "config").build_queue([working], [])
+    queue = Validator.from_config_dir(REPO_ROOT / "config")._build([working], [])
     aggregate = queue.by_category(CATEGORY_MISSING_PURCHASE_PRICE)[0]
 
     assert aggregate.affected_count == 1
@@ -466,7 +465,7 @@ def test_order_inconsistency_and_source_classification_absent_on_clean_orders():
     orders[0].lead_source_auto = PERSONAL
     orders[0].lead_source_final = PERSONAL
 
-    queue = Validator.from_config_dir(REPO_ROOT / "config").build_queue(
+    queue = Validator.from_config_dir(REPO_ROOT / "config")._build(
         [working], orders
     )
 
@@ -496,13 +495,15 @@ def test_replace_keeps_review_item_frozen_and_valid():
     của nó. Đó đúng là điều mong muốn: số dòng không thể bị sửa rời khỏi tập
     dòng mà item sở hữu.
     """
-    from app.modules.validation.models import AffectedRow, ReviewItem, RowProvenance
+    from app.modules.validation.models import Diagnostics, ReviewItem
+    from tests.support.rows import provenance
 
     item = ReviewItem(
-        category=CATEGORY_MISSING, severity=SEVERITY_ERROR, message="x",
-        scope=SCOPE_ROW, provenance=RowProvenance((AffectedRow("s.xlsx", 6),))
+        category=CATEGORY_MISSING, severity=SEVERITY_ERROR,
+        scope=SCOPE_ROW, provenance=provenance(6),
+        diagnostics=Diagnostics(rule="date"),
     )
-    moved = replace(item, provenance=RowProvenance((AffectedRow("s.xlsx", 7),)))
+    moved = replace(item, provenance=provenance(7))
     assert moved.source_row == 7 and item.source_row == 6
     assert moved.affected_count == 1
 
@@ -518,7 +519,7 @@ def test_dates_mismatch_detected_through_the_validator(synthetic_raw_path):
         line.employee_normalized = "Ly"
         line.employee_mapping_status = MAPPING_STATUS_MAPPED
 
-    queue = Validator.from_config_dir(REPO_ROOT / "config").build_queue(
+    queue = Validator.from_config_dir(REPO_ROOT / "config")._build(
         [working, twin], build_orders([working, twin])
     )
 

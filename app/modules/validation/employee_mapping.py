@@ -67,15 +67,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
-from app.modules.config.loader import as_date
+from typing import Any
+
 from app.modules.domain.models import WorkingLine
-from app.modules.mapping.employee_mapper import EmployeeMapper, RecordRef
 from app.modules.validation.models import (
     AffectedRow,
     AmbiguousRow,
     Diagnostics,
     RowProvenance,
+    SealedConstruction,
 )
+
+_STATS_SEAL = object()
 from app.modules.validation.text import normalize_text
 
 BUCKET_HARD = "HARD"
@@ -92,35 +95,36 @@ norm = normalize_text
 
 @dataclass(frozen=True)
 class MappingFinding:
-    """Một verdict F1–F6, kèm mọi thứ cần để lần ngược về dòng thô.
+    """Một verdict F2–F6, kèm mọi thứ cần để lần ngược về dòng thô.
 
-    `message` đúng là chuỗi mà script phân tích vẫn luôn in ra — nó là bản
-    render, không phải bản ghi. `criterion`, `employee`, `raw_value` và
-    `provenance` mới là bản ghi.
+    **`message` là property DẪN XUẤT** (DEC-134, RC-2): nó được `renderer.py`
+    sinh ra từ đúng `diagnostics` + `provenance` của chính finding này. Không
+    ai truyền chuỗi vào, nên không chuỗi nào khẳng định được một dòng nằm
+    ngoài provenance.
 
-    **Không còn trường `details: dict`** (DEC-132, điểm 8). Trước Independent
-    Review #5, đó là một kênh khóa tùy ý chạy song song với `affected_rows`:
-    một finding có thể mang `affected_rows = (dòng 6,)` mà `details` lại nói
-    về dòng 7, và validator sao chép nguyên trạng sang `ReviewItem`. Không có
-    quy ước nào đóng được cửa đó — chỉ có việc gỡ bỏ cánh cửa. Metadata chẩn
-    đoán giờ là các TRƯỜNG CÓ TÊN, CÓ KIỂU: thêm một trường là sửa dataclass
-    và lọt vào code review; thêm một khóa dict thì không ai thấy.
+    **F1 không còn ở đây** (HD-110-17): master khai `group` không có trong
+    `employee_groups` nay bị từ chối tại biên loader, trước khi một giao dịch
+    nào được xử lý. Trạng thái đó không tới được Review Queue nữa, nên một
+    tiêu chí báo về nó là mã chết. Đây không phải bỏ kiểm tra — đây là chuyển
+    kiểm tra lên sớm hơn và chặt hơn.
     """
 
     criterion: str
     bucket: str
-    message: str
-    employee: Optional[str] = None
-    raw_value: Optional[str] = None
-    raw_prefix: Optional[str] = None
-    declared_group: Optional[str] = None
-    # TẬP DÒNG canonical — nguồn duy nhất của mọi provenance mà finding này
-    # phơi ra. Không có accessor nào tra dòng theo canonical identity, vì
-    # không còn chỗ nào để tra.
-    provenance: RowProvenance = field(default_factory=RowProvenance)
+    diagnostics: "Diagnostics"
+    provenance: RowProvenance = field(default_factory=RowProvenance.of)
 
     @property
-    def affected_rows(self) -> tuple[AffectedRow, ...]:
+    def message(self) -> str:
+        from app.modules.validation.renderer import render_message
+        from app.modules.validation.models import CATEGORY_EMPLOYEE_MAPPING
+
+        return render_message(
+            CATEGORY_EMPLOYEE_MAPPING, self.diagnostics, self.provenance
+        )
+
+    @property
+    def affected_rows(self) -> tuple:
         return self.provenance.rows
 
     @property
@@ -128,37 +132,30 @@ class MappingFinding:
         return self.provenance.affected_count
 
     @property
-    def source_rows(self) -> tuple[int, ...]:
+    def source_rows(self) -> tuple:
         return self.provenance.source_rows
 
     @property
-    def source_file(self) -> Optional[str]:
+    def source_file(self):
         return self.provenance.source_file
 
     @property
     def batch_scoped(self) -> bool:
         return self.provenance.batch_scoped
 
-    def raw_variants(self) -> dict[str, list[int]]:
+    @property
+    def employee(self):
+        return self.diagnostics.employee
+
+    @property
+    def raw_value(self):
+        return self.diagnostics.raw_value
+
+    def raw_variants(self) -> dict:
         return self.provenance.raw_variants()
 
     def render_variants(self) -> str:
         return self.provenance.render_variants()
-
-    def diagnostics(self) -> Diagnostics:
-        """Metadata chẩn đoán CÓ KIỂU — không thể nhắc tới dòng nào.
-
-        Trả một `Diagnostics`, không phải dict: không còn khoá tuỳ ý để một
-        tham chiếu dòng lẻn vào. Một dòng muốn tới `ReviewItem` chỉ còn đúng
-        một đường là `provenance` (INVARIANT P).
-        """
-        return Diagnostics(
-            criterion=self.criterion,
-            employee=self.employee,
-            raw_value=self.raw_value,
-            raw_prefix=str(self.raw_prefix) if self.raw_prefix else None,
-            declared_group=self.declared_group,
-        )
 
 
 @dataclass(frozen=True)
@@ -188,315 +185,117 @@ class RawMappingVerdict:
         return self._messages(BUCKET_INFO)
 
 
-def _effective_window(row: dict) -> tuple[date, date]:
-    starts = as_date(row.get("effective_from")) or date.min
-    ends = as_date(row.get("effective_to")) or date.max
-    return starts, ends
+@dataclass(frozen=True)
+class MappingInput:
+    """Một dòng thô, ở dạng mà CẢ production LẪN script phân tích đều dựng được.
 
-
-def _overlaps(row: dict, start: Optional[date], end: Optional[date]) -> bool:
-    if start is None or end is None:
-        return True  # unknown dataset range: assume the employee is in scope
-    starts, ends = _effective_window(row)
-    return starts <= end and start <= ends
-
-
-def evaluate_raw_mapping(
-    mapped: Counter,
-    groups: dict[str, str],
-    unmapped: Counter,
-    ambiguities: dict[str, set],
-    employees: list[dict],
-    declared_groups: set[str],
-    dataset_start: Optional[date] = None,
-    dataset_end: Optional[date] = None,
-    row_index: Optional["MappingStats"] = None,
-) -> RawMappingVerdict:
-    """Criteria for the raw employee-mapping reconciliation.
-
-    Counting rows and printing them proves nothing on its own: a badly broken
-    `employees.yaml` still produces a tidy table, just a wrong one. But the
-    opposite failure is just as bad — a criterion that fires on healthy data
-    is noise, and noise gets ignored. So the criteria are split by how certain
-    they are. See the module docstring for F1–F6.
-
-    None of these criteria names an expected employee or group. An
-    expected-values table written here would only assert that the config still
-    says what it said when this file was authored.
+    Đây là cách RC-3 được đóng ở tầng thu thập: trước đây production đọc
+    `WorkingLine` còn script tự đếm từ `.xlsx`, nên hai bên có hai bộ đếm và
+    hai vòng khớp prefix. Nay cả hai dựng `MappingInput`, và **một** collector
+    duy nhất biến chúng thành `MappingStats`.
     """
-    findings: list[MappingFinding] = []
 
-    for position, row in enumerate(employees):
-        group = row.get("group")
-        if group not in declared_groups:
-            name = norm(row.get("normalized"))
-            findings.append(
-                MappingFinding(
-                    criterion="F1",
-                    bucket=BUCKET_HARD,
-                    message=(
-                        f"F1 — nhân viên {row.get('normalized')!r} khai group "
-                        f"{group!r} không có trong `employee_groups`"
-                    ),
-                    employee=name or None,
-                    declared_group=str(group),
-                    provenance=RowProvenance(
-                        row_index.rows_for_record_at(position) if row_index else ()
-                    ),
-                )
-            )
+    source_file: Optional[str]
+    source_row: int
+    employee_raw: Optional[str]
+    when: Optional[date]
+    normalized: Optional[str]
+    group: Optional[str]
 
-    for raw_value, matches in ambiguities.items():
-        # `row_index` is optional so `reconcile_conversion.py` — which calls
-        # this positionally and only prints strings — keeps working
-        # byte-for-byte (CHECK-110-14). Production passes it, and only then
-        # does the finding carry rows at all: `ambiguous_rows()` returns ONLY
-        # the rows where more than one record was really in force on that
-        # row's own date (Review #3 Finding 1, Review #4 Finding 1).
-        rows = row_index.ambiguous_rows(raw_value) if row_index else ()
-        findings.append(
-            MappingFinding(
-                criterion="F3",
-                bucket=BUCKET_HARD,
-                message=(
-                    f"F3 — {raw_value!r} khớp nhiều nhân viên cùng hiệu lực tại "
-                    f"ngày của dòng đó: {sorted(matches)}"
-                ),
-                raw_value=raw_value,
-                provenance=RowProvenance(rows),
-            )
+    @classmethod
+    def from_line(cls, line: WorkingLine) -> "MappingInput":
+        return cls(
+            source_file=line.raw.source_file,
+            source_row=line.raw.source_row,
+            employee_raw=line.employee_raw,
+            when=line.date,
+            normalized=line.employee_normalized,
+            group=line.employee_group,
         )
 
-    if not mapped:
-        findings.append(
-            MappingFinding(
-                criterion="F5",
-                bucket=BUCKET_HARD,
-                message=(
-                    "F5 — KHÔNG nhân viên nào map được dòng nào. Mapping "
-                    "production hỏng hoàn toàn."
-                ),
-                provenance=RowProvenance(
-                    row_index.all_unmapped_rows() if row_index else (),
-                    batch_scoped=True,
-                ),
-            )
-        )
-        return RawMappingVerdict(findings)
-
-    for row in employees:
-        name = norm(row["normalized"])
-        active = row.get("active", True)
-
-        if name in mapped:
-            continue
-
-        starts, ends = _effective_window(row)
-        if not active:
-            findings.append(
-                MappingFinding(
-                    criterion="F2",
-                    bucket=BUCKET_INFO,
-                    message=(
-                        f"F2 — {name!r} `active: false`, không có dòng nào: "
-                        "đúng kỳ vọng"
-                    ),
-                    employee=name,
-                    raw_prefix=row.get("raw_prefix"),
-                )
-            )
-        elif not _overlaps(row, dataset_start, dataset_end):
-            findings.append(
-                MappingFinding(
-                    criterion="F2",
-                    bucket=BUCKET_INFO,
-                    message=(
-                        f"F2 — {name!r} hiệu lực {starts}..{ends}, ngoài phạm "
-                        "vi dữ liệu: đúng kỳ vọng, không phải lỗi"
-                    ),
-                    employee=name,
-                    raw_prefix=row.get("raw_prefix"),
-                )
-            )
-        else:
-            findings.append(
-                MappingFinding(
-                    criterion="F2",
-                    bucket=BUCKET_WARNING,
-                    message=(
-                        f"F2 — {name!r} (raw_prefix {row.get('raw_prefix')!r}) "
-                        "đang hiệu lực trong kỳ nhưng không khớp dòng nào. Có "
-                        "thể là sai prefix, cũng có thể chỉ là không có doanh "
-                        "số — cần người xem."
-                    ),
-                    employee=name,
-                    raw_prefix=row.get("raw_prefix"),
-                )
-            )
-
-    smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
-    for raw_value, count in unmapped.items():
-        # A blank/absent `NVBH` is not an unmapped IDENTITY — there is no name
-        # for master data to be missing. That row is already reported as
-        # `Missing.employee`, and letting it reach F4 produced a finding with
-        # no raw identity and no rows to point at (Review #2, Finding 1).
-        # `reconcile_conversion.py` never sees blanks either: it skips rows
-        # with no `NVBH` before counting, so this changes nothing there.
-        if not raw_value:
-            continue
-        if count >= smallest:
-            findings.append(
-                MappingFinding(
-                    criterion="F4",
-                    bucket=BUCKET_WARNING,
-                    message=(
-                        f"F4 — {raw_value!r} chưa map nhưng có {count} dòng, "
-                        f"≥ nhân viên nhỏ nhất đã map ({smallest_name}: "
-                        f"{smallest}). Dấu hiệu master data thiếu người đáng "
-                        "kể — chẩn đoán, không phải kết luận."
-                    ),
-                    raw_value=raw_value,
-                    # ONLY the rows that failed to map. A row of the same
-                    # canonical identity that mapped fine is not evidence of
-                    # missing master data, and naming it would put a row
-                    # outside the finding into the finding's provenance
-                    # (Review #4, Finding 2).
-                    provenance=RowProvenance(
-                        row_index.unmapped_rows(raw_value) if row_index else ()
-                    ),
-                )
-            )
-
-    return RawMappingVerdict(findings)
+    def as_line(self):
+        """Adapter tối thiểu cho `AffectedRow.from_line` — cùng một dữ liệu."""
+        return _LineView(self)
 
 
-def evaluate_inactive_records(
-    mapper: EmployeeMapper, row_index: "MappingStats"
-) -> list[MappingFinding]:
-    """F6 — a record flagged `active: false` that still owns rows (HD-110-03).
+class _LineView:
+    """View đọc-chỉ để `AffectedRow.from_line()` là đường tạo provenance DUY NHẤT."""
 
-    Attributed **per config record**, from the row index's own record
-    attribution. Independent Review #2, Finding 2: the first version
-    aggregated by normalized name and then applied one boolean `active` to
-    every record sharing that name, so a closed historical record borrowed the
-    current record's transactions and raised a false F6.
+    __slots__ = ("_i", "raw")
 
-    The index attributes a row to a record only when the row has a date
-    (HD-110-04): with no date there is no evidence for which record was in
-    force, and picking one would manufacture a verdict out of an unknown. Such
-    a row is already reported as `Missing.date`.
+    def __init__(self, item: "MappingInput"):
+        self._i = item
+        self.raw = _RawView(item)
 
-    Diagnostic only — no rate, no KPI ownership, and no
-    `employee_mapping_status` changes because of it.
-    """
-    findings: list[MappingFinding] = []
-    for position, record in enumerate(mapper.records):
-        if record.get("active", True):
-            continue
-        owned = row_index.rows_for_record_at(position)
-        if not owned:
-            continue
-        name = norm(record.get("normalized"))
-        prefix = record.get("raw_prefix")
-        starts, ends = _effective_window(record)
-        findings.append(
-            MappingFinding(
-                criterion="F6",
-                bucket=BUCKET_WARNING,
-                message=(
-                    f"F6 — bản ghi {name!r} (raw_prefix {prefix!r}, hiệu lực "
-                    f"{starts}..{ends}) khai `active: false` nhưng có "
-                    f"{len(owned)} dòng rơi đúng vào cửa sổ hiệu lực của nó. "
-                    "Master data mâu thuẫn: nếu người này đã nghỉ thì "
-                    "`effective_to` phải đóng trước các dòng đó. Doanh số vẫn "
-                    "đang tính cho họ — cần người xem."
-                ),
-                employee=name,
-                raw_prefix=prefix,
-                provenance=RowProvenance(owned),
-            )
-        )
-    return findings
+    @property
+    def employee_raw(self):
+        return self._i.employee_raw
+
+    @property
+    def date(self):
+        return self._i.when
 
 
-def _record_label(record: dict) -> str:
-    """A record identity a human can act on — name alone is not enough when
-    two records deliberately share it (DEC-121)."""
-    starts, ends = _effective_window(record)
-    return (
-        f"{norm(record.get('normalized'))}"
-        f"[{record.get('raw_prefix')}|{starts.isoformat()}..{ends.isoformat()}]"
-    )
+class _RawView:
+    __slots__ = ("source_file", "source_row")
+
+    def __init__(self, item: "MappingInput"):
+        self.source_file = item.source_file
+        self.source_row = item.source_row
 
 
 @dataclass(frozen=True)
 class MappingStats:
-    """Các counter mà `evaluate_raw_mapping` cần, cộng một CHỈ MỤC DÒNG HẸP.
+    """Nguồn sự thật CANONICAL cho một lượt chẩn đoán mapping (RC-3).
 
-    Script phân tích dựng counter bằng cách đọc thẳng `.xlsx`. Production dựng
-    chúng từ các `WorkingLine` mà chính `EmployeeMapper` đã resolve, nên hai
-    đường đồng ý **theo cấu trúc** chứ không nhờ một bản cài đặt thứ hai của
-    quy tắc khớp.
+    Sở hữu **đồng thời** bộ đếm, chỉ mục dòng và chính mapper. Trước đây
+    `evaluate_raw_mapping` nhận bộ đếm và chỉ mục dòng thành **hai tham số
+    rời**, `row_index` lại còn optional — nên con số trong message và số dòng
+    trong provenance có hai nguồn khác nhau, và đo được là chúng bất đồng
+    (message nói "50 dòng", provenance nói 0).
 
-    **Chỉ mục dòng hẹp có chủ đích (Independent Review #4).** Một bản trước
-    phơi ra `rows_by_raw_value` / `rows_by_employee` — "mọi dòng cùng canonical
-    identity" — và hàng chờ dựng provenance từ đó. Tập ấy rộng hơn mọi finding.
-    Các accessor rộng đó đã bị gỡ; những gì còn lại chỉ trả lời đúng câu hỏi mà
-    một tiêu chí được phép hỏi.
-
-    **Chỉ mục khóa bằng `RecordRef` (Independent Review #5).** Trước đây khóa
-    là `_record_key` — một tuple giá trị gồm tên + prefix + cửa sổ hiệu lực.
-    Hai record có thể trùng khít cả ba mà vẫn khác `active`/`group`, nên F6
-    nhặt đúng các dòng mà production đã gán cho record KIA. `RecordRef` là
-    danh tính của bản ghi đã load, nên va chạm là bất khả.
+    Ở đây chúng không thể bất đồng: cả hai được dựng trong một vòng lặp duy
+    nhất, và mọi con số render ra đều đọc từ `provenance`.
     """
 
+    mapper: Any
     mapped: Counter
-    groups: dict[str, str]
+    groups: dict
     unmapped: Counter
-    ambiguities: dict[str, set]
+    ambiguities: dict
     dataset_start: Optional[date]
     dataset_end: Optional[date]
     source_file: Optional[str]
     total_rows: int
-    _mapper: EmployeeMapper
-    _unmapped_rows: dict[str, tuple[AffectedRow, ...]]
-    _rows_by_record: dict[RecordRef, tuple[AffectedRow, ...]]
-    _ambiguous_rows: dict[str, tuple[AmbiguousRow, ...]]
+    _unmapped_rows: dict
+    _rows_by_record: dict
+    _ambiguous_rows: dict
+    _seal: Any = None
 
-    # -- accessor hẹp: mỗi câu hỏi một tiêu chí được phép hỏi ---------------
+    def __post_init__(self) -> None:
+        if self._seal is not _STATS_SEAL:
+            raise SealedConstruction(
+                "MappingStats chỉ dựng được qua `collect_mapping_stats()`."
+            )
 
-    def unmapped_rows(self, raw_value: str) -> tuple[AffectedRow, ...]:
-        """F4: các dòng của identity này KHÔNG map được. Một dòng cùng identity
-        mà map bình thường không phải bằng chứng thiếu master data."""
+    def unmapped_rows(self, raw_value: str) -> tuple:
+        """F4: các dòng của identity này KHÔNG map được."""
         return self._unmapped_rows.get(raw_value, ())
 
-    def all_unmapped_rows(self) -> tuple[AffectedRow, ...]:
+    def all_unmapped_rows(self) -> tuple:
         """F5: không map được gì cả, nên mọi dòng unmapped đều bị ảnh hưởng."""
-        return tuple(
-            row for rows in self._unmapped_rows.values() for row in rows
-        )
+        return tuple(r for rows in self._unmapped_rows.values() for r in rows)
 
-    def ambiguous_rows(self, raw_value: str) -> tuple[AmbiguousRow, ...]:
-        """F3: chỉ các dòng mà thật sự có nhiều hơn một record cùng hiệu lực
-        tại ngày của chính dòng đó."""
+    def ambiguous_rows(self, raw_value: str) -> tuple:
+        """F3: chỉ các dòng thật sự có nhiều hơn một record cùng hiệu lực."""
         return self._ambiguous_rows.get(raw_value, ())
 
-    def rows_for_record_at(self, index: int) -> tuple[AffectedRow, ...]:
-        """F1 và F6: các dòng mà production đã resolve về ĐÚNG record ở vị trí
-        này TRONG MASTER SNAPSHOT.
-
-        Tra bằng `RecordRef` của chính snapshot, không bằng so sánh đối tượng:
-        master giữ bản **đã đóng băng** của record, nên so `is` với dict gốc
-        của caller sẽ trượt trong im lặng — đúng lớp lỗi mà INVARIANT M tồn
-        tại để loại bỏ. Hai record cố ý dùng chung tên trong một lượt bàn giao
-        (DEC-121), và Review #5 chứng minh chúng còn có thể dùng chung cả
-        prefix lẫn cửa sổ hiệu lực — chỉ số trong snapshot phân biệt được cả
-        hai trường hợp đó.
-        """
-        if index < 0 or index >= len(self._mapper.records):
+    def rows_for_record_at(self, index: int) -> tuple:
+        """F6: các dòng production đã resolve về ĐÚNG record ở vị trí này
+        TRONG MASTER SNAPSHOT — tra bằng `RecordRef`, không so đối tượng."""
+        if index < 0 or index >= len(self.mapper.records):
             return ()
-        return self._rows_by_record.get(self._mapper.ref_for_index(index), ())
+        return self._rows_by_record.get(self.mapper.ref_for_index(index), ())
 
     def dataset_range(self) -> str:
         if self.dataset_start and self.dataset_end:
@@ -504,99 +303,68 @@ class MappingStats:
         return "không xác định"
 
 
-def collect_mapping_stats(
-    lines: list[WorkingLine], mapper: EmployeeMapper
-) -> MappingStats:
-    """Dựng counter và chỉ mục dòng hẹp từ các dòng đã resolve.
+def collect_mapping_stats(inputs, mapper) -> MappingStats:
+    """Collector DUY NHẤT — production và script phân tích cùng đi qua đây.
 
-    Nhận thẳng `EmployeeMapper` production — không nhận một list record rời để
-    rồi tự đoán lại. Đây là thay đổi kiến trúc trung tâm của Independent Review
-    #5: mọi câu hỏi về "record nào" đều được HỎI mapper, nên trong hệ thống chỉ
-    còn đúng một phép chọn record và không còn chỗ cho bản thứ hai drift.
+    `inputs` là một iterable `MappingInput`. Production dựng chúng từ
+    `WorkingLine`; `reconcile_conversion.py` dựng chúng khi đọc `.xlsx`. Một
+    bản cài đặt, nên hai đường không thể drift.
     """
     mapped: Counter = Counter()
-    groups: dict[str, str] = {}
+    groups: dict = {}
     unmapped: Counter = Counter()
-    ambiguities: dict[str, set] = {}
-    unmapped_rows: dict[str, list[AffectedRow]] = defaultdict(list)
-    rows_by_record: dict[RecordRef, list[AffectedRow]] = defaultdict(list)
-    ambiguous_rows: dict[str, list[AmbiguousRow]] = defaultdict(list)
-    dataset_start: Optional[date] = None
-    dataset_end: Optional[date] = None
-    source_file: Optional[str] = None
+    ambiguities: dict = {}
+    unmapped_rows: dict = defaultdict(list)
+    rows_by_record: dict = defaultdict(list)
+    ambiguous_rows: dict = defaultdict(list)
+    dataset_start = dataset_end = None
+    source_file = None
+    total = 0
 
-    for line in lines:
-        raw_value = norm(line.employee_raw)
-        when = line.date
-        source_file = source_file or line.raw.source_file
-        affected = AffectedRow(
-            source_file=line.raw.source_file,
-            source_row=line.raw.source_row,
-            raw_original=line.employee_raw or "",
-            when=when,
-        )
+    for item in inputs:
+        total += 1
+        raw_value = norm(item.employee_raw)
+        when = item.when
+        source_file = source_file or item.source_file
+        view = item.as_line()
+        affected = AffectedRow.from_line(view)
 
         if when:
             dataset_start = when if dataset_start is None else min(dataset_start, when)
             dataset_end = when if dataset_end is None else max(dataset_end, when)
 
-        if line.employee_normalized:
-            name = norm(line.employee_normalized)
+        if item.normalized:
+            name = norm(item.normalized)
             mapped[name] += 1
-            groups[name] = line.employee_group or "—"
+            groups[name] = item.group or "—"
         else:
             unmapped[raw_value] += 1
             unmapped_rows[raw_value].append(affected)
 
-        # Chỉ các dòng CÓ NGÀY mới được quy về record (HD-110-04). Không có
-        # ngày thì bộ lọc cửa sổ hiệu lực không áp dụng, nên mọi record chọn ở
-        # đây đều là phỏng đoán; một tiêu chí dựng trên đó là kết tội master
-        # data bằng bằng chứng không tồn tại.
+        # Chỉ dòng CÓ NGÀY mới được quy về record và mới tham gia F3
+        # (HD-110-04 / HD-110-05): không có ngày thì cửa sổ hiệu lực không áp
+        # dụng được, nên mọi kết luận sẽ là phỏng đoán.
         if when is None:
             continue
 
-        ref = mapper.resolve_record(line.employee_raw, when)
+        ref = mapper.resolve_record(item.employee_raw, when)
         if ref is not None:
             rows_by_record[ref].append(affected)
 
-        # Ambiguity chấm theo ngày của CHÍNH dòng này, và bằng ĐÚNG ngữ nghĩa
-        # chuỗi mà production dùng để map (DEC-132, điểm D3). Bản trước khớp
-        # prefix trên chuỗi đã normalize trong khi production khớp trên chuỗi
-        # thô, nên một dòng mà production để `unmapped` vẫn bị F3 — mức ERROR —
-        # kết tội là ambiguous.
-        #
-        # HD-110-05 (DEC-131): dòng KHÔNG có ngày không được tham gia — đã
-        # `continue` ở trên. Chốt chặn nằm ở ĐÂY, trong collector của
-        # production, chứ không nằm trong `evaluate_raw_mapping`: script phân
-        # tích tự dựng `ambiguities` của nó và phải giữ nguyên hành vi đã ký
-        # duyệt ở CHECK-108A1-15.
-        candidates = mapper.candidate_records(line.employee_raw, when)
-        hits = {
-            norm(mapper.record(candidate).get("normalized"))
-            for candidate in candidates
-        }
+        candidates = mapper.candidate_records(item.employee_raw, when)
+        hits = {norm(mapper.record(c).normalized) for c in candidates}
         if len(hits) > 1:
-            # Verdict vẫn khóa theo identity — đó là thứ script phân tích tiêu
-            # thụ. Các DÒNG được ghi riêng để hàng chờ chỉ nêu đúng những dòng
-            # thật sự va chạm.
             ambiguities[raw_value] = hits
             ambiguous_rows[raw_value].append(
-                AmbiguousRow(
-                    source_file=line.raw.source_file,
-                    source_row=line.raw.source_row,
-                    raw_original=line.employee_raw or "",
-                    when=when,
+                AmbiguousRow.from_line(
+                    view,
                     raw_value=raw_value,
-                    records=tuple(
-                        sorted(
-                            _record_label(mapper.record(candidate))
-                            for candidate in candidates
-                        )
-                    ),
+                    records=sorted(_record_label(mapper.record(c)) for c in candidates),
                 )
             )
 
     return MappingStats(
+        mapper=mapper,
         mapped=mapped,
         groups=groups,
         unmapped=unmapped,
@@ -604,9 +372,142 @@ def collect_mapping_stats(
         dataset_start=dataset_start,
         dataset_end=dataset_end,
         source_file=source_file,
-        total_rows=len(lines),
-        _mapper=mapper,
+        total_rows=total,
         _unmapped_rows={k: tuple(v) for k, v in unmapped_rows.items()},
         _rows_by_record={k: tuple(v) for k, v in rows_by_record.items()},
         _ambiguous_rows={k: tuple(v) for k, v in ambiguous_rows.items()},
+        _seal=_STATS_SEAL,
     )
+
+
+def collect_stats_from_lines(lines, mapper) -> MappingStats:
+    """Wrapper production: `WorkingLine` -> `MappingInput` -> collector chung."""
+    return collect_mapping_stats((MappingInput.from_line(l) for l in lines), mapper)
+
+
+def _record_label(record) -> str:
+    """Danh tính người đọc hành động được — CHỈ để render, không làm khoá."""
+    starts = "—" if record.window.start == date.min else record.window.start.isoformat()
+    ends = "—" if record.window.end == date.max else record.window.end.isoformat()
+    return f"{record.normalized}[{record.raw_prefix}|{starts}..{ends}]"
+
+
+def _overlaps_window(record, start: Optional[date], end: Optional[date]) -> bool:
+    if start is None or end is None:
+        return True  # phạm vi dữ liệu chưa biết: coi như nhân viên còn trong kỳ
+    return record.window.start <= end and start <= record.window.end
+
+
+def evaluate_raw_mapping(stats: MappingStats) -> RawMappingVerdict:
+    """Tiêu chí F2–F6 — nhận ĐÚNG MỘT tham số canonical (HD-110-12, RC-3).
+
+    Không còn `employees`/`declared_groups` rời: chúng thuộc master mà `stats`
+    đang giữ. Không còn `row_index` optional: provenance luôn có mặt.
+
+    **F1 đã được thay thế** bởi fail-fast tại biên master (HD-110-17): một
+    master khai group không tồn tại không parse được, nên không tới được đây.
+    """
+    findings: list = []
+    mapper = stats.mapper
+    records = mapper.records
+
+    for raw_value, matches in stats.ambiguities.items():
+        findings.append(
+            MappingFinding(
+                criterion="F3",
+                bucket=BUCKET_HARD,
+                diagnostics=Diagnostics(
+                    criterion="F3",
+                    raw_value=raw_value,
+                    matched_employees=tuple(sorted(matches)),
+                ),
+                provenance=RowProvenance.of(stats.ambiguous_rows(raw_value)),
+            )
+        )
+
+    if not stats.mapped:
+        findings.append(
+            MappingFinding(
+                criterion="F5",
+                bucket=BUCKET_HARD,
+                diagnostics=Diagnostics(criterion="F5"),
+                provenance=RowProvenance.batch(stats.all_unmapped_rows()),
+            )
+        )
+        return RawMappingVerdict(findings)
+
+    for record in records:
+        name = norm(record.normalized)
+        if name in stats.mapped:
+            continue
+        starts, ends = record.window.start, record.window.end
+        if not record.active:
+            reason, bucket = "inactive", BUCKET_INFO
+        elif not _overlaps_window(record, stats.dataset_start, stats.dataset_end):
+            reason, bucket = "out_of_range", BUCKET_INFO
+        else:
+            reason, bucket = "effective", BUCKET_WARNING
+        findings.append(
+            MappingFinding(
+                criterion="F2",
+                bucket=bucket,
+                diagnostics=Diagnostics(
+                    criterion="F2",
+                    employee=name,
+                    raw_prefix=record.raw_prefix,
+                    f2_reason=reason,
+                    window_start=starts.isoformat() if starts != date.min else str(starts),
+                    window_end=ends.isoformat() if ends != date.max else str(ends),
+                ),
+            )
+        )
+
+    smallest_name, smallest = min(stats.mapped.items(), key=lambda kv: kv[1])
+    for raw_value, count in stats.unmapped.items():
+        # Một `NVBH` trống không phải một IDENTITY chưa map — không có tên nào
+        # để master data thiếu. Dòng đó đã được `Missing.employee` báo.
+        if not raw_value:
+            continue
+        if count >= smallest:
+            findings.append(
+                MappingFinding(
+                    criterion="F4",
+                    bucket=BUCKET_WARNING,
+                    diagnostics=Diagnostics(
+                        criterion="F4",
+                        raw_value=raw_value,
+                        smallest_employee=smallest_name,
+                        smallest_count=smallest,
+                    ),
+                    provenance=RowProvenance.of(stats.unmapped_rows(raw_value)),
+                )
+            )
+
+    return RawMappingVerdict(findings)
+
+
+def evaluate_inactive_records(stats: MappingStats) -> list:
+    """F6 — bản ghi `active: false` mà vẫn sở hữu dòng (HD-110-03)."""
+    findings: list = []
+    for position, record in enumerate(stats.mapper.records):
+        if record.active:
+            continue
+        owned = stats.rows_for_record_at(position)
+        if not owned:
+            continue
+        starts, ends = record.window.start, record.window.end
+        findings.append(
+            MappingFinding(
+                criterion="F6",
+                bucket=BUCKET_WARNING,
+                diagnostics=Diagnostics(
+                    criterion="F6",
+                    employee=norm(record.normalized),
+                    raw_prefix=record.raw_prefix,
+                    window_start=starts.isoformat() if starts != date.min else str(starts),
+                    window_end=ends.isoformat() if ends != date.max else str(ends),
+                ),
+                provenance=RowProvenance.of(owned),
+            )
+        )
+    return findings

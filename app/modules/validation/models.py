@@ -127,6 +127,11 @@ ROW_BEARING_DETAIL_KEYS = frozenset(
 )
 
 
+from app.modules.mapping.employee_mapper import SealedConstruction  # noqa: E402
+
+_SEAL = object()
+
+
 @dataclass(frozen=True)
 class AffectedRow:
     """Một dòng thô mà finding thực sự nói về.
@@ -134,19 +139,41 @@ class AffectedRow:
     Đơn vị provenance duy nhất trong toàn hệ thống. `raw_original` là danh
     tính đúng như đã gõ — dạng canonical dùng để gom nhóm, còn bản gốc mới là
     thứ người soát cần nhìn thấy.
+
+    **SEALED (RC-1).** Audit chứng minh bản trước dựng được
+    `AffectedRow("KHONG_TON_TAI.xlsx", 99999, "Bịa", None)` — nghĩa là
+    provenance không buộc phải đến từ dữ liệu thật, và một `ReviewItem` có thể
+    "truy vết" về một dòng chưa từng tồn tại. Nay chỉ `from_line()` dựng được,
+    nên mọi provenance đều dẫn từ một `RawRow` có thật.
     """
 
     source_file: Optional[str]
     source_row: int
     raw_original: str = ""
     when: Optional[date] = None
+    _seal: Any = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.source_row, int) or isinstance(self.source_row, bool):
-            raise TypeError(
-                f"source_row phải là int, gặp {self.source_row!r}. Provenance "
-                "machine-readable không được là văn bản tuỳ ý."
+        if self._seal is not _SEAL:
+            raise SealedConstruction(
+                "AffectedRow chỉ dựng được qua `AffectedRow.from_line()` — "
+                "provenance phải dẫn từ một dòng thô có thật (RC-1)."
             )
+        if type(self.source_row) is not int:
+            raise TypeError(
+                f"source_row phải là int thuần, gặp {self.source_row!r}."
+            )
+
+    @classmethod
+    def from_line(cls, line) -> "AffectedRow":
+        """Đường DUY NHẤT tạo provenance: từ một `WorkingLine` thật."""
+        return cls(
+            source_file=line.raw.source_file,
+            source_row=line.raw.source_row,
+            raw_original=line.employee_raw or "",
+            when=line.date,
+            _seal=_SEAL,
+        )
 
 
 @dataclass(frozen=True)
@@ -160,15 +187,26 @@ class AmbiguousRow(AffectedRow):
     """
 
     raw_value: str = ""
-    records: tuple[str, ...] = ()
+    records: tuple = ()
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        # ÉP SANG TUPLE + SAO CHÉP (INVARIANT I). Review #6 P1 đo được: truyền
-        # một list vào `records` rồi sửa list đó từ bên ngoài làm đổi chuỗi
-        # `conflicting_records` đã "dẫn xuất". Dẫn xuất từ dữ liệu mutable thì
-        # không phải dẫn xuất.
-        object.__setattr__(self, "records", tuple(self.records))
+        # ÉP SANG TUPLE + SAO CHÉP (INVARIANT C). Truyền một list vào `records`
+        # rồi sửa list đó từ bên ngoài từng làm đổi chuỗi `conflicting_records`
+        # đã "dẫn xuất". Dẫn xuất từ dữ liệu mutable thì không phải dẫn xuất.
+        object.__setattr__(self, "records", tuple(str(r) for r in self.records))
+
+    @classmethod
+    def from_line(cls, line, raw_value: str, records) -> "AmbiguousRow":
+        return cls(
+            source_file=line.raw.source_file,
+            source_row=line.raw.source_row,
+            raw_original=line.employee_raw or "",
+            when=line.date,
+            _seal=_SEAL,
+            raw_value=raw_value,
+            records=tuple(records),
+        )
 
     def render(self) -> str:
         stamp = self.when.isoformat() if self.when else "không có ngày"
@@ -190,10 +228,15 @@ class RowProvenance:
     câu duy nhất đáng đọc. Số đếm vẫn chính xác.
     """
 
-    rows: tuple[AffectedRow, ...] = ()
+    rows: tuple = ()
     batch_scoped: bool = False
+    _seal: Any = None
 
     def __post_init__(self) -> None:
+        if self._seal is not _SEAL:
+            raise SealedConstruction(
+                "RowProvenance chỉ dựng được qua `RowProvenance.of()`."
+            )
         # Review #6 P3: truyền một list vào `rows` rồi append vào list đó làm
         # `affected_count` nhảy từ 1 lên 2 SAU khi item đã dựng xong.
         # `frozen=True` chỉ cấm gán lại thuộc tính, không cấm sửa đối tượng nó
@@ -204,6 +247,14 @@ class RowProvenance:
                 raise TypeError(
                     f"provenance chỉ nhận AffectedRow, gặp {type(row).__name__}"
                 )
+
+    @classmethod
+    def of(cls, rows=(), batch_scoped: bool = False) -> "RowProvenance":
+        return cls(rows=tuple(rows), batch_scoped=batch_scoped, _seal=_SEAL)
+
+    @classmethod
+    def batch(cls, rows=()) -> "RowProvenance":
+        return cls.of(rows, batch_scoped=True)
 
     @property
     def affected_count(self) -> int:
@@ -293,18 +344,44 @@ class Diagnostics:
     employee: Optional[str] = None
     raw_value: Optional[str] = None
     raw_prefix: Optional[str] = None
-    declared_group: Optional[str] = None
     rule: Optional[str] = None
     row_hash: Optional[str] = None
-    employees_found: tuple[str, ...] = ()
+    employees_found: tuple = ()
     legacy_selected: Optional[str] = None
-    dates_found: tuple[str, ...] = ()
+    dates_found: tuple = ()
     dataset_range: Optional[str] = None
     batch_rows: Optional[int] = None
+    # Tham số của renderer — có kiểu, và KHÔNG cái nào diễn đạt được một tham
+    # chiếu dòng. Số dòng luôn đọc từ `RowProvenance` (RC-3).
+    order_id: Optional[str] = None
+    f2_reason: Optional[str] = None
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
+    matched_employees: tuple = ()
+    smallest_employee: Optional[str] = None
+    smallest_count: Optional[int] = None
+    manual_value: Optional[str] = None
+    auto_value: Optional[str] = None
+    observed_value: Optional[str] = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "employees_found", tuple(self.employees_found))
-        object.__setattr__(self, "dates_found", tuple(self.dates_found))
+        # `str(...)` bắt buộc, không chỉ ép tuple: một lớp con của `str` với
+        # `__str__` đổi theo lần gọi qua được mọi `isinstance` và làm `details`
+        # trả giá trị khác nhau giữa hai lần đọc (Audit P4).
+        for name in ("criterion", "employee", "raw_value", "raw_prefix", "rule",
+                     "row_hash", "legacy_selected", "dataset_range", "order_id",
+                     "f2_reason", "window_start", "window_end",
+                     "smallest_employee", "manual_value", "auto_value",
+                     "observed_value"):
+            value = getattr(self, name)
+            if value is not None and type(value) is not str:
+                object.__setattr__(self, name, str(value))
+        for name in ("employees_found", "dates_found", "matched_employees"):
+            object.__setattr__(self, name, tuple(str(v) for v in getattr(self, name)))
+        for name in ("smallest_count", "batch_rows"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, int(value))
 
     def rendered(self) -> dict[str, str]:
         """Projection lúc render. KHÔNG được lưu ở đâu cả."""
@@ -314,7 +391,6 @@ class Diagnostics:
             (DETAIL_EMPLOYEE, self.employee),
             (DETAIL_RAW_VALUE, self.raw_value),
             (DETAIL_RAW_PREFIX, self.raw_prefix),
-            (DETAIL_DECLARED_GROUP, self.declared_group),
             (DETAIL_RULE, self.rule),
             (DETAIL_ROW_HASH, self.row_hash),
             (DETAIL_LEGACY_SELECTED, self.legacy_selected),
@@ -355,24 +431,36 @@ class ReviewItem:
     `affected_count` có thể hợp lệ bằng **0** — tiêu chí F2 đúng nghĩa là "một
     nhân viên đã cấu hình mà không khớp dòng nào", và báo 1 giả ở đó là khai
     man đúng cái sự thật duy nhất mà finding mang.
+
+    **`message` KHÔNG còn là tham số constructor** (DEC-134, RC-2). Audit đo
+    được bản trước dựng được một item sở hữu dòng 6 mà message khẳng định dòng
+    7777. Review Queue là sản phẩm cho con người duyệt, nên một message sai
+    dòng vẫn là provenance sai đối với người duyệt.
     """
 
     category: str
     severity: str
-    # Văn bản cho người đọc. Vẫn là tham số vì `RawMappingVerdict` phơi chính
-    # chuỗi này ra cho `reconcile_conversion.py`, và output đó đã đóng băng ở
-    # CHECK-108A1-15. Nhưng nó KHÔNG phải machine-readable provenance: không
-    # consumer nào được phép parse nó, và `renderer.py` sinh nó từ đúng dữ
-    # liệu có kiểu của finding.
-    message: str
     scope: str = SCOPE_ROW
-    provenance: RowProvenance = field(default_factory=RowProvenance)
+    provenance: RowProvenance = field(default_factory=RowProvenance.of)
     # Chỉ dùng khi provenance KHÔNG có dòng nào (F2, hoặc một finding về cả
     # lô): không có dòng thì không suy ra được tên file. Khi đã có dòng, đặt
     # trường này là lỗi — đó sẽ là kênh thứ hai để bất đồng với provenance.
     batch_source_file: Optional[str] = None
     order_id: Optional[str] = None
     diagnostics: Diagnostics = field(default_factory=Diagnostics)
+
+    @property
+    def message(self) -> str:
+        """**Dẫn xuất, không phải tham số** (RC-2).
+
+        Renderer chỉ nhận `(diagnostics, provenance)` — nó không có đầu vào nào
+        khác, nên không thể nêu một dòng ngoài provenance của chính item này.
+        Không blacklist từ khoá, không regex: trạng thái sai đơn giản là không
+        biểu diễn được.
+        """
+        from app.modules.validation.renderer import render_message
+
+        return render_message(self.category, self.diagnostics, self.provenance)
 
     @property
     def source_file(self) -> Optional[str]:
