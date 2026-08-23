@@ -7,16 +7,20 @@ LeadSource and ConversionScheme are two independent concepts (DEC-119):
     LeadSource        answers "where did this order come from?"  -> PERSONAL | ADS
     ConversionScheme  answers "which rate converts it?"          -> a config row
 
-PERSONAL does NOT imply 5.5%. Noi thanh sells PERSONAL orders at 2%. The rate
-is always resolved from configuration keyed by (employee, lead_source, date),
-never derived from the lead source alone and never hard-coded.
+PERSONAL does NOT imply 5.5%. The Noi thanh group sells PERSONAL orders at 2%,
+and that same group's Gia dung lines convert at 8%. The rate is always
+resolved from configuration keyed by (employee, employee_group, lead_source,
+product_group, date) - never derived from the lead source alone, and never
+hard-coded (DEC-127, ADR-106).
 
-Two things are checked:
+Three things are checked:
 
 1. The test cases from spec section 29 plus cases A-G confirmed by the project
    owner, against a synthetic order set. This proves both rules behave as
    specified before any of it reaches the engine.
-2. The real raw sales book, to report how many orders each rule actually
+2. Cases H-K for the ProductGroup dimension, including the one that pins down
+   why GIA_DUNG_8 is keyed on NOI_THANH rather than on "*".
+3. The real raw sales book, to report how many orders each rule actually
    matches today - a keyword count that is currently zero and must not be
    mistaken for a bug.
 
@@ -32,6 +36,7 @@ import sys
 import unicodedata
 from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -58,21 +63,33 @@ EMPLOYEE_DEFAULT_LEAD_SOURCE = {
 }
 
 # --------------------------------------------------------------------------
-# ConversionScheme - resolved from (employee, lead_source, date).
-# Mirrors config/conversion_rates.yaml. Every row carries effective_from /
-# effective_to so a future policy change never rewrites a past report
-# (DEC-121). "*" means "any employee".
-#
-# Most specific match wins: an exact employee row beats a "*" row. There is no
-# fallback rate: an unresolved combination is a review-queue item, never a
-# silent guess.
+# ProductGroup - a property of the PRODUCT LINE, not of the order (DEC-127,
+# ADR-106). 118 real OrderIDs carry both kinds at once.
 # --------------------------------------------------------------------------
-# (employee, lead_source, scheme, rate, effective_from, effective_to)
+DIEN_MAY = "DIEN_MAY"
+GIA_DUNG = "GIA_DUNG"
+DEFAULT_PRODUCT_GROUP = DIEN_MAY
+
+# --------------------------------------------------------------------------
+# ConversionScheme - resolved from (employee, employee_group, lead_source,
+# product_group, date). Mirrors config/conversion_rates.yaml. Every row
+# carries effective_from / effective_to so a future policy change never
+# rewrites a past report (DEC-121). "*" means "any".
+#
+# lead_source is a hard filter. Among the survivors the most specific row
+# wins, scored 4x employee + 2x employee_group + 1x product_group; a tie is a
+# config error. There is no fallback rate: an unresolved combination is a
+# review-queue item, never a silent guess.
+#
+# Rates are Decimal, never float (ADR-103) - they get divided into profit
+# figures that become payroll.
+# --------------------------------------------------------------------------
+# (employee, employee_group, lead_source, product_group, scheme, rate, from, to)
 CONVERSION_SCHEMES = [
-    ("*",         PERSONAL, "PERSONAL_5_5", 0.055, date(2026, 1, 1), None),
-    ("*",         ADS,      "ADS_7_5",      0.075, date(2026, 1, 1), None),
-    ("Nội thành", PERSONAL, "NOI_THANH_2",  0.020, date(2026, 1, 1), None),
-    ("Gia dụng",  PERSONAL, "GIA_DUNG_8",   0.080, date(2026, 1, 1), None),
+    ("*", "*",         PERSONAL, "*",      "PERSONAL_5_5", Decimal("0.055"), date(2026, 1, 1), None),
+    ("*", "*",         ADS,      "*",      "ADS_7_5",      Decimal("0.075"), date(2026, 1, 1), None),
+    ("*", "NOI_THANH", PERSONAL, DIEN_MAY, "NOI_THANH_2",  Decimal("0.020"), date(2026, 1, 1), None),
+    ("*", "NOI_THANH", PERSONAL, GIA_DUNG, "GIA_DUNG_8",   Decimal("0.080"), date(2026, 1, 1), None),
 ]
 
 DEFAULT_AS_OF = date(2026, 6, 30)
@@ -116,13 +133,19 @@ def classify_lead_source(
     return DEFAULT_LEAD_SOURCE, "Auto:Default"
 
 
+def _specificity(row) -> int:
+    return (4 * (row[0] != "*")) + (2 * (row[1] != "*")) + (1 * (row[3] != "*"))
+
+
 def resolve_conversion_scheme(
     employee: str | None,
     lead_source: str,
     as_of: date | None = None,
     manual_override: str | None = None,
-) -> tuple[str | None, float | None, str]:
-    """Return (scheme, rate, source_of_value) for one order.
+    employee_group: str | None = None,
+    product_group: str | None = None,
+) -> tuple[str | None, Decimal | None, str]:
+    """Return (scheme, rate, source_of_value) for one PRODUCT LINE.
 
     Independent of how the lead source was decided (DEC-119). Looked up by the
     order's own business date, not by "today", so re-running a 2026 report in
@@ -130,30 +153,41 @@ def resolve_conversion_scheme(
 
     Returns (None, None, "Unresolved") when no row matches. That is a review
     queue item: a missing rate must never fall back to some other employee's
-    number.
+    number. A tie on specificity raises - the config has to say which wins.
     """
     if manual_override:
-        for _, _, scheme, rate, _, _ in CONVERSION_SCHEMES:
-            if scheme == manual_override:
-                return scheme, rate, "Manual"
+        for row in CONVERSION_SCHEMES:
+            if row[4] == manual_override:
+                return row[4], row[5], "Manual"
         return manual_override, None, "Manual"
 
     as_of = as_of or DEFAULT_AS_OF
+    product_group = product_group or DEFAULT_PRODUCT_GROUP
     candidates = [
         row for row in CONVERSION_SCHEMES
-        if row[1] == lead_source
-        and (row[0] == employee or row[0] == "*")
-        and row[4] <= as_of
-        and (row[5] is None or as_of <= row[5])
+        if row[2] == lead_source                                  # hard filter
+        and (row[0] == "*" or row[0] == employee)
+        and (row[1] == "*" or row[1] == employee_group)
+        and (row[3] == "*" or row[3] == product_group)
+        and row[6] <= as_of
+        and (row[7] is None or as_of <= row[7])
     ]
     if not candidates:
         return None, None, "Unresolved"
 
-    # Most specific first: an exact employee row outranks the "*" row.
-    candidates.sort(key=lambda row: row[0] == "*")
-    employee_key, _, scheme, rate, _, _ = candidates[0]
-    origin = "Employee" if employee_key != "*" else "LeadSource"
-    return scheme, rate, f"Auto:{origin} ({scheme})"
+    best = max(_specificity(row) for row in candidates)
+    winners = [row for row in candidates if _specificity(row) == best]
+    if len(winners) > 1:
+        raise ValueError(
+            f"Ambiguous config: {[row[4] for row in winners]} equally specific"
+        )
+
+    row = winners[0]
+    origin = ("Employee" if row[0] != "*"
+              else "EmployeeGroup" if row[1] != "*"
+              else "ProductGroup" if row[3] != "*"
+              else "LeadSource")
+    return row[4], row[5], f"Auto:{origin} ({row[4]})"
 
 
 # --------------------------------------------------------------------------
@@ -209,28 +243,49 @@ EMPLOYEE_CASES = [
      ["KH ADS"], None, "Ly", ADS),
 ]
 
-# DEC-119 - owner-confirmed cases A-G. These assert the resolved scheme and
-# rate too, which is the whole point: the same LeadSource must be able to
-# produce different rates for different employees.
+# DEC-119 - owner-confirmed cases A-G, updated for DEC-127/ADR-106. These
+# assert the resolved scheme and rate too, which is the whole point: the same
+# LeadSource must be able to produce different rates for different employees.
 #
-# (label, notes, employee, expected_lead_source, expected_scheme, expected_rate)
+# E and F previously named a fake employee "Nội thành"; they now name the real
+# people (Vinh, Quý, Hiệp) and carry their EmployeeGroup. The expected scheme
+# and rate are UNCHANGED - that is the proof the model change preserved
+# behaviour rather than altering it.
+#
+# (label, notes, employee, group, product_group, exp_lead_source, exp_scheme, exp_rate)
 SCHEME_CASES = [
     ("A  Tín Phát, không có chữ ADS",
-     ["Bán hàng Vanoka"],  "Tín Phát",  ADS,      "ADS_7_5",      0.075),
+     ["Bán hàng Vanoka"], "Tín Phát", "STANDARD_SALES", DIEN_MAY, ADS,      "ADS_7_5",      Decimal("0.075")),
     ("B  Kiên, không có ADS",
-     ["Bán hàng Vanoka"],  "Kiên",      PERSONAL, "PERSONAL_5_5", 0.055),
+     ["Bán hàng Vanoka"], "Kiên",     "STANDARD_SALES", DIEN_MAY, PERSONAL, "PERSONAL_5_5", Decimal("0.055")),
     ("C  Kiên, một dòng trong OrderID có ADS",
-     ["", "KH ADS", ""],   "Kiên",      ADS,      "ADS_7_5",      0.075),
+     ["", "KH ADS", ""],  "Kiên",     "STANDARD_SALES", DIEN_MAY, ADS,      "ADS_7_5",      Decimal("0.075")),
     ("D  Hoàng, order nhiều SP, chỉ 1 dòng có ADS",
-     ["", "", "Đơn ads", ""], "Hoàng",  ADS,      "ADS_7_5",      0.075),
-    ("E  Vinh → Nội thành, không ADS",
-     ["Bán hàng Vanoka"],  "Nội thành", PERSONAL, "NOI_THANH_2",  0.020),
-    ("F  Quý/Hiệp → Nội thành, không ADS",
-     ["Giao lắp chiều nay"], "Nội thành", PERSONAL, "NOI_THANH_2", 0.020),
+     ["", "", "Đơn ads", ""], "Hoàng", "STANDARD_SALES", DIEN_MAY, ADS,     "ADS_7_5",      Decimal("0.075")),
+    ("E  Vinh (NOI_THANH), không ADS",
+     ["Bán hàng Vanoka"], "Vinh",     "NOI_THANH",      DIEN_MAY, PERSONAL, "NOI_THANH_2",  Decimal("0.020")),
+    ("F  Quý/Hiệp (NOI_THANH), không ADS",
+     ["Giao lắp chiều nay"], "Quý",   "NOI_THANH",      DIEN_MAY, PERSONAL, "NOI_THANH_2",  Decimal("0.020")),
     ("G1 Kiên trong tháng — phần PERSONAL",
-     ["Bán hàng Vanoka"],  "Kiên",      PERSONAL, "PERSONAL_5_5", 0.055),
+     ["Bán hàng Vanoka"], "Kiên",     "STANDARD_SALES", DIEN_MAY, PERSONAL, "PERSONAL_5_5", Decimal("0.055")),
     ("G2 Kiên trong tháng — phần ADS",
-     ["Đơn ADS"],          "Kiên",      ADS,      "ADS_7_5",      0.075),
+     ["Đơn ADS"],         "Kiên",     "STANDARD_SALES", DIEN_MAY, ADS,      "ADS_7_5",      Decimal("0.075")),
+]
+
+# DEC-127 - ProductGroup cases. Same employee, same lead source, different
+# product line kind -> different rate. And the mirror case that pins down why
+# GIA_DUNG_8 is keyed on NOI_THANH rather than on "*".
+#
+# (label, employee, group, product_group, lead_source, exp_scheme, exp_rate)
+PRODUCT_GROUP_CASES = [
+    ("H  Vinh + Điện máy",
+     "Vinh", "NOI_THANH",      DIEN_MAY, PERSONAL, "NOI_THANH_2",  Decimal("0.020")),
+    ("I  Vinh + Gia dụng",
+     "Vinh", "NOI_THANH",      GIA_DUNG, PERSONAL, "GIA_DUNG_8",   Decimal("0.080")),
+    ("J  Hiệp + Gia dụng — cùng group, cùng kết quả",
+     "Hiệp", "NOI_THANH",      GIA_DUNG, PERSONAL, "GIA_DUNG_8",   Decimal("0.080")),
+    ("K  Ly + Gia dụng — STANDARD_SALES giữ 5,5%, KHÔNG nhảy lên 8%",
+     "Ly",   "STANDARD_SALES", GIA_DUNG, PERSONAL, "PERSONAL_5_5", Decimal("0.055")),
 ]
 
 
@@ -252,11 +307,14 @@ def run_cases() -> int:
     print(f"  {len(lead_cases) - failures}/{len(lead_cases)} passed\n")
 
     scheme_failures = 0
-    print("LeadSource + ConversionScheme — DEC-119 cases A–G")
+    print("LeadSource + ConversionScheme — DEC-119 cases A–G (DEC-127 model)")
     print("-" * 90)
-    for label, notes, employee, exp_source, exp_scheme, exp_rate in SCHEME_CASES:
+    for (label, notes, employee, group, product_group,
+         exp_source, exp_scheme, exp_rate) in SCHEME_CASES:
         lead_source, _ = classify_lead_source(notes, None, employee)
-        scheme, rate, origin = resolve_conversion_scheme(employee, lead_source)
+        scheme, rate, origin = resolve_conversion_scheme(
+            employee, lead_source, employee_group=group, product_group=product_group
+        )
         ok = (lead_source == exp_source
               and scheme == exp_scheme
               and rate == exp_rate)
@@ -266,7 +324,21 @@ def run_cases() -> int:
     print("-" * 90)
     print(f"  {len(SCHEME_CASES) - scheme_failures}/{len(SCHEME_CASES)} passed\n")
 
-    return failures + scheme_failures
+    pg_failures = 0
+    print("ProductGroup — DEC-127 cases H–K")
+    print("-" * 90)
+    for label, employee, group, pg, lead_source, exp_scheme, exp_rate in PRODUCT_GROUP_CASES:
+        scheme, rate, origin = resolve_conversion_scheme(
+            employee, lead_source, employee_group=group, product_group=pg
+        )
+        ok = scheme == exp_scheme and rate == exp_rate
+        pg_failures += not ok
+        shown = f"{scheme} / {rate:.3%}" if rate else "-"
+        print(f"  [{'PASS' if ok else 'FAIL'}] {label:56} -> {shown:22} ({origin})")
+    print("-" * 90)
+    print(f"  {len(PRODUCT_GROUP_CASES) - pg_failures}/{len(PRODUCT_GROUP_CASES)} passed\n")
+
+    return failures + scheme_failures + pg_failures
 
 
 def run_two_bucket_check() -> int:
@@ -276,11 +348,14 @@ def run_two_bucket_check() -> int:
         TotalConvertedRevenue == PersonalConvertedRevenue + AdsConvertedRevenue
     with no single blended rate anywhere in the path.
     """
-    personal_profit = 30_000.0
-    ads_profit = 7_565.0
+    personal_profit = Decimal("30000")
+    ads_profit = Decimal("7565")
 
-    _, personal_rate, _ = resolve_conversion_scheme("Kiên", PERSONAL)
-    _, ads_rate, _ = resolve_conversion_scheme("Kiên", ADS)
+    group = EMPLOYEE_GROUPS["Kiên"]
+    _, personal_rate, _ = resolve_conversion_scheme(
+        "Kiên", PERSONAL, employee_group=group)
+    _, ads_rate, _ = resolve_conversion_scheme(
+        "Kiên", ADS, employee_group=group)
 
     personal_cr = personal_profit / personal_rate
     ads_cr = ads_profit / ads_rate
@@ -296,11 +371,11 @@ def run_two_bucket_check() -> int:
     print()
 
     failures = 0
-    ok = abs(total_cr - (personal_cr + ads_cr)) < 1e-9
+    ok = total_cr == personal_cr + ads_cr
     failures += not ok
     print(f"  [{'PASS' if ok else 'FAIL'}] Total == Personal + Ads")
 
-    ok = abs(total_cr - blended) > 1.0
+    ok = abs(total_cr - blended) > 1
     failures += not ok
     print(f"  [{'PASS' if ok else 'FAIL'}] Khác với quy đổi gộp một tỉ lệ "
           f"({blended:,.0f}, lệch {blended - total_cr:,.0f})")
@@ -316,12 +391,12 @@ def run_temporal_check() -> int:
     failures = 0
 
     scheme, rate, _ = resolve_conversion_scheme("Kiên", ADS, date(2026, 3, 15))
-    ok = scheme == "ADS_7_5" and rate == 0.075
+    ok = scheme == "ADS_7_5" and rate == Decimal("0.075")
     failures += not ok
     print(f"  [{'PASS' if ok else 'FAIL'}] 15/03/2026 -> {scheme} {rate:.1%}")
 
     scheme, rate, _ = resolve_conversion_scheme("Kiên", ADS, date(2027, 6, 1))
-    ok = scheme == "ADS_7_5" and rate == 0.075
+    ok = scheme == "ADS_7_5" and rate == Decimal("0.075")
     failures += not ok
     print(f"  [{'PASS' if ok else 'FAIL'}] 01/06/2027 -> {scheme} {rate:.1%} "
           "(chưa có chính sách mới nào hiệu lực)")
@@ -383,9 +458,22 @@ RAW_EMPLOYEE_PREFIXES = {
     "Lê Mạnh Hoàng": "Hoàng",
     "Đức Kiên": "Kiên",
     "Phước Thắng": "Thắng",
-    "Đức Hiệp": "Nội thành",
-    "Mr Quý": "Nội thành",
-    "Mr Vinh": "Nội thành",
+    "Đức Hiệp": "Hiệp",
+    "Mr Quý": "Quý",
+    "Mr Vinh": "Vinh",
+}
+
+# Employee -> EmployeeGroup (DEC-127 §1). Vinh/Quý/Hiệp keep their own
+# identity; the group is what they share, not a replacement name.
+EMPLOYEE_GROUPS = {
+    "Tín Phát": "STANDARD_SALES",
+    "Ly": "STANDARD_SALES",
+    "Hoàng": "STANDARD_SALES",
+    "Kiên": "STANDARD_SALES",
+    "Thắng": "STANDARD_SALES",
+    "Vinh": "NOI_THANH",
+    "Quý": "NOI_THANH",
+    "Hiệp": "NOI_THANH",
 }
 
 

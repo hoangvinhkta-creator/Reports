@@ -54,7 +54,9 @@ def test_normal_order_is_personal(synthetic_raw_path, config_dir):
 def test_channel_employee_mapped_and_personal(synthetic_raw_path, config_dir):
     result = run_import(synthetic_raw_path, config_dir=config_dir)
     order = _order(result, "BH0006")
-    assert order.employee_normalized == "Nội thành"
+    # DEC-127 §1: Mr Vinh keeps his own identity; NOI_THANH is his group.
+    assert order.employee_normalized == "Vinh"
+    assert order.lines[0].employee_group == "NOI_THANH"
     assert order.lead_source_final == PERSONAL
 
 
@@ -130,3 +132,51 @@ def test_accounting_profit_computed_when_price_provider_matches(
     line = order.lines[0]
     assert line.accounting_purchase_price == Decimal("999000")
     assert line.accounting_profit == (line.sell_price - Decimal("999000")) * line.quantity
+
+
+def test_conversion_scheme_resolved_per_line_in_default_run(
+    synthetic_raw_path, config_dir
+):
+    result = run_import(synthetic_raw_path, config_dir=config_dir)
+
+    # Channel seller: NOI_THANH group, Điện máy by default -> 2%.
+    channel = _order(result, "BH0006")
+    assert channel.lines[0].employee_group == "NOI_THANH"
+    assert channel.lines[0].conversion_scheme_final == "NOI_THANH_2"
+    assert channel.lines[0].conversion_rate_final == Decimal("0.020")
+
+    # Standard seller, PERSONAL -> 5.5%.
+    personal = _order(result, "BH0001")
+    assert personal.lines[0].employee_group == "STANDARD_SALES"
+    assert personal.lines[0].conversion_rate_final == Decimal("0.055")
+
+    # ADS order -> 7.5%, on every line of the order.
+    ads = _order(result, "BH0002")
+    assert all(
+        line.conversion_rate_final == Decimal("0.075") for line in ads.lines
+    )
+
+
+def test_every_line_defaults_to_dien_may_with_visible_provenance(
+    synthetic_raw_path, config_dir
+):
+    # Phase 1 has no auto-classification: the fallback must be visible as a
+    # fallback, not look like a decision somebody made (ADR-106 §5).
+    result = run_import(synthetic_raw_path, config_dir=config_dir)
+    lines = [line for order in result.orders for line in order.lines]
+    assert lines
+    assert all(line.product_group_final == "DIEN_MAY" for line in lines)
+    assert all(
+        line.product_group_source_of_value == "DEFAULT" for line in lines
+    )
+
+
+def test_unmapped_employee_line_gets_no_borrowed_rate(synthetic_raw_path, config_dir):
+    result = run_import(synthetic_raw_path, config_dir=config_dir)
+    order = _order(result, "BH0005")  # employee not in employees.yaml
+    line = order.lines[0]
+    assert line.employee_group is None
+    # Falls to the "*" PERSONAL row, which legitimately covers anyone; the
+    # point is that it never picks up NOI_THANH's 2% or anyone else's rate.
+    assert line.conversion_rate_final == Decimal("0.055")
+    assert line.conversion_scheme_final == "PERSONAL_5_5"

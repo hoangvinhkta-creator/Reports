@@ -1158,3 +1158,125 @@ Impact:
 Can Revisit After:
 Không — đây là nguyên tắc kiến trúc nền tảng cho toàn bộ luồng Adjustment,
 áp dụng xuyên suốt Phase 1–3, không phải quyết định tạm thời chờ xem lại.
+
+## DEC-127
+
+Date:
+2026-08-23
+
+Task:
+TASK-108A — hợp nhất quyết định nghiệp vụ sau ba vòng pre-implementation
+review (Gate v1 → v2 → v3), chủ dự án phê duyệt trực tiếp.
+
+Decision:
+
+**1. EmployeeGroup trở thành khái niệm tường minh.**
+`Nội thành` **không còn** là một Employee. Vinh, Quý, Hiệp là **ba Employee
+riêng biệt**, giữ nguyên danh tính, cùng thuộc `employee_group = NOI_THANH`.
+Nhóm còn lại là `STANDARD_SALES`. Thêm/ngưng nhân viên là sửa master data,
+không sửa mã nguồn; nhân viên nghỉ dùng `active: false` + `effective_to`,
+không xóa khỏi lịch sử.
+
+**2. `Gia dụng` là ProductGroup, không phải Employee, không phải
+EmployeeGroup.** Không tạo employee tên `Gia dụng`. Chiều mới:
+`ProductGroup = DIEN_MAY | GIA_DUNG`, mặc định `DIEN_MAY`.
+
+**3. Chính sách quy đổi hiện hành:**
+```
+NOI_THANH + PERSONAL + DIEN_MAY → NOI_THANH_2  → 2 %
+NOI_THANH + PERSONAL + GIA_DUNG → GIA_DUNG_8   → 8 %
+```
+**Không** áp `* + GIA_DUNG → 8 %` cho mọi nhân viên. Nhân viên
+`STANDARD_SALES` bán cùng model vẫn dùng scheme theo group/nguồn của họ —
+ví dụ Ly + PERSONAL = 5,5 %, đúng cách workbook lịch sử đang tính.
+
+**4. ProductGroup ở cấp product line, không phải cấp OrderID.** Một OrderID
+có thể chứa cả Điện máy lẫn Gia dụng. `ConversionScheme` do đó cũng xuống
+cấp line. `LeadSource` **giữ nguyên cấp Order** (DEC-119 không đổi). Chuỗi
+tổng hợp: `Product Line → Order → Employee → Month → Summary`. **Cấm** cộng
+lợi nhuận của các line khác scheme rồi chia chung một tỉ lệ.
+
+**5. Phase 1 phân loại ProductGroup hoàn toàn thủ công.** UI sau này có
+checkbox `☐ Gia dụng`: không tick → `DIEN_MAY`, tick → `GIA_DUNG`. Checkbox
+chỉ đổi `ProductGroup`, **không** hard-code hệ số 8 %; rate luôn tra qua
+ConversionScheme/config. **Chưa** dùng danh sách 155 model lịch sử làm
+business truth, **chưa** suy luận bằng keyword/tên sản phẩm, **chưa** triển
+khai tự học `Model → ProductGroup` — vì cùng một model xuất hiện trong các
+luồng có cách tính khác nhau (bằng chứng ở Reason).
+
+**6. Provenance của ProductGroup phải phân biệt được mặc định với xác nhận
+của người dùng:** `product_group_final = DIEN_MAY` + `source = DEFAULT` khác
+với `= GIA_DUNG` + `source = MANUAL`. Dùng khuôn `_auto/_manual/_final` của
+ADR-102; manual override phải có audit.
+
+**7. Năm dimension độc lập:**
+`Employee ≠ EmployeeGroup ≠ LeadSource ≠ ProductGroup ≠ ConversionScheme`.
+ConversionScheme resolve từ tối thiểu
+`Employee/EmployeeGroup + LeadSource + ProductGroup + effective date`.
+**Cấm hard-code** tên nhân viên và các số 2 % / 5,5 % / 7,5 % / 8 % trong
+business engine; mọi rate nằm ở config có effective-dating.
+
+**8. `Linh`, `Fanpage` và 5 giá trị NVBH chưa map là legacy, không đưa vào
+active master data.** Chúng trả `Unresolved` → Review Queue. Chỉ bổ sung kèm
+`effective_from`/`effective_to` khi thực sự cần tái tạo lịch sử.
+
+Reason:
+
+Ba vòng review, mỗi vòng đóng một câu hỏi bằng dữ liệu thật chứ không bằng
+suy đoán:
+
+- **Vì sao tách Vinh/Quý/Hiệp:** gộp ba người thành một Employee giả tên
+  "Nội thành" làm mất danh tính nhân viên, trong khi file thô toàn công ty
+  ghi rõ ba giá trị `NVBH` riêng với khối lượng lớn (Hiệp 5.328 dòng, Quý
+  2.810, Vinh 1.814). Group là thứ dùng chung scheme, không phải thứ thay
+  thế con người.
+- **Vì sao `GIA_DUNG_8` khóa trên `NOI_THANH` chứ không trên `*`:** đối
+  chiếu file thô toàn công ty với danh sách mã Gia dụng của workbook cho
+  thấy 663 dòng khớp, chia **436 (66 %) thuộc NOI_THANH** và **227 (34 %)
+  thuộc STANDARD_SALES**. Nếu áp `* + GIA_DUNG → 8 %`, 227 dòng đó sẽ lệch
+  khỏi cách workbook lịch sử đang tính (Ly bán cùng model vẫn 5,5 %).
+- **Vì sao ProductGroup phải ở cấp line:** đo trên dữ liệu thật, **118 trên
+  10.609 OrderID chứa đồng thời cả hai loại**. Gán một scheme cho cả đơn sẽ
+  tính sai 118 đơn. Đây là số đo, không phải phòng xa.
+- **Vì sao chưa tự học `Model → ProductGroup`:** 50 trong 155 mã Gia dụng
+  cũng xuất hiện ở sheet nhân viên cá nhân — cùng một mã máy đi qua hai luồng
+  có tỉ lệ khác nhau. Một bộ tự học dựa trên mã sẽ học sai ngay từ đầu.
+
+Risk:
+
+Cao nhất roadmap (5/5) — sai ở đây là sai lương/thưởng của người thật.
+Rủi ro cụ thể còn lại:
+
+- **Chưa phân loại được ProductGroup ở Phase 1** → mọi dòng là `DIEN_MAY`,
+  nên các dòng Gia dụng của kênh Nội thành sẽ quy đổi ở 2 % thay vì 8 % cho
+  tới khi có UI checkbox. Đây là **hệ quả đã biết và được chấp nhận** của
+  quyết định 5, không phải lỗi; `source_of_value = DEFAULT` làm nó nhìn thấy
+  được, không im lặng.
+- **Trộn tầng gộp:** nếu tầng báo cáo (TASK-109/111) vô tình tổng hợp theo
+  `employee_group` rồi chia một tỉ lệ, sẽ tái lập đúng lỗi mà quyết định 4
+  cấm. Cần một check riêng ở TASK-109.
+
+Impact:
+- `config/employees.yaml` — thêm `employee_groups`; 3 dòng đổi `normalized`
+  từ `Nội thành` sang `Vinh`/`Quý`/`Hiệp`; 8 dòng thêm `group`.
+- `config/conversion_rates.yaml` — file mới, 4 dòng scheme, 4 chiều.
+- `app/modules/mapping/employee_mapper.py` — `MappingResult` thêm `group`.
+- `app/modules/domain/models.py` — thêm `employee_group`, `product_group_*`,
+  `conversion_scheme_*`, `conversion_rate_final`.
+- `app/modules/conversion/`, `app/modules/product/` — module mới.
+- `app/pipeline.py` — bước 10, chạy ở cấp line.
+- `docs/adr/ADR-106-*.md` — ADR mới cho ProductGroup + granularity.
+- `tools/analysis/verify_ads_rule.py` — bảng scheme 4 chiều, case E/F đổi
+  tên nhân viên, `float` → `Decimal`. Phải giữ 31/31 PASS.
+- `tests/test_employee_mapper.py`, `tests/test_pipeline.py` — sửa assert
+  `"Nội thành"` thành tên riêng. Đây là **hệ quả của rule mới**, không phải
+  sửa test để làm nó PASS.
+- `docs/analysis/10_OPEN_QUESTIONS.md` — C11 cập nhật số thật (107 dòng /
+  5 người, thay cho 88); thêm **C15** cho `EligibleCosts`.
+- **Không** đụng `app/modules/pricing/`, `profit/`, `adjustment/`,
+  `orders/`, `lead_source/`, `importing/`.
+
+Can Revisit After:
+Quyết định 5 (phân loại thủ công) mở lại khi Phase 2/3 có UI thật và đủ dữ
+liệu đã-được-người-dùng-xác-nhận để cân nhắc tự học. Quyết định 1–4, 6–8 là
+nền tảng, không dự kiến đổi.

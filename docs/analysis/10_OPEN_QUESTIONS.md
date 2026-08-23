@@ -8,16 +8,18 @@ C12–C14 liên quan tới phân quyền truy cập (PHASE-02, thêm 2026-08-23 
 Tính đến **2026-08-23**, sau khi GATE-00 đã được chủ dự án duyệt (DEC-122).
 
 **Trạng thái:** C4b, C9, C10, C12, C13, C14 đã đóng bằng xác nhận trực tiếp
-của chủ dự án. **Chỉ còn mở: C11**, không chặn gì — mặc định Review Queue đã
-an toàn. Nội dung đầy đủ giữ nguyên bên dưới để giữ mạch lý do; xem DEC-122
-cho nhóm đầu, DEC-124 cho C12/C13/C14.
+của chủ dự án. **Còn mở: C11** (không chặn gì — mặc định Review Queue đã an
+toàn) và **C15** (**chặn TASK-108B**, thêm 2026-08-23 khi review TASK-108A).
+Nội dung đầy đủ giữ nguyên bên dưới để giữ mạch lý do; xem DEC-122 cho nhóm
+đầu, DEC-124 cho C12/C13/C14, DEC-126 và DEC-127 cho C15.
 
 | # | Câu hỏi | Trạng thái | Quyết định |
 |---|---|---|---|
 | C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? | **ĐÃ ĐÓNG** (2026-08-23) | Có — DEC-122 |
 | C9 | Đơn của Nội thành / Gia dụng có chữ "ADS" thì quy đổi ở tỉ lệ nào? | **ĐÃ ĐÓNG** (2026-08-23) | Không quan tâm, giữ 7,5 % mặc định — DEC-122 |
 | C10 | Chính sách từ 01/01/2027 khác 2026 ở điểm nào? | **ĐÃ ĐÓNG cho hiện tại** (2026-08-23) | Không đổi — DEC-122, mở lại nếu có tin mới trước 01/12/2026 |
-| **C11** | **Nhân viên chưa map (88 dòng) xử lý thế nào khi lên production?** | **CÒN MỞ** — chủ dự án chưa rõ | Vào Review Queue loại `Missing`, không tính vào KPI |
+| **C11** | **Nhân viên chưa map (107 dòng / 5 người) xử lý thế nào khi lên production?** | **CÒN MỞ** — chủ dự án chưa rõ | Vào Review Queue loại `Missing`, không tính vào KPI |
+| **C15** | **`EligibleCosts` trong công thức `EligibleKpiProfit` là gì, lấy từ đâu?** | **CÒN MỞ** — **chặn TASK-108B** | Chưa có. **Cấm** giả định `= 0`, **cấm** suy ra là chi phí giao hàng |
 | C12 | Nhân viên có được xem số của nhân viên khác không? | **ĐÃ ĐÓNG** (2026-08-23) | Câu hỏi hết ý nghĩa — chỉ `ADMIN` dùng hệ thống, không có "nhân viên khác" để so — DEC-124 |
 | C13 | Ai được xem giá nhập và biên lợi nhuận? | **ĐÃ ĐÓNG** (2026-08-23) | Chỉ `ADMIN` — DEC-124 |
 | C14 | Ai được chốt (commit) một lần nạp dữ liệu? | **ĐÃ ĐÓNG** (2026-08-23) | Chỉ `ADMIN` — DEC-124 |
@@ -170,6 +172,47 @@ có toàn quyền admin" mà bản phân tích gốc lo ngại. Ai được cấ
 số lượng tài khoản `ADMIN` nên giới hạn ở người thực sự cần — đây là quyết
 định vận hành của chủ dự án khi cấp tài khoản, không phải thứ hệ thống ép
 buộc được.
+
+---
+
+## C15 — `EligibleCosts` là gì và lấy từ đâu?
+
+**Trạng thái: CÒN MỞ — đây là điều kiện chặn TASK-108B.**
+
+Công thức lợi nhuận KPI (`docs/analysis/03_RULE_CLASSIFICATION.md` §U):
+
+```
+EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity
+                    − Discount − EligibleCosts + OtherKpiAdjustment
+```
+
+`EligibleCosts` là một số hạng **trừ thẳng vào lợi nhuận KPI**, tức trừ thẳng
+vào cơ sở tính thưởng của nhân viên. Nhưng rà soát toàn bộ `docs/analysis/`
+cho thấy nó **chưa từng được định nghĩa ở bất kỳ đâu**:
+
+- Không có trong bảng ánh xạ cột của `01_DATA_MAPPING.md`.
+- Không có trong bảng "Field trong Working Data không có nguồn thô" — tức nó
+  còn chưa được xếp vào loại "biết là thiếu".
+- Không có dòng nào trong file thô 17 cột tương ứng.
+- Chỉ xuất hiện bên trong chính công thức.
+
+Đây **không phải** "chưa có dữ liệu" mà là **chưa có định nghĩa**.
+
+**Cấm tuyệt đối** (chủ dự án chỉ đạo trực tiếp, 2026-08-23):
+- **Cấm** giả định `EligibleCosts = 0` để hoàn thành Conversion Engine.
+- **Cấm** suy ra `EligibleCosts` là chi phí giao hàng (cột `Chi phí giao` /
+  `Lương chuyến`) — hai khái niệm chưa được chứng minh là một.
+
+**Vì sao nghiêm ngặt tới vậy:** một giả định ở đây cho ra `EligibleKpiProfit`
+trông hợp lý, chia cho tỉ lệ ra một doanh thu quy đổi trông hợp lý, rồi con
+số đó đi thẳng vào bảng lương. Không ai phát hiện được bằng cách nhìn kết
+quả. Cùng loại rủi ro mà DEC-103 và DEC-126 §6 tồn tại để chặn.
+
+**Cần chủ dự án trả lời:** `EligibleCosts` gồm những khoản nào, ai nhập, nhập
+ở đâu, và có phải khoản đã nằm trong `KpiAdjustment` (DEC-125) không — nếu có
+thì công thức đang trừ hai lần.
+
+**Chặn:** TASK-108B (Converted Revenue). Không chặn TASK-108A-1.
 
 ---
 

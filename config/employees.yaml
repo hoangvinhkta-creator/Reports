@@ -1,27 +1,47 @@
 # config/employees.yaml
 #
-# Mapping nhân viên bán hàng thô -> chuẩn hóa (DEC-104). Nhiều-về-một: Đức
-# Hiệp / Mr Quý / Mr Vinh cùng gộp về "Nội thành". Khớp bằng phần đầu
-# (prefix) của cột NVBH trong file thô — số điện thoại phía sau bị bỏ qua
-# khi so khớp.
+# Master data nhân viên + nhóm nhân viên (DEC-104, DEC-127, ADR-106).
+#
+# Khớp bằng phần đầu (prefix) của cột NVBH trong file thô — số điện thoại và
+# hậu tố phía sau bị bỏ qua khi so khớp (ví dụ prefix "Đức Kiên" khớp giá trị
+# thật "Đức Kiên - Tân Á 0867666533").
+#
+# `group` (DEC-127 §1): Vinh / Quý / Hiệp là BA Employee riêng biệt, giữ
+# nguyên danh tính, cùng thuộc `NOI_THANH`. Trước đây cả ba bị gộp thành một
+# Employee giả tên "Nội thành" — cách đó làm mất danh tính nhân viên có thật.
+# Group là thứ dùng chung ConversionScheme, không phải thứ thay thế con người.
+#
+# KHÔNG có group "GIA_DUNG": Gia dụng là ProductGroup (thuộc tính của dòng
+# hàng), không phải nhóm người — xem docs/adr/ADR-106-product-group-and-line-level-conversion.md.
 #
 # `default_lead_source: null` nghĩa là dùng mặc định toàn hệ thống
 # (config/lead_source.yaml -> PERSONAL). Chỉ Tín Phát có mặc định ADS
-# (DEC-109, sửa đổi bởi DEC-119 — xem docs/adr/ADR-104-lead-source-vs-conversion-scheme.md).
-# Đây là khai báo về NGUỒN đơn, không phải tỉ lệ quy đổi — tỉ lệ nằm ở
-# config/conversion_rates.yaml (TASK-108).
+# (DEC-109, sửa đổi bởi DEC-119). Đây là khai báo về NGUỒN đơn, không phải
+# tỉ lệ quy đổi — tỉ lệ nằm ở config/conversion_rates.yaml.
 #
 # `effective_from` / `effective_to`: DEC-121 — khi chính sách nhân sự đổi
-# trong tương lai, thêm dòng mới thay vì sửa dòng cũ, để không viết lại
-# một báo cáo đã phát hành.
+# trong tương lai, thêm dòng mới thay vì sửa dòng cũ, để không viết lại một
+# báo cáo đã phát hành. Nhân viên nghỉ dùng `active: false`, KHÔNG xóa.
 #
-# Nhân viên chưa có mặt ở đây (raw NVBH không khớp prefix nào) không bị bỏ
-# — dòng đó được flag `unmapped` bởi employee_mapper (DEC-104, C11 — xem
-# docs/analysis/10_OPEN_QUESTIONS.md).
+# Nhân viên chưa có mặt ở đây (raw NVBH không khớp prefix nào) không bị bỏ —
+# dòng đó được flag `unmapped` bởi employee_mapper và ConversionScheme trả
+# `Unresolved` (DEC-104, DEC-127 §8, C11 — xem docs/analysis/10_OPEN_QUESTIONS.md).
+
+employee_groups:
+  - code: "STANDARD_SALES"
+    name: "Kinh doanh tiêu chuẩn"
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - code: "NOI_THANH"
+    name: "Kênh Nội thành"
+    effective_from: "2026-01-01"
+    effective_to: null
 
 employees:
   - raw_prefix: "Tín Phát"
     normalized: "Tín Phát"
+    group: "STANDARD_SALES"
     active: true
     include_in_kpi: true
     default_lead_source: "ADS"
@@ -30,6 +50,7 @@ employees:
 
   - raw_prefix: "Vũ Hạnh Ly"
     normalized: "Ly"
+    group: "STANDARD_SALES"
     active: true
     include_in_kpi: true
     default_lead_source: null
@@ -38,6 +59,7 @@ employees:
 
   - raw_prefix: "Lê Mạnh Hoàng"
     normalized: "Hoàng"
+    group: "STANDARD_SALES"
     active: true
     include_in_kpi: true
     default_lead_source: null
@@ -46,6 +68,7 @@ employees:
 
   - raw_prefix: "Đức Kiên"
     normalized: "Kiên"
+    group: "STANDARD_SALES"
     active: true
     include_in_kpi: true
     default_lead_source: null
@@ -54,22 +77,7 @@ employees:
 
   - raw_prefix: "Phước Thắng"
     normalized: "Thắng"
-    active: true
-    include_in_kpi: true
-    default_lead_source: null
-    effective_from: "2026-01-01"
-    effective_to: null
-
-  - raw_prefix: "Đức Hiệp"
-    normalized: "Nội thành"
-    active: true
-    include_in_kpi: true
-    default_lead_source: null
-    effective_from: "2026-01-01"
-    effective_to: null
-
-  - raw_prefix: "Mr Quý"
-    normalized: "Nội thành"
+    group: "STANDARD_SALES"
     active: true
     include_in_kpi: true
     default_lead_source: null
@@ -77,7 +85,26 @@ employees:
     effective_to: null
 
   - raw_prefix: "Mr Vinh"
-    normalized: "Nội thành"
+    normalized: "Vinh"
+    group: "NOI_THANH"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Mr Quý"
+    normalized: "Quý"
+    group: "NOI_THANH"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Đức Hiệp"
+    normalized: "Hiệp"
+    group: "NOI_THANH"
     active: true
     include_in_kpi: true
     default_lead_source: null

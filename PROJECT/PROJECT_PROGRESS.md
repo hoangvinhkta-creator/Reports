@@ -51,8 +51,9 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-107 DONE — profit_engine (AccountingProfit), 6/6 REQUIRED
-check PASS, 83/83 test tổng)
+2026-08-23 (TASK-108A-1 IMPLEMENTED — ConversionSchemeResolver +
+EmployeeGroup + ProductGroup, 16/16 REQUIRED check PASS, 119/119 test tổng.
+**Chờ independent review, CHƯA merge.**)
 
 Overall Status:
 IN_PROGRESS
@@ -61,17 +62,20 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-108 — conversion_engine
+TASK-108A-1 — ConversionSchemeResolver (IMPLEMENTED, chờ independent review)
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-108 — conversion_engine. Bước 10–11 của §22 đặc tả: phân giải
-`ConversionScheme` **độc lập** với `LeadSource`, tra config theo
-`(employee, lead_source, ngày của đơn)` (DEC-119, DEC-121, ADR-104), sau đó
-quy đổi 2 bucket PERSONAL/ADS độc lập. Risk cao nhất trong roadmap (5/5) —
-xem "Completion Gate sơ bộ" đã ghi sẵn các REQUIRED check cho task này.
+**Independent review TASK-108A-1**, rồi mới merge. Sau khi merge:
+TASK-109 (tổng hợp) hoặc TASK-110. **TASK-108B vẫn BLOCKED** — cần
+`EligibleCosts` (C15), Price Master, và Adjustment đã xác nhận.
+
+TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
+- **108A-1** ConversionScheme Resolution — IMPLEMENTED
+- **108A-2** ProductGroup Auto Classification — NOT REQUIRED FOR PHASE 1
+- **108B** Converted Revenue — BLOCKED
 
 ## Roadmap tổng thể
 
@@ -151,9 +155,23 @@ xem "Completion Gate sơ bộ" đã ghi sẵn các REQUIRED check cho task này.
         chưa có, không cần logic điều kiện riêng. 6/6 REQUIRED check PASS,
         83/83 test tổng (9 mới, không regression). Chi tiết:
         `docs/tasks/TASK-107-profit-engine.md`.
-  - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
-        của §22 đặc tả. Phân giải `ConversionScheme` **độc lập** với
-        `LeadSource`, tra config theo `(employee, lead_source, ngày của đơn)`
+  - [x] TASK-108A-1 — ConversionScheme Resolution. **IMPLEMENTED**
+        (2026-08-23, chờ independent review). Ba vòng pre-implementation
+        review (Gate v1→v3) trước khi code; DEC-127 + ADR-106 chốt: tách
+        `Nội thành` thành ba Employee thật (Vinh/Quý/Hiệp) cùng
+        `employee_group = NOI_THANH`; thêm dimension `ProductGroup`
+        (`DIEN_MAY`/`GIA_DUNG`) ở **cấp product line**; `ConversionScheme`
+        hạ từ cấp Order xuống cấp line. Resolver 4 chiều, lọc cứng theo
+        `lead_source`, chọn dòng cụ thể nhất theo specificity, hòa điểm là
+        lỗi cấu hình, không khớp là `Unresolved`. 16/16 REQUIRED check PASS,
+        119/119 test, reconciliation 55 ô cột F Summary 2026 **0 ô lệch** và
+        employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
+        `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
+  - [ ] TASK-108B — Converted Revenue (2 bucket PERSONAL/ADS). **BLOCKED** —
+        cần `EligibleCosts` (C15, chưa có định nghĩa nghiệp vụ), Price
+        Master, `OtherKpiAdjustment`, và KPI Adjustment đã xác nhận
+        (DEC-126). Bước 11 của §22 đặc tả. Phân giải `ConversionScheme` đã
+        xong ở 108A-1; phần còn lại là quy đổi hai bucket
         (DEC-119, DEC-121, ADR-104), sau đó quy đổi từng bucket độc lập rồi
         cộng lại. Engine tự tổng hợp `PersonalProfit`/`AdsProfit` từ phân loại
         cấp đơn — `X` không còn là đầu vào (DEC-120).
@@ -442,13 +460,14 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-108 — conversion_engine
+TASK-108A-1 — ConversionSchemeResolver
 
 Task Mode:
 MAJOR
 
 Status:
-PLANNED — TASK-107 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-108.
+IMPLEMENTED — 16/16 REQUIRED check PASS, 119/119 test. **CHƯA merge**, chờ
+independent review theo chỉ đạo của chủ dự án.
 
 Required Gate Progress:
 GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE**, TASK-106
@@ -464,6 +483,36 @@ C
 
 Escalation Tier:
 —
+
+### TASK-108A-1 — IMPLEMENTED (2026-08-23), chờ independent review
+
+Ba vòng pre-implementation review trước khi có dòng code nào. Kết quả chốt
+thành **DEC-127** (8 quyết định nghiệp vụ) và **ADR-106** (ProductGroup +
+hạ granularity xuống cấp line).
+
+Thay đổi mô hình: `Nội thành` không còn là Employee — Vinh, Quý, Hiệp là ba
+Employee thật, cùng `employee_group = NOI_THANH`. Thêm dimension
+`ProductGroup` (`DIEN_MAY`/`GIA_DUNG`) ở **cấp product line**, vì đo được
+118/10.609 OrderID chứa đồng thời cả hai loại. `ConversionScheme` do đó hạ
+từ cấp Order xuống cấp line; `LeadSource` giữ nguyên cấp Order (DEC-119).
+
+Resolver tra 4 chiều `(employee, employee_group, lead_source, product_group,
+ngày của đơn)`: `lead_source` là lọc cứng, dòng cụ thể nhất thắng theo
+specificity `4×employee + 2×group + 1×product_group`, **hòa điểm là lỗi cấu
+hình** (engine từ chối chọn), không khớp là `Unresolved` (không fallback).
+
+Bằng chứng trên dữ liệu thật: reconciliation 55 ô cột F của `Summary 2026`
+— **52 khớp chính xác, 3 legacy, 0 lệch**; employee mapping đúng trên
+**14.389 dòng** file thô toàn công ty với 107 dòng `unmapped` đúng C11.
+16/16 REQUIRED check PASS, 119/119 test (36 mới), không regression.
+
+**Một dự đoán ở Gate v3 sai và đã ghi lại:** 3 ô legacy (Linh, Fanpage)
+được dự đoán trả `Unresolved`, thực tế phân giải qua dòng `*` ra 5,5 %. Đây
+là dòng chính sách phổ quát, không phải mượn tỉ lệ của ai; việc loại khỏi
+KPI do `employee_mapping_status = unmapped` gánh. Cần reviewer xác nhận đây
+là hành vi mong muốn.
+
+Chi tiết: `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
 
 ### TASK-107 — DONE (2026-08-23)
 

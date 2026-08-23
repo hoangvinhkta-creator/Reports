@@ -1,10 +1,18 @@
-"""Map raw `NVBH` strings to normalized employees (DEC-104).
+"""Map raw `NVBH` strings to normalized employees and their group (DEC-104,
+DEC-127).
 
-Many-to-one: several raw prefixes (Đức Hiệp / Mr Quý / Mr Vinh) collapse to
-one normalized employee ("Nội thành"). Matching is prefix-based because the
-raw column carries a trailing phone number (`"Tín Phát 0869931931"`). A raw
-value that matches no configured prefix is never silently dropped — it comes
-back flagged `unmapped` so the caller can route it to review (C11,
+One-to-one on identity: every raw prefix resolves to its own employee, so a
+real person is never merged into someone else. Employees that share a
+conversion policy are joined by `group` instead — that is what
+`employee_group` exists for (DEC-127 §1, ADR-106). An earlier version
+collapsed three raw prefixes into a single fake employee; that erased three
+real identities and has been undone.
+
+Matching is prefix-based because the raw column carries trailing noise — a
+phone number, sometimes a branch suffix (`"Đức Kiên - Tân Á 0867666533"`). A
+raw value that matches no configured prefix is never silently dropped — it
+comes back flagged `unmapped` so the caller can route it to review, and its
+ConversionScheme resolves to `Unresolved` rather than borrowing a rate (C11,
 `docs/analysis/10_OPEN_QUESTIONS.md`).
 """
 
@@ -30,6 +38,7 @@ class MappingResult:
     status: str
     default_lead_source: Optional[str]
     include_in_kpi: Optional[bool]
+    group: Optional[str] = None
 
 
 class EmployeeMapper:
@@ -62,6 +71,7 @@ class EmployeeMapper:
             status=status,
             default_lead_source=best.get("default_lead_source"),
             include_in_kpi=best.get("include_in_kpi"),
+            group=best.get("group"),
         )
 
     def apply(self, lines: list[WorkingLine]) -> list[WorkingLine]:
@@ -69,4 +79,5 @@ class EmployeeMapper:
             result = self.resolve(line.employee_raw, line.date)
             line.employee_normalized = result.normalized
             line.employee_mapping_status = result.status
+            line.employee_group = result.group
         return lines

@@ -10,10 +10,51 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 11 (tính lợi nhuận kế toán) đã
-> xong** (xem "Có gì mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 12 (chọn tỷ lệ quy đổi) đã làm
+> xong phần lõi, đang chờ soát xét độc lập** (xem "Có gì mới" bên dưới).
 
-## Có gì mới — bước 11 xong (2026-08-23)
+## Có gì mới — bước 12, phần lõi đã xong (2026-08-23)
+
+**Đây là phần rủi ro cao nhất của cả dự án** — chọn sai tỷ lệ quy đổi là sai
+lương của người thật. Vì vậy trước khi viết một dòng code nào, đã rà soát ba
+vòng với sếp và chốt lại một số điểm quan trọng:
+
+**1. Vinh, Quý, Hiệp giờ là ba nhân viên riêng biệt.** Trước đây hệ thống gộp
+ba người thành một cái tên chung "Nội thành" — làm mất danh tính từng người.
+Nay mỗi người giữ tên riêng, và cái họ dùng chung là **nhóm** (`NOI_THANH`),
+chứ không phải cái tên.
+
+**2. Gia dụng không phải là một nhân viên, cũng không phải một nhóm người —
+mà là một loại hàng.** Cùng một nhân viên có thể bán cả Điện máy lẫn Gia dụng
+trong **cùng một đơn**: kiểm tra trên dữ liệu thật thấy **118 đơn** như vậy.
+Nếu áp một tỷ lệ cho cả đơn thì 118 đơn đó tính sai. Nay tỷ lệ được chọn cho
+**từng dòng hàng**, không phải cho cả đơn.
+
+**3. Cùng một mã máy nhưng người bán khác nhau thì tỷ lệ khác nhau.** Ví dụ
+máy lọc không khí: nếu đi qua kênh Gia dụng thì 8 %, nhưng nếu Ly bán thì vẫn
+5,5 % — đúng như báo cáo cũ đang tính. Đã kiểm chứng: 34 % số dòng hàng Gia
+dụng là do nhân viên thường bán, nên nếu làm sai điểm này thì rất nhiều dòng
+sẽ lệch.
+
+**Kết quả kiểm tra trên số liệu thật của công ty:**
+
+- Đối chiếu **55 ô tỷ lệ** trong file `Báo cáo Kinh doanh 2026` → **52 ô khớp
+  chính xác, 0 ô lệch**. 3 ô còn lại là hai người cũ (Linh, Fanpage) chưa có
+  trong danh sách nhân viên.
+- Nhận diện đúng **8 nhân viên trên 14.389 dòng** dữ liệu thật. 107 dòng của
+  5 người chưa khai báo được đưa vào danh sách chờ xử lý, **không bị bỏ sót
+  và cũng không bị gán bừa tỷ lệ của ai**.
+- 119/119 bài kiểm tra tự động đều đạt.
+
+**Nguyên tắc an toàn đã cài sẵn:** nếu hệ thống không tìm được tỷ lệ phù hợp,
+nó **báo "chưa xác định"** chứ tuyệt đối không mượn tỷ lệ của người khác. Nếu
+cấu hình có hai dòng mâu thuẫn ngang nhau, hệ thống **báo lỗi** chứ không tự
+chọn bừa một cái.
+
+**Chưa gộp vào nhánh chính** — theo yêu cầu của sếp, phải qua soát xét độc
+lập trước.
+
+## Có gì mới trước đó — bước 11 xong (2026-08-23)
 
 **Bước 11 (TASK-107 — tính lợi nhuận) đã xong phần "lợi nhuận kế toán"
 (`AccountingProfit`)** — con số lợi nhuận thật, dùng cho sổ sách. Ngay sau
@@ -190,7 +231,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận. **Xong — hiện để "Chờ nhập" vì chưa có bảng giá điện tử** | B | Xong |
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
-| 🟡 | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | **Việc tiếp theo** — sẵn sàng bắt đầu |
+| ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong phần lõi** — chờ soát xét độc lập |
+| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

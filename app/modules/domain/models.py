@@ -35,6 +35,25 @@ PRICE_SOURCE_PENDING = "Pending"
 PRICE_SOURCE_PRICE_MASTER = "PriceMaster"
 PRICE_SOURCE_MANUAL = "Manual"
 
+# ProductGroup has exactly two values (DEC-127, ADR-106). Like LEAD_SOURCES,
+# this is a structural invariant of the model, not a tunable business value.
+# It is a property of the PRODUCT LINE, never of the order: 118 real OrderIDs
+# carry both kinds at once, so one scheme per order would misprice them.
+DIEN_MAY = "DIEN_MAY"
+GIA_DUNG = "GIA_DUNG"
+PRODUCT_GROUPS = (DIEN_MAY, GIA_DUNG)
+
+# Provenance of product_group_final (ADR-106 §5). "DEFAULT" must stay
+# distinguishable from "MANUAL": in Phase 1 every line falls back to
+# DIEN_MAY, and that fallback has to be visible rather than look like a
+# decision somebody made.
+PRODUCT_GROUP_SOURCE_DEFAULT = "DEFAULT"
+PRODUCT_GROUP_SOURCE_MANUAL = "MANUAL"
+PRODUCT_GROUP_SOURCE_AUTO = "AUTO"
+
+# A conversion scheme that resolved to no configured row. Never a rate.
+CONVERSION_UNRESOLVED = "Unresolved"
+
 
 @dataclass(frozen=True)
 class RawRow:
@@ -102,6 +121,7 @@ class WorkingLine:
     employee_raw: Optional[str]
     employee_normalized: Optional[str] = None
     employee_mapping_status: str = MAPPING_STATUS_UNMAPPED
+    employee_group: Optional[str] = None
 
     shipper_raw: Optional[str] = None
     delivery_cost: Optional[Decimal] = None
@@ -123,6 +143,24 @@ class WorkingLine:
     # Pending/thiếu — không bao giờ suy đoán 0 (DEC-103).
     accounting_profit: Optional[Decimal] = None
 
+    # Bước 10 §22 đặc tả (TASK-108A-1, ADR-106). ProductGroup và
+    # ConversionScheme đều ở cấp LINE, không phải cấp Order — một OrderID có
+    # thể chứa cả Điện máy lẫn Gia dụng. `LeadSource` vẫn ở cấp Order
+    # (DEC-119 không đổi).
+    product_group_auto: Optional[str] = None  # Phase 1 luôn None
+    product_group_manual: Optional[str] = None  # checkbox "Gia dụng" ghi vào đây
+    product_group_final: Optional[str] = None
+    product_group_source_of_value: Optional[str] = None
+
+    # `conversion_rate_final is None` cùng với scheme `Unresolved` nghĩa là
+    # không tra được tỉ lệ — vào Review Queue, không bao giờ mượn tỉ lệ của
+    # nhân viên khác và không bao giờ có tỉ lệ mặc định cuối cùng (ADR-104).
+    conversion_scheme_auto: Optional[str] = None
+    conversion_scheme_manual: Optional[str] = None
+    conversion_scheme_final: Optional[str] = None
+    conversion_rate_final: Optional[Decimal] = None
+    conversion_scheme_source_of_value: Optional[str] = None
+
 
 @dataclass
 class Order:
@@ -138,6 +176,7 @@ class Order:
     employee_normalized: Optional[str]
     employee_mapping_status: str
     lines: list[WorkingLine] = field(default_factory=list)
+    employee_group: Optional[str] = None
 
     lead_source_auto: Optional[str] = None
     lead_source_manual: Optional[str] = None

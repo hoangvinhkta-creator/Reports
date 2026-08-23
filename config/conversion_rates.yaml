@@ -1,0 +1,68 @@
+# config/conversion_rates.yaml
+#
+# Bảng ConversionScheme 4 chiều (ADR-106 §3, DEC-127 §3).
+#
+# Khóa: (employee, employee_group, lead_source, product_group, hiệu lực theo
+# NGÀY CỦA ĐƠN — không bao giờ theo "hôm nay", DEC-121).
+#
+# `rate` lưu dạng CHUỖI, đọc ra `Decimal` — không bao giờ `float` (ADR-103).
+# Chia cho một `float` làm trôi số ở chữ số cuối, và con số này đi vào bảng
+# lương.
+#
+# Phân giải (ADR-106 §4):
+#   - `lead_source` là BỘ LỌC CỨNG: dòng sai nguồn đơn bị loại, không có "*"
+#     nào thắng được sai nguồn.
+#   - Trong số dòng còn lại, chọn dòng CỤ THỂ NHẤT theo điểm:
+#         specificity = 4×(employee ≠ "*") + 2×(employee_group ≠ "*")
+#                       + 1×(product_group ≠ "*")
+#   - Hòa điểm  -> LỖI CẤU HÌNH MƠ HỒ, engine không tự chọn.
+#   - Không dòng nào khớp -> `Unresolved` + Review Queue, KHÔNG fallback.
+#     Một tỉ lệ thiếu không bao giờ được âm thầm mượn tỉ lệ của người khác —
+#     đó là cách một con số sai đi thẳng vào bảng lương.
+#
+# Tầng `employee` hiện chưa dòng nào dùng. Nó tồn tại để sau này một cá nhân
+# cần ngoại lệ thì là MỘT DÒNG CONFIG, không phải sửa mã nguồn.
+#
+# Vì sao `GIA_DUNG_8` khóa trên `NOI_THANH` chứ không trên `*`: đo trên dữ
+# liệu thật, 34% số dòng hàng Gia dụng do nhóm STANDARD_SALES bán. Nếu áp
+# `* + GIA_DUNG -> 8%`, những dòng đó sẽ lệch khỏi cách báo cáo lịch sử tính
+# (Ly bán cùng model vẫn 5,5%). Xem ADR-106 §Rationale.
+
+default_product_group: "DIEN_MAY"
+
+conversion_schemes:
+  - employee: "*"
+    employee_group: "*"
+    lead_source: "PERSONAL"
+    product_group: "*"
+    scheme: "PERSONAL_5_5"
+    rate: "0.055"
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - employee: "*"
+    employee_group: "*"
+    lead_source: "ADS"
+    product_group: "*"
+    scheme: "ADS_7_5"
+    rate: "0.075"
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - employee: "*"
+    employee_group: "NOI_THANH"
+    lead_source: "PERSONAL"
+    product_group: "DIEN_MAY"
+    scheme: "NOI_THANH_2"
+    rate: "0.020"
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - employee: "*"
+    employee_group: "NOI_THANH"
+    lead_source: "PERSONAL"
+    product_group: "GIA_DUNG"
+    scheme: "GIA_DUNG_8"
+    rate: "0.080"
+    effective_from: "2026-01-01"
+    effective_to: null

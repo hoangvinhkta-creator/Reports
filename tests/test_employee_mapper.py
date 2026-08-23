@@ -24,12 +24,20 @@ def test_tin_phat_has_ads_default(config_dir):
     assert result.default_lead_source == "ADS"
 
 
-def test_channel_employees_collapse_to_noi_thanh(config_dir):
+def test_channel_employees_keep_identity_and_share_a_group(config_dir):
+    # DEC-127 §1: the three channel sellers are three real people. They used to
+    # be collapsed into one fake employee "Nội thành"; what they share is a
+    # group, not a name.
     mapper = EmployeeMapper.from_yaml(config_dir / "employees.yaml")
-    for raw in ("Đức Hiệp", "Mr Quý", "Mr Vinh"):
+    expected = {"Đức Hiệp": "Hiệp", "Mr Quý": "Quý", "Mr Vinh": "Vinh"}
+    for raw, normalized in expected.items():
         result = mapper.resolve(raw, date(2026, 2, 1))
-        assert result.normalized == "Nội thành", raw
+        assert result.normalized == normalized, raw
+        assert result.group == "NOI_THANH", raw
         assert result.default_lead_source is None, raw
+
+    resolved = {mapper.resolve(raw, date(2026, 2, 1)).normalized for raw in expected}
+    assert len(resolved) == 3, "ba nhân viên phải giữ ba danh tính riêng"
 
 
 def test_unmapped_employee_is_flagged_not_dropped(config_dir):
