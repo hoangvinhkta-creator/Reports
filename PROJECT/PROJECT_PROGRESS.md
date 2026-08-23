@@ -173,16 +173,18 @@ Xem "Session tiếp theo" → Track A bên dưới trước khi bắt đầu.
         phép tồn tại (kiểm chứng bằng `grep`). Mỗi endpoint phải điền đủ
         `API Contract Template` (`governance/core/06_DATABASE_API_RULES.md`),
         mục Authorization không được để trống.
-  - [ ] TASK-204 — authentication và phân quyền. Triển khai ma trận phân quyền
-        trong **ADR-105** §4 (3 vai trò `viewer`/`editor`/`admin`, 13 năng
-        lực, default deny) và phạm vi dữ liệu theo người dùng ở §5. Ranh giới
-        bảo mật đặt ở backend: frontend **không bao giờ nhận** field mà vai
-        trò đang đăng nhập không được đọc — lọc ở tầng repository/serializer,
-        không phải ẩn cột trên UI. Test bắt buộc: mỗi ô ❌ trong ma trận có
-        một test gọi thẳng API bằng token vai trò đó và khẳng định `403`.
-        **Phụ thuộc nghiệp vụ:** C12, C13, C14 (`docs/analysis/10_OPEN_QUESTIONS.md`)
-        phải đóng trước khi bắt đầu — nếu chưa, áp mặc định của ADR-105 và ghi
-        rõ là mặc định chưa xác nhận.
+  - [ ] TASK-204 — authentication và phân quyền. **Đơn giản hóa 2026-08-23
+        (DEC-124):** chủ dự án xác nhận trực tiếp — công cụ quản trị nội bộ,
+        chỉ một vai trò `ADMIN` trong MVP, không `viewer`/`editor`/
+        `employee_scope` (**ADR-105** §4, Accepted). Danh tính không phải
+        `ADMIN` nhận `403` ở mọi endpoint trừ
+        `auth/login`/`auth/logout`/`auth/me`, và không mở được frontend.
+        Ranh giới bảo mật đặt ở backend dù chỉ một vai trò: một `curl`
+        không mang token `ADMIN` hợp lệ phải bị chặn, không chỉ ẩn nút trên
+        UI. Thiết kế `users.role` dạng enum cho phép thêm vai trò sau này,
+        không xây trước hạ tầng nhiều vai trò (ADR-105 §5). C12/C13/C14 đã
+        đóng — không còn phụ thuộc nghiệp vụ nào chặn Roadmap Finalization
+        của task này khi PHASE-02 mở.
   - [ ] TASK-205 — recalculate tăng dần (incremental)
 
 - [ ] PHASE-03 — Giao diện Web
@@ -395,27 +397,30 @@ check sơ bộ ghi nhận ngay bây giờ:
   router (E1). Đây là hệ quả trực tiếp của ADR-102, xem ADR-105 §2.
 - TASK-203: mọi endpoint có mục Authorization được điền trong `API Contract
   Template`, không endpoint nào để trống (E1).
-- TASK-204: với **mỗi ô ❌** trong ma trận phân quyền của ADR-105 §4, có một
-  test gọi thẳng API bằng token của vai trò đó và khẳng định `403` — không
-  phải khẳng định nút bị ẩn trên UI (E1, hướng tới E2 vì đây là bề mặt bảo
-  mật).
-- TASK-204: response JSON cho vai trò `viewer` không chứa
-  `accounting_purchase_price` và không chứa field biên lợi nhuận, kiểm chứng
-  bằng cách gọi API thật chứ không đọc code (E1).
+- TASK-204: với **mọi endpoint** ở ADR-105 §2 (trừ ba endpoint auth), một
+  test gọi thẳng API bằng danh tính không phải `ADMIN` (chưa đăng nhập, hoặc
+  đăng nhập với role khác) và khẳng định `403` — không phải khẳng định nút
+  bị ẩn trên UI (E1, hướng tới E2 vì đây là bề mặt bảo mật).
+- TASK-204: với danh tính `ADMIN`, test khẳng định từng endpoint trả đúng dữ
+  liệu, không bị chặn nhầm — kiểm chứng bằng cách gọi API thật (E1).
 - TASK-301…306 / GATE-03: mọi route ở ADR-105 §3 mở trực tiếp được, refresh
   được, back/forward đúng, có trạng thái not-found; không có màn hình chính
   nào chỉ tới được bằng tab state (E1, theo "Checklist Routing" của
-  `governance/core/02_ROUTING_RULES.md`).
+  `governance/core/02_ROUTING_RULES.md`). Riêng frontend: danh tính không
+  phải `ADMIN` phải nhận màn hình "không có quyền truy cập" ở mọi route
+  nghiệp vụ, kể cả khi gõ thẳng URL (E1).
 - Mọi phase: không tên nhân viên, tỉ lệ quy đổi, target, số tiền adjustment
   hay từ khóa ADS nào xuất hiện dưới dạng literal trong mã nguồn ứng dụng
   (E1, kiểm chứng được bằng grep).
 
 **Lưu ý cho session sau — các check PHASE-02/03 ở trên là PRELIMINARY.**
-Chúng đến từ `ADR-105`, hiện ở trạng thái **Proposed**, không phải Accepted.
-Không được coi là gate đã đóng băng, và không được viện dẫn như một cam kết
-của chủ dự án. Quy trình đúng khi PHASE-02 mở: chạy Roadmap Finalization đầy
-đủ cho TASK-203/204 (`governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn
-thiện Roadmap"), đóng C12/C13/C14 trước, rồi mới freeze. Xem DEC-123.
+`ADR-105` §4/§5 (phân quyền) đã chuyển **Accepted** (DEC-124, C12/C13/C14 đã
+đóng); §2/§3 (route) vẫn Accepted như từ đầu. **Nhưng Completion Gate của
+TASK-203/204 vẫn chưa freeze** — chấp nhận ADR khác với freeze gate. Quy
+trình đúng khi PHASE-02 mở: chạy Roadmap Finalization đầy đủ cho TASK-203/204
+(`governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn thiện Roadmap") rồi
+mới freeze — bước này giờ nhanh hơn nhiều vì không còn câu hỏi nghiệp vụ nào
+mở. Xem DEC-123, DEC-124.
 
 ## Trạng thái Task hiện tại
 
@@ -650,7 +655,7 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   tên một file sắp tạo, viết trần (README.md) thay vì trong backtick.
 
 ## Quyết định gần đây
-- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-123 (track Tín Phát).
+- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-124 (track Tín Phát).
   Các quyết định mới nhất:
   - **DEC-119** — tách `LeadSource` khỏi `ConversionScheme`; `TINPHAT_ADS` bị
     loại bỏ. Xem ADR-104.
@@ -661,8 +666,12 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
     theo ngày của đơn.
   - **DEC-122** — GATE-00 PASS; PHASE-01 mở khóa.
   - **DEC-123** — Roadmap Finalization **sơ bộ** cho TASK-203/204; ADR-105
-    (route map + ma trận phân quyền) ở trạng thái `Proposed`, **chưa freeze**;
-    C12/C13/C14 còn mở.
+    (route map + mô hình phân quyền) dựng lần đầu, ba mặc định tạm cho
+    C12/C13/C14.
+  - **DEC-124** — chủ dự án quyết định trực tiếp: MVP chỉ một vai trò
+    `ADMIN`, không `viewer`/`editor`/`employee_scope`. Đóng C12/C13/C14.
+    ADR-105 §4/§5 viết lại, chuyển `Accepted`. Completion Gate TASK-203/204
+    vẫn chưa freeze.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 
@@ -812,6 +821,24 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   CHECK-101-08 chuyển PASS, TASK-101 chuyển DONE (13/13 REQUIRED check
   PASS). File thật xóa khỏi môi trường sau khi dùng, chưa từng commit
   (DEC-108). Current Task chuyển sang TASK-105.
+- 2026-08-23 — **Đơn giản hóa phân quyền — ADMIN-only (DEC-124).** Chủ dự án
+  trả lời trực tiếp, đóng cùng lúc C12/C13/C14 mà DEC-123 để mở: công cụ quản
+  trị nội bộ, MVP chỉ một vai trò `ADMIN`, không `viewer`/`editor`/
+  `employee_scope`. Non-ADMIN nhận `403` ở mọi API trừ `auth/login`,
+  `auth/logout`, `auth/me`, và không mở được frontend; phân quyền vẫn kiểm ở
+  backend, không chỉ ẩn UI. Database thiết kế cho phép thêm vai trò sau này
+  (cột `role` enum), không xây trước hạ tầng nhiều vai trò.
+
+  Viết lại `ADR-105` §4 (ma trận 3 vai trò → nhị phân ADMIN/không-ADMIN) và
+  §5 (`employee_scope` hạn chế → mở rộng vai trò trong tương lai, không xây
+  trước); §2/§3 (route) không đổi. Chuyển §4/§5 sang `Accepted` — thêm annotation
+  "Sửa đổi 2026-08-23" vào DEC-123 thay vì viết lại lịch sử. Đóng C12/C13/C14
+  trong `docs/analysis/10_OPEN_QUESTIONS.md`, chuyển vào bảng "Đã đóng". Cập
+  nhật `PROJECT/PROJECT_PROFILE.md` (Authentication), 2 check PRELIMINARY của
+  TASK-204 (ma trận → nhị phân). **Completion Gate TASK-203/204 vẫn KHÔNG
+  freeze** — chấp nhận ADR khác với freeze gate của task còn hai phase nữa
+  mới tới. Đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md`. Chạy lại 5 validator
+  governance — PASS.
 - 2026-08-23 — **TASK-105 DONE (price_engine + PriceProvider).** Tạo
   `docs/tasks/TASK-105-price-engine.md`, freeze Completion Gate trước khi
   code. Mở rộng `WorkingLine` thêm `accounting_purchase_price` và
@@ -889,21 +916,23 @@ Files to read first:
 
 ### Ghi chú cho session nào mở PHASE-02 (chưa phải bây giờ)
 
-`ADR-105` đã dựng sẵn bản đồ route và ma trận phân quyền cho TASK-203/204
-(DEC-123, 2026-08-23). **Nó ở trạng thái `Proposed`, không phải gate đã
-freeze.** Đừng implement thẳng từ nó và cũng đừng bỏ qua nó.
+`ADR-105` đã dựng sẵn bản đồ route (§2/§3) và mô hình phân quyền (§4/§5) cho
+TASK-203/204. **Cả bốn mục đều `Accepted`** (DEC-123 cho §2/§3; DEC-124
+2026-08-23 cho §4/§5, sau khi chủ dự án xác nhận trực tiếp: công cụ quản trị
+nội bộ, chỉ một vai trò `ADMIN`, không `viewer`/`editor`/`employee_scope`
+trong MVP). **Completion Gate của TASK-203/204 vẫn CHƯA freeze** — ADR được
+chấp nhận không tự động freeze gate của task tương ứng.
 
 Quy trình đúng khi PHASE-02 mở:
-1. Hỏi chủ dự án C12, C13, C14 (`docs/analysis/10_OPEN_QUESTIONS.md`) — ba câu
-   hỏi nghiệp vụ về phân quyền, không tự quyết.
-2. Chạy Roadmap Finalization đầy đủ cho TASK-203 và TASK-204
+1. Chạy Roadmap Finalization đầy đủ cho TASK-203 và TASK-204
    (`governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn thiện Roadmap",
-   9 bước), dùng ADR-105 làm bản nháp đầu vào chứ không phải kết luận.
-3. Freeze Completion Gate, rồi chuyển ADR-105 sang `Accepted`.
+   9 bước), dùng ADR-105 làm bản thiết kế đã chốt chứ không phải bản nháp —
+   không còn câu hỏi nghiệp vụ nào mở nên bước này nên nhanh.
+2. Freeze Completion Gate dựa trên 6 check PRELIMINARY đã có sẵn trong mục
+   "Completion Gate sơ bộ" phía trên, điều chỉnh nếu thực tế lúc đó khác.
 
-Nếu PHASE-02 bắt đầu mà C12/C13/C14 vẫn mở: áp mặc định của ADR-105 và **ghi
-rõ trong task file rằng đó là mặc định chưa xác nhận**, không được viết như
-thể đó là yêu cầu của chủ dự án.
+Không còn phụ thuộc nghiệp vụ nào (C12/C13/C14 đã đóng) — bước 1 giờ chỉ còn
+là thủ tục hoàn thiện gate, không cần hỏi lại chủ dự án gì thêm cho phần này.
 
 ### Bắt buộc cho cả hai track
 

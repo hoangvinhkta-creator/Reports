@@ -2,17 +2,18 @@
 
 ## Status
 
-**Proposed** — chưa Accepted.
+**Accepted** (mục Decision §4/§5) — 2026-08-23, sau quyết định trực tiếp của
+chủ dự án đóng C12/C13/C14. Xem "Sửa đổi 2026-08-23" ngay dưới Context.
 
-Đây là thiết kế sơ bộ (PRELIMINARY), **không phải gate đã đóng băng**. Lý do
-giữ ở Proposed thay vì Accepted: quyết định này chứa ba câu hỏi nghiệp vụ mà
-chủ dự án chưa trả lời (C12, C13, C14 trong `docs/analysis/10_OPEN_QUESTIONS.md`).
-Chuyển sang Accepted khi PHASE-02 mở và ba câu đó đã đóng.
+Mục §2 (route backend) và §3 (route frontend) không đổi, vẫn Accepted.
 
+**Completion Gate của TASK-203/TASK-204 vẫn CHƯA freeze.** Chấp nhận ADR
+(quyết định thiết kế) khác với freeze gate (cam kết tiêu chí nghiệm thu).
 `governance/core/00_SESSION_ORCHESTRATION.md` → "Hoàn thiện Roadmap" cấm đóng
-băng chi tiết của task còn xa khi discovery chưa đủ. TASK-203/TASK-204 nằm ở
-PHASE-02, còn cách hiện tại (TASK-101) hơn một phase và một gate. Tài liệu này
-thực hiện bước 1–7 của quy trình đó và **cố ý dừng trước bước 8 (freeze)**.
+băng chi tiết của task còn xa khi discovery chưa đủ; TASK-203/204 vẫn cách
+task hiện tại (TASK-101) một phase và một gate. Freeze đúng lúc khi PHASE-02
+mở, qua một Roadmap Finalization đầy đủ — thiết kế giờ đã đơn giản hơn nhiều
+nên bước đó sẽ nhanh.
 
 ## Date
 
@@ -37,8 +38,9 @@ Rà soát cho thấy **nguyên tắc đã có đủ, thiết kế cụ thể th�
   liệu cá nhân khách hàng là dữ liệu nhạy cảm phải bảo vệ.
 - `governance/core/02_ROUTING_RULES.md` (Mandatory) cấm thẳng: *"Không ẩn toàn
   bộ ứng dụng phía sau một route duy nhất."*
-- `PROJECT/PROJECT_PROFILE.md` chốt Authentication = BẮT BUỘC, ba vai trò
-  `viewer` / `editor` / `admin`.
+- `PROJECT/PROJECT_PROFILE.md` chốt Authentication = BẮT BUỘC *(tại thời điểm
+  này, PROFILE liệt kê ba vai trò `viewer`/`editor`/`admin` — đã được cập
+  nhật lại thành chỉ `ADMIN` sau "Sửa đổi 2026-08-23" bên dưới, DEC-124)*.
 
 Nhưng trong `PROJECT/PROJECT_PROGRESS.md`, `TASK-203 — HTTP API` và
 `TASK-204 — authentication và phân quyền` mỗi cái chỉ là **một dòng một câu**,
@@ -48,6 +50,24 @@ chi tiết. Ba vai trò được đặt tên nhưng chưa ai định nghĩa vai 
 
 Khoảng trống đó là thật, và nó là loại khoảng trống dễ bị lấp bằng ứng biến
 lúc code — đúng thứ mà `CLAUDE.md` → "Không code trước rồi tổ chức sau" cấm.
+
+### Sửa đổi 2026-08-23 — chủ dự án quyết định trực tiếp, đóng C12/C13/C14
+
+Bản gốc của ADR này (cùng ngày, trước sửa đổi) để ba câu hỏi nghiệp vụ mở và
+đề xuất mặc định 3 vai trò `viewer`/`editor`/`admin` + `employee_scope`. Chủ
+dự án trả lời trực tiếp, không theo hướng nào trong ba hướng đã liệt kê ở
+C12/C13/C14 mà đơn giản hơn cả:
+
+> *"Công cụ Báo cáo Kinh doanh là công cụ quản trị nội bộ. Chỉ người dùng có
+> quyền `ADMIN` mới được phép truy cập. Không triển khai `viewer`, `editor`
+> hoặc `employee_scope` trong MVP. [...] Authorization vẫn phải kiểm tra ở
+> backend, không chỉ ẩn giao diện. Thiết kế database nên vẫn cho phép mở rộng
+> thêm role trong tương lai, nhưng không xây trước khi có nhu cầu thực tế."*
+
+Điều này đóng cả ba câu cùng lúc — không phải vì chọn một mặc định trong ba,
+mà vì tiền đề của cả ba (có nhiều vai trò cùng dùng hệ thống) không còn đúng.
+Xem DEC-124. Mục §4 và §5 dưới đây được viết lại theo quyết định này; §2
+(route backend) và §3 (route frontend) không đổi.
 
 ## Decision
 
@@ -129,62 +149,79 @@ trong** một resource — ví dụ tab "Personal / ADS / Total" trong cùng m�
 `/summary/{period}` là hợp lệ; chuyển giữa Summary và Review Queue bằng tab
 thì không.
 
-### 4. Ma trận phân quyền
+### 4. Phân quyền — MVP chỉ có một vai trò: ADMIN
 
-Ba vai trò theo `PROJECT/PROJECT_PROFILE.md`. Mặc định **default deny** theo
-`governance/core/04_SECURITY_RULES.md` §4 — không có dòng nào trong bảng nghĩa là từ chối.
+**Quyết định trực tiếp của chủ dự án (2026-08-23, DEC-124).** Đây là công cụ
+quản trị nội bộ. Không triển khai `viewer`, `editor` hay `employee_scope`
+trong MVP.
 
-| Năng lực | viewer | editor | admin |
-|---|---|---|---|
-| Xem Summary / Dashboard | ✅ | ✅ | ✅ |
-| Xem lưới chi tiết nhân viên | ✅ | ✅ | ✅ |
-| Xem `accounting_purchase_price`, biên lợi nhuận | ❌ | ❌ | ✅ |
-| Xem dữ liệu cá nhân khách hàng (tên, SĐT, địa chỉ) | ❌ | ✅ | ✅ |
-| Tải file lên + xem trước | ❌ | ✅ | ✅ |
-| Chốt (commit) một lần nạp | ❌ | ❌ | ✅ |
-| Ghi đè `lead_source` / `conversion_scheme` | ❌ | ✅ | ✅ |
-| Ghi đè giá nhập / adjustment | ❌ | ❌ | ✅ |
-| Đóng mục trong Review Queue | ❌ | ✅ | ✅ |
-| Đọc audit log | ❌ | ✅ | ✅ |
-| Sửa cấu hình (`employees`, `conversion`, `targets`) | ❌ | ❌ | ✅ |
-| Xuất Excel | ✅ | ✅ | ✅ |
-| Quản trị người dùng và vai trò | ❌ | ❌ | ✅ |
+**Quy tắc:**
 
-**Bốn thao tác được xếp vào admin vì chúng đổi tiền của người khác một cách
-khó truy vết**: chốt import (ghi đè cả một tháng), ghi đè giá nhập (đổi trực
-tiếp lợi nhuận), sửa cấu hình (đổi tỉ lệ cho mọi người cùng lúc), và quản trị
-vai trò. Đây là áp dụng `governance/core/04_SECURITY_RULES.md` §13.
+- **`ADMIN`** — toàn quyền trên mọi endpoint ở §2 và mọi route ở §3: báo cáo,
+  import, override, config, audit, export.
+- **Bất kỳ danh tính nào khác** (chưa đăng nhập, hoặc đã đăng nhập nhưng
+  không phải `ADMIN`):
+  - Mọi endpoint dưới `/api/v1/*` trả `403`, **trừ**
+    `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`,
+    `GET /api/v1/auth/me`.
+  - `GET /api/v1/auth/me` vẫn trả `200` cho người đã đăng nhập dù không phải
+    `ADMIN` — response chỉ chứa danh tính + role, không chứa gì khác. Đây là
+    endpoint duy nhất frontend cần để biết "chặn hay không chặn".
+  - **Frontend không mở** — app shell gọi `/api/v1/auth/me` trước khi render
+    bất kỳ route nghiệp vụ nào ở §3; nếu role khác `ADMIN`, hiển thị màn hình
+    "không có quyền truy cập" thay vì route đó, kể cả khi người dùng gõ thẳng
+    URL.
 
-### 5. Phạm vi dữ liệu theo người dùng — mặc định hạn chế
+Đây vẫn là **default deny** đúng `governance/core/04_SECURITY_RULES.md` §4 —
+chỉ đơn giản hóa: danh sách "được phép" chỉ còn một dòng thay vì một ma trận.
 
-`editor` chỉ ghi đè được trên đơn thuộc nhân viên mà tài khoản của họ được gán
-(`employee_scope`). `viewer` và `admin` xem được toàn bộ.
+**Vì sao vẫn kiểm tra ở backend dù chỉ một vai trò.** `governance/core/04_SECURITY_RULES.md`
+§2 — "Ẩn trên UI không phải là authorization" — không đổi chỉ vì bớt vai trò.
+Một danh tính non-ADMIN gọi thẳng API bằng `curl`/Postman vẫn phải bị chặn ở
+backend; việc frontend không render route không phải là ranh giới bảo mật, nó
+chỉ là trải nghiệm người dùng đi kèm.
 
-Đây là **mặc định an toàn đang áp dụng**, không phải câu trả lời từ chủ dự án
-— xem C12. Thực tế hiện nay cả đội dùng chung một file Excel nên ai cũng thấy
-số của tất cả; mặc định này chặt hơn hiện trạng và có thể phải nới ra. Nới ra
-là một dòng cấu hình; siết lại sau khi đã nới thì khó hơn nhiều, nên chọn
-chiều chặt trước.
+### 5. Mở rộng vai trò trong tương lai — thiết kế cho phép, không xây trước
+
+Bảng `users` giữ cột `role` kiểu enum, hiện chỉ có giá trị `ADMIN`. Thêm vai
+trò mới sau này (ví dụ nếu công ty muốn thêm `viewer` cho ban quản lý xem
+không sửa) là một migration thêm giá trị enum cộng một số điểm kiểm tra quyền
+mới — không phải thiết kế lại schema hay route.
+
+**Không dựng sẵn** bảng permission/role-permission, cột `employee_scope`, hay
+bất kỳ hạ tầng phân quyền nhiều-vai-trò nào cho một nhu cầu chưa tồn tại —
+đúng theo yêu cầu tường minh của chủ dự án, và đúng tinh thần `CLAUDE.md` →
+"Không code trước rồi tổ chức sau" áp theo chiều ngược: không tổ chức trước
+cho một tính năng chưa ai cần.
 
 ## Alternatives Considered
 
-1. **Không phân vai trò ở MVP — ai đăng nhập cũng làm được mọi thứ.** Nhanh
-   hơn hẳn, và khớp với hiện trạng file Excel dùng chung.
-2. **Một endpoint `POST /api/v1/query` nhận payload mô tả việc cần làm.**
+1. **Ba vai trò `viewer`/`editor`/`admin` + `employee_scope`** (bản gốc của
+   ADR này, 2026-08-23, trước sửa đổi). Bị thay thế trực tiếp bởi quyết định
+   của chủ dự án — xem "Sửa đổi 2026-08-23".
+2. **Không xác thực gì ở MVP — mở tự do.** Bị loại: mọi override vẫn cần
+   `ChangedBy` thật cho audit trail (đặc tả mục 19); "chỉ ADMIN" vẫn cần đăng
+   nhập, khác với "không cần đăng nhập".
+3. **Một endpoint `POST /api/v1/query` nhận payload mô tả việc cần làm.**
    Ít route, dễ thêm tính năng.
-3. **Phân quyền bằng row-level security của PostgreSQL** thay vì ở tầng
+4. **Phân quyền bằng row-level security của PostgreSQL** thay vì ở tầng
    application.
-4. **Frontend một trang, chuyển màn hình bằng tab state.**
+5. **Frontend một trang, chuyển màn hình bằng tab state.**
 
 ## Rationale
 
-**Vì sao không bỏ phân vai trò ở MVP.** `PROJECT/PROJECT_PROFILE.md` đã ghi
-Authentication là BẮT BUỘC vì mọi override phải có `ChangedBy` thật cho audit
-trail (đặc tả mục 19). Một khi đã phải có danh tính, chi phí thêm ba vai trò
-là nhỏ. Ngược lại, việc gắn phân quyền vào một hệ thống đã chạy — nơi mọi
-người đã quen làm được mọi thứ — là thay đổi tốn kém và gây tranh cãi hơn
-nhiều. Điểm quyết định: dữ liệu ở đây quyết định **lương của người thật**,
-không phải một dashboard nội bộ đọc cho vui.
+**Vì sao chỉ một vai trò ADMIN, không phải ba vai trò như bản gốc.** Quyết
+định trực tiếp của chủ dự án: đây là công cụ quản trị nội bộ, không phải một
+hệ thống nhiều cấp người dùng. Ba vai trò trong bản gốc là suy đoán hợp lý
+dựa trên `PROJECT/PROJECT_PROFILE.md` ghi Authentication BẮT BUỘC — nhưng suy
+đoán đó sai tiền đề: BẮT BUỘC có xác thực (để có `ChangedBy` thật) không kéo
+theo BẮT BUỘC có nhiều vai trò. Một khi chủ dự án xác nhận chỉ một vai trò,
+giữ nguyên ba vai trò sẽ là xây dư thừa cho một nhu cầu không tồn tại — đúng
+thứ mục 28 đặc tả và `CLAUDE.md` đều cấm.
+
+**Vì sao vẫn cần đăng nhập dù chỉ một vai trò.** Xem alternative 2 — audit
+trail cần `ChangedBy` thật, và bản thân yêu cầu "không được mở frontend" nếu
+không phải ADMIN đã ngụ ý phải có một khái niệm đăng nhập để phân biệt.
 
 **Vì sao không gộp về một endpoint.** `governance/core/02_ROUTING_RULES.md` cấm gộp toàn bộ
 ứng dụng sau một URL, và lý do kỹ thuật còn nặng hơn lý do hình thức: một
@@ -201,7 +238,9 @@ trường mà test chạy. Một quy tắc bảo mật không chạy trong test 
 sẽ hỏng mà không ai biết. RLS vẫn có thể thêm sau như một lớp phòng vệ thứ
 hai; nó không mâu thuẫn với quyết định này.
 
-**Vì sao mặc định hạn chế cho `employee_scope`.** Xem mục 5.
+**Vì sao thiết kế cho mở rộng nhưng không xây trước.** Xem mục 5 — chỉ thị
+tường minh của chủ dự án, và đúng nguyên tắc chung của dự án là không xây cho
+một nhu cầu giả định.
 
 ## Consequences
 
@@ -215,17 +254,23 @@ hai; nó không mâu thuẫn với quyết định này.
   `grep`, giống cách tiêu chí 14 của mục 28 đặc tả được kiểm chứng.
 - Frontend route có sẵn danh sách để gán cho TASK-301…306, nên PHASE-03 không
   phải tự nghĩ ra cấu trúc điều hướng giữa chừng.
+- **So với bản gốc 3 vai trò:** TASK-204 nhẹ hơn đáng kể — không ma trận cần
+  test từng ô, không `employee_scope` cần thiết kế và di trú sau này. Chỉ hai
+  trạng thái cần kiểm: ADMIN (toàn quyền) và không-phải-ADMIN (403 mọi nơi
+  trừ ba endpoint auth).
 
 ### Negative / Tradeoffs
 
-- Ba vai trò và một `employee_scope` là công việc thật ở TASK-204, task vốn đã
-  mang Risk 5 / Blast Radius 5.
-- Ma trận phân quyền cần test cho từng ô, không chỉ cho đường đi thuận lợi.
-  Số lượng test tăng đáng kể.
-- Mặc định hạn chế ở mục 5 nhiều khả năng sẽ phải nới sau khi C12 được trả
-  lời — tức có thể mất công làm hai lần ở phần cấu hình scope.
 - Route frontend nhiều hơn một trang duy nhất kéo theo router, guard, trạng
-  thái not-found và loading cho từng nhánh.
+  thái not-found và loading cho từng nhánh — không đổi so với bản gốc, không
+  liên quan tới số vai trò.
+- Nếu sau này công ty thật sự cần nhiều vai trò (ví dụ ban quản lý chỉ xem),
+  đó là công việc mới thật sự — không phải bật một cờ có sẵn. Chấp nhận được:
+  chủ dự án đã cân nhắc và chọn không xây trước.
+- Toàn bộ tài khoản đăng nhập được đều có toàn quyền như nhau — nếu một tài
+  khoản ADMIN bị lộ, kẻ tấn công có toàn quyền hệ thống, không có lớp chặn
+  trung gian nào. Đây là đánh đổi có chủ đích của mô hình một-vai-trò, không
+  phải sơ suất; giảm thiểu bằng việc số tài khoản ADMIN nên ít.
 
 ## Migration / Implementation Notes
 
@@ -238,13 +283,14 @@ hai; nó không mâu thuẫn với quyết định này.
 - Mỗi endpoint khi implement phải điền đủ `API Contract Template`
   (`governance/core/06_DATABASE_API_RULES.md`), trong đó Authorization là mục
   bắt buộc, không được để trống.
-- Test bắt buộc cho TASK-204: với mỗi ô ❌ trong ma trận, một test gọi thẳng
-  API bằng token của vai trò đó và khẳng định `403`, **không phải** khẳng định
-  nút bị ẩn trên UI.
-- Ba câu hỏi C12/C13/C14 phải đóng trước khi ADR này chuyển sang Accepted.
-  Nếu PHASE-02 bắt đầu mà chúng vẫn mở, mặc định trong tài liệu này được áp
-  dụng và phải ghi rõ là mặc định chưa xác nhận, không được ghi là yêu cầu của
-  chủ dự án.
+- Test bắt buộc cho TASK-204: với danh tính không phải `ADMIN` (chưa đăng
+  nhập, hoặc đăng nhập nhưng role khác), một test gọi thẳng từng endpoint ở
+  §2 (trừ ba endpoint auth) và khẳng định `403` — **không phải** khẳng định
+  nút bị ẩn trên UI. Với `ADMIN`, test khẳng định từng endpoint trả đúng dữ
+  liệu, không bị chặn nhầm.
+- Nếu tương lai có vai trò thứ hai (xem mục 5), việc đầu tiên trước khi code
+  là một ADR mới hoặc một bản sửa đổi tường minh của ADR này — không âm thầm
+  thêm `if role == "editor"` rải rác trong handler.
 
 ## Supersedes
 

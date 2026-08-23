@@ -825,6 +825,13 @@ nghỉ việc, thời vụ, hay lỗi nhập liệu. C10 — trước 01/12/2026
 
 ## DEC-123
 
+> **Sửa đổi 2026-08-23 (DEC-124).** Mặc định 3 vai trò `viewer`/`editor`/
+> `admin` + `employee_scope` mô tả trong quyết định này đã bị thay thế bằng
+> quyết định trực tiếp của chủ dự án: chỉ một vai trò `ADMIN` trong MVP. Bản
+> chất quyết định DEC-123 không đổi — vẫn cần một bản đồ route và một thiết
+> kế phân quyền trước khi đóng băng TASK-203/204 — chỉ nội dung thiết kế cụ
+> thể ở ADR-105 §4/§5 đã viết lại. Xem DEC-124.
+
 Date:
 2026-08-23
 
@@ -899,3 +906,80 @@ Impact:
 Can Revisit After:
 PHASE-02 mở. Lúc đó chạy Roadmap Finalization đầy đủ cho TASK-203/204, đóng
 C12/C13/C14, rồi mới freeze Completion Gate và chuyển ADR-105 sang Accepted.
+
+## DEC-124
+
+Date:
+2026-08-23
+
+Task:
+Sửa đổi ADR-105 §4/§5 theo quyết định trực tiếp của chủ dự án (không thuộc
+session triển khai nào)
+
+Decision:
+Công cụ Báo cáo Kinh doanh là công cụ quản trị nội bộ. **MVP chỉ có một vai
+trò: `ADMIN`.** Không triển khai `viewer`, `editor`, hay `employee_scope`.
+
+Quy tắc cụ thể, nguyên văn từ chủ dự án:
+- Người dùng không có quyền `ADMIN`: không được mở frontend của công cụ; mọi
+  API thuộc `/api/v1/*` phải trả `403`, ngoại trừ các endpoint authentication
+  cần thiết (`login`/`logout`/`me`).
+- `ADMIN` có toàn quyền: báo cáo, import, override, config, audit, export.
+- Authorization vẫn phải kiểm tra ở backend, không chỉ ẩn giao diện.
+- Thiết kế database nên vẫn cho phép mở rộng thêm role trong tương lai,
+  nhưng không xây trước khi có nhu cầu thực tế.
+
+Điều này đóng cả ba câu hỏi C12 (nhân viên xem số của nhau), C13 (ai xem giá
+nhập), C14 (ai chốt import) cùng lúc trong `docs/analysis/10_OPEN_QUESTIONS.md`
+— không phải bằng cách chọn một trong các hướng đã đề xuất, mà vì tiền đề
+chung của cả ba (nhiều vai trò cùng dùng hệ thống) không còn đúng.
+
+Reason:
+Chủ dự án trả lời trực tiếp trong hội thoại, ngay sau khi ADR-105 (bản gốc,
+DEC-123) đưa ra ba mặc định tạm cho ba câu hỏi phân quyền. Câu trả lời đơn
+giản hơn cả ba mặc định đó — không phải một điểm trên ma trận 3 vai trò, mà
+một tiền đề khác hẳn: hệ thống này không phục vụ nhiều cấp người dùng, nó
+phục vụ một người (hoặc một nhóm nhỏ) quản trị toàn bộ.
+
+Áp dụng nguyên tắc "Không code trước rồi tổ chức sau" theo chiều ngược: giữ
+nguyên ba vai trò trong thiết kế sau khi biết chỉ cần một sẽ là *tổ chức
+trước* cho một nhu cầu không tồn tại — cùng loại vi phạm với *code trước*,
+chỉ khác ở giai đoạn.
+
+Risk:
+Thấp cho việc đơn giản hóa — giảm bề mặt cần test, không tăng. Rủi ro thật
+nằm ở nhận định trong ADR-105: khi `ADMIN` = toàn quyền và không có lớp chặn
+trung gian, một tài khoản `ADMIN` bị lộ (mật khẩu yếu, thiết bị mất) đồng
+nghĩa toàn quyền hệ thống rơi vào tay người khác. Đây là đánh đổi có chủ đích
+của chủ dự án, không phải sơ suất kỹ thuật — ghi nhận tường minh trong
+ADR-105 để không ai quên nó là một đánh đổi đã cân nhắc, không phải một lỗ
+hổng bị bỏ sót.
+
+Impact:
+- `docs/adr/ADR-105-route-map-and-authorization-model.md`: mục §4 viết lại
+  hoàn toàn (ma trận 3 vai trò → nhị phân ADMIN/không-ADMIN); mục §5 viết lại
+  (employee_scope hạn chế → mở rộng vai trò trong tương lai, không xây
+  trước). §2 (route backend) và §3 (route frontend) không đổi. **Status
+  chuyển từ `Proposed` sang `Accepted`** cho §4/§5 — ba điều kiện chặn
+  (C12/C13/C14) đã đóng. Completion Gate của TASK-203/204 vẫn KHÔNG freeze —
+  đó là quyết định tách biệt, chờ Roadmap Finalization đầy đủ khi PHASE-02
+  mở (không đổi so với DEC-123).
+- `PROJECT/PROJECT_PROGRESS.md`: mô tả TASK-204 viết lại; 2 check PRELIMINARY
+  liên quan ma trận phân quyền viết lại thành nhị phân; "Ghi chú cho session
+  nào mở PHASE-02" cập nhật trạng thái Accepted.
+- `PROJECT/PROJECT_PROFILE.md`: trường Authentication cập nhật — bỏ "vai trò:
+  viewer/editor/admin", thêm quyết định ADMIN-only.
+- `docs/analysis/10_OPEN_QUESTIONS.md`: C12, C13, C14 chuyển từ CÒN MỞ sang
+  ĐÃ ĐÓNG, nội dung viết lại phản ánh vì sao câu hỏi hết ý nghĩa (C12) hoặc
+  có câu trả lời trực tiếp (C13, C14); chuyển cả ba vào bảng "Đã đóng".
+- `PROJECT/LO_TRINH_DE_HIEU.md`: cập nhật theo "Giao thức Đóng Phiên" — mục
+  "Bảo mật và phân chia luồng" viết lại cho khớp mô hình một vai trò.
+- Không đổi route backend (§2) hay route frontend (§3) — cấu trúc URL không
+  phụ thuộc vào số vai trò.
+- Không đổi TASK-101…112, không đổi Current Task.
+
+Can Revisit After:
+Nếu công ty phát sinh nhu cầu thật cho vai trò thứ hai (ví dụ ban quản lý chỉ
+xem, không sửa). Lúc đó là một ADR mới hoặc một sửa đổi tường minh của
+ADR-105, không phải bật một cờ có sẵn — hạ tầng nhiều vai trò cố ý chưa được
+xây theo đúng chỉ thị của chủ dự án.
