@@ -2,6 +2,42 @@
 # Not project content — see FIND-009 in docs/audit/S001_AUDIT_FINDINGS.md.
 .claude/
 
-# Python bytecode from running the governance validators locally.
+# --- Dữ liệu thật: KHÔNG commit ---
+# File doanh số thô và file báo cáo chứa dữ liệu cá nhân khách hàng
+# (tên, số điện thoại, địa chỉ). Xem governance/product/17_DATA_GOVERNANCE_PRIVACY.md.
+data/samples/
+data/uploads/
+data/exports/
+*.xlsx
+!tests/fixtures/**/*.xlsx
+
+# --- Python ---
 __pycache__/
+*.py[cod]
 *.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# --- Node / frontend ---
+node_modules/
+dist/
+.vite/
+
+# --- Local config & secrets ---
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,222 +1,127 @@
 # PROJECT PROFILE
 
 Status:
-INITIALIZED
+INITIALIZED — S000 completed 2026-08-22
 
 Selected Profile:
 PRODUCT
 
-Lịch Sử Profile:
-- S001 (2026-08-22) — chọn AUDIT làm bootstrap S000. Xem DEC-001.
-- S002 (2026-08-22) — chuyển AUDIT → PRODUCT theo chỉ đạo của chủ dự án. Xem DEC-005.
+Project:
+Tín Phát — Business Report Automation Tool
 
-Cơ Sở Chuyển Đổi:
-`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 7 — audit đã hoàn
-tất, đã có finding kèm severity và evidence, và đã tạo remediation roadmap.
-AUDIT mặc định là read-only và không thể thực thi remediation; PRODUCT thì có.
+## Profile Inputs
 
 Team Size:
-1 (chủ dự án kiêm vận hành)
+1 developer (AI-assisted) + 1 business owner acting as reviewer/approver.
+Report consumers: the whole sales team (~6–10 people) plus management.
 
 Production Data:
-KHÔNG CÓ — repo không chứa ứng dụng, không có database, không có runtime.
+YES. The tool ingests the real accounting/ERP sales book and produces the
+numbers that drive employee KPI, commission and payroll. Wrong output has
+direct financial consequences for real people.
 
 Personal/Customer Data:
-KHÔNG CÓ — không lưu trữ hay xử lý dữ liệu cá nhân/khách hàng.
+YES. The raw sales book carries customer full name, mobile phone number and
+delivery address on every line (11,765 lines in the current sample), plus
+device IMEI/serial. Employee names and salary-related figures are also present.
+`governance/product/17_DATA_GOVERNANCE_PRIVACY.md` therefore applies and is
+mandatory, not optional.
 
 Authentication:
-NOT_APPLICABLE — không có bề mặt authentication nào.
+REQUIRED. The tool is multi-user and every override must record `ChangedBy`
+for the audit trail mandated by spec section 19. Roles: viewer / editor / admin.
 
 External Users:
-KHÔNG CÓ — không có hệ thống deploy, không có người dùng bên ngoài.
+NO. Internal company use only. No customer-facing surface.
 
 CI/CD:
-**Đã có, từ S005 (REM-T07).** `.github/workflows/governance.yml` chạy trên
-`push` và `pull_request`, thực thi 5 validator governance
-(`validate_structure.py`, `validate_project_state.py`,
-`validate_task_completion.py`, `validate_evidence.py`,
-`validate_reference_integrity.py`) bằng cách discovery đường dẫn
-(`find ... -path '*/governance/scripts/governance'`), không hard-code.
-`validate_refactor_preservation.py` được skip có báo cáo tường minh (cần
-tham số vị trí). Least privilege (`permissions: contents: read`), không tiêu
-thụ secret, action pin theo SHA đầy đủ (không dùng floating tag).
-
-**Kết quả CI giờ là một nguồn E2 (Independent Evidence) hợp lệ** theo
-`governance/core/EVIDENCE_STANDARD.md` — nghị quyết cho RSK-004 (trước đây dự
-án không có nguồn E2 bền vững, phải dựa vào review độc lập dùng một lần như
-REM-T02 đã làm). Xác nhận qua 3 lần chạy thật trên GitHub Actions trong S005:
-- Run #1 (`32613467285`) — FAIL đúng, bắt được 2 broken reference thật do
-  chính agent đưa vào lúc soạn evidence cho REM-T03. CI hoạt động đúng ngay
-  từ lần chạy đầu tiên, không phải một lần pass giả.
-- Run #2 (`32613528195`) — PASS sau khi sửa, sau khi tất cả 5 validator
-  chạy xanh.
-- Run trên nhánh scratch `scratch/ci-failure-test` (`32613562660`) — FAIL
-  đúng tại `validate_project_state.py` trên một breakage cố ý (giá trị
-  Selected Profile không hợp lệ), xác nhận CI thực sự có khả năng fail chứ
-  không phải luôn luôn xanh.
-
-Branch protection (bắt buộc CI pass trước khi merge) **chưa được thiết lập**
-— đây là cài đặt repository do owner kiểm soát, nằm ngoài thẩm quyền agent.
-Khuyến nghị: owner bật "Require status checks to pass" cho check `governance`
-trên nhánh mặc định.
+NOT YET. No pipeline exists. Conditional — to be introduced if and when the
+tool is deployed to a shared internal server.
 
 Staging:
-KHÔNG CÓ. Không bắt buộc ở PRODUCT với một repo không có deployable artifact.
+NOT YET. Local development environment only at MVP stage.
 
 Backup:
-Git remote `origin` → `https://github.com/hoangvinhkta-creator/Reports`.
-Không có cơ chế backup nào khác. Ghi nhận là GAP-01 bên dưới.
+REQUIRED once the database exists (Phase 2). The database becomes the system
+of record for manual overrides that exist nowhere else — the raw ERP export can
+be re-downloaded, but a month of manual KPI adjustments cannot be reconstructed.
 
 Monitoring:
-KHÔNG CÓ — không có gì đang chạy để monitor.
+BASIC. Structured application logging plus the business-level audit log.
+Full observability tooling is out of scope for the MVP.
 
 Uncertainty Level:
-THẤP cho bề mặt hiện tại (tính toàn vẹn gói governance, layout deploy).
-CAO cho phạm vi ứng dụng tương lai, vốn chưa tồn tại.
+MEDIUM.
+- Business rules are well evidenced from the sample workbooks (LOW uncertainty).
+- The ADS classification rule has ZERO supporting data in the current files —
+  the keyword "ADS" appears 0 times across both workbooks — and depends on a
+  future change in data-entry behaviour (HIGH uncertainty).
+- Purchase price is absent from the raw file and depends on an external price
+  tool that does not exist yet (MEDIUM uncertainty).
 
-## Governance Bắt Buộc — PROFILE B (PRODUCT)
+## Governance Depth
 
-PRODUCT = SOLO_LITE + governance sản phẩm/kinh doanh/dữ liệu, theo
-`governance/core/PROJECT_PROFILE_STANDARD.md`.
+Mandatory Governance:
+- CLAUDE.md
+- governance/core/00_SESSION_ORCHESTRATION.md
+- governance/core/01_PROJECT_ARCHITECTURE_RULES.md
+- governance/core/02_ROUTING_RULES.md
+- governance/core/03_DATA_MODEL_RULES.md
+- governance/core/04_SECURITY_RULES.md
+- governance/core/05_BUSINESS_LOGIC_RULES.md
+- governance/core/06_DATABASE_API_RULES.md
+- governance/core/07_CODING_RULES.md
+- governance/core/08_CHANGE_MANAGEMENT_RULES.md
+- governance/core/09_TESTING_RULES.md
+- governance/core/10_AI_AGENT_EXECUTION_PROTOCOL.md
+- governance/core/11_FORBIDDEN_ACTIONS.md
+- governance/core/RULE_PRECEDENCE.md
+- governance/core/EVIDENCE_STANDARD.md
+- governance/core/TASK_MODE_STANDARD.md
+- governance/core/TASK_READY_GATE_STANDARD.md
+- governance/core/TASK_COMPLETION_GATE_STANDARD.md
+- governance/core/PHASE_RELEASE_GATE_STANDARD.md
+- governance/product/12_PRODUCT_REQUIREMENTS_RULES.md
+- governance/product/13_ENVIRONMENT_CONFIGURATION.md
+- governance/product/15_LOGGING_AUDIT_OBSERVABILITY.md
+- governance/product/16_BACKUP_DISASTER_RECOVERY.md
+- governance/product/17_DATA_GOVERNANCE_PRIVACY.md
 
-### CORE (kế thừa)
-- `CLAUDE.md`
-- `governance/core/00_SESSION_ORCHESTRATION.md`
-- `governance/core/07_CODING_RULES.md`
-- `governance/core/08_CHANGE_MANAGEMENT_RULES.md`
-- `governance/core/09_TESTING_RULES.md`
-- `governance/core/10_AI_AGENT_EXECUTION_PROTOCOL.md`
-- `governance/core/11_FORBIDDEN_ACTIONS.md`
-- `governance/core/RULE_PRECEDENCE.md`
-- `governance/core/EVIDENCE_STANDARD.md`
-- `governance/core/TASK_MODE_STANDARD.md`
-- `governance/core/TASK_READY_GATE_STANDARD.md`
-- `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
+Conditional Governance:
+- governance/product/14_CI_CD_RELEASE_RULES.md — applies from the first shared
+  deployment onward; NOT_APPLICABLE while development is local-only.
+- governance/product/19_DEPENDENCY_MANAGEMENT.md — applies from Phase 2, when
+  the dependency surface grows beyond the analysis toolchain.
+- governance/product/20_API_VERSIONING_COMPATIBILITY.md — applies from Phase 2,
+  when the HTTP API exists.
+- governance/product/21_ACCESSIBILITY_UI_RULES.md — applies from Phase 3.
+- governance/product/23_DOCUMENTATION_STANDARDS.md — applies from Phase 1.
 
-### SOLO_LITE (kế thừa)
-- `governance/core/04_SECURITY_RULES.md`
+Not Applicable:
+- governance/product/18_INCIDENT_RESPONSE.md — no production deployment and no
+  external users yet. Re-evaluate at the Phase 3 release gate.
+- governance/product/22_CODE_OWNERSHIP_REVIEW.md — single-developer project;
+  CODEOWNERS has no meaning with one contributor. Re-evaluate if the team grows.
 
-### PRODUCT (thêm vào ở lần chuyển đổi này)
-- `governance/core/01_PROJECT_ARCHITECTURE_RULES.md`
-- `governance/core/02_ROUTING_RULES.md`
-- `governance/core/03_DATA_MODEL_RULES.md`
-- `governance/core/05_BUSINESS_LOGIC_RULES.md`
-- `governance/core/06_DATABASE_API_RULES.md`
-- `governance/product/12_PRODUCT_REQUIREMENTS_RULES.md`
-- `governance/product/13_ENVIRONMENT_CONFIGURATION.md`
-- `governance/product/15_LOGGING_AUDIT_OBSERVABILITY.md`
-- `governance/product/16_BACKUP_DISASTER_RECOVERY.md`
-- `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`
-- `governance/core/PHASE_RELEASE_GATE_STANDARD.md`
+## Justification
 
-## Ma Trận Tuân Thủ Profile (Profile Compliance Matrix)
+SOLO_LITE was rejected. This is not a low-risk single-file utility: it holds
+customer personal data, it computes the figures behind employee pay, it needs
+multi-user persistence with an audit trail, and it replaces a spreadsheet the
+business already depends on.
 
-Lập theo `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 19.
+TEAM_PRODUCTION was rejected as premature. There is no team, no CI, no staging
+and no external user. Imposing CODEOWNERS, incident response and release
+engineering now would be ceremony without a corresponding risk.
 
-"Bắt buộc theo profile" và "hiện có đối tượng để quản" là hai câu hỏi khác
-nhau. Một domain chưa có bề mặt được ghi là DORMANT — bắt buộc, nhưng chưa có
-gì để quản. DORMANT không phải là miễn trừ; phải kiểm tra lại khi có code ứng
-dụng.
+PRODUCT is the honest fit: full product/business/data governance, with the
+delivery-and-operations layer promoted from Conditional to Mandatory at the
+Phase 3 release gate rather than pretended into existence at Phase 0.
 
-| Governance Domain | Yêu Cầu Profile | Áp Dụng Hiện Tại | Được Task Nào Cover | Trạng Thái | Gap |
-|---|---|---|---|---|---|
-| 00 Session Orchestration | BẮT BUỘC | Có | S001, S002 | ACTIVE | — |
-| 01 Architecture | BẮT BUỘC | Có (layout repo) | REM-T02, ADR-001 | ACTIVE | — |
-| 02 Routing | BẮT BUỘC | Không — chưa có routing ứng dụng | — | DORMANT | — |
-| 03 Data Model | BẮT BUỘC | Không — chưa có data store | — | DORMANT | — |
-| 04 Security | BẮT BUỘC | Một phần — không có secret, không có bề mặt auth | — | DORMANT | — |
-| 05 Business Logic | BẮT BUỘC | Không — chưa có business logic | — | DORMANT | — |
-| 06 Database / API | BẮT BUỘC | Không — chưa có database hay API | — | DORMANT | — |
-| 07 Coding Rules | BẮT BUỘC | Có — validator scripts | REM-T03 | ACTIVE | — |
-| 08 Change Management | BẮT BUỘC | Có | Tất cả REM-T* | ACTIVE | — |
-| 09 Testing | BẮT BUỘC | Có — fixture kiểm thử regression của validator | REM-T03 | ACTIVE | — |
-| 10 AI Agent Execution | BẮT BUỘC | Có | Tất cả session | ACTIVE | — |
-| 11 Forbidden Actions | BẮT BUỘC | Có | Tất cả session | ACTIVE | — |
-| 12 Product Requirements | BẮT BUỘC | Không — chưa có bề mặt sản phẩm | — | DORMANT | — |
-| 13 Environment Config | BẮT BUỘC | Không — chưa có environment | — | DORMANT | — |
-| 15 Logging / Observability | BẮT BUỘC | Không — chưa có gì đang chạy | — | DORMANT | — |
-| 16 Backup / DR | BẮT BUỘC | Có — git remote là bản sao duy nhất | — | **GAP** | GAP-01 |
-| 17 Data Governance / Privacy | BẮT BUỘC | Không — chưa có dữ liệu cá nhân | — | DORMANT | — |
-| Phase / Release Gate | BẮT BUỘC | Có | Phase Gate 01–03 | ACTIVE | — |
-| Evidence Standard | BẮT BUỘC | Có | Tất cả gate | ACTIVE | Thiếu nguồn E2 cho tới khi REM-T07 xong |
-| 14 CI/CD | KHÔNG bắt buộc ở PRODUCT | Có — được đánh giá khả thi | REM-T07 | SCHEDULED | — |
+## Evidence Tier Rule for This Project
 
-### GAP-01 — Backup / Disaster Recovery
-
-Yêu Cầu:
-`governance/product/16_BACKUP_DISASTER_RECOVERY.md` bắt buộc ở PRODUCT.
-
-Trạng Thái Hiện Tại:
-Git remote trên GitHub là bản sao duy nhất của repo này. Không có backup thứ
-hai và không có quy trình khôi phục được tài liệu hóa.
-
-Đánh Giá:
-Tác động bị giới hạn — nội dung là văn bản có version, không có production
-data, và mỗi bản clone của contributor là một bản sao đầy đủ. Dù vậy đây vẫn
-là một gap thật sự với một domain bắt buộc, và được ghi nhận thay vì bỏ qua.
-
-Quyết Định:
-Chưa lên lịch vào PHASE-01. Đánh giá lại ở Phase Gate 03. Không đóng gap này
-bằng cách xóa dòng.
-
-## Governance Có Điều Kiện
-- `governance/product/14_CI_CD_RELEASE_RULES.md` — không bắt buộc ở PRODUCT,
-  nhưng được chủ động áp dụng qua REM-T07 vì CI là con đường E2 của dự án.
-  Đọc file này khi triển khai REM-T07.
-- `governance/product/23_DOCUMENTATION_STANDARDS.md` — chỉ bắt buộc ở
-  TEAM_PRODUCTION. Áp dụng mang tính khuyến nghị, vì sản phẩm của repo này
-  *chính là* tài liệu. Liên quan tới REM-T05 và REM-T06.
-
-## Không Áp Dụng
-- `governance/product/18_INCIDENT_RESPONSE.md` — không có production service
-  để mà xảy ra incident.
-- `governance/product/19_DEPENDENCY_MANAGEMENT.md` — không có dependency bên
-  thứ ba nào; 5 validator chỉ dùng Python standard library.
-- `governance/product/20_API_VERSIONING_COMPATIBILITY.md` — không có API.
-- `governance/product/21_ACCESSIBILITY_UI_RULES.md` — không có UI.
-- `governance/product/22_CODE_OWNERSHIP_REVIEW.md` — chỉ một chủ sở hữu,
-  không có review rota để định nghĩa.
-
-Mỗi mục NOT_APPLICABLE được ghi kèm lý do, theo yêu cầu của
-`governance/core/PROJECT_PROFILE_STANDARD.md`. Đánh giá lại toàn bộ các mục
-này — và mọi dòng DORMANT ở trên — khi có code ứng dụng đầu tiên.
-
-## Agent Capability Tiers
-
-Ánh xạ theo `governance/core/AGENT_CAPABILITY_MATRIX.md`. Xem DEC-006.
-
-- **Tier A — Lightweight**: sửa tài liệu, sửa đường dẫn phạm vi hẹp. → REM-T04, REM-T06
-- **Tier B — Implementation**: validator script, CI workflow, refactor phạm vi hẹp. → REM-T03, REM-T05, REM-T07
-- **Tier C — Advanced Reasoning**: di chuyển toàn repo, thiết kế gate, phân tích root-cause. → REM-T02
-- **Tier D — Design / Creative**: NOT_APPLICABLE. Dự án này không có UI, thiết
-  kế thị giác, hay công việc trình bày nội dung. Định nghĩa lại nếu có ứng
-  dụng với giao diện người dùng được thêm vào.
-
-## Lý Do Lựa Chọn (Justification)
-
-PRODUCT được chọn theo chỉ đạo của chủ dự án sau khi S001 hoàn tất audit.
-
-Nó chỉ phù hợp lỏng lẻo với mô tả use-case chuẩn của tiêu chuẩn ("ứng dụng
-nhiều module nội bộ", "công cụ kinh doanh") vì hiện chưa có ứng dụng nào. Các
-yếu tố quyết định mang tính thủ tục hơn là hình dạng sản phẩm:
-
-1. AUDIT mặc định read-only và không thể thực thi remediation roadmap. Ở lại
-   AUDIT sẽ chặn cả bảy task REM-T* vô thời hạn.
-2. SOLO_LITE là lựa chọn nhẹ hơn, nhưng bỏ đi `PHASE_RELEASE_GATE_STANDARD`
-   và nhóm luật data/architecture. Tập remediation bao gồm một thao tác di
-   chuyển toàn repo với Blast Radius 5/5 (REM-T02) cần được verify ở mức
-   phase, nên profile nặng hơn là lựa chọn an toàn hơn.
-3. TEAM_PRODUCTION sẽ thêm nghi thức CODEOWNERS, incident response và API
-   versioning mà một repo tài liệu một chủ sở hữu không thể thực sự đáp ứng.
-
-Ghi nhận trung thực: một số domain PRODUCT đang DORMANT vì repo chưa có bề mặt
-ứng dụng. Đây là hệ quả đã biết và được ghi lại của lựa chọn này, không phải
-một sai sót bị bỏ sót.
-
-## Quy Tắc Release
-
-Áp dụng `governance/core/PHASE_RELEASE_GATE_STANDARD.md`.
-Task DONE ≠ Phase DONE. Phase DONE ≠ Release Ready.
-
-Giờ đã cho phép thay đổi production code — hạn chế read-only của AUDIT đã
-được gỡ bỏ. Scope Lock vẫn áp dụng cho từng task.
+Per `governance/core/EVIDENCE_STANDARD.md` with Risk 4 on the calculation
+engine: E1 is mandatory for every executable REQUIRED check, and the numeric
+correctness checks in Phase 1 SHOULD reach E2. No CI and no second human
+reviewer exist, so E2 is produced through the Solo Independent Review
+Procedure and persisted under `docs/reviews/`.

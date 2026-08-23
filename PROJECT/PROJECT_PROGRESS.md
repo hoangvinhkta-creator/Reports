@@ -1,351 +1,351 @@
 # PROJECT PROGRESS
 
-> File này là checklist sống chính thức (canonical) của dự án.
-> Mọi session đọc file này đầu tiên. Không trả lời câu hỏi tiến độ dựa trên
-> trí nhớ hội thoại (`CLAUDE.md` → "Câu Hỏi Về Tiến Độ").
-> Kế hoạch remediation chi tiết: `docs/audit/REMEDIATION_ROADMAP.md`.
+## Project Summary
 
-## Tóm Tắt Dự Án
+Project:
+Tín Phát — Business Report Automation Tool
 
-Dự Án:
-`hoangvinhkta-creator/Reports` — repo lưu trữ gói governance AI Engineering
-Constitution Template V3.2 FINAL COMPACT.
-
-Mục Tiêu:
-Đưa repo về trạng thái mà chính khung governance của nó được deploy đúng,
-nhất quán nội bộ, và có thể kiểm chứng bằng máy, để công việc ứng dụng sau
-này có thể được quản trị bởi nó.
+Objective:
+Replace the manual monthly assembly of `Báo cáo Kinh doanh 2026.xlsx` with a
+tool that ingests the raw ERP sales book, classifies each order's lead source,
+computes accounting profit and KPI profit separately, converts revenue through
+two independent PERSONAL/ADS buckets, produces month and year summaries, and
+lets several people view and correct the data daily before exporting .xlsx.
 
 Project Type:
-LEGACY
+NEW (greenfield application, replacing a spreadsheet-based process)
 
 Profile:
 PRODUCT
 
-Lịch Sử Profile:
-AUDIT (bootstrap S001) → PRODUCT (S002, DEC-005)
-
-Cập Nhật Lần Cuối:
-2026-08-23 — cuối S007
+Last Updated:
+2026-08-22 (S000)
 
 Overall Status:
 IN_PROGRESS
 
-Phase Hiện Tại:
-PHASE-01 — Governance Foundation Repair
+Current Phase:
+PHASE-00 — Governance bootstrap and source analysis
 
-Task Hiện Tại:
-REM-T05 — Sửa tài liệu và artifact kiểm chứng
+Current Task:
+GATE-00 — awaiting owner approval of `docs/analysis/`
 
 Current Task Mode:
 MAJOR
 
-Task Đề Xuất Tiếp Theo:
-REM-T05 — READY, gate đã frozen (S007). Sẵn sàng implement.
+Next Recommended Task:
+TASK-101 — importer + normalizer (blocked by GATE-00)
 
-## Roadmap Tổng Thể
+## Overall Roadmap
 
-Chú thích: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCKED · `[-]` CANCELLED
+- [x] PHASE-00 — Governance bootstrap and source analysis
+  - [x] TASK-000 — Promote governance package to repository root (MICRO)
+  - [x] TASK-001 — S000: profile selection and project state initialization (MAJOR)
+  - [x] TASK-002 — Source workbook analysis, 6 documents per spec section 27 (MAJOR)
+  - [x] TASK-003 — ADR-001/002/003 (MICRO)
+  - [ ] GATE-00 — Owner approves `docs/analysis/` before any application code
 
-- [x] PHASE-00 — Audit
-  - [x] S000 — Project Open — thực hiện xuyên suốt bootstrap S001 + S002 (xem DEC-008)
-  - [x] S001 — Discovery & Baseline — SPIKE — DONE
-  - [x] S002 — Roadmap Finalization — MAJOR — DONE
+- [ ] PHASE-01 — Calculation engine (pure Python, no UI, no database)
+  - [ ] TASK-101 — importer + normalizer. Implements the spec §22 import
+        workflow steps 1–7: read the .xlsx, report metadata (row count, date
+        range, total sales, order count, salesperson count) before committing,
+        normalize columns, apply employee mapping, group by OrderID, apply the
+        ADS rule at order level, propagate the lead source down to line items.
+        Deducts `Chiết khấu` from sales (DEC-014).
+  - [ ] TASK-102 — employee_mapper
+  - [ ] TASK-103 — order_builder
+  - [ ] TASK-104 — lead_source_engine (ADS rule)
+  - [ ] TASK-105 — price_engine + PriceProvider interface. Spec §22 step 8:
+        look up a purchase price if a Price Master exists, otherwise Pending.
+  - [ ] TASK-106 — adjustment_engine. Spec §22 step 9.
+  - [ ] TASK-107 — profit_engine. Spec §22 step 11, profit half.
+  - [ ] TASK-108 — conversion_engine (PERSONAL/ADS buckets). Spec §22 steps
+        10 and 11: pick the scheme from the lead source and the period, then
+        convert each bucket independently.
+  - [ ] TASK-109 — summary_engine. Spec §15: month summary with Personal / ADS
+        / Total columns for Tổng đơn, Số SP, Doanh số, LN KPI, DS quy đổi,
+        DSQĐ/đơn, Lợi nhuận thực, % Target — **and the same per employee as
+        YTD**, so ability to self-sell can be told apart from ability to work
+        company-generated leads.
+  - [ ] TASK-110 — validation + Review Queue. Spec §18, five warning types:
+        `Missing` (date, OrderID, employee, quantity, sales, purchase price),
+        `Suspicious` (qty ≤ 0, sell price = 0, purchase > sell, negative
+        profit — 1,912 such rows in the sample), `Order inconsistency` (same
+        OrderID, different salesperson), `Source classification` (manual
+        override disagrees with the ADS rule), `Duplicate` (same
+        source_file + source_row). Import is never blocked as a whole.
+  - [ ] TASK-111 — excel_exporter. Spec §23, five sheet kinds: Summary;
+        Processed Data; per-employee `MM.YYYY Employee` sheets when enabled;
+        Config Snapshot (employee mapping, source rules, conversion rules,
+        adjustment rules, target); Audit/Overrides. Personal / ADS / Total
+        stays visible in both the detail sheets and the Summary. Subtotal rows
+        carry a `RowType` marker and sit outside every SUM range (DEC-015).
+  - [ ] TASK-112 — CLI
+  - [ ] GATE-01 — Reconciliation against the real raw file; owner confirms C1
 
-- [x] **PHASE-01 — Governance Foundation Repair — DONE**  ·  Phase Gate 01 PASS (S006, DEC-015)
-  - [x] **REM-T02** — Dời gói governance lên repository root — MAJOR — Tier C — D2/R3/**B5** — **DONE** (S003) — đóng FIND-001
-  - [x] **REM-T07** — CI enforcement layer — MAJOR — Tier B — D2/R2/B2 — **DONE** (S005) — đóng FIND-008, giải quyết RSK-004
-  - [x] **REM-T03** — Validator deployment-root + reference-integrity — MAJOR — Tier B — D3/R2/B2 — **DONE** (S005) — đóng FIND-007
-  - [x] **REM-T04** — Sửa các reference đường dẫn canonical bị gãy — MICRO — Tier A — D1/R2/B2 — **DONE** (S004) — đóng FIND-003, FIND-004
-  - [x] **Phase Gate 01** — **PASS** (S006) — 10/10 check, xem DEC-015
-  - [-] ~~REM-T01 — Khởi tạo project state~~ — CANCELLED (absorbed, CH-01/DEC-008)
+- [ ] PHASE-02 — Persistence and API
+  - [ ] TASK-201 — database schema + migrations
+  - [ ] TASK-202 — audit_service
+  - [ ] TASK-203 — HTTP API
+  - [ ] TASK-204 — authentication and roles
+  - [ ] TASK-205 — incremental recalculation
 
-- [ ] PHASE-02 — Documentation & Evidence Truth-Up  ·  gate đã FROZEN (S007)
-  - [ ] REM-T05 — Sửa tài liệu và artifact kiểm chứng — MAJOR — Tier B — D2/R2/B3 — **READY** — đóng FIND-005, FIND-006, FIND-011, FIND-012
-  - [ ] Phase Gate 02
+- [ ] PHASE-03 — Web interface
+  - [ ] TASK-301 — upload and import preview
+  - [ ] TASK-302 — employee-month detail grid with inline editing
+  - [ ] TASK-303 — month summary and year dashboard. Spec §16: switch metric
+        between Orders / Sales / Converted Revenue / Accounting Profit / KPI
+        Profit / % Target; filter by lead source All / Personal / ADS; compare
+        salespeople on Personal and Ads converted revenue separately; monthly
+        trend per lead source; each person's ADS share of total converted
+        revenue.
+  - [ ] TASK-304 — configuration screens
+  - [ ] TASK-305 — review queue and audit screens
+  - [ ] TASK-306 — Excel export
+  - [ ] GATE-03 — MVP acceptance, spec section 28, all 14 criteria
 
-- [ ] PHASE-03 — Repository Hygiene  ·  gate PRELIMINARY
-  - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — D1/R1/B1 — đóng FIND-009
-  - [ ] Phase Gate 03
+- [ ] PHASE-04 — Completion
+  - [ ] TASK-401 — PriceMasterProvider integration. Spec §20 schema:
+        ProductCode, ProductName, Supplier, EffectiveFrom, EffectiveTo,
+        PurchasePrice, Source, UpdatedAt. Lookup by ProductCode + SaleDate; the
+        looked-up price is a *suggested* value and stays overridable.
+  - [ ] TASK-402 — product_mapper
+  - [ ] TASK-403 — target and commission formalization
+  - [ ] TASK-404 — channel sheets and split conversion. Spec §12: Split
+        Conversion is supported as an exception only — the normal workflow
+        stays one OrderID → one LeadSource → one ConversionScheme.
 
-Dependency: PHASE-01 DONE. REM-T05 đã qua Roadmap Finalization (S007), gate
-frozen, READY để implement. Không có dependency nào còn mở.
+## Specification Coverage
 
-## Snapshot Task Hiện Tại
+All 31 sections of `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` are traced
+to an artifact and a task in `docs/analysis/07_SPEC_COVERAGE.md`. Nothing is
+unassigned. Sections 27, 29 and 31 are complete; the rest are analysed or
+recorded and await Phase 1.
+
+## Preliminary Dependency Graph
+
+```
+TASK-000 → TASK-001 → TASK-002 → TASK-003 → GATE-00
+GATE-00  → TASK-101 → TASK-102 → TASK-103 → TASK-104
+                                   ↓          ↓
+                        TASK-105 → TASK-106 → TASK-107 → TASK-108 → TASK-109
+                                                                       ↓
+                                              TASK-110 ─────────────→ TASK-111 → TASK-112 → GATE-01
+GATE-01  → TASK-201 → TASK-202 → TASK-203 → TASK-204 → TASK-205
+TASK-205 → TASK-301 … TASK-306 → GATE-03 → PHASE-04
+```
+
+Parallel-safe: TASK-105 may proceed alongside TASK-103/TASK-104; TASK-110 may
+proceed alongside TASK-108/TASK-109.
+
+## Preliminary Scoring
+
+| Task | Difficulty | Risk | Blast Radius | Mode | Primary Tier | Escalation |
+|---|---|---|---|---|---|---|
+| TASK-000 | 1 | 1 | 2 | MICRO | A | B |
+| TASK-001 | 2 | 2 | 1 | MAJOR | C | — |
+| TASK-002 | 3 | 2 | 1 | MAJOR | C | — |
+| TASK-003 | 2 | 2 | 2 | MICRO | C | — |
+| TASK-101 | 3 | 3 | 3 | MAJOR | B | C |
+| TASK-102 | 2 | 3 | 3 | MAJOR | B | C |
+| TASK-103 | 2 | 4 | 4 | MAJOR | B | C |
+| TASK-104 | 3 | 4 | 5 | MAJOR | C | — |
+| TASK-105 | 3 | 3 | 3 | MAJOR | B | C |
+| TASK-106 | 4 | 4 | 4 | MAJOR | C | — |
+| TASK-107 | 2 | 4 | 4 | MAJOR | B | C |
+| TASK-108 | 3 | 5 | 5 | MAJOR | C | — |
+| TASK-109 | 3 | 4 | 4 | MAJOR | B | C |
+| TASK-110 | 2 | 2 | 2 | MAJOR | B | C |
+| TASK-111 | 3 | 2 | 2 | MAJOR | B | C |
+| TASK-112 | 1 | 2 | 2 | MICRO | A | B |
+| TASK-201 | 3 | 4 | 5 | MAJOR | C | — |
+| TASK-202 | 3 | 4 | 4 | MAJOR | C | — |
+| TASK-203 | 3 | 3 | 4 | MAJOR | B | C |
+| TASK-204 | 3 | 5 | 5 | MAJOR | C | — |
+| TASK-205 | 4 | 4 | 4 | MAJOR | C | — |
+| TASK-301…306 | 3 | 2 | 3 | MAJOR | B | C |
+
+Risk 4–5 concentrates on TASK-104, TASK-106, TASK-108, TASK-201, TASK-204 and
+TASK-205 — the tasks where a silent error becomes a wrong number on someone's
+pay, or a leak of customer personal data. These carry E1 mandatory and E2
+recommended per the profile's evidence rule.
+
+## Preliminary Completion Gates
+
+Finalized and frozen per task before it becomes READY. Preliminary REQUIRED
+checks recorded now:
+
+- PHASE-01 overall: distinct order count for Tín Phát must equal 254 for
+  01.2026 and 146 for 06.2026 against the real raw file (E1). Every remaining
+  difference against the sample report must be explained in writing, not
+  averaged away.
+- TASK-108: with the DEC-012 migration figures loaded, total converted revenue
+  for Hoàng and Kiên across 01–08.2026 must equal 13,883,242 thousand VND (E1).
+- TASK-108: migration figures and rule-classified ADS orders must be mutually
+  exclusive per employee-month; an overlap raises a review-queue conflict rather
+  than summing (E1).
+- TASK-109/111: no compensating divisor anywhere in aggregation. Every figure is
+  summed exactly once; subtotal rows carry a `RowType` marker and sit outside
+  every SUM range (DEC-015). A `/2` in aggregation logic is a defect
+  (E1, grep-verifiable).
+- TASK-101: `Chiết khấu` deducted from sales on all 408 affected rows; six-month
+  total 36,750 thousand VND, of which 26,300 is Ly's (E1).
+- TASK-104: all 8 ADS test cases from spec section 29 PASS (E1).
+- TASK-108: `TotalConvertedRevenue == PersonalConvertedRevenue + AdsConvertedRevenue`
+  holds for every employee-month, and no code path divides a combined profit by
+  a single rate (E1).
+- TASK-201/204: no customer personal data in application logs; role checks
+  enforced server-side (E1, seek E2).
+- Every phase: no employee name, conversion rate, target, adjustment amount or
+  ADS keyword appears as a literal in application source (E1, grep-verifiable).
+
+## Current Task Snapshot
 
 Task:
-REM-T05 — Sửa tài liệu và artifact kiểm chứng
+GATE-00 — owner approval of the source analysis
 
 Task Mode:
 MAJOR
 
 Status:
-READY
+VERIFYING — waiting on owner approval of `docs/analysis/`
 
-Tiến Độ Gate Bắt Buộc:
-0 / 4 PASS  (4 REQUIRED + 1 RECOMMENDED, tất cả NOT_TESTED — chưa implement)
-
-Task File:
-`docs/tasks/TASK-REM-T05-documentation-truth-up.md`
-
-Completion Gate:
-FROZEN 2026-08-23 (S007)
+Required Gate Progress:
+7 / 7 analysis documents written; 3 / 3 ADRs written; 31 / 31 spec sections
+traced; 16 / 16 decisions
+recorded; 8 / 8 blocking questions answered (C1–C8); 1 stated assumption
+carried (C4b); 0 / 1 approvals
 
 Primary Agent Tier:
-Tier B — Implementation
+C
 
 Escalation Tier:
-Tier C — Advanced Reasoning
+—
 
-Scope Lock:
-`governance/reference/COMPACT_STRUCTURE_VALIDATION.md`,
-`governance/reference/START_HERE_USAGE_GUIDE_V3_2.md`, và (chỉ nếu re-verify
-phát hiện thiếu) `governance/scripts/governance/README.md`. Không được đụng
-`governance/reference/history/**`, `docs/audit/**`, hay bất kỳ script `.py`
-nào.
+### What GATE-00 is waiting for
 
-Lưu ý quan trọng khi implement:
-- Subtask 05.5 (tài liệu hóa README validator) **đã DONE từ REM-T03** — chỉ
-  re-verify, không viết lại nếu vẫn đúng.
-- CHECK-T05-01 yêu cầu chạy lại validator TẠI THỜI ĐIỂM THỰC THI, không copy
-  baseline đã chụp trong task file — chính vấn đề task này đang sửa (FIND-005)
-  là hệ quả của việc không làm điều đó.
+One thing only: the owner reads `docs/analysis/` and confirms the mapping and
+the business rules are right. Phase 1 starts on that approval.
 
-## Trạng Thái Gate Freeze
 
-| Task | Ready Gate | Completion Gate | Check REQUIRED |
+### Answered 2026-08-22
+
+| # | Question | Answer |
+|---|---|---|
+| C1 | Should Tín Phát default to `TINPHAT_ADS`? | **Yes** — every Tín Phát order converts at 7.5% regardless of the note. DEC-009. Its historical figures now need no migration. |
+| C5 | Which line types count toward products, sales, profit, order count? | Money-bearing non-product lines **do** count toward sales and profit, not toward product count, and every one goes to a manual review queue where it is kept or excluded. DEC-010. |
+| C6 | Can staff edit `Diễn giải`? | **Yes.** ERP default stays; staff edit only for ADS orders. DEC-011. |
+| C7 | Historical ADS profit for Hoàng and Kiên? | **Enter the 14 monthly figures as migration data.** DEC-012. Per-order recovery is impossible — nothing records which orders were ADS. |
+| C8 | Does product count exclude money-bearing non-product lines? | **Yes**, and the metric itself is low value — kept as a column, dropped as a gate criterion. DEC-013. |
+| C4 | Where does `Chiết khấu` go? | **Deducted from sales.** DEC-014. Verified the ERP figure is gross, so this is a real correction, not a double count. |
+| C2 | Why the `/2` on channel sheets? | **Per-day subtotal rows sit inside the data region**, so a plain SUM double-counts. Explained, not reproduced — subtotals move outside the SUM range behind a `RowType` marker. DEC-015. |
+| C3 | Commission rule? | **Target-achievement based**; formalized in TASK-403 as planned. Phase 1 loads the observed rate table as data. DEC-016. |
+
+### Still open
+
+| # | Question | Default applied | Needed by |
 |---|---|---|---|
-| REM-T02 | VERIFIED | **FROZEN** | 5/5 PASS — **DONE** |
-| REM-T07 | VERIFIED | **FROZEN** | 6/6 PASS + 1/1 RECOMMENDED — **DONE** |
-| REM-T03 | VERIFIED | **FROZEN** (CHECK-T03-03 sửa qua DEC-013) | 4/4 PASS — **DONE** |
-| REM-T04 | MICRO compact — VERIFIED | **FROZEN** (sửa qua DEC-012) | 3/3 PASS — **DONE** |
-| REM-T05 | VERIFIED — READY | **FROZEN** (S007) | 4 REQUIRED + 1 RECOMMENDED |
-| REM-T06 | chưa finalize | PRELIMINARY | 2 bản nháp |
+| C4b | Does `Chiết khấu` also reduce profit by the same amount? The owner specified sales only. | Deducted from profit too. Reducing sales without reducing profit would report a margin the business did not earn — a discount is money given away. | GATE-01 |
 
-Gate của PHASE-02 và PHASE-03 cố ý chưa freeze, theo
-`governance/core/00_SESSION_ORCHESTRATION.md`: "Không freeze chi tiết task còn
-xa khi discovery chưa đủ."
+C4b is a stated assumption, not an unknown: the tool applies it, DEC-014 and
+`docs/analysis/03_RULE_CLASSIFICATION.md` record it, and reversing it is one config change.
+No question blocks GATE-00.
 
-## Findings Register (S001)
+Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
+of converted revenue (`05 §A2`), and Kiên carries the identical hand-typed ADS
+figure `7565` across three consecutive months (`05 §B2`). Neither is a question
+for the owner now — both are recorded so the tool's figures can be explained
+when they differ from the spreadsheet's.
 
-Chi tiết đầy đủ: `docs/audit/S001_AUDIT_FINDINGS.md` (bản ghi bất biến — theo
-dõi trạng thái ở đây, không phải ở đó).
+## Micro Tasks (Inline)
 
-| ID | Severity | Tóm Tắt | Task | Status |
-|---|---|---|---|---|
-| FIND-001 | HIGH | Gói bị lồng dưới repo root; `CLAUDE.md` không ở root | REM-T02 | **RESOLVED** (S003, E2) |
-| FIND-002 | HIGH | S000 chưa từng chạy; project state là placeholder | — | **RESOLVED** (S002, E1) |
-| FIND-003 | MEDIUM | Reference canonical gãy tới `OPTIONAL_ENFORCEMENT_LAYER.md` (×2) | REM-T04 | **RESOLVED** (S004, E1) |
-| FIND-004 | MEDIUM | `CLAUDE.md:27` trỏ tới `templates/` không tồn tại | REM-T04 | **RESOLVED** (S004, E1) |
-| FIND-005 | MEDIUM | Báo cáo validation đã ship khẳng định một PASS sai sự thật | REM-T05 | OPEN |
-| FIND-006 | MEDIUM | START_HERE guide tự mâu thuẫn về layout | REM-T05 | OPEN |
-| FIND-007 | MEDIUM | Validator không phát hiện được root bị deploy sai | REM-T03 | **RESOLVED** (S005, E1) |
-| FIND-008 | LOW | Chưa có CI wiring cho enforcement layer | REM-T07 | **RESOLVED** (S005, E1) |
-| FIND-009 | LOW | Chưa có root README / LICENSE / .gitignore | REM-T06 | OPEN — **một phần đã xử lý** (`.gitignore` thêm ở S003; README/LICENSE còn lại) |
-| FIND-010 | INFO | Chưa có code ứng dụng trong phạm vi (ghi nhận, không phải lỗi) | — | Không hành động |
-| FIND-011 | LOW | Changelog lịch sử có một bare reference không resolve được | REM-T03/T05 | OPEN — validator REM-T03 loại trừ có chủ đích (`governance/reference/history/`); FIND-011 tự nó chỉ đóng khi REM-T05 xử lý nội dung changelog |
-| FIND-012 | LOW | README của validator chỉ tài liệu hóa 2/5 script | REM-T05 | OPEN — README đã được REM-T03 cập nhật đầy đủ 5+1 script/fixture tiện thể, nhưng FIND-012 chính thức thuộc REM-T05 nên chưa tự đóng ở đây |
-
-Tổng — CRITICAL 0 · HIGH 2 · MEDIUM 5 · LOW 4 · INFO 1 · **12 tổng cộng**.
-**RESOLVED: 6 / 12.**
-
-## Micro Task (Inline)
-
-Checklist canonical:
+Canonical checklist:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
-KHÔNG lặp lại hay viết lại checklist ở đây.
-
-### MICRO-001 — REM-T04 — Sửa các reference đường dẫn canonical bị gãy
+### MICRO-003 — Architecture Decision Records
 Status:
-DONE (S004) — xem chi tiết evidence trong lịch sử file này hoặc
-`docs/tasks/TASK-REM-T04...` (task không có file riêng, theo dõi inline —
-xem `docs/sessions/S004-reference-repair.md` để có bản ghi đầy đủ).
-
-### MICRO-002 — REM-T06 — Vệ sinh repository root
-Status:
-PLANNED
-
-Agent Tier:
-Tier A / escalate Tier B
-
-Bị Chặn Bởi:
-Không — REM-T02 đã DONE. Gate chưa finalize; finalize trước PHASE-03.
+DONE
 
 Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
-Compact Completion Gate:
-PRELIMINARY — finalize trước PHASE-03.
+Evidence Summary:
+E1 — `docs/adr/ADR-001-architecture-and-stack.md`,
+`docs/adr/ADR-002-three-layer-data-model-and-audit.md`,
+`docs/adr/ADR-003-currency-unit-standard.md` exist and follow `docs/adr/README.md`
+naming and section structure.
 
-Tóm Tắt Evidence:
-`.gitignore` (bao gồm `.claude/` và `__pycache__/`) đã được thêm ở S003 như
-một fix phụ. `README.md` và câu hỏi về `LICENSE` vẫn còn tồn đọng.
+### MICRO-000 — Promote governance package to repository root
+Status:
+DONE
 
-## Blocker Đang Hoạt Động
+Checklist Reference:
+`governance/templates/MICRO_TASK_CHECKLIST.md`
 
-- Không có.
+Evidence Summary:
+E1 — `git mv` executed, `ls` confirms `CLAUDE.md`, `PROJECT/`, `docs/`,
+`governance/` at repository root; `git status` shows 74 pure renames with no
+content change. Commit `8f77e20`.
 
-## Rủi Ro Đang Hoạt Động
+## Active Blockers
+- None.
 
-- **RSK-001** (từ FIND-001, FIND-007) — **Đã đóng.** FIND-001 và FIND-007 đều
-  RESOLVED. `validate_structure.py` giờ tự phát hiện được lớp lỗi đã gây ra
-  FIND-001, xác nhận qua `governance/scripts/governance/fixtures/regression_nested_layout.py` (CHECK-T03-01).
-- **RSK-002** (từ FIND-005) — Chưa đổi. Một artifact validation đã ship khẳng
-  định một PASS mà repo mâu thuẫn với nó. Cho tới khi REM-T05 hoàn tất, không
-  coi bất kỳ điều gì dưới `governance/reference/` là evidence mà không tự
-  derive lại.
-- **RSK-003** — REM-T02 mang Blast Radius 5/5. **Đã đóng** (S003).
-- **RSK-004** — **Đã đóng (S005).** CI (`.github/workflows/governance.yml`)
-  giờ là nguồn E2 bền vững, xác nhận qua 3 lần chạy thật (1 fail đúng do lỗi
-  thật, 1 pass thật, 1 fail đúng do breakage cố ý — xem REM-T07). Task rủi ro
-  cao trong tương lai nên ưu tiên CI hơn review dùng một lần.
-- **RSK-005** — **Đã đóng (S005).** Workflow REM-T07 tự phát hiện validator
-  bằng `find`, không hard-code đường dẫn — xác nhận qua CHECK-T07-04 (mô phỏng
-  layout lồng, discovery vẫn tìm thấy đúng).
-- **RSK-006** (từ S004) — Kỷ luật phạm vi. Chưa đổi — vẫn là bài học đang áp
-  dụng. Trong S005, một biến thể của vấn đề này xuất hiện: evidence text tự
-  viết trong lúc làm REM-T03 vô tình tạo ra 2 broken reference, bị chính CI
-  (REM-T07, vừa build xong) bắt được ở lần chạy đầu tiên — xem RSK-007.
-- **RSK-007** (mới, S005) — Không có gì. Việc CI bắt được lỗi thật ngay từ
-  run đầu tiên là **bằng chứng tích cực** rằng cả `validate_reference_integrity.py`
-  và workflow đều hoạt động đúng, không phải một rủi ro cần theo dõi. Ghi lại
-  ở đây chỉ để nhấn mạnh: đừng hoảng khi CI đỏ lần đầu — kiểm tra xem nó đỏ vì
-  lý do đúng trước khi coi đó là lỗi của CI.
-- **RSK-008** (mới, S005) — Nhánh `scratch/ci-failure-test` trên GitHub không
-  xóa được từ session này (proxy chặn write tới path xóa ref — DEC-014). Nhánh
-  chỉ chứa 1 commit phá hoại cố ý, không merge vào đâu, rủi ro thực tế gần như
-  0, nhưng **cần owner xóa thủ công qua GitHub UI**.
+## Active Risks
 
-## Hạng Mục Regression Đang Mở
+- **RISK-01 — The ADS keyword has no data to stand on.** The string "ADS"
+  occurs 0 times in the raw sales book and 0 times in the report workbook. The
+  keyword rule is built to specification, but it only starts matching once data
+  entry changes. DEC-009 covers the largest share — Tín Phát's 1,108 orders
+  (12.7%) classify as ADS from the employee default rather than the keyword —
+  so what remains unmarked is ADS work done by the other salespeople.
+  Mitigation: manual override at OrderID level with audit trail; the tool
+  reports how many orders matched the rule on each import so a month of silent
+  zeroes is visible rather than assumed correct.
 
-- Không có.
+- **RISK-02 — RESOLVED 2026-08-22.** Tín Phát defaults to `TINPHAT_ADS`
+  (DEC-009), so its 7.5% is preserved and no figure moves. Residual: marking an
+  order ADS *lowers* converted revenue (5.5% divides into a larger number than
+  7.5%), so an over-eager ADS marker costs a salesperson money. The review
+  queue must surface newly-ADS orders, not just newly-PERSONAL ones.
 
-## Tuân Thủ Profile
+- **RISK-03 — Purchase price is absent at source.** The raw file carries no
+  purchase price, only an ERP-computed profit. By the owner's decision the
+  field stays Pending rather than being inferred. Consequence: KPI profit and
+  converted revenue are incomplete until either the price tool is connected or
+  prices are entered by hand. The tool must show Pending explicitly and must
+  never silently treat a missing price as zero.
 
-Ma trận: `PROJECT/PROJECT_PROFILE.md` → "Ma Trận Tuân Thủ Profile".
+- **RISK-04 — Customer personal data.** Names, phone numbers and addresses on
+  every line. Sample data is git-ignored; anonymized fixtures are required for
+  tests; personal fields must not reach application logs.
 
-- **GAP-01** — Backup / DR. `governance/product/16_BACKUP_DISASTER_RECOVERY.md`
-  bắt buộc ở PRODUCT; GitHub remote là bản sao duy nhất của repo. Chưa lên
-  lịch vào PHASE-01. Đánh giá lại ở Phase Gate 03.
-- **Domain DORMANT** — một số nhóm luật bắt buộc ở PRODUCT chưa có đối tượng
-  vì chưa có code ứng dụng. DORMANT không phải là miễn trừ; kiểm tra lại từng
-  dòng khi có code ứng dụng.
-- **CI/CD** — chuyển từ DORMANT/NOT_MANDATORY sang **ACTIVE** ở S005. Xem
-  `PROJECT/PROJECT_PROFILE.md` mục CI/CD.
+## Open Regression Items
+- None yet — no application code exists.
 
-## Quyết Định Gần Đây
+## Recent Decisions
+- See `PROJECT/PROJECT_DECISIONS.md` — DEC-001 through DEC-016.
 
-- DEC-001 — Bootstrap S000 thực hiện bên trong S001
-- DEC-002 — Phạm vi audit giới hạn ở tính toàn vẹn deployment governance + package
-- DEC-003 — Artifact audit lưu dưới `docs/audit/`
-- DEC-004 — Artifact S001 viết bên trong thư mục package bị lồng
-- DEC-005 — Chuyển profile AUDIT → PRODUCT
-- DEC-006 — Agent tier ánh xạ sang Tier A–D; Tier D NOT_APPLICABLE
-- DEC-007 — CI được áp dụng chủ động và xếp trước; REM-T04 xác nhận MICRO
-- DEC-008 — REM-T01 hủy vì đã được absorbed; FIND-002 RESOLVED
-- DEC-009 — REM-T02 xếp trước REM-T07 theo chỉ đạo chủ dự án; E2 qua review
-  độc lập thay vì CI
-- DEC-010 — Đóng PR #1; merge nhánh làm việc vào nhánh mặc định
-- DEC-011 — Thêm quy tắc Ngôn Ngữ Nội Dung; dịch toàn repo sang tiếng Việt
-- DEC-012 — COMPLETION GATE CHANGE PROPOSAL cho MICRO-001; REM-T04 đóng
-- DEC-013 — COMPLETION GATE CHANGE PROPOSAL cho CHECK-T03-03 (2/3 thay vì
-  3/3 reference tái hiện; loại trừ reference dạng thư mục có chủ đích)
-- DEC-014 — Ghi nhận giới hạn: không xóa được nhánh scratch trên GitHub qua
-  session này (proxy chặn)
-- DEC-015 — Phase Gate 01 PASS; PHASE-01 DONE
-- DEC-016 — Roadmap Finalization cho REM-T05; gate frozen, task file tạo,
-  READY
+## Session History
+- S000 — PROJECT OPEN — 2026-08-22 — Read the specification and both sample
+  workbooks; verified business rules against real data; selected the PRODUCT
+  profile; created the roadmap, dependency graph, scoring and preliminary gates;
+  recorded 8 tactical decisions and 4 active risks. Then completed TASK-002
+  (six analysis documents, backed by a re-runnable evidence extractor) and
+  TASK-003 (three ADRs). Held at GATE-00.
 
-Xem `PROJECT/PROJECT_DECISIONS.md`.
+## Next Session
 
-Quyết định kiến trúc:
-- ADR-001 — Gói governance đặt tại repository root
-  (`docs/adr/ADR-001-governance-package-at-repository-root.md`) — **đã triển khai**
-  ở commit `699b105`.
+Recommended Session:
+S001 — Phase 1, TASK-101 onward
 
-Review độc lập:
-- `docs/reviews/E2-TASK-REM-T02-S003.md` — E2 PASS cho REM-T02
+Purpose:
+Begin the calculation engine, once GATE-00 is approved. The open questions run
+alongside on the defaults recorded above; C1, C5 and C7 must be answered before
+GATE-01 closes, because that is the point where the numbers become publishable.
 
-## Lịch Sử Session
-
-- S000 — PROJECT OPEN — bootstrap bên trong S001; hoàn tất xuyên suốt S001 + S002.
-  Xem DEC-001, DEC-008.
-- S001 — DISCOVERY & BASELINE — 2026-08-22 — DONE.
-  Bàn giao: `docs/sessions/S001-discovery.md`.
-- S002 — ROADMAP FINALIZATION — 2026-08-22 — DONE.
-  Bàn giao: `docs/sessions/S002-roadmap-finalization.md`.
-- S003 — TRIỂN KHAI REM-T02 — 2026-08-22 — DONE.
-  Bàn giao: `docs/sessions/S003-root-promotion.md`.
-- S004 — TRIỂN KHAI REM-T04 — 2026-08-23 — DONE.
-  Bàn giao: `docs/sessions/S004-reference-repair.md`.
-- S005 — TRIỂN KHAI REM-T03 + REM-T07 — 2026-08-23 — DONE.
-  Hai task được thực hiện trong cùng session theo yêu cầu trực tiếp của chủ
-  dự án. REM-T03: thêm deployment-root check vào `validate_structure.py` +
-  `validate_reference_integrity.py` mới. Phát hành COMPLETION GATE CHANGE
-  PROPOSAL (DEC-013) thu hẹp CHECK-T03-03. REM-T07:
-  `.github/workflows/governance.yml`, verify bằng 3 lần chạy CI thật. Nhánh
-  scratch không xóa được trên GitHub (DEC-014). FIND-007, FIND-008 RESOLVED
-  (6/12 tổng).
-  Bàn giao: `docs/sessions/S005-ci-and-validators.md`.
-- S006 — PHASE GATE 01 — 2026-08-23 — PASS.
-  Chạy đủ 10/10 check trong checklist Phase Gate 01, mỗi check tự thực thi
-  lại từ đầu (không lấy lời khai của S005 làm evidence). **PHASE-01: DONE.**
-  Chi tiết: DEC-015. Bàn giao: `docs/sessions/S006-phase-gate-01.md`.
-- S007 — ROADMAP FINALIZATION (REM-T05) — 2026-08-23 — DONE.
-  Đọc lại 4 file mục tiêu (FIND-005/006/011/012), xác nhận vẫn đúng như S001
-  mô tả (không có drift). Phát hiện subtask 05.5 (tài liệu hóa README
-  validator) đã được REM-T03 làm xong từ S005 — xác minh lại bằng lệnh, ghi
-  rõ trong task file để tránh làm lại. Tạo file task chính thức từ template,
-  finalize + FREEZE Completion Gate (4 REQUIRED + 1 RECOMMENDED). REM-T05
-  chuyển PLANNED → READY. Không implement gì trong session này, đúng quy
-  trình Roadmap Finalization.
-  Bàn giao: `docs/sessions/S007-roadmap-finalization-rem-t05.md`.
-
-## Session Tiếp Theo
-
-Session Đề Xuất:
-S008 — **Implement REM-T05**. Completion Gate đã FROZEN (S007), task đã
-READY (`docs/tasks/TASK-REM-T05-documentation-truth-up.md`). Không cần
-thêm một vòng Roadmap Finalization nữa — bắt tay vào sửa trực tiếp theo
-Scope Lock đã ghi trong file task.
-
-Việc cần làm trong S008 (theo subtask 05.1–05.6 trong task file):
-- [ ] 05.1 — Rà lại `governance/reference/COMPACT_STRUCTURE_VALIDATION.md`
-      so với cấu trúc thật hiện tại, sửa phần lệch (FIND-005/006)
-- [ ] 05.2 — Rà lại `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md`,
-      loại bỏ path `templates//scripts/` sai và mọi tham chiếu lỗi thời khác
-- [ ] 05.3 — Chạy lại các validator liên quan, đối chiếu output thật với nội
-      dung tài liệu, sửa cho khớp
-- [ ] 05.4 — Xác nhận `governance/scripts/governance/README.md` đã đầy đủ
-      (subtask 05.5 gần như đã xong từ REM-T03/S005 — xem "Tình Trạng Thực
-      Tế Của Subtask 05.5" trong task file, chỉ cần verify lại, không viết
-      lại từ đầu)
-- [ ] 05.5 — (xem trên, đã gần xong — chỉ re-verify)
-- [ ] 05.6 — Cập nhật task file, PROJECT_PROGRESS.md, viết session handoff
-- [ ] Chạy đủ 4 CHECK REQUIRED (CHECK-T05-01..04) lấy evidence E1, cân nhắc
-      CHECK-T05-05 (E2 review) nếu Risk yêu cầu
-- [ ] Đánh REM-T05 DONE nếu toàn bộ REQUIRED PASS + Exit Criteria thỏa mãn
-
-Việc phụ còn tồn đọng từ trước (không thuộc REM-T05):
-- Báo owner xóa thủ công nhánh `scratch/ci-failure-test` trên GitHub
-  (DEC-014) — vẫn chưa xử lý.
-- Owner cân nhắc bật branch protection cho check `governance` (subtask 07.7)
-  — vẫn chưa xử lý.
-- MICRO-002 (REM-T06, PHASE-03) vẫn còn gate PRELIMINARY (chưa frozen) — có
-  thể cần một session Roadmap Finalization riêng cho nó sau này, không liên
-  quan REM-T05.
-
-Mục Đích:
-Đóng PHASE-02 bằng cách thực sự sửa nội dung tài liệu bị lệch (FIND-005/
-006/011/012), dưới một gate đã frozen từ S007 — tránh vừa implement vừa tự
-đặt tiêu chí hoàn thành cùng lúc.
-
-File Cần Đọc Trước:
-1. `CLAUDE.md`
-2. `PROJECT/PROJECT_PROFILE.md`
-3. `PROJECT/PROJECT_PROGRESS.md`  ← file này
-4. `docs/sessions/S007-roadmap-finalization-rem-t05.md`
-5. `docs/tasks/TASK-REM-T05-documentation-truth-up.md`
-6. `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
-7. `governance/core/EVIDENCE_STANDARD.md`
+Files to read first:
+- `PROJECT/PROJECT_PROGRESS.md`
+- `PROJECT/PROJECT_PROFILE.md`
+- `PROJECT/PROJECT_DECISIONS.md`
+- `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx`
+- `docs/analysis/`
