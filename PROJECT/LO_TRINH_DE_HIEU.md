@@ -10,10 +10,35 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 10 (điều chỉnh KPI) đã xong** (xem
-> "Có gì mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 11 (tính lợi nhuận kế toán) đã
+> xong** (xem "Có gì mới" ngay bên dưới).
 
-## Có gì mới — bước 10 xong (2026-08-23)
+## Có gì mới — bước 11 xong (2026-08-23)
+
+**Bước 11 (TASK-107 — tính lợi nhuận) đã xong phần "lợi nhuận kế toán"
+(`AccountingProfit`)** — con số lợi nhuận thật, dùng cho sổ sách. Ngay sau
+khi sếp duyệt bước 10, sếp chốt thêm 6 nguyên tắc quan trọng cho cách hai
+luồng số liệu — **lợi nhuận kế toán thật** và **lợi nhuận tính KPI/thưởng**
+— phải tách biệt nhau, không được lẫn:
+
+- Lợi nhuận kế toán không phụ thuộc gì vào các khoản điều chỉnh KPI (Qua
+  kho, KHBH...) — hai con số hoàn toàn độc lập.
+- Điều chỉnh KPI không bao giờ được sửa lại số liệu kế toán.
+- Sau này một đơn hàng có thể có **nhiều** điều chỉnh cùng lúc (ví dụ vừa
+  Qua kho vừa KHBH) — cần lưu riêng từng điều chỉnh, không gộp thành một số.
+- Cần phân biệt rõ "số tiền hệ thống **gợi ý**" và "số tiền **đã chốt**" —
+  hai giá trị khác nhau, không ghi đè lẫn nhau.
+- Chỉ điều chỉnh nào đã được **xác nhận thật** mới được tính vào lợi nhuận
+  KPI/thưởng — số mới chỉ là gợi ý thì chưa được dùng.
+- Không bao giờ coi điều chỉnh chưa xác định là 0.
+
+Vì cách chốt lương/thưởng (lợi nhuận KPI, không phải lợi nhuận kế toán) cần
+những điều chỉnh đã xác nhận thật — mà việc "xác nhận" cần màn hình chọn tay
+(chưa xây, thuộc giai đoạn sau) — bước này **chỉ làm phần lợi nhuận kế
+toán** trước. Phần lợi nhuận KPI sẽ làm khi màn hình chọn tay + chỗ lưu điều
+chỉnh đã xác nhận sẵn sàng.
+
+## Có gì mới trước đó — bước 10 xong (2026-08-23)
 
 **Bước 10 (TASK-106 — tính điều chỉnh KPI) đã xong**, sau khi sếp trả lời 4
 câu hỏi làm rõ về cách tính. Kết quả:
@@ -164,8 +189,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. **Đã xây xong trong bước 5**, đã kiểm đủ 18 tình huống chuẩn | C | Xong cùng bước 5 |
 | ✅ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận. **Xong — hiện để "Chờ nhập" vì chưa có bảng giá điện tử** | B | Xong |
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
-| 🟡 | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Việc tiếp theo** — sẵn sàng bắt đầu |
-| ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | Sau bước 11 |
+| ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
+| 🟡 | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | **Việc tiếp theo** — sẵn sàng bắt đầu |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

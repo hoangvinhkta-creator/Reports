@@ -1,4 +1,4 @@
-"""Import pipeline entrypoint: the first 8 steps of spec §22.
+"""Import pipeline entrypoint: the first 9 steps of spec §22.
 
     1. Read `.xlsx`                         -> raw_reader.read_raw_rows
     2. Metadata preview before normalizing   -> preview.build_preview
@@ -8,10 +8,13 @@
     6. LeadSource rule at order level        -> lead_source.LeadSourceClassifier
     7. Propagate LeadSourceFinal to lines    -> (done inside step 6's apply())
     8. Price lookup (Pending if no Price Master) -> pricing.price_engine
+    9. AccountingProfit (Universal formula, no KPI Adjustment) -> profit.profit_engine
 
 Out of scope here (later tasks): product/transaction classification
-(TASK-103), adjustments/profit/conversion (TASK-106–108), Review Queue
-persistence (TASK-110), export (TASK-111), CLI (TASK-112).
+(TASK-103), Adjustment persistence + EligibleKpiProfit (TASK-202/302/305,
+DEC-126 — needs confirmed Adjustment records, not just the suggested-amount
+resolver from TASK-106), conversion (TASK-108), Review Queue persistence
+(TASK-110), export (TASK-111), CLI (TASK-112).
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
 from app.modules.pricing.price_engine import apply_prices
 from app.modules.pricing.provider import PendingPriceProvider, PriceProvider
+from app.modules.profit.profit_engine import apply_accounting_profit
 
 DEFAULT_CONFIG_DIR = Path("config")
 
@@ -58,6 +62,8 @@ def run_import(
     classifier.apply(orders, employee_mapper)
 
     apply_prices(lines, price_provider or PendingPriceProvider())
+
+    apply_accounting_profit(lines)
 
     unmapped_lines = [
         line

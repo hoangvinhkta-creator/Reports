@@ -117,6 +117,12 @@ class WorkingLine:
     accounting_purchase_price: Optional[Decimal] = None
     price_source: str = PRICE_SOURCE_PENDING
 
+    # Bước 9 §22 đặc tả (TASK-107). Universal formula, độc lập hoàn toàn với
+    # KpiAdjustment (DEC-126 điểm 1) — `AccountingProfit = (SellPrice -
+    # AccountingPurchasePrice) * Quantity`. `None` khi bất kỳ input nào còn
+    # Pending/thiếu — không bao giờ suy đoán 0 (DEC-103).
+    accounting_profit: Optional[Decimal] = None
+
 
 @dataclass
 class Order:

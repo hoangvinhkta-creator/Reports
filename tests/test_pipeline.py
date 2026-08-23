@@ -107,3 +107,26 @@ def test_custom_price_provider_injected_without_touching_price_engine(
     other_order = _order(result, "BH0004")
     assert other_order.lines[0].accounting_purchase_price is None
     assert other_order.lines[0].price_source == PRICE_SOURCE_PENDING
+
+
+def test_default_run_leaves_every_accounting_profit_pending(
+    synthetic_raw_path, config_dir
+):
+    # No PriceProvider injected -> every accounting_purchase_price is
+    # Pending -> AccountingProfit must stay None too, never 0 (DEC-103).
+    result = run_import(synthetic_raw_path, config_dir=config_dir)
+    all_lines = [line for order in result.orders for line in order.lines]
+    assert all_lines
+    assert all(line.accounting_profit is None for line in all_lines)
+
+
+def test_accounting_profit_computed_when_price_provider_matches(
+    synthetic_raw_path, config_dir
+):
+    result = run_import(
+        synthetic_raw_path, config_dir=config_dir, price_provider=_FixedPriceProvider()
+    )
+    order = _order(result, "BH0001")
+    line = order.lines[0]
+    assert line.accounting_purchase_price == Decimal("999000")
+    assert line.accounting_profit == (line.sell_price - Decimal("999000")) * line.quantity

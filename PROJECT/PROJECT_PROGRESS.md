@@ -51,8 +51,8 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-106 DONE — AirConditionerClassifier + AdjustmentResolver,
-5/5 REQUIRED check PASS, 74/74 test tổng)
+2026-08-23 (TASK-107 DONE — profit_engine (AccountingProfit), 6/6 REQUIRED
+check PASS, 83/83 test tổng)
 
 Overall Status:
 IN_PROGRESS
@@ -61,19 +61,17 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-107 — profit_engine
+TASK-108 — conversion_engine
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-107 — profit_engine. Bước 11 của §22 đặc tả: `AccountingProfit = (SellPrice
-− AccountingPurchasePrice) × Quantity`. `accounting_purchase_price` đã có mặt
-trên `WorkingLine` từ TASK-105 (luôn `Pending` ở Phase 1). Chưa cần
-`kpi_purchase_adjustment` (TASK-106 không thêm field này vào domain model —
-xem DEC-125) vì `AccountingProfit` không phụ thuộc KPI adjustment, chỉ
-`EligibleKpiProfit` mới cần — việc đó dời tới khi field override thật tồn
-tại (Phase 2/3).
+TASK-108 — conversion_engine. Bước 10–11 của §22 đặc tả: phân giải
+`ConversionScheme` **độc lập** với `LeadSource`, tra config theo
+`(employee, lead_source, ngày của đơn)` (DEC-119, DEC-121, ADR-104), sau đó
+quy đổi 2 bucket PERSONAL/ADS độc lập. Risk cao nhất trong roadmap (5/5) —
+xem "Completion Gate sơ bộ" đã ghi sẵn các REQUIRED check cho task này.
 
 ## Roadmap tổng thể
 
@@ -142,7 +140,17 @@ tại (Phase 2/3).
         thuộc phạm vi override thật (Phase 2/3, TASK-202/302/305). 5/5
         REQUIRED check PASS, 74/74 test tổng (17 mới, không regression).
         Chi tiết: `docs/tasks/TASK-106-adjustment-engine.md`.
-  - [ ] TASK-107 — profit_engine. Bước 11 của §22 đặc tả, phần lợi nhuận.
+  - [x] TASK-107 — profit_engine. **DONE** (2026-08-23). Trước khi code, chủ
+        dự án chốt DEC-126 — 6 nguyên tắc ranh giới AccountingProfit/Adjustment.
+        Task chỉ triển khai `AccountingProfit = (SellPrice −
+        AccountingPurchasePrice) × Quantity` (Universal formula), **không**
+        mở rộng sang `EligibleKpiProfit` vì persistence + xác nhận Adjustment
+        chưa tồn tại (DEC-126 điểm 3–6). `profit_engine` không phụ thuộc
+        `app.modules.adjustment` theo bất kỳ cách nào (kiểm chứng bằng grep).
+        Nối vào `run_import()` làm bước 9 — tự động Pending khi giá nhập
+        chưa có, không cần logic điều kiện riêng. 6/6 REQUIRED check PASS,
+        83/83 test tổng (9 mới, không regression). Chi tiết:
+        `docs/tasks/TASK-107-profit-engine.md`.
   - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
         của §22 đặc tả. Phân giải `ConversionScheme` **độc lập** với
         `LeadSource`, tra config theo `(employee, lead_source, ngày của đơn)`
@@ -434,25 +442,41 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-107 — profit_engine
+TASK-108 — conversion_engine
 
 Task Mode:
 MAJOR
 
 Status:
-PLANNED — TASK-106 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-107.
+PLANNED — TASK-107 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-108.
 
 Required Gate Progress:
 GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE**, TASK-106
-**DONE** — 74/74 test PASS (`pytest tests/ -q`); TASK-106: 5/5 REQUIRED
-check PASS. Chi tiết đầy đủ: `docs/tasks/TASK-101-importer-normalizer.md`,
-`docs/tasks/TASK-105-price-engine.md`, `docs/tasks/TASK-106-adjustment-engine.md`.
+**DONE**, TASK-107 **DONE** — 83/83 test PASS (`pytest tests/ -q`);
+TASK-107: 6/6 REQUIRED check PASS. Chi tiết đầy đủ:
+`docs/tasks/TASK-101-importer-normalizer.md`,
+`docs/tasks/TASK-105-price-engine.md`,
+`docs/tasks/TASK-106-adjustment-engine.md`,
+`docs/tasks/TASK-107-profit-engine.md`.
 
 Primary Agent Tier:
-B
+C
 
 Escalation Tier:
-C
+—
+
+### TASK-107 — DONE (2026-08-23)
+
+`profit_engine.compute_accounting_profit()` + `apply_accounting_profit()` —
+`AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity`,
+Universal formula, `None` khi bất kỳ input nào thiếu (không bao giờ 0).
+Trước khi code, chủ dự án chốt **DEC-126**: 6 nguyên tắc ranh giới, quan
+trọng nhất là AccountingProfit độc lập hoàn toàn với KPI Adjustment, và
+`EligibleKpiProfit` **không** thuộc scope task này (cần Adjustment record đã
+xác nhận, persistence đó chưa tồn tại). Nối vào `run_import()` làm bước 9,
+tự động — không cần lựa chọn thủ công như TASK-106, vì đây là hàm thuần túy
+của các field đã sẵn có. 6/6 REQUIRED check PASS, 83/83 test tổng (9 mới,
+không regression). Chi tiết: `docs/tasks/TASK-107-profit-engine.md`.
 
 ### TASK-106 — DONE (2026-08-23)
 
@@ -895,38 +919,71 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   cả nhánh (3 tier × 2 loại, AC/non-AC × 2 loại, không khớp, loại lạ) đều
   trả `None` đúng lúc, không suy đoán. 5/5 REQUIRED check PASS, 74/74 test
   tổng, không regression. Current Task chuyển sang TASK-107.
+- 2026-08-23 — **TASK-107 DONE (profit_engine).** Ngay sau khi chấp nhận
+  TASK-106 DONE, chủ dự án chốt luôn 6 nguyên tắc ranh giới cho profit/
+  adjustment trước khi cho phép code TASK-107 — ghi lại thành **DEC-126**:
+  (1) AccountingProfit độc lập hoàn toàn với KPI Adjustment; (2) Adjustment
+  không ghi đè dữ liệu kế toán; (3) một Order phải hỗ trợ nhiều Adjustment
+  records khi có persistence thật; (4) phân biệt `suggested_amount` (từ
+  `AdjustmentResolver`, TASK-106) và `final_amount` (người dùng xác nhận);
+  (5) chỉ Adjustment đã xác nhận mới dùng cho `EligibleKpiProfit`; (6) không
+  mặc định adjustment chưa xác định = 0. Hệ quả: TASK-107 **chỉ** triển khai
+  `AccountingProfit`, không tự mở rộng sang `EligibleKpiProfit` vì
+  persistence/xác nhận Adjustment chưa sẵn sàng. Xây
+  `profit_engine.compute_accounting_profit()` (hàm thuần túy, `None` khi
+  thiếu bất kỳ input nào) + `apply_accounting_profit()`, nối vào
+  `run_import()` làm bước 9 — tự động, không cần chọn tay (khác TASK-106) vì
+  chỉ dùng field đã sẵn có trên `WorkingLine`. Xác nhận bằng grep:
+  `profit_engine` không có bất kỳ import/dependency nào vào
+  `app.modules.adjustment`. 9 test mới, gồm case cố ý đặt discount cực lớn
+  để xác nhận công thức không bị discount ảnh hưởng (đúng §U, khác
+  `TotalSales`). 6/6 REQUIRED check PASS, 83/83 test tổng, không regression.
+  Current Task chuyển sang TASK-108.
 
 ## Session tiếp theo
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 
-### Track A (Tín Phát) — Recommended Session: TASK-107 (profit_engine)
+### Track A (Tín Phát) — Recommended Session: TASK-108 (conversion_engine)
 
 Purpose:
-**TASK-106 đã DONE** (2026-08-23) — `AirConditionerClassifier` +
-`AdjustmentResolver` tồn tại như module độc lập, đề xuất số tiền điều chỉnh
-KPI khi biết loại + ngữ cảnh. Không nối vào `run_import()`, không thêm field
-domain model (DEC-125) — nghĩa là `WorkingLine` **chưa có**
-`kpi_purchase_adjustment`.
+**TASK-107 đã DONE** (2026-08-23) — `AccountingProfit` tồn tại trên mỗi
+`WorkingLine`, tự động tính ở bước 9, `None` khi giá nhập còn Pending.
+`EligibleKpiProfit` cố ý chưa làm (DEC-126) — không chặn TASK-108, vì
+`ConversionScheme`/quy đổi doanh thu không phụ thuộc `EligibleKpiProfit`.
 
-TASK-107 là bước 11 của §22 đặc tả, công thức Universal:
-`AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity`. Công
-thức này **không cần** `kpi_purchase_adjustment` — chỉ `EligibleKpiProfit`
-(qua `KpiPurchasePrice = AccountingPurchasePrice + KpiPurchaseAdjustment`)
-mới cần, và field đó chưa tồn tại cho tới khi override thật được xây (Phase
-2/3). Vì vậy TASK-107 nên giới hạn ở `AccountingProfit` trước; làm rõ với
-chủ dự án nếu cần quyết định khác về việc có tính `EligibleKpiProfit` một
-phần (ví dụ giả định `KpiPurchaseAdjustment = 0` tạm thời) hay hoãn hẳn phần
-đó sang khi field tồn tại — đừng tự chọn một trong hai mà không hỏi, vì
-DEC-103 cấm suy đoán giá trị thiếu thành 0.
+TASK-108 là **task rủi ro cao nhất trong toàn bộ roadmap** (Risk 5/5, Blast
+Radius 5/5 — xem bảng "Chấm điểm sơ bộ"). Bước 10–11 của §22 đặc tả: phân
+giải `ConversionScheme` **độc lập** với `LeadSource` — tra config theo
+`(employee, lead_source, ngày của đơn)` (DEC-119, DEC-121, ADR-104), sau đó
+quy đổi doanh thu qua 2 bucket **độc lập** PERSONAL/ADS. Sai ở đây nghĩa là
+sai lương/thưởng của ai đó.
+
+Các REQUIRED check đã ghi sẵn ở mục "Completion Gate sơ bộ" phía trên (đọc
+kỹ trước khi code) — trong đó quan trọng nhất:
+- Không đường code nào suy tỉ lệ trực tiếp từ `LeadSource` — case E/F của
+  DEC-119 là phép kiểm bắt buộc (cùng `PERSONAL` nhưng nhân viên Nội thành
+  phải ra tỉ lệ khác nhân viên thường).
+- Tra tỉ lệ dùng **ngày của đơn**, không dùng thời điểm chạy (effective-dating
+  đúng, DEC-121) — thêm một dòng chính sách tương lai rồi chạy lại kỳ lịch sử
+  phải cho kết quả không đổi.
+- Tổ hợp `(employee, lead_source, ngày)` không khớp dòng config nào phải trả
+  `Unresolved` + Review Queue — không mượn tỉ lệ của nhân viên khác, không
+  mặc định về bất kỳ tỉ lệ nào.
+- Nạp lại 14 kỳ của workbook mẫu phải tái hiện đúng cột `F` của `Summary
+  2026` — đây là phép kiểm engine cài đúng phép toán.
 
 Files to read first:
-- `docs/analysis/03_RULE_CLASSIFICATION.md` mục "U — Universal formula" —
-  công thức `AccountingProfit`, `EligibleKpiProfit`, `KpiPurchasePrice`
-- `docs/tasks/TASK-105-price-engine.md`, `docs/tasks/TASK-106-adjustment-engine.md`
-  — ranh giới field đã có/chưa có trên `WorkingLine`
-- `PROJECT/PROJECT_DECISIONS.md` (DEC-103, DEC-125)
+- `PROJECT/PROJECT_PROGRESS.md` mục "Completion Gate sơ bộ" — toàn bộ check
+  TASK-108 đã ghi sẵn, đọc trước khi viết Ready Gate cho task
+- `docs/adr/ADR-104-lead-source-vs-conversion-scheme.md` — kiến trúc tách
+  LeadSource/ConversionScheme
+- `PROJECT/PROJECT_DECISIONS.md` (DEC-119, DEC-120, DEC-121)
+- `tools/analysis/verify_ads_rule.py` — bản tham chiếu đã verify 31/31 case,
+  bao gồm case E/F dùng làm phép kiểm
+- `app/modules/lead_source/classifier.py` — pattern config-driven +
+  effective-dating đã dùng ở TASK-101, nên theo cùng phong cách
 - `app/pipeline.py`, `app/modules/domain/models.py` — code đã có
 
 ### Track B (Governance) — Recommended Session: S009 — REM-T06

@@ -1073,3 +1073,88 @@ Can Revisit After:
 Khi Phase 2/3 xây tầng override thủ công thật (TASK-202/302/305) — lúc đó
 resolver này được gọi làm giá trị đề xuất ban đầu trên UI, và cần một ADR
 hoặc DEC riêng nếu phát sinh yêu cầu audit trail cụ thể cho việc ghi đè.
+
+## DEC-126
+
+Date:
+2026-08-23
+
+Task:
+TASK-107 (profit_engine) — nguyên tắc ranh giới trước khi implement, chủ dự
+án chốt ngay sau khi chấp nhận TASK-106 DONE.
+
+Decision:
+Sáu nguyên tắc, nguyên văn từ chủ dự án, áp dụng cho `profit_engine`
+(TASK-107) và cho thiết kế persistence Adjustment tương lai (Phase 2/3):
+
+1. `AccountingProfit` hoàn toàn độc lập với KPI Adjustment — công thức
+   `AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity`
+   không có số hạng nào liên quan `KpiPurchaseAdjustment`, đúng như đã ghi ở
+   `docs/analysis/03_RULE_CLASSIFICATION.md` §U (khác `EligibleKpiProfit`,
+   công thức có `OtherKpiAdjustment`).
+2. Adjustment không ghi đè dữ liệu kế toán — `kpi_purchase_adjustment` (khi
+   tồn tại) không bao giờ sửa `accounting_purchase_price`/`accounting_profit`;
+   hai luồng số liệu (kế toán vs. KPI) tách biệt hoàn toàn ở mọi tầng, không
+   chỉ ở công thức mà cả ở dữ liệu lưu trữ.
+3. Persistence tương lai: một `Order` phải hỗ trợ **nhiều** Adjustment
+   records — không phải một field đơn `kpi_purchase_adjustment` cộng dồn sẵn
+   thành một số. Khớp với từ vựng thật đã quan sát (`docs/analysis/03_RULE_CLASSIFICATION.md`
+   §"Bảng Adjustment": `Thợ lắp -200, KHBH -50` là 2 record, không phải 1 số
+   -250 không rõ nguồn gốc).
+4. Phân biệt `suggested_amount` (giá trị `AdjustmentResolver` đề xuất,
+   DEC-125) và `final_amount` (giá trị người dùng xác nhận/ghi đè, lưu thật)
+   — hai field khác nhau, không ghi đè lẫn nhau, giữ được cả đề xuất gốc lẫn
+   quyết định cuối cùng cho audit trail.
+5. Chỉ Adjustment đã được người dùng **xác nhận** (`final_amount` đã chốt)
+   mới được dùng để tính `EligibleKpiProfit` — một `suggested_amount` chưa
+   xác nhận không bao giờ lọt vào công thức KPI.
+6. Không mặc định adjustment chưa xác định bằng 0 — đúng nguyên tắc DEC-103
+   áp dụng lại: thiếu dữ liệu adjustment nghĩa là `EligibleKpiProfit` chưa
+   tính được cho dòng đó (Pending), không phải bằng `AccountingProfit`.
+
+Hệ quả trực tiếp cho TASK-107: task này **chỉ** triển khai `AccountingProfit`
+theo đúng scope TASK-107 đã định (`docs/tasks/TASK-106-adjustment-engine.md`
+mục "Ngoài phạm vi" đã tách sẵn ranh giới này). **Không** tự mở rộng sang
+`EligibleKpiProfit` — persistence và cơ chế xác nhận (`final_amount`) của
+Adjustment record chưa tồn tại (đó là TASK-202/302/305, Phase 2/3), nên chưa
+có gì hợp lệ để tính `EligibleKpiProfit` lúc này. Đây không phải một giới
+hạn kỹ thuật tạm thời — đây là ranh giới scope đúng, giống cách TASK-105 chỉ
+làm `AccountingPurchasePrice`, không đụng `KpiPurchasePrice`.
+
+Reason:
+Nguyên tắc 1–2 xác nhận lại đúng những gì đã thiết kế ở TASK-105/106 (hai
+luồng số liệu tách biệt), không thay đổi gì mới — chủ dự án nhắc lại tường
+minh để không ai vô tình trộn lẫn khi implement TASK-107. Nguyên tắc 3–6 là
+thông tin thiết kế mới, quan trọng cho persistence tương lai — ghi lại ngay
+bây giờ (dù chưa implement) để TASK-202/302/305 không phải đoán lại từ đầu,
+và để `AdjustmentResolver` (đã có từ TASK-106, chỉ trả `amount` +
+`source_of_value`) được hiểu đúng là nguồn của `suggested_amount`, không
+phải `final_amount`.
+
+Risk:
+Thấp cho TASK-107 (thu hẹp scope, giảm rủi ro so với mở rộng sang
+`EligibleKpiProfit` khi chưa có persistence thật). Rủi ro nếu bỏ qua nguyên
+tắc 5–6 ở Phase 2/3: một implementation vội vàng có thể coi `suggested_amount`
+tương đương `final_amount` để "cho xong", làm dữ liệu KPI dùng số chưa ai
+xác nhận — đúng lỗi mà DEC-103/125 đã phòng từ đầu. Ghi rõ ở đây để trở
+thành tiêu chí kiểm tra bắt buộc khi TASK-202/302/305 mở, không phải điều
+phải nhớ lại từ hội thoại.
+
+Impact:
+- `docs/tasks/TASK-107-profit-engine.md` — Scope giới hạn đúng
+  `AccountingProfit`; Out of Scope nêu rõ `EligibleKpiProfit` bị chặn bởi
+  nguyên tắc 3–6, không phải do thiếu thời gian.
+- `app/modules/domain/models.py` — thêm `WorkingLine.accounting_profit`
+  (Optional, không mặc định 0). **Không** thêm field Adjustment/`suggested_amount`/
+  `final_amount` ở task này — đó là persistence thật, thuộc Phase 2/3.
+- `app/modules/profit/` — module mới, không phụ thuộc `app/modules/adjustment/`.
+- Không sửa `app/modules/adjustment/`, `config/adjustments.yaml` (đã DONE,
+  TASK-106).
+- Khi TASK-202/302/305 mở (Phase 2/3): thiết kế bảng/entity Adjustment phải
+  có `order_id` (quan hệ 1-nhiều), `adjustment_type`, `suggested_amount`,
+  `final_amount`, trạng thái xác nhận (confirmed/unconfirmed) — tài liệu
+  tham khảo bắt buộc là DEC-126 này, không phải suy luận lại từ đầu.
+
+Can Revisit After:
+Không — đây là nguyên tắc kiến trúc nền tảng cho toàn bộ luồng Adjustment,
+áp dụng xuyên suốt Phase 1–3, không phải quyết định tạm thời chờ xem lại.
