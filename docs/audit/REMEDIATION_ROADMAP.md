@@ -398,21 +398,26 @@ thể tạo ra mà không viết lại lịch sử đã push. Thay bằng T04-C2
 trên toàn repo thay vì ba dòng. Không check REQUIRED nào bị gỡ hay hạ evidence
 level.
 
-## Phase Gate 01
+## Phase Gate 01  ·  PASS
 
-Theo `governance/core/PHASE_RELEASE_GATE_STANDARD.md`.
+Theo `governance/core/PHASE_RELEASE_GATE_STANDARD.md`. Chạy trong S006,
+2026-08-23. Chi tiết đầy đủ: DEC-015 trong `PROJECT/PROJECT_DECISIONS.md`.
 
-- [ ] REM-T07, REM-T02, REM-T03, REM-T04 đều DONE với các check REQUIRED PASS
-- [ ] `validate_structure.py` PASS từ gốc repository
-- [ ] `validate_project_state.py` PASS
-- [ ] `validate_task_completion.py` PASS
-- [ ] `validate_evidence.py` PASS
-- [ ] Validator reference-integrity mới PASS
-- [ ] CI xanh (green) trên head commit
-- [ ] Bằng chứng E2 được ghi lại cho REM-T02 CHECK-T02-05
-- [ ] `CLAUDE.md` nằm ở gốc repository và mọi reference chính thức (canonical)
-  trong đó đều phân giải được
-- [ ] Không có mục regression mở nào được đưa vào bởi PHASE-01
+- [x] REM-T07, REM-T02, REM-T03, REM-T04 đều DONE với các check REQUIRED PASS
+- [x] `validate_structure.py` PASS từ gốc repository
+- [x] `validate_project_state.py` PASS
+- [x] `validate_task_completion.py` PASS
+- [x] `validate_evidence.py` PASS
+- [x] Validator reference-integrity mới PASS
+- [x] CI xanh (green) trên head commit — run `32613864730` (nhánh làm việc)
+      và `32613882668` (nhánh mặc định)
+- [x] Bằng chứng E2 được ghi lại cho REM-T02 CHECK-T02-05 —
+      `docs/reviews/E2-TASK-REM-T02-S003.md`
+- [x] `CLAUDE.md` nằm ở gốc repository và mọi reference chính thức (canonical)
+  trong đó đều phân giải được — 40/40 reference resolve
+- [x] Không có mục regression mở nào được đưa vào bởi PHASE-01
+
+**PHASE-01 — Governance Foundation Repair: DONE.**
 
 ---
 

@@ -26,7 +26,7 @@ Lịch Sử Profile:
 AUDIT (bootstrap S001) → PRODUCT (S002, DEC-005)
 
 Cập Nhật Lần Cuối:
-2026-08-23 — cuối S005
+2026-08-23 — cuối S006
 
 Overall Status:
 IN_PROGRESS
@@ -35,15 +35,14 @@ Phase Hiện Tại:
 PHASE-01 — Governance Foundation Repair
 
 Task Hiện Tại:
-Không có — cả 4 task còn lại của PHASE-01 (REM-T02, REM-T03, REM-T04, REM-T07)
-đều đã DONE. Còn lại: Phase Gate 01.
+Không có — PHASE-01 đã DONE (Phase Gate 01 PASS, S006, DEC-015).
 
 Current Task Mode:
 —
 
 Task Đề Xuất Tiếp Theo:
-Phase Gate 01 (xem checklist ở dưới), sau đó REM-T05 (cần finalize gate
-trước).
+S002-style Roadmap Finalization cho PHASE-02: finalize + freeze Completion
+Gate của REM-T05 trước khi nó được phép READY.
 
 ## Roadmap Tổng Thể
 
@@ -54,12 +53,12 @@ Chú thích: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCK
   - [x] S001 — Discovery & Baseline — SPIKE — DONE
   - [x] S002 — Roadmap Finalization — MAJOR — DONE
 
-- [~] PHASE-01 — Governance Foundation Repair  ·  gate đã FROZEN
+- [x] **PHASE-01 — Governance Foundation Repair — DONE**  ·  Phase Gate 01 PASS (S006, DEC-015)
   - [x] **REM-T02** — Dời gói governance lên repository root — MAJOR — Tier C — D2/R3/**B5** — **DONE** (S003) — đóng FIND-001
   - [x] **REM-T07** — CI enforcement layer — MAJOR — Tier B — D2/R2/B2 — **DONE** (S005) — đóng FIND-008, giải quyết RSK-004
   - [x] **REM-T03** — Validator deployment-root + reference-integrity — MAJOR — Tier B — D3/R2/B2 — **DONE** (S005) — đóng FIND-007
   - [x] **REM-T04** — Sửa các reference đường dẫn canonical bị gãy — MICRO — Tier A — D1/R2/B2 — **DONE** (S004) — đóng FIND-003, FIND-004
-  - [ ] **Phase Gate 01** — chưa chạy
+  - [x] **Phase Gate 01** — **PASS** (S006) — 10/10 check, xem DEC-015
   - [-] ~~REM-T01 — Khởi tạo project state~~ — CANCELLED (absorbed, CH-01/DEC-008)
 
 - [ ] PHASE-02 — Documentation & Evidence Truth-Up  ·  gate PRELIMINARY
@@ -70,16 +69,14 @@ Chú thích: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCK
   - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — D1/R1/B1 — đóng FIND-009
   - [ ] Phase Gate 03
 
-Dependency: toàn bộ 4 task chính của PHASE-01 (REM-T02, REM-T03, REM-T04,
-REM-T07) đã DONE. Bước tiếp theo là **Phase Gate 01**, chưa phải REM-T05
-(REM-T05 phụ thuộc REM-T02+T03+T04, cả ba đã sẵn sàng, nhưng Phase Gate 01
-nên chạy trước để xác nhận toàn bộ phase khớp nhau trước khi mở phase kế).
+Dependency: PHASE-01 DONE. PHASE-02 (REM-T05) là phase kế tiếp — Ready Gate
+của nó cần một vòng Roadmap Finalization (finalize + freeze Completion Gate)
+trước khi được đánh READY, theo đúng quy trình S002 đã dùng cho PHASE-01.
 
 ## Snapshot Task Hiện Tại
 
-Không có task đang IN_PROGRESS/READY nào của PHASE-01. Bước tiếp theo là
-**Phase Gate 01** (không phải một task riêng, xem checklist bên dưới), sau đó
-finalize gate cho REM-T05.
+Không có task đang IN_PROGRESS/READY. PHASE-01 đã DONE. Bước tiếp theo là
+Roadmap Finalization cho REM-T05 (PHASE-02) — chưa có task nào READY.
 
 ## Trạng Thái Gate Freeze
 
@@ -223,6 +220,7 @@ Ma trận: `PROJECT/PROJECT_PROFILE.md` → "Ma Trận Tuân Thủ Profile".
   3/3 reference tái hiện; loại trừ reference dạng thư mục có chủ đích)
 - DEC-014 — Ghi nhận giới hạn: không xóa được nhánh scratch trên GitHub qua
   session này (proxy chặn)
+- DEC-015 — Phase Gate 01 PASS; PHASE-01 DONE
 
 Xem `PROJECT/PROJECT_DECISIONS.md`.
 
@@ -248,56 +246,65 @@ Review độc lập:
   Bàn giao: `docs/sessions/S004-reference-repair.md`.
 - S005 — TRIỂN KHAI REM-T03 + REM-T07 — 2026-08-23 — DONE.
   Hai task được thực hiện trong cùng session theo yêu cầu trực tiếp của chủ
-  dự án. REM-T03: thêm deployment-root check vào `validate_structure.py`
-  (fixture regression xác nhận bắt được đúng lớp lỗi từng gây FIND-001) +
-  `validate_reference_integrity.py` mới. Mở rộng thử nghiệm sang directory
-  reference gây 20 false positive trên HEAD lành mạnh — revert, phát hành
-  COMPLETION GATE CHANGE PROPOSAL (DEC-013) thu hẹp CHECK-T03-03 từ 3 xuống 2
-  reference tái hiện. REM-T07: `.github/workflows/governance.yml`, verify
-  bằng 3 lần chạy CI thật trên GitHub Actions — run #1 FAIL đúng (bắt được 2
-  broken reference thật do agent tự đưa vào lúc soạn evidence, sửa ngay), run
-  #2 PASS, run trên nhánh scratch FAIL đúng trên breakage cố ý. Nhánh scratch
-  không xóa được trên GitHub do giới hạn proxy (DEC-014) — cần owner xóa thủ
-  công. FIND-003 (đã đóng từ S004), FIND-007, FIND-008 RESOLVED (6/12 tổng).
-  Phase Gate 01 giờ có thể chạy — cả 4 task chính của PHASE-01 đã DONE.
+  dự án. REM-T03: thêm deployment-root check vào `validate_structure.py` +
+  `validate_reference_integrity.py` mới. Phát hành COMPLETION GATE CHANGE
+  PROPOSAL (DEC-013) thu hẹp CHECK-T03-03. REM-T07:
+  `.github/workflows/governance.yml`, verify bằng 3 lần chạy CI thật. Nhánh
+  scratch không xóa được trên GitHub (DEC-014). FIND-007, FIND-008 RESOLVED
+  (6/12 tổng).
   Bàn giao: `docs/sessions/S005-ci-and-validators.md`.
+- S006 — PHASE GATE 01 — 2026-08-23 — PASS.
+  Chạy đủ 10/10 check trong checklist Phase Gate 01, mỗi check tự thực thi
+  lại từ đầu (không lấy lời khai của S005 làm evidence): 4 task chính DONE,
+  5 validator PASS từ gốc, CI xanh trên cả 2 nhánh (run thật, không phải
+  suy luận), E2 evidence của REM-T02 còn nguyên (`docs/reviews/E2-TASK-REM-T02-S003.md`),
+  `CLAUDE.md` ở gốc với 40/40 reference resolve, không regression item mở.
+  **PHASE-01 — Governance Foundation Repair: DONE.** Chi tiết: DEC-015.
+  Bàn giao: `docs/sessions/S006-phase-gate-01.md`.
 
 ## Session Tiếp Theo
 
 Session Đề Xuất:
-S006 — **Phase Gate 01**, theo `governance/core/PHASE_RELEASE_GATE_STANDARD.md`.
-Không phải một REM-T task riêng — là bước tổng hợp xác nhận cả 4 task chính
-của PHASE-01 (REM-T02, REM-T03, REM-T04, REM-T07) hoạt động cùng nhau đúng,
-trước khi mở PHASE-02 (REM-T05, cần finalize gate trước khi bắt đầu).
+S007 — **Roadmap Finalization cho PHASE-02**, theo quy trình
+`governance/core/00_SESSION_ORCHESTRATION.md` mục "Roadmap Finalization"
+(quy trình mà S002 đã dùng cho PHASE-01). REM-T05 hiện PLANNED, gate còn
+PRELIMINARY, chưa READY — S007 không được implement REM-T05 ngay, chỉ
+finalize + freeze gate của nó trước.
 
-Checklist Phase Gate 01 (từ `docs/audit/REMEDIATION_ROADMAP.md`):
-- [ ] Cả 4 task DONE với REQUIRED check PASS — **đã thỏa, cần xác nhận lại
-      trong S006 chứ không lấy lời khai của S005 làm evidence**
-- [ ] `validate_structure.py` PASS từ repository root
-- [ ] `validate_project_state.py` PASS
-- [ ] `validate_task_completion.py` PASS
-- [ ] `validate_evidence.py` PASS
-- [ ] `validate_reference_integrity.py` PASS (validator mới của REM-T03)
-- [ ] CI xanh trên head commit
-- [ ] E2 evidence đã ghi cho REM-T02 CHECK-T02-05
-- [ ] `CLAUDE.md` ở gốc repository, mọi canonical reference resolve được
-- [ ] Không có regression item nào mở do PHASE-01 gây ra
+Việc cần làm trong S007:
+- [ ] Xác nhận lại Task Mode, dependency, Scope Lock của REM-T05
+- [ ] Finalize + **freeze** Completion Gate của REM-T05 (hiện có 5 check
+      draft trong `docs/audit/REMEDIATION_ROADMAP.md`)
+- [ ] Tạo file task chính thức từ
+      `governance/templates/TASK_DEFINITION_TEMPLATE.md`
+- [ ] Gắn evidence level cho từng check
+- [ ] Đánh REM-T05 READY nếu Ready Gate PASS
+- [ ] **Lưu ý quan trọng:** subtask 05.5 (tài liệu hóa
+      `governance/scripts/governance/README.md`) đã được REM-T03 làm gần như
+      trọn vẹn ở S005 — kiểm tra lại trước khi làm lại, tránh trùng công
+      việc. FIND-012 vẫn chính thức OPEN vì chưa có task nào đóng nó tường
+      minh, nhưng phần việc kỹ thuật có thể đã xong.
 
-Việc phụ (không phải Phase Gate, nhưng cần làm):
-- Merge nhánh làm việc vào nhánh mặc định `claude/extract-upload-repo-gq2ws4`
-  (theo đúng thói quen mọi session trước).
+Việc phụ còn tồn đọng từ trước (không thuộc REM-T05):
 - Báo owner xóa thủ công nhánh `scratch/ci-failure-test` trên GitHub
-  (DEC-014).
-- Owner cân nhắc bật branch protection cho check `governance` (subtask 07.7).
+  (DEC-014) — vẫn chưa xử lý.
+- Owner cân nhắc bật branch protection cho check `governance` (subtask 07.7)
+  — vẫn chưa xử lý.
+- MICRO-002 (REM-T06, PHASE-03) cũng cần finalize gate trước khi READY —
+  có thể gộp vào cùng đợt Roadmap Finalization nếu muốn xử lý cả hai phase
+  còn lại một lần.
 
 Mục Đích:
-Xác nhận PHASE-01 thực sự hoàn chỉnh — task DONE không tự động nghĩa là
-Phase DONE (`CLAUDE.md` → "## Tích Hợp").
+Chuẩn bị PHASE-02 đúng quy trình — không bắt đầu implement khi gate chưa
+frozen (`governance/core/00_SESSION_ORCHESTRATION.md`: "Không freeze chi
+tiết task còn xa khi discovery chưa đủ" nay đã đủ, vì REM-T02/T03/T04 đã
+DONE và cung cấp đủ context cho REM-T05).
 
 File Cần Đọc Trước:
 1. `CLAUDE.md`
 2. `PROJECT/PROJECT_PROFILE.md`
 3. `PROJECT/PROJECT_PROGRESS.md`  ← file này
-4. `docs/sessions/S005-ci-and-validators.md`
-5. `docs/audit/REMEDIATION_ROADMAP.md` → mục "Phase Gate 01"
-6. `governance/core/PHASE_RELEASE_GATE_STANDARD.md`
+4. `docs/sessions/S006-phase-gate-01.md`
+5. `docs/audit/REMEDIATION_ROADMAP.md` → mục "REM-T05" và "Phase Gate 02"
+6. `governance/core/TASK_READY_GATE_STANDARD.md`
+7. `governance/templates/TASK_DEFINITION_TEMPLATE.md`
