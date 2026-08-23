@@ -32,6 +32,8 @@ băng chi tiết các task ở xa trước khi discovery đã đủ."
 | 3 | S003 | CH-03 được áp dụng — REM-T02 được thực thi trước REM-T07; REM-T02 DONE; FIND-001 RESOLVED; REM-T03/REM-T04 được gỡ block |
 | 4 | S004 | REM-T04 DONE; FIND-003 và FIND-004 RESOLVED; gate MICRO-001 sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-012) |
 | 5 | S005 | REM-T03 và REM-T07 DONE; FIND-007 và FIND-008 RESOLVED; gate CHECK-T03-03 sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-013); toàn bộ 4 task chính PHASE-01 hoàn tất, chuyển sang Phase Gate 01 |
+| 6 | S006 | Phase Gate 01 PASS (DEC-015); PHASE-01 DONE |
+| 7 | S007 | Roadmap Finalization cho REM-T05: gate frozen, task file tạo, REM-T05 → READY; subtask 05.5 xác nhận đã DONE từ trước (REM-T03) |
 
 ### ROADMAP CHANGE CH-01 — REM-T01 bị hủy (cancelled, được hấp thụ)
 
@@ -428,7 +430,7 @@ lại (re-derivable) từ repository.
 
 Gate status: PRELIMINARY — đóng băng trước khi REM-T05 trở thành READY.
 
-## REM-T05 — Correct documentation and validation artifacts
+## REM-T05 — Correct documentation and validation artifacts  ·  READY
 
 - [ ] REM-T05 hoàn tất
 
@@ -440,9 +442,9 @@ MAJOR · Tier B / escalate Tier C
 
 Difficulty: 2/5 · Risk: 2/5 · Blast Radius: 3/5
 
-Depends on:
-REM-T02, REM-T03, REM-T04 — các tuyên bố (claim) chỉ có thể được khẳng định
-lại một khi chúng đúng và có thể kiểm tra được bằng máy (machine-checkable).
+Status:
+**READY** — finalize trong S007 (Roadmap Finalization). Dependency
+(REM-T02, REM-T03, REM-T04) đều đã DONE tại thời điểm finalize.
 
 Subtasks:
 - [ ] REM-T05.1 Chạy lại validator reference-integrity và thay thế khẳng định
@@ -452,30 +454,31 @@ Subtasks:
 - [ ] REM-T05.2 Nêu rõ các trường hợp loại trừ `history/` và `docs/audit/`
   trong báo cáo đó
 - [ ] REM-T05.3 Đối chiếu (reconcile)
-  `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 1/2/3 với bố cục
-  compact (dòng 83, 85, 144, 146, 179 tại baseline)
+  `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` PHẦN 1/2 với bố cục
+  compact (dòng 83, 85, 144, 146 tại baseline)
 - [ ] REM-T05.4 Làm cho khối xác minh (verification block) ở PHẦN 2 khớp với
-  các đường dẫn bắt buộc của `validate_structure.py`
-- [ ] REM-T05.5 Ghi lại tài liệu cho toàn bộ validator trong
-  `governance/scripts/governance/README.md`, bao gồm cả tham số vị trí
-  (positional argument) của `validate_refactor_preservation.py`
+  các đường dẫn bắt buộc thật của `validate_structure.py` (21 path, không
+  phải danh sách rút gọn 8+4 hiện tại)
+- [x] ~~REM-T05.5 Ghi lại tài liệu README validator~~ — **đã DONE (REM-T03,
+  S005)**, tiện thể khi REM-T03 tạo `validate_reference_integrity.py`. Chỉ
+  cần re-verify khi REM-T05 thực thi, không cần viết lại.
 - [ ] REM-T05.6 Giữ nguyên `governance/reference/history/`, không chỉnh sửa
 
-Preliminary Completion Gate (CHƯA FROZEN):
+Frozen Completion Gate — S007, 4 REQUIRED + 1 RECOMMENDED:
 - CHECK-T05-01 REQUIRED — mọi kết quả validator được trích dẫn trong báo cáo
-  đều tái tạo lại chính xác từng byte (byte-for-byte) khi chạy lại — E1
+  đều tái tạo lại chính xác từng byte khi chạy lại tại thời điểm thực thi
+  (không copy baseline chụp ở S007) — E1
 - CHECK-T05-02 REQUIRED — không còn mục `templates/` hay `scripts/` ở cấp
   gốc nào còn sót lại trong START_HERE guide — E1
 - CHECK-T05-03 REQUIRED — README của validator liệt kê chính xác các script
-  hiện có — E1
-- CHECK-T05-04 REQUIRED — `git diff` xác nhận `governance/reference/history/`
-  không bị đụng vào — E1
+  hiện có — E1 (dự kiến PASS sẵn, xem REM-T05.5)
+- CHECK-T05-04 REQUIRED — `git diff --stat -- governance/reference/history/`
+  không có output — E1
 - CHECK-T05-05 RECOMMENDED — reviewer độc lập suy ra lại (re-derive) được
   các tuyên bố của báo cáo — E2
 
 Task file:
-Tạo từ `governance/templates/TASK_DEFINITION_TEMPLATE.md` khi PHASE-02 được
-finalize.
+`docs/tasks/TASK-REM-T05-documentation-truth-up.md`
 
 ## Phase Gate 02
 

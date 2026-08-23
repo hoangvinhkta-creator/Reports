@@ -662,3 +662,72 @@ Không cần — Phase Gate là một xác nhận tại một thời điểm, kh
 trạng thái cần bảo trì liên tục. Nếu một thay đổi sau này làm PHASE-01 hồi
 quy, dùng "Regression Invalidation" trong
 `governance/core/00_SESSION_ORCHESTRATION.md`, không sửa lại quyết định này.
+
+## DEC-016
+
+Date:
+2026-08-23
+
+Task:
+Roadmap Finalization cho PHASE-02 / REM-T05 (thực hiện trong S007)
+
+Quyết Định:
+Finalize + **FREEZE** Completion Gate của REM-T05 (4 CHECK REQUIRED +
+1 CHECK RECOMMENDED). Tạo file task chính thức
+`docs/tasks/TASK-REM-T05-documentation-truth-up.md` từ
+`governance/templates/TASK_DEFINITION_TEMPLATE.md`. Chuyển REM-T05:
+`PLANNED → READY`. **Không implement REM-T05 trong S007** — đúng quy trình
+Roadmap Finalization mà S002 đã dùng cho PHASE-01.
+
+Lý Do:
+Theo `governance/core/00_SESSION_ORCHESTRATION.md`, một task không được phép
+READY khi Completion Gate còn ở dạng PRELIMINARY (chưa frozen). Trước S007,
+REM-T05 chỉ có 5 check draft ghi trong `docs/audit/REMEDIATION_ROADMAP.md`,
+chưa có file task riêng, chưa có evidence level gắn cho từng check.
+
+Trước khi freeze, S007 đọc lại cả 4 finding mục tiêu (FIND-005, FIND-006,
+FIND-011, FIND-012) trực tiếp từ trạng thái repo hiện tại — không dựa vào lời
+khai của S001/S002 — để xác nhận không có drift:
+- FIND-005 — `governance/reference/COMPACT_STRUCTURE_VALIDATION.md` vẫn
+  chứa khẳng định validator lỗi thời/trống, đúng như mô tả gốc.
+- FIND-006 — `governance/reference/START_HERE_USAGE_GUIDE_V3_2.md` vẫn còn
+  layout `templates/`/`scripts/` sai ở PHẦN 1 (dòng 83, 85) và PHẦN 2 (dòng
+  144, 146).
+- FIND-011 — `governance/reference/history/CHANGELOG_V3_1.md` vẫn còn bare
+  reference "PROJECT_PROFILE.md" chưa resolve, đúng như đã ghi nhận (không
+  sửa file này — kho lưu trữ đóng băng).
+- FIND-012 — kiểm tra lại `governance/scripts/governance/README.md` bằng
+  lệnh đối chiếu tên script thật với nội dung README: cả 6 file (5 validator
+  + fixture) đều được nhắc tên. **Phát hiện: phần việc kỹ thuật của FIND-012
+  đã được REM-T03 làm xong tiện thể ở S005**, không phải một task riêng biệt
+  còn treo — ghi rõ trong task file để S008 không lặp lại công việc, nhưng
+  finding vẫn giữ trạng thái chính thức đến khi CHECK-T05-03 PASS tường minh
+  trong S008 (không tự ý đóng finding chỉ vì phát hiện trong lúc finalize).
+
+4 CHECK REQUIRED được frozen (CHECK-T05-01 đến 04, Evidence Level E1) +
+1 CHECK RECOMMENDED (CHECK-T05-05, E2 độc lập review, không bắt buộc do
+Risk 2/5). CHECK-T05-01 đặc biệt ghi rõ cảnh báo: baseline output đính kèm
+trong task file (chụp tại S007) chỉ để tham khảo, S008 phải chạy lại từng
+lệnh tại thời điểm thực thi thật, không được copy nguyên si baseline — chính
+là bài học của FIND-005 áp dụng ngược lại cho chính REM-T05.
+
+Risk:
+Thấp. Đây là bước chuẩn bị gate, không sửa nội dung kỹ thuật nào ngoài tạo
+file task mới. Rủi ro duy nhất là gate bị frozen sai (thiếu check cần thiết)
+— giảm thiểu bằng cách giữ nguyên cấu trúc 5 check draft gốc từ
+`docs/audit/REMEDIATION_ROADMAP.md`, chỉ bổ sung Evidence Level, Priority,
+lệnh xác minh cụ thể, và Escalation Triggers, không cắt bớt check nào.
+
+Impact:
+REM-T05 chuyển từ PLANNED sang READY trong
+`PROJECT/PROJECT_PROGRESS.md`. `docs/audit/REMEDIATION_ROADMAP.md` mục
+REM-T05 cập nhật từ "Preliminary Completion Gate (CHƯA FROZEN)" sang "Frozen
+Completion Gate — S007". Session tiếp theo (S008) được phép bắt đầu
+implement trực tiếp, không cần thêm một vòng Roadmap Finalization nào nữa.
+
+Có Thể Xem Lại Sau:
+Nếu S008 phát hiện `validate_reference_integrity.py` hoặc validator khác cho
+kết quả khác baseline đã chụp trong CHECK-T05-01 (ví dụ có task/evidence mới
+phát sinh giữa S007 và S008 làm đổi số liệu), đó không phải lỗi của gate —
+S008 chạy lại lệnh lấy số liệu thật, cập nhật Evidence bằng kết quả mới, chứ
+không sửa lại quyết định freeze này.
