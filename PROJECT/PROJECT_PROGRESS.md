@@ -51,9 +51,9 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-108A-1 IMPLEMENTED — ConversionSchemeResolver +
-EmployeeGroup + ProductGroup, 16/16 REQUIRED check PASS, 119/119 test tổng.
-**Chờ independent review, CHƯA merge.**)
+2026-08-23 (TASK-108A-1 **DONE** — ConversionSchemeResolver + EmployeeGroup +
+ProductGroup. Independent Review #1→#4, **#4 PASS**, đã merge. 16/16 REQUIRED
+check PASS, 151/151 test tổng.)
 
 Overall Status:
 IN_PROGRESS
@@ -62,20 +62,25 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-108A-1 — ConversionSchemeResolver (IMPLEMENTED, chờ independent review)
+TASK-110 — validation + Review Queue (chưa bắt đầu, chờ chủ dự án duyệt)
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Independent review TASK-108A-1**, rồi mới merge. Sau khi merge:
-TASK-109 (tổng hợp) hoặc TASK-110. **TASK-108B vẫn BLOCKED** — cần
-`EligibleCosts` (C15), Price Master, và Adjustment đã xác nhận.
+**TASK-110 — validation + Review Queue.** Là task PHASE-01 duy nhất còn lại
+**không** phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`, nên sẵn sàng ngay.
+Nó cũng là nơi bắt buộc phải hiển thị hai cảnh báo F2/F4 của
+`reconcile_conversion.py` — xem "Nợ Kỹ Thuật / Cảnh Báo Vận Hành" bên dưới.
+
+**TASK-109 (summary_engine) bị chặn một phần** — cột "DS quy đổi" và "LN KPI"
+cần TASK-108B. Không nên bắt đầu trước khi C15 đóng, nếu không sẽ phải làm
+lại một nửa.
 
 TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
-- **108A-1** ConversionScheme Resolution — IMPLEMENTED
+- **108A-1** ConversionScheme Resolution — **DONE** (Review #4 PASS)
 - **108A-2** ProductGroup Auto Classification — NOT REQUIRED FOR PHASE 1
-- **108B** Converted Revenue — BLOCKED
+- **108B** Converted Revenue — BLOCKED (C15 `EligibleCosts`)
 
 ## Roadmap tổng thể
 
@@ -155,8 +160,8 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         chưa có, không cần logic điều kiện riêng. 6/6 REQUIRED check PASS,
         83/83 test tổng (9 mới, không regression). Chi tiết:
         `docs/tasks/TASK-107-profit-engine.md`.
-  - [x] TASK-108A-1 — ConversionScheme Resolution. **IMPLEMENTED**
-        (2026-08-23, chờ independent review). Ba vòng pre-implementation
+  - [x] TASK-108A-1 — ConversionScheme Resolution. **DONE**
+        (2026-08-23, Independent Review #1→#4, #4 PASS, đã merge). Ba vòng pre-implementation
         review (Gate v1→v3) trước khi code; DEC-127 + ADR-106 chốt: tách
         `Nội thành` thành ba Employee thật (Vinh/Quý/Hiệp) cùng
         `employee_group = NOI_THANH`; thêm dimension `ProductGroup`
@@ -331,7 +336,33 @@ Không tự đóng chỉ vì bị mồ côi khỏi checklist ở lần merge tr�
   proxy chặn agent xóa).
 - Owner cân nhắc bật branch protection cho check `governance`.
 
-### Session tiếp theo cho track này
+### Nợ Kỹ Thuật / Cảnh Báo Vận Hành
+
+Ghi theo yêu cầu của Independent Review #4 khi duyệt TASK-108A-1.
+
+### TD-001 — F2/F4 là WARNING, phải hiển thị trong Review Queue/UI
+
+`tools/analysis/reconcile_conversion.py` phân loại kết quả thành HARD FAILURE
+(F1/F3/F5 — quyết định exit code) và **WARNING / REVIEW SIGNAL** (F2/F4 —
+không làm exit non-zero):
+
+- **F2** — nhân viên đang `active` và hiệu lực trong kỳ nhưng không khớp dòng
+  nào. Có thể sai `raw_prefix` (lỗi thật), cũng có thể chỉ là không có doanh
+  số kỳ đó (bình thường).
+- **F4** — tên chưa map có số dòng ≥ nhân viên đã map nhỏ nhất. Dấu hiệu
+  master data đang thiếu người đáng kể.
+
+**Yêu cầu bắt buộc:** hai cảnh báo này **phải được hiển thị rõ ràng** trong
+Review Queue / UI khi xây (TASK-110 trở đi). **Không được âm thầm bỏ qua.**
+
+**Vì sao:** một F4 bị nuốt nghĩa là một nhân viên thật đang bán hàng mà hệ
+thống không biết — và theo DEC-127 §8, mọi dòng của người đó trả `Unresolved`,
+tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
+doanh số của một người thật khỏi bảng lương.
+
+Owner: TASK-110 (validation + Review Queue).
+
+## Session tiếp theo cho track này
 
 S009 — REM-T06 (vệ sinh repository root, MICRO, Tier A, **gate FROZEN**) →
 sau đó Phase Gate 02 → Phase Gate 03. Không chặn Track Tín Phát — có thể xen
@@ -484,7 +515,7 @@ C
 Escalation Tier:
 —
 
-### TASK-108A-1 — IMPLEMENTED (2026-08-23), chờ independent review
+### TASK-108A-1 — DONE (2026-08-23), Independent Review #4 PASS
 
 Ba vòng pre-implementation review trước khi có dòng code nào. Kết quả chốt
 thành **DEC-127** (8 quyết định nghiệp vụ) và **ADR-106** (ProductGroup +
@@ -506,11 +537,20 @@ Bằng chứng trên dữ liệu thật: reconciliation 55 ô cột F của `Sum
 **14.389 dòng** file thô toàn công ty với 107 dòng `unmapped` đúng C11.
 16/16 REQUIRED check PASS, 119/119 test (36 mới), không regression.
 
-**Một dự đoán ở Gate v3 sai và đã ghi lại:** 3 ô legacy (Linh, Fanpage)
-được dự đoán trả `Unresolved`, thực tế phân giải qua dòng `*` ra 5,5 %. Đây
-là dòng chính sách phổ quát, không phải mượn tỉ lệ của ai; việc loại khỏi
-KPI do `employee_mapping_status = unmapped` gánh. Cần reviewer xác nhận đây
-là hành vi mong muốn.
+**Bốn vòng independent review.** Bản đầu (`98142af`) có 119/119 test nội bộ
+PASS và reconciliation tự báo "52 khớp, 0 lệch", nhưng reviewer độc lập vẫn
+tìm ra bốn lớp lỗi qua ba vòng: nhân viên chưa map vẫn nhận tỉ lệ 5,5 %
+(CRITICAL, ảnh hưởng trực tiếp tiền lương); manual override bỏ qua
+effective date; reconciliation hard-code dimension tạo "khớp giả" ở 16/52 ô;
+verification có oracle song song; sau đó là thiếu failure criterion cho raw
+mapping, bỏ qua effective window, và dùng heuristic làm hard failure. Tất cả
+đã sửa; **Review #4 PASS**. Chi tiết từng vòng:
+`docs/tasks/TASK-108A-1-conversion-scheme-resolver.md` mục "Lịch Sử
+Independent Review".
+
+**Kết quả đối chiếu cuối:** 36 ô khớp độc lập / 0 lệch / 19 ô ghi nhận
+LIMITED (nhãn báo cáo gộp + legacy, không có artifact production để nối) —
+**không đưa về 52 bằng bất kỳ assumption nào**.
 
 Chi tiết: `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
 
@@ -988,6 +1028,32 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   để xác nhận công thức không bị discount ảnh hưởng (đúng §U, khác
   `TotalSales`). 6/6 REQUIRED check PASS, 83/83 test tổng, không regression.
   Current Task chuyển sang TASK-108.
+
+## Nợ Kỹ Thuật / Cảnh Báo Vận Hành
+
+Ghi theo yêu cầu của Independent Review #4 khi duyệt TASK-108A-1.
+
+### TD-001 — F2/F4 là WARNING, phải hiển thị trong Review Queue/UI
+
+`tools/analysis/reconcile_conversion.py` phân loại kết quả thành HARD FAILURE
+(F1/F3/F5 — quyết định exit code) và **WARNING / REVIEW SIGNAL** (F2/F4 —
+không làm exit non-zero):
+
+- **F2** — nhân viên đang `active` và hiệu lực trong kỳ nhưng không khớp dòng
+  nào. Có thể sai `raw_prefix` (lỗi thật), cũng có thể chỉ là không có doanh
+  số kỳ đó (bình thường).
+- **F4** — tên chưa map có số dòng ≥ nhân viên đã map nhỏ nhất. Dấu hiệu
+  master data đang thiếu người đáng kể.
+
+**Yêu cầu bắt buộc:** hai cảnh báo này **phải được hiển thị rõ ràng** trong
+Review Queue / UI khi xây (TASK-110 trở đi). **Không được âm thầm bỏ qua.**
+
+**Vì sao:** một F4 bị nuốt nghĩa là một nhân viên thật đang bán hàng mà hệ
+thống không biết — và theo DEC-127 §8, mọi dòng của người đó trả `Unresolved`,
+tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
+doanh số của một người thật khỏi bảng lương.
+
+Owner: TASK-110 (validation + Review Queue).
 
 ## Session tiếp theo
 

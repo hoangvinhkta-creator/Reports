@@ -10,10 +10,35 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 12 (chọn tỷ lệ quy đổi) đã làm
-> xong phần lõi, đang chờ soát xét độc lập** (xem "Có gì mới" bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 12 (chọn tỷ lệ quy đổi) đã xong và
+> đã qua soát xét độc lập** (xem "Có gì mới" bên dưới).
 
-## Có gì mới — bước 12, phần lõi đã xong (2026-08-23)
+## Có gì mới — bước 12 đã xong và được duyệt (2026-08-23)
+
+**Phần lõi của bước 12 đã hoàn tất và được người soát xét độc lập chấp nhận
+sau 4 vòng kiểm tra.** Chi tiết nghiệp vụ giữ nguyên như mô tả bên dưới.
+
+**Điều đáng ghi nhận:** bản làm đầu tiên đã chạy đúng toàn bộ 119 bài kiểm tra
+tự động và tự báo "52 ô khớp, 0 ô lệch". Nhưng người soát xét độc lập vẫn tìm
+ra nhiều lỗi thật, trong đó có **một lỗi nghiêm trọng ảnh hưởng trực tiếp tới
+tiền lương**: nhân viên chưa có trong danh sách vẫn được gán tỷ lệ 5,5 % thay
+vì phải đưa vào danh sách chờ xử lý. Và một trường hợp **"khớp giả"** — 16
+trong 52 ô chỉ khớp vì chính công cụ đối chiếu đã tự gán sẵn đáp án.
+
+Sau khi sửa, con số đối chiếu thật là **36 ô khớp chính xác, 0 ô lệch**, cộng
+19 ô ghi rõ là **không kiểm chứng độc lập được** (các dòng gộp của kênh và hai
+tên nhân viên cũ) — **không tìm cách đưa về 52 bằng phỏng đoán**.
+
+Bài học: *tự mình kiểm tra thấy đạt thì chưa đủ; phải có người khác soát xét
+độc lập.*
+
+**Một điểm cần nhớ khi làm màn hình sau này:** hệ thống có hai loại cảnh báo
+"nhẹ" — nhân viên có trong danh sách nhưng không có đơn nào, và tên lạ bán
+nhiều hàng hơn cả nhân viên nhỏ nhất. Hai cảnh báo này **bắt buộc phải hiện
+rõ** trên màn hình duyệt, **không được bỏ qua âm thầm** — vì bỏ qua nghĩa là
+có người thật đang bán hàng mà hệ thống không tính doanh số cho ai cả.
+
+## Chi tiết nghiệp vụ bước 12
 
 **Đây là phần rủi ro cao nhất của cả dự án** — chọn sai tỷ lệ quy đổi là sai
 lương của người thật. Vì vậy trước khi viết một dòng code nào, đã rà soát ba
@@ -38,21 +63,22 @@ sẽ lệch.
 
 **Kết quả kiểm tra trên số liệu thật của công ty:**
 
-- Đối chiếu **55 ô tỷ lệ** trong file `Báo cáo Kinh doanh 2026` → **52 ô khớp
-  chính xác, 0 ô lệch**. 3 ô còn lại là hai người cũ (Linh, Fanpage) chưa có
-  trong danh sách nhân viên.
+- Đối chiếu **55 ô tỷ lệ** trong file `Báo cáo Kinh doanh 2026` → **36 ô khớp
+  chính xác, 0 ô lệch**; 19 ô còn lại ghi rõ là **không kiểm chứng độc lập
+  được** (các dòng gộp của kênh Nội thành/Gia dụng và hai tên nhân viên cũ
+  Linh/Fanpage). Con số này là sau khi sửa lỗi "khớp giả" mà người soát xét
+  phát hiện — xem phần đầu file.
 - Nhận diện đúng **8 nhân viên trên 14.389 dòng** dữ liệu thật. 107 dòng của
   5 người chưa khai báo được đưa vào danh sách chờ xử lý, **không bị bỏ sót
   và cũng không bị gán bừa tỷ lệ của ai**.
-- 119/119 bài kiểm tra tự động đều đạt.
+- **151/151** bài kiểm tra tự động đều đạt.
 
 **Nguyên tắc an toàn đã cài sẵn:** nếu hệ thống không tìm được tỷ lệ phù hợp,
 nó **báo "chưa xác định"** chứ tuyệt đối không mượn tỷ lệ của người khác. Nếu
 cấu hình có hai dòng mâu thuẫn ngang nhau, hệ thống **báo lỗi** chứ không tự
 chọn bừa một cái.
 
-**Chưa gộp vào nhánh chính** — theo yêu cầu của sếp, phải qua soát xét độc
-lập trước.
+**Đã gộp vào nhánh chính** sau khi soát xét độc lập đạt (vòng 4).
 
 ## Có gì mới trước đó — bước 11 xong (2026-08-23)
 
@@ -231,7 +257,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận. **Xong — hiện để "Chờ nhập" vì chưa có bảng giá điện tử** | B | Xong |
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
-| ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong phần lõi** — chờ soát xét độc lập |
+| ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |

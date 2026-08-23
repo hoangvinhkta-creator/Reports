@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-IMPLEMENTED
+DONE
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -41,7 +41,7 @@ TASK-108 gốc được tách làm ba (DEC-127, Gate v3):
 
 | Phần | Trạng thái |
 |---|---|
-| **108A-1** — Scheme Resolver (task này) | READY → IMPLEMENT |
+| **108A-1** — Scheme Resolver (task này) | **DONE** — Independent Review #4 PASS |
 | 108A-2 — ProductGroup Auto Classification | NOT REQUIRED FOR PHASE 1 |
 | 108B — Converted Revenue | BLOCKED (4 dependency, gồm C15) |
 
@@ -686,7 +686,11 @@ Timestamp:
 - [x] `PROJECT/PROJECT_PROGRESS.md` và `PROJECT/LO_TRINH_DE_HIEU.md` cập nhật.
 - [x] Session handoff đã viết.
 - [x] 5 validator governance chạy (4 PASS; 1 FAIL có sẵn thuộc Track B).
-- [x] Commit + push. **KHÔNG merge** — chờ independent review PASS.
+- [x] Commit + push, chờ independent review.
+- [x] **Independent Review #1 → #4.** #1 FAIL (4 finding), #2 FAIL (1 finding),
+      #3 FAIL (3 finding), **#4 PASS**. Toàn bộ đã resolved, không finding mới,
+      không regression, không scope creep, không business-rule drift.
+- [x] Merge sau khi review PASS.
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 - Reconciliation 55 ô lệch ở bất kỳ ô nào → **dừng, báo cáo số liệu và
@@ -739,3 +743,35 @@ mới.
 
 **Ba file dữ liệu thật** (workbook báo cáo + 2 file thô) nằm ngoài repo,
 không commit, xóa sau phiên (DEC-108).
+
+
+## Lịch Sử Independent Review
+
+| Vòng | Kết quả | Finding | Commit sửa |
+|---|---|---|---|
+| #1 | FAIL | 4: unmapped nhận universal rate (CRITICAL); manual override bỏ qua effective date; reconciliation hard-code dimension; verification có oracle song song | `6d636f6` |
+| #2 | FAIL | 1: raw mapping reconciliation không có failure criterion — config hỏng nặng vẫn exit 0 | `e35c097` |
+| #3 | FAIL | 3: F2/F3 bỏ qua effective window; thiếu integration falsification; F4 dùng heuristic làm hard failure | `276e447` |
+| **#4** | **PASS** | Không có finding mới | — |
+
+**Vì sao giữ lại lịch sử này:** implementation ban đầu (`98142af`) có 119/119
+test nội bộ PASS và reconciliation tự báo "52 khớp, 0 lệch". Reviewer độc lập
+vẫn tìm ra bốn lớp lỗi, trong đó có một lỗi CRITICAL ảnh hưởng trực tiếp tới
+tiền lương (nhân viên chưa map vẫn nhận tỉ lệ 5,5 %) và một trường hợp
+"khớp giả" — 16 trên 52 ô chỉ khớp nhờ mapping tự gán trong chính script đối
+chiếu. Test tự viết PASS **không** thay thế được review độc lập.
+
+## Residual Risk / Nợ Kỹ Thuật
+
+**F2/F4 là WARNING, không phải hard failure (Independent Review #3, Finding 3).**
+Chúng không làm `reconcile_conversion.py` exit non-zero, nên rất dễ bị lướt qua.
+
+- **F2** — nhân viên đang hiệu lực nhưng không có dòng nào: có thể là sai
+  `raw_prefix` (lỗi thật) hoặc chỉ là không có doanh số kỳ đó (bình thường).
+- **F4** — tên chưa map có khối lượng ≥ nhân viên đã map nhỏ nhất: dấu hiệu
+  master data thiếu người đáng kể.
+
+**Yêu cầu bắt buộc cho Review Queue / UI (TASK-110 trở đi):** cả hai cảnh báo
+này **phải được hiển thị rõ ràng** cho người dùng. **Không được âm thầm bỏ
+qua.** Một F4 bị nuốt nghĩa là một nhân viên thật đang bán hàng mà hệ thống
+không biết — và mọi dòng của người đó không nhận tỉ lệ nào.

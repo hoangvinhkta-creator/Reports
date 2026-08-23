@@ -13,8 +13,8 @@ Project Profile:
 PRODUCT
 
 Status:
-IMPLEMENTED — 16/16 REQUIRED check PASS, 119/119 test. **CHƯA merge**, chờ
-independent review theo chỉ đạo của chủ dự án.
+DONE — 16/16 REQUIRED check PASS, 151/151 test. **Independent Review #1→#4,
+#4 PASS**, đã merge vào nhánh chính.
 
 ## Kết Quả (Result)
 
@@ -41,7 +41,7 @@ khớp là `Unresolved` (không fallback).
 - [x] 108A-1.1 → 108A-1.10 (toàn bộ 10 subtask)
 
 ## Subtask Còn Lại (Subtasks Remaining)
-- Không có trong phạm vi 108A-1. Chờ independent review rồi merge.
+- Không có. Independent Review #4 PASS, đã merge.
 
 ## Tóm Tắt Completion Gate (Completion Gate Summary)
 
@@ -65,7 +65,7 @@ NOT_TESTED:
 | Check ID | Status | Evidence Level | Evidence | Executed By | Timestamp |
 |---|---|---|---|---|---|
 | CHECK-108A1-01 | PASS | E1 | 8 case A–G giữ nguyên scheme/rate sau đổi mô hình | Claude | 2026-08-23 |
-| CHECK-108A1-02 | PASS | E1 | `verify_ads_rule.py` 31/31 giữ nguyên + 4 case H–K mới = 35/35 | Claude | 2026-08-23 |
+| CHECK-108A1-02 | PASS | E1 | `verify_ads_rule.py` dùng production resolver/config, 36/36 | Claude | 2026-08-23 |
 | CHECK-108A1-03 | PASS | E1 | Vinh/Quý/Hiệp ba danh tính riêng, cùng group, cùng 2 % | Claude | 2026-08-23 |
 | CHECK-108A1-04 | PASS | E1 | Thêm NV mới chỉ bằng config | Claude | 2026-08-23 |
 | CHECK-108A1-05 | PASS | E1 | Vinh + DIEN_MAY → 2 %, + GIA_DUNG → 8 % | Claude | 2026-08-23 |
@@ -73,13 +73,13 @@ NOT_TESTED:
 | CHECK-108A1-07 | PASS | E1 | 1 OrderID 2 ProductGroup → 2 scheme | Claude | 2026-08-23 |
 | CHECK-108A1-08 | PASS | E1 | Provenance DEFAULT ≠ MANUAL ≠ AUTO | Claude | 2026-08-23 |
 | CHECK-108A1-09 | PASS | E1 | Effective-dating theo ngày đơn, kỳ cũ không đổi | Claude | 2026-08-23 |
-| CHECK-108A1-10 | PASS | E1 | Không khớp → `Unresolved`, không mượn tỉ lệ | Claude | 2026-08-23 |
+| CHECK-108A1-10 | PASS | E1 | Không khớp **và unmapped** → `Unresolved`, không mượn tỉ lệ | Claude | 2026-08-23 |
 | CHECK-108A1-11 | PASS | E1 | Hòa specificity → `AmbiguousSchemeConfigError` | Claude | 2026-08-23 |
 | CHECK-108A1-12 | PASS | E1 | grep: 0 tên NV, 0 literal tỉ lệ trong business logic | Claude | 2026-08-23 |
 | CHECK-108A1-13 | PASS | E1 | grep: không nhánh nào suy tỉ lệ từ LeadSource | Claude | 2026-08-23 |
-| CHECK-108A1-14 | PASS | E1 | **55 ô cột F: 52 khớp, 3 legacy, 0 lệch** | Claude | 2026-08-23 |
-| CHECK-108A1-15 | PASS | E1 | **14.389 dòng thô thật map đúng, 107 unmapped** | Claude | 2026-08-23 |
-| CHECK-108A1-16 | PASS | E1 | `pytest tests/ -q` → 119/119, không regression | Claude | 2026-08-23 |
+| CHECK-108A1-14 | PASS | E1 | **55 ô cột F: 36 khớp độc lập, 0 lệch, 19 LIMITED** | Claude | 2026-08-23 |
+| CHECK-108A1-15 | PASS | E1 | **14.389 dòng map đúng, 107 unmapped**; tiêu chí F1/F3/F5 hard-fail + F2/F4 warning | Claude | 2026-08-23 |
+| CHECK-108A1-16 | PASS | E1 | `pytest tests/ -q` → 151/151, không regression | Claude | 2026-08-23 |
 
 Chi tiết đầy đủ: `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
 
@@ -87,6 +87,7 @@ Chi tiết đầy đủ: `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
 
 Created:
 - `config/conversion_rates.yaml`
+- `tests/test_reconcile_raw_criteria.py`, `tests/test_reconcile_raw_integration.py`
 - `app/modules/conversion/` (`scheme_resolver.py`, `conversion_engine.py`)
 - `app/modules/product/product_group.py`
 - `tests/test_scheme_resolver.py`, `tests/test_conversion_engine.py`
@@ -117,21 +118,21 @@ Deleted:
 
 ## Rủi Ro / Vướng Mắc (Risks / Blockers)
 
-**Cần reviewer xác nhận — một dự đoán của tôi ở Gate v3 SAI:**
+**ĐÃ GIẢI QUYẾT — Independent Review #1, Finding 1 (CRITICAL).** Tôi từng để
+nhân viên chưa map rơi vào dòng `*` và nhận 5,5 %, rồi báo cáo đó là "đúng
+luật, cần reviewer xác nhận". Reviewer xác định đây là **vi phạm DEC-127 §8**:
+`unmapped` phải trả `Unresolved` / `rate=None` và vào Review Queue **trước**
+khi xét universal rule. Đã sửa ở cả hai tầng (resolver + engine), có test.
 
-Tôi dự đoán 3 ô legacy (Linh 1, Fanpage 2) sẽ trả `Unresolved`. Thực tế
-chúng phân giải qua dòng `*`/`*` ra **5,5 %** — khớp con số workbook dùng.
+Bài học ghi lại: khi tôi thấy một hành vi "có thể biện minh được" nhưng lệch
+khỏi quyết định nghiệp vụ đã chốt, mặc định đúng là **theo quyết định đã
+chốt**, không phải giữ nguyên rồi hỏi.
 
-Lý do hành vi này đúng luật: nhân viên chưa map có `employee=None`,
-`group=None`, nên chỉ khớp dòng phổ quát `*`. Đó là **dòng chính sách áp cho
-bất kỳ ai**, không phải mượn tỉ lệ của một nhân viên cụ thể — ADR-104 chỉ cấm
-cái sau. Việc loại khỏi KPI do `employee_mapping_status = unmapped` gánh
-(C11), không do resolver.
-
-**Nhưng đây là điểm cần người khác quyết, không phải tôi:** có nên buộc nhân
-viên chưa map ra `Unresolved` luôn ở tầng resolver, hay để tầng tổng hợp
-(TASK-109) lọc theo `unmapped`? Tôi để nguyên hành vi hiện tại và báo cáo,
-**không tự sửa rule cho khớp dự đoán cũ của mình**.
+**RESIDUAL RISK — TD-001 (ghi theo yêu cầu Review #4):** F2/F4 là WARNING,
+không làm exit non-zero. Chúng **phải được hiển thị rõ trong Review Queue/UI**
+(TASK-110 trở đi), **không được âm thầm bỏ qua** — một F4 bị nuốt nghĩa là
+một nhân viên thật đang bán hàng mà hệ thống không tính doanh số cho ai.
+Xem `PROJECT/PROJECT_PROGRESS.md` → "Nợ Kỹ Thuật / Cảnh Báo Vận Hành".
 
 **Rủi ro đã biết, đã chấp nhận (DEC-127 §5):** Phase 1 mọi dòng là
 `DIEN_MAY`, nên dòng Gia dụng của kênh Nội thành quy đổi ở 2 % thay vì 8 %
@@ -143,7 +144,7 @@ thấy được.
 TASK-101/109, không chặn 108A-1, đã ghi ở Gate v3.
 
 ## Hạng Mục Regression (Regression Items)
-- `pytest tests/ -q` → 119/119 PASS (83 cũ + 36 mới). Không regression.
+- `pytest tests/ -q` → **151/151** PASS (83 cũ + 68 mới). Không regression.
 - Hai assert đổi từ `"Nội thành"` sang tên riêng là **hệ quả của DEC-127 §1**,
   rule đổi trước, test theo sau.
 - **Engine bắt lỗi trong test của chính tôi:** bản nháp test effective-dating
@@ -158,12 +159,26 @@ TASK-101/109, không chặn 108A-1, đã ghi ở Gate v3.
 - Bất kỳ file nào của Track B.
 
 ## Session Tiếp Theo Được Khuyến Nghị (Next Recommended Session)
-**Independent review TASK-108A-1**, rồi mới merge. Sau khi merge: TASK-109
-(tổng hợp) — và **TASK-109 cần một check riêng** cấm gộp profit của các line
-khác scheme rồi chia chung một tỉ lệ (ADR-106 §2, rủi ro ghi ở DEC-127).
+
+**TASK-110 — validation + Review Queue.** Là task PHASE-01 duy nhất còn lại
+không phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`. Cũng là nơi bắt buộc
+hiển thị F2/F4 (TD-001).
+
+**TASK-109 (summary_engine) bị chặn một phần** — cột "DS quy đổi" và "LN KPI"
+cần TASK-108B. Khi làm, **cần một check riêng** cấm gộp profit của các line
+khác scheme rồi chia chung một tỉ lệ (ADR-106 §2).
 
 **TASK-108B vẫn BLOCKED** — `EligibleCosts` (C15) chưa có định nghĩa nghiệp
 vụ, không được giả định `= 0`.
+
+## Ghi Chú Về Quy Trình (Process Note)
+
+Bốn vòng independent review trên một task đã "xong" theo test nội bộ. Bản đầu
+(`98142af`) có 119/119 test PASS và reconciliation tự báo "52 khớp, 0 lệch".
+Reviewer độc lập vẫn tìm ra 8 finding qua 3 vòng, gồm một lỗi CRITICAL ảnh
+hưởng tiền lương và một trường hợp "khớp giả" 16/52 ô. Chi tiết từng vòng:
+`docs/tasks/TASK-108A-1-conversion-scheme-resolver.md` → "Lịch Sử Independent
+Review".
 
 ## File Agent Tiếp Theo Cần Đọc (Files Next Agent Should Read)
 - `CLAUDE.md`
