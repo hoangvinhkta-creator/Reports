@@ -9,7 +9,18 @@ khi sửa: ảnh chụp dưới `tests/fixtures/baseline/` được sinh tại c
 tiên — và commit vào repo làm bằng chứng đông cứng.
 
     L1  `EmployeeMapper.resolve()` trên tích Descartes raw × as_of.
-    L2  Toàn bộ trường NGHIỆP VỤ mà `run_import()` sinh ra, đầu-cuối.
+    L2  **Mọi** trường của `RawRow` / `WorkingLine` / `Order` mà `run_import()`
+        sinh ra, dẫn xuất bằng `dataclasses.fields()`.
+
+**L2 là STRUCTURAL, không phải danh sách trắng (HD-110-11, INVARIANT O).**
+Bản trước liệt kê 9 trường trong 34 của `WorkingLine`. Independent Review #6
+chứng minh hậu quả bằng một phép thử: cộng 999.999 vào `total_sales` của MỌI
+dòng và đổi `price_source` — oracle vẫn **PASS**. Một oracle dựng từ liệt kê
+không thể phát hiện thứ nằm ngoài liệt kê, và cái test "đã phủ đủ trường chưa"
+thì đối chiếu danh sách trắng với **chính nó** — một tautology.
+
+Nay mọi trường được lấy từ `dataclasses.fields()`, nên một trường thêm vào
+ngày mai tự động được canh, và một trường bị xoá cũng bị phát hiện.
 
 Review Queue cố ý KHÔNG nằm trong L2: nó chính là thứ đang được sửa. L2 tồn
 tại để chứng minh việc sửa nó không rò rỉ sang tính toán tiền.
@@ -21,10 +32,15 @@ chứng, và mọi so sánh sau đó sẽ tự động PASS một cách vô ngh�
 
 from __future__ import annotations
 
+import dataclasses
+import datetime as _dt
+import hashlib
 import json
 from datetime import date
 from pathlib import Path
 from typing import Any, Optional
+
+from app.modules.validation.models import PII_FIELD_NAMES
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_DIR = Path(__file__).resolve().parent / "baseline"
@@ -32,6 +48,57 @@ CONFIG_DIR = REPO_ROOT / "config"
 
 L1_PATH = BASELINE_DIR / "employee_resolve_matrix.json"
 L2_PATH = BASELINE_DIR / "business_output.json"
+
+def _digest(value: Any) -> str:
+    """Digest ổn định cho trường chứa PII (HD-110-11).
+
+    Ảnh chụp được commit vào repo. Lưu giá trị thô sẽ va
+    `governance/product/17_DATA_GOVERNANCE_PRIVACY.md` và CHECK-110-17, còn
+    loại trừ các trường đó sẽ dựng lại đúng danh sách trắng mà INVARIANT O vừa
+    xoá bỏ. Digest giữ được cả hai: thay đổi vẫn bị phát hiện, giá trị không
+    bao giờ nằm trong repo — và điều đó vẫn đúng nếu sau này chạy trên dữ liệu
+    thật.
+
+    `hashlib`, không phải `hash()`: `hash()` của Python được salt ngẫu nhiên
+    theo tiến trình, nên ảnh chụp sẽ khác nhau giữa hai lần chạy.
+    """
+    if value is None:
+        return "∅"
+    return "sha256:" + hashlib.sha256(
+        repr(value).encode("utf-8")
+    ).hexdigest()[:16]
+
+
+def _plain(value: Any) -> Any:
+    """Serialize không mất mát. Tiền là `Decimal` nên thành chuỗi: `float` sẽ
+    biến so sánh chính xác thành so sánh xấp xỉ (ADR-103)."""
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, _dt.date):
+        return value.isoformat()
+    return str(value)
+
+
+def _snapshot_dataclass(obj: Any, skip: frozenset = frozenset()) -> dict[str, Any]:
+    """Mọi trường của một dataclass, DẪN XUẤT chứ không liệt kê.
+
+    `skip` chỉ dành cho các trường là **liên kết cấu trúc** (`WorkingLine.raw`,
+    `Order.lines`) — chúng được chụp riêng ở cấp của chính chúng, nên đưa vào
+    đây sẽ nhân đôi dữ liệu, không phải bỏ sót.
+    """
+    if not dataclasses.is_dataclass(obj):
+        raise TypeError(
+            f"{type(obj).__name__} không còn là dataclass — oracle structural "
+            "sẽ thoái hoá im lặng. Sửa oracle trước khi đổi kiểu."
+        )
+    out: dict[str, Any] = {}
+    for f in dataclasses.fields(obj):
+        if f.name in skip:
+            continue
+        value = getattr(obj, f.name)
+        out[f.name] = _digest(value) if f.name in PII_FIELD_NAMES else _plain(value)
+    return out
+
 
 # Ngày biên của DEC-121: trước `effective_from` sớm nhất, đúng ngày mở, giữa
 # kỳ, và mốc chuyển đổi 2027 — cộng "không có ngày" vì mapper chấp nhận None.
@@ -122,15 +189,12 @@ def build_l1() -> list[dict[str, Any]]:
     return rows
 
 
-# Đúng danh sách trường nghiệp vụ chủ dự án chốt cho L2. Tiền là `Decimal` nên
-# serialize thành chuỗi: `float` sẽ làm mất chính xác và biến so sánh chính
-# xác thành so sánh xấp xỉ (ADR-103).
-def _money(value) -> Optional[str]:
-    return None if value is None else str(value)
-
-
 def build_l2(raw_path: Path) -> dict[str, Any]:
-    """L2 — đầu ra nghiệp vụ đầu-cuối của `run_import()`.
+    """L2 — đầu ra nghiệp vụ đầu-cuối của `run_import()`, phủ STRUCTURAL.
+
+    Chụp **mọi** trường của cả ba lớp: `RawRow` (lớp RAW bất biến),
+    `WorkingLine` và `Order`. Không trường nào được liệt kê bằng tay, nên
+    không trường nào có thể bị bỏ sót — kể cả trường được thêm vào sau này.
 
     `review_queue` bị loại khỏi ảnh chụp một cách có chủ đích: chính nó đang
     được sửa, nên đưa vào sẽ khiến so sánh luôn FAIL và che mất câu hỏi thật —
@@ -141,44 +205,33 @@ def build_l2(raw_path: Path) -> dict[str, Any]:
     result = run_import(raw_path, CONFIG_DIR)
 
     lines: list[dict[str, Any]] = []
+    raws: list[dict[str, Any]] = []
     for order in result.orders:
         for line in order.lines:
-            lines.append(
-                {
-                    "source_row": line.raw.source_row,
-                    "order_id": line.order_id,
-                    "employee_normalized": line.employee_normalized,
-                    "employee_mapping_status": line.employee_mapping_status,
-                    "employee_group": line.employee_group,
-                    "conversion_scheme_final": line.conversion_scheme_final,
-                    "conversion_rate_final": _money(line.conversion_rate_final),
-                    "product_group_final": line.product_group_final,
-                    "accounting_purchase_price": _money(
-                        line.accounting_purchase_price
-                    ),
-                    "accounting_profit": _money(line.accounting_profit),
-                    "lead_source_final": line.lead_source_final,
-                }
-            )
+            record = _snapshot_dataclass(line, skip=frozenset({"raw"}))
+            record["_source_row"] = line.raw.source_row
+            lines.append(record)
+            raws.append(_snapshot_dataclass(line.raw))
 
     orders = [
-        {
-            "order_id": order.order_id,
-            "employee_raw": order.employee_raw,
-            "employee_normalized": order.employee_normalized,
-            "employee_mapping_status": order.employee_mapping_status,
-            "employee_group": order.employee_group,
-            "lead_source_final": order.lead_source_final,
-        }
+        _snapshot_dataclass(order, skip=frozenset({"lines"}))
         for order in result.orders
     ]
 
     return {
-        "lines": sorted(lines, key=lambda r: (r["source_row"], r["order_id"])),
+        "raw_rows": sorted(raws, key=lambda r: (r["source_row"], r["order_id"])),
+        "lines": sorted(lines, key=lambda r: (r["_source_row"], r["order_id"])),
         "orders": sorted(orders, key=lambda r: r["order_id"]),
         "unmapped_line_rows": sorted(
             line.raw.source_row for line in result.unmapped_lines
         ),
+        # Ghi lại chính tập trường đã chụp: nếu một trường biến mất khỏi
+        # dataclass, so sánh sẽ chỉ ra ngay thay vì im lặng thu hẹp phạm vi.
+        "_covered_fields": {
+            "raw_rows": sorted(raws[0]) if raws else [],
+            "lines": sorted(lines[0]) if lines else [],
+            "orders": sorted(orders[0]) if orders else [],
+        },
     }
 
 
