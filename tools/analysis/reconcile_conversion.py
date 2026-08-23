@@ -39,6 +39,7 @@ import re
 import sys
 import unicodedata
 from collections import Counter
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -47,7 +48,7 @@ import openpyxl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.modules.config.loader import load_yaml  # noqa: E402
+from app.modules.config.loader import as_date, load_yaml  # noqa: E402
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver  # noqa: E402
 from app.modules.domain.models import ADS  # noqa: E402
 from app.modules.lead_source.classifier import LeadSourceClassifier  # noqa: E402
@@ -186,84 +187,140 @@ def reconcile_summary(
     return mismatched
 
 
+@dataclass(frozen=True)
+class RawMappingVerdict:
+    """Outcome of the raw employee-mapping reconciliation.
+
+    `hard_failures` alone decide the exit code. Warnings and info are printed
+    but never fail the run — a diagnostic that can be wrong must not be able
+    to block a merge on its own.
+    """
+
+    hard_failures: list[str]
+    warnings: list[str]
+    info: list[str]
+
+
+def _effective_window(row: dict) -> tuple[date, date]:
+    starts = as_date(row.get("effective_from")) or date.min
+    ends = as_date(row.get("effective_to")) or date.max
+    return starts, ends
+
+
+def _overlaps(row: dict, start: date | None, end: date | None) -> bool:
+    if start is None or end is None:
+        return True  # unknown dataset range: assume the employee is in scope
+    starts, ends = _effective_window(row)
+    return starts <= end and start <= ends
+
+
 def evaluate_raw_mapping(
     mapped: Counter,
     groups: dict[str, str],
     unmapped: Counter,
-    collisions: dict[str, set],
+    ambiguities: dict[str, set],
     employees: list[dict],
     declared_groups: set[str],
-) -> list[str]:
-    """Failure criteria for the raw employee-mapping reconciliation.
+    dataset_start: date | None = None,
+    dataset_end: date | None = None,
+) -> RawMappingVerdict:
+    """Criteria for the raw employee-mapping reconciliation.
 
     Counting rows and printing them proves nothing on its own: a badly broken
-    `employees.yaml` still produces a tidy table, just a wrong one. These are
-    the conditions under which the reconciliation must FAIL.
+    `employees.yaml` still produces a tidy table, just a wrong one. But the
+    opposite failure is just as bad — a criterion that fires on healthy data
+    is noise, and noise gets ignored. So the criteria are split by how certain
+    they are.
 
-    Every criterion is derived from the data or from config-internal
-    consistency. **None of them names an expected employee or group** — an
+    **Hard failures** are invariants. Each one means the configuration is
+    internally inconsistent or the mapping produced nothing usable; none of
+    them can be true of correct master data.
+
+        F1  Every employee's `group` must be declared in `employee_groups`.
+        F3  No raw `NVBH` value may match two different employees **whose
+            effective windows overlap on that row's own date**. Two prefixes
+            that only ever existed in disjoint periods are a normal handover,
+            not an ambiguity (DEC-121).
+        F5  At least one employee must map at all.
+
+    **Warnings** are diagnostics. They are worth a human's attention and go to
+    the review queue, but they are heuristics rather than rules, so they never
+    fail the run on their own:
+
+        F2  A configured employee that is active and effective somewhere in
+            this dataset's date range, yet matched no row. Usually a typo in
+            `raw_prefix` — but a real salesperson can also simply have sold
+            nothing in the period, which is not a defect.
+        F4  An unmapped name carrying at least as many rows as the smallest
+            mapped employee. Suggestive of missing master data, but it
+            false-positives on a low-volume employee or a high-volume legacy
+            name, so it signals rather than blocks.
+
+    **Info** covers employees legitimately absent: not yet effective, no
+    longer effective, or `active: false` outside their window. Reporting them
+    silently as "missing" would train readers to ignore F2.
+
+    None of these criteria names an expected employee or group. An
     expected-values table written here would only assert that the config still
     says what it said when this file was authored.
-
-    F1  Referential integrity: every employee's `group` must be declared in
-        `employee_groups`. Catches a renamed, deleted or mistyped group.
-    F2  No dead master data: every configured employee must match at least one
-        row of a company-wide export. A configured person who sells nothing is
-        either a typo in `raw_prefix` or someone who left — both need review,
-        not silence.
-    F3  Unambiguous mapping: no raw `NVBH` value may match two different
-        employees. The production mapper resolves such a clash by longest
-        prefix; that is a reasonable tie-break but a silent one, so the clash
-        itself is reported.
-    F4  No unmapped name may carry as many rows as the smallest mapped
-        employee. Configured employees are the company's real sellers; an
-        unconfigured name out-selling one of them means master data is missing
-        somebody significant. The threshold comes from the dataset, not from a
-        constant chosen here.
-    F5  At least one employee must map at all — the degenerate case where
-        every prefix is broken.
     """
-    violations: list[str] = []
+    hard: list[str] = []
+    warnings: list[str] = []
+    info: list[str] = []
 
     for row in employees:
         group = row.get("group")
         if group not in declared_groups:
-            violations.append(
+            hard.append(
                 f"F1 — nhân viên {row.get('normalized')!r} khai group "
                 f"{group!r} không có trong `employee_groups`"
             )
 
+    for raw_value, matches in ambiguities.items():
+        hard.append(
+            f"F3 — {raw_value!r} khớp nhiều nhân viên cùng hiệu lực tại ngày "
+            f"của dòng đó: {sorted(matches)}"
+        )
+
     if not mapped:
-        violations.append(
+        hard.append(
             "F5 — KHÔNG nhân viên nào map được dòng nào. Mapping production "
             "hỏng hoàn toàn."
         )
-        return violations
+        return RawMappingVerdict(hard, warnings, info)
 
     for row in employees:
         name = norm(row["normalized"])
-        if name not in mapped:
-            violations.append(
-                f"F2 — nhân viên {name!r} (raw_prefix "
-                f"{row.get('raw_prefix')!r}) không khớp dòng nào trong file "
-                "thô toàn công ty"
+        if name in mapped:
+            continue
+        starts, ends = _effective_window(row)
+        if not row.get("active", True):
+            info.append(
+                f"F2 — {name!r} `active: false`, không có dòng nào: đúng kỳ vọng"
             )
-
-    for raw_value, matches in collisions.items():
-        violations.append(
-            f"F3 — {raw_value!r} khớp nhiều nhân viên: {sorted(matches)}"
-        )
+        elif not _overlaps(row, dataset_start, dataset_end):
+            info.append(
+                f"F2 — {name!r} hiệu lực {starts}..{ends}, ngoài phạm vi dữ "
+                "liệu: đúng kỳ vọng, không phải lỗi"
+            )
+        else:
+            warnings.append(
+                f"F2 — {name!r} (raw_prefix {row.get('raw_prefix')!r}) đang "
+                "hiệu lực trong kỳ nhưng không khớp dòng nào. Có thể là sai "
+                "prefix, cũng có thể chỉ là không có doanh số — cần người xem."
+            )
 
     smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
     for raw_value, count in unmapped.items():
         if count >= smallest:
-            violations.append(
+            warnings.append(
                 f"F4 — {raw_value!r} chưa map nhưng có {count} dòng, "
                 f"≥ nhân viên nhỏ nhất đã map ({smallest_name}: {smallest}). "
-                "Master data đang thiếu người có khối lượng đáng kể."
+                "Dấu hiệu master data thiếu người đáng kể — chẩn đoán, không "
+                "phải kết luận."
             )
 
-    return violations
+    return RawMappingVerdict(hard, warnings, info)
 
 
 def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
@@ -273,38 +330,63 @@ def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
         g.get("code") for g in employees.get("employee_groups", [])
     }
     prefixes = [
-        (norm(row["raw_prefix"]), norm(row["normalized"])) for row in employee_rows
+        (norm(row["raw_prefix"]), norm(row["normalized"]), row)
+        for row in employee_rows
     ]
 
     wb = openpyxl.load_workbook(raw, read_only=True, data_only=True)
     mapped: Counter = Counter()
     groups: dict[str, str] = {}
     unmapped: Counter = Counter()
-    collisions: dict[str, set] = {}
+    ambiguities: dict[str, set] = {}
+    dataset_start: date | None = None
+    dataset_end: date | None = None
     for row in wb.active.iter_rows(min_row=6, values_only=True):
         if not row[1] or len(row) < 13 or not row[12]:
             continue
         raw_value = norm(row[12])
         when = row[0].date() if hasattr(row[0], "date") else row[0]
-        result = mapper.resolve(raw_value, when if isinstance(when, date) else None)
+        when = when if isinstance(when, date) else None
+        if when:
+            dataset_start = when if dataset_start is None else min(dataset_start, when)
+            dataset_end = when if dataset_end is None else max(dataset_end, when)
+
+        result = mapper.resolve(raw_value, when)
         if result.normalized:
             mapped[result.normalized] += 1
             groups[result.normalized] = result.group or "—"
         else:
             unmapped[raw_value] += 1
 
-        hits = {name for prefix, name in prefixes if raw_value.startswith(prefix)}
+        # Ambiguity is judged on THIS row's own date: two prefixes that only
+        # ever existed in disjoint periods are a handover, not a clash.
+        hits = {
+            name
+            for prefix, name, emp_row in prefixes
+            if raw_value.startswith(prefix)
+            and (when is None or _overlaps(emp_row, when, when))
+        }
         if len(hits) > 1:
-            collisions[raw_value] = hits
+            ambiguities[raw_value] = hits
     wb.close()
 
-    violations = evaluate_raw_mapping(
-        mapped, groups, unmapped, collisions, employee_rows, declared_groups
+    verdict = evaluate_raw_mapping(
+        mapped,
+        groups,
+        unmapped,
+        ambiguities,
+        employee_rows,
+        declared_groups,
+        dataset_start,
+        dataset_end,
     )
 
+    span = (f"{dataset_start} .. {dataset_end}"
+            if dataset_start and dataset_end else "không xác định")
     print("=" * 78)
     print("CHECK-108A1-15 — Employee mapping trên file thô toàn công ty")
     print("=" * 78)
+    print(f"  Phạm vi ngày của dữ liệu  : {span}")
     print(f"  VERIFIED  — dòng map được : {sum(mapped.values())}")
     for name, count in mapped.most_common():
         print(f"      {name:10} {groups[name]:16} {count:6}")
@@ -313,24 +395,38 @@ def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
     for name, count in unmapped.most_common():
         print(f"      {name:34} {count}")
     print()
-    print("  Tiêu chí FAIL độc lập (F1–F5, xem docstring evaluate_raw_mapping):")
-    if violations:
-        print(f"  MAPPING FAILURE — {len(violations)} vi phạm:")
-        for line in violations:
+
+    print("  HARD FAILURE (invariant — quyết định exit code):")
+    if verdict.hard_failures:
+        for line in verdict.hard_failures:
             print(f"      {line}")
     else:
-        smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
-        largest_unmapped = max(unmapped.values(), default=0)
         print(f"      F1 group referential integrity : OK "
               f"({len(declared_groups)} group khai báo)")
-        print(f"      F2 không có master data chết    : OK "
-              f"({len(employee_rows)}/{len(employee_rows)} nhân viên có dòng)")
-        print(f"      F3 không đụng độ prefix         : OK")
-        print(f"      F4 biên khối lượng              : OK (unmapped lớn nhất "
-              f"{largest_unmapped} < {smallest_name} {smallest})")
-        print(f"      F5 mapping không rỗng           : OK")
+        print("      F3 không đụng độ prefix cùng kỳ : OK")
+        print("      F5 mapping không rỗng           : OK")
+
     print()
-    return len(violations)
+    print("  WARNING / REVIEW SIGNAL (chẩn đoán — KHÔNG làm exit non-zero):")
+    if verdict.warnings:
+        for line in verdict.warnings:
+            print(f"      {line}")
+    elif not mapped:
+        print("      (bỏ qua — không có nhân viên nào map được, xem HARD FAILURE)")
+    else:
+        largest_unmapped = max(unmapped.values(), default=0)
+        smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
+        print("      F2 nhân viên hiệu lực không có dòng : không có")
+        print(f"      F4 biên khối lượng                  : unmapped lớn nhất "
+              f"{largest_unmapped} < {smallest_name} {smallest}")
+
+    if verdict.info:
+        print()
+        print("  INFO (vắng mặt hợp lệ theo effective window):")
+        for line in verdict.info:
+            print(f"      {line}")
+    print()
+    return len(verdict.hard_failures)
 
 
 def main() -> None:

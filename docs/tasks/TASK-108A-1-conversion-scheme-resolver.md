@@ -580,61 +580,70 @@ Evidence Level:
 E1
 
 Evidence:
-**Sửa theo Independent Review #2 (finding còn lại).** Bản trước chỉ in bảng
-số rồi `return 0` — **không có failure criterion nào**, nên `employees.yaml`
-bị phá nặng vẫn PASS/exit 0. Đã bổ sung 5 tiêu chí FAIL độc lập
-(`evaluate_raw_mapping()`), tất cả dẫn xuất từ dữ liệu hoặc từ tính nhất quán
-nội bộ của config — **không tiêu chí nào ghi tên nhân viên hay group kỳ
-vọng**:
+**Sửa qua ba vòng review.** Bản gốc chỉ in bảng số rồi `return 0` — không có
+failure criterion nào (Review #2). Review #3 chỉ ra hai lỗi tiếp: tiêu chí bỏ
+qua effective-dating của master data, và một heuristic bị dùng làm hard
+failure.
 
-- **F1** referential integrity: `group` của mỗi nhân viên phải có trong
-  `employee_groups`.
-- **F2** không có master data chết: mỗi nhân viên đã khai phải khớp ≥ 1 dòng
-  trong file thô toàn công ty.
-- **F3** mapping không nhập nhằng: không giá trị `NVBH` nào khớp hai nhân
-  viên khác nhau.
-- **F4** biên khối lượng: không tên chưa map nào được có số dòng ≥ nhân viên
-  đã map nhỏ nhất. **Ngưỡng lấy từ chính dataset**, không phải hằng số chọn
-  tay — test `test_f4_threshold_comes_from_the_data_not_a_constant` chứng
-  minh cùng 500 dòng là vi phạm ở dataset này nhưng không ở dataset khác.
-- **F5** mapping không rỗng.
+**Tiêu chí hiện tại, tách theo mức độ chắc chắn:**
 
-Output với config lành (exit 0):
+*HARD FAILURE — invariant, quyết định exit code:*
+- **F1** `group` của mỗi nhân viên phải có trong `employee_groups`.
+- **F3** không giá trị `NVBH` nào khớp hai nhân viên **có effective window
+  giao nhau tại ngày của chính dòng đó**. Hai prefix chỉ tồn tại ở hai thời
+  kỳ rời nhau là bàn giao nhân sự, không phải nhập nhằng (DEC-121).
+- **F5** mapping không được rỗng.
+
+*WARNING / REVIEW SIGNAL — chẩn đoán, KHÔNG tự làm exit non-zero:*
+- **F2** nhân viên đang `active` và hiệu lực trong phạm vi ngày của dataset
+  nhưng không khớp dòng nào. Có thể sai `raw_prefix`, cũng có thể chỉ là
+  không có doanh số kỳ đó — không phải lỗi.
+- **F4** tên chưa map có số dòng ≥ nhân viên đã map nhỏ nhất. Heuristic:
+  false-positive được với nhân viên volume thấp hoặc legacy volume cao.
+
+*INFO — vắng mặt hợp lệ:* chưa tới hiệu lực, đã hết hiệu lực, hoặc
+`active: false`.
+
+Output với config lành (exit 0), phạm vi dữ liệu `2026-01-01 .. 2026-09-10`:
 ```
 VERIFIED  — dòng map được : 14389   (8 nhân viên, group đúng)
 UNMAPPED  — dòng chưa map :   107   -> Review Queue (DEC-127 §8)
-  F1 group referential integrity : OK (2 group khai báo)
-  F2 không có master data chết    : OK (8/8 nhân viên có dòng)
-  F3 không đụng độ prefix         : OK
-  F4 biên khối lượng              : OK (unmapped lớn nhất 83 < Thắng 411)
-  F5 mapping không rỗng           : OK
+HARD FAILURE : F1 OK (2 group) · F3 OK · F5 OK
+WARNING      : F2 không có · F4 unmapped lớn nhất 83 < Thắng 411
 ```
 
-**Falsification trên config production thật — mọi kịch bản đều FAIL, exit 1:**
+**Integration falsification (Review #3, Finding 2)** —
+`tests/test_reconcile_raw_integration.py`, 11 test chạy đúng đường thật:
+`employees.yaml` tạm sửa → production `EmployeeMapper` → raw fixture `.xlsx`
+→ `reconcile_raw()` → exit code. Không truyền `Counter` tổng hợp thẳng vào
+evaluator.
 
-| Phá hoại | Kết quả |
+| Phá hoại master data | Kết quả |
 |---|---|
-| `raw_prefix` của Đức Hiệp (5.328 dòng) bị garble | **F2 + F4**, exit 1 |
-| Xoá hẳn nhân viên Mr Quý (2.810 dòng) | **F4**, exit 1 |
-| `group: "NOI_THANH"` → `"NOI_THAN"` (chưa khai báo) | **F1**, exit 1 |
-| **Kịch bản của reviewer** — phá 6/8 prefix, mapped 14.389 → 2.182 (**15,1 %**) | **12 vi phạm**, exit 1 |
+| `group` đổi thành mã chưa khai báo | **F1**, non-zero |
+| xoá một `employee_groups` entry | **F1**, non-zero |
+| thêm prefix chồng lấn **cùng kỳ** | **F3**, non-zero |
+| prefix chồng lấn nhưng **kỳ rời nhau** (2027) | **exit 0** — bàn giao, đúng kỳ vọng |
+| garble toàn bộ prefix | **F5**, non-zero |
+| xoá sạch `employees` | **F5**, non-zero |
+| nhân viên `effective_from: 2030` không có dòng | **exit 0**, xếp INFO |
+| nhân viên `active: false` không có dòng | **exit 0**, xếp INFO |
+| xoá Ly khỏi master data (F4 kích hoạt) | **exit 0** + warning — F4 không tự chặn |
 
-Kịch bản cuối chính là ca mà bản cũ PASS. Config khôi phục sạch sau mỗi phép
-thử (`git status config/` trống).
+Integration test này đã **bắt được một lỗi thật trong chính code in ấn**:
+khi `mapped` rỗng, khối WARNING gọi `min()` trên dict rỗng và crash trước
+khi trả exit code. F5 phát hiện đúng nhưng chương trình chết. Đã sửa.
 
-**Falsification tự động:** `tests/test_reconcile_raw_criteria.py` — 10 test
-gọi thẳng `evaluate_raw_mapping()` với số liệu tổng hợp (không cần file thật,
-không commit dữ liệu), gồm một test tái hiện đúng kịch bản của reviewer và
-một test xác nhận nhóm legacy nhỏ (83/14/7/2/1) **không** kích F4 — nếu tiêu
-chí fail mọi thứ thì cũng vô nghĩa như PASS mọi thứ.
+**Falsification trên config production thật** (đã chạy ở vòng trước, vẫn
+đúng cho F1/F3/F5): `group: "NOI_THANH"` → `"NOI_THAN"` ⇒ F1, exit 1. Config
+khôi phục sạch sau mỗi phép thử.
 
-**Phân biệt trạng thái (yêu cầu 6):** `VERIFIED` (map được, có group hợp lệ) ·
-`UNMAPPED` (vào Review Queue, không nhận tỉ lệ) · `LIMITED` (nhãn Summary
-không phải Employee — chỉ ở CHECK-14) · `MAPPING FAILURE` (vi phạm F1–F5,
-exit non-zero).
+**Phân biệt trạng thái (Review #2 yêu cầu 6):** `VERIFIED` · `UNMAPPED`
+(Review Queue, không nhận tỉ lệ) · `LIMITED` (nhãn Summary không phải
+Employee — chỉ ở CHECK-14) · `WARNING` (F2/F4) · `INFO` · `HARD FAILURE`
+(F1/F3/F5, exit non-zero).
 
-Nguyên tắc **36 matched + 19 limited** của CHECK-14 giữ nguyên, không đưa về
-52 bằng bất kỳ assumption nào.
+Nguyên tắc **36 matched + 19 limited** của CHECK-14 giữ nguyên.
 Executed By:
 Claude (session này)
 
@@ -654,7 +663,7 @@ Evidence Level:
 E1
 
 Evidence:
-`pytest tests/ -q` → **127/127 passed** (83 test cũ + 44 test mới). Không
+`pytest tests/ -q` → **151/151 passed** (83 test cũ + 68 test mới). Không
 regression.
 
 Sau Independent Review #1: thêm 8 test (3 unmapped ở resolver, 2 unmapped ở

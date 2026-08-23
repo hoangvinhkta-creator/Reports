@@ -1,14 +1,13 @@
-"""Falsification tests for the raw employee-mapping failure criteria.
+"""Unit tests for the raw employee-mapping criteria.
 
-Independent Review #2 found that `reconcile_raw()` printed a tidy table and
-returned 0 unconditionally: a badly broken `employees.yaml` still produced a
-PASS. These tests pin the criteria that now make it fail, using synthetic
-counts so they run without the real (uncommitted) sales export.
+Independent Review #2 found `reconcile_raw()` returned 0 unconditionally.
+Review #3 then split the criteria by certainty: invariants (F1, F3, F5) decide
+the exit code; heuristics (F2, F4) are diagnostics that must never block on
+their own.
 
-Each test breaks production master data in one specific way and asserts the
-criteria catch it. A test that only checked the healthy case would prove
-nothing — the whole defect was that the healthy-looking output was
-unfalsifiable.
+These tests pin that split at the unit level. The end-to-end path — real
+config file, production `EmployeeMapper`, real `.xlsx` — is covered separately
+in `tests/test_reconcile_raw_integration.py`.
 """
 
 from __future__ import annotations
@@ -21,13 +20,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "analysis
 
 from reconcile_conversion import evaluate_raw_mapping  # noqa: E402
 
+from datetime import date  # noqa: E402
+
 GROUPS = {"STANDARD_SALES", "NOI_THANH"}
+SPAN_START = date(2026, 1, 1)
+SPAN_END = date(2026, 9, 30)
+
+
+def _employee(normalized, prefix, group="STANDARD_SALES", **extra):
+    row = {
+        "raw_prefix": prefix,
+        "normalized": normalized,
+        "group": group,
+        "active": True,
+        "effective_from": "2026-01-01",
+        "effective_to": None,
+    }
+    row.update(extra)
+    return row
+
 
 EMPLOYEES = [
-    {"raw_prefix": "Tín Phát", "normalized": "Tín Phát", "group": "STANDARD_SALES"},
-    {"raw_prefix": "Vũ Hạnh Ly", "normalized": "Ly", "group": "STANDARD_SALES"},
-    {"raw_prefix": "Phước Thắng", "normalized": "Thắng", "group": "STANDARD_SALES"},
-    {"raw_prefix": "Mr Vinh", "normalized": "Vinh", "group": "NOI_THANH"},
+    _employee("Tín Phát", "Tín Phát"),
+    _employee("Ly", "Vũ Hạnh Ly"),
+    _employee("Thắng", "Phước Thắng"),
+    _employee("Vinh", "Mr Vinh", group="NOI_THANH"),
 ]
 
 HEALTHY_MAPPED = Counter({"Tín Phát": 1771, "Ly": 990, "Thắng": 411, "Vinh": 1814})
@@ -40,107 +57,137 @@ HEALTHY_GROUPS = {
 HEALTHY_UNMAPPED = Counter({"Thảo Linh": 83, "Nguyễn Thị Minh Bảo": 1})
 
 
-def _evaluate(mapped=None, unmapped=None, collisions=None, employees=None,
-              groups=None):
+def _evaluate(mapped=None, unmapped=None, ambiguities=None, employees=None,
+              groups=None, start=SPAN_START, end=SPAN_END):
     return evaluate_raw_mapping(
         mapped if mapped is not None else HEALTHY_MAPPED,
         HEALTHY_GROUPS,
         unmapped if unmapped is not None else HEALTHY_UNMAPPED,
-        collisions or {},
+        ambiguities or {},
         employees if employees is not None else EMPLOYEES,
         groups if groups is not None else GROUPS,
+        start,
+        end,
     )
 
 
-def test_healthy_master_data_produces_no_violations():
-    assert _evaluate() == []
+def test_healthy_master_data_has_no_failures_or_warnings():
+    verdict = _evaluate()
+    assert verdict.hard_failures == []
+    assert verdict.warnings == []
 
 
-# --- F1: referential integrity of employee_group ---------------------------
+# --- Hard failures: F1, F3, F5 ---------------------------------------------
 
 
-def test_f1_group_not_declared_is_a_violation():
-    broken = [dict(EMPLOYEES[3], group="NOI_THAN")]  # typo
-    violations = _evaluate(employees=EMPLOYEES[:3] + broken)
-    assert any(v.startswith("F1") for v in violations)
+def test_f1_group_not_declared_is_a_hard_failure():
+    broken = EMPLOYEES[:3] + [_employee("Vinh", "Mr Vinh", group="NOI_THAN")]
+    assert any(v.startswith("F1") for v in _evaluate(employees=broken).hard_failures)
 
 
-def test_f1_missing_group_field_is_a_violation():
-    broken = [{k: v for k, v in EMPLOYEES[3].items() if k != "group"}]
-    violations = _evaluate(employees=EMPLOYEES[:3] + broken)
-    assert any(v.startswith("F1") for v in violations)
+def test_f1_missing_group_field_is_a_hard_failure():
+    row = {k: v for k, v in EMPLOYEES[3].items() if k != "group"}
+    verdict = _evaluate(employees=EMPLOYEES[:3] + [row])
+    assert any(v.startswith("F1") for v in verdict.hard_failures)
 
 
-# --- F2: no dead master data ------------------------------------------------
+def test_f3_ambiguity_is_a_hard_failure():
+    verdict = _evaluate(ambiguities={"Mr Vinh Anh": {"Vinh", "Ly"}})
+    assert any(v.startswith("F3") for v in verdict.hard_failures)
 
 
-def test_f2_configured_employee_matching_nothing_is_a_violation():
-    # A garbled raw_prefix: the employee stays in config but matches no row.
+def test_f5_nothing_mapped_at_all_is_a_hard_failure():
+    verdict = _evaluate(mapped=Counter(), unmapped=Counter({"Ai Đó": 14496}))
+    assert any(v.startswith("F5") for v in verdict.hard_failures)
+
+
+# --- F2: effective-window aware, warning only (Review #3, Finding 1) --------
+
+
+def test_f2_effective_employee_without_rows_is_a_warning_not_a_failure():
     mapped = Counter({k: v for k, v in HEALTHY_MAPPED.items() if k != "Vinh"})
-    violations = _evaluate(mapped=mapped)
-    assert any(v.startswith("F2") and "Vinh" in v for v in violations)
+    verdict = _evaluate(mapped=mapped)
+    assert verdict.hard_failures == []
+    assert any(v.startswith("F2") and "Vinh" in v for v in verdict.warnings)
 
 
-# --- F3: unambiguous mapping ------------------------------------------------
+def test_f2_employee_not_yet_effective_is_info():
+    future = EMPLOYEES[:3] + [
+        _employee("Vinh", "Mr Vinh", group="NOI_THANH",
+                  effective_from="2030-01-01")
+    ]
+    mapped = Counter({k: v for k, v in HEALTHY_MAPPED.items() if k != "Vinh"})
+    verdict = _evaluate(mapped=mapped, employees=future)
+    assert verdict.hard_failures == []
+    assert not any(v.startswith("F2") for v in verdict.warnings)
+    assert any("Vinh" in i for i in verdict.info)
 
 
-def test_f3_prefix_collision_is_a_violation():
-    violations = _evaluate(collisions={"Mr Vinh Anh": {"Vinh", "Ly"}})
-    assert any(v.startswith("F3") for v in violations)
+def test_f2_employee_no_longer_effective_is_info():
+    left = EMPLOYEES[:3] + [
+        _employee("Vinh", "Mr Vinh", group="NOI_THANH",
+                  effective_from="2024-01-01", effective_to="2025-12-31")
+    ]
+    mapped = Counter({k: v for k, v in HEALTHY_MAPPED.items() if k != "Vinh"})
+    verdict = _evaluate(mapped=mapped, employees=left)
+    assert verdict.hard_failures == []
+    assert not any(v.startswith("F2") for v in verdict.warnings)
 
 
-# --- F4: volume boundary ----------------------------------------------------
+def test_f2_inactive_employee_is_info():
+    inactive = EMPLOYEES[:3] + [
+        _employee("Vinh", "Mr Vinh", group="NOI_THANH", active=False)
+    ]
+    mapped = Counter({k: v for k, v in HEALTHY_MAPPED.items() if k != "Vinh"})
+    verdict = _evaluate(mapped=mapped, employees=inactive)
+    assert verdict.hard_failures == []
+    assert not any(v.startswith("F2") for v in verdict.warnings)
+    assert any("active: false" in i for i in verdict.info)
 
 
-def test_f4_unmapped_name_outweighing_smallest_mapped_is_a_violation():
-    # Deleting an employee from config: their rows land in `unmapped` and
-    # dwarf the smallest configured seller.
+# --- F4: warning only, threshold from the data (Review #3, Finding 3) ------
+
+
+def test_f4_is_a_warning_never_a_hard_failure():
     unmapped = Counter(HEALTHY_UNMAPPED) + Counter({"Mr Quý": 2810})
-    violations = _evaluate(unmapped=unmapped)
-    assert any(v.startswith("F4") and "Mr Quý" in v for v in violations)
+    verdict = _evaluate(unmapped=unmapped)
+    assert verdict.hard_failures == [], "F4 không được tự làm FAIL"
+    assert any(v.startswith("F4") and "Mr Quý" in v for v in verdict.warnings)
 
 
 def test_f4_threshold_comes_from_the_data_not_a_constant():
-    # Same unmapped volume, but every configured seller is bigger than it —
-    # so the same 500 rows are a violation in one dataset and not in another.
     big = Counter({"Tín Phát": 5000, "Ly": 4000, "Thắng": 3000, "Vinh": 2000})
-    assert _evaluate(mapped=big, unmapped=Counter({"Ai Đó": 500})) == []
+    assert _evaluate(mapped=big, unmapped=Counter({"Ai Đó": 500})).warnings == []
 
     small = Counter({"Tín Phát": 400, "Ly": 300, "Thắng": 200, "Vinh": 100})
-    violations = _evaluate(mapped=small, unmapped=Counter({"Ai Đó": 500}))
-    assert any(v.startswith("F4") for v in violations)
+    verdict = _evaluate(mapped=small, unmapped=Counter({"Ai Đó": 500}))
+    assert any(v.startswith("F4") for v in verdict.warnings)
 
 
 def test_f4_small_legacy_names_stay_below_the_boundary():
-    # The real unmapped set (83, 14, 7, 2, 1) must NOT trip F4 — otherwise the
-    # criterion would just fail everything and prove nothing either.
-    assert not any(v.startswith("F4") for v in _evaluate())
-
-
-# --- F5: degenerate case ----------------------------------------------------
-
-
-def test_f5_nothing_mapped_at_all_is_a_violation():
-    violations = _evaluate(mapped=Counter(), unmapped=Counter({"Ai Đó": 14496}))
-    assert any(v.startswith("F5") for v in violations)
+    # A criterion that fires on healthy data is as useless as one that never
+    # fires: the real legacy tail (83, 1) must stay quiet.
+    assert not any(v.startswith("F4") for v in _evaluate().warnings)
 
 
 # --- The reviewer's own scenario -------------------------------------------
 
 
-def test_reviewer_scenario_mapped_ratio_collapses_to_about_fifteen_percent():
-    """Independent Review #2's falsification: break most prefixes so only a
-    small fraction still maps. The old code returned 0 here."""
+def test_review_2_scenario_still_surfaces_although_it_no_longer_hard_fails():
+    """Review #2's falsification: break most prefixes so only a fraction maps.
+
+    Under Review #3's rules this is diagnosed rather than hard-failed at the
+    criteria level — the hard evidence for a broken mapping comes from the
+    integration falsification instead (see the integration test module).
+    """
     mapped = Counter({"Tín Phát": 1771, "Thắng": 411})
     unmapped = Counter(
         {"Đức Hiệp": 5328, "Mr Quý": 2810, "Mr Vinh": 1814,
-         "Vũ Hạnh Ly": 990, "Đức Kiên": 733, "Lê Mạnh Hoàng": 532,
-         "Thảo Linh": 83}
+         "Vũ Hạnh Ly": 990, "Thảo Linh": 83}
     )
-    violations = _evaluate(mapped=mapped, unmapped=unmapped)
+    verdict = _evaluate(mapped=mapped, unmapped=unmapped)
 
     ratio = sum(mapped.values()) / (sum(mapped.values()) + sum(unmapped.values()))
-    assert ratio < 0.20, "kịch bản phải làm mapped ratio sụp xuống"
-    assert violations, "mapping hỏng nặng BẮT BUỘC phải FAIL"
-    assert any(v.startswith("F2") for v in violations)  # Ly, Vinh dead in config
-    assert any(v.startswith("F4") for v in violations)  # big unmapped names
+    assert ratio < 0.20
+    assert any(v.startswith("F2") for v in verdict.warnings)
+    assert any(v.startswith("F4") for v in verdict.warnings)
