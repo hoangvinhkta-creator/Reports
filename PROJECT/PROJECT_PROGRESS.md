@@ -51,22 +51,22 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (rà soát xác nhận nghiệp vụ — DEC-119, DEC-120, DEC-121)
+2026-08-23 (GATE-00 ĐÃ DUYỆT — DEC-122, PHASE-01 mở khóa)
 
 Overall Status:
 IN_PROGRESS
 
 Current Phase:
-PHASE-00 — Bootstrap governance và phân tích nguồn
+PHASE-00 DONE → PHASE-01 — Engine tính toán
 
 Current Task:
-GATE-00 — chờ chủ dự án duyệt `docs/analysis/`
+TASK-101 — importer + normalizer
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
+TASK-101 — importer + normalizer (không còn bị chặn — GATE-00 PASS)
 
 ## Roadmap tổng thể
 
@@ -78,7 +78,10 @@ TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
   - [x] TASK-001 — S000: chọn profile và khởi tạo trạng thái dự án (MAJOR)
   - [x] TASK-002 — Phân tích workbook nguồn, 6 tài liệu theo mục 27 đặc tả (MAJOR)
   - [x] TASK-003 — ADR-101/102/103 (MICRO)
-  - [ ] GATE-00 — Chủ dự án duyệt `docs/analysis/` trước khi có dòng code ứng dụng nào
+  - [x] GATE-00 — Chủ dự án duyệt `docs/analysis/` trước khi có dòng code ứng
+        dụng nào. **PASS (DEC-122, 2026-08-23).** Duyệt trực tiếp trong hội
+        thoại sau đợt rà soát nghiệp vụ DEC-119/120/121; C4b/C9/C10 đóng cùng
+        lúc, C11 còn mở không chặn.
 
 - [ ] PHASE-01 — Engine tính toán (Python thuần, không UI, không database)
   - [ ] TASK-101 — importer + normalizer. Thực hiện 7 bước đầu của import
@@ -122,7 +125,9 @@ TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
         Total luôn hiển thị ở cả sheet chi tiết lẫn Summary. Dòng tổng phụ
         mang nhãn `RowType` và nằm ngoài mọi vùng SUM (DEC-115).
   - [ ] TASK-112 — CLI
-  - [ ] GATE-01 — Đối chiếu với file thô thật; xác nhận mốc di trú DEC-112
+  - [ ] GATE-01 — Đối chiếu với file thô thật; xác nhận chênh lệch +6,0% của
+        Hoàng/Kiên do không di trú (DEC-120) là chấp nhận được với số liệu
+        thật; đóng C11 (88 dòng chưa map)
 
 - [ ] PHASE-02 — Lưu trữ và API
   - [ ] TASK-201 — schema database + migration
@@ -332,82 +337,70 @@ check sơ bộ ghi nhận ngay bây giờ:
 ## Trạng thái Task hiện tại
 
 Task:
-GATE-00 — chủ dự án duyệt phần phân tích nguồn
+TASK-101 — importer + normalizer
 
 Task Mode:
 MAJOR
 
 Status:
-VERIFYING — chờ chủ dự án duyệt `docs/analysis/`
+PLANNED — chưa bắt đầu implement; sẵn sàng vào Ready Gate
 
 Required Gate Progress:
-8/8 tài liệu phân tích đã viết (thêm `docs/analysis/10_OPEN_QUESTIONS.md`);
-4/4 ADR đã viết
-(thêm ADR-104); 31/31 mục đặc tả đã truy vết; 21/21 quyết định đã ghi nhận
-(DEC-101..121); 8/8 câu hỏi chặn đã trả lời (C1–C8); 4 giả định đã nêu rõ còn
-treo (C4b, C9, C10, C11), không câu nào chặn; 31/31 check của bản cài đặt tham
-chiếu PASS; **0/1 lượt duyệt**.
+GATE-00 PASS (DEC-122). Chi tiết TASK-101: xem mô tả ở roadmap PHASE-01 phía
+trên (7 bước đầu của import workflow §22 đặc tả) và Ready Gate chuẩn của
+`governance/core/TASK_READY_GATE_STANDARD.md`.
 
 Primary Agent Tier:
-C
+B
 
 Escalation Tier:
-—
+C
 
-### GATE-00 đang chờ điều gì
+### GATE-00 — PASS (2026-08-23)
 
-Đúng một việc: chủ dự án đọc `docs/analysis/` và xác nhận mapping cùng
-business rule là đúng. Phase 1 bắt đầu ngay khi có xác nhận đó.
+**Đã duyệt.** Chủ dự án đọc `docs/analysis/` cùng đợt rà soát nghiệp vụ
+DEC-119/120/121, sau đó xác nhận trực tiếp trong hội thoại — nguyên văn và
+đầy đủ hệ quả ghi ở **DEC-122**. Lượt duyệt: 1/1.
 
-**Cập nhật 2026-08-23.** Chủ dự án đã gửi một đợt xác nhận nghiệp vụ gồm 10
-điểm, kèm chỉ thị *"Chưa bắt đầu Phase tiếp theo ngay… Không tự chuyển Phase
-cho đến khi người dùng xác nhận."* Toàn bộ tài liệu phân tích, ADR và
-completion gate đã được rà soát và cập nhật theo (DEC-119, DEC-120, DEC-121;
-ADR-104; `docs/analysis/10_OPEN_QUESTIONS.md`). GATE-00 **vẫn mở** — đợt xác
-nhận này là đầu
-vào cho việc duyệt, không phải bản thân lượt duyệt. Lượt duyệt còn thiếu vẫn
-là 0/1.
+Ba điểm chủ dự án đã xác nhận biết trước khi duyệt (không phải giả định ngầm):
 
-Ba điểm chủ dự án nên biết trước khi duyệt, vì chúng làm thay đổi con số so
-với bản 2026-08-22:
+1. **Lịch sử 2026 không khớp workbook cũ** — Hoàng và Kiên cao hơn 6,0 %
+   (+837.503 nghìn, ~3,0 triệu tiền thưởng) do bỏ di trú (DEC-120). Chủ dự án:
+   *"chấp nhận"*.
+2. **C9** — đơn của Nội thành/Gia dụng có chữ "ADS" quy đổi ở 7,5 % (không có
+   dòng scheme riêng). Chủ dự án: *"luôn không xuất hiện ADS, không cần quan
+   tâm"* — đóng, không đổi cấu hình.
+3. **C10** — chính sách 2027 chưa có gì khác 2026 để cấu hình. Chủ dự án:
+   *"không đổi"* — đóng cho hiện tại, mở lại nếu có tin mới.
 
-1. **Lịch sử 2026 sẽ không khớp workbook cũ** — Hoàng và Kiên cao hơn 6,0 %
-   (+837.503 nghìn, ~3,0 triệu tiền thưởng) do bỏ di trú (DEC-120).
-2. **C9 mới phát sinh** — đơn của Nội thành/Gia dụng có chữ "ADS" hiện sẽ quy
-   đổi ở 7,5 % thay vì 2 %. Chưa từng xảy ra trong dữ liệu thật; khuyến nghị
-   chọn hướng B ở `docs/analysis/10_OPEN_QUESTIONS.md`.
-3. **C10 mới phát sinh** — chính sách 2027 khác 2026 ở điểm nào thì chưa biết,
-   cần trước 01/12/2026.
+PHASE-01 mở khóa ngay khi duyệt. Không cần vòng duyệt bổ sung nào cho GATE-00.
 
-### Đã trả lời ngày 2026-08-22
+### Đã trả lời
 
 | # | Câu hỏi | Trả lời |
 |---|---|---|
-| C1 | Tín Phát có nên mặc định `TINPHAT_ADS` không? | **Có** — mọi đơn của Tín Phát quy đổi 7,5% bất kể ghi chú. DEC-109. Số liệu lịch sử của Tín Phát giờ không cần di trú gì cả. |
+| C1 | Tín Phát có nên mặc định ADS không? | **Có** — mọi đơn của Tín Phát quy đổi 7,5% bất kể ghi chú. DEC-109, sửa đổi bởi DEC-119. Số liệu lịch sử của Tín Phát không cần di trú gì cả. |
 | C5 | Loại dòng nào tính vào số SP, doanh số, lợi nhuận, số đơn? | Dòng phụ có giá trị tiền **có** tính vào doanh số và lợi nhuận, không tính vào số SP, và mỗi dòng đều vào hàng đợi duyệt tay để giữ lại hoặc loại trừ. DEC-110. |
 | C6 | Nhân viên có sửa được `Diễn giải` không? | **Có.** Mặc định ERP giữ nguyên; nhân viên chỉ sửa khi là đơn ADS. DEC-111. |
-| C7 | Lợi nhuận ADS lịch sử của Hoàng và Kiên xử lý thế nào? | **Nhập 14 số theo tháng làm dữ liệu di trú.** DEC-112. Truy lại từng đơn là bất khả thi — không có gì ghi lại đơn nào từng là ADS. |
+| C7 | Lợi nhuận ADS lịch sử của Hoàng và Kiên xử lý thế nào? | **Không di trú** — lịch sử mặc định PERSONAL. DEC-120 (thay thế DEC-112). |
 | C8 | Số SP có loại trừ dòng phụ có giá trị tiền không? | **Có**, và bản thân chỉ số này giá trị thấp — vẫn giữ làm cột nhưng bỏ khỏi tiêu chí gate. DEC-113. |
 | C4 | `Chiết khấu` trừ vào đâu? | **Trừ vào doanh số.** DEC-114. Đã xác minh số của ERP là gross, nên đây là một phép sửa thật, không phải trừ hai lần. |
+| C4b | Chiết khấu có trừ vào lợi nhuận không? | **Có.** DEC-122, xác nhận trực tiếp 2026-08-23. |
 | C2 | Vì sao sheet kênh chia đôi? | **Có dòng tổng phụ theo ngày nằm trong vùng dữ liệu**, nên một phép SUM đơn thuần bị đếm hai lần. Đã giải thích, không tái tạo — dòng tổng phụ chuyển ra ngoài vùng SUM, đánh dấu bằng nhãn `RowType`. DEC-115. |
 | C3 | Rule hoa hồng? | **Dựa trên mức đạt target**; công thức hóa ở TASK-403 như kế hoạch. Phase 1 nạp bảng tỉ lệ quan sát được làm dữ liệu. DEC-116. |
+| C9 | Tỉ lệ ADS cho Nội thành/Gia dụng? | **Không quan tâm** — tổ hợp này không xảy ra trong thực tế, giữ mặc định 7,5%. DEC-122. |
+| C10 | Chính sách 2027 khác 2026 ở đâu? | **Không đổi**, tính đến 2026-08-23. DEC-122. |
 
 ### Còn mở
 
-Danh sách đầy đủ kèm mặc định đang áp dụng và hệ quả nếu mặc định sai:
-`docs/analysis/10_OPEN_QUESTIONS.md`.
+Danh sách đầy đủ: `docs/analysis/10_OPEN_QUESTIONS.md`.
 
 | # | Câu hỏi | Mặc định đang áp dụng | Cần trước |
 |---|---|---|---|
-| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? Chủ dự án chỉ nói về doanh số. | Trừ vào cả lợi nhuận — chiết khấu là tiền đã cho đi. | GATE-01 |
-| C9 | Đơn của Nội thành/Gia dụng có chữ "ADS" quy đổi ở tỉ lệ nào? | 7,5 % (rơi vào dòng `* + ADS`). **Khuyến nghị đổi sang 2 %** — xem hướng B. | GATE-01 |
-| C10 | Chính sách từ 01/01/2027 khác 2026 ở điểm nào? | Không đổi — chưa có dòng config nào cho 2027. | 01/12/2026 |
-| C11 | 88 dòng nhân viên chưa map xử lý thế nào khi lên production? | Review Queue loại `Missing`, không tính vào KPI của ai. | GATE-01 |
+| C11 | 88 dòng nhân viên chưa map xử lý thế nào khi lên production? | Review Queue loại `Missing`, không tính vào KPI của ai. Chủ dự án: *"tôi chưa rõ"* (2026-08-23). | GATE-01 |
 
-Không câu nào trong bốn câu này chặn GATE-00 hay chặn việc bắt đầu Phase 1 —
-tất cả đều là một dòng cấu hình hoặc một quyết định ở gate sau. Cả bốn đều là
-giả định **đã nêu rõ**, không phải ẩn số: công cụ áp dụng chúng, tài liệu ghi
-nhận chúng, và đảo lại đều không cần sửa code.
+Không chặn GATE-00 (đã PASS) hay Phase 1 — mặc định Review Queue đã an toàn:
+không âm thầm bỏ, không âm thầm gán nhân viên.
 
 Cũng đã ghi nhận, không chặn: tổng tháng trong Summary mẫu bỏ sót 60,0% doanh
 thu quy đổi (`05 §A2`), và Kiên mang cùng một số ADS gõ tay `7565` suốt ba
@@ -576,6 +569,17 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   hỏi nghiệp vụ còn mở vào `docs/analysis/10_OPEN_QUESTIONS.md` (C4b, và C9,
   C10, C11 mới). GATE-00 giữ nguyên trạng thái VERIFYING — đợt xác nhận này là
   đầu vào cho việc duyệt, không phải bản thân lượt duyệt.
+- 2026-08-23 — **GATE-00 PASS (DEC-122).** Chủ dự án duyệt trực tiếp trong
+  hội thoại: (a) chấp nhận chênh lệch +6,0% của Hoàng/Kiên; (b) C4b — chiết
+  khấu trừ cả lợi nhuận; (c) C9 — tổ hợp Nội thành/Gia dụng + ADS không xảy
+  ra trong thực tế, không cần đổi cấu hình; (d) C10 — chính sách 2027 chưa có
+  gì khác 2026; (e) C11 — chưa rõ, giữ mở, không chặn. Cập nhật
+  `docs/analysis/10_OPEN_QUESTIONS.md` đóng C4b/C9/C10, giữ C11 mở. Chuyển
+  Current Task từ GATE-00 sang TASK-101, đánh dấu PHASE-00 DONE trong roadmap.
+  Đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md` theo "Giao thức Đóng Phiên". Merge
+  `origin/claude/extract-upload-repo-gq2ws4` (REM-T05 DONE, Track Governance,
+  không chồng lấn nội dung với thay đổi Track A) trước khi push. Chạy lại cả
+  5 validator governance — PASS.
 
 ## Session tiếp theo
 
@@ -585,15 +589,18 @@ không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 ### Track A (Tín Phát) — Recommended Session: S001 — Phase 1, từ TASK-101
 
 Purpose:
-Bắt đầu engine tính toán, ngay khi GATE-00 được duyệt. C4b vẫn còn mở, cần
-đóng trước GATE-01 — đó là điểm mà các con số bắt đầu được công bố chính thức.
-C2, C3 và C8 đã có mặc định ghi nhận, đóng lại đúng lúc ở task/gate tương ứng
-của chúng (TASK-404, TASK-403, GATE-01).
+**GATE-00 đã PASS (DEC-122, 2026-08-23).** Bắt tay ngay TASK-101 (importer +
+normalizer) — không còn gì chặn. Đọc Ready Gate của TASK-101 trước khi
+implement (`governance/core/TASK_READY_GATE_STANDARD.md`), rồi bám đúng chuỗi
+phân giải hai bậc LeadSource/ConversionScheme của ADR-104 khi tới TASK-104 và
+TASK-108. C3 đã có mặc định ghi nhận, đóng lại đúng lúc ở TASK-403. C11 còn
+mở, không chặn Phase 1, đóng trước GATE-01.
 
 Files to read first:
-- `PROJECT/PROJECT_PROGRESS.md`
+- `PROJECT/PROJECT_PROGRESS.md` (mục "Trạng thái Task hiện tại" — TASK-101)
 - `PROJECT/PROJECT_PROFILE.md`
-- `PROJECT/PROJECT_DECISIONS.md`
+- `PROJECT/PROJECT_DECISIONS.md` (đặc biệt DEC-119, DEC-120, DEC-121, DEC-122)
+- `docs/adr/ADR-104-lead-source-vs-conversion-scheme.md`
 - `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx`
 - `docs/analysis/`
 

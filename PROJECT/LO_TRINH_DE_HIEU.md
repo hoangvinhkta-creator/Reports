@@ -10,38 +10,41 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 (rà soát theo đợt xác nhận nghiệp vụ của chủ
-> dự án — xem "Có gì mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **sếp đã duyệt Điểm duyệt 1, Giai đoạn 1 bắt
+> đầu được rồi** (xem "Có gì mới" ngay bên dưới).
 
-## Có gì mới — đợt xác nhận nghiệp vụ 2026-08-23
+## Có gì mới — sếp đã duyệt Điểm duyệt 1 (2026-08-23)
 
-Sếp đã gửi 10 điểm xác nhận về cách tính. Toàn bộ tài liệu đã được sửa lại
-theo. **Số bước và thứ tự các bước không đổi** — chỉ nội dung bên trong bước
-số 8 và số 12 được làm rõ hơn.
+**Điểm duyệt 1 (GATE-00) đã PASS.** Việc "🟡 đang chờ" ở bảng dưới giờ chuyển
+thành "✅ xong". Giai đoạn 1 (bước 5 trở đi) bắt đầu được ngay — không còn gì
+chặn.
 
-Ba điều đáng biết, nói không dùng thuật ngữ:
+Trước đó, sếp đã xem đợt rà soát 10 điểm xác nhận về cách tính và trả lời trực
+tiếp 4 câu:
 
-1. **"Đơn từ đâu" và "tính tiền theo tỷ lệ nào" giờ là hai việc tách rời.**
-   Trước đây hệ thống gộp làm một, nên không diễn tả được trường hợp có thật:
-   nhóm Nội thành bán đơn khách tự tìm đến, nhưng quy đổi ở 2 % chứ không phải
-   5,5 % như các bạn khác. Giờ đổi tỷ lệ cho bất kỳ ai chỉ là sửa một dòng cấu
-   hình, không phải sửa phần mềm.
+1. **"Đơn từ đâu" và "tính tiền theo tỷ lệ nào" giờ là hai việc tách rời**
+   trong hệ thống — không đổi gì về cách bấm nút, chỉ là cách tính bên trong
+   chính xác hơn. Nhóm Nội thành quy đổi 2 % như cũ, không bị ép về 5,5 %.
 
-2. **Số liệu cũ của năm 2026 sẽ không khớp y hệt file Excel đang dùng.** Sếp
-   đã chọn không nhập lại dữ liệu quảng cáo cũ cho gọn. Hệ quả: doanh thu quy
-   đổi của Hoàng và Kiên trong 8 tháng đầu 2026 sẽ **cao hơn khoảng 6 %** so
-   với file hiện tại (tương đương khoảng 3 triệu đồng tiền thưởng cho cả hai
-   người cộng lại). Đây là chênh lệch đã biết trước và tính được chính xác,
-   không phải lỗi — vì 2026 được coi là năm chuyển đổi.
+2. **Số liệu cũ năm 2026 sẽ cao hơn file Excel hiện tại khoảng 6 %** cho
+   Hoàng và Kiên (khoảng 3 triệu đồng tiền thưởng cộng thêm cho cả hai người)
+   — vì không nhập lại dữ liệu quảng cáo cũ cho gọn. **Sếp đã đồng ý chấp
+   nhận** chênh lệch này.
 
-3. **Từ 01/01/2027 quy trình mới thành chuẩn chính thức.** Hệ thống được thiết
-   kế sao cho nếu sau này công ty đổi tỷ lệ, các báo cáo cũ đã in ra vẫn giữ
-   nguyên con số cũ — không bị tính lại theo tỷ lệ mới.
+3. **Chiết khấu trừ cả vào lợi nhuận**, không chỉ doanh số — sếp xác nhận
+   đúng như mặc định hệ thống đang làm.
 
-**Còn 4 câu hỏi nhỏ chưa có câu trả lời**, không câu nào chặn việc bắt đầu
-làm. Chi tiết ở `docs/analysis/10_OPEN_QUESTIONS.md`. Câu đáng chú ý nhất:
-nếu một bạn ở nhóm Nội thành ghi chữ "ADS" vào đơn, đơn đó nên tính 2 % hay
-7,5 %? Hiện đang để 7,5 %; đề xuất đổi về 2 %.
+4. **Nhóm Nội thành/Gia dụng không bao giờ ghi "ADS"** — sếp xác nhận không
+   cần lo tình huống đó, giữ nguyên cách tính hiện tại.
+
+5. **Chính sách 2027 hiện chưa có gì khác 2026** — sếp xác nhận, sẽ hỏi lại
+   khi có thay đổi thật.
+
+**Còn 1 câu hỏi nhỏ chưa có câu trả lời**, sếp nói "chưa rõ": 88 dòng dữ liệu
+có tên nhân viên lạ (không thuộc 6 người/nhóm đang bán hàng) xử lý ra sao khi
+lên hệ thống thật. Không chặn việc bắt đầu làm — hệ thống tạm để những dòng
+này vào hàng chờ kiểm tra tay, không tính cho ai cả. Chi tiết:
+`docs/analysis/10_OPEN_QUESTIONS.md`.
 
 ## Dự án này làm gì, tóm tắt 1 câu
 
@@ -53,11 +56,9 @@ số liệu bán hàng thô, tự tính hoa hồng/lợi nhuận, tự lên báo
 
 File này gồm **hai bảng độc lập, không chặn nhau**:
 
-- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 4/34 dòng, đang
-  dừng lại chờ một việc duy nhất (dòng 🟡) — chủ dự án đọc và xác nhận phần
-  phân tích dữ liệu là đúng. **Không cần biết kỹ thuật** — chỉ cần đọc và
-  nói "đúng" hoặc "sai chỗ này". Sau khi duyệt, các bước tiếp theo mới được
-  phép bắt đầu.
+- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 5/34 dòng, **Điểm
+  duyệt 1 đã PASS** — sẵn sàng bắt đầu Giai đoạn 1 (dòng 🟡, bước 5 —
+  TASK-101).
 - **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 5/9 dòng,
   một việc đang READY chờ làm (REM-T05), không ảnh hưởng ngày ra mắt sản
   phẩm.
@@ -100,8 +101,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 2. TASK-001 (MAJOR, D2/R2/B1) — Lên kế hoạch tổng thể | Xác định làm gì, theo thứ tự nào, tránh làm ẩu rồi sửa lại | C | Sau bước 1 |
 | ✅ | 3. TASK-002 (MAJOR, D3/R2/B1) — Đọc và đối chiếu dữ liệu mẫu | Hiểu đúng cách công ty đang bán hàng và tính lợi nhuận, trước khi viết bất kỳ dòng code nào | C | Sau bước 2 |
 | ✅ | 4. TASK-003 (MICRO, D2/R2/B2) — Ghi lại các quyết định kỹ thuật lớn | Chọn cách tổ chức hệ thống ngay từ đầu, tránh phải đập đi làm lại giữa chừng | C | Sau bước 3 |
-| 🟡 | **GATE-00 — Điểm duyệt 1 — Sếp xác nhận dữ liệu** | Đọc phần phân tích dữ liệu, xác nhận đúng thực tế công ty. **Đang chặn toàn bộ 30 việc còn lại phía dưới.** | Duyệt | Sau bước 4 — **ĐANG CHỜ, làm ngay được không cần biết kỹ thuật** |
-| ⬜ | 5. TASK-101 (MAJOR, D3/R3/B3) — Nạp và làm sạch dữ liệu bán hàng thô | Biến file Excel lộn xộn từ ERP thành dữ liệu tính toán được | B | **GIAI ĐOẠN 1** — sau Điểm duyệt 1 |
+| ✅ | **GATE-00 — Điểm duyệt 1 — Sếp xác nhận dữ liệu** | Đọc phần phân tích dữ liệu, xác nhận đúng thực tế công ty. **PASS 2026-08-23.** | Duyệt | Sau bước 4 — đã xong |
+| 🟡 | 5. TASK-101 (MAJOR, D3/R3/B3) — Nạp và làm sạch dữ liệu bán hàng thô | Biến file Excel lộn xộn từ ERP thành dữ liệu tính toán được | B | **GIAI ĐOẠN 1** — sẵn sàng bắt đầu ngay |
 | ⬜ | 6. TASK-102 (MAJOR, D2/R3/B3) — Gán đúng nhân viên phụ trách từng dòng bán hàng | Biết ai bán để tính đúng hoa hồng cho từng người | B | Sau bước 5 |
 | ⬜ | 7. TASK-103 (MAJOR, D2/R4/B4) — Gộp các dòng hàng thành từng đơn hàng hoàn chỉnh | Một đơn có thể có nhiều dòng sản phẩm, cần gộp lại đúng | B | Sau bước 6 |
 | ⬜ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. Chỉ xác định *nguồn đơn*; việc chọn tỷ lệ là bước 12 | C | Sau bước 7 |

@@ -762,3 +762,63 @@ Impact:
 
 Can Revisit After:
 Trước 01/01/2027, khi chính sách của năm 2027 được phát biểu.
+
+## DEC-122
+
+Date:
+2026-08-23
+
+Task:
+GATE-00 — duyệt chính thức + đóng câu hỏi mở C4b, C9, C10
+
+Decision:
+Chủ dự án **duyệt GATE-00**, trực tiếp trong hội thoại, sau khi xem đợt rà
+soát nghiệp vụ DEC-119/120/121 và bộ tài liệu phân tích đã cập nhật. Nguyên
+văn xác nhận:
+
+- **(a) Chấp nhận chênh lệch +6,0 %** (Hoàng + Kiên, 01–08.2026, hệ quả của
+  DEC-120 không di trú) — *"chấp nhận"*.
+- **(b) C4b — Chiết khấu trừ vào lợi nhuận:** *"mặc định có"*. Xác nhận đúng
+  mặc định đang áp dụng (`EligibleKpiProfit` trừ `Discount`). Đóng C4b, không
+  đổi hành vi.
+- **(c) C9 — Tỉ lệ ADS cho Nội thành/Gia dụng:** *"đơn nội thành / gia dụng
+  luôn không xuất hiện ADS. không cần quan tâm"*. Đóng C9 — **không thêm dòng
+  scheme riêng** cho tổ hợp `(Nội thành, ADS)` / `(Gia dụng, ADS)`. Nếu tổ hợp
+  này phát sinh ngoài dự kiến, nó vẫn rơi vào dòng `* + ADS` (7,5 %) theo đúng
+  hành vi đã ghi ở `docs/analysis/06_ADS_RULE_VERIFICATION.md` §9 — chủ dự án
+  đã xác nhận
+  không cần một kết quả khác cho trường hợp này.
+- **(d) C10 — Chính sách 2027:** *"không đổi"*. Đóng C10 cho hiện tại — chưa
+  có chính sách 2027 nào khác 2026 để cấu hình. Giữ nguyên điều kiện "cần
+  trước 01/12/2026" phòng khi có thông tin mới, vì đây là xác nhận trạng thái
+  hiện tại chứ không phải cam kết 2027 sẽ mãi giống 2026.
+- **(e) C11 — 88 dòng nhân viên chưa map:** *"tôi chưa rõ"*. **Vẫn mở** — giữ
+  nguyên mặc định Review Queue loại `Missing`, không tính vào KPI của ai.
+  Không chặn GATE-00 hay Phase 1, vì mặc định đã an toàn (không âm thầm bỏ,
+  không âm thầm gán).
+
+Reason:
+Đúng quy trình GATE-00 đã định nghĩa từ TASK-001: *"chủ dự án đọc
+`docs/analysis/` và xác nhận mapping cùng business rule là đúng."* Bằng chứng
+duyệt là phát biểu trực tiếp của chủ dự án trong hội thoại, ghi nguyên văn ở
+trên (E1 — lời khai trực tiếp của chủ dự án, không phải suy luận).
+
+Impact:
+- **GATE-00 chuyển từ VERIFYING sang DONE.** Lượt duyệt 1/1.
+- **PHASE-01 được mở khóa.** `TASK-101` (importer + normalizer) trở thành
+  Current Task / Next Recommended Task.
+- Roadmap Track A (`PROJECT_PROGRESS.md`) và bản dễ hiểu
+  (`PROJECT/LO_TRINH_DE_HIEU.md`) đều cập nhật đồng thời theo "Giao thức Đóng
+  Phiên".
+- C4b, C9, C10 chuyển từ "còn mở" sang "đã đóng" trong
+  `docs/analysis/10_OPEN_QUESTIONS.md`. C11 giữ nguyên trạng thái mở, không
+  chặn.
+- Không con số nào trong engine thay đổi vì quyết định này — DEC-119/120/121
+  đã mô tả đúng hành vi được duyệt. DEC-122 là bước xác nhận, không phải bước
+  sửa logic.
+
+Can Revisit After:
+Không cần cho phần GATE-00/C4b/C9 — đã duyệt chính thức, không phải mặc định
+tạm thời. Riêng C11 — khi chủ dự án xác định được 88 dòng đó là nhân viên
+nghỉ việc, thời vụ, hay lỗi nhập liệu. C10 — trước 01/12/2026 nếu chính sách
+2027 được công bố.

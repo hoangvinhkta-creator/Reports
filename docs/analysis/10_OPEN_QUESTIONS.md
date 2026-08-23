@@ -1,24 +1,26 @@
 # 10 — Câu hỏi nghiệp vụ còn mở
 
-Danh sách các điểm **chưa đủ thông tin để quyết định**, tính đến 2026-08-23 sau
-đợt xác nhận nghiệp vụ của chủ dự án (DEC-119, DEC-120, DEC-121).
+Danh sách các điểm liên quan tới phân loại nguồn đơn và quy đổi doanh thu.
+Tính đến **2026-08-23**, sau khi GATE-00 đã được chủ dự án duyệt (DEC-122).
 
-Mỗi câu hỏi ghi rõ: mặc định đang áp dụng, hệ quả nếu mặc định sai, và mốc muộn
-nhất cần câu trả lời. **Không câu nào trong danh sách này chặn việc bắt đầu
-Phase 1** — tất cả đều là một dòng cấu hình hoặc một quyết định ở gate sau.
+**Trạng thái sau duyệt:** C4b, C9, C10 đã đóng bằng xác nhận trực tiếp của chủ
+dự án. **Chỉ còn C11 mở**, và nó không chặn gì — mặc định Review Queue đã an
+toàn. Nội dung đầy đủ giữ nguyên bên dưới để giữ mạch lý do; xem DEC-122 cho
+nguyên văn câu trả lời.
 
-| # | Câu hỏi | Mặc định đang áp dụng | Cần trước |
+| # | Câu hỏi | Trạng thái | Quyết định |
 |---|---|---|---|
-| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? | Có — trừ cả doanh số lẫn lợi nhuận | GATE-01 |
-| **C9** | **Đơn của Nội thành / Gia dụng có chữ "ADS" thì quy đổi ở tỉ lệ nào?** | **7,5 %** (rơi vào dòng `* + ADS`) | GATE-01 |
-| **C10** | **Chính sách từ 01/01/2027 khác 2026 ở điểm nào?** | Không đổi — chưa có dòng config nào cho 2027 | 01/12/2026 |
-| **C11** | **Nhân viên chưa map (88 dòng) xử lý thế nào khi lên production?** | Vào Review Queue loại `Missing`, không tính vào KPI | GATE-01 |
+| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? | **ĐÃ ĐÓNG** (2026-08-23) | Có — DEC-122 |
+| C9 | Đơn của Nội thành / Gia dụng có chữ "ADS" thì quy đổi ở tỉ lệ nào? | **ĐÃ ĐÓNG** (2026-08-23) | Không quan tâm, giữ 7,5 % mặc định — DEC-122 |
+| C10 | Chính sách từ 01/01/2027 khác 2026 ở điểm nào? | **ĐÃ ĐÓNG cho hiện tại** (2026-08-23) | Không đổi — DEC-122, mở lại nếu có tin mới trước 01/12/2026 |
+| **C11** | **Nhân viên chưa map (88 dòng) xử lý thế nào khi lên production?** | **CÒN MỞ** — chủ dự án chưa rõ | Vào Review Queue loại `Missing`, không tính vào KPI |
 
 ---
 
 ## C4b — Chiết khấu và lợi nhuận
 
-**Trạng thái:** mở từ 2026-08-22, không đổi qua đợt xác nhận này.
+**Trạng thái: ĐÃ ĐÓNG (DEC-122, 2026-08-23).** Chủ dự án xác nhận *"mặc định
+có"* — đúng hành vi đang áp dụng, không đổi gì.
 
 Chủ dự án nói "trừ vào doanh số" (DEC-114) và chưa nói tới lợi nhuận. Công cụ
 đang áp dụng:
@@ -41,7 +43,11 @@ chiếm 302 dòng và 0,39 % doanh số của cô ấy.
 
 ## C9 — Nguồn ADS cho nhân viên kênh
 
-**Trạng thái:** mới, phát sinh từ chính DEC-119.
+**Trạng thái: ĐÃ ĐÓNG (DEC-122, 2026-08-23).** Chủ dự án xác nhận: *"đơn nội
+thành / gia dụng luôn không xuất hiện ADS. không cần quan tâm."* **Không thêm
+dòng scheme riêng** cho `(Nội thành, ADS)` / `(Gia dụng, ADS)`. Nếu tổ hợp này
+phát sinh ngoài dự kiến, nó vẫn rơi vào dòng `* + ADS` (7,5 %) — hành vi đó đã
+được chấp nhận, không cần một kết quả khác.
 
 Xác nhận nghiệp vụ nói rõ hai điều, và chúng giao nhau ở một ô chưa được định
 nghĩa:
@@ -75,7 +81,10 @@ nguồn đơn cho báo cáo §15/§16.
 
 ## C10 — Nội dung chính sách 2027
 
-**Trạng thái:** mới, phát sinh từ DEC-121.
+**Trạng thái: ĐÃ ĐÓNG cho hiện tại (DEC-122, 2026-08-23).** Chủ dự án xác
+nhận: *"không đổi."* Đây là xác nhận trạng thái tại thời điểm hỏi, không phải
+cam kết 2027 sẽ mãi giống 2026 — mốc "cần trước 01/12/2026" giữ nguyên phòng
+khi có chính sách mới cần công bố.
 
 Đã biết: **mốc thời gian** 01/01/2027, quy trình mới thành chuẩn chính thức.
 Chưa biết: **chính sách 2027 có khác 2026 không**, và khác ở đâu.
@@ -90,7 +99,9 @@ không đổi gì, không cần làm gì cả.
 
 ## C11 — 88 dòng nhân viên chưa map
 
-**Trạng thái:** đã biết từ TASK-002, chưa có quyết định vận hành.
+**Trạng thái: CÒN MỞ.** Chủ dự án được hỏi ngày 2026-08-23, trả lời *"tôi
+chưa rõ"*. Giữ nguyên mặc định Review Queue — an toàn để bắt đầu Phase 1,
+không cần câu trả lời ngay.
 
 6 giá trị `NVBH` trong file thô chưa có mapping: `Thảo Linh` (63 dòng),
 `Tống Khánh Linh` (14), `Lê Quang Trường` (6), `Lê Văn Quân` (2),
@@ -108,15 +119,19 @@ bằng Review Queue.
 
 ---
 
-## Đã đóng trong đợt xác nhận 2026-08-23
+## Đã đóng
 
 | # | Câu hỏi | Đóng bởi |
 |---|---|---|
 | C1 | Tín Phát có mặc định ADS không? | DEC-109, sửa đổi bởi DEC-119 |
 | C2 | Vì sao sheet kênh chia đôi? | DEC-115 |
 | C3 | Rule hoa hồng? | DEC-116 — công thức hóa ở TASK-403 |
-| C4 | `Chiết khấu` trừ vào đâu? | DEC-114 (phần lợi nhuận vẫn mở — C4b) |
+| C4 | `Chiết khấu` trừ vào đâu? | DEC-114 |
+| C4b | Chiết khấu trừ vào lợi nhuận? | **DEC-122 — có** |
 | C5 | Dòng phụ tính vào đâu? | DEC-110 |
 | C6 | Sửa được `Diễn giải` không? | DEC-111 |
-| C7 | Đơn ADS lịch sử xử lý thế nào? | **DEC-120 — không di trú** |
+| C7 | Đơn ADS lịch sử xử lý thế nào? | DEC-120 — không di trú |
 | C8 | Số SP loại trừ dòng phụ? | DEC-113 |
+| C9 | Tỉ lệ ADS cho Nội thành/Gia dụng? | **DEC-122 — không quan tâm, giữ 7,5%** |
+| C10 | Chính sách 2027 khác gì 2026? | **DEC-122 — không đổi (tính đến 2026-08-23)** |
+| **GATE-00** | Chủ dự án duyệt phân tích? | **DEC-122 — ĐÃ DUYỆT, 2026-08-23** |
