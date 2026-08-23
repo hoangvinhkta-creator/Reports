@@ -28,8 +28,13 @@ Vì vậy `governance/product/17_DATA_GOVERNANCE_PRIVACY.md` áp dụng và là 
 buộc, không phải tuỳ chọn.
 
 Authentication:
-BẮT BUỘC. Công cụ nhiều người dùng, mọi lần ghi đè phải lưu `ChangedBy` cho
-audit trail theo yêu cầu mục 19 đặc tả. Vai trò: viewer / editor / admin.
+BẮT BUỘC. Mọi lần ghi đè phải lưu `ChangedBy` cho audit trail theo yêu cầu
+mục 19 đặc tả. **Cập nhật 2026-08-23 (DEC-124):** chủ dự án xác nhận đây là
+công cụ quản trị nội bộ — chỉ một vai trò `ADMIN` trong MVP, không triển khai
+`viewer`/`editor`/`employee_scope`. Người không phải `ADMIN` không mở được
+frontend và nhận `403` ở mọi API trừ đăng nhập/đăng xuất/kiểm tra danh tính.
+Thiết kế database vẫn cho phép thêm vai trò sau này (cột `role` dạng enum),
+không xây trước hạ tầng nhiều vai trò. Chi tiết: `docs/adr/ADR-105-route-map-and-authorization-model.md`.
 
 External Users:
 KHÔNG. Chỉ dùng nội bộ công ty. Không có bề mặt hướng ra khách hàng.

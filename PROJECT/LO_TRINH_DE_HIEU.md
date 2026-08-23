@@ -128,7 +128,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ⬜ | 17. TASK-201 (MAJOR, D3/R4/B5) — Thiết kế nơi lưu dữ liệu lâu dài | Để nhiều người cùng xem/sửa dữ liệu mỗi ngày, không chỉ chạy 1 lần trên máy | C | **GIAI ĐOẠN 2** — sau Điểm duyệt 2 |
 | ⬜ | 18. TASK-202 (MAJOR, D3/R4/B4) — Ghi lại lịch sử ai sửa gì, khi nào | Truy vết được khi có sai lệch, ai đã đổi số liệu | C | Sau bước 17 |
 | ⬜ | 19. TASK-203 (MAJOR, D3/R3/B4) — Kết nối phần lưu trữ với giao diện sử dụng | Để các bước 22–27 (giao diện web) có dữ liệu để hiển thị. **Đã có bản thiết kế sơ bộ 24 đường kết nối, tách riêng theo từng luồng việc** — xem "Bảo mật và phân chia luồng" cuối file | B | Sau bước 18 |
-| ⬜ | 20. TASK-204 (MAJOR, D3/R5/B5) — Thêm đăng nhập, phân quyền xem/sửa theo từng người | Bảo vệ dữ liệu lương và thông tin khách hàng, đúng người mới xem/sửa được. **Đã có bảng phân quyền sơ bộ 3 vai trò** — xem cuối file, còn 3 câu cần sếp trả lời | C | Sau bước 19 |
+| ⬜ | 20. TASK-204 (MAJOR, D3/R5/B5) — Thêm đăng nhập, chỉ người có quyền quản trị mới dùng được | Bảo vệ dữ liệu lương và thông tin khách hàng — sếp đã quyết định chỉ 1 loại tài khoản (quản trị), không phân nhiều cấp | C | Sau bước 19 |
 | ⬜ | 21. TASK-205 (MAJOR, D4/R4/B4) — Cho phép tính lại nhanh khi có dữ liệu mới | Không phải tính lại từ đầu mỗi lần có đơn hàng mới | C | Sau bước 20 |
 | ⬜ | 22. TASK-301 (MAJOR, D3/R2/B3) — Màn hình tải file lên, xem trước | Kiểm tra dữ liệu trước khi nhập chính thức vào hệ thống | B | **GIAI ĐOẠN 3** — sau bước 21 |
 | ⬜ | 23. TASK-302 (MAJOR, D3/R2/B3) — Bảng chi tiết theo nhân viên/tháng, sửa trực tiếp | Người dùng chỉnh sửa số liệu hằng ngày ngay trên web | B | Sau bước 22 |
@@ -180,51 +180,42 @@ Sếp hỏi hai câu: (1) có phần nào bảo mật thông tin, lưu qua máy 
 để lộ hết ở màn hình người dùng không, và (2) đã có kế hoạch tách riêng từng
 luồng việc thay vì dồn tất cả vào một trang duy nhất chưa.
 
-**Trả lời ngắn: có cả hai, đã có thiết kế sơ bộ, nhưng chưa tới lúc làm.**
+**Trả lời ngắn: có cả hai, đã có thiết kế, và sếp đã chốt luôn một quyết định
+quan trọng: công cụ này chỉ dành cho quản trị nội bộ.**
 
-### Về bảo mật
+### Quyết định của sếp (2026-08-23)
 
-Nguyên tắc đã chốt từ đầu (bước 4 trong bảng Track A):
+Đây là công cụ **quản trị nội bộ**, không phải công cụ nhiều cấp nhân viên tự
+vào xem. **Chỉ một loại tài khoản — quản trị — được dùng công cụ.** Không làm
+riêng tài khoản "chỉ xem" hay "chỉ sửa phần của mình" ở bản đầu tiên.
 
-- Mọi phép tính ra tiền — lợi nhuận, hoa hồng, doanh thu quy đổi — **chạy trên
-  máy chủ**, không chạy trên máy người dùng. Máy người dùng chỉ nhận kết quả
-  đã tính xong.
-- Người dùng **không nhận được dữ liệu mà vai trò của họ không được xem**. Đây
-  là chặn từ máy chủ, không phải chỉ ẩn cột trên màn hình — ẩn cột thì người
-  biết kỹ thuật vẫn xem được.
-- Ba vai trò: **người xem** (chỉ đọc báo cáo), **người sửa** (sửa dữ liệu hằng
-  ngày), **quản trị** (đổi cấu hình, chốt số liệu, cấp tài khoản).
+- Ai không có tài khoản quản trị: **không mở được** giao diện web, và mọi yêu
+  cầu gửi thẳng tới máy chủ đều bị từ chối — trừ bước đăng nhập/đăng xuất.
+- Tài khoản quản trị: toàn quyền — xem báo cáo, nạp dữ liệu, sửa số liệu, đổi
+  cấu hình, xem nhật ký, xuất Excel.
+- Việc chặn vẫn nằm ở máy chủ, không phải chỉ ẩn nút trên màn hình — đúng yêu
+  cầu bảo mật ban đầu.
+- Thiết kế cơ sở dữ liệu vẫn để chỗ thêm loại tài khoản khác sau này nếu công
+  ty cần, nhưng **không xây trước** khi chưa có nhu cầu thật.
 
-Bốn việc được xếp riêng cho vai trò quản trị, vì chúng đổi tiền của người khác
-mà khó phát hiện: chốt một lần nạp dữ liệu, sửa giá nhập, đổi tỷ lệ/target, và
-cấp quyền cho người khác.
+Quyết định này đóng luôn ba câu hỏi từng nêu ở bản trước (ai xem được số của
+ai, ai xem giá nhập, ai được chốt số liệu) — vì giờ chỉ có một loại tài khoản,
+ba câu đó không còn cần hỏi riêng nữa.
 
 ### Về phân chia luồng
 
 Mỗi màn hình có đường dẫn riêng, mở thẳng được, bấm Back/Forward đúng — không
 dồn tất cả sau một link. Ví dụ: `/dashboard` (tổng quan), `/review` (duyệt dữ
-liệu bất thường), `/settings/users` (quản lý người dùng). Tổng cộng 14 màn
+liệu bất thường), `/settings/users` (quản lý tài khoản). Tổng cộng 14 màn
 hình và 24 đường kết nối dữ liệu, mỗi cái gắn với đúng một bước trong bảng
-Track A.
-
-### Ba câu cần sếp trả lời (chưa gấp)
-
-Chỉ cần trả lời trước khi làm tới bước 20 (TASK-204), còn khá xa:
-
-| # | Câu hỏi | Đang tạm áp dụng |
-|---|---|---|
-| C12 | Nhân viên có được xem số của nhân viên khác không? | Xem được (như file Excel hiện tại), nhưng chỉ **sửa** được đơn của chính mình |
-| C13 | Ai được xem giá nhập và biên lợi nhuận? | Chỉ vai trò quản trị |
-| C14 | Ai được bấm nút chốt số liệu hằng tháng? | Chỉ vai trò quản trị |
-
-Đây là **mặc định tạm do bên kỹ thuật chọn theo hướng an toàn**, không phải
-quyết định của sếp. Cả ba đều đổi được dễ dàng khi có câu trả lời. Chi tiết
-đầy đủ: `docs/analysis/10_OPEN_QUESTIONS.md`.
+Track A. Phần này không đổi so với trước.
 
 ### Lưu ý
 
-Đây mới là **bản thiết kế sơ bộ**, chưa phải cam kết cuối cùng — sẽ được rà
-soát lại chính thức khi tới Giai đoạn 2. Bản kỹ thuật đầy đủ:
+Phần thiết kế đường dẫn (route) đã chốt từ trước, không đổi. Phần phân quyền
+vừa được chốt lại theo quyết định trên — **cả hai đều đã là quyết định chính
+thức**, không còn là bản nháp chờ duyệt. Việc còn lại chỉ là lập trình đúng
+theo thiết kế khi tới Giai đoạn 2. Bản kỹ thuật đầy đủ:
 `docs/adr/ADR-105-route-map-and-authorization-model.md`.
 
 ## Ghi chú quan trọng
