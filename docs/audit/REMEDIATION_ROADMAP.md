@@ -30,6 +30,7 @@ băng chi tiết các task ở xa trước khi discovery đã đủ."
 | 1 | S001 | Roadmap khởi tạo — 3 phase, 7 task, các gate ở trạng thái preliminary |
 | 2 | S002 | Profile → PRODUCT; CH-01 và CH-02 được áp dụng; các gate của PHASE-01 được frozen; agent tier được ánh xạ sang A–D |
 | 3 | S003 | CH-03 được áp dụng — REM-T02 được thực thi trước REM-T07; REM-T02 DONE; FIND-001 RESOLVED; REM-T03/REM-T04 được gỡ block |
+| 4 | S004 | REM-T04 DONE; FIND-003 và FIND-004 RESOLVED; gate MICRO-001 sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-012) |
 
 ### ROADMAP CHANGE CH-01 — REM-T01 bị hủy (cancelled, được hấp thụ)
 
@@ -158,16 +159,16 @@ mà không cần task.
 
 ## Dependency Graph
 
-Như đã thực thi (post-S003, theo CH-03 — REM-T02 chạy trước REM-T07):
+Như đã thực thi (post-S004):
 
 ```text
-REM-T02 (promote package to repo root)   [DONE — Blast Radius 5/5]
+REM-T02 (đưa package lên gốc repo)   [DONE — Blast Radius 5/5]
     │
-    ├──> REM-T07 (CI enforcement — creates the durable E2 path)   [READY]
+    ├──> REM-T07 (CI enforcement — tạo nguồn E2 bền vững)   [READY]
     │
-    ├──> REM-T03 (deployment-root + reference validators)   [READY]
-    │        │
-    ├──> REM-T04 (repair canonical path references)   [READY]
+    ├──> REM-T03 (validator deployment-root + reference)   [READY]
+    │
+    ├──> REM-T04 (sửa reference canonical)   [DONE — S004]
     │        │
     │        └──> REM-T05 (documentation & evidence truth-up)
     │
@@ -175,10 +176,9 @@ REM-T02 (promote package to repo root)   [DONE — Blast Radius 5/5]
 ```
 
 REM-T07, REM-T03 và REM-T04 chỉ phụ thuộc vào REM-T02, không phụ thuộc lẫn
-nhau — vì vậy cả ba đều có thể chạy độc lập ngay bây giờ khi REM-T02 đã
-DONE. REM-T03 chỉ chạm vào `governance/scripts/`; REM-T04 chỉ chạm vào prose
-`.md`; REM-T07 chỉ chạm vào `.github/workflows/`. Bất kỳ task nào, hoặc cả ba
-song song.
+nhau. REM-T04 đã DONE ở S004. Còn lại trong PHASE-01: REM-T07 (chỉ chạm
+`.github/workflows/`) và REM-T03 (chỉ chạm `governance/scripts/`) — chạy song
+song an toàn.
 
 ## Phân công Agent Tier
 
@@ -330,15 +330,17 @@ Frozen Completion Gate — 4 check REQUIRED:
 Task file:
 `docs/tasks/TASK-REM-T03-validator-hardening.md`
 
-## REM-T04 — Repair broken canonical path references
+## REM-T04 — Sửa các reference đường dẫn canonical bị gãy  ·  DONE
 
-- [ ] REM-T04 hoàn tất
+- [x] REM-T04 hoàn tất — 2026-08-23 (S004)
 
 Closes:
-FIND-003 (MEDIUM), FIND-004 (MEDIUM)
+FIND-003 (MEDIUM) — **RESOLVED** · FIND-004 (MEDIUM) — **RESOLVED**
 
 Status:
-**READY** — REM-T02 đã DONE (S003).
+**DONE.** Ba sửa đổi trong Scope Lock đã được thực hiện tiện thể bên trong
+commit `81c115a` (dịch repo sang tiếng Việt, DEC-011), chứ không phải trong
+một commit riêng của task này. S004 xác minh kết quả và đóng task.
 
 Task Mode:
 MICRO · Tier A / escalate Tier B
@@ -346,29 +348,35 @@ MICRO · Tier A / escalate Tier B
 Đã xác nhận MICRO trong S002 (DEC-007): Difficulty 1, Risk 2, Blast Radius 2,
 không có thay đổi về architecture, auth, schema hay thay đổi mang tính phá
 hủy (destructive). Được theo dõi inline trong `PROJECT/PROJECT_PROGRESS.md`
-với tên MICRO-001.
+với tên MICRO-001. Quy tắc promotion không kích hoạt — phạm vi thực tế đúng
+ba dòng như dự kiến.
 
-Scope — đúng ba dòng:
-- [ ] `CLAUDE.md:215` — `OPTIONAL_ENFORCEMENT_LAYER.md` →
+Scope — đúng ba dòng, tất cả đã sửa (số dòng theo trạng thái HEAD hiện tại):
+- [x] `CLAUDE.md:228` — `OPTIONAL_ENFORCEMENT_LAYER.md` →
   `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`
-- [ ] `governance/core/PROJECT_PROFILE_STANDARD.md:77` — cùng phép thay thế
-- [ ] `CLAUDE.md:27` — `templates/` → `governance/templates/`
+- [x] `governance/core/PROJECT_PROFILE_STANDARD.md:77` — cùng phép thay thế
+- [x] `CLAUDE.md:40` — `templates/` → `governance/templates/`
 
 Out of scope:
 `governance/reference/history/` (kho lưu trữ đã đóng băng — FIND-011). Bất
-kỳ việc diễn đạt lại nào vượt ngoài token đường dẫn.
+kỳ việc diễn đạt lại nào vượt ngoài token đường dẫn. Cả hai đều được tôn
+trọng.
 
-Frozen compact Completion Gate — xem MICRO-001 trong
-`PROJECT/PROJECT_PROGRESS.md`; checklist chính thức (canonical) là
-`governance/templates/MICRO_TASK_CHECKLIST.md`.
+Compact Completion Gate — 3/3 REQUIRED PASS (E1):
+- T04-C1 — scan reference-integrity báo 0 reference gãy ngoài ngoại lệ — **PASS, E1**
+- T04-C2a — cả ba token đích mang đúng giá trị canonical và đích tồn tại — **PASS, E1**
+- T04-C2b — so sánh baseline `0394267` ↔ HEAD: 2 broken ref của FIND-003 biến
+  mất, token FIND-004 đã sửa, **0 hồi quy** trên file đã tồn tại ở baseline — **PASS, E1**
 
-Quy tắc promotion:
-Nếu việc sửa chữa cần nhiều hơn ba dòng này, DỪNG việc coi nó là MICRO và
-promote lên MAJOR theo `governance/core/TASK_MODE_STANDARD.md`.
+Evidence đầy đủ: MICRO-001 trong `PROJECT/PROJECT_PROGRESS.md`.
 
-Note:
-Số dòng tính theo baseline commit `0394267`. Định vị lại theo nội dung, không
-theo số dòng.
+Gate đã sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-012):
+Check gốc "`git diff` chỉ cho thấy thay đổi path-token trên đúng ba dòng" trở
+thành **không thể thỏa mãn**, vì các sửa đổi nằm trong commit dịch `81c115a`
+vốn viết lại prose trên 78 file — diff cô lập ba dòng không tồn tại và không
+thể tạo ra mà không viết lại lịch sử đã push. Thay bằng T04-C2a + T04-C2b, đo
+trên toàn repo thay vì ba dòng. Không check REQUIRED nào bị gỡ hay hạ evidence
+level.
 
 ## Phase Gate 01
 
@@ -505,8 +513,8 @@ Preliminary Completion Gate (CHƯA FROZEN):
 |---|---|---|---|---|
 | FIND-001 | HIGH | REM-T02 | 01 | **RESOLVED** (S003, E2) |
 | FIND-002 | HIGH | — (absorbed, CH-01) | — | **RESOLVED** (S002, E1) |
-| FIND-003 | MEDIUM | REM-T04 | 01 | OPEN |
-| FIND-004 | MEDIUM | REM-T04 | 01 | OPEN |
+| FIND-003 | MEDIUM | REM-T04 | 01 | **RESOLVED** (S004, E1) |
+| FIND-004 | MEDIUM | REM-T04 | 01 | **RESOLVED** (S004, E1) |
 | FIND-005 | MEDIUM | REM-T05 (+REM-T03) | 02 | OPEN |
 | FIND-006 | MEDIUM | REM-T05 | 02 | OPEN |
 | FIND-007 | MEDIUM | REM-T03 | 01 | OPEN |
@@ -516,7 +524,7 @@ Preliminary Completion Gate (CHƯA FROZEN):
 | FIND-011 | LOW | REM-T03 + REM-T05 | 02 | OPEN |
 | FIND-012 | LOW | REM-T05 | 02 | OPEN |
 
-Đã giải quyết (Resolved): 2 / 12. Mọi finding còn lại đều được ánh xạ tới
+Đã giải quyết (Resolved): 4 / 12. Mọi finding còn lại đều được ánh xạ tới
 một task hoặc được đánh dấu rõ ràng là không cần hành động (no-action).
 Không có finding nào bị âm thầm bỏ qua.
 

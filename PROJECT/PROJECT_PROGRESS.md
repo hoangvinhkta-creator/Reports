@@ -26,7 +26,7 @@ Lịch Sử Profile:
 AUDIT (bootstrap S001) → PRODUCT (S002, DEC-005)
 
 Cập Nhật Lần Cuối:
-2026-08-22 — cuối S003
+2026-08-23 — cuối S004
 
 Overall Status:
 IN_PROGRESS
@@ -42,8 +42,7 @@ MAJOR
 
 Task Đề Xuất Tiếp Theo:
 REM-T07 — CI enforcement layer (READY, không còn bị chặn)
-REM-T03 và REM-T04 cũng đã hết bị chặn và có thể chạy song song — cả hai chỉ
-phụ thuộc REM-T02, mà REM-T02 đã DONE.
+REM-T03 cũng đang READY và chạy song song được. REM-T04 đã DONE ở S004.
 
 ## Roadmap Tổng Thể
 
@@ -58,7 +57,7 @@ Chú thích: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCK
   - [x] **REM-T02** — Dời gói governance lên repository root — MAJOR — Tier C — D2/R3/**B5** — **DONE** (S003) — đóng FIND-001
   - [ ] REM-T07 — CI enforcement layer — MAJOR — Tier B — D2/R2/B2 — **READY** — đóng FIND-008, giải quyết RSK-004
   - [ ] REM-T03 — Validator deployment-root + reference-integrity — MAJOR — Tier B — D3/R2/B2 — **READY** (dependency REM-T02 đã DONE) — đóng FIND-007
-  - [ ] REM-T04 — Sửa các reference đường dẫn canonical bị gãy — MICRO — Tier A — D1/R2/B2 — **READY** (dependency REM-T02 đã DONE) — đóng FIND-003, FIND-004
+  - [x] **REM-T04** — Sửa các reference đường dẫn canonical bị gãy — MICRO — Tier A — D1/R2/B2 — **DONE** (S004) — đóng FIND-003, FIND-004
   - [ ] Phase Gate 01
   - [-] ~~REM-T01 — Khởi tạo project state~~ — CANCELLED (absorbed, CH-01/DEC-008)
 
@@ -70,9 +69,9 @@ Chú thích: `[ ]` NOT_STARTED · `[~]` IN_PROGRESS · `[x]` DONE · `[!]` BLOCK
   - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — D1/R1/B1 — đóng FIND-009
   - [ ] Phase Gate 03
 
-Thứ tự dependency — REM-T02 đã DONE, nên REM-T07, REM-T03 và REM-T04 giờ đều
-chạy độc lập song song được:
-~~REM-T07 → REM-T02~~ → (REM-T07 ∥ REM-T03 ∥ REM-T04) → REM-T05 → REM-T06.
+Thứ tự dependency — REM-T02 và REM-T04 đã DONE:
+~~REM-T07 → REM-T02~~ → (REM-T07 ∥ REM-T03 ∥ ~~REM-T04~~) → REM-T05 → REM-T06.
+Còn lại trong PHASE-01: REM-T07 và REM-T03, chạy song song được.
 
 Ghi chú: thứ tự gốc của PHASE-01 (CH-02) đặt REM-T07 trước REM-T02, để REM-T02
 có nguồn E2 dựa trên CI. Chủ dự án đã đổi thứ tự ngay tại chỗ (DEC-009) để sửa
@@ -119,10 +118,10 @@ Check Không Thể Thương Lượng:
 CHECK-T07-03 — phải thực sự quan sát được workflow FAIL trên một breakage cố
 ý. Một CI chưa từng thấy fail sẽ tạo ra bằng chứng E2 giả.
 
-Cũng đang READY và không còn bị chặn (chạy song song an toàn với REM-T07 và
-với nhau):
+Cũng đang READY và chạy song song an toàn với REM-T07:
 - REM-T03 — Validator deployment-root + reference-integrity
-- REM-T04 — Sửa các reference đường dẫn canonical bị gãy (MICRO — xem MICRO-001)
+
+(REM-T04 đã DONE ở S004 — xem MICRO-001.)
 
 ## Trạng Thái Gate Freeze
 
@@ -131,7 +130,7 @@ với nhau):
 | REM-T02 | VERIFIED | **FROZEN** | 5/5 PASS — **DONE** |
 | REM-T07 | VERIFIED — READY | **FROZEN** | 6 |
 | REM-T03 | VERIFIED — READY (dependency đã DONE) | **FROZEN** | 4 |
-| REM-T04 | MICRO compact — READY (dependency đã DONE) | **FROZEN** | xem MICRO-001 |
+| REM-T04 | MICRO compact — VERIFIED | **FROZEN** (sửa qua DEC-012) | 3/3 PASS — **DONE** |
 | REM-T05 | chưa finalize | PRELIMINARY | 5 bản nháp |
 | REM-T06 | chưa finalize | PRELIMINARY | 2 bản nháp |
 
@@ -148,8 +147,8 @@ dõi trạng thái ở đây, không phải ở đó).
 |---|---|---|---|---|
 | FIND-001 | HIGH | Gói bị lồng dưới repo root; `CLAUDE.md` không ở root | REM-T02 | **RESOLVED** (S003, E2) |
 | FIND-002 | HIGH | S000 chưa từng chạy; project state là placeholder | — | **RESOLVED** (S002, E1) |
-| FIND-003 | MEDIUM | Reference canonical gãy tới `OPTIONAL_ENFORCEMENT_LAYER.md` (×2) | REM-T04 | OPEN — READY |
-| FIND-004 | MEDIUM | `CLAUDE.md:27` trỏ tới `templates/` không tồn tại | REM-T04 | OPEN — READY |
+| FIND-003 | MEDIUM | Reference canonical gãy tới `OPTIONAL_ENFORCEMENT_LAYER.md` (×2) | REM-T04 | **RESOLVED** (S004, E1) |
+| FIND-004 | MEDIUM | `CLAUDE.md:27` trỏ tới `templates/` không tồn tại | REM-T04 | **RESOLVED** (S004, E1) |
 | FIND-005 | MEDIUM | Báo cáo validation đã ship khẳng định một PASS sai sự thật | REM-T05 | OPEN |
 | FIND-006 | MEDIUM | START_HERE guide tự mâu thuẫn về layout | REM-T05 | OPEN |
 | FIND-007 | MEDIUM | Validator không phát hiện được root bị deploy sai | REM-T03 | OPEN — READY |
@@ -160,7 +159,7 @@ dõi trạng thái ở đây, không phải ở đó).
 | FIND-012 | LOW | README của validator chỉ tài liệu hóa 2/5 script | REM-T05 | OPEN |
 
 Tổng — CRITICAL 0 · HIGH 2 · MEDIUM 5 · LOW 4 · INFO 1 · **12 tổng cộng**.
-**RESOLVED: 2 / 12.**
+**RESOLVED: 4 / 12.**
 
 ## Micro Task (Inline)
 
@@ -171,40 +170,86 @@ KHÔNG lặp lại hay viết lại checklist ở đây.
 
 ### MICRO-001 — REM-T04 — Sửa các reference đường dẫn canonical bị gãy
 Status:
-**READY** (dependency REM-T02 đã DONE)
+DONE
+
+Hoàn Thành:
+2026-08-23 (S004)
 
 Agent Tier:
 Tier A / escalate Tier B
 
 Bị Chặn Bởi:
-Không — REM-T02 đã DONE.
+Không.
 
 Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
-Compact Completion Gate — FROZEN 2026-08-22 (S002).
-Ngoài checklist canonical, task này yêu cầu:
-- Scan reference-integrity báo cáo 0 reference gãy ngoài các ngoại lệ đã ghi
-  nhận — Evidence Level E1
-- `git diff` chỉ cho thấy thay đổi path-token trên đúng ba dòng — Evidence Level E1
+Compact Completion Gate — FROZEN 2026-08-22 (S002), sửa đổi qua COMPLETION GATE
+CHANGE PROPOSAL trong DEC-012 (S004). 3/3 check REQUIRED PASS.
+
+| Check | Yêu Cầu | Status | Evidence Level |
+|---|---|---|---|
+| T04-C1 | Scan reference-integrity báo 0 reference gãy ngoài ngoại lệ đã ghi nhận | PASS | E1 |
+| T04-C2a | Cả ba token đích mang đúng giá trị canonical và đích tồn tại trên đĩa | PASS | E1 |
+| T04-C2b | So sánh baseline `0394267` ↔ HEAD: 2 broken ref của FIND-003 biến mất, token FIND-004 đã sửa, 0 hồi quy trên file đã tồn tại ở baseline | PASS | E1 |
+
+Evidence:
+
+**T04-C1** — scan toàn repo mọi file `.md`, thực thi 2026-08-23T02:1xZ:
+```text
+BROKEN (ngoài ngoại lệ): 0
+EXEMPT (đã ghi nhận): 20
+```
+
+**T04-C2a** — trạng thái thực tế của ba token trong Scope Lock:
+```text
+CLAUDE.md:228           - `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md`
+PROJECT_PROFILE_STANDARD.md:77 - `governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md` cùng với tích hợp CI khi khả thi.
+CLAUDE.md:40            - Biểu mẫu tái sử dụng → `governance/templates/`
+EXISTS: governance/reference/OPTIONAL_ENFORCEMENT_LAYER.md
+EXISTS: governance/templates
+```
+
+**T04-C2b** — so sánh baseline `0394267` ↔ HEAD:
+```text
+ĐÃ SỬA (có ở baseline, hết ở HEAD): 2
+   FIXED  CLAUDE.md -> OPTIONAL_ENFORCEMENT_LAYER.md
+   FIXED  governance/core/PROJECT_PROFILE_STANDARD.md -> OPTIONAL_ENFORCEMENT_LAYER.md
+```
+FIND-004 (`templates/`, không có đuôi mở rộng nên nằm ngoài scan trên) xác
+minh riêng bằng đối chiếu token trực tiếp:
+```text
+--- baseline 0394267 ---
+27:- Reusable forms → `templates/`
+--- HEAD ---
+40:- Biểu mẫu tái sử dụng → `governance/templates/`
+```
+12 mục "broken mới" ở HEAD đều nằm trong file được tạo mới ở S001–S003, hoặc
+trong 2 file `PROJECT/` mà nội dung baseline là template rỗng (đã xác minh:
+0 token liên quan ở baseline). Tất cả thuộc nhóm ngoại lệ đã ghi nhận:
+defect-token trích dẫn trong bản ghi audit, glob, và forward-reference tới
+file mà task chưa chạy sẽ tạo ra (`.github/workflows/governance.yml` —
+REM-T07; `validate_reference_integrity.py` — REM-T03; `README.md` — REM-T06).
+**0 hồi quy trên bất kỳ file nào đã tồn tại ở baseline.**
+
+Executed By:
+S004 agent
+
+Timestamp:
+2026-08-23T02:1xZ
+
+Ghi Chú Quan Trọng — vì sao gate phải sửa:
+Ba sửa đổi trong Scope Lock đã được thực hiện tiện thể bên trong commit
+`81c115a` (dịch repo sang tiếng Việt, DEC-011), chứ không phải trong một commit
+riêng của MICRO-001. Vì vậy check gốc "`git diff` chỉ cho thấy thay đổi
+path-token trên đúng ba dòng" trở thành **không thể thỏa mãn** — diff cô lập đó
+không tồn tại và không thể tạo ra mà không viết lại lịch sử đã push. Thay vì
+đánh PASS cho một check chưa từng chạy, S004 phát hành COMPLETION GATE CHANGE
+PROPOSAL (DEC-012) thay check đó bằng T04-C2a + T04-C2b, có độ phủ rộng hơn.
 
 Quy Tắc Promotion:
-Nếu việc sửa cần nhiều hơn ba dòng, DỪNG coi đây là MICRO và promote lên
-MAJOR theo `governance/core/TASK_MODE_STANDARD.md`.
-
-Tóm Tắt Evidence:
-Cập nhật S003: hai trong ba vị trí đã được **sửa xong** ngoài phạm vi chính
-thức của MICRO-001 — như một phần của việc dịch file (CLAUDE.md và
-governance/core/PROJECT_PROFILE_STANDARD.md), người thực hiện dịch đã tiện thể
-sửa luôn hai reference `OPTIONAL_ENFORCEMENT_LAYER.md`. Cần một session sau
-xác nhận lại đầy đủ bằng scan reference-integrity trước khi đánh MICRO-001 là
-DONE chính thức — chưa tự động coi là hoàn tất chỉ vì nội dung đã đúng, do
-chưa chạy Compact Completion Gate của chính task này. Phạm vi gốc, **giờ ở
-repository root**: `CLAUDE.md:215` (đã sửa),
-`governance/core/PROJECT_PROFILE_STANDARD.md:77` (đã sửa), `CLAUDE.md:27` (đã
-sửa cùng lúc dịch CLAUDE.md). Số dòng gốc tính theo baseline commit `0394267`;
-xác định lại theo nội dung, không theo số dòng, vì file đã di chuyển ở commit
-`699b105`.
+Không kích hoạt. Phạm vi thực tế đúng ba dòng như dự kiến, không có tác động
+architecture/auth/schema.
 
 ### MICRO-002 — REM-T06 — Vệ sinh repository root
 Status:
@@ -252,6 +297,14 @@ bắt đầu. `README.md` và câu hỏi về `LICENSE` vẫn còn tồn đọng
   chạy thay vì hard-code. Rủi ro thấp hơn giờ khi REM-T02 đã DONE: đường dẫn
   validator đã cố định (`governance/scripts/governance/*.py` từ repo root) và
   sẽ không di chuyển nữa nếu không có quyết định tái tổ chức mới.
+- **RSK-006** (mới, S004) — Kỷ luật phạm vi. Đã hai lần công việc thuộc một
+  task được thực hiện bên ngoài task đó: `.gitignore` của REM-T06 ở S003, và
+  ba sửa đổi của REM-T04 ở commit dịch `81c115a`. Cả hai đều được ghi nhận
+  trung thực, nhưng sửa "tiện thể" làm hỏng khả năng kiểm chứng của gate vốn
+  thiết kế quanh giả định một-task-một-diff — chính là nguyên nhân buộc phải
+  phát hành COMPLETION GATE CHANGE PROPOSAL ở S004 (DEC-012). Giảm thiểu: khi
+  phát hiện sửa đổi thuộc task khác trong lúc làm việc, GHI NHẬN thay vì tự
+  sửa, trừ khi task đó đang READY và chủ dự án đồng ý gộp.
 
 ## Hạng Mục Regression Đang Mở
 
@@ -280,6 +333,9 @@ Ma trận: `PROJECT/PROJECT_PROFILE.md` → "Ma Trận Tuân Thủ Profile".
 - DEC-008 — REM-T01 hủy vì đã được absorbed; FIND-002 RESOLVED
 - DEC-009 — REM-T02 xếp trước REM-T07 theo chỉ đạo chủ dự án; E2 qua review
   độc lập thay vì CI
+- DEC-010 — Đóng PR #1; merge nhánh làm việc vào nhánh mặc định
+- DEC-011 — Thêm quy tắc Ngôn Ngữ Nội Dung; dịch toàn repo sang tiếng Việt
+- DEC-012 — COMPLETION GATE CHANGE PROPOSAL cho MICRO-001; REM-T04 đóng
 
 Xem `PROJECT/PROJECT_DECISIONS.md`.
 
@@ -312,24 +368,36 @@ Review độc lập:
   (`docs/reviews/E2-TASK-REM-T02-S003.md`). FIND-001 RESOLVED. `.gitignore`
   được thêm (phụ, gỡ chặn một phần REM-T06). REM-T03 và REM-T04 giờ READY.
   Bàn giao: `docs/sessions/S003-root-promotion.md`.
+- S004 — TRIỂN KHAI REM-T04 — 2026-08-23 — DONE.
+  Đóng REM-T04/MICRO-001. Ba sửa đổi trong Scope Lock đã được thực hiện tiện
+  thể ở commit `81c115a` (dịch repo), nên check gốc "diff đúng ba dòng" trở
+  thành không thể thỏa mãn — S004 phát hành COMPLETION GATE CHANGE PROPOSAL
+  (DEC-012) thay bằng T04-C2a + T04-C2b có độ phủ rộng hơn, thay vì đánh PASS
+  cho check chưa chạy. 3/3 check REQUIRED PASS (E1). FIND-003 và FIND-004
+  RESOLVED (4/12).
+  Bàn giao: `docs/sessions/S004-reference-repair.md`.
 
 ## Session Tiếp Theo
 
 Session Đề Xuất:
-S004 — REM-T07, REM-T03, và REM-T04 đều đang READY và chạy song song an toàn.
-Chọn bất kỳ task nào; khuyến nghị REM-T07 trước vì nó thiết lập nguồn E2 bền
-vững (RSK-004) mà các task rủi ro cao trong tương lai nên ưu tiên hơn review
-dùng một lần.
+S005 — REM-T07 và REM-T03 đều đang READY và chạy song song an toàn.
+Khuyến nghị REM-T07 trước vì nó thiết lập nguồn E2 bền vững (RSK-004) mà các
+task rủi ro cao trong tương lai nên ưu tiên hơn review dùng một lần.
 
 Mục Đích:
-Triển khai một trong ba task READY đã chọn. Không triển khai nhiều hơn một
+Triển khai một trong hai task READY đã chọn. Không triển khai nhiều hơn một
 Scope Lock trong cùng một session trừ khi được yêu cầu rõ ràng.
+
+Lưu ý kỷ luật phạm vi (từ DEC-012): đây là lần thứ hai công việc thuộc một
+task được thực hiện bên ngoài task đó. Khi phát hiện sửa đổi thuộc task khác
+trong lúc làm việc, ghi nhận thay vì tự sửa — trừ khi task đó đang READY và
+chủ dự án đồng ý gộp.
 
 File Cần Đọc Trước:
 1. `CLAUDE.md`
 2. `PROJECT/PROJECT_PROFILE.md`
 3. `PROJECT/PROJECT_PROGRESS.md`  ← file này
-4. `docs/sessions/S003-root-promotion.md`
-5. File task của task được chọn (`docs/tasks/TASK-REM-T07-ci-enforcement.md`, `docs/tasks/TASK-REM-T03-validator-hardening.md`, hoặc §MICRO-001 ở trên trong file này)
+4. `docs/sessions/S004-reference-repair.md`
+5. File task của task được chọn (`docs/tasks/TASK-REM-T07-ci-enforcement.md` hoặc `docs/tasks/TASK-REM-T03-validator-hardening.md`)
 6. `governance/core/EVIDENCE_STANDARD.md`
 7. `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
