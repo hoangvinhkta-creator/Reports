@@ -51,8 +51,8 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-101 implement xong, VERIFYING — 1 check BLOCKED vì thiếu
-`data/samples/`)
+2026-08-23 (TASK-101 DONE — đối chiếu dữ liệu thật Tín Phát 01.2026/06.2026,
+254/146 đơn khớp tuyệt đối)
 
 Overall Status:
 IN_PROGRESS
@@ -61,17 +61,14 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-101 — importer + normalizer — **VERIFYING** (12/13 REQUIRED check PASS;
-CHECK-101-08 BLOCKED, xem `docs/tasks/TASK-101-importer-normalizer.md`)
+TASK-105 — price_engine + interface PriceProvider
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-Một trong hai, không có ràng buộc bắt buộc cái nào trước:
-- Chủ dự án cung cấp lại `data/samples/So_chi_tiet_ban_hang.xlsx` để đối
-  chiếu 254/146 đơn, đóng CHECK-101-08, chuyển TASK-101 sang DONE.
-- TASK-105 (price_engine) — module độc lập, không phụ thuộc CHECK-101-08.
+TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc tả:
+tra giá nhập nếu có Price Master, chưa có thì Pending (DEC-103).
 
 ## Roadmap tổng thể
 
@@ -89,14 +86,16 @@ Một trong hai, không có ràng buộc bắt buộc cái nào trước:
         lúc, C11 còn mở không chặn.
 
 - [ ] PHASE-01 — Engine tính toán (Python thuần, không UI, không database)
-  - [~] TASK-101 — importer + normalizer. **IMPLEMENTED, VERIFYING** (2026-08-23).
-        Thực hiện 7 bước đầu của import workflow mục §22 đặc tả: đọc `.xlsx`
-        (header dòng 4, data dòng 6), báo cáo metadata trước khi chuẩn hóa,
-        chuẩn hóa cột (trừ `Chiết khấu` — DEC-114), áp employee mapping, nhóm
-        theo OrderID, áp rule ADS ở cấp đơn, propagate nguồn đơn xuống line
-        item. 49/49 test PASS trên fixture tổng hợp ẩn danh (DEC-108); 12/13
-        REQUIRED check PASS, 1 BLOCKED (đối chiếu 254/146 đơn — cần
-        `data/samples/` thật, không có trong session này). Chi tiết:
+  - [x] TASK-101 — importer + normalizer. **DONE** (2026-08-23). Thực hiện 7
+        bước đầu của import workflow mục §22 đặc tả: đọc `.xlsx` (header
+        dòng 4, data dòng 6), báo cáo metadata trước khi chuẩn hóa, chuẩn
+        hóa cột (trừ `Chiết khấu` — DEC-114), áp employee mapping, nhóm theo
+        OrderID, áp rule ADS ở cấp đơn, propagate nguồn đơn xuống line item.
+        49/49 test PASS trên fixture tổng hợp ẩn danh (DEC-108); **13/13
+        REQUIRED check PASS**, bao gồm đối chiếu trên dữ liệu thật Tín Phát
+        01.2026 (254 đơn) và 06.2026 (146 đơn) — khớp tuyệt đối, không sai
+        lệch nghiệp vụ đáng kể, không sửa business rule để ép khớp. Chi
+        tiết đầy đủ + mục "Đối Chiếu Dữ Liệu Thật":
         `docs/tasks/TASK-101-importer-normalizer.md`.
   - [x] TASK-102 — employee_mapper. **Năng lực lõi đã xây trong TASK-101**
         (`app/modules/mapping/employee_mapper.py`, config-driven, effective-
@@ -344,7 +343,8 @@ check sơ bộ ghi nhận ngay bây giờ:
 - Toàn bộ PHASE-01: số đơn duy nhất của Tín Phát phải bằng 254 cho 01.2026 và
   146 cho 06.2026 đối chiếu với file thô thật (E1). Mọi chênh lệch còn lại so
   với báo cáo mẫu phải được giải thích bằng văn bản, không được làm tròn cho
-  khớp.
+  khớp. **✅ VERIFIED 2026-08-23 (TASK-101, CHECK-101-08)** — khớp tuyệt đối
+  cả hai kỳ, xem `docs/tasks/TASK-101-importer-normalizer.md`.
 - TASK-104: `LeadSource` chỉ nhận đúng hai giá trị `PERSONAL` và `ADS`. Không
   literal `TINPHAT_ADS` nào còn tồn tại trong mã nguồn hay tài liệu (E1, kiểm
   chứng bằng grep) — DEC-119.
@@ -409,29 +409,61 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-101 — importer + normalizer
+TASK-105 — price_engine + interface PriceProvider
 
 Task Mode:
 MAJOR
 
 Status:
-VERIFYING — implement xong, 12/13 REQUIRED check PASS trên fixture tổng hợp
-ẩn danh. CHECK-101-08 (đối chiếu 254 đơn 01.2026 / 146 đơn 06.2026 với file
-thô thật) **BLOCKED** — `data/samples/So_chi_tiet_ban_hang.xlsx` không tồn
-tại trong môi trường thực thi này (đúng theo DEC-108, không phải lỗi). Không
-chuyển DONE cho tới khi có file thật để đối chiếu, hoặc chủ dự án chấp nhận
-dời việc đối chiếu này sang môi trường khác.
+PLANNED — TASK-101 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-105.
 
 Required Gate Progress:
-GATE-00 PASS (DEC-122). TASK-101: 49/49 test PASS (`pytest tests/ -q`);
-12/13 REQUIRED check PASS, 1 BLOCKED. Chi tiết đầy đủ:
-`docs/tasks/TASK-101-importer-normalizer.md`.
+GATE-00 PASS (DEC-122). TASK-101 **DONE** — 49/49 test PASS
+(`pytest tests/ -q`); 13/13 REQUIRED check PASS, gồm đối chiếu trên dữ liệu
+thật Tín Phát 01.2026 (254 đơn) và 06.2026 (146 đơn), khớp tuyệt đối. Chi
+tiết đầy đủ: `docs/tasks/TASK-101-importer-normalizer.md`.
 
 Primary Agent Tier:
 B
 
 Escalation Tier:
 C
+
+### TASK-101 — DONE (2026-08-23)
+
+Implement xong ngày 2026-08-23 với 12/13 REQUIRED check PASS trên fixture
+tổng hợp ẩn danh; CHECK-101-08 (đối chiếu 254 đơn 01.2026 / 146 đơn 06.2026)
+BLOCKED vì thiếu `data/samples/` thật trong môi trường phiên đó.
+
+**Cùng ngày, phiên kế tiếp:** chủ dự án cung cấp trực tiếp 2 file thật của
+Tín Phát (xuất riêng theo tháng, 01.2026 và 06.2026). Chạy
+`tools/analysis/reconcile_real_data.py` gọi thẳng `app.pipeline.run_import()`
+— kết quả:
+
+- 01.2026: 254 đơn — khớp tuyệt đối với kỳ vọng.
+- 06.2026: 146 đơn — khớp tuyệt đối với kỳ vọng.
+- Đối chiếu chéo độc lập với dòng "Tổng cộng" tự có trong chính file thô
+  (không do engine tính): khớp tuyệt đối cả doanh số lẫn chiết khấu ở cả hai
+  tháng — xác nhận không sót, không đếm trùng dòng nào.
+- 100% đơn Tín Phát phân loại ADS qua mặc định nhân viên (DEC-109), 0 đơn qua
+  từ khóa "ADS" — khớp phát hiện gốc (chuỗi "ADS" không xuất hiện trong dữ
+  liệu công ty).
+- So sánh `Doanh số bán` (raw) với `SellPrice × Quantity − Discount`: mọi
+  chênh lệch quan sát được (22/351 dòng ở 01.2026, 1/180 dòng ở 06.2026) đều
+  giải thích được bằng đúng một pattern đã biết trước — DEC-114 (raw là số
+  gross, chưa trừ chiết khấu). Không có pattern lệch nào khác, không cần và
+  không sửa business rule.
+
+**CHECK-101-08 chuyển PASS. TASK-101 chuyển DONE.** Không sai lệch nghiệp vụ
+đáng kể. Chi tiết đầy đủ (kèm bảng số liệu hai kỳ):
+`docs/tasks/TASK-101-importer-normalizer.md` → mục "Đối Chiếu Dữ Liệu Thật".
+File thật đã xóa khỏi môi trường làm việc sau khi dùng, đúng DEC-108 — chưa
+từng commit vào git.
+
+Sửa thêm theo góp ý review: CHECK-101-05 từng ghi heading "8 case A–G" gây
+hiểu nhầm task đã kiểm chúng — đã sửa lại chỉ claim phạm vi `LeadSource`
+thật sự thuộc TASK-101; 8 case A–G (ConversionScheme) vẫn thuộc TASK-108,
+không mở rộng phạm vi TASK-101 sang đó.
 
 ### GATE-00 — PASS (2026-08-23)
 
@@ -741,6 +773,25 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   không DONE. Cập nhật roadmap: TASK-101 đánh dấu VERIFYING; TASK-102,
   TASK-103, TASK-104 đánh dấu phần lõi đã có, ghi rõ phạm vi còn thiếu (kênh
   UI, product classification) dời sang lúc cần.
+- 2026-08-23 — **TASK-101 → DONE: đóng CHECK-101-08 bằng dữ liệu thật.**
+  Review trước đó yêu cầu 5 việc: (1) sửa wording CHECK-101-05 vì heading cũ
+  nói đã kiểm 8 case A–G trong khi Evidence nói chưa — sửa lại chỉ claim
+  đúng phạm vi `LeadSource` của TASK-101, không đụng ConversionScheme;
+  (2)(3) chủ dự án cung cấp trực tiếp 2 file thật Tín Phát (01.2026,
+  06.2026, xuất riêng theo tháng) — chạy `tools/analysis/reconcile_real_data.py`
+  (script mới, gọi thẳng `run_import()`) tính đủ các chỉ số reviewer yêu
+  cầu: raw rows, OrderID duy nhất, employee mapped/unmapped, tổng doanh số
+  raw, chiết khấu, doanh số normalized, PERSONAL/ADS breakdown theo nguồn
+  (mặc định nhân viên vs từ khóa), OrderID thiếu, OrderID nhiều employee.
+  Kết quả: 254/146 đơn khớp tuyệt đối cả hai kỳ; đối chiếu chéo độc lập với
+  dòng "Tổng cộng" tự có trong file thô (không do engine tính) cũng khớp
+  tuyệt đối; (4) so sánh `Doanh số bán` raw vs `SellPrice×Qty−Discount` —
+  mọi lệch (22/351 và 1/180 dòng) đều đúng bằng số ở cột Chiết khấu, khớp
+  100% với DEC-114 đã biết trước, không phải phát hiện mới, không sửa rule;
+  (5) không mở rộng sang ConversionScheme — xác nhận giữ nguyên ranh giới.
+  CHECK-101-08 chuyển PASS, TASK-101 chuyển DONE (13/13 REQUIRED check
+  PASS). File thật xóa khỏi môi trường sau khi dùng, chưa từng commit
+  (DEC-108). Current Task chuyển sang TASK-105.
 - 2026-08-23 — **Đơn giản hóa phân quyền — ADMIN-only (DEC-124).** Chủ dự án
   trả lời trực tiếp, đóng cùng lúc C12/C13/C14 mà DEC-123 để mở: công cụ quản
   trị nội bộ, MVP chỉ một vai trò `ADMIN`, không `viewer`/`editor`/
@@ -765,30 +816,23 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 
-### Track A (Tín Phát) — Recommended Session: đóng CHECK-101-08 hoặc bắt đầu TASK-105
+### Track A (Tín Phát) — Recommended Session: TASK-105 (price_engine)
 
 Purpose:
-**TASK-101 đã implement, VERIFYING** (2026-08-23) — engine đọc/chuẩn hóa/map
-nhân viên/nhóm đơn/phân loại LeadSource chạy được, 49/49 test PASS trên
-fixture tổng hợp. Việc còn lại là một trong hai, không bắt buộc thứ tự:
-
-1. **Đóng CHECK-101-08** — cần chủ dự án đặt lại
-   `data/samples/So_chi_tiet_ban_hang.xlsx` (không commit) vào thư mục
-   `data/samples/`, sau đó chạy `run_import()` thật để đối chiếu 254 đơn
-   (01.2026) / 146 đơn (06.2026). Đóng xong thì TASK-101 → DONE.
-2. **TASK-105 (price_engine)** — module độc lập, không phụ thuộc
-   CHECK-101-08, có thể bắt đầu song song.
-
+**TASK-101 đã DONE** (2026-08-23, CHECK-101-08 đóng bằng dữ liệu thật). Bắt
+tay ngay TASK-105 — `price_engine` + interface `PriceProvider` (bước 8 của
+§22 đặc tả): tra giá nhập nếu có Price Master, chưa có thì Pending (DEC-103).
 Đọc `docs/tasks/TASK-101-importer-normalizer.md` trước để hiểu đúng những gì
 đã có (đừng viết lại `employee_mapper`/`order_builder`/`lead_source`
-classifier — chúng đã tồn tại và đã test).
+classifier — chúng đã tồn tại và đã test trên cả fixture lẫn dữ liệu thật).
 
 Files to read first:
 - `docs/tasks/TASK-101-importer-normalizer.md` — trạng thái thật, Completion
-  Gate, giới hạn đã biết
+  Gate, mục "Đối Chiếu Dữ Liệu Thật"
 - `app/pipeline.py`, `app/modules/` — code đã có
 - `PROJECT/PROJECT_PROGRESS.md` (mục "Trạng thái Task hiện tại")
-- `PROJECT/PROJECT_DECISIONS.md` (đặc biệt DEC-119, DEC-120, DEC-121, DEC-122)
+- `PROJECT/PROJECT_DECISIONS.md` (đặc biệt DEC-103, DEC-119, DEC-120,
+  DEC-121, DEC-122)
 - `docs/adr/ADR-104-lead-source-vs-conversion-scheme.md`
 
 ### Track B (Governance) — Recommended Session: S009 — REM-T06
