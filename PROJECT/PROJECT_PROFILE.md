@@ -4,7 +4,7 @@ Status:
 INITIALIZED
 
 Selected Profile:
-PRODUCT
+NOT_A_REAL_PROFILE
 
 Lịch Sử Profile:
 - S001 (2026-08-22) — chọn AUDIT làm bootstrap S000. Xem DEC-001.
