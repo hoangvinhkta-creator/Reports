@@ -52,6 +52,22 @@ DEFAULT_CONFIG_DIR = Path("config")
 
 
 @dataclass(frozen=True)
+class WorkingData:
+    """Everything steps 1–10 produce, before validation ever runs.
+
+    Extracted so a test can hold the state as it exists at the moment BEFORE
+    the Review Queue is built (Independent Review #2, Finding 4). Snapshotting
+    the output of `run_import()` proved nothing about mutation: validation had
+    already run once inside it, so the "before" picture was really an "after"
+    one, and any mutation would have been baked into both sides.
+    """
+
+    preview: ImportPreview
+    lines: list[WorkingLine]
+    orders: list[Order]
+
+
+@dataclass(frozen=True)
 class ImportResult:
     preview: ImportPreview
     orders: list[Order]
@@ -59,12 +75,13 @@ class ImportResult:
     review_queue: ReviewQueue
 
 
-def run_import(
+def build_working_data(
     raw_path: Path,
     config_dir: Path = DEFAULT_CONFIG_DIR,
     price_provider: PriceProvider | None = None,
     product_group_provider: ProductGroupProvider | None = None,
-) -> ImportResult:
+) -> WorkingData:
+    """Steps 1–10 of spec section 22 — everything except the Review Queue."""
     raw_rows = read_raw_rows(raw_path)
     preview = build_preview(raw_rows)
 
@@ -89,17 +106,34 @@ def run_import(
         orders, resolver, product_group_provider or DefaultProductGroupProvider()
     )
 
-    review_queue = Validator.from_config_dir(config_dir).build_queue(lines, orders)
+    return WorkingData(preview=preview, lines=lines, orders=orders)
+
+
+def run_import(
+    raw_path: Path,
+    config_dir: Path = DEFAULT_CONFIG_DIR,
+    price_provider: PriceProvider | None = None,
+    product_group_provider: ProductGroupProvider | None = None,
+) -> ImportResult:
+    working = build_working_data(
+        raw_path, config_dir, price_provider, product_group_provider
+    )
+
+    # Step 11. Runs exactly once, last, and only reads: the Review Queue is a
+    # report that travels beside the data, never a stage that edits it.
+    review_queue = Validator.from_config_dir(config_dir).build_queue(
+        working.lines, working.orders
+    )
 
     unmapped_lines = [
         line
-        for line in lines
+        for line in working.lines
         if line.employee_mapping_status != MAPPING_STATUS_MAPPED
     ]
 
     return ImportResult(
-        preview=preview,
-        orders=orders,
+        preview=working.preview,
+        orders=working.orders,
         unmapped_lines=unmapped_lines,
         review_queue=review_queue,
     )

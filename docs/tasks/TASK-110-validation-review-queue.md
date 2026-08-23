@@ -3,14 +3,20 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — awaiting Independent Review #2.** Completion Gate **FROZEN**
-2026-08-23. **Independent Review #1: FAIL, 6 finding — đã sửa toàn bộ**
-(S017); ba Human Decision phát sinh ghi thành **DEC-129**. 16/17 REQUIRED
-check PASS; **CHECK-110-16 BLOCKED** (cần file thô production, chủ dự án cho
-phép giữ — chặn DONE, không chặn IMPLEMENTED). **260/260 test PASS** (109 mới
-so với baseline `c7a1b24`, 0 regression).
+**IMPLEMENTED — repair after Independent Review #2.**
+**Chưa merge. Chưa DONE.**
 
-**Không tự chuyển sang DONE. Chưa merge.**
+Completion Gate **FROZEN** 2026-08-23. Hai vòng review, cả hai đều FAIL và
+đều đã sửa xong:
+
+- **Review #1 — FAIL, 6 finding** (S017). Ba Human Decision → **DEC-129**.
+- **Review #2 — FAIL, 4 finding** (S018). Không phát sinh Human Decision mới.
+
+16/17 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **271/271 test
+PASS** (120 mới so với baseline `c7a1b24`, 0 regression).
+
+Chờ **Independent Review #3**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -72,7 +78,7 @@ V7 là TD-001, mở rộng thành F1–F6 theo **DEC-129** (HD-110-01, HD-110-03
 | V4 | `Order inconsistency` | Cùng `order_id`, khác `employee_normalized` (hoặc khác `date`) | **Chỉ phát hiện**, không đổi cách tính (DEC-128 §4) |
 | V5 | `Source classification` | `lead_source_manual` có giá trị và khác `lead_source_auto` | Phase 1 chưa có nguồn ghi override → 0 phát hiện thật, kiểm bằng fixture |
 | V6 | `Duplicate` | Trùng `row_hash` **trong cùng một lần import** | WARNING, không phải lỗi (DEC-128 §3) |
-| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) |
+| V7 | `Employee mapping` | **F1–F6** — toàn bộ tiêu chí chẩn đoán master data, chạy trong luồng production. F4 **chỉ** áp cho raw identity có giá trị mà không map được; F6 chấm **theo ngày của từng dòng, theo từng bản ghi config** | **TD-001** + **HD-110-01** (F1/F3/F5) + **HD-110-03** (F6) + Review #2 F1/F2 |
 
 Ngoài ra:
 - Mỗi mục trong queue mang: mã loại, mức độ (`INFO`/`WARNING`/`ERROR`), một
@@ -162,7 +168,9 @@ Allowed:
 - `app/modules/validation/` (mới) — gồm `text.py` (chuẩn hóa + khớp biên từ,
   thêm ở vòng sửa Independent Review #1, HD-110-02)
 - `config/validation.yaml` (mới)
-- `app/pipeline.py` — chỉ thêm bước 11 và trường `review_queue` vào `ImportResult`
+- `app/pipeline.py` — bước 11 + `ImportResult.review_queue`; tách
+  `build_working_data()` (bước 1–10) để oracle non-mutation chụp được state
+  **trước** lần validation đầu tiên (Review #2, Finding 4)
 - `tests/test_validation_*.py` (mới)
 - `tools/analysis/reconcile_conversion.py` — chỉ **trích xuất** logic F2/F4 ra
   chỗ dùng chung; hành vi và output của script phải **không đổi**
@@ -190,7 +198,8 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.8 — V7: trích F2/F4 ra module dùng chung, nối vào `run_import()`; giữ nguyên hành vi `reconcile_conversion.py`.
 - [x] 110.9 — Nối vào `app/pipeline.py` làm bước 11.
 - [ ] 110.10 — Đối chiếu trên dữ liệu thật (CHECK-110-16) — **BLOCKED**, cần file thô production.
-- [x] 110.R1 — Sửa 6 finding của Independent Review #1 (S017), xem "Lịch Sử Independent Review".
+- [x] 110.R1 — Sửa 6 finding của Independent Review #1 (S017).
+- [x] 110.R2 — Sửa 4 finding của Independent Review #2 (S018).
 
 ## Ready Gate
 
@@ -399,9 +408,13 @@ Evidence Level:
 E1
 
 Evidence:
-(a) `test_multi_employee_order_is_detected` — đơn 2 nhân viên → đúng 1 mục. Provenance theo yêu cầu freeze: `test_multi_employee_finding_carries_the_provenance_the_owner_required` (OrderID, `employees_found`, `source_rows`, `legacy_selected`).
+(a) `test_multi_employee_order_is_detected`; provenance theo yêu cầu freeze: `test_multi_employee_finding_carries_the_provenance_the_owner_required` (OrderID, `employees_found`, `source_rows`, `legacy_selected`).
 
-(b) **Sửa Independent Review #1, Finding 6.** Bản trước snapshot **11 field liệt kê tay** — một field thêm sau sẽ lặng lẽ thoát khỏi bảo đảm. Nay `_snapshot()` duyệt `dataclasses.fields` **đệ quy** trên toàn bộ `Order` → `WorkingLine` → `RawRow`, nên không thể tụt lại sau model. Hai test bọc quanh nó: `test_the_snapshot_actually_covers_every_frozen_field` (≥30 field, gồm `conversion_rate_final`) và `test_the_non_mutation_snapshot_would_actually_catch_a_write` — cố tình sửa một field sâu và khẳng định snapshot **phát hiện được**, để việc nó PASS có nghĩa. `test_order_builder_still_selects_the_first_line_untouched` giữ nguyên.
+(b) **Oracle non-mutation, sửa qua hai vòng review.**
+- *Review #1, Finding 6:* bản đầu snapshot **11 field liệt kê tay**. Nay `_snapshot()` duyệt `dataclasses.fields` **đệ quy** qua `WorkingLine` + `Order` + `RawRow` — không thể tụt lại sau model. `test_the_snapshot_actually_covers_every_frozen_field` (≥30 field).
+- *Review #2, Finding 4:* bản đó vẫn gọi `run_import()` — **đã chạy validation một lần rồi** — mới chụp ảnh "trước". Một mutation do lần chạy đó gây ra sẽ nằm sẵn ở **cả hai** phía và phép so luôn PASS: oracle vô hiệu. Nay `app/pipeline.py` tách `build_working_data()` (bước 1–10, **không** dựng queue); test chụp state **trước khi validation từng chạy**, gọi `build_queue()` **đúng một lần**, chụp lại, so.
+
+Falsification giữ nguyên và mở rộng: `test_the_non_mutation_snapshot_would_actually_catch_a_write` (sửa `conversion_rate_final` ở dòng sâu) và `test_the_oracle_catches_a_mutation_on_a_line_outside_any_order` (snapshot phủ cả `lines`, không chỉ `orders`). `test_build_working_data_really_stops_before_the_review_queue` chặn việc oracle âm thầm quay lại chụp state "sau".
 
 Executed By:
 Claude (S016)
@@ -458,9 +471,13 @@ Evidence Level:
 E1
 
 Evidence:
-`test_f2_reaches_the_production_review_queue` — nhân viên `active`, hiệu lực trong kỳ, không khớp dòng nào → mục F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`, không chỉ trong `tools/analysis/`.
+`test_f2_reaches_the_production_review_queue` — F2 do `Validator.build_queue()` sinh ra, tức trên luồng `run_import()`. Provenance: `test_f2_carries_batch_provenance_and_an_honest_zero_count` (`scope=batch`, `dataset_range`, `batch_rows`, `affected_count == 0` — con số thật).
 
-**Sửa Independent Review #1, Finding 1 — provenance.** `test_f2_carries_batch_provenance_and_an_honest_zero_count`: mục F2 mang `scope=batch`, `source_file`, `dataset_range` (`2026-01-05..2026-03-09`), `batch_rows`, và `affected_count == 0` — con số thật, vì F2 nghĩa là *không* khớp dòng nào; ghi 1 sẽ là bịa ra một dòng.
+**Review #2, Finding 2 — F6 nay chấm theo effective dating của TỪNG DÒNG.** Bản trước gộp theo `normalized` name rồi áp một boolean `active` cho mọi bản ghi cùng tên. Một bàn giao (DEC-121) cố ý dùng lại tên: bản ghi cũ đã đóng `effective_to`, bản ghi mới `active`. Hệ quả: bản ghi cũ **mượn giao dịch của bản ghi mới** và bắn F6 oan — đo được: production mapper trả `mapped` cho 2 dòng tháng 5, mà F6 vẫn kêu.
+
+Nay `evaluate_inactive_records()` phân giải **từng dòng theo ngày của chính nó** tới một **bản ghi config cụ thể** (`select_effective_record`, cùng semantics `EmployeeMapper.resolve`: lọc `effective_rows` theo ngày → khớp prefix → prefix dài nhất thắng), rồi gom theo bản ghi chứ không theo tên. F6 rời khỏi `evaluate_raw_mapping` nên hàm đó **trở lại đúng F1–F5 như bản đã ký ở CHECK-108A1-15**.
+
+Kiểm chứng: `test_a_closed_record_never_borrows_the_active_record_s_transactions` (dòng kỳ mới → mapper `mapped`, **0** F6), `test_rows_inside_the_inactive_record_s_own_window_do_raise_f6` (dòng kỳ cũ → `inactive`, 1 F6, `source_rows="6, 8"`, message nêu rõ cửa sổ `2026-01-01..2026-03-31`), `test_a_batch_spanning_both_windows_attributes_each_row_to_its_own_record` (cùng batch, 3 dòng, 2 cửa sổ → chỉ 2 dòng kỳ cũ được tính), `test_two_inactive_records_sharing_a_name_are_reported_separately`, `test_f6_record_selection_agrees_with_the_production_employee_mapper` (8 case đối chiếu trực tiếp với `EmployeeMapper` thật — bản đọc thứ hai của một rule chỉ an toàn khi có thứ chứng minh hai bên khớp), `test_f6_never_changes_mapping_status_or_group`.
 
 Executed By:
 Claude (S016)
@@ -481,11 +498,11 @@ E1
 Evidence:
 (a) `test_f4_reaches_the_production_review_queue`. (b) `test_f2_and_f4_never_raise_and_never_empty_the_queue_of_other_findings` — không raise.
 
-**Sửa Independent Review #1, Finding 1 — provenance.** `test_f4_names_the_rows_it_is_about`: mục F4 mang `scope=row`, `source_row=11` (dòng đầu của tên chưa map), `source_rows="11, 14"`, `raw_value`, và `affected_count == 2` — **số thật**, không phải placeholder 1. Tương tự cho F1 (`test_f1_points_at_the_rows_of_the_employee_whose_group_is_undeclared`) và F5 (`test_f5_is_batch_scoped_and_counts_every_orphaned_row`).
+**Provenance (Review #1, Finding 1):** `test_f4_names_the_rows_it_is_about` — `scope=row`, `source_row=11`, `source_rows="11, 14"`, `raw_value`, `affected_count == 2` **thật**. Tương tự F1 và F5.
 
-**HD-110-03 — tiêu chí F6:** `test_f6_reports_an_inactive_employee_that_still_has_rows` (WARNING, `source_rows="6, 8"`, `affected_count == 2`), `test_f6_stays_silent_for_an_active_employee`, `test_f6_and_f2_never_describe_the_same_employee_at_once` (F2-INFO và F6 là hai nửa bù nhau).
+**Review #2, Finding 1 — `employee_raw` rỗng không tham gia F4.** Dòng trống không có *danh tính* để master data thiếu; nó đã là `Missing.employee`. Trước khi sửa, nó rơi vào counter `unmapped` dưới khóa `""` và sinh ra một mục F4 **không có raw identity, không có dòng nguồn, scope=batch** — người duyệt không mở được gì. Kiểm chứng: `test_blank_employee_produces_only_missing_and_never_an_f4` (3 dạng rỗng: `None`, `""`, `"   "` → 0 mục F4, 3 mục `Missing.employee`), `test_a_real_unmapped_identity_still_raises_a_fully_traceable_f4` (**đúng 1** mục, không có bản sao từ khóa rỗng), `test_blank_rows_do_not_inflate_the_f4_threshold_either` (20 dòng rỗng vẫn 0 mục F4). `reconcile_conversion.py` không đổi: nó vốn bỏ qua dòng không có `NVBH` trước khi đếm.
 
-Bất biến chung: `test_every_employee_mapping_item_satisfies_the_reference_invariant`.
+**HD-110-03 — F6:** xem CHECK-110-12.
 
 Executed By:
 Claude (S016)
@@ -504,9 +521,9 @@ Evidence Level:
 E1
 
 Evidence:
-`tests/test_reconcile_raw_criteria.py` và `tests/test_reconcile_raw_integration.py` **không sửa một dòng nào** (`git diff --stat HEAD` rỗng trên hai file) và **24/24 PASS**, cả sau vòng sửa Independent Review #1. `python3 tools/analysis/reconcile_conversion.py --help` exit 0.
+`tests/test_reconcile_raw_criteria.py` và `tests/test_reconcile_raw_integration.py` **không sửa một dòng nào** (`git diff --stat HEAD` rỗng trên hai file) và **24/24 PASS** sau cả hai vòng review. `python3 tools/analysis/reconcile_conversion.py --help` exit 0.
 
-`RawMappingVerdict` nay giữ `findings` có cấu trúc, nhưng vẫn phơi `hard_failures`/`warnings`/`info` dưới dạng **đúng các list chuỗi cũ, đúng thứ tự cũ** — script không thấy khác biệt nào. F6 mới thêm không thể bắn với master data lành mạnh, kiểm chứng bằng `test_f6_does_not_change_what_the_analysis_script_reports_for_healthy_data`.
+`RawMappingVerdict` giữ `findings` có cấu trúc nhưng vẫn phơi `hard_failures`/`warnings`/`info` dưới dạng **đúng các list chuỗi cũ, đúng thứ tự cũ**. **Sau Review #2, bảo đảm này còn mạnh hơn:** F6 đã rời khỏi `evaluate_raw_mapping` sang `evaluate_inactive_records`, nên hàm dùng chung với script trở lại **đúng bộ F1–F5** như bản ký ở CHECK-108A1-15 — script không thể sinh ra F6 kể cả trên master data mâu thuẫn.
 
 Executed By:
 Claude (S016)
@@ -525,7 +542,7 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/ -q` → **260 passed in 1.65s**. Baseline tại `c7a1b24` là 151 → **109 test mới, 0 regression**. Vòng Independent Review #1 thêm 53 test so với `e2c0c18` (207).
+`python3 -m pytest tests/ -q` → **271 passed**. Baseline tại `c7a1b24` là 151 → **120 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (`01ff25f`, sửa Review #1) → **271** (sửa Review #2).
 
 Executed By:
 Claude (S016)
@@ -664,8 +681,8 @@ Created:
 - `app/modules/validation/employee_mapping.py` — F1–F5 (dời từ `tools/analysis/`) + `collect_mapping_stats`
 - `app/modules/validation/validator.py` — orchestrator
 - `tests/test_validation_rules.py` (33 test)
-- `tests/test_validation_employee_mapping.py` (21 test)
-- `tests/test_validation_pipeline.py` (24 test)
+- `tests/test_validation_employee_mapping.py` (30 test)
+- `tests/test_validation_pipeline.py` (26 test)
 - `tests/test_validation_text.py` (31 test — falsification cho Findings 4/5)
 
 Modified:
@@ -776,3 +793,22 @@ Reviewer độc lập vẫn tìm ra 6 finding. Ba trong số đó cần chủ d�
 reviewer bác nếu thấy không nên") nhưng vẫn ship nó như một hành vi. Nêu ra
 một sai lệch không làm nó hết sai lệch — thứ phải làm là **hỏi trước**, đúng
 như đã làm với Finding 3 ở vòng này.
+
+### Review #2 — FAIL, 4 finding (2026-08-23, commit `01ff25f`)
+
+Bản nộp có 260/260 test nội bộ PASS. Reviewer độc lập vẫn tìm ra 4 finding,
+hai trong đó là lỗi thật trong chính các bản sửa của vòng #1. Không phát sinh
+Human Decision mới.
+
+| # | Finding | Đã sửa thế nào |
+|---|---|---|
+| 1 | **F4 nhận cả `employee_raw` rỗng.** Dòng trống rơi vào `unmapped[""]`; khi vượt ngưỡng nó sinh một mục F4 **không raw identity, không dòng nguồn, `scope=batch`** — đúng thứ Finding 1 vòng #1 định chặn, lọt qua ở một nhánh khác | Vòng F4 bỏ qua raw value rỗng. Dòng đó đã thuộc `Missing.employee`. Script phân tích không đổi: nó vốn bỏ qua dòng không có `NVBH` |
+| 2 | **F6 bỏ qua effective dating.** Gộp theo `normalized` name rồi áp một boolean `active` cho mọi bản ghi cùng tên → bản ghi cũ đã đóng **mượn giao dịch** của bản ghi active hiện tại và bắn F6 oan | `evaluate_inactive_records()` mới: phân giải từng dòng theo **ngày của chính nó** tới một **bản ghi cụ thể** (`select_effective_record`, cùng semantics `EmployeeMapper`), gom theo bản ghi. F6 rời `evaluate_raw_mapping` → hàm dùng chung với script trở lại đúng F1–F5 |
+| 3 | **Mô tả trạng thái hiện tại lỗi thời.** `PROJECT/PROJECT_PROGRESS.md` → "Trạng thái Task hiện tại" vẫn ghi `PLANNED`, "chờ chủ dự án freeze Completion Gate", "Chưa viết dòng code nào" — trong khi code đã xong và Gate đã freeze | Đồng bộ toàn bộ artifact current-state về `IMPLEMENTED — repair after Independent Review #2`, chưa merge, chưa DONE, CHECK-110-16 BLOCKED. Lịch sử **không** sửa; ba mục "Có gì mới" cũ của `PROJECT/LO_TRINH_DE_HIEU.md` chỉ được **gắn nhãn** là ghi chép đã bị thay thế |
+| 4 | **Oracle non-mutation vô hiệu.** Test gọi `run_import()` — đã chạy validation một lần — rồi mới chụp ảnh "trước". Mutation do lần chạy đó gây ra sẽ nằm ở **cả hai** phía, phép so luôn PASS | Tách `build_working_data()` (bước 1–10) khỏi `run_import()`. Test chụp state **trước khi validation từng chạy**, gọi `build_queue()` **đúng một lần**, chụp lại, so. Thêm `test_build_working_data_really_stops_before_the_review_queue` và một falsification trên `lines` ngoài `orders` |
+
+**Bài học.** Finding 1 và 4 đều là **bản sửa của vòng #1 chưa đi hết đường**:
+tôi chặn được nhánh chính của "mục không truy vết được" nhưng bỏ sót nhánh
+`raw_value` rỗng, và tôi viết một oracle phủ đủ field nhưng chụp sai thời
+điểm. Một bản sửa chỉ hoàn tất khi nó đúng ở **mọi** đường vào, và một phép
+kiểm chỉ có nghĩa khi nó **fail được** trong đúng kịch bản nó tồn tại để bắt.

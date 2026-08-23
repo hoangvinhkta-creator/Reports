@@ -22,6 +22,7 @@ from app.modules.validation.employee_mapping import (
     MappingFinding,
     MappingStats,
     collect_mapping_stats,
+    evaluate_inactive_records,
     evaluate_raw_mapping,
 )
 from app.modules.validation.models import (
@@ -219,9 +220,16 @@ class Validator:
             BUCKET_WARNING: entry.get("warning_severity", SEVERITY_WARNING),
             BUCKET_INFO: entry.get("info_severity", SEVERITY_INFO),
         }
+        # F6 is evaluated separately because it needs each row's own date and
+        # the production mapper's record-selection semantics — see
+        # `evaluate_inactive_records` (Review #2, Finding 2).
+        findings = [
+            *verdict.findings,
+            *evaluate_inactive_records(lines, self._employee_rows),
+        ]
         return [
             self._mapping_item(finding, severities[finding.bucket], stats)
-            for finding in verdict.findings
+            for finding in findings
         ]
 
     @staticmethod
@@ -248,10 +256,14 @@ class Validator:
         if finding.declared_group:
             details[DETAIL_DECLARED_GROUP] = finding.declared_group
 
-        rows: list[int] = []
-        if finding.raw_value:
+        # A finding that already knows its own rows wins: F6 is attributed to
+        # one config RECORD, and two records can share a `normalized` name, so
+        # looking rows up by name would hand one record the other's
+        # transactions (Review #2, Finding 2).
+        rows: list[int] = list(finding.source_rows)
+        if not rows and finding.raw_value:
             rows = stats.rows_by_raw_value.get(finding.raw_value, [])
-        elif finding.employee:
+        elif not rows and finding.employee:
             rows = stats.rows_by_employee.get(finding.employee, [])
 
         if rows:

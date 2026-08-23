@@ -19,10 +19,15 @@ from datetime import date
 from decimal import Decimal
 
 from app.modules.domain.models import MAPPING_STATUS_MAPPED
+from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.importing.normalizer import normalize_line
-from app.modules.validation.employee_mapping import collect_mapping_stats
+from app.modules.validation.employee_mapping import (
+    collect_mapping_stats,
+    select_effective_record,
+)
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
+    CATEGORY_MISSING,
     DETAIL_BATCH_ROWS,
     DETAIL_CRITERION,
     DETAIL_DATASET_RANGE,
@@ -426,3 +431,208 @@ def test_empty_batch_produces_no_mapping_noise():
     """F5 ("nothing mapped at all") on a file with no rows is noise, not a
     finding — and there would be no source_file to point at either."""
     assert queue_for([], [employee("Ly", "Vũ Hạnh Ly")]).items == []
+
+
+# ------------------- Review #2, Finding 1: blank identity never reaches F4
+
+def test_blank_employee_produces_only_missing_and_never_an_f4():
+    """A row with no `NVBH` has no IDENTITY for master data to be missing.
+
+    Before this fix it fell into the unmapped counter under the key `""`, and
+    once that key crossed the F4 threshold it produced a finding with no raw
+    identity, no source rows and batch scope — a queue line nobody could act
+    on. It is already reported as `Missing.employee`; F4 is for a real name
+    that master data does not know.
+    """
+    config = {
+        "categories": {
+            "employee_mapping": CONFIG["categories"]["employee_mapping"],
+            "missing": {"enabled": True, "fields": {"employee": SEVERITY_ERROR}},
+        }
+    }
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line(None, source_row=7),
+        unmapped_line("", source_row=8),
+        unmapped_line("   ", source_row=9),
+    ]
+
+    queue = Validator(
+        config, employee_rows=employees, employee_groups=GROUPS
+    ).build_queue(lines, [])
+
+    assert items_of(queue, criterion="F4") == []
+    assert sorted(i.source_row for i in queue.by_category(CATEGORY_MISSING)) == [7, 8, 9]
+
+
+def test_a_real_unmapped_identity_still_raises_a_fully_traceable_f4():
+    """The other half of Finding 1: excluding blanks must not weaken F4 for a
+    genuine raw identity."""
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [
+        mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6),
+        unmapped_line(None, source_row=7),
+        unmapped_line("Thảo Linh 0900000001", source_row=11),
+        unmapped_line("Thảo Linh 0900000001", source_row=14),
+    ]
+
+    found = items_of(queue_for(lines, employees), criterion="F4")
+
+    assert len(found) == 1, "one identity, one finding — no blank-keyed duplicate"
+    item = found[0]
+    assert item.source_file == "synthetic_raw_sample.xlsx"
+    assert item.details[DETAIL_SOURCE_ROWS] == "11, 14"
+    assert item.affected_count == 2
+    assert item.details[DETAIL_RAW_VALUE] == "Thảo Linh 0900000001"
+
+
+def test_blank_rows_do_not_inflate_the_f4_threshold_either():
+    """`smallest` comes from mapped employees, and blanks must not sneak into
+    the unmapped side and create a second, identity-less finding."""
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    lines = [mapped_line("Ly", "Vũ Hạnh Ly 0868345633", source_row=6)] + [
+        unmapped_line("", source_row=10 + i) for i in range(20)
+    ]
+
+    assert items_of(queue_for(lines, employees), criterion="F4") == []
+
+
+# ----------------- Review #2, Finding 2: F6 respects effective dating
+
+OLD_RECORD = {
+    "raw_prefix": "Vũ Hạnh Ly",
+    "normalized": "Ly",
+    "group": "STANDARD_SALES",
+    "active": False,
+    "effective_from": "2026-01-01",
+    "effective_to": "2026-03-31",
+}
+NEW_RECORD = {
+    "raw_prefix": "Vũ Hạnh Ly",
+    "normalized": "Ly",
+    "group": "STANDARD_SALES",
+    "active": True,
+    "effective_from": "2026-04-01",
+    "effective_to": None,
+}
+HANDOVER = [OLD_RECORD, NEW_RECORD]
+RAW_LY = "Vũ Hạnh Ly 0868345633"
+
+
+def resolved_lines(employee_rows, dated_rows):
+    """Lines mapped by the REAL production mapper, exactly as the pipeline
+    would leave them."""
+    mapper = EmployeeMapper(employee_rows)
+    lines = []
+    for source_row, when in dated_rows:
+        working = unmapped_line(RAW_LY, source_row=source_row, when=when)
+        result = mapper.resolve(working.employee_raw, working.date)
+        working.employee_normalized = result.normalized
+        working.employee_mapping_status = result.status
+        working.employee_group = result.group
+        lines.append(working)
+    return lines
+
+
+def test_a_closed_record_never_borrows_the_active_record_s_transactions():
+    """The defect Review #2 found: F6 aggregated by normalized name and then
+    applied one boolean `active` to every record sharing it. A handover
+    (DEC-121) deliberately reuses the name, so the closed historical record
+    raised a false F6 on the current record's sales."""
+    lines = resolved_lines(HANDOVER, [(6, date(2026, 5, 10)), (7, date(2026, 5, 11))])
+
+    assert {line.employee_mapping_status for line in lines} == {MAPPING_STATUS_MAPPED}
+    assert items_of(queue_for(lines, HANDOVER), criterion="F6") == []
+
+
+def test_rows_inside_the_inactive_record_s_own_window_do_raise_f6():
+    """The rule still has to work: a row that genuinely resolves to the closed
+    record, inside its own effective window, is contradictory master data."""
+    lines = resolved_lines(HANDOVER, [(6, date(2026, 2, 10)), (8, date(2026, 2, 11))])
+
+    assert {line.employee_mapping_status for line in lines} == {"inactive"}
+    found = items_of(queue_for(lines, HANDOVER), criterion="F6")
+
+    assert len(found) == 1
+    item = found[0]
+    assert item.scope == SCOPE_ROW
+    assert item.details[DETAIL_SOURCE_ROWS] == "6, 8"
+    assert item.affected_count == 2
+    assert "2026-01-01..2026-03-31" in item.message, "names WHICH record"
+
+
+def test_a_batch_spanning_both_windows_attributes_each_row_to_its_own_record():
+    """The strongest form of the rule: the same raw name, the same batch, two
+    dates, two records — only the rows inside the closed window count."""
+    lines = resolved_lines(
+        HANDOVER,
+        [(6, date(2026, 2, 10)), (7, date(2026, 5, 10)), (8, date(2026, 3, 31))],
+    )
+
+    found = items_of(queue_for(lines, HANDOVER), criterion="F6")
+
+    assert len(found) == 1
+    assert found[0].details[DETAIL_SOURCE_ROWS] == "6, 8"
+    assert found[0].affected_count == 2, "row 7 belongs to the active record"
+
+
+def test_two_inactive_records_sharing_a_name_are_reported_separately():
+    """Keying by record, not by name, means two closed periods do not merge
+    into one finding with a doubled count."""
+    first = dict(OLD_RECORD, effective_from="2026-01-01", effective_to="2026-01-31")
+    second = dict(OLD_RECORD, effective_from="2026-02-01", effective_to="2026-02-28")
+    rows = [first, second]
+
+    lines = resolved_lines(rows, [(6, date(2026, 1, 10)), (7, date(2026, 2, 10))])
+    found = items_of(queue_for(lines, rows), criterion="F6")
+
+    assert len(found) == 2
+    assert sorted(i.details[DETAIL_SOURCE_ROWS] for i in found) == ["6", "7"]
+    assert all(i.affected_count == 1 for i in found)
+
+
+def test_f6_record_selection_agrees_with_the_production_employee_mapper():
+    """`select_effective_record` is a second reading of a production rule, so
+    something has to prove the two agree rather than assume it."""
+    rows = HANDOVER + [employee("Kiên", "Đức Kiên")]
+    mapper = EmployeeMapper(rows)
+
+    cases = [
+        (RAW_LY, date(2026, 2, 10)),
+        (RAW_LY, date(2026, 3, 31)),
+        (RAW_LY, date(2026, 4, 1)),
+        (RAW_LY, date(2026, 5, 10)),
+        ("Đức Kiên - Tân Á 0867666533", date(2026, 5, 10)),
+        ("Người Lạ 0900000009", date(2026, 5, 10)),
+        ("", date(2026, 5, 10)),
+        (None, date(2026, 5, 10)),
+    ]
+
+    for raw_value, when in cases:
+        record = select_effective_record(rows, raw_value, when)
+        result = mapper.resolve(raw_value, when)
+
+        if record is None:
+            assert result.normalized is None, (raw_value, when)
+            continue
+        assert record["normalized"] == result.normalized, (raw_value, when)
+        expected_inactive = not record.get("active", True)
+        assert expected_inactive is (result.status == "inactive"), (raw_value, when)
+
+
+def test_f6_never_changes_mapping_status_or_group():
+    """Diagnostic only — no KPI or conversion behaviour moves because of it."""
+    lines = resolved_lines(HANDOVER, [(6, date(2026, 2, 10))])
+    before = [
+        (line.employee_normalized, line.employee_mapping_status, line.employee_group)
+        for line in lines
+    ]
+
+    queue_for(lines, HANDOVER)
+
+    after = [
+        (line.employee_normalized, line.employee_mapping_status, line.employee_group)
+        for line in lines
+    ]
+    assert after == before

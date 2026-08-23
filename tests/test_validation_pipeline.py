@@ -42,7 +42,7 @@ from app.modules.validation.models import (
     SEVERITY_INFO,
 )
 from app.modules.validation.validator import Validator
-from app.pipeline import run_import
+from app.pipeline import build_working_data, run_import
 from tests.factories import make_raw_row
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -179,14 +179,16 @@ def _freeze(value):
     return repr(value)
 
 
-def _snapshot(orders):
-    """EVERY field of every Order and WorkingLine, by introspection.
+def _snapshot(lines, orders):
+    """EVERY field of every WorkingLine and Order, by introspection.
 
     Independent Review #1, Finding 6: the previous version listed 11 fields by
     hand, so a field added later would silently escape the guarantee. Walking
     `dataclasses.fields` means the snapshot cannot drift behind the model.
+    `lines` is covered as well as `orders` so a write to a line the order
+    graph does not reach is still caught.
     """
-    return _freeze(list(orders))
+    return (_freeze(list(lines)), _freeze(list(orders)))
 
 
 def test_the_snapshot_actually_covers_every_frozen_field():
@@ -203,25 +205,65 @@ def test_building_the_queue_changes_nothing_about_the_data(synthetic_raw_path):
     """Validation reads. If it ever wrote, a conversion rate could move
     without a business decision behind it — DEC-128 §4 forbids exactly that.
 
-    The snapshot covers every field of every `Order` and `WorkingLine`,
-    including the nested immutable `RawRow` (Review #1, Finding 6).
+    **The snapshot is taken before validation has EVER run** (Independent
+    Review #2, Finding 4). The previous version called `run_import()`, which
+    builds the queue internally, and only then took the "before" picture — so
+    a mutation caused by that first pass would already be present on both
+    sides and the assertion would happily pass. `build_working_data()` stops
+    at step 10, so this really is the pre-validation state, and
+    `build_queue()` is then called exactly once.
     """
-    result = run_import(synthetic_raw_path)
-    lines = [line for order in result.orders for line in order.lines]
+    working = build_working_data(synthetic_raw_path)
 
-    before = _snapshot(result.orders)
-    Validator.from_config_dir(REPO_ROOT / "config").build_queue(lines, result.orders)
-    assert _snapshot(result.orders) == before
+    before = _snapshot(working.lines, working.orders)
+    Validator.from_config_dir(REPO_ROOT / "config").build_queue(
+        working.lines, working.orders
+    )
+    after = _snapshot(working.lines, working.orders)
+
+    assert after == before
 
 
 def test_the_non_mutation_snapshot_would_actually_catch_a_write(synthetic_raw_path):
-    """Falsification: prove the snapshot is sensitive, so its passing means
-    something. A hand-written mutation of one deep field must be detected."""
-    result = run_import(synthetic_raw_path)
-    before = _snapshot(result.orders)
+    """Falsification: prove the oracle is sensitive, so its passing means
+    something. Taken on the same pre-validation state, one deep field is
+    mutated by hand and the snapshot must notice."""
+    working = build_working_data(synthetic_raw_path)
+    before = _snapshot(working.lines, working.orders)
 
-    result.orders[0].lines[0].conversion_rate_final = Decimal("0.99")
-    assert _snapshot(result.orders) != before
+    working.orders[0].lines[0].conversion_rate_final = Decimal("0.99")
+
+    assert _snapshot(working.lines, working.orders) != before
+
+
+def test_the_oracle_catches_a_mutation_on_a_line_outside_any_order(
+    synthetic_raw_path,
+):
+    """The snapshot covers `lines` as well as `orders`, so a detector that
+    wrote to a line the order graph does not reach would still be caught."""
+    working = build_working_data(synthetic_raw_path)
+    before = _snapshot(working.lines, working.orders)
+
+    working.lines[-1].price_source = "Tampered"
+
+    assert _snapshot(working.lines, working.orders) != before
+
+
+def test_build_working_data_really_stops_before_the_review_queue(
+    synthetic_raw_path,
+):
+    """If `build_working_data` ever started running validation itself, the
+    oracle above would silently go back to snapshotting an 'after' state."""
+    working = build_working_data(synthetic_raw_path)
+
+    assert not hasattr(working, "review_queue")
+    assert working.lines and working.orders
+    # Steps 1–10 did run: conversion resolved, so the state is complete.
+    assert any(
+        line.conversion_scheme_final is not None
+        for order in working.orders
+        for line in order.lines
+    )
 
 
 def test_order_builder_still_selects_the_first_line_untouched(synthetic_raw_path):

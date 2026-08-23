@@ -28,9 +28,17 @@ Review #1, Finding 1).
         F2  a configured employee, active and effective in this dataset's
             range, that matched no row
         F4  an unmapped name carrying at least as many rows as the smallest
-            mapped employee
-        F6  an employee flagged `active: false` that nevertheless has rows in
-            this batch (HD-110-03)
+            mapped employee. A blank `NVBH` never counts: there is no identity
+            for master data to be missing, and that row is already reported as
+            `Missing.employee` (Review #2, Finding 1).
+
+    F6 is a warning too, but it does not live in `evaluate_raw_mapping`:
+        F6  a config RECORD flagged `active: false` that still owns rows inside
+            its own effective window (HD-110-03). It needs each row's date and
+            the production mapper's record-selection semantics, which the
+            analysis script never collects — see `evaluate_inactive_records`.
+            Keeping it out also means `evaluate_raw_mapping` still produces
+            exactly the F1–F5 output signed off in CHECK-108A1-15.
 
     Info: employees legitimately absent (not yet effective, no longer
     effective, or `active: false` with no rows). Reporting these silently as
@@ -39,11 +47,17 @@ Review #1, Finding 1).
 **F6 exists because of a gap Independent Review #1 exposed.** Removing
 `inactive` from the `Missing.employee` rule (Finding 3) would have left a
 salesperson marked as having left, yet still selling, with no signal anywhere
-— while their revenue kept flowing into their KPI. `active: false` alongside
-an open `effective_to` window is contradictory master data. F6 reports it and
+— while their revenue kept flowing into their KPI. `active: false` covering
+rows that actually happened is contradictory master data. F6 reports it and
 changes nothing else: no calculation moves, no KPI ownership moves. The
 project owner approved exactly this shape (HD-110-03) rather than letting the
 tool invent a rule of its own.
+
+Independent Review #2 then found F6 was aggregating by employee NAME. A closed
+historical record and a current active record share a name by design — that is
+how DEC-121 expresses a handover — so the closed one raised a false F6 on the
+active one's transactions. F6 now resolves each row to a specific record by
+that row's own date (`evaluate_inactive_records`).
 """
 
 from __future__ import annotations
@@ -53,7 +67,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
-from app.modules.config.loader import as_date
+from app.modules.config.loader import as_date, effective_rows
 from app.modules.domain.models import WorkingLine
 from app.modules.validation.text import normalize_text
 
@@ -87,6 +101,11 @@ class MappingFinding:
     raw_prefix: Optional[str] = None
     declared_group: Optional[str] = None
     affected_count: int = 0
+    # Rows this finding is about, when the finding itself knows them. F6 must
+    # carry its own: two config records can share a `normalized` name, so
+    # looking rows up by name would hand one record the other's transactions
+    # (Independent Review #2, Finding 2).
+    source_rows: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -204,25 +223,6 @@ def evaluate_raw_mapping(
         active = row.get("active", True)
 
         if name in mapped:
-            # HD-110-03. Reached only when master data contradicts itself:
-            # the row is effective for these dates yet flagged as having left.
-            if not active:
-                findings.append(
-                    MappingFinding(
-                        criterion="F6",
-                        bucket=BUCKET_WARNING,
-                        message=(
-                            f"F6 — {name!r} khai `active: false` nhưng vẫn có "
-                            f"{mapped[name]} dòng trong kỳ. Master data mâu "
-                            "thuẫn: nếu người này đã nghỉ thì `effective_to` "
-                            "phải đóng lại. Doanh số vẫn đang tính cho họ — "
-                            "cần người xem."
-                        ),
-                        employee=name,
-                        raw_prefix=row.get("raw_prefix"),
-                        affected_count=mapped[name],
-                    )
-                )
             continue
 
         starts, ends = _effective_window(row)
@@ -270,6 +270,14 @@ def evaluate_raw_mapping(
 
     smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
     for raw_value, count in unmapped.items():
+        # A blank/absent `NVBH` is not an unmapped IDENTITY — there is no name
+        # for master data to be missing. That row is already reported as
+        # `Missing.employee`, and letting it reach F4 produced a finding with
+        # no raw identity and no rows to point at (Review #2, Finding 1).
+        # `reconcile_conversion.py` never sees blanks either: it skips rows
+        # with no `NVBH` before counting, so this changes nothing there.
+        if not raw_value:
+            continue
         if count >= smallest:
             findings.append(
                 MappingFinding(
@@ -287,6 +295,104 @@ def evaluate_raw_mapping(
             )
 
     return RawMappingVerdict(findings)
+
+
+def select_effective_record(
+    employee_rows: list[dict], employee_raw: Optional[str], when: Optional[date]
+) -> Optional[dict]:
+    """The config record production resolves this raw value to **on this date**.
+
+    Mirrors `EmployeeMapper.resolve` exactly: filter the rows by their
+    effective window against THIS row's own date, prefix-match the raw value,
+    longest prefix wins. It reads the raw string unnormalized because the
+    production mapper does; matching production is the whole point, so this
+    must not quietly be stricter or looser than it.
+
+    The equivalence is asserted against the real `EmployeeMapper` in
+    `tests/test_validation_employee_mapping.py` rather than assumed — a second
+    implementation of a rule is only safe while something proves the two agree.
+    """
+    if not employee_raw:
+        return None
+    candidates = effective_rows(employee_rows, when) if when else employee_rows
+    matches = [
+        row
+        for row in candidates
+        if row.get("raw_prefix") and employee_raw.startswith(row["raw_prefix"])
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda row: len(row["raw_prefix"]))
+
+
+def _record_key(record: dict) -> tuple:
+    """Identity of one config RECORD, not of an employee name.
+
+    Two records can share a `normalized` name — that is exactly how a handover
+    is expressed (DEC-121): close the old row with `effective_to`, open a new
+    one with `effective_from`. Keying by name alone would merge them.
+    """
+    starts, ends = _effective_window(record)
+    return (
+        norm(record.get("normalized")),
+        record.get("raw_prefix"),
+        starts.isoformat(),
+        ends.isoformat(),
+    )
+
+
+def evaluate_inactive_records(
+    lines: list[WorkingLine], employee_rows: list[dict]
+) -> list[MappingFinding]:
+    """F6 — a record flagged `active: false` that still owns rows (HD-110-03).
+
+    Evaluated **per raw row, by that row's own date**, and attributed to the
+    specific config record production would have selected. Independent Review
+    #2, Finding 2: the first version aggregated by normalized name and then
+    applied one boolean `active` to every record sharing that name, so a
+    closed historical record borrowed the current record's transactions and
+    raised a false F6.
+
+    A record only appears here if rows genuinely resolved to *it*, inside
+    *its* effective window. Diagnostic only — no rate, no KPI ownership, and
+    no `employee_mapping_status` changes because of it.
+    """
+    buckets: dict[tuple, list[WorkingLine]] = {}
+    records: dict[tuple, dict] = {}
+
+    for line in lines:
+        record = select_effective_record(employee_rows, line.employee_raw, line.date)
+        if record is None or record.get("active", True):
+            continue
+        key = _record_key(record)
+        records.setdefault(key, record)
+        buckets.setdefault(key, []).append(line)
+
+    findings: list[MappingFinding] = []
+    for key in sorted(buckets):
+        record = records[key]
+        owned = buckets[key]
+        rows = sorted(line.raw.source_row for line in owned)
+        name, prefix, starts, ends = key
+        findings.append(
+            MappingFinding(
+                criterion="F6",
+                bucket=BUCKET_WARNING,
+                message=(
+                    f"F6 — bản ghi {name!r} (raw_prefix {prefix!r}, hiệu lực "
+                    f"{starts}..{ends}) khai `active: false` nhưng có "
+                    f"{len(owned)} dòng rơi đúng vào cửa sổ hiệu lực của nó. "
+                    "Master data mâu thuẫn: nếu người này đã nghỉ thì "
+                    "`effective_to` phải đóng trước các dòng đó. Doanh số vẫn "
+                    "đang tính cho họ — cần người xem."
+                ),
+                employee=name,
+                raw_prefix=prefix,
+                affected_count=len(owned),
+                source_rows=tuple(rows),
+            )
+        )
+    return findings
 
 
 @dataclass(frozen=True)
