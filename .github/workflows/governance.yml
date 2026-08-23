@@ -1,0 +1,99 @@
+name: governance
+
+# TASK-REM-T07 — Lớp thực thi CI cho các validator governance.
+# Xem docs/tasks/TASK-REM-T07-ci-enforcement.md để biết Completion Gate đầy đủ.
+#
+# Ràng buộc thiết kế then chốt: các validator được ĐỊNH VỊ BẰNG DISCOVERY
+# (find theo tên file dưới governance/scripts/governance/), KHÔNG hard-code
+# đường dẫn tuyệt đối nào khác ngoài chính thư mục đó. Nếu governance/ còn di
+# chuyển vị trí trong tương lai, chỉ cần cập nhật đường dẫn discovery ở MỘT
+# nơi (biến GOV_SCRIPTS_DIR bên dưới), không cần sửa từng bước riêng lẻ.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Discover validator scripts
+        id: discover
+        run: |
+          set -euo pipefail
+
+          # Tìm thư mục chứa các validator bằng discovery, không hard-code
+          # đường dẫn đầy đủ tới repo. Chỉ giả định TÊN thư mục cuối cùng
+          # (governance/scripts/governance) không đổi — nếu đổi, workflow
+          # sẽ fail rõ ràng ở bước này thay vì âm thầm không chạy gì.
+          GOV_SCRIPTS_DIR=$(find . -type d -path '*/governance/scripts/governance' | head -n1)
+
+          if [ -z "$GOV_SCRIPTS_DIR" ]; then
+            echo "::error::Không tìm thấy thư mục governance/scripts/governance nào trong repository. Workflow này phụ thuộc vào tên thư mục đó tồn tại ở đâu đó dưới repo root — nếu layout đã đổi, cập nhật bước discovery này."
+            exit 1
+          fi
+
+          echo "Tìm thấy thư mục validator tại: $GOV_SCRIPTS_DIR"
+          echo "gov_scripts_dir=$GOV_SCRIPTS_DIR" >> "$GITHUB_OUTPUT"
+
+          # Tập REQUIRED theo tên file — không phải đếm bừa số lượng file.
+          # Điều này chịu được việc có thêm validator mới xuất hiện (như
+          # validate_reference_integrity.py của REM-T03) mà không cần sửa
+          # workflow, đồng thời vẫn fail rõ ràng nếu một script REQUIRED nào
+          # biến mất.
+          REQUIRED_UNCONDITIONAL="validate_structure.py validate_project_state.py validate_task_completion.py validate_evidence.py validate_reference_integrity.py"
+          CONDITIONAL_SKIP="validate_refactor_preservation.py"
+
+          missing=""
+          for f in $REQUIRED_UNCONDITIONAL $CONDITIONAL_SKIP; do
+            if [ ! -f "$GOV_SCRIPTS_DIR/$f" ]; then
+              missing="$missing $f"
+            fi
+          done
+
+          if [ -n "$missing" ]; then
+            echo "::error::Thiếu validator script kỳ vọng trong $GOV_SCRIPTS_DIR:$missing"
+            exit 1
+          fi
+
+          echo "Toàn bộ validator kỳ vọng đều có mặt."
+
+          # Báo cáo tường minh nếu có script validate_*.py KHÔNG nằm trong
+          # tập kỳ vọng — không âm thầm bỏ qua, không âm thầm chạy nó.
+          for f in "$GOV_SCRIPTS_DIR"/validate_*.py; do
+            name=$(basename "$f")
+            known=false
+            for k in $REQUIRED_UNCONDITIONAL $CONDITIONAL_SKIP; do
+              [ "$name" = "$k" ] && known=true
+            done
+            if [ "$known" = false ]; then
+              echo "::notice::Tìm thấy validator '$name' không nằm trong tập REQUIRED/CONDITIONAL đã khai báo của workflow này. Không chạy tự động — cần cập nhật workflow một cách tường minh nếu muốn đưa vào CI."
+            fi
+          done
+
+      - name: Run required validators
+        run: |
+          set -euo pipefail
+          DIR="${{ steps.discover.outputs.gov_scripts_dir }}"
+
+          for script in validate_structure.py validate_project_state.py validate_task_completion.py validate_evidence.py validate_reference_integrity.py; do
+            echo "::group::python3 $DIR/$script"
+            python3 "$DIR/$script"
+            echo "::endgroup::"
+          done
+
+      - name: Report skip of validate_refactor_preservation.py
+        run: |
+          DIR="${{ steps.discover.outputs.gov_scripts_dir }}"
+          echo "::notice::Bỏ qua $DIR/validate_refactor_preservation.py trong lần chạy CI thông thường — script này cần một tham số vị trí (thư mục bản không-compact để so sánh) chỉ có ý nghĩa khi đang thực hiện một lần tái cấu trúc thư mục có bản đối chiếu cụ thể. Đây là một lần bỏ qua CÓ CHỦ ĐÍCH và được báo cáo tường minh — không phải một lần pass ẩn. Xem governance/scripts/governance/README.md."
