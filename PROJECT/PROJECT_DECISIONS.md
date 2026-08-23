@@ -1,9 +1,9 @@
-# PROJECT DECISIONS
+# QUYẾT ĐỊNH DỰ ÁN
 
-Use this file for tactical project decisions that are important across sessions
-but are not significant enough for a full ADR.
+Dùng file này cho các quyết định chiến thuật của dự án — quan trọng xuyên suốt
+nhiều session nhưng chưa đủ tầm để cần một ADR đầy đủ.
 
-## DEC-001
+## DEC-101
 
 Date:
 2026-08-22
@@ -12,22 +12,23 @@ Task:
 TASK-000
 
 Decision:
-Move `CLAUDE.md`, `PROJECT/`, `docs/` and `governance/` from
-`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/` to the repository
-root using `git mv`.
+Đưa `CLAUDE.md`, `PROJECT/`, `docs/` và `governance/` từ
+`AI_ENGINEERING_CONSTITUTION_TEMPLATE_V3_2_FINAL_COMPACT/` lên gốc repository
+bằng `git mv`.
 
 Reason:
-The V3.2 compact layout defines `CLAUDE.md` as the governance entry point at
-root and every governance path as `governance/...` relative to root. Nested one
-level deep, none of those canonical paths resolved.
+Bố cục compact V3.2 định nghĩa `CLAUDE.md` là điểm vào governance ở gốc, và
+mọi đường dẫn governance đều là `governance/...` tính từ gốc. Nằm sâu hơn một
+cấp, không đường dẫn canonical nào trong số đó phân giải được.
 
 Impact:
-74 file renames, no content change. All governance cross-references now resolve.
+74 file đổi tên, không đổi nội dung. Mọi cross-reference của governance giờ
+phân giải được.
 
 Can Revisit After:
-Never — this is the framework's own required layout.
+Không bao giờ — đây là bố cục bắt buộc của chính bộ khung.
 
-## DEC-002
+## DEC-102
 
 Date:
 2026-08-22
@@ -36,25 +37,25 @@ Task:
 TASK-001
 
 Decision:
-ADS lead source is identified by the keyword "ADS" appearing in the
-`Diễn giải` column, exactly as specification section 5 defines. Staff will
-begin typing "ADS" into that column from now on.
+Nguồn đơn ADS được nhận diện bằng từ khóa "ADS" xuất hiện trong cột
+`Diễn giải`, đúng như mục 5 đặc tả định nghĩa. Nhân viên sẽ bắt đầu gõ "ADS"
+vào cột đó từ nay.
 
 Reason:
-Owner's decision. The raw file has no separate `Ghi chú` column, so
-`Diễn giải` is the only note field available — which is the fallback the
-specification itself names in section 13.
+Quyết định của chủ dự án. File thô không có cột `Ghi chú` riêng, nên
+`Diễn giải` là trường ghi chú duy nhất có sẵn — đúng phương án dự phòng mà
+chính đặc tả nêu ở mục 13.
 
 Impact:
-Historical data for 01.2026 through 06.2026 contains zero ADS markers and will
-classify entirely as PERSONAL. Historical ADS orders must be corrected through
-manual override. The keyword list is configuration, not code, so adding a
-second marker later costs no development.
+Dữ liệu lịch sử từ 01.2026 đến 06.2026 không có dấu hiệu ADS nào và sẽ phân
+loại toàn bộ thành PERSONAL. Đơn ADS lịch sử phải sửa bằng override tay. Danh
+sách từ khóa là cấu hình, không phải code, nên thêm từ khóa thứ hai sau này
+không tốn công phát triển.
 
 Can Revisit After:
-The first month of data entered under the new convention.
+Tháng đầu tiên dữ liệu được nhập theo quy ước mới.
 
-## DEC-003
+## DEC-103
 
 Date:
 2026-08-22
@@ -63,24 +64,24 @@ Task:
 TASK-001
 
 Decision:
-Purchase price stays empty (Pending) on import. It is never inferred from the
-ERP profit column. A `PriceProvider` interface is defined now so an external
-price-list tool can fill it later; manual entry stays available on every line
-regardless of what the provider returns.
+Giá nhập giữ trống (Pending) khi import. Không bao giờ suy ra từ cột lợi
+nhuận của ERP. Một interface `PriceProvider` được định nghĩa ngay bây giờ để
+công cụ bảng giá bên ngoài điền vào sau; luôn nhập tay được ở mọi dòng bất kể
+provider trả về gì.
 
 Reason:
-Owner's decision. Specification section 10 is explicit: if there is no purchase
-price, mark it Missing/Pending and do not guess.
+Quyết định của chủ dự án. Mục 10 đặc tả nói rõ: nếu chưa có giá nhập, đánh dấu
+Missing/Pending và không suy đoán.
 
 Impact:
-KPI profit and converted revenue are incomplete until prices arrive. The tool
-must render Pending as Pending — a missing price must never be treated as zero,
-because zero silently produces a profit equal to the full sale price.
+Lợi nhuận KPI và doanh thu quy đổi chưa đầy đủ cho tới khi có giá. Công cụ
+phải hiển thị Pending là Pending — giá thiếu không bao giờ được coi là 0, vì
+0 sẽ âm thầm tạo ra lợi nhuận bằng đúng giá bán.
 
 Can Revisit After:
-The external price tool exists.
+Khi công cụ bảng giá bên ngoài tồn tại.
 
-## DEC-004
+## DEC-104
 
 Date:
 2026-08-22
@@ -89,25 +90,25 @@ Task:
 TASK-001
 
 Decision:
-Raw sales staff `Mr Quý`, `Mr Vinh` and `Đức Hiệp` map to a single normalized
-unit, `Nội thành`. `Gia dụng` is a product grouping inside `Nội thành`, not a
-separate salesperson. `Fanpage` is out of scope.
+Nhân viên bán hàng thô `Mr Quý`, `Mr Vinh` và `Đức Hiệp` map về một đơn vị
+chuẩn hóa duy nhất, `Nội thành`. `Gia dụng` là một nhóm sản phẩm nằm trong
+`Nội thành`, không phải một nhân viên riêng. `Fanpage` nằm ngoài phạm vi.
 
 Reason:
-Owner's decision, consistent with the sample report: those three names carry
-the highest raw line counts and never appear as employee sheets, while the
-`Nội thành` sheet's monthly sales are of the same order as their combined total.
+Quyết định của chủ dự án, khớp với báo cáo mẫu: ba tên này có số dòng thô cao
+nhất và chưa từng xuất hiện dưới dạng sheet nhân viên riêng, trong khi doanh
+số tháng của sheet `Nội thành` cùng bậc độ lớn với tổng của ba người cộng lại.
 
 Impact:
-Employee mapping is many-to-one and must live in configuration, with `active`
-and effective dates, so joiners and leavers never require a code change. Any
-raw NVBH value with no mapping goes to the review queue — never silently
-dropped, never silently invented.
+Employee mapping là nhiều-về-một và phải nằm trong cấu hình, có `active` và
+ngày hiệu lực, để nhân viên mới/nghỉ không bao giờ cần sửa code. Bất kỳ giá
+trị NVBH thô nào chưa có mapping đều vào review queue — không bao giờ âm thầm
+bỏ, không bao giờ âm thầm tự bịa.
 
 Can Revisit After:
-Anytime — this is configuration by construction.
+Bất cứ lúc nào — đây là cấu hình theo đúng thiết kế.
 
-## DEC-005
+## DEC-105
 
 Date:
 2026-08-22
@@ -116,23 +117,22 @@ Task:
 TASK-001
 
 Decision:
-The MVP is a multi-user web application with central persistence, not a local
-script or a single-session Streamlit app.
+MVP là một ứng dụng web nhiều người dùng có lưu trữ tập trung, không phải một
+script local hay một app Streamlit một-phiên.
 
 Reason:
-Owner's decision: used daily, by several people, viewing and editing together,
-"like a Google Sheet".
+Quyết định của chủ dự án: dùng hằng ngày, nhiều người, cùng xem và sửa,
+"vận hành như một Google Sheet".
 
 Impact:
-Authentication and roles become mandatory at Phase 2 rather than optional —
-the audit trail required by specification section 19 needs a real `ChangedBy`.
-Backup becomes mandatory once the database holds overrides that exist nowhere
-else.
+Authentication và phân quyền trở thành bắt buộc từ Phase 2 thay vì tùy chọn —
+audit trail theo yêu cầu mục 19 đặc tả cần một `ChangedBy` thật. Backup trở
+thành bắt buộc ngay khi database chứa override không tồn tại ở đâu khác.
 
 Can Revisit After:
 GATE-03.
 
-## DEC-006
+## DEC-106
 
 Date:
 2026-08-22
@@ -141,21 +141,22 @@ Task:
 TASK-001
 
 Decision:
-Money is stored canonically in whole VND as `Decimal`. Display unit is
-configuration, defaulting to thousands of VND to match the existing report.
+Tiền được lưu chuẩn dưới dạng VND nguyên kiểu `Decimal`. Đơn vị hiển thị là
+cấu hình, mặc định nghìn đồng để khớp báo cáo hiện có.
 
 Reason:
-The raw file uses full VND (8000000) and the report workbook uses thousands
-(11770). Mixing the two in storage is how a report ends up a thousand times
-wrong. Float is unacceptable for money that determines pay.
+File thô dùng VND đầy đủ (8000000) còn workbook báo cáo dùng nghìn đồng
+(11770). Trộn hai đơn vị này khi lưu trữ là cách một báo cáo sai lệch một
+nghìn lần. Float không chấp nhận được cho loại tiền quyết định lương.
 
 Impact:
-Every import and export crosses an explicit unit boundary that must be tested.
+Mọi lần import và export đều đi qua một ranh giới đơn vị rõ ràng, bắt buộc
+phải test.
 
 Can Revisit After:
-Never — this is a correctness constraint.
+Không bao giờ — đây là ràng buộc về tính đúng đắn.
 
-## DEC-007
+## DEC-107
 
 Date:
 2026-08-22
@@ -164,25 +165,25 @@ Task:
 TASK-002
 
 Decision:
-The six formula defects found in the sample workbook are documented and
-reported, but not reproduced. The tool computes the correct figure and, where
-the result differs from the sample report, states why.
+Sáu lỗi công thức tìm thấy trong workbook mẫu được ghi lại và báo cáo, nhưng
+không tái tạo. Công cụ tính ra con số đúng và, khi kết quả khác với báo cáo
+mẫu, nêu rõ vì sao.
 
 Reason:
-The tool's purpose is a correct report, not a faithful copy of a spreadsheet
-that miscounts. Silently reproducing a known defect would make the defect
-permanent and untraceable.
+Mục đích của công cụ là một báo cáo đúng, không phải một bản sao trung thành
+của một bảng tính đang đếm sai. Âm thầm tái tạo một lỗi đã biết sẽ làm lỗi đó
+tồn tại vĩnh viễn và không truy được.
 
 Impact:
-Product counts will not match the sample report exactly — the sample subtracts
-a percentage from a quantity and yields fractional products (387.6). Every such
-difference is listed in `docs/analysis/05_EXCEPTIONS.md` for owner review.
+Số SP sẽ không khớp chính xác với báo cáo mẫu — mẫu trừ một tỉ lệ phần trăm
+khỏi một số lượng, ra số SP lẻ (387,6). Mọi chênh lệch như vậy được liệt kê
+trong `docs/analysis/05_EXCEPTIONS.md` để chủ dự án xem lại.
 
 Can Revisit After:
-Owner review at GATE-00. If the owner wants bug-for-bug parity for a specific
-figure, that becomes a configuration flag, not a silent default.
+Chủ dự án xem lại ở GATE-00. Nếu chủ dự án muốn khớp y hệt lỗi cho một con số
+cụ thể, đó sẽ là một cờ cấu hình, không phải mặc định âm thầm.
 
-## DEC-008
+## DEC-108
 
 Date:
 2026-08-22
@@ -191,284 +192,340 @@ Task:
 TASK-001
 
 Decision:
-Real sample data stays out of version control (`.gitignore` excludes
-`data/samples/`). Tests run against anonymized fixtures derived from it.
+Dữ liệu mẫu thật không nằm trong version control (`.gitignore` loại trừ
+`data/samples/`). Test chạy trên fixture đã ẩn danh dựng từ dữ liệu đó.
 
 Reason:
-Both workbooks carry customer names, mobile numbers, delivery addresses and
-device serial numbers, plus employee salary figures. Once committed, that is
-permanent in git history.
+Cả hai workbook mang tên khách hàng, số điện thoại, địa chỉ giao hàng, số
+serial thiết bị, cộng thêm số liệu lương nhân viên. Một khi đã commit, nó tồn
+tại vĩnh viễn trong lịch sử git.
 
 Impact:
-Anyone cloning the repository must supply their own copy of the source
-workbooks. Test fixtures must be generated with personal fields replaced, and
-that generator is itself part of the deliverable.
+Ai clone repository cũng phải tự cung cấp bản sao workbook nguồn của họ.
+Fixture test phải được sinh ra với trường dữ liệu cá nhân đã thay thế, và bản
+thân trình sinh đó cũng là một phần sản phẩm bàn giao.
 
 Can Revisit After:
-Never while the files contain personal data.
+Không bao giờ, chừng nào các file còn chứa dữ liệu cá nhân.
 
-## DEC-009
+## DEC-109
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C1
+GATE-00 — trả lời câu hỏi mở C1
 
 Decision:
-Every order raised by `Tín Phát` converts at the ADS rate (7,5 %), whether or
-not the note contains "ADS". Implemented as `default_lead_source: TINPHAT_ADS`
-on that employee in `config/employees.yaml`, not as a hard-coded rate.
+Mọi đơn do `Tín Phát` lên đều quy đổi ở tỉ lệ ADS (7,5%), bất kể ghi chú có
+chứa "ADS" hay không. Cài đặt bằng `default_lead_source: TINPHAT_ADS` cho
+nhân viên đó trong `config/employees.yaml`, không phải một tỉ lệ hard-code.
 
 Reason:
-Owner's decision. `Tín Phát` is the company's own site/ads account — every lead
-it handles is company-generated by definition, so there is nothing for a
-salesperson to mark. This also matches the sample workbook, where `Tín Phát`
-has always converted at 7,5 % with no split formula.
+Quyết định của chủ dự án. `Tín Phát` là tài khoản site/ads của chính công ty —
+mọi lead nó xử lý đều do công ty tạo ra theo định nghĩa, nên không có gì để
+nhân viên đánh dấu. Điều này cũng khớp với workbook mẫu, nơi `Tín Phát` luôn
+quy đổi ở 7,5% mà không có công thức tách bucket.
 
 Impact:
-The employee default sits **below** the ADS keyword rule and **above** the
-global default in the priority chain, so it can only raise an order to ADS and
-never demote one the keyword matched. Manual override still wins over both.
+Mặc định cấp nhân viên nằm **dưới** rule từ khóa ADS và **trên** mặc định
+toàn hệ thống trong chuỗi ưu tiên, nên nó chỉ có thể nâng một đơn lên ADS,
+không bao giờ hạ một đơn mà từ khóa đã bắt được. Override tay vẫn thắng cả
+hai.
 
-`Tín Phát` will show as 100 % ADS in the Personal/ADS split — which is the
-accurate picture, not a distortion. Historical figures for `Tín Phát` need no
-migration: they were already 7,5 %.
+`Tín Phát` sẽ hiện 100% ADS trong phần tách Personal/ADS — đây là bức tranh
+chính xác, không phải sự bóp méo. Số liệu lịch sử của `Tín Phát` không cần di
+trú: chúng vốn đã là 7,5%.
 
-Nothing about this is specific to `Tín Phát` in code. Any employee or channel
-can be given a default source in configuration.
+Không có gì trong code gắn riêng với `Tín Phát`. Bất kỳ nhân viên hay kênh nào
+cũng đặt được nguồn mặc định trong cấu hình.
 
 Can Revisit After:
-Anytime — it is one line of configuration.
+Bất cứ lúc nào — đây chỉ là một dòng cấu hình.
 
-## DEC-010
+## DEC-110
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C5
+GATE-00 — trả lời câu hỏi mở C5
 
 Decision:
-Non-product lines that carry money — `Chi phí vận chuyển`, `Chi phí lắp đặt`,
-`Chênh VAT`, `Chi phí giao hộ`, `Phí đổi trả` — **do** count toward the
-salesperson's sales and profit. They do not count as products and do not create
-a separate order. Every such line is surfaced for manual review, where the
-reviewer either keeps it or removes it from the report.
+Các dòng không phải sản phẩm nhưng có giá trị tiền — `Chi phí vận chuyển`,
+`Chi phí lắp đặt`, `Chênh VAT`, `Chi phí giao hộ`, `Phí đổi trả` — **có** tính
+vào doanh số và lợi nhuận của nhân viên. Chúng không tính là sản phẩm và
+không tạo đơn riêng. Mỗi dòng như vậy được đưa ra để duyệt tay, nơi người
+duyệt giữ lại hoặc loại khỏi báo cáo.
 
 Reason:
-Owner's decision: *"tất cả dòng phụ nếu có liên quan đến giá trị tiền hàng vẫn
-thêm vào doanh số từng nhân viên nhưng sẽ được duyệt thủ công bằng cách xoá
-dòng hoặc giữ lại dòng"*.
+Quyết định của chủ dự án: *"tất cả dòng phụ nếu có liên quan đến giá trị tiền
+hàng vẫn thêm vào doanh số từng nhân viên nhưng sẽ được duyệt thủ công bằng
+cách xoá dòng hoặc giữ lại dòng"*.
 
 Impact:
-"Removing a line" is a soft exclusion, never a delete: RAW is immutable per
-ADR-002. It sets `excluded_from_report` with a reason and an audit entry, and
-is reversible. Roughly 1.250 lines in the six-month sample fall into this
-category, so the review screen must handle them in bulk — line by line would
-be unusable.
+"Xoá dòng" là loại trừ mềm, không bao giờ là xoá thật: RAW bất biến theo
+ADR-102. Thao tác này đặt `excluded_from_report` kèm lý do và một bản ghi
+audit, và hoàn tác được. Khoảng 1.250 dòng trong mẫu 6 tháng rơi vào nhóm
+này, nên màn hình duyệt phải xử lý theo lô — duyệt từng dòng một sẽ không ai
+dùng nổi.
 
-Product count keeps the sample workbook's existing behaviour of excluding these
-lines. Not separately confirmed by the owner; flagged for GATE-01.
+Số SP giữ theo đúng cách hành xử hiện có của workbook mẫu là loại trừ các
+dòng này. Chưa được chủ dự án xác nhận riêng; đánh dấu cho GATE-01.
 
 Can Revisit After:
 GATE-01.
 
-## DEC-011
+## DEC-111
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C6
+GATE-00 — trả lời câu hỏi mở C6
 
 Decision:
-`Diễn giải` stays as the ERP writes it by default (`"Bán hàng " + Tên KH`).
-Staff edit it only when an order is ADS. The field is editable — confirmed by
-the owner — so the keyword rule is workable.
+`Diễn giải` giữ nguyên như ERP ghi mặc định (`"Bán hàng " + Tên KH`). Nhân
+viên chỉ sửa khi đơn là ADS. Trường này sửa được — đã được chủ dự án xác
+nhận — nên rule từ khóa khả thi.
 
 Reason:
-Owner's decision. This removes RISK-01's main unknown: whether the marker could
-be written at all.
+Quyết định của chủ dự án. Điều này loại bỏ ẩn số lớn nhất của RISK-01: liệu
+dấu hiệu có ghi được vào hay không.
 
 Impact:
-Most orders keep an auto-generated note, so an empty or template note is the
-normal case and must never be treated as suspicious. Only a note edited to
-contain the keyword changes anything.
+Hầu hết đơn giữ ghi chú tự sinh, nên một ghi chú rỗng hoặc theo mẫu là trường
+hợp bình thường và không bao giờ được coi là đáng ngờ. Chỉ một ghi chú được
+sửa để chứa từ khóa mới làm thay đổi điều gì đó.
 
-Because marking is an opt-in action a person must remember, a month with zero
-ADS orders stays a review-queue warning (RISK-01): with `Tín Phát` now defaulted
-to ADS by DEC-009, a zero count means no *other* salesperson marked anything,
-which is possible but worth seeing rather than assuming.
+Vì đánh dấu là một hành động tự nguyện mà con người phải nhớ làm, một tháng
+không có đơn ADS nào vẫn giữ nguyên là một cảnh báo trong review queue
+(RISK-01): với `Tín Phát` giờ đã mặc định ADS theo DEC-109, số 0 nghĩa là
+không *nhân viên nào khác* đánh dấu gì — điều này có thể xảy ra nhưng đáng để
+nhìn thấy hơn là mặc nhiên coi là đúng.
 
 Can Revisit After:
-The first month under the new convention.
+Tháng đầu tiên dưới quy ước mới.
 
-## DEC-012
+## DEC-112
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C7
+GATE-00 — trả lời câu hỏi mở C7
 
 Decision:
-Historical ADS profit for Hoàng and Kiên (01–08.2026) is entered as 14
-per-employee-per-month figures, flagged as migration data and clearly separated
-from figures the ADS rule produced. The values are the ones already recorded in
-`docs/analysis/04_HARDCODED_VALUES.md` §2 and `docs/analysis/06_ADS_RULE_VERIFICATION.md` §8.
+Lợi nhuận ADS lịch sử của Hoàng và Kiên (01–08.2026) được nhập dưới dạng 14
+số theo từng nhân viên-tháng, đánh dấu là dữ liệu di trú và tách bạch rõ ràng
+khỏi số do rule ADS sinh ra. Các giá trị này là những số đã ghi sẵn trong
+`docs/analysis/04_HARDCODED_VALUES.md` §2 và
+`docs/analysis/06_ADS_RULE_VERIFICATION.md` §8.
 
 Reason:
-Owner's decision. Per-order recovery is impossible — nothing in either workbook
-records which orders were ADS, and `3770+16190` in Hoàng's May formula shows the
-figures were summed by hand from a source outside the system. Entering the
-monthly totals costs 14 cells once and makes the tool's output match the
-existing report exactly, so nobody has to explain a 6.0% jump in two people's
-converted revenue.
+Quyết định của chủ dự án. Truy lại từng đơn là bất khả thi — không workbook
+nào ghi lại đơn nào từng là ADS, và `3770+16190` trong công thức tháng 5 của
+Hoàng cho thấy các số này được cộng tay từ một nguồn nằm ngoài hệ thống. Nhập
+tổng theo tháng chỉ tốn 14 ô một lần và làm đầu ra của công cụ khớp chính xác
+với báo cáo hiện có, để không ai phải giải thích một cú nhảy 6,0% trong doanh
+thu quy đổi của hai người.
 
 Impact:
-- `conversion_engine` needs a migration input path: a per-(employee, month)
-  ADS profit amount that bypasses order-level classification.
-- Migration figures must be visibly distinct from rule-derived ones in the UI
-  and in the export. They are an assertion about the past, not a computation,
-  and must never be mistaken for one.
-- The two paths must be mutually exclusive per employee-month. If a month has
-  both a migration figure and orders classified ADS by the rule, that is a
-  conflict for the review queue, not a sum.
-- A cut-over month must be recorded in configuration: migration applies before
-  it, the rule after it.
-- Reconciliation target: with the 14 values loaded, total converted revenue for
-  Hoàng and Kiên across 01–08.2026 must equal **13.883.242** thousand VND. This
-  becomes a REQUIRED check on TASK-108.
+- `conversion_engine` cần một đường nhập di trú: một số lợi nhuận ADS theo
+  cặp (nhân viên, tháng) bỏ qua phân loại ở cấp đơn.
+- Số di trú phải hiển thị khác biệt rõ ràng với số do rule sinh ra, cả trên
+  UI lẫn trong file xuất. Đó là một lời khẳng định về quá khứ, không phải một
+  phép tính, và không bao giờ được nhầm là một phép tính.
+- Hai đường này phải loại trừ nhau trong cùng một nhân viên-tháng. Nếu một
+  tháng vừa có số di trú vừa có đơn được rule phân loại ADS, đó là một xung
+  đột đưa vào review queue, không phải một phép cộng.
+- Tháng chuyển đổi (cut-over) phải được ghi trong cấu hình: trước tháng đó
+  dùng số di trú, từ tháng đó trở đi dùng rule.
+- Mốc đối chiếu: với 14 giá trị đã nạp, tổng doanh thu quy đổi của Hoàng và
+  Kiên trong 01–08.2026 phải bằng **13.883.242** nghìn đồng. Đây trở thành
+  một REQUIRED check ở TASK-108.
 
 Can Revisit After:
-Once the ADS convention has been running long enough that 2026 history stops
-mattering.
+Khi quy ước ADS đã chạy đủ lâu để lịch sử năm 2026 không còn quan trọng nữa.
 
-## DEC-013
+## DEC-113
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C8
+GATE-00 — trả lời câu hỏi mở C8
 
 Decision:
-Money-bearing non-product lines are excluded from the product count, confirming
-the assumption DEC-010 carried. `Tổng số SP` is kept as a Summary column to
-match the existing report, but it is demoted: no feature is built on it and it
-is not a reconciliation criterion at any gate.
+Dòng phụ có giá trị tiền bị loại khỏi số SP, xác nhận đúng giả định mà
+DEC-110 đã nêu. `Tổng số SP` vẫn giữ làm một cột Summary để khớp báo cáo hiện
+có, nhưng bị hạ ưu tiên: không tính năng nào xây dựa trên nó và nó không phải
+tiêu chí đối chiếu ở bất kỳ gate nào.
 
 Reason:
-Owner's decision — *"loại số SP ra. có vẻ dữ liệu này không cần thiết"*.
+Quyết định của chủ dự án — *"loại số SP ra. có vẻ dữ liệu này không cần
+thiết"*.
 
 Impact:
-Removes the sample workbook's fractional product counts (387,6 / 178,8 / 62,6),
-which came from subtracting a percentage from a quantity — see
-`docs/analysis/05_EXCEPTIONS.md` §A1. The tool's product count will be a whole
-number and slightly higher than the sample's.
+Xóa bỏ các số SP lẻ của workbook mẫu (387,6 / 178,8 / 62,6), vốn sinh ra từ
+việc trừ một tỉ lệ phần trăm khỏi một số lượng — xem
+`docs/analysis/05_EXCEPTIONS.md` §A1. Số SP của công cụ sẽ là số nguyên và
+cao hơn một chút so với mẫu.
 
-Because the metric is low value, that difference does not need explaining
-line by line at GATE-01. Every other reconciliation difference still does.
+Vì chỉ số này giá trị thấp, chênh lệch đó không cần giải thích từng dòng ở
+GATE-01. Mọi chênh lệch đối chiếu khác vẫn cần.
 
 Can Revisit After:
-Anytime — dropping the column later costs nothing.
+Bất cứ lúc nào — bỏ cột này sau cũng không tốn gì.
 
-## DEC-014
+## DEC-114
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C4
+GATE-00 — trả lời câu hỏi mở C4
 
 Decision:
-`Chiết khấu` is deducted from sales:
+`Chiết khấu` được trừ vào doanh số:
 
 ```
 TotalSales = SellPrice × Quantity − Discount
 ```
 
 Reason:
-Owner's decision. Verified against the raw file: in all 408 discounted rows
-`Doanh số bán` equals `Đơn giá × SL` exactly and never the discounted figure, so
-the ERP column is gross and the discount has not already been applied. Deducting
-it is a real correction, not a double count.
+Quyết định của chủ dự án. Đã kiểm chứng với file thô: ở cả 408 dòng có chiết
+khấu, `Doanh số bán` đúng bằng `Đơn giá × SL`, chưa từng trừ chiết khấu, nên
+cột của ERP là gross và chiết khấu chưa được áp dụng từ trước. Trừ nó là một
+phép sửa thật, không phải trừ hai lần.
 
 Impact:
-Six-month total: 36.750 thousand VND across 408 rows — 0,03 % of company sales.
-Concentrated on one person: Ly has 302 of the 408 rows and 26.300 thousand,
-0,39 % of her sales. Nobody else exceeds 0,07 %.
+Tổng 6 tháng: 36.750 nghìn đồng trên 408 dòng — 0,03% doanh số công ty. Dồn
+vào một người: Ly chiếm 302/408 dòng và 26.300 nghìn, 0,39% doanh số của cô
+ấy. Không ai khác vượt quá 0,07%.
 
-**Open assumption, flagged for GATE-01:** the discount is also deducted from
-profit by the same amount, so
+**Giả định còn mở, đánh dấu cho GATE-01:** chiết khấu cũng trừ vào lợi nhuận
+cùng số đó, tức là
 `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts + OtherKpiAdjustment`.
-The owner said "deduct from sales" and did not speak to profit. Reducing sales
-without reducing profit would report a margin higher than the business actually
-earned, which is the reading this project cannot take silently — a discount is
-money given away. Stated here rather than assumed.
+Chủ dự án nói "trừ vào doanh số" và chưa nói tới lợi nhuận. Giảm doanh số mà
+không giảm lợi nhuận sẽ báo cáo một tỉ suất lợi nhuận cao hơn thực tế công ty
+kiếm được — đây là cách hiểu mà dự án này không thể âm thầm chấp nhận, vì
+chiết khấu là tiền đã cho đi. Nêu rõ ở đây thay vì mặc định ngầm.
 
 Can Revisit After:
-GATE-01, on the profit half only.
+GATE-01, chỉ riêng phần lợi nhuận.
 
-## DEC-015
+## DEC-115
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C2
+GATE-00 — trả lời câu hỏi mở C2
 
 Decision:
-The `/2` in the Nội thành and Gia dụng sheets is explained: those sheets carry a
-per-day subtotal row **inside** the data region, so a plain `SUM` counts every
-figure twice. Halving the total is a correct workaround for that layout.
+Phép `/2` trong sheet Nội thành và Gia dụng đã được giải thích: các sheet này
+mang một dòng tổng phụ theo ngày nằm **bên trong** vùng dữ liệu, nên một
+`SUM` đơn thuần đếm mỗi con số hai lần. Chia đôi tổng là một cách xử lý đúng
+cho layout đó.
 
-The tool does not reproduce either the embedded subtotal rows or the halving.
-Data rows stay data; subtotals are computed separately and, in the export,
-emitted as Excel outline/group rows carrying an explicit `RowType` marker that
-keeps them outside every `SUM` range.
+Công cụ không tái tạo cả dòng tổng phụ nhúng lẫn phép chia đôi. Dòng dữ liệu
+chỉ là dữ liệu; tổng phụ được tính riêng và, khi xuất, phát ra dưới dạng dòng
+outline/group của Excel mang nhãn `RowType` rõ ràng, giữ chúng nằm ngoài mọi
+vùng `SUM`.
 
 Reason:
-Owner explained the cause and asked for a better representation:
+Chủ dự án giải thích nguyên nhân và yêu cầu một cách thể hiện tốt hơn:
 *"nếu có cách thể hiện khoa học hơn, hãy làm"*.
 
 Impact:
-- `docs/analysis/05_EXCEPTIONS.md` §A3 moves from "unexplained, needs investigation" to
-  "explained, deliberately not reproduced".
-- The halving was never wrong for the layout it lives in — but it is invisible.
-  Anyone adding a row in the wrong place, or reading the sheet without knowing,
-  gets a figure that is out by 2×. A `RowType` column makes the distinction
-  something you can see and filter rather than something you have to know.
-- Every total in the tool sums each figure exactly once, with no compensating
-  divisor anywhere in the codebase. A `/2` appearing in aggregation logic is to
-  be treated as a defect.
+- `docs/analysis/05_EXCEPTIONS.md` §A3 chuyển từ "chưa giải thích được, cần
+  điều tra" sang "đã giải thích, cố ý không tái tạo".
+- Phép chia đôi chưa bao giờ sai với layout nó đang sống trong đó — nhưng nó
+  vô hình. Ai thêm một dòng sai chỗ, hoặc đọc sheet mà không biết quy ước
+  này, sẽ nhận một con số lệch đúng 2 lần. Một cột `RowType` biến sự khác
+  biệt đó thành thứ nhìn thấy và lọc được, thay vì thứ phải ghi nhớ.
+- Mọi tổng trong công cụ cộng đúng một lần mỗi con số, không có phép chia bù
+  nào trong toàn bộ codebase. Một `/2` xuất hiện trong logic tổng hợp bị coi
+  là một lỗi.
 
 Can Revisit After:
-Never — a hidden compensating divisor is not a design this project adopts.
+Không bao giờ — một phép chia bù ẩn không phải thiết kế mà dự án này chấp
+nhận.
 
-## DEC-016
+## DEC-116
 
 Date:
 2026-08-22
 
 Task:
-GATE-00 — resolves open question C3
+GATE-00 — trả lời câu hỏi mở C3
 
 Decision:
-Commission is driven by target achievement — paid on reaching and exceeding KPI.
-Formalizing it is deferred to a later phase, as planned in TASK-403.
+Hoa hồng dựa trên mức đạt target — trả khi đạt và vượt KPI. Việc công thức
+hóa được dời sang một phase sau, đúng như kế hoạch ở TASK-403.
 
 Reason:
-Owner's decision. The observed rates (0,15 %–0,5 %, varying by person and month)
-do not derive from any single tiered rule, so the policy has to be stated in
-full before it can be encoded.
+Quyết định của chủ dự án. Các tỉ lệ quan sát được (0,15%–0,5%, thay đổi theo
+người và theo tháng) không suy ra được từ một rule bậc thang duy nhất, nên
+chính sách phải được phát biểu đầy đủ trước khi mã hóa.
 
 Impact:
-Phase 1 loads the observed per-employee-per-month rate table as data, exactly as
-it appears in the sample workbook. No tier logic is inferred or invented.
-Commission figures the tool produces before TASK-403 reproduce history; they do
-not predict what a new month should pay.
+Phase 1 nạp bảng tỉ lệ quan sát được theo từng nhân viên-tháng làm dữ liệu,
+đúng như nó xuất hiện trong workbook mẫu. Không suy đoán hay bịa ra logic bậc
+thang nào. Số hoa hồng công cụ tạo ra trước TASK-403 tái hiện lịch sử; chúng
+không dự đoán một tháng mới nên trả bao nhiêu.
 
 Can Revisit After:
-TASK-403, once the full policy is stated.
+TASK-403, khi chính sách đầy đủ đã được phát biểu.
+
+## DEC-117
+
+Date:
+2026-08-23
+
+Task:
+Merge PR#4 vào nhánh mặc định `claude/extract-upload-repo-gq2ws4`
+
+Decision:
+Renumber toàn bộ quyết định và ADR của dự án Tín Phát: DEC-001..016 →
+DEC-101..116 (file này), ADR-001..003 → ADR-101..103
+(`docs/adr/ADR-101-architecture-and-stack.md`,
+`docs/adr/ADR-102-three-layer-data-model-and-audit.md`,
+`docs/adr/ADR-103-currency-unit-standard.md`). Đồng thời khôi phục nguyên văn
+16 quyết định gốc của track audit (S001–S007) vào `docs/audit/DECISIONS.md`,
+không chỉnh sửa nội dung.
+
+Reason:
+Merge PR#4 hợp nhất nhánh dự án Tín Phát với nhánh audit bộ khung quản trị
+(S001–S007). Cả hai track tách nhau từ đúng commit đầu tiên của repository và
+độc lập đánh số quyết định từ DEC-001, cả hai đều dùng hết tới DEC-016 —
+trùng số hoàn toàn. Nghiêm trọng hơn: cả hai đều có một file `ADR-001` nằm
+cạnh nhau trong `docs/adr/`. Vì `PROJECT/PROJECT_DECISIONS.md` được giữ lại
+cho dự án Tín Phát (dự án đang hoạt động, theo yêu cầu ban đầu của chủ dự án),
+16 quyết định gốc của track audit sẽ biến mất khỏi file đó — nhưng 16 file
+khác (`docs/audit/`, `docs/sessions/`, `docs/tasks/TASK-REM-*.md`,
+`governance/scripts/governance/README.md`) vẫn trích dẫn DEC-001..016 của
+riêng track đó. Không renumber, mọi trích dẫn "DEC-005" trong các file đó sẽ
+âm thầm trỏ tới quyết định sai — một quyết định hoàn toàn khác của dự án Tín
+Phát.
+
+Impact:
+- Renumber áp dụng đúng lên các file của dự án Tín Phát: hai file
+  `PROJECT/*.md`, bảy tài liệu `docs/analysis/*.md`, ba file ADR (đổi tên file
+  bằng `git mv` kèm sửa heading bên trong). Không đụng tới bất kỳ file nào
+  thuộc track audit.
+- 16 quyết định gốc của track audit được chuyển nguyên văn — không diễn giải
+  lại — sang `docs/audit/DECISIONS.md`, giữ đúng số DEC-001..016 để mọi trích
+  dẫn hiện có vẫn còn ý nghĩa đúng.
+- Sửa một dòng tham chiếu duy nhất trong `governance/scripts/governance/README.md`
+  trỏ sang vị trí mới của DEC-012/DEC-013.
+- Đã chạy lại cả 5 validator của governance (`validate_structure.py`,
+  `validate_project_state.py`, `validate_task_completion.py`,
+  `validate_evidence.py`, `validate_reference_integrity.py`) và bộ test
+  `tools/analysis/verify_ads_rule.py` sau khi renumber — toàn bộ PASS.
+- Nội dung roadmap, business rule và quyết định nghiệp vụ của dự án Tín Phát
+  không đổi qua việc renumber này — chỉ có mã số thay đổi.
+
+Can Revisit After:
+Không cần — đây là một việc sửa một lần, không lặp lại.

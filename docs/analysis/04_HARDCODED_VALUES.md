@@ -135,7 +135,7 @@ Nhân viên kênh (Nội thành, Gia dụng) **không có** cột lương ở Su
 ## 7. Nhân viên — hiện đang hard-code ở tên sheet
 
 Bản thân tên sheet `MM.YYYY <Tên>` là hard-code: thêm một nhân viên nghĩa là
-tạo tay 12 sheet mới và sửa tay công thức Summary. Đây chính là thứ DEC-004
+tạo tay 12 sheet mới và sửa tay công thức Summary. Đây chính là thứ DEC-104
 loại bỏ — danh sách nhân viên trở thành `config/employees.yaml`, sheet sinh
 tự động khi export.
 

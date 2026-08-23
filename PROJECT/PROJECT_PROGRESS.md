@@ -1,19 +1,19 @@
-# PROJECT PROGRESS
+# TIẾN ĐỘ DỰ ÁN
 
-## Project Summary
+## Tóm tắt dự án
 
 Project:
-Tín Phát — Business Report Automation Tool
+Tín Phát — Công cụ tự động tạo Báo cáo Kinh doanh
 
 Objective:
-Replace the manual monthly assembly of `Báo cáo Kinh doanh 2026.xlsx` with a
-tool that ingests the raw ERP sales book, classifies each order's lead source,
-computes accounting profit and KPI profit separately, converts revenue through
-two independent PERSONAL/ADS buckets, produces month and year summaries, and
-lets several people view and correct the data daily before exporting .xlsx.
+Thay thế việc lắp ráp thủ công hằng tháng file `Báo cáo Kinh doanh 2026.xlsx`
+bằng một công cụ nạp sổ bán hàng thô từ ERP, phân loại nguồn đơn của từng đơn
+hàng, tính lợi nhuận kế toán và lợi nhuận KPI tách riêng, quy đổi doanh thu qua
+hai bucket độc lập PERSONAL/ADS, tạo Summary tháng và năm, và cho nhiều người
+xem/sửa dữ liệu hằng ngày trước khi xuất `.xlsx`.
 
 Project Type:
-NEW (greenfield application, replacing a spreadsheet-based process)
+NEW (ứng dụng xây mới, thay thế một quy trình dựa trên bảng tính)
 
 Profile:
 PRODUCT
@@ -25,104 +25,104 @@ Overall Status:
 IN_PROGRESS
 
 Current Phase:
-PHASE-00 — Governance bootstrap and source analysis
+PHASE-00 — Bootstrap governance và phân tích nguồn
 
 Current Task:
-GATE-00 — awaiting owner approval of `docs/analysis/`
+GATE-00 — chờ chủ dự án duyệt `docs/analysis/`
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-101 — importer + normalizer (blocked by GATE-00)
+TASK-101 — importer + normalizer (đang bị GATE-00 chặn)
 
-## Overall Roadmap
+## Roadmap tổng thể
 
-- [x] PHASE-00 — Governance bootstrap and source analysis
-  - [x] TASK-000 — Promote governance package to repository root (MICRO)
-  - [x] TASK-001 — S000: profile selection and project state initialization (MAJOR)
-  - [x] TASK-002 — Source workbook analysis, 6 documents per spec section 27 (MAJOR)
-  - [x] TASK-003 — ADR-001/002/003 (MICRO)
-  - [ ] GATE-00 — Owner approves `docs/analysis/` before any application code
+- [x] PHASE-00 — Bootstrap governance và phân tích nguồn
+  - [x] TASK-000 — Đưa gói governance lên gốc repository (MICRO)
+  - [x] TASK-001 — S000: chọn profile và khởi tạo trạng thái dự án (MAJOR)
+  - [x] TASK-002 — Phân tích workbook nguồn, 6 tài liệu theo mục 27 đặc tả (MAJOR)
+  - [x] TASK-003 — ADR-101/102/103 (MICRO)
+  - [ ] GATE-00 — Chủ dự án duyệt `docs/analysis/` trước khi có dòng code ứng dụng nào
 
-- [ ] PHASE-01 — Calculation engine (pure Python, no UI, no database)
-  - [ ] TASK-101 — importer + normalizer. Implements the spec §22 import
-        workflow steps 1–7: read the .xlsx, report metadata (row count, date
-        range, total sales, order count, salesperson count) before committing,
-        normalize columns, apply employee mapping, group by OrderID, apply the
-        ADS rule at order level, propagate the lead source down to line items.
-        Deducts `Chiết khấu` from sales (DEC-014).
+- [ ] PHASE-01 — Engine tính toán (Python thuần, không UI, không database)
+  - [ ] TASK-101 — importer + normalizer. Thực hiện 7 bước đầu của import
+        workflow mục §22 đặc tả: đọc `.xlsx`, báo cáo metadata (số dòng,
+        khoảng ngày, tổng doanh số, số đơn, số NVBH) trước khi commit, chuẩn
+        hóa cột, áp employee mapping, nhóm theo OrderID, áp rule ADS ở cấp
+        đơn, propagate nguồn đơn xuống line item. Trừ `Chiết khấu` khỏi doanh
+        số (DEC-114).
   - [ ] TASK-102 — employee_mapper
   - [ ] TASK-103 — order_builder
-  - [ ] TASK-104 — lead_source_engine (ADS rule)
-  - [ ] TASK-105 — price_engine + PriceProvider interface. Spec §22 step 8:
-        look up a purchase price if a Price Master exists, otherwise Pending.
-  - [ ] TASK-106 — adjustment_engine. Spec §22 step 9.
-  - [ ] TASK-107 — profit_engine. Spec §22 step 11, profit half.
-  - [ ] TASK-108 — conversion_engine (PERSONAL/ADS buckets). Spec §22 steps
-        10 and 11: pick the scheme from the lead source and the period, then
-        convert each bucket independently.
-  - [ ] TASK-109 — summary_engine. Spec §15: month summary with Personal / ADS
-        / Total columns for Tổng đơn, Số SP, Doanh số, LN KPI, DS quy đổi,
-        DSQĐ/đơn, Lợi nhuận thực, % Target — **and the same per employee as
-        YTD**, so ability to self-sell can be told apart from ability to work
-        company-generated leads.
-  - [ ] TASK-110 — validation + Review Queue. Spec §18, five warning types:
-        `Missing` (date, OrderID, employee, quantity, sales, purchase price),
-        `Suspicious` (qty ≤ 0, sell price = 0, purchase > sell, negative
-        profit — 1,912 such rows in the sample), `Order inconsistency` (same
-        OrderID, different salesperson), `Source classification` (manual
-        override disagrees with the ADS rule), `Duplicate` (same
-        source_file + source_row). Import is never blocked as a whole.
-  - [ ] TASK-111 — excel_exporter. Spec §23, five sheet kinds: Summary;
-        Processed Data; per-employee `MM.YYYY Employee` sheets when enabled;
-        Config Snapshot (employee mapping, source rules, conversion rules,
-        adjustment rules, target); Audit/Overrides. Personal / ADS / Total
-        stays visible in both the detail sheets and the Summary. Subtotal rows
-        carry a `RowType` marker and sit outside every SUM range (DEC-015).
+  - [ ] TASK-104 — lead_source_engine (rule ADS)
+  - [ ] TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc
+        tả: tra giá nhập nếu có Price Master, chưa có thì Pending.
+  - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả.
+  - [ ] TASK-107 — profit_engine. Bước 11 của §22 đặc tả, phần lợi nhuận.
+  - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
+        của §22 đặc tả: chọn scheme theo nguồn đơn và thời gian, sau đó quy
+        đổi từng bucket độc lập.
+  - [ ] TASK-109 — summary_engine. Mục §15 đặc tả: Summary tháng có 3 cột
+        Personal / ADS / Total cho Tổng đơn, Số SP, Doanh số, LN KPI, DS quy
+        đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
+        nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
+        lead do công ty tạo ra.
+  - [ ] TASK-110 — validation + Review Queue. Mục §18 đặc tả, 5 loại cảnh báo:
+        `Missing` (thiếu ngày, OrderID, nhân viên, số lượng, doanh số, giá
+        nhập), `Suspicious` (SL ≤ 0, giá bán = 0, giá nhập > giá bán, lợi
+        nhuận âm — 1.912 dòng như vậy trong mẫu), `Order inconsistency` (cùng
+        OrderID, khác nhân viên), `Source classification` (override tay
+        không khớp rule ADS), `Duplicate` (cùng `source_file` +
+        `source_row`). Không bao giờ chặn toàn bộ import.
+  - [ ] TASK-111 — excel_exporter. Mục §23 đặc tả, 5 loại sheet: Summary;
+        Processed Data; sheet `MM.YYYY Employee` theo từng nhân viên khi bật
+        tùy chọn; Config Snapshot (employee mapping, source rules, conversion
+        rules, adjustment rules, target); Audit/Overrides. Personal / ADS /
+        Total luôn hiển thị ở cả sheet chi tiết lẫn Summary. Dòng tổng phụ
+        mang nhãn `RowType` và nằm ngoài mọi vùng SUM (DEC-115).
   - [ ] TASK-112 — CLI
-  - [ ] GATE-01 — Reconciliation against the real raw file; owner confirms C1
+  - [ ] GATE-01 — Đối chiếu với file thô thật; xác nhận mốc di trú DEC-112
 
-- [ ] PHASE-02 — Persistence and API
-  - [ ] TASK-201 — database schema + migrations
+- [ ] PHASE-02 — Lưu trữ và API
+  - [ ] TASK-201 — schema database + migration
   - [ ] TASK-202 — audit_service
   - [ ] TASK-203 — HTTP API
-  - [ ] TASK-204 — authentication and roles
-  - [ ] TASK-205 — incremental recalculation
+  - [ ] TASK-204 — authentication và phân quyền
+  - [ ] TASK-205 — recalculate tăng dần (incremental)
 
-- [ ] PHASE-03 — Web interface
-  - [ ] TASK-301 — upload and import preview
-  - [ ] TASK-302 — employee-month detail grid with inline editing
-  - [ ] TASK-303 — month summary and year dashboard. Spec §16: switch metric
-        between Orders / Sales / Converted Revenue / Accounting Profit / KPI
-        Profit / % Target; filter by lead source All / Personal / ADS; compare
-        salespeople on Personal and Ads converted revenue separately; monthly
-        trend per lead source; each person's ADS share of total converted
-        revenue.
-  - [ ] TASK-304 — configuration screens
-  - [ ] TASK-305 — review queue and audit screens
-  - [ ] TASK-306 — Excel export
-  - [ ] GATE-03 — MVP acceptance, spec section 28, all 14 criteria
+- [ ] PHASE-03 — Giao diện Web
+  - [ ] TASK-301 — upload và xem trước khi import
+  - [ ] TASK-302 — lưới chi tiết nhân viên theo tháng, sửa inline
+  - [ ] TASK-303 — Summary tháng và dashboard năm. Mục §16 đặc tả: chuyển đổi
+        metric giữa Orders / Sales / Converted Revenue / Accounting Profit /
+        KPI Profit / % Target; lọc theo nguồn đơn All / Personal / ADS; so
+        sánh nhân viên theo doanh thu quy đổi Personal và Ads riêng biệt;
+        trend theo tháng cho từng nguồn đơn; tỉ trọng ADS trên tổng doanh thu
+        quy đổi của mỗi người.
+  - [ ] TASK-304 — màn hình cấu hình
+  - [ ] TASK-305 — màn hình review queue và audit
+  - [ ] TASK-306 — xuất Excel
+  - [ ] GATE-03 — Nghiệm thu MVP, mục 28 đặc tả, đủ 14 tiêu chí
 
-- [ ] PHASE-04 — Completion
-  - [ ] TASK-401 — PriceMasterProvider integration. Spec §20 schema:
+- [ ] PHASE-04 — Hoàn thiện
+  - [ ] TASK-401 — tích hợp PriceMasterProvider. Schema mục §20 đặc tả:
         ProductCode, ProductName, Supplier, EffectiveFrom, EffectiveTo,
-        PurchasePrice, Source, UpdatedAt. Lookup by ProductCode + SaleDate; the
-        looked-up price is a *suggested* value and stays overridable.
+        PurchasePrice, Source, UpdatedAt. Tra theo ProductCode + SaleDate;
+        giá tra được chỉ là giá trị *đề xuất*, luôn override được.
   - [ ] TASK-402 — product_mapper
-  - [ ] TASK-403 — target and commission formalization
-  - [ ] TASK-404 — channel sheets and split conversion. Spec §12: Split
-        Conversion is supported as an exception only — the normal workflow
-        stays one OrderID → one LeadSource → one ConversionScheme.
+  - [ ] TASK-403 — công thức hóa target và hoa hồng
+  - [ ] TASK-404 — sheet kênh và Split Conversion. Mục §12 đặc tả: Split
+        Conversion chỉ hỗ trợ như một ngoại lệ — workflow thông thường vẫn là
+        một OrderID → một LeadSource → một ConversionScheme.
 
-## Specification Coverage
+## Độ phủ đặc tả
 
-All 31 sections of `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` are traced
-to an artifact and a task in `docs/analysis/07_SPEC_COVERAGE.md`. Nothing is
-unassigned. Sections 27, 29 and 31 are complete; the rest are analysed or
-recorded and await Phase 1.
+Toàn bộ 31 mục của `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` đã được
+truy vết tới một artifact và một task trong `docs/analysis/07_SPEC_COVERAGE.md`.
+Không mục nào chưa được giao. Mục 27, 29 và 31 đã hoàn thành; các mục còn lại
+đã phân tích hoặc ghi nhận, chờ Phase 1.
 
-## Preliminary Dependency Graph
+## Sơ đồ phụ thuộc sơ bộ
 
 ```
 TASK-000 → TASK-001 → TASK-002 → TASK-003 → GATE-00
@@ -135,10 +135,10 @@ GATE-01  → TASK-201 → TASK-202 → TASK-203 → TASK-204 → TASK-205
 TASK-205 → TASK-301 … TASK-306 → GATE-03 → PHASE-04
 ```
 
-Parallel-safe: TASK-105 may proceed alongside TASK-103/TASK-104; TASK-110 may
-proceed alongside TASK-108/TASK-109.
+Làm song song được: TASK-105 có thể chạy cùng lúc với TASK-103/TASK-104;
+TASK-110 có thể chạy cùng lúc với TASK-108/TASK-109.
 
-## Preliminary Scoring
+## Chấm điểm sơ bộ
 
 | Task | Difficulty | Risk | Blast Radius | Mode | Primary Tier | Escalation |
 |---|---|---|---|---|---|---|
@@ -165,56 +165,56 @@ proceed alongside TASK-108/TASK-109.
 | TASK-205 | 4 | 4 | 4 | MAJOR | C | — |
 | TASK-301…306 | 3 | 2 | 3 | MAJOR | B | C |
 
-Risk 4–5 concentrates on TASK-104, TASK-106, TASK-108, TASK-201, TASK-204 and
-TASK-205 — the tasks where a silent error becomes a wrong number on someone's
-pay, or a leak of customer personal data. These carry E1 mandatory and E2
-recommended per the profile's evidence rule.
+Risk 4–5 tập trung ở TASK-104, TASK-106, TASK-108, TASK-201, TASK-204 và
+TASK-205 — những task mà một lỗi âm thầm trở thành một con số sai trên lương
+của ai đó, hoặc rò rỉ dữ liệu cá nhân khách hàng. Các task này bắt buộc E1 và
+khuyến nghị E2 theo quy tắc bằng chứng của profile.
 
-## Preliminary Completion Gates
+## Completion Gate sơ bộ
 
-Finalized and frozen per task before it becomes READY. Preliminary REQUIRED
-checks recorded now:
+Được chốt và đóng băng cho từng task trước khi task đó READY. Các REQUIRED
+check sơ bộ ghi nhận ngay bây giờ:
 
-- PHASE-01 overall: distinct order count for Tín Phát must equal 254 for
-  01.2026 and 146 for 06.2026 against the real raw file (E1). Every remaining
-  difference against the sample report must be explained in writing, not
-  averaged away.
-- TASK-108: with the DEC-012 migration figures loaded, total converted revenue
-  for Hoàng and Kiên across 01–08.2026 must equal 13,883,242 thousand VND (E1).
-- TASK-108: migration figures and rule-classified ADS orders must be mutually
-  exclusive per employee-month; an overlap raises a review-queue conflict rather
-  than summing (E1).
-- TASK-109/111: no compensating divisor anywhere in aggregation. Every figure is
-  summed exactly once; subtotal rows carry a `RowType` marker and sit outside
-  every SUM range (DEC-015). A `/2` in aggregation logic is a defect
-  (E1, grep-verifiable).
-- TASK-101: `Chiết khấu` deducted from sales on all 408 affected rows; six-month
-  total 36,750 thousand VND, of which 26,300 is Ly's (E1).
-- TASK-104: all 8 ADS test cases from spec section 29 PASS (E1).
+- Toàn bộ PHASE-01: số đơn duy nhất của Tín Phát phải bằng 254 cho 01.2026 và
+  146 cho 06.2026 đối chiếu với file thô thật (E1). Mọi chênh lệch còn lại so
+  với báo cáo mẫu phải được giải thích bằng văn bản, không được làm tròn cho
+  khớp.
+- TASK-108: sau khi nạp số di trú của DEC-112, tổng doanh thu quy đổi của
+  Hoàng và Kiên trong 01–08.2026 phải bằng 13.883.242 nghìn đồng (E1).
+- TASK-108: số di trú và đơn được rule phân loại ADS phải loại trừ nhau trong
+  cùng một nhân viên-tháng; nếu chồng nhau phải đưa vào review queue, không
+  được cộng dồn (E1).
+- TASK-109/111: không có phép chia bù nào trong logic tổng hợp. Mọi con số
+  cộng đúng một lần; dòng tổng phụ mang nhãn `RowType` và nằm ngoài mọi vùng
+  SUM (DEC-115). Một phép `/2` trong logic tổng hợp là một lỗi
+  (E1, kiểm chứng được bằng grep).
+- TASK-101: `Chiết khấu` bị trừ khỏi doanh số ở toàn bộ 408 dòng bị ảnh hưởng;
+  tổng 6 tháng là 36.750 nghìn đồng, trong đó 26.300 là của Ly (E1).
+- TASK-104: cả 8 test case ADS ở mục 29 đặc tả đều PASS (E1).
 - TASK-108: `TotalConvertedRevenue == PersonalConvertedRevenue + AdsConvertedRevenue`
-  holds for every employee-month, and no code path divides a combined profit by
-  a single rate (E1).
-- TASK-201/204: no customer personal data in application logs; role checks
-  enforced server-side (E1, seek E2).
-- Every phase: no employee name, conversion rate, target, adjustment amount or
-  ADS keyword appears as a literal in application source (E1, grep-verifiable).
+  đúng cho mọi nhân viên-tháng, và không có đường code nào chia một lợi nhuận
+  gộp cho một tỉ lệ duy nhất (E1).
+- TASK-201/204: không có dữ liệu cá nhân khách hàng trong log ứng dụng; kiểm
+  tra vai trò thực hiện ở phía server (E1, hướng tới E2).
+- Mọi phase: không tên nhân viên, tỉ lệ quy đổi, target, số tiền adjustment
+  hay từ khóa ADS nào xuất hiện dưới dạng literal trong mã nguồn ứng dụng
+  (E1, kiểm chứng được bằng grep).
 
-## Current Task Snapshot
+## Trạng thái Task hiện tại
 
 Task:
-GATE-00 — owner approval of the source analysis
+GATE-00 — chủ dự án duyệt phần phân tích nguồn
 
 Task Mode:
 MAJOR
 
 Status:
-VERIFYING — waiting on owner approval of `docs/analysis/`
+VERIFYING — chờ chủ dự án duyệt `docs/analysis/`
 
 Required Gate Progress:
-7 / 7 analysis documents written; 3 / 3 ADRs written; 31 / 31 spec sections
-traced; 16 / 16 decisions
-recorded; 8 / 8 blocking questions answered (C1–C8); 1 stated assumption
-carried (C4b); 0 / 1 approvals
+7/7 tài liệu phân tích đã viết; 3/3 ADR đã viết; 31/31 mục đặc tả đã truy vết;
+16/16 quyết định đã ghi nhận; 8/8 câu hỏi chặn đã trả lời (C1–C8); 1 giả định
+đã nêu rõ còn treo (C4b); 0/1 lượt duyệt.
 
 Primary Agent Tier:
 C
@@ -222,44 +222,43 @@ C
 Escalation Tier:
 —
 
-### What GATE-00 is waiting for
+### GATE-00 đang chờ điều gì
 
-One thing only: the owner reads `docs/analysis/` and confirms the mapping and
-the business rules are right. Phase 1 starts on that approval.
+Đúng một việc: chủ dự án đọc `docs/analysis/` và xác nhận mapping cùng
+business rule là đúng. Phase 1 bắt đầu ngay khi có xác nhận đó.
 
+### Đã trả lời ngày 2026-08-22
 
-### Answered 2026-08-22
-
-| # | Question | Answer |
+| # | Câu hỏi | Trả lời |
 |---|---|---|
-| C1 | Should Tín Phát default to `TINPHAT_ADS`? | **Yes** — every Tín Phát order converts at 7.5% regardless of the note. DEC-009. Its historical figures now need no migration. |
-| C5 | Which line types count toward products, sales, profit, order count? | Money-bearing non-product lines **do** count toward sales and profit, not toward product count, and every one goes to a manual review queue where it is kept or excluded. DEC-010. |
-| C6 | Can staff edit `Diễn giải`? | **Yes.** ERP default stays; staff edit only for ADS orders. DEC-011. |
-| C7 | Historical ADS profit for Hoàng and Kiên? | **Enter the 14 monthly figures as migration data.** DEC-012. Per-order recovery is impossible — nothing records which orders were ADS. |
-| C8 | Does product count exclude money-bearing non-product lines? | **Yes**, and the metric itself is low value — kept as a column, dropped as a gate criterion. DEC-013. |
-| C4 | Where does `Chiết khấu` go? | **Deducted from sales.** DEC-014. Verified the ERP figure is gross, so this is a real correction, not a double count. |
-| C2 | Why the `/2` on channel sheets? | **Per-day subtotal rows sit inside the data region**, so a plain SUM double-counts. Explained, not reproduced — subtotals move outside the SUM range behind a `RowType` marker. DEC-015. |
-| C3 | Commission rule? | **Target-achievement based**; formalized in TASK-403 as planned. Phase 1 loads the observed rate table as data. DEC-016. |
+| C1 | Tín Phát có nên mặc định `TINPHAT_ADS` không? | **Có** — mọi đơn của Tín Phát quy đổi 7,5% bất kể ghi chú. DEC-109. Số liệu lịch sử của Tín Phát giờ không cần di trú gì cả. |
+| C5 | Loại dòng nào tính vào số SP, doanh số, lợi nhuận, số đơn? | Dòng phụ có giá trị tiền **có** tính vào doanh số và lợi nhuận, không tính vào số SP, và mỗi dòng đều vào hàng đợi duyệt tay để giữ lại hoặc loại trừ. DEC-110. |
+| C6 | Nhân viên có sửa được `Diễn giải` không? | **Có.** Mặc định ERP giữ nguyên; nhân viên chỉ sửa khi là đơn ADS. DEC-111. |
+| C7 | Lợi nhuận ADS lịch sử của Hoàng và Kiên xử lý thế nào? | **Nhập 14 số theo tháng làm dữ liệu di trú.** DEC-112. Truy lại từng đơn là bất khả thi — không có gì ghi lại đơn nào từng là ADS. |
+| C8 | Số SP có loại trừ dòng phụ có giá trị tiền không? | **Có**, và bản thân chỉ số này giá trị thấp — vẫn giữ làm cột nhưng bỏ khỏi tiêu chí gate. DEC-113. |
+| C4 | `Chiết khấu` trừ vào đâu? | **Trừ vào doanh số.** DEC-114. Đã xác minh số của ERP là gross, nên đây là một phép sửa thật, không phải trừ hai lần. |
+| C2 | Vì sao sheet kênh chia đôi? | **Có dòng tổng phụ theo ngày nằm trong vùng dữ liệu**, nên một phép SUM đơn thuần bị đếm hai lần. Đã giải thích, không tái tạo — dòng tổng phụ chuyển ra ngoài vùng SUM, đánh dấu bằng nhãn `RowType`. DEC-115. |
+| C3 | Rule hoa hồng? | **Dựa trên mức đạt target**; công thức hóa ở TASK-403 như kế hoạch. Phase 1 nạp bảng tỉ lệ quan sát được làm dữ liệu. DEC-116. |
 
-### Still open
+### Còn mở
 
-| # | Question | Default applied | Needed by |
+| # | Câu hỏi | Mặc định đang áp dụng | Cần trước |
 |---|---|---|---|
-| C4b | Does `Chiết khấu` also reduce profit by the same amount? The owner specified sales only. | Deducted from profit too. Reducing sales without reducing profit would report a margin the business did not earn — a discount is money given away. | GATE-01 |
+| C4b | `Chiết khấu` có trừ vào lợi nhuận cùng số đó không? Chủ dự án chỉ nói về doanh số. | Trừ vào cả lợi nhuận. Giảm doanh số mà không giảm lợi nhuận sẽ báo một tỉ suất lợi nhuận công ty không thực sự đạt được — chiết khấu là tiền đã cho đi. | GATE-01 |
 
-C4b is a stated assumption, not an unknown: the tool applies it, DEC-014 and
-`docs/analysis/03_RULE_CLASSIFICATION.md` record it, and reversing it is one config change.
-No question blocks GATE-00.
+C4b là một giả định đã nêu rõ, không phải một ẩn số: công cụ áp dụng nó,
+DEC-114 và `docs/analysis/03_RULE_CLASSIFICATION.md` ghi nhận nó, và đảo lại
+chỉ mất một thay đổi cấu hình. Không câu hỏi nào chặn GATE-00.
 
-Also flagged, not blocking: the monthly total in the sample Summary omits 60.0%
-of converted revenue (`05 §A2`), and Kiên carries the identical hand-typed ADS
-figure `7565` across three consecutive months (`05 §B2`). Neither is a question
-for the owner now — both are recorded so the tool's figures can be explained
-when they differ from the spreadsheet's.
+Cũng đã ghi nhận, không chặn: tổng tháng trong Summary mẫu bỏ sót 60,0% doanh
+thu quy đổi (`05 §A2`), và Kiên mang cùng một số ADS gõ tay `7565` suốt ba
+tháng liên tiếp (`05 §B2`). Cả hai không phải câu hỏi cần chủ dự án trả lời
+ngay — cả hai được ghi lại để giải thích được khi con số của công cụ khác với
+bảng tính.
 
-## Micro Tasks (Inline)
+## Micro Task (Inline)
 
-Canonical checklist:
+Checklist chuẩn:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
 ### MICRO-003 — Architecture Decision Records
@@ -270,12 +269,12 @@ Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
 Evidence Summary:
-E1 — `docs/adr/ADR-001-architecture-and-stack.md`,
-`docs/adr/ADR-002-three-layer-data-model-and-audit.md`,
-`docs/adr/ADR-003-currency-unit-standard.md` exist and follow `docs/adr/README.md`
-naming and section structure.
+E1 — `docs/adr/ADR-101-architecture-and-stack.md`,
+`docs/adr/ADR-102-three-layer-data-model-and-audit.md`,
+`docs/adr/ADR-103-currency-unit-standard.md` tồn tại và theo đúng cấu trúc
+đặt tên/section của `docs/adr/README.md`.
 
-### MICRO-000 — Promote governance package to repository root
+### MICRO-000 — Đưa gói governance lên gốc repository
 Status:
 DONE
 
@@ -283,65 +282,78 @@ Checklist Reference:
 `governance/templates/MICRO_TASK_CHECKLIST.md`
 
 Evidence Summary:
-E1 — `git mv` executed, `ls` confirms `CLAUDE.md`, `PROJECT/`, `docs/`,
-`governance/` at repository root; `git status` shows 74 pure renames with no
-content change. Commit `8f77e20`.
+E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
+`governance/` ở gốc repository; `git status` cho thấy 74 pure rename, không
+đổi nội dung. Commit `8f77e20`.
 
-## Active Blockers
-- None.
+## Blocker đang hoạt động
+- Không có.
 
-## Active Risks
+## Rủi ro đang hoạt động
 
-- **RISK-01 — The ADS keyword has no data to stand on.** The string "ADS"
-  occurs 0 times in the raw sales book and 0 times in the report workbook. The
-  keyword rule is built to specification, but it only starts matching once data
-  entry changes. DEC-009 covers the largest share — Tín Phát's 1,108 orders
-  (12.7%) classify as ADS from the employee default rather than the keyword —
-  so what remains unmarked is ADS work done by the other salespeople.
-  Mitigation: manual override at OrderID level with audit trail; the tool
-  reports how many orders matched the rule on each import so a month of silent
-  zeroes is visible rather than assumed correct.
+- **RISK-01 — Từ khóa ADS chưa có dữ liệu nào để đứng vững.** Chuỗi "ADS"
+  xuất hiện 0 lần trong sổ bán hàng thô và 0 lần trong workbook báo cáo. Rule
+  từ khóa được xây đúng đặc tả, nhưng chỉ bắt đầu khớp khi cách nhập liệu thay
+  đổi. DEC-109 xử lý phần lớn nhất — 1.108 đơn của Tín Phát (12,7%) được phân
+  loại ADS từ mặc định cấp nhân viên chứ không phải từ khóa — nên phần chưa
+  đánh dấu còn lại là công việc ADS của các nhân viên khác.
+  Giảm thiểu: override tay ở cấp OrderID có audit trail; công cụ báo cáo số
+  đơn khớp rule mỗi lần import, để một tháng toàn số 0 hiện ra rõ ràng thay vì
+  bị mặc nhiên coi là đúng.
 
-- **RISK-02 — RESOLVED 2026-08-22.** Tín Phát defaults to `TINPHAT_ADS`
-  (DEC-009), so its 7.5% is preserved and no figure moves. Residual: marking an
-  order ADS *lowers* converted revenue (5.5% divides into a larger number than
-  7.5%), so an over-eager ADS marker costs a salesperson money. The review
-  queue must surface newly-ADS orders, not just newly-PERSONAL ones.
+- **RISK-02 — ĐÃ XỬ LÝ 2026-08-22.** Tín Phát mặc định `TINPHAT_ADS`
+  (DEC-109), nên tỉ lệ 7,5% được giữ nguyên, không con số nào thay đổi. Còn
+  lại: đánh dấu một đơn là ADS *làm giảm* doanh thu quy đổi (5,5% chia ra số
+  lớn hơn 7,5%), nên đánh dấu ADS quá tay sẽ khiến nhân viên mất tiền. Review
+  queue phải hiện cả đơn mới chuyển sang ADS, không chỉ đơn mới chuyển về
+  PERSONAL.
 
-- **RISK-03 — Purchase price is absent at source.** The raw file carries no
-  purchase price, only an ERP-computed profit. By the owner's decision the
-  field stays Pending rather than being inferred. Consequence: KPI profit and
-  converted revenue are incomplete until either the price tool is connected or
-  prices are entered by hand. The tool must show Pending explicitly and must
-  never silently treat a missing price as zero.
+- **RISK-03 — Giá nhập vắng mặt ở nguồn.** File thô không mang giá nhập, chỉ
+  có lợi nhuận do ERP tính sẵn. Theo quyết định của chủ dự án, trường này giữ
+  Pending thay vì suy đoán. Hệ quả: lợi nhuận KPI và doanh thu quy đổi chưa
+  đầy đủ cho tới khi công cụ bảng giá được kết nối hoặc giá được nhập tay.
+  Công cụ phải hiển thị Pending rõ ràng và không bao giờ được âm thầm coi giá
+  thiếu là bằng 0.
 
-- **RISK-04 — Customer personal data.** Names, phone numbers and addresses on
-  every line. Sample data is git-ignored; anonymized fixtures are required for
-  tests; personal fields must not reach application logs.
+- **RISK-04 — Dữ liệu cá nhân khách hàng.** Tên, số điện thoại, địa chỉ trên
+  mọi dòng. Dữ liệu mẫu bị `.gitignore` loại trừ; test cần fixture đã ẩn danh;
+  trường dữ liệu cá nhân không được lọt vào log ứng dụng.
 
-## Open Regression Items
-- None yet — no application code exists.
+## Regression còn tồn đọng
+- Chưa có — chưa tồn tại mã ứng dụng nào.
 
-## Recent Decisions
-- See `PROJECT/PROJECT_DECISIONS.md` — DEC-001 through DEC-016.
+## Quyết định gần đây
+- Xem `PROJECT/PROJECT_DECISIONS.md` — DEC-101 đến DEC-117.
 
-## Session History
-- S000 — PROJECT OPEN — 2026-08-22 — Read the specification and both sample
-  workbooks; verified business rules against real data; selected the PRODUCT
-  profile; created the roadmap, dependency graph, scoring and preliminary gates;
-  recorded 8 tactical decisions and 4 active risks. Then completed TASK-002
-  (six analysis documents, backed by a re-runnable evidence extractor) and
-  TASK-003 (three ADRs). Held at GATE-00.
+## Lịch sử Session
+- S000 — MỞ DỰ ÁN — 2026-08-22 — Đọc đặc tả và cả hai workbook mẫu; xác minh
+  business rule với dữ liệu thật; chọn profile PRODUCT; tạo roadmap, sơ đồ phụ
+  thuộc, chấm điểm và completion gate sơ bộ; ghi nhận 8 quyết định chiến thuật
+  và 4 rủi ro đang hoạt động. Sau đó hoàn thành TASK-002 (sáu tài liệu phân
+  tích, có script trích xuất bằng chứng chạy lại được) và TASK-003 (ba ADR).
+  Dừng ở GATE-00.
+- 2026-08-23 — Merge PR#4 vào nhánh mặc định `claude/extract-upload-repo-gq2ws4`,
+  hợp nhất với nhánh audit bộ khung quản trị (S001–S007). Phát hiện và sửa va
+  chạm mã số: cả hai track cùng dùng DEC-001..016 và cả hai đều có một
+  `ADR-001`. Renumber toàn bộ quyết định và ADR của dự án Tín Phát sang
+  DEC-101..117 / ADR-101..103 (DEC-117 ghi nhận chính việc renumber này);
+  khôi phục nguyên văn 16 quyết định gốc của track audit vào
+  `docs/audit/DECISIONS.md` để không mất tính toàn vẹn của các tham chiếu
+  DEC-XXX mà `docs/audit/`, `docs/sessions/`, `docs/tasks/TASK-REM-*.md` và
+  `governance/scripts/governance/README.md` đang trích dẫn. Đã chạy lại cả 5
+  validator của governance và bộ test rule ADS sau khi sửa — toàn bộ PASS.
+  Nội dung roadmap của dự án Tín Phát không đổi qua lần merge này.
 
-## Next Session
+## Session tiếp theo
 
 Recommended Session:
-S001 — Phase 1, TASK-101 onward
+S001 — Phase 1, từ TASK-101 trở đi
 
 Purpose:
-Begin the calculation engine, once GATE-00 is approved. The open questions run
-alongside on the defaults recorded above; C1, C5 and C7 must be answered before
-GATE-01 closes, because that is the point where the numbers become publishable.
+Bắt đầu engine tính toán, ngay khi GATE-00 được duyệt. C4b vẫn còn mở, cần
+đóng trước GATE-01 — đó là điểm mà các con số bắt đầu được công bố chính thức.
+C2, C3 và C8 đã có mặc định ghi nhận, đóng lại đúng lúc ở task/gate tương ứng
+của chúng (TASK-404, TASK-403, GATE-01).
 
 Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md`

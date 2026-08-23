@@ -15,7 +15,7 @@
 | Số ô chứa "ADS" trong `So_chi_tiet_ban_hang.xlsx` | **0** / 11.765 dòng |
 | Số ô chứa "ADS" trong `Bao_cao_Kinh_doanh_2026.xlsx` | **0** / 59 sheet |
 | Số Số BH khớp **rule từ khóa** | **0** / 8.714 |
-| Số Số BH thành `TINPHAT_ADS` nhờ **mặc định cấp nhân viên** (DEC-009) | **1.108** / 8.714 = 12,7 % |
+| Số Số BH thành `TINPHAT_ADS` nhờ **mặc định cấp nhân viên** (DEC-109) | **1.108** / 8.714 = 12,7 % |
 | Số Số BH còn lại là `PERSONAL` | **7.606** / 8.714 |
 
 Dòng thứ tư là toàn bộ đơn của `Tín Phát` — chúng thành ADS nhờ cấu hình mặc
@@ -74,7 +74,7 @@ Kết quả dò các từ khóa có thể liên quan đến kênh quảng cáo:
 Không có dấu hiệu nào cho thấy nguồn đơn từng được ghi nhận trong file thô,
 dưới bất kỳ hình thức nào.
 
-**Đã xác nhận (DEC-011):** cột `Diễn giải` **sửa được**. Quy ước vận hành:
+**Đã xác nhận (DEC-111):** cột `Diễn giải` **sửa được**. Quy ước vận hành:
 ERP để mặc định `"Bán hàng " + Tên KH`; nhân viên chỉ sửa khi đơn là ADS.
 
 Hệ quả cho engine: ghi chú dạng mẫu ERP là **trường hợp bình thường**, không
@@ -186,13 +186,13 @@ cho việc này **không thể bị bỏ quên trong im lặng**:
 
 | # | Câu hỏi | Trạng thái |
 |---|---|---|
-| **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-009.** `default_lead_source: TINPHAT_ADS`. Xem §7. |
-| **C6** | ERP có cho sửa `Diễn giải` không? | **Đã chốt — DEC-011.** Sửa được; mặc định giữ nguyên, chỉ sửa khi là đơn ADS. |
-| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Đã chốt — DEC-012.** Nhập 14 số theo nhân viên-tháng làm dữ liệu di trú. Xem §8. |
+| **C1** | Tín Phát quy đổi 7,5 % cho mọi đơn — có đặt mặc định ADS riêng không? | **Đã chốt — DEC-109.** `default_lead_source: TINPHAT_ADS`. Xem §7. |
+| **C6** | ERP có cho sửa `Diễn giải` không? | **Đã chốt — DEC-111.** Sửa được; mặc định giữ nguyên, chỉ sửa khi là đơn ADS. |
+| **C7** | Xử lý đơn ADS lịch sử thế nào? | **Đã chốt — DEC-112.** Nhập 14 số theo nhân viên-tháng làm dữ liệu di trú. Xem §8. |
 
 ---
 
-## 7. Thứ tự ưu tiên sau DEC-009
+## 7. Thứ tự ưu tiên sau DEC-109
 
 ```
 LeadSourceFinal =
@@ -260,7 +260,7 @@ nghìn đồng ≈ 837 triệu** doanh thu quy đổi trong 8 tháng, kéo theo 
 **2.967 nghìn ≈ 3,0 triệu đồng tiền thưởng** tính theo đúng tỉ lệ thưởng từng
 tháng ở tài liệu 04 §4.
 
-### Quyết định — DEC-012
+### Quyết định — DEC-112
 
 **Nhập 14 số ở cột `X` trong bảng trên làm dữ liệu di trú**, theo nhân viên và
 tháng, đánh dấu rõ là số khai báo cho quá khứ chứ không phải số do rule tính ra.

@@ -69,13 +69,15 @@ Loại trừ khỏi việc quét:
 - Một allowlist nhỏ theo từng cặp (file nguồn, reference) chính xác cho các
   trường hợp trích dẫn token lỗi lịch sử hoặc forward-reference tới file mà
   một task PLANNED/READY sẽ tạo — xem `KNOWN_EXEMPT_PAIRS` trong file script
-  và DEC-012/DEC-013 trong `PROJECT/PROJECT_DECISIONS.md`.
+  và DEC-012/DEC-013 trong `docs/audit/DECISIONS.md` (di dời từ
+  `PROJECT/PROJECT_DECISIONS.md` khi merge với nhánh dự án Tín Phát — xem ghi
+  chú nguồn gốc ở đầu file đó).
 
 **Giới hạn đã biết:** chỉ bắt reference có phần mở rộng `.md`/`.py`/`.svg`,
 không bắt reference dạng thư mục (ví dụ `` `templates/` ``). Đã thử mở rộng
 sang dạng thư mục nhưng gây 20 false positive trên repo hiện tại (đa số là
-ví dụ minh họa trong văn xuôi, không phải reference sống thật) — xem
-DEC-013.
+ví dụ minh họa trong văn xuôi, không phải reference sống thật) — xem DEC-013
+trong `docs/audit/DECISIONS.md`.
 
 Usage:
 ```bash

@@ -12,7 +12,7 @@ dụng trước khi hoàn thành bước phân tích này."*
 | `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` | Đặc tả sản phẩm | 31 mục |
 
 Hai file Excel **không nằm trong git** (chứa dữ liệu cá nhân khách hàng — xem
-`.gitignore` và DEC-008). Muốn kiểm chứng lại, đặt file vào `data/samples/`
+`.gitignore` và DEC-108). Muốn kiểm chứng lại, đặt file vào `data/samples/`
 rồi chạy lệnh dưới.
 
 ## Cách tái tạo mọi con số trong bộ tài liệu này
@@ -51,4 +51,4 @@ viết từ trí nhớ.
 3. **Rule ADS chưa có dữ liệu nào để chạy.** Chuỗi "ADS" xuất hiện **0 lần**
    trong cả hai file. Xem tài liệu 06.
 4. **File mẫu có 6 lỗi công thức.** Công cụ sẽ tính đúng và báo cáo chênh lệch,
-   không sao chép lỗi. Xem tài liệu 05 và DEC-007.
+   không sao chép lỗi. Xem tài liệu 05 và DEC-107.

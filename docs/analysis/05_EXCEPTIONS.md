@@ -2,7 +2,7 @@
 
 Đáp ứng mục 27.5 đặc tả.
 
-Theo **DEC-007**: công cụ **tính đúng và báo cáo chênh lệch**, không sao chép
+Theo **DEC-107**: công cụ **tính đúng và báo cáo chênh lệch**, không sao chép
 lỗi. Nếu chủ dự án muốn giữ nguyên một con số sai vì lý do đối chiếu lịch sử,
 điều đó trở thành một cờ cấu hình có tên rõ ràng — không phải mặc định thầm lặng.
 
@@ -73,7 +73,7 @@ hơn tổng của cả 5 nhân viên cá nhân cộng lại.
 chính sách thật sự là loại kênh khỏi tổng DS quy đổi, đó là cấu hình
 `include_in_company_total`, không phải một khoảng `SUM` bị gõ thiếu.
 
-### A3. Sheet kênh chia đôi mọi tổng — **ĐÃ GIẢI THÍCH (DEC-015)**
+### A3. Sheet kênh chia đôi mọi tổng — **ĐÃ GIẢI THÍCH (DEC-115)**
 
 ```
 Nội thành / Gia dụng:  G1 = SUM(G3:G452)/2      H1 = SUM(H3:H452)/2
@@ -93,7 +93,7 @@ lẫn dòng tổng tháng.
 đọc sheet mà không biết quy ước này, sẽ nhận một con số lệch đúng 2 lần. Không
 có gì trong sheet cho biết dòng nào là chi tiết, dòng nào là tổng.
 
-**Cách công cụ làm thay (DEC-015):**
+**Cách công cụ làm thay (DEC-115):**
 
 1. Dòng dữ liệu chỉ là dữ liệu. Không có dòng tổng nào nằm trong vùng dữ liệu.
 2. Tổng tính riêng từ tập dòng chi tiết, mỗi con số cộng đúng **một** lần.
@@ -253,8 +253,8 @@ thay vì làm tròn cho khớp.
 | # | Vấn đề | Ảnh hưởng số liệu | Cần chủ dự án quyết? |
 |---|---|---|---|
 | A2 | Tổng tháng bỏ sót nhân viên | **Rất lớn** — thiếu > 50 % DS quy đổi tháng | Có |
-| A3 | Sheet kênh chia 2 | Không còn — đã giải thích, không tái tạo | Xong — DEC-015 |
-| A1 | Số SP trừ nhầm tỉ lệ | Nhỏ (0,05–0,3 SP), và Số SP đã bị hạ ưu tiên | Xong — DEC-013 |
+| A3 | Sheet kênh chia 2 | Không còn — đã giải thích, không tái tạo | Xong — DEC-115 |
+| A1 | Số SP trừ nhầm tỉ lệ | Nhỏ (0,05–0,3 SP), và Số SP đã bị hạ ưu tiên | Xong — DEC-113 |
 | A4 | Tham chiếu sai sheet | Lớn, 1 ô | Không |
 | B2 | Kiên lặp `7565` 3 tháng | Không rõ | Có |
 | B1 | Hoàng mất tách bucket từ T06 | Không rõ | Có |

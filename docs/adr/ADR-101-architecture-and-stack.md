@@ -1,4 +1,4 @@
-# ADR-001 — Kiến trúc và công nghệ nền
+# ADR-101 — Kiến trúc và công nghệ nền
 
 ## Status
 Accepted
@@ -12,7 +12,7 @@ Công cụ thay thế quy trình lập báo cáo kinh doanh đang làm hoàn to�
 trong Excel. Ràng buộc thực tế:
 
 - **Nhiều người dùng hằng ngày.** Chủ dự án mô tả: *"sẽ dùng hàng ngày, nhiều
-  người dùng và xem, vận hành như 1 google sheet"* (DEC-005). Không phải một
+  người dùng và xem, vận hành như 1 google sheet"* (DEC-105). Không phải một
   script chạy một lần rồi thôi.
 - **Sửa dữ liệu là chức năng chính, không phải phụ.** Mục 19 và 28 đặc tả yêu
   cầu override được mọi trường quan trọng, có audit trail với `ChangedBy`, và
