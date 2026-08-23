@@ -1,0 +1,30 @@
+# Quy tắc B (Business rule) cho TASK-106 — DEC-125. Số tiền âm (đơn vị: VND,
+# không phải nghìn đồng — khác đơn vị hiển thị ở REPORT). Giá trị đề xuất,
+# không phải giá trị final tự động áp — người dùng luôn chọn tay và ghi đè
+# được (DEC-125 điểm 4).
+
+# Nhận diện điều hòa trên ProductRaw (tên sản phẩm thô). Không phân biệt
+# hoa/thường. Chỉ khớp từ khóa viết rõ ràng — không dùng viết tắt mơ hồ
+# (ví dụ "ĐH") để tránh false positive.
+air_conditioner_keywords:
+  - "điều hòa"
+  - "dieu hoa"
+
+# Qua kho / NCC giao — số tiền phụ thuộc phương tiện giao hàng, không phụ
+# thuộc model sản phẩm (DEC-125 điểm 1). Ba mức dùng chung cho cả hai loại
+# điều chỉnh vì chủ dự án xác nhận cùng một bảng tier.
+delivery_method_tiers:
+  "Qua kho":
+    xe_may_nhe: -50000
+    xe_may_cong_kenh: -100000
+    o_to: -200000
+  "NCC giao":
+    xe_may_nhe: -50000
+    xe_may_cong_kenh: -100000
+    o_to: -200000
+
+# KHBH / Thợ lắp — chỉ có mặc định khi sản phẩm là điều hòa (DEC-125 điểm 2).
+# Ngoài điều hòa: không có key nghĩa là không có mặc định, luôn nhập tay.
+air_conditioner_only_defaults:
+  "KHBH": -50000
+  "Thợ lắp": -200000

@@ -51,8 +51,8 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-105 DONE — price_engine + PriceProvider, 9/9 REQUIRED check
-PASS, 57/57 test tổng)
+2026-08-23 (TASK-106 DONE — AirConditionerClassifier + AdjustmentResolver,
+5/5 REQUIRED check PASS, 74/74 test tổng)
 
 Overall Status:
 IN_PROGRESS
@@ -61,17 +61,19 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-106 — adjustment_engine
+TASK-107 — profit_engine
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả: parse từ vựng điều
-chỉnh (`Qua kho`, `KHBH`, `Thợ lắp`, `NCC giao`) thành
-`kpi_purchase_adjustment`. **Cần làm rõ nguồn dữ liệu trước khi code** — từ
-vựng này trích từ cột J của REPORT (gõ tay), **không có trong 17 cột raw**.
-Xem "Session tiếp theo" → Track A bên dưới trước khi bắt đầu.
+TASK-107 — profit_engine. Bước 11 của §22 đặc tả: `AccountingProfit = (SellPrice
+− AccountingPurchasePrice) × Quantity`. `accounting_purchase_price` đã có mặt
+trên `WorkingLine` từ TASK-105 (luôn `Pending` ở Phase 1). Chưa cần
+`kpi_purchase_adjustment` (TASK-106 không thêm field này vào domain model —
+xem DEC-125) vì `AccountingProfit` không phụ thuộc KPI adjustment, chỉ
+`EligibleKpiProfit` mới cần — việc đó dời tới khi field override thật tồn
+tại (Phase 2/3).
 
 ## Roadmap tổng thể
 
@@ -127,12 +129,19 @@ Xem "Session tiếp theo" → Track A bên dưới trước khi bắt đầu.
         test kể cả với provider "thật" nhưng miss một sản phẩm). 9/9
         REQUIRED check PASS, 57/57 test tổng (8 mới, không regression trên
         49 test TASK-101). Chi tiết: `docs/tasks/TASK-105-price-engine.md`.
-  - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả. **Nguồn dữ
-        liệu chưa rõ** — từ vựng điều chỉnh (`Qua kho`, `KHBH`, `Thợ lắp`,
-        `NCC giao`) trích từ cột J của REPORT (gõ tay khi lắp báo cáo thủ
-        công), không có trong 17 cột raw (`docs/analysis/01_DATA_MAPPING.md`
-        mục "không có nguồn thô"). Cần làm rõ trước khi implement — xem
-        "Session tiếp theo" → Track A.
+  - [x] TASK-106 — adjustment_engine. **DONE** (2026-08-23). DEC-125 làm rõ:
+        `KpiAdjustment` không có nguồn raw (không có gì để "parse" tự động,
+        khác giả định ban đầu) — loại điều chỉnh (`Qua kho`, `NCC giao`,
+        `KHBH`, `Thợ lắp`) và phương tiện giao hàng là thứ người dùng chọn
+        tay sau khi import. Task giao đúng phần Phase 1 làm được:
+        `AirConditionerClassifier` (dò từ khóa điều hòa trên `ProductRaw`) +
+        `AdjustmentResolver` (số tiền đề xuất theo `delivery_method_tiers`
+        cho Qua kho/NCC giao, `air_conditioner_only_defaults` cho KHBH/Thợ
+        lắp — không có mặc định cho non-AC, không bao giờ suy đoán). **Không**
+        nối vào `run_import()`, **không** thêm field domain model — cả hai
+        thuộc phạm vi override thật (Phase 2/3, TASK-202/302/305). 5/5
+        REQUIRED check PASS, 74/74 test tổng (17 mới, không regression).
+        Chi tiết: `docs/tasks/TASK-106-adjustment-engine.md`.
   - [ ] TASK-107 — profit_engine. Bước 11 của §22 đặc tả, phần lợi nhuận.
   - [ ] TASK-108 — conversion_engine (2 bucket PERSONAL/ADS). Bước 10 và 11
         của §22 đặc tả. Phân giải `ConversionScheme` **độc lập** với
@@ -425,25 +434,38 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-106 — adjustment_engine
+TASK-107 — profit_engine
 
 Task Mode:
 MAJOR
 
 Status:
-PLANNED — TASK-105 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-106.
+PLANNED — TASK-106 vừa DONE (2026-08-23), chưa bắt đầu implement TASK-107.
 
 Required Gate Progress:
-GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE** — 57/57 test
-PASS (`pytest tests/ -q`); TASK-105: 9/9 REQUIRED check PASS. Chi tiết đầy
-đủ: `docs/tasks/TASK-101-importer-normalizer.md`,
-`docs/tasks/TASK-105-price-engine.md`.
+GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE**, TASK-106
+**DONE** — 74/74 test PASS (`pytest tests/ -q`); TASK-106: 5/5 REQUIRED
+check PASS. Chi tiết đầy đủ: `docs/tasks/TASK-101-importer-normalizer.md`,
+`docs/tasks/TASK-105-price-engine.md`, `docs/tasks/TASK-106-adjustment-engine.md`.
 
 Primary Agent Tier:
 B
 
 Escalation Tier:
 C
+
+### TASK-106 — DONE (2026-08-23)
+
+`AirConditionerClassifier` (dò từ khóa điều hòa trên `ProductRaw`, NFC-
+normalize, không phân biệt hoa/thường) + `AdjustmentResolver`
+(`resolve_suggested_amount()` — Qua kho/NCC giao tra `delivery_method_tiers`
+theo phương tiện giao; KHBH/Thợ lắp chỉ có mặc định khi `is_air_conditioner=True`).
+DEC-125 làm rõ: không có nguồn raw cho từ vựng adjustment — module này
+**không** nối vào `run_import()`, khác hẳn `PendingPriceProvider` (TASK-105).
+Trả giá trị **đề xuất**, không tự áp; `None` khi không có căn cứ (không bao
+giờ suy đoán, không coi 0 — DEC-103). 5/5 REQUIRED check PASS, 74/74 test
+tổng (17 mới, không regression trên 57 test TASK-101+105). Chi tiết:
+`docs/tasks/TASK-106-adjustment-engine.md`.
 
 ### TASK-105 — DONE (2026-08-23)
 
@@ -855,51 +877,57 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   âm thầm dùng giá của sản phẩm khác. 9/9 REQUIRED check PASS, 57/57 test
   tổng, không regression trên 49 test TASK-101. Current Task chuyển sang
   TASK-106.
+- 2026-08-23 — **TASK-106 DONE (adjustment_engine).** Trước khi code: chủ
+  dự án làm rõ 4 điểm nghiệp vụ qua AskUserQuestion, ghi lại thành **DEC-125**
+  — kết luận đúng phương án (b) mà S011 đã nêu: `KpiAdjustment` không có
+  nguồn raw, là dữ liệu chọn tay sau khi import, không phải thứ để "parse".
+  Bốn quy tắc cụ thể: Qua kho/NCC giao tính theo phương tiện giao (xe máy
+  nhẹ/cồng kềnh/ô tô = -50k/-100k/-200k, không theo model); KHBH/Thợ lắp chỉ
+  có mặc định khi sản phẩm là điều hòa (-50k/-200k), ngoài điều hòa luôn
+  nhập tay; nhận diện điều hòa bằng khớp từ khóa trên `ProductRaw` (đã xác
+  nhận khả thi trên dữ liệu thật); kích hoạt là người dùng chọn tay, không
+  có quét tự động. Tạo `docs/tasks/TASK-106-adjustment-engine.md`, freeze
+  Completion Gate trước khi code. Xây `AirConditionerClassifier` +
+  `AdjustmentResolver` (`app/modules/adjustment/`) + `config/adjustments.yaml`
+  — **module tính toán độc lập, không nối `run_import()`, không thêm field
+  domain model** (khác TASK-105 — không có "mọi dòng đều Pending" nào đúng
+  ở đây, vì không có nguồn dữ liệu thật nào để tự động áp). 17 test mới, tất
+  cả nhánh (3 tier × 2 loại, AC/non-AC × 2 loại, không khớp, loại lạ) đều
+  trả `None` đúng lúc, không suy đoán. 5/5 REQUIRED check PASS, 74/74 test
+  tổng, không regression. Current Task chuyển sang TASK-107.
 
 ## Session tiếp theo
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 
-### Track A (Tín Phát) — Recommended Session: TASK-106 (adjustment_engine)
+### Track A (Tín Phát) — Recommended Session: TASK-107 (profit_engine)
 
 Purpose:
-**TASK-105 đã DONE** (2026-08-23) — `accounting_purchase_price` đã có mặt
-trên `WorkingLine`, luôn Pending cho tới khi Price Master thật xuất hiện.
-TASK-106 là bước 9 của §22 đặc tả: parse từ vựng điều chỉnh (`Qua kho -100`,
-`KHBH -50`, `Thợ lắp -200`, `NCC giao -100`, cộng dồn nhiều điều chỉnh
-trong một ô, không phân biệt hoa/thường) thành `kpi_purchase_adjustment`.
+**TASK-106 đã DONE** (2026-08-23) — `AirConditionerClassifier` +
+`AdjustmentResolver` tồn tại như module độc lập, đề xuất số tiền điều chỉnh
+KPI khi biết loại + ngữ cảnh. Không nối vào `run_import()`, không thêm field
+domain model (DEC-125) — nghĩa là `WorkingLine` **chưa có**
+`kpi_purchase_adjustment`.
 
-**⚠️ Cần xác định nguồn dữ liệu trước khi code — đây không phải việc chỉ đọc
-tài liệu rồi làm theo.** `docs/analysis/01_DATA_MAPPING.md` mục "Field trong
-Working Data không có nguồn thô" ghi rõ: `KpiAdjustment` **không có cột nào
-trong file thô** `So_chi_tiet_ban_hang.xlsx` — 17 cột raw đã map hết
-(`RawRow` ở `app/modules/domain/models.py` đã đủ 17 field, không field nào
-là "Giao hàng"/adjustment note). Từ vựng adjustment ở
-`docs/analysis/03_RULE_CLASSIFICATION.md` được trích từ **cột J của REPORT** (workbook
-`Bao_cao_Kinh_doanh_2026.xlsx`, sheet nhân viên), tức dữ liệu người làm báo
-cáo **gõ tay** khi lắp báo cáo thủ công — không phải dữ liệu ERP xuất ra.
-
-Vậy TASK-106 không thể "parse từ RawRow" theo cách TASK-101/104 đã làm với
-`Diễn giải`. Trước khi implement, phiên tiếp theo cần làm rõ với chủ dự án
-hoặc tự phân tích thêm: (a) liệu ERP có xuất được cột ghi chú điều chỉnh này
-trong lần export sau, hay (b) đây là dữ liệu chỉ nhập tay được sau khi
-import (nghĩa là `kpi_purchase_adjustment` là một override field, không có
-giá trị mặc định từ raw — gần giống cách `PurchaseSource`/`WarrantyStatus`
-đang được xử lý). Đừng tự suy đoán rồi code theo giả định sai — đúng bài
-học vừa xảy ra khi soạn note này lần đầu (nhầm cột `delivery_cost` là nguồn
-của adjustment, đã tự phát hiện và sửa trước khi commit).
+TASK-107 là bước 11 của §22 đặc tả, công thức Universal:
+`AccountingProfit = (SellPrice − AccountingPurchasePrice) × Quantity`. Công
+thức này **không cần** `kpi_purchase_adjustment` — chỉ `EligibleKpiProfit`
+(qua `KpiPurchasePrice = AccountingPurchasePrice + KpiPurchaseAdjustment`)
+mới cần, và field đó chưa tồn tại cho tới khi override thật được xây (Phase
+2/3). Vì vậy TASK-107 nên giới hạn ở `AccountingProfit` trước; làm rõ với
+chủ dự án nếu cần quyết định khác về việc có tính `EligibleKpiProfit` một
+phần (ví dụ giả định `KpiPurchaseAdjustment = 0` tạm thời) hay hoãn hẳn phần
+đó sang khi field tồn tại — đừng tự chọn một trong hai mà không hỏi, vì
+DEC-103 cấm suy đoán giá trị thiếu thành 0.
 
 Files to read first:
-- `docs/analysis/01_DATA_MAPPING.md` mục "Field trong Working Data không có
-  nguồn thô" — đọc **trước tiên**, đừng bỏ qua
-- `docs/analysis/03_RULE_CLASSIFICATION.md` — từ vựng adjustment đầy đủ,
-  nguồn trích (REPORT, không phải RAW)
-- `docs/tasks/TASK-105-price-engine.md` — ranh giới với TASK-106
-  (`kpi_purchase_price = accounting_purchase_price + kpi_purchase_adjustment`
-  là việc của TASK-106, TASK-105 chỉ set `accounting_purchase_price`)
+- `docs/analysis/03_RULE_CLASSIFICATION.md` mục "U — Universal formula" —
+  công thức `AccountingProfit`, `EligibleKpiProfit`, `KpiPurchasePrice`
+- `docs/tasks/TASK-105-price-engine.md`, `docs/tasks/TASK-106-adjustment-engine.md`
+  — ranh giới field đã có/chưa có trên `WorkingLine`
+- `PROJECT/PROJECT_DECISIONS.md` (DEC-103, DEC-125)
 - `app/pipeline.py`, `app/modules/domain/models.py` — code đã có
-- `PROJECT/PROJECT_DECISIONS.md` (DEC-103)
 
 ### Track B (Governance) — Recommended Session: S009 — REM-T06
 

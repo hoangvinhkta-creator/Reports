@@ -10,10 +10,33 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 9 (tính giá nhập) đã xong** (xem
+> Cập nhật lần cuối: 2026-08-23 — **bước 10 (điều chỉnh KPI) đã xong** (xem
 > "Có gì mới" ngay bên dưới).
 
-## Có gì mới — bước 9 xong (2026-08-23)
+## Có gì mới — bước 10 xong (2026-08-23)
+
+**Bước 10 (TASK-106 — tính điều chỉnh KPI) đã xong**, sau khi sếp trả lời 4
+câu hỏi làm rõ về cách tính. Kết quả:
+
+- **Qua kho / NCC giao** — số tiền trừ tính theo **phương tiện giao hàng**,
+  không theo loại sản phẩm: xe máy chở hàng nhẹ trừ 50 nghìn, xe máy chở
+  hàng cồng kềnh trừ 100 nghìn, ô tô trừ 200 nghìn.
+- **KHBH / Thợ lắp** — chỉ có mức trừ mặc định khi sản phẩm là **điều hòa**
+  (trừ 50 nghìn / 200 nghìn). Sản phẩm khác điều hòa: **không có mặc định**,
+  luôn phải nhập tay số tiền.
+- **Nhận diện điều hòa** — hệ thống tự dò chữ "điều hòa" trong tên sản phẩm
+  (file thô ghi rõ chữ này trước tên đời máy) — đã kiểm tra và đúng trên cả
+  2 tháng dữ liệu thật.
+- **Cách kích hoạt** — người dùng **chọn tay sau khi nhập dữ liệu** loại
+  điều chỉnh áp dụng cho từng đơn; hệ thống không tự động quét rồi áp.
+
+**Quan trọng:** vì bước này cần người dùng chọn tay, mà màn hình để chọn tay
+chưa được xây (thuộc giai đoạn sau, khi có giao diện thật), hệ thống hiện
+mới xây xong **phần "gợi ý số tiền"** — sẵn sàng để màn hình chọn tay sau
+này gọi tới và điền sẵn con số, người dùng vẫn luôn sửa được. Phần lưu lựa
+chọn thật của người dùng sẽ làm ở giai đoạn có giao diện.
+
+## Có gì mới trước đó — bước 9 xong (2026-08-23)
 
 **Bước 9 (TASK-105 — tính giá nhập hàng) đã xong.** Vì công ty chưa có bảng
 giá nhập điện tử (Price Master) nào, hệ thống hiện để **mọi giá nhập ở
@@ -140,8 +163,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 7. TASK-103 (MAJOR, D2/R4/B4) — Gộp các dòng hàng thành từng đơn hàng hoàn chỉnh | Một đơn có thể có nhiều dòng sản phẩm, cần gộp lại đúng. **Đã xây xong trong bước 5** | B | Xong cùng bước 5 |
 | ✅ | 8. TASK-104 (MAJOR, D3/R4/B5) — Xác định đơn nào từ quảng cáo, đơn nào nhân viên tự bán | **Quyết định trực tiếp thu nhập nhân viên** — cần làm rất cẩn thận. **Đã xây xong trong bước 5**, đã kiểm đủ 18 tình huống chuẩn | C | Xong cùng bước 5 |
 | ✅ | 9. TASK-105 (MAJOR, D3/R3/B3) — Tính giá nhập hàng cho từng sản phẩm | Cần biết giá nhập mới tính được lợi nhuận. **Xong — hiện để "Chờ nhập" vì chưa có bảng giá điện tử** | B | Xong |
-| 🟡 | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Tạm dừng — cần làm rõ nguồn dữ liệu trước** (xem "Có gì mới") | C | Đang chờ làm rõ |
-| ⬜ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | Sau bước 10 |
+| ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
+| 🟡 | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Việc tiếp theo** — sẵn sàng bắt đầu |
 | ⬜ | 12. TASK-108 (MAJOR, D3/R5/B5) — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó. Chọn tỷ lệ theo *nhân viên + nguồn đơn + ngày*, không suy trực tiếp từ nguồn đơn | C | Sau bước 11 |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |

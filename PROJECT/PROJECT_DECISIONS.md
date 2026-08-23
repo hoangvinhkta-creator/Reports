@@ -983,3 +983,93 @@ Nếu công ty phát sinh nhu cầu thật cho vai trò thứ hai (ví dụ ban 
 xem, không sửa). Lúc đó là một ADR mới hoặc một sửa đổi tường minh của
 ADR-105, không phải bật một cờ có sẵn — hạ tầng nhiều vai trò cố ý chưa được
 xây theo đúng chỉ thị của chủ dự án.
+
+## DEC-125
+
+Date:
+2026-08-23
+
+Task:
+TASK-106 (adjustment_engine) — làm rõ nguồn dữ liệu và cơ chế trước khi
+implement, theo cảnh báo để lại ở S011 (`PROJECT/PROJECT_PROGRESS.md` →
+"Session tiếp theo" → Track A).
+
+Decision:
+`KpiAdjustment` (điều chỉnh giá nhập KPI: `Qua kho`, `NCC giao`, `KHBH`,
+`Thợ lắp`) **không có nguồn trong 17 cột raw** (đã xác nhận lại ở S011, đọc
+`docs/analysis/01_DATA_MAPPING.md` mục "Field trong Working Data không có
+nguồn thô"). Đây là field **nhập tay sau khi import** — phương án (b) trong
+hai phương án S011 nêu ra, không phải (a) chờ ERP xuất thêm cột.
+
+Bốn quy tắc nghiệp vụ cụ thể, nguyên văn từ chủ dự án:
+
+1. **Qua kho / NCC giao** — số tiền điều chỉnh phụ thuộc **phương tiện giao
+   hàng**, không phụ thuộc model sản phẩm:
+   - xe máy, hàng nhẹ (đồ gia dụng nhỏ): `-50`
+   - xe máy, hàng cồng kềnh: `-100`
+   - ô tô: `-200`
+2. **KHBH / Thợ lắp** — chỉ có mặc định khi sản phẩm là **điều hòa**:
+   `KHBH = -50`, `Thợ lắp = -200`. Ngoài điều hòa: **không có mặc định**,
+   luôn nhập tay (không suy đoán, không coi 0).
+3. **Nhận diện điều hòa** — dò trực tiếp trên `ProductRaw` (tên sản phẩm
+   thô), vì file thô ghi rõ chữ "điều hòa" ngay trước mã model. Đã xác nhận
+   khả thi trên dữ liệu thật tháng 01/2026 và 06/2026 (không cần bảng tra
+   ProductCode).
+4. **Cơ chế kích hoạt** — người dùng **chọn tay sau khi import** loại điều
+   chỉnh áp dụng cho từng dòng/đơn (một dòng có thể cộng dồn nhiều loại,
+   đúng như từ vựng thật ở `docs/analysis/03_RULE_CLASSIFICATION.md` §"Bảng
+   Adjustment", ví dụ `Thợ lắp -200, KHBH -50`). Không có cơ chế nào tự động
+   quét raw data rồi tự áp adjustment — không giống `PendingPriceProvider`
+   (TASK-105), nơi "chưa có thì Pending" là đúng cho *mọi* dòng ở Phase 1.
+
+Hệ quả kiến trúc: bốn quy tắc trên định nghĩa một **bộ tính giá trị đề xuất
+mặc định** (`suggested amount` theo `adjustment_type` + `delivery_method` +
+`is_air_conditioner`) để điền sẵn khi người dùng chọn tay — không phải một
+bước tự động trong `run_import()`. Vì điểm 4 đòi hỏi màn hình chọn tay mà
+Phase 1 chưa có UI/DB (ADR-101), TASK-106 ở Phase 1 chỉ giao **module tính
+toán độc lập** (classifier điều hòa + resolver tra bảng số tiền đề xuất) —
+không nối vào pipeline import. Tầng override thủ công + audit trail thật
+(Phase 2/3, TASK-202/302/305) sẽ gọi tới module này sau.
+
+Reason:
+Chủ dự án trả lời 4 câu hỏi làm rõ (qua AskUserQuestion) sau khi cung cấp
+gợi ý ban đầu mơ hồ về nhị phân "tuỳ model". Bốn câu trả lời cho thấy mô hình
+đúng không phải "tự động parse từ raw" (giả định ban đầu mà S011 đã tự phát
+hiện và sửa trước khi sai lan sang code) mà cũng không đơn giản là "luôn
+nhập tay không gợi ý gì" — mà là gợi ý mặc định có điều kiện, người dùng
+luôn có quyền ghi đè. Áp dụng đúng nguyên tắc DEC-103 (Pending/mặc định
+không bao giờ suy đoán khi thiếu căn cứ) cho ba trường hợp không có mặc định
+(non-AC KHBH/Thợ lắp).
+
+Risk:
+Trung bình-cao (4/5) — ảnh hưởng trực tiếp `KpiPurchasePrice` và do đó
+`EligibleKpiProfit`/lương thưởng nhân viên (mục 11 đặc tả). Rủi ro cụ thể:
+(a) từ khóa nhận diện điều hòa trên `ProductRaw` là text-matching, có thể bỏ
+sót biến thể chính tả chưa thấy trong 2 tháng dữ liệu mẫu — cần Review Queue
+cho case không khớp, không được coi non-AC là mặc định an toàn khi có nghi
+ngờ; (b) resolver chỉ *đề xuất*, không tự áp — nếu tầng override tương lai
+(Phase 2/3) không tôn trọng ranh giới "đề xuất, không phải final" này, có
+thể vô tình biến default thành ghi đè im lặng, lặp lại đúng lỗi mà DEC-103
+đang phòng.
+
+Impact:
+- `docs/tasks/TASK-106-adjustment-engine.md` — task file mới, phạm vi module
+  tính toán độc lập (không nối `run_import()`), thay thế mô tả cũ ở
+  `PROJECT/PROJECT_PROGRESS.md` (vốn viết "parse từ vựng điều chỉnh... thành
+  kpi_purchase_adjustment" như thể có nguồn raw để parse).
+- `config/adjustments.yaml` — file cấu hình mới cho 2 nhóm quy tắc (tier theo
+  phương tiện; default theo điều hòa), theo đúng phân loại "B — Business
+  rule" ở `docs/analysis/03_RULE_CLASSIFICATION.md`.
+- `app/modules/adjustment/` — module mới: classifier điều hòa (dò
+  `ProductRaw`) + resolver số tiền đề xuất. Không sửa `app/pipeline.py`.
+- `app/modules/domain/models.py` — có thể thêm field liên quan
+  `kpi_purchase_adjustment` dạng Optional (không mặc định 0), nhưng không
+  điền tự động trong `run_import()`.
+- `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md` — cập nhật mô
+  tả TASK-106 theo phạm vi đã thu hẹp.
+- Không đổi TASK-101, TASK-105 (đã DONE), không đổi thứ tự roadmap.
+
+Can Revisit After:
+Khi Phase 2/3 xây tầng override thủ công thật (TASK-202/302/305) — lúc đó
+resolver này được gọi làm giá trị đề xuất ban đầu trên UI, và cần một ADR
+hoặc DEC riêng nếu phát sinh yêu cầu audit trail cụ thể cho việc ghi đè.
