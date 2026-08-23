@@ -19,7 +19,8 @@ Commit vào phiên:
 
 Trạng thái ra khỏi phiên:
 **IMPLEMENTED. NOT MERGED. NOT DONE.** CHECK-110-16 tiếp tục **BLOCKED**.
-**Còn một xung đột canonical đang chờ quyết định — xem cuối file.**
+Xung đột canonical phát sinh trong phiên đã được chủ dự án giải quyết (phương
+án A) — xem cuối file. **342/342 test PASS.**
 
 ## Root Cause: root cause của chính bản sửa lần trước
 
@@ -76,17 +77,16 @@ cứng, không sinh lại.
 
 ## Bằng Chứng Ra Khỏi Phiên
 
-- `python3 -m pytest tests/ -q` → **340 passed, 2 failed**. Hai FAIL là xung
-  đột canonical dưới đây, **không** phải lỗi triển khai.
+- `python3 -m pytest tests/ -q` → **342 passed, 0 failed**.
 - **L1** — 972 tổ hợp raw × as_of: **0 khác biệt**.
 - **L2** — 66 trường, đầu-cuối: **0 khác biệt**.
-- **L3** — config hợp lệ: 22/24 test reconciliation PASS (2 FAIL = xung đột).
-- **P1–P4, M1–M3, C1–C3, L1/L3, O1–O3**: 36 test, tất cả PASS.
+- **L3** — config hợp lệ: **24/24** test reconciliation của TASK-108A-1 PASS.
+- **P1–P4, M1–M3, C1–C3, L1/L3, O1–O3**: **45 test**, tất cả PASS.
 - `validate_reference_integrity` → còn đúng **3** reference hỏng, tất cả
   **PRE-EXISTING** của TASK-REM-T06; **0** reference hỏng mới.
 - Module nghiệp vụ được bảo vệ: `sha256sum -c` → không file nào đổi.
 
-## ⚠️ XUNG ĐỘT CANONICAL CÒN MỞ — cần Human Decision
+## Xung Đột Canonical — ĐÃ GIẢI QUYẾT (phương án A)
 
 **HD-110-09 (đã duyệt) va với ràng buộc #9 (MUST NOT CHANGE).**
 
@@ -108,10 +108,30 @@ test còn lại của file đó vẫn PASS**, gồm cả `test_unmodified_config
 the_fixture` — nên bằng chứng thật của CHECK-108A1-15 (output trên config hợp
 lệ) **không đổi**.
 
-Tôi **không** tự sửa hai test đó: đó là file MUST NOT CHANGE, và chủ dự án đã
-dặn STOP khi gặp xung đột canonical mới.
+Tôi **không** tự sửa hai test đó khi phát hiện: đó là file MUST NOT CHANGE, và
+chủ dự án đã dặn STOP khi gặp xung đột canonical mới.
+
+**Chủ dự án duyệt phương án A**: nới MUST NOT CHANGE cho **đúng hai hàm test
+đó**, giữ nguyên ý định gốc và migrate cơ chế kỳ vọng:
+
+    trước   phát hiện SAU khi đối chiếu   -> `reconcile_raw()` exit code > 0
+    sau     từ chối TRƯỚC khi đối chiếu   -> `InvalidEmployeeConfig`
+
+Diff thực tế trên file freeze: **27 thêm / 3 bớt** — một dòng import, một khối
+comment ghi lại chính cuộc migration này, và hai dòng assertion. Không hàm test
+nào khác bị chạm; `tests/test_reconcile_raw_criteria.py` giữ nguyên
+byte-identical (sha256 OK). Diff trên `app/` ở bước này là **rỗng** — không có
+hành vi production nào bị bẻ cong để test cũ PASS.
+
+Kết quả: **24/24** test reconciliation TASK-108A-1 PASS; L1/L2 vẫn IDENTICAL
+nên hành vi trên config hợp lệ byte-identical như L3 yêu cầu.
 
 ## Bàn Giao
 
-Trả lời xung đột trên, sau đó **Independent Review #7**. Không merge, không tự
-chuyển DONE.
+**Independent Review #7.** Không merge, không tự chuyển DONE.
+
+Điểm nên soi kỹ nhất: `Diagnostics` đã đóng hẳn kênh văn bản chưa (mọi trường
+vô hướng, không trường nào diễn đạt được tham chiếu dòng), và `message` vẫn là
+tham số truyền vào — Gate #2 nhận định nó **không** phải machine-readable
+provenance vì `RawMappingVerdict` phơi chuỗi này cho script đã freeze. Nếu
+reviewer không đồng ý với nhận định đó thì đây là lỗ còn lại lớn nhất.

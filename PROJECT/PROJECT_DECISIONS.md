@@ -1767,10 +1767,29 @@ Impact:
   1 ở trên, và điều đó được ghi ở đây chứ không ghi đè lên DEC-129.
 - `Validator.__init__` nhận `employee_mapper`; `employee_groups` nay thuộc
   chính master snapshot. `ReviewItem` nhận `diagnostics: Diagnostics` có kiểu.
-- **XUNG ĐỘT CANONICAL CÒN MỞ** — xem phần "Chờ Human Decision" của
-  `docs/sessions/S022-*.md`: HD-110-09 va với hai test trong
-  `tests/test_reconcile_raw_integration.py`, một file thuộc diện MUST NOT
-  CHANGE. Chưa quyết thì chưa đóng.
+- **Canonical migration của expected failure mode — ĐÃ GIẢI QUYẾT.**
+  HD-110-09 va với hai test trong `tests/test_reconcile_raw_integration.py`,
+  một file thuộc diện MUST NOT CHANGE:
+  `test_group_renamed_out_of_existence_fails` và
+  `test_declared_group_deleted_fails`. Chủ dự án duyệt phương án A: nới MUST
+  NOT CHANGE cho **đúng hai hàm test đó**, giữ nguyên ý định gốc và cập nhật
+  cơ chế kỳ vọng:
+
+      trước   phát hiện SAU khi đối chiếu   -> `reconcile_raw()` exit code > 0
+      sau     từ chối TRƯỚC khi đối chiếu   -> `InvalidEmployeeConfig` tại
+                                               canonical employee master loader
+
+  Cơ chế mới **mạnh hơn hẳn**: lượt chạy bị từ chối trước khi đọc một giao
+  dịch nào, thay vì báo cáo sau khi toàn bộ phép đối chiếu đã tính xong. Ý
+  định của hai test — "employee master có group reference hỏng KHÔNG được đi
+  lọt" — không đổi một chữ.
+
+  Ràng buộc đã giữ: **không** lùi HD-110-09; **không** tạo bypass referential
+  validation; **không** đổi hành vi production để test cũ PASS (diff trên
+  `app/` ở bước này là rỗng); **không** đụng reconciliation business logic;
+  **không** sửa bất kỳ test TASK-108A-1 nào khác. Sau migration:
+  **24/24** test reconciliation của TASK-108A-1 PASS, và L1/L2 vẫn IDENTICAL
+  nên hành vi trên config **hợp lệ** byte-identical như L3 yêu cầu.
 - CHECK-110-16 tiếp tục **BLOCKED**.
 
 Can Revisit After:

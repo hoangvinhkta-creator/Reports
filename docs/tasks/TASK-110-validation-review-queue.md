@@ -5,8 +5,6 @@
 Status:
 **IMPLEMENTED — architecture repair #2 sau Independent Review #6.**
 **NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
-**Còn một xung đột canonical đang chờ quyết định** — xem
-`docs/sessions/S022-task-110-review-6-architecture-repair-2.md`.
 
 Completion Gate **FROZEN** 2026-08-23. Sáu vòng review, **cả sáu đều FAIL**;
 bản sửa của vòng #6 đã xong nhưng **chưa được review nào PASS**:
@@ -27,12 +25,12 @@ bản sửa của vòng #6 đã xong nhưng **chưa được review nào PASS**:
   thô). Ba Human Decision — **HD-110-06/07/08** → **DEC-132**.
 
 21/22 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
-chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **340/342 test
-PASS**; 2 FAIL là xung đột canonical đã báo (HD-110-09 va với hai test trong
-`tests/test_reconcile_raw_integration.py`, một file MUST NOT CHANGE) — không
-phải lỗi triển khai.
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **342/342 test
+PASS** (191 mới so với baseline `c7a1b24`, 0 regression). Xung đột canonical
+phát sinh khi triển khai HD-110-09 đã được giải quyết bằng phương án A — xem
+DEC-133, mục "Canonical migration của expected failure mode".
 
-Chờ quyết định về xung đột đó, rồi **Independent Review #7**.
+Chờ **Independent Review #7**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -568,7 +566,7 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/ -q` → **330 passed**. Baseline tại `c7a1b24` là 151 → **179 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → 285 (Review #3) → 298 (Review #4) → **330** (Review #5).
+`python3 -m pytest tests/ -q` → **342 passed**. Baseline tại `c7a1b24` là 151 → **191 test mới, 0 regression**. Diễn biến: 207 (`e2c0c18`) → 260 (Review #1) → 271 (Review #2) → 285 (Review #3) → 298 (Review #4) → 330 (Review #5) → **342** (Review #6).
 
 Executed By:
 Claude (S016)

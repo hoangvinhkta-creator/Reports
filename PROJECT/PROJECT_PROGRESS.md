@@ -83,15 +83,14 @@ Current Task:
 TASK-110 — validation + Review Queue — **IMPLEMENTED — architecture repair #2
 sau Independent Review #6**. **NOT MERGED. NOT DONE.** CHECK-110-16 =
 **BLOCKED**. Sáu vòng review, **cả sáu đều FAIL**; bản sửa vòng #6 đã xong
-nhưng **chưa review nào PASS**, và còn **một xung đột canonical đang chờ
-quyết định** (DEC-133 → phần "Chờ Human Decision"). Chờ Review #7.
+nhưng **chưa review nào PASS**. Xung đột canonical phát sinh khi triển khai
+HD-110-09 đã được giải quyết (DEC-133, phương án A). Chờ Review #7.
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Trả lời xung đột canonical của DEC-133, rồi Independent Review #7 cho
-TASK-110.** Sáu vòng review đều FAIL và đều đã sửa xong (6 + 4 + 3 + 2 + 4 + 6
+**Independent Review #7 cho TASK-110.** Sáu vòng review đều FAIL và đều đã sửa xong (6 + 4 + 3 + 2 + 4 + 6
 finding); mỗi finding có regression hoặc falsification test riêng. Vòng #5 và
 #6 là **Architecture Repair**, không phải vá cục bộ. Task vẫn **chưa merge,
 chưa DONE**, và **chưa vòng nào PASS**. Tiền lệ TASK-108A-1: 4 vòng review mới
@@ -218,8 +217,7 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         vòng nào PASS**, chờ Review #7. 21/22 REQUIRED check PASS;
         CHECK-110-16 (đối chiếu dữ liệu thật) **BLOCKED** vì thiếu file thô
         production — chủ dự án cho phép giữ, chặn DONE không chặn IMPLEMENTED.
-        **340/342 test** (2 FAIL là xung đột canonical đang chờ quyết định —
-        xem DEC-133 và `docs/sessions/S022-*.md`). Phạm vi
+        **342/342 test** (191 mới, 0 regression). Phạm vi
         thật **7 loại** sau DEC-128 (V7 mở thành **F1–F6** theo DEC-129),
         không phải 5 — xem `docs/tasks/TASK-110-validation-review-queue.md`.
         Mục §18 đặc tả, 5 loại gốc:
@@ -601,8 +599,7 @@ PASS, đã merge tại `c7a1b24`.
 
 Required Gate Progress:
 GATE-00 PASS (DEC-122). TASK-101, TASK-105, TASK-106, TASK-107, TASK-108A-1
-đều **DONE**. Bộ test hiện tại: **340/342 PASS** (`pytest tests/ -q`); 2 FAIL
-là xung đột canonical đã báo, đang chờ Human Decision (DEC-133) —
+đều **DONE**. Bộ test hiện tại: **342/342 PASS** (`pytest tests/ -q`) —
 xem "Trạng thái Task hiện tại" cho TASK-110. Chi tiết từng task:
 `docs/tasks/TASK-101-importer-normalizer.md`,
 `docs/tasks/TASK-105-price-engine.md`,
