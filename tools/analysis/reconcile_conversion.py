@@ -164,10 +164,10 @@ def reconcile_summary(
     print("=" * 78)
     print("CHECK-108A1-14 — Đối chiếu cột F, Summary 2026")
     print("=" * 78)
-    print(f"  Ô đối chiếu ĐỘC LẬP được  : {verified + mismatched}")
-    print(f"      khớp                  : {verified}")
-    print(f"      LỆCH                  : {mismatched}")
-    print(f"  Ô KHÔNG đối chiếu được    : {total_unverifiable}")
+    print(f"  VERIFIED — đối chiếu độc lập được : {verified + mismatched}")
+    print(f"      khớp                          : {verified}")
+    print(f"      MISMATCH                      : {mismatched}")
+    print(f"  LIMITED  — không đối chiếu được   : {total_unverifiable}")
     for label, count in unverifiable.most_common():
         print(f"      {label:12} {count:3}  — nhãn không phải Employee trong "
               "config/employees.yaml")
@@ -186,35 +186,151 @@ def reconcile_summary(
     return mismatched
 
 
+def evaluate_raw_mapping(
+    mapped: Counter,
+    groups: dict[str, str],
+    unmapped: Counter,
+    collisions: dict[str, set],
+    employees: list[dict],
+    declared_groups: set[str],
+) -> list[str]:
+    """Failure criteria for the raw employee-mapping reconciliation.
+
+    Counting rows and printing them proves nothing on its own: a badly broken
+    `employees.yaml` still produces a tidy table, just a wrong one. These are
+    the conditions under which the reconciliation must FAIL.
+
+    Every criterion is derived from the data or from config-internal
+    consistency. **None of them names an expected employee or group** — an
+    expected-values table written here would only assert that the config still
+    says what it said when this file was authored.
+
+    F1  Referential integrity: every employee's `group` must be declared in
+        `employee_groups`. Catches a renamed, deleted or mistyped group.
+    F2  No dead master data: every configured employee must match at least one
+        row of a company-wide export. A configured person who sells nothing is
+        either a typo in `raw_prefix` or someone who left — both need review,
+        not silence.
+    F3  Unambiguous mapping: no raw `NVBH` value may match two different
+        employees. The production mapper resolves such a clash by longest
+        prefix; that is a reasonable tie-break but a silent one, so the clash
+        itself is reported.
+    F4  No unmapped name may carry as many rows as the smallest mapped
+        employee. Configured employees are the company's real sellers; an
+        unconfigured name out-selling one of them means master data is missing
+        somebody significant. The threshold comes from the dataset, not from a
+        constant chosen here.
+    F5  At least one employee must map at all — the degenerate case where
+        every prefix is broken.
+    """
+    violations: list[str] = []
+
+    for row in employees:
+        group = row.get("group")
+        if group not in declared_groups:
+            violations.append(
+                f"F1 — nhân viên {row.get('normalized')!r} khai group "
+                f"{group!r} không có trong `employee_groups`"
+            )
+
+    if not mapped:
+        violations.append(
+            "F5 — KHÔNG nhân viên nào map được dòng nào. Mapping production "
+            "hỏng hoàn toàn."
+        )
+        return violations
+
+    for row in employees:
+        name = norm(row["normalized"])
+        if name not in mapped:
+            violations.append(
+                f"F2 — nhân viên {name!r} (raw_prefix "
+                f"{row.get('raw_prefix')!r}) không khớp dòng nào trong file "
+                "thô toàn công ty"
+            )
+
+    for raw_value, matches in collisions.items():
+        violations.append(
+            f"F3 — {raw_value!r} khớp nhiều nhân viên: {sorted(matches)}"
+        )
+
+    smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
+    for raw_value, count in unmapped.items():
+        if count >= smallest:
+            violations.append(
+                f"F4 — {raw_value!r} chưa map nhưng có {count} dòng, "
+                f"≥ nhân viên nhỏ nhất đã map ({smallest_name}: {smallest}). "
+                "Master data đang thiếu người có khối lượng đáng kể."
+            )
+
+    return violations
+
+
 def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
+    employees = load_yaml(CONFIG / "employees.yaml")
+    employee_rows = employees.get("employees", [])
+    declared_groups = {
+        g.get("code") for g in employees.get("employee_groups", [])
+    }
+    prefixes = [
+        (norm(row["raw_prefix"]), norm(row["normalized"])) for row in employee_rows
+    ]
+
     wb = openpyxl.load_workbook(raw, read_only=True, data_only=True)
     mapped: Counter = Counter()
     groups: dict[str, str] = {}
     unmapped: Counter = Counter()
+    collisions: dict[str, set] = {}
     for row in wb.active.iter_rows(min_row=6, values_only=True):
         if not row[1] or len(row) < 13 or not row[12]:
             continue
+        raw_value = norm(row[12])
         when = row[0].date() if hasattr(row[0], "date") else row[0]
-        result = mapper.resolve(norm(row[12]), when if isinstance(when, date) else None)
+        result = mapper.resolve(raw_value, when if isinstance(when, date) else None)
         if result.normalized:
             mapped[result.normalized] += 1
             groups[result.normalized] = result.group or "—"
         else:
-            unmapped[norm(row[12])] += 1
+            unmapped[raw_value] += 1
+
+        hits = {name for prefix, name in prefixes if raw_value.startswith(prefix)}
+        if len(hits) > 1:
+            collisions[raw_value] = hits
     wb.close()
+
+    violations = evaluate_raw_mapping(
+        mapped, groups, unmapped, collisions, employee_rows, declared_groups
+    )
 
     print("=" * 78)
     print("CHECK-108A1-15 — Employee mapping trên file thô toàn công ty")
     print("=" * 78)
-    print(f"  Dòng map được   : {sum(mapped.values())}")
+    print(f"  VERIFIED  — dòng map được : {sum(mapped.values())}")
     for name, count in mapped.most_common():
         print(f"      {name:10} {groups[name]:16} {count:6}")
-    print(f"  Dòng KHÔNG map  : {sum(unmapped.values())}  -> Review Queue, "
-          "KHÔNG nhận tỉ lệ nào (DEC-127 §8)")
+    print(f"  UNMAPPED  — dòng chưa map : {sum(unmapped.values())}  -> Review "
+          "Queue, KHÔNG nhận tỉ lệ nào (DEC-127 §8)")
     for name, count in unmapped.most_common():
         print(f"      {name:34} {count}")
     print()
-    return 0
+    print("  Tiêu chí FAIL độc lập (F1–F5, xem docstring evaluate_raw_mapping):")
+    if violations:
+        print(f"  MAPPING FAILURE — {len(violations)} vi phạm:")
+        for line in violations:
+            print(f"      {line}")
+    else:
+        smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
+        largest_unmapped = max(unmapped.values(), default=0)
+        print(f"      F1 group referential integrity : OK "
+              f"({len(declared_groups)} group khai báo)")
+        print(f"      F2 không có master data chết    : OK "
+              f"({len(employee_rows)}/{len(employee_rows)} nhân viên có dòng)")
+        print(f"      F3 không đụng độ prefix         : OK")
+        print(f"      F4 biên khối lượng              : OK (unmapped lớn nhất "
+              f"{largest_unmapped} < {smallest_name} {smallest})")
+        print(f"      F5 mapping không rỗng           : OK")
+    print()
+    return len(violations)
 
 
 def main() -> None:

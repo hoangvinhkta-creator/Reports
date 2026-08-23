@@ -580,26 +580,61 @@ Evidence Level:
 E1
 
 Evidence:
-Output cùng lệnh, phần thứ hai (file thô toàn công ty, 10.703 đơn,
-01.01.2026–10.09.2026):
-```
-Dòng map được   : 14389
-    Hiệp       NOI_THANH          5328
-    Quý        NOI_THANH          2810
-    Vinh       NOI_THANH          1814
-    Tín Phát   STANDARD_SALES     1771
-    Ly         STANDARD_SALES      990
-    Kiên       STANDARD_SALES      733
-    Hoàng      STANDARD_SALES      532
-    Thắng      STANDARD_SALES      411
-Dòng KHÔNG map  : 107  -> Review Queue (C11)
-    Thảo Linh 83 · Tống Khánh Linh 14 · Lê Quang Trường 7
-    Lê Văn Quân 2 · Nguyễn Thị Minh Bảo 1
-```
-8 employee map đúng với group đúng trên **dữ liệu production thật**, không
-phải fixture. 107 dòng chưa map trả về `unmapped` đúng như C11 quy định.
-Prefix `"Đức Kiên"` khớp đúng giá trị thật `"Đức Kiên - Tân Á 0867666533"`.
+**Sửa theo Independent Review #2 (finding còn lại).** Bản trước chỉ in bảng
+số rồi `return 0` — **không có failure criterion nào**, nên `employees.yaml`
+bị phá nặng vẫn PASS/exit 0. Đã bổ sung 5 tiêu chí FAIL độc lập
+(`evaluate_raw_mapping()`), tất cả dẫn xuất từ dữ liệu hoặc từ tính nhất quán
+nội bộ của config — **không tiêu chí nào ghi tên nhân viên hay group kỳ
+vọng**:
 
+- **F1** referential integrity: `group` của mỗi nhân viên phải có trong
+  `employee_groups`.
+- **F2** không có master data chết: mỗi nhân viên đã khai phải khớp ≥ 1 dòng
+  trong file thô toàn công ty.
+- **F3** mapping không nhập nhằng: không giá trị `NVBH` nào khớp hai nhân
+  viên khác nhau.
+- **F4** biên khối lượng: không tên chưa map nào được có số dòng ≥ nhân viên
+  đã map nhỏ nhất. **Ngưỡng lấy từ chính dataset**, không phải hằng số chọn
+  tay — test `test_f4_threshold_comes_from_the_data_not_a_constant` chứng
+  minh cùng 500 dòng là vi phạm ở dataset này nhưng không ở dataset khác.
+- **F5** mapping không rỗng.
+
+Output với config lành (exit 0):
+```
+VERIFIED  — dòng map được : 14389   (8 nhân viên, group đúng)
+UNMAPPED  — dòng chưa map :   107   -> Review Queue (DEC-127 §8)
+  F1 group referential integrity : OK (2 group khai báo)
+  F2 không có master data chết    : OK (8/8 nhân viên có dòng)
+  F3 không đụng độ prefix         : OK
+  F4 biên khối lượng              : OK (unmapped lớn nhất 83 < Thắng 411)
+  F5 mapping không rỗng           : OK
+```
+
+**Falsification trên config production thật — mọi kịch bản đều FAIL, exit 1:**
+
+| Phá hoại | Kết quả |
+|---|---|
+| `raw_prefix` của Đức Hiệp (5.328 dòng) bị garble | **F2 + F4**, exit 1 |
+| Xoá hẳn nhân viên Mr Quý (2.810 dòng) | **F4**, exit 1 |
+| `group: "NOI_THANH"` → `"NOI_THAN"` (chưa khai báo) | **F1**, exit 1 |
+| **Kịch bản của reviewer** — phá 6/8 prefix, mapped 14.389 → 2.182 (**15,1 %**) | **12 vi phạm**, exit 1 |
+
+Kịch bản cuối chính là ca mà bản cũ PASS. Config khôi phục sạch sau mỗi phép
+thử (`git status config/` trống).
+
+**Falsification tự động:** `tests/test_reconcile_raw_criteria.py` — 10 test
+gọi thẳng `evaluate_raw_mapping()` với số liệu tổng hợp (không cần file thật,
+không commit dữ liệu), gồm một test tái hiện đúng kịch bản của reviewer và
+một test xác nhận nhóm legacy nhỏ (83/14/7/2/1) **không** kích F4 — nếu tiêu
+chí fail mọi thứ thì cũng vô nghĩa như PASS mọi thứ.
+
+**Phân biệt trạng thái (yêu cầu 6):** `VERIFIED` (map được, có group hợp lệ) ·
+`UNMAPPED` (vào Review Queue, không nhận tỉ lệ) · `LIMITED` (nhãn Summary
+không phải Employee — chỉ ở CHECK-14) · `MAPPING FAILURE` (vi phạm F1–F5,
+exit non-zero).
+
+Nguyên tắc **36 matched + 19 limited** của CHECK-14 giữ nguyên, không đưa về
+52 bằng bất kỳ assumption nào.
 Executed By:
 Claude (session này)
 
