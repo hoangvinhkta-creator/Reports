@@ -31,6 +31,7 @@ băng chi tiết các task ở xa trước khi discovery đã đủ."
 | 2 | S002 | Profile → PRODUCT; CH-01 và CH-02 được áp dụng; các gate của PHASE-01 được frozen; agent tier được ánh xạ sang A–D |
 | 3 | S003 | CH-03 được áp dụng — REM-T02 được thực thi trước REM-T07; REM-T02 DONE; FIND-001 RESOLVED; REM-T03/REM-T04 được gỡ block |
 | 4 | S004 | REM-T04 DONE; FIND-003 và FIND-004 RESOLVED; gate MICRO-001 sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-012) |
+| 5 | S005 | REM-T03 và REM-T07 DONE; FIND-007 và FIND-008 RESOLVED; gate CHECK-T03-03 sửa qua COMPLETION GATE CHANGE PROPOSAL (DEC-013); toàn bộ 4 task chính PHASE-01 hoàn tất, chuyển sang Phase Gate 01 |
 
 ### ROADMAP CHANGE CH-01 — REM-T01 bị hủy (cancelled, được hấp thụ)
 
@@ -159,26 +160,24 @@ mà không cần task.
 
 ## Dependency Graph
 
-Như đã thực thi (post-S004):
+Như đã thực thi (post-S005 — toàn bộ PHASE-01 chính đã DONE):
 
 ```text
-REM-T02 (đưa package lên gốc repo)   [DONE — Blast Radius 5/5]
+REM-T02 (đưa package lên gốc repo)   [DONE — S003]
     │
-    ├──> REM-T07 (CI enforcement — tạo nguồn E2 bền vững)   [READY]
+    ├──> REM-T07 (CI enforcement — tạo nguồn E2 bền vững)   [DONE — S005]
     │
-    ├──> REM-T03 (validator deployment-root + reference)   [READY]
+    ├──> REM-T03 (validator deployment-root + reference)   [DONE — S005]
     │
     ├──> REM-T04 (sửa reference canonical)   [DONE — S004]
     │        │
-    │        └──> REM-T05 (documentation & evidence truth-up)
+    │        └──> REM-T05 (documentation & evidence truth-up)   [PLANNED]
     │
-    └──> REM-T06 (root README / .gitignore)
+    └──> REM-T06 (root README / .gitignore)   [PLANNED]
 ```
 
-REM-T07, REM-T03 và REM-T04 chỉ phụ thuộc vào REM-T02, không phụ thuộc lẫn
-nhau. REM-T04 đã DONE ở S004. Còn lại trong PHASE-01: REM-T07 (chỉ chạm
-`.github/workflows/`) và REM-T03 (chỉ chạm `governance/scripts/`) — chạy song
-song an toàn.
+Bước tiếp theo không phải REM-T05/T06 ngay — là **Phase Gate 01**, xác nhận
+cả 4 task chính hoạt động cùng nhau đúng trước khi mở PHASE-02.
 
 ## Phân công Agent Tier
 
@@ -204,15 +203,21 @@ thể kiểm chứng được, và được hậu thuẫn bởi bằng chứng �
 
 Gate status: **FROZEN** cho cả bốn task tính từ 2026-08-22 (S002).
 
-## REM-T07 — CI enforcement layer  ·  READY
+## REM-T07 — CI enforcement layer  ·  DONE
 
-- [ ] REM-T07 hoàn tất
+- [x] REM-T07 hoàn tất — 2026-08-23 (S005)
 
 Closes:
-FIND-008 (LOW) · Resolves RSK-004
+FIND-008 (LOW) — **RESOLVED** · Resolves RSK-004 — **đóng**
 
 Status:
-**READY** — Ready Gate đã được xác minh trong S002; không còn dependency mở.
+**DONE.** `.github/workflows/governance.yml` chạy trên `push`/`pull_request`,
+xác nhận qua 3 lần chạy CI thật trên GitHub Actions:
+- Run #1 (`32613467285`) — FAIL đúng, bắt được 2 broken reference thật do
+  chính agent đưa vào lúc soạn evidence cho REM-T03 (không phải lỗi giả).
+- Run #2 (`32613528195`) — PASS sau khi sửa.
+- Run trên nhánh scratch `scratch/ci-failure-test` (`32613562660`) — FAIL
+  đúng trên breakage cố ý, xác nhận CI thực sự có thể fail.
 
 Task Mode:
 MAJOR · Tier B / escalate Tier C
@@ -223,18 +228,22 @@ Scope:
 `.github/workflows/governance.yml` tại gốc git repository. Không gì khác.
 
 Critical design constraint:
-Workflow phải **phát hiện (discover)** các script validator lúc runtime,
-không hard-code đường dẫn của chúng — nếu không, việc di chuyển chỉ-đường-dẫn
-(path-only) của REM-T02 sẽ làm hỏng nó và buộc phải chỉnh sửa nội dung bên
-trong một Scope Lock vốn cấm điều đó.
+Workflow phát hiện (discover) validator bằng
+`find . -type d -path '*/governance/scripts/governance'`, không hard-code
+đường dẫn — xác nhận resilience qua CHECK-T07-04 (mô phỏng layout lồng cục
+bộ).
 
-Frozen Completion Gate — 7 check (6 REQUIRED, 1 RECOMMENDED):
-CHECK-T07-01 … CHECK-T07-07. Toàn văn trong
+Frozen Completion Gate — 7/7 check PASS (6 REQUIRED, 1 RECOMMENDED):
+CHECK-T07-01 … CHECK-T07-07. Toàn văn evidence trong
 `docs/tasks/TASK-REM-T07-ci-enforcement.md`.
 
-Không thể thương lượng trong số đó: **CHECK-T07-03** — workflow phải được
-quan sát thấy FAILING trên một sự cố hỏng hóc (breakage) có chủ đích. Một CI
-chưa từng được thấy fail sẽ tạo ra bằng chứng E2 giả mạo.
+**CHECK-T07-03** (không thể thương lượng) — PASS: workflow quan sát thấy
+FAILING thật trên breakage cố ý (nhánh scratch, run `32613562660`).
+
+Ghi chú giới hạn (DEC-014): nhánh scratch dùng để test CHECK-T07-03 không
+xóa được trên GitHub qua session này — proxy chặn `git push --delete` lẫn
+gọi API DELETE trực tiếp (403 "Write access to this GitHub API path is not
+permitted through this proxy"). Owner cần xóa thủ công qua GitHub UI.
 
 Task file:
 `docs/tasks/TASK-REM-T07-ci-enforcement.md`
@@ -288,16 +297,18 @@ chạy khi task này được thực thi.
 Task file:
 `docs/tasks/TASK-REM-T02-root-promotion.md`
 
-## REM-T03 — Deployment-root and reference-integrity validators
+## REM-T03 — Deployment-root and reference-integrity validators  ·  DONE
 
-- [ ] REM-T03 hoàn tất
+- [x] REM-T03 hoàn tất — 2026-08-23 (S005)
 
 Closes:
-FIND-007 (MEDIUM); hỗ trợ xác minh máy (machine verification) cho FIND-005 và
-FIND-011
+FIND-007 (MEDIUM) — **RESOLVED**; hỗ trợ xác minh máy (machine verification)
+cho FIND-005 và FIND-011
 
 Status:
-**READY** — REM-T02 đã DONE (S003).
+**DONE.** `validate_structure.py` mở rộng với deployment-root check +
+`validate_reference_integrity.py` mới, cả hai xác nhận bằng test thật (fixture
+regression + chạy trên baseline `0394267` qua git worktree cô lập).
 
 Task Mode:
 MAJOR · Tier B / escalate Tier C
@@ -311,21 +322,30 @@ giải được. Đây là quy tắc mà quá trình quét thủ công (manual s
 đã sử dụng, khiến CHECK-T03-03 trở thành một bài test tái tạo (reproduction
 test) thực sự.
 
-Các trường hợp loại trừ validator phải triển khai:
+Các trường hợp loại trừ validator đã triển khai:
 - `governance/reference/history/` — kho lưu trữ đã đóng băng (frozen archive)
   (FIND-011)
 - `docs/audit/` — bản ghi audit bất biến; nó trích dẫn nguyên văn các token
   lỗi (defect token)
-- các mẫu glob và các reference hướng tới các file mà một task PLANNED sẽ tạo
-  ra trong tương lai
+- các mẫu glob (`*`)
+- một allowlist nhỏ theo TỪNG CẶP CHÍNH XÁC (file nguồn, reference) cho các
+  trích dẫn token lỗi lịch sử / forward-reference đã biết — không phải một
+  miễn trừ theo token toàn cục (xem `KNOWN_EXEMPT_PAIRS` trong script)
 
-Frozen Completion Gate — 4 check REQUIRED:
-- CHECK-T03-01 — fixture lồng nhau (nested fixture) FAIL với một thông báo
-  rõ ràng — E1
-- CHECK-T03-02 — bố cục gốc đã sửa (corrected root layout) exit 0 — E1
-- CHECK-T03-03 — tái tạo chính xác ba reference của S001 trên cây thư mục
-  trước-REM-T04 — E1
-- CHECK-T03-04 — exit 0 trên cây thư mục sau-REM-T04 — E1
+**Giới hạn đã biết, ghi có chủ đích:** chỉ bắt reference có phần mở rộng
+`.md`/`.py`/`.svg`, không bắt reference dạng thư mục (như `templates/`). Đã
+thử mở rộng nhưng gây 20 false positive trên HEAD lành mạnh (đa số là ví dụ
+minh họa trong văn xuôi, không phải reference thật) — revert, xem DEC-013.
+
+Frozen Completion Gate — 4/4 check REQUIRED PASS:
+- CHECK-T03-01 — fixture lồng nhau FAIL với thông báo rõ ràng — **PASS, E1**
+- CHECK-T03-02 — bố cục gốc đã sửa (repo hiện tại) exit 0 — **PASS, E1**
+- CHECK-T03-03 — chạy trên baseline `0394267` (git worktree cô lập), tái tạo
+  **2/2** reference trong phạm vi `.md` — **PASS, E1** (sửa từ yêu cầu gốc
+  "3 reference" xuống "2 reference" qua COMPLETION GATE CHANGE PROPOSAL,
+  DEC-013 — reference thư mục `templates/` bị loại khỏi phạm vi một cách
+  tường minh)
+- CHECK-T03-04 — exit 0 trên HEAD (post-REM-T04) — **PASS, E1**
 
 Task file:
 `docs/tasks/TASK-REM-T03-validator-hardening.md`
@@ -517,14 +537,14 @@ Preliminary Completion Gate (CHƯA FROZEN):
 | FIND-004 | MEDIUM | REM-T04 | 01 | **RESOLVED** (S004, E1) |
 | FIND-005 | MEDIUM | REM-T05 (+REM-T03) | 02 | OPEN |
 | FIND-006 | MEDIUM | REM-T05 | 02 | OPEN |
-| FIND-007 | MEDIUM | REM-T03 | 01 | OPEN |
-| FIND-008 | LOW | REM-T07 | 01 | OPEN |
+| FIND-007 | MEDIUM | REM-T03 | 01 | **RESOLVED** (S005, E1) |
+| FIND-008 | LOW | REM-T07 | 01 | **RESOLVED** (S005, E1) |
 | FIND-009 | LOW | REM-T06 | 03 | OPEN |
 | FIND-010 | INFO | — | — | No action |
 | FIND-011 | LOW | REM-T03 + REM-T05 | 02 | OPEN |
 | FIND-012 | LOW | REM-T05 | 02 | OPEN |
 
-Đã giải quyết (Resolved): 4 / 12. Mọi finding còn lại đều được ánh xạ tới
+Đã giải quyết (Resolved): 6 / 12. Mọi finding còn lại đều được ánh xạ tới
 một task hoặc được đánh dấu rõ ràng là không cần hành động (no-action).
 Không có finding nào bị âm thầm bỏ qua.
 

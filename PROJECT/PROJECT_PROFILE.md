@@ -31,10 +31,34 @@ External Users:
 KHÔNG CÓ — không có hệ thống deploy, không có người dùng bên ngoài.
 
 CI/CD:
-Hiện chưa có. Ở PRODUCT, `governance/product/14_CI_CD_RELEASE_RULES.md` không
-bắt buộc, nhưng CI hiện được đánh giá là khả thi và được lên lịch làm REM-T07
-trong PHASE-01 — đây là nguồn E2 evidence khả thi duy nhất của dự án (giải
-quyết RSK-004). Xem DEC-007.
+**Đã có, từ S005 (REM-T07).** `.github/workflows/governance.yml` chạy trên
+`push` và `pull_request`, thực thi 5 validator governance
+(`validate_structure.py`, `validate_project_state.py`,
+`validate_task_completion.py`, `validate_evidence.py`,
+`validate_reference_integrity.py`) bằng cách discovery đường dẫn
+(`find ... -path '*/governance/scripts/governance'`), không hard-code.
+`validate_refactor_preservation.py` được skip có báo cáo tường minh (cần
+tham số vị trí). Least privilege (`permissions: contents: read`), không tiêu
+thụ secret, action pin theo SHA đầy đủ (không dùng floating tag).
+
+**Kết quả CI giờ là một nguồn E2 (Independent Evidence) hợp lệ** theo
+`governance/core/EVIDENCE_STANDARD.md` — nghị quyết cho RSK-004 (trước đây dự
+án không có nguồn E2 bền vững, phải dựa vào review độc lập dùng một lần như
+REM-T02 đã làm). Xác nhận qua 3 lần chạy thật trên GitHub Actions trong S005:
+- Run #1 (`32613467285`) — FAIL đúng, bắt được 2 broken reference thật do
+  chính agent đưa vào lúc soạn evidence cho REM-T03. CI hoạt động đúng ngay
+  từ lần chạy đầu tiên, không phải một lần pass giả.
+- Run #2 (`32613528195`) — PASS sau khi sửa, sau khi tất cả 5 validator
+  chạy xanh.
+- Run trên nhánh scratch `scratch/ci-failure-test` (`32613562660`) — FAIL
+  đúng tại `validate_project_state.py` trên một breakage cố ý (giá trị
+  Selected Profile không hợp lệ), xác nhận CI thực sự có khả năng fail chứ
+  không phải luôn luôn xanh.
+
+Branch protection (bắt buộc CI pass trước khi merge) **chưa được thiết lập**
+— đây là cài đặt repository do owner kiểm soát, nằm ngoài thẩm quyền agent.
+Khuyến nghị: owner bật "Require status checks to pass" cho check `governance`
+trên nhánh mặc định.
 
 Staging:
 KHÔNG CÓ. Không bắt buộc ở PRODUCT với một repo không có deployable artifact.

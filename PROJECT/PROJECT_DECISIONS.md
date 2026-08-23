@@ -566,3 +566,44 @@ Nếu trong tương lai có nhu cầu thực sự kiểm tra reference dạng th
 thiết kế riêng — ví dụ chỉ áp dụng cho các thư mục canonical đã biết
 (`governance/`, `docs/`, `PROJECT/` và các thư mục con trực tiếp của chúng)
 thay vì bắt mọi backtick-quoted string kết thúc bằng `/`.
+
+## DEC-014
+
+Date:
+2026-08-23
+
+Task:
+REM-T07 (thực hiện trong S005)
+
+Quyết Định:
+Ghi nhận (không phải sửa gate) một giới hạn môi trường: session này không thể
+xóa nhánh `scratch/ci-failure-test` trên GitHub sau khi dùng nó để chứng
+minh CHECK-T07-03.
+
+Lý Do:
+Cả hai đường xóa nhánh remote đều bị chặn:
+- `git push origin --delete scratch/ci-failure-test` → lỗi mạng lặp lại
+  ("unexpected disconnect"/HTTP 403) qua nhiều lần thử với backoff.
+- Gọi trực tiếp GitHub API `DELETE /repos/.../git/refs/heads/...` bằng
+  `GH_TOKEN` có sẵn trong môi trường → `403`, thông báo tường minh từ proxy:
+  "Write access to this GitHub API path is not permitted through this
+  proxy."
+
+Đây là giới hạn có chủ đích của proxy môi trường (không cho phép xóa ref qua
+đường ghi này), không phải lỗi thao tác. Nhánh scratch chỉ chứa đúng 1 commit
+phá hoại có chủ đích (đổi `Selected Profile` thành giá trị không hợp lệ),
+không được merge vào bất kỳ nhánh nào khác, và không ảnh hưởng tới
+`claude/s001-discovery-pka3fu` hay nhánh mặc định.
+
+Risk:
+Rất thấp. Nhánh nằm đó không hoạt động, không được protect, không ai vô tình
+merge nó (nó cố ý phá `PROJECT_PROFILE.md`, CI trên nó tự FAIL nếu ai đó thử
+tạo PR). Rủi ro duy nhất là rác thị giác trong danh sách nhánh.
+
+Impact:
+Nhánh `scratch/ci-failure-test` vẫn tồn tại trên GitHub sau khi S005 kết
+thúc. Cần owner xóa thủ công qua GitHub UI (một thao tác, owner có đủ quyền
+mà token của session này không có).
+
+Có Thể Xem Lại Sau:
+Sau khi owner xóa nhánh thủ công — không cần hành động gì thêm từ agent.

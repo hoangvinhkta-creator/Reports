@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-VERIFYING
+DONE
 
 Phase:
 PHASE-01 — Governance Foundation Repair
@@ -127,10 +127,9 @@ reference chỉ bị coi là hỏng khi cả hai đều không resolve được.
 quy tắc mà bản scan thủ công của S001 đã dùng (CHK-S001-06), nên CHECK-T03-03
 là một test tái hiện (reproduction test) thực sự.
 
-Status: **VERIFYING** — 2026-08-23 (S005). REM-T02 đã DONE từ S003; Ready Gate
-verified đầy đủ khi task này bắt đầu thực thi. Toàn bộ 4/4 REQUIRED check đã
-PASS (xem Completion Gate bên dưới); chuyển sang DONE khi Session Handoff
-được viết xong (Exit Criteria mục cuối), cùng lúc với REM-T07 ở cuối S005.
+Status: **DONE** — 2026-08-23 (S005). REM-T02 đã DONE từ S003; Ready Gate
+verified đầy đủ. 4/4 REQUIRED check PASS. Session Handoff:
+`docs/sessions/S005-ci-and-validators.md`.
 
 ## Completion Gate
 Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `governance/core/EVIDENCE_STANDARD.md`.
@@ -245,9 +244,7 @@ Chạy trên cây thư mục sau-REM-T04, validator exit 0.
 - [x] Đạt mức evidence yêu cầu — toàn bộ E1
 - [x] `governance/scripts/governance/README.md` đã được cập nhật
 - [x] Tiến độ dự án đã được cập nhật
-- [ ] Đã viết Session Handoff — sẽ ghi vào docs/sessions/ khi S005 kết thúc
-      (đang thực hiện song song với REM-T07 trong cùng session; chưa tick
-      cho tới khi file thực sự tồn tại, để tránh tự tạo một reference gãy)
+- [x] Đã viết Session Handoff — `docs/sessions/S005-ci-and-validators.md`
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 - Nếu quy tắc resolve reference tạo ra false positive trên văn xuôi hợp lệ →
