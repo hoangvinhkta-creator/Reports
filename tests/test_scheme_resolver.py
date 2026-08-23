@@ -201,9 +201,27 @@ def test_an_unclosed_old_row_is_reported_not_silently_resolved(config_dir):
 
 
 def test_unmapped_employee_is_unresolved_not_borrowed(config_dir):
+    # DEC-127 §8: an unidentified seller must NOT fall through to the
+    # universal "*" row. "*" means "any KNOWN employee", not "anyone at all".
     got = _resolve(config_dir, None, None, PERSONAL, DIEN_MAY)
-    # Falls to the "*" row legitimately — a "*" row is meant to cover anyone.
-    assert got.scheme == "PERSONAL_5_5"
+    assert got.scheme == CONVERSION_UNRESOLVED
+    assert got.rate is None
+    assert got.source_of_value == "Unresolved:UnmappedEmployee"
+
+
+def test_employee_without_a_group_is_also_unresolved(config_dir):
+    # A configured name but no group is still not enough to price a line.
+    got = _resolve(config_dir, "Ai Đó", None, PERSONAL, DIEN_MAY)
+    assert got.scheme == CONVERSION_UNRESOLVED
+    assert got.rate is None
+
+
+def test_unmapped_check_runs_before_the_universal_rule(config_dir):
+    # The guard must precede scheme lookup for EVERY lead source, so no
+    # combination sneaks a rate out of the "*" rows.
+    for lead_source in (PERSONAL, ADS):
+        got = _resolve(config_dir, None, None, lead_source, DIEN_MAY)
+        assert got.rate is None, lead_source
 
 
 def test_missing_lead_source_is_unresolved(config_dir):
@@ -270,7 +288,7 @@ def test_equally_specific_rows_raise_instead_of_picking_one(config_dir):
 def test_manual_override_outranks_auto_but_rate_still_comes_from_config(config_dir):
     resolver = _resolver(config_dir)
     auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
-    final = resolver.resolve_final(auto, "GIA_DUNG_8")
+    final = resolver.resolve_final(auto, "GIA_DUNG_8", as_of=JAN)
     assert final.scheme == "GIA_DUNG_8"
     assert final.rate == Decimal("0.080")  # from config, not typed by a person
     assert final.source_of_value == "Manual"
@@ -279,7 +297,7 @@ def test_manual_override_outranks_auto_but_rate_still_comes_from_config(config_d
 def test_manual_override_of_unknown_scheme_gives_no_rate(config_dir):
     resolver = _resolver(config_dir)
     auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
-    final = resolver.resolve_final(auto, "SCHEME_KHONG_TON_TAI")
+    final = resolver.resolve_final(auto, "SCHEME_KHONG_TON_TAI", as_of=JAN)
     assert final.rate is None
     assert final.source_of_value == "Manual:UnknownScheme"
 
@@ -287,7 +305,77 @@ def test_manual_override_of_unknown_scheme_gives_no_rate(config_dir):
 def test_no_override_keeps_the_auto_verdict(config_dir):
     resolver = _resolver(config_dir)
     auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
-    assert resolver.resolve_final(auto, None) == auto
+    assert resolver.resolve_final(auto, None, as_of=JAN) == auto
+
+
+# --- Manual override must obey effective dating, same as resolve_auto -------
+
+_TWO_PERIOD_ROWS = [
+    {
+        "employee": "*",
+        "employee_group": "*",
+        "lead_source": PERSONAL,
+        "product_group": "*",
+        "scheme": "PERSONAL_5_5",
+        "rate": "0.055",
+        "effective_from": "2026-01-01",
+        "effective_to": "2026-12-31",
+    },
+    {
+        "employee": "*",
+        "employee_group": "*",
+        "lead_source": PERSONAL,
+        "product_group": "*",
+        "scheme": "PERSONAL_5_5",  # same scheme name, later period, new rate
+        "rate": "0.065",
+        "effective_from": "2027-01-01",
+        "effective_to": None,
+    },
+]
+
+
+def test_manual_override_uses_the_period_matching_the_order_date():
+    resolver = ConversionSchemeResolver(_TWO_PERIOD_ROWS, DIEN_MAY)
+    auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
+
+    in_2026 = resolver.resolve_final(auto, "PERSONAL_5_5", as_of=JAN)
+    assert in_2026.rate == Decimal("0.055")
+
+    in_2027 = resolver.resolve_final(
+        auto, "PERSONAL_5_5", as_of=date(2027, 6, 1)
+    )
+    assert in_2027.rate == Decimal("0.065")
+
+    # The bug this guards: taking "the first row naming this scheme" would
+    # return 0.055 for both periods.
+    assert in_2026.rate != in_2027.rate
+
+
+def test_manual_override_before_any_period_has_no_rate():
+    resolver = ConversionSchemeResolver(_TWO_PERIOD_ROWS, DIEN_MAY)
+    auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
+    got = resolver.resolve_final(auto, "PERSONAL_5_5", as_of=date(2025, 6, 1))
+    assert got.rate is None
+    assert got.source_of_value == "Manual:UnknownScheme"
+
+
+def test_manual_override_without_a_date_refuses_to_guess():
+    resolver = ConversionSchemeResolver(_TWO_PERIOD_ROWS, DIEN_MAY)
+    auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
+    got = resolver.resolve_final(auto, "PERSONAL_5_5", as_of=None)
+    assert got.rate is None
+    assert got.source_of_value == "Manual:NoEffectiveDate"
+
+
+def test_manual_override_with_two_rates_in_one_period_is_ambiguous():
+    overlapping = [
+        dict(_TWO_PERIOD_ROWS[0], effective_to=None),  # left open by mistake
+        _TWO_PERIOD_ROWS[1],
+    ]
+    resolver = ConversionSchemeResolver(overlapping, DIEN_MAY)
+    auto = resolver.resolve_auto("Ly", "STANDARD_SALES", PERSONAL, DIEN_MAY, JAN)
+    with pytest.raises(AmbiguousSchemeConfigError):
+        resolver.resolve_final(auto, "PERSONAL_5_5", as_of=date(2027, 6, 1))
 
 
 # --------------------------------------------------------------------------

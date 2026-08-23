@@ -7,8 +7,11 @@ from typing import Optional
 from app.modules.conversion.conversion_engine import apply_conversion_schemes
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver
 from app.modules.domain.models import (
+    CONVERSION_UNRESOLVED,
     DIEN_MAY,
     GIA_DUNG,
+    MAPPING_STATUS_MAPPED,
+    MAPPING_STATUS_UNMAPPED,
     PERSONAL,
     PRODUCT_GROUP_SOURCE_AUTO,
     PRODUCT_GROUP_SOURCE_DEFAULT,
@@ -20,10 +23,16 @@ from app.modules.product.product_group import DefaultProductGroupProvider
 from tests.factories import make_raw_row
 
 
-def _line(product_raw="Máy giặt Test-1", employee="Vinh", group="NOI_THANH"):
+def _line(
+    product_raw="Máy giặt Test-1",
+    employee="Vinh",
+    group="NOI_THANH",
+    status=MAPPING_STATUS_MAPPED,
+):
     line = normalize_line(make_raw_row(product_raw=product_raw))
     line.employee_normalized = employee
     line.employee_group = group
+    line.employee_mapping_status = status
     line.lead_source_final = PERSONAL
     return line
 
@@ -130,6 +139,25 @@ def test_standard_sales_line_marked_gia_dung_keeps_five_point_five(config_dir):
     _run([_order([line])], config_dir)
     assert line.conversion_scheme_final == "PERSONAL_5_5"
     assert line.conversion_rate_final == Decimal("0.055")
+
+
+def test_unmapped_employee_line_never_receives_a_rate(config_dir):
+    # DEC-127 §8, checked at the engine level before any scheme lookup.
+    line = _line(employee=None, group=None, status=MAPPING_STATUS_UNMAPPED)
+    _run([_order([line])], config_dir)
+    assert line.conversion_scheme_final == CONVERSION_UNRESOLVED
+    assert line.conversion_scheme_auto == CONVERSION_UNRESOLVED
+    assert line.conversion_rate_final is None
+    assert line.conversion_scheme_source_of_value == "Unresolved:UnmappedEmployee"
+
+
+def test_unmapped_flag_wins_even_if_a_name_and_group_are_present(config_dir):
+    # Defence in depth: if the status says unmapped, no rate is produced even
+    # when the other fields look complete.
+    line = _line(employee="Vinh", group="NOI_THANH", status=MAPPING_STATUS_UNMAPPED)
+    _run([_order([line])], config_dir)
+    assert line.conversion_rate_final is None
+    assert line.conversion_scheme_final == CONVERSION_UNRESOLVED
 
 
 def test_manual_scheme_override_is_recorded_and_does_not_touch_lead_source(config_dir):

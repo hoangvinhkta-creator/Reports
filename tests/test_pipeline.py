@@ -171,12 +171,14 @@ def test_every_line_defaults_to_dien_may_with_visible_provenance(
     )
 
 
-def test_unmapped_employee_line_gets_no_borrowed_rate(synthetic_raw_path, config_dir):
+def test_unmapped_employee_line_gets_no_rate_at_all(synthetic_raw_path, config_dir):
+    # DEC-127 §8: an unconfirmed seller goes to the review queue. The line must
+    # carry NO rate — not the universal 5.5%, not anyone else's.
     result = run_import(synthetic_raw_path, config_dir=config_dir)
     order = _order(result, "BH0005")  # employee not in employees.yaml
     line = order.lines[0]
     assert line.employee_group is None
-    # Falls to the "*" PERSONAL row, which legitimately covers anyone; the
-    # point is that it never picks up NOI_THANH's 2% or anyone else's rate.
-    assert line.conversion_rate_final == Decimal("0.055")
-    assert line.conversion_scheme_final == "PERSONAL_5_5"
+    assert line.conversion_scheme_final == "Unresolved"
+    assert line.conversion_rate_final is None
+    assert line.conversion_scheme_source_of_value == "Unresolved:UnmappedEmployee"
+    assert line in result.unmapped_lines  # routed to review

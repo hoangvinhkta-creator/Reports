@@ -126,6 +126,16 @@ class ConversionSchemeResolver:
         if lead_source is None or as_of is None:
             return SchemeResolution(CONVERSION_UNRESOLVED, None, "Unresolved")
 
+        # An unidentified seller cannot be priced (DEC-127 §8). This check runs
+        # BEFORE the universal "*" rows are considered: a `"*"` row means "any
+        # KNOWN employee", not "anyone at all". Letting an unmapped name fall
+        # through to `* + PERSONAL` would hand a KPI rate to a person nobody
+        # has confirmed exists — the review queue is where they belong.
+        if employee is None or employee_group is None:
+            return SchemeResolution(
+                CONVERSION_UNRESOLVED, None, "Unresolved:UnmappedEmployee"
+            )
+
         dated = effective_rows(self._rows, as_of)
         candidates = [
             row
@@ -166,20 +176,44 @@ class ConversionSchemeResolver:
         )
 
     def resolve_final(
-        self, auto: SchemeResolution, manual_override: Optional[str]
+        self,
+        auto: SchemeResolution,
+        manual_override: Optional[str],
+        as_of: Optional[date] = None,
     ) -> SchemeResolution:
         """A manual scheme override outranks the automatic verdict.
 
         The override names a scheme, so its rate still comes from the config
-        row for that scheme and the effective date — a person picks *which
-        policy applies*, never the number itself. An override naming a scheme
-        that no row defines resolves to no rate rather than to a guess.
+        row for that scheme **as of the order's own business date** — a person
+        picks *which policy applies*, never the number itself. Using the same
+        effective-dating rule as `resolve_auto` matters once a scheme spans
+        more than one period: re-running a 2026 report after the 2027 rate
+        landed must still produce the 2026 number (DEC-121).
+
+        Taking "the first row naming this scheme" would silently pick whichever
+        period happens to sit earlier in the file. That is exactly the class of
+        bug this module exists to prevent.
         """
         if not manual_override:
             return auto
-        for row in self._rows:
-            if row.get("scheme") == manual_override:
-                return SchemeResolution(
-                    manual_override, Decimal(str(row["rate"])), "Manual"
-                )
-        return SchemeResolution(manual_override, None, "Manual:UnknownScheme")
+        if as_of is None:
+            return SchemeResolution(
+                manual_override, None, "Manual:NoEffectiveDate"
+            )
+
+        matches = [
+            row
+            for row in effective_rows(self._rows, as_of)
+            if row.get("scheme") == manual_override
+        ]
+        if not matches:
+            return SchemeResolution(manual_override, None, "Manual:UnknownScheme")
+
+        rates = {Decimal(str(row["rate"])) for row in matches}
+        if len(rates) > 1:
+            raise AmbiguousSchemeConfigError(
+                f"Scheme {manual_override!r} có {len(rates)} tỉ lệ khác nhau "
+                f"cùng hiệu lực ngày {as_of}: {sorted(rates)}. "
+                "Engine không tự chọn — sửa cấu hình cho rõ ràng."
+            )
+        return SchemeResolution(manual_override, rates.pop(), "Manual")

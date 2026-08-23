@@ -193,17 +193,29 @@ Evidence Level:
 E1
 
 Evidence:
-Output lệnh `python tools/analysis/verify_ads_rule.py`:
-```
-LeadSource — spec section 29 + section 13 edge cases + DEC-109 : 18/18 passed
-LeadSource + ConversionScheme — DEC-119 cases A–G (DEC-127 model) : 8/8 passed
-ProductGroup — DEC-127 cases H–K                                 : 4/4 passed
-Case G — hai bucket quy đổi độc lập                              : 2/2 passed
-Tra tỉ lệ theo thời điểm — DEC-121                               : 3/3 passed
-```
-**31/31 giữ nguyên** sau khi chuyển sang bảng 4 chiều và `Decimal`, cộng thêm
-4 case H–K mới cho ProductGroup → tổng 35/35.
+**Sửa theo Independent Review #1, Finding 4.** Script không còn bảng nhân
+viên / từ khóa / tỉ lệ / thuật toán riêng — nó import
+`EmployeeMapper`, `LeadSourceClassifier`, `ConversionSchemeResolver` từ
+`app.modules` và nạp trực tiếp `config/`. Input là chuỗi `NVBH` thô đúng như
+file bán hàng, nên bước mapping cũng được kiểm luôn. Chỉ **expected output**
+nằm trong script.
 
+Output `python tools/analysis/verify_ads_rule.py` (exit 0):
+```
+LeadSource — §29 + §13 edge + DEC-109              : 18/18 passed
+ConversionScheme — DEC-119 cases A–G (DEC-127)     :  8/8  passed
+ProductGroup + unmapped guard — DEC-127 cases H–L  :  5/5  passed
+Case G — hai bucket quy đổi độc lập                :  2/2  passed
+Tra tỉ lệ theo thời điểm — DEC-121                 :  3/3  passed
+                                              TỔNG : 36/36
+```
+31/31 cũ giữ nguyên, cộng case L mới cho guard unmapped.
+
+**Falsification (chứng minh không còn oracle song song):** sửa
+`rate: "0.020"` → `"0.030"` trong `config/conversion_rates.yaml` → case E, F,
+H **FAIL**, exit 1. Sửa từ khóa `"ADS"` → `"QUANGCAO"` trong
+`config/lead_source.yaml` → **12 case FAIL**. Bản cũ có bảng riêng nên sẽ
+PASS trong cả hai tình huống. Config đã khôi phục sạch.
 Executed By:
 Claude (session này)
 
@@ -377,6 +389,18 @@ Evidence:
 (`effective_to: 2026-12-31`) rồi mở dòng 2027 ở 6 %: chạy lại kỳ 01.2026 vẫn
 ra **5,5 %**, kỳ 06.2027 ra 6 %.
 
+**Bổ sung theo Independent Review #1, Finding 2 (HIGH).** `resolve_final()`
+trước đây lấy dòng ĐẦU TIÊN mang tên scheme, bỏ qua effective date. Đã sửa:
+nhận tham số `as_of` và dùng cùng `effective_rows()` như `resolve_auto`.
+
+Test qua **hai kỳ effective date**:
+`test_manual_override_uses_the_period_matching_the_order_date` — cùng scheme
+`PERSONAL_5_5` có 5,5 % (2026) và 6,5 % (2027); override trả đúng tỉ lệ theo
+ngày đơn, và assert `in_2026.rate != in_2027.rate` để bắt đúng lỗi cũ.
+`test_manual_override_before_any_period_has_no_rate`,
+`test_manual_override_without_a_date_refuses_to_guess`,
+`test_manual_override_with_two_rates_in_one_period_is_ambiguous` (ném
+`AmbiguousSchemeConfigError`).
 Executed By:
 Claude (session này)
 
@@ -394,17 +418,26 @@ Evidence Level:
 E1
 
 Evidence:
-`test_date_before_effective_from_is_unresolved_not_guessed` (31/12/2025 →
-`Unresolved`, `rate is None`), `test_no_matching_row_is_unresolved`,
-`test_missing_lead_source_is_unresolved`.
+**Sửa theo Independent Review #1, Finding 1 (CRITICAL).** Hành vi cũ cho
+nhân viên chưa map rơi vào dòng `* + PERSONAL` → 5,5 %. Reviewer xác định vi
+phạm DEC-127 §8. Đã sửa: chặn **trước** khi xét universal rule, ở cả hai tầng.
 
-**Phát hiện cần review:** nhân viên chưa map (`employee=None`,
-`group=None`) **không** trả `Unresolved` mà khớp dòng `*`/`*` → 5,5 %. Đây là
-dòng chính sách phổ quát áp cho bất kỳ ai, **không phải mượn tỉ lệ của nhân
-viên khác**, nên đúng luật ADR-104. Việc loại khỏi KPI do
-`employee_mapping_status = unmapped` gánh (C11), không do resolver. **Dự đoán
-ở Gate v3 rằng 3 ô legacy sẽ ra `Unresolved` là SAI** — xem mục Ghi Chú.
+`app/modules/conversion/scheme_resolver.py` — `resolve_auto()` trả
+`Unresolved` / `rate=None` / `source="Unresolved:UnmappedEmployee"` khi
+`employee is None` hoặc `employee_group is None`.
+`app/modules/conversion/conversion_engine.py` — chặn theo
+`employee_mapping_status == MAPPING_STATUS_UNMAPPED` trước mọi tra cứu.
 
+Test: `test_unmapped_employee_is_unresolved_not_borrowed`,
+`test_employee_without_a_group_is_also_unresolved`,
+`test_unmapped_check_runs_before_the_universal_rule` (cả PERSONAL lẫn ADS),
+`test_unmapped_employee_line_never_receives_a_rate`,
+`test_unmapped_flag_wins_even_if_a_name_and_group_are_present`,
+`tests/test_pipeline.py::test_unmapped_employee_line_gets_no_rate_at_all`,
+và case L của `verify_ads_rule.py`.
+
+Các check còn lại giữ nguyên: `test_date_before_effective_from_is_unresolved_not_guessed`,
+`test_no_matching_row_is_unresolved`, `test_missing_lead_source_is_unresolved`.
 Executed By:
 Claude (session này)
 
@@ -506,21 +539,30 @@ Evidence Level:
 E1
 
 Evidence:
-Output `python tools/analysis/reconcile_conversion.py --workbook <workbook thật>`:
-```
-Tổng ô áp tỉ lệ            : 55
-Khớp chính xác             : 52
-Legacy (ngoài master data) : 3
-LỆCH                       : 0
-```
-52 ô khớp chính xác, trong đó **13 ô hai-bucket** (Hoàng 5, Kiên 8) khớp
-**cả hai** tỉ lệ 5,5 % và 7,5 %. 8 ô `Nội thành` → 2 %, 8 ô `Gia dụng` → 8 %.
-**0 ô lệch.**
+**Sửa theo Independent Review #1, Finding 3 (HIGH).** Bản cũ hard-code
+Employee/EmployeeGroup/ProductGroup cho từng nhãn Summary — tạo PASS giả. Đã
+bỏ hoàn toàn bảng đó. Mọi dimension nay lấy từ production: nhãn Summary tra
+vào `config/employees.yaml` để lấy `normalized`/`group`/`default_lead_source`;
+nguồn đơn khả dĩ tính bằng production `LeadSourceClassifier`; tỉ lệ khả dĩ
+tính bằng production `ConversionSchemeResolver`.
 
-3 ô legacy (Linh 1, Fanpage 2) phân giải qua dòng `*` ra 5,5 % — khớp con số
-workbook dùng, nhưng **khác dự đoán ở Gate v3** (dự đoán `Unresolved`). Xem
-CHECK-108A1-10 và mục Ghi Chú. Không sửa gì để ép khớp.
+**Con số giảm so với báo cáo trước, và đây là con số đúng:**
+```
+Ô đối chiếu ĐỘC LẬP được  : 36
+    khớp                  : 36
+    LỆCH                  :  0
+Ô KHÔNG đối chiếu được    : 19
+    Nội thành  8 · Gia dụng 8 · Fanpage 2 · Linh 1
+```
+Trước đây báo 52 khớp; 16 ô trong đó chỉ "khớp" nhờ mapping tự gán. Nhãn
+`Nội thành`/`Gia dụng` là bút toán gộp ở tầng báo cáo, `Linh`/`Fanpage` là
+legacy ngoài master data — không artifact production nào nối chúng với
+Employee/EmployeeGroup/ProductGroup, và sheet kênh trong workbook cũng không
+có cột nhân viên. **Ghi nhận là GIỚI HẠN, không tính là đối chiếu thành công.**
 
+**Falsification:** đổi `PERSONAL_5_5` 5,5 % → 6,0 % ⇒ **28/36 LỆCH**, exit 1.
+Đổi group của Ly `STANDARD_SALES` → `NOI_THANH` ⇒ **đúng 8 ô của Ly LỆCH**.
+Config đã khôi phục sạch.
 Executed By:
 Claude (session này)
 
@@ -577,14 +619,15 @@ Evidence Level:
 E1
 
 Evidence:
-`pytest tests/ -q` → **119/119 passed** (83 test cũ + 36 test mới: 25
-scheme_resolver + 8 conversion_engine + 3 pipeline tích hợp). Không regression.
+`pytest tests/ -q` → **127/127 passed** (83 test cũ + 44 test mới). Không
+regression.
 
-Hai assert đổi từ `"Nội thành"` sang tên riêng
-(`tests/test_employee_mapper.py`, `tests/test_pipeline.py`) là **hệ quả trực
-tiếp của DEC-127 §1**, không phải sửa test để làm nó PASS — rule đổi trước,
-test theo sau.
-
+Sau Independent Review #1: thêm 8 test (3 unmapped ở resolver, 2 unmapped ở
+engine, 4 manual-override qua hai kỳ effective date, trừ trùng lặp), và sửa
+2 test đang assert hành vi cũ
+(`test_unmapped_employee_is_unresolved_not_borrowed`,
+`test_unmapped_employee_line_gets_no_rate_at_all`) — **sửa test theo rule đã
+được reviewer xác định là đúng, không sửa rule theo test.**
 Executed By:
 Claude (session này)
 

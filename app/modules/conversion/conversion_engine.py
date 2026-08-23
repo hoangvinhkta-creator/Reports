@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import Optional
 
 from app.modules.domain.models import (
+    CONVERSION_UNRESOLVED,
+    MAPPING_STATUS_UNMAPPED,
     PRODUCT_GROUP_SOURCE_AUTO,
     PRODUCT_GROUP_SOURCE_DEFAULT,
     PRODUCT_GROUP_SOURCE_MANUAL,
@@ -55,6 +57,19 @@ def apply_conversion_schemes(
             line.product_group_final = group
             line.product_group_source_of_value = group_source
 
+            if line.employee_mapping_status == MAPPING_STATUS_UNMAPPED:
+                # DEC-127 §8: an employee nobody has confirmed goes to the
+                # review queue, not through the universal rule. Checked here,
+                # before any scheme lookup, so no rate is ever produced for
+                # a line whose seller is unknown.
+                line.conversion_scheme_auto = CONVERSION_UNRESOLVED
+                line.conversion_scheme_final = CONVERSION_UNRESOLVED
+                line.conversion_rate_final = None
+                line.conversion_scheme_source_of_value = (
+                    "Unresolved:UnmappedEmployee"
+                )
+                continue
+
             auto = resolver.resolve_auto(
                 employee=line.employee_normalized,
                 employee_group=line.employee_group,
@@ -64,7 +79,9 @@ def apply_conversion_schemes(
             )
             line.conversion_scheme_auto = auto.scheme
 
-            final = resolver.resolve_final(auto, line.conversion_scheme_manual)
+            final = resolver.resolve_final(
+                auto, line.conversion_scheme_manual, as_of=line.date
+            )
             line.conversion_scheme_final = final.scheme
             line.conversion_rate_final = final.rate
             line.conversion_scheme_source_of_value = final.source_of_value
