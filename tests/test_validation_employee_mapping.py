@@ -22,7 +22,10 @@ from datetime import date
 from decimal import Decimal
 
 from app.modules.domain.models import MAPPING_STATUS_MAPPED
-from app.modules.mapping.employee_mapper import EmployeeMapper
+from app.modules.mapping.employee_mapper import (
+    EmployeeMapper,
+    build_employee_master,
+)
 from app.modules.importing.normalizer import normalize_line
 from app.modules.validation.employee_mapping import (
     collect_mapping_stats,
@@ -51,6 +54,7 @@ from app.modules.validation.validator import Validator
 from tests.factories import make_raw_row
 
 GROUPS = {"STANDARD_SALES"}
+GROUP_ROWS = [{"code": "STANDARD_SALES"}, {"code": "NOI_THANH"}]
 
 CONFIG = {
     "categories": {
@@ -101,7 +105,9 @@ def mapper_for(employee_rows):
     F1/F6 — đó chính là thứ các tiêu chí này tồn tại để báo. Schema fail-fast
     của HD-110-06 được kiểm riêng ở nhóm F9.
     """
-    return EmployeeMapper(employee_rows, validate=False)
+    return EmployeeMapper(
+        build_employee_master(employee_rows, GROUP_ROWS, validate=False)
+    )
 
 
 def queue_for(lines, employee_rows, groups=GROUPS):
@@ -543,7 +549,7 @@ RAW_LY = "Vũ Hạnh Ly 0868345633"
 def resolved_lines(employee_rows, dated_rows):
     """Lines mapped by the REAL production mapper, exactly as the pipeline
     would leave them."""
-    mapper = EmployeeMapper(employee_rows)
+    mapper = mapper_for(employee_rows)
     lines = []
     for source_row, when in dated_rows:
         working = unmapped_line(RAW_LY, source_row=source_row, when=when)
@@ -557,7 +563,7 @@ def resolved_lines(employee_rows, dated_rows):
 
 def resolved_lines_for(employee_rows, raw_value, dated_rows):
     """`resolved_lines` for an arbitrary raw identity."""
-    mapper = EmployeeMapper(employee_rows)
+    mapper = mapper_for(employee_rows)
     lines = []
     for source_row, when in dated_rows:
         working = unmapped_line(raw_value, source_row=source_row, when=when)
@@ -985,7 +991,7 @@ def test_f3_provenance_never_mentions_a_row_outside_the_ambiguous_set():
 
 def test_f3_raw_variants_keep_only_the_spellings_of_ambiguous_rows():
     """Two spellings of one identity, only one of them on an ambiguous row."""
-    mapper = EmployeeMapper(OVERLAP_ROWS)
+    mapper = mapper_for(OVERLAP_ROWS)
     lines = []
     for source_row, raw, when in [
         (6, "Đức Kiên", date(2026, 2, 10)),      # ambiguous
@@ -1157,7 +1163,7 @@ def test_no_finding_can_carry_provenance_from_a_row_outside_its_own_set():
         row_index=stats,
     )
     findings = list(verdict.findings) + list(
-        evaluate_inactive_records(employees, stats)
+        evaluate_inactive_records(mapper_for(employees), stats)
     )
     assert findings, "fixture must produce findings"
 

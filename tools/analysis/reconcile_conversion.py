@@ -46,11 +46,13 @@ import openpyxl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.modules.config.loader import load_yaml  # noqa: E402
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver  # noqa: E402
 from app.modules.domain.models import ADS  # noqa: E402
 from app.modules.lead_source.classifier import LeadSourceClassifier  # noqa: E402
-from app.modules.mapping.employee_mapper import EmployeeMapper  # noqa: E402
+from app.modules.mapping.employee_mapper import (  # noqa: E402
+    EmployeeMapper,
+    load_employee_master,
+)
 # F1–F5 now live in production (TD-001, TASK-110). Re-exported here unchanged
 # so this script's behaviour and output stay exactly as signed off in
 # CHECK-108A1-15 — that output is shipped evidence, not a draft.
@@ -70,8 +72,11 @@ def production_employees() -> dict[str, dict]:
     dimensions, and it is a lookup into the real file — not a table written
     here to make the numbers agree.
     """
-    data = load_yaml(CONFIG / "employees.yaml")
-    return {norm(row["normalized"]): row for row in data.get("employees", [])}
+    # HD-110-10: đi qua biên canonical thay vì `load_yaml` thô, nên chế độ
+    # chỉ-`--workbook` cũng fail-fast trên master hỏng. Không đổi logic đối
+    # chiếu, không đổi vòng khớp prefix riêng đã freeze.
+    master = load_employee_master(CONFIG / "employees.yaml")
+    return {norm(row["normalized"]): row for row in master.records}
 
 
 def reachable_rates(
@@ -188,11 +193,10 @@ def reconcile_summary(
 
 
 def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
-    employees = load_yaml(CONFIG / "employees.yaml")
-    employee_rows = employees.get("employees", [])
-    declared_groups = {
-        g.get("code") for g in employees.get("employee_groups", [])
-    }
+    # HD-110-10: cùng một biên canonical (INVARIANT L).
+    master = load_employee_master(CONFIG / "employees.yaml")
+    employee_rows = list(master.records)
+    declared_groups = set(master.group_codes)
     prefixes = [
         (norm(row["raw_prefix"]), norm(row["normalized"]), row)
         for row in employee_rows

@@ -131,9 +131,11 @@ def run_import(
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a
     # report that travels beside the data, never a stage that edits it.
+    # `build_queue_for` nhận nguyên bundle: các dòng và chính mapper đã enrich
+    # chúng đi cùng nhau, nên không có hình dạng lời gọi nào ghép sai (DEC-133).
     review_queue = Validator.from_config_dir(
         config_dir, employee_mapper=working.employee_mapper
-    ).build_queue(working.lines, working.orders)
+    ).build_queue_for(working)
 
     unmapped_lines = [
         line

@@ -3,27 +3,36 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — architecture repair sau Independent Review #5.**
+**IMPLEMENTED — architecture repair #2 sau Independent Review #6.**
 **NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
+**Còn một xung đột canonical đang chờ quyết định** — xem
+`docs/sessions/S022-task-110-review-6-architecture-repair-2.md`.
 
-Completion Gate **FROZEN** 2026-08-23. Năm vòng review, **cả năm đều FAIL**;
-bản sửa của vòng #5 đã xong nhưng **chưa được review nào PASS**:
+Completion Gate **FROZEN** 2026-08-23. Sáu vòng review, **cả sáu đều FAIL**;
+bản sửa của vòng #6 đã xong nhưng **chưa được review nào PASS**:
 
 - **Review #1 — FAIL, 6 finding** (S017). Ba Human Decision → **DEC-129**.
 - **Review #2 — FAIL, 4 finding** (S018). Không phát sinh Human Decision mới.
 - **Review #3 — FAIL, 3 finding** (S019). **HD-110-04** → **DEC-130**.
 - **Review #4 — FAIL, 2 provenance defect** (S020). **HD-110-05** → **DEC-131**.
+- **Review #6 — FAIL, 6 finding** (S022). Architecture Repair #2: root cause
+  chính là cơ chế của bản sửa lần trước — **enumeration** (danh sách đen, chỉ
+  số vị trí, danh sách trắng) làm cơ chế cưỡng chế ở mọi biên. Audit tìm thêm
+  hai defect chưa được nêu, trong đó group ma **dời tỉ lệ quy đổi 2,0 % →
+  5,5 %**. Ba Human Decision — **HD-110-09/10/11** → **DEC-133**.
 - **Review #5 — FAIL, 4 finding** (S021). Đây **không** phải một vòng patch cục
   bộ: Architecture Audit chỉ ra cả bốn finding là bốn biểu hiện của **một**
   root cause, và audit tìm thêm một drift thứ năm mà reviewer chưa nêu (F3
   khớp prefix trên chuỗi đã normalize trong khi production khớp trên chuỗi
   thô). Ba Human Decision — **HD-110-06/07/08** → **DEC-132**.
 
-16/17 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
-chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **330/330 test
-PASS** (179 mới so với baseline `c7a1b24`, 0 regression).
+21/22 REQUIRED check PASS; **CHECK-110-16 BLOCKED** (cần file thô production,
+chủ dự án cho phép giữ — chặn DONE, không chặn IMPLEMENTED). **340/342 test
+PASS**; 2 FAIL là xung đột canonical đã báo (HD-110-09 va với hai test trong
+`tests/test_reconcile_raw_integration.py`, một file MUST NOT CHANGE) — không
+phải lỗi triển khai.
 
-Chờ **Independent Review #6**.
+Chờ quyết định về xung đột đó, rồi **Independent Review #7**.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -209,6 +218,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [x] 110.R2 — Sửa 4 finding của Independent Review #2 (S018).
 - [x] 110.R3 — Sửa 3 finding của Independent Review #3 (S019), gồm HD-110-04.
 - [x] 110.R4 — Sửa 2 provenance defect của Independent Review #4 (S020), gồm HD-110-05.
+- [x] 110.R6 — **Architecture repair #2** sau Independent Review #6 (S022), gồm HD-110-09/10/11 (DEC-133): invariant P/I/M/C/L/O; xoá kênh `dict[str, str]` lưu trữ; `EmployeeMaster` có `snapshot_id`; một biên nạp master canonical; oracle structural.
 - [x] 110.R5 — **Architecture repair** sau Independent Review #5 (S021), gồm HD-110-06/07/08 (DEC-132): xóa nguồn sự thật thứ hai cho việc chọn employee record, xóa kênh provenance song song, fail-fast cho master data hỏng.
 
 ## Ready Gate
@@ -640,6 +650,27 @@ Timestamp:
 
 ### Review
 
+#### CHECK-110-18 — Independent review
+Priority:
+RECOMMENDED
+
+Status:
+NOT_TESTED
+
+Evidence Level:
+E2
+
+Evidence:
+theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`.
+Tiền lệ TASK-108A-1: 119/119 test nội bộ PASS mà reviewer độc lập vẫn tìm ra
+8 finding qua 3 vòng, trong đó một lỗi CRITICAL ảnh hưởng tiền lương.
+
+Executed By:
+—
+
+Timestamp:
+—
+
 #### CHECK-110-19 — Ma trận `EmployeeMapper.resolve()` bất biến (L1)
 Priority:
 REQUIRED
@@ -678,14 +709,21 @@ Evidence Level:
 E1
 
 Evidence:
-Ảnh chụp `tests/fixtures/baseline/business_output.json` sinh tại cùng commit,
-gồm 8 dòng / 7 đơn với đúng các trường chủ dự án chỉ định:
-`employee_normalized`, `employee_mapping_status`, `employee_group`,
-`conversion_scheme_final`, `conversion_rate_final`, `product_group_final`,
-`accounting_purchase_price`, `accounting_profit`, `lead_source_final`, và các
-trường employee cấp Order. Review Queue **cố ý** không nằm trong so sánh —
-chính nó đang được sửa.
-`python3 -m pytest tests/test_task110_non_regression.py -q` → PASS, 0 khác biệt.
+Ảnh chụp `tests/fixtures/baseline/business_output.json`, **STRUCTURAL** theo
+HD-110-11: dẫn xuất bằng `dataclasses.fields()`, phủ **66 trường** (RawRow 21 +
+WorkingLine 35 + Order 10) trên 8 dòng / 7 đơn. Trường PII lưu digest sha256.
+Không còn danh sách trắng, nên một trường thêm vào sau này tự động được canh.
+
+Ảnh chụp được sinh tại `ed38fd6` **trước dòng code sửa đầu tiên** và commit
+riêng (`4ab3df0`); diff của commit đó trên `app/` và `tools/` là **rỗng**, nên
+provenance của ảnh chụp kiểm được bằng git chứ không phải bằng lời.
+
+Bản liệt kê 9 trường trước đó **không phát hiện** được việc cộng 999.999 vào
+`total_sales` của mọi dòng (Review #6 Finding 6); oracle mới phát hiện đúng
+`total_sales` và `price_source` — được canh bằng chính test O1/O2.
+Review Queue **cố ý** không nằm trong so sánh — chính nó đang được sửa.
+`python3 -m pytest tests/test_task110_non_regression.py -q` → **9 passed**,
+0 khác biệt.
 
 Executed By:
 Claude (S021)
@@ -729,7 +767,14 @@ Evidence Level:
 E1
 
 Evidence:
-`python3 -m pytest tests/test_provenance_invariant.py -q` → **26 passed**.
+`python3 -m pytest tests/test_provenance_invariant.py -q` → **36 passed**.
+Sau Architecture Repair #2 các guard mạnh hơn một bậc: `diagnostics` không còn
+là dict nên **không tồn tại khoá nào** để ghi — kể cả khoá ngoài danh sách
+(`cac_dong_lien_quan`, chính đường Review #6 dùng để đi vòng), và `details` là
+projection lúc đọc, trả `MappingProxyType` nên sửa từ ngoài không ảnh hưởng.
+Thêm P1/P3: truyền `list` vào `rows`/`records` rồi sửa list đó từ bên ngoài —
+trước đây làm `affected_count` nhảy 1 → 2 **sau** khi item đã dựng xong; nay bị
+ép tuple và sao chép ở biên.
 F1 `MappingFinding(details=...)` → `TypeError`; F2
 `ReviewItem(affected_count=...)` → `TypeError`; F3 mỗi khóa mang thông tin dòng
 bị từ chối bằng `ValueError`; F4 `select_effective_record` không import được;
@@ -768,32 +813,19 @@ quy dòng về bản ghi không bao giờ gán dòng cho một bản ghi mà pro
 F9 — 8 dạng master data hỏng bị từ chối ngay khi load; prefix rỗng được chứng
 minh **thật sự** là catch-all nếu lọt qua; `config/employees.yaml` thật vẫn hợp lệ.
 
+Bổ sung sau Architecture Repair #2 (DEC-133): M1 ref lạ raise
+`ForeignRecordRef`; M2 hai ref của hai master không còn bằng nhau; M3
+`Validator` từ chối bundle sai chủ sở hữu bằng `MasterSnapshotMismatch`; C1 tỉ
+lệ **thật sự** dời khi group sai (2,0 % → 5,5 %) — giữ lại thành test để lý do
+của HD-110-09 không thành một khẳng định không ai kiểm lại; C2 lỗi chỉ đúng bản
+ghi hỏng; C3 dữ liệu giao dịch hỏng **không** bị biến thành config failure;
+L1/L3 một biên nạp canonical, vòng khớp prefix đã freeze còn nguyên.
+
 Executed By:
 Claude (S021)
 
 Timestamp:
 2026-08-23
-
-#### CHECK-110-18 — Independent review
-Priority:
-RECOMMENDED
-
-Status:
-NOT_TESTED
-
-Evidence Level:
-E2
-
-Evidence:
-theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`.
-Tiền lệ TASK-108A-1: 119/119 test nội bộ PASS mà reviewer độc lập vẫn tìm ra
-8 finding qua 3 vòng, trong đó một lỗi CRITICAL ảnh hưởng tiền lương.
-
-Executed By:
-—
-
-Timestamp:
-—
 
 ### Tổng
 

@@ -1579,7 +1579,7 @@ Cùng lúc, schema tối thiểu của mỗi bản ghi được cưỡng chế: 
 bắt buộc và phải là boolean thật.
 
 Phần validate này đặt ở `app/modules/mapping/employee_mapper.py`, **không**
-đặt vào `config/loader.py`: loader tuyên bố ngay trong docstring rằng nó chỉ
+đặt vào `app/modules/config/loader.py`: loader tuyên bố ngay trong docstring rằng nó chỉ
 giữ cơ chế generic, còn ngữ nghĩa đặc thù domain thuộc về consumer.
 
 **2 — HD-110-07: chỉ còn MỘT nguồn sự thật cho việc chọn employee record.**
@@ -1666,3 +1666,114 @@ Nếu về sau master data nhân viên cần một `id` ổn định (ví dụ �
 xuyên file), đó là phương án A trong Architecture Repair Plan và cần một DEC
 riêng — DEC-132 cố ý chưa tạo nó, vì `RecordRef` đã đủ để loại bỏ collision
 trong phạm vi một mapper instance canonical.
+
+## DEC-133
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Repair Gate #2, sau Independent Review #6
+
+Decision:
+
+Ba quyết định của chủ dự án (HD-110-09, HD-110-10, HD-110-11), chốt sau
+Architecture Repair Gate #2. Gate chỉ ra rằng sáu finding của Review #6 có một
+root cause chung, và root cause đó là **của chính bản sửa lần trước**:
+
+> Repair #1 thay giá trị sai bằng giá trị dẫn xuất, nhưng giữ nguyên
+> **ENUMERATION** làm cơ chế cưỡng chế ở mọi biên: danh sách đen (4 khoá), chỉ
+> số vị trí (`index`), danh sách trắng (9 trường oracle). Một liệt kê chỉ đầy
+> đủ do may mắn, và cả sáu finding đều là một chỗ mà liệt kê thiếu.
+
+**1 — HD-110-09: `employee.group` không có trong `employee_groups` là CẤU HÌNH
+SAI, fail-fast tại canonical master loader.**
+
+Đây **không** phải luật vệ sinh. `employee_group` là một chiều tra
+`config/conversion_rates.yaml`, nên một group gõ sai rơi khỏi dòng cụ thể và
+rớt xuống dòng `"*"`. Đo được: `NOI_THANH` → `NOI_THANH_2` rate **2,0 %**;
+`NOI_THAN` (thiếu một chữ H) → `PERSONAL_5_5` rate **5,5 %**. Một lỗi gõ dời tỉ
+lệ quy đổi 175 %, im lặng, và tín hiệu duy nhất trước đây là một dòng ERROR
+trong hàng chờ *không chặn import*.
+
+Quyết định này **thu hẹp DEC-129 §1** (HD-110-01), dựa trên bằng chứng chưa tồn
+tại khi DEC-129 được chốt. DEC-129 **không** bị sửa hay xoá; F1 vẫn tồn tại và
+vẫn chạy trên đường phân tích và test bypass validate.
+
+Lằn ranh chạy theo đúng một chiều và không được nới: một **dòng giao dịch** hỏng
+KHÔNG bao giờ được biến thành config failure — nó vào Review Queue y như trước
+(§18 đặc tả).
+
+**2 — HD-110-10: một biên nạp master canonical duy nhất.**
+
+`load_employee_master()` là điểm nghẽn duy nhất. Cho phép sửa **tối thiểu**
+`tools/analysis/reconcile_conversion.py`: thay hai đường `load_yaml` employee
+master thô bằng `load_employee_master()`. **Không** đổi logic đối chiếu,
+**không** đụng vòng khớp prefix riêng đã freeze. Config hợp lệ phải giữ output
+byte-identical (CHECK-108A1-15).
+
+**3 — HD-110-11: business oracle structural, không danh sách trắng.**
+
+Oracle L2 dẫn xuất bằng `dataclasses.fields()`, phủ **mọi** trường. Trường
+chứa PII lưu **digest**, không lưu giá trị thô. Không được quay lại danh sách
+trắng.
+
+Kèm theo, các invariant kiến trúc được freeze ở Gate #2:
+
+- **P — Provenance.** Machine-readable row provenance chỉ tồn tại ở
+  `RowProvenance`. `ReviewItem` **không lưu** `dict[str, str]` nào; `details`
+  là projection lúc đọc, tính từ payload có kiểu + provenance của chính item.
+- **I — Immutability.** Bất biến **sâu**: collection bị ép sang tuple và **sao
+  chép** ở biên. `frozen=True` chứa alias mutable không được coi là bất biến.
+- **M — Mapper ownership.** `EmployeeMaster` là snapshot bất biến có
+  `snapshot_id` dẫn từ nội dung; `RecordRef` mang `snapshot_id`; ref lạ bị từ
+  chối; `Validator` nhận nguyên bundle `WorkingData`.
+- **C — Configuration integrity.** Master invalid fail trước khi xử lý
+  transaction.
+- **L — Loader.** Mọi consumer đi qua biên canonical.
+- **O — Oracle.** Structural, không liệt kê.
+
+Reason:
+
+Repair #1 (DEC-132) đóng đúng các *thể hiện* mà Review #5 chỉ ra, nhưng để lại
+dạng *tổng quát*. Bằng chứng đo tại `ed38fd6`:
+
+- `diagnostics` là `dict[str, str]` của **caller**, nên sửa nó sau khi
+  `__post_init__` đã chạy vẫn vào được `details`; một khoá ngoài danh sách
+  (`cac_dong_lien_quan`) đi thẳng vào; và với item batch-scoped thì phép
+  "provenance đè lên" không chạy nên khoá lạ lọt hẳn.
+- `RowProvenance(rows=[...])` nhận list: append vào list đó làm
+  `affected_count` nhảy 1 → 2 **sau** khi item đã dựng xong. `AmbiguousRow.
+  records` cũng vậy — kể cả trên đường "dẫn xuất".
+- `RecordRef(index, label)` nêu một *vị trí* mà không nêu *vật chứa*:
+  `A.record(ref)` trả `'Ly'` còn `B.record(ref)` trả `'Kiên'`, im lặng; và hai
+  ref của hai master **bằng nhau và cùng hash**.
+- Oracle L2 liệt kê 9 trong 34 trường `WorkingLine`: cộng 999.999 vào
+  `total_sales` của **mọi** dòng và đổi `price_source` — oracle vẫn PASS.
+
+Vị trí không kèm vật chứa không phải danh tính, nó là offset. Danh sách đen
+dài hơn không đóng được một kênh; chỉ có việc **không còn chỗ để đặt khoá** mới
+đóng được.
+
+Impact:
+
+- Không đổi: employee business mapping result, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109. Chứng minh bằng CHECK-110-19 (972 tổ hợp raw × as_of) và
+  CHECK-110-20 (oracle structural 66 trường), cả hai so với ảnh chụp lấy tại
+  `ed38fd6` **trước** dòng sửa đầu tiên (commit `4ab3df0` chỉ chứa fixture,
+  diff trên `app/` và `tools/` là rỗng — provenance kiểm được bằng git).
+- DEC-128 → DEC-132 **không** bị sửa. DEC-129 §1 bị **thu hẹp** bởi quyết định
+  1 ở trên, và điều đó được ghi ở đây chứ không ghi đè lên DEC-129.
+- `Validator.__init__` nhận `employee_mapper`; `employee_groups` nay thuộc
+  chính master snapshot. `ReviewItem` nhận `diagnostics: Diagnostics` có kiểu.
+- **XUNG ĐỘT CANONICAL CÒN MỞ** — xem phần "Chờ Human Decision" của
+  `docs/sessions/S022-*.md`: HD-110-09 va với hai test trong
+  `tests/test_reconcile_raw_integration.py`, một file thuộc diện MUST NOT
+  CHANGE. Chưa quyết thì chưa đóng.
+- CHECK-110-16 tiếp tục **BLOCKED**.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence cho Review Queue: `RowProvenance` và
+`Diagnostics` là thứ được ghi xuống, nên biểu diễn lưu trữ cần xem lại — bất
+biến thì không đổi.

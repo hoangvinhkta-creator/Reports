@@ -25,6 +25,7 @@ from app.modules.domain.models import (
 )
 from app.modules.validation.models import (
     AffectedRow,
+    Diagnostics,
     RowProvenance,
     CATEGORY_DUPLICATE,
     CATEGORY_MISSING,
@@ -126,7 +127,7 @@ def detect_missing(
                         (AffectedRow(line.raw.source_file, line.raw.source_row),)
                     ),
                     order_id=line.order_id or None,
-                    diagnostics={DETAIL_RULE: field},
+                    diagnostics=Diagnostics(rule=field),
                 )
             )
     return items
@@ -241,7 +242,7 @@ def detect_suspicious(
                         (AffectedRow(line.raw.source_file, line.raw.source_row),)
                     ),
                     order_id=line.order_id or None,
-                    diagnostics={DETAIL_RULE: rule},
+                    diagnostics=Diagnostics(rule=rule),
                 )
             )
     return items
@@ -352,10 +353,10 @@ def detect_order_inconsistency(
                     )
                 ),
                     order_id=order.order_id,
-                    diagnostics={
-                        DETAIL_EMPLOYEES_FOUND: " | ".join(sorted(identities)),
-                        DETAIL_LEGACY_SELECTED: legacy,
-                    },
+                    diagnostics=Diagnostics(
+                        employees_found=tuple(sorted(identities)),
+                        legacy_selected=legacy,
+                    ),
                 )
             )
 
@@ -377,11 +378,9 @@ def detect_order_inconsistency(
                     )
                 ),
                     order_id=order.order_id,
-                    diagnostics={
-                        DETAIL_DATES_FOUND: ", ".join(
-                            d.isoformat() for d in sorted(dates)
-                        ),
-                    },
+                    diagnostics=Diagnostics(
+                        dates_found=tuple(d.isoformat() for d in sorted(dates)),
+                    ),
                 )
             )
     return items
@@ -464,7 +463,7 @@ def detect_duplicates(
                     )
                 ),
                 order_id=group[0].order_id or None,
-                diagnostics={DETAIL_ROW_HASH: row_hash},
+                diagnostics=Diagnostics(row_hash=row_hash),
             )
         )
     return items

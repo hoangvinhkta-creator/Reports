@@ -73,6 +73,7 @@ from app.modules.mapping.employee_mapper import EmployeeMapper, RecordRef
 from app.modules.validation.models import (
     AffectedRow,
     AmbiguousRow,
+    Diagnostics,
     RowProvenance,
 )
 from app.modules.validation.text import normalize_text
@@ -144,23 +145,20 @@ class MappingFinding:
     def render_variants(self) -> str:
         return self.provenance.render_variants()
 
-    def diagnostic_details(self) -> dict[str, str]:
-        """Metadata chẩn đoán — theo cấu trúc thì KHÔNG THỂ nhắc tới dòng nào.
+    def diagnostics(self) -> Diagnostics:
+        """Metadata chẩn đoán CÓ KIỂU — không thể nhắc tới dòng nào.
 
-        Đây là hàm chiếu whitelist duy nhất mà validator gọi. Nó chỉ đọc các
-        trường vô hướng đã khai báo, nên không có gì để nới rộng: một dòng
-        muốn tới `ReviewItem` chỉ còn đúng một đường là `provenance`.
+        Trả một `Diagnostics`, không phải dict: không còn khoá tuỳ ý để một
+        tham chiếu dòng lẻn vào. Một dòng muốn tới `ReviewItem` chỉ còn đúng
+        một đường là `provenance` (INVARIANT P).
         """
-        details = {"criterion": self.criterion}
-        if self.employee:
-            details["employee"] = self.employee
-        if self.raw_value:
-            details["raw_value"] = self.raw_value
-        if self.raw_prefix:
-            details["raw_prefix"] = str(self.raw_prefix)
-        if self.declared_group:
-            details["declared_group"] = self.declared_group
-        return details
+        return Diagnostics(
+            criterion=self.criterion,
+            employee=self.employee,
+            raw_value=self.raw_value,
+            raw_prefix=str(self.raw_prefix) if self.raw_prefix else None,
+            declared_group=self.declared_group,
+        )
 
 
 @dataclass(frozen=True)
@@ -228,7 +226,7 @@ def evaluate_raw_mapping(
     """
     findings: list[MappingFinding] = []
 
-    for row in employees:
+    for position, row in enumerate(employees):
         group = row.get("group")
         if group not in declared_groups:
             name = norm(row.get("normalized"))
@@ -243,7 +241,7 @@ def evaluate_raw_mapping(
                     employee=name or None,
                     declared_group=str(group),
                     provenance=RowProvenance(
-                        row_index.rows_for_record(row) if row_index else ()
+                        row_index.rows_for_record_at(position) if row_index else ()
                     ),
                 )
             )
@@ -373,7 +371,7 @@ def evaluate_raw_mapping(
 
 
 def evaluate_inactive_records(
-    employee_rows: list[dict], row_index: "MappingStats"
+    mapper: EmployeeMapper, row_index: "MappingStats"
 ) -> list[MappingFinding]:
     """F6 — a record flagged `active: false` that still owns rows (HD-110-03).
 
@@ -392,10 +390,10 @@ def evaluate_inactive_records(
     `employee_mapping_status` changes because of it.
     """
     findings: list[MappingFinding] = []
-    for record in employee_rows:
+    for position, record in enumerate(mapper.records):
         if record.get("active", True):
             continue
-        owned = row_index.rows_for_record(record)
+        owned = row_index.rows_for_record_at(position)
         if not owned:
             continue
         name = norm(record.get("normalized"))
@@ -484,19 +482,21 @@ class MappingStats:
         tại ngày của chính dòng đó."""
         return self._ambiguous_rows.get(raw_value, ())
 
-    def rows_for_record(self, record: dict) -> tuple[AffectedRow, ...]:
-        """F1 và F6: các dòng mà production đã resolve về ĐÚNG record này.
+    def rows_for_record_at(self, index: int) -> tuple[AffectedRow, ...]:
+        """F1 và F6: các dòng mà production đã resolve về ĐÚNG record ở vị trí
+        này TRONG MASTER SNAPSHOT.
 
-        Tra bằng danh tính bản ghi đã load, không bằng giá trị — hai record cố
-        ý dùng chung tên trong một lượt bàn giao (DEC-121), và Review #5 chứng
-        minh chúng còn có thể dùng chung cả prefix lẫn cửa sổ hiệu lực.
+        Tra bằng `RecordRef` của chính snapshot, không bằng so sánh đối tượng:
+        master giữ bản **đã đóng băng** của record, nên so `is` với dict gốc
+        của caller sẽ trượt trong im lặng — đúng lớp lỗi mà INVARIANT M tồn
+        tại để loại bỏ. Hai record cố ý dùng chung tên trong một lượt bàn giao
+        (DEC-121), và Review #5 chứng minh chúng còn có thể dùng chung cả
+        prefix lẫn cửa sổ hiệu lực — chỉ số trong snapshot phân biệt được cả
+        hai trường hợp đó.
         """
-        for index, candidate in enumerate(self._mapper.records):
-            if candidate is record:
-                return self._rows_by_record.get(
-                    self._mapper.ref_for_index(index), ()
-                )
-        return ()
+        if index < 0 or index >= len(self._mapper.records):
+            return ()
+        return self._rows_by_record.get(self._mapper.ref_for_index(index), ())
 
     def dataset_range(self) -> str:
         if self.dataset_start and self.dataset_end:

@@ -26,8 +26,11 @@ from app.modules.domain.models import MAPPING_STATUS_MAPPED
 from app.modules.importing.normalizer import normalize_line
 from app.modules.mapping.employee_mapper import (
     EmployeeMapper,
+    ForeignRecordRef,
     InvalidEmployeeConfig,
     RecordRef,
+    build_employee_master,
+    load_employee_master,
 )
 from app.modules.validation.employee_mapping import (
     MappingFinding,
@@ -39,6 +42,7 @@ from app.modules.validation.models import (
     AffectedRow,
     CATEGORY_EMPLOYEE_MAPPING,
     ROW_BEARING_DETAIL_KEYS,
+    Diagnostics,
     ReviewItem,
     RowProvenance,
     SEVERITY_ERROR,
@@ -49,6 +53,11 @@ from app.modules.validation.validator import Validator
 from tests.factories import make_raw_row
 
 GROUPS = {"STANDARD_SALES"}
+GROUP_ROWS = [{"code": "STANDARD_SALES"}, {"code": "NOI_THANH"}]
+
+
+def mapper_for(rows):
+    return EmployeeMapper(build_employee_master(rows, GROUP_ROWS, validate=False))
 
 CONFIG = {
     "categories": {
@@ -128,13 +137,46 @@ def test_f2_review_item_affected_count_cannot_be_assigned():
 
 @pytest.mark.parametrize("key", sorted(ROW_BEARING_DETAIL_KEYS))
 def test_f3_row_bearing_details_are_rejected(key):
-    """Không caller nào ghi được khóa mang thông tin dòng."""
-    with pytest.raises(ValueError, match=key):
+    """Không caller nào ghi được khoá mang thông tin dòng.
+
+    Sau Review #6 điều này mạnh hơn một bậc: `diagnostics` không còn là dict
+    nên **không tồn tại khoá nào** để ghi — kể cả khoá ngoài danh sách. Danh
+    sách `ROW_BEARING_DETAIL_KEYS` giờ chỉ còn là tài liệu về việc
+    `RowProvenance` render ra những khoá nào, không còn là hàng phòng thủ.
+    """
+    with pytest.raises(TypeError, match="Diagnostics"):
         ReviewItem(
             category=CATEGORY_EMPLOYEE_MAPPING, severity=SEVERITY_INFO, message="x",
             provenance=RowProvenance((AffectedRow("s.xlsx", ROW_MAPPED),)),
             diagnostics={key: str(ROW_UNMAPPED)},
         )
+
+
+def test_f3_no_arbitrary_key_can_exist_at_all():
+    """Đóng đúng lỗ mà Review #6 dùng để đi vòng qua denylist: một khoá KHÔNG
+    có trong danh sách (`cac_dong_lien_quan`) trước đây đi thẳng vào `details`."""
+    with pytest.raises(TypeError, match="Diagnostics"):
+        ReviewItem(
+            category=CATEGORY_EMPLOYEE_MAPPING, severity=SEVERITY_INFO, message="x",
+            provenance=RowProvenance((AffectedRow("s.xlsx", ROW_MAPPED),)),
+            diagnostics={"cac_dong_lien_quan": "7777, 8888"},
+        )
+
+    # Và `Diagnostics` không nhận trường lạ.
+    with pytest.raises(TypeError):
+        Diagnostics(cac_dong_lien_quan="7777")
+
+
+def test_f3_details_is_a_projection_not_stored_state():
+    """`details` tính lại mỗi lần đọc và không sửa được từ bên ngoài."""
+    item = ReviewItem(
+        category=CATEGORY_EMPLOYEE_MAPPING, severity=SEVERITY_INFO, message="x",
+        provenance=RowProvenance((AffectedRow("s.xlsx", ROW_MAPPED),)),
+        diagnostics=Diagnostics(criterion="F4"),
+    )
+    with pytest.raises(TypeError):
+        item.details["source_rows"] = str(ROW_UNMAPPED)
+    assert item.details["source_rows"] == str(ROW_MAPPED)
 
 
 def test_f4_select_effective_record_is_gone():
@@ -202,7 +244,7 @@ def _foreign_rows_in(
 def _items_for(employees, lines):
     validator = Validator(
         CONFIG,
-        employee_mapper=EmployeeMapper(employees, validate=False),
+        employee_mapper=mapper_for(employees),
         employee_groups=GROUPS,
     )
     queue = validator.build_queue(lines, [])
@@ -330,7 +372,7 @@ def _twins():
 
 def test_f7_duplicate_records_do_not_collide_on_identity():
     rows = _twins()
-    mapper = EmployeeMapper(rows, validate=False)
+    mapper = mapper_for(rows)
 
     refs = {mapper.resolve_record("Mr Vinh 0900", date(2026, 2, 1))}
     assert len(mapper.refs) == 2
@@ -340,7 +382,7 @@ def test_f7_duplicate_records_do_not_collide_on_identity():
 
 def test_f7_f6_fires_only_on_the_record_production_actually_selected():
     rows = _twins()
-    mapper = EmployeeMapper(rows, validate=False)
+    mapper = mapper_for(rows)
     lines = [_line("Mr Vinh 0900", ROW_MAPPED, normalized="Vinh")]
     stats = collect_mapping_stats(lines, mapper)
 
@@ -348,24 +390,24 @@ def test_f7_f6_fires_only_on_the_record_production_actually_selected():
     assert selected == mapper.ref_for_index(0)
 
     # Record production ĐÃ chọn (index 0) sở hữu dòng; record kia không.
-    assert stats.rows_for_record(rows[0]) != ()
-    assert stats.rows_for_record(rows[1]) == (), (
+    assert stats.rows_for_record_at(0) != ()
+    assert stats.rows_for_record_at(1) == (), (
         "record không được production chọn vẫn nhặt được dòng — collision đã tái phát"
     )
 
     # F6 chấm trên record `active: false` (index 1) phải im lặng.
-    findings = evaluate_inactive_records(list(mapper.records), stats)
+    findings = evaluate_inactive_records(mapper, stats)
     assert findings == [], f"F6 phát sai trên record production không chọn: {findings}"
 
 
 def test_f7_a_genuinely_inactive_selected_record_still_raises_f6():
     """Mặt còn lại: F7 không được làm F6 câm hẳn."""
     rows = [employee("Vinh", "Mr Vinh", active=False)]
-    mapper = EmployeeMapper(rows, validate=False)
+    mapper = mapper_for(rows)
     lines = [_line("Mr Vinh 0900", ROW_MAPPED, normalized="Vinh")]
     stats = collect_mapping_stats(lines, mapper)
 
-    findings = evaluate_inactive_records(list(mapper.records), stats)
+    findings = evaluate_inactive_records(mapper, stats)
     assert len(findings) == 1 and findings[0].criterion == "F6"
     assert findings[0].source_rows == (ROW_MAPPED,)
 
@@ -400,7 +442,7 @@ def test_f8_row_attribution_matches_production_on_the_whole_matrix():
         employee("Ly2", "Vũ Hạnh Ly", effective_from="2026-04-01"),
         employee("Hanh", "Vũ Hạnh"),
     ]
-    mapper = EmployeeMapper(rows, validate=False)
+    mapper = mapper_for(rows)
 
     for index, raw_value in enumerate(_MATRIX_RAW):
         for when in _MATRIX_DATES:
@@ -418,14 +460,14 @@ def test_f8_row_attribution_matches_production_on_the_whole_matrix():
                              normalized=result.normalized)
                 stats = collect_mapping_stats([line], mapper)
                 owned = [
-                    record
-                    for record in mapper.records
-                    if stats.rows_for_record(record)
+                    index
+                    for index in range(len(mapper.records))
+                    if stats.rows_for_record_at(index)
                 ]
                 if expected is None:
                     assert owned == [], (raw_value, when, "quy dòng cho record ma")
                 else:
-                    assert owned == [mapper.record(expected)], (raw_value, when)
+                    assert owned == [expected.index], (raw_value, when)
 
 
 def test_f8_ambiguity_uses_production_string_semantics():
@@ -435,7 +477,7 @@ def test_f8_ambiguity_uses_production_string_semantics():
     master record cùng hiệu lực.
     """
     rows = [employee("A", "Vũ Hạnh Ly"), employee("B", "Vũ Hạnh")]
-    mapper = EmployeeMapper(rows, validate=False)
+    mapper = mapper_for(rows)
     raw_value = "Vũ  Hạnh Ly 0868345633"  # khoảng trắng đôi: production KHÔNG khớp
 
     assert mapper.resolve_record(raw_value, date(2026, 2, 1)) is None
@@ -467,7 +509,7 @@ def test_f8_ambiguity_uses_production_string_semantics():
 )
 def test_f9_invalid_employee_config_fails_fast(record, needle):
     with pytest.raises(InvalidEmployeeConfig, match=needle):
-        EmployeeMapper([record])
+        EmployeeMapper(build_employee_master([record], GROUP_ROWS))
 
 
 def test_f9_empty_prefix_never_becomes_a_catch_all():
@@ -478,11 +520,11 @@ def test_f9_empty_prefix_never_becomes_a_catch_all():
     """
     bad = employee("Rỗng", "")
     with pytest.raises(InvalidEmployeeConfig):
-        EmployeeMapper([bad])
+        EmployeeMapper(build_employee_master([bad], GROUP_ROWS))
 
     # Và nếu ai đó cố tình bỏ qua validate, hành vi catch-all vẫn là thật —
     # đó chính là điều luật này ngăn không cho vào production.
-    unchecked = EmployeeMapper([bad], validate=False)
+    unchecked = mapper_for([bad])
     assert unchecked.resolve("Bất Kỳ Ai 0900", date(2026, 2, 1)).normalized == "Rỗng"
 
 
@@ -493,3 +535,142 @@ def test_f9_the_real_config_passes_validation():
     repo_root = Path(__file__).resolve().parents[1]
     mapper = EmployeeMapper.from_yaml(repo_root / "config" / "employees.yaml")
     assert len(mapper.records) > 0
+
+
+# ======================================================================== M3
+# Ownership: lines và validator phải cùng một master snapshot.
+
+
+def test_m3_validator_rejects_a_mapper_from_a_different_master():
+    """Review #6 M3: bản trước nhận mapper khác, quy dòng cho một master khác,
+    và KHÔNG raise, KHÔNG cảnh báo."""
+    from app.modules.validation.validator import MasterSnapshotMismatch, Validator
+    from app.pipeline import WorkingData
+
+    a = mapper_for([employee("Ly", "Vũ Hạnh Ly")])
+    b = mapper_for([employee("Kiên", "Đức Kiên")])
+    assert a.snapshot_id != b.snapshot_id
+
+    lines = [_line("Vũ Hạnh Ly 0868", ROW_MAPPED, normalized="Ly")]
+    a.apply(lines)
+    working = WorkingData(preview=None, lines=lines, orders=[], employee_mapper=a)
+
+    with pytest.raises(MasterSnapshotMismatch):
+        Validator(CONFIG, employee_mapper=b, employee_groups=GROUPS).build_queue_for(
+            working
+        )
+
+    # Cùng snapshot thì đi qua bình thường.
+    Validator(CONFIG, employee_mapper=a, employee_groups=GROUPS).build_queue_for(working)
+
+
+def test_m3_two_loads_of_the_same_file_are_provably_interchangeable():
+    """`snapshot_id` dẫn từ NỘI DUNG, nên hai lần đọc cùng một file không đổi
+    bằng nhau một cách chính đáng — đó là điều khiến `from_config_dir` tự dựng
+    mapper vẫn hợp lệ."""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    one = load_employee_master(repo_root / "config" / "employees.yaml")
+    two = load_employee_master(repo_root / "config" / "employees.yaml")
+    assert one.snapshot_id == two.snapshot_id
+    assert one.record(two.refs[0])["normalized"] == two.records[0]["normalized"]
+
+
+# ======================================================================== C
+# Configuration integrity — và lằn ranh với dữ liệu giao dịch.
+
+
+def test_c1_undeclared_group_fails_fast_at_the_canonical_loader():
+    """HD-110-09. Đây là lỗi TIỀN, không phải lỗi vệ sinh: `employee_group` là
+    một chiều tra tỉ lệ, nên group gõ sai rơi xuống dòng `"*"` và đổi tỉ lệ."""
+    bad = employee("Vinh", "Mr Vinh", group="NOI_THAN")  # thiếu chữ H
+    with pytest.raises(InvalidEmployeeConfig, match="employee_groups"):
+        build_employee_master([bad], GROUP_ROWS)
+
+
+def test_c1_the_rate_really_does_move_when_the_group_is_wrong():
+    """Bằng chứng đứng sau HD-110-09, giữ lại dưới dạng test để nó không trở
+    thành một khẳng định trong tài liệu mà không ai kiểm lại."""
+    from pathlib import Path
+
+    from app.modules.conversion.scheme_resolver import ConversionSchemeResolver
+
+    repo_root = Path(__file__).resolve().parents[1]
+    resolver = ConversionSchemeResolver.from_yaml(
+        repo_root / "config" / "conversion_rates.yaml"
+    )
+    kwargs = dict(
+        employee="Vinh", lead_source="PERSONAL", product_group="DIEN_MAY",
+        as_of=date(2026, 6, 1),
+    )
+    good = resolver.resolve_auto(employee_group="NOI_THANH", **kwargs)
+    typo = resolver.resolve_auto(employee_group="NOI_THAN", **kwargs)
+    assert good.rate != typo.rate, "nếu hai tỉ lệ bằng nhau thì lý do của HD-110-09 đã mất"
+
+
+def test_c2_the_error_names_the_offending_record_only():
+    """Master hỏng phải chỉ đúng bản ghi lỗi, không bôi đen bản ghi lành."""
+    good = employee("Ly", "Vũ Hạnh Ly")
+    bad = employee("Vinh", "Mr Vinh", group="KHONG_TON_TAI")
+    with pytest.raises(InvalidEmployeeConfig) as excinfo:
+        build_employee_master([good, bad], GROUP_ROWS)
+    message = str(excinfo.value)
+    assert "employees[1]" in message
+    assert "employees[0]" not in message
+    assert "KHONG_TON_TAI" in message
+
+
+def test_c3_broken_transaction_data_never_becomes_a_config_failure():
+    """Lằn ranh chạy theo đúng MỘT chiều (§18, HD-110-09).
+
+    Một dòng giao dịch méo mó — không ngày, không nhân viên, số lượng rỗng —
+    phải đi vào Review Queue y như trước, KHÔNG bao giờ làm gãy lượt import.
+    """
+    from app.modules.validation.validator import Validator
+
+    employees = [employee("Ly", "Vũ Hạnh Ly")]
+    broken = [
+        _line(None, ROW_MAPPED, when=None),
+        _line("", ROW_UNMAPPED, when=None),
+        _line("Không Ai Cả 0900", ROW_THIRD, when=None),
+    ]
+    queue = Validator(
+        CONFIG, employee_mapper=mapper_for(employees), employee_groups=GROUPS
+    ).build_queue(broken, [])
+    assert len(queue) > 0, "dữ liệu hỏng phải được BÁO, không được nuốt"
+
+
+# ======================================================================== L
+# Loader: một biên canonical duy nhất.
+
+
+def test_l1_workbook_only_mode_reaches_the_canonical_loader():
+    """HD-110-10. Trước đây `reconcile_conversion.py` có ba đường nạp master,
+    hai trong số đó là `load_yaml` thô, và chế độ chỉ-`--workbook` không bao
+    giờ chạm mapper — nên master hỏng đi lọt hoàn toàn."""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    source = (repo_root / "tools" / "analysis" / "reconcile_conversion.py").read_text(
+        encoding="utf-8"
+    )
+    assert "load_employee_master" in source
+    assert 'load_yaml(CONFIG / "employees.yaml")' not in source, (
+        "còn một đường nạp master thô: INVARIANT L chưa đóng"
+    )
+
+
+def test_l3_the_frozen_prefix_loop_and_logic_are_untouched():
+    """HD-110-10 cho phép sửa TỐI THIỂU: chỉ đường nạp, không đụng logic đối
+    chiếu và không đụng vòng khớp prefix đã freeze (CHECK-108A1-15)."""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    source = (repo_root / "tools" / "analysis" / "reconcile_conversion.py").read_text(
+        encoding="utf-8"
+    )
+    assert "raw_value.startswith(prefix)" in source
+    assert "ambiguities[raw_value] = hits" in source
+    assert "mapper.resolve(raw_value, when)" in source
+    assert "collect_mapping_stats" not in source

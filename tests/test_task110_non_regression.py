@@ -67,37 +67,91 @@ def test_check_110_19_business_output_is_unchanged(synthetic_raw_path):
     baseline = json.loads(L2_PATH.read_text(encoding="utf-8"))
     current = _roundtrip(build_l2(synthetic_raw_path))
 
-    for section in ("lines", "orders", "unmapped_line_rows"):
+    for section in ("raw_rows", "lines", "orders", "unmapped_line_rows"):
         assert current[section] == baseline[section], (
             f"`{section}` đổi so với baseline trước sửa chữa"
         )
 
 
-def test_check_110_19_covers_every_field_the_owner_named(synthetic_raw_path):
-    """Bảo vệ chính phép bảo vệ: nếu một trường bị lặng lẽ bỏ khỏi ảnh chụp thì
-    L2 vẫn PASS trong khi không còn canh gì cả."""
-    required = {
-        "employee_normalized",
-        "employee_mapping_status",
-        "employee_group",
-        "conversion_scheme_final",
-        "conversion_rate_final",
-        "product_group_final",
-        "accounting_purchase_price",
-        "accounting_profit",
-        "lead_source_final",
-    }
-    baseline = json.loads(L2_PATH.read_text(encoding="utf-8"))
-    assert baseline["lines"], "ảnh chụp rỗng thì không canh được gì"
-    assert required <= set(baseline["lines"][0])
+def test_check_110_19_oracle_is_structural_not_a_whitelist(synthetic_raw_path):
+    """O3 — oracle phủ MỌI trường vì nó dẫn xuất, không liệt kê.
 
-    order_fields = {
-        "employee_raw",
-        "employee_normalized",
-        "employee_mapping_status",
-        "employee_group",
+    Bản trước có một test tên "đã phủ đủ trường chủ dự án nêu chưa" đối chiếu
+    một danh sách trắng với **chính nó** — một tautology, đúng cùng lỗi luận
+    lý mà Review #5 Finding 2 đã bác bỏ, chỉ chuyển sang tầng oracle. Nó bị
+    xoá. Test này so ảnh chụp với `dataclasses.fields()` của chính các
+    dataclass, nên một trường thêm vào ngày mai tự động được canh và một
+    trường bị xoá cũng bị phát hiện.
+    """
+    import dataclasses
+
+    from app.modules.domain.models import Order, RawRow, WorkingLine
+
+    baseline = json.loads(L2_PATH.read_text(encoding="utf-8"))
+    covered = baseline["_covered_fields"]
+
+    expected_raw = {f.name for f in dataclasses.fields(RawRow)}
+    expected_line = {f.name for f in dataclasses.fields(WorkingLine)} - {"raw"}
+    expected_order = {f.name for f in dataclasses.fields(Order)} - {"lines"}
+
+    assert set(covered["raw_rows"]) == expected_raw
+    assert set(covered["lines"]) - {"_source_row"} == expected_line
+    assert set(covered["orders"]) == expected_order
+
+
+def test_check_110_19_pii_is_stored_as_digest_never_raw(synthetic_raw_path):
+    """HD-110-11 — thay đổi vẫn bị phát hiện, giá trị không nằm trong repo."""
+    from app.modules.validation.models import PII_FIELD_NAMES
+
+    baseline = json.loads(L2_PATH.read_text(encoding="utf-8"))
+    for row in baseline["raw_rows"]:
+        for name in PII_FIELD_NAMES:
+            if name in row and row[name] is not None:
+                assert str(row[name]).startswith(("sha256:", "∅")), (
+                    f"{name} lưu giá trị thô trong ảnh chụp đã commit"
+                )
+
+
+def test_check_110_19_o2_oracle_detects_a_previously_missed_field(
+    synthetic_raw_path, monkeypatch
+):
+    """O1/O2 — chính mutation mà oracle CŨ bỏ sót, oracle mới phải bắt.
+
+    Review #6 Finding 6 đo được trên oracle cũ: cộng 999.999 vào `total_sales`
+    của MỌI dòng và đổi `price_source` → oracle vẫn PASS. Cả hai trường đó đều
+    nằm ngoài danh sách trắng 9 trường.
+    """
+    from decimal import Decimal
+
+    import app.pipeline as pipeline
+    import app.modules.profit.profit_engine as profit_engine
+
+    original = profit_engine.apply_accounting_profit
+
+    def sabotage(lines):
+        result = original(lines)
+        for line in lines:
+            if line.total_sales is not None:
+                line.total_sales = line.total_sales + Decimal("999999")
+            line.price_source = "SABOTAGED"
+        return result
+
+    monkeypatch.setattr(pipeline, "apply_accounting_profit", sabotage)
+
+    baseline = json.loads(L2_PATH.read_text(encoding="utf-8"))
+    sabotaged = _roundtrip(build_l2(synthetic_raw_path))
+    assert sabotaged != baseline, (
+        "oracle KHÔNG phát hiện thay đổi ở total_sales/price_source — nó lại "
+        "trở thành một danh sách trắng"
+    )
+
+    changed = {
+        key
+        for base_row, now_row in zip(baseline["lines"], sabotaged["lines"])
+        for key in base_row
+        if base_row[key] != now_row[key]
     }
-    assert order_fields <= set(baseline["orders"][0])
+    assert {"total_sales", "price_source"} <= changed
 
 
 # ============================================================ CHECK-110-20 (L3)

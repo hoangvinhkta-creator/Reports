@@ -10,12 +10,17 @@ wrong in `validation.yaml` is a broken tool, not bad data.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Optional
 
 from app.modules.config.loader import load_yaml
 from app.modules.domain.models import Order, WorkingLine
-from app.modules.mapping.employee_mapper import EmployeeMapper
+from app.modules.mapping.employee_mapper import (
+    EmployeeMapper,
+    build_employee_master,
+    load_employee_master,
+)
 from app.modules.validation.employee_mapping import (
     BUCKET_HARD,
     BUCKET_INFO,
@@ -28,8 +33,7 @@ from app.modules.validation.employee_mapping import (
 )
 from app.modules.validation.models import (
     CATEGORY_EMPLOYEE_MAPPING,
-    DETAIL_BATCH_ROWS,
-    DETAIL_DATASET_RANGE,
+    Diagnostics,
     ReviewItem,
     ReviewQueue,
     SCOPE_BATCH,
@@ -48,6 +52,10 @@ from app.modules.validation.rules import (
     detect_suspicious,
     detect_suspicious_erp,
 )
+
+
+class MasterSnapshotMismatch(ValueError):
+    """Các dòng và validator đến từ hai master snapshot khác nhau (DEC-133)."""
 
 
 class Validator:
@@ -77,11 +85,19 @@ class Validator:
         # (DEC-132). Validation không giữ list employee riêng và không load
         # `employees.yaml` lần thứ hai: một không gian danh tính duy nhất là
         # điều khiến `RecordRef` có nghĩa.
-        self._mapper = employee_mapper or EmployeeMapper([])
-        self._employee_groups = employee_groups or set()
+        self._mapper = employee_mapper or EmployeeMapper(build_employee_master([], []))
+        # `employee_groups` KHÔNG còn là tham số độc lập: nó thuộc chính master
+        # snapshot mà mapper đang giữ (DEC-133). Trước đây `from_config_dir`
+        # đọc `employees.yaml` lần thứ hai chỉ để lấy nó, nên hai nửa của cùng
+        # một master có thể đến từ hai lần đọc khác nhau.
+        self._employee_groups = (
+            employee_groups
+            if employee_groups is not None
+            else self._mapper.master.group_codes
+        )
 
     @property
-    def _employee_rows(self) -> tuple[dict, ...]:
+    def _employee_rows(self) -> tuple:
         return self._mapper.records
 
     @classmethod
@@ -96,15 +112,10 @@ class Validator:
         từ chính file ấy để caller cũ vẫn chạy được.
         """
         config = load_yaml(config_dir / "validation.yaml")
-        employees = load_yaml(config_dir / "employees.yaml")
         return cls(
             config=config,
             employee_mapper=employee_mapper
-            or EmployeeMapper(employees.get("employees", [])),
-            employee_groups={
-                group.get("code")
-                for group in employees.get("employee_groups", []) or []
-            },
+            or EmployeeMapper(load_employee_master(config_dir / "employees.yaml")),
         )
 
     def _category(self, name: str) -> Optional[dict]:
@@ -112,6 +123,28 @@ class Validator:
         if not entry or not entry.get("enabled", True):
             return None
         return entry
+
+    def build_queue_for(self, working) -> ReviewQueue:
+        """Điểm vào của production — nhận nguyên bundle, không nhận lines rời.
+
+        INVARIANT M: `WorkingData` giữ **cùng lúc** các dòng và chính mapper đã
+        enrich chúng, nên không tồn tại hình dạng lời gọi nào ghép dòng của
+        master A với mapper của master B. Review #6 M3 đo được hậu quả của
+        việc thiếu ràng buộc này: `Validator` nhận một mapper khác, quy dòng
+        cho một master khác, và **không raise, không cảnh báo**.
+
+        `snapshot_id` vẫn được so lại ở đây: bundle làm cho việc ghép sai khó
+        xảy ra, còn phép so làm cho nó *bất khả* — kể cả khi ai đó dựng
+        `WorkingData` bằng tay.
+        """
+        if working.employee_mapper.snapshot_id != self._mapper.snapshot_id:
+            raise MasterSnapshotMismatch(
+                f"Các dòng được enrich bởi master snapshot "
+                f"{working.employee_mapper.snapshot_id!r} nhưng validator đang "
+                f"giữ {self._mapper.snapshot_id!r}. Hai master data khác nhau: "
+                "mọi quy dòng-về-record sau đây sẽ nói về những nhân viên khác."
+            )
+        return self.build_queue(working.lines, working.orders)
 
     def build_queue(
         self, lines: list[WorkingLine], orders: list[Order]
@@ -233,7 +266,7 @@ class Validator:
         # `evaluate_inactive_records` (Review #2, Finding 2).
         findings = [
             *verdict.findings,
-            *evaluate_inactive_records(self._employee_rows, stats),
+            *evaluate_inactive_records(self._mapper, stats),
         ]
         return [
             self._mapping_item(finding, severities[finding.bucket], stats)
@@ -258,7 +291,7 @@ class Validator:
         chỉ đọc các trường vô hướng, còn các khóa mang thông tin dòng do chính
         `RowProvenance` render ra.
         """
-        details = finding.diagnostic_details()
+        diagnostics = finding.diagnostics()
 
         if finding.provenance.rows and not finding.batch_scoped:
             return ReviewItem(
@@ -267,7 +300,7 @@ class Validator:
                 message=finding.message,
                 scope=SCOPE_ROW,
                 provenance=finding.provenance,
-                diagnostics=details,
+                diagnostics=diagnostics,
             )
 
         # Không có gì để trỏ tới — F2 ("nhân viên đã cấu hình không khớp dòng
@@ -275,8 +308,6 @@ class Validator:
         # chính cả lô (F5). `affected_count` vẫn chính xác trong cả hai
         # trường hợp, và với F2 nó thành thật bằng 0: bịa ra 1 là nhận vơ một
         # dòng.
-        details[DETAIL_DATASET_RANGE] = stats.dataset_range()
-        details[DETAIL_BATCH_ROWS] = str(stats.total_rows)
         return ReviewItem(
             category=CATEGORY_EMPLOYEE_MAPPING,
             severity=severity,
@@ -286,5 +317,9 @@ class Validator:
             batch_source_file=(
                 None if finding.provenance.rows else stats.source_file
             ),
-            diagnostics=details,
+            diagnostics=replace(
+                diagnostics,
+                dataset_range=stats.dataset_range(),
+                batch_rows=stats.total_rows,
+            ),
         )

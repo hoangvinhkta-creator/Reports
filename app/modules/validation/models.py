@@ -27,7 +27,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
+from types import MappingProxyType
+from typing import Any, Mapping, Optional
 
 # Severity is a READING ORDER label, not a gate. §18 đặc tả: "Không block toàn
 # bộ import." `ERROR` means "read this first", never "stop" — CHECK-110-02
@@ -140,6 +141,13 @@ class AffectedRow:
     raw_original: str = ""
     when: Optional[date] = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.source_row, int) or isinstance(self.source_row, bool):
+            raise TypeError(
+                f"source_row phải là int, gặp {self.source_row!r}. Provenance "
+                "machine-readable không được là văn bản tuỳ ý."
+            )
+
 
 @dataclass(frozen=True)
 class AmbiguousRow(AffectedRow):
@@ -153,6 +161,14 @@ class AmbiguousRow(AffectedRow):
 
     raw_value: str = ""
     records: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # ÉP SANG TUPLE + SAO CHÉP (INVARIANT I). Review #6 P1 đo được: truyền
+        # một list vào `records` rồi sửa list đó từ bên ngoài làm đổi chuỗi
+        # `conflicting_records` đã "dẫn xuất". Dẫn xuất từ dữ liệu mutable thì
+        # không phải dẫn xuất.
+        object.__setattr__(self, "records", tuple(self.records))
 
     def render(self) -> str:
         stamp = self.when.isoformat() if self.when else "không có ngày"
@@ -176,6 +192,18 @@ class RowProvenance:
 
     rows: tuple[AffectedRow, ...] = ()
     batch_scoped: bool = False
+
+    def __post_init__(self) -> None:
+        # Review #6 P3: truyền một list vào `rows` rồi append vào list đó làm
+        # `affected_count` nhảy từ 1 lên 2 SAU khi item đã dựng xong.
+        # `frozen=True` chỉ cấm gán lại thuộc tính, không cấm sửa đối tượng nó
+        # trỏ tới — nên ở biên phải SAO CHÉP, không chỉ kiểm tra.
+        object.__setattr__(self, "rows", tuple(self.rows))
+        for row in self.rows:
+            if not isinstance(row, AffectedRow):
+                raise TypeError(
+                    f"provenance chỉ nhận AffectedRow, gặp {type(row).__name__}"
+                )
 
     @property
     def affected_count(self) -> int:
@@ -244,6 +272,65 @@ class RowProvenance:
         return rendered
 
 
+@dataclass(frozen=True)
+class Diagnostics:
+    """Metadata chẩn đoán CÓ KIỂU — thay cho `dict[str, str]` tuỳ ý (DEC-133).
+
+    Independent Review #6 Finding 1 chứng minh rằng đổi tên `details` thành
+    `diagnostics` rồi gắn một denylist bốn khoá không đóng được kênh: đo được
+    tại `ed38fd6`, một khoá ngoài danh sách (`cac_dong_lien_quan`) đi thẳng
+    vào `details`, và sửa chính dict của caller SAU khi `__post_init__` đã
+    chạy cũng đi thẳng vào `details`.
+
+    Cách đóng không phải là danh sách dài hơn, mà là **không còn chỗ để đặt
+    khoá**. Ở đây mọi trường đều có tên và có kiểu vô hướng. Thêm một trường
+    là sửa dataclass và lọt vào code review; thêm một khoá dict thì không ai
+    thấy. Và không trường nào trong đây có thể diễn đạt một tham chiếu dòng —
+    đó là việc của `RowProvenance`.
+    """
+
+    criterion: Optional[str] = None
+    employee: Optional[str] = None
+    raw_value: Optional[str] = None
+    raw_prefix: Optional[str] = None
+    declared_group: Optional[str] = None
+    rule: Optional[str] = None
+    row_hash: Optional[str] = None
+    employees_found: tuple[str, ...] = ()
+    legacy_selected: Optional[str] = None
+    dates_found: tuple[str, ...] = ()
+    dataset_range: Optional[str] = None
+    batch_rows: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "employees_found", tuple(self.employees_found))
+        object.__setattr__(self, "dates_found", tuple(self.dates_found))
+
+    def rendered(self) -> dict[str, str]:
+        """Projection lúc render. KHÔNG được lưu ở đâu cả."""
+        out: dict[str, str] = {}
+        for name, value in (
+            (DETAIL_CRITERION, self.criterion),
+            (DETAIL_EMPLOYEE, self.employee),
+            (DETAIL_RAW_VALUE, self.raw_value),
+            (DETAIL_RAW_PREFIX, self.raw_prefix),
+            (DETAIL_DECLARED_GROUP, self.declared_group),
+            (DETAIL_RULE, self.rule),
+            (DETAIL_ROW_HASH, self.row_hash),
+            (DETAIL_LEGACY_SELECTED, self.legacy_selected),
+            (DETAIL_DATASET_RANGE, self.dataset_range),
+        ):
+            if value is not None:
+                out[name] = str(value)
+        if self.employees_found:
+            out[DETAIL_EMPLOYEES_FOUND] = " | ".join(self.employees_found)
+        if self.dates_found:
+            out[DETAIL_DATES_FOUND] = ", ".join(self.dates_found)
+        if self.batch_rows is not None:
+            out[DETAIL_BATCH_ROWS] = str(self.batch_rows)
+        return out
+
+
 # Never allowed inside a `ReviewItem`. Kept as data so the guard is one list
 # rather than a habit somebody has to remember (CHECK-110-17).
 PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
@@ -253,23 +340,30 @@ PII_FIELD_NAMES = ("customer", "customer_code", "phone", "address")
 class ReviewItem:
     """Một finding.
 
-    **Mọi representation nói về dòng thô đều dẫn xuất từ `provenance`, và
-    không từ đâu khác** (DEC-132). `affected_count` và `source_row` từng là
-    field gán tay; giờ chúng là property. Đó không phải thay đổi phong cách —
-    đó là điều khiến trạng thái mà Independent Review #5 mô tả không còn biểu
-    diễn được: không tồn tại lời gọi nào tạo ra một item nói "1 dòng, dòng 6"
-    trong khi provenance của nó chứa dòng 7.
+    **`ReviewItem` KHÔNG lưu `dict[str, str]` nào** (DEC-133, INVARIANT P).
+    `message` và `details` là **projection thuần** tính từ (payload có kiểu,
+    provenance của chính item) — không có đầu vào nào khác. Nên một chuỗi nêu
+    dòng 7 là bất khả trừ khi dòng 7 nằm trong provenance của item: renderer
+    không có cách nào biết tới dòng 7.
+
+    Đó là điểm khác biệt so với Repair #1, vốn vẫn giữ một `dict[str, str]`
+    lưu trữ được và cố canh nó bằng một denylist bốn khoá. Review #6 đi vòng
+    qua denylist đó bằng ba cách độc lập: sửa dict của caller sau khi
+    `__post_init__` đã chạy, dùng một khoá không có trong danh sách, và
+    trường hợp batch-scoped nơi phép "provenance đè lên" không chạy.
 
     `affected_count` có thể hợp lệ bằng **0** — tiêu chí F2 đúng nghĩa là "một
     nhân viên đã cấu hình mà không khớp dòng nào", và báo 1 giả ở đó là khai
     man đúng cái sự thật duy nhất mà finding mang.
-
-    Caller ghi metadata chẩn đoán qua `diagnostics`; `details` là bề mặt ĐỌC,
-    gộp diagnostics với các khóa mang dòng do provenance render ra.
     """
 
     category: str
     severity: str
+    # Văn bản cho người đọc. Vẫn là tham số vì `RawMappingVerdict` phơi chính
+    # chuỗi này ra cho `reconcile_conversion.py`, và output đó đã đóng băng ở
+    # CHECK-108A1-15. Nhưng nó KHÔNG phải machine-readable provenance: không
+    # consumer nào được phép parse nó, và `renderer.py` sinh nó từ đúng dữ
+    # liệu có kiểu của finding.
     message: str
     scope: str = SCOPE_ROW
     provenance: RowProvenance = field(default_factory=RowProvenance)
@@ -278,7 +372,7 @@ class ReviewItem:
     # trường này là lỗi — đó sẽ là kênh thứ hai để bất đồng với provenance.
     batch_source_file: Optional[str] = None
     order_id: Optional[str] = None
-    diagnostics: dict[str, str] = field(default_factory=dict)
+    diagnostics: Diagnostics = field(default_factory=Diagnostics)
 
     @property
     def source_file(self) -> Optional[str]:
@@ -296,15 +390,15 @@ class ReviewItem:
         return self.provenance.affected_count
 
     @property
-    def details(self) -> dict[str, str]:
-        """Bề mặt đọc: metadata chẩn đoán + provenance đã render.
+    def details(self) -> Mapping[str, str]:
+        """Projection lúc đọc, KHÔNG phải trạng thái được lưu.
 
-        Các khóa mang dòng không thể bị caller ghi đè — chúng được ghi SAU
-        cùng, từ provenance.
+        Trả `MappingProxyType`: người gọi có sửa cũng không ảnh hưởng gì tới
+        item, và mỗi lần đọc lại được tính lại từ dữ liệu có kiểu.
         """
-        merged = dict(self.diagnostics)
+        merged = self.diagnostics.rendered()
         merged.update(self.provenance.rendered_details())
-        return merged
+        return MappingProxyType(merged)
 
     def __post_init__(self) -> None:
         if self.category not in CATEGORIES:
@@ -313,16 +407,15 @@ class ReviewItem:
             raise ValueError(f"Unknown review severity: {self.severity!r}")
         if self.scope not in SCOPES:
             raise ValueError(f"Unknown review scope: {self.scope!r}")
-
-        # Không kênh thứ hai nào được phép mang thông tin dòng (điểm 12).
-        offending = ROW_BEARING_DETAIL_KEYS.intersection(self.diagnostics)
-        if offending:
-            raise ValueError(
-                f"ReviewItem({self.category}): {sorted(offending)} thuộc quyền "
-                "sở hữu của RowProvenance và được render từ đó. Đặt chúng vào "
-                "`diagnostics` sẽ tạo lại đúng đường thoát provenance mà "
-                "Independent Review #5 đã bác bỏ."
+        if not isinstance(self.diagnostics, Diagnostics):
+            raise TypeError(
+                "diagnostics phải là `Diagnostics` có kiểu, không phải dict. "
+                "Một dict chuỗi tuỳ ý là chính kênh provenance song song mà "
+                "Independent Review #6 đã bác bỏ (INVARIANT P)."
             )
+        if not isinstance(self.provenance, RowProvenance):
+            raise TypeError("provenance phải là `RowProvenance`")
+
         if self.provenance.rows and self.batch_source_file is not None:
             raise ValueError(
                 f"ReviewItem({self.category}): `batch_source_file` chỉ dành cho "

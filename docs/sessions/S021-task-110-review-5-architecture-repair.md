@@ -78,7 +78,7 @@ Ba quyết định, chốt trước khi code, ghi thành **DEC-132**:
 - **HD-110-06** — `raw_prefix` thiếu / rỗng / chỉ khoảng trắng là **INVALID
   CONFIG**, fail-fast khi load. Ngữ nghĩa `raw_prefix: "" = catch-all` bị bác
   bỏ. Kèm schema tối thiểu cho `normalized`, `group`, `active`. Đặt ở
-  `mapping/`, **không** ở `config/loader.py` generic.
+  `mapping/`, **không** ở `app/modules/config/loader.py` generic.
 - **HD-110-07** — mở rộng `EmployeeMapper` (`RecordRef`, `resolve_record`,
   `candidate_records`, `record`, `records`); `WorkingData` mang chính instance
   mapper production. **Không** thêm field vào `WorkingLine`/`Order`.
@@ -120,7 +120,7 @@ DEC-129/130/131 — cả bốn giữ nguyên toàn bộ.
 - **CHECK-110-21 (L3)** — ba file đóng băng của TASK-108A-1 `sha256sum -c` → OK.
 - **CHECK-110-22 (F1–F6)**, **CHECK-110-23 (F7–F9)** — 26 test, tất cả PASS.
 - 22 module nghiệp vụ được bảo vệ (conversion, pricing, profit, orders,
-  lead_source, adjustment, product, importing, `domain/models.py`):
+  lead_source, adjustment, product, importing, `app/modules/domain/models.py`):
   `sha256sum -c` → không file nào đổi.
 
 ## Rủi Ro Còn Lại
