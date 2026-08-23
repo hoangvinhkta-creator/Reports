@@ -80,17 +80,25 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-110 — validation + Review Queue — **IMPLEMENTED — ARCHITECTURE CLOSURE
-sau Independent Review #7**. **NOT MERGED. NOT DONE.** CHECK-110-16 =
-**BLOCKED**. Bảy vòng review, **cả bảy đều FAIL**; bản sửa vòng #6 đã xong
-nhưng **chưa review nào PASS**. Xung đột canonical phát sinh khi triển khai
-HD-110-09 đã được giải quyết (DEC-133, phương án A). Chờ Review #8.
+TASK-110 — validation + Review Queue — **REPAIR MODE — R1 READY**. Independent
+Review #8 (FAIL trên `c8c18229e3ef5a9d600b8d99a1cc21bcbbb2d8dd`) falsify được
+các tuyên bố `ARCHITECTURE CLOSED` / `RC-1→RC-5 CLOSED` của Review #7 — chúng
+**không còn là bằng chứng hoàn tất**. TASK-110 nay repair theo từng unit cô
+lập R1→R8, mỗi unit chỉ chuyển FROZEN sau Independent Review PASS riêng của
+nó. Canonical cho giai đoạn này:
+`docs/tasks/TASK-110-REPAIR-MODE.md` (bối cảnh + 8 finding) và
+`docs/tasks/TASK-110_REPAIR_PROGRESS.md` (bảng tiến độ từng unit — đọc TRƯỚC
+`PROJECT_PROGRESS.md` cho câu hỏi "unit nào đang làm").
+**NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Independent Review #8 cho TASK-110.** Bảy vòng review đều FAIL và đều đã sửa xong (6 + 4 + 3 + 2 + 4 + 6 + Closure
+**R1 — Canonical Object Safety** (xem `docs/tasks/TASK-110_REPAIR_PROGRESS.md`
+để biết trạng thái chính xác trước khi bắt đầu). Không bắt đầu R2 hay xa hơn
+khi R1 chưa FROZEN. Bảy vòng review trước đều FAIL và đều đã sửa xong (6 + 4 +
+3 + 2 + 4 + 6 + Closure
 finding); mỗi finding có regression hoặc falsification test riêng. Vòng #5 và
 #6 là **Architecture Repair**, không phải vá cục bộ. Task vẫn **chưa merge,
 chưa DONE**, và **chưa vòng nào PASS**. Tiền lệ TASK-108A-1: 4 vòng review mới

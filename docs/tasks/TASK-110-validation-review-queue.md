@@ -3,7 +3,13 @@
 ## Metadata
 
 Status:
-**IMPLEMENTED — ARCHITECTURE CLOSURE sau Independent Review #7.**
+**REPAIR MODE — R1 READY.** Sau Independent Review #8 (FAIL trên
+`c8c18229e3ef5a9d600b8d99a1cc21bcbbb2d8dd`), TASK-110 chuyển sang repair cô lập
+theo từng unit R1→R8. Chi tiết đầy đủ và bắt buộc đọc trước khi chạm code:
+`docs/tasks/TASK-110-REPAIR-MODE.md` (bối cảnh, 8 finding, quy tắc) và
+`docs/tasks/TASK-110_REPAIR_PROGRESS.md` (bảng tiến độ, trạng thái từng unit).
+Các tuyên bố `ARCHITECTURE CLOSED` / `RC-1→RC-5 CLOSED` của Review #7 (dưới
+đây) **không còn là bằng chứng hoàn tất** — Review #8 đã falsify được chúng.
 **NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
 
 Completion Gate **FROZEN** 2026-08-23. Bảy vòng review, **cả bảy đều FAIL**;
