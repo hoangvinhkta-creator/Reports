@@ -51,22 +51,27 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (GATE-00 ĐÃ DUYỆT — DEC-122, PHASE-01 mở khóa)
+2026-08-23 (TASK-101 implement xong, VERIFYING — 1 check BLOCKED vì thiếu
+`data/samples/`)
 
 Overall Status:
 IN_PROGRESS
 
 Current Phase:
-PHASE-00 DONE → PHASE-01 — Engine tính toán
+PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-101 — importer + normalizer
+TASK-101 — importer + normalizer — **VERIFYING** (12/13 REQUIRED check PASS;
+CHECK-101-08 BLOCKED, xem `docs/tasks/TASK-101-importer-normalizer.md`)
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-TASK-101 — importer + normalizer (không còn bị chặn — GATE-00 PASS)
+Một trong hai, không có ràng buộc bắt buộc cái nào trước:
+- Chủ dự án cung cấp lại `data/samples/So_chi_tiet_ban_hang.xlsx` để đối
+  chiếu 254/146 đơn, đóng CHECK-101-08, chuyển TASK-101 sang DONE.
+- TASK-105 (price_engine) — module độc lập, không phụ thuộc CHECK-101-08.
 
 ## Roadmap tổng thể
 
@@ -84,18 +89,32 @@ TASK-101 — importer + normalizer (không còn bị chặn — GATE-00 PASS)
         lúc, C11 còn mở không chặn.
 
 - [ ] PHASE-01 — Engine tính toán (Python thuần, không UI, không database)
-  - [ ] TASK-101 — importer + normalizer. Thực hiện 7 bước đầu của import
-        workflow mục §22 đặc tả: đọc `.xlsx`, báo cáo metadata (số dòng,
-        khoảng ngày, tổng doanh số, số đơn, số NVBH) trước khi commit, chuẩn
-        hóa cột, áp employee mapping, nhóm theo OrderID, áp rule ADS ở cấp
-        đơn, propagate nguồn đơn xuống line item. Trừ `Chiết khấu` khỏi doanh
-        số (DEC-114).
-  - [ ] TASK-102 — employee_mapper
-  - [ ] TASK-103 — order_builder
-  - [ ] TASK-104 — lead_source_engine (rule ADS). Phân giải `LeadSource` ở cấp
-        OrderID, đúng hai giá trị `PERSONAL`/`ADS`, chuỗi 4 bậc: override tay →
-        rule từ khóa → mặc định cấp nhân viên → mặc định hệ thống (DEC-119,
-        ADR-104). **Không** quyết định tỉ lệ — đó là việc của TASK-108.
+  - [~] TASK-101 — importer + normalizer. **IMPLEMENTED, VERIFYING** (2026-08-23).
+        Thực hiện 7 bước đầu của import workflow mục §22 đặc tả: đọc `.xlsx`
+        (header dòng 4, data dòng 6), báo cáo metadata trước khi chuẩn hóa,
+        chuẩn hóa cột (trừ `Chiết khấu` — DEC-114), áp employee mapping, nhóm
+        theo OrderID, áp rule ADS ở cấp đơn, propagate nguồn đơn xuống line
+        item. 49/49 test PASS trên fixture tổng hợp ẩn danh (DEC-108); 12/13
+        REQUIRED check PASS, 1 BLOCKED (đối chiếu 254/146 đơn — cần
+        `data/samples/` thật, không có trong session này). Chi tiết:
+        `docs/tasks/TASK-101-importer-normalizer.md`.
+  - [x] TASK-102 — employee_mapper. **Năng lực lõi đã xây trong TASK-101**
+        (`app/modules/mapping/employee_mapper.py`, config-driven, effective-
+        dated, 7/7 test PASS). Không tạo task riêng trùng lặp — nếu phát sinh
+        yêu cầu mở rộng (vd. UI quản lý mapping) sẽ mở lại dưới TASK-304.
+  - [x] TASK-103 — order_builder. **Năng lực lõi đã xây trong TASK-101**
+        (`app/modules/orders/order_builder.py`, nhóm theo OrderID, 3/3 test
+        PASS). Product/transaction classification (dòng phụ có giá trị tiền)
+        **chưa làm** — đúng phạm vi gốc của TASK-103, dời sang khi cần
+        (DEC-110/113 áp dụng lúc đó).
+  - [x] TASK-104 — lead_source_engine (rule ADS). **Đã xây trong TASK-101**
+        (`app/modules/lead_source/classifier.py`). Phân giải `LeadSource` ở
+        cấp OrderID, đúng hai giá trị `PERSONAL`/`ADS`, chuỗi 4 bậc: override
+        tay → rule từ khóa → mặc định cấp nhân viên → mặc định hệ thống
+        (DEC-119, ADR-104). 19/19 test PASS, khớp hành vi bản tham chiếu
+        `tools/analysis/verify_ads_rule.py` (31/31 PASS) trên 18 case
+        LeadSource dùng chung. **Không** quyết định tỉ lệ — đó là việc của
+        TASK-108 (ConversionScheme, bước phân giải độc lập).
   - [ ] TASK-105 — price_engine + interface PriceProvider. Bước 8 của §22 đặc
         tả: tra giá nhập nếu có Price Master, chưa có thì Pending.
   - [ ] TASK-106 — adjustment_engine. Bước 9 của §22 đặc tả.
@@ -343,12 +362,17 @@ Task Mode:
 MAJOR
 
 Status:
-PLANNED — chưa bắt đầu implement; sẵn sàng vào Ready Gate
+VERIFYING — implement xong, 12/13 REQUIRED check PASS trên fixture tổng hợp
+ẩn danh. CHECK-101-08 (đối chiếu 254 đơn 01.2026 / 146 đơn 06.2026 với file
+thô thật) **BLOCKED** — `data/samples/So_chi_tiet_ban_hang.xlsx` không tồn
+tại trong môi trường thực thi này (đúng theo DEC-108, không phải lỗi). Không
+chuyển DONE cho tới khi có file thật để đối chiếu, hoặc chủ dự án chấp nhận
+dời việc đối chiếu này sang môi trường khác.
 
 Required Gate Progress:
-GATE-00 PASS (DEC-122). Chi tiết TASK-101: xem mô tả ở roadmap PHASE-01 phía
-trên (7 bước đầu của import workflow §22 đặc tả) và Ready Gate chuẩn của
-`governance/core/TASK_READY_GATE_STANDARD.md`.
+GATE-00 PASS (DEC-122). TASK-101: 49/49 test PASS (`pytest tests/ -q`);
+12/13 REQUIRED check PASS, 1 BLOCKED. Chi tiết đầy đủ:
+`docs/tasks/TASK-101-importer-normalizer.md`.
 
 Primary Agent Tier:
 B
@@ -580,29 +604,67 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   `origin/claude/extract-upload-repo-gq2ws4` (REM-T05 DONE, Track Governance,
   không chồng lấn nội dung với thay đổi Track A) trước khi push. Chạy lại cả
   5 validator governance — PASS.
+- 2026-08-23 — **TASK-101 implement (Python thuần, ADR-101).** Tạo
+  `docs/tasks/TASK-101-importer-normalizer.md`, freeze Completion Gate trước
+  khi code. Xây 7 module: `domain` (dataclass `RawRow`/`WorkingLine`/`Order`,
+  `Decimal` VND nguyên theo ADR-103), `config/loader` (YAML + effective-dating
+  theo DEC-121), `importing` (raw_reader đọc đúng layout header dòng 4/data
+  dòng 6, preview metadata, normalizer trừ `Chiết khấu` theo DEC-114),
+  `mapping/employee_mapper` (DEC-104, config-driven, dòng chưa map được flag
+  không bị bỏ), `orders/order_builder` (nhóm theo OrderID),
+  `lead_source/classifier` (DEC-119/ADR-104, chuỗi 4 bậc, tách khỏi
+  ConversionScheme). Đây cũng là năng lực lõi mà TASK-102/103/104 định xây
+  riêng — không tạo 3 task trùng lặp, đánh dấu chúng hoàn thành phần lõi
+  trong roadmap.
+
+  Vì `data/samples/` không tồn tại trong môi trường này (DEC-108 — dữ liệu cá
+  nhân khách hàng không commit), dựng fixture tổng hợp đã ẩn danh
+  (`tests/fixtures/synthetic_workbook.py`, 8 dòng/7 đơn synthetic, không liên
+  quan dữ liệu thật) làm cơ sở test. 49/49 test PASS
+  (`pytest tests/ -q`), gồm: 18 case LeadSource port nguyên văn từ
+  `tools/analysis/verify_ads_rule.py` để đối chiếu hành vi. Static check xác
+  nhận: không import `fastapi`/`sqlalchemy` trong `app/modules/`, không
+  hard-code business value (chỉ có hằng số cấu trúc `ADS = "ADS"` của enum
+  `LeadSource`), không `float` cho tiền, không log dữ liệu cá nhân.
+
+  12/13 REQUIRED check PASS (E1 trên fixture). **CHECK-101-08 BLOCKED** —
+  đối chiếu 254 đơn (01.2026) / 146 đơn (06.2026) với file thô thật đòi hỏi
+  `data/samples/So_chi_tiet_ban_hang.xlsx`, không có trong session này. Ghi
+  rõ BLOCKED, không bịa PASS, không đoán số. TASK-101 dừng ở **VERIFYING**,
+  không DONE. Cập nhật roadmap: TASK-101 đánh dấu VERIFYING; TASK-102,
+  TASK-103, TASK-104 đánh dấu phần lõi đã có, ghi rõ phạm vi còn thiếu (kênh
+  UI, product classification) dời sang lúc cần.
 
 ## Session tiếp theo
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
 
-### Track A (Tín Phát) — Recommended Session: S001 — Phase 1, từ TASK-101
+### Track A (Tín Phát) — Recommended Session: đóng CHECK-101-08 hoặc bắt đầu TASK-105
 
 Purpose:
-**GATE-00 đã PASS (DEC-122, 2026-08-23).** Bắt tay ngay TASK-101 (importer +
-normalizer) — không còn gì chặn. Đọc Ready Gate của TASK-101 trước khi
-implement (`governance/core/TASK_READY_GATE_STANDARD.md`), rồi bám đúng chuỗi
-phân giải hai bậc LeadSource/ConversionScheme của ADR-104 khi tới TASK-104 và
-TASK-108. C3 đã có mặc định ghi nhận, đóng lại đúng lúc ở TASK-403. C11 còn
-mở, không chặn Phase 1, đóng trước GATE-01.
+**TASK-101 đã implement, VERIFYING** (2026-08-23) — engine đọc/chuẩn hóa/map
+nhân viên/nhóm đơn/phân loại LeadSource chạy được, 49/49 test PASS trên
+fixture tổng hợp. Việc còn lại là một trong hai, không bắt buộc thứ tự:
+
+1. **Đóng CHECK-101-08** — cần chủ dự án đặt lại
+   `data/samples/So_chi_tiet_ban_hang.xlsx` (không commit) vào thư mục
+   `data/samples/`, sau đó chạy `run_import()` thật để đối chiếu 254 đơn
+   (01.2026) / 146 đơn (06.2026). Đóng xong thì TASK-101 → DONE.
+2. **TASK-105 (price_engine)** — module độc lập, không phụ thuộc
+   CHECK-101-08, có thể bắt đầu song song.
+
+Đọc `docs/tasks/TASK-101-importer-normalizer.md` trước để hiểu đúng những gì
+đã có (đừng viết lại `employee_mapper`/`order_builder`/`lead_source`
+classifier — chúng đã tồn tại và đã test).
 
 Files to read first:
-- `PROJECT/PROJECT_PROGRESS.md` (mục "Trạng thái Task hiện tại" — TASK-101)
-- `PROJECT/PROJECT_PROFILE.md`
+- `docs/tasks/TASK-101-importer-normalizer.md` — trạng thái thật, Completion
+  Gate, giới hạn đã biết
+- `app/pipeline.py`, `app/modules/` — code đã có
+- `PROJECT/PROJECT_PROGRESS.md` (mục "Trạng thái Task hiện tại")
 - `PROJECT/PROJECT_DECISIONS.md` (đặc biệt DEC-119, DEC-120, DEC-121, DEC-122)
 - `docs/adr/ADR-104-lead-source-vs-conversion-scheme.md`
-- `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx`
-- `docs/analysis/`
 
 ### Track B (Governance) — Recommended Session: S009 — REM-T06
 

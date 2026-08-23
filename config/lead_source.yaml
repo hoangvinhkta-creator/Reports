@@ -1,0 +1,16 @@
+# config/lead_source.yaml
+#
+# Rule ADS cấp OrderID + mặc định toàn hệ thống (DEC-102, DEC-109, DEC-119).
+#
+# LeadSource có đúng hai giá trị — PERSONAL, ADS — đây là bất biến kiến trúc
+# của mô hình (ADR-104), không phải một giá trị cấu hình, nên không lặp lại
+# ở đây.
+#
+# Thêm từ khóa mới (vd. "QUẢNG CÁO", "WEB") chỉ cần thêm dòng dưới, không
+# cần sửa code. So khớp không phân biệt hoa/thường, sau khi chuẩn hóa
+# Unicode NFC và gộp khoảng trắng (mục 13 đặc tả).
+
+ads_keywords:
+  - "ADS"
+
+default_lead_source: "PERSONAL"

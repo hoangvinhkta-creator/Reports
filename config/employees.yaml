@@ -1,0 +1,85 @@
+# config/employees.yaml
+#
+# Mapping nhân viên bán hàng thô -> chuẩn hóa (DEC-104). Nhiều-về-một: Đức
+# Hiệp / Mr Quý / Mr Vinh cùng gộp về "Nội thành". Khớp bằng phần đầu
+# (prefix) của cột NVBH trong file thô — số điện thoại phía sau bị bỏ qua
+# khi so khớp.
+#
+# `default_lead_source: null` nghĩa là dùng mặc định toàn hệ thống
+# (config/lead_source.yaml -> PERSONAL). Chỉ Tín Phát có mặc định ADS
+# (DEC-109, sửa đổi bởi DEC-119 — xem docs/adr/ADR-104-lead-source-vs-conversion-scheme.md).
+# Đây là khai báo về NGUỒN đơn, không phải tỉ lệ quy đổi — tỉ lệ nằm ở
+# config/conversion_rates.yaml (TASK-108).
+#
+# `effective_from` / `effective_to`: DEC-121 — khi chính sách nhân sự đổi
+# trong tương lai, thêm dòng mới thay vì sửa dòng cũ, để không viết lại
+# một báo cáo đã phát hành.
+#
+# Nhân viên chưa có mặt ở đây (raw NVBH không khớp prefix nào) không bị bỏ
+# — dòng đó được flag `unmapped` bởi employee_mapper (DEC-104, C11 — xem
+# docs/analysis/10_OPEN_QUESTIONS.md).
+
+employees:
+  - raw_prefix: "Tín Phát"
+    normalized: "Tín Phát"
+    active: true
+    include_in_kpi: true
+    default_lead_source: "ADS"
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Vũ Hạnh Ly"
+    normalized: "Ly"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Lê Mạnh Hoàng"
+    normalized: "Hoàng"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Đức Kiên"
+    normalized: "Kiên"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Phước Thắng"
+    normalized: "Thắng"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Đức Hiệp"
+    normalized: "Nội thành"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Mr Quý"
+    normalized: "Nội thành"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null
+
+  - raw_prefix: "Mr Vinh"
+    normalized: "Nội thành"
+    active: true
+    include_in_kpi: true
+    default_lead_source: null
+    effective_from: "2026-01-01"
+    effective_to: null

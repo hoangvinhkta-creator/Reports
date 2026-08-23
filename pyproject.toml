@@ -1,0 +1,18 @@
+[project]
+name = "tinphat-reporting-engine"
+version = "0.1.0"
+description = "Tín Phát — Công cụ tự động tạo Báo cáo Kinh doanh (Phase 1 engine)"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
