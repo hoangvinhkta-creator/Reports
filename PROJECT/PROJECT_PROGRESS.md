@@ -226,9 +226,10 @@ DEC-117, không phải cùng một quyết định).
         `docs/sessions/S008-rem-t05-documentation-truth-up.md`.
   - [ ] Phase Gate 02 — chờ REM-T06
 - [ ] PHASE-03 — Repository Hygiene
-  - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — PLANNED, gate
-        PRELIMINARY (chưa frozen). Đóng FIND-009 (một phần đã xử lý —
-        `.gitignore` đã có từ S003).
+  - [ ] REM-T06 — Vệ sinh repository root — MICRO — Tier A — **READY, gate
+        FROZEN** (S009 sẽ implement). Đóng FIND-009 (một phần đã xử lý —
+        `.gitignore` đã có từ S003). File:
+        `docs/tasks/TASK-REM-T06-repository-root-hygiene.md`.
   - [ ] Phase Gate 03 — đánh giá lại GAP-01 (Backup/DR)
 
 ### Finding còn OPEN
@@ -256,7 +257,7 @@ Không tự đóng chỉ vì bị mồ côi khỏi checklist ở lần merge tr�
 
 ### Session tiếp theo cho track này
 
-S009 — REM-T06 (vệ sinh repository root, MICRO, Tier A, gate chưa frozen) →
+S009 — REM-T06 (vệ sinh repository root, MICRO, Tier A, **gate FROZEN**) →
 sau đó Phase Gate 02 → Phase Gate 03. Không chặn Track Tín Phát — có thể xen
 kẽ vào bất kỳ lúc nào một session rảnh, hoặc sau khi GATE-00 duyệt, tùy chủ
 dự án quyết định thứ tự ưu tiên.
@@ -669,11 +670,10 @@ Files to read first:
 ### Track B (Governance) — Recommended Session: S009 — REM-T06
 
 Purpose:
-REM-T05 đã DONE (S008). REM-T06 (vệ sinh repository root, MICRO, Tier A) là
-task còn lại trước Phase Gate 02/03 — nhưng gate của nó chưa frozen
-(PRELIMINARY), nên cần hoàn thiện Ready Gate trước khi implement, theo
-"Hoàn thiện Roadmap" trong `governance/core/00_SESSION_ORCHESTRATION.md`.
-Xem "Track Governance — Bảo Trì Nền Tảng" phía trên để có chi tiết đầy đủ.
+REM-T05 đã DONE (S008). REM-T06 (vệ sinh repository root, MICRO, Tier A) 
+nay READY — gate FROZEN, sẵn sàng implement. Không còn cần hoàn thiện 
+Ready Gate; S009 sẽ triển khai luôn. Xem "Track Governance — Bảo Trì Nền 
+Tảng" phía trên để có chi tiết đầy đủ.
 
 Files to read first:
 - `PROJECT/PROJECT_PROGRESS.md` (mục "Track Governance")
