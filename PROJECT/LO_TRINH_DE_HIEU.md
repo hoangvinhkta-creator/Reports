@@ -20,12 +20,16 @@ số liệu bán hàng thô, tự tính hoa hồng/lợi nhuận, tự lên báo
 
 ## Đang tới đâu rồi (tóm tắt nhanh)
 
-- **Đã xong 4/34 dòng** trong checklist bên dưới (giai đoạn chuẩn bị & phân
-  tích).
-- **Đang dừng lại chờ một việc duy nhất** (dòng có 🟡): chủ dự án đọc và
-  xác nhận phần phân tích dữ liệu là đúng. Việc này **không cần biết kỹ
-  thuật** — chỉ cần đọc và nói "đúng" hoặc "sai chỗ này".
-- Sau khi duyệt, các bước tiếp theo mới được phép bắt đầu.
+File này gồm **hai bảng độc lập, không chặn nhau**:
+
+- **Track A — Sản phẩm** (bảng chính bên dưới): đã xong 4/34 dòng, đang
+  dừng lại chờ một việc duy nhất (dòng 🟡) — chủ dự án đọc và xác nhận phần
+  phân tích dữ liệu là đúng. **Không cần biết kỹ thuật** — chỉ cần đọc và
+  nói "đúng" hoặc "sai chỗ này". Sau khi duyệt, các bước tiếp theo mới được
+  phép bắt đầu.
+- **Track B — Nền tảng kỹ thuật** (bảng ở cuối file): đã xong 5/9 dòng,
+  một việc đang READY chờ làm (REM-T05), không ảnh hưởng ngày ra mắt sản
+  phẩm.
 
 ## Cách đọc bảng bên dưới
 
@@ -52,7 +56,7 @@ người thực hiện:
 | **D** | Việc thiết kế hình ảnh/giao diện — dự án này chưa tới bước dùng mức này |
 | **Duyệt** | Không phải việc lập trình — là lúc chủ dự án xem và xác nhận |
 
-## Checklist toàn bộ lộ trình
+## Track A — Checklist toàn bộ lộ trình sản phẩm
 
 | Tick | Tên việc | Mục đích | Mức | Thứ tự / phụ thuộc |
 |---|---|---|---|---|
@@ -91,14 +95,37 @@ người thực hiện:
 | ⬜ | 30. Công thức hóa cách tính hoa hồng theo target | Hiện đang nạp bảng tỷ lệ quan sát được làm dữ liệu tạm; bước này biến nó thành công thức chính thức | C | Sau bước 28 (làm song song được với bước 29) |
 | ⬜ | 31. Xử lý trường hợp một đơn có 2 nguồn khách hàng cùng lúc | Trường hợp ngoại lệ hiếm gặp nhưng cần xử lý đúng | C | Sau bước 28 |
 
-## Việc nền chạy song song (không ảnh hưởng lộ trình trên)
+## Track B — Việc nền chạy song song (không ảnh hưởng ngày ra mắt sản phẩm)
 
 Có một nhóm việc khác đang chạy song song để giữ cho "quy trình làm việc
-nội bộ" của dự án luôn rõ ràng, nhất quán — có thể hiểu như việc dọn dẹp hồ
-sơ/quy trình nội bộ, không phải tính năng của sản phẩm. Việc này **không
-ảnh hưởng tới ngày sản phẩm ra mắt**, sếp không cần theo dõi sát trừ khi
-muốn biết chi tiết. Xem `PROJECT/PROJECT_PROGRESS.md` → mục "Track
-Governance" nếu cần.
+nội bộ" của dự án luôn rõ ràng, nhất quán — như dọn dẹp hồ sơ/quy trình nội
+bộ, không phải tính năng của sản phẩm. Việc này **không ảnh hưởng tới ngày
+sản phẩm ra mắt**, sếp không cần theo dõi sát trừ khi muốn biết chi tiết.
+
+Bảng này giữ nguyên mã kỹ thuật gốc (REM-Txx, Mode, Tier, chỉ số D/R/B) vì
+đây vốn là công việc kỹ thuật thuần túy — không có cách diễn giải "không
+thuật ngữ" nào có nghĩa hơn chính mã của nó. Đặt ở đây để xem tiện trong
+cùng một file, không phải phải mở `PROJECT/PROJECT_PROGRESS.md` riêng.
+
+**Chú thích ký hiệu:** `Mode` = MICRO (việc nhỏ, gọn) / MAJOR (việc lớn, có
+hồ sơ + gate riêng). `D/R/B` = Difficulty/Risk/Blast Radius — độ khó / rủi
+ro / phạm vi ảnh hưởng nếu sai, mỗi chỉ số thang 1–5, số càng cao càng cần
+cẩn thận. `Tier` dùng chung thang A–D như bảng Track A ở trên.
+
+| Tick | Tên việc | Mục đích | Tier | Thứ tự / phụ thuộc |
+|---|---|---|---|---|
+| ✅ | REM-T02 (MAJOR, D2/R3/B5) — Đưa gói governance lên gốc repository | Sửa lỗi mọi đường link nội bộ bị 404 do cấu trúc thư mục sai | C | DONE (S003) — trùng việc với TASK-000 của Track A, đã hội tụ đúng kết quả |
+| ✅ | REM-T04 (MICRO, D1/R2/B2) — Sửa 3 đường dẫn tham chiếu bị gãy | Các link nội bộ trong tài liệu governance trỏ đúng chỗ | A | DONE (S004) |
+| ✅ | REM-T03 (MAJOR, D3/R2/B2) — Xây công cụ tự động kiểm tra cấu trúc + tham chiếu | Máy tự phát hiện khi ai đó (người hoặc AI) làm lệch cấu trúc, thay vì phải tin lời khai | B | DONE (S005) |
+| ✅ | REM-T07 (MAJOR, D2/R2/B2) — Bật kiểm tra tự động (CI) trên mỗi lần đẩy code | Có nguồn xác nhận độc lập, bền vững cho các thay đổi rủi ro cao trong tương lai | B | DONE (S005) |
+| ✅ | Phase Gate 01 — Xác nhận PHASE-01 hoàn tất | Chốt chính thức trước khi coi giai đoạn dọn nền governance là xong | Gate | PASS (S006) — 10/10 check |
+| ⬜ | REM-T05 (MAJOR, D2/R2/B3) — Sửa tài liệu tham khảo đang ghi sai thực tế | Một báo cáo cũ đang khẳng định "đã kiểm tra PASS" không đúng sự thật — sửa để tài liệu đáng tin lại | B | **READY, sẵn sàng làm ngay** — 0/4 việc kiểm tra bắt buộc đã chạy |
+| ⬜ | Phase Gate 02 — Xác nhận PHASE-02 hoàn tất | Chốt sau khi REM-T05 xong | Gate | Sau REM-T05 |
+| ⬜ | REM-T06 (MICRO, D1/R1/B1) — Dọn dẹp thư mục gốc repo (thêm README/LICENSE) | Repo có tài liệu giới thiệu chuẩn khi người ngoài ghé xem | A | Kế hoạch đã có, chưa chốt chi tiết cuối cùng |
+| ⬜ | Phase Gate 03 — Xác nhận PHASE-03 hoàn tất, xem lại việc sao lưu dữ liệu | Chốt toàn bộ track dọn nền governance | Gate | Sau REM-T06 |
+
+*(REM-T01 không có trong bảng — đã hủy vì trùng việc đã làm xong ở nơi
+khác, không phải việc bị bỏ sót.)*
 
 ## Ghi chú quan trọng
 
