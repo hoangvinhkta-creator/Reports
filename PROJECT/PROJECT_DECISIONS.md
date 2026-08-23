@@ -406,3 +406,83 @@ Tác Động:
 Có Thể Xem Lại Sau:
 Khi có code ứng dụng đầu tiên (áp dụng quy tắc ngôn ngữ cho code mới nếu phù
 hợp với ngôn ngữ lập trình được chọn).
+
+## DEC-012
+
+Date:
+2026-08-23
+
+Task:
+REM-T04 / MICRO-001 (thực hiện trong S004)
+
+Quyết Định:
+Thay thế check thứ hai trong Compact Completion Gate đã FROZEN của MICRO-001
+bằng một cặp check tương đương-hoặc-mạnh-hơn, thông qua COMPLETION GATE CHANGE
+PROPOSAL chính thức dưới đây. Không hạ thấp tiêu chí.
+
+---
+
+COMPLETION GATE CHANGE PROPOSAL
+
+Original check:
+"`git diff` chỉ cho thấy thay đổi path-token trên đúng ba dòng — Evidence
+Level E1"
+
+Proposed change:
+Thay bằng hai check:
+- **T04-C2a** — Xác minh trực tiếp từng token trong Scope Lock: cả ba token
+  đích hiện đang mang đúng giá trị canonical VÀ đích của chúng tồn tại trên
+  đĩa — Evidence Level E1.
+- **T04-C2b** — So sánh toàn repo giữa baseline `0394267` và HEAD: đúng hai
+  broken reference của FIND-003 biến mất, token `templates/` của FIND-004 đã
+  đổi thành `governance/templates/`, và **không có file nào đã tồn tại ở
+  baseline phát sinh broken reference mới** — Evidence Level E1.
+
+Reason:
+Check gốc giả định các sửa đổi sẽ nằm trong một commit riêng của MICRO-001.
+Thực tế đã khác: cả ba sửa đổi đã được thực hiện tiện thể bên trong commit
+`81c115a` (dịch repo sang tiếng Việt), vốn theo thiết kế viết lại prose trên
+78 file. Một diff cô lập ba dòng **không còn tồn tại** và không thể tạo ra mà
+không viết lại lịch sử git — điều bị cấm với branch đã push.
+
+Do đó check gốc là **không thể thỏa mãn**, không phải "khó thỏa mãn". Theo
+`governance/core/TASK_COMPLETION_GATE_STANDARD.md`, lựa chọn hợp lệ là đề xuất
+thay đổi gate một cách tường minh, chứ không phải đánh PASS cho một check chưa
+chạy, cũng không phải âm thầm bỏ qua nó.
+
+Risk:
+Thấp, và bộ check thay thế có độ phủ **rộng hơn** check gốc. Check gốc chỉ
+chứng minh "ba dòng đã đổi, không đổi gì thêm trong cùng diff". Bộ thay thế
+chứng minh một mệnh đề mạnh hơn về phạm vi: trạng thái reference của **toàn
+bộ repo** không hồi quy so với baseline, đo trên mọi file `.md`, chứ không chỉ
+ba dòng.
+
+Điều bị mất so với check gốc: khả năng khẳng định "không có thay đổi nào khác
+đi kèm trong cùng commit". Điều này được chấp nhận vì các thay đổi đi kèm là
+việc dịch thuật đã được chủ dự án phê duyệt riêng (DEC-011), đã được verify
+riêng, và không phải thay đổi lén lút.
+
+Impact:
+Gate của MICRO-001 chuyển từ 2 check thành 3 check (T04-C1 giữ nguyên, T04-C2
+tách thành C2a + C2b). Không check REQUIRED nào bị gỡ bỏ hoặc hạ evidence
+level. Cả ba đều là E1 như gate gốc yêu cầu.
+
+---
+
+Lý Do (bổ sung — quan sát về kỷ luật phạm vi):
+Đây là lần thứ hai trong dự án công việc thuộc phạm vi một task lại được thực
+hiện bên ngoài task đó (lần đầu: `.gitignore` của REM-T06 được thêm ở S003).
+Cả hai lần đều được ghi nhận trung thực chứ không giấu, nhưng đây là một xu
+hướng cần lưu ý: sửa "tiện thể" làm hỏng khả năng kiểm chứng của gate được
+thiết kế quanh giả định một-task-một-diff. Khuyến nghị cho các session sau:
+khi phát hiện một sửa đổi thuộc task khác trong lúc làm việc, ghi nhận nó thay
+vì tự sửa, trừ khi task đó đang READY và được chủ dự án đồng ý gộp.
+
+Tác Động:
+MICRO-001 chuyển sang DONE với 3/3 check REQUIRED PASS (E1). FIND-003 và
+FIND-004 chuyển sang RESOLVED. REM-T04 đóng.
+
+Có Thể Xem Lại Sau:
+Khi REM-T03 tạo ra `validate_reference_integrity.py`, check T04-C2a/C2b có thể
+được thay bằng một lần chạy validator đó — mạnh hơn vì tự động và tái lập
+được, thay vì script ad-hoc chạy một lần.
