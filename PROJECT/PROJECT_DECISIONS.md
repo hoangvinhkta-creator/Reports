@@ -1280,3 +1280,78 @@ Can Revisit After:
 Quyết định 5 (phân loại thủ công) mở lại khi Phase 2/3 có UI thật và đủ dữ
 liệu đã-được-người-dùng-xác-nhận để cân nhắc tự học. Quyết định 1–4, 6–8 là
 nền tảng, không dự kiến đổi.
+
+## DEC-128
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Gate / Readiness Review (trước khi có dòng code nào)
+
+Decision:
+
+Bốn khoảng trống nghiệp vụ của mục §18 đặc tả, chủ dự án trả lời trực tiếp
+trong phiên Gate Review. Ghi lại nguyên vẹn vì cả bốn đều đổi kết quả mà công
+cụ xuất ra, không chỉ đổi cách hiển thị.
+
+**1 — `Missing: thiếu giá nhập` nén thành một mục tổng hợp.**
+`price_source == Pending` là **trạng thái hệ thống đã biết** (DEC-103: chưa có
+Price Master), không phải lỗi dữ liệu của từng dòng. Review Queue hiển thị
+**một** mục duy nhất dạng "N dòng đang chờ giá nhập", không phải N mục. Quy
+tắc per-row chỉ bật khi Price Master tồn tại (TASK-401).
+
+**2 — `Suspicious: lợi nhuận âm` tách làm hai loại có cơ sở khác nhau.**
+- Loại tính toán: dựa trên `accounting_profit` và `accounting_purchase_price`.
+  Viết đúng ngay bây giờ, có test, nhưng **nằm im ở Phase 1** (0 phát hiện, vì
+  `accounting_profit is None` ở 100% dòng). Tự sống dậy khi có Price Master.
+- Loại ERP: một loại **riêng biệt**, dựa trên `source_profit` (1.912/11.765
+  dòng âm), nhãn ghi rõ là tín hiệu từ ERP **chưa kiểm chứng**.
+  `docs/analysis/01_DATA_MAPPING.md` §3 đã dự liệu đúng việc này.
+
+**3 — Dòng phụ và Duplicate.**
+- `SL ≤ 0` / `giá bán = 0`: dùng một **danh sách từ khóa dòng phụ trong
+  config** để hạ 1.261 dòng hợp lệ (`Chi phí vận chuyển`, `Chênh VAT`…) xuống
+  `INFO` thay vì `Suspicious`. Đây là biện pháp giảm nhiễu, **không** thay thế
+  Product/Transaction Classification đầy đủ — mục §17 vẫn thuộc TASK-103.
+- `Duplicate`: định nghĩa của đặc tả (`cùng source_file + source_row`) là bất
+  khả thi trong một lần import — cặp đó duy nhất theo cấu tạo. Thay bằng
+  **trùng `row_hash` trong cùng một lần import**, mức `WARNING` (hai dòng phụ
+  kiện giống hệt nhau có thể hợp lệ). Chống trùng khi **import lại cùng một
+  file** cần persistence — dời sang TASK-201, ghi tường minh là out-of-scope.
+
+**4 — Đơn có hai nhân viên khác nhau: chỉ phát hiện, không đổi hành vi.**
+`order_builder` hiện lấy nhân viên của **dòng đầu tiên**, nên cả đơn nhận tỉ
+lệ quy đổi của người đó. TASK-110 đưa đơn đó vào Review Queue ở mức cao nhất
+nhưng **không** đổi cách tính.
+
+Reason:
+
+Điểm 1–3: giữ Review Queue ở mức người thật đọc nổi. Một hàng chờ 11.765 mục
+"thiếu giá nhập" và hàng nghìn mục "vận chuyển SL = 0" sẽ bị bỏ qua toàn bộ —
+lúc đó cảnh báo thật cũng chết theo. Điểm 2 tách hai cơ sở vì trộn chúng lại
+sẽ khiến một con số ERP chưa kiểm chứng trông như đã kiểm chứng, đúng loại
+nhầm lẫn DEC-103 tồn tại để chặn.
+
+Điểm 4: chủ dự án chọn giữ ranh giới quy trình. Đổi cách tính tiền là việc của
+một quyết định nghiệp vụ riêng, không phải hệ quả phụ của một task validation.
+
+Impact:
+
+Phạm vi TASK-110 thành **7 loại cảnh báo**, không phải 5. Difficulty 2 → 3,
+Risk 2 → 3 (Risk 3 kéo theo **E1 bắt buộc** cho mọi check REQUIRED, theo
+`governance/core/EVIDENCE_STANDARD.md`).
+
+**Rủi ro tồn dư đã chấp nhận (điểm 4):** cho tới khi có người duyệt hàng chờ,
+một đơn có hai nhân viên vẫn xuất ra con số sai KPI cho cả hai người. Công cụ
+làm cho nó **nhìn thấy được**, không làm cho nó **không xảy ra**. Cần đo quy
+mô thật ở GATE-01.
+
+Điểm 3 tạo một phụ thuộc mềm lên TASK-103: nếu danh sách từ khóa lệch khỏi
+bảng Classification khi §17 được làm, hai chỗ sẽ nói hai điều khác nhau về
+cùng một dòng. TASK-103 phải kiểm tra lại danh sách này.
+
+Can Revisit After:
+Điểm 1 tự hết hiệu lực khi TASK-401 có Price Master. Điểm 3 (Duplicate) mở lại
+ở TASK-201 khi có persistence. Điểm 4 nên mở lại ở GATE-01, sau khi đo được
+thật sự có bao nhiêu đơn bị mâu thuẫn nhân viên và số tiền liên quan.

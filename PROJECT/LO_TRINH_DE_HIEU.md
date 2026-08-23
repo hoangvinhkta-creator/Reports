@@ -10,8 +10,41 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 12 (chọn tỷ lệ quy đổi) đã xong và
-> đã qua soát xét độc lập** (xem "Có gì mới" bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã soát xét xong điều kiện bắt
+> đầu, đang chờ sếp duyệt** (xem "Có gì mới" ngay bên dưới). Trước đó: bước 12
+> đã xong và đã qua soát xét độc lập.
+
+## Có gì mới — bước 14 đang chờ sếp duyệt (2026-08-23)
+
+**Chưa viết dòng code nào.** Trước khi bắt tay làm bước 14 (rà soát dữ liệu
+bất thường), chúng tôi đọc lại toàn bộ yêu cầu và phát hiện **bản đặc tả thiếu
+4 chỗ có thể làm sai kết quả**. Sếp đã trả lời cả 4, ghi lại thành quyết định
+**DEC-128**:
+
+1. **Cảnh báo "thiếu giá nhập"** sẽ đúng với **toàn bộ 11.765 dòng**, vì công
+   ty chưa có bảng giá điện tử — đây là điều đã biết, không phải lỗi. Nên
+   gộp thành **một dòng thông báo duy nhất**, thay vì 11.765 dòng cảnh báo mà
+   không ai đọc nổi.
+2. **Cảnh báo "lợi nhuận âm"** tách làm hai loại rõ ràng: loại do công cụ tự
+   tính (hiện chưa tính được vì thiếu giá nhập) và loại **lấy từ số ERP đang
+   báo** (1.912 dòng) — loại sau ghi rõ là "số của ERP, chưa kiểm chứng", để
+   không ai nhầm nó là số đã được xác minh.
+3. **1.261 dòng phụ hợp lệ** (chi phí vận chuyển, chênh VAT, phí lắp đặt…)
+   sẽ được hạ xuống mức "chỉ để biết", không kêu như lỗi. Và **cảnh báo trùng
+   dòng** đổi cách nhận biết, vì cách ghi trong đặc tả về mặt kỹ thuật không
+   bao giờ xảy ra được.
+4. **Đơn hàng ghi hai nhân viên khác nhau**: công cụ sẽ **báo lên hàng chờ**
+   nhưng **không tự ý đổi cách tính tiền**. Sếp chọn giữ ranh giới này — đổi
+   cách tính tiền phải là một quyết định riêng.
+
+**Việc còn lại trước khi bắt đầu code:** sếp xác nhận **chốt (đóng băng) bảng
+kiểm tra cuối** của bước 14 — danh sách 17 điều kiện phải đạt thì mới được coi
+là xong. Chốt rồi thì mới bắt đầu làm.
+
+**Một điều cần biết:** có **một điều kiện không thể kiểm ở đây được** — đối
+chiếu trên file bán hàng thật. File đó chứa tên, số điện thoại, địa chỉ khách
+hàng nên **cố ý không lưu trong kho mã nguồn**. Muốn đóng điều kiện đó, cần
+chạy công cụ ở nơi có file thật.
 
 ## Có gì mới — bước 12 đã xong và được duyệt (2026-08-23)
 
@@ -260,7 +293,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
-| ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |
+| ⬜ | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã soát xét xong điều kiện bắt đầu, đang chờ sếp duyệt bản kiểm tra cuối** — xem "Có gì mới" đầu file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
 | ⬜ | 16. TASK-112 (MICRO, D1/R2/B2) — Đóng gói thành công cụ chạy được | Bước cuối để bắt đầu dùng thử trên máy | A | Sau bước 15 |
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |

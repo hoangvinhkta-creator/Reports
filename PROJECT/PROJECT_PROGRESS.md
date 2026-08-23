@@ -51,9 +51,10 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-108A-1 **DONE** — ConversionSchemeResolver + EmployeeGroup +
-ProductGroup. Independent Review #1→#4, **#4 PASS**, đã merge. 16/16 REQUIRED
-check PASS, 151/151 test tổng.)
+2026-08-23 (S015 — **TASK-110 Gate / Readiness Review**. Không code. Ready Gate
+16/17, chờ owner freeze Completion Gate. **DEC-128** đóng 4 khoảng trống nghiệp
+vụ của §18; phạm vi thật 7 loại cảnh báo, Risk nâng 2 → 3. Trước đó:
+TASK-108A-1 **DONE**, Independent Review #4 PASS, đã merge, 151/151 test.)
 
 Overall Status:
 IN_PROGRESS
@@ -69,9 +70,10 @@ MAJOR
 
 Next Recommended Task:
 **TASK-110 — validation + Review Queue.** Là task PHASE-01 duy nhất còn lại
-**không** phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`, nên sẵn sàng ngay.
-Nó cũng là nơi bắt buộc phải hiển thị hai cảnh báo F2/F4 của
-`reconcile_conversion.py` — xem "Nợ Kỹ Thuật / Cảnh Báo Vận Hành" bên dưới.
+**không** phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`. Gate Review đã
+xong (S015); **hành động tiếp theo là chủ dự án freeze Completion Gate**, sau
+đó mới triển khai. Nó cũng là nơi bắt buộc phải hiển thị hai cảnh báo F2/F4
+của `reconcile_conversion.py` — xem "Nợ Kỹ Thuật / Cảnh Báo Vận Hành" bên dưới.
 
 **TASK-109 (summary_engine) bị chặn một phần** — cột "DS quy đổi" và "LN KPI"
 cần TASK-108B. Không nên bắt đầu trước khi C15 đóng, nếu không sẽ phải làm
@@ -185,7 +187,10 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
-  - [ ] TASK-110 — validation + Review Queue. Mục §18 đặc tả, 5 loại cảnh báo:
+  - [ ] TASK-110 — validation + Review Queue. **Gate Review xong, chờ owner
+        freeze** (S015). Phạm vi thật **7 loại** sau DEC-128, không phải 5 —
+        xem `docs/tasks/TASK-110-validation-review-queue.md`. Mục §18 đặc tả,
+        5 loại gốc:
         `Missing` (thiếu ngày, OrderID, nhân viên, số lượng, doanh số, giá
         nhập), `Suspicious` (SL ≤ 0, giá bán = 0, giá nhập > giá bán, lợi
         nhuận âm — 1.912 dòng như vậy trong mẫu), `Order inconsistency` (cùng
@@ -360,7 +365,12 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue).
+Owner: TASK-110 (validation + Review Queue). **Gate đã ràng buộc điều này
+thành check kiểm chứng được:** CHECK-110-12 (F2 phải có mặt trong
+`ImportResult.review_queue`, không chỉ trong `tools/analysis/`), CHECK-110-13
+(F4, và F2/F4 không được làm `run_import()` raise), CHECK-110-14
+(`reconcile_conversion.py` giữ nguyên hành vi). Xem
+`docs/tasks/TASK-110-validation-review-queue.md`.
 
 ## Session tiếp theo cho track này
 
@@ -402,7 +412,7 @@ TASK-110 có thể chạy cùng lúc với TASK-108/TASK-109.
 | TASK-107 | 2 | 4 | 4 | MAJOR | B | C |
 | TASK-108 | 3 | 5 | 5 | MAJOR | C | — |
 | TASK-109 | 3 | 4 | 4 | MAJOR | B | C |
-| TASK-110 | 2 | 2 | 2 | MAJOR | B | C |
+| TASK-110 | 3 | 3 | 2 | MAJOR | B | C |
 | TASK-111 | 3 | 2 | 2 | MAJOR | B | C |
 | TASK-112 | 1 | 2 | 2 | MICRO | A | B |
 | TASK-201 | 3 | 4 | 5 | MAJOR | C | — |
@@ -491,14 +501,34 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-108A-1 — ConversionSchemeResolver
+TASK-110 — Validation + Review Queue
 
 Task Mode:
 MAJOR
 
 Status:
-IMPLEMENTED — 16/16 REQUIRED check PASS, 119/119 test. **CHƯA merge**, chờ
-independent review theo chỉ đạo của chủ dự án.
+PLANNED — **Gate / Readiness Review đã xong** (S015, 2026-08-23). Ready Gate
+đạt 16/17 mục; mục duy nhất còn thiếu là **chủ dự án freeze Completion Gate**.
+Chưa viết dòng code nào, đúng chỉ đạo.
+
+Bốn khoảng trống nghiệp vụ của §18 đặc tả đã hỏi và đã có câu trả lời —
+**DEC-128**. Phạm vi thật là **7 loại cảnh báo**, không phải 5. Chấm điểm lại:
+Difficulty 2 → 3, **Risk 2 → 3** (kéo theo E1 bắt buộc cho mọi check REQUIRED).
+
+**CHECK-110-16 (đối chiếu dữ liệu thật) đang BLOCKED** — file thô thật không
+có trong repo (đúng `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`) và không có trong
+container. Check này **chặn DONE, không chặn IMPLEMENTED**.
+
+File: `docs/tasks/TASK-110-validation-review-queue.md`.
+
+### TASK-108A-1 (task liền trước)
+
+Task Mode:
+MAJOR
+
+Status:
+**DONE** — 16/16 REQUIRED check PASS, 151/151 test, Independent Review #4
+PASS, đã merge tại `c7a1b24`.
 
 Required Gate Progress:
 GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE**, TASK-106
@@ -1053,7 +1083,12 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue).
+Owner: TASK-110 (validation + Review Queue). **Gate đã ràng buộc điều này
+thành check kiểm chứng được:** CHECK-110-12 (F2 phải có mặt trong
+`ImportResult.review_queue`, không chỉ trong `tools/analysis/`), CHECK-110-13
+(F4, và F2/F4 không được làm `run_import()` raise), CHECK-110-14
+(`reconcile_conversion.py` giữ nguyên hành vi). Xem
+`docs/tasks/TASK-110-validation-review-queue.md`.
 
 ## Session tiếp theo
 
