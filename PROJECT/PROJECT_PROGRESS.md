@@ -46,17 +46,40 @@ TASK-101 — importer + normalizer (blocked by GATE-00)
   - [ ] GATE-00 — Owner approves `docs/analysis/` before any application code
 
 - [ ] PHASE-01 — Calculation engine (pure Python, no UI, no database)
-  - [ ] TASK-101 — importer + normalizer
+  - [ ] TASK-101 — importer + normalizer. Implements the spec §22 import
+        workflow steps 1–7: read the .xlsx, report metadata (row count, date
+        range, total sales, order count, salesperson count) before committing,
+        normalize columns, apply employee mapping, group by OrderID, apply the
+        ADS rule at order level, propagate the lead source down to line items.
+        Deducts `Chiết khấu` from sales (DEC-014).
   - [ ] TASK-102 — employee_mapper
   - [ ] TASK-103 — order_builder
   - [ ] TASK-104 — lead_source_engine (ADS rule)
-  - [ ] TASK-105 — price_engine + PriceProvider interface
-  - [ ] TASK-106 — adjustment_engine
-  - [ ] TASK-107 — profit_engine
-  - [ ] TASK-108 — conversion_engine (PERSONAL/ADS buckets)
-  - [ ] TASK-109 — summary_engine
-  - [ ] TASK-110 — validation + Review Queue
-  - [ ] TASK-111 — excel_exporter
+  - [ ] TASK-105 — price_engine + PriceProvider interface. Spec §22 step 8:
+        look up a purchase price if a Price Master exists, otherwise Pending.
+  - [ ] TASK-106 — adjustment_engine. Spec §22 step 9.
+  - [ ] TASK-107 — profit_engine. Spec §22 step 11, profit half.
+  - [ ] TASK-108 — conversion_engine (PERSONAL/ADS buckets). Spec §22 steps
+        10 and 11: pick the scheme from the lead source and the period, then
+        convert each bucket independently.
+  - [ ] TASK-109 — summary_engine. Spec §15: month summary with Personal / ADS
+        / Total columns for Tổng đơn, Số SP, Doanh số, LN KPI, DS quy đổi,
+        DSQĐ/đơn, Lợi nhuận thực, % Target — **and the same per employee as
+        YTD**, so ability to self-sell can be told apart from ability to work
+        company-generated leads.
+  - [ ] TASK-110 — validation + Review Queue. Spec §18, five warning types:
+        `Missing` (date, OrderID, employee, quantity, sales, purchase price),
+        `Suspicious` (qty ≤ 0, sell price = 0, purchase > sell, negative
+        profit — 1,912 such rows in the sample), `Order inconsistency` (same
+        OrderID, different salesperson), `Source classification` (manual
+        override disagrees with the ADS rule), `Duplicate` (same
+        source_file + source_row). Import is never blocked as a whole.
+  - [ ] TASK-111 — excel_exporter. Spec §23, five sheet kinds: Summary;
+        Processed Data; per-employee `MM.YYYY Employee` sheets when enabled;
+        Config Snapshot (employee mapping, source rules, conversion rules,
+        adjustment rules, target); Audit/Overrides. Personal / ADS / Total
+        stays visible in both the detail sheets and the Summary. Subtotal rows
+        carry a `RowType` marker and sit outside every SUM range (DEC-015).
   - [ ] TASK-112 — CLI
   - [ ] GATE-01 — Reconciliation against the real raw file; owner confirms C1
 
@@ -70,17 +93,34 @@ TASK-101 — importer + normalizer (blocked by GATE-00)
 - [ ] PHASE-03 — Web interface
   - [ ] TASK-301 — upload and import preview
   - [ ] TASK-302 — employee-month detail grid with inline editing
-  - [ ] TASK-303 — month summary and year dashboard
+  - [ ] TASK-303 — month summary and year dashboard. Spec §16: switch metric
+        between Orders / Sales / Converted Revenue / Accounting Profit / KPI
+        Profit / % Target; filter by lead source All / Personal / ADS; compare
+        salespeople on Personal and Ads converted revenue separately; monthly
+        trend per lead source; each person's ADS share of total converted
+        revenue.
   - [ ] TASK-304 — configuration screens
   - [ ] TASK-305 — review queue and audit screens
   - [ ] TASK-306 — Excel export
   - [ ] GATE-03 — MVP acceptance, spec section 28, all 14 criteria
 
 - [ ] PHASE-04 — Completion
-  - [ ] TASK-401 — PriceMasterProvider integration
+  - [ ] TASK-401 — PriceMasterProvider integration. Spec §20 schema:
+        ProductCode, ProductName, Supplier, EffectiveFrom, EffectiveTo,
+        PurchasePrice, Source, UpdatedAt. Lookup by ProductCode + SaleDate; the
+        looked-up price is a *suggested* value and stays overridable.
   - [ ] TASK-402 — product_mapper
   - [ ] TASK-403 — target and commission formalization
-  - [ ] TASK-404 — channel sheets and split conversion
+  - [ ] TASK-404 — channel sheets and split conversion. Spec §12: Split
+        Conversion is supported as an exception only — the normal workflow
+        stays one OrderID → one LeadSource → one ConversionScheme.
+
+## Specification Coverage
+
+All 31 sections of `docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx` are traced
+to an artifact and a task in `docs/analysis/07_SPEC_COVERAGE.md`. Nothing is
+unassigned. Sections 27, 29 and 31 are complete; the rest are analysed or
+recorded and await Phase 1.
 
 ## Preliminary Dependency Graph
 
@@ -171,7 +211,8 @@ Status:
 VERIFYING — waiting on owner approval of `docs/analysis/`
 
 Required Gate Progress:
-6 / 6 analysis documents written; 3 / 3 ADRs written; 16 / 16 decisions
+7 / 7 analysis documents written; 3 / 3 ADRs written; 31 / 31 spec sections
+traced; 16 / 16 decisions
 recorded; 8 / 8 blocking questions answered (C1–C8); 1 stated assumption
 carried (C4b); 0 / 1 approvals
 
@@ -282,7 +323,7 @@ content change. Commit `8f77e20`.
 - None yet — no application code exists.
 
 ## Recent Decisions
-- See `PROJECT/PROJECT_DECISIONS.md` — DEC-001 through DEC-008.
+- See `PROJECT/PROJECT_DECISIONS.md` — DEC-001 through DEC-016.
 
 ## Session History
 - S000 — PROJECT OPEN — 2026-08-22 — Read the specification and both sample

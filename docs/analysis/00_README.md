@@ -38,6 +38,7 @@ viết từ trí nhớ.
 | 04 | [`04_HARDCODED_VALUES.md`](04_HARDCODED_VALUES.md) | Danh sách hard-coded values |
 | 05 | [`05_EXCEPTIONS.md`](05_EXCEPTIONS.md) | Exception và công thức không đồng nhất |
 | 06 | [`06_ADS_RULE_VERIFICATION.md`](06_ADS_RULE_VERIFICATION.md) | Xác nhận cách cột Ghi chú/Diễn giải lưu chuỗi ADS |
+| 07 | [`07_SPEC_COVERAGE.md`](07_SPEC_COVERAGE.md) | *(ngoài mục 27)* Ma trận truy vết cả 31 mục đặc tả → artifact → task |
 
 ## Kết luận ngắn gọn cho người duyệt
 
