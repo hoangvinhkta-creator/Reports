@@ -19,7 +19,11 @@
 | Unit | Chủ đề | Severity | Trạng thái | Repair SHA | Review verdict | Ghi chú |
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
-| R1-A | Canonical Type Coverage | HIGH | AWAITING_REVIEW | commit R1-A duy nhất, parent `2be5bfe` | — | 23/25 probe BLOCKED, 0 BYPASSED; 2 OUT thuộc R1-C/R1-D |
+| R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
+| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW | commit R1-A1 duy nhất, parent `dead82e` | — | 51 dạng annotation: 23 ô hỏng → **0**; 10 UNSUPPORTED có tuyên bố |
+| R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
+| R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
+| R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-B | Ambient permit / re-entrant callback | — | BLOCKED BY R1-A | — | — | Không sửa trước R1-A PASS |
 | R1-C | `AffectedRow.from_line` duck typing / fabricated provenance | — | BLOCKED | — | — | — |
 | R1-D | `FrozenMapping` shallow nested values | — | BLOCKED | — | — | — |
@@ -307,7 +311,10 @@ bằng probe script đã commit).
 
 ### R1-A — Canonical Type Coverage (sub-repair của R1)
 
-- Status: **AWAITING_REVIEW**
+- Status: **NOT FROZEN** — Independent Review R1-A chấm **FAIL** tại
+  `dead82e` với 4 finding. Tách tiếp thành R1-A1→R1-A4; xem nhật ký R1-A1 bên
+  dưới. Phần ghi chép dưới đây giữ nguyên làm bản ghi của vòng R1-A.
+- Status (vòng R1-A, lịch sử): AWAITING_REVIEW
 - Exact starting SHA: `2be5bfe982bce9a2e5656eb8444b5302288582bf`
   (== `origin/claude/r1-canonical-object-safety-fon9lb` lúc mở phiên; worktree
   sạch; đúng SHA mà Independent Review R1 đã chấm **FAIL**)
@@ -576,6 +583,301 @@ Evidence Level: **E1**.
    gián tiếp qua suite (11.7s so với 9.8s trước R1-A) — chấp nhận được ở quy mô
    hiện tại, cần đo lại nếu `AffectedRow` được dựng cho hàng triệu dòng.
 6. Ràng buộc `record`/`status` hai chiều chưa cài — xem mục Human Decision ở trên.
+
+### R1-A1 — Annotation Contract (sub-repair của R1-A)
+
+- Status: **AWAITING_REVIEW**
+- Exact starting SHA: `dead82e2d9ffa87b9d25483b5c98b8c266bfeb9e`
+  (== `origin/claude/r1-canonical-object-safety-fon9lb` lúc mở phiên; worktree
+  sạch; đúng SHA mà Independent Review R1-A đã chấm **FAIL** ở Finding #1)
+- Repair SHA: commit R1-A1 **duy nhất** trên nhánh này — parent `dead82e`,
+  subject `TASK-110 R1-A1 — annotation contract: ngữ pháp đóng, UNKNOWN không
+  còn là ANY`. Tra bằng `git log --oneline dead82e..HEAD` (phải ra đúng MỘT
+  commit).
+- Independent Review R1-A1: **CHƯA CHẠY**. R1-A1 **KHÔNG** được đánh dấu FROZEN
+  ở đây. R1-A tổng vẫn **NOT FROZEN**; R1 tổng vẫn **NOT FROZEN**.
+
+#### Finding cần repair
+
+Independent Review R1-A Finding #1: *Compound Union annotations bypass
+structural contract.* Năm falsification đã FAIL: `Union[int, str]` nhận `1.5`;
+`Optional[Union[int, str]]` nhận `object()`; `str | None` xử lý sai; constrained
+`TypeVar` nhận giá trị ngoài ràng buộc; `Literal` nhận giá trị không hợp lệ.
+
+#### Annotation inventory thực tế (đo tại `dead82e`)
+
+11 canonical type / **72 field** / **17 annotation khác nhau**. Nhưng chỉ có
+**ba hình thái**:
+
+| Hình thái | Số field | Ví dụ |
+|---|---:|---|
+| `Optional[<lớp>]` | 34 | `AffectedRow.source_file`, `MappingResult.record` |
+| `<lớp>` trần (vô hướng, `tuple`, `frozenset`, canonical class, `FrozenMapping`) | 37 | `AffectedRow.source_row`, `EmployeeRecord.window` |
+| `Any` | 1 | `MappingStats.mapper` |
+
+Production **không** dùng `Union` nhiều nhánh, `Literal`, `TypeVar`, PEP 604,
+hay generic có tham số. Đây là căn cứ để chọn một ngữ pháp NHỎ và từ chối rõ
+phần còn lại, thay vì xây một trình kiểm kiểu thu nhỏ.
+
+Các nhánh xử lý của `_field_checker()` tại `dead82e`, và đường rơi của mỗi
+nhánh:
+
+| Nhánh | Xử lý | Đường rơi |
+|---|---|---|
+| `origin is typing.Union`, đúng 1 nhánh non-None | đặt cờ `optional`, kiểm nhánh còn lại | — |
+| `origin is typing.Union`, ≥2 nhánh non-None | **`hint, origin = Any, None`** | mất hoàn toàn phép kiểm |
+| PEP 604 (`types.UnionType`) | không nhận ra là union | `isinstance(value, types.UnionType)` → loại MỌI giá trị |
+| `Literal`, `TypeVar`, `Final`, special form | `isinstance(target, type)` là False | `checkable=False` → **không kiểm gì** |
+| còn lại | `isinstance` / kiểu chính xác | — |
+
+#### BEFORE falsification — 51 dạng annotation tại `dead82e`
+
+    PYTHONPATH=<repo> python tools/analysis/r1a1_annotation_probes.py
+    TỔNG: 51 annotation | BYPASSED=10 | REJECTED=4 | SUPPORTED=27
+                        | UNDECLARED=9 | UNSUPPORTED=1
+
+**23/51 ô hỏng**, chia ba kiểu hỏng khác nhau:
+
+- `BYPASSED` (10) — nhận cả giá trị KHÔNG hợp lệ;
+- `REJECTED` (4) — loại cả giá trị HỢP LỆ (`str | None`, `int | str`,
+  `int | str | None`, và annotation `None`);
+- `UNDECLARED` (9) — framework KHÔNG mô hình hoá được construct nhưng vẫn
+  decorate lọt. Đây chính là *"UNKNOWN âm thầm thành ANY"*, và nó nguy hiểm hơn
+  `BYPASSED` vì không có giá trị nào để mà quan sát thấy.
+
+Bốn ô mà reviewer chưa nêu tên cũng hỏng: `Final[int]`, `Union[str, bytes, None]`
+(ba nhánh + None), `Union[Marker, int]` (lớp + vô hướng), và annotation `None`.
+
+#### ROOT CAUSE
+
+> **Nhánh cuối cùng của phép phân tích annotation là "bỏ qua", không phải
+> "từ chối".**
+
+`_field_checker()` là một chuỗi `if` phẳng trên vài construct `typing`, và
+trường hợp mặc định là `checkable=False → không kiểm`. Một trình phân tích mà
+mặc định là im lặng thì **mọi annotation nó chưa gặp đều là một lỗ hổng chưa
+được phát hiện** — và danh sách construct của `typing` sẽ còn dài ra
+(`Self`, `LiteralString`, `TypeVarTuple`… đều mới trong vài bản Python gần đây).
+
+Vì thế thêm năm nhánh `if` cho năm case của Finding #1 sẽ KHÔNG đóng finding:
+nó chỉ dời cái mặc định im lặng sang những construct tiếp theo.
+
+#### Supported annotation contract
+
+Ngữ pháp **đóng**, phân tích bằng **đệ quy xuống**, nhánh cuối là `raise`:
+
+    spec    := Any | none | atom | union | literal
+    none    := None | NoneType                (chỉ `None` hợp lệ)
+    atom    := <lớp cụ thể>                   vô hướng dựng sẵn -> KIỂU CHÍNH XÁC
+                                              lớp khác          -> `isinstance`
+               <generic có tham số>           kiểm theo `origin`; phần tử KHÔNG
+                                              kiểm (đó là R1-D)
+    union   := Union[s1..sn] | s1 | .. | sn   khớp ÍT NHẤT MỘT nhánh
+    literal := Literal[v1..vn]                bằng VÀ đúng kiểu chính xác
+
+Ngữ nghĩa được giữ ĐỦ, không chỉ ở tầng ngoài:
+
+- `Union` khớp ít nhất một nhánh, mỗi nhánh dùng luật của chính nó — nên
+  `Union[int, str]` loại `1.5`, và loại cả `True` (kiểu chính xác của `True` là
+  `bool`, không phải `int`).
+- `Optional[X]` chính là `Union[X, NoneType]`, không còn là một cờ riêng.
+- PEP 604 (`types.UnionType`) đi cùng một đường với `typing.Union`.
+- `Literal` so bằng **và** kiểu chính xác — `True == 1` trong Python, nên chỉ
+  so bằng thì `Literal[1]` sẽ nhận `True`.
+- Nghiêm ngặt của vô hướng SỐNG SÓT xuyên union: `Optional[str]` vẫn loại một
+  lớp con của `str`.
+- Chính sách container mutable KHÔNG đổi và vẫn chạy SAU phép khớp kiểu.
+
+#### Unsupported annotation policy
+
+Ngoài ngữ pháp → `CanonicalContractViolation` **lúc import**, không phải lúc
+chạy, và không bao giờ là im lặng:
+
+| Construct | Vì sao từ chối |
+|---|---|
+| `TypeVar` (constrained / bound) | canonical dataclass trong dự án này không generic; đỡ cho đúng nghĩa là phải mô hình hoá binding và variance — trình kiểm kiểu thu nhỏ mà production không cần |
+| `Final[...]`, `NoReturn`, `Self`, `Optional` chưa subscript | special form chưa được mô hình hoá |
+| Giá trị `Literal` ngoài `str`/`int`/`bool`/`bytes`/`None` | không so được kiểu chính xác một cách có nghĩa |
+| Forward reference không giải được | đã có từ R1-A |
+| Bất kỳ thứ gì khác | nhánh `raise` cuối cùng của `_build_spec()` |
+
+`Any` **chỉ** không bị kiểm kiểu khi tác giả thực sự viết `Any`. Đó là khác
+biệt cốt lõi: trước đây `Any` là nơi mọi thứ không hiểu được rơi vào.
+
+#### Files changed
+
+    app/modules/domain/canonical.py              ngữ pháp đóng `_build_spec()` + `_Spec`
+    tests/test_r1a1_annotation_contract.py       MỚI — 62 test
+    tests/test_r1a_canonical_type_coverage.py    1 assertion: lọc registry theo `app.`
+    tools/analysis/r1a1_annotation_probes.py     MỚI — ma trận 51 annotation
+    docs/tasks/TASK-110_REPAIR_PROGRESS.md       file này
+
+Sửa duy nhất tại biên trừu tượng của `@canonical` / `_field_checker`. **Không**
+production canonical type nào bị sửa để né framework; không business rule nào
+đổi; không mapping semantics nào đổi.
+
+**Một assertion cũ được sửa, và không phải để làm PASS.**
+`test_r1a_root_cause_the_inventory_is_derived_not_hand_written` so **toàn bộ
+registry** với **AST scan chỉ `app/`** — hai tập khác nhau. Nó chỉ đúng một
+cách tình cờ vì khi đó chưa file test nào khai canonical type; các test R1-A1
+khai type động để dò ngữ pháp nên tập bên trái đầy thêm. Sửa thành lọc registry
+theo module `app.` là so ĐÚNG hai tập giống nhau; phép bảo đảm thật — registry
+phủ hết mọi `@canonical` trong `app/` — giữ nguyên, và test nay độc lập thứ tự
+chạy (đã kiểm cả hai chiều).
+
+#### AFTER falsification — cùng bộ probe, cùng file, tại repair SHA
+
+    TỔNG: 51 annotation | SUPPORTED=41 | UNSUPPORTED=10
+                        | BYPASSED=0 | REJECTED=0 | UNDECLARED=0
+
+**Dạng production đang dùng thật**
+
+| Probe | Annotation / đường tấn công | BEFORE `dead82e` | AFTER |
+|---|---|---|---|
+| `P1` | builtin scalar `int` | **SUPPORTED** | **SUPPORTED** |
+| `P2` | builtin scalar `str` | **SUPPORTED** | **SUPPORTED** |
+| `P3` | builtin scalar `bool` | **SUPPORTED** | **SUPPORTED** |
+| `P4` | `datetime.date` | **SUPPORTED** | **SUPPORTED** |
+| `P5` | `Optional[str]` | **SUPPORTED** | **SUPPORTED** |
+| `P6` | `Optional[int]` | **SUPPORTED** | **SUPPORTED** |
+| `P7` | `Optional[date]` | **SUPPORTED** | **SUPPORTED** |
+| `P8` | `tuple` (bare) | **SUPPORTED** | **SUPPORTED** |
+| `P9` | `frozenset` | **SUPPORTED** | **SUPPORTED** |
+| `P10` | class reference (`FrozenMapping`) | **SUPPORTED** | **SUPPORTED** |
+| `P11` | `Any` | **SUPPORTED** | **SUPPORTED** |
+
+**Finding #1 — case Independent Review đã falsify**
+
+| Probe | Annotation / đường tấn công | BEFORE `dead82e` | AFTER |
+|---|---|---|---|
+| `F1` | `Union[int, str]` | **BYPASSED** | **SUPPORTED** |
+| `F2` | `Optional[Union[int, str]]` | **BYPASSED** | **SUPPORTED** |
+| `F3` | `str \| None` (PEP 604) | **REJECTED** | **SUPPORTED** |
+| `F4` | `int \| str` (PEP 604) | **REJECTED** | **SUPPORTED** |
+| `F5` | `Literal['a', 'b']` | **BYPASSED** | **SUPPORTED** |
+| `F6` | constrained `TypeVar(int, str)` | **UNDECLARED** | **UNSUPPORTED** |
+| `F7` | bound `TypeVar(bound=int)` | **UNDECLARED** | **UNSUPPORTED** |
+
+**Construct khác framework có thể gặp**
+
+| Probe | Annotation / đường tấn công | BEFORE `dead82e` | AFTER |
+|---|---|---|---|
+| `X1` | `tuple[int, ...]` | **SUPPORTED** | **SUPPORTED** |
+| `X2` | `Mapping[str, int]` | **SUPPORTED** | **SUPPORTED** |
+| `X3` | `Sequence[int]` | **SUPPORTED** | **SUPPORTED** |
+| `X4` | `list[int]` (chính sách bất biến phải loại) | **SUPPORTED** | **SUPPORTED** |
+| `X5` | `dict[str, int]` (chính sách bất biến phải loại) | **SUPPORTED** | **SUPPORTED** |
+| `X6` | `Final[int]` | **UNDECLARED** | **UNSUPPORTED** |
+| `X7` | `Annotated[int, 'meta']` | **SUPPORTED** | **SUPPORTED** |
+| `X8` | `Callable[[], None]` | **SUPPORTED** | **SUPPORTED** |
+| `X9` | `None` (chỉ None hợp lệ) | **REJECTED** | **SUPPORTED** |
+| `X10` | forward reference GIẢI ĐƯỢC (`'Marker'`) | **SUPPORTED** | **SUPPORTED** |
+| `X11` | forward reference KHÔNG giải được | **UNSUPPORTED** | **UNSUPPORTED** |
+| `X12` | `type` (class object) | **SUPPORTED** | **SUPPORTED** |
+| `X13` | `Union[int, None]` (= Optional[int]) | **SUPPORTED** | **SUPPORTED** |
+| `X14` | `Union[str, bytes, None]` ba nhánh + None | **BYPASSED** | **SUPPORTED** |
+| `X15` | `Union[Marker, int]` class + scalar | **BYPASSED** | **SUPPORTED** |
+
+**Wave 2 — tấn công vào thiết kế**
+
+| Probe | Annotation / đường tấn công | BEFORE `dead82e` | AFTER |
+|---|---|---|---|
+| `W1` | `Union[int, <TypeVar>]` — không hỗ trợ NẰM TRONG được hỗ trợ | **UNDECLARED** | **UNSUPPORTED** |
+| `W2` | `Optional[Literal['a','b']]` | **BYPASSED** | **SUPPORTED** |
+| `W3` | `Union[Literal[1], Literal['a']]` | **BYPASSED** | **SUPPORTED** |
+| `W4` | `Literal[1]` không được nhận `True` (True == 1) | **BYPASSED** | **SUPPORTED** |
+| `W4b` | `Literal[True]` không được nhận `1` | **BYPASSED** | **SUPPORTED** |
+| `W5` | `Literal[1.5]` — giá trị literal ngoài kiểu cho phép | **UNDECLARED** | **UNSUPPORTED** |
+| `W6` | `int \| str \| None` (PEP 604 ba nhánh) | **REJECTED** | **SUPPORTED** |
+| `W7` | `Annotated[Union[int, str], 'meta']` | **BYPASSED** | **SUPPORTED** |
+| `W8` | `Annotated[<TypeVar>, 'meta']` — bóc Annotated ra vẫn phải loại | **UNDECLARED** | **UNSUPPORTED** |
+| `W9` | `typing.NoReturn` | **UNDECLARED** | **UNSUPPORTED** |
+| `W10` | `typing.Optional` (chưa subscript) | **UNDECLARED** | **UNSUPPORTED** |
+| `W11` | `typing.Self` | **UNDECLARED** | **UNSUPPORTED** |
+| `W12` | `Optional[str]` vẫn loại lớp con của `str` (nghiêm ngặt xuyên union) | **SUPPORTED** | **SUPPORTED** |
+| `W13` | `Union[Any, None]` — Any khớp mọi thứ NHƯNG mutable vẫn bị loại | **SUPPORTED** | **SUPPORTED** |
+| `W14` | `Union[list, int]` — chính sách bất biến thắng nhánh khớp | **SUPPORTED** | **SUPPORTED** |
+| `W15` | replace() trên field union | **SUPPORTED** | **SUPPORTED** |
+| `W16` | pickle round-trip field union | **SUPPORTED** | **SUPPORTED** |
+
+**Non-regression production**
+
+| Probe | Annotation / đường tấn công | BEFORE `dead82e` | AFTER |
+|---|---|---|---|
+| `N1` | production canonical types vẫn decorate được | **SUPPORTED** | **SUPPORTED** |
+
+
+#### New attack wave — tấn công vào THIẾT KẾ
+
+`W1`–`W16` không nhắm vào năm case của Finding #1 mà hỏi: ngữ pháp đóng có
+THỰC SỰ đóng không, hay chỉ đóng ở tầng ngoài cùng?
+
+- **`W1`, `W8` — đệ quy.** Một construct KHÔNG hỗ trợ nằm SÂU bên trong một
+  construct ĐƯỢC hỗ trợ (`Union[int, <TypeVar>]`, `Annotated[<TypeVar>]`) vẫn
+  phải nổ. Đây là điểm phân biệt "thêm năm nhánh `if`" với "đóng ngữ pháp".
+- **`W4`, `W4b` — `True == 1`.** `Literal[1]` không được nhận `True`, và
+  `Literal[True]` không được nhận `1`.
+- **`W5` — giá trị literal ngoài kiểu cho phép** nổ lúc decorate.
+- **`W9`–`W11` — special form mới của Python** (`NoReturn`, `Self`, `Optional`
+  chưa subscript) rơi vào nhánh `raise` cuối, không vào im lặng.
+- **`W12` — nghiêm ngặt xuyên union**: `Optional[str]` vẫn loại `str` subclass.
+- **`W13`, `W14` — giao giữa hai chính sách**: `Any` khớp mọi thứ nhưng chính
+  sách bất biến vẫn loại `[]`; `Union[list, int]` có nhánh KHỚP `[]` nhưng
+  chính sách bất biến vẫn thắng.
+- **`W15`, `W16` — tái dựng**: `replace()` kiểm lại field union; `pickle`
+  round-trip đi qua constructor (đo trên `MappingResult` THẬT của production —
+  class động của probe không pickle được, đo trên nó sẽ đo nhầm hạn chế của
+  chính bộ probe).
+- **`N1` — non-regression ngược**: 11 canonical type production vẫn decorate
+  bình thường.
+
+Ngoài ra suite pytest kiểm một tính chất mà bảng không diễn đạt được: một
+**annotation là object lạ hoàn toàn** (không phải type, không phải special
+form) cũng rơi vào nhánh `raise`. Đó là bằng chứng cho "annotation mới thêm sau
+này" — bất biến không phụ thuộc vào việc liệt kê đủ construct hôm nay.
+
+#### Tests / evidence
+
+| Bằng chứng | Lệnh | Kết quả |
+|---|---|---|
+| Regression toàn bộ | `python -m pytest -q` | **559 passed, 9 skipped** (0 test cũ đỏ) |
+| R1-A1 focused | `pytest tests/test_r1a1_annotation_contract.py -q` | **62 passed** |
+| Độc lập thứ tự chạy | chạy R1-A1 trước/sau R1-A | 145 passed cả hai chiều |
+| R1-A1 probe BEFORE | probe script tại `dead82e` | **23/51 ô hỏng** |
+| R1-A1 probe AFTER | probe script tại repair SHA | **0/51 ô hỏng** |
+| R1 probe (không thoái lui) | `tools/analysis/r1_falsification_probes.py` | 39 BLOCKED / 0 BYPASSED |
+| R1-A probe (không thoái lui) | `tools/analysis/r1a_falsification_probes.py` | 23 BLOCKED / 0 BYPASSED |
+| TASK-108A-1 reconciliation (CHECK-110-14) | stdout `reconcile_raw()`, hai SHA | **0 dòng khác**, EXIT=0 |
+| L1+L2 business non-regression | so byte JSON `build_l1()` + `build_l2()` | `sha256` **giống hệt** (`3d8b2544…5ba9`, cùng giá trị từ `0f3a6a4`) |
+| `validate_structure` | governance validator | **PASS** |
+| `validate_project_state` | governance validator | **PASS** |
+| `validate_evidence` | governance validator | **PASS** |
+| `validate_task_completion` | governance validator | **PASS** |
+| `validate_reference_integrity` | governance validator | **FAIL — CÓ TỪ TRƯỚC**, y hệt tại `dead82e`: 3 reference hỏng trong `TASK-REM-T06`, ngoài touch-area |
+| `git diff --check` | whitespace | **sạch** |
+
+Evidence Level: **E1**.
+
+#### Residual risk
+
+1. Ngữ pháp cố ý **nhỏ**. `TypeVar`, `Final`, `Self`, Enum trong `Literal` đều
+   bị từ chối. Nếu production về sau thật sự cần một trong số đó, phải mở rộng
+   ngữ pháp — nhưng lúc đó việc mở rộng là một thay đổi CÓ Ý THỨC, không phải
+   một lỗ hổng im lặng. Đó chính là điều R1-A1 mua được.
+2. Phép kiểm generic vẫn **nông**: `tuple[int, ...]` chỉ kiểm là `tuple`, không
+   kiểm phần tử. Đó là **R1-D**, cố ý để lại.
+3. `_LITERAL_VALUE_TYPES` không gồm `Enum` dù PEP 586 cho phép. Từ chối lúc
+   decorate nên an toàn, nhưng là một khoảng cách so với chuẩn.
+4. Union nhiều nhánh làm phép kiểm mỗi field thành một vòng lặp ngắn thay vì
+   một phép so. Production chỉ có union hai nhánh nên chi phí không đáng kể
+   (suite 12.4s so với 12.0s), cần đo lại nếu sau này có union rộng trong
+   đường nóng.
+5. `_UnionSpec.label` nối nhãn các nhánh bằng " hoặc ". Với union nhiều nhánh
+   thông báo sẽ dài. Không ảnh hưởng đúng/sai.
+6. `Annotated[...]` được `typing.get_type_hints()` bóc trước khi framework
+   nhìn thấy. Đó là hành vi của thư viện chuẩn, không phải lựa chọn của ngữ
+   pháp này — nếu một bản Python tương lai đổi mặc định đó, `Annotated` sẽ rơi
+   vào nhánh `raise` chứ không vào im lặng.
 
 ### R2 — MappingStats Single Source of Truth
 - Status: BLOCKED BY R1 (R1 tổng chưa FROZEN; R1-A→R1-E phải PASS trước).

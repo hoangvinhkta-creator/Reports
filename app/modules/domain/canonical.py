@@ -79,13 +79,14 @@ from __future__ import annotations
 
 import functools
 import threading
+import types as _types
 import typing
 from datetime import date, datetime as _datetime
 from collections.abc import Mapping
 from dataclasses import fields as _dataclass_fields
 from operator import itemgetter
 from types import MappingProxyType
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Literal, Optional, TypeVar
 
 
 class SealedConstruction(TypeError):
@@ -258,6 +259,193 @@ _TYPE_NAMES = {
 _MUTABLE_CONTAINERS = (list, dict, set, bytearray)
 
 
+# ── NGỮ PHÁP ANNOTATION ĐÓNG (R1-A1)
+#
+# Independent Review R1-A Finding #1: `_field_checker()` chỉ hiểu một tập con
+# rất hẹp của `typing`, và mọi thứ ngoài tập đó ÂM THẦM rơi xuống đường không
+# kiểm. Đo được tại `dead82e`: `Union[int, str]` nhận `1.5`; `Literal["a","b"]`
+# nhận `"c"`; TypeVar có ràng buộc nhận mọi thứ; còn `str | None` (PEP 604) thì
+# LOẠI cả giá trị hợp lệ vì nó bị đem đi `isinstance(value, types.UnionType)`.
+#
+# Root cause không phải thiếu năm nhánh `if`. Root cause là **nhánh cuối cùng
+# của phép phân tích annotation là "bỏ qua"**. Một trình phân tích mà trường
+# hợp mặc định là im lặng thì mọi annotation nó chưa gặp đều là một lỗ hổng
+# chưa được phát hiện — và danh sách annotation Python sẽ còn dài ra.
+#
+# Cách đóng: phân tích annotation bằng **đệ quy xuống một ngữ pháp ĐÓNG**, và
+# nhánh cuối cùng là `raise`, không phải `return`. Bất biến:
+#
+#     UNKNOWN ≠ ANY.
+#
+# Một annotation hoặc nằm trong ngữ pháp và được validate ĐỦ ngữ nghĩa, hoặc
+# nổ `CanonicalContractViolation` NGAY LÚC IMPORT. Không có ô thứ ba.
+#
+# Ngữ pháp (cố ý nhỏ — production chỉ dùng ba hình thái đầu):
+#
+#     spec    := Any | none | atom | union | literal
+#     none    := None | NoneType                (chỉ `None` hợp lệ)
+#     atom    := <lớp cụ thể>                   builtin vô hướng -> kiểu CHÍNH XÁC
+#                                               lớp khác        -> `isinstance`
+#                <generic có tham số>           kiểm theo `origin`, phần tử KHÔNG
+#                                               kiểm (đó là R1-D)
+#     union   := Union[s1..sn] | s1 | .. | sn   khớp ÍT NHẤT MỘT nhánh
+#     literal := Literal[v1..vn]                bằng VÀ đúng kiểu chính xác
+#
+# Ngoài ngữ pháp -> UNSUPPORTED, nổ lúc decorate. Hiện gồm: `TypeVar` (canonical
+# dataclass không generic; đỡ `TypeVar` đúng nghĩa là phải mô hình hoá binding
+# và variance — một trình kiểm kiểu thu nhỏ mà production không cần),
+# `Final[...]`, và mọi special form khác chưa được mô hình hoá.
+
+
+_NONE_TYPE = type(None)
+_UNION_TYPE = getattr(_types, "UnionType", None)
+
+# Giá trị được phép xuất hiện trong `Literal[...]` (PEP 586 giới hạn tương tự).
+_LITERAL_VALUE_TYPES = (str, int, bool, bytes, _NONE_TYPE)
+
+
+class _Spec:
+    """Một nút của ngữ pháp. `matches` trả bool; `label` để render thông báo."""
+
+    __slots__ = ("label",)
+
+    def matches(self, value: Any) -> bool:  # pragma: no cover - giao diện
+        raise NotImplementedError
+
+    def accepts_none(self) -> bool:
+        return self.matches(None)
+
+    def has_exact_scalar(self) -> bool:
+        """Có nhánh nào kiểm KIỂU CHÍNH XÁC không — quyết định thông báo có kèm
+        câu giải thích về `str` subclass / `True` là `int` hay không."""
+        return False
+
+
+class _AnySpec(_Spec):
+    __slots__ = ()
+
+    def __init__(self) -> None:
+        self.label = "`Any`"
+
+    def matches(self, value: Any) -> bool:
+        return True
+
+
+class _NoneSpec(_Spec):
+    __slots__ = ()
+
+    def __init__(self) -> None:
+        self.label = "`None`"
+
+    def matches(self, value: Any) -> bool:
+        return value is None
+
+
+class _ClassSpec(_Spec):
+    """Một lớp cụ thể. Builtin vô hướng kiểm CHÍNH XÁC, còn lại `isinstance`."""
+
+    __slots__ = ("_target", "_exact")
+
+    def __init__(self, target: type) -> None:
+        self._target = target
+        self._exact = target in _EXACT_TYPES
+        self.label = _TYPE_NAMES.get(target, f"`{_hint_name(target)}`")
+
+    def matches(self, value: Any) -> bool:
+        if self._exact:
+            return type(value) is self._target
+        return isinstance(value, self._target)
+
+    def has_exact_scalar(self) -> bool:
+        return self._exact
+
+
+class _LiteralSpec(_Spec):
+    """`Literal[...]`: bằng giá trị VÀ đúng kiểu chính xác.
+
+    Kiểm kiểu chính xác là bắt buộc, không phải tinh chỉnh: `True == 1` trong
+    Python, nên nếu chỉ so bằng thì `Literal[1]` sẽ nhận `True`.
+    """
+
+    __slots__ = ("_values",)
+
+    def __init__(self, values: tuple) -> None:
+        self._values = values
+        self.label = "một trong " + ", ".join(repr(v) for v in values)
+
+    def matches(self, value: Any) -> bool:
+        return any(
+            type(value) is type(allowed) and value == allowed
+            for allowed in self._values
+        )
+
+
+class _UnionSpec(_Spec):
+    """Khớp ít nhất một nhánh. `Optional[X]` chính là `Union[X, None]`."""
+
+    __slots__ = ("_branches",)
+
+    def __init__(self, branches: tuple) -> None:
+        self._branches = branches
+        self.label = " hoặc ".join(b.label for b in branches)
+
+    def matches(self, value: Any) -> bool:
+        return any(branch.matches(value) for branch in self._branches)
+
+    def has_exact_scalar(self) -> bool:
+        return any(branch.has_exact_scalar() for branch in self._branches)
+
+
+def _build_spec(hint: Any, where: str) -> _Spec:
+    """Đệ quy xuống ngữ pháp đóng. Nhánh cuối là `raise`, KHÔNG phải `return`."""
+    if hint is Any:
+        return _AnySpec()
+    if hint is None or hint is _NONE_TYPE:
+        return _NoneSpec()
+
+    origin = typing.get_origin(hint)
+
+    if origin is Literal:
+        values = typing.get_args(hint)
+        for value in values:
+            if type(value) not in _LITERAL_VALUE_TYPES:
+                raise CanonicalContractViolation(
+                    f"{where}: `Literal` chỉ nhận giá trị kiểu "
+                    f"{', '.join(t.__name__ for t in _LITERAL_VALUE_TYPES)}; gặp "
+                    f"{value!r} ({type(value).__name__})."
+                )
+        return _LiteralSpec(values)
+
+    if origin is typing.Union or (_UNION_TYPE is not None and origin is _UNION_TYPE):
+        # `typing` đã làm phẳng union lồng nhau, kể cả `Optional[Union[...]]`.
+        branches = tuple(_build_spec(arg, where) for arg in typing.get_args(hint))
+        if not branches:
+            raise CanonicalContractViolation(f"{where}: union rỗng.")
+        return branches[0] if len(branches) == 1 else _UnionSpec(branches)
+
+    if isinstance(hint, TypeVar):
+        raise CanonicalContractViolation(
+            f"{where}: `TypeVar` ({hint!r}) chưa được hỗ trợ. Canonical dataclass "
+            "trong dự án này không generic; đỡ `TypeVar` cho đúng nghĩa là phải "
+            "mô hình hoá binding và variance — một trình kiểm kiểu thu nhỏ mà "
+            "production không cần. Hãy khai kiểu cụ thể, hoặc `Union[...]` nếu "
+            "thật sự có nhiều kiểu."
+        )
+
+    target = origin if origin is not None else hint
+    if isinstance(target, type):
+        return _ClassSpec(target)
+
+    raise CanonicalContractViolation(
+        f"{where}: annotation {hint!r} nằm NGOÀI ngữ pháp canonical, nên framework "
+        "không bảo đảm được gì cho field này. Ngữ pháp hỗ trợ: `Any`, `None`, một "
+        "lớp cụ thể (kể cả generic có tham số), `Optional[...]`, `Union[...]` "
+        "(gồm cả dạng `a | b`), `Literal[...]`. Một annotation không hiểu được "
+        "PHẢI nổ ở đây chứ không được âm thầm thành `Any` — đó là Finding #1 của "
+        "Independent Review R1-A."
+    )
+
+
 def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], None]:
     """Dựng phép kiểm cho một field, MỘT LẦN, lúc decorate.
 
@@ -266,46 +454,25 @@ def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], No
     `TypeError` chung chung: lằn ranh "công cụ hỏng" ≠ "dữ liệu xấu" là một
     quyết định nghiệp vụ (HD-110-09), không phải chi tiết cài đặt.
     """
-    origin = typing.get_origin(hint)
-    optional = False
-    if origin is typing.Union:
-        args = [a for a in typing.get_args(hint) if a is not type(None)]
-        optional = len(args) < len(typing.get_args(hint))
-        if len(args) != 1:
-            # Union nhiều nhánh: chỉ kiểm container mutable, không đoán kiểu.
-            hint, origin = Any, None
-        else:
-            hint = args[0]
-            origin = typing.get_origin(hint)
-
-    target = origin or hint
-    exact = target in _EXACT_TYPES
-    checkable = isinstance(target, type)
-
-    label = _TYPE_NAMES.get(target, f"`{_hint_name(target)}`")
+    spec = _build_spec(hint, f"`{name}`")
+    label = spec.label
+    nullable = spec.accepts_none()
+    strictness = (
+        " Kiểm CHÍNH XÁC chứ không `isinstance`: một lớp con của `str` đổi giá "
+        "trị giữa hai lần đọc, và `True` là một `int` hợp lệ."
+        if spec.has_exact_scalar() else ""
+    )
 
     def check(value: Any, owner: str) -> None:
         # KIỂU trước, MUTABLE sau: với một field khai `str` mà nhận `list`,
         # "phải là chuỗi thuần" nói đúng vấn đề hơn "giữ container mutable".
-        if value is None:
-            if optional or target is Any:
-                return
+        if not spec.matches(value):
+            if value is None and not nullable:
+                raise error(f"`{name}` không được là None (khai {label}).")
             raise error(
-                f"`{name}` không được là None (khai {_hint_name(hint)})."
+                f"`{name}` phải là {label}, gặp {type(value).__name__} "
+                f"({value!r}).{strictness}"
             )
-        if target is not Any and checkable:
-            if exact and type(value) is not target:
-                raise error(
-                    f"`{name}` phải là {label}, gặp {type(value).__name__} "
-                    f"({value!r}). Kiểm CHÍNH XÁC chứ không `isinstance`: một "
-                    "lớp con của `str` đổi giá trị giữa hai lần đọc, và `True` "
-                    "là một `int` hợp lệ."
-                )
-            if not exact and not isinstance(value, target):
-                raise error(
-                    f"`{name}` phải là {label}, gặp {type(value).__name__} "
-                    f"({value!r})."
-                )
         if isinstance(value, _MUTABLE_CONTAINERS):
             raise error(
                 f"`{name}` giữ một container mutable ({type(value).__name__}). "

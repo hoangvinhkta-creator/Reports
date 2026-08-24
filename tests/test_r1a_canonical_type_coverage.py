@@ -97,8 +97,17 @@ def test_r1a_root_cause_a_canonical_type_must_declare_a_validator():
 def test_r1a_root_cause_the_inventory_is_derived_not_hand_written():
     """A7c/A7d. Nguồn drift thứ hai: oracle liệt kê 9 type trong khi 11 type
     mang `@canonical`. Registry do chính decorator ghi, nên không còn danh sách
-    nào để quên."""
-    registered = {c.__name__ for c in canonical_types()}
+    nào để quên.
+
+    Lọc registry theo module `app.` để so ĐÚNG hai tập giống nhau: vế phải chỉ
+    quét `app/`, còn registry ghi MỌI canonical type — kể cả những type động mà
+    `test_r1a1_annotation_contract.py` khai để dò ngữ pháp annotation. Bản đầu
+    của test này so "toàn bộ registry" với "khai báo trong app/" và chỉ đúng
+    một cách tình cờ, vì khi đó chưa file test nào khai canonical type. Phép
+    bảo đảm thật — registry phủ hết mọi `@canonical` trong `app/` — giữ nguyên.
+    """
+    registered = {c.__name__ for c in canonical_types()
+                  if c.__module__.startswith("app.")}
     scanned = set()
     for path in sorted((REPO / "app").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
