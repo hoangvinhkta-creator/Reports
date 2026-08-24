@@ -20,7 +20,7 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW (**repair #2**) | commit R1-A1 #2, parent `44018e3` | **Review #1 FAIL** tại `44018e3` (P1, P2) | Vòng #2 đóng P1 (hậu duệ generic) + P2 (class-like runtime). Ma trận 51 → **98** dạng: 35 ô hỏng → **0** |
+| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW (**repair #3**) | commit R1-A1 #3, parent `d4a8797` | **Review #2 FAIL** tại `d4a8797` (6 finding) | Vòng #3 đóng 6 finding: phân loại runtime-class thuần cấu trúc, hợp đồng phải có miền giá trị, `InitVar`, ngân sách độ sâu/độ phức tạp, biên lỗi, oracle. Ma trận 98 → **128** dạng: 28 ô hỏng → **0**; script tái hiện 17 phép đo: 10 hỏng → **0** |
 | R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
 | R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
@@ -1153,6 +1153,313 @@ coercion error normalization nào đổi. **Không test cũ nào bị sửa.**
    meta-invariant, không phải một phép kiểm — đúng ranh giới R1-D.
 6. Chi phí decoration tăng: mỗi target class chịu hai lời gọi `isinstance` lúc
    import (~80 lời gọi cho toàn bộ production). Không đo được khác biệt.
+
+#### Repair #3 — 6 finding (Independent Review R1-A1, FAIL tại `d4a8797`)
+
+- Status: **AWAITING_REVIEW** (vòng repair thứ ba của R1-A1)
+- Exact starting SHA: `d4a87979284a3951559e8d896c84fa1cc43d5cc5`
+  (== `origin/claude/r1-canonical-object-safety-fon9lb` lúc mở phiên; worktree
+  sạch; đúng SHA Review R1-A1 đã chấm **FAIL**)
+- Repair SHA: commit R1-A1 #3 **duy nhất**, parent `d4a8797`. Tra bằng
+  `git log --oneline d4a8797..HEAD` (phải ra đúng MỘT commit).
+
+**Sáu finding.** (1) Runtime-class proof bằng 2 `isinstance` probe không đủ.
+(2) Unhashable / hash-raising class target làm raw exception thoát. (3) Mutable
+generic được gọi SUPPORTED dù không có valid runtime value. (4) `InitVar` bị bỏ
+khỏi contract và làm constructor vỡ. (5) Deep annotation gây `RecursionError`
+thô. (6) Oracle không bắt các lớp lỗi trên.
+
+#### BEFORE — tái hiện độc lập trên code thật tại `d4a8797`
+
+Script tái hiện riêng (không dùng test hiện có), 17 phép đo, **10 hỏng**:
+
+| | Đo được tại `d4a8797` |
+|---|---|
+| **A** conditional `__instancecheck__` | metaclass an toàn với đúng `object()` và `None` — hai giá trị framework dùng để "chứng minh" — rồi **nổ `RuntimeError` với dữ liệu thật**. Decorate LỌT. |
+| **B** `__hash__` nổ / `__hash__ = None` | `RuntimeError: __hash__ nổ` và `TypeError: unhashable type` **thoát ra ngay lúc decorate** |
+| **C** `list[int]`, `dict[str,int]`, `set[int]`, `bytearray`, `list` | decorate LỌT, rồi **mọi** witness bị `CanonicalFieldError` loại — hợp đồng rỗng |
+| **D** `InitVar` | `fields()=1`, `contract=1` (InitVar ngoài hợp đồng), rồi `TypeError: __post_init__() takes 1 positional argument but 2 were given` |
+| **E** `tuple` lồng 24 / 25 / 50 / 200 tầng | **CHẤP NHẬN hết** — KHÔNG có chính sách độ sâu nào tồn tại. Bản thân phép đo không "hỏng", và chính đó là vấn đề: ngưỡng thật do stack CPython còn lại quyết định, nên nó lộ ra ở phép đo **F** chứ không ở đây |
+| **F** annotation 120 tầng | `recursionlimit=2000` → **CHẤP NHẬN**; `recursionlimit=300` → **`RecursionError` THÔ**. CÙNG annotation, KHÁC verdict theo stack còn lại |
+
+Ma trận annotation chính thức mở rộng **98 → 128 dạng** (thêm bốn nhóm tấn công
+mới) và thêm outcome `NO_WITNESS`:
+
+    BEFORE d4a8797: RAW_ERROR=5 | UNDECLARED=23 | SUPPORTED=44 | UNSUPPORTED=56
+    AFTER         : RAW_ERROR=0 | UNDECLARED=0  | SUPPORTED=44 | UNSUPPORTED=84
+
+#### ROOT CAUSE
+
+Cả sáu finding có chung một gốc:
+
+> **Phân loại bằng cách HỎI chính object lạ, thay vì bằng cấu trúc framework
+> tự biết** — và **"SUPPORTED" bị định nghĩa là "parser đọc được", chứ không
+> phải "hợp đồng có ít nhất một giá trị hợp lệ".**
+
+`hash()`, `__eq__`, `__instancecheck__` đều là code của người khác. Chạy chúng
+để "chứng minh an toàn" vừa **không tổng quát** (một hook đổi hành vi theo giá
+trị qua được mọi phép thử hữu hạn — finding #1) vừa **chính nó là đường rò**
+(tra chính sách bằng `target in frozenset` gọi `__hash__` trước khi target được
+coi là an toàn — finding #2). Hai gap còn lại là biên: `dataclasses.fields()`
+không phải toàn bộ tập field (finding #4), và độ sâu đệ quy bị bỏ mặc cho
+CPython (finding #5). Finding #3 là hệ quả trực tiếp của định nghĩa
+"SUPPORTED" sai; finding #6 là hệ quả của việc oracle dùng danh sách valid rỗng
+để tuyên bố SUPPORTED.
+
+#### Runtime-class policy — CẤU TRÚC, không chạy thử
+
+`_prove_instancecheck_usable()` (chạy `isinstance` với hai giá trị mẫu) bị
+**XOÁ**. Thay bằng `_classify_class_target()`:
+
+| Điều kiện | Kết luận |
+|---|---|
+| metaclass là **đúng `type`** | SUPPORTED — `isinstance()` là phép duyệt MRO ở tầng C, tất định, không chạy code người dùng |
+| class nằm trong danh sách framework **tự sở hữu** (so bằng ĐỊNH DANH) | SUPPORTED |
+| còn lại (`ABCMeta`, `EnumMeta`, `_ProtocolMeta`, metaclass tự viết) | **UNSUPPORTED** — chúng chạy `__subclasshook__`/`__instancecheck__` do người dùng định nghĩa được; không chứng minh được là tất định |
+
+Mặc định là **TỪ CHỐI**. Audit thực tế cho thấy production chỉ dùng metaclass
+`type` (11 target) và `ABCMeta` cho đúng hai class của chính framework —
+`FrozenMapping`, `FrozenCounter` — nên danh sách tin cậy chỉ có hai phần tử,
+và nó nhỏ được **chính vì** luật metaclass đã gánh phần tổng quát.
+
+Siết chặt CÓ TUYÊN BỐ: `Enum`, `abc.ABC`, `Protocol` (kể cả
+`runtime_checkable`), `typing.SupportsInt`, `collections.abc.Mapping/Sequence`
+nay UNSUPPORTED. Không class nào trong production dùng chúng.
+
+#### Không hỏi object chưa được chứng minh (finding #2)
+
+Toàn bộ đường phân loại nay dùng `_is_one_of(target, candidates)` — so bằng
+`is` trên tuple — thay cho `in` trên `frozenset`, và `_TYPE_NAME_PAIRS` thay
+cho `dict.get()`. Không `hash(target)`, không `target == x`, không
+`isinstance(v, target)` để "chứng minh".
+
+`isinstance(target, type)` và `type(target)` vẫn dùng: cả hai đi qua
+`type.__instancecheck__` ở tầng C, không chạm code người dùng.
+
+#### SUPPORTED phải có miền giá trị (finding #3)
+
+Mỗi `_Spec` có `is_inhabited()`. `_ClassSpec` không sống được nếu target là
+subclass của `list`/`dict`/`set`/`bytearray` — chính sách bất biến đang có sẽ
+loại **mọi** instance của nó.
+
+Luật áp cho **mọi vị trí mà checker THỰC SỰ đánh giá**: field và **mọi** nhánh
+union. Đây là mức NGHIÊM HƠN bất biến tối thiểu, và cố ý: `Optional[list[int]]`
+có witness `None` nên vẫn "inhabited" theo nghĩa hẹp, nhưng nó nói "None hoặc
+một list" trong khi mọi list đều bị loại — một lời khai sai lệch.
+
+Tham số của generic **KHÔNG** thuộc diện này: chúng chỉ được PARSE, không được
+kiểm lúc chạy. `tuple[list[int], ...]` vẫn hợp lệ — đó là ranh giới **R1-D**,
+và R1-A1 #3 không đụng vào chính sách bất biến (`_MUTABLE_CONTAINERS` không
+đổi, có test canh).
+
+#### InitVar policy (finding #4)
+
+`__dataclass_fields__` chứa **cả** `InitVar` lẫn `ClassVar`, còn
+`dataclasses.fields()` bỏ cả hai. Nhưng `@dataclass` **vẫn truyền `InitVar`**
+vào `__post_init__`, nên hợp đồng field không phủ được và chữ ký wrapper của
+framework sai.
+
+Luật: pseudo-field = `set(__dataclass_fields__) − {f.name for f in fields()}`;
+`ClassVar` (nhận diện bằng `get_origin`) là vô hại và được cho qua; **mọi thứ
+còn lại — `InitVar` và bất kỳ loại pseudo-field nào khác — bị TỪ CHỐI tại
+decoration**, nêu tên từng field. Phủ được cả nhiều `InitVar`, `InitVar` lẫn
+field thường, dataclass chỉ có `InitVar`, và dạng `kw_only`.
+
+#### Depth / complexity policy (finding #5)
+
+`_Budget` với `_MAX_ANNOTATION_DEPTH = 24` và `_MAX_ANNOTATION_NODES = 512`
+(production sâu nhất **2** tầng). Vượt → `CanonicalContractViolation`. Ngân
+sách node chặn cả trục **bề rộng** (union khổng lồ), thứ không nổ
+`RecursionError` nhưng vẫn là độ phức tạp không kiểm soát.
+
+Đây là một hằng số của framework, không phải stack còn lại: cùng một annotation
+luôn cho cùng một verdict — đo được ở phép đo **F** trên.
+
+Ranh giới được ghi nhận tường minh: với annotation cực sâu (≈1000 tầng),
+`@dataclass` của **CPython** nổ `RecursionError` TRƯỚC khi `@canonical` chạy.
+Đó nằm ngoài biên framework — không canonical type nào được tạo ra, nên không
+có trạng thái nửa vời. Có test ghi lại đúng điều đó.
+
+#### Error-boundary design (finding #2/#5, §8)
+
+`_foreign(call, where, what)` bọc **đúng một** thao tác chạm vào object lạ
+(`get_origin`, `get_args`) và biến mọi lỗi của nó thành
+`CanonicalContractViolation`. Cố ý HẸP: nó không bọc cả parser, nên lỗi lập
+trình **bên trong** framework vẫn nổ nguyên hình — phân biệt "tương tác với
+annotation của người khác" với "bug của framework".
+
+`_safe_name(obj)` đọc `__name__`/`__repr__` mà không bao giờ nổ: nếu chính
+đường dựng thông báo lỗi cũng gãy thì nó trở thành một đường rò mới.
+
+#### Oracle repair (finding #6, §9/§10)
+
+- Ma trận thêm outcome **`NO_WITNESS`**: một dòng tuyên bố SUPPORTED mà không
+  đưa ra nổi một giá trị hợp lệ nào là lỗi của chính oracle. Mọi dòng
+  `valid=[]` trước đây đã bị sửa hoặc chuyển thành UNSUPPORTED.
+- **Meta test witness**: 28 annotation SUPPORTED, mỗi cái phải dựng được một
+  object thật; cộng một test khẳng định bảng witness phủ đủ **năm** hình thái
+  spec (`_AnySpec`, `_NoneSpec`, `_ClassSpec`, `_LiteralSpec`, `_UnionSpec`),
+  đi qua ĐƯỜNG DECORATION THẬT chứ không gọi `_build_spec` trực tiếp.
+- **Ba mutation proof** — tắt từng lớp bảo vệ rồi khẳng định lỗ hổng QUAY LẠI:
+  gỡ luật metaclass → `RuntimeError` thô quay lại; gỡ luật inhabited →
+  `list[int]` decorate lọt rồi witness bị loại; gỡ ngân sách độ sâu → mất tính
+  **tất định** (biên lỗi vẫn bắt, nhưng ngưỡng phụ thuộc stack còn lại). Đây là
+  bằng chứng oracle CÓ THỂ FAIL.
+
+#### AFTER
+
+    TỔNG: 128 annotation | SUPPORTED=44 | UNSUPPORTED=84
+                         | BYPASSED=0 REJECTED=0 BROKEN=0 RAW_ERROR=0
+                         | NO_WITNESS=0 UNDECLARED=0
+
+    Script tái hiện 6 finding: 17 phép đo | HỎNG=0
+
+**Nhóm H — metaclass/class-like thù địch (§11-A)**
+
+| Probe | Annotation / target | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `H1` | metaclass `__instancecheck__` đổi hành vi theo giá trị | **RAW_ERROR** | **UNSUPPORTED** |
+| `H2` | metaclass `__instancecheck__` nổ vô điều kiện | **UNSUPPORTED** | **UNSUPPORTED** |
+| `H3` | metaclass `__subclasscheck__` nổ | **UNDECLARED** | **UNSUPPORTED** |
+| `H4` | metaclass `__getattr__` nổ (đọc `__name__` cũng gãy) | **UNSUPPORTED** | **UNSUPPORTED** |
+| `H5` | metaclass `__instancecheck__` trả kết quả KHÔNG ổn định | **UNDECLARED** | **UNSUPPORTED** |
+| `H6` | metaclass thường (không hook) vẫn bị từ chối — mặc định là REJECT | **UNDECLARED** | **UNSUPPORTED** |
+
+**Nhóm K — hash/eq có tác dụng phụ (§11-B)**
+
+| Probe | Annotation / target | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `K1` | `__hash__` nổ | **RAW_ERROR** | **UNSUPPORTED** |
+| `K2` | `__hash__ = None` (không hash được) | **RAW_ERROR** | **UNSUPPORTED** |
+| `K3` | `__eq__` nổ | **RAW_ERROR** | **UNSUPPORTED** |
+| `K4` | `__eq__` có tác dụng phụ (đếm số lần bị so sánh) | **UNDECLARED** | **UNSUPPORTED** |
+| `K5` | `__hash__` trả về thứ không phải int | **RAW_ERROR** | **UNSUPPORTED** |
+| `K6` | `__hash__` trả giá trị KHÁC NHAU mỗi lần | **UNDECLARED** | **UNSUPPORTED** |
+
+**Nhóm M — origin mutable: hợp đồng rỗng (§11-C)**
+
+| Probe | Annotation / target | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `M1` | `list` trần | **UNDECLARED** | **UNSUPPORTED** |
+| `M2` | `set[int]` | **UNDECLARED** | **UNSUPPORTED** |
+| `M3` | `bytearray` trần | **UNDECLARED** | **UNSUPPORTED** |
+| `M4` | `Optional[list[int]]` — chỉ `None` sống được, nhánh list chết | **UNDECLARED** | **UNSUPPORTED** |
+| `M5` | `Union[list, dict]` — mọi nhánh đều chết | **UNDECLARED** | **UNSUPPORTED** |
+| `M6` | `Union[str, set]` — một nhánh sống, một nhánh chết | **UNDECLARED** | **UNSUPPORTED** |
+| `M7` | `tuple[list[int], ...]` — tham số generic KHÔNG bị luật này (R1-D) | **SUPPORTED** | **SUPPORTED** |
+| `M8` | `bytes` — bất biến, phải VẪN hỗ trợ | **SUPPORTED** | **SUPPORTED** |
+
+**Nhóm Z — shape ngoài ma trận cũ (§11-F)**
+
+| Probe | Annotation / target | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `Z1` | `typing.Never` | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z2` | `typing.LiteralString` | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z3` | `typing.Concatenate[int, ParamSpec]` | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z4` | `typing.Required[int]` — CPython tự bóc thành `int` lúc resolve | **SUPPORTED** | **SUPPORTED** |
+| `Z5` | `typing.TypeAlias` | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z6` | một `functools.partial` object làm annotation | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z7` | một lambda làm annotation | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z8` | một module object làm annotation | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z9` | instance của một class thường làm annotation | **UNSUPPORTED** | **UNSUPPORTED** |
+| `Z10` | `enum.Flag` class | **UNDECLARED** | **UNSUPPORTED** |
+
+**Ô đổi kết quả do siết chính sách (ngoài bốn nhóm trên)**
+
+| Probe | Annotation | BEFORE | AFTER |
+|---|---|---|---|
+| `X2` | `Mapping[str, int]` — origin metaclass ABCMeta | **UNDECLARED** | **UNSUPPORTED** |
+| `X3` | `Sequence[int]` — origin metaclass ABCMeta | **UNDECLARED** | **UNSUPPORTED** |
+| `X4` | `list[int]` — hợp đồng RỖNG | **UNDECLARED** | **UNSUPPORTED** |
+| `X5` | `dict[str, int]` — hợp đồng RỖNG | **UNDECLARED** | **UNSUPPORTED** |
+| `W14` | `Union[list, int]` — nhánh `list` không bao giờ khớp | **UNDECLARED** | **UNSUPPORTED** |
+| `G23` | `dict[str, int]` — parse được nhưng hợp đồng RỖNG | **UNDECLARED** | **UNSUPPORTED** |
+| `R4` | `Protocol` runtime_checkable (metaclass _ProtocolMeta) | **UNDECLARED** | **UNSUPPORTED** |
+| `R5` | `Protocol` runtime_checkable có data member | **UNDECLARED** | **UNSUPPORTED** |
+| `R13` | `typing.SupportsInt` (metaclass _ProtocolMeta) | **UNDECLARED** | **UNSUPPORTED** |
+| `R15` | `Enum` class (metaclass EnumMeta) | **UNDECLARED** | **UNSUPPORTED** |
+| `R18` | `abc.ABC` subclass (metaclass ABCMeta) | **UNDECLARED** | **UNSUPPORTED** |
+
+**Nhóm D — `InitVar` / pseudo-field (§11-D, nằm trong pytest chứ không trong ma trận:
+đây là hình thái PSEUDO-FIELD, không phải một annotation trên field thật)**
+
+| Case | Hình dạng | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `D1` | một `InitVar[int]` | decorate LỌT rồi `TypeError` lúc khởi tạo | từ chối lúc decoration, nêu tên field |
+| `D2` | nhiều `InitVar` | như trên | từ chối, nêu **đủ** tên |
+| `D3` | dataclass CHỈ có `InitVar` | như trên | từ chối |
+| `D4` | `InitVar` dạng `kw_only` | như trên | từ chối |
+| `D5` | `ClassVar` (đối chứng — phải VẪN hợp lệ) | hợp lệ | hợp lệ |
+
+**Nhóm E — độ sâu / độ phức tạp (§11-E, cũng nằm trong pytest: đây là một HỌ
+annotation sinh theo tham số, không phải một ô cố định)**
+
+| Case | Hình dạng | BEFORE `d4a8797` | AFTER |
+|---|---|---|---|
+| `E1` | `tuple` lồng 1 / 2 / 10 / 23 / 24 tầng | chấp nhận | chấp nhận (không siết oan) |
+| `E2` | lồng 25 / 26 / 40 tầng | chấp nhận | `CanonicalContractViolation` — khớp `"lồng sâu quá"` |
+| `E3` | lồng 100 / 300 / 500 tầng | `RecursionError` **thô** | `CanonicalContractViolation` (biên lỗi giữ) |
+| `E4` | `Optional[tuple[…]]` lồng 13 tầng — trộn union + generic | chấp nhận | cùng một ngân sách, `"lồng sâu quá"` |
+| `E5` | union 600 nhánh — trục **bề rộng** | chấp nhận | `CanonicalContractViolation` — khớp `"nút"` |
+| `E6` | lồng ≈1000 / 5000 tầng | `RecursionError` thô | **NGOÀI BIÊN** — `@dataclass` của CPython nổ trước `@canonical` |
+
+#### Files changed
+
+    app/modules/domain/canonical.py            phân loại cấu trúc + inhabited + InitVar + ngân sách + biên lỗi
+    tests/test_r1a1_annotation_contract.py     +oracle repair, mutation proof, witness meta
+    tools/analysis/r1a1_annotation_probes.py   ma trận 98 → 128, thêm outcome NO_WITNESS
+    docs/tasks/TASK-110_REPAIR_PROGRESS.md     mục này
+
+Không production canonical type nào bị sửa. Không business rule, mapping
+semantics, `MappingResult` semantics, chính sách container mutable, hay
+coercion error normalization nào đổi.
+
+**Test bị sửa: chỉ trong `tests/test_r1a1_annotation_contract.py`** — đúng
+phạm vi mà finding #6 cho phép (§9). Không file test nào khác đỏ hay bị sửa.
+
+#### Tests / regression
+
+| Bằng chứng | Kết quả |
+|---|---|
+| `python -m pytest -q` | **702 passed, 9 skipped** |
+| `tests/test_r1a1_annotation_contract.py` | 205 passed |
+| `tests/test_r1a_canonical_type_coverage.py` | 83 passed, 9 skipped |
+| `tests/test_r1_canonical_object_safety.py` | 68 passed |
+| probe R1 | 39 BLOCKED / 0 BYPASSED — không thoái lui |
+| probe R1-A | 23 BLOCKED / 0 BYPASSED — không thoái lui |
+| ma trận annotation (128 ô) | **28 ô hỏng → 0** |
+| script tái hiện 6 finding (17 phép đo) | **10 hỏng → 0** |
+| TASK-108A-1 reconciliation (CHECK-110-14) | **0 dòng khác**, EXIT=0 |
+| L1+L2 | `sha256` **giống hệt** (`3d8b2544…5ba9`) |
+| `validate_structure` / `project_state` / `evidence` / `task_completion` | **PASS** |
+| `validate_reference_integrity` | **FAIL — CÓ TỪ TRƯỚC**, y hệt tại `d4a8797` |
+| `git diff --check` | **sạch** |
+
+Residual risk **#6 của vòng #2** ("mỗi target class chịu hai lời gọi `isinstance` lúc import") hết hiệu lực: phép thử đó đã bị xoá, phân loại nay thuần cấu trúc.
+
+#### Residual risks (vòng #3)
+
+1. Danh sách class tin cậy (`FrozenMapping`, `FrozenCounter`) là một tập được
+   TUYÊN BỐ. Nếu framework thêm một class ABCMeta của chính nó, phải thêm tay.
+   Luật metaclass gánh phần còn lại, nhưng đây là chỗ cần trí nhớ con người.
+2. Luật metaclass là điều kiện **đủ**, không phải cần: một class ABCMeta hoàn
+   toàn lành mạnh (`re.Pattern` nếu nó là ABC, các ABC của `collections`) cũng
+   bị từ chối. Đó là cái giá của "mặc định là reject".
+3. `is_inhabited()` chỉ biết một chính sách runtime duy nhất — container
+   mutable. Nếu R1-A3/R1-D thêm chính sách loại giá trị khác, luật "có witness"
+   phải được mở rộng theo, nếu không lại có hợp đồng rỗng kiểu mới.
+4. Ngân sách 24 tầng / 512 nút là hằng số chọn tay. Chúng dư thừa hơn mười lần
+   so với production nhưng vẫn là con số, không phải suy ra.
+5. `_foreign()` chỉ bọc `get_origin`/`get_args`. Một annotation lạ có thể chạy
+   code ở chỗ khác trong đường của `typing` (ví dụ bên trong
+   `get_type_hints`) — chỗ đó có try/except riêng của `_build_field_contract`,
+   nhưng hai lớp này chưa được thống nhất thành một cơ chế.
+6. `InitVar` bị TỪ CHỐI chứ không được hỗ trợ. Nếu về sau một canonical type
+   cần dữ liệu khởi tạo, phải mở rộng wrapper `__post_init__` cho đúng chữ ký —
+   một thay đổi có ý thức, không phải một lỗ hổng im lặng.
+7. Ranh giới ngoài framework: annotation cực sâu làm `@dataclass` của CPython
+   nổ trước. Không tạo ra trạng thái nửa vời, nhưng thông báo lúc đó là của
+   CPython, không phải của framework.
 
 ### R2 — MappingStats Single Source of Truth
 - Status: BLOCKED BY R1 (R1 tổng chưa FROZEN; R1-A→R1-E phải PASS trước).

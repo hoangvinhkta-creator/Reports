@@ -15,6 +15,8 @@ Câu hỏi: với MỖI dạng annotation mà `@canonical` có thể gặp, fram
     UNDECLARED  framework KHÔNG mô hình hoá được construct này nhưng vẫn
                 decorate lọt -> đây chính là "UNKNOWN âm thầm thành ANY"
     BROKEN      vừa loại giá trị hợp lệ vừa nhận giá trị không hợp lệ
+    NO_WITNESS  dòng probe tuyên bố SUPPORTED nhưng không đưa ra nổi một giá
+                trị hợp lệ nào -> lỗi của chính oracle (§10)
     RAW_ERROR   decorate lọt rồi để lỗi NGOÀI từ vựng framework rò ra lúc chạy
                 (`TypeError` thô từ `isinstance`, `RuntimeError` từ
                 `__instancecheck__` tuỳ biến…)
@@ -55,6 +57,7 @@ class Marker:
 
 # ── vật liệu cho nhóm G (hậu duệ generic) và nhóm R (class-like runtime)
 import abc as _abc  # noqa: E402
+import functools as _functools  # noqa: E402
 import enum as _enum  # noqa: E402
 import re as _re  # noqa: E402
 
@@ -119,6 +122,10 @@ class PlainABC(_abc.ABC):
     pass
 
 
+class _FlagShade(_enum.Flag):
+    A = 1
+
+
 MARKER = Marker()
 
 RESULTS = []
@@ -150,6 +157,12 @@ def matrix(annotation, valid, invalid, expect):
                              f"{str(exc)[:60]}")
 
     leaked = []
+
+    if expect == "SUPPORTED" and not valid:
+        # §10 — kỷ luật oracle. Tuyên bố SUPPORTED mà không đưa ra nổi một giá
+        # trị hợp lệ nào thì chính dòng probe đó vô nghĩa: nó không phân biệt
+        # được "hỗ trợ" với "hợp đồng rỗng".
+        return "NO_WITNESS", "case SUPPORTED nhưng không có witness nào"
 
     def accepts(v):
         try:
@@ -247,15 +260,15 @@ probe("F7", "bound `TypeVar(bound=int)`", T_BOUND,
 
 probe("X1", "`tuple[int, ...]`", typing.Tuple[int, ...],
       valid=[(), (1, 2)], invalid=[[], 5, None])
-probe("X2", "`Mapping[str, int]`", Mapping[str, int],
-      valid=[FrozenMapping({"a": 1}), MappingProxyType({"a": 1})],
-      invalid=[5, None, "x"])
-probe("X3", "`Sequence[int]`", Sequence[int],
-      valid=[(1, 2)], invalid=[5, None])
-probe("X4", "`list[int]` (chính sách bất biến phải loại)", typing.List[int],
-      valid=[], invalid=[[], [1], 5, None])
-probe("X5", "`dict[str, int]` (chính sách bất biến phải loại)", typing.Dict[str, int],
-      valid=[], invalid=[{}, {"a": 1}, 5, None])
+probe("X2", "`Mapping[str, int]` — origin metaclass ABCMeta", Mapping[str, int],
+      valid=[FrozenMapping({"a": 1})], invalid=[5, None, "x"],
+      expect="UNSUPPORTED")
+probe("X3", "`Sequence[int]` — origin metaclass ABCMeta", Sequence[int],
+      valid=[(1, 2)], invalid=[5, None], expect="UNSUPPORTED")
+probe("X4", "`list[int]` — hợp đồng RỖNG", typing.List[int],
+      valid=[[1]], invalid=[5, None], expect="UNSUPPORTED")
+probe("X5", "`dict[str, int]` — hợp đồng RỖNG", typing.Dict[str, int],
+      valid=[{"a": 1}], invalid=[5, None], expect="UNSUPPORTED")
 probe("X6", "`Final[int]`", typing.Final[int],
       valid=[1], invalid=["a", 1.5, None], expect="UNSUPPORTED")
 probe("X7", "`Annotated[int, 'meta']`", typing.Annotated[int, "meta"],
@@ -316,8 +329,8 @@ probe("W12", "`Optional[str]` vẫn loại lớp con của `str` (nghiêm ngặt
       invalid=[type("Sub", (str,), {})("x")])
 probe("W13", "`Union[Any, None]` — Any khớp mọi thứ NHƯNG mutable vẫn bị loại",
       Optional[Any], valid=[1, None, (), SENTINEL], invalid=[[], {}, set()])
-probe("W14", "`Union[list, int]` — chính sách bất biến thắng nhánh khớp",
-      Union[list, int], valid=[1], invalid=[[], [1]])
+probe("W14", "`Union[list, int]` — nhánh `list` không bao giờ khớp",
+      Union[list, int], valid=[1], invalid=[[], [1]], expect="UNSUPPORTED")
 
 
 # ══════════ NHÓM G — P1: hậu duệ generic bị parser bỏ rơi (Review R1-A1 #2)
@@ -384,8 +397,8 @@ probe("G21", "`tuple[int, ...]` — biến thể ĐỒNG NHẤT, phải VẪN h�
       tuple[int, ...], valid=[(), (1, 2)], invalid=[[], 5, None])
 probe("G22", "`tuple[()]` — tuple rỗng, phải VẪN hỗ trợ",
       tuple[()], valid=[(), (1,)], invalid=[[], 5, None])
-probe("G23", "`dict[str, int]` — parse được; chính sách bất biến loại giá trị",
-      dict[str, int], valid=[], invalid=[{}, {"a": 1}, 5, None])
+probe("G23", "`dict[str, int]` — parse được nhưng hợp đồng RỖNG",
+      dict[str, int], valid=[{"a": 1}], invalid=[5, None], expect="UNSUPPORTED")
 probe("G24", "`tuple[Unpack[TypeVarTuple]]`", tuple[typing.Unpack[TS]],
       valid=[(1,)], invalid=[SENTINEL], expect="UNSUPPORTED")
 probe("G25", "`Callable[ParamSpec, int]`", typing.Callable[PS, int],
@@ -413,10 +426,10 @@ probe("R2", "`TypedDict(total=False)`", TDPartial, valid=[{}], invalid=[5],
       expect="UNSUPPORTED")
 probe("R3", "`Protocol` KHÔNG runtime_checkable", ProtoPlain,
       valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
-probe("R4", "`Protocol` runtime_checkable (chỉ method)", ProtoRuntime,
-      valid=[Impl()], invalid=[5, None])
+probe("R4", "`Protocol` runtime_checkable (metaclass _ProtocolMeta)", ProtoRuntime,
+      valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
 probe("R5", "`Protocol` runtime_checkable có data member", ProtoData,
-      valid=[Impl()], invalid=[5, None])
+      valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
 probe("R6", "`typing.IO[str]`", typing.IO[str], valid=[], invalid=[5, None, "x"],
       expect="UNSUPPORTED")
 probe("R7", "`typing.IO` (trần)", typing.IO, valid=[], invalid=[5, None],
@@ -431,15 +444,125 @@ probe("R11", "`typing.Protocol` (trần)", typing.Protocol, valid=[], invalid=[5
       expect="UNSUPPORTED")
 probe("R12", "class có metaclass `__instancecheck__` NỔ", EvilInstanceCheck,
       valid=[], invalid=[5, None], expect="UNSUPPORTED")
-probe("R13", "`typing.SupportsInt` (runtime_checkable trong `typing`)",
-      typing.SupportsInt, valid=[5], invalid=[SENTINEL])
+probe("R13", "`typing.SupportsInt` (metaclass _ProtocolMeta)",
+      typing.SupportsInt, valid=[5], invalid=[SENTINEL], expect="UNSUPPORTED")
 probe("R14", "`NamedTuple` class", NTuple, valid=[NTuple(a=1)], invalid=[5, (1,)])
-probe("R15", "`Enum` class", Shade, valid=[Shade.RED], invalid=[1, "RED"])
+probe("R15", "`Enum` class (metaclass EnumMeta)", Shade, valid=[Shade.RED],
+      invalid=[1, "RED"], expect="UNSUPPORTED")
 probe("R16", "class generic của người dùng (trần)", Box, valid=[Box()], invalid=[5])
 probe("R17", "`Box[int]` — generic người dùng có tham số", Box[int],
       valid=[Box()], invalid=[5])
-probe("R18", "`abc.ABC` subclass", PlainABC, valid=[], invalid=[5, None])
+probe("R18", "`abc.ABC` subclass (metaclass ABCMeta)", PlainABC,
+      valid=[], invalid=[5, None], expect="UNSUPPORTED")
 probe("R19", "`re.Pattern`", _re.Pattern, valid=[_re.compile("x")], invalid=["x", 5])
+
+
+# ══════════ NHÓM H — metaclass/class-like thù địch (R1-A1 #3, §11-A)
+#
+# Phép "chứng minh" bằng vài lời gọi `isinstance()` ở bản `d4a8797` không phải
+# chứng minh: một hook đổi hành vi theo GIÁ TRỊ qua được phép thử rồi nổ với dữ
+# liệu thật. Nhóm này tấn công đúng giả định đó.
+
+def _meta(name, body):
+    return type(name, (type,), body)("Hostile" + name, (), {})
+
+
+def _boom(msg):
+    def raiser(*a, **kw):
+        raise RuntimeError(msg)
+    return raiser
+
+
+probe("H1", "metaclass `__instancecheck__` đổi hành vi theo giá trị",
+      _meta("Cond", {"__instancecheck__":
+                     lambda cls, o: False if (o is None or type(o) is object)
+                     else _boom("nổ với giá trị thật")()}),
+      valid=[], invalid=["giá trị thật", 1], expect="UNSUPPORTED")
+probe("H2", "metaclass `__instancecheck__` nổ vô điều kiện",
+      _meta("IC", {"__instancecheck__": _boom("instancecheck nổ")}),
+      valid=[], invalid=[1, None], expect="UNSUPPORTED")
+probe("H3", "metaclass `__subclasscheck__` nổ",
+      _meta("SC", {"__subclasscheck__": _boom("subclasscheck nổ")}),
+      valid=[], invalid=[1, None], expect="UNSUPPORTED")
+probe("H4", "metaclass `__getattr__` nổ (đọc `__name__` cũng gãy)",
+      _meta("GA", {"__getattr__": _boom("getattr nổ")}),
+      valid=[], invalid=[1, None], expect="UNSUPPORTED")
+probe("H5", "metaclass `__instancecheck__` trả kết quả KHÔNG ổn định",
+      _meta("Flip", {"__instancecheck__":
+                     lambda cls, o, _c=[0]: (_c.append(1), len(_c) % 2 == 0)[1]}),
+      valid=[], invalid=[1, None], expect="UNSUPPORTED")
+probe("H6", "metaclass thường (không hook) vẫn bị từ chối — mặc định là REJECT",
+      _meta("Plain", {}), valid=[], invalid=[1, None], expect="UNSUPPORTED")
+
+
+# ══════════ NHÓM K — hash/eq có tác dụng phụ (R1-A1 #3, §11-B)
+#
+# Bản `d4a8797` tra chính sách bằng `target in frozenset(...)`, tức là gọi
+# `__hash__` của metaclass lạ TRƯỚC khi target được coi là an toàn.
+
+probe("K1", "`__hash__` nổ", _meta("HashBoom", {"__hash__": _boom("hash nổ")}),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("K2", "`__hash__ = None` (không hash được)",
+      _meta("NoHash", {"__hash__": None}), valid=[], invalid=[1],
+      expect="UNSUPPORTED")
+probe("K3", "`__eq__` nổ", _meta("EqBoom", {"__eq__": _boom("eq nổ")}),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("K4", "`__eq__` có tác dụng phụ (đếm số lần bị so sánh)",
+      _meta("EqCount", {"__eq__": lambda cls, o, _c=[0]: (_c.append(1), False)[1],
+                        "__hash__": lambda cls: 0}),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("K5", "`__hash__` trả về thứ không phải int",
+      _meta("BadHash", {"__hash__": lambda cls: "không phải int"}),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("K6", "`__hash__` trả giá trị KHÁC NHAU mỗi lần",
+      _meta("DriftHash", {"__hash__": lambda cls, _c=[0]: (_c.append(1), len(_c))[1]}),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+
+
+# ══════════ NHÓM M — origin mutable: hợp đồng RỖNG (R1-A1 #3, §11-C)
+
+probe("M1", "`list` trần", list, valid=[[1]], invalid=[5], expect="UNSUPPORTED")
+probe("M2", "`set[int]`", set[int], valid=[{1}], invalid=[5], expect="UNSUPPORTED")
+probe("M3", "`bytearray` trần", bytearray, valid=[bytearray(b"x")], invalid=[5],
+      expect="UNSUPPORTED")
+probe("M4", "`Optional[list[int]]` — chỉ `None` sống được, nhánh list chết",
+      Optional[list[int]], valid=[None], invalid=[[1]], expect="UNSUPPORTED")
+probe("M5", "`Union[list, dict]` — mọi nhánh đều chết",
+      Union[list, dict], valid=[], invalid=[[], {}], expect="UNSUPPORTED")
+probe("M6", "`Union[str, set]` — một nhánh sống, một nhánh chết",
+      Union[str, set], valid=["x"], invalid=[{1}], expect="UNSUPPORTED")
+probe("M7", "`tuple[list[int], ...]` — tham số generic KHÔNG bị luật này (R1-D)",
+      tuple[list[int], ...], valid=[(), ([1],)], invalid=[5, None])
+probe("M8", "`bytes` — bất biến, phải VẪN hỗ trợ", bytes, valid=[b"x"],
+      invalid=[bytearray(b"x"), "x", 5])
+
+
+# ══════════ NHÓM Z — shape hoàn toàn ngoài ma trận cũ (R1-A1 #3, §11-F)
+
+probe("Z1", "`typing.Never`", typing.Never, valid=[], invalid=[1, None],
+      expect="UNSUPPORTED")
+probe("Z2", "`typing.LiteralString`", typing.LiteralString, valid=[], invalid=["x"],
+      expect="UNSUPPORTED")
+probe("Z3", "`typing.Concatenate[int, ParamSpec]`",
+      typing.Concatenate[int, PS], valid=[], invalid=[1], expect="UNSUPPORTED")
+# `typing.get_type_hints()` BÓC `Required[int]` thành `int` — chuẩn hoá của
+# chính CPython, giống `Annotated`. Nên qua đường decoration thật, annotation
+# framework nhìn thấy là `int`, hợp lệ. Gọi thẳng `_build_spec(Required[int])`
+# thì nó bị từ chối; xem test cùng tên trong suite pytest.
+probe("Z4", "`typing.Required[int]` — CPython tự bóc thành `int` lúc resolve",
+      typing.Required[int], valid=[1], invalid=["x", None])
+probe("Z5", "`typing.TypeAlias`", typing.TypeAlias, valid=[], invalid=[1],
+      expect="UNSUPPORTED")
+probe("Z6", "một `functools.partial` object làm annotation",
+      _functools.partial(int), valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("Z7", "một lambda làm annotation", lambda: None, valid=[], invalid=[1],
+      expect="UNSUPPORTED")
+probe("Z8", "một module object làm annotation", typing, valid=[], invalid=[1],
+      expect="UNSUPPORTED")
+probe("Z9", "instance của một class thường làm annotation", Marker(),
+      valid=[], invalid=[1], expect="UNSUPPORTED")
+probe("Z10", "`enum.Flag` class", _FlagShade, valid=[_FlagShade.A], invalid=[1],
+      expect="UNSUPPORTED")
 
 
 def _extra_wave():
@@ -515,12 +638,12 @@ if __name__ == "__main__":
         tally[outcome] = tally.get(outcome, 0) + 1
     print(f"TỔNG: {len(RESULTS)} annotation | " +
           " | ".join(f"{k}={v}" for k, v in sorted(tally.items())))
-    for label in ("BYPASSED", "REJECTED", "BROKEN", "RAW_ERROR", "UNDECLARED",
-                  "UNSUPPORTED"):
+    for label in ("BYPASSED", "REJECTED", "BROKEN", "RAW_ERROR", "NO_WITNESS",
+                  "UNDECLARED", "UNSUPPORTED"):
         ids = [r[0] for r in RESULTS if r[1] == label]
         if ids:
             print(f"{label}: {', '.join(ids)}")
     print()
     print("BẤT BIẾN R1-A1: không ô nào được BYPASSED / REJECTED / BROKEN / "
-          "RAW_ERROR / UNDECLARED.")
+          "RAW_ERROR / NO_WITNESS / UNDECLARED.")
     print("UNSUPPORTED là kết quả CHẤP NHẬN ĐƯỢC — nó là một tuyên bố, không phải lỗ hổng.")
