@@ -20,7 +20,7 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW | commit R1-A1 duy nhất, parent `dead82e` | — | 51 dạng annotation: 23 ô hỏng → **0**; 10 UNSUPPORTED có tuyên bố |
+| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW (**repair #2**) | commit R1-A1 #2, parent `44018e3` | **Review #1 FAIL** tại `44018e3` (P1, P2) | Vòng #2 đóng P1 (hậu duệ generic) + P2 (class-like runtime). Ma trận 51 → **98** dạng: 35 ô hỏng → **0** |
 | R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
 | R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
@@ -586,7 +586,11 @@ Evidence Level: **E1**.
 
 ### R1-A1 — Annotation Contract (sub-repair của R1-A)
 
-- Status: **AWAITING_REVIEW**
+> **Vòng #1 (dưới đây) đã bị Independent Review chấm FAIL tại `44018e3`** với
+> hai finding P1/P2. Phần ghi chép vòng #1 giữ nguyên làm bản ghi lịch sử; kết
+> quả hiện hành nằm ở mục **"Repair #2 — P1 & P2"** ở cuối nhật ký R1-A1.
+
+- Status (vòng #1, lịch sử): AWAITING_REVIEW
 - Exact starting SHA: `dead82e2d9ffa87b9d25483b5c98b8c266bfeb9e`
   (== `origin/claude/r1-canonical-object-safety-fon9lb` lúc mở phiên; worktree
   sạch; đúng SHA mà Independent Review R1-A đã chấm **FAIL** ở Finding #1)
@@ -878,6 +882,277 @@ Evidence Level: **E1**.
    nhìn thấy. Đó là hành vi của thư viện chuẩn, không phải lựa chọn của ngữ
    pháp này — nếu một bản Python tương lai đổi mặc định đó, `Annotated` sẽ rơi
    vào nhánh `raise` chứ không vào im lặng.
+
+
+#### Repair #2 — P1 & P2 (Independent Review R1-A1, FAIL tại `44018e3`)
+
+- Status: **AWAITING_REVIEW** (giữ nguyên; đây là vòng repair thứ hai của R1-A1)
+- Exact starting SHA: `44018e3bd48a892a186d991d84c2614a1f09b533`
+  (== `origin/claude/r1-canonical-object-safety-fon9lb` lúc mở phiên; worktree
+  sạch; đúng SHA Review R1-A1 đã chấm **FAIL**)
+- Repair SHA: commit R1-A1 #2 **duy nhất**, parent `44018e3`. Tra bằng
+  `git log --oneline 44018e3..HEAD` (phải ra đúng MỘT commit).
+
+**Hai finding.** *P1 — Generic arguments bypass closed grammar.*
+*P2 — Runtime-unsafe typing classes are misclassified.*
+
+#### BEFORE — tái hiện độc lập trên code thật tại `44018e3`
+
+Ma trận annotation chính thức mở rộng từ 51 lên **98 dạng** (thêm nhóm `G` cho
+hậu duệ generic, nhóm `R` cho class-like runtime), cộng một outcome mới
+`RAW_ERROR` để phân biệt "từ chối có tuyên bố" với "framework tự vỡ":
+
+    TỔNG: 98 annotation | RAW_ERROR=5 | UNDECLARED=30 | SUPPORTED=53 | UNSUPPORTED=10
+
+**35/98 ô hỏng**, hai lớp hỏng khác nhau:
+
+- **`UNDECLARED = 30`** — decorate LỌT cho construct framework không mô hình
+  hoá được. Gồm toàn bộ nhóm `G` (`tuple[<TypeVar>]`, `tuple[Final[int]]`,
+  `tuple[Literal[1.5]]`, `tuple[NoReturn]`, `Callable[[<TypeVar>], int]`, …) và
+  họ `typing.IO`/`TextIO`/`BinaryIO`/`Generic`.
+- **`RAW_ERROR = 5`** — `TypedDict`, `TypedDict(total=False)`, `Protocol` không
+  `runtime_checkable`, `typing.Protocol` trần, class có metaclass
+  `__instancecheck__` nổ. Với năm thứ này framework **nổ ngay lúc decorate bằng
+  `TypeError`/`RuntimeError` THÔ**, không phải `CanonicalContractViolation` —
+  tức là framework tự vỡ chứ không đưa ra một tuyên bố.
+
+#### ROOT CAUSE
+
+**P1.** Ngữ pháp vòng trước đóng đúng ở **tầng ngoài cùng**. Nhánh cuối của
+`_build_spec()` quy mọi generic có tham số về:
+
+    target = origin if origin is not None else hint
+    if isinstance(target, type):
+        return _ClassSpec(target)      # get_args(hint) BỊ VỨT BỎ
+
+Nên `tuple[<TypeVar>]` thành `_ClassSpec(tuple)` và hậu duệ không hỗ trợ **biến
+mất**. Lớp lỗi "UNKNOWN âm thầm thành ANY" không bị đóng — nó chỉ **lùi xuống
+một tầng**. Đóng ngữ pháp phải là đóng **theo cả chiều sâu**.
+
+**P2.** `isinstance(target, type)` bị dùng như thể nó đồng nghĩa với *"target
+là một lớp mà `isinstance()` dùng được"*. Hai mệnh đề đó khác nhau:
+
+| Nhóm | `isinstance(target, type)` | `isinstance(value, target)` |
+|---|---|---|
+| `TypedDict`, `Protocol` thường, `__instancecheck__` tuỳ biến | `True` | **NỔ** |
+| `typing.IO` / `TextIO` / `BinaryIO` / `Generic` | `True` | không nổ, nhưng trả `False` cho **mọi** object thật |
+| lớp thường, ABC, Enum, NamedTuple, `Protocol` runtime_checkable | `True` | đúng ngữ nghĩa |
+
+Nhóm một làm framework vỡ; nhóm hai làm field loại sạch giá trị hợp lệ. Cả hai
+đều là "decorate lọt rồi sai lúc chạy", không phải một tuyên bố.
+
+#### Thiết kế — cây annotation
+
+`_build_spec()` nay **đệ quy qua mọi tham số kiểu**. Mỗi nút giữ `source`
+(annotation sinh ra nó) và `children()` (các nút con đã parse), nên cây parse là
+một **biểu diễn kiểm chứng được**, không phải trạng thái ẩn.
+
+Ranh giới được tách tường minh, đúng như §2 và §10 yêu cầu:
+
+    PARSE ANNOTATION   (R1-A1): mọi nút trong cây phải được PHÂN LOẠI
+    RUNTIME VALIDATION (R1-D) : có kiểm từng phần tử lúc chạy hay không
+
+`_ClassSpec.matches()` vẫn **chỉ** khẳng định container ngoài cùng.
+`tuple[int]` parse ra một nút con `int` nhưng **không** kiểm phần tử — có test
+đóng đinh đúng câu đó (`test_p1_boundary_parsing_is_not_element_validation`).
+
+Ngoại lệ ngữ pháp duy nhất: `tuple[X, ...]`, nơi `Ellipsis` là cú pháp của
+chính Python cho "tuple đồng nhất". `Ellipsis` ở bất kỳ chỗ nào khác rơi vào
+nhánh `raise`.
+
+**Họ `Callable` bị từ chối TOÀN BỘ** (§4): `get_args(Callable[[A, B], R])` trả
+`([A, B], R)` — phần tử đầu là một *list*, không phải kiểu; `Callable[..., R]`
+trả `(Ellipsis, R)`. Hình dạng đó không giống generic nào khác, nên từ chối cả
+họ (trần lẫn có tham số) tốt hơn hỗ trợ nửa vời. Đây là lý do ô `X8`
+(`Callable[[], None]`) chuyển SUPPORTED → UNSUPPORTED: một **siết chặt có tuyên
+bố**, không phải thoái lui.
+
+#### Thiết kế — phân loại class runtime
+
+Hai luật, cả hai quyết tại decoration:
+
+1. **Phép chứng minh tổng quát** — `_prove_instancecheck_usable()` chạy
+   `isinstance()` với hai giá trị thử ngay lúc decorate. Nổ ⇒
+   `CanonicalContractViolation`. Nó **không liệt kê construct nào**; nó hỏi
+   thẳng câu hỏi cần hỏi — *"chiến lược runtime của tôi có chạy với target này
+   không?"* — nên bắt được cả construct chưa tồn tại lúc viết. `try/except` ở
+   đây không nuốt lỗi: nó biến lỗi thành một `raise` to hơn, sớm hơn.
+2. **Chính sách được TUYÊN BỐ** — `_ANNOTATION_ONLY_CLASSES` =
+   {`typing.IO`, `TextIO`, `BinaryIO`, `Generic`, `Protocol`}. Nhóm này KHÔNG
+   làm `isinstance()` nổ nên không phép thử runtime nào phát hiện được; nó phải
+   là một chính sách viết ra và có test canh. Tập này nhỏ được **chính vì** luật
+   (1) đã gánh phần tổng quát.
+
+`typing.SupportsInt`, `Protocol` có `runtime_checkable` (kể cả loại có data
+member), `NamedTuple`, `Enum`, `abc.ABC`, `re.Pattern`, generic của người dùng
+(`Box`, `Box[int]`) đều **vẫn SUPPORTED** — siết chặt mà chặn luôn class hợp lệ
+thì không phải sửa.
+
+#### Atomicity (§6)
+
+`decorate()` nay **dựng trước, gắn sau**: toàn bộ phép chứng minh (parse hết
+cây, chứng minh `isinstance` dùng được với từng target) chạy vào một biến cục
+bộ; chỉ khi mọi thứ đã chứng minh xong mới chạm vào class và mới ghi registry.
+Một decoration thất bại để lại class NGUYÊN VẸN và registry KHÔNG ĐỔI — có test
+riêng.
+
+#### AFTER
+
+    TỔNG: 98 annotation | SUPPORTED=52 | UNSUPPORTED=46
+                        | BYPASSED=0 REJECTED=0 BROKEN=0 RAW_ERROR=0 UNDECLARED=0
+
+**P1 — hậu duệ generic (nhóm G)**
+
+| Probe | Annotation / target | BEFORE `44018e3` | AFTER |
+|---|---|---|---|
+| `G1` | `tuple[<TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G2` | `tuple[Final[int]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G3` | `tuple[Literal[1.5]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G4` | `tuple[NoReturn]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G5` | `Callable[[<TypeVar>], int]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G6` | `list[<TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G7` | `dict[str, <TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G8` | `tuple[Union[int, <TypeVar>], ...]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G9` | `tuple[Annotated[<TypeVar>, 'x']]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G10` | `Optional[tuple[<TypeVar>]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G11` | `Union[int, tuple[<TypeVar>]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G12` | `Callable[[int], <TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G13` | `Callable[..., <TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G14` | `Callable[..., int]` — Ellipsis ở vị trí tham số | **UNDECLARED** | **UNSUPPORTED** |
+| `G15` | `Callable[[int, str], None]` — họ Callable, từ chối toàn bộ | **UNDECLARED** | **UNSUPPORTED** |
+| `G16` | `dict[str, tuple[Final[int]]]` — hai tầng | **UNDECLARED** | **UNSUPPORTED** |
+| `G17` | `tuple[tuple[tuple[NoReturn]]]` — ba tầng | **UNDECLARED** | **UNSUPPORTED** |
+| `G18` | `frozenset[<TypeVar>]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G19` | `tuple[Callable[[<TypeVar>], int], ...]` — họ bị từ chối lồng trong họ được hỗ trợ | **UNDECLARED** | **UNSUPPORTED** |
+| `G20` | `Optional[dict[str, Literal[1.5]]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G21` | `tuple[int, ...]` — biến thể ĐỒNG NHẤT, phải VẪN hỗ trợ | **SUPPORTED** | **SUPPORTED** |
+| `G22` | `tuple[()]` — tuple rỗng, phải VẪN hỗ trợ | **SUPPORTED** | **SUPPORTED** |
+| `G23` | `dict[str, int]` — parse được; chính sách bất biến loại giá trị | **SUPPORTED** | **SUPPORTED** |
+| `G24` | `tuple[Unpack[TypeVarTuple]]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G25` | `Callable[ParamSpec, int]` | **UNDECLARED** | **UNSUPPORTED** |
+| `G26` | `tuple[[int]]` — tham số là list, KHÔNG hash được | **UNDECLARED** | **UNSUPPORTED** |
+| `G27` | `dict[str, [int]]` — list lồng ở vị trí value | **UNDECLARED** | **UNSUPPORTED** |
+| `G28` | `tuple[[int], str]` — list ở vị trí đầu, không phải Callable | **UNDECLARED** | **UNSUPPORTED** |
+
+**P2 — class-like runtime (nhóm R)**
+
+| Probe | Annotation / target | BEFORE `44018e3` | AFTER |
+|---|---|---|---|
+| `R1` | `TypedDict` | **RAW_ERROR** | **UNSUPPORTED** |
+| `R2` | `TypedDict(total=False)` | **RAW_ERROR** | **UNSUPPORTED** |
+| `R3` | `Protocol` KHÔNG runtime_checkable | **RAW_ERROR** | **UNSUPPORTED** |
+| `R4` | `Protocol` runtime_checkable (chỉ method) | **SUPPORTED** | **SUPPORTED** |
+| `R5` | `Protocol` runtime_checkable có data member | **SUPPORTED** | **SUPPORTED** |
+| `R6` | `typing.IO[str]` | **UNDECLARED** | **UNSUPPORTED** |
+| `R7` | `typing.IO` (trần) | **UNDECLARED** | **UNSUPPORTED** |
+| `R8` | `typing.TextIO` | **UNDECLARED** | **UNSUPPORTED** |
+| `R9` | `typing.BinaryIO` | **UNDECLARED** | **UNSUPPORTED** |
+| `R10` | `typing.Generic` | **UNDECLARED** | **UNSUPPORTED** |
+| `R11` | `typing.Protocol` (trần) | **RAW_ERROR** | **UNSUPPORTED** |
+| `R12` | class có metaclass `__instancecheck__` NỔ | **RAW_ERROR** | **UNSUPPORTED** |
+| `R13` | `typing.SupportsInt` (runtime_checkable trong `typing`) | **SUPPORTED** | **SUPPORTED** |
+| `R14` | `NamedTuple` class | **SUPPORTED** | **SUPPORTED** |
+| `R15` | `Enum` class | **SUPPORTED** | **SUPPORTED** |
+| `R16` | class generic của người dùng (trần) | **SUPPORTED** | **SUPPORTED** |
+| `R17` | `Box[int]` — generic người dùng có tham số | **SUPPORTED** | **SUPPORTED** |
+| `R18` | `abc.ABC` subclass | **SUPPORTED** | **SUPPORTED** |
+| `R19` | `re.Pattern` | **SUPPORTED** | **SUPPORTED** |
+
+**Ô đổi kết quả ngoài hai nhóm trên**
+
+| Probe | Annotation | BEFORE | AFTER | Vì sao |
+|---|---|---|---|---|
+| `X8` | `Callable[[], None]` | **SUPPORTED** | **UNSUPPORTED** | chính sách từ chối CẢ HỌ `Callable` (§4) |
+
+
+#### Attack wave tự sinh
+
+**Hậu duệ generic** — ngoài 5 case reviewer đưa: `list[TypeVar]`,
+`dict[str, TypeVar]`, `tuple[Union[int, TypeVar], ...]`,
+`tuple[Annotated[TypeVar, 'x']]`, `Optional[tuple[TypeVar]]`,
+`Union[int, tuple[TypeVar]]`, `Callable[[int], TypeVar]`,
+`Callable[..., TypeVar]`, cộng các shape tự tìm: `dict[str, tuple[Final[int]]]`
+(hai tầng), `tuple[tuple[tuple[NoReturn]]]` (ba tầng), `frozenset[TypeVar]`,
+`tuple[Callable[[TypeVar], int], ...]` (họ bị từ chối lồng trong họ được hỗ
+trợ), `Optional[dict[str, Literal[1.5]]]`, `tuple[Unpack[TypeVarTuple]]`,
+`Callable[ParamSpec, int]`.
+
+**Ba shape tìm ra khi tự soát lại chính bản vá này** — và chúng là lỗi THẬT do
+bản vá tạo ra: `tuple[[int]]`, `dict[str, [int]]`, `tuple[[int], str]`. Tham số
+dạng list **không hash được**, nên phép tra `target in <frozenset chính sách>`
+nổ `TypeError: unhashable type: 'list'` — đúng lớp lỗi rò mà P2 nói tới. Nay
+`isinstance(target, type)` đứng TRƯỚC mọi phép tra tập hợp, và ba case này nằm
+trong cả probe lẫn test.
+
+**Class-like runtime** — ngoài 3 case reviewer đưa:
+`TypedDict(total=False)`, `typing.IO` trần, `typing.TextIO`, `typing.BinaryIO`,
+`typing.Generic`, `typing.Protocol` trần, class có metaclass `__instancecheck__`
+nổ, `typing.SupportsInt`, `Protocol` runtime_checkable có data member,
+`NamedTuple`, `Enum`, `abc.ABC`, `re.Pattern`, generic người dùng trần và có
+tham số.
+
+#### Meta-invariant (§9)
+
+Không dùng inventory typing thủ công làm oracle. Ba test ở tầng trừu tượng:
+
+1. `test_meta_every_node_of_every_production_spec_tree_is_classified` — đi hết
+   cây parse của **mọi** canonical type production; mọi nút phải là `_Spec`, và
+   số nút con phải bằng số tham số ở **vị trí kiểu** của `source`, **tính lại
+   độc lập** từ `typing.get_args()` (không gọi hàm nào của parser, nếu không
+   phép kiểm sẽ vòng tròn). Đây chính là test chống "thêm generic mới → hậu duệ
+   tự biến mất".
+2. `test_meta_an_unsupported_descendant_is_caught_at_any_depth` — độ sâu 1..4.
+3. `test_meta_only_contract_violations_escape_decoration` — với một loạt
+   construct thù địch, ngoại lệ DUY NHẤT thoát ra khỏi decoration phải là
+   `CanonicalContractViolation`. Đây là phát biểu tổng quát của P2.
+
+#### Files changed
+
+    app/modules/domain/canonical.py            cây parse + chứng minh runtime-class + atomicity
+    tests/test_r1a1_annotation_contract.py     +P1/P2/meta/atomicity
+    tools/analysis/r1a1_annotation_probes.py   ma trận 51 → 98, thêm outcome RAW_ERROR
+    docs/tasks/TASK-110_REPAIR_PROGRESS.md     mục này
+
+Không production canonical type nào bị sửa. Không business rule, mapping
+semantics, `MappingResult` semantics, chính sách container mutable, hay
+coercion error normalization nào đổi. **Không test cũ nào bị sửa.**
+
+#### Tests / regression
+
+| Bằng chứng | Kết quả |
+|---|---|
+| `python -m pytest -q` | **629 passed, 9 skipped** (0 test cũ đỏ, 0 test cũ bị sửa) |
+| `tests/test_r1a1_annotation_contract.py` | **132 passed** |
+| `tests/test_r1a_canonical_type_coverage.py` | 83 passed, 9 skipped |
+| `tests/test_r1_canonical_object_safety.py` | 68 passed |
+| probe R1 | 39 BLOCKED / 0 BYPASSED — không thoái lui |
+| probe R1-A | 23 BLOCKED / 0 BYPASSED — không thoái lui |
+| probe R1-A1 (ma trận chính thức) | **35 ô hỏng → 0** |
+| TASK-108A-1 reconciliation (CHECK-110-14) | **0 dòng khác**, EXIT=0 |
+| L1+L2 | `sha256` **giống hệt** (`3d8b2544…5ba9`) |
+| `validate_structure` / `project_state` / `evidence` / `task_completion` | **PASS** |
+| `validate_reference_integrity` | **FAIL — CÓ TỪ TRƯỚC**, y hệt tại `44018e3` |
+| `git diff --check` | **sạch** |
+
+#### Residual risk (vòng #2)
+
+1. Chính sách `_ANNOTATION_ONLY_CLASSES` là một tập được TUYÊN BỐ, không suy ra
+   được. Nếu `typing` thêm một class annotation-only mới, nó sẽ qua được phép
+   chứng minh `isinstance` và cần thêm tay vào tập. Phép chứng minh tổng quát
+   gánh phần còn lại, nhưng đây là chỗ duy nhất còn cần trí nhớ con người.
+2. `Protocol` có `runtime_checkable` được coi là SUPPORTED, nhưng `isinstance`
+   với protocol chỉ kiểm **sự tồn tại của thuộc tính**, không kiểm kiểu của
+   chúng. Đó là ngữ nghĩa chuẩn của Python, nhưng là một bảo đảm yếu hơn phần
+   còn lại của hợp đồng.
+3. Phép chứng minh dùng hai giá trị thử cố định. Một `__instancecheck__` chỉ nổ
+   với giá trị thứ ba sẽ lọt qua decoration — nhưng khi đó nó vẫn nổ lúc chạy,
+   và lỗi đó rò ra ngoài từ vựng framework. Chưa đóng.
+4. Từ chối cả họ `Callable` là một siết chặt: nếu production về sau cần một
+   field callable, phải mở rộng ngữ pháp cho hình dạng tham số riêng của nó.
+5. Cây parse được giữ lại nhưng **không** dùng lúc chạy. Nó là bằng chứng cho
+   meta-invariant, không phải một phép kiểm — đúng ranh giới R1-D.
+6. Chi phí decoration tăng: mỗi target class chịu hai lời gọi `isinstance` lúc
+   import (~80 lời gọi cho toàn bộ production). Không đo được khác biệt.
 
 ### R2 — MappingStats Single Source of Truth
 - Status: BLOCKED BY R1 (R1 tổng chưa FROZEN; R1-A→R1-E phải PASS trước).

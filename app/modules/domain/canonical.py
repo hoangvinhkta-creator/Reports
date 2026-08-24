@@ -77,6 +77,7 @@ private của module khác, và được ghi nhận là residual risk của R1.
 
 from __future__ import annotations
 
+import collections.abc as _cabc
 import functools
 import threading
 import types as _types
@@ -300,17 +301,54 @@ _MUTABLE_CONTAINERS = (list, dict, set, bytearray)
 _NONE_TYPE = type(None)
 _UNION_TYPE = getattr(_types, "UnionType", None)
 
+# ── CHÍNH SÁCH R1-A1 #2: họ `Callable` bị từ chối TOÀN BỘ.
+#
+# `get_args(Callable[[A, B], R])` trả `([A, B], R)` — phần tử đầu là một
+# **list**, không phải một kiểu; `Callable[..., R]` trả `(Ellipsis, R)`. Hình
+# dạng đó không giống bất kỳ generic nào khác, nên mô hình hoá nó tử tế là một
+# nhánh ngữ pháp riêng mà production không dùng tới. Từ chối cả họ (trần lẫn có
+# tham số) là kết quả HỢP LỆ và tốt hơn hỗ trợ nửa vời (Review R1-A1 #2, §4).
+_UNSUPPORTED_ORIGINS = frozenset({_cabc.Callable})
+
+# ── CHÍNH SÁCH R1-A1 #2: class CHỈ DÙNG ĐỂ CHÚ THÍCH.
+#
+# Những class này qua được `isinstance(target, type)` VÀ qua được cả phép thử
+# `isinstance()` (không nổ) — nhưng chúng trả `False` cho MỌI object thật, nên
+# một field khai kiểu đó sẽ loại sạch giá trị hợp lệ. Không phép thử runtime
+# nào phát hiện được điều đó, nên đây là một chính sách được TUYÊN BỐ, có test
+# canh, chứ không phải một suy đoán.
+_ANNOTATION_ONLY_CLASSES = frozenset({
+    typing.IO, typing.TextIO, typing.BinaryIO, typing.Generic, typing.Protocol,
+})
+
+# Giá trị dùng để CHỨNG MINH `isinstance()` chạy được với một target, ngay lúc
+# decorate. Hai giá trị khác loại để chạm được nhiều nhánh `__instancecheck__`.
+_INSTANCECHECK_PROBES = (object(), None)
+
 # Giá trị được phép xuất hiện trong `Literal[...]` (PEP 586 giới hạn tương tự).
 _LITERAL_VALUE_TYPES = (str, int, bool, bytes, _NONE_TYPE)
 
 
 class _Spec:
-    """Một nút của ngữ pháp. `matches` trả bool; `label` để render thông báo."""
+    """Một NÚT của cây annotation đã parse.
 
-    __slots__ = ("label",)
+    `source` là annotation gốc sinh ra nút này, `children()` là các nút con.
+    Hai thứ đó biến cây parse thành một **biểu diễn kiểm chứng được**: một test
+    ở tầng trừu tượng đi hết cây và so số con với số tham số kiểu của
+    `source`, nên "thêm một generic mới rồi hậu duệ của nó biến mất" là điều
+    KHÔNG lặng lẽ xảy ra được nữa (Review R1-A1 #2, §9).
+
+    `matches` trả bool; `label` để render thông báo.
+    """
+
+    __slots__ = ("label", "source")
 
     def matches(self, value: Any) -> bool:  # pragma: no cover - giao diện
         raise NotImplementedError
+
+    def children(self) -> tuple:
+        """Các nút con đã parse. Rỗng với nút lá."""
+        return ()
 
     def accepts_none(self) -> bool:
         return self.matches(None)
@@ -342,14 +380,30 @@ class _NoneSpec(_Spec):
 
 
 class _ClassSpec(_Spec):
-    """Một lớp cụ thể. Builtin vô hướng kiểm CHÍNH XÁC, còn lại `isinstance`."""
+    """Một lớp cụ thể. Builtin vô hướng kiểm CHÍNH XÁC, còn lại `isinstance`.
 
-    __slots__ = ("_target", "_exact")
+    `args` là các nút con ĐÃ PARSE của một generic có tham số
+    (`tuple[int, ...]` -> một con `int`). Chúng **không** được kiểm lúc chạy:
+    `matches()` chỉ khẳng định container ngoài cùng. Đó là ranh giới cố ý giữa
+    hai việc khác nhau —
 
-    def __init__(self, target: type) -> None:
+        PARSE ANNOTATION   (R1-A1): mọi nút trong cây phải được phân loại;
+        RUNTIME VALIDATION (R1-D) : có kiểm từng phần tử hay không.
+
+    R1-A1 chỉ đòi cái thứ nhất. Trước bản này `get_args()` bị VỨT BỎ hẳn, nên
+    `tuple[<TypeVar>]` decorate lọt — hậu duệ không hỗ trợ biến mất.
+    """
+
+    __slots__ = ("_target", "_exact", "_args")
+
+    def __init__(self, target: type, args: tuple = ()) -> None:
         self._target = target
         self._exact = target in _EXACT_TYPES
+        self._args = args
         self.label = _TYPE_NAMES.get(target, f"`{_hint_name(target)}`")
+
+    def children(self) -> tuple:
+        return self._args
 
     def matches(self, value: Any) -> bool:
         if self._exact:
@@ -389,6 +443,9 @@ class _UnionSpec(_Spec):
         self._branches = branches
         self.label = " hoặc ".join(b.label for b in branches)
 
+    def children(self) -> tuple:
+        return self._branches
+
     def matches(self, value: Any) -> bool:
         return any(branch.matches(value) for branch in self._branches)
 
@@ -396,8 +453,70 @@ class _UnionSpec(_Spec):
         return any(branch.has_exact_scalar() for branch in self._branches)
 
 
+def _prove_instancecheck_usable(target: type, where: str) -> None:
+    """CHỨNG MINH tại decoration rằng `isinstance()` dùng được với `target`.
+
+    Review R1-A1 #2 (P2): `isinstance(target, type)` là `True` cho `TypedDict`,
+    cho `Protocol` không `runtime_checkable`, và cho họ `typing.IO` — nhưng ba
+    nhóm đó KHÔNG dùng được với `isinstance()`. Hai nhóm đầu làm `isinstance()`
+    NỔ `TypeError` thô; đo tại `44018e3`, lỗi đó rò ra ngay lúc decorate, tức là
+    framework tự vỡ chứ không đưa ra một tuyên bố.
+
+    Phép thử dưới đây là **tổng quát**: nó không liệt kê construct nào, nó hỏi
+    thẳng câu hỏi cần hỏi — "chiến lược runtime của tôi có chạy với target này
+    không?". Nhờ vậy nó bắt được cả những construct chưa tồn tại lúc viết dòng
+    này (`__instancecheck__` tuỳ biến, protocol tương lai…).
+
+    `try/except` ở đây KHÔNG nuốt lỗi: nó biến lỗi thành một `raise` to hơn,
+    ngay lúc import.
+    """
+    for probe in _INSTANCECHECK_PROBES:
+        try:
+            isinstance(probe, target)
+        except Exception as exc:  # noqa: BLE001
+            raise CanonicalContractViolation(
+                f"{where}: `isinstance()` không dùng được với "
+                f"`{_hint_name(target)}` ({type(exc).__name__}: {exc}). Chiến "
+                "lược kiểm runtime của canonical là `isinstance`, nên một "
+                "target không chịu được `isinstance` thì framework KHÔNG bảo "
+                "đảm được gì — và điều đó phải nổ lúc import, không phải rò ra "
+                "một `TypeError` thô lúc dựng object."
+            ) from exc
+
+
+def _parse_generic_args(target: Any, args: tuple, where: str) -> tuple:
+    """Parse MỌI tham số kiểu của một generic thành nút con.
+
+    Không tham số nào được bỏ qua im lặng. Một phần tử không parse được — một
+    `list` (hình dạng tham số của `Callable`), một `Ellipsis` đứng sai chỗ, một
+    `ParamSpec`, một `Unpack` — rơi vào nhánh `raise` cuối của `_build_spec()`.
+
+    Ngoại lệ ngữ pháp DUY NHẤT: `tuple[X, ...]`. Ở đó `Ellipsis` là cú pháp của
+    chính Python cho "tuple đồng nhất, độ dài bất kỳ", không phải một kiểu.
+    """
+    if target is tuple and len(args) == 2 and args[1] is Ellipsis:
+        return (_build_spec(args[0], f"{where}[0]"),)
+    return tuple(_build_spec(arg, f"{where}[{i}]") for i, arg in enumerate(args))
+
+
 def _build_spec(hint: Any, where: str) -> _Spec:
-    """Đệ quy xuống ngữ pháp đóng. Nhánh cuối là `raise`, KHÔNG phải `return`."""
+    """Đệ quy xuống ngữ pháp đóng. Nhánh cuối là `raise`, KHÔNG phải `return`.
+
+    "Đóng" ở đây là đóng THEO CẢ CHIỀU SÂU: mọi nút con của mọi nút đều phải
+    được phân loại. Bản trước đóng đúng ở tầng ngoài cùng rồi quy generic có
+    tham số về `_ClassSpec(origin)` và vứt `get_args()` — nên lớp lỗi cũ chỉ
+    lùi xuống một tầng (Review R1-A1 #2, P1).
+    """
+    spec = _build_spec_node(hint, where)
+    # Chỉ gắn `source` cho nút VỪA dựng. Nhánh union một phần tử trả thẳng nút
+    # con ra ngoài; ghi đè `source` của nó sẽ làm cây parse tự mâu thuẫn với
+    # chính phép đếm tham số kiểu mà meta-invariant dùng để kiểm.
+    if not hasattr(spec, "source"):
+        spec.source = hint
+    return spec
+
+
+def _build_spec_node(hint: Any, where: str) -> _Spec:
     if hint is Any:
         return _AnySpec()
     if hint is None or hint is _NONE_TYPE:
@@ -418,7 +537,10 @@ def _build_spec(hint: Any, where: str) -> _Spec:
 
     if origin is typing.Union or (_UNION_TYPE is not None and origin is _UNION_TYPE):
         # `typing` đã làm phẳng union lồng nhau, kể cả `Optional[Union[...]]`.
-        branches = tuple(_build_spec(arg, where) for arg in typing.get_args(hint))
+        branches = tuple(
+            _build_spec(arg, f"{where}|{i}")
+            for i, arg in enumerate(typing.get_args(hint))
+        )
         if not branches:
             raise CanonicalContractViolation(f"{where}: union rỗng.")
         return branches[0] if len(branches) == 1 else _UnionSpec(branches)
@@ -433,16 +555,39 @@ def _build_spec(hint: Any, where: str) -> _Spec:
         )
 
     target = origin if origin is not None else hint
+
+    # `isinstance(target, type)` PHẢI đứng trước mọi phép tra tập hợp: một
+    # `target` không hash được (tham số dạng `[A, B]` của `Callable`) sẽ làm
+    # `x in frozenset(...)` nổ `TypeError: unhashable type` — đúng lớp lỗi rò
+    # mà P2 nói tới. Không hash được thì rơi thẳng xuống nhánh `raise` cuối.
     if isinstance(target, type):
-        return _ClassSpec(target)
+        if target in _UNSUPPORTED_ORIGINS:
+            raise CanonicalContractViolation(
+                f"{where}: họ `{_hint_name(target)}` chưa được hỗ trợ, kể cả "
+                "dạng trần. Hình dạng tham số của nó (`([A, B], R)` — phần tử "
+                "đầu là một list, hoặc `Ellipsis`) không giống bất kỳ generic "
+                "nào khác, nên hỗ trợ nửa vời sẽ tệ hơn từ chối rõ ràng."
+            )
+        if target in _ANNOTATION_ONLY_CLASSES:
+            raise CanonicalContractViolation(
+                f"{where}: `{_hint_name(target)}` là class CHỈ DÙNG ĐỂ CHÚ "
+                "THÍCH. Nó qua được `isinstance()` mà không nổ, nhưng trả "
+                "`False` cho mọi object thật — nên một field khai kiểu này sẽ "
+                "loại sạch giá trị hợp lệ. Hãy khai lớp cụ thể mà giá trị thật "
+                "sự thuộc về (ví dụ `io.TextIOBase` thay cho `typing.TextIO`)."
+            )
+        _prove_instancecheck_usable(target, where)
+        args = typing.get_args(hint) if origin is not None else ()
+        return _ClassSpec(target, _parse_generic_args(target, args, where))
 
     raise CanonicalContractViolation(
         f"{where}: annotation {hint!r} nằm NGOÀI ngữ pháp canonical, nên framework "
         "không bảo đảm được gì cho field này. Ngữ pháp hỗ trợ: `Any`, `None`, một "
-        "lớp cụ thể (kể cả generic có tham số), `Optional[...]`, `Union[...]` "
-        "(gồm cả dạng `a | b`), `Literal[...]`. Một annotation không hiểu được "
-        "PHẢI nổ ở đây chứ không được âm thầm thành `Any` — đó là Finding #1 của "
-        "Independent Review R1-A."
+        "lớp cụ thể (kể cả generic có tham số — MỌI tham số đều được parse), "
+        "`Optional[...]`, `Union[...]` (gồm cả dạng `a | b`), `Literal[...]`. "
+        "Một annotation không hiểu được PHẢI nổ ở đây chứ không được âm thầm "
+        "thành `Any` — đó là Finding #1 của Independent Review R1-A, và việc nó "
+        "phải đúng ở MỌI ĐỘ SÂU là Finding #2 của Independent Review R1-A1."
     )
 
 
@@ -480,6 +625,9 @@ def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], No
                 "gọi còn sửa được sau khi dựng."
             )
 
+    # Phơi cây parse ra để một test ở TẦNG TRỪU TƯỢNG đi hết được nó và chứng
+    # minh không nút nào bị bỏ rơi (R1-A1 #2, §9).
+    check.__canonical_spec__ = spec  # type: ignore[attr-defined]
     return check
 
 
@@ -597,9 +745,14 @@ def canonical(
 
         # ── Hợp đồng R1-A #2: phép kiểm field dẫn xuất từ annotation, cài tự
         # động, chạy ĐÚNG GIỮA hai pha (xem `_canonical_post_init`).
-        cls.__canonical_contract__ = _build_field_contract(  # type: ignore[attr-defined]
-            cls, field_error
-        )
+        #
+        # DỰNG TRƯỚC, GẮN SAU (R1-A1 #2, §6). Toàn bộ phép chứng minh — parse
+        # hết cây annotation, chứng minh `isinstance()` dùng được với từng
+        # target — chạy vào một biến CỤC BỘ. Chỉ khi mọi thứ đã chứng minh xong
+        # mới chạm vào class và mới ghi registry. Nhờ vậy một decoration thất
+        # bại để lại class NGUYÊN VẸN và registry KHÔNG ĐỔI: không có canonical
+        # type nào tồn tại ở trạng thái nửa vời.
+        contract = _build_field_contract(cls, field_error)
 
         user_post_init = cls.__post_init__
         # Một canonical subclass KHÔNG khai `__post_init__` riêng sẽ thừa kế
@@ -636,6 +789,9 @@ def canonical(
             user_post_init(self)
 
         _canonical_post_init.__canonical_wrapper__ = True  # type: ignore[attr-defined]
+
+        # ── TỪ ĐÂY TRỞ XUỐNG mới là ghi: mọi phép chứng minh đã xong ở trên.
+        cls.__canonical_contract__ = contract  # type: ignore[attr-defined]
         cls.__post_init__ = _canonical_post_init  # type: ignore[assignment]
 
         # ── Lớp 3: final ngoài module chủ.

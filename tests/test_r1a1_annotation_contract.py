@@ -39,6 +39,7 @@ from app.modules.domain.canonical import (
     canonical,
     canonical_types,
 )
+from app.modules.domain.canonical import _Spec, _build_spec  # noqa: F401
 from app.modules.domain.models import MAPPING_STATUS_UNMAPPED
 from app.modules.mapping.employee_mapper import MappingResult, RecordRef
 
@@ -52,6 +53,75 @@ SENTINEL = object()
 
 class Marker:
     """Lớp thường, đóng vai 'class reference' trong các case union."""
+
+
+# ── vật liệu cho P1 (hậu duệ generic) và P2 (class-like runtime)
+import abc as _abc  # noqa: E402
+import enum as _enum  # noqa: E402
+import re as _re  # noqa: E402
+
+TS = typing.TypeVarTuple("TS")
+PS = typing.ParamSpec("PS")
+REPattern = _re.Pattern
+
+
+class TD(typing.TypedDict):
+    a: int
+
+
+class TDPartial(typing.TypedDict, total=False):
+    a: int
+
+
+class ProtoPlain(typing.Protocol):
+    def f(self) -> None: ...
+
+
+@typing.runtime_checkable
+class ProtoRuntime(typing.Protocol):
+    def f(self) -> None: ...
+
+
+@typing.runtime_checkable
+class ProtoData(typing.Protocol):
+    x: int
+
+
+class Impl:
+    """Thoả cả `ProtoRuntime` lẫn `ProtoData`."""
+
+    x = 1
+
+    def f(self) -> None:
+        return None
+
+
+class _EvilMeta(type):
+    def __instancecheck__(cls, obj):
+        raise RuntimeError("__instancecheck__ nổ")
+
+
+class EvilInstanceCheck(metaclass=_EvilMeta):
+    pass
+
+
+class NTuple(typing.NamedTuple):
+    a: int
+
+
+class Shade(_enum.Enum):
+    RED = 1
+
+
+BoxT = typing.TypeVar("BoxT")
+
+
+class Box(typing.Generic[BoxT]):
+    pass
+
+
+class PlainABC(_abc.ABC):
+    pass
 
 
 def build(annotation):
@@ -288,3 +358,251 @@ def test_optional_recordref_label_still_names_the_type():
     with pytest.raises(CanonicalFieldError, match="RecordRef"):
         MappingResult(normalized="Ly", status="mapped", default_lead_source=None,
                       include_in_kpi=None, group="SALES", record="not-a-RecordRef")
+
+
+# ══════════════════════ P1 — HẬU DUỆ GENERIC (Review R1-A1 #2)
+#
+# Ngữ pháp đóng ở tầng ngoài cùng là chưa đủ: bản trước quy mọi generic có tham
+# số về `_ClassSpec(origin)` và VỨT BỎ `get_args()`, nên lớp lỗi cũ chỉ lùi
+# xuống một tầng. `tuple[<TypeVar>]` decorate lọt.
+#
+# PHẠM VI: các test này khẳng định parser HIỂU và PHÂN LOẠI mọi nút. Việc có
+# kiểm từng phần tử lúc chạy hay không là R1-D — xem
+# `test_p1_boundary_parsing_is_not_element_validation`.
+
+_UNSUPPORTED_DESCENDANTS = [
+    ("tuple[TypeVar]", tuple[T_CONSTRAINED]),
+    ("tuple[Final[int]]", tuple[typing.Final[int]]),
+    ("tuple[Literal[1.5]]", tuple[Literal[1.5]]),
+    ("tuple[NoReturn]", tuple[typing.NoReturn]),
+    ("Callable[[TypeVar], int]", typing.Callable[[T_CONSTRAINED], int]),
+    ("list[TypeVar]", list[T_CONSTRAINED]),
+    ("dict[str, TypeVar]", dict[str, T_CONSTRAINED]),
+    ("tuple[Union[int, TypeVar], ...]", tuple[Union[int, T_CONSTRAINED], ...]),
+    ("tuple[Annotated[TypeVar, 'x']]", tuple[typing.Annotated[T_CONSTRAINED, "x"]]),
+    ("Optional[tuple[TypeVar]]", Optional[tuple[T_CONSTRAINED]]),
+    ("Union[int, tuple[TypeVar]]", Union[int, tuple[T_CONSTRAINED]]),
+    ("Callable[[int], TypeVar]", typing.Callable[[int], T_CONSTRAINED]),
+    ("Callable[..., TypeVar]", typing.Callable[..., T_CONSTRAINED]),
+    # Sâu hơn — do chính lượt repair này tìm thêm.
+    ("dict[str, tuple[Final[int]]]", dict[str, tuple[typing.Final[int]]]),
+    ("tuple[tuple[tuple[NoReturn]]]", tuple[tuple[tuple[typing.NoReturn]]]),
+    ("frozenset[TypeVar]", frozenset[T_CONSTRAINED]),
+    ("tuple[Callable[[TypeVar], int], ...]",
+     tuple[typing.Callable[[T_CONSTRAINED], int], ...]),
+    ("Optional[dict[str, Literal[1.5]]]", Optional[dict[str, Literal[1.5]]]),
+    ("tuple[Unpack[TypeVarTuple]]", tuple[typing.Unpack[TS]]),
+    ("Callable[ParamSpec, int]", typing.Callable[PS, int]),
+    # Target KHÔNG HASH ĐƯỢC. Tìm ra khi tự soát lại bản sửa của chính lượt
+    # này: phép tra `target in <frozenset chính sách>` nổ `TypeError:
+    # unhashable type` với một tham số dạng list — đúng lớp lỗi rò mà P2 nói
+    # tới, do chính bản vá tạo ra. Nay `isinstance(target, type)` đứng trước
+    # mọi phép tra tập hợp.
+    ("tuple[[int]]", tuple[[int]]),
+    ("dict[str, [int]]", dict[str, [int]]),
+    ("tuple[[int], str]", tuple[[int], str]),
+]
+
+
+@pytest.mark.parametrize("label, annotation", _UNSUPPORTED_DESCENDANTS,
+                         ids=[label for label, _ in _UNSUPPORTED_DESCENDANTS])
+def test_p1_an_unsupported_descendant_is_refused_at_decoration(label, annotation):
+    """Không tham số kiểu nào được bỏ qua im lặng, ở BẤT KỲ độ sâu nào."""
+    with pytest.raises(CanonicalContractViolation):
+        build(annotation)
+
+
+@pytest.mark.parametrize("annotation, good, bad", [
+    (tuple[int, ...], [(), (1, 2)], [[], 5, None]),
+    (tuple[()], [(), (1,)], [[], 5, None]),
+    (tuple[int], [(), (1,), ("a",)], [[], 5, None]),
+    (dict[str, int], [], [{}, 5, None]),
+    (frozenset[int], [frozenset(), frozenset({1})], [set(), 5, None]),
+])
+def test_p1_supported_generics_keep_working(annotation, good, bad):
+    """Đóng hậu duệ không được làm hỏng generic hợp lệ."""
+    for value in good:
+        assert accepts(annotation, value), f"{annotation}: {value!r} phải được nhận"
+    for value in bad:
+        assert not accepts(annotation, value), f"{annotation}: {value!r} phải bị loại"
+
+
+def test_p1_boundary_parsing_is_not_element_validation():
+    """RANH GIỚI R1-A1 / R1-D, đóng đinh tường minh.
+
+    `tuple[int]` phải PARSE được — nút con `int` được phân loại — nhưng R1-A1
+    **không** kiểm từng phần tử lúc chạy. Nếu ai đó sửa điều này, họ đang làm
+    R1-D, không phải R1-A1."""
+    spec = _build_spec(tuple[int], "`value`")
+    assert len(spec.children()) == 1
+    assert accepts(tuple[int], ("không phải int",))
+
+
+def test_p1_the_ellipsis_in_a_variadic_tuple_is_grammar_not_a_type():
+    """`tuple[X, ...]` hợp lệ; `Ellipsis` ở chỗ khác thì không."""
+    assert len(_build_spec(tuple[int, ...], "`value`").children()) == 1
+    with pytest.raises(CanonicalContractViolation):
+        build(typing.Callable[..., int])
+
+
+@pytest.mark.parametrize("annotation", [
+    typing.Callable, typing.Callable[[], None], typing.Callable[..., int],
+    typing.Callable[[int, str], None],
+])
+def test_p1_the_callable_family_is_refused_entirely(annotation):
+    """Hình dạng tham số của `Callable` (`([A, B], R)` — phần tử đầu là một
+    list) không giống generic nào khác. Từ chối CẢ HỌ, kể cả dạng trần, là kết
+    quả hợp lệ và tốt hơn hỗ trợ nửa vời."""
+    with pytest.raises(CanonicalContractViolation, match="Callable"):
+        build(annotation)
+
+
+# ══════════════════ P2 — CLASS-LIKE KHÔNG AN TOÀN CHO `isinstance`
+
+@pytest.mark.parametrize("label, target", [
+    ("TypedDict", TD),
+    ("TypedDict(total=False)", TDPartial),
+    ("Protocol không runtime_checkable", ProtoPlain),
+    ("typing.Protocol trần", typing.Protocol),
+    ("metaclass __instancecheck__ nổ", EvilInstanceCheck),
+], ids=lambda v: v if isinstance(v, str) else "")
+def test_p2_isinstance_unsafe_targets_are_refused_with_a_contract_violation(label, target):
+    """Đo tại `44018e3`: những target này làm `isinstance()` NỔ, và lỗi đó rò
+    ra dưới dạng `TypeError`/`RuntimeError` THÔ ngay lúc decorate — framework
+    tự vỡ chứ không đưa ra tuyên bố. Nay là một `CanonicalContractViolation`."""
+    with pytest.raises(CanonicalContractViolation, match="isinstance"):
+        build(target)
+
+
+@pytest.mark.parametrize("label, annotation", [
+    ("typing.IO[str]", typing.IO[str]),
+    ("typing.IO", typing.IO),
+    ("typing.TextIO", typing.TextIO),
+    ("typing.BinaryIO", typing.BinaryIO),
+    ("typing.Generic", typing.Generic),
+], ids=lambda v: v if isinstance(v, str) else "")
+def test_p2_annotation_only_classes_are_refused(label, annotation):
+    """Nhóm này KHÔNG làm `isinstance()` nổ — nó trả `False` cho mọi object
+    thật. Không phép thử runtime nào phát hiện được, nên đây là một chính sách
+    được TUYÊN BỐ và test này là thứ canh nó."""
+    with pytest.raises(CanonicalContractViolation, match="CHỈ DÙNG ĐỂ CHÚ THÍCH"):
+        build(annotation)
+
+
+@pytest.mark.parametrize("label, annotation, good, bad", [
+    ("Protocol runtime_checkable", ProtoRuntime, [Impl()], [5, None]),
+    ("Protocol runtime_checkable có data", ProtoData, [Impl()], [5, None]),
+    ("typing.SupportsInt", typing.SupportsInt, [5], [SENTINEL]),
+    ("NamedTuple", NTuple, [NTuple(a=1)], [5]),
+    ("Enum", Shade, [Shade.RED], [1, "RED"]),
+    ("abc.ABC subclass", PlainABC, [], [5, None]),
+    ("re.Pattern", REPattern, [_re.compile("x")], ["x", 5]),
+    ("generic người dùng (trần)", Box, [Box()], [5]),
+    ("generic người dùng có tham số", Box[int], [Box()], [5]),
+], ids=lambda v: v if isinstance(v, str) else "")
+def test_p2_runtime_safe_classes_stay_supported(label, annotation, good, bad):
+    """Mặt còn lại: siết chặt mà chặn luôn class hợp lệ thì không phải sửa."""
+    for value in good:
+        assert accepts(annotation, value), f"{label}: {value!r} phải được nhận"
+    for value in bad:
+        assert not accepts(annotation, value), f"{label}: {value!r} phải bị loại"
+
+
+# ══════════════════════════ META-INVARIANT (§9)
+
+def _walk(spec):
+    yield spec
+    for child in spec.children():
+        yield from _walk(child)
+
+
+def _type_position_args(hint):
+    """TÍNH LẠI ĐỘC LẬP số tham số ở vị trí kiểu của một annotation.
+
+    Không gọi hàm nào của parser — nếu không thì phép kiểm sẽ vòng tròn."""
+    origin = typing.get_origin(hint)
+    if origin is None:
+        return []
+    if origin is Literal:
+        return []          # tham số của Literal là GIÁ TRỊ, không phải kiểu
+    args = list(typing.get_args(hint))
+    if origin is tuple and len(args) == 2 and args[1] is Ellipsis:
+        return args[:1]    # `tuple[X, ...]`: Ellipsis là cú pháp
+    return args
+
+
+@pytest.mark.parametrize("cls", [c for c in canonical_types()
+                                 if c.__module__.startswith("app.")],
+                         ids=lambda c: c.__name__)
+def test_meta_every_node_of_every_production_spec_tree_is_classified(cls):
+    """Bất biến ở TẦNG TRỪU TƯỢNG, không phải một inventory typing thủ công:
+
+        mọi nút trong cây annotation đã parse đều là một `_Spec`,
+        và số nút con bằng số tham số ở vị trí kiểu của `source`.
+
+    Vế thứ hai được tính lại từ `typing.get_args()` một cách độc lập, nên nó
+    bắt được đúng lớp lỗi "thêm một generic mới → hậu duệ tự biến mất"."""
+    for _, check in cls.__canonical_contract__:
+        spec = check.__canonical_spec__
+        for node in _walk(spec):
+            assert isinstance(node, _Spec), f"{cls.__name__}: nút {node!r} không phải _Spec"
+            assert hasattr(node, "source"), f"{cls.__name__}: nút {node!r} thiếu `source`"
+            expected = _type_position_args(node.source)
+            assert len(node.children()) == len(expected), (
+                f"{cls.__name__}: {node.source!r} có {len(expected)} tham số kiểu "
+                f"nhưng cây parse chỉ giữ {len(node.children())} nút con"
+            )
+
+
+@pytest.mark.parametrize("depth", [1, 2, 3, 4])
+def test_meta_an_unsupported_descendant_is_caught_at_any_depth(depth):
+    """Bằng chứng cho "annotation thêm sau này": bất biến không phụ thuộc việc
+    liệt kê đủ construct hôm nay, mà phụ thuộc nhánh `raise` cuối của parser."""
+    annotation = T_CONSTRAINED
+    for _ in range(depth):
+        annotation = tuple[annotation]
+    with pytest.raises(CanonicalContractViolation, match="TypeVar"):
+        build(annotation)
+
+
+def test_meta_only_contract_violations_escape_decoration():
+    """Không construct thù địch nào được làm framework nổ bằng lỗi NGOÀI từ
+    vựng của nó. Đây là phát biểu tổng quát của P2."""
+    hostile = [a for _, a in _UNSUPPORTED_DESCENDANTS] + [
+        TD, TDPartial, ProtoPlain, typing.Protocol, EvilInstanceCheck,
+        typing.IO, typing.IO[str], typing.TextIO, typing.BinaryIO, typing.Generic,
+        typing.Callable, typing.Final[int], typing.NoReturn, typing.Self,
+        typing.Optional, T_CONSTRAINED, T_BOUND, Literal[1.5], 42, "KhongTonTai",
+    ]
+    for annotation in hostile:
+        try:
+            build(annotation)
+        except CanonicalContractViolation:
+            continue
+        except Exception as exc:  # noqa: BLE001
+            pytest.fail(f"{annotation!r} nổ bằng {type(exc).__name__} thô: {exc}")
+        else:
+            pytest.fail(f"{annotation!r} decorate lọt — UNKNOWN đã thành ANY")
+
+
+# ══════════════════════════ ATOMICITY (§6)
+
+def test_a_failed_decoration_leaves_registry_and_class_untouched():
+    """Decoration thất bại không được để lại một canonical type nửa vời."""
+    before_registry = len(canonical_types())
+
+    @dataclass(frozen=True)
+    class Half:
+        value: tuple[T_CONSTRAINED]
+
+        def __post_init__(self) -> None:
+            pass
+
+    before_attrs = set(vars(Half))
+    with pytest.raises(CanonicalContractViolation):
+        canonical()(Half)
+
+    assert len(canonical_types()) == before_registry
+    assert set(vars(Half)) == before_attrs
+    assert not hasattr(Half, "__canonical_contract__")
+    assert not getattr(Half, "__canonical__", False)
