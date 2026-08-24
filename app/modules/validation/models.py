@@ -161,14 +161,13 @@ class AffectedRow:
     raw_original: str = ""
     when: Optional[date] = None
 
-    def __post_init__(self) -> None:
-        # LỚP 1 (R1). Không còn `_seal` để kiểm: cổng dựng nằm ở `__new__` và
-        # KHÔNG phải một field, nên `dataclasses.replace(row, source_row=99999)`
-        # không mượn được nó nữa. Chỗ này chỉ còn luật giá trị.
-        if type(self.source_row) is not int:
-            raise TypeError(
-                f"source_row phải là int thuần, gặp {self.source_row!r}."
-            )
+    def __canonical_coerce__(self) -> None:
+        """PHA 1 — ép kiểu ở biên (R1-A).
+
+        Ép chứ không nổ: những field này mang dữ liệu của một DÒNG GIAO DỊCH,
+        và §18 đặc tả cấm một dòng thô méo mó làm gãy cả lượt import. Sau pha
+        này hợp đồng field (pha 2) mới khẳng định kiểu.
+        """
         if self.source_file is not None:
             object.__setattr__(self, "source_file", as_exact_str(self.source_file))
         object.__setattr__(self, "raw_original", as_exact_str(self.raw_original))
@@ -176,6 +175,19 @@ class AffectedRow:
             object.__setattr__(
                 self, "when", as_exact_date(self.when, "AffectedRow.when")
             )
+
+    def __post_init__(self) -> None:
+        """PHA 3 — bất biến ngữ nghĩa.
+
+        Không còn phép kiểm nào ở đây: `source_row` phải là `int` thuần và
+        `source_file`/`raw_original` phải là `str` thuần nay do HỢP ĐỒNG FIELD
+        khẳng định, dẫn từ chính annotation của class (R1-A). Cổng dựng nằm ở
+        `__new__` và không phải một field, nên `replace(row, source_row=99999)`
+        không mượn được nó.
+
+        Provenance của một dòng thô không có bất biến ngữ nghĩa nào vượt ra
+        ngoài kiểu — mọi tổ hợp giá trị đúng kiểu đều là một dòng có thật.
+        """
 
     @classmethod
     def from_line(cls, line) -> "AffectedRow":
@@ -206,17 +218,21 @@ class AmbiguousRow(AffectedRow):
     raw_value: str = ""
     records: tuple = ()
 
-    def __post_init__(self) -> None:
+    def __canonical_coerce__(self) -> None:
         # Gọi TƯỜNG MINH, không dùng `super()` không tham số: `slots=True` làm
         # `@dataclass` TẠO LẠI class, còn cell `__class__` mà `super()` đọc vẫn
         # trỏ vào class cũ. Đây là hệ quả đã biết của `slots=True`, không phải
         # lựa chọn phong cách.
-        AffectedRow.__post_init__(self)
+        AffectedRow.__canonical_coerce__(self)
         object.__setattr__(self, "raw_value", as_exact_str(self.raw_value))
         # ÉP SANG TUPLE + SAO CHÉP (INVARIANT C). Truyền một list vào `records`
         # rồi sửa list đó từ bên ngoài từng làm đổi chuỗi `conflicting_records`
         # đã "dẫn xuất". Dẫn xuất từ dữ liệu mutable thì không phải dẫn xuất.
         object.__setattr__(self, "records", tuple(str(r) for r in self.records))
+
+    def __post_init__(self) -> None:
+        """PHA 3. Không có bất biến ngữ nghĩa riêng ngoài kiểu — xem
+        `AffectedRow.__post_init__`."""
 
     @classmethod
     def from_line(cls, line, raw_value: str, records) -> "AmbiguousRow":
@@ -253,25 +269,22 @@ class RowProvenance:
     rows: tuple = ()
     batch_scoped: bool = False
 
-    def __post_init__(self) -> None:
+    def __canonical_coerce__(self) -> None:
         # Review #6 P3: truyền một list vào `rows` rồi append vào list đó làm
         # `affected_count` nhảy từ 1 lên 2 SAU khi item đã dựng xong.
         # `frozen=True` chỉ cấm gán lại thuộc tính, không cấm sửa đối tượng nó
         # trỏ tới — nên ở biên phải SAO CHÉP, không chỉ kiểm tra.
         object.__setattr__(self, "rows", tuple(self.rows))
+
+    def __post_init__(self) -> None:
+        """PHA 3. `rows: tuple` và `batch_scoped: bool` đã do hợp đồng field
+        khẳng định (`bool` kiểm CHÍNH XÁC, nên một chuỗi truthy bị loại). Còn
+        lại một bất biến mà annotation không diễn đạt được: phần tử của tuple."""
         for row in self.rows:
             if not isinstance(row, AffectedRow):
                 raise TypeError(
                     f"provenance chỉ nhận AffectedRow, gặp {type(row).__name__}"
                 )
-        # `batch_scoped` chỉ đổi CÁCH RENDER, nhưng nó quyết định `source_row`
-        # trả `None` hay một số dòng thật, nên một giá trị truthy không phải
-        # bool là một câu trả lời mơ hồ cho một câu hỏi nhị phân (R1).
-        if type(self.batch_scoped) is not bool:
-            raise TypeError(
-                f"`batch_scoped` phải là bool thuần, gặp "
-                f"{type(self.batch_scoped).__name__} ({self.batch_scoped!r})."
-            )
 
     @classmethod
     def of(cls, rows=(), batch_scoped: bool = False) -> "RowProvenance":
@@ -418,7 +431,7 @@ class Diagnostics:
     auto_value: Optional[str] = None
     observed_value: Optional[str] = None
 
-    def __post_init__(self) -> None:
+    def __canonical_coerce__(self) -> None:
         # `str(...)` bắt buộc, không chỉ ép tuple: một lớp con của `str` với
         # `__str__` đổi theo lần gọi qua được mọi `isinstance` và làm `details`
         # trả giá trị khác nhau giữa hai lần đọc (Audit P4).
@@ -436,6 +449,11 @@ class Diagnostics:
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, int(value))
+
+    def __post_init__(self) -> None:
+        """PHA 3. Mọi trường ở đây là vô hướng có kiểu và không trường nào
+        diễn đạt được một tham chiếu dòng (đó là việc của `RowProvenance`), nên
+        không còn bất biến ngữ nghĩa nào ngoài kiểu — hợp đồng field đã lo."""
 
     def rendered(self) -> dict[str, str]:
         """Projection lúc render. KHÔNG được lưu ở đâu cả."""
@@ -543,7 +561,7 @@ class ReviewItem:
         merged.update(self.provenance.rendered_details())
         return MappingProxyType(merged)
 
-    def __post_init__(self) -> None:
+    def __canonical_coerce__(self) -> None:
         # Ép `str` thuần, cùng lý do đã ghi ở `Diagnostics`: một lớp con của
         # `str` với `__str__` đổi theo lần gọi qua được mọi `isinstance` và làm
         # cùng một field trả hai giá trị khác nhau giữa hai lần đọc (Audit P4).
@@ -551,6 +569,8 @@ class ReviewItem:
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, as_exact_str(value))
+
+    def __post_init__(self) -> None:
         if self.category not in CATEGORIES:
             raise ValueError(f"Unknown review category: {self.category!r}")
         if self.severity not in SEVERITIES:

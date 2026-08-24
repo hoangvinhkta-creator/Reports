@@ -79,6 +79,7 @@ from __future__ import annotations
 
 import functools
 import threading
+import typing
 from datetime import date, datetime as _datetime
 from collections.abc import Mapping
 from dataclasses import fields as _dataclass_fields
@@ -92,6 +93,25 @@ class SealedConstruction(TypeError):
 
     Đây là lỗi lập trình, không phải lỗi dữ liệu, nên nó nổ to thay vì trả về
     một object "gần đúng".
+    """
+
+
+class CanonicalContractViolation(TypeError):
+    """Một type được decorate ``@canonical`` nhưng không thoả hợp đồng canonical.
+
+    Nổ ở **thời điểm import**, không phải trong một test nào đó. Đây là điểm
+    mà Independent Review R1 (FAIL tại ``2be5bfe``) chỉ ra là còn thiếu:
+    ``@canonical`` khi đó là một *lời tuyên bố*, không phải một *hợp đồng* —
+    nó nhận ``RecordRef`` và ``MappingResult`` mà không đòi hỏi bằng chứng nào
+    rằng hai type đó có validate gì.
+    """
+
+
+class CanonicalFieldError(TypeError):
+    """Một field của canonical object không đúng kiểu đã khai, hoặc là một
+    container mutable.
+
+    Kế thừa ``TypeError`` để mọi consumer sẵn có bắt ``TypeError`` vẫn đúng.
     """
 
 
@@ -188,6 +208,159 @@ def factory_for(cls: type) -> Callable[[Callable], Callable]:
     return decorate
 
 
+# ────────────────────── Lớp 1b: hợp đồng field DẪN XUẤT TỪ ANNOTATION (R1-A)
+#
+# Independent Review R1 falsify được rằng `@canonical` chỉ ĐÁNH DẤU chứ không
+# BẢO ĐẢM: `RecordRef` và `MappingResult` mang decorator mà không có một phép
+# kiểm nào, nên `RecordRef(snapshot_id, -1, "forged")` dựng được và
+# `master.record(ref)` im lặng chọn employee CUỐI (Python negative index).
+#
+# Cách đóng không phải là viết thêm `__post_init__` cho hai type đó rồi coi là
+# xong — lần sau sẽ có type thứ ba. Cách đóng là để **framework tự sinh phép
+# kiểm field từ annotation mà type đã khai**. Annotation vốn đã có, đã được
+# đọc khi review, và không ai quên viết nó — nên nó là nguồn duy nhất đáng tin
+# để dẫn xuất hợp đồng.
+#
+# Ngữ nghĩa kiểm:
+#   Any               không kiểm kiểu (nhưng vẫn cấm container mutable)
+#   Optional[X]       None hoặc X
+#   builtin vô hướng  KIỂU CHÍNH XÁC (`type(v) is X`) — một lớp con của `str`
+#                     với `__str__` đổi theo lần gọi qua được mọi `isinstance`,
+#                     và `True` qua được mọi phép kiểm `int`
+#   class khác        `isinstance` — kế thừa ngoài module chủ đã bị Lớp 3 cấm,
+#                     nên subclass hợp lệ (AmbiguousRow) vẫn dùng được
+#   MỌI field         không được là container mutable (list/dict/set/bytearray)
+#
+# Bất biến NGỮ NGHĨA (`start <= end`, `status` thuộc enum nào, phần tử bên
+# trong một tuple) framework
+# không suy ra được, nên chúng vẫn ở `__post_init__` — và `@canonical` BẮT
+# BUỘC mọi type phải khai `__post_init__`, để "quên nghĩ về invariant" nổ lúc
+# import chứ không nằm im.
+
+# Kiểu vô hướng dựng sẵn: đây là bề mặt tấn công bằng lớp con, nên kiểm CHÍNH
+# XÁC. `bool` là lớp con của `int`, nên `type(v) is int` cũng loại luôn `True`.
+_EXACT_TYPES = (str, int, bool, float, bytes, complex, date)
+
+# Tên tiếng Việt của kiểu, dùng trong thông báo. Giữ đúng từ mà các thông báo
+# master data đã dùng từ trước ("chuỗi thuần", "boolean") để chúng vẫn là cùng
+# một câu chuyện với người đọc, và để bằng chứng cũ còn khớp.
+_TYPE_NAMES = {
+    str: "chuỗi thuần",
+    bool: "boolean",
+    int: "số nguyên thuần",
+    float: "số thực thuần",
+    bytes: "bytes thuần",
+    date: "ngày (`datetime.date`) thuần",
+}
+
+# Container mutable: cấm ở MỌI field, bất kể annotation. `frozen=True` chỉ cấm
+# gán lại thuộc tính, không cấm sửa đối tượng nó trỏ tới.
+_MUTABLE_CONTAINERS = (list, dict, set, bytearray)
+
+
+def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], None]:
+    """Dựng phép kiểm cho một field, MỘT LẦN, lúc decorate.
+
+    `error` là lớp ngoại lệ mà type khai — xem `canonical(field_error=...)`.
+    Master data hỏng phải nổ thành `InvalidEmployeeConfig`, không phải một
+    `TypeError` chung chung: lằn ranh "công cụ hỏng" ≠ "dữ liệu xấu" là một
+    quyết định nghiệp vụ (HD-110-09), không phải chi tiết cài đặt.
+    """
+    origin = typing.get_origin(hint)
+    optional = False
+    if origin is typing.Union:
+        args = [a for a in typing.get_args(hint) if a is not type(None)]
+        optional = len(args) < len(typing.get_args(hint))
+        if len(args) != 1:
+            # Union nhiều nhánh: chỉ kiểm container mutable, không đoán kiểu.
+            hint, origin = Any, None
+        else:
+            hint = args[0]
+            origin = typing.get_origin(hint)
+
+    target = origin or hint
+    exact = target in _EXACT_TYPES
+    checkable = isinstance(target, type)
+
+    label = _TYPE_NAMES.get(target, f"`{_hint_name(target)}`")
+
+    def check(value: Any, owner: str) -> None:
+        # KIỂU trước, MUTABLE sau: với một field khai `str` mà nhận `list`,
+        # "phải là chuỗi thuần" nói đúng vấn đề hơn "giữ container mutable".
+        if value is None:
+            if optional or target is Any:
+                return
+            raise error(
+                f"`{name}` không được là None (khai {_hint_name(hint)})."
+            )
+        if target is not Any and checkable:
+            if exact and type(value) is not target:
+                raise error(
+                    f"`{name}` phải là {label}, gặp {type(value).__name__} "
+                    f"({value!r}). Kiểm CHÍNH XÁC chứ không `isinstance`: một "
+                    "lớp con của `str` đổi giá trị giữa hai lần đọc, và `True` "
+                    "là một `int` hợp lệ."
+                )
+            if not exact and not isinstance(value, target):
+                raise error(
+                    f"`{name}` phải là {label}, gặp {type(value).__name__} "
+                    f"({value!r})."
+                )
+        if isinstance(value, _MUTABLE_CONTAINERS):
+            raise error(
+                f"`{name}` giữ một container mutable ({type(value).__name__}). "
+                "Một canonical object bất biến không được giữ alias mà người "
+                "gọi còn sửa được sau khi dựng."
+            )
+
+    return check
+
+
+def _hint_name(hint: Any) -> str:
+    return getattr(hint, "__name__", str(hint))
+
+
+def _build_field_contract(cls: type, error: type) -> tuple:
+    """Đọc annotation của class MỘT LẦN và dựng danh sách phép kiểm."""
+    try:
+        hints = typing.get_type_hints(cls)
+    except Exception as exc:  # noqa: BLE001
+        raise CanonicalContractViolation(
+            f"{cls.__name__}: không phân giải được annotation nên không dẫn "
+            f"xuất được hợp đồng field ({exc}). Một canonical type mà framework "
+            "không đọc nổi kiểu thì không thể tự bảo đảm gì."
+        ) from exc
+
+    checks = []
+    for fld in _dataclass_fields(cls):
+        if fld.name not in hints:
+            raise CanonicalContractViolation(
+                f"{cls.__name__}.{fld.name}: thiếu annotation, nên không dẫn "
+                "xuất được phép kiểm."
+            )
+        checks.append((fld.name, _field_checker(fld.name, hints[fld.name], error)))
+    return tuple(checks)
+
+
+# ─────────────────────────────────────────── Registry TỰ ĐỘNG (R1-A)
+#
+# Inventory viết tay là nguồn drift thứ hai mà Review R1 chỉ ra: oracle liệt kê
+# 9 type trong khi 11 type mang `@canonical`, và hai type bị bỏ sót đúng là hai
+# type không validate gì. Registry này do chính decorator ghi, nên không có
+# danh sách nào để quên cập nhật.
+
+_REGISTRY: list = []
+
+
+def canonical_types() -> tuple:
+    """Mọi type đã được `@canonical` nhận, theo thứ tự khai báo."""
+    return tuple(_REGISTRY)
+
+
+def sealed_canonical_types() -> tuple:
+    return tuple(c for c in _REGISTRY if getattr(c, "__canonical_sealed__", False))
+
+
 # ───────────────────────────────────────────────── Lớp 4: copy / deepcopy / pickle
 
 
@@ -199,7 +372,9 @@ def _rebuild_canonical(cls: type, values: dict) -> Any:
 # ────────────────────────────────────────────────────────── decorator chính
 
 
-def canonical(*, sealed: bool = False) -> Callable[[type], type]:
+def canonical(
+    *, sealed: bool = False, field_error: type = CanonicalFieldError
+) -> Callable[[type], type]:
     """Đóng một frozen dataclass thành canonical type.
 
     ``sealed=False`` — kiểu tự validate và FINAL, nhưng constructor vẫn công
@@ -210,6 +385,23 @@ def canonical(*, sealed: bool = False) -> Callable[[type], type]:
     **nguồn gốc**: một ``AffectedRow`` "đúng cấu trúc" nhưng trỏ vào dòng
     99999 của một file không tồn tại vẫn là provenance bịa, và không field nào
     diễn đạt được điều đó.
+
+    **Hợp đồng bắt buộc (R1-A).** Decorator từ chối class nếu:
+
+    * không phải ``@dataclass(frozen=True)``;
+    * không khai ``__post_init__`` (của chính nó hoặc thừa kế từ một canonical
+      base) — bất biến ngữ nghĩa framework không suy ra được, nên "quên nghĩ
+      về invariant" phải nổ lúc import chứ không nằm im;
+    * có field không phân giải được annotation.
+
+    Và nó **tự cài** phép kiểm field dẫn xuất từ annotation cho MỌI canonical
+    type. Nhờ vậy một canonical type mới được bảo vệ đầy đủ mà tác giả không
+    phải nhớ gì; ``__post_init__`` chỉ còn lo phần ngữ nghĩa.
+
+    ``field_error`` — lớp ngoại lệ cho vi phạm field. Mặc định
+    ``CanonicalFieldError``. Master data khai ``InvalidEmployeeConfig``: lằn
+    ranh "công cụ hỏng" ≠ "dữ liệu giao dịch xấu" (HD-110-09) là một quyết
+    định nghiệp vụ, nên nó phải giữ được từ vựng lỗi của chính nó.
     """
 
     def decorate(cls: type) -> type:
@@ -222,6 +414,62 @@ def canonical(*, sealed: bool = False) -> Callable[[type], type]:
 
         home = cls.__module__
         label = cls.__name__
+
+        # ── Hợp đồng R1-A #1: phải có validator ngữ nghĩa được khai tường minh.
+        if not hasattr(cls, "__post_init__"):
+            raise CanonicalContractViolation(
+                f"{label} mang @canonical nhưng không khai `__post_init__`. "
+                "Framework tự kiểm được KIỂU của từng field (dẫn từ annotation) "
+                "nhưng KHÔNG suy ra được bất biến ngữ nghĩa — `start <= end`, "
+                "`status` thuộc enum nào, `record` phải nhất quán với `status`. "
+                "Nếu type này thật sự không có bất biến ngữ nghĩa nào, hãy khai "
+                "`def __post_init__(self) -> None:` với thân rỗng và một câu giải "
+                "thích: một dòng nhìn thấy được trong code review, thay cho một "
+                "khoảng lặng. Đây là finding R1-A của Independent Review R1."
+            )
+
+        # ── Hợp đồng R1-A #2: phép kiểm field dẫn xuất từ annotation, cài tự
+        # động, chạy ĐÚNG GIỮA hai pha (xem `_canonical_post_init`).
+        cls.__canonical_contract__ = _build_field_contract(  # type: ignore[attr-defined]
+            cls, field_error
+        )
+
+        user_post_init = cls.__post_init__
+        # Một canonical subclass KHÔNG khai `__post_init__` riêng sẽ thừa kế
+        # bản ĐÃ BỌC của lớp cha. Bọc chồng lên nó là chạy hai lần pha ép kiểu
+        # và hai lần hợp đồng. Gỡ về hàm gốc của tác giả: phần ngữ nghĩa của
+        # lớp cha vẫn chạy, còn hợp đồng của lớp con đã phủ mọi field (kể cả
+        # field thừa kế).
+        while getattr(user_post_init, "__canonical_wrapper__", False):
+            user_post_init = user_post_init.__wrapped__
+
+        @functools.wraps(user_post_init)
+        def _canonical_post_init(self: Any) -> None:
+            """Ba pha, đúng thứ tự này và framework giữ thứ tự đó:
+
+            1. **ép kiểu** (`__canonical_coerce__`, nếu type khai) — biên nhận
+               dữ liệu dòng giao dịch phải ÉP chứ không nổ (§18 đặc tả: một
+               dòng thô méo mó không được làm gãy cả lượt import);
+            2. **hợp đồng field** — khẳng định kiểu và tính bất biến của trạng
+               thái SAU khi ép;
+            3. **bất biến ngữ nghĩa** (`__post_init__` của chính type).
+
+            Thứ tự này là điều khiến pha 3 được phép GIẢ ĐỊNH kiểu đã đúng.
+            Trước R1-A, `RecordRef.__post_init__` chạy trên dữ liệu chưa kiểm
+            nên `RecordRef(sid, "0", "x")` nổ `TypeError: '<' not supported
+            between instances of 'str' and 'int'` — một lỗi của trình thông
+            dịch rò ra từ bên trong validator, không phải một lỗi domain.
+            """
+            coerce = getattr(type(self), "__canonical_coerce__", None)
+            if coerce is not None:
+                coerce(self)
+            owner = type(self).__name__
+            for name, check in type(self).__canonical_contract__:
+                check(getattr(self, name), owner)
+            user_post_init(self)
+
+        _canonical_post_init.__canonical_wrapper__ = True  # type: ignore[attr-defined]
+        cls.__post_init__ = _canonical_post_init  # type: ignore[assignment]
 
         # ── Lớp 3: final ngoài module chủ.
         def _reject_subclass(subcls: type, **kwargs: Any) -> None:
@@ -282,6 +530,7 @@ def canonical(*, sealed: bool = False) -> Callable[[type], type]:
         cls.__deepcopy__ = lambda self, memo: self  # type: ignore[assignment]
         cls.__canonical__ = True  # type: ignore[attr-defined]
         cls.__canonical_sealed__ = sealed  # type: ignore[attr-defined]
+        _REGISTRY.append(cls)
         return cls
 
     return decorate
@@ -391,6 +640,8 @@ def as_exact_date(value: Any, where: str):
 
 
 __all__ = [
+    "CanonicalContractViolation",
+    "CanonicalFieldError",
     "CanonicalSubclassRejected",
     "FrozenCounter",
     "FrozenMapping",
@@ -398,6 +649,8 @@ __all__ = [
     "as_exact_date",
     "as_exact_str",
     "canonical",
+    "canonical_types",
     "factory_for",
     "frozen_tuple_map",
+    "sealed_canonical_types",
 ]

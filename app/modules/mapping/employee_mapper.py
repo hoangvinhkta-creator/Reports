@@ -75,6 +75,7 @@ from app.modules.domain.models import (
     MAPPING_STATUS_INACTIVE,
     MAPPING_STATUS_MAPPED,
     MAPPING_STATUS_UNMAPPED,
+    MAPPING_STATUSES,
     WorkingLine,
 )
 
@@ -118,16 +119,55 @@ class RecordRef:
 
     `label` CHỈ để render cho người đọc. Nó không bao giờ được dùng làm khoá
     tra cứu — làm vậy là quay đúng về danh tính theo giá trị đã bị loại bỏ.
+
+    **R1-A.** Trước đây type này mang `@canonical` mà không kiểm gì, nên
+    `RecordRef(master.snapshot_id, -1, "forged")` dựng được và
+    `master.record(ref)` IM LẶNG trả về employee CUỐI — Python negative
+    indexing. Vì `employee_group` là một chiều tra tỉ lệ quy đổi, "một nhân
+    viên khác" là "một tỉ lệ khác", tức là tiền.
     """
 
     snapshot_id: str
     index: int
     label: str
 
+    def __post_init__(self) -> None:
+        # Kiểu của ba field do hợp đồng framework kiểm (dẫn từ annotation).
+        # Chỗ này chỉ còn bất biến NGỮ NGHĨA.
+        #
+        # `index` là vị trí trong `EmployeeMaster.records`, luôn sinh từ
+        # `enumerate()`, nên nó KHÔNG BAO GIỜ âm. Một `index` âm không phải
+        # "ngoài range" theo nghĩa Python — nó là một vị trí HỢP LỆ trỏ vào
+        # employee khác, và đó mới là điều nguy hiểm.
+        if self.index < 0:
+            raise ValueError(
+                f"RecordRef.index không được âm (gặp {self.index}). Index âm là "
+                "một vị trí hợp lệ với Python và sẽ IM LẶNG chọn một employee "
+                "khác — `employee_group` là chiều tra tỉ lệ quy đổi, nên đó là "
+                "một tỉ lệ khác (R1-A)."
+            )
+        # Cận trên cần biết master nên nó thuộc về `EmployeeMaster.record()`.
+        if not self.snapshot_id:
+            raise ValueError(
+                "RecordRef.snapshot_id rỗng — một ref không nêu được nó thuộc "
+                "master nào thì không phải danh tính. Định dạng của "
+                "`snapshot_id` là việc của R6, không kiểm ở đây."
+            )
+        if not self.label:
+            raise ValueError("RecordRef.label rỗng — không render được cho người đọc.")
+
 
 @canonical()
 @dataclass(frozen=True, slots=True)
 class MappingResult:
+    """Kết quả của MỘT phép map raw `NVBH` -> employee.
+
+    **R1-A.** Trước đây type này mang `@canonical` mà không kiểm gì, nên
+    `MappingResult(status="NOT_A_MAPPING_STATUS", record="not-a-RecordRef",
+    normalized=[])` dựng được — và `status` đi thẳng vào
+    `WorkingLine.employee_mapping_status`, tức là vào dữ liệu nghiệp vụ.
+    """
+
     normalized: Optional[str]
     status: str
     default_lead_source: Optional[str]
@@ -136,6 +176,52 @@ class MappingResult:
     # Record mà phép chọn đã dừng lại. `None` khi không khớp gì. Thêm vào ở
     # Review #5 và KHÔNG ảnh hưởng trường nghiệp vụ nào phía trên.
     record: Optional[RecordRef] = None
+
+    def __post_init__(self) -> None:
+        # Kiểu từng field do hợp đồng framework kiểm. Chỗ này chỉ còn ngữ nghĩa.
+        if self.status not in MAPPING_STATUSES:
+            raise ValueError(
+                f"MappingResult.status {self.status!r} không thuộc "
+                f"{MAPPING_STATUSES}. Giá trị này đi thẳng vào "
+                "`WorkingLine.employee_mapping_status`, nên một status bịa là "
+                "dữ liệu nghiệp vụ sai chứ không chỉ là một chuỗi xấu."
+            )
+        # Nhất quán giữa các field. Ràng buộc CÓ CHỦ ĐÍCH BẤT ĐỐI XỨNG, theo
+        # đúng ngữ nghĩa mà chính codebase đã khai cho `record`: nó là một bổ
+        # sung CHẨN ĐOÁN của Review #5 và "KHÔNG ảnh hưởng trường nghiệp vụ nào
+        # phía trên" (comment ngay tại field). Nên:
+        #
+        #   record có mặt  =>  raw value CHẮC CHẮN đã khớp một record, tức là
+        #                      status không thể là `unmapped`;
+        #   record vắng    =>  KHÔNG kết luận gì — một `MappingResult` có thể
+        #                      không mang con trỏ chẩn đoán mà vẫn hợp lệ.
+        #
+        # Ép chiều ngược lại sẽ là tự đặt ra một hợp đồng chặt hơn thứ codebase
+        # tuyên bố, và sẽ làm vector phá hoại của một mutation oracle đã đóng
+        # băng (`test_oracle_detects_a_mapping_result_field_mutation`) không
+        # còn biểu diễn được. Đổi hợp đồng đó cần Human Decision, không thuộc
+        # R1-A — xem `docs/tasks/TASK-110_REPAIR_PROGRESS.md` → R1-A.
+        if self.record is not None and self.status == MAPPING_STATUS_UNMAPPED:
+            raise ValueError(
+                f"MappingResult mâu thuẫn: status={MAPPING_STATUS_UNMAPPED!r} "
+                f"nhưng đã chọn record {self.record.label!r}. Đã chọn được một "
+                "record thì raw value không thể là 'không map được'."
+            )
+        if self.status == MAPPING_STATUS_UNMAPPED:
+            if self.normalized is not None or self.group is not None:
+                raise ValueError(
+                    f"MappingResult status={MAPPING_STATUS_UNMAPPED!r} nhưng "
+                    f"normalized={self.normalized!r} / group={self.group!r} có "
+                    "giá trị. Không map được thì không có tên chuẩn hoá và "
+                    "không có group — và `group` là chiều tra tỉ lệ quy đổi."
+                )
+        elif self.normalized is None or self.group is None:
+            raise ValueError(
+                f"MappingResult status={self.status!r} nhưng "
+                f"normalized={self.normalized!r} / group={self.group!r} rỗng. "
+                "Một `EmployeeRecord` hợp lệ luôn có cả hai, nên trạng thái này "
+                "chỉ tới được từ một object dựng tay."
+            )
 
 
 def _clean(value: Any) -> str:
@@ -151,7 +237,7 @@ def _clean(value: Any) -> str:
 # của `canonical.py`.
 
 
-@canonical()
+@canonical(field_error=InvalidEmployeeConfig)
 @dataclass(frozen=True, slots=True)
 class DateWindow:
     """Cửa sổ hiệu lực ĐÃ PARSE (DEC-121, RC-4).
@@ -191,7 +277,7 @@ class DateWindow:
         return self.start <= when <= self.end
 
 
-@canonical(sealed=True)
+@canonical(sealed=True, field_error=InvalidEmployeeConfig)
 @dataclass(frozen=True, slots=True)
 class EmployeeRecord:
     """Một bản ghi employee ĐÃ PARSE sang trạng thái hợp lệ.
@@ -381,7 +467,7 @@ def _snapshot_payload(records: tuple, groups: frozenset) -> str:
     )
 
 
-@canonical(sealed=True)
+@canonical(sealed=True, field_error=InvalidEmployeeConfig)
 @dataclass(frozen=True, slots=True)
 class EmployeeMaster:
     """Master nhân viên: VALIDATED + DEEP IMMUTABLE + IDENTIFIED + SEALED.
@@ -410,13 +496,16 @@ class EmployeeMaster:
     records: tuple
     group_codes: frozenset
 
-    def __post_init__(self) -> None:
-        # LỚP 1 (R1). Không có seal nào để kiểm ở đây nữa — cổng dựng nằm ở
-        # `__new__` (Lớp 2) và không đọc/sao chép được. Chỗ này chỉ còn việc
-        # DUY NHẤT còn lại: chứng minh nội dung hợp lệ.
+    def __canonical_coerce__(self) -> None:
+        # PHA 1 — sao chép sang container bất biến trước khi khẳng định gì.
         object.__setattr__(self, "records", tuple(self.records))
         object.__setattr__(self, "group_codes", frozenset(self.group_codes))
 
+    def __post_init__(self) -> None:
+        # PHA 3. Không có seal nào để kiểm ở đây — cổng dựng nằm ở `__new__`
+        # (Lớp 2) và không đọc/sao chép được. `records: tuple` và
+        # `group_codes: frozenset` do hợp đồng field khẳng định. Chỗ này chỉ
+        # còn bất biến NỘI DUNG, thứ annotation không diễn đạt được.
         for index, record in enumerate(self.records):
             if type(record) is not EmployeeRecord:
                 raise InvalidEmployeeConfig(
@@ -492,6 +581,11 @@ class EmployeeMaster:
 
     def record(self, ref: RecordRef) -> EmployeeRecord:
         """Đọc lại record theo danh tính — TỪ CHỐI ref của snapshot khác."""
+        if type(ref) is not RecordRef:
+            raise ForeignRecordRef(
+                f"`record()` nhận `RecordRef`, gặp {type(ref).__name__} "
+                f"({ref!r})."
+            )
         if ref.snapshot_id != self.snapshot_id:
             raise ForeignRecordRef(
                 f"RecordRef thuộc snapshot {ref.snapshot_id!r} nhưng đang được "
@@ -499,9 +593,24 @@ class EmployeeMaster:
                 "nhau; resolve theo index sẽ trả về một nhân viên khác, và vì "
                 "`employee_group` là một chiều tra tỉ lệ, đó là một tỉ lệ khác."
             )
+        # Cận trên là bất biến CẤP TẬP HỢP: chỉ master mới biết nó có bao nhiêu
+        # record. `RecordRef.__post_init__` đã loại index âm; ở đây loại nốt
+        # index vượt range, để lỗi là lỗi DOMAIN chứ không phải `IndexError`
+        # thô rò ra từ chi tiết cài đặt (R1-A).
+        if ref.index >= len(self.records):
+            raise ForeignRecordRef(
+                f"RecordRef.index {ref.index} vượt quá số record của snapshot "
+                f"{self.snapshot_id!r} ({len(self.records)} record). Snapshot "
+                "này chưa bao giờ phát hành một ref như vậy."
+            )
         return self.records[ref.index]
 
     def ref_for_index(self, index: int) -> RecordRef:
+        if type(index) is not int or index < 0 or index >= len(self.records):
+            raise ForeignRecordRef(
+                f"`ref_for_index({index!r})` ngoài phạm vi snapshot "
+                f"{self.snapshot_id!r} ({len(self.records)} record)."
+            )
         return self.refs[index]
 
     def effective(self, as_of: Optional[date]) -> tuple:

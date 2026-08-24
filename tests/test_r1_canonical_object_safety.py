@@ -36,19 +36,19 @@ from app.modules.domain.canonical import (
     FrozenCounter,
     FrozenMapping,
     SealedConstruction,
+    canonical_types,
     factory_for,
+    sealed_canonical_types,
 )
 from app.modules.mapping.employee_mapper import (
     DateWindow,
     EmployeeMapper,
     EmployeeMaster,
-    EmployeeRecord,
     InvalidEmployeeConfig,
     build_employee_master,
 )
 from app.modules.validation.employee_mapping import (
     MappingInput,
-    MappingStats,
     collect_mapping_stats,
 )
 from app.modules.validation.models import (
@@ -69,15 +69,15 @@ EMPLOYEES = [
     {"raw_prefix": "Đức Kiên", "normalized": "Kiên", "group": "SALES", "active": True},
 ]
 
-SEALED_TYPES = (
-    EmployeeRecord,
-    EmployeeMaster,
-    AffectedRow,
-    AmbiguousRow,
-    RowProvenance,
-    MappingStats,
-)
-CANONICAL_TYPES = SEALED_TYPES + (DateWindow, Diagnostics, ReviewItem)
+# DẪN XUẤT TỪ REGISTRY, không viết tay (R1-A).
+#
+# Bản đầu của file này giữ hai tuple viết tay. Independent Review R1 đo được
+# chúng đã drift ngay tại commit đầu tiên: 11 type mang `@canonical` nhưng
+# inventory chỉ liệt kê 9, và hai type bị bỏ sót (`RecordRef`, `MappingResult`)
+# đúng là hai type không validate gì. Một oracle dựa trên danh sách phải nhớ
+# cập nhật thì không phải oracle.
+SEALED_TYPES = sealed_canonical_types()
+CANONICAL_TYPES = canonical_types()
 
 
 def master():

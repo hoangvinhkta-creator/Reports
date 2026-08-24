@@ -289,7 +289,7 @@ class MappingStats:
     _rows_by_record: FrozenMapping
     _ambiguous_rows: FrozenMapping
 
-    def __post_init__(self) -> None:
+    def __canonical_coerce__(self) -> None:
         # LỚP 1 (R1) — SAO CHÉP sang container bất biến, không chỉ kiểm tra.
         # `frozen=True` chỉ cấm gán lại thuộc tính; nó không cấm sửa `Counter`
         # mà thuộc tính đó trỏ tới, nên trước đây `stats.mapped["BỊA"] = 999`
@@ -305,10 +305,10 @@ class MappingStats:
         )
         for name in ("_unmapped_rows", "_rows_by_record", "_ambiguous_rows"):
             object.__setattr__(self, name, frozen_tuple_map(getattr(self, name)))
-        if type(self.total_rows) is not int:
-            raise TypeError(
-                f"`total_rows` phải là int thuần, gặp {self.total_rows!r}."
-            )
+
+    def __post_init__(self) -> None:
+        """PHA 3. Kiểu của từng field do hợp đồng field khẳng định (kể cả
+        `total_rows` phải là `int` THUẦN). Còn lại là ngữ nghĩa."""
         if self.total_rows < 0:
             raise ValueError(
                 f"`total_rows` không thể âm ({self.total_rows}) — nó đếm số dòng "
