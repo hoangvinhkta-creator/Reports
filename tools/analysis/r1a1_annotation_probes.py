@@ -1,649 +1,910 @@
-"""R1-A1 — ANNOTATION CONTRACT. Ma trận falsification cho `_field_checker()`.
+"""R1-A1 — FROZEN ATTACK CORPUS. Bằng chứng chấp nhận của hợp đồng đóng.
 
     PYTHONPATH=<repo-root> python tools/analysis/r1a1_annotation_probes.py
 
-Artefact bằng chứng của sub-repair **R1-A1**, mở sau Independent Review R1-A
-Finding #1 tại `dead82e`. Chạy được trên cả commit TRƯỚC lẫn SAU R1-A1 nên hai
-lần chạy so trực tiếp được với nhau.
+Artefact bằng chứng của R1-A1 sau khi Owner **freeze** hợp đồng
+(`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`).
 
-Câu hỏi: với MỖI dạng annotation mà `@canonical` có thể gặp, framework làm gì?
+## Vì sao file này khác hẳn bản trước
 
-    SUPPORTED   nhận mọi giá trị hợp lệ, từ chối mọi giá trị không hợp lệ
-    BYPASSED    nhận cả giá trị KHÔNG hợp lệ  -> lỗ hổng
-    REJECTED    từ chối cả giá trị HỢP LỆ     -> hỏng theo chiều ngược lại
-    UNSUPPORTED nổ ngay lúc decorate           -> an toàn, có tuyên bố
-    UNDECLARED  framework KHÔNG mô hình hoá được construct này nhưng vẫn
-                decorate lọt -> đây chính là "UNKNOWN âm thầm thành ANY"
-    BROKEN      vừa loại giá trị hợp lệ vừa nhận giá trị không hợp lệ
-    NO_WITNESS  dòng probe tuyên bố SUPPORTED nhưng không đưa ra nổi một giá
-                trị hợp lệ nào -> lỗi của chính oracle (§10)
-    RAW_ERROR   decorate lọt rồi để lỗi NGOÀI từ vựng framework rò ra lúc chạy
-                (`TypeError` thô từ `isinstance`, `RuntimeError` từ
-                `__instancecheck__` tuỳ biến…)
+Bản trước là một *ma trận thăm dò* 128 ô với bảy outcome (`SUPPORTED`,
+`BYPASSED`, `REJECTED`, `UNDECLARED`, `BROKEN`, `NO_WITNESS`, `RAW_ERROR`).
+Nó hỏi "framework làm gì với dạng này?" — một câu hỏi mở, trên một không gian
+mở. Ba vòng repair cho thấy câu hỏi mở đó không kết thúc được: mỗi vòng đóng
+thêm vài ô, mỗi vòng review sau lại dựng được một object Python mới.
 
-Bất biến mà R1-A1 phải đạt: **UNKNOWN không bao giờ được thành ANY.** Mọi
-annotation hoặc SUPPORTED (validate đủ ngữ nghĩa) hoặc UNSUPPORTED (nổ lúc
-import). Không có ô nào rơi vào "framework không hiểu nên thôi bỏ qua".
+File này hỏi một câu hỏi ĐÓNG: **corpus đã freeze có đúng như đã freeze
+không?** Mỗi case mang một expected outcome bất biến, và kết quả chỉ có
+`PASS`/`FAIL`. Corpus không được bổ sung trong cùng một vòng repair — attack
+mới đi vào HARDENING BACKLOG, không đi vào đây.
+
+## Đây cũng là NGUỒN SỰ THẬT DUY NHẤT của corpus
+
+`tests/test_r1a1_annotation_contract.py` import chính `FROZEN_CORPUS` dưới
+đây, nên "105/105" trong pytest và "105/105" trong file này là cùng 105 case.
+Hai bản sao song song sẽ là một nguồn drift thứ hai — đúng thứ Review R1 đã
+chỉ ra ở inventory viết tay.
+
+File này KHÔNG phụ thuộc pytest: nó chạy được độc lập trên bất kỳ commit nào.
 """
 
 from __future__ import annotations
 
+import abc as _abc
+import dataclasses
+import enum as _enum
+import io
+import re as _re
+import types as _types
+import sys
 import typing
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from datetime import date
-from types import MappingProxyType
-from typing import Any, Literal, Mapping, Optional, Sequence, TypeVar, Union
+from typing import Any, ClassVar, Literal, Optional, Union
 
 from app.modules.domain.canonical import (
     CanonicalContractViolation,
     CanonicalFieldError,
+    FrozenCounter,
     FrozenMapping,
     canonical,
+    canonical_types,
 )
+import app.modules.mapping.employee_mapper as _em
+import app.modules.validation.models as _vm
 
-# Từ vựng lỗi HỢP LỆ của framework. Bất cứ ngoại lệ nào khác thoát ra lúc dựng
-# object đều là lỗi rò — xem outcome `RAW_ERROR`.
-_FRAMEWORK_ERRORS = (CanonicalContractViolation, CanonicalFieldError)
+# Nạp nốt module còn lại để registry đầy đủ dù file này chạy độc lập.
+import app.modules.validation.employee_mapping  # noqa: F401
 
-# ── giá trị mẫu dùng chung
-SENTINEL = object()
-T_CONSTRAINED = TypeVar("T_CONSTRAINED", int, str)
-T_BOUND = TypeVar("T_BOUND", bound=int)
+# Từ vựng lỗi HỢP LỆ của framework lúc CHẠY. Bất cứ ngoại lệ nào khác thoát ra
+# đều là lỗi rò.
+_FRAMEWORK_RUNTIME_ERRORS = (CanonicalContractViolation, CanonicalFieldError, TypeError)
 
+MISSING = object()
 
-class Marker:
-    """Class thường, dùng làm 'canonical class reference' giả lập."""
+# ── Expected outcome đã FREEZE. Không thêm giá trị thứ sáu.
+UNSUPPORTED_AT_DECORATION = "UNSUPPORTED_AT_DECORATION"
+SUPPORTED_VALID = "SUPPORTED_VALID"
+SUPPORTED_INVALID_REJECT = "SUPPORTED_INVALID_REJECT"
+OUTSIDE_FRAMEWORK_BOUNDARY = "OUTSIDE_FRAMEWORK_BOUNDARY"
+INVARIANT = "INVARIANT"
 
+_SUPPORTED_EXPECTATIONS = (SUPPORTED_VALID, SUPPORTED_INVALID_REJECT)
 
-# ── vật liệu cho nhóm G (hậu duệ generic) và nhóm R (class-like runtime)
-import abc as _abc  # noqa: E402
-import functools as _functools  # noqa: E402
-import enum as _enum  # noqa: E402
-import re as _re  # noqa: E402
-
-TS = typing.TypeVarTuple("TS")
-PS = typing.ParamSpec("PS")
-
-
-class TD(typing.TypedDict):
-    a: int
+# `SIDE_EFFECTS` ghi lại MỌI lần một hook của object thù địch được gọi. Bất
+# biến Z03 đọc danh sách này: "không nổ" chưa phải "không chạy".
+SIDE_EFFECTS: list = []
 
 
-class TDPartial(typing.TypedDict, total=False):
-    a: int
+# ═══════════════════════════════════════════════ vật liệu thù địch
 
 
-class ProtoPlain(typing.Protocol):
-    def f(self) -> None: ...
+class _CondMeta(type):
+    """`__instancecheck__` đổi hành vi THEO GIÁ TRỊ — không phép thử hữu hạn
+    nào phát hiện được, nên phải bị loại bằng cấu trúc chứ không bằng probe."""
 
-
-@typing.runtime_checkable
-class ProtoRuntime(typing.Protocol):
-    def f(self) -> None: ...
-
-
-@typing.runtime_checkable
-class ProtoData(typing.Protocol):
-    x: int
-
-
-class Impl:
-    x = 1
-
-    def f(self) -> None:
-        return None
-
-
-class _EvilMeta(type):
     def __instancecheck__(cls, obj):
-        raise RuntimeError("__instancecheck__ nổ")
+        SIDE_EFFECTS.append("instancecheck")
+        if obj is None or isinstance(obj, type):
+            return False
+        raise RuntimeError("__instancecheck__ nổ với dữ liệu thật")
 
 
-class EvilInstanceCheck(metaclass=_EvilMeta):
+class CondInstanceCheck(metaclass=_CondMeta):
     pass
 
 
-class NTuple(typing.NamedTuple):
-    a: int
+class _ReprRaiseMeta(type):
+    def __repr__(cls):
+        SIDE_EFFECTS.append("repr")
+        raise RuntimeError("__repr__ nổ")
+
+    def __getattribute__(cls, name):
+        if name == "__name__":
+            SIDE_EFFECTS.append(name)
+            raise RuntimeError("__name__ nổ")
+        return type.__getattribute__(cls, name)
+
+
+class ReprAndNameRaise(metaclass=_ReprRaiseMeta):
+    pass
+
+
+class _HugeReprMeta(type):
+    def __repr__(cls):
+        SIDE_EFFECTS.append("repr")
+        return "X" * 100_000
+
+
+class HugeRepr(metaclass=_HugeReprMeta):
+    pass
+
+
+class _GetattrRaiseMeta(type):
+    def __getattribute__(cls, name):
+        SIDE_EFFECTS.append("getattr")
+        raise RuntimeError("mọi thuộc tính đều nổ")
+
+
+class EverythingRaises(metaclass=_GetattrRaiseMeta):
+    pass
+
+
+class _NoHashMeta(type):
+    __hash__ = None
+
+
+class Unhashable(metaclass=_NoHashMeta):
+    pass
+
+
+class _HashRaiseMeta(type):
+    def __hash__(cls):
+        SIDE_EFFECTS.append("hash")
+        raise RuntimeError("__hash__ nổ")
+
+
+class HashRaises(metaclass=_HashRaiseMeta):
+    pass
+
+
+class _HashDriftMeta(type):
+    _n = 0
+
+    def __hash__(cls):
+        SIDE_EFFECTS.append("hash")
+        _HashDriftMeta._n += 1
+        return _HashDriftMeta._n
+
+
+class HashDrifts(metaclass=_HashDriftMeta):
+    pass
+
+
+class _EqSideMeta(type):
+    def __eq__(cls, other):
+        SIDE_EFFECTS.append("eq")
+        return True
+
+    def __hash__(cls):
+        SIDE_EFFECTS.append("hash")
+        return 1
+
+
+class EqHasSideEffect(metaclass=_EqSideMeta):
+    pass
+
+
+class _EqRaiseMeta(type):
+    def __eq__(cls, other):
+        SIDE_EFFECTS.append("eq")
+        raise RuntimeError("__eq__ nổ")
+
+    __hash__ = type.__hash__
+
+
+class EqRaises(metaclass=_EqRaiseMeta):
+    pass
+
+
+class _EqAlwaysTrueMeta(type):
+    def __eq__(cls, other):
+        SIDE_EFFECTS.append("eq")
+        return True
+
+    __hash__ = type.__hash__
+
+
+class EqAlwaysTrue(metaclass=_EqAlwaysTrueMeta):
+    pass
+
+
+class _HostileStrError(Exception):
+    """Exception mà chính việc RENDER nó là chạy code lạ."""
+
+    def __str__(self):
+        SIDE_EFFECTS.append("exception-str")
+        raise RuntimeError("__str__ của exception lạ nổ")
+
+
+class OriginRaises(_types.GenericAlias):
+    """`get_origin` PHẢI thật sự nổ ở đây.
+
+    Một object thường mang `__origin__` KHÔNG đủ: `typing.get_origin()` kiểm
+    `isinstance(tp, (_BaseGenericAlias, GenericAlias, …))` trước, nên nó trả
+    `None` mà không hề chạm `__origin__`. Case này chỉ đo đúng thứ nó tuyên bố
+    khi annotation thật sự là một generic alias — khi đó biên B2 mới tới được.
+    """
+
+    def __getattribute__(self, name):
+        if name == "__origin__":
+            raise _HostileStrError("boom")
+        return _types.GenericAlias.__getattribute__(self, name)
+
+
+class ArgsRaises(typing._GenericAlias, _root=True):
+    """`get_origin` chạy bình thường rồi `get_args` NỔ — biên B3.
+
+    `_GenericAlias` lưu `__args__` trong `__dict__` nên `__getattr__` không bao
+    giờ được gọi; phải dùng `__getattribute__`. Đo được: `get_args()` nổ thật.
+    """
+
+    def __getattribute__(self, name):
+        if name == "__args__":
+            raise _HostileStrError("boom")
+        return typing._GenericAlias.__getattribute__(self, name)
+
+
+class WideArgs:
+    """`__args__` rộng 100 000 phần tử."""
+
+    __origin__ = typing.Union
+    __args__ = tuple(range(100_000))
+
+
+class HostileReprInstance:
+    def __repr__(self):
+        SIDE_EFFECTS.append("repr")
+        return "Y" * 100_000
+
+
+class NameNotAString:
+    __name__ = 12345
+
+
+class ModuleRaises:
+    @property
+    def __module__(self):
+        raise RuntimeError("__module__ nổ")
+
+
+class ClassAttrRaises:
+    """Giá trị runtime có `__class__` NỔ — `isinstance` sẽ để lỗi thô thoát."""
+
+    @property
+    def __class__(self):
+        SIDE_EFFECTS.append("__class__")
+        raise RuntimeError("__class__ nổ")
+
+
+class _LyingClassAttr:
+    _target: Any = tuple
+
+    @property
+    def __class__(self):
+        SIDE_EFFECTS.append("__class__")
+        return type(self)._target
+
+
+class LiesAboutTuple(_LyingClassAttr):
+    _target = tuple
+
+
+class LiesAboutRecordRef(_LyingClassAttr):
+    _target = _em.RecordRef
+
+
+class MutableSubclass(list):
+    """Lớp CON của `list` — phép so định danh bỏ sót, mutable guard phải bắt."""
+
+
+class PlainUserClass:
+    pass
 
 
 class Shade(_enum.Enum):
     RED = 1
 
 
-BoxT = typing.TypeVar("BoxT")
-
-
-class Box(typing.Generic[BoxT]):
-    pass
-
-
 class PlainABC(_abc.ABC):
     pass
 
 
-class _FlagShade(_enum.Flag):
-    A = 1
+class Payload(typing.TypedDict):
+    a: int
 
 
-MARKER = Marker()
-
-RESULTS = []
-
-
-def declare(annotation):
-    """Khai một canonical type một-field mang `annotation`. Trả class hoặc lỗi."""
-    ns = {"__annotations__": {"value": annotation},
-          "__post_init__": lambda self: None,
-          "__module__": __name__}
-    cls = type("Probe", (), ns)
-    cls = dataclass(frozen=True)(cls)
-    return canonical()(cls)
+@typing.runtime_checkable
+class RuntimeProto(typing.Protocol):
+    def f(self) -> None: ...
 
 
-def matrix(annotation, valid, invalid, expect):
+_T = typing.TypeVar("_T")
+_TC = typing.TypeVar("_TC", int, str)
+
+
+def _nested_tuple(depth: int) -> Any:
+    node: Any = int
+    for _ in range(depth):
+        node = typing.Tuple[node, ...]
+    return node
+
+
+# ═══════════════════════════════════════════════ máy chạy corpus
+
+
+def _raw_dataclass(annotation: Any, name: str) -> type:
+    """Giai đoạn CPython. `@dataclass` chạy TRƯỚC `@canonical` trong mọi khai
+    báo canonical thật, và nó ĐỌC THUỘC TÍNH của annotation
+    (`dataclasses._process_class` tra `isinstance(t, str)` và `__module__`).
+    Một annotation thù địch có thể vì thế làm CPython nổ trước khi framework
+    tồn tại trên call stack — đó là biên NGOÀI framework, không phải một lỗ
+    hổng của hợp đồng: không canonical type nào được tạo ra."""
+    cls = type(name, (), {
+        "__annotations__": {"value": annotation},
+        "__post_init__": lambda self: None,
+        "__module__": __name__,
+    })
+    return dataclass(frozen=True)(cls)
+
+
+def probe_class(annotation: Any, name: str = "Probe") -> type:
+    """Khai một canonical type một-field mang `annotation`."""
+    return canonical()(_raw_dataclass(annotation, name))
+
+
+def _observe_annotation(annotation: Any, witness: Any, bad: Any) -> str:
     try:
-        cls = declare(annotation)
-    except CanonicalContractViolation as exc:
-        # Từ chối CÓ TUYÊN BỐ: đây là kết quả hợp lệ.
-        if expect == "UNSUPPORTED":
-            return "UNSUPPORTED", f"{type(exc).__name__}: {str(exc)[:84]}"
-        return "UNSUPPORTED", f"loại lúc decorate dù chờ hỗ trợ — {str(exc)[:66]}"
-    except Exception as exc:  # noqa: BLE001
-        # Nổ lúc decorate bằng một lỗi NGOÀI từ vựng framework — không phải một
-        # tuyên bố, mà là framework tự vỡ. Đây chính là P2.
-        return "RAW_ERROR", (f"nổ lúc decorate bằng {type(exc).__name__} thô "
-                             f"(không phải CanonicalContractViolation): "
-                             f"{str(exc)[:60]}")
+        raw = _raw_dataclass(annotation, "Probe")
+    except BaseException:  # noqa: BLE001 — CPython từ chối TRƯỚC biên framework
+        return OUTSIDE_FRAMEWORK_BOUNDARY
+    try:
+        cls = canonical()(raw)
+    except CanonicalContractViolation:
+        return UNSUPPORTED_AT_DECORATION
+    except BaseException as exc:  # noqa: BLE001 — đây chính là thứ đang đo
+        return f"RAW_ERROR_AT_DECORATION({type(exc).__name__})"
 
-    leaked = []
-
-    if expect == "SUPPORTED" and not valid:
-        # §10 — kỷ luật oracle. Tuyên bố SUPPORTED mà không đưa ra nổi một giá
-        # trị hợp lệ nào thì chính dòng probe đó vô nghĩa: nó không phân biệt
-        # được "hỗ trợ" với "hợp đồng rỗng".
-        return "NO_WITNESS", "case SUPPORTED nhưng không có witness nào"
-
-    def accepts(v):
+    if witness is not MISSING:
         try:
-            cls(value=v)
-            return True
-        except _FRAMEWORK_ERRORS:
-            return False
-        except Exception as exc:  # noqa: BLE001
-            # Lỗi NGOÀI từ vựng của framework: `TypeError` thô từ
-            # `isinstance()`, `RuntimeError` từ `__instancecheck__` tuỳ biến…
-            leaked.append(type(exc).__name__)
-            return False
-
-    # So theo VỊ TRÍ, không theo `repr`: một lớp con của `str` có cùng `repr`
-    # với chuỗi thường, nên so bằng `repr` sẽ báo nhầm nó là "đã được nhận".
-    valid_ok = [accepts(v) for v in valid]
-    invalid_ok = [accepts(v) for v in invalid]
-
-    if leaked:
-        # Nặng hơn UNDECLARED: framework nhận type rồi để lỗi của trình thông
-        # dịch rò ra ngoài lúc chạy, thay vì một lỗi domain.
-        return "RAW_ERROR", (f"decorate lọt rồi rò lỗi ngoài từ vựng framework: "
-                             f"{', '.join(sorted(set(leaked)))}")
-
-    if expect == "UNSUPPORTED":
-        # Với construct framework KHÔNG mô hình hoá được, việc decorate THÀNH
-        # CÔNG đã là lỗi — bất kể sau đó nó nhận hay loại giá trị nào. Đó chính
-        # là "UNKNOWN âm thầm thành ANY".
-        total = len(valid) + len(invalid)
-        taken = sum(valid_ok) + sum(invalid_ok)
-        return "UNDECLARED", f"decorate lọt; nhận {taken}/{total} giá trị thử"
-
-    wrongly_rejected = [f"{v!r} ({type(v).__name__})"
-                        for v, ok in zip(valid, valid_ok) if not ok]
-    wrongly_accepted = [f"{v!r} ({type(v).__name__})"
-                        for v, ok in zip(invalid, invalid_ok) if ok]
-    if wrongly_rejected and wrongly_accepted:
-        return "BROKEN", f"loại hợp lệ {wrongly_rejected} VÀ nhận {wrongly_accepted}"
-    if wrongly_accepted:
-        return "BYPASSED", f"nhận giá trị KHÔNG hợp lệ: {', '.join(wrongly_accepted)}"
-    if wrongly_rejected:
-        return "REJECTED", f"loại giá trị HỢP LỆ: {', '.join(wrongly_rejected)}"
-    return "SUPPORTED", f"{len(valid)} hợp lệ nhận, {len(invalid)} không hợp lệ loại"
+            cls(value=witness)
+        except _FRAMEWORK_RUNTIME_ERRORS:
+            return "WITNESS_REJECTED"
+        except BaseException as exc:  # noqa: BLE001
+            return f"RAW_ERROR_AT_RUNTIME({type(exc).__name__})"
+    if bad is not MISSING:
+        try:
+            cls(value=bad)
+            return "BAD_VALUE_ACCEPTED"
+        except _FRAMEWORK_RUNTIME_ERRORS:
+            pass
+        except BaseException as exc:  # noqa: BLE001
+            return f"RAW_ERROR_AT_RUNTIME({type(exc).__name__})"
+    return "SUPPORTED_OK"
 
 
-def probe(pid, label, annotation, valid, invalid, expect="SUPPORTED"):
-    outcome, detail = matrix(annotation, valid, invalid, expect)
-    RESULTS.append((pid, outcome, label, detail))
-    print(f"PROBE {pid:<5} | {outcome:<11} | {label}\n{'':>8}   -> {detail}")
+def _satisfies(expected: str, observed: str) -> bool:
+    if expected in _SUPPORTED_EXPECTATIONS:
+        return observed == "SUPPORTED_OK"
+    return observed == expected
 
 
-# ═══════════════════════════════ nhóm 1 — dạng production ĐANG dùng thật
+@dataclasses.dataclass(frozen=True)
+class Case:
+    """Một case ĐÃ FREEZE. `expected` là bất biến, không phải kỳ vọng tạm."""
 
-probe("P1", "builtin scalar `int`", int,
-      valid=[0, 7, -3], invalid=[True, "1", 1.0, [], None])
-probe("P2", "builtin scalar `str`", str,
-      valid=["", "x"], invalid=[1, [], None, type("S", (str,), {})("x")])
-probe("P3", "builtin scalar `bool`", bool,
-      valid=[True, False], invalid=[1, 0, "yes", None])
-probe("P4", "`datetime.date`", date,
-      valid=[date(2026, 1, 1)], invalid=["2026-01-01", 1, None])
-probe("P5", "`Optional[str]`", Optional[str],
-      valid=["x", None], invalid=[1, [], 1.5])
-probe("P6", "`Optional[int]`", Optional[int],
-      valid=[3, None], invalid=[True, "3", 1.5])
-probe("P7", "`Optional[date]`", Optional[date],
-      valid=[date(2026, 1, 1), None], invalid=["x", 1])
-probe("P8", "`tuple` (bare)", tuple,
-      valid=[(), (1, "a")], invalid=[[], "abc", 5, None])
-probe("P9", "`frozenset`", frozenset,
-      valid=[frozenset(), frozenset({1})], invalid=[set(), [], 5, None])
-probe("P10", "class reference (`FrozenMapping`)", FrozenMapping,
-      valid=[FrozenMapping({"a": 1})], invalid=[{}, MappingProxyType({}), 5, None])
-probe("P11", "`Any`", Any,
-      valid=[1, "x", None, SENTINEL, ()], invalid=[[], {}, set()])
+    id: str
+    group: str
+    description: str
+    expected: str
+    clause: str
+    annotation: Any = MISSING
+    witness: Any = MISSING
+    bad: Any = MISSING
+    observe: Any = None          # callable() -> str, cho case tầng decoration
 
-# ═══════════════════════════ nhóm 2 — Finding #1 của Independent Review
+    def run(self) -> str:
+        if self.observe is not None:
+            return self.observe()
+        return _observe_annotation(self.annotation, self.witness, self.bad)
 
-probe("F1", "`Union[int, str]`", Union[int, str],
-      valid=[1, "a"], invalid=[1.5, SENTINEL, None, [], b"x"])
-probe("F2", "`Optional[Union[int, str]]`", Optional[Union[int, str]],
-      valid=[1, "a", None], invalid=[1.5, SENTINEL, []])
-probe("F3", "`str | None` (PEP 604)", eval("str | None"),
-      valid=["x", None], invalid=[1, [], 1.5])
-probe("F4", "`int | str` (PEP 604)", eval("int | str"),
-      valid=[1, "a"], invalid=[1.5, SENTINEL, None])
-probe("F5", "`Literal['a', 'b']`", Literal["a", "b"],
-      valid=["a", "b"], invalid=["c", 1, None, SENTINEL])
-probe("F6", "constrained `TypeVar(int, str)`", T_CONSTRAINED,
-      valid=[1, "a"], invalid=[1.5, SENTINEL, None], expect="UNSUPPORTED")
-probe("F7", "bound `TypeVar(bound=int)`", T_BOUND,
-      valid=[1], invalid=["a", 1.5, SENTINEL, None], expect="UNSUPPORTED")
-
-# ═════════════════════════════ nhóm 3 — construct khác framework có thể gặp
-
-probe("X1", "`tuple[int, ...]`", typing.Tuple[int, ...],
-      valid=[(), (1, 2)], invalid=[[], 5, None])
-probe("X2", "`Mapping[str, int]` — origin metaclass ABCMeta", Mapping[str, int],
-      valid=[FrozenMapping({"a": 1})], invalid=[5, None, "x"],
-      expect="UNSUPPORTED")
-probe("X3", "`Sequence[int]` — origin metaclass ABCMeta", Sequence[int],
-      valid=[(1, 2)], invalid=[5, None], expect="UNSUPPORTED")
-probe("X4", "`list[int]` — hợp đồng RỖNG", typing.List[int],
-      valid=[[1]], invalid=[5, None], expect="UNSUPPORTED")
-probe("X5", "`dict[str, int]` — hợp đồng RỖNG", typing.Dict[str, int],
-      valid=[{"a": 1}], invalid=[5, None], expect="UNSUPPORTED")
-probe("X6", "`Final[int]`", typing.Final[int],
-      valid=[1], invalid=["a", 1.5, None], expect="UNSUPPORTED")
-probe("X7", "`Annotated[int, 'meta']`", typing.Annotated[int, "meta"],
-      valid=[1], invalid=["a", True, None])
-probe("X8", "`Callable[[], None]`", typing.Callable[[], None],
-      valid=[lambda: None], invalid=[5, None, "x"])
-probe("X9", "`None` (chỉ None hợp lệ)", None,
-      valid=[None], invalid=[1, "x", SENTINEL])
-probe("X10", "forward reference GIẢI ĐƯỢC (`'Marker'`)", "Marker",
-      valid=[MARKER], invalid=[5, None, "Marker"])
-probe("X11", "forward reference KHÔNG giải được", "KhongTonTaiODau",
-      valid=[], invalid=[1, "x", SENTINEL], expect="UNSUPPORTED")
-probe("X12", "`type` (class object)", type,
-      valid=[int, Marker], invalid=[5, None])
-probe("X13", "`Union[int, None]` (= Optional[int])", Union[int, None],
-      valid=[1, None], invalid=["1", 1.5, True])
-probe("X14", "`Union[str, bytes, None]` ba nhánh + None", Union[str, bytes, None],
-      valid=["x", b"x", None], invalid=[1, 1.5, SENTINEL])
-probe("X15", "`Union[Marker, int]` class + scalar", Union[Marker, int],
-      valid=[MARKER, 1], invalid=["x", 1.5, None])
+    def passed(self) -> bool:
+        return _satisfies(self.expected, self.run())
 
 
-# ═══════════════ WAVE 2 — tấn công vào THIẾT KẾ, không phải implementation
-#
-# Năm case của Finding #1 đã đóng. Nhóm này hỏi câu khác: ngữ pháp đóng có
-# THỰC SỰ đóng không, hay chỉ đóng ở tầng ngoài cùng? Trọng tâm là ĐỆ QUY —
-# một construct không hỗ trợ nằm SÂU bên trong một construct được hỗ trợ.
-
-probe("W1", "`Union[int, <TypeVar>]` — không hỗ trợ NẰM TRONG được hỗ trợ",
-      Union[int, T_CONSTRAINED], valid=[1], invalid=[1.5, SENTINEL, None],
-      expect="UNSUPPORTED")
-probe("W2", "`Optional[Literal['a','b']]`", Optional[Literal["a", "b"]],
-      valid=["a", "b", None], invalid=["c", 1, SENTINEL])
-probe("W3", "`Union[Literal[1], Literal['a']]`", Union[Literal[1], Literal["a"]],
-      valid=[1, "a"], invalid=[2, "b", True, None])
-probe("W4", "`Literal[1]` không được nhận `True` (True == 1)", Literal[1],
-      valid=[1], invalid=[True, "1", 1.0, None])
-probe("W4b", "`Literal[True]` không được nhận `1`", Literal[True],
-      valid=[True], invalid=[1, "True", None])
-probe("W5", "`Literal[1.5]` — giá trị literal ngoài kiểu cho phép", Literal[1.5],
-      valid=[1.5], invalid=[2.5, "1.5", None], expect="UNSUPPORTED")
-probe("W6", "`int | str | None` (PEP 604 ba nhánh)", eval("int | str | None"),
-      valid=[1, "a", None], invalid=[1.5, True, SENTINEL])
-probe("W7", "`Annotated[Union[int, str], 'meta']`",
-      typing.Annotated[Union[int, str], "meta"],
-      valid=[1, "a"], invalid=[1.5, None])
-probe("W8", "`Annotated[<TypeVar>, 'meta']` — bóc Annotated ra vẫn phải loại",
-      typing.Annotated[T_CONSTRAINED, "meta"], valid=[1],
-      invalid=[1.5, SENTINEL, None], expect="UNSUPPORTED")
-probe("W9", "`typing.NoReturn`", typing.NoReturn, valid=[],
-      invalid=[1, "x", SENTINEL, None], expect="UNSUPPORTED")
-probe("W10", "`typing.Optional` (chưa subscript)", typing.Optional,
-      valid=[], invalid=[1, None, SENTINEL], expect="UNSUPPORTED")
-probe("W11", "`typing.Self`", typing.Self, valid=[],
-      invalid=[1, "x", SENTINEL], expect="UNSUPPORTED")
-probe("W12", "`Optional[str]` vẫn loại lớp con của `str` (nghiêm ngặt xuyên union)",
-      Optional[str], valid=["x", None],
-      invalid=[type("Sub", (str,), {})("x")])
-probe("W13", "`Union[Any, None]` — Any khớp mọi thứ NHƯNG mutable vẫn bị loại",
-      Optional[Any], valid=[1, None, (), SENTINEL], invalid=[[], {}, set()])
-probe("W14", "`Union[list, int]` — nhánh `list` không bao giờ khớp",
-      Union[list, int], valid=[1], invalid=[[], [1]], expect="UNSUPPORTED")
+# ═══════════════════════════════════════════════ case tầng decoration
 
 
-# ══════════ NHÓM G — P1: hậu duệ generic bị parser bỏ rơi (Review R1-A1 #2)
-#
-# `_build_spec()` tại `44018e3` quy mọi generic có tham số về `_ClassSpec(origin)`
-# và VỨT BỎ `get_args()`. Nên `tuple[<TypeVar>]` decorate lọt: hậu duệ không
-# được hỗ trợ biến mất, đúng lớp lỗi mà R1-A1 vòng một tuyên bố đã đóng — chỉ
-# là nó lùi xuống một tầng.
-#
-# LƯU Ý PHẠM VI: R1-A1 chỉ đòi parser HIỂU và PHÂN LOẠI mọi node trong cây
-# annotation. Việc có kiểm từng phần tử lúc chạy hay không là **R1-D**, cố ý
-# không đụng ở đây.
-
-probe("G1", "`tuple[<TypeVar>]`", tuple[T_CONSTRAINED],
-      valid=[(1,)], invalid=[(1.5,), SENTINEL], expect="UNSUPPORTED")
-probe("G2", "`tuple[Final[int]]`", tuple[typing.Final[int]],
-      valid=[(1,)], invalid=[("a",), SENTINEL], expect="UNSUPPORTED")
-probe("G3", "`tuple[Literal[1.5]]`", tuple[Literal[1.5]],
-      valid=[(1.5,)], invalid=[(2.5,), SENTINEL], expect="UNSUPPORTED")
-probe("G4", "`tuple[NoReturn]`", tuple[typing.NoReturn],
-      valid=[()], invalid=[(1,), SENTINEL], expect="UNSUPPORTED")
-probe("G5", "`Callable[[<TypeVar>], int]`", typing.Callable[[T_CONSTRAINED], int],
-      valid=[lambda x: 1], invalid=[5, None], expect="UNSUPPORTED")
-probe("G6", "`list[<TypeVar>]`", list[T_CONSTRAINED],
-      valid=[], invalid=[[1], [1.5], 5], expect="UNSUPPORTED")
-probe("G7", "`dict[str, <TypeVar>]`", dict[str, T_CONSTRAINED],
-      valid=[], invalid=[{"a": 1}, {"a": 1.5}, 5], expect="UNSUPPORTED")
-probe("G8", "`tuple[Union[int, <TypeVar>], ...]`",
-      tuple[Union[int, T_CONSTRAINED], ...],
-      valid=[(1,)], invalid=[(1.5,), SENTINEL], expect="UNSUPPORTED")
-probe("G9", "`tuple[Annotated[<TypeVar>, 'x']]`",
-      tuple[typing.Annotated[T_CONSTRAINED, "x"]],
-      valid=[(1,)], invalid=[(1.5,), SENTINEL], expect="UNSUPPORTED")
-probe("G10", "`Optional[tuple[<TypeVar>]]`", Optional[tuple[T_CONSTRAINED]],
-      valid=[(1,), None], invalid=[(1.5,), SENTINEL], expect="UNSUPPORTED")
-probe("G11", "`Union[int, tuple[<TypeVar>]]`",
-      Union[int, tuple[T_CONSTRAINED]],
-      valid=[1, (1,)], invalid=[1.5, SENTINEL], expect="UNSUPPORTED")
-probe("G12", "`Callable[[int], <TypeVar>]`", typing.Callable[[int], T_CONSTRAINED],
-      valid=[lambda x: 1], invalid=[5, None], expect="UNSUPPORTED")
-probe("G13", "`Callable[..., <TypeVar>]`", typing.Callable[..., T_CONSTRAINED],
-      valid=[lambda: 1], invalid=[5, None], expect="UNSUPPORTED")
-probe("G14", "`Callable[..., int]` — Ellipsis ở vị trí tham số",
-      typing.Callable[..., int], valid=[lambda: 1], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("G15", "`Callable[[int, str], None]` — họ Callable, từ chối toàn bộ",
-      typing.Callable[[int, str], None], valid=[lambda a, b: None],
-      invalid=[5, None], expect="UNSUPPORTED")
-probe("G16", "`dict[str, tuple[Final[int]]]` — hai tầng",
-      dict[str, tuple[typing.Final[int]]],
-      valid=[], invalid=[{"a": (1,)}, 5], expect="UNSUPPORTED")
-probe("G17", "`tuple[tuple[tuple[NoReturn]]]` — ba tầng",
-      tuple[tuple[tuple[typing.NoReturn]]],
-      valid=[((( ),),)], invalid=[SENTINEL], expect="UNSUPPORTED")
-probe("G18", "`frozenset[<TypeVar>]`", frozenset[T_CONSTRAINED],
-      valid=[frozenset({1})], invalid=[{1}, 5], expect="UNSUPPORTED")
-probe("G19", "`tuple[Callable[[<TypeVar>], int], ...]` — họ bị từ chối lồng trong họ được hỗ trợ",
-      tuple[typing.Callable[[T_CONSTRAINED], int], ...],
-      valid=[()], invalid=[SENTINEL], expect="UNSUPPORTED")
-probe("G20", "`Optional[dict[str, Literal[1.5]]]`",
-      Optional[dict[str, Literal[1.5]]],
-      valid=[None], invalid=[{"a": 1.5}, 5], expect="UNSUPPORTED")
-probe("G21", "`tuple[int, ...]` — biến thể ĐỒNG NHẤT, phải VẪN hỗ trợ",
-      tuple[int, ...], valid=[(), (1, 2)], invalid=[[], 5, None])
-probe("G22", "`tuple[()]` — tuple rỗng, phải VẪN hỗ trợ",
-      tuple[()], valid=[(), (1,)], invalid=[[], 5, None])
-probe("G23", "`dict[str, int]` — parse được nhưng hợp đồng RỖNG",
-      dict[str, int], valid=[{"a": 1}], invalid=[5, None], expect="UNSUPPORTED")
-probe("G24", "`tuple[Unpack[TypeVarTuple]]`", tuple[typing.Unpack[TS]],
-      valid=[(1,)], invalid=[SENTINEL], expect="UNSUPPORTED")
-probe("G25", "`Callable[ParamSpec, int]`", typing.Callable[PS, int],
-      valid=[lambda: 1], invalid=[5], expect="UNSUPPORTED")
-probe("G26", "`tuple[[int]]` — tham số là list, KHÔNG hash được",
-      tuple[[int]], valid=[], invalid=[(1,), SENTINEL], expect="UNSUPPORTED")
-probe("G27", "`dict[str, [int]]` — list lồng ở vị trí value",
-      dict[str, [int]], valid=[], invalid=[{"a": 1}, SENTINEL], expect="UNSUPPORTED")
-probe("G28", "`tuple[[int], str]` — list ở vị trí đầu, không phải Callable",
-      tuple[[int], str], valid=[], invalid=[(1, "a"), SENTINEL], expect="UNSUPPORTED")
-
-
-# ══════════ NHÓM R — P2: class-like KHÔNG an toàn cho `isinstance` lúc chạy
-#
-# `isinstance(target, type)` là True cho cả `TypedDict`, `Protocol` không
-# `runtime_checkable`, và họ `typing.IO`. Nhưng:
-#   * TypedDict / Protocol thường -> `isinstance()` NỔ `TypeError` thô lúc dựng;
-#   * `typing.IO` -> `isinstance()` trả False cho MỌI object thật, nên field
-#     khai kiểu đó sẽ loại sạch giá trị hợp lệ.
-# Cả hai đều là "decorate lọt rồi sai lúc chạy", không phải một tuyên bố.
-
-probe("R1", "`TypedDict`", TD, valid=[{"a": 1}], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("R2", "`TypedDict(total=False)`", TDPartial, valid=[{}], invalid=[5],
-      expect="UNSUPPORTED")
-probe("R3", "`Protocol` KHÔNG runtime_checkable", ProtoPlain,
-      valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
-probe("R4", "`Protocol` runtime_checkable (metaclass _ProtocolMeta)", ProtoRuntime,
-      valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
-probe("R5", "`Protocol` runtime_checkable có data member", ProtoData,
-      valid=[Impl()], invalid=[5, None], expect="UNSUPPORTED")
-probe("R6", "`typing.IO[str]`", typing.IO[str], valid=[], invalid=[5, None, "x"],
-      expect="UNSUPPORTED")
-probe("R7", "`typing.IO` (trần)", typing.IO, valid=[], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("R8", "`typing.TextIO`", typing.TextIO, valid=[], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("R9", "`typing.BinaryIO`", typing.BinaryIO, valid=[], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("R10", "`typing.Generic`", typing.Generic, valid=[], invalid=[5, None],
-      expect="UNSUPPORTED")
-probe("R11", "`typing.Protocol` (trần)", typing.Protocol, valid=[], invalid=[5],
-      expect="UNSUPPORTED")
-probe("R12", "class có metaclass `__instancecheck__` NỔ", EvilInstanceCheck,
-      valid=[], invalid=[5, None], expect="UNSUPPORTED")
-probe("R13", "`typing.SupportsInt` (metaclass _ProtocolMeta)",
-      typing.SupportsInt, valid=[5], invalid=[SENTINEL], expect="UNSUPPORTED")
-probe("R14", "`NamedTuple` class", NTuple, valid=[NTuple(a=1)], invalid=[5, (1,)])
-probe("R15", "`Enum` class (metaclass EnumMeta)", Shade, valid=[Shade.RED],
-      invalid=[1, "RED"], expect="UNSUPPORTED")
-probe("R16", "class generic của người dùng (trần)", Box, valid=[Box()], invalid=[5])
-probe("R17", "`Box[int]` — generic người dùng có tham số", Box[int],
-      valid=[Box()], invalid=[5])
-probe("R18", "`abc.ABC` subclass (metaclass ABCMeta)", PlainABC,
-      valid=[], invalid=[5, None], expect="UNSUPPORTED")
-probe("R19", "`re.Pattern`", _re.Pattern, valid=[_re.compile("x")], invalid=["x", 5])
-
-
-# ══════════ NHÓM H — metaclass/class-like thù địch (R1-A1 #3, §11-A)
-#
-# Phép "chứng minh" bằng vài lời gọi `isinstance()` ở bản `d4a8797` không phải
-# chứng minh: một hook đổi hành vi theo GIÁ TRỊ qua được phép thử rồi nổ với dữ
-# liệu thật. Nhóm này tấn công đúng giả định đó.
-
-def _meta(name, body):
-    return type(name, (type,), body)("Hostile" + name, (), {})
-
-
-def _boom(msg):
-    def raiser(*a, **kw):
-        raise RuntimeError(msg)
-    return raiser
-
-
-probe("H1", "metaclass `__instancecheck__` đổi hành vi theo giá trị",
-      _meta("Cond", {"__instancecheck__":
-                     lambda cls, o: False if (o is None or type(o) is object)
-                     else _boom("nổ với giá trị thật")()}),
-      valid=[], invalid=["giá trị thật", 1], expect="UNSUPPORTED")
-probe("H2", "metaclass `__instancecheck__` nổ vô điều kiện",
-      _meta("IC", {"__instancecheck__": _boom("instancecheck nổ")}),
-      valid=[], invalid=[1, None], expect="UNSUPPORTED")
-probe("H3", "metaclass `__subclasscheck__` nổ",
-      _meta("SC", {"__subclasscheck__": _boom("subclasscheck nổ")}),
-      valid=[], invalid=[1, None], expect="UNSUPPORTED")
-probe("H4", "metaclass `__getattr__` nổ (đọc `__name__` cũng gãy)",
-      _meta("GA", {"__getattr__": _boom("getattr nổ")}),
-      valid=[], invalid=[1, None], expect="UNSUPPORTED")
-probe("H5", "metaclass `__instancecheck__` trả kết quả KHÔNG ổn định",
-      _meta("Flip", {"__instancecheck__":
-                     lambda cls, o, _c=[0]: (_c.append(1), len(_c) % 2 == 0)[1]}),
-      valid=[], invalid=[1, None], expect="UNSUPPORTED")
-probe("H6", "metaclass thường (không hook) vẫn bị từ chối — mặc định là REJECT",
-      _meta("Plain", {}), valid=[], invalid=[1, None], expect="UNSUPPORTED")
-
-
-# ══════════ NHÓM K — hash/eq có tác dụng phụ (R1-A1 #3, §11-B)
-#
-# Bản `d4a8797` tra chính sách bằng `target in frozenset(...)`, tức là gọi
-# `__hash__` của metaclass lạ TRƯỚC khi target được coi là an toàn.
-
-probe("K1", "`__hash__` nổ", _meta("HashBoom", {"__hash__": _boom("hash nổ")}),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("K2", "`__hash__ = None` (không hash được)",
-      _meta("NoHash", {"__hash__": None}), valid=[], invalid=[1],
-      expect="UNSUPPORTED")
-probe("K3", "`__eq__` nổ", _meta("EqBoom", {"__eq__": _boom("eq nổ")}),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("K4", "`__eq__` có tác dụng phụ (đếm số lần bị so sánh)",
-      _meta("EqCount", {"__eq__": lambda cls, o, _c=[0]: (_c.append(1), False)[1],
-                        "__hash__": lambda cls: 0}),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("K5", "`__hash__` trả về thứ không phải int",
-      _meta("BadHash", {"__hash__": lambda cls: "không phải int"}),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("K6", "`__hash__` trả giá trị KHÁC NHAU mỗi lần",
-      _meta("DriftHash", {"__hash__": lambda cls, _c=[0]: (_c.append(1), len(_c))[1]}),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-
-
-# ══════════ NHÓM M — origin mutable: hợp đồng RỖNG (R1-A1 #3, §11-C)
-
-probe("M1", "`list` trần", list, valid=[[1]], invalid=[5], expect="UNSUPPORTED")
-probe("M2", "`set[int]`", set[int], valid=[{1}], invalid=[5], expect="UNSUPPORTED")
-probe("M3", "`bytearray` trần", bytearray, valid=[bytearray(b"x")], invalid=[5],
-      expect="UNSUPPORTED")
-probe("M4", "`Optional[list[int]]` — chỉ `None` sống được, nhánh list chết",
-      Optional[list[int]], valid=[None], invalid=[[1]], expect="UNSUPPORTED")
-probe("M5", "`Union[list, dict]` — mọi nhánh đều chết",
-      Union[list, dict], valid=[], invalid=[[], {}], expect="UNSUPPORTED")
-probe("M6", "`Union[str, set]` — một nhánh sống, một nhánh chết",
-      Union[str, set], valid=["x"], invalid=[{1}], expect="UNSUPPORTED")
-probe("M7", "`tuple[list[int], ...]` — tham số generic KHÔNG bị luật này (R1-D)",
-      tuple[list[int], ...], valid=[(), ([1],)], invalid=[5, None])
-probe("M8", "`bytes` — bất biến, phải VẪN hỗ trợ", bytes, valid=[b"x"],
-      invalid=[bytearray(b"x"), "x", 5])
-
-
-# ══════════ NHÓM Z — shape hoàn toàn ngoài ma trận cũ (R1-A1 #3, §11-F)
-
-probe("Z1", "`typing.Never`", typing.Never, valid=[], invalid=[1, None],
-      expect="UNSUPPORTED")
-probe("Z2", "`typing.LiteralString`", typing.LiteralString, valid=[], invalid=["x"],
-      expect="UNSUPPORTED")
-probe("Z3", "`typing.Concatenate[int, ParamSpec]`",
-      typing.Concatenate[int, PS], valid=[], invalid=[1], expect="UNSUPPORTED")
-# `typing.get_type_hints()` BÓC `Required[int]` thành `int` — chuẩn hoá của
-# chính CPython, giống `Annotated`. Nên qua đường decoration thật, annotation
-# framework nhìn thấy là `int`, hợp lệ. Gọi thẳng `_build_spec(Required[int])`
-# thì nó bị từ chối; xem test cùng tên trong suite pytest.
-probe("Z4", "`typing.Required[int]` — CPython tự bóc thành `int` lúc resolve",
-      typing.Required[int], valid=[1], invalid=["x", None])
-probe("Z5", "`typing.TypeAlias`", typing.TypeAlias, valid=[], invalid=[1],
-      expect="UNSUPPORTED")
-probe("Z6", "một `functools.partial` object làm annotation",
-      _functools.partial(int), valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("Z7", "một lambda làm annotation", lambda: None, valid=[], invalid=[1],
-      expect="UNSUPPORTED")
-probe("Z8", "một module object làm annotation", typing, valid=[], invalid=[1],
-      expect="UNSUPPORTED")
-probe("Z9", "instance của một class thường làm annotation", Marker(),
-      valid=[], invalid=[1], expect="UNSUPPORTED")
-probe("Z10", "`enum.Flag` class", _FlagShade, valid=[_FlagShade.A], invalid=[1],
-      expect="UNSUPPORTED")
-
-
-def _extra_wave():
-    """Hai đường không diễn đạt được bằng bảng: `replace()` và `pickle`.
-
-    Dùng `MappingResult` THẬT của production — nó có sẵn field union
-    (`Optional[str]`, `Optional[RecordRef]`). Class động của probe không pickle
-    được (không tra ngược được bằng tên), nên đo trên nó sẽ đo nhầm hạn chế của
-    chính bộ probe.
-    """
-    import dataclasses
-    import pickle as _pickle
-
-    from app.modules.domain.models import MAPPING_STATUS_UNMAPPED
-    from app.modules.mapping.employee_mapper import MappingResult
-
-    ok = MappingResult(normalized=None, status=MAPPING_STATUS_UNMAPPED,
-                       default_lead_source=None, include_in_kpi=None)
-
+def _observe_decoration(build) -> str:
+    """`build()` phải nổ ĐÚNG `CanonicalContractViolation`, không gì khác."""
     try:
-        dataclasses.replace(ok, normalized=1.5)
-        out = ("BYPASSED", "replace() dựng được giá trị ngoài union")
-    except Exception as exc:  # noqa: BLE001
-        out = ("SUPPORTED", f"replace() kiểm lại: {type(exc).__name__}")
-    RESULTS.append(("W15", out[0], "replace() trên field union", out[1]))
-    print(f"PROBE {'W15':<5} | {out[0]:<11} | replace() trên field union\n{'':>8}   -> {out[1]}")
+        build()
+    except CanonicalContractViolation:
+        return UNSUPPORTED_AT_DECORATION
+    except BaseException as exc:  # noqa: BLE001
+        return f"RAW_ERROR_AT_DECORATION({type(exc).__name__})"
+    return "DECORATED"
 
+
+def _initvar_single():
+    @dataclass(frozen=True)
+    class R:
+        x: int
+        seed: InitVar[int]
+
+        def __post_init__(self, seed):
+            pass
+    return canonical()(R)
+
+
+def _initvar_many():
+    @dataclass(frozen=True)
+    class R:
+        x: int
+        a: InitVar[int]
+        b: InitVar[str]
+
+        def __post_init__(self, a, b):
+            pass
+    return canonical()(R)
+
+
+def _initvar_only():
+    @dataclass(frozen=True)
+    class R:
+        a: InitVar[int]
+
+        def __post_init__(self, a):
+            pass
+    return canonical()(R)
+
+
+def _initvar_kwonly():
+    @dataclass(frozen=True, kw_only=True)
+    class R:
+        x: int
+        a: InitVar[int]
+
+        def __post_init__(self, a):
+            pass
+    return canonical()(R)
+
+
+def _observe_initvar_names() -> str:
+    """R02 — thông báo phải nêu ĐỦ tên, không chỉ tên đầu tiên."""
     try:
-        back = _pickle.loads(_pickle.dumps(ok))
-        same = back == ok
-        out = (("SUPPORTED", "round-trip qua constructor, giá trị giữ nguyên") if same
-               else ("BYPASSED", f"round-trip đổi object: {back!r}"))
-    except Exception as exc:  # noqa: BLE001
-        out = ("REJECTED", f"{type(exc).__name__}: {str(exc)[:60]}")
-    RESULTS.append(("W16", out[0], "pickle round-trip field union", out[1]))
-    print(f"PROBE {'W16':<5} | {out[0]:<11} | pickle round-trip field union\n{'':>8}   -> {out[1]}")
+        _initvar_many()
+    except CanonicalContractViolation as exc:
+        text = str(exc)
+        if "`a`" in text and "`b`" in text:
+            return UNSUPPORTED_AT_DECORATION
+        return "UNSUPPORTED_BUT_NAMES_INCOMPLETE"
+    except BaseException as exc:  # noqa: BLE001
+        return f"RAW_ERROR_AT_DECORATION({type(exc).__name__})"
+    return "DECORATED"
 
 
-_extra_wave()
+def _observe_classvar_alone() -> str:
+    @dataclass(frozen=True)
+    class S:
+        K: ClassVar[int] = 1
+        x: int
 
-# ═══════════ non-regression ngược: production annotation phải VẪN chạy
+        def __post_init__(self):
+            pass
+    try:
+        cls = canonical()(S)
+        cls(x=1)
+    except BaseException as exc:  # noqa: BLE001
+        return f"REJECTED({type(exc).__name__})"
+    if "K" in dict(cls.__canonical_contract__):
+        return "CLASSVAR_LEAKED_INTO_CONTRACT"
+    return "SUPPORTED_OK"
 
-def _production_still_builds():
-    """11 canonical type của production phải decorate được như cũ.
 
-    Lọc theo module `app.` — registry còn chứa cả các class động mà chính bộ
-    probe này vừa khai, và đó là chuyện của probe, không phải của production.
+def _observe_classvar_with_fields() -> str:
+    @dataclass(frozen=True)
+    class S2:
+        A: ClassVar[str] = "x"
+        B: ClassVar[tuple] = ()
+        x: int
+        y: Optional[str]
+
+        def __post_init__(self):
+            pass
+    try:
+        cls = canonical()(S2)
+        cls(x=1, y=None)
+    except BaseException as exc:  # noqa: BLE001
+        return f"REJECTED({type(exc).__name__})"
+    names = {n for n, _ in cls.__canonical_contract__}
+    return "SUPPORTED_OK" if names == {"x", "y"} else "CLASSVAR_LEAKED_INTO_CONTRACT"
+
+
+def _observe_forward_ref() -> str:
+    return _observe_decoration(lambda: probe_class("KhongTonTaiODau", "ProbeU1"))
+
+
+def _observe_self_forward_ref() -> str:
+    def build():
+        cls = type("ProbeU2", (), {
+            "__annotations__": {"value": "ProbeU2"},
+            "__post_init__": lambda self: None,
+            "__module__": __name__,
+        })
+        return canonical()(dataclass(frozen=True)(cls))
+    return _observe_decoration(build)
+
+
+class _LateGuardMeta(type):
+    """Metaclass cho `setattr` của `@dataclass` đi qua, rồi NỔ với `setattr`
+    của `@canonical`. Không có cổng C9, nó để lại một class nửa vời."""
+
+    armed = False
+
+    def __setattr__(cls, key, value):
+        if _LateGuardMeta.armed:
+            SIDE_EFFECTS.append("setattr")
+            raise RuntimeError("__setattr__ nổ giữa decoration")
+        type.__setattr__(cls, key, value)
+
+
+def _observe_hostile_metaclass_atomicity() -> str:
+    _LateGuardMeta.armed = False
+    cls = _LateGuardMeta("ProbeV1", (), {
+        "__annotations__": {"value": int},
+        "__post_init__": lambda self: None,
+        "__module__": __name__,
+    })
+    cls = dataclass(frozen=True)(cls)
+    before = len(canonical_types())
+    _LateGuardMeta.armed = True
+    try:
+        outcome = _observe_decoration(lambda: canonical()(cls))
+    finally:
+        _LateGuardMeta.armed = False
+    if outcome != UNSUPPORTED_AT_DECORATION:
+        return outcome
+    if len(canonical_types()) != before:
+        return "REGISTRY_MUTATED"
+    if hasattr(cls, "__canonical_contract__") or hasattr(cls, "__canonical__"):
+        return "CLASS_LEFT_HALF_WRITTEN"
+    return UNSUPPORTED_AT_DECORATION
+
+
+def _observe_registry_unchanged_on_b1_failure() -> str:
+    before = len(canonical_types())
+    outcome = _observe_decoration(lambda: probe_class("KhongTonTaiODau", "ProbeV2"))
+    if outcome != UNSUPPORTED_AT_DECORATION:
+        return outcome
+    return (UNSUPPORTED_AT_DECORATION if len(canonical_types()) == before
+            else "REGISTRY_MUTATED")
+
+
+def _observe_class_untouched_on_second_field_failure() -> str:
+    """Field đầu hợp lệ, field thứ hai ngoài ngữ pháp: class phải NGUYÊN VẸN."""
+    cls = type("ProbeV3", (), {
+        "__annotations__": {"ok": int, "bad": list},
+        "__post_init__": lambda self: None,
+        "__module__": __name__,
+    })
+    cls = dataclass(frozen=True)(cls)
+    before = len(canonical_types())
+    outcome = _observe_decoration(lambda: canonical()(cls))
+    if outcome != UNSUPPORTED_AT_DECORATION:
+        return outcome
+    if len(canonical_types()) != before:
+        return "REGISTRY_MUTATED"
+    if hasattr(cls, "__canonical_contract__") or hasattr(cls, "__canonical__"):
+        return "CLASS_LEFT_HALF_WRITTEN"
+    if getattr(cls.__post_init__, "__canonical_wrapper__", False):
+        return "CLASS_LEFT_HALF_WRITTEN"
+    return UNSUPPORTED_AT_DECORATION
+
+
+def _observe_wide_shapes() -> str:
+    """T01 — bề rộng, hai hình dạng.
+
+    (a) `__args__` giả rộng 100 000 phần tử: `get_origin` trả `None` nên nó bị
+        loại ở C2 (ngoài ngữ pháp) trước khi tới ngân sách.
+    (b) `Union` THẬT 600 nhánh: `get_args()` dài 600, chạm ngân sách C12.
+
+    Cả hai phải cho cùng một outcome đã freeze.
     """
-    import app.modules.validation.employee_mapping  # noqa: F401
-    import app.modules.mapping.employee_mapper  # noqa: F401  (nạp registry)
-    from app.modules.domain.canonical import canonical_types
-
-    prod = [c for c in canonical_types() if c.__module__.startswith("app.")]
-    missing = [c.__name__ for c in prod if not getattr(c, "__canonical_contract__", None)]
-    if missing:
-        out = ("REJECTED", f"thiếu hợp đồng: {missing}")
-    elif len(prod) != 11:
-        out = ("REJECTED", f"đếm được {len(prod)} canonical type production, chờ 11")
-    else:
-        out = ("SUPPORTED", f"{len(prod)} canonical type production dựng hợp đồng bình thường")
-    RESULTS.append(("N1", out[0], "production canonical types vẫn decorate được", out[1]))
-    print(f"PROBE {'N1':<5} | {out[0]:<11} | production canonical types vẫn decorate được"
-          f"\n{'':>8}   -> {out[1]}")
+    a = _observe_annotation(WideArgs(), MISSING, MISSING)
+    if a != UNSUPPORTED_AT_DECORATION:
+        return f"fake-args:{a}"
+    wide = Union[tuple(Literal[i] for i in range(600))]
+    b = _observe_annotation(wide, MISSING, MISSING)
+    if b != UNSUPPORTED_AT_DECORATION:
+        return f"wide-union:{b}"
+    return UNSUPPORTED_AT_DECORATION
 
 
-_production_still_builds()
+def _observe_typing_refuses_first() -> str:
+    """T03 — biên NGOÀI framework: `typing` tự nổ khi DỰNG annotation, nên
+    không canonical type nào được tạo ra và không có trạng thái nửa vời."""
+    before = len(canonical_types())
+    try:
+        _nested_tuple(5000)
+    except RecursionError:
+        return (OUTSIDE_FRAMEWORK_BOUNDARY if len(canonical_types()) == before
+                else "REGISTRY_MUTATED")
+    except BaseException as exc:  # noqa: BLE001
+        return f"UNEXPECTED({type(exc).__name__})"
+    return "TYPING_ACCEPTED_IT"
+
+
+def _witness_row_provenance() -> Any:
+    """Witness của một type SEALED phải đến từ factory của chính nó — đó là
+    toàn bộ ý nghĩa của Lớp 2, và §6 hợp đồng nói rõ witness là ORACLE
+    CONTRACT chứ không phải định lý về inhabitation."""
+    return _vm.RowProvenance.of()
+
+
+# ═══════════════════════════════════════════════ CORPUS ĐÃ FREEZE
+
+_C = Case
+
+FROZEN_CORPUS: tuple = (
+    # ── A — Union / Optional / PEP604
+    _C("A01", "A", "Union[int, str] (không phải Optional)", UNSUPPORTED_AT_DECORATION, "C2,C6", Union[int, str]),
+    _C("A02", "A", "Union[int, str, None] — 3 nhánh", UNSUPPORTED_AT_DECORATION, "C6", Union[int, str, None]),
+    _C("A03", "A", "PEP604 int | str", UNSUPPORTED_AT_DECORATION, "C6", int | str),
+    _C("A04", "A", "PEP604 str | None", SUPPORTED_VALID, "C6", str | None, "x", 1),
+    _C("A05", "A", "Optional[str]", SUPPORTED_VALID, "C6", Optional[str], None, 1),
+    _C("A06", "A", "Union[None, str] — None đứng trước", SUPPORTED_VALID, "C6", Union[None, str], "x", 1),
+    _C("A07", "A", "Optional[Optional[str]] (typing làm phẳng)", SUPPORTED_VALID, "C6", Optional[Optional[str]], "x", 1),
+    _C("A08", "A", "Union[str] (typing thu về str)", SUPPORTED_VALID, "C2", Union[str], "x", 1),
+    # ── B — Literal
+    _C("B01", "B", "Literal['a','b']", UNSUPPORTED_AT_DECORATION, "C2", Literal["a", "b"]),
+    _C("B02", "B", "Literal[1] (bẫy True == 1)", UNSUPPORTED_AT_DECORATION, "C2", Literal[1]),
+    _C("B03", "B", "Optional[Literal['a','b']]", UNSUPPORTED_AT_DECORATION, "C6", Optional[Literal["a", "b"]]),
+    _C("B04", "B", "Literal[1.5]", UNSUPPORTED_AT_DECORATION, "C2", Literal[1.5]),
+    # ── C — special form
+    _C("C01", "C", "TypeVar trần", UNSUPPORTED_AT_DECORATION, "C2", _T),
+    _C("C02", "C", "TypeVar có ràng buộc", UNSUPPORTED_AT_DECORATION, "C2", _TC),
+    _C("C03", "C", "Final[int]", UNSUPPORTED_AT_DECORATION, "C2", typing.Final[int]),
+    _C("C04", "C", "NoReturn", UNSUPPORTED_AT_DECORATION, "C2", typing.NoReturn),
+    _C("C05", "C", "Never", UNSUPPORTED_AT_DECORATION, "C2", typing.Never),
+    _C("C06", "C", "Self", UNSUPPORTED_AT_DECORATION, "C2", typing.Self),
+    _C("C07", "C", "LiteralString", UNSUPPORTED_AT_DECORATION, "C2", typing.LiteralString),
+    # ── D — hậu duệ trong generic
+    _C("D01", "D", "tuple[TypeVar] — hậu duệ không hỗ trợ", UNSUPPORTED_AT_DECORATION, "C2", tuple[_T]),
+    _C("D02", "D", "tuple[int, ...]", UNSUPPORTED_AT_DECORATION, "C2", tuple[int, ...]),
+    _C("D03", "D", "tuple[list[int], ...]", UNSUPPORTED_AT_DECORATION, "C2,C3", tuple[list[int], ...]),
+    _C("D04", "D", "frozenset[int]", UNSUPPORTED_AT_DECORATION, "C2", frozenset[int]),
+    _C("D05", "D", "tuple[()]", UNSUPPORTED_AT_DECORATION, "C2", tuple[()]),
+    _C("D06", "D", "Optional[tuple[int, ...]]", UNSUPPORTED_AT_DECORATION, "C6", Optional[tuple[int, ...]]),
+    # ── E — Callable
+    _C("E01", "E", "Callable trần", UNSUPPORTED_AT_DECORATION, "C2,C3", typing.Callable),
+    _C("E02", "E", "Callable[[int], str]", UNSUPPORTED_AT_DECORATION, "C2", typing.Callable[[int], str]),
+    _C("E03", "E", "Callable[..., str]", UNSUPPORTED_AT_DECORATION, "C2", typing.Callable[..., str]),
+    # ── F — TypedDict
+    _C("F01", "F", "TypedDict class", UNSUPPORTED_AT_DECORATION, "C3", Payload),
+    # ── G — Protocol
+    _C("G01", "G", "Protocol runtime_checkable", UNSUPPORTED_AT_DECORATION, "C3", RuntimeProto),
+    _C("G02", "G", "typing.Protocol", UNSUPPORTED_AT_DECORATION, "C3", typing.Protocol),
+    _C("G03", "G", "typing.SupportsInt", UNSUPPORTED_AT_DECORATION, "C3", typing.SupportsInt),
+    # ── H — họ typing.IO
+    _C("H01", "H", "typing.IO", UNSUPPORTED_AT_DECORATION, "C3", typing.IO),
+    _C("H02", "H", "typing.TextIO", UNSUPPORTED_AT_DECORATION, "C3", typing.TextIO),
+    _C("H03", "H", "io.TextIOBase (class thật)", UNSUPPORTED_AT_DECORATION, "C3", io.TextIOBase),
+    # ── I — __instancecheck__ có điều kiện
+    _C("I01", "I", "metaclass __instancecheck__ đổi theo GIÁ TRỊ", UNSUPPORTED_AT_DECORATION, "C3,C4", CondInstanceCheck),
+    _C("I02", "I", "Optional[<I01>]", UNSUPPORTED_AT_DECORATION, "C6", Optional[CondInstanceCheck]),
+    # ── J — __class__ thù địch của GIÁ TRỊ runtime
+    _C("J01", "J", "giá trị runtime có __class__ NỔ, field tuple", SUPPORTED_INVALID_REJECT, "C4", tuple, (), ClassAttrRaises()),
+    _C("J02", "J", "giá trị runtime có __class__ NÓI DỐI là tuple", SUPPORTED_INVALID_REJECT, "C4", tuple, (), LiesAboutTuple()),
+    _C("J03", "J", "__class__ nói dối, field Optional[RecordRef]", SUPPORTED_INVALID_REJECT, "C4,C6", Optional[_em.RecordRef], None, LiesAboutRecordRef()),
+    # ── K — __repr__ thù địch trên class target
+    _C("K01", "K", "metaclass __repr__ NỔ và __name__ NỔ", UNSUPPORTED_AT_DECORATION, "C3,C11", ReprAndNameRaise),
+    _C("K02", "K", "metaclass __repr__ trả 100 000 ký tự", UNSUPPORTED_AT_DECORATION, "C11", HugeRepr),
+    _C("K03", "K", "metaclass __getattr__ NỔ trên mọi thuộc tính", UNSUPPORTED_AT_DECORATION, "C3,C11", EverythingRaises),
+    # ── L — tên/repr của annotation thù địch
+    _C("L01", "L", "instance làm annotation, __repr__ có side effect", UNSUPPORTED_AT_DECORATION, "C2,C11", HostileReprInstance()),
+    _C("L02", "L", "annotation có __name__ KHÔNG phải str", UNSUPPORTED_AT_DECORATION, "C11", NameNotAString()),
+    _C("L03", "L", "annotation có __module__ NỔ", UNSUPPORTED_AT_DECORATION, "C11", ModuleRaises()),
+    # ── M — exception lạ có __str__ thù địch
+    _C("M01", "M", "get_origin NỔ với exception có __str__ thù địch", UNSUPPORTED_AT_DECORATION, "C10,C11", OriginRaises(tuple, (int,))),
+    _C("M02", "M", "get_args NỔ với exception có __str__ thù địch", UNSUPPORTED_AT_DECORATION, "C10,C11", ArgsRaises(typing.Union, (int, str))),
+    # ── N — không hash được
+    _C("N01", "N", "class target không hash được (__hash__ = None)", UNSUPPORTED_AT_DECORATION, "C3,C5", Unhashable),
+    _C("N02", "N", "Optional[<N01>]", UNSUPPORTED_AT_DECORATION, "C6", Optional[Unhashable]),
+    # ── O — __hash__ thù địch
+    _C("O01", "O", "class target có __hash__ NỔ", UNSUPPORTED_AT_DECORATION, "C3", HashRaises),
+    _C("O02", "O", "class target có __hash__ trả giá trị khác nhau mỗi lần", UNSUPPORTED_AT_DECORATION, "C3", HashDrifts),
+    # ── P — __eq__ có tác dụng phụ
+    _C("P01", "P", "class target có __eq__/__hash__ đếm side effect", UNSUPPORTED_AT_DECORATION, "C3", EqHasSideEffect),
+    _C("P02", "P", "class target có __eq__ NỔ", UNSUPPORTED_AT_DECORATION, "C3", EqRaises),
+    _C("P03", "P", "class target có __eq__ luôn trả True", UNSUPPORTED_AT_DECORATION, "C3", EqAlwaysTrue),
+    # ── Q — origin mutable / mutable guard
+    _C("Q01", "Q", "list trần", UNSUPPORTED_AT_DECORATION, "C3", list),
+    _C("Q02", "Q", "dict[str, int]", UNSUPPORTED_AT_DECORATION, "C2,C3", dict[str, int]),
+    _C("Q03", "Q", "set[int]", UNSUPPORTED_AT_DECORATION, "C2,C3", set[int]),
+    _C("Q04", "Q", "bytearray", UNSUPPORTED_AT_DECORATION, "C3", bytearray),
+    _C("Q05", "Q", "Optional[list[int]]", UNSUPPORTED_AT_DECORATION, "C6", Optional[list[int]]),
+    _C("Q06", "Q", "Union[list, dict]", UNSUPPORTED_AT_DECORATION, "C6", Union[list, dict]),
+    _C("Q07", "Q", "field Any nhận một list", SUPPORTED_INVALID_REJECT, "C5,C7", Any, "ok", [1, 2]),
+    _C("Q08", "Q", "field Any nhận một LỚP CON của list", SUPPORTED_INVALID_REJECT, "C5", Any, "ok", MutableSubclass()),
+    # ── R — InitVar (tầng decoration)
+    _C("R01", "R", "một InitVar[int]", UNSUPPORTED_AT_DECORATION, "C8", observe=lambda: _observe_decoration(_initvar_single)),
+    _C("R02", "R", "nhiều InitVar — phải nêu ĐỦ tên", UNSUPPORTED_AT_DECORATION, "C8", observe=_observe_initvar_names),
+    _C("R03", "R", "dataclass CHỈ có InitVar", UNSUPPORTED_AT_DECORATION, "C8", observe=lambda: _observe_decoration(_initvar_only)),
+    _C("R04", "R", "InitVar dạng kw_only", UNSUPPORTED_AT_DECORATION, "C8", observe=lambda: _observe_decoration(_initvar_kwonly)),
+    # ── S — ClassVar (tầng decoration)
+    _C("S01", "S", "ClassVar[int] — phải VẪN hợp lệ", SUPPORTED_VALID, "C8", observe=_observe_classvar_alone),
+    _C("S02", "S", "ClassVar cùng field thường — không vào contract", SUPPORTED_VALID, "C8", observe=_observe_classvar_with_fields),
+    # ── T — độ phức tạp
+    _C("T01", "T", "bề rộng: __args__ giả 100 000 + Union thật 600 nhánh", UNSUPPORTED_AT_DECORATION, "C12", observe=_observe_wide_shapes),
+    _C("T02", "T", "tuple lồng 30 tầng", UNSUPPORTED_AT_DECORATION, "C2", _nested_tuple(30)),
+    _C("T03", "T", "typing tự NỔ khi DỰNG annotation", OUTSIDE_FRAMEWORK_BOUNDARY, "C12", observe=_observe_typing_refuses_first),
+    # ── U — forward ref
+    _C("U01", "U", "forward ref không phân giải được", UNSUPPORTED_AT_DECORATION, "C10", observe=_observe_forward_ref),
+    _C("U02", "U", "forward ref trỏ vòng về chính class", UNSUPPORTED_AT_DECORATION, "C10", observe=_observe_self_forward_ref),
+    # ── V — nguyên tử của decoration
+    _C("V01", "V", "metaclass __setattr__ NỔ giữa decoration", UNSUPPORTED_AT_DECORATION, "C9,C13", observe=_observe_hostile_metaclass_atomicity),
+    _C("V02", "V", "hỏng ở biên B1 — registry KHÔNG ĐỔI", UNSUPPORTED_AT_DECORATION, "C13", observe=_observe_registry_unchanged_on_b1_failure),
+    _C("V03", "V", "hỏng ở field thứ hai — class NGUYÊN VẸN", UNSUPPORTED_AT_DECORATION, "C13", observe=_observe_class_untouched_on_second_field_failure),
+    # ── W — annotation lạ
+    _C("W01", "W", "module object làm annotation", UNSUPPORTED_AT_DECORATION, "C2", sys),
+    _C("W02", "W", "lambda làm annotation", UNSUPPORTED_AT_DECORATION, "C2", (lambda: None)),
+    _C("W03", "W", "Enum class", UNSUPPORTED_AT_DECORATION, "C3", Shade),
+    _C("W04", "W", "abc.ABC subclass", UNSUPPORTED_AT_DECORATION, "C3", PlainABC),
+    _C("W05", "W", "class người dùng thường (metaclass type)", UNSUPPORTED_AT_DECORATION, "C3", PlainUserClass),
+    _C("W06", "W", "re.Pattern", UNSUPPORTED_AT_DECORATION, "C3", _re.Pattern),
+    _C("W07", "W", "type", UNSUPPORTED_AT_DECORATION, "C3", type),
+    # ── X — witness của TỪNG thành viên allowlist
+    _C("X01", "X", "field str", SUPPORTED_VALID, "C4,C14", str, "x", 1),
+    _C("X02", "X", "field int — True bị loại", SUPPORTED_VALID, "C4,C14", int, 1, True),
+    _C("X03", "X", "field bool — 1 bị loại", SUPPORTED_VALID, "C4,C14", bool, True, 1),
+    _C("X04", "X", "field date", SUPPORTED_VALID, "C4,C14", date, date(2026, 1, 1), "2026-01-01"),
+    _C("X05", "X", "field tuple — list bị loại", SUPPORTED_VALID, "C4,C5,C14", tuple, (1, 2), [1, 2]),
+    _C("X06", "X", "field frozenset — set bị loại", SUPPORTED_VALID, "C4,C14", frozenset, frozenset([1]), {1}),
+    _C("X07", "X", "field FrozenMapping", SUPPORTED_VALID, "C3,C14", FrozenMapping, FrozenMapping({}), {}),
+    _C("X08", "X", "field FrozenCounter", SUPPORTED_VALID, "C3,C14", FrozenCounter, FrozenCounter({}), {}),
+    _C("X09", "X", "field Any", SUPPORTED_VALID, "C7,C14", Any, object(), MISSING),
+    _C("X10", "X", "field NoneType", SUPPORTED_VALID, "C2,C14", type(None), None, 1),
+    _C("X11", "X", "field DateWindow", SUPPORTED_VALID, "C3,C14", _em.DateWindow, _em.DateWindow(date(2026, 1, 1), date(2026, 1, 2)), "x"),
+    _C("X12", "X", "field RecordRef", SUPPORTED_VALID, "C3,C14", _em.RecordRef, _em.RecordRef("snap", 0, "Ly"), "x"),
+    _C("X13", "X", "field RowProvenance (SEALED, witness từ factory)", SUPPORTED_VALID, "C3,C14", _vm.RowProvenance, _witness_row_provenance(), "x"),
+    # ── Y — hành vi từng nhánh của union
+    _C("Y01", "Y", "Optional[str] — nhánh None", SUPPORTED_VALID, "C6", Optional[str], None, 1),
+    _C("Y02", "Y", "Optional[str] — nhánh str, loại 1.5", SUPPORTED_VALID, "C6", Optional[str], "x", 1.5),
+    _C("Y03", "Y", "Optional[int] — loại True trong nhánh int", SUPPORTED_INVALID_REJECT, "C4,C6", Optional[int], 3, True),
+    _C("Y04", "Y", "Optional[RecordRef] — loại 'x'", SUPPORTED_INVALID_REJECT, "C4,C6", Optional[_em.RecordRef], None, "x"),
+)
+
+
+# ═══════════════════════════════════════════════ Z — bất biến quét toàn corpus
+
+
+def z01_only_contract_violations_escape_decoration() -> tuple:
+    """Mọi ngoại lệ thoát ra khỏi decoration CỦA FRAMEWORK đúng là
+    `CanonicalContractViolation`.
+
+    Phạm vi là giai đoạn `@canonical`. Case mà CPython `@dataclass` từ chối
+    trước đó không thuộc phạm vi này — framework chưa có trên call stack — và
+    chúng được LIỆT KÊ RA thay vì bị giấu đi, để biên luôn nhìn thấy được.
+    """
+    leaks = []
+    for case in FROZEN_CORPUS:
+        observed = case.run()
+        if "RAW_ERROR" in observed:
+            leaks.append(f"{case.id}:{observed}")
+    return (not leaks, leaks)
+
+
+def cpython_boundary_cases() -> tuple:
+    """Case mà CPython từ chối TRƯỚC khi `@canonical` chạy — biên đã phân loại."""
+    return tuple(c.id for c in FROZEN_CORPUS
+                 if c.annotation is not MISSING
+                 and c.run() == OUTSIDE_FRAMEWORK_BOUNDARY)
+
+
+def z02_no_foreign_text_in_messages() -> tuple:
+    """Không thông báo nào chứa ký tự do object lạ sinh ra."""
+    needles = ("X" * 50, "Y" * 50, "12345", "ProbeRepr")
+    dirty = []
+    for case in FROZEN_CORPUS:
+        if case.annotation is MISSING or case.expected != UNSUPPORTED_AT_DECORATION:
+            continue
+        try:
+            probe_class(case.annotation)
+        except CanonicalContractViolation as exc:
+            text = str(exc)
+            if any(n in text for n in needles):
+                dirty.append(case.id)
+        except BaseException:  # noqa: BLE001 — Z01 lo chuyện này
+            pass
+    return (not dirty, dirty)
+
+
+def z03_no_hostile_hook_ever_runs() -> tuple:
+    """Không hook nào của object lạ được gọi trên đường phân loại.
+
+    "Không nổ" chưa phải "không chạy": bản `1b0da151` gọi `__repr__` của
+    annotation lạ hai lần trong `try/except` và vẫn coi là an toàn.
+    """
+    ran = set()
+    for case in FROZEN_CORPUS:
+        if case.group == "J":
+            continue  # nhóm J CỐ Ý đưa giá trị thù địch vào đường runtime
+        if case.annotation is MISSING:
+            continue
+        try:
+            raw = _raw_dataclass(case.annotation, "ProbeZ3")
+        except BaseException:  # noqa: BLE001 — giai đoạn CPython, ngoài phạm vi
+            continue
+        SIDE_EFFECTS.clear()          # bỏ qua hook do CPython gọi ở trên
+        try:
+            canonical()(raw)
+        except BaseException:  # noqa: BLE001
+            pass
+        ran.update(SIDE_EFFECTS)
+    SIDE_EFFECTS.clear()
+    return (not ran, sorted(ran))
+
+
+def z04_framework_bugs_are_not_swallowed() -> tuple:
+    """Lỗi lập trình BÊN TRONG framework KHÔNG bị nuốt thành
+    CanonicalContractViolation.
+
+    Tiêm một lỗi vào chính `_build_spec` rồi khẳng định nó nổi lên nguyên hình.
+    """
+    import app.modules.domain.canonical as cm
+
+    marker = ZeroDivisionError
+    original = cm._in_allowlist
+
+    def exploding(_target):
+        raise marker("bug giả lập bên trong framework")
+
+    cm._in_allowlist = exploding
+    try:
+        probe_class(str, "ProbeZ4")
+    except marker:
+        return (True, [])
+    except BaseException as exc:  # noqa: BLE001
+        return (False, [f"bị nuốt thành {type(exc).__name__}"])
+    finally:
+        cm._in_allowlist = original
+    return (False, ["không nổ gì cả"])
+
+
+Z_INVARIANTS = (
+    ("Z01", "mọi exception thoát khỏi decoration ĐÚNG là CanonicalContractViolation",
+     "C10", z01_only_contract_violations_escape_decoration),
+    ("Z02", "không thông báo nào chứa ký tự do object lạ sinh ra",
+     "C11", z02_no_foreign_text_in_messages),
+    ("Z03", "không hook nào của object lạ được gọi trên đường phân loại",
+     "C1,C4", z03_no_hostile_hook_ever_runs),
+    ("Z04", "lỗi lập trình BÊN TRONG framework KHÔNG bị nuốt",
+     "C10", z04_framework_bugs_are_not_swallowed),
+)
+
+TOTAL_CASES = len(FROZEN_CORPUS) + len(Z_INVARIANTS)
+
+
+def main() -> int:
+    print("R1-A1 — FROZEN ATTACK CORPUS")
+    print(f"{len(FROZEN_CORPUS)} case + {len(Z_INVARIANTS)} bất biến "
+          f"= {TOTAL_CASES} case đã freeze\n")
+    print(f"{'ID':5s} {'GRP':4s} {'CLAUSE':10s} {'MÔ TẢ':56s} {'EXPECTED':28s} KẾT QUẢ")
+    print("-" * 128)
+    failed = []
+    for case in FROZEN_CORPUS:
+        observed = case.run()
+        ok = _satisfies(case.expected, observed)
+        if not ok:
+            failed.append((case.id, case.expected, observed))
+        mark = "PASS" if ok else f"FAIL (đo được: {observed})"
+        print(f"{case.id:5s} {case.group:4s} {case.clause:10s} "
+              f"{case.description[:56]:56s} {case.expected:28s} {mark}")
+    for cid, desc, clause, fn in Z_INVARIANTS:
+        ok, detail = fn()
+        if not ok:
+            failed.append((cid, INVARIANT, str(detail)))
+        mark = "PASS" if ok else f"FAIL ({detail})"
+        print(f"{cid:5s} {'Z':4s} {clause:10s} {desc[:56]:56s} {INVARIANT:28s} {mark}")
+    print("-" * 128)
+    print(f"TỔNG: {TOTAL_CASES - len(failed)}/{TOTAL_CASES} PASS")
+    if failed:
+        print("\nFAIL:")
+        for cid, expected, observed in failed:
+            print(f"  {cid}: chờ {expected}, đo được {observed}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    print("=" * 78)
-    tally = {}
-    for _, outcome, _, _ in RESULTS:
-        tally[outcome] = tally.get(outcome, 0) + 1
-    print(f"TỔNG: {len(RESULTS)} annotation | " +
-          " | ".join(f"{k}={v}" for k, v in sorted(tally.items())))
-    for label in ("BYPASSED", "REJECTED", "BROKEN", "RAW_ERROR", "NO_WITNESS",
-                  "UNDECLARED", "UNSUPPORTED"):
-        ids = [r[0] for r in RESULTS if r[1] == label]
-        if ids:
-            print(f"{label}: {', '.join(ids)}")
-    print()
-    print("BẤT BIẾN R1-A1: không ô nào được BYPASSED / REJECTED / BROKEN / "
-          "RAW_ERROR / NO_WITNESS / UNDECLARED.")
-    print("UNSUPPORTED là kết quả CHẤP NHẬN ĐƯỢC — nó là một tuyên bố, không phải lỗ hổng.")
+    raise SystemExit(main())

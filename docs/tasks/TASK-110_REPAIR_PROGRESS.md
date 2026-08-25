@@ -20,7 +20,7 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | AWAITING_REVIEW (**repair #3**) | commit R1-A1 #3, parent `d4a8797` | **Review #2 FAIL** tại `d4a8797` (6 finding) | Vòng #3 đóng 6 finding: phân loại runtime-class thuần cấu trúc, hợp đồng phải có miền giá trị, `InitVar`, ngân sách độ sâu/độ phức tạp, biên lỗi, oracle. Ma trận 98 → **128** dạng: 28 ô hỏng → **0**; script tái hiện 17 phép đo: 10 hỏng → **0** |
+| R1-A1 | Annotation Contract | HIGH | AWAITING_INDEPENDENT_REVIEW (**FROZEN CONTRACT**) | commit R1-A1 #4, parent `5a0f27c` | **Review #3 FAIL** tại `1b0da151` | Ngừng repair theo finding. Hợp đồng ĐÓNG, hữu hạn, Owner freeze (`TASK-110-R1-A1-FROZEN-CONTRACT.md`): ngữ pháp 4 dạng `any\|none\|class\|optional`, allowlist class 4 category so bằng ĐỊNH DANH, runtime `type(v) is T` (xoá `isinstance` khỏi đường validate). Corpus **102/105**; 3 case chờ Owner (biên CPython). Mutation M-1→M-11: **11/11** bị bắt |
 | R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
 | R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
@@ -1495,3 +1495,64 @@ Mỗi session repair chỉ được cập nhật:
 - verdict review.
 
 Không được đánh dấu unit PASS/FROZEN dựa trên self-review của Claude. `FROZEN` cần Independent Review PASS.
+
+
+#### Repair #4 — FROZEN CONTRACT (Independent Review R1-A1 #3 FAIL tại `1b0da151`)
+
+- Status: **AWAITING_INDEPENDENT_REVIEW**
+- Exact starting SHA (baseline correctness): `1b0da151c2dae9020c0adcc4118a3e2543cefb77`
+- Frozen plan checkpoint: `5a0f27c` — commit CHỈ chứa artifact PLAN. **Không**
+  phải repair SHA, **không** phải reviewed implementation. Mọi so sánh
+  BEFORE/AFTER về correctness dùng `1b0da151` → repair SHA.
+- Hợp đồng: `docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md` (Owner duyệt
+  HD-A1-01 → HD-A1-18 đúng như đề xuất).
+
+**Vì sao vòng này khác ba vòng trước.** Ba vòng đầu đều lượng hoá trên một
+không gian mở ("mọi annotation hợp lý đều phải an toàn"). Không gian đó không
+đếm được, nên mỗi vòng review sau lại dựng được một object Python mới. Vòng
+này thay tiêu chí bằng một hợp đồng ĐÓNG, hữu hạn, do production quyết định
+độ rộng.
+
+**Đo tại `1b0da151` — bốn lỗ hổng còn lại (bằng chứng BEFORE):**
+
+| Probe | Đo được |
+|---|---|
+| `get_origin` raise exception có `__str__` thù địch | `RuntimeError` THÔ thoát ra — `_foreign()` gọi `str(exc)[:60]`, chính việc dựng thông báo là đường rò |
+| giá trị runtime có `__class__` raise | `RuntimeError` THÔ thoát ra — `isinstance` tra `value.__class__` |
+| giá trị runtime có `__class__` nói dối | **CHẤP NHẬN** — object giả qua được field khai class thật |
+| metaclass `__setattr__` raise giữa decoration | `RuntimeError` THÔ, class nửa vời (`__canonical_contract__` đã ghi, `__post_init__` chưa bọc) |
+
+**Hai thay đổi cấu trúc đóng cả bốn:**
+
+1. Phân loại thuần ĐỊNH DANH trên một allowlist đóng 4 category. Với annotation
+   hợp lệ, framework không thực hiện MỘT lời gọi lạ nào.
+2. Runtime `type(value) is T`, xoá `isinstance` khỏi toàn bộ đường validate.
+   Bằng chứng đủ điều kiện: instrument `_ClassSpec.matches` trên **toàn bộ 702
+   test** tại `1b0da151` → **0 divergence** giữa hai phép kiểm.
+
+**AFTER:**
+
+    Frozen corpus                102/105 PASS (3 case chờ Owner — biên CPython)
+    Mutation M-1 → M-11          11/11 bị bắt; 0 mutation sót trong worktree
+    Production inventory         11 type / 72 field | 0 ngoài ngữ pháp
+                                 class=37  optional=34  any=1  | tối đa 3 nút
+    Thông báo lỗi production     3/3 nguyên từng byte
+    Suite ngoài R1-A1            497 passed, 9 skipped — KHÔNG ĐỔI
+    R1 probes                    43 | BLOCKED=39 OUT=1 RESIDUAL=3  — khớp baseline
+    R1-A probes                  25 | BLOCKED=23 OUT=2             — khớp baseline
+
+**Đơn giản hoá do ngữ pháp đóng mang lại** (gỡ chứ không thêm):
+`_classify_class_target()`, `_safe_name()`, `_LiteralSpec`, `_UnionSpec`,
+`_parse_generic_args()`, `is_inhabited()`/`uninhabited_label()`,
+`_MAX_ANNOTATION_DEPTH`, `_UNSUPPORTED_ORIGINS`, `_ANNOTATION_ONLY_CLASSES`,
+`_TRUSTED_NON_TYPE_METACLASS_CLASSES` — tất cả đều là bù trừ cho một mặc định
+quá dễ dãi. Mặc định TỪ CHỐI làm chúng thành thừa.
+
+**Ba case chờ QUYẾT ĐỊNH OWNER** (`K03`, `L03`, `M02`): xem §21.2 của artifact
+hợp đồng. Chúng nhắm vào thuộc tính mà CPython `dataclasses._process_class` tự
+đọc TRƯỚC khi `@canonical` chạy, nên framework không tạo ra được outcome đã
+freeze. Tính an toàn vẫn đúng và đã đo (registry không đổi, không type nào
+được tạo). Đề xuất phân loại lại thành `OUTSIDE_FRAMEWORK_BOUNDARY` — **không
+tự đổi**.
+
+**HARDENING BACKLOG**: HB-A1-01 → HB-A1-05, xem §21.4 của artifact hợp đồng.

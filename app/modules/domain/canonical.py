@@ -77,7 +77,6 @@ private của module khác, và được ghi nhận là residual risk của R1.
 
 from __future__ import annotations
 
-import collections.abc as _cabc
 import dataclasses as _dataclasses
 import functools
 import threading
@@ -88,7 +87,7 @@ from collections.abc import Mapping
 from dataclasses import fields as _dataclass_fields
 from operator import itemgetter
 from types import MappingProxyType
-from typing import Any, Callable, Literal, Optional, TypeVar
+from typing import Any, Callable, Optional
 
 
 class SealedConstruction(TypeError):
@@ -211,173 +210,263 @@ def factory_for(cls: type) -> Callable[[Callable], Callable]:
     return decorate
 
 
-# ────────────────────── Lớp 1b: hợp đồng field DẪN XUẤT TỪ ANNOTATION (R1-A)
+# ──────────── R1-A1: HỢP ĐỒNG ANNOTATION HỮU HẠN (FROZEN CONTRACT, DEC-135)
 #
-# Independent Review R1 falsify được rằng `@canonical` chỉ ĐÁNH DẤU chứ không
-# BẢO ĐẢM: `RecordRef` và `MappingResult` mang decorator mà không có một phép
-# kiểm nào, nên `RecordRef(snapshot_id, -1, "forged")` dựng được và
-# `master.record(ref)` im lặng chọn employee CUỐI (Python negative index).
+# Independent Review R1-A Finding #1 (tại `dead82e`) mở ra một vòng lặp ba lần
+# repair: mỗi vòng đóng thêm vài lớp annotation, và mỗi vòng review sau lại
+# dựng được một object Python mới mà lớp vừa đóng chưa nghĩ tới — metaclass
+# mới, `__instancecheck__` đổi hành vi theo giá trị, `__hash__` nổ, `__repr__`
+# có side effect, `__class__` nói dối.
 #
-# Cách đóng không phải là viết thêm `__post_init__` cho hai type đó rồi coi là
-# xong — lần sau sẽ có type thứ ba. Cách đóng là để **framework tự sinh phép
-# kiểm field từ annotation mà type đã khai**. Annotation vốn đã có, đã được
-# đọc khi review, và không ai quên viết nó — nên nó là nguồn duy nhất đáng tin
-# để dẫn xuất hợp đồng.
+# Root cause KHÔNG phải thiếu thêm vài nhánh. Root cause là **tiêu chí chấp
+# nhận được phát biểu trên một không gian vô hạn**: "mọi annotation hợp lý đều
+# phải an toàn". Không gian đó không đếm được, nên không vòng repair nào kết
+# thúc được.
 #
-# Ngữ nghĩa kiểm:
-#   Any               không kiểm kiểu (nhưng vẫn cấm container mutable)
-#   Optional[X]       None hoặc X
-#   builtin vô hướng  KIỂU CHÍNH XÁC (`type(v) is X`) — một lớp con của `str`
-#                     với `__str__` đổi theo lần gọi qua được mọi `isinstance`,
-#                     và `True` qua được mọi phép kiểm `int`
-#   class khác        `isinstance` — kế thừa ngoài module chủ đã bị Lớp 3 cấm,
-#                     nên subclass hợp lệ (AmbiguousRow) vẫn dùng được
-#   MỌI field         không được là container mutable (list/dict/set/bytearray)
+# Bản này thay tiêu chí đó bằng một HỢP ĐỒNG ĐÓNG, hữu hạn, do Owner freeze
+# (`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`):
 #
-# Bất biến NGỮ NGHĨA (`start <= end`, `status` thuộc enum nào, phần tử bên
-# trong một tuple) framework
-# không suy ra được, nên chúng vẫn ở `__post_init__` — và `@canonical` BẮT
-# BUỘC mọi type phải khai `__post_init__`, để "quên nghĩ về invariant" nổ lúc
-# import chứ không nằm im.
-
-# Kiểu vô hướng dựng sẵn: đây là bề mặt tấn công bằng lớp con, nên kiểm CHÍNH
-# XÁC. `bool` là lớp con của `int`, nên `type(v) is int` cũng loại luôn `True`.
-_EXACT_TYPES = (str, int, bool, float, bytes, complex, date)
-
-# Tên tiếng Việt của kiểu, dùng trong thông báo. Giữ đúng từ mà các thông báo
-# master data đã dùng từ trước ("chuỗi thuần", "boolean") để chúng vẫn là cùng
-# một câu chuyện với người đọc, và để bằng chứng cũ còn khớp.
-_TYPE_NAMES = {
-    str: "chuỗi thuần",
-    bool: "boolean",
-    int: "số nguyên thuần",
-    float: "số thực thuần",
-    bytes: "bytes thuần",
-    date: "ngày (`datetime.date`) thuần",
-}
-
-# Container mutable: cấm ở MỌI field, bất kể annotation. `frozen=True` chỉ cấm
-# gán lại thuộc tính, không cấm sửa đối tượng nó trỏ tới.
-_MUTABLE_CONTAINERS = (list, dict, set, bytearray)
-
-# Dạng CẶP của `_TYPE_NAMES`, để tra bằng `is` thay vì `dict.get()` (vốn gọi
-# `hash()` của metaclass lạ).
-_TYPE_NAME_PAIRS = tuple(_TYPE_NAMES.items())
-
-
-# ── NGỮ PHÁP ANNOTATION ĐÓNG (R1-A1)
+#     spec := any | none | class | optional
 #
-# Independent Review R1-A Finding #1: `_field_checker()` chỉ hiểu một tập con
-# rất hẹp của `typing`, và mọi thứ ngoài tập đó ÂM THẦM rơi xuống đường không
-# kiểm. Đo được tại `dead82e`: `Union[int, str]` nhận `1.5`; `Literal["a","b"]`
-# nhận `"c"`; TypeVar có ràng buộc nhận mọi thứ; còn `str | None` (PEP 604) thì
-# LOẠI cả giá trị hợp lệ vì nó bị đem đi `isinstance(value, types.UnionType)`.
+# Bốn dạng. Không có dạng thứ năm. Nhánh cuối của parser là `raise`.
 #
-# Root cause không phải thiếu năm nhánh `if`. Root cause là **nhánh cuối cùng
-# của phép phân tích annotation là "bỏ qua"**. Một trình phân tích mà trường
-# hợp mặc định là im lặng thì mọi annotation nó chưa gặp đều là một lỗ hổng
-# chưa được phát hiện — và danh sách annotation Python sẽ còn dài ra.
+# ## Vì sao đóng được tới mức này: production chỉ cần tới mức này
 #
-# Cách đóng: phân tích annotation bằng **đệ quy xuống một ngữ pháp ĐÓNG**, và
-# nhánh cuối cùng là `raise`, không phải `return`. Bất biến:
+# Audit 11 canonical type / 72 field tại `1b0da151` cho ra đúng 17 hình thái
+# annotation, và cả 17 quy về ba dạng: `class` (37 field), `optional` (34),
+# `any` (1). Production KHÔNG dùng một generic có tham số nào, KHÔNG dùng
+# `Literal`, KHÔNG dùng union nhiều nhánh. Ngữ pháp dưới đây vì thế phủ 72/72
+# field mà không phải mở thêm gì — và mọi thứ ngoài nó là UNSUPPORTED theo
+# **mặc định TỪ CHỐI**.
 #
-#     UNKNOWN ≠ ANY.
+# ## Hai thay đổi cấu trúc, không phải hai phép kiểm thêm
 #
-# Một annotation hoặc nằm trong ngữ pháp và được validate ĐỦ ngữ nghĩa, hoặc
-# nổ `CanonicalContractViolation` NGAY LÚC IMPORT. Không có ô thứ ba.
+# **1. Phân loại bằng ĐỊNH DANH, không bằng cách hỏi object lạ.** Một class chỉ
+# được nhận nếu nó `is` một phần tử của allowlist đóng. Không `hash(target)`,
+# không `target == x`, không `target in <set>`, không `isinstance(v, target)`,
+# không `repr`/`str`/`__name__`/`__module__`. Với annotation HỢP LỆ, framework
+# không thực hiện một lời gọi lạ nào.
 #
-# Ngữ pháp (cố ý nhỏ — production chỉ dùng ba hình thái đầu):
+# **2. Kiểm runtime bằng `type(value) is T`, không `isinstance`.** Đo trên toàn
+# bộ 702 test tại `1b0da151`: 0 lần `isinstance` và `type(v) is T` cho kết quả
+# khác nhau. Dung sai lớp con mà `isinstance` mua thêm, production không dùng;
+# còn cái nó bán đi là hai lỗ hổng đo được — `isinstance` tra `value.__class__`,
+# nên một property `__class__` nổ làm lỗi thô thoát ra, và một `__class__` nói
+# dối đưa object giả qua được field khai class thật.
 #
-#     spec    := Any | none | atom | union | literal
-#     none    := None | NoneType                (chỉ `None` hợp lệ)
-#     atom    := <lớp cụ thể>                   builtin vô hướng -> kiểu CHÍNH XÁC
-#                                               lớp khác        -> `isinstance`
-#                <generic có tham số>           kiểm theo `origin`, phần tử KHÔNG
-#                                               kiểm (đó là R1-D)
-#     union   := Union[s1..sn] | s1 | .. | sn   khớp ÍT NHẤT MỘT nhánh
-#     literal := Literal[v1..vn]                bằng VÀ đúng kiểu chính xác
+# ## Điều hợp đồng này CỐ TÌNH không hứa
 #
-# Ngoài ngữ pháp -> UNSUPPORTED, nổ lúc decorate. Hiện gồm: `TypeVar` (canonical
-# dataclass không generic; đỡ `TypeVar` đúng nghĩa là phải mô hình hoá binding
-# và variance — một trình kiểm kiểu thu nhỏ mà production không cần),
-# `Final[...]`, và mọi special form khác chưa được mô hình hoá.
-
+# Nó không hứa "không ai nghĩ ra được attack Python mới". Nó hứa một điều đếm
+# được: mọi annotation hoặc nằm trong bốn dạng trên và được kiểm đủ, hoặc nổ
+# `CanonicalContractViolation` ngay lúc decorate.
 
 _NONE_TYPE = type(None)
 _UNION_TYPE = getattr(_types, "UnionType", None)
 
-# ─────────────────────────── R1-A1 #3: PHÂN LOẠI KHÔNG HỎI OBJECT LẠ
+# ── C3 — FROZEN_CLASS_ALLOWLIST: bốn category hữu hạn, so bằng ĐỊNH DANH.
 #
-# Independent Review R1-A1 #2 chỉ ra rằng "chứng minh bằng hai phép thử
-# `isinstance`" không phải một phép chứng minh: một metaclass đổi hành vi theo
-# GIÁ TRỊ sẽ qua được hai phép thử rồi nổ với dữ liệu thật. Tệ hơn, chính việc
-# tra chính sách (`target in frozenset(...)`) đã gọi `__hash__` của metaclass
-# lạ TRƯỚC khi target được coi là an toàn — nên một `__hash__` nổ làm lỗi thô
-# thoát ra ngay lúc decorate.
-#
-# Nguyên tắc thay thế: **phân loại bằng CẤU TRÚC framework tự biết, không bằng
-# cách chạy code của người khác.** Cụ thể, trong toàn bộ đường phân loại:
-#
-#   * không `hash(target)`      -> mọi phép tra tập hợp dùng `is`, không `in`;
-#   * không `target == x`       -> như trên;
-#   * không `isinstance(v, target)` để "chứng minh" -> thay bằng luật metaclass.
-#
-# `isinstance(target, type)` và `type(target)` vẫn dùng được: cả hai đi qua
-# `type.__instancecheck__` ở tầng C, không chạm code người dùng.
+# Vô hướng bất biến. Kiểm bằng `type(v) is T` nên `True` KHÔNG lọt qua `int`
+# (bool là lớp con của int), và một lớp con của `str` đổi giá trị giữa hai lần
+# đọc cũng không lọt qua `str`.
+_FROZEN_SCALARS = (str, int, bool, date)
 
-# Metaclass là `type` -> `isinstance()` là phép duyệt MRO ở tầng C, tất định và
-# không chạy code nào của người dùng. Đây là điều kiện đủ mà framework tin được
-# mà không phải chạy thử gì.
-#
-# Metaclass khác (`ABCMeta`, `EnumMeta`, `_ProtocolMeta`, metaclass tự viết)
-# đều có thể chạy hook do người dùng định nghĩa (`__subclasshook__`,
-# `__instancecheck__`). Chúng bị TỪ CHỐI, trừ đúng những class mà framework tự
-# sở hữu và tự biết ngữ nghĩa — danh sách dưới đây, so bằng ĐỊNH DANH.
-_TRUSTED_NON_TYPE_METACLASS_CLASSES: list = []  # điền sau khi định nghĩa xong
+# Container bất biến. Dạng TRẦN, không tham số — production chỉ dùng dạng này,
+# và mọi generic có tham số là UNSUPPORTED (HD-A1-16).
+_FROZEN_CONTAINERS = (tuple, frozenset)
 
-# Giới hạn độ phức tạp: parser đệ quy KHÔNG được để `RecursionError` của CPython
-# làm chính sách. Production sâu nhất 2 tầng; 24 là dư thừa gấp hơn mười lần.
-_MAX_ANNOTATION_DEPTH = 24
+# Class do chính framework sở hữu. Điền sau khi định nghĩa xong ở cuối file.
+_FROZEN_FRAMEWORK: list = []
+
+# Container mutable: cấm ở MỌI field, bất kể annotation. `frozen=True` chỉ cấm
+# gán lại thuộc tính, không cấm sửa đối tượng nó trỏ tới. Chính sách này thuộc
+# R1-D và KHÔNG đổi ở R1-A1.
+_MUTABLE_CONTAINERS = (list, dict, set, bytearray)
+
+# ── C12 — ngân sách độ phức tạp.
+#
+# Dưới ngữ pháp đóng, một annotation HỢP LỆ có tối đa 3 nút (đo trên cả 72
+# field production: max = 3), nên ngân sách này không bao giờ chặn oan. Nó là
+# hàng rào cho trục BỀ RỘNG: một `Union` 600 nhánh có `get_args()` dài 600 và
+# bị chặn ở đây TRƯỚC khi tới phép kiểm arity. Không còn giới hạn ĐỘ SÂU riêng:
+# ngữ pháp tự chặn ở 2 tầng, nên parser không đệ quy và `RecursionError` của
+# CPython không còn cơ hội làm chính sách.
 _MAX_ANNOTATION_NODES = 512
 
-# ── CHÍNH SÁCH R1-A1 #2: họ `Callable` bị từ chối TOÀN BỘ.
-#
-# `get_args(Callable[[A, B], R])` trả `([A, B], R)` — phần tử đầu là một
-# **list**, không phải một kiểu; `Callable[..., R]` trả `(Ellipsis, R)`. Hình
-# dạng đó không giống bất kỳ generic nào khác, nên mô hình hoá nó tử tế là một
-# nhánh ngữ pháp riêng mà production không dùng tới. Từ chối cả họ (trần lẫn có
-# tham số) là kết quả HỢP LỆ và tốt hơn hỗ trợ nửa vời (Review R1-A1 #2, §4).
-_UNSUPPORTED_ORIGINS = (_cabc.Callable,)
 
-# ── CHÍNH SÁCH R1-A1 #2: class CHỈ DÙNG ĐỂ CHÚ THÍCH.
+# ── C11 — AN TOÀN THÔNG BÁO.
 #
-# Những class này qua được `isinstance(target, type)` VÀ qua được cả phép thử
-# `isinstance()` (không nổ) — nhưng chúng trả `False` cho MỌI object thật, nên
-# một field khai kiểu đó sẽ loại sạch giá trị hợp lệ. Không phép thử runtime
-# nào phát hiện được điều đó, nên đây là một chính sách được TUYÊN BỐ, có test
-# canh, chứ không phải một suy đoán.
-_ANNOTATION_ONLY_CLASSES = (
-    typing.IO, typing.TextIO, typing.BinaryIO, typing.Generic, typing.Protocol,
+# Thông báo lúc decorate KHÔNG chứa một ký tự nào do object lạ sinh ra. Bản
+# trước có `_safe_name()` gọi `repr(obj)` trong `try/except`: nó không để lọt
+# exception, nhưng nó VẪN chạy code của người khác — đo được hai lần gọi
+# `__repr__` có side effect. Không nổ ≠ không chạy. Nên toàn bộ lý do từ chối
+# là HẰNG SỐ, và thứ duy nhất thay đổi theo ngữ cảnh là tên field, vốn do
+# `dataclasses.fields()` cấp.
+
+_REASON_NOT_IN_GRAMMAR = (
+    "annotation nằm NGOÀI ngữ pháp canonical đã đóng băng. Ngữ pháp chỉ gồm "
+    "bốn dạng: `Any`; `None`; một class thuộc allowlist đóng "
+    "(`str`/`int`/`bool`/`date`/`tuple`/`frozenset`/`FrozenMapping`/"
+    "`FrozenCounter`/một canonical type đã đăng ký TRƯỚC đó); và `Optional[X]` "
+    "với `X` thuộc chính allowlist ấy. Mọi thứ khác — generic có tham số, "
+    "`Literal`, union tổng quát, `TypeVar`, `Callable`, `Protocol`, "
+    "`TypedDict`, `Enum`, class ngoài allowlist — là UNSUPPORTED theo mặc "
+    "định TỪ CHỐI. Framework không đoán một annotation 'có vẻ dùng được'."
 )
 
-# `_INSTANCECHECK_PROBES` đã bị XOÁ ở R1-A1 #3: chạy `isinstance()` với vài giá
-# trị mẫu không chứng minh được gì về một `__instancecheck__` đổi hành vi theo
-# giá trị. Xem `_classify_class_target()`.
+_REASON_UNION_ARITY = (
+    "union phải có ĐÚNG hai nhánh và một trong hai phải là `None`. Union "
+    "nhiều nhánh không nằm trong ngữ pháp đóng: production chỉ dùng "
+    "`Optional[X]`."
+)
 
-# Giá trị được phép xuất hiện trong `Literal[...]` (PEP 586 giới hạn tương tự).
-_LITERAL_VALUE_TYPES = (str, int, bool, bytes, _NONE_TYPE)
+_REASON_UNION_SHAPE = (
+    "union có hai nhánh nhưng không phải dạng `Optional[X]` hợp lệ: cần đúng "
+    "một nhánh `None` và một nhánh là class thuộc allowlist đóng."
+)
+
+_REASON_ARGS_NOT_TUPLE = (
+    "tham số của union không phải một tuple, nên annotation này không phải "
+    "một union thật."
+)
+
+_REASON_NODE_BUDGET = (
+    f"annotation có hơn {_MAX_ANNOTATION_NODES} nút. Giới hạn này chặn trục "
+    "BỀ RỘNG (union khổng lồ) — thứ không nổ `RecursionError` nhưng vẫn là độ "
+    "phức tạp không kiểm soát. Đây là hằng số TẤT ĐỊNH của framework, không "
+    "phải stack còn lại của CPython."
+)
+
+_REASON_B2 = (
+    "không khảo sát được `get_origin` của annotation (biên lạ B2). Một "
+    "annotation mà framework không khảo sát nổi thì không thể được coi là hỗ "
+    "trợ. Lý do gốc CỐ Ý không được render: đọc `__str__` của một exception lạ "
+    "chính là chạy code lạ."
+)
+
+_REASON_B3 = (
+    "không khảo sát được `get_args` của annotation (biên lạ B3). Xem giải "
+    "thích ở B2."
+)
+
+# Tên hiển thị của KIỂU GIÁ TRỊ trong thông báo runtime. Tra bằng ĐỊNH DANH.
+# Ngoài bảng -> hằng số, không bao giờ `type(v).__name__` (một metaclass có
+# `__getattribute__` riêng biến việc dựng thông báo thành đường chạy code lạ).
+_VALUE_TYPE_NAME_PAIRS: list = [
+    (str, "str"), (int, "int"), (bool, "bool"), (float, "float"),
+    (bytes, "bytes"), (complex, "complex"), (date, "date"),
+    (_datetime, "datetime"), (tuple, "tuple"), (frozenset, "frozenset"),
+    (list, "list"), (dict, "dict"), (set, "set"), (bytearray, "bytearray"),
+    (_NONE_TYPE, "NoneType"), (MappingProxyType, "mappingproxy"),
+]
+_UNKNOWN_TYPE_NAME = "<kiểu không xác định>"
+_UNRENDERABLE_VALUE = "<giá trị không hiển thị được>"
+_MAX_VALUE_REPR = 200
+
+# Chỉ những kiểu có `__repr__` là hàm C, không đệ quy xuống phần tử con, mới
+# được render. `tuple`/`frozenset` KHÔNG nằm đây: `repr((hostile,))` gọi
+# `__repr__` của phần tử.
+_REPR_SAFE_TYPES = (str, int, bool, float, bytes, complex, date, _NONE_TYPE)
+
+# Nhãn tiếng Việt của kiểu trong thông báo hợp đồng. Giữ đúng từ mà các thông
+# báo master data đã dùng từ trước ("chuỗi thuần", "boolean") để bằng chứng cũ
+# còn khớp. Class được `@canonical` nhận sẽ tự thêm nhãn của nó lúc commit.
+_CLASS_LABEL_PAIRS: list = [
+    (str, "chuỗi thuần"),
+    (bool, "boolean"),
+    (int, "số nguyên thuần"),
+    (date, "ngày (`datetime.date`) thuần"),
+    (tuple, "`tuple`"),
+    (frozenset, "`frozenset`"),
+]
+
+
+def _is_one_of(target: Any, candidates) -> bool:
+    """So bằng ĐỊNH DANH, không bằng `==` và không qua `hash()`.
+
+    `target in <frozenset>` gọi `__hash__` của metaclass lạ TRƯỚC khi target
+    được chứng minh an toàn; `dict.get()` cũng vậy. `is` không chạm code nào.
+    """
+    return any(target is candidate for candidate in candidates)
+
+
+def _pair_lookup(key: Any, pairs, default: str) -> str:
+    """Tra bảng bằng ĐỊNH DANH. Thay cho `dict[...]`, vốn gọi `__hash__`."""
+    for candidate, value in pairs:
+        if key is candidate:
+            return value
+    return default
+
+
+def _in_allowlist(target: Any) -> bool:
+    """C3 — target có thuộc FROZEN_CLASS_ALLOWLIST không.
+
+    Bốn category, tất cả so bằng định danh. `_REGISTRY` là metadata do chính
+    decorator ghi, nên nó là trusted source theo đúng nghĩa §4 của hợp đồng:
+    framework không hỏi object lạ, nó tra sổ của chính nó.
+    """
+    return (_is_one_of(target, _FROZEN_SCALARS)
+            or _is_one_of(target, _FROZEN_CONTAINERS)
+            or _is_one_of(target, _FROZEN_FRAMEWORK)
+            or _is_one_of(target, _REGISTRY))
+
+
+def frozen_class_allowlist() -> tuple:
+    """Toàn bộ allowlist tại thời điểm gọi — để oracle đi hết được nó."""
+    return (tuple(_FROZEN_SCALARS) + tuple(_FROZEN_CONTAINERS)
+            + tuple(_FROZEN_FRAMEWORK) + tuple(_REGISTRY))
+
+
+def _value_type_name(value: Any) -> str:
+    return _pair_lookup(type(value), _VALUE_TYPE_NAME_PAIRS, _UNKNOWN_TYPE_NAME)
+
+
+def _render_value(value: Any) -> str:
+    """Render giá trị bị từ chối, KHÔNG bao giờ chạy code của người khác."""
+    if not _is_one_of(type(value), _REPR_SAFE_TYPES):
+        return _UNRENDERABLE_VALUE
+    text = repr(value)
+    if len(text) > _MAX_VALUE_REPR:
+        return text[:_MAX_VALUE_REPR] + "…"
+    return text
+
+
+def _violation(where: str, reason: str) -> "CanonicalContractViolation":
+    return CanonicalContractViolation(f"{where}: {reason}")
+
+
+# ── C10 — BIÊN LẠ. Đúng ba điểm chạm object lạ trong toàn bộ hợp đồng, và
+# không điểm nào ở đường runtime. Mỗi `try` bọc ĐÚNG MỘT lời gọi stdlib, nên
+# lỗi lập trình BÊN TRONG framework vẫn nổ nguyên hình thay vì bị nuốt thành
+# `CanonicalContractViolation`.
+#
+# `from None` chứ không `from exc`: giữ `exc` trong chain nghĩa là bất kỳ ai in
+# traceback về sau đều chạy `__str__` của nó — đúng lỗ hổng đang đóng, chỉ bị
+# dời chỗ. Mã lý do đã chỉ đủ rõ biên nào hỏng.
+
+
+def _boundary_get_origin(hint: Any, where: str) -> Any:
+    try:
+        return typing.get_origin(hint)
+    except Exception:  # noqa: BLE001 — biên lạ B2, bọc đúng một lời gọi
+        raise _violation(where, _REASON_B2) from None
+
+
+def _boundary_get_args(hint: Any, where: str) -> Any:
+    try:
+        return typing.get_args(hint)
+    except Exception:  # noqa: BLE001 — biên lạ B3, bọc đúng một lời gọi
+        raise _violation(where, _REASON_B3) from None
+
+
+# ── Cây spec. Bốn nút, đúng bằng bốn production của ngữ pháp.
 
 
 class _Spec:
     """Một NÚT của cây annotation đã parse.
 
-    `source` là annotation gốc sinh ra nút này, `children()` là các nút con.
-    Hai thứ đó biến cây parse thành một **biểu diễn kiểm chứng được**: một test
-    ở tầng trừu tượng đi hết cây và so số con với số tham số kiểu của
-    `source`, nên "thêm một generic mới rồi hậu duệ của nó biến mất" là điều
-    KHÔNG lặng lẽ xảy ra được nữa (Review R1-A1 #2, §9).
-
-    `matches` trả bool; `label` để render thông báo.
+    `children()` phơi cấu trúc ra cho một test ở tầng trừu tượng đi hết được
+    cây, nên "thêm một dạng mới rồi hậu duệ của nó biến mất" không lặng lẽ xảy
+    ra được.
     """
 
     __slots__ = ("label", "source")
@@ -386,37 +475,20 @@ class _Spec:
         raise NotImplementedError
 
     def children(self) -> tuple:
-        """Các nút con đã parse. Rỗng với nút lá."""
         return ()
 
     def accepts_none(self) -> bool:
         return self.matches(None)
 
     def has_exact_scalar(self) -> bool:
-        """Có nhánh nào kiểm KIỂU CHÍNH XÁC không — quyết định thông báo có kèm
+        """Có kiểm một vô hướng dựng sẵn không — quyết định thông báo có kèm
         câu giải thích về `str` subclass / `True` là `int` hay không."""
         return False
 
-    def uninhabited_label(self) -> Optional[str]:
-        """Nhãn của vị trí ĐẦU TIÊN không bao giờ khớp được giá trị nào.
-
-        Dùng cho thông báo: với union, thủ phạm là một NHÁNH, và chỉ đúng
-        nhánh đó mới nên bị nêu tên.
-        """
-        return None if self.is_inhabited() else self.label
-
-    def is_inhabited(self) -> bool:
-        """Hợp đồng này có ÍT NHẤT MỘT giá trị hợp lệ không?
-
-        `list[int]` từng được gọi SUPPORTED trong khi chính sách bất biến loại
-        MỌI instance của nó — "hỗ trợ" một hợp đồng rỗng là tự mâu thuẫn
-        (R1-A1 #3, finding #3). Mặc định True; chỉ `_ClassSpec` và `_UnionSpec`
-        có gì để nói.
-        """
-        return True
-
 
 class _AnySpec(_Spec):
+    """C7 — `Any`: không kiểm kiểu, nhưng VẪN chịu mutable guard."""
+
     __slots__ = ()
 
     def __init__(self) -> None:
@@ -437,343 +509,83 @@ class _NoneSpec(_Spec):
 
 
 class _ClassSpec(_Spec):
-    """Một lớp cụ thể. Builtin vô hướng kiểm CHÍNH XÁC, còn lại `isinstance`.
+    """C4 — một class thuộc allowlist, kiểm bằng ĐỊNH DANH KIỂU CHÍNH XÁC.
 
-    `args` là các nút con ĐÃ PARSE của một generic có tham số
-    (`tuple[int, ...]` -> một con `int`). Chúng **không** được kiểm lúc chạy:
-    `matches()` chỉ khẳng định container ngoài cùng. Đó là ranh giới cố ý giữa
-    hai việc khác nhau —
-
-        PARSE ANNOTATION   (R1-A1): mọi nút trong cây phải được phân loại;
-        RUNTIME VALIDATION (R1-D) : có kiểm từng phần tử hay không.
-
-    R1-A1 chỉ đòi cái thứ nhất. Trước bản này `get_args()` bị VỨT BỎ hẳn, nên
-    `tuple[<TypeVar>]` decorate lọt — hậu duệ không hỗ trợ biến mất.
+    `type(value) is target` đọc thẳng slot `ob_type` trong header object, nên
+    nó miễn nhiễm với `__class__` giả mạo, không gọi `__instancecheck__`,
+    không gọi `__subclasshook__`, và không phụ thuộc metaclass của target.
     """
 
-    __slots__ = ("_target", "_exact", "_args")
+    __slots__ = ("_target", "_scalar")
 
-    def __init__(self, target: type, args: tuple = ()) -> None:
+    def __init__(self, target: type) -> None:
         self._target = target
-        # Tra bằng ĐỊNH DANH, không `in`/`get`: cả hai đều gọi `__hash__`/
-        # `__eq__` của metaclass. Ở đây target đã qua `_classify_class_target()`
-        # nên vốn đã an toàn, nhưng giữ một luật duy nhất cho cả đường class thì
-        # dễ phát biểu và dễ canh hơn (R1-A1 #3, §4).
-        self._exact = _is_one_of(target, _EXACT_TYPES)
-        self._args = args
-        label = None
-        for candidate, name in _TYPE_NAME_PAIRS:
-            if target is candidate:
-                label = name
-                break
-        self.label = label if label is not None else f"`{_safe_name(target)}`"
-
-    def children(self) -> tuple:
-        return self._args
-
-    def is_inhabited(self) -> bool:
-        # Mọi instance của một container mutable đều bị chính sách bất biến
-        # loại, nên field khai kiểu đó không có giá trị hợp lệ nào. `issubclass`
-        # ở đây an toàn: nó điều phối theo metaclass của VẾ PHẢI (`list`/`dict`/
-        # `set`/`bytearray` — đều `type`), không theo metaclass của target.
-        return not issubclass(self._target, _MUTABLE_CONTAINERS)
+        self._scalar = _is_one_of(target, _FROZEN_SCALARS)
+        self.label = _pair_lookup(target, _CLASS_LABEL_PAIRS, _UNKNOWN_TYPE_NAME)
 
     def matches(self, value: Any) -> bool:
-        if self._exact:
-            return type(value) is self._target
-        return isinstance(value, self._target)
+        return type(value) is self._target
 
     def has_exact_scalar(self) -> bool:
-        return self._exact
+        return self._scalar
 
 
-class _LiteralSpec(_Spec):
-    """`Literal[...]`: bằng giá trị VÀ đúng kiểu chính xác.
+class _OptionalSpec(_Spec):
+    """C6 — `Optional[X]`: `None`, hoặc đúng kiểu `X`."""
 
-    Kiểm kiểu chính xác là bắt buộc, không phải tinh chỉnh: `True == 1` trong
-    Python, nên nếu chỉ so bằng thì `Literal[1]` sẽ nhận `True`.
-    """
+    __slots__ = ("_inner",)
 
-    __slots__ = ("_values",)
-
-    def __init__(self, values: tuple) -> None:
-        self._values = values
-        self.label = "một trong " + ", ".join(repr(v) for v in values)
-
-    def matches(self, value: Any) -> bool:
-        return any(
-            type(value) is type(allowed) and value == allowed
-            for allowed in self._values
-        )
-
-
-class _UnionSpec(_Spec):
-    """Khớp ít nhất một nhánh. `Optional[X]` chính là `Union[X, None]`."""
-
-    __slots__ = ("_branches",)
-
-    def __init__(self, branches: tuple) -> None:
-        self._branches = branches
-        self.label = " hoặc ".join(b.label for b in branches)
+    def __init__(self, inner: _ClassSpec) -> None:
+        self._inner = inner
+        self.label = f"{inner.label} hoặc `None`"
 
     def children(self) -> tuple:
-        return self._branches
-
-    def is_inhabited(self) -> bool:
-        # MỌI nhánh, không phải "có một nhánh". Đây là luật NGHIÊM HƠN mức tối
-        # thiểu mà bất biến đòi, và cố ý: một nhánh union không bao giờ khớp
-        # được giá trị nào là một lời khai SAI LỆCH — `Optional[list[int]]` nói
-        # "None hoặc một list" trong khi mọi list đều bị chính sách bất biến
-        # loại. Luật phát biểu gọn: KHÔNG vị trí nào mà checker thực sự đánh giá
-        # được phép trỏ tới một class chính sách đã cấm.
-        #
-        # Tham số của generic KHÔNG thuộc diện này: chúng chỉ được PARSE, không
-        # được kiểm lúc chạy — đó là ranh giới R1-D.
-        return all(branch.is_inhabited() for branch in self._branches)
-
-    def uninhabited_label(self) -> Optional[str]:
-        for branch in self._branches:
-            dead = branch.uninhabited_label()
-            if dead is not None:
-                return dead
-        return None
+        return (self._inner,)
 
     def matches(self, value: Any) -> bool:
-        return any(branch.matches(value) for branch in self._branches)
+        return value is None or self._inner.matches(value)
 
     def has_exact_scalar(self) -> bool:
-        return any(branch.has_exact_scalar() for branch in self._branches)
+        return self._inner.has_exact_scalar()
 
 
-def _safe_name(obj: Any) -> str:
-    """Tên để render, KHÔNG bao giờ nổ.
+def _build_spec(hint: Any, where: str) -> _Spec:
+    """C1/C2 — phân loại một annotation, hoặc `raise`. Không có ô thứ ba.
 
-    `__name__` và `__repr__` của một annotation lạ là code của người khác. Đọc
-    chúng để dựng thông báo lỗi mà lại nổ thì thông báo lỗi trở thành một
-    đường rò mới.
+    Không đệ quy: ngữ pháp sâu tối đa hai tầng nên đây là mã thẳng. Ba phép
+    kiểm định danh đứng TRƯỚC mọi lời gọi lạ, nên với một annotation hợp lệ
+    framework không chạm vào code của ai.
     """
-    try:
-        name = getattr(obj, "__name__", None)
-        if type(name) is str:
-            return name
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        return repr(obj)[:80]
-    except Exception:  # noqa: BLE001
-        return f"<annotation {type(obj).__name__} không repr được>"
-
-
-def _foreign(call: Callable[[], Any], where: str, what: str) -> Any:
-    """Gọi MỘT thao tác chạm vào object lạ, và biến mọi lỗi của nó thành
-    `CanonicalContractViolation`.
-
-    Cố ý HẸP: nó bọc đúng một lời gọi, không bọc cả parser. Nhờ vậy lỗi lập
-    trình BÊN TRONG framework vẫn nổ nguyên hình, còn tương tác với annotation
-    của người khác thì luôn ra một lỗi domain (R1-A1 #3, §8).
-    """
-    try:
-        return call()
-    except CanonicalContractViolation:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise CanonicalContractViolation(
-            f"{where}: không đọc được {what} của annotation "
-            f"({type(exc).__name__}: {str(exc)[:60]}). Một annotation mà "
-            "framework không khảo sát nổi thì không thể được coi là hỗ trợ."
-        ) from exc
-
-
-def _is_one_of(target: Any, candidates) -> bool:
-    """So bằng ĐỊNH DANH, không bằng `==` và không qua `hash()`.
-
-    `target in <frozenset>` gọi `__hash__` của metaclass lạ TRƯỚC khi target
-    được chứng minh an toàn — đúng finding #2 của Independent Review. `is`
-    không chạm vào code nào.
-    """
-    return any(target is candidate for candidate in candidates)
-
-
-def _classify_class_target(target: type, where: str) -> None:
-    """Chứng minh CẤU TRÚC rằng `isinstance()` với `target` là an toàn.
-
-    Không chạy `isinstance()` thử. Luật:
-
-    * metaclass là ĐÚNG `type` -> `isinstance()` là phép duyệt MRO ở tầng C,
-      tất định, không chạy code người dùng. Đủ để tin.
-    * ngược lại -> chỉ chấp nhận nếu class nằm trong danh sách framework TỰ SỞ
-      HỮU (so bằng định danh). `ABCMeta`, `EnumMeta`, `_ProtocolMeta` và mọi
-      metaclass tự viết đều có thể chạy hook do người dùng định nghĩa
-      (`__subclasshook__`, `__instancecheck__`), nên không chứng minh được.
-
-    Mặc định là TỪ CHỐI.
-    """
-    if _is_one_of(target, _UNSUPPORTED_ORIGINS):
-        raise CanonicalContractViolation(
-            f"{where}: họ `{_safe_name(target)}` chưa được hỗ trợ, kể cả dạng "
-            "trần. Hình dạng tham số của nó (`([A, B], R)` — phần tử đầu là "
-            "một list, hoặc `Ellipsis`) không giống bất kỳ generic nào khác, "
-            "nên hỗ trợ nửa vời sẽ tệ hơn từ chối rõ ràng."
-        )
-    if _is_one_of(target, _ANNOTATION_ONLY_CLASSES):
-        raise CanonicalContractViolation(
-            f"{where}: `{_safe_name(target)}` là class CHỈ DÙNG ĐỂ CHÚ THÍCH. "
-            "Nó trả `False` cho mọi object thật, nên một field khai kiểu này "
-            "sẽ loại sạch giá trị hợp lệ. Hãy khai lớp cụ thể mà giá trị thật "
-            "sự thuộc về (ví dụ `io.TextIOBase` thay cho `typing.TextIO`)."
-        )
-    if type(target) is type:
-        return
-    if _is_one_of(target, _TRUSTED_NON_TYPE_METACLASS_CLASSES):
-        return
-    raise CanonicalContractViolation(
-        f"{where}: `{_safe_name(target)}` có metaclass "
-        f"`{_safe_name(type(target))}`, không phải `type`. Chiến lược kiểm "
-        "runtime của canonical là `isinstance()`, mà với metaclass tuỳ biến "
-        "`isinstance()` chạy hook do người dùng định nghĩa "
-        "(`__instancecheck__`, `__subclasshook__`) — framework không chứng "
-        "minh được nó tất định, và CHẠY THỬ vài giá trị không phải một phép "
-        "chứng minh: một hook đổi hành vi theo giá trị sẽ qua được phép thử "
-        "rồi nổ với dữ liệu thật (R1-A1 #3, finding #1). Hãy khai một class "
-        "thường."
-    )
-
-
-class _Budget:
-    """Ngân sách độ phức tạp của MỘT lần parse annotation.
-
-    Parser đệ quy không được để `RecursionError` của CPython làm chính sách:
-    nó phụ thuộc stack còn lại, nên cùng một annotation có thể lúc parse được
-    lúc không. Ngân sách này tất định (R1-A1 #3, §7).
-    """
-
-    __slots__ = ("nodes",)
-
-    def __init__(self) -> None:
-        self.nodes = 0
-
-    def spend(self, where: str, depth: int) -> None:
-        if depth > _MAX_ANNOTATION_DEPTH:
-            raise CanonicalContractViolation(
-                f"{where}: annotation lồng sâu quá {_MAX_ANNOTATION_DEPTH} "
-                "tầng. Đây là một giới hạn TẤT ĐỊNH của framework, không phải "
-                "`RecursionError` của CPython — cùng một annotation phải luôn "
-                "cho cùng một kết quả. Canonical type của dự án này sâu nhất "
-                "hai tầng."
-            )
-        self.nodes += 1
-        if self.nodes > _MAX_ANNOTATION_NODES:
-            raise CanonicalContractViolation(
-                f"{where}: annotation có hơn {_MAX_ANNOTATION_NODES} nút. "
-                "Một canonical field không cần tới mức đó; giới hạn này chặn "
-                "cả trục BỀ RỘNG (union khổng lồ), thứ không nổ "
-                "`RecursionError` nhưng vẫn là độ phức tạp không kiểm soát."
-            )
-
-
-def _parse_generic_args(target: Any, args: tuple, where: str,
-                        budget: "_Budget", depth: int) -> tuple:
-    """Parse MỌI tham số kiểu của một generic thành nút con.
-
-    Không tham số nào được bỏ qua im lặng. Một phần tử không parse được — một
-    `list` (hình dạng tham số của `Callable`), một `Ellipsis` đứng sai chỗ, một
-    `ParamSpec`, một `Unpack` — rơi vào nhánh `raise` cuối của `_build_spec()`.
-
-    Ngoại lệ ngữ pháp DUY NHẤT: `tuple[X, ...]`. Ở đó `Ellipsis` là cú pháp của
-    chính Python cho "tuple đồng nhất, độ dài bất kỳ", không phải một kiểu.
-    """
-    if target is tuple and len(args) == 2 and args[1] is Ellipsis:
-        return (_build_spec(args[0], f"{where}[0]", budget, depth),)
-    return tuple(
-        _build_spec(arg, f"{where}[{i}]", budget, depth)
-        for i, arg in enumerate(args)
-    )
-
-
-def _build_spec(hint: Any, where: str, budget: "_Budget" = None,
-                depth: int = 0) -> _Spec:
-    """Đệ quy xuống ngữ pháp đóng. Nhánh cuối là `raise`, KHÔNG phải `return`.
-
-    "Đóng" ở đây là đóng THEO CẢ CHIỀU SÂU: mọi nút con của mọi nút đều phải
-    được phân loại. Bản trước đóng đúng ở tầng ngoài cùng rồi quy generic có
-    tham số về `_ClassSpec(origin)` và vứt `get_args()` — nên lớp lỗi cũ chỉ
-    lùi xuống một tầng (Review R1-A1 #2, P1).
-    """
-    if budget is None:
-        budget = _Budget()
-    budget.spend(where, depth)
-    spec = _build_spec_node(hint, where, budget, depth)
-    # Chỉ gắn `source` cho nút VỪA dựng. Nhánh union một phần tử trả thẳng nút
-    # con ra ngoài; ghi đè `source` của nó sẽ làm cây parse tự mâu thuẫn với
-    # chính phép đếm tham số kiểu mà meta-invariant dùng để kiểm.
-    if not hasattr(spec, "source"):
-        spec.source = hint
-    return spec
-
-
-def _build_spec_node(hint: Any, where: str, budget: "_Budget",
-                     depth: int) -> _Spec:
+    nodes = 1
     if hint is Any:
         return _AnySpec()
     if hint is None or hint is _NONE_TYPE:
         return _NoneSpec()
+    if _in_allowlist(hint):
+        return _ClassSpec(hint)
 
-    origin = _foreign(lambda: typing.get_origin(hint), where, "`get_origin`")
+    origin = _boundary_get_origin(hint, where)
+    if not (origin is typing.Union
+            or (_UNION_TYPE is not None and origin is _UNION_TYPE)):
+        raise _violation(where, _REASON_NOT_IN_GRAMMAR)
 
-    if origin is Literal:
-        values = _foreign(lambda: typing.get_args(hint), where, "`get_args`")
-        for value in values:
-            if not _is_one_of(type(value), _LITERAL_VALUE_TYPES):
-                raise CanonicalContractViolation(
-                    f"{where}: `Literal` chỉ nhận giá trị kiểu "
-                    f"{', '.join(t.__name__ for t in _LITERAL_VALUE_TYPES)}; gặp "
-                    f"{value!r} ({type(value).__name__})."
-                )
-        return _LiteralSpec(values)
+    args = _boundary_get_args(hint, where)
+    if type(args) is not tuple:
+        raise _violation(where, _REASON_ARGS_NOT_TUPLE)
+    nodes += len(args)
+    if nodes > _MAX_ANNOTATION_NODES:
+        raise _violation(where, _REASON_NODE_BUDGET)
+    if len(args) != 2:
+        raise _violation(where, _REASON_UNION_ARITY)
 
-    if origin is typing.Union or (_UNION_TYPE is not None and origin is _UNION_TYPE):
-        # `typing` đã làm phẳng union lồng nhau, kể cả `Optional[Union[...]]`.
-        branches = tuple(
-            _build_spec(arg, f"{where}|{i}", budget, depth + 1)
-            for i, arg in enumerate(
-                _foreign(lambda: typing.get_args(hint), where, "`get_args`"))
-        )
-        if not branches:
-            raise CanonicalContractViolation(f"{where}: union rỗng.")
-        return branches[0] if len(branches) == 1 else _UnionSpec(branches)
-
-    if isinstance(hint, TypeVar):
-        raise CanonicalContractViolation(
-            f"{where}: `TypeVar` ({hint!r}) chưa được hỗ trợ. Canonical dataclass "
-            "trong dự án này không generic; đỡ `TypeVar` cho đúng nghĩa là phải "
-            "mô hình hoá binding và variance — một trình kiểm kiểu thu nhỏ mà "
-            "production không cần. Hãy khai kiểu cụ thể, hoặc `Union[...]` nếu "
-            "thật sự có nhiều kiểu."
-        )
-
-    target = origin if origin is not None else hint
-
-    # `isinstance(target, type)` PHẢI đứng trước mọi phép tra tập hợp: một
-    # `target` không hash được (tham số dạng `[A, B]` của `Callable`) sẽ làm
-    # `x in frozenset(...)` nổ `TypeError: unhashable type` — đúng lớp lỗi rò
-    # mà P2 nói tới. Không hash được thì rơi thẳng xuống nhánh `raise` cuối.
-    if isinstance(target, type):
-        _classify_class_target(target, where)
-        args = (_foreign(lambda: typing.get_args(hint), where, "`get_args`")
-                if origin is not None else ())
-        return _ClassSpec(
-            target, _parse_generic_args(target, args, where, budget, depth + 1)
-        )
-
-    raise CanonicalContractViolation(
-        f"{where}: annotation {_safe_name(hint)} nằm NGOÀI ngữ pháp canonical, nên framework "
-        "không bảo đảm được gì cho field này. Ngữ pháp hỗ trợ: `Any`, `None`, một "
-        "lớp cụ thể (kể cả generic có tham số — MỌI tham số đều được parse), "
-        "`Optional[...]`, `Union[...]` (gồm cả dạng `a | b`), `Literal[...]`. "
-        "Một annotation không hiểu được PHẢI nổ ở đây chứ không được âm thầm "
-        "thành `Any` — đó là Finding #1 của Independent Review R1-A, và việc nó "
-        "phải đúng ở MỌI ĐỘ SÂU là Finding #2 của Independent Review R1-A1."
-    )
+    first, second = args
+    # `None` được chấp nhận ở CẢ HAI vị trí: `Union[None, str]` cho
+    # `get_args() == (NoneType, str)` — chỉ nhận một vị trí là một bẫy im lặng.
+    if first is _NONE_TYPE and second is not _NONE_TYPE and _in_allowlist(second):
+        return _OptionalSpec(_ClassSpec(second))
+    if second is _NONE_TYPE and first is not _NONE_TYPE and _in_allowlist(first):
+        return _OptionalSpec(_ClassSpec(first))
+    raise _violation(where, _REASON_UNION_SHAPE)
 
 
 def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], None]:
@@ -785,18 +597,7 @@ def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], No
     quyết định nghiệp vụ (HD-110-09), không phải chi tiết cài đặt.
     """
     spec = _build_spec(hint, f"`{name}`")
-    if not spec.is_inhabited():
-        dead = spec.uninhabited_label() or spec.label
-        raise CanonicalContractViolation(
-            f"`{name}`: {dead} không bao giờ khớp được giá trị nào "
-            f"(trong annotation {spec.label}). "
-            "Chính sách bất biến của canonical loại MỌI container mutable "
-            "(`list`/`dict`/`set`/`bytearray`), nên một field khai kiểu đó sẽ "
-            "decorate thành công rồi từ chối mọi giá trị — một hợp đồng rỗng. "
-            "SUPPORTED phải nghĩa là 'có ít nhất một giá trị hợp lệ', không "
-            "phải 'parser đọc được' (R1-A1 #3, finding #3). Dùng `tuple`, "
-            "`frozenset`, `bytes` hoặc `FrozenMapping`."
-        )
+    spec.source = hint
     label = spec.label
     nullable = spec.accepts_none()
     strictness = (
@@ -812,67 +613,77 @@ def _field_checker(name: str, hint: Any, error: type) -> Callable[[Any, str], No
             if value is None and not nullable:
                 raise error(f"`{name}` không được là None (khai {label}).")
             raise error(
-                f"`{name}` phải là {label}, gặp {type(value).__name__} "
-                f"({value!r}).{strictness}"
+                f"`{name}` phải là {label}, gặp {_value_type_name(value)} "
+                f"({_render_value(value)}).{strictness}"
             )
-        if isinstance(value, _MUTABLE_CONTAINERS):
+        # C5 — MUTABLE GUARD. `issubclass(type(v), ...)` chứ không
+        # `isinstance(v, ...)`: phép sau tra `v.__class__`, nên một property
+        # `__class__` nổ làm lỗi thô thoát ra và một `__class__` nói dối giấu
+        # được một `list` thật. Phép trước điều phối theo metaclass của VẾ PHẢI
+        # (`list`/`dict`/`set`/`bytearray` — đều `type`), rơi vào
+        # `PyType_IsSubtype`, vốn đọc trường C `tp_mro`; nó cũng bắt được LỚP
+        # CON của container mutable, thứ phép so định danh bỏ sót.
+        if issubclass(type(value), _MUTABLE_CONTAINERS):
             raise error(
-                f"`{name}` giữ một container mutable ({type(value).__name__}). "
+                f"`{name}` giữ một container mutable ({_value_type_name(value)}). "
                 "Một canonical object bất biến không được giữ alias mà người "
                 "gọi còn sửa được sau khi dựng."
             )
 
-    # Phơi cây parse ra để một test ở TẦNG TRỪU TƯỢNG đi hết được nó và chứng
-    # minh không nút nào bị bỏ rơi (R1-A1 #2, §9).
+    # Phơi cây parse ra để một test ở TẦNG TRỪU TƯỢNG đi hết được nó.
     check.__canonical_spec__ = spec  # type: ignore[attr-defined]
     return check
 
 
 def _build_field_contract(cls: type, error: type) -> tuple:
-    """Đọc annotation của class MỘT LẦN và dựng danh sách phép kiểm."""
+    """Đọc annotation của class MỘT LẦN và dựng danh sách phép kiểm.
+
+    KHÔNG ghi gì lên `cls`: toàn bộ phép chứng minh chạy vào giá trị trả về,
+    và caller mới quyết định commit (C13).
+    """
+    # ── Biên lạ B1. `get_type_hints` chạy `eval` trên annotation dạng chuỗi và
+    # duyệt MRO, nên nó là điểm chạm lạ đầu tiên. Bọc ĐÚNG một lời gọi.
     try:
         hints = typing.get_type_hints(cls)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — biên lạ B1, bọc đúng một lời gọi
         raise CanonicalContractViolation(
             f"{cls.__name__}: không phân giải được annotation nên không dẫn "
-            f"xuất được hợp đồng field ({exc}). Một canonical type mà framework "
-            "không đọc nổi kiểu thì không thể tự bảo đảm gì."
-        ) from exc
+            "xuất được hợp đồng field. Một canonical type mà framework không "
+            "đọc nổi kiểu thì không thể tự bảo đảm gì. Lý do gốc CỐ Ý không "
+            "được render: đọc `__str__` của một exception lạ chính là chạy "
+            "code lạ."
+        ) from None
 
-    # ── PSEUDO-FIELD (R1-A1 #3, finding #4).
+    # ── C8 — PSEUDO-FIELD.
     #
-    # `dataclasses.fields()` BỎ QUA `InitVar`, nhưng `@dataclass` vẫn truyền nó
-    # vào `__post_init__`. Nên hợp đồng field không thấy nó, còn wrapper
-    # `__post_init__(self)` của framework thì sai chữ ký — đo được tại
-    # `d4a8797`: `TypeError: __post_init__() takes 1 positional argument but 2
-    # were given`. Decorate lọt rồi constructor vỡ.
-    #
-    # `ClassVar` cũng nằm trong `__dataclass_fields__` nhưng KHÔNG phải field và
-    # KHÔNG được truyền vào `__post_init__`, nên nó vô hại.
+    # `dataclasses.fields()` BỎ QUA cả `InitVar` lẫn `ClassVar`, nhưng
+    # `@dataclass` vẫn TRUYỀN `InitVar` vào `__post_init__`. Nên hợp đồng field
+    # không phủ được nó, còn wrapper `__post_init__(self)` của framework thì
+    # sai chữ ký — đo được tại `d4a8797`: `TypeError: __post_init__() takes 1
+    # positional argument but 2 were given`. `ClassVar` thì không được truyền
+    # vào nên vô hại.
     declared = getattr(cls, "__dataclass_fields__", {})
     real = {fld.name for fld in _dataclass_fields(cls)}
-    pseudo = [name for name in declared if name not in real]
-    if pseudo:
-        offenders = []
-        for name in pseudo:
-            resolved = hints.get(name)
-            origin = _foreign(lambda: typing.get_origin(resolved),
-                              f"{cls.__name__}.`{name}`", "`get_origin`")
-            kind = ("ClassVar" if origin is typing.ClassVar
-                    else "InitVar" if isinstance(resolved, _dataclasses.InitVar)
-                    else _safe_name(resolved))
-            if kind != "ClassVar":
-                offenders.append(f"`{name}` ({kind})")
-        if offenders:
-            raise CanonicalContractViolation(
-                f"{cls.__name__}: {', '.join(offenders)} — `@canonical` chưa hỗ "
-                "trợ pseudo-field kiểu này. `dataclasses.fields()` bỏ qua "
-                "chúng nên hợp đồng field không phủ được, trong khi "
-                "`@dataclass` vẫn truyền chúng vào `__post_init__` — chữ ký "
-                "wrapper của framework sẽ sai và constructor vỡ lúc chạy. Hãy "
-                "khai thành field thường, hoặc nhận dữ liệu khởi tạo qua "
-                "factory của chính type."
-            )
+    offenders = []
+    for name in declared:
+        if name in real:
+            continue
+        resolved = hints.get(name)
+        origin = _boundary_get_origin(resolved, f"{cls.__name__}.`{name}`")
+        if origin is typing.ClassVar:
+            continue
+        kind = ("InitVar" if type(resolved) is _dataclasses.InitVar
+                else "pseudo-field không xác định")
+        offenders.append(f"`{name}` ({kind})")
+    if offenders:
+        raise CanonicalContractViolation(
+            f"{cls.__name__}: {', '.join(offenders)} — `@canonical` không hỗ "
+            "trợ pseudo-field kiểu này. `dataclasses.fields()` bỏ qua chúng "
+            "nên hợp đồng field không phủ được, trong khi `@dataclass` vẫn "
+            "truyền chúng vào `__post_init__` — chữ ký wrapper của framework "
+            "sẽ sai và constructor vỡ lúc chạy. Hãy khai thành field thường, "
+            "hoặc nhận dữ liệu khởi tạo qua factory của chính type."
+        )
 
     checks = []
     for fld in _dataclass_fields(cls):
@@ -948,6 +759,26 @@ def canonical(
     """
 
     def decorate(cls: type) -> type:
+        # ── C9 — CỔNG METACLASS, câu lệnh ĐẦU TIÊN, trước mọi phép đọc và mọi
+        # phép ghi lên class.
+        #
+        # Với `type(cls) is type`, mọi `getattr`/`setattr` lên class đi qua
+        # `type.__getattribute__`/`type.__setattr__` ở tầng C và không chạy
+        # code của người dùng. Không có cổng này, một metaclass khai
+        # `__setattr__` raise giữa chừng làm lỗi thô thoát ra VÀ để lại class
+        # nửa vời — đo được tại `1b0da151`: `__canonical_contract__` đã ghi
+        # trong khi `__post_init__` chưa bọc. Rollback không cứu được (bản thân
+        # rollback cũng gọi `setattr`), nên đường đóng là TỪ CHỐI TỪ ĐẦU.
+        # Production: cả 11 canonical type đều có `type(cls) is type`.
+        if type(cls) is not type:
+            raise CanonicalContractViolation(
+                "@canonical: class có metaclass tuỳ biến, không phải `type` — "
+                "UNSUPPORTED. Framework phải ghi thuộc tính lên class để cài "
+                "hợp đồng, và với metaclass tuỳ biến thao tác ghi ấy chạy code "
+                "do người dùng định nghĩa: một `__setattr__` nổ giữa chừng để "
+                "lại một canonical type nửa vời. Hãy khai một dataclass thường."
+            )
+
         params = getattr(cls, "__dataclass_params__", None)
         if params is None or not params.frozen:
             raise TypeError(
@@ -971,15 +802,12 @@ def canonical(
                 "khoảng lặng. Đây là finding R1-A của Independent Review R1."
             )
 
-        # ── Hợp đồng R1-A #2: phép kiểm field dẫn xuất từ annotation, cài tự
-        # động, chạy ĐÚNG GIỮA hai pha (xem `_canonical_post_init`).
+        # ══════════════════════ C13, PHA 1 — TÍNH. Không ghi gì lên `cls`.
         #
-        # DỰNG TRƯỚC, GẮN SAU (R1-A1 #2, §6). Toàn bộ phép chứng minh — parse
-        # hết cây annotation, chứng minh `isinstance()` dùng được với từng
-        # target — chạy vào một biến CỤC BỘ. Chỉ khi mọi thứ đã chứng minh xong
-        # mới chạm vào class và mới ghi registry. Nhờ vậy một decoration thất
-        # bại để lại class NGUYÊN VẸN và registry KHÔNG ĐỔI: không có canonical
-        # type nào tồn tại ở trạng thái nửa vời.
+        # Toàn bộ phép chứng minh — phân giải annotation, phân loại từng field
+        # theo ngữ pháp đóng, dựng mọi closure — chạy vào biến CỤC BỘ. Một
+        # decoration thất bại vì thế để lại class NGUYÊN VẸN và registry KHÔNG
+        # ĐỔI: không có canonical type nào tồn tại ở trạng thái nửa vời.
         contract = _build_field_contract(cls, field_error)
 
         user_post_init = cls.__post_init__
@@ -1018,10 +846,6 @@ def canonical(
 
         _canonical_post_init.__canonical_wrapper__ = True  # type: ignore[attr-defined]
 
-        # ── TỪ ĐÂY TRỞ XUỐNG mới là ghi: mọi phép chứng minh đã xong ở trên.
-        cls.__canonical_contract__ = contract  # type: ignore[attr-defined]
-        cls.__post_init__ = _canonical_post_init  # type: ignore[assignment]
-
         # ── Lớp 3: final ngoài module chủ.
         def _reject_subclass(subcls: type, **kwargs: Any) -> None:
             if subcls.__module__ != home:
@@ -1038,49 +862,57 @@ def canonical(
                     f"là cổng dựng của {label}."
                 )
 
-        cls.__init_subclass__ = classmethod(_reject_subclass)  # type: ignore[assignment]
-
-        if sealed:
-            # ── Lớp 2: constructor công khai LUÔN từ chối.
-            def _sealed_new(newcls: type, *args: Any, **kwargs: Any) -> Any:
-                if not _is_permitted(newcls):
-                    raise SealedConstruction(
-                        f"{newcls.__name__} chỉ dựng được qua factory của chính "
-                        "nó. Không có tham số nào bật được đường này: seal "
-                        "không còn là field, nên không đọc lại, không sao chép "
-                        "và không truyền vào được (R1). `dataclasses.replace()` "
-                        "cũng đi qua đây."
-                    )
-                return object.__new__(newcls)
-
-            cls.__new__ = staticmethod(_sealed_new)  # type: ignore[assignment]
-
-            def _no_pickle(self: Any) -> Any:
+        # ── Lớp 2: constructor công khai LUÔN từ chối (chỉ với sealed).
+        def _sealed_new(newcls: type, *args: Any, **kwargs: Any) -> Any:
+            if not _is_permitted(newcls):
                 raise SealedConstruction(
-                    f"{type(self).__name__} không pickle được: tính hợp lệ của "
-                    "nó bao gồm nguồn gốc, mà nguồn gốc thì không hồi sinh "
-                    "được từ byte."
+                    f"{newcls.__name__} chỉ dựng được qua factory của chính "
+                    "nó. Không có tham số nào bật được đường này: seal "
+                    "không còn là field, nên không đọc lại, không sao chép "
+                    "và không truyền vào được (R1). `dataclasses.replace()` "
+                    "cũng đi qua đây."
                 )
+            return object.__new__(newcls)
 
+        def _no_pickle(self: Any) -> Any:
+            raise SealedConstruction(
+                f"{type(self).__name__} không pickle được: tính hợp lệ của "
+                "nó bao gồm nguồn gốc, mà nguồn gốc thì không hồi sinh "
+                "được từ byte."
+            )
+
+        def _reduce(self: Any) -> Any:
+            return (
+                _rebuild_canonical,
+                (
+                    type(self),
+                    {f.name: getattr(self, f.name) for f in _dataclass_fields(self)},
+                ),
+            )
+
+        # ══════════════════════ C13, PHA 2 — GHI. Mọi phép chứng minh đã xong.
+        cls.__canonical_contract__ = contract  # type: ignore[attr-defined]
+        cls.__post_init__ = _canonical_post_init  # type: ignore[assignment]
+        cls.__init_subclass__ = classmethod(_reject_subclass)  # type: ignore[assignment]
+        if sealed:
+            cls.__new__ = staticmethod(_sealed_new)  # type: ignore[assignment]
             cls.__reduce__ = _no_pickle  # type: ignore[assignment]
         else:
-            def _reduce(self: Any) -> Any:
-                return (
-                    _rebuild_canonical,
-                    (
-                        type(self),
-                        {f.name: getattr(self, f.name) for f in _dataclass_fields(self)},
-                    ),
-                )
-
             cls.__reduce__ = _reduce  # type: ignore[assignment]
-
         # Value object bất biến: bản sao của nó chính là nó. Điều này cũng đóng
         # đường "deepcopy rồi sửa bản sao".
         cls.__copy__ = lambda self: self  # type: ignore[assignment]
         cls.__deepcopy__ = lambda self, memo: self  # type: ignore[assignment]
         cls.__canonical__ = True  # type: ignore[attr-defined]
         cls.__canonical_sealed__ = sealed  # type: ignore[attr-defined]
+
+        # Tên hiển thị được chốt Ở ĐÂY, từ một class mà cổng C9 đã chứng minh
+        # có metaclass `type` — nên `label` là metadata do framework tự đọc từ
+        # trusted source, không phải một chuỗi do object lạ cấp lúc dựng thông
+        # báo lỗi. Nhờ vậy `_ClassSpec.label` không bao giờ phải gọi
+        # `__name__` của một target chưa được bless.
+        _CLASS_LABEL_PAIRS.append((cls, f"`{label}`"))
+        _VALUE_TYPE_NAME_PAIRS.append((cls, label))
         _REGISTRY.append(cls)
         return cls
 
@@ -1150,13 +982,23 @@ class FrozenCounter(FrozenMapping):
         return ordered if n is None else ordered[:n]
 
 
-# `FrozenMapping`/`FrozenCounter` kế thừa `collections.abc.Mapping` nên
-# metaclass của chúng là `ABCMeta`, không phải `type`. Đây là HAI class duy
-# nhất framework tự sở hữu và tự biết ngữ nghĩa `isinstance` của chúng (không
-# class nào trong cây MRO khai `__instancecheck__`/`__subclasshook__` riêng),
-# nên chúng được tin bằng ĐỊNH DANH. Mọi class metaclass-lạ khác đều bị từ
-# chối — xem `_classify_class_target()`.
-_TRUSTED_NON_TYPE_METACLASS_CLASSES.extend((FrozenMapping, FrozenCounter))
+# ── C3, category thứ ba: class do chính framework sở hữu.
+#
+# Hai class này là toàn bộ `_FROZEN_FRAMEWORK`. Chúng vào allowlist bằng ĐỊNH
+# DANH, và phép kiểm runtime của chúng là `type(v) is FrozenMapping` /
+# `type(v) is FrozenCounter` — nên metaclass `ABCMeta` mà chúng thừa hưởng từ
+# `collections.abc.Mapping` KHÔNG tham gia phép kiểm nào. Đo tại `1b0da151`:
+# field khai `FrozenMapping` chưa bao giờ nhận một `FrozenCounter` (593 lần
+# gặp, không lần nào), nên phép kiểm chính xác không siết oan chỗ nào.
+_FROZEN_FRAMEWORK.extend((FrozenMapping, FrozenCounter))
+_CLASS_LABEL_PAIRS.extend((
+    (FrozenMapping, "`FrozenMapping`"),
+    (FrozenCounter, "`FrozenCounter`"),
+))
+_VALUE_TYPE_NAME_PAIRS.extend((
+    (FrozenMapping, "FrozenMapping"),
+    (FrozenCounter, "FrozenCounter"),
+))
 
 
 def frozen_tuple_map(data: Any) -> FrozenMapping:
@@ -1211,6 +1053,7 @@ __all__ = [
     "canonical",
     "canonical_types",
     "factory_for",
+    "frozen_class_allowlist",
     "frozen_tuple_map",
     "sealed_canonical_types",
 ]

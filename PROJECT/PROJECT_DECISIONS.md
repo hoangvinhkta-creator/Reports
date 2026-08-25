@@ -1899,3 +1899,82 @@ Impact:
 Can Revisit After:
 Khi TASK-201 thêm persistence: `RowProvenance` và `Diagnostics` là thứ được ghi
 xuống, nên biểu diễn lưu trữ cần xem lại — bất biến thì không đổi.
+
+---
+
+## DEC-135
+
+Date:
+2026-08-25
+
+Task:
+TASK-110 — R1-A1 Finite Contract Freeze, sau Independent Review R1-A1 #3
+
+Decision:
+
+Chủ dự án duyệt HD-A1-01 → HD-A1-18 đúng như đề xuất trong
+`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`. R1-A1 thôi lượng hoá trên
+không gian typing/runtime mở của Python và chuyển sang một **hợp đồng đóng,
+hữu hạn**.
+
+**1 — Ngữ pháp đóng, bốn dạng.**
+
+    spec := any | none | class | optional
+
+Mọi annotation khác là UNSUPPORTED, nổ `CanonicalContractViolation` lúc
+decorate. Mặc định là TỪ CHỐI. Độ rộng do production quyết định: audit 11
+canonical type / 72 field cho ra đúng 17 hình thái, quy về ba dạng — `class`
+37, `optional` 34, `any` 1. Production KHÔNG dùng generic có tham số, KHÔNG
+dùng `Literal`, KHÔNG dùng union nhiều nhánh.
+
+**2 — HD-A1-16: mọi generic có tham số là UNSUPPORTED.**
+
+Quyết định có ảnh hưởng lớn nhất. Không giữ tương thích ngược với phần hỗ trợ
+generic mà repair #1/#2/#3 đã xây. Hệ quả: ranh giới tranh cãi R1-A1/R1-D
+("parse đủ nhưng không kiểm phần tử") biến mất khỏi R1-A1; trục ĐỘ SÂU không
+còn nên `_MAX_ANNOTATION_DEPTH` được gỡ.
+
+**3 — HD-A1-09: xoá `isinstance` khỏi toàn bộ đường validate canonical.**
+
+Phép kiểm class runtime là `type(value) is T`. Bằng chứng đủ điều kiện:
+instrument trên toàn bộ 702 test tại `1b0da151` cho **0 divergence** giữa
+`isinstance` và phép so định danh — dung sai lớp con mà `isinstance` mua thêm,
+production không dùng, còn cái nó bán đi là hai lỗ hổng đo được (`__class__`
+nổ làm lỗi thô thoát ra; `__class__` nói dối đưa object giả qua được).
+
+**4 — HD-A1-10: một primitive bổ sung được duyệt.**
+
+`issubclass(type(value), MUTABLE_TUPLE)` cho mutable guard. Nó điều phối theo
+metaclass của vế PHẢI (hằng của framework), rơi vào `PyType_IsSubtype` đọc
+trường C `tp_mro`, nên không chạy code người dùng — và nó bắt được LỚP CON của
+container mutable, thứ phép so định danh bỏ sót.
+
+**5 — HD-A1-13: cổng `type(cls) is type` đứng trước mọi mutation lên class.**
+
+Đóng nhóm V bằng cấu trúc thay vì bằng rollback (bản thân rollback cũng gọi
+`setattr`).
+
+**6 — Corpus 105 case là ACCEPTANCE CORPUS, không được bổ sung trong vòng
+repair này.**
+
+Attack mới ngoài hợp đồng → HARDENING BACKLOG. Luật "reviewer nghĩ ra attack
+mới ⇒ FAIL" hết hiệu lực; Independent Review chỉ BLOCKING theo năm điều kiện ở
+§14 hợp đồng.
+
+Rationale:
+
+Ba vòng repair trước đều FAIL vì tiêu chí chấp nhận được phát biểu trên một
+không gian không đếm được. Reviewer luôn tạo thêm được một metaclass, một
+`__instancecheck__`, một `__hash__` mới. Vòng lặp chỉ kết thúc khi tiêu chí
+trở nên hữu hạn — và nó hữu hạn được vì production chỉ cần một tập rất nhỏ.
+
+Consequences:
+
+- DEC-128 → DEC-134 **không** bị sửa.
+- R1-A1 = AWAITING_INDEPENDENT_REVIEW. **Chưa** FROZEN, **chưa** chuyển R1-A2,
+  **chưa** merge TASK-110. CHECK-110-16 vẫn BLOCKED (workbook production chưa
+  tồn tại — không giả lập PASS).
+- Ba case `K03`/`L03`/`M02` chờ quyết định của chủ dự án: chúng nhắm vào thuộc
+  tính mà CPython `dataclasses._process_class` tự đọc trước khi `@canonical`
+  chạy, nên framework không tạo ra được outcome đã freeze. Đề xuất phân loại
+  lại thành `OUTSIDE_FRAMEWORK_BOUNDARY`; không tự đổi.

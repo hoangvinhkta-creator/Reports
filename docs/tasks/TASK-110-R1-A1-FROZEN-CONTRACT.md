@@ -1,15 +1,22 @@
 # TASK-110 — R1-A1 FINITE CONTRACT (BẢN ĐỀ XUẤT, CHƯA FREEZE)
 
-Status: PLANNED — chờ Owner freeze
+Status: IMPLEMENTED — chờ Independent Review
 Task Mode: MAJOR (sub-unit R1-A1)
 Evidence Level: E1 (mọi số liệu trong file này là output lệnh đã thực thi tại exact SHA)
 Executed By: Claude Code session `claude/r1-a1-contract-freeze-9lkh3h`
 Risk: 4
 
-> **CHƯA IMPLEMENT.** File này chỉ định nghĩa hợp đồng. Không dòng production
-> code nào được sửa trong session tạo ra nó. Sau khi Owner freeze, implementation
-> mới được bắt đầu, và corpus dưới đây trở thành bất biến trong vòng repair đó
-> (§14 của chỉ thị TASK-110 R1-A1 FINITE CONTRACT FREEZE).
+> **ĐÃ FREEZE VÀ ĐÃ IMPLEMENT.** Owner duyệt HD-A1-01 → HD-A1-18 đúng như đề
+> xuất (đặc biệt HD-A1-16: mọi generic có tham số là UNSUPPORTED). Hợp đồng
+> §3–§14 dưới đây là bất biến; corpus §12 là ACCEPTANCE CORPUS và không được bổ
+> sung trong vòng repair này. Kết quả implementation ở **§21**.
+>
+> **Đính chính số đếm (clerical, không đổi ngữ nghĩa).** Bản plan ghi "95 case"
+> ở phần văn xuôi, trong khi chính bảng §12 liệt kê **105 ID**. 95 là số học
+> còn sót lại từ bản nháp (80 case shadow + 15 case tầng decoration) trước khi
+> các nhóm K/L/N/O/P/T/X được mở rộng trong bảng. Bảng ID là phần quy phạm;
+> không case nào được thêm, bớt, hay đổi expected outcome. Corpus = **105 case**
+> (101 case + 4 bất biến Z).
 
 ---
 
@@ -467,16 +474,14 @@ renderer an toàn giữ chúng **nguyên văn từng byte**.
 95 case. Mọi case có ID ổn định và ĐÚNG MỘT expected outcome trong ba giá trị:
 `SUPPORTED_VALID` · `SUPPORTED_INVALID_REJECT` · `UNSUPPORTED_AT_DECORATION`.
 
-**80 case ở tầng annotation đã được chạy thật** bằng shadow classifier cài đúng
-hợp đồng §3–§6, tại exact SHA, trên object thù địch thật:
+**105 case**: 101 case đánh ID + 4 bất biến Z quét toàn corpus. Định nghĩa
+sống trong `tools/analysis/r1a1_annotation_probes.py` (`FROZEN_CORPUS`), và
+`tests/test_r1a1_annotation_contract.py` import lại chính nó — một nguồn sự
+thật duy nhất, không có bản sao song song để lệch nhau.
 
-    TOTAL=80   RAW_ERROR_or_HOOKS_RAN=0
-
-Không một case nào để lọt exception thô, và không một hook nào của object thù
-địch (`__instancecheck__`, `__hash__`, `__eq__`, `__repr__`, `__name__`,
-`__class__`, `__str__` của exception) được gọi.
-
-15 case còn lại ở tầng decoration (R/S/U/V/Z) đo trên chính decorator thật.
+Trước khi implement, 80 case tầng annotation đã được chạy thử bằng shadow
+classifier tại `1b0da151`: `RAW_ERROR_or_HOOKS_RAN=0`. Kết quả trên
+implementation thật ở §21.
 
 Clause ID: **C1** closed-world/default-deny · **C2** grammar · **C3** class
 allowlist · **C4** `type(v) is T` · **C5** mutable guard · **C6** optional form ·
@@ -782,3 +787,98 @@ R1-A1 được phép FROZEN sau implementation + independent review khi:
 8. Scope sạch: `git diff --stat` chỉ chạm các đường dẫn ở §16.
 
 **Không yêu cầu**: "không ai có thể nghĩ ra attack Python mới".
+
+
+---
+
+## 21. Kết quả implementation
+
+Repair SHA: xem §21.1. Exact starting SHA cho mọi so sánh correctness vẫn là
+`1b0da151c2dae9020c0adcc4118a3e2543cefb77`; `5a0f27c` chỉ là plan checkpoint và
+KHÔNG được dùng làm bằng chứng defect đã tồn tại hay đã được sửa.
+
+### 21.1. Kết quả tổng hợp
+
+| Hạng mục | Kết quả |
+|---|---|
+| Frozen corpus | **102/105 PASS**, 3 case chờ quyết định Owner (§21.2) |
+| Mutation-by-revert M-1 → M-11 | **11/11** bị bắt; không mutation nào sót lại trong worktree |
+| Production inventory | 11 type / 72 field, **0 field ngoài ngữ pháp**; hình thái `class` 37, `optional` 34, `any` 1 |
+| Thông báo lỗi production | 3/3 giữ **nguyên từng byte** |
+| Suite ngoài R1-A1 | 497 passed, 9 skipped — **không đổi so với `1b0da151`** |
+| R1 probes | 43 probe, BLOCKED=39, OUT=1, RESIDUAL=3 — khớp baseline |
+| R1-A probes | 25 probe, BLOCKED=23, OUT=2 — khớp baseline |
+
+### 21.2. BA case chờ QUYẾT ĐỊNH OWNER (rule C của chỉ thị)
+
+`K03`, `L03`, `M02` được freeze với `UNSUPPORTED_AT_DECORATION`, nhưng framework
+**không thể** tạo ra outcome đó. Cả ba nhắm vào thuộc tính mà **CPython
+`dataclasses._process_class` tự đọc** trước khi `@canonical` có mặt trên call
+stack:
+
+| Case | Thuộc tính bị tấn công | CPython đọc nó ở đâu |
+|---|---|---|
+| `K03` | mọi thuộc tính (`__getattribute__` nổ) | `dataclasses.py:946` — `isinstance(t, str)` |
+| `L03` | `__module__` | `dataclasses.py:1098` → `inspect.formatannotation` |
+| `M02` | `__args__` | `dataclasses._process_class` khi phân tích annotation |
+
+Không tùy chọn `@dataclass` nào tránh được (`repr=False`, `eq=False` đều đã
+thử). **Tính an toàn vẫn đúng và đã đo**: registry không đổi (11 → 11), không
+canonical type nào được tạo, lỗi nổ to, không có trạng thái nửa vời — tức là
+đúng loại biên mà chính hợp đồng đã đặt tên ở `T03`.
+
+Đề xuất: phân loại lại ba case thành `OUTSIDE_FRAMEWORK_BOUNDARY`. **Không tự
+đổi** — chờ Owner. Trong pytest chúng mang `xfail(strict=True)`, nên nếu ngày
+nào đó chúng chuyển sang PASS thì suite sẽ ĐỎ.
+
+Ghi chú liên quan: CPython `@dataclass` cũng tự gọi `repr(annotation)` cho
+annotation không phải type (`inspect.formatannotation`). Đó là biên ngoài
+framework; bất biến `Z02`/`Z03` vì thế phát biểu trên **giai đoạn
+`@canonical`**, và corpus liệt kê tường minh các case dừng ở giai đoạn CPython
+thay vì giấu chúng đi.
+
+### 21.3. Ma trận mutation-by-revert
+
+| # | Mutation | Corpus FAIL | Test FAIL |
+|---|---|---|---|
+| M-1 | `type(v) is T` → `isinstance(v, T)` | J01, J02, J03, X02, Y03, Z01 | 4 test |
+| M-2 | allowlist → mọi class metaclass `type` | 26 case (F, G, H, I, K, N, O, P, Q, V, W) | 2 test |
+| M-3 | re-admit generic có tham số | A03, A04, D01–D06, E01–E03, Q02, Q03, T02 | 1 test |
+| M-4 | re-admit union tổng quát | A02 | 1 test |
+| M-5 | re-admit `Literal[...]` | B01, B02, B04 | 1 test |
+| M-6 | khôi phục text object lạ trong thông báo | K01, Z01, Z02, Z03 | 3 test |
+| M-7 | gỡ cổng metaclass C9 | V01, Z01 | 3 test |
+| M-8 | mutable guard → `isinstance` | — | `test_the_mutable_guard_never_consults_a_hostile_class_attribute` |
+| M-9 | gỡ luật pseudo-field | R01–R04 | 1 test |
+| M-10 | gỡ ngân sách node | — | `test_a_wide_union_is_stopped_by_the_node_budget_not_by_arity` |
+| M-11 | `from None` → `from exc` | — | 2 test |
+
+**M-8, M-10, M-11 không bị corpus bắt.** Ba enforcement này chỉ phân biệt được
+bằng những case mà corpus đã freeze không chứa (field `Any` + giá trị có
+`__class__` thù địch; `Union` rộng hơn 511 nhánh; exception gốc trong chain).
+Theo rule B, corpus KHÔNG được mở rộng trong vòng này; thay vào đó ba test
+coverage của implementation được thêm vào `tests/test_r1a1_annotation_contract.py`
+và ĐƯỢC ĐÁNH DẤU RÕ là ngoài corpus. Đề xuất bổ sung ba case tương ứng vào
+corpus ở vòng freeze sau — xem §21.4.
+
+### 21.4. HARDENING BACKLOG phát hiện trong lúc implement
+
+| # | Phát hiện | Vì sao không sửa ở vòng này |
+|---|---|---|
+| HB-A1-01 | Corpus thiếu case "field `Any` + giá trị có `__class__` nổ" — case duy nhất phân biệt `issubclass(type(v),…)` với `isinstance(v,…)` | Rule B: ngoài frozen corpus |
+| HB-A1-02 | Corpus thiếu case `Union` > 511 nhánh — case duy nhất chạm ngân sách node C12 | Rule B |
+| HB-A1-03 | Corpus thiếu case khẳng định `__cause__ is None` ở biên lạ | Rule B |
+| HB-A1-04 | Biên B2/B3 tới được biệt lập nhưng CPython `@dataclass` luôn nổ trước từ một khai báo canonical thật; chỉ B1 tới được thực sự | Là quan sát về biên, không phải lỗ hổng |
+| HB-A1-05 | `validate_reference_integrity.py` FAIL với 3 reference chết trong `TASK-REM-T06` | Có SẴN từ trước, ngoài touch-area R1-A1 |
+
+### 21.5. Scope audit
+
+Đúng 3 file production/test/tool bị sửa, tất cả nằm trong touch-area §16:
+
+    app/modules/domain/canonical.py
+    tests/test_r1a1_annotation_contract.py
+    tools/analysis/r1a1_annotation_probes.py
+
+Không file nào dưới `app/modules/**` ngoài `canonical.py`. Không file test
+A3/D nào. **Không annotation production nào phải migrate** (0/72 ngoài ngữ
+pháp), đúng như §17 đã dự đoán trước khi implement.
