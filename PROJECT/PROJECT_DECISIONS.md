@@ -4753,3 +4753,266 @@ Can Revisit After:
   `TASK-105C` implementation với `docs/tasks/TASK-105C-*.md`.
 - Một lượt đọc RTDB thật (có credential) ⇒ đo tần suất thực tế
   `saveBoardPaths()`/`invSyncPart()` chạy trong một ngày vận hành.
+
+## DEC-150
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Price History Chart / Min Replay Verification. Ghi trong phiên
+"TASK-105C — PRICE HISTORY CHART / MIN REPLAY VERIFICATION"
+(`docs/sessions/S027-task-105c-price-history-popup-verification.md`).
+
+**Đây là bản ghi AUDIT FACT, không phải Owner Decision mới.** Không đổi bất
+kỳ trạng thái `READY`/`BLOCKED`/`OWNER_DECISION_REQUIRED` nào đã có ở
+`DEC-147`–`DEC-149`. Mục đích duy nhất: xác minh chính xác popup "Lịch sử
+giá" trên tab Bảng giá — bằng chứng UI Owner vừa cung cấp — hoạt động thế
+nào, trước khi bất kỳ ai coi nó là câu trả lời (hoặc một phần câu trả lời)
+cho `CONFLICT DETECTED` §71 của `DEC-149`.
+
+Repo được audit:
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`
+(không đổi). **0 file thay đổi.**
+
+Decision:
+
+**1. Popup — function, path, và transform. Trích chính xác.**
+
+```
+Mở popup     : openPhist(key)          public/index.html:6218-6238
+               trigger: ô Min trên bảng (data-viec="openPhist", :6143,
+               tooltip "bấm xem biểu đồ lịch sử giá") và bảng lệnh UI
+               (:1931)
+Load data    : loadPhist(key)          :4661-4664
+               db.ref("phist/"+key).once("value") — MỘT lượt đọc, KHÔNG lọc
+Dựng series  : renderPhist(row, data)  :6243-6314
+               sups = Object.keys(data)  — mỗi NCC trong phist thành MỘT
+               đường; SVG vẽ tay, không thư viện chart
+Hover card   : phShow(td,key,ncc,data) :6191-6217 — MỘT NCC mỗi lần
+Transform    : KHÔNG CÓ transform nghiệp vụ nào giữa loadPhist() và render —
+               dữ liệu vẽ thẳng là dữ liệu đọc thẳng từ `phist/<mã>`
+```
+
+**2. Popup hiển thị gì — OPTION A, chứng minh bằng code, không suy luận UI.**
+
+```
+A. raw history của từng NCC từ `phist`             ✅ ĐÚNG — xác nhận
+B. history của `_c.min`                             ❌ SAI
+C. history của `inv.cong`                           ❌ SAI
+D. Min được TÁI TÍNH từ lịch sử NCC                 ❌ SAI
+E. hybrid                                            ❌ SAI
+```
+
+Bằng chứng phủ định B/C/D/E: `grep` trực tiếp trên toàn khối
+`public/index.html:6218-6314` (mọi function của popup) cho `tp\.`, `inv\.`,
+`cong`, `\.ton`, `minCuaDong`, `soCotTinh`, `locGiaNcc`, `hetHangHoanToan` —
+**0 kết quả cho tất cả**. Popup không đọc, không tính, không tham chiếu bất
+kỳ field hay hàm nào liên quan tới Min hay `inv.cong`. Nó chỉ vẽ đúng những
+gì `phist/<mã>` đang giữ.
+
+Điểm dễ gây hiểu nhầm, ghi lại để tránh lặp lại: nút mở popup nằm **trên
+chính ô Min** (`:6143`), và tooltip dùng chữ *"biểu đồ lịch sử giá"* mà
+không nói rõ đó là lịch sử giá NCC hay lịch sử Min. Đây là khoảng cách giữa
+UI affordance và dữ liệu thật — hợp lý để giải thích vì sao Owner có thể đã
+nghĩ đây là Min history, nhưng bằng chứng code không để lại chỗ mơ hồ.
+
+**3. Có persistent Min history record không? — NO.**
+
+`grep -rniE "minhist|min_hist|history.?min|giaMin|gia.?min|marketmin"` trên
+toàn bộ `.js`/`.html`/`.json` của repo B trả về **5 dòng, tất cả đều là
+biến `min`/chữ "giá min" trong ngữ cảnh HIỂN THỊ hiện hành**
+(`public/index.html:4216,6098,6143`; `:8616,8619` — cột Lệch/xuất XLSX),
+**không một dòng nào là write hay read tới một nhánh RTDB lưu trữ lịch sử**.
+Không nhánh `minHist`, không field `_c.minHist`, không cấu trúc tương tự
+`phist` cho Min ở bất kỳ đâu trong `firebase-database.rules.json` hay mã
+nguồn. **Popup này KHÔNG PHẢI Min history** — nó là vendor-price history,
+đúng như phần 2 đã chứng minh.
+
+**4. Min có được reconstruct trên popup không? — NO.**
+
+Không một trong bốn bước bắt buộc để tái tính Min cho một ngày lịch sử xuất
+hiện ở bất kỳ đâu trong đường đi của popup:
+
+```
+NCC filtering (loại trừ _ANC)     : KHÔNG — sups lấy MỌI khoá trong `data`,
+                                     kể cả NCC hiện đang bị NCC_RETIRED/
+                                     NCC_MIN_LOAI loại khỏi Min
+status ok/gone                    : Popup tự suy "gone" từ giá trị `0` để vẽ
+                                     dấu ✕ — ĐÂY LÀ HIỂN THỊ, không phải một
+                                     bước của công thức Min
+outlier filter (NGUONG_BAT_THUONG) : KHÔNG — mọi giá trong phist được vẽ y
+                                     nguyên, kể cả giá bất thường mà
+                                     locGiaNcc() lẽ ra sẽ loại
+inv.cong                          : KHÔNG đọc, đã xác nhận ở mục 2
+MIN calculation                   : KHÔNG gọi minCuaDong()/soCotTinh() ở
+                                     đâu trong popup
+```
+
+⇒ Xác nhận: **"popup chỉ là vendor-price history, không phải historical
+MarketMin"** — đúng kết luận mặc định mà đề bài yêu cầu xác minh khi không
+tìm thấy các bước trên.
+
+**5. Public Purchase Price History trong popup — NO.**
+
+`inv.cong`/`tp.ton` **không** xuất hiện ở bất kỳ đâu trong `openPhist()`,
+`loadPhist()`, `renderPhist()`, `phShow()`, `phHover()`. Ngay cả nếu lịch sử
+NCC trong `phist` hoàn hảo tuyệt đối, popup **vẫn không** có đủ input để
+dựng lại `_c.min` đúng công thức hiện hành — công thức đó (`DEC-149` §72)
+bao gồm `tp.ton` như một input trực tiếp, có thể THẮNG giá NCC.
+
+**6. Historical Min Replay Experiment — CODE ONLY, theo đúng yêu cầu đề bài.**
+
+Câu hỏi: tại một ngày lịch sử D, code hiện tại có trả về `MarketMin(D)` mà
+KHÔNG dùng bất kỳ current-state field nào không?
+
+```
+KHÔNG CÓ bất kỳ hàm nào trong repo B nhận (ngày lịch sử, phist tới ngày đó)
+làm input và trả về Min.
+
+minCuaDong() (price-engine/src/nghiepvu.js:632-637) LÀ một hàm THUẦN (pure
+function of its arguments) — về mặt LÝ THUYẾT có thể tái sử dụng cho
+replay nếu được truyền đúng input lịch sử. NHƯNG trong PIPELINE HIỆN TẠI,
+nó luôn được gọi với:
+  - dong = gotDong(row)  — trạng thái board HIỆN TẠI (public/index.html:
+    3551-3556), không phải một lát cắt lịch sử
+  - an   = _ANC hiện tại  (:3499-3508, dựng từ NCC_RETIRED/NCC_MIN_LOAI
+    HIỆN TẠI trong mã nguồn)
+  - NGUONG_BAT_THUONG = một hằng số DUY NHẤT (0.3), không có phiên bản
+    lịch sử nào khác được lưu ở đâu
+```
+
+⇒ **Historical replay = NOT DETERMINISTIC** trong hệ thống HIỆN TẠI, đúng
+tiêu chí đề bài đặt ra ("nếu cần current-state field thì NOT DETERMINISTIC")
+— xác nhận lại, bằng một góc nhìn khác (audit trực tiếp đường đi của popup
+thay vì audit công thức), đúng kết luận Historical Replay = C đã có ở
+`DEC-149` §73.
+
+**7. Chart note semantics — xác nhận khớp, với một phân biệt quan trọng.**
+
+Chú thích UI: *"Chỉ ghi mốc khi giá ĐỔI. Ngày không có số nghĩa là giá giữ
+nguyên như mốc gần nhất phía trên."*
+
+```
+price(product, NCC, D) = last history record with date <= D    ✅ ĐÚNG
+                          cho CHART (renderPhist() :6259-6267 — biến `last`
+                          giữ giá trị gần nhất qua từng ngày, step-function
+                          / last-observation-carried-forward)
+```
+
+**Phân biệt phải ghi rõ:** chú thích UI mô tả đúng hành vi của **chart**,
+nhưng **KHÔNG đúng cho bảng số bên dưới nó** — `rows` (`:6296-6303`) hiện
+`"·"` cho ngày không có record, **không carry-forward**. Cùng một dữ liệu,
+hai cách hiển thị khác nhau, chỉ một trong hai khớp mô tả step-function.
+Bất kỳ ai xây replay engine dựa trên "logic mà UI tả" phải chọn đúng
+`renderPhist()` (chart), không phải bảng, làm tham chiếu — và kể cả khi đó,
+đây là logic HIỂN THỊ, không phải một hàm dùng lại được cho tính toán
+nghiệp vụ.
+
+**8. Câu hỏi 30 ngày — trả lời lại, sau khi audit trực tiếp popup.**
+
+```
+sale_date = 10/08/2026, upload = 10/09/2026 (30 ngày sau)
+Hệ thống HIỆN TẠI có lấy chính xác giá Min áp dụng ngày 10/08 không?
+
+→ NO — không đủ history, KHÔNG PHẢI vì popup thiếu chart (nó có), mà vì:
+  (a) không hàm nào TÁI TÍNH Min cho một ngày lịch sử tồn tại ở bất kỳ đâu
+      trong repo B, kể cả trong chính popup vừa audit;
+  (b) input tp.ton/inv.cong không có lịch sử (DEC-148);
+  (c) exclusion list + threshold không versioned (DEC-149 §73(d)).
+```
+
+Không được trả YES chỉ vì popup có chart — đây chính xác là rủi ro đề bài
+cảnh báo, và audit này xác nhận rủi ro đó là có thật: popup CÓ chart, chart
+CÓ dữ liệu nhiều mốc (đúng như ảnh Owner cung cấp), nhưng chart đó là của
+**giá NCC**, không phải của **Min**.
+
+**9. Nếu PARTIAL — định lượng kiến trúc tối thiểu còn thiếu.**
+
+Xếp hạng NCC-history vào cột "PARTIAL" (có nhưng không đủ), không phải
+"đủ" hay "hoàn toàn không có":
+
+```
+CÓ SẴN (một phần)  :  phist — lịch sử giá NCC theo ngày, nhưng:
+                       - có thể bị sửa/xoá (DEC-147 §54 R4)
+                       - không mang trạng thái "NCC có bị loại khỏi Min
+                         tại ngày đó không" (chỉ có giá trị giá, không có
+                         cờ _ANC lịch sử)
+
+THIẾU HOÀN TOÀN     :  1. inv.cong / tp.ton theo ngày (DEC-148 — 0 lịch sử)
+                       2. _ANC (exclusion list NCC) theo ngày — 0 versioning
+                       3. NGUONG_BAT_THUONG (ngưỡng outlier) theo ngày —
+                          hằng số đơn, 0 versioning
+                       4. MỘT HÀM REPLAY thực sự gọi lại minCuaDong() (hay
+                          tương đương) với input lịch sử — hiện KHÔNG tồn
+                          tại ở bất kỳ đâu, kể cả dưới dạng chưa dùng
+```
+
+Không chỉ "cần thêm capture `inv.cong`" như câu hỏi §9 gợi ý — cần thêm
+**ba loại capture khác nhau CỘNG một hàm replay mới**. Đây là mức độ thiếu
+hụt rộng hơn một chút so với ấn tượng "chỉ thiếu một input" mà việc chỉ xem
+qua popum có thể tạo ra.
+
+**10. Client/server Min — không áp dụng cho popup (popup không tính Min),
+nhưng áp dụng cho MỌI replay engine tương lai.**
+
+Popup không gọi `minCuaDong()` lẫn `soCotTinh()` — không tính Min nên câu
+hỏi "dùng bản nào" không phát sinh cho chính popup. Nhưng đây vẫn là một
+ràng buộc thật cho bất kỳ thiết kế replay nào sau này: hai công thức không
+hoàn toàn giống nhau (`DEC-149` §72 — `soCotTinh()` bỏ qua bước lọc outlier
+pe-6). Một replay engine tương lai dùng lại `minCuaDong()` (client-side,
+đầy đủ) sẽ cho số **khác** với những gì CRM/CSV từng nhận trong các giai
+đoạn `_c` bị stale (khi `soCotTinh()` chạy fallback) — nghĩa là ngay cả khi
+đã capture đủ input lịch sử, "MarketMin(D) mà nhân viên NHÌN THẤY" và
+"MarketMin(D) mà CRM ĐÃ NHẬN" có thể là hai số khác nhau tại cùng một ngày,
+tuỳ thời điểm `_c` có bị stale hay không lúc đó.
+
+Reason:
+
+**1. Vì sao phiên này ghi là AUDIT FACT, không phải Owner Decision.** Đề bài
+yêu cầu tường minh "Không Owner Decision mới trừ khi chỉ ghi audit fact".
+Không có quyết định nghiệp vụ nào cần đóng ở đây — chỉ có một khẳng định
+kỹ thuật (popup là gì) cần đúng trước khi ai đó dựa vào nó để quyết định gì.
+
+**2. Vì sao kết luận không thay đổi bất kỳ trạng thái nào của `DEC-149`.**
+`CONFLICT DETECTED` §71 hỏi về Ý ĐỊNH nghiệp vụ của công thức Min
+(`_c.min` có nên bao gồm `cong` hay không). Popup không tính Min nên không
+liên quan gì tới công thức đó — nó chỉ là một tính năng hiển thị khác,
+song song, đọc một nhánh RTDB khác (`phist` thay vì `board/_c`). Hai câu
+hỏi độc lập nhau hoàn toàn.
+
+**3. Vì sao vẫn đáng ghi một DEC dù chỉ là audit fact.** Bằng chứng UI mới
+(popup có chart, có nhiều mốc ngày) là loại bằng chứng dễ bị đọc nhầm thành
+"vậy là có lịch sử Min rồi, không cần capture gì thêm". Ghi rõ ràng, có
+trích dẫn code, ngăn đúng cách đọc nhầm đó lan sang các quyết định sau —
+đúng nguyên tắc "agent phải chứng minh bằng artifact và bằng chứng" của
+`CLAUDE.md`.
+
+Risk:
+
+`Effective Risk = HIGH` — không đổi. Phiên này không tạo rủi ro mới, nó
+**loại bỏ** một khả năng hiểu nhầm cụ thể trước khi nó lan rộng:
+
+- **Rủi ro đã tránh được:** nếu phiên này không audit trực tiếp, và ai đó
+  (Owner hoặc một agent khác) coi popup "Lịch sử giá" là bằng chứng đủ để
+  bỏ qua việc xây capture layer — hậu quả giống hệt điều `DEC-148`/`DEC-149`
+  đã cảnh báo (dữ liệu quá khứ không tái dựng được), chỉ khác là bị trì
+  hoãn phát hiện lâu hơn vì "nhìn có vẻ đã có chart rồi".
+- **Rủi ro còn lại, không đổi từ DEC-149:** `CONFLICT DETECTED` §71 vẫn
+  chưa có câu trả lời từ Owner.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace
+  toàn repo; `DEC-150` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — ghi rõ popup là vendor-only; **không** đổi
+  bất kỳ trạng thái `BLOCKED`/`READY`/`OWNER_DECISION_REQUIRED` nào.
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần IX.
+- `docs/sessions/S027-task-105c-price-history-popup-verification.md` — bàn
+  giao phiên.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- Không đổi so với `DEC-149`: chủ dự án trả lời `CONFLICT DETECTED` §71, và
+  xác nhận kiến trúc capture (OPTION B hoặc khác) + tần suất.

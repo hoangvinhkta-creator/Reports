@@ -242,13 +242,28 @@ giữ). Chi tiết đầy đủ: `DEC-147`, `DEC-148` và
 **TASK-105C — `RTDBPriceProvider` / capture layer:**
 
 ```
-DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149)
+DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149,
+                            S027/DEC-150)
 IMPLEMENTATION = OWNER_DECISION_REQUIRED
 BLOCKING (chưa từng có trước DEC-149) = CONFLICT DETECTED — business rule
       "Min ưu tiên, cong fallback" Owner mô tả KHÔNG khớp cách _c.min thực
       sự được tính. Đây là vấn đề CỦA HIỆN TẠI, không chỉ vấn đề lịch sử.
 RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE, và KHÔNG được đề cử
 ```
+
+**Xác minh popup "Lịch sử giá" (S027/DEC-150, audit fact — không đổi trạng
+thái ở trên).** Owner cung cấp bằng chứng UI: popup biểu đồ giá theo ngày
+mở từ ô Min trên tab Bảng giá. Đã audit trực tiếp `openPhist()`/
+`loadPhist()`/`renderPhist()` (`public/index.html:6218-6314`). Kết luận:
+popup là **vendor-price history thuần** (đọc `phist/<mã>`, một đường mỗi
+NCC) — KHÔNG có bất kỳ tính toán Min nào, KHÔNG đọc `inv.cong`/`tp.ton`,
+KHÔNG có persistent Min history record nào tồn tại ở bất kỳ đâu trong repo
+B (`grep` toàn repo cho mọi biến thể "min history" = 0 kết quả liên quan
+lưu trữ). Popup **không phải** một phần câu trả lời cho `CONFLICT DETECTED`
+ở trên — nó không tính Min nên không liên quan tới ý định của công thức
+Min. Chi tiết: `DEC-150`,
+`docs/sessions/S027-task-105c-price-history-popup-verification.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần IX.
 
 **`CONFLICT DETECTED` (DEC-149 §71) — chưa giải quyết, không tự chọn.**
 `_c.min` (Min hiển thị trên board) tính bằng `min(giá NCC rẻ nhất còn hàng

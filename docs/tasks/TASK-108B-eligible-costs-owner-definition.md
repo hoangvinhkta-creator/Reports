@@ -2255,3 +2255,135 @@ Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
 fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
 `TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
 Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`.
+
+---
+
+# PHẦN IX — PRICE HISTORY POPUP VERIFICATION (append 2026-08-27)
+
+> Phần I–VIII giữ nguyên. Authority: `DEC-150` (audit fact, KHÔNG phải Owner
+> Decision mới — không đổi bất kỳ trạng thái nào của Phần VIII). Phiên:
+> `docs/sessions/S027-task-105c-price-history-popup-verification.md`.
+> Xác minh popup "Lịch sử giá" trên tab Bảng giá trước khi ai coi nó là một
+> phần câu trả lời cho `CONFLICT DETECTED` §71.
+
+## 80. Popup — function/path/transform
+
+```
+Mở      : openPhist(key)          public/index.html:6218-6238
+          (trigger: ô Min, tooltip "bấm xem biểu đồ lịch sử giá", :6143)
+Load    : loadPhist(key)          :4661-4664
+          db.ref("phist/"+key).once("value") — MỘT lượt đọc, không lọc
+Dựng    : renderPhist(row, data)  :6243-6314
+          sups = Object.keys(data) — mỗi NCC một đường SVG vẽ tay
+Hover   : phShow(td,key,ncc,data) :6191-6217 — một NCC mỗi lần
+Transform: KHÔNG CÓ giữa loadPhist() và render — vẽ thẳng dữ liệu đọc thẳng
+```
+
+## 81. Popup hiển thị gì — OPTION A, chứng minh bằng code
+
+**A. Raw vendor-price history từ `phist`. ĐÚNG, xác nhận.** B/C/D/E đều
+**SAI**: `grep` toàn khối `:6218-6314` cho `tp\.`, `inv\.`, `cong`, `\.ton`,
+`minCuaDong`, `soCotTinh`, `locGiaNcc`, `hetHangHoanToan` = **0 kết quả cho
+tất cả**. Popup không đọc, không tính, không tham chiếu bất kỳ thứ gì liên
+quan Min hay `inv.cong`.
+
+Nguồn gây nhầm lẫn hợp lý: nút mở popup nằm **trên chính ô Min** (`:6143`).
+Đây là khoảng cách UI-affordance-vs-data, không phải bằng chứng ngược lại
+kết luận A.
+
+## 82. Persistent Min history? — NO
+
+`grep -rniE "minhist|min_hist|history.?min|giaMin|marketmin"` toàn repo B =
+5 dòng, tất cả là biến hiển thị hiện hành (`:4216,6098,6143,8616,8619`),
+**0 dòng nào** là write/read tới một nhánh lưu trữ lịch sử Min. Không nhánh
+RTDB nào, không field `_c.minHist`, không cấu trúc tương tự `phist` cho Min.
+
+## 83. Min reconstruction trong popup? — NO
+
+Không bước nào trong bốn bước bắt buộc (NCC filtering theo `_ANC`, status
+ok/gone theo đúng luật `hetHangHoanToan()`, outlier filter
+`NGUONG_BAT_THUONG`, `inv.cong`) xuất hiện trong đường đi popup. Popup vẽ
+mọi NCC trong `phist`, kể cả NCC hiện đang bị `NCC_RETIRED`/`NCC_MIN_LOAI`
+loại khỏi công thức Min, và vẽ mọi giá trị kể cả giá outlier mà
+`locGiaNcc()` lẽ ra sẽ loại.
+
+## 84. Public Purchase Price History trong popup? — NO
+
+`inv.cong`/`tp.ton` không xuất hiện ở bất kỳ đâu trong `openPhist()`/
+`loadPhist()`/`renderPhist()`/`phShow()`/`phHover()`. Kể cả `phist` hoàn hảo
+tuyệt đối, popup vẫn thiếu input `tp.ton` mà công thức Min hiện hành cần
+(`DEC-149` §72).
+
+## 85. Historical Min Replay Experiment — CODE ONLY
+
+Không hàm nào trong repo B nhận `(ngày lịch sử, phist tới ngày đó)` và trả
+Min. `minCuaDong()` LÀ hàm thuần, về lý thuyết tái dùng được cho replay,
+nhưng trong pipeline hiện tại luôn nhận `dong`=trạng thái board HIỆN TẠI,
+`an`=`_ANC` HIỆN TẠI, `NGUONG_BAT_THUONG`=hằng số đơn không versioned.
+⇒ **NOT DETERMINISTIC** — xác nhận lại Historical Replay = C (`DEC-149`
+§73) từ một góc độ khác (audit đường đi popup thay vì audit công thức).
+
+## 86. Chart note semantics — khớp cho chart, KHÔNG khớp cho bảng
+
+`price(product, NCC, D) = last history record with date <= D` — **đúng cho
+chart** (`renderPhist()` `:6259-6267`, biến `last` carry-forward). **KHÔNG
+đúng cho bảng số** cùng popup (`rows` `:6296-6303` hiện `"·"`, không
+carry-forward). Cùng dữ liệu, hai hành vi hiển thị khác nhau — bất kỳ
+replay engine nào tham chiếu "logic UI" phải chọn đúng chart, và hiểu đây
+là logic hiển thị, không phải hàm nghiệp vụ dùng lại được.
+
+## 87. Câu hỏi 30 ngày — trả lời lại
+
+```
+sale_date=10/08, upload=10/09 (30 ngày sau) → NO.
+```
+Không phải vì thiếu chart (có) — vì: (a) không hàm nào tái tính Min cho
+ngày lịch sử ở bất kỳ đâu, kể cả trong popup; (b) `tp.ton`/`inv.cong` không
+lịch sử; (c) exclusion list + threshold không versioned. **Không được trả
+YES chỉ vì popup có chart** — đúng rủi ro đề bài cảnh báo, xác nhận có thật.
+
+## 88. Kiến trúc tối thiểu còn thiếu — rộng hơn "chỉ thiếu inv.cong"
+
+```
+CÓ (một phần)  : phist — nhưng sửa/xoá được (DEC-147 §54 R4), không mang
+                 trạng thái _ANC lịch sử
+THIẾU HOÀN TOÀN: 1. inv.cong/tp.ton theo ngày (DEC-148)
+                 2. _ANC (exclusion list) theo ngày — 0 versioning
+                 3. NGUONG_BAT_THUONG theo ngày — hằng số đơn
+                 4. MỘT HÀM REPLAY gọi lại minCuaDong() với input lịch sử —
+                    KHÔNG tồn tại dưới bất kỳ hình dạng nào hiện nay
+```
+
+## 89. `MarketMinHistory` có thật sự cần thiết? Chỉ `inv.cong` history có đủ?
+
+Hai câu hỏi audit, không phải quyết định mới:
+
+- **Chỉ capture `inv.cong` có đủ? — KHÔNG.** Ngay cả `inv.cong` hoàn hảo +
+  `phist` hoàn hảo, vẫn thiếu `_ANC`/`NGUONG_BAT_THUONG` theo thời gian và
+  một hàm replay chưa từng tồn tại.
+- **`MarketMinHistory` (capture trực tiếp `_c.min`) có cần thiết? — Phụ
+  thuộc câu trả lời `CONFLICT DETECTED` §71, chưa có.** Nếu Owner xác nhận
+  ý (A) (`_c.min` là đúng, chấp nhận `cong` lai bên trong): về lý thuyết có
+  thể tránh capture `_c.min` riêng bằng cách capture ĐỦ bốn input ở §88 rồi
+  replay qua `minCuaDong()` tái dùng — nhưng điều đó đòi xây MỚI ba loại
+  capture khác (không chỉ mở rộng một loại đã có) cộng một hàm replay chưa
+  tồn tại — không rõ là "ít thay đổi hơn" so với capture trực tiếp `_c.min`
+  (`DEC-149` OPTION B) như đã khuyến nghị. Đây là một cân nhắc bổ sung cho
+  §78, không phải một khuyến nghị thay thế nó.
+
+## 90. Client/server Min — không áp dụng cho popup, áp dụng cho replay tương lai
+
+Popup không tính Min nên câu hỏi client/server không phát sinh cho chính
+nó. Nhưng vẫn là ràng buộc thật cho bất kỳ replay engine tương lai: hai
+công thức (`minCuaDong()` vs `soCotTinh()`) không hoàn toàn giống nhau
+(`DEC-149` §72). "MarketMin(D) nhân viên nhìn thấy" và "MarketMin(D) CRM đã
+nhận" có thể là hai số khác nhau tại cùng một ngày lịch sử, tuỳ `_c` có
+stale lúc đó hay không.
+
+## STOP (Phần IX)
+
+Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
+fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
+`TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
+Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`. Không
+Owner Decision mới ngoài `DEC-150` (audit fact).
