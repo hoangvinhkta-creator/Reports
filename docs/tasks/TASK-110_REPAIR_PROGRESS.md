@@ -1654,3 +1654,48 @@ lẫn **siết chặt oracle thật sự** — không được gọi gọn là "
 
 **SUPERSEDED REVIEW CANDIDATES**: `aff0240` (normative-table divergence) ·
 `6f79cbb` (T03 authority/oracle/accounting reconciliation pending).
+
+#### FREEZE FINALIZATION — R1-A1 (Independent Review PASS tại `a853971`)
+
+- Status: **FROZEN**
+- Review Candidate SHA: `a85397106b81799d149d98e71a7fcfd5bc8963ad`
+- Independent Review verdict (input đã chốt cho phiên finalization này,
+  không phải self-review): **PASS — ELIGIBLE_FOR_FREEZE**
+- Blocking Findings: **0**
+- Hardening Findings: **1** (xem dưới — backlog only, không sửa)
+- Interpreter chạy Independent Review: CPython 3.12.13 (khác pinned
+  evidence 3.11.15 trước đó). Tripwire `ENVIRONMENT_REVERIFY_REQUIRED`
+  kích hoạt cho K03/L03/M02/T03; reviewer đã re-verify A/B/C/D cho cả bốn,
+  kết quả PASS cả bốn ⇒ phân loại **NON-BLOCKING ENVIRONMENT DIFFERENCE**.
+  Không repair test, không sửa pinning, không sửa `canonical.py`.
+- Corpus: `105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY`
+  (K03/L03/M02 → HD-POST-A1-02; T03 → HD-POST-A1-04/DEC-138). ID, expected
+  outcome, construction, numbering, grouping, oracle, corpus size — không
+  đổi.
+- `app/modules/domain/canonical.py`: **KHÔNG ĐỔI** trong phiên finalization
+  này (freeze commit chỉ cập nhật state/docs).
+
+**Finding 1 (HARDENING, backlog only — HB-A1-05):**
+
+Artifact `docs/reviews/PRE-REVIEW-EVIDENCE-R1A1-collection.md` ghi
+`Parent SHA: 6f79cbb8a4b9f7355e8b595518326f4eda75ca95` (commit liền trước
+`a853971`), không phải chính review candidate `a853971`. Severity LOW,
+production path NONE, không blocking. **Không sửa raw evidence trong phiên
+này.** Re-trigger: khi tạo raw collection evidence cho review candidate
+tiếp theo — khi đó artifact mới nên ghi rõ cả `Parent SHA` lẫn
+`Reviewed SHA` (khuyến nghị machine-check tương lai, chưa triển khai).
+
+**CHECK-110-16**: giữ nguyên **BLOCKED** — merge gate (không phải review
+gate), thiếu production workbook thật để đối chiếu. Không synthetic PASS,
+không bypass. R1-A1 FROZEN không tự động gỡ gate này.
+
+**Trạng thái không được suy diễn tăng theo:**
+`R1-A1 FROZEN` ⇏ `R1-A FROZEN`; ⇏ `R1 FROZEN`; ⇏ `TASK-110 DONE`.
+Ba trạng thái đó giữ nguyên **NOT FROZEN / NOT FROZEN / NOT DONE**.
+
+**R1-A2 → R8**: theo PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1
+overlay, chưa merge vào nhánh này tại thời điểm ghi — lineage
+`TASK-110` có `repair_cycles_remaining = 0` (EXHAUSTED_PRE_V4.1). Không unit
+nào trong R1-A2 → R8 được tự mở sau freeze này; mỗi unit cần
+`OWNER_EXTENSION` riêng (production path + kịch bản sai cụ thể + phạm vi +
+budget). Không có Owner Extension ⇒ STOP.

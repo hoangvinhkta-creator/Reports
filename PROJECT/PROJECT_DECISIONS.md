@@ -2267,3 +2267,92 @@ Consequences:
   thứ năm.
 - R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
   merge. CHECK-110-16 vẫn BLOCKED (merge gate).
+
+## DEC-139
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 FREEZE FINALIZATION (session `claude/r1-a1-contract-freeze-9lkh3h`).
+
+Decision:
+
+Tiếp nhận verdict Independent Review đã chốt cho exact reviewed SHA
+`a85397106b81799d149d98e71a7fcfd5bc8963ad`:
+
+```
+PASS — ELIGIBLE_FOR_FREEZE
+BLOCKING findings: 0
+HARDENING findings: 1
+OUT_OF_SCOPE findings mới: 0
+```
+
+Ghi:
+
+```
+R1-A1 = FROZEN
+```
+
+Đây là finalization state, không phải một review mới — không finding kỹ
+thuật nào được sửa trong phiên này (repair budget của lineage `TASK-110` đã
+`EXHAUSTED_PRE_V4.1`, `remaining = 0`, xem PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào nhánh này tại thời điểm ghi).
+
+**Interpreter difference:** Independent Review chạy CPython 3.12.13, khác
+pinned evidence CPython 3.11.15 trước đó. Tripwire
+`ENVIRONMENT_REVERIFY_REQUIRED` kích hoạt cho K03/L03/M02/T03; reviewer đã
+re-verify A/B/C/D cho cả bốn — PASS cả bốn. Phân loại:
+**NON-BLOCKING ENVIRONMENT DIFFERENCE**. Không sửa test/pinning/canonical.py.
+
+**Corpus:** `105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY`
+(K03/L03/M02 → HD-POST-A1-02; T03 → HD-POST-A1-04/DEC-138). Không đổi ID,
+expected outcome, construction, numbering, grouping, oracle, corpus size.
+
+**Finding 1 — HARDENING, backlog only (HB-A1-05):**
+`docs/reviews/PRE-REVIEW-EVIDENCE-R1A1-collection.md` ghi `Parent SHA:
+6f79cbb...` thay vì `Reviewed SHA: a853971...`. Severity LOW, production
+path NONE, không blocking. Không sửa raw evidence trong phiên này.
+Re-trigger: khi tạo raw collection evidence cho review candidate tiếp
+theo — artifact mới nên phân biệt rõ `Parent SHA` / `Reviewed SHA`.
+
+**CHECK-110-16:** giữ nguyên `BLOCKED` — merge gate (không phải review
+gate), thiếu production workbook thật. Không synthetic PASS, không bypass.
+
+**Trạng thái không suy diễn tăng theo:**
+
+```
+R1-A1 = FROZEN
+R1-A  = NOT FROZEN
+R1    = NOT FROZEN
+TASK-110 = NOT DONE
+```
+
+**R1-A2 → R8:** `OWNER_EXTENSION REQUIRED` cho từng unit (theo
+PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào
+nhánh này tại thời điểm ghi). Không có Owner Extension ⇒ STOP.
+
+Rationale:
+
+Freeze record phải tách bạch rõ hai điều: (1) verdict kỹ thuật của
+Independent Review, đã chốt bởi Owner, không phải điều phiên này tái tạo
+hay tái diễn giải; và (2) phạm vi finalization thuần state — không mở lại
+repair, không mở R1-A2, không đổi implementation. Giữ Finding 1 ở backlog
+thay vì sửa ngay tránh việc "biến finding thành biến mất" — đúng như chỉ
+thị: sửa artifact evidence để một finding không còn hiển thị là hành vi bị
+cấm minh thị.
+
+Impact:
+- File sửa: `docs/tasks/TASK-110_REPAIR_PROGRESS.md` (append section
+  Freeze Finalization), file này (`PROJECT/PROJECT_DECISIONS.md`, DEC-139).
+- Không sửa: `app/modules/domain/canonical.py`, bất kỳ file dưới `tests/`,
+  `tools/analysis/`, `docs/reviews/PRE-REVIEW-EVIDENCE-R1A1-collection.md`,
+  hay nội dung kỹ thuật của `docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`.
+- Commit Freeze Finalization là commit trạng thái SAU review, không thay
+  đổi reviewed implementation — SHA review (`a853971...`) và SHA finalize
+  (ghi trong commit log) là hai giá trị khác nhau và phải được phân biệt.
+
+Can Revisit After:
+`OWNER_EXTENSION` cho R1-A2 (hoặc bất kỳ unit R1-B…R8 nào), hoặc quyết định
+mới về `CHECK-110-16` (merge gate timeout, xem §9 của
+PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào
+nhánh này tại thời điểm ghi).
