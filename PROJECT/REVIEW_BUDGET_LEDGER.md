@@ -199,8 +199,13 @@ tests/fixtures/baseline/**, tests/test_task110_non_regression.py : FORBIDDEN
 ### Trạng thái
 
 ```
-REPAIR CYCLE #1 = COMPLETE
-IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW   (chưa re-review, chưa FROZEN, chưa DONE)
+REPAIR CYCLE #1           = COMPLETE
+INDEPENDENT REVIEW #2     = PASS — ELIGIBLE_FOR_FREEZE
+    reviewed_sha           : 85210691702550d83c0fd42fe816be8ca9dde889
+    blocking                : 0
+    record                  : docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md
+GB-IR-01                   = CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED
+FROZEN = NO · DONE = NO · MERGED = NO   (chờ phiên Freeze Finalization có thẩm quyền riêng)
 ```
 
 Sub-unit `GB-1` … `GB-12`, và bất kỳ `GB-IR-xx` nào thuộc cùng lineage này,
@@ -237,6 +242,20 @@ cycles:
     tồn của `TASK-REM-T06`, không có lỗi thứ 4.
   scope: chỉ `tests/test_golden_baseline.py` + entry ledger này. Không sửa
     `app/**`, `config/**`, TASK-110, R1-A1, governance V4.1 core, HB-GB-01…06.
+
+review_events:
+- id: independent-review-2
+  reviewed_sha: 85210691702550d83c0fd42fe816be8ca9dde889
+  verdict: PASS — ELIGIBLE_FOR_FREEZE
+  blocking: 0
+  gb_ir_01: CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED
+  consumes_repair_cycle: false
+  record: docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md
+  note: >
+    Review chạy ngoài canonical repo; verdict do Owner cung cấp và được ghi
+    lại nguyên trạng trong phiên "INDEPENDENT REVIEW #2 — VERDICT RECORDING
+    ONLY" (2026-08-27). Không phải một repair cycle mới — remaining vẫn 1,
+    unused.
 
 ---
 
@@ -292,3 +311,14 @@ Owner Extension, và **không** cấp thêm repair cycle.
   fixture, business payload trước/sau IDENTICAL. Repair SHA `54a575d`.
   `repair_cycles_used: 1`, `repair_cycles_remaining: 1`. `TASK-110`,
   `CHECK-110-16`, `app/`, `config/` không đổi.
+- 2026-08-27 — `TASK-GOLDEN-BASELINE-001` **Independent Review #2 RECORDED**
+  (phiên "VERDICT RECORDING ONLY", không phải phiên review mới). Verdict
+  `PASS — ELIGIBLE_FOR_FREEZE` tại reviewed SHA `8521069…`, đã được Owner
+  cung cấp từ một review chạy ngoài canonical repo, nay ghi vào
+  `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`. `GB-IR-01`
+  = `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`. `BLOCKING = 0`.
+  `repair_cycles_used` vẫn `1`, `remaining` vẫn `1` — review này **không**
+  tiêu cycle. `FROZEN = NO`, `DONE = NO`, `MERGED = NO`: verdict PASS thuộc
+  thẩm quyền independent reviewer, còn `FROZEN` thuộc một phiên Freeze
+  Finalization riêng chưa chạy (`governance/core/V4_1_POLICY_FREEZE.md`
+  §12). `TASK-110`, `CHECK-110-16`, `app/`, `config/` không đổi.

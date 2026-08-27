@@ -1491,3 +1491,42 @@ R1-A2 → R8    = OWNER_EXTENSION REQUIRED (không mở)
 quyền sau Independent Review (`governance/core/V4_1_POLICY_FREEZE.md` §12 — `FROZEN` thuộc
 authorized Freeze Finalization session, `DONE` thuộc Owner/completion
 authority). Implementation agent **không** tự chuyển.
+
+### F. Cập nhật hiện trạng (append, 2026-08-27) — Phần E.13 ở trên SUPERSEDED
+
+Phần E.13 phía trên là **bản ghi lịch sử** tại thời điểm implementation vừa
+xong (`repair_cycles_used = 0`). Từ đó tới nay đã xảy ra thêm hai việc, không
+sửa lại nội dung E.13:
+
+1. **Repair Cycle #1** (`GB-IR-01`, commit `54a575d`, ghi tại
+   `PROJECT/REVIEW_BUDGET_LEDGER.md`): `repair_cycles_used = 1`,
+   `remaining = 1`.
+2. **Independent Review #2 — PASS** (2026-08-27, phiên "VERDICT RECORDING
+   ONLY", verdict do Owner cung cấp từ review chạy ngoài canonical repo):
+   reviewed SHA `85210691702550d83c0fd42fe816be8ca9dde889`, `BLOCKING = 0`,
+   `GB-IR-01 = CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`. Ghi đầy đủ tại
+   `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`.
+
+Trạng thái hiện tại (current-state pointer, thay cho phần tương ứng của
+E.13):
+
+```
+TASK-GOLDEN-BASELINE-001
+    IMPLEMENTATION       = COMPLETE
+    INDEPENDENT_REVIEW_2 = PASS — ELIGIBLE_FOR_FREEZE
+    reviewed_sha          : 85210691702550d83c0fd42fe816be8ca9dde889
+    repair_cycles_used = 1 · remaining = 1 (UNUSED)
+    FROZEN = NO · DONE = NO · MERGED = NO
+
+Governance V4.1
+    = POLICY_ADOPTED
+    = NOT YET FULLY_ENFORCED  (chờ Freeze Finalization + Integration)
+
+TASK-110      = NOT DONE            (không đổi)
+CHECK-110-16  = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE (không đổi)
+R1-A1         = FROZEN     (không đụng)
+R1-A2 → R8    = OWNER_EXTENSION REQUIRED (không mở)
+```
+
+Next authorized action: **FREEZE FINALIZATION + INTEGRATION** (phiên riêng,
+có thẩm quyền riêng). Phiên recording này không tự mở phiên đó.

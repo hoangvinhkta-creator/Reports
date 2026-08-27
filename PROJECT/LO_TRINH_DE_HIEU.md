@@ -64,9 +64,15 @@ giống hệt nhau.
 Từ nay, chỉ cần chạy **một lệnh duy nhất** là biết bản sửa mới có làm lệch kết
 quả cũ hay không.
 
-**Nhưng việc này chưa được đánh dấu XONG.** Nó còn phải qua một vòng soát xét
-độc lập, giống mọi bước quan trọng khác của dự án. Không tự chấm điểm cho
-chính mình.
+**Cập nhật (2026-08-27) — đã qua vòng soát xét độc lập, kết quả ĐẠT.** Vòng
+soát xét độc lập (lần thứ hai, sau khi sửa một lỗi nhỏ về cách so sánh dữ
+liệu môi trường bị lẫn vào dữ liệu nghiệp vụ) đã **DUYỆT**: 0 lỗi chặn. Chi
+tiết ghi tại `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`.
+
+**Nhưng việc này vẫn chưa được đánh dấu XONG.** Được duyệt (ELIGIBLE_FOR_FREEZE)
+không đồng nghĩa đã "niêm phong" (FROZEN) hay đã nhập hẳn vào bản chính
+(MERGED) — hai bước đó cần một phiên riêng, có thẩm quyền riêng, chưa chạy.
+Không tự chấm điểm cho chính mình.
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 
