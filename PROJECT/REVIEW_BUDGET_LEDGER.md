@@ -205,7 +205,8 @@ INDEPENDENT REVIEW #2     = PASS — ELIGIBLE_FOR_FREEZE
     blocking                : 0
     record                  : docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md
 GB-IR-01                   = CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED
-FROZEN = NO · DONE = NO · MERGED = NO   (chờ phiên Freeze Finalization có thẩm quyền riêng)
+FROZEN = YES (DEC-142, 2026-08-27) · DONE = NO · MERGED = NO   (chờ Controlled
+Integration trong cùng phiên Freeze Finalization)
 ```
 
 Sub-unit `GB-1` … `GB-12`, và bất kỳ `GB-IR-xx` nào thuộc cùng lineage này,
@@ -322,3 +323,12 @@ Owner Extension, và **không** cấp thêm repair cycle.
   thẩm quyền independent reviewer, còn `FROZEN` thuộc một phiên Freeze
   Finalization riêng chưa chạy (`governance/core/V4_1_POLICY_FREEZE.md`
   §12). `TASK-110`, `CHECK-110-16`, `app/`, `config/` không đổi.
+- 2026-08-27 — `TASK-GOLDEN-BASELINE-001` **FREEZE FINALIZATION** (`DEC-142`,
+  phiên "FREEZE FINALIZATION + CONTROLLED INTEGRATION"). `FROZEN = YES` tại
+  reviewed SHA `85210691702550d83c0fd42fe816be8ca9dde889` (review verdict
+  record `94b2513d1894dbd58f3b08656e3c7412be191df5`). Golden Baseline
+  contract (fixture, expected output, strict business comparison) niêm phong.
+  `repair_cycles_used` vẫn `1`, `remaining` vẫn `1` — **UNUSED**, đóng task
+  không bắt buộc dùng hết ngân sách. `DONE`/`MERGED` cập nhật sau bước
+  Controlled Integration của cùng phiên. `TASK-110`, `CHECK-110-16`, `app/`,
+  `config/` không đổi.

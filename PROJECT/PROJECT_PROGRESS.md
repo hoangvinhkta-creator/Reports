@@ -30,11 +30,13 @@ Owner Decision `OD-GB-1 = A + A1`, một lệnh chạy:
 ELIGIBLE_FOR_FREEZE** tại reviewed SHA
 `85210691702550d83c0fd42fe816be8ca9dde889`, 0 blocking finding — ghi tại
 `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`. Trạng thái:
-`INDEPENDENT_REVIEW_2 = PASS`, `ELIGIBLE_FOR_FREEZE = YES`, nhưng **chưa**
-FROZEN, **chưa** DONE, **chưa** MERGED. `V4.1` vì vậy vẫn `POLICY_ADOPTED`:
-chuyển sang `FULLY_ENFORCED` là hành động của một phiên Freeze Finalization
-có thẩm quyền riêng (`governance/core/V4_1_POLICY_FREEZE.md` §12), chưa
-chạy. Chi tiết: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` Phần E.
+`INDEPENDENT_REVIEW_2 = PASS`, `ELIGIBLE_FOR_FREEZE = YES`, **`FROZEN = YES`**
+(DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED INTEGRATION", 2026-08-27).
+`DONE`/`MERGED` — xem "TRẠNG THÁI HIỆN TẠI" bên dưới (cập nhật sau bước
+Controlled Integration trong cùng phiên này). `V4.1` chuyển sang
+`FULLY_ENFORCED` chỉ sau khi cả Freeze **và** Integration hoàn tất
+(`governance/core/V4_1_POLICY_FREEZE.md` §12) — xem mục V4.1 enforcement bên
+dưới. Chi tiết: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` Phần E/F.
 
 Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
 theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
@@ -135,12 +137,14 @@ Current Task:
 (`b738fa4`), `IMPLEMENTATION = COMPLETE`, `INDEPENDENT_REVIEW_2 = PASS —
 ELIGIBLE_FOR_FREEZE` tại reviewed SHA `8521069…` (2026-08-27, ghi tại
 `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`).
-`FROZEN = NO`, `DONE = NO`, `MERGED = NO` — chờ phiên Freeze Finalization +
-Integration có thẩm quyền riêng.
+**`FROZEN = YES`** (DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED
+INTEGRATION", 2026-08-27). `DONE = NO`, `MERGED = NO` (chờ Controlled
+Integration trong cùng phiên — xem "TRẠNG THÁI HIỆN TẠI" bên dưới sau khi
+integration hoàn tất).
 `effective_risk = HIGH`, 2 repair cycle khả dụng, **1 đã dùng** (`GB-IR-01`,
-`CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`), **1 còn lại — UNUSED, không phải
-lời mời hardening thêm** — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`. Task này
-**không** thuộc lineage `TASK-110` và **không** mở `R1-A2` → `R8`.
+`CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`), **1 còn lại — UNUSED, task đóng
+không bắt buộc dùng hết ngân sách** — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+Task này **không** thuộc lineage `TASK-110` và **không** mở `R1-A2` → `R8`.
 
 Task liền trước (vẫn NOT DONE):
 TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage

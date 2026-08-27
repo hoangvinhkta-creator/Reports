@@ -69,10 +69,14 @@ soát xét độc lập (lần thứ hai, sau khi sửa một lỗi nhỏ về c
 liệu môi trường bị lẫn vào dữ liệu nghiệp vụ) đã **DUYỆT**: 0 lỗi chặn. Chi
 tiết ghi tại `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`.
 
-**Nhưng việc này vẫn chưa được đánh dấu XONG.** Được duyệt (ELIGIBLE_FOR_FREEZE)
-không đồng nghĩa đã "niêm phong" (FROZEN) hay đã nhập hẳn vào bản chính
-(MERGED) — hai bước đó cần một phiên riêng, có thẩm quyền riêng, chưa chạy.
-Không tự chấm điểm cho chính mình.
+**Cập nhật (2026-08-27) — đã niêm phong (FROZEN).** Một phiên riêng, có thẩm
+quyền riêng ("Freeze Finalization + Controlled Integration") đã ghi quyết
+định niêm phong bộ ảnh chuẩn này (`DEC-142`). Niêm phong nghĩa là từ nay
+không ai được sửa bộ dữ liệu mẫu/kết quả đúng này nữa nếu không có một quyết
+định mới của chủ dự án. **Vẫn chưa MERGED/DONE** cho tới khi bước nhập hẳn
+vào bản chính (Controlled Integration) trong cùng phiên hoàn tất — xem
+`PROJECT/PROJECT_PROGRESS.md` để biết trạng thái mới nhất. Không tự chấm
+điểm cho chính mình.
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 

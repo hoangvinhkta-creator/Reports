@@ -1530,3 +1530,24 @@ R1-A2 → R8    = OWNER_EXTENSION REQUIRED (không mở)
 
 Next authorized action: **FREEZE FINALIZATION + INTEGRATION** (phiên riêng,
 có thẩm quyền riêng). Phiên recording này không tự mở phiên đó.
+
+### G. Freeze Finalization (append, 2026-08-27) — Phần E.13/F ở trên SUPERSEDED cho FROZEN
+
+Phiên "FREEZE FINALIZATION + CONTROLLED INTEGRATION" (2026-08-27) đã chạy.
+Quyết định niêm phong ghi tại `PROJECT/PROJECT_DECISIONS.md` → `DEC-142`.
+
+```
+TASK-GOLDEN-BASELINE-001
+    IMPLEMENTATION       = COMPLETE
+    INDEPENDENT_REVIEW_2 = PASS — ELIGIBLE_FOR_FREEZE
+    FROZEN               = YES  (DEC-142, 2026-08-27)
+    reviewed_sha          : 85210691702550d83c0fd42fe816be8ca9dde889
+    review_record_sha     : 94b2513d1894dbd58f3b08656e3c7412be191df5
+    repair_cycles_used = 1 · remaining = 1 (UNUSED)
+    DONE / MERGED         : xem PROJECT/PROJECT_PROGRESS.md sau bước
+                            Controlled Integration của cùng phiên này
+```
+
+Golden Baseline contract niêm phong theo đúng nội dung DEC-142 — fixture,
+expected output, strict business comparison, advisory `_environment`. Không
+lặp lại nguyên văn ở đây; DEC-142 là bản ghi chuẩn.
