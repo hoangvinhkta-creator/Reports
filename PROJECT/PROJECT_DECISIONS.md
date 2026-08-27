@@ -4347,3 +4347,409 @@ Can Revisit After:
 - Một lượt đọc RTDB thật (có credential) ⇒ đo được tần suất thực tế
   `invNextDay()`/`invSetGia()` chạy, để ước lượng mức độ dữ liệu đã mất tính
   tới hiện tại.
+
+## DEC-149
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Market Min Price Path Audit. Ghi trong phiên
+"TASK-105C — MARKET MIN PRICE PATH AUDIT"
+(`docs/sessions/S026-task-105c-market-min-price-path-audit.md`). Trả lời
+business rule mới của chủ dự án: ưu tiên **GIÁ MIN** (`_c.min`) làm
+`AccountingPurchasePrice`, `inv.cong` chỉ là fallback khi Min "không có căn
+cứ".
+
+Repo được audit:
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`
+(không đổi so với `DEC-147`/`DEC-148`). **0 file thay đổi**.
+
+Decision:
+
+Đây là **bản ghi audit findings**, tiếp nối `DEC-147`/`DEC-148`. Nó trả lời
+đầy đủ field/formula/writer/reader của Min, và báo cáo một `CONFLICT
+DETECTED` giữa business rule Owner vừa mô tả và cách `_c.min` thực sự vận
+hành — theo đúng quy tắc `CLAUDE.md` §"Quy Tắc Xung Đột": không tự giải
+quyết.
+
+**1. Field thật — `board/<mã>/_c.min`.**
+
+```
+Ghi bởi   : tinhChot() (price-engine) qua saveBoardPaths()/queTinhLai() (client)
+Đọc bởi   : bMinOf() (client, mọi màn hình) + soCotTinh() (Worker, fallback
+            cho CSV/CRM khi _c stale)
+Cache-key : _c.k so với meta.k (vân tay danh sách NCC bị loại) — lệch thì
+            client hiện "…" (undefined) và Worker tự tính lại tạm bằng
+            soCotTinh()
+```
+
+`_c.min` **đúng** là con số Owner mô tả là "Giá Min" trên tab Bảng giá —
+xác nhận bằng chính UI: tooltip cột Min ghi *"Giá VỐN rẻ nhất — rẻ nhất giữa
+các NCC còn hàng và giá nhập hàng trong kho"* (`public/index.html:6144-6146`).
+
+**2. Formula — trích chính xác, không diễn giải.**
+
+```
+INPUT:
+  ds[]     = { ncc, gia } — mọi NCC trong board.p KHÔNG thuộc danh sách loại
+             trừ `an` (= `_ANC`, hợp của NCC_RETIRED-alias + NCC_MIN_LOAI),
+             với cell.s === "ok" và cell.v > 0
+  t        = tp.ton  (= inv.cong, xem DEC-148)  — CHỈ khi là số dương
+  coDuLieu = có ÍT NHẤT MỘT NCC (ngoài `an`) từng có cell (bất kể s là gì)
+  conBan   = có ÍT NHẤT MỘT NCC (ngoài `an`) đang cell.s === "ok"
+
+RULE:
+  1. ds.sort(ascending by gia)
+  2. while ds.length >= 2 and ds[0].gia < ds[1].gia × 0.3:
+       remove ds[0], ghi vào batThuong[]        // lọc outlier, pe-6
+  3. m = ds.length ? ds[0].gia : null            // giá NCC rẻ nhất còn sống
+  4. if t is number > 0 and (m is null or t < m): m = t
+  5. if m !== null: MIN = m
+     else: MIN = (coDuLieu and not conBan) ? 0 : null
+
+OUTPUT:
+  number > 0  → giá Min thật
+  0           → SENTINEL "hoàn toàn hết hàng" — có NCC từng bán, nay
+                không ai còn "ok" và không có tp.ton dương
+  null        → KHÔNG rõ nghĩa duy nhất — xem §6 "NO MARKET MIN BASIS"
+  undefined   → (chỉ ở client, qua cOf()) chưa tính xong / cache lệch vân
+                tay — KHÔNG phải kết luận về dữ liệu
+```
+
+Nguồn: `minCuaDong()` (`price-engine/src/nghiepvu.js:632-637`),
+`locGiaNcc()` (`:569-583`), `hetHangHoanToan()` (`:596-599`).
+
+Worker giữ một **bản sao độc lập** (`soCotTinh()`, `src/index.js:305-350`)
+dùng khi `_c` cũ hơn vân tay hiện hành — bản này **không** áp bước 2 (lọc
+outlier `NGUONG_BAT_THUONG`), chỉ lấy thẳng `cell.v > 0`. Hai công thức
+**không hoàn toàn giống nhau**; khác biệt chỉ lộ ra khi CSV/CRM đọc một dòng
+đang stale VÀ dòng đó có giá NCC bất thường — hẹp nhưng có thật, ghi lại để
+không ai tưởng chúng là một bản.
+
+**3. Historical Replay Test — kết quả: C (chỉ current snapshot, KHÔNG
+replay được).**
+
+```
+01/08: MIN = X
+10/08: MIN = Y
+30/08: reconstruct MIN của 05/08? → KHÔNG.
+```
+
+Không phải vì thiếu một input — vì thiếu **bốn lớp cùng lúc**:
+
+```
+(a) `_c` không có history riêng — mỗi lần tính lại GHI ĐÈ, không nhánh RTDB
+    nào lưu chuỗi `_c.min` theo ngày.
+(b) Formula sống KHÔNG BAO GIỜ đọc `phist` — xác nhận bằng
+    grep -rn "phist" price-engine/src/nghiepvu.js src/index.js
+    price-engine/src/index.js = 0 hit. `gotDong()` (public/index.html:3551)
+    chỉ gom board HIỆN TẠI.
+(c) Một trong hai input chính, `tp.ton` (= inv.cong), ĐÃ được xác nhận
+    KHÔNG có lịch sử (DEC-148 §8, NO GUARANTEED DELAY WINDOW) — dù có tái
+    dựng hoàn hảo phần vendor-price từ phist, vẫn thiếu input này.
+(d) Danh sách loại trừ NCC (NCC_RETIRED, NCC_MIN_LOAI) và ngưỡng lọc outlier
+    (NGUONG_BAT_THUONG=0.3) là HẰNG SỐ MÃ NGUỒN, không lưu ở RTDB, không có
+    bản ghi "ngày đó danh sách/ngưỡng là gì" — chỉ suy ra được (một phần)
+    từ lịch sử Git, và Git repo B là SHALLOW (DEC-147, mốc cũ nhất còn thấy
+    2026-08-18).
+```
+
+**4. Reconstruction từ `phist` — Không đủ, dù chỉ xét riêng phần vendor.**
+
+Áp đúng checklist đề bài mục 4 cho riêng phần "giá NCC" của công thức (bỏ
+qua phần `tp.ton` đã biết là NO ở (c) trên):
+
+```
+mọi input CÓ history?        MỘT PHẦN — chỉ p/<NCC>/v có (qua phist);
+                              tp.ton KHÔNG; exclusion list/threshold KHÔNG
+0 sentinel                    phist: 0 = NCC hết hàng (khác _c.min: 0 =
+                              TOÀN BỘ mã hết hàng) — HAI Ý NGHĨA "0" KHÁC
+                              NHAU trên hai field khác nhau, dễ gộp nhầm
+NCC gone state                phist ghi được (mốc 0), nhưng chỉ khi phist
+                              CÒN NGUYÊN — xem dưới
+mapping product                đã audit ở DEC-147 §56 — cần inv.map, ổn
+                              định theo thời gian không đảm bảo
+config thay đổi theo thời gian NCC_RETIRED/NCC_MIN_LOAI/NGUONG_BAT_THUONG —
+                              KHÔNG versioned, xem (d) ở trên — ĐÂY LÀ GAP
+                              MỚI, đề bài yêu cầu kiểm minh bạch
+manual overrides               oddNoMap()/pinOdd() (public/index.html:5516-
+                              5533) — ảnh hưởng NCC price giữ nguyên hay
+                              không, lưu ở meta.oddNo, CẮT còn ODD_NO_MAX
+                              mục gần nhất — KHÔNG phải lịch sử đầy đủ
+tồn kho/public price tham gia? CÓ — tp.ton là input trực tiếp (bước 4 công
+                              thức) — và KHÔNG có lịch sử (DEC-148)
+deleted/edited historical      CÓ — phist sửa được qua 4 đường (DEC-147 §54
+records                      R4): xoaPhistSau/đổi mã/gộp mã/khôi phục bảng
+```
+
+⇒ **Không được gọi bất kỳ lượt replay nào là deterministic**, kể cả nếu giới
+hạn phạm vi chỉ ở phần vendor-price của công thức.
+
+**5. Đối chiếu business rule Owner — `CONFLICT DETECTED`.**
+
+```
+CONFLICT DETECTED
+
+Documentation (Owner statement, phiên này):
+    "Nếu sản phẩm có căn cứ tính GIÁ MIN trên tab Bảng giá: dùng GIÁ MIN
+     làm giá nhập tính cho nhân viên. Chỉ khi sản phẩm/mã lạ không có căn
+     cứ nào để tính GIÁ MIN: fallback sang giá nhập công khai inv.cong."
+    → Mô tả một quy tắc ƯU TIÊN TUẦN TỰ: Min trước, cong chỉ được dùng khi
+      Min hoàn toàn bất khả (không có bất kỳ căn cứ nào).
+
+Implementation (minCuaDong(), price-engine/src/nghiepvu.js:632-637):
+    m = giá NCC rẻ nhất còn hàng (đã lọc outlier)
+    NẾU tp.ton (= inv.cong) là số dương VÀ NHỎ HƠN m → m = tp.ton
+    → `cong` LUÔN được xét trong MỌI lượt tính, không chỉ khi Min bất khả.
+      Nó CẠNH TRANH trực tiếp với giá NCC và THẮNG bất cứ khi nào rẻ hơn —
+      kể cả khi NCC vẫn còn hàng, giá NCC vẫn hoàn toàn "có căn cứ" theo
+      đúng nghĩa Owner mô tả.
+
+Risk:
+    Field `_c.min` (con số hiển thị "Giá Min" trên board hôm nay) KHÔNG
+    bằng kết quả của quy tắc IF/ELSE mà Owner vừa mô tả. Nếu Reports lấy
+    thẳng `_c.min` làm output của quy tắc ưu tiên đó, MỌI trường hợp `cong`
+    tình cờ rẻ hơn giá NCC — dù NCC hoàn toàn có căn cứ, hoàn toàn còn
+    hàng — sẽ ÂM THẦM dùng `cong` mà không ai biết đó là `cong` chứ không
+    phải giá NCC thật. Đây đúng loại lỗi mà DEC-103/125/143/145 tồn tại để
+    chặn: một con số có mặt, trông hợp lý (là "Giá Min" mà!), ở sai lý do.
+
+Recommended resolution:
+    KHÔNG tự chọn. Cần Owner xác nhận MỘT trong hai:
+    (A) Ý định là "dùng đúng _c.min như đang hiển thị trên board" — chấp
+        nhận cong có thể thắng khi rẻ hơn giá NCC, coi đó là ĐÚNG nghiệp vụ
+        (giá vốn rẻ nhất, không phân biệt nguồn — đúng triết lý gốc của Min
+        ghi trong chính comment code: "GIÁ VỐN RẺ NHẤT BÁN RA ĐƯỢC, không
+        phân biệt nguồn"). Nếu vậy, quy tắc ưu tiên Owner mô tả ("Min trước,
+        cong sau") thực ra ĐÃ ĐÚNG — nhưng vì cong nằm BÊN TRONG Min, không
+        phải vì có một bước fallback riêng biệt sau khi Min thất bại.
+    (B) Ý định là một field MỚI — "chỉ giá NCC, cong CHỈ dùng khi không NCC
+        nào định giá được" — cần TÁCH `t` (tp.ton) ra khỏi công thức Min
+        hiện tại để dựng riêng, một thay đổi kiến trúc bên phía repo B,
+        KHÔNG phải đọc thẳng field có sẵn.
+```
+
+**6. `NO MARKET MIN BASIS` — định nghĩa, và phát hiện code hiện tại GỘP
+CHUNG nhiều trạng thái khác nhau.**
+
+```
+DETERMINED_NO_BASIS  =  MIN resolves = 0
+    Điều kiện chính xác: hetHangHoanToan(p, an) === true, tức CÓ ít nhất
+    một NCC (ngoài an) từng ghi cell cho mã này, và KHÔNG CÒN AI đang
+    "ok" — VÀ không có tp.ton dương.
+    Đây là trạng thái SẠCH: hệ thống BIẾT CHẮC lý do (đã hết hàng), không
+    phải suy đoán.
+
+UNKNOWN (dữ liệu)  =  MIN resolves = null
+    Đây KHÔNG phải một nguyên nhân — code hiện tại GỘP ÍT NHẤT BA trường
+    hợp khác nhau vào cùng tín hiệu `null`, không phân biệt được từ bên
+    ngoài:
+    (a) Mã CHƯA TỪNG có NCC nào định giá và không có tp.ton — "chưa từng
+        có căn cứ" theo đúng nghĩa Owner dùng.
+    (b) Mã CÓ NCC đang "ok" nhưng với giá <= 0 hoặc bị lọc outlier hết sạch
+        (locGiaNcc() trả ds rỗng) — đây là VẤN ĐỀ CHẤT LƯỢNG DỮ LIỆU, KHÔNG
+        phải "không có căn cứ": hetHangHoanToan() trả false (vì cell vẫn
+        "ok"), nên KHÔNG rơi vào nhánh 0 — nhưng ds rỗng nên m vẫn null.
+        Trường hợp này bị nguỵ trang thành giống hệt (a).
+    (c) Mã KHÔNG TỒN TẠI trên board (chưa map, hoặc bị xoá) — Worker/client
+        thậm chí không gọi được minCuaDong() cho mã này; không có `_c`
+        nào để đọc, khác hẳn (a)/(b) nhưng từ phía Reports nhìn vào (lookup
+        thất bại) sẽ dễ bị xử lý y hệt.
+
+UNKNOWN (vận hành, KHÔNG phải kết luận dữ liệu)  =  client thấy undefined
+    (qua cOf()) khi `_c.k !== meta.k` — nghĩa là "chưa kịp tính lại", không
+    phải "không có căn cứ". TUYỆT ĐỐI không được đọc như DETERMINED_NO_BASIS
+    hay dùng để trigger fallback — đây là staleness thuần tuý.
+
+SOURCE_FAILURE  =  lời gọi /api/tinhchot thất bại (mạng, service binding
+    down). saveBoardPaths() (public/index.html:3780-3788) BẮT lỗi này và
+    KHÔNG ghi `_c` mới — `_c` cũ (nếu có) hoặc trạng thái "chưa từng tính"
+    vẫn giữ nguyên. Ở TẦNG DỮ LIỆU, SOURCE_FAILURE và "chưa từng tính lần
+    nào" KHÔNG PHÂN BIỆT ĐƯỢC — cả hai nhìn giống hệt "_c vắng mặt".
+```
+
+Theo đúng chỉ dẫn của đề bài: **UNKNOWN không được tự động fallback nếu che
+lỗi dữ liệu.** Trường hợp (b) ở trên là bằng chứng cụ thể cho rủi ro đó — một
+mã có dữ liệu NCC nhưng HỎNG (giá 0/âm, hoặc bị lọc hết vì outlier) sẽ trông
+giống hệt một mã chưa từng có ai định giá, và một quy tắc fallback tự động
+sang `cong` sẽ ÂM THẦM che đi sự cố chất lượng dữ liệu NCC — đúng loại lỗi
+"con số có mặt, sai lý do" mà governance của dự án này liên tục nhắc.
+
+**7. Fallback rule hiện tại trong code — KHÔNG TỒN TẠI theo đúng hình dạng
+Owner mô tả.**
+
+Không có bất kỳ đoạn code nào trong repo B implement:
+```
+IF MarketMinPrice determinable: dùng nó
+ELSE IF PublicPurchasePrice determinable: dùng nó
+ELSE: Pending
+```
+như hai giá trị TÁCH BIỆT với một priority-switch bên ngoài. Thay vào đó,
+`tp.ton` (cong) là **một input hoà tan bên trong cùng công thức Min** (§2
+bước 4) — không phải một candidate dự phòng độc lập được thử sau khi Min
+"thất bại". Đây chính là nội dung của `CONFLICT DETECTED` ở §5.
+
+**8. Guaranteed Delay Window — NO GUARANTEED DELAY WINDOW.**
+
+```
+1 giờ    :  KHÔNG chắc — bất kỳ ghi nào khớp canTinhLai() (cả dòng, p/<NCC>,
+            tp.ton/chot/bien) TÁI TÍNH và GHI ĐÈ `_c` ngay lập tức, không
+            debounce cấp giờ.
+1 ngày   :  KHÔNG chắc — cùng lý do; đồng thời board.p bị ghi đè mỗi lượt
+            "Cập nhật từ dữ liệu hôm nay" (daily NCC paste, không giới hạn
+            số lần/ngày), và tp.ton bị ghi đè mỗi lượt sync tồn kho.
+7 ngày   :  KHÔNG chắc — same, cộng dồn nhiều lượt overwrite.
+30 ngày  :  KHÔNG chắc — same.
+```
+
+`_c.min` được TÁI TÍNH VÀ GHI ĐÈ trên đúng cùng trigger mà `tp.ton`/`inv.cong`
+đã được xác nhận không có window đảm bảo nào (`DEC-148` §8) — không có gì
+trong cơ chế của `_c` làm window này khá hơn. **NO GUARANTEED DELAY WINDOW.**
+
+**9. Taxonomy Owner đề xuất — xác minh khớp code, với một điều chỉnh.**
+
+```
+MarketMinPrice               = board/<mã>/_c.min                    ✅ khớp,
+                                nhưng LƯU Ý: đã CHỨA `PublicPurchasePrice`
+                                bên trong công thức (§5) — không phải hai
+                                khái niệm tách bạch ở tầng dữ liệu hiện tại
+PublicPurchasePrice          = inv.cong (qua board/<mã>/tp/ton)      ✅ khớp
+                                (DEC-148)
+PrivateAveragePurchasePrice  = inv.gia                               ✅ khớp
+                                (DEC-148)
+VendorQuotedPrice            = phist / board/<mã>/p/<NCC>/v          ✅ khớp
+                                (DEC-147)
+LotPurchasePrice             = inv.lo                                 ✅ khớp
+                                (DEC-148)
+AccountingPurchasePrice      = resolved output — CHƯA TỒN TẠI trong code
+                                hiện tại dưới bất kỳ hình dạng nào; đây là
+                                khái niệm Reports sẽ TẠO RA, không phải một
+                                field đã có sẵn ở repo B
+```
+
+Taxonomy **dùng được**, nhưng phải đi kèm chú thích ở dòng `MarketMinPrice`:
+nó không phải một số "thuần vendor" — nó đã lai với `PublicPurchasePrice`
+theo công thức `min(vendor, cong)`, nên gọi hai cái là "hai nguồn độc lập,
+Min trước, cong sau" cần được Owner xác nhận đúng ý (§5 Recommended
+resolution).
+
+**10. Đề xuất kiến trúc lịch sử — chọn OPTION ít thay đổi nhất mà vẫn đảm
+bảo replay đúng.**
+
+Bốn option đề bài đưa ra, đánh giá theo đúng tiêu chí "upload sales file sau
+30 ngày/6 tháng → cùng đơn phải ra cùng `AccountingPurchasePrice`":
+
+```
+A  chỉ history inv.cong
+     KHÔNG đủ nếu quy tắc ưu tiên có ý (B) ở §5 — vì lúc đó cần biết Min
+     theo nghĩa THUẦN VENDOR để biết khi nào fallback đúng lúc. Đủ CHỈ NẾU
+     Owner xác nhận ý (A) ở §5 (dùng đúng _c.min hiện tại, coi cong-thắng
+     là hợp lệ) — nhưng khi đó "MarketMinPrice" không còn là khái niệm cần
+     capture riêng, việc capture inv.cong ĐÃ ĐỦ vì nó là input duy nhất cần
+     lịch sử (giá NCC vẫn cần lịch sử qua phist, nhưng phist đã tồn tại).
+     Vẫn thiếu: exclusion list/threshold versioning (§3(d)) nếu muốn replay
+     TUYỆT ĐỐI chính xác quá khứ.
+
+B  history MarketMinPrice + inv.cong
+     Capture CẢ HAI số riêng biệt mỗi ngày. Đủ dữ liệu cho cả hai cách hiểu
+     ở §5, không cần Owner quyết trước khi bắt đầu capture — nhưng TỐN GẤP
+     ĐÔI so với cần thiết nếu cuối cùng chỉ một trong hai được dùng.
+
+C  capture trực tiếp resolved AccountingPurchasePrice + provenance
+     ĐÚNG kiến trúc dài hạn (tách biệt "cái gì đang chạy trong repo B" khỏi
+     "cái gì Reports cần") nhưng ĐÒI xây rule engine chọn A vs B TRƯỚC —
+     tức đòi Owner trả lời CONFLICT §5 TRƯỚC KHI bắt đầu capture bất kỳ gì.
+     Rủi ro: nếu bắt đầu capture theo một cách hiểu rồi Owner chỉnh lại,
+     dữ liệu đã capture theo cách hiểu cũ không tự sửa được.
+
+D  reconstruct MarketMinPrice từ phist, capture chỉ inv.cong fallback
+     KHÔNG khả thi — §3/§4 đã chứng minh: formula sống không đọc phist,
+     và ngay cả một lượt tái dựng thủ công cũng thiếu exclusion-list
+     history + threshold history + inv.cong history. "Reconstruct từ
+     phist" không phải một no-op rẻ tiền — nó đòi viết một cỗ máy replay
+     riêng mà chính bằng chứng ở đây cho thấy sẽ KHÔNG deterministic dù
+     có viết ra.
+```
+
+**RECOMMENDED: OPTION B**, với lý do "ít thay đổi nhất mà vẫn đảm bảo" theo
+đúng tiêu chí đề bài đặt ra:
+
+- Không đòi giải quyết `CONFLICT DETECTED` §5 TRƯỚC KHI bắt đầu capture —
+  capture cả hai số độc lập, để quyết định "dùng số nào" xảy ra ở TẦNG ĐỌC
+  (Reports `PriceProvider`), không phải tầng capture. Nếu sau này Owner chọn
+  ý (A), Reports đơn giản đọc cột `market_min_price`; nếu chọn (B), Reports
+  đọc `public_purchase_price` khi `market_min_price` là `DETERMINED_NO_BASIS`.
+  Không cần capture lại từ đầu trong cả hai kịch bản.
+- Không đòi xây rule engine mới trong repo B (khác OPTION C) — capture chỉ
+  ĐỌC hai field đã tồn tại (`_c.min`, `tp.ton`) mỗi lượt chụp, không cần hiểu
+  ý nghĩa nghiệp vụ của chúng tại thời điểm capture.
+- Loại bỏ hẳn OPTION D — đã chứng minh không khả thi, không phải vì thiếu nỗ
+  lực mà vì thiếu dữ liệu nguồn không thể tạo lại.
+
+**Điều kiện đi kèm bắt buộc** (không phải optional, để capture không lặp
+lại đúng lỗi đang audit): mỗi lượt capture phải ghi luôn `_ANC` (danh sách
+loại trừ NCC tại thời điểm đó) và `NGUONG_BAT_THUONG` (giá trị ngưỡng tại
+thời điểm đó) làm provenance — nếu không, `market_min_price` được capture
+hôm nay vẫn không tái dựng được nếu code sau này đổi hai hằng số đó, lặp lại
+đúng vấn đề ở §3(d) một tầng cao hơn.
+
+Reason:
+
+**1. Vì sao báo cáo `CONFLICT DETECTED` thay vì tự chọn cách hiểu.** `Min`
+và `cong` không phải hai khái niệm độc lập trong code hiện tại — `cong` là
+MỘT THÀNH PHẦN của Min. Business rule Owner mô tả giả định chúng độc lập
+(một cái "thắng", cái kia "thua" theo thứ tự). Tự chọn nghĩa nào đúng là
+đoán ý Owner ở đúng chỗ có thể sai lệch lương/KPI — governance của dự án này
+(`CLAUDE.md` "Quy Tắc Xung Đột") cấm chính việc đó.
+
+**2. Vì sao Historical Replay = C không phải B.** B đòi *"có thể tái dựng
+CHÍNH XÁC"*. Ở đây không chỉ một input thiếu (đã đủ để loại B) mà **bốn lớp**
+thiếu cùng lúc, hai trong số đó (`tp.ton` không lịch sử, exclusion list
+không versioned) là **không thể vá bằng cách đọc thêm dữ liệu có sẵn** — dữ
+liệu đó CHƯA TỪNG được ghi lại ở đâu.
+
+**3. Vì sao OPTION B, không phải A hay C.** A giả định đã biết câu trả lời
+của `CONFLICT DETECTED` — rủi ro nếu đoán sai. C đúng về mặt kiến trúc dài
+hạn nhưng đảo ngược thứ tự: đòi quyết định nghiệp vụ TRƯỚC KHI có dữ liệu để
+quyết định dựa trên đó. B tách rời "ghi lại cái gì đang có" khỏi "diễn giải
+nó nghĩa là gì" — đúng nguyên tắc audit-trước-implementation mà toàn bộ
+`TASK-105C` đang theo.
+
+Risk:
+
+`Effective Risk = HIGH` — không đổi, chấm theo data path (V4.1 §4). Phiên
+này làm rủi ro **cụ thể hơn ở đúng một điểm mới**: không chỉ "chưa capture
+được lịch sử" (đã biết từ DEC-148), mà **"trường sắp được dùng có thể mang
+sai ý nghĩa nghiệp vụ ngay từ hôm nay, kể cả không cần chờ vấn đề lịch sử"**
+— vì `CONFLICT DETECTED` ở §5 là vấn đề CỦA HIỆN TẠI, không phải vấn đề
+"replay quá khứ".
+
+- **Rủi ro lớn nhất:** implement quy tắc ưu tiên bằng cách đọc thẳng `_c.min`
+  mà không biết nó đã ngầm chứa `cong`. Giảm nhẹ: `CONFLICT DETECTED` ghi
+  tường minh ở §5, không tự giải quyết.
+- **Rủi ro thứ hai:** một `null` bị đọc là "chắc chắn không có căn cứ" rồi tự
+  động fallback, trong khi thật ra là dữ liệu NCC hỏng (§6 trường hợp b) —
+  che mất một lỗi chất lượng dữ liệu đáng lẽ phải được thấy.
+- **Rủi ro thứ ba:** capture theo OPTION C (resolved output) trước khi có
+  câu trả lời §5, rồi phải capture lại từ đầu khi Owner làm rõ ý định. Giảm
+  nhẹ: khuyến nghị B thay vì C chính vì lý do này.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace
+  toàn repo; `DEC-149` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — ghi rõ `CONFLICT DETECTED` chưa giải
+  quyết, cập nhật đề xuất kiến trúc capture (OPTION B).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần VIII.
+- `docs/sessions/S026-task-105c-market-min-price-path-audit.md` — bàn giao.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- Chủ dự án trả lời `CONFLICT DETECTED` §5: dùng đúng `_c.min` (chấp nhận
+  cong lai bên trong), hay cần field mới tách riêng vendor-only Min.
+- Chủ dự án xác nhận OPTION B (hoặc chọn khác) và tần suất capture — mở
+  `TASK-105C` implementation với `docs/tasks/TASK-105C-*.md`.
+- Một lượt đọc RTDB thật (có credential) ⇒ đo tần suất thực tế
+  `saveBoardPaths()`/`invSyncPart()` chạy trong một ngày vận hành.

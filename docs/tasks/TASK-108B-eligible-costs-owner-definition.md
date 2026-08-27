@@ -2079,3 +2079,179 @@ Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
 fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
 `TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
 Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`.
+
+---
+
+# PHẦN VIII — MARKET MIN PRICE PATH AUDIT (append 2026-08-27)
+
+> Phần I–VII giữ nguyên. Authority: `DEC-149`. Phiên:
+> `docs/sessions/S026-task-105c-market-min-price-path-audit.md`.
+> Owner nêu business rule mới: ưu tiên `MarketMinPrice` (`_c.min`), fallback
+> `inv.cong` khi Min "không có căn cứ". Phần này audit đường dữ liệu đó và
+> báo cáo một `CONFLICT DETECTED` chưa giải quyết.
+
+## 71. `CONFLICT DETECTED` — trung tâm của phần này
+
+```
+Documentation (Owner statement):
+    Min trước, cong CHỈ khi Min "không có căn cứ" (fallback tuần tự).
+
+Implementation (minCuaDong(), price-engine/src/nghiepvu.js:632-637):
+    MIN = min(giá NCC rẻ nhất còn hàng đã lọc outlier, tp.ton)
+    → tp.ton (= inv.cong) LUÔN được xét, THẮNG bất cứ khi nào rẻ hơn,
+      kể cả khi giá NCC hoàn toàn "có căn cứ".
+
+Risk: `_c.min` không bằng output của quy tắc IF/ELEs Owner mô tả. Đọc thẳng
+      _c.min làm "kết quả sau fallback" là sai — cong có thể đã âm thầm
+      thắng trong đó.
+
+Recommended resolution: Owner xác nhận (A) dùng đúng _c.min (chấp nhận cong
+      lai bên trong — hợp lý theo triết lý gốc "giá vốn rẻ nhất, không
+      phân biệt nguồn"), hay (B) cần field MỚI tách riêng vendor-only Min.
+      KHÔNG tự chọn.
+```
+
+## 72. Field / Formula / Writer / Reader
+
+```
+Field:     board/<mã>/_c.min
+
+INPUT:     ds[] = giá NCC "ok", v>0, ngoài exclusion list `an` (_ANC)
+           t    = tp.ton (= inv.cong), chỉ khi số dương
+           coDuLieu, conBan — cờ trạng thái NCC
+
+RULE:      lọc outlier (loại NCC giá < 30% NCC rẻ kế tiếp, NGUONG_BAT_THUONG)
+           m = giá NCC rẻ nhất còn sống, hoặc null
+           nếu t dương và (m null hoặc t<m): m = t
+           MIN = m, hoặc (hết hàng hoàn toàn ? 0 : null)
+
+OUTPUT:    number>0 | 0 (sentinel hết hàng) | null (§74) | undefined (client,
+           staleness — không phải kết luận dữ liệu)
+
+Writer:    tinhChot() price-engine/src/nghiepvu.js:677-690
+           → price-engine/src/index.js:57-58 (expose)
+           → src/index.js:795,902 (POST /api/tinhchot)
+           → napChot() public/index.html:3565-3577
+           → saveBoardPaths() :3773-3789 / queTinhLai() :3685-3710
+           trigger: canTinhLai() :3744-3749 (cả dòng, p/<NCC>, tp.ton/
+                    chot/bien)
+
+Reader:    bMinOf() :3583 → mọi màn hình client (board render, valuation,
+           XLSX export)
+           soCotTinh() src/index.js:305-350 → gomBangGia() → /api/board.csv
+           + dayCrm() (cron mỗi 10 phút, wrangler.toml)
+```
+
+Hai bản formula (`minCuaDong()` vs `soCotTinh()`) **không hoàn toàn giống
+nhau** — bản Worker (`soCotTinh`, dùng khi `_c` stale) bỏ qua bước lọc
+outlier pe-6.
+
+## 73. Historical Replay = C (chỉ current snapshot)
+
+Không phải thiếu một input — thiếu bốn lớp cùng lúc: `_c` không có history
+riêng; formula sống không bao giờ đọc `phist`
+(`grep -rn "phist" price-engine/src/nghiepvu.js src/index.js
+price-engine/src/index.js` = 0 hit); `tp.ton`/`inv.cong` đã xác nhận không
+có lịch sử (`DEC-148`); và `NCC_RETIRED`/`NCC_MIN_LOAI`/`NGUONG_BAT_THUONG`
+là hằng số mã nguồn, không versioned trong RTDB.
+
+Ngay cả giới hạn phạm vi chỉ ở phần vendor-price (bỏ qua phần `tp.ton` đã
+biết NO): vẫn thiếu exclusion-list history, threshold history, và `phist`
+có thể bị sửa/xoá (`DEC-147` §54 R4). **Không được gọi bất kỳ replay nào là
+deterministic.**
+
+## 74. `NO MARKET MIN BASIS` — định nghĩa, và một gộp-nhầm quan trọng
+
+```
+DETERMINED_NO_BASIS = MIN resolves 0
+    hetHangHoanToan(p,an)===true — CÓ NCC từng bán, nay KHÔNG CÒN AI "ok",
+    và không có tp.ton dương. Trạng thái SẠCH, biết chắc lý do.
+
+UNKNOWN (dữ liệu) = MIN resolves null — GỘP BA trường hợp KHÁC NHAU:
+    (a) chưa từng có NCC nào định giá, không có tp.ton — "chưa có căn cứ"
+        đúng nghĩa
+    (b) CÓ NCC "ok" nhưng giá <=0 hoặc bị lọc outlier hết sạch — VẤN ĐỀ
+        CHẤT LƯỢNG DỮ LIỆU, không phải "không có căn cứ" — nhưng code
+        không phân biệt được với (a)
+    (c) mã không tồn tại trên board / chưa map — không gọi được formula
+
+UNKNOWN (vận hành) = client thấy undefined qua cOf() khi _c.k khác meta.k —
+    "chưa kịp tính lại", KHÔNG PHẢI kết luận dữ liệu — tuyệt đối không dùng
+    để trigger fallback.
+
+SOURCE_FAILURE = lời gọi /api/tinhchot thất bại — saveBoardPaths()
+    :3780-3788 bắt lỗi, KHÔNG ghi _c mới. Ở tầng dữ liệu, SOURCE_FAILURE và
+    "chưa từng tính" KHÔNG PHÂN BIỆT ĐƯỢC — cả hai là "_c vắng mặt".
+```
+
+Trường hợp (b) là bằng chứng cụ thể cho rủi ro đề bài cảnh báo: fallback tự
+động khi thấy `null` sẽ **che mất** một sự cố dữ liệu NCC thật (giá hỏng),
+không phải xử lý đúng một trường hợp "không có căn cứ".
+
+## 75. Fallback rule trong code hiện tại — KHÔNG TỒN TẠI theo hình dạng Owner mô tả
+
+Không có `IF Min determinable THEN ... ELSE IF cong determinable THEN ...`
+ở bất kỳ đâu trong repo B. `tp.ton` (cong) là một input HOÀ TAN trong cùng
+công thức Min (§72, bước 4), không phải một candidate độc lập thử sau khi
+Min thất bại. Đây chính là nội dung `CONFLICT DETECTED` ở §71.
+
+## 76. Delay window — NO GUARANTEED DELAY WINDOW
+
+`_c.min` tái tính và ghi đè trên đúng cùng trigger mà `tp.ton`/`inv.cong` đã
+xác nhận không có window đảm bảo (`DEC-148` §8). 1 giờ / 1 ngày / 7 ngày /
+30 ngày: **không chắc ở mọi mốc.**
+
+## 77. Taxonomy — xác nhận, một điều chỉnh
+
+Cả 6 thuật ngữ Owner đề xuất khớp code (`MarketMinPrice`, `PublicPurchasePrice`,
+`PrivateAveragePurchasePrice`, `VendorQuotedPrice`, `LotPurchasePrice`,
+`AccountingPurchasePrice`), **với một chú thích bắt buộc**: `MarketMinPrice`
+không phải một số "thuần vendor" — nó đã lai `PublicPurchasePrice` bên trong
+theo `min(vendor, cong)`. `AccountingPurchasePrice` chưa tồn tại dưới bất kỳ
+hình dạng nào trong repo B — là khái niệm Reports sẽ tạo ra.
+
+## 78. Kiến trúc lịch sử khuyến nghị — OPTION B
+
+```
+OPTION A  chỉ inv.cong          — đủ CHỈ NẾU Owner chọn (A) ở §71; rủi ro
+                                   nếu đoán sai
+OPTION B  MarketMinPrice + cong — ĐỀ XUẤT: capture cả hai độc lập, quyết
+                                   định "dùng số nào" chuyển sang tầng ĐỌC
+                                   (Reports PriceProvider), không khoá cứng
+                                   ở tầng capture. Không cần capture lại
+                                   nếu Owner đổi ý giữa (A)/(B) ở §71.
+OPTION C  resolved output        — đúng kiến trúc dài hạn nhưng đảo ngược
+          + provenance             thứ tự: đòi quyết định nghiệp vụ TRƯỚC
+                                   khi có dữ liệu để quyết định dựa trên đó
+OPTION D  reconstruct từ phist    — KHÔNG KHẢ THI (§73/§74) — formula sống
+                                   không đọc phist, và tái dựng thủ công
+                                   vẫn thiếu nhiều input lịch sử
+```
+
+**Điều kiện bắt buộc đi kèm OPTION B:** mỗi lượt capture phải ghi luôn `_ANC`
+(exclusion list) và `NGUONG_BAT_THUONG` (ngưỡng outlier) tại thời điểm đó
+làm provenance — nếu không, dữ liệu capture hôm nay vẫn không tái dựng được
+nếu code sau này đổi hai hằng số đó.
+
+## 79. Verdict
+
+```
+TASK-105C  IMPLEMENTATION = OWNER_DECISION_REQUIRED
+           BLOCKING (mới) = CONFLICT DETECTED §71 chưa giải quyết — vấn đề
+                            CỦA HIỆN TẠI, không chỉ vấn đề lịch sử
+           BLOCKING (mở rộng từ DEC-148) = capture layer, nay phải bao gồm
+                            CẢ _c.min lẫn tp.ton/inv.cong (OPTION B), cộng
+                            provenance cho exclusion list/threshold
+
+TASK-108B  BLOCKED_BY = [ 1. CONFLICT §71: field nào là AccountingPurchasePrice
+                            thật sự (Min-as-is hay vendor-only-Min);
+                          2. capture layer OPTION B chưa tồn tại;
+                          3. TASK-105B-Q3 ]
+```
+
+## STOP (Phần VIII)
+
+Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
+fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
+`TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
+Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`.

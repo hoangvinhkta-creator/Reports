@@ -242,24 +242,44 @@ giữ). Chi tiết đầy đủ: `DEC-147`, `DEC-148` và
 **TASK-105C — `RTDBPriceProvider` / capture layer:**
 
 ```
-DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148)
-AccountingPurchasePrice = inv.cong          — CHỦ DỰ ÁN ĐÃ CHỈ ĐỊNH (DEC-148)
-inv.cong history         = KHÔNG CÓ. NO GUARANTEED DELAY WINDOW (DEC-148 §8)
-IMPLEMENTATION = OWNER_DECISION_REQUIRED — 4 câu hỏi còn lại (dưới)
+DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149)
+IMPLEMENTATION = OWNER_DECISION_REQUIRED
+BLOCKING (chưa từng có trước DEC-149) = CONFLICT DETECTED — business rule
+      "Min ưu tiên, cong fallback" Owner mô tả KHÔNG khớp cách _c.min thực
+      sự được tính. Đây là vấn đề CỦA HIỆN TẠI, không chỉ vấn đề lịch sử.
 RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE, và KHÔNG được đề cử
 ```
 
-**`inv.cong` là ứng viên đã chốt — nhưng chưa có một byte lịch sử nào.** Ba
-lớp giá trong `inv` (`gia`/`lo`/`cong`) đều bị audit; chỉ `cong` rời khỏi
-nhánh `inv` để vào `board`/Reports (`invSyncPart()`
-`public/index.html:7238,7250` → `board/<mã>/tp/ton`). Nhưng `cong`: (a) ghi
-đè **tức thời** khi sửa tay hoặc tải lại file trong ngày; (b) qua ngày chỉ
-giữ **một bước**, do nút bấm thủ công (`invNextDay()`), không theo lịch cron;
-(c) `backup` không chứa `inv`, tự xoá sau 10 bản; (d) `hist` không mang giá
-trị số; (e) không namespace lịch sử riêng, và **không thể** reuse `phist`
-(khác trục khoá — `phist` có NCC, `cong` không có). Đề xuất schema tối thiểu
-`PublicPurchasePriceHistory` (4 cột `DEC-145` §4 + `source`/`captured_at`/
-`raw_row_key`): `DEC-148` §10.
+**`CONFLICT DETECTED` (DEC-149 §71) — chưa giải quyết, không tự chọn.**
+`_c.min` (Min hiển thị trên board) tính bằng `min(giá NCC rẻ nhất còn hàng
+đã lọc outlier, tp.ton)` — `tp.ton` chính là `inv.cong` (`DEC-148`). Nghĩa là
+`cong` **luôn** được xét và **thắng** bất cứ khi nào rẻ hơn giá NCC, kể cả
+khi NCC hoàn toàn còn hàng và "có căn cứ" theo đúng nghĩa Owner dùng. Đây
+KHÔNG phải quy tắc ưu tiên tuần tự (Min trước, cong chỉ khi Min bất khả) mà
+Owner mô tả — `cong` là một input hoà tan bên trong cùng công thức, không
+phải một candidate dự phòng độc lập. Cần Owner xác nhận: (A) dùng đúng
+`_c.min` như đang hiển thị (chấp nhận cong lai bên trong), hay (B) cần một
+field MỚI tách riêng vendor-only Min — hai lựa chọn cho ra hai kết quả khác
+nhau ở chính những mã mà `cong` tình cờ rẻ hơn giá NCC.
+
+**`inv.cong` là ứng viên đã chốt (DEC-148) — nhưng chưa có một byte lịch sử
+nào, và `_c.min` cũng vậy.** `_c.min` tái tính/ghi đè trên đúng cùng trigger
+mà `inv.cong` đã xác nhận NO GUARANTEED DELAY WINDOW (`DEC-148` §8) — không
+có gì trong cơ chế `_c` làm window này khá hơn. Formula sống **không bao
+giờ** đọc `phist` (0 hit khi grep toàn bộ `price-engine/`/`src/index.js`) —
+Historical Replay = **C, chỉ current snapshot, không replay được**, thiếu
+bốn lớp cùng lúc: `_c` không có history riêng; `tp.ton`/`inv.cong` không có
+lịch sử; danh sách loại trừ NCC (`NCC_RETIRED`/`NCC_MIN_LOAI`) và ngưỡng lọc
+outlier (`NGUONG_BAT_THUONG=0.3`) là hằng số mã nguồn, không versioned.
+
+Đề xuất kiến trúc: **OPTION B** — capture `MarketMinPrice` (`_c.min`) VÀ
+`PublicPurchasePrice` (`inv.cong`) độc lập, để quyết định "dùng số nào"
+chuyển sang tầng đọc (Reports `PriceProvider`) thay vì khoá cứng ở tầng
+capture — không cần capture lại nếu Owner đổi ý giữa (A)/(B) ở trên. Mỗi
+lượt capture bắt buộc ghi kèm `_ANC` + `NGUONG_BAT_THUONG` làm provenance.
+Chi tiết đầy đủ: `DEC-149`,
+`docs/sessions/S026-task-105c-market-min-price-path-audit.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VIII.
 
 Khoá sản phẩm (đóng câu hỏi cũ số 3): RTDB **đã có mã ổn định** —
 `normCode(mã)` = `toUpperCase()` + bỏ mọi ký tự ngoài `[A-Z0-9]`, rồi qua
@@ -515,25 +535,34 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         thuật §38 (schema 4 cột, validation) vẫn đúng, không bị đảo ngược.
   - [ ] TASK-105C — `RTDBPriceProvider` / capture layer (mở tại DEC-146).
         **DISCOVERY = COMPLETE** (S024/DEC-147 audit repo; S025/DEC-148 audit
-        sâu `inv.cong` — chủ dự án đã chỉ định `AccountingPurchasePrice =
-        inv.cong`).
-        **IMPLEMENTATION = OWNER_DECISION_REQUIRED** (4 câu hỏi còn lại,
-        DEC-148 — field-selection đã đóng).
-        **Finding cấp thiết (DEC-148 §8): `inv.cong` KHÔNG có lịch sử và
-        KHÔNG có bất kỳ đảm bảo giữ dữ liệu nào — NO GUARANTEED DELAY
-        WINDOW.** Overwrite tức thời trong ngày (sửa tay/tải lại file); qua
-        ngày chỉ giữ một bước qua nút bấm thủ công, không theo lịch. Mỗi
-        ngày trì hoãn capture là dữ liệu ngày đó có nguy cơ mất vĩnh viễn.
+        `inv.cong`; S026/DEC-149 audit `MarketMinPrice`/`_c.min`).
+        **IMPLEMENTATION = OWNER_DECISION_REQUIRED.**
+        **`CONFLICT DETECTED` (DEC-149 §71, chưa giải quyết):** business rule
+        Owner mô tả ("Min ưu tiên, `cong` chỉ khi Min không có căn cứ")
+        KHÔNG khớp cách `_c.min` thực sự tính: công thức thật là
+        `min(giá NCC rẻ nhất còn hàng, tp.ton)` — `tp.ton` = `inv.cong` LUÔN
+        được xét và có thể THẮNG giá NCC ngay cả khi NCC còn hàng, "có căn
+        cứ". `cong` là input hoà tan bên trong Min, không phải fallback độc
+        lập. Cần Owner xác nhận: dùng đúng `_c.min` (chấp nhận cong lai bên
+        trong) hay cần field mới tách riêng vendor-only Min.
+        **Finding (DEC-148/DEC-149): cả `inv.cong` lẫn `_c.min` đều KHÔNG có
+        lịch sử — NO GUARANTEED DELAY WINDOW ở cả hai.** `_c.min` tái tính/
+        ghi đè trên đúng cùng trigger với `inv.cong`. Formula sống không bao
+        giờ đọc `phist`; danh sách loại trừ NCC và ngưỡng lọc outlier là
+        hằng số mã nguồn, không versioned — Historical Replay = **C, chỉ
+        current snapshot**.
         **RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE và KHÔNG được đề
         cử**: đọc thẳng từ `app/modules/` va `ADR-101` (mạng ở Phase 1) +
-        `ADR-103` §2 (RTDB lưu theo **nghìn đồng**, phép ×1.000 phải ở biên
-        nhập); nguồn `cong` cũng mutable như đã nêu ở trên.
+        `ADR-103` §2 (RTDB lưu theo **nghìn đồng**); nguồn mutable.
         `BLOCKING ARCHITECTURE GAP` có điều kiện (DEC-146 §3): **KHÔNG kích
-        hoạt** — nhưng vì lý do khác DEC-146 dự trù: không phải "RTDB thiếu
-        lịch sử nói chung", mà "trường được chỉ định thiếu lịch sử, cần
-        capture ngay". Chưa có `docs/tasks/TASK-105C-*.md`: file task MAJOR
+        hoạt** — lý do nay là "trường/quy tắc chưa rõ ý định VÀ thiếu lịch
+        sử", không phải "RTDB thiếu lịch sử nói chung".
+        Kiến trúc capture đề xuất: **OPTION B** — capture cả `_c.min` lẫn
+        `inv.cong` độc lập kèm provenance (`_ANC`, `NGUONG_BAT_THUONG`), để
+        quyết định "dùng số nào" chuyển sang tầng đọc, không khoá cứng ở
+        tầng capture. Chưa có `docs/tasks/TASK-105C-*.md`: file task MAJOR
         phải mang Scope Lock + Completion Gate, cả hai phụ thuộc câu trả lời
-        của chủ dự án về tần suất capture.
+        của chủ dự án cho `CONFLICT DETECTED` §71 và tần suất capture.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -549,12 +578,17 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 + DEC-145 + DEC-146 + DEC-147**: blocker ngoại lai còn
-        **1**, và bản chất đã đổi lần nữa — không còn là "chờ Owner làm rõ
-        kiến trúc RTDB" (đã audit xong), mà là **"chờ Owner chốt trường nào
-        là `AccountingPurchasePrice`"** và tầng capture xuất ra nó
-        (`PendingPriceProvider` trả `None` vô điều kiện; Golden xác nhận
-        100 % Pending trên dữ liệu production).
+        Sau **DEC-144 + DEC-145 + DEC-146 + DEC-147 + DEC-148 + DEC-149**:
+        blocker ngoại lai còn **1 câu hỏi trọng tâm, đã hẹp lại nhưng chưa
+        đóng** — `CONFLICT DETECTED` ở `DEC-149` §71: Owner cần xác nhận
+        `_c.min` (đã lai `inv.cong` bên trong công thức) có đúng là
+        `AccountingPurchasePrice` mong muốn, hay cần một field vendor-only
+        tách riêng. Đây không còn là câu hỏi kiến trúc nguồn (RTDB đã audit
+        xong) hay câu hỏi chọn field (đã chốt `inv.cong`/`_c.min` là hai ứng
+        viên) — mà là câu hỏi **quy tắc kết hợp hai ứng viên đó có đúng ý
+        Owner hay không**. Cộng tầng capture (OPTION B, DEC-149 §78) chưa
+        tồn tại (`PendingPriceProvider` trả `None` vô điều kiện; Golden xác
+        nhận 100 % Pending trên dữ liệu production).
         `TASK-105B` gỡ tạm dừng — xem `TASK-105C` ở trên. Confirmed
         `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
         còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
