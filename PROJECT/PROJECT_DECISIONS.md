@@ -2489,7 +2489,7 @@ lực sau merge. Giữ nó làm pre-merge gate biến một dependency mà khôn
 nào giải quyết được thành vật cản cho một integration đã được chứng minh an
 toàn, đồng thời chặn `TASK-GOLDEN-BASELINE-001` (V4.1 §13 yêu cầu Golden dựng
 **trên integration baseline chính thức**) và do đó khoá `V4.1` vĩnh viễn ở
-`POLICY_ADOPTED`. Đây là option (B) mà chính `V4_1_POLICY_FREEZE.md` §9 liệt
+`POLICY_ADOPTED`. Đây là option (B) mà chính `governance/core/V4_1_POLICY_FREEZE.md` §9 liệt
 kê cho merge gate timeout.
 
 **2 — Giải `DEC-128` ID collision (OD-2).**
@@ -2517,7 +2517,7 @@ KHÔNG đánh giá lại correctness của `R1-A1`, KHÔNG đổi `R1-A1` FROZEN
 Integration này là hành động chính thức đóng `KNOWN PRE-V4.1 DIVERGENCE` ghi
 tại `PROJECT/REVIEW_BUDGET_LEDGER.md`. Divergence đo được trước integration:
 `r1-a1-contract-freeze-9lkh3h` ahead 24 commit / 4 ngày / 40.523 LOC — vượt
-cả ba ngưỡng `V4_1_POLICY_FREEZE.md` §8. Không grandfather thành ngoại lệ
+cả ba ngưỡng `governance/core/V4_1_POLICY_FREEZE.md` §8. Không grandfather thành ngoại lệ
 vĩnh viễn.
 
 Risk:

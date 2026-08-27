@@ -139,7 +139,7 @@ MAJOR
 
 Next Recommended Task:
 **TASK-GOLDEN-BASELINE-001** — dựng Golden Baseline trên integration baseline
-chính thức (`V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
+chính thức (`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
 nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`. Phải
 mở trong một session riêng.
 
