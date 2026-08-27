@@ -79,13 +79,26 @@ như **hoàn tất**. Cùng lúc, **bộ quy tắc quản trị dự án phiên 
 sang có hiệu lực đầy đủ** (trước đó mới chỉ "đã thông qua chính sách", giờ ba
 cơ chế máy kiểm tra tự động đi kèm đã chứng minh chạy được trên bản chính).
 
-**Việc còn lại của Track A không phải governance nữa — mà là hai quyết định
-của chủ dự án:** (1) định nghĩa "chi phí đủ điều kiện" (`EligibleCosts`,
-mục C15) để mở tiếp bước 12b/13; (2) cấp file bán hàng thô toàn công ty 6
-tháng để đối chiếu bước 14's `CHECK-110-16` (khác việc vừa xong ở trên — đây
-là một bộ dữ liệu khác, toàn công ty thay vì chỉ Tín Phát). Không có việc nào
-trong hai việc này agent tự làm tiếp được nếu thiếu quyết định/dữ liệu từ chủ
-dự án.
+**Việc còn lại của Track A không phải governance nữa.** Quyết định thứ nhất —
+định nghĩa "chi phí đủ điều kiện" (`EligibleCosts`, mục C15) — **chủ dự án đã
+trả lời ngày 2026-08-27** (DEC-143). Câu trả lời: **không khoản chi phí nào
+được cộng thêm vào lợi nhuận tính KPI**, kể cả chi phí giao hàng. Nói cách
+khác, lợi nhuận tính KPI = tiền bán − chiết khấu − tiền nhập, đúng như cách
+công ty vẫn tính trong file Excel hiện tại; không thêm khoản nào mới.
+
+Nhưng bước 12b **vẫn chưa chạy được**, và lý do bây giờ khác trước: không phải
+thiếu quyết định nữa, mà **thiếu dữ liệu giá nhập**. Công cụ cần biết mỗi món
+hàng nhập vào bao nhiêu tiền thì mới tính được lợi nhuận — hiện **100 % số
+dòng đều để trống ô giá nhập**, vì chưa có bảng giá nào được nạp vào (bước 25
+của lộ trình). Đây không phải lỗi của công cụ: chủ dự án đã yêu cầu để trống
+chờ bảng giá (DEC-103).
+
+**Hai việc còn lại cần chủ dự án:** (1) **cấp bảng giá nhập** — chỉ cần một
+file danh sách "mã hàng / ngày / giá nhập" là bước 12b chạy được ngay, không
+phải chờ tới giai đoạn 4; (2) cấp file bán hàng thô toàn công ty 6 tháng để
+đối chiếu bước 14's `CHECK-110-16` (khác việc đã xong ở trên — bộ dữ liệu toàn
+công ty, không chỉ Tín Phát). Không việc nào trong hai việc này agent tự làm
+tiếp được nếu thiếu dữ liệu từ chủ dự án.
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 
@@ -530,7 +543,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
+| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong** (chủ dự án duyệt 2026-08-27, DEC-143) — **đang chờ bảng giá nhập**, hiện 100 % số dòng để trống ô giá nhập |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

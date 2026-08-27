@@ -134,6 +134,24 @@ TASK-110 repair budget = EXHAUSTED_PRE_V4.1, remaining = 0
 R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 
+**TASK-108B (sau DEC-143 / `OD-108B-01`, 2026-08-27):**
+
+```
+SEMANTIC_DEFINITION   = APPROVED
+IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
+BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master,
+                          confirmed KpiPurchaseAdjustment persistence ]
+EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
+DeliveryCost          = NOT ELIGIBLE FOR NOW
+OtherKpiAdjustment    = 0 BY DEFINITION
+EligibleKpiProfit     = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+effective_risk        = HIGH   (Golden KHÔNG hạ bậc — V4.1 §4.1)
+repair budget         = 2 allowed / 0 used / 2 remaining (lineage TASK-108B)
+```
+
+`SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
+Không hardcode dữ liệu để vượt blocker, không synthetic PASS.
+
 Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
 (3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
 (6 finding, DEC-129), S016 triển khai, S015 Gate Review (DEC-128).
@@ -196,9 +214,15 @@ Adoption" đầu file).
 Track A (sản phẩm) hiện bị chặn ở hai điểm cần **Owner quyết định**, không
 phải việc agent tự làm tiếp được:
 
-1. **`TASK-108B` (Converted Revenue)** — vẫn `BLOCKED` chờ Owner định nghĩa
-   `EligibleCosts` (C15). Mở khoá được thì `TASK-109` (summary_engine) theo
-   sau.
+1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG (DEC-143,
+   `OD-108B-01`, 2026-08-27); C15 ĐÃ ĐÓNG.** `EligibleCosts = {}` (closed empty
+   set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
+   definition`, canonical formula đã chốt. Nhưng
+   `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY` — còn **2 blocker dữ liệu** (giảm
+   từ 4): `AccountingPurchasePrice`/Price Master, và confirmed
+   `KpiPurchaseAdjustment` persistence. Xem
+   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21.
+   `TASK-109` (summary_engine) vẫn theo sau `TASK-108B`.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —
@@ -321,10 +345,16 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         119/119 test, reconciliation 55 ô cột F Summary 2026 **0 ô lệch** và
         employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
-  - [ ] TASK-108B — Converted Revenue (2 bucket PERSONAL/ADS). **BLOCKED** —
-        cần `EligibleCosts` (C15, chưa có định nghĩa nghiệp vụ), Price
-        Master, `OtherKpiAdjustment`, và KPI Adjustment đã xác nhận
-        (DEC-126). Bước 11 của §22 đặc tả. Phân giải `ConversionScheme` đã
+  - [ ] TASK-108B — Converted Revenue (2 bucket PERSONAL/ADS).
+        **SEMANTIC_DEFINITION = APPROVED (DEC-143, `OD-108B-01`, 2026-08-27) ·
+        IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
+        `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
+        `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
+        Còn 2 blocker dữ liệu (giảm từ 4): Price Master
+        (`PendingPriceProvider` trả `None` vô điều kiện — Golden xác nhận
+        100 % Pending trên dữ liệu production) và confirmed
+        `KpiPurchaseAdjustment` persistence (DEC-126 §5–6; TASK-202/302/305).
+        Bước 11 của §22 đặc tả. Phân giải `ConversionScheme` đã
         xong ở 108A-1; phần còn lại là quy đổi hai bucket
         (DEC-119, DEC-121, ADR-104), sau đó quy đổi từng bucket độc lập rồi
         cộng lại. Engine tự tổng hợp `PersonalProfit`/`AdsProfit` từ phân loại

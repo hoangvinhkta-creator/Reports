@@ -2626,3 +2626,260 @@ Can Revisit After:
 Một Repair Cycle #2 hoặc Review #3 mới có thẩm quyền riêng (không tự mở trong
 phiên Freeze Finalization/Integration), hoặc một Owner Decision khác thay đổi
 Golden Baseline contract.
+
+## DEC-143
+
+Date:
+2026-08-27
+
+Task:
+TASK-108B (Converted Revenue) — Owner Decision `OD-108B-01`, ghi nhận trong
+phiên "OWNER DECISION RECORDING + DEPENDENCY READINESS CHECK". Artifact
+discovery đi kèm:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` (commit `107dd80`).
+
+Decision:
+
+Chủ dự án phê duyệt định nghĩa nghiệp vụ cho `EligibleCosts` và các số hạng
+liên quan của `EligibleKpiProfit`. **Đóng C15** (`docs/analysis/10_OPEN_QUESTIONS.md`).
+
+**1. `EligibleCosts` = CLOSED EMPTY SET.**
+
+```
+EligibleCosts = {}
+```
+
+Không khoản chi phí nào hiện tại được tính thêm vào `EligibleKpiProfit` chỉ vì
+chúng tồn tại trong dữ liệu. Đây là **quyết định nghiệp vụ có thẩm quyền rằng
+tập hiện tại là rỗng**, KHÔNG phải fallback kỹ thuật `EligibleCosts = 0` — đúng
+sự phân biệt mà C15 và DEC-103 tồn tại để bảo vệ. Thêm một cost sau này cần
+Owner Decision riêng + effective date + provenance.
+
+**2. `DeliveryCost` = NOT ELIGIBLE FOR NOW.**
+
+Không cộng/trừ `DeliveryCost` (`Lương chuyến` / `K: Chi phí giao`) vào
+`EligibleKpiProfit`. Lý do của chủ dự án: đây là ứng viên duy nhất chưa bị nhúng
+vào công thức khác; hiện chưa có authority nghiệp vụ đủ để khẳng định nó phải
+tham gia KPI profit; và impact tài chính đã được discovery chứng minh là lớn nên
+không được suy đoán (10,94 % / 12,16 % lợi nhuận trên hai kỳ Golden — tương
+đương 0,8–1,8 triệu VND thưởng/người/tháng).
+
+Re-trigger: nếu sau này Owner xác nhận `DeliveryCost` phải tham gia KPI profit,
+mở decision riêng. **Không sửa lịch sử `OD-108B-01`.**
+
+**3. `OtherKpiAdjustment` = 0 BY DEFINITION**, cho tới khi một Owner Decision
+tương lai thay đổi. Đây là định nghĩa nghiệp vụ tường minh, không phải fallback
+kỹ thuật khi thiếu dữ liệu. Adjustment mới xuất hiện sau này phải có
+source/config/provenance/effective-date và Owner authority riêng.
+
+Quyết định này **đóng B-02** của artifact discovery (`OtherKpiAdjustment` trước
+đó xuất hiện đúng một lần trong toàn repo và toàn đặc tả, chỉ bên trong công
+thức, không có open question nào theo dõi).
+
+**4. Canonical `EligibleKpiProfit` formula.**
+
+Chủ dự án chốt: `Discount` **có** tham gia công thức lợi nhuận KPI; mọi biến thể
+tài liệu thiếu `− Discount` là `STALE/SUPERSEDED` đối với semantics hiện hành.
+Không xoá tài liệu lịch sử — dùng normative/current-state pointer.
+
+Dạng canonical (chuẩn hoá số học — xem "Reason" điểm 4 về việc chuẩn hoá này):
+
+```
+EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity
+                    − Discount
+                    − SUM(EligibleCosts)
+                    + OtherKpiAdjustment
+```
+
+Theo `OD-108B-01`: `SUM(EligibleCosts) = 0` và `OtherKpiAdjustment = 0`, nên
+dạng rút gọn hiện hành là:
+
+```
+EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+```
+
+Tương đương, viết theo `NormalizedSales` như trong văn bản Owner:
+
+```
+NormalizedSales   = SellPrice × Quantity − Discount        (đã trừ Discount)
+EligibleKpiProfit = NormalizedSales − KpiPurchasePrice × Quantity
+```
+
+Hai dạng trên là **một**, và `Discount` được trừ **đúng một lần** ở cả hai.
+
+**5. Double-count rule — NO DOUBLE COUNT.**
+
+Một cost không được thêm vào `EligibleCosts` nếu đã được phản ánh trong
+`NormalizedSales`, `Discount`, `KpiPurchasePrice`, hay một profit/adjustment
+component khác của cùng metric. Mỗi `EligibleCost` tương lai phải chứng minh
+đủ 6 điều: source; scope; sign; ownership; effective date; và **không được
+nhúng ở nơi khác**.
+
+**6. TASK-109 contract.** `TASK-108B` phải cung cấp **per-line**:
+`EligibleKpiProfit`; provenance của `EligibleKpiProfit`; scheme/bucket
+classification; effective-date provenance. `TASK-109` aggregate
+`SUM EligibleKpiProfit` và `CR` tách `Personal` / `ADS` / `Total`. **Không**
+yêu cầu `eligible_cost_total` riêng khi `EligibleCosts` còn là tập rỗng.
+**Không** tạo category breakdown khi chưa có production requirement.
+
+**7. Risk & Review Budget.** `Effective Risk = HIGH`;
+`repair_cycles_allowed = 2`, `used = 0`, `remaining = 2`; ngân sách thuộc
+**toàn lineage `TASK-108B`** (sub-unit không có ngân sách riêng, không reset).
+
+**8. Trạng thái sau quyết định này.**
+
+```
+TASK-108B
+    SEMANTIC_DEFINITION   = APPROVED
+    IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
+    BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master,
+                              confirmed KpiPurchaseAdjustment persistence ]
+```
+
+`SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
+Xem "Reason" điểm 5.
+
+Reason:
+
+**1. Vì sao tập rỗng là câu trả lời đúng, không phải né tránh.** Discovery liệt
+kê 14 khoản chi phí hiện hữu trong code/config/spec/data model/workbook. Audit
+double-count cho thấy **13/14 khoản đã được authority hiện có xử lý ở một chỗ
+khác trong công thức**: `Discount` là số hạng riêng (DEC-114, DEC-122);
+`KpiPurchaseAdjustment` đã nhúng trong `KpiPurchasePrice` (`F = L + J`, bằng
+chứng số học từ `06.2026 Tín Phát` dòng 10–11); các dòng `Chi phí vận chuyển` /
+`lắp đặt` / `Chênh VAT` / `giao hộ` / `Phí đổi trả` đã tính vào **cả doanh số
+lẫn lợi nhuận** dưới dạng dòng sản phẩm (DEC-110, có mặt thật trong Golden
+fixture: 22 dòng ở 01.2026, 12 dòng ở 06.2026); thưởng/lương/phụ cấp là **hệ
+quả** của `ConvertedRevenue`, đưa vào sẽ tạo vòng lặp; `SourceProfit` chỉ để
+đối chiếu (DEC-103). Đưa bất kỳ khoản nào trong 13 khoản đó vào `EligibleCosts`
+là **trừ hai lần**.
+
+**2. Vì sao `DeliveryCost` — ứng viên thứ 14 — vẫn là NOT ELIGIBLE.** Ba bằng
+chứng độc lập cùng chỉ một hướng: workbook thật tính `K1 = SUM(K3:K945)` rồi
+**không nạp vào Summary** (công ty đã có con số đó và đã chọn không dùng cho
+KPI); `docs/analysis/01_DATA_MAPPING.md` xếp nó là cột báo cáo độc lập, không phải số hạng
+của công thức lợi nhuận; đặc tả §11 đặt `EligibleCosts` trong ngữ cảnh
+adjustment giá nhập, không phải chi phí logistics. Ba bằng chứng này không đủ
+để agent tự quyết (C15 cấm chính kiểu suy đoán đó) — nên chúng được trình cho
+chủ dự án, và chủ dự án đã quyết.
+
+**3. Vì sao `OtherKpiAdjustment = 0` là định nghĩa chứ không phải fallback.**
+DEC-126 §6 cấm mặc định adjustment **chưa xác định** bằng 0. `OD-108B-01` không
+vi phạm điều đó: nó **xác định** rằng hiện tại không tồn tại khoản adjustment
+nào thuộc loại này. Khác biệt về thẩm quyền, giống hệt phân biệt ở điểm 1.
+
+**4. CHUẨN HOÁ SỐ HỌC CỦA CÔNG THỨC — phải ghi lại tường minh.**
+
+Văn bản `OD-108B-01` §4 viết dạng:
+
+```
+EligibleKpiProfit = NormalizedSales − Discount − KpiPurchasePrice
+                    − SUM(EligibleCosts) + OtherKpiAdjustment
+```
+
+Đọc **nguyên văn** theo đúng định nghĩa các thuật ngữ đang tồn tại trong repo
+thì dạng này lệch ở hai điểm số học:
+
+- `NormalizedSales` trong repo **đã trừ `Discount`**. Bằng chứng: `app/modules/
+  importing/normalizer.py:27` (`total_sales = sell_price * quantity − discount`)
+  và Golden trên dữ liệu production thật — `sales_raw_gross − sales_normalized`
+  bằng **đúng** `discount_total` ở cả hai kỳ (2.300.000 ở 01.2026; 400.000 ở
+  06.2026). Trừ `Discount` một lần nữa là trừ hai lần.
+- `KpiPurchasePrice` là **đơn giá** (`F: Giá nhập TT`, cùng chiều với
+  `SellPrice`/`G`), không phải giá trị dòng. Workbook nhân với số lượng:
+  `In = (Gn − Fn) * En`. Thiếu `× Quantity` làm sai thứ nguyên.
+
+Ví dụ có số: một dòng `SellPrice = 10.000`, `KpiPurchasePrice = 8.000`,
+`Quantity = 3`, `Discount = 500`. Dạng canonical cho `5.500`; đọc nguyên văn
+dạng prose cho `21.000` — sai khoảng 3,8 lần.
+
+Chuẩn hoá này **không** đổi ý chí của chủ dự án, mà thực hiện đúng ba điều
+chính `OD-108B-01` đã tuyên bố: (a) `Discount` **có** tham gia công thức (§4);
+(b) **NO DOUBLE COUNT** — không tính một khoản hai lần khi nó đã phản ánh trong
+`NormalizedSales` (§5); (c) khớp authority đã tồn tại trước đó là DEC-122 và
+`docs/analysis/03_RULE_CLASSIFICATION.md` §U, vốn đã ghi đúng dạng
+`(SellPrice − KpiPurchasePrice) × Quantity − Discount − EligibleCosts +
+OtherKpiAdjustment`. Chỉ có **đúng một** cách đọc thoả mãn đồng thời cả ba, và
+đó là dạng canonical ghi ở Decision §4.
+
+Ghi lại ở đây theo `governance/core/V4_1_POLICY_FREEZE.md` §11 (Artifact
+Internal Precedence: phần quy phạm thắng prose, nhưng divergence **phải được
+báo cáo**, không được sửa im lặng). **Chủ dự án cần xác nhận lại chuẩn hoá này
+ở lần tương tác kế tiếp**; nếu chủ dự án thực sự muốn dạng prose theo nghĩa
+đen, đó là một thay đổi nghiệp vụ khác và cần một DEC mới.
+
+**5. Vì sao `SEMANTIC_DEFINITION = APPROVED` mà `IMPLEMENTATION` vẫn BLOCKED.**
+`OD-108B-01` đóng **toàn bộ 4 khoảng trống semantic** mà discovery nêu
+(`EligibleCosts`, `DeliveryCost`, `OtherKpiAdjustment`, canonical formula).
+Nhưng công thức rút gọn `(SellPrice − KpiPurchasePrice) × Quantity − Discount`
+vẫn cần `KpiPurchasePrice`, mà `KpiPurchasePrice = AccountingPurchasePrice +
+KpiPurchaseAdjustment` — **cả hai vế phải đều chưa tồn tại**:
+
+- `AccountingPurchasePrice`: `PendingPriceProvider.lookup()` trả `None`
+  **vô điều kiện** (`app/modules/pricing/provider.py`), và đó là implementation
+  đúng vì chưa có Price Master nào tồn tại (DEC-103). Golden xác nhận trên dữ
+  liệu production: `price_source_distribution = {Pending: 351}` (01.2026) và
+  `{Pending: 180}` (06.2026) — **100 %**, theo cấu trúc chứ không phải theo dữ
+  liệu.
+- `KpiPurchaseAdjustment`: **không tồn tại như một field** trên `WorkingLine`;
+  `AdjustmentResolver` (TASK-106) cố ý **không** nối vào `run_import()` và chỉ
+  trả `suggested_amount`. DEC-126 §5 yêu cầu chỉ `final_amount` đã được người
+  dùng xác nhận mới vào công thức KPI; §6 cấm mặc định 0.
+
+Đây là blocker **dữ liệu/cơ chế**, không phải blocker semantic — nên phân biệt
+`SEMANTIC_DEFINITION` với `IMPLEMENTATION` là bắt buộc, không phải hình thức.
+
+**6. Số blocker giảm từ 4 xuống 2.** Discovery liệt kê 4; `OD-108B-01` đóng 2
+(`EligibleCosts`/C15 và `OtherKpiAdjustment`) cộng conflict công thức B-03. Còn
+lại đúng 2, cả hai đều là dependency dữ liệu.
+
+Risk:
+
+`Effective Risk = HIGH`, chấm theo failure path (V4.1 §4), **không** theo tên
+file. Failure path: `EligibleCosts` → `EligibleKpiProfit` → chia rate →
+`ConvertedRevenue` → `% Target` → `Thưởng` → `Tổng lương` — kết thúc ở **tiền
+lương của người thật**.
+
+`Local Risk = MEDIUM` (số học đơn giản); `Blast Radius = HIGH`. **Golden Baseline
+KHÔNG được dùng để hạ bậc** (V4.1 §4.1): toàn bộ failure path của TASK-108B nằm
+ngoài vùng Golden phủ — profit số học chưa từng được đo (100 % giá nhập Pending),
+fixture 100 % `ADS` nên bucket `PERSONAL`, `NOI_THANH_2`, `GIA_DUNG_8` và đơn
+trộn scheme đều phủ 0 %.
+
+Rủi ro còn lại của chính quyết định này:
+
+- **Tập rỗng bị đọc nhầm thành `= 0` kỹ thuật.** Nếu một session sau đọc
+  `EligibleCosts = 0` rồi kết luận "vậy khỏi cần config, khỏi cần provenance",
+  hệ thống mất khả năng phân biệt "không có chi phí nào" với "chưa ai nhập" —
+  đúng lỗi DEC-103 phòng. Giảm nhẹ: `config/eligible_costs.yaml` phải tồn tại
+  với `eligible_cost_categories: []` tường minh + danh sách `excluded_by_authority`,
+  và provenance `Config:EmptySet(OD-108B-01)` phải nhìn thấy được trên mọi dòng.
+- **Chuẩn hoá công thức ở Reason điểm 4 chưa được chủ dự án xác nhận lại.** Nếu
+  ý chí thật khác với chuẩn hoá, mọi con số KPI sẽ sai theo hệ số. Giảm nhẹ:
+  đã ghi tường minh ở đây thay vì áp dụng im lặng; cần xác nhận trước khi
+  implementation bắt đầu.
+- **`DeliveryCost` re-trigger.** Nếu sau này Owner đổi ý, mọi số lịch sử phải
+  đọc lại và `HB-108B-01` (trùng lặp giữa `Lương chuyến` và dòng `Chi phí vận
+  chuyển`) phải được đo trước — hiện chưa ai đo tỉ lệ trùng đó.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace toàn
+  repo, không chỉ một file — bài học va chạm `DEC-128`; `DEC-143` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — TASK-108B đổi từ `BLOCKED (C15)` sang
+  `SEMANTIC_DEFINITION = APPROVED · IMPLEMENTATION = BLOCKED_BY_DEPENDENCY`;
+  C15 ghi nhận đã đóng.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — cập nhật dòng 12b và phần "việc còn lại".
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — thêm entry lineage mới `TASK-108B`.
+- `docs/analysis/10_OPEN_QUESTIONS.md` — **C15 = ĐÃ ĐÓNG**; thêm ghi chú
+  `OtherKpiAdjustment` đã được định nghĩa (không cần mở C16).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — append
+  current-state pointer, **không** rewrite phần discovery lịch sử.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+
+Can Revisit After:
+- Chủ dự án xác nhận (hoặc bác bỏ) chuẩn hoá số học ở Reason điểm 4.
+- Chủ dự án quyết định `DeliveryCost` phải tham gia KPI profit — decision riêng,
+  không sửa `OD-108B-01`.
+- Xuất hiện một khoản adjustment mới cần `OtherKpiAdjustment ≠ 0` — decision
+  riêng kèm source/config/provenance/effective-date.

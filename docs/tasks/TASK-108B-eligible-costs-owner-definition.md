@@ -69,7 +69,7 @@ tổng hai số rời (`3770+16190`) — dấu vết cộng tay từng đơn. Ki
 | `ConversionSchemeFinal` + `conversion_rate_final` cấp line | ✅ DONE (TASK-108A-1) | `app/modules/conversion/conversion_engine.py` |
 | `config/conversion_rates.yaml` effective-dated | ✅ DONE | `config/` |
 
-**Outputs** (`02_FORMULA_MAPPING.md` §4, ánh xạ DEC-119/DEC-120):
+**Outputs** (`docs/analysis/02_FORMULA_MAPPING.md` §4, ánh xạ DEC-119/DEC-120):
 
 ```
 PersonalProfit           = Σ EligibleKpiProfit của line thuộc đơn LeadSourceFinal = PERSONAL
@@ -130,7 +130,7 @@ Và: *"Summary phải cho phép xem mỗi nhân viên theo tháng và YTD."*
 | Cần breakdown theo category? | **KHÔNG** cho §15. **CÓ** cho audit/đối soát (GATE-01, TASK-111 sheet Audit/Overrides). | §15 vs §23 |
 | Cần provenance? | **CÓ, bắt buộc.** Khuôn `_auto/_manual/_final` + `source_of_value` là chuẩn dự án (ADR-102, DEC-127 §6). Không có provenance thì không phân biệt "0 vì không có chi phí" với "0 vì chưa ai nhập". | ADR-102, DEC-103 |
 | Per-line hay per-order? | **PER-LINE.** DEC-127 §4 hạ scheme xuống cấp line; cộng ở cấp order rồi chia một tỉ lệ là điều bị cấm tường minh. | DEC-127 §4 |
-| Config-driven keys? | **CÓ.** Category chi phí là chính sách công ty ⇒ loại `B — Business rule`, bắt buộc ở config (đặc tả §28, `03_RULE_CLASSIFICATION.md`). Cấm hard-code. | `03_RULE_CLASSIFICATION.md` |
+| Config-driven keys? | **CÓ.** Category chi phí là chính sách công ty ⇒ loại `B — Business rule`, bắt buộc ở config (đặc tả §28, `docs/analysis/03_RULE_CLASSIFICATION.md`). Cấm hard-code. | `docs/analysis/03_RULE_CLASSIFICATION.md` |
 | Effective dating? | **CÓ.** Đặc tả §11 nguyên văn: *"Giá trị adjustment phải cấu hình được, có EffectiveFrom/EffectiveTo"*. `conversion_rates.yaml` đã theo khuôn này. | đặc tả §11 |
 | Audit trail? | **CÓ** khi giá trị do người nhập (DEC-126 §4 — `suggested_amount` ≠ `final_amount`). | DEC-126 §4 |
 
@@ -147,17 +147,17 @@ Liệt kê từ code + config + spec + data model + workbook thật, không ch�
 | # | Loại | Khoản mục | Field / nguồn | Type · đơn vị | Scope | Tham gia profit hiện tại? | Historical authority | Golden phủ? | Double-count? |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | **E** | `Chiết khấu` → `Discount` | raw cột 12 → `WorkingLine.discount` | `Decimal`, VND | line | **CÓ** — trừ khỏi `TotalSales` trong `normalizer.py:27` | DEC-114 (doanh số), DEC-122/C4b (lợi nhuận) | ✅ `discount_delta` invariant | ⚠️ **CAO** |
-| 2 | **C** | `Lương chuyến` → `DeliveryCost` (`K: Chi phí giao`) | raw cột 15 → `WorkingLine.delivery_cost` | `Decimal`, VND | line | **KHÔNG** — import rồi để đó, không module nào đọc | `K1=SUM(K3:K945)` tính nhưng **không nạp vào Summary** (`02_FORMULA_MAPPING.md` §2) | ⚠️ chỉ tổng tiền, không phủ ngữ nghĩa | ⚠️ **TRUNG BÌNH** |
-| 3 | **F** | `KpiPurchaseAdjustment` (`J: Giao hàng`: `Qua kho`/`NCC giao`/`KHBH`/`Thợ lắp`) | nhập tay sau import; `config/adjustments.yaml` | `Decimal` âm, VND | line, nhiều record/line | **CÓ — đã nhúng sẵn** vào `KpiPurchasePrice` (`F = L + J`) | DEC-125, DEC-126, `02_FORMULA_MAPPING.md` §1 | ❌ không (chưa có persistence) | 🔴 **RẤT CAO** |
-| 4 | **A** | Dòng `Chi phí vận chuyển` (~1.110 dòng/6 tháng) | dòng sản phẩm giả trong raw | tiền, VND | line | **CÓ — tính vào cả doanh số lẫn lợi nhuận** | DEC-110, `03_RULE_CLASSIFICATION.md` | ✅ có mặt trong fixture (**19** dòng 01.2026, **10** dòng 06.2026) | 🔴 **RẤT CAO** |
+| 2 | **C** | `Lương chuyến` → `DeliveryCost` (`K: Chi phí giao`) | raw cột 15 → `WorkingLine.delivery_cost` | `Decimal`, VND | line | **KHÔNG** — import rồi để đó, không module nào đọc | `K1=SUM(K3:K945)` tính nhưng **không nạp vào Summary** (`docs/analysis/02_FORMULA_MAPPING.md` §2) | ⚠️ chỉ tổng tiền, không phủ ngữ nghĩa | ⚠️ **TRUNG BÌNH** |
+| 3 | **F** | `KpiPurchaseAdjustment` (`J: Giao hàng`: `Qua kho`/`NCC giao`/`KHBH`/`Thợ lắp`) | nhập tay sau import; `config/adjustments.yaml` | `Decimal` âm, VND | line, nhiều record/line | **CÓ — đã nhúng sẵn** vào `KpiPurchasePrice` (`F = L + J`) | DEC-125, DEC-126, `docs/analysis/02_FORMULA_MAPPING.md` §1 | ❌ không (chưa có persistence) | 🔴 **RẤT CAO** |
+| 4 | **A** | Dòng `Chi phí vận chuyển` (~1.110 dòng/6 tháng) | dòng sản phẩm giả trong raw | tiền, VND | line | **CÓ — tính vào cả doanh số lẫn lợi nhuận** | DEC-110, `docs/analysis/03_RULE_CLASSIFICATION.md` | ✅ có mặt trong fixture (**19** dòng 01.2026, **10** dòng 06.2026) | 🔴 **RẤT CAO** |
 | 5 | **A** | Dòng `Chi phí lắp đặt` / `Công lắp đặt` (~85) | như trên | tiền, VND | line | **CÓ** | DEC-110 | ✅ **3** / **1** dòng trong fixture | 🔴 **RẤT CAO** |
 | 6 | **H** | Dòng `Chênh VAT` (~43) | như trên | tiền, VND | line | **CÓ** | DEC-110 | ✅ **1** dòng (06.2026) | 🔴 **RẤT CAO** |
 | 7 | **A** | Dòng `Chi phí giao hộ…` (~8) | như trên | tiền, VND | line | **CÓ** | DEC-110 | ❌ không xuất hiện trong 2 kỳ fixture | 🔴 **RẤT CAO** |
 | 8 | **A** | Dòng `Phí đổi trả` (2) | như trên | tiền, VND | line | **CÓ** | DEC-110 | ❌ | 🔴 **RẤT CAO** |
 | 9 | **B** | **`EligibleCosts`** | **KHÔNG CÓ NGUỒN** | — | — | không (chưa tồn tại) | **KHÔNG CÓ** | ❌ | — |
 | 10 | **B/I** | **`OtherKpiAdjustment`** | **KHÔNG CÓ NGUỒN** | — | — | không (chưa tồn tại) | **KHÔNG CÓ** | ❌ | — |
-| 11 | **D** | Thưởng (`O = F × 0,5%`) | Summary workbook; `config/commission.yaml` **chưa tồn tại** | tiền | employee·month | **KHÔNG** — là *hệ quả* của CR | `02_FORMULA_MAPPING.md` §3 | ❌ | không |
-| 12 | **D** | Lương cứng (`Q = P × 4500/26`), Phụ cấp (`R`) | `config/payroll.yaml` **chưa tồn tại** | tiền | employee·month | **KHÔNG** | `02_FORMULA_MAPPING.md` §3 | ❌ | không |
+| 11 | **D** | Thưởng (`O = F × 0,5%`) | Summary workbook; `config/commission.yaml` **chưa tồn tại** | tiền | employee·month | **KHÔNG** — là *hệ quả* của CR | `docs/analysis/02_FORMULA_MAPPING.md` §3 | ❌ | không |
+| 12 | **D** | Lương cứng (`Q = P × 4500/26`), Phụ cấp (`R`) | `config/payroll.yaml` **chưa tồn tại** | tiền | employee·month | **KHÔNG** | `docs/analysis/02_FORMULA_MAPPING.md` §3 | ❌ | không |
 | 13 | **G** | Allocation / chi phí chung | **KHÔNG TỒN TẠI** ở bất kỳ đâu | — | — | không | — | — | — |
 | 14 | **I** | `SourceProfit` (`Lợi nhuận` ERP) | raw cột 17 | `Decimal`, VND | line | **KHÔNG** — chỉ đối chiếu (DEC-103) | DEC-103 | ✅ `erp_profit_total` | ⚠️ đã gồm khoản chưa biết |
 
@@ -170,7 +170,7 @@ Liệt kê từ code + config + spec + data model + workbook thật, không ch�
    định đã chốt của Owner (DEC-110), có mặt thật trong Golden fixture. Đưa cùng
    khoản đó vào `EligibleCosts` = trừ hai lần.
 3. **Mục 3 đã nằm trong `KpiPurchasePrice`.** `F = L + J` là bằng chứng số học
-   trực tiếp từ `06.2026 Tín Phát` dòng 10–11 (`02_FORMULA_MAPPING.md` §1).
+   trực tiếp từ `06.2026 Tín Phát` dòng 10–11 (`docs/analysis/02_FORMULA_MAPPING.md` §1).
 
 ---
 
@@ -432,7 +432,7 @@ Thêm category sau này chỉ là sửa config + một DEC.
 
 1. Workbook thật tính `K1 = SUM(K3:K945)` rồi **không nạp vào Summary** — công
    ty đã có con số đó và đã chọn không dùng nó cho KPI.
-2. `01_DATA_MAPPING.md` xếp `DeliveryCost → K: Chi phí giao` là một cột **báo
+2. `docs/analysis/01_DATA_MAPPING.md` xếp `DeliveryCost → K: Chi phí giao` là một cột **báo
    cáo độc lập**, không phải số hạng của công thức lợi nhuận.
 3. Đặc tả §11 đặt `EligibleCosts` trong mục **"Adjustment nghiệp vụ - ví dụ qua
    kho"** — ngữ cảnh là adjustment giá nhập, không phải chi phí logistics.
@@ -518,7 +518,7 @@ eligible_costs_source_of_value: Optional[str] = None
 eligible_kpi_profit: Optional[Decimal] = None       # None nếu bất kỳ input nào Pending
 other_kpi_adjustment: Optional[Decimal] = None      # chờ Đ2 của Owner
 
-# app/modules/conversion/converted_revenue.py (MỚI)
+# app/modules/conversion/ -> converted_revenue.py (MỚI)
 @dataclass(frozen=True)
 class ConvertedRevenueBucket:
     lead_source: str                 # PERSONAL | ADS
@@ -540,7 +540,7 @@ class EmployeeMonthConvertedRevenue:
 
 Bất biến bắt buộc: **không** có đường code nào chia một lợi nhuận gộp cho một
 tỉ lệ duy nhất; gộp theo `(employee, month, lead_source, scheme)` rồi mới chia,
-rồi mới cộng (`02_FORMULA_MAPPING.md` §4 ràng buộc 2 + DEC-127 §4).
+rồi mới cộng (`docs/analysis/02_FORMULA_MAPPING.md` §4 ràng buộc 2 + DEC-127 §4).
 
 ---
 
@@ -550,11 +550,11 @@ rồi mới cộng (`02_FORMULA_MAPPING.md` §4 ràng buộc 2 + DEC-127 §4).
 |---|---|---|
 | `config/eligible_costs.yaml` | **MỚI** | registry rỗng + danh sách cấm |
 | `app/modules/domain/models.py` | SỬA | 4 field mới trên `WorkingLine` |
-| `app/modules/profit/kpi_profit.py` | **MỚI** | `EligibleKpiProfit`; **không** sửa `profit_engine.py` (DEC-126 §1 tách hai luồng) |
-| `app/modules/conversion/converted_revenue.py` | **MỚI** | gộp bucket + chia rate |
+| `app/modules/profit/` → `kpi_profit.py` | **MỚI** | `EligibleKpiProfit`; **không** sửa `profit_engine.py` (DEC-126 §1 tách hai luồng) |
+| `app/modules/conversion/` → `converted_revenue.py` | **MỚI** | gộp bucket + chia rate |
 | `app/modules/config/loader.py` | SỬA (nhỏ) | nạp registry mới |
 | `app/pipeline.py` | SỬA | bước 11; giữ nguyên chữ ký `run_import` (`test_golden_pipeline_entry_point_signature_is_locked`) |
-| `tests/test_kpi_profit.py`, `tests/test_converted_revenue.py` | **MỚI** | |
+| `tests/` → `test_kpi_profit.py`, `test_converted_revenue.py` | **MỚI** | |
 | `tests/fixtures/golden/expected/*.json` | **SINH LẠI** | bắt buộc do field mới; tường minh + Owner Decision (mục 7) |
 | `docs/analysis/01_DATA_MAPPING.md:69` | SỬA | thêm `− Discount` cho khớp V3 (Đ3) |
 | `docs/analysis/10_OPEN_QUESTIONS.md` | SỬA | đóng C15, ghi U3 |
@@ -579,7 +579,7 @@ TASK-109 (summary_engine)                           : FORBIDDEN — task riêng
 ## 14. Completion Gate đề xuất
 
 Hữu hạn, đo được. Mọi check là `REQUIRED` trừ khi ghi khác. `Risk = HIGH` ⇒
-E1 bắt buộc cho mọi check REQUIRED (`EVIDENCE_STANDARD.md`).
+E1 bắt buộc cho mọi check REQUIRED (`governance/core/EVIDENCE_STANDARD.md`).
 
 | ID | Check | Evidence Level |
 |---|---|---|
@@ -639,7 +639,7 @@ Chi tiết ở mục 5. `01_DATA_MAPPING.md:69` (không `− Discount`) mâu thu
 `03_RULE_CLASSIFICATION.md:22` (có `− Discount`).
 *Production path:* người implement phải chọn một; chọn sai làm thưởng cao hơn
 thực tế. Trên Ly, chiết khấu là 0,39 % doanh số, 302/408 dòng.
-*Đề xuất:* Owner xác nhận V3 (Đ3); sửa `01_DATA_MAPPING.md` trong TASK-108B.
+*Đề xuất:* Owner xác nhận V3 (Đ3); sửa `docs/analysis/01_DATA_MAPPING.md` trong TASK-108B.
 
 **B-04 — Golden Baseline không phủ path nào của TASK-108B.**
 Chi tiết ở mục 7: profit số học NOT COVERED (mọi giá Pending), bucket PERSONAL
@@ -663,7 +663,7 @@ production path vì Option A không đưa `DeliveryCost` vào profit.
 trong `config/eligible_costs.yaml`. Cơ chế: `CHECK-108B-02` grep sẽ đỏ.
 
 **HB-108B-02 — `config/targets.yaml`, `commission.yaml`, `payroll.yaml` được
-`03_RULE_CLASSIFICATION.md` §B tham chiếu nhưng KHÔNG TỒN TẠI** (`ls config/`
+`docs/analysis/03_RULE_CLASSIFICATION.md` §B tham chiếu nhưng KHÔNG TỒN TẠI** (`ls config/`
 chỉ có 5 file). Không chặn TASK-108B (không dùng target/lương).
 *RE-TRIGGER:* chặn TASK-109 ở cột `% Target` và cột `Thưởng`. Kiểm bằng
 `test -f config/targets.yaml` khi TASK-109 mở Ready Gate.
@@ -696,7 +696,7 @@ field mới; mọi business anchor cũ không đổi một byte.
   `remaining = 0`. Phiên này không mở.
 - **`TASK-109`** — lineage riêng. Phiên này chỉ **đọc** yêu cầu của nó để không
   làm TASK-108B hẹp hơn thực tế cần.
-- **Lỗi công thức của workbook mẫu** (`05_EXCEPTIONS.md` A1/A2/A4) — đã biết,
+- **Lỗi công thức của workbook mẫu** (`docs/analysis/05_EXCEPTIONS.md` A1/A2/A4) — đã biết,
   thuộc TASK-109/111.
 - **Mở rộng Golden sang kỳ PERSONAL / NOI_THANH** — cần dữ liệu Owner + task
   riêng. Đề xuất ghi ở mục 7, **không** thực hiện.
@@ -810,3 +810,218 @@ TASK-108B
 Phiên này dừng tại đây. Không implementation. Không tự ghi DEC. Không mở
 TASK-109. Không tạo repair cycle. Không sửa `app/**`, `config/**`, `tests/**`,
 Golden, TASK-110, `CHECK-110-16`, `R1-A2`→`R8`.
+
+---
+---
+
+# PHẦN II — CURRENT STATE POINTER (append 2026-08-27)
+
+> **Phần I ở trên là bản ghi DISCOVERY, giữ nguyên không sửa.** Verdict
+> `OWNER_DECISION_REQUIRED` của Phần I đã được thay thế bởi phần này. Nơi nào
+> Phần I và Phần II mâu thuẫn, **Phần II thắng**.
+
+## 19. Owner Decision đã được ghi
+
+`OD-108B-01` được chủ dự án phê duyệt 2026-08-27 và ghi vào canonical decision
+artifact với ID **`DEC-143`** (`PROJECT/PROJECT_DECISIONS.md`). ID cấp sau khi
+quét namespace **toàn repo** (không chỉ một file — bài học va chạm `DEC-128`):
+`DEC-143` … `DEC-159` xác nhận trống trước khi cấp.
+
+```
+EligibleCosts      = {}                      CLOSED EMPTY SET (không phải fallback = 0)
+DeliveryCost       = NOT ELIGIBLE FOR NOW    (quyết định, không phải suy đoán)
+OtherKpiAdjustment = 0 BY DEFINITION         (định nghĩa, không phải thiếu dữ liệu)
+EligibleKpiProfit  = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+C15                = ĐÃ ĐÓNG
+```
+
+**Bốn khoảng trống semantic của Phần I đều đã đóng:** `EligibleCosts` (§5 U1),
+`DeliveryCost` (§5 U2), `OtherKpiAdjustment` (§15 B-02), canonical formula
+(§15 B-03).
+
+### 19.1 CONFLICT DETECTED — chuẩn hoá số học của công thức
+
+Văn bản `OD-108B-01` §4 viết dạng
+`NormalizedSales − Discount − KpiPurchasePrice − SUM(EligibleCosts) + OtherKpiAdjustment`.
+Đọc **nguyên văn** theo định nghĩa các thuật ngữ đang tồn tại trong repo thì
+dạng này lệch ở hai điểm:
+
+*Documentation:* `OD-108B-01` §4 trừ `Discount` **sau** `NormalizedSales`, và
+trừ `KpiPurchasePrice` **không** nhân `Quantity`.
+
+*Implementation:* `app/modules/importing/normalizer.py:27` —
+`total_sales = sell_price * quantity − discount`. `NormalizedSales` **đã trừ
+`Discount`**. Xác nhận trên dữ liệu production qua Golden:
+`sales_raw_gross − sales_normalized` bằng **đúng** `discount_total` ở cả hai kỳ
+(2.300.000 ở 01.2026; 400.000 ở 06.2026). Và `KpiPurchasePrice` là **đơn giá**
+(`F: Giá nhập TT`, cùng chiều `SellPrice`/`G`) — workbook nhân số lượng:
+`In = (Gn − Fn) * En`.
+
+*Risk:* ví dụ có số — `SellPrice = 10.000`, `KpiPurchasePrice = 8.000`,
+`Quantity = 3`, `Discount = 500`. Dạng canonical cho **5.500**; đọc nguyên văn
+dạng prose cho **21.000** — sai khoảng **3,8 lần**, và `Discount` bị trừ hai lần.
+
+*Recommended resolution:* dùng dạng canonical ở `DEC-143` Decision §4. Đây
+**không** phải đoán ý — nó là cách đọc **duy nhất** thoả mãn đồng thời cả ba
+điều `OD-108B-01` tự tuyên bố: (a) `Discount` **có** tham gia công thức (§4);
+(b) **NO DOUBLE COUNT** khi khoản đó đã phản ánh trong `NormalizedSales` (§5);
+(c) khớp authority có trước là DEC-122 và `docs/analysis/03_RULE_CLASSIFICATION.md` §U.
+
+*Trạng thái:* đã báo cáo theo V4.1 §11 (Artifact Internal Precedence — phần quy
+phạm thắng prose, nhưng divergence **phải được báo cáo**, không sửa im lặng).
+**Cần chủ dự án xác nhận lại ở lần tương tác kế tiếp.** Không chặn việc ghi
+quyết định, vì dạng canonical đã là authority có sẵn từ DEC-122.
+
+## 20. DEPENDENCY READINESS CHECK
+
+Tính lại từ trạng thái **MỚI** sau `OD-108B-01`, không mặc định vẫn còn bốn.
+
+### DEPENDENCY 1 — `KpiPurchasePrice` / Price Master
+
+| Câu hỏi | Trả lời | Bằng chứng |
+|---|---|---|
+| Source hiện tại ở đâu? | `PriceProvider` Protocol + `PendingPriceProvider` | `app/modules/pricing/provider.py` |
+| Có dữ liệu production usable chưa? | **CHƯA.** `PendingPriceProvider.lookup()` trả `None` **vô điều kiện** | `provider.py` — thân hàm đúng một dòng `return None` |
+| Bao nhiêu path trả Pending? | **100 %, theo cấu trúc chứ không theo dữ liệu.** Golden production: `price_source_distribution = {Pending: 351}` (01.2026), `{Pending: 180}` (06.2026); `accounting_profit_pending = 351/351` | `tests/fixtures/golden/expected/*.json` |
+| Có persistence chưa? | **CHƯA.** Phase 1 là thư viện Python thuần, cấm import `sqlalchemy`/`fastapi` | ADR-101 §62–63, §119 |
+| Có effective dating chưa? | **Interface đã có** (`lookup(product_code, sale_date)`), **dữ liệu chưa có** | `provider.py` |
+| Thuộc task/phase nào? | `TASK-401` — **PHASE-04** | `PROJECT_PROGRESS.md:414` |
+| Task nào phải xong để mở? | Xem §21 — **không nhất thiết phải chờ Phase 4** | đặc tả §10 dòng 212 |
+
+**Đây là blocker cứng.** `KpiPurchasePrice = AccountingPurchasePrice +
+KpiPurchaseAdjustment`; vế `AccountingPurchasePrice` là `None` trên **mọi** dòng,
+và DEC-103 cấm suy đoán hay coi `0`. Nên `EligibleKpiProfit` sẽ là `None` trên
+mọi dòng, và `ConvertedRevenue` cũng vậy. `TASK-108B` implement được **cấu
+trúc**, nhưng **không tạo ra một con số nghiệp vụ nào**.
+
+⚠️ **Nghịch lý roadmap:** `TASK-108B` ở **PHASE-01** nhưng dependency dữ liệu
+của nó (`TASK-401`) ở **PHASE-04**. Theo thứ tự roadmap hiện tại, `TASK-108B`
+không bao giờ chạy được đúng ở Phase 1. Xem §21 để biết đường thoát hợp lệ.
+
+### DEPENDENCY 2 — confirmed KPI Adjustment persistence
+
+| Câu hỏi | Trả lời | Bằng chứng |
+|---|---|---|
+| Authority hiện tại | DEC-125 (4 quy tắc nghiệp vụ), DEC-126 §3–6 (ranh giới) | `PROJECT/PROJECT_DECISIONS.md` |
+| Source | **Nhập tay sau import** — không có cột nào trong 17 cột raw | DEC-125 điểm 4; `docs/analysis/01_DATA_MAPPING.md` |
+| Persistence | **KHÔNG CÓ.** `WorkingLine` không có field `kpi_purchase_adjustment` lẫn `kpi_purchase_price`; `AdjustmentResolver` cố ý **không** nối vào `run_import()` | `app/modules/domain/models.py`; `adjustment_resolver.py` docstring |
+| Lifecycle | `suggested_amount` (resolver) → `final_amount` (người xác nhận). Chỉ `final_amount` được vào công thức KPI | DEC-126 §4–5 |
+| Effective dating | Yêu cầu bởi đặc tả §11 dòng 217; **chưa implement** | đặc tả |
+| Task/phase sở hữu | `TASK-202` / `TASK-302` / `TASK-305` — **PHASE-02/03** | `PROJECT_PROGRESS.md:368, 393, 405` |
+
+**Có còn BLOCK sau khi `OtherKpiAdjustment = 0` không? — CÓ, vẫn block.**
+
+Đây là điểm dễ nhầm nhất, nên nói thẳng: `OD-108B-01` §3 định nghĩa
+**`OtherKpiAdjustment`** = 0. Đó là **một số hạng khác** với
+**`KpiPurchaseAdjustment`**:
+
+```
+KpiPurchaseAdjustment  → đi vào KpiPurchasePrice  (F = L + J; cột J "Giao hàng":
+                          Qua kho / NCC giao / KHBH / Thợ lắp)   ← VẪN CHƯA CÓ
+OtherKpiAdjustment     → số hạng cộng cuối công thức             ← ĐÃ = 0 (OD-108B-01)
+```
+
+`OD-108B-01` **không** nói gì về `KpiPurchaseAdjustment`, và DEC-126 §6 cấm mặc
+định adjustment chưa xác định bằng `0`: *"thiếu dữ liệu adjustment nghĩa là
+`EligibleKpiProfit` chưa tính được cho dòng đó (Pending)"*. Bằng chứng quy mô:
+**635/18.148 dòng** của workbook có cột `L` nhập tay thay vì `=F` — tức có
+adjustment thật; không có cơ chế nào để biết dòng nào thuộc nhóm đó nếu thiếu
+tầng xác nhận.
+
+**Mức độ độc lập:** Dependency 2 là blocker **thật và độc lập**, nhưng nó
+**bị che** bởi Dependency 1 — kể cả khi có đủ adjustment persistence,
+`accounting_purchase_price = None` vẫn làm `KpiPurchasePrice = None`. Nên thứ
+tự giải phải là **Dependency 1 trước**.
+
+### Blocker count: 4 → 2
+
+| # | Blocker (Phần I §15 B-01) | Trạng thái sau `OD-108B-01` |
+|---|---|---|
+| 1 | `EligibleCosts` (C15) | ✅ **ĐÓNG** — `DEC-143` §1–2 |
+| 2 | `OtherKpiAdjustment` | ✅ **ĐÓNG** — `DEC-143` §3 |
+| 3 | `AccountingPurchasePrice` / Price Master | 🔴 **CÒN** — dependency dữ liệu |
+| 4 | confirmed `KpiPurchaseAdjustment` persistence | 🔴 **CÒN** — dependency cơ chế |
+| + | conflict công thức (B-03) | ✅ **ĐÓNG** — `DEC-143` §4 (kèm §19.1 cần xác nhận) |
+
+**Cả hai blocker còn lại đều là DỮ LIỆU/CƠ CHẾ, không phải SEMANTIC.**
+
+## 21. NEXT PRODUCT TASK đề xuất để giải blocker
+
+**`TASK-105B` — `FilePriceProvider` (MICRO/MAJOR, Phase 1).**
+
+*Nội dung:* một implementation thứ hai của `PriceProvider` Protocol đã có sẵn,
+đọc bảng giá nhập từ file do chủ dự án cấp (CSV/YAML: `product_key`,
+`effective_from`, `effective_to`, `purchase_price`, `source`). Không UI, không
+DB.
+
+*Vì sao hợp lệ ở Phase 1, không phải chờ `TASK-401`/Phase 4:*
+
+1. **Đặc tả cho phép tường minh.** §10 dòng 212: *"Version đầu cho phép nhập
+   tay; version sau có Price Master theo ProductCode + EffectiveDate."* Bảng giá
+   dạng file **chính là** "nhập tay" của version đầu.
+2. **Seam đã tồn tại và được thiết kế đúng cho việc này.** `provider.py`
+   docstring (DEC-103): *"an interface is defined now so an external Price
+   Master can be plugged in later … without touching `price_engine` or
+   `app.pipeline`"*. Chi phí sửa `price_engine.py` / `pipeline.py` = **0**.
+3. **Không phá Golden.** Không thêm field vào `WorkingLine` ⇒ `lines_digest` và
+   `_covered_digest_fields` không đổi; chữ ký `run_import` không đổi
+   (`test_golden_pipeline_entry_point_signature_is_locked` vẫn PASS). Golden
+   mặc định vẫn chạy với `PendingPriceProvider`.
+4. **Không vi phạm ADR-101.** Python thuần, không `sqlalchemy`, không `fastapi`.
+5. **Không vi phạm DEC-103.** Giá tra được là *đề xuất*, luôn override được;
+   key không khớp vẫn là `Pending`, **không** suy đoán.
+
+*Việc duy nhất chủ dự án cần làm:* cấp một file danh sách **mã hàng / ngày /
+giá nhập**. Không cần chờ Phase 4.
+
+**Blocker 2 — hai đường, chủ dự án chọn:**
+
+- **(A)** Owner Decision tuyên bố: ở Phase 1, khi **không có** adjustment record
+  nào cho một dòng thì `KpiPurchasePrice = AccountingPurchasePrice` với
+  provenance `Config:NoAdjustment`. Đây là **tuyên bố tập rỗng** cùng dạng
+  `OD-108B-01` §1 — hợp lệ, và khác hẳn "mặc định 0 vì thiếu dữ liệu" mà
+  DEC-126 §6 cấm. Rẻ nhất, mở khoá `TASK-108B` ngay sau `TASK-105B`.
+- **(B)** Chờ `TASK-202`/`TASK-302`/`TASK-305` (Phase 2/3) xây tầng override
+  thật. Đúng bài bản, nhưng đẩy `TASK-108B` ra sau `GATE-01`.
+
+**Agent không tự chọn (A).** Đó là thẩm quyền Owner, đúng như `OD-108B-01` §1
+đã thiết lập tiền lệ.
+
+*Thứ tự đề xuất:* `TASK-105B` → Owner Decision (A hoặc B) → `TASK-108B` →
+`TASK-109`.
+
+## 22. Golden coverage implication
+
+Không đổi so với Phần I §7: **không hạ Blast Radius** (V4.1 §4.1). Coverage gap
+được **báo cáo**, Golden **không** bị sửa trong phiên này.
+
+Gap cần bổ sung khi implementation thật bắt đầu (task riêng, cần Owner cấp dữ
+liệu): một kỳ có nhân viên `PERSONAL` thật (Ly hoặc Thắng) và một kỳ kênh
+`NOI_THANH` — hai path chiếm phần lớn rủi ro và hiện phủ **0 %**.
+
+Nhắc lại cảnh báo kỹ thuật của Phần I §7: khi `TASK-108B` thêm field vào
+`WorkingLine`, `lines_digest` **và** `_covered_digest_fields` sẽ đổi ⇒ Golden
+**ĐỎ theo thiết kế**. Xử lý đúng = sinh lại expected tường minh kèm Owner
+Decision, **không** sửa test cho xanh (`CHECK-108B-11`, Evidence Level `E2`).
+
+## 23. Readiness verdict (thay thế §18 của Phần I)
+
+```
+TASK-108B
+    SEMANTIC_DEFINITION   = APPROVED
+    IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
+    BLOCKERS              = [ AccountingPurchasePrice / Price Master,
+                              confirmed KpiPurchaseAdjustment persistence ]
+    NEXT PRODUCT TASK     = TASK-105B (FilePriceProvider)
+                            + Owner Decision cho KpiPurchaseAdjustment (A hoặc B)
+```
+
+**Không** ghi `IMPLEMENTATION_READY`. Không hardcode dữ liệu để vượt blocker,
+không synthetic PASS, không mở `TASK-109`.
+
+## STOP (Phần II)
+
+Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
+fixture/expected. Không mở `TASK-109`, `TASK-110`, `CHECK-110-16`,
+`R1-A2`→`R8`. Không tạo repair cycle. Không mở Independent Review. Không xoá
+artifact cũ.

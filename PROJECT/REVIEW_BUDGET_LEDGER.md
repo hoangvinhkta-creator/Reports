@@ -261,6 +261,68 @@ review_events:
 
 ---
 
+## Root Task: TASK-108B
+
+Lineage **mới**, độc lập với `TASK-110` (`EXHAUSTED_PRE_V4.1`) và với
+`TASK-GOLDEN-BASELINE-001`. Mở tại `DEC-143` / `OD-108B-01` (2026-08-27).
+
+```
+root_task: TASK-108B
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` **không** đến từ độ khó của việc code (số học đơn giản, module nhỏ). Nó
+đến từ **Blast Radius theo failure path** (`governance/core/V4_1_POLICY_FREEZE.md` §4):
+
+```
+EligibleCosts → EligibleKpiProfit → ConvertedRevenue → % Target → Thưởng → Tổng lương
+```
+
+Failure path kết thúc ở **tiền lương của người thật**. Đo trên dữ liệu Golden
+production: một quyết định CÓ/KHÔNG duy nhất về `DeliveryCost` dịch chuyển
+thưởng **0,8–1,8 triệu VND/người/tháng** (10,94 % lợi nhuận ở 01.2026;
+12,16 % ở 06.2026).
+
+### Golden KHÔNG hạ Blast Radius (V4.1 §4.1)
+
+Golden Baseline `ACTIVE` nhưng **không phủ path nào** của `TASK-108B`:
+
+| Path | Golden |
+|---|---|
+| `EligibleKpiProfit` (số học) | ❌ NOT COVERED — `price_source_distribution = {Pending: 351/180}`, 100 % giá nhập Pending nên profit luôn `None` |
+| Bucket `PERSONAL` | ❌ NOT COVERED — fixture 100 % `ADS` ở cả hai kỳ |
+| `NOI_THANH_2` / `GIA_DUNG_8` | ❌ NOT COVERED — `product_group_distribution = {DIEN_MAY: 351}` |
+| Đơn trộn scheme (118 OrderID) | ❌ NOT COVERED — fixture chỉ 1 scheme |
+| `DeliveryCost` tham gia profit | 🟡 PARTIAL — `money.delivery_cost_total` được ghi, nhưng không invariant nào khẳng định có/không vào profit |
+
+Vì vậy **không** hạ bậc; `Effective Risk = HIGH` giữ nguyên. Coverage gap được
+báo cáo, **không** sửa Golden (phiên `DEC-143` không chạm
+`tests/**`).
+
+### Trạng thái
+
+```
+SEMANTIC_DEFINITION   = APPROVED                 (DEC-143 / OD-108B-01, 2026-08-27)
+IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
+BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master,
+                          confirmed KpiPurchaseAdjustment persistence ]
+repair cycle          = CHƯA MỞ (0 used) — chưa có implementation nào để repair
+```
+
+Sub-unit của lineage này (`108B-*`) **không** có ngân sách riêng, **không**
+reset ngân sách, và **không** được tạo lineage mới chỉ để reset (V4.1 §2).
+`TASK-109` thuộc lineage riêng, **không** dùng chung ngân sách này.
+
+cycles:
+- id: (chưa mở — implementation chưa bắt đầu vì blocker dữ liệu)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Cách xác định phạm vi một repair cycle (tham chiếu)
 
 ```
@@ -347,3 +409,18 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `TASK-110`, `CHECK-110-16`, `R1-A1`, `app/`, `config/`,
   `tests/fixtures/baseline/**`, `tests/test_task110_non_regression.py`
   **không đổi một byte** qua toàn bộ integration.
+
+- 2026-08-27 — `TASK-108B` **mở lineage mới** sau Owner Decision `OD-108B-01`
+  (ghi tại `DEC-143`). `EligibleCosts = {}` (closed empty set),
+  `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by definition`,
+  canonical formula chốt `(SellPrice − KpiPurchasePrice) × Quantity − Discount`.
+  **C15 ĐÓNG.** `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã dùng** —
+  phiên ghi quyết định **không** phải repair cycle và **không** tiêu ngân sách.
+  `SEMANTIC_DEFINITION = APPROVED` nhưng
+  `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY`: số blocker giảm **4 → 2**, cả hai
+  còn lại là dependency **dữ liệu** (Price Master; confirmed
+  `KpiPurchaseAdjustment` persistence), không phải semantic. `TASK-110`
+  **không đổi**: vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0; `CHECK-110-16` vẫn
+  `REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE`;
+  `TASK-GOLDEN-BASELINE-001` vẫn `remaining = 1` UNUSED. `app/`, `config/`,
+  `tests/`, Golden fixture/expected **không đổi một byte**.
