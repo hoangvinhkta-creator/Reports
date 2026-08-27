@@ -10,8 +10,208 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 12 (chọn tỷ lệ quy đổi) đã xong và
-> đã qua soát xét độc lập** (xem "Có gì mới" bên dưới).
+> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã qua bốn vòng soát xét, cả bốn
+> đều bị trả về, đã sửa xong cả bốn, đang chờ soát xét vòng 5. Chưa vòng nào
+> được duyệt.** (xem "Có gì mới" ngay bên dưới). Trước đó: bước 12 đã xong và
+> đã qua soát xét độc lập.
+
+## Có gì mới — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
+
+**Cả 2 lỗi đều là cùng một chuyện: cảnh báo chỉ sai người.** Công cụ kết luận
+đúng là "có vấn đề", nhưng khi liệt kê **dòng nào** gây ra vấn đề thì nó vơ cả
+những dòng không liên quan.
+
+1. **Cảnh báo "một tên khớp hai nhân viên"** đã ghi đúng số dòng ở vòng trước,
+   nhưng phần liệt kê **cách viết tên** vẫn kéo cả dòng không dính dáng —
+   dòng 6 có vấn đề, mà bảng chứng cứ ghi "dòng 6, 7".
+2. **Cảnh báo "tên lạ bán nhiều hàng"** đếm đúng 1 dòng chưa nhận diện được,
+   nhưng lại liệt kê thêm một dòng **đã nhận diện bình thường** chỉ vì trùng
+   tên. Người duyệt mở ra sẽ thấy một dòng hoàn toàn hợp lệ và mất niềm tin
+   vào cả hàng chờ.
+
+**Lần này tôi sửa gốc, không vá từng chỗ.** Vòng trước tôi sửa đúng một ô
+("số dòng") và tưởng xong, nhưng ô bên cạnh ("cách viết tên") vẫn đi qua đường
+cũ. Nay mỗi cảnh báo **mang theo đúng tập dòng đã sinh ra nó**, và mọi thông
+tin chứng cứ đều tính ra từ tập đó. Đường tra cứu cũ — "lấy tất cả dòng trùng
+tên" — đã bị **xóa hẳn**, nên lỗi này không còn chỗ để tái phát ở ô tiếp theo.
+
+**Sếp quyết thêm một việc:** cảnh báo "một tên khớp hai nhân viên" **chỉ được
+phát khi dòng có ngày**. Không có ngày thì không biết dòng thuộc thời kỳ nào,
+mà hai người bàn giao cho nhau (người cũ nghỉ, người mới vào) vốn **không hề**
+trùng thời gian — coi họ là "cùng lúc" chỉ vì thiếu ngày là dựng chuyện. Dòng
+đó vẫn được báo ở loại "thiếu ngày", và đó mới là việc cần sửa.
+
+**Không đổi cách tính tiền, không đổi ai nhận doanh số. Vẫn chưa gộp vào nhánh
+chính, và chưa vòng soát xét nào duyệt.**
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 qua vòng soát xét thứ ba (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
+
+**Cả 3 lỗi đều cùng một dạng: kết luận đúng nhưng bằng chứng kèm theo sai.**
+Với một hàng chờ để người duyệt kiểm tay, bằng chứng **chính là** sản phẩm —
+một cảnh báo mà người duyệt không lần lại được thì gần như vô dụng, dù kết
+luận của nó đúng.
+
+1. **Cảnh báo "một tên khớp hai nhân viên" đánh dấu nhầm cả những dòng không
+   liên quan.** Ví dụ thật: dòng ngày 10/02 rơi đúng vào khoảng thời gian hai
+   nhân viên cùng hiệu lực → đúng là mập mờ. Nhưng dòng ngày 10/05 thì chỉ còn
+   một người hiệu lực → hoàn toàn rõ ràng. Công cụ trước đây đánh dấu **cả
+   hai**. Nay chỉ đánh dấu dòng thật sự mập mờ, và ghi kèm **ngày của dòng đó**
+   cùng **danh sách bản ghi nhân viên bị đụng nhau**.
+2. **Cảnh báo "nhân viên đã nghỉ mà vẫn có đơn" phát cả khi dòng không có
+   ngày.** Không có ngày thì **không đủ căn cứ** để biết dòng đó thuộc thời kỳ
+   nào — phát cảnh báo lúc đó là dựng một cáo buộc từ một ẩn số, về master data
+   của một người thật. Sếp đã quyết: **không phát**. Dòng đó vẫn được báo ở
+   loại "thiếu ngày" — và đó mới là việc cần sửa trước; sửa xong thì lần nạp
+   sau cảnh báo kia tự trả lời được.
+3. **Cảnh báo "tên lạ bán nhiều hàng" làm mất cách viết gốc.** `"Thảo Linh"`
+   viết một dấu cách, hai dấu cách, hay gõ dấu kiểu khác đều quy về **một**
+   người — gom nhóm như vậy là đúng. Nhưng công cụ vứt luôn bản gốc, nên người
+   duyệt không còn thấy dữ liệu thật sự được nhập thế nào. Nay giữ **đủ mọi
+   cách viết gốc** kèm dòng của từng cách.
+
+**Không đổi cách tính tiền, không đổi ai nhận doanh số. Vẫn chưa gộp vào nhánh
+chính.**
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 qua vòng soát xét thứ hai (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
+
+**Cả 4 lỗi đều đã sửa, mỗi lỗi kèm bài kiểm tra riêng.** Hai lỗi đáng kể về
+nghiệp vụ:
+
+1. **Dòng không ghi tên nhân viên bị đếm nhầm thành "có tên lạ bán nhiều
+   hàng".** Dòng trống thì không có *tên* nào để thiếu cả — nó đã được báo ở
+   loại "thiếu nhân viên" rồi. Cảnh báo sinh ra từ đó không chỉ được ra dòng
+   nào, nên người duyệt không mở được gì.
+2. **Cảnh báo "nhân viên đã nghỉ mà vẫn có đơn" báo nhầm.** Khi một người
+   nghỉ rồi quay lại (hoặc bàn giao), danh sách có **hai bản ghi cùng tên**:
+   bản cũ đã đóng, bản mới đang chạy. Công cụ trước đây gộp theo *tên*, nên
+   bản cũ đã đóng "mượn" đơn hàng của bản mới và kêu oan. Nay công cụ chấm
+   **theo ngày của từng dòng** và gắn đúng vào bản ghi mà hệ thống thật sự
+   dùng cho ngày đó — giống hệt cách tính lương đang làm.
+
+Hai lỗi còn lại thuộc về chất lượng kiểm chứng: mô tả trạng thái dự án còn sót
+chỗ ghi "chưa viết code" (đã đồng bộ lại), và bài kiểm tra "công cụ không được
+sửa dữ liệu" chụp ảnh **sau** khi đã chạy một lần rồi mới so — nghĩa là nếu có
+sửa thật thì cả hai ảnh đều dính, không phát hiện được. Nay ảnh được chụp
+**trước** lần chạy đầu tiên.
+
+**Không đổi cách tính tiền, không đổi ai nhận doanh số. Vẫn chưa gộp vào nhánh
+chính.**
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 bị trả về, đã sửa xong (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
+
+**Người soát xét độc lập trả bước 14 về với 6 lỗi**, dù bản nộp đã chạy đúng
+toàn bộ 207 bài kiểm tra tự động. Lại đúng bài học của bước 12: *tự mình kiểm
+tra thấy đạt thì chưa đủ.* Cả 6 đã sửa, mỗi lỗi kèm một bài kiểm tra riêng để
+lần sau không tái diễn.
+
+**Ba việc sếp đã quyết trong đợt này:**
+
+1. **Cho phép báo thêm 3 loại lỗi nghiêm trọng về danh sách nhân viên.** Trước
+   đó công cụ đã báo chúng, nhưng đó là làm vượt phạm vi đã chốt — nay được
+   duyệt chính thức nên không còn là làm vượt nữa.
+2. **Cách nhận biết "dòng phụ" (chi phí vận chuyển, chênh VAT…) chỉ là tạm
+   thời.** Nó tồn tại vì bước 7 (chuẩn hóa loại dòng) chưa làm, và **bước 7
+   sẽ phải thay thế nó**. Đồng thời cấm chỉnh cách nhận biết chỉ để ra đúng
+   con số cũ (1.261 dòng) — con số đó là mốc tham khảo, không phải đích đến.
+3. **Nhân viên đã đánh dấu nghỉ mà vẫn có đơn** thì công cụ báo lên hàng chờ.
+   Trước đây chỗ này báo nhầm là "thiếu nhân viên" (sai — biết rõ là ai);
+   nhưng nếu chỉ gỡ đi thì sẽ **im lặng hoàn toàn** trong khi doanh số vẫn
+   chạy vào tên người đó. Tôi đã **dừng lại hỏi sếp** thay vì tự quyết.
+
+**Một lỗi đáng nhớ nhất:** cách nhận biết dòng phụ dùng chữ `"phí "` (có dấu
+cách ở cuối) như một mẹo. Nếu ai đó gỡ dấu cách, `"phí"` sẽ khớp cả
+**"bàn phím"** — một sản phẩm thật bị công cụ coi là dòng phụ và hạ mức cảnh
+báo, không ai biết. Nay công cụ khớp theo **nguyên từ**, và có hẳn một bài
+kiểm tra dùng "Bàn phím cơ Logitech" để chặn đúng tình huống đó.
+
+**Vẫn chưa gộp vào nhánh chính** — chờ soát xét vòng 2.
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 đã làm xong, chờ soát xét (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
+
+Sếp đã duyệt và chốt bảng kiểm tra cuối, nên công cụ được xây luôn trong cùng
+ngày. **Kết quả: 16/17 điều kiện đạt.**
+
+**Công cụ giờ tự phát hiện 7 loại dữ liệu bất thường** mỗi lần nạp file:
+
+| Loại | Ví dụ |
+|---|---|
+| Thiếu thông tin | Thiếu ngày, mã đơn, nhân viên, số lượng, doanh số |
+| Bất thường (công cụ tự tính) | Số lượng ≤ 0, giá bán = 0, giá nhập > giá bán, lợi nhuận âm |
+| Bất thường (số ERP báo) | ERP báo lợi nhuận âm — ghi rõ "số của ERP, chưa kiểm chứng" |
+| Đơn mâu thuẫn | Một đơn ghi hai nhân viên, hoặc hai ngày khác nhau |
+| Nguồn đơn | Người dùng sửa tay khác với quy tắc tự động |
+| Trùng dòng | Hai dòng nội dung giống hệt nhau |
+| Nhân viên chưa có trong danh sách | Tên lạ bán nhiều hàng, hoặc người có tên mà không có đơn nào |
+
+**Ba điều đáng nói:**
+
+1. **Nạp file không bao giờ bị chặn.** Kể cả khi mọi dòng đều có cảnh báo,
+   công cụ vẫn xử lý xong và trả kết quả — cảnh báo đi kèm bên cạnh, không
+   chặn phía trước. Đây là yêu cầu trong đặc tả và đã có bài kiểm tra riêng.
+2. **Hai cảnh báo "nhẹ" đã được xử lý** — chính là điều ghi ở phần "bước 12"
+   bên dưới. Trước đây chúng chỉ hiện khi có người chạy tay một công cụ phân
+   tích riêng; giờ chúng hiện ngay trong lúc nạp dữ liệu. Còn lại là làm màn
+   hình cho người xem (bước 26).
+3. **Đơn ghi hai nhân viên: công cụ báo, KHÔNG tự quyết.** Theo đúng chỉ đạo
+   của sếp. Cảnh báo ghi đủ: mã đơn, những nhân viên nào bị phát hiện, dòng
+   nào, và người mà cách tính cũ đang chọn — ghi rõ đó chỉ là **cách làm cũ**,
+   không phải kết luận ai là chủ đơn. Ai nhận doanh số vẫn là quyết định của
+   sếp.
+
+**Điều kiện còn lại (thứ 17):** đối chiếu trên file bán hàng thật. Không làm
+được ở đây vì file đó chứa thông tin khách hàng nên cố ý không lưu trong kho
+mã nguồn. **Bước 14 chưa được tính là hoàn thành cho tới khi chạy được phép
+đối chiếu này.**
+
+**Chưa gộp vào nhánh chính** — đang chờ người soát xét độc lập, theo đúng cách
+đã làm với bước 12.
+
+## Ghi chép cũ (đã bị mục trên thay thế) — bước 14 đang chờ sếp duyệt (2026-08-23)
+
+> Đây là bản ghi của một mốc đã qua trong cùng ngày. Trạng thái hiện tại
+> nằm ở mục "Có gì mới" đầu file.
+
+**Chưa viết dòng code nào.** Trước khi bắt tay làm bước 14 (rà soát dữ liệu
+bất thường), chúng tôi đọc lại toàn bộ yêu cầu và phát hiện **bản đặc tả thiếu
+4 chỗ có thể làm sai kết quả**. Sếp đã trả lời cả 4, ghi lại thành quyết định
+**DEC-128**:
+
+1. **Cảnh báo "thiếu giá nhập"** sẽ đúng với **toàn bộ 11.765 dòng**, vì công
+   ty chưa có bảng giá điện tử — đây là điều đã biết, không phải lỗi. Nên
+   gộp thành **một dòng thông báo duy nhất**, thay vì 11.765 dòng cảnh báo mà
+   không ai đọc nổi.
+2. **Cảnh báo "lợi nhuận âm"** tách làm hai loại rõ ràng: loại do công cụ tự
+   tính (hiện chưa tính được vì thiếu giá nhập) và loại **lấy từ số ERP đang
+   báo** (1.912 dòng) — loại sau ghi rõ là "số của ERP, chưa kiểm chứng", để
+   không ai nhầm nó là số đã được xác minh.
+3. **1.261 dòng phụ hợp lệ** (chi phí vận chuyển, chênh VAT, phí lắp đặt…)
+   sẽ được hạ xuống mức "chỉ để biết", không kêu như lỗi. Và **cảnh báo trùng
+   dòng** đổi cách nhận biết, vì cách ghi trong đặc tả về mặt kỹ thuật không
+   bao giờ xảy ra được.
+4. **Đơn hàng ghi hai nhân viên khác nhau**: công cụ sẽ **báo lên hàng chờ**
+   nhưng **không tự ý đổi cách tính tiền**. Sếp chọn giữ ranh giới này — đổi
+   cách tính tiền phải là một quyết định riêng.
+
+**Việc còn lại trước khi bắt đầu code:** sếp xác nhận **chốt (đóng băng) bảng
+kiểm tra cuối** của bước 14 — danh sách 17 điều kiện phải đạt thì mới được coi
+là xong. Chốt rồi thì mới bắt đầu làm.
+
+**Một điều cần biết:** có **một điều kiện không thể kiểm ở đây được** — đối
+chiếu trên file bán hàng thật. File đó chứa tên, số điện thoại, địa chỉ khách
+hàng nên **cố ý không lưu trong kho mã nguồn**. Muốn đóng điều kiện đó, cần
+chạy công cụ ở nơi có file thật.
 
 ## Có gì mới — bước 12 đã xong và được duyệt (2026-08-23)
 
@@ -260,7 +460,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
-| ⬜ | 14. TASK-110 (MAJOR, D2/R2/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | Sau bước 12 (làm song song được với bước 13) |
+| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Bảy vòng soát xét đều đã sửa xong; vòng 7 là Architecture Closure — 20/20 tình huống lỗi nay KHÔNG dựng được nữa; chưa vòng nào duyệt, chờ vòng 8** — 21/22 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
 | ⬜ | 16. TASK-112 (MICRO, D1/R2/B2) — Đóng gói thành công cụ chạy được | Bước cuối để bắt đầu dùng thử trên máy | A | Sau bước 15 |
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |

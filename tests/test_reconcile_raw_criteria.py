@@ -20,7 +20,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "analysis
 
 from reconcile_conversion import evaluate_raw_mapping  # noqa: E402
 
+import pytest  # noqa: E402
+
 from datetime import date  # noqa: E402
+
+from app.modules.mapping.employee_mapper import (  # noqa: E402
+    EmployeeMapper,
+    InvalidEmployeeConfig,
+    build_employee_master,
+)
+from app.modules.validation.employee_mapping import (  # noqa: E402
+    MappingInput,
+    collect_mapping_stats,
+)
+
+GROUP_ROWS = [{"code": "STANDARD_SALES"}, {"code": "NOI_THANH"}]
 
 GROUPS = {"STANDARD_SALES", "NOI_THANH"}
 SPAN_START = date(2026, 1, 1)
@@ -57,18 +71,59 @@ HEALTHY_GROUPS = {
 HEALTHY_UNMAPPED = Counter({"Thảo Linh": 83, "Nguyễn Thị Minh Bảo": 1})
 
 
+# HD-110-16: 15 lời gọi `evaluate_raw_mapping(...)` 8-tham-số-vị-trí được
+# chuyển sang **một** `MappingStats` canonical. Ý định từng test giữ nguyên;
+# thứ đổi là cách nói ra cùng một tình huống. Trước đây bộ đếm và chỉ mục dòng
+# là hai tham số rời, nên con số trong message và số dòng trong provenance có
+# hai nguồn khác nhau và đo được là chúng bất đồng (RC-3).
+#
+# `_synth()` dựng đúng số dòng thô mà mỗi Counter mô tả, nên `MappingStats`
+# thật sự mang provenance thay vì một con số trần.
+_ROW = [0]
+
+
+def _synth(mapped, unmapped, ambiguous_raw, employees, groups, start, end):
+    mapper = EmployeeMapper(build_employee_master(employees, groups))
+    inputs = []
+    when = start or SPAN_START
+    for name, count in mapped.items():
+        record = next((e for e in employees if e["normalized"] == name), None)
+        prefix = record["raw_prefix"] if record else name
+        for _ in range(count):
+            _ROW[0] += 1
+            inputs.append(MappingInput(
+                source_file="synthetic.xlsx", source_row=_ROW[0],
+                employee_raw=prefix, when=when, normalized=name,
+                group=HEALTHY_GROUPS.get(name),
+            ))
+    for raw_value, count in unmapped.items():
+        for _ in range(count):
+            _ROW[0] += 1
+            inputs.append(MappingInput(
+                source_file="synthetic.xlsx", source_row=_ROW[0],
+                employee_raw=raw_value, when=when, normalized=None, group=None,
+            ))
+    stats = collect_mapping_stats(inputs, mapper)
+    if ambiguous_raw:
+        object.__setattr__(stats, "ambiguities", dict(ambiguous_raw))
+    if start is not None:
+        object.__setattr__(stats, "dataset_start", start)
+    if end is not None:
+        object.__setattr__(stats, "dataset_end", end)
+    return stats
+
+
 def _evaluate(mapped=None, unmapped=None, ambiguities=None, employees=None,
               groups=None, start=SPAN_START, end=SPAN_END):
-    return evaluate_raw_mapping(
+    return evaluate_raw_mapping(_synth(
         mapped if mapped is not None else HEALTHY_MAPPED,
-        HEALTHY_GROUPS,
         unmapped if unmapped is not None else HEALTHY_UNMAPPED,
         ambiguities or {},
         employees if employees is not None else EMPLOYEES,
-        groups if groups is not None else GROUPS,
+        GROUP_ROWS,
         start,
         end,
-    )
+    ))
 
 
 def test_healthy_master_data_has_no_failures_or_warnings():
@@ -80,15 +135,20 @@ def test_healthy_master_data_has_no_failures_or_warnings():
 # --- Hard failures: F1, F3, F5 ---------------------------------------------
 
 
-def test_f1_group_not_declared_is_a_hard_failure():
+# HD-110-17: F1 được THAY THẾ bởi fail-fast tại biên master, không bị bỏ.
+# Ý định của hai test giữ nguyên — "master khai group không tồn tại KHÔNG được
+# đi lọt" — nhưng nay nó bị chặn SỚM HƠN: master ấy không parse được, nên
+# Review Queue không bao giờ nhận được trạng thái đó.
+def test_f1_group_not_declared_is_rejected_at_the_master_boundary():
     broken = EMPLOYEES[:3] + [_employee("Vinh", "Mr Vinh", group="NOI_THAN")]
-    assert any(v.startswith("F1") for v in _evaluate(employees=broken).hard_failures)
+    with pytest.raises(InvalidEmployeeConfig, match="employee_groups"):
+        build_employee_master(broken, GROUP_ROWS)
 
 
-def test_f1_missing_group_field_is_a_hard_failure():
+def test_f1_missing_group_field_is_rejected_at_the_master_boundary():
     row = {k: v for k, v in EMPLOYEES[3].items() if k != "group"}
-    verdict = _evaluate(employees=EMPLOYEES[:3] + [row])
-    assert any(v.startswith("F1") for v in verdict.hard_failures)
+    with pytest.raises(InvalidEmployeeConfig, match="group"):
+        build_employee_master(EMPLOYEES[:3] + [row], GROUP_ROWS)
 
 
 def test_f3_ambiguity_is_a_hard_failure():

@@ -26,6 +26,13 @@ LEAD_SOURCES = (PERSONAL, ADS)
 MAPPING_STATUS_MAPPED = "mapped"
 MAPPING_STATUS_UNMAPPED = "unmapped"
 MAPPING_STATUS_INACTIVE = "inactive"
+# Tập giá trị hợp lệ, đặt CẠNH ba hằng chứ không dựng lại ở nơi khác: một enum
+# có hai chỗ ở là đúng cái smell mà repair R1 đang đóng (R1-A).
+MAPPING_STATUSES = (
+    MAPPING_STATUS_MAPPED,
+    MAPPING_STATUS_UNMAPPED,
+    MAPPING_STATUS_INACTIVE,
+)
 
 # Provenance of accounting_purchase_price (DEC-103, TASK-105). "Pending" is
 # the correct value for every line in Phase 1 — no Price Master exists yet,
