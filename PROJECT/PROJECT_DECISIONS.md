@@ -1978,3 +1978,113 @@ Consequences:
   tính mà CPython `dataclasses._process_class` tự đọc trước khi `@canonical`
   chạy, nên framework không tạo ra được outcome đã freeze. Đề xuất phân loại
   lại thành `OUTSIDE_FRAMEWORK_BOUNDARY`; không tự đổi.
+
+---
+
+## DEC-136
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 Finite Contract, finalization sau implementation
+
+Decision:
+
+**1 — PRECEDENCE RULE (luật chung, không chỉ cho TASK-110).**
+
+Trong một artifact có đồng thời **bảng định danh** (bảng case, bảng
+requirement, ma trận ID) và **văn xuôi diễn giải**, thì:
+
+    BẢNG ĐỊNH DANH LÀ NGUỒN QUY PHẠM.
+
+Nếu số liệu hoặc diễn giải trong văn xuôi mâu thuẫn với bảng:
+
+    TABLE / IDENTIFIER MATRIX WINS.
+
+Văn xuôi phải được sửa cho đồng bộ với bảng. **Không** được sửa bảng theo văn
+xuôi nếu chưa có Owner Decision. Luật này ra đời để không lặp lại lỗi "95 vs
+105" của PLAN R1-A1.
+
+**2 — HD-POST-A1-01: FROZEN CORPUS = 105 CASE.**
+
+Con số "95" trong văn xuôi PLAN là lỗi đếm còn sót. Bảng ID §12 là quy phạm.
+Phân loại việc sửa: **DOCUMENTATION COUNT CORRECTION**, KHÔNG phải CONTRACT
+EXPANSION. Không thêm/xoá/renumber case, không đổi expected outcome để làm
+suite xanh.
+
+**3 — HD-POST-A1-02: K03 / L03 / M02 = OUTSIDE_FRAMEWORK_BOUNDARY.**
+
+Biên R1-A1 bắt đầu tại thời điểm code của `@canonical` bắt đầu execution. Nếu
+`dataclasses` / `typing` / interpreter / quá trình dựng annotation phát
+exception TRƯỚC thời điểm đó, canonical chưa có quyền kiểm soát exception ấy,
+và R1-A1 không có trách nhiệm normalize nó.
+
+Phân loại chỉ hợp lệ khi chứng minh đủ bốn mệnh đề: (A) canonical chưa bắt đầu
+xử lý class; (B) registry không đổi; (C) class không nhận canonical partial
+state; (D) canonical vắng mặt trong traceback và frame chịu trách nhiệm nằm
+trong stdlib. Nếu canonical ĐÃ chạy rồi mới leak raw foreign exception thì đó
+là **BLOCKING R1-A1 DEFECT** — `OUTSIDE_FRAMEWORK_BOUNDARY` không được dùng để
+che lỗi bên trong canonical.
+
+`canonical.py` **không** được sửa để cố bắt các exception này, và biên **không**
+được mở ngược vào `dataclasses` / `typing` / interpreter internals.
+
+Phân loại này **ghim theo interpreter**: CPython `3.11.15`. Số dòng
+`dataclasses.py` chỉ là evidence của interpreter hiện tại, **không** phải
+invariant. Đổi Python minor version ⇒ **RE-VERIFY**, không auto-carry.
+
+**4 — HD-POST-A1-03: K01 / M01 / M02 CASE CONSTRUCTION CORRECTION.**
+
+Ba correction được ratify. Phân loại: **CASE CONSTRUCTION CORRECTION**, KHÔNG
+phải EXPECTED OUTCOME CHANGE — mỗi correction làm case chạm đúng boundary mà nó
+tuyên bố kiểm tra, thay vì PASS/FAIL vì một cơ chế khác. Bản ghi 8 trường cho
+từng case ở §21.2d của
+`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`.
+
+Từ Review Candidate SHA của phiên này trở đi: **K01 / M01 / M02 CONSTRUCTION =
+FROZEN**. Mọi thay đổi construction tiếp theo cần HUMAN ESCALATION.
+
+**5 — CORPUS RESULT SEMANTICS.**
+
+Báo cáo bắt buộc dùng dạng phân rã, không dùng "102/105 PASS" (đọc như 3 case
+hỏng) và không dùng "105/105 PASS" (đọc như 3 case ngoài biên cũng là in-scope):
+
+    FROZEN CORPUS               105/105 CLASSIFIED
+    IN-SCOPE                    102/102 PASS
+    OUTSIDE_FRAMEWORK_BOUNDARY    3/3   correctly classified (K03, L03, M02)
+    UNCLASSIFIED                    0
+    BLOCKING FAIL                   0
+
+    105 = 102 + 3
+
+**6 — CHECK-110-16 = MERGE GATE, KHÔNG phải REVIEW GATE.**
+
+Khi production workbook không tồn tại, CHECK-110-16 = BLOCKED. Không giả lập
+workbook, không synthetic PASS. R1-A1 vẫn đạt được
+`READY_FOR_INDEPENDENT_REVIEW` trong khi CHECK-110-16 còn BLOCKED;
+CHECK-110-16 chỉ phải giải quyết trước merge/final completion.
+
+**7 — Reference-integrity failure có sẵn được chấp nhận cho review readiness.**
+
+Ba dead reference trong `TASK-REM-T06` là PRE-EXISTING, ngoài touch-area, giữ
+tại HB-A1-05. **Cấm sửa** chúng trong task này — sửa là SCOPE VIOLATION. Chúng
+KHÔNG chặn `READY_FOR_INDEPENDENT_REVIEW`. Nếu xuất hiện reference-integrity
+failure MỚI: STOP.
+
+Rationale:
+
+Bốn quyết định đầu đóng nốt ba escalation mà implementation R1-A1 nêu ra, mà
+không mở lại một dòng nào của `canonical.py`. Quyết định 1 là luật chung: hai
+lần trong cùng một task, văn xuôi và bảng đã lệch nhau, và cả hai lần bảng mới
+là thứ đúng.
+
+Consequences:
+
+- DEC-128 → DEC-135 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** trong phiên finalization.
+- R1-A1 = **READY_FOR_INDEPENDENT_REVIEW**. Vẫn **chưa** FROZEN, **chưa** chuyển
+  R1-A2, **chưa** merge TASK-110.
+- R1-A, R1 = NOT FROZEN. R2→R8 = BLOCKED. CHECK-110-16 = BLOCKED (merge gate).
+- Backlog thêm HB-A1-06 (B2/B3 defensive boundary, untested) và HB-A1-07
+  (`MUTABLES` phụ thuộc invariant metaclass builtin `type`).

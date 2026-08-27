@@ -20,7 +20,7 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | AWAITING_INDEPENDENT_REVIEW (**FROZEN CONTRACT**) | commit R1-A1 #4, parent `5a0f27c` | **Review #3 FAIL** tại `1b0da151` | Ngừng repair theo finding. Hợp đồng ĐÓNG, hữu hạn, Owner freeze (`TASK-110-R1-A1-FROZEN-CONTRACT.md`): ngữ pháp 4 dạng `any\|none\|class\|optional`, allowlist class 4 category so bằng ĐỊNH DANH, runtime `type(v) is T` (xoá `isinstance` khỏi đường validate). Corpus **102/105**; 3 case chờ Owner (biên CPython). Mutation M-1→M-11: **11/11** bị bắt |
+| R1-A1 | Annotation Contract | HIGH | **READY_FOR_INDEPENDENT_REVIEW** | Review Candidate, parent `c183123` | **Review #3 FAIL** tại `1b0da151` | Hợp đồng ĐÓNG hữu hạn (`TASK-110-R1-A1-FROZEN-CONTRACT.md`), Owner freeze DEC-135 + finalize DEC-136. Corpus **105/105 CLASSIFIED** = 102 IN-SCOPE PASS + 3 OUTSIDE_FRAMEWORK_BOUNDARY (`K03`/`L03`/`M02`, có chứng minh A/B/C/D, ghim CPython 3.11.15). Mutation M-1→M-11: **11/11 discriminated** (8 corpus + 3 hardening coverage) |
 | R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
 | R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
@@ -1556,3 +1556,47 @@ freeze. Tính an toàn vẫn đúng và đã đo (registry không đổi, không
 tự đổi**.
 
 **HARDENING BACKLOG**: HB-A1-01 → HB-A1-05, xem §21.4 của artifact hợp đồng.
+
+
+#### Finalization — áp dụng Owner Decision HD-POST-A1-01 → 03 (DEC-136)
+
+- Status: **READY_FOR_INDEPENDENT_REVIEW**
+- Previous Repair SHA: `c183123756c7553a0b1476d2dae79298e3ebb981`
+- `app/modules/domain/canonical.py`: **KHÔNG ĐỔI** trong phiên này (TEST-ONLY +
+  DOCS-ONLY change).
+
+**Ba escalation của vòng trước đều đóng bằng quyết định, không bằng code:**
+
+| Escalation | Kết quả |
+|---|---|
+| Corpus 95 vs 105 | HD-POST-A1-01 — DOCUMENTATION COUNT CORRECTION, corpus chính thức **105** |
+| `K03`/`L03`/`M02` framework không tạo được outcome đã freeze | HD-POST-A1-02 — phân loại `OUTSIDE_FRAMEWORK_BOUNDARY`, biên framework được FREEZE |
+| K01/M01/M02 construction đã sửa | HD-POST-A1-03 — ratify là CASE CONSTRUCTION CORRECTION, construction nay FROZEN |
+
+**Oracle ngoài biên không còn là `xfail`.** `xfail` chỉ chứng minh test fail;
+nó không chứng minh fail ĐÚNG VÌ biên. Ba case nay là oracle **PASS** với bốn
+assertion: canonical chưa entered · registry bất biến · class không nhiễm
+partial state · `canonical.py` vắng mặt trong traceback. Assertion phát biểu
+trên biên NGỮ NGHĨA, không pin số dòng CPython — nếu CPython đổi và canonical
+bắt đầu xuất hiện trước exception, test FAIL.
+
+**Audit đã chạy (không repair):**
+
+- **Metaclass (§13)**: 11/11 production canonical type có `type(cls) is type`.
+  Không type nào dùng `EnumMeta`/`ABCMeta`/`_ProtocolMeta`/custom. Cổng C9
+  không từ chối canonical type nào của dự án. Hai "framework class" là
+  `FrozenMapping`/`FrozenCounter` (metaclass `ABCMeta`) — không xung đột C9 vì
+  chúng không mang `@canonical` và phép kiểm dành cho chúng là `type(v) is T`,
+  không điều phối qua metaclass.
+- **Reachability (§12)**: HB-A1-02 `REACHABLE` (union >511 nhánh chạm C12
+  trước arity — đo được); M-10 `REACHABLE` nhưng **outcome-redundant** dưới ngữ
+  pháp hiện tại (gỡ budget thì arity vẫn từ chối; chỉ lý do đổi). C12 là
+  defense-in-depth cho ngữ pháp tương lai. Không xoá enforcement, không xoá test.
+
+**Backlog bổ sung**: HB-A1-06 (B2/B3 defensive boundary,
+unreachable-by-current-construction, independently untested) · HB-A1-07
+(`MUTABLES` an toàn nhờ invariant "mọi member có metaclass đúng là builtin
+`type`" — cấm thêm type có custom metaclass nếu chưa có Owner Decision riêng).
+
+**CHECK-110-16** = MERGE GATE, không phải REVIEW GATE. Production workbook
+không tồn tại ⇒ BLOCKED. Không giả lập.

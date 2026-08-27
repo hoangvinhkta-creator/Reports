@@ -11,12 +11,13 @@ Risk: 4
 > §3–§14 dưới đây là bất biến; corpus §12 là ACCEPTANCE CORPUS và không được bổ
 > sung trong vòng repair này. Kết quả implementation ở **§21**.
 >
-> **Đính chính số đếm (clerical, không đổi ngữ nghĩa).** Bản plan ghi "95 case"
-> ở phần văn xuôi, trong khi chính bảng §12 liệt kê **105 ID**. 95 là số học
-> còn sót lại từ bản nháp (80 case shadow + 15 case tầng decoration) trước khi
-> các nhóm K/L/N/O/P/T/X được mở rộng trong bảng. Bảng ID là phần quy phạm;
-> không case nào được thêm, bớt, hay đổi expected outcome. Corpus = **105 case**
-> (101 case + 4 bất biến Z).
+> **HD-POST-A1-01 — FROZEN CORPUS = 105 CASE.** Bản plan ghi "95 case" ở phần
+> văn xuôi, trong khi chính bảng §12 liệt kê **105 ID**. 95 là số học còn sót
+> từ bản nháp (80 case shadow + 15 case tầng decoration) trước khi các nhóm
+> K/L/N/O/P/T/X được mở rộng trong bảng. Owner phân loại việc sửa này là
+> **DOCUMENTATION COUNT CORRECTION**, KHÔNG phải CONTRACT EXPANSION: không case
+> nào được thêm, bớt, renumber, hay đổi expected outcome. Corpus = **105 case**
+> (101 case đánh ID + 4 bất biến Z).
 
 ---
 
@@ -791,6 +792,29 @@ R1-A1 được phép FROZEN sau implementation + independent review khi:
 
 ---
 
+## 20b. Biên framework — FREEZE (HD-POST-A1-02)
+
+Biên R1-A1 bắt đầu tại thời điểm **code của `@canonical` bắt đầu execution**.
+
+Exception xảy ra TRƯỚC biên đó — do `dataclasses`, `typing`, interpreter, hay
+quá trình dựng chính annotation object — được phân loại
+`OUTSIDE_FRAMEWORK_BOUNDARY`, nhưng **chỉ khi chứng minh đủ bốn mệnh đề**:
+
+| | Mệnh đề |
+|---|---|
+| **A** | `@canonical` chưa bắt đầu xử lý class mục tiêu |
+| **B** | registry canonical không đổi |
+| **C** | class mục tiêu không nhận canonical partial state / canonical mutation |
+| **D** | `canonical.py` KHÔNG xuất hiện trong traceback, và frame chịu trách nhiệm nằm trong stdlib |
+
+Nếu `@canonical` ĐÃ bắt đầu execution rồi mới để raw foreign exception thoát ra:
+đó là **BLOCKING R1-A1 DEFECT**, không phải outside-boundary.
+`OUTSIDE_FRAMEWORK_BOUNDARY` không được dùng để che lỗi bên trong canonical.
+
+R1-A1 **không** mở rộng biên ngược vào `dataclasses`, `typing`, quá trình dựng
+annotation, hay interpreter internals. `canonical.py` **không** được sửa để cố
+bắt các exception này.
+
 ## 21. Kết quả implementation
 
 Repair SHA: xem §21.1. Exact starting SHA cho mọi so sánh correctness vẫn là
@@ -809,33 +833,125 @@ KHÔNG được dùng làm bằng chứng defect đã tồn tại hay đã đư�
 | R1 probes | 43 probe, BLOCKED=39, OUT=1, RESIDUAL=3 — khớp baseline |
 | R1-A probes | 25 probe, BLOCKED=23, OUT=2 — khớp baseline |
 
-### 21.2. BA case chờ QUYẾT ĐỊNH OWNER (rule C của chỉ thị)
+### 21.2. BA case OUTSIDE_FRAMEWORK_BOUNDARY (HD-POST-A1-02 — Owner ĐÃ DUYỆT)
 
-`K03`, `L03`, `M02` được freeze với `UNSUPPORTED_AT_DECORATION`, nhưng framework
-**không thể** tạo ra outcome đó. Cả ba nhắm vào thuộc tính mà **CPython
-`dataclasses._process_class` tự đọc** trước khi `@canonical` có mặt trên call
-stack:
+`K03`, `L03`, `M02` được phân loại `OUTSIDE_FRAMEWORK_BOUNDARY`. Cả ba nhắm vào
+thuộc tính mà CPython tự đọc TRƯỚC khi `@canonical` bắt đầu chạy. Không tùy
+chọn `@dataclass` nào tránh được (`repr=False`, `eq=False` đều đã thử).
 
-| Case | Thuộc tính bị tấn công | CPython đọc nó ở đâu |
-|---|---|---|
-| `K03` | mọi thuộc tính (`__getattribute__` nổ) | `dataclasses.py:946` — `isinstance(t, str)` |
-| `L03` | `__module__` | `dataclasses.py:1098` → `inspect.formatannotation` |
-| `M02` | `__args__` | `dataclasses._process_class` khi phân tích annotation |
+**Bằng chứng bốn mệnh đề, đo trên interpreter đã ghim (§21.2b):**
 
-Không tùy chọn `@dataclass` nào tránh được (`repr=False`, `eq=False` đều đã
-thử). **Tính an toàn vẫn đúng và đã đo**: registry không đổi (11 → 11), không
-canonical type nào được tạo, lỗi nổ to, không có trạng thái nửa vời — tức là
-đúng loại biên mà chính hợp đồng đã đặt tên ở `T03`.
+| Case | A: canonical chưa chạy | B: registry | C: partial state | D: canonical.py trong traceback | Foreign component chịu trách nhiệm |
+|---|---|---|---|---|---|
+| `K03` | ✔ chưa | 11 → 11 | không | không | `dataclasses._process_class` |
+| `L03` | ✔ chưa | 11 → 11 | không | không | `inspect.formatannotation` (gọi từ `dataclasses`) |
+| `M02` | ✔ chưa | 11 → 11 | không | không | `typing._GenericAlias.__repr__` (gọi từ `inspect` ← `dataclasses`) |
 
-Đề xuất: phân loại lại ba case thành `OUTSIDE_FRAMEWORK_BOUNDARY`. **Không tự
-đổi** — chờ Owner. Trong pytest chúng mang `xfail(strict=True)`, nên nếu ngày
-nào đó chúng chuyển sang PASS thì suite sẽ ĐỎ.
+Chuỗi module quan sát được:
 
-Ghi chú liên quan: CPython `@dataclass` cũng tự gọi `repr(annotation)` cho
-annotation không phải type (`inspect.formatannotation`). Đó là biên ngoài
-framework; bất biến `Z02`/`Z03` vì thế phát biểu trên **giai đoạn
-`@canonical`**, và corpus liệt kê tường minh các case dừng ở giai đoạn CPython
-thay vì giấu chúng đi.
+    K03  <caller> -> dataclasses -> dataclasses
+    L03  <caller> -> dataclasses -> dataclasses -> inspect -> inspect -> inspect
+    M02  <caller> -> dataclasses -> dataclasses -> inspect -> inspect -> inspect -> typing
+
+**Oracle KHÔNG dùng `xfail`.** `xfail` chỉ chứng minh test fail; nó không chứng
+minh fail ĐÚNG VÌ biên. Ba case nay là oracle **PASS** với assertion tường minh
+(`test_outside_boundary_case_is_proven_not_merely_failing`), và assertion dựa
+trên biên NGỮ NGHĨA — `canonical.py` vắng mặt trong traceback, canonical chưa
+entered, registry bất biến, class sạch — chứ không dựa vào
+`filename == dataclasses.py:946`. Nếu CPython đổi và `canonical` bắt đầu xuất
+hiện trong đường xử lý trước exception, mệnh đề A và D sai và **test FAIL**.
+
+Đây là **TEST-ONLY CHANGE**: `app/modules/domain/canonical.py` không bị sửa.
+
+### 21.2b. Ghim interpreter (§6)
+
+| | |
+|---|---|
+| implementation | `cpython` |
+| `sys.version` | `3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]` |
+| `sys.version_info` | `(3, 11, 15, 'final', 0)` |
+| foreign component quan sát được | `dataclasses` · `inspect` · `typing` |
+| call site evidence (interpreter HIỆN TẠI, **không** phải invariant) | `dataclasses.py:946 in _process_class` · `inspect.py:1438 in formatannotation` · `typing.py:1535 in __repr__` |
+
+Số dòng chỉ là evidence của interpreter hiện tại và **không** được hard-code
+thành invariant lâu dài.
+
+**Cách re-verify trên interpreter khác:**
+
+    PYTHONPATH=. python3 -m pytest tests/test_r1a1_annotation_contract.py \
+        -k "outside_boundary or interpreter" -q
+
+`test_outside_boundary_classification_is_pinned_to_a_verified_interpreter` FAIL
+ngay khi minor version khác `3.11`, buộc re-verify thay vì im lặng carry phân
+loại cũ. Sau khi re-verify, cập nhật `VERIFIED_PYTHON_VERSION` /
+`VERIFIED_VERSION_INFO` trong `tools/analysis/r1a1_annotation_probes.py`.
+
+### 21.2c. Số học corpus (§8)
+
+    FROZEN CORPUS:                105/105 CLASSIFIED
+    IN-SCOPE:                     102/102 PASS
+    OUTSIDE_FRAMEWORK_BOUNDARY:     3/3   correctly classified (K03, L03, M02)
+    UNCLASSIFIED:                     0
+    BLOCKING FAIL:                    0
+
+    105 = 102 + 3
+
+Sắc thái cần biết: `T03` ("`typing` tự nổ khi DỰNG annotation") cũng mang
+expected outcome `OUTSIDE_FRAMEWORK_BOUNDARY`, nhưng nó mang **từ bản freeze
+gốc** chứ không do HD-POST-A1-02 phân loại lại — nó chưa bao giờ là case hỏng.
+Theo cách chia §8, bucket `OUTSIDE_FRAMEWORK_BOUNDARY` gồm ĐÚNG ba ID được
+phân loại lại, nên `T03` được đếm trong 102 IN-SCOPE. Nếu chia theo
+expected-outcome thay vì theo quyết định, số học là `105 = 101 + 4`. Hai cách
+chia đều đúng; §8 chốt cách thứ nhất.
+
+### 21.2d. K01 / M01 / M02 — CASE CONSTRUCTION CORRECTION (HD-POST-A1-03)
+
+Owner ratify ba correction dưới đây. Phân loại: **CASE CONSTRUCTION
+CORRECTION**, KHÔNG phải EXPECTED OUTCOME CHANGE — mỗi correction làm case
+chạm đúng boundary mà nó tuyên bố kiểm tra, thay vì PASS/FAIL vì một cơ chế
+khác.
+
+**K01**
+
+| | |
+|---|---|
+| 1. Mô tả trong PLAN | metaclass có `__repr__` raise **VÀ** `__name__` raise |
+| 2. Construction ban đầu | `__getattribute__` nổ với `__name__` **và `__module__`** |
+| 3. Vấn đề | `__module__` không nằm trong mô tả; nó đúng là thuộc tính CPython `@dataclass` đọc, nên case rơi vào biên CPython và không còn đo được điều nó tuyên bố |
+| 4. Construction đã sửa | `__getattribute__` chỉ nổ với `__name__` |
+| 5. Boundary chạm thật | biên framework — `@canonical` chạy và từ chối |
+| 6. Expected trước | `UNSUPPORTED_AT_DECORATION` |
+| 7. Expected sau | `UNSUPPORTED_AT_DECORATION` — **không đổi** |
+| 8. Semantic intent | không đổi: class target có `__repr__`/`__name__` thù địch phải bị từ chối mà không ai chạy chúng |
+
+**M01**
+
+| | |
+|---|---|
+| 1. Mô tả trong PLAN | `get_origin` NỔ với exception có `__str__` thù địch |
+| 2. Construction ban đầu | object thường mang property `__origin__` raise |
+| 3. Vấn đề | `typing.get_origin()` kiểm `isinstance(tp, (_BaseGenericAlias, GenericAlias, …))` TRƯỚC, nên với object thường nó trả `None` mà **không hề chạm `__origin__`** — case PASS đúng kết quả nhưng SAI CƠ CHẾ (bị loại ở C2 "ngoài ngữ pháp") |
+| 4. Construction đã sửa | `types.GenericAlias` subclass, `__getattribute__` nổ với `__origin__` |
+| 5. Boundary chạm thật | biên lạ **B1** (`get_type_hints`) — vẫn là biên framework, exception lạ được normalize không render |
+| 6. Expected trước | `UNSUPPORTED_AT_DECORATION` |
+| 7. Expected sau | `UNSUPPORTED_AT_DECORATION` — **không đổi** |
+| 8. Semantic intent | không đổi: exception lạ có `__str__` thù địch phải thành `CanonicalContractViolation` mà không bị render |
+
+**M02**
+
+| | |
+|---|---|
+| 1. Mô tả trong PLAN | `get_args` NỔ với exception có `__str__` thù địch |
+| 2. Construction ban đầu | object thường mang `__origin__` + property `__args__` raise |
+| 3. Vấn đề | như M01: `get_args()` không chạm `__args__` của object thường. Bản sửa thứ nhất dùng `__getattr__` cũng không đủ — `_GenericAlias` lưu `__args__` trong `__dict__` nên `__getattr__` không bao giờ được gọi |
+| 4. Construction đã sửa | `typing._GenericAlias` subclass, **`__getattribute__`** nổ với `__args__` |
+| 5. Boundary chạm thật | **ngoài biên framework** — CPython `@dataclass` đọc `__args__` trước khi `@canonical` chạy |
+| 6. Expected trước | `UNSUPPORTED_AT_DECORATION` |
+| 7. Expected sau | `OUTSIDE_FRAMEWORK_BOUNDARY` (HD-POST-A1-02) |
+| 8. Semantic intent | không đổi: hostility trên `__args__` không được để lại raw leak hay partial state. Correction làm lộ ra rằng chủ thể xử lý là CPython chứ không phải framework — chính đó là lý do HD-POST-A1-02 tồn tại |
+
+**Từ Review Candidate SHA của phiên này trở đi: K01 / M01 / M02 CONSTRUCTION =
+FROZEN.** Mọi thay đổi construction tiếp theo cần HUMAN ESCALATION.
 
 ### 21.3. Ma trận mutation-by-revert
 
@@ -853,13 +969,18 @@ thay vì giấu chúng đi.
 | M-10 | gỡ ngân sách node | — | `test_a_wide_union_is_stopped_by_the_node_budget_not_by_arity` |
 | M-11 | `from None` → `from exc` | — | 2 test |
 
-**M-8, M-10, M-11 không bị corpus bắt.** Ba enforcement này chỉ phân biệt được
-bằng những case mà corpus đã freeze không chứa (field `Any` + giá trị có
-`__class__` thù địch; `Union` rộng hơn 511 nhánh; exception gốc trong chain).
-Theo rule B, corpus KHÔNG được mở rộng trong vòng này; thay vào đó ba test
-coverage của implementation được thêm vào `tests/test_r1a1_annotation_contract.py`
-và ĐƯỢC ĐÁNH DẤU RÕ là ngoài corpus. Đề xuất bổ sung ba case tương ứng vào
-corpus ở vòng freeze sau — xem §21.4.
+**Phân loại evidence (§10).** `11/11 MUTATIONS DISCRIMINATED`, tách hai loại:
+
+| Loại | Mutation |
+|---|---|
+| **A — Frozen-corpus discrimination** | M-1, M-2, M-3, M-4, M-5, M-6, M-7, M-9 (8) |
+| **B — Hardening coverage discrimination** | M-8, M-10, M-11 (3) |
+
+M-8/M-10/M-11 **không** được retroactively thêm vào frozen corpus. Ba test bắt
+chúng được phân loại **HARDENING COVERAGE**, khai báo tường minh trong
+`HARDENING_COVERAGE` của `tests/test_r1a1_annotation_contract.py` và có test
+canh (`test_hardening_coverage_is_declared_and_is_not_part_of_the_corpus`).
+Corpus vẫn là 105; acceptance gate không đổi; không renumber.
 
 ### 21.4. HARDENING BACKLOG phát hiện trong lúc implement
 
@@ -869,7 +990,9 @@ corpus ở vòng freeze sau — xem §21.4.
 | HB-A1-02 | Corpus thiếu case `Union` > 511 nhánh — case duy nhất chạm ngân sách node C12 | Rule B |
 | HB-A1-03 | Corpus thiếu case khẳng định `__cause__ is None` ở biên lạ | Rule B |
 | HB-A1-04 | Biên B2/B3 tới được biệt lập nhưng CPython `@dataclass` luôn nổ trước từ một khai báo canonical thật; chỉ B1 tới được thực sự | Là quan sát về biên, không phải lỗ hổng |
-| HB-A1-05 | `validate_reference_integrity.py` FAIL với 3 reference chết trong `TASK-REM-T06` | Có SẴN từ trước, ngoài touch-area R1-A1 |
+| HB-A1-05 | `validate_reference_integrity.py` FAIL với 3 reference chết trong `TASK-REM-T06` | Có SẴN từ trước, ngoài touch-area R1-A1. **CẤM sửa** trong task này — sửa là SCOPE VIOLATION |
+| HB-A1-06 | **B2/B3 không có mutation coverage độc lập.** HB-A1-04 đã xác định chỉ **B1** reachable từ một khai báo production-like. `M02` từng chạm B2/B3 nhưng nay là `OUTSIDE_FRAMEWORK_BOUNDARY`. Ghi rõ: **B2/B3 = defensive boundary, unreachable-by-current-construction, independently untested** | HARDENING. Không repair trong R1-A1 finalization |
+| HB-A1-07 | **Mutable guard phụ thuộc một invariant chưa được canh.** `issubclass(type(v), MUTABLES)` an toàn vì `issubclass` điều phối theo metaclass của VẾ PHẢI, và mọi member của `MUTABLES` hiện có metaclass ĐÚNG là builtin `type`. Nếu ai đó thêm vào `MUTABLES` một type có custom metaclass, phép kiểm sẽ chạy `__subclasscheck__` của người dùng và primitive mất tính an toàn. **CẤM thêm type có custom metaclass vào `MUTABLES` nếu chưa mở Owner Decision / hardening task riêng.** Không mở rộng `MUTABLES` trong phiên này | HARDENING |
 
 ### 21.5. Scope audit
 
@@ -882,3 +1005,189 @@ corpus ở vòng freeze sau — xem §21.4.
 Không file nào dưới `app/modules/**` ngoài `canonical.py`. Không file test
 A3/D nào. **Không annotation production nào phải migrate** (0/72 ngoài ngữ
 pháp), đúng như §17 đã dự đoán trước khi implement.
+
+
+### 21.6. Audit metaclass — 11 production canonical type (§13)
+
+| Class | Module | Metaclass | `type(cls) is type` |
+|---|---|---|---|
+| `AffectedRow` | `app.modules.validation.models` | `type` | TRUE |
+| `AmbiguousRow` | `app.modules.validation.models` | `type` | TRUE |
+| `RowProvenance` | `app.modules.validation.models` | `type` | TRUE |
+| `Diagnostics` | `app.modules.validation.models` | `type` | TRUE |
+| `ReviewItem` | `app.modules.validation.models` | `type` | TRUE |
+| `MappingStats` | `app.modules.validation.employee_mapping` | `type` | TRUE |
+| `RecordRef` | `app.modules.mapping.employee_mapper` | `type` | TRUE |
+| `MappingResult` | `app.modules.mapping.employee_mapper` | `type` | TRUE |
+| `DateWindow` | `app.modules.mapping.employee_mapper` | `type` | TRUE |
+| `EmployeeRecord` | `app.modules.mapping.employee_mapper` | `type` | TRUE |
+| `EmployeeMaster` | `app.modules.mapping.employee_mapper` | `type` | TRUE |
+
+**Không** production canonical type nào dùng `EnumMeta`, `ABCMeta`,
+`_ProtocolMeta`, hay metaclass tự viết. Cổng C9 vì thế **không** từ chối một
+canonical type nào của chính dự án. 11/11 qua cổng.
+
+**Hai "framework class" trong allowlist là gì, và vì sao không xung đột C9:**
+
+| Class | Metaclass | MRO | Mang `@canonical`? |
+|---|---|---|---|
+| `FrozenMapping` | `ABCMeta` | `FrozenMapping → Mapping → Collection → Sized → Iterable → Container → object` | KHÔNG |
+| `FrozenCounter` | `ABCMeta` | `FrozenCounter → FrozenMapping → …` | KHÔNG |
+
+Cả hai có metaclass `ABCMeta` (thừa hưởng từ `collections.abc.Mapping`), nhưng
+**không xung đột với C9** vì hai vai trò khác nhau:
+
+- **C9 áp lên TARGET CỦA `@canonical`** — class đang được decorate. Framework
+  phải GHI thuộc tính lên class đó, và với metaclass tuỳ biến thao tác ghi ấy
+  chạy code người dùng. `FrozenMapping`/`FrozenCounter` **không** mang
+  `@canonical`, nên C9 không bao giờ chạm tới chúng.
+- **Chúng chỉ là ANNOTATION TARGET**, và phép kiểm cho annotation target là
+  `type(value) is T` — một phép so con trỏ **không** điều phối qua metaclass.
+  Vì thế `ABCMeta` của chúng không tham gia bất kỳ quyết định an toàn nào.
+
+Đây chính là lý do bản này bỏ được luật metaclass cũ
+(`_TRUSTED_NON_TYPE_METACLASS_CLASSES`): khi phép kiểm là định danh, metaclass
+của annotation target thôi liên quan.
+
+### 21.7. Reachability audit (§12) — audit, KHÔNG repair
+
+**HB-A1-02 — "Union > 511 branches": `REACHABLE`.**
+
+Đường đi cụ thể: bất kỳ tác giả nào viết `Union[<512+ nhánh>]` làm annotation.
+`typing.get_origin()` trả `typing.Union`, `get_args()` trả tuple 600 phần tử,
+parser cộng `len(args)` vào `nodes` và chạm `_MAX_ANNOTATION_NODES` **trước**
+phép kiểm arity (đo được: node-budget ở vị trí 894 trong `_build_spec`, arity ở
+977). Đo trực tiếp: `Union` 600 nhánh → từ chối bởi **NODE BUDGET (C12)`.
+
+Lưu ý quan trọng: reachable với tư cách **INPUT**, không phải với tư cách một
+production hợp lệ của ngữ pháp. Ngữ pháp chỉ nhận `Optional[X]` (đúng 2 nhánh),
+nên một union 600 nhánh không bao giờ nằm trên đường SUPPORTED — nó chỉ tới
+được vì parser buộc phải ĐẾM args trước khi biết arity sai.
+
+**M-10 — node budget enforcement: `REACHABLE` nhưng OUTCOME-REDUNDANT.**
+
+Enforcement được thực thi thật và có đường tới (như trên), nên **không** phải
+`DEFENSIVE_UNREACHABLE`. Nhưng dưới ngữ pháp hiện tại nó **không quyết định
+outcome**: gỡ ngân sách đi thì union 600 nhánh vẫn bị từ chối — bởi luật arity
+thay vì bởi C12. Chỉ *lý do* từ chối đổi, không phải *kết quả*. Đó đúng là lý
+do M-10 không bị frozen corpus bắt (corpus khẳng định outcome) mà chỉ bị
+hardening test bắt (test khẳng định lý do).
+
+Kết luận: C12 là **defense-in-depth cho một ngữ pháp tương lai** có thể nhận
+union n-ary. **Không xoá enforcement. Không xoá test. Không repair.**
+
+### 21.8. Bảng ánh xạ Test ID → Frozen Case ID (§20)
+
+Toàn bộ 105 case. Node ID của pytest mang chính Case ID, nên bảng này đọc thẳng
+được từ `python3 -m pytest tests/test_r1a1_annotation_contract.py --collect-only -q`.
+
+| Frozen Case ID | Test node | Classification | Result |
+|---|---|---|---|
+| `A01` | `test_frozen_corpus_case[A01-A]` | IN-SCOPE | PASS |
+| `A02` | `test_frozen_corpus_case[A02-A]` | IN-SCOPE | PASS |
+| `A03` | `test_frozen_corpus_case[A03-A]` | IN-SCOPE | PASS |
+| `A04` | `test_frozen_corpus_case[A04-A]` | IN-SCOPE | PASS |
+| `A05` | `test_frozen_corpus_case[A05-A]` | IN-SCOPE | PASS |
+| `A06` | `test_frozen_corpus_case[A06-A]` | IN-SCOPE | PASS |
+| `A07` | `test_frozen_corpus_case[A07-A]` | IN-SCOPE | PASS |
+| `A08` | `test_frozen_corpus_case[A08-A]` | IN-SCOPE | PASS |
+| `B01` | `test_frozen_corpus_case[B01-B]` | IN-SCOPE | PASS |
+| `B02` | `test_frozen_corpus_case[B02-B]` | IN-SCOPE | PASS |
+| `B03` | `test_frozen_corpus_case[B03-B]` | IN-SCOPE | PASS |
+| `B04` | `test_frozen_corpus_case[B04-B]` | IN-SCOPE | PASS |
+| `C01` | `test_frozen_corpus_case[C01-C]` | IN-SCOPE | PASS |
+| `C02` | `test_frozen_corpus_case[C02-C]` | IN-SCOPE | PASS |
+| `C03` | `test_frozen_corpus_case[C03-C]` | IN-SCOPE | PASS |
+| `C04` | `test_frozen_corpus_case[C04-C]` | IN-SCOPE | PASS |
+| `C05` | `test_frozen_corpus_case[C05-C]` | IN-SCOPE | PASS |
+| `C06` | `test_frozen_corpus_case[C06-C]` | IN-SCOPE | PASS |
+| `C07` | `test_frozen_corpus_case[C07-C]` | IN-SCOPE | PASS |
+| `D01` | `test_frozen_corpus_case[D01-D]` | IN-SCOPE | PASS |
+| `D02` | `test_frozen_corpus_case[D02-D]` | IN-SCOPE | PASS |
+| `D03` | `test_frozen_corpus_case[D03-D]` | IN-SCOPE | PASS |
+| `D04` | `test_frozen_corpus_case[D04-D]` | IN-SCOPE | PASS |
+| `D05` | `test_frozen_corpus_case[D05-D]` | IN-SCOPE | PASS |
+| `D06` | `test_frozen_corpus_case[D06-D]` | IN-SCOPE | PASS |
+| `E01` | `test_frozen_corpus_case[E01-E]` | IN-SCOPE | PASS |
+| `E02` | `test_frozen_corpus_case[E02-E]` | IN-SCOPE | PASS |
+| `E03` | `test_frozen_corpus_case[E03-E]` | IN-SCOPE | PASS |
+| `F01` | `test_frozen_corpus_case[F01-F]` | IN-SCOPE | PASS |
+| `G01` | `test_frozen_corpus_case[G01-G]` | IN-SCOPE | PASS |
+| `G02` | `test_frozen_corpus_case[G02-G]` | IN-SCOPE | PASS |
+| `G03` | `test_frozen_corpus_case[G03-G]` | IN-SCOPE | PASS |
+| `H01` | `test_frozen_corpus_case[H01-H]` | IN-SCOPE | PASS |
+| `H02` | `test_frozen_corpus_case[H02-H]` | IN-SCOPE | PASS |
+| `H03` | `test_frozen_corpus_case[H03-H]` | IN-SCOPE | PASS |
+| `I01` | `test_frozen_corpus_case[I01-I]` | IN-SCOPE | PASS |
+| `I02` | `test_frozen_corpus_case[I02-I]` | IN-SCOPE | PASS |
+| `J01` | `test_frozen_corpus_case[J01-J]` | IN-SCOPE | PASS |
+| `J02` | `test_frozen_corpus_case[J02-J]` | IN-SCOPE | PASS |
+| `J03` | `test_frozen_corpus_case[J03-J]` | IN-SCOPE | PASS |
+| `K01` | `test_frozen_corpus_case[K01-K]` | IN-SCOPE | PASS |
+| `K02` | `test_frozen_corpus_case[K02-K]` | IN-SCOPE | PASS |
+| `K03` | `test_frozen_corpus_case[K03-K]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
+| `L01` | `test_frozen_corpus_case[L01-L]` | IN-SCOPE | PASS |
+| `L02` | `test_frozen_corpus_case[L02-L]` | IN-SCOPE | PASS |
+| `L03` | `test_frozen_corpus_case[L03-L]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
+| `M01` | `test_frozen_corpus_case[M01-M]` | IN-SCOPE | PASS |
+| `M02` | `test_frozen_corpus_case[M02-M]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
+| `N01` | `test_frozen_corpus_case[N01-N]` | IN-SCOPE | PASS |
+| `N02` | `test_frozen_corpus_case[N02-N]` | IN-SCOPE | PASS |
+| `O01` | `test_frozen_corpus_case[O01-O]` | IN-SCOPE | PASS |
+| `O02` | `test_frozen_corpus_case[O02-O]` | IN-SCOPE | PASS |
+| `P01` | `test_frozen_corpus_case[P01-P]` | IN-SCOPE | PASS |
+| `P02` | `test_frozen_corpus_case[P02-P]` | IN-SCOPE | PASS |
+| `P03` | `test_frozen_corpus_case[P03-P]` | IN-SCOPE | PASS |
+| `Q01` | `test_frozen_corpus_case[Q01-Q]` | IN-SCOPE | PASS |
+| `Q02` | `test_frozen_corpus_case[Q02-Q]` | IN-SCOPE | PASS |
+| `Q03` | `test_frozen_corpus_case[Q03-Q]` | IN-SCOPE | PASS |
+| `Q04` | `test_frozen_corpus_case[Q04-Q]` | IN-SCOPE | PASS |
+| `Q05` | `test_frozen_corpus_case[Q05-Q]` | IN-SCOPE | PASS |
+| `Q06` | `test_frozen_corpus_case[Q06-Q]` | IN-SCOPE | PASS |
+| `Q07` | `test_frozen_corpus_case[Q07-Q]` | IN-SCOPE | PASS |
+| `Q08` | `test_frozen_corpus_case[Q08-Q]` | IN-SCOPE | PASS |
+| `R01` | `test_frozen_corpus_case[R01-R]` | IN-SCOPE | PASS |
+| `R02` | `test_frozen_corpus_case[R02-R]` | IN-SCOPE | PASS |
+| `R03` | `test_frozen_corpus_case[R03-R]` | IN-SCOPE | PASS |
+| `R04` | `test_frozen_corpus_case[R04-R]` | IN-SCOPE | PASS |
+| `S01` | `test_frozen_corpus_case[S01-S]` | IN-SCOPE | PASS |
+| `S02` | `test_frozen_corpus_case[S02-S]` | IN-SCOPE | PASS |
+| `T01` | `test_frozen_corpus_case[T01-T]` | IN-SCOPE | PASS |
+| `T02` | `test_frozen_corpus_case[T02-T]` | IN-SCOPE | PASS |
+| `T03` | `test_frozen_corpus_case[T03-T]` | IN-SCOPE | PASS |
+| `U01` | `test_frozen_corpus_case[U01-U]` | IN-SCOPE | PASS |
+| `U02` | `test_frozen_corpus_case[U02-U]` | IN-SCOPE | PASS |
+| `V01` | `test_frozen_corpus_case[V01-V]` | IN-SCOPE | PASS |
+| `V02` | `test_frozen_corpus_case[V02-V]` | IN-SCOPE | PASS |
+| `V03` | `test_frozen_corpus_case[V03-V]` | IN-SCOPE | PASS |
+| `W01` | `test_frozen_corpus_case[W01-W]` | IN-SCOPE | PASS |
+| `W02` | `test_frozen_corpus_case[W02-W]` | IN-SCOPE | PASS |
+| `W03` | `test_frozen_corpus_case[W03-W]` | IN-SCOPE | PASS |
+| `W04` | `test_frozen_corpus_case[W04-W]` | IN-SCOPE | PASS |
+| `W05` | `test_frozen_corpus_case[W05-W]` | IN-SCOPE | PASS |
+| `W06` | `test_frozen_corpus_case[W06-W]` | IN-SCOPE | PASS |
+| `W07` | `test_frozen_corpus_case[W07-W]` | IN-SCOPE | PASS |
+| `X01` | `test_frozen_corpus_case[X01-X]` | IN-SCOPE | PASS |
+| `X02` | `test_frozen_corpus_case[X02-X]` | IN-SCOPE | PASS |
+| `X03` | `test_frozen_corpus_case[X03-X]` | IN-SCOPE | PASS |
+| `X04` | `test_frozen_corpus_case[X04-X]` | IN-SCOPE | PASS |
+| `X05` | `test_frozen_corpus_case[X05-X]` | IN-SCOPE | PASS |
+| `X06` | `test_frozen_corpus_case[X06-X]` | IN-SCOPE | PASS |
+| `X07` | `test_frozen_corpus_case[X07-X]` | IN-SCOPE | PASS |
+| `X08` | `test_frozen_corpus_case[X08-X]` | IN-SCOPE | PASS |
+| `X09` | `test_frozen_corpus_case[X09-X]` | IN-SCOPE | PASS |
+| `X10` | `test_frozen_corpus_case[X10-X]` | IN-SCOPE | PASS |
+| `X11` | `test_frozen_corpus_case[X11-X]` | IN-SCOPE | PASS |
+| `X12` | `test_frozen_corpus_case[X12-X]` | IN-SCOPE | PASS |
+| `X13` | `test_frozen_corpus_case[X13-X]` | IN-SCOPE | PASS |
+| `Y01` | `test_frozen_corpus_case[Y01-Y]` | IN-SCOPE | PASS |
+| `Y02` | `test_frozen_corpus_case[Y02-Y]` | IN-SCOPE | PASS |
+| `Y03` | `test_frozen_corpus_case[Y03-Y]` | IN-SCOPE | PASS |
+| `Y04` | `test_frozen_corpus_case[Y04-Y]` | IN-SCOPE | PASS |
+| `Z01` | `test_frozen_corpus_invariant[Z01]` | IN-SCOPE | PASS |
+| `Z02` | `test_frozen_corpus_invariant[Z02]` | IN-SCOPE | PASS |
+| `Z03` | `test_frozen_corpus_invariant[Z03]` | IN-SCOPE | PASS |
+| `Z04` | `test_frozen_corpus_invariant[Z04]` | IN-SCOPE | PASS |
+
+Tổng: **105 dòng** · 102 IN-SCOPE · 3 OUTSIDE_FRAMEWORK_BOUNDARY (`K03`,
+`L03`, `M02`) · 0 duplicate · 0 case thiếu oracle.

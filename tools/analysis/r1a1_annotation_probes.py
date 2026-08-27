@@ -36,12 +36,15 @@ import enum as _enum
 import io
 import re as _re
 import types as _types
+import os as _os
 import sys
+import traceback as _traceback
 import typing
 from dataclasses import InitVar, dataclass
 from datetime import date
 from typing import Any, ClassVar, Literal, Optional, Union
 
+import app.modules.domain.canonical as _cm
 from app.modules.domain.canonical import (
     CanonicalContractViolation,
     CanonicalFieldError,
@@ -61,6 +64,111 @@ import app.modules.validation.employee_mapping  # noqa: F401
 _FRAMEWORK_RUNTIME_ERRORS = (CanonicalContractViolation, CanonicalFieldError, TypeError)
 
 MISSING = object()
+
+# ── §6 GHIM INTERPRETER (HD-POST-A1-02).
+#
+# Ba case `K03`/`L03`/`M02` được phân loại `OUTSIDE_FRAMEWORK_BOUNDARY`, và
+# phân loại đó phụ thuộc hành vi NỘI BỘ của CPython: `dataclasses` /
+# `inspect` / `typing` đọc thuộc tính của annotation TRƯỚC khi `@canonical`
+# bắt đầu chạy. Phân loại chỉ được carry trên interpreter đã verify.
+#
+# Số dòng trong `dataclasses.py` là EVIDENCE của interpreter hiện tại, KHÔNG
+# phải invariant lâu dài — assertion ở dưới dựa vào biên NGỮ NGHĨA (canonical
+# chưa chạy / registry không đổi / class không nhiễm state / traceback không
+# có canonical), chứ không dựa vào `filename == dataclasses.py:946`.
+VERIFIED_IMPLEMENTATION = "cpython"
+VERIFIED_PYTHON_VERSION = "3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]"
+VERIFIED_VERSION_INFO = (3, 11, 15, "final", 0)
+
+_CANONICAL_FILE = _os.path.abspath(_cm.__file__)
+_CANONICAL_PARTIAL_MARKERS = (
+    "__canonical_contract__", "__canonical__", "__canonical_sealed__",
+)
+
+
+def interpreter_matches_verified() -> bool:
+    """Phân loại ngoài biên KHÔNG auto-carry sang minor version khác."""
+    return (sys.implementation.name == VERIFIED_IMPLEMENTATION
+            and sys.version_info[:2] == VERIFIED_VERSION_INFO[:2])
+
+
+def observe_outside_boundary(annotation: Any, name: str) -> dict:
+    """Chứng minh ĐẦY ĐỦ rằng exception xảy ra TRƯỚC biên framework.
+
+    `xfail` chỉ chứng minh test fail; nó không chứng minh fail ĐÚNG VÌ biên.
+    Bốn mệnh đề dưới đây mới là bằng chứng, và cả bốn đều phát biểu trên biên
+    NGỮ NGHĨA:
+
+      A. `@canonical` chưa hề bắt đầu xử lý class mục tiêu;
+      B. registry canonical không đổi;
+      C. class mục tiêu không nhận một mẩu state canonical nào;
+      D. traceback KHÔNG chứa `canonical.py`, và frame chịu trách nhiệm nằm
+         trong stdlib (`dataclasses`/`inspect`/`typing`/interpreter).
+
+    Nếu một ngày CPython đổi và `canonical` bắt đầu xuất hiện trong đường xử
+    lý trước exception, `A` và `D` sẽ sai và oracle FAIL — đúng như yêu cầu.
+    """
+    target = type(name, (), {
+        "__annotations__": {"value": annotation},
+        "__post_init__": lambda self: None,
+        "__module__": __name__,
+    })
+    entered: list = []
+
+    def spy(**kwargs):
+        inner = canonical(**kwargs)
+
+        def decorate(cls):
+            entered.append(cls)
+            return inner(cls)
+        return decorate
+
+    before = len(canonical_types())
+    exc = None
+    try:
+        spy()(dataclass(frozen=True)(target))
+    except BaseException as caught:  # noqa: BLE001 — đây chính là thứ đang đo
+        exc = caught
+    after = len(canonical_types())
+
+    frames = _traceback.extract_tb(exc.__traceback__) if exc is not None else []
+    canonical_in_traceback = any(
+        _os.path.abspath(f.filename) == _CANONICAL_FILE for f in frames)
+    stdlib = [f for f in frames if "/lib/python" in f.filename or
+              "\\lib\\python" in f.filename.lower()]
+    culprit = stdlib[-1] if stdlib else None
+
+    return {
+        "raised": exc is not None,
+        "exception_type": type(exc).__name__ if exc is not None else None,
+        "A_canonical_never_entered": not entered,
+        "B_registry_unchanged": before == after,
+        "B_registry": (before, after),
+        "C_no_partial_state": not any(
+            hasattr(target, m) for m in _CANONICAL_PARTIAL_MARKERS),
+        "D_canonical_absent_from_traceback": not canonical_in_traceback,
+        "foreign_component": _os.path.basename(culprit.filename) if culprit else None,
+        "foreign_call_site": (f"{_os.path.basename(culprit.filename)}:{culprit.lineno}"
+                              f" in {culprit.name}") if culprit else None,
+        "module_chain": [_os.path.basename(f.filename) for f in frames],
+    }
+
+
+def _observe_outside_boundary_case(annotation: Any, name: str) -> str:
+    ev = observe_outside_boundary(annotation, name)
+    if not ev["raised"]:
+        return "NO_EXCEPTION"
+    for key, token in (
+        ("A_canonical_never_entered", "CANONICAL_DID_ENTER"),
+        ("B_registry_unchanged", "REGISTRY_MUTATED"),
+        ("C_no_partial_state", "CLASS_LEFT_PARTIAL_STATE"),
+        ("D_canonical_absent_from_traceback", "CANONICAL_IN_TRACEBACK"),
+    ):
+        if not ev[key]:
+            return token
+    if ev["foreign_component"] is None:
+        return "NO_FOREIGN_COMPONENT_EVIDENCE"
+    return OUTSIDE_FRAMEWORK_BOUNDARY
 
 # ── Expected outcome đã FREEZE. Không thêm giá trị thứ sáu.
 UNSUPPORTED_AT_DECORATION = "UNSUPPORTED_AT_DECORATION"
@@ -636,6 +744,20 @@ def _witness_row_provenance() -> Any:
 
 _C = Case
 
+# Annotation của ba case ngoài biên, dựng MỘT LẦN để corpus và oracle dùng
+# đúng cùng một object.
+_MODULE_RAISES = ModuleRaises()
+_ARGS_RAISES = ArgsRaises(typing.Union, (int, str))
+# §8 Owner Decision: bucket "OUTSIDE_FRAMEWORK_BOUNDARY" trong số học chính
+# thức gồm ĐÚNG ba ID được HD-POST-A1-02 phân loại lại.
+OUTSIDE_BOUNDARY_CASE_IDS = ("K03", "L03", "M02")
+
+# `T03` cũng mang expected outcome `OUTSIDE_FRAMEWORK_BOUNDARY`, NHƯNG nó mang
+# từ bản freeze gốc chứ không do HD-POST-A1-02 phân loại lại — nó chưa bao giờ
+# là một case hỏng. Theo cách chia §8, `T03` nằm trong 102 IN-SCOPE. Ghi ra ở
+# đây để số học 105 = 102 + 3 đọc được mà không phải đoán.
+PRE_FROZEN_OUTSIDE_BOUNDARY_IDS = ("T03",)
+
 FROZEN_CORPUS: tuple = (
     # ── A — Union / Optional / PEP604
     _C("A01", "A", "Union[int, str] (không phải Optional)", UNSUPPORTED_AT_DECORATION, "C2,C6", Union[int, str]),
@@ -690,14 +812,17 @@ FROZEN_CORPUS: tuple = (
     # ── K — __repr__ thù địch trên class target
     _C("K01", "K", "metaclass __repr__ NỔ và __name__ NỔ", UNSUPPORTED_AT_DECORATION, "C3,C11", ReprAndNameRaise),
     _C("K02", "K", "metaclass __repr__ trả 100 000 ký tự", UNSUPPORTED_AT_DECORATION, "C11", HugeRepr),
-    _C("K03", "K", "metaclass __getattr__ NỔ trên mọi thuộc tính", UNSUPPORTED_AT_DECORATION, "C3,C11", EverythingRaises),
+    _C("K03", "K", "metaclass __getattr__ NỔ trên mọi thuộc tính", OUTSIDE_FRAMEWORK_BOUNDARY, "C10", EverythingRaises,
+       observe=lambda: _observe_outside_boundary_case(EverythingRaises, "BndK03")),
     # ── L — tên/repr của annotation thù địch
     _C("L01", "L", "instance làm annotation, __repr__ có side effect", UNSUPPORTED_AT_DECORATION, "C2,C11", HostileReprInstance()),
     _C("L02", "L", "annotation có __name__ KHÔNG phải str", UNSUPPORTED_AT_DECORATION, "C11", NameNotAString()),
-    _C("L03", "L", "annotation có __module__ NỔ", UNSUPPORTED_AT_DECORATION, "C11", ModuleRaises()),
+    _C("L03", "L", "annotation có __module__ NỔ", OUTSIDE_FRAMEWORK_BOUNDARY, "C10", _MODULE_RAISES,
+       observe=lambda: _observe_outside_boundary_case(_MODULE_RAISES, "BndL03")),
     # ── M — exception lạ có __str__ thù địch
     _C("M01", "M", "get_origin NỔ với exception có __str__ thù địch", UNSUPPORTED_AT_DECORATION, "C10,C11", OriginRaises(tuple, (int,))),
-    _C("M02", "M", "get_args NỔ với exception có __str__ thù địch", UNSUPPORTED_AT_DECORATION, "C10,C11", ArgsRaises(typing.Union, (int, str))),
+    _C("M02", "M", "get_args NỔ với exception có __str__ thù địch", OUTSIDE_FRAMEWORK_BOUNDARY, "C10", _ARGS_RAISES,
+       observe=lambda: _observe_outside_boundary_case(_ARGS_RAISES, "BndM02")),
     # ── N — không hash được
     _C("N01", "N", "class target không hash được (__hash__ = None)", UNSUPPORTED_AT_DECORATION, "C3,C5", Unhashable),
     _C("N02", "N", "Optional[<N01>]", UNSUPPORTED_AT_DECORATION, "C6", Optional[Unhashable]),
@@ -876,34 +1001,76 @@ Z_INVARIANTS = (
 TOTAL_CASES = len(FROZEN_CORPUS) + len(Z_INVARIANTS)
 
 
-def main() -> int:
-    print("R1-A1 — FROZEN ATTACK CORPUS")
-    print(f"{len(FROZEN_CORPUS)} case + {len(Z_INVARIANTS)} bất biến "
-          f"= {TOTAL_CASES} case đã freeze\n")
-    print(f"{'ID':5s} {'GRP':4s} {'CLAUSE':10s} {'MÔ TẢ':56s} {'EXPECTED':28s} KẾT QUẢ")
-    print("-" * 128)
-    failed = []
+def corpus_accounting() -> dict:
+    """Số học chính thức của corpus (§8 Owner Decision).
+
+    KHÔNG báo "102/105 PASS" (đọc như 3 case hỏng) và KHÔNG báo "105/105 PASS"
+    (đọc như 3 case ngoài biên cũng là in-scope). Corpus được PHÂN LOẠI đủ 105;
+    trong đó 102 in-scope và 3 nằm ngoài biên framework.
+    """
+    in_scope, outside, unclassified, blocking = [], [], [], []
     for case in FROZEN_CORPUS:
         observed = case.run()
         ok = _satisfies(case.expected, observed)
+        bucket = outside if case.id in OUTSIDE_BOUNDARY_CASE_IDS else in_scope
+        bucket.append((case.id, ok, observed))
         if not ok:
-            failed.append((case.id, case.expected, observed))
-        mark = "PASS" if ok else f"FAIL (đo được: {observed})"
-        print(f"{case.id:5s} {case.group:4s} {case.clause:10s} "
-              f"{case.description[:56]:56s} {case.expected:28s} {mark}")
+            blocking.append((case.id, case.expected, observed))
     for cid, desc, clause, fn in Z_INVARIANTS:
         ok, detail = fn()
+        in_scope.append((cid, ok, INVARIANT if ok else str(detail)))
         if not ok:
-            failed.append((cid, INVARIANT, str(detail)))
+            blocking.append((cid, INVARIANT, str(detail)))
+    return {
+        "classified": len(in_scope) + len(outside),
+        "in_scope_total": len(in_scope),
+        "in_scope_pass": sum(1 for _, ok, _ in in_scope if ok),
+        "outside_total": len(outside),
+        "outside_ok": sum(1 for _, ok, _ in outside if ok),
+        "outside_ids": [cid for cid, _, _ in outside],
+        "unclassified": len(unclassified),
+        "blocking": blocking,
+    }
+
+
+def main() -> int:
+    acc = corpus_accounting()
+    print("R1-A1 — FROZEN ATTACK CORPUS")
+    print(f"interpreter đã verify: {VERIFIED_IMPLEMENTATION} {VERIFIED_PYTHON_VERSION}")
+    print(f"interpreter đang chạy khớp: {interpreter_matches_verified()}\n")
+    print(f"{'ID':5s} {'GRP':4s} {'CLAUSE':10s} {'MÔ TẢ':54s} {'EXPECTED':28s} KẾT QUẢ")
+    print("-" * 130)
+    for case in FROZEN_CORPUS:
+        observed = case.run()
+        ok = _satisfies(case.expected, observed)
+        mark = "PASS" if ok else f"FAIL (đo được: {observed})"
+        print(f"{case.id:5s} {case.group:4s} {case.clause:10s} "
+              f"{case.description[:54]:54s} {case.expected:28s} {mark}")
+    for cid, desc, clause, fn in Z_INVARIANTS:
+        ok, detail = fn()
         mark = "PASS" if ok else f"FAIL ({detail})"
-        print(f"{cid:5s} {'Z':4s} {clause:10s} {desc[:56]:56s} {INVARIANT:28s} {mark}")
-    print("-" * 128)
-    print(f"TỔNG: {TOTAL_CASES - len(failed)}/{TOTAL_CASES} PASS")
-    if failed:
-        print("\nFAIL:")
-        for cid, expected, observed in failed:
+        print(f"{cid:5s} {'Z':4s} {clause:10s} {desc[:54]:54s} {INVARIANT:28s} {mark}")
+    print("-" * 130)
+    print("FROZEN CORPUS:")
+    print(f"    {acc['classified']}/{TOTAL_CASES} CLASSIFIED")
+    print(f"IN-SCOPE:")
+    print(f"    {acc['in_scope_pass']}/{acc['in_scope_total']} PASS")
+    print(f"OUTSIDE_FRAMEWORK_BOUNDARY:")
+    print(f"    {acc['outside_ok']}/{acc['outside_total']} correctly classified"
+          f"  ({', '.join(acc['outside_ids'])})")
+    print(f"    (ngoài ra {', '.join(PRE_FROZEN_OUTSIDE_BOUNDARY_IDS)} mang cùng "
+          f"outcome TỪ BẢN FREEZE GỐC, nên theo §8 nó được đếm trong IN-SCOPE)")
+    print(f"UNCLASSIFIED:")
+    print(f"    {acc['unclassified']}")
+    print(f"BLOCKING FAIL:")
+    print(f"    {len(acc['blocking'])}")
+    print(f"\nSỐ HỌC: {TOTAL_CASES} = {acc['in_scope_total']} + {acc['outside_total']}"
+          f"  ->  {acc['in_scope_total'] + acc['outside_total'] == TOTAL_CASES}")
+    if acc["blocking"]:
+        print("\nBLOCKING:")
+        for cid, expected, observed in acc["blocking"]:
             print(f"  {cid}: chờ {expected}, đo được {observed}")
-    return 1 if failed else 0
+    return 1 if acc["blocking"] else 0
 
 
 if __name__ == "__main__":

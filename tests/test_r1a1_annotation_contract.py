@@ -32,6 +32,7 @@ Bốn dạng. Mọi thứ khác nổ `CanonicalContractViolation` lúc decorate.
 from __future__ import annotations
 
 import dataclasses
+import sys
 import typing
 from dataclasses import dataclass
 from datetime import date
@@ -60,37 +61,35 @@ from tools.analysis.r1a1_annotation_probes import (  # noqa: E402
     OUTSIDE_FRAMEWORK_BOUNDARY,
     SUPPORTED_INVALID_REJECT,
     SUPPORTED_VALID,
+    OUTSIDE_BOUNDARY_CASE_IDS,
+    PRE_FROZEN_OUTSIDE_BOUNDARY_IDS,
     UNSUPPORTED_AT_DECORATION,
+    VERIFIED_IMPLEMENTATION,
+    VERIFIED_PYTHON_VERSION,
+    VERIFIED_VERSION_INFO,
     Z_INVARIANTS,
     _raw_dataclass,
     _satisfies,
+    corpus_accounting,
+    interpreter_matches_verified,
+    observe_outside_boundary,
     probe_class,
 )
 
-# ── HAI CASE ĐANG CHỜ QUYẾT ĐỊNH CỦA OWNER.
+# ── BA CASE NGOÀI BIÊN FRAMEWORK (HD-POST-A1-02, Owner đã duyệt).
 #
-# `K03` (metaclass `__getattribute__` nổ trên MỌI thuộc tính) và `L03`
-# (annotation có `__module__` nổ) được freeze với outcome
-# `UNSUPPORTED_AT_DECORATION`, nhưng framework KHÔNG THỂ tạo ra outcome đó:
-# `dataclasses._process_class` của CPython đọc thuộc tính của annotation
-# (`isinstance(t, str)` ở dòng 946, `__module__` ở dòng 1098) và nổ TRƯỚC khi
-# `@canonical` có mặt trên call stack. Không tùy chọn `@dataclass` nào tránh
-# được (`repr=False`, `eq=False` đều không).
+# `K03`, `L03`, `M02` nhắm vào thuộc tính mà CPython tự đọc TRƯỚC khi
+# `@canonical` bắt đầu chạy (`dataclasses._process_class` →
+# `inspect.formatannotation` → `typing`). R1-A1 không có trách nhiệm normalize
+# exception xảy ra trước biên của chính nó.
 #
-# Tính an toàn VẪN đúng và đã đo: registry không đổi (11 -> 11), không
-# canonical type nào được tạo, lỗi nổ to. Đây đúng là loại biên mà chính hợp
-# đồng đã đặt tên ở `T03` — `OUTSIDE_FRAMEWORK_BOUNDARY`.
+# Chúng KHÔNG dùng `xfail`: `xfail` chỉ chứng minh test fail, nó không chứng
+# minh fail ĐÚNG VÌ biên. Thay vào đó mỗi case có một oracle PASS với bốn
+# assertion tường minh (§9) — xem `test_outside_boundary_case_is_proven_...`.
 #
-# `strict=True`: nếu ngày nào đó chúng chuyển sang PASS, suite sẽ ĐỎ, nên
-# ngoại lệ này không mục ruỗng trong im lặng.
-_PENDING_OWNER_DECISION = {
-    "K03": "CPython `@dataclass` từ chối trước biên framework — chờ Owner "
-           "duyệt phân loại lại thành OUTSIDE_FRAMEWORK_BOUNDARY",
-    "L03": "CPython `@dataclass` từ chối trước biên framework — chờ Owner "
-           "duyệt phân loại lại thành OUTSIDE_FRAMEWORK_BOUNDARY",
-    "M02": "CPython `@dataclass` đọc `__args__` trước biên framework — chờ "
-           "Owner duyệt phân loại lại thành OUTSIDE_FRAMEWORK_BOUNDARY",
-}
+# Biên R1-A1 bắt đầu tại thời điểm code của `@canonical` bắt đầu execution.
+# Nếu CPython đổi và `canonical` xuất hiện trong đường xử lý trước exception,
+# assertion A và D sai và oracle FAIL — đúng như thiết kế.
 
 _FROZEN_OUTCOMES = frozenset({
     UNSUPPORTED_AT_DECORATION, SUPPORTED_VALID, SUPPORTED_INVALID_REJECT,
@@ -102,15 +101,34 @@ def _case_id(case) -> str:
     return f"{case.id}-{case.group}"
 
 
+# ── §10 PHÂN LOẠI ORACLE: HARDENING COVERAGE ≠ FROZEN ACCEPTANCE CORPUS.
+#
+# Ba enforcement dưới đây chỉ phân biệt được bằng những case mà corpus đã
+# freeze KHÔNG chứa. Theo rule B chúng không được thêm vào corpus, nên chúng
+# sống ở đây như coverage của implementation — và được liệt kê tường minh để
+# Independent Reviewer không nhầm chúng với acceptance gate.
+#
+# Chúng KHÔNG làm 105 thành 106. Chúng KHÔNG đổi acceptance classification.
+HARDENING_COVERAGE = {
+    "test_the_mutable_guard_never_consults_a_hostile_class_attribute":
+        ("M-8", "HB-A1-01", "field `Any` + giá trị có `__class__` thù địch"),
+    "test_a_wide_union_is_stopped_by_the_node_budget_not_by_arity":
+        ("M-10", "HB-A1-02", "`Union` rộng hơn 511 nhánh chạm ngân sách node"),
+    "test_the_foreign_boundary_never_chains_the_original_exception":
+        ("M-11", "HB-A1-03", "`__cause__ is None` ở biên lạ"),
+}
+
+
 # ═════════════════════════════════ FROZEN CORPUS
 
 
 @pytest.mark.parametrize("case", FROZEN_CORPUS, ids=_case_id)
-def test_frozen_corpus_case(case, request):
-    """Mỗi case của corpus đã freeze phải cho ĐÚNG outcome đã freeze."""
-    if case.id in _PENDING_OWNER_DECISION:
-        request.node.add_marker(
-            pytest.mark.xfail(strict=True, reason=_PENDING_OWNER_DECISION[case.id]))
+def test_frozen_corpus_case(case):
+    """Mỗi case của corpus đã freeze phải cho ĐÚNG outcome đã freeze.
+
+    Node ID của test mang chính Frozen Case ID (`...[K03-K]`), nên bảng ánh xạ
+    Test ID → Case ID đọc thẳng được từ `pytest --collect-only`.
+    """
     observed = case.run()
     assert _satisfies(case.expected, observed), (
         f"{case.id} ({case.group}, clause {case.clause}): chờ {case.expected}, "
@@ -136,6 +154,9 @@ def test_the_corpus_is_frozen_not_a_growing_list():
     assert len(ids) == len(set(ids)), "ID case bị trùng"
     assert len(FROZEN_CORPUS) == 101
     assert len(Z_INVARIANTS) == 4
+    # HD-POST-A1-01: corpus chính thức = 105 case. Con số "95" trong văn xuôi
+    # PLAN là lỗi đếm; bảng ID §12 là nguồn quy phạm.
+    assert len(FROZEN_CORPUS) + len(Z_INVARIANTS) == 105
     per_group = {}
     for c in FROZEN_CORPUS:
         per_group[c.group] = per_group.get(c.group, 0) + 1
@@ -147,10 +168,80 @@ def test_the_corpus_is_frozen_not_a_growing_list():
     }
 
 
+def test_hardening_coverage_is_declared_and_is_not_part_of_the_corpus():
+    """§10 — ba test hardening tồn tại, và KHÔNG cái nào là một frozen case."""
+    module = sys.modules[__name__]
+    corpus_ids = {c.id for c in FROZEN_CORPUS} | {z[0] for z in Z_INVARIANTS}
+    for name, (mutation, backlog, what) in HARDENING_COVERAGE.items():
+        assert hasattr(module, name), f"thiếu test hardening {name} ({mutation})"
+        assert name not in corpus_ids
+        assert backlog.startswith("HB-A1-")
+    assert len(HARDENING_COVERAGE) == 3
+    assert {m for m, _, _ in HARDENING_COVERAGE.values()} == {"M-8", "M-10", "M-11"}
+
+
 def test_every_expected_outcome_is_one_of_the_frozen_set():
     """Không được lén thêm một outcome thứ năm để làm một case xanh."""
     for case in FROZEN_CORPUS:
         assert case.expected in _FROZEN_OUTCOMES, case.id
+
+
+def test_frozen_corpus_accounting_is_exactly_105_equals_102_plus_3():
+    """§8 — số học chính thức. Không báo "102/105 PASS" (đọc như 3 case hỏng),
+    không báo "105/105 PASS" (đọc như 3 case ngoài biên cũng là in-scope)."""
+    acc = corpus_accounting()
+    assert acc["classified"] == 105
+    assert acc["in_scope_total"] == 102 and acc["in_scope_pass"] == 102
+    assert acc["outside_total"] == 3 and acc["outside_ok"] == 3
+    assert tuple(acc["outside_ids"]) == OUTSIDE_BOUNDARY_CASE_IDS == ("K03", "L03", "M02")
+    assert acc["unclassified"] == 0
+    assert acc["blocking"] == []
+    assert acc["in_scope_total"] + acc["outside_total"] == 105
+    # T03 mang cùng outcome nhưng TỪ BẢN FREEZE GỐC, nên §8 đếm nó vào in-scope.
+    assert PRE_FROZEN_OUTSIDE_BOUNDARY_IDS == ("T03",)
+
+
+@pytest.mark.parametrize("case_id", OUTSIDE_BOUNDARY_CASE_IDS)
+def test_outside_boundary_case_is_proven_not_merely_failing(case_id):
+    """§9 — bốn chứng minh cho mỗi case ngoài biên.
+
+    A. `@canonical` chưa hề bắt đầu xử lý class mục tiêu;
+    B. registry canonical không đổi;
+    C. class mục tiêu không nhận một mẩu state canonical nào;
+    D. `canonical.py` KHÔNG có trong traceback, và frame chịu trách nhiệm nằm
+       trong stdlib.
+
+    Assertion dựa trên biên NGỮ NGHĨA, không phải `filename == dataclasses.py:946`
+    — số dòng chỉ là evidence của interpreter hiện tại.
+    """
+    case = next(c for c in FROZEN_CORPUS if c.id == case_id)
+    ev = observe_outside_boundary(case.annotation, f"Oracle{case_id}")
+    assert ev["raised"], "phải có exception — nếu không thì không có gì để phân loại"
+    assert ev["A_canonical_never_entered"], (
+        f"{case_id}: `@canonical` ĐÃ bắt đầu chạy — đây là BLOCKING R1-A1 DEFECT, "
+        "không phải outside-boundary")
+    assert ev["B_registry_unchanged"], f"{case_id}: registry đổi {ev['B_registry']}"
+    assert ev["C_no_partial_state"], f"{case_id}: class nhận state canonical nửa vời"
+    assert ev["D_canonical_absent_from_traceback"], (
+        f"{case_id}: `canonical.py` xuất hiện trong traceback -> exception KHÔNG "
+        "xảy ra trước biên")
+    assert ev["foreign_component"] in ("dataclasses.py", "inspect.py", "typing.py"), (
+        f"{case_id}: foreign component không phải dataclasses/typing/interpreter: "
+        f"{ev['foreign_call_site']}")
+
+
+def test_outside_boundary_classification_is_pinned_to_a_verified_interpreter():
+    """§6 — phân loại ngoài biên KHÔNG auto-carry sang minor version khác.
+
+    Nếu chạy trên một Python minor version khác, test này FAIL và buộc
+    re-verify K03/L03/M02 thay vì im lặng mang theo phân loại cũ.
+    """
+    assert VERIFIED_IMPLEMENTATION == "cpython"
+    assert VERIFIED_VERSION_INFO[:2] == (3, 11)
+    assert interpreter_matches_verified(), (
+        f"interpreter đang chạy ({sys.implementation.name} "
+        f"{sys.version_info[:3]}) khác bản đã verify ({VERIFIED_PYTHON_VERSION}). "
+        "RE-VERIFY K03/L03/M02 trước khi carry phân loại OUTSIDE_FRAMEWORK_BOUNDARY.")
 
 
 # ═════════════════════════════════ NGỮ PHÁP ĐÓNG — CẤU TRÚC
