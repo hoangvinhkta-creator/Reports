@@ -93,12 +93,40 @@ dòng đều để trống ô giá nhập**, vì chưa có bảng giá nào đư
 của lộ trình). Đây không phải lỗi của công cụ: chủ dự án đã yêu cầu để trống
 chờ bảng giá (DEC-103).
 
-**Hai việc còn lại cần chủ dự án:** (1) **cấp bảng giá nhập** — chỉ cần một
-file danh sách "mã hàng / ngày / giá nhập" là bước 12b chạy được ngay, không
-phải chờ tới giai đoạn 4; (2) cấp file bán hàng thô toàn công ty 6 tháng để
-đối chiếu bước 14's `CHECK-110-16` (khác việc đã xong ở trên — bộ dữ liệu toàn
-công ty, không chỉ Tín Phát). Không việc nào trong hai việc này agent tự làm
-tiếp được nếu thiếu dữ liệu từ chủ dự án.
+Quyết định thứ hai — cách xử lý **điều chỉnh giá nhập** (`Qua kho`, `NCC giao`,
+`KHBH`, `Thợ lắp`) — chủ dự án cũng **đã trả lời** ngày 2026-08-27 (DEC-144).
+Câu trả lời: dòng nào **đã xác định** là không có điều chỉnh thì dùng thẳng giá
+nhập kế toán; nhưng "chưa biết" thì **vẫn phải để trống**, không được coi là
+"không có điều chỉnh". Đây là điểm tinh tế và quan trọng: *thiếu thông tin*
+khác với *biết chắc là không có*.
+
+**Việc còn lại cần chủ dự án — ba câu hỏi và một file.**
+
+Toàn bộ phần định nghĩa nghiệp vụ đã xong. Thứ duy nhất còn thiếu là **bảng giá
+nhập**. Để công cụ đọc được nó, chủ dự án cần trả lời 3 câu:
+
+- **Q1.** Trong bảng giá, mỗi dòng có ghi **ngày kết thúc** hiệu lực không? Nếu
+  chỉ ghi ngày bắt đầu, hai mức giá của cùng một món sẽ cùng có hiệu lực và
+  công cụ **không được phép tự đoán** nên lấy mức nào. (Đề xuất: ghi cả ngày
+  kết thúc — rõ ràng nhất.)
+- **Q2.** Tên hàng trong bảng giá phải khớp **chính xác từng ký tự** với file
+  bán hàng, hay cho phép bỏ qua khoảng trắng thừa và hoa/thường? Kiểm tra trên
+  dữ liệu thật: **15 tên hàng có khoảng trắng thừa**, và có **một cặp tên chỉ
+  khác nhau đúng một dấu cách ở cuối**. Nếu bắt khớp chính xác, những dòng đó
+  sẽ **âm thầm không tra được giá**.
+- **Q3.** Các dòng không phải hàng hoá — `Chi phí vận chuyển`, `Chi phí lắp
+  đặt`, `Chênh VAT` (khoảng **1.250 dòng trong 6 tháng**) — có giá nhập không?
+  Phần mềm kế toán đang ghi lợi nhuận của chúng bằng đúng doanh số, tức giá
+  nhập = 0. Nhưng công cụ **không được tự suy ra điều đó**. Nếu bảng giá bỏ sót
+  nhóm này, lợi nhuận của **cả tháng sẽ không bao giờ tính xong**.
+
+**File giá cần đúng 4 cột** (đơn vị **VND nguyên**, ví dụ `8000000` = tám
+triệu): tên hàng (chép nguyên văn cột `Tên hàng trên chứng từ`), ngày bắt đầu,
+ngày kết thúc, giá nhập. Không cần thêm gì khác. Bảng chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III mục 29.
+
+**Và một việc độc lập:** cấp file bán hàng thô toàn công ty 6 tháng để đối
+chiếu bước 14's `CHECK-110-16` (bộ dữ liệu toàn công ty, không chỉ Tín Phát).
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 
@@ -543,7 +571,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong** (chủ dự án duyệt 2026-08-27, DEC-143) — **đang chờ bảng giá nhập**, hiện 100 % số dòng để trống ô giá nhập |
+| ⬜ | 11b. TASK-105B — Đọc bảng giá nhập từ file chủ dự án cấp | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chờ chủ dự án trả lời 3 câu hỏi + cấp file giá 4 cột** (DEC-144) |
+| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

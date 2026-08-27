@@ -134,23 +134,44 @@ TASK-110 repair budget = EXHAUSTED_PRE_V4.1, remaining = 0
 R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 
-**TASK-108B (sau DEC-143 / `OD-108B-01`, 2026-08-27):**
+**TASK-108B (sau DEC-143 + DEC-144 / `OD-108B-01` + `OD-108B-02`, 2026-08-27):**
 
 ```
-SEMANTIC_DEFINITION   = APPROVED
+SEMANTIC_DEFINITION   = APPROVED   (đầy đủ — formula đã được Owner xác nhận, DEC-144 §1)
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master,
-                          confirmed KpiPurchaseAdjustment persistence ]
+BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master ]   ← 2 → 1
+IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B,
+                          KHÔNG phải blocker chờ Owner (DEC-144 §5)
 EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
 DeliveryCost          = NOT ELIGIBLE FOR NOW
 OtherKpiAdjustment    = 0 BY DEFINITION
-EligibleKpiProfit     = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+EligibleKpiProfit     = (SellPrice − KpiPurchasePrice) × Quantity − Discount  ✅ XÁC NHẬN
+KpiPurchasePrice      = AccountingPurchasePrice + ConfirmedKpiPurchaseAdjustment (có record)
+                      = AccountingPurchasePrice (absence ĐÃ XÁC ĐỊNH; provenance
+                        Config:NoConfirmedAdjustment) — DEC-144 §2
+                      = None/Pending khi UNKNOWN / SOURCE_UNAVAILABLE / LOOKUP_FAILURE
+                        (tuyệt đối không thành 0 — DEC-144 §3)
 effective_risk        = HIGH   (Golden KHÔNG hạ bậc — V4.1 §4.1)
 repair budget         = 2 allowed / 0 used / 2 remaining (lineage TASK-108B)
 ```
 
 `SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
 Không hardcode dữ liệu để vượt blocker, không synthetic PASS.
+
+**TASK-105B — FilePriceProvider (mở tại DEC-144 §7, 2026-08-27):**
+
+```
+SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
+QUESTIONS = [ Q1 — effective_to bắt buộc, hay engine tự đóng khoảng?
+              Q2 — khớp product_key exact, hay chuẩn hoá NFC+trim+case-fold?
+              Q3 — dòng Chi phí vận chuyển/lắp đặt/Chênh VAT có giá nhập không? ]
+effective_risk = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
+repair budget  = 2 allowed / 0 used / 2 remaining (lineage TASK-105B)
+```
+
+Bảng cột file giá chủ dự án cần cung cấp (**4 cột**, VND nguyên) và toàn bộ
+discovery: `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III.
+Chuỗi mở khoá: **Q1/Q2/Q3 + file giá** → `TASK-105B` → `TASK-108B` → `TASK-109`.
 
 Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
 (3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
@@ -214,8 +235,13 @@ Adoption" đầu file).
 Track A (sản phẩm) hiện bị chặn ở hai điểm cần **Owner quyết định**, không
 phải việc agent tự làm tiếp được:
 
-1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG (DEC-143,
-   `OD-108B-01`, 2026-08-27); C15 ĐÃ ĐÓNG.** `EligibleCosts = {}` (closed empty
+1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG HOÀN TOÀN
+   (DEC-143 + DEC-144; `OD-108B-01` + `OD-108B-02`, 2026-08-27); C15 ĐÃ ĐÓNG.**
+   Blocker ngoại lai còn **đúng một**: bảng giá nhập. Đường mở khoá là
+   `TASK-105B` (FilePriceProvider) — cần chủ dự án trả lời **Q1/Q2/Q3** và cấp
+   file giá 4 cột; xem `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
+   Phần III.
+   *(Chi tiết `OD-108B-01` giữ nguyên bên dưới.)* `EligibleCosts = {}` (closed empty
    set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
    definition`, canonical formula đã chốt. Nhưng
    `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY` — còn **2 blocker dữ liệu** (giảm
@@ -345,15 +371,25 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         119/119 test, reconciliation 55 ô cột F Summary 2026 **0 ô lệch** và
         employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
+  - [ ] TASK-105B — `FilePriceProvider` (Phase 1). Implementation thứ hai của
+        `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice` từ
+        file bảng giá do chủ dự án cấp; tra theo `(product_key, ngày đơn)`.
+        **SEMANTIC_READINESS = OWNER_DECISION_REQUIRED** (DEC-144 §8 — Q1/Q2/Q3).
+        Hợp lệ ở Phase 1 theo đặc tả §10 (*"Version đầu cho phép nhập tay"*);
+        không sửa `price_engine`/`pipeline`, không thêm field, **không phá
+        Golden**. `effective_risk = HIGH`. Discovery đầy đủ + bảng cột file giá:
+        `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III.
   - [ ] TASK-108B — Converted Revenue (2 bucket PERSONAL/ADS).
         **SEMANTIC_DEFINITION = APPROVED (DEC-143, `OD-108B-01`, 2026-08-27) ·
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Còn 2 blocker dữ liệu (giảm từ 4): Price Master
-        (`PendingPriceProvider` trả `None` vô điều kiện — Golden xác nhận
-        100 % Pending trên dữ liệu production) và confirmed
-        `KpiPurchaseAdjustment` persistence (DEC-126 §5–6; TASK-202/302/305).
+        Sau **DEC-144**: còn **1** blocker ngoại lai (giảm 4 → 2 → 1) —
+        Price Master (`PendingPriceProvider` trả `None` vô điều kiện; Golden
+        xác nhận 100 % Pending trên dữ liệu production). Confirmed
+        `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
+        còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
+        absence với source-unavailable), thuộc phạm vi chính TASK-108B.
         Bước 11 của §22 đặc tả. Phân giải `ConversionScheme` đã
         xong ở 108A-1; phần còn lại là quy đổi hai bucket
         (DEC-119, DEC-121, ADR-104), sau đó quy đổi từng bucket độc lập rồi

@@ -305,12 +305,16 @@ báo cáo, **không** sửa Golden (phiên `DEC-143` không chạm
 ### Trạng thái
 
 ```
-SEMANTIC_DEFINITION   = APPROVED                 (DEC-143 / OD-108B-01, 2026-08-27)
+SEMANTIC_DEFINITION   = APPROVED       (DEC-143 + DEC-144; OD-108B-01 + OD-108B-02)
+                                       đầy đủ — formula đã được Owner xác nhận
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master,
-                          confirmed KpiPurchaseAdjustment persistence ]
+BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master ]      ← 2 → 1
+IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ]   ← nội bộ,
+                          KHÔNG phải blocker chờ Owner (DEC-144 §5)
 repair cycle          = CHƯA MỞ (0 used) — chưa có implementation nào để repair
 ```
+
+Đường mở khoá: `TASK-105B` (lineage riêng bên dưới) → `TASK-108B` → `TASK-109`.
 
 Sub-unit của lineage này (`108B-*`) **không** có ngân sách riêng, **không**
 reset ngân sách, và **không** được tạo lineage mới chỉ để reset (V4.1 §2).
@@ -318,6 +322,64 @@ reset ngân sách, và **không** được tạo lineage mới chỉ để reset
 
 cycles:
 - id: (chưa mở — implementation chưa bắt đầu vì blocker dữ liệu)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
+## Root Task: TASK-105B
+
+Lineage **mới**, độc lập với `TASK-108B`, `TASK-110` và
+`TASK-GOLDEN-BASELINE-001`. Mở tại `DEC-144` §7 (2026-08-27), trạng thái
+**discovery**.
+
+```
+root_task: TASK-105B
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` chấm theo **data path** (V4.1 §4), **không** theo tên module — một
+adapter/file reader **không** được coi là LOW chỉ vì nó là adapter:
+
+```
+Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương sai
+```
+
+`Local Risk = LOW-MEDIUM` (đọc file, tra bảng); `Blast Radius = HIGH`.
+
+### Golden KHÔNG hạ Blast Radius (V4.1 §4.1)
+
+Golden hiện `price_source_distribution = {Pending: 351/180}` — **100 %**, nên
+profit arithmetic chưa từng được đo. Không có test cụ thể nào phủ đúng failure
+path này ⇒ **không hạ bậc**.
+
+Ghi chú coverage (không phải cơ sở hạ bậc): `TASK-105B` **không** cần Golden
+fixture/test mới — nó không thêm field vào `WorkingLine` nên `lines_digest` và
+`_covered_digest_fields` không đổi, và Golden vẫn chạy `PendingPriceProvider`
+mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-108B`.
+
+### Trạng thái
+
+```
+SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
+QUESTIONS = [ Q1 — effective_to bắt buộc, hay engine tự đóng khoảng?
+              Q2 — khớp product_key exact, hay chuẩn hoá NFC+trim+case-fold?
+              Q3 — dòng Chi phí vận chuyển/lắp đặt/Chênh VAT có giá nhập không? ]
+```
+
+Cả ba câu đều là `BLOCKING SEMANTIC` theo V4.1 §5 — production path chứng minh
+được bằng Golden fixture production thật, không phải "có thể xảy ra". Discovery
+đầy đủ + bảng cột file giá:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III.
+
+Discovery **không** tiêu repair cycle. Sub-unit `105B-*` không có ngân sách
+riêng, không reset ngân sách.
+
+cycles:
+- id: (chưa mở — discovery, chưa có implementation)
   base_sha: N/A
   head_sha: N/A
 
@@ -424,3 +486,20 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE`;
   `TASK-GOLDEN-BASELINE-001` vẫn `remaining = 1` UNUSED. `app/`, `config/`,
   `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-144` (`OD-108B-02` + Owner confirmation cho `DEC-143`).
+  Canonical `EligibleKpiProfit` được Owner **xác nhận**:
+  `(SellPrice − KpiPurchasePrice) × Quantity − Discount` — đóng divergence
+  §19.1 đã báo cáo theo V4.1 §11. Confirmed `KpiPurchaseAdjustment` chọn
+  phương án A: absence **đã xác định** → `KpiPurchasePrice =
+  AccountingPurchasePrice` + provenance `Config:NoConfirmedAdjustment`;
+  `UNKNOWN`/`SOURCE_UNAVAILABLE`/`LOOKUP_FAILURE` **giữ Pending**, tuyệt đối
+  không thành `0`. `TASK-108B` blocker ngoại lai **2 → 1** (chỉ còn Price
+  Master); yêu cầu cơ chế còn lại (source khai báo rỗng) thuộc phạm vi chính
+  `TASK-108B`, không phải blocker chờ Owner. **`TASK-105B` mở lineage mới** ở
+  trạng thái discovery, `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã
+  dùng** — discovery không tiêu cycle. `TASK-110` **không đổi**
+  (`EXHAUSTED_PRE_V4.1`, remaining = 0; `CHECK-110-16` vẫn `REQUIRED · BLOCKED ·
+  POST_MERGE_PRODUCTION_ACCEPTANCE`); `TASK-GOLDEN-BASELINE-001` vẫn
+  `remaining = 1` UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**.

@@ -1025,3 +1025,301 @@ Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
 fixture/expected. Không mở `TASK-109`, `TASK-110`, `CHECK-110-16`,
 `R1-A2`→`R8`. Không tạo repair cycle. Không mở Independent Review. Không xoá
 artifact cũ.
+
+---
+---
+
+# PHẦN III — TASK-105B READINESS DISCOVERY (append 2026-08-27)
+
+> **Phần I và Phần II ở trên giữ nguyên không sửa.** Nơi nào mâu thuẫn, phần
+> sau thắng. Authority: `DEC-144` (`PROJECT/PROJECT_DECISIONS.md`).
+
+## 24. Trạng thái sau `DEC-144`
+
+```
+EligibleKpiProfit  = (SellPrice − KpiPurchasePrice) × Quantity − Discount   ✅ XÁC NHẬN
+                     (§19.1 ĐÓNG — chủ dự án xác nhận chuẩn hoá số học là đúng)
+
+KpiPurchasePrice   = AccountingPurchasePrice + ConfirmedKpiPurchaseAdjustment   (có record)
+                   = AccountingPurchasePrice                                     (absence đã xác định)
+                     provenance = Config:NoConfirmedAdjustment
+```
+
+**Ba trạng thái phải phân biệt được, không bao giờ gộp:**
+
+| Trạng thái | Điều kiện | `KpiPurchasePrice` | Provenance |
+|---|---|---|---|
+| `CONFIRMED_ADJUSTMENT` | source load được, có ≥1 record khớp | `AccountingPurchasePrice + amount` | `Confirmed:<source>#<record>` |
+| `DETERMINED_ABSENCE` | source **load được**, **0** record khớp | `AccountingPurchasePrice` | `Config:NoConfirmedAdjustment` |
+| `UNKNOWN` / `SOURCE_UNAVAILABLE` / `LOOKUP_FAILURE` | source chưa có, lỗi đọc, parse fail | **`None` → Pending** | `Pending:<lý do>` |
+
+## 25. TASK-108B blockers — BEFORE vs AFTER
+
+| Blocker | BEFORE (`DEC-143`) | AFTER (`DEC-144`) |
+|---|---|---|
+| `EligibleCosts` (C15) | ✅ đã đóng | ✅ đã đóng |
+| `OtherKpiAdjustment` | ✅ đã đóng | ✅ đã đóng |
+| Canonical formula | ⚠️ chờ xác nhận (§19.1) | ✅ **ĐÓNG** — `DEC-144` §1 |
+| confirmed `KpiPurchaseAdjustment` | 🔴 BLOCKER | ✅ **SEMANTIC ĐÓNG** — `DEC-144` §2–4. Còn **yêu cầu cơ chế** nội bộ, xem §26 |
+| `AccountingPurchasePrice` / Price Master | 🔴 BLOCKER | 🔴 **CÒN — blocker ngoại lai duy nhất** |
+
+**2 blocker ngoại lai → 1.**
+
+## 26. Yêu cầu cơ chế còn lại — vì sao Owner Decision chưa đủ *một mình*
+
+Đây là điểm được yêu cầu chứng minh bằng code, không copy kết luận cũ.
+
+`OD-108B-02` cho phép nhánh `KpiPurchasePrice = AccountingPurchasePrice` **chỉ
+khi** đã **xác định** không có confirmed record — và cấm tường minh việc biến
+`SOURCE_UNAVAILABLE` thành `0`.
+
+Kiểm chứng trạng thái hôm nay:
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `grep kpi_purchase_adjustment app/modules/domain/models.py` | **0 hit** — field không tồn tại |
+| `grep kpi_purchase_price app/modules/domain/models.py` | **0 hit** |
+| `AdjustmentResolver` có trong `app/pipeline.py`? | **KHÔNG** — cố ý (DEC-125 điểm 4) |
+| `AdjustmentResolver` trả gì? | chỉ `suggested_amount` + `source_of_value` — **không phải** `final_amount` (DEC-126 §4–5) |
+| Có confirmed-adjustment source nào (config/DB/file)? | **KHÔNG CÓ** |
+
+⇒ Trạng thái hôm nay là **`SOURCE_UNAVAILABLE`**, **không phải**
+`DETERMINED_ABSENCE`. Áp nhánh `= AccountingPurchasePrice` ngay bây giờ sẽ vi
+phạm chính `OD-108B-02` §3.
+
+**Việc cần làm (nhỏ, nội bộ, KHÔNG cần Owner Decision mới):** một
+confirmed-adjustment source **được khai báo và load được, kể cả khi rỗng** —
+cùng khuôn "closed empty set" mà `OD-108B-01` §1 đã thiết lập. Khi source tồn
+tại và trả 0 record, absence trở thành **đã xác định**, và nhánh
+`Config:NoConfirmedAdjustment` hợp lệ.
+
+**Phân loại:** thuộc phạm vi implementation của `TASK-108B`, **không** phải
+blocker chờ chủ dự án. Lưu ý nó **có** chạm `app/modules/adjustment/` (vùng của
+`TASK-106` đã DONE) — nếu chủ dự án muốn tách thành `TASK-106B` riêng thì được,
+nhưng không bắt buộc.
+
+## 27. `PriceProvider` — hiện trạng đã xác minh
+
+**Protocol** (`app/modules/pricing/provider.py`):
+
+```python
+class PriceProvider(Protocol):
+    def lookup(self, product_code: Optional[str],
+               sale_date: Optional[date]) -> Optional[Decimal]: ...
+```
+
+`None` nghĩa là **Pending** — docstring nguyên văn: *"the caller must never
+substitute a guessed or zero value."*
+
+**`PendingPriceProvider`**: thân hàm đúng một dòng `return None`. Docstring:
+*"No Price Master exists yet (DEC-103). Every lookup is Pending."* Đây là
+implementation **đúng** cho hiện tại, không phải chỗ tạm bợ.
+
+**Pipeline inject thế nào** (`app/pipeline.py:86, 103, 125`):
+
+```python
+def build_working_data(..., price_provider: PriceProvider | None = None, ...):
+    apply_prices(lines, price_provider or PendingPriceProvider())
+```
+
+Injection đã sẵn sàng: truyền provider khác vào là xong, **mặc định giữ
+nguyên**. `run_import()` cũng nhận và chuyển tiếp `price_provider`.
+
+**`apply_prices`** (`app/modules/pricing/price_engine.py:21-23`) — điểm mấu chốt:
+
+```python
+# product_raw is a placeholder key until TASK-402 (product_mapper)
+price = provider.lookup(line.product_raw, line.date)
+```
+
+⇒ **Khoá tra cứu ở Phase 1 là `product_raw`, KHÔNG phải `ProductCode`.**
+`ProductCode` **không tồn tại** ở Phase 1: `grep product_code` trên
+`models.py` / `raw_reader.py` / `normalizer.py` = **0 hit**. Đặc tả §20 đặt
+`ProductCode` cho *"giai đoạn sau"*, và `provider.py` docstring đã ghi sẵn điều
+này — nên đây là **adaptation đã có authority**, không phải phát minh mới.
+
+## 28. `FilePriceProvider` — trách nhiệm đề xuất
+
+Implementation **thứ hai** của Protocol đã có. Đọc bảng giá từ file chủ dự án
+cấp, tra theo `(khoá sản phẩm, ngày đơn)`, trả `Decimal` hoặc `None`.
+
+**Không** làm: không sửa `price_engine.py`; không sửa `pipeline.py`; không thêm
+field vào `WorkingLine`; không đổi chữ ký `run_import`; không đổi mặc định
+(Golden vẫn chạy `PendingPriceProvider`); không suy đoán giá; không tự đóng
+khoảng hiệu lực khi chưa có Q1.
+
+**Có thể thêm mà không đổi business semantics hiện hữu: ✅ CÓ** — vì
+`PriceProvider` là seam được DEC-103 thiết kế đúng cho việc này, và
+`apply_prices` đã bao trọn mọi tương tác với provider.
+
+## 29. 📋 BẢNG CHO CHỦ DỰ ÁN — FILE GIÁ CẦN NHỮNG CỘT GÌ
+
+**Đơn vị tiền: VND nguyên** (ADR-103 — file thô bán hàng dùng VND nguyên,
+`8000000` = tám triệu; **không** dùng nghìn đồng).
+
+| COLUMN | REQUIRED? | TYPE | EXAMPLE | MEANING | LOOKUP ROLE | VALIDATION |
+|---|---|---|---|---|---|---|
+| `product_key` | **REQUIRED** | text | `Máy giặt LG 10kg FV1410S4W1` | Tên hàng, **chép nguyên văn** cột `Tên hàng trên chứng từ` của file bán hàng | **khoá tra cứu 1/2** | không rỗng; chính sách khớp phụ thuộc **Q2** |
+| `effective_from` | **REQUIRED** | date `YYYY-MM-DD` | `2026-01-01` | Ngày giá bắt đầu áp dụng (bao gồm) | **khoá tra cứu 2/2** | ngày hợp lệ; `≤ effective_to` |
+| `effective_to` | **REQUIRED** *(trừ khi Q1 chọn tự đóng)* | date hoặc rỗng | `2026-01-14` / rỗng | Ngày cuối còn hiệu lực (bao gồm). Rỗng = **còn hiệu lực tới nay** | thu hẹp khoảng | rỗng hợp lệ; xem **Q1** |
+| `purchase_price` | **REQUIRED** | số nguyên VND | `8000000` | `AccountingPurchasePrice` — giá nhập kế toán | giá trị trả về | `> 0` (xem §31); không dấu phẩy/chấm phân nhóm |
+| `source` | **OPTIONAL** | text | `Bảng giá NCC 01.2026` | Nguồn của con số, phục vụ audit | không | tự do |
+| `product_code` | **NOT NEEDED** | — | — | Chưa tồn tại ở Phase 1 (`TASK-402`) | không | — |
+| `product_name` | **NOT NEEDED** | — | — | Trùng `product_key` ở Phase 1 | không | — |
+| `supplier` | **NOT NEEDED** | — | — | Đặc tả §20 cho giai đoạn sau | không | — |
+| `updated_at` | **NOT NEEDED** | — | — | Đặc tả §20 cho giai đoạn sau | không | — |
+| `price_source` (provenance) | **DERIVED** | — | `PriceMaster:file#row12` | Engine tự sinh | không | engine |
+
+**Tối thiểu: 4 cột** — `product_key`, `effective_from`, `effective_to`,
+`purchase_price`. Xuống **3 cột** nếu chủ dự án chọn "engine tự đóng khoảng" ở
+**Q1**. Không xin thêm dữ liệu "cho chắc": 4 trường còn lại của đặc tả §20
+được đánh dấu `NOT NEEDED` vì Phase 1 không dùng đến.
+
+**Lookup key:** `(product_key, ngày của đơn)`. Ngày dùng là **ngày nghiệp vụ
+của đơn**, không bao giờ "hôm nay" (DEC-121).
+
+## 30. Historical / effective-date rule
+
+**Authority đã tồn tại** — không phát minh mới:
+
+`app/modules/config/loader.py:42` — `effective_rows()`:
+
+```
+khoảng ĐÓNG, bao gồm hai đầu:   effective_from ≤ ngày_đơn ≤ effective_to
+effective_from thiếu  →  date.min   (hiệu lực từ đầu thời gian)
+effective_to  thiếu/null → far future (còn hiệu lực)
+```
+
+DEC-121: tra theo **ngày nghiệp vụ của đơn**; tra trước `effective_from` sớm
+nhất → `Unresolved`, **không đoán**.
+
+**Ví dụ của chủ dự án** (01/01 = 8.000.000; 15/01 = 8.200.000):
+
+*Nếu file ghi khoảng đóng tường minh:*
+
+| `product_key` | `effective_from` | `effective_to` | `purchase_price` |
+|---|---|---|---|
+| `Máy giặt X` | `2026-01-01` | `2026-01-14` | `8000000` |
+| `Máy giặt X` | `2026-01-15` | *(rỗng)* | `8200000` |
+
+→ đơn **10/01 = 8.000.000**; đơn **20/01 = 8.200.000**. **Xác định, không đoán.**
+
+*Nếu file để `effective_to` rỗng ở CẢ HAI dòng:* đơn 20/01 khớp **cả hai** dòng
+⇒ **mơ hồ**. Tiền lệ `ConversionSchemeResolver` coi hoà là
+`AmbiguousSchemeConfigError` và **từ chối tự chọn**; bảng giá không có chiều
+specificity nào để phá hoà. **Không** tự chọn "latest/nearest/current".
+
+⇒ **Q1 là `OWNER_DECISION_REQUIRED`**, không phải lựa chọn kỹ thuật:
+
+- **Q1-A** — chủ dự án **luôn** ghi `effective_to` (4 cột). Rõ ràng nhất, khớp
+  đặc tả §20 vốn có cả `EffectiveFrom` lẫn `EffectiveTo`. **Khuyến nghị.**
+- **Q1-B** — chủ dự án chỉ ghi `effective_from` (3 cột); engine tự đóng khoảng
+  bằng `effective_from` của dòng kế tiếp cùng `product_key`, trừ 1 ngày. Ít
+  việc cho chủ dự án, nhưng thêm một quy tắc suy diễn vào engine — và một dòng
+  gõ sai ngày sẽ âm thầm dịch chuyển khoảng của dòng khác.
+
+## 31. Duplicate / Missing / Invalid — contract đề xuất
+
+Phân loại theo V4.1 §5 (`BLOCKING SEMANTIC` = có production path chứng minh
+được; `VALIDATION/HARDENING` = robustness). **Không implementation.**
+
+| # | Tình huống | Contract đề xuất | Phân loại |
+|---|---|---|---|
+| 1 | Cùng `product_key` + khoảng hiệu lực **chồng lấn**, khác giá | **LỖI CẤU HÌNH** — raise, engine từ chối chọn (tiền lệ `AmbiguousSchemeConfigError`) | **BLOCKING SEMANTIC** — chính là Q1; tái hiện được ngay khi file có 2 mức giá |
+| 2 | Dòng **trùng khít hoàn toàn** (mọi cột giống hệt) | Chấp nhận, khử trùng lặp im lặng — không mơ hồ vì cùng một giá trị | VALIDATION |
+| 3 | `purchase_price` **âm** | Từ chối dòng đó + Review Queue. Giá nhập âm không có nghĩa nghiệp vụ | VALIDATION |
+| 4 | `purchase_price` **= 0** | ⚠️ **Q3** — hợp lệ cho dòng phí (ERP ghi giá nhập = 0), vô lý cho hàng thật. Không tự quyết | **BLOCKING SEMANTIC** |
+| 5 | `product_key` **rỗng** | Từ chối dòng + Review Queue | VALIDATION |
+| 6 | Ngày **sai định dạng** | Từ chối dòng + Review Queue. **Không** đoán định dạng | VALIDATION |
+| 7 | Sản phẩm **không có** trong bảng giá | `None` → `Pending`. **Không bao giờ** `0` (DEC-103) | đã có authority |
+| 8 | Đơn xảy ra **trước** record giá đầu tiên | `None` → `Pending` (DEC-121: tra trước `effective_from` sớm nhất → `Unresolved`) | đã có authority |
+| 9 | **Khoảng trống** giữa hai khoảng hiệu lực | `None` → `Pending`. **Không** nội suy, **không** kéo dài khoảng trước | đã có authority (khoảng đóng) |
+| 10 | Tên khác nhau chỉ ở **hoa/thường hoặc khoảng trắng** | ⚠️ **Q2** — đo trên production: **15 tên** có khoảng trắng thừa, **1 cặp** khác đúng một khoảng trắng cuối | **BLOCKING SEMANTIC** |
+
+**Missing-price policy — đã có authority, không cần quyết định mới.**
+`config/validation.yaml` + DEC-128 §1: hôm nay `aggregate: true` gộp
+`Missing.PurchasePrice` thành **một** mục batch, vì Phase 1 mọi dòng đều Pending
+nên 11.765 cảnh báo giống nhau sẽ nhấn chìm hàng đợi. Docstring của
+`detect_missing_purchase_price` ghi sẵn: *"`aggregate: false` in config restores
+per-row behaviour for when TASK-401 makes a missing price genuinely abnormal."*
+⇒ Khi `TASK-105B` xong, **lật `aggregate: false`** là một dòng config, đã dự trù
+từ trước.
+
+## 32. Golden coverage implication
+
+**`TASK-105B` KHÔNG cần Golden fixture/test mới; focused test là đủ.** Lý do
+kiểm chứng được: `FilePriceProvider` không thêm field vào `WorkingLine` ⇒
+`lines_digest` và `_covered_digest_fields` **không đổi**; Golden tiếp tục chạy
+với `PendingPriceProvider` mặc định (`app/pipeline.py:103`); chữ ký `run_import`
+không đổi (`test_golden_pipeline_entry_point_signature_is_locked` vẫn PASS).
+
+**`TASK-108B` thì CẦN** — profit arithmetic hiện phủ **0 %** (Golden 100 %
+`Pending`), cộng bucket `PERSONAL`, `NOI_THANH_2`/`GIA_DUNG_8`, đơn trộn scheme
+đều `NOT COVERED` (Phần I §7, Phần II §22).
+
+**Không hạ Blast Radius dựa trên coverage chưa tồn tại** (V4.1 §4.1). Không sửa
+Golden trong phiên này.
+
+## 33. Risk + Review Budget
+
+```
+TASK-105B
+    data path      : Price → KpiPurchasePrice → EligibleKpiProfit → CR → KPI/lương
+    Local Risk     : LOW-MEDIUM   (đọc file, tra bảng)
+    Blast Radius   : HIGH         (kết thúc ở bảng lương; Golden không phủ)
+    Effective Risk : HIGH         = max(Local, Blast Radius)
+    Budget         : 2 allowed / 0 used / 2 remaining
+```
+
+**Không** chấm LOW chỉ vì nó là adapter/file reader — V4.1 §4 cấm chấm theo tên
+module. Discovery **không** tiêu repair cycle.
+
+## 34. Findings
+
+**BLOCKING (3)** — tất cả có production path chứng minh bằng dữ liệu Golden thật:
+
+- **BL-105B-01 (Q1)** — `effective_to` bắt buộc hay engine tự đóng khoảng? Hai
+  mức giá cùng hiệu lực ⇒ mơ hồ, engine từ chối chọn. Không tự chọn latest.
+- **BL-105B-02 (Q2)** — khớp `product_key` exact hay chuẩn hoá? 15 tên có
+  khoảng trắng thừa; 1 cặp khác đúng một khoảng trắng ⇒ khớp exact làm những
+  dòng đó im lặng `Pending`.
+- **BL-105B-03 (Q3)** — dòng không phải sản phẩm (~1.250 dòng/6 tháng) có giá
+  nhập không? Bỏ sót ⇒ `EligibleKpiProfit` cả tháng không bao giờ hoàn tất.
+
+**HARDENING (2):**
+
+- **HB-105B-01** — lật `config/validation.yaml` → `aggregate: false` sau khi
+  `TASK-105B` xong. *Re-trigger:* khi `price_source_distribution` không còn
+  100 % `Pending`. Cơ chế đã dự trù (DEC-128 §1), chỉ cần nhớ lật.
+- **HB-105B-02** — `product_key` là text tự do; `TASK-402` (product_mapper) sẽ
+  thay bằng `ProductCode` thật. *Re-trigger:* khi `TASK-402` mở, bảng giá phải
+  migrate khoá — Protocol không đổi nên chi phí giới hạn ở file + provider.
+
+**OUT_OF_SCOPE (4):** `TASK-401`/`TASK-402` (Phase 4); persistence adjustment
+thật `TASK-202`/`302`/`305` (Phase 2/3); `CHECK-110-16`; `R1-A2`→`R8`.
+
+## 35. Verdict
+
+```
+TASK-105B
+    SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
+    QUESTIONS = [ Q1 — effective_to bắt buộc, hay engine tự đóng khoảng?,
+                  Q2 — khớp product_key exact, hay chuẩn hoá NFC+trim+case-fold?,
+                  Q3 — dòng Chi phí vận chuyển/lắp đặt/Chênh VAT có giá nhập không
+                       (0, hay để Pending, hay loại khỏi profit)? ]
+
+TASK-108B
+    SEMANTIC_DEFINITION = APPROVED
+    IMPLEMENTATION      = BLOCKED_BY [ AccountingPurchasePrice / Price Master ]
+    IN-SCOPE MECHANISM  = [ confirmed-adjustment source khai báo rỗng ]
+```
+
+Chuỗi mở khoá: **3 câu trả lời Q1/Q2/Q3 + file giá** → `TASK-105B` →
+`TASK-108B` → `TASK-109`.
+
+## STOP (Phần III)
+
+Không implementation `TASK-105B`, không implementation `TASK-108B`. Không sửa
+`app/**`, `config/**`, `tests/**`, Golden fixture/expected. Không mở
+`TASK-109`, `TASK-110`, `CHECK-110-16`, `R1-A2`→`R8`. Không tạo repair cycle,
+không mở Independent Review, không mở governance cleanup.

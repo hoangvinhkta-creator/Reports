@@ -2883,3 +2883,233 @@ Can Revisit After:
   không sửa `OD-108B-01`.
 - Xuất hiện một khoản adjustment mới cần `OtherKpiAdjustment ≠ 0` — decision
   riêng kèm source/config/provenance/effective-date.
+
+## DEC-144
+
+Date:
+2026-08-27
+
+Task:
+`TASK-108B` — Owner clarification cho `DEC-143` + Owner Decision `OD-108B-02`
+(confirmed `KpiPurchaseAdjustment`), ghi trong phiên "TASK-108B DEPENDENCY
+RESOLUTION + TASK-105B READINESS DISCOVERY". Mở discovery cho `TASK-105B`.
+
+Decision:
+
+**1. XÁC NHẬN canonical `EligibleKpiProfit` (đóng §19.1 của artifact TASK-108B).**
+
+Chủ dự án xác nhận chuẩn hoá số học mà `DEC-143` Reason điểm 4 đã báo cáo là
+**ĐÚNG**. Công thức canonical, có thẩm quyền:
+
+```
+EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+```
+
+**Không** dùng dạng `NormalizedSales − Discount − KpiPurchasePrice` khi
+`NormalizedSales` đã trừ `Discount` — trong repo này nó **đã trừ**
+(`app/modules/importing/normalizer.py:27`; Golden xác nhận
+`sales_raw_gross − sales_normalized` = đúng `discount_total` ở cả hai kỳ).
+
+Hai nguyên tắc bắt buộc:
+- **NO DOUBLE COUNT** — `Discount` chỉ được tác động **đúng một lần**.
+- `KpiPurchasePrice` là **đơn giá**, bắt buộc nhân `Quantity` khi tính profit
+  của line.
+
+`DEC-143` §4 **không bị rewrite**; mục này là current-state confirmation của nó.
+
+**2. `OD-108B-02` — confirmed `KpiPurchaseAdjustment`, phương án A cho Phase 1.**
+
+```
+CÓ confirmed record có hiệu lực:
+    KpiPurchasePrice = AccountingPurchasePrice + ConfirmedKpiPurchaseAdjustment
+
+ĐÃ XÁC ĐỊNH KHÔNG CÓ confirmed record áp dụng:
+    KpiPurchasePrice = AccountingPurchasePrice
+    provenance       = Config:NoConfirmedAdjustment
+```
+
+**3. ABSENCE ≠ UNKNOWN ≠ ZERO — ba trạng thái, không được gộp.**
+
+"Không có confirmed adjustment" **KHÔNG** đồng nghĩa với: lookup lỗi; source
+chưa load; dữ liệu adjustment chưa available; persistence chưa sẵn sàng; trạng
+thái unknown; parse failure.
+
+```
+DETERMINED_ABSENCE   → source ĐÃ load, 0 record khớp → KpiPurchasePrice = AccountingPurchasePrice
+                       provenance = Config:NoConfirmedAdjustment
+UNKNOWN /
+SOURCE_UNAVAILABLE /
+LOOKUP_FAILURE       → Pending. KpiPurchasePrice = None ⇒ EligibleKpiProfit = None
+                       TUYỆT ĐỐI KHÔNG tự động thành adjustment = 0
+```
+
+Mục tiêu nguyên văn của chủ dự án: *"không biến absence thành unknown, và cũng
+không biến unknown thành zero."* Đây là DEC-103 và DEC-126 §6 áp dụng lại, ở
+một tầng khác.
+
+**4. Effective-date + provenance của adjustment.** Nếu adjustment tồn tại, phải
+xác định được đủ 5 thứ: `source`; `effective date`; `matched record`;
+`adjustment amount`; `provenance`. **Không** hardcode adjustment vào engine.
+**Không** tạo default adjustment giả. **Không** làm mất khả năng nâng cấp sang
+persistence đầy đủ ở Phase 2/3 (DEC-126 §3: một `Order` hỗ trợ **nhiều**
+Adjustment record, không phải một field cộng dồn).
+
+**5. Hệ quả — yêu cầu cơ chế còn lại (KHÔNG phải Owner blocker).**
+
+`OD-108B-02` đóng **hoàn toàn** phần semantic. Nhưng để phân biệt
+`DETERMINED_ABSENCE` với `SOURCE_UNAVAILABLE` theo đúng điểm 3, hệ thống phải
+có một **confirmed-adjustment source được khai báo và load được — kể cả khi
+rỗng**. Hiện tại **không tồn tại nguồn nào**: `WorkingLine` không có field
+`kpi_purchase_adjustment`, và `AdjustmentResolver` (TASK-106) cố ý không nối
+vào `run_import()` và chỉ trả `suggested_amount`.
+
+Nói cách khác: trạng thái hôm nay là `SOURCE_UNAVAILABLE`, **không phải**
+`DETERMINED_ABSENCE` — nên chưa được áp nhánh `= AccountingPurchasePrice`.
+
+Đây là **deliverable cơ chế nhỏ**, thuộc phạm vi implementation của
+`TASK-108B` (một source khai báo rỗng + loader + provenance, cùng khuôn "closed
+empty set" của `OD-108B-01`), **không** cần thêm Owner Decision. Nó **có** chạm
+`app/modules/adjustment/` (vùng của TASK-106 đã DONE) — nếu chủ dự án muốn
+tách thành `TASK-106B` riêng thì được, nhưng không bắt buộc.
+
+**6. Blocker của `TASK-108B` sau quyết định này.**
+
+```
+TASK-108B
+    SEMANTIC_DEFINITION = APPROVED          (DEC-143 + DEC-144, đầy đủ)
+    IMPLEMENTATION      = BLOCKED_BY_DEPENDENCY
+    BLOCKERS            = [ AccountingPurchasePrice / Price Master ]   ← duy nhất, ngoại lai
+    IN-SCOPE MECHANISM  = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B
+```
+
+Giảm từ 2 blocker ngoại lai xuống **1**.
+
+**7. `TASK-105B` — FilePriceProvider, mở ở trạng thái discovery.**
+
+```
+root_task       : TASK-105B
+effective_risk  : HIGH
+repair_cycles   : 2 allowed / 0 used / 2 remaining
+lineage         : MỚI, độc lập TASK-108B / TASK-110 / TASK-GOLDEN-BASELINE-001
+state           : DISCOVERY DONE — SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
+```
+
+`HIGH` chấm theo **data path**, không theo tên module: giá sai →
+`KpiPurchasePrice` sai → `EligibleKpiProfit` sai → `CR` sai → **KPI/lương sai**.
+Một file reader **không** được coi là LOW chỉ vì nó là adapter. Golden **không**
+hạ bậc (V4.1 §4.1) — Golden hiện 100 % `Pending` nên chưa phủ profit arithmetic.
+
+Discovery **không** tiêu repair cycle.
+
+**8. Ba câu hỏi `TASK-105B` cần chủ dự án trả lời** (chi tiết + bảng schema:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III):
+
+- **Q1 — `effective_to` bắt buộc hay engine tự đóng khoảng?** `effective_rows()`
+  (`app/modules/config/loader.py:42`) dùng khoảng **đóng**
+  `[effective_from, effective_to]`, `effective_to: null` = còn hiệu lực. Nếu chủ
+  dự án chỉ ghi `effective_from` và để trống `effective_to` ở **mọi** dòng thì
+  hai mức giá của cùng một mã sẽ **cùng hiệu lực** ⇒ mơ hồ. Tiền lệ
+  `scheme_resolver` coi hoà là `AmbiguousSchemeConfigError` và **từ chối tự
+  chọn**; bảng giá không có chiều specificity nào để phá hoà. Không được tự
+  chọn "latest/nearest/current" (DEC-121).
+- **Q2 — khớp tên sản phẩm: exact hay chuẩn hoá?** Trên dữ liệu production
+  (Golden 2 kỳ, 528 dòng): **15 tên có khoảng trắng thừa** đầu/cuối và **1 cặp
+  chỉ khác nhau đúng một khoảng trắng cuối** (`Cây nước Kangaroo KG36A2` vs
+  `Cây nước Kangaroo KG36A2 `). Khớp exact ⇒ những dòng đó **im lặng không tra
+  được giá** ⇒ `Pending` ⇒ `EligibleKpiProfit = None`.
+- **Q3 — dòng không phải sản phẩm** (`Chi phí vận chuyển`, `Chi phí lắp đặt`,
+  `Chênh VAT`, `Chi phí giao hộ`, `Phí đổi trả` — ~1.250 dòng/6 tháng; 22 dòng
+  ở 01.2026 và 12 dòng ở 06.2026 trong chính Golden fixture) **có giá nhập
+  không?** DEC-110 nói chúng **có** tính vào lợi nhuận. ERP ghi lợi nhuận của
+  chúng đúng bằng doanh số, tức giá nhập = 0
+  (`docs/analysis/01_DATA_MAPPING.md` §3) — nhưng đó là **quan sát**, và DEC-103
+  cấm agent tự suy đoán `0`. Nếu bảng giá bỏ sót nhóm này, chúng `Pending` vĩnh
+  viễn và `EligibleKpiProfit` của cả tháng **không bao giờ hoàn tất**.
+
+Reason:
+
+**1. Vì sao xác nhận công thức là bước bắt buộc chứ không phải thủ tục.**
+`DEC-143` Reason điểm 4 đã báo cáo divergence theo V4.1 §11 và ghi rõ *"cần chủ
+dự án xác nhận lại"*. Chủ dự án đã xác nhận. Không có xác nhận này, mọi
+implementation sau đó đứng trên một cách đọc do agent chọn — đúng thứ mà toàn bộ
+chuỗi DEC-103/125/126/143 tồn tại để chặn.
+
+**2. Vì sao phương án A hợp lệ mà không vi phạm DEC-126 §6.** DEC-126 §6 cấm mặc
+định adjustment **chưa xác định** bằng `0`. `OD-108B-02` không làm thế: nó phân
+biệt **absence đã xác định** (source load được, 0 record khớp) với **unknown**
+(source chưa có). Chỉ nhánh thứ nhất được dùng `AccountingPurchasePrice`, và
+nhánh đó mang provenance riêng `Config:NoConfirmedAdjustment` để nhìn thấy được.
+Cùng khuôn thẩm quyền với `OD-108B-01` §1 (closed empty set ≠ fallback = 0).
+
+**3. Vì sao vẫn phải báo cáo một yêu cầu cơ chế còn lại thay vì tuyên bố "chỉ
+còn Price Master".** Phiên này được yêu cầu tính lại blocker từ trạng thái mới
+và **không** mặc định kết luận. Kiểm chứng bằng code: `grep` cho
+`kpi_purchase_adjustment` trên `app/modules/domain/models.py` = 0 hit;
+`AdjustmentResolver` không xuất hiện trong `app/pipeline.py`. Vì vậy hôm nay
+**không có nguồn nào để "xác định là không có record"**. Đây đúng là trường hợp
+`SOURCE_UNAVAILABLE` mà chính điểm 3 cấm biến thành `0`. Bỏ qua chi tiết này
+rồi implement sẽ tái lập đúng lỗi mà `OD-108B-02` vừa cấm.
+
+**4. Vì sao `TASK-105B` là `OWNER_DECISION_REQUIRED` chứ không `READY`.** Hai
+trong ba câu hỏi (Q1, Q3) **không** có authority trong repo để suy ra, và cả hai
+đều thuộc loại "đoán sai thì không ai nhìn thấy bằng mắt": Q1 sai làm cả kỳ dùng
+sai mức giá; Q3 sai làm cả tháng không tính được lợi nhuận. Q2 có tiền lệ kỹ
+thuật (`ac_classifier._normalize`: NFC + gộp khoảng trắng + không phân biệt
+hoa/thường) nhưng áp dụng nó cho **khoá tra cứu tiền** là quyết định nghiệp vụ,
+không phải lựa chọn kỹ thuật. Cả ba đều có **production path chứng minh được
+bằng dữ liệu Golden thật** (V4.1 §5 nguồn 3 và 4), nên là `BLOCKING SEMANTIC`
+chứ không phải hardening.
+
+**5. Vì sao `TASK-105B` không phá Golden.** `FilePriceProvider` là
+implementation thứ hai của một Protocol đã tồn tại; nó **không** thêm field vào
+`WorkingLine`, nên `lines_digest` và `_covered_digest_fields` không đổi. Golden
+tiếp tục chạy với `PendingPriceProvider` mặc định (`app/pipeline.py:103`), và
+chữ ký `run_import` không đổi. Focused test là đủ cho `TASK-105B`. Việc mở rộng
+Golden sang profit arithmetic thuộc `TASK-108B`, **không** thuộc `TASK-105B` —
+không được hạ Blast Radius dựa trên coverage chưa tồn tại.
+
+Risk:
+
+`Effective Risk = HIGH` cho cả `TASK-108B` và `TASK-105B`, chấm theo data path
+(V4.1 §4), không theo tên module/file:
+
+```
+Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương sai
+```
+
+Rủi ro cụ thể của chính quyết định này:
+
+- **Nhánh `Config:NoConfirmedAdjustment` bị dùng sai chỗ.** Nếu một session sau
+  áp nhánh này khi source **chưa** tồn tại, mọi dòng sẽ mang `KpiPurchasePrice =
+  AccountingPurchasePrice` như thể đã xác định không có adjustment — trong khi
+  635/18.148 dòng của workbook thật **có** adjustment. Giảm nhẹ: điểm 5 ghi rõ
+  yêu cầu source khai báo rỗng, và provenance phải phân biệt được hai nhánh.
+- **Bảng giá thiếu dòng ⇒ im lặng.** Nếu Q2/Q3 chưa chốt mà đã implement, dòng
+  không khớp sẽ `Pending` mà không ai để ý — Review Queue hiện gộp
+  `Missing.PurchasePrice` thành **một** mục batch (DEC-128 §1) vì Phase 1 mọi
+  dòng đều Pending. Giảm nhẹ: khi `TASK-105B` xong, phải lật
+  `config/validation.yaml` → `aggregate: false` để một giá thiếu trở lại là bất
+  thường từng dòng — cơ chế này DEC-128 §1 đã dự trù sẵn, không cần quyết định
+  mới.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace toàn
+  repo; `DEC-144` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — `TASK-108B` còn 1 blocker ngoại lai; thêm
+  `TASK-105B` vào roadmap PHASE-01.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — thêm bước 11b (`TASK-105B`) và ba câu hỏi cần
+  chủ dự án trả lời.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — entry lineage mới `TASK-105B`; cập nhật
+  trạng thái dependency của `TASK-108B`.
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần III
+  (current-state pointer + discovery `TASK-105B` + price file contract).
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+
+Can Revisit After:
+- Chủ dự án trả lời Q1/Q2/Q3 ⇒ `TASK-105B` chuyển `SEMANTIC_READINESS = READY`.
+- Phase 2/3 (`TASK-202`/`302`/`305`) xây persistence adjustment thật ⇒ nhánh
+  `Config:NoConfirmedAdjustment` được thay bằng lookup thật, `OD-108B-02` §2
+  giữ nguyên semantics.
+- `TASK-401`/`TASK-402` (Phase 4) thay `FilePriceProvider` bằng Price Master
+  thật theo `ProductCode` — Protocol không đổi.
