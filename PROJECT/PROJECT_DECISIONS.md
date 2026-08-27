@@ -3372,3 +3372,249 @@ Can Revisit After:
 - `TASK-401`/`TASK-402` (Phase 4) thay `FilePriceProvider` bằng Price Master
   thật theo `ProductCode` — Protocol không đổi, `OD-105B-01` §1–§2 giữ nguyên
   semantics.
+
+## DEC-146
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105B` — Architecture Correction Audit, ghi trong phiên "TASK-105B OWNER
+CORRECTION: PRICE SOURCE IS FIREBASE RTDB". Chủ dự án ngắt phiên đang finalize
+`TASK-105B-Q3` để sửa một tiền đề kiến trúc quan trọng chưa từng xuất hiện
+trong repo.
+
+Decision:
+
+Đây là **bản ghi CONFLICT DETECTED + audit findings**, không phải một quyết
+định nghiệp vụ đã đóng — vì repo hiện **không đủ thông tin** để agent tự thiết
+kế giải pháp. Ghi lại để không mất tri thức này ở phiên sau.
+
+**1. CONFLICT DETECTED.**
+
+```
+Documentation (authority hiện có):
+    ADR-101 §Migration/Implementation Notes: "config/ là YAML ở Phase 1;
+    Phase 2 chuyển vào DB" — DB nêu tên là PostgreSQL/SQLite (§Alternatives,
+    §Rationale). Không nơi nào trong ADR-101, đặc tả gốc
+    (docs/spec/Dac_ta_cong_cu_bao_cao_kinh_doanh.docx), hay bất kỳ ADR/DEC nào
+    khác nhắc tới Firebase/RTDB như một thành phần kiến trúc của dự án.
+    Hai chỗ DUY NHẤT chứa chữ "Firebase" trong toàn repo là
+    `governance/product/13_ENVIRONMENT_CONFIGURATION.md` §9 và
+    `governance/core/PROJECT_PROFILE_STANDARD.md` — cả hai là **boilerplate
+    template chung của gói governance**, liệt kê Firebase như một VÍ DỤ loại
+    dự án ("ứng dụng Firebase/Supabase"), không phải một quyết định kỹ thuật
+    cho dự án cụ thể này.
+
+Owner statement (phiên này):
+    "Price Master của tôi KHÔNG tồn tại dưới dạng một file giá cố định. Giá
+    nhập thay đổi liên tục trong ngày. Nguồn dữ liệu thực tế được cập nhật và
+    đẩy lên Firebase Realtime Database (RTDB)... source of truth vận hành
+    hiện tại là Firebase RTDB."
+
+Risk:
+    Nếu tiếp tục implement TASK-105B theo `DEC-145` (FilePriceProvider là
+    implementation chính, source of truth) mà không sửa tiền đề này, công cụ
+    sẽ đọc một bản chụp giá tĩnh trong khi giá thật đang biến động liên tục
+    trên RTDB — đúng loại sai số mà DEC-103/125/126/143/144/145 tồn tại để
+    chặn, chỉ khác là ở tầng kiến trúc thay vì tầng công thức.
+
+Recommended resolution:
+    Giữ nguyên `PriceProvider` Protocol (đã đúng, xem điểm 5). Thêm
+    `RTDBPriceProvider` làm implementation SONG SONG với `FilePriceProvider`,
+    không thay thế nó — vai trò của từng cái tuỳ vào câu trả lời cho điểm 3
+    (historical lookup). Không tự chọn — cần Owner cung cấp schema RTDB thật
+    (điểm 2) trước khi thiết kế được `RTDBPriceProvider` cụ thể.
+```
+
+**2. RTDB integration hiện tại trong repo: KHÔNG CÓ.**
+
+Đã quét toàn repo (`grep -rli` không phân biệt hoa/thường, mọi phần mở rộng
+`.md/.py/.yaml/.json/.js/.ts`), toàn bộ `docs/spec/*.docx` (trích XML gốc, kể
+cả text không hiển thị dưới dạng backtick), và toàn bộ `pyproject.toml`
+(dependencies: chỉ `openpyxl`, `PyYAML`, `pytest` — không có
+`firebase-admin`, không có SDK Google Cloud nào). Không tìm thấy:
+
+- credential file, `.env`, service account key nào (`find` cho
+  `*credential*`/`*serviceaccount*`/`*firebase*`/`*.env*` = **rỗng**);
+- RTDB path, schema, hay endpoint nào được ghi lại ở bất kỳ đâu;
+- crawler/updater nào ghi giá vào RTDB được mô tả trong bất kỳ tài liệu nào.
+
+⇒ **Không có gì để audit từ phía repo.** Toàn bộ điểm 2–3 của phiên này
+(schema hiện tại; overwrite hay lưu history; timestamp/effective dating; khoá
+sản phẩm; provenance; cơ chế crawler ghi dữ liệu) là **thông tin nằm ngoài
+repo, chỉ Owner có** — session này không có credential, không có SDK, không
+có cách kết nối RTDB để tự kiểm tra.
+
+**3. Historical lookup khả thi hay không: KHÔNG XÁC ĐỊNH ĐƯỢC — cần Owner trả
+lời trực tiếp, không suy đoán.**
+
+Nhưng có một ràng buộc **đã có authority**, độc lập với RTDB, mà bất kỳ câu trả
+lời nào cũng phải thoả: **DEC-121**. Nguyên văn: *"Việc tra cứu dùng ngày
+nghiệp vụ của đơn / của kỳ báo cáo, không bao giờ dùng 'hôm nay'... Một chính
+sách đổi vào 2027 không được phép làm thay đổi con số của một báo cáo 2026 đã
+phát hành."* Nguyên tắc này áp dụng cho **mọi** business rule mang tính chính
+sách trong dự án (tỉ lệ quy đổi đã kiểm chứng bằng `run_temporal_check()`,
+3/3 PASS) — giá nhập không phải ngoại lệ, vì nó đi thẳng vào cùng công thức
+lợi nhuận KPI.
+
+**⇒ NẾU RTDB chỉ lưu giá hiện hành (bị ghi đè liên tục, không giữ lịch sử):
+đây là BLOCKING ARCHITECTURE GAP cho `TASK-108B`.** Lý do cụ thể: chạy lại báo
+cáo tháng 01/2026 vào một ngày bất kỳ sau đó phải cho ra **đúng** giá nhập của
+tháng 01/2026, không phải giá tại thời điểm chạy lại — nếu không, in lại cùng
+một báo cáo hai lần sẽ ra hai con số khác nhau, và không ai biết bản nào đúng
+(đúng lo ngại DEC-121 đã nêu cho trường hợp tương tự). "RTDB đang chạy" không
+tự động giải quyết được điều này; nó giải quyết bài toán khác ("giá hiện tại
+là bao nhiêu ngay bây giờ"), không phải bài toán mà TASK-108B cần ("giá nhập
+tại đúng ngày của đơn X trong quá khứ là bao nhiêu").
+
+**4. Đề xuất abstraction — KHÔNG cần đổi seam đã có.**
+
+`PriceProvider` Protocol (`app/modules/pricing/provider.py`, có từ TASK-105,
+DEC-103) **đã đúng thiết kế cho tình huống này** — docstring của chính nó ghi
+sẵn từ đầu: *"an interface is defined now so an external Price Master can be
+plugged in later... without touching `price_engine` or `app.pipeline`."*
+Không cần sửa Protocol, không cần sửa `apply_prices()`, không cần sửa
+`pipeline.py`.
+
+```
+PriceProvider (Protocol, không đổi)
+    ├── PendingPriceProvider      — mặc định Phase 1, GIỮ NGUYÊN
+    │                                 (Golden Baseline phụ thuộc nó)
+    ├── FilePriceProvider         — từ DEC-145, vai trò xem lại (điểm 6)
+    └── RTDBPriceProvider (MỚI)   — implementation thứ ba, THIẾT KẾ SAU KHI
+                                     có câu trả lời điểm 3
+```
+
+**Ràng buộc bắt buộc, không thương lượng:** `RTDBPriceProvider` phải nằm sau
+đúng cùng một Protocol, và **không bao giờ** là default trong test/Golden.
+Golden Baseline có nguyên tắc xuyên suốt: đầu ra phải **deterministic across
+environments** (`test_golden_output_is_deterministic_across_environments`).
+Một provider gọi mạng sống tới RTDB phá vỡ đúng nguyên tắc đó nếu vô tình trở
+thành default ở bất kỳ đường chạy nào ngoài production thật — kể cả trong lúc
+implement, không chỉ ở Golden.
+
+Đây cũng là điểm giao với ADR-101: ADR-101 tuyên bố *"Toàn bộ Phase 1 là thư
+viện Python thuần chạy được bằng CLI, không phụ thuộc DB hay web"* và cấm
+`app/modules/` import bất kỳ thứ gì liên quan web. `RTDBPriceProvider` **chỉ**
+tương thích với ranh giới đó nếu nó nằm hoàn toàn sau Protocol (client Firebase
+là chi tiết implementation của module `pricing`, không rò rỉ lên
+`price_engine`/`pipeline`/domain layer) — đúng thiết kế mà `PriceProvider` đã
+có sẵn để làm việc này.
+
+**5. `FilePriceProvider` (DEC-145) — vai trò xem lại, KHÔNG bị huỷ.**
+
+Toàn bộ semantics đã Owner duyệt ở `DEC-145` (`OD-105B-01` §A/§B/§D/§E) — khoảng
+hiệu lực đóng, cấm overlap, normalization NFC+casefold, 4-cột schema, validation
+rules §E — **là tính chất của một tập hợp price record hợp lệ, độc lập với nơi
+nó đến từ đâu**. Chúng KHÔNG bị đảo ngược bởi correction này.
+
+Vai trò thực tế của file, chờ điểm 3 trả lời:
+
+- Nếu RTDB **có** lưu lịch sử: `FilePriceProvider` lùi thành **bootstrap /
+  import / snapshot export** — dùng để nạp dữ liệu ban đầu, hoặc để xuất một
+  bản chụp RTDB ra file phục vụ audit/offline reconciliation, hoặc làm
+  fixture cho test (deterministic, không phụ thuộc mạng — đúng yêu cầu Golden).
+- Nếu RTDB **không** lưu lịch sử: cần một tầng **capture** đứng giữa RTDB
+  (nguồn "hiện tại") và hệ thống báo cáo (cần "lịch sử") — file **có thể** là
+  định dạng snapshot đó (mỗi lần chụp RTDB ghi thêm một dòng có
+  `effective_from`/`effective_to`), nhưng đây là thiết kế mới, chưa được
+  Owner xác nhận, và **không tự chọn**.
+
+Cả hai nhánh đều **giữ nguyên giá trị** của `DEC-145`: 4-cột schema và
+validation rules áp dụng cho snapshot/export, dù nguồn gốc dữ liệu bây giờ là
+RTDB chứ không phải một file Owner gõ tay.
+
+**6. `TASK-105B` implementation — TẠM DỪNG, không phải BLOCKED vĩnh viễn.**
+
+`FilePriceProvider` **về mặt kỹ thuật vẫn implement được y hệt `DEC-145`** —
+Protocol không đổi, schema không đổi. Nhưng gán nó làm **production path**
+trước khi biết vai trò thật (điểm 5) là hành động dựa trên tiền đề sai mà Owner
+vừa sửa. Đây không phải blocker kỹ thuật (`TASK-105B` cũ vẫn `READY` về mặt
+code) — đây là quyết định **phạm vi/vai trò** cần Owner xác nhận trước khi
+tiếp tục để tránh làm lại.
+
+**7. Semantics Q1/Q2/Q3 — giữ nguyên nguyên vẹn, không phụ thuộc provider.**
+
+- **Q1** (khoảng hiệu lực đóng, cấm overlap, cấm latest/nearest) — áp dụng cho
+  bất kỳ tập price record nào, kể cả một snapshot từ RTDB. **Quan trọng hơn
+  trước**: nếu RTDB không tự lưu lịch sử, chính Q1 là ràng buộc bắt buộc cho
+  tầng capture phải xây.
+- **Q2** (chuẩn hoá NFC+casefold cho khoá sản phẩm) — vẫn đúng **nếu** RTDB
+  dùng cùng loại khoá text tự do (`product_raw`). Câu hỏi mới phát sinh: RTDB
+  có thể đã dùng khoá có cấu trúc hơn (một dạng `ProductCode` thật) — nếu vậy,
+  bài toán khớp tên mà TASK-402 (Phase 4) dự kiến giải quyết **có thể đã được
+  giải một phần** bởi hệ thống nguồn giá. Cần Owner xác nhận khoá RTDB dùng gì.
+- **Q3** (chính sách zero-price cho dòng phụ) — **hoàn toàn độc lập với
+  provider**, không bị ảnh hưởng bởi correction này. Việc finalize `Q3` đang
+  làm dở (audit evidence 30 raw label từ `evidence.json`, đã xác nhận đúng ba
+  con số: `Chi phí vận chuyển` 1.074 dòng, `Chi phí lắp đặt` 84 dòng, `Chênh
+  VAT` 33 dòng, cộng các biến thể ghép/typo) **không mất** — tạm dừng theo yêu
+  cầu Owner, tiếp tục được ở phiên sau bằng đúng dữ liệu đã audit.
+
+Reason:
+
+**Vì sao đây không phải "chỉ cần đổi FilePriceProvider thành RTDBPriceProvider"
+đơn giản.** Nếu RTDB chỉ có giá hiện hành, bài toán không phải "provider nào"
+mà là "hệ thống hiện tại có khả năng trả lời câu hỏi lịch sử hay không" — một
+câu hỏi kiến trúc, không phải một câu hỏi kỹ thuật nhỏ. Việc thu hẹp sai thành
+"đổi provider" sẽ để lại đúng lỗi mà DEC-121 tồn tại để chặn, chỉ là ẩn sau một
+lớp trừu tượng trông có vẻ đúng.
+
+**Vì sao không tự thiết kế `RTDBPriceProvider` ngay trong phiên này.** Session
+này không có credential, không có SDK, không có cách quan sát dữ liệu RTDB
+thật. Thiết kế một provider mà không biết schema là đoán mò — đúng điều
+`governance/core/10_AI_AGENT_EXECUTION_PROTOCOL.md`/`CLAUDE.md` cấm ("Không được thay các
+trạng thái này chỉ vì prompt nói. Phải xác minh repo" — ở đây mở rộng thành
+"phải xác minh hệ thống thật", không có trong repo thì không tự bịa).
+
+**Vì sao vẫn giữ được toàn bộ `DEC-145`.** Owner correction này không nói
+"Q1/Q2/Q3 sai" — nó nói "nguồn dữ liệu khác giả định". Ba câu hỏi đó là ràng
+buộc lên **hình dạng của dữ liệu giá**, không phải lên **nơi nó tới từ đâu**.
+Tách hai khái niệm này ra đúng là cách không phải làm lại discovery đã tốn
+nhiều phiên.
+
+Risk:
+
+`Effective Risk = HIGH` giữ nguyên — không đổi so với `DEC-144`/`DEC-145`,
+chấm theo data path (V4.1 §4): giá sai → `KpiPurchasePrice` sai →
+`EligibleKpiProfit` sai → CR sai → KPI/lương sai. Correction này **làm rủi ro
+kiến trúc hiện lên rõ hơn**, không làm nó thấp đi.
+
+Rủi ro cụ thể của chính bản ghi này:
+
+- **Live dependency rò vào test/Golden.** Nếu `RTDBPriceProvider` được thiết
+  kế sau này vô tình trở thành import mặc định ở bất kỳ module test nào, mọi
+  lần chạy `pytest` sẽ phụ thuộc mạng và trạng thái RTDB tại đúng thời điểm
+  chạy — phá nguyên tắc deterministic của Golden Baseline. Giảm nhẹ: ghi tường
+  minh ở điểm 4; `CHECK-105B-*` (khi viết lại Completion Gate) phải có một
+  check riêng xác nhận không module test nào import client Firebase.
+- **Nếu RTDB không lưu lịch sử và không ai xây tầng capture kịp thời**, dự án
+  có nguy cơ lặp lại đúng việc workbook cũ đang làm (gõ tay/suy đoán) nhưng ở
+  tầng giá thay vì tầng doanh thu quy đổi. Giảm nhẹ: nêu rõ đây là
+  `BLOCKING ARCHITECTURE GAP` có điều kiện, cần Owner trả lời trước khi mở lại
+  `TASK-105B` implementation.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace toàn
+  repo; `DEC-146` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — `TASK-105B` lùi từ `IMPLEMENTATION = READY`
+  về trạng thái tạm dừng chờ RTDB schema; `TASK-105B-Q3` finalize tạm dừng
+  (không mất tiến độ audit).
+- `PROJECT/LO_TRINH_DE_HIEU.md` — cập nhật mô tả bước 11b, thêm câu hỏi RTDB
+  schema vào danh sách chờ chủ dự án.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — ghi chú trạng thái tạm dừng của lineage
+  `TASK-105B`; **không** tiêu repair cycle (đây là audit, không phải repair).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần V
+  (RTDB correction pointer), giữ nguyên Phần I–IV.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+
+Can Revisit After:
+- Chủ dự án cung cấp: schema RTDB thật (path, cấu trúc node, kiểu khoá sản
+  phẩm); xác nhận RTDB overwrite hay lưu lịch sử; nếu lưu lịch sử, cấu trúc
+  timestamp/effective dating; nếu không, xác nhận có đồng ý xây tầng capture
+  snapshot hay không.
+- Sau khi có câu trả lời trên: mở lại `TASK-105B` với kiến trúc đã sửa, hoặc mở
+  một `TASK-105C` (RTDBPriceProvider / snapshot capture) riêng nếu độ phức tạp
+  đủ lớn để tách task.

@@ -139,8 +139,9 @@ R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 SEMANTIC_DEFINITION   = APPROVED   (đầy đủ — formula đã được Owner xác nhận, DEC-144 §1)
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ FilePriceProvider chưa tồn tại (TASK-105B — READY,
-                          chưa implement), bảng giá thật chưa được cấp ]
+BLOCKED_BY_DEPENDENCY = [ nguồn AccountingPurchasePrice production chưa xác
+                          định kiến trúc (RTDB schema cần Owner làm rõ — DEC-146),
+                          bảng giá/snapshot thật chưa có ]
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
@@ -159,14 +160,40 @@ repair budget         = 2 allowed / 0 used / 2 remaining (lineage TASK-108B)
 `SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
 Không hardcode dữ liệu để vượt blocker, không synthetic PASS.
 
-**TASK-105B — FilePriceProvider (DEC-144 §7 mở; DEC-145 / `OD-105B-01` chốt Q1/Q2/Q3):**
+**TASK-105B — TẠM DỪNG (DEC-146, 2026-08-27) — architecture correction.**
+Chủ dự án sửa tiền đề: Price Master **không phải file tĩnh** — giá nhập biến
+động liên tục, nguồn sự thật vận hành là **Firebase RTDB**. Thông tin này chưa
+từng có trong repo trước phiên `DEC-146`.
 
 ```
-SEMANTIC_READINESS = READY          ← Q1/Q2/Q3 đã đóng (DEC-145)
-IMPLEMENTATION     = READY          (phạm vi OD-105B-01 §A/§B/§D/§E)
-effective_risk     = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
-repair budget      = 2 allowed / 0 used / 2 remaining (lineage TASK-105B)
+SEMANTIC_READINESS (Q1/Q2/Q3, DEC-145)  = READY — KHÔNG đổi, vẫn đúng
+IMPLEMENTATION (FilePriceProvider)      = TẠM DỪNG — vai trò production cần
+                                           Owner xác nhận lại sau khi có schema
+                                           RTDB thật (5 câu hỏi, xem dưới)
+effective_risk  = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
+repair budget   = 2 allowed / 0 used / 2 remaining (lineage TASK-105B, không đổi)
 ```
+
+**Quan trọng — có điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`:** nếu
+RTDB chỉ lưu giá **hiện hành** (bị ghi đè liên tục, không giữ lịch sử), hệ
+thống không trả lời được câu hỏi DEC-121 đòi hỏi ("giá tại đúng ngày của đơn
+trong quá khứ là bao nhiêu"), và cần một tầng capture snapshot mới trước khi
+`TASK-108B` có thể dùng được số thật. **Chưa xác định** — cần Owner trả lời,
+không suy đoán.
+
+Đề xuất kiến trúc: giữ nguyên `PriceProvider` Protocol (đã đúng thiết kế từ
+DEC-103), thêm `RTDBPriceProvider` **song song** với `FilePriceProvider` (không
+thay thế), vai trò cụ thể tuỳ câu trả lời của chủ dự án. **5 câu hỏi cần trả
+lời:** (1) schema RTDB thật; (2) overwrite hay lưu lịch sử; (3) khoá sản phẩm
+dùng trong RTDB (text tự do hay đã có `ProductCode`); (4) provenance/nguồn ghi
+giá vào RTDB; (5) nếu không lưu lịch sử, có đồng ý xây tầng capture snapshot
+hay không. Chi tiết đầy đủ:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần V.
+
+`TASK-105B-Q3` (chính sách zero-price dòng phụ) **không đổi, vẫn BLOCKED** bởi
+`TASK-103`/enumeration — độc lập hoàn toàn với nguồn giá. Audit evidence đang
+làm dở (30 raw label từ `evidence.json`) **không mất**, tạm dừng theo yêu cầu
+chủ dự án, tiếp tục được ở phiên sau.
 
 Q1 = khoảng ĐÓNG `[from, to]`, overlap/>1 record mở = `INVALID PRICE MASTER`,
 gap → `Pending`, cấm latest/nearest/current. Q2 = chuẩn hoá NFC → strip →
@@ -257,11 +284,15 @@ phải việc agent tự làm tiếp được:
 
 1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG HOÀN TOÀN
    (DEC-143 + DEC-144; `OD-108B-01` + `OD-108B-02`, 2026-08-27); C15 ĐÃ ĐÓNG.**
-   Q1/Q2/Q3 của `TASK-105B` **đã đóng** (DEC-145). Blocker ngoại lai còn
-   **đúng một**: chủ dự án cấp **file giá 4 cột**. `TASK-105B` nay
-   `IMPLEMENTATION = READY`; phần dòng phụ tách thành `TASK-105B-Q3`, còn chờ
+   Q1/Q2/Q3 của `TASK-105B` **đã đóng** (DEC-145, vẫn đúng). Nhưng
+   **`DEC-146` (2026-08-27) sửa lại tiền đề nguồn giá**: không phải file tĩnh
+   Owner gõ tay — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
+   tục trong ngày. `TASK-105B` implementation **tạm dừng** chờ 5 câu hỏi về
+   schema RTDB. Có khả năng phát sinh `BLOCKING ARCHITECTURE GAP` nếu RTDB
+   không lưu lịch sử giá (DEC-121 đòi hỏi tra cứu đúng ngày quá khứ, không
+   phải giá hiện hành). `TASK-105B-Q3` (dòng phụ) không đổi, vẫn chờ
    `TASK-103`. Xem `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
-   Phần III–IV.
+   Phần III–V.
    *(Chi tiết `OD-108B-01` giữ nguyên bên dưới.)* `EligibleCosts = {}` (closed empty
    set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
    definition`, canonical formula đã chốt. Nhưng
@@ -393,11 +424,21 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
   - [ ] TASK-105B — `FilePriceProvider` (Phase 1). Implementation thứ hai của
-        `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice` từ
-        file bảng giá do chủ dự án cấp; tra theo `(normalized product_key,
-        ngày đơn)`. **SEMANTIC_READINESS = READY · IMPLEMENTATION = READY**
-        (DEC-145 / `OD-105B-01` — Q1/Q2/Q3 đã đóng). Chờ chủ dự án cấp file giá
-        4 cột. Completion Gate 16 check ở Phần IV của artifact TASK-108B.
+        `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice`; tra
+        theo `(normalized product_key, ngày đơn)`.
+        **SEMANTIC_READINESS (Q1/Q2/Q3) = READY** (DEC-145, không đổi).
+        **IMPLEMENTATION = TẠM DỪNG** (DEC-146, 2026-08-27) — Price Master
+        không phải file tĩnh, nguồn sự thật vận hành là **Firebase RTDB**. Vai
+        trò của file (production/bootstrap/test-fixture/snapshot-export) cần
+        Owner xác nhận lại sau khi cấp schema RTDB thật — 5 câu hỏi ở Phần V
+        của artifact TASK-108B. Contract kỹ thuật §38 (schema 4 cột, validation)
+        vẫn đúng, không bị đảo ngược.
+  - [ ] TASK-105C — `RTDBPriceProvider` (MỚI, mở tại DEC-146). Implementation
+        thứ ba của `PriceProvider` Protocol, đọc giá từ Firebase RTDB.
+        **SEMANTIC_READINESS = OWNER_DECISION_REQUIRED** — chờ schema RTDB
+        thật. **Điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`** nếu
+        RTDB không lưu lịch sử giá (DEC-121 đòi hỏi tra cứu theo ngày đơn
+        trong quá khứ, không phải giá hiện hành).
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -413,10 +454,11 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 + DEC-145**: còn **1** blocker ngoại lai (giảm 4 → 2 → 1)
-        — bảng giá nhập thật (`PendingPriceProvider` trả `None` vô điều kiện;
-        Golden xác nhận 100 % Pending trên dữ liệu production). `TASK-105B` đã
-        `READY`, chỉ chờ file. Confirmed
+        Sau **DEC-144 + DEC-145 + DEC-146**: blocker ngoại lai còn **1**, nhưng
+        bản chất đã đổi — không còn là "chờ file giá", mà là "chờ Owner làm rõ
+        kiến trúc nguồn giá thật (RTDB)" (`PendingPriceProvider` trả `None`
+        vô điều kiện; Golden xác nhận 100 % Pending trên dữ liệu production).
+        `TASK-105B` tạm dừng chờ schema RTDB — xem `TASK-105C` ở trên. Confirmed
         `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
         còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
         absence với source-unavailable), thuộc phạm vi chính TASK-108B.

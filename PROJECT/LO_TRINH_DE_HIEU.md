@@ -100,11 +100,30 @@ nhập kế toán; nhưng "chưa biết" thì **vẫn phải để trống**, kh
 "không có điều chỉnh". Đây là điểm tinh tế và quan trọng: *thiếu thông tin*
 khác với *biết chắc là không có*.
 
-**Ba câu hỏi đó chủ dự án đã trả lời ngày 2026-08-27 (DEC-145).** Kết quả:
-bảng giá ghi rõ ngày bắt đầu **và** ngày kết thúc, không cho hai mức giá chồng
-lấn; tên hàng khớp sau khi bỏ qua khoảng trắng thừa và hoa/thường (nhưng
-**không** bỏ dấu tiếng Việt, **không** đoán gần đúng); các dòng phí thì giá
-nhập = 0. Công cụ nay **sẵn sàng để làm** — chỉ còn chờ chính file giá.
+**Ba câu hỏi đó chủ dự án đã trả lời ngày 2026-08-27 (DEC-145)** — nội dung
+câu trả lời vẫn đúng: bảng giá ghi rõ ngày bắt đầu **và** ngày kết thúc, không
+cho hai mức giá chồng lấn; tên hàng khớp sau khi bỏ qua khoảng trắng thừa và
+hoa/thường (nhưng **không** bỏ dấu tiếng Việt, **không** đoán gần đúng); các
+dòng phí thì giá nhập = 0.
+
+**Nhưng ngay sau đó (cùng ngày, DEC-146), chủ dự án sửa lại một điểm quan
+trọng hơn cả ba câu hỏi trên: giá nhập KHÔNG nằm trong một file cố định.** Giá
+thay đổi liên tục trong ngày, và nơi lưu giá thật hiện tại là một cơ sở dữ
+liệu vận hành (Firebase Realtime Database — RTDB), không phải một file Excel/
+CSV Owner gõ tay một lần. Đây là thông tin mới, chưa từng xuất hiện ở bất kỳ
+đâu trong hồ sơ dự án trước đó.
+
+Điều này **không** làm hỏng ba câu trả lời ở trên — cách xác định "giá nào
+đúng cho ngày nào" và "tên hàng khớp thế nào" vẫn giữ nguyên, chỉ là áp dụng
+cho dữ liệu lấy từ RTDB thay vì từ file. Nhưng nó mở ra một câu hỏi quan trọng
+hơn: **hệ thống RTDB hiện tại có lưu lại lịch sử giá theo thời gian không, hay
+chỉ có giá hiện tại?** Nếu chỉ có giá hiện tại, công cụ sẽ gặp một vấn đề
+nghiêm trọng: tính lại báo cáo tháng 1 vào một ngày bất kỳ sau này phải ra
+đúng giá của tháng 1, không phải giá của ngày hôm tính lại — giống hệt nguyên
+tắc công ty đã chốt cho tỉ lệ quy đổi (không được để chính sách sau này làm
+đổi số liệu báo cáo cũ). Nếu RTDB không tự giữ lịch sử, công cụ cần thêm một
+bước "chụp lại" giá định kỳ, có ghi ngày — việc này cần chủ dự án xác nhận
+trước khi làm tiếp.
 
 Một điểm phải nói thẳng: phần "dòng phí thì giá nhập = 0" **chưa làm được
 ngay**. Chủ dự án đã yêu cầu công cụ dùng lại cách nhận diện dòng phí **có
@@ -118,17 +137,24 @@ trong khi đúng 3 nhóm chủ dự án nêu chỉ có **34** — dôi ra `Phụ
 (`TASK-103` — phân loại dòng hàng) hoặc chờ chủ dự án cấp một danh sách liệt kê
 rõ ràng.
 
-**Việc còn lại cần chủ dự án — một file.** Bảng giá nhập, đúng 4 cột (đơn vị
-**VND nguyên**, ví dụ `8000000` = tám triệu):
+**Việc còn lại cần chủ dự án — năm câu hỏi về RTDB**, thay cho việc cấp file
+(file vẫn có thể cần, nhưng chỉ để nạp dữ liệu ban đầu hoặc làm dữ liệu mẫu
+kiểm thử, không còn chắc là nguồn chính):
 
-| Cột | Ví dụ | Ý nghĩa |
-|---|---|---|
-| tên hàng | `Máy giặt LG 10kg FV1410S4W1` | chép nguyên văn cột `Tên hàng trên chứng từ` |
-| ngày bắt đầu | `2026-01-01` | giá bắt đầu áp dụng |
-| ngày kết thúc | `2026-01-14` | để trống **chỉ** ở dòng giá hiện hành cuối cùng của mỗi món |
-| giá nhập | `8000000` | VND nguyên |
+1. Cấu trúc dữ liệu thật trong RTDB — đường dẫn, các trường, kiểu dữ liệu.
+2. RTDB ghi đè giá cũ mỗi khi cập nhật, hay giữ lại toàn bộ lịch sử?
+3. RTDB dùng gì để định danh một mặt hàng — tên tự do giống file bán hàng, hay
+   đã có một mã hàng chuẩn hoá riêng?
+4. Ai/hệ thống nào ghi giá vào RTDB, có ghi lại nguồn không?
+5. Nếu RTDB không giữ lịch sử: chủ dự án có đồng ý để công cụ tự "chụp" lại
+   giá theo định kỳ (kèm ngày) hay không, và bao lâu chụp một lần?
 
-*(Ba câu hỏi gốc giữ lại bên dưới làm bản ghi lịch sử — đã có câu trả lời.)*
+Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập) vẫn
+đúng làm **định dạng dữ liệu** — chỉ chưa rõ dữ liệu đó lấy trực tiếp từ RTDB
+hay công cụ tự tạo ra bằng cách chụp RTDB định kỳ.
+
+*(Ba câu hỏi gốc và bảng 4 cột giữ lại bên dưới làm bản ghi lịch sử — nội dung
+câu trả lời vẫn đúng, chỉ thay đổi ở chỗ dữ liệu lấy từ đâu.)*
 
 - **Q1.** Trong bảng giá, mỗi dòng có ghi **ngày kết thúc** hiệu lực không? Nếu
   chỉ ghi ngày bắt đầu, hai mức giá của cùng một món sẽ cùng có hiệu lực và
@@ -596,8 +622,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11b. TASK-105B — Đọc bảng giá nhập từ file chủ dự án cấp | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Sẵn sàng làm** (chủ dự án đã chốt cách đọc, DEC-145) — **chỉ chờ file giá 4 cột** |
-| ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án |
+| ⬜ | 11b. TASK-105B — Đọc giá nhập | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Tạm dừng** (DEC-146) — mới biết nguồn giá thật là RTDB chứ không phải file; **chờ chủ dự án trả lời 5 câu hỏi về RTDB** |
+| ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |

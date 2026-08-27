@@ -308,8 +308,8 @@ báo cáo, **không** sửa Golden (phiên `DEC-143` không chạm
 SEMANTIC_DEFINITION   = APPROVED       (DEC-143 + DEC-144; OD-108B-01 + OD-108B-02)
                                        đầy đủ — formula đã được Owner xác nhận
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ FilePriceProvider chưa tồn tại (TASK-105B = READY),
-                          bảng giá thật chưa được Owner cấp ]
+BLOCKED_BY_DEPENDENCY = [ nguồn AccountingPurchasePrice production chưa xác
+                          định kiến trúc — schema RTDB cần Owner làm rõ (DEC-146) ]
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ]   ← nội bộ,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 repair cycle          = CHƯA MỞ (0 used) — chưa có implementation nào để repair
@@ -365,10 +365,23 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 ### Trạng thái
 
 ```
-SEMANTIC_READINESS = READY          (DEC-145 / OD-105B-01 — Q1/Q2/Q3 ĐÓNG)
-IMPLEMENTATION     = READY          (phạm vi OD-105B-01 §A/§B/§D/§E)
-chờ               : file giá 4 cột từ Owner
+SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
+IMPLEMENTATION                = TẠM DỪNG  (DEC-146, 2026-08-27)
+chờ  : 5 câu hỏi về schema Firebase RTDB — path, overwrite/history, khoá sản
+       phẩm, provenance ghi giá, đồng ý xây tầng capture snapshot hay không
 ```
+
+**Architecture correction (DEC-146).** Owner sửa tiền đề: Price Master không
+phải file tĩnh — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
+tục. Repo **không có** integration Firebase nào (đã quét toàn bộ, kể cả
+`pyproject.toml` dependencies và đặc tả gốc) — không có gì để audit từ phía
+code, cần Owner cung cấp schema thật. **Điều kiện `BLOCKING ARCHITECTURE GAP`
+cho `TASK-108B`** nếu RTDB không lưu lịch sử giá: DEC-121 đòi hỏi tra cứu đúng
+giá tại ngày quá khứ của đơn, không phải giá hiện hành — "RTDB đang chạy"
+không tự động thoả điều kiện đó. Đề xuất: giữ `PriceProvider` Protocol, thêm
+`RTDBPriceProvider` song song với `FilePriceProvider` (không thay thế); vai
+trò cụ thể của từng cái chờ Owner xác nhận. Chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần V.
 
 Sub-unit tách riêng, **không** có ngân sách riêng và **không** reset ngân sách:
 
@@ -530,3 +543,43 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `TASK-110` `EXHAUSTED_PRE_V4.1` remaining = 0,
   `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`, `config/`,
   `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-146` — Architecture Correction Audit cho `TASK-105B`.
+  Owner sửa tiền đề đã dùng ở `DEC-144`/`DEC-145`: Price Master **không phải
+  file tĩnh** — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
+  tục trong ngày. Quét toàn repo: **0** integration Firebase/RTDB nào tồn tại
+  (chỉ 2 chỗ nhắc "Firebase" là boilerplate template governance chung, không
+  phải quyết định kỹ thuật của dự án này); `pyproject.toml` không có
+  `firebase-admin` hay SDK liên quan; không credential/schema/crawler nào
+  được ghi lại ở bất kỳ đâu. `CONFLICT DETECTED` đã báo cáo theo đúng giao
+  thức: `ADR-101` nêu tên PostgreSQL/SQLite cho Phase 2, không nơi nào nhắc
+  Firebase làm kiến trúc dự án.
+
+  `TASK-105B` chuyển từ `IMPLEMENTATION = READY` (DEC-145) sang **TẠM DỪNG**
+  — không phải blocker kỹ thuật (contract §38 vẫn buildable y hệt), mà là
+  quyết định phạm vi/vai trò cần Owner xác nhận trước khi tránh làm lại.
+  `SEMANTIC_READINESS` (Q1/Q2/Q3, DEC-145) **giữ nguyên đúng** — ba câu hỏi đó
+  ràng buộc **hình dạng dữ liệu giá**, độc lập với nơi nó tới từ đâu.
+
+  **Điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`** nếu RTDB chỉ lưu
+  giá hiện hành (overwrite, không giữ lịch sử) — DEC-121 đòi hỏi tra cứu đúng
+  giá tại ngày quá khứ của đơn; "RTDB đang chạy" trả lời câu hỏi khác ("giá
+  hiện tại"), không phải câu hỏi `TASK-108B` cần. Chưa xác định — cần Owner
+  trả lời trực tiếp, không suy đoán.
+
+  Đề xuất: giữ `PriceProvider` Protocol (đã đúng thiết kế từ DEC-103), thêm
+  `TASK-105C` (`RTDBPriceProvider`) **song song** với `TASK-105B`
+  (`FilePriceProvider`, vai trò lùi thành bootstrap/test-fixture/snapshot-export
+  tuỳ câu trả lời Owner) — không thay thế nhau. `RTDBPriceProvider` **không
+  bao giờ** default trong test/Golden (nguyên tắc deterministic).
+
+  `TASK-105B-Q3` (chính sách zero-price dòng phụ) **không đổi**, vẫn `BLOCKED`
+  bởi `TASK-103`/enumeration — hoàn toàn độc lập với nguồn giá. Audit evidence
+  đang làm dở (30 raw label từ `evidence.json`: `Chi phí vận chuyển` 1.074
+  dòng, `Chi phí lắp đặt` 84, `Chênh VAT` 33, cộng biến thể ghép/typo) **không
+  mất** — tạm dừng theo yêu cầu Owner, tiếp tục được ở phiên sau.
+
+  Đây là **audit, không phải repair cycle** — ngân sách mọi lineage không đổi:
+  `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110` `EXHAUSTED_PRE_V4.1`
+  remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
+  `config/`, `tests/`, Golden fixture/expected **không đổi một byte**.
