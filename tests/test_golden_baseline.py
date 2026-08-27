@@ -221,6 +221,27 @@ def _comparable(payload: dict) -> dict:
     return trimmed
 
 
+def _strict_bytes(payload: dict) -> bytes:
+    """Serialize CHỈ phần STRICT BUSINESS CONTRACT — loại `_ENV_ADVISORY`.
+
+    GB-IR-01: `python`/`pyyaml`/`openpyxl` là metadata môi trường, không phải
+    business payload. Chạy Golden trên một interpreter/thư viện hợp lệ khác
+    (vd. Python 3.12 thay vì 3.11, PyYAML 6.0.3 thay vì 6.0.1) không được
+    làm Golden FAIL khi business semantics giống nhau — đó chính là false
+    regression signal mà Independent Review xác nhận.
+
+    Dùng CHUNG bộ serializer với `gb.write` (cùng tham số `json.dumps`) nên
+    phép so vẫn là so BYTE thật của phần strict, không phải so cấu trúc: một
+    nondeterminism ẩn trong bất kỳ trường business nào — whitespace, thứ tự
+    khoá, định dạng số — vẫn lộ ra. Chỉ đúng ba trường advisory bị loại khỏi
+    phép so, không hơn.
+    """
+    return (
+        json.dumps(_comparable(payload), ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n"
+    ).encode("utf-8")
+
+
 # ================================================== TẦNG 1 — so toàn cấu trúc
 
 @pytest.mark.parametrize("period", PERIOD_IDS)
@@ -234,20 +255,96 @@ def test_golden_expected_output_matches_pipeline(period, expected_by_period, act
 
 @pytest.mark.parametrize("period", PERIOD_IDS)
 def test_golden_expected_output_is_regenerable_byte_identical(period, expected_by_period,
-                                                              actual_by_period, tmp_path):
-    """Sinh lại expected output cho ra ĐÚNG TỪNG BYTE file đã commit.
+                                                              actual_by_period):
+    """Sinh lại STRICT BUSINESS CONTRACT cho ra ĐÚNG TỪNG BYTE file đã commit.
 
-    Nếu không, còn một nguồn nondeterminism chưa xử lý và expected output
-    không được phép coi là đã khoá (GB-6).
+    Nếu không, còn một nguồn nondeterminism chưa xử lý ở một trường business
+    và expected output không được phép coi là đã khoá (GB-6).
+
+    **GB-IR-01 (repair cycle #1).** Trước bản sửa này, phép so là byte-thô
+    của TOÀN BỘ file — bao gồm `_environment.python`/`pyyaml`/`openpyxl`.
+    Chạy trên một Python/PyYAML hợp lệ khác với lúc sinh fixture (vd. 3.11.15
+    → 3.12) làm ba trường advisory đó đổi, và test đỏ dù business payload
+    giống hệt — một FALSE REGRESSION SIGNAL. `_strict_bytes()` loại đúng ba
+    trường advisory đó, không hơn; mọi trường business vẫn so byte-thật.
     """
     spec = _spec(period)
     committed = (gb.EXPECTED_DIR / f"{Path(spec['fixture_filename']).stem}.json")
-    regenerated = tmp_path / "regenerated.json"
-    gb.write(regenerated, actual_by_period[period])
-    assert regenerated.read_bytes() == committed.read_bytes(), (
-        f"{committed.name}: sinh lại KHÔNG byte-identical. Hoặc còn "
-        f"nondeterminism, hoặc file đã commit lỗi thời."
+    committed_payload = json.loads(committed.read_text(encoding="utf-8"))
+    assert _strict_bytes(actual_by_period[period]) == _strict_bytes(committed_payload), (
+        f"{committed.name}: sinh lại KHÔNG byte-identical trên phần STRICT "
+        f"BUSINESS CONTRACT. Hoặc còn nondeterminism ở một trường business, "
+        f"hoặc file đã commit lỗi thời."
     )
+
+
+# ------------------------------------------------ GB-IR-01 — repair cycle #1
+
+def test_golden_strict_comparison_still_catches_a_business_mutation(expected_by_period):
+    """GB-IR-01 TEST 1 — mutate MỘT trường business, `_strict_bytes` phải khác.
+
+    Chứng minh việc tách advisory ra không làm mất khả năng phát hiện regression
+    nghiệp vụ thật: `_strict_bytes` chỉ loại đúng ba trường
+    `python`/`pyyaml`/`openpyxl`, không loại bất kỳ trường business nào.
+    """
+    expected = expected_by_period["01.2026"]
+    mutated = json.loads(json.dumps(expected))
+    mutated["counts"]["orders"] = 253
+    assert _strict_bytes(mutated) != _strict_bytes(expected), (
+        "mutate `counts.orders` không làm strict-bytes đổi — comparison đã "
+        "loại nhầm một trường business")
+
+
+@pytest.mark.parametrize("advisory_field", sorted(_ENV_ADVISORY))
+def test_golden_advisory_metadata_mismatch_does_not_fail_golden(advisory_field, expected_by_period):
+    """GB-IR-01 TEST 2+3 — đổi `python`/`pyyaml`/`openpyxl` KHÔNG làm Golden đỏ.
+
+    Đây chính là kịch bản Independent Review tái hiện: chạy trên một
+    interpreter/thư viện hợp lệ khác lúc sinh fixture. Business payload không
+    đổi, nên `_strict_bytes` phải giữ nguyên dù giá trị advisory khác hẳn.
+    """
+    expected = expected_by_period["01.2026"]
+    mutated = json.loads(json.dumps(expected))
+    assert mutated["_environment"][advisory_field] == expected["_environment"][advisory_field]
+    mutated["_environment"][advisory_field] = "9.9.9-mutated-for-test"
+    assert _strict_bytes(mutated) == _strict_bytes(expected), (
+        f"đổi `_environment.{advisory_field}` làm strict-bytes đổi — trường "
+        f"advisory đang lọt vào phép so PASS/FAIL")
+
+
+@pytest.mark.parametrize("period", PERIOD_IDS)
+def test_golden_advisory_metadata_is_still_recorded_for_diagnostics(period, actual_by_period):
+    """GB-IR-01 TEST 4 — advisory metadata không bị XOÁ, chỉ không tham gia strict.
+
+    §3 của repair chỉ thị: advisory có thể tiếp tục được ghi để phục vụ
+    debugging/evidence. Test này khoá đúng nửa còn lại của invariant B — nó
+    vẫn tồn tại và đọc được, không phải bị gỡ bỏ để né finding.
+    """
+    env = actual_by_period[period]["_environment"]
+    for field in _ENV_ADVISORY:
+        assert env.get(field), f"`_environment.{field}` bị bỏ trống hoặc mất"
+    for field in _ENV_STRICT:
+        assert env.get(field), f"`_environment.{field}` (strict) bị bỏ trống hoặc mất"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _expected_output_files_are_read_only():
+    """GB-IR-01 TEST 5 — chạy suite này KHÔNG được tự sinh lại expected output.
+
+    Snapshot bytes của mọi file `expected/*.json` TRƯỚC khi module này chạy
+    bất kỳ test nào, so lại SAU KHI toàn bộ module chạy xong — không phụ
+    thuộc thứ tự test nào chạy trước/sau. Nếu một dòng code trong bất kỳ test
+    nào lỡ gọi `gb.write()`/`gb.main()` vào `EXPECTED_DIR`, assertion ở
+    finalizer bắt được ngay, đúng chính sách "không có UPDATE_SNAPSHOT=1
+    tự động" của `tests/fixtures/golden/build_expected.py`.
+    """
+    before = {p.name: p.read_bytes() for p in sorted(gb.EXPECTED_DIR.glob("*.json"))}
+    yield
+    after = {p.name: p.read_bytes() for p in sorted(gb.EXPECTED_DIR.glob("*.json"))}
+    assert after == before, (
+        "expected output bị ghi đè trong lúc chạy test suite — expected phải "
+        "là read-only đối với mọi test, chỉ sinh lại bằng "
+        "`python3 -m tests.fixtures.golden.build_expected` chạy tay")
 
 
 # ============================================ TẦNG 2 — invariant có tên
