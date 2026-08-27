@@ -205,22 +205,61 @@ Năm điều kiện bắt buộc kèm theo lịch sử `phist` (`DEC-147` §3): 
 **lịch sử SỬA ĐƯỢC** (bốn đường xoá/dời/mồ côi/lệch đang chạy) nên phải đóng
 băng mới thoả `DEC-121`; không API nào đưa `phist` ra ngoài.
 
-**5 câu hỏi mới cần chủ dự án** (thay 5 câu cũ của `DEC-146`, đã đóng 4/5):
-(1) `AccountingPurchasePrice` là trường nào trong ba ứng viên — giá NCC báo /
-giá thực nhập trung bình / giá lô; (2) nếu chọn giá NCC, một mã nhiều NCC cùng
-ngày thì lấy NCC nào (RTDB **không** ghi đơn X mua của NCC nào); (3) chấp nhận
-độ mịn theo ngày không; (4) đồng ý xây tầng capture bất biến không, tần suất
-bao nhiêu; (5) dữ liệu lịch sử có sẵn từ ngày nào (cần đọc RTDB thật —
-`NOT_TESTED`, git repo B là shallow). Chi tiết đầy đủ: `DEC-147` và
-`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VI.
+**Cập nhật sau `DEC-148` (2026-08-27, cùng ngày, phiên tiếp theo): chủ dự án
+đã chỉ định trường.** `AccountingPurchasePrice = inv.cong` (giá nhập
+**công khai**) — không phải `inv.gia` (private) hay `phist` (giá NCC báo).
+Đã audit đầy đủ write/read/lifecycle của `inv.cong` bằng bằng chứng code, xác
+nhận cả bốn semantics chủ dự án nêu đều khớp. Kết luận mới, **quan trọng hơn
+bản thân việc chọn field**:
+
+```
+inv.cong KHÔNG có lịch sử, và KHÔNG có bất kỳ đảm bảo giữ dữ liệu nào theo
+thời gian — NO GUARANTEED DELAY WINDOW.
+```
+
+Trong ngày: overwrite **tức thời** (sửa tay `invSetGia()`, hoặc tải lại file
+`invApply()`) — không version, không khoá "đã dùng ở báo cáo". Qua ngày
+(`invNextDay()`): giữ đúng **một bước**, và bước đó do **nút bấm thủ công**,
+không nằm trong lịch cron của Worker — có thể 0 lần/tuần hoặc nhiều lần/ngày.
+`backup` không chứa nhánh `inv` và tự xoá sau 10 bản; `hist` không mang giá
+trị số. ⇒ Cửa sổ tối thiểu đạt được trên thực tế = **0**.
+
+Hệ quả: capture layer **không còn là việc làm sau** — mỗi ngày trì hoãn là
+dữ liệu ngày đó có nguy cơ mất vĩnh viễn. Chi tiết đầy đủ: `DEC-148`,
+`docs/sessions/S025-task-105c-public-purchase-price-cong-audit.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VII.
+
+**5 câu hỏi còn lại cho chủ dự án** (đã đóng field-selection, còn 4/5 —
+DEC-147/DEC-148): (1) đồng ý xây tầng capture bất biến cho `inv.cong` không,
+và **tần suất bao nhiêu** (nay cấp thiết — xem finding ở trên); (2) nếu một
+mã có `cong` bị sửa tay nhiều lần trong ngày, dùng giá trị cuối ngày hay giá
+trị tại thời điểm business event; (3) chấp nhận độ mịn theo ngày không;
+(4) dữ liệu lịch sử `cong` có sẵn từ đâu — không có, phải bắt đầu capture từ
+ngày triển khai (`NOT_TESTED` cho dữ liệu quá khứ, vì chính RTDB cũng không
+giữ). Chi tiết đầy đủ: `DEC-147`, `DEC-148` và
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VI–VII.
 
 **TASK-105C — `RTDBPriceProvider` / capture layer:**
 
 ```
-DISCOVERY      = COMPLETE (S024, DEC-147)
-IMPLEMENTATION = OWNER_DECISION_REQUIRED — 5 câu hỏi ở trên
+DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148)
+AccountingPurchasePrice = inv.cong          — CHỦ DỰ ÁN ĐÃ CHỈ ĐỊNH (DEC-148)
+inv.cong history         = KHÔNG CÓ. NO GUARANTEED DELAY WINDOW (DEC-148 §8)
+IMPLEMENTATION = OWNER_DECISION_REQUIRED — 4 câu hỏi còn lại (dưới)
 RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE, và KHÔNG được đề cử
 ```
+
+**`inv.cong` là ứng viên đã chốt — nhưng chưa có một byte lịch sử nào.** Ba
+lớp giá trong `inv` (`gia`/`lo`/`cong`) đều bị audit; chỉ `cong` rời khỏi
+nhánh `inv` để vào `board`/Reports (`invSyncPart()`
+`public/index.html:7238,7250` → `board/<mã>/tp/ton`). Nhưng `cong`: (a) ghi
+đè **tức thời** khi sửa tay hoặc tải lại file trong ngày; (b) qua ngày chỉ
+giữ **một bước**, do nút bấm thủ công (`invNextDay()`), không theo lịch cron;
+(c) `backup` không chứa `inv`, tự xoá sau 10 bản; (d) `hist` không mang giá
+trị số; (e) không namespace lịch sử riêng, và **không thể** reuse `phist`
+(khác trục khoá — `phist` có NCC, `cong` không có). Đề xuất schema tối thiểu
+`PublicPurchasePriceHistory` (4 cột `DEC-145` §4 + `source`/`captured_at`/
+`raw_row_key`): `DEC-148` §10.
 
 Khoá sản phẩm (đóng câu hỏi cũ số 3): RTDB **đã có mã ổn định** —
 `normCode(mã)` = `toUpperCase()` + bỏ mọi ký tự ngoài `[A-Z0-9]`, rồi qua
@@ -475,17 +514,26 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         file 4 cột → `FilePriceProvider` (DEC-147 §8, OPTION C+D). Contract kỹ
         thuật §38 (schema 4 cột, validation) vẫn đúng, không bị đảo ngược.
   - [ ] TASK-105C — `RTDBPriceProvider` / capture layer (mở tại DEC-146).
-        **DISCOVERY = COMPLETE** (S024, DEC-147 — đã audit
-        `hoangvinhkta-creator/Tracking` @ `d177363a`).
-        **IMPLEMENTATION = OWNER_DECISION_REQUIRED** (5 câu hỏi mới, DEC-147).
+        **DISCOVERY = COMPLETE** (S024/DEC-147 audit repo; S025/DEC-148 audit
+        sâu `inv.cong` — chủ dự án đã chỉ định `AccountingPurchasePrice =
+        inv.cong`).
+        **IMPLEMENTATION = OWNER_DECISION_REQUIRED** (4 câu hỏi còn lại,
+        DEC-148 — field-selection đã đóng).
+        **Finding cấp thiết (DEC-148 §8): `inv.cong` KHÔNG có lịch sử và
+        KHÔNG có bất kỳ đảm bảo giữ dữ liệu nào — NO GUARANTEED DELAY
+        WINDOW.** Overwrite tức thời trong ngày (sửa tay/tải lại file); qua
+        ngày chỉ giữ một bước qua nút bấm thủ công, không theo lịch. Mỗi
+        ngày trì hoãn capture là dữ liệu ngày đó có nguy cơ mất vĩnh viễn.
         **RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE và KHÔNG được đề
-        cử**: trường giá kế toán không có lịch sử, sổ lịch sử đang có thì sửa
-        được, và đọc thẳng từ `app/modules/` va `ADR-101` (mạng ở Phase 1) +
+        cử**: đọc thẳng từ `app/modules/` va `ADR-101` (mạng ở Phase 1) +
         `ADR-103` §2 (RTDB lưu theo **nghìn đồng**, phép ×1.000 phải ở biên
-        nhập). `BLOCKING ARCHITECTURE GAP` có điều kiện: **KHÔNG kích hoạt** —
-        RTDB *có* lưu lịch sử (`phist`). Chưa có `docs/tasks/TASK-105C-*.md`:
-        file task MAJOR phải mang Scope Lock + Completion Gate, cả hai phụ
-        thuộc câu trả lời của chủ dự án.
+        nhập); nguồn `cong` cũng mutable như đã nêu ở trên.
+        `BLOCKING ARCHITECTURE GAP` có điều kiện (DEC-146 §3): **KHÔNG kích
+        hoạt** — nhưng vì lý do khác DEC-146 dự trù: không phải "RTDB thiếu
+        lịch sử nói chung", mà "trường được chỉ định thiếu lịch sử, cần
+        capture ngay". Chưa có `docs/tasks/TASK-105C-*.md`: file task MAJOR
+        phải mang Scope Lock + Completion Gate, cả hai phụ thuộc câu trả lời
+        của chủ dự án về tần suất capture.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh

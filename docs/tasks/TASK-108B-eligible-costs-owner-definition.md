@@ -1938,3 +1938,144 @@ fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
 `TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent Review.
 **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`: file task MAJOR
 phải mang Scope Lock và Completion Gate, cả hai phụ thuộc câu trả lời §60.
+
+---
+
+# PHẦN VII — `inv.cong` DEEP-DIVE, FIELD ĐÃ ĐƯỢC CHỈ ĐỊNH (append 2026-08-27)
+
+> Phần I–VI giữ nguyên. Authority: `DEC-148`. Phiên:
+> `docs/sessions/S025-task-105c-public-purchase-price-cong-audit.md`.
+> Chủ dự án chỉ định `AccountingPurchasePrice = inv.cong`. Phần này đóng câu
+> hỏi 1 của §60 và đào sâu hệ quả — không đổi verdict §59, chỉ **cụ thể hoá**
+> nó cho đúng trường vừa được chọn.
+
+## 61. Xác nhận semantics
+
+| Đề xuất của chủ dự án | Xác nhận | Bằng chứng |
+|---|---|---|
+| `AccountingPurchasePrice = inv.cong` | ✅ | `cong` là lớp giá **duy nhất** trong `inv` rời khỏi nhánh để vào `board`/Reports — `invSyncPart()` `public/index.html:7238,7250` → `board/<mã>/tp/ton` |
+| `inv.gia = PRIVATE / OUT OF REPORTS SCOPE` | ✅ | Chỉ dùng nội bộ cho báo cáo "Giá trị tồn kho" (`invValRows()` `:7554` dùng `invGiaOf()`) — không ghi ra `board`, không qua CSV, không route API nào |
+| `inv.lo = LOT PRICE / NOT USED BY DEFAULT` | ✅ | Chỉ là input tính `gia` (`invRecalcAvg()` `:7089-7096`); tự nó không đi tới `board` hay `cong` trực tiếp |
+| `phist = VENDOR QUOTED / NOT ACCOUNTING PURCHASE PRICE` | ✅ | Xác nhận lại §55 — `phist/<mã>/<NCC>/<ngày>` là báo giá NCC, trục khác hoàn toàn |
+
+## 62. Write sites của `inv.cong`
+
+```
+P-01  invMigrateGia()        :6789        bootstrap 1 lần: cong = copy(gia)
+P-02  invApply()             :6961-6966   qua ngày/tải lại file
+P-03  invRecalcAvg()         :7099-7102   auto theo `gia` khi chưa khoá tay
+P-04  invSetGia(kind="cong") :7117-7120   sửa tay trực tiếp
+P-05  invRecalcAvg()         :7085-7087   xoá khi q<=0
+```
+
+Tất cả qua `saveInv()` → `db.ref("inv").set(INV)` (`:6834`) — ghi đè **cả
+nhánh `inv`**.
+
+## 63. Read sites
+
+```
+Q-01  invSyncPart()  :7238,7250   → board/<mã>/tp/ton (mỗi lượt buildSync())
+Q-02  renderInvT()   :7441,7463   → UI tab Tồn kho
+```
+
+`grep -n "invCongOf("` = đúng 3 dòng trong toàn file — không read site nào
+khác.
+
+## 64. Overwrite / append / previous-value
+
+```
+overwrite?          CÓ, mọi write P-01…P-05
+append?              KHÔNG
+previous value?      KHÔNG (khác board/<mã>/p/<NCC> có trường `pv`)
+history riêng?        KHÔNG CÓ nhánh nào
+```
+
+## 65. Historical Replay Test cho `inv.cong` — NO
+
+`backup` không chứa `inv` và tự xoá sau `BACKUP_KEEP=10` bản
+(`snapshotBoard()` `:4670-4680`); `hist` không mang giá trị số
+(`logHistAs()` `:9599-9636`).
+
+## 66. NO GUARANTEED DELAY WINDOW
+
+```
+Trong ngày:    overwrite TỨC THỜI — invSetGia() (P-04) ghi đè s.cong[k]
+               ngay khi hàm chạy; invApply() (P-02) tải lại file cũng ghi
+               đè ngay. Không version, không khoá "đã dùng ở báo cáo".
+Qua ngày:      invNextDay() (:7031) — INV.cu = moi; INV.moi = null — THAY
+               THẾ HOÀN TOÀN nhánh `cu` cũ. Đây là NÚT BẤM (:7019), KHÔNG
+               nằm trong scheduled() của Worker (src/index.js:830-840 —
+               hai cron chỉ đẩy CRM/Sheet). Không gì bắt buộc gọi đúng
+               1 lần/ngày. Một bước undo (_invUndo) chỉ sống trong bộ nhớ
+               JS của phiên trình duyệt — mất khi tải lại trang.
+```
+
+Cửa sổ tối thiểu đạt được trên thực tế = **0**, vì nhánh overwrite-tức-thời
+luôn khả dụng bất kỳ lúc nào, độc lập với việc rotate ngày có xảy ra hay
+không. **Không phải "cửa sổ ngắn" — không có cửa sổ nào được đảm bảo.**
+
+## 67. Reuse `phist`? — KHÔNG, namespace riêng bắt buộc
+
+- **Sai trục**: `phist` khoá `(mã, NCC, ngày)`; `cong` khoá `(mã, ngày)` —
+  không có NCC.
+- **Sai khoá gốc**: `cong` lưu tại `invRowKey(x)` = tên hàng chuẩn hoá trong
+  file tồn, không phải mã board — cần dịch qua `inv.map` trước khi khớp
+  `product_key` của Reports.
+- **Lặp lại `SOURCE MISMATCH`** ở tầng lưu trữ nếu gộp chung — đúng bẫy
+  `DEC-147` §55 đã cảnh báo.
+
+## 68. Schema tối thiểu — `PublicPurchasePriceHistory` (KHÔNG implementation)
+
+```
+REQUIRED (kế thừa DEC-145 §4):
+  product_key    — mã board, SAU KHI dịch qua inv.map (không phải invRowKey thô)
+  effective_from — YYYY-MM-DD, ngày chụp
+  effective_to   — YYYY-MM-DD hoặc rỗng cho record hiện hành
+  purchase_price — VND nguyên, Decimal — chuyển đổi từ nghìn đồng TẠI ĐÂY
+
+BẮT BUỘC THÊM (cong không tự mang):
+  source         = "inv.cong" (cố định)
+  captured_at    — ISO 8601, timestamp THẬT của lượt capture
+  raw_row_key    — invRowKey thô tại thời điểm capture (audit trail cho
+                   inv.map)
+
+OPTIONAL:
+  captured_by
+```
+
+## 69. Verdict — cụ thể hoá §59
+
+```
+TASK-105B / FilePriceProvider  = KEEP, contract §38 không đổi. Nguồn nạp dữ
+                                  liệu ban đầu bây giờ RÕ RÀNG hơn: file 4
+                                  cột là output của tầng capture inv.cong.
+
+TASK-105C  IMPLEMENTATION       = OWNER_DECISION_REQUIRED
+           BLOCKING             = capture layer CẤP THIẾT (không phải
+                                   "sau này mới cần") — mỗi ngày trì hoãn
+                                   là dữ liệu ngày đó có nguy cơ mất vĩnh
+                                   viễn, không phải nguy cơ trừu tượng.
+
+TASK-108B  BLOCKED_BY = [ 1. chủ dự án xác nhận xây capture + tần suất;
+                          2. capture layer thực sự chạy và tích luỹ đủ dữ
+                             liệu; 3. TASK-105B-Q3 ]
+```
+
+## 70. Câu hỏi còn lại (đóng câu 1 của §60, còn 4)
+
+1. ~~`AccountingPurchasePrice` là trường nào?~~ **ĐÃ CHỐT: `inv.cong`.**
+2. Đồng ý xây tầng **capture bất biến** cho `inv.cong` không, và **tần suất
+   bao nhiêu**? — nay là câu hỏi cấp thiết nhất.
+3. Nếu `cong` bị sửa tay nhiều lần trong ngày, dùng giá trị **cuối ngày** hay
+   giá trị **tại đúng thời điểm business event**?
+4. Chấp nhận độ mịn theo ngày không?
+5. Dữ liệu lịch sử **có sẵn từ đâu**? — Không có: RTDB không giữ. Capture chỉ
+   có thể bắt đầu từ ngày triển khai trở đi; mọi ngày trước đó là `Pending`
+   vĩnh viễn, không thể phục hồi.
+
+## STOP (Phần VII)
+
+Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
+fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
+`TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
+Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`.

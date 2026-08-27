@@ -4061,3 +4061,289 @@ Can Revisit After:
   và chốt ngày bắt đầu có dữ liệu lịch sử.
 - `TASK-103` hoặc danh sách enumerated ⇒ mở `TASK-105B-Q3` (độc lập, không
   liên quan phiên này).
+
+## DEC-148
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Public Purchase Price History Check. Ghi trong phiên
+"TASK-105C — PUBLIC PURCHASE PRICE HISTORY CHECK"
+(`docs/sessions/S025-task-105c-public-purchase-price-cong-audit.md`). Trả lời
+trực tiếp yêu cầu của chủ dự án sau `DEC-147`: chủ dự án chỉ định
+`inv.cong` (giá nhập **công khai**), không phải `inv.gia` (giá thực nhập
+private), làm ứng viên cho `AccountingPurchasePrice`.
+
+Repo được audit:
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`
+(không đổi so với `DEC-147`). **0 file thay đổi** trong phiên này.
+
+Decision:
+
+Đây là **bản ghi audit findings**, tiếp nối `DEC-147`, không thay thế nó.
+Xác nhận bốn semantics chủ dự án đề xuất bằng bằng chứng code, và bổ sung một
+finding mới — **quan trọng hơn** bản thân câu hỏi field-selection.
+
+**1. Xác nhận bốn semantics — CẢ BỐN KHỚP với code.**
+
+```
+AccountingPurchasePrice = inv.cong         ✅ — cong là giá trị DUY NHẤT của
+                                               ba lớp giá (gia/lo/cong) từng
+                                               rời khỏi nhánh `inv` để đi vào
+                                               `board`, và qua đó vào
+                                               `/api/board.csv` và mọi màn
+                                               hình Reports có thể đọc được.
+inv.gia = PRIVATE / OUT OF REPORTS SCOPE   ✅ — chỉ dùng nội bộ cho báo cáo
+                                               "Giá trị tồn kho" (`invValRows`,
+                                               `public/index.html:7554` dùng
+                                               `invGiaOf()`) — báo cáo này
+                                               không ghi ra `board`, không qua
+                                               CSV, không có route API nào.
+inv.lo = LOT PRICE / NOT USED BY DEFAULT   ✅ — `lo` chỉ là INPUT để tính
+                                               `gia` (bình quân gia quyền,
+                                               `invRecalcAvg()`
+                                               `:7089-7096`); bản thân `lo`
+                                               không đi tới `board`, không đi
+                                               tới `cong` trực tiếp (chỉ đi
+                                               gián tiếp qua `gia`).
+phist = VENDOR QUOTED / NOT ACCOUNTING     ✅ — xác nhận lại `DEC-147` §55:
+        PURCHASE PRICE                        `phist/<mã>/<NCC>/<ngày>` là
+                                               báo giá NHÀ CUNG CẤP, một
+                                               trục hoàn toàn khác `inv`.
+```
+
+Semantics gốc, trích nguyên văn từ chú thích repo B (`public/index.html:6687-6690`):
+*"gia: giá thực nhập trung bình — chỉ máy tính, dùng định giá tài sản kho ·
+cong: giá nhập công khai — đẩy sang cột Tồn của Bảng giá để tính Min"*. Cột
+board tương ứng bị **khoá cứng, không cho gõ tay**, với lý do ghi thẳng trong
+mã (`public/index.html:6120-6134`): *"mỗi lần 'Cập nhật từ dữ liệu hôm nay'
+là `invSyncPart()` ghi đè toàn bộ theo file tồn cuối ngày ... khoá hẳn để
+khỏi ai phải đoán vì sao số biến mất."*
+
+**2. Write sites của `inv.cong` — 5 chỗ, 4 hàm, tất cả OVERWRITE bán phần
+trong bộ nhớ, KHÔNG append.**
+
+```
+P-01  invMigrateGia()      :6789   bootstrap một lần: cong = copy(gia)
+P-02  invApply()           :6961-6966   qua ngày/tải lại file: giữ giá trị
+                                   sửa tay ngày trước nếu có, không thì
+                                   cong[k] = gia[k]
+P-03  invRecalcAvg()       :7099-7102  mỗi lần `lo` đổi, nếu CHƯA khoá tay
+                                   (congTay[k] false) thì tự chạy theo `gia`
+P-04  invSetGia(kind="cong") :7117-7120  SỬA TAY trực tiếp — set
+                                   congTay[k]=true, ghi thẳng giá trị mới
+P-05  invRecalcAvg()       :7085-7087  hàng hết SL (q<=0) → delete cong[k]
+```
+
+Toàn bộ đi qua `saveInv()` (`:6831-6835`) →
+`db.ref("inv").set(INV)` — **ghi đè cả nhánh `inv`**, không phải
+`update()` từng khoá.
+
+**3. Read sites — đúng 2 chỗ đưa dữ liệu ra khỏi biến cục bộ.**
+
+```
+Q-01  invSyncPart()  :7238,7250   u[k+"/tp/ton"] = cong[invRowKey(x)]
+                     → GHI vào board/<mã>/tp/ton, chạy mỗi lượt
+                     buildSync()/runSync() (luồng "Cập nhật từ dữ liệu hôm
+                     nay" — daily NCC price paste, KHÔNG theo lịch cố định,
+                     người vận hành bấm bao nhiêu lần một ngày cũng được)
+Q-02  renderInvT()   :7441,7463,7473-7476   hiện ô nhập trên UI tab Tồn kho
+```
+
+`grep -n "invCongOf("` = đúng 3 dòng trong toàn `public/index.html`
+(`:6767` là helper nội bộ dùng lại trong P-02/P-03, `:7238`, `:7441`) — xác
+nhận không còn read site nào khác.
+
+**4. Overwrite vs append vs previous-value.**
+
+```
+overwrite giá cũ?    CÓ — mọi write (P-01…P-05) THAY THẾ trực tiếp giá trị
+                     cũ tại đúng khoá invRowKey trong bộ nhớ, rồi ghi đè cả
+                     nhánh `inv` qua set()
+append?              KHÔNG
+giữ previous value?  KHÔNG có trường `pv`/`prev` cho `cong` (khác
+                     `board/<mã>/p/<NCC>` có `pv` một bước). Giá trị cũ chỉ
+                     "sống sót" GIÁN TIẾP qua nhánh `cu`, và CHỈ tới lần
+                     `invNextDay()` kế tiếp
+```
+
+**5. History riêng cho `inv.cong`? KHÔNG CÓ.**
+
+Không nhánh RTDB nào tên `cong_hist` hay tương tự. `phist` có cấu trúc
+`<mã>/<NCC>/<ngày>` — `cong` không có trục NCC (một giá trị mỗi mã mỗi ngày,
+không phải mỗi NCC), nên **không khớp cấu trúc `phist`** kể cả về mặt hình
+thức, không chỉ về mặt ngữ nghĩa.
+
+**6. `backup`/`hist` có tái dựng được `cong` theo ngày không? KHÔNG.**
+
+```
+backup   :  snapshotBoard() (:4670-4676) chỉ chụp {board, meta} —
+            KHÔNG có khoá `inv`. Kể cả nếu có, BACKUP_KEEP=10
+            (:4630) và snapshotBoard() TỰ XOÁ mọi bản cũ hơn 10 bản
+            gần nhất NGAY SAU MỖI LẦN chụp (:4678-4680) — không có
+            đảm bảo theo NGÀY, chỉ có đảm bảo theo SỐ LƯỢNG SỰ KIỆN,
+            và sự kiện snapshot là ad hoc (trước sync lớn/import/restore),
+            không theo lịch.
+hist     :  logHist()/logHistAs() (:9599-9636) chỉ lưu CHUỖI MÔ TẢ TỰ DO
+            ("Tồn kho: qua ngày mới..."), KHÔNG có trường số nào cho
+            `cong`. Tối đa 100 dòng, db.ref("hist").set() đè cả nhánh.
+```
+
+**7. Historical Replay Test cho `inv.cong` — KẾT QUẢ: NO.**
+
+Bài kiểm của `TASK-105C` gốc (giá D = X, đổi thành Y, hỏi lại 30 ngày sau)
+áp cho `cong`:
+
+```
+Ngày D, cong[k] = X.
+Sau đó cong[k] đổi thành Y (bất kỳ một trong P-02/P-03/P-04).
+Hỏi lại 30 ngày sau: giá trị X còn truy được không?
+
+→ KHÔNG, trong TRƯỜNG HỢP CHUNG.
+```
+
+**8. NO GUARANTEED DELAY WINDOW.**
+
+Không được đoán số ngày — và bằng chứng cho thấy **không có gì để đoán**,
+vì có một nhánh worst-case đạt overwrite tức thời thật sự:
+
+- **Trong ngày: tức thời.** `invSetGia(kind="cong")` (P-04) ghi đè
+  `s.cong[k]` **ngay khi hàm chạy** — debounce 800ms ở `saveInv()` chỉ trễ
+  lượt *ghi lên RTDB*, không trễ lượt *giá trị cũ biến mất khỏi bộ nhớ đang
+  giữ state*. Tải lại file cùng ngày (`invApply()`, P-02) cũng ghi đè ngay.
+  Không có version, không có khoá "đã dùng ở báo cáo, đừng đổi".
+- **Qua ngày (`invNextDay()`): giữ đúng MỘT bước, và bước đó không theo
+  lịch.** `INV.cu = moi; INV.moi = null` (`:7031`) — nhánh `cu` cũ bị
+  **thay thế hoàn toàn**. `invNextDay()` là hàm gọi từ **nút bấm**
+  (`:7019`), **không** nằm trong `scheduled()` của Worker
+  (`src/index.js:830-840` — hai cron chỉ đẩy CRM/Sheet, không đụng `inv`).
+  Không gì bắt buộc gọi đúng một lần mỗi ngày: có thể 0 lần trong một tuần
+  (thì "hôm qua" chỉ còn là bản ghi từ lần rotate gần nhất, xa hơn 1 ngày),
+  hoặc nhiều lần trong một ngày (thì "hôm qua" chưa từng tồn tại đủ 24 giờ).
+  Bản thân một bước undo (`_invUndo`) chỉ sống **trong bộ nhớ JavaScript của
+  phiên trình duyệt đang mở** — mất khi tải lại trang hay đóng tab.
+
+⇒ **NO GUARANTEED DELAY WINDOW.** Không phải "cửa sổ ngắn nhưng có" — cửa sổ
+tối thiểu đạt được trên thực tế là **0**, vì nhánh tức thời (sửa tay/tải lại
+file) luôn khả dụng bất kỳ lúc nào, độc lập với việc rotate ngày có xảy ra
+hay không.
+
+**9. Reuse `phist` hay namespace riêng? — NAMESPACE RIÊNG, bắt buộc.**
+
+Ba lý do, không phải một:
+
+- **Sai trục.** `phist` khoá theo `(mã, NCC, ngày)`; `cong` khoá theo
+  `(mã, ngày)` — không có NCC. Ép `cong` vào `phist` buộc phải bịa một "NCC
+  giả", làm hỏng chính bất biến mà `phist` đang giữ (mọi khoá NCC trong
+  `phist` là một nhà cung cấp thật).
+- **Sai khoá gốc.** `cong` trong RTDB hiện được lưu tại `invRowKey(x)` =
+  `"N_" + normCode(tên hàng)[:80]` — khoá theo **tên hàng chuẩn hoá trong
+  file tồn**, KHÔNG phải mã board (`<MÃ>`). Muốn khớp với `product_key` của
+  Reports phải đi qua `inv.map` để dịch sang mã board — đây là một bước dịch
+  **độc lập** với việc `phist` đã dùng mã board trực tiếp làm khoá lá.
+- **Sai đúng bẫy đã tránh ở `DEC-147`.** Gộp hai nguồn ngữ nghĩa khác nhau
+  vào cùng một nhánh RTDB là chính hành vi `SOURCE MISMATCH` mà `DEC-147` §55
+  cảnh báo — tái tạo nó ở tầng lưu trữ thay vì tầng đọc dữ liệu không giải
+  quyết được gì, chỉ giấu vấn đề sâu hơn.
+
+**10. Đề xuất schema tối thiểu — `PublicPurchasePriceHistory`. KHÔNG
+implementation.**
+
+Tái dùng đúng 4-cột contract của `DEC-145` §4 (không phát minh format mới),
+cộng đúng những trường mà `cong` hiện KHÔNG có và bắt buộc phải có để đóng
+băng được:
+
+```
+REQUIRED (kế thừa DEC-145 §4, KHÔNG đổi ý nghĩa):
+  product_key       — mã board (<MÃ>), SAU KHI dịch qua inv.map — không
+                       phải invRowKey thô, vì invRowKey đổi theo cách viết
+                       tên hàng trong từng file, còn mã board mới là khoá
+                       ổn định để tra theo DEC-145 §2
+  effective_from     — YYYY-MM-DD, NGÀY CHỤP (business date của lượt capture)
+  effective_to       — YYYY-MM-DD hoặc rỗng cho record hiện hành cuối cùng
+                       (đúng khoảng đóng của DEC-145 §1)
+  purchase_price     — VND nguyên, Decimal — CHUYỂN ĐỔI TẠI ĐÚNG BIÊN NÀY
+                       (RTDB lưu nghìn đồng, xem DEC-147 §6/ADR-103 §2)
+
+BẮT BUỘC THÊM (vì `cong` không tự mang những thứ này):
+  source              = "inv.cong"  (cố định, để phân biệt khỏi các nguồn
+                         khác nếu sau này có thêm)
+  captured_at          — ISO 8601, timestamp THẬT của lượt capture (server-
+                          side nếu capture chạy trên Worker; KHÔNG dùng
+                          todayStr() kiểu client như phist)
+  raw_row_key           — invRowKey thô tại thời điểm capture (audit trail:
+                          cho biết record này khớp qua `inv.map` nào, để dò
+                          lại nếu `inv.map` đổi sau này)
+
+OPTIONAL:
+  captured_by           — id/tên job capture, nếu có nhiều job hoặc nhiều
+                          instance chạy song song
+```
+
+Đây **không phải** thiết kế mới về mặt hình dạng — nó là schema `DEC-145` §4
+với hai trường bổ sung bắt buộc vì nguồn (`cong`) không tự mang timestamp máy
+chủ hay provenance, khác `phist` (có ít nhất khoá ngày do client tạo).
+
+Reason:
+
+**1. Vì sao xác nhận 4 semantics mà không tự đặt câu hỏi ngược.** Đây là một
+quyết định chủ dự án đưa vào, không phải một suy luận cần verify tính đúng
+sai nghiệp vụ — việc của phiên này là kiểm tra nó có **khớp với những gì code
+thật đang làm** hay không, và cả bốn khớp. Không có mâu thuẫn nào để báo
+`CONFLICT DETECTED`.
+
+**2. Vì sao "NO GUARANTEED DELAY WINDOW" là phát hiện chính, không phải một
+chi tiết phụ.** `DEC-147` đã nói `inv.gia`/`.lo` "không có lịch sử" như một
+sự kiện tĩnh. Phiên này đào sâu thêm một bậc: `inv.cong` không chỉ "không có
+lịch sử" mà còn **không có gì đứng giữa hiện tại và một lần overwrite bất kỳ
+lúc nào**. Sự khác biệt quan trọng: "không có lịch sử" gợi ý có thể chờ vài
+ngày rồi build capture cũng chưa muộn; "no guaranteed window" nói rằng **mỗi
+ngày trôi qua mà chưa có capture là dữ liệu có thể đã mất vĩnh viễn, ngay cả
+với dữ liệu của chính ngày hôm đó**.
+
+**3. Vì sao namespace riêng, không phải một field mới trong `phist`.**
+Không phải sở thích kiến trúc — `phist` và `cong` khác nhau ở **cấu trúc
+khoá** (có/không trục NCC) trước khi khác nhau ở ngữ nghĩa. Ép chung vào một
+namespace phá vỡ bất biến hiện có của `phist` mà chính hệ thống giá đang dựa
+vào (mọi khoá lá dưới `phist/<mã>/` là một NCC thật).
+
+Risk:
+
+`Effective Risk = HIGH` — **không đổi**, chấm theo data path (V4.1 §4).
+Phiên này làm rủi ro **cụ thể và cấp thiết hơn**, không đổi bản chất:
+
+- **Rủi ro lớn nhất: đọc "đã chốt field" thành "đã xong, chỉ còn nối dây".**
+  Sự thật ngược lại — trường vừa được chỉ định là trường **hoàn toàn không
+  có lịch sử**, và capture layer giờ là điều kiện tiên quyết cấp thiết, không
+  phải việc làm sau khi rảnh. Giảm nhẹ: nêu tường minh ở đây và trong
+  `PROJECT_PROGRESS.md`.
+- **Mỗi ngày trì hoãn capture = dữ liệu ngày đó có nguy cơ mất vĩnh viễn**,
+  không phải nguy cơ trừu tượng — vì nhánh overwrite-tức-thời (sửa tay/tải
+  lại file) luôn khả dụng độc lập với lịch rotate.
+- **`invRowKey` (khoá thô) không ổn định qua thời gian** nếu file tồn kho đổi
+  cách viết tên hàng — bất kỳ capture nào cũng phải dịch qua `inv.map` **tại
+  đúng thời điểm capture**, không phải dịch lại sau, vì `inv.map` bản thân nó
+  cũng có thể đổi.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace
+  toàn repo; `DEC-148` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — cập nhật field candidate (không còn "3 ứng
+  viên, TBD" mà là "chủ dự án đã chỉ định `inv.cong`") + finding "NO
+  GUARANTEED DELAY WINDOW".
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần VII.
+- `docs/sessions/S025-task-105c-public-purchase-price-cong-audit.md` — bàn
+  giao phiên.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- Chủ dự án xác nhận xây tầng capture cho `inv.cong` (câu hỏi 4 của
+  `DEC-147` §60, nay áp trực tiếp cho `cong`) và tần suất — mở
+  `TASK-105C` implementation với `docs/tasks/TASK-105C-*.md` (Scope Lock +
+  Completion Gate).
+- Một lượt đọc RTDB thật (có credential) ⇒ đo được tần suất thực tế
+  `invNextDay()`/`invSetGia()` chạy, để ước lượng mức độ dữ liệu đã mất tính
+  tới hiện tại.
