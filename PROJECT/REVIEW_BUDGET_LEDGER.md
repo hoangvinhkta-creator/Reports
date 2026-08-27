@@ -168,8 +168,8 @@ Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.
 root_task: TASK-GOLDEN-BASELINE-001
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
 ```
 
 `HIGH` không đến từ độ khó của việc code — task chỉ thêm test và fixture. Nó
@@ -199,18 +199,44 @@ tests/fixtures/baseline/**, tests/test_task110_non_regression.py : FORBIDDEN
 ### Trạng thái
 
 ```
-IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW   (chưa review, chưa FROZEN, chưa DONE)
+REPAIR CYCLE #1 = COMPLETE
+IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW   (chưa re-review, chưa FROZEN, chưa DONE)
 ```
 
-Phiên implementation **không** tiêu repair cycle nào: repair cycle chỉ mở khi
-một Independent Review trả về BLOCKING finding và implementation sửa finding
-đó. Sub-unit `GB-1` … `GB-12` **không** có ngân sách riêng và không reset
-ngân sách — chúng thuộc cùng lineage này.
+Sub-unit `GB-1` … `GB-12`, và bất kỳ `GB-IR-xx` nào thuộc cùng lineage này,
+**không** có ngân sách riêng và không reset ngân sách.
 
 cycles:
-- id: (chưa mở — chưa có Independent Review, chưa có repair)
-  base_sha: N/A
-  head_sha: N/A
+- id: cycle-1
+  base_sha: 4bccf469274dc9ffb32f333e6db475055ddda794
+  head_sha: 54a575dde15f2650a27e270ae9a13543bd80e3ca
+  opened_by: Independent Review trên 4bccf469… — verdict FAIL, đúng 1 BLOCKING
+    finding (GB-IR-01)
+  finding: >
+    `test_golden_expected_output_is_regenerable_byte_identical` so byte-thô
+    TOÀN BỘ file expected JSON, gồm cả `_environment.python`/`pyyaml`/
+    `openpyxl` — ba trường advisory. Chạy trên Python 3.12.3 + PyYAML 6.0.3
+    (khác môi trường sinh fixture: 3.11.15 + 6.0.1) làm test đỏ dù business
+    payload giống hệt. False regression signal, tái hiện được:
+    `python3.12 -m pytest tests/test_golden_baseline.py -q` trên `4bccf46`
+    -> `50 passed, 2 failed, 2 skipped`.
+  fix: >
+    Thêm `_strict_bytes()` tái dùng `_comparable()` đã có sẵn; test
+    byte-identical giờ so phần STRICT BUSINESS CONTRACT, loại đúng ba trường
+    advisory. Không đổi `gb.write()`, không đổi
+    `tests/fixtures/golden/expected/*.json`, không đổi fixture `.xlsx`.
+    Business payload trước/sau IDENTICAL (hai file expected không hề bị
+    chạm — `git diff --stat` rỗng trên `tests/fixtures/golden/expected/` và
+    `tests/fixtures/golden/*.xlsx`).
+  verification: >
+    Suite chạy PASS trên cả Python 3.11.15 (venv sẵn có) và Python 3.12.3
+    (venv riêng) sau repair: `58 passed, 2 skipped` cả hai. Full
+    `pytest -q`: `697 passed, 11 skipped` (trước `691 passed, 11 skipped`,
+    baseline `716ae2e1…` = `639 passed, 9 skipped`) — 0 regression. `app/` và
+    `config/` diff = 0. `validate_reference_integrity` vẫn đúng 3 lỗi tiền
+    tồn của `TASK-REM-T06`, không có lỗi thứ 4.
+  scope: chỉ `tests/test_golden_baseline.py` + entry ledger này. Không sửa
+    `app/**`, `config/**`, TASK-110, R1-A1, governance V4.1 core, HB-GB-01…06.
 
 ---
 
@@ -255,3 +281,14 @@ Owner Extension, và **không** cấp thêm repair cycle.
   Owner cung cấp. `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã dùng**.
   `TASK-110` **không đổi**: vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0;
   `CHECK-110-16` vẫn `REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE`.
+- 2026-08-27 — `TASK-GOLDEN-BASELINE-001` repair cycle #1 (`GB-IR-01`). Sau
+  Independent Review trên `4bccf46` (verdict FAIL, đúng 1 BLOCKING finding):
+  `test_golden_expected_output_is_regenerable_byte_identical` so byte-thô
+  toàn bộ file expected, gồm cả `_environment` advisory
+  (`python`/`pyyaml`/`openpyxl`) — false regression signal trên một Python
+  hợp lệ khác (tái hiện: Python 3.12.3 → `50 passed, 2 failed, 2 skipped`).
+  Sửa bằng `_strict_bytes()` (tái dùng `_comparable()` đã có), loại đúng ba
+  trường advisory khỏi phép so byte. Không đổi `expected/*.json`, không đổi
+  fixture, business payload trước/sau IDENTICAL. Repair SHA `54a575d`.
+  `repair_cycles_used: 1`, `repair_cycles_remaining: 1`. `TASK-110`,
+  `CHECK-110-16`, `app/`, `config/` không đổi.
