@@ -1551,3 +1551,74 @@ TASK-GOLDEN-BASELINE-001
 Golden Baseline contract niêm phong theo đúng nội dung DEC-142 — fixture,
 expected output, strict business comparison, advisory `_environment`. Không
 lặp lại nguyên văn ở đây; DEC-142 là bản ghi chuẩn.
+
+### H. Controlled Integration + DONE (append, 2026-08-27) — cùng phiên với Phần G
+
+Merge `--no-ff` (không squash, không rebase, không force push) qua nhánh
+trung gian `integration/v4-1-golden-baseline` (tạo từ default tip
+`716ae2e1bcb719c1c8adadbf5506c45c090c2efe`) vào nhánh mặc định
+`claude/extract-upload-repo-gq2ws4`, default SHA sau merge
+`f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5`. 0 conflict (merge-tree sạch;
+default không dịch chuyển kể từ merge-base của candidate).
+
+Validation trên kết quả integration (trước khi merge về default):
+
+```
+python3 -m pytest tests/test_golden_baseline.py -q  -> 58 passed, 2 skipped
+python3 -m pytest -q (toàn bộ)                      -> 697 passed, 11 skipped, 0 failed
+Business anchors 01/2026: orders=254, qty=407, sales_raw=3.564.610.000,
+    discount=2.300.000, sales_normalized=3.562.310.000            -> KHỚP
+Business anchors 06/2026: orders=146, qty=210, sales_raw=1.925.272.000,
+    discount=400.000, sales_normalized=1.924.872.000              -> KHỚP
+validate_structure / validate_project_state / validate_task_completion /
+    validate_evidence                                              -> PASS
+validate_reference_integrity -> FAIL đúng 3 lỗi pre-existing TASK-REM-T06
+    (không lỗi thứ 4)
+scripts/branch_authority_check.sh                                  -> AUTHORITY_OK
+git diff --check                                                   -> PASS
+tests/fixtures/baseline/**, tests/test_task110_non_regression.py,
+    app/**, config/**                                               -> diff = 0
+```
+
+**GB-12 Exit Criteria — cả 11 điều kiện đạt:**
+
+1. Fixture 2 kỳ, ẩn danh, GB-3 PASS — đạt (không đổi từ implementation).
+2. Expected output 2 kỳ, regenerable byte-identical (GB-6) — đạt (kiểm
+   trong `test_golden_expected_output_is_regenerable_byte_identical`, nằm
+   trong 58 test PASS).
+3. `pytest tests/test_golden_baseline.py -q` PASS — đạt, xác nhận lại trên
+   default (mục trên).
+4. `pytest -q` PASS, 0 regression so với `639 passed, 9 skipped` — đạt:
+   `697 passed, 11 skipped, 0 failed` trên default.
+5. Ma trận falsification GB-10 đầy đủ — đạt (E.4, xác nhận lại qua negative
+   control của Independent Review #2).
+6. Mỗi aggregate có `_provenance` trỏ artifact trước `716ae2e1…` (GB-1) —
+   đạt (implementation, không đổi).
+7. Mỗi invariant map authority đã tồn tại (GB-5) — đạt (implementation,
+   không đổi).
+8. Ledger cập nhật (GB-11); artifact governance ≤ 4 — đạt: artifact governance
+   của task vẫn là 1 (chính file PLAN này).
+9. `CHECK-110-16` vẫn `BLOCKED`/`POST_MERGE_PRODUCTION_ACCEPTANCE`, `TASK-110`
+   vẫn `NOT DONE` — đạt, xác nhận không đổi qua integration.
+10. `R1-A1` vẫn `FROZEN`; `R1-A2` → `R8` vẫn `OWNER_EXTENSION REQUIRED`;
+    `tests/fixtures/baseline/**` và `tests/test_task110_non_regression.py`
+    không đổi byte nào — đạt, xác nhận bằng
+    `git diff 716ae2e1..f332a4c --stat` rỗng trên các đường này.
+11. `git diff <baseline>..<head> --name-only` không chứa `app/**`/`config/**`
+    — đạt.
+
+⇒ `TASK-GOLDEN-BASELINE-001 = FROZEN + MERGED + DONE`.
+
+```
+TASK-GOLDEN-BASELINE-001
+    FROZEN  = YES  (DEC-142)
+    MERGED  = YES  (default SHA f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5)
+    DONE    = YES  (GB-12, 2026-08-27)
+
+Governance V4.1 = FULLY_ENFORCED (2026-08-27)
+
+TASK-110      = NOT DONE            (không đổi)
+CHECK-110-16  = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE (không đổi)
+R1-A1         = FROZEN     (không đụng)
+R1-A2 → R8    = OWNER_EXTENSION REQUIRED (không mở)
+```

@@ -16,27 +16,39 @@ sai — xem DEC-118.
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
-V4.1 = POLICY_ADOPTED          (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
-V4.1 = NOT YET FULLY_ENFORCED  (chờ Freeze Finalization + Integration của TASK-GOLDEN-BASELINE-001)
-Golden implementation candidate = EXISTS (2026-08-27, V4.1-2)
-Golden Independent Review #2    = PASS — ELIGIBLE_FOR_FREEZE (2026-08-27, reviewed SHA 8521069…)
+V4.1 = POLICY_ADOPTED   (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
+V4.1 = FULLY_ENFORCED   (2026-08-27, sau Freeze Finalization + Controlled
+                        Integration của TASK-GOLDEN-BASELINE-001, session
+                        "FREEZE FINALIZATION + CONTROLLED INTEGRATION")
 ```
 
-`TASK-GOLDEN-BASELINE-001` đã **triển khai xong** trên hai kỳ nghiệp vụ thật
-của Tín Phát (01.2026 = 254 đơn, 06.2026 = 146 đơn), fixture đã ẩn danh theo
-Owner Decision `OD-GB-1 = A + A1`, một lệnh chạy:
-`python3 -m pytest tests/test_golden_baseline.py -q`. Sau Repair Cycle #1
-(`GB-IR-01`, đóng bằng `54a575d`), **Independent Review #2 đã PASS —
-ELIGIBLE_FOR_FREEZE** tại reviewed SHA
-`85210691702550d83c0fd42fe816be8ca9dde889`, 0 blocking finding — ghi tại
-`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`. Trạng thái:
-`INDEPENDENT_REVIEW_2 = PASS`, `ELIGIBLE_FOR_FREEZE = YES`, **`FROZEN = YES`**
-(DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED INTEGRATION", 2026-08-27).
-`DONE`/`MERGED` — xem "TRẠNG THÁI HIỆN TẠI" bên dưới (cập nhật sau bước
-Controlled Integration trong cùng phiên này). `V4.1` chuyển sang
-`FULLY_ENFORCED` chỉ sau khi cả Freeze **và** Integration hoàn tất
-(`governance/core/V4_1_POLICY_FREEZE.md` §12) — xem mục V4.1 enforcement bên
-dưới. Chi tiết: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` Phần E/F.
+**`TASK-GOLDEN-BASELINE-001` đã FROZEN, MERGED, DONE (2026-08-27).** Golden
+Baseline chạy trên hai kỳ nghiệp vụ thật của Tín Phát (01.2026 = 254 đơn,
+06.2026 = 146 đơn), fixture đã ẩn danh theo Owner Decision `OD-GB-1 = A + A1`,
+một lệnh chạy: `python3 -m pytest tests/test_golden_baseline.py -q`. Sau
+Repair Cycle #1 (`GB-IR-01`, đóng bằng `54a575d`), Independent Review #2 đã
+**PASS — ELIGIBLE_FOR_FREEZE** tại reviewed SHA
+`85210691702550d83c0fd42fe816be8ca9dde889` (review verdict record
+`94b2513d1894dbd58f3b08656e3c7412be191df5`), 0 blocking finding — ghi tại
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`. Freeze
+Finalization ghi tại `DEC-142` (`PROJECT/PROJECT_DECISIONS.md`), freeze SHA
+`41813535c9d32a7f72782011a5f30ad2c38924f9`. Controlled Integration qua nhánh
+trung gian `integration/v4-1-golden-baseline`, merge `--no-ff` (không squash,
+không rebase) vào nhánh mặc định `claude/extract-upload-repo-gq2ws4` tại SHA
+`f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5`. Trên default: Golden test
+`58 passed, 2 skipped`; toàn bộ `pytest -q` `697 passed, 11 skipped, 0
+failed`, 0 regression; business anchors 01/2026 và 06/2026 khớp tuyệt đối.
+Chi tiết đầy đủ: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` Phần E/F/G.
+
+Điều kiện `FULLY_ENFORCED` (`governance/core/V4_1_POLICY_FREEZE.md` §1) đã đủ
+trên chính nhánh mặc định: Golden fixture tồn tại, deterministic expected
+output tồn tại, one-command Golden diff tồn tại
+(`python3 -m pytest tests/test_golden_baseline.py -q`), test suite đó PASS.
+Ba executable enforcement asset đã kiểm chứng chạy được trên default:
+`scripts/branch_authority_check.sh` → `AUTHORITY_OK`;
+`PROJECT/REVIEW_BUDGET_LEDGER.md` có transition state đúng cho cả `TASK-110`
+(`EXHAUSTED_PRE_V4.1`) và `TASK-GOLDEN-BASELINE-001` (`FROZEN`); Golden test
+chạy PASS trên default.
 
 Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
 theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
@@ -44,11 +56,12 @@ DEC-140 trong `PROJECT/PROJECT_DECISIONS.md` (cấp phát lại từ `DEC-128` t
 phiên integration — `DEC-128` đã thuộc về TASK-110 Gate/Readiness Review từ
 2026-08-23; xem `DEC-141`).
 
-`TASK-110` (mọi nhánh review, lineage R1-A1…R8): repair budget =
-`EXHAUSTED_PRE_V4.1`, `remaining = 0`. `R1-A2 → R8` = `OWNER_EXTENSION
-REQUIRED` để mở tiếp. `CHECK-110-16` tiếp tục `BLOCKED` (merge gate — thiếu
-production workbook thật). Rollout tiếp theo: `V4.1-1` (Final R1-A1
-Independent Review + Freeze Finalization nếu PASS + Integration Decision).
+`TASK-110` (mọi nhánh review, lineage R1-A1…R8): **KHÔNG đổi bởi phiên này.**
+Repair budget vẫn `EXHAUSTED_PRE_V4.1`, `remaining = 0`. `R1-A2 → R8` vẫn
+`OWNER_EXTENSION REQUIRED` để mở tiếp. `CHECK-110-16` tiếp tục `BLOCKED`
+(merge gate — thiếu production workbook thật). `TASK-110` vẫn `NOT DONE`.
+Golden Baseline **không** tự đóng `TASK-110` (khác dataset, khác câu hỏi —
+xem `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` §A.20).
 
 ## Hai Track Song Song
 
@@ -133,18 +146,24 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-**TASK-GOLDEN-BASELINE-001** — Golden Business Baseline. `DISCOVERY = COMPLETE`
-(`b738fa4`), `IMPLEMENTATION = COMPLETE`, `INDEPENDENT_REVIEW_2 = PASS —
-ELIGIBLE_FOR_FREEZE` tại reviewed SHA `8521069…` (2026-08-27, ghi tại
-`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`).
-**`FROZEN = YES`** (DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED
-INTEGRATION", 2026-08-27). `DONE = NO`, `MERGED = NO` (chờ Controlled
-Integration trong cùng phiên — xem "TRẠNG THÁI HIỆN TẠI" bên dưới sau khi
-integration hoàn tất).
+**TASK-GOLDEN-BASELINE-001 — DONE (2026-08-27).** Golden Business Baseline.
+`DISCOVERY = COMPLETE` (`b738fa4`), `IMPLEMENTATION = COMPLETE`,
+`INDEPENDENT_REVIEW_2 = PASS — ELIGIBLE_FOR_FREEZE` tại reviewed SHA
+`85210691702550d83c0fd42fe816be8ca9dde889` (ghi tại
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`),
+**`FROZEN = YES`** (`DEC-142`, freeze SHA `41813535c9d32a7f72782011a5f30ad2c38924f9`),
+**`MERGED = YES`** (qua `integration/v4-1-golden-baseline`, default SHA
+`f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5`), **`DONE = YES`** — toàn bộ 11
+Exit Criteria của GB-12 (`docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md`) đạt:
+Golden test PASS trên default, full suite 0 regression, business anchors
+khớp, provenance/invariant có authority, ledger cập nhật, `TASK-110`/
+`CHECK-110-16`/`R1-A1`/`app/`/`config/` không đổi.
 `effective_risk = HIGH`, 2 repair cycle khả dụng, **1 đã dùng** (`GB-IR-01`,
 `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`), **1 còn lại — UNUSED, task đóng
 không bắt buộc dùng hết ngân sách** — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`.
 Task này **không** thuộc lineage `TASK-110` và **không** mở `R1-A2` → `R8`.
+Golden Baseline nay **ACTIVE**, chạy trên nhánh mặc định bằng một lệnh:
+`python3 -m pytest tests/test_golden_baseline.py -q`.
 
 Task liền trước (vẫn NOT DONE):
 TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage
@@ -170,17 +189,24 @@ Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**Freeze Finalization + Integration của `TASK-GOLDEN-BASELINE-001`.**
-Independent Review #2 đã **PASS — ELIGIBLE_FOR_FREEZE** tại reviewed SHA
-`85210691702550d83c0fd42fe816be8ca9dde889` (0 blocking finding; xem
-`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`). Golden
-Baseline đã dựng xong trên integration baseline chính thức
-(`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`): 2 fixture đã ẩn
-danh + 2 expected output + `tests/test_golden_baseline.py` (58 test PASS sau
-repair), `697 passed / 11 skipped` toàn bộ suite, 0 regression. Đây vẫn là
-task **duy nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên
-`FULLY_ENFORCED`, nhưng việc nâng đó chỉ xảy ra **sau** Freeze Finalization +
-Integration bởi một phiên có thẩm quyền riêng — chưa chạy.
+**`TASK-GOLDEN-BASELINE-001` đã DONE — không còn việc governance nào treo ở
+đây.** `V4.1` đã chuyển `FULLY_ENFORCED` (xem "Governance V4.1 — Trạng Thái
+Adoption" đầu file).
+
+Track A (sản phẩm) hiện bị chặn ở hai điểm cần **Owner quyết định**, không
+phải việc agent tự làm tiếp được:
+
+1. **`TASK-108B` (Converted Revenue)** — vẫn `BLOCKED` chờ Owner định nghĩa
+   `EligibleCosts` (C15). Mở khoá được thì `TASK-109` (summary_engine) theo
+   sau.
+2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
+   (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
+   đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —
+   xem `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` §A.20). `TASK-110` chỉ
+   `DONE` khi check này thực sự `PASS` trên dữ liệu production thật.
+
+Không có Owner Extension nào cho `R1-A2` → `R8` của lineage `TASK-110` —
+**KHÔNG** tự mở bất kỳ unit nào trong nhóm đó.
 
 **KHÔNG** bắt đầu `R1-A2`, `R2` hay bất kỳ unit nào từ `R1-B` → `R8`: lineage
 `TASK-110` có `repair_cycles_remaining = 0`; mỗi unit cần `OWNER_EXTENSION`

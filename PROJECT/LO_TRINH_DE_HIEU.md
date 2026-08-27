@@ -69,14 +69,23 @@ soát xét độc lập (lần thứ hai, sau khi sửa một lỗi nhỏ về c
 liệu môi trường bị lẫn vào dữ liệu nghiệp vụ) đã **DUYỆT**: 0 lỗi chặn. Chi
 tiết ghi tại `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`.
 
-**Cập nhật (2026-08-27) — đã niêm phong (FROZEN).** Một phiên riêng, có thẩm
-quyền riêng ("Freeze Finalization + Controlled Integration") đã ghi quyết
-định niêm phong bộ ảnh chuẩn này (`DEC-142`). Niêm phong nghĩa là từ nay
-không ai được sửa bộ dữ liệu mẫu/kết quả đúng này nữa nếu không có một quyết
-định mới của chủ dự án. **Vẫn chưa MERGED/DONE** cho tới khi bước nhập hẳn
-vào bản chính (Controlled Integration) trong cùng phiên hoàn tất — xem
-`PROJECT/PROJECT_PROGRESS.md` để biết trạng thái mới nhất. Không tự chấm
-điểm cho chính mình.
+**Cập nhật (2026-08-27) — ĐÃ XONG (DONE).** Phiên "Freeze Finalization +
+Controlled Integration" đã: (1) niêm phong bộ ảnh chuẩn này (`DEC-142`) — từ
+nay không ai được sửa bộ dữ liệu mẫu/kết quả đúng này nữa nếu không có một
+quyết định mới của chủ dự án; (2) nhập hẳn vào bản chính của dự án (không
+còn nằm trên nhánh riêng); (3) chạy lại đúng lệnh kiểm tra trên bản chính và
+ra đúng kết quả cũ — không có gì lệch. Bước 14 phần lõi (Golden Baseline) coi
+như **hoàn tất**. Cùng lúc, **bộ quy tắc quản trị dự án phiên bản 4.1 chuyển
+sang có hiệu lực đầy đủ** (trước đó mới chỉ "đã thông qua chính sách", giờ ba
+cơ chế máy kiểm tra tự động đi kèm đã chứng minh chạy được trên bản chính).
+
+**Việc còn lại của Track A không phải governance nữa — mà là hai quyết định
+của chủ dự án:** (1) định nghĩa "chi phí đủ điều kiện" (`EligibleCosts`,
+mục C15) để mở tiếp bước 12b/13; (2) cấp file bán hàng thô toàn công ty 6
+tháng để đối chiếu bước 14's `CHECK-110-16` (khác việc vừa xong ở trên — đây
+là một bộ dữ liệu khác, toàn công ty thay vì chỉ Tín Phát). Không có việc nào
+trong hai việc này agent tự làm tiếp được nếu thiếu quyết định/dữ liệu từ chủ
+dự án.
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 

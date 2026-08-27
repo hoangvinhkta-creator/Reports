@@ -205,8 +205,9 @@ INDEPENDENT REVIEW #2     = PASS — ELIGIBLE_FOR_FREEZE
     blocking                : 0
     record                  : docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md
 GB-IR-01                   = CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED
-FROZEN = YES (DEC-142, 2026-08-27) · DONE = NO · MERGED = NO   (chờ Controlled
-Integration trong cùng phiên Freeze Finalization)
+FROZEN = YES (DEC-142, 2026-08-27) · MERGED = YES (default SHA
+f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5) · DONE = YES (GB-12 exit criteria
+đủ, 2026-08-27)
 ```
 
 Sub-unit `GB-1` … `GB-12`, và bất kỳ `GB-IR-xx` nào thuộc cùng lineage này,
@@ -329,6 +330,20 @@ Owner Extension, và **không** cấp thêm repair cycle.
   record `94b2513d1894dbd58f3b08656e3c7412be191df5`). Golden Baseline
   contract (fixture, expected output, strict business comparison) niêm phong.
   `repair_cycles_used` vẫn `1`, `remaining` vẫn `1` — **UNUSED**, đóng task
-  không bắt buộc dùng hết ngân sách. `DONE`/`MERGED` cập nhật sau bước
-  Controlled Integration của cùng phiên. `TASK-110`, `CHECK-110-16`, `app/`,
+  không bắt buộc dùng hết ngân sách. `TASK-110`, `CHECK-110-16`, `app/`,
   `config/` không đổi.
+- 2026-08-27 — `TASK-GOLDEN-BASELINE-001` **CONTROLLED INTEGRATION + DONE**
+  (cùng phiên trên). Merge `--no-ff` qua nhánh trung gian
+  `integration/v4-1-golden-baseline` vào nhánh mặc định
+  `claude/extract-upload-repo-gq2ws4` tại SHA
+  `f332a4cb4410b3ca9c71d659d36a3e8f26aa1fa5`. Trên default: Golden test
+  `58 passed, 2 skipped`; `pytest -q` toàn bộ `697 passed, 11 skipped, 0
+  failed` (0 regression); business anchors 01/2026 và 06/2026 khớp tuyệt đối;
+  `validate_reference_integrity` vẫn đúng 3 lỗi pre-existing (`TASK-REM-T06`).
+  `MERGED = YES`. GB-12 Exit Criteria (11 điều kiện) đủ ⇒ `DONE = YES`.
+  `V4.1` chuyển `POLICY_ADOPTED` → **`FULLY_ENFORCED`** (ba executable
+  enforcement asset đã kiểm chứng chạy được trên default:
+  `scripts/branch_authority_check.sh`, ledger này, `tests/test_golden_baseline.py`).
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `app/`, `config/`,
+  `tests/fixtures/baseline/**`, `tests/test_task110_non_regression.py`
+  **không đổi một byte** qua toàn bộ integration.
