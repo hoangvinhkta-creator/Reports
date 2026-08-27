@@ -32,6 +32,8 @@ Bốn dạng. Mọi thứ khác nổ `CanonicalContractViolation` lúc decorate.
 from __future__ import annotations
 
 import dataclasses
+import pathlib
+import re
 import sys
 import typing
 from dataclasses import dataclass
@@ -180,6 +182,61 @@ def test_hardening_coverage_is_declared_and_is_not_part_of_the_corpus():
     assert {m for m, _, _ in HARDENING_COVERAGE.values()} == {"M-8", "M-10", "M-11"}
 
 
+# ── ĐỐI CHIẾU BẢNG QUY PHẠM ↔ CODE.
+#
+# Precedence rule (DEC-136): bảng §12 của Frozen Contract là nguồn quy phạm.
+# Tại `aff0240` bảng ĐÃ lệch code — HD-POST-A1-02 được áp vào `FROZEN_CORPUS`
+# và vào §21.2 nhưng KHÔNG áp vào chính bảng §12, nên bảng còn ghi
+# `UNSUPPORTED_AT_DECORATION` cho `K03`/`L03`/`M02`. Không ai phát hiện cho tới
+# khi three-way reconciliation chạy tay.
+#
+# Test này biến phép đối chiếu ấy thành cơ chế: lệch một ô là suite ĐỎ.
+
+_CONTRACT_PATH = (pathlib.Path(__file__).resolve().parents[1]
+                  / "docs" / "tasks" / "TASK-110-R1-A1-FROZEN-CONTRACT.md")
+_OUTCOME_TOKENS = (
+    "UNSUPPORTED_AT_DECORATION", "SUPPORTED_INVALID_REJECT", "SUPPORTED_VALID",
+    "OUTSIDE_FRAMEWORK_BOUNDARY", "bất biến",
+)
+
+
+def _parse_normative_table() -> dict:
+    """Đọc bảng ID §12 của Frozen Contract, bung mọi dải `X01–X0n`."""
+    text = _CONTRACT_PATH.read_text(encoding="utf-8")
+    segment = text[text.index("## 12. Frozen attack corpus"):
+                   text.index("## 13. Witness matrix")]
+    rows = {}
+    for line in segment.splitlines():
+        match = re.match(r"^\|\s*`?([A-Z]\d{2})`?(–`?([A-Z]\d{2})`?)?\s*\|(.*)$", line)
+        if not match:
+            continue
+        # Tách theo pipe KHÔNG escape: ô mô tả chứa `int \| str` (PEP 604).
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", match.group(4))]
+        outcome = next((t for t in _OUTCOME_TOKENS if t in cells[1]), cells[1])
+        first, last = match.group(1), match.group(3)
+        ids = ([first] if last is None else
+               [f"{first[0]}{i:02d}" for i in range(int(first[1:]), int(last[1:]) + 1)])
+        for case_id in ids:
+            assert case_id not in rows, f"ID trùng trong bảng quy phạm: {case_id}"
+            rows[case_id] = outcome
+    return rows
+
+
+def test_the_normative_table_and_the_code_corpus_agree_case_by_case():
+    """Bảng §12 (quy phạm) phải khớp `FROZEN_CORPUS` (code) từng ô."""
+    table = _parse_normative_table()
+    code = {c.id: c.expected for c in FROZEN_CORPUS}
+    code.update({z[0]: "bất biến" for z in Z_INVARIANTS})
+    assert len(table) == 105, f"bảng quy phạm có {len(table)} ID, phải là 105"
+    assert set(table) == set(code), (
+        f"chỉ có trong bảng: {sorted(set(table) - set(code))}; "
+        f"chỉ có trong code: {sorted(set(code) - set(table))}")
+    mismatched = {k: (table[k], code[k]) for k in table if table[k] != code[k]}
+    assert not mismatched, (
+        "bảng quy phạm lệch code — theo precedence rule bảng THẮNG, nên phải "
+        f"sửa code hoặc mở Owner Decision: {mismatched}")
+
+
 def test_every_expected_outcome_is_one_of_the_frozen_set():
     """Không được lén thêm một outcome thứ năm để làm một case xanh."""
     for case in FROZEN_CORPUS:
@@ -239,9 +296,13 @@ def test_outside_boundary_classification_is_pinned_to_a_verified_interpreter():
     assert VERIFIED_IMPLEMENTATION == "cpython"
     assert VERIFIED_VERSION_INFO[:2] == (3, 11)
     assert interpreter_matches_verified(), (
-        f"interpreter đang chạy ({sys.implementation.name} "
-        f"{sys.version_info[:3]}) khác bản đã verify ({VERIFIED_PYTHON_VERSION}). "
-        "RE-VERIFY K03/L03/M02 trước khi carry phân loại OUTSIDE_FRAMEWORK_BOUNDARY.")
+        "ENVIRONMENT_REVERIFY_REQUIRED — KHÔNG phải R1-A1 correctness FAIL.\n"
+        f"interpreter đang chạy: {sys.implementation.name} {sys.version_info[:3]}\n"
+        f"bản đã verify:         {VERIFIED_PYTHON_VERSION}\n"
+        "Hãy chạy `test_outside_boundary_case_is_proven_not_merely_failing` trên "
+        "interpreter này. Nếu bốn mệnh đề A/B/C/D vẫn đúng thì đây chỉ là "
+        "NON-BLOCKING environment difference: cập nhật VERIFIED_* và ghi lại "
+        "evidence. Chỉ khi một mệnh đề A/B/C/D SAI thì mới là BLOCKING.")
 
 
 # ═════════════════════════════════ NGỮ PHÁP ĐÓNG — CẤU TRÚC

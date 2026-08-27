@@ -2088,3 +2088,103 @@ Consequences:
 - R1-A, R1 = NOT FROZEN. R2→R8 = BLOCKED. CHECK-110-16 = BLOCKED (merge gate).
 - Backlog thêm HB-A1-06 (B2/B3 defensive boundary, untested) và HB-A1-07
   (`MUTABLES` phụ thuộc invariant metaclass builtin `type`).
+
+---
+
+## DEC-137
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 Pre-Review Evidence Reconciliation
+
+Decision:
+
+**1 — BRANCH AUTHORITY.**
+
+    R1-A1 authoritative branch:
+        claude/r1-a1-contract-freeze-9lkh3h
+
+    authoritative review candidate:
+        SHA finalization của phiên reconciliation này
+        (kế thừa aff02405f51ad47e67e8759d2fa097f1277d62d4)
+
+    claude/r1-canonical-object-safety-fon9lb:
+        historical ancestor cho unit này;
+        NOT review authority;
+        NOT merge authority;
+        KHÔNG fast-forward trong task này.
+
+Nhánh `fon9lb` đứng tại `1b0da151` và là tổ tiên trực tiếp (behind 0 / ahead N)
+của nhánh authoritative, nên không có track song song nào để đối chiếu.
+
+**2 — REVIEW CLEANLINESS.**
+
+`CLEAN` nghĩa là: **không tracked file nào bị modified / staged / deleted bởi
+reviewer.**
+
+Những thứ sau **KHÔNG** phải repository modification:
+
+- untracked cache của test runner: `__pycache__/`, `.pytest_cache/`, `.coverage`;
+- detached checkout tới một exact SHA.
+
+Reviewer không bị coi là làm bẩn repo chỉ vì chạy test.
+
+**3 — VERDICT SEMANTICS.**
+
+Independent Reviewer chỉ được trả đúng một trong hai:
+
+    PASS — ELIGIBLE_FOR_FREEZE
+    FAIL — NOT_ELIGIBLE_FOR_FREEZE
+
+Reviewer **KHÔNG** ghi `FROZEN` vào repository. Nếu verdict là PASS, một
+**Freeze Finalization session riêng** mới được phép ghi `R1-A1 = FROZEN` cùng
+reviewed SHA vào governance.
+
+**4 — INTERPRETER TRIPWIRE SEMANTICS.**
+
+Test ghim interpreter FAIL vì reviewer dùng minor version khác **không** tự
+động là R1-A1 correctness FAIL; nó nghĩa là `ENVIRONMENT_REVERIFY_REQUIRED`.
+
+- Boundary invariant fail (một trong bốn mệnh đề A/B/C/D của `K03`/`L03`/`M02`
+  sai) → **BLOCKING**.
+- Chỉ version mismatch, bốn mệnh đề vẫn đúng → **NON-BLOCKING environment
+  difference**: cập nhật `VERIFIED_*`, ghi evidence, không phải correctness FAIL.
+
+Tripwire buộc re-verify, không tự động fail, và không làm yếu boundary oracle —
+bốn assertion A/B/C/D chạy độc lập với version check.
+
+**5 — DEFECT ĐƯỢC PHÁT HIỆN VÀ SỬA TRONG PHIÊN NÀY.**
+
+Three-way reconciliation (PLAN `5a0f27c` ↔ Frozen Contract `aff0240` ↔ pytest
+collection) phát hiện: **HD-POST-A1-02 đã được áp vào code và vào văn xuôi
+§21.2, nhưng CHƯA được áp vào chính bảng §12** — bảng quy phạm còn ghi
+`UNSUPPORTED_AT_DECORATION` cho `K03`/`L03`/`M02`.
+
+Theo precedence rule của DEC-136 thì bảng là quy phạm, nên tại `aff0240` bảng
+và implementation tự mâu thuẫn. Sửa bảng cho khớp HD-POST-A1-02 là **thi hành
+Owner Decision lên artifact quy phạm**, không phải một thay đổi hợp đồng đơn
+phương. `T03` được chuẩn hoá cách viết sang cùng token
+(`OUTSIDE_FRAMEWORK_BOUNDARY`) — ngữ nghĩa không đổi.
+
+Để lỗi này không tái diễn, phép đối chiếu bảng ↔ code trở thành **cơ chế**:
+`test_the_normative_table_and_the_code_corpus_agree_case_by_case` đọc trực tiếp
+bảng §12 và so từng ô với `FROZEN_CORPUS`. Lệch một ô là suite ĐỎ.
+
+Rationale:
+
+Đây là lần thứ ba trong cùng một task mà một artifact tự lệch với chính nó
+(95 vs 105; bảng vs code; và một lỗi parser markdown trong chính script đối
+chiếu). Cả ba lần đều là lỗi đồng bộ, không phải lỗi thiết kế — nên lời giải
+đúng là biến phép đối chiếu thành test, không phải thêm một vòng review nữa.
+
+Consequences:
+
+- DEC-128 → DEC-136 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** (SHA256
+  `08e74fe226caca98ce46f845475cc386496bf0e3a57eab197f97d09c723d3e3c`).
+- Corpus vẫn **105 case**; expected-outcome change duy nhất so với PLAN là ba
+  ô do HD-POST-A1-02 cho phép.
+- R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
+  merge. CHECK-110-16 vẫn BLOCKED (merge gate).

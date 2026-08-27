@@ -1600,3 +1600,33 @@ unreachable-by-current-construction, independently untested) · HB-A1-07
 
 **CHECK-110-16** = MERGE GATE, không phải REVIEW GATE. Production workbook
 không tồn tại ⇒ BLOCKED. Không giả lập.
+
+
+#### Pre-Review Evidence Reconciliation (DEC-137)
+
+- Status: **READY_FOR_INDEPENDENT_REVIEW**
+- Previous SHA: `aff02405f51ad47e67e8759d2fa097f1277d62d4`
+- `app/modules/domain/canonical.py`: **KHÔNG ĐỔI** — SHA256
+  `08e74fe226caca98ce46f845475cc386496bf0e3a57eab197f97d09c723d3e3c`.
+
+**Three-way reconciliation** lấy nguồn gốc corpus từ PLAN checkpoint `5a0f27c`
+(không dùng Frozen Contract hiện tại làm nguồn gốc):
+
+    |A| PLAN @5a0f27c            = 105
+    |B| Frozen Contract @aff0240 = 105
+    |C| pytest collect @aff0240  = 105
+    A == B == C  ·  missing 0 · extra 0 · duplicate 0 · renamed 0
+    thứ tự ID giữ nguyên
+
+**Defect phát hiện được**: HD-POST-A1-02 đã áp vào code và vào §21.2 nhưng
+**chưa áp vào bảng §12** — bảng quy phạm còn ghi `UNSUPPORTED_AT_DECORATION`
+cho `K03`/`L03`/`M02`. Theo precedence rule DEC-136 bảng là quy phạm, nên
+`aff0240` có bảng tự mâu thuẫn với implementation. Đã sửa bảng theo đúng
+HD-POST-A1-02 (thi hành Owner Decision, không phải thay đổi hợp đồng), và
+`T03` được chuẩn hoá sang cùng token.
+
+**Chống tái diễn**: `test_the_normative_table_and_the_code_corpus_agree_case_by_case`
+đọc thẳng bảng §12 và so từng ô với `FROZEN_CORPUS`. Lệch một ô là suite ĐỎ.
+
+Z01–Z04 provenance: cả bốn **có mặt trong PLAN @5a0f27c** (dòng 590–593), không
+phải case sinh sau. Không escalate.

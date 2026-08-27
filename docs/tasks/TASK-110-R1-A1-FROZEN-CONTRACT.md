@@ -484,6 +484,17 @@ Trước khi implement, 80 case tầng annotation đã được chạy thử b�
 classifier tại `1b0da151`: `RAW_ERROR_or_HOOKS_RAN=0`. Kết quả trên
 implementation thật ở §21.
 
+> **BẢNG NÀY LÀ NGUỒN QUY PHẠM** (precedence rule, DEC-136). Nếu văn xuôi ở
+> bất kỳ đâu trong artifact mâu thuẫn với bảng, bảng thắng và văn xuôi phải
+> được sửa. `tests/test_r1a1_annotation_contract.py` có một test đối chiếu
+> bảng này với `FROZEN_CORPUS` trong code, nên hai bên không lệch nhau trong
+> im lặng được nữa.
+>
+> Ba dòng `K03`/`L03`/`M02` mang `OUTSIDE_FRAMEWORK_BOUNDARY` theo
+> **HD-POST-A1-02** — đây là expected-outcome change DUY NHẤT so với bản PLAN
+> `5a0f27c`, và nó do Owner Decision cho phép. `T03` chỉ được chuẩn hoá CÁCH
+> VIẾT sang cùng token, ngữ nghĩa không đổi.
+
 Clause ID: **C1** closed-world/default-deny · **C2** grammar · **C3** class
 allowlist · **C4** `type(v) is T` · **C5** mutable guard · **C6** optional form ·
 **C7** any · **C8** pseudo-field · **C9** decoration gate · **C10** foreign
@@ -534,12 +545,12 @@ boundary · **C11** message safety · **C12** node budget · **C13** atomic comm
 | J03 | `__class__` nói dối, field `Optional[RecordRef]` | SUPPORTED_INVALID_REJECT | C4, C6 |
 | K01 | metaclass có `__repr__` raise VÀ `__name__` raise | UNSUPPORTED_AT_DECORATION | C3, C11 |
 | K02 | metaclass `__repr__` trả chuỗi 100 000 ký tự | UNSUPPORTED_AT_DECORATION | C11 |
-| K03 | metaclass `__getattr__` raise trên mọi thuộc tính | UNSUPPORTED_AT_DECORATION | C3, C11 |
+| K03 | metaclass `__getattr__` raise trên mọi thuộc tính | OUTSIDE_FRAMEWORK_BOUNDARY *(HD-POST-A1-02)* | C10 |
 | L01 | instance class thường làm annotation, `__repr__` có side effect | UNSUPPORTED_AT_DECORATION | C2, C11 |
 | L02 | annotation có `__name__` trả về không phải `str` | UNSUPPORTED_AT_DECORATION | C11 |
-| L03 | annotation có `__module__` raise | UNSUPPORTED_AT_DECORATION | C11 |
+| L03 | annotation có `__module__` raise | OUTSIDE_FRAMEWORK_BOUNDARY *(HD-POST-A1-02)* | C10 |
 | M01 | `get_origin` raise exception có `__str__` thù địch | UNSUPPORTED_AT_DECORATION | C10, C11 |
-| M02 | `get_args` raise exception có `__str__` thù địch | UNSUPPORTED_AT_DECORATION | C10, C11 |
+| M02 | `get_args` raise exception có `__str__` thù địch | OUTSIDE_FRAMEWORK_BOUNDARY *(HD-POST-A1-02)* | C10 |
 | N01 | class target không hash được (`__hash__ = None`) | UNSUPPORTED_AT_DECORATION | C3, C5 |
 | N02 | `Optional[<N01>]` | UNSUPPORTED_AT_DECORATION | C6 |
 | O01 | class target có `__hash__` raise | UNSUPPORTED_AT_DECORATION | C3 |
@@ -563,7 +574,7 @@ boundary · **C11** message safety · **C12** node budget · **C13** atomic comm
 | S02 | `ClassVar` cùng field thường — không vào contract | SUPPORTED_VALID | C8 |
 | T01 | `__args__` rộng 100 000 phần tử | UNSUPPORTED_AT_DECORATION | C12 |
 | T02 | `tuple` lồng 30 tầng | UNSUPPORTED_AT_DECORATION | C2 |
-| T03 | annotation sâu tới mức `typing` tự nổ khi DỰNG | ngoài biên framework — không canonical type nào được tạo | C12 |
+| T03 | annotation sâu tới mức `typing` tự nổ khi DỰNG | OUTSIDE_FRAMEWORK_BOUNDARY *(chuẩn hoá cách viết; ngữ nghĩa KHÔNG đổi — bản PLAN ghi cùng ý bằng văn xuôi "ngoài biên framework — không canonical type nào được tạo")* | C12 |
 | U01 | forward ref không phân giải được | UNSUPPORTED_AT_DECORATION | C10 |
 | U02 | forward ref trỏ vòng về chính class | UNSUPPORTED_AT_DECORATION | C10 |
 | V01 | metaclass có `__setattr__` raise giữa decoration | UNSUPPORTED_AT_DECORATION, class NGUYÊN VẸN, registry KHÔNG ĐỔI | C9, C13 |
@@ -876,6 +887,24 @@ hiện trong đường xử lý trước exception, mệnh đề A và D sai và
 Số dòng chỉ là evidence của interpreter hiện tại và **không** được hard-code
 thành invariant lâu dài.
 
+**Ngữ nghĩa của tripwire (§4 — bắt buộc đọc trước khi chấm review).**
+
+Test ghim interpreter FAIL vì reviewer chạy trên một minor version khác
+**KHÔNG** tự động là R1-A1 correctness FAIL. Nó có nghĩa:
+
+    ENVIRONMENT_REVERIFY_REQUIRED
+
+Phân biệt hai trường hợp:
+
+| Quan sát | Verdict |
+|---|---|
+| **Boundary invariant fail** — một trong bốn mệnh đề A/B/C/D của `K03`/`L03`/`M02` sai (canonical ĐÃ entered, registry đổi, class nhiễm partial state, hay `canonical.py` xuất hiện trong traceback) | **BLOCKING** — đây là R1-A1 defect thật |
+| **Chỉ version mismatch**, bốn mệnh đề A/B/C/D vẫn đúng trên interpreter của reviewer | **NON-BLOCKING environment difference** — cập nhật `VERIFIED_*` và ghi lại evidence; không phải correctness FAIL |
+
+Tripwire tồn tại để buộc **re-verify**, không phải để tự động fail. Nó cũng
+**không** làm yếu boundary oracle: bốn assertion A/B/C/D chạy độc lập với
+version check và vẫn BLOCKING nếu sai.
+
 **Cách re-verify trên interpreter khác:**
 
     PYTHONPATH=. python3 -m pytest tests/test_r1a1_annotation_contract.py \
@@ -991,7 +1020,7 @@ Corpus vẫn là 105; acceptance gate không đổi; không renumber.
 | HB-A1-03 | Corpus thiếu case khẳng định `__cause__ is None` ở biên lạ | Rule B |
 | HB-A1-04 | Biên B2/B3 tới được biệt lập nhưng CPython `@dataclass` luôn nổ trước từ một khai báo canonical thật; chỉ B1 tới được thực sự | Là quan sát về biên, không phải lỗ hổng |
 | HB-A1-05 | `validate_reference_integrity.py` FAIL với 3 reference chết trong `TASK-REM-T06` | Có SẴN từ trước, ngoài touch-area R1-A1. **CẤM sửa** trong task này — sửa là SCOPE VIOLATION |
-| HB-A1-06 | **B2/B3 không có mutation coverage độc lập.** HB-A1-04 đã xác định chỉ **B1** reachable từ một khai báo production-like. `M02` từng chạm B2/B3 nhưng nay là `OUTSIDE_FRAMEWORK_BOUNDARY`. Ghi rõ: **B2/B3 = defensive boundary, unreachable-by-current-construction, independently untested** | HARDENING. Không repair trong R1-A1 finalization |
+| HB-A1-06 | **B2/B3 không có mutation coverage độc lập, và sau HD-POST-A1-02 thì càng rõ.** `M02` construction correction VẪN hợp lệ (nó làm case chạm đúng cơ chế nó tuyên bố), nhưng sau khi `M02` được phân loại `OUTSIDE_FRAMEWORK_BOUNDARY`, nó chỉ còn chứng minh **hành vi foreign TRƯỚC biên** — nó **KHÔNG còn là coverage cho B2/B3 của canonical**. HB-A1-04 đã xác định chỉ **B1** reachable từ một khai báo production-like. `M02` từng chạm B2/B3 nhưng nay là `OUTSIDE_FRAMEWORK_BOUNDARY`. Ghi rõ: **B2/B3 = defensive boundary, unreachable-by-current-construction, independently untested** | HARDENING. Không repair trong R1-A1 finalization |
 | HB-A1-07 | **Mutable guard phụ thuộc một invariant chưa được canh.** `issubclass(type(v), MUTABLES)` an toàn vì `issubclass` điều phối theo metaclass của VẾ PHẢI, và mọi member của `MUTABLES` hiện có metaclass ĐÚNG là builtin `type`. Nếu ai đó thêm vào `MUTABLES` một type có custom metaclass, phép kiểm sẽ chạy `__subclasscheck__` của người dùng và primitive mất tính an toàn. **CẤM thêm type có custom metaclass vào `MUTABLES` nếu chưa mở Owner Decision / hardening task riêng.** Không mở rộng `MUTABLES` trong phiên này | HARDENING |
 
 ### 21.5. Scope audit
@@ -1055,9 +1084,20 @@ của annotation target thôi liên quan.
 
 Đường đi cụ thể: bất kỳ tác giả nào viết `Union[<512+ nhánh>]` làm annotation.
 `typing.get_origin()` trả `typing.Union`, `get_args()` trả tuple 600 phần tử,
-parser cộng `len(args)` vào `nodes` và chạm `_MAX_ANNOTATION_NODES` **trước**
-phép kiểm arity (đo được: node-budget ở vị trí 894 trong `_build_spec`, arity ở
-977). Đo trực tiếp: `Union` 600 nhánh → từ chối bởi **NODE BUDGET (C12)`.
+parser cộng `len(args)` vào `nodes` rồi chạm `_MAX_ANNOTATION_NODES`.
+
+**Thứ tự được khẳng định** (trong thân `canonical._build_spec`, theo tên chứ
+không theo byte-offset — offset đổi mỗi lần sửa comment và không phải bằng
+chứng bền):
+
+    1. `args = _boundary_get_args(hint, where)`
+    2. `nodes += len(args)`
+    3. kiểm `nodes > _MAX_ANNOTATION_NODES`   ← C12 nổ Ở ĐÂY
+    4. kiểm `len(args) != 2`                  ← luật arity, SAU C12
+
+Ordering being asserted: **bước 3 đứng trước bước 4**. Đo trực tiếp trên hành
+vi (không trên vị trí ký tự): `Union` 600 nhánh → thông báo khớp `"nút"`, tức
+là bị **NODE BUDGET (C12)** từ chối, không phải luật arity.
 
 Lưu ý quan trọng: reachable với tư cách **INPUT**, không phải với tư cách một
 production hợp lệ của ngữ pháp. Ngữ pháp chỉ nhận `Optional[X]` (đúng 2 nhánh),
@@ -1191,3 +1231,91 @@ Toàn bộ 105 case. Node ID của pytest mang chính Case ID, nên bảng này 
 
 Tổng: **105 dòng** · 102 IN-SCOPE · 3 OUTSIDE_FRAMEWORK_BOUNDARY (`K03`,
 `L03`, `M02`) · 0 duplicate · 0 case thiếu oracle.
+
+
+---
+
+## 22. Pre-Review Evidence Reconciliation (DEC-137)
+
+### 22.1. Three-way corpus reconciliation
+
+Nguồn gốc corpus lấy từ **PLAN checkpoint `5a0f27c`**, KHÔNG lấy Frozen
+Contract hiện tại làm nguồn gốc.
+
+| Tập | Nguồn | Số phần tử |
+|---|---|---|
+| **A** | bảng ID §12 của PLAN @ `5a0f27c` | 105 |
+| **B** | bảng ID §12 của Frozen Contract @ `aff0240` | 105 |
+| **C** | `pytest --collect-only` @ `aff0240` | 105 |
+| **D** | bảng ID §12 sau phiên này | 105 |
+
+    A == B == C == D
+    missing 0 · extra 0 · duplicate 0 · renamed 0 · thứ tự ID giữ nguyên
+
+**Z01–Z04 provenance**: cả bốn **có mặt trong PLAN @ `5a0f27c`**, dòng 590–593,
+expected outcome `bất biến`. Không phải case sinh sau. **Không escalate.**
+
+### 22.2. DEFECT phát hiện được — bảng quy phạm lệch code tại `aff0240`
+
+`HD-POST-A1-02` đã được áp vào **code** (`FROZEN_CORPUS`) và vào **văn xuôi
+§21.2**, nhưng **chưa được áp vào chính bảng §12**. Tại `aff0240`:
+
+| Case | Bảng §12 (quy phạm) | Code | §21.2 |
+|---|---|---|---|
+| `K03` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | outside |
+| `L03` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | outside |
+| `M02` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | outside |
+
+Theo precedence rule (DEC-136) bảng là quy phạm, nên `aff0240` có bảng **tự
+mâu thuẫn với implementation** — một reviewer đọc bảng sẽ thấy 3 case hỏng.
+
+Đã sửa bảng cho khớp `HD-POST-A1-02`. Đây là **thi hành Owner Decision lên
+artifact quy phạm**, không phải thay đổi hợp đồng đơn phương. `T03` được chuẩn
+hoá cách viết sang cùng token; ngữ nghĩa không đổi.
+
+**Expected-outcome change A → D (toàn bộ, không còn cái nào khác):**
+
+| Case | A (PLAN) | D (sau phiên này) | Thẩm quyền |
+|---|---|---|---|
+| `K03` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | HD-POST-A1-02 |
+| `L03` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | HD-POST-A1-02 |
+| `M02` | `UNSUPPORTED_AT_DECORATION` | `OUTSIDE_FRAMEWORK_BOUNDARY` | HD-POST-A1-02 |
+| `T03` | *(văn xuôi cùng nghĩa)* | `OUTSIDE_FRAMEWORK_BOUNDARY` | chuẩn hoá cách viết, ngữ nghĩa không đổi |
+
+### 22.3. Chống tái diễn
+
+`test_the_normative_table_and_the_code_corpus_agree_case_by_case` đọc thẳng
+bảng §12 của chính file này và so từng ô với `FROZEN_CORPUS` trong code. Lệch
+một ô là suite ĐỎ. Phép đối chiếu thôi là một lần kiểm tay và trở thành cơ chế.
+
+*(Ghi chú kỹ thuật: parser phải tách theo pipe KHÔNG escape — ô mô tả `A03`
+chứa `int \| str` của PEP 604. Bản parser đầu tiên tách sai và làm chính test
+này FAIL giả; đó là lý do phép tách được ghi rõ ở đây.)*
+
+### 22.4. Raw collect-only evidence
+
+Lệnh tái tạo (deterministic, không phụ thuộc scratchpad):
+
+    python3 -m pytest tests/ --collect-only -q -p no:cacheprovider
+    python3 -m pytest tests/test_r1a1_annotation_contract.py --collect-only -q -p no:cacheprovider
+
+Node ID của corpus mang chính Case ID (`test_frozen_corpus_case[K03-K]`,
+`test_frozen_corpus_invariant[Z04]`), nên bảng ánh xạ §21.8 kiểm chứng được
+trực tiếp từ output trên.
+
+### 22.5. Review cleanliness & verdict semantics (DEC-137)
+
+`CLEAN` = **không tracked file nào bị modified / staged / deleted bởi reviewer.**
+
+KHÔNG phải repository modification: untracked cache của test runner
+(`__pycache__/`, `.pytest_cache/`, `.coverage`) và detached checkout tới một
+exact SHA.
+
+Independent Reviewer chỉ trả đúng một trong hai:
+
+    PASS — ELIGIBLE_FOR_FREEZE
+    FAIL — NOT_ELIGIBLE_FOR_FREEZE
+
+Reviewer **KHÔNG** ghi `FROZEN` vào repository. Nếu PASS, một **Freeze
+Finalization session riêng** mới được phép ghi `R1-A1 = FROZEN` + reviewed SHA
+vào governance.
