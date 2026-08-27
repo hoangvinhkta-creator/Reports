@@ -159,6 +159,61 @@ permanent exception.
 
 ---
 
+## Root Task: TASK-GOLDEN-BASELINE-001
+
+Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của
+`TASK-110` **không** áp vào đây, và task này **không** mở `R1-A2` → `R8`.
+
+```
+root_task: TASK-GOLDEN-BASELINE-001
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` không đến từ độ khó của việc code — task chỉ thêm test và fixture. Nó
+đến từ **Blast Radius theo failure path** (`governance/core/V4_1_POLICY_FREEZE.md` §4):
+
+- **BR-1** — rò rỉ PII vào git history là **bất khả nghịch** (DEC-108 →
+  "Can Revisit After: Không bao giờ"); không gate nào chặn sau khi push.
+- **BR-2** — expected output sinh từ code hiện tại; nếu code hiện tại đã sai ở
+  một path thì Golden đóng băng cái sai đó thành "chuẩn", và mọi lần sửa đúng
+  sau này sẽ đỏ rồi bị "sửa" bằng cách sinh lại expected output.
+
+BR-2 được giảm nhẹ — không loại bỏ — bằng GB-1: mọi aggregate mức kỳ phải
+khớp evidence đã commit **trước** khi có code này
+(`docs/analysis/_evidence/evidence.json` sinh tại TASK-002; CHECK-101-08 đóng
+2026-08-23), cộng dòng "Tổng cộng" do chính ERP ghi trong workbook nguồn.
+
+### Scope Lock
+
+```
+app/**                : FORBIDDEN — không sửa production code
+config/**             : FORBIDDEN
+docs/tasks/TASK-110*  : FORBIDDEN
+governance/**         : FORBIDDEN
+tests/fixtures/baseline/**, tests/test_task110_non_regression.py : FORBIDDEN
+```
+
+### Trạng thái
+
+```
+IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW   (chưa review, chưa FROZEN, chưa DONE)
+```
+
+Phiên implementation **không** tiêu repair cycle nào: repair cycle chỉ mở khi
+một Independent Review trả về BLOCKING finding và implementation sửa finding
+đó. Sub-unit `GB-1` … `GB-12` **không** có ngân sách riêng và không reset
+ngân sách — chúng thuộc cùng lineage này.
+
+cycles:
+- id: (chưa mở — chưa có Independent Review, chưa có repair)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Cách xác định phạm vi một repair cycle (tham chiếu)
 
 ```
@@ -194,3 +249,9 @@ Owner Extension, và **không** cấp thêm repair cycle.
   **Ngân sách không đổi:** `TASK-110` vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0.
   Thay đổi tài liệu của phiên integration được phân loại
   `INTEGRATION STATE RECONCILIATION`, **không** tính là repair cycle.
+- 2026-08-27 — `TASK-GOLDEN-BASELINE-001` mở lineage mới sau Owner Decision
+  `OD-GB-1 = A + A1`. Discovery (`b738fa4`) + implementation Golden Business
+  Baseline trên hai kỳ Tín Phát 01.2026/06.2026 từ workbook production thật do
+  Owner cung cấp. `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã dùng**.
+  `TASK-110` **không đổi**: vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0;
+  `CHECK-110-16` vẫn `REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE`.

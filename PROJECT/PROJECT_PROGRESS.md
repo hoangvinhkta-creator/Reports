@@ -17,8 +17,20 @@ sai — xem DEC-118.
 
 ```
 V4.1 = POLICY_ADOPTED          (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
-V4.1 = NOT YET FULLY_ENFORCED  (chờ TASK-GOLDEN-BASELINE-001)
+V4.1 = NOT YET FULLY_ENFORCED  (chờ Independent Review của TASK-GOLDEN-BASELINE-001)
+Golden implementation candidate = EXISTS (2026-08-27, V4.1-2)
 ```
+
+`TASK-GOLDEN-BASELINE-001` đã **triển khai xong** trên hai kỳ nghiệp vụ thật
+của Tín Phát (01.2026 = 254 đơn, 06.2026 = 146 đơn), fixture đã ẩn danh theo
+Owner Decision `OD-GB-1 = A + A1`, một lệnh chạy:
+`python3 -m pytest tests/test_golden_baseline.py -q`. Trạng thái
+`IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW` — **chưa** review, **chưa**
+FROZEN, **chưa** DONE. `V4.1` vì vậy vẫn `POLICY_ADOPTED`: chuyển sang
+`FULLY_ENFORCED` là hành động của một phiên có thẩm quyền sau Independent
+Review (`governance/core/V4_1_POLICY_FREEZE.md` §12), không phải của
+implementation agent. Chi tiết: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md`
+Phần E.
 
 Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
 theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
@@ -115,6 +127,13 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
+**TASK-GOLDEN-BASELINE-001** — Golden Business Baseline. `DISCOVERY = COMPLETE`
+(`b738fa4`), `IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW` (2026-08-27).
+`effective_risk = HIGH`, 2 repair cycle khả dụng, **0 đã dùng** — xem
+`PROJECT/REVIEW_BUDGET_LEDGER.md`. Task này **không** thuộc lineage
+`TASK-110` và **không** mở `R1-A2` → `R8`.
+
+Task liền trước (vẫn NOT DONE):
 TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage
 tạm dừng vì hết review budget**. `R1-A1` đã đạt `FROZEN` theo **DEC-139**
 (Independent Review `PASS — ELIGIBLE_FOR_FREEZE`, 0 blocking finding, 1
@@ -138,10 +157,14 @@ Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**TASK-GOLDEN-BASELINE-001** — dựng Golden Baseline trên integration baseline
-chính thức (`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
-nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`. Phải
-mở trong một session riêng.
+**Independent Review của `TASK-GOLDEN-BASELINE-001`.** Bản thân Golden Baseline
+đã dựng xong trên integration baseline chính thức
+(`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`): 2 fixture đã ẩn
+danh + 2 expected output + `tests/test_golden_baseline.py` (52 test, PASS),
+`691 passed / 11 skipped` toàn bộ suite, 0 regression. Đây vẫn là task **duy
+nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`, nhưng
+việc nâng đó chỉ xảy ra **sau** Independent Review PASS và freeze bởi phiên có
+thẩm quyền — không phải bởi phiên implementation.
 
 **KHÔNG** bắt đầu `R1-A2`, `R2` hay bất kỳ unit nào từ `R1-B` → `R8`: lineage
 `TASK-110` có `repair_cycles_remaining = 0`; mỗi unit cần `OWNER_EXTENSION`

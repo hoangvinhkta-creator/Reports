@@ -81,16 +81,17 @@ mọi phép so đều dùng `origin/…`. Không tự sửa (ngoài scope).
 | `docs/tasks/TASK-110_REPAIR_PROGRESS.md` | bảng unit R1→R8 |
 | `docs/tasks/TASK-101-importer-normalizer.md` | CHECK-101-08 + mục "Đối Chiếu Dữ Liệu Thật" |
 | `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md` | CHECK-108A1-14 / -15 |
-| `docs/analysis/05_EXCEPTIONS.md`, `07_SPEC_COVERAGE.md` | bảng đối chiếu thô ↔ báo cáo |
+| `docs/analysis/05_EXCEPTIONS.md`, `docs/analysis/07_SPEC_COVERAGE.md` | bảng đối chiếu thô ↔ báo cáo |
 | `docs/analysis/_evidence/evidence.json` | evidence tổng hợp đã commit |
 | `.gitignore`, `config/*.yaml`, `app/pipeline.py`, `tests/**` | ràng buộc dữ liệu + pipeline + oracle hiện có |
 
-**Golden Baseline rules** nằm tại `V4_1_POLICY_FREEZE.md` §1 (điều kiện
+**Golden Baseline rules** nằm tại `governance/core/V4_1_POLICY_FREEZE.md` §1 (điều kiện
 `FULLY_ENFORCED`), §4.1 (Golden không tự động hạ risk), §6 (phạm vi đúng của
 Golden Baseline). **Production Path Decision Rule** = §5. **Blast Radius
 rules** = §4. **HARDENING/BLOCKING semantics** = §7. **Artifact limits** = §10.
 **State transition authority** = §12. **Stop conditions** = §8, §9, §14.
-Không có file `GOLDEN_BASELINE_STANDARD.md` riêng — đã kiểm tra bằng
+Không có file governance đứng riêng nào mang tên GOLDEN_BASELINE_STANDARD
+(đuôi `.md`) — đã kiểm tra bằng
 `grep -rn "Golden" governance/`.
 
 ### A.3 Project state — có nhất quán không?
@@ -100,16 +101,16 @@ repository tại `716ae2e1…`:
 
 | Owner cung cấp | Nguồn trong repo | Khớp |
 |---|---|---|
-| V4.1-1 = COMPLETE | `REVIEW_BUDGET_LEDGER.md` → "Cập nhật gần nhất" 2026-08-27 V4.1-1 | ✔ |
-| V4.1 = POLICY_ADOPTED, NOT FULLY_ENFORCED | `V4_1_POLICY_FREEZE.md` §1; `PROJECT_PROGRESS.md` L17-21 | ✔ |
-| KNOWN PRE-V4.1 DIVERGENCE = CLOSED | `REVIEW_BUDGET_LEDGER.md` → "Branch divergence đã biết" (DEC-141 §4) | ✔ |
+| V4.1-1 = COMPLETE | `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Cập nhật gần nhất" 2026-08-27 V4.1-1 | ✔ |
+| V4.1 = POLICY_ADOPTED, NOT FULLY_ENFORCED | `governance/core/V4_1_POLICY_FREEZE.md` §1; `PROJECT/PROJECT_PROGRESS.md` L17-21 | ✔ |
+| KNOWN PRE-V4.1 DIVERGENCE = CLOSED | `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Branch divergence đã biết" (DEC-141 §4) | ✔ |
 | R1-A1 FROZEN; R1-A / R1 NOT FROZEN | `TASK-110_REPAIR_PROGRESS.md` bảng Tiến độ | ✔ |
-| TASK-110 NOT DONE | `PROJECT_PROGRESS.md` L100-110; `TASK-110-validation-review-queue.md` L19-20 | ✔ |
-| CHECK-110-16 BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE | `TASK-110-validation-review-queue.md` L611-651 | ✔ |
-| repair budget EXHAUSTED_PRE_V4.1, remaining 0 | `REVIEW_BUDGET_LEDGER.md` → Root Task: TASK-110 | ✔ |
-| R1-A2 → R8 = OWNER_EXTENSION REQUIRED | `REVIEW_BUDGET_LEDGER.md` → "Owner Extension log" **trống** | ✔ |
+| TASK-110 NOT DONE | `PROJECT/PROJECT_PROGRESS.md` L100-110; `docs/tasks/TASK-110-validation-review-queue.md` L19-20 | ✔ |
+| CHECK-110-16 BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE | `docs/tasks/TASK-110-validation-review-queue.md` L611-651 | ✔ |
+| repair budget EXHAUSTED_PRE_V4.1, remaining 0 | `PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task: TASK-110 | ✔ |
+| R1-A2 → R8 = OWNER_EXTENSION REQUIRED | `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Owner Extension log" **trống** | ✔ |
 | Golden Baseline NOT YET IMPLEMENTED | `TASK-110_REPAIR_PROGRESS.md` L1724; không có `tests/test_golden_baseline.py` | ✔ |
-| Next authorized task = TASK-GOLDEN-BASELINE-001 | `PROJECT_PROGRESS.md` → "Next Recommended Task" | ✔ |
+| Next authorized task = TASK-GOLDEN-BASELINE-001 | `PROJECT/PROJECT_PROGRESS.md` → "Next Recommended Task" | ✔ |
 
 **Test suite tại baseline (E1):** `python3 -m pytest -q` →
 `639 passed, 9 skipped in 8.55s`. 9 skip là parametrize rỗng trong
@@ -286,7 +287,7 @@ authority đã tồn tại:
 
 | # | Invariant | Authority hiện có |
 |---|---|---|
-| I-01 | Số OrderID duy nhất 01.2026 = 254; 06.2026 = 146 | `PROJECT_PROGRESS.md` → "Completion Gate sơ bộ" dòng 1; CHECK-101-08 |
+| I-01 | Số OrderID duy nhất 01.2026 = 254; 06.2026 = 146 | `PROJECT/PROJECT_PROGRESS.md` → "Completion Gate sơ bộ" dòng 1; CHECK-101-08 |
 | I-02 | Tổng "Doanh số bán" raw khớp dòng "Tổng cộng" của chính file | CHECK-101-08 (đối chiếu chéo độc lập) |
 | I-03 | `TotalSales = SellPrice × Quantity − Discount`; mọi dòng lệch raw↔normalized lệch **đúng** bằng Chiết khấu của chính dòng đó | DEC-114; CHECK-101-08 mục Item 4 |
 | I-04 | `LeadSource` chỉ nhận `PERSONAL`/`ADS`; không literal `TINPHAT_ADS` | Completion Gate sơ bộ (TASK-104); DEC-119; ADR-104 |
@@ -366,7 +367,7 @@ nhau, `TZ=Pacific/Kiritimati` và `TZ=UTC`, `LC_ALL=C` và `LC_ALL=vi_VN.UTF-8`:
 | D-05 | `hash()` ngẫu nhiên theo tiến trình | Đã tránh sẵn: `snapshot_id` dùng `hashlib.sha256`, không dùng `hash()` (docstring `baseline_snapshot._digest` ghi rõ lý do) | giữ nguyên | — |
 | D-06 | Thứ tự `dict`/`set` | Python 3.7+ giữ thứ tự chèn; các chỗ xuất ra ngoài đều `sorted()` (`employee_mapper.py:464`, `rules.py:311/402`, `models.py:307/327/630`) | Golden serialize bằng `json.dumps(..., sort_keys=True)` | Trung bình: `sort_keys` che mất **thay đổi thứ tự** có ý nghĩa nghiệp vụ ⇒ vì thế phải giữ riêng `order_graph` (thứ tự line trong order) như oracle L2 đã làm |
 | D-07 | Thứ tự filesystem | Không đọc thư mục; chỉ đọc đúng đường dẫn được truyền | không cần | — |
-| D-08 | Locale | Đo: không ảnh hưởng. `validation/text.py` chuẩn hoá NFC + gộp khoảng trắng, không phụ thuộc locale | ghim `ensure_ascii=False`, encoding `utf-8` tường minh | — |
+| D-08 | Locale | Đo: không ảnh hưởng. `app/modules/validation/text.py` chuẩn hoá NFC + gộp khoảng trắng, không phụ thuộc locale | ghim `ensure_ascii=False`, encoding `utf-8` tường minh | — |
 | D-09 | Timezone | Đo: không ảnh hưởng. `RawRow.date` là `date` thuần, serialize `.isoformat()` | giữ nguyên | — |
 | D-10 | Float formatting | **Đã loại trừ tận gốc.** Tiền là `Decimal` (ADR-103); `grep -rnE "\bfloat\(" app/` → 0 kết quả; `to_decimal` đi qua `str(value)` cho ô float | Serialize `Decimal` thành **chuỗi**, không bao giờ thành `float` | Cao nếu vi phạm: `float` biến so sánh chính xác thành xấp xỉ và làm trôi chữ số cuối vào bảng lương |
 | D-11 | Excel serialization / openpyxl | Đọc `read_only=True, data_only=True`; ô ngày trả `datetime` | Fixture tạo bằng chính `openpyxl` đang pin; ghi version vào metadata golden | Trung bình |
@@ -388,7 +389,7 @@ Xem GB-6 (đầy đủ). Nguyên tắc: chuẩn hoá **biểu diễn**, không c
 
 | Thành phần Golden | Dựng từ nguồn nào (§5) | Phân loại |
 |---|---|---|
-| Bố cục sheet, 17 cột, header dòng 4 / data dòng 6 | (1) annotation/schema inventory — `raw_reader.COLUMNS`, `01_DATA_MAPPING.md` §1 | production-realistic |
+| Bố cục sheet, 17 cột, header dòng 4 / data dòng 6 | (1) annotation/schema inventory — `raw_reader.COLUMNS`, `docs/analysis/01_DATA_MAPPING.md` §1 | production-realistic |
 | Chuỗi `NVBH` thật (`Tín Phát 0869931931`, `Đức Kiên - Tân Á 0867666533`, …) | (2) config hiện hành `config/employees.yaml` + (4) raw đã xác minh qua `evidence.json.raw.employees` | production-realistic |
 | Ngày, số lượng, đơn giá, chiết khấu, `Số BH` | (4) raw production đã xác minh — **chỉ khi Owner cấp lại file** | production-realistic **nếu** OD-GB-1 = A |
 | Cùng bộ số nhưng do agent bịa ra để khớp tổng | không thuộc 1–4 | **HARDENING BY DEFAULT** — không được gọi là production baseline |
@@ -519,7 +520,7 @@ Quy tắc áp dụng (V4.1 §2, §3):
 | `PROJECT/REVIEW_BUDGET_LEDGER.md` | sửa — thêm root task entry (A.17) | GB-11 |
 | `PROJECT/PROJECT_PROGRESS.md` | sửa — trạng thái task + `V4.1 = FULLY_ENFORCED` khi đạt | GB-11 |
 | `PROJECT/LO_TRINH_DE_HIEU.md` | sửa — đồng bộ bắt buộc nếu roadmap Track A đổi trạng thái (Giao thức Đóng Phiên bước 5) | GB-11 |
-| `governance/core/V4_1_POLICY_FREEZE.md` | **KHÔNG SỬA** — §1 đã mô tả sẵn điều kiện; trạng thái adoption ghi ở `PROJECT_PROGRESS.md` | — |
+| `governance/core/V4_1_POLICY_FREEZE.md` | **KHÔNG SỬA** — §1 đã mô tả sẵn điều kiện; trạng thái adoption ghi ở `PROJECT/PROJECT_PROGRESS.md` | — |
 | `app/**`, `config/**` | **KHÔNG SỬA** — Scope Lock | — |
 
 **Artifact governance đếm được: 1** (`TASK-GOLDEN-BASELINE-001-PLAN.md`).
@@ -1048,10 +1049,10 @@ subtask mới; GB-x là các bước tuần tự trong **cùng một** lineage
   - File PLAN này: thêm Completion Gate + Evidence + mục "Deleted" cho file
     thô đã xoá.
 - **Touch area:** như trên. **Không** sửa `governance/core/V4_1_POLICY_FREEZE.md`
-  (§1 đã mô tả sẵn điều kiện; trạng thái adoption sống ở `PROJECT_PROGRESS.md`).
+  (§1 đã mô tả sẵn điều kiện; trạng thái adoption sống ở `PROJECT/PROJECT_PROGRESS.md`).
 - **Acceptance:** artifact governance của task = **1**; ledger có `base_sha`/
-  `head_sha` nếu (và chỉ nếu) một repair cycle thật sự mở; `PROJECT_PROGRESS.md`
-  và `LO_TRINH_DE_HIEU.md` không lệch nhau.
+  `head_sha` nếu (và chỉ nếu) một repair cycle thật sự mở; `PROJECT/PROJECT_PROGRESS.md`
+  và `PROJECT/LO_TRINH_DE_HIEU.md` không lệch nhau.
 - **Failure condition:** tạo artifact governance thứ 2+ mà không có lý do
   production cụ thể; hoặc đổi `FULLY_ENFORCED` khi GB-12 chưa đủ.
 
@@ -1102,3 +1103,391 @@ Cả bốn điều kiện phải đúng:
 **Không** cần Owner Extension: `TASK-GOLDEN-BASELINE-001` là root task lineage
 **mới**, không thuộc lineage `TASK-110`, nên ngân sách `EXHAUSTED_PRE_V4.1`
 của `TASK-110` không áp vào đây. Nó cũng **không** mở `R1-A2` → `R8`.
+
+---
+
+## PHẦN E — IMPLEMENTATION RECORD (2026-08-27)
+
+```
+Owner Decision   : OD-GB-1 = A + A1
+Plan commit      : b738fa4
+Implementation   : GB-1 … GB-12 thực hiện đủ, một lượt, không mở subtask
+Trạng thái       : IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW
+                   (chưa Independent Review, chưa FROZEN, chưa DONE)
+```
+
+### E.1 First Gate — xác minh workbook gốc (GB-1)
+
+Hai workbook production do Owner đính kèm session, **không** nằm trong repo.
+
+| | 01.2026 | 06.2026 |
+|---|---|---|
+| SHA256 đo được | `4e29747e…b78308` | `ef9a85e0…a0fdaa` |
+| SHA256 Owner khai | `4e29747e…b78308` | `ef9a85e0…a0fdaa` |
+| Kết quả | **KHỚP** | **KHỚP** |
+| Dòng tiêu đề sheet | `Nhân viên: Tín Phát 0869931931, Tháng 1` | `… Tháng 6` |
+
+Chạy `app.pipeline.run_import()` — production thật, không mô phỏng — trên
+**bản gốc**, trước khi ẩn danh:
+
+| Chỉ số | 01.2026 | Tài liệu | 06.2026 | Tài liệu |
+|---|---:|---:|---:|---:|
+| Dòng sheet (kể cả `Tổng cộng`) | 352 | 352 | 181 | 181 |
+| Dòng thiếu OrderID | 1 | 1 | 1 | 1 |
+| RawRow | 351 | 351 | 180 | 180 |
+| **OrderID duy nhất** | **254** | **254** | **146** | **146** |
+| SL (footer ERP) | 407 | 407 | 210 | 210 |
+| Doanh số bán raw | 3.564.610.000 | 3.564.610.000 | 1.925.272.000 | 1.925.272.000 |
+| Chiết khấu | 2.300.000 | 2.300.000 | 400.000 | 400.000 |
+| Doanh số normalized | 3.562.310.000 | 3.562.310.000 | 1.924.872.000 | 1.924.872.000 |
+| Lợi nhuận ERP | 240.032.781 | 240.033k | 95.956.942 | 95.957k |
+| mapped / unmapped | 351 / 0 | 351 / 0 | 180 / 0 | 180 / 0 |
+| Đơn có >1 employee_raw | 0 | 0 | 0 | 0 |
+| ADS / PERSONAL | 254 / 0 | 254 / 0 | 146 / 0 | 146 / 0 |
+| ADS qua `Auto:Employee Default` | 254 | 254 | 146 | 146 |
+| ADS qua từ khoá | 0 | 0 | 0 | 0 |
+| Dòng raw ≠ normalized | 22 | 22 | 1 | 1 |
+| Tổng lệch (= tổng chiết khấu) | 2.300.000 | 2.300.000 | 400.000 | 400.000 |
+
+**Không có SOURCE BASELINE MISMATCH.** `254`/`146` được chứng minh bằng
+pipeline chạy trên file thật + evidence đã commit, **không** lấy từ prompt.
+`407`/`210` được xử lý đúng là **tổng số lượng hàng**, không phải số đơn.
+
+Ba con số đo lần đầu trên dataset này, chưa từng có mốc lịch sử: `41`/`30`
+review item, `26`/`17` dòng có lợi nhuận ERP âm, `22`/`14` dòng phụ.
+
+### E.2 Minimize → Anonymize (GB-2, GB-3)
+
+**MINIMIZE trước.** Một trường chỉ được giữ nếu có đường code đọc nó:
+
+| Trường | Đường code đọc | Quyết định |
+|---|---|---|
+| `note_raw` | `LeadSourceClassifier._note_matches_ads()` | **A1 label** |
+| `product_raw` | `rules.is_non_product_line()` → `matches_any()`; `ProductGroupProvider` | giữ nguyên văn |
+| `employee_raw` | `EmployeeMapper.resolve()` khớp prefix trên chuỗi **thô** | giữ nguyên văn |
+| `Ngày`/`Số BH`/`SL`/`Đơn giá`/`Doanh số`/`Chiết khấu`/`Lương chuyến`/`Lợi nhuận` | pipeline tính tiền | giữ nguyên văn |
+| `customer`, `customer_code` | **không rule nào đọc** | surrogate |
+| `address`, `phone`, `shipper_raw`, `imei` | **không rule nào đọc** | **XOÁ HẲN** |
+
+`address`/`phone`/`shipper_raw`/`imei` bị xoá chứ không thay surrogate: giữ
+surrogate cho trường không ai đọc chỉ làm phình fixture.
+`customer`/`customer_code` giữ surrogate vì hai lý do đo được — bảo toàn lực
+lượng, và bảo toàn quan hệ **không** 1-1 giữa mã và tên (01.2026: 227/227;
+06.2026: **135 tên / 133 mã**).
+
+`Diễn giải` theo **A1**: nhãn tính bằng **chính** `LeadSourceClassifier`
+production, không bằng một bản viết lại.
+
+```
+normalize rỗng      -> ""          (giữ nguyên trạng thái "trống")
+có chứa từ khoá ADS -> "ADS"
+còn lại             -> "BAN_HANG"
+```
+
+Số dòng chứa "ADS": **0/351** và **0/180** — khớp `ads_keyword_cell_hits` = 0
+trong `docs/analysis/_evidence/evidence.json` và DEC-109. Hệ quả trung thực:
+Golden **không** phủ nhánh ADS-qua-từ-khoá vì dữ liệu thật không có dòng nào
+đi qua nhánh đó. **Không** bịa thêm một dòng ADS vào fixture.
+
+**Vì sao giữ cả 351 + 180 dòng thay vì lấy mẫu.** Ba invariant mạnh nhất đều
+là aggregate **toàn kỳ**, và lấy mẫu phá cả ba:
+
+1. `I-01` là một phép đếm trên toàn kỳ — lấy mẫu ⇒ không còn 254/146 ⇒ mất
+   luôn khả năng đối chiếu với CHECK-101-08 và `evidence.json`.
+2. `I-02` đòi dòng `Tổng cộng` của ERP bằng tổng mọi dòng dữ liệu — đây là
+   **oracle độc lập với engine duy nhất** tồn tại; lấy mẫu là phá nó.
+3. `I-03` ở kỳ 06.2026 chỉ có **1/180** dòng lệch — gần như chắc chắn biến
+   mất trong bất kỳ phép lấy mẫu nào.
+
+Chi phí giữ toàn bộ: 31 KB + 19 KB.
+
+**Đo được — ẩn danh KHÔNG dịch chuyển nghiệp vụ.** Chạy pipeline trên bản gốc
+và trên fixture rồi so structural (`dataclasses.fields()`, không phải danh
+sách trắng):
+
+```
+01.2026 / 06.2026
+  orders              254 vs 254 · 146 vs 146      SAME
+  lines               351 vs 351 · 180 vs 180      SAME
+  order_graph                                       IDENTICAL
+  Order  — mọi trường trừ `lines`                   IDENTICAL
+  WorkingLine — 27/34 trường (trừ trường đã tuyên bố) IDENTICAL
+  RawRow      — 12/21 trường (trừ trường đã tuyên bố) IDENTICAL
+  Review Queue — category/severity/scope/order/tập dòng IDENTICAL (41·30)
+  preview                                           IDENTICAL
+```
+
+Đây là `test_golden_anonymization_preserves_business_output`, chạy được khi
+Owner cấp lại file thô qua `GOLDEN_RAW_01`/`GOLDEN_RAW_06`, tự SKIP khi
+không có. Nó là bằng chứng **E1** của phiên tạo fixture, không phải cổng CI.
+
+### E.3 Golden Coverage Map (GB-8) — theo data path P1…P15
+
+**Bản đồ này là ỨNG VIÊN, chưa có hiệu lực.**
+`governance/core/V4_1_POLICY_FREEZE.md` §4.1 cấm dùng Golden test để hạ Blast
+Radius cho tới khi `TASK-GOLDEN-BASELINE-001` **hoàn tất**. Task đang ở
+`READY_FOR_INDEPENDENT_REVIEW`, chưa `DONE`. Vì vậy **hiện tại không path nào
+được hạ một bậc** — cột cuối ghi mức sẽ áp dụng *sau khi* Independent Review
+PASS và Owner freeze.
+
+| Path | Golden test có tên | Trạng thái | BR hiện tại | BR sau freeze |
+|---|---|---|---|---|
+| P1 Raw ingestion | `test_golden_period_row_and_order_counts`, `test_golden_raw_total_matches_source_total_row`, `test_golden_order_graph_preserves_membership_and_order` | **COVERED** | HIGH | MEDIUM |
+| P2 Normalization / chiết khấu | `test_golden_discount_delta_equals_discount_column` | **COVERED** | HIGH | MEDIUM |
+| P3 Employee identity | `test_golden_employee_ownership_matrix`, `test_golden_config_snapshot_id_is_pinned` | **COVERED** | HIGH | MEDIUM |
+| P4 Sealing / immutability | — | **NOT COVERED** | HIGH | **HIGH** |
+| P5 Annotation validation | — | **NOT COVERED** | HIGH | **HIGH** |
+| P6 LeadSource | `test_golden_lead_source_split_and_provenance`, `test_golden_lead_source_is_decided_at_order_level`, `test_golden_note_label_is_functional_not_decorative` | **COVERED** | HIGH | MEDIUM |
+| P7 Conversion — nhánh resolved | `test_golden_scheme_distribution` | **COVERED** | HIGH | MEDIUM |
+| P7′ Conversion — nhánh unmapped | `test_golden_unmapped_never_borrows_a_rate` | **PARTIAL — VACUOUS** (0 dòng unmapped ở cả hai kỳ) | HIGH | **HIGH** |
+| P8 Effective dating | `test_golden_is_stable_when_a_future_policy_row_is_added` | **COVERED** | HIGH | MEDIUM |
+| P9 Accounting profit | `test_golden_all_prices_pending` | **PARTIAL** — chỉ chốt trạng thái `Pending`, chưa phủ phép tính trên giá nhập thật | HIGH | **HIGH** |
+| P10 KPI / Adjustment | — | **NOT COVERED** — module chưa tồn tại | HIGH | **HIGH** |
+| P11 Converted Revenue totals | — | **NOT COVERED** — TASK-108B BLOCKED bởi C15 | HIGH | **HIGH** |
+| P12 Summary aggregation | — | **NOT COVERED** — TASK-109 chưa tồn tại | HIGH | **HIGH** |
+| P13 Export `.xlsx` | — | **NOT COVERED** — TASK-111 chưa tồn tại | HIGH | **HIGH** |
+| P14 Validation / Review Queue | `test_golden_review_queue_shape`, `test_golden_validation_never_blocks_the_import` | **COVERED** | MEDIUM | LOW |
+| P15 Pricing | `test_golden_all_prices_pending` | state-locked | LOW hôm nay | LOW |
+
+**P4 và P5 không bao giờ được Golden hạ risk.** Golden so output cuối, nên nó
+mù với mutation xảy ra giữa chừng rồi bị ghi đè, và mù với việc lớp
+enforcement bị vô hiệu hoá. Ranh giới này đã ghi ở §A.15 và không đổi vì
+Golden đã PASS.
+
+`lines_digest` bù đúng chỗ aggregate mù: hoán đổi giá của hai dòng trong cùng
+một đơn không đổi bất kỳ tổng nào, kể cả tổng của chính đơn đó.
+
+### E.4 Falsification (GB-10) — chứng minh Golden CÓ THỂ đỏ
+
+| Đột biến (áp trên bản copy config trong `tmp_path`, repo không đổi) | Kết quả |
+|---|---|
+| `ADS_7_5` 7,5 % → 8,0 % | Golden **đỏ** ở cả hai kỳ |
+| Tín Phát mất `default_lead_source: ADS` | Golden **đỏ** ở cả hai kỳ |
+| Xoá Tín Phát khỏi master data | Golden **đỏ** ở cả hai kỳ |
+| Thêm `"BAN_HANG"` vào `ads_keywords` | provenance chuyển `Auto:Employee Default` → `Auto:ADS Rule` cho **đúng** những đơn có `Diễn giải` không rỗng ⇒ chứng minh nhãn A1 **thật sự được đọc**, không phải trang trí |
+| Thêm dòng chính sách `effective_from: 2027-01-01` | **KHÔNG** test nào đỏ — đúng DEC-121 |
+| Đổi một giá trị trong expected output | `format_diff` nêu đúng `counts.orders: expected=254 actual=253` |
+
+### E.5 Determinism (GB-6)
+
+Chạy trong **tiến trình con thật** (`PYTHONHASHSEED` chỉ có hiệu lực lúc
+interpreter khởi động, nên `monkeypatch` trong cùng tiến trình không chứng
+minh được gì):
+
+```
+PYTHONHASHSEED = 0 · 1 · 12345 · 7
+TZ             = (mặc định) · Pacific/Kiritimati · UTC
+LC_ALL         = (mặc định) · C · C.UTF-8
+cwd            = repo root · thư mục tạm khác
+=> 1 digest duy nhất qua 5 môi trường + 1 cwd khác
+=> sinh lại expected output cho ra ĐÚNG TỪNG BYTE file đã commit
+```
+
+`RawRow.source_file` (HB-GB-01) được xử lý ở **biên fixture/test**, không sửa
+production: tên file được chốt cứng ở `_environment.fixture_filename` và
+`test_golden_fixture_filenames_are_pinned`, đồng thời bị loại khỏi
+`lines_digest` để một lần đổi tên không làm vỡ Golden ở chỗ khó hiểu.
+
+Version `python`/`openpyxl`/`pyyaml` được ghi vào `_environment` nhưng **chỉ
+cảnh báo**, không so cứng (HB-GB-02): bắt cứng chúng khiến mọi lần nâng cấp
+thư viện làm Golden đỏ, và cách "sửa" hiển nhiên nhất khi đó là sinh lại
+expected output — tức là xoá chính bằng chứng.
+
+### E.6 Privacy verification (§21)
+
+Quét **chính blob đã commit** (giải nén toàn bộ XML trong `.xlsx`, kể cả
+sharedStrings; đọc toàn văn `.json`), đối chiếu với **tập giá trị thật** lấy
+từ workbook gốc:
+
+```
+4 artifact × 7 lớp giá trị thật + pattern số điện thoại
+  period_2026_01.xlsx (31.417 B) · period_2026_01.json (122.653 B)
+  period_2026_06.xlsx (19.230 B) · period_2026_06.json  (73.727 B)
+=> 0 hit trên: customer · customer_code · address · phone · imei · shipper · Diễn giải
+=> 0 chuỗi giống số điện thoại
+```
+
+Ngoại lệ **có tên** duy nhất: `0869931931` — số của chính Tín Phát trong dòng
+tiêu đề sheet và cột `NVBH`. Đây là master data nhân viên đã có sẵn trong
+`config/employees.yaml` và `tests/fixtures/baseline/` từ trước, không phải PII
+khách hàng. Ngoại lệ được khai báo tường minh trong
+`test_golden_fixture_contains_no_customer_pii`, không phải một lỗ hổng của
+phép quét.
+
+Bảng ánh xạ ngược (surrogate → giá trị thật) chỉ tồn tại trong bộ nhớ của lần
+chạy `anonymize.py` và **không bao giờ** được ghi ra đĩa.
+
+`git ls-files | grep -i xlsx` chỉ trả về hai fixture đã ẩn danh. Hai workbook
+gốc nằm ở thư mục attachment của session, ngoài repository, và không bao giờ
+được `git add`.
+
+### E.7 36 verified / 19 limitation (§8)
+
+**OUT OF GOLDEN SCOPE.** 55 ô cột F của `Summary 2026` thuộc
+`Báo cáo Kinh doanh 2026.xlsx` — một workbook **khác**, không nằm trong repo,
+và không phải dataset của Golden này. Golden không đưa ra bất kỳ claim nào về
+55 ô đó.
+
+Phân biệt lịch sử được bảo toàn nguyên trạng và **không** bị bóp méo:
+CHECK-108A1-14 ghi **36 ô đối chiếu độc lập được, 0 lệch**, và **19 ô
+LIMITATION** không đủ độc lập để xác minh (Nội thành 8 · Gia dụng 8 ·
+Fanpage 2 · Linh 1). Không ở đâu trong artifact của task này xuất hiện claim
+"55/55 đúng". 19 ô limitation **không** được chuyển thành PASS.
+
+### E.8 Dataset separation (§6)
+
+`_provenance.dataset_scope` của mỗi expected output ghi thẳng vào file, và
+`test_golden_provenance_records_the_real_source_workbook` khẳng định nó:
+
+```
+Tín Phát, một kỳ, xuất riêng theo tháng.
+KHÔNG phải dataset 11.765 dòng của evidence.json.
+KHÔNG phải dataset 14.389 dòng của CHECK-108A1-15.
+KHÔNG phải dataset của CHECK-110-16.
+```
+
+Không invariant nào trong `tests/test_golden_baseline.py` mượn con số của ba
+dataset kia. Các con số `review_queue` (41/30) được khai báo tường minh là
+**đo lần đầu trên dataset này**, có anchor provenance nói đúng như vậy thay vì
+giả vờ có mốc lịch sử.
+
+### E.9 CHECK-110-16 — KHÔNG ĐỔI
+
+```
+CHECK-110-16
+Priority   : REQUIRED
+Status     : BLOCKED
+Gate Class : POST_MERGE_PRODUCTION_ACCEPTANCE   (DEC-141)
+TASK-110   : NOT DONE
+```
+
+Golden của hai kỳ Tín Phát **không** thay thế dataset của `CHECK-110-16`
+(toàn công ty, 6 tháng, 11.765 dòng). Không synthetic PASS, không bypass,
+không đổi gate. Lý do đầy đủ ở §A.20.
+
+### E.10 Regression (GB-10, §20)
+
+| Bộ | Baseline `716ae2e1…` | Sau implementation |
+|---|---|---|
+| `pytest -q` toàn bộ | 639 passed, 9 skipped | **691 passed, 11 skipped** |
+| `tests/test_golden_baseline.py` | (chưa tồn tại) | **52 passed, 2 skipped** |
+| … cùng `GOLDEN_RAW_01`/`GOLDEN_RAW_06` | — | **54 passed, 0 skipped** |
+| TASK-110 non-regression L1/L2/L3 | 10 passed | **10 passed** |
+| TASK-108A conversion + resolver + reconcile | 65 passed | **65 passed** |
+| R1 / R1-A / R1-A1 + oracle mutation | 301 passed, 9 skipped | **301 passed, 9 skipped** |
+| `validate_evidence.py` | PASS (88 record) | **PASS (88 record)** |
+| `validate_project_state.py` | PASS | **PASS** |
+| `validate_structure.py` | PASS (21 path) | **PASS (21 path)** |
+| `validate_task_completion.py` | PASS (6 DONE task) | **PASS (6 DONE task)** |
+| `validate_reference_integrity.py` | **FAIL — 3 reference** (TASK-REM-T06) | **FAIL — 3 reference** (cùng 3) |
+| `scripts/branch_authority_check.sh` | AUTHORITY_OK | **AUTHORITY_OK** |
+
+**0 regression.** `+52` test mới, `+2` skip mới (đúng hai test tương đương
+ẩn danh, tự SKIP khi không có file thô).
+
+`validate_reference_integrity.py` đỏ **từ trước** ở baseline với đúng 3
+reference của `docs/tasks/TASK-REM-T06-repository-root-hygiene.md`
+(README, CODE_OF_CONDUCT, CONTRIBUTING ở gốc repo) — artifact lịch sử,
+ngoài scope, không sửa. Phiên Discovery `b738fa4` đã **thêm 8 reference trần**
+trong chính file PLAN này; 8 cái đó đã được sửa thành đường dẫn đầy đủ trong
+phiên này, đưa validator về đúng trạng thái baseline.
+
+### E.11 Files changed
+
+```
+A  tests/fixtures/golden/__init__.py
+A  tests/fixtures/golden/anonymize.py
+A  tests/fixtures/golden/build_expected.py
+A  tests/fixtures/golden/period_2026_01.xlsx          (fixture đã ẩn danh)
+A  tests/fixtures/golden/period_2026_06.xlsx          (fixture đã ẩn danh)
+A  tests/fixtures/golden/expected/period_2026_01.json
+A  tests/fixtures/golden/expected/period_2026_06.json
+A  tests/test_golden_baseline.py
+M  PROJECT/REVIEW_BUDGET_LEDGER.md                    (root task entry)
+M  PROJECT/PROJECT_PROGRESS.md                        (trạng thái)
+M  PROJECT/LO_TRINH_DE_HIEU.md                        (đồng bộ bắt buộc)
+M  docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md        (Phần E + sửa 8 reference trần)
+```
+
+**`app/**` và `config/**` không đổi một byte.** Không sửa business logic.
+Artifact governance của task vẫn là **1** (chính file này) — không tạo
+REPAIR-MODE / FROZEN-CONTRACT / RECONCILIATION-PLAN / FINALIZATION-PLAN.
+
+### E.12 Findings
+
+**BLOCKING: KHÔNG CÓ.** Không phát hiện defect production nào trong phiên
+này. Pipeline tái hiện đúng mọi con số nghiệp vụ đã được xác minh trên dữ
+liệu thật.
+
+**HARDENING:**
+
+- **HB-GB-01** (từ Discovery) — `RawRow.source_file = path.name`. **ĐÃ XỬ LÝ
+  ở biên fixture/test**, không sửa production: tên file chốt ở
+  `_environment.fixture_filename` + `test_golden_fixture_filenames_are_pinned`,
+  và bị loại khỏi `lines_digest`.
+  *RE-TRIGGER:* có đề xuất đổi tên/di chuyển file trong `tests/fixtures/golden/`.
+- **HB-GB-02** (từ Discovery) — `pyproject.toml` không pin version
+  (`openpyxl>=3.1`, `PyYAML>=6.0`, `requires-python >=3.11`). **ĐÃ GIẢM NHẸ**:
+  version ghi vào `_environment`, và `format_diff` in cảnh báo môi trường
+  **trước** diff nghiệp vụ. Chưa pin — pin là thay đổi `pyproject.toml`, nằm
+  ngoài touch-area của task này.
+  *RE-TRIGGER:* Golden đỏ trong khi `git diff` trên `app/` và `config/` rỗng.
+- **HB-GB-03** (từ Discovery) — `PII_FIELD_NAMES` không bao gồm `note_raw`
+  và `imei`. **ĐÃ XỬ LÝ cho fixture**: cả hai bị xoá/thay nhãn, và
+  `test_golden_fixture_contains_no_customer_pii` quét chính blob `.xlsx` đã
+  commit chứ không dựa vào `PII_FIELD_NAMES`. Bản thân hằng số trong
+  `app/modules/validation/models.py` **không đổi** (Scope Lock).
+  *RE-TRIGGER:* bất kỳ fixture nào khác dựng từ dữ liệu production thật.
+- **HB-GB-04** (từ Discovery) — `sort_keys=True` che thứ tự có nghĩa. **ĐÃ XỬ
+  LÝ**: `order_graph` và `orders_detail` là **list**, giữ thứ tự, và
+  `test_golden_order_graph_preserves_membership_and_order` khẳng định nó.
+- **HB-GB-05** (mới) — `test_golden_unmapped_never_borrows_a_rate` là
+  **vacuous** trên dataset này (0 dòng unmapped ở cả hai kỳ). Nhánh unmapped
+  của P7 vì vậy **không** được Golden phủ thật; nó do
+  `tests/test_conversion_engine.py::test_unmapped_employee_line_never_receives_a_rate`
+  phủ trên fixture tổng hợp.
+  *RE-TRIGGER:* khi Golden mở rộng sang một kỳ có nhân viên ngoài master data
+  (ví dụ dataset toàn công ty, nơi đã đo 107 dòng unmapped).
+- **HB-GB-06** (mới) — Golden **không** phủ nhánh ADS-qua-từ-khoá, vì dữ liệu
+  thật của hai kỳ có 0 dòng chứa "ADS". Đây là sự thật nghiệp vụ, không phải
+  thiếu sót của fixture, và **không** được sửa bằng cách bịa một dòng ADS.
+  *RE-TRIGGER:* khi một kỳ tương lai xuất hiện dòng chứa từ khoá ADS —
+  `test_golden_lead_source_split_and_provenance` sẽ đỏ và đó là tín hiệu đúng.
+
+**OUT_OF_SCOPE:**
+
+- **OUT-GB-01** — `CHECK-110-16` vẫn BLOCKED; cần dataset 11.765 dòng. Không
+  thuộc contract task này.
+- **OUT-GB-02** — `I-12` (không `/2` trong tổng hợp) và `I-14`
+  (`Total == Personal + Ads`) chưa kiểm được end-to-end: `summary_engine`
+  (TASK-109) và Converted Revenue (TASK-108B, BLOCKED bởi C15) chưa tồn tại.
+- **OUT-GB-03** — `P9` chỉ phủ được trạng thái `Pending`; chưa có Price Master.
+- **OUT-GB-04** — 3 reference trần (tới README, CODE_OF_CONDUCT và
+  CONTRIBUTING ở gốc repo, cả ba không tồn tại) của
+  `docs/tasks/TASK-REM-T06-repository-root-hygiene.md` làm `validate_reference_integrity.py` đỏ **từ trước** baseline. Artifact
+  lịch sử, không retrofit (V4.1 §10).
+- **OUT-GB-05** — 55 ô cột F của `Summary 2026`: OUT OF GOLDEN SCOPE (§E.7).
+
+### E.13 Trạng thái sau phiên này
+
+```
+TASK-GOLDEN-BASELINE-001
+    IMPLEMENTATION = READY_FOR_INDEPENDENT_REVIEW
+    repair_cycles_used = 0 · remaining = 2
+
+Governance V4.1
+    = POLICY_ADOPTED
+    = Golden implementation candidate EXISTS
+    = NOT YET FULLY_ENFORCED  (chờ Independent Review + freeze)
+
+TASK-110      = NOT DONE
+CHECK-110-16  = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE
+R1-A1         = FROZEN     (không đụng)
+R1-A2 → R8    = OWNER_EXTENSION REQUIRED (không mở)
+```
+
+`V4.1` **chưa** chuyển `FULLY_ENFORCED`: §1 của overlay đòi Golden test PASS,
+điều đó đã đạt, nhưng chuyển trạng thái là hành động của một phiên có thẩm
+quyền sau Independent Review (`governance/core/V4_1_POLICY_FREEZE.md` §12 — `FROZEN` thuộc
+authorized Freeze Finalization session, `DONE` thuộc Owner/completion
+authority). Implementation agent **không** tự chuyển.
