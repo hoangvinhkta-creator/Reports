@@ -10,12 +10,44 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-23 — **bước 14 đã qua bốn vòng soát xét, cả bốn
-> đều bị trả về, đã sửa xong cả bốn, đang chờ soát xét vòng 5. Chưa vòng nào
-> được duyệt.** (xem "Có gì mới" ngay bên dưới). Trước đó: bước 12 đã xong và
-> đã qua soát xét độc lập.
+> Cập nhật lần cuối: 2026-08-27 — **bước 14: phần lõi khó nhất (bộ quy tắc
+> mô tả dữ liệu) đã được soát xét độc lập DUYỆT và niêm phong. Toàn bộ công
+> việc của bước 14 đã được nhập vào bản chính của dự án. Bước 14 vẫn CHƯA
+> xong hẳn — còn chờ một lần đối chiếu trên file bán hàng thật.** (xem "Có gì
+> mới" ngay bên dưới).
 
-## Có gì mới — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
+## Có gì mới — bước 14: phần lõi được duyệt và niêm phong, công việc đã nhập vào bản chính (2026-08-27)
+
+**Ba việc vừa xảy ra.**
+
+**1 — Phần lõi khó nhất đã được duyệt.** Sau tám vòng soát xét độc lập (bảy
+vòng đầu đều bị trả về và đều đã sửa), vòng cuối cùng soát phần lõi — bộ quy
+tắc quy định "một ô dữ liệu được phép mang hình dạng nào" — và **DUYỆT**: 0
+lỗi chặn, 1 ghi chú nhỏ để làm sau. Phần này nay được **niêm phong**, nghĩa là
+không ai được sửa nó nữa nếu không có quyết định mới của chủ dự án.
+
+Cần nói rõ để không hiểu nhầm: **được duyệt phần lõi ≠ cả bước 14 được
+duyệt.** Các phần còn lại của bước 14 vẫn chưa qua soát xét riêng.
+
+**2 — Công việc đã được nhập vào bản chính.** Trước đây công việc của bước 14
+nằm trên một nhánh làm việc tách rời khỏi bản chính của dự án, càng ngày càng
+xa (24 lần lưu, hơn 40.000 dòng). Việc để như vậy có rủi ro làm trùng việc và
+lạc mất công sức. Nay toàn bộ đã được nhập vào bản chính, **không mất một dòng
+nào**. Cùng lúc đó, bộ quy tắc quản trị mới của dự án (phiên bản 4.1) cũng
+được nhập vào.
+
+**3 — Bước 14 vẫn CHƯA XONG.** Còn đúng một điều kiện chưa đạt: **đối chiếu
+trên file bán hàng thật**. File thô đó không nằm trong dự án (đúng quy định
+bảo mật dữ liệu) nên máy không tự chạy được — cần chủ dự án cung cấp. Chủ dự
+án đã quyết định cho phép nhập công việc vào bản chính trước, rồi đối chiếu
+sau; nhưng **bước 14 chỉ được đánh dấu XONG khi lần đối chiếu đó thật sự
+chạy và khớp**. Không có chuyện tự đánh dấu đạt bằng dữ liệu giả.
+
+**Việc tiếp theo của dự án:** dựng "bộ ảnh chuẩn" (Golden Baseline) — một bộ
+dữ liệu mẫu và kết quả đúng đã biết, để mỗi lần sửa công cụ có thể so ngay xem
+có làm lệch kết quả cũ không.
+
+## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 
 **Cả 2 lỗi đều là cùng một chuyện: cảnh báo chỉ sai người.** Công cụ kết luận
 đúng là "có vấn đề", nhưng khi liệt kê **dòng nào** gây ra vấn đề thì nó vơ cả
@@ -460,7 +492,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
-| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Bảy vòng soát xét đều đã sửa xong; vòng 7 là Architecture Closure — 20/20 tình huống lỗi nay KHÔNG dựng được nữa; chưa vòng nào duyệt, chờ vòng 8** — 21/22 điều kiện đạt, 1 điều kiện chờ file bán hàng thật |
+| 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
 | ⬜ | 16. TASK-112 (MICRO, D1/R2/B2) — Đóng gói thành công cụ chạy được | Bước cuối để bắt đầu dùng thử trên máy | A | Sau bước 15 |
 | ⬜ | **GATE-01 — Điểm duyệt 2 — Đối chiếu số liệu thật** | So khớp kết quả công cụ tính ra với sổ sách thật. Chỉ khi số khớp mới coi "bộ máy tính toán" xong | Duyệt | Sau bước 16 |

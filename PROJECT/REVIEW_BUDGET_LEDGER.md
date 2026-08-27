@@ -97,9 +97,11 @@ Không có Owner Extension tương ứng → `STOP`.
 
 Cumulative repair diff của TASK-110 được ghi trong các session log dưới
 `docs/sessions/S015` … `S023` và trong `PROJECT/PROJECT_DECISIONS.md`
-(DEC-128 … DEC-134 trở lên tại các nhánh review đang hoạt động). Ledger này
-không sao chép lại toàn bộ lịch sử đó — chỉ xác nhận điểm chốt: ngân sách
-repair-cycle của lineage `TASK-110` đã cạn TRƯỚC khi V4.1 có hiệu lực.
+(DEC-128 … DEC-139). Kể từ integration `V4.1-1` (2026-08-27) toàn bộ lịch sử
+này đã nằm trên nhánh mặc định — không còn phân tán trên các nhánh review
+riêng. Ledger này không sao chép lại toàn bộ lịch sử đó — chỉ xác nhận điểm
+chốt: ngân sách repair-cycle của lineage `TASK-110` đã cạn TRƯỚC khi V4.1 có
+hiệu lực.
 
 cycles:
 - id: PRE_V4.1_HISTORICAL
@@ -113,24 +115,47 @@ cycles:
 
 ### Merge gate liên quan
 
-`CHECK-110-16` vẫn là **merge gate**, không phải review gate, và hiện
-**BLOCKED** (thiếu production workbook thật để đối chiếu). Không được giả
-lập PASS hay bypass. Xem `governance/core/TASK_COMPLETION_GATE_STANDARD.md`
-và các quyết định liên quan trong `PROJECT/PROJECT_DECISIONS.md`.
+**ĐÃ CÓ QUYẾT ĐỊNH — `DEC-141` (2026-08-27, V4.1-1).** Owner chọn option (B)
+của §9: `CHECK-110-16` đổi Gate Class thành `POST_MERGE_PRODUCTION_ACCEPTANCE`.
 
-Nếu merge gate `BLOCKED` quá 30 ngày kể từ ngày phát sinh: `OWNER DECISION
-REQUIRED` (cung cấp dependency/data; đổi thành
-`POST_MERGE_PRODUCTION_ACCEPTANCE`; hoặc gỡ khỏi gate set). Không được tiếp
-tục BLOCKED vô thời hạn mà không có quyết định.
+```
+CHECK-110-16
+Priority   : REQUIRED                            (không đổi)
+Status     : BLOCKED                             (không đổi)
+Gate Class : POST_MERGE_PRODUCTION_ACCEPTANCE    (đổi từ pre-merge gate)
+```
+
+Chỉ Gate Class đổi. Vẫn thiếu production workbook thật để đối chiếu. Không
+được giả lập PASS hay bypass. **Merge KHÔNG đồng nghĩa `TASK-110 DONE`** —
+`TASK-110` chỉ chuyển `DONE` khi check này thực sự `PASS` trên dữ liệu
+production thật. Xem `governance/core/TASK_COMPLETION_GATE_STANDARD.md`,
+`DEC-141` và `docs/tasks/TASK-110-validation-review-queue.md`.
+
+Đồng hồ 30 ngày của §9 vì vậy **đã dừng** cho gate này: quyết định Owner đã
+được đưa ra ở ngày thứ 4 (phát sinh 2026-08-23 → quyết định 2026-08-27).
 
 ### Branch divergence đã biết
 
-`TASK-110` hiện có nhiều nhánh review độc lập vượt xa các ngưỡng
-`ahead > 10 commits` / `divergence > 3 ngày` / `cumulative changed LOC >
-5,000` so với nhánh mặc định của remote. Đây là **KNOWN PRE-V4.1
-DIVERGENCE**, phải được Owner xử lý tại V4.1-1 (integrate/merge sớm; cắt
-scope; hoặc tiếp tục divergence có lý do + review date). Không grandfather
-thành permanent exception.
+**ĐÃ ĐÓNG — `DEC-141` §4 (2026-08-27, V4.1-1).** Owner chọn option (A) của
+§8: integrate/merge sớm.
+
+Divergence đo được ngay trước integration, so với nhánh mặc định
+`claude/extract-upload-repo-gq2ws4` @ `c7a1b24`:
+
+| Nhánh | ahead | thời gian | LOC | vượt ngưỡng |
+|---|---:|---|---:|---|
+| `claude/r1-a1-contract-freeze-9lkh3h` | 24 | 4 ngày | 40.523 | cả ba |
+| `claude/r1-canonical-object-safety-fon9lb` | 18 | 1 ngày | 37.509 | 2/3 |
+| `claude/zealous-bardeen-s8iu2h` | 13 | 0 ngày | 31.126 | 2/3 |
+| `claude/task-110-gate-readiness-7ui4si` | 6 | 0 ngày | 7.509 | 1/3 |
+| `claude/governance-v4-1-freeze-36oexq` | 1 | 0 ngày | 722 | không |
+
+Ba nhánh review phụ được chứng minh là **ancestor** của nhánh authoritative
+`claude/r1-a1-contract-freeze-9lkh3h` (`git rev-list --count <A1>..<phụ>` = 0
+cho cả ba) ⇒ 0 commit unique bị bỏ lại khi hợp nhất.
+
+**KNOWN PRE-V4.1 DIVERGENCE = CLOSED tại V4.1-1.** Không grandfather thành
+permanent exception.
 
 ---
 
@@ -146,8 +171,13 @@ Không dùng session mới / sub-unit mới / branch mới để reset `base_sha
 
 ## Owner Extension log
 
-*(Trống tại thời điểm adoption. Mỗi Owner Extension được cấp sau này phải
-thêm một mục vào đây, kèm root task, phạm vi, và budget cụ thể.)*
+*(Trống. Mỗi Owner Extension được cấp sau này phải thêm một mục vào đây, kèm
+root task, phạm vi, và budget cụ thể.)*
+
+Tính đến `V4.1-1` (2026-08-27): **chưa có Owner Extension nào được cấp.**
+`R1-A2` → `R8` của lineage `TASK-110` vì vậy **không unit nào được tự mở**.
+`DEC-141` là Owner Decision về Gate Class và integration — **không phải** một
+Owner Extension, và **không** cấp thêm repair cycle.
 
 ## Cập nhật gần nhất
 
@@ -155,3 +185,12 @@ thêm một mục vào đây, kèm root task, phạm vi, và budget cụ thể.)
   Adoption). `TASK-V4-ADOPTION` mở với 1 repair cycle khả dụng, 0 đã dùng.
   `TASK-110` ghi nhận ở trạng thái transition `EXHAUSTED_PRE_V4.1`, remaining
   = 0.
+- 2026-08-27 — `V4.1-1` INTEGRATION. Hợp nhất `TASK-110`/`R1-A1` (`01a03b0`,
+  `FROZEN` theo `DEC-139`) và Governance V4.1 (`8d79009`) vào nhánh mặc định
+  qua integration branch `integration/v4-1-task-110`. Owner Decision
+  `DEC-141`: `CHECK-110-16` → Gate Class `POST_MERGE_PRODUCTION_ACCEPTANCE`
+  (Status vẫn `BLOCKED`); `DEC-128` của V4.1 đổi thành `DEC-140` để giải ID
+  collision với `DEC-128` của `TASK-110`; `KNOWN PRE-V4.1 DIVERGENCE` đóng.
+  **Ngân sách không đổi:** `TASK-110` vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0.
+  Thay đổi tài liệu của phiên integration được phân loại
+  `INTEGRATION STATE RECONCILIATION`, **không** tính là repair cycle.

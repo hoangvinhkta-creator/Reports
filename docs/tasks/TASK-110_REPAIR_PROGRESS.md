@@ -8,11 +8,14 @@
 
 | Trường | Giá trị |
 |---|---|
-| Review source | Independent Review #8 |
-| Reviewed SHA | `c8c18229e3ef5a9d600b8d99a1cc21bcbbb2d8dd` |
-| TASK-110 | NOT MERGED · NOT DONE |
-| CHECK-110-16 | BLOCKED |
-| Repair mode | ACTIVE |
+| Review source (mở giai đoạn repair) | Independent Review #8 |
+| Reviewed SHA của Review #8 | `c8c18229e3ef5a9d600b8d99a1cc21bcbbb2d8dd` |
+| R1-A1 Reviewed SHA | `a85397106b81799d149d98e71a7fcfd5bc8963ad` |
+| R1-A1 Freeze Finalization SHA | `01a03b08ab6fc21b6b9ef3eeab5dfa1d692a8713` |
+| TASK-110 | **MERGED** (V4.1-1) · **NOT DONE** |
+| CHECK-110-16 | REQUIRED · **BLOCKED** · Gate Class `POST_MERGE_PRODUCTION_ACCEPTANCE` (DEC-141) |
+| Repair mode | **PAUSED — BUDGET EXHAUSTED** (`repair_cycles_remaining = 0`) |
+| Ngân sách lineage | `EXHAUSTED_PRE_V4.1` — xem `PROJECT/REVIEW_BUDGET_LEDGER.md` |
 
 ## Tiến độ
 
@@ -20,22 +23,22 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | **READY_FOR_INDEPENDENT_REVIEW** | Review Candidate, xem nhật ký cuối | **Review #3 FAIL** tại `1b0da151` | Hợp đồng ĐÓNG hữu hạn; Owner freeze DEC-135, finalize DEC-136, reconcile DEC-137, ratify T03 DEC-138. Corpus **105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY** (`K03`/`L03`/`M02`/`T03`, đủ chứng minh A/B/C/D, ghim CPython 3.11.15). Mutation M-1→M-11: **11/11 discriminated** (8 corpus + 3 hardening coverage) |
-| R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
-| R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
-| R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
-| R1-B | Ambient permit / re-entrant callback | — | BLOCKED BY R1-A | — | — | Không sửa trước R1-A PASS |
-| R1-C | `AffectedRow.from_line` duck typing / fabricated provenance | — | BLOCKED | — | — | — |
-| R1-D | `FrozenMapping` shallow nested values | — | BLOCKED | — | — | — |
-| R1-E | `ReviewItem` discriminator str subclass | — | BLOCKED | — | — | — |
-| R2 | MappingStats Single Source of Truth | HIGH | BLOCKED BY R1 | — | — | Không sửa trước R1 PASS |
-| R3 | WorkingData Ownership | HIGH | BLOCKED BY R2 | — | — | — |
-| R4 | Diagnostics ↔ Provenance | HIGH | BLOCKED BY R3 | — | — | — |
-| R5 | ReviewQueue Integrity | HIGH | BLOCKED BY R4 | — | — | — |
-| R6 | Master Identity / snapshot_id | MEDIUM | BLOCKED BY R5 | — | — | — |
-| R7 | Oracle L2 Coverage | MEDIUM | BLOCKED BY R6 | — | — | — |
-| R8 | Governance Canonical State | MEDIUM | BLOCKED BY R7 | — | — | — |
-| FINAL | Final Integration Review | — | BLOCKED BY R1–R8 | — | — | Không chạy sớm |
+| R1-A1 | Annotation Contract | HIGH | **FROZEN** | `01a03b0` (freeze finalization) | **PASS — ELIGIBLE_FOR_FREEZE** tại `a853971` (DEC-139; 0 blocking, 1 hardening HB-A1-05) | Hợp đồng ĐÓNG hữu hạn; Owner freeze DEC-135, finalize DEC-136, reconcile DEC-137, ratify T03 DEC-138. Corpus **105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY** (`K03`/`L03`/`M02`/`T03`, đủ chứng minh A/B/C/D, ghim CPython 3.11.15). Mutation M-1→M-11: **11/11 discriminated** (8 corpus + 3 hardening coverage) |
+| R1-A2 | (Finding #2 của Review R1-A) | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage `TASK-110` = 0. R1-A1 đã PASS nhưng unit này **không tự mở** |
+| R1-A3 | (Finding #3 của Review R1-A) | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R1-A4 | (Finding #4 của Review R1-A) | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R1-B | Ambient permit / re-entrant callback | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R1-C | `AffectedRow.from_line` duck typing / fabricated provenance | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R1-D | `FrozenMapping` shallow nested values | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R1-E | `ReviewItem` discriminator str subclass | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R2 | MappingStats Single Source of Truth | HIGH | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R3 | WorkingData Ownership | HIGH | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R4 | Diagnostics ↔ Provenance | HIGH | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R5 | ReviewQueue Integrity | HIGH | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R6 | Master Identity / snapshot_id | MEDIUM | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R7 | Oracle L2 Coverage | MEDIUM | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| R8 | Governance Canonical State | MEDIUM | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0 |
+| FINAL | Final Integration Review | — | **OWNER_EXTENSION REQUIRED** | — | — | Budget lineage = 0. Không chạy sớm |
 
 ## State machine
 
@@ -600,6 +603,10 @@ Evidence Level: **E1**.
   commit).
 - Independent Review R1-A1: **CHƯA CHẠY**. R1-A1 **KHÔNG** được đánh dấu FROZEN
   ở đây. R1-A tổng vẫn **NOT FROZEN**; R1 tổng vẫn **NOT FROZEN**.
+  > **SUPERSEDED** (bản ghi lịch sử tại thời điểm viết vòng #1). Trạng thái
+  > hiện tại: `R1-A1 = FROZEN` — xem mục **FREEZE FINALIZATION — R1-A1** ở
+  > cuối file này và **DEC-139**. `R1-A` và `R1` tổng **vẫn NOT FROZEN** —
+  > phần đó của dòng trên vẫn đúng.
 
 #### Finding cần repair
 
@@ -1693,9 +1700,33 @@ không bypass. R1-A1 FROZEN không tự động gỡ gate này.
 `R1-A1 FROZEN` ⇏ `R1-A FROZEN`; ⇏ `R1 FROZEN`; ⇏ `TASK-110 DONE`.
 Ba trạng thái đó giữ nguyên **NOT FROZEN / NOT FROZEN / NOT DONE**.
 
-**R1-A2 → R8**: theo PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1
-overlay, chưa merge vào nhánh này tại thời điểm ghi — lineage
-`TASK-110` có `repair_cycles_remaining = 0` (EXHAUSTED_PRE_V4.1). Không unit
+**R1-A2 → R8**: theo `PROJECT/REVIEW_BUDGET_LEDGER.md` — lineage
+`TASK-110` có `repair_cycles_remaining = 0` (`EXHAUSTED_PRE_V4.1`). Không unit
 nào trong R1-A2 → R8 được tự mở sau freeze này; mỗi unit cần
 `OWNER_EXTENSION` riêng (production path + kịch bản sai cụ thể + phạm vi +
 budget). Không có Owner Extension ⇒ STOP.
+
+---
+
+## Trạng thái hiện tại sau integration V4.1-1
+
+*(Mục này ghi CURRENT NORMATIVE STATE. Toàn bộ nhật ký phía trên là bản ghi
+lịch sử và không bị sửa.)*
+
+```
+R1-A1    = FROZEN        (DEC-139; reviewed a853971 → freeze 01a03b0)
+R1-A     = NOT FROZEN
+R1       = NOT FROZEN
+TASK-110 = MERGED (V4.1-1) · NOT DONE
+CHECK-110-16 = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE (DEC-141)
+repair_cycles_used = EXHAUSTED_PRE_V4.1 · repair_cycles_remaining = 0
+R1-A2 → R8 = OWNER_EXTENSION REQUIRED
+Golden Baseline = NOT YET IMPLEMENTED (TASK-GOLDEN-BASELINE-001, session riêng)
+```
+
+`MERGE` **không** đồng nghĩa `DONE`. `TASK-110` chỉ chuyển `DONE` khi
+`CHECK-110-16` thực sự `PASS` trên dữ liệu production thật.
+
+Governance V4.1 (`governance/core/V4_1_POLICY_FREEZE.md`, `DEC-140`) nay đã có
+mặt trên cùng baseline với lineage này — các tham chiếu tới
+`PROJECT/REVIEW_BUDGET_LEDGER.md` trong file này phân giải được tại chỗ.

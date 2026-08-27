@@ -2443,3 +2443,99 @@ Impact:
 Can Revisit After:
 `V4.1-1` (Final R1-A1 Independent Review + Freeze Finalization + Integration
 Decision) — không revisit trong chính session V4.1-0.
+
+## DEC-141
+
+Date:
+2026-08-27
+
+Task:
+V4.1-1 — TASK-110 + Governance V4.1 Integration (phiên integration).
+
+Decision:
+
+Owner phê duyệt bốn quyết định của Integration Plan (OD-1 → OD-4). Ghi lại ở
+đây phần có hiệu lực quy phạm lâu dài.
+
+**1 — `CHECK-110-16` đổi Gate Class (OD-1).**
+
+```
+CHECK-110-16 — Đối chiếu trên dữ liệu thật
+Priority   : REQUIRED                            (KHÔNG đổi)
+Status     : BLOCKED                             (KHÔNG đổi)
+Gate Class : POST_MERGE_PRODUCTION_ACCEPTANCE    (MỚI — trước đây là pre-merge gate)
+```
+
+Chỉ đổi **Gate Class**. Không đổi Priority, không đổi Status, không đổi nội
+dung check, không đổi mốc tham chiếu.
+
+Điều kiện Owner đặt ra, bắt buộc giữ:
+- Không synthetic PASS.
+- Không tạo workbook giả.
+- Không bypass kiểm tra production.
+- **Merge KHÔNG đồng nghĩa `TASK-110 DONE`.**
+- `TASK-110` chỉ `DONE` khi `CHECK-110-16` thực sự `PASS` trên dữ liệu
+  production thật, đối chiếu với `docs/analysis/_evidence/evidence.json`
+  theo đúng quy tắc HD-110-02 (cấm chỉnh danh sách từ khóa để ép con số về
+  1.261).
+
+Rationale:
+
+Dependency của `CHECK-110-16` — file thô production 6 tháng / 11.765 dòng —
+nằm hoàn toàn ngoài repo (đúng `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`)
+và không có timeline. Bản chất của check là đo *hành vi của code trên dữ liệu
+thật*, không đo *trạng thái nhánh*; không có gì trong nội dung check mất hiệu
+lực sau merge. Giữ nó làm pre-merge gate biến một dependency mà không agent
+nào giải quyết được thành vật cản cho một integration đã được chứng minh an
+toàn, đồng thời chặn `TASK-GOLDEN-BASELINE-001` (V4.1 §13 yêu cầu Golden dựng
+**trên integration baseline chính thức**) và do đó khoá `V4.1` vĩnh viễn ở
+`POLICY_ADOPTED`. Đây là option (B) mà chính `V4_1_POLICY_FREEZE.md` §9 liệt
+kê cho merge gate timeout.
+
+**2 — Giải `DEC-128` ID collision (OD-2).**
+
+`DEC-128` của `TASK-110` (2026-08-23, Gate/Readiness Review) giữ nguyên;
+`DEC-128` của Governance V4.1 (2026-08-27, `TASK-V4-ADOPTION`) đổi thành
+`DEC-140`. Semantic content của quyết định V4.1 không đổi — chỉ reconcile
+ID và reference. Không rewrite lịch sử `TASK-110`.
+
+**3 — Integration strategy (OD-3).**
+
+`OPTION C` — temporary integration branch `integration/v4-1-task-110`, tạo từ
+`c7a1b24e08ff7c03cab06b323110e2a9f05ab363`, hội tụ
+`claude/r1-a1-contract-freeze-9lkh3h` (`01a03b0`, 24 commit) và
+`claude/governance-v4-1-freeze-36oexq` (`8d79009`, 1 commit), reconcile trạng
+thái, validate đầy đủ, rồi merge `--no-ff` về nhánh mặc định.
+
+Các thay đổi tài liệu trạng thái của phiên này được phân loại
+**`INTEGRATION STATE RECONCILIATION`**. Chúng KHÔNG phải `TASK-110` repair
+cycle, KHÔNG reset review budget, KHÔNG mở `R1-A2`, KHÔNG mở `R2` → `R8`,
+KHÔNG đánh giá lại correctness của `R1-A1`, KHÔNG đổi `R1-A1` FROZEN contract.
+
+**4 — `KNOWN PRE-V4.1 DIVERGENCE` (OD-4).**
+
+Integration này là hành động chính thức đóng `KNOWN PRE-V4.1 DIVERGENCE` ghi
+tại `PROJECT/REVIEW_BUDGET_LEDGER.md`. Divergence đo được trước integration:
+`r1-a1-contract-freeze-9lkh3h` ahead 24 commit / 4 ngày / 40.523 LOC — vượt
+cả ba ngưỡng `V4_1_POLICY_FREEZE.md` §8. Không grandfather thành ngoại lệ
+vĩnh viễn.
+
+Risk:
+
+Nếu `CHECK-110-16` bị đọc nhầm thành đã hoàn tất sau khi đổi Gate Class,
+`TASK-110` có thể bị đánh dấu `DONE` mà chưa hề đối chiếu dữ liệu thật. Vì
+vậy `Status` giữ nguyên `BLOCKED` và bất biến "merge ≠ DONE" được ghi lặp ở
+`PROJECT/PROJECT_PROGRESS.md`, `docs/tasks/TASK-110-validation-review-queue.md`,
+`docs/tasks/TASK-110_REPAIR_PROGRESS.md` và `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+Impact:
+- Không sửa production code (`app/`, `config/`, `tools/`), không sửa test
+  (`tests/`), không sửa `app/modules/domain/canonical.py`, không đổi
+  `FROZEN_CORPUS`, không đổi expected outcome, không đổi oracle.
+- Chỉ sửa tài liệu trạng thái hiện tại (current normative state).
+- Không xoá historical artifact; prose lịch sử mâu thuẫn được gắn nhãn
+  `SUPERSEDED` hoặc thêm con trỏ tới trạng thái hiện tại, không bị xoá.
+
+Can Revisit After:
+`CHECK-110-16` thực sự chạy trên dữ liệu production thật (khi Owner cung cấp
+file thô), hoặc một `OWNER_EXTENSION` cho `R1-A2` → `R8`.

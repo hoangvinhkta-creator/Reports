@@ -84,8 +84,24 @@ dẫn xuất từ `RowProvenance`. Ba Human Decision (**HD-110-06/07/08**) ghi t
 **DEC-132**. **330/330 test**, 179 mới so với baseline `c7a1b24`, 0 regression;
 L1/L2/L3 chứng minh 0 dịch chuyển nghiệp vụ.
 
-TASK-110 = **IMPLEMENTED — architecture repair sau Independent Review #5**,
-**NOT MERGED, NOT DONE**, CHECK-110-16 **BLOCKED**, chờ Review #6.
+*(Đoạn trên là bản ghi lịch sử của vòng repair #5 — **SUPERSEDED**. Trạng
+thái hiện tại nằm ngay dưới đây và ở "Trạng thái Task hiện tại".)*
+
+**TRẠNG THÁI HIỆN TẠI (sau integration V4.1-1):**
+
+```
+R1-A1    = FROZEN        (DEC-139; Independent Review PASS — ELIGIBLE_FOR_FREEZE
+                          tại reviewed SHA a85397106b81799d149d98e71a7fcfd5bc8963ad;
+                          Freeze Finalization 01a03b08ab6fc21b6b9ef3eeab5dfa1d692a8713)
+R1-A     = NOT FROZEN    (không suy diễn tăng theo)
+R1       = NOT FROZEN
+TASK-110 = NOT DONE      (đã MERGED vào nhánh mặc định tại V4.1-1, nhưng
+                          MERGE KHÔNG ĐỒNG NGHĨA DONE)
+CHECK-110-16 = REQUIRED · BLOCKED · Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE
+               (DEC-141; thiếu file thô production, không synthetic PASS)
+TASK-110 repair budget = EXHAUSTED_PRE_V4.1, remaining = 0
+R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
+```
 
 Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
 (3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
@@ -99,29 +115,44 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-110 — validation + Review Queue — **REPAIR MODE — R1 READY**. Independent
-Review #8 (FAIL trên `c8c18229e3ef5a9d600b8d99a1cc21bcbbb2d8dd`) falsify được
-các tuyên bố `ARCHITECTURE CLOSED` / `RC-1→RC-5 CLOSED` của Review #7 — chúng
-**không còn là bằng chứng hoàn tất**. TASK-110 nay repair theo từng unit cô
-lập R1→R8, mỗi unit chỉ chuyển FROZEN sau Independent Review PASS riêng của
-nó. Canonical cho giai đoạn này:
-`docs/tasks/TASK-110-REPAIR-MODE.md` (bối cảnh + 8 finding) và
+TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage
+tạm dừng vì hết review budget**. `R1-A1` đã đạt `FROZEN` theo **DEC-139**
+(Independent Review `PASS — ELIGIBLE_FOR_FREEZE`, 0 blocking finding, 1
+hardening backlog HB-A1-05). `R1-A` và `R1` tổng **vẫn NOT FROZEN** — không
+suy diễn tăng theo. `R1-A2` → `R8` **KHÔNG tự mở**: lineage `TASK-110` có
+`repair_cycles_remaining = 0` (`EXHAUSTED_PRE_V4.1`), mỗi unit cần một
+`OWNER_EXTENSION` riêng — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+Canonical cho giai đoạn này:
 `docs/tasks/TASK-110_REPAIR_PROGRESS.md` (bảng tiến độ từng unit — đọc TRƯỚC
-`PROJECT_PROGRESS.md` cho câu hỏi "unit nào đang làm").
-**NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
+`PROJECT_PROGRESS.md` cho câu hỏi "unit nào đang làm") và
+`docs/tasks/TASK-110-REPAIR-MODE.md` (bối cảnh Review #8 + 8 finding, artifact
+lịch sử).
+
+**ĐÃ MERGED vào nhánh mặc định (V4.1-1). VẪN NOT DONE.**
+`CHECK-110-16` = **REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE**
+(DEC-141). `TASK-110` chỉ chuyển `DONE` khi check này thực sự `PASS` trên dữ
+liệu production thật.
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**R1 — Canonical Object Safety** (xem `docs/tasks/TASK-110_REPAIR_PROGRESS.md`
-để biết trạng thái chính xác trước khi bắt đầu). Không bắt đầu R2 hay xa hơn
-khi R1 chưa FROZEN. Bảy vòng review trước đều FAIL và đều đã sửa xong (6 + 4 +
-3 + 2 + 4 + 6 + Closure
-finding); mỗi finding có regression hoặc falsification test riêng. Vòng #5 và
-#6 là **Architecture Repair**, không phải vá cục bộ. Task vẫn **chưa merge,
-chưa DONE**, và **chưa vòng nào PASS**. Tiền lệ TASK-108A-1: 4 vòng review mới
-PASS.
+**TASK-GOLDEN-BASELINE-001** — dựng Golden Baseline trên integration baseline
+chính thức (`V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
+nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`. Phải
+mở trong một session riêng.
+
+**KHÔNG** bắt đầu `R1-A2`, `R2` hay bất kỳ unit nào từ `R1-B` → `R8`: lineage
+`TASK-110` có `repair_cycles_remaining = 0`; mỗi unit cần `OWNER_EXTENSION`
+riêng kèm production path cụ thể, kịch bản nghiệp vụ sai cụ thể, phạm vi và
+budget được Owner cấp. Không có Owner Extension ⇒ `STOP`.
+
+Lịch sử review của lineage (tham chiếu, không phải việc còn lại): tám vòng
+Independent Review, bảy vòng đầu FAIL và đều đã sửa xong (6 + 4 + 3 + 2 + 4 +
+6 + Closure finding); mỗi finding có regression hoặc falsification test riêng.
+Vòng #5 và #6 là **Architecture Repair**, không phải vá cục bộ. Vòng cuối trên
+`R1-A1` **PASS** tại `a853971` (DEC-139).
 
 Sau đó: **TASK-111 (excel_exporter)** dùng được đầu ra Review Queue cho sheet
 Audit/Overrides.
@@ -238,12 +269,14 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
-  - [ ] TASK-110 — validation + Review Queue. **IMPLEMENTED — architecture
-        CLOSURE sau Independent Review #7. NOT MERGED, NOT DONE.** Bảy vòng
-        review đều FAIL (S017–S023); **chưa
-        vòng nào PASS**, chờ Review #8. 21/22 REQUIRED check PASS;
-        CHECK-110-16 (đối chiếu dữ liệu thật) **BLOCKED** vì thiếu file thô
-        production — chủ dự án cho phép giữ, chặn DONE không chặn IMPLEMENTED.
+  - [ ] TASK-110 — validation + Review Queue. **MERGED vào nhánh mặc định
+        (V4.1-1), NOT DONE.** `R1-A1` = **FROZEN** (DEC-139, Independent
+        Review PASS tại `a853971`); `R1-A` = NOT FROZEN; `R1` = NOT FROZEN.
+        `R1-A2` → `R8` = `OWNER_EXTENSION REQUIRED` (repair budget
+        `remaining = 0`). Tám vòng review, vòng cuối trên `R1-A1` PASS.
+        21/22 REQUIRED check PASS; CHECK-110-16 (đối chiếu dữ liệu thật)
+        **BLOCKED**, Gate Class `POST_MERGE_PRODUCTION_ACCEPTANCE` (DEC-141)
+        — thiếu file thô production; **chặn DONE, không chặn merge**.
         **20/20 falsification CLOSED** (trước Closure: 7/20); RC-1→RC-5 đóng bằng cấu trúc; oracle đã mutation-test. Phạm vi
         thật **7 loại** sau DEC-128 (V7 mở thành **F1–F6** theo DEC-129),
         không phải 5 — xem `docs/tasks/TASK-110-validation-review-queue.md`.
@@ -579,11 +612,33 @@ Task Mode:
 MAJOR
 
 Status:
-**IMPLEMENTED — repairing after Independent Review #4.**
-**NOT MERGED. NOT DONE.** CHECK-110-16 = **BLOCKED**.
+**MERGED vào nhánh mặc định (V4.1-1). NOT DONE.**
+
+```
+R1-A1    = FROZEN        (DEC-139 — Independent Review PASS — ELIGIBLE_FOR_FREEZE,
+                          0 blocking finding, 1 hardening backlog HB-A1-05;
+                          reviewed SHA  a85397106b81799d149d98e71a7fcfd5bc8963ad;
+                          freeze  SHA   01a03b08ab6fc21b6b9ef3eeab5dfa1d692a8713)
+R1-A     = NOT FROZEN
+R1       = NOT FROZEN
+TASK-110 = NOT DONE
+CHECK-110-16 = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE (DEC-141)
+repair_cycles_used = EXHAUSTED_PRE_V4.1 · repair_cycles_remaining = 0
+R1-A2 → R8 = OWNER_EXTENSION REQUIRED
+```
+
+**MERGE KHÔNG ĐỒNG NGHĨA DONE.** `TASK-110` chỉ chuyển `DONE` khi
+`CHECK-110-16` thực sự `PASS` trên dữ liệu production thật. Không synthetic
+PASS, không workbook giả, không bypass.
+
+Bảng tiến độ từng unit (canonical, đọc trước file này cho câu hỏi "unit nào
+đang làm"): `docs/tasks/TASK-110_REPAIR_PROGRESS.md`.
 
 Completion Gate đã **FROZEN** (chủ dự án, 2026-08-23) — Gate không còn ở trạng
-thái chờ duyệt, và code đã viết xong. Lịch sử hai vòng review:
+thái chờ duyệt, và code đã viết xong.
+
+*Phần dưới đây là **bản ghi lịch sử** các vòng Independent Review — giữ nguyên
+làm history, không phải trạng thái hiện tại:*
 
 - **Independent Review #1 — FAIL, 6 finding** → đã sửa toàn bộ (S017), ba
   Human Decision ghi thành **DEC-129**.
@@ -598,18 +653,27 @@ thái chờ duyệt, và code đã viết xong. Lịch sử hai vòng review:
   nhau qua các vòng trước, nên vòng này sửa **cơ chế sinh ra chúng** thay vì
   sửa representation: trạng thái sai không còn **biểu diễn được**.
 
-**Chưa vòng review nào PASS.** Chờ **Independent Review #6**.
+- **Independent Review #6, #7, #8** — FAIL; #8 falsify các tuyên bố
+  `ARCHITECTURE CLOSED` / `RC-1→RC-5 CLOSED` của #7, mở giai đoạn REPAIR MODE
+  theo từng unit `R1` → `R8` (xem `docs/tasks/TASK-110-REPAIR-MODE.md`).
+- **Vòng cuối trên `R1-A1` — PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`
+  (**DEC-139**). Đây là vòng review PASS đầu tiên của lineage; nó freeze
+  **`R1-A1` và chỉ `R1-A1`**.
+
+*(Bản ghi lịch sử kết thúc ở đây.)*
 
 21/22 REQUIRED check PASS. **CHECK-110-16 (đối chiếu dữ liệu thật) vẫn
 BLOCKED** — file thô production không có trong repo (đúng
 `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`) và không có trong
-container. Check này **chặn DONE, không chặn IMPLEMENTED**.
+container. Theo **DEC-141** check này nay có Gate Class
+`POST_MERGE_PRODUCTION_ACCEPTANCE`: **chặn DONE, không chặn merge**.
 
 Phạm vi: **7 loại cảnh báo** (không phải 5), V7 mở thành **F1–F6** theo
 DEC-129. Chấm điểm: Difficulty 3, **Risk 3** (kéo theo E1 bắt buộc cho mọi
 check REQUIRED). Bốn khoảng trống nghiệp vụ của §18 đã đóng bằng **DEC-128**.
 
 File: `docs/tasks/TASK-110-validation-review-queue.md`.
+Trạng thái từng unit: `docs/tasks/TASK-110_REPAIR_PROGRESS.md`.
 Handoff: `docs/sessions/S021-*.md` (Architecture Repair, mới nhất),
 `S015-*.md` (Gate), `S016-*.md` (triển khai),
 `S017-*.md` (sửa Review #1), `S018-*.md` (sửa Review #2),
