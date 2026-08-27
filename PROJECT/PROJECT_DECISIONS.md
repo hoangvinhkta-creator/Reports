@@ -1280,3 +1280,90 @@ Can Revisit After:
 Quyết định 5 (phân loại thủ công) mở lại khi Phase 2/3 có UI thật và đủ dữ
 liệu đã-được-người-dùng-xác-nhận để cân nhắc tự học. Quyết định 1–4, 6–8 là
 nền tảng, không dự kiến đổi.
+
+## DEC-128
+
+Date:
+2026-08-27
+
+Task:
+TASK-V4-ADOPTION — Freeze & Execute Governance V4.1 (session V4.1-0).
+
+Decision:
+
+Owner phê duyệt và freeze **Governance V4.1** như một policy overlay
+(`governance/core/V4_1_POLICY_FREEZE.md`), áp dụng trên nền governance hiện
+có, không thay thế nó. Các điểm sau được freeze tại session này:
+
+1. **TASK-110 budget = `EXHAUSTED_PRE_V4.1`.** Lineage `TASK-110` (bao gồm
+   toàn bộ sub-unit R1-A2 → R8 nếu thuộc lineage này) có
+   `repair_cycles_remaining = 0` kể từ trước khi V4.1 có hiệu lực. Đây là
+   trạng thái chuyển tiếp có chủ ý (transition state), ghi tại
+   `PROJECT/REVIEW_BUDGET_LEDGER.md`, không phải một placeholder chờ điền.
+2. **R1-A2 → R8 không tự có ngân sách.** Mỗi unit muốn tiếp tục cần một
+   `OWNER_EXTENSION` riêng (production path cụ thể + kịch bản nghiệp vụ sai
+   + phạm vi + budget được cấp). Không có Owner Extension → `STOP`.
+3. **Bảng ngân sách review chuẩn hoá:** `LOW = 1`, `MEDIUM = 1`,
+   `HIGH/CRITICAL = 2` blocking repair cycle. Không tồn tại `HIGH = 3`.
+4. **Repair cycle tính theo cumulative repair diff** (`base_sha`/`head_sha`
+   tiến lên, không reset qua session/branch/sub-unit mới).
+5. **Blast Radius chấm theo failure path**, không chấm theo tên
+   module/file; `Effective Risk = max(Local Risk, Blast Radius)`.
+6. **Golden Baseline chỉ hạ Blast Radius tối đa một bậc** khi có một Golden
+   test cụ thể phủ đúng failure path (tên test/fixture/path/expected
+   output). Trước `TASK-GOLDEN-BASELINE-001`: không Golden test nào được
+   dùng để hạ risk.
+7. **Production-realistic input** phải dựng được từ một trong bốn nguồn hữu
+   hạn (production annotation/schema inventory hiện tại; config hiện hành;
+   Golden fixture đã tồn tại; raw production data đã xác minh). Không dựng
+   được → HARDENING BY DEFAULT.
+8. **Branch divergence threshold:** `INTEGRATION_DECISION_REQUIRED` khi
+   ahead > 10 commit, HOẶC divergence > 3 ngày, HOẶC cumulative LOC >
+   5.000. `TASK-110` hiện có nhiều nhánh review vượt các ngưỡng này — ghi
+   nhận là **KNOWN PRE-V4.1 DIVERGENCE**, phải xử lý tại V4.1-1, không
+   grandfather thành ngoại lệ vĩnh viễn.
+9. **Merge gate timeout = 30 ngày.** `CHECK-110-16` tiếp tục `BLOCKED` (merge
+   gate — thiếu production workbook thật để đối chiếu). Không giả lập PASS,
+   không bypass. Nếu vượt 30 ngày kể từ ngày phát sinh mà chưa có quyết
+   định: `OWNER DECISION REQUIRED`.
+10. **`ACCEPT_AS_IS` / `DESCOPE` chỉ Owner được ghi** (State Authority
+    Matrix, §12 của overlay).
+11. **`V4.1 = POLICY_ADOPTED` KHÔNG đồng nghĩa `V4.1 = FULLY_ENFORCED`.**
+    `FULLY_ENFORCED` chỉ đạt sau `TASK-GOLDEN-BASELINE-001` (Golden
+    fixture + deterministic expected output + one-command diff +
+    test suite tests/test_golden_baseline.py, chưa tồn tại, PASS).
+
+Rationale:
+
+Repo có nhiều nhánh review TASK-110 chạy song song (≥8 Independent Review,
+≥3 repair) từ trước khi V4.1 tồn tại; nếu V4.1 tự động cấp lại ngân sách
+cho lineage này, mọi giới hạn repair-cycle mà V4.1 định ra sẽ vô nghĩa ngay
+tại lần áp dụng đầu tiên. Đóng băng TASK-110 ở trạng thái exhausted-nhưng-
+không-treo (vẫn có `FINAL_REVIEW_ONLY`/`ACCEPT_AS_IS`/`DESCOPE`/
+`OWNER_EXTENSION` làm lối ra) giữ nguyên tắc "V4.1 phải chịu chính V4.1"
+đồng thời không chặn đường hoàn tất R1-A1 hiện đang review.
+
+Risk:
+
+Nếu không freeze rõ transition state này, có nguy cơ lặp lại đúng pattern
+đã gây ra DEC-118 (hai track không biết về nhau, làm trùng việc) — lần này
+là nhiều nhánh TASK-110 độc lập tiếp tục mở repair cycle mới không giới
+hạn dưới các tên gọi khác nhau (V4.1-R1, R1-A1A, …).
+
+Impact:
+- File mới: `governance/core/V4_1_POLICY_FREEZE.md`,
+  `PROJECT/REVIEW_BUDGET_LEDGER.md`, `scripts/branch_authority_check.sh`.
+- File sửa: `CLAUDE.md` (thêm pointer tới overlay), file này
+  (`PROJECT/PROJECT_DECISIONS.md`), `PROJECT/PROJECT_PROGRESS.md` (ghi
+  trạng thái adoption tối thiểu).
+- Không sửa production code (`app/`, `tests/`, `config/`, `tools/`).
+- Không sửa nội dung kỹ thuật của bất kỳ review TASK-110 nào đang mở trên
+  các nhánh khác (`claude/r1-a1-contract-freeze-9lkh3h`,
+  `claude/r1-canonical-object-safety-fon9lb`,
+  `claude/task-110-gate-readiness-7ui4si`,
+  `claude/zealous-bardeen-s8iu2h`) — các nhánh đó nằm ngoài phạm vi
+  `TASK-V4-ADOPTION`.
+
+Can Revisit After:
+`V4.1-1` (Final R1-A1 Independent Review + Freeze Finalization + Integration
+Decision) — không revisit trong chính session V4.1-0.

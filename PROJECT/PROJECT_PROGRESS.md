@@ -13,6 +13,23 @@ Trước khi đọc phần còn lại của file này, xác nhận bạn đang �
 File này từng bị đọc từ một nhánh lỗi thời 14 commit, dẫn tới báo cáo tiến độ
 sai — xem DEC-118.
 
+## Governance V4.1 — Trạng Thái Adoption
+
+```
+V4.1 = POLICY_ADOPTED          (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
+V4.1 = NOT YET FULLY_ENFORCED  (chờ TASK-GOLDEN-BASELINE-001)
+```
+
+Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
+theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
+DEC-128 trong `PROJECT/PROJECT_DECISIONS.md`.
+
+`TASK-110` (mọi nhánh review, lineage R1-A1…R8): repair budget =
+`EXHAUSTED_PRE_V4.1`, `remaining = 0`. `R1-A2 → R8` = `OWNER_EXTENSION
+REQUIRED` để mở tiếp. `CHECK-110-16` tiếp tục `BLOCKED` (merge gate — thiếu
+production workbook thật). Rollout tiếp theo: `V4.1-1` (Final R1-A1
+Independent Review + Freeze Finalization nếu PASS + Integration Decision).
+
 ## Hai Track Song Song
 
 Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
