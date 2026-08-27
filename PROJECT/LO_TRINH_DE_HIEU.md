@@ -43,9 +43,40 @@ bảo mật dữ liệu) nên máy không tự chạy được — cần chủ d
 sau; nhưng **bước 14 chỉ được đánh dấu XONG khi lần đối chiếu đó thật sự
 chạy và khớp**. Không có chuyện tự đánh dấu đạt bằng dữ liệu giả.
 
-**Việc tiếp theo của dự án:** dựng "bộ ảnh chuẩn" (Golden Baseline) — một bộ
-dữ liệu mẫu và kết quả đúng đã biết, để mỗi lần sửa công cụ có thể so ngay xem
-có làm lệch kết quả cũ không.
+**Việc tiếp theo của dự án — ĐÃ LÀM XONG PHẦN DỰNG (2026-08-27).** "Bộ ảnh
+chuẩn" (Golden Baseline) đã được dựng: một bộ dữ liệu mẫu và kết quả đúng đã
+biết, để mỗi lần sửa công cụ có thể so ngay xem có làm lệch kết quả cũ không.
+
+Chủ dự án đã gửi hai file bán hàng thật của Tín Phát (tháng 01 và tháng
+06/2026). Công cụ chạy trên đúng hai file đó và ra **chính xác 254 đơn** cho
+tháng 1 và **146 đơn** cho tháng 6 — khớp tuyệt đối con số đã biết từ trước.
+Tổng doanh số, tổng chiết khấu và tổng lợi nhuận cũng khớp tuyệt đối với dòng
+"Tổng cộng" mà chính file gốc tự ghi.
+
+**Hai file thật KHÔNG được đưa vào dự án.** Thay vào đó, máy tạo ra một bản
+sao đã **xoá sạch thông tin khách hàng**: tên khách, số điện thoại, địa chỉ,
+số máy, và toàn bộ phần ghi chú tự do đều bị bỏ hoặc thay bằng nhãn vô danh
+kiểu "KHÁCH_0001". Đã kiểm lại từng chữ trong bản sao đó: **không còn một
+thông tin khách hàng nào**. Mọi con số nghiệp vụ thì giữ nguyên — và điều đó
+được chứng minh bằng cách chạy công cụ trên cả hai bản rồi so từng ô: kết quả
+giống hệt nhau.
+
+Từ nay, chỉ cần chạy **một lệnh duy nhất** là biết bản sửa mới có làm lệch kết
+quả cũ hay không.
+
+**Cập nhật (2026-08-27) — đã qua vòng soát xét độc lập, kết quả ĐẠT.** Vòng
+soát xét độc lập (lần thứ hai, sau khi sửa một lỗi nhỏ về cách so sánh dữ
+liệu môi trường bị lẫn vào dữ liệu nghiệp vụ) đã **DUYỆT**: 0 lỗi chặn. Chi
+tiết ghi tại `docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`.
+
+**Cập nhật (2026-08-27) — đã niêm phong (FROZEN).** Một phiên riêng, có thẩm
+quyền riêng ("Freeze Finalization + Controlled Integration") đã ghi quyết
+định niêm phong bộ ảnh chuẩn này (`DEC-142`). Niêm phong nghĩa là từ nay
+không ai được sửa bộ dữ liệu mẫu/kết quả đúng này nữa nếu không có một quyết
+định mới của chủ dự án. **Vẫn chưa MERGED/DONE** cho tới khi bước nhập hẳn
+vào bản chính (Controlled Integration) trong cùng phiên hoàn tất — xem
+`PROJECT/PROJECT_PROGRESS.md` để biết trạng thái mới nhất. Không tự chấm
+điểm cho chính mình.
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 

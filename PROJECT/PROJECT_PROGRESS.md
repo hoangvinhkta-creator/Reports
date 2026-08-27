@@ -17,8 +17,26 @@ sai — xem DEC-118.
 
 ```
 V4.1 = POLICY_ADOPTED          (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
-V4.1 = NOT YET FULLY_ENFORCED  (chờ TASK-GOLDEN-BASELINE-001)
+V4.1 = NOT YET FULLY_ENFORCED  (chờ Freeze Finalization + Integration của TASK-GOLDEN-BASELINE-001)
+Golden implementation candidate = EXISTS (2026-08-27, V4.1-2)
+Golden Independent Review #2    = PASS — ELIGIBLE_FOR_FREEZE (2026-08-27, reviewed SHA 8521069…)
 ```
+
+`TASK-GOLDEN-BASELINE-001` đã **triển khai xong** trên hai kỳ nghiệp vụ thật
+của Tín Phát (01.2026 = 254 đơn, 06.2026 = 146 đơn), fixture đã ẩn danh theo
+Owner Decision `OD-GB-1 = A + A1`, một lệnh chạy:
+`python3 -m pytest tests/test_golden_baseline.py -q`. Sau Repair Cycle #1
+(`GB-IR-01`, đóng bằng `54a575d`), **Independent Review #2 đã PASS —
+ELIGIBLE_FOR_FREEZE** tại reviewed SHA
+`85210691702550d83c0fd42fe816be8ca9dde889`, 0 blocking finding — ghi tại
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`. Trạng thái:
+`INDEPENDENT_REVIEW_2 = PASS`, `ELIGIBLE_FOR_FREEZE = YES`, **`FROZEN = YES`**
+(DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED INTEGRATION", 2026-08-27).
+`DONE`/`MERGED` — xem "TRẠNG THÁI HIỆN TẠI" bên dưới (cập nhật sau bước
+Controlled Integration trong cùng phiên này). `V4.1` chuyển sang
+`FULLY_ENFORCED` chỉ sau khi cả Freeze **và** Integration hoàn tất
+(`governance/core/V4_1_POLICY_FREEZE.md` §12) — xem mục V4.1 enforcement bên
+dưới. Chi tiết: `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` Phần E/F.
 
 Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
 theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
@@ -115,6 +133,20 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
+**TASK-GOLDEN-BASELINE-001** — Golden Business Baseline. `DISCOVERY = COMPLETE`
+(`b738fa4`), `IMPLEMENTATION = COMPLETE`, `INDEPENDENT_REVIEW_2 = PASS —
+ELIGIBLE_FOR_FREEZE` tại reviewed SHA `8521069…` (2026-08-27, ghi tại
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`).
+**`FROZEN = YES`** (DEC-142, phiên "FREEZE FINALIZATION + CONTROLLED
+INTEGRATION", 2026-08-27). `DONE = NO`, `MERGED = NO` (chờ Controlled
+Integration trong cùng phiên — xem "TRẠNG THÁI HIỆN TẠI" bên dưới sau khi
+integration hoàn tất).
+`effective_risk = HIGH`, 2 repair cycle khả dụng, **1 đã dùng** (`GB-IR-01`,
+`CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`), **1 còn lại — UNUSED, task đóng
+không bắt buộc dùng hết ngân sách** — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+Task này **không** thuộc lineage `TASK-110` và **không** mở `R1-A2` → `R8`.
+
+Task liền trước (vẫn NOT DONE):
 TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage
 tạm dừng vì hết review budget**. `R1-A1` đã đạt `FROZEN` theo **DEC-139**
 (Independent Review `PASS — ELIGIBLE_FOR_FREEZE`, 0 blocking finding, 1
@@ -138,10 +170,17 @@ Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**TASK-GOLDEN-BASELINE-001** — dựng Golden Baseline trên integration baseline
-chính thức (`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
-nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`. Phải
-mở trong một session riêng.
+**Freeze Finalization + Integration của `TASK-GOLDEN-BASELINE-001`.**
+Independent Review #2 đã **PASS — ELIGIBLE_FOR_FREEZE** tại reviewed SHA
+`85210691702550d83c0fd42fe816be8ca9dde889` (0 blocking finding; xem
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`). Golden
+Baseline đã dựng xong trên integration baseline chính thức
+(`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`): 2 fixture đã ẩn
+danh + 2 expected output + `tests/test_golden_baseline.py` (58 test PASS sau
+repair), `697 passed / 11 skipped` toàn bộ suite, 0 regression. Đây vẫn là
+task **duy nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên
+`FULLY_ENFORCED`, nhưng việc nâng đó chỉ xảy ra **sau** Freeze Finalization +
+Integration bởi một phiên có thẩm quyền riêng — chưa chạy.
 
 **KHÔNG** bắt đầu `R1-A2`, `R2` hay bất kỳ unit nào từ `R1-B` → `R8`: lineage
 `TASK-110` có `repair_cycles_remaining = 0`; mỗi unit cần `OWNER_EXTENSION`

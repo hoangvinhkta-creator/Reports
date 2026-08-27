@@ -2539,3 +2539,90 @@ Impact:
 Can Revisit After:
 `CHECK-110-16` thực sự chạy trên dữ liệu production thật (khi Owner cung cấp
 file thô), hoặc một `OWNER_EXTENSION` cho `R1-A2` → `R8`.
+
+## DEC-142
+
+Date:
+2026-08-27
+
+Task:
+TASK-GOLDEN-BASELINE-001 — Freeze Finalization (phiên "FREEZE FINALIZATION +
+CONTROLLED INTEGRATION", thẩm quyền riêng theo
+`governance/core/V4_1_POLICY_FREEZE.md` §12).
+
+Decision:
+
+`TASK-GOLDEN-BASELINE-001 = FROZEN`.
+
+```
+Technical Reviewed SHA : 85210691702550d83c0fd42fe816be8ca9dde889
+Review Verdict Record  : 94b2513d1894dbd58f3b08656e3c7412be191df5
+Independent Review #2  : PASS — ELIGIBLE_FOR_FREEZE
+GB-IR-01               : CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED
+BLOCKING                : 0
+
+Review Budget (root task TASK-GOLDEN-BASELINE-001):
+    allowed   = 2
+    used      = 1
+    remaining = 1  (UNUSED — task closure không đồng nghĩa phải dùng hết budget)
+
+HB-GB-01 … HB-GB-06 : HARDENING / BACKLOG — không blocking freeze.
+```
+
+Golden Baseline contract, đóng băng kể từ quyết định này:
+
+- Hai fixture `.xlsx` đã ẩn danh tại `tests/fixtures/golden/` (`period_2026_01.xlsx`,
+  `period_2026_06.xlsx`) — **frozen**, không sửa ngoài một repair cycle mới có
+  thẩm quyền.
+- Expected business output tại `tests/fixtures/golden/expected/*.json` —
+  **frozen**.
+- `tests/test_golden_baseline.py` — strict business comparison (`_strict_bytes()`
+  loại đúng ba trường advisory) — **frozen**.
+- `_environment.python` / `pyyaml` / `openpyxl` — **advisory only**, không bao
+  giờ làm Golden FAIL một mình.
+- Không tự động regenerate expected output để ép test xanh.
+- Một business mutation (đổi tỉ lệ quy đổi, đổi rule LeadSource, sửa
+  `sales_normalized`…) phải làm Golden **FAIL**.
+- Một advisory environment mutation (đổi version `python`/`pyyaml`/`openpyxl`
+  trong `_environment`) **không** được làm Golden FAIL.
+- Golden Baseline là lưới an toàn regression (regression safety net) — **không**
+  chứng minh logic mới luôn đúng, chỉ chứng minh nó giống mốc đã xác minh.
+- Chỉ những data path (P1/P2/P3/P6/P7/P8/P14 — xem
+  `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` §A.15/§E.3) có tên Golden test
+  cụ thể phủ mới được viện dẫn khi đánh giá Blast Radius; các path khác (P4,
+  P5, P9–P13, và nhánh unmapped của P7) **không** được hạ risk bằng Golden.
+- Effective Risk `P4`/`P5` **không bao giờ** được hạ bằng Golden — Golden so
+  output cuối, mù với mutation giữa chừng và với việc lớp enforcement bị vô
+  hiệu hoá (V4.1 §4.1, §6).
+
+Rationale:
+
+Independent Review #2 đã ghi verdict `PASS — ELIGIBLE_FOR_FREEZE` tại
+`docs/reviews/TASK-GOLDEN-BASELINE-001-INDEPENDENT-REVIEW-2.md`, 0 blocking
+finding. Theo State Authority Matrix (`governance/core/V4_1_POLICY_FREEZE.md`
+§12), verdict `ELIGIBLE_FOR_FREEZE` thuộc thẩm quyền independent reviewer;
+`FROZEN` thuộc một phiên Freeze Finalization có thẩm quyền riêng — đây chính
+là phiên đó. Quyết định này **không** review lại technical correctness, chỉ
+ghi nhận việc niêm phong dựa trên verdict đã có.
+
+Risk:
+
+Nếu ai đó đọc `FROZEN` thành `DONE` hoặc thành cấp phép mở hardening
+(`HB-GB-01…06`)/Review #3/Repair Cycle #2, đó là đọc sai quyết định này. Freeze
+chỉ khoá contract; không tự động đóng task, không tự động cấp Governance V4.1
+= FULLY_ENFORCED (việc đó cần Integration + reconciliation riêng, xem phần
+Integration của phiên này).
+
+Impact:
+- Không sửa `app/**`, `config/**`, `tests/test_golden_baseline.py`,
+  `tests/fixtures/golden/**`.
+- Chỉ ghi quyết định này + cập nhật state/progress cần thiết trong cùng phiên
+  (`PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`,
+  `PROJECT/REVIEW_BUDGET_LEDGER.md`, `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md`).
+- Repair cycle còn lại (`remaining = 1`) giữ nguyên **UNUSED** — đóng task không
+  bắt buộc phải tiêu hết ngân sách.
+
+Can Revisit After:
+Một Repair Cycle #2 hoặc Review #3 mới có thẩm quyền riêng (không tự mở trong
+phiên Freeze Finalization/Integration), hoặc một Owner Decision khác thay đổi
+Golden Baseline contract.

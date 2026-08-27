@@ -1,0 +1,3912 @@
+{
+  "_covered_digest_fields": {
+    "line": [
+      "accounting_profit",
+      "accounting_purchase_price",
+      "address",
+      "conversion_rate_final",
+      "conversion_scheme_auto",
+      "conversion_scheme_final",
+      "conversion_scheme_manual",
+      "conversion_scheme_source_of_value",
+      "customer",
+      "customer_code",
+      "date",
+      "delivery_cost",
+      "discount",
+      "employee_group",
+      "employee_mapping_status",
+      "employee_normalized",
+      "employee_raw",
+      "imei",
+      "lead_source_final",
+      "month",
+      "note_raw",
+      "order_id",
+      "phone",
+      "price_source",
+      "product_group_auto",
+      "product_group_final",
+      "product_group_manual",
+      "product_group_source_of_value",
+      "product_raw",
+      "quantity",
+      "sell_price",
+      "shipper_raw",
+      "source_profit",
+      "total_sales"
+    ],
+    "raw": [
+      "address",
+      "customer",
+      "customer_code",
+      "date",
+      "delivery_cost",
+      "discount",
+      "employee_raw",
+      "imei",
+      "note_raw",
+      "order_id",
+      "phone",
+      "product_raw",
+      "quantity",
+      "row_hash",
+      "sell_price",
+      "shipper_raw",
+      "source_profit",
+      "source_row",
+      "source_sheet",
+      "total_sales_raw"
+    ]
+  },
+  "_environment": {
+    "config_snapshot_id": "17fffad7c6d499cc",
+    "fixture_filename": "period_2026_06.xlsx",
+    "openpyxl": "3.1.5",
+    "python": "3.11.15",
+    "pyyaml": "6.0.1"
+  },
+  "_provenance": {
+    "anonymization_version": "1.0.0",
+    "baseline_id": "GOLDEN-TINPHAT-2026-06",
+    "dataset_scope": "Tín Phát, một kỳ, xuất riêng theo tháng. KHÔNG phải dataset 11.765 dòng của evidence.json, KHÔNG phải dataset 14.389 dòng của CHECK-108A1-15, KHÔNG phải dataset của CHECK-110-16.",
+    "metric_anchors": {
+      "conversion": "config/conversion_rates.yaml · ADR-106 §3/§4 · DEC-127 §3",
+      "counts.orders": "docs/tasks/TASK-101-importer-normalizer.md#CHECK-101-08 · docs/analysis/_evidence/evidence.json#raw_by_month_employee",
+      "counts.raw_rows": "docs/tasks/TASK-101-importer-normalizer.md#Đối Chiếu Dữ Liệu Thật",
+      "counts.sheet_data_rows": "docs/tasks/TASK-101-importer-normalizer.md#Đối Chiếu Dữ Liệu Thật",
+      "discount_delta": "DEC-114 · docs/tasks/TASK-101-importer-normalizer.md#Item 4",
+      "employees": "config/employees.yaml · DEC-104 · DEC-127 §1",
+      "lead_source": "DEC-109 (sửa bởi DEC-119) · docs/analysis/_evidence/evidence.json#ads_keyword_cell_hits · docs/tasks/TASK-101-importer-normalizer.md#CHECK-101-08",
+      "money.discount_total": "docs/tasks/TASK-101-importer-normalizer.md#Đối Chiếu Dữ Liệu Thật",
+      "money.erp_profit_total": "docs/analysis/_evidence/evidence.json#raw_by_month_employee.profit_thousands",
+      "money.quantity_total": "footer 'Tổng cộng' của chính workbook nguồn (ERP ghi, không do engine tính)",
+      "money.sales_normalized": "docs/tasks/TASK-101-importer-normalizer.md#Đối Chiếu Dữ Liệu Thật · DEC-114",
+      "money.sales_raw_gross": "docs/analysis/_evidence/evidence.json#raw_by_month_employee.sales_thousands · docs/tasks/TASK-101-importer-normalizer.md#CHECK-101-08",
+      "pricing": "TASK-105 PendingPriceProvider — chưa có Price Master (trạng thái hiện tại)",
+      "review_queue": "đặc tả §18 · DEC-128 — đo LẦN ĐẦU trên dataset này tại phiên TASK-GOLDEN-BASELINE-001 (không có mốc lịch sử cho hai kỳ Tín Phát)",
+      "source_footer": "dòng 'Tổng cộng' của chính workbook nguồn — oracle độc lập với engine"
+    },
+    "pipeline_entry_point": "app.pipeline.run_import",
+    "source_period": "06.2026",
+    "source_sha256": "ef9a85e0bf9f7c5dc3791ed6852e20978e35bdd19daa5978843007eeb2a0fdaa",
+    "source_type": "production_workbook",
+    "source_workbook_label": "So_chi_tiet_ban_hang (3).xlsx"
+  },
+  "_schema": {
+    "expected_output_schema_version": "1.0.0",
+    "generator": "tests.fixtures.golden.build_expected"
+  },
+  "conversion": {
+    "product_group_distribution": {
+      "DIEN_MAY": 180
+    },
+    "product_group_provenance": {
+      "DEFAULT": 180
+    },
+    "scheme_distribution": {
+      "ADS_7_5@0.075": 180
+    },
+    "scheme_provenance": {
+      "Auto:LeadSource (ADS_7_5)": 180
+    },
+    "unresolved_lines": 0
+  },
+  "counts": {
+    "lines": 180,
+    "lines_mapped": 180,
+    "lines_per_order_distribution": {
+      "1": 115,
+      "2": 28,
+      "3": 3
+    },
+    "lines_unmapped": 0,
+    "orders": 146,
+    "orders_with_multiple_employee_raw": 0,
+    "orders_with_multiple_lead_source": 0,
+    "raw_rows": 180,
+    "rows_missing_order_id": 1,
+    "sheet_data_rows": 181
+  },
+  "discount_delta": {
+    "every_delta_equals_that_line_discount": true,
+    "lines_differing": 1,
+    "total_delta": "400000"
+  },
+  "employees": {
+    "Tín Phát": {
+      "lines": 180,
+      "orders": 146,
+      "quantity": [
+        "210",
+        0
+      ],
+      "sales_normalized": [
+        "1924872000",
+        0
+      ]
+    }
+  },
+  "lead_source": {
+    "lines_by_final": {
+      "ADS": 180
+    },
+    "orders_by_auto": {
+      "ADS": 146
+    },
+    "orders_by_final": {
+      "ADS": 146
+    },
+    "orders_by_provenance": {
+      "Auto:Employee Default (Tín Phát)": 146
+    }
+  },
+  "lines_digest": "sha256:5bf66af26b178c67df970186f9c33fbe3f794f387b449de5ee97e76376550584",
+  "money": {
+    "delivery_cost_total": [
+      "11670000",
+      17
+    ],
+    "discount_total": [
+      "400000",
+      0
+    ],
+    "erp_profit_total": [
+      "95956942",
+      0
+    ],
+    "quantity_total": [
+      "210",
+      0
+    ],
+    "sales_normalized": [
+      "1924872000",
+      0
+    ],
+    "sales_raw_gross": [
+      "1925272000",
+      0
+    ]
+  },
+  "order_graph": {
+    "BH69064": [
+      19
+    ],
+    "BH69937": [
+      75
+    ],
+    "BH70068": [
+      6,
+      7
+    ],
+    "BH70097": [
+      29,
+      30,
+      31
+    ],
+    "BH70118": [
+      8
+    ],
+    "BH70139": [
+      9
+    ],
+    "BH70147": [
+      10
+    ],
+    "BH70166": [
+      11
+    ],
+    "BH70174": [
+      12
+    ],
+    "BH70177": [
+      13
+    ],
+    "BH70195": [
+      14
+    ],
+    "BH70216": [
+      15
+    ],
+    "BH70226": [
+      46,
+      47
+    ],
+    "BH70241": [
+      16
+    ],
+    "BH70248": [
+      17
+    ],
+    "BH70255": [
+      18
+    ],
+    "BH70275": [
+      51
+    ],
+    "BH70293": [
+      20,
+      21
+    ],
+    "BH70304": [
+      22
+    ],
+    "BH70306": [
+      52,
+      53
+    ],
+    "BH70310": [
+      23
+    ],
+    "BH70311": [
+      24,
+      25
+    ],
+    "BH70333": [
+      54
+    ],
+    "BH70363": [
+      26
+    ],
+    "BH70382": [
+      32
+    ],
+    "BH70387": [
+      27
+    ],
+    "BH70402": [
+      33
+    ],
+    "BH70404": [
+      28
+    ],
+    "BH70405": [
+      34
+    ],
+    "BH70428": [
+      48
+    ],
+    "BH70431": [
+      40
+    ],
+    "BH70437": [
+      35
+    ],
+    "BH70454": [
+      55
+    ],
+    "BH70455": [
+      36
+    ],
+    "BH70467": [
+      37
+    ],
+    "BH70472": [
+      38
+    ],
+    "BH70475": [
+      49
+    ],
+    "BH70476": [
+      39
+    ],
+    "BH70497": [
+      41,
+      42
+    ],
+    "BH70501": [
+      43
+    ],
+    "BH70509": [
+      44
+    ],
+    "BH70511": [
+      45
+    ],
+    "BH70524": [
+      82
+    ],
+    "BH70525": [
+      56
+    ],
+    "BH70531": [
+      57,
+      58
+    ],
+    "BH70533": [
+      50
+    ],
+    "BH70537": [
+      59,
+      60,
+      61
+    ],
+    "BH70558": [
+      151
+    ],
+    "BH70568": [
+      62,
+      63
+    ],
+    "BH70584": [
+      113
+    ],
+    "BH70595": [
+      64
+    ],
+    "BH70596": [
+      65
+    ],
+    "BH70597": [
+      76
+    ],
+    "BH70603": [
+      66
+    ],
+    "BH70620": [
+      90
+    ],
+    "BH70621": [
+      91
+    ],
+    "BH70622": [
+      92,
+      93
+    ],
+    "BH70623": [
+      67
+    ],
+    "BH70625": [
+      68
+    ],
+    "BH70631": [
+      69
+    ],
+    "BH70639": [
+      70
+    ],
+    "BH70646": [
+      71,
+      72
+    ],
+    "BH70650": [
+      73
+    ],
+    "BH70660": [
+      74
+    ],
+    "BH70661": [
+      77,
+      78
+    ],
+    "BH70692": [
+      79,
+      80
+    ],
+    "BH70693": [
+      81
+    ],
+    "BH70694": [
+      83
+    ],
+    "BH70708": [
+      84,
+      85
+    ],
+    "BH70713": [
+      86
+    ],
+    "BH70729": [
+      87
+    ],
+    "BH70730": [
+      88,
+      89
+    ],
+    "BH70754": [
+      94
+    ],
+    "BH70756": [
+      95
+    ],
+    "BH70760": [
+      96
+    ],
+    "BH70771": [
+      100
+    ],
+    "BH70782": [
+      101
+    ],
+    "BH70790": [
+      97
+    ],
+    "BH70791": [
+      98
+    ],
+    "BH70792": [
+      99
+    ],
+    "BH70795": [
+      102
+    ],
+    "BH70801": [
+      105
+    ],
+    "BH70802": [
+      103
+    ],
+    "BH70809": [
+      106,
+      107,
+      108
+    ],
+    "BH70811": [
+      104
+    ],
+    "BH70840": [
+      109
+    ],
+    "BH70842": [
+      110
+    ],
+    "BH70856": [
+      123
+    ],
+    "BH70861": [
+      114
+    ],
+    "BH70867": [
+      111,
+      112
+    ],
+    "BH70882": [
+      115
+    ],
+    "BH70891": [
+      116,
+      117
+    ],
+    "BH70899": [
+      118
+    ],
+    "BH70900": [
+      119
+    ],
+    "BH70902": [
+      130
+    ],
+    "BH70907": [
+      120
+    ],
+    "BH70925": [
+      121
+    ],
+    "BH70958": [
+      122
+    ],
+    "BH70976": [
+      124
+    ],
+    "BH70986": [
+      125
+    ],
+    "BH70988": [
+      126,
+      127
+    ],
+    "BH70997": [
+      164,
+      165
+    ],
+    "BH70999": [
+      128
+    ],
+    "BH71001": [
+      172,
+      173
+    ],
+    "BH71006": [
+      129
+    ],
+    "BH71024": [
+      131
+    ],
+    "BH71025": [
+      132
+    ],
+    "BH71029": [
+      134
+    ],
+    "BH71053": [
+      133
+    ],
+    "BH71058": [
+      135
+    ],
+    "BH71060": [
+      136
+    ],
+    "BH71067": [
+      138
+    ],
+    "BH71071": [
+      137
+    ],
+    "BH71075": [
+      139
+    ],
+    "BH71150": [
+      140
+    ],
+    "BH71171": [
+      141
+    ],
+    "BH71172": [
+      142,
+      143
+    ],
+    "BH71198": [
+      144
+    ],
+    "BH71200": [
+      150
+    ],
+    "BH71219": [
+      145
+    ],
+    "BH71223": [
+      146
+    ],
+    "BH71226": [
+      147
+    ],
+    "BH71229": [
+      148
+    ],
+    "BH71236": [
+      149
+    ],
+    "BH71256": [
+      174
+    ],
+    "BH71281": [
+      152
+    ],
+    "BH71282": [
+      153
+    ],
+    "BH71290": [
+      154
+    ],
+    "BH71301": [
+      155
+    ],
+    "BH71302": [
+      156,
+      157
+    ],
+    "BH71308": [
+      158
+    ],
+    "BH71309": [
+      159
+    ],
+    "BH71311": [
+      175
+    ],
+    "BH71322": [
+      160,
+      161
+    ],
+    "BH71323": [
+      162
+    ],
+    "BH71324": [
+      163
+    ],
+    "BH71333": [
+      166
+    ],
+    "BH71337": [
+      176
+    ],
+    "BH71353": [
+      167,
+      168
+    ],
+    "BH71360": [
+      169,
+      170
+    ],
+    "BH71362": [
+      177,
+      178
+    ],
+    "BH71366": [
+      179,
+      180
+    ],
+    "BH71367": [
+      181,
+      182
+    ],
+    "BH71386": [
+      183,
+      184
+    ],
+    "BH71405": [
+      185
+    ],
+    "BTL00347": [
+      171
+    ]
+  },
+  "orders_detail": [
+    {
+      "date": "2026-06-04",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH69064",
+      "quantity": [
+        "15",
+        0
+      ],
+      "sales_normalized": [
+        "125250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH69937",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70068",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "4692000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-06",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 3,
+      "order_id": "BH70097",
+      "quantity": [
+        "3",
+        0
+      ],
+      "sales_normalized": [
+        "32750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70118",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70139",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9550000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70147",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "3850000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70166",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "10400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70174",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "0",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-01",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70177",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "16500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-02",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70195",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-02",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70216",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "1000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-09",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70226",
+      "quantity": [
+        "3",
+        0
+      ],
+      "sales_normalized": [
+        "19250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-02",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70241",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "4250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-03",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70248",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-03",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70255",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "3800000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70275",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "15950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-04",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70293",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "7900000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-04",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70304",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70306",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "17250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-04",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70310",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-04",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70311",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "11400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70333",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-05",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70363",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "23300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-06",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70382",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "27100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-05",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70387",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-06",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70402",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-05",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70404",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-06",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70405",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "24150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-09",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70428",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-08",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70431",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "10400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-06",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70437",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "22400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70454",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "24600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-07",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70455",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-07",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70467",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "4200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-07",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70472",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "12700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-09",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70475",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "34300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-07",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70476",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "12700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-08",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70497",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "29600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-08",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70501",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-08",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70509",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6450000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-08",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70511",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "1400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70524",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "16000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70525",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "15150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-10",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70531",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "20500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-09",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70533",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 3,
+      "order_id": "BH70537",
+      "quantity": [
+        "3",
+        0
+      ],
+      "sales_normalized": [
+        "101000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70558",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70568",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "25400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70584",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "52200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70595",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "14300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70596",
+      "quantity": [
+        "4",
+        0
+      ],
+      "sales_normalized": [
+        "0",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70597",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-11",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70603",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "16700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70620",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7850000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70621",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70622",
+      "quantity": [
+        "3",
+        0
+      ],
+      "sales_normalized": [
+        "29350000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70623",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70625",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "4750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70631",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "16100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70639",
+      "quantity": [
+        "3",
+        0
+      ],
+      "sales_normalized": [
+        "22200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70646",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "14950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70650",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-12",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70660",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11050000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70661",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "26200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70692",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "5050000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-13",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70693",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "10550000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70694",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70708",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "18500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70713",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "27100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70729",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11050000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-14",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70730",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "15900000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70754",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "68800000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70756",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2270000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70760",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70771",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9450000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70782",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2800000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70790",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "12150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70791",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-15",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70792",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70795",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8900000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70801",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "24500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70802",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "13600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 3,
+      "order_id": "BH70809",
+      "quantity": [
+        "4",
+        0
+      ],
+      "sales_normalized": [
+        "26480000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-16",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70811",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "1200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70840",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70842",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "4750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70856",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70861",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11900000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-17",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70867",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "8300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70882",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "6800000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70891",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "4250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70899",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "3950000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-18",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70900",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-21",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70902",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-19",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70907",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-19",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70925",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-19",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70958",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70976",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "12400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70986",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "14350000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70988",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "280000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-29",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH70997",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "41750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH70999",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "22300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71001",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "10200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-20",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71006",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-21",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71024",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-21",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71025",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "17700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-22",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71029",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-21",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71053",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-22",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71058",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8650000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-22",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71060",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "15150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-23",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71067",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-22",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71071",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "11600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-23",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71075",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "17150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71150",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "3500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71171",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "13300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71172",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "5550000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-25",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71198",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-27",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71200",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "13100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71219",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "7200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71223",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "28700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71226",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "8500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71229",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "3150000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-26",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71236",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "35400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71256",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "1700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71281",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "22700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71282",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "9000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71290",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "10200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71301",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71302",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "17600000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71308",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5450000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71309",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71311",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "6300000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71322",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "6700000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71323",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "1200000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-28",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71324",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "9850000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-29",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71333",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "4400000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71337",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "2500000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-29",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71353",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "14850000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-29",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71360",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "3550000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71362",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "12250000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71366",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71367",
+      "quantity": [
+        "4",
+        0
+      ],
+      "sales_normalized": [
+        "18100000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 2,
+      "order_id": "BH71386",
+      "quantity": [
+        "2",
+        0
+      ],
+      "sales_normalized": [
+        "8750000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-30",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BH71405",
+      "quantity": [
+        "1",
+        0
+      ],
+      "sales_normalized": [
+        "5000000",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    },
+    {
+      "date": "2026-06-29",
+      "employee_group": null,
+      "employee_normalized": "Tín Phát",
+      "lead_source_final": "ADS",
+      "line_count": 1,
+      "order_id": "BTL00347",
+      "quantity": [
+        "0",
+        0
+      ],
+      "sales_normalized": [
+        "0",
+        0
+      ],
+      "schemes": [
+        "ADS_7_5@0.075"
+      ]
+    }
+  ],
+  "period": {
+    "date_max": "2026-06-30",
+    "date_min": "2026-06-01",
+    "label": "06.2026"
+  },
+  "pricing": {
+    "accounting_profit_pending": 180,
+    "price_source_distribution": {
+      "Pending": 180
+    }
+  },
+  "review_queue": {
+    "by_category": {
+      "EmployeeMapping": 7,
+      "Missing.PurchasePrice": 1,
+      "Suspicious": 5,
+      "Suspicious.ERP": 17
+    },
+    "by_scope": {
+      "batch": 8,
+      "row": 22
+    },
+    "by_severity": {
+      "INFO": 19,
+      "WARNING": 11
+    },
+    "items": [
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "EmployeeMapping",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "WARNING",
+        "source_rows": []
+      },
+      {
+        "category": "Missing.PurchasePrice",
+        "order_id": null,
+        "scope": "batch",
+        "severity": "INFO",
+        "source_rows": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          122,
+          123,
+          124,
+          125,
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167,
+          168,
+          169,
+          170,
+          171,
+          172,
+          173,
+          174,
+          175,
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185
+        ]
+      },
+      {
+        "category": "Suspicious",
+        "order_id": "BH70174",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          12
+        ]
+      },
+      {
+        "category": "Suspicious",
+        "order_id": "BH70596",
+        "scope": "row",
+        "severity": "WARNING",
+        "source_rows": [
+          65
+        ]
+      },
+      {
+        "category": "Suspicious",
+        "order_id": "BH70988",
+        "scope": "row",
+        "severity": "WARNING",
+        "source_rows": [
+          126
+        ]
+      },
+      {
+        "category": "Suspicious",
+        "order_id": "BTL00347",
+        "scope": "row",
+        "severity": "WARNING",
+        "source_rows": [
+          171
+        ]
+      },
+      {
+        "category": "Suspicious",
+        "order_id": "BTL00347",
+        "scope": "row",
+        "severity": "WARNING",
+        "source_rows": [
+          171
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70097",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          30
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70241",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          16
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70405",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          34
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70431",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          40
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70475",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          49
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70531",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          57
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70595",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          64
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70596",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          65
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70754",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          94
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70986",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          125
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70988",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          126
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70997",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          164
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH70997",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          165
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH71029",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          134
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH71198",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          144
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH71236",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          149
+        ]
+      },
+      {
+        "category": "Suspicious.ERP",
+        "order_id": "BH71360",
+        "scope": "row",
+        "severity": "INFO",
+        "source_rows": [
+          169
+        ]
+      }
+    ],
+    "total_items": 30
+  },
+  "source_footer": {
+    "discount": 400000,
+    "profit": 95956942,
+    "quantity": 210,
+    "sales": 1925272000
+  }
+}
