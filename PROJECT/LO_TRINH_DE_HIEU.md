@@ -137,21 +137,68 @@ trong khi đúng 3 nhóm chủ dự án nêu chỉ có **34** — dôi ra `Phụ
 (`TASK-103` — phân loại dòng hàng) hoặc chờ chủ dự án cấp một danh sách liệt kê
 rõ ràng.
 
-**Việc còn lại cần chủ dự án — năm câu hỏi về RTDB**, thay cho việc cấp file
-(file vẫn có thể cần, nhưng chỉ để nạp dữ liệu ban đầu hoặc làm dữ liệu mẫu
-kiểm thử, không còn chắc là nguồn chính):
+**Cùng ngày đó, một phiên tiếp theo (DEC-147) đã mở chính kho mã của hệ thống
+giá ra đọc, và bốn trong năm câu hỏi trên nay đã có câu trả lời — không còn
+phải đoán.**
 
-1. Cấu trúc dữ liệu thật trong RTDB — đường dẫn, các trường, kiểu dữ liệu.
-2. RTDB ghi đè giá cũ mỗi khi cập nhật, hay giữ lại toàn bộ lịch sử?
-3. RTDB dùng gì để định danh một mặt hàng — tên tự do giống file bán hàng, hay
-   đã có một mã hàng chuẩn hoá riêng?
-4. Ai/hệ thống nào ghi giá vào RTDB, có ghi lại nguồn không?
-5. Nếu RTDB không giữ lịch sử: chủ dự án có đồng ý để công cụ tự "chụp" lại
-   giá theo định kỳ (kèm ngày) hay không, và bao lâu chụp một lần?
+**Tin tốt: RTDB CÓ lưu lịch sử giá.** Có hẳn một nhánh riêng ghi lại từng lần
+đổi giá kèm ngày (`phist`), và nó chỉ ghi khi giá thật sự đổi nên rất gọn. Hỏi
+"ngày 10/01 giá là bao nhiêu" thì hệ thống trả lời được: lấy mốc gần nhất
+trước hoặc bằng ngày đó. Nỗi lo lớn nhất ở đoạn trên — "chỉ có giá hiện tại" —
+**không xảy ra**.
 
-Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập) vẫn
-đúng làm **định dạng dữ liệu** — chỉ chưa rõ dữ liệu đó lấy trực tiếp từ RTDB
-hay công cụ tự tạo ra bằng cách chụp RTDB định kỳ.
+**Tin phải nói thẳng: loại giá có lịch sử lại không phải loại giá công cụ
+cần.** Hệ thống giá đang giữ ba loại giá khác nhau về bản chất:
+
+- **giá nhà cung cấp báo trong ngày** — đây là loại **có** lịch sử đầy đủ.
+  Nhưng nó là *báo giá*, không phải số tiền công ty đã thật sự trả cho lô hàng.
+  Một mã có thể có năm nhà cung cấp cùng báo giá trong cùng một ngày, và không
+  chỗ nào ghi đơn hàng cụ thể đã mua của ai;
+- **giá thực nhập trung bình** của hàng đang nằm trong kho — gần nghĩa kế toán
+  nhất, nhưng **không có lịch sử**: chỉ giữ đúng hai bản (hôm qua và hôm nay),
+  bản mới ghi đè bản cũ;
+- **giá lô** — tiền thật của lần nhập gần nhất, nhân viên gõ tay, cũng **không
+  có lịch sử**.
+
+Nói gọn: đây **không** phải lỗi kiến trúc như đã lo, mà là **chọn nhầm nguồn
+nếu vội**. Lấy loại đầu tiên chỉ vì nó dễ lấy và có sẵn lịch sử là đúng cái bẫy
+mà quy tắc "không được thấy một cột tên là *giá* rồi mặc định đó là giá nhập"
+tồn tại để chặn.
+
+Ba điều nữa tìm ra trong lượt đọc mã, đều ảnh hưởng trực tiếp tới con số:
+
+- **Hệ thống giá lưu tiền theo đơn vị NGHÌN đồng** (5.200 nghĩa là 5,2 triệu),
+  còn công cụ báo cáo lưu theo đồng nguyên. Sai chỗ này là sai đúng 1.000 lần,
+  và sai *đều* nên nhìn bảng không phát hiện ra.
+- **Số 0 trong lịch sử giá nghĩa là "hết hàng", không phải "giá bằng 0".** Đọc
+  nhầm là biến một mã hết hàng thành lãi bằng đúng giá bán.
+- **Lịch sử giá sửa được.** Có bốn thao tác bình thường trong app (xoá mốc từ
+  một ngày, đổi mã hàng, gộp hai mã, khôi phục bảng cũ) làm lịch sử thay đổi
+  hoặc lệch đi. Nghĩa là in lại cùng một báo cáo hai lần vẫn có thể ra hai số —
+  đúng điều công ty đã chốt là không được phép. Vì vậy công cụ phải **tự chụp
+  và đóng băng** dữ liệu đã dùng, chứ không đọc thẳng.
+
+**Hướng đi đề xuất:** thêm một bước "chụp giá định kỳ" ghi lại thành một bản
+lưu **không sửa được**, rồi công cụ báo cáo đọc bản lưu đó theo đúng định dạng
+4 cột đã chốt. Cách này giữ hai hệ thống tách rời, không hệ nào phụ thuộc mã
+nguồn của hệ nào.
+
+**Việc còn lại cần chủ dự án — năm câu hỏi mới** (thay năm câu cũ, đã trả lời
+được 4/5 bằng chính mã nguồn):
+
+1. **Giá nhập kế toán là loại nào trong ba loại trên?** Đây là câu hỏi chính,
+   và không ai ngoài chủ dự án trả lời được.
+2. Nếu chọn "giá nhà cung cấp báo": một mã có nhiều nhà cung cấp cùng ngày thì
+   lấy của ai — rẻ nhất, hay nhà cung cấp đã thật sự mua?
+3. Chấp nhận độ chính xác **theo ngày** không? (giá đổi nhiều lần trong ngày
+   thì chỉ giữ lần cuối trong ngày)
+4. Đồng ý làm bước "chụp giá đóng băng" không, và bao lâu chụp một lần?
+5. Dữ liệu lịch sử hiện có từ ngày nào? — cái này phải mở dữ liệu thật ra xem,
+   đọc mã không trả lời được.
+
+Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập)
+**vẫn đúng, và nay còn chắc chắn hơn**: nó chính là định dạng của bản chụp
+đóng băng nói trên.
 
 *(Ba câu hỏi gốc và bảng 4 cột giữ lại bên dưới làm bản ghi lịch sử — nội dung
 câu trả lời vẫn đúng, chỉ thay đổi ở chỗ dữ liệu lấy từ đâu.)*
@@ -622,7 +669,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11b. TASK-105B — Đọc giá nhập | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Tạm dừng** (DEC-146) — mới biết nguồn giá thật là RTDB chứ không phải file; **chờ chủ dự án trả lời 5 câu hỏi về RTDB** |
+| ⬜ | 11b. TASK-105B / TASK-105C — Đọc giá nhập | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Đã mở kho mã hệ thống giá ra đọc xong** (DEC-147). RTDB **có** lưu lịch sử ⇒ hết lo "không tính lại được quá khứ". Nhưng loại giá có lịch sử là *giá nhà cung cấp báo*, không phải *giá thực nhập* ⇒ **chờ chủ dự án chốt: giá nhập kế toán là loại nào** (5 câu hỏi mới ở phần trên) |
 | ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |

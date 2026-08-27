@@ -366,12 +366,28 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 
 ```
 SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
-IMPLEMENTATION                = TẠM DỪNG  (DEC-146, 2026-08-27)
-chờ  : 5 câu hỏi về schema Firebase RTDB — path, overwrite/history, khoá sản
-       phẩm, provenance ghi giá, đồng ý xây tầng capture snapshot hay không
+IMPLEMENTATION                = READY về kỹ thuật (DEC-147 gỡ "TẠM DỪNG"),
+                                BLOCKED_BY [ chủ dự án chốt trường nào là
+                                AccountingPurchasePrice ]
+chờ  : 5 câu hỏi MỚI (DEC-147) — trường giá nào; NCC nào khi một mã nhiều
+       NCC cùng ngày; chấp nhận độ mịn theo ngày; đồng ý xây capture bất
+       biến và tần suất; dữ liệu lịch sử có từ ngày nào
 ```
 
-**Architecture correction (DEC-146).** Owner sửa tiền đề: Price Master không
+**Audit chéo repo (DEC-147, 2026-08-27) — đã trả lời 4/5 câu hỏi cũ.** Đã
+audit `hoangvinhkta-creator/Tracking` @ `d177363a`. RTDB chạy chế độ **HYBRID**
+(ảnh chụp `board` + lịch sử `phist/<mã>/<NCC>/<YYYY-MM-DD>`) ⇒ điều kiện
+`BLOCKING ARCHITECTURE GAP` của `DEC-146` **KHÔNG kích hoạt**. Nhưng phát hiện
+**SOURCE MISMATCH**: loại giá có lịch sử là *giá NCC báo*, còn *giá thực nhập*
+(`inv.<slot>.gia`/`.lo`) không có lịch sử. Kiến trúc khuyến nghị: OPTION C
+(capture bất biến) giao hàng bằng định dạng OPTION D (file 4 cột) ⇒
+`FilePriceProvider` **được đề cử trở lại làm production path**.
+`RTDBPriceProvider` = `NEEDS_SCHEMA_CHANGE`, không được đề cử. Chi tiết:
+`DEC-147`, `docs/sessions/S024-task-105c-rtdb-price-source-audit.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VI.
+
+**Architecture correction (DEC-146) — bối cảnh, đã được `DEC-147` cập nhật.**
+Owner sửa tiền đề: Price Master không
 phải file tĩnh — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
 tục. Repo **không có** integration Firebase nào (đã quét toàn bộ, kể cả
 `pyproject.toml` dependencies và đặc tả gốc) — không có gì để audit từ phía
@@ -583,3 +599,60 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110` `EXHAUSTED_PRE_V4.1`
   remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
   `config/`, `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-147` — Cross-Repo RTDB Price Source Audit (`TASK-105C`
+  discovery, phiên `S024`). Đã audit repository vận hành hệ thống giá
+  (`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`)
+  và đối chiếu với contract `PriceProvider`. Hai repo giữ **độc lập** — không
+  subtree, không submodule, không copy source, không merge history; repo giá
+  **không bị sửa một byte nào**.
+
+  **Bốn trong năm câu hỏi của `DEC-146` §49 đã đóng bằng bằng chứng code (E1).**
+  RTDB chạy chế độ **HYBRID**: `board/<mã>/p/<NCC>` là ảnh chụp hiện hành,
+  `phist/<mã>/<NCC>/<YYYY-MM-DD>` là lịch sử append theo ngày, chỉ ghi khi giá
+  đổi. ⇒ Điều kiện **`BLOCKING ARCHITECTURE GAP` của `DEC-146` §3 KHÔNG kích
+  hoạt**.
+
+  **Nhưng kết luận thật là `SOURCE MISMATCH`, không nằm trong hai nhánh
+  `DEC-146` dự trù:** loại giá *có* lịch sử là **giá NCC báo** (báo giá nhà
+  cung cấp trong ngày), còn loại giá Reports *cần* — **giá thực nhập**
+  (`inv.<slot>.gia` / `.lo`) — **không có lịch sử** (hai ô cuốn chiếu
+  `cu`/`moi`, ghi bằng `set()` đè cả nhánh; `backup/` không chứa `inv`).
+
+  Ba phát hiện nữa ảnh hưởng trực tiếp tới con số: RTDB lưu tiền theo **nghìn
+  đồng** (va `ADR-103` — phép ×1.000 phải nằm ở biên nhập, không nằm trong
+  `app/modules/pricing/`); `phist == 0` là **sentinel hết hàng**, phải map
+  thành gap → `Pending`, tuyệt đối không thành `purchase_price = 0`
+  (`DEC-145` §5); và **lịch sử sửa được** — bốn đường xoá/dời/mồ côi/lệch đang
+  chạy trong app ⇒ chỉ một bản ghi **bất biến, đóng băng** mới thoả `DEC-121`.
+
+  **Kiến trúc khuyến nghị: OPTION C (capture bất biến) giao hàng bằng định
+  dạng OPTION D (file 4 cột `DEC-145` §4).** Hệ quả:
+  `FilePriceProvider` **được đề cử trở lại làm production path** — đảo lại
+  nghi vấn của `DEC-146` §6, không huỷ gì của `DEC-145`;
+  `RTDBPriceProvider` = **`NEEDS_SCHEMA_CHANGE`, không được đề cử** (đọc thẳng
+  va `ADR-101` ranh giới mạng + `ADR-103` §2 đơn vị, và nguồn thì mutable).
+
+  Khoá sản phẩm: RTDB **đã có** mã ổn định (`normCode` + `alias`), nhưng
+  Reports dùng `product_raw` = câu tên hàng trên chứng từ ⇒ **cần mapping**.
+  Repo giá đã **thử** rút mã từ tên hàng bằng máy (`extractCode()`) và **bỏ
+  hẳn** vì đoán sai trên tài sản thật — tiền lệ production ủng hộ đúng lệnh
+  cấm fuzzy matching của `OD-105B-01` §B. `DEC-145` §2 **không đổi**.
+
+  Security: **không** có BLOCKING finding — không credential nào committed,
+  service account nằm ở Cloudflare Secret, rules gốc `.read/.write = false`,
+  không nhánh nào cho `auth == null`, App Check Enforce từ 13/08/2026. Ba mục
+  HARDENING thuộc repo giá (nhật ký `hist` tối đa 100 dòng và mọi nhân viên
+  ghi đè được; `phist` sửa được bởi mọi tài khoản `edit`; Reports sẽ cần một
+  mặt phẳng quản lý secret mới nếu đọc thẳng RTDB) — **ngoài phạm vi** sửa của
+  phiên này.
+
+  `TASK-105B-Q3` **không đổi**, vẫn `BLOCKED` bởi `TASK-103`/enumeration —
+  hoàn toàn độc lập với nguồn giá, đúng như `DEC-146` §7. Audit evidence 30
+  raw label **không mất**.
+
+  Đây là **audit, không phải repair cycle** — ngân sách mọi lineage không đổi:
+  `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110` `EXHAUSTED_PRE_V4.1`
+  remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
+  `config/`, `tests/`, Golden fixture/expected **không đổi một byte**. Repo
+  giá: **0 file thay đổi**.

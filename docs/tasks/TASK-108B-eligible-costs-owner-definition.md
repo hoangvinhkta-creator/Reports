@@ -1679,3 +1679,262 @@ TASK-108B
 Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
 fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`, `TASK-109`,
 `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent Review.
+
+---
+
+# PHẦN VI — KẾT QUẢ AUDIT CHÉO REPO (append 2026-08-27)
+
+> Phần I–V giữ nguyên. Authority: `DEC-147`. Phiên:
+> `docs/sessions/S024-task-105c-rtdb-price-source-audit.md`.
+> Phần này **trả lời** §49 mục 1–4 bằng bằng chứng code và **thay** verdict
+> §50. Contract kỹ thuật §38 (schema 4 cột, 11 luật validation,
+> normalization) **vẫn đúng nguyên vẹn** — và nay còn chắc chắn hơn: nó chính
+> là định dạng của bản chụp đóng băng được khuyến nghị ở §57.
+
+## 51. Repo đã audit
+
+```
+Repo A  Reports        cab8aa0026e2342ff8bbd42c272813088110c315
+Repo B  Tracking       d177363a390d36fe793e0c1c44a6fb6743ca45f5   (= origin/main)
+        hoangvinhkta-creator/Tracking — Cloudflare Worker + static app,
+        Firebase RTDB project `tinphattracking`
+```
+
+Ranh giới giữ nguyên: không subtree, không submodule, không copy source,
+không merge history. **Repo B không bị sửa** — 0 file.
+
+## 52. §49 mục 1 — Schema RTDB thật
+
+SDK: trình duyệt dùng **Firebase JS SDK 10.12.2 compat**
+(`public/index.html:11-14`); Cloudflare Worker **không dùng SDK** — REST
+`<path>.json` + Bearer token từ JWT RS256 ký bằng WebCrypto
+(`src/firebase.js:47-93,114-160`). Không `firebase-admin`.
+
+Endpoint: `https://tinphattracking-default-rtdb.asia-southeast1.firebasedatabase.app`
+(hằng `DB_MAC_DINH`, override bằng `env.FB_DB_URL`).
+
+13 nhánh gốc (`firebase-database.rules.json`): `state hist profiles devices
+dnhap board meta alias dropped backup phist inv mkt`. Ba nhánh mang giá:
+
+```
+board/<MÃ> = {
+  name, cat, link, alt, o, q, qd,
+  p:  { <NCC>: { v giá, d ngày, s "ok"|"gone", pv giá trước, f ngày đầu,
+                 gd ngày hết, m cờ sửa tay } },
+  tp: { ton, note, chot, kho, lapdat, bien, dx(chết), hashtag, pk },
+  _c: { min, dx, k, bt }          // dẫn xuất, Worker tính
+}
+
+phist/<MÃ>/<NCC>/<YYYY-MM-DD> = <số>      // 0 = HẾT HÀNG, không phải giá
+
+inv = { map: { "N_<normCode(tên hàng)[:80]>": "<MÃ>" | "-" },
+        cu:  <thẻ ngày cũ>,               // CHỈ HAI Ô, cuốn chiếu
+        moi: <thẻ ngày mới>,
+        pend: [...] }
+  thẻ = { d,f,sh,cn,cv, rows:[{c tên hàng, q số lượng}],
+          gia:{}    giá THỰC NHẬP trung bình (bình quân gia quyền)
+          lo:{}     giá lô — tiền thật của phần hàng tăng hôm nay
+          cong:{}   giá nhập CÔNG KHAI — bản phái sinh, đẩy sang board/tp/ton
+          tay:{}, congTay:{}, minSnap:{} }
+```
+
+Bằng chứng: `public/index.html:3407-3409` (board), `:6162-6163` +
+`BAO-MAT-TRIEN-KHAI.md:368-383` (phist), `:6674-6696` + `:6705-6712` (inv).
+
+## 53. §49 mục 2 — Overwrite hay lịch sử: **HYBRID (C)**
+
+```
+board  : ảnh chụp HIỆN HÀNH, ghi đè mỗi lượt cập nhật
+phist  : LỊCH SỬ, append một lá mỗi (mã, NCC, ngày), CHỈ ghi khi giá ĐỔI
+inv    : KHÔNG có lịch sử — set() đè cả nhánh, chỉ hai ô cuốn chiếu
+backup : ảnh chụp `board` + `meta`, giữ 10 bản gần nhất; KHÔNG chứa `inv`
+```
+
+Ba đường ghi `phist`: `public/index.html:5171` + `:5192` (dán giá hằng ngày,
+`:5192` là mốc `0` = hết hàng), `:6415` (sửa tay một ô), `:8416` (nhập file
+Excel — mốc khởi đầu). Hàm ghi `savePhist()` `:4645` dùng
+`db.ref("phist").update(...)`, append theo đường dẫn lá.
+
+⇒ **Điều kiện `BLOCKING ARCHITECTURE GAP` ở §45 KHÔNG kích hoạt.**
+
+## 54. Historical Replay Test — YES có điều kiện, cho GIÁ NCC
+
+Bài kiểm (8.000.000 ngày 01/01 → 8.200.000 ngày 15/01, hỏi lại tháng sau):
+
+```
+phist/<mã>/<NCC>/2026-01-01 = 8000     (đơn vị nghìn)
+phist/<mã>/<NCC>/2026-01-15 = 8200
+lookup(d) = giá tại mốc <ngày> LỚN NHẤT còn ≤ d
+  d = 2026-01-10 → 8000   ✓
+  d = 2026-01-20 → 8200   ✓
+```
+
+Ngữ nghĩa bậc thang này là **tài liệu chính thức của repo B**, không phải suy
+diễn: *"Ngày để trống trong bảng nghĩa là NCC đó giữ nguyên giá của mốc gần
+nhất phía trên"* (`BAO-MAT-TRIEN-KHAI.md:379-381`). Nó khớp **chính xác**
+khoảng hiệu lực đóng của §38/Q1: mỗi mốc = `effective_from`, `effective_to` =
+ngày trước mốc kế tiếp.
+
+Năm điều kiện bắt buộc, không được bỏ:
+
+| | Điều kiện | Hệ quả cho Reports |
+|---|---|---|
+| R1 | Độ mịn chỉ tới **NGÀY**; hai lần đổi trong ngày ghi đè cùng một lá | Mất biến động trong ngày — chủ dự án phải chấp nhận tường minh |
+| R2 | `0` = sentinel **HẾT HÀNG** (`public/index.html:5192`) | **BẮT BUỘC** map `0` → gap → `lookup = None` → `Pending`. Không bao giờ thành `purchase_price = 0` (§38/Q1 §5) |
+| R3 | Không có mốc trước ngày bật tính năng (bản dựng `b59`) | `sale_date` trước đó → `Pending`. Ngày bắt đầu thật **NOT_TESTED** |
+| R4 | **Lịch sử SỬA ĐƯỢC** — 4 đường: `xoaPhistSau()` `:4870`; đổi mã `:4570-4573`; gộp mã `mergePaths()` `:4301` (bỏ quên `phist` ⇒ mồ côi); khôi phục bảng `doRestore()` `:4755` (không đụng `phist` ⇒ lệch) | `DEC-121` đòi báo cáo đã phát hành không đổi số ⇒ Reports **phải đóng băng** dữ liệu đã dùng |
+| R5 | Không API/export nào đưa `phist` ra ngoài; `/api/board.csv` chỉ có ảnh chụp hiện hành, không ngày (`src/index.js:403-470`) | Cần một đường lấy dữ liệu mới |
+
+**Và cho `AccountingPurchasePrice`: NO** — trường mang nghĩa đó không có lịch
+sử. Xem §55.
+
+## 55. SOURCE MISMATCH — kết luận trọng yếu nhất
+
+| Trường | Nghĩa thật (chú thích trong repo B) | Lịch sử |
+|---|---|---|
+| `phist` / `board/<mã>/p/<NCC>/v` | **giá NCC BÁO** trong ngày | **CÓ** |
+| `inv.<slot>.gia` | **giá THỰC NHẬP trung bình** (bình quân gia quyền hàng trong kho) | KHÔNG |
+| `inv.<slot>.lo` | **giá LÔ** — tiền thật lần nhập, nhân viên gõ tay | KHÔNG |
+| `board/<mã>/tp/ton` | giá nhập **công khai** (phái sinh của `gia`) | KHÔNG |
+| `board/<mã>/tp/chot` | **giá chốt TP** — giá bán nội bộ | KHÔNG |
+| `_c.min` | rẻ nhất (NCC còn hàng ∪ giá kho) — repo B gọi *"giá vốn rẻ nhất bán ra được"* | dẫn xuất |
+| `_c.dx` | `chot + bien` — giá **BÁN** đề xuất | dẫn xuất |
+
+Repo B **thi hành** sự phân biệt này bằng code, không chỉ bằng chú thích:
+`invSyncPart()` (`public/index.html:7248-7250`) cố ý chỉ đẩy `cong` sang bảng
+giá và **giữ `gia` lại**.
+
+Giá NCC báo ≠ giá nhập kế toán, vì ba lý do cụ thể: một mã có **nhiều** NCC
+báo giá cùng ngày và RTDB **không** ghi đơn X mua của NCC nào; hàng bán hôm nay
+có thể là hàng đã nằm trong kho mua theo giá cũ
+(`price-engine/src/nghiepvu.js:603-606` xác nhận đây là tình huống thường
+xuyên); và báo giá chưa trừ chiết khấu/điều chỉnh thực tế của lô.
+
+⇒ **Lấy `phist` làm `AccountingPurchasePrice` mà không hỏi = đúng hành vi
+`OD-105B-01` §D cấm.**
+
+## 56. §49 mục 3 & 4 — Khoá sản phẩm và provenance
+
+**Khoá.** `normCode(mã) = toUpperCase() + replace(/[^A-Z0-9]/g,"")`
+(`public/index.html:8906`), rồi `aliasOf()` (`:3939`). `board/<MÃ>/name` giữ
+mã người đọc (`SJ-X198V-DG`), `alt` giữ các cách viết đã gộp.
+
+| RTDB KEY | REPORTS FIELD | MATCH DIRECTLY? | MAPPING REQUIRED? | COLLISION RISK? |
+|---|---|---|---|---|
+| `board/<MÃ>` | `product_raw` | **KHÔNG** | **CÓ** | **CÓ** — bỏ hết dấu phân cách ⇒ mã chỉ khác gạch nối gộp làm một |
+| `board/<MÃ>/name` | `product_raw` | KHÔNG | CÓ | Trung bình |
+| `inv.map` (`N_<normCode(tên hàng)>` → `<MÃ>`) | `product_raw` | GẦN | CÓ | Thấp — bảng do **người** duyệt |
+| `alias.map` | — | — | — | Bảng gom mã trùng, do người duyệt |
+
+RTDB **đã có** mã sản phẩm ổn định ⇒ bài toán `TASK-402` đã được giải một
+phần, **ở phía mã**. Khoảng cách còn lại đúng bằng "câu tên hàng → mã model".
+Và **repo B đã thử giải nó bằng máy rồi bỏ**: `extractCode()` (`:8908-8915`)
+bị khai tử với lý do ghi thẳng trong mã — *"Đó là ĐOÁN CHỮ... Số liệu này đi
+thẳng vào tài sản thật nên không được đoán: đã bỏ hẳn"* (`:6699-6703`) — thay
+bằng bảng `inv.map` người dùng chỉ đích danh từng dòng. Tiền lệ production
+này ủng hộ đúng lệnh cấm fuzzy/nearest/AI matching của §38/Q2. **Không phát
+minh lại `extractCode` trong Reports.**
+
+**Provenance.** `phist` lưu **đúng một số** — không actor, không source.
+`board/<mã>/p/<NCC>` có `d`/`f`/`gd`, `pv` (một bước), `m` (cờ sửa tay).
+Nhật ký `hist` là toàn cục, **tối đa 100 dòng**, ghi bằng
+`db.ref("hist").set()` đè cả nhánh (`:9609-9620`) — không đứng được làm bằng
+chứng kế toán. Mọi timestamp là **chuỗi do client tạo**:
+`todayStr() = toLocaleDateString("vi-VN")` → `D/M/YYYY` (`:8864`),
+`dayKey()` → `YYYY-MM-DD` (`:4640-4644`);
+`grep "ServerValue|serverTimestamp"` = **0 hit** ⇒ không có timestamp máy chủ ở
+bất kỳ đâu.
+
+## 57. Kiến trúc khuyến nghị — OPTION C giao hàng bằng định dạng OPTION D
+
+```
+repo B / RTDB ──(capture định kỳ, chọn ĐÚNG trường giá)──► price history
+                                                            BẤT BIẾN, 4 cột
+                                                                  │
+                                        FilePriceProvider (§38 giữ nguyên)
+                                                                  ▼
+                                                       Reports PriceProvider
+```
+
+Bảng đánh giá đủ 5 option (pros/cons/migration/integrity/replay/chi phí/tương
+thích `TASK-108B`) ở `DEC-147` §8. Tóm tắt lý do chọn C+D thay vì A (đọc thẳng
+`phist`):
+
+- Trường **có** lịch sử không phải trường cần; trường cần **không** có lịch sử.
+  Không option đọc-thẳng nào vượt qua sự thật đó.
+- `phist` sửa được (R4) ⇒ chỉ bản ghi bất biến mới thoả `DEC-121`.
+- C+D giữ nguyên `ADR-101` (không mạng trong `app/modules/`), `ADR-103` §2
+  (RTDB lưu theo **nghìn đồng**; phép ×1.000 phải ở biên nhập), và tính
+  deterministic của Golden.
+- Hai repo chỉ giao tiếp qua data contract — không bên nào import bên nào.
+
+**Đường nhanh có điều kiện:** nếu chủ dự án xác nhận *"giá nhập = giá NCC báo
+trong ngày"*, một job **D thuần** (đọc `phist` → xuất file 4 cột) đủ dùng
+ngay, **không sửa một dòng nào của repo B**.
+
+## 58. Security
+
+```
+credential committed      : KHÔNG
+service account           : Cloudflare Secret FB_SA_EMAIL/FB_SA_KEY
+database rules            : CÓ — gốc .read=false / .write=false
+public read/write         : KHÔNG — không nhánh nào cho auth == null
+App Check                 : Enforce, bật 13/08/2026
+BLOCKING SECURITY FINDING : KHÔNG CÓ
+```
+
+Khoá web Firebase trong `public/index.html:2457-2462` là **cấu hình công khai
+theo thiết kế** (repo B ghi rõ ở `:2464-2467`), không phải credential
+exposure. Không in giá trị secret nào ở đâu trong bộ tài liệu này.
+
+HARDENING (repo B, **ngoài phạm vi** sửa của Reports): `hist` cho mọi hồ sơ
+nhân viên quyền ghi đè cả nhánh; `phist` sửa/xoá được bởi mọi tài khoản
+`admin`/`bedit`/`edit`; đọc thẳng RTDB sẽ buộc Reports mở một mặt phẳng quản
+lý secret mới (hiện `pyproject.toml` không có SDK Google/Firebase nào).
+
+## 59. Verdict (thay §50)
+
+```
+FilePriceProvider   = KEEP, và ĐƯỢC ĐỀ CỬ làm production path
+                      (đảo lại nghi vấn §47/§50; §38 giữ nguyên 100%)
+
+RTDBPriceProvider   = NEEDS_SCHEMA_CHANGE, KHÔNG được đề cử
+
+TASK-105B           IMPLEMENTATION = READY về kỹ thuật (gỡ "TẠM DỪNG")
+                    BLOCKED_BY [ chủ dự án chốt trường AccountingPurchasePrice ]
+
+TASK-105C           DISCOVERY = COMPLETE
+                    IMPLEMENTATION = OWNER_DECISION_REQUIRED (§60)
+                    BLOCKING ARCHITECTURE GAP có điều kiện = KHÔNG kích hoạt
+
+TASK-105B-Q3        KHÔNG ĐỔI — vẫn BLOCKED_BY [TASK-103 / enumeration].
+                    Độc lập hoàn toàn với nguồn giá. Audit evidence 30 raw
+                    label KHÔNG mất.
+
+TASK-108B           BLOCKED_BY [ 1. chủ dự án chốt trường
+                    AccountingPurchasePrice; 2. tầng capture/export chưa tồn
+                    tại; 3. TASK-105B-Q3 ]
+                    — BỎ blocker cũ "chưa xác định kiến trúc RTDB"
+```
+
+## 60. Câu hỏi cần chủ dự án (thay §49)
+
+1. **`AccountingPurchasePrice` là trường nào?** — (a) giá NCC báo trong ngày
+   (`phist`, có lịch sử sẵn, nhưng là *báo giá*); (b) giá thực nhập trung bình
+   (`inv.<slot>.gia`, gần nghĩa kế toán nhất, **chưa có lịch sử**, đã làm tròn
+   ±10.000 VND tại nguồn); (c) giá lô (`inv.<slot>.lo`, đúng nghĩa nhất,
+   **chưa có lịch sử**, không nối được với đơn bán cụ thể).
+2. Nếu chọn (a): một mã **nhiều NCC** cùng ngày thì lấy NCC nào? RTDB **không**
+   ghi đơn X mua của NCC nào.
+3. Chấp nhận **độ mịn theo ngày** (mất biến động trong ngày) hay không?
+4. Đồng ý xây tầng **capture bất biến** (§57) không, và tần suất bao nhiêu?
+5. Dữ liệu lịch sử **có sẵn từ ngày nào**? — cần một lượt đọc RTDB thật; repo
+   không trả lời được (git repo B là shallow, mốc `b59` nằm trước mốc cắt).
+
+## STOP (Phần VI)
+
+Không implementation. Không sửa `app/**`, `config/**`, `tests/**`, Golden
+fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
+`TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent Review.
+**Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`: file task MAJOR
+phải mang Scope Lock và Completion Gate, cả hai phụ thuộc câu trả lời §60.

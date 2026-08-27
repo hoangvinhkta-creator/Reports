@@ -3618,3 +3618,446 @@ Can Revisit After:
 - Sau khi có câu trả lời trên: mở lại `TASK-105B` với kiến trúc đã sửa, hoặc mở
   một `TASK-105C` (RTDBPriceProvider / snapshot capture) riêng nếu độ phức tạp
   đủ lớn để tách task.
+
+## DEC-147
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Cross-Repo RTDB Price Source Audit. Ghi trong phiên
+"TASK-105C — RTDB PRICE SOURCE DISCOVERY" (`docs/sessions/S024-task-105c-rtdb-price-source-audit.md`).
+Trả lời trực tiếp năm câu hỏi mở tại `DEC-146` /
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần V §49.
+
+Repo được audit:
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`.
+Reports @ `cab8aa0026e2342ff8bbd42c272813088110c315`. Hai repo giữ độc lập —
+không subtree, không submodule, không copy source, không merge history. Repo B
+**không bị sửa** trong phiên này.
+
+Decision:
+
+Đây là **bản ghi audit findings**, không phải quyết định nghiệp vụ đã đóng.
+Nó **đóng** bốn trong năm câu hỏi của §49 bằng bằng chứng code, và **mở** một
+câu hỏi mới mà chỉ chủ dự án trả lời được.
+
+**1. Điều kiện `BLOCKING ARCHITECTURE GAP` của `DEC-146` §3: KHÔNG KÍCH HOẠT.**
+
+`DEC-146` §3 đặt điều kiện: *"NẾU RTDB chỉ lưu giá hiện hành (bị ghi đè liên
+tục, không giữ lịch sử) → BLOCKING ARCHITECTURE GAP."* Tiền đề đó **sai** với
+hệ thống thật.
+
+RTDB đang chạy ở chế độ **HYBRID (kết luận C của Phần 4 đề bài)**:
+
+```
+board/<mã>/p/<NCC>   = ảnh chụp HIỆN HÀNH, bị ghi đè mỗi lượt cập nhật
+phist/<mã>/<NCC>/<YYYY-MM-DD> = LỊCH SỬ, append theo ngày, chỉ ghi khi giá ĐỔI
+```
+
+Bằng chứng: `public/index.html:6162-6163` (chú thích cấu trúc),
+`BAO-MAT-TRIEN-KHAI.md:368-383` (tài liệu vận hành), ba đường ghi tại
+`public/index.html:5171`, `:5192`, `:6415`, `:8416`, hàm ghi `savePhist()`
+`:4645` dùng `db.ref("phist").update(...)` (append từng khoá, **không** đè
+nhánh cha).
+
+**2. NHƯNG: SOURCE MISMATCH. Loại giá có lịch sử không phải giá nhập kế toán.**
+
+Đây là kết luận trọng yếu nhất của phiên, và nó **không nằm trong hai nhánh mà
+`DEC-146` dự trù**. Repo B mang **ba** loại giá khác nhau về bản chất:
+
+| Trường RTDB | Nghĩa thật (theo chú thích trong chính repo B) | Có lịch sử? |
+|---|---|---|
+| `phist/<mã>/<NCC>/<ngày>` và `board/<mã>/p/<NCC>/v` | **Giá NCC báo** — con số nhà cung cấp gửi trong bảng giá dán hằng ngày | **CÓ**, theo ngày |
+| `inv.<cu\|moi>.gia[<khoá tên hàng>]` | **Giá thực nhập trung bình** — bình quân gia quyền của hàng đang nằm trong kho | **KHÔNG** |
+| `inv.<cu\|moi>.lo[<khoá tên hàng>]` | **Giá lô** — giá thực trả cho phần hàng tăng thêm hôm nay, nhân viên gõ tay | **KHÔNG** |
+| `board/<mã>/tp/ton` | **Giá nhập công khai** — bản phái sinh của `gia`, đẩy sang bảng cho nhân viên xem | **KHÔNG** |
+| `board/<mã>/tp/chot` | **Giá chốt TP** — giá bán nội bộ, nhân viên tự chốt | KHÔNG |
+| `board/<mã>/_c.min` | **Min** — rẻ nhất trong (NCC còn hàng ∪ giá kho); repo B gọi là *"giá vốn rẻ nhất bán ra được"* | KHÔNG (dẫn xuất) |
+| `board/<mã>/_c.dx` | **Giá đề xuất** = `chot + bien`; giá **BÁN** gợi ý | KHÔNG (dẫn xuất) |
+
+Bằng chứng ngữ nghĩa: `public/index.html:6687-6690` phân biệt ba lớp giá bằng
+đúng chữ *"giá **thực nhập** trung bình"* / *"giá thực nhập của phần tăng"* /
+*"giá nhập **công khai**"*; `public/index.html:7248-7250` nói thẳng *"Chỉ GIÁ
+CÔNG KHAI đi sang cột Tồn/Min. Giá thực nhập trung bình ở lại tab Tồn kho"*;
+`price-engine/src/nghiepvu.js:601-607` định nghĩa Min.
+
+⇒ **Giá NCC báo ≠ giá nhập kế toán.** Nó là **báo giá của một nhà cung cấp
+trong ngày**, không phải số tiền đã trả cho lô hàng bán ra ở đơn X. Ba khác
+biệt cụ thể, không phải chi li câu chữ:
+
+- Một mã có **nhiều** giá NCC cùng một ngày (mỗi NCC một cột). Không có gì
+  trong RTDB nói đơn hàng X đã mua của NCC nào.
+- Hàng bán hôm nay có thể là hàng **đã nằm trong kho** từ trước, mua theo giá
+  cũ. `price-engine/src/nghiepvu.js:603-606` nói rõ đây là tình huống thật và
+  thường xuyên (*"Hàng trong kho mua được rẻ hơn giá NCC hôm nay là lợi thế
+  cạnh tranh có thật"*).
+- Giá NCC là **báo giá**, chưa trừ chiết khấu/điều chỉnh thực tế của lô.
+
+**Nếu áp thẳng `phist` làm `AccountingPurchasePrice` thì đó chính là hành vi mà
+đề bài mục 7 và `OD-105B-01` §D cấm: lấy một trường tên `price` rồi mặc định nó
+là giá nhập.**
+
+**3. Historical Replay Test — kết quả có điều kiện.**
+
+Bài kiểm của đề bài (giá 8.000.000 ngày 01/01, đổi 8.200.000 ngày 15/01, hỏi
+lại vào tháng sau):
+
+```
+price(product, 2026-01-10)  → phist/<mã>/<NCC>/2026-01-01 = 8000   (đơn vị nghìn)
+price(product, 2026-01-20)  → phist/<mã>/<NCC>/2026-01-15 = 8200
+```
+
+**YES — về mặt cấu trúc, cho GIÁ NCC BÁO.** Quy tắc tra: lấy mốc `<ngày>` lớn
+nhất còn `≤ sale_date` trong `phist/<mã>/<NCC>`. Đây đúng là ngữ nghĩa hàm bậc
+thang mà tài liệu repo B mô tả: *"Ngày để trống trong bảng nghĩa là NCC đó giữ
+nguyên giá của mốc gần nhất phía trên"* (`BAO-MAT-TRIEN-KHAI.md:379-381`), và
+nó khớp **chính xác** khoảng hiệu lực đóng của `DEC-145` §1 — mỗi mốc là
+`effective_from`, `effective_to` = ngày trước mốc kế tiếp.
+
+**NO — cho `AccountingPurchasePrice`**, vì trường mang nghĩa đó
+(`inv.<slot>.gia` / `.lo`) không có lịch sử: nhánh `inv` chỉ giữ hai ô cuốn
+chiếu `cu`/`moi` và được ghi bằng `db.ref("inv").set(INV)` — đè **cả nhánh**
+(`public/index.html:6831-6835`). Ảnh chụp `backup/` chỉ chứa `board` + `meta`,
+**không** chứa `inv` (`public/index.html:4670-4676`).
+
+Năm điều kiện phải kèm theo chữ YES ở trên, không được bỏ:
+
+- **R1 — Độ mịn chỉ tới NGÀY.** Hai lần đổi giá trong cùng một ngày ghi đè lên
+  cùng một khoá lá; giá cuối ngày thắng. Chủ dự án đã nói *"giá nhập thay đổi
+  liên tục trong ngày"* — phần biến động trong ngày **mất**. Với báo cáo tính
+  theo ngày nghiệp vụ thì chấp nhận được, nhưng phải ghi nhận, không được coi
+  như không có.
+- **R2 — `0` là sentinel HẾT HÀNG, không phải giá.** `public/index.html:5192`:
+  `ph[...] = 0; // 0 = hết hàng, giá thật không bao giờ bằng 0`. Bên Reports,
+  `DEC-145` §5 cấm dùng `0` thay cho missing. Ánh xạ **bắt buộc**:
+  `phist == 0` → **gap** → `lookup = None` → `Pending`. Đọc nhầm `0` thành giá
+  là biến một mã hết hàng thành lợi nhuận KPI bằng đúng giá bán.
+- **R3 — Không có mốc trước ngày bật tính năng.** `phist` chỉ có từ bản dựng
+  `b59` trở đi, cộng một mốc khởi đầu do lần nhập file Excel gần nhất sinh ra
+  (`public/index.html:8414-8416`). `sale_date` trước đó → không có dữ liệu →
+  `Pending`. Ngày bắt đầu thật **chưa xác định** (xem Risk).
+- **R4 — Lịch sử SỬA ĐƯỢC, và có bốn đường sửa đang chạy.** `xoaPhistSau()`
+  (`:4870-4882`) xoá mọi mốc từ một ngày trở đi; đổi mã (`:4570-4573`) dời cả
+  cây `phist` sang khoá mới rồi `remove()` khoá cũ; gộp mã `mergePaths()`
+  (`:4301-4325`) gộp dòng `board` **nhưng không đụng `phist`** ⇒ lịch sử mồ
+  côi dưới khoá đã biến mất; khôi phục cả bảng `doRestore()` (`:4755`) ghi đè
+  `board` **nhưng không đụng `phist`** ⇒ hai nhánh lệch nhau. Rules cho phép
+  bất kỳ tài khoản `admin`/`bedit`/`edit` nào làm những việc đó.
+  ⇒ **`phist` là sổ có thể sửa, không phải sổ bất biến.** In lại cùng một báo
+  cáo hai lần vẫn có thể ra hai số — đúng điều `DEC-121` tồn tại để chặn — trừ
+  khi Reports **tự chụp và đóng băng** dữ liệu đã dùng.
+- **R5 — Không có đường đọc nào.** Không API, không export nào của repo B đưa
+  `phist` ra ngoài. `/api/board.csv` chỉ xuất ảnh chụp hiện hành, không ngày
+  (`src/index.js:403-470`). Người đọc `phist` duy nhất hiện nay là giao diện
+  trình duyệt (`loadPhist()` `:4661`).
+
+**4. Khoá sản phẩm — cần MAPPING, không khớp trực tiếp.**
+
+```
+Khoá RTDB : normCode(mã) = toUpperCase() + bỏ mọi ký tự ngoài [A-Z0-9]
+            rồi qua aliasOf() để gom các cách viết đã xác nhận trùng
+            ví dụ  "SJ-X198V-DG"  →  "SJX198VDG"
+Reports   : product_raw = Tên hàng trên chứng từ (cả câu tiếng Việt)
+            ví dụ  "Cây nước Kangaroo KG36A2"
+```
+
+| RTDB KEY | REPORTS FIELD | MATCH DIRECTLY? | MAPPING REQUIRED? | COLLISION RISK? |
+|---|---|---|---|---|
+| `board/<MÃ>` (khoá nút) | `product_raw` | **KHÔNG** | **CÓ** — phải rút mã model ra khỏi câu tên hàng | **CÓ** — `normCode` bỏ hết dấu phân cách: hai mã chỉ khác nhau ở gạch nối/khoảng trắng gộp thành một |
+| `board/<MÃ>/name` | `product_raw` | KHÔNG | CÓ | Trung bình — `name` là mã người đọc (`SJ-X198V-DG`), vẫn không phải câu tên hàng |
+| `board/<MÃ>/alt` | — | — | — | Danh sách cách viết đã gộp; hữu ích cho mapping |
+| `inv.map` (`N_<normCode(tên hàng)>` → `<MÃ>`) | `product_raw` | **GẦN** | CÓ (đối chiếu nguồn tên) | Thấp — bảng do **người** duyệt |
+| `alias.map` (`<mã cũ>` → `<mã chính>`) | — | — | — | Bảng gom mã trùng, do người duyệt |
+
+Hai hệ quả:
+
+- **RTDB ĐÃ CÓ mã sản phẩm ổn định** (`normCode` + `alias`). Đây là câu trả
+  lời cho §49 mục 3 và cho ghi chú của `DEC-146` §7 Q2: *bài toán `TASK-402`
+  đã được giải một phần* — nhưng **ở phía mã**, không ở phía **tên trên chứng
+  từ**. Khoảng cách còn lại đúng bằng "câu tên hàng → mã model".
+- **Repo B đã thử giải khoảng cách đó bằng máy và ĐÃ BỎ.** `extractCode()`
+  (`public/index.html:8908-8915`) rút mã bằng "token cuối cùng có chứa số";
+  chú thích tại `:6699-6703` viết: *"Đó là ĐOÁN CHỮ, không hề đối chiếu bảng
+  giá — nên có lúc ra đúng mã, có lúc ra '251lít', 'LG', 'Tivi'. Số liệu này đi
+  thẳng vào tài sản thật nên không được đoán: đã bỏ hẳn."* Thay bằng bảng
+  `inv.map` **người dùng chỉ đích danh từng dòng**.
+  ⇒ Đây là **tiền lệ có thật, trên đúng loại dữ liệu này, ở đúng công ty này**,
+  ủng hộ nguyên tắc `OD-105B-01` §B (cấm fuzzy/nearest/AI matching). Reports
+  **không** được phát minh lại `extractCode`.
+
+**`DEC-145` §2 KHÔNG đổi trong phiên này.** Chuẩn hoá NFC→casefold vẫn là luật
+cho khoá dạng text. Việc có chuyển sang khoá bằng mã hay không là quyết định
+riêng, cần task riêng.
+
+**5. Write semantics — trả lời mục 8 của đề bài.**
+
+```
+overwrite node cũ?     board: CÓ (update theo đường dẫn lá; ghi đè ô giá cũ)
+                       inv:   CÓ, đè CẢ NHÁNH (set)
+                       phist: KHÔNG với mốc khác ngày; CÓ trong cùng một ngày
+append record?         CÓ — phist, một lá mỗi (mã, NCC, ngày)
+push()?                Chỉ ở `dnhap` (yêu cầu đăng nhập thiết bị). KHÔNG ở giá
+transaction?           KHÔNG dùng ở bất kỳ đường ghi giá nào
+có timestamp?          CÓ, nhưng dạng chuỗi tự đặt, không phải kiểu thời gian
+client hay server?     100% CLIENT — grep "ServerValue|serverTimestamp" = 0 hit
+                       trên public/index.html và src/*.js
+có source?             KHÔNG trên bản ghi giá
+có actor/provider?     `NCC` có trong khoá phist. Người ghi: KHÔNG
+có previous value?     CÓ, đúng MỘT bước, chỉ ở ảnh chụp (`p/<NCC>/pv`)
+có audit trail?        CÓ nhưng yếu: `hist`, toàn cục, TỐI ĐA 100 dòng, ghi
+                       bằng set() đè cả nhánh, mọi hồ sơ nhân viên đều ghi được
+có deletion?           CÓ — bốn đường, xem R4 ở điểm 3
+```
+
+Chi tiết timestamp: `board/<mã>/p/<NCC>` mang `d` (ngày cập nhật), `f` (ngày
+NCC đó báo giá lần đầu), `gd` (ngày đánh dấu hết hàng) — cả ba là
+`todayStr() = new Date().toLocaleDateString("vi-VN")`, tức **`D/M/YYYY`, không
+phải ISO, theo múi giờ và đồng hồ của máy nhân viên đang dán giá**
+(`public/index.html:8864`). Khoá ngày của `phist` là `dayKey()` → `YYYY-MM-DD`,
+cũng từ đồng hồ client (`:4640-4644`).
+
+**6. Đơn vị tiền — KHÔNG khớp `ADR-103`, phải chuyển ở đúng biên.**
+
+RTDB lưu giá theo **NGHÌN đồng**: `src/index.js:154-158` — *"Bảng giá của app
+lưu theo NGHÌN (5200)"*; `public/index.html:6761-6764` — *"Giá tồn được lưu
+theo đơn vị NGHÌN đồng (5.000 = 5 triệu)"*; báo cáo in *"Đơn vị: nghìn đồng
+(K)"* (`:9163`). Reports lưu **VND nguyên, `Decimal`** (`ADR-103` §1).
+
+`ADR-103` §2 nói thẳng: *"Không engine nào biết tới khái niệm 'nghìn đồng'.
+Không có phép nhân hay chia 1.000 nào nằm ngoài `importing/` và `reporting/`."*
+⇒ Một `RTDBPriceProvider` đặt trong `app/modules/pricing/` mà tự nhân 1.000 là
+**vi phạm `ADR-103` §2**. Phép nhân đó phải nằm ở tầng nhập liệu/capture, không
+nằm trong provider.
+
+Hai hệ quả nữa cùng loại:
+
+- RTDB trả **số JSON (float64)**. `ADR-103` §1 **cấm `float` cho tiền**. Bất kỳ
+  đường nhập nào cũng phải qua `to_decimal()` (`app/modules/domain/money.py`),
+  và phải phân biệt ô trống với `0` — đúng cảnh báo `DEC-145` Risk.
+- `inv.gia` đã bị **làm tròn LÊN bội 10 ở đơn vị nghìn** ngay tại nguồn
+  (`invRoundAvg` `public/index.html:6764`) ⇒ sai số tới **10.000 VND/đơn vị**
+  đã nằm sẵn trong dữ liệu, Reports không gỡ lại được.
+
+**7. Security — KHÔNG có BLOCKING finding.**
+
+```
+credential trong repo B          : KHÔNG (grep private_key/client_secret/
+                                   serviceAccount trên .js/.html/.json/.toml = 0)
+service account                  : Cloudflare Secret FB_SA_EMAIL/FB_SA_KEY,
+                                   JWT RS256 ký bằng WebCrypto (src/firebase.js)
+database rules                   : CÓ, gốc .read=false/.write=false
+public read/write                : KHÔNG — không nhánh nào cho auth == null
+App Check                        : Enforce, bật 13/08/2026
+```
+
+Khoá web Firebase (`apiKey`, `appId`…) **có** nằm trong `public/index.html:2457-2462`
+— đây là **cấu hình công khai theo thiết kế** của Firebase, đi tới mọi trình
+duyệt dù có commit hay không, và chính repo B ghi rõ điều đó ở `:2464-2467`.
+**Không phải credential exposure.** Không in giá trị nào của secret trong báo
+cáo này.
+
+Ba mục **HARDENING** (thuộc repo B, **ngoài phạm vi** sửa của Reports — ghi để
+chủ dự án biết, không phải việc của phiên này):
+
+- `hist` (nhật ký) cho **mọi** hồ sơ nhân viên quyền ghi
+  (`firebase-database.rules.json`, nhánh `hist`), và client ghi bằng
+  `db.ref("hist").set(<mảng 100 phần tử>)` ⇒ một nhân viên bất kỳ xoá/viết lại
+  được nhật ký. Nhật ký như vậy không đứng được làm bằng chứng kế toán.
+- `phist` sửa/xoá được bởi mọi tài khoản `admin`/`bedit`/`edit`, và có bốn
+  đường sửa đang chạy (R4). Sổ giá lịch sử **không bất biến**.
+- Nếu Reports đọc thẳng RTDB, nó cần một service account key trong môi trường
+  triển khai của mình — một mặt phẳng quản lý bí mật **mới**, hiện chưa tồn tại
+  trong Reports (`pyproject.toml` không có SDK Google/Firebase nào).
+
+**8. Kiến trúc đề xuất — đánh giá năm option.**
+
+| Option | Pros | Cons | Migration | Data integrity | Historical replay | Chi phí vận hành | Hợp `TASK-108B`? |
+|---|---|---|---|---|---|---|---|
+| **A** — `RTDBPriceProvider` đọc thẳng `phist` | Không phải xây gì mới ở repo B; dữ liệu tươi nhất | Đọc **giá NCC**, không phải giá nhập kế toán; kéo mạng vào `app/modules/` (va `ADR-101`); ×1.000 trong tầng pricing (va `ADR-103` §2); cần service account trong Reports; `phist` sửa được nên không tái lập được báo cáo cũ | Vừa (client + secret) | **Yếu** — nguồn mutable, không đóng băng | Có (bậc thang), nhưng số **sai loại** | Thấp | **KHÔNG** — sai loại giá |
+| **B** — Giữ ảnh chụp RTDB + thêm `price_history` trong RTDB | Lịch sử ở gần nguồn | `phist` **đã tồn tại** cho giá NCC ⇒ B chỉ có nghĩa nếu thêm lịch sử cho **giá nhập kế toán**, tức sửa production repo B; vẫn không giải quyết mutability | Cao — đổi schema production | Trung bình | Có, sau khi xây | Trung bình | Có, sau khi xây |
+| **C** — Capture service ghi price history **bất biến** riêng | Tách nguồn vận hành khỏi sổ kế toán; append-only, đóng băng được; chọn được đúng trường giá; đặt được `effective_from/to` theo `DEC-145` §1 | Phải xây và phải chạy đều; capture sót ngày là thủng dữ liệu | Trung bình | **Mạnh nhất** | **Có, và ổn định qua thời gian** | Trung bình | **CÓ** |
+| **D** — Xuất snapshot/file định kỳ làm nguồn giá kế toán | Đúng y hợp đồng 4 cột `DEC-145` §4; deterministic — hợp Golden; **không** mạng trong `app/modules/`; đổi 1.000 nằm ở biên nhập | Chỉ là **định dạng giao hàng**, tự nó không tạo ra lịch sử nếu nguồn không có | Thấp | Mạnh (file bất biến, version được) | Có, nếu dữ liệu bên trong có | Thấp | **CÓ** |
+| **E** — RTDB không phù hợp làm nguồn | — | Sai: RTDB **có** dữ liệu gốc, chỉ sai hình dạng/ngữ nghĩa | — | — | — | — | — |
+
+**RECOMMENDED OPTION: C, giao hàng bằng định dạng của D.**
+
+```
+repo B / RTDB  ──(capture định kỳ, chọn ĐÚNG trường giá)──►  price history
+                                                             bất biến, 4 cột
+                                                                   │
+                                          FilePriceProvider (DEC-145 §4/§5)
+                                                                   ▼
+                                                        Reports  PriceProvider
+```
+
+Vì sao C+D chứ không phải A:
+
+- Trường **có** lịch sử (giá NCC) **không phải** trường Reports cần; trường
+  Reports cần (giá thực nhập) **không có** lịch sử. Không option đọc-thẳng nào
+  vượt qua được sự thật đó.
+- `phist` sửa được (R4). `DEC-121` đòi báo cáo đã phát hành không đổi số. Chỉ
+  một bản ghi **bất biến, đóng băng** mới thoả — dù nguồn có lịch sử.
+- C+D giữ nguyên ranh giới `ADR-101` (không mạng trong `app/modules/`),
+  `ADR-103` §2 (đổi đơn vị ở biên nhập), và tính deterministic của Golden —
+  cả ba đều là ràng buộc đã có authority, không phải sở thích.
+- Hai repo chỉ giao tiếp qua **data contract**, đúng mục 10 của đề bài. Không
+  bên nào import bên nào.
+
+**Đường nhanh, có điều kiện:** nếu chủ dự án xác nhận *"giá nhập = giá NCC báo
+trong ngày"*, thì một job **D thuần** — đọc `phist` rồi xuất ra file 4 cột —
+đủ dùng ngay, **không cần sửa một dòng nào của repo B**. Rẻ hơn hẳn. Nhưng nó
+đòi đúng một quyết định của chủ dự án, và phiên này **không tự quyết**.
+
+**9. Ranh giới hai repo — giữ nguyên.**
+
+Không tạo phụ thuộc code hai chiều. `Reports` không import `Tracking`;
+`Tracking` không import `Reports`. Giao tiếp bằng data contract
+(file 4 cột `DEC-145` §4, hoặc một endpoint đọc-only nếu sau này cần). Phiên
+này không thực hiện thay đổi nào ở repo B.
+
+**10. Trạng thái sau audit.**
+
+```
+FilePriceProvider   = KEEP — và ĐƯỢC ĐỀ CỬ làm production path (đảo lại nghi
+                      vấn của DEC-146 §6), vì kiến trúc khuyến nghị là C+D.
+                      Contract kỹ thuật DEC-145 §4/§5 giữ nguyên 100%.
+
+RTDBPriceProvider   = NEEDS_SCHEMA_CHANGE, và KHÔNG được đề cử.
+                      "Schema change" ở đây KHÔNG phải "RTDB thiếu lịch sử" —
+                      mà là "trường giá kế toán không có lịch sử, và sổ lịch
+                      sử đang có thì sửa được". Đọc thẳng vẫn thêm hai vi phạm
+                      ranh giới (ADR-101 mạng, ADR-103 §2 đơn vị).
+
+TASK-105B           = READY (implementation) về mặt kỹ thuật — gỡ trạng thái
+                      "TẠM DỪNG" của DEC-146 §6 ở phần *khả thi*. Nhưng vẫn
+                      BLOCKED_BY [ chủ dự án chốt trường nào là
+                      AccountingPurchasePrice ] trước khi có dữ liệu để nạp.
+
+TASK-105C           = DISCOVERY_COMPLETE.
+                      IMPLEMENTATION = OWNER_DECISION_REQUIRED
+                      (câu hỏi ở Reason điểm cuối). KHÔNG mở implementation.
+
+TASK-105B-Q3        = KHÔNG ĐỔI — vẫn BLOCKED_BY [TASK-103 / enumeration].
+                      Độc lập hoàn toàn với nguồn giá, đúng như DEC-146 §7.
+                      Audit evidence 30 raw label KHÔNG mất.
+
+TASK-108B           = BLOCKED_BY [ 1. chủ dự án chốt trường
+                      AccountingPurchasePrice; 2. tầng capture/export chưa
+                      tồn tại; 3. TASK-105B-Q3 (dòng phụ) ]
+                      — BỎ blocker cũ "chưa xác định kiến trúc RTDB".
+```
+
+Reason:
+
+**1. Vì sao không dừng ở "RTDB có lịch sử ⇒ hết blocker".**
+`DEC-146` đặt câu hỏi nhị phân (có lịch sử / không có lịch sử) và gán sẵn kết
+luận cho mỗi nhánh. Hệ thống thật không rơi vào nhánh nào: nó **có** lịch sử,
+nhưng cho một **loại giá khác**. Trả lời "CÓ" rồi mở khoá `TASK-108B` là đúng
+chữ mà sai việc — và sai theo đúng kiểu `DEC-103`/`DEC-125`/`DEC-143` tồn tại
+để chặn: một con số có mặt, trông hợp lý, ở sai chỗ.
+
+**2. Vì sao bảng ba loại giá là bằng chứng chứ không phải diễn giải.**
+Chú thích trong repo B phân biệt chúng bằng chính chữ "thực nhập" / "công
+khai", và **thi hành** sự phân biệt đó bằng code: `invSyncPart()`
+(`public/index.html:7248-7250`) cố ý chỉ đẩy `cong` sang bảng giá và **giữ
+`gia` lại**. Đây là một quyết định thiết kế đã có chủ đích ở phía nguồn, không
+phải một chi tiết ngẫu nhiên.
+
+**3. Vì sao `extractCode` bị bỏ ở repo B là bằng chứng đáng dùng cho Reports.**
+Đó không phải ý kiến; đó là một hệ thống production, trên đúng danh mục hàng
+này, đã thử ánh xạ tên→mã bằng máy, thấy sai, và thay bằng bảng người duyệt —
+với lý do ghi thẳng trong mã: *"Số liệu này đi thẳng vào tài sản thật nên không
+được đoán"*. `OD-105B-01` §B cấm fuzzy matching vì cùng một lý do. Hai bên độc
+lập đi tới cùng kết luận là bằng chứng mạnh hơn một bên tự khẳng định.
+
+**4. Vì sao mutability là vấn đề riêng, tách khỏi câu hỏi có/không lịch sử.**
+`DEC-121` không đòi "hệ thống có lưu lịch sử", nó đòi *"một báo cáo 2026 đã
+phát hành không được đổi số"*. Một sổ lịch sử mà mọi tài khoản `edit` xoá được
+theo ngày (`xoaPhistSau`) thoả vế đầu mà không thoả vế sau. Đây chính là lý do
+khuyến nghị C (bản ghi bất biến) chứ không phải A (đọc thẳng), kể cả trong
+kịch bản chủ dự án chốt "giá nhập = giá NCC".
+
+**5. Vì sao `FilePriceProvider` được đề cử trở lại làm production path.**
+`DEC-146` §6 rút vai trò production của nó **vì chưa biết nguồn thật**. Nay
+biết: nguồn thật cần một tầng capture ở giữa, và đầu ra của tầng đó là một tập
+price record 4 cột — đúng thứ `FilePriceProvider` đọc. `DEC-146` §5 đã dự trù
+chính xác nhánh này (*"file CÓ THỂ là định dạng snapshot đó"*). Không có gì
+của `DEC-145` phải làm lại.
+
+**Câu hỏi còn lại — chỉ chủ dự án trả lời được (thay §49 mục 1–5):**
+
+Bốn trong năm câu hỏi cũ đã đóng bằng code (schema; có lưu lịch sử; khoá sản
+phẩm; provenance). Câu hỏi thật còn lại **không phải** câu hỏi cũ số 5:
+
+1. **`AccountingPurchasePrice` là trường nào?** Ba ứng viên, khác nhau về bản
+   chất, không thể suy ra từ dữ liệu:
+   (a) **giá NCC báo trong ngày** (`phist` — có lịch sử sẵn, rẻ nhất để làm,
+   nhưng là *báo giá*, không phải tiền đã trả, và một mã có nhiều NCC cùng
+   ngày);
+   (b) **giá thực nhập trung bình** (`inv.<slot>.gia` — bình quân gia quyền
+   của hàng trong kho, gần nghĩa kế toán nhất, **chưa có lịch sử**, đã làm
+   tròn ±10.000 VND);
+   (c) **giá lô** (`inv.<slot>.lo` — tiền thật của lần nhập, đúng nghĩa nhất,
+   **chưa có lịch sử**, và không nối được với đơn bán cụ thể).
+2. Nếu chọn (a): khi một mã có **nhiều NCC** cùng ngày, lấy NCC nào? (rẻ nhất?
+   NCC đã thực mua? một NCC cố định?) — RTDB **không** chứa thông tin "đơn X
+   mua của NCC nào".
+3. Chấp nhận **độ mịn theo ngày** (mất biến động trong ngày) hay không?
+4. Đồng ý xây tầng **capture bất biến** (khuyến nghị C) không, và tần suất bao
+   nhiêu?
+5. Trước khi có capture, dữ liệu lịch sử **có sẵn từ ngày nào**? — cần một
+   lượt đọc RTDB thật; repo không trả lời được (git shallow, mốc `b59` nằm
+   trước mốc cắt).
+
+Risk:
+
+`Effective Risk = HIGH` — **không đổi**, chấm theo data path (V4.1 §4):
+`Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương
+sai`. Audit này làm rủi ro **rõ hơn**, không làm nó thấp đi: nó cho thấy tồn
+tại một nguồn dữ liệu **trông đúng và dễ lấy** (`phist`) mà dùng vào là sai.
+
+Rủi ro cụ thể của chính bản ghi này:
+
+- **Đọc tắt thành "RTDB có lịch sử ⇒ xong".** Đây là rủi ro số một. Giảm nhẹ:
+  điểm 2 và điểm 10 nói thẳng `SOURCE MISMATCH`; mọi trạng thái vẫn
+  `BLOCKED_BY` chủ dự án.
+- **`0` bị đọc thành giá.** `phist == 0` nghĩa là hết hàng. Nhầm một lần là một
+  dòng lãi bằng đúng giá bán. Giảm nhẹ: R2 ghi tường minh; bất kỳ
+  `TASK-105C`/capture nào cũng phải có check riêng cho việc này.
+- **Đơn vị nghìn bị bỏ quên.** Sai đúng 1.000 lần, và sai *đều* nên nhìn bảng
+  không phát hiện được. Giảm nhẹ: điểm 6; `ADR-103` §2 buộc phép nhân nằm ở
+  biên nhập, nơi có thể đặt check.
+- **Khẳng định về dữ liệu sống bị coi là đã kiểm chứng.** Phiên này audit
+  **code**, không đọc instance. `N-01 = NOT_TESTED`. Giảm nhẹ: mục "Giới hạn
+  của bằng chứng" trong `S024`.
+- **Provider gọi mạng rò vào test/Golden.** Rủi ro `DEC-146` đã nêu vẫn nguyên
+  giá trị, và khuyến nghị C+D làm nó **nhỏ đi** (file deterministic, không
+  mạng). Nếu sau này vẫn làm option A, check của `CHECK-105C-*` phải xác nhận
+  không module test nào import client Firebase.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace toàn
+  repo; `DEC-147` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — `TASK-105B` gỡ "TẠM DỪNG", đổi blocker;
+  `TASK-105C` = `DISCOVERY_COMPLETE` / `OWNER_DECISION_REQUIRED`; `TASK-108B`
+  đổi danh sách blocker.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — bước 11b; thay khối 5 câu hỏi cũ bằng 5 câu
+  hỏi mới.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — mục nhật ký; **không** tiêu repair cycle
+  (đây là audit, không phải repair — cùng lệ `DEC-146`).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần VI; giữ
+  nguyên Phần I–V.
+- `docs/sessions/S024-task-105c-rtdb-price-source-audit.md` — bàn giao phiên.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- Chủ dự án trả lời 5 câu hỏi ở cuối phần Reason ⇒ mở `TASK-105C`
+  implementation (kèm `docs/tasks/TASK-105C-*.md` với Scope Lock +
+  Completion Gate), hoặc mở lại `TASK-105B` nếu chọn đường D thuần.
+- Một lượt đọc RTDB thật (có credential) ⇒ nâng `N-01` từ `NOT_TESTED` lên E1
+  và chốt ngày bắt đầu có dữ liệu lịch sử.
+- `TASK-103` hoặc danh sách enumerated ⇒ mở `TASK-105B-Q3` (độc lập, không
+  liên quan phiên này).

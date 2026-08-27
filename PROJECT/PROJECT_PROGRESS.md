@@ -139,9 +139,13 @@ R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 SEMANTIC_DEFINITION   = APPROVED   (đầy đủ — formula đã được Owner xác nhận, DEC-144 §1)
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ nguồn AccountingPurchasePrice production chưa xác
-                          định kiến trúc (RTDB schema cần Owner làm rõ — DEC-146),
-                          bảng giá/snapshot thật chưa có ]
+BLOCKED_BY_DEPENDENCY = [ 1. chủ dự án chốt trường nào trong RTDB là
+                             AccountingPurchasePrice (3 ứng viên — DEC-147 §2),
+                          2. tầng capture/export price history bất biến chưa
+                             tồn tại (kiến trúc khuyến nghị — DEC-147 §8),
+                          3. TASK-105B-Q3 (dòng phụ) ]
+                          — BỎ blocker cũ "chưa xác định kiến trúc RTDB":
+                            schema RTDB nay ĐÃ AUDIT XONG (DEC-147)
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
@@ -160,35 +164,71 @@ repair budget         = 2 allowed / 0 used / 2 remaining (lineage TASK-108B)
 `SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
 Không hardcode dữ liệu để vượt blocker, không synthetic PASS.
 
-**TASK-105B — TẠM DỪNG (DEC-146, 2026-08-27) — architecture correction.**
-Chủ dự án sửa tiền đề: Price Master **không phải file tĩnh** — giá nhập biến
-động liên tục, nguồn sự thật vận hành là **Firebase RTDB**. Thông tin này chưa
-từng có trong repo trước phiên `DEC-146`.
+**TASK-105B / TASK-105C — sau audit chéo repo (DEC-147, 2026-08-27).**
+Đã audit repository vận hành hệ thống giá (`hoangvinhkta-creator/Tracking` @
+`d177363a`) và đối chiếu với contract `PriceProvider`. Bốn trong năm câu hỏi
+của `DEC-146` nay **trả lời được bằng code**.
+
+```
+RTDB có lưu lịch sử?      CÓ — nhánh `phist/<mã>/<NCC>/<YYYY-MM-DD>`,
+                          append theo ngày, chỉ ghi khi giá ĐỔI.
+                          Chế độ thật = HYBRID (ảnh chụp `board` + lịch sử `phist`).
+⇒ BLOCKING ARCHITECTURE GAP có điều kiện của DEC-146 §3: KHÔNG KÍCH HOẠT.
+
+NHƯNG — SOURCE MISMATCH:
+  loại giá CÓ lịch sử  = giá NCC BÁO (báo giá nhà cung cấp trong ngày)
+  loại giá Reports CẦN = giá thực nhập (`inv.<slot>.gia`/`.lo`) — KHÔNG có
+                         lịch sử (hai ô cuốn chiếu `cu`/`moi`, ghi bằng `set()`
+                         đè cả nhánh)
+```
 
 ```
 SEMANTIC_READINESS (Q1/Q2/Q3, DEC-145)  = READY — KHÔNG đổi, vẫn đúng
-IMPLEMENTATION (FilePriceProvider)      = TẠM DỪNG — vai trò production cần
-                                           Owner xác nhận lại sau khi có schema
-                                           RTDB thật (5 câu hỏi, xem dưới)
+IMPLEMENTATION (FilePriceProvider)      = READY về kỹ thuật (gỡ "TẠM DỪNG"),
+                                           BLOCKED_BY [ chủ dự án chốt trường
+                                           nào là AccountingPurchasePrice ]
 effective_risk  = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
 repair budget   = 2 allowed / 0 used / 2 remaining (lineage TASK-105B, không đổi)
 ```
 
-**Quan trọng — có điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`:** nếu
-RTDB chỉ lưu giá **hiện hành** (bị ghi đè liên tục, không giữ lịch sử), hệ
-thống không trả lời được câu hỏi DEC-121 đòi hỏi ("giá tại đúng ngày của đơn
-trong quá khứ là bao nhiêu"), và cần một tầng capture snapshot mới trước khi
-`TASK-108B` có thể dùng được số thật. **Chưa xác định** — cần Owner trả lời,
-không suy đoán.
+Kiến trúc khuyến nghị (`DEC-147` §8): **OPTION C giao hàng bằng định dạng
+OPTION D** — một tầng capture ghi price history **bất biến**, xuất ra file 4
+cột đúng `DEC-145` §4, Reports đọc bằng `FilePriceProvider`. Không đọc thẳng
+RTDB từ `app/modules/`: sẽ kéo mạng vào Phase 1 (va `ADR-101`) và đặt phép
+nhân 1.000 sai tầng (va `ADR-103` §2 — RTDB lưu theo **nghìn đồng**).
+`FilePriceProvider` vì vậy **được đề cử trở lại làm production path** — đảo lại
+nghi vấn của `DEC-146` §6, không huỷ gì của `DEC-145`.
 
-Đề xuất kiến trúc: giữ nguyên `PriceProvider` Protocol (đã đúng thiết kế từ
-DEC-103), thêm `RTDBPriceProvider` **song song** với `FilePriceProvider` (không
-thay thế), vai trò cụ thể tuỳ câu trả lời của chủ dự án. **5 câu hỏi cần trả
-lời:** (1) schema RTDB thật; (2) overwrite hay lưu lịch sử; (3) khoá sản phẩm
-dùng trong RTDB (text tự do hay đã có `ProductCode`); (4) provenance/nguồn ghi
-giá vào RTDB; (5) nếu không lưu lịch sử, có đồng ý xây tầng capture snapshot
-hay không. Chi tiết đầy đủ:
-`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần V.
+Năm điều kiện bắt buộc kèm theo lịch sử `phist` (`DEC-147` §3): độ mịn chỉ tới
+**ngày**; `0` là sentinel **hết hàng** → phải map thành gap → `Pending`, tuyệt
+đối không thành `purchase_price = 0`; không có mốc trước ngày bật tính năng;
+**lịch sử SỬA ĐƯỢC** (bốn đường xoá/dời/mồ côi/lệch đang chạy) nên phải đóng
+băng mới thoả `DEC-121`; không API nào đưa `phist` ra ngoài.
+
+**5 câu hỏi mới cần chủ dự án** (thay 5 câu cũ của `DEC-146`, đã đóng 4/5):
+(1) `AccountingPurchasePrice` là trường nào trong ba ứng viên — giá NCC báo /
+giá thực nhập trung bình / giá lô; (2) nếu chọn giá NCC, một mã nhiều NCC cùng
+ngày thì lấy NCC nào (RTDB **không** ghi đơn X mua của NCC nào); (3) chấp nhận
+độ mịn theo ngày không; (4) đồng ý xây tầng capture bất biến không, tần suất
+bao nhiêu; (5) dữ liệu lịch sử có sẵn từ ngày nào (cần đọc RTDB thật —
+`NOT_TESTED`, git repo B là shallow). Chi tiết đầy đủ: `DEC-147` và
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VI.
+
+**TASK-105C — `RTDBPriceProvider` / capture layer:**
+
+```
+DISCOVERY      = COMPLETE (S024, DEC-147)
+IMPLEMENTATION = OWNER_DECISION_REQUIRED — 5 câu hỏi ở trên
+RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE, và KHÔNG được đề cử
+```
+
+Khoá sản phẩm (đóng câu hỏi cũ số 3): RTDB **đã có mã ổn định** —
+`normCode(mã)` = `toUpperCase()` + bỏ mọi ký tự ngoài `[A-Z0-9]`, rồi qua
+`aliasOf()`. Nhưng Reports dùng `product_raw` = **câu tên hàng trên chứng từ**
+⇒ **cần mapping**, không khớp trực tiếp. Đáng chú ý: repo B đã **thử** rút mã
+từ tên hàng bằng máy (`extractCode()`) và **bỏ hẳn** vì đoán sai trên tài sản
+thật, thay bằng bảng `inv.map` do người duyệt — tiền lệ production ủng hộ đúng
+lệnh cấm fuzzy matching của `OD-105B-01` §B. `DEC-145` §2 **không đổi**.
 
 `TASK-105B-Q3` (chính sách zero-price dòng phụ) **không đổi, vẫn BLOCKED** bởi
 `TASK-103`/enumeration — độc lập hoàn toàn với nguồn giá. Audit evidence đang
@@ -284,15 +324,16 @@ phải việc agent tự làm tiếp được:
 
 1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG HOÀN TOÀN
    (DEC-143 + DEC-144; `OD-108B-01` + `OD-108B-02`, 2026-08-27); C15 ĐÃ ĐÓNG.**
-   Q1/Q2/Q3 của `TASK-105B` **đã đóng** (DEC-145, vẫn đúng). Nhưng
-   **`DEC-146` (2026-08-27) sửa lại tiền đề nguồn giá**: không phải file tĩnh
-   Owner gõ tay — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
-   tục trong ngày. `TASK-105B` implementation **tạm dừng** chờ 5 câu hỏi về
-   schema RTDB. Có khả năng phát sinh `BLOCKING ARCHITECTURE GAP` nếu RTDB
-   không lưu lịch sử giá (DEC-121 đòi hỏi tra cứu đúng ngày quá khứ, không
-   phải giá hiện hành). `TASK-105B-Q3` (dòng phụ) không đổi, vẫn chờ
-   `TASK-103`. Xem `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
-   Phần III–V.
+   Q1/Q2/Q3 của `TASK-105B` **đã đóng** (DEC-145, vẫn đúng). `DEC-146`
+   (2026-08-27) sửa tiền đề nguồn giá (RTDB, không phải file tĩnh); `DEC-147`
+   (cùng ngày) **đã audit xong RTDB thật**: nó lưu lịch sử (nhánh `phist`,
+   theo ngày) ⇒ `BLOCKING ARCHITECTURE GAP` có điều kiện **KHÔNG kích hoạt**.
+   Nhưng phát sinh một kết luận khác: **SOURCE MISMATCH** — loại giá *có* lịch
+   sử là **giá NCC báo**, còn loại giá Reports *cần* (giá thực nhập) thì
+   **không** có lịch sử. `TASK-105B` implementation **gỡ tạm dừng** về READY
+   kỹ thuật, nhưng vẫn chờ chủ dự án chốt trường giá. `TASK-105B-Q3` (dòng
+   phụ) không đổi, vẫn chờ `TASK-103`. Xem
+   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III–VI.
    *(Chi tiết `OD-108B-01` giữ nguyên bên dưới.)* `EligibleCosts = {}` (closed empty
    set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
    definition`, canonical formula đã chốt. Nhưng
@@ -427,18 +468,24 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice`; tra
         theo `(normalized product_key, ngày đơn)`.
         **SEMANTIC_READINESS (Q1/Q2/Q3) = READY** (DEC-145, không đổi).
-        **IMPLEMENTATION = TẠM DỪNG** (DEC-146, 2026-08-27) — Price Master
-        không phải file tĩnh, nguồn sự thật vận hành là **Firebase RTDB**. Vai
-        trò của file (production/bootstrap/test-fixture/snapshot-export) cần
-        Owner xác nhận lại sau khi cấp schema RTDB thật — 5 câu hỏi ở Phần V
-        của artifact TASK-108B. Contract kỹ thuật §38 (schema 4 cột, validation)
-        vẫn đúng, không bị đảo ngược.
-  - [ ] TASK-105C — `RTDBPriceProvider` (MỚI, mở tại DEC-146). Implementation
-        thứ ba của `PriceProvider` Protocol, đọc giá từ Firebase RTDB.
-        **SEMANTIC_READINESS = OWNER_DECISION_REQUIRED** — chờ schema RTDB
-        thật. **Điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`** nếu
-        RTDB không lưu lịch sử giá (DEC-121 đòi hỏi tra cứu theo ngày đơn
-        trong quá khứ, không phải giá hiện hành).
+        **IMPLEMENTATION = READY về kỹ thuật** (DEC-147 gỡ "TẠM DỪNG" của
+        DEC-146), **BLOCKED_BY** [chủ dự án chốt trường
+        `AccountingPurchasePrice`]. Sau audit chéo repo, file **được đề cử trở
+        lại làm production path**: kiến trúc khuyến nghị là capture bất biến →
+        file 4 cột → `FilePriceProvider` (DEC-147 §8, OPTION C+D). Contract kỹ
+        thuật §38 (schema 4 cột, validation) vẫn đúng, không bị đảo ngược.
+  - [ ] TASK-105C — `RTDBPriceProvider` / capture layer (mở tại DEC-146).
+        **DISCOVERY = COMPLETE** (S024, DEC-147 — đã audit
+        `hoangvinhkta-creator/Tracking` @ `d177363a`).
+        **IMPLEMENTATION = OWNER_DECISION_REQUIRED** (5 câu hỏi mới, DEC-147).
+        **RTDBPriceProvider readiness = NEEDS_SCHEMA_CHANGE và KHÔNG được đề
+        cử**: trường giá kế toán không có lịch sử, sổ lịch sử đang có thì sửa
+        được, và đọc thẳng từ `app/modules/` va `ADR-101` (mạng ở Phase 1) +
+        `ADR-103` §2 (RTDB lưu theo **nghìn đồng**, phép ×1.000 phải ở biên
+        nhập). `BLOCKING ARCHITECTURE GAP` có điều kiện: **KHÔNG kích hoạt** —
+        RTDB *có* lưu lịch sử (`phist`). Chưa có `docs/tasks/TASK-105C-*.md`:
+        file task MAJOR phải mang Scope Lock + Completion Gate, cả hai phụ
+        thuộc câu trả lời của chủ dự án.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -454,11 +501,13 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 + DEC-145 + DEC-146**: blocker ngoại lai còn **1**, nhưng
-        bản chất đã đổi — không còn là "chờ file giá", mà là "chờ Owner làm rõ
-        kiến trúc nguồn giá thật (RTDB)" (`PendingPriceProvider` trả `None`
-        vô điều kiện; Golden xác nhận 100 % Pending trên dữ liệu production).
-        `TASK-105B` tạm dừng chờ schema RTDB — xem `TASK-105C` ở trên. Confirmed
+        Sau **DEC-144 + DEC-145 + DEC-146 + DEC-147**: blocker ngoại lai còn
+        **1**, và bản chất đã đổi lần nữa — không còn là "chờ Owner làm rõ
+        kiến trúc RTDB" (đã audit xong), mà là **"chờ Owner chốt trường nào
+        là `AccountingPurchasePrice`"** và tầng capture xuất ra nó
+        (`PendingPriceProvider` trả `None` vô điều kiện; Golden xác nhận
+        100 % Pending trên dữ liệu production).
+        `TASK-105B` gỡ tạm dừng — xem `TASK-105C` ở trên. Confirmed
         `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
         còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
         absence với source-unavailable), thuộc phạm vi chính TASK-108B.
