@@ -13,6 +13,25 @@ Trước khi đọc phần còn lại của file này, xác nhận bạn đang �
 File này từng bị đọc từ một nhánh lỗi thời 14 commit, dẫn tới báo cáo tiến độ
 sai — xem DEC-118.
 
+## Governance V4.1 — Trạng Thái Adoption
+
+```
+V4.1 = POLICY_ADOPTED          (2026-08-27, TASK-V4-ADOPTION, session V4.1-0)
+V4.1 = NOT YET FULLY_ENFORCED  (chờ TASK-GOLDEN-BASELINE-001)
+```
+
+Policy overlay: `governance/core/V4_1_POLICY_FREEZE.md`. Ngân sách sống
+theo root task: `PROJECT/REVIEW_BUDGET_LEDGER.md`. Chi tiết Owner Decision:
+DEC-140 trong `PROJECT/PROJECT_DECISIONS.md` (cấp phát lại từ `DEC-128` tại
+phiên integration — `DEC-128` đã thuộc về TASK-110 Gate/Readiness Review từ
+2026-08-23; xem `DEC-141`).
+
+`TASK-110` (mọi nhánh review, lineage R1-A1…R8): repair budget =
+`EXHAUSTED_PRE_V4.1`, `remaining = 0`. `R1-A2 → R8` = `OWNER_EXTENSION
+REQUIRED` để mở tiếp. `CHECK-110-16` tiếp tục `BLOCKED` (merge gate — thiếu
+production workbook thật). Rollout tiếp theo: `V4.1-1` (Final R1-A1
+Independent Review + Freeze Finalization nếu PASS + Integration Decision).
+
 ## Hai Track Song Song
 
 Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
@@ -51,9 +70,43 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-23 (TASK-108A-1 **DONE** — ConversionSchemeResolver + EmployeeGroup +
-ProductGroup. Independent Review #1→#4, **#4 PASS**, đã merge. 16/16 REQUIRED
-check PASS, 151/151 test tổng.)
+2026-08-23 (S021 — **Independent Review #5 FAIL, 4 finding, đã sửa toàn bộ
+bằng ARCHITECTURE REPAIR**, không phải một vòng patch cục bộ. Audit trước khi
+code chỉ ra cả bốn finding là bốn biểu hiện của **một** root cause: validation
+tái tạo lại các sự thật production đã biết thay vì nhận lại chúng — và audit
+tìm thêm một drift thứ năm reviewer chưa nêu (F3 khớp prefix trên chuỗi đã
+normalize trong khi production khớp trên chuỗi thô). Đã **xóa** nguồn sự thật
+thứ hai (`select_effective_record`, `_record_key`, vòng khớp prefix riêng);
+`EmployeeMapper` nay là nguồn duy nhất và trả `RecordRef` — danh tính của bản
+ghi đã load, nên collision là **bất khả**. `MappingFinding` mất hẳn trường
+`details`; `ReviewItem` mất hẳn field `affected_count`/`source_row` — tất cả
+dẫn xuất từ `RowProvenance`. Ba Human Decision (**HD-110-06/07/08**) ghi thành
+**DEC-132**. **330/330 test**, 179 mới so với baseline `c7a1b24`, 0 regression;
+L1/L2/L3 chứng minh 0 dịch chuyển nghiệp vụ.
+
+*(Đoạn trên là bản ghi lịch sử của vòng repair #5 — **SUPERSEDED**. Trạng
+thái hiện tại nằm ngay dưới đây và ở "Trạng thái Task hiện tại".)*
+
+**TRẠNG THÁI HIỆN TẠI (sau integration V4.1-1):**
+
+```
+R1-A1    = FROZEN        (DEC-139; Independent Review PASS — ELIGIBLE_FOR_FREEZE
+                          tại reviewed SHA a85397106b81799d149d98e71a7fcfd5bc8963ad;
+                          Freeze Finalization 01a03b08ab6fc21b6b9ef3eeab5dfa1d692a8713)
+R1-A     = NOT FROZEN    (không suy diễn tăng theo)
+R1       = NOT FROZEN
+TASK-110 = NOT DONE      (đã MERGED vào nhánh mặc định tại V4.1-1, nhưng
+                          MERGE KHÔNG ĐỒNG NGHĨA DONE)
+CHECK-110-16 = REQUIRED · BLOCKED · Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE
+               (DEC-141; thiếu file thô production, không synthetic PASS)
+TASK-110 repair budget = EXHAUSTED_PRE_V4.1, remaining = 0
+R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
+```
+
+Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
+(3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
+(6 finding, DEC-129), S016 triển khai, S015 Gate Review (DEC-128).
+**Chưa vòng review nào PASS.**)
 
 Overall Status:
 IN_PROGRESS
@@ -62,16 +115,47 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
-TASK-110 — validation + Review Queue (chưa bắt đầu, chờ chủ dự án duyệt)
+TASK-110 — validation + Review Queue — **REPAIR MODE — R1-A1 FROZEN, lineage
+tạm dừng vì hết review budget**. `R1-A1` đã đạt `FROZEN` theo **DEC-139**
+(Independent Review `PASS — ELIGIBLE_FOR_FREEZE`, 0 blocking finding, 1
+hardening backlog HB-A1-05). `R1-A` và `R1` tổng **vẫn NOT FROZEN** — không
+suy diễn tăng theo. `R1-A2` → `R8` **KHÔNG tự mở**: lineage `TASK-110` có
+`repair_cycles_remaining = 0` (`EXHAUSTED_PRE_V4.1`), mỗi unit cần một
+`OWNER_EXTENSION` riêng — xem `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+Canonical cho giai đoạn này:
+`docs/tasks/TASK-110_REPAIR_PROGRESS.md` (bảng tiến độ từng unit — đọc TRƯỚC
+`PROJECT_PROGRESS.md` cho câu hỏi "unit nào đang làm") và
+`docs/tasks/TASK-110-REPAIR-MODE.md` (bối cảnh Review #8 + 8 finding, artifact
+lịch sử).
+
+**ĐÃ MERGED vào nhánh mặc định (V4.1-1). VẪN NOT DONE.**
+`CHECK-110-16` = **REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE**
+(DEC-141). `TASK-110` chỉ chuyển `DONE` khi check này thực sự `PASS` trên dữ
+liệu production thật.
 
 Current Task Mode:
 MAJOR
 
 Next Recommended Task:
-**TASK-110 — validation + Review Queue.** Là task PHASE-01 duy nhất còn lại
-**không** phụ thuộc `EligibleKpiProfit`/`ConvertedRevenue`, nên sẵn sàng ngay.
-Nó cũng là nơi bắt buộc phải hiển thị hai cảnh báo F2/F4 của
-`reconcile_conversion.py` — xem "Nợ Kỹ Thuật / Cảnh Báo Vận Hành" bên dưới.
+**TASK-GOLDEN-BASELINE-001** — dựng Golden Baseline trên integration baseline
+chính thức (`governance/core/V4_1_POLICY_FREEZE.md` §13, bước `V4.1-2`). Đây là task **duy
+nhất** được phép nâng `V4.1` từ `POLICY_ADOPTED` lên `FULLY_ENFORCED`. Phải
+mở trong một session riêng.
+
+**KHÔNG** bắt đầu `R1-A2`, `R2` hay bất kỳ unit nào từ `R1-B` → `R8`: lineage
+`TASK-110` có `repair_cycles_remaining = 0`; mỗi unit cần `OWNER_EXTENSION`
+riêng kèm production path cụ thể, kịch bản nghiệp vụ sai cụ thể, phạm vi và
+budget được Owner cấp. Không có Owner Extension ⇒ `STOP`.
+
+Lịch sử review của lineage (tham chiếu, không phải việc còn lại): tám vòng
+Independent Review, bảy vòng đầu FAIL và đều đã sửa xong (6 + 4 + 3 + 2 + 4 +
+6 + Closure finding); mỗi finding có regression hoặc falsification test riêng.
+Vòng #5 và #6 là **Architecture Repair**, không phải vá cục bộ. Vòng cuối trên
+`R1-A1` **PASS** tại `a853971` (DEC-139).
+
+Sau đó: **TASK-111 (excel_exporter)** dùng được đầu ra Review Queue cho sheet
+Audit/Overrides.
 
 **TASK-109 (summary_engine) bị chặn một phần** — cột "DS quy đổi" và "LN KPI"
 cần TASK-108B. Không nên bắt đầu trước khi C15 đóng, nếu không sẽ phải làm
@@ -185,7 +269,18 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         đổi, DSQĐ/đơn, Lợi nhuận thực, % Target — **và tương tự theo từng
         nhân viên dạng YTD**, để tách bạch năng lực tự bán với năng lực xử lý
         lead do công ty tạo ra.
-  - [ ] TASK-110 — validation + Review Queue. Mục §18 đặc tả, 5 loại cảnh báo:
+  - [ ] TASK-110 — validation + Review Queue. **MERGED vào nhánh mặc định
+        (V4.1-1), NOT DONE.** `R1-A1` = **FROZEN** (DEC-139, Independent
+        Review PASS tại `a853971`); `R1-A` = NOT FROZEN; `R1` = NOT FROZEN.
+        `R1-A2` → `R8` = `OWNER_EXTENSION REQUIRED` (repair budget
+        `remaining = 0`). Tám vòng review, vòng cuối trên `R1-A1` PASS.
+        21/22 REQUIRED check PASS; CHECK-110-16 (đối chiếu dữ liệu thật)
+        **BLOCKED**, Gate Class `POST_MERGE_PRODUCTION_ACCEPTANCE` (DEC-141)
+        — thiếu file thô production; **chặn DONE, không chặn merge**.
+        **20/20 falsification CLOSED** (trước Closure: 7/20); RC-1→RC-5 đóng bằng cấu trúc; oracle đã mutation-test. Phạm vi
+        thật **7 loại** sau DEC-128 (V7 mở thành **F1–F6** theo DEC-129),
+        không phải 5 — xem `docs/tasks/TASK-110-validation-review-queue.md`.
+        Mục §18 đặc tả, 5 loại gốc:
         `Missing` (thiếu ngày, OrderID, nhân viên, số lượng, doanh số, giá
         nhập), `Suspicious` (SL ≤ 0, giá bán = 0, giá nhập > giá bán, lợi
         nhuận âm — 1.912 dòng như vậy trong mẫu), `Order inconsistency` (cùng
@@ -360,7 +455,30 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue).
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Bảy vòng review siết dần provenance:
+#1 yêu cầu mỗi mục phải truy vết được (S017); #2 yêu cầu F4 bỏ qua
+`employee_raw` rỗng và F6 chấm theo effective dating từng dòng (S018); #3 yêu
+cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
+không phát khi thiếu ngày — HD-110-04/DEC-130 (S019); #4 yêu cầu **mọi**
+provenance dựng từ chính tập row của finding, và F3 cũng cần ngày —
+HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
+thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
+(`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
+(S021). *(Câu "Chưa vòng nào PASS; chờ Review #6" ở đây là bản ghi tại thời
+điểm S021 — **SUPERSEDED**. Trạng thái hiện tại: vòng review trên `R1-A1` đã
+**PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`, `R1-A1 = FROZEN` theo **DEC-139**;
+`R1-A`/`R1` tổng vẫn NOT FROZEN, `TASK-110` vẫn NOT DONE.)* F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
+chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
+**CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
+**CHECK-110-14** (`reconcile_conversion.py` giữ nguyên hành vi, 24/24 test
+không sửa). Cả ba PASS. Tiêu chí F1–F5 đã dời sang
+`app/modules/validation/employee_mapping.py`; script phân tích import ngược
+lại đúng các tên đó, nên hai đường dùng chung một bộ tiêu chí thay vì hai bản
+cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
+
+**Chưa đóng hoàn toàn:** màn hình duyệt thật vẫn là TASK-305 — hiện F2/F4 nằm
+trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo cho track này
 
@@ -402,7 +520,7 @@ TASK-110 có thể chạy cùng lúc với TASK-108/TASK-109.
 | TASK-107 | 2 | 4 | 4 | MAJOR | B | C |
 | TASK-108 | 3 | 5 | 5 | MAJOR | C | — |
 | TASK-109 | 3 | 4 | 4 | MAJOR | B | C |
-| TASK-110 | 2 | 2 | 2 | MAJOR | B | C |
+| TASK-110 | 3 | 3 | 2 | MAJOR | B | C |
 | TASK-111 | 3 | 2 | 2 | MAJOR | B | C |
 | TASK-112 | 1 | 2 | 2 | MICRO | A | B |
 | TASK-201 | 3 | 4 | 5 | MAJOR | C | — |
@@ -491,19 +609,92 @@ mở. Xem DEC-123, DEC-124.
 ## Trạng thái Task hiện tại
 
 Task:
-TASK-108A-1 — ConversionSchemeResolver
+TASK-110 — Validation + Review Queue
 
 Task Mode:
 MAJOR
 
 Status:
-IMPLEMENTED — 16/16 REQUIRED check PASS, 119/119 test. **CHƯA merge**, chờ
-independent review theo chỉ đạo của chủ dự án.
+**MERGED vào nhánh mặc định (V4.1-1). NOT DONE.**
+
+```
+R1-A1    = FROZEN        (DEC-139 — Independent Review PASS — ELIGIBLE_FOR_FREEZE,
+                          0 blocking finding, 1 hardening backlog HB-A1-05;
+                          reviewed SHA  a85397106b81799d149d98e71a7fcfd5bc8963ad;
+                          freeze  SHA   01a03b08ab6fc21b6b9ef3eeab5dfa1d692a8713)
+R1-A     = NOT FROZEN
+R1       = NOT FROZEN
+TASK-110 = NOT DONE
+CHECK-110-16 = REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE (DEC-141)
+repair_cycles_used = EXHAUSTED_PRE_V4.1 · repair_cycles_remaining = 0
+R1-A2 → R8 = OWNER_EXTENSION REQUIRED
+```
+
+**MERGE KHÔNG ĐỒNG NGHĨA DONE.** `TASK-110` chỉ chuyển `DONE` khi
+`CHECK-110-16` thực sự `PASS` trên dữ liệu production thật. Không synthetic
+PASS, không workbook giả, không bypass.
+
+Bảng tiến độ từng unit (canonical, đọc trước file này cho câu hỏi "unit nào
+đang làm"): `docs/tasks/TASK-110_REPAIR_PROGRESS.md`.
+
+Completion Gate đã **FROZEN** (chủ dự án, 2026-08-23) — Gate không còn ở trạng
+thái chờ duyệt, và code đã viết xong.
+
+*Phần dưới đây là **bản ghi lịch sử** các vòng Independent Review — giữ nguyên
+làm history, không phải trạng thái hiện tại:*
+
+- **Independent Review #1 — FAIL, 6 finding** → đã sửa toàn bộ (S017), ba
+  Human Decision ghi thành **DEC-129**.
+- **Independent Review #2 — FAIL, 4 finding** → đã sửa toàn bộ (S018).
+- **Independent Review #3 — FAIL, 3 finding** → đã sửa toàn bộ (S019); một
+  Human Decision (**HD-110-04**) ghi thành **DEC-130**.
+- **Independent Review #4 — FAIL, 2 provenance defect** → đã sửa toàn bộ
+  (S020); một Human Decision (**HD-110-05**) ghi thành **DEC-131**.
+- **Independent Review #5 — FAIL, 4 finding** → đã sửa toàn bộ bằng
+  **Architecture Repair** (S021); ba Human Decision (**HD-110-06/07/08**) ghi
+  thành **DEC-132**. Hai finding provenance đã tái xuất ở representation khác
+  nhau qua các vòng trước, nên vòng này sửa **cơ chế sinh ra chúng** thay vì
+  sửa representation: trạng thái sai không còn **biểu diễn được**.
+
+- **Independent Review #6, #7, #8** — FAIL; #8 falsify các tuyên bố
+  `ARCHITECTURE CLOSED` / `RC-1→RC-5 CLOSED` của #7, mở giai đoạn REPAIR MODE
+  theo từng unit `R1` → `R8` (xem `docs/tasks/TASK-110-REPAIR-MODE.md`).
+- **Vòng cuối trên `R1-A1` — PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`
+  (**DEC-139**). Đây là vòng review PASS đầu tiên của lineage; nó freeze
+  **`R1-A1` và chỉ `R1-A1`**.
+
+*(Bản ghi lịch sử kết thúc ở đây.)*
+
+21/22 REQUIRED check PASS. **CHECK-110-16 (đối chiếu dữ liệu thật) vẫn
+BLOCKED** — file thô production không có trong repo (đúng
+`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`) và không có trong
+container. Theo **DEC-141** check này nay có Gate Class
+`POST_MERGE_PRODUCTION_ACCEPTANCE`: **chặn DONE, không chặn merge**.
+
+Phạm vi: **7 loại cảnh báo** (không phải 5), V7 mở thành **F1–F6** theo
+DEC-129. Chấm điểm: Difficulty 3, **Risk 3** (kéo theo E1 bắt buộc cho mọi
+check REQUIRED). Bốn khoảng trống nghiệp vụ của §18 đã đóng bằng **DEC-128**.
+
+File: `docs/tasks/TASK-110-validation-review-queue.md`.
+Trạng thái từng unit: `docs/tasks/TASK-110_REPAIR_PROGRESS.md`.
+Handoff: `docs/sessions/S021-*.md` (Architecture Repair, mới nhất),
+`S015-*.md` (Gate), `S016-*.md` (triển khai),
+`S017-*.md` (sửa Review #1), `S018-*.md` (sửa Review #2),
+`S019-*.md` (sửa Review #3), `S020-*.md` (sửa Review #4).
+
+### TASK-108A-1 (task liền trước)
+
+Task Mode:
+MAJOR
+
+Status:
+**DONE** — 16/16 REQUIRED check PASS, 151/151 test, Independent Review #4
+PASS, đã merge tại `c7a1b24`.
 
 Required Gate Progress:
-GATE-00 PASS (DEC-122). TASK-101 **DONE**, TASK-105 **DONE**, TASK-106
-**DONE**, TASK-107 **DONE** — 83/83 test PASS (`pytest tests/ -q`);
-TASK-107: 6/6 REQUIRED check PASS. Chi tiết đầy đủ:
+GATE-00 PASS (DEC-122). TASK-101, TASK-105, TASK-106, TASK-107, TASK-108A-1
+đều **DONE**. Bộ test hiện tại: **346/346 PASS** (`pytest tests/ -q`) —
+xem "Trạng thái Task hiện tại" cho TASK-110. Chi tiết từng task:
 `docs/tasks/TASK-101-importer-normalizer.md`,
 `docs/tasks/TASK-105-price-engine.md`,
 `docs/tasks/TASK-106-adjustment-engine.md`,
@@ -1053,7 +1244,30 @@ thống không biết — và theo DEC-127 §8, mọi dòng của người đó 
 tức **không nhận tỉ lệ nào**, tức không vào KPI của ai. Im lặng ở đây là mất
 doanh số của một người thật khỏi bảng lương.
 
-Owner: TASK-110 (validation + Review Queue).
+Owner: TASK-110. **ĐÃ XỬ LÝ (S016). Bảy vòng review siết dần provenance:
+#1 yêu cầu mỗi mục phải truy vết được (S017); #2 yêu cầu F4 bỏ qua
+`employee_raw` rỗng và F6 chấm theo effective dating từng dòng (S018); #3 yêu
+cầu F3 chỉ đánh dấu dòng thật sự ambiguous, F4 giữ mọi biến thể raw, và F6
+không phát khi thiếu ngày — HD-110-04/DEC-130 (S019); #4 yêu cầu **mọi**
+provenance dựng từ chính tập row của finding, và F3 cũng cần ngày —
+HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
+thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
+(`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
+(S021). *(Câu "Chưa vòng nào PASS; chờ Review #6" ở đây là bản ghi tại thời
+điểm S021 — **SUPERSEDED**. Trạng thái hiện tại: vòng review trên `R1-A1` đã
+**PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`, `R1-A1 = FROZEN` theo **DEC-139**;
+`R1-A`/`R1` tổng vẫn NOT FROZEN, `TASK-110` vẫn NOT DONE.)* F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
+chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
+**CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
+**CHECK-110-14** (`reconcile_conversion.py` giữ nguyên hành vi, 24/24 test
+không sửa). Cả ba PASS. Tiêu chí F1–F5 đã dời sang
+`app/modules/validation/employee_mapping.py`; script phân tích import ngược
+lại đúng các tên đó, nên hai đường dùng chung một bộ tiêu chí thay vì hai bản
+cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
+
+**Chưa đóng hoàn toàn:** màn hình duyệt thật vẫn là TASK-305 — hiện F2/F4 nằm
+trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo
 

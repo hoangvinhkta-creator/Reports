@@ -37,9 +37,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import unicodedata
 from collections import Counter
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -48,19 +46,24 @@ import openpyxl
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.modules.config.loader import as_date, load_yaml  # noqa: E402
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver  # noqa: E402
 from app.modules.domain.models import ADS  # noqa: E402
 from app.modules.lead_source.classifier import LeadSourceClassifier  # noqa: E402
-from app.modules.mapping.employee_mapper import EmployeeMapper  # noqa: E402
+from app.modules.mapping.employee_mapper import (  # noqa: E402
+    EmployeeMapper,
+    load_employee_master,
+)
+# F1–F5 now live in production (TD-001, TASK-110). Re-exported here unchanged
+# so this script's behaviour and output stay exactly as signed off in
+# CHECK-108A1-15 — that output is shipped evidence, not a draft.
+from app.modules.validation.employee_mapping import (  # noqa: E402
+    MappingInput,
+    collect_mapping_stats,
+    evaluate_raw_mapping,
+    norm,
+)
 
 CONFIG = Path(__file__).resolve().parents[2] / "config"
-
-
-def norm(value) -> str:
-    if value is None:
-        return ""
-    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", str(value))).strip()
 
 
 def production_employees() -> dict[str, dict]:
@@ -70,8 +73,11 @@ def production_employees() -> dict[str, dict]:
     dimensions, and it is a lookup into the real file — not a table written
     here to make the numbers agree.
     """
-    data = load_yaml(CONFIG / "employees.yaml")
-    return {norm(row["normalized"]): row for row in data.get("employees", [])}
+    # HD-110-10: đi qua biên canonical thay vì `load_yaml` thô, nên chế độ
+    # chỉ-`--workbook` cũng fail-fast trên master hỏng. Không đổi logic đối
+    # chiếu, không đổi vòng khớp prefix riêng đã freeze.
+    master = load_employee_master(CONFIG / "employees.yaml")
+    return {norm(row["normalized"]): row for row in master.records}
 
 
 def reachable_rates(
@@ -187,199 +193,46 @@ def reconcile_summary(
     return mismatched
 
 
-@dataclass(frozen=True)
-class RawMappingVerdict:
-    """Outcome of the raw employee-mapping reconciliation.
-
-    `hard_failures` alone decide the exit code. Warnings and info are printed
-    but never fail the run — a diagnostic that can be wrong must not be able
-    to block a merge on its own.
-    """
-
-    hard_failures: list[str]
-    warnings: list[str]
-    info: list[str]
-
-
-def _effective_window(row: dict) -> tuple[date, date]:
-    starts = as_date(row.get("effective_from")) or date.min
-    ends = as_date(row.get("effective_to")) or date.max
-    return starts, ends
-
-
-def _overlaps(row: dict, start: date | None, end: date | None) -> bool:
-    if start is None or end is None:
-        return True  # unknown dataset range: assume the employee is in scope
-    starts, ends = _effective_window(row)
-    return starts <= end and start <= ends
-
-
-def evaluate_raw_mapping(
-    mapped: Counter,
-    groups: dict[str, str],
-    unmapped: Counter,
-    ambiguities: dict[str, set],
-    employees: list[dict],
-    declared_groups: set[str],
-    dataset_start: date | None = None,
-    dataset_end: date | None = None,
-) -> RawMappingVerdict:
-    """Criteria for the raw employee-mapping reconciliation.
-
-    Counting rows and printing them proves nothing on its own: a badly broken
-    `employees.yaml` still produces a tidy table, just a wrong one. But the
-    opposite failure is just as bad — a criterion that fires on healthy data
-    is noise, and noise gets ignored. So the criteria are split by how certain
-    they are.
-
-    **Hard failures** are invariants. Each one means the configuration is
-    internally inconsistent or the mapping produced nothing usable; none of
-    them can be true of correct master data.
-
-        F1  Every employee's `group` must be declared in `employee_groups`.
-        F3  No raw `NVBH` value may match two different employees **whose
-            effective windows overlap on that row's own date**. Two prefixes
-            that only ever existed in disjoint periods are a normal handover,
-            not an ambiguity (DEC-121).
-        F5  At least one employee must map at all.
-
-    **Warnings** are diagnostics. They are worth a human's attention and go to
-    the review queue, but they are heuristics rather than rules, so they never
-    fail the run on their own:
-
-        F2  A configured employee that is active and effective somewhere in
-            this dataset's date range, yet matched no row. Usually a typo in
-            `raw_prefix` — but a real salesperson can also simply have sold
-            nothing in the period, which is not a defect.
-        F4  An unmapped name carrying at least as many rows as the smallest
-            mapped employee. Suggestive of missing master data, but it
-            false-positives on a low-volume employee or a high-volume legacy
-            name, so it signals rather than blocks.
-
-    **Info** covers employees legitimately absent: not yet effective, no
-    longer effective, or `active: false` outside their window. Reporting them
-    silently as "missing" would train readers to ignore F2.
-
-    None of these criteria names an expected employee or group. An
-    expected-values table written here would only assert that the config still
-    says what it said when this file was authored.
-    """
-    hard: list[str] = []
-    warnings: list[str] = []
-    info: list[str] = []
-
-    for row in employees:
-        group = row.get("group")
-        if group not in declared_groups:
-            hard.append(
-                f"F1 — nhân viên {row.get('normalized')!r} khai group "
-                f"{group!r} không có trong `employee_groups`"
-            )
-
-    for raw_value, matches in ambiguities.items():
-        hard.append(
-            f"F3 — {raw_value!r} khớp nhiều nhân viên cùng hiệu lực tại ngày "
-            f"của dòng đó: {sorted(matches)}"
-        )
-
-    if not mapped:
-        hard.append(
-            "F5 — KHÔNG nhân viên nào map được dòng nào. Mapping production "
-            "hỏng hoàn toàn."
-        )
-        return RawMappingVerdict(hard, warnings, info)
-
-    for row in employees:
-        name = norm(row["normalized"])
-        if name in mapped:
-            continue
-        starts, ends = _effective_window(row)
-        if not row.get("active", True):
-            info.append(
-                f"F2 — {name!r} `active: false`, không có dòng nào: đúng kỳ vọng"
-            )
-        elif not _overlaps(row, dataset_start, dataset_end):
-            info.append(
-                f"F2 — {name!r} hiệu lực {starts}..{ends}, ngoài phạm vi dữ "
-                "liệu: đúng kỳ vọng, không phải lỗi"
-            )
-        else:
-            warnings.append(
-                f"F2 — {name!r} (raw_prefix {row.get('raw_prefix')!r}) đang "
-                "hiệu lực trong kỳ nhưng không khớp dòng nào. Có thể là sai "
-                "prefix, cũng có thể chỉ là không có doanh số — cần người xem."
-            )
-
-    smallest_name, smallest = min(mapped.items(), key=lambda kv: kv[1])
-    for raw_value, count in unmapped.items():
-        if count >= smallest:
-            warnings.append(
-                f"F4 — {raw_value!r} chưa map nhưng có {count} dòng, "
-                f"≥ nhân viên nhỏ nhất đã map ({smallest_name}: {smallest}). "
-                "Dấu hiệu master data thiếu người đáng kể — chẩn đoán, không "
-                "phải kết luận."
-            )
-
-    return RawMappingVerdict(hard, warnings, info)
-
-
 def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
-    employees = load_yaml(CONFIG / "employees.yaml")
-    employee_rows = employees.get("employees", [])
-    declared_groups = {
-        g.get("code") for g in employees.get("employee_groups", [])
-    }
-    prefixes = [
-        (norm(row["raw_prefix"]), norm(row["normalized"]), row)
-        for row in employee_rows
-    ]
-
+    # HD-110-12: script dựng ĐÚNG một `MappingStats` canonical rồi trao cho
+    # tiêu chí, thay vì tự đếm và tự khớp prefix song song với production. Nhờ
+    # `enumerate` từ `min_row=6` mà nó có số dòng thật, nên provenance của mọi
+    # finding dẫn từ dòng thô có thật — và con số trong message đọc từ chính
+    # provenance đó, không từ một counter thứ hai (RC-3).
+    #
+    # Vòng khớp prefix riêng của script đã biến mất cùng bộ đếm song song:
+    # giữ nó lại là giữ một bản cài đặt thứ hai của cùng một quy tắc, đúng
+    # thứ INVARIANT A tồn tại để loại bỏ. Output trên config hợp lệ không đổi,
+    # và điều đó được kiểm bằng L3/CHECK-108A1-15.
     wb = openpyxl.load_workbook(raw, read_only=True, data_only=True)
-    mapped: Counter = Counter()
-    groups: dict[str, str] = {}
-    unmapped: Counter = Counter()
-    ambiguities: dict[str, set] = {}
-    dataset_start: date | None = None
-    dataset_end: date | None = None
-    for row in wb.active.iter_rows(min_row=6, values_only=True):
+    inputs = []
+    for offset, row in enumerate(wb.active.iter_rows(min_row=6, values_only=True)):
         if not row[1] or len(row) < 13 or not row[12]:
             continue
         raw_value = norm(row[12])
         when = row[0].date() if hasattr(row[0], "date") else row[0]
         when = when if isinstance(when, date) else None
-        if when:
-            dataset_start = when if dataset_start is None else min(dataset_start, when)
-            dataset_end = when if dataset_end is None else max(dataset_end, when)
-
         result = mapper.resolve(raw_value, when)
-        if result.normalized:
-            mapped[result.normalized] += 1
-            groups[result.normalized] = result.group or "—"
-        else:
-            unmapped[raw_value] += 1
-
-        # Ambiguity is judged on THIS row's own date: two prefixes that only
-        # ever existed in disjoint periods are a handover, not a clash.
-        hits = {
-            name
-            for prefix, name, emp_row in prefixes
-            if raw_value.startswith(prefix)
-            and (when is None or _overlaps(emp_row, when, when))
-        }
-        if len(hits) > 1:
-            ambiguities[raw_value] = hits
+        inputs.append(
+            MappingInput(
+                source_file=raw.name,
+                source_row=6 + offset,
+                employee_raw=raw_value,
+                when=when,
+                normalized=result.normalized,
+                group=result.group,
+            )
+        )
     wb.close()
 
-    verdict = evaluate_raw_mapping(
-        mapped,
-        groups,
-        unmapped,
-        ambiguities,
-        employee_rows,
-        declared_groups,
-        dataset_start,
-        dataset_end,
-    )
+    stats = collect_mapping_stats(inputs, mapper)
+    mapped = stats.mapped
+    unmapped = stats.unmapped
+    groups = stats.groups
+    dataset_start = stats.dataset_start
+    dataset_end = stats.dataset_end
+
+    verdict = evaluate_raw_mapping(stats)
 
     span = (f"{dataset_start} .. {dataset_end}"
             if dataset_start and dataset_end else "không xác định")
@@ -402,7 +255,7 @@ def reconcile_raw(raw: Path, mapper: EmployeeMapper) -> int:
             print(f"      {line}")
     else:
         print(f"      F1 group referential integrity : OK "
-              f"({len(declared_groups)} group khai báo)")
+              f"({len(mapper.master.group_codes)} group khai báo)")
         print("      F3 không đụng độ prefix cùng kỳ : OK")
         print("      F5 mapping không rỗng           : OK")
 

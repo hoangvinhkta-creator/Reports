@@ -1,0 +1,196 @@
+# REVIEW BUDGET LEDGER
+
+Machine Control #2 của Governance V4.1 (`TASK-V4-ADOPTION`, §18).
+
+Ledger này là bản ghi tường minh, đọc được bằng máy lẫn con người, về ngân
+sách repair-cycle của từng root task lineage theo bảng đã freeze ở
+`governance/core/RULE_PRECEDENCE.md` §... *(bảng ngân sách nằm trong chính
+Owner Decision của V4.1 — xem `PROJECT/PROJECT_DECISIONS.md` DEC-140
+và các mục liên quan)*. Không phải nơi diễn giải lại luật; chỉ ghi trạng
+thái.
+
+## Bảng ngân sách đã freeze (V4.1)
+
+```
+LOW              = 1 blocking repair cycle
+MEDIUM           = 1 blocking repair cycle
+HIGH / CRITICAL  = 2 blocking repair cycles
+```
+
+Không tồn tại `HIGH = 3`. Owner được phép đặt budget thấp hơn bảng này cho
+một root task cụ thể. Vượt budget → `OWNER_EXTENSION REQUIRED`.
+
+Ngân sách gắn với **ROOT TASK LINEAGE**. Sub-unit (ví dụ R1-A2, R1-B, R2…)
+không có ngân sách riêng, không reset ngân sách, và không được tạo lineage
+mới chỉ để reset ngân sách.
+
+---
+
+## Root Task: TASK-V4-ADOPTION
+
+```
+root_task: TASK-V4-ADOPTION
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+Production code changes: FORBIDDEN (theo phạm vi V4.1-0).
+
+Nếu adoption không hoàn thành sau 1 blocking repair cycle: DESCOPE →
+MINIMAL V4.1 OVERLAY (không tạo V4.1-R1, V4.1-R1A, V4.1-Repair-2, hay bất kỳ
+decomposition nào nhằm reset budget).
+
+cycles:
+- id: (chưa mở — adoption hoàn thành trong 0 repair cycle tính đến thời
+  điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
+## Root Task: TASK-110
+
+Đây là **transition ledger có chủ ý** cho một root task lineage đã tồn tại
+từ trước V4.1, được V4.1 tiếp nhận nguyên trạng — không được cấp lại ngân
+sách, không được đưa giá trị `repair_cycles_remaining` về khác 0 chỉ vì V4.1
+mới có hiệu lực.
+
+```
+root_task: TASK-110
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: EXHAUSTED_PRE_V4.1
+repair_cycles_remaining: 0
+
+historical_evidence:
+    independent_reviews: ">=8"
+    repairs: ">=3"
+
+authorized_actions:
+    - FINAL_REVIEW_ONLY
+    - ACCEPT_AS_IS
+    - DESCOPE
+    - OWNER_EXTENSION
+```
+
+**TASK-110 BUDGET = EXHAUSTED.** Đây là trạng thái chuyển tiếp có chủ ý, ghi
+tại thời điểm V4.1 adoption (2026-08-27), không phải placeholder chờ điền
+sau.
+
+### Sub-unit lineage — không có ngân sách riêng
+
+R1-A2, R1-A3, R1-A4, R1-B … R1-E, R2 … R8 — nếu thuộc `TASK-110` thì đều
+thuộc cùng lineage `TASK-110`. Vì `TASK-110.repair_cycles_remaining = 0`,
+**không unit nào trong nhóm này được tự mở**. Mỗi unit muốn tiếp tục phải
+có một `OWNER_EXTENSION` riêng, kèm:
+
+- production path cụ thể;
+- kịch bản nghiệp vụ sai cụ thể nếu không xử lý;
+- phạm vi được phép;
+- budget được Owner cấp.
+
+Không có Owner Extension tương ứng → `STOP`.
+
+### Cycle accounting lịch sử (tham chiếu, không phải ngân sách còn lại)
+
+Cumulative repair diff của TASK-110 được ghi trong các session log dưới
+`docs/sessions/S015` … `S023` và trong `PROJECT/PROJECT_DECISIONS.md`
+(DEC-128 … DEC-139). Kể từ integration `V4.1-1` (2026-08-27) toàn bộ lịch sử
+này đã nằm trên nhánh mặc định — không còn phân tán trên các nhánh review
+riêng. Ledger này không sao chép lại toàn bộ lịch sử đó — chỉ xác nhận điểm
+chốt: ngân sách repair-cycle của lineage `TASK-110` đã cạn TRƯỚC khi V4.1 có
+hiệu lực.
+
+cycles:
+- id: PRE_V4.1_HISTORICAL
+  base_sha: (xem lịch sử session TASK-110 — ngoài phạm vi ghi lại tại đây)
+  head_sha: (xem lịch sử session TASK-110 — ngoài phạm vi ghi lại tại đây)
+  note: >
+    Lịch sử đầy đủ (>=8 Independent Review, >=3 repair) nằm trong
+    docs/sessions/ và PROJECT/PROJECT_DECISIONS.md trên các nhánh review
+    TASK-110 đang hoạt động. Ledger V4.1 chỉ ghi nhận điểm chốt ngân sách,
+    không viết lại lịch sử.
+
+### Merge gate liên quan
+
+**ĐÃ CÓ QUYẾT ĐỊNH — `DEC-141` (2026-08-27, V4.1-1).** Owner chọn option (B)
+của §9: `CHECK-110-16` đổi Gate Class thành `POST_MERGE_PRODUCTION_ACCEPTANCE`.
+
+```
+CHECK-110-16
+Priority   : REQUIRED                            (không đổi)
+Status     : BLOCKED                             (không đổi)
+Gate Class : POST_MERGE_PRODUCTION_ACCEPTANCE    (đổi từ pre-merge gate)
+```
+
+Chỉ Gate Class đổi. Vẫn thiếu production workbook thật để đối chiếu. Không
+được giả lập PASS hay bypass. **Merge KHÔNG đồng nghĩa `TASK-110 DONE`** —
+`TASK-110` chỉ chuyển `DONE` khi check này thực sự `PASS` trên dữ liệu
+production thật. Xem `governance/core/TASK_COMPLETION_GATE_STANDARD.md`,
+`DEC-141` và `docs/tasks/TASK-110-validation-review-queue.md`.
+
+Đồng hồ 30 ngày của §9 vì vậy **đã dừng** cho gate này: quyết định Owner đã
+được đưa ra ở ngày thứ 4 (phát sinh 2026-08-23 → quyết định 2026-08-27).
+
+### Branch divergence đã biết
+
+**ĐÃ ĐÓNG — `DEC-141` §4 (2026-08-27, V4.1-1).** Owner chọn option (A) của
+§8: integrate/merge sớm.
+
+Divergence đo được ngay trước integration, so với nhánh mặc định
+`claude/extract-upload-repo-gq2ws4` @ `c7a1b24`:
+
+| Nhánh | ahead | thời gian | LOC | vượt ngưỡng |
+|---|---:|---|---:|---|
+| `claude/r1-a1-contract-freeze-9lkh3h` | 24 | 4 ngày | 40.523 | cả ba |
+| `claude/r1-canonical-object-safety-fon9lb` | 18 | 1 ngày | 37.509 | 2/3 |
+| `claude/zealous-bardeen-s8iu2h` | 13 | 0 ngày | 31.126 | 2/3 |
+| `claude/task-110-gate-readiness-7ui4si` | 6 | 0 ngày | 7.509 | 1/3 |
+| `claude/governance-v4-1-freeze-36oexq` | 1 | 0 ngày | 722 | không |
+
+Ba nhánh review phụ được chứng minh là **ancestor** của nhánh authoritative
+`claude/r1-a1-contract-freeze-9lkh3h` (`git rev-list --count <A1>..<phụ>` = 0
+cho cả ba) ⇒ 0 commit unique bị bỏ lại khi hợp nhất.
+
+**KNOWN PRE-V4.1 DIVERGENCE = CLOSED tại V4.1-1.** Không grandfather thành
+permanent exception.
+
+---
+
+## Cách xác định phạm vi một repair cycle (tham chiếu)
+
+```
+git diff <base_sha>..<head_sha> --name-only
+```
+
+Cycle được tính theo LẦN SỬA, không theo số review. Nếu repair tiếp tục
+trong cùng cycle, `head_sha` phải tiến lên SHA mới; `base_sha` không reset.
+Không dùng session mới / sub-unit mới / branch mới để reset `base_sha`.
+
+## Owner Extension log
+
+*(Trống. Mỗi Owner Extension được cấp sau này phải thêm một mục vào đây, kèm
+root task, phạm vi, và budget cụ thể.)*
+
+Tính đến `V4.1-1` (2026-08-27): **chưa có Owner Extension nào được cấp.**
+`R1-A2` → `R8` của lineage `TASK-110` vì vậy **không unit nào được tự mở**.
+`DEC-141` là Owner Decision về Gate Class và integration — **không phải** một
+Owner Extension, và **không** cấp thêm repair cycle.
+
+## Cập nhật gần nhất
+
+- 2026-08-27 — Khởi tạo ledger tại `TASK-V4-ADOPTION` (V4.1-0, Policy
+  Adoption). `TASK-V4-ADOPTION` mở với 1 repair cycle khả dụng, 0 đã dùng.
+  `TASK-110` ghi nhận ở trạng thái transition `EXHAUSTED_PRE_V4.1`, remaining
+  = 0.
+- 2026-08-27 — `V4.1-1` INTEGRATION. Hợp nhất `TASK-110`/`R1-A1` (`01a03b0`,
+  `FROZEN` theo `DEC-139`) và Governance V4.1 (`8d79009`) vào nhánh mặc định
+  qua integration branch `integration/v4-1-task-110`. Owner Decision
+  `DEC-141`: `CHECK-110-16` → Gate Class `POST_MERGE_PRODUCTION_ACCEPTANCE`
+  (Status vẫn `BLOCKED`); `DEC-128` của V4.1 đổi thành `DEC-140` để giải ID
+  collision với `DEC-128` của `TASK-110`; `KNOWN PRE-V4.1 DIVERGENCE` đóng.
+  **Ngân sách không đổi:** `TASK-110` vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0.
+  Thay đổi tài liệu của phiên integration được phân loại
+  `INTEGRATION STATE RECONCILIATION`, **không** tính là repair cycle.

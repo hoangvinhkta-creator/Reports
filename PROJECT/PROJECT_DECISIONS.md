@@ -1280,3 +1280,1262 @@ Can Revisit After:
 Quyết định 5 (phân loại thủ công) mở lại khi Phase 2/3 có UI thật và đủ dữ
 liệu đã-được-người-dùng-xác-nhận để cân nhắc tự học. Quyết định 1–4, 6–8 là
 nền tảng, không dự kiến đổi.
+
+## DEC-128
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Gate / Readiness Review (trước khi có dòng code nào)
+
+Decision:
+
+Bốn khoảng trống nghiệp vụ của mục §18 đặc tả, chủ dự án trả lời trực tiếp
+trong phiên Gate Review. Ghi lại nguyên vẹn vì cả bốn đều đổi kết quả mà công
+cụ xuất ra, không chỉ đổi cách hiển thị.
+
+**1 — `Missing: thiếu giá nhập` nén thành một mục tổng hợp.**
+`price_source == Pending` là **trạng thái hệ thống đã biết** (DEC-103: chưa có
+Price Master), không phải lỗi dữ liệu của từng dòng. Review Queue hiển thị
+**một** mục duy nhất dạng "N dòng đang chờ giá nhập", không phải N mục. Quy
+tắc per-row chỉ bật khi Price Master tồn tại (TASK-401).
+
+**2 — `Suspicious: lợi nhuận âm` tách làm hai loại có cơ sở khác nhau.**
+- Loại tính toán: dựa trên `accounting_profit` và `accounting_purchase_price`.
+  Viết đúng ngay bây giờ, có test, nhưng **nằm im ở Phase 1** (0 phát hiện, vì
+  `accounting_profit is None` ở 100% dòng). Tự sống dậy khi có Price Master.
+- Loại ERP: một loại **riêng biệt**, dựa trên `source_profit` (1.912/11.765
+  dòng âm), nhãn ghi rõ là tín hiệu từ ERP **chưa kiểm chứng**.
+  `docs/analysis/01_DATA_MAPPING.md` §3 đã dự liệu đúng việc này.
+
+**3 — Dòng phụ và Duplicate.**
+- `SL ≤ 0` / `giá bán = 0`: dùng một **danh sách từ khóa dòng phụ trong
+  config** để hạ 1.261 dòng hợp lệ (`Chi phí vận chuyển`, `Chênh VAT`…) xuống
+  `INFO` thay vì `Suspicious`. Đây là biện pháp giảm nhiễu, **không** thay thế
+  Product/Transaction Classification đầy đủ — mục §17 vẫn thuộc TASK-103.
+- `Duplicate`: định nghĩa của đặc tả (`cùng source_file + source_row`) là bất
+  khả thi trong một lần import — cặp đó duy nhất theo cấu tạo. Thay bằng
+  **trùng `row_hash` trong cùng một lần import**, mức `WARNING` (hai dòng phụ
+  kiện giống hệt nhau có thể hợp lệ). Chống trùng khi **import lại cùng một
+  file** cần persistence — dời sang TASK-201, ghi tường minh là out-of-scope.
+
+**4 — Đơn có hai nhân viên khác nhau: chỉ phát hiện, không đổi hành vi.**
+`order_builder` hiện lấy nhân viên của **dòng đầu tiên**, nên cả đơn nhận tỉ
+lệ quy đổi của người đó. TASK-110 đưa đơn đó vào Review Queue ở mức cao nhất
+nhưng **không** đổi cách tính.
+
+Reason:
+
+Điểm 1–3: giữ Review Queue ở mức người thật đọc nổi. Một hàng chờ 11.765 mục
+"thiếu giá nhập" và hàng nghìn mục "vận chuyển SL = 0" sẽ bị bỏ qua toàn bộ —
+lúc đó cảnh báo thật cũng chết theo. Điểm 2 tách hai cơ sở vì trộn chúng lại
+sẽ khiến một con số ERP chưa kiểm chứng trông như đã kiểm chứng, đúng loại
+nhầm lẫn DEC-103 tồn tại để chặn.
+
+Điểm 4: chủ dự án chọn giữ ranh giới quy trình. Đổi cách tính tiền là việc của
+một quyết định nghiệp vụ riêng, không phải hệ quả phụ của một task validation.
+
+Impact:
+
+Phạm vi TASK-110 thành **7 loại cảnh báo**, không phải 5. Difficulty 2 → 3,
+Risk 2 → 3 (Risk 3 kéo theo **E1 bắt buộc** cho mọi check REQUIRED, theo
+`governance/core/EVIDENCE_STANDARD.md`).
+
+**Rủi ro tồn dư đã chấp nhận (điểm 4):** cho tới khi có người duyệt hàng chờ,
+một đơn có hai nhân viên vẫn xuất ra con số sai KPI cho cả hai người. Công cụ
+làm cho nó **nhìn thấy được**, không làm cho nó **không xảy ra**. Cần đo quy
+mô thật ở GATE-01.
+
+Điểm 3 tạo một phụ thuộc mềm lên TASK-103: nếu danh sách từ khóa lệch khỏi
+bảng Classification khi §17 được làm, hai chỗ sẽ nói hai điều khác nhau về
+cùng một dòng. TASK-103 phải kiểm tra lại danh sách này.
+
+Can Revisit After:
+Điểm 1 tự hết hiệu lực khi TASK-401 có Price Master. Điểm 3 (Duplicate) mở lại
+ở TASK-201 khi có persistence. Điểm 4 nên mở lại ở GATE-01, sau khi đo được
+thật sự có bao nhiêu đơn bị mâu thuẫn nhân viên và số tiền liên quan.
+
+## DEC-129
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #1 (FAIL, 6 finding)
+
+Decision:
+
+Ba quyết định của chủ dự án trong đợt Independent Review #1. Ghi lại để chúng
+trở thành **canonical**, không còn là hành vi triển khai nằm ngoài Scope Lock —
+đây chính là Finding 2 của đợt review.
+
+**1 — HD-110-01: F1–F5 được phép vào Review Queue (Scope Expansion APPROVED).**
+Bảng phạm vi freeze ban đầu ghi V7 là "F2 và F4". Bản triển khai đưa cả
+`hard_failures` (F1/F3/F5) vào hàng chờ ở mức `ERROR`. Reviewer xếp đó là
+scope creep — đúng về thủ tục, kể cả khi kết quả là thứ nên có. Chủ dự án
+**duyệt chính thức**: F1/F3/F5 là invariant nghiêm trọng và được phép vào
+queue. Bảng phạm vi của TASK-110 sửa V7 thành **F1–F6**.
+
+**2 — HD-110-02: heuristic từ khóa dòng phụ được duyệt TẠM THỜI.**
+Phase 1 được dùng heuristic từ khóa vì TASK-103 (Product/Transaction
+Classification, mục §17 đặc tả) chưa có. Hai ràng buộc kèm theo:
+- **Không chấp nhận literal `"phí "`** (dấu cách cuối) làm semantic lâu dài.
+  Khớp phải có chuẩn hóa và ngữ nghĩa biên từ rõ ràng.
+- **Cấm chỉnh rule để tái tạo con số lịch sử 1.261.** Con số đó do bộ lọc
+  regex cũ trong `tools/analysis/extract_evidence.py` đo ra; nó là **mốc tham
+  chiếu**, không phải mục tiêu. Chênh lệch phải giải thích, không được tune.
+- Đây là **giải pháp tạm**, **TASK-103 phải thay thế** chứ không kế thừa.
+
+**3 — HD-110-03: thêm tiêu chí F6 — nhân viên `inactive` mà vẫn có dòng.**
+Finding 3 yêu cầu gỡ `inactive` khỏi `Missing.employee` (đúng: nhân viên đã
+được nhận diện, không có gì "thiếu"). Nhưng gỡ xong thì trạng thái đó **không
+còn tín hiệu nào ở đâu cả**: `conversion_engine` cho `inactive` đi qua y hệt
+`mapped` (chỉ `unmapped` bị chặn về `Unresolved` theo DEC-127 §8), nên doanh
+số vẫn chảy vào KPI của người đã bị đánh dấu là nghỉ. Không quyết định nào
+(§18, DEC-104, DEC-127, DEC-128, F1–F5) phủ trường hợp này.
+
+Chủ dự án chọn: báo bằng một tiêu chí **F6** trong loại `EmployeeMapping` đã
+có, mức `WARNING`, kèm provenance (tên nhân viên, số dòng, dòng nguồn).
+**Không** thêm mã loại mới, **không** đổi cách tính, **không** đổi KPI
+ownership.
+
+Reason:
+
+Điểm 1: một hành vi đúng nhưng nằm ngoài phạm vi đã freeze vẫn là scope creep.
+Cách sửa là làm cho phạm vi nói ra điều đó, không phải biện minh cho hành vi.
+
+Điểm 2: `"phí "` không phải một nghĩa, nó là một mẹo thay cho "hết từ ở đây".
+Nó bỏ sót giá trị kết thúc bằng từ đó, và mời người sau gỡ dấu cách — lúc đó
+`"phí"` khớp `"bàn phím"` và một sản phẩm thật bị hạ xuống INFO mà không ai
+biết. Còn việc khóa danh sách vào con số 1.261 biến một phép kiểm thành một
+phép chép: nó chỉ chứng minh rule khớp với rule cũ, không chứng minh rule đúng.
+
+Điểm 3: im lặng ở đây là đúng loại im lặng mà TASK-110 tồn tại để chặn — một
+người bị đánh dấu đã nghỉ nhưng vẫn đang bán hàng, và tiền vẫn chạy về tên họ.
+Nhưng sửa cách tính là việc của một quyết định riêng, nên F6 chỉ **báo**.
+
+Impact:
+
+- Bảng phạm vi TASK-110: V7 = **F1–F6**, không phải "F2 và F4".
+- `app/modules/validation/text.py` (mới) sở hữu chuẩn hóa NFC + gộp khoảng
+  trắng + case-folding + khớp biên từ, dùng chung cho cả từ khóa lẫn
+  `ProductRaw`.
+- `config/validation.yaml`: `"phí "` → `"phí"`; danh sách rút về 5 từ khóa
+  mang nghĩa, kèm ghi chú cấm tune theo con số lịch sử.
+- **CHECK-110-16 đổi cách đọc, không đổi mức độ nghiêm ngặt:** bảng số trong
+  check đó (2 / 52 / 1.912 / **1.261** / 11.765) nay là **mốc tham chiếu**.
+  Con số 1.261 do bộ lọc substring cũ đo ra; ngữ nghĩa biên từ mới có thể cho
+  con số khác một cách chính đáng. Chênh lệch phải **giải thích bằng văn bản**
+  — vẫn cấm chỉnh ngưỡng cho khớp, và nay cấm cả chiều ngược lại.
+- F6 tạo một phụ thuộc mềm lên master data: nếu người nào được set
+  `active: false` mà `effective_to` chưa đóng, F6 sẽ kêu mỗi lần import cho
+  tới khi config được sửa. Đó là hành vi mong muốn, không phải nhiễu.
+
+Can Revisit After:
+Điểm 2 hết hiệu lực khi **TASK-103** làm xong — lúc đó heuristic phải bị gỡ,
+không phải để lại chạy song song. Điểm 3 nên xem lại ở GATE-01 nếu chủ dự án
+muốn `inactive` không nhận tỉ lệ (đó sẽ là đổi business calculation, cần một
+DEC riêng và sửa `conversion_engine`). Điểm 1 là nền tảng, không dự kiến đổi.
+
+## DEC-130
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #3 (FAIL, 3 finding)
+
+Decision:
+
+**HD-110-04 — Giao dịch thiếu ngày không được phát F6.**
+
+Một dòng thô không có ngày (`date is None`) **không bao giờ** sinh cảnh báo F6
+(nhân viên `active: false` mà vẫn có dòng). Lý do: không có ngày thì **không
+đủ bằng chứng** để xác định bản ghi master data nào đang có hiệu lực cho dòng
+đó.
+
+Ràng buộc kèm theo, chủ dự án nêu tường minh:
+
+- `Missing.date` **vẫn phải phát** — dòng đó vẫn là dữ liệu thiếu, và đó mới
+  là việc cần sửa trước.
+- **Không** chọn bản ghi đầu tiên (hay bất kỳ bản ghi nào) để suy ra F6.
+- **Không** khẳng định giao dịch nằm trong cửa sổ hiệu lực nào khi ngày chưa
+  biết.
+- **Không** tạo loại business rule mới cho tình huống này.
+- **Không** đổi hành vi `EmployeeMapper` / Conversion / KPI trong TASK-110.
+
+Reason:
+
+`select_effective_record` mô phỏng đúng `EmployeeMapper.resolve`, và mapper —
+khi `as_of is None` — bỏ qua bộ lọc `effective_rows` rồi chọn prefix dài nhất.
+Với một cặp bản ghi bàn giao (bản cũ `active: false` đã đóng `effective_to`,
+bản mới `active: true`), điều đó khiến F6 bắn từ bản ghi cũ **chỉ vì dòng
+không có ngày** — đo được: mapper trả `inactive`, F6 = 1.
+
+Đó là một cáo buộc dựng lên từ một ẩn số. Cảnh báo "người này đã nghỉ mà vẫn
+có doanh số" là cáo buộc về master data của một người thật; phát nó khi không
+biết dòng thuộc kỳ nào là biến một dữ liệu thiếu thành một kết luận. Im lặng ở
+đây **không** phải nuốt tín hiệu — dòng đó đã được `Missing.date` báo, và khi
+ngày được điền thì F6 tự trả lời được ở lần import sau.
+
+Impact:
+
+- `evaluate_inactive_records()` bỏ qua dòng `date is None`, có ghi chú lý do
+  ngay tại chỗ.
+- Guard đặt ở `evaluate_inactive_records`, **không** ở `select_effective_record`
+  — hàm đó phải tiếp tục phản chiếu `EmployeeMapper` nguyên vẹn, và
+  `test_f6_record_selection_agrees_with_the_production_employee_mapper` khẳng
+  định điều đó.
+- Không đổi `employee_mapping_status`, không đổi conversion, không đổi KPI.
+- Bảng phạm vi TASK-110, dòng V7: F6 nay ghi rõ **cần có ngày giao dịch**.
+
+Can Revisit After:
+Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), một dòng thiếu ngày
+sẽ được điền ngày trước khi vào báo cáo, nên tình huống này tự hết. Nếu sau
+này chủ dự án muốn một cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó
+là một loại mới và cần một quyết định riêng — DEC-130 cố ý **không** tạo nó.
+
+## DEC-131
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Independent Review #4 (FAIL, 2 provenance defect + 1 Human Decision)
+
+Decision:
+
+**HD-110-05 — F3 chỉ được đánh giá khi dòng thô có ngày giao dịch.**
+
+Nếu một dòng thô thiếu ngày:
+
+- **phát `Missing.date`** theo rule hiện tại;
+- **KHÔNG phát F3**;
+- **không** suy luận những employee/master record nào đang cùng hiệu lực;
+- **không** biến các cửa sổ hiệu lực **rời nhau** thành ambiguity;
+- **không** tạo thêm loại warning mới trong TASK-110.
+
+Reason:
+
+F3 mang nghĩa **"nhiều master record cùng hợp lệ tại thời điểm của dòng đó"**.
+Không có ngày thì không có thời điểm, nên không đủ bằng chứng để khẳng định
+điều đó.
+
+Bản trước dùng biểu thức `(when is None or _overlaps(...))` — nghĩa là một
+dòng thiếu ngày khớp **mọi** prefix bất kể cửa sổ hiệu lực. Hệ quả: hai bản
+ghi bàn giao có cửa sổ **rời nhau** (đúng cách DEC-121 diễn đạt một lần chuyển
+giao) bị biến thành một đụng độ, chỉ vì dòng đó thiếu ngày.
+
+Đây là cùng một nguyên tắc đã chốt ở **HD-110-04** cho F6, nay áp cho F3: một
+cáo buộc về master data không được dựng lên từ một ẩn số. Dòng đó đã được
+`Missing.date` báo — và đó mới là thứ cần sửa; sửa xong thì F3 tự trả lời được
+ở lần import sau.
+
+Impact:
+
+- Guard đặt trong `collect_mapping_stats` (bộ thu của **production**), **không**
+  trong `evaluate_raw_mapping`. Script phân tích
+  `tools/analysis/reconcile_conversion.py` tự dựng `ambiguities` của nó và phải
+  giữ nguyên hành vi đã ký ở CHECK-108A1-15.
+- Cùng lý do đó, việc **quy một dòng về một bản ghi config** (`rows_by_record`,
+  nền của F1 và F6) cũng chỉ làm cho dòng **có ngày**. Không có ngày thì bộ lọc
+  cửa sổ hiệu lực không áp dụng được, nên bản ghi chọn ra sẽ là phỏng đoán.
+  Đây là hệ quả trực tiếp của HD-110-04/HD-110-05, **không** phải một rule mới:
+  nó chỉ khiến `affected_count` của F1 thận trọng hơn, không tạo cảnh báo nào.
+- **Không** đổi hành vi `EmployeeMapper` / Conversion / KPI trong TASK-110.
+- Bảng phạm vi TASK-110, dòng V7: F3 nay ghi rõ **cần có ngày giao dịch**.
+
+Can Revisit After:
+Khi có persistence + màn hình sửa dữ liệu (TASK-201/302), dòng thiếu ngày sẽ
+được điền trước khi vào báo cáo nên tình huống tự hết. Nếu chủ dự án muốn một
+cảnh báo riêng cho "không đủ dữ kiện để chẩn đoán", đó là một loại mới và cần
+quyết định riêng — DEC-131 cố ý **không** tạo nó, đúng như DEC-130.
+
+## DEC-132
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Repair sau Independent Review #5
+
+Decision:
+
+Ba quyết định của chủ dự án (HD-110-06, HD-110-07, HD-110-08), chốt sau khi
+Architecture Audit chỉ ra rằng bốn finding của Review #5 chỉ là bốn biểu hiện
+của **một** root cause: validation TÁI TẠO LẠI các sự thật mà production đã
+biết, thay vì NHẬN LẠI chúng — cộng thêm việc data model của finding còn chừa
+một kênh song song cho provenance đi vào từ ngoài đường dẫn xuất.
+
+**1 — HD-110-06: `raw_prefix` rỗng hoặc thiếu là CẤU HÌNH SAI.**
+
+Master data nhân viên bị từ chối ngay khi load nếu một bản ghi:
+thiếu `raw_prefix`, để `raw_prefix` rỗng, hoặc để `raw_prefix` chỉ có khoảng
+trắng. Ngữ nghĩa `raw_prefix: "" = catch-all` **không** được hỗ trợ.
+
+Cùng lúc, schema tối thiểu của mỗi bản ghi được cưỡng chế: `raw_prefix` và
+`normalized` bắt buộc và không rỗng sau khi trim; `group` bắt buộc; `active`
+bắt buộc và phải là boolean thật.
+
+Phần validate này đặt ở `app/modules/mapping/employee_mapper.py`, **không**
+đặt vào `app/modules/config/loader.py`: loader tuyên bố ngay trong docstring rằng nó chỉ
+giữ cơ chế generic, còn ngữ nghĩa đặc thù domain thuộc về consumer.
+
+**2 — HD-110-07: chỉ còn MỘT nguồn sự thật cho việc chọn employee record.**
+
+`EmployeeMapper` công bố `RecordRef`, `resolve_record()`,
+`candidate_records()`, `record()` và `records`. `resolve()` được viết TRÊN
+`resolve_record()`. `WorkingData` mang chính instance mapper của production và
+truyền nó cho `Validator`; validation hỏi lại mapper thay vì đoán lại bằng
+giá trị.
+
+Xóa hẳn: `select_effective_record`, `_record_key`, và vòng khớp prefix riêng
+trong `collect_mapping_stats`. `_record_label` chỉ còn dùng để render cho
+người đọc, tuyệt đối không làm khóa tra cứu.
+
+**KHÔNG** thêm field nào vào `WorkingLine` / `Order`.
+
+**3 — HD-110-08: F3 dùng đúng matching semantics của production.**
+
+Nếu production coi một chuỗi raw là `unmapped` thì validation không được
+normalize theo một bản cài đặt riêng rồi kết luận F3 ambiguity. Thay đổi
+diagnostic output do loại bỏ drift này được chấp thuận.
+
+**4 — Provenance phải bất khả biểu diễn sai, không phải "nhớ đừng làm sai".**
+
+`MappingFinding` **không còn** trường `details: dict`. `ReviewItem` **không
+còn** field `affected_count` và `source_row` — cả hai là property dẫn xuất từ
+`RowProvenance`. Các khóa mang thông tin dòng (`source_rows`, `raw_variants`,
+`ambiguous_rows`, `conflicting_records`) thuộc quyền sở hữu của
+`RowProvenance` và bị từ chối nếu caller cố ghi vào `diagnostics`.
+
+Reason:
+
+Bốn vòng review liên tiếp đều đóng đúng cái representation mà reviewer chỉ
+ra, rồi vòng sau tìm ra cái kế tiếp: `source_row` → `source_rows` →
+`raw_variants` → `ambiguous_rows` → `details`. Đó là đóng một cửa trong một
+căn phòng còn nhiều cửa. Cơ chế sinh ra chúng vẫn nguyên vẹn suốt cả bốn vòng.
+
+Đoán lại một sự thật bằng giá trị có đúng hai chế độ hỏng, và cả hai đã xảy ra
+và đã được đo tại commit `8386d34`:
+
+- **drift** — `EmployeeMapper` nhận `raw_prefix` rỗng, `select_effective_record`
+  loại nó; `EmployeeMapper` raise `KeyError` khi thiếu key, validation trả
+  `None`; `collect_mapping_stats` khớp trên chuỗi đã normalize còn production
+  khớp trên chuỗi thô, nên `'Đức  Kiên 0867'` bị F3 (mức ERROR) kết tội
+  ambiguous trong khi production để nó `unmapped`;
+- **collision** — hai bản ghi trùng khít `normalized` + `raw_prefix` + cửa sổ
+  hiệu lực nhưng khác `active`/`group` cho ra cùng một `_record_key`, nên F6
+  của bản ghi đã đóng nhặt đúng các dòng mà production gán cho bản ghi đang
+  hoạt động, và tố cáo một nhân viên đang làm việc.
+
+Còn `details` là kênh khóa tùy ý được `validator.py` sao chép nguyên trạng:
+`frozen=True` chỉ đóng băng tham chiếu tới dict chứ không đóng băng nội dung
+nó, nên "frozen dataclass" ở đây là bảo đảm giả.
+
+Prefix rỗng bị cấm vì `"".startswith` khớp **mọi** chuỗi: nó lặng lẽ biến
+thành catch-all và dời quyền sở hữu KPI của mọi dòng chưa map sang một người,
+do một lỗi gõ. Nổ to lúc load tốt hơn tính sai lặng lẽ lúc chạy. Việc này
+**không** xung đột §18: §18 cấm chặn import vì **dữ liệu xấu**, còn cấu hình
+hỏng luôn được phép fail-fast — cùng lằn ranh mà `validator.py` đã phát biểu
+từ đầu cho một severity gõ sai trong `validation.yaml`.
+
+Impact:
+
+- Không đổi: employee business mapping result, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109. Chứng minh bằng CHECK-110-18 (ma trận 972 tổ hợp raw × as_of) và
+  CHECK-110-19 (đầu ra nghiệp vụ đầu-cuối), cả hai so với ảnh chụp lấy tại
+  commit `8386d345b04b754c061ce03b79116e75f0dfae4e` **trước** dòng sửa đầu tiên.
+- `tools/analysis/reconcile_conversion.py` không sửa một byte; `norm`,
+  `_overlaps` và chữ ký vị trí của `evaluate_raw_mapping` giữ nguyên
+  (CHECK-110-20, CHECK-110-14, CHECK-108A1-15).
+- HD-110-03, HD-110-04, HD-110-05 và DEC-129/130/131 giữ nguyên toàn bộ — audit
+  không tìm thấy xung đột canonical nào với chúng.
+- `Validator.__init__` nhận `employee_mapper` thay cho `employee_rows`;
+  `ReviewItem` nhận `provenance` / `batch_source_file` / `diagnostics` thay cho
+  `source_file` / `source_row` / `affected_count` / `details`. `details` vẫn đọc
+  được như cũ, dưới dạng property dẫn xuất.
+- CHECK-110-16 tiếp tục **BLOCKED** — vẫn cần file thô production.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence cho Review Queue, `RowProvenance` sẽ là thứ được
+ghi xuống; lúc đó cần xem lại biểu diễn lưu trữ, nhưng bất biến thì không đổi.
+Nếu về sau master data nhân viên cần một `id` ổn định (ví dụ để tham chiếu
+xuyên file), đó là phương án A trong Architecture Repair Plan và cần một DEC
+riêng — DEC-132 cố ý chưa tạo nó, vì `RecordRef` đã đủ để loại bỏ collision
+trong phạm vi một mapper instance canonical.
+
+## DEC-133
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Repair Gate #2, sau Independent Review #6
+
+Decision:
+
+Ba quyết định của chủ dự án (HD-110-09, HD-110-10, HD-110-11), chốt sau
+Architecture Repair Gate #2. Gate chỉ ra rằng sáu finding của Review #6 có một
+root cause chung, và root cause đó là **của chính bản sửa lần trước**:
+
+> Repair #1 thay giá trị sai bằng giá trị dẫn xuất, nhưng giữ nguyên
+> **ENUMERATION** làm cơ chế cưỡng chế ở mọi biên: danh sách đen (4 khoá), chỉ
+> số vị trí (`index`), danh sách trắng (9 trường oracle). Một liệt kê chỉ đầy
+> đủ do may mắn, và cả sáu finding đều là một chỗ mà liệt kê thiếu.
+
+**1 — HD-110-09: `employee.group` không có trong `employee_groups` là CẤU HÌNH
+SAI, fail-fast tại canonical master loader.**
+
+Đây **không** phải luật vệ sinh. `employee_group` là một chiều tra
+`config/conversion_rates.yaml`, nên một group gõ sai rơi khỏi dòng cụ thể và
+rớt xuống dòng `"*"`. Đo được: `NOI_THANH` → `NOI_THANH_2` rate **2,0 %**;
+`NOI_THAN` (thiếu một chữ H) → `PERSONAL_5_5` rate **5,5 %**. Một lỗi gõ dời tỉ
+lệ quy đổi 175 %, im lặng, và tín hiệu duy nhất trước đây là một dòng ERROR
+trong hàng chờ *không chặn import*.
+
+Quyết định này **thu hẹp DEC-129 §1** (HD-110-01), dựa trên bằng chứng chưa tồn
+tại khi DEC-129 được chốt. DEC-129 **không** bị sửa hay xoá; F1 vẫn tồn tại và
+vẫn chạy trên đường phân tích và test bypass validate.
+
+Lằn ranh chạy theo đúng một chiều và không được nới: một **dòng giao dịch** hỏng
+KHÔNG bao giờ được biến thành config failure — nó vào Review Queue y như trước
+(§18 đặc tả).
+
+**2 — HD-110-10: một biên nạp master canonical duy nhất.**
+
+`load_employee_master()` là điểm nghẽn duy nhất. Cho phép sửa **tối thiểu**
+`tools/analysis/reconcile_conversion.py`: thay hai đường `load_yaml` employee
+master thô bằng `load_employee_master()`. **Không** đổi logic đối chiếu,
+**không** đụng vòng khớp prefix riêng đã freeze. Config hợp lệ phải giữ output
+byte-identical (CHECK-108A1-15).
+
+**3 — HD-110-11: business oracle structural, không danh sách trắng.**
+
+Oracle L2 dẫn xuất bằng `dataclasses.fields()`, phủ **mọi** trường. Trường
+chứa PII lưu **digest**, không lưu giá trị thô. Không được quay lại danh sách
+trắng.
+
+Kèm theo, các invariant kiến trúc được freeze ở Gate #2:
+
+- **P — Provenance.** Machine-readable row provenance chỉ tồn tại ở
+  `RowProvenance`. `ReviewItem` **không lưu** `dict[str, str]` nào; `details`
+  là projection lúc đọc, tính từ payload có kiểu + provenance của chính item.
+- **I — Immutability.** Bất biến **sâu**: collection bị ép sang tuple và **sao
+  chép** ở biên. `frozen=True` chứa alias mutable không được coi là bất biến.
+- **M — Mapper ownership.** `EmployeeMaster` là snapshot bất biến có
+  `snapshot_id` dẫn từ nội dung; `RecordRef` mang `snapshot_id`; ref lạ bị từ
+  chối; `Validator` nhận nguyên bundle `WorkingData`.
+- **C — Configuration integrity.** Master invalid fail trước khi xử lý
+  transaction.
+- **L — Loader.** Mọi consumer đi qua biên canonical.
+- **O — Oracle.** Structural, không liệt kê.
+
+Reason:
+
+Repair #1 (DEC-132) đóng đúng các *thể hiện* mà Review #5 chỉ ra, nhưng để lại
+dạng *tổng quát*. Bằng chứng đo tại `ed38fd6`:
+
+- `diagnostics` là `dict[str, str]` của **caller**, nên sửa nó sau khi
+  `__post_init__` đã chạy vẫn vào được `details`; một khoá ngoài danh sách
+  (`cac_dong_lien_quan`) đi thẳng vào; và với item batch-scoped thì phép
+  "provenance đè lên" không chạy nên khoá lạ lọt hẳn.
+- `RowProvenance(rows=[...])` nhận list: append vào list đó làm
+  `affected_count` nhảy 1 → 2 **sau** khi item đã dựng xong. `AmbiguousRow.
+  records` cũng vậy — kể cả trên đường "dẫn xuất".
+- `RecordRef(index, label)` nêu một *vị trí* mà không nêu *vật chứa*:
+  `A.record(ref)` trả `'Ly'` còn `B.record(ref)` trả `'Kiên'`, im lặng; và hai
+  ref của hai master **bằng nhau và cùng hash**.
+- Oracle L2 liệt kê 9 trong 34 trường `WorkingLine`: cộng 999.999 vào
+  `total_sales` của **mọi** dòng và đổi `price_source` — oracle vẫn PASS.
+
+Vị trí không kèm vật chứa không phải danh tính, nó là offset. Danh sách đen
+dài hơn không đóng được một kênh; chỉ có việc **không còn chỗ để đặt khoá** mới
+đóng được.
+
+Impact:
+
+- Không đổi: employee business mapping result, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109. Chứng minh bằng CHECK-110-19 (972 tổ hợp raw × as_of) và
+  CHECK-110-20 (oracle structural 66 trường), cả hai so với ảnh chụp lấy tại
+  `ed38fd6` **trước** dòng sửa đầu tiên (commit `4ab3df0` chỉ chứa fixture,
+  diff trên `app/` và `tools/` là rỗng — provenance kiểm được bằng git).
+- DEC-128 → DEC-132 **không** bị sửa. DEC-129 §1 bị **thu hẹp** bởi quyết định
+  1 ở trên, và điều đó được ghi ở đây chứ không ghi đè lên DEC-129.
+- `Validator.__init__` nhận `employee_mapper`; `employee_groups` nay thuộc
+  chính master snapshot. `ReviewItem` nhận `diagnostics: Diagnostics` có kiểu.
+- **Canonical migration của expected failure mode — ĐÃ GIẢI QUYẾT.**
+  HD-110-09 va với hai test trong `tests/test_reconcile_raw_integration.py`,
+  một file thuộc diện MUST NOT CHANGE:
+  `test_group_renamed_out_of_existence_fails` và
+  `test_declared_group_deleted_fails`. Chủ dự án duyệt phương án A: nới MUST
+  NOT CHANGE cho **đúng hai hàm test đó**, giữ nguyên ý định gốc và cập nhật
+  cơ chế kỳ vọng:
+
+      trước   phát hiện SAU khi đối chiếu   -> `reconcile_raw()` exit code > 0
+      sau     từ chối TRƯỚC khi đối chiếu   -> `InvalidEmployeeConfig` tại
+                                               canonical employee master loader
+
+  Cơ chế mới **mạnh hơn hẳn**: lượt chạy bị từ chối trước khi đọc một giao
+  dịch nào, thay vì báo cáo sau khi toàn bộ phép đối chiếu đã tính xong. Ý
+  định của hai test — "employee master có group reference hỏng KHÔNG được đi
+  lọt" — không đổi một chữ.
+
+  Ràng buộc đã giữ: **không** lùi HD-110-09; **không** tạo bypass referential
+  validation; **không** đổi hành vi production để test cũ PASS (diff trên
+  `app/` ở bước này là rỗng); **không** đụng reconciliation business logic;
+  **không** sửa bất kỳ test TASK-108A-1 nào khác. Sau migration:
+  **24/24** test reconciliation của TASK-108A-1 PASS, và L1/L2 vẫn IDENTICAL
+  nên hành vi trên config **hợp lệ** byte-identical như L3 yêu cầu.
+- CHECK-110-16 tiếp tục **BLOCKED**.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence cho Review Queue: `RowProvenance` và
+`Diagnostics` là thứ được ghi xuống, nên biểu diễn lưu trữ cần xem lại — bất
+biến thì không đổi.
+
+## DEC-134
+
+Date:
+2026-08-23
+
+Task:
+TASK-110 — Architecture Closure, sau Independent Review #7
+
+Decision:
+
+Hai quyết định của chủ dự án (HD-110-16, HD-110-17), cộng một chấp thuận về
+biểu diễn, chốt sau Architecture Closure Audit.
+
+**1 — HD-110-16: nới MUST NOT CHANGE cho đúng một file.**
+
+`tests/test_reconcile_raw_criteria.py` được phép sửa để: chuyển 15 lời gọi
+`evaluate_raw_mapping(...)` 8-tham-số-vị-trí sang **một** `MappingStats`
+canonical, và migrate đúng 2 test F1 sang `pytest.raises(InvalidEmployeeConfig)`.
+Ý định từng test giữ nguyên, không test nào bị xoá: 13 test trước → 13 test sau.
+
+Không được tạo shim 8-tham-số, không giữ hai implementation song song, không
+tạo bypass production, không dùng `validate=False`.
+
+**2 — HD-110-17: F1 được SUPERSEDED, không phải bị bỏ.**
+
+Ngữ nghĩa canonical mới:
+
+    master nhân viên không hợp lệ
+    → fail-fast tại `load_employee_master()` / `EmployeeMaster`
+    → TRƯỚC khi xử lý bất kỳ giao dịch nào
+    → Review Queue không bao giờ nhận được trạng thái đó
+
+F1 ("group phải khai trong `employee_groups`") vì thế trở thành bất khả đạt và
+được gỡ khỏi bộ tiêu chí. DEC-129 §1 và DEC-133 **không** bị sửa; quyết định
+này ghi lại việc thay thế và liên kết lịch sử.
+
+**3 — Biểu diễn `snapshot_id`.**
+
+`snapshot_id` chuyển từ *field caller đặt được* sang *property dẫn xuất từ nội
+dung master*. Chấp thuận với điều kiện — và đã chứng minh — rằng: mọi trường
+nghiệp vụ IDENTICAL (`normalized`, `status`, `group`, `include_in_kpi`,
+`default_lead_source`, `record.index`, `record.label`) trên toàn bộ 972 tổ hợp;
+id dẫn từ nội dung; caller không truyền được; cùng logical master → cùng id;
+khác logical master → khác id; id không tham gia bất kỳ phép tính nghiệp vụ nào.
+
+**4 — Năm root cause được đóng bằng cấu trúc.**
+
+- **RC-1 — biên canonical là KIỂU, không phải HÀM.** `EmployeeMaster`,
+  `EmployeeRecord`, `AffectedRow`, `RowProvenance` đều **sealed**: chỉ factory
+  đã parse dựng được. Giữ được object chính là bằng chứng nó hợp lệ.
+- **RC-2 — không còn văn bản tự do tại canonical boundary.**
+  `ReviewItem.message` không còn là tham số; nó là property do
+  `app/modules/validation/renderer.py` sinh ra từ đúng `(Diagnostics,
+  RowProvenance)` của chính item. Renderer không có đầu vào nào khác nên không
+  thể nêu một dòng ngoài provenance. Không blacklist, không regex.
+- **RC-3 — hai sự thật không còn là hai tham số.** `evaluate_raw_mapping(stats)`
+  nhận đúng một `MappingStats` sở hữu đồng thời bộ đếm, chỉ mục dòng và mapper.
+  Mọi con số "bao nhiêu dòng" trong message đọc từ `provenance`.
+- **RC-4 — parse, đừng validate.** `EmployeeRecord` + `DateWindow` là trạng
+  thái đã parse; ngày méo mó, sai kiểu, cửa sổ bất khả, group ma, prefix trùng
+  khít chồng cửa sổ đều là **parse thất bại tại biên master**.
+- **RC-5 — oracle kiểm STRUCTURE.** L1 phủ `MappingResult` bằng
+  `dataclasses.fields()`; L2 phủ RawRow + WorkingLine + Order và giữ
+  `order_graph` (Order → source_row theo thứ tự); không regex-over-message.
+
+Reason:
+
+Architecture Closure Audit chứng minh một câu: **mọi invariant của TASK-110
+được cưỡng chế tại một CHỖ (một hàm, một check, một test) thay vì được MANG bởi
+một KIỂU. Một chỗ thì đi vòng được; một kiểu thì không.** Đó là lý do sáu vòng
+review không hội tụ — mỗi vòng thêm một chỗ, vòng sau tìm con đường không đi
+qua chỗ đó.
+
+Bằng chứng đo tại `2d1da98`, tất cả nay đã đóng: `EmployeeMaster(...)` công
+khai nhận prefix rỗng + group ma + `active="no"` + dict thô sửa được từ ngoài;
+`ReviewItem(message="…dòng 7777")` dựng được trên item sở hữu dòng 6; một lớp
+con của `str` làm `details` trả giá trị khác nhau giữa hai lần đọc;
+`AffectedRow("KHONG_TON_TAI.xlsx", 99999)` dựng được; `evaluate_raw_mapping`
+nhận Counter nói "50 dòng" cùng provenance nói 0; oracle bỏ sót
+`MappingResult.record` và mù hoàn toàn với việc dời một line giữa hai Order.
+
+**Ghi chú thực thi về HD-110-15.** Luật "cấm `raw_prefix` trùng khít" được áp
+**chỉ khi hai cửa sổ hiệu lực chồng nhau**. Đó đúng là tình huống gây hại mà
+HD-110-15 mô tả (một người mất sạch doanh số trong im lặng). Cùng prefix với
+cửa sổ **rời nhau** là cách DEC-121 diễn đạt một lượt **bàn giao** — cấm nó sẽ
+phá một quy tắc nghiệp vụ canonical, và không dòng nào bị mất vì bộ lọc hiệu
+lực phân biệt được hai bản ghi theo ngày của chính dòng đó.
+
+Impact:
+
+- Không đổi: employee mapping trên config hợp lệ, conversion scheme/rate, KPI
+  ownership, pricing, profit, order ownership, lead source, TASK-108B,
+  TASK-109, output `reconcile_conversion.py` trên config hợp lệ.
+- L1 semantic IDENTICAL (972 tổ hợp), L1 v1 IDENTICAL, L2 scalar IDENTICAL,
+  L2 graph IDENTICAL — so với baseline `e221924` chụp tại `2d1da98`.
+- 20/20 case falsification của Audit = CLOSED.
+- DEC-128 → DEC-133 **không** bị sửa.
+- CHECK-110-16 tiếp tục **BLOCKED**.
+
+Can Revisit After:
+Khi TASK-201 thêm persistence: `RowProvenance` và `Diagnostics` là thứ được ghi
+xuống, nên biểu diễn lưu trữ cần xem lại — bất biến thì không đổi.
+
+---
+
+## DEC-135
+
+Date:
+2026-08-25
+
+Task:
+TASK-110 — R1-A1 Finite Contract Freeze, sau Independent Review R1-A1 #3
+
+Decision:
+
+Chủ dự án duyệt HD-A1-01 → HD-A1-18 đúng như đề xuất trong
+`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`. R1-A1 thôi lượng hoá trên
+không gian typing/runtime mở của Python và chuyển sang một **hợp đồng đóng,
+hữu hạn**.
+
+**1 — Ngữ pháp đóng, bốn dạng.**
+
+    spec := any | none | class | optional
+
+Mọi annotation khác là UNSUPPORTED, nổ `CanonicalContractViolation` lúc
+decorate. Mặc định là TỪ CHỐI. Độ rộng do production quyết định: audit 11
+canonical type / 72 field cho ra đúng 17 hình thái, quy về ba dạng — `class`
+37, `optional` 34, `any` 1. Production KHÔNG dùng generic có tham số, KHÔNG
+dùng `Literal`, KHÔNG dùng union nhiều nhánh.
+
+**2 — HD-A1-16: mọi generic có tham số là UNSUPPORTED.**
+
+Quyết định có ảnh hưởng lớn nhất. Không giữ tương thích ngược với phần hỗ trợ
+generic mà repair #1/#2/#3 đã xây. Hệ quả: ranh giới tranh cãi R1-A1/R1-D
+("parse đủ nhưng không kiểm phần tử") biến mất khỏi R1-A1; trục ĐỘ SÂU không
+còn nên `_MAX_ANNOTATION_DEPTH` được gỡ.
+
+**3 — HD-A1-09: xoá `isinstance` khỏi toàn bộ đường validate canonical.**
+
+Phép kiểm class runtime là `type(value) is T`. Bằng chứng đủ điều kiện:
+instrument trên toàn bộ 702 test tại `1b0da151` cho **0 divergence** giữa
+`isinstance` và phép so định danh — dung sai lớp con mà `isinstance` mua thêm,
+production không dùng, còn cái nó bán đi là hai lỗ hổng đo được (`__class__`
+nổ làm lỗi thô thoát ra; `__class__` nói dối đưa object giả qua được).
+
+**4 — HD-A1-10: một primitive bổ sung được duyệt.**
+
+`issubclass(type(value), MUTABLE_TUPLE)` cho mutable guard. Nó điều phối theo
+metaclass của vế PHẢI (hằng của framework), rơi vào `PyType_IsSubtype` đọc
+trường C `tp_mro`, nên không chạy code người dùng — và nó bắt được LỚP CON của
+container mutable, thứ phép so định danh bỏ sót.
+
+**5 — HD-A1-13: cổng `type(cls) is type` đứng trước mọi mutation lên class.**
+
+Đóng nhóm V bằng cấu trúc thay vì bằng rollback (bản thân rollback cũng gọi
+`setattr`).
+
+**6 — Corpus 105 case là ACCEPTANCE CORPUS, không được bổ sung trong vòng
+repair này.**
+
+Attack mới ngoài hợp đồng → HARDENING BACKLOG. Luật "reviewer nghĩ ra attack
+mới ⇒ FAIL" hết hiệu lực; Independent Review chỉ BLOCKING theo năm điều kiện ở
+§14 hợp đồng.
+
+Rationale:
+
+Ba vòng repair trước đều FAIL vì tiêu chí chấp nhận được phát biểu trên một
+không gian không đếm được. Reviewer luôn tạo thêm được một metaclass, một
+`__instancecheck__`, một `__hash__` mới. Vòng lặp chỉ kết thúc khi tiêu chí
+trở nên hữu hạn — và nó hữu hạn được vì production chỉ cần một tập rất nhỏ.
+
+Consequences:
+
+- DEC-128 → DEC-134 **không** bị sửa.
+- R1-A1 = AWAITING_INDEPENDENT_REVIEW. **Chưa** FROZEN, **chưa** chuyển R1-A2,
+  **chưa** merge TASK-110. CHECK-110-16 vẫn BLOCKED (workbook production chưa
+  tồn tại — không giả lập PASS).
+- Ba case `K03`/`L03`/`M02` chờ quyết định của chủ dự án: chúng nhắm vào thuộc
+  tính mà CPython `dataclasses._process_class` tự đọc trước khi `@canonical`
+  chạy, nên framework không tạo ra được outcome đã freeze. Đề xuất phân loại
+  lại thành `OUTSIDE_FRAMEWORK_BOUNDARY`; không tự đổi.
+
+---
+
+## DEC-136
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 Finite Contract, finalization sau implementation
+
+Decision:
+
+**1 — PRECEDENCE RULE (luật chung, không chỉ cho TASK-110).**
+
+Trong một artifact có đồng thời **bảng định danh** (bảng case, bảng
+requirement, ma trận ID) và **văn xuôi diễn giải**, thì:
+
+    BẢNG ĐỊNH DANH LÀ NGUỒN QUY PHẠM.
+
+Nếu số liệu hoặc diễn giải trong văn xuôi mâu thuẫn với bảng:
+
+    TABLE / IDENTIFIER MATRIX WINS.
+
+Văn xuôi phải được sửa cho đồng bộ với bảng. **Không** được sửa bảng theo văn
+xuôi nếu chưa có Owner Decision. Luật này ra đời để không lặp lại lỗi "95 vs
+105" của PLAN R1-A1.
+
+**2 — HD-POST-A1-01: FROZEN CORPUS = 105 CASE.**
+
+Con số "95" trong văn xuôi PLAN là lỗi đếm còn sót. Bảng ID §12 là quy phạm.
+Phân loại việc sửa: **DOCUMENTATION COUNT CORRECTION**, KHÔNG phải CONTRACT
+EXPANSION. Không thêm/xoá/renumber case, không đổi expected outcome để làm
+suite xanh.
+
+**3 — HD-POST-A1-02: K03 / L03 / M02 = OUTSIDE_FRAMEWORK_BOUNDARY.**
+
+Biên R1-A1 bắt đầu tại thời điểm code của `@canonical` bắt đầu execution. Nếu
+`dataclasses` / `typing` / interpreter / quá trình dựng annotation phát
+exception TRƯỚC thời điểm đó, canonical chưa có quyền kiểm soát exception ấy,
+và R1-A1 không có trách nhiệm normalize nó.
+
+Phân loại chỉ hợp lệ khi chứng minh đủ bốn mệnh đề: (A) canonical chưa bắt đầu
+xử lý class; (B) registry không đổi; (C) class không nhận canonical partial
+state; (D) canonical vắng mặt trong traceback và frame chịu trách nhiệm nằm
+trong stdlib. Nếu canonical ĐÃ chạy rồi mới leak raw foreign exception thì đó
+là **BLOCKING R1-A1 DEFECT** — `OUTSIDE_FRAMEWORK_BOUNDARY` không được dùng để
+che lỗi bên trong canonical.
+
+`canonical.py` **không** được sửa để cố bắt các exception này, và biên **không**
+được mở ngược vào `dataclasses` / `typing` / interpreter internals.
+
+Phân loại này **ghim theo interpreter**: CPython `3.11.15`. Số dòng
+`dataclasses.py` chỉ là evidence của interpreter hiện tại, **không** phải
+invariant. Đổi Python minor version ⇒ **RE-VERIFY**, không auto-carry.
+
+**4 — HD-POST-A1-03: K01 / M01 / M02 CASE CONSTRUCTION CORRECTION.**
+
+Ba correction được ratify. Phân loại: **CASE CONSTRUCTION CORRECTION**, KHÔNG
+phải EXPECTED OUTCOME CHANGE — mỗi correction làm case chạm đúng boundary mà nó
+tuyên bố kiểm tra, thay vì PASS/FAIL vì một cơ chế khác. Bản ghi 8 trường cho
+từng case ở §21.2d của
+`docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`.
+
+Từ Review Candidate SHA của phiên này trở đi: **K01 / M01 / M02 CONSTRUCTION =
+FROZEN**. Mọi thay đổi construction tiếp theo cần HUMAN ESCALATION.
+
+**5 — CORPUS RESULT SEMANTICS.**
+
+Báo cáo bắt buộc dùng dạng phân rã, không dùng "102/105 PASS" (đọc như 3 case
+hỏng) và không dùng "105/105 PASS" (đọc như 3 case ngoài biên cũng là in-scope):
+
+    FROZEN CORPUS               105/105 CLASSIFIED
+    IN-SCOPE                    102/102 PASS
+    OUTSIDE_FRAMEWORK_BOUNDARY    3/3   correctly classified (K03, L03, M02)
+    UNCLASSIFIED                    0
+    BLOCKING FAIL                   0
+
+    105 = 102 + 3
+
+**6 — CHECK-110-16 = MERGE GATE, KHÔNG phải REVIEW GATE.**
+
+Khi production workbook không tồn tại, CHECK-110-16 = BLOCKED. Không giả lập
+workbook, không synthetic PASS. R1-A1 vẫn đạt được
+`READY_FOR_INDEPENDENT_REVIEW` trong khi CHECK-110-16 còn BLOCKED;
+CHECK-110-16 chỉ phải giải quyết trước merge/final completion.
+
+**7 — Reference-integrity failure có sẵn được chấp nhận cho review readiness.**
+
+Ba dead reference trong `TASK-REM-T06` là PRE-EXISTING, ngoài touch-area, giữ
+tại HB-A1-05. **Cấm sửa** chúng trong task này — sửa là SCOPE VIOLATION. Chúng
+KHÔNG chặn `READY_FOR_INDEPENDENT_REVIEW`. Nếu xuất hiện reference-integrity
+failure MỚI: STOP.
+
+Rationale:
+
+Bốn quyết định đầu đóng nốt ba escalation mà implementation R1-A1 nêu ra, mà
+không mở lại một dòng nào của `canonical.py`. Quyết định 1 là luật chung: hai
+lần trong cùng một task, văn xuôi và bảng đã lệch nhau, và cả hai lần bảng mới
+là thứ đúng.
+
+Consequences:
+
+- DEC-128 → DEC-135 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** trong phiên finalization.
+- R1-A1 = **READY_FOR_INDEPENDENT_REVIEW**. Vẫn **chưa** FROZEN, **chưa** chuyển
+  R1-A2, **chưa** merge TASK-110.
+- R1-A, R1 = NOT FROZEN. R2→R8 = BLOCKED. CHECK-110-16 = BLOCKED (merge gate).
+- Backlog thêm HB-A1-06 (B2/B3 defensive boundary, untested) và HB-A1-07
+  (`MUTABLES` phụ thuộc invariant metaclass builtin `type`).
+
+---
+
+## DEC-137
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 Pre-Review Evidence Reconciliation
+
+Decision:
+
+**1 — BRANCH AUTHORITY.**
+
+    R1-A1 authoritative branch:
+        claude/r1-a1-contract-freeze-9lkh3h
+
+    authoritative review candidate:
+        SHA finalization của phiên reconciliation này
+        (kế thừa aff02405f51ad47e67e8759d2fa097f1277d62d4)
+
+    claude/r1-canonical-object-safety-fon9lb:
+        historical ancestor cho unit này;
+        NOT review authority;
+        NOT merge authority;
+        KHÔNG fast-forward trong task này.
+
+Nhánh `fon9lb` đứng tại `1b0da151` và là tổ tiên trực tiếp (behind 0 / ahead N)
+của nhánh authoritative, nên không có track song song nào để đối chiếu.
+
+**2 — REVIEW CLEANLINESS.**
+
+`CLEAN` nghĩa là: **không tracked file nào bị modified / staged / deleted bởi
+reviewer.**
+
+Những thứ sau **KHÔNG** phải repository modification:
+
+- untracked cache của test runner: `__pycache__/`, `.pytest_cache/`, `.coverage`;
+- detached checkout tới một exact SHA.
+
+Reviewer không bị coi là làm bẩn repo chỉ vì chạy test.
+
+**3 — VERDICT SEMANTICS.**
+
+Independent Reviewer chỉ được trả đúng một trong hai:
+
+    PASS — ELIGIBLE_FOR_FREEZE
+    FAIL — NOT_ELIGIBLE_FOR_FREEZE
+
+Reviewer **KHÔNG** ghi `FROZEN` vào repository. Nếu verdict là PASS, một
+**Freeze Finalization session riêng** mới được phép ghi `R1-A1 = FROZEN` cùng
+reviewed SHA vào governance.
+
+**4 — INTERPRETER TRIPWIRE SEMANTICS.**
+
+Test ghim interpreter FAIL vì reviewer dùng minor version khác **không** tự
+động là R1-A1 correctness FAIL; nó nghĩa là `ENVIRONMENT_REVERIFY_REQUIRED`.
+
+- Boundary invariant fail (một trong bốn mệnh đề A/B/C/D của `K03`/`L03`/`M02`
+  sai) → **BLOCKING**.
+- Chỉ version mismatch, bốn mệnh đề vẫn đúng → **NON-BLOCKING environment
+  difference**: cập nhật `VERIFIED_*`, ghi evidence, không phải correctness FAIL.
+
+Tripwire buộc re-verify, không tự động fail, và không làm yếu boundary oracle —
+bốn assertion A/B/C/D chạy độc lập với version check.
+
+**5 — DEFECT ĐƯỢC PHÁT HIỆN VÀ SỬA TRONG PHIÊN NÀY.**
+
+Three-way reconciliation (PLAN `5a0f27c` ↔ Frozen Contract `aff0240` ↔ pytest
+collection) phát hiện: **HD-POST-A1-02 đã được áp vào code và vào văn xuôi
+§21.2, nhưng CHƯA được áp vào chính bảng §12** — bảng quy phạm còn ghi
+`UNSUPPORTED_AT_DECORATION` cho `K03`/`L03`/`M02`.
+
+Theo precedence rule của DEC-136 thì bảng là quy phạm, nên tại `aff0240` bảng
+và implementation tự mâu thuẫn. Sửa bảng cho khớp HD-POST-A1-02 là **thi hành
+Owner Decision lên artifact quy phạm**, không phải một thay đổi hợp đồng đơn
+phương. `T03` được chuẩn hoá cách viết sang cùng token
+(`OUTSIDE_FRAMEWORK_BOUNDARY`) — ngữ nghĩa không đổi.
+
+Để lỗi này không tái diễn, phép đối chiếu bảng ↔ code trở thành **cơ chế**:
+`test_the_normative_table_and_the_code_corpus_agree_case_by_case` đọc trực tiếp
+bảng §12 và so từng ô với `FROZEN_CORPUS`. Lệch một ô là suite ĐỎ.
+
+Rationale:
+
+Đây là lần thứ ba trong cùng một task mà một artifact tự lệch với chính nó
+(95 vs 105; bảng vs code; và một lỗi parser markdown trong chính script đối
+chiếu). Cả ba lần đều là lỗi đồng bộ, không phải lỗi thiết kế — nên lời giải
+đúng là biến phép đối chiếu thành test, không phải thêm một vòng review nữa.
+
+Consequences:
+
+- DEC-128 → DEC-136 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** (SHA256
+  `08e74fe226caca98ce46f845475cc386496bf0e3a57eab197f97d09c723d3e3c`).
+- Corpus vẫn **105 case**; expected-outcome change duy nhất so với PLAN là ba
+  ô do HD-POST-A1-02 cho phép.
+- R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
+  merge. CHECK-110-16 vẫn BLOCKED (merge gate).
+
+---
+
+## DEC-138
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1, HD-POST-A1-04 (conditional ratification cho T03)
+
+Decision:
+
+**HD-POST-A1-04 = RATIFIED.** `T03` được phân loại
+`OUTSIDE_FRAMEWORK_BOUNDARY`, sau khi cả bốn premise có điều kiện đều được
+chứng minh:
+
+**A — PLAN đã phát biểu semantics pre-canonical từ trước.** PLAN @ `5a0f27c`,
+§10 dòng 402–406 (nguyên văn): "`typing` **tự nó** không dựng nổi object trước
+khi framework nhìn thấy … Đó là biên NGOÀI framework: không canonical type nào
+được tạo ra, không có trạng thái nửa vời". Ô expected outcome tại bảng §12
+dòng 560: "ngoài biên framework — không canonical type nào được tạo".
+Ratification dựa trên semantics đã có, không phải câu chuyện dựng sau.
+
+**B — oracle chứng minh đủ A/B/C/D, cùng chuẩn với `K03`/`L03`/`M02`.**
+Mệnh đề C được thoả ở dạng **mạnh hơn** chứ không yếu hơn: class mục tiêu chưa
+từng được tạo ra. Foreign component: `typing.py:1395 in __hash__`.
+
+**C — không cần sửa `canonical.py`.** TEST-ONLY + DOCS-ONLY.
+
+**D — semantic intent không đổi**; thay đổi là đặt tên token cộng nâng oracle.
+
+**Phân hoạch ngữ nghĩa DUY NHẤT từ đây:**
+
+    105 FROZEN CORPUS IDs
+      = 101 IN-FRAMEWORK FROZEN IDs   (BAO GỒM Z01–Z04)
+      +   4 OUTSIDE_FRAMEWORK_BOUNDARY IDs (K03, L03, M02, T03)
+
+`102 + 3` **không còn là acceptance equation**.
+
+**Điều phải nói thẳng — asymmetry của T03.** Tại `c183123`, `T03` PASS trong
+khi `K03`/`L03`/`M02` XFAIL. Lý do KHÔNG phải oracle T03 mạnh hơn: trong code
+`T03.expected` đã là `OUTSIDE_FRAMEWORK_BOUNDARY` ngay từ đầu, còn ba case kia
+mang một outcome framework không tạo ra được. Oracle của `T03` khi đó chỉ kiểm
+`RecursionError` + registry — nó **PASS đúng kết quả nhưng chưa chứng minh cơ
+chế**, và **yếu hơn** oracle mà ba case kia nhận ở HD-POST-A1-02. Vì vậy việc
+làm hôm nay **không** chỉ là "chuẩn hoá nhãn": phần nhãn là chuẩn hoá, phần
+oracle là một sự siết chặt thật sự.
+
+**Tripwire interpreter** nay phủ **cả bốn** case. Reviewer chạy minor version
+khác ⇒ `ENVIRONMENT_REVERIFY_REQUIRED` cho cả bốn, không phải correctness FAIL.
+
+**Parser bảng quy phạm** là một mắt xích evidence, nên có oracle riêng: 9 bất
+biến, và dòng méo phải FAIL chứ không bị nuốt.
+
+**SUPERSEDED REVIEW CANDIDATES** (branch authority DEC-137 giữ nguyên):
+
+- `aff02405f51ad47e67e8759d2fa097f1277d62d4` — superseded, lý do:
+  normative-table divergence.
+- `6f79cbb8a4b9f7355e8b595518326f4eda75ca95` — superseded, lý do:
+  T03 authority / oracle / accounting reconciliation pending.
+
+Rationale:
+
+Owner Decision này có điều kiện, và điều kiện có ý nghĩa: nếu PLAN không thật
+sự phát biểu semantics pre-canonical cho `T03` thì lời giải đúng là revert
+nhãn, không phải hợp thức hoá sau. PLAN có phát biểu, nên ratify — nhưng đúng
+lúc kiểm chứng thì lộ ra rằng oracle của `T03` xưa nay yếu hơn ba case kia.
+Ghi cả hai điều đó mới là bản ghi trung thực.
+
+Consequences:
+
+- DEC-128 → DEC-137 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** — SHA256
+  `08e74fe226caca98ce46f845475cc386496bf0e3a57eab197f97d09c723d3e3c`.
+- Corpus vẫn **105 ID**; outcome delta so với PLAN đúng **bốn** ô, không có ô
+  thứ năm.
+- R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
+  merge. CHECK-110-16 vẫn BLOCKED (merge gate).
+
+## DEC-139
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1 FREEZE FINALIZATION (session `claude/r1-a1-contract-freeze-9lkh3h`).
+
+Decision:
+
+Tiếp nhận verdict Independent Review đã chốt cho exact reviewed SHA
+`a85397106b81799d149d98e71a7fcfd5bc8963ad`:
+
+```
+PASS — ELIGIBLE_FOR_FREEZE
+BLOCKING findings: 0
+HARDENING findings: 1
+OUT_OF_SCOPE findings mới: 0
+```
+
+Ghi:
+
+```
+R1-A1 = FROZEN
+```
+
+Đây là finalization state, không phải một review mới — không finding kỹ
+thuật nào được sửa trong phiên này (repair budget của lineage `TASK-110` đã
+`EXHAUSTED_PRE_V4.1`, `remaining = 0`, xem PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào nhánh này tại thời điểm ghi).
+
+**Interpreter difference:** Independent Review chạy CPython 3.12.13, khác
+pinned evidence CPython 3.11.15 trước đó. Tripwire
+`ENVIRONMENT_REVERIFY_REQUIRED` kích hoạt cho K03/L03/M02/T03; reviewer đã
+re-verify A/B/C/D cho cả bốn — PASS cả bốn. Phân loại:
+**NON-BLOCKING ENVIRONMENT DIFFERENCE**. Không sửa test/pinning/canonical.py.
+
+**Corpus:** `105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY`
+(K03/L03/M02 → HD-POST-A1-02; T03 → HD-POST-A1-04/DEC-138). Không đổi ID,
+expected outcome, construction, numbering, grouping, oracle, corpus size.
+
+**Finding 1 — HARDENING, backlog only (HB-A1-05):**
+`docs/reviews/PRE-REVIEW-EVIDENCE-R1A1-collection.md` ghi `Parent SHA:
+6f79cbb...` thay vì `Reviewed SHA: a853971...`. Severity LOW, production
+path NONE, không blocking. Không sửa raw evidence trong phiên này.
+Re-trigger: khi tạo raw collection evidence cho review candidate tiếp
+theo — artifact mới nên phân biệt rõ `Parent SHA` / `Reviewed SHA`.
+
+**CHECK-110-16:** giữ nguyên `BLOCKED` — merge gate (không phải review
+gate), thiếu production workbook thật. Không synthetic PASS, không bypass.
+
+**Trạng thái không suy diễn tăng theo:**
+
+```
+R1-A1 = FROZEN
+R1-A  = NOT FROZEN
+R1    = NOT FROZEN
+TASK-110 = NOT DONE
+```
+
+**R1-A2 → R8:** `OWNER_EXTENSION REQUIRED` cho từng unit (theo
+PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào
+nhánh này tại thời điểm ghi). Không có Owner Extension ⇒ STOP.
+
+Rationale:
+
+Freeze record phải tách bạch rõ hai điều: (1) verdict kỹ thuật của
+Independent Review, đã chốt bởi Owner, không phải điều phiên này tái tạo
+hay tái diễn giải; và (2) phạm vi finalization thuần state — không mở lại
+repair, không mở R1-A2, không đổi implementation. Giữ Finding 1 ở backlog
+thay vì sửa ngay tránh việc "biến finding thành biến mất" — đúng như chỉ
+thị: sửa artifact evidence để một finding không còn hiển thị là hành vi bị
+cấm minh thị.
+
+Impact:
+- File sửa: `docs/tasks/TASK-110_REPAIR_PROGRESS.md` (append section
+  Freeze Finalization), file này (`PROJECT/PROJECT_DECISIONS.md`, DEC-139).
+- Không sửa: `app/modules/domain/canonical.py`, bất kỳ file dưới `tests/`,
+  `tools/analysis/`, `docs/reviews/PRE-REVIEW-EVIDENCE-R1A1-collection.md`,
+  hay nội dung kỹ thuật của `docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md`.
+- Commit Freeze Finalization là commit trạng thái SAU review, không thay
+  đổi reviewed implementation — SHA review (`a853971...`) và SHA finalize
+  (ghi trong commit log) là hai giá trị khác nhau và phải được phân biệt.
+
+Can Revisit After:
+`OWNER_EXTENSION` cho R1-A2 (hoặc bất kỳ unit R1-B…R8 nào), hoặc quyết định
+mới về `CHECK-110-16` (merge gate timeout, xem §9 của
+PROJECT/REVIEW_BUDGET_LEDGER.md — Governance V4.1 overlay, chưa merge vào
+nhánh này tại thời điểm ghi).
+
+## DEC-140
+
+Date:
+2026-08-27
+
+Task:
+TASK-V4-ADOPTION — Freeze & Execute Governance V4.1 (session V4.1-0).
+
+Decision:
+
+Owner phê duyệt và freeze **Governance V4.1** như một policy overlay
+(`governance/core/V4_1_POLICY_FREEZE.md`), áp dụng trên nền governance hiện
+có, không thay thế nó. Các điểm sau được freeze tại session này:
+
+1. **TASK-110 budget = `EXHAUSTED_PRE_V4.1`.** Lineage `TASK-110` (bao gồm
+   toàn bộ sub-unit R1-A2 → R8 nếu thuộc lineage này) có
+   `repair_cycles_remaining = 0` kể từ trước khi V4.1 có hiệu lực. Đây là
+   trạng thái chuyển tiếp có chủ ý (transition state), ghi tại
+   `PROJECT/REVIEW_BUDGET_LEDGER.md`, không phải một placeholder chờ điền.
+2. **R1-A2 → R8 không tự có ngân sách.** Mỗi unit muốn tiếp tục cần một
+   `OWNER_EXTENSION` riêng (production path cụ thể + kịch bản nghiệp vụ sai
+   + phạm vi + budget được cấp). Không có Owner Extension → `STOP`.
+3. **Bảng ngân sách review chuẩn hoá:** `LOW = 1`, `MEDIUM = 1`,
+   `HIGH/CRITICAL = 2` blocking repair cycle. Không tồn tại `HIGH = 3`.
+4. **Repair cycle tính theo cumulative repair diff** (`base_sha`/`head_sha`
+   tiến lên, không reset qua session/branch/sub-unit mới).
+5. **Blast Radius chấm theo failure path**, không chấm theo tên
+   module/file; `Effective Risk = max(Local Risk, Blast Radius)`.
+6. **Golden Baseline chỉ hạ Blast Radius tối đa một bậc** khi có một Golden
+   test cụ thể phủ đúng failure path (tên test/fixture/path/expected
+   output). Trước `TASK-GOLDEN-BASELINE-001`: không Golden test nào được
+   dùng để hạ risk.
+7. **Production-realistic input** phải dựng được từ một trong bốn nguồn hữu
+   hạn (production annotation/schema inventory hiện tại; config hiện hành;
+   Golden fixture đã tồn tại; raw production data đã xác minh). Không dựng
+   được → HARDENING BY DEFAULT.
+8. **Branch divergence threshold:** `INTEGRATION_DECISION_REQUIRED` khi
+   ahead > 10 commit, HOẶC divergence > 3 ngày, HOẶC cumulative LOC >
+   5.000. `TASK-110` hiện có nhiều nhánh review vượt các ngưỡng này — ghi
+   nhận là **KNOWN PRE-V4.1 DIVERGENCE**, phải xử lý tại V4.1-1, không
+   grandfather thành ngoại lệ vĩnh viễn.
+9. **Merge gate timeout = 30 ngày.** `CHECK-110-16` tiếp tục `BLOCKED` (merge
+   gate — thiếu production workbook thật để đối chiếu). Không giả lập PASS,
+   không bypass. Nếu vượt 30 ngày kể từ ngày phát sinh mà chưa có quyết
+   định: `OWNER DECISION REQUIRED`.
+10. **`ACCEPT_AS_IS` / `DESCOPE` chỉ Owner được ghi** (State Authority
+    Matrix, §12 của overlay).
+11. **`V4.1 = POLICY_ADOPTED` KHÔNG đồng nghĩa `V4.1 = FULLY_ENFORCED`.**
+    `FULLY_ENFORCED` chỉ đạt sau `TASK-GOLDEN-BASELINE-001` (Golden
+    fixture + deterministic expected output + one-command diff +
+    test suite tests/test_golden_baseline.py, chưa tồn tại, PASS).
+
+Rationale:
+
+Repo có nhiều nhánh review TASK-110 chạy song song (≥8 Independent Review,
+≥3 repair) từ trước khi V4.1 tồn tại; nếu V4.1 tự động cấp lại ngân sách
+cho lineage này, mọi giới hạn repair-cycle mà V4.1 định ra sẽ vô nghĩa ngay
+tại lần áp dụng đầu tiên. Đóng băng TASK-110 ở trạng thái exhausted-nhưng-
+không-treo (vẫn có `FINAL_REVIEW_ONLY`/`ACCEPT_AS_IS`/`DESCOPE`/
+`OWNER_EXTENSION` làm lối ra) giữ nguyên tắc "V4.1 phải chịu chính V4.1"
+đồng thời không chặn đường hoàn tất R1-A1 hiện đang review.
+
+Risk:
+
+Nếu không freeze rõ transition state này, có nguy cơ lặp lại đúng pattern
+đã gây ra DEC-118 (hai track không biết về nhau, làm trùng việc) — lần này
+là nhiều nhánh TASK-110 độc lập tiếp tục mở repair cycle mới không giới
+hạn dưới các tên gọi khác nhau (V4.1-R1, R1-A1A, …).
+
+Impact:
+- File mới: `governance/core/V4_1_POLICY_FREEZE.md`,
+  `PROJECT/REVIEW_BUDGET_LEDGER.md`, `scripts/branch_authority_check.sh`.
+- File sửa: `CLAUDE.md` (thêm pointer tới overlay), file này
+  (`PROJECT/PROJECT_DECISIONS.md`), `PROJECT/PROJECT_PROGRESS.md` (ghi
+  trạng thái adoption tối thiểu).
+- Không sửa production code (`app/`, `tests/`, `config/`, `tools/`).
+- Không sửa nội dung kỹ thuật của bất kỳ review TASK-110 nào đang mở trên
+  các nhánh khác (`claude/r1-a1-contract-freeze-9lkh3h`,
+  `claude/r1-canonical-object-safety-fon9lb`,
+  `claude/task-110-gate-readiness-7ui4si`,
+  `claude/zealous-bardeen-s8iu2h`) — các nhánh đó nằm ngoài phạm vi
+  `TASK-V4-ADOPTION`.
+
+Can Revisit After:
+`V4.1-1` (Final R1-A1 Independent Review + Freeze Finalization + Integration
+Decision) — không revisit trong chính session V4.1-0.
+
+## DEC-141
+
+Date:
+2026-08-27
+
+Task:
+V4.1-1 — TASK-110 + Governance V4.1 Integration (phiên integration).
+
+Decision:
+
+Owner phê duyệt bốn quyết định của Integration Plan (OD-1 → OD-4). Ghi lại ở
+đây phần có hiệu lực quy phạm lâu dài.
+
+**1 — `CHECK-110-16` đổi Gate Class (OD-1).**
+
+```
+CHECK-110-16 — Đối chiếu trên dữ liệu thật
+Priority   : REQUIRED                            (KHÔNG đổi)
+Status     : BLOCKED                             (KHÔNG đổi)
+Gate Class : POST_MERGE_PRODUCTION_ACCEPTANCE    (MỚI — trước đây là pre-merge gate)
+```
+
+Chỉ đổi **Gate Class**. Không đổi Priority, không đổi Status, không đổi nội
+dung check, không đổi mốc tham chiếu.
+
+Điều kiện Owner đặt ra, bắt buộc giữ:
+- Không synthetic PASS.
+- Không tạo workbook giả.
+- Không bypass kiểm tra production.
+- **Merge KHÔNG đồng nghĩa `TASK-110 DONE`.**
+- `TASK-110` chỉ `DONE` khi `CHECK-110-16` thực sự `PASS` trên dữ liệu
+  production thật, đối chiếu với `docs/analysis/_evidence/evidence.json`
+  theo đúng quy tắc HD-110-02 (cấm chỉnh danh sách từ khóa để ép con số về
+  1.261).
+
+Rationale:
+
+Dependency của `CHECK-110-16` — file thô production 6 tháng / 11.765 dòng —
+nằm hoàn toàn ngoài repo (đúng `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`)
+và không có timeline. Bản chất của check là đo *hành vi của code trên dữ liệu
+thật*, không đo *trạng thái nhánh*; không có gì trong nội dung check mất hiệu
+lực sau merge. Giữ nó làm pre-merge gate biến một dependency mà không agent
+nào giải quyết được thành vật cản cho một integration đã được chứng minh an
+toàn, đồng thời chặn `TASK-GOLDEN-BASELINE-001` (V4.1 §13 yêu cầu Golden dựng
+**trên integration baseline chính thức**) và do đó khoá `V4.1` vĩnh viễn ở
+`POLICY_ADOPTED`. Đây là option (B) mà chính `governance/core/V4_1_POLICY_FREEZE.md` §9 liệt
+kê cho merge gate timeout.
+
+**2 — Giải `DEC-128` ID collision (OD-2).**
+
+`DEC-128` của `TASK-110` (2026-08-23, Gate/Readiness Review) giữ nguyên;
+`DEC-128` của Governance V4.1 (2026-08-27, `TASK-V4-ADOPTION`) đổi thành
+`DEC-140`. Semantic content của quyết định V4.1 không đổi — chỉ reconcile
+ID và reference. Không rewrite lịch sử `TASK-110`.
+
+**3 — Integration strategy (OD-3).**
+
+`OPTION C` — temporary integration branch `integration/v4-1-task-110`, tạo từ
+`c7a1b24e08ff7c03cab06b323110e2a9f05ab363`, hội tụ
+`claude/r1-a1-contract-freeze-9lkh3h` (`01a03b0`, 24 commit) và
+`claude/governance-v4-1-freeze-36oexq` (`8d79009`, 1 commit), reconcile trạng
+thái, validate đầy đủ, rồi merge `--no-ff` về nhánh mặc định.
+
+Các thay đổi tài liệu trạng thái của phiên này được phân loại
+**`INTEGRATION STATE RECONCILIATION`**. Chúng KHÔNG phải `TASK-110` repair
+cycle, KHÔNG reset review budget, KHÔNG mở `R1-A2`, KHÔNG mở `R2` → `R8`,
+KHÔNG đánh giá lại correctness của `R1-A1`, KHÔNG đổi `R1-A1` FROZEN contract.
+
+**4 — `KNOWN PRE-V4.1 DIVERGENCE` (OD-4).**
+
+Integration này là hành động chính thức đóng `KNOWN PRE-V4.1 DIVERGENCE` ghi
+tại `PROJECT/REVIEW_BUDGET_LEDGER.md`. Divergence đo được trước integration:
+`r1-a1-contract-freeze-9lkh3h` ahead 24 commit / 4 ngày / 40.523 LOC — vượt
+cả ba ngưỡng `governance/core/V4_1_POLICY_FREEZE.md` §8. Không grandfather thành ngoại lệ
+vĩnh viễn.
+
+Risk:
+
+Nếu `CHECK-110-16` bị đọc nhầm thành đã hoàn tất sau khi đổi Gate Class,
+`TASK-110` có thể bị đánh dấu `DONE` mà chưa hề đối chiếu dữ liệu thật. Vì
+vậy `Status` giữ nguyên `BLOCKED` và bất biến "merge ≠ DONE" được ghi lặp ở
+`PROJECT/PROJECT_PROGRESS.md`, `docs/tasks/TASK-110-validation-review-queue.md`,
+`docs/tasks/TASK-110_REPAIR_PROGRESS.md` và `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+Impact:
+- Không sửa production code (`app/`, `config/`, `tools/`), không sửa test
+  (`tests/`), không sửa `app/modules/domain/canonical.py`, không đổi
+  `FROZEN_CORPUS`, không đổi expected outcome, không đổi oracle.
+- Chỉ sửa tài liệu trạng thái hiện tại (current normative state).
+- Không xoá historical artifact; prose lịch sử mâu thuẫn được gắn nhãn
+  `SUPERSEDED` hoặc thêm con trỏ tới trạng thái hiện tại, không bị xoá.
+
+Can Revisit After:
+`CHECK-110-16` thực sự chạy trên dữ liệu production thật (khi Owner cung cấp
+file thô), hoặc một `OWNER_EXTENSION` cho `R1-A2` → `R8`.

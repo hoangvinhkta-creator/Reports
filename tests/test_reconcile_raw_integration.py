@@ -30,7 +30,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "analysis
 import reconcile_conversion  # noqa: E402
 from reconcile_conversion import reconcile_raw  # noqa: E402
 
-from app.modules.mapping.employee_mapper import EmployeeMapper  # noqa: E402
+from app.modules.mapping.employee_mapper import (  # noqa: E402
+    EmployeeMapper,
+    InvalidEmployeeConfig,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 PROD_CONFIG = REPO / "config"
@@ -84,6 +87,25 @@ def test_employees_absent_from_the_fixture_do_not_hard_fail(
 
 
 # --- F1: invalid group reference (HARD) -------------------------------------
+#
+# **Canonical migration of the expected failure mode (HD-110-09, DEC-133).**
+# The intent of these two tests is unchanged and still the whole point: an
+# employee master carrying a broken `group` reference MUST NOT get through.
+# What changed is WHERE the system stops it.
+#
+#     before   detected AFTER reconciliation   -> `reconcile_raw()` exit code > 0
+#     after    rejected BEFORE reconciliation  -> `InvalidEmployeeConfig` at the
+#                                                 canonical employee master loader
+#
+# The new mechanism is strictly stronger: the run is refused before a single
+# transaction is read, rather than reported once the whole reconciliation has
+# already been computed. `employee_group` is a lookup dimension of
+# `config/conversion_rates.yaml`, so a typo silently moves the conversion rate
+# (measured: `NOI_THANH` 2.0% -> `NOI_THAN` 5.5%). A non-blocking queue line
+# was never a proportionate answer to that.
+#
+# Only these two tests migrate. Every other TASK-108A-1 reconciliation test is
+# untouched, and behaviour on VALID config is byte-identical (L3).
 
 
 def test_group_renamed_out_of_existence_fails(config_copy, synthetic_raw_path):
@@ -93,7 +115,8 @@ def test_group_renamed_out_of_existence_fails(config_copy, synthetic_raw_path):
                 row["group"] = "NOI_THAN"  # typo, not declared
 
     _edit_employees(config_copy, mutate)
-    assert _run(config_copy, synthetic_raw_path) > 0
+    with pytest.raises(InvalidEmployeeConfig, match="employee_groups"):
+        _run(config_copy, synthetic_raw_path)
 
 
 def test_declared_group_deleted_fails(config_copy, synthetic_raw_path):
@@ -103,7 +126,8 @@ def test_declared_group_deleted_fails(config_copy, synthetic_raw_path):
         ]
 
     _edit_employees(config_copy, mutate)
-    assert _run(config_copy, synthetic_raw_path) > 0
+    with pytest.raises(InvalidEmployeeConfig, match="employee_groups"):
+        _run(config_copy, synthetic_raw_path)
 
 
 # --- F3: real ambiguity inside one effective window (HARD) ------------------
