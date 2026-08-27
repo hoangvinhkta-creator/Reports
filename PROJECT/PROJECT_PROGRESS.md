@@ -464,7 +464,10 @@ provenance dựng từ chính tập row của finding, và F3 cũng cần ngày 
 HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
 thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
 (`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
-(S021). **Chưa vòng nào PASS**; chờ Review #6 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+(S021). *(Câu "Chưa vòng nào PASS; chờ Review #6" ở đây là bản ghi tại thời
+điểm S021 — **SUPERSEDED**. Trạng thái hiện tại: vòng review trên `R1-A1` đã
+**PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`, `R1-A1 = FROZEN` theo **DEC-139**;
+`R1-A`/`R1` tổng vẫn NOT FROZEN, `TASK-110` vẫn NOT DONE.)* F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),
@@ -1250,7 +1253,10 @@ provenance dựng từ chính tập row của finding, và F3 cũng cần ngày 
 HD-110-05/DEC-131 (S020); #5 là một **Architecture Repair** — xóa nguồn sự
 thật thứ hai cho việc chọn employee record, xóa kênh provenance song song
 (`details`), và fail-fast cho master data hỏng — HD-110-06/07/08 → **DEC-132**
-(S021). **Chưa vòng nào PASS**; chờ Review #6 xác nhận.** F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
+(S021). *(Câu "Chưa vòng nào PASS; chờ Review #6" ở đây là bản ghi tại thời
+điểm S021 — **SUPERSEDED**. Trạng thái hiện tại: vòng review trên `R1-A1` đã
+**PASS — ELIGIBLE_FOR_FREEZE** tại `a853971`, `R1-A1 = FROZEN` theo **DEC-139**;
+`R1-A`/`R1` tổng vẫn NOT FROZEN, `TASK-110` vẫn NOT DONE.)* F2/F4 nay do `app/modules/validation/validator.py` sinh ra trên chính
 luồng `run_import()`, không còn chỉ nằm trong script phân tích chạy tay. Bằng
 chứng: **CHECK-110-12** (F2 có mặt trong `ImportResult.review_queue`),
 **CHECK-110-13** (F4, và F2/F4 không làm `run_import()` raise),

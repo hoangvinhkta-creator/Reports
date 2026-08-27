@@ -1,6 +1,18 @@
 # TASK-110 — REPAIR MODE / BẾ TẮC KIẾN TRÚC SAU INDEPENDENT REVIEW #8
 
-## 1. Trạng thái đóng băng
+> **ARTIFACT LỊCH SỬ — SUPERSEDED (2026-08-27, integration V4.1-1).**
+> File này là bản handoff đóng băng tại Independent Review #8 và là bản ghi
+> tham chiếu duy nhất của Review #8 trong repo. **Giữ nguyên, không sửa nội
+> dung.** Nó KHÔNG phải trạng thái hiện tại.
+>
+> Trạng thái hiện tại: `R1-A1 = FROZEN` (**DEC-139**, reviewed `a853971` →
+> freeze `01a03b0`); `R1-A` = NOT FROZEN; `R1` = NOT FROZEN; `TASK-110` =
+> **MERGED (V4.1-1) · NOT DONE**; `CHECK-110-16` = REQUIRED · BLOCKED ·
+> `POST_MERGE_PRODUCTION_ACCEPTANCE` (**DEC-141**); `R1-A2` → `R8` =
+> `OWNER_EXTENSION REQUIRED` (`repair_cycles_remaining = 0`).
+> Canonical: `docs/tasks/TASK-110_REPAIR_PROGRESS.md`.
+
+## 1. Trạng thái đóng băng (tại Independent Review #8 — lịch sử)
 
 - Task: TASK-110 — Validation + Review Queue
 - Review gần nhất: Independent Review #8
