@@ -63,18 +63,21 @@ from tools.analysis.r1a1_annotation_probes import (  # noqa: E402
     OUTSIDE_FRAMEWORK_BOUNDARY,
     SUPPORTED_INVALID_REJECT,
     SUPPORTED_VALID,
+    HD_POST_A1_02_RECLASSIFIED_IDS,
+    HD_POST_A1_04_RATIFIED_IDS,
     OUTSIDE_BOUNDARY_CASE_IDS,
-    PRE_FROZEN_OUTSIDE_BOUNDARY_IDS,
     UNSUPPORTED_AT_DECORATION,
     VERIFIED_IMPLEMENTATION,
     VERIFIED_PYTHON_VERSION,
     VERIFIED_VERSION_INFO,
     Z_INVARIANTS,
+    _nested_tuple as nested_tuple,
     _raw_dataclass,
     _satisfies,
     corpus_accounting,
     interpreter_matches_verified,
     observe_outside_boundary,
+    observe_outside_boundary_at_construction,
     probe_class,
 )
 
@@ -198,28 +201,138 @@ _OUTCOME_TOKENS = (
     "UNSUPPORTED_AT_DECORATION", "SUPPORTED_INVALID_REJECT", "SUPPORTED_VALID",
     "OUTSIDE_FRAMEWORK_BOUNDARY", "bất biến",
 )
+# Schema của một dòng quy phạm: ID | attack | expected outcome | clause.
+_NORMATIVE_COLUMNS = 4
+_ID_CELL = re.compile(r"^`?([A-Z]\d{2})`?(?:–`?([A-Z]\d{2})`?)?$")
+
+
+class MalformedNormativeRow(AssertionError):
+    """Một dòng của bảng quy phạm không đúng schema.
+
+    Parser NỔ thay vì bỏ qua: một parser âm thầm drop dòng sẽ báo "105/105" cho
+    một bảng đã mất dòng — đúng lớp lỗi mà evidence chain này tồn tại để chặn.
+    """
+
+
+def _split_row(line: str) -> list:
+    r"""Tách theo pipe KHÔNG escape, bỏ ô rỗng ở hai đầu.
+
+    Ô mô tả của `A03` chứa `int \| str` (PEP 604). Tách thô theo `|` sẽ cắt
+    đôi ô đó và làm lệch mọi cột phía sau — bản parser đầu tiên đã mắc đúng lỗi
+    này và tạo ra một FAIL giả.
+    """
+    parts = re.split(r"(?<!\\)\|", line)
+    if parts and not parts[0].strip():
+        parts = parts[1:]
+    if parts and not parts[-1].strip():
+        parts = parts[:-1]
+    return [c.strip() for c in parts]
+
+
+def parse_normative_table(text: str) -> tuple:
+    """Đọc bảng ID §12. Trả `(rows, id_to_outcome)`.
+
+    `rows` là các dòng VẬT LÝ (một dòng có thể mang dải `X01–X0n`), `id_to_outcome`
+    là ánh xạ đã bung dải. Mọi vi phạm schema đều `raise`.
+    """
+    segment = text[text.index("## 12. Frozen attack corpus"):
+                   text.index("## 13. Witness matrix")]
+    rows, mapping = [], {}
+    for line in segment.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = _split_row(stripped)
+        if not cells:
+            raise MalformedNormativeRow(f"dòng bảng rỗng: {line!r}")
+        match = _ID_CELL.match(cells[0])
+        if match is None:
+            continue                      # header / separator / bảng khác
+        if len(cells) != _NORMATIVE_COLUMNS:
+            raise MalformedNormativeRow(
+                f"dòng `{cells[0]}` có {len(cells)} cột, schema đòi "
+                f"{_NORMATIVE_COLUMNS}: {line!r}")
+        outcome = next((t for t in _OUTCOME_TOKENS if t in cells[2]), None)
+        if outcome is None:
+            raise MalformedNormativeRow(
+                f"dòng `{cells[0]}` không mang expected outcome hợp lệ: {cells[2]!r}")
+        first, last = match.group(1), match.group(2)
+        ids = ([first] if last is None else
+               [f"{first[0]}{i:02d}" for i in range(int(first[1:]), int(last[1:]) + 1)])
+        rows.append((cells[0], ids, outcome))
+        for case_id in ids:
+            if case_id in mapping:
+                raise MalformedNormativeRow(f"ID trùng trong bảng quy phạm: {case_id}")
+            mapping[case_id] = outcome
+    return rows, mapping
 
 
 def _parse_normative_table() -> dict:
-    """Đọc bảng ID §12 của Frozen Contract, bung mọi dải `X01–X0n`."""
+    return parse_normative_table(_CONTRACT_PATH.read_text(encoding="utf-8"))[1]
+
+
+_SCHEMA_ROW = "| A01 | mô tả | UNSUPPORTED_AT_DECORATION | C2 |"
+
+
+def test_parser_oracle_the_normative_parser_cannot_pass_falsely():
+    """§8 — parser đọc bảng quy phạm nay là một mắt xích của evidence chain,
+    nên chính nó phải có oracle chống PASS giả.
+
+    Chín bất biến, mỗi cái một assertion.
+    """
     text = _CONTRACT_PATH.read_text(encoding="utf-8")
+    rows, mapping = parse_normative_table(text)
+    code_ids = {c.id for c in FROZEN_CORPUS} | {z[0] for z in Z_INVARIANTS}
+
+    # (1) parser thu đúng 105 Frozen ID
+    assert len(mapping) == 105
+
+    # (2) mỗi dòng quy phạm có đúng số cột theo schema — parse_normative_table
+    #     đã raise nếu sai; khẳng định lại bằng cách đếm trên chính dữ liệu thô
     segment = text[text.index("## 12. Frozen attack corpus"):
                    text.index("## 13. Witness matrix")]
-    rows = {}
-    for line in segment.splitlines():
-        match = re.match(r"^\|\s*`?([A-Z]\d{2})`?(–`?([A-Z]\d{2})`?)?\s*\|(.*)$", line)
-        if not match:
-            continue
-        # Tách theo pipe KHÔNG escape: ô mô tả chứa `int \| str` (PEP 604).
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", match.group(4))]
-        outcome = next((t for t in _OUTCOME_TOKENS if t in cells[1]), cells[1])
-        first, last = match.group(1), match.group(3)
-        ids = ([first] if last is None else
-               [f"{first[0]}{i:02d}" for i in range(int(first[1:]), int(last[1:]) + 1)])
-        for case_id in ids:
-            assert case_id not in rows, f"ID trùng trong bảng quy phạm: {case_id}"
-            rows[case_id] = outcome
-    return rows
+    physical = [ln.strip() for ln in segment.splitlines()
+                if ln.strip().startswith("|") and _ID_CELL.match(_split_row(ln.strip())[0] or "")]
+    for line in physical:
+        assert len(_split_row(line)) == _NORMATIVE_COLUMNS, line
+
+    # (3) duplicate ID = 0
+    expanded = [cid for _, ids, _ in rows for cid in ids]
+    assert len(expanded) == len(set(expanded)) == 105
+
+    # (4) empty ID = 0
+    assert all(cid and cid.strip() for cid in mapping)
+
+    # (5) không silently drop row: số dòng vật lý parser nhận == số dòng vật lý thô
+    assert len(rows) == len(physical), (
+        f"parser nhận {len(rows)} dòng nhưng bảng có {len(physical)} — có dòng bị bỏ")
+
+    # (6) escaped pipe `\|` không bị hiểu là separator
+    assert "\\|" in text, "case A03 phải còn chứa `int \\| str` để bất biến này có nghĩa"
+    assert mapping["A03"] == "UNSUPPORTED_AT_DECORATION"
+    assert len(_split_row("| A03 | PEP604 `int \\| str` | UNSUPPORTED_AT_DECORATION | C6 |")) == 4
+
+    # (7) parsed ID set == tập ID liệt kê ĐỘC LẬP từ code
+    assert set(mapping) == code_ids
+
+    # (8) row count == số dòng kỳ vọng độc lập (105 ID gom trong `len(rows)` dòng)
+    assert sum(len(ids) for _, ids, _ in rows) == 105
+
+    # (9) dòng méo gây FAIL, không bị bỏ qua im lặng
+    def _table(*body):
+        return ("## 12. Frozen attack corpus\n| ID | attack | expected | clause |\n"
+                "|---|---|---|---|\n" + "\n".join(body) + "\n## 13. Witness matrix\n")
+    with pytest.raises(MalformedNormativeRow):          # thiếu cột
+        parse_normative_table(_table("| A01 | mô tả | UNSUPPORTED_AT_DECORATION |"))
+    with pytest.raises(MalformedNormativeRow):          # thừa cột
+        parse_normative_table(_table("| A01 | mô tả | UNSUPPORTED_AT_DECORATION | C2 | thừa |"))
+    with pytest.raises(MalformedNormativeRow):          # outcome không hợp lệ
+        parse_normative_table(_table("| A01 | mô tả | KHÔNG_PHẢI_TOKEN | C2 |"))
+    with pytest.raises(MalformedNormativeRow):          # ID trùng
+        parse_normative_table(_table(_SCHEMA_ROW, _SCHEMA_ROW))
+    # đối chứng: dòng đúng schema thì KHÔNG raise
+    good_rows, good_map = parse_normative_table(_table(_SCHEMA_ROW))
+    assert len(good_rows) == 1 and good_map == {"A01": "UNSUPPORTED_AT_DECORATION"}
 
 
 def test_the_normative_table_and_the_code_corpus_agree_case_by_case():
@@ -243,19 +356,62 @@ def test_every_expected_outcome_is_one_of_the_frozen_set():
         assert case.expected in _FROZEN_OUTCOMES, case.id
 
 
-def test_frozen_corpus_accounting_is_exactly_105_equals_102_plus_3():
-    """§8 — số học chính thức. Không báo "102/105 PASS" (đọc như 3 case hỏng),
-    không báo "105/105 PASS" (đọc như 3 case ngoài biên cũng là in-scope)."""
+def test_frozen_corpus_accounting_is_exactly_105_equals_101_plus_4():
+    """Phân hoạch ngữ nghĩa DUY NHẤT sau HD-POST-A1-04.
+
+        105 FROZEN CORPUS IDs
+          = 101 IN-FRAMEWORK FROZEN IDs   (BAO GỒM Z01–Z04)
+          +   4 OUTSIDE_FRAMEWORK_BOUNDARY IDs (K03, L03, M02, T03)
+
+    Đổi tên từ `..._102_plus_3`: cách chia cũ đếm `T03` vào in-scope vì khi đó
+    `T03` chưa có Owner Decision riêng. HD-POST-A1-04 ratify nó, nên bucket
+    ngoài biên là bốn.
+    """
     acc = corpus_accounting()
     assert acc["classified"] == 105
-    assert acc["in_scope_total"] == 102 and acc["in_scope_pass"] == 102
-    assert acc["outside_total"] == 3 and acc["outside_ok"] == 3
-    assert tuple(acc["outside_ids"]) == OUTSIDE_BOUNDARY_CASE_IDS == ("K03", "L03", "M02")
+    assert acc["in_scope_total"] == 101 and acc["in_scope_pass"] == 101
+    assert acc["outside_total"] == 4 and acc["outside_ok"] == 4
+    assert tuple(acc["outside_ids"]) == OUTSIDE_BOUNDARY_CASE_IDS
+    assert OUTSIDE_BOUNDARY_CASE_IDS == ("K03", "L03", "M02", "T03")
+    assert HD_POST_A1_02_RECLASSIFIED_IDS == ("K03", "L03", "M02")
+    assert HD_POST_A1_04_RATIFIED_IDS == ("T03",)
     assert acc["unclassified"] == 0
     assert acc["blocking"] == []
     assert acc["in_scope_total"] + acc["outside_total"] == 105
-    # T03 mang cùng outcome nhưng TỪ BẢN FREEZE GỐC, nên §8 đếm nó vào in-scope.
-    assert PRE_FROZEN_OUTSIDE_BOUNDARY_IDS == ("T03",)
+
+
+def test_the_two_sets_of_size_101_are_not_the_same_set():
+    """§9 — hai tập cùng có 101 phần tử nhưng KHÁC NHAU về ngữ nghĩa.
+
+        P = 101 parameterized frozen rows   (cấu trúc TEST: `FROZEN_CORPUS`)
+        F = 101 IN-FRAMEWORK FROZEN IDs     (phân hoạch NGỮ NGHĨA)
+
+    Dùng cùng con số 101 mà không gắn nhãn là cách chắc chắn để nhầm.
+    """
+    parameterized = {c.id for c in FROZEN_CORPUS}
+    in_framework = ({c.id for c in FROZEN_CORPUS} | {z[0] for z in Z_INVARIANTS}
+                    ) - set(OUTSIDE_BOUNDARY_CASE_IDS)
+    assert len(parameterized) == 101
+    assert len(in_framework) == 101
+    assert parameterized != in_framework
+    only_parameterized = parameterized - in_framework
+    only_in_framework = in_framework - parameterized
+    assert only_parameterized == set(OUTSIDE_BOUNDARY_CASE_IDS), only_parameterized
+    assert only_in_framework == {z[0] for z in Z_INVARIANTS}, only_in_framework
+    assert len(parameterized & in_framework) == 97
+    # Z01–Z04 thuộc tập ngữ nghĩa in-framework nhưng KHÔNG phải parameterized row;
+    # bốn case ngoài biên thì ngược lại.
+    assert len(only_parameterized) == len(only_in_framework) == 4
+
+
+def _boundary_evidence(case_id):
+    """`T03` nổ khi DỰNG annotation nên không có `case.annotation` để truyền —
+    nó dùng observer dạng construction. Bốn mệnh đề y hệt."""
+    if case_id == "T03":
+        return observe_outside_boundary_at_construction(
+            lambda: nested_tuple(5000), f"Oracle{case_id}")
+    case = next(c for c in FROZEN_CORPUS if c.id == case_id)
+    return observe_outside_boundary(case.annotation, f"Oracle{case_id}")
 
 
 @pytest.mark.parametrize("case_id", OUTSIDE_BOUNDARY_CASE_IDS)
@@ -271,14 +427,16 @@ def test_outside_boundary_case_is_proven_not_merely_failing(case_id):
     Assertion dựa trên biên NGỮ NGHĨA, không phải `filename == dataclasses.py:946`
     — số dòng chỉ là evidence của interpreter hiện tại.
     """
-    case = next(c for c in FROZEN_CORPUS if c.id == case_id)
-    ev = observe_outside_boundary(case.annotation, f"Oracle{case_id}")
+    ev = _boundary_evidence(case_id)
     assert ev["raised"], "phải có exception — nếu không thì không có gì để phân loại"
     assert ev["A_canonical_never_entered"], (
         f"{case_id}: `@canonical` ĐÃ bắt đầu chạy — đây là BLOCKING R1-A1 DEFECT, "
         "không phải outside-boundary")
     assert ev["B_registry_unchanged"], f"{case_id}: registry đổi {ev['B_registry']}"
     assert ev["C_no_partial_state"], f"{case_id}: class nhận state canonical nửa vời"
+    if case_id == "T03":
+        # C ở dạng MẠNH HƠN, không phải yếu hơn: class mục tiêu chưa từng tồn tại.
+        assert ev["C_no_target_class_created"], "T03: class mục tiêu ĐÃ được tạo"
     assert ev["D_canonical_absent_from_traceback"], (
         f"{case_id}: `canonical.py` xuất hiện trong traceback -> exception KHÔNG "
         "xảy ra trước biên")
@@ -295,12 +453,15 @@ def test_outside_boundary_classification_is_pinned_to_a_verified_interpreter():
     """
     assert VERIFIED_IMPLEMENTATION == "cpython"
     assert VERIFIED_VERSION_INFO[:2] == (3, 11)
+    # Tripwire phủ CẢ BỐN case ngoài biên, không phải ba.
+    assert OUTSIDE_BOUNDARY_CASE_IDS == ("K03", "L03", "M02", "T03")
     assert interpreter_matches_verified(), (
         "ENVIRONMENT_REVERIFY_REQUIRED — KHÔNG phải R1-A1 correctness FAIL.\n"
         f"interpreter đang chạy: {sys.implementation.name} {sys.version_info[:3]}\n"
         f"bản đã verify:         {VERIFIED_PYTHON_VERSION}\n"
-        "Hãy chạy `test_outside_boundary_case_is_proven_not_merely_failing` trên "
-        "interpreter này. Nếu bốn mệnh đề A/B/C/D vẫn đúng thì đây chỉ là "
+        "Hãy chạy `test_outside_boundary_case_is_proven_not_merely_failing` cho "
+        "CẢ BỐN case (K03, L03, M02, T03) trên interpreter này. Nếu bốn mệnh đề "
+        "A/B/C/D vẫn đúng cho cả bốn thì đây chỉ là "
         "NON-BLOCKING environment difference: cập nhật VERIFIED_* và ghi lại "
         "evidence. Chỉ khi một mệnh đề A/B/C/D SAI thì mới là BLOCKING.")
 

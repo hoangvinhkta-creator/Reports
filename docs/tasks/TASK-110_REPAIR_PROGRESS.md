@@ -20,7 +20,7 @@
 |---|---|---:|---|---|---|---|
 | R1 | Canonical Object Safety | HIGH | **NOT FROZEN** — tách sub-unit R1-A→R1-E | — | **Review R1 FAIL** tại `2be5bfe` | Vòng R1 đầu đóng cơ chế seal; Review R1 tìm thêm 5 finding, tách thành R1-A→R1-E |
 | R1-A | Canonical Type Coverage | HIGH | **NOT FROZEN** — tách sub-unit R1-A1→R1-A4 | — | **Review R1-A FAIL** tại `dead82e` | Vòng R1-A đóng hợp đồng + registry; Review R1-A tìm thêm 4 finding |
-| R1-A1 | Annotation Contract | HIGH | **READY_FOR_INDEPENDENT_REVIEW** | Review Candidate, parent `c183123` | **Review #3 FAIL** tại `1b0da151` | Hợp đồng ĐÓNG hữu hạn (`TASK-110-R1-A1-FROZEN-CONTRACT.md`), Owner freeze DEC-135 + finalize DEC-136. Corpus **105/105 CLASSIFIED** = 102 IN-SCOPE PASS + 3 OUTSIDE_FRAMEWORK_BOUNDARY (`K03`/`L03`/`M02`, có chứng minh A/B/C/D, ghim CPython 3.11.15). Mutation M-1→M-11: **11/11 discriminated** (8 corpus + 3 hardening coverage) |
+| R1-A1 | Annotation Contract | HIGH | **READY_FOR_INDEPENDENT_REVIEW** | Review Candidate, xem nhật ký cuối | **Review #3 FAIL** tại `1b0da151` | Hợp đồng ĐÓNG hữu hạn; Owner freeze DEC-135, finalize DEC-136, reconcile DEC-137, ratify T03 DEC-138. Corpus **105 = 101 IN-FRAMEWORK + 4 OUTSIDE_FRAMEWORK_BOUNDARY** (`K03`/`L03`/`M02`/`T03`, đủ chứng minh A/B/C/D, ghim CPython 3.11.15). Mutation M-1→M-11: **11/11 discriminated** (8 corpus + 3 hardening coverage) |
 | R1-A2 | (Finding #2 của Review R1-A) | — | BLOCKED BY R1-A1 | — | — | Không sửa trước R1-A1 PASS |
 | R1-A3 | (Finding #3 của Review R1-A) | — | BLOCKED | — | — | — |
 | R1-A4 | (Finding #4 của Review R1-A) | — | BLOCKED | — | — | — |
@@ -1630,3 +1630,27 @@ HD-POST-A1-02 (thi hành Owner Decision, không phải thay đổi hợp đồng
 
 Z01–Z04 provenance: cả bốn **có mặt trong PLAN @5a0f27c** (dòng 590–593), không
 phải case sinh sau. Không escalate.
+
+
+#### HD-POST-A1-04 — ratify T03 (DEC-138)
+
+- Status: **READY_FOR_INDEPENDENT_REVIEW**
+- `app/modules/domain/canonical.py`: **KHÔNG ĐỔI**.
+
+Owner Decision có điều kiện; cả bốn premise PASS — PLAN @ `5a0f27c` (§10 dòng
+402–406 và bảng §12 dòng 560) đã phát biểu semantics pre-canonical cho `T03`
+từ trước, oracle chứng minh đủ A/B/C/D, không cần sửa production, semantic
+intent không đổi.
+
+**Phân hoạch ngữ nghĩa duy nhất**: `105 = 101 IN-FRAMEWORK + 4 OUTSIDE`.
+`102 + 3` không còn là acceptance equation.
+
+**Asymmetry phải ghi thẳng**: tại `c183123`, `T03` PASS còn `K03`/`L03`/`M02`
+XFAIL — không phải vì oracle `T03` mạnh hơn, mà vì `T03.expected` trong code đã
+là `OUTSIDE_FRAMEWORK_BOUNDARY` từ đầu. Oracle `T03` khi đó chỉ kiểm
+`RecursionError` + registry, tức **PASS đúng kết quả nhưng chưa chứng minh cơ
+chế**, và **yếu hơn** ba case kia. Việc làm ở phiên này gồm cả chuẩn hoá nhãn
+lẫn **siết chặt oracle thật sự** — không được gọi gọn là "chuẩn hoá nhãn".
+
+**SUPERSEDED REVIEW CANDIDATES**: `aff0240` (normative-table divergence) ·
+`6f79cbb` (T03 authority/oracle/accounting reconciliation pending).

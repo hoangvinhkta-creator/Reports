@@ -490,10 +490,9 @@ implementation thật ở §21.
 > bảng này với `FROZEN_CORPUS` trong code, nên hai bên không lệch nhau trong
 > im lặng được nữa.
 >
-> Ba dòng `K03`/`L03`/`M02` mang `OUTSIDE_FRAMEWORK_BOUNDARY` theo
-> **HD-POST-A1-02** — đây là expected-outcome change DUY NHẤT so với bản PLAN
-> `5a0f27c`, và nó do Owner Decision cho phép. `T03` chỉ được chuẩn hoá CÁCH
-> VIẾT sang cùng token, ngữ nghĩa không đổi.
+> **Bốn** dòng mang `OUTSIDE_FRAMEWORK_BOUNDARY`: `K03`/`L03`/`M02` theo
+> **HD-POST-A1-02**, và `T03` theo **HD-POST-A1-04**. Đó là toàn bộ
+> expected-outcome delta so với PLAN `5a0f27c` — không có ô thứ năm.
 
 Clause ID: **C1** closed-world/default-deny · **C2** grammar · **C3** class
 allowlist · **C4** `type(v) is T` · **C5** mutable guard · **C6** optional form ·
@@ -574,7 +573,7 @@ boundary · **C11** message safety · **C12** node budget · **C13** atomic comm
 | S02 | `ClassVar` cùng field thường — không vào contract | SUPPORTED_VALID | C8 |
 | T01 | `__args__` rộng 100 000 phần tử | UNSUPPORTED_AT_DECORATION | C12 |
 | T02 | `tuple` lồng 30 tầng | UNSUPPORTED_AT_DECORATION | C2 |
-| T03 | annotation sâu tới mức `typing` tự nổ khi DỰNG | OUTSIDE_FRAMEWORK_BOUNDARY *(chuẩn hoá cách viết; ngữ nghĩa KHÔNG đổi — bản PLAN ghi cùng ý bằng văn xuôi "ngoài biên framework — không canonical type nào được tạo")* | C12 |
+| T03 | annotation sâu tới mức `typing` tự nổ khi DỰNG | OUTSIDE_FRAMEWORK_BOUNDARY *(HD-POST-A1-04)* | C10 |
 | U01 | forward ref không phân giải được | UNSUPPORTED_AT_DECORATION | C10 |
 | U02 | forward ref trỏ vòng về chính class | UNSUPPORTED_AT_DECORATION | C10 |
 | V01 | metaclass có `__setattr__` raise giữa decoration | UNSUPPORTED_AT_DECORATION, class NGUYÊN VẸN, registry KHÔNG ĐỔI | C9, C13 |
@@ -915,23 +914,20 @@ ngay khi minor version khác `3.11`, buộc re-verify thay vì im lặng carry p
 loại cũ. Sau khi re-verify, cập nhật `VERIFIED_PYTHON_VERSION` /
 `VERIFIED_VERSION_INFO` trong `tools/analysis/r1a1_annotation_probes.py`.
 
-### 21.2c. Số học corpus (§8)
+### 21.2c. Số học corpus — phân hoạch DUY NHẤT sau HD-POST-A1-04
 
-    FROZEN CORPUS:                105/105 CLASSIFIED
-    IN-SCOPE:                     102/102 PASS
-    OUTSIDE_FRAMEWORK_BOUNDARY:     3/3   correctly classified (K03, L03, M02)
+    FROZEN CORPUS IDs:            105/105 CLASSIFIED
+    IN-FRAMEWORK FROZEN IDs:      101/101 PASS        (BAO GỒM Z01–Z04)
+    OUTSIDE_FRAMEWORK_BOUNDARY:     4/4   correctly classified
+                                          K03 · L03 · M02  (HD-POST-A1-02)
+                                          T03              (HD-POST-A1-04)
     UNCLASSIFIED:                     0
     BLOCKING FAIL:                    0
 
-    105 = 102 + 3
+    105 = 101 + 4
 
-Sắc thái cần biết: `T03` ("`typing` tự nổ khi DỰNG annotation") cũng mang
-expected outcome `OUTSIDE_FRAMEWORK_BOUNDARY`, nhưng nó mang **từ bản freeze
-gốc** chứ không do HD-POST-A1-02 phân loại lại — nó chưa bao giờ là case hỏng.
-Theo cách chia §8, bucket `OUTSIDE_FRAMEWORK_BOUNDARY` gồm ĐÚNG ba ID được
-phân loại lại, nên `T03` được đếm trong 102 IN-SCOPE. Nếu chia theo
-expected-outcome thay vì theo quyết định, số học là `105 = 101 + 4`. Hai cách
-chia đều đúng; §8 chốt cách thứ nhất.
+Cách chia `102 + 3` của bản trước **không còn dùng làm acceptance equation**:
+nó đếm `T03` vào in-scope vì khi đó `T03` chưa có Owner Decision riêng.
 
 ### 21.2d. K01 / M01 / M02 — CASE CONSTRUCTION CORRECTION (HD-POST-A1-03)
 
@@ -1123,114 +1119,120 @@ Toàn bộ 105 case. Node ID của pytest mang chính Case ID, nên bảng này 
 
 | Frozen Case ID | Test node | Classification | Result |
 |---|---|---|---|
-| `A01` | `test_frozen_corpus_case[A01-A]` | IN-SCOPE | PASS |
-| `A02` | `test_frozen_corpus_case[A02-A]` | IN-SCOPE | PASS |
-| `A03` | `test_frozen_corpus_case[A03-A]` | IN-SCOPE | PASS |
-| `A04` | `test_frozen_corpus_case[A04-A]` | IN-SCOPE | PASS |
-| `A05` | `test_frozen_corpus_case[A05-A]` | IN-SCOPE | PASS |
-| `A06` | `test_frozen_corpus_case[A06-A]` | IN-SCOPE | PASS |
-| `A07` | `test_frozen_corpus_case[A07-A]` | IN-SCOPE | PASS |
-| `A08` | `test_frozen_corpus_case[A08-A]` | IN-SCOPE | PASS |
-| `B01` | `test_frozen_corpus_case[B01-B]` | IN-SCOPE | PASS |
-| `B02` | `test_frozen_corpus_case[B02-B]` | IN-SCOPE | PASS |
-| `B03` | `test_frozen_corpus_case[B03-B]` | IN-SCOPE | PASS |
-| `B04` | `test_frozen_corpus_case[B04-B]` | IN-SCOPE | PASS |
-| `C01` | `test_frozen_corpus_case[C01-C]` | IN-SCOPE | PASS |
-| `C02` | `test_frozen_corpus_case[C02-C]` | IN-SCOPE | PASS |
-| `C03` | `test_frozen_corpus_case[C03-C]` | IN-SCOPE | PASS |
-| `C04` | `test_frozen_corpus_case[C04-C]` | IN-SCOPE | PASS |
-| `C05` | `test_frozen_corpus_case[C05-C]` | IN-SCOPE | PASS |
-| `C06` | `test_frozen_corpus_case[C06-C]` | IN-SCOPE | PASS |
-| `C07` | `test_frozen_corpus_case[C07-C]` | IN-SCOPE | PASS |
-| `D01` | `test_frozen_corpus_case[D01-D]` | IN-SCOPE | PASS |
-| `D02` | `test_frozen_corpus_case[D02-D]` | IN-SCOPE | PASS |
-| `D03` | `test_frozen_corpus_case[D03-D]` | IN-SCOPE | PASS |
-| `D04` | `test_frozen_corpus_case[D04-D]` | IN-SCOPE | PASS |
-| `D05` | `test_frozen_corpus_case[D05-D]` | IN-SCOPE | PASS |
-| `D06` | `test_frozen_corpus_case[D06-D]` | IN-SCOPE | PASS |
-| `E01` | `test_frozen_corpus_case[E01-E]` | IN-SCOPE | PASS |
-| `E02` | `test_frozen_corpus_case[E02-E]` | IN-SCOPE | PASS |
-| `E03` | `test_frozen_corpus_case[E03-E]` | IN-SCOPE | PASS |
-| `F01` | `test_frozen_corpus_case[F01-F]` | IN-SCOPE | PASS |
-| `G01` | `test_frozen_corpus_case[G01-G]` | IN-SCOPE | PASS |
-| `G02` | `test_frozen_corpus_case[G02-G]` | IN-SCOPE | PASS |
-| `G03` | `test_frozen_corpus_case[G03-G]` | IN-SCOPE | PASS |
-| `H01` | `test_frozen_corpus_case[H01-H]` | IN-SCOPE | PASS |
-| `H02` | `test_frozen_corpus_case[H02-H]` | IN-SCOPE | PASS |
-| `H03` | `test_frozen_corpus_case[H03-H]` | IN-SCOPE | PASS |
-| `I01` | `test_frozen_corpus_case[I01-I]` | IN-SCOPE | PASS |
-| `I02` | `test_frozen_corpus_case[I02-I]` | IN-SCOPE | PASS |
-| `J01` | `test_frozen_corpus_case[J01-J]` | IN-SCOPE | PASS |
-| `J02` | `test_frozen_corpus_case[J02-J]` | IN-SCOPE | PASS |
-| `J03` | `test_frozen_corpus_case[J03-J]` | IN-SCOPE | PASS |
-| `K01` | `test_frozen_corpus_case[K01-K]` | IN-SCOPE | PASS |
-| `K02` | `test_frozen_corpus_case[K02-K]` | IN-SCOPE | PASS |
+| `A01` | `test_frozen_corpus_case[A01-A]` | IN-FRAMEWORK | PASS |
+| `A02` | `test_frozen_corpus_case[A02-A]` | IN-FRAMEWORK | PASS |
+| `A03` | `test_frozen_corpus_case[A03-A]` | IN-FRAMEWORK | PASS |
+| `A04` | `test_frozen_corpus_case[A04-A]` | IN-FRAMEWORK | PASS |
+| `A05` | `test_frozen_corpus_case[A05-A]` | IN-FRAMEWORK | PASS |
+| `A06` | `test_frozen_corpus_case[A06-A]` | IN-FRAMEWORK | PASS |
+| `A07` | `test_frozen_corpus_case[A07-A]` | IN-FRAMEWORK | PASS |
+| `A08` | `test_frozen_corpus_case[A08-A]` | IN-FRAMEWORK | PASS |
+| `B01` | `test_frozen_corpus_case[B01-B]` | IN-FRAMEWORK | PASS |
+| `B02` | `test_frozen_corpus_case[B02-B]` | IN-FRAMEWORK | PASS |
+| `B03` | `test_frozen_corpus_case[B03-B]` | IN-FRAMEWORK | PASS |
+| `B04` | `test_frozen_corpus_case[B04-B]` | IN-FRAMEWORK | PASS |
+| `C01` | `test_frozen_corpus_case[C01-C]` | IN-FRAMEWORK | PASS |
+| `C02` | `test_frozen_corpus_case[C02-C]` | IN-FRAMEWORK | PASS |
+| `C03` | `test_frozen_corpus_case[C03-C]` | IN-FRAMEWORK | PASS |
+| `C04` | `test_frozen_corpus_case[C04-C]` | IN-FRAMEWORK | PASS |
+| `C05` | `test_frozen_corpus_case[C05-C]` | IN-FRAMEWORK | PASS |
+| `C06` | `test_frozen_corpus_case[C06-C]` | IN-FRAMEWORK | PASS |
+| `C07` | `test_frozen_corpus_case[C07-C]` | IN-FRAMEWORK | PASS |
+| `D01` | `test_frozen_corpus_case[D01-D]` | IN-FRAMEWORK | PASS |
+| `D02` | `test_frozen_corpus_case[D02-D]` | IN-FRAMEWORK | PASS |
+| `D03` | `test_frozen_corpus_case[D03-D]` | IN-FRAMEWORK | PASS |
+| `D04` | `test_frozen_corpus_case[D04-D]` | IN-FRAMEWORK | PASS |
+| `D05` | `test_frozen_corpus_case[D05-D]` | IN-FRAMEWORK | PASS |
+| `D06` | `test_frozen_corpus_case[D06-D]` | IN-FRAMEWORK | PASS |
+| `E01` | `test_frozen_corpus_case[E01-E]` | IN-FRAMEWORK | PASS |
+| `E02` | `test_frozen_corpus_case[E02-E]` | IN-FRAMEWORK | PASS |
+| `E03` | `test_frozen_corpus_case[E03-E]` | IN-FRAMEWORK | PASS |
+| `F01` | `test_frozen_corpus_case[F01-F]` | IN-FRAMEWORK | PASS |
+| `G01` | `test_frozen_corpus_case[G01-G]` | IN-FRAMEWORK | PASS |
+| `G02` | `test_frozen_corpus_case[G02-G]` | IN-FRAMEWORK | PASS |
+| `G03` | `test_frozen_corpus_case[G03-G]` | IN-FRAMEWORK | PASS |
+| `H01` | `test_frozen_corpus_case[H01-H]` | IN-FRAMEWORK | PASS |
+| `H02` | `test_frozen_corpus_case[H02-H]` | IN-FRAMEWORK | PASS |
+| `H03` | `test_frozen_corpus_case[H03-H]` | IN-FRAMEWORK | PASS |
+| `I01` | `test_frozen_corpus_case[I01-I]` | IN-FRAMEWORK | PASS |
+| `I02` | `test_frozen_corpus_case[I02-I]` | IN-FRAMEWORK | PASS |
+| `J01` | `test_frozen_corpus_case[J01-J]` | IN-FRAMEWORK | PASS |
+| `J02` | `test_frozen_corpus_case[J02-J]` | IN-FRAMEWORK | PASS |
+| `J03` | `test_frozen_corpus_case[J03-J]` | IN-FRAMEWORK | PASS |
+| `K01` | `test_frozen_corpus_case[K01-K]` | IN-FRAMEWORK | PASS |
+| `K02` | `test_frozen_corpus_case[K02-K]` | IN-FRAMEWORK | PASS |
 | `K03` | `test_frozen_corpus_case[K03-K]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
-| `L01` | `test_frozen_corpus_case[L01-L]` | IN-SCOPE | PASS |
-| `L02` | `test_frozen_corpus_case[L02-L]` | IN-SCOPE | PASS |
+| `L01` | `test_frozen_corpus_case[L01-L]` | IN-FRAMEWORK | PASS |
+| `L02` | `test_frozen_corpus_case[L02-L]` | IN-FRAMEWORK | PASS |
 | `L03` | `test_frozen_corpus_case[L03-L]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
-| `M01` | `test_frozen_corpus_case[M01-M]` | IN-SCOPE | PASS |
+| `M01` | `test_frozen_corpus_case[M01-M]` | IN-FRAMEWORK | PASS |
 | `M02` | `test_frozen_corpus_case[M02-M]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
-| `N01` | `test_frozen_corpus_case[N01-N]` | IN-SCOPE | PASS |
-| `N02` | `test_frozen_corpus_case[N02-N]` | IN-SCOPE | PASS |
-| `O01` | `test_frozen_corpus_case[O01-O]` | IN-SCOPE | PASS |
-| `O02` | `test_frozen_corpus_case[O02-O]` | IN-SCOPE | PASS |
-| `P01` | `test_frozen_corpus_case[P01-P]` | IN-SCOPE | PASS |
-| `P02` | `test_frozen_corpus_case[P02-P]` | IN-SCOPE | PASS |
-| `P03` | `test_frozen_corpus_case[P03-P]` | IN-SCOPE | PASS |
-| `Q01` | `test_frozen_corpus_case[Q01-Q]` | IN-SCOPE | PASS |
-| `Q02` | `test_frozen_corpus_case[Q02-Q]` | IN-SCOPE | PASS |
-| `Q03` | `test_frozen_corpus_case[Q03-Q]` | IN-SCOPE | PASS |
-| `Q04` | `test_frozen_corpus_case[Q04-Q]` | IN-SCOPE | PASS |
-| `Q05` | `test_frozen_corpus_case[Q05-Q]` | IN-SCOPE | PASS |
-| `Q06` | `test_frozen_corpus_case[Q06-Q]` | IN-SCOPE | PASS |
-| `Q07` | `test_frozen_corpus_case[Q07-Q]` | IN-SCOPE | PASS |
-| `Q08` | `test_frozen_corpus_case[Q08-Q]` | IN-SCOPE | PASS |
-| `R01` | `test_frozen_corpus_case[R01-R]` | IN-SCOPE | PASS |
-| `R02` | `test_frozen_corpus_case[R02-R]` | IN-SCOPE | PASS |
-| `R03` | `test_frozen_corpus_case[R03-R]` | IN-SCOPE | PASS |
-| `R04` | `test_frozen_corpus_case[R04-R]` | IN-SCOPE | PASS |
-| `S01` | `test_frozen_corpus_case[S01-S]` | IN-SCOPE | PASS |
-| `S02` | `test_frozen_corpus_case[S02-S]` | IN-SCOPE | PASS |
-| `T01` | `test_frozen_corpus_case[T01-T]` | IN-SCOPE | PASS |
-| `T02` | `test_frozen_corpus_case[T02-T]` | IN-SCOPE | PASS |
-| `T03` | `test_frozen_corpus_case[T03-T]` | IN-SCOPE | PASS |
-| `U01` | `test_frozen_corpus_case[U01-U]` | IN-SCOPE | PASS |
-| `U02` | `test_frozen_corpus_case[U02-U]` | IN-SCOPE | PASS |
-| `V01` | `test_frozen_corpus_case[V01-V]` | IN-SCOPE | PASS |
-| `V02` | `test_frozen_corpus_case[V02-V]` | IN-SCOPE | PASS |
-| `V03` | `test_frozen_corpus_case[V03-V]` | IN-SCOPE | PASS |
-| `W01` | `test_frozen_corpus_case[W01-W]` | IN-SCOPE | PASS |
-| `W02` | `test_frozen_corpus_case[W02-W]` | IN-SCOPE | PASS |
-| `W03` | `test_frozen_corpus_case[W03-W]` | IN-SCOPE | PASS |
-| `W04` | `test_frozen_corpus_case[W04-W]` | IN-SCOPE | PASS |
-| `W05` | `test_frozen_corpus_case[W05-W]` | IN-SCOPE | PASS |
-| `W06` | `test_frozen_corpus_case[W06-W]` | IN-SCOPE | PASS |
-| `W07` | `test_frozen_corpus_case[W07-W]` | IN-SCOPE | PASS |
-| `X01` | `test_frozen_corpus_case[X01-X]` | IN-SCOPE | PASS |
-| `X02` | `test_frozen_corpus_case[X02-X]` | IN-SCOPE | PASS |
-| `X03` | `test_frozen_corpus_case[X03-X]` | IN-SCOPE | PASS |
-| `X04` | `test_frozen_corpus_case[X04-X]` | IN-SCOPE | PASS |
-| `X05` | `test_frozen_corpus_case[X05-X]` | IN-SCOPE | PASS |
-| `X06` | `test_frozen_corpus_case[X06-X]` | IN-SCOPE | PASS |
-| `X07` | `test_frozen_corpus_case[X07-X]` | IN-SCOPE | PASS |
-| `X08` | `test_frozen_corpus_case[X08-X]` | IN-SCOPE | PASS |
-| `X09` | `test_frozen_corpus_case[X09-X]` | IN-SCOPE | PASS |
-| `X10` | `test_frozen_corpus_case[X10-X]` | IN-SCOPE | PASS |
-| `X11` | `test_frozen_corpus_case[X11-X]` | IN-SCOPE | PASS |
-| `X12` | `test_frozen_corpus_case[X12-X]` | IN-SCOPE | PASS |
-| `X13` | `test_frozen_corpus_case[X13-X]` | IN-SCOPE | PASS |
-| `Y01` | `test_frozen_corpus_case[Y01-Y]` | IN-SCOPE | PASS |
-| `Y02` | `test_frozen_corpus_case[Y02-Y]` | IN-SCOPE | PASS |
-| `Y03` | `test_frozen_corpus_case[Y03-Y]` | IN-SCOPE | PASS |
-| `Y04` | `test_frozen_corpus_case[Y04-Y]` | IN-SCOPE | PASS |
-| `Z01` | `test_frozen_corpus_invariant[Z01]` | IN-SCOPE | PASS |
-| `Z02` | `test_frozen_corpus_invariant[Z02]` | IN-SCOPE | PASS |
-| `Z03` | `test_frozen_corpus_invariant[Z03]` | IN-SCOPE | PASS |
-| `Z04` | `test_frozen_corpus_invariant[Z04]` | IN-SCOPE | PASS |
+| `N01` | `test_frozen_corpus_case[N01-N]` | IN-FRAMEWORK | PASS |
+| `N02` | `test_frozen_corpus_case[N02-N]` | IN-FRAMEWORK | PASS |
+| `O01` | `test_frozen_corpus_case[O01-O]` | IN-FRAMEWORK | PASS |
+| `O02` | `test_frozen_corpus_case[O02-O]` | IN-FRAMEWORK | PASS |
+| `P01` | `test_frozen_corpus_case[P01-P]` | IN-FRAMEWORK | PASS |
+| `P02` | `test_frozen_corpus_case[P02-P]` | IN-FRAMEWORK | PASS |
+| `P03` | `test_frozen_corpus_case[P03-P]` | IN-FRAMEWORK | PASS |
+| `Q01` | `test_frozen_corpus_case[Q01-Q]` | IN-FRAMEWORK | PASS |
+| `Q02` | `test_frozen_corpus_case[Q02-Q]` | IN-FRAMEWORK | PASS |
+| `Q03` | `test_frozen_corpus_case[Q03-Q]` | IN-FRAMEWORK | PASS |
+| `Q04` | `test_frozen_corpus_case[Q04-Q]` | IN-FRAMEWORK | PASS |
+| `Q05` | `test_frozen_corpus_case[Q05-Q]` | IN-FRAMEWORK | PASS |
+| `Q06` | `test_frozen_corpus_case[Q06-Q]` | IN-FRAMEWORK | PASS |
+| `Q07` | `test_frozen_corpus_case[Q07-Q]` | IN-FRAMEWORK | PASS |
+| `Q08` | `test_frozen_corpus_case[Q08-Q]` | IN-FRAMEWORK | PASS |
+| `R01` | `test_frozen_corpus_case[R01-R]` | IN-FRAMEWORK | PASS |
+| `R02` | `test_frozen_corpus_case[R02-R]` | IN-FRAMEWORK | PASS |
+| `R03` | `test_frozen_corpus_case[R03-R]` | IN-FRAMEWORK | PASS |
+| `R04` | `test_frozen_corpus_case[R04-R]` | IN-FRAMEWORK | PASS |
+| `S01` | `test_frozen_corpus_case[S01-S]` | IN-FRAMEWORK | PASS |
+| `S02` | `test_frozen_corpus_case[S02-S]` | IN-FRAMEWORK | PASS |
+| `T01` | `test_frozen_corpus_case[T01-T]` | IN-FRAMEWORK | PASS |
+| `T02` | `test_frozen_corpus_case[T02-T]` | IN-FRAMEWORK | PASS |
+| `T03` | `test_frozen_corpus_case[T03-T]` | OUTSIDE_FRAMEWORK_BOUNDARY | PASS |
+| `U01` | `test_frozen_corpus_case[U01-U]` | IN-FRAMEWORK | PASS |
+| `U02` | `test_frozen_corpus_case[U02-U]` | IN-FRAMEWORK | PASS |
+| `V01` | `test_frozen_corpus_case[V01-V]` | IN-FRAMEWORK | PASS |
+| `V02` | `test_frozen_corpus_case[V02-V]` | IN-FRAMEWORK | PASS |
+| `V03` | `test_frozen_corpus_case[V03-V]` | IN-FRAMEWORK | PASS |
+| `W01` | `test_frozen_corpus_case[W01-W]` | IN-FRAMEWORK | PASS |
+| `W02` | `test_frozen_corpus_case[W02-W]` | IN-FRAMEWORK | PASS |
+| `W03` | `test_frozen_corpus_case[W03-W]` | IN-FRAMEWORK | PASS |
+| `W04` | `test_frozen_corpus_case[W04-W]` | IN-FRAMEWORK | PASS |
+| `W05` | `test_frozen_corpus_case[W05-W]` | IN-FRAMEWORK | PASS |
+| `W06` | `test_frozen_corpus_case[W06-W]` | IN-FRAMEWORK | PASS |
+| `W07` | `test_frozen_corpus_case[W07-W]` | IN-FRAMEWORK | PASS |
+| `X01` | `test_frozen_corpus_case[X01-X]` | IN-FRAMEWORK | PASS |
+| `X02` | `test_frozen_corpus_case[X02-X]` | IN-FRAMEWORK | PASS |
+| `X03` | `test_frozen_corpus_case[X03-X]` | IN-FRAMEWORK | PASS |
+| `X04` | `test_frozen_corpus_case[X04-X]` | IN-FRAMEWORK | PASS |
+| `X05` | `test_frozen_corpus_case[X05-X]` | IN-FRAMEWORK | PASS |
+| `X06` | `test_frozen_corpus_case[X06-X]` | IN-FRAMEWORK | PASS |
+| `X07` | `test_frozen_corpus_case[X07-X]` | IN-FRAMEWORK | PASS |
+| `X08` | `test_frozen_corpus_case[X08-X]` | IN-FRAMEWORK | PASS |
+| `X09` | `test_frozen_corpus_case[X09-X]` | IN-FRAMEWORK | PASS |
+| `X10` | `test_frozen_corpus_case[X10-X]` | IN-FRAMEWORK | PASS |
+| `X11` | `test_frozen_corpus_case[X11-X]` | IN-FRAMEWORK | PASS |
+| `X12` | `test_frozen_corpus_case[X12-X]` | IN-FRAMEWORK | PASS |
+| `X13` | `test_frozen_corpus_case[X13-X]` | IN-FRAMEWORK | PASS |
+| `Y01` | `test_frozen_corpus_case[Y01-Y]` | IN-FRAMEWORK | PASS |
+| `Y02` | `test_frozen_corpus_case[Y02-Y]` | IN-FRAMEWORK | PASS |
+| `Y03` | `test_frozen_corpus_case[Y03-Y]` | IN-FRAMEWORK | PASS |
+| `Y04` | `test_frozen_corpus_case[Y04-Y]` | IN-FRAMEWORK | PASS |
+| `Z01` | `test_frozen_corpus_invariant[Z01]` | IN-FRAMEWORK | PASS |
+| `Z02` | `test_frozen_corpus_invariant[Z02]` | IN-FRAMEWORK | PASS |
+| `Z03` | `test_frozen_corpus_invariant[Z03]` | IN-FRAMEWORK | PASS |
+| `Z04` | `test_frozen_corpus_invariant[Z04]` | IN-FRAMEWORK | PASS |
 
-Tổng: **105 dòng** · 102 IN-SCOPE · 3 OUTSIDE_FRAMEWORK_BOUNDARY (`K03`,
-`L03`, `M02`) · 0 duplicate · 0 case thiếu oracle.
+Tổng: **105 dòng** · **101 IN-FRAMEWORK** · **4 OUTSIDE_FRAMEWORK_BOUNDARY**
+(`K03`, `L03`, `M02` — HD-POST-A1-02; `T03` — HD-POST-A1-04) · 0 duplicate ·
+0 case thiếu oracle.
+
+Bốn case ngoài biên có THÊM một proof node riêng
+(`test_outside_boundary_case_is_proven_not_merely_failing[<ID>]`) chứng minh
+A/B/C/D. Đó là một **họ node khác**, không phải đếm trùng: bảng trên đếm node
+thuộc corpus, proof node đếm riêng ở §11 accounting.
 
 
 ---
@@ -1319,3 +1321,125 @@ Independent Reviewer chỉ trả đúng một trong hai:
 Reviewer **KHÔNG** ghi `FROZEN` vào repository. Nếu PASS, một **Freeze
 Finalization session riêng** mới được phép ghi `R1-A1 = FROZEN` + reviewed SHA
 vào governance.
+
+
+---
+
+## 23. HD-POST-A1-04 — T03 ratification (DEC-138)
+
+### 23.1. Premise A — PLAN đã phát biểu semantics pre-canonical từ trước
+
+Nguồn: `docs/tasks/TASK-110-R1-A1-FROZEN-CONTRACT.md` @ **`5a0f27c`**.
+
+**Dòng 402–406, §10 "Node budget" (nguyên văn):**
+
+> Ranh giới CPython (chỉ thị §10 yêu cầu phân loại rõ): với annotation cực sâu,
+> `typing` **tự nó** không dựng nổi object trước khi framework nhìn thấy —
+> đo được `RecursionError` bên trong `typing.__hash__` ở khoảng độ sâu 500 với
+> `recursionlimit` mặc định. Đó là biên NGOÀI framework: không canonical type nào
+> được tạo ra, không có trạng thái nửa vời, và corpus ghi nhận nó ở nhóm T.
+
+**Dòng 560, bảng §12 (nguyên văn), ô expected outcome:**
+
+> `| T03 | annotation sâu tới mức `typing` tự nổ khi DỰNG | ngoài biên framework — không canonical type nào được tạo | C12 |`
+
+PLAN nói rõ ba điều: failure xảy ra **trước khi framework nhìn thấy**; đó là
+**biên NGOÀI framework**; và **không canonical type nào được tạo ra**. Đây
+chính là semantics của `OUTSIDE_FRAMEWORK_BOUNDARY`, viết bằng văn xuôi vì
+token enum khi đó chưa được đặt tên. **Premise A PASS** — ratification dựa trên
+semantics đã tồn tại từ PLAN, không phải câu chuyện dựng sau implementation.
+
+### 23.2. Premise B — oracle A/B/C/D, cùng chuẩn với K03/L03/M02
+
+| Mệnh đề | T03 | Ghi chú |
+|---|---|---|
+| **A** canonical chưa entered | ✔ | spy decorator không được gọi lần nào |
+| **B** registry không đổi | ✔ | 11 → 11 |
+| **C** không partial state | ✔ | thoả ở dạng **MẠNH HƠN**: `C_no_target_class_created` — class mục tiêu **chưa từng được tạo ra**, nên không có chỗ để nhiễm |
+| **D** canonical vắng mặt trong traceback | ✔ | foreign component: `typing.py:1395 in __hash__` |
+
+Exception: `RecursionError`. Không mệnh đề nào bị nới lỏng; `C` được khẳng
+định ở dạng chặt hơn chứ không phải một tập điều kiện yếu hơn.
+
+### 23.3. Premise C và D
+
+**C** — không cần sửa `app/modules/domain/canonical.py`; toàn bộ là
+TEST-ONLY + DOCS-ONLY. **D** — expected semantic intent không đổi: PLAN đã nói
+đúng ý này bằng văn xuôi; thay đổi là **đặt tên token** cộng **nâng oracle**.
+
+**HD-POST-A1-04 = RATIFIED** → **DEC-138**.
+
+### 23.4. T03 ASYMMETRY AUDIT — bắt buộc, và câu trả lời KHÔNG dễ chịu
+
+**1. T03 tại `c183123`**: **PASS**. Assertion khi đó chỉ kiểm **hai** thứ —
+có `RecursionError` khi dựng `_nested_tuple(5000)` không, và
+`len(canonical_types())` có đổi không. Nó **không** kiểm A, **không** kiểm C,
+**không** kiểm D.
+
+**2. K03/L03/M02 tại `c183123`**: **XFAIL(strict)**, lý do ghi rõ "chờ Owner
+duyệt phân loại lại thành OUTSIDE_FRAMEWORK_BOUNDARY".
+
+**3. Vì sao T03 PASS còn ba case kia XFAIL?** Không phải vì oracle T03 mạnh
+hơn. Vì trong **code** tại `c183123`, `T03.expected` đã là
+`OUTSIDE_FRAMEWORK_BOUNDARY` ngay từ đầu, trong khi ba case kia mang
+`UNSUPPORTED_AT_DECORATION` — một outcome framework không tạo ra được.
+Đo được tại `c183123`:
+
+    T03: expected=OUTSIDE_FRAMEWORK_BOUNDARY  observed=OUTSIDE_FRAMEWORK_BOUNDARY  passed=True
+    K03: expected=UNSUPPORTED_AT_DECORATION   observed=OUTSIDE_FRAMEWORK_BOUNDARY  passed=False
+    L03: expected=UNSUPPORTED_AT_DECORATION   observed=OUTSIDE_FRAMEWORK_BOUNDARY  passed=False
+    M02: expected=UNSUPPORTED_AT_DECORATION   observed=OUTSIDE_FRAMEWORK_BOUNDARY  passed=False
+
+**4. Kết luận đúng**: `T03` **PASS đúng KẾT QUẢ nhưng chưa chứng minh CƠ CHẾ**.
+Oracle của nó **yếu hơn** oracle mà `K03`/`L03`/`M02` nhận được ở vòng
+HD-POST-A1-02. Đây **không** phải "T03 có oracle mạnh hơn từ đầu", và **không**
+phải "cơ chế T03 khác về bản chất" (cơ chế đúng là pre-canonical — nhưng oracle
+chưa chứng minh điều đó).
+
+**5. Việc gắn nhãn có đổi nội dung assert của `test_frozen_corpus_case[T03-T]`
+không?** Giá trị `expected` trong **code** không đổi — nó đã là
+`OUTSIDE_FRAMEWORK_BOUNDARY` từ `c183123`. Ô trong **bảng quy phạm** đổi từ văn
+xuôi sang token (cùng nghĩa). Thứ **thực sự đổi** là `T03` nay có một proof node
+A/B/C/D riêng và observer được nâng lên cùng chuẩn.
+
+**Vì thế đây KHÔNG phải "chỉ chuẩn hoá nhãn".** Phần nhãn là chuẩn hoá; phần
+oracle là một sự siết chặt thật sự, và nó được ghi ở đây đúng như vậy.
+
+### 23.5. So sánh trạng thái bảng quy phạm qua ba SHA
+
+| | `aff0240` | `6f79cbb` | FINAL |
+|---|---|---|---|
+| ID count | 105 | 105 | 105 |
+| ô khác PLAN | **0** | 4 (`K03`,`L03`,`M02` token; `T03` prose→token) | 4 (`K03`,`L03`,`M02`,`T03`) |
+| authority | — | `K03/L03/M02` = HD-POST-A1-02; `T03` = **chưa có** | `K03/L03/M02` = HD-POST-A1-02; `T03` = **HD-POST-A1-04** |
+| known divergence | **bảng lệch code**: bảng ghi `UNSUPPORTED_AT_DECORATION` cho `K03/L03/M02` trong khi code ghi outside | **`T03` đổi ô mà chưa có Owner Decision riêng** | không |
+
+Mỗi Owner Decision sửa đúng một phần: **DEC-136/HD-POST-A1-02** hợp thức hoá ba
+ô; **DEC-137** phát hiện bảng lệch code và áp quyết định lên bảng; **DEC-138/
+HD-POST-A1-04** hợp thức hoá ô thứ tư và nâng oracle của nó.
+
+### 23.6. Hai tập cùng cỡ 101 — KHÔNG phải một tập
+
+| Tập | Nghĩa | Cỡ |
+|---|---|---|
+| **P** | 101 parameterized frozen rows — cấu trúc TEST (`FROZEN_CORPUS`) | 101 |
+| **F** | 101 IN-FRAMEWORK FROZEN IDs — phân hoạch NGỮ NGHĨA | 101 |
+
+    |P ∩ F|            = 97
+    chỉ có trong P     = {K03, L03, M02, T03}   (4)  — parameterized nhưng NGOÀI biên
+    chỉ có trong F     = {Z01, Z02, Z03, Z04}   (4)  — in-framework nhưng KHÔNG phải parameterized row
+
+`Z01–Z04` là node bất biến riêng (`test_frozen_corpus_invariant`), không nằm
+trong `FROZEN_CORPUS`, nhưng về ngữ nghĩa chúng là in-framework. `T03` thì
+ngược lại: là parameterized row nhưng thuộc bucket ngoài biên. Có test canh
+(`test_the_two_sets_of_size_101_are_not_the_same_set`).
+
+### 23.7. Parser oracle (§8)
+
+`parse_normative_table()` là hàm thuần, có schema, và **raise
+`MalformedNormativeRow` thay vì bỏ qua**. Chín bất biến được khẳng định trong
+`test_parser_oracle_the_normative_parser_cannot_pass_falsely`: 105 ID · đúng 4
+cột/dòng · 0 duplicate · 0 empty ID · 0 dòng bị drop (số dòng parser nhận ==
+số dòng vật lý) · escaped pipe `\|` không bị coi là separator · ID set khớp tập
+liệt kê độc lập từ code · row count khớp · và bốn dạng dòng méo (thiếu cột,
+thừa cột, outcome sai, ID trùng) đều **FAIL** chứ không bị nuốt.

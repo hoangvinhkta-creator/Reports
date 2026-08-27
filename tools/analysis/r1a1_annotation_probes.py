@@ -154,6 +154,65 @@ def observe_outside_boundary(annotation: Any, name: str) -> dict:
     }
 
 
+def observe_outside_boundary_at_construction(build_annotation, name: str) -> dict:
+    """Biến thể của `observe_outside_boundary` cho case mà chính việc DỰNG
+    annotation đã nổ (`T03`).
+
+    Bốn mệnh đề y hệt, nhưng mệnh đề **C** được thoả ở dạng MẠNH HƠN chứ không
+    yếu hơn: với `K03`/`L03`/`M02` có một class mục tiêu tồn tại và ta khẳng
+    định nó SẠCH; với `T03` **class mục tiêu chưa từng được tạo ra**, nên
+    không có chỗ nào để nhiễm state. Hàm này khẳng định đúng điều đó
+    (`target_created is None`) chứ không hạ tiêu chuẩn.
+    """
+    entered: list = []
+
+    def spy(**kwargs):
+        inner = canonical(**kwargs)
+
+        def decorate(cls):
+            entered.append(cls)
+            return inner(cls)
+        return decorate
+
+    before = len(canonical_types())
+    target = None
+    exc = None
+    try:
+        annotation = build_annotation()          # T03 nổ NGAY Ở ĐÂY
+        target = type(name, (), {
+            "__annotations__": {"value": annotation},
+            "__post_init__": lambda self: None,
+            "__module__": __name__,
+        })
+        spy()(dataclass(frozen=True)(target))
+    except BaseException as caught:  # noqa: BLE001 — đây chính là thứ đang đo
+        exc = caught
+    after = len(canonical_types())
+
+    frames = _traceback.extract_tb(exc.__traceback__) if exc is not None else []
+    canonical_in_traceback = any(
+        _os.path.abspath(f.filename) == _CANONICAL_FILE for f in frames)
+    stdlib = [f for f in frames if "/lib/python" in f.filename]
+    culprit = stdlib[-1] if stdlib else None
+
+    return {
+        "raised": exc is not None,
+        "exception_type": type(exc).__name__ if exc is not None else None,
+        "A_canonical_never_entered": not entered,
+        "B_registry_unchanged": before == after,
+        "B_registry": (before, after),
+        # C ở dạng MẠNH: không có class mục tiêu nào được tạo ra.
+        "C_no_target_class_created": target is None,
+        "C_no_partial_state": target is None or not any(
+            hasattr(target, m) for m in _CANONICAL_PARTIAL_MARKERS),
+        "D_canonical_absent_from_traceback": not canonical_in_traceback,
+        "foreign_component": _os.path.basename(culprit.filename) if culprit else None,
+        "foreign_call_site": (f"{_os.path.basename(culprit.filename)}:{culprit.lineno}"
+                              f" in {culprit.name}") if culprit else None,
+        "module_chain": [_os.path.basename(f.filename) for f in frames],
+    }
+
+
 def _observe_outside_boundary_case(annotation: Any, name: str) -> str:
     ev = observe_outside_boundary(annotation, name)
     if not ev["raised"]:
@@ -720,17 +779,34 @@ def _observe_wide_shapes() -> str:
 
 
 def _observe_typing_refuses_first() -> str:
-    """T03 — biên NGOÀI framework: `typing` tự nổ khi DỰNG annotation, nên
-    không canonical type nào được tạo ra và không có trạng thái nửa vời."""
-    before = len(canonical_types())
-    try:
-        _nested_tuple(5000)
-    except RecursionError:
-        return (OUTSIDE_FRAMEWORK_BOUNDARY if len(canonical_types()) == before
-                else "REGISTRY_MUTATED")
-    except BaseException as exc:  # noqa: BLE001
-        return f"UNEXPECTED({type(exc).__name__})"
-    return "TYPING_ACCEPTED_IT"
+    """T03 — biên NGOÀI framework: `typing` tự nổ khi DỰNG annotation.
+
+    Bản tại `c183123` chỉ kiểm HAI thứ — có `RecursionError` không, và registry
+    có đổi không. Nó KHÔNG chứng minh canonical chưa entered, không chứng minh
+    không có partial state, không chứng minh `canonical.py` vắng mặt trong
+    traceback. Nói cách khác nó PASS đúng KẾT QUẢ nhưng chưa chứng minh CƠ CHẾ,
+    và vì thế yếu hơn oracle của `K03`/`L03`/`M02`.
+
+    Bản này dùng ĐÚNG cùng bốn mệnh đề (HD-POST-A1-04).
+    """
+    ev = observe_outside_boundary_at_construction(
+        lambda: _nested_tuple(5000), "BndT03")
+    if not ev["raised"]:
+        return "TYPING_ACCEPTED_IT"
+    if ev["exception_type"] != "RecursionError":
+        return f"UNEXPECTED({ev['exception_type']})"
+    for key, token in (
+        ("A_canonical_never_entered", "CANONICAL_DID_ENTER"),
+        ("B_registry_unchanged", "REGISTRY_MUTATED"),
+        ("C_no_target_class_created", "TARGET_CLASS_WAS_CREATED"),
+        ("C_no_partial_state", "CLASS_LEFT_PARTIAL_STATE"),
+        ("D_canonical_absent_from_traceback", "CANONICAL_IN_TRACEBACK"),
+    ):
+        if not ev[key]:
+            return token
+    if ev["foreign_component"] is None:
+        return "NO_FOREIGN_COMPONENT_EVIDENCE"
+    return OUTSIDE_FRAMEWORK_BOUNDARY
 
 
 def _witness_row_provenance() -> Any:
@@ -748,15 +824,21 @@ _C = Case
 # đúng cùng một object.
 _MODULE_RAISES = ModuleRaises()
 _ARGS_RAISES = ArgsRaises(typing.Union, (int, str))
-# §8 Owner Decision: bucket "OUTSIDE_FRAMEWORK_BOUNDARY" trong số học chính
-# thức gồm ĐÚNG ba ID được HD-POST-A1-02 phân loại lại.
-OUTSIDE_BOUNDARY_CASE_IDS = ("K03", "L03", "M02")
+# Bucket "OUTSIDE_FRAMEWORK_BOUNDARY" của số học chính thức. Sau HD-POST-A1-04
+# nó gồm BỐN ID: ba ID do HD-POST-A1-02 phân loại lại, cộng `T03` do
+# HD-POST-A1-04 ratify. Phân hoạch ngữ nghĩa duy nhất từ đây:
+#
+#     105 = 101 IN-FRAMEWORK FROZEN IDs + 4 OUTSIDE_FRAMEWORK_BOUNDARY IDs
+#
+# Không dùng `102 + 3` làm acceptance equation nữa.
+OUTSIDE_BOUNDARY_CASE_IDS = ("K03", "L03", "M02", "T03")
 
-# `T03` cũng mang expected outcome `OUTSIDE_FRAMEWORK_BOUNDARY`, NHƯNG nó mang
-# từ bản freeze gốc chứ không do HD-POST-A1-02 phân loại lại — nó chưa bao giờ
-# là một case hỏng. Theo cách chia §8, `T03` nằm trong 102 IN-SCOPE. Ghi ra ở
-# đây để số học 105 = 102 + 3 đọc được mà không phải đoán.
-PRE_FROZEN_OUTSIDE_BOUNDARY_IDS = ("T03",)
+# `T03` mang outcome ngoài biên từ bản PLAN (văn xuôi "ngoài biên framework —
+# không canonical type nào được tạo"), nhưng oracle của nó tại `c183123` YẾU
+# HƠN ba case kia: nó chỉ kiểm `RecursionError` + registry, không chứng minh
+# A/C/D. HD-POST-A1-04 vừa ratify nhãn vừa nâng oracle lên cùng chuẩn.
+HD_POST_A1_02_RECLASSIFIED_IDS = ("K03", "L03", "M02")
+HD_POST_A1_04_RATIFIED_IDS = ("T03",)
 
 FROZEN_CORPUS: tuple = (
     # ── A — Union / Optional / PEP604
@@ -1053,13 +1135,13 @@ def main() -> int:
     print("-" * 130)
     print("FROZEN CORPUS:")
     print(f"    {acc['classified']}/{TOTAL_CASES} CLASSIFIED")
-    print(f"IN-SCOPE:")
+    print(f"IN-FRAMEWORK FROZEN IDs:")
     print(f"    {acc['in_scope_pass']}/{acc['in_scope_total']} PASS")
     print(f"OUTSIDE_FRAMEWORK_BOUNDARY:")
     print(f"    {acc['outside_ok']}/{acc['outside_total']} correctly classified"
           f"  ({', '.join(acc['outside_ids'])})")
-    print(f"    (ngoài ra {', '.join(PRE_FROZEN_OUTSIDE_BOUNDARY_IDS)} mang cùng "
-          f"outcome TỪ BẢN FREEZE GỐC, nên theo §8 nó được đếm trong IN-SCOPE)")
+    print(f"    HD-POST-A1-02: {', '.join(HD_POST_A1_02_RECLASSIFIED_IDS)}"
+          f"  ·  HD-POST-A1-04: {', '.join(HD_POST_A1_04_RATIFIED_IDS)}")
     print(f"UNCLASSIFIED:")
     print(f"    {acc['unclassified']}")
     print(f"BLOCKING FAIL:")

@@ -2188,3 +2188,82 @@ Consequences:
   ô do HD-POST-A1-02 cho phép.
 - R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
   merge. CHECK-110-16 vẫn BLOCKED (merge gate).
+
+---
+
+## DEC-138
+
+Date:
+2026-08-27
+
+Task:
+TASK-110 — R1-A1, HD-POST-A1-04 (conditional ratification cho T03)
+
+Decision:
+
+**HD-POST-A1-04 = RATIFIED.** `T03` được phân loại
+`OUTSIDE_FRAMEWORK_BOUNDARY`, sau khi cả bốn premise có điều kiện đều được
+chứng minh:
+
+**A — PLAN đã phát biểu semantics pre-canonical từ trước.** PLAN @ `5a0f27c`,
+§10 dòng 402–406 (nguyên văn): "`typing` **tự nó** không dựng nổi object trước
+khi framework nhìn thấy … Đó là biên NGOÀI framework: không canonical type nào
+được tạo ra, không có trạng thái nửa vời". Ô expected outcome tại bảng §12
+dòng 560: "ngoài biên framework — không canonical type nào được tạo".
+Ratification dựa trên semantics đã có, không phải câu chuyện dựng sau.
+
+**B — oracle chứng minh đủ A/B/C/D, cùng chuẩn với `K03`/`L03`/`M02`.**
+Mệnh đề C được thoả ở dạng **mạnh hơn** chứ không yếu hơn: class mục tiêu chưa
+từng được tạo ra. Foreign component: `typing.py:1395 in __hash__`.
+
+**C — không cần sửa `canonical.py`.** TEST-ONLY + DOCS-ONLY.
+
+**D — semantic intent không đổi**; thay đổi là đặt tên token cộng nâng oracle.
+
+**Phân hoạch ngữ nghĩa DUY NHẤT từ đây:**
+
+    105 FROZEN CORPUS IDs
+      = 101 IN-FRAMEWORK FROZEN IDs   (BAO GỒM Z01–Z04)
+      +   4 OUTSIDE_FRAMEWORK_BOUNDARY IDs (K03, L03, M02, T03)
+
+`102 + 3` **không còn là acceptance equation**.
+
+**Điều phải nói thẳng — asymmetry của T03.** Tại `c183123`, `T03` PASS trong
+khi `K03`/`L03`/`M02` XFAIL. Lý do KHÔNG phải oracle T03 mạnh hơn: trong code
+`T03.expected` đã là `OUTSIDE_FRAMEWORK_BOUNDARY` ngay từ đầu, còn ba case kia
+mang một outcome framework không tạo ra được. Oracle của `T03` khi đó chỉ kiểm
+`RecursionError` + registry — nó **PASS đúng kết quả nhưng chưa chứng minh cơ
+chế**, và **yếu hơn** oracle mà ba case kia nhận ở HD-POST-A1-02. Vì vậy việc
+làm hôm nay **không** chỉ là "chuẩn hoá nhãn": phần nhãn là chuẩn hoá, phần
+oracle là một sự siết chặt thật sự.
+
+**Tripwire interpreter** nay phủ **cả bốn** case. Reviewer chạy minor version
+khác ⇒ `ENVIRONMENT_REVERIFY_REQUIRED` cho cả bốn, không phải correctness FAIL.
+
+**Parser bảng quy phạm** là một mắt xích evidence, nên có oracle riêng: 9 bất
+biến, và dòng méo phải FAIL chứ không bị nuốt.
+
+**SUPERSEDED REVIEW CANDIDATES** (branch authority DEC-137 giữ nguyên):
+
+- `aff02405f51ad47e67e8759d2fa097f1277d62d4` — superseded, lý do:
+  normative-table divergence.
+- `6f79cbb8a4b9f7355e8b595518326f4eda75ca95` — superseded, lý do:
+  T03 authority / oracle / accounting reconciliation pending.
+
+Rationale:
+
+Owner Decision này có điều kiện, và điều kiện có ý nghĩa: nếu PLAN không thật
+sự phát biểu semantics pre-canonical cho `T03` thì lời giải đúng là revert
+nhãn, không phải hợp thức hoá sau. PLAN có phát biểu, nên ratify — nhưng đúng
+lúc kiểm chứng thì lộ ra rằng oracle của `T03` xưa nay yếu hơn ba case kia.
+Ghi cả hai điều đó mới là bản ghi trung thực.
+
+Consequences:
+
+- DEC-128 → DEC-137 **không** bị sửa.
+- `app/modules/domain/canonical.py` **KHÔNG ĐỔI** — SHA256
+  `08e74fe226caca98ce46f845475cc386496bf0e3a57eab197f97d09c723d3e3c`.
+- Corpus vẫn **105 ID**; outcome delta so với PLAN đúng **bốn** ô, không có ô
+  thứ năm.
+- R1-A1 = READY_FOR_INDEPENDENT_REVIEW. Chưa FROZEN, chưa chuyển R1-A2, chưa
+  merge. CHECK-110-16 vẫn BLOCKED (merge gate).
