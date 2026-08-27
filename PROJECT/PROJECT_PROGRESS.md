@@ -139,7 +139,8 @@ R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 SEMANTIC_DEFINITION   = APPROVED   (đầy đủ — formula đã được Owner xác nhận, DEC-144 §1)
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master ]   ← 2 → 1
+BLOCKED_BY_DEPENDENCY = [ FilePriceProvider chưa tồn tại (TASK-105B — READY,
+                          chưa implement), bảng giá thật chưa được cấp ]
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
@@ -158,20 +159,39 @@ repair budget         = 2 allowed / 0 used / 2 remaining (lineage TASK-108B)
 `SEMANTIC_DEFINITION = APPROVED` **không** đồng nghĩa `IMPLEMENTATION = READY`.
 Không hardcode dữ liệu để vượt blocker, không synthetic PASS.
 
-**TASK-105B — FilePriceProvider (mở tại DEC-144 §7, 2026-08-27):**
+**TASK-105B — FilePriceProvider (DEC-144 §7 mở; DEC-145 / `OD-105B-01` chốt Q1/Q2/Q3):**
 
 ```
-SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
-QUESTIONS = [ Q1 — effective_to bắt buộc, hay engine tự đóng khoảng?
-              Q2 — khớp product_key exact, hay chuẩn hoá NFC+trim+case-fold?
-              Q3 — dòng Chi phí vận chuyển/lắp đặt/Chênh VAT có giá nhập không? ]
-effective_risk = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
-repair budget  = 2 allowed / 0 used / 2 remaining (lineage TASK-105B)
+SEMANTIC_READINESS = READY          ← Q1/Q2/Q3 đã đóng (DEC-145)
+IMPLEMENTATION     = READY          (phạm vi OD-105B-01 §A/§B/§D/§E)
+effective_risk     = HIGH   (data path: Price → KpiPurchasePrice → CR → KPI/lương)
+repair budget      = 2 allowed / 0 used / 2 remaining (lineage TASK-105B)
 ```
 
-Bảng cột file giá chủ dự án cần cung cấp (**4 cột**, VND nguyên) và toàn bộ
-discovery: `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III.
-Chuỗi mở khoá: **Q1/Q2/Q3 + file giá** → `TASK-105B` → `TASK-108B` → `TASK-109`.
+Q1 = khoảng ĐÓNG `[from, to]`, overlap/>1 record mở = `INVALID PRICE MASTER`,
+gap → `Pending`, cấm latest/nearest/current. Q2 = chuẩn hoá NFC → strip →
+collapse → casefold; đã có sẵn `fold()` tại `app/modules/validation/text.py`,
+kiểm chứng đúng trên 3 ví dụ Owner và trên 528 dòng production.
+
+**TASK-105B-Q3 — chính sách zero-price dòng phụ (tách riêng):**
+
+```
+IMPLEMENTATION = BLOCKED_BY [ TASK-103 Product/Transaction Classification,
+                              hoặc danh sách enumerated do Owner cấp ]
+```
+
+`OD-105B-01` §C **cấm** matcher mới trong provider và yêu cầu reuse
+classification production — nhưng `TASK-103` **chưa làm**,
+`config/classification.yaml` **không tồn tại**, và cơ chế duy nhất
+(`is_non_product_line`) tự khai là *noise-reduction only*, **tạm thời**
+(HD-110-02), **cấm tune**. Đo trên production: keyword set hiện hành khớp **36**
+dòng trong khi đúng 3 nhóm Owner nêu chỉ **34** (dôi `Phụ Phí`, `Phụ Phí Đổi
+mới`). Chi tiết + hai đường đi:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần IV §40.
+
+Contract + Completion Gate 16 check: cùng file, Phần IV. Chuỗi mở khoá:
+**file giá 4 cột** → `TASK-105B` → (`TASK-103` hoặc danh sách enumerated) →
+`TASK-105B-Q3` → `TASK-108B` → `TASK-109`.
 
 Lịch sử: S020 sửa Review #4 (2 provenance defect, DEC-131), S019 sửa Review #3
 (3 finding, DEC-130), S018 sửa Review #2 (4 finding), S017 sửa Review #1
@@ -237,10 +257,11 @@ phải việc agent tự làm tiếp được:
 
 1. **`TASK-108B` (Converted Revenue)** — **semantics ĐÃ ĐÓNG HOÀN TOÀN
    (DEC-143 + DEC-144; `OD-108B-01` + `OD-108B-02`, 2026-08-27); C15 ĐÃ ĐÓNG.**
-   Blocker ngoại lai còn **đúng một**: bảng giá nhập. Đường mở khoá là
-   `TASK-105B` (FilePriceProvider) — cần chủ dự án trả lời **Q1/Q2/Q3** và cấp
-   file giá 4 cột; xem `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
-   Phần III.
+   Q1/Q2/Q3 của `TASK-105B` **đã đóng** (DEC-145). Blocker ngoại lai còn
+   **đúng một**: chủ dự án cấp **file giá 4 cột**. `TASK-105B` nay
+   `IMPLEMENTATION = READY`; phần dòng phụ tách thành `TASK-105B-Q3`, còn chờ
+   `TASK-103`. Xem `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
+   Phần III–IV.
    *(Chi tiết `OD-108B-01` giữ nguyên bên dưới.)* `EligibleCosts = {}` (closed empty
    set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
    definition`, canonical formula đã chốt. Nhưng
@@ -373,8 +394,16 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
   - [ ] TASK-105B — `FilePriceProvider` (Phase 1). Implementation thứ hai của
         `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice` từ
-        file bảng giá do chủ dự án cấp; tra theo `(product_key, ngày đơn)`.
-        **SEMANTIC_READINESS = OWNER_DECISION_REQUIRED** (DEC-144 §8 — Q1/Q2/Q3).
+        file bảng giá do chủ dự án cấp; tra theo `(normalized product_key,
+        ngày đơn)`. **SEMANTIC_READINESS = READY · IMPLEMENTATION = READY**
+        (DEC-145 / `OD-105B-01` — Q1/Q2/Q3 đã đóng). Chờ chủ dự án cấp file giá
+        4 cột. Completion Gate 16 check ở Phần IV của artifact TASK-108B.
+  - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
+        (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
+        `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
+        sách enumerated do chủ dự án cấp. `OD-105B-01` §C cấm phát minh matcher
+        mới trong provider; `is_non_product_line` hiện có tự khai là tạm thời
+        (HD-110-02) và cấm tune.
         Hợp lệ ở Phase 1 theo đặc tả §10 (*"Version đầu cho phép nhập tay"*);
         không sửa `price_engine`/`pipeline`, không thêm field, **không phá
         Golden**. `effective_risk = HIGH`. Discovery đầy đủ + bảng cột file giá:
@@ -384,9 +413,10 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144**: còn **1** blocker ngoại lai (giảm 4 → 2 → 1) —
-        Price Master (`PendingPriceProvider` trả `None` vô điều kiện; Golden
-        xác nhận 100 % Pending trên dữ liệu production). Confirmed
+        Sau **DEC-144 + DEC-145**: còn **1** blocker ngoại lai (giảm 4 → 2 → 1)
+        — bảng giá nhập thật (`PendingPriceProvider` trả `None` vô điều kiện;
+        Golden xác nhận 100 % Pending trên dữ liệu production). `TASK-105B` đã
+        `READY`, chỉ chờ file. Confirmed
         `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
         còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
         absence với source-unavailable), thuộc phạm vi chính TASK-108B.

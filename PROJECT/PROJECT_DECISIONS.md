@@ -3113,3 +3113,262 @@ Can Revisit After:
   giữ nguyên semantics.
 - `TASK-401`/`TASK-402` (Phase 4) thay `FilePriceProvider` bằng Price Master
   thật theo `ProductCode` — Protocol không đổi.
+
+## DEC-145
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105B` — Owner Decision `OD-105B-01` (Q1/Q2/Q3) + Implementation Readiness
+Finalization. Ghi trong phiên "TASK-105B OWNER DECISION Q1/Q2/Q3". Discovery
+tiền nhiệm: `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III
+(`DEC-144` §7–8).
+
+Decision:
+
+**1. Q1 — Effective period.**
+
+```
+effective_from : REQUIRED, mọi record
+effective_to   : REQUIRED cho mọi record lịch sử đã kết thúc hiệu lực;
+                 chỉ được rỗng ở ĐÚNG MỘT record hiện hành cuối cùng
+                 của mỗi NORMALIZED product_key
+khoảng         : ĐÓNG — [effective_from, effective_to]
+overlap        : CẤM (cùng normalized key) → INVALID PRICE MASTER
+gap            : ĐƯỢC PHÉP, và có nghĩa NO PRICE AVAILABLE → lookup None → Pending
+>1 record effective_to rỗng cùng key → INVALID PRICE MASTER
+```
+
+**Cấm tuyệt đối** `latest` / `nearest` / `current` / fallback về record gần nhất
+khi `sale_date` không nằm trong một khoảng hiệu lực hợp lệ. Không tự lấp gap.
+Không tự giải quyết overlap bằng precedence.
+
+**2. Q2 — Product key normalization.**
+
+Không dùng exact raw string. Canonical normalization:
+
+```
+Unicode NFC → strip đầu/cuối → collapse whitespace nội bộ về đúng 1 space → casefold
+```
+
+**KHÔNG**: bỏ dấu tiếng Việt; bỏ punctuation; sửa model number; fuzzy matching;
+nearest-match; contains-match; AI matching.
+
+Hai raw product khác nhau tạo **cùng** normalized key nhưng mang record giá
+**mâu thuẫn** → `INVALID PRICE MASTER`. Không tự chọn một record.
+
+Provenance phải giữ được đủ ba: `raw product_key` từ price file; `normalized
+lookup key`; `matched record`.
+
+**3. Q3 — Supplementary / expense lines.**
+
+Dòng mà classification production xác định là chi phí vận chuyển / lắp đặt /
+chênh VAT, và thuộc đúng semantic supplementary/expense-line **đã có authority**:
+
+```
+AccountingPurchasePrice = 0 BY DEFINITION
+provenance = Policy:SupplementaryExpenseZeroPurchasePrice
+```
+
+Các dòng này: không cần record trong Price Master; không được lookup rồi coi
+missing là lỗi; **không** được đưa vào `EligibleCosts` lần nữa; không được làm
+phát sinh double-count.
+
+**Cấm** xác định chúng bằng một substring heuristic **mới** nằm trong
+`FilePriceProvider`. Phải **reuse** classification / semantic rule hiện có
+trong production.
+
+Product line **thông thường** không có price record: `lookup = None` → `Pending`.
+**Không** dùng `purchase_price = 0` thay cho missing.
+
+**4. Price file contract (Phase 1).**
+
+```
+REQUIRED : product_key, effective_from, effective_to, purchase_price
+OPTIONAL : source
+KHÔNG CẦN: product_code, product_name, supplier, updated_at
+```
+
+`product_key` = raw key lấy từ `Tên hàng trên chứng từ`, tra bằng normalized key
+theo §2. `effective_from`/`effective_to` = `YYYY-MM-DD`; `effective_to` rỗng chỉ
+với record hiện hành cuối cùng. `purchase_price` = **VND**, semantics
+`Decimal`/integer, **không** float approximation (ADR-103). `source` = text
+provenance tuỳ chọn.
+
+**5. Price validation — chốt.**
+
+```
+purchase_price < 0                              → INVALID
+purchase_price = 0                              → chỉ hợp lệ khi Owner/business source
+                                                  thực sự khai giá 0; KHÔNG dùng 0 thay missing
+product_key rỗng                                → INVALID
+effective_from lỗi                              → INVALID
+effective_to < effective_from                   → INVALID
+interval overlap cùng normalized key            → INVALID
+same normalized key + same period + khác giá    → INVALID
+duplicate row giống hệt hoàn toàn               → REJECT (xem Reason điểm 4)
+sale_date trước record đầu tiên                 → None → Pending
+sale_date nằm trong gap                         → None → Pending
+product không có trong Price Master             → None → Pending
+```
+
+Không fallback.
+
+**6. Giữ nguyên `DEC-144`** về confirmed `KpiPurchaseAdjustment` (ba trạng thái
+`CONFIRMED` / `DETERMINED_ABSENCE` / `UNKNOWN`) và canonical formula
+`EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount`;
+`EligibleCosts = {}`; `DeliveryCost = NOT ELIGIBLE FOR NOW`;
+`OtherKpiAdjustment = 0 BY DEFINITION`. Confirmed-adjustment source khai báo
+được (kể cả empty) là **deliverable in-scope của `TASK-108B`**, không phải lý do
+chờ Phase 2/3.
+
+**7. Trạng thái readiness sau quyết định này.**
+
+```
+TASK-105B  (FilePriceProvider — phạm vi §1, §2, §4, §5)
+    SEMANTIC_READINESS = READY
+    IMPLEMENTATION     = READY
+
+TASK-105B-Q3  (Supplementary zero-price policy — phạm vi §3)
+    IMPLEMENTATION = BLOCKED_BY [ TASK-103 Product/Transaction Classification,
+                                  enumeration chính xác nhóm dòng phụ ]
+
+TASK-108B
+    IMPLEMENTATION = BLOCKED_BY [ FilePriceProvider chưa tồn tại (TASK-105B),
+                                  bảng giá thật chưa được cấp ]
+```
+
+Đây là **báo cáo dependency mà chính `OD-105B-01` §C yêu cầu**, không phải ép
+kết luận. Bằng chứng ở Reason điểm 3.
+
+Reason:
+
+**1. Q1 và Q2 khớp authority đã tồn tại — không phát sinh cơ chế mới.**
+Q1 dùng đúng semantics của `effective_rows()` (`app/modules/config/loader.py:42`,
+khoảng đóng, `effective_to` rỗng = còn hiệu lực) và DEC-121 (tra theo ngày
+nghiệp vụ của đơn). Việc coi overlap là `INVALID` thay vì tự phá hoà lặp lại
+đúng tiền lệ `AmbiguousSchemeConfigError` của `ConversionSchemeResolver` —
+engine từ chối chọn khi cấu hình mơ hồ.
+
+**2. Q2 đã có implementation đúng, đã kiểm chứng.**
+`app/modules/validation/text.py` → `fold()` thực hiện chính xác chuỗi NFC →
+collapse whitespace → strip → casefold (kèm một bước re-NFC sau casefold, chặt
+hơn spec và không đổi ngữ nghĩa). Kiểm chứng ba ví dụ của chủ dự án: cả ba cho
+cùng key `'cây nước kangaroo kg36a2'`. Kiểm chứng trên dữ liệu production
+(Golden 2 kỳ, 528 dòng): `331` raw key → `330` normalized key, gộp đúng **một**
+cặp `Cây nước Kangaroo KG36A2` / `Cây nước Kangaroo KG36A2 ` — đúng cặp mà
+discovery đã nêu. Không cần viết normalizer mới.
+
+Lưu ý kiến trúc (không phải blocker): `text.py` hiện nằm trong
+`app/modules/validation/`. Dùng nó từ tầng pricing tạo phụ thuộc chéo module.
+Hai cách đều chấp nhận được — import trực tiếp, hoặc nâng `text.py` lên vị trí
+dùng chung; đây là lựa chọn kỹ thuật của implementation, không cần Owner quyết.
+
+**3. Q3 CÓ dependency thật — đúng điều `OD-105B-01` §C dự phòng.**
+
+`OD-105B-01` §C yêu cầu **reuse classification hiện có** và **cấm** phát minh
+matcher mới trong `FilePriceProvider`. Kiểm chứng bằng code:
+
+- **`TASK-103` (Product/Transaction Classification) CHƯA LÀM.**
+  `PROJECT/PROJECT_PROGRESS.md`: *"Product/transaction classification (dòng phụ
+  có giá trị tiền) **chưa làm**"*.
+- **`config/classification.yaml` KHÔNG TỒN TẠI** — `docs/analysis/03_RULE_CLASSIFICATION.md`
+  §B tham chiếu nó, `ls config/` chỉ có 5 file, không có file này.
+- Cơ chế **duy nhất** trong production là `is_non_product_line()`
+  (`app/modules/validation/rules.py`), và docstring của chính nó nói:
+  *"This is **noise reduction only**: deciding what such a line counts toward is
+  Product/Transaction Classification, TASK-103."* và *"**Temporary by decision
+  (HD-110-02).** This heuristic exists only because TASK-103 does not, and it
+  **must never be tuned** to reproduce a historical count."*
+- **HD-110-02** (đã được chủ dự án duyệt, ghi trong DEC): *"Đây là **giải pháp
+  tạm**, **TASK-103 phải thay thế** chứ không kế thừa."*
+
+⇒ Dùng nó để lái một trường **tiền** (`AccountingPurchasePrice`) là dùng sai
+đúng mục đích mà nó tự tuyên bố là không phục vụ. Rủi ro cụ thể: nó nằm trong
+tầng **validation severity** và được nối vào Review Queue; ai chỉnh danh sách
+từ khoá để giảm nhiễu hàng đợi sau này sẽ **âm thầm đổi lương**.
+
+- **Phạm vi từ khoá lệch, đo được trên dữ liệu production.** Keyword set hiện
+  hành là `["phí", "công lắp đặt", "chênh vat", "chiết khấu", "voucher"]`. Trên
+  Golden 2 kỳ: khớp **36** dòng, trong khi đúng ba nhóm §3 nêu chỉ **34** dòng.
+  Hai dòng dôi ra là `Phụ Phí` và `Phụ Phí Đổi mới` — **không** thuộc ba nhóm
+  chủ dự án quyết. Nhỏ về số lượng, nhưng chứng minh tập từ khoá được hiệu
+  chỉnh cho *severity*, không phải cho *tiền*.
+- **Enumeration chưa khớp giữa hai authority.** `OD-105B-01` §C nêu **ba** nhóm
+  (vận chuyển, lắp đặt, chênh VAT). **DEC-110** — authority gốc mà §C viện dẫn —
+  liệt kê **năm** nhóm, thêm `Chi phí giao hộ` (~8 dòng/6 tháng) và `Phí đổi trả`
+  (2 dòng). Cần một danh sách enumerated chính xác trước khi zero-price bất kỳ
+  dòng nào.
+
+**4. `duplicate row giống hệt` → REJECT, theo đúng chỉ dẫn của chủ dự án.**
+`OD-105B-01` §E nói dedupe chỉ khi *"existing project policy đã có authority
+rõ"*. Đã quét: authority `Duplicate` duy nhất trong repo là loại Review Queue
+cho **dòng bán hàng** (`cùng source_file + source_row`), không phải cho file cấu
+hình/bảng giá. Không có authority ⇒ **REJECT**, để file lỗi được nhìn thấy —
+đúng ưu tiên chủ dự án đã nêu.
+
+**5. Vì sao `TASK-105B` là READY còn `TASK-105B-Q3` thì không — và vì sao tách
+được.** `OD-105B-01` §C **cấm** đặt logic Q3 bên trong `FilePriceProvider`. Nên
+Q3 vốn dĩ **không thuộc** provider: nó là một tầng policy phía trên, do
+classification lái. Contract của Protocol
+(`lookup(product_code, sale_date) -> Optional[Decimal]`) hoàn toàn không phụ
+thuộc Q3. Vì vậy provider implement được ngay và đúng, còn tầng policy chờ
+`TASK-103`.
+
+**Hệ quả phải nói thẳng:** nếu chỉ có provider mà chưa có tầng Q3, các dòng phụ
+sẽ **không có giá** → `Pending` → `EligibleKpiProfit = None` cho những dòng đó →
+**tổng lợi nhuận KPI của cả tháng không hoàn tất**. An toàn (không có con số
+sai), nhưng chưa dùng được để ra báo cáo. Đây chính là lý do Q3 tồn tại.
+
+Risk:
+
+`Effective Risk = HIGH` cho `TASK-105B`, chấm theo **data path** (V4.1 §4),
+không theo tên module — một file reader **không** được coi là LOW:
+
+```
+Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương sai
+```
+
+Golden **không** hạ bậc (V4.1 §4.1): `price_source_distribution = {Pending:
+351/180}` = 100 %, nên profit arithmetic chưa từng được đo.
+
+Rủi ro còn lại của chính quyết định này:
+
+- **Tái dùng `is_non_product_line` cho tiền.** Nếu một session sau bỏ qua Reason
+  điểm 3 và nối heuristic đó vào zero-price, `Phụ Phí`/`Phụ Phí Đổi mới` bị
+  zero-price ngoài ý chủ dự án, và mọi lần tinh chỉnh nhiễu Review Queue về sau
+  sẽ đổi lương. Giảm nhẹ: ghi tường minh ở đây; `TASK-105B-Q3` phải có check
+  riêng chứng minh nguồn classification **không phải** `app/modules/validation/`.
+- **Bảng giá thiếu dòng ⇒ im lặng.** `Missing.PurchasePrice` hiện gộp thành một
+  mục batch (DEC-128 §1) vì Phase 1 mọi dòng đều Pending. Sau `TASK-105B` phải
+  lật `config/validation.yaml` → `aggregate: false` để giá thiếu trở lại là bất
+  thường từng dòng — cơ chế đã dự trù sẵn, chỉ cần nhớ lật.
+- **`purchase_price = 0` hợp lệ có điều kiện.** §5 cho phép 0 khi business source
+  thực sự khai 0. Nếu implementation không phân biệt được "0 do khai" với "0 do
+  ô trống được ép kiểu", nó tái lập đúng lỗi DEC-103. `to_decimal()`
+  (`app/modules/domain/money.py`) đã phân biệt ô trống (`None`) với `0` — phải
+  dùng đúng nó, không tự parse.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace toàn
+  repo; `DEC-145` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — `TASK-105B` = READY; tách `TASK-105B-Q3`
+  BLOCKED bởi `TASK-103`; `TASK-108B` cập nhật blocker.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — bước 11b chuyển sang "sẵn sàng làm"; nêu rõ
+  phần dòng phụ còn chờ.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — `TASK-105B` chuyển
+  `OWNER_DECISION_REQUIRED` → `READY`; ghi `TASK-105B-Q3` và dependency
+  `TASK-103`.
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần IV
+  (implementation contract + Completion Gate cho `TASK-105B`).
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+
+Can Revisit After:
+- `TASK-103` (Product/Transaction Classification) hoàn thành ⇒ mở
+  `TASK-105B-Q3`. Hoặc chủ dự án cấp một danh sách enumerated tường minh các
+  dòng phụ (kèm authority) như giải pháp hẹp hơn `TASK-103` đầy đủ.
+- `TASK-401`/`TASK-402` (Phase 4) thay `FilePriceProvider` bằng Price Master
+  thật theo `ProductCode` — Protocol không đổi, `OD-105B-01` §1–§2 giữ nguyên
+  semantics.

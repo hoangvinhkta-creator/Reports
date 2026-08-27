@@ -100,10 +100,35 @@ nhập kế toán; nhưng "chưa biết" thì **vẫn phải để trống**, kh
 "không có điều chỉnh". Đây là điểm tinh tế và quan trọng: *thiếu thông tin*
 khác với *biết chắc là không có*.
 
-**Việc còn lại cần chủ dự án — ba câu hỏi và một file.**
+**Ba câu hỏi đó chủ dự án đã trả lời ngày 2026-08-27 (DEC-145).** Kết quả:
+bảng giá ghi rõ ngày bắt đầu **và** ngày kết thúc, không cho hai mức giá chồng
+lấn; tên hàng khớp sau khi bỏ qua khoảng trắng thừa và hoa/thường (nhưng
+**không** bỏ dấu tiếng Việt, **không** đoán gần đúng); các dòng phí thì giá
+nhập = 0. Công cụ nay **sẵn sàng để làm** — chỉ còn chờ chính file giá.
 
-Toàn bộ phần định nghĩa nghiệp vụ đã xong. Thứ duy nhất còn thiếu là **bảng giá
-nhập**. Để công cụ đọc được nó, chủ dự án cần trả lời 3 câu:
+Một điểm phải nói thẳng: phần "dòng phí thì giá nhập = 0" **chưa làm được
+ngay**. Chủ dự án đã yêu cầu công cụ dùng lại cách nhận diện dòng phí **có
+sẵn** thay vì tự bịa ra cách mới — yêu cầu đúng. Nhưng kiểm tra lại thì cách
+nhận diện có sẵn được xây cho việc **sắp xếp thứ tự đọc hàng chờ kiểm tra**,
+không phải để quyết định tiền, và tài liệu của chính nó ghi rõ là **tạm thời,
+cấm chỉnh sửa**. Dùng nó để định giá sẽ khiến sau này ai đó chỉnh cho hàng chờ
+bớt ồn lại vô tình đổi lương. Đo thử trên dữ liệu thật: nó bắt **36 dòng**
+trong khi đúng 3 nhóm chủ dự án nêu chỉ có **34** — dôi ra `Phụ Phí` và
+`Phụ Phí Đổi mới`. Nên phần này tách riêng, chờ bước 3 của lộ trình
+(`TASK-103` — phân loại dòng hàng) hoặc chờ chủ dự án cấp một danh sách liệt kê
+rõ ràng.
+
+**Việc còn lại cần chủ dự án — một file.** Bảng giá nhập, đúng 4 cột (đơn vị
+**VND nguyên**, ví dụ `8000000` = tám triệu):
+
+| Cột | Ví dụ | Ý nghĩa |
+|---|---|---|
+| tên hàng | `Máy giặt LG 10kg FV1410S4W1` | chép nguyên văn cột `Tên hàng trên chứng từ` |
+| ngày bắt đầu | `2026-01-01` | giá bắt đầu áp dụng |
+| ngày kết thúc | `2026-01-14` | để trống **chỉ** ở dòng giá hiện hành cuối cùng của mỗi món |
+| giá nhập | `8000000` | VND nguyên |
+
+*(Ba câu hỏi gốc giữ lại bên dưới làm bản ghi lịch sử — đã có câu trả lời.)*
 
 - **Q1.** Trong bảng giá, mỗi dòng có ghi **ngày kết thúc** hiệu lực không? Nếu
   chỉ ghi ngày bắt đầu, hai mức giá của cùng một món sẽ cùng có hiệu lực và
@@ -571,7 +596,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11b. TASK-105B — Đọc bảng giá nhập từ file chủ dự án cấp | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chờ chủ dự án trả lời 3 câu hỏi + cấp file giá 4 cột** (DEC-144) |
+| ⬜ | 11b. TASK-105B — Đọc bảng giá nhập từ file chủ dự án cấp | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Sẵn sàng làm** (chủ dự án đã chốt cách đọc, DEC-145) — **chỉ chờ file giá 4 cột** |
+| ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |

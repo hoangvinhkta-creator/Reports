@@ -308,7 +308,8 @@ báo cáo, **không** sửa Golden (phiên `DEC-143` không chạm
 SEMANTIC_DEFINITION   = APPROVED       (DEC-143 + DEC-144; OD-108B-01 + OD-108B-02)
                                        đầy đủ — formula đã được Owner xác nhận
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ AccountingPurchasePrice / Price Master ]      ← 2 → 1
+BLOCKED_BY_DEPENDENCY = [ FilePriceProvider chưa tồn tại (TASK-105B = READY),
+                          bảng giá thật chưa được Owner cấp ]
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ]   ← nội bộ,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 repair cycle          = CHƯA MỞ (0 used) — chưa có implementation nào để repair
@@ -364,18 +365,28 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 ### Trạng thái
 
 ```
-SEMANTIC_READINESS = OWNER_DECISION_REQUIRED
-QUESTIONS = [ Q1 — effective_to bắt buộc, hay engine tự đóng khoảng?
-              Q2 — khớp product_key exact, hay chuẩn hoá NFC+trim+case-fold?
-              Q3 — dòng Chi phí vận chuyển/lắp đặt/Chênh VAT có giá nhập không? ]
+SEMANTIC_READINESS = READY          (DEC-145 / OD-105B-01 — Q1/Q2/Q3 ĐÓNG)
+IMPLEMENTATION     = READY          (phạm vi OD-105B-01 §A/§B/§D/§E)
+chờ               : file giá 4 cột từ Owner
 ```
 
-Cả ba câu đều là `BLOCKING SEMANTIC` theo V4.1 §5 — production path chứng minh
-được bằng Golden fixture production thật, không phải "có thể xảy ra". Discovery
-đầy đủ + bảng cột file giá:
-`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III.
+Sub-unit tách riêng, **không** có ngân sách riêng và **không** reset ngân sách:
 
-Discovery **không** tiêu repair cycle. Sub-unit `105B-*` không có ngân sách
+```
+TASK-105B-Q3  (supplementary zero-price policy — OD-105B-01 §C)
+    IMPLEMENTATION = BLOCKED_BY [ TASK-103 Product/Transaction Classification,
+                                  hoặc danh sách enumerated do Owner cấp ]
+```
+
+Lý do blocker (báo cáo theo đúng dự phòng của `OD-105B-01` §C, không tự phát
+minh matcher): `TASK-103` chưa làm; `config/classification.yaml` không tồn tại;
+cơ chế duy nhất `is_non_product_line()` tự khai là *noise reduction only*,
+**tạm thời** theo HD-110-02, **cấm tune**. Đo trên production: keyword set hiện
+hành khớp **36** dòng trong khi đúng 3 nhóm Owner nêu chỉ **34** (dôi
+`Phụ Phí`, `Phụ Phí Đổi mới`). Chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần IV §40.
+
+Discovery và ghi Owner Decision **không** tiêu repair cycle. Sub-unit `105B-*` không có ngân sách
 riêng, không reset ngân sách.
 
 cycles:
@@ -503,3 +514,19 @@ Owner Extension, và **không** cấp thêm repair cycle.
   POST_MERGE_PRODUCTION_ACCEPTANCE`); `TASK-GOLDEN-BASELINE-001` vẫn
   `remaining = 1` UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
   **không đổi một byte**.
+
+- 2026-08-27 — `DEC-145` (`OD-105B-01`). Owner chốt Q1/Q2/Q3 của `TASK-105B`:
+  khoảng hiệu lực **đóng** `[from, to]` với overlap/nhiều-record-mở =
+  `INVALID PRICE MASTER` và gap → `Pending` (cấm latest/nearest/current);
+  normalization NFC → strip → collapse → casefold (cấm bỏ dấu, fuzzy,
+  nearest, contains); dòng phụ `AccountingPurchasePrice = 0 BY DEFINITION` với
+  provenance `Policy:SupplementaryExpenseZeroPurchasePrice`. `TASK-105B`
+  chuyển `OWNER_DECISION_REQUIRED` → **`SEMANTIC_READINESS = READY`,
+  `IMPLEMENTATION = READY`**, chỉ chờ file giá 4 cột. **`TASK-105B-Q3` tách
+  riêng và BLOCKED** bởi `TASK-103` — báo cáo theo đúng dự phòng của
+  `OD-105B-01` §C, không tự phát minh matcher. `TASK-108B` blocker cập nhật
+  thành "FilePriceProvider chưa tồn tại + chưa có bảng giá". Ngân sách
+  **không đổi** ở mọi lineage: `TASK-105B` 2/0/2, `TASK-108B` 2/0/2,
+  `TASK-110` `EXHAUSTED_PRE_V4.1` remaining = 0,
+  `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`, `config/`,
+  `tests/`, Golden fixture/expected **không đổi một byte**.
