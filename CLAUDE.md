@@ -12,6 +12,21 @@ Gói này lưu governance tĩnh dưới `governance/` để giữ root repo gọ
 Không đưa các file governance quay lại root dưới dạng phẳng (không dùng lại cấu trúc pre-compact).
 Thứ tự đọc bắt buộc và toàn bộ cơ chế governance gốc không đổi; chỉ đường dẫn canonical là khác.
 
+## Governance V4.1 — Policy Overlay
+
+Kể từ `TASK-V4-ADOPTION` (2026-08-27), có một overlay chính sách đã freeze
+tại `governance/core/V4_1_POLICY_FREEZE.md` (review budget theo root task
+lineage, repair-cycle accounting, blast-radius-theo-failure-path, production
+path decision rule, Golden Baseline scope, rollout order). Overlay này
+KHÔNG thay thế các file governance liệt kê bên dưới — đọc thêm nó ngay sau
+khi đọc xong quy trình S000, trước khi mở bất kỳ task nào có Review Budget
+hoặc Independent Review liên quan. Ngân sách sống theo từng root task nằm
+tại `PROJECT/REVIEW_BUDGET_LEDGER.md`; kiểm tra branch authority bằng
+`scripts/branch_authority_check.sh`.
+
+Trạng thái hiện tại: `V4.1 = POLICY_ADOPTED`, `V4.1 = NOT YET
+FULLY_ENFORCED` (chờ `TASK-GOLDEN-BASELINE-001`).
+
 ## Đồng Bộ Nhánh (Bắt Buộc Cho Mọi Session)
 
 Repo này từng có nhiều session Claude Code chạy song song trên các nhánh
