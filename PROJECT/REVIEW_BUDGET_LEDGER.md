@@ -639,8 +639,82 @@ Không cycle nào được mở bởi việc cấp task ID. `cycles: []`.
 root_task: TASK-105D
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
+last_independent_review:
+    - id: TASK-105D-IMPL-REVIEW-1
+      session: S041 (2026-08-28)
+      branch: review/task-105d-implementation-1
+      reviewed_target_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      reviewed_base_sha: 222844dfb5cf576238fda4cc913ef2095789b4eb
+      role_separation: independent reviewer; KHÔNG kế thừa PASS của S040
+      gate_set_sha256_reproduced: true
+      frozen_checks: 32 / 32 PASS (thực thi độc lập)
+      adversarial_a_to_t: 20 / 20 PASS (bộ test riêng của reviewer)
+      regression: 0 (Golden 58/2 không đổi; full 756 -> 930; delta +174)
+      verdict: FAIL — REPAIR REQUIRED
+      findings: 1 BLOCKING / 7 HARDENING / 3 OUT_OF_SCOPE
+      blocking: B-01 — thiếu khoá file; check-then-append race ở đúng biên
+                "một máy" mà data contract §11.1 tuyên bố phủ; INV-59 không
+                thi hành được qua biên tiến trình
+      repair_cycle_consumed: 0   (independent review không tiêu thụ cycle)
+      recommendation: mở Repair Cycle #1
+      evidence: docs/reviews/TASK-105D-INDEPENDENT-IMPLEMENTATION-REVIEW-1.md
+    - id: TASK-105D-IMPL-REVIEW-2
+      session: S043 (2026-08-28)
+      branch: review/task-105d-implementation-2
+      reviewed_target_sha: a09823506fc17b7903e44be848672a18f92bc6ee
+      reviewed_repair_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
+      reviewed_original_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      reviewed_base_sha: 222844dfb5cf576238fda4cc913ef2095789b4eb
+      review1_evidence_read: 58323e2e59382e2ce4816453cfaaa5d31deba3db
+                             (đọc bằng git show — KHÔNG merge nhánh review-1)
+      role_separation: reviewer KHÔNG phải tác giả S040 và KHÔNG phải tác giả
+                       S042; KHÔNG kế thừa tuyên bố "CODE-LEVEL RESOLVED"
+      b01_reproduced_on_old_code: true   (10/10 vòng: 2 APPLIED + integrity
+                                          error vĩnh viễn khi mở lại)
+      b01_contention_after_repair: 135 vòng / 7 kịch bản, tiến trình HĐH thật
+                                   (spawn + multiprocessing.Barrier, không sleep)
+                                   n=2/4/8; request-id giống và khác;
+                                   append vs rebuild_index; 0 bất thường, 0 flake
+      b01_closure_matrix: 10 / 10 PASS
+      b01_disposition: CLOSED
+      mutation_paths_enumerated_independently: true
+                       (quét tĩnh toàn app/: store.py là module DUY NHẤT ghi
+                        xuống đĩa; 0 đường ghi bền vững bypass biên giao dịch)
+      anti_tautology: 25 test mới chạy tại e6252c0 -> 19 failed
+      gate_set_sha256_reproduced: true   (0444e58c…, 57.614 byte, khớp tuyệt đối)
+      frozen_checks: 32 / 32 PASS (thực thi độc lập)
+      adversarial_a_to_t: 20 / 20 PASS (truy vết độc lập; N bổ sung bằng 135
+                          vòng đa tiến trình)
+      targeted_105d: 199 passed
+      golden: 58 passed, 2 skipped (KHÔNG ĐỔI)
+      full_suite: 955 passed, 11 skipped (930 -> 955, delta +25 xác minh hai chiều)
+      regression: 0
+      performance: chi phí khoá KHÔNG đo được trên nhiễu
+                   (RC-1 6,795 s vs pre-repair 6,969 s ở n=800) — H-04 KHÔNG mở lại
+      validators: 4/5 PASS; reference_integrity 3 (baseline 222844d và e6252c0)
+                  -> 4 tại RC-1 = ĐÚNG MỘT lỗi mới (H2-02)
+      verdict: PASS WITH HARDENING — RC-1 VERIFIED / ELIGIBLE FOR CONTROLLED
+               INTEGRATION
+      findings: 0 BLOCKING / 5 HARDENING mới / 4 OUT_OF_SCOPE
+      hardening_new: H2-01 (_consume mutate trước khi đẩy _log_offset),
+                     H2-02 (1 reference_integrity mới),
+                     H2-03 (event commit nhưng caller nhận exception — CÓ SẴN),
+                     H2-04 (test_both_orderings_… không assert điều tên nó nói),
+                     H2-05 (truncate log về rỗng không bị store mở mới phát hiện)
+      hardening_carried_open: H-01, H-02, H-03, H-04, H-05, H-06, H-07,
+                     HB-105D-F2-01, HB-105D-F2-02, HB-105D-F2-03  (10/10 OPEN)
+      hardening_closed: 0
+      promoted_to_blocking: 0
+      h07_conclusion: NOT_TESTED trong khối gate chặn DONE, KHÔNG chặn
+                      integration; reconciliation bắt buộc TRƯỚC DONE
+      repair_cycle_consumed: 0   (review sửa 0 dòng app/**, tests/**, config/**)
+      repair_cycle_2_opened: NO
+      rc1_branch_mutated: NO
+      merged_default: NO
+      evidence: docs/reviews/TASK-105D-INDEPENDENT-IMPLEMENTATION-REVIEW-2.md
+                docs/sessions/S043-task-105d-independent-implementation-review-2.md
 status: READY — specification complete + data contract complete (S034/
         DEC-155) + Owner ratified (S035/DEC-156) + Completion Gate Change
         Proposal applied (S037/DEC-157) + COMPLETION GATE FROZEN (S038,
@@ -720,6 +794,139 @@ Cập nhật 2026-08-28 (`S038`, Freeze Finalization retry): `repair_cycles_used
 trước/sau commit của phiên). Ngân sách `TASK-105D` giữ nguyên
 `2 allowed / 0 used / 2 remaining`.
 
+Cập nhật 2026-08-28 (`S041`, Independent Implementation Review #1):
+`repair_cycles_used` **vẫn giữ `0`** — review ghi finding, không sửa code.
+Verdict `FAIL — REPAIR REQUIRED`, 1 BLOCKING (`B-01`).
+
+Cập nhật 2026-08-28 (`S042`, **Repair Cycle #1 — MỞ VÀ TIÊU THỤ**):
+`repair_cycles_used` `0 → 1`; `repair_cycles_remaining` `2 → 1`. Đây là lần
+đầu tiên `TASK-105D` tiêu một cycle: `V4.1` §3 tính cycle theo cumulative
+repair diff của implementation, và `S042` **có** sửa `app/**` + `tests/**`
+để đóng một defect `BLOCKING`. Owner đã cấp phép tường minh khi mở phiên, kèm
+Owner Decision cho `B-01` = option (a) (giữ hợp đồng concurrency "một máy",
+sửa implementation bằng khoá file thật; KHÔNG thu hẹp `§11.1`; KHÔNG sửa
+Completion Gate đã freeze). Toàn bộ các lần lặp bên trong cùng diff repair
+này thuộc CÙNG cycle, không mở cycle mới.
+
+Cập nhật 2026-08-28 (`S043`, **Independent Implementation Review #2**):
+`repair_cycles_used` **vẫn giữ `1`**; `repair_cycles_remaining` **vẫn giữ `1`**.
+Một independent review không tiêu repair cycle (`V4.1` §3 — cycle tính theo
+cumulative repair diff của implementation): `S043` sửa 0 dòng `app/**`,
+`tests/**`, `config/**`, `tools/**`, `scripts/**`, `pyproject.toml`, và 0 byte
+của khối gate (`GATE_SET_SHA256` tái lập khớp tuyệt đối sau khi phiên ghi
+artifact). Verdict `PASS WITH HARDENING`; `B-01` = `CLOSED` (10/10 tiêu chí
+đóng, xác minh độc lập). **Repair Cycle #2 KHÔNG được mở** — 5 finding mới đều
+là `HARDENING`, và `V4.1` §3/§7 không cho reviewer tự mở cycle.
+
+`H2-01` nằm **trong** cumulative repair diff của `TASK-105D-RC-1`
+(`store.py::_consume`, mã do chính RC-1 tạo). Theo `V4.1` §3, nếu Owner quyết
+định đóng nó thì việc sửa thuộc **CÙNG** `TASK-105D-RC-1`, `base_sha` **không**
+reset và **không** mở cycle mới — `head_sha` của cycle tiến lên SHA mới.
+
+Ngân sách `TASK-105D` sau `S043`: `2 allowed / 1 used / 1 remaining` (KHÔNG ĐỔI).
+
+```
+cycles:
+    - id: TASK-105D-RC-1
+      session: S042 (2026-08-28)
+      branch: task/task-105d-rc1
+      base_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      head_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
+      trigger: B-01 (Independent Implementation Review #1, evidence
+               58323e2e59382e2ce4816453cfaaa5d31deba3db)
+      owner_decision: option (a) — giữ hợp đồng, sửa implementation
+      repair_scope: inter-process persistence concurrency / file locking
+      files_changed: app/modules/product/identity/store.py
+                     tests/test_105d_interprocess_concurrency.py (mới)
+      gate_set_sha256: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                       (KHỚP — khối gate 0 byte thay đổi)
+      targeted_105d: 174 -> 199 passed (+25)
+      golden: 58 passed, 2 skipped (KHÔNG ĐỔI)
+      full_suite: 930 -> 955 passed, 11 skipped (delta = đúng 25 test mới)
+      regression: 0
+      b01_disposition: CODE-LEVEL RESOLVED / READY FOR INDEPENDENT RE-REVIEW
+      hardening_repaired: 0 (H-01…H-07, HB-F2-01…03 giữ nguyên OPEN)
+      merged_default: NO
+      evidence: docs/reviews/TASK-105D-RC-1-REPAIR-RECORD.md
+                docs/sessions/S042-task-105d-repair-cycle-1.md
+```
+
+Ngân sách `TASK-105D` sau `S042`: `2 allowed / 1 used / 1 remaining`.
+
+Cập nhật 2026-08-28 (`S043`, Independent Implementation Review #2):
+`repair_cycles_used` **giữ nguyên `1`** — review sửa 0 dòng `app/**`,
+`tests/**`, `config/**`. Verdict `PASS WITH HARDENING`, `B-01` = `CLOSED`,
+0 BLOCKING. **KHÔNG** mở Repair Cycle #2.
+
+Cập nhật 2026-08-28 (`S044`, **CONTROLLED INTEGRATION** — `V4.1` §8 Option A):
+`repair_cycles_used` **giữ nguyên `1`**; `repair_cycles_remaining` **giữ nguyên
+`1`**. Controlled integration KHÔNG tiêu thụ repair cycle: `V4.1` §3 tính cycle
+theo cumulative repair diff của implementation, và `S044` sửa 0 dòng `app/**`,
+`tests/**`, `config/**`, `tools/**`, `scripts/**`, `pyproject.toml`. Cycle
+`TASK-105D-RC-1` giữ nguyên trạng thái CONSUMED — **KHÔNG** reset, **KHÔNG**
+mở cycle mới.
+
+```
+integration:
+    - id: TASK-105D-CONTROLLED-INTEGRATION
+      session: S044 (2026-08-28)
+      authority: Owner Decision — V4.1 §8 Option A (INTEGRATE EARLY)
+      branch: integration/v4-1-task-105d-implementation
+      starting_default_sha: 222844dfb5cf576238fda4cc913ef2095789b4eb
+      implementation_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      rc1_repair_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
+      rc1_final_sha: a09823506fc17b7903e44be848672a18f92bc6ee
+      review1_sha: 58323e2e59382e2ce4816453cfaaa5d31deba3db
+      review2_sha: 4d44ec4a292513f78614d2040ae1fba802747d7c
+      merge_method: git merge --no-ff x3 (ancestry-preserving)
+                    KHÔNG squash / KHÔNG rebase / KHÔNG cherry-pick
+      conflicts: 2 file / 4 hunk — TOÀN BỘ là governance state
+                 (PROJECT_PROGRESS.md, REVIEW_BUDGET_LEDGER.md)
+                 0 xung đột chạm app/**, tests/**, frozen gate, data contract
+      historical_verdicts_rewritten: NO
+                 (khối S041 giữ NGUYÊN VĂN 52/52 dòng — diff vs 58323e2e = rỗng)
+      repair_budget_records_discarded: NO
+      gate_set_sha256_before: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      gate_set_sha256_after:  0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen_gate_definition_mutated: NO
+      b01: CLOSED (kế thừa từ S043 — closure matrix 10/10)
+      gate_execution_evidence: TÁCH RỜI, 32/32 PASS
+                 (TASK-105D-GATE-EXECUTION-RECORD.md + Review #2 §17.2)
+      h07: VẪN OPEN — reconciliation bắt buộc TRƯỚC DONE, KHÔNG chặn integration
+      production_equivalence_to_a0982350: BYTE-IDENTICAL
+                 (diff app/tests/config/tools/scripts/pyproject/docs/spec/
+                  docs/tasks = rỗng; store.py sha256 c3d3b09d… khớp)
+      targeted_105d: 199 passed
+      golden: 58 passed, 2 skipped (KHÔNG ĐỔI)
+      full_suite: 955 passed, 11 skipped (KHÔNG ĐỔI)
+      regression: 0
+      validators: structure/project_state/evidence/task_completion = PASS;
+                  reference_integrity = 3 issue = ĐÚNG BẰNG baseline canonical
+                  222844df (chỉ TASK-REM-T06)
+      h2_02: RESOLVED_BY_INTEGRATION (hợp nhất artifact Review #1 làm tham
+             chiếu tự phân giải; validator KHÔNG bị sửa, tham chiếu KHÔNG bị
+             viết lại để né lỗi) — KHÔNG tính là Repair Cycle #2
+      hardening: 14 OPEN + 1 RESOLVED_BY_INTEGRATION; 0 repaired; 0 promoted
+      repair_cycle_consumed: 0
+      repair_cycle_2_opened: NO
+      task_105d_done: NO (integration KHÔNG ngụ ý DONE)
+      task_105e_implemented: NO
+      file_price_provider_activated: NO
+      tracking_touched: NO
+      production_data_touched: NO
+      merged_default: YES
+      evidence: docs/sessions/S044-task-105d-controlled-integration.md
+```
+
+Ngân sách `TASK-105D` sau `S044`: `2 allowed / 1 used / 1 remaining`
+(**KHÔNG ĐỔI**).
+`head_sha` `1cc96a9` là commit mang toàn bộ diff repair (`store.py` +
+`tests/test_105d_interprocess_concurrency.py`); commit ghi chính dòng
+`head_sha` này nằm ngay sau nó và không chứa thay đổi code/test. Nếu repair
+tiếp tục trong CÙNG cycle thì `head_sha` tiến lên, `base_sha` KHÔNG reset và
+KHÔNG mở cycle mới (`V4.1` §3). Xác định phạm vi cycle bằng
+`git diff e6252c06..1cc96a99 --name-only`.
+
 Failure path:
 
 ```text
@@ -755,7 +962,8 @@ progress artifacts theo đúng governance") — ghi lại tường minh, xem
 `DEC-156` phần đầu.
 
 Không cycle nào được mở bởi việc tạo specification hay bởi phiên readiness.
-`cycles: []`.
+Cycle đầu tiên của lineage là `TASK-105D-RC-1` (`S042`) — xem khối `cycles:`
+ở trên.
 
 ### Branch divergence — `TASK-105D` lineage (`V4.1` §8)
 
