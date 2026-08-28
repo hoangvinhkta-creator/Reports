@@ -452,6 +452,58 @@ Bằng chứng đầy đủ:
 LỊCH SỬ: H-07 reconciliation S045 phía trên đã thay thế phần "hành động kế
 tiếp" và bổ sung disposition H-07. Verdict của S044 giữ nguyên từng chữ.)*
 
+### Trạng thái sau H-07 VALIDATOR ALIGNMENT (S046, 2026-08-28)
+
+```text
+TASK-105D  = IMPLEMENTED + RC-1 INTEGRATED
+             + INDEPENDENT REVIEW #2 PASS WITH HARDENING
+             + CONTROLLED INTEGRATION COMPLETE
+             H-07 = RECONCILED (CẢ HAI LỚP)
+                 lớp diễn giải/thẩm quyền  : RESOLVED — DEC-159 (không đổi)
+                 lớp validator (điều kiện #7) : RESOLVED — DEC-161.
+                     governance/scripts/governance/validate_task_completion.py
+                     nay công nhận Layer 2 (Gate Execution Record) theo đúng
+                     8 điều kiện binding DEC-159 §1; fail-closed trên thiếu
+                     record/sai hash/thiếu check ID/FAIL/thiếu lineage/
+                     duplicate-ambiguous. Layer 1 (Status: PASS literal)
+                     không đổi hành vi. Xác nhận bằng 10 test tập trung +
+                     mô phỏng trên chính dữ liệu thật TASK-105D (32/32 PASS,
+                     0 lỗi, không mutate file task).
+             H-07 mechanical blocker CLOSED?  CÓ.
+             TASK-105D = ELIGIBLE_FOR_DONE_REVIEW (không phải DONE — 4 điều
+                 kiện completion khác chưa được S046 đánh giá: 0 BLOCKING
+                 finding re-verify, Independent Review cho chính hành động
+                 DONE, INV-01…INV-87, progress/handoff cho DONE)
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                 — KHÔNG đổi (đo lại trước/sau S046, khớp tuyệt đối)
+             32 trường Status: trong ĐỊNH NGHĨA gate vẫn NOT_TESTED — thiết
+                 kế, KHÔNG mutate
+             HARDENING = 14 OPEN + 1 RESOLVED_BY_INTEGRATION (H2-02, không
+                 đổi bởi S046)
+             budget = 2 allowed / 1 used / 1 remaining (KHÔNG ĐỔI — S046
+                 không phải repair cycle, 0 byte app/**/tests/**/config/**)
+             Repair Cycle #2 = KHÔNG mở
+             frozen gate = KHÔNG SỬA; app/**, config/**, docs/tasks/TASK-105D-*.md = 0 dòng
+```
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S046 → …)**
+
+```text
+1. Một phiên DONE-review có thẩm quyền completion (KHÔNG phải S046) đánh
+   giá 4 điều kiện completion còn lại (0 BLOCKING finding re-verify,
+   Independent Review cho chính hành động "đặt Status: DONE", INV-01…
+   INV-87, progress/roadmap/handoff cập nhật), rồi mới được đặt TASK-105D
+   top-level Status: DONE.
+2. KHÔNG mở Repair Cycle #2. KHÔNG tạo task mới. KHÔNG chạm
+   TASK-105B/C/E/108B. KHÔNG thực hiện V4.2 migration.
+3. Nhánh governance/task-105d-gate-execution-reconciliation KHÔNG merge
+   vào nhánh mặc định trong phiên S046.
+```
+
+Bằng chứng đầy đủ:
+`docs/sessions/S046-task-105d-h07-validator-alignment.md`,
+`DEC-161` trong `PROJECT/PROJECT_DECISIONS.md`.
+
 ### Trạng thái sau CONTROLLED INTEGRATION (S044, 2026-08-28)
 
 ```text

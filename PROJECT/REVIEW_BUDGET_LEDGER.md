@@ -967,6 +967,60 @@ h07_reconciliation:
 ```
 
 Ngân sách `TASK-105D` sau `S045`: `2 allowed / 1 used / 1 remaining`
+
+Cập nhật 2026-08-28 (`S046`, **H-07 VALIDATOR ALIGNMENT — tooling**):
+`repair_cycles_used` **giữ nguyên `1`**; `repair_cycles_remaining` **giữ
+nguyên `1`**. Phiên này sửa đúng một file tooling
+(`governance/scripts/governance/validate_task_completion.py`) + thêm một
+file test (`tests/test_governance_validate_task_completion.py`) — 0 dòng
+`app/**`, `config/**`, `docs/tasks/**`, `governance/core/**`. Không phải
+repair diff của implementation `TASK-105D`; **KHÔNG** mở Repair Cycle #2.
+
+```
+h07_validator_alignment:
+    - id: TASK-105D-H07-VALIDATOR-ALIGNMENT
+      session: S046 (2026-08-28)
+      authority: Owner Decision — chỉ thị mở phiên "TASK-105D H-07 —
+                 VALIDATOR ALIGNMENT", theo đúng "Can Revisit After" của
+                 DEC-159
+      gate_set_sha256_before: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      gate_set_sha256_after:  0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen_gate_definition_mutated: NO
+      validator_layer: RESOLVED — validate_task_completion.py implement
+                 đúng 8 điều kiện binding DEC-159 §1 (Layer 2 / Gate
+                 Execution Record); Layer 1 (Status: PASS literal) không
+                 đổi hành vi; fail-closed trên thiếu record/sai hash/thiếu
+                 check ID/FAIL/thiếu lineage/duplicate-ambiguous
+      tests_added: tests/test_governance_validate_task_completion.py
+                 (10 test, 10/10 PASS)
+      real_data_simulation: chạy trên bản sao trong bộ nhớ/thư mục tạm của
+                 chính docs/tasks/TASK-105D-product-identity-resolver.md
+                 (patch Status: DONE, không mutate file thật) — 32/32 PASS
+                 qua docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md thật
+      bug_found_and_fixed_in_session: CÓ — draft đầu tra cứu check ID bằng
+                 nguyên văn heading (có mô tả theo sau ID) thay vì token ID
+                 trần; mô phỏng trên dữ liệu thật phát hiện 32/32 FAIL cho
+                 tới khi sửa. Thêm test hồi quy khoá lại.
+      h07_disposition: RECONCILED (cả hai lớp)
+      h07_closed: YES
+      task_105d_done: NO (không đổi bởi phiên này — ngoài thẩm quyền)
+      task_105d_eligibility: ELIGIBLE_FOR_DONE_REVIEW (điều kiện #7 đóng;
+                 4 điều kiện completion khác chưa đánh giá)
+      repair_cycle_consumed: 0
+      repair_cycle_2_opened: NO
+      production_diff: 0 dòng (app/**, config/**, docs/tasks/**, governance/core/**)
+      canonical_validators: validate_structure PASS, validate_project_state
+                 PASS, validate_reference_integrity FAIL (3 issue tiền tồn
+                 TASK-REM-T06, không đổi), validate_evidence PASS,
+                 validate_task_completion PASS (Checked 6 DONE task(s),
+                 không đổi — TASK-105D vẫn READY nên Layer 2 chưa kích hoạt
+                 trên dữ liệu thật)
+      full_suite: 965 passed, 11 skipped (0 failed, 0 regression)
+      evidence: docs/sessions/S046-task-105d-h07-validator-alignment.md
+                PROJECT/PROJECT_DECISIONS.md DEC-161
+```
+
+Ngân sách `TASK-105D` sau `S046`: `2 allowed / 1 used / 1 remaining`
 (**KHÔNG ĐỔI**).
 
 Failure path:

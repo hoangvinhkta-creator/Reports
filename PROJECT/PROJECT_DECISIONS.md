@@ -7125,3 +7125,103 @@ Can Revisit After:
   `END_TO_END_ACCEPTANCE` chuyển `DEFINED`.
 - Một phiên có CORE-amendment authority xem xét đề xuất §16 để `ADOPTED`.
 - Owner quyết định `migration_status` cho ngân sách capability-level.
+
+## DEC-161
+
+Title:
+`H-07` VALIDATOR ALIGNMENT — `validate_task_completion.py` NAY CÔNG NHẬN
+LAYER 2 (GATE EXECUTION RECORD) THEO 8 ĐIỀU KIỆN BINDING CỦA `DEC-159`
+
+Date:
+2026-08-28
+
+Task:
+Ghi kết quả phiên `S046` — TASK-105D H-07 Validator Alignment (tooling).
+Ghi đầy đủ trong `docs/sessions/S046-task-105d-h07-validator-alignment.md`.
+
+**Đây LÀ một Owner Decision record.** Chỉ thị mở phiên ("TASK-105D H-07 —
+VALIDATOR ALIGNMENT") tường minh cấp thẩm quyền tooling/governance-scripts
+mà `DEC-159` "Can Revisit After" đã nêu là điều kiện đóng lớp validator
+của `H-07`.
+
+Decision:
+
+**1. `governance/scripts/governance/validate_task_completion.py` đã được
+sửa để implement đúng 8 điều kiện binding của `DEC-159` §1** cho một
+REQUIRED check có embedded `Status: NOT_TESTED` (frozen placeholder theo
+thiết kế): tồn tại một Gate Execution Record canonical
+(`docs/reviews/TASK-<ID>-GATE-EXECUTION-RECORD*.md`, suy ra `<ID>` từ tên
+file task — không hardcode `105D`) bind đúng `GATE_SET_SHA256` + đúng check
+ID + kết quả PASS + Evidence Level hợp lệ + Evidence cụ thể + lineage
+(`Executed By`) — và fail-closed trên: thiếu record, sai hash, thiếu check
+ID, kết quả FAIL/khác PASS, thiếu lineage, và **duplicate/ambiguous
+authoritative records** (nếu ≥2 record cùng bind đúng hash + đúng check ID
+nhưng cho kết quả khác nhau, validator không đoán — coi là chưa thoả).
+Đường đi Layer 1 (`Status: PASS` literal, hành vi validator gốc) giữ
+nguyên 100%, không đổi một thông điệp lỗi nào.
+
+**2. Xác nhận bằng 10 test tập trung**
+(`tests/test_governance_validate_task_completion.py`) + một mô phỏng trên
+chính dữ liệu thật của `TASK-105D` (patch top-level `Status: DONE` trong bộ
+nhớ/thư mục tạm, không mutate `docs/tasks/TASK-105D-product-identity-resolver.md`)
+cho kết quả `32/32 PASS`, `0 lỗi`, qua đúng
+`docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md` thật.
+
+**3. Một bug thật phát hiện và sửa trong chính phiên này** (không phải bởi
+người review khác): bản draft đầu dùng nguyên văn heading khối check
+(`"CHECK-105D-01 (G01) — mô tả..."`) làm khoá tra cứu Gate Execution
+Record, trong khi bảng record dùng ID trần (`CHECK-105D-01`) — khiến mô
+phỏng trên dữ liệu thật FAIL cả 32/32 dù 9 test fixture tối giản ban đầu
+đều PASS (fixture không tái lập đúng hình dạng heading thật). Sửa bằng cách
+tách riêng token ID khỏi heading đầy đủ; thêm test hồi quy
+`test_check_heading_with_trailing_description_resolves`. Chi tiết đầy đủ:
+`docs/sessions/S046-task-105d-h07-validator-alignment.md` §5.1/§8.
+
+**4. `GATE_SET_SHA256` KHÔNG ĐỔI — xác minh lại trước và sau.**
+
+```text
+$ sed -n '631,2359p' docs/tasks/TASK-105D-product-identity-resolver.md | sha256sum
+0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+```
+
+Khớp tuyệt đối TRƯỚC và SAU phiên này. `docs/tasks/TASK-105D-product-identity-resolver.md`
+0 byte thay đổi.
+
+**5. `H-07` — disposition sau quyết định này.**
+
+```text
+H-07 = RECONCILED (cả hai lớp)
+  lớp diễn giải/thẩm quyền  : RESOLVED (DEC-159, không đổi bởi phiên này)
+  lớp validator             : RESOLVED (quyết định này)
+H-07 mechanical blocker CLOSED? CÓ.
+```
+
+**6. `TASK-105D` vẫn KHÔNG `DONE`.** Đóng điều kiện #7 của `DEC-159` chỉ
+giải quyết đúng một trong nhiều điều kiện `Tiêu Chí Hoàn Thành`
+(`governance/core/TASK_COMPLETION_GATE_STANDARD.md`) — 0 BLOCKING finding
+re-verify, Independent Review cho chính hành động DONE, INV-01…INV-87, và
+progress/handoff cho DONE đều **chưa** được phiên này đánh giá (ngoài thẩm
+quyền, brief cấm). `TASK-105D` **eligible for DONE review** (blocker cơ
+học cuối cùng đã đóng) nhưng **không phải DONE**.
+
+Impact:
+
+- `governance/scripts/governance/validate_task_completion.py` — sửa (xem
+  §3 của session log cho diff đầy đủ). Layer 1 không đổi hành vi.
+- `tests/test_governance_validate_task_completion.py` — file test mới,
+  10 test.
+- `PROJECT/PROJECT_PROGRESS.md` — cập nhật trạng thái `H-07` sau `S046`.
+- `docs/sessions/S046-task-105d-h07-validator-alignment.md` — bàn giao đầy
+  đủ.
+- **Không** sửa `app/**`, `config/**`, `docs/tasks/TASK-105D-product-identity-resolver.md`,
+  `docs/spec/TASK-105D-DATA-CONTRACT.md`, `governance/core/**`, `Tracking`.
+- **Không** mở Repair Cycle #2. **Không** tạo task mới. **Không** đánh dấu
+  `TASK-105D = DONE`. **Không** chạm `TASK-105B/C/E/108B`. **Không** thực
+  hiện V4.2 migration. **Không** merge nhánh này vào nhánh mặc định.
+
+Can Revisit After:
+
+- Một phiên DONE-review có thẩm quyền completion đánh giá 4 điều kiện còn
+  lại (0 BLOCKING re-verify, Independent Review cho hành động DONE,
+  INV-01…INV-87, progress/handoff) rồi mới được đặt `TASK-105D` top-level
+  `Status: DONE`.
