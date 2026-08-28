@@ -2405,9 +2405,35 @@ Created:
 - `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (S037/`DEC-157`)
 - `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` (S038 — freeze
   finalization retry, verdict `PASS WITH HARDENING`, Completion Gate `FROZEN`)
+- `docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md` (S040 — bản ghi thực thi
+  32 frozen check: 32/32 PASS, A–T 20/20, Golden/full/validator evidence E2)
+- `docs/sessions/S040-task-105d-implementation.md` (S040 — phiên implementation)
 
-Production implementation:
-- Không có.
+Production implementation (S040, nhánh `task/task-105d-implementation` —
+**implementation candidate**, chưa qua Independent Review, chưa merge default):
+- `app/modules/product/identity/` — 19 module, ánh xạ 1:1 với entity
+  `E-A`…`E-L` của data contract (`keys`, `identity`, `evidence`,
+  `tracking_catalog`, `public_purchase`, `mapping`, `rejection`,
+  `cross_system`, `registry`, `audit`, `store`, `binding`, `commands`,
+  `service`, `resolver`, `drift`, `metrics`, `cli`, `__init__`).
+- `tests/support/identity_fixtures.py` + 5 file test
+  (`tests/test_105d_identity_keys.py`, `…_cutover_registry.py`,
+  `…_resolution.py`, `…_persistence.py`, `…_audit_replay.py`,
+  `…_boundaries.py`) — 174 test, toàn bộ fixture là dữ liệu TỔNG HỢP.
+
+KHÔNG đổi (xác minh bằng `git diff` rỗng): `app/pipeline.py`,
+`app/modules/pricing/file_price_provider.py` (FROZEN — `DEC-153`),
+`tests/test_golden_baseline.py`, `tests/fixtures/`.
+
+**Khối Completion Gate ở trên KHÔNG bị sửa một byte nào** — `GATE_SET_SHA256`
+tái lập khớp tuyệt đối sau phiên implementation. Vì thế 32 trường `Status:`
+trong khối đó vẫn đọc là `NOT_TESTED`: đó là hệ quả của việc giữ nguyên
+artifact đã freeze, **không** phải tuyên bố "chưa chạy". Kết quả thực thi thật
+(32/32 `PASS`, evidence, test reference, output nguyên văn) nằm ở
+`docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md`, kèm lý do tại §1 của file
+đó. Ghi `PASS` trực tiếp vào khối gate sẽ đổi `GATE_SET_SHA256` và vì vậy cần
+một `COMPLETION GATE CHANGE PROPOSAL` + authority riêng — ngoài thẩm quyền
+phiên implementation.
 
 ## Ghi Chú (Notes)
 
