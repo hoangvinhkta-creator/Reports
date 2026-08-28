@@ -5520,3 +5520,128 @@ Can Revisit After:
   qua `COMPLETION GATE CHANGE PROPOSAL`.
 - Product identity mapping có lời giải (task riêng, hoặc Owner cấp bảng
   trực tiếp) ⇒ `TASK-108B` hết blocker thứ 2.
+
+## DEC-153
+
+Date:
+2026-08-28
+
+Task:
+TASK-105B — Freeze Finalization (phiên "FREEZE + CONTROLLED INTEGRATION",
+thẩm quyền riêng theo `governance/core/V4_1_POLICY_FREEZE.md` §12 — State
+Authority Matrix: `FROZEN` chỉ được ghi bởi authorized Freeze Finalization
+session, không phải bởi reviewer/reconciliation session read-only).
+
+Decision:
+
+`TASK-105B = FROZEN`.
+
+```
+Implementation SHA (frozen artifact) : c22cef8b47ac4cd71ef49609066a362c9e604313
+Reconciliation SHA (review evidence) : 95a7ae6c3c694a7095ecb2adc6041785c3960096
+Review A SHA (preserved, canonical path)     : be2e35c908921f16e8347ecdfd23e2f9aecf1069
+Review B SHA (preserved, archived byte-identical) : b735dace8bdbaea086b37f8c20e091cafbed03e5
+Reconciled Verdict                    : PASS — ELIGIBLE_FOR_FREEZE
+BLOCKING                              : 0
+Completion Gate                       : 17/17 REQUIRED PASS (E1 tối thiểu
+                                        toàn bộ; CHECK-105B-12, check chạm
+                                        Golden, đạt E2 — đúng ngưỡng
+                                        `governance/core/EVIDENCE_STANDARD.md`
+                                        cho Effective Risk HIGH: E1 bắt buộc,
+                                        E2 hướng tới cho check
+                                        security/data-adjacent, không phải
+                                        toàn bộ 17 check)
+
+Evidence (đọc lại từ canonical, không re-run trong phiên Freeze — reconciliation
+đã E2-verify bằng git evidence trực tiếp):
+    Targeted (test_file_price_provider.py) : 33 passed
+    Golden (test_golden_baseline.py)       : 58 passed, 2 skipped (không đổi)
+    Full suite tại implementation          : 730 passed, 11 skipped
+    Baseline trước implementation          : 697 passed, 11 skipped
+    Regression delta                       : +33 passed, 0 failures, 0 new skips
+    Reference integrity                    : đúng 3 lỗi tiền tồn TASK-REM-T06,
+                                              0 regression mới
+    4 file production lõi (app/pipeline.py, price_engine.py, provider.py,
+    models.py) diff so với trước implementation : 0
+
+Review Budget (root task TASK-105B, dùng chung TASK-105C):
+    allowed   = 2
+    used      = 0
+    remaining = 2  (KHÔNG ĐỔI — hai Independent Review PASS song song +
+                    một phiên reconciliation không phải remediation cycle,
+                    V4.1 §3: cycle tính theo LẦN SỬA, không theo số review)
+
+HARDENING preserved (canonical namespace sau reconciliation,
+docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md §3.2):
+    HB-105B-03, HB-105B-05, HB-105B-06, HB-105B-07, HB-105B-08, HB-105B-10
+    — không blocking freeze.
+    HB-105B-04 : reconciled = OUT_OF_SCOPE (không phải HARDENING).
+    HB-105B-09 : SUPERSEDED, duplicate_of HB-105B-03.
+    HB-105B-11 : SUPERSEDED, duplicate_of HB-105B-06.
+    HB-105B-01, HB-105B-02 : thuộc TASK-108B (pre-existing) — không đổi,
+    không thuộc lineage HARDENING của TASK-105B.
+```
+
+Đóng băng kể từ quyết định này:
+
+- `app/modules/pricing/file_price_provider.py` tại đúng nội dung SHA
+  `c22cef8b47ac4cd71ef49609066a362c9e604313` — **frozen**, không sửa ngoài
+  một repair cycle mới có thẩm quyền, hoặc `COMPLETION GATE CHANGE
+  PROPOSAL` hợp lệ.
+- `tests/test_file_price_provider.py` tại cùng SHA — **frozen**.
+- Scope Lock + Completion Gate của `docs/tasks/TASK-105B-file-price-provider.md`
+  — **frozen** (đã frozen từ phiên implementation, quyết định này không mở
+  lại).
+- `HB-105B-07` (NaN → `decimal.InvalidOperation` thô) và `HB-105B-08`
+  (`Infinity` được chấp nhận làm giá hợp lệ) — **RE-TRIGGER CONDITION giữ
+  nguyên, KHÔNG downgrade, KHÔNG xoá**: nâng lên BLOCKING và phải sửa
+  **TRƯỚC** khi (a) một bảng giá production thật được nạp qua
+  `FilePriceProvider`, HOẶC (b) `TASK-105C` implementation bắt đầu, HOẶC
+  (c) `FilePriceProvider` được truyền vào `run_import()` ngoài test — điều
+  kiện nào tới trước. Xử lý `HB-105B-08` (im lặng, nặng hơn) trước
+  `HB-105B-07` nếu cả hai cùng re-trigger.
+
+Rationale:
+
+Reconciliation session (`95a7ae6`) đã xác minh độc lập bằng git evidence:
+cả hai Independent Review target đúng `c22cef8` (`merge-base` = implementation
+SHA); 17/17 REQUIRED Completion Gate check PASS ở cả hai bên, cùng số liệu
+regression/Golden; namespace `HB-105B-*` đã dedupe, một ID collision thật
+(Review B tái dùng `HB-105B-01`/`02` vốn thuộc `TASK-108B`) đã sửa về
+canonical ID không collision; một classification disagreement
+(`HB-105B-04`) đã giải quyết theo đúng normative Scope Lock table đã
+frozen, không ảnh hưởng Freeze eligibility. 0 BLOCKING sau reconciliation.
+Theo State Authority Matrix (`governance/core/V4_1_POLICY_FREEZE.md` §12),
+verdict `PASS — ELIGIBLE_FOR_FREEZE` thuộc thẩm quyền independent
+reviewer/reconciliation; `FROZEN` thuộc một phiên Freeze Finalization có
+thẩm quyền riêng — đây chính là phiên đó. Quyết định này **không** review
+lại technical correctness, chỉ ghi nhận việc niêm phong dựa trên verdict
+reconciled đã có.
+
+Risk:
+
+Nếu ai đó đọc `FROZEN` thành `DONE`, đó là đọc sai — `DONE` còn cần
+Controlled Integration + state reconciliation hoàn tất (xem phần Integration
+của phiên này, nếu có). Nếu ai đó đọc `FROZEN` thành cấp phép bắt đầu
+`TASK-105C` implementation hoặc kích hoạt `FilePriceProvider` thật vào
+`run_import()` mà **chưa** sửa `HB-105B-07`/`HB-105B-08` trước, đó là vi
+phạm trực tiếp điều kiện re-trigger đi kèm verdict PASS này — không phải
+gợi ý, là điều kiện bắt buộc.
+
+Impact:
+- Không sửa `app/**`, `tests/**`, `config/**`.
+- Chỉ ghi quyết định này + cập nhật state/progress cần thiết trong cùng
+  phiên (`PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`,
+  `PROJECT/REVIEW_BUDGET_LEDGER.md`, `docs/tasks/TASK-105B-file-price-provider.md`
+  — chỉ trường `Status` ở Metadata, không sửa Scope Lock/Completion Gate).
+- Review Budget lineage `TASK-105B` giữ nguyên `2 allowed / 0 used / 2
+  remaining` — freeze không tiêu cycle.
+
+Can Revisit After:
+- Một Repair Cycle mới có thẩm quyền riêng (không tự mở trong phiên Freeze
+  Finalization/Integration), hoặc một Owner Decision khác thay đổi
+  `FilePriceProvider` contract.
+- `TASK-105B` PRICE-PARSER MICRO-HARDENING (re-trigger bắt buộc của
+  `HB-105B-07`/`HB-105B-08`) — phải chạy **trước** `TASK-105C`
+  implementation hoặc trước `FilePriceProvider` activation thật, tuỳ điều
+  kiện nào tới trước.

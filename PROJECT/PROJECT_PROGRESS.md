@@ -483,6 +483,88 @@ gap → `Pending`, cấm latest/nearest/current. Q2 = chuẩn hoá NFC → strip
 collapse → casefold; đã có sẵn `fold()` tại `app/modules/validation/text.py`,
 kiểm chứng đúng trên 3 ví dụ Owner và trên 528 dòng production.
 
+**Cập nhật sau IMPLEMENTATION (2026-08-28, phiên "TASK-105B —
+IMPLEMENTATION").** `FilePriceProvider` (`app/modules/pricing/file_price_provider.py`,
+**MỚI**) đã viết xong đúng contract §38/`DEC-145`, tự kiểm tra (self-verify)
+đầy đủ:
+
+```
+TASK-105B  IMPLEMENTATION       = COMPLETE (code-level)
+           SELF_VERIFICATION    = PASS — 17/17 REQUIRED Completion Gate
+                                  check PASS (CHECK-105B-01..17, gate
+                                  frozen tại phiên này —
+                                  docs/tasks/TASK-105B-file-price-provider.md)
+           INDEPENDENT_REVIEW   = PASS — hai artifact E2 độc lập, song song
+                                  (Review A tại
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md,
+                                  Review B archived tại
+                                  docs/reviews/archive/TASK-105B-INDEPENDENT-REVIEW-1-B-file-price-provider-review-negpxw.md),
+                                  cùng target c22cef8, cùng verdict
+                                  PASS — ELIGIBLE_FOR_FREEZE, đã reconcile
+                                  (2026-08-28) —
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
+           REVIEW_EVIDENCE       = RECONCILED
+           ELIGIBLE_FOR_FREEZE   = YES
+           FROZEN                = YES  (DEC-153, 2026-08-28 — xem "Cập
+                                  nhật sau FREEZE" ngay dưới)
+           DONE                 = NO
+```
+
+**Cập nhật sau FREEZE (2026-08-28, phiên "TASK-105B — FREEZE + CONTROLLED
+INTEGRATION").** `DEC-153` niêm phong đúng implementation SHA `c22cef8`,
+tham chiếu reconciliation SHA `95a7ae6`. Freeze không review lại technical
+correctness — chỉ ghi nhận verdict `PASS — ELIGIBLE_FOR_FREEZE` đã có thành
+`FROZEN`, đúng State Authority Matrix (`governance/core/V4_1_POLICY_FREEZE.md`
+§12). Review Budget lineage `TASK-105B` giữ nguyên `2 allowed / 0 used / 2
+remaining` — freeze không tiêu cycle. `app/**`/`tests/**`/`config/**` = 0
+trong diff của phiên Freeze. `HB-105B-07`/`HB-105B-08` re-trigger giữ
+nguyên, chưa resolve. Chi tiết đầy đủ: `DEC-153`
+(`PROJECT/PROJECT_DECISIONS.md`).
+
+**Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
+REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy
+song song trên hai nhánh khác nhau (`review/task-105b-independent-review-1`
+và `claude/file-price-provider-review-negpxw`), không biết về nhau, cùng
+review đúng `c22cef8` và cùng ghi artifact tại đúng
+`docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md` — cùng loại sự cố đã ghi ở
+`DEC-118`. Một phiên reconciliation riêng đã: xác minh cả hai target đúng
+`c22cef8` (`merge-base` = implementation SHA); dedupe namespace `HB-105B-*`
+(phát hiện Review B tái dùng nhầm hai ID `HB-105B-01`/`02` vốn thuộc
+`TASK-108B` §34 — sửa về canonical ID `HB-105B-07`/`HB-105B-08`, không
+collision); giải quyết một classification disagreement (`HB-105B-04`: HARDENING
+theo Review B vs OUT_OF_SCOPE theo Review A — reconciled = OUT_OF_SCOPE theo
+đúng normative Scope Lock table của `TASK-105B`, không ảnh hưởng Freeze
+eligibility); bảo toàn cả hai artifact gốc nguyên vẹn (Review A giữ canonical
+path, Review B archived byte-identical). Cả hai review đồng thuận **0
+BLOCKING** — verdict reconciled = `PASS — ELIGIBLE_FOR_FREEZE`.
+`app/**`/`tests/**`/`config/**` = 0 trong toàn bộ diff reconciliation.
+Chi tiết đầy đủ:
+`docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`.
+
+Bằng chứng chính: `pytest tests/test_file_price_provider.py -q` → `33
+passed`; `pytest tests/test_golden_baseline.py -q` → `58 passed, 2
+skipped` (y hệt trước phiên, không đổi); `pytest -q` toàn bộ → `730
+passed, 11 skipped` (trước phiên: `697 passed, 11 skipped` — chênh lệch
+đúng bằng 33 test mới, **0 regression**, 0 skip mới); diff `app/pipeline.py`,
+`price_engine.py`, `provider.py`, `models.py` = **0** (`git diff --quiet`
+exit 0); 4 validator (`validate_structure`/`validate_project_state`/
+`validate_evidence`/`validate_task_completion`) PASS,
+`validate_reference_integrity` giữ đúng 3 lỗi tiền tồn `TASK-REM-T06`,
+không lỗi mới. Provider mặc định **không đổi** — `app/pipeline.py` vẫn
+`PendingPriceProvider`, Golden vẫn chạy provider đó (đúng yêu cầu
+"Preserve Pending Default", không tự kích hoạt provider mới vào production
+path).
+
+**Còn mở, không phải code blocker:** bảng giá production thật của chủ dự
+án **chưa được cấp** trong phiên này — `FilePriceProvider` mới kiểm chứng
+bằng fixture tổng hợp (synthetic). Khi có file thật, chỉ cần
+`FilePriceProvider.from_yaml(<path>)`, không cần sửa code. Chi tiết đầy
+đủ, gate 17 check với evidence từng dòng, provenance/error semantics,
+composition seam cho `TASK-105C`: `docs/tasks/TASK-105B-file-price-provider.md`
+(canonical, mới tạo, frozen tại phiên này — Scope Lock + Completion Gate
+kế thừa nguyên vẹn `DEC-145`/`OD-105B-01`, không phát minh business rule
+mới).
+
 **TASK-105B-Q3 — chính sách zero-price dòng phụ (tách riêng):**
 
 ```
@@ -593,29 +675,40 @@ phải việc agent tự làm tiếp được:
    persistence. Xem
    `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21, Phần XI.
    `TASK-109` (summary_engine) vẫn theo sau `TASK-108B`.
-   **Next Product Task cụ thể — đã integrate vào nhánh mặc định
-   (`abddbe0`), sẵn sàng bắt đầu implementation ở một session MỚI, không
-   phải phiên integration này:**
+   **Next Product Task — cập nhật sau IMPLEMENTATION `TASK-105B`
+   (2026-08-28):**
 
    ```
-   1. TASK-105B implementation   (FilePriceProvider, contract frozen DEC-145)
-   2. TASK-105C implementation   (HistoricalVendorPriceProvider — CHỈ sau
-                                  khi TASK-105B DONE, đây là hard
-                                  prerequisite, KHÔNG được làm trước)
+   1. TASK-105B implementation   IMPLEMENTED + SELF-VERIFIED (2026-08-28),
+                                  INDEPENDENT_REVIEW = PASS, REVIEW_EVIDENCE
+                                  = RECONCILED (2026-08-28),
+                                  ELIGIBLE_FOR_FREEZE = YES,
+                                  FROZEN = YES (DEC-153, 2026-08-28) — xem
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
+   1b. TASK-105B PRICE-PARSER    BẮT BUỘC trước bước 2 — resolve
+       MICRO-HARDENING           HB-105B-07 (NaN)/HB-105B-08 (Infinity),
+                                  re-trigger canonical đã ghi kèm DEC-153.
+                                  CHƯA làm trong phiên Freeze này.
+   2. TASK-105C implementation   CHỜ (1) TASK-105B FROZEN (đã đạt) VÀ (1b)
+                                  micro-hardening NaN/Infinity xong VÀ
+                                  Controlled Integration/state DONE thật —
+                                  KHÔNG được làm trước dù (1) đã FROZEN
    3. Product Identity Mapping   (dependency riêng, chưa mở task — product_raw
                                   Reports ↔ <MÃ> Tracking, cấm fuzzy matching)
    4. TASK-105B-Q3                (dòng phụ, độc lập, chờ TASK-103/enumeration)
-   5. TASK-108B                   (Converted Revenue — chờ 1+2+3)
+   5. TASK-108B                   (Converted Revenue — chờ 1+1b+2+3)
    6. TASK-109                    (summary_engine — chờ TASK-108B)
    ```
 
-   Cả `TASK-105B` lẫn `TASK-105C` đã kỹ thuật READY, không còn câu hỏi
-   Owner nào phải chờ để BẮT ĐẦU — nhưng thứ tự 1 → 2 là bắt buộc, không
-   phải khuyến nghị: `TASK-105C` compose `FilePriceProvider`
-   (`DEC-152` §11), nên không thể implement đúng nếu `TASK-105B` chưa xong.
-   Product Identity Mapping (bước 3) có thể mở song song với 1/2 — không
-   phụ thuộc `TASK-105B`/`TASK-105C`, chỉ cần đóng trước khi `TASK-108B`
-   cho ra số không-Pending trên dữ liệu thật.
+   **NEXT AUTHORIZED ACTION: `TASK-105B` FREEZE** — Independent Review #1 đã
+   `PASS — ELIGIBLE_FOR_FREEZE` trên hai artifact E2 độc lập, đã reconcile
+   (2026-08-28,
+   `docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`), 0
+   BLOCKING. Một phiên Freeze Finalization có thẩm quyền riêng
+   (`governance/core/V4_1_POLICY_FREEZE.md` §12) mới được ghi `FROZEN` và
+   chuyển `TASK-105B` sang `DONE`. `TASK-105C` vẫn KHÔNG được bắt đầu code
+   cho tới khi `TASK-105B` chuyển `DONE` thật. Product Identity Mapping
+   (bước 3) vẫn mở song song được — không phụ thuộc `TASK-105B`/`TASK-105C`.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —
