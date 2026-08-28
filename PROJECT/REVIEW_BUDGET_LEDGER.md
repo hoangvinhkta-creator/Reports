@@ -641,6 +641,25 @@ effective_risk: HIGH
 repair_cycles_allowed: 2
 repair_cycles_used: 0
 repair_cycles_remaining: 2
+last_independent_review:
+    - id: TASK-105D-IMPL-REVIEW-1
+      session: S041 (2026-08-28)
+      branch: review/task-105d-implementation-1
+      reviewed_target_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      reviewed_base_sha: 222844dfb5cf576238fda4cc913ef2095789b4eb
+      role_separation: independent reviewer; KHÔNG kế thừa PASS của S040
+      gate_set_sha256_reproduced: true
+      frozen_checks: 32 / 32 PASS (thực thi độc lập)
+      adversarial_a_to_t: 20 / 20 PASS (bộ test riêng của reviewer)
+      regression: 0 (Golden 58/2 không đổi; full 756 → 930; delta +174)
+      verdict: FAIL — REPAIR REQUIRED
+      findings: 1 BLOCKING / 7 HARDENING / 3 OUT_OF_SCOPE
+      blocking: B-01 — thiếu khoá file; check-then-append race ở đúng biên
+                "một máy" mà data contract §11.1 tuyên bố phủ; INV-59 không
+                thi hành được qua biên tiến trình
+      repair_cycle_consumed: 0   (independent review không tiêu thụ cycle)
+      recommendation: mở Repair Cycle #1
+      evidence: docs/reviews/TASK-105D-INDEPENDENT-IMPLEMENTATION-REVIEW-1.md
 status: READY — specification complete + data contract complete (S034/
         DEC-155) + Owner ratified (S035/DEC-156) + Completion Gate Change
         Proposal applied (S037/DEC-157) + COMPLETION GATE FROZEN (S038,
