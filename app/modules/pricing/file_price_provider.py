@@ -223,6 +223,13 @@ def _parse_price(value: Any, row_number: int) -> Decimal:
             "(DEC-145 §4). Ô trống không phải giá 0 (DEC-145 §5).",
             reason="missing_price",
         )
+    if not price.is_finite():
+        raise InvalidPriceMasterError(
+            f"Dòng giá #{row_number}: purchase_price không phải số hữu hạn "
+            f"({price}) — NaN/Infinity không phải giá hợp lệ (DEC-145 §5, "
+            "HB-105B-07/HB-105B-08).",
+            reason="non_finite_price",
+        )
     if price < 0:
         raise InvalidPriceMasterError(
             f"Dòng giá #{row_number}: purchase_price âm ({price}) — không "

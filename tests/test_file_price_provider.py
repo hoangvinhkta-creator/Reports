@@ -275,6 +275,126 @@ def test_exact_duplicate_row_rejected():
 
 
 # ---------------------------------------------------------------------------
+# HB-105B-07 / HB-105B-08 — micro-hardening regression (TASK-105B
+# PRICE-PARSER MICRO-HARDENING). NaN must not escape as raw
+# `decimal.InvalidOperation`; +Infinity/-Infinity must never become a valid
+# purchase price. All three are non-finite and are rejected the same way,
+# at load time, through `InvalidPriceMasterError(reason="non_finite_price")`
+# — before the negative-price check, so `-Infinity` is caught by finiteness
+# first (not misreported as an ordinary negative price).
+# ---------------------------------------------------------------------------
+
+NON_FINITE_PRICE_CASES = [
+    ("nan_string", "NaN"),
+    ("nan_string_lowercase", "nan"),
+    ("nan_float", float("nan")),
+    ("nan_decimal", Decimal("NaN")),
+    ("positive_infinity_string", "Infinity"),
+    ("positive_infinity_float", float("inf")),
+    ("positive_infinity_decimal", Decimal("Infinity")),
+    ("negative_infinity_string", "-Infinity"),
+    ("negative_infinity_float", float("-inf")),
+    ("negative_infinity_decimal", Decimal("-Infinity")),
+]
+
+
+@pytest.mark.parametrize(
+    "label,price_value", NON_FINITE_PRICE_CASES, ids=[c[0] for c in NON_FINITE_PRICE_CASES]
+)
+def test_non_finite_price_rejected_via_invalid_price_master_error(label, price_value):
+    """A. NaN / B. +Infinity / C. -Infinity rejected — D/E: canonical
+    `InvalidPriceMasterError` with `.reason == "non_finite_price"`, never a
+    raw `decimal.InvalidOperation` and never silently accepted."""
+    with pytest.raises(InvalidPriceMasterError) as excinfo:
+        FilePriceProvider([_row(purchase_price=price_value)])
+    assert excinfo.value.reason == "non_finite_price", label
+
+
+@pytest.mark.parametrize(
+    "label,price_value", NON_FINITE_PRICE_CASES, ids=[c[0] for c in NON_FINITE_PRICE_CASES]
+)
+def test_non_finite_price_never_reaches_lookup(label, price_value):
+    """F. No non-finite value can ever be returned by `lookup()` — the
+    table fails to load at all, so there is nothing to look up."""
+    with pytest.raises(InvalidPriceMasterError):
+        FilePriceProvider([_row(purchase_price=price_value)])
+
+
+def test_ordinary_finite_positive_price_still_works():
+    """G. Ordinary finite positive `Decimal` is unaffected by the finite
+    check (regression guard, not a new behavior)."""
+    provider = FilePriceProvider([_row(purchase_price="5000000")])
+    result = provider.lookup("Máy giặt Test-1", date(2026, 1, 15))
+    assert result == Decimal("5000000")
+    assert result.is_finite()
+
+
+def test_zero_price_behavior_unchanged_by_hardening():
+    """H. Zero remains exactly the frozen TASK-105B contract: a declared
+    `0` is a valid price, distinct from a blank cell — untouched by the
+    finiteness check (zero is finite)."""
+    provider = FilePriceProvider([_row(purchase_price="0")])
+    assert provider.lookup("Máy giặt Test-1", date(2026, 1, 15)) == Decimal("0")
+
+
+def test_negative_finite_price_behavior_unchanged_by_hardening():
+    """I. An ordinary (finite) negative price remains exactly the frozen
+    TASK-105B contract: `InvalidPriceMasterError(reason="negative_price")`
+    — the new finiteness check must not shadow this for finite values."""
+    with pytest.raises(InvalidPriceMasterError) as excinfo:
+        FilePriceProvider([_row(purchase_price="-100")])
+    assert excinfo.value.reason == "negative_price"
+
+
+def test_non_finite_price_via_yaml_loading(tmp_path):
+    """YAML-surface coverage (`.nan`/`.inf` are part of the canonical
+    TASK-105B loading surface via `FilePriceProvider.from_yaml`/PyYAML's
+    default resolver) — same rejection as the in-memory row path."""
+    path = tmp_path / "prices.yaml"
+    path.write_text(
+        "prices:\n"
+        "  - product_key: \"Máy giặt Test-1\"\n"
+        "    effective_from: \"2026-01-01\"\n"
+        "    effective_to: \"2026-01-31\"\n"
+        "    purchase_price: .nan\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(InvalidPriceMasterError) as excinfo:
+        FilePriceProvider.from_yaml(path)
+    assert excinfo.value.reason == "non_finite_price"
+
+
+def test_positive_infinity_via_yaml_loading(tmp_path):
+    path = tmp_path / "prices.yaml"
+    path.write_text(
+        "prices:\n"
+        "  - product_key: \"Máy giặt Test-1\"\n"
+        "    effective_from: \"2026-01-01\"\n"
+        "    effective_to: \"2026-01-31\"\n"
+        "    purchase_price: .inf\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(InvalidPriceMasterError) as excinfo:
+        FilePriceProvider.from_yaml(path)
+    assert excinfo.value.reason == "non_finite_price"
+
+
+def test_negative_infinity_via_yaml_loading(tmp_path):
+    path = tmp_path / "prices.yaml"
+    path.write_text(
+        "prices:\n"
+        "  - product_key: \"Máy giặt Test-1\"\n"
+        "    effective_from: \"2026-01-01\"\n"
+        "    effective_to: \"2026-01-31\"\n"
+        "    purchase_price: -.inf\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(InvalidPriceMasterError) as excinfo:
+        FilePriceProvider.from_yaml(path)
+    assert excinfo.value.reason == "non_finite_price"
+
+
+# ---------------------------------------------------------------------------
 # CHECK-105B-10 — declared 0 is valid; blank cell is not silently 0.
 # ---------------------------------------------------------------------------
 
