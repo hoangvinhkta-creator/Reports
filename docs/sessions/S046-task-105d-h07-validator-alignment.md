@@ -375,7 +375,9 @@ TASK-105D eligible for DONE review?  CÓ — điều kiện #7 (blocker cơ họ
 
 ```text
 Base SHA   : 048a276337bcb7db1478c80592eb192e8e4a2037
-Head SHA   : (SHA của commit phiên này — xem git log sau khi commit)
+Head SHA   : d0b5ca7 (commit "S046: TASK-105D H-07 validator alignment
+             (DEC-159 two-layer model)", đẩy lên
+             origin/governance/task-105d-gate-execution-reconciliation)
 
 Production diff : 0 byte (app/**, config/**, docs/tasks/**, governance/core/**, Tracking)
 
