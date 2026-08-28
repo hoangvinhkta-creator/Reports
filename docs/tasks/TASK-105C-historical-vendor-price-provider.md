@@ -8,7 +8,9 @@ BLOCKED
 Current Status Reason:
 `DEC-154` reconciled business architecture sau Scope Lock `DEC-152`. Chưa
 implementation; current Scope/Completion Gate cần refreeze bởi authority
-riêng trước khi có thể READY.
+riêng trước khi có thể READY. `DEC-156` chỉ chạm review-budget lineage
+(xem Review Budget lineage bên dưới) — **không** đổi trạng thái task, không
+mở implementation, không refreeze gate.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -41,10 +43,23 @@ Project Profile:
 PRODUCT
 
 Review Budget lineage:
-`TASK-105B` (dùng chung — không mở lineage mới). Ngân sách hiện tại:
-2 allowed / 1 used / 1 remaining (`PROJECT/REVIEW_BUDGET_LEDGER.md`
-§"Root Task: TASK-105B"). Mở task này KHÔNG tiêu ngân sách; ngân sách chỉ
-tiêu khi một vòng Independent Review sau implementation FAIL và cần repair.
+**`TASK-105C` — root lineage riêng**, `2 allowed / 0 used / 2 remaining`
+(`PROJECT/REVIEW_BUDGET_LEDGER.md` §"Root Task: TASK-105C"). Cấp bởi Owner
+tại `DEC-156` §4 (`HB-154-04`, Option B), theo bảng đã freeze `V4.1` §2
+(`HIGH/CRITICAL = 2`). Mở task này KHÔNG tiêu ngân sách; ngân sách chỉ tiêu
+khi một vòng Independent Review sau implementation FAIL và cần repair.
+
+*Lineage trước đó (bản ghi lịch sử, KHÔNG xoá):* `TASK-105C` từng dùng chung
+lineage `TASK-105B`, vì kiến trúc cũ đặt `HistoricalVendorPriceProvider`
+compose `FilePriceProvider` (`DEC-152` §11). `DEC-154` §13 đã gỡ composition
+đó — hai task nay là hai nhánh provider song song — nên lý do DUY NHẤT của
+lineage dùng chung không còn. `TASK-105B` giữ nguyên `2 allowed / 1 used /
+1 remaining`: cycle `TASK-105B-RC-1` (repair NaN/vô cực trong
+`FilePriceProvider`) vẫn CONSUMED, vẫn thuộc `TASK-105B`, **không** được
+chuyển sang lineage này và **không** được xoá. Lineage `TASK-105C` mở ở
+`0 used` vì `TASK-105C` chưa từng tiêu cycle nào của chính nó — đây là tách
+lineage theo kiến trúc, **không** phải reset một ngân sách đã tiêu
+(`DEC-156` Reason §2).
 
 Authority chain:
 `DEC-145` (contract 4 cột, chuẩn hoá, validation — KHÔNG đổi) → `DEC-146`
@@ -53,7 +68,9 @@ Authority chain:
 (`_c.min` path audit, `CONFLICT DETECTED`) → `DEC-150` (popup audit fact) →
 `DEC-151` (Owner Decision: thu hẹp phạm vi về `phist`) → **`DEC-152`**
 (Owner Decision: đóng Q1/Q2, Scope Lock, Completion Gate) → **`DEC-154`**
-(Owner Decision: two-namespace identity + provider-branch reconciliation).
+(Owner Decision: two-namespace identity + provider-branch reconciliation) →
+**`DEC-156`** (Owner Decision: lineage reconciliation — `TASK-105C` có root
+review-budget lineage riêng; trạng thái task KHÔNG đổi, vẫn `BLOCKED`).
 
 ## Current Normative Reconciliation — DEC-154
 

@@ -342,6 +342,16 @@ repair_cycles_used: 1
 repair_cycles_remaining: 1
 ```
 
+> **Cập nhật 2026-08-28 (S035, `DEC-156` §4 — HB-154-04, Owner Option B).**
+> `TASK-105C` **không còn** dùng chung lineage này; nó có root lineage riêng
+> (mục "Root Task: TASK-105C" bên dưới). Ngân sách của `TASK-105B`
+> **KHÔNG ĐỔI**: `2 allowed / 1 used / 1 remaining`. Cycle `TASK-105B-RC-1`
+> vẫn CONSUMED, vẫn thuộc `TASK-105B`, **không** được chuyển sang lineage
+> mới và **không** được xoá. Toàn bộ nội dung lịch sử của mục này — kể cả
+> các dòng bên dưới còn mô tả `TASK-105C` như phần của lineage `TASK-105B`
+> theo kiến trúc `DEC-152` §11 — **giữ nguyên văn** làm bản ghi lịch sử
+> (`V4.1` §10). Trạng thái hiện hành của `TASK-105C`: xem mục riêng của nó.
+
 `HIGH` chấm theo **data path** (V4.1 §4), **không** theo tên module — một
 adapter/file reader **không** được coi là LOW chỉ vì nó là adapter:
 
@@ -526,6 +536,103 @@ repair_cycles_remaining = 1
 
 ---
 
+## Root Task: TASK-105C
+
+Lineage **root riêng**, cấp bởi Owner tại `DEC-156` §4 (2026-08-28,
+`HB-154-04` — Owner Option B). Ngân sách theo bảng đã freeze `V4.1` §2
+(`HIGH/CRITICAL = 2`).
+
+```
+root_task: TASK-105C
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+cycles: []
+status: BLOCKED / NOT AUTHORIZED — Scope Lock REOPENED_BY_DEC-154;
+        Completion Gate CHANGE_PROPOSAL_OPEN, NOT FROZEN;
+        implementation not authorized
+```
+
+Failure path:
+
+```text
+sai HistoricalVendorMin (ngày/sentinel/candidate)
+→ sai KpiPurchasePrice
+→ sai EligibleKpiProfit → sai CR → sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ nhánh giá này, nên
+không hạ Blast Radius theo `V4.1` §4.1.
+
+### Lineage trước đó — bản ghi lịch sử, KHÔNG xoá
+
+`TASK-105C` từng dùng chung lineage `TASK-105B` (xem mục "Root Task:
+TASK-105B" phía trên, giữ nguyên văn). Lý do DUY NHẤT của việc dùng chung là
+kiến trúc `DEC-152` §11: `HistoricalVendorPriceProvider` **compose**
+`FilePriceProvider`. `DEC-154` §13 đã gỡ composition đó — hai task nay là hai
+nhánh provider song song, không còn dependency cứng.
+
+Vì sao đây **không** phải một lineage mở "để reset ngân sách" theo nghĩa
+`V4.1` §2 cấm:
+
+```text
+(a) Owner cấp tường minh (DEC-156 §4), không phải agent tự tách.
+(b) Căn cứ là ARCHITECTURAL — lý do duy nhất của lineage dùng chung đã bị
+    DEC-154 §13 gỡ bỏ.
+(c) KHÔNG ngân sách đã tiêu nào được hoàn lại: TASK-105B-RC-1 vẫn CONSUMED
+    ở TASK-105B (2/1/1). TASK-105C mở ở 0 used vì nó CHƯA TỪNG tiêu cycle
+    nào của chính nó — RC-1 là repair NaN/vô cực trong FilePriceProvider,
+    code thuộc nhánh Public Purchase, không thuộc TASK-105C.
+(d) Historical evidence, review record, freeze record: giữ nguyên toàn bộ.
+```
+
+Artifact hiện có của lineage:
+
+- `docs/tasks/TASK-105C-historical-vendor-price-provider.md`
+- `DEC-151`, `DEC-152`, `DEC-154` §13, `DEC-156` §4 trong
+  `PROJECT/PROJECT_DECISIONS.md`
+
+---
+
+## Root Task: TASK-105E
+
+Lineage **mới**, cấp cùng lúc với task ID tại `DEC-156` §5 (2026-08-28).
+Ngân sách theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`) — cấp lineage
+là thao tác cơ học theo bảng, không phải một quyết định ngân sách riêng.
+
+```
+root_task: TASK-105E
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+cycles: []
+status: PLANNED — task ID và phạm vi trách nhiệm do Owner cấp; Scope Lock
+        chưa soạn; Completion Gate chưa soạn/chưa freeze; implementation
+        not authorized
+```
+
+Failure path:
+
+```text
+chọn sai nguồn giá / sai thứ tự P00–P11 / mất provenance
+→ sai KpiPurchasePrice
+→ sai EligibleKpiProfit → sai CR → sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ price composition path,
+nên không hạ Blast Radius theo `V4.1` §4.1.
+
+Artifact hiện có của lineage:
+
+- `docs/tasks/TASK-105E-price-resolution-composition.md`
+- `DEC-156` §5 trong `PROJECT/PROJECT_DECISIONS.md`
+
+Không cycle nào được mở bởi việc cấp task ID. `cycles: []`.
+
+---
+
 ## Root Task: TASK-105D
 
 ```
@@ -535,8 +642,9 @@ repair_cycles_allowed: 2
 repair_cycles_used: 0
 repair_cycles_remaining: 2
 status: PLANNED — specification complete + data contract complete (S034/
-        DEC-155); Ready Gate blocked (2 blocker: Owner ratification
-        OR-01/OR-02/OR-03; Completion Gate freeze bởi authority riêng);
+        DEC-155) + Owner ratified (S035/DEC-156); Ready Gate blocked bởi
+        ĐÚNG MỘT blocker còn lại: Completion Gate freeze bởi một phiên
+        Freeze Finalization có thẩm quyền riêng (V4.1 §12);
         Completion Gate draft/not frozen; implementation not authorized
 ```
 
@@ -552,13 +660,19 @@ sai namespace/identity/cutover
 Golden hiện dùng `PendingPriceProvider` và không phủ product-resolution/price
 composition path, nên không hạ Blast Radius theo V4.1 §4.1.
 
-Artifact hiện có của lineage (4 — dưới ngưỡng `OWNER APPROVAL REQUIRED` của
-V4.1 §10, vốn áp cho artifact governance **thứ 5+** của một root task):
+Artifact hiện có của lineage (5):
 
 - `docs/tasks/TASK-105D-product-identity-resolver.md` (S032/`DEC-154`)
 - `DEC-154` trong `PROJECT/PROJECT_DECISIONS.md`
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034/`DEC-155`)
 - `DEC-155` trong `PROJECT/PROJECT_DECISIONS.md`
+- `DEC-156` trong `PROJECT/PROJECT_DECISIONS.md` (S035, Owner Ratification)
+
+`DEC-156` là artifact thứ 5, tức thuộc diện `OWNER APPROVAL REQUIRED` của
+`V4.1` §10. Approval đó chính là chỉ thị trực tiếp của Owner trong phiên
+ratification ("ghi nhận các Owner Decisions vào canonical decision/task/
+progress artifacts theo đúng governance") — ghi lại tường minh, xem
+`DEC-156` phần đầu.
 
 Không cycle nào được mở bởi việc tạo specification hay bởi phiên readiness.
 `cycles: []`.
@@ -1080,3 +1194,40 @@ với chính default tip cũ).
   được nạp qua `FilePriceProvider`. `HB-154-04` (review-budget lineage của
   `TASK-105C`) **KHÔNG được tự sửa** — ghi `OWNER DECISION REQUIRED` kèm ba
   phương án và khuyến nghị tại `DEC-155` §6, theo đúng V4.1 §2/§12.
+
+- 2026-08-28 — `DEC-156` **OWNER RATIFICATION — TASK-105D READINESS;
+  TASK-105C LINEAGE RECONCILIATION; TASK-105E AUTHORIZATION** (S035).
+  Owner Decision recording, documentation-only.
+
+  ```
+  OR-01  APPROVED                              (unified Public Purchase source)
+  OR-02  APPROVED WITH CANDIDATE-ONLY POLICY   (ALIAS_AID_UNIQUE = candidate #1,
+                                                KHÔNG auto-resolve)
+  OR-03  APPROVED FOR PHASE 1                  (actor khai báo, REQUIRED,
+                                                cấm gọi là authenticated)
+  HB-154-04  CLOSED — Owner Option B
+  TASK-105E  Owner cấp task ID (Price Resolution Composition)
+  ```
+
+  Tác động ngân sách:
+
+  ```
+  TASK-105B : 2 allowed / 1 used / 1 remaining   KHÔNG ĐỔI
+              TASK-105B-RC-1 vẫn CONSUMED, không chuyển, không xoá
+  TASK-105C : lineage ROOT MỚI — 2 allowed / 0 used / 2 remaining
+              (tách theo kiến trúc, KHÔNG phải reset ngân sách đã tiêu)
+  TASK-105D : 2 allowed / 0 used / 2 remaining   KHÔNG ĐỔI
+  TASK-105E : lineage MỚI — 2 allowed / 0 used / 2 remaining
+  TASK-110, TASK-GOLDEN-BASELINE-001, TASK-108B : KHÔNG ĐỔI
+  Repair Cycle : KHÔNG mở
+  ```
+
+  ```
+  app/** tests/** config/** tools/** scripts/** governance/** : 0 file thay đổi
+  Golden     : 58 passed, 2 skipped (không đổi)
+  Full suite : 756 passed, 11 skipped (không đổi)
+  ```
+
+  `TASK-105D` Ready Gate blocker: 2 → **1** (chỉ còn Completion Gate freeze).
+  `TASK-105C` trạng thái task **KHÔNG đổi** — vẫn `BLOCKED / NOT AUTHORIZED`.
+  `HB-105B-03/05/06/10` không finding nào bị trigger bởi phiên này.

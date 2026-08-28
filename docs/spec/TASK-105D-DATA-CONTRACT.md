@@ -5,13 +5,22 @@ CANONICAL DESIGN / DATA CONTRACT SPECIFICATION (readiness artifact, không
 phải implementation).
 
 Status:
-`READINESS_DESIGN_COMPLETE — PENDING_OWNER_RATIFICATION + PENDING_GATE_FREEZE`
+`READINESS_DESIGN_COMPLETE — OWNER_RATIFIED (DEC-156) — PENDING_GATE_FREEZE`
 
 Authority:
-`DEC-155` (bản ghi quyết định của phiên readiness này) trên nền `DEC-154`
-(Owner Decision — PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION). Các phần
-đánh dấu `OWNER_RATIFICATION_REQUIRED` **chưa** có hiệu lực cho tới khi chủ
-dự án chốt.
+`DEC-155` (bản ghi quyết định của phiên readiness) trên nền `DEC-154`
+(Owner Decision — PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION), **đã được
+Owner phê chuẩn tại `DEC-156` (2026-08-28)**.
+
+```text
+OR-01  APPROVED                         — §3 giữ nguyên
+OR-02  APPROVED WITH CANDIDATE-ONLY POLICY — §6.6 ĐÃ SỬA THEO OWNER
+OR-03  APPROVED FOR PHASE 1             — §12.1 giữ nguyên + capability boundary
+```
+
+Không còn mục `OWNER_RATIFICATION_REQUIRED` nào mở trong file này. Blocker
+duy nhất còn lại của `TASK-105D` là Completion Gate freeze bởi một phiên
+Freeze Finalization có thẩm quyền riêng (`governance/core/V4_1_POLICY_FREEZE.md` §12).
 
 Task lineage:
 `TASK-105D` — root lineage riêng (`PROJECT/REVIEW_BUDGET_LEDGER.md`).
@@ -56,7 +65,8 @@ Bảng ID quy phạm dùng trong file này:
 
 ```text
 D-xx     Design Decision của phiên readiness (thẩm quyền phiên này)
-OR-xx    OWNER_RATIFICATION_REQUIRED — chưa có hiệu lực
+OR-xx    mục từng ở trạng thái OWNER_RATIFICATION_REQUIRED; toàn bộ đã
+         được Owner phê chuẩn tại DEC-156 (OR-02 kèm sửa đổi)
 INV-xx   Invariant bắt buộc (phải trở thành assertion khi implement)
 E-x      Entity (A…L theo brief)
 ```
@@ -261,11 +271,13 @@ INV-10  content_hash tính trên biểu diễn canonical của CẢ HAI projecti
         hợp lệ (republish không đổi nội dung), nhưng phải ghi note lý do.
 ```
 
-**OR-01 — `OWNER_RATIFICATION_REQUIRED`.** Chủ dự án cần xác nhận rằng
-Public Purchase được vận hành như **một nguồn xuất bản theo version** (một
-lần publish ra cả tên hàng lẫn giá), thay vì hai bảng rời. Đây là quyết định
-**quy trình vận hành của người dùng thật**, không phải quyết định kỹ thuật —
-phiên này không có thẩm quyền tự chốt.
+**OR-01 — `APPROVED` (Owner, `DEC-156`, 2026-08-28).** Chủ dự án chấp thuận
+vận hành Public Purchase như **MỘT canonical versioned source**: Identity
+Projection và Price Projection là hai projection của cùng một
+`PublicPurchaseSourceVersion`/source-version lineage; **không** thiết kế
+thành hai quy trình nhập liệu vận hành độc lập; published version
+**immutable**. Toàn bộ §3 (D-01, D-02, `INV-02`…`INV-10`) giữ nguyên và nay
+là contract đã được phê chuẩn, không còn là đề xuất.
 
 ---
 
@@ -516,8 +528,10 @@ STALE       target không còn trong catalog hiện tại (INV-14/INV-16)
 ### 6.5 `mapping_source` — enum đóng
 
 ```text
-HUMAN_CONFIRMATION            người xác nhận trực tiếp
-DERIVED_FROM_CONFIRMED_ALIAS  suy ra từ một alias đã confirm (§6.6, D-08)
+HUMAN_CONFIRMATION            người xác nhận trực tiếp (kể cả khi candidate
+                              được gợi ý bởi ALIAS_AID_UNIQUE — DEC-156/OR-02;
+                              provenance của gợi ý nằm ở
+                              evidence.parent_mapping_id, không ở mapping_source)
 DETERMINISTIC_CATALOG_MATCH   khớp exact duy nhất trong catalog
 OWNER_BOOTSTRAP               nạp từ bảng Owner cung cấp lúc migration (§14)
 HISTORICAL_CONFIRMED_REPORT   từ registry lịch sử (§9) — chỉ pre-cutover
@@ -526,41 +540,56 @@ HISTORICAL_CONFIRMED_REPORT   từ registry lịch sử (§9) — chỉ pre-cuto
 ### 6.6 `resolution_method` và tập được phép auto-resolve
 
 ```text
-Auto-resolve (0 confirmation_action) — TẬP ĐÓNG, ĐÚNG BA PHƯƠNG THỨC:
+Auto-resolve (0 confirmation_action) — TẬP ĐÓNG, ĐÚNG HAI PHƯƠNG THỨC:
   ALIAS_EXACT           raw_identity_key khớp đúng một mapping CONFIRMED
-  ALIAS_AID_UNIQUE      không khớp exact, nhưng normalized_matching_aid khớp
-                        đúng MỘT mapping CONFIRMED, và các mapping khớp aid
-                        đó cùng trỏ về MỘT canonical identity duy nhất  (D-08)
   CATALOG_EXACT_UNIQUE  raw_identity_key hoặc aid khớp exact đúng MỘT entry
                         catalog (tracking_code | name | alt | PP product_code
                         | PP alias), và chỉ trong MỘT namespace
 
 KHÔNG auto-resolve (>= 1 confirmation_action hoặc PENDING):
+  ALIAS_AID_UNIQUE      candidate #1, KHÔNG có production authority  (D-08)
   TRACKING_ALIAS_MAP    khớp qua inv.map/alias.map của Tracking      (D-05)
   SIMILARITY_RANKED     mọi phương thức similarity/model-token       (INV-01)
   CROSS_NAMESPACE_TIE   khớp exact ở CẢ HAI namespace                (INV-29)
   MULTIPLE_EXACT        khớp exact nhiều hơn một entry trong một namespace
 ```
 
-**D-08 — `ALIAS_AID_UNIQUE` được auto-resolve.** Lý do: `fold()` là **khớp
-chính xác sau chuẩn hoá đã được canonical authorize** (`DEC-145` §2 đã freeze
-NFC→casefold làm luật keying cho khoá dạng text, và `FilePriceProvider` đang
-dùng chính hàm đó trong production path), **không** phải similarity. Nó không
-phát minh mã, không đoán, và kết quả là duy nhất theo định nghĩa. Bản ghi
-sinh ra mang `mapping_source = DERIVED_FROM_CONFIRMED_ALIAS` cùng
-`evidence.parent_mapping_id`, nên vẫn auditable và correctable như mọi
-mapping khác.
+**D-08 (SỬA THEO OWNER — `DEC-156`, `OR-02` APPROVED WITH CANDIDATE-ONLY
+POLICY) — `ALIAS_AID_UNIQUE` là CANDIDATE-ONLY, KHÔNG auto-resolve.**
 
-**OR-02 — `OWNER_RATIFICATION_REQUIRED`.** D-08 là điểm duy nhất trong thiết
-kế này nơi hệ thống tạo một mapping CONFIRMED **không có** một thao tác người
-cho chính identity đó. Chủ dự án nên xác nhận. Nếu Owner không chấp thuận,
-đảo `ALIAS_AID_UNIQUE` từ auto-resolve xuống "candidate #1, cần 1
-confirmation" — thay đổi này **chỉ chạm một cấu hình boolean**, không đổi
-schema, không đổi invariant nào khác. Thiết kế cố ý đặt nó ở chỗ rẻ để đảo.
+Bản readiness ban đầu (`DEC-155`) đề xuất cho `ALIAS_AID_UNIQUE` quyền
+auto-resolve, lập luận rằng `fold()` là khớp chính xác sau chuẩn hoá đã được
+canonical authorize (`DEC-145` §2), không phải similarity. Owner **không**
+chấp thuận phần authority đó. Quyết định hiện hành:
 
 ```text
-INV-28  Tập auto-resolve là TẬP ĐÓNG ba phương thức trên. Thêm phương thức
-        auto-resolve = quyết định Owner, không phải quyết định implementation.
+ALIAS_AID_UNIQUE
+    → chỉ được đưa lên candidate #1
+    → candidate đúng  ⇒ tối đa 1 confirmation_action
+    → sau confirmation ⇒ persistent confirmed mapping (alias mới, raw_identity_key
+                          của chính identity đó, mapping_source =
+                          HUMAN_CONFIRMATION, evidence.parent_mapping_id trỏ
+                          về alias đã confirm sinh ra candidate)
+    → các lần xuất hiện sau ⇒ 0 confirmation_action, qua ALIAS_EXACT
+```
+
+Đây là chi phí **một lần cho mỗi biến thể viết**, không phải chi phí lặp lại:
+lần đầu tốn đúng một xác nhận, từ lần thứ hai trở đi là 0. Owner chọn đánh
+đổi đó thay vì để hệ thống tự tạo một mapping `CONFIRMED` mà không có thao
+tác người nào cho chính identity đó.
+
+Quyết định này **không** làm giảm yêu cầu DISTINCT-before-mapping (§1,
+`INV-30`, `INV-87`) — một confirmation vẫn áp cho mọi dòng/order cùng
+identity — và **không** đổi nguyên tắc fuzzy/similarity-only không có
+production authority (`INV-01`, `D-04`).
+
+```text
+INV-28  (SỬA — DEC-156) Tập auto-resolve là TẬP ĐÓNG ĐÚNG HAI phương thức:
+        ALIAS_EXACT và CATALOG_EXACT_UNIQUE. Thêm phương thức auto-resolve =
+        quyết định Owner, không phải quyết định implementation.
+INV-28b (MỚI — DEC-156) ALIAS_AID_UNIQUE KHÔNG BAO GIỜ tự sinh một mapping
+        CONFIRMED. Nó chỉ sinh candidate. Mapping chỉ tồn tại sau một
+        confirmation_action của người dùng.
 INV-29  Khớp exact ở CẢ HAI namespace → KHÔNG auto-resolve. Namespace là một
         quyết định nghiệp vụ (hàng này thuộc hệ nào), không suy ra được từ
         việc mã trùng chuỗi (DEC-154 §5).
@@ -1039,11 +1068,28 @@ INV-73  actor_id ở Phase 1 là KHAI BÁO CỦA NGƯỜI VẬN HÀNH, KHÔNG PH
         Cấm gọi nó là "authenticated user".
 ```
 
-**OR-03 — `OWNER_RATIFICATION_REQUIRED`.** Chủ dự án phải chấp nhận rằng
-confirmation ở Phase 1 là **khai báo**, không phải **xác thực** — hoặc yêu
-cầu chờ auth Phase 2 trước khi mở implementation. Đây là quyết định về mức độ
-tin cậy của audit trail, thuộc thẩm quyền Owner, không phải của phiên
-readiness. Đây là **blocker Ready Gate còn lại thứ nhất** (§17).
+**OR-03 — `APPROVED FOR PHASE 1` (Owner, `DEC-156`, 2026-08-28).** Chủ dự án
+chấp thuận actor do người vận hành khai báo ở Phase 1, với ba ràng buộc giữ
+nguyên hiệu lực: `actor` là **REQUIRED**; **cấm** gọi nó là authenticated
+identity/user; **cấm** default actor im lặng (`INV-72`, `INV-73`).
+
+Authentication thật **không** phải blocker của implementation Phase 1
+`TASK-105D`, nhưng phải được ghi nhận đúng là **future hardening /
+capability boundary**:
+
+```text
+CAPABILITY BOUNDARY — PHASE 1 ACTOR
+  Cái audit trail Phase 1 chứng minh được : "bản ghi này khai actor X"
+  Cái nó KHÔNG chứng minh được            : "người thật sự thao tác là X"
+  Nâng cấp                                : authentication Phase 2 (ADR-101/
+                                            ADR-105), khi đó actor_id chuyển
+                                            từ khai báo sang danh tính đã xác
+                                            thực mà KHÔNG đổi schema E-K
+  Điều cấm ngay từ bây giờ                : mọi artifact/UI/báo cáo mô tả
+                                            actor Phase 1 là "authenticated"
+```
+
+Đây **không còn** là blocker của Ready Gate.
 
 ---
 
@@ -1193,7 +1239,10 @@ PENDING_RATE
     = |{ identity ∈ D : outcome = PENDING_PRODUCT }| / |D|
 
 REUSE_RATE
-    = |{ identity ∈ D : resolution_method ∈ {ALIAS_EXACT, ALIAS_AID_UNIQUE} }| / |D|
+    = |{ identity ∈ D : resolution_method = ALIAS_EXACT }| / |D|
+    (SỬA — DEC-156/OR-02: ALIAS_AID_UNIQUE không còn là reuse tự động; nó là
+     một candidate cần confirmation, nên thuộc MANUAL_CONFIRMATION_RATE ở lần
+     đầu và chuyển sang ALIAS_EXACT — tức REUSE_RATE — từ lần thứ hai)
 
 WRONG_MAPPING_CORRECTION_RATE
     = số CORRECT_MAPPING event trong cửa sổ thời gian W
@@ -1299,6 +1348,13 @@ pipeline.
 Required decision:
 OWNER — cấp task ID và authority. Phiên readiness này KHÔNG tự cấp
 (DEC-154 §11 cấm tường minh).
+
+**Kết quả: GRANTED (Owner, `DEC-156`, 2026-08-28).** Task ID `TASK-105E —
+Price Resolution Composition` đã được Owner cấp. Canonical spec:
+`docs/tasks/TASK-105E-price-resolution-composition.md`, trạng thái `PLANNED`,
+chưa freeze, chưa implement. `TASK-105E` là lớp orchestration/composition:
+nó **không** resolve identity, **không** thay `TASK-105B`/`105C`/`105D`,
+**không** tự invent mapping hay giá, **không** mutate Tracking.
 ```
 
 ---
@@ -1341,11 +1397,13 @@ INV-87  Một confirmation_action áp cho MỌI dòng/order chia sẻ cùng dist
 Một identity là AMBIGUOUS khi và chỉ khi resolution_method của nó KHÔNG
 thuộc tập auto-resolve đóng ở §6.6.
 
-Ba nguồn ambiguity, mỗi nguồn là một fixture test bắt buộc:
+Bốn nguồn cần confirmation, mỗi nguồn là một fixture test bắt buộc:
   (a) MULTIPLE_EXACT      — nhiều hơn một entry catalog khớp exact trong một
                             namespace;
   (b) CROSS_NAMESPACE_TIE — khớp exact ở CẢ HAI namespace (INV-29);
-  (c) ONLY_SIMILARITY     — chỉ có evidence similarity/model-token (INV-01).
+  (c) ONLY_SIMILARITY     — chỉ có evidence similarity/model-token (INV-01);
+  (d) ALIAS_AID_UNIQUE    — khớp aid duy nhất với một alias đã confirm
+                            (DEC-156/OR-02 — candidate-only, INV-28b).
 
 Assertion cho G06:
   Với một catalog chứa hai entry chỉ khác nhau ở đúng MỘT model token, và một
@@ -1384,6 +1442,12 @@ G23 (candidate #1 đúng → <= 1 normal action)
     Assert: count(confirmation_action) == 1
             mọi dòng cùng identity đó được resolve bởi đúng một action (INV-87)
             lần chạy sau trên cùng identity: count == 0 (chuyển sang G24)
+
+    Fixture BẮT BUỘC bổ sung (DEC-156/OR-02): trường hợp ALIAS_AID_UNIQUE —
+    một raw identity chỉ khác một alias đã confirm ở hoa/thường hoặc khoảng
+    trắng. Assert: KHÔNG auto-resolve (INV-28b); nó xuất hiện đúng ở
+    candidate #1; chấp nhận tốn đúng 1 confirmation_action; lần xuất hiện
+    thứ hai của CHÍNH biến thể đó tốn 0 và đi qua ALIAS_EXACT.
 ```
 
 ### 17.5 Hệ quả với bảng Completion Gate
@@ -1402,7 +1466,7 @@ nghĩa trên. Gate vẫn ở trạng thái **DRAFT** — phiên này **không** 
 | HB-154-01 | RESOLVED (invariant) + transcription bảng P | §8.4 (INV-43/44/45), §16.2 |
 | HB-154-02 | RESOLVED | §3 (D-01/D-02, INV-06), §10.1 (INV-55/56) |
 | HB-154-03 | RESOLVED (contract test được) | §9 (INV-46/47/48), §16.2 (P00) |
-| HB-154-04 | KHÔNG tự sửa — `OWNER DECISION REQUIRED` | `DEC-155` §6 |
+| HB-154-04 | **CLOSED** — Owner chọn Option B tại `DEC-156`; lineage `TASK-105C` được reconcile | `DEC-156` §4, `PROJECT/REVIEW_BUDGET_LEDGER.md` |
 | HB-154-05 | RESOLVED (định nghĩa vận hành) | §17 |
 | HB-154-06 | RESOLVED (bổ sung Impact) | `DEC-154` Impact |
 | HB-154-07 | RESOLVED (marker inline, giữ nguyên văn lịch sử) | PROGRESS, TASK-108B |

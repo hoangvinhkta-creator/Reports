@@ -51,8 +51,11 @@ Review Budget lineage:
 
 Authority:
 `DEC-154` — PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION (Owner Decision).
-`DEC-155` — TASK-105D READINESS DATA CONTRACT (readiness design authority;
-các mục `OR-01`/`OR-02`/`OR-03` trong đó còn chờ Owner ratification).
+`DEC-155` — TASK-105D READINESS DATA CONTRACT (readiness design authority).
+`DEC-156` — OWNER RATIFICATION (Owner Decision, 2026-08-28): `OR-01`
+APPROVED; `OR-02` APPROVED WITH CANDIDATE-ONLY POLICY (`ALIAS_AID_UNIQUE`
+**không** có production auto-resolution authority — chỉ candidate #1);
+`OR-03` APPROVED FOR PHASE 1. Không còn mục nào chờ Owner ratification.
 
 ## Mục Tiêu (Objective)
 
@@ -120,7 +123,11 @@ Reports identity
   → candidate ranking / confirmation
 ```
 
-- Alias đã confirm: reuse ngay, 0 thao tác lặp.
+- Alias đã confirm (khớp `raw_identity_key`, tức `ALIAS_EXACT`): reuse ngay,
+  0 thao tác lặp.
+- Biến thể chỉ khác ở hoa/thường/khoảng trắng (`ALIAS_AID_UNIQUE`):
+  **candidate #1, KHÔNG auto-resolve** — `DEC-156`/`OR-02`. Đúng 1
+  `confirmation_action` lần đầu; từ lần sau là 0 vì đã thành `ALIAS_EXACT`.
 - Tracking deterministic unique match: có thể auto-resolve `TRACKING:<code>`.
 - Tracking MISS nhưng Public Purchase deterministic unique match: resolve
   `PUBLIC_PURCHASE:<code>`; đây là kết quả hợp lệ, không tạo Tracking giả.
@@ -364,15 +371,18 @@ còn lại được nêu chính xác.
       không phá huỷ).
 - [x] Permission + audit contract ở tầng domain đã xác định — §12 (bảy
       permission, năm mức authority), §13 (`MappingAuditEvent` append-only).
-- [ ] **BLOCKER 1 — Owner ratification.** `OR-01` (Public Purchase vận hành
-      như MỘT nguồn publish theo version, không phải hai bảng rời — quyết
-      định quy trình của người dùng thật), `OR-02` (`ALIAS_AID_UNIQUE` được
-      auto-resolve hay hạ xuống "candidate #1 cần 1 confirmation"), `OR-03`
-      (chấp nhận actor Phase 1 là **khai báo của người vận hành**, KHÔNG phải
-      danh tính đã xác thực — `ADR-101` chưa có auth ở Phase 1).
-- [ ] **BLOCKER 2 — Completion Gate freeze.** Gate 32 check vẫn `DRAFT`.
-      `governance/core/V4_1_POLICY_FREEZE.md` §12: `FROZEN` chỉ được ghi bởi một phiên Freeze
-      Finalization có thẩm quyền riêng. Phiên readiness không tự freeze.
+- [x] **Owner ratification — ĐÃ ĐÓNG** (`DEC-156`, 2026-08-28). `OR-01`
+      APPROVED (Public Purchase = MỘT canonical versioned source, hai
+      projection, published version immutable). `OR-02` APPROVED WITH
+      CANDIDATE-ONLY POLICY (`ALIAS_AID_UNIQUE` chỉ là candidate #1; đúng 1
+      `confirmation_action` lần đầu, 0 từ lần sau qua `ALIAS_EXACT`).
+      `OR-03` APPROVED FOR PHASE 1 (actor khai báo, REQUIRED, cấm gọi là
+      authenticated, cấm default im lặng; authentication thật là future
+      hardening/capability boundary, KHÔNG phải blocker Phase 1).
+- [ ] **BLOCKER DUY NHẤT CÒN LẠI — Completion Gate freeze.** Gate 32 check
+      vẫn `DRAFT`. `governance/core/V4_1_POLICY_FREEZE.md` §12: `FROZEN` chỉ
+      được ghi bởi một phiên Freeze Finalization có thẩm quyền riêng. Phiên
+      readiness và phiên ratification đều KHÔNG tự freeze.
 
 Không phải blocker của Ready Gate nhưng là **dependency dữ liệu của
 implementation** (ghi ở đây để không bị đọc nhầm thành đã có): bảng mapping
@@ -382,8 +392,9 @@ registry, `PublicPurchaseSourceVersion` thật đầu tiên, và capture Trackin
 kết quả đúng là Pending, không phải lỗi (§14.3).
 
 **Ready verdict:** `BLOCKED`. Không chuyển thẳng `PLANNED → IN_PROGRESS`.
-Số blocker giảm từ 4 xuống 2; cả hai đều nằm ngoài thẩm quyền của một phiên
-readiness.
+Số blocker: 4 (trước S034) → 2 (sau S034) → **1** (sau `DEC-156`/S035).
+Blocker còn lại nằm ngoài thẩm quyền của cả phiên readiness lẫn phiên
+ratification — chỉ một phiên Freeze Finalization mới đóng được.
 
 ## Completion Gate (DRAFT — CHƯA FROZEN)
 
@@ -443,7 +454,7 @@ normal action
 | CHECK-105D-20 (G20) | Concurrent conflicting confirmation bị chặn, không LWW | NOT_TESTED | E2 |
 | CHECK-105D-21 (G21) | Provenance đủ raw/tuple/source/version/method | NOT_TESTED | E1 |
 | CHECK-105D-22 (G22) | Core batch flow thao tác hoàn toàn bằng bàn phím | NOT_TESTED | E1 |
-| CHECK-105D-23 (G23) | Identity AMBIGUOUS có candidate rank 1 đúng: `count(confirmation_action) == 1`; một action đó resolve MỌI dòng cùng identity; lần chạy kế tiếp trên chính identity đó `count == 0` | NOT_TESTED | E1 |
+| CHECK-105D-23 (G23) | Identity AMBIGUOUS có candidate rank 1 đúng: `count(confirmation_action) == 1`; một action đó resolve MỌI dòng cùng identity; lần chạy kế tiếp trên chính identity đó `count == 0`. **Fixture bắt buộc bổ sung (`DEC-156`/`OR-02`):** trường hợp `ALIAS_AID_UNIQUE` — không auto-resolve, xuất hiện ở candidate #1, tốn đúng 1 action, lần hai tốn 0 qua `ALIAS_EXACT` | NOT_TESTED | E1 |
 | CHECK-105D-24 (G24) | Store đã có mapping CONFIRMED cho `raw_identity_key` K, batch chứa N≥2 dòng identity K: `count(confirmation_action) == 0`, `resolution_method == ALIAS_EXACT`, và `current_revision()` KHÔNG đổi | NOT_TESTED | E1 |
 | CHECK-105D-25 (G25) | Golden Business Baseline không đổi | NOT_TESTED | E2 |
 | CHECK-105D-26 (G26) | Tracking MISS + Public Purchase unique match → PUBLIC_PURCHASE | NOT_TESTED | E2 |

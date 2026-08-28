@@ -2608,14 +2608,23 @@ Trước implementation phải mở một scope lock có authority nhận owners
 composition/price-resolution seam và biến P01–P10 thành executable Completion
 Gate. Phiên governance này không tự implement hoặc gắn provider vào pipeline.
 
+> **Cập nhật 2026-08-28 (S035, `DEC-156` §5).** Ownership đã được Owner cấp:
+> `TASK-105E — Price Resolution Composition`
+> (`docs/tasks/TASK-105E-price-resolution-composition.md`, `Status = PLANNED`).
+> Scope Lock và Completion Gate của `TASK-105E` vẫn **chưa** soạn, chưa
+> freeze — bảng `P00–P11` ở trên vẫn chưa phải executable gate.
+
 ## 100. Current blockers của TASK-108B
 
 1. `TASK-105D` chưa READY/frozen/implemented.
 2. `TASK-105C` chưa refreeze gate theo `DEC-154`, chưa implemented.
 3. `TASK-105B` chưa DONE, chưa có Public Purchase dataset thật và remaining
    hardening phải xử lý theo trigger trước usage.
-4. Price-resolution composition ownership P01–P10 chưa có implementation
-   scope lock.
+4. Price-resolution composition **ownership đã có chủ** — `TASK-105E — Price
+   Resolution Composition`, Owner cấp tại `DEC-156` §5, canonical spec
+   `docs/tasks/TASK-105E-price-resolution-composition.md`, `Status = PLANNED`.
+   Blocker vẫn MỞ ở mức implementation: `TASK-105E` chưa có Scope Lock, chưa
+   có Completion Gate, chưa freeze, chưa implement.
 5. `TASK-105B-Q3` vẫn là blocker độc lập theo authority hiện hành.
 
 Không còn đúng khi nói `TASK-108B` chỉ chờ “một bảng giá nhập” hoặc mọi

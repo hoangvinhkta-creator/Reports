@@ -10,12 +10,52 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-28 — **bước 11a (nhận đúng sản phẩm): đã thiết
-> kế xong cách lưu và cách ghi lại lịch sử sửa; vẫn CHƯA được phép viết code**.
-> Còn chờ 3 câu trả lời của chủ dự án và một lượt "niêm phong" danh sách
-> nghiệm thu. Chi tiết ở mục ngay dưới đây.
+> Cập nhật lần cuối: 2026-08-28 — **chủ dự án đã trả lời cả 3 câu hỏi của
+> bước 11a và cấp thêm một bước mới (11e)**. Bước 11a nay chỉ còn chờ đúng
+> một việc: "niêm phong" danh sách 32 điều kiện nghiệm thu. Chi tiết ở mục
+> ngay dưới đây.
 
-## Có gì mới — bước 11a: đã chốt xong "hồ sơ dữ liệu" (2026-08-28)
+## Có gì mới — chủ dự án đã duyệt bước 11a (2026-08-28)
+
+**Ba câu hỏi đã có câu trả lời.**
+
+1. **Bảng Mua công khai = MỘT bảng xuất bản theo phiên bản — ĐỒNG Ý.** Tên
+   hàng và giá luôn được xuất bản cùng nhau, trong cùng một phiên bản. Bản
+   đã xuất bản không sửa được. Không có chuyện nhân viên phải nhập tay hai
+   bảng riêng rồi để chúng lệch nhau.
+
+2. **Tên chỉ khác nhau ở chữ hoa/chữ thường hay khoảng trắng — VẪN HỎI MỘT
+   LẦN.** Chủ dự án chọn phương án chặt hơn: máy **không** được tự nhận, kể
+   cả khi nó gần như chắc chắn. Nó chỉ được **gợi ý lên đầu danh sách**;
+   người bấm xác nhận đúng **một lần**, và từ lần sau thì không hỏi lại nữa.
+   Nghĩa là: tốn thêm một cái bấm cho mỗi cách viết mới, đổi lấy một điều
+   chắc chắn hơn — **mọi mặt hàng đã được ghi nhận đều có một con người bấm
+   xác nhận cho chính nó**. Với công cụ tính ra lương thì đánh đổi này đáng.
+
+3. **Tên người xác nhận ở giai đoạn này là "tự khai" — CHẤP NHẬN.** Công cụ
+   chưa có đăng nhập, nên phần mềm ghi lại tên do chính người dùng khai. Bắt
+   buộc phải khai, không được để trống. Nhưng **không được gọi đó là "đã
+   xác thực"** — hồ sơ chỉ chứng minh được "bản ghi này khai tên X", chứ
+   chưa chứng minh được "người thao tác đúng là X". Việc thêm đăng nhập
+   thật là nâng cấp về sau, **không chặn** bước 11a.
+
+**Một bước mới được lập: 11e — Ghép các nguồn giá lại với nhau.** Trước đây
+phần "chọn nguồn giá nào cho mặt hàng nào" không thuộc về bước nào cả — một
+khoảng trống đã được ghi nhận nhưng chưa có ai đứng tên. Chủ dự án nay lập
+hẳn một bước riêng cho nó. Bước này **chỉ điều phối**: nó không tự nhận dạng
+sản phẩm, không tự đọc giá, không tự bịa ra mã hay giá.
+
+**Một việc dọn dẹp về "ngân sách sửa chữa".** Bước 11c trước đây bị tính
+chung ngân sách với bước 11b, vì kiến trúc cũ bắt hai bước phụ thuộc nhau.
+Kiến trúc mới đã tách chúng ra, nên chủ dự án cho bước 11c một ngân sách
+riêng. Quan trọng: **không có lần sửa nào đã dùng bị xoá đi hay tính lại** —
+lần sửa "NaN/vô cực" trước đây vẫn nằm nguyên ở bước 11b.
+
+**Còn vướng gì.** Đúng một việc cho bước 11a: **niêm phong danh sách 32 điều
+kiện nghiệm thu** bởi một lượt duyệt riêng. Xong việc đó thì bước 11a mới
+được phép viết code.
+
+## Có gì mới trước đó — bước 11a: đã chốt xong "hồ sơ dữ liệu" (2026-08-28)
 
 **Việc vừa xảy ra.** Trước khi viết code cho bước "nhận đúng sản phẩm", cần
 biết chắc: dữ liệu sẽ được lưu ở đâu, ai được sửa, sửa rồi có xoá mất dấu vết
@@ -806,11 +846,12 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11a. TASK-105D — Nhớ và xác nhận đúng sản phẩm | Một tên hàng kế toán có thể là hàng trong hệ thống Theo dõi hoặc chỉ có trong bảng Mua công khai; phải biết đúng loại trước khi tìm giá | C | **Đã viết xong đặc tả VÀ hồ sơ dữ liệu, vẫn chưa được phép viết code.** Từ 01/09/2026 dùng hai loại mã `TRACKING`/`PUBLIC_PURCHASE`; tên đã xác nhận được nhớ để không hỏi lại, tên chưa chắc chắn được để Chờ. **Đã chốt (2026-08-28):** bảng Mua công khai là một bảng xuất bản theo phiên bản (tên hàng + giá cùng lúc, bản đã xuất không sửa được); cách lưu bền vững; sửa không xoá dấu vết; xử lý hai người xác nhận cùng lúc; nhập lại file cũ không sinh bản ghi thừa; muốn lấy giá công khai cho hàng Theo dõi thì bắt buộc có dòng ghép mã đã xác nhận. **Còn chờ:** 3 câu trả lời của chủ dự án + niêm phong danh sách 32 điều kiện nghiệm thu. |
+| ⬜ | 11a. TASK-105D — Nhớ và xác nhận đúng sản phẩm | Một tên hàng kế toán có thể là hàng trong hệ thống Theo dõi hoặc chỉ có trong bảng Mua công khai; phải biết đúng loại trước khi tìm giá | C | **Đã viết xong đặc tả VÀ hồ sơ dữ liệu, vẫn chưa được phép viết code.** Từ 01/09/2026 dùng hai loại mã `TRACKING`/`PUBLIC_PURCHASE`; tên đã xác nhận được nhớ để không hỏi lại, tên chưa chắc chắn được để Chờ. **Đã chốt (2026-08-28):** bảng Mua công khai là một bảng xuất bản theo phiên bản (tên hàng + giá cùng lúc, bản đã xuất không sửa được); cách lưu bền vững; sửa không xoá dấu vết; xử lý hai người xác nhận cùng lúc; nhập lại file cũ không sinh bản ghi thừa; muốn lấy giá công khai cho hàng Theo dõi thì bắt buộc có dòng ghép mã đã xác nhận. **Chủ dự án đã duyệt (2026-08-28):** bảng Mua công khai là một bảng xuất bản theo phiên bản; tên khác nhau ở hoa/thường vẫn phải xác nhận một lần (máy chỉ gợi ý, không tự nhận); tên người xác nhận là tự khai và không được gọi là "đã xác thực". **Còn chờ đúng một việc:** niêm phong danh sách 32 điều kiện nghiệm thu. |
 | 🟡 | 11b. TASK-105B — Đọc giá Mua công khai theo ngày | Là nguồn giá trực tiếp cho hàng chỉ có ở Mua công khai, và là nguồn dự phòng khi hàng Tracking không có giá NCC hợp lệ | C | **Code đọc file đã Freeze, vá "NaN"/"vô cực", qua soát xét độc lập PASS và đã sáp nhập. CHƯA XONG, CHƯA BẬT** — còn cần bộ giá Mua công khai THẬT có ngày hiệu lực/nguồn gốc và xử lý các cảnh báo schema còn lại trước khi dùng thật. |
 | ⬜ | 11c. TASK-105C — Đọc giá thấp nhất từ lịch sử giá NCC | Với hàng Tracking, lấy giá NCC gần nhất không muộn hơn ngày bán, bỏ số 0 “hết hàng”, rồi chọn thấp nhất | C | **Chưa được phép viết code.** Quy tắc cũ về lịch sử giá vẫn giữ, nhưng thiết kế phải khóa lại theo kiến trúc mới: đầu vào là mã Tracking đã giải quyết; nếu không có giá NCC thì chuyển sang thử giá Mua công khai, không tự coi là giá 0. Không còn phụ thuộc phần đọc file của 11b. |
 | ⬜ | 11d. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — độc lập với hai nguồn giá ở trên. |
-| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa công thức đã xong**, nhưng không còn chỉ chờ “một bảng giá”: còn chờ bước 11a, hai nhánh giá 11b/11c, quy tắc ghép/fallback đã được biến thành kiểm thử, và bước 11d. |
+| ⬜ | 11e. TASK-105E — Ghép các nguồn giá lại với nhau | Sau khi biết mặt hàng là loại nào, phải quyết định lấy giá từ đâu: giá NCC lịch sử, giá Mua công khai, hay để Chờ | C | **Bước MỚI, chủ dự án vừa lập (2026-08-28), chưa được phép viết code.** Đây là bước *điều phối*: nó không tự nhận dạng sản phẩm, không tự đọc giá, không tự bịa mã hay giá, không sửa hệ Theo dõi. Còn phải viết đề cương phạm vi và danh sách điều kiện nghiệm thu rồi niêm phong. |
+| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa công thức đã xong**, nhưng không còn chỉ chờ “một bảng giá”: còn chờ bước 11a, hai nhánh giá 11b/11c, bước 11e (ghép nguồn giá — nay đã có bước riêng, chưa làm), và bước 11d. |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |
