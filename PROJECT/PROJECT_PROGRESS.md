@@ -505,9 +505,21 @@ TASK-105B  IMPLEMENTATION       = COMPLETE (code-level)
                                   docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
            REVIEW_EVIDENCE       = RECONCILED
            ELIGIBLE_FOR_FREEZE   = YES
-           FROZEN                = NO
+           FROZEN                = YES  (DEC-153, 2026-08-28 — xem "Cập
+                                  nhật sau FREEZE" ngay dưới)
            DONE                 = NO
 ```
+
+**Cập nhật sau FREEZE (2026-08-28, phiên "TASK-105B — FREEZE + CONTROLLED
+INTEGRATION").** `DEC-153` niêm phong đúng implementation SHA `c22cef8`,
+tham chiếu reconciliation SHA `95a7ae6`. Freeze không review lại technical
+correctness — chỉ ghi nhận verdict `PASS — ELIGIBLE_FOR_FREEZE` đã có thành
+`FROZEN`, đúng State Authority Matrix (`governance/core/V4_1_POLICY_FREEZE.md`
+§12). Review Budget lineage `TASK-105B` giữ nguyên `2 allowed / 0 used / 2
+remaining` — freeze không tiêu cycle. `app/**`/`tests/**`/`config/**` = 0
+trong diff của phiên Freeze. `HB-105B-07`/`HB-105B-08` re-trigger giữ
+nguyên, chưa resolve. Chi tiết đầy đủ: `DEC-153`
+(`PROJECT/PROJECT_DECISIONS.md`).
 
 **Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
 REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy
@@ -670,16 +682,21 @@ phải việc agent tự làm tiếp được:
    1. TASK-105B implementation   IMPLEMENTED + SELF-VERIFIED (2026-08-28),
                                   INDEPENDENT_REVIEW = PASS, REVIEW_EVIDENCE
                                   = RECONCILED (2026-08-28),
-                                  ELIGIBLE_FOR_FREEZE = YES, FROZEN = NO —
-                                  xem
+                                  ELIGIBLE_FOR_FREEZE = YES,
+                                  FROZEN = YES (DEC-153, 2026-08-28) — xem
                                   docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
-   2. TASK-105C implementation   CHỜ TASK-105B DONE thật (qua Freeze) — hard
-                                  prerequisite, KHÔNG được làm trước dù code
-                                  TASK-105B đã tồn tại và đã ELIGIBLE_FOR_FREEZE
+   1b. TASK-105B PRICE-PARSER    BẮT BUỘC trước bước 2 — resolve
+       MICRO-HARDENING           HB-105B-07 (NaN)/HB-105B-08 (Infinity),
+                                  re-trigger canonical đã ghi kèm DEC-153.
+                                  CHƯA làm trong phiên Freeze này.
+   2. TASK-105C implementation   CHỜ (1) TASK-105B FROZEN (đã đạt) VÀ (1b)
+                                  micro-hardening NaN/Infinity xong VÀ
+                                  Controlled Integration/state DONE thật —
+                                  KHÔNG được làm trước dù (1) đã FROZEN
    3. Product Identity Mapping   (dependency riêng, chưa mở task — product_raw
                                   Reports ↔ <MÃ> Tracking, cấm fuzzy matching)
    4. TASK-105B-Q3                (dòng phụ, độc lập, chờ TASK-103/enumeration)
-   5. TASK-108B                   (Converted Revenue — chờ 1+2+3)
+   5. TASK-108B                   (Converted Revenue — chờ 1+1b+2+3)
    6. TASK-109                    (summary_engine — chờ TASK-108B)
    ```
 

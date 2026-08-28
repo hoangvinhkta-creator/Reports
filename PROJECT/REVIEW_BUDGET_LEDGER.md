@@ -862,3 +862,19 @@ với chính default tip cũ).
 
 **KNOWN DIVERGENCE = CLOSED.** Không grandfather thành permanent exception.
 `branch_authority_check.sh` sau push: `DIVERGENCE = WITHIN_LIMITS`.
+
+- 2026-08-28 — `TASK-105B` **FREEZE FINALIZATION** (`DEC-153`, phiên "TASK-105B
+  — FREEZE + CONTROLLED INTEGRATION"). `FROZEN = YES` tại implementation SHA
+  `c22cef8b47ac4cd71ef49609066a362c9e604313`, tham chiếu reconciliation SHA
+  `95a7ae6c3c694a7095ecb2adc6041785c3960096`. Verdict reconciled `PASS —
+  ELIGIBLE_FOR_FREEZE`, 0 BLOCKING, 17/17 REQUIRED Completion Gate PASS (E1
+  tối thiểu, CHECK-105B-12 tại E2). Freeze **không** re-review technical
+  correctness — chỉ niêm phong verdict đã có, đúng State Authority Matrix
+  (`governance/core/V4_1_POLICY_FREEZE.md` §12). `repair_cycles_used` vẫn
+  `0`, `remaining` vẫn `2` — **freeze không tiêu cycle** (không phải repair,
+  hai Independent Review PASS song song + reconciliation không phải remediation).
+  `HB-105B-07`/`HB-105B-08` re-trigger condition giữ nguyên nội dung, không
+  downgrade, không xoá — bắt buộc resolve trước `TASK-105C` implementation
+  hoặc trước `FilePriceProvider` activation thật, tuỳ điều kiện nào tới
+  trước. `app/**`, `tests/**`, `config/**` **không đổi một byte** qua phiên
+  Freeze này.

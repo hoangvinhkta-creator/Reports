@@ -3,9 +3,16 @@
 ## Metadata
 
 Status:
-IMPLEMENTED — SELF-VERIFIED, `INDEPENDENT_REVIEW = REQUIRED`. Không tự
-DONE trước review độc lập (V4.1, Effective Risk HIGH — cùng tiền lệ
-`TASK-GOLDEN-BASELINE-001`).
+FROZEN (`DEC-153`, 2026-08-28 — Freeze Finalization session, thẩm quyền
+riêng theo `governance/core/V4_1_POLICY_FREEZE.md` §12). Independent
+Review = PASS, Review Evidence = RECONCILED
+(`docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`, SHA
+`95a7ae6`), 0 BLOCKING. Frozen artifact SHA:
+`c22cef8b47ac4cd71ef49609066a362c9e604313`. `FROZEN` ≠ `DONE` — xem
+`DEC-153` cho điều kiện còn lại (Controlled Integration + state
+reconciliation). `HB-105B-07`/`HB-105B-08` re-trigger BẮT BUỘC trước
+`TASK-105C` implementation hoặc `FilePriceProvider` activation thật —
+KHÔNG resolve trong phiên Freeze này.
 
 Phase:
 PHASE-01 — Engine tính toán
