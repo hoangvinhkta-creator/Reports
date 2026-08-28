@@ -1023,6 +1023,42 @@ h07_validator_alignment:
 Ngân sách `TASK-105D` sau `S046`: `2 allowed / 1 used / 1 remaining`
 (**KHÔNG ĐỔI**).
 
+```
+final_completion_review:
+    - id: TASK-105D-FINAL-COMPLETION-REVIEW
+      session: S047 (2026-08-28)
+      authority: chỉ thị mở phiên "TASK-105D FINAL COMPLETION REVIEW" —
+                 phiên đóng vai trò Independent Review cho chính hành động
+                 "đặt Status: DONE" (điều kiện DEC-161 §6 nêu còn thiếu)
+      gate_set_sha256_before: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      gate_set_sha256_after:  0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen_gate_definition_mutated: NO
+      h07: CLOSED (xác minh lại 8/8 điều kiện binding DEC-159 §1 + mô
+                 phỏng validator 32/32 PASS, không mutate file task thật)
+      unresolved_blocking: 0 (B-01 CLOSED, H2-02 RESOLVED_BY_INTEGRATION)
+      open_hardening: 14 (không mục nào promote lên BLOCKING)
+      inv_01_87: PARTIAL — INV-81/INV-82 evidence không đủ (H-06, OPEN từ
+                 S041, xác minh lại trực tiếp mã test tại S047)
+      task_105d_done: NO — NEAREST_REMAINING_BLOCKING_CONDITION = Exit
+                 Criteria INV-01…INV-87 chưa thoả cho INV-81/INV-82
+      repair_cycle_consumed: 0
+      repair_cycle_2_opened: NO
+      production_diff: 0 dòng (app/**, config/**, Tracking)
+      canonical_validators: validate_structure PASS, validate_project_state
+                 PASS, validate_reference_integrity FAIL (3 issue tiền tồn
+                 TASK-REM-T06, không đổi), validate_evidence PASS,
+                 validate_task_completion PASS (Checked 6 DONE task(s),
+                 không đổi — TASK-105D vẫn READY)
+      full_suite: 965 passed, 11 skipped (0 failed, 0 regression)
+      targeted: 199 passed; golden: 58 passed, 2 skipped
+      registration_guard: SET A 13→13, SET B 22→22, new_registered_task_ids = 0
+      evidence: docs/sessions/S047-task-105d-final-completion-review.md,
+                docs/reviews/TASK-105D-FINAL-COMPLETION-REVIEW.md
+```
+
+Ngân sách `TASK-105D` sau `S047`: `2 allowed / 1 used / 1 remaining`
+(**KHÔNG ĐỔI**).
+
 Failure path:
 
 ```text

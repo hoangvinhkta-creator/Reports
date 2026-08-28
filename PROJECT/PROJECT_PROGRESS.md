@@ -504,6 +504,89 @@ Bằng chứng đầy đủ:
 `docs/sessions/S046-task-105d-h07-validator-alignment.md`,
 `DEC-161` trong `PROJECT/PROJECT_DECISIONS.md`.
 
+### Trạng thái sau FINAL COMPLETION REVIEW (S047, 2026-08-28)
+
+```text
+TASK-105D  = IMPLEMENTED + RC-1 INTEGRATED
+             + INDEPENDENT REVIEW #2 PASS WITH HARDENING
+             + CONTROLLED INTEGRATION COMPLETE
+             + H-07 RECONCILED (không đổi, kế thừa DEC-159/DEC-161)
+             TASK-105D = NOT_DONE  (không đổi top-level Status: vẫn READY)
+
+             S047 là phiên Independent Review cho chính hành động "đặt
+             Status: DONE" (điều kiện còn thiếu mà DEC-161 §6 nêu) — đã
+             thực hiện, verdict = NOT_DONE, không phải "chưa đánh giá".
+
+             4 điều kiện completion còn lại theo DEC-161 §6, đánh giá lại
+             tại S047:
+               0 BLOCKING finding re-verify        : PASS (B-01 CLOSED,
+                   H2-02 RESOLVED_BY_INTEGRATION, unresolved BLOCKING = 0)
+               Independent Review cho hành động DONE : THỰC HIỆN tại S047
+                   (evidence level E2) — xem
+                   docs/reviews/TASK-105D-FINAL-COMPLETION-REVIEW.md
+               INV-01…INV-87                        : PARTIAL — INV-81,
+                   INV-82 chỉ có test "yếu" (H-06, OPEN từ S041, không đổi
+                   qua RC-1/S043/S044/S045/S046; xác minh lại trực tiếp mã
+                   test tại S047, đúng nhận định cũ: test_inv81 dùng
+                   object.__setattr__ bơm thẳng field cần chứng minh thay vì
+                   qua API rollback thật; test_inv82 tự ghi nhận chứng minh
+                   đầy đủ nằm ở G21 chứ không phải chính nó)
+               progress/roadmap/handoff cập nhật     : khối này (đang viết)
+
+             NEAREST_REMAINING_BLOCKING_CONDITION = Exit Criteria
+                 "INV-01…INV-87 có assertion tương ứng" chưa thoả cho
+                 INV-81/INV-82 (docs/tasks/TASK-105D-product-identity-resolver.md
+                 dòng 2385-2386). Mọi điều kiện REQUIRED khác đã PASS.
+
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                 — KHÔNG đổi (đo lại trước/sau S047, khớp tuyệt đối)
+             HARDENING = 14 OPEN + 1 RESOLVED_BY_INTEGRATION (H2-02,
+                 không đổi bởi S047)
+             validator = structure/project_state/evidence/task_completion
+                 PASS; reference_integrity FAIL 3 issue (baseline
+                 TASK-REM-T06, không đổi, không liên quan TASK-105D)
+             targeted 199 / Golden 58+2 / full 965+11 / regression 0
+             production diff = 0 (app/**, config/**, Tracking)
+             registration guard: SET A 13→13, SET B 22→22,
+                 new_registered_task_ids = 0
+             budget = 2 allowed / 1 used / 1 remaining (KHÔNG ĐỔI — S047
+                 không phải repair cycle)
+             Repair Cycle #2 = KHÔNG mở
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED / NOT DONE / NOT ACTIVATED (không đổi)
+TASK-105C  = BLOCKED / NOT AUTHORIZED                                        (không đổi)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED / NOT AUTHORIZED         (không đổi)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                                           (không đổi)
+```
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S047 → …)**
+
+```text
+1. MỘT trong hai, do một phiên có thẩm quyền phù hợp thực hiện:
+   (a) một phiên Repair Cycle (tiêu 1 cycle còn lại của budget 2/1/1) viết
+       lại test_inv81_…/test_inv82_… (tests/test_105d_boundaries.py) để
+       diễn tập một đường rollback/migration sản xuất thật thay vì
+       object.__setattr__ trên fixture, rồi một phiên DONE-review kế tiếp
+       xác nhận lại; HOẶC
+   (b) một Owner Decision tường minh chấp nhận evidence hiện có (H-06) là
+       đủ cho Exit Criteria INV-01…INV-87, theo tiền lệ Option (b) của
+       DEC-159 cho H-07.
+2. KHÔNG mở Repair Cycle #2 mặc định — đó là quyết định của phiên (a) ở
+   trên nếu được Owner cấp phép, KHÔNG tự động.
+3. KHÔNG tạo task mới. KHÔNG chạm TASK-105B/C/E/108B. KHÔNG thực hiện V4.2
+   migration.
+4. Nhánh review/task-105d-done-final KHÔNG merge vào nhánh mặc định trong
+   phiên S047.
+5. Vertical Slice: Golden Order BH62063 (KpiPurchasePrice kỳ vọng
+   7.000.000 VND, EligibleKpiProfit kỳ vọng 500.000 VND) là business oracle
+   đã sẵn sàng cho bước implementation kế tiếp của CAP-PRICE-RESOLUTION —
+   nhưng bước đó vẫn CHƯA mở vì TASK-105D chưa DONE.
+```
+
+Bằng chứng đầy đủ:
+`docs/sessions/S047-task-105d-final-completion-review.md`,
+`docs/reviews/TASK-105D-FINAL-COMPLETION-REVIEW.md`.
+
 ### Trạng thái sau CONTROLLED INTEGRATION (S044, 2026-08-28)
 
 ```text
