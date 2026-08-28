@@ -507,10 +507,9 @@ cycles:
   scope: app/modules/pricing/file_price_provider.py, tests/test_file_price_provider.py
   trigger: RE-TRIGGER CONDITION đã ghi tại DEC-153 (HB-105B-07/HB-105B-08),
     không phải Independent Review FAIL
-  status: READY_FOR_REVIEW — Independent Review độc lập vẫn BẮT BUỘC trước
-    khi cycle này được coi là CLOSED (Effective Risk = HIGH, đúng tiền lệ
-    Completion Gate của chính TASK-105B/TASK-GOLDEN-BASELINE-001). Phiên
-    này KHÔNG tự ghi CLOSED_BY_REPAIR/INDEPENDENTLY_VERIFIED.
+  status: CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED — Codex Independent Review
+    PASS — REPAIR VERIFIED tại 9241ccfca9a8b0159b347f4d1171c0caa37eecad;
+    reviewed lineage integrated qua integration/v4-1-task-105b-rc1.
 
 ---
 

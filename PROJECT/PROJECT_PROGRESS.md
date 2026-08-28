@@ -629,33 +629,26 @@ tường minh làm NEXT AUTHORIZED ACTION, không tự phát sinh). Ghi tại
 (code-level). `HB-105B-03`/`HB-105B-05`/`HB-105B-06`/`HB-105B-10`: **không
 đổi**, không sửa trong phiên này (ngoài phạm vi khoá của brief).
 
-**`status: READY_FOR_REVIEW`, KHÔNG `FROZEN`, KHÔNG `DONE`.** Independent
-Review độc lập vẫn BẮT BUỘC cho repair cycle này (Effective Risk = HIGH,
-đúng tiền lệ `TASK-GOLDEN-BASELINE-001`/chính `TASK-105B` implementation)
-trước khi ghi `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED` — phiên
-implementation/repair không tự cấp verdict đó cho chính mình, đúng State
-Authority Matrix (`governance/core/V4_1_POLICY_FREEZE.md` §12). Phiên
-này KHÔNG merge vào nhánh mặc định, KHÔNG tự Freeze lại.
+Independent Review độc lập tại
+`9241ccfca9a8b0159b347f4d1171c0caa37eecad` đã **PASS — REPAIR VERIFIED**.
+Repair cycle nay `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`; review không
+tiêu thêm cycle. Controlled Integration qua
+`integration/v4-1-task-105b-rc1` đã merge reviewed lineage bảo toàn ancestry,
+0 conflict, rồi state reconciliation được ghi tại
+`docs/sessions/S031-task-105b-rc1-controlled-integration.md`.
 
-`TASK-105B` vẫn `FROZEN + INTEGRATED` (trạng thái integration trước đó
-không đổi bởi phiên repair này — repair chạy trên nhánh riêng, chưa
-merge), vẫn `NOT DONE` — Exit Criteria vẫn thiếu đúng một mục: bảng giá
-production thật nạp được (data dependency, không đổi bởi phiên này).
-`HB-105B-07`/`HB-105B-08` prerequisite cho `TASK-105C` = **CLEARED ở mức
-code**, nhưng `TASK-105C` **CHƯA được cấp phép bắt đầu** — còn phải chờ
-(1) Independent Review của chính repair cycle này, (2) product identity
-mapping (`product_raw` ↔ `<MÃ>` Tracking, dependency riêng chưa mở task),
-(3) bảng giá production thật (nếu `TASK-105C` cần dữ liệu thật để có kết
-quả không-Pending). "Nền tảng code 105B an toàn" **không đồng nghĩa**
-"105C được phép bắt đầu".
+`TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED`, vẫn `NOT DONE` — Exit
+Criteria vẫn thiếu đúng một mục: bảng giá production thật nạp được (data
+dependency, không đổi bởi phiên này). `HB-105B-07`/`HB-105B-08` prerequisite
+cho `TASK-105C` = **CLEARED**, nhưng `TASK-105C` **CHƯA được cấp phép bắt
+đầu**: bảng giá production thật và product identity mapping (`product_raw` ↔
+`<MÃ>` Tracking, dependency riêng chưa mở task) vẫn OPEN. "Nền tảng code
+105B an toàn" **không đồng nghĩa** "105C được phép bắt đầu".
 
-**NEXT AUTHORIZED ACTION = INDEPENDENT REVIEW của `TASK-105B-RC-1`**
-(commit `7f7048d65619c2c2198c99ccbfb073d6cb97ebe2` trên nhánh
-`task/task-105b-price-parser-hardening`), bởi một phiên review độc lập
-riêng — không phải phiên đã tự sửa. Sau khi PASS, cần một phiên
-Controlled Integration riêng để đưa nhánh này vào nhánh mặc định (đúng
-khuôn đã dùng cho implementation gốc), rồi mới xét lại điều kiện mở
-`TASK-105C`.
+**NEXT AUTHORIZED ACTION = chờ Owner cấp bảng giá production thật cho
+`TASK-105B` và authority riêng cho product identity mapping.** Không tự mở
+hay implement `TASK-105C`; sau khi hai dependency được cập nhật canonical,
+đánh giá lại authorization của task đó một cách riêng.
 
 **Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
 REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy

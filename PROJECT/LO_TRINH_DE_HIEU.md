@@ -10,12 +10,11 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-28 — **bước 11a: đã vá xong hai điểm hổng nhỏ
-> ("NaN" và "vô cực") bắt buộc phải sửa trước khi bước 11b bắt đầu — xem
-> "Có gì mới" ngay bên dưới. Bước 11b vẫn CHƯA được bắt đầu viết code**,
-> chờ một vòng soát xét độc lập riêng cho việc vá này trước.
+> Cập nhật lần cuối: 2026-08-28 — **bước 11a: bản vá "NaN"/"vô cực" đã qua
+> soát xét độc lập và được nhập vào bản chính. Bước 11b vẫn CHƯA được bắt đầu
+> viết code**: còn thiếu bảng giá nhập thật và bảng dịch tên hàng ↔ mã sản phẩm.
 
-## Có gì mới — bước 11a: đã vá xong "NaN"/"vô cực", chờ soát xét độc lập (2026-08-28)
+## Có gì mới — bước 11a: bản vá "NaN"/"vô cực" đã được duyệt và nhập bản chính (2026-08-28)
 
 **Việc vừa xảy ra.** Khi soát xét độc lập bước 11a (đọc bảng giá) hồi
 2026-08-28, cả hai phiên soát xét cùng phát hiện một lỗ hổng nhỏ: nếu ô
@@ -38,11 +37,11 @@ thống báo lỗi bảng giá rõ ràng ngay, giống hệt cách nó đã báo
 hành vi này, và toàn bộ 730 phép kiểm tra cũ trước đó vẫn chạy đúng y hệt
 — không có gì cũ bị hỏng.
 
-**Chưa xong hẳn.** Việc vá này cần đi qua một vòng soát xét độc lập riêng
-(giống mọi lần vá trước) trước khi được coi là chốt xong. Bước 11b **vẫn
-chưa được phép bắt đầu viết code** — còn chờ đúng vòng soát xét đó, cộng
-với việc chưa có bảng dịch tên hàng ↔ mã sản phẩm (đã nêu ở dòng bên
-dưới).
+**Đã được kiểm tra lại và nhập bản chính.** Vòng soát xét độc lập xác nhận
+toàn bộ 59 phép kiểm tra riêng, 58 phép kiểm tra Golden (2 bỏ qua) và 756
+phép kiểm tra toàn dự án (11 bỏ qua) đều đạt. Bản vá được nhập giữ nguyên
+lịch sử kiểm tra. Bước 11b **vẫn chưa được phép bắt đầu viết code**: bảng giá
+nhập thật và bảng dịch tên hàng ↔ mã sản phẩm vẫn chưa có.
 
 ## Có gì mới trước đó — bước 11b: công việc đã nhập vào bản chính, sẵn sàng viết code (2026-08-27)
 
@@ -763,8 +762,8 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| 🟡 | 11a. TASK-105B — Xây phần đọc bảng giá (nền cho bước đọc lịch sử giá) | Bước 11b (đọc lịch sử giá NCC) cần phần này làm nền trước — không thể xây sau | C | **Đã viết code xong, đã qua soát xét độc lập — PASS, và đã CHỐT ĐÓNG DẤU (Freeze, 2026-08-28, `DEC-153`), đã sáp nhập vào bản chính (Controlled Integration).** Hai điều kiện vá bắt buộc đi kèm Freeze ("NaN" và "vô cực" chưa bị chặn đúng cách) **đã vá xong ở mức code** trong một phiên riêng (2026-08-28, xem "Có gì mới" đầu file) — **đang chờ một vòng soát xét độc lập riêng** cho đúng việc vá đó trước khi coi là chốt xong, rồi mới sáp nhập vào bản chính. Còn một việc khác: cần bảng giá nhập THẬT của công ty để nạp thử (hiện chưa có, không phải lỗi code) |
-| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt còn lại | C | **Chủ dự án đã chốt xong toàn bộ, kể cả hai câu hỏi nhỏ.** Thiết kế kỹ thuật đầy đủ đã có (`docs/tasks/TASK-105C-historical-vendor-price-provider.md`). Bước 11a (ngay trên) đã Freeze + đã vá xong "NaN"/"vô cực" ở mức code — nhưng 11b **VẪN CHƯA được phép bắt đầu viết code**: còn chờ vòng soát xét độc lập cho việc vá đó. Còn một việc khác cần làm song song: bảng dịch tên hàng ↔ mã sản phẩm (chưa có, chưa chặn việc bắt đầu code, nhưng chặn việc có số thật thay vì để trống hàng loạt) |
+| 🟡 | 11a. TASK-105B — Xây phần đọc bảng giá (nền cho bước đọc lịch sử giá) | Bước 11b (đọc lịch sử giá NCC) cần phần này làm nền trước — không thể xây sau | C | **Đã viết code xong, Freeze, vá "NaN"/"vô cực", qua soát xét độc lập PASS và đã sáp nhập vào bản chính. CHƯA XONG** — vẫn cần bảng giá nhập THẬT của công ty để nạp thử; đây không phải lỗi code. |
+| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt còn lại | C | **Chủ dự án đã chốt xong toàn bộ, kể cả hai câu hỏi nhỏ.** Thiết kế kỹ thuật đầy đủ đã có (`docs/tasks/TASK-105C-historical-vendor-price-provider.md`). Điều kiện 11a về "NaN"/"vô cực" nay đã cleared. 11b **VẪN CHƯA được phép bắt đầu viết code**: còn thiếu bảng giá nhập thật và bảng dịch tên hàng ↔ mã sản phẩm. |
 | ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |

@@ -21,13 +21,14 @@ raise `InvalidPriceMasterError(reason="non_finite_price")`. 26 test hồi
 quy mới; targeted `33 → 59 passed`; Golden không đổi (`58 passed, 2
 skipped`); full suite `730 → 756 passed, 11 skipped` (0 regression). Repair
 commit `7f7048d65619c2c2198c99ccbfb073d6cb97ebe2` (base `c22cef8`), nhánh
-`task/task-105b-price-parser-hardening`. **`status: READY_FOR_REVIEW`** —
-Independent Review độc lập vẫn BẮT BUỘC (Effective Risk = HIGH) trước khi
-cycle này được coi `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`; phiên này
-KHÔNG tự cấp verdict đó, KHÔNG tự Freeze lại, KHÔNG merge vào default.
+`task/task-105b-price-parser-hardening`. Independent Review độc lập tại
+`9241ccfca9a8b0159b347f4d1171c0caa37eecad` đã **PASS — REPAIR VERIFIED**;
+cycle là `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`, và reviewed lineage đã
+được tích hợp qua nhánh `integration/v4-1-task-105b-rc1` (2026-08-28).
 `HB-105B-03`/`HB-105B-05`/`HB-105B-06`/`HB-105B-10` không đổi, không sửa
-trong phiên này. `TASK-105B` vẫn `NOT DONE` (data dependency bảng giá
-production thật vẫn mở, không liên quan tới phiên này).
+trong phiên này. `TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED`, vẫn
+`NOT DONE`: data dependency bảng giá production thật vẫn mở, không liên quan
+tới repair/integration này.
 
 Phase:
 PHASE-01 — Engine tính toán
