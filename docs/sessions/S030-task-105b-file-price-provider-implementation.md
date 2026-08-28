@@ -97,7 +97,7 @@ Exit Criteria bổ sung ngoài 17 check — "bảng giá production thật nạp
 | CHECK-105B-12 | PASS | E2 | `python3 -m pytest tests/test_golden_baseline.py -q` → `58 passed, 2 skipped` (y hệt baseline trước phiên) | Agent (phiên S030) | 2026-08-28 |
 | CHECK-105B-13 | PASS | E1 | `python3 -m pytest -q` → `730 passed, 11 skipped` (baseline trước phiên `697 passed, 11 skipped`; chênh lệch = đúng 33 test mới, 0 fail, 0 skip mới) | Agent (phiên S030) | 2026-08-28 |
 | CHECK-105B-14 | PASS | E1 | `git diff --quiet -- app/pipeline.py app/modules/pricing/price_engine.py app/modules/pricing/provider.py app/modules/domain/models.py` → exit 0 | Agent (phiên S030) | 2026-08-28 |
-| CHECK-105B-16 | PASS | E1 | `bash scripts/branch_authority_check.sh` sau khi push → `AUTHORITY_OK` (xem SHA cuối phiên bên dưới) | Agent (phiên S030) | 2026-08-28 |
+| CHECK-105B-16 | PASS | E1 | `bash scripts/branch_authority_check.sh` sau khi push commit `eb5d618` → `AUTHORITY: BRANCH_WITH_UPSTREAM`, `RESULT: AUTHORITY_OK`, `WORKTREE: CLEAN`, `DIVERGENCE: WITHIN_LIMITS` (ahead default 1 commit, cumulative LOC 1378) | Agent (phiên S030) | 2026-08-28 |
 
 Validators (không phải CHECK-105B riêng, nhưng REQUIRED cho session close):
 `validate_structure` PASS, `validate_project_state` PASS,
