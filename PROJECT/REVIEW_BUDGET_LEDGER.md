@@ -639,8 +639,27 @@ Không cycle nào được mở bởi việc cấp task ID. `cycles: []`.
 root_task: TASK-105D
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
+last_independent_review:
+    - id: TASK-105D-IMPL-REVIEW-1
+      session: S041 (2026-08-28)
+      branch: review/task-105d-implementation-1
+      reviewed_target_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      reviewed_base_sha: 222844dfb5cf576238fda4cc913ef2095789b4eb
+      role_separation: independent reviewer; KHÔNG kế thừa PASS của S040
+      gate_set_sha256_reproduced: true
+      frozen_checks: 32 / 32 PASS (thực thi độc lập)
+      adversarial_a_to_t: 20 / 20 PASS (bộ test riêng của reviewer)
+      regression: 0 (Golden 58/2 không đổi; full 756 -> 930; delta +174)
+      verdict: FAIL — REPAIR REQUIRED
+      findings: 1 BLOCKING / 7 HARDENING / 3 OUT_OF_SCOPE
+      blocking: B-01 — thiếu khoá file; check-then-append race ở đúng biên
+                "một máy" mà data contract §11.1 tuyên bố phủ; INV-59 không
+                thi hành được qua biên tiến trình
+      repair_cycle_consumed: 0   (independent review không tiêu thụ cycle)
+      recommendation: mở Repair Cycle #1
+      evidence: docs/reviews/TASK-105D-INDEPENDENT-IMPLEMENTATION-REVIEW-1.md
 status: READY — specification complete + data contract complete (S034/
         DEC-155) + Owner ratified (S035/DEC-156) + Completion Gate Change
         Proposal applied (S037/DEC-157) + COMPLETION GATE FROZEN (S038,
@@ -720,6 +739,54 @@ Cập nhật 2026-08-28 (`S038`, Freeze Finalization retry): `repair_cycles_used
 trước/sau commit của phiên). Ngân sách `TASK-105D` giữ nguyên
 `2 allowed / 0 used / 2 remaining`.
 
+Cập nhật 2026-08-28 (`S041`, Independent Implementation Review #1):
+`repair_cycles_used` **vẫn giữ `0`** — review ghi finding, không sửa code.
+Verdict `FAIL — REPAIR REQUIRED`, 1 BLOCKING (`B-01`).
+
+Cập nhật 2026-08-28 (`S042`, **Repair Cycle #1 — MỞ VÀ TIÊU THỤ**):
+`repair_cycles_used` `0 → 1`; `repair_cycles_remaining` `2 → 1`. Đây là lần
+đầu tiên `TASK-105D` tiêu một cycle: `V4.1` §3 tính cycle theo cumulative
+repair diff của implementation, và `S042` **có** sửa `app/**` + `tests/**`
+để đóng một defect `BLOCKING`. Owner đã cấp phép tường minh khi mở phiên, kèm
+Owner Decision cho `B-01` = option (a) (giữ hợp đồng concurrency "một máy",
+sửa implementation bằng khoá file thật; KHÔNG thu hẹp `§11.1`; KHÔNG sửa
+Completion Gate đã freeze). Toàn bộ các lần lặp bên trong cùng diff repair
+này thuộc CÙNG cycle, không mở cycle mới.
+
+```
+cycles:
+    - id: TASK-105D-RC-1
+      session: S042 (2026-08-28)
+      branch: task/task-105d-rc1
+      base_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      head_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
+      trigger: B-01 (Independent Implementation Review #1, evidence
+               58323e2e59382e2ce4816453cfaaa5d31deba3db)
+      owner_decision: option (a) — giữ hợp đồng, sửa implementation
+      repair_scope: inter-process persistence concurrency / file locking
+      files_changed: app/modules/product/identity/store.py
+                     tests/test_105d_interprocess_concurrency.py (mới)
+      gate_set_sha256: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                       (KHỚP — khối gate 0 byte thay đổi)
+      targeted_105d: 174 -> 199 passed (+25)
+      golden: 58 passed, 2 skipped (KHÔNG ĐỔI)
+      full_suite: 930 -> 955 passed, 11 skipped (delta = đúng 25 test mới)
+      regression: 0
+      b01_disposition: CODE-LEVEL RESOLVED / READY FOR INDEPENDENT RE-REVIEW
+      hardening_repaired: 0 (H-01…H-07, HB-F2-01…03 giữ nguyên OPEN)
+      merged_default: NO
+      evidence: docs/reviews/TASK-105D-RC-1-REPAIR-RECORD.md
+                docs/sessions/S042-task-105d-repair-cycle-1.md
+```
+
+Ngân sách `TASK-105D` sau `S042`: `2 allowed / 1 used / 1 remaining`.
+`head_sha` `1cc96a9` là commit mang toàn bộ diff repair (`store.py` +
+`tests/test_105d_interprocess_concurrency.py`); commit ghi chính dòng
+`head_sha` này nằm ngay sau nó và không chứa thay đổi code/test. Nếu repair
+tiếp tục trong CÙNG cycle thì `head_sha` tiến lên, `base_sha` KHÔNG reset và
+KHÔNG mở cycle mới (`V4.1` §3). Xác định phạm vi cycle bằng
+`git diff e6252c06..1cc96a99 --name-only`.
+
 Failure path:
 
 ```text
@@ -755,7 +822,8 @@ progress artifacts theo đúng governance") — ghi lại tường minh, xem
 `DEC-156` phần đầu.
 
 Không cycle nào được mở bởi việc tạo specification hay bởi phiên readiness.
-`cycles: []`.
+Cycle đầu tiên của lineage là `TASK-105D-RC-1` (`S042`) — xem khối `cycles:`
+ở trên.
 
 ### Branch divergence — `TASK-105D` lineage (`V4.1` §8)
 
