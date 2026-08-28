@@ -6867,3 +6867,261 @@ Can Revisit After:
 - Một phiên soạn Scope Lock + Completion Gate cho `TASK-105E`
   (`HB-105D-F2-02`).
 - `TASK-105C` refreeze (lineage riêng) — vẫn `BLOCKED / NOT AUTHORIZED`.
+
+## DEC-159
+
+Title:
+`H-07` GATE EXECUTION RECONCILIATION — OWNER DECISION CÔNG NHẬN BẢN GHI
+THỰC THI TÁCH RỜI (OPTION (b)), GIỮ NGUYÊN `GATE_SET_SHA256`
+
+Date:
+2026-08-28
+
+Task:
+Owner Decision recording cho phiên `S045` — TASK-105D H-07 Gate Execution
+Reconciliation. Ghi trong
+`docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`
+phần A.
+
+```text
+base SHA phiên này   : 7464ccaa784f13d887b2d5441d86136ff7d9a61d
+branch                : governance/task-105d-gate-execution-reconciliation
+GATE_SET_SHA256       : 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                         (TRƯỚC == SAU phiên này — tái lập trực tiếp)
+```
+
+**Đây LÀ một Owner Decision.** Chỉ thị mở phiên nêu tường minh Owner ưu
+tiên Option (b) cho `H-07`. Phiên chỉ (i) xác minh lại độc lập toàn bộ bằng
+chứng gate/execution-record, (ii) phân tích thẩm quyền theo
+`governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `V4.1` §12, (iii) ghi lại quyết định
+tường minh, và (iv) phát hiện một xung đột validator riêng biệt (xem mục
+5 dưới đây) mà quyết định này **không** tự đóng.
+
+Ghi chú artifact budget (`governance/core/V4_1_POLICY_FREEZE.md` §10): đây
+là artifact governance thứ 10 của lineage `TASK-105D` (nối tiếp `DEC-158` /
+artifact #9), thuộc diện `OWNER APPROVAL REQUIRED`. Approval đó **chính là**
+chỉ thị của Owner khi mở phiên `S045` ("Owner preferred Option (b)"), ghi
+lại tường minh theo tiền lệ `DEC-156`/`DEC-157`/`DEC-158`.
+
+Decision:
+
+**1. OWNER DECISION — HAI LỚP TRẠNG THÁI (Option (b)).**
+
+```text
+Frozen Gate Status      = metadata tại thời điểm freeze (NOT_TESTED, 32/32
+                           — KHÔNG đổi, vĩnh viễn, cho đúng
+                           GATE_SET_SHA256 = 0444e58c…4408a5c877 này)
+Effective Completion
+  Status (per check)    = trạng thái trong bản ghi thực thi tách rời, MIỄN
+                           LÀ thoả cả 8 điều kiện binding dưới đây
+```
+
+8 điều kiện ràng buộc cho "Effective Completion Status" hợp lệ (tất cả đã
+kiểm chứng lại độc lập cho 32 check của `TASK-105D` trong `S045` §A6/A7):
+
+```text
+1. frozen gate definition giữ nguyên byte-identical
+2. tồn tại một Gate Execution Record canonical
+3. record bind đúng GATE_SET_SHA256
+4. record định danh đúng REQUIRED check ID
+5. execution result = PASS
+6. required Evidence Level được thoả
+7. implementation/review lineage được bind
+8. không có execution record thẩm quyền sau đó ghi đè bằng FAIL/INVALID
+```
+
+**2. LÝ DO — TẠI SAO KHÔNG PHẢI OPTION (c).**
+
+`governance/core/TASK_COMPLETION_GATE_STANDARD.md` (đọc toàn văn 150 dòng
+trong `S045`) không quy định Evidence Record của một REQUIRED check phải
+nằm vật lý trong khối gate đã hash-freeze — đây là một khoảng trống diễn
+giải, không phải một điều cấm tường minh. Vì vậy Option (b) hợp lệ như một
+diễn giải được Owner phê chuẩn tường minh, không cần sửa
+`governance/core/TASK_COMPLETION_GATE_STANDARD.md` (Option (c)).
+
+**3. `GATE_SET_SHA256` KHÔNG ĐỔI — xác minh lại.**
+
+```text
+$ sed -n '631,2359p' docs/tasks/TASK-105D-product-identity-resolver.md | sha256sum
+0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+```
+
+Khớp tuyệt đối với giá trị freeze `S038`. 0 byte thay đổi trong khối gate
+bởi quyết định này.
+
+**4. `H-07` — disposition sau quyết định này.**
+
+```text
+H-07 = PARTIALLY RECONCILED
+  lớp diễn giải/thẩm quyền  : RESOLVED (quyết định này)
+  lớp validator             : VẪN OPEN (mục 5)
+H-07 CLOSED?  KHÔNG.
+```
+
+**5. Xung đột validator — KHÔNG tự đóng bằng quyết định này.**
+
+`governance/scripts/governance/validate_task_completion.py` xác định điều
+kiện `DONE` bằng cách grep literal trường `Status:` nhúng vật lý trong từng
+khối `#### CHECK-*`; nó không có khái niệm Gate Execution Record tách rời.
+Theo mô hình hai lớp vừa quyết định, 32 trường đó **giữ nguyên `NOT_TESTED`
+vĩnh viễn** theo thiết kế — nghĩa là validator, ở dạng hiện tại, sẽ FAIL cả
+32 REQUIRED check nếu một phiên tương lai đặt `TASK-105D` top-level
+`Status: DONE`. Quyết định này **không** trao quyền sửa
+`governance/scripts/governance/*.py` (nằm ngoài governance/documentation
+reconciliation của phiên `S045`) — mục này ghi nhận xung đột để một phiên
+có thẩm quyền tooling riêng xử lý.
+
+Impact:
+
+- `PROJECT/PROJECT_PROGRESS.md` — trạng thái `TASK-105D` sau `S045`, ghi
+  `H-07 = PARTIALLY RECONCILED`, `TASK-105D = STILL_BLOCKED_BEFORE_DONE`.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — bổ sung bản ghi `S045` vào
+  "Root Task: TASK-105D"; ngân sách `2 allowed / 1 used / 1 remaining`
+  **KHÔNG đổi**.
+- `docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`
+  — bàn giao đầy đủ Phần A.
+- **Không** sửa `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+  `pyproject.toml`, `docs/tasks/TASK-105D-product-identity-resolver.md`,
+  `docs/spec/TASK-105D-DATA-CONTRACT.md`, `governance/scripts/governance/*.py`.
+- **Không** mở Repair Cycle #2. **Không** đánh dấu `TASK-105D = DONE`.
+
+Can Revisit After:
+
+- Một phiên có thẩm quyền tooling/governance-scripts, được Owner cấp phép
+  riêng, đối chiếu `validate_task_completion.py` với mô hình hai lớp ở
+  quyết định này — HOẶC Owner chấp nhận rằng `DONE` thật sự sẽ cần một
+  `COMPLETION GATE CHANGE PROPOSAL` riêng (mutate 32 trường `Status:`, đổi
+  `GATE_SET_SHA256`) tại đúng thời điểm đó.
+
+## DEC-160
+
+Title:
+CAPABILITY-FIRST DELIVERY GOVERNANCE — ĐĂNG KÝ `CAP-PRICE-RESOLUTION` +
+KIỂM SOÁT PHÂN RÃ TASK ANH EM (HORIZONTAL SIBLING PROLIFERATION)
+
+Date:
+2026-08-28
+
+Task:
+Owner Decision recording cho phiên `S045`, Phần B — Capability-First
+Delivery và Horizontal Task Proliferation Control. Ghi trong
+`docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`
+phần B.
+
+**Đây LÀ một Owner Decision.** Chỉ thị mở phiên đặt toàn bộ khung §B1-B16
+tường minh, gồm capability root, member tasks, vertical acceptance slice
+compass, và cơ chế chống phân rã task anh em ngang hàng.
+
+Ghi chú artifact budget: cùng lineage governance-session với `DEC-159`
+(artifact governance thứ 11 của `TASK-105D` — do `CAP-PRICE-RESOLUTION`
+chưa có lineage ngân sách riêng, phần lớn nội dung DEC này gắn với
+`TASK-105D` như root task đang mở phiên). Approval = chỉ thị mở phiên
+`S045`.
+
+Decision:
+
+**1. ĐĂNG KÝ CAPABILITY — KHÔNG PHẢI TASK.**
+
+```text
+CAP-PRICE-RESOLUTION
+  business purpose : từ một dòng bán hàng, xác định tất yếu định danh sản
+                      phẩm đúng và cơ sở giá mua áp dụng, trả về
+                      KpiPurchasePrice đã resolve + đầy đủ provenance
+  member tasks      : TASK-105B, TASK-105C, TASK-105D, TASK-105E
+  outside           : TASK-108B (downstream consumer)
+```
+
+Đây là **CAPABILITY REGISTRATION**, không phải **TASK REGISTRATION**
+(`CAP-PRICE-RESOLUTION` không mang tiền tố `TASK-*`, không có Task Spec
+dưới `docs/tasks/`).
+
+**2. VERTICAL ACCEPTANCE SLICE — `END_TO_END_ACCEPTANCE = PENDING_OWNER_DATA`.**
+
+```text
+SALES_RECORD có thật : OrderID BH62063, 2026-01-02, qty 1, sell price
+                        7.500.000 VND, discount 0
+                        (nguồn: tests/fixtures/golden/period_2026_01.xlsx,
+                        cột VERBATIM theo anonymize.py)
+PRODUCT               : "Máy giặt LG 10kg FV1410S4W1" — CHƯA có canonical
+                        identity mapping đã Owner-confirm
+PRICE_SOURCE           : KHÔNG có — 100% (351/351) dòng thật kỳ 01.2026 có
+                        purchase price = Pending; mọi fixture TASK-105B/
+                        TASK-105C hiện có đều synthetic (tự khai trong
+                        chính hai task đó)
+MANUAL_ORACLE          : EligibleKpiProfit = (SellPrice − KpiPurchasePrice)
+                        × Quantity − Discount (xác nhận cuối cùng tại
+                        docs/tasks/TASK-108B-eligible-costs-owner-definition.md:1040)
+                        = 7.500.000 − KpiPurchasePrice  (KpiPurchasePrice
+                        chưa có)
+```
+
+Không dữ liệu tổng hợp/bịa nào được dùng thay thế. `MISSING_DATA` +
+`OWNER_INPUT_REQUIRED` đầy đủ tại
+`PROJECT/PROJECT_PROGRESS.md` → `CAP-PRICE-RESOLUTION` → `END_TO_END_ACCEPTANCE`.
+
+**3. KHÔNG TASK MỚI ĐƯỢC TẠO.**
+
+```text
+new_registered_task_ids = 0
+proposals_created        = 0
+REGISTERED_TASK_SET (task ID có "= STATUS"/"Status:" tường minh trong
+    PROJECT/PROJECT_PROGRESS.md — KHÔNG phải grep tự do mọi chuỗi TASK-*,
+    brief §B8 cấm cách đo đó) BEFORE = 13   AFTER = 13
+TASK_SPEC_SET (docs/tasks/*.md) BEFORE = 22   AFTER = 22
+```
+
+Không hạng mục nào trong phiên thoả đồng thời cả ba điều kiện độc lập
+capability + độc lập lifecycle + nằm ngoài `CAP-PRICE-RESOLUTION`.
+
+**4. CAPABILITY-LEVEL REPAIR BUDGET — RECONSTRUCTION, PROPOSED, CHƯA ADOPTED.**
+
+```text
+capability_repair_cycles_allowed (Owner PROPOSAL) : 4
+consumed:
+  TASK-105B-RC-1  base c22cef8b47ac4cd71ef49609066a362c9e604313
+                  head 7f7048d65619c2c2198c99ccbfb073d6cb97ebe2
+  TASK-105D-RC-1  base e6252c06347ed5305fc32a77706a3a63f5a950cf
+                  head 1cc96a99638326513b26280b72bbeb3bce9d454d
+capability_repair_cycles_used      = 2
+capability_repair_cycles_remaining = 2   (chỉ có hiệu lực NẾU ADOPTED)
+migration_status                   = PROPOSED
+```
+
+Ngân sách per-task hiện hành (`TASK-105B` 2/1/1, `TASK-105C` 2/0/2,
+`TASK-105D` 2/1/1, `TASK-105E` 2/0/2) **giữ nguyên, authoritative**, không
+đổi bởi bảng trên. Trong lúc `migration_status ≠ ADOPTED`, không task nào
+trong capability được cấp Repair Cycle budget mới chỉ vì nay được nhóm lại.
+
+**5. CORE GOVERNANCE CHANGE PROPOSAL — CHƯA ADOPTED.**
+
+```text
+docs/reviews/CAP-PRICE-RESOLUTION-CORE-GOVERNANCE-CHANGE-PROPOSAL.md
+```
+
+chứa đề xuất §16 (nguyên tắc capability-first sibling-proliferation control,
+absorption limit, capability repair-budget semantics, migration transition
+rule) cho `governance/core/V4_1_POLICY_FREEZE.md`. Phiên `S045` không có
+CORE-amendment authority; `governance/core/V4_1_POLICY_FREEZE.md` = 0 byte
+thay đổi.
+
+```text
+CAPABILITY_GOVERNANCE_VERDICT = PROPOSED_PENDING_CORE_AUTHORITY
+```
+
+Impact:
+
+- `PROJECT/PROJECT_PROGRESS.md` — section `CAP-PRICE-RESOLUTION` mới.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — section capability-level migration
+  analysis mới, đánh dấu `PROPOSED`.
+- `docs/reviews/CAP-PRICE-RESOLUTION-CORE-GOVERNANCE-CHANGE-PROPOSAL.md` —
+  artifact mới.
+- **Không** sửa `governance/core/V4_1_POLICY_FREEZE.md`.
+- **Không** implement `TASK-105B/C/E/108B`. **Không** activate
+  `FilePriceProvider`. **Không** mutate `Tracking`.
+
+Can Revisit After:
+
+- Owner cung cấp dữ liệu còn thiếu ở `MISSING_DATA` để
+  `END_TO_END_ACCEPTANCE` chuyển `DEFINED`.
+- Một phiên có CORE-amendment authority xem xét đề xuất §16 để `ADOPTED`.
+- Owner quyết định `migration_status` cho ngân sách capability-level.

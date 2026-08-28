@@ -392,6 +392,66 @@ mặc định bằng `git merge --no-ff`, giữ nguyên ancestry. Đoạn ngay d
 trạng thái + hành động kế tiếp hiện hành; các khối S043/S042/S040/S039 phía
 sau giữ nguyên làm lịch sử.)*
 
+### Trạng thái sau H-07 RECONCILIATION (S045, 2026-08-28)
+
+```text
+TASK-105D  = IMPLEMENTED + RC-1 INTEGRATED
+             + INDEPENDENT REVIEW #2 PASS WITH HARDENING
+             + CONTROLLED INTEGRATION COMPLETE
+             H-07 = PARTIALLY RECONCILED
+                 lớp diễn giải/thẩm quyền  : RESOLVED — Owner Decision
+                     DEC-159 (Option (b)); GATE_SET_SHA256 KHÔNG đổi
+                     (0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877,
+                     tái lập TRƯỚC == SAU phiên S045)
+                 lớp validator (điều kiện #7) : VẪN OPEN — MỚI, phạm vi hẹp
+                     (validate_task_completion.py grep literal Status: PASS
+                     trong khối gate, không biết tới Gate Execution Record
+                     tách rời; sẽ FAIL nếu TASK-105D.Status=DONE được ghi
+                     trong khi 32 khối vẫn NOT_TESTED)
+             H-07 CLOSED?  KHÔNG.
+             TASK-105D = STILL_BLOCKED_BEFORE_DONE (không phải
+                 ELIGIBLE_FOR_DONE_REVIEW — điều kiện #7 chưa thoả)
+             B-01 = CLOSED (không đổi, kế thừa S043/S044)
+             32 trường Status: trong ĐỊNH NGHĨA gate vẫn NOT_TESTED — thiết
+                 kế, KHÔNG mutate — "Frozen Gate Status" (freeze-time
+                 metadata) và "Effective Completion Status" (bản ghi thực
+                 thi tách rời, 32/32 PASS) nay là hai khái niệm canonical
+                 tách biệt theo DEC-159
+             HARDENING = 14 OPEN + 1 RESOLVED_BY_INTEGRATION (H2-02)
+                 (không đổi bởi S045 — không finding nào bị sửa cơ hội)
+             budget = 2 allowed / 1 used / 1 remaining (KHÔNG ĐỔI)
+             Repair Cycle #2 = KHÔNG mở
+             frozen gate = KHÔNG SỬA; app/**, tests/**, config/** = 0 dòng
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED / NOT DONE / NOT ACTIVATED (không đổi)
+TASK-105C  = BLOCKED / NOT AUTHORIZED                                        (không đổi)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED / NOT AUTHORIZED         (không đổi)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                                           (không đổi)
+```
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S045 → …)**
+
+```text
+1. Một phiên có thẩm quyền tooling/governance-scripts, được Owner cấp phép
+   riêng, đối chiếu governance/scripts/governance/validate_task_completion.py
+   với mô hình hai lớp vừa được DEC-159 công nhận — HOẶC Owner chấp nhận
+   rằng DONE thật sự của TASK-105D sẽ cần một Completion Gate Change
+   Proposal riêng (mutate 32 trường Status:, đổi GATE_SET_SHA256) tại thời
+   điểm đó.
+2. Xem CAP-PRICE-RESOLUTION (bên dưới) cho hành động kế tiếp của Objective B.
+3. KHÔNG mở Repair Cycle #2. KHÔNG đánh dấu TASK-105D = DONE.
+4. TASK-105E vẫn NOT IMPLEMENTED / NOT AUTHORIZED; FilePriceProvider vẫn
+   KHÔNG activate; Tracking vẫn KHÔNG chạm.
+```
+
+Bằng chứng đầy đủ:
+`docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`,
+`DEC-159` trong `PROJECT/PROJECT_DECISIONS.md`.
+
+*(Cập nhật 2026-08-28, S044 — khối trạng thái controlled integration, nay là
+LỊCH SỬ: H-07 reconciliation S045 phía trên đã thay thế phần "hành động kế
+tiếp" và bổ sung disposition H-07. Verdict của S044 giữ nguyên từng chữ.)*
+
 ### Trạng thái sau CONTROLLED INTEGRATION (S044, 2026-08-28)
 
 ```text
@@ -905,6 +965,173 @@ readiness/data-contract + persistence/audit design** có authority riêng:
 cung cấp catalog/version contract, pre-cutover confirmed report registry
 contract, persistence/concurrency/migration plan, review và freeze Completion
 Gate. Không thực hiện action đó trong phiên này.
+
+## CAP-PRICE-RESOLUTION (Capability Registration — S045, 2026-08-28)
+
+Đây là **đăng ký CAPABILITY**, không phải đăng ký TASK (`CAP-*`, không dùng
+tiền tố `TASK-*`, không có Task Spec dưới `docs/tasks/`). Ghi theo `DEC-160`,
+khung Capability-First Delivery Governance (`governance/core/
+V4_1_POLICY_FREEZE.md` §16 — hiện ở dạng PROPOSED, xem
+`docs/reviews/CAP-PRICE-RESOLUTION-CORE-GOVERNANCE-CHANGE-PROPOSAL.md`).
+
+```text
+CAPABILITY ID     : CAP-PRICE-RESOLUTION
+BUSINESS PURPOSE  : từ một dòng bán hàng, xác định tất yếu định danh sản
+                     phẩm đúng và cơ sở giá mua áp dụng, để logic nghiệp vụ
+                     downstream tiêu thụ một KpiPurchasePrice đã resolve
+                     kèm đầy đủ provenance.
+MEMBER TASKS      : TASK-105B, TASK-105C, TASK-105D, TASK-105E
+OUTSIDE CAPABILITY: TASK-108B (downstream consumer, KHÔNG phải member)
+```
+
+### END_TO_END_ACCEPTANCE
+
+```text
+END_TO_END_ACCEPTANCE = PENDING_OWNER_DATA
+```
+
+Vertical acceptance slice (`Sales record → identity → price source →
+resolved purchase price → provenance`), điền bằng dữ liệu THẬT có trong
+repo, KHÔNG bịa:
+
+```text
+SALES_RECORD
+  Order         : BH62063
+  Sale date     : 2026-01-02
+  Quantity      : 1
+  Sell price    : 7.500.000 VND
+  Discount      : 0
+  Nguồn         : tests/fixtures/golden/period_2026_01.xlsx (dòng dữ liệu
+                  thật, cột VERBATIM theo tests/fixtures/golden/anonymize.py
+                  — chỉ customer/customer_code bị thay surrogate)
+
+PRODUCT
+  Raw label (chứng từ)  : "Máy giặt LG 10kg FV1410S4W1"
+  Expected canonical identity / namespace / source_product_code : CHƯA CÓ
+                  (chưa có mapping đã Owner-confirm cho raw label này)
+
+PRICE_SOURCE      : CHƯA CÓ — 100% (351/351) dòng bán hàng thật của kỳ
+                  01.2026 có purchase price = Pending
+                  (tests/fixtures/golden/expected/period_2026_01.json →
+                  pricing.price_source_distribution = {"Pending": 351}).
+                  Toàn bộ fixture TASK-105B/TASK-105C hiện có là synthetic,
+                  tự khai trong chính hai task đó
+                  (docs/tasks/TASK-105B-file-price-provider.md:242-243,
+                  docs/tasks/TASK-105C-historical-vendor-price-provider.md:467-468).
+
+EXPECTED_RESOLUTION : CHƯA CÓ (phụ thuộc PRICE_SOURCE)
+
+MANUAL_ORACLE
+  Công thức canonical (docs/tasks/TASK-108B-eligible-costs-owner-definition.md:1040,
+  xác nhận cuối cùng của Owner, không đổi sau đó trong toàn file):
+
+    EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount
+                       = (7.500.000 − KpiPurchasePrice) × 1 − 0
+                       = 7.500.000 − KpiPurchasePrice
+
+  KpiPurchasePrice : CHƯA XÁC ĐỊNH — chờ Owner.
+```
+
+```text
+MISSING_DATA:
+- Nguồn giá mua/vendor thật (Public Purchase hoặc Tracking) áp dụng cho
+  "Máy giặt LG 10kg FV1410S4W1" tại/trước 2026-01-02.
+- Định danh canonical (namespace + source_product_code) TASK-105D dự kiến
+  resolve cho raw label này.
+- Giá mua kỳ vọng (số tiền + đơn vị) cho đúng đơn BH62063.
+- Provenance chain kỳ vọng.
+
+REQUIRED_SOURCE:
+- Lịch sử giá vendor/Public Purchase thật quanh 2026-01 cho nhóm hàng máy
+  giặt LG 10kg, từ hồ sơ kế toán/mua hàng thật của Owner.
+- Xác nhận Owner cho mapping định danh canonical của raw label này.
+
+OWNER_INPUT_REQUIRED:
+- Cung cấp (hoặc chỉ ra) MỘT bản ghi giá mua thật từng có hiệu lực cho sản
+  phẩm này quanh 2026-01-02 — HOẶC xác nhận hiện KHÔNG có bản ghi thật nào
+  (khi đó KpiPurchasePrice = Pending chính là oracle kỳ vọng cho đơn này).
+- Xác nhận định danh canonical kỳ vọng cho "Máy giặt LG 10kg FV1410S4W1".
+```
+
+`END_TO_END_ACCEPTANCE` là **hạt giống nghiệp vụ** cho cơ chế Golden
+Baseline hiện có, KHÔNG phải một framework acceptance song song — khi
+authority triển khai cho phép, case này NÊN trở thành một Golden case thực
+thi được qua đúng `GOLDEN_BASELINE_STRATEGY`.
+
+### Task Registry — bằng chứng BEFORE/AFTER (S045)
+
+```text
+SET A — REGISTERED_TASK_SET (task ID có "= STATUS"/"Status:" tường minh
+trong các khối trạng thái của file này — KHÔNG phải grep tự do mọi chuỗi
+khớp pattern TASK-*, brief §B8 cấm cách đo đó):
+  TASK-101, TASK-105, TASK-105B, TASK-105C, TASK-105D, TASK-105E, TASK-106,
+  TASK-107, TASK-108A-1, TASK-108B, TASK-110, TASK-GOLDEN-BASELINE-001,
+  TASK-V4-ADOPTION
+  BEFORE = 13   AFTER = 13 (không đổi — S045 chỉ cập nhật narrative của
+  TASK-105D đã có sẵn, không thêm task ID nào)
+
+SET B — TASK_SPEC_SET (docs/tasks/*.md) BEFORE = 22   AFTER = 22 (không đổi)
+
+new_registered_task_ids                = 0
+proposals_created                      = 0
+proposal_names                         = []
+owner_assignment_required_entries_added = 0
+```
+
+Ghi chú phương pháp: một phép đo sơ bộ bằng `grep -oE "TASK-[A-Z0-9]+(-
+[A-Z0-9]+)*"` (đúng kiểu grep tự do brief §B8 cấm) từng cho BEFORE=58/
+AFTER=59 — chênh lệch là `TASK-105D-RC-1`, một **repair-cycle identifier**
+(đã tồn tại từ `S042` trong `PROJECT/REVIEW_BUDGET_LEDGER.md`), không phải
+một task ID mới. Đây chính là false positive mà §B8 cảnh báo; SET A ở trên
+dùng định nghĩa đúng (task ID có khai báo trạng thái), không phải regex tự
+do.
+
+### OWNER_ASSIGNMENT_REQUIRED
+
+Không có mục nào được ghi trong phiên này — không hạng mục công việc mới
+nào với ownership mơ hồ được phát hiện (mọi finding rà lại ở `TASK-105D` đã
+có owner tường minh theo re-trigger gốc của chúng).
+
+### Absorption
+
+```text
+absorption_items_identified = 0
+ABSORPTION_LIMIT_REACHED    = KHÔNG kích hoạt (không có gì để hấp thụ trong
+                               phiên này)
+```
+
+### Capability-Level Repair Budget (PROPOSED, CHƯA ADOPTED)
+
+Xem `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Capability-Level Repair Budget —
+CAP-PRICE-RESOLUTION" cho reconstruction đầy đủ. Tóm tắt:
+
+```text
+capability_repair_cycles_allowed (Owner PROPOSAL)  : 4
+capability_repair_cycles_used                       : 2
+                      (TASK-105B-RC-1 + TASK-105D-RC-1)
+capability_repair_cycles_remaining (nếu ADOPTED)     : 2
+migration_status                                     : PROPOSED
+```
+
+Ngân sách per-task hiện hành (`TASK-105B` 2/1/1, `TASK-105C` 2/0/2,
+`TASK-105D` 2/1/1, `TASK-105E` 2/0/2) **giữ nguyên authoritative** cho tới
+khi `migration_status = ADOPTED` bằng một Owner Decision riêng.
+
+### Capability Governance Verdict
+
+```text
+CAPABILITY_GOVERNANCE_VERDICT = PROPOSED_PENDING_CORE_AUTHORITY
+```
+
+CORE-eligible rule (capability-first sibling-proliferation control,
+absorption limit, capability repair-budget semantics) ở dạng canonical
+governance change proposal tại
+`docs/reviews/CAP-PRICE-RESOLUTION-CORE-GOVERNANCE-CHANGE-PROPOSAL.md`,
+CHƯA merge vào `governance/core/V4_1_POLICY_FREEZE.md` (0 byte thay đổi).
+
+Bằng chứng đầy đủ: `DEC-160` trong `PROJECT/PROJECT_DECISIONS.md`,
+`docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`
+phần B.
 
 ## Hai Track Song Song
 

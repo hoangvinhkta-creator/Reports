@@ -927,6 +927,48 @@ tiếp tục trong CÙNG cycle thì `head_sha` tiến lên, `base_sha` KHÔNG re
 KHÔNG mở cycle mới (`V4.1` §3). Xác định phạm vi cycle bằng
 `git diff e6252c06..1cc96a99 --name-only`.
 
+Cập nhật 2026-08-28 (`S045`, **H-07 GATE EXECUTION RECONCILIATION**):
+`repair_cycles_used` **giữ nguyên `1`**; `repair_cycles_remaining` **giữ
+nguyên `1`**. Phiên này là governance/documentation reconciliation thuần
+tuý — 0 dòng `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`. **KHÔNG** mở Repair Cycle #2.
+
+```
+h07_reconciliation:
+    - id: TASK-105D-H07-RECONCILIATION
+      session: S045 (2026-08-28)
+      authority: Owner Decision — DEC-159 (Option (b), khuyến nghị của
+                 Independent Review #2 §23)
+      gate_set_sha256_before: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      gate_set_sha256_after:  0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen_gate_definition_mutated: NO
+      interpretive_layer: RESOLVED — Gate Execution Record tách rời (bind
+                 đúng GATE_SET_SHA256, đúng CHECK-105D-01..32, PASS, đúng
+                 Evidence Level, tái lập độc lập 2 lần) được công nhận
+                 thoả REQUIRED-check-PASS của TASK_COMPLETION_GATE_STANDARD
+                 = "Effective Completion Status", tách biệt "Frozen Gate
+                 Status" (freeze-time metadata, NOT_TESTED KHÔNG ĐỔI)
+      validator_layer: OPEN — governance/scripts/governance/
+                 validate_task_completion.py yêu cầu literal Status: PASS
+                 trong từng khối REQUIRED, không có khái niệm execution
+                 record tách rời; sẽ FAIL nếu TASK-105D.Status=DONE trong
+                 khi 32 khối vẫn NOT_TESTED
+      h07_disposition: PARTIALLY RECONCILED (interpretive layer RESOLVED,
+                 validator-alignment layer OPEN — mới, phạm vi hẹp)
+      h07_closed: NO
+      task_105d_done: NO (không đổi bởi phiên này)
+      task_105d_eligibility: STILL_BLOCKED_BEFORE_DONE (điều kiện đóng #7
+                 của H-07 chưa thoả — xem session evidence)
+      repair_cycle_consumed: 0
+      repair_cycle_2_opened: NO
+      production_diff: 0 dòng
+      evidence: docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md
+                PROJECT/PROJECT_DECISIONS.md DEC-159
+```
+
+Ngân sách `TASK-105D` sau `S045`: `2 allowed / 1 used / 1 remaining`
+(**KHÔNG ĐỔI**).
+
 Failure path:
 
 ```text
@@ -1062,6 +1104,61 @@ Cập nhật 2026-08-28 (S034, `DEC-155` — readiness/data contract):
 BLOCKING, và independent review tại `61a90b4f` ghi `BLOCKING = 0`. Ready Gate
 blocker giảm từ 4 xuống 2 (Owner ratification `OR-01`/`OR-02`/`OR-03`;
 Completion Gate freeze bởi authority riêng). `status` cập nhật bên dưới.
+
+---
+
+## Capability-Level Repair Budget — CAP-PRICE-RESOLUTION (S045, PROPOSED — CHƯA ADOPTED)
+
+Tái dựng lịch sử — **không sửa** bất kỳ con số ledger per-task hiện có nào
+ở trên. Ghi theo `DEC-160` / `governance/core/V4_1_POLICY_FREEZE.md` §16
+đề xuất (`docs/reviews/CAP-PRICE-RESOLUTION-CORE-GOVERNANCE-CHANGE-PROPOSAL.md`).
+
+```
+lineage_root: CAP-PRICE-RESOLUTION
+migration_status: PROPOSED
+
+capability_repair_cycles_allowed: 4    # Owner PROPOSAL, chưa adopt
+
+consumed:
+  - task: TASK-105B
+    cycle: TASK-105B-RC-1
+    base_sha: c22cef8b47ac4cd71ef49609066a362c9e604313
+    head_sha: 7f7048d65619c2c2198c99ccbfb073d6cb97ebe2
+    ledger_evidence: "## Root Task: TASK-105B" → cycles: (trên)
+  - task: TASK-105D
+    cycle: TASK-105D-RC-1
+    base_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+    head_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
+    ledger_evidence: "## Root Task: TASK-105D" → cycles: (trên)
+  - task: TASK-105C
+    cycles_consumed: 0   # BLOCKED / NOT AUTHORIZED — chưa implementation
+  - task: TASK-105E
+    cycles_consumed: 0   # PLANNED / OUTLINE — chưa READY, chưa implementation
+
+capability_repair_cycles_used: 2
+capability_repair_cycles_remaining: 2   # CHỈ có hiệu lực NẾU migration_status = ADOPTED
+```
+
+**Ngân sách per-task hiện hành GIỮ NGUYÊN, authoritative, KHÔNG đổi bởi bảng
+trên:**
+
+```
+TASK-105B : 2 allowed / 1 used / 1 remaining   (không đổi)
+TASK-105C : 2 allowed / 0 used / 2 remaining   (không đổi, root riêng DEC-156 §4)
+TASK-105D : 2 allowed / 1 used / 1 remaining   (không đổi)
+TASK-105E : 2 allowed / 0 used / 2 remaining   (không đổi, cycles: [])
+```
+
+**Migration Transition Rule** (có hiệu lực ngay, không chờ ADOPTED): trong
+lúc `migration_status ≠ ADOPTED`, không task nào trong `CAP-PRICE-RESOLUTION`
+(kể cả `TASK-105E` khi được authorize sau này) được cấp Repair Cycle budget
+mới chỉ vì lineage nay được nhóm lại thành một capability. TASK CREATION
+APPROVAL ≠ REPAIR-BUDGET ALLOCATION APPROVAL.
+
+Bằng chứng: `DEC-160`, `PROJECT/PROJECT_PROGRESS.md` →
+`CAP-PRICE-RESOLUTION`,
+`docs/sessions/S045-task-105d-h07-reconciliation-and-capability-governance.md`
+phần B.
 
 ---
 
