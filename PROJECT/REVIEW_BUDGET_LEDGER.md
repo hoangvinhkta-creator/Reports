@@ -534,8 +534,10 @@ effective_risk: HIGH
 repair_cycles_allowed: 2
 repair_cycles_used: 0
 repair_cycles_remaining: 2
-status: PLANNED — specification complete; Ready Gate blocked; Completion Gate
-        draft/not frozen; implementation not authorized
+status: PLANNED — specification complete + data contract complete (S034/
+        DEC-155); Ready Gate blocked (2 blocker: Owner ratification
+        OR-01/OR-02/OR-03; Completion Gate freeze bởi authority riêng);
+        Completion Gate draft/not frozen; implementation not authorized
 ```
 
 Failure path:
@@ -550,12 +552,23 @@ sai namespace/identity/cutover
 Golden hiện dùng `PendingPriceProvider` và không phủ product-resolution/price
 composition path, nên không hạ Blast Radius theo V4.1 §4.1.
 
-Artifact hiện có của lineage:
+Artifact hiện có của lineage (4 — dưới ngưỡng `OWNER APPROVAL REQUIRED` của
+V4.1 §10, vốn áp cho artifact governance **thứ 5+** của một root task):
 
-- `docs/tasks/TASK-105D-product-identity-resolver.md`
+- `docs/tasks/TASK-105D-product-identity-resolver.md` (S032/`DEC-154`)
 - `DEC-154` trong `PROJECT/PROJECT_DECISIONS.md`
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034/`DEC-155`)
+- `DEC-155` trong `PROJECT/PROJECT_DECISIONS.md`
 
-Không cycle nào được mở bởi việc tạo specification. `cycles: []`.
+Không cycle nào được mở bởi việc tạo specification hay bởi phiên readiness.
+`cycles: []`.
+
+Cập nhật 2026-08-28 (S034, `DEC-155` — readiness/data contract):
+`repair_cycles_used` giữ nguyên `0`. Một phiên readiness/documentation
+**không phải** repair cycle — V4.1 §3 tính cycle theo LẦN SỬA một defect
+BLOCKING, và independent review tại `61a90b4f` ghi `BLOCKING = 0`. Ready Gate
+blocker giảm từ 4 xuống 2 (Owner ratification `OR-01`/`OR-02`/`OR-03`;
+Completion Gate freeze bởi authority riêng). `status` cập nhật bên dưới.
 
 ---
 
@@ -1039,3 +1052,31 @@ với chính default tip cũ).
   Tracking HistoricalVendorMin branch, không sửa/activate code. `TASK-105B`
   budget **không đổi** `2/1/1`; không mở RC-2. Lineage mới `TASK-105D` được
   cấp theo bảng HIGH `2/0/2`, chưa dùng cycle nào. Golden/Tracking không đổi.
+
+- 2026-08-28 — `DEC-155` **TASK-105D READINESS — DATA CONTRACT, PERSISTENCE &
+  AUDIT DESIGN** (S034). Readiness/design documentation only: tạo
+  `docs/spec/TASK-105D-DATA-CONTRACT.md`, chốt unified
+  `PublicPurchaseSourceVersion` (HB-154-02), Tracking read-only capture
+  contract, `HistoricalConfirmedRegistry` bypass rule (HB-154-03),
+  `CrossSystemProductMapping` precondition cho Public Purchase fallback
+  (HB-154-01), persistence/concurrency/idempotency/audit/migration contract,
+  và định nghĩa vận hành cho `CHECK-105D-06/13/23/24` (HB-154-05). Sửa
+  transcription `P00`/`P03`/`P11` và hai canonical documentation correction
+  (HB-154-06, HB-154-07).
+
+  ```
+  app/** tests/** config/** tools/** scripts/** governance/** : 0 file thay đổi
+  Golden        : 58 passed, 2 skipped (không đổi)
+  Full suite    : 756 passed, 11 skipped (không đổi)
+  Repair Cycle  : KHÔNG mở
+  TASK-105D budget : 2 allowed / 0 used / 2 remaining  (KHÔNG ĐỔI)
+  TASK-105B budget : 2 allowed / 1 used / 1 remaining  (KHÔNG ĐỔI)
+  TASK-110, TASK-GOLDEN-BASELINE-001, TASK-108B budget : KHÔNG ĐỔI
+  ```
+
+  `HB-105B-03/05/06/10` **không** bị trigger bởi phiên này (không dataset
+  thật nào được nạp, không code/test/tool nào được thêm); thiết kế mới định vị
+  chính xác điểm trigger là lần đầu một `PublicPurchaseSourceVersion` thật
+  được nạp qua `FilePriceProvider`. `HB-154-04` (review-budget lineage của
+  `TASK-105C`) **KHÔNG được tự sửa** — ghi `OWNER DECISION REQUIRED` kèm ba
+  phương án và khuyến nghị tại `DEC-155` §6, theo đúng V4.1 §2/§12.

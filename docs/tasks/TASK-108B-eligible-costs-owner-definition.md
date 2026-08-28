@@ -2525,6 +2525,11 @@ Q1 (NCC retired/MIN_LOAI hồi tố)   = CLOSED — không áp ngược
 Q2 (outlier threshold hồi tố)      = CLOSED — không áp ngược
 TASK-105C  SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
            IMPLEMENTATION = READY (chưa bắt đầu)
+           ^^^ SUPERSEDED BY DEC-154 (2026-08-28) — trạng thái hiện hành là
+               TASK-105C = BLOCKED / NOT AUTHORIZED; SCOPE_LOCK =
+               REOPENED_BY_DEC-154; COMPLETION_GATE = CHANGE_PROPOSAL_OPEN.
+               Dòng trên giữ nguyên làm bản ghi lịch sử của DEC-152
+               (V4.1 §10). Current state: Phần XII bên dưới.
 TASK-105B  dependency CỨNG cho TASK-105C (chưa DONE)
 Dependency riêng, chưa mở task: product identity mapping
            (product_raw ↔ <MÃ> Tracking) — cấm fuzzy matching
@@ -2581,9 +2586,10 @@ cho `KpiPurchasePrice`, chưa phải evidence PASS:
 
 | ID | REQUIRED rule | Status |
 |---|---|---|
+| P00 | `sale_date < CUTOVER_DATE` + entry `HistoricalConfirmedRegistry` CONFIRMED → `HISTORICAL_CONFIRMED_REPORT`, bypass P01–P11; không có entry → Pending. P01–P11 chỉ áp dụng cho `sale_date >= CUTOVER_DATE` | NOT_TESTED |
 | P01 | TRACKING + valid vendor candidates → HistoricalVendorMin | NOT_TESTED |
 | P02 | sentinel 0 bị loại | NOT_TESTED |
-| P03 | TRACKING + no valid vendor candidates → Public Purchase fallback | NOT_TESTED |
+| P03 | TRACKING + no valid vendor candidates **+ `CrossSystemProductMapping` CONFIRMED active** → Public Purchase fallback, tra bằng `public_purchase_code` của chính mapping đó | NOT_TESTED |
 | P04 | PUBLIC_PURCHASE identity → bypass phist | NOT_TESTED |
 | P05 | Public Purchase lookup dùng sale_date | NOT_TESTED |
 | P06 | no valid Public Purchase price → Pending | NOT_TESTED |
@@ -2591,6 +2597,12 @@ cho `KpiPurchasePrice`, chưa phải evidence PASS:
 | P08 | `PUBLIC_PURCHASE_NO_TRACKING` provenance được giữ | NOT_TESTED |
 | P09 | `PUBLIC_PURCHASE_NO_VENDOR_PRICE` provenance được giữ | NOT_TESTED |
 | P10 | identity không đổi chỉ vì price source đổi | NOT_TESTED |
+| P11 | TRACKING + no valid vendor candidates + **KHÔNG** có `CrossSystemProductMapping` → Pending; không đoán mã Public Purchase | NOT_TESTED |
+
+> **Sửa transcription 2026-08-28 (S034, `DEC-155` — HB-154-01/HB-154-03).**
+> `P00`/`P11` mới và điều kiện bổ sung của `P03` chép lại đúng `DEC-154` §2 và
+> §7 (prose), nơi bảng ban đầu chép thiếu — **không thêm ngữ nghĩa mới**. Chi
+> tiết quy phạm: `docs/spec/TASK-105D-DATA-CONTRACT.md` §8.4/§9/§16.2.
 
 Trước implementation phải mở một scope lock có authority nhận ownership của
 composition/price-resolution seam và biến P01–P10 thành executable Completion

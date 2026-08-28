@@ -145,11 +145,19 @@ TASK-105C
   không còn compose/depend cứng TASK-105B
 
 TASK-105D
-  = PLANNED / SPECIFICATION COMPLETE / READY GATE BLOCKED
+  = PLANNED / SPECIFICATION COMPLETE + DATA CONTRACT COMPLETE
+    / READY GATE BLOCKED
   canonical spec = docs/tasks/TASK-105D-product-identity-resolver.md
+  canonical data contract = docs/spec/TASK-105D-DATA-CONTRACT.md (S034/DEC-155)
   Completion Gate 32 check = DRAFT, NOT_TESTED, NOT FROZEN
   implementation = NOT STARTED / NOT AUTHORIZED
-  budget lineage mới = 2 allowed / 0 used / 2 remaining
+  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI bởi S034)
+  Ready Gate blocker còn 2 (giảm từ 4):
+    1. Owner ratification OR-01 (Public Purchase = MỘT nguồn versioned,
+       hai projection), OR-02 (ALIAS_AID_UNIQUE auto-resolve hay không),
+       OR-03 (actor Phase 1 là khai báo, KHÔNG phải đã xác thực)
+    2. Completion Gate freeze bởi một phiên Freeze Finalization có thẩm
+       quyền riêng (V4.1 §12)
 
 TASK-108B
   = BLOCKED_BY_DEPENDENCY
@@ -172,10 +180,34 @@ không tiêu budget.
 
 ### Next authorized action
 
-Một phiên **TASK-105D readiness/data-contract + persistence/audit design**
-có authority riêng: cung cấp catalog/version contract, pre-cutover confirmed
-report registry contract, persistence/concurrency/migration plan, review và
-freeze Completion Gate. Không thực hiện action đó trong phiên này.
+*(Cập nhật 2026-08-28, S034/`DEC-155`. Phiên readiness/data-contract đã
+chạy — xem `docs/spec/TASK-105D-DATA-CONTRACT.md`. Đoạn cũ ở dưới giữ lại
+làm lịch sử.)*
+
+Hai việc song song, không việc nào thuộc thẩm quyền một phiên agent:
+
+1. **Owner ratification** `OR-01`/`OR-02`/`OR-03` (`DEC-155` §4). Không có
+   ba câu trả lời này thì Ready Gate của `TASK-105D` vẫn `BLOCKED`.
+2. **Một phiên Freeze Finalization có thẩm quyền riêng** review và freeze
+   Completion Gate 32 check của `TASK-105D` (`V4.1` §12 — reviewer/readiness
+   session KHÔNG được ghi `FROZEN`).
+
+Sau đó, và chỉ sau đó: `TASK-105D` mới có thể chuyển `READY`, rồi mở một
+phiên implementation riêng.
+
+Ba quyết định Owner khác đang chờ, không chặn hai việc trên:
+- `HB-154-04` — review-budget lineage của `TASK-105C` (`DEC-155` §6), nên
+  đặt ra tại phiên refreeze Scope/Completion Gate của `TASK-105C`.
+- Cấp task ID cho lớp composition `P00–P11` (`DEC-155` §5, ID đề xuất
+  `TASK-105E`).
+- Cung cấp dữ liệu thật: bảng mapping Owner-confirmed (nếu có), báo cáo lịch
+  sử Owner-confirmed cho registry, `PublicPurchaseSourceVersion` đầu tiên.
+
+*(Đoạn cũ, SUPERSEDED — giữ nguyên văn:)* Một phiên **TASK-105D
+readiness/data-contract + persistence/audit design** có authority riêng:
+cung cấp catalog/version contract, pre-cutover confirmed report registry
+contract, persistence/concurrency/migration plan, review và freeze Completion
+Gate. Không thực hiện action đó trong phiên này.
 
 ## Hai Track Song Song
 
@@ -215,8 +247,10 @@ Profile:
 PRODUCT
 
 Last Updated:
-2026-08-28 (`DEC-154`, S032 — Product Identity & Purchase Price Resolution
-governance/spec reconciliation; production code không đổi).
+2026-08-28 (`DEC-155`, S034 — TASK-105D readiness: data contract,
+persistence & audit design; production code không đổi. Trước đó cùng ngày:
+`DEC-154`, S032 — Product Identity & Purchase Price Resolution
+governance/spec reconciliation).
 
 Historical prior update:
 2026-08-23 (S021 — **Independent Review #5 FAIL, 4 finding, đã sửa toàn bộ
@@ -367,6 +401,13 @@ DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149,
                             S027/DEC-150, S028/DEC-151, S029/DEC-152)
 SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
 IMPLEMENTATION = READY  →  xem "Cập nhật sau DEC-152" ngay dưới
+
+^^^ SUPERSEDED BY DEC-154 (2026-08-28) — KHÔNG còn đúng.
+    Trạng thái hiện hành: TASK-105C = BLOCKED / NOT AUTHORIZED;
+    SCOPE_LOCK = REOPENED_BY_DEC-154;
+    COMPLETION_GATE = CHANGE_PROPOSAL_OPEN, NOT FROZEN.
+    Khối trên giữ nguyên làm bản ghi lịch sử (V4.1 §10).
+    Current state: "Current Price Architecture — DEC-154" ở đầu file.
 ```
 
 *(Khối `CONFLICT DETECTED`/`RTDBPriceProvider readiness` ở trên — SUPERSEDED

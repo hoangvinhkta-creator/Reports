@@ -5779,9 +5779,10 @@ integration contract; implementation owner chưa được tự mở trong phiên
 
 | ID | Rule |
 |---|---|
+| P00 | `sale_date < CUTOVER_DATE` + entry `HistoricalConfirmedRegistry` CONFIRMED → `HISTORICAL_CONFIRMED_REPORT`, bypass toàn bộ P01–P11; không có entry → Pending. P01–P11 CHỈ áp dụng cho `sale_date >= CUTOVER_DATE` |
 | P01 | TRACKING + valid vendor candidates → `HistoricalVendorMin` |
 | P02 | sentinel `0` bị loại |
-| P03 | TRACKING + no valid vendor candidates → Public Purchase fallback |
+| P03 | TRACKING + no valid vendor candidates **+ `CrossSystemProductMapping` CONFIRMED active** → Public Purchase fallback, tra bằng `public_purchase_code` **của chính mapping đó** |
 | P04 | PUBLIC_PURCHASE identity → bypass `phist` |
 | P05 | Public Purchase lookup dùng `sale_date` |
 | P06 | no valid Public Purchase price → Pending |
@@ -5789,6 +5790,19 @@ integration contract; implementation owner chưa được tự mở trong phiên
 | P08 | provenance `PUBLIC_PURCHASE_NO_TRACKING` được giữ |
 | P09 | provenance `PUBLIC_PURCHASE_NO_VENDOR_PRICE` được giữ |
 | P10 | identity không đổi chỉ vì price source đổi |
+| P11 | TRACKING + no valid vendor candidates + **KHÔNG** có `CrossSystemProductMapping` → Pending; tuyệt đối không đoán mã Public Purchase |
+
+> **Sửa transcription 2026-08-28 (S034, `DEC-155` — HB-154-01/HB-154-03).**
+> `P00`, `P11` là dòng MỚI và `P03` được bổ sung điều kiện, **không thêm ngữ
+> nghĩa mới**: cả ba chép lại đúng những gì §2 và §7 của chính quyết định này
+> đã quy định trong prose (§7: "TRACKING identity chỉ fallback sang Public
+> Purchase khi không có valid vendor candidate tại `sale_date` **và có
+> cross-system mapping hợp lệ**"; §7 danh sách precedence: "3. Pending"; §2:
+> pre-cutover confirmed report bypass). Bảng ban đầu chép thiếu. Đây là
+> "divergence phải được báo cáo và sửa bằng authority hợp lệ" theo
+> `governance/core/V4_1_POLICY_FREEZE.md` §11 (ARTIFACT INTERNAL PRECEDENCE),
+> không phải một quyết định nghiệp vụ mới. Bảng vẫn CHƯA là executable gate —
+> việc đó thuộc chủ sở hữu composition (`DEC-155` §5).
 
 Các rule này thuộc integration boundary giữa `TASK-105D`, `TASK-105C`,
 `TASK-105B` và downstream `TASK-108B`; chúng không mở scope price calculation
@@ -5905,6 +5919,12 @@ price path nên không hạ blast radius.
 Impact:
 
 - Tạo `docs/tasks/TASK-105D-product-identity-resolver.md`.
+- `CLAUDE.md` — đồng bộ trạng thái `V4.1 = FULLY_ENFORCED` (bổ sung
+  2026-08-28, S034/`DEC-155`, HB-154-06: thay đổi này ĐÃ có trong diff của
+  phiên `DEC-154` và đã được công bố ở "Files Changed" của `S032`; đây là
+  hoàn thiện bản ghi Impact cho khớp diff, không phải sửa lịch sử. Nội dung
+  thay đổi đúng sự thật — `PROJECT/PROJECT_PROGRESS.md` đã ghi
+  `V4.1 = FULLY_ENFORCED` từ 2026-08-27, `CLAUDE.md` chỉ đang lỗi thời).
 - Reconcile current-role/status pointers trong `TASK-105B`, `TASK-105C`,
   `TASK-108B`, progress, roadmap, review ledger và session handoff.
 - Không sửa `app/**`, `tests/**`, `config/**`, Golden hay Tracking.
@@ -5919,3 +5939,309 @@ Can Revisit After:
   Purchase dataset/activation hoặc `TASK-105C` tools/tests.
 - Price-resolution implementation ownership được mở bằng task/scope lock
   riêng, rồi P01–P10 trở thành executable gate.
+
+## DEC-155
+
+Title:
+TASK-105D READINESS — DATA CONTRACT, PERSISTENCE & AUDIT DESIGN
+
+Date:
+2026-08-28
+
+Task:
+`TASK-105D` — Readiness / Data Contract / Persistence & Audit Design. Ghi
+trong phiên `docs/sessions/S034-task-105d-readiness-data-contract.md`.
+Reports SHA bắt đầu phiên: `442404d1fdb24a134625f53c7ede5f3377416177`.
+
+Loại thẩm quyền — phân biệt tường minh, không gộp:
+
+```text
+READINESS DESIGN AUTHORITY (phiên này có)
+    D-01 … D-14  : quyết định thiết kế data contract/persistence/audit
+    INV-01 … INV-87 : invariant quy phạm của các entity thuộc TASK-105D
+    định nghĩa vận hành cho Completion Gate DRAFT (chưa freeze)
+    sửa transcription bảng P (chép lại prose đã có, không thêm ngữ nghĩa)
+    canonical documentation correction (HB-154-06, HB-154-07)
+
+OWNER AUTHORITY (phiên này KHÔNG có — chỉ ghi yêu cầu)
+    OR-01, OR-02, OR-03  (§4 dưới đây)
+    HB-154-04 review-budget lineage của TASK-105C  (§6)
+    cấp task ID cho lớp composition P00–P11        (§5)
+    chuyển TASK-105D sang READY; freeze Completion Gate
+```
+
+Bằng chứng đầu vào (independent review E2 đã tiêu thụ, không merge):
+nhánh `review/product-identity-price-resolution-reconciliation`, commit
+`61a90b4fc1d8fc281927536f4e0c32ba6ef703dd`, artifact
+docs/reviews/DEC-154-PRODUCT-IDENTITY-PRICE-RESOLUTION-INDEPENDENT-REVIEW.md
+(viết không backtick — file KHÔNG nằm trên nhánh này, đây là tham chiếu
+liên-nhánh, không phải một đường dẫn phân giải được trong cây hiện tại),
+verdict `PASS WITH HARDENING — ELIGIBLE_FOR_NEXT_READINESS`, reviewed target
+`442404d1` (= HEAD phiên này), BLOCKING 0, HARDENING 7, OUT_OF_SCOPE 1.
+
+Decision:
+
+**1. Canonical data contract artifact.**
+`docs/spec/TASK-105D-DATA-CONTRACT.md` là hợp đồng dữ liệu canonical của
+`TASK-105D`: mười hai entity (`PublicPurchaseSourceVersion`, identity
+projection, price projection, `TrackingCatalogSnapshot`,
+`CanonicalProductIdentity`, `ProductIdentityMapping`, `AliasMemory`,
+`RejectedCandidate`, `CrossSystemProductMapping`,
+`HistoricalConfirmedRegistry`, `MappingAuditEvent`, `ResolutionBinding`), mỗi
+entity có purpose, fields, key, invariant, lifecycle, mutation authority và
+replay semantics. Các khối `text` mô tả schema là quy phạm; prose phục vụ
+việc đọc. Trong nội bộ artifact đó, quy phạm thắng prose
+(`governance/core/V4_1_POLICY_FREEZE.md` §11).
+
+**2. Unified Public Purchase Source — giải HB-154-02.**
+
+```text
+MỘT PublicPurchaseSourceVersion  →  HAI projection publish cùng lúc
+    identity projection : product_code, product_name, aliases, active_from/to
+    price projection    : product_code, effective_from, effective_to,
+                          purchase_price, source
+Ràng buộc chéo bắt buộc (INV-06): mọi product_key phía giá phải tồn tại
+trong identity projection CỦA CÙNG VERSION.
+```
+
+`source_id = PUBLIC_PURCHASE`; `version_id = PP-<YYYYMMDD>-<NN>`; version
+`PUBLISHED` là **IMMUTABLE**; rollback = publish version mới mang
+`rollback_of`, không sửa/xoá version cũ. Report ghim `ResolutionBinding` =
+`(pp_version_id, tracking_capture_id, mapping_store_revision,
+registry_revision)` — ghim cả bốn, không ghim từng phần; thiếu bất kỳ thành
+phần nào là **lỗi cứng**, không phải Pending và không fallback sang "mới
+nhất". `TASK-105D` tiêu thụ identity projection, `TASK-105B` tiêu thụ price
+projection, cùng một lineage version.
+
+Khối `prices` giữ nguyên schema 4 cột `DEC-145` §4 để `FilePriceProvider`
+(FROZEN theo `DEC-153`) đọc được **mà không sửa module đó**. Vì
+`from_yaml()` bỏ qua mọi khoá top-level lạ, projection identity **phải** do
+một loader strict riêng đọc (`INV-02`/`INV-03`) — nếu không, một lỗi chính
+tả `products:` sẽ nạp danh mục rỗng trong im lặng.
+
+**3. Các quyết định thiết kế còn lại (tóm tắt; nguyên văn ở artifact).**
+
+```text
+D-03/D-04  canonical Tracking code = khoá node board/<MÃ> sau aliasOf();
+           cấm tái phát minh extractCode() (tiền lệ production, DEC-147 §4)
+D-05       khớp qua inv.map/alias.map của Tracking = candidate #1, KHÔNG
+           auto-resolve (phê duyệt của Tracking ≠ phê duyệt của Reports)
+D-06       AliasMemory là INDEX trên ProductIdentityMapping đang ACTIVE,
+           không phải store thứ hai (tránh lặp lỗi hai-nguồn-sự-thật của S021)
+D-07       hai khoá tách biệt: raw_identity_key (NFC+whitespace, GIỮ hoa
+           thường/dấu — khoá định danh) và normalized_matching_aid (fold —
+           chỉ để tìm candidate)
+D-09       reason của RejectedCandidate là OPTIONAL; actor/timestamp REQUIRED
+D-10/D-11  interface ProductIdentityStore trước; Phase 1 = append-only JSONL
+           event log + index dẫn xuất (rationale + bảng so sánh ở §11.1;
+           hạn chế single-host được ghi rõ, không giấu)
+D-12       actor Phase 1 = KHAI BÁO của người vận hành, REQUIRED, không có
+           mặc định, và cấm gọi là "authenticated"
+D-13       reason REQUIRED cho mọi CORRECT_* và REPIN_REPORT; OPTIONAL cho
+           confirm/reject lần đầu
+D-14       confirmation_action đếm ở tầng domain command, không đếm phím/click
+```
+
+Idempotency hai lớp: `client_request_id` (chống retry → `ALREADY_APPLIED`) và
+so sánh state (chống import trùng → `NO_CHANGE`, không ghi event, không tăng
+revision). Concurrency: optimistic `expected_version`; lệch → `CONFLICT` kèm
+state hiện tại, **cấm silent last-write-wins**. Correction: supersede, không
+DELETE, không UPDATE tại chỗ; correction tác động resolution tương lai và
+**không** tự viết lại report đã ghim binding — muốn vậy phải có
+`REPIN_REPORT` tường minh, có quyền, có reason, được audit (`DEC-121`).
+
+**4. `OWNER_RATIFICATION_REQUIRED` — ba mục, phiên này KHÔNG tự chốt.**
+
+```text
+OR-01  Public Purchase được vận hành như MỘT nguồn xuất bản theo version
+       (một lần publish ra cả tên hàng lẫn giá) thay vì hai bảng nhập tay
+       rời. Đây là quyết định quy trình của người dùng thật.
+OR-02  ALIAS_AID_UNIQUE (khớp exact sau fold, duy nhất, cùng một canonical
+       target) được auto-resolve — đây là chỗ DUY NHẤT hệ thống tạo một
+       mapping CONFIRMED không có thao tác người cho chính identity đó.
+       Nếu Owner không chấp thuận: hạ xuống "candidate #1, cần 1
+       confirmation". Thiết kế đặt nó ở chỗ rẻ để đảo — một cờ cấu hình,
+       không đổi schema, không đổi invariant nào khác.
+OR-03  Chấp nhận rằng confirmation ở Phase 1 là KHAI BÁO của người vận hành,
+       không phải danh tính đã xác thực (ADR-101 chưa có auth ở Phase 1) —
+       hoặc yêu cầu chờ auth Phase 2 trước khi mở implementation.
+```
+
+**5. Ownership của lớp composition P00–P11 — `ROADMAP CHANGE PROPOSAL`.**
+Lớp composition không có task ID, scope lock, Completion Gate hay review
+budget lineage. `DEC-154` §11 công bố khoảng trống này và cấm phiên
+reconciliation tự lấp. Đề xuất cấp một task mới nhận ownership (ID đề xuất
+`TASK-105E — Price Resolution Composition`; đã kiểm tra `TASK-105E` chưa bị
+chiếm ở bất kỳ đâu trong repo). Phiên này **KHÔNG** tự cấp task ID.
+
+**6. HB-154-04 — `OWNER DECISION REQUIRED`, phiên này KHÔNG tự sửa.**
+`TASK-105C` vẫn dùng chung review-budget lineage `TASK-105B` (`2 allowed /
+1 used / 1 remaining`) dù `DEC-154` §13 đã supersede chính composition biện
+minh cho việc dùng chung. `governance/core/V4_1_POLICY_FREEZE.md` §2 cấm tạo lineage mới **để
+reset ngân sách**, và §12 đặt `SUPERSEDED` dưới thẩm quyền Owner/authorized
+governance action — nên việc đổi lineage nằm ngoài thẩm quyền phiên readiness.
+Đã kiểm tra: không có điều khoản nào trong V4.1 cho phép reconciliation tự
+đổi lineage. Ba phương án:
+
+```text
+(A) GIỮ NGUYÊN lineage TASK-105B.
+    TASK-105C vào implementation với 1 cycle còn lại, đã bị tiêu một phần bởi
+    TASK-105B-RC-1 — một repair về NaN/vô cực trong FilePriceProvider, nay là
+    code thuộc NHÁNH KHÁC. Rủi ro OWNER_EXTENSION sớm vì lý do không liên quan.
+(B) CẤP lineage root riêng cho TASK-105C, HIGH → 2/0/2.  [KHUYẾN NGHỊ]
+    Căn cứ: lineage dùng chung được biện minh DUY NHẤT bởi composition
+    "HistoricalVendorPriceProvider compose FilePriceProvider" (DEC-152 §11);
+    DEC-154 §13 đã gỡ composition đó. Đây là hai root task thật sự khác nhau
+    sau DEC-154, không phải một lineage bị tách ra để reset ngân sách. Owner
+    phải ghi rõ điều đó khi cấp, để §2 không bị đọc thành đã bị vi phạm.
+(C) GIỮ lineage chung + Owner Extension +1 cycle riêng cho TASK-105C.
+    Ít thay đổi cấu trúc nhất, nhưng ghi nhận ngân sách kém minh bạch hơn.
+```
+
+Quyết định thuộc Owner, và theo independent review nên được đặt ra tại **phiên
+refreeze Scope/Completion Gate của `TASK-105C`**, trước khi cấp `READY`.
+
+**7. HB-154-05 — định nghĩa vận hành cho Completion Gate.** `confirmation_action`,
+`AMBIGUOUS` và `normal action` được định nghĩa quy phạm (artifact §17, chép
+vào `docs/tasks/TASK-105D-product-identity-resolver.md`).
+`CHECK-105D-06/13/23/24` được viết lại thành assertion. Gate vẫn `DRAFT` —
+phiên này **KHÔNG** freeze (`governance/core/V4_1_POLICY_FREEZE.md` §12).
+
+**8. HB-154-01 / HB-154-03 — giải ở hai tầng.**
+Tầng entity (thuộc scope `TASK-105D`, hiệu lực ngay): `INV-43`/`INV-44`/
+`INV-45` — fallback Public Purchase cho identity TRACKING đòi một
+`CrossSystemProductMapping` CONFIRMED active, và mã tra là
+`public_purchase_code` của chính mapping đó; thiếu mapping → Pending, cấm
+đoán mã. `INV-46`/`INV-47` — `sale_date < CUTOVER_DATE` không bao giờ gọi
+resolver/catalog/provider; chỉ hai kết cục `HISTORICAL_CONFIRMED` hoặc
+`PENDING_HISTORICAL_CONFIRMATION`. Tầng bảng P (transcription): `P00`, `P03`,
+`P11` — xem `DEC-154` §11 và `TASK-108B` §99, có ghi chú nguồn transcription
+tại chỗ.
+
+**9. HB-154-06 / HB-154-07 — canonical documentation correction.**
+`CLAUDE.md` được bổ sung vào Impact của `DEC-154`. Hai con trỏ current-state
+lỗi thời (`PROJECT/PROJECT_PROGRESS.md`, `docs/tasks/TASK-108B-*.md` Phần XI)
+được đánh dấu inline `SUPERSEDED BY DEC-154` — **giữ nguyên văn lịch sử**,
+không xoá, đúng `governance/core/V4_1_POLICY_FREEZE.md` §10.
+
+**10. `OS-154-01` — không xử lý.** Ba reference `TASK-REM-T06` hỏng là nợ
+tiền tồn, đã xác minh vẫn giống hệt base. Ngoài contract của phiên này.
+
+**11. Trạng thái `TASK-105D` sau phiên.**
+
+```text
+TASK-105D = PLANNED / SPEC COMPLETE + DATA CONTRACT COMPLETE
+          / READY GATE BLOCKED
+Blocker giảm từ 4 xuống 2:
+  1. Owner ratification OR-01/OR-02/OR-03
+  2. Completion Gate freeze bởi authority riêng
+Implementation = NOT STARTED / NOT AUTHORIZED
+Review budget lineage TASK-105D = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI)
+```
+
+Không tự chuyển sang `READY`. Không freeze. Không mở Repair Cycle. Không tiêu
+budget — phiên readiness/documentation không phải repair (`governance/core/V4_1_POLICY_FREEZE.md`
+§3: cycle tính theo LẦN SỬA một defect BLOCKING, không theo phiên).
+
+Reason:
+
+**1. Vì sao một nguồn chứ không hai.** Ba lý do độc lập, mỗi lý do đủ để loại
+phương án hai nguồn: (a) hai file nhập tay độc lập tạo ra đúng loại quy trình
+thủ công thừa mà `TASK-105D` tồn tại để loại bỏ; (b) replay cần một mốc
+version duy nhất, hai version độc lập không có luật nào ràng buộc chúng khớp
+nhau — đúng lỗ hổng HB-154-02 nêu; (c) một mã có giá nhưng vắng trong catalog
+là identity không tra tới được, hành vi chưa định nghĩa — ràng buộc chéo biến
+nó thành lỗi lúc publish thay vì một con số sai lúc tính lương.
+
+**2. Vì sao append-only JSONL ở Phase 1 chứ không SQLite.** `ADR-101` cố ý
+giữ Phase 1 là thư viện Python thuần, kiểm chứng bằng test tĩnh cấm import
+web/DB trong `app/modules/`. `ADR-102` yêu cầu audit chỉ-append như một tính
+chất, không phải một quy ước phải tự giữ. JSONL cho append-only và
+point-in-time read (`mapping_store_revision`) miễn phí, không thêm dependency,
+export/backup bằng công cụ text thường. SQLite đúng cho Phase 2 và `ADR-101`
+đã nêu tên nó — việc tách `ProductIdentityStore` thành Protocol chính là để
+đổi sang nó mà không đụng domain, và để **cùng một bộ test concurrency** chạy
+đúng trên cả hai.
+
+**3. Vì sao hai khoá chuẩn hoá chứ không một.** Chuẩn hoá càng mạnh càng dễ
+gộp nhầm hai model khác nhau; chuẩn hoá càng yếu càng bỏ lỡ biến thể hoa
+thường. Với một khoá duy nhất phải chọn một trong hai thiệt hại. Tách làm hai
+thì khoá định danh chỉ mất thông tin ở mức dạng Unicode/khoảng trắng — không
+thể gộp hai model — trong khi vẫn có aid mạnh hơn để tìm candidate. Đây là
+cách đạt mục tiêu tự động hoá mà không nới lỏng `INV-01`.
+
+**4. Vì sao đếm domain command chứ không đếm thao tác UI.** Đếm keystroke/
+click biến một gate nghiệp vụ thành gate của framework UI: cùng một hành động
+nghiệp vụ sẽ đạt hay trượt tuỳ bàn phím hay chuột, tuỳ thư viện. Đếm command
+đo đúng thứ nghiệp vụ quan tâm — **số lần con người phải quyết định** — và
+test được mà không cần dựng UI. Yêu cầu keyboard-first không mất đi; nó là
+`CHECK-105D-22`, một gate riêng.
+
+**5. Vì sao HB-154-04 không được tự sửa dù khuyến nghị đã rõ.** Ngân sách
+review là cơ chế kiểm soát chính chủ dự án đặt ra để giới hạn việc vá đi vá
+lại. Một agent tự cấp thêm ngân sách cho chính công việc của mình — kể cả với
+lý do đúng — là đúng thứ `governance/core/V4_1_POLICY_FREEZE.md` §2 tồn tại để chặn. Ghi rõ
+phương án và khuyến nghị, rồi dừng, là hành vi đúng.
+
+Risk:
+
+`Effective Risk = HIGH` — không đổi, chấm theo failure path (`governance/core/V4_1_POLICY_FREEZE.md`
+§4): `sai identity → sai nguồn giá → sai KpiPurchasePrice → sai KPI/lương`.
+Golden hiện chỉ phủ `PendingPriceProvider` nên không hạ bậc (§4.1).
+
+Rủi ro của chính bản ghi này:
+
+- **Đọc "data contract complete" thành "READY".** Không phải. Hai blocker còn
+  lại (§11) đều nằm ngoài thẩm quyền phiên readiness. `TASK-105D` vẫn
+  `BLOCKED`.
+- **`OR-02` bị bỏ qua khi implement.** Nếu implementation bật
+  `ALIAS_AID_UNIQUE` auto-resolve mà chưa có ratification của Owner, hệ thống
+  sẽ tạo mapping CONFIRMED không có thao tác người. Giảm nhẹ: nó là một cờ
+  cấu hình đơn lẻ, và `INV-28` đặt tập auto-resolve thành **tập đóng** —
+  thêm phương thức là quyết định Owner, không phải quyết định implementation.
+- **`INV-02` bị bỏ sót khi implement.** `FilePriceProvider.from_yaml()` bỏ
+  qua khoá top-level lạ, nên một lỗi chính tả `products:` nạp danh mục rỗng
+  **trong im lặng**. Đây là rủi ro thật của chính lựa chọn "một file, hai
+  khối". Giảm nhẹ: `INV-02`/`INV-03` bắt loader identity phải strict và cấm
+  sửa `FilePriceProvider` (FROZEN) để đọc `products`.
+- **Cơ chế JSONL bị đọc thành đủ cho nhiều người dùng.** Không đủ. Concurrency
+  một máy. Nhiều người dùng đồng thời là bài toán Phase 2 + DB. Đã ghi rõ ở
+  §11.1 của artifact, không giấu trong prose.
+
+Hardening trigger audit (`HB-105B-03/05/06/10`): **KHÔNG finding nào được
+trigger bởi phiên này** — không dataset thật nào được nạp, không code nào đổi,
+không test/tool nào được thêm. Thiết kế này **định vị chính xác** thời điểm
+trigger: lần đầu một `PublicPurchaseSourceVersion` thật được nạp qua
+`FilePriceProvider`. `HB-105B-07/08` vẫn RESOLVED; `09/11` vẫn SUPERSEDED;
+`04` vẫn OUT_OF_SCOPE; `01/02` vẫn thuộc `TASK-108B`. Không mở Repair Cycle;
+budget `TASK-105B` giữ `2/1/1`.
+
+Impact:
+
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` — file MỚI, canonical data contract.
+- `PROJECT/PROJECT_DECISIONS.md` — `DEC-155` (ID đã quét toàn repo, `DEC-155`
+  trống trước khi cấp); `DEC-154` §11 bảng P (`P00`/`P03`/`P11` transcription)
+  và `DEC-154` Impact (`CLAUDE.md`, HB-154-06).
+- `docs/tasks/TASK-105D-product-identity-resolver.md` — Ready Gate, định nghĩa
+  vận hành, `CHECK-105D-06/13/23/24`, cross-system precondition, dependencies,
+  metric rename, Exit Criteria.
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — §99 bảng P;
+  marker `SUPERSEDED BY DEC-154` ở Phần XI (HB-154-07).
+- `PROJECT/PROJECT_PROGRESS.md` — current-state, next authorized action,
+  marker `SUPERSEDED BY DEC-154` (HB-154-07).
+- `PROJECT/LO_TRINH_DE_HIEU.md` — bước 11a bằng ngôn ngữ phổ thông.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — lineage `TASK-105D` (budget KHÔNG đổi).
+- `docs/sessions/S034-task-105d-readiness-data-contract.md` — bàn giao.
+- **Không** sửa `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+  Golden fixture/expected, `governance/**`, `TASK-110`, `CHECK-110-16`.
+- **Không** sửa repo `Tracking` — 0 file.
+- **Không** activate provider, không implement, không freeze, không merge.
+
+Can Revisit After:
+
+- Owner trả lời `OR-01`/`OR-02`/`OR-03` ⇒ gỡ blocker 1 của Ready Gate.
+- Một phiên Freeze Finalization có thẩm quyền review + freeze Completion Gate
+  32 check ⇒ gỡ blocker 2. `TASK-105D` khi đó mới có thể `READY`.
+- Owner quyết HB-154-04 tại phiên refreeze `TASK-105C`.
+- Owner cấp task ID cho lớp composition P00–P11 ⇒ `P00`–`P11` trở thành
+  executable gate.

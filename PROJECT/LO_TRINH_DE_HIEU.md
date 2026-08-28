@@ -10,11 +10,55 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-28 — **bước 11a: bản vá "NaN"/"vô cực" đã qua
-> soát xét độc lập và được nhập vào bản chính. Bước 11b vẫn CHƯA được bắt đầu
-> viết code**: còn thiếu bảng giá nhập thật và bảng dịch tên hàng ↔ mã sản phẩm.
+> Cập nhật lần cuối: 2026-08-28 — **bước 11a (nhận đúng sản phẩm): đã thiết
+> kế xong cách lưu và cách ghi lại lịch sử sửa; vẫn CHƯA được phép viết code**.
+> Còn chờ 3 câu trả lời của chủ dự án và một lượt "niêm phong" danh sách
+> nghiệm thu. Chi tiết ở mục ngay dưới đây.
 
-## Có gì mới — bước 11a: bản vá "NaN"/"vô cực" đã được duyệt và nhập bản chính (2026-08-28)
+## Có gì mới — bước 11a: đã chốt xong "hồ sơ dữ liệu" (2026-08-28)
+
+**Việc vừa xảy ra.** Trước khi viết code cho bước "nhận đúng sản phẩm", cần
+biết chắc: dữ liệu sẽ được lưu ở đâu, ai được sửa, sửa rồi có xoá mất dấu vết
+không, và nếu in lại một báo cáo cũ thì có ra đúng con số cũ không. Phiên này
+trả lời hết những câu đó bằng một hồ sơ thiết kế. **Không một dòng code nào
+được viết.**
+
+**Điều quan trọng nhất đã chốt.** Bảng "Mua công khai" từ nay là **MỘT bảng
+duy nhất, xuất bản theo phiên bản**, mỗi lần xuất bản ra cùng lúc cả *tên
+hàng* lẫn *giá*. Trước đó có nguy cơ nhân viên phải nhập tay hai bảng riêng —
+một bảng tên hàng, một bảng giá — rồi hai bảng lệch nhau lúc nào không ai
+biết. Nay một bản đã xuất bản là **không sửa được**; muốn sửa thì xuất bản
+bản mới. Mỗi báo cáo ghi nhớ đúng phiên bản nó đã dùng, nên in lại sau một
+năm vẫn ra đúng con số cũ.
+
+**Những điều đã chốt thêm.**
+- Tên hàng đã xác nhận một lần thì **không bao giờ hỏi lại**.
+- Đã bấm "không phải cái này" thì hệ thống **không gợi ý lại** cái đó, trừ khi
+  dữ liệu nguồn đã đổi — lúc đó nó được đề xuất lại kèm ghi chú.
+- Sửa một xác nhận sai **không xoá dấu vết cũ**: bản cũ được giữ lại, ghi rõ
+  ai sửa, lúc nào, từ gì sang gì, vì sao.
+- Hai người cùng lúc xác nhận khác nhau cho cùng một mặt hàng: hệ thống
+  **báo xung đột và bắt xem lại**, không âm thầm lấy người bấm sau.
+- Nhập lại đúng một file cũ: **không sinh thêm bản ghi nào**.
+- Hàng của hệ Theo dõi mà muốn lấy giá từ bảng Mua công khai thì **bắt buộc
+  phải có một dòng ghép mã đã được người xác nhận**. Không có thì để **Chờ** —
+  tuyệt đối không đoán mã.
+
+**Còn vướng gì.** Ba câu hỏi cần chủ dự án trả lời:
+1. Đồng ý vận hành bảng Mua công khai như **một bảng xuất bản theo phiên bản**
+   (một lần xuất ra cả tên hàng lẫn giá) chứ không phải hai bảng rời?
+2. Khi một tên hàng chỉ khác tên đã xác nhận ở **chữ hoa/chữ thường hoặc
+   khoảng trắng**, hệ thống có được **tự nhận** luôn không, hay vẫn hỏi một
+   lần cho chắc?
+3. Ở giai đoạn này công cụ **chưa có đăng nhập**. Người xác nhận sẽ được ghi
+   theo **tên tự khai**, không phải danh tính đã được hệ thống xác thực. Chấp
+   nhận như vậy, hay chờ có đăng nhập rồi mới làm?
+
+Sau ba câu trả lời đó, còn một bước nữa: **niêm phong danh sách 32 điều kiện
+nghiệm thu** của bước 11a bởi một lượt duyệt riêng. Xong hai việc này thì mới
+được phép viết code.
+
+## Có gì mới trước đó — bước 11a: bản vá "NaN"/"vô cực" đã được duyệt và nhập bản chính (2026-08-28)
 
 **Việc vừa xảy ra.** Khi soát xét độc lập bước 11a (đọc bảng giá) hồi
 2026-08-28, cả hai phiên soát xét cùng phát hiện một lỗ hổng nhỏ: nếu ô
@@ -762,7 +806,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11a. TASK-105D — Nhớ và xác nhận đúng sản phẩm | Một tên hàng kế toán có thể là hàng trong hệ thống Theo dõi hoặc chỉ có trong bảng Mua công khai; phải biết đúng loại trước khi tìm giá | C | **Đã viết xong đặc tả, chưa được phép viết code.** Từ 01/09/2026 dùng hai loại mã `TRACKING`/`PUBLIC_PURCHASE`; tên đã xác nhận được nhớ để không hỏi lại, tên chưa chắc chắn được để Chờ. Còn phải chốt cách lưu bền vững, lịch sử sửa, xử lý hai người xác nhận cùng lúc và hợp đồng dữ liệu của hai danh mục. |
+| ⬜ | 11a. TASK-105D — Nhớ và xác nhận đúng sản phẩm | Một tên hàng kế toán có thể là hàng trong hệ thống Theo dõi hoặc chỉ có trong bảng Mua công khai; phải biết đúng loại trước khi tìm giá | C | **Đã viết xong đặc tả VÀ hồ sơ dữ liệu, vẫn chưa được phép viết code.** Từ 01/09/2026 dùng hai loại mã `TRACKING`/`PUBLIC_PURCHASE`; tên đã xác nhận được nhớ để không hỏi lại, tên chưa chắc chắn được để Chờ. **Đã chốt (2026-08-28):** bảng Mua công khai là một bảng xuất bản theo phiên bản (tên hàng + giá cùng lúc, bản đã xuất không sửa được); cách lưu bền vững; sửa không xoá dấu vết; xử lý hai người xác nhận cùng lúc; nhập lại file cũ không sinh bản ghi thừa; muốn lấy giá công khai cho hàng Theo dõi thì bắt buộc có dòng ghép mã đã xác nhận. **Còn chờ:** 3 câu trả lời của chủ dự án + niêm phong danh sách 32 điều kiện nghiệm thu. |
 | 🟡 | 11b. TASK-105B — Đọc giá Mua công khai theo ngày | Là nguồn giá trực tiếp cho hàng chỉ có ở Mua công khai, và là nguồn dự phòng khi hàng Tracking không có giá NCC hợp lệ | C | **Code đọc file đã Freeze, vá "NaN"/"vô cực", qua soát xét độc lập PASS và đã sáp nhập. CHƯA XONG, CHƯA BẬT** — còn cần bộ giá Mua công khai THẬT có ngày hiệu lực/nguồn gốc và xử lý các cảnh báo schema còn lại trước khi dùng thật. |
 | ⬜ | 11c. TASK-105C — Đọc giá thấp nhất từ lịch sử giá NCC | Với hàng Tracking, lấy giá NCC gần nhất không muộn hơn ngày bán, bỏ số 0 “hết hàng”, rồi chọn thấp nhất | C | **Chưa được phép viết code.** Quy tắc cũ về lịch sử giá vẫn giữ, nhưng thiết kế phải khóa lại theo kiến trúc mới: đầu vào là mã Tracking đã giải quyết; nếu không có giá NCC thì chuyển sang thử giá Mua công khai, không tự coi là giá 0. Không còn phụ thuộc phần đọc file của 11b. |
 | ⬜ | 11d. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — độc lập với hai nguồn giá ở trên. |

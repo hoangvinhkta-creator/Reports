@@ -6,8 +6,16 @@ Status:
 PLANNED
 
 Specification State:
-COMPLETE — semantics Owner đã chốt tại `DEC-154`; Completion Gate chưa
-freeze và implementation chưa được cấp phép.
+COMPLETE — semantics Owner đã chốt tại `DEC-154`; data contract/persistence/
+audit design đã chốt tại `DEC-155` +
+`docs/spec/TASK-105D-DATA-CONTRACT.md` (S034). Completion Gate vẫn CHƯA
+freeze và implementation vẫn CHƯA được cấp phép.
+
+Canonical Data Contract:
+`docs/spec/TASK-105D-DATA-CONTRACT.md` — hợp đồng dữ liệu, persistence,
+concurrency, audit, migration và định nghĩa vận hành của các Completion Gate
+UX/ambiguity. Đọc file đó TRƯỚC khi mở implementation; các invariant `INV-xx`
+trong đó là quy phạm.
 
 Phase:
 PHASE-01 — Product identity + price-resolution foundation
@@ -42,7 +50,9 @@ Review Budget lineage:
 `TASK-105D` — root lineage mới, `2 allowed / 0 used / 2 remaining`.
 
 Authority:
-`DEC-154` — PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION.
+`DEC-154` — PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION (Owner Decision).
+`DEC-155` — TASK-105D READINESS DATA CONTRACT (readiness design authority;
+các mục `OR-01`/`OR-02`/`OR-03` trong đó còn chờ Owner ratification).
 
 ## Mục Tiêu (Objective)
 
@@ -178,6 +188,17 @@ reusable, auditable, correctable và versioned. Confirmation đã có được r
 mà không hỏi lại. Mapping này hỗ trợ nhánh giá Public Purchase fallback cho
 identity TRACKING; nó không đổi identity của sản phẩm thành PUBLIC_PURCHASE.
 
+**Điều kiện tiên quyết của fallback (S034 / `DEC-155` — giải HB-154-01).**
+Với một identity `TRACKING`, giá Public Purchase chỉ được tra khi CẢ BA điều
+kiện đúng: (a) không có valid vendor candidate tại `sale_date`; (b) tồn tại
+một `CrossSystemProductMapping` `CONFIRMED` đang active cho đúng
+`tracking_code` đó; (c) mã dùng để tra là `public_purchase_code` **của chính
+mapping đó**. Thiếu (b) → **Pending**, tuyệt đối không đoán mã Public
+Purchase. Uniqueness: tại một thời điểm mỗi `tracking_code` và mỗi
+`public_purchase_code` có tối đa một mapping `CONFIRMED` (1:1); vi phạm →
+trạng thái `CONFLICT` tường minh, cấm silent last-write-wins. Nguyên văn quy
+phạm: `docs/spec/TASK-105D-DATA-CONTRACT.md` §8.4 (`INV-38`…`INV-45`).
+
 ## Human Confirmation và Batch UX Contract
 
 - Batch/keyboard-first là luồng chính.
@@ -222,7 +243,10 @@ resolved_at
 ## Price-provider Boundary
 
 Task này chỉ resolve identity. Không tính purchase price. Output của nó là
-input cho price resolution theo `DEC-154` P01–P10:
+input cho price resolution theo `DEC-154` P00–P11 (`P00`/`P03`/`P11` đã được
+sửa transcription tại S034 để khớp `DEC-154` §2/§7 — xem
+`docs/spec/TASK-105D-DATA-CONTRACT.md` §16.2; lớp composition đó **chưa có
+implementation owner**, đề xuất task riêng ở §16.3):
 
 - TRACKING identity đi vào TASK-105C trước, rồi có thể fallback qua
   `CrossSystemProductMapping` sang TASK-105B.
@@ -236,10 +260,16 @@ input cho price resolution theo `DEC-154` P01–P10:
 - `PENDING_RATE`
 - `REUSE_RATE`
 - `WRONG_MAPPING_CORRECTION_RATE`
-- `MANUAL_ACTIONS_PER_100_ORDERS`
+- `MANUAL_CONFIRMATION_ACTIONS_PER_100_ORDERS` (đổi tên từ
+  `MANUAL_ACTIONS_PER_100_ORDERS` tại `DEC-155`; cùng một metric, tên chính
+  xác hơn vì `confirmation_action` cố ý không đếm thao tác điều hướng)
 
 Metric phải có denominator/version rõ ràng và không log dữ liệu khách hàng
-không cần thiết.
+không cần thiết. Denominator/numerator quy phạm của cả sáu metric:
+`docs/spec/TASK-105D-DATA-CONTRACT.md` §15 (mẫu số chung `D` = số DISTINCT
+identity trong batch sau khi loại nhánh pre-cutover; `INV-83`:
+`AUTO + MANUAL + PENDING = 1`; `INV-85`: metric không bao giờ là input của
+một quyết định resolution).
 
 ## Phạm Vi (Scope)
 
@@ -267,11 +297,18 @@ không cần thiết.
 
 - `DEC-154` — DONE ở mức decision recording.
 - Catalog contract/snapshot có version của Tracking và Public Purchase —
-  chưa được cung cấp canonical.
+  **contract đã được cung cấp canonical tại S034**
+  (`docs/spec/TASK-105D-DATA-CONTRACT.md` §3/§4). **Dữ liệu thật** (version
+  Public Purchase đầu tiên, capture Tracking đầu tiên) vẫn chưa có.
 - Registry/report lịch sử Owner-confirmed cho pre-cutover bypass — chưa được
   cung cấp làm dữ liệu production.
-- Persistent storage + audit/auth mechanism đủ cho alias/correction/
-  concurrency — implementation mechanism chưa được chọn/finalize.
+- Persistent storage + audit mechanism đủ cho alias/correction/concurrency —
+  **đã chọn tại S034** (`docs/spec/TASK-105D-DATA-CONTRACT.md` §11:
+  `ProductIdentityStore` Protocol + append-only JSONL event log ở Phase 1;
+  §10.3 optimistic concurrency; §13 audit append-only).
+- **Auth** — Phase 1 chưa có authentication (`ADR-101`). Actor là **khai báo
+  của người vận hành**, không phải danh tính đã xác thực (`OR-03`, chờ Owner
+  ratification). Đây là một hạn chế thật, không được mô tả là "authenticated".
 - Permission model ADMIN hiện hành (`DEC-124`) phải được nối vào confirmation
   và correction khi implementation.
 
@@ -307,22 +344,80 @@ Không được đụng vào nếu chưa có Scope Expansion:
 
 ## Ready Gate
 
+Cập nhật 2026-08-28 (S034, `DEC-155`). Bốn mục đầu không đổi; ba mục
+readiness được đóng bằng `docs/spec/TASK-105D-DATA-CONTRACT.md`; hai blocker
+còn lại được nêu chính xác.
+
 - [x] Objective/scope/out-of-scope đã xác định.
 - [x] Business semantics/cutover/namespaces đã được Owner chốt (`DEC-154`).
 - [x] Difficulty/Risk/Blast Radius/agent tier đã xác định.
 - [x] Completion Gate dự thảo đầy đủ.
-- [ ] Catalog contracts/snapshots và historical-confirmed registry có data
-      contract canonical.
-- [ ] Persistence/migration/rollback/concurrency mechanism được chọn.
-- [ ] Permission + audit implementation dependency sẵn sàng.
-- [ ] Completion Gate được review và freeze bởi authority riêng.
+- [x] Catalog contracts/snapshots và historical-confirmed registry có data
+      contract canonical — `docs/spec/TASK-105D-DATA-CONTRACT.md` §3 (unified
+      `PublicPurchaseSourceVersion`, hai projection, `INV-04`…`INV-10`), §4
+      (`TrackingCatalogSnapshot` read-only, `INV-11`…`INV-16`), §9
+      (`HistoricalConfirmedRegistry`, `INV-46`…`INV-54`).
+- [x] Persistence/migration/rollback/concurrency mechanism được chọn — §11
+      (`ProductIdentityStore` Protocol; Phase 1 = append-only JSONL event log
+      + index dẫn xuất, kèm bảng so sánh phương án và hạn chế đã ghi rõ), §10.3
+      (optimistic concurrency, `INV-58`…`INV-61`), §14 (migration/rollback
+      không phá huỷ).
+- [x] Permission + audit contract ở tầng domain đã xác định — §12 (bảy
+      permission, năm mức authority), §13 (`MappingAuditEvent` append-only).
+- [ ] **BLOCKER 1 — Owner ratification.** `OR-01` (Public Purchase vận hành
+      như MỘT nguồn publish theo version, không phải hai bảng rời — quyết
+      định quy trình của người dùng thật), `OR-02` (`ALIAS_AID_UNIQUE` được
+      auto-resolve hay hạ xuống "candidate #1 cần 1 confirmation"), `OR-03`
+      (chấp nhận actor Phase 1 là **khai báo của người vận hành**, KHÔNG phải
+      danh tính đã xác thực — `ADR-101` chưa có auth ở Phase 1).
+- [ ] **BLOCKER 2 — Completion Gate freeze.** Gate 32 check vẫn `DRAFT`.
+      `governance/core/V4_1_POLICY_FREEZE.md` §12: `FROZEN` chỉ được ghi bởi một phiên Freeze
+      Finalization có thẩm quyền riêng. Phiên readiness không tự freeze.
+
+Không phải blocker của Ready Gate nhưng là **dependency dữ liệu của
+implementation** (ghi ở đây để không bị đọc nhầm thành đã có): bảng mapping
+Owner-confirmed cho bootstrap (nếu có), báo cáo lịch sử Owner-confirmed cho
+registry, `PublicPurchaseSourceVersion` thật đầu tiên, và capture Tracking
+đầu tiên. Không có chúng thì implementation vẫn chạy được với store rỗng —
+kết quả đúng là Pending, không phải lỗi (§14.3).
 
 **Ready verdict:** `BLOCKED`. Không chuyển thẳng `PLANNED → IN_PROGRESS`.
+Số blocker giảm từ 4 xuống 2; cả hai đều nằm ngoài thẩm quyền của một phiên
+readiness.
 
 ## Completion Gate (DRAFT — CHƯA FROZEN)
 
 Toàn bộ check REQUIRED, `Status = NOT_TESTED`; Effective Risk HIGH yêu cầu
 E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden critical.
+
+### Định nghĩa vận hành bắt buộc (S034 / `DEC-155` — giải HB-154-05)
+
+Trước khi đọc bảng, ba khái niệm dưới đây là **quy phạm**. Chúng thay các
+phát biểu định tính mà independent review chỉ ra là chưa test được. Nguồn đầy
+đủ: `docs/spec/TASK-105D-DATA-CONTRACT.md` §17.
+
+```text
+confirmation_action
+    = MỘT command ở tầng domain, do người dùng phát ra, làm đổi trạng thái
+      persistent của mapping store cho MỘT distinct identity.
+    Đếm đúng bốn loại: CONFIRM_MAPPING | REJECT_CANDIDATE |
+      CONFIRM_CROSS_SYSTEM | SET_PENDING.
+    KHÔNG đếm: điều hướng, cuộn, focus, mở/đóng panel, xem evidence, tìm
+      kiếm, lọc, sắp xếp, phím tắt điều hướng.
+    Đếm command chứ không đếm phím/click: cùng một hành động nghiệp vụ phải
+      cho cùng một kết quả gate dù dùng bàn phím hay chuột, dù đổi thư viện
+      UI. Yêu cầu keyboard-first vẫn giữ nguyên, ở CHECK-105D-22.
+
+AMBIGUOUS
+    = resolution_method KHÔNG thuộc tập auto-resolve đóng (ALIAS_EXACT,
+      ALIAS_AID_UNIQUE, CATALOG_EXACT_UNIQUE — data contract §6.6).
+    Ba nguồn ambiguity, mỗi nguồn một fixture bắt buộc: MULTIPLE_EXACT,
+      CROSS_NAMESPACE_TIE, ONLY_SIMILARITY.
+
+normal action
+    = đồng nghĩa `confirmation_action`. Không còn dùng cụm "thao tác bình
+      thường" mà không quy chiếu định nghĩa này.
+```
 
 | ID | Check | Status | Evidence target |
 |---|---|---|---|
@@ -331,14 +426,14 @@ E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden crit
 | CHECK-105D-03 (G03) | DISTINCT-before-mapping, không thao tác từng row | NOT_TESTED | E1 |
 | CHECK-105D-04 (G04) | Alias đã confirm = 0 interaction | NOT_TESTED | E1 |
 | CHECK-105D-05 (G05) | Deterministic unique match có thể auto-resolve | NOT_TESTED | E2 |
-| CHECK-105D-06 (G06) | Model mơ hồ không silent auto-resolve | NOT_TESTED | E2 |
+| CHECK-105D-06 (G06) | AMBIGUOUS (định nghĩa §Định nghĩa vận hành) không bao giờ auto-resolve: catalog có hai entry chỉ khác đúng một model token + raw identity mang token thứ ba → outcome ∈ {REQUIRES_CONFIRMATION, PENDING_PRODUCT} và `resolution_method` ∉ tập auto-resolve. Ba fixture: MULTIPLE_EXACT, CROSS_NAMESPACE_TIE, ONLY_SIMILARITY | NOT_TESTED | E2 |
 | CHECK-105D-07 (G07) | Fuzzy-only không auto-confirm | NOT_TESTED | E2 |
 | CHECK-105D-08 (G08) | Candidate ranking ổn định, có evidence | NOT_TESTED | E1 |
 | CHECK-105D-09 (G09) | Confirmation persist | NOT_TESTED | E1 |
 | CHECK-105D-10 (G10) | Persisted mapping reuse qua import/run mới | NOT_TESTED | E1 |
 | CHECK-105D-11 (G11) | Một confirmation resolve mọi affected rows/orders | NOT_TESTED | E1 |
 | CHECK-105D-12 (G12) | Rejected candidate được nhớ, chỉ tái hiện khi evidence đổi | NOT_TESTED | E1 |
-| CHECK-105D-13 (G13) | `PENDING_PRODUCT` được hỗ trợ rõ ràng | NOT_TESTED | E1 |
+| CHECK-105D-13 (G13) | `PENDING_PRODUCT` là một biến thể riêng về KIỂU của `ResolutionOutcome` (a) không phải `None`/`""`/`0`; (b) mang `reason_code` thuộc enum đóng + `attempted_sources` không rỗng khi resolver đã chạy; (c) không mang `namespace`/`source_product_code`; (d) một identity Pending không chặn các identity khác trong cùng batch | NOT_TESTED | E1 |
 | CHECK-105D-14 (G14) | Raw accounting name bất biến | NOT_TESTED | E2 |
 | CHECK-105D-15 (G15) | Mapping không lưu fixed purchase price | NOT_TESTED | E2 |
 | CHECK-105D-16 (G16) | Price-provider boundary được giữ | NOT_TESTED | E2 |
@@ -348,8 +443,8 @@ E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden crit
 | CHECK-105D-20 (G20) | Concurrent conflicting confirmation bị chặn, không LWW | NOT_TESTED | E2 |
 | CHECK-105D-21 (G21) | Provenance đủ raw/tuple/source/version/method | NOT_TESTED | E1 |
 | CHECK-105D-22 (G22) | Core batch flow thao tác hoàn toàn bằng bàn phím | NOT_TESTED | E1 |
-| CHECK-105D-23 (G23) | Candidate #1 đúng đạt ≤1 normal action | NOT_TESTED | E1 |
-| CHECK-105D-24 (G24) | Known mapping đạt 0 normal action | NOT_TESTED | E1 |
+| CHECK-105D-23 (G23) | Identity AMBIGUOUS có candidate rank 1 đúng: `count(confirmation_action) == 1`; một action đó resolve MỌI dòng cùng identity; lần chạy kế tiếp trên chính identity đó `count == 0` | NOT_TESTED | E1 |
+| CHECK-105D-24 (G24) | Store đã có mapping CONFIRMED cho `raw_identity_key` K, batch chứa N≥2 dòng identity K: `count(confirmation_action) == 0`, `resolution_method == ALIAS_EXACT`, và `current_revision()` KHÔNG đổi | NOT_TESTED | E1 |
 | CHECK-105D-25 (G25) | Golden Business Baseline không đổi | NOT_TESTED | E2 |
 | CHECK-105D-26 (G26) | Tracking MISS + Public Purchase unique match → PUBLIC_PURCHASE | NOT_TESTED | E2 |
 | CHECK-105D-27 (G27) | Tracking MISS không tự động thành Pending | NOT_TESTED | E1 |
@@ -365,7 +460,11 @@ E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden crit
 - [ ] 0 BLOCKING finding.
 - [ ] Migration/rollback + permission/audit contract verified.
 - [ ] Golden và full regression PASS.
-- [ ] Metrics có denominator và validation.
+- [ ] Metrics có denominator và validation theo
+      `docs/spec/TASK-105D-DATA-CONTRACT.md` §15 (kể cả `INV-83`
+      `AUTO + MANUAL + PENDING = 1`).
+- [ ] Toàn bộ invariant `INV-01`…`INV-87` của data contract có assertion
+      tương ứng hoặc có lý do ghi rõ vì sao không cần.
 - [ ] Independent Review E2 PASS.
 - [ ] Progress/roadmap/session handoff cập nhật.
 
@@ -381,7 +480,8 @@ E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden crit
 ## Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 
 Created:
-- `docs/tasks/TASK-105D-product-identity-resolver.md`
+- `docs/tasks/TASK-105D-product-identity-resolver.md` (S032/`DEC-154`)
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034/`DEC-155`)
 
 Production implementation:
 - Không có.
