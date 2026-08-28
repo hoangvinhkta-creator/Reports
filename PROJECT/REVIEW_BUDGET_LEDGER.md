@@ -806,6 +806,39 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `models.py`, `config/`, Golden fixture/expected **không đổi một byte**.
   Chi tiết đầy đủ: `docs/tasks/TASK-105B-file-price-provider.md`.
 
+- 2026-08-28 — `TASK-105B` **INDEPENDENT REVIEW RECONCILIATION** (phiên
+  "TASK-105B — INDEPENDENT REVIEW RECONCILIATION", canonicalization only —
+  không phải review lần 3, không remediation). Phát hiện: hai session
+  Independent Review #1 độc lập đã chạy **song song** trên hai nhánh khác
+  nhau — `review/task-105b-independent-review-1` (SHA
+  `be2e35c908921f16e8347ecdfd23e2f9aecf1069`) và
+  `claude/file-price-provider-review-negpxw` (SHA
+  `b735dace8bdbaea086b37f8c20e091cafbed03e5`) — không biết về nhau, cùng
+  review đúng implementation SHA `c22cef8` (`merge-base` của hai review =
+  `c22cef8`, xác nhận không drift), cùng ghi artifact tại đúng
+  `docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md`. Cả hai verdict `PASS —
+  ELIGIBLE_FOR_FREEZE`, 17/17 REQUIRED PASS độc lập ở cả hai bên, cùng số
+  liệu regression/Golden. Reconciliation: dedupe namespace `HB-105B-*`
+  (phát hiện Review B tái dùng nhầm hai ID `HB-105B-01`/`HB-105B-02` vốn đã
+  thuộc `TASK-108B` §34 — không liên quan `FilePriceProvider` — sửa canonical
+  ID về `HB-105B-07`/`HB-105B-08` từ Review A, không collision, không reuse
+  ID); giải quyết một classification disagreement (`HB-105B-04`: HARDENING
+  theo Review B vs OUT_OF_SCOPE theo Review A — reconciled = OUT_OF_SCOPE
+  theo đúng normative Scope Lock table đã frozen của `TASK-105B`, `V4.1`
+  §7/§11 — không ảnh hưởng Freeze eligibility nên không cần Owner Decision).
+  0 BLOCKING sau reconciliation ⇒ verdict hội tụ `PASS —
+  ELIGIBLE_FOR_FREEZE`. Cả hai artifact gốc bảo toàn nguyên vẹn: Review A
+  giữ canonical path, Review B archived byte-identical tại
+  `docs/reviews/archive/TASK-105B-INDEPENDENT-REVIEW-1-B-file-price-provider-review-negpxw.md`.
+  **Đây KHÔNG phải remediation cycle** — `app/**`/`tests/**`/`config/**` = 0
+  trong toàn bộ diff phiên này; `TASK-105B` vẫn `2 allowed / 0 used / 2
+  remaining` (**không đổi**, đúng `V4.1` §3 — cycle tính theo lần sửa,
+  không theo số review/số artifact reconcile). Chi tiết đầy đủ:
+  `docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`. **NEXT
+  AUTHORIZED ACTION = `TASK-105B` FREEZE** (phiên Freeze Finalization có
+  thẩm quyền riêng, `V4.1` §12 — reconciliation session read-only không
+  được ghi `FROZEN`).
+
 ### Branch divergence đã biết — lineage `TASK-105B`/`TASK-105C`
 
 **ĐÃ ĐÓNG (2026-08-27, phiên "CONTROLLED INTEGRATION — TASK-105B/TASK-105C

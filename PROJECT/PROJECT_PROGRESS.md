@@ -494,11 +494,40 @@ TASK-105B  IMPLEMENTATION       = COMPLETE (code-level)
                                   check PASS (CHECK-105B-01..17, gate
                                   frozen tại phiên này —
                                   docs/tasks/TASK-105B-file-price-provider.md)
-           INDEPENDENT_REVIEW   = REQUIRED — CHƯA chạy, Effective Risk
-                                  HIGH không tự DONE (đúng tiền lệ
-                                  TASK-GOLDEN-BASELINE-001)
+           INDEPENDENT_REVIEW   = PASS — hai artifact E2 độc lập, song song
+                                  (Review A tại
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md,
+                                  Review B archived tại
+                                  docs/reviews/archive/TASK-105B-INDEPENDENT-REVIEW-1-B-file-price-provider-review-negpxw.md),
+                                  cùng target c22cef8, cùng verdict
+                                  PASS — ELIGIBLE_FOR_FREEZE, đã reconcile
+                                  (2026-08-28) —
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
+           REVIEW_EVIDENCE       = RECONCILED
+           ELIGIBLE_FOR_FREEZE   = YES
+           FROZEN                = NO
            DONE                 = NO
 ```
+
+**Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
+REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy
+song song trên hai nhánh khác nhau (`review/task-105b-independent-review-1`
+và `claude/file-price-provider-review-negpxw`), không biết về nhau, cùng
+review đúng `c22cef8` và cùng ghi artifact tại đúng
+`docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md` — cùng loại sự cố đã ghi ở
+`DEC-118`. Một phiên reconciliation riêng đã: xác minh cả hai target đúng
+`c22cef8` (`merge-base` = implementation SHA); dedupe namespace `HB-105B-*`
+(phát hiện Review B tái dùng nhầm hai ID `HB-105B-01`/`02` vốn thuộc
+`TASK-108B` §34 — sửa về canonical ID `HB-105B-07`/`HB-105B-08`, không
+collision); giải quyết một classification disagreement (`HB-105B-04`: HARDENING
+theo Review B vs OUT_OF_SCOPE theo Review A — reconciled = OUT_OF_SCOPE theo
+đúng normative Scope Lock table của `TASK-105B`, không ảnh hưởng Freeze
+eligibility); bảo toàn cả hai artifact gốc nguyên vẹn (Review A giữ canonical
+path, Review B archived byte-identical). Cả hai review đồng thuận **0
+BLOCKING** — verdict reconciled = `PASS — ELIGIBLE_FOR_FREEZE`.
+`app/**`/`tests/**`/`config/**` = 0 trong toàn bộ diff reconciliation.
+Chi tiết đầy đủ:
+`docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`.
 
 Bằng chứng chính: `pytest tests/test_file_price_provider.py -q` → `33
 passed`; `pytest tests/test_golden_baseline.py -q` → `58 passed, 2
@@ -639,11 +668,14 @@ phải việc agent tự làm tiếp được:
 
    ```
    1. TASK-105B implementation   IMPLEMENTED + SELF-VERIFIED (2026-08-28),
-                                  INDEPENDENT_REVIEW REQUIRED trước khi DONE
-                                  (xem docs/tasks/TASK-105B-file-price-provider.md)
-   2. TASK-105C implementation   CHỜ TASK-105B DONE thật (qua Independent
-                                  Review) — hard prerequisite, KHÔNG được
-                                  làm trước dù code TASK-105B đã tồn tại
+                                  INDEPENDENT_REVIEW = PASS, REVIEW_EVIDENCE
+                                  = RECONCILED (2026-08-28),
+                                  ELIGIBLE_FOR_FREEZE = YES, FROZEN = NO —
+                                  xem
+                                  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md
+   2. TASK-105C implementation   CHỜ TASK-105B DONE thật (qua Freeze) — hard
+                                  prerequisite, KHÔNG được làm trước dù code
+                                  TASK-105B đã tồn tại và đã ELIGIBLE_FOR_FREEZE
    3. Product Identity Mapping   (dependency riêng, chưa mở task — product_raw
                                   Reports ↔ <MÃ> Tracking, cấm fuzzy matching)
    4. TASK-105B-Q3                (dòng phụ, độc lập, chờ TASK-103/enumeration)
@@ -651,14 +683,15 @@ phải việc agent tự làm tiếp được:
    6. TASK-109                    (summary_engine — chờ TASK-108B)
    ```
 
-   **NEXT AUTHORIZED ACTION: `TASK-105B` Independent Review** — một session
-   KHÁC đọc `app/modules/pricing/file_price_provider.py` +
-   `tests/test_file_price_provider.py` từ đầu, chạy lại evidence độc lập
-   (không tin narrative của phiên implementation), ghi verdict theo
-   `governance/core/EVIDENCE_STANDARD.md` (E2, `docs/reviews/`). `TASK-105C`
-   vẫn KHÔNG được bắt đầu code cho tới khi review đó PASS và `TASK-105B`
-   chuyển `DONE`. Product Identity Mapping (bước 3) vẫn mở song song được —
-   không phụ thuộc `TASK-105B`/`TASK-105C`.
+   **NEXT AUTHORIZED ACTION: `TASK-105B` FREEZE** — Independent Review #1 đã
+   `PASS — ELIGIBLE_FOR_FREEZE` trên hai artifact E2 độc lập, đã reconcile
+   (2026-08-28,
+   `docs/reviews/TASK-105B-INDEPENDENT-REVIEW-RECONCILIATION.md`), 0
+   BLOCKING. Một phiên Freeze Finalization có thẩm quyền riêng
+   (`governance/core/V4_1_POLICY_FREEZE.md` §12) mới được ghi `FROZEN` và
+   chuyển `TASK-105B` sang `DONE`. `TASK-105C` vẫn KHÔNG được bắt đầu code
+   cho tới khi `TASK-105B` chuyển `DONE` thật. Product Identity Mapping
+   (bước 3) vẫn mở song song được — không phụ thuộc `TASK-105B`/`TASK-105C`.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —
