@@ -63,6 +63,39 @@ Repair budget vẫn `EXHAUSTED_PRE_V4.1`, `remaining = 0`. `R1-A2 → R8` vẫn
 Golden Baseline **không** tự đóng `TASK-110` (khác dataset, khác câu hỏi —
 xem `docs/tasks/TASK-GOLDEN-BASELINE-001-PLAN.md` §A.20).
 
+**Controlled Integration — `TASK-105B`/`TASK-105C` discovery + Owner
+Decisions (2026-08-27, phiên "CONTROLLED INTEGRATION — TASK-105B/TASK-105C
+GOVERNANCE CHECKPOINT").** `branch_authority_check.sh` báo
+`INTEGRATION_DECISION_REQUIRED` (V4.1 §8: ahead=10-11 commit, cumulative LOC
+6.936–8.131, cả hai vượt ngưỡng) trên nhánh
+`claude/reports-price-rtdb-audit-bg5y4t` (toàn bộ chuỗi discovery
+`DEC-147`→`DEC-152`, `S024`→`S029`). Owner chọn **Option A — integrate
+soon**.
+
+Cùng khuôn với `TASK-GOLDEN-BASELINE-001`: qua nhánh trung gian
+`integration/v4-1-price-history-foundation` (cắt từ chính default tip
+`7e60978`), merge `--no-ff` candidate `aaceb883` vào nhánh trung gian —
+**0 conflict** (`merge-base` = default tip cũ, tức candidate vốn đã là
+fast-forward-able descendant của default). Validator chạy đủ trước VÀ sau
+integration (`validate_structure`/`validate_project_state`/
+`validate_evidence`/`validate_task_completion` — cả bốn PASS;
+`validate_reference_integrity` — đúng 3 lỗi tiền tồn `TASK-REM-T06`,
+xác nhận bằng cách chạy lại validator trên chính default tip cũ, không
+regression mới), `git diff --check` sạch ở mọi bước. Merge nhánh trung gian
+vào nhánh mặc định bằng `--ff-only` (fast-forward thuần, không tạo merge
+commit — giữ lineage tuyến tính, không rewrite, không squash, không force
+push) tại SHA **`abddbe0c8f02330617917516957a26596b8d2dd9`**. Xác nhận:
+candidate `aaceb883` là ancestor của default HEAD mới; `local == remote`
+sau push. `branch_authority_check.sh` sau push: `DIVERGENCE = WITHIN_LIMITS`.
+
+Toàn bộ nội dung integrate là **tài liệu governance/discovery/spec** — 0
+byte `app/**`/`config/**`/`tests/**`/Golden fixture thay đổi; repo giá
+(`Tracking`) không bị sửa; `TASK-105B`/`TASK-105C`/`TASK-108B`
+**implementation vẫn CHƯA bắt đầu** — chỉ discovery, Owner Decisions
+(`DEC-143`→`DEC-152`), và Scope Lock/Completion Gate của `TASK-105C` được
+đưa vào nhánh mặc định. **Không được đọc "đã integrate" thành "đã
+implement".**
+
 ## Hai Track Song Song
 
 Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
@@ -560,14 +593,29 @@ phải việc agent tự làm tiếp được:
    persistence. Xem
    `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21, Phần XI.
    `TASK-109` (summary_engine) vẫn theo sau `TASK-108B`.
-   **Next Product Task cụ thể:** implement `TASK-105B`
-   (`FilePriceProvider`, contract đã frozen từ `DEC-145`) rồi
-   `TASK-105C` (`HistoricalVendorPriceProvider`, Scope Lock + Completion
-   Gate FROZEN — `docs/tasks/TASK-105C-historical-vendor-price-provider.md`)
-   — cả hai kỹ thuật đã READY, không còn câu hỏi Owner nào phải chờ. Song
-   song: mở một task mapping sản phẩm (`product_raw` ↔ `<MÃ>`) nếu muốn
-   `TASK-108B` cho ra số không-Pending trên dữ liệu thật thay vì 100%
-   Pending.
+   **Next Product Task cụ thể — đã integrate vào nhánh mặc định
+   (`abddbe0`), sẵn sàng bắt đầu implementation ở một session MỚI, không
+   phải phiên integration này:**
+
+   ```
+   1. TASK-105B implementation   (FilePriceProvider, contract frozen DEC-145)
+   2. TASK-105C implementation   (HistoricalVendorPriceProvider — CHỈ sau
+                                  khi TASK-105B DONE, đây là hard
+                                  prerequisite, KHÔNG được làm trước)
+   3. Product Identity Mapping   (dependency riêng, chưa mở task — product_raw
+                                  Reports ↔ <MÃ> Tracking, cấm fuzzy matching)
+   4. TASK-105B-Q3                (dòng phụ, độc lập, chờ TASK-103/enumeration)
+   5. TASK-108B                   (Converted Revenue — chờ 1+2+3)
+   6. TASK-109                    (summary_engine — chờ TASK-108B)
+   ```
+
+   Cả `TASK-105B` lẫn `TASK-105C` đã kỹ thuật READY, không còn câu hỏi
+   Owner nào phải chờ để BẮT ĐẦU — nhưng thứ tự 1 → 2 là bắt buộc, không
+   phải khuyến nghị: `TASK-105C` compose `FilePriceProvider`
+   (`DEC-152` §11), nên không thể implement đúng nếu `TASK-105B` chưa xong.
+   Product Identity Mapping (bước 3) có thể mở song song với 1/2 — không
+   phụ thuộc `TASK-105B`/`TASK-105C`, chỉ cần đóng trước khi `TASK-108B`
+   cho ra số không-Pending trên dữ liệu thật.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —

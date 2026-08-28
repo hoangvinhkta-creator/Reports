@@ -763,3 +763,27 @@ Owner Extension, và **không** cấp thêm repair cycle.
   **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-152`,
   `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
   `docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
+
+### Branch divergence đã biết — lineage `TASK-105B`/`TASK-105C`
+
+**ĐÃ ĐÓNG (2026-08-27, phiên "CONTROLLED INTEGRATION — TASK-105B/TASK-105C
+GOVERNANCE CHECKPOINT").** Owner chọn option (A) của V4.1 §8: integrate/merge
+sớm.
+
+Divergence đo được ngay trước integration, so với nhánh mặc định
+`claude/extract-upload-repo-gq2ws4` @ `7e60978`:
+
+| Nhánh | ahead | LOC | vượt ngưỡng |
+|---|---:|---:|---|
+| `claude/reports-price-rtdb-audit-bg5y4t` | 10–11 | 6.936–8.131 | 2/3 (`ahead>10`, `loc>5000`) |
+
+Integrate qua nhánh trung gian `integration/v4-1-price-history-foundation`
+(cắt từ default tip `7e60978`), merge `--no-ff` candidate `aaceb883` — **0
+conflict**. Merge nhánh trung gian vào default bằng `--ff-only` tại
+`abddbe0c8f02330617917516957a26596b8d2dd9`. Không squash, không rebase,
+không rewrite history, không force push. Validator chạy đủ trước và sau —
+0 regression (đúng 3 lỗi tiền tồn `TASK-REM-T06`, xác nhận không đổi so
+với chính default tip cũ).
+
+**KNOWN DIVERGENCE = CLOSED.** Không grandfather thành permanent exception.
+`branch_authority_check.sh` sau push: `DIVERGENCE = WITHIN_LIMITS`.

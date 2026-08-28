@@ -10,13 +10,29 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-27 — **bước 14: phần lõi khó nhất (bộ quy tắc
-> mô tả dữ liệu) đã được soát xét độc lập DUYỆT và niêm phong. Toàn bộ công
-> việc của bước 14 đã được nhập vào bản chính của dự án. Bước 14 vẫn CHƯA
-> xong hẳn — còn chờ một lần đối chiếu trên file bán hàng thật.** (xem "Có gì
-> mới" ngay bên dưới).
+> Cập nhật lần cuối: 2026-08-27 — **bước 11b: toàn bộ phần "đọc giá nhập từ
+> lịch sử" (thiết kế + quyết định của chủ dự án) đã được nhập vào bản chính
+> của dự án — trước đó nằm trên một nhánh làm việc riêng.** (xem "Có gì mới"
+> ngay bên dưới).
 
-## Có gì mới — bước 14: phần lõi được duyệt và niêm phong, công việc đã nhập vào bản chính (2026-08-27)
+## Có gì mới — bước 11b: công việc đã nhập vào bản chính, sẵn sàng viết code (2026-08-27)
+
+**Việc vừa xảy ra.** Toàn bộ công việc "đọc giá nhập từ lịch sử giá nhà cung
+cấp" — mọi khám phá, mọi quyết định của chủ dự án, và bản thiết kế kỹ thuật
+đầy đủ — trước đó nằm trên một nhánh làm việc riêng, tách khỏi bản chính của
+dự án (11 lần lưu, hơn 8.000 dòng). Nay đã **nhập hẳn vào bản chính, không
+mất một dòng nào**, đúng quy trình đã dùng cho "Bộ ảnh chuẩn" (Golden
+Baseline) trước đó: mọi phép kiểm tra tự động chạy lại và đều đạt trước khi
+nhập.
+
+**Chưa có gì được viết code.** Đây chỉ là bước dọn dẹp sổ sách — đưa tài
+liệu thiết kế về đúng chỗ chung — không phải viết phần mềm. Việc viết code
+thật (đọc giá nhập) là **bước tiếp theo**, ở một phiên làm việc khác, theo
+đúng thứ tự: **giá nhà cung cấp qua file (đã có bản thiết kế cũ) trước, giá
+nhà cung cấp qua lịch sử sau** — vì cách thứ hai dùng lại một phần của cách
+thứ nhất, không làm được nếu cách thứ nhất chưa xong.
+
+## Có gì mới trước đó — bước 14: phần lõi được duyệt và niêm phong, công việc đã nhập vào bản chính (2026-08-27)
 
 **Ba việc vừa xảy ra.**
 
