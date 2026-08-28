@@ -3,8 +3,14 @@
 ## Metadata
 
 Status:
-READY — Scope Lock COMPLETE, Completion Gate FROZEN (`DEC-152`). Chưa
-implementation.
+BLOCKED
+
+Current Status Reason:
+`DEC-154` reconciled business architecture sau Scope Lock `DEC-152`. Chưa
+implementation; current Scope/Completion Gate cần refreeze bởi authority
+riêng trước khi có thể READY. `DEC-156` chỉ chạm review-budget lineage
+(xem Review Budget lineage bên dưới) — **không** đổi trạng thái task, không
+mở implementation, không refreeze gate.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -37,10 +43,23 @@ Project Profile:
 PRODUCT
 
 Review Budget lineage:
-`TASK-105B` (dùng chung — không mở lineage mới). Ngân sách hiện tại:
-2 allowed / 0 used / 2 remaining (`PROJECT/REVIEW_BUDGET_LEDGER.md`
-§"Root Task: TASK-105B"). Mở task này KHÔNG tiêu ngân sách; ngân sách chỉ
-tiêu khi một vòng Independent Review sau implementation FAIL và cần repair.
+**`TASK-105C` — root lineage riêng**, `2 allowed / 0 used / 2 remaining`
+(`PROJECT/REVIEW_BUDGET_LEDGER.md` §"Root Task: TASK-105C"). Cấp bởi Owner
+tại `DEC-156` §4 (`HB-154-04`, Option B), theo bảng đã freeze `V4.1` §2
+(`HIGH/CRITICAL = 2`). Mở task này KHÔNG tiêu ngân sách; ngân sách chỉ tiêu
+khi một vòng Independent Review sau implementation FAIL và cần repair.
+
+*Lineage trước đó (bản ghi lịch sử, KHÔNG xoá):* `TASK-105C` từng dùng chung
+lineage `TASK-105B`, vì kiến trúc cũ đặt `HistoricalVendorPriceProvider`
+compose `FilePriceProvider` (`DEC-152` §11). `DEC-154` §13 đã gỡ composition
+đó — hai task nay là hai nhánh provider song song — nên lý do DUY NHẤT của
+lineage dùng chung không còn. `TASK-105B` giữ nguyên `2 allowed / 1 used /
+1 remaining`: cycle `TASK-105B-RC-1` (repair NaN/vô cực trong
+`FilePriceProvider`) vẫn CONSUMED, vẫn thuộc `TASK-105B`, **không** được
+chuyển sang lineage này và **không** được xoá. Lineage `TASK-105C` mở ở
+`0 used` vì `TASK-105C` chưa từng tiêu cycle nào của chính nó — đây là tách
+lineage theo kiến trúc, **không** phải reset một ngân sách đã tiêu
+(`DEC-156` Reason §2).
 
 Authority chain:
 `DEC-145` (contract 4 cột, chuẩn hoá, validation — KHÔNG đổi) → `DEC-146`
@@ -48,7 +67,96 @@ Authority chain:
 `DEC-148` (`inv.cong` audit, NO GUARANTEED DELAY WINDOW) → `DEC-149`
 (`_c.min` path audit, `CONFLICT DETECTED`) → `DEC-150` (popup audit fact) →
 `DEC-151` (Owner Decision: thu hẹp phạm vi về `phist`) → **`DEC-152`**
-(Owner Decision cuối: đóng Q1/Q2, Scope Lock, Completion Gate — file này).
+(Owner Decision: đóng Q1/Q2, Scope Lock, Completion Gate) → **`DEC-154`**
+(Owner Decision: two-namespace identity + provider-branch reconciliation) →
+**`DEC-156`** (Owner Decision: lineage reconciliation — `TASK-105C` có root
+review-budget lineage riêng; trạng thái task KHÔNG đổi, vẫn `BLOCKED`).
+
+## Current Normative Reconciliation — DEC-154
+
+Phần này là current authority và supersede các câu bên dưới nếu chúng còn
+nói `TASK-105C = READY`, identity bắt buộc là Tracking cho mọi valid product,
+`FilePriceProvider` là dependency cứng/composition seam, hoặc provider absence
+đi thẳng final Pending. Historical decision/evidence vẫn giữ nguyên.
+
+### Current input/output contract
+
+```text
+INPUT:
+  resolved_product_identity.namespace = TRACKING
+  resolved_product_identity.source_product_code = <MÃ> Tracking
+  sale_date
+
+OUTPUT:
+  HistoricalVendorMin(value + vendor/capture provenance)
+  HOẶC absence (không có valid candidate)
+```
+
+`PUBLIC_PURCHASE` identity bypass task này. `absence` không tự đổi thành final
+Pending ở đây; price-resolution layer theo `DEC-154` P03 sẽ thử Public Purchase
+fallback qua `CrossSystemProductMapping`, rồi mới Pending nếu fallback vắng.
+
+### Semantics được bảo toàn
+
+`DEC-151`/`DEC-152` vẫn nguyên authority:
+
+```text
+Price(NCC,D) = record gần nhất có ngày <= D
+HistoricalVendorMin = MIN mọi candidate hợp lệ tại D
+sentinel 0 = unavailable / HẾT HÀNG, bị loại
+current NCC/config/outlier rule không áp ngược
+phist snapshot/capture phải replay được
+```
+
+### Dependency/current role được supersede
+
+- Không còn depend/compose `FilePriceProvider`; `TASK-105B` thuộc nhánh
+  Public Purchase song song.
+- Không yêu cầu toàn bộ historical catalog được map thủ công trước khi
+  implementation/operation. Alias đã confirm được reuse; identity chưa resolve
+  có thể Pending mà không chặn identities khác.
+- `TASK-105D` cung cấp canonical identity contract, nhưng chưa READY/frozen.
+- Tracking vẫn read-only; không sửa repo/catalog.
+
+### COMPLETION GATE CHANGE PROPOSAL — OPEN, CHƯA FROZEN
+
+Original gate `CHECK-105C-01..20` tại `DEC-152` vẫn là historical frozen
+artifact. Trước implementation phải có phiên authority riêng refreeze gate,
+giữ mọi check HistoricalVendorMin còn áp dụng và thay các assumption
+composition/final-Pending bằng tối thiểu:
+
+| ID dự thảo | Current required behavior | Status |
+|---|---|---|
+| CHECK-105C-R01 | Chỉ nhận resolved TRACKING identity + `sale_date` | NOT_TESTED |
+| CHECK-105C-R02 | PUBLIC_PURCHASE identity bypass, không đọc `phist` | NOT_TESTED |
+| CHECK-105C-R03 | Valid vendor candidates → HistoricalVendorMin + provenance | NOT_TESTED |
+| CHECK-105C-R04 | sentinel 0 bị loại | NOT_TESTED |
+| CHECK-105C-R05 | No candidate → explicit absence cho fallback, không giá 0 | NOT_TESTED |
+| CHECK-105C-R06 | Không depend/import/compose `FilePriceProvider` | NOT_TESTED |
+| CHECK-105C-R07 | Không yêu cầu pre-map toàn catalog; known aliases xử lý độc lập | NOT_TESTED |
+| CHECK-105C-R08 | `HB-105B-06` boundary được resolve trước tools/tests | NOT_TESTED |
+
+### Authorization state
+
+```text
+SEMANTIC_DEFINITION = RECONCILED
+SCOPE_LOCK          = REOPENED_BY_DEC-154
+COMPLETION_GATE     = CHANGE_PROPOSAL_OPEN, NOT FROZEN
+IMPLEMENTATION      = BLOCKED / NOT AUTHORIZED
+```
+
+Blockers hiện hành:
+
+1. `TASK-105D` interface/data contracts chưa READY/frozen.
+2. Current Scope/Completion Gate của chính task này chưa refreeze.
+3. `HB-105B-06` re-trigger phải được xử lý trước khi thêm
+   `TASK-105C` tools/tests; `HB-105B-03/05/10` chuyển sang chặn real Public
+   Purchase dataset/FilePriceProvider use, không còn là dependency của nhánh
+   `phist` sau khi composition bị supersede.
+4. Tracking capture credential/schema-drift checks từ spec cũ vẫn áp dụng.
+
+Phiên reconciliation này không freeze gate, không implement và không cấp
+READY.
 
 ## Mục Tiêu (Objective)
 
@@ -337,7 +445,7 @@ Config hiện tại (NGUONG_BAT_THUONG, danh sách loại trừ) → KHÔNG áp 
                          (Q2, CLOSED)
 ```
 
-## Phạm Vi (Scope)
+## Historical Scope — DEC-152 (REOPENED_BY_DEC-154)
 
 - `app/modules/pricing/historical_vendor_price.py` (**MỚI**) — hàm thuần
   `compute_historical_vendor_price_series()`: nhận dữ liệu vendor-history
@@ -361,7 +469,7 @@ Config hiện tại (NGUONG_BAT_THUONG, danh sách loại trừ) → KHÔNG áp 
 - Cập nhật `docs/tasks/TASK-105C-historical-vendor-price-provider.md`
   (file này, Completion Gate → PASS khi implementation xong).
 
-## Ngoài Phạm Vi (Out of Scope)
+## Historical Out of Scope — DEC-152 (đọc cùng DEC-154)
 
 - **Product identity mapping** (`product_raw` ↔ `<MÃ>` Tracking) — dependency
   chưa đóng (xem "Product Identity Contract"), KHÔNG implement trong
@@ -405,7 +513,7 @@ KHÔNG mở rộng scope TASK-105C để xây hẳn một review system.
 Ghi nhận là **HARDENING/BACKLOG** — chưa có seam cụ thể trong Phase 1, để
 lại cho một task riêng nếu cần.
 
-## Phụ Thuộc (Dependencies)
+## Historical Dependencies — DEC-152 (superseded nơi xung đột)
 
 - `TASK-105` — DONE. `PriceProvider` Protocol, `PendingPriceProvider`,
   `price_engine.apply_prices()` — không đổi, tái dùng nguyên vẹn.
@@ -420,7 +528,7 @@ lại cho một task riêng nếu cần.
   thật).
 - Credential đọc Tracking RTDB (operational, chủ dự án cấp).
 
-## Chặn (Blocks)
+## Historical Blocks — DEC-152 (superseded nơi xung đột)
 
 - `TASK-108B` — cần `HistoricalVendorPriceProvider` hoạt động (và mapping
   dependency đóng) để có `AccountingPurchasePrice` không-Pending ở quy mô.
@@ -430,7 +538,7 @@ lại cho một task riêng nếu cần.
 - `TASK-105B-Q3` (dòng phụ) — độc lập hoàn toàn, không chạm chung file.
 - `TASK-103` (nếu mở) — độc lập, phục vụ mục đích khác (classification).
 
-## Phạm Vi Tác Động Dự Kiến (Expected Touch Area)
+## Historical Expected Touch Area — DEC-152 (cần refreeze)
 
 Allowed:
 - `app/modules/pricing/historical_vendor_price.py` (mới)
@@ -463,7 +571,7 @@ Không được đụng vào nếu chưa có Scope Expansion:
 - [ ] 105C.6 `scripts/branch_authority_check.sh` = `AUTHORITY_OK` tại SHA
       giao nộp
 
-## Ready Gate
+## Historical Ready Gate — DEC-152 (SUPERSEDED cho current authorization)
 
 Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 
@@ -490,7 +598,7 @@ Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 - [x] Escalation trigger đã xác định (xem bên dưới).
 - [x] Completion Gate đã hoàn thiện và **frozen** trước khi implement.
 
-## Completion Gate
+## Historical Completion Gate — DEC-152 (cần refreeze theo DEC-154)
 
 Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và
 `governance/core/EVIDENCE_STANDARD.md`. `Effective Risk = HIGH` (Blast
@@ -580,10 +688,9 @@ provider gọi mạng/đọc file ngoài không được lẫn vào test mặc �
 
 Dùng chung lineage `TASK-105B` (`PROJECT/REVIEW_BUDGET_LEDGER.md` §"Root
 Task: TASK-105B"). `Effective Risk = HIGH` ⇒ tối đa **2 blocking repair
-cycles** cho lineage này (V4.1 §2), hiện **0 used, 2 remaining** — không
-đổi bởi việc mở `TASK-105C`. Mở Scope Lock/Completion Gate không tiêu ngân
-sách; ngân sách chỉ tiêu nếu một vòng Independent Review sau implementation
-FAIL.
+cycles** cho lineage này (V4.1 §2), hiện **1 used, 1 remaining** sau
+`TASK-105B-RC-1`. Phiên reconciliation `DEC-154` không tiêu cycle, không mở
+RC-2.
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 
@@ -607,6 +714,10 @@ FAIL.
   `HistoricalVendorPriceProvider`, ghi tại `DEC-152`. Không sửa các mục
   Scope/Completion Gate ở trên mà không qua `COMPLETION GATE CHANGE
   PROPOSAL` (`governance/core/TASK_COMPLETION_GATE_STANDARD.md`).
+- `DEC-154` đã mở một `COMPLETION GATE CHANGE PROPOSAL` additive ở đầu file
+  do business architecture đổi. Vì proposal chưa refreeze, current status là
+  `BLOCKED`, không phải `READY`; bảng 20 check bên trên được giữ làm historical
+  artifact, không được dùng một mình để mở implementation.
 - Kiến trúc "compose `FilePriceProvider`, không duplicate logic" là quyết
   định thiết kế của phiên này (không phải một Owner Decision riêng) —
   tái dùng toàn bộ validation đã có thẩm quyền từ `DEC-145`/`CHECK-105B-*`

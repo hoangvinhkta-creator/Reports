@@ -2525,6 +2525,11 @@ Q1 (NCC retired/MIN_LOAI hồi tố)   = CLOSED — không áp ngược
 Q2 (outlier threshold hồi tố)      = CLOSED — không áp ngược
 TASK-105C  SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
            IMPLEMENTATION = READY (chưa bắt đầu)
+           ^^^ SUPERSEDED BY DEC-154 (2026-08-28) — trạng thái hiện hành là
+               TASK-105C = BLOCKED / NOT AUTHORIZED; SCOPE_LOCK =
+               REOPENED_BY_DEC-154; COMPLETION_GATE = CHANGE_PROPOSAL_OPEN.
+               Dòng trên giữ nguyên làm bản ghi lịch sử của DEC-152
+               (V4.1 §10). Current state: Phần XII bên dưới.
 TASK-105B  dependency CỨNG cho TASK-105C (chưa DONE)
 Dependency riêng, chưa mở task: product identity mapping
            (product_raw ↔ <MÃ> Tracking) — cấm fuzzy matching
@@ -2542,3 +2547,90 @@ Không implementation trong phiên `DEC-152`. Không sửa `app/**`,
 **Không sửa repo B.** `TASK-105C` implementation là phiên tiếp theo, theo
 đúng Scope Lock + Completion Gate đã frozen ở
 `docs/tasks/TASK-105C-historical-vendor-price-provider.md`.
+
+# PHẦN XII — PRODUCT IDENTITY & PRICE RESOLUTION RECONCILIATION (append 2026-08-28)
+
+> Current authority: `DEC-154`. Phần này supersede current-state pointer ở
+> Phần XI nếu có xung đột; các phần trước giữ nguyên làm lịch sử.
+
+## 97. Current dependency state
+
+```text
+TASK-105D Product Identity Resolver = PLANNED / BLOCKED, NOT FROZEN
+TASK-105C HistoricalVendorMin       = BLOCKED, gate change proposal OPEN
+TASK-105B PublicPurchasePrice       = FROZEN + INTEGRATED + RC-1 INTEGRATED,
+                                      NOT DONE, NOT ACTIVATED
+TASK-108B                           = BLOCKED_BY_DEPENDENCY
+```
+
+`TASK-105B → TASK-105C` không còn là dependency tuyến tính. Hai task là hai
+price branches sau identity resolution; TASK-105C không compose
+`FilePriceProvider` nữa.
+
+## 98. Canonical price-resolution input
+
+Input từ `TASK-105D`:
+
+```text
+(namespace, source_product_code), sale_date
+namespace = TRACKING | PUBLIC_PURCHASE
+```
+
+Pre-cutover Owner-confirmed report (`sale_date < 2026-09-01`) bypass toàn bộ
+composition này và giữ provenance `HISTORICAL_CONFIRMED_REPORT`.
+
+## 99. Price Resolution Acceptance Rules
+
+Các rule P01–P10 được Owner chốt tại `DEC-154`; chúng là dependency contract
+cho `KpiPurchasePrice`, chưa phải evidence PASS:
+
+| ID | REQUIRED rule | Status |
+|---|---|---|
+| P00 | `sale_date < CUTOVER_DATE` + entry `HistoricalConfirmedRegistry` CONFIRMED → `HISTORICAL_CONFIRMED_REPORT`, bypass P01–P11; không có entry → Pending. P01–P11 chỉ áp dụng cho `sale_date >= CUTOVER_DATE` | NOT_TESTED |
+| P01 | TRACKING + valid vendor candidates → HistoricalVendorMin | NOT_TESTED |
+| P02 | sentinel 0 bị loại | NOT_TESTED |
+| P03 | TRACKING + no valid vendor candidates **+ `CrossSystemProductMapping` CONFIRMED active** → Public Purchase fallback, tra bằng `public_purchase_code` của chính mapping đó | NOT_TESTED |
+| P04 | PUBLIC_PURCHASE identity → bypass phist | NOT_TESTED |
+| P05 | Public Purchase lookup dùng sale_date | NOT_TESTED |
+| P06 | no valid Public Purchase price → Pending | NOT_TESTED |
+| P07 | current public price không silently backfill historical sale | NOT_TESTED |
+| P08 | `PUBLIC_PURCHASE_NO_TRACKING` provenance được giữ | NOT_TESTED |
+| P09 | `PUBLIC_PURCHASE_NO_VENDOR_PRICE` provenance được giữ | NOT_TESTED |
+| P10 | identity không đổi chỉ vì price source đổi | NOT_TESTED |
+| P11 | TRACKING + no valid vendor candidates + **KHÔNG** có `CrossSystemProductMapping` → Pending; không đoán mã Public Purchase | NOT_TESTED |
+
+> **Sửa transcription 2026-08-28 (S034, `DEC-155` — HB-154-01/HB-154-03).**
+> `P00`/`P11` mới và điều kiện bổ sung của `P03` chép lại đúng `DEC-154` §2 và
+> §7 (prose), nơi bảng ban đầu chép thiếu — **không thêm ngữ nghĩa mới**. Chi
+> tiết quy phạm: `docs/spec/TASK-105D-DATA-CONTRACT.md` §8.4/§9/§16.2.
+
+Trước implementation phải mở một scope lock có authority nhận ownership của
+composition/price-resolution seam và biến P01–P10 thành executable Completion
+Gate. Phiên governance này không tự implement hoặc gắn provider vào pipeline.
+
+> **Cập nhật 2026-08-28 (S035, `DEC-156` §5).** Ownership đã được Owner cấp:
+> `TASK-105E — Price Resolution Composition`
+> (`docs/tasks/TASK-105E-price-resolution-composition.md`, `Status = PLANNED`).
+> Scope Lock và Completion Gate của `TASK-105E` vẫn **chưa** soạn, chưa
+> freeze — bảng `P00–P11` ở trên vẫn chưa phải executable gate.
+
+## 100. Current blockers của TASK-108B
+
+1. `TASK-105D` chưa READY/frozen/implemented.
+2. `TASK-105C` chưa refreeze gate theo `DEC-154`, chưa implemented.
+3. `TASK-105B` chưa DONE, chưa có Public Purchase dataset thật và remaining
+   hardening phải xử lý theo trigger trước usage.
+4. Price-resolution composition **ownership đã có chủ** — `TASK-105E — Price
+   Resolution Composition`, Owner cấp tại `DEC-156` §5, canonical spec
+   `docs/tasks/TASK-105E-price-resolution-composition.md`, `Status = PLANNED`.
+   Blocker vẫn MỞ ở mức implementation: `TASK-105E` chưa có Scope Lock, chưa
+   có Completion Gate, chưa freeze, chưa implement.
+5. `TASK-105B-Q3` vẫn là blocker độc lập theo authority hiện hành.
+
+Không còn đúng khi nói `TASK-108B` chỉ chờ “một bảng giá nhập” hoặc mọi
+product phải map vào Tracking `<MÃ>`.
+
+## STOP (Phần XII)
+
+Không implement `TASK-105B`/`105C`/`105D`/`108B`, không activate provider,
+không sửa Tracking, không merge/freeze trong phiên reconciliation này.

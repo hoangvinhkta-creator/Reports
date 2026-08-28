@@ -24,8 +24,17 @@ hoặc Independent Review liên quan. Ngân sách sống theo từng root task n
 tại `PROJECT/REVIEW_BUDGET_LEDGER.md`; kiểm tra branch authority bằng
 `scripts/branch_authority_check.sh`.
 
-Trạng thái hiện tại: `V4.1 = POLICY_ADOPTED`, `V4.1 = NOT YET
-FULLY_ENFORCED` (chờ `TASK-GOLDEN-BASELINE-001`).
+Trạng thái lịch sử tại thời điểm adoption: `V4.1 = POLICY_ADOPTED`,
+`V4.1 = NOT YET FULLY_ENFORCED` (khi đó còn chờ
+`TASK-GOLDEN-BASELINE-001`).
+
+**Trạng thái hiện tại:** `V4.1 = FULLY_ENFORCED` từ 2026-08-27 sau
+Freeze Finalization + Controlled Integration của
+`TASK-GOLDEN-BASELINE-001`; Golden trên default PASS (`58 passed, 2
+skipped`). Current-state authority và evidence nằm tại
+`PROJECT/PROJECT_PROGRESS.md` → "Governance V4.1 — Trạng Thái Adoption".
+Không sửa `governance/core/V4_1_POLICY_FREEZE.md` để giả như historical
+adoption artifact từng mang trạng thái khác.
 
 ## Đồng Bộ Nhánh (Bắt Buộc Cho Mọi Session)
 
