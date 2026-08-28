@@ -338,8 +338,8 @@ Lineage **mới**, độc lập với `TASK-108B`, `TASK-110` và
 root_task: TASK-105B
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
 ```
 
 `HIGH` chấm theo **data path** (V4.1 §4), **không** theo tên module — một
@@ -462,11 +462,55 @@ HANDOFF"). `repair_cycles_remaining` giữ nguyên `2` — cycle chỉ mở nế
 vòng Independent Review sau đó cho verdict FAIL và cần repair. Chi tiết
 đầy đủ + 17 check evidence: `docs/tasks/TASK-105B-file-price-provider.md`.
 
+**2026-08-28 — REPAIR CYCLE #1 mở** (phiên "TASK-105B PRICE-PARSER
+MICRO-HARDENING"). Không phải phản ứng với một Independent Review FAIL —
+mà là RE-TRIGGER CONDITION đã ghi sẵn tại Freeze (`DEC-153`): sửa
+`HB-105B-07` (NaN → `decimal.InvalidOperation` thô) và `HB-105B-08`
+(`Infinity` được chấp nhận làm giá hợp lệ) **trước** khi `TASK-105C`
+implementation bắt đầu hoặc `FilePriceProvider` activation thật — điều
+kiện nào tới trước (chưa điều kiện nào xảy ra; phiên này chủ động chạy
+trước để không bị chặn sau). `DEC-153` đã nêu rõ hai đường hợp lệ để sửa
+mã đã đóng băng: "một repair cycle mới có thẩm quyền riêng" hoặc một
+`COMPLETION GATE CHANGE PROPOSAL`. Phiên này KHÔNG thay đổi bất kỳ mục
+Scope Lock/Completion Gate nào (17 check REQUIRED giữ nguyên nội dung) —
+vì vậy đi theo đường **repair cycle mới có thẩm quyền riêng**, chính phiên
+này là phiên có thẩm quyền đó (được đặt tên tường minh làm
+"NEXT AUTHORIZED ACTION" tại `DEC-153`, không tự phát sinh).
+
+Thay đổi duy nhất: một `if not price.is_finite(): raise
+InvalidPriceMasterError(reason="non_finite_price")` chèn giữa check
+`missing_price` và check `negative_price` trong `_parse_price()` — dùng
+đúng phép kiểm hữu hạn canonical của `Decimal` (`Decimal.is_finite()`),
+không viết lại parser, không đổi normalization/effective-dating. 26 test
+hồi quy mới (`tests/test_file_price_provider.py`, đủ NaN/+Infinity/
+-Infinity qua string/float/`Decimal`, cả bề mặt YAML `.nan`/`.inf`, và
+non-regression cho giá dương hữu hạn/0/âm hữu hạn).
+
+```
+Targeted (test_file_price_provider.py) : 33 → 59 passed (+26 test mới)
+Golden (test_golden_baseline.py)       : 58 passed, 2 skipped (không đổi)
+Full pytest -q                         : 730 → 756 passed, 11 skipped
+                                          (chênh lệch = đúng 26 test mới,
+                                          0 regression, 0 skip mới)
+4 file production lõi (pipeline.py, price_engine.py, provider.py,
+models.py) diff                        : 0
+PendingPriceProvider vẫn mặc định pipeline; 0 caller FilePriceProvider
+ngoài chính module; 0 code TASK-105C được thêm.
+```
+
+`repair_cycles_used: 0 → 1`, `repair_cycles_remaining: 2 → 1`.
+
 cycles:
-- id: (chưa mở — implementation đã có, nhưng chưa có Independent Review
-  nào FAIL cần repair. Cycle-1 chỉ mở nếu review sắp tới trả FAIL.)
-  base_sha: N/A
-  head_sha: N/A
+- id: TASK-105B-RC-1
+  base_sha: c22cef8b47ac4cd71ef49609066a362c9e604313
+  head_sha: 7f7048d65619c2c2198c99ccbfb073d6cb97ebe2
+  scope: app/modules/pricing/file_price_provider.py, tests/test_file_price_provider.py
+  trigger: RE-TRIGGER CONDITION đã ghi tại DEC-153 (HB-105B-07/HB-105B-08),
+    không phải Independent Review FAIL
+  status: READY_FOR_REVIEW — Independent Review độc lập vẫn BẮT BUỘC trước
+    khi cycle này được coi là CLOSED (Effective Risk = HIGH, đúng tiền lệ
+    Completion Gate của chính TASK-105B/TASK-GOLDEN-BASELINE-001). Phiên
+    này KHÔNG tự ghi CLOSED_BY_REPAIR/INDEPENDENTLY_VERIFIED.
 
 ---
 
@@ -899,3 +943,47 @@ với chính default tip cũ).
   dependency đang mở). `HB-105B-07`/`HB-105B-08` re-trigger giữ nguyên,
   chưa resolve — bắt buộc trước `TASK-105C` implementation hoặc trước
   `FilePriceProvider` activation thật.
+
+- 2026-08-28 — `TASK-105B` **REPAIR CYCLE #1** (phiên "TASK-105B
+  PRICE-PARSER MICRO-HARDENING", nhánh `task/task-105b-price-parser-hardening`,
+  cắt từ default tip `89948df42b510e27b80a9a7902e3c07d4a7066e7`). Sửa đúng
+  `HB-105B-07` (NaN → `decimal.InvalidOperation` thô) và `HB-105B-08`
+  (`Infinity`/`-Infinity` không bị chặn đúng cách) — đúng RE-TRIGGER
+  CONDITION đã ghi tại `DEC-153`, không phải phản ứng với Independent
+  Review FAIL. Đường thẩm quyền dùng: **repair cycle mới có thẩm quyền
+  riêng** (không phải `COMPLETION GATE CHANGE PROPOSAL` — 17 check REQUIRED
+  của Completion Gate giữ nguyên nội dung, không sửa). Thay đổi mã nguồn
+  duy nhất: một check `price.is_finite()` chèn vào `_parse_price()`
+  (`app/modules/pricing/file_price_provider.py`), giữa check
+  `missing_price` và `negative_price`, raise
+  `InvalidPriceMasterError(reason="non_finite_price")`. 26 test hồi quy mới
+  tại `tests/test_file_price_provider.py`. Chi tiết + toàn bộ evidence:
+  commit `7f7048d65619c2c2198c99ccbfb073d6cb97ebe2`,
+  `docs/tasks/TASK-105B-file-price-provider.md`.
+
+  ```
+  Targeted : 33 → 59 passed (+26 test mới)
+  Golden   : 58 passed, 2 skipped (không đổi)
+  Full     : 730 → 756 passed, 11 skipped (chênh lệch = đúng 26 test mới,
+             0 regression, 0 skip mới)
+  4 file production lõi diff : 0
+  PendingPriceProvider vẫn default; 0 caller FilePriceProvider ngoài
+  module/test; 0 code TASK-105C được thêm.
+  ```
+
+  `repair_cycles_used: 0 → 1`, `repair_cycles_remaining: 2 → 1`. Cycle
+  ghi tại mục "Root Task: TASK-105B" → `cycles:` (`id: TASK-105B-RC-1`,
+  `base_sha: c22cef8b47ac4cd71ef49609066a362c9e604313`,
+  `head_sha: 7f7048d65619c2c2198c99ccbfb073d6cb97ebe2`). **`status:
+  READY_FOR_REVIEW`** — Independent Review độc lập vẫn BẮT BUỘC (Effective
+  Risk = HIGH) trước khi cycle này được ghi `CLOSED_BY_REPAIR,
+  INDEPENDENTLY_VERIFIED`; phiên này không tự cấp verdict đó cho chính
+  mình. `TASK-105B` vẫn `FROZEN + INTEGRATED`, vẫn `NOT DONE` (data
+  dependency bảng giá thật vẫn mở, không đổi bởi phiên này). `TASK-105C`
+  **KHÔNG** được bắt đầu trong phiên này — `HB-105B-07`/`HB-105B-08` được
+  báo cáo là *code-level resolved*, nhưng prerequisite đầy đủ cho
+  `TASK-105C` vẫn chờ Independent Review của chính cycle này, cộng
+  product identity mapping (dependency riêng, chưa mở task). `TASK-110`,
+  `TASK-GOLDEN-BASELINE-001` **không đổi**. `HB-105B-03`, `HB-105B-05`,
+  `HB-105B-06`, `HB-105B-10` **không đổi**, không được sửa trong phiên
+  này (đúng phạm vi khoá của brief).
