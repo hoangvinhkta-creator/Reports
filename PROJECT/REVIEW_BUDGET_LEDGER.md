@@ -342,6 +342,16 @@ repair_cycles_used: 1
 repair_cycles_remaining: 1
 ```
 
+> **Cập nhật 2026-08-28 (S035, `DEC-156` §4 — HB-154-04, Owner Option B).**
+> `TASK-105C` **không còn** dùng chung lineage này; nó có root lineage riêng
+> (mục "Root Task: TASK-105C" bên dưới). Ngân sách của `TASK-105B`
+> **KHÔNG ĐỔI**: `2 allowed / 1 used / 1 remaining`. Cycle `TASK-105B-RC-1`
+> vẫn CONSUMED, vẫn thuộc `TASK-105B`, **không** được chuyển sang lineage
+> mới và **không** được xoá. Toàn bộ nội dung lịch sử của mục này — kể cả
+> các dòng bên dưới còn mô tả `TASK-105C` như phần của lineage `TASK-105B`
+> theo kiến trúc `DEC-152` §11 — **giữ nguyên văn** làm bản ghi lịch sử
+> (`V4.1` §10). Trạng thái hiện hành của `TASK-105C`: xem mục riêng của nó.
+
 `HIGH` chấm theo **data path** (V4.1 §4), **không** theo tên module — một
 adapter/file reader **không** được coi là LOW chỉ vì nó là adapter:
 
@@ -510,6 +520,340 @@ cycles:
   status: CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED — Codex Independent Review
     PASS — REPAIR VERIFIED tại 9241ccfca9a8b0159b347f4d1171c0caa37eecad;
     reviewed lineage integrated qua integration/v4-1-task-105b-rc1.
+
+**2026-08-28 — `DEC-154` governance/spec reconciliation.** Không sửa
+production code/test/config, không activate provider, không mở Repair Cycle
+#2. Current role của `TASK-105B` chuyển thành Public Purchase effective-dated
+provider foundation; frozen implementation/history không đổi. Remaining
+`HB-105B-03/05/06/10` được audit trigger riêng và đều `triggered now = NO`.
+Budget giữ nguyên:
+
+```text
+repair_cycles_allowed   = 2
+repair_cycles_used      = 1
+repair_cycles_remaining = 1
+```
+
+---
+
+## Root Task: TASK-105C
+
+Lineage **root riêng**, cấp bởi Owner tại `DEC-156` §4 (2026-08-28,
+`HB-154-04` — Owner Option B). Ngân sách theo bảng đã freeze `V4.1` §2
+(`HIGH/CRITICAL = 2`).
+
+```
+root_task: TASK-105C
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+cycles: []
+status: BLOCKED / NOT AUTHORIZED — Scope Lock REOPENED_BY_DEC-154;
+        Completion Gate CHANGE_PROPOSAL_OPEN, NOT FROZEN;
+        implementation not authorized
+```
+
+Failure path:
+
+```text
+sai HistoricalVendorMin (ngày/sentinel/candidate)
+→ sai KpiPurchasePrice
+→ sai EligibleKpiProfit → sai CR → sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ nhánh giá này, nên
+không hạ Blast Radius theo `V4.1` §4.1.
+
+### Lineage trước đó — bản ghi lịch sử, KHÔNG xoá
+
+`TASK-105C` từng dùng chung lineage `TASK-105B` (xem mục "Root Task:
+TASK-105B" phía trên, giữ nguyên văn). Lý do DUY NHẤT của việc dùng chung là
+kiến trúc `DEC-152` §11: `HistoricalVendorPriceProvider` **compose**
+`FilePriceProvider`. `DEC-154` §13 đã gỡ composition đó — hai task nay là hai
+nhánh provider song song, không còn dependency cứng.
+
+Vì sao đây **không** phải một lineage mở "để reset ngân sách" theo nghĩa
+`V4.1` §2 cấm:
+
+```text
+(a) Owner cấp tường minh (DEC-156 §4), không phải agent tự tách.
+(b) Căn cứ là ARCHITECTURAL — lý do duy nhất của lineage dùng chung đã bị
+    DEC-154 §13 gỡ bỏ.
+(c) KHÔNG ngân sách đã tiêu nào được hoàn lại: TASK-105B-RC-1 vẫn CONSUMED
+    ở TASK-105B (2/1/1). TASK-105C mở ở 0 used vì nó CHƯA TỪNG tiêu cycle
+    nào của chính nó — RC-1 là repair NaN/vô cực trong FilePriceProvider,
+    code thuộc nhánh Public Purchase, không thuộc TASK-105C.
+(d) Historical evidence, review record, freeze record: giữ nguyên toàn bộ.
+```
+
+Artifact hiện có của lineage:
+
+- `docs/tasks/TASK-105C-historical-vendor-price-provider.md`
+- `DEC-151`, `DEC-152`, `DEC-154` §13, `DEC-156` §4 trong
+  `PROJECT/PROJECT_DECISIONS.md`
+
+---
+
+## Root Task: TASK-105E
+
+Lineage **mới**, cấp cùng lúc với task ID tại `DEC-156` §5 (2026-08-28).
+Ngân sách theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`) — cấp lineage
+là thao tác cơ học theo bảng, không phải một quyết định ngân sách riêng.
+
+```
+root_task: TASK-105E
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+cycles: []
+status: PLANNED — task ID và phạm vi trách nhiệm do Owner cấp; Scope Lock
+        chưa soạn; Completion Gate chưa soạn/chưa freeze; implementation
+        not authorized
+```
+
+Failure path:
+
+```text
+chọn sai nguồn giá / sai thứ tự P00–P11 / mất provenance
+→ sai KpiPurchasePrice
+→ sai EligibleKpiProfit → sai CR → sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ price composition path,
+nên không hạ Blast Radius theo `V4.1` §4.1.
+
+Artifact hiện có của lineage:
+
+- `docs/tasks/TASK-105E-price-resolution-composition.md`
+- `DEC-156` §5 trong `PROJECT/PROJECT_DECISIONS.md`
+
+Không cycle nào được mở bởi việc cấp task ID. `cycles: []`.
+
+---
+
+## Root Task: TASK-105D
+
+```
+root_task: TASK-105D
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+status: READY — specification complete + data contract complete (S034/
+        DEC-155) + Owner ratified (S035/DEC-156) + Completion Gate Change
+        Proposal applied (S037/DEC-157) + COMPLETION GATE FROZEN (S038,
+        2026-08-28, V4.1 §12); Ready Gate blocker = 0;
+        READY ≠ IMPLEMENTED ≠ DONE — implementation not authorized, và
+        DEC-157 §2 chặn implementation trước divergence decision
+freeze_attempts:
+    - id: TASK-105D-FREEZE-1
+      session: S036 (2026-08-28)
+      reviewed_base_sha: 9cd871488a6baebf6b80737f42e2137a27887cef
+      verdict: FAIL — freeze TỪ CHỐI; Ready Gate vẫn BLOCKED
+      findings: 5 BLOCKING / 5 HARDENING / 3 OUT_OF_SCOPE
+      repair_cycle_consumed: 0
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
+    - id: TASK-105D-FREEZE-2
+      session: S038 (2026-08-28)
+      reviewed_base_sha: be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
+      authority: V4.1 §12 + DEC-157 §2 (Option C cho phép ĐÚNG MỘT retry;
+                 đây là retry đó — scope Option C nay dùng hết)
+      role_separation: independent reviewer; KHÔNG kế thừa kết luận S037;
+                 ma trận 32 gate dựng lại từ văn bản canonical
+      verdict: PASS WITH HARDENING — Completion Gate FROZEN; TASK-105D READY
+      findings: 0 BLOCKING / 4 HARDENING / 3 OUT_OF_SCOPE
+      hardening_new: HB-105D-F2-01, HB-105D-F2-02, HB-105D-F2-03
+      hardening_carried: H-05 (phân loại lại độc lập = HARDENING)
+      testable: 32/32
+      deterministic: 32/32
+      contradiction: 0
+      adversarial_A_T: 20/20 PASS
+      gate_count: 32
+      gate_set_sha256: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      production_diff: 0 dòng
+      golden: 58 passed, 2 skipped
+      full_suite: 756 passed, 11 skipped
+      repair_cycle_consumed: 0
+      frozen: YES
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md
+gate_revisions:
+    - id: TASK-105D-GATE-REVISION-1
+      session: S037 (2026-08-28)
+      base_sha: 1676e1d173ff6afdbbaa2cedcf07fc06346955ce
+      authority: DEC-157 (Owner Decision A — giữ đúng 32 gate)
+      resolved: F-01, F-02, F-03, F-04, F-05  (5/5 BLOCKING)
+                + H-01, H-03 (ĐÓNG); H-02 một phần, H-04 nạp thêm
+      still_open: H-05 (đổi data contract §6.7 — ngoài thẩm quyền phiên này)
+      gate_count_before_after: 32 / 32
+      gates_added: 0
+      gates_removed: 0
+      evidence_level_downgrades: 0
+      evidence_level_upgrades: 2   (CHECK-105D-10, CHECK-105D-21: E1 → E2)
+      adversarial_cases_covered: 20/20  (trước: 14 ĐẠT / 1 MỘT PHẦN / 5 KHÔNG ĐẠT)
+      production_diff: 0 dòng (app/**, tests/**, config/**, tools/**,
+                       scripts/**, pyproject.toml)
+      repair_cycle_consumed: 0
+      frozen: NO
+      evidence: docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md
+```
+
+`repair_cycles_used` giữ nguyên `0`. Một **independent freeze review** không
+tiêu repair cycle: `V4.1` §3 tính cycle theo **lần sửa** (cumulative repair
+diff), và `S036` không sửa một dòng nào của gate, code hay test — nó chỉ ghi
+finding.
+
+Cập nhật 2026-08-28 (`S037`, `DEC-157` — Gate Revision #1): `repair_cycles_used`
+**vẫn giữ `0`**. `S037` có sửa gate, nhưng `V4.1` §3 tính cycle theo cumulative
+**repair diff của implementation** trên một defect `BLOCKING`, và `S037` sửa
+0 dòng `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`. `V4.1` cấm mở Repair Cycle chỉ vì documentation/gate issue
+trừ khi Owner quyết định khác — Owner **không** quyết định khác (`DEC-157` §4).
+Ngân sách `TASK-105D`: `2 allowed / 0 used / 2 remaining`.
+
+Cập nhật 2026-08-28 (`S038`, Freeze Finalization retry): `repair_cycles_used`
+**vẫn giữ `0`**. Một independent freeze review không tiêu repair cycle
+(`V4.1` §3 — cycle tính theo cumulative repair diff của implementation);
+`S038` sửa 0 dòng `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`, và 0 dòng semantics của gate (`GATE_SET_SHA256` không đổi
+trước/sau commit của phiên). Ngân sách `TASK-105D` giữ nguyên
+`2 allowed / 0 used / 2 remaining`.
+
+Failure path:
+
+```text
+sai namespace/identity/cutover
+→ sai provider/price provenance
+→ sai KpiPurchasePrice
+→ sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ product-resolution/price
+composition path, nên không hạ Blast Radius theo V4.1 §4.1.
+
+Artifact hiện có của lineage (8):
+
+- `docs/tasks/TASK-105D-product-identity-resolver.md` (S032/`DEC-154`)
+- `DEC-154` trong `PROJECT/PROJECT_DECISIONS.md`
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034/`DEC-155`)
+- `DEC-155` trong `PROJECT/PROJECT_DECISIONS.md`
+- `DEC-156` trong `PROJECT/PROJECT_DECISIONS.md` (S035, Owner Ratification)
+- `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md` (S036, artifact #6)
+- `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (S037, #7)
+- `DEC-157` trong `PROJECT/PROJECT_DECISIONS.md` (S037, artifact #8)
+- `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` (S038, artifact #9)
+
+Artifact #6/#7/#8/#9 đều thuộc diện `OWNER APPROVAL REQUIRED` của `V4.1` §10;
+approval là chỉ thị tường minh của Owner khi mở từng phiên tương ứng, ghi lại
+ở đầu mỗi artifact.
+
+`DEC-156` là artifact thứ 5, tức thuộc diện `OWNER APPROVAL REQUIRED` của
+`V4.1` §10. Approval đó chính là chỉ thị trực tiếp của Owner trong phiên
+ratification ("ghi nhận các Owner Decisions vào canonical decision/task/
+progress artifacts theo đúng governance") — ghi lại tường minh, xem
+`DEC-156` phần đầu.
+
+Không cycle nào được mở bởi việc tạo specification hay bởi phiên readiness.
+`cycles: []`.
+
+### Branch divergence — `TASK-105D` lineage (`V4.1` §8)
+
+Ghi theo `DEC-157` §2 (Owner Decision B). `S036` phát hiện
+`INTEGRATION_DECISION_REQUIRED` sau commit của chính nó:
+
+```text
+ahead default   : 4 commit          (ngưỡng: > 10)      OK
+divergence days : 0                 (ngưỡng: > 3)       OK
+cumulative LOC  : 5637              (ngưỡng: > 5.000)   VƯỢT
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : BRANCH_WITH_UPSTREAM
+RESULT          : AUTHORITY_OK
+```
+
+```text
+OWNER DECISION (DEC-157 §2) : V4.1 §8 Option C — CONTINUE WITH EXPLICIT
+                              JUSTIFICATION
+JUSTIFICATION               : toàn bộ LOC vượt ngưỡng là documentation/
+                              governance; production diff = 0; phần việc còn
+                              lại chỉ là gate correction + freeze; merge trước
+                              freeze không có lợi ích, chỉ thêm rủi ro xung
+                              đột văn bản
+SCOPE ĐƯỢC PHÉP             : (1) Gate Revision S037; (2) MỘT Freeze
+                              Finalization retry độc lập. Không mở thêm scope.
+REVIEW POINT (BẮT BUỘC)     : NGAY SAU FREEZE FINALIZATION RETRY VERDICT
+RÀNG BUỘC                   : KHÔNG mở TASK-105D implementation trước review
+                              point đó, kể cả khi freeze verdict là PASS
+```
+
+Đo lại sau commit của `S037` (SHA `4c9c072990278d6696605ee7dc1b215a0a00d6de`):
+
+```text
+ahead default   : 6 commit          (ngưỡng: > 10)      OK
+divergence days : 0                 (ngưỡng: > 3)       OK
+cumulative LOC  : 8683              (ngưỡng: > 5.000)   VƯỢT
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : BRANCH_WITH_UPSTREAM
+RESULT          : AUTHORITY_OK
+```
+
+Con số tăng từ `5637` lên `8683` **hoàn toàn** do documentation/governance của
+`S037`: `git diff --shortstat` từ đỉnh nhánh mặc định tới HEAD cho
+`18 files changed, 8619 insertions(+), 64 deletions(-)`, trong đó production
+diff (`app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`) là **rỗng**. Bản chất rủi ro không đổi so với lúc Owner ra
+quyết định: rủi ro **xung đột văn bản**, không phải rủi ro hành vi. Option C và
+review point giữ nguyên hiệu lực; con số mới là dữ liệu cho chính review point
+đó, không phải một trigger mới cần quyết định lại.
+
+Đây là một quyết định integration, **không** phải vi phạm thẩm quyền —
+`branch_authority_check.sh` vẫn trả `AUTHORITY_OK`.
+
+### Divergence review point — ĐÃ THỰC HIỆN (`S038`, 2026-08-28)
+
+`DEC-157` §2 đặt review point bắt buộc = **ngay sau freeze finalization retry
+verdict**. Verdict đã có (`PASS WITH HARDENING`, Completion Gate `FROZEN`), nên
+review point được thực hiện trong chính phiên `S038`:
+
+```text
+Đo tại be835b1 (HEAD phiên review, trước commit của S038):
+  ahead default     : 7 commit        (ngưỡng > 10)     OK
+  behind default    : 0 commit
+  divergence days   : 0               (ngưỡng > 3)      OK
+  cumulative LOC    : 8.703           (ngưỡng > 5.000)  VƯỢT
+    production LOC      : 0
+    documentation LOC   : 8.639   (18 file, +8.639 / −64)
+  DIVERGENCE        : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+  AUTHORITY         : BRANCH_WITH_UPSTREAM
+  RESULT            : AUTHORITY_OK
+  merge/conflict risk : rủi ro XUNG ĐỘT VĂN BẢN, không phải rủi ro hành vi;
+                        behind = 0 nên hiện chưa có conflict thực tế
+
+SCOPE OPTION C — ĐÃ DÙNG HẾT:
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+
+RECOMMENDATION (reviewer S038) : (A) integrate/merge sớm
+STATUS                         : OWNER DECISION REQUIRED — V4.1 §8
+```
+
+`S038` **không** tự chọn phương án, **không** merge, và **không** tự gia hạn
+Option C. Lý do gốc mà Owner ghi khi chọn Option C ("phần việc còn lại chỉ là
+gate correction + freeze") nay đã hoàn tất, nên tiếp tục divergence sẽ là một
+**gia hạn** cần thẩm quyền Owner, không phải sự tiếp nối của quyết định cũ.
+
+Ràng buộc `DEC-157` §2 vẫn hiệu lực tới khi Owner quyết định: **KHÔNG mở
+`TASK-105D` implementation trước divergence decision**, kể cả khi freeze
+verdict là `PASS` và `TASK-105D` đã `READY`.
+
+Chi tiết: §14 của `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`.
+
+Cập nhật 2026-08-28 (S034, `DEC-155` — readiness/data contract):
+`repair_cycles_used` giữ nguyên `0`. Một phiên readiness/documentation
+**không phải** repair cycle — V4.1 §3 tính cycle theo LẦN SỬA một defect
+BLOCKING, và independent review tại `61a90b4f` ghi `BLOCKING = 0`. Ready Gate
+blocker giảm từ 4 xuống 2 (Owner ratification `OR-01`/`OR-02`/`OR-03`;
+Completion Gate freeze bởi authority riêng). `status` cập nhật bên dưới.
 
 ---
 
@@ -986,3 +1330,158 @@ với chính default tip cũ).
   `TASK-GOLDEN-BASELINE-001` **không đổi**. `HB-105B-03`, `HB-105B-05`,
   `HB-105B-06`, `HB-105B-10` **không đổi**, không được sửa trong phiên
   này (đúng phạm vi khoá của brief).
+
+- 2026-08-28 — `DEC-154` **PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION**.
+  Governance/spec reconciliation only: tạo `TASK-105D` spec/lineage,
+  reconcile `TASK-105B` thành Public Purchase branch và `TASK-105C` thành
+  Tracking HistoricalVendorMin branch, không sửa/activate code. `TASK-105B`
+  budget **không đổi** `2/1/1`; không mở RC-2. Lineage mới `TASK-105D` được
+  cấp theo bảng HIGH `2/0/2`, chưa dùng cycle nào. Golden/Tracking không đổi.
+
+- 2026-08-28 — `DEC-155` **TASK-105D READINESS — DATA CONTRACT, PERSISTENCE &
+  AUDIT DESIGN** (S034). Readiness/design documentation only: tạo
+  `docs/spec/TASK-105D-DATA-CONTRACT.md`, chốt unified
+  `PublicPurchaseSourceVersion` (HB-154-02), Tracking read-only capture
+  contract, `HistoricalConfirmedRegistry` bypass rule (HB-154-03),
+  `CrossSystemProductMapping` precondition cho Public Purchase fallback
+  (HB-154-01), persistence/concurrency/idempotency/audit/migration contract,
+  và định nghĩa vận hành cho `CHECK-105D-06/13/23/24` (HB-154-05). Sửa
+  transcription `P00`/`P03`/`P11` và hai canonical documentation correction
+  (HB-154-06, HB-154-07).
+
+  ```
+  app/** tests/** config/** tools/** scripts/** governance/** : 0 file thay đổi
+  Golden        : 58 passed, 2 skipped (không đổi)
+  Full suite    : 756 passed, 11 skipped (không đổi)
+  Repair Cycle  : KHÔNG mở
+  TASK-105D budget : 2 allowed / 0 used / 2 remaining  (KHÔNG ĐỔI)
+  TASK-105B budget : 2 allowed / 1 used / 1 remaining  (KHÔNG ĐỔI)
+  TASK-110, TASK-GOLDEN-BASELINE-001, TASK-108B budget : KHÔNG ĐỔI
+  ```
+
+  `HB-105B-03/05/06/10` **không** bị trigger bởi phiên này (không dataset
+  thật nào được nạp, không code/test/tool nào được thêm); thiết kế mới định vị
+  chính xác điểm trigger là lần đầu một `PublicPurchaseSourceVersion` thật
+  được nạp qua `FilePriceProvider`. `HB-154-04` (review-budget lineage của
+  `TASK-105C`) **KHÔNG được tự sửa** — ghi `OWNER DECISION REQUIRED` kèm ba
+  phương án và khuyến nghị tại `DEC-155` §6, theo đúng V4.1 §2/§12.
+
+- 2026-08-28 — `DEC-156` **OWNER RATIFICATION — TASK-105D READINESS;
+  TASK-105C LINEAGE RECONCILIATION; TASK-105E AUTHORIZATION** (S035).
+  Owner Decision recording, documentation-only.
+
+  ```
+  OR-01  APPROVED                              (unified Public Purchase source)
+  OR-02  APPROVED WITH CANDIDATE-ONLY POLICY   (ALIAS_AID_UNIQUE = candidate #1,
+                                                KHÔNG auto-resolve)
+  OR-03  APPROVED FOR PHASE 1                  (actor khai báo, REQUIRED,
+                                                cấm gọi là authenticated)
+  HB-154-04  CLOSED — Owner Option B
+  TASK-105E  Owner cấp task ID (Price Resolution Composition)
+  ```
+
+  Tác động ngân sách:
+
+  ```
+  TASK-105B : 2 allowed / 1 used / 1 remaining   KHÔNG ĐỔI
+              TASK-105B-RC-1 vẫn CONSUMED, không chuyển, không xoá
+  TASK-105C : lineage ROOT MỚI — 2 allowed / 0 used / 2 remaining
+              (tách theo kiến trúc, KHÔNG phải reset ngân sách đã tiêu)
+  TASK-105D : 2 allowed / 0 used / 2 remaining   KHÔNG ĐỔI
+  TASK-105E : lineage MỚI — 2 allowed / 0 used / 2 remaining
+  TASK-110, TASK-GOLDEN-BASELINE-001, TASK-108B : KHÔNG ĐỔI
+  Repair Cycle : KHÔNG mở
+  ```
+
+  ```
+  app/** tests/** config/** tools/** scripts/** governance/** : 0 file thay đổi
+  Golden     : 58 passed, 2 skipped (không đổi)
+  Full suite : 756 passed, 11 skipped (không đổi)
+  ```
+
+  `TASK-105D` Ready Gate blocker: 2 → **1** (chỉ còn Completion Gate freeze).
+  `TASK-105C` trạng thái task **KHÔNG đổi** — vẫn `BLOCKED / NOT AUTHORIZED`.
+  `HB-105B-03/05/06/10` không finding nào bị trigger bởi phiên này.
+
+---
+
+### Divergence decision — ĐÃ QUYẾT (`S039`, 2026-08-28, `DEC-158`)
+
+Review point bắt buộc của `DEC-157` §2 được **đóng** bằng Owner Decision
+`DEC-158`: `V4.1` §8 **Option A — INTEGRATE EARLY**. Option C **không** gia hạn.
+
+```text
+Đo tại e271c26 (sau controlled merge, trước push default):
+  ahead default     : 9 commit        (ngưỡng > 10)     OK
+  behind default    : 0 commit
+  divergence days   : 0               (ngưỡng > 3)      OK
+  cumulative LOC    : 10.055          (ngưỡng > 5.000)  VƯỢT
+    production LOC      : 0     (app/**, tests/**, config/**, tools/**,
+                                 scripts/**, pyproject.toml, governance/**)
+    documentation LOC   : 10.055  (20 file, +9.991 / −64)
+  DIVERGENCE        : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+                      → GIẢI QUYẾT bằng Option A (integrate), không phải
+                        bằng cách tiếp tục divergence
+  AUTHORITY         : BRANCH_WITH_UPSTREAM
+  RESULT            : AUTHORITY_OK
+
+SCOPE OPTION C — ĐÃ DÙNG HẾT (xác nhận lại):
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+  → không còn allowance; tiếp tục divergence sẽ là GIA HẠN, Owner từ chối
+
+INTEGRATION:
+  phương pháp   : git merge --no-ff (ancestry-preserving)
+  conflict      : 0
+  merge commit  : e271c26770bb6b4cecd9d4a54aea4e12a183012c
+  tree == a53af1d : YES (byte-exact)
+  squash        : KHÔNG
+  cherry-pick   : KHÔNG
+
+KẾT QUẢ SAU PUSH DEFAULT:
+  DIVERGENCE    : WITHIN_LIMITS  (behind = 0, ahead = 0)
+  bằng chứng divergence lịch sử: GIỮ NGUYÊN, không xoá
+                 (§ "Branch divergence — TASK-105D lineage" và
+                  § "Divergence review point — ĐÃ THỰC HIỆN (S038)" ở trên)
+```
+
+Ngân sách sau phiên — **KHÔNG ĐỔI**:
+
+```text
+TASK-105D : 2 allowed / 0 used / 2 remaining
+            Repair Cycle KHÔNG mở (V4.1 §3: diff của phiên là
+            documentation/governance, BLOCKING = 0)
+TASK-105B, TASK-105C, TASK-105E, TASK-110,
+TASK-GOLDEN-BASELINE-001, TASK-108B          : KHÔNG ĐỔI
+```
+
+Bằng chứng thực thi của phiên (E2):
+
+```text
+validate_structure           : PASS
+validate_project_state       : PASS
+validate_evidence            : PASS  (88 REQUIRED PASS record)
+validate_task_completion     : PASS  (6 DONE task)
+validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-REM-T06
+                               (/README.md, CODE_OF_CONDUCT.md,
+                                CONTRIBUTING.md) — không phát sinh mới
+branch_authority_check.sh    : AUTHORITY_OK
+git diff --check             : sạch
+Golden                       : 58 passed, 2 skipped
+Full suite                   : 756 passed, 11 skipped
+production diff              : 0 dòng
+```
+
+### `HARDENING` — trạng thái sau hợp nhất (preserve, KHÔNG repair)
+
+```text
+H-05           MỞ  — ranking_method_id OPTIONAL vs hashed; đổi data contract
+                     §6.7; re-trigger ghi trong CHECK-105D-08
+HB-105D-F2-01  MỞ  — data contract §3.3 câu 8 "bộ ba" vs INV-55 "CẢ BỐN"
+HB-105D-F2-02  MỞ  — data contract §16.1 stale ("CHƯA CÓ CHỦ" vs §16.3 GRANTED)
+HB-105D-F2-03  MỞ  — 13 invariant chưa có gate assertion riêng
+```
+
+Cả bốn **vẫn phân loại `HARDENING`**, không nâng thành `BLOCKING` (không có
+evidence mới), không hạ khỏi `HARDENING`. `docs/spec/TASK-105D-DATA-CONTRACT.md`
+không bị sửa trong phiên này.

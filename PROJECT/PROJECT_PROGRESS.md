@@ -96,6 +96,401 @@ byte `app/**`/`config/**`/`tests/**`/Golden fixture thay đổi; repo giá
 đưa vào nhánh mặc định. **Không được đọc "đã integrate" thành "đã
 implement".**
 
+## Current Price Architecture — DEC-154 (2026-08-28)
+
+Khối này là current-state pointer mới nhất. Nó supersede các đoạn current
+state cũ nếu còn nói mọi product phải map vào Tracking `<MÃ>`,
+`TASK-105B → TASK-105C` là dependency tuyến tính, hoặc `TASK-105C = READY`.
+Các đoạn cũ giữ nguyên làm lịch sử.
+
+```text
+CUTOVER_DATE = 2026-09-01
+
+sale_date < cutover + Owner-confirmed historical report
+  → identity + price authority = HISTORICAL_CONFIRMED_REPORT
+  → bypass catalog/resolver/provider
+
+sale_date >= cutover
+  → TASK-105D resolves (namespace, source_product_code)
+       ├─ TRACKING        → TASK-105C HistoricalVendorMin
+       │                     absence → cross-map → TASK-105B
+       └─ PUBLIC_PURCHASE → TASK-105B PublicPurchasePrice
+  → PRICE RESOLUTION P00–P11  (chủ sở hữu: TASK-105E, DEC-156 §5)
+  → KpiPurchasePrice / TASK-108B
+```
+
+Canonical namespaces: `TRACKING`, `PUBLIC_PURCHASE`. Tracking MISS không tự
+động thành Pending nếu Public Purchase resolve deterministic; Public Purchase
+product không cần Tracking product giả. Product identity và price source là
+hai khái niệm tách biệt.
+
+### Exact task states
+
+```text
+TASK-105B
+  = FROZEN + INTEGRATED + RC-1 INTEGRATED + NOT DONE
+  current role = Public Purchase effective-dated provider foundation
+  DONE blocker = Owner/source-confirmed Public Purchase production dataset
+                 load/replay được + remaining HB triggers resolved trước use
+  PendingPriceProvider vẫn default; FilePriceProvider NOT ACTIVATED
+  budget = 2 allowed / 1 used / 1 remaining
+
+TASK-105C
+  = BLOCKED / NOT AUTHORIZED   (KHÔNG đổi bởi DEC-156)
+  semantic branch = TRACKING HistoricalVendorMin, DEC-151/152 preserved
+  input = resolved TRACKING identity + sale_date
+  output = HistoricalVendorMin hoặc absence cho fallback
+  Scope Lock = REOPENED_BY_DEC-154
+  Completion Gate = CHANGE_PROPOSAL_OPEN, NOT FROZEN
+  không còn compose/depend cứng TASK-105B
+  budget lineage = TASK-105C (ROOT RIÊNG, 2 allowed / 0 used / 2 remaining)
+      cấp bởi Owner tại DEC-156 §4 (HB-154-04 Option B).
+      TASK-105B giữ nguyên 2/1/1 — TASK-105B-RC-1 vẫn CONSUMED, không
+      chuyển, không xoá. Đây là tách lineage theo kiến trúc, KHÔNG phải
+      reset ngân sách đã tiêu.
+
+TASK-105D
+  = READY / SPECIFICATION COMPLETE + DATA CONTRACT COMPLETE
+    + OWNER RATIFIED + COMPLETION GATE FROZEN
+    (READY ≠ IMPLEMENTED ≠ DONE — implementation cần phiên cấp phép riêng,
+     và DEC-157 §2 chặn implementation trước divergence decision)
+  canonical spec = docs/tasks/TASK-105D-product-identity-resolver.md
+  canonical data contract = docs/spec/TASK-105D-DATA-CONTRACT.md (S034/DEC-155,
+      Owner-ratified DEC-156)
+  Completion Gate 32 check = FROZEN (S038, 2026-08-28, V4.1 §12),
+      32/32 NOT_TESTED (freeze đóng băng NGỮ NGHĨA, không tuyên bố đã test),
+      gate count vẫn ĐÚNG 32, 32/32 REQUIRED, E2 = 19 / E1 = 13
+      GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen source SHA = be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
+  Freeze Finalization attempt #1 = FAIL (S036, 2026-08-28)
+      5 BLOCKING / 5 HARDENING; testable 30/32; deterministic 29/32;
+      G06 ↔ G23 mâu thuẫn; 5/20 case đối kháng bắt buộc không được phủ
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
+  Gate Revision #1 = ÁP DỤNG (S037, 2026-08-28, DEC-157)
+      F-01…F-05 xử lý 5/5; G04/G05/G22 nay deterministic + testable;
+      H-01/H-03 ĐÓNG; H-02 (một phần) + H-04 nạp thêm; H-05 CÒN MỞ
+      (đổi data contract — ngoài thẩm quyền phiên gate revision);
+      32/32 gate có assertion + fixture + PASS + FAIL + nguồn quy phạm;
+      20/20 case đối kháng bắt buộc được phủ (trước: 14 ĐẠT / 1 MỘT PHẦN /
+      5 KHÔNG ĐẠT); gate thêm = 0, gate xoá = 0, Evidence Level hạ = 0
+      (hai lần NÂNG E1 → E2: CHECK-105D-10, CHECK-105D-21)
+      evidence: docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md
+  Freeze Finalization retry (attempt #2) = PASS WITH HARDENING
+      (S038, 2026-08-28, reviewed base SHA be835b1)
+      review độc lập TOÀN BỘ 32 gate, KHÔNG kế thừa kết luận S037;
+      BLOCKING 0 / HARDENING 4 / OUT_OF_SCOPE 3;
+      testable 32/32; deterministic 32/32; contradiction 0;
+      adversarial A–T 20/20 PASS; Owner Ratification OR-01/02/03 đều có gate
+      → Completion Gate FROZEN; TASK-105D → READY
+      HARDENING mới: HB-105D-F2-01 (§3.3 câu 8 "bộ ba" vs INV-55 "CẢ BỐN" —
+                     V4.1 §11 giải; G21 C đã assert đúng bốn)
+                     HB-105D-F2-02 (§16.1 stale: "CHƯA CÓ CHỦ" vs §16.3
+                     GRANTED; thiếu E-A/E-B/E-C/E-D trong bảng ownership)
+                     HB-105D-F2-03 (13 invariant không có gate riêng —
+                     INV-51/52/53, 65, 79…82, 84/85/86, 26; INV-08 cố ý)
+      HARDENING kế thừa: H-05 (ranking_method_id OPTIONAL vs hashed) —
+                     phân loại lại độc lập = HARDENING, KHÔNG BLOCKING
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md
+  implementation = NOT STARTED / NOT AUTHORIZED
+      (chặn bởi DEC-157 §2 — divergence decision phải có trước)
+  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — cả S036 lẫn
+      S037 đều không mở Repair Cycle; V4.1 §3 tính cycle theo repair diff của
+      implementation, và cả hai phiên đều 0 dòng code/test)
+  Ready Gate blocker = 0  (4 → 2 sau S034 → 1 sau DEC-156 → 0 sau S038):
+    ĐÃ ĐÓNG: Owner ratification OR-01 / OR-02 / OR-03 (DEC-156)
+    ĐÃ ĐÓNG: Completion Gate freeze (S038, 2026-08-28) — S036 TỪ CHỐI,
+             S037 sửa gate theo đúng findings, S038 re-review độc lập
+             TOÀN BỘ gate set rồi ghi FROZEN (V4.1 §12)
+
+TASK-105E  (MỚI — Owner cấp task ID tại DEC-156 §5)
+  = PLANNED / SPEC OUTLINE / READY GATE BLOCKED
+  canonical owner của P00–P11 price-resolution composition
+  canonical spec = docs/tasks/TASK-105E-price-resolution-composition.md
+  Scope Lock = CHƯA SOẠN; Completion Gate = CHƯA SOẠN, NOT FROZEN
+  implementation = NOT STARTED / NOT AUTHORIZED
+  budget lineage mới = 2 allowed / 0 used / 2 remaining
+  KHÔNG resolve identity, KHÔNG thay 105B/105C/105D, KHÔNG invent
+  mapping/price, KHÔNG mutate Tracking
+
+TASK-108B
+  = BLOCKED_BY_DEPENDENCY  (KHÔNG unblocked bởi S038)
+  chờ TASK-105D (blocker chuyển từ "gate chưa freeze được" sang "chờ
+  implementation" — gate nay FROZEN nhưng implementation chưa mở),
+  TASK-105C refreeze+implementation, TASK-105B DONE,
+  TASK-105E (ownership ĐÃ CÓ tại DEC-156; Scope Lock/Gate/implementation
+  CHƯA CÓ) và TASK-105B-Q3
+```
+
+### Remaining HB-105B audit
+
+| Finding | Current trigger | Triggered now? | Required action |
+|---|---|---|---|
+| HB-105B-03 | Lần đầu đọc Public Purchase file thật/non-test | NO | Canonicalize invalid shape/root/row error trước usage |
+| HB-105B-05 | Public Purchase dataset production xuất hiện | NO | Strict required-column check; typo không thành open record |
+| HB-105B-06 | TASK-105C thêm tools/tests | NO | Mở rộng assertion đúng boundary; network chỉ ở intended tool |
+| HB-105B-10 | Machine-generated file được nạp qua FilePriceProvider | NO | Strict schema trước Public Purchase export/snapshot usage |
+
+`HB-105B-07/08` vẫn RESOLVED + independently verified; `09/11` vẫn
+SUPERSEDED; `04` vẫn OUT_OF_SCOPE. Phiên docs này không mở Repair Cycle #2,
+không tiêu budget.
+
+### Next authorized action
+
+*(Cập nhật 2026-08-28, S035/`DEC-156` — Owner Ratification. Toàn bộ quyết
+định Owner đang chờ ở khối S034 bên dưới đã được đóng. Đoạn cũ giữ lại làm
+lịch sử.)*
+
+*(Cập nhật 2026-08-28, S038 — FREEZE FINALIZATION RETRY = **PASS WITH
+HARDENING**; Completion Gate `TASK-105D` = **FROZEN**; `TASK-105D` = **READY**.
+Đoạn ngay dưới đây là hành động kế tiếp hiện hành; các đoạn S037/S036/S035
+phía sau giữ nguyên làm lịch sử.)*
+
+*(Cập nhật 2026-08-28, S039 — CONTROLLED READINESS INTEGRATION. Owner đã
+quyết định `V4.1` §8 **Option A — INTEGRATE EARLY** (`DEC-158`); toàn bộ
+lineage readiness/freeze của `TASK-105D` đã được hợp nhất vào nhánh mặc định
+giữ nguyên ancestry. Đoạn ngay dưới đây là trạng thái + hành động kế tiếp
+hiện hành; khối "1. OWNER DECISION — BRANCH DIVERGENCE" của S038 phía sau nay
+đã **ĐƯỢC ĐÓNG** và giữ nguyên làm lịch sử.)*
+
+### Trạng thái sau CONTROLLED INTEGRATION (S039, 2026-08-28, `DEC-158`)
+
+```text
+TASK-105D  = READY
+             NOT IMPLEMENTED / NOT DONE
+             Completion Gate 32 check = FROZEN
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+             32/32 NOT_TESTED  (freeze SEMANTICS, chưa test)
+             implementation = NOT STARTED; NOT AUTHORIZED
+                              (ràng buộc DEC-157 §2 đã thoả bằng DEC-158,
+                               nhưng vẫn cần phiên cấp phép RIÊNG của Owner)
+             budget = 2 allowed / 0 used / 2 remaining
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED
+             NOT DONE / NOT ACTIVATED                       (không đổi; không chạm)
+TASK-105C  = BLOCKED / NOT AUTHORIZED                       (không đổi)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED /
+             NOT IMPLEMENTED / NOT AUTHORIZED               (không đổi)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                          (không đổi; KHÔNG unblock)
+             blocker: TASK-105C implementation, TASK-105D implementation,
+                      TASK-105E, TASK-105B-Q3
+```
+
+Hợp nhất đã thực hiện:
+
+```text
+integration branch : integration/v4-1-task-105d-readiness
+freeze SHA         : a53af1d193d4023fcf90bcc8e55bb874eaae19fe
+phương pháp        : git merge --no-ff (ancestry-preserving); KHÔNG squash,
+                     KHÔNG cherry-pick rời
+conflict           : 0
+merge commit       : e271c26770bb6b4cecd9d4a54aea4e12a183012c
+tree == a53af1d    : YES (byte-exact)
+ancestry giữ đủ    : 442404d → d3b73e5 → 9cd8714 → 7b89d4c → 1676e1d
+                     → 4c9c072 → be835b1 → a53af1d
+                     (gồm CẢ bằng chứng THẤT BẠI của Freeze Attempt #1
+                      `7b89d4c`, verdict FAIL — không rewrite, không xoá)
+production diff    : 0 dòng
+```
+
+`HARDENING` giữ nguyên, **KHÔNG repair** trong phiên này: `H-05`,
+`HB-105D-F2-01`, `HB-105D-F2-02`, `HB-105D-F2-03` — vẫn `HARDENING`, vẫn mở,
+re-trigger còn nguyên. `docs/spec/TASK-105D-DATA-CONTRACT.md` không bị sửa.
+
+#### Đối chiếu trạng thái `TASK-105B` — ghi nhận khác biệt văn bản
+
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` §16 ghi
+`TASK-105B = FROZEN (DEC-153) / DONE`, kèm chú "(không đổi; không chạm)".
+Bản ghi trạng thái canonical của repo (file này) ghi `TASK-105B = FROZEN +
+INTEGRATED + RC-1 INTEGRATED`, **vẫn `NOT DONE`** và chưa activate — xem các
+khối "Cập nhật sau CONTROLLED INTEGRATION" và "Cập nhật sau RECONCILIATION"
+phía dưới, cùng `NEXT AUTHORIZED ACTION` của lineage `TASK-105B`
+("…chuyển `TASK-105B` sang `DONE`" — tức `DONE` CHƯA đạt).
+
+Phân giải, theo `CLAUDE.md` ("Trạng thái hiện tại → `PROJECT/PROJECT_PROGRESS.md`")
+và `governance/core/V4_1_POLICY_FREEZE.md` §12 (`DONE` = thẩm quyền Owner /
+completion authority — một phiên Freeze Finalization của `TASK-105D` **không**
+có thẩm quyền ghi `DONE` cho `TASK-105B`):
+
+```text
+TRẠNG THÁI CANONICAL CỦA TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED
+                                     NOT DONE / NOT ACTIVATED
+Chữ "/ DONE" trong REVIEW-2 §16 = ghi chú phụ trợ SAI của một artifact review,
+KHÔNG phải state transition, và KHÔNG có hiệu lực.
+```
+
+Artifact review **không bị sửa** — `V4.1` §10 cấm retro-fit tài liệu
+governance lịch sử, và sửa nó sẽ làm đổi bằng chứng freeze. Khác biệt được
+ghi tại đây làm bản ghi đối chiếu. Điều này **không** ảnh hưởng freeze verdict
+của `TASK-105D`: `TASK-105B` không nằm trong gate set 32 check, và
+`GATE_SET_SHA256` không đổi.
+
+#### NEXT AUTHORIZED ACTION (sau S039)
+
+**Controlled integration KHÔNG tự động cấp quyền implementation.**
+
+```text
+1. Một phiên IMPLEMENTATION TASK-105D được Owner cấp phép RIÊNG, chạy trên
+   Completion Gate đã FROZEN (32 check, GATE_SET_SHA256 0444e58c…).
+   Phiên đó phải xử lý HB-105D-F2-03 và H-05 khi chạm đúng vùng re-trigger.
+   S039 KHÔNG tạo implementation branch.
+
+Song song, không bị chặn:
+   - phiên sửa data contract có thẩm quyền : H-05 + HB-105D-F2-01
+   - phiên soạn Scope Lock + Completion Gate cho TASK-105E : HB-105D-F2-02
+   - refreeze TASK-105C (lineage riêng 2/0/2)
+   - Owner cung cấp dữ liệu thật: PublicPurchaseSourceVersion đầu tiên,
+     TrackingCatalogSnapshot đầu tiên, báo cáo lịch sử Owner-confirmed
+```
+
+*(Đoạn S038 dưới đây — "1. OWNER DECISION — BRANCH DIVERGENCE" — ĐÃ ĐÓNG bởi
+`DEC-158` (Option A). Giữ nguyên văn làm lịch sử:)*
+
+
+**1. OWNER DECISION — BRANCH DIVERGENCE (`V4.1` §8). Đây là việc PHẢI làm
+trước bất kỳ việc nào khác trên lineage `TASK-105D`**, theo `DEC-157` §2
+(review point bắt buộc = ngay sau freeze verdict; verdict đã có).
+
+```text
+ahead default   : 7 commit        (ngưỡng > 10)     OK
+divergence days : 0               (ngưỡng > 3)      OK
+cumulative LOC  : 8.703           (ngưỡng > 5.000)  VƯỢT
+  production LOC    : 0
+  documentation LOC : 8.639   (18 file, +8.639 / −64)
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : AUTHORITY_OK
+
+Scope mà Option C cho phép đã DÙNG HẾT:
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+
+Owner chọn một trong ba:
+  (A) integrate/merge sớm   ← RECOMMENDATION của reviewer S038
+  (B) cắt scope
+  (C) tiếp tục divergence có lý do + review date  (= GIA HẠN; S038 KHÔNG có
+      thẩm quyền tự cấp, và lý do gốc của Option C đã hết hiệu lực)
+```
+
+Lý do recommendation (A): lý do Owner nêu khi chọn Option C ("phần việc còn
+lại chỉ là gate correction + freeze") nay đã hoàn tất; production diff = 0 và
+`behind = 0` nên merge là thao tác rủi ro thấp nhất, không phải giải conflict
+nào; việc tiếp theo của lineage sẽ chạm production code, lúc đó rủi ro merge
+chuyển từ "văn bản" sang "hành vi". Chi tiết: §14 của
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`.
+
+**2. Chỉ SAU quyết định đó**: một phiên **implementation `TASK-105D`** được
+cấp phép riêng, chạy trên Completion Gate đã `FROZEN` (32 check,
+`GATE_SET_SHA256 = 0444e58c…`). Phiên đó phải xử lý `HB-105D-F2-03` và `H-05`
+khi chạm đúng vùng re-trigger.
+
+**3. Song song, không bị chặn bởi hai việc trên:**
+
+```text
+- phiên sửa data contract có thẩm quyền : H-05 + HB-105D-F2-01
+- phiên soạn Scope Lock + Completion Gate cho TASK-105E : HB-105D-F2-02
+- refreeze TASK-105C (lineage riêng 2/0/2)
+- Owner cung cấp dữ liệu thật: PublicPurchaseSourceVersion đầu tiên,
+  TrackingCatalogSnapshot đầu tiên, báo cáo lịch sử Owner-confirmed
+```
+
+*(Đoạn S037, SUPERSEDED bởi S038 — giữ nguyên văn:)*
+
+**Một phiên FREEZE FINALIZATION RETRY có thẩm quyền cho `TASK-105D`**
+(`V4.1` §12). Gate revision đã xong; việc còn lại là review độc lập rồi ghi
+verdict:
+
+```text
+1. Re-review TOÀN BỘ 32 gate đã sửa — KHÔNG chỉ phần diff.
+2. Xác minh F-01…F-05 đã đóng thật; G04/G05/G22 nay deterministic + testable.
+3. PASS  → ghi FROZEN ⇒ TASK-105D mới chuyển được READY.
+   FAIL  → ghi finding; gate vẫn NOT FROZEN.
+4. NGAY SAU verdict: review lại branch divergence theo DEC-157 §2
+   (V4.1 §8 Option C — review point bắt buộc, không phải tuỳ chọn).
+```
+
+Đầu vào bắt buộc của phiên đó:
+`docs/tasks/TASK-105D-product-identity-resolver.md` (32 khối gate),
+`docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (before/after),
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md` (findings gốc),
+`DEC-157`.
+
+**KHÔNG mở `TASK-105D` implementation trước divergence review point ở bước 4**,
+kể cả khi freeze verdict là PASS.
+
+*(Đoạn S036, SUPERSEDED bởi S037 — giữ nguyên văn:)*
+
+**Một phiên GATE REVISION có thẩm quyền cho `TASK-105D`**, dùng khuôn
+`COMPLETION GATE CHANGE PROPOSAL` (`governance/core/TASK_COMPLETION_GATE_STANDARD.md`), xử lý
+5 BLOCKING mà S036 tìm được:
+
+```text
+F-01  DEC-156/OR-02 chưa truyền hết vào khối "Định nghĩa vận hành bắt buộc"
+      của task file — khối đó vẫn liệt kê ALIAS_AID_UNIQUE TRONG tập
+      auto-resolve và vẫn nói "Ba nguồn". Hệ quả: G06 và G23 mâu thuẫn.
+F-02  CHECK-105D-05 là phát biểu cho phép ("có thể auto-resolve"), không phải
+      assertion — không có PASS/FAIL condition.
+F-03  OR-03 (actor REQUIRED, cấm gọi là authenticated) không có gate bảo vệ.
+F-04  OR-01 (unified Public Purchase source) + ResolutionBinding/replay không
+      có gate bảo vệ.
+F-05  Catalog drift (INV-13/INV-14/INV-16) không có gate bảo vệ.
+```
+
+`F-01` và `F-02` không cần quyết định nghiệp vụ mới (hoàn tất propagation một
+Owner Decision đã có; chép ngữ nghĩa quy phạm đã tồn tại vào gate).
+`F-03`/`F-04`/`F-05` cần Owner chọn **hình thức**: nạp assertion vào gate hiện
+có để giữ đúng 32, hay mở rộng gate set vượt 32 (thay đổi phạm vi artifact
+Owner đã được thông báo — `V4.1` §10 + §12).
+
+Sau khi áp dụng: một phiên **Freeze Finalization MỚI** re-review **toàn bộ**
+gate set đã sửa (không chỉ phần diff) rồi mới ghi `FROZEN`. Chỉ sau đó
+`TASK-105D` mới chuyển được `READY`, rồi mới mở một phiên implementation
+riêng.
+
+*(Đoạn S035, SUPERSEDED bởi S036 — giữ nguyên văn:)*
+
+**Một phiên FREEZE FINALIZATION có thẩm quyền riêng** — review và freeze
+Completion Gate 32 check của `TASK-105D` (`V4.1` §12: `FROZEN` chỉ được ghi
+bởi một phiên Freeze Finalization; reviewer/readiness/ratification session
+đều KHÔNG được ghi). Đây là blocker **duy nhất** còn lại của Ready Gate
+`TASK-105D`. Chỉ sau đó `TASK-105D` mới chuyển được `READY`, rồi mới mở một
+phiên implementation riêng.
+
+Không chặn việc trên, có thể chạy song song khi Owner muốn:
+- Phiên refreeze Scope/Completion Gate của `TASK-105C` — nay chạy trên
+  lineage/budget của **chính nó** (`TASK-105C`, `2/0/2`, `DEC-156` §4).
+- Phiên soạn Scope Lock + Completion Gate cho `TASK-105E`, biến `P00–P11`
+  thành executable gate (`DEC-156` §5).
+- Cung cấp dữ liệu thật: `PublicPurchaseSourceVersion` đầu tiên,
+  `TrackingCatalogSnapshot` đầu tiên, bảng mapping Owner-confirmed (nếu có),
+  báo cáo lịch sử Owner-confirmed cho registry.
+
+*(Khối S034, SUPERSEDED bởi `DEC-156` ở phần Owner decisions — giữ nguyên
+văn:)*
+
+Hai việc song song, không việc nào thuộc thẩm quyền một phiên agent:
+
+1. **Owner ratification** `OR-01`/`OR-02`/`OR-03` (`DEC-155` §4). Không có
+   ba câu trả lời này thì Ready Gate của `TASK-105D` vẫn `BLOCKED`.
+2. **Một phiên Freeze Finalization có thẩm quyền riêng** review và freeze
+   Completion Gate 32 check của `TASK-105D` (`V4.1` §12 — reviewer/readiness
+   session KHÔNG được ghi `FROZEN`).
+
+Sau đó, và chỉ sau đó: `TASK-105D` mới có thể chuyển `READY`, rồi mở một
+phiên implementation riêng.
+
+Ba quyết định Owner khác đang chờ, không chặn hai việc trên:
+- `HB-154-04` — review-budget lineage của `TASK-105C` (`DEC-155` §6), nên
+  đặt ra tại phiên refreeze Scope/Completion Gate của `TASK-105C`.
+- Cấp task ID cho lớp composition `P00–P11` (`DEC-155` §5, ID đề xuất
+  `TASK-105E`).
+- Cung cấp dữ liệu thật: bảng mapping Owner-confirmed (nếu có), báo cáo lịch
+  sử Owner-confirmed cho registry, `PublicPurchaseSourceVersion` đầu tiên.
+
+*(Đoạn cũ, SUPERSEDED — giữ nguyên văn:)* Một phiên **TASK-105D
+readiness/data-contract + persistence/audit design** có authority riêng:
+cung cấp catalog/version contract, pre-cutover confirmed report registry
+contract, persistence/concurrency/migration plan, review và freeze Completion
+Gate. Không thực hiện action đó trong phiên này.
+
 ## Hai Track Song Song
 
 Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
@@ -134,6 +529,12 @@ Profile:
 PRODUCT
 
 Last Updated:
+2026-08-28 (`DEC-156`, S035 — Owner Ratification: OR-01/OR-02/OR-03,
+HB-154-04 Option B, cấp `TASK-105E`; production code không đổi. Trước đó
+cùng ngày: `DEC-155`/S034 — TASK-105D readiness data contract; `DEC-154`/S032
+— Product Identity & Purchase Price Resolution reconciliation).
+
+Historical prior update:
 2026-08-23 (S021 — **Independent Review #5 FAIL, 4 finding, đã sửa toàn bộ
 bằng ARCHITECTURE REPAIR**, không phải một vòng patch cục bộ. Audit trước khi
 code chỉ ra cả bốn finding là bốn biểu hiện của **một** root cause: validation
@@ -282,6 +683,13 @@ DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149,
                             S027/DEC-150, S028/DEC-151, S029/DEC-152)
 SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
 IMPLEMENTATION = READY  →  xem "Cập nhật sau DEC-152" ngay dưới
+
+^^^ SUPERSEDED BY DEC-154 (2026-08-28) — KHÔNG còn đúng.
+    Trạng thái hiện hành: TASK-105C = BLOCKED / NOT AUTHORIZED;
+    SCOPE_LOCK = REOPENED_BY_DEC-154;
+    COMPLETION_GATE = CHANGE_PROPOSAL_OPEN, NOT FROZEN.
+    Khối trên giữ nguyên làm bản ghi lịch sử (V4.1 §10).
+    Current state: "Current Price Architecture — DEC-154" ở đầu file.
 ```
 
 *(Khối `CONFLICT DETECTED`/`RTDBPriceProvider readiness` ở trên — SUPERSEDED
@@ -730,6 +1138,13 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
+**GOVERNANCE/SPEC RECONCILIATION — COMPLETE tại working tree, chưa merge.**
+`DEC-154` recorded; `TASK-105D` canonical spec created ở trạng thái
+`PLANNED/BLOCKED`; `TASK-105C` chuyển current authorization từ `READY` sang
+`BLOCKED`; `TASK-105B` vẫn `NOT DONE` và chưa activate. Đây không phải
+implementation task.
+
+Previous canonical milestone (giữ làm lịch sử):
 **TASK-GOLDEN-BASELINE-001 — DONE (2026-08-27).** Golden Business Baseline.
 `DISCOVERY = COMPLETE` (`b738fa4`), `IMPLEMENTATION = COMPLETE`,
 `INDEPENDENT_REVIEW_2 = PASS — ELIGIBLE_FOR_FREEZE` tại reviewed SHA
@@ -773,6 +1188,12 @@ Current Task Mode:
 MAJOR
 
 Next Recommended Task:
+**TASK-105D readiness/data-contract + persistence/audit design** — phiên có
+authority riêng để chốt catalog/version contracts, pre-cutover confirmed
+report registry, migration/rollback/concurrency mechanism và review/freeze
+Completion Gate. Không implement resolver trước khi Ready Gate đạt.
+
+Historical prior pointer (SUPERSEDED bởi `DEC-154` ở trên):
 **`TASK-GOLDEN-BASELINE-001` đã DONE — không còn việc governance nào treo ở
 đây.** `V4.1` đã chuyển `FULLY_ENFORCED` (xem "Governance V4.1 — Trạng Thái
 Adoption" đầu file).
@@ -961,51 +1382,48 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
   - [ ] TASK-105B — `FilePriceProvider` (Phase 1). Implementation thứ hai của
-        `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice`; tra
-        theo `(normalized product_key, ngày đơn)`.
-        **SEMANTIC_READINESS (Q1/Q2/Q3) = READY** (DEC-145, không đổi).
-        **KHÔNG ĐỔI bởi `DEC-151`/`DEC-152`** — contract §38 (schema 4 cột,
-        validation) vẫn đúng. **Nay là DEPENDENCY CỨNG cho `TASK-105C`**
-        (`HistoricalVendorPriceProvider` compose `FilePriceProvider`,
-        `DEC-152` §11) — phải implement trước hoặc cùng lúc, không còn chỉ
-        là "khuyến nghị chờ cùng lúc".
+        `PriceProvider` Protocol. **FROZEN + INTEGRATED + RC-1 INTEGRATED,
+        NOT DONE**. `DEC-154` chốt current role = provider foundation cho
+        **Public Purchase effective-dated price**, không còn là dependency
+        cứng/composition seam của `TASK-105C`. DONE còn chờ dataset Public
+        Purchase production thật load/replay được và remaining HB triggers
+        resolve trước usage. `PendingPriceProvider` vẫn default;
+        `FilePriceProvider` chưa activate. Budget `2/1/1`.
   - [ ] TASK-105C — `HistoricalVendorPriceProvider` (tên chính thức, thay
         `RTDBPriceProvider`, chốt tại `DEC-152`). Đọc TRỰC TIẾP `phist`,
-        KHÔNG qua `_c.min`/`inv.cong`. **Vẫn `[ ]` — implementation thật
-        CHƯA chạy**, dù discovery/semantics/Scope Lock đã xong.
-        **DISCOVERY = COMPLETE. SEMANTIC_DEFINITION = COMPLETE. SCOPE_LOCK
-        = COMPLETE. IMPLEMENTATION = READY (chưa bắt đầu)** (`S024`–`S029`,
-        `DEC-147`–`DEC-152`).
+        KHÔNG qua `_c.min`/`inv.cong`. **BLOCKED / NOT AUTHORIZED** sau
+        `DEC-154`: semantics `DEC-151/152` giữ nguyên, nhưng Scope Lock đã
+        reopen và Completion Gate change proposal chưa refreeze.
         Canonical spec:
-        `docs/tasks/TASK-105C-historical-vendor-price-provider.md` —
-        24 mục đầy đủ, Scope Lock, Completion Gate 20 check
-        (`CHECK-105C-01`…`20`, toàn bộ `NOT_TESTED`).
+        `docs/tasks/TASK-105C-historical-vendor-price-provider.md`.
         **Owner Decision cuối (`DEC-152`) đóng Q1/Q2:**
         Q1 (NCC retired/MIN_LOAI hồi tố) = **CLOSED** — trạng thái NCC
         HIỆN TẠI không áp ngược, giá lịch sử hợp lệ vẫn là candidate.
         Q2 (outlier threshold hồi tố) = **CLOSED** — không áp ngược,
         Phase 1 = MIN qua mọi candidate hợp lệ, loại sentinel `0`, không
         lọc gì thêm.
-        **Nguồn giá lịch sử DUY NHẤT: `phist/<mã>/<NCC>/<ngày>`.**
+        **Nguồn HistoricalVendorMin: `phist/<mã>/<NCC>/<ngày>`.**
         `Price(NCC,D)` = record gần nhất ≤ D; `HistoricalVendorPrice(mã,D)`
-        = MIN qua mọi NCC có giá xác định > 0; `KpiPurchasePrice(mã,D)` =
-        giá đó nếu xác định được, else **Pending** (chủ đích, xử lý tay
-        sau, explicit + provenance, không rewrite `phist`, không backdate).
+        = MIN qua mọi NCC có giá xác định > 0. Không candidate → explicit
+        absence để price-resolution thử Public Purchase fallback; không tự
+        thành giá 0.
         `inv.cong`/`_c.min`/`MarketMinHistory`: **không bắt buộc** Phase 1.
-        `DEC-149` OPTION B: **không còn áp dụng** — thay bằng kiến trúc
-        compose `FilePriceProvider` (`DEC-152` §11), ít thay đổi hơn.
-        **Dependency riêng, CHƯA MỞ TASK:** product identity mapping
-        (`product_raw` Reports ↔ `<MÃ>` Tracking) — không chặn
-        implement/test provider (dùng `<MÃ>` tổng hợp), CHẶN kết quả
-        không-Pending ở quy mô trên dữ liệu thật. Cấm fuzzy matching
-        (`OD-105B-01` §B, tiền lệ `extractCode()` thất bại — `DEC-147`
-        §56).
+        Input là resolved `TRACKING` identity + sale_date từ `TASK-105D`;
+        PUBLIC_PURCHASE identity bypass. Không cần pre-map toàn catalog.
+        Không compose `FilePriceProvider` sau `DEC-154`.
         Rủi ro mang theo: `phist` sửa/xoá được (`DEC-147` §54 R4) —
         provider phải đóng băng/snapshot bất biến theo `capture_id`, không
         đọc `phist` sống mỗi lần chạy lại; `NCC_ALIAS` không hồi tố (nợ kỹ
         thuật nhỏ). Chi tiết:
         `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
-        `DEC-152`.
+        `DEC-152`, `DEC-154`.
+  - [ ] TASK-105D — `Product Identity Resolver`. **PLANNED; specification
+        complete; Ready Gate BLOCKED; Completion Gate 32 check DRAFT,
+        NOT_TESTED, chưa frozen; implementation chưa được cấp phép.** Hai
+        namespace `TRACKING`/`PUBLIC_PURCHASE`, persistent alias/rejection/
+        cross-system mapping, DISTINCT-before-mapping, batch/keyboard-first,
+        audit/idempotency/concurrency. Canonical spec:
+        `docs/tasks/TASK-105D-product-identity-resolver.md`.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -1021,17 +1439,17 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 → DEC-152**: `CONFLICT DETECTED` ở `DEC-149` §71
+        Sau **DEC-144 → DEC-154**: `CONFLICT DETECTED` ở `DEC-149` §71
         **ĐÃ ĐÓNG** bởi `DEC-151`; Q1/Q2 filtering **ĐÃ ĐÓNG** bởi
         `DEC-152` — Owner Decision thu hẹp phạm vi `AccountingPurchasePrice`
         lịch sử về `HistoricalVendorPrice` tính từ `phist`, loại
         `_c.min`/`inv.cong` khỏi vai trò nguồn, và chốt "không lọc gì
         ngoài sentinel `0`" là quy tắc CUỐI cho Phase 1 (xem `TASK-105C` ở
-        trên — `SCOPE_LOCK = COMPLETE, IMPLEMENTATION = READY`). Blocker
-        ngoại lai còn lại: (1) `TASK-105C` implementation thật (kèm
-        `TASK-105B` làm dependency cứng); (2) product identity mapping
-        (`product_raw` ↔ `<MÃ>` Tracking — dependency mới, chưa mở task,
-        cấm fuzzy matching); (3) `TASK-105B-Q3` (dòng phụ, độc lập).
+        trên). `DEC-154` thêm two-namespace identity + Public Purchase
+        direct/fallback branch. Blocker còn lại: (1) `TASK-105D`; (2)
+        `TASK-105C` refreeze + implementation; (3) `TASK-105B` DONE với
+        Public Purchase dataset; (4) ownership/executable gate P01–P10;
+        (5) `TASK-105B-Q3`.
         **KHÔNG còn** bất kỳ câu hỏi filtering/kiến trúc/field-selection
         nào chờ Owner — toàn bộ đã đóng.
         `PendingPriceProvider` trả `None` vô điều kiện; Golden xác nhận

@@ -62,6 +62,10 @@ Review Budget lineage:
 này. Phiên implementation này **không tự tiêu** ngân sách — ngân sách chỉ
 tiêu khi một vòng Independent Review sau đó FAIL và cần repair.
 
+**Current budget sau RC-1:** `2 allowed / 1 used / 1 remaining`. Dòng trên
+được giữ làm historical statement của phiên implementation; source of truth
+hiện hành là `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
 Authority chain:
 `DEC-103` (Protocol gốc) → `DEC-121` (effective-dating theo ngày nghiệp
 vụ) → `DEC-144` §7 (mở lineage `TASK-105B`) → **`DEC-145`/`OD-105B-01`**
@@ -71,6 +75,52 @@ vụ) → `DEC-144` §7 (mở lineage `TASK-105B`) → **`DEC-145`/`OD-105B-01`*
 → `DEC-147`→`DEC-152` (audit chain, tái xác nhận `FilePriceProvider` giữ
 nguyên contract §38, vai trò cuối = bootstrap/import/snapshot-export/test
 fixture, và trở thành **dependency cứng** của `TASK-105C`).
+
+## Current Architectural Role — DEC-154 (additive, không rewrite Freeze)
+
+`DEC-154` supersede **vai trò current/dependency**, không rewrite frozen
+implementation/evidence của task này:
+
+- `FilePriceProvider` hiện là foundation/provider cho nhánh
+  **Public Purchase effective-dated price**.
+- `product_key` production của nhánh này là Public Purchase
+  `source_product_code`; cùng code ở namespace TRACKING không được tự coi là
+  cùng identity.
+- PUBLIC_PURCHASE identity tra thẳng provider này. TRACKING identity chỉ tra
+  provider này sau khi HistoricalVendorMin vắng mặt và có
+  `CrossSystemProductMapping` explicit sang Public Purchase code.
+- Provider chỉ trả giá/record; price-resolution layer bên ngoài giữ provenance
+  `PUBLIC_PURCHASE_NO_TRACKING` khác
+  `PUBLIC_PURCHASE_NO_VENDOR_PRICE` và không đổi identity TRACKING chỉ vì
+  fallback.
+- `FilePriceProvider` **không còn là dependency cứng/composition seam của
+  `TASK-105C`**. Frozen seam/API vẫn tồn tại và không bị sửa trong phiên docs.
+
+### DONE blocker được làm rõ
+
+Cụm “bảng giá production thật” trong Exit Criteria nghĩa là một
+**Public Purchase price dataset thật** đã được Owner/source authority xác
+nhận, effective-dated hoặc snapshot/versioned đủ replay theo `sale_date`, có
+source/provenance, nạp qua provider và validation thành công. Không được dùng
+today/current price để backfill lịch sử và không được tạo dataset tạm giả làm
+production.
+
+Trước lần dùng thật phải xử lý đúng re-trigger:
+
+- `HB-105B-03`: shape/root/rows invalid phải thành canonical load error;
+- `HB-105B-05`: missing/misspelled `effective_to` không được thành open record
+  im lặng;
+- `HB-105B-10`: machine-generated Public Purchase dataset phải strict schema;
+- `HB-105B-06`: audit lại test/network boundary khi `TASK-105C` mở
+  `tools/pricing` tests.
+
+Không condition nào triggered bởi phiên documentation này. `TASK-105B` vẫn:
+
+```text
+FROZEN + INTEGRATED + RC-1 INTEGRATED + NOT DONE
+PendingPriceProvider = default
+FilePriceProvider = NOT ACTIVATED
+```
 
 ## Mục Tiêu (Objective)
 
