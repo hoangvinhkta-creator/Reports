@@ -3,14 +3,24 @@
 ## Metadata
 
 Status:
-PLANNED
+READY
+
+Ready Transition:
+`PLANNED → READY` ngày 2026-08-28, bởi phiên Freeze Finalization retry
+`S038` (`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`), sau khi
+blocker cuối cùng của Ready Gate — Completion Gate freeze — được đóng.
+`READY` **không phải** `IMPLEMENTED` và **không phải** `DONE`: nó chỉ có nghĩa
+Ready Gate hết blocker. Implementation vẫn cần một phiên cấp phép riêng, và
+`DEC-157` §2 còn ràng buộc: **không** mở implementation trước khi Owner quyết
+định divergence review point (`V4.1` §8).
 
 Specification State:
 COMPLETE — semantics Owner đã chốt tại `DEC-154`; data contract/persistence/
 audit design đã chốt tại `DEC-155` +
 `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034). Completion Gate đã qua
 GATE REVISION #1 (S037/`DEC-157`, xử lý F-01…F-05 của Freeze Finalization
-attempt #1) nhưng vẫn CHƯA freeze; implementation vẫn CHƯA được cấp phép.
+attempt #1) và nay **ĐÃ FROZEN** bởi Freeze Finalization retry `S038`
+(2026-08-28, `V4.1` §12). Implementation vẫn CHƯA được cấp phép.
 
 Canonical Data Contract:
 `docs/spec/TASK-105D-DATA-CONTRACT.md` — hợp đồng dữ liệu, persistence,
@@ -391,15 +401,15 @@ còn lại được nêu chính xác.
       `OR-03` APPROVED FOR PHASE 1 (actor khai báo, REQUIRED, cấm gọi là
       authenticated, cấm default im lặng; authentication thật là future
       hardening/capability boundary, KHÔNG phải blocker Phase 1).
-- [ ] **BLOCKER DUY NHẤT CÒN LẠI — Completion Gate freeze.** Gate 32 check
-      vẫn `DRAFT`. `governance/core/V4_1_POLICY_FREEZE.md` §12: `FROZEN` chỉ
-      được ghi bởi một phiên Freeze Finalization có thẩm quyền riêng. Phiên
-      readiness, phiên ratification và phiên gate revision đều KHÔNG tự freeze.
-      Tiến triển 2026-08-28: Freeze Finalization attempt #1 (S036) = `FAIL`
-      với 5 BLOCKING; GATE REVISION #1 (S037/`DEC-157`) đã áp dụng đầy đủ
-      F-01…F-05 + `G04`/`G22` + overlap clarification, giữ đúng 32 gate. Việc
-      còn lại là **một Freeze Finalization retry** re-review TOÀN BỘ gate set
-      đã sửa. Proposal:
+- [x] **Completion Gate freeze — ĐÃ ĐÓNG** (2026-08-28, `S038`). Freeze
+      Finalization attempt #1 (`S036`) = `FAIL` với 5 BLOCKING; GATE REVISION #1
+      (`S037`/`DEC-157`) áp dụng đầy đủ F-01…F-05 + `G04`/`G05`/`G22` + overlap
+      clarification, giữ đúng 32 gate; **Freeze Finalization retry (`S038`) =
+      `PASS WITH HARDENING`** — re-review độc lập toàn bộ 32 gate trên
+      `be835b1`, 0 BLOCKING, 32/32 testable, 32/32 deterministic, 20/20
+      adversarial PASS → Completion Gate `FROZEN`
+      (`GATE_SET_SHA256 = 0444e58c…`). Bằng chứng:
+      `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`; proposal:
       `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md`.
 
 Không phải blocker của Ready Gate nhưng là **dependency dữ liệu của
@@ -409,12 +419,22 @@ registry, `PublicPurchaseSourceVersion` thật đầu tiên, và capture Trackin
 đầu tiên. Không có chúng thì implementation vẫn chạy được với store rỗng —
 kết quả đúng là Pending, không phải lỗi (§14.3).
 
-**Ready verdict:** `BLOCKED`. Không chuyển thẳng `PLANNED → IN_PROGRESS`.
-Số blocker: 4 (trước S034) → 2 (sau S034) → **1** (sau `DEC-156`/S035).
-Blocker còn lại nằm ngoài thẩm quyền của cả phiên readiness lẫn phiên
-ratification — chỉ một phiên Freeze Finalization mới đóng được.
+**Ready verdict:** `READY` (2026-08-28, `S038`).
+Số blocker: 4 (trước S034) → 2 (sau S034) → 1 (sau `DEC-156`/S035) → **0**
+(sau freeze `S038`).
 
-## Completion Gate (DRAFT — CHƯA FROZEN; GATE REVISION #1 ĐÃ ÁP DỤNG)
+Ràng buộc kèm theo, vẫn hiệu lực:
+
+```text
+READY ≠ IMPLEMENTED ≠ DONE.
+READY chỉ có nghĩa Ready Gate hết blocker.
+Implementation cần một phiên cấp phép RIÊNG.
+DEC-157 §2: KHÔNG mở implementation trước khi Owner quyết định divergence
+            review point (V4.1 §8) — xem §14 của
+            docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md.
+```
+
+## Completion Gate (FROZEN — 2026-08-28, S038)
 
 > **Lịch sử freeze.**
 >
@@ -457,6 +477,50 @@ ratification — chỉ một phiên Freeze Finalization mới đóng được.
 > Phiên S037 **không** freeze. `V4.1` §12 tách thẩm quyền `FROZEN` khỏi phiên
 > viết gate: một phiên **Freeze Finalization retry** phải re-review **TOÀN BỘ**
 > gate set đã sửa (không chỉ phần diff) rồi mới được ghi `FROZEN`.
+
+> **FREEZE FINALIZATION RETRY (attempt #2, S038, 2026-08-28) = PASS WITH
+> HARDENING. Completion Gate ĐÃ FROZEN.** Một phiên Freeze Finalization độc
+> lập (`V4.1` §12) đã re-review **toàn bộ** 32 gate trên SHA `be835b1` — không
+> kế thừa kết luận của `S037`, dựng lại ma trận từ văn bản gate — và ghi
+> `FROZEN`. Bằng chứng đầy đủ:
+> `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`.
+>
+> ```text
+> Verdict            : PASS WITH HARDENING — TASK-105D READY
+> BLOCKING           : 0        (F-01…F-05 đóng, xác minh độc lập)
+> HARDENING          : 4        (HB-105D-F2-01/02/03 mới + H-05 kế thừa)
+> OUT_OF_SCOPE       : 3        (O-01/O-02/O-03 kế thừa)
+> Testable           : 32 / 32
+> Deterministic      : 32 / 32
+> Contradiction      : 0
+> Adversarial A–T    : 20 / 20 PASS
+> Gate count         : 32       (KHÔNG ĐỔI)
+> Repair Cycle       : KHÔNG mở (2 allowed / 0 used / 2 remaining)
+> production/test    : KHÔNG đổi một dòng nào
+> ```
+>
+> **Freeze evidence — khối gate dưới đây là bản đã FROZEN.**
+>
+> ```text
+> exact source SHA  : be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
+> gate count        : 32   (CHECK-105D-01 … CHECK-105D-32), 32/32 REQUIRED
+> Evidence Level    : E2 = 19, E1 = 13
+> GATE_SET_SHA256   : 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+> TASK_FILE_SHA256  : a6be1ac71ac751eeefae30cf076f90e5d4cad80067c9441f78578e9972e028b1
+> reviewer          : S038 — Independent Freeze Finalization retry
+> timestamp         : 2026-08-28
+> evidence level    : E2
+> prior attempt     : #1 — S036, base 9cd8714, FAIL (5 BLOCKING)
+> lineage           : S036 findings → S037/DEC-157 gate revision #1 → S038 freeze
+> ```
+>
+> `Status = NOT_TESTED` trên cả 32 check là ĐÚNG sau freeze: freeze đóng băng
+> **ngữ nghĩa** của gate, không tuyên bố gate đã được chạy. Việc chuyển
+> `NOT_TESTED → PASS` thuộc phiên implementation.
+>
+> **Thay đổi gate sau thời điểm này** — bất kỳ sửa đổi nào làm đổi
+> `GATE_SET_SHA256` — cần một `COMPLETION GATE CHANGE PROPOSAL` mới + authority
+> theo `governance/core/TASK_COMPLETION_GATE_STANDARD.md`. Không sửa tại chỗ.
 
 Toàn bộ 32 check là `REQUIRED`, `Status = NOT_TESTED`. Effective Risk `HIGH`
 yêu cầu `E1` cho mọi check thực thi được và `E2` cho check thuộc diện
@@ -2339,6 +2403,8 @@ Created:
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` (S034/`DEC-155`)
 - `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md` (S036)
 - `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (S037/`DEC-157`)
+- `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` (S038 — freeze
+  finalization retry, verdict `PASS WITH HARDENING`, Completion Gate `FROZEN`)
 
 Production implementation:
 - Không có.

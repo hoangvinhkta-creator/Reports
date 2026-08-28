@@ -641,12 +641,12 @@ effective_risk: HIGH
 repair_cycles_allowed: 2
 repair_cycles_used: 0
 repair_cycles_remaining: 2
-status: PLANNED — specification complete + data contract complete (S034/
+status: READY — specification complete + data contract complete (S034/
         DEC-155) + Owner ratified (S035/DEC-156) + Completion Gate Change
-        Proposal applied (S037/DEC-157); Ready Gate blocked bởi ĐÚNG MỘT
-        blocker còn lại: Completion Gate freeze bởi một phiên Freeze
-        Finalization có thẩm quyền riêng (V4.1 §12);
-        Completion Gate revised/not frozen; implementation not authorized
+        Proposal applied (S037/DEC-157) + COMPLETION GATE FROZEN (S038,
+        2026-08-28, V4.1 §12); Ready Gate blocker = 0;
+        READY ≠ IMPLEMENTED ≠ DONE — implementation not authorized, và
+        DEC-157 §2 chặn implementation trước divergence decision
 freeze_attempts:
     - id: TASK-105D-FREEZE-1
       session: S036 (2026-08-28)
@@ -655,6 +655,29 @@ freeze_attempts:
       findings: 5 BLOCKING / 5 HARDENING / 3 OUT_OF_SCOPE
       repair_cycle_consumed: 0
       evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
+    - id: TASK-105D-FREEZE-2
+      session: S038 (2026-08-28)
+      reviewed_base_sha: be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
+      authority: V4.1 §12 + DEC-157 §2 (Option C cho phép ĐÚNG MỘT retry;
+                 đây là retry đó — scope Option C nay dùng hết)
+      role_separation: independent reviewer; KHÔNG kế thừa kết luận S037;
+                 ma trận 32 gate dựng lại từ văn bản canonical
+      verdict: PASS WITH HARDENING — Completion Gate FROZEN; TASK-105D READY
+      findings: 0 BLOCKING / 4 HARDENING / 3 OUT_OF_SCOPE
+      hardening_new: HB-105D-F2-01, HB-105D-F2-02, HB-105D-F2-03
+      hardening_carried: H-05 (phân loại lại độc lập = HARDENING)
+      testable: 32/32
+      deterministic: 32/32
+      contradiction: 0
+      adversarial_A_T: 20/20 PASS
+      gate_count: 32
+      gate_set_sha256: 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      production_diff: 0 dòng
+      golden: 58 passed, 2 skipped
+      full_suite: 756 passed, 11 skipped
+      repair_cycle_consumed: 0
+      frozen: YES
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md
 gate_revisions:
     - id: TASK-105D-GATE-REVISION-1
       session: S037 (2026-08-28)
@@ -689,6 +712,14 @@ Cập nhật 2026-08-28 (`S037`, `DEC-157` — Gate Revision #1): `repair_cycles
 trừ khi Owner quyết định khác — Owner **không** quyết định khác (`DEC-157` §4).
 Ngân sách `TASK-105D`: `2 allowed / 0 used / 2 remaining`.
 
+Cập nhật 2026-08-28 (`S038`, Freeze Finalization retry): `repair_cycles_used`
+**vẫn giữ `0`**. Một independent freeze review không tiêu repair cycle
+(`V4.1` §3 — cycle tính theo cumulative repair diff của implementation);
+`S038` sửa 0 dòng `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`, và 0 dòng semantics của gate (`GATE_SET_SHA256` không đổi
+trước/sau commit của phiên). Ngân sách `TASK-105D` giữ nguyên
+`2 allowed / 0 used / 2 remaining`.
+
 Failure path:
 
 ```text
@@ -711,8 +742,9 @@ Artifact hiện có của lineage (8):
 - `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md` (S036, artifact #6)
 - `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (S037, #7)
 - `DEC-157` trong `PROJECT/PROJECT_DECISIONS.md` (S037, artifact #8)
+- `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` (S038, artifact #9)
 
-Artifact #6/#7/#8 đều thuộc diện `OWNER APPROVAL REQUIRED` của `V4.1` §10;
+Artifact #6/#7/#8/#9 đều thuộc diện `OWNER APPROVAL REQUIRED` của `V4.1` §10;
 approval là chỉ thị tường minh của Owner khi mở từng phiên tương ứng, ghi lại
 ở đầu mỗi artifact.
 
@@ -776,6 +808,45 @@ review point giữ nguyên hiệu lực; con số mới là dữ liệu cho chí
 
 Đây là một quyết định integration, **không** phải vi phạm thẩm quyền —
 `branch_authority_check.sh` vẫn trả `AUTHORITY_OK`.
+
+### Divergence review point — ĐÃ THỰC HIỆN (`S038`, 2026-08-28)
+
+`DEC-157` §2 đặt review point bắt buộc = **ngay sau freeze finalization retry
+verdict**. Verdict đã có (`PASS WITH HARDENING`, Completion Gate `FROZEN`), nên
+review point được thực hiện trong chính phiên `S038`:
+
+```text
+Đo tại be835b1 (HEAD phiên review, trước commit của S038):
+  ahead default     : 7 commit        (ngưỡng > 10)     OK
+  behind default    : 0 commit
+  divergence days   : 0               (ngưỡng > 3)      OK
+  cumulative LOC    : 8.703           (ngưỡng > 5.000)  VƯỢT
+    production LOC      : 0
+    documentation LOC   : 8.639   (18 file, +8.639 / −64)
+  DIVERGENCE        : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+  AUTHORITY         : BRANCH_WITH_UPSTREAM
+  RESULT            : AUTHORITY_OK
+  merge/conflict risk : rủi ro XUNG ĐỘT VĂN BẢN, không phải rủi ro hành vi;
+                        behind = 0 nên hiện chưa có conflict thực tế
+
+SCOPE OPTION C — ĐÃ DÙNG HẾT:
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+
+RECOMMENDATION (reviewer S038) : (A) integrate/merge sớm
+STATUS                         : OWNER DECISION REQUIRED — V4.1 §8
+```
+
+`S038` **không** tự chọn phương án, **không** merge, và **không** tự gia hạn
+Option C. Lý do gốc mà Owner ghi khi chọn Option C ("phần việc còn lại chỉ là
+gate correction + freeze") nay đã hoàn tất, nên tiếp tục divergence sẽ là một
+**gia hạn** cần thẩm quyền Owner, không phải sự tiếp nối của quyết định cũ.
+
+Ràng buộc `DEC-157` §2 vẫn hiệu lực tới khi Owner quyết định: **KHÔNG mở
+`TASK-105D` implementation trước divergence decision**, kể cả khi freeze
+verdict là `PASS` và `TASK-105D` đã `READY`.
+
+Chi tiết: §14 của `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`.
 
 Cập nhật 2026-08-28 (S034, `DEC-155` — readiness/data contract):
 `repair_cycles_used` giữ nguyên `0`. Một phiên readiness/documentation

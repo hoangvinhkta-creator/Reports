@@ -150,13 +150,18 @@ TASK-105C
       reset ngân sách đã tiêu.
 
 TASK-105D
-  = PLANNED / SPECIFICATION COMPLETE + DATA CONTRACT COMPLETE
-    + OWNER RATIFIED / READY GATE BLOCKED
+  = READY / SPECIFICATION COMPLETE + DATA CONTRACT COMPLETE
+    + OWNER RATIFIED + COMPLETION GATE FROZEN
+    (READY ≠ IMPLEMENTED ≠ DONE — implementation cần phiên cấp phép riêng,
+     và DEC-157 §2 chặn implementation trước divergence decision)
   canonical spec = docs/tasks/TASK-105D-product-identity-resolver.md
   canonical data contract = docs/spec/TASK-105D-DATA-CONTRACT.md (S034/DEC-155,
       Owner-ratified DEC-156)
-  Completion Gate 32 check = CHANGE PROPOSAL APPLIED (S037/DEC-157),
-      NOT_TESTED, NOT FROZEN — gate count vẫn ĐÚNG 32
+  Completion Gate 32 check = FROZEN (S038, 2026-08-28, V4.1 §12),
+      32/32 NOT_TESTED (freeze đóng băng NGỮ NGHĨA, không tuyên bố đã test),
+      gate count vẫn ĐÚNG 32, 32/32 REQUIRED, E2 = 19 / E1 = 13
+      GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+      frozen source SHA = be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
   Freeze Finalization attempt #1 = FAIL (S036, 2026-08-28)
       5 BLOCKING / 5 HARDENING; testable 30/32; deterministic 29/32;
       G06 ↔ G23 mâu thuẫn; 5/20 case đối kháng bắt buộc không được phủ
@@ -170,16 +175,32 @@ TASK-105D
       5 KHÔNG ĐẠT); gate thêm = 0, gate xoá = 0, Evidence Level hạ = 0
       (hai lần NÂNG E1 → E2: CHECK-105D-10, CHECK-105D-21)
       evidence: docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md
+  Freeze Finalization retry (attempt #2) = PASS WITH HARDENING
+      (S038, 2026-08-28, reviewed base SHA be835b1)
+      review độc lập TOÀN BỘ 32 gate, KHÔNG kế thừa kết luận S037;
+      BLOCKING 0 / HARDENING 4 / OUT_OF_SCOPE 3;
+      testable 32/32; deterministic 32/32; contradiction 0;
+      adversarial A–T 20/20 PASS; Owner Ratification OR-01/02/03 đều có gate
+      → Completion Gate FROZEN; TASK-105D → READY
+      HARDENING mới: HB-105D-F2-01 (§3.3 câu 8 "bộ ba" vs INV-55 "CẢ BỐN" —
+                     V4.1 §11 giải; G21 C đã assert đúng bốn)
+                     HB-105D-F2-02 (§16.1 stale: "CHƯA CÓ CHỦ" vs §16.3
+                     GRANTED; thiếu E-A/E-B/E-C/E-D trong bảng ownership)
+                     HB-105D-F2-03 (13 invariant không có gate riêng —
+                     INV-51/52/53, 65, 79…82, 84/85/86, 26; INV-08 cố ý)
+      HARDENING kế thừa: H-05 (ranking_method_id OPTIONAL vs hashed) —
+                     phân loại lại độc lập = HARDENING, KHÔNG BLOCKING
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md
   implementation = NOT STARTED / NOT AUTHORIZED
+      (chặn bởi DEC-157 §2 — divergence decision phải có trước)
   budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — cả S036 lẫn
       S037 đều không mở Repair Cycle; V4.1 §3 tính cycle theo repair diff của
       implementation, và cả hai phiên đều 0 dòng code/test)
-  Ready Gate blocker còn 1 (4 → 2 sau S034 → 1 sau DEC-156):
+  Ready Gate blocker = 0  (4 → 2 sau S034 → 1 sau DEC-156 → 0 sau S038):
     ĐÃ ĐÓNG: Owner ratification OR-01 / OR-02 / OR-03 (DEC-156)
-    CÒN LẠI: Completion Gate freeze. S036 đã thử và TỪ CHỐI; S037 đã sửa gate
-             theo đúng findings. Việc còn lại là MỘT phiên Freeze Finalization
-             RETRY re-review TOÀN BỘ gate set đã sửa (V4.1 §12) — phiên gate
-             revision KHÔNG được tự freeze
+    ĐÃ ĐÓNG: Completion Gate freeze (S038, 2026-08-28) — S036 TỪ CHỐI,
+             S037 sửa gate theo đúng findings, S038 re-review độc lập
+             TOÀN BỘ gate set rồi ghi FROZEN (V4.1 §12)
 
 TASK-105E  (MỚI — Owner cấp task ID tại DEC-156 §5)
   = PLANNED / SPEC OUTLINE / READY GATE BLOCKED
@@ -192,8 +213,10 @@ TASK-105E  (MỚI — Owner cấp task ID tại DEC-156 §5)
   mapping/price, KHÔNG mutate Tracking
 
 TASK-108B
-  = BLOCKED_BY_DEPENDENCY
-  chờ TASK-105D, TASK-105C refreeze+implementation, TASK-105B DONE,
+  = BLOCKED_BY_DEPENDENCY  (KHÔNG unblocked bởi S038)
+  chờ TASK-105D (blocker chuyển từ "gate chưa freeze được" sang "chờ
+  implementation" — gate nay FROZEN nhưng implementation chưa mở),
+  TASK-105C refreeze+implementation, TASK-105B DONE,
   TASK-105E (ownership ĐÃ CÓ tại DEC-156; Scope Lock/Gate/implementation
   CHƯA CÓ) và TASK-105B-Q3
 ```
@@ -217,9 +240,58 @@ không tiêu budget.
 định Owner đang chờ ở khối S034 bên dưới đã được đóng. Đoạn cũ giữ lại làm
 lịch sử.)*
 
-*(Cập nhật 2026-08-28, S037 — GATE REVISION #1 = **ÁP DỤNG**, `DEC-157`.
-Đoạn ngay dưới đây là hành động kế tiếp hiện hành; các đoạn S036/S035 phía sau
-giữ nguyên làm lịch sử.)*
+*(Cập nhật 2026-08-28, S038 — FREEZE FINALIZATION RETRY = **PASS WITH
+HARDENING**; Completion Gate `TASK-105D` = **FROZEN**; `TASK-105D` = **READY**.
+Đoạn ngay dưới đây là hành động kế tiếp hiện hành; các đoạn S037/S036/S035
+phía sau giữ nguyên làm lịch sử.)*
+
+**1. OWNER DECISION — BRANCH DIVERGENCE (`V4.1` §8). Đây là việc PHẢI làm
+trước bất kỳ việc nào khác trên lineage `TASK-105D`**, theo `DEC-157` §2
+(review point bắt buộc = ngay sau freeze verdict; verdict đã có).
+
+```text
+ahead default   : 7 commit        (ngưỡng > 10)     OK
+divergence days : 0               (ngưỡng > 3)      OK
+cumulative LOC  : 8.703           (ngưỡng > 5.000)  VƯỢT
+  production LOC    : 0
+  documentation LOC : 8.639   (18 file, +8.639 / −64)
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : AUTHORITY_OK
+
+Scope mà Option C cho phép đã DÙNG HẾT:
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+
+Owner chọn một trong ba:
+  (A) integrate/merge sớm   ← RECOMMENDATION của reviewer S038
+  (B) cắt scope
+  (C) tiếp tục divergence có lý do + review date  (= GIA HẠN; S038 KHÔNG có
+      thẩm quyền tự cấp, và lý do gốc của Option C đã hết hiệu lực)
+```
+
+Lý do recommendation (A): lý do Owner nêu khi chọn Option C ("phần việc còn
+lại chỉ là gate correction + freeze") nay đã hoàn tất; production diff = 0 và
+`behind = 0` nên merge là thao tác rủi ro thấp nhất, không phải giải conflict
+nào; việc tiếp theo của lineage sẽ chạm production code, lúc đó rủi ro merge
+chuyển từ "văn bản" sang "hành vi". Chi tiết: §14 của
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md`.
+
+**2. Chỉ SAU quyết định đó**: một phiên **implementation `TASK-105D`** được
+cấp phép riêng, chạy trên Completion Gate đã `FROZEN` (32 check,
+`GATE_SET_SHA256 = 0444e58c…`). Phiên đó phải xử lý `HB-105D-F2-03` và `H-05`
+khi chạm đúng vùng re-trigger.
+
+**3. Song song, không bị chặn bởi hai việc trên:**
+
+```text
+- phiên sửa data contract có thẩm quyền : H-05 + HB-105D-F2-01
+- phiên soạn Scope Lock + Completion Gate cho TASK-105E : HB-105D-F2-02
+- refreeze TASK-105C (lineage riêng 2/0/2)
+- Owner cung cấp dữ liệu thật: PublicPurchaseSourceVersion đầu tiên,
+  TrackingCatalogSnapshot đầu tiên, báo cáo lịch sử Owner-confirmed
+```
+
+*(Đoạn S037, SUPERSEDED bởi S038 — giữ nguyên văn:)*
 
 **Một phiên FREEZE FINALIZATION RETRY có thẩm quyền cho `TASK-105D`**
 (`V4.1` §12). Gate revision đã xong; việc còn lại là review độc lập rồi ghi
