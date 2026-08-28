@@ -483,6 +483,47 @@ gap → `Pending`, cấm latest/nearest/current. Q2 = chuẩn hoá NFC → strip
 collapse → casefold; đã có sẵn `fold()` tại `app/modules/validation/text.py`,
 kiểm chứng đúng trên 3 ví dụ Owner và trên 528 dòng production.
 
+**Cập nhật sau IMPLEMENTATION (2026-08-28, phiên "TASK-105B —
+IMPLEMENTATION").** `FilePriceProvider` (`app/modules/pricing/file_price_provider.py`,
+**MỚI**) đã viết xong đúng contract §38/`DEC-145`, tự kiểm tra (self-verify)
+đầy đủ:
+
+```
+TASK-105B  IMPLEMENTATION       = COMPLETE (code-level)
+           SELF_VERIFICATION    = PASS — 17/17 REQUIRED Completion Gate
+                                  check PASS (CHECK-105B-01..17, gate
+                                  frozen tại phiên này —
+                                  docs/tasks/TASK-105B-file-price-provider.md)
+           INDEPENDENT_REVIEW   = REQUIRED — CHƯA chạy, Effective Risk
+                                  HIGH không tự DONE (đúng tiền lệ
+                                  TASK-GOLDEN-BASELINE-001)
+           DONE                 = NO
+```
+
+Bằng chứng chính: `pytest tests/test_file_price_provider.py -q` → `33
+passed`; `pytest tests/test_golden_baseline.py -q` → `58 passed, 2
+skipped` (y hệt trước phiên, không đổi); `pytest -q` toàn bộ → `730
+passed, 11 skipped` (trước phiên: `697 passed, 11 skipped` — chênh lệch
+đúng bằng 33 test mới, **0 regression**, 0 skip mới); diff `app/pipeline.py`,
+`price_engine.py`, `provider.py`, `models.py` = **0** (`git diff --quiet`
+exit 0); 4 validator (`validate_structure`/`validate_project_state`/
+`validate_evidence`/`validate_task_completion`) PASS,
+`validate_reference_integrity` giữ đúng 3 lỗi tiền tồn `TASK-REM-T06`,
+không lỗi mới. Provider mặc định **không đổi** — `app/pipeline.py` vẫn
+`PendingPriceProvider`, Golden vẫn chạy provider đó (đúng yêu cầu
+"Preserve Pending Default", không tự kích hoạt provider mới vào production
+path).
+
+**Còn mở, không phải code blocker:** bảng giá production thật của chủ dự
+án **chưa được cấp** trong phiên này — `FilePriceProvider` mới kiểm chứng
+bằng fixture tổng hợp (synthetic). Khi có file thật, chỉ cần
+`FilePriceProvider.from_yaml(<path>)`, không cần sửa code. Chi tiết đầy
+đủ, gate 17 check với evidence từng dòng, provenance/error semantics,
+composition seam cho `TASK-105C`: `docs/tasks/TASK-105B-file-price-provider.md`
+(canonical, mới tạo, frozen tại phiên này — Scope Lock + Completion Gate
+kế thừa nguyên vẹn `DEC-145`/`OD-105B-01`, không phát minh business rule
+mới).
+
 **TASK-105B-Q3 — chính sách zero-price dòng phụ (tách riêng):**
 
 ```
@@ -593,15 +634,16 @@ phải việc agent tự làm tiếp được:
    persistence. Xem
    `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21, Phần XI.
    `TASK-109` (summary_engine) vẫn theo sau `TASK-108B`.
-   **Next Product Task cụ thể — đã integrate vào nhánh mặc định
-   (`abddbe0`), sẵn sàng bắt đầu implementation ở một session MỚI, không
-   phải phiên integration này:**
+   **Next Product Task — cập nhật sau IMPLEMENTATION `TASK-105B`
+   (2026-08-28):**
 
    ```
-   1. TASK-105B implementation   (FilePriceProvider, contract frozen DEC-145)
-   2. TASK-105C implementation   (HistoricalVendorPriceProvider — CHỈ sau
-                                  khi TASK-105B DONE, đây là hard
-                                  prerequisite, KHÔNG được làm trước)
+   1. TASK-105B implementation   IMPLEMENTED + SELF-VERIFIED (2026-08-28),
+                                  INDEPENDENT_REVIEW REQUIRED trước khi DONE
+                                  (xem docs/tasks/TASK-105B-file-price-provider.md)
+   2. TASK-105C implementation   CHỜ TASK-105B DONE thật (qua Independent
+                                  Review) — hard prerequisite, KHÔNG được
+                                  làm trước dù code TASK-105B đã tồn tại
    3. Product Identity Mapping   (dependency riêng, chưa mở task — product_raw
                                   Reports ↔ <MÃ> Tracking, cấm fuzzy matching)
    4. TASK-105B-Q3                (dòng phụ, độc lập, chờ TASK-103/enumeration)
@@ -609,13 +651,14 @@ phải việc agent tự làm tiếp được:
    6. TASK-109                    (summary_engine — chờ TASK-108B)
    ```
 
-   Cả `TASK-105B` lẫn `TASK-105C` đã kỹ thuật READY, không còn câu hỏi
-   Owner nào phải chờ để BẮT ĐẦU — nhưng thứ tự 1 → 2 là bắt buộc, không
-   phải khuyến nghị: `TASK-105C` compose `FilePriceProvider`
-   (`DEC-152` §11), nên không thể implement đúng nếu `TASK-105B` chưa xong.
-   Product Identity Mapping (bước 3) có thể mở song song với 1/2 — không
-   phụ thuộc `TASK-105B`/`TASK-105C`, chỉ cần đóng trước khi `TASK-108B`
-   cho ra số không-Pending trên dữ liệu thật.
+   **NEXT AUTHORIZED ACTION: `TASK-105B` Independent Review** — một session
+   KHÁC đọc `app/modules/pricing/file_price_provider.py` +
+   `tests/test_file_price_provider.py` từ đầu, chạy lại evidence độc lập
+   (không tin narrative của phiên implementation), ghi verdict theo
+   `governance/core/EVIDENCE_STANDARD.md` (E2, `docs/reviews/`). `TASK-105C`
+   vẫn KHÔNG được bắt đầu code cho tới khi review đó PASS và `TASK-105B`
+   chuyển `DONE`. Product Identity Mapping (bước 3) vẫn mở song song được —
+   không phụ thuộc `TASK-105B`/`TASK-105C`.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —

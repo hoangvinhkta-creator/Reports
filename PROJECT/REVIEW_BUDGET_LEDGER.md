@@ -366,10 +366,13 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 
 ```
 SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
-IMPLEMENTATION (FilePriceProvider)  = KHÔNG ĐỔI, nay là DEPENDENCY CỨNG
-                                cho TASK-105C (HistoricalVendorPriceProvider
-                                compose FilePriceProvider, DEC-152 §11) —
-                                chưa DONE, phải implement trước/cùng lúc
+IMPLEMENTATION (FilePriceProvider)  = IMPLEMENTED + SELF-VERIFIED (2026-08-28,
+                                phiên "TASK-105B — IMPLEMENTATION") — CHƯA
+                                DONE, chờ Independent Review. Vẫn là
+                                DEPENDENCY CỨNG cho TASK-105C
+                                (HistoricalVendorPriceProvider compose
+                                FilePriceProvider, DEC-152 §11). Chi tiết:
+                                docs/tasks/TASK-105B-file-price-provider.md
 
 HistoricalVendorPriceProvider (TASK-105C, tên chính thức từ DEC-152)
     SEMANTIC_DEFINITION = COMPLETE
@@ -451,8 +454,17 @@ hành khớp **36** dòng trong khi đúng 3 nhóm Owner nêu chỉ **34** (dôi
 Discovery và ghi Owner Decision **không** tiêu repair cycle. Sub-unit `105B-*` không có ngân sách
 riêng, không reset ngân sách.
 
+**2026-08-28 — IMPLEMENTATION session** (`app/modules/pricing/file_price_provider.py`,
+`tests/test_file_price_provider.py`, `docs/tasks/TASK-105B-file-price-provider.md`).
+Implementation + self-verification **không tự tiêu** repair cycle (đúng
+quy tắc §10 của phiên: "Implementation session chỉ BUILD → SELF-VERIFY →
+HANDOFF"). `repair_cycles_remaining` giữ nguyên `2` — cycle chỉ mở nếu một
+vòng Independent Review sau đó cho verdict FAIL và cần repair. Chi tiết
+đầy đủ + 17 check evidence: `docs/tasks/TASK-105B-file-price-provider.md`.
+
 cycles:
-- id: (chưa mở — discovery, chưa có implementation)
+- id: (chưa mở — implementation đã có, nhưng chưa có Independent Review
+  nào FAIL cần repair. Cycle-1 chỉ mở nếu review sắp tới trả FAIL.)
   base_sha: N/A
   head_sha: N/A
 
@@ -763,6 +775,36 @@ Owner Extension, và **không** cấp thêm repair cycle.
   **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-152`,
   `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
   `docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
+
+- 2026-08-28 — `TASK-105B` **IMPLEMENTATION** (phiên "TASK-105B — IMPLEMENTATION").
+  `FilePriceProvider` (`app/modules/pricing/file_price_provider.py`, MỚI)
+  implement đúng contract `DEC-145`/`OD-105B-01` — khoảng hiệu lực đóng,
+  chuẩn hoá NFC+casefold, validation §5 đầy đủ (overlap, >1 open record,
+  giá âm/rỗng, ngày lỗi, duplicate hoàn toàn), provenance 3 phần
+  (raw/normalized/matched record), `InvalidPriceMasterError` raise khi
+  nạp. **Completion Gate frozen tại phiên này**
+  (`docs/tasks/TASK-105B-file-price-provider.md`, CHECK-105B-01..17 — 16
+  check gốc từ §38.5 của `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`
+  + 1 check mới đóng risk note Firebase-import của `DEC-146`). **17/17
+  REQUIRED PASS** (self-verify, E1; CHECK-105B-12 đạt E2). Evidence:
+  `pytest tests/test_file_price_provider.py -q` → `33 passed`;
+  `pytest tests/test_golden_baseline.py -q` → `58 passed, 2 skipped`
+  (không đổi); `pytest -q` toàn bộ → `730 passed, 11 skipped` (trước
+  phiên `697 passed, 11 skipped` — chênh lệch đúng 33 test mới, **0
+  regression**); diff `app/pipeline.py`/`price_engine.py`/`provider.py`/
+  `models.py` = **0**; 4 validator PASS,
+  `validate_reference_integrity` giữ đúng 3 lỗi tiền tồn `TASK-REM-T06`.
+  Provider mặc định **không đổi** (`PendingPriceProvider`, Golden không
+  chạm). **Đây là implementation session, KHÔNG tự tiêu repair cycle**
+  (`TASK-105B` vẫn `2 allowed / 0 used / 2 remaining`) và **KHÔNG tự
+  DONE** — `Effective Risk = HIGH` đòi Independent Review độc lập trước
+  (đúng tiền lệ `TASK-GOLDEN-BASELINE-001`). Bảng giá production thật
+  **chưa có** — data dependency mở, không phải code blocker.
+  `TASK-105C` **vẫn KHÔNG được bắt đầu implementation** cho tới khi
+  `TASK-105B` qua Independent Review và chuyển `DONE` (dependency cứng,
+  `DEC-152` §11). `app/pipeline.py`, `provider.py`, `price_engine.py`,
+  `models.py`, `config/`, Golden fixture/expected **không đổi một byte**.
+  Chi tiết đầy đủ: `docs/tasks/TASK-105B-file-price-provider.md`.
 
 ### Branch divergence đã biết — lineage `TASK-105B`/`TASK-105C`
 
