@@ -754,6 +754,26 @@ RÀNG BUỘC                   : KHÔNG mở TASK-105D implementation trước r
                               point đó, kể cả khi freeze verdict là PASS
 ```
 
+Đo lại sau commit của `S037` (SHA `4c9c072990278d6696605ee7dc1b215a0a00d6de`):
+
+```text
+ahead default   : 6 commit          (ngưỡng: > 10)      OK
+divergence days : 0                 (ngưỡng: > 3)       OK
+cumulative LOC  : 8683              (ngưỡng: > 5.000)   VƯỢT
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : BRANCH_WITH_UPSTREAM
+RESULT          : AUTHORITY_OK
+```
+
+Con số tăng từ `5637` lên `8683` **hoàn toàn** do documentation/governance của
+`S037`: `git diff --shortstat` từ đỉnh nhánh mặc định tới HEAD cho
+`18 files changed, 8619 insertions(+), 64 deletions(-)`, trong đó production
+diff (`app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+`pyproject.toml`) là **rỗng**. Bản chất rủi ro không đổi so với lúc Owner ra
+quyết định: rủi ro **xung đột văn bản**, không phải rủi ro hành vi. Option C và
+review point giữ nguyên hiệu lực; con số mới là dữ liệu cho chính review point
+đó, không phải một trigger mới cần quyết định lại.
+
 Đây là một quyết định integration, **không** phải vi phạm thẩm quyền —
 `branch_authority_check.sh` vẫn trả `AUTHORITY_OK`.
 
