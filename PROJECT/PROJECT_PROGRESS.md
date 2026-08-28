@@ -210,9 +210,46 @@ TASK-105D
           KHÔNG phải DONE
       evidence: docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md,
                 docs/sessions/S040-task-105d-implementation.md
-  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — cả S036 lẫn
-      S037 đều không mở Repair Cycle; V4.1 §3 tính cycle theo repair diff của
-      implementation, và cả hai phiên đều 0 dòng code/test)
+  independent review #1 = FAIL — REPAIR REQUIRED (S041, 2026-08-28)
+      nhánh review/task-105d-implementation-1; target e6252c0, base 222844d
+      reviewer KHÔNG phải tác giả implementation; KHÔNG kế thừa PASS của S040
+      GATE_SET_SHA256 tái lập KHỚP; 32/32 frozen check PASS (thực thi độc lập)
+      A–T 20/20 PASS bằng bộ đối kháng RIÊNG của reviewer
+      Golden 58/2 KHÔNG ĐỔI; full 756 → 930; regression 0
+      1 BLOCKING (B-01) / 7 HARDENING / 3 OUT_OF_SCOPE
+      B-01 = thiếu khoá file; check-then-append race ở đúng biên "một máy"
+             mà data contract §11.1 tuyên bố phủ; INV-59 không thi hành được
+             qua biên tiến trình ⇒ hai bản ghi CONFIRMED độc lập ⇒
+             MappingIntegrityError VĨNH VIỄN
+      evidence: docs/reviews/TASK-105D-INDEPENDENT-IMPLEMENTATION-REVIEW-1.md
+  repair cycle #1 = REPAIR CANDIDATE (S042, 2026-08-28)
+      nhánh task/task-105d-rc1, base e6252c0; KHÔNG merge default
+      Owner Decision B-01 = option (a) — GIỮ hợp đồng concurrency "một máy",
+          sửa implementation bằng khoá file THẬT; KHÔNG thu hẹp §11.1 xuống
+          một tiến trình; KHÔNG sửa Completion Gate đã freeze
+      cơ chế: fcntl.flock(LOCK_EX) trên sidecar <log>.lock (O_NOFOLLOW, 0o600);
+          nạp lại log quyền uy TRONG khoá TRƯỚC khi kiểm expected_version;
+          append/import_bundle/rebuild_index dùng CHUNG một biên giao dịch;
+          đường ghi thứ hai _persist_raw() bị XOÁ
+      B-01 tái lập TRƯỚC sửa: 2 APPLIED + integrity error vĩnh viễn
+      B-01 sau sửa: 60/60 vòng tranh chấp = đúng 1 APPLIED + đúng 1
+          MappingVersionConflict; phân bố người thắng 26/34 (tranh chấp thật);
+          kẻ ghi cũ KHÔNG append; reopen từ đĩa hợp lệ
+      25 test mới (multiprocessing.Barrier, KHÔNG sleep/monkeypatch/1-instance)
+          — chạy ở base e6252c0 → 18 failed ⇒ test THẬT SỰ bắt được defect
+      targeted 174 → 199; Golden 58/2 KHÔNG ĐỔI; full 930 → 955; skipped 11 → 11
+      GATE_SET_SHA256 tái lập KHỚP; khối gate 0 byte thay đổi;
+          NOT_TESTED → PASS KHÔNG thực hiện (phiên này không có gate authority)
+      validator = baseline tham chiếu (chỉ 3 issue TASK-REM-T06), 0 regression
+      hiệu năng append +4…9 % ⇒ H-04 giữ nguyên HARDENING
+      H-01…H-07, HB-105D-F2-01/02/03 = VẪN OPEN, KHÔNG sửa cơ hội
+      B-01 = CODE-LEVEL RESOLVED / READY FOR INDEPENDENT RE-REVIEW
+          (KHÔNG phải governance closure — Independent Review #2 sở hữu)
+      evidence: docs/reviews/TASK-105D-RC-1-REPAIR-RECORD.md,
+                docs/sessions/S042-task-105d-repair-cycle-1.md
+  budget lineage = 2 allowed / 1 used / 1 remaining (S042 MỞ VÀ TIÊU THỤ
+      Repair Cycle #1 — lần đầu của lineage; S036/S037/S038/S041 đều 0 dòng
+      code/test nên không tiêu cycle, S042 có sửa app/** + tests/**)
   Ready Gate blocker = 0  (4 → 2 sau S034 → 1 sau DEC-156 → 0 sau S038):
     ĐÃ ĐÓNG: Owner ratification OR-01 / OR-02 / OR-03 (DEC-156)
     ĐÃ ĐÓNG: Completion Gate freeze (S038, 2026-08-28) — S036 TỪ CHỐI,
@@ -272,8 +309,63 @@ hiện hành; khối "1. OWNER DECISION — BRANCH DIVERGENCE" của S038 phía 
 *(Cập nhật 2026-08-28, S040 — IMPLEMENTATION `TASK-105D`. Owner đã cấp phép
 một phiên implementation RIÊNG; implementation candidate nằm trên nhánh
 `task/task-105d-implementation`, **chưa** qua Independent Review và **chưa**
-merge default. Đoạn ngay dưới đây là trạng thái + hành động kế tiếp hiện hành;
-khối S039 phía sau giữ nguyên làm lịch sử.)*
+merge default. Khối S040 phía sau giữ nguyên làm lịch sử.)*
+
+*(Cập nhật 2026-08-28, S041 — INDEPENDENT IMPLEMENTATION REVIEW #1 =
+**FAIL — REPAIR REQUIRED**, 1 BLOCKING `B-01`. Hành động kế tiếp của S040
+(mục 1) đã được thực hiện và trả kết quả FAIL.)*
+
+*(Cập nhật 2026-08-28, S042 — **REPAIR CYCLE #1**. Owner cấp phép mở Repair
+Cycle #1 và quyết định `B-01` = option (a). Repair candidate nằm trên nhánh
+`task/task-105d-rc1`, **chưa** qua Independent Review #2 và **chưa** merge
+default. Đoạn ngay dưới đây là trạng thái + hành động kế tiếp hiện hành; các
+khối S040/S039 phía sau giữ nguyên làm lịch sử.)*
+
+### Trạng thái sau REPAIR CYCLE #1 (S042, 2026-08-28)
+
+```text
+TASK-105D  = REPAIR CANDIDATE — READY FOR INDEPENDENT REVIEW #2
+             NOT INDEPENDENT-REVIEWED-2 / NOT DONE / NOT MERGED
+             nhánh task/task-105d-rc1, base e6252c0
+             B-01 = CODE-LEVEL RESOLVED / READY FOR INDEPENDENT RE-REVIEW
+             Completion Gate 32 check = FROZEN, KHÔNG sửa một byte
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                               (tái lập khớp SAU repair)
+             NOT_TESTED → PASS = KHÔNG thực hiện (không có gate authority)
+             targeted 199 / Golden 58+2 KHÔNG ĐỔI / full 955+11 / regression 0
+             HARDENING H-01…H-07 + HB-105D-F2-01/02/03 = VẪN OPEN
+             budget = 2 allowed / 1 used / 1 remaining
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED
+             NOT DONE / NOT ACTIVATED                       (không đổi; không chạm)
+             FilePriceProvider KHÔNG activate; diff file = RỖNG
+TASK-105C  = BLOCKED / NOT AUTHORIZED                       (không đổi; không chạm)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED         (không đổi; không mở)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                          (không đổi)
+
+default branch   = KHÔNG ĐỔI
+merge            = KHÔNG thực hiện
+task/task-105d-implementation = KHÔNG CHẠM
+app/pipeline.py  = KHÔNG ĐỔI (PendingPriceProvider vẫn là default)
+Tracking         = KHÔNG CHẠM, 0 lệnh ghi
+production data  = KHÔNG CHẠM, KHÔNG TẠO; toàn bộ fixture là dữ liệu tổng hợp
+data contract    = KHÔNG SỬA (§11.1 giữ nguyên phạm vi "một máy")
+```
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S042 → …)**
+
+```text
+1. INDEPENDENT IMPLEMENTATION REVIEW #2 của repair candidate, do một phiên
+   KHÁC thực hiện, trên nhánh task/task-105d-rc1 (V4.1 §12 — reviewer không
+   được là người viết repair). Phiên S042 cố ý KHÔNG tự review chính mình và
+   KHÔNG tuyên bố B-01 đã đóng về mặt governance.
+2. Trọng tâm review #2: B-01 (10 tiêu chí đóng ở §20 của bản ghi repair),
+   cộng toàn bộ HARDENING H-01…H-07 và HB-105D-F2-01/02/03 vẫn mở.
+3. Owner quyết định H-05 / H-02 (data contract §6.7 ranking_method_id) — vẫn
+   cần một phiên có thẩm quyền sửa data contract; S042 KHÔNG sửa.
+4. CHỈ SAU (1) PASS: quyết định integration vào default theo V4.1 §8.
+5. Còn 1 repair cycle trong ngân sách lineage. Vượt → OWNER_EXTENSION REQUIRED.
+```
 
 ### Trạng thái sau IMPLEMENTATION (S040, 2026-08-28)
 

@@ -19,6 +19,33 @@ mà không cần một bảng lịch sử riêng.
 Hạn chế ghi rõ, không giấu: JSONL + khoá file là concurrency **một máy**.
 Nhiều người dùng đồng thời trên nhiều máy là bài toán Phase 2 và cần DB.
 
+## Khoá liên-tiến-trình: biên giao dịch, không phải biên `write()`
+
+`B-01` (Independent Implementation Review #1) chỉ ra rằng lời hứa "một máy" ở
+trên trước đây KHÔNG có gì thi hành: hai tiến trình cùng đọc `version = N`,
+cả hai cùng qua `_require_version`, cả hai cùng append — `INV-59` bị phá và
+log kết thúc với hai bản ghi `CONFIRMED` độc lập cho cùng một khoá, làm mọi
+phép đọc sau đó raise `MappingIntegrityError` VĨNH VIỄN.
+
+Sửa đúng chỗ có nghĩa là khoá bao trọn **giao dịch**, không bao mỗi lệnh ghi:
+
+```text
+ACQUIRE khoá độc quyền trên <log_path>.lock
+    nạp lại phần đuôi log do tiến trình khác ghi   ← trạng thái quyền uy
+    chiếu lại + kiểm toàn vẹn (INV-33/INV-63)
+    idempotency lớp 1 (INV-68)
+    authority (INV-01)
+    version hiện tại → so expected_version (INV-59)
+    dựng mutation + append + fsync + rebuild index
+RELEASE
+```
+
+Kiểm version SAU khi đã khoá và SAU khi đã nạp lại — `check → lock → append`
+vẫn là cùng một race, chỉ hẹp hơn. Khoá quanh riêng `write()` cũng vậy:
+`write()` chưa bao giờ là chỗ hỏng; hỏng nằm ở quyết định "được phép ghi".
+
+Chi tiết cơ chế — xem `_transaction()`.
+
 ## Ba luật mà file này thi hành, không chỉ mô tả
 
 - `INV-63` LOG THẮNG. Index là DERIVED. Mọi phép đọc dưới đây chiếu lại từ
@@ -36,12 +63,19 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable, Optional, Protocol
+from typing import Any, Iterable, Iterator, Optional, Protocol
+
+try:  # POSIX — Linux/macOS, đúng môi trường runtime đã tuyên bố của Phase 1.
+    import fcntl
+except ImportError:  # pragma: no cover — nền tảng không phải POSIX
+    fcntl = None  # type: ignore[assignment]
 
 from app.modules.product.identity.audit import (
     AffectedScope,
@@ -102,6 +136,15 @@ class MappingVersionConflict(RuntimeError):
     def __init__(self, message: str, *, current_state: Any = None) -> None:
         super().__init__(message)
         self.current_state = current_state
+
+
+class StoreLockUnavailableError(RuntimeError):
+    """Không có cơ chế khoá liên-tiến-trình trên nền tảng đang chạy.
+
+    Fail closed. Một store có `log_path` mà KHÔNG khoá được chính là khiếm
+    khuyết `B-01`; chạy tiếp trong im lặng sẽ tái lập đúng nó, nên đường này
+    nổ thay vì hạ cấp âm thầm xuống "một tiến trình".
+    """
 
 
 class SimilarityAuthorityError(RuntimeError):
@@ -181,6 +224,9 @@ class AppendResult:
     rejection: Optional[RejectedCandidate] = None
 
 
+_LOCK_SUFFIX = ".lock"
+
+
 def _mapping_key(source_system: str, raw_identity_key: str) -> str:
     return f"{source_system}\x1f{raw_identity_key}"
 
@@ -202,16 +248,203 @@ class JsonlProductIdentityStore:
     ) -> None:
         self.log_path = Path(log_path) if log_path else None
         self.index_path = Path(index_path) if index_path else None
+        self.lock_path = (
+            self.log_path.with_name(self.log_path.name + _LOCK_SUFFIX)
+            if self.log_path is not None
+            else None
+        )
         self._events: list[MappingAuditEvent] = []
         self._raw_records: list[dict[str, Any]] = []
         self._results_by_request: dict[str, AppendResult] = {}
+        # Số byte và số dòng vật lý của log đã được nạp vào bộ nhớ. Log là
+        # append-only (`INV-67`), nên phần đã nạp luôn là một TIỀN TỐ của file
+        # — đó là điều làm cho việc nạp lại phần đuôi trở nên hợp lệ.
+        self._log_offset = 0
+        self._log_lines = 0
+        # Khoá trong-tiến-trình: bảo vệ chính bộ đếm độ sâu bên dưới và tuần
+        # tự hoá các luồng của CÙNG instance. KHÔNG thay thế khoá file.
+        self._thread_lock = threading.RLock()
+        self._lock_depth = 0
         if self.log_path is not None and self.log_path.exists():
-            self._load_log()
+            # Nạp lần đầu cũng phải nằm trong khoá: một tiến trình khác có thể
+            # đang ghi dở một dòng, và đọc trúng dòng dở đó sẽ raise
+            # `MappingIntegrityError` cho một log hoàn toàn lành.
+            with self._transaction():
+                pass
+
+    # ---- khoá liên-tiến-trình --------------------------------------------
+
+    @contextmanager
+    def _transaction(self) -> Iterator[None]:
+        """Biên nguyên tử của MỌI đường ghi (`INV-59`/`INV-62`/`INV-66`).
+
+        Đối tượng bị khoá
+        -----------------
+        `<log_path>.lock` — một file *sidecar* riêng, KHÔNG phải chính log và
+        KHÔNG phải index. Lý do phải là sidecar chứ không phải log:
+        `rebuild_index()` thay index bằng `os.replace`, tức đổi inode. Khoá
+        trên một inode bị thay giữa chừng sẽ mất tác dụng loại trừ lẫn nhau —
+        hai tiến trình sẽ khoá hai inode khác nhau và cùng tưởng mình độc
+        quyền. File lock ở đây được tạo một lần và KHÔNG BAO GIỜ bị xoá hay
+        thay thế, nên inode của nó ổn định suốt vòng đời store.
+
+        Ngữ nghĩa
+        ---------
+        `fcntl.flock(LOCK_EX)` — độc quyền, không có chế độ chia sẻ: mọi
+        đường ghi đều phải nạp lại state nên đều là writer. Khoá chặn (không
+        `LOCK_NB`): hai người dùng trên một máy phải xếp hàng, không phải
+        nhận lỗi giả.
+
+        Vòng đời
+        --------
+        Giữ đúng một giao dịch: mở fd → `LOCK_EX` → nạp lại đuôi log → thân
+        giao dịch → `LOCK_UN` → đóng fd. `finally` chạy trên mọi đường thoát,
+        kể cả `MappingVersionConflict`, `SimilarityAuthorityError` hay
+        `MappingIntegrityError` — không có đường nào rời khối này mà còn giữ
+        khoá.
+
+        Tiến trình chết
+        ---------------
+        `flock` gắn với *open file description*; nhân giải phóng khoá khi
+        tiến trình chết hoặc fd đóng, kể cả khi bị `SIGKILL`. Vì vậy KHÔNG có
+        stale lock, và cũng vì vậy file `.lock` không được xoá: xoá nó là
+        cách kinh điển tạo ra hai tiến trình khoá hai inode khác nhau.
+
+        Tái nhập (reentrancy)
+        ---------------------
+        `_persist()` gọi `rebuild_index()`, mà `rebuild_index()` cũng là một
+        giao dịch. `flock` trên một fd THỨ HAI của cùng tiến trình vẫn xung
+        đột, nên mở fd lần nữa sẽ tự khoá chính mình. Bộ đếm `_lock_depth`
+        (đặt dưới `RLock` nên an toàn giữa các luồng) làm lần vào bên trong
+        thành no-op.
+
+        Giới hạn nền tảng
+        -----------------
+        POSIX. Trên nền tảng không có `fcntl` (Windows), một store CÓ
+        `log_path` sẽ raise `StoreLockUnavailableError` thay vì chạy không
+        khoá. Store thuần bộ nhớ (`log_path is None`) không cần khoá và
+        không bị ảnh hưởng.
+
+        `flock` cũng không loại trừ lẫn nhau qua NFS ở nhiều cấu hình; điều đó
+        nằm trong đúng phạm vi mà `§11.1` đã tuyên bố là Phase 2 ("nhiều máy"),
+        không phải một hạn chế mới do bản sửa này tạo ra.
+        """
+        with self._thread_lock:
+            if self._lock_depth > 0:
+                self._lock_depth += 1
+                try:
+                    yield
+                finally:
+                    self._lock_depth -= 1
+                return
+
+            if self.lock_path is None:
+                # Store thuần bộ nhớ: không có file dùng chung nào để tranh
+                # chấp. `RLock` ở trên đã đủ cho biên luồng.
+                self._lock_depth += 1
+                try:
+                    yield
+                finally:
+                    self._lock_depth -= 1
+                return
+
+            if fcntl is None:  # pragma: no cover — nền tảng không phải POSIX
+                raise StoreLockUnavailableError(
+                    f"{self.lock_path}: nền tảng không cung cấp fcntl.flock; "
+                    "store có persistence KHÔNG được chạy không khoá "
+                    "(INV-59 sẽ không thi hành được qua biên tiến trình)"
+                )
+
+            self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+            # `O_NOFOLLOW`: một symlink đặt sẵn ở đúng đường dẫn khoá sẽ khiến
+            # hai tiến trình khoá hai inode KHÁC nhau và cùng tưởng mình độc
+            # quyền — tức đúng `B-01` quay lại qua cửa sau. Gặp symlink thì nổ,
+            # không đi theo.
+            fd = os.open(
+                self.lock_path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600
+            )
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                self._lock_depth = 1
+                try:
+                    self._refresh_from_disk()
+                    yield
+                finally:
+                    self._lock_depth = 0
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+
+    def _refresh_from_disk(self) -> None:
+        """Nạp lại phần log do tiến trình khác ghi. CHỈ gọi khi đang giữ khoá.
+
+        Đây là nửa còn lại của bản sửa `B-01`: khoá mà không nạp lại thì
+        `expected_version` vẫn được so với một ảnh chụp cũ trong bộ nhớ, và
+        writer cũ vẫn thắng. Vì log là append-only, phần đã nạp luôn là tiền
+        tố của file, nên chỉ cần đọc từ `_log_offset` trở đi.
+        """
+        if self.log_path is None or not self.log_path.exists():
+            return
+        size = self.log_path.stat().st_size
+        if size == self._log_offset:
+            return
+        if size < self._log_offset:
+            raise MappingIntegrityError(
+                f"{self.log_path}: log co lại từ {self._log_offset} xuống "
+                f"{size} byte — vi phạm append-only (INV-67); KHÔNG được đọc "
+                "tiếp thành một state một nửa"
+            )
+        with open(self.log_path, "rb") as handle:
+            handle.seek(self._log_offset)
+            chunk = handle.read()
+        self._consume(chunk)
+
+    def _consume(self, chunk: bytes) -> None:
+        """Chiếu `chunk` (một hoặc nhiều dòng JSONL) vào state trong bộ nhớ.
+
+        Một dòng hỏng — kể cả một dòng ghi dở do tiến trình chết giữa
+        `write()` — bị TỪ CHỐI, không bị bỏ qua: `INV-63` nói log thắng, nên
+        một log không đọc được phải nổ chứ không được đọc thành nửa state.
+        """
+        for line in chunk.decode("utf-8").splitlines():
+            self._log_lines += 1
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise MappingIntegrityError(
+                    f"{self.log_path}: dòng {self._log_lines} không phải JSON "
+                    "hợp lệ — log hỏng, KHÔNG được đọc tiếp thành một state "
+                    "một nửa"
+                ) from exc
+            self._raw_records.append(record)
+            event = _event_from_record(record)
+            self._events.append(event)
+            if event.client_request_id and event.client_request_id not in (
+                self._results_by_request
+            ):
+                self._results_by_request[event.client_request_id] = AppendResult(
+                    outcome=AppendOutcome.APPLIED,
+                    new_version=event.resulting_version,
+                    revision=event.revision,
+                    event=event,
+                )
+        self._log_offset += len(chunk)
 
     # ---- đọc -------------------------------------------------------------
 
     def current_revision(self) -> int:
-        """§10.2 — số thứ tự của event cuối cùng. Đơn điệu, không tái sử dụng."""
+        """§10.2 — số thứ tự của event cuối cùng. Đơn điệu, không tái sử dụng.
+
+        Đường ĐỌC cố ý KHÔNG nạp lại từ đĩa. Đó chính là mô hình optimistic
+        concurrency của `§10.3`: client đọc version `N`, gửi
+        `expected_version = N`, và nếu trong lúc đó có người khác ghi thì
+        `append()` — nơi DUY NHẤT có quyền quyết định — phát hiện và trả
+        `MappingVersionConflict` (`INV-59`), rồi client reload và reconcile
+        (`INV-60`). Nạp lại ở đây sẽ biến một phép đọc thành một lần lấy khoá
+        và vẫn không loại bỏ được cửa sổ giữa đọc và ghi.
+        """
         return len(self._events)
 
     def read_at_revision(self, revision: int) -> StoreView:
@@ -256,33 +489,41 @@ class JsonlProductIdentityStore:
 
         Thứ tự kiểm là một phần của hợp đồng, không phải chi tiết cài đặt:
 
+        0. khoá liên-tiến-trình + nạp lại log (`_transaction`) — TOÀN BỘ bốn
+           bước dưới đây nằm trong đó. Không bước nào được phép nhìn thấy một
+           ảnh chụp cũ hơn state trên đĩa;
         1. idempotency lớp 1 (`INV-68`) — retry phải trả kết quả cũ **trước
            khi** chạm tới version, nếu không một retry hợp lệ sẽ bị báo
            conflict;
         2. authority (`INV-01`) — chặn similarity → `CONFIRMED` trên MỌI đường;
         3. concurrency (`INV-59`) — `expected_version`;
         4. idempotency lớp 2 (`INV-69`) — state không đổi thì không ghi gì.
+
+        Bước 1 nằm TRONG khoá là có chủ ý, không phải tiện tay: một retry của
+        cùng `client_request_id` có thể đã được một tiến trình khác áp dụng, và
+        chỉ sau khi nạp lại log thì bộ nhớ retry mới biết điều đó.
         """
-        cached = self._results_by_request.get(command.client_request_id)
-        if cached is not None:
-            return AppendResult(
-                outcome=AppendOutcome.ALREADY_APPLIED,
-                new_version=cached.new_version,
-                revision=cached.revision,
-                event=cached.event,
-                mapping=cached.mapping,
-                cross_system=cached.cross_system,
-                rejection=cached.rejection,
-            )
+        with self._transaction():
+            cached = self._results_by_request.get(command.client_request_id)
+            if cached is not None:
+                return AppendResult(
+                    outcome=AppendOutcome.ALREADY_APPLIED,
+                    new_version=cached.new_version,
+                    revision=cached.revision,
+                    event=cached.event,
+                    mapping=cached.mapping,
+                    cross_system=cached.cross_system,
+                    rejection=cached.rejection,
+                )
 
-        self._guard_authority(command)
+            self._guard_authority(command)
 
-        view = self.read_at_revision(self.current_revision())
-        if isinstance(command, MappingCommand):
-            return self._append_mapping_command(command, view)
-        if isinstance(command, CrossSystemCommand):
-            return self._append_cross_system_command(command, view)
-        raise TypeError(f"command không được hỗ trợ: {type(command).__name__}")
+            view = self.read_at_revision(self.current_revision())
+            if isinstance(command, MappingCommand):
+                return self._append_mapping_command(command, view)
+            if isinstance(command, CrossSystemCommand):
+                return self._append_cross_system_command(command, view)
+            raise TypeError(f"command không được hỗ trợ: {type(command).__name__}")
 
     def _guard_authority(self, command: Command) -> None:
         """`INV-01`/`INV-28b`/`G07` — phủ định TOÀN CỤC, không theo case.
@@ -628,25 +869,50 @@ class JsonlProductIdentityStore:
         """`INV-62` — một event = một lần ghi + `fsync`.
 
         Ghi cả dòng trong một lần `write()` rồi `fsync` trước khi trả về: một
-        lần ghi bị ngắt để lại một dòng JSON dở, và dòng dở đó bị `_load_log()`
+        lần ghi bị ngắt để lại một dòng JSON dở, và dòng dở đó bị `_consume()`
         từ chối thay vì được đọc thành một state "đọc được nhưng sai".
         """
         if self.log_path is None:
             return
+        self._append_line(record)
+        self.rebuild_index()
+
+    def _append_line(self, record: dict[str, Any]) -> None:
+        """Ghi MỘT dòng + `fsync` và đẩy `_log_offset` theo đúng số byte đó.
+
+        Đường ghi vật lý DUY NHẤT xuống log. Việc `_log_offset` tiến lên ngay
+        tại đây là điều giữ cho `_refresh_from_disk()` không đọc lại chính
+        dòng mình vừa ghi thành một event thứ hai.
+        """
+        if self.log_path is None:
+            return
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
-        with open(self.log_path, "a", encoding="utf-8") as handle:
-            handle.write(line)
+        payload = (
+            json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
+        ).encode("utf-8")
+        with open(self.log_path, "ab") as handle:
+            handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
-        self.rebuild_index()
+        self._log_offset += len(payload)
+        self._log_lines += 1
 
     def rebuild_index(self) -> None:
         """Ghi lại index dẫn xuất theo khuôn write-temp + `os.replace` (`INV-62`).
 
         `os.replace` là đổi tên nguyên tử trên cùng filesystem: người đọc thấy
         index cũ hoặc index mới, không bao giờ thấy một index viết dở.
+
+        Gọi công khai thì tự lấy khoá — nếu không, hai tiến trình có thể ghi
+        đè index của nhau bằng hai ảnh chụp khác nhau. Gọi từ `_persist()` thì
+        đã ở trong khoá và `_transaction()` biến nó thành no-op.
         """
+        if self.index_path is None:
+            return
+        with self._transaction():
+            self._write_index()
+
+    def _write_index(self) -> None:
         if self.index_path is None:
             return
         view = self.read_at_revision(self.current_revision())
@@ -662,33 +928,6 @@ class JsonlProductIdentityStore:
             json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
         )
         os.replace(temp, self.index_path)
-
-    def _load_log(self) -> None:
-        """Dựng lại toàn bộ trạng thái từ log — LOG LÀ NGUỒN SỰ THẬT (`INV-63`)."""
-        for number, line in enumerate(
-            self.log_path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise MappingIntegrityError(
-                    f"{self.log_path}: dòng {number} không phải JSON hợp lệ — "
-                    "log hỏng, KHÔNG được đọc tiếp thành một state một nửa"
-                ) from exc
-            self._raw_records.append(record)
-            self._events.append(_event_from_record(record))
-        for event in self._events:
-            if event.client_request_id and event.client_request_id not in (
-                self._results_by_request
-            ):
-                self._results_by_request[event.client_request_id] = AppendResult(
-                    outcome=AppendOutcome.APPLIED,
-                    new_version=event.resulting_version,
-                    revision=event.revision,
-                    event=event,
-                )
 
     def export_bundle(self) -> dict[str, Any]:
         """`INV-65` — artifact tự mô tả: log + manifest + hash.
@@ -716,20 +955,16 @@ class JsonlProductIdentityStore:
         cls, bundle: dict[str, Any], *, log_path: Optional[Path] = None
     ) -> "JsonlProductIdentityStore":
         store = cls(log_path=log_path)
-        for record in bundle["events"]:
-            store._raw_records.append(record)
-            store._events.append(_event_from_record(record))
-            store._persist_raw(record)
+        # Import là một đường GHI, nên nó chịu đúng biên nguyên tử như
+        # `append()` (`§19` — không đường ghi nào được để ngoài khoá). Cả
+        # bundle nằm trong MỘT giao dịch: một tiến trình khác thấy log trước
+        # import hoặc sau import, không bao giờ thấy nửa bundle.
+        with store._transaction():
+            for record in bundle["events"]:
+                store._raw_records.append(record)
+                store._events.append(_event_from_record(record))
+                store._append_line(record)
         return store
-
-    def _persist_raw(self, record: dict[str, Any]) -> None:
-        if self.log_path is None:
-            return
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.log_path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
 
 
 def _aid_of(command: MappingCommand) -> str:
