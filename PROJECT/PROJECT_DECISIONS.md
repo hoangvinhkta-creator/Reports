@@ -6712,3 +6712,158 @@ Can Revisit After:
 - Một phiên sửa data contract có thẩm quyền cho `H-05` (`ranking_method_id`).
 - Một phiên soạn Scope Lock + Completion Gate cho `TASK-105E` (nơi phần còn
   lại của `H-02` — điều kiện (a) của `INV-43` — thuộc về).
+
+## DEC-158
+
+Title:
+BRANCH DIVERGENCE `V4.1` §8 — OWNER CHỌN OPTION A (INTEGRATE EARLY);
+CONTROLLED INTEGRATION CỦA `TASK-105D` READINESS/FREEZE LINEAGE
+
+Date:
+2026-08-28
+
+Task:
+Owner Decision recording cho phiên Controlled Readiness Integration
+`TASK-105D`. Ghi trong phiên `docs/sessions/S039-task-105d-controlled-integration.md`.
+
+```text
+base SHA phiên này        : 573e051e093cd850c9efb13891bf6dee5654f0c6
+integration branch        : integration/v4-1-task-105d-readiness
+freeze SHA được hợp nhất  : a53af1d193d4023fcf90bcc8e55bb874eaae19fe
+gate revision SHA         : be835b1b1b03d4e8d21656c3624b6e4bc964b7a1
+```
+
+**Đây LÀ một Owner Decision.** Owner mở phiên này với một quyết định tường
+minh duy nhất (Decision A — divergence). Phiên **không** thêm quyết định
+nghiệp vụ nào của riêng nó; toàn bộ nội dung được hợp nhất đã tồn tại nguyên
+văn trong lineage đã review, và phiên chỉ (i) xác minh lại bằng chứng freeze
+một cách độc lập, (ii) thực hiện hợp nhất giữ nguyên ancestry, (iii) ghi lại
+bản ghi trạng thái.
+
+Ghi chú artifact budget (`governance/core/V4_1_POLICY_FREEZE.md` §10): đây là
+artifact governance thứ **9** của lineage `TASK-105D` (thứ 8 là `DEC-157` +
+`S037`), tức thuộc diện `OWNER APPROVAL REQUIRED`. Approval đó **chính là**
+chỉ thị của Owner khi mở phiên này ("Ghi canonical evidence: Owner selected
+V4.1 §8 Option A — INTEGRATE EARLY"; "§15 FINAL REPORT"). Ghi lại tường minh
+theo tiền lệ `DEC-156`/`DEC-157`.
+
+Decision:
+
+**1. OWNER DECISION A — BRANCH DIVERGENCE: `V4.1` §8 OPTION A.**
+
+```text
+V4.1 §8 — INTEGRATION_DECISION_REQUIRED  [ cumulative LOC > 5.000 ]
+Owner chọn: (A) INTEGRATE EARLY.
+Option C của DEC-157: KHÔNG gia hạn.
+```
+
+Lý do Owner ghi nhận:
+
+```text
+- Option C allowance của DEC-157 đã dùng hết (Gate Revision S037 +
+  MỘT Freeze Finalization retry S038);
+- Freeze Finalization Retry #2 đã hoàn thành, verdict PASS WITH HARDENING;
+- TASK-105D đã READY; BLOCKING = 0;
+- branch documentation divergence > 10.000 LOC;
+- behind default = 0 tại thời điểm review (chưa có conflict thực tế);
+- bước tiếp theo sẽ bắt đầu production implementation, và implementation
+  phải xuất phát từ canonical default đã chứa readiness/freeze evidence.
+```
+
+Review point bắt buộc của `DEC-157` §2 ("ngay sau freeze finalization retry
+verdict") **được đóng bằng chính quyết định này**. Ràng buộc "không mở
+`TASK-105D` implementation trước divergence decision" nay đã thoả — nhưng
+implementation **vẫn cần một phiên cấp phép riêng của Owner** (§3 dưới đây).
+
+**2. Hợp nhất đã thực hiện — giữ nguyên ancestry.**
+
+```text
+phương pháp   : git merge --no-ff  (ancestry-preserving controlled merge)
+                KHÔNG squash; KHÔNG cherry-pick rời từng file
+conflict      : 0
+merge commit  : e271c26770bb6b4cecd9d4a54aea4e12a183012c
+tree sau merge: TRÙNG KHỚP BYTE-EXACT với a53af1d (git diff = rỗng)
+```
+
+Lineage được bảo toàn đầy đủ, gồm cả **bằng chứng thất bại** của Freeze
+Attempt #1 (`7b89d4c`, verdict FAIL) — không rewrite, không loại bỏ:
+
+```text
+442404d → d3b73e5 → 9cd8714 → 7b89d4c → 1676e1d → 4c9c072 → be835b1 → a53af1d
+```
+
+**3. Trạng thái `TASK-105D` sau quyết định này — KHÔNG ĐỔI bởi hợp nhất.**
+
+```text
+TASK-105D            = READY
+                       NOT IMPLEMENTED / NOT DONE
+Completion Gate      = FROZEN  (32 check, GATE_SET_SHA256 0444e58c…)
+Gate count           = 32   (không đổi)
+Repair Cycle         = KHÔNG mở  (2 allowed / 0 used / 2 remaining)
+production code      = KHÔNG đổi
+test implementation  = KHÔNG đổi
+merge                = ĐÃ THỰC HIỆN (đây là mục đích của phiên)
+implementation       = KHÔNG bắt đầu; vẫn cần phiên cấp phép riêng của Owner
+```
+
+Controlled integration **không** tự động cấp quyền implementation.
+
+**4. Bằng chứng freeze — xác minh lại độc lập trong phiên này.**
+
+Phiên **không** dựa vào Final Report của phiên trước; mọi con số dưới đây
+được tính lại từ chính văn bản canonical:
+
+```text
+GATE_SET_SHA256   : 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                    tái lập BYTE-EXACT (57.614 byte UTF-8)
+TASK_FILE_SHA256  : a6be1ac71ac751eeefae30cf076f90e5d4cad80067c9441f78578e9972e028b1  KHỚP
+TASK_FILE_GIT_BLOB: 804ba8379e0952a2210559c7eec86b4094957026                          KHỚP
+gate count        : 32   (CHECK-105D-01…32, đếm từ văn bản, không khuyết ID)
+Priority          : 32/32 REQUIRED
+Status tại freeze : 32/32 NOT_TESTED
+Evidence Level    : E2 = 19, E1 = 13
+BLOCKING          : 0
+gate semantics    : KHÔNG đổi giữa be835b1b và a53af1d (cùng GATE_SET_SHA256)
+                    ⇒ commit freeze chỉ ghi TRẠNG THÁI, không sửa ngữ nghĩa
+```
+
+**5. HARDENING — preserve, KHÔNG repair.**
+
+`H-05`, `HB-105D-F2-01`, `HB-105D-F2-02`, `HB-105D-F2-03` giữ nguyên phân
+loại `HARDENING`, vẫn mở, re-trigger còn nguyên. Phiên này **không** nâng
+chúng thành `BLOCKING` (không có evidence mới) và **không** hạ chúng khỏi
+`HARDENING`. `docs/spec/TASK-105D-DATA-CONTRACT.md` **không** bị sửa.
+
+**6. Repair Cycle — KHÔNG mở.**
+
+`V4.1` §3 tính repair cycle theo cumulative **repair diff** trên một defect
+`BLOCKING` của **implementation**. Phiên này không sửa một dòng code hay test
+nào; toàn bộ diff là documentation/governance, và `BLOCKING = 0`. Ngân sách
+`TASK-105D` giữ nguyên `2 allowed / 0 used / 2 remaining`.
+
+Impact:
+
+- Nhánh mặc định `claude/extract-upload-repo-gq2ws4` — nhận toàn bộ lineage
+  readiness/freeze của `TASK-105D` qua controlled merge giữ ancestry.
+- `PROJECT/PROJECT_DECISIONS.md` — `DEC-158` (ID đã quét toàn repo trên MỌI
+  ref, trống trước khi cấp).
+- `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md` —
+  trạng thái sau hợp nhất, divergence record, next authorized action.
+- `docs/sessions/S039-task-105d-controlled-integration.md` — bàn giao.
+- **Không** sửa `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+  `pyproject.toml`, `governance/**`, Golden fixture/expected.
+- **Không** sửa `docs/spec/TASK-105D-DATA-CONTRACT.md` — `H-05`,
+  `HB-105D-F2-01`, `HB-105D-F2-02` còn mở.
+- **Không** sửa repo `Tracking` — 0 file.
+- **Không** implement, không activate provider, không re-freeze, không mở
+  Repair Cycle, không unblock `TASK-108B`.
+
+Can Revisit After:
+
+- Một phiên **implementation `TASK-105D`** được Owner cấp phép riêng, chạy
+  trên Completion Gate đã `FROZEN` (32 check, `GATE_SET_SHA256` `0444e58c…`);
+  phiên đó phải xử lý `HB-105D-F2-03` và `H-05` khi chạm đúng vùng re-trigger.
+- Một phiên sửa data contract có thẩm quyền cho `H-05` + `HB-105D-F2-01`.
+- Một phiên soạn Scope Lock + Completion Gate cho `TASK-105E`
+  (`HB-105D-F2-02`).
+- `TASK-105C` refreeze (lineage riêng) — vẫn `BLOCKED / NOT AUTHORIZED`.

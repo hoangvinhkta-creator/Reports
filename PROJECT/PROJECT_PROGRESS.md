@@ -245,6 +245,107 @@ HARDENING**; Completion Gate `TASK-105D` = **FROZEN**; `TASK-105D` = **READY**.
 Đoạn ngay dưới đây là hành động kế tiếp hiện hành; các đoạn S037/S036/S035
 phía sau giữ nguyên làm lịch sử.)*
 
+*(Cập nhật 2026-08-28, S039 — CONTROLLED READINESS INTEGRATION. Owner đã
+quyết định `V4.1` §8 **Option A — INTEGRATE EARLY** (`DEC-158`); toàn bộ
+lineage readiness/freeze của `TASK-105D` đã được hợp nhất vào nhánh mặc định
+giữ nguyên ancestry. Đoạn ngay dưới đây là trạng thái + hành động kế tiếp
+hiện hành; khối "1. OWNER DECISION — BRANCH DIVERGENCE" của S038 phía sau nay
+đã **ĐƯỢC ĐÓNG** và giữ nguyên làm lịch sử.)*
+
+### Trạng thái sau CONTROLLED INTEGRATION (S039, 2026-08-28, `DEC-158`)
+
+```text
+TASK-105D  = READY
+             NOT IMPLEMENTED / NOT DONE
+             Completion Gate 32 check = FROZEN
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+             32/32 NOT_TESTED  (freeze SEMANTICS, chưa test)
+             implementation = NOT STARTED; NOT AUTHORIZED
+                              (ràng buộc DEC-157 §2 đã thoả bằng DEC-158,
+                               nhưng vẫn cần phiên cấp phép RIÊNG của Owner)
+             budget = 2 allowed / 0 used / 2 remaining
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED
+             NOT DONE / NOT ACTIVATED                       (không đổi; không chạm)
+TASK-105C  = BLOCKED / NOT AUTHORIZED                       (không đổi)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED /
+             NOT IMPLEMENTED / NOT AUTHORIZED               (không đổi)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                          (không đổi; KHÔNG unblock)
+             blocker: TASK-105C implementation, TASK-105D implementation,
+                      TASK-105E, TASK-105B-Q3
+```
+
+Hợp nhất đã thực hiện:
+
+```text
+integration branch : integration/v4-1-task-105d-readiness
+freeze SHA         : a53af1d193d4023fcf90bcc8e55bb874eaae19fe
+phương pháp        : git merge --no-ff (ancestry-preserving); KHÔNG squash,
+                     KHÔNG cherry-pick rời
+conflict           : 0
+merge commit       : e271c26770bb6b4cecd9d4a54aea4e12a183012c
+tree == a53af1d    : YES (byte-exact)
+ancestry giữ đủ    : 442404d → d3b73e5 → 9cd8714 → 7b89d4c → 1676e1d
+                     → 4c9c072 → be835b1 → a53af1d
+                     (gồm CẢ bằng chứng THẤT BẠI của Freeze Attempt #1
+                      `7b89d4c`, verdict FAIL — không rewrite, không xoá)
+production diff    : 0 dòng
+```
+
+`HARDENING` giữ nguyên, **KHÔNG repair** trong phiên này: `H-05`,
+`HB-105D-F2-01`, `HB-105D-F2-02`, `HB-105D-F2-03` — vẫn `HARDENING`, vẫn mở,
+re-trigger còn nguyên. `docs/spec/TASK-105D-DATA-CONTRACT.md` không bị sửa.
+
+#### Đối chiếu trạng thái `TASK-105B` — ghi nhận khác biệt văn bản
+
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW-2.md` §16 ghi
+`TASK-105B = FROZEN (DEC-153) / DONE`, kèm chú "(không đổi; không chạm)".
+Bản ghi trạng thái canonical của repo (file này) ghi `TASK-105B = FROZEN +
+INTEGRATED + RC-1 INTEGRATED`, **vẫn `NOT DONE`** và chưa activate — xem các
+khối "Cập nhật sau CONTROLLED INTEGRATION" và "Cập nhật sau RECONCILIATION"
+phía dưới, cùng `NEXT AUTHORIZED ACTION` của lineage `TASK-105B`
+("…chuyển `TASK-105B` sang `DONE`" — tức `DONE` CHƯA đạt).
+
+Phân giải, theo `CLAUDE.md` ("Trạng thái hiện tại → `PROJECT/PROJECT_PROGRESS.md`")
+và `governance/core/V4_1_POLICY_FREEZE.md` §12 (`DONE` = thẩm quyền Owner /
+completion authority — một phiên Freeze Finalization của `TASK-105D` **không**
+có thẩm quyền ghi `DONE` cho `TASK-105B`):
+
+```text
+TRẠNG THÁI CANONICAL CỦA TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED
+                                     NOT DONE / NOT ACTIVATED
+Chữ "/ DONE" trong REVIEW-2 §16 = ghi chú phụ trợ SAI của một artifact review,
+KHÔNG phải state transition, và KHÔNG có hiệu lực.
+```
+
+Artifact review **không bị sửa** — `V4.1` §10 cấm retro-fit tài liệu
+governance lịch sử, và sửa nó sẽ làm đổi bằng chứng freeze. Khác biệt được
+ghi tại đây làm bản ghi đối chiếu. Điều này **không** ảnh hưởng freeze verdict
+của `TASK-105D`: `TASK-105B` không nằm trong gate set 32 check, và
+`GATE_SET_SHA256` không đổi.
+
+#### NEXT AUTHORIZED ACTION (sau S039)
+
+**Controlled integration KHÔNG tự động cấp quyền implementation.**
+
+```text
+1. Một phiên IMPLEMENTATION TASK-105D được Owner cấp phép RIÊNG, chạy trên
+   Completion Gate đã FROZEN (32 check, GATE_SET_SHA256 0444e58c…).
+   Phiên đó phải xử lý HB-105D-F2-03 và H-05 khi chạm đúng vùng re-trigger.
+   S039 KHÔNG tạo implementation branch.
+
+Song song, không bị chặn:
+   - phiên sửa data contract có thẩm quyền : H-05 + HB-105D-F2-01
+   - phiên soạn Scope Lock + Completion Gate cho TASK-105E : HB-105D-F2-02
+   - refreeze TASK-105C (lineage riêng 2/0/2)
+   - Owner cung cấp dữ liệu thật: PublicPurchaseSourceVersion đầu tiên,
+     TrackingCatalogSnapshot đầu tiên, báo cáo lịch sử Owner-confirmed
+```
+
+*(Đoạn S038 dưới đây — "1. OWNER DECISION — BRANCH DIVERGENCE" — ĐÃ ĐÓNG bởi
+`DEC-158` (Option A). Giữ nguyên văn làm lịch sử:)*
+
+
 **1. OWNER DECISION — BRANCH DIVERGENCE (`V4.1` §8). Đây là việc PHẢI làm
 trước bất kỳ việc nào khác trên lineage `TASK-105D`**, theo `DEC-157` §2
 (review point bắt buộc = ngay sau freeze verdict; verdict đã có).

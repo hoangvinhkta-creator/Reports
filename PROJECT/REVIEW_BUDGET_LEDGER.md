@@ -1402,3 +1402,86 @@ với chính default tip cũ).
   `TASK-105D` Ready Gate blocker: 2 → **1** (chỉ còn Completion Gate freeze).
   `TASK-105C` trạng thái task **KHÔNG đổi** — vẫn `BLOCKED / NOT AUTHORIZED`.
   `HB-105B-03/05/06/10` không finding nào bị trigger bởi phiên này.
+
+---
+
+### Divergence decision — ĐÃ QUYẾT (`S039`, 2026-08-28, `DEC-158`)
+
+Review point bắt buộc của `DEC-157` §2 được **đóng** bằng Owner Decision
+`DEC-158`: `V4.1` §8 **Option A — INTEGRATE EARLY**. Option C **không** gia hạn.
+
+```text
+Đo tại e271c26 (sau controlled merge, trước push default):
+  ahead default     : 9 commit        (ngưỡng > 10)     OK
+  behind default    : 0 commit
+  divergence days   : 0               (ngưỡng > 3)      OK
+  cumulative LOC    : 10.055          (ngưỡng > 5.000)  VƯỢT
+    production LOC      : 0     (app/**, tests/**, config/**, tools/**,
+                                 scripts/**, pyproject.toml, governance/**)
+    documentation LOC   : 10.055  (20 file, +9.991 / −64)
+  DIVERGENCE        : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+                      → GIẢI QUYẾT bằng Option A (integrate), không phải
+                        bằng cách tiếp tục divergence
+  AUTHORITY         : BRANCH_WITH_UPSTREAM
+  RESULT            : AUTHORITY_OK
+
+SCOPE OPTION C — ĐÃ DÙNG HẾT (xác nhận lại):
+  (1) Gate Revision S037            ✔
+  (2) MỘT Freeze Finalization retry ✔  (S038)
+  → không còn allowance; tiếp tục divergence sẽ là GIA HẠN, Owner từ chối
+
+INTEGRATION:
+  phương pháp   : git merge --no-ff (ancestry-preserving)
+  conflict      : 0
+  merge commit  : e271c26770bb6b4cecd9d4a54aea4e12a183012c
+  tree == a53af1d : YES (byte-exact)
+  squash        : KHÔNG
+  cherry-pick   : KHÔNG
+
+KẾT QUẢ SAU PUSH DEFAULT:
+  DIVERGENCE    : WITHIN_LIMITS  (behind = 0, ahead = 0)
+  bằng chứng divergence lịch sử: GIỮ NGUYÊN, không xoá
+                 (§ "Branch divergence — TASK-105D lineage" và
+                  § "Divergence review point — ĐÃ THỰC HIỆN (S038)" ở trên)
+```
+
+Ngân sách sau phiên — **KHÔNG ĐỔI**:
+
+```text
+TASK-105D : 2 allowed / 0 used / 2 remaining
+            Repair Cycle KHÔNG mở (V4.1 §3: diff của phiên là
+            documentation/governance, BLOCKING = 0)
+TASK-105B, TASK-105C, TASK-105E, TASK-110,
+TASK-GOLDEN-BASELINE-001, TASK-108B          : KHÔNG ĐỔI
+```
+
+Bằng chứng thực thi của phiên (E2):
+
+```text
+validate_structure           : PASS
+validate_project_state       : PASS
+validate_evidence            : PASS  (88 REQUIRED PASS record)
+validate_task_completion     : PASS  (6 DONE task)
+validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-REM-T06
+                               (/README.md, CODE_OF_CONDUCT.md,
+                                CONTRIBUTING.md) — không phát sinh mới
+branch_authority_check.sh    : AUTHORITY_OK
+git diff --check             : sạch
+Golden                       : 58 passed, 2 skipped
+Full suite                   : 756 passed, 11 skipped
+production diff              : 0 dòng
+```
+
+### `HARDENING` — trạng thái sau hợp nhất (preserve, KHÔNG repair)
+
+```text
+H-05           MỞ  — ranking_method_id OPTIONAL vs hashed; đổi data contract
+                     §6.7; re-trigger ghi trong CHECK-105D-08
+HB-105D-F2-01  MỞ  — data contract §3.3 câu 8 "bộ ba" vs INV-55 "CẢ BỐN"
+HB-105D-F2-02  MỞ  — data contract §16.1 stale ("CHƯA CÓ CHỦ" vs §16.3 GRANTED)
+HB-105D-F2-03  MỞ  — 13 invariant chưa có gate assertion riêng
+```
+
+Cả bốn **vẫn phân loại `HARDENING`**, không nâng thành `BLOCKING` (không có
+evidence mới), không hạ khỏi `HARDENING`. `docs/spec/TASK-105D-DATA-CONTRACT.md`
+không bị sửa trong phiên này.
