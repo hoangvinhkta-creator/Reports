@@ -5016,3 +5016,277 @@ Impact:
 Can Revisit After:
 - Không đổi so với `DEC-149`: chủ dự án trả lời `CONFLICT DETECTED` §71, và
   xác nhận kiến trúc capture (OPTION B hoặc khác) + tần suất.
+
+## DEC-151
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Owner Decision: Historical KPI Purchase Price Scope Reduction.
+Ghi trong phiên "TASK-105C — OWNER DECISION: HISTORICAL KPI PURCHASE PRICE
+SCOPE REDUCTION" (`docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`).
+Diễn ra ngay sau `S027`/`DEC-150` (Reports SHA bắt đầu phiên:
+`1908d00f3b578953d68dbcefa80dfd0a816cb000`).
+
+**Đây LÀ một Owner Decision** (khác `DEC-150`, vốn chỉ là audit fact) —
+chủ dự án thu hẹp phạm vi nghiệp vụ của `AccountingPurchasePrice` lịch sử,
+đóng `CONFLICT DETECTED` mà `DEC-149` §71 để ngỏ.
+
+Repo được audit thêm (một câu hỏi hẹp, xem Reason):
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`
+(không đổi). **0 file thay đổi.**
+
+Decision:
+
+**1. Reports KHÔNG cố tái dựng `_c.min` lịch sử.** Chủ dự án xác nhận mục
+tiêu KHÔNG phải tái dựng chính xác con số `_c.min` đã từng hiển thị trong
+Tracking tại mọi thời điểm — đây là một mục tiêu **khác** với mục tiêu thật
+của Reports (giá nhập KPI có căn cứ, deterministic, không suy đoán).
+
+**2. Nguồn giá lịch sử duy nhất cho `HistoricalKpiPurchasePrice`:
+`phist/<mã>/<NCC>/<YYYY-MM-DD>`.**
+
+```
+Price(NCC, D) = record gần nhất có ngày <= D
+              (last-observation-carried-forward, đúng khoảng đóng DEC-145 §1)
+HistoricalVendorPrice(mã, D) = MIN qua mọi NCC có Price(NCC,D) xác định
+                                (loại NCC có Price(NCC,D) = 0 — sentinel
+                                "hết hàng", KHÔNG phải giá — DEC-145 §5,
+                                DEC-149 §72)
+KpiPurchasePrice(mã, D) = HistoricalVendorPrice(mã, D) nếu xác định được
+                         = Pending nếu không
+```
+
+Không được dùng giá hiện tại áp ngược cho quá khứ — tái xác nhận `DEC-121`.
+
+**3. `inv.cong` (giá nhập công khai) — loại khỏi scope Phase 1.**
+
+Về nghiệp vụ, `inv.cong` VẪN là một nguồn giá độc lập hợp lệ có thể tham
+gia Min (không phủ nhận `DEC-148`). Nhưng vì **không có lịch sử**
+(`DEC-148` §8, NO GUARANTEED DELAY WINDOW), Owner quyết định:
+
+```
+KHÔNG lấy inv.cong HIỆN TẠI áp ngược cho đơn quá khứ.
+KHÔNG bắt buộc xây lịch sử inv.cong trong scope hiện tại.
+KHÔNG bắt buộc xây MarketMinHistory trong scope hiện tại.
+```
+
+**4. Mã không đủ căn cứ lịch sử → `Pending`, KHÔNG suy đoán.**
+
+```
+Nếu HistoricalVendorPrice(mã, D) xác định được từ phist → dùng nó.
+Nếu KHÔNG (vd. mã lạ chỉ có thể biết giá qua inv.cong hiện tại, mà
+inv.cong lịch sử không tồn tại) →
+    AccountingPurchasePrice / KpiPurchasePrice = Pending
+    KHÔNG tự suy đoán, KHÔNG lấy giá hiện tại,
+    KHÔNG nearest/latest ngoài semantics đã duyệt ở mục 2.
+    Cho phép xử lý thủ công sau.
+```
+
+Chủ dự án xác nhận đây là **hành vi chủ đích**: tần suất Pending thấp và
+chi phí xử lý tay thấp hơn đáng kể so với chi phí xây một hệ thống capture
+lịch sử chỉ để loại bỏ chúng. Đúng nguyên tắc `DEC-103` (Pending là trạng
+thái hệ thống đã biết, không phải lỗi cần vá bằng phỏng đoán).
+
+**5. Manual resolution — ràng buộc bắt buộc, ghi để `TASK-105C`
+implementation tuân theo, KHÔNG thiết kế seam trong phiên này.**
+
+```
+Phải explicit (một hành động rõ ràng, không suy ra ngầm).
+Phải có provenance (ai, khi nào, dựa trên căn cứ gì).
+Phải gắn đúng dòng/đơn/mã hàng cụ thể — không áp hàng loạt mù.
+KHÔNG được âm thầm sửa nguồn lịch sử (không ghi đè phist).
+KHÔNG được rewrite phist.
+KHÔNG được biến giá hiện tại thành giá lịch sử (không backdating).
+```
+
+**6. `_c.min` — xác nhận KHÔNG phải historical oracle cho Reports.**
+
+`CONFLICT DETECTED` (`DEC-149` §71) được giải — **không phải** bằng cách
+chọn (A) hay (B) mà `DEC-149` đưa ra, mà bằng **scope reduction**: câu hỏi
+"`_c.min` có đúng nghĩa mà Owner mô tả không" trở nên **không còn liên
+quan**, vì Reports không dùng `_c.min` làm nguồn nữa. Lý do chủ dự án nêu,
+khớp hoàn toàn với bằng chứng đã audit ở `DEC-148`–`DEC-150`:
+
+```
+- _c.min không có lịch sử (DEC-149 §73);
+- popup ở ô Min thực tế chỉ hiển thị phist, không phải Min history
+  (DEC-150 §81-83);
+- _c.min phụ thuộc thêm inv.cong, exclusion list, outlier threshold, và
+  current state — các input này không được version đầy đủ (DEC-149 §72-73).
+```
+
+**7. Audit hẹp thực hiện TRONG phiên này (yêu cầu bắt buộc của đề bài,
+"OUTLIER/NCC FILTERING" mục 1) — `phist` có đủ cho `HistoricalVendorPrice`
+deterministic không cần giả định config hiện tại = config lịch sử?**
+
+**Trả lời: CÓ, ĐÚNG NHƯ SEMANTICS Ở MỤC 2 — nhưng bản thân semantics đó cố
+ý ĐƠN GIẢN HƠN công thức `_c.min` sống, và điều đó để lại đúng hai câu hỏi
+chưa đóng.**
+
+Bằng chứng phần "đủ" (không cần giả định config):
+```
+- phist GHI BẤT KỂ trạng thái loại trừ: buildSync() xử lý mọi NCC đã dán
+  bài, KHÔNG kiểm tra NCC_RETIRED/NCC_MIN_LOAI trước khi ghi ph[...]
+  (public/index.html:5100-5203, ghi tại :5171,:5192) — hai danh sách đó
+  chỉ ảnh hưởng _c.min, không ảnh hưởng việc phist có ghi hay không.
+  ⇒ Dữ liệu giá của một NCC "đã retired hôm nay" hoặc "bị loại khỏi Min
+  hôm nay" VẪN có mặt đầy đủ trong phist cho các ngày trước đó — không bị
+  thiếu vì lý do exclusion.
+- phist key đã fold qua nccKey() TẠI THỜI ĐIỂM GHI (:5119: const ncc =
+  nccKey(st.name)) — không cần tra alias "tại thời điểm đọc", record đã
+  mang tên chuẩn hoá của chính lúc nó được ghi.
+- Semantics mục 2 (Price(NCC,D) = record gần nhất ≤ D, rồi MIN qua mọi NCC
+  có giá trị, loại 0-sentinel) là một hàm THUẦN chỉ cần dữ liệu trong
+  phist — KHÔNG tham chiếu _ANC, KHÔNG tham chiếu NGUONG_BAT_THUONG. Đây
+  chính là lý do nó deterministic: nó CHỦ Ý không đi qua những input
+  không-versioned đó.
+```
+
+**Hai câu hỏi CÒN MỞ, không tự suy ra (theo đúng yêu cầu đề bài):**
+
+```
+Q1 — NCC RETIRED/MIN_LOAI HỒI TỐ:
+  Một NCC hiện đang "retired" (NCC_RETIRED) hoặc "loại khỏi Min"
+  (NCC_MIN_LOAI) — nếu phist của nó CÓ giá hợp lệ tại ngày D (TRƯỚC khi
+  trạng thái đó có hiệu lực), giá đó CÓ được tính vào
+  HistoricalVendorPrice(mã, D) hay không?
+  Chưa biết TỪ NGÀY NÀO trạng thái retired/MIN_LOAI có hiệu lực (hai danh
+  sách này là hằng số mã nguồn, không versioned — DEC-149 §73(d)), nên kể
+  cả khi có câu trả lời "có" hay "không", vẫn cần thêm quyết định về
+  NGƯỠNG NGÀY áp dụng.
+
+Q2 — OUTLIER THRESHOLD HỒI TỐ:
+  Bộ lọc giá bất thường (NGUONG_BAT_THUONG=0.3, thêm pe-6 ngày 24/08/2026,
+  vá lỗi đọc nhầm ghi chú trong ngoặc thành giá) — CÓ nên áp dụng cho các
+  mốc phist TRƯỚC ngày 24/08/2026 hay không? Lỗi mà pe-6 vá là lỗi ĐỌC DỮ
+  LIỆU có thể đã xảy ra trước ngày đó, nên phist trước 24/08 có nguy cơ
+  chứa đúng loại giá trị bất thường mà pe-6 tồn tại để loại.
+```
+
+Semantics mục 2, đọc đúng nguyên văn, **không lọc gì cả** — đây có thể là
+CHỦ Ý của Owner (đơn giản hơn, khác `_c.min` một cách có ý thức) hoặc một
+điểm Owner CHƯA nghĩ tới khi mô tả. Không tự chọn cách hiểu nào.
+
+**8. Impact — đánh giá lại `TASK-105B`/`TASK-105C`/`TASK-108B`.**
+
+```
+TASK-105B (FilePriceProvider)
+    KHÔNG ĐỔI — contract §38 (DEC-145) vẫn là định dạng đúng cho bootstrap/
+    fixture/snapshot export, độc lập với quyết định này.
+
+TASK-105C
+    Đổi tên khái niệm trọng tâm: KHÔNG còn là "RTDBPriceProvider đọc _c.min
+    hay tương đương" — mà là một PROVIDER MỚI đọc TRỰC TIẾP phist theo
+    semantics mục 2.
+    ĐỀ XUẤT (audit fact, không phải quyết định kỹ thuật mới): tên
+    "HistoricalVendorPriceProvider" mô tả đúng bản chất hơn
+    "RTDBPriceProvider" — nó không đọc "RTDB nói chung", nó đọc CỤ THỂ
+    nhánh phist theo semantics đã chốt. Đặt tên là việc của implementation
+    session, không quyết ở đây.
+    BLOCKED_BY (còn lại, đã hẹp đáng kể) = [ Q1, Q2 ở mục 7 ]
+    KHÔNG còn BLOCKED_BY: schema RTDB (đã audit xong, DEC-147); field nào
+    là AccountingPurchasePrice (đã chốt = HistoricalVendorPrice từ phist,
+    mục 2-3); capture layer cho inv.cong/_c.min (KHÔNG còn bắt buộc, mục 3).
+
+TASK-108B
+    BLOCKED_BY còn lại: [ 1. Q1/Q2 ở mục 7 (ảnh hưởng ĐỘ CHÍNH XÁC, không
+    chặn việc mở implementation — có thể dùng mặc định an toàn "không lọc"
+    trong lúc chờ); 2. TASK-105B-Q3 (dòng phụ, độc lập, không đổi) ]
+    KHÔNG còn BLOCKED_BY: kiến trúc nguồn giá (đã audit xong); capture
+    layer (không còn bắt buộc); MarketMinHistory (không còn bắt buộc).
+```
+
+**9. Capture-layer/MarketMinHistory/inv.cong-history — KHÔNG bắt buộc
+trong Phase 1.** `DEC-149` OPTION B (capture cả `_c.min` lẫn `inv.cong`)
+**không còn là khuyến nghị hiện hành** — nó được xây cho một mục tiêu
+("tái dựng đúng những gì `_c.min` từng hiển thị") mà mục 1 của quyết định
+này vừa loại bỏ. Đây là **Owner Decision làm giảm phạm vi kiến trúc** so
+với `DEC-149` §78, không phải một audit tìm ra sai sót ở `DEC-149` — số đo
+tại thời điểm đó (thiếu lịch sử `_c.min`/`inv.cong`) vẫn đúng, chỉ là mục
+tiêu cần nó đã đổi.
+
+Reason:
+
+**1. Vì sao đây là scope reduction, không phải chọn (A)/(B) của `DEC-149`
+§71.** Cả (A) và (B) đều giả định Reports PHẢI dùng `_c.min` (hoặc một biến
+thể vendor-only của nó) làm nguồn. Owner bác bỏ chính giả định đó ở mục 1 —
+không chọn nhánh nào trong nhị phân cũ, mà đổi câu hỏi. Đây là lý do
+`CONFLICT DETECTED` đóng được mà không cần Owner giải thích ý định thật sự
+của công thức `min(vendor, cong)` trong `minCuaDong()` — câu hỏi đó không
+còn áp dụng.
+
+**2. Vì sao Pending-với-tần-suất-thấp là một quyết định hợp lệ, không phải
+né tránh.** `DEC-103` đã xác lập nguyên tắc Pending là trạng thái hệ thống
+ĐÃ BIẾT, ưu tiên hơn suy đoán. Quyết định này áp đúng nguyên tắc đó vào một
+trường hợp cụ thể: chi phí xây capture layer (nhiều thành phần, theo
+`DEC-149`/`DEC-150`: `inv.cong` history + exclusion-list history + threshold
+history + một hàm replay mới) so với chi phí xử lý tay một số lượng nhỏ
+trường hợp Pending — Owner chọn phương án rẻ hơn, đúng thẩm quyền nghiệp vụ
+của Owner, không phải một khoảng trống kỹ thuật.
+
+**3. Vì sao Q1/Q2 phải ở lại là câu hỏi mở, không tự trả lời.** Đề bài yêu
+cầu tường minh "Không được tự động giả định rằng current _ANC/NCC_RETIRED/
+NCC_MIN_LOAI/NGUONG_BAT_THUONG có thể áp ngược cho toàn bộ lịch sử" và
+"Không tự suy ra". Cả hai câu hỏi đều là quyết định NGHIỆP VỤ về việc dữ
+liệu lịch sử "đáng tin đến đâu", không phải câu hỏi kỹ thuật có thể suy ra
+từ code — code chỉ cho biết CÁC DANH SÁCH ĐÓ KHÔNG VERSIONED (đã xác nhận
+ở `DEC-149`), không cho biết Owner MUỐN áp dụng chúng hồi tố hay không.
+
+Risk:
+
+`Effective Risk = HIGH` — **không đổi**, chấm theo data path (V4.1 §4).
+Quyết định này **làm giảm rủi ro kiến trúc** (loại bỏ yêu cầu xây capture
+layer phức tạp) nhưng **giữ nguyên** rủi ro data-path gốc:
+
+```
+Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương sai
+```
+
+Rủi ro cụ thể của chính quyết định này:
+
+- **Q1/Q2 để mặc định sai khi implement.** Nếu `TASK-105C` implementation
+  tự chọn "có lọc" hay "không lọc" mà không đánh dấu rõ đó là GIẢ ĐỊNH TẠM
+  (không phải quyết định Owner), một lượt review sau này có thể tưởng nhầm
+  đó đã là quyết định cuối. Giảm nhẹ: khuyến nghị mặc định AN TOÀN (đúng
+  y văn bản mục 2, không lọc gì) và ghi provenance `assumption:
+  no-retroactive-filtering-pending-owner-answer` trên MỌI record cho tới
+  khi có câu trả lời.
+- **`phist` vẫn sửa/xoá được** (`DEC-147` §54 R4) — quyết định này KHÔNG
+  thay đổi thực tế đó. Một `HistoricalVendorPriceProvider` đọc `phist`
+  trực tiếp vẫn kế thừa rủi ro "báo cáo in lại hai lần ra hai số khác nhau"
+  nếu `phist` bị sửa giữa hai lần in — `TASK-105C` implementation PHẢI có
+  cơ chế đóng băng/snapshot dữ liệu ĐÃ DÙNG cho một báo cáo cụ thể, không
+  chỉ đọc `phist` sống mỗi lần chạy lại.
+- **`NCC_ALIAS` không hồi tố** (xem Evidence V-03/V-04, `S028`) — rủi ro
+  thấp hiện tại (một cặp alias duy nhất) nhưng là món nợ kỹ thuật cần ghi
+  vào `TASK-105C` implementation: nếu alias mới thêm sau, cần bước migrate
+  `phist`, nếu không `HistoricalVendorPrice` sẽ bỏ sót giá dưới tên cũ.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace
+  toàn repo; `DEC-151` xác nhận trống).
+- `PROJECT/PROJECT_PROGRESS.md` — đóng blocker "kiến trúc nguồn giá chưa rõ"
+  và "field nào là AccountingPurchasePrice"; mở blocker mới hẹp hơn (Q1/Q2);
+  gỡ yêu cầu capture-layer/MarketMinHistory/inv.cong-history khỏi Phase 1.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — cập nhật bước 11b theo scope mới, bằng
+  ngôn ngữ phổ thông.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — ghi nhận Owner Decision làm giảm scope
+  kiến trúc của lineage `TASK-105B`/`TASK-105C`; **không** tiêu repair cycle
+  (đây là Owner Decision recording, không phải repair).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần X.
+- `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md` —
+  bàn giao phiên.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- Chủ dự án trả lời Q1 (NCC retired/MIN_LOAI hồi tố) và Q2 (outlier
+  threshold hồi tố) ở mục 7 ⇒ mở `TASK-105C` implementation với
+  `docs/tasks/TASK-105C-*.md` (Scope Lock + Completion Gate), thiết kế seam
+  manual-resolution theo ràng buộc mục 5.
+- Nếu sau này có nhu cầu nghiệp vụ MỚI cần dùng `inv.cong`/`_c.min` (vd. mở
+  rộng ngoài Phase 1) ⇒ `DEC-149` OPTION B quay lại làm khuyến nghị hợp lệ,
+  không cần audit lại từ đầu.

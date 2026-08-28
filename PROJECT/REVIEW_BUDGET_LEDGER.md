@@ -366,13 +366,29 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 
 ```
 SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
-IMPLEMENTATION                = READY về kỹ thuật (DEC-147 gỡ "TẠM DỪNG"),
-                                BLOCKED_BY [ chủ dự án chốt trường nào là
-                                AccountingPurchasePrice ]
-chờ  : 5 câu hỏi MỚI (DEC-147) — trường giá nào; NCC nào khi một mã nhiều
-       NCC cùng ngày; chấp nhận độ mịn theo ngày; đồng ý xây capture bất
-       biến và tần suất; dữ liệu lịch sử có từ ngày nào
+IMPLEMENTATION (FilePriceProvider)  = KHÔNG ĐỔI bởi DEC-151 — contract §38
+                                giữ nguyên, vai trò bootstrap/fixture độc
+                                lập với nguồn giá lịch sử được chọn cho
+                                TASK-105C
+
+HistoricalVendorPriceProvider (TASK-105C, tên đề xuất sau DEC-151, thay
+RTDBPriceProvider) = OWNER_DECISION_REQUIRED, hẹp còn 2 câu hỏi (DEC-151 §7):
+  Q1 — NCC retired/MIN_LOAI hồi tố; Q2 — outlier threshold hồi tố.
+  Q1/Q2 KHÔNG chặn mở implementation (mặc định an toàn = không lọc).
 ```
+
+**`DEC-151` (2026-08-27, Owner Decision) — đóng dứt điểm 4/5 câu hỏi cũ
+bằng THU HẸP PHẠM VI, không phải bằng trả lời từng câu.** Reports dùng
+`phist/<mã>/<NCC>/<ngày>` làm nguồn giá lịch sử DUY NHẤT
+(`Price(NCC,D)` = record gần nhất ≤ D, MIN qua các NCC có căn cứ); `inv.cong`
+loại khỏi scope Phase 1 (không áp ngược, không bắt buộc xây lịch sử); mã
+thiếu căn cứ → `Pending` chủ đích. `DEC-149` OPTION B (capture cả
+`_c.min` lẫn `inv.cong`) **không còn là khuyến nghị hiện hành**. Chi tiết:
+`DEC-151`, `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
+
+*(Đoạn dưới đây — từ `DEC-147` — giữ lại nguyên văn làm bản ghi lịch sử.
+Trạng thái CURRENT nằm ở khối trên và ở `DEC-151`, không phải ở đây.)*
 
 **Audit chéo repo (DEC-147, 2026-08-27) — đã trả lời 4/5 câu hỏi cũ.** Đã
 audit `hoangvinhkta-creator/Tracking` @ `d177363a`. RTDB chạy chế độ **HYBRID**
@@ -656,3 +672,47 @@ Owner Extension, và **không** cấp thêm repair cycle.
   remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
   `config/`, `tests/`, Golden fixture/expected **không đổi một byte**. Repo
   giá: **0 file thay đổi**.
+
+- 2026-08-27 — `DEC-148` (audit) — `inv.cong` public purchase price audit.
+  Xác nhận 4 semantics chủ dự án đề xuất; kết luận `inv.cong` KHÔNG có lịch
+  sử, NO GUARANTEED DELAY WINDOW. Không tiêu repair cycle. Chi tiết: xem
+  `DEC-148` trong `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-149` (audit) — Market Min Price Path Audit. `CONFLICT
+  DETECTED`: business rule "Min ưu tiên, cong fallback" không khớp công
+  thức `_c.min` thật (`cong` hoà tan bên trong, không phải fallback độc
+  lập). Historical Replay = C (chỉ current snapshot). Không tiêu repair
+  cycle. Chi tiết: xem `DEC-149` trong `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-150` (audit fact, không phải Owner Decision) — xác
+  minh popup "Lịch sử giá" = vendor-price history thuần từ `phist`, KHÔNG
+  phải Min history, không reconstruct Min. Không đổi trạng thái nào của
+  `DEC-149`. Không tiêu repair cycle. Chi tiết: xem `DEC-150` trong
+  `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-151` (**Owner Decision**) — Historical KPI Purchase
+  Price Scope Reduction. Đóng `CONFLICT DETECTED` (`DEC-149` §71) bằng
+  **thu hẹp phạm vi**, không phải bằng chọn giữa hai lựa chọn cũ: Reports
+  dùng `phist` làm nguồn giá lịch sử DUY NHẤT
+  (`Price(NCC,D)` = record gần nhất ≤ D, MIN qua các NCC có căn cứ, loại
+  sentinel `0`); `inv.cong` loại khỏi scope Phase 1 (không áp ngược, không
+  bắt buộc xây lịch sử); mã thiếu căn cứ → `Pending` chủ đích, xử lý tay
+  sau (explicit, có provenance, không rewrite `phist`, không backdating).
+  `DEC-149` OPTION B (capture `_c.min` + `inv.cong`) **không còn là
+  khuyến nghị hiện hành** — mục tiêu nó phục vụ (tái dựng đúng `_c.min`)
+  đã bị loại bỏ, không phải vì sai mà vì không còn cần.
+  Audit hẹp bắt buộc trong phiên: `phist` **đủ** cho `HistoricalVendorPrice`
+  deterministic theo semantics trên, không cần giả định
+  `NCC_RETIRED`/`NCC_MIN_LOAI`/`NGUONG_BAT_THUONG` hiện tại áp cho lịch sử
+  (`buildSync()` ghi `phist` bất kể trạng thái loại trừ). Hai câu hỏi
+  filtering còn mở, không tự trả lời: Q1 (NCC retired/MIN_LOAI hồi tố),
+  Q2 (outlier threshold hồi tố) — KHÔNG chặn mở implementation.
+  `TASK-105C` `BLOCKED_BY` hẹp lại còn Q1/Q2 (không chặn) +
+  `TASK-105B-Q3` (độc lập, không đổi). `TASK-108B` blocker tương ứng.
+  Đây là **Owner Decision recording, không phải repair cycle** — ngân sách
+  mọi lineage không đổi: `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110`
+  `EXHAUSTED_PRE_V4.1` remaining = 0, `TASK-GOLDEN-BASELINE-001`
+  remaining = 1 UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-151`,
+  `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
+  `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.

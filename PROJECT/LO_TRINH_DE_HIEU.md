@@ -196,9 +196,45 @@ nguồn của hệ nào.
 5. Dữ liệu lịch sử hiện có từ ngày nào? — cái này phải mở dữ liệu thật ra xem,
    đọc mã không trả lời được.
 
+*(Năm câu hỏi trên — SUPERSEDED. Chủ dự án đã trả lời trực tiếp câu 1, và
+làm câu 4 không còn cần thiết trong giai đoạn đầu. Xem đoạn "Chủ dự án đã
+quyết định" ngay dưới đây. Giữ lại nguyên văn làm bản ghi lịch sử.)*
+
+---
+
+**Chủ dự án đã quyết định (cùng ngày, một phiên nữa sau đó).** Câu trả lời
+cho câu hỏi 1 ở trên: **KHÔNG dùng "giá vốn rẻ nhất" (Min) hiện đang hiển
+thị trên bảng, và KHÔNG cần chụp giá nhập kho làm lịch sử ngay bây giờ.**
+
+Thay vào đó, công cụ dùng đúng **một** nguồn đã có sẵn: **lịch sử giá nhà
+cung cấp** (loại đầu tiên trong ba loại kể trên). Cách tính: với mỗi đơn
+hàng bán ra ngày D, lấy giá của TỪNG nhà cung cấp tại đúng ngày đó (mốc gần
+nhất không sau ngày D), rồi lấy giá THẤP NHẤT trong số đó làm giá nhập.
+
+Mã hàng nào không đủ dữ liệu để tính (ví dụ mã lạ, chưa nhà cung cấp nào
+từng báo giá) thì để **trống, chờ xử lý tay** — không đoán, không lấy giá
+hôm nay áp cho quá khứ. Chủ dự án xác nhận đây là lựa chọn có cân nhắc:
+số trường hợp trống dự kiến ít, và xử lý tay từng trường hợp đó **rẻ hơn**
+nhiều so với việc xây hẳn một hệ thống "chụp giá đóng băng" như câu hỏi 4
+từng đặt ra — nên bước đó **không còn bắt buộc** ở giai đoạn này.
+
+Điều này cũng làm rõ một thắc mắc còn treo: cái vòng tròn/popup "Lịch sử
+giá" bấm được ngay trên ô Min của bảng — kiểm tra kỹ thì nó **chỉ** vẽ lại
+giá của từng nhà cung cấp theo ngày (đúng loại giá công cụ vừa chọn dùng),
+**không** phải lịch sử của số Min đang hiển thị. May mắn là đây đúng là
+nguồn công cụ cần, chỉ là tên gọi trên màn hình dễ gây hiểu lầm.
+
+**Còn hai câu hỏi kỹ thuật nhỏ, không cản việc bắt đầu làm:** nếu một nhà
+cung cấp đã "nghỉ bán" hoặc bị đánh dấu "không tính vào giá Min" ở thời
+điểm HIỆN TẠI, giá họ từng báo trong QUÁ KHỨ có tính hay không; và một luật
+lọc giá bất thường mới thêm gần đây có nên áp ngược cho các mốc giá cũ hơn
+hay không. Cả hai chưa có câu trả lời, nhưng công cụ vẫn làm được — dùng
+tạm cách an toàn nhất (không lọc gì, tính hết) cho tới khi có câu trả lời.
+
 Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập)
-**vẫn đúng, và nay còn chắc chắn hơn**: nó chính là định dạng của bản chụp
-đóng băng nói trên.
+**vẫn đúng làm định dạng dự phòng** (nạp dữ liệu ban đầu, hoặc dữ liệu mẫu
+kiểm thử) — nhưng **không còn là con đường chính** để lấy giá nhập nữa,
+vì lịch sử giá nhà cung cấp đã có sẵn, không cần chờ ai gõ file.
 
 *(Ba câu hỏi gốc và bảng 4 cột giữ lại bên dưới làm bản ghi lịch sử — nội dung
 câu trả lời vẫn đúng, chỉ thay đổi ở chỗ dữ liệu lấy từ đâu.)*
@@ -669,7 +705,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11b. TASK-105B / TASK-105C — Đọc giá nhập | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Đã mở kho mã hệ thống giá ra đọc xong** (DEC-147). RTDB **có** lưu lịch sử ⇒ hết lo "không tính lại được quá khứ". Nhưng loại giá có lịch sử là *giá nhà cung cấp báo*, không phải *giá thực nhập* ⇒ **chờ chủ dự án chốt: giá nhập kế toán là loại nào** (5 câu hỏi mới ở phần trên) |
+| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chủ dự án đã chốt nguồn** (đoạn "Chủ dự án đã quyết định" ở trên): lấy giá thấp nhất trong lịch sử báo giá nhà cung cấp tại đúng ngày bán, mã thiếu căn cứ để trống chờ xử lý tay. Kỹ thuật đã sẵn sàng để bắt đầu; còn hai câu hỏi nhỏ (NCC nghỉ bán tính hồi tố không, lọc giá bất thường hồi tố không) không cản việc làm — dùng cách an toàn nhất trong lúc chờ |
 | ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
