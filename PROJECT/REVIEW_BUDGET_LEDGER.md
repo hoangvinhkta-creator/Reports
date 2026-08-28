@@ -759,6 +759,7 @@ cycles:
       session: S042 (2026-08-28)
       branch: task/task-105d-rc1
       base_sha: e6252c06347ed5305fc32a77706a3a63f5a950cf
+      head_sha: 1cc96a99638326513b26280b72bbeb3bce9d454d
       trigger: B-01 (Independent Implementation Review #1, evidence
                58323e2e59382e2ce4816453cfaaa5d31deba3db)
       owner_decision: option (a) — giữ hợp đồng, sửa implementation
@@ -779,9 +780,12 @@ cycles:
 ```
 
 Ngân sách `TASK-105D` sau `S042`: `2 allowed / 1 used / 1 remaining`.
-`head_sha` của cycle = SHA commit của `S042` trên `task/task-105d-rc1`; nếu
-repair tiếp tục trong CÙNG cycle thì `head_sha` tiến lên, `base_sha` KHÔNG
-reset.
+`head_sha` `1cc96a9` là commit mang toàn bộ diff repair (`store.py` +
+`tests/test_105d_interprocess_concurrency.py`); commit ghi chính dòng
+`head_sha` này nằm ngay sau nó và không chứa thay đổi code/test. Nếu repair
+tiếp tục trong CÙNG cycle thì `head_sha` tiến lên, `base_sha` KHÔNG reset và
+KHÔNG mở cycle mới (`V4.1` §3). Xác định phạm vi cycle bằng
+`git diff e6252c06..1cc96a99 --name-only`.
 
 Failure path:
 
