@@ -10,9 +10,25 @@ Review = PASS, Review Evidence = RECONCILED
 `95a7ae6`), 0 BLOCKING. Frozen artifact SHA:
 `c22cef8b47ac4cd71ef49609066a362c9e604313`. `FROZEN` ≠ `DONE` — xem
 `DEC-153` cho điều kiện còn lại (Controlled Integration + state
-reconciliation). `HB-105B-07`/`HB-105B-08` re-trigger BẮT BUỘC trước
-`TASK-105C` implementation hoặc `FilePriceProvider` activation thật —
-KHÔNG resolve trong phiên Freeze này.
+reconciliation).
+
+**Cập nhật sau REPAIR CYCLE #1 (2026-08-28, phiên "TASK-105B
+PRICE-PARSER MICRO-HARDENING", `PROJECT/REVIEW_BUDGET_LEDGER.md` §"Root
+Task: TASK-105B").** `HB-105B-07` (NaN) và `HB-105B-08` (Infinity/
+-Infinity) — re-trigger BẮT BUỘC ghi tại `DEC-153` — đã được sửa ở mức
+code + test: một check `price.is_finite()` chèn vào `_parse_price()`,
+raise `InvalidPriceMasterError(reason="non_finite_price")`. 26 test hồi
+quy mới; targeted `33 → 59 passed`; Golden không đổi (`58 passed, 2
+skipped`); full suite `730 → 756 passed, 11 skipped` (0 regression). Repair
+commit `7f7048d65619c2c2198c99ccbfb073d6cb97ebe2` (base `c22cef8`), nhánh
+`task/task-105b-price-parser-hardening`. Independent Review độc lập tại
+`9241ccfca9a8b0159b347f4d1171c0caa37eecad` đã **PASS — REPAIR VERIFIED**;
+cycle là `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`, và reviewed lineage đã
+được tích hợp qua nhánh `integration/v4-1-task-105b-rc1` (2026-08-28).
+`HB-105B-03`/`HB-105B-05`/`HB-105B-06`/`HB-105B-10` không đổi, không sửa
+trong phiên này. `TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED`, vẫn
+`NOT DONE`: data dependency bảng giá production thật vẫn mở, không liên quan
+tới repair/integration này.
 
 Phase:
 PHASE-01 — Engine tính toán

@@ -567,12 +567,88 @@ phải code blocker — chưa được chủ dự án cấp file trong phiên n�
 chỉ được ghi khi mục đó đạt, đúng nguyên tắc CODE COMPLETE ≠ TASK COMPLETE
 (`governance/core/TASK_COMPLETION_GATE_STANDARD.md`).
 
-**NEXT AUTHORIZED ACTION = `TASK-105B` PRICE-PARSER MICRO-HARDENING**
-(`HB-105B-07` NaN + `HB-105B-08` Infinity) — bắt buộc **TRƯỚC**
-`TASK-105C` implementation hoặc trước `FilePriceProvider` activation thật,
-tuỳ điều kiện nào tới trước (điều kiện đi kèm verdict PASS, ghi tại `DEC-153`
-và tại reconciliation §5). Không thực hiện hardening trong phiên Freeze +
-Integration này.
+**Cập nhật sau TASK-105B PRICE-PARSER MICRO-HARDENING (2026-08-28, phiên
+"TASK-105B PRICE-PARSER MICRO-HARDENING", nhánh
+`task/task-105b-price-parser-hardening`, cắt từ default tip
+`89948df42b510e27b80a9a7902e3c07d4a7066e7`).** Sửa đúng và chỉ đúng
+`HB-105B-07`/`HB-105B-08` — đúng RE-TRIGGER CONDITION đã ghi tại `DEC-153`
+(bắt buộc trước `TASK-105C` implementation hoặc trước `FilePriceProvider`
+activation thật, tuỳ điều kiện nào tới trước — chưa điều kiện nào xảy ra,
+phiên này chủ động chạy trước).
+
+Root cause cả hai finding: `_parse_price()` gọi `to_decimal()` rồi so
+sánh `price < 0` ngay mà không kiểm tra hữu hạn trước. `to_decimal()`
+trả `Decimal("NaN")` thành công (không raise) cho input NaN — so sánh
+`price < 0` sau đó raise `decimal.InvalidOperation` thô, thoát ra ngoài
+`InvalidPriceMasterError` (`HB-105B-07`). `Decimal("Infinity") < 0` =
+`False` nên `+Infinity` lọt qua thành giá hợp lệ; `-Infinity` bị chặn
+tình cờ bởi đúng check đó nhưng sai `.reason` (`negative_price` thay vì
+một lỗi hữu hạn) (`HB-105B-08`).
+
+Sửa: một check `price.is_finite()` (canonical finite check của
+`Decimal`) chèn giữa check `missing_price` và `negative_price` trong
+`_parse_price()`, raise `InvalidPriceMasterError(reason=
+"non_finite_price")` — không viết lại parser, không đổi
+normalization/effective-dating, không đổi 17 REQUIRED Completion Gate
+check nào.
+
+```
+Root cause          : _parse_price() thiếu kiểm tra hữu hạn trước khi
+                       so sánh/chấp nhận giá
+Fix                 : price.is_finite() check, reason="non_finite_price"
+Production files    : app/modules/pricing/file_price_provider.py (+7 dòng)
+Test files          : tests/test_file_price_provider.py (+120 dòng, 26
+                       test mới)
+Targeted            : 33 → 59 passed (+26)
+Golden              : 58 passed, 2 skipped (không đổi)
+Full pytest -q      : 730 → 756 passed, 11 skipped (chênh lệch = đúng 26
+                       test mới, 0 regression, 0 skip mới)
+Adversarial         : NaN/+Infinity/-Infinity qua string/float/Decimal
+                       (9 case) → InvalidPriceMasterError(reason=
+                       "non_finite_price"), 0 raw decimal.InvalidOperation
+                       thoát ra, lookup() không bao giờ trả Decimal phi
+                       hữu hạn
+4 file production lõi diff (pipeline.py, price_engine.py, provider.py,
+models.py)           : 0
+PendingPriceProvider vẫn default pipeline; 0 caller FilePriceProvider
+ngoài chính module; 0 code TASK-105C được thêm
+Validator            : 4/4 validator PASS; validate_reference_integrity
+                       đúng 3 lỗi tiền tồn TASK-REM-T06, 0 lỗi mới;
+                       git diff --check sạch
+```
+
+Đường thẩm quyền sửa mã đã đóng băng (`DEC-153`): **repair cycle mới có
+thẩm quyền riêng** — phiên này chính là phiên đó (được `DEC-153` đặt tên
+tường minh làm NEXT AUTHORIZED ACTION, không tự phát sinh). Ghi tại
+`PROJECT/REVIEW_BUDGET_LEDGER.md` §"Root Task: TASK-105B" thành
+`TASK-105B-RC-1` (`base_sha = c22cef8`, `head_sha =
+7f7048d65619c2c2198c99ccbfb073d6cb97ebe2`). Review Budget lineage
+`TASK-105B`: `2 allowed / 1 used / 1 remaining` (trước phiên: `2/0/2`).
+
+`HB-105B-07`: **RESOLVED** (code-level). `HB-105B-08`: **RESOLVED**
+(code-level). `HB-105B-03`/`HB-105B-05`/`HB-105B-06`/`HB-105B-10`: **không
+đổi**, không sửa trong phiên này (ngoài phạm vi khoá của brief).
+
+Independent Review độc lập tại
+`9241ccfca9a8b0159b347f4d1171c0caa37eecad` đã **PASS — REPAIR VERIFIED**.
+Repair cycle nay `CLOSED_BY_REPAIR, INDEPENDENTLY_VERIFIED`; review không
+tiêu thêm cycle. Controlled Integration qua
+`integration/v4-1-task-105b-rc1` đã merge reviewed lineage bảo toàn ancestry,
+0 conflict, rồi state reconciliation được ghi tại
+`docs/sessions/S031-task-105b-rc1-controlled-integration.md`.
+
+`TASK-105B = FROZEN + INTEGRATED + RC-1 INTEGRATED`, vẫn `NOT DONE` — Exit
+Criteria vẫn thiếu đúng một mục: bảng giá production thật nạp được (data
+dependency, không đổi bởi phiên này). `HB-105B-07`/`HB-105B-08` prerequisite
+cho `TASK-105C` = **CLEARED**, nhưng `TASK-105C` **CHƯA được cấp phép bắt
+đầu**: bảng giá production thật và product identity mapping (`product_raw` ↔
+`<MÃ>` Tracking, dependency riêng chưa mở task) vẫn OPEN. "Nền tảng code
+105B an toàn" **không đồng nghĩa** "105C được phép bắt đầu".
+
+**NEXT AUTHORIZED ACTION = chờ Owner cấp bảng giá production thật cho
+`TASK-105B` và authority riêng cho product identity mapping.** Không tự mở
+hay implement `TASK-105C`; sau khi hai dependency được cập nhật canonical,
+đánh giá lại authorization của task đó một cách riêng.
 
 **Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
 REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy
