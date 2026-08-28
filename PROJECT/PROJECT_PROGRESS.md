@@ -156,12 +156,19 @@ TASK-105D
   canonical data contract = docs/spec/TASK-105D-DATA-CONTRACT.md (S034/DEC-155,
       Owner-ratified DEC-156)
   Completion Gate 32 check = DRAFT, NOT_TESTED, NOT FROZEN
+  Freeze Finalization attempt #1 = FAIL (S036, 2026-08-28)
+      5 BLOCKING / 5 HARDENING; testable 30/32; deterministic 29/32;
+      G06 ↔ G23 mâu thuẫn; 5/20 case đối kháng bắt buộc không được phủ
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
   implementation = NOT STARTED / NOT AUTHORIZED
-  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI)
+  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — S036 không
+      mở Repair Cycle; independent freeze review không tiêu cycle)
   Ready Gate blocker còn 1 (4 → 2 sau S034 → 1 sau DEC-156):
     ĐÃ ĐÓNG: Owner ratification OR-01 / OR-02 / OR-03 (DEC-156)
-    CÒN LẠI: Completion Gate freeze bởi một phiên Freeze Finalization có
-             thẩm quyền riêng (V4.1 §12)
+    CÒN LẠI: Completion Gate freeze — S036 đã thử và TỪ CHỐI freeze. Blocker
+             nay có nội dung cụ thể: phải xử lý F-01…F-05 bằng một phiên gate
+             revision có thẩm quyền TRƯỚC, rồi một phiên Freeze Finalization
+             MỚI re-review toàn bộ gate set (V4.1 §12)
 
 TASK-105E  (MỚI — Owner cấp task ID tại DEC-156 §5)
   = PLANNED / SPEC OUTLINE / READY GATE BLOCKED
@@ -198,6 +205,39 @@ không tiêu budget.
 *(Cập nhật 2026-08-28, S035/`DEC-156` — Owner Ratification. Toàn bộ quyết
 định Owner đang chờ ở khối S034 bên dưới đã được đóng. Đoạn cũ giữ lại làm
 lịch sử.)*
+
+*(Cập nhật 2026-08-28, S036 — Freeze Finalization attempt #1 = **FAIL**.
+Đoạn ngay dưới đây là hành động kế tiếp hiện hành; đoạn S035 phía sau giữ
+nguyên làm lịch sử.)*
+
+**Một phiên GATE REVISION có thẩm quyền cho `TASK-105D`**, dùng khuôn
+`COMPLETION GATE CHANGE PROPOSAL` (`governance/core/TASK_COMPLETION_GATE_STANDARD.md`), xử lý
+5 BLOCKING mà S036 tìm được:
+
+```text
+F-01  DEC-156/OR-02 chưa truyền hết vào khối "Định nghĩa vận hành bắt buộc"
+      của task file — khối đó vẫn liệt kê ALIAS_AID_UNIQUE TRONG tập
+      auto-resolve và vẫn nói "Ba nguồn". Hệ quả: G06 và G23 mâu thuẫn.
+F-02  CHECK-105D-05 là phát biểu cho phép ("có thể auto-resolve"), không phải
+      assertion — không có PASS/FAIL condition.
+F-03  OR-03 (actor REQUIRED, cấm gọi là authenticated) không có gate bảo vệ.
+F-04  OR-01 (unified Public Purchase source) + ResolutionBinding/replay không
+      có gate bảo vệ.
+F-05  Catalog drift (INV-13/INV-14/INV-16) không có gate bảo vệ.
+```
+
+`F-01` và `F-02` không cần quyết định nghiệp vụ mới (hoàn tất propagation một
+Owner Decision đã có; chép ngữ nghĩa quy phạm đã tồn tại vào gate).
+`F-03`/`F-04`/`F-05` cần Owner chọn **hình thức**: nạp assertion vào gate hiện
+có để giữ đúng 32, hay mở rộng gate set vượt 32 (thay đổi phạm vi artifact
+Owner đã được thông báo — `V4.1` §10 + §12).
+
+Sau khi áp dụng: một phiên **Freeze Finalization MỚI** re-review **toàn bộ**
+gate set đã sửa (không chỉ phần diff) rồi mới ghi `FROZEN`. Chỉ sau đó
+`TASK-105D` mới chuyển được `READY`, rồi mới mở một phiên implementation
+riêng.
+
+*(Đoạn S035, SUPERSEDED bởi S036 — giữ nguyên văn:)*
 
 **Một phiên FREEZE FINALIZATION có thẩm quyền riêng** — review và freeze
 Completion Gate 32 check của `TASK-105D` (`V4.1` §12: `FROZEN` chỉ được ghi

@@ -646,7 +646,22 @@ status: PLANNED — specification complete + data contract complete (S034/
         ĐÚNG MỘT blocker còn lại: Completion Gate freeze bởi một phiên
         Freeze Finalization có thẩm quyền riêng (V4.1 §12);
         Completion Gate draft/not frozen; implementation not authorized
+freeze_attempts:
+    - id: TASK-105D-FREEZE-1
+      session: S036 (2026-08-28)
+      reviewed_base_sha: 9cd871488a6baebf6b80737f42e2137a27887cef
+      verdict: FAIL — freeze TỪ CHỐI; Ready Gate vẫn BLOCKED
+      findings: 5 BLOCKING / 5 HARDENING / 3 OUT_OF_SCOPE
+      repair_cycle_consumed: 0
+      evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
 ```
+
+`repair_cycles_used` giữ nguyên `0`. Một **independent freeze review** không
+tiêu repair cycle: `V4.1` §3 tính cycle theo **lần sửa** (cumulative repair
+diff), và `S036` không sửa một dòng nào của gate, code hay test — nó chỉ ghi
+finding. Cycle chỉ mở khi một phiên gate revision thực sự sửa gate để đáp ứng
+`F-01`…`F-05`, và ngay cả khi đó `V4.1` cấm mở Repair Cycle chỉ vì
+documentation/gate issue trừ khi Owner quyết định khác.
 
 Failure path:
 

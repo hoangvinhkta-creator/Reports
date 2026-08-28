@@ -398,6 +398,34 @@ ratification — chỉ một phiên Freeze Finalization mới đóng được.
 
 ## Completion Gate (DRAFT — CHƯA FROZEN)
 
+> **Trạng thái freeze (S036, 2026-08-28) — FREEZE FINALIZATION ATTEMPT #1 =
+> FAIL.** Một phiên Freeze Finalization có thẩm quyền (`V4.1` §12) đã review
+> độc lập toàn bộ 32 gate trên SHA `9cd8714` và **từ chối freeze**: 5 BLOCKING,
+> 5 HARDENING. Ma trận: testable 30/32, deterministic 29/32; `G06` và `G23`
+> mâu thuẫn nhau; 5 trong 20 case đối kháng bắt buộc không được gate nào phủ.
+> Bằng chứng đầy đủ + nguyên văn đề xuất sửa:
+> `docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md`.
+>
+> ```text
+> F-01  DEC-156/OR-02 chưa truyền hết vào khối "Định nghĩa vận hành bắt buộc"
+>       bên dưới — khối đó vẫn liệt kê ALIAS_AID_UNIQUE TRONG tập auto-resolve
+>       và vẫn nói "Ba nguồn", trái INV-28/INV-28b và data contract §17.2.
+> F-02  CHECK-105D-05 là phát biểu cho phép ("có thể auto-resolve"), không
+>       phải assertion — không có PASS/FAIL condition.
+> F-03  OR-03 (actor REQUIRED, cấm gọi là authenticated — INV-72/INV-73)
+>       không có gate nào bảo vệ.
+> F-04  OR-01 (unified Public Purchase source — INV-04…INV-10) và
+>       ResolutionBinding/replay (INV-55…INV-57) không có gate nào bảo vệ.
+> F-05  Catalog drift (INV-13/INV-14/INV-16) không có gate nào bảo vệ.
+> ```
+>
+> Phiên S036 **không sửa một dòng nào** của 32 gate bên dưới và **không mở
+> Repair Cycle** (budget giữ `2 allowed / 0 used / 2 remaining`). Việc sửa
+> thuộc một phiên gate revision có thẩm quyền, dùng khuôn
+> `COMPLETION GATE CHANGE PROPOSAL`; sau đó một phiên Freeze Finalization mới
+> phải re-review TOÀN BỘ gate set trước khi ghi `FROZEN`.
+
+
 Toàn bộ check REQUIRED, `Status = NOT_TESTED`; Effective Risk HIGH yêu cầu
 E1 cho check thực thi được và E2 cho data/cutover/concurrency/Golden critical.
 
