@@ -651,6 +651,64 @@ Căn cứ đầy đủ:
    session có thẩm quyền (`V4.1` §12). Phiên review này **không** Freeze,
    **không** merge, **không** mở remediation, **không** bắt đầu `TASK-105C`.
 
-## Xác Minh Sau Commit
+## Xác Minh Sau Commit (Post-Commit Verification)
 
-*(Mục này được điền sau khi commit + push — xem commit theo sau artifact.)*
+Artifact được commit lần đầu tại `fc2f76cab74b24c45add47eda9382a33a029dec3`
+trên nhánh `review/task-105b-independent-review-1` (cha = đúng implementation
+SHA `c22cef8`), rồi push. Xác minh thực thi ngay sau push:
+
+```
+$ git diff --check ; git diff --cached --check
+(không output, exit 0)
+
+$ git fetch origin review/task-105b-independent-review-1
+$ git rev-parse review/task-105b-independent-review-1
+fc2f76cab74b24c45add47eda9382a33a029dec3
+$ git rev-parse origin/review/task-105b-independent-review-1
+fc2f76cab74b24c45add47eda9382a33a029dec3
+MATCH: local review SHA == remote review SHA
+
+$ git show fc2f76ca...:docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md
+exit=0   bytes=40549   lines=656
+(đọc lại được nguyên vẹn từ commit remote; byte-identical với working tree)
+
+$ git rev-parse origin/claude/price-provider-foundation-ahix1t
+c22cef8b47ac4cd71ef49609066a362c9e604313
+(implementation branch KHÔNG bị mutate — local và remote đều đứng nguyên)
+
+$ git diff --name-status c22cef8 origin/review/task-105b-independent-review-1
+A  docs/reviews/TASK-105B-INDEPENDENT-REVIEW-1.md
+
+$ git diff --name-only c22cef8 origin/review/task-105b-independent-review-1 -- app tests config
+(rỗng — app/**, tests/**, config/** KHÔNG bị chạm)
+
+$ git status --short
+(rỗng — worktree CLEAN)
+```
+
+Validator sau khi stage artifact:
+
+```
+GOVERNANCE STRUCTURE: PASS      (21 required path)
+PROJECT STATE: PASS
+EVIDENCE VALIDATION: PASS       (88 REQUIRED PASS evidence record)
+TASK COMPLETION: PASS           (6 DONE task)
+REFERENCE INTEGRITY: FAIL — Quét 134 file .md, 3 reference không phân giải:
+  - docs/tasks/TASK-REM-T06-repository-root-hygiene.md -> /README.md
+  - docs/tasks/TASK-REM-T06-repository-root-hygiene.md -> CODE_OF_CONDUCT.md
+  - docs/tasks/TASK-REM-T06-repository-root-hygiene.md -> CONTRIBUTING.md
+```
+
+Phân biệt rõ: **đúng 3 lỗi tiền tồn `TASK-REM-T06`**, y hệt baseline đo tại
+`c22cef8` trước khi commit (133 file → 134 file, cùng 3 lỗi, không lỗi mới).
+**0 regression mới.** Validator **không** bị sửa để làm review PASS.
+
+`REVIEW_EVIDENCE = VALID` — artifact đọc lại được từ committed remote SHA,
+nên verdict dưới đây đủ điều kiện dùng cho Freeze.
+
+Commit này (commit thứ hai trên nhánh review) chỉ điền chính mục "Xác Minh
+Sau Commit" ở trên vào artifact; nó **không** đổi bất kỳ evidence, finding,
+gate result hay verdict nào. Cùng bộ xác minh (`local == remote`,
+`git show <sha>:<artifact>` đọc được, implementation branch nguyên vẹn,
+`app/**`/`tests/**`/`config/**` không bị chạm) được chạy lại cho commit cuối
+cùng; SHA review cuối cùng nằm trong final report của phiên.
