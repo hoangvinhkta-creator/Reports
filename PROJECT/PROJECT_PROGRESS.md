@@ -155,20 +155,31 @@ TASK-105D
   canonical spec = docs/tasks/TASK-105D-product-identity-resolver.md
   canonical data contract = docs/spec/TASK-105D-DATA-CONTRACT.md (S034/DEC-155,
       Owner-ratified DEC-156)
-  Completion Gate 32 check = DRAFT, NOT_TESTED, NOT FROZEN
+  Completion Gate 32 check = CHANGE PROPOSAL APPLIED (S037/DEC-157),
+      NOT_TESTED, NOT FROZEN — gate count vẫn ĐÚNG 32
   Freeze Finalization attempt #1 = FAIL (S036, 2026-08-28)
       5 BLOCKING / 5 HARDENING; testable 30/32; deterministic 29/32;
       G06 ↔ G23 mâu thuẫn; 5/20 case đối kháng bắt buộc không được phủ
       evidence: docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md
+  Gate Revision #1 = ÁP DỤNG (S037, 2026-08-28, DEC-157)
+      F-01…F-05 xử lý 5/5; G04/G05/G22 nay deterministic + testable;
+      H-01/H-03 ĐÓNG; H-02 (một phần) + H-04 nạp thêm; H-05 CÒN MỞ
+      (đổi data contract — ngoài thẩm quyền phiên gate revision);
+      32/32 gate có assertion + fixture + PASS + FAIL + nguồn quy phạm;
+      20/20 case đối kháng bắt buộc được phủ (trước: 14 ĐẠT / 1 MỘT PHẦN /
+      5 KHÔNG ĐẠT); gate thêm = 0, gate xoá = 0, Evidence Level hạ = 0
+      (hai lần NÂNG E1 → E2: CHECK-105D-10, CHECK-105D-21)
+      evidence: docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md
   implementation = NOT STARTED / NOT AUTHORIZED
-  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — S036 không
-      mở Repair Cycle; independent freeze review không tiêu cycle)
+  budget lineage = 2 allowed / 0 used / 2 remaining (KHÔNG ĐỔI — cả S036 lẫn
+      S037 đều không mở Repair Cycle; V4.1 §3 tính cycle theo repair diff của
+      implementation, và cả hai phiên đều 0 dòng code/test)
   Ready Gate blocker còn 1 (4 → 2 sau S034 → 1 sau DEC-156):
     ĐÃ ĐÓNG: Owner ratification OR-01 / OR-02 / OR-03 (DEC-156)
-    CÒN LẠI: Completion Gate freeze — S036 đã thử và TỪ CHỐI freeze. Blocker
-             nay có nội dung cụ thể: phải xử lý F-01…F-05 bằng một phiên gate
-             revision có thẩm quyền TRƯỚC, rồi một phiên Freeze Finalization
-             MỚI re-review toàn bộ gate set (V4.1 §12)
+    CÒN LẠI: Completion Gate freeze. S036 đã thử và TỪ CHỐI; S037 đã sửa gate
+             theo đúng findings. Việc còn lại là MỘT phiên Freeze Finalization
+             RETRY re-review TOÀN BỘ gate set đã sửa (V4.1 §12) — phiên gate
+             revision KHÔNG được tự freeze
 
 TASK-105E  (MỚI — Owner cấp task ID tại DEC-156 §5)
   = PLANNED / SPEC OUTLINE / READY GATE BLOCKED
@@ -206,9 +217,33 @@ không tiêu budget.
 định Owner đang chờ ở khối S034 bên dưới đã được đóng. Đoạn cũ giữ lại làm
 lịch sử.)*
 
-*(Cập nhật 2026-08-28, S036 — Freeze Finalization attempt #1 = **FAIL**.
-Đoạn ngay dưới đây là hành động kế tiếp hiện hành; đoạn S035 phía sau giữ
-nguyên làm lịch sử.)*
+*(Cập nhật 2026-08-28, S037 — GATE REVISION #1 = **ÁP DỤNG**, `DEC-157`.
+Đoạn ngay dưới đây là hành động kế tiếp hiện hành; các đoạn S036/S035 phía sau
+giữ nguyên làm lịch sử.)*
+
+**Một phiên FREEZE FINALIZATION RETRY có thẩm quyền cho `TASK-105D`**
+(`V4.1` §12). Gate revision đã xong; việc còn lại là review độc lập rồi ghi
+verdict:
+
+```text
+1. Re-review TOÀN BỘ 32 gate đã sửa — KHÔNG chỉ phần diff.
+2. Xác minh F-01…F-05 đã đóng thật; G04/G05/G22 nay deterministic + testable.
+3. PASS  → ghi FROZEN ⇒ TASK-105D mới chuyển được READY.
+   FAIL  → ghi finding; gate vẫn NOT FROZEN.
+4. NGAY SAU verdict: review lại branch divergence theo DEC-157 §2
+   (V4.1 §8 Option C — review point bắt buộc, không phải tuỳ chọn).
+```
+
+Đầu vào bắt buộc của phiên đó:
+`docs/tasks/TASK-105D-product-identity-resolver.md` (32 khối gate),
+`docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` (before/after),
+`docs/reviews/TASK-105D-FREEZE-FINALIZATION-REVIEW.md` (findings gốc),
+`DEC-157`.
+
+**KHÔNG mở `TASK-105D` implementation trước divergence review point ở bước 4**,
+kể cả khi freeze verdict là PASS.
+
+*(Đoạn S036, SUPERSEDED bởi S037 — giữ nguyên văn:)*
 
 **Một phiên GATE REVISION có thẩm quyền cho `TASK-105D`**, dùng khuôn
 `COMPLETION GATE CHANGE PROPOSAL` (`governance/core/TASK_COMPLETION_GATE_STANDARD.md`), xử lý

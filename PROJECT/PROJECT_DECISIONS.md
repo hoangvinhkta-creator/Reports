@@ -6544,3 +6544,171 @@ Can Revisit After:
   lineage/budget của chính nó).
 - Một phiên soạn Scope Lock + Completion Gate cho `TASK-105E`, biến
   `P00–P11` thành executable gate.
+
+---
+
+## DEC-157
+
+Title:
+COMPLETION GATE REVISION #1 CHO TASK-105D — GIỮ ĐÚNG 32 GATE;
+BRANCH DIVERGENCE V4.1 §8 OPTION C
+
+Date:
+2026-08-28
+
+Task:
+Owner Decision Recording cho phiên gate revision `TASK-105D`. Ghi trong phiên
+`docs/sessions/S037-task-105d-gate-revision.md`.
+
+```text
+base SHA phiên này        : 1676e1d173ff6afdbbaa2cedcf07fc06346955ce
+freeze attempt #1 (S036)  : reviewed base SHA 9cd871488a6baebf6b80737f42e2137a27887cef
+                            verdict FAIL — 5 BLOCKING / 5 HARDENING
+```
+
+**Đây LÀ một Owner Decision.** Owner mở phiên gate revision với hai quyết định
+tường minh (Decision A — gate count; Decision B — divergence). Phiên ghi nhận
+**không** thêm quyết định nghiệp vụ nào của riêng nó; toàn bộ nội dung gate
+được sửa là (i) propagation của `DEC-156` đã có, (ii) chép ngữ nghĩa quy phạm
+đã tồn tại trong `docs/spec/TASK-105D-DATA-CONTRACT.md` vào gate, hoặc
+(iii) lựa chọn **hình thức tích hợp** mà Decision A đã ràng buộc.
+
+Ghi chú artifact budget (`governance/core/V4_1_POLICY_FREEZE.md` §10): đây là
+artifact governance thứ **8** của lineage `TASK-105D` (thứ 7 là
+`docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md`), tức thuộc diện
+`OWNER APPROVAL REQUIRED`. Approval đó **chính là** chỉ thị của Owner khi mở
+phiên này ("ghi Completion Gate Change Proposal canonical"; "Ghi Owner
+decision: V4.1 §8 Option C — CONTINUE"). Ghi lại tường minh theo tiền lệ
+`DEC-156`.
+
+Decision:
+
+**1. OWNER DECISION A — GATE COUNT: GIỮ ĐÚNG 32.**
+
+```text
+Completion Gate của TASK-105D giữ ĐÚNG 32 gate.
+KHÔNG mở rộng gate set vượt 32.
+F-03 / F-04 / F-05 được tích hợp vào các gate hiện có phù hợp, KHÔNG thêm
+gate mới.
+Điều kiện dừng đã đặt trước: nếu phát hiện contradiction không thể giải quyết
+mà không đổi count → STOP và báo Owner.
+```
+
+Kết quả áp dụng: **không** phát hiện contradiction nào buộc phải đổi count.
+Phân bổ đã thực hiện:
+
+```text
+F-01  → khối "Định nghĩa vận hành bắt buộc" + CHECK-105D-06
+F-02  → CHECK-105D-05  (assertion hai chiều, có chiều FAIL)
+F-03  → CHECK-105D-20 (điều kiện tiên quyết của command)
+        + CHECK-105D-21 (nội dung audit + cấm từ "authenticated")
+F-04  → CHECK-105D-28 (unified Public Purchase versioned source)
+        + CHECK-105D-21 (ResolutionBinding / replay)
+F-05  → CHECK-105D-10 (vòng đời mapping qua các capture — catalog drift)
+H-01  → CHECK-105D-22 (ràng buộc vào bề mặt CLI Phase 1 theo ADR-101)
+H-03  → CHECK-105D-04 (bỏ thuật ngữ "interaction")
+H-02  → CHECK-105D-31 Phần B (một phần — biên lookup mà 105D sở hữu)
+H-04  → CHECK-105D-09 (INV-33) + CHECK-105D-12 (INV-36)
+H-05  → KHÔNG đóng (đổi data contract §6.7 — ngoài thẩm quyền phiên gate
+        revision); ghi lại nguyên trạng kèm re-trigger trong CHECK-105D-08
+```
+
+Ràng buộc kèm theo, đã tuân thủ: **không hạ tiêu chuẩn bất kỳ gate nào**.
+Không gate nào bị xoá, không assertion nào bị bỏ, không Evidence Level nào bị
+hạ. Hai gate được **nâng** `E1 → E2` (`CHECK-105D-10`, `CHECK-105D-21`).
+
+**2. OWNER DECISION B — BRANCH DIVERGENCE: `V4.1` §8 OPTION C.**
+
+```text
+V4.1 §8 — INTEGRATION_DECISION_REQUIRED  [ cumulative LOC > 5.000 ]
+Owner chọn: (C) CONTINUE WITH EXPLICIT JUSTIFICATION.
+```
+
+Lý do Owner ghi nhận:
+
+```text
+- cumulative LOC vượt threshold CHỈ là documentation/governance;
+- production diff = 0 (app/**, tests/**, config/**, tools/**, scripts/**,
+  pyproject.toml đều rỗng trong diff);
+- phần việc còn lại của lineage chỉ là gate correction + freeze;
+- merge vào nhánh mặc định TRƯỚC freeze không mang lại lợi ích, trong khi
+  vẫn phát sinh rủi ro xung đột văn bản.
+```
+
+Phạm vi được phép tiếp tục dưới Option C:
+
+```text
+1. Phiên Gate Revision này (S037).
+2. MỘT phiên Freeze Finalization retry độc lập.
+Ngoài hai việc đó: không mở thêm scope trên lineage này.
+```
+
+Review point tiếp theo (bắt buộc):
+
+```text
+NGAY SAU FREEZE FINALIZATION RETRY VERDICT.
+```
+
+**KHÔNG mở `TASK-105D` implementation trước divergence review point đó**, kể
+cả khi freeze verdict là PASS.
+
+**3. Trạng thái `TASK-105D` sau quyết định này.**
+
+```text
+TASK-105D            = PLANNED / SPEC COMPLETE + DATA CONTRACT COMPLETE
+                       + OWNER RATIFIED / READY GATE BLOCKED
+Completion Gate      = CHANGE PROPOSAL APPLIED — NOT FROZEN
+Gate count           = 32  (không đổi)
+TASK-105D READY      = KHÔNG
+Repair Cycle         = KHÔNG mở  (2 allowed / 0 used / 2 remaining)
+production code      = KHÔNG đổi
+test implementation  = KHÔNG đổi
+merge                = KHÔNG thực hiện
+```
+
+`V4.1` §12 giữ nguyên hiệu lực: `FROZEN` chỉ được ghi bởi một phiên Freeze
+Finalization có thẩm quyền. Phiên gate revision **không** tự freeze — nếu nó
+vừa viết gate vừa freeze thì phần gate mới không được bên nào review.
+
+**4. Repair Cycle — KHÔNG mở.**
+
+`V4.1` §3 tính repair cycle theo cumulative **repair diff** trên một defect
+`BLOCKING` của **implementation**. `S037` không sửa một dòng code hay test
+nào; toàn bộ diff là gate/documentation/governance. `V4.1` cấm mở Repair Cycle
+chỉ vì documentation/gate issue trừ khi Owner quyết định khác — Owner **không**
+quyết định khác. Ngân sách `TASK-105D` giữ nguyên `2 allowed / 0 used /
+2 remaining`.
+
+Impact:
+
+- `docs/tasks/TASK-105D-product-identity-resolver.md` — Completion Gate viết
+  lại thành 32 khối `#### CHECK-105D-NN (GNN)` có `Khẳng định` /
+  `Fixture bắt buộc` / `PASS khi` / `FAIL khi` / `Nguồn quy phạm`; khối
+  "Định nghĩa vận hành bắt buộc" sửa theo `DEC-156`/`OR-02`; thêm mục
+  "Ma trận overlap có chủ đích"; sửa stale text ở "Resolution Order",
+  "Human Confirmation và Batch UX Contract", "Phụ Thuộc" (mục Auth);
+  Authority/Specification State/Ready Gate/Changed Files Registry cập nhật.
+- `docs/reviews/TASK-105D-COMPLETION-GATE-CHANGE-PROPOSAL.md` — **file MỚI**,
+  bản ghi thay đổi gate canonical (before/after từng gate, lý do, risk,
+  invariant bị tác động, bảng 20 case đối kháng trước/sau).
+- `PROJECT/PROJECT_DECISIONS.md` — `DEC-157` (ID đã quét toàn repo, trống
+  trước khi cấp).
+- `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md` —
+  trạng thái, next authorized action, divergence record.
+- `docs/sessions/S037-task-105d-gate-revision.md` — bàn giao.
+- **Không** sửa `app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`,
+  `pyproject.toml`, `governance/**`, Golden fixture/expected.
+- **Không** sửa `docs/spec/TASK-105D-DATA-CONTRACT.md` — vì vậy `H-05` còn mở.
+- **Không** sửa repo `Tracking` — 0 file.
+- **Không** implement, không activate provider, không freeze, không merge,
+  không mở Repair Cycle.
+
+Can Revisit After:
+
+- Một phiên **Freeze Finalization retry** re-review TOÀN BỘ 32 gate đã sửa và
+  ghi verdict ⇒ chỉ khi PASS thì `TASK-105D` mới có thể `READY`.
+- **Ngay sau verdict đó**: review lại branch divergence theo Option C
+  (`V4.1` §8) — đây là review point bắt buộc, không phải tuỳ chọn.
+- Một phiên sửa data contract có thẩm quyền cho `H-05` (`ranking_method_id`).
+- Một phiên soạn Scope Lock + Completion Gate cho `TASK-105E` (nơi phần còn
+  lại của `H-02` — điều kiện (a) của `INV-43` — thuộc về).
