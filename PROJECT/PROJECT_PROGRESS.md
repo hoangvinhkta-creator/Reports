@@ -96,6 +96,87 @@ byte `app/**`/`config/**`/`tests/**`/Golden fixture thay đổi; repo giá
 đưa vào nhánh mặc định. **Không được đọc "đã integrate" thành "đã
 implement".**
 
+## Current Price Architecture — DEC-154 (2026-08-28)
+
+Khối này là current-state pointer mới nhất. Nó supersede các đoạn current
+state cũ nếu còn nói mọi product phải map vào Tracking `<MÃ>`,
+`TASK-105B → TASK-105C` là dependency tuyến tính, hoặc `TASK-105C = READY`.
+Các đoạn cũ giữ nguyên làm lịch sử.
+
+```text
+CUTOVER_DATE = 2026-09-01
+
+sale_date < cutover + Owner-confirmed historical report
+  → identity + price authority = HISTORICAL_CONFIRMED_REPORT
+  → bypass catalog/resolver/provider
+
+sale_date >= cutover
+  → TASK-105D resolves (namespace, source_product_code)
+       ├─ TRACKING        → TASK-105C HistoricalVendorMin
+       │                     absence → cross-map → TASK-105B
+       └─ PUBLIC_PURCHASE → TASK-105B PublicPurchasePrice
+  → PRICE RESOLUTION P01–P10
+  → KpiPurchasePrice / TASK-108B
+```
+
+Canonical namespaces: `TRACKING`, `PUBLIC_PURCHASE`. Tracking MISS không tự
+động thành Pending nếu Public Purchase resolve deterministic; Public Purchase
+product không cần Tracking product giả. Product identity và price source là
+hai khái niệm tách biệt.
+
+### Exact task states
+
+```text
+TASK-105B
+  = FROZEN + INTEGRATED + RC-1 INTEGRATED + NOT DONE
+  current role = Public Purchase effective-dated provider foundation
+  DONE blocker = Owner/source-confirmed Public Purchase production dataset
+                 load/replay được + remaining HB triggers resolved trước use
+  PendingPriceProvider vẫn default; FilePriceProvider NOT ACTIVATED
+  budget = 2 allowed / 1 used / 1 remaining
+
+TASK-105C
+  = BLOCKED / NOT AUTHORIZED
+  semantic branch = TRACKING HistoricalVendorMin, DEC-151/152 preserved
+  input = resolved TRACKING identity + sale_date
+  output = HistoricalVendorMin hoặc absence cho fallback
+  Scope Lock = REOPENED_BY_DEC-154
+  Completion Gate = CHANGE_PROPOSAL_OPEN, NOT FROZEN
+  không còn compose/depend cứng TASK-105B
+
+TASK-105D
+  = PLANNED / SPECIFICATION COMPLETE / READY GATE BLOCKED
+  canonical spec = docs/tasks/TASK-105D-product-identity-resolver.md
+  Completion Gate 32 check = DRAFT, NOT_TESTED, NOT FROZEN
+  implementation = NOT STARTED / NOT AUTHORIZED
+  budget lineage mới = 2 allowed / 0 used / 2 remaining
+
+TASK-108B
+  = BLOCKED_BY_DEPENDENCY
+  chờ TASK-105D, TASK-105C refreeze+implementation, TASK-105B DONE,
+  price-resolution ownership P01–P10 và TASK-105B-Q3
+```
+
+### Remaining HB-105B audit
+
+| Finding | Current trigger | Triggered now? | Required action |
+|---|---|---|---|
+| HB-105B-03 | Lần đầu đọc Public Purchase file thật/non-test | NO | Canonicalize invalid shape/root/row error trước usage |
+| HB-105B-05 | Public Purchase dataset production xuất hiện | NO | Strict required-column check; typo không thành open record |
+| HB-105B-06 | TASK-105C thêm tools/tests | NO | Mở rộng assertion đúng boundary; network chỉ ở intended tool |
+| HB-105B-10 | Machine-generated file được nạp qua FilePriceProvider | NO | Strict schema trước Public Purchase export/snapshot usage |
+
+`HB-105B-07/08` vẫn RESOLVED + independently verified; `09/11` vẫn
+SUPERSEDED; `04` vẫn OUT_OF_SCOPE. Phiên docs này không mở Repair Cycle #2,
+không tiêu budget.
+
+### Next authorized action
+
+Một phiên **TASK-105D readiness/data-contract + persistence/audit design**
+có authority riêng: cung cấp catalog/version contract, pre-cutover confirmed
+report registry contract, persistence/concurrency/migration plan, review và
+freeze Completion Gate. Không thực hiện action đó trong phiên này.
+
 ## Hai Track Song Song
 
 Repo này chứa **hai track công việc độc lập**, cả hai đều canonical, cả hai
@@ -134,6 +215,10 @@ Profile:
 PRODUCT
 
 Last Updated:
+2026-08-28 (`DEC-154`, S032 — Product Identity & Purchase Price Resolution
+governance/spec reconciliation; production code không đổi).
+
+Historical prior update:
 2026-08-23 (S021 — **Independent Review #5 FAIL, 4 finding, đã sửa toàn bộ
 bằng ARCHITECTURE REPAIR**, không phải một vòng patch cục bộ. Audit trước khi
 code chỉ ra cả bốn finding là bốn biểu hiện của **một** root cause: validation
@@ -730,6 +815,13 @@ Current Phase:
 PHASE-01 — Engine tính toán
 
 Current Task:
+**GOVERNANCE/SPEC RECONCILIATION — COMPLETE tại working tree, chưa merge.**
+`DEC-154` recorded; `TASK-105D` canonical spec created ở trạng thái
+`PLANNED/BLOCKED`; `TASK-105C` chuyển current authorization từ `READY` sang
+`BLOCKED`; `TASK-105B` vẫn `NOT DONE` và chưa activate. Đây không phải
+implementation task.
+
+Previous canonical milestone (giữ làm lịch sử):
 **TASK-GOLDEN-BASELINE-001 — DONE (2026-08-27).** Golden Business Baseline.
 `DISCOVERY = COMPLETE` (`b738fa4`), `IMPLEMENTATION = COMPLETE`,
 `INDEPENDENT_REVIEW_2 = PASS — ELIGIBLE_FOR_FREEZE` tại reviewed SHA
@@ -773,6 +865,12 @@ Current Task Mode:
 MAJOR
 
 Next Recommended Task:
+**TASK-105D readiness/data-contract + persistence/audit design** — phiên có
+authority riêng để chốt catalog/version contracts, pre-cutover confirmed
+report registry, migration/rollback/concurrency mechanism và review/freeze
+Completion Gate. Không implement resolver trước khi Ready Gate đạt.
+
+Historical prior pointer (SUPERSEDED bởi `DEC-154` ở trên):
 **`TASK-GOLDEN-BASELINE-001` đã DONE — không còn việc governance nào treo ở
 đây.** `V4.1` đã chuyển `FULLY_ENFORCED` (xem "Governance V4.1 — Trạng Thái
 Adoption" đầu file).
@@ -961,51 +1059,48 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         employee mapping đúng trên 14.389 dòng thô thật. Chi tiết:
         `docs/tasks/TASK-108A-1-conversion-scheme-resolver.md`.
   - [ ] TASK-105B — `FilePriceProvider` (Phase 1). Implementation thứ hai của
-        `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice`; tra
-        theo `(normalized product_key, ngày đơn)`.
-        **SEMANTIC_READINESS (Q1/Q2/Q3) = READY** (DEC-145, không đổi).
-        **KHÔNG ĐỔI bởi `DEC-151`/`DEC-152`** — contract §38 (schema 4 cột,
-        validation) vẫn đúng. **Nay là DEPENDENCY CỨNG cho `TASK-105C`**
-        (`HistoricalVendorPriceProvider` compose `FilePriceProvider`,
-        `DEC-152` §11) — phải implement trước hoặc cùng lúc, không còn chỉ
-        là "khuyến nghị chờ cùng lúc".
+        `PriceProvider` Protocol. **FROZEN + INTEGRATED + RC-1 INTEGRATED,
+        NOT DONE**. `DEC-154` chốt current role = provider foundation cho
+        **Public Purchase effective-dated price**, không còn là dependency
+        cứng/composition seam của `TASK-105C`. DONE còn chờ dataset Public
+        Purchase production thật load/replay được và remaining HB triggers
+        resolve trước usage. `PendingPriceProvider` vẫn default;
+        `FilePriceProvider` chưa activate. Budget `2/1/1`.
   - [ ] TASK-105C — `HistoricalVendorPriceProvider` (tên chính thức, thay
         `RTDBPriceProvider`, chốt tại `DEC-152`). Đọc TRỰC TIẾP `phist`,
-        KHÔNG qua `_c.min`/`inv.cong`. **Vẫn `[ ]` — implementation thật
-        CHƯA chạy**, dù discovery/semantics/Scope Lock đã xong.
-        **DISCOVERY = COMPLETE. SEMANTIC_DEFINITION = COMPLETE. SCOPE_LOCK
-        = COMPLETE. IMPLEMENTATION = READY (chưa bắt đầu)** (`S024`–`S029`,
-        `DEC-147`–`DEC-152`).
+        KHÔNG qua `_c.min`/`inv.cong`. **BLOCKED / NOT AUTHORIZED** sau
+        `DEC-154`: semantics `DEC-151/152` giữ nguyên, nhưng Scope Lock đã
+        reopen và Completion Gate change proposal chưa refreeze.
         Canonical spec:
-        `docs/tasks/TASK-105C-historical-vendor-price-provider.md` —
-        24 mục đầy đủ, Scope Lock, Completion Gate 20 check
-        (`CHECK-105C-01`…`20`, toàn bộ `NOT_TESTED`).
+        `docs/tasks/TASK-105C-historical-vendor-price-provider.md`.
         **Owner Decision cuối (`DEC-152`) đóng Q1/Q2:**
         Q1 (NCC retired/MIN_LOAI hồi tố) = **CLOSED** — trạng thái NCC
         HIỆN TẠI không áp ngược, giá lịch sử hợp lệ vẫn là candidate.
         Q2 (outlier threshold hồi tố) = **CLOSED** — không áp ngược,
         Phase 1 = MIN qua mọi candidate hợp lệ, loại sentinel `0`, không
         lọc gì thêm.
-        **Nguồn giá lịch sử DUY NHẤT: `phist/<mã>/<NCC>/<ngày>`.**
+        **Nguồn HistoricalVendorMin: `phist/<mã>/<NCC>/<ngày>`.**
         `Price(NCC,D)` = record gần nhất ≤ D; `HistoricalVendorPrice(mã,D)`
-        = MIN qua mọi NCC có giá xác định > 0; `KpiPurchasePrice(mã,D)` =
-        giá đó nếu xác định được, else **Pending** (chủ đích, xử lý tay
-        sau, explicit + provenance, không rewrite `phist`, không backdate).
+        = MIN qua mọi NCC có giá xác định > 0. Không candidate → explicit
+        absence để price-resolution thử Public Purchase fallback; không tự
+        thành giá 0.
         `inv.cong`/`_c.min`/`MarketMinHistory`: **không bắt buộc** Phase 1.
-        `DEC-149` OPTION B: **không còn áp dụng** — thay bằng kiến trúc
-        compose `FilePriceProvider` (`DEC-152` §11), ít thay đổi hơn.
-        **Dependency riêng, CHƯA MỞ TASK:** product identity mapping
-        (`product_raw` Reports ↔ `<MÃ>` Tracking) — không chặn
-        implement/test provider (dùng `<MÃ>` tổng hợp), CHẶN kết quả
-        không-Pending ở quy mô trên dữ liệu thật. Cấm fuzzy matching
-        (`OD-105B-01` §B, tiền lệ `extractCode()` thất bại — `DEC-147`
-        §56).
+        Input là resolved `TRACKING` identity + sale_date từ `TASK-105D`;
+        PUBLIC_PURCHASE identity bypass. Không cần pre-map toàn catalog.
+        Không compose `FilePriceProvider` sau `DEC-154`.
         Rủi ro mang theo: `phist` sửa/xoá được (`DEC-147` §54 R4) —
         provider phải đóng băng/snapshot bất biến theo `capture_id`, không
         đọc `phist` sống mỗi lần chạy lại; `NCC_ALIAS` không hồi tố (nợ kỹ
         thuật nhỏ). Chi tiết:
         `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
-        `DEC-152`.
+        `DEC-152`, `DEC-154`.
+  - [ ] TASK-105D — `Product Identity Resolver`. **PLANNED; specification
+        complete; Ready Gate BLOCKED; Completion Gate 32 check DRAFT,
+        NOT_TESTED, chưa frozen; implementation chưa được cấp phép.** Hai
+        namespace `TRACKING`/`PUBLIC_PURCHASE`, persistent alias/rejection/
+        cross-system mapping, DISTINCT-before-mapping, batch/keyboard-first,
+        audit/idempotency/concurrency. Canonical spec:
+        `docs/tasks/TASK-105D-product-identity-resolver.md`.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -1021,17 +1116,17 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 → DEC-152**: `CONFLICT DETECTED` ở `DEC-149` §71
+        Sau **DEC-144 → DEC-154**: `CONFLICT DETECTED` ở `DEC-149` §71
         **ĐÃ ĐÓNG** bởi `DEC-151`; Q1/Q2 filtering **ĐÃ ĐÓNG** bởi
         `DEC-152` — Owner Decision thu hẹp phạm vi `AccountingPurchasePrice`
         lịch sử về `HistoricalVendorPrice` tính từ `phist`, loại
         `_c.min`/`inv.cong` khỏi vai trò nguồn, và chốt "không lọc gì
         ngoài sentinel `0`" là quy tắc CUỐI cho Phase 1 (xem `TASK-105C` ở
-        trên — `SCOPE_LOCK = COMPLETE, IMPLEMENTATION = READY`). Blocker
-        ngoại lai còn lại: (1) `TASK-105C` implementation thật (kèm
-        `TASK-105B` làm dependency cứng); (2) product identity mapping
-        (`product_raw` ↔ `<MÃ>` Tracking — dependency mới, chưa mở task,
-        cấm fuzzy matching); (3) `TASK-105B-Q3` (dòng phụ, độc lập).
+        trên). `DEC-154` thêm two-namespace identity + Public Purchase
+        direct/fallback branch. Blocker còn lại: (1) `TASK-105D`; (2)
+        `TASK-105C` refreeze + implementation; (3) `TASK-105B` DONE với
+        Public Purchase dataset; (4) ownership/executable gate P01–P10;
+        (5) `TASK-105B-Q3`.
         **KHÔNG còn** bất kỳ câu hỏi filtering/kiến trúc/field-selection
         nào chờ Owner — toàn bộ đã đóng.
         `PendingPriceProvider` trả `None` vô điều kiện; Golden xác nhận

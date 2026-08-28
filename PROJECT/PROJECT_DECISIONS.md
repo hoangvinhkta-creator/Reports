@@ -5645,3 +5645,277 @@ Can Revisit After:
   `HB-105B-07`/`HB-105B-08`) — phải chạy **trước** `TASK-105C`
   implementation hoặc trước `FilePriceProvider` activation thật, tuỳ điều
   kiện nào tới trước.
+
+## DEC-154
+
+Title:
+PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION
+
+Date:
+2026-08-28
+
+Task:
+Governance / Specification Reconciliation cho `TASK-105B`, `TASK-105C`,
+`TASK-105D` và price-resolution dependency graph.
+
+Decision:
+
+**1. Cutover.**
+
+```text
+CUTOVER_DATE = 2026-09-01
+```
+
+Phân loại bằng `sale_date`, không dùng `import_date`; do đó bản ghi đến muộn
+vẫn đi đúng nhánh lịch sử của ngày bán.
+
+**2. Pre-cutover authority.** Với `sale_date < CUTOVER_DATE`, nếu report
+lịch sử đã được Owner xác nhận có product identity và purchase price, report
+đó là authority và bypass resolver/catalog/price-provider:
+
+```text
+mapping_source = HISTORICAL_CONFIRMED_REPORT
+price_source   = HISTORICAL_CONFIRMED_REPORT
+```
+
+Không remap/backfill từ catalog hiện tại và không rewrite dữ liệu lịch sử nếu
+chưa có correction workflow/authority tường minh. Thiếu confirmation đủ căn
+cứ → Pending/correction workflow, không tự dựng lại.
+
+**3. Post-cutover product identity.** Với `sale_date >= CUTOVER_DATE`,
+canonical identity là tuple:
+
+```text
+(namespace, source_product_code)
+namespace ∈ {TRACKING, PUBLIC_PURCHASE}
+```
+
+`TRACKING:X` và `PUBLIC_PURCHASE:X` không collision. Sản phẩm hợp lệ cho
+Reports **không bắt buộc** tồn tại trong Tracking. Tracking MISS + Public
+Purchase deterministic unique match → `PUBLIC_PURCHASE:<code>`, không tạo
+Tracking product giả. Không nguồn nào chắc chắn → `PENDING_PRODUCT`.
+
+**4. Product-resolution authority.** Resolution chạy trên DISTINCT product
+identities, không trên từng sales row. Alias đã confirm được persist/reuse với
+0 thao tác lặp; deterministic unique match có thể auto-resolve; fuzzy/model
+similarity chỉ rank candidate và không được tự cấp production authority. Một
+confirmation áp cho mọi affected rows/orders cùng identity. Rejection được
+nhớ tới khi có evidence mới. Raw accounting product name bất biến; normalized
+name/model token chỉ là matching aid, không phải canonical ID. Correction giữ
+old/new mapping, actor, timestamp, reason và version. Duplicate import/retry
+phải idempotent; conflicting concurrent confirmation không được silent
+last-write-wins.
+
+**5. Cross-system product mapping.** Tạo contract persistent tương đương:
+
+```text
+TRACKING:<tracking_code> ↔ PUBLIC_PURCHASE:<public_purchase_code>
+```
+
+Không giả định code bằng nhau. Mapping explicit, persistent, reusable,
+auditable, correctable và versioned. Nó cho phép identity TRACKING dùng giá
+Public Purchase fallback mà không đổi namespace của identity.
+
+**6. Identity/price separation.** Product mapping lưu identity, không lưu
+fixed purchase price. Price source thay đổi không tự đổi product identity.
+
+**7. Price precedence.**
+
+```text
+TRACKING identity:
+  1. HistoricalVendorMin (TASK-105C)
+  2. PublicPurchasePrice qua CrossSystemProductMapping (TASK-105B)
+  3. Pending
+
+PUBLIC_PURCHASE identity:
+  1. PublicPurchasePrice (TASK-105B)
+  2. Pending
+```
+
+`PUBLIC_PURCHASE` identity bypass `phist`. `TRACKING` identity chỉ fallback
+sang Public Purchase khi không có valid vendor candidate tại `sale_date` và
+có cross-system mapping hợp lệ.
+
+**8. Historical vendor semantics được bảo toàn.** `DEC-151`/`DEC-152` vẫn là
+authority cho nhánh Tracking:
+
+```text
+Price(NCC,D) = record có ngày gần nhất <= D
+HistoricalVendorMin(D) = MIN mọi candidate hợp lệ tại D
+phist value 0 = sentinel unavailable / HẾT HÀNG, loại khỏi candidates
+```
+
+Trạng thái NCC/config hiện tại không áp ngược. Không candidate → absence để
+price resolution thử Public Purchase fallback; nếu fallback cũng không có →
+Pending. `0` không bao giờ trở thành zero-cost purchase.
+
+**9. Public Purchase price semantics.** Public Purchase dataset phải
+effective-dated hoặc snapshot/versioned đủ để replay:
+
+```text
+product_code
+effective_from
+effective_to
+purchase_price
+source/provenance
+```
+
+Lookup dùng `sale_date`. Current/today price không được backfill sale lịch sử.
+Không có valid price tại ngày bán → Pending.
+
+**10. Provenance không được collapse.** Tối thiểu giữ riêng:
+
+```text
+PUBLIC_PURCHASE_NO_TRACKING
+PUBLIC_PURCHASE_NO_VENDOR_PRICE
+```
+
+Tên enum implementation có thể theo convention repo, nhưng audit meaning
+phải phân biệt direct Public Purchase identity với fallback price của identity
+Tracking.
+
+**11. Price-resolution acceptance rules (P01–P10).** Đây là canonical
+integration contract; implementation owner chưa được tự mở trong phiên này:
+
+| ID | Rule |
+|---|---|
+| P01 | TRACKING + valid vendor candidates → `HistoricalVendorMin` |
+| P02 | sentinel `0` bị loại |
+| P03 | TRACKING + no valid vendor candidates → Public Purchase fallback |
+| P04 | PUBLIC_PURCHASE identity → bypass `phist` |
+| P05 | Public Purchase lookup dùng `sale_date` |
+| P06 | no valid Public Purchase price → Pending |
+| P07 | current public price không silently backfill historical sale |
+| P08 | provenance `PUBLIC_PURCHASE_NO_TRACKING` được giữ |
+| P09 | provenance `PUBLIC_PURCHASE_NO_VENDOR_PRICE` được giữ |
+| P10 | identity không đổi chỉ vì price source đổi |
+
+Các rule này thuộc integration boundary giữa `TASK-105D`, `TASK-105C`,
+`TASK-105B` và downstream `TASK-108B`; chúng không mở scope price calculation
+trong `TASK-105D`. Trước implementation phải có một implementation task/scope
+lock có authority nhận ownership của composition này; phiên hiện tại không
+tự invent code-task mới hay activate provider.
+
+**12. TASK-105B — current architectural role.** Frozen implementation/history
+giữ nguyên. Từ quyết định này, `FilePriceProvider` là foundation/provider cho
+nhánh **Public Purchase effective-dated price**, không còn là dependency cứng
+của `TASK-105C`. Cụm “bảng giá production thật” trong DONE blocker được làm
+rõ là **Public Purchase price dataset thật**, có effective-date/version và
+provenance; không phải bảng tạm không liên quan. `TASK-105B` vẫn `FROZEN +
+INTEGRATED + RC-1 INTEGRATED + NOT DONE`; `PendingPriceProvider` vẫn default.
+
+**13. TASK-105C — current architectural role.** Giữ nguyên nhánh Tracking
+`phist` và toàn bộ semantics `DEC-151`/`DEC-152`, nhưng supersede hai phần của
+kiến trúc cũ: (a) không còn compose/depend cứng vào `FilePriceProvider`; (b)
+không còn tự kết luận absence là final Pending — output là
+`HistoricalVendorMin | absence` để price-resolution layer có thể fallback.
+Input conceptually là resolved `TRACKING` identity + `sale_date`. Không yêu
+cầu pre-map toàn bộ catalog; unresolved rows có thể Pending trong khi aliases
+đã confirm được reuse. `TASK-105C` không còn `READY`; cần reconcile/freeze lại
+Scope/Completion Gate theo quyết định này và audit hardening triggers trước
+một implementation authority riêng.
+
+**14. TASK-105D.** `TASK-105D — Product Identity Resolver` là numbering hợp
+lệ (không tồn tại task/decision khác chiếm ID). Canonical spec được tạo tại
+`docs/tasks/TASK-105D-product-identity-resolver.md`, `Status = PLANNED`,
+Completion Gate 32 check là DRAFT/NOT_TESTED, chưa freeze và chưa implement.
+
+**15. Dependency graph — current.**
+
+```text
+SALES
+  └─ TASK-105D Product Identity Resolver
+       ├─ TRACKING identity ───────────────┐
+       │    └─ TASK-105C HistoricalVendorMin
+       │          └─ absence + cross-map ─┼─ TASK-105B PublicPurchasePrice
+       └─ PUBLIC_PURCHASE identity ────────┘
+                         │
+                         ▼
+                  PRICE RESOLUTION (P01–P10)
+                         │
+                         ▼
+                   KpiPurchasePrice / TASK-108B
+```
+
+Superseded: tuyến `TASK-105B → TASK-105C` như dependency cứng và giả định mọi
+valid identity phải là Tracking `<MÃ>`. Còn hiệu lực: `PriceProvider` seam,
+Pending safety, `DEC-151`/`DEC-152` historical vendor semantics, snapshot/
+replay requirement, Tracking read-only boundary, frozen historical evidence.
+
+**16. Hardening trigger reconciliation.** Không finding lịch sử nào bị xoá:
+
+- `HB-105B-03`: chưa triggered trong docs session; bắt buộc resolve trước
+  lần đầu `FilePriceProvider.from_yaml()` đọc Public Purchase dataset thật.
+- `HB-105B-05`: chưa triggered; strict required-column semantics phải resolve
+  trước Public Purchase dataset thật/activation.
+- `HB-105B-06`: chưa triggered; re-trigger trước khi `TASK-105C` thêm test/
+  `tools/pricing`; required action là assertion boundary đúng phạm vi, cho
+  phép network chỉ trong intended tool nhưng không trong 105B module/test.
+- `HB-105B-10`: chưa triggered; trigger hiện hành được cụ thể hoá thành bất kỳ
+  machine-generated dataset nào được nạp qua `FilePriceProvider`, đặc biệt
+  Public Purchase export/snapshot; strict schema phải resolve trước usage đó.
+- `HB-105B-07`/`08`: RESOLVED + independently verified trong RC-1, không mở lại.
+- `HB-105B-09`/`11`: vẫn SUPERSEDED; `HB-105B-04` vẫn OUT_OF_SCOPE;
+  `HB-105B-01`/`02` vẫn thuộc TASK-108B.
+
+Không finding nào triggered bởi việc chỉ sửa documentation này. Không mở
+Repair Cycle #2; budget `TASK-105B` giữ `2 allowed / 1 used / 1 remaining`.
+
+**17. UX/metrics.** Batch/keyboard-first, candidate #1 đúng mục tiêu ≤1 normal
+action, known mapping = 0 action. Theo dõi `AUTO_RESOLUTION_RATE`,
+`MANUAL_CONFIRMATION_RATE`, `PENDING_RATE`, `REUSE_RATE`,
+`WRONG_MAPPING_CORRECTION_RATE`, `MANUAL_ACTIONS_PER_100_ORDERS` với
+denominator/version rõ ràng.
+
+Supersedes:
+
+- `DEC-152` §5 chỉ ở giả định canonical identity bắt buộc là Tracking `<MÃ>`;
+  thay bằng two-namespace tuple. Lệnh cấm fuzzy-only authority vẫn giữ nguyên.
+- `DEC-152` §11 chỉ ở dependency/composition `TASK-105C` compose
+  `FilePriceProvider`; thay bằng hai provider branch song song.
+- Các current-state prose nói `TASK-105C IMPLEMENTATION = READY` hoặc chỉ chờ
+  bảng `product_raw ↔ <MÃ>` Tracking.
+- Cách hiểu `FilePriceProvider` là foundation dành riêng cho `phist` snapshot.
+
+Preserves:
+
+- Toàn bộ historical evidence/commit/review/freeze/RC-1 của `TASK-105B`.
+- `DEC-151`/`DEC-152` date lookup, vendor MIN, sentinel `0`, no current-state
+  retroactive filtering và snapshot/replay semantics.
+- `PendingPriceProvider` default và Golden behavior.
+- Tracking repo read-only/no mutation.
+- Identity/price unknown không được coerced thành 0 hay invented value.
+
+Reason:
+
+Owner làm rõ mô hình production thật có hai product namespaces và Public
+Purchase vừa là identity source độc lập vừa là price fallback. Kiến trúc cũ
+đồng nhất “canonical product” với Tracking `<MÃ>` và đặt `FilePriceProvider`
+dưới `TASK-105C`; điều đó không biểu diễn được valid product không có trong
+Tracking, không phân biệt hai provenance Public Purchase và tạo dependency
+tuyến tính lỗi thời. Quyết định additive này sửa current architecture nhưng
+không rewrite quyết định lịch sử như thể chúng chưa từng tồn tại.
+
+Risk:
+
+Effective Risk = HIGH. Sai mapping/namespace/cutover/fallback có thể áp sai
+purchase price và tác động trực tiếp KPI/lương; Golden hiện 100% Pending ở
+price path nên không hạ blast radius.
+
+Impact:
+
+- Tạo `docs/tasks/TASK-105D-product-identity-resolver.md`.
+- Reconcile current-role/status pointers trong `TASK-105B`, `TASK-105C`,
+  `TASK-108B`, progress, roadmap, review ledger và session handoff.
+- Không sửa `app/**`, `tests/**`, `config/**`, Golden hay Tracking.
+- Không activate provider, không implement `TASK-105C`/`TASK-105D`, không
+  merge/freeze.
+
+Can Revisit After:
+
+- Catalog/data contracts và persistence/audit mechanism cho `TASK-105D` sẵn
+  sàng, rồi một session Scope Lock/Completion Gate Freeze có authority riêng.
+- Remaining HB-105B findings được xử lý đúng trigger trước real Public
+  Purchase dataset/activation hoặc `TASK-105C` tools/tests.
+- Price-resolution implementation ownership được mở bằng task/scope lock
+  riêng, rồi P01–P10 trở thành executable gate.

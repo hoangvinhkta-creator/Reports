@@ -511,6 +511,52 @@ cycles:
     PASS — REPAIR VERIFIED tại 9241ccfca9a8b0159b347f4d1171c0caa37eecad;
     reviewed lineage integrated qua integration/v4-1-task-105b-rc1.
 
+**2026-08-28 — `DEC-154` governance/spec reconciliation.** Không sửa
+production code/test/config, không activate provider, không mở Repair Cycle
+#2. Current role của `TASK-105B` chuyển thành Public Purchase effective-dated
+provider foundation; frozen implementation/history không đổi. Remaining
+`HB-105B-03/05/06/10` được audit trigger riêng và đều `triggered now = NO`.
+Budget giữ nguyên:
+
+```text
+repair_cycles_allowed   = 2
+repair_cycles_used      = 1
+repair_cycles_remaining = 1
+```
+
+---
+
+## Root Task: TASK-105D
+
+```
+root_task: TASK-105D
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+status: PLANNED — specification complete; Ready Gate blocked; Completion Gate
+        draft/not frozen; implementation not authorized
+```
+
+Failure path:
+
+```text
+sai namespace/identity/cutover
+→ sai provider/price provenance
+→ sai KpiPurchasePrice
+→ sai KPI/lương
+```
+
+Golden hiện dùng `PendingPriceProvider` và không phủ product-resolution/price
+composition path, nên không hạ Blast Radius theo V4.1 §4.1.
+
+Artifact hiện có của lineage:
+
+- `docs/tasks/TASK-105D-product-identity-resolver.md`
+- `DEC-154` trong `PROJECT/PROJECT_DECISIONS.md`
+
+Không cycle nào được mở bởi việc tạo specification. `cycles: []`.
+
 ---
 
 ## Cách xác định phạm vi một repair cycle (tham chiếu)
@@ -986,3 +1032,10 @@ với chính default tip cũ).
   `TASK-GOLDEN-BASELINE-001` **không đổi**. `HB-105B-03`, `HB-105B-05`,
   `HB-105B-06`, `HB-105B-10` **không đổi**, không được sửa trong phiên
   này (đúng phạm vi khoá của brief).
+
+- 2026-08-28 — `DEC-154` **PRODUCT IDENTITY & PURCHASE PRICE RESOLUTION**.
+  Governance/spec reconciliation only: tạo `TASK-105D` spec/lineage,
+  reconcile `TASK-105B` thành Public Purchase branch và `TASK-105C` thành
+  Tracking HistoricalVendorMin branch, không sửa/activate code. `TASK-105B`
+  budget **không đổi** `2/1/1`; không mở RC-2. Lineage mới `TASK-105D` được
+  cấp theo bảng HIGH `2/0/2`, chưa dùng cycle nào. Golden/Tracking không đổi.
