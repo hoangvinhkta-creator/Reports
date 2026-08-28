@@ -5290,3 +5290,233 @@ Can Revisit After:
 - Nếu sau này có nhu cầu nghiệp vụ MỚI cần dùng `inv.cong`/`_c.min` (vd. mở
   rộng ngoài Phase 1) ⇒ `DEC-149` OPTION B quay lại làm khuyến nghị hợp lệ,
   không cần audit lại từ đầu.
+
+## DEC-152
+
+Date:
+2026-08-27
+
+Task:
+`TASK-105C` — Final Owner Decision + Implementation Scope Lock. Ghi trong
+phiên "TASK-105C — FINAL OWNER DECISION + IMPLEMENTATION SCOPE LOCK"
+(`docs/sessions/S029-task-105c-final-decision-scope-lock.md`). Diễn ra
+ngay sau `S028`/`DEC-151` (Reports SHA bắt đầu phiên:
+`e8f4405998dd216bbed56ed03d9227431021b6cc`).
+
+**Đây LÀ một Owner Decision** (đóng hai câu hỏi filtering còn mở từ
+`DEC-151` §7) **cộng** một Scope Lock/Completion Gate kỹ thuật (thẩm quyền
+của phiên viết task spec, không phải Owner Decision).
+
+Repo được audit thêm (không thay đổi):
+`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`.
+**0 file thay đổi.**
+
+Decision:
+
+**1. Q1 — NCC retired/MIN_LOAI hồi tố — CLOSED.**
+
+```
+Trạng thái NCC HIỆN TẠI (nghỉ, NCC_RETIRED, NCC_MIN_LOAI, hay không còn
+dùng trong bảng giá) KHÔNG được áp ngược về quá khứ.
+
+Nếu tại ngày D, phist/<mã>/<NCC> có record hợp lệ theo
+Price(NCC,D) = record gần nhất có date <= D, thì giá đó VẪN là candidate
+của HistoricalVendorPrice(D) — bất kể trạng thái NCC đó hôm nay ra sao.
+```
+
+**2. Q2 — Outlier threshold hồi tố — CLOSED.**
+
+```
+NGUONG_BAT_THUONG (ngưỡng lọc giá bất thường hiện tại, thêm pe-6,
+24/08/2026) KHÔNG được áp ngược cho dữ liệu trước khi rule đó có
+historical authority.
+
+Phase 1 HistoricalVendorPrice:
+  candidates(D) = mọi NCC có historical price hợp lệ tại D (loại sentinel
+                  0 = hết hàng)
+  HistoricalVendorPrice(D) = MIN(candidates(D))
+  Không có candidate hợp lệ → HistoricalVendorPrice = None → Pending
+
+Không dùng: current _c.min; current inv.cong; current NCC exclusion
+config; current outlier threshold để sửa quá khứ; nearest future price;
+current price; suy đoán.
+```
+
+**3. Data quality / outlier — ghi nhận, không mở rộng scope.** Một
+historical vendor price cực thấp không được âm thầm loại bỏ bằng outlier
+rule hiện tại (đúng Q2). Một tín hiệu diagnostic/review CÓ THỂ được tạo
+sau này nếu không đổi kết quả nghiệp vụ, nhưng KHÔNG được tự thay
+`HistoricalVendorPrice`, KHÔNG biến warning thành exclusion, và KHÔNG mở
+rộng `TASK-105C` để xây hẳn một review system trong Phase 1 — ghi
+HARDENING/BACKLOG.
+
+**4. Phase 1 Price Authority — chốt cuối, không đổi từ `DEC-151`.**
+
+```
+Canonical: phist/<MÃ>/<NCC>/<YYYY-MM-DD>
+Lookup: Price(NCC,D) = giá tại record có max(record_date) <= D
+HistoricalVendorPrice = min(valid_prices) nếu valid_prices khác rỗng,
+                         else None
+KHÔNG dùng _c.min. KHÔNG dùng inv.cong trong Phase 1. KHÔNG backdate.
+```
+
+**5. Product identity — dependency được đặt tên tường minh, không tự vá.**
+Đường `Reports sale line → canonical product identity → Tracking <MÃ> →
+phist` **không có** mapping production đáng tin cậy hôm nay. Xác nhận lại
+`DEC-147` §56: Tracking có mã ổn định, nhưng đó là khoá CỦA TRACKING —
+không khớp trực tiếp `product_raw` của Reports. Repo B đã thử fuzzy-style
+matching (`extractCode()`) trên đúng loại dữ liệu này và **bỏ hẳn** vì sai
+trên tài sản thật (`DEC-147` §56) — tiền lệ production ủng hộ lệnh cấm
+fuzzy matching của `OD-105B-01` §B.
+
+⇒ **Quyết định:** `HistoricalVendorPriceProvider.lookup(product_code,
+sale_date)` đòi `product_code` **đã là** một `<MÃ>` Tracking được giải
+quyết chắc chắn. Không tự dịch, không đoán. Mapping không xác định chắc
+chắn ⇒ `Pending`. Việc xây bảng dịch `product_raw` ↔ `<MÃ>` là một
+**dependency riêng, chưa mở, chưa có task ID** — ghi rõ ở
+`docs/tasks/TASK-105C-historical-vendor-price-provider.md`, không phát
+minh fuzzy matching để né nó.
+
+**6. Snapshot/reproducibility — minimum mechanism, không xây database
+mới.** `fetch (Tracking RTDB, read-only, ngoài app/modules/) → normalize
+(hàm thuần trong app/modules/pricing/) → file snapshot BẤT BIẾN (không
+ghi đè) → HistoricalVendorPriceProvider đọc đúng một capture_id cụ thể`.
+Một report cụ thể ghim vào đúng một `capture_id`; chạy lại sau này đọc lại
+đúng file đó, miễn nhiễm với việc `phist` bị sửa/xoá sau đó (`DEC-147` §54
+R4 vẫn đúng — đây là cơ chế đối phó, không phải phủ nhận rủi ro). Không
+yêu cầu sửa Tracking. Không biến `TASK-105C` thành một hệ database mới.
+
+**7. Manual Pending — chỉ cần seam, không cần implement toàn bộ UI.**
+`TASK-105C` xác định **contract** (record đầu ra mang đủ provenance để
+resolve tay sau này bám đúng dòng/đơn/mã) nhưng **không bắt buộc** implement
+toàn bộ quy trình xử lý tay trong phiên implementation của `TASK-105C`.
+
+**8. Canonical task spec — tạo mới.**
+`docs/tasks/TASK-105C-historical-vendor-price-provider.md` — 24 mục đầy đủ
+theo yêu cầu (Purpose; Business semantics; Historical authority; Product
+identity contract; Date lookup; Sentinel; Multi-NCC MIN; Missing-data/
+Pending; Reproducibility/snapshot; Provenance; Error semantics; RTDB
+boundary; Reports/Tracking boundary; No-fuzzy-matching; No-backdating;
+Test strategy; Golden impact; Risk classification; Review Budget; Scope
+Lock; Completion Gate; Out-of-scope; Dependency map; TASK-108B handoff).
+
+**9. Scope Lock — FROZEN.** Phạm Vi / Ngoài Phạm Vi / Phạm Vi Tác Động Dự
+Kiến ghi trong file task, cùng thẩm quyền với `DEC-152` này. Sửa sau khi
+frozen phải qua `SCOPE EXPANSION REQUIRED`, không âm thầm.
+
+**10. Completion Gate — FROZEN, 20 check.** `CHECK-105C-01`…`CHECK-105C-20`
+map trực tiếp A–T của đề bài audit gốc: exact lookup; carry-forward ≤ D;
+không lấy future record; loại sentinel 0; multi-NCC MIN; retired NCC
+không đổi lịch sử; exclusion config hiện tại không rewrite lịch sử;
+outlier rule hiện tại không rewrite lịch sử; `_c.min` không được đọc;
+`inv.cong` không backdate; missing history → Pending; mapping mơ hồ →
+Pending; không fuzzy matching; VND boundary đúng biên; deterministic
+snapshot/replay; provenance đủ truy ngược; source failure ≠ determined
+absence; Tracking repo không bị sửa; Golden không bị rewrite; full
+regression không phát sinh mới. Toàn bộ `Status = NOT_TESTED` (chưa
+implementation, đúng `EVIDENCE_STANDARD` — không được khẳng định PASS mà
+không có bằng chứng thật).
+
+**11. Kiến trúc thực thi (quyết định kỹ thuật của phiên, không phải Owner
+Decision).** `HistoricalVendorPriceProvider` **compose** `FilePriceProvider`
+(đọc file snapshot 4-cột đã sinh) thay vì viết lại validation/parsing.
+Script fetch mạng (`tools/pricing/export_historical_vendor_prices.py`)
+tách hẳn khỏi `app/modules/pricing/`, giữ đúng ranh giới `ADR-101` (không
+mạng trong Phase 1 core). Đây là lựa chọn "ít thay đổi nhất mà vẫn đảm bảo"
+đúng tinh thần `DEC-149` §78/OPTION D — tái dùng nguyên vẹn validation đã
+có thẩm quyền từ `DEC-145` thay vì nhân đôi logic.
+
+**12. Verdict.**
+
+```
+TASK-105C
+    SEMANTIC_DEFINITION = COMPLETE
+    SCOPE_LOCK           = COMPLETE
+    IMPLEMENTATION        = READY
+    (chờ TASK-105B DONE trước/cùng lúc — dependency cứng, không phải
+    blocker mới)
+
+TASK-105B
+    KHÔNG ĐỔI — vẫn READY về kỹ thuật, CHƯA implement. Trở thành
+    dependency BẮT BUỘC (không chỉ "khuyến nghị") cho TASK-105C, vì
+    HistoricalVendorPriceProvider compose nó.
+
+TASK-108B
+    BLOCKED_BY = [ 1. TASK-105C implementation; 2. product identity
+                   mapping (dependency mới đặt tên, chưa mở task);
+                   3. TASK-105B-Q3 ]
+    KHÔNG còn BLOCKED_BY: bất kỳ câu hỏi filtering/kiến trúc/field-
+    selection nào — toàn bộ đã đóng qua DEC-147→152.
+```
+
+Reason:
+
+**1. Vì sao Q1/Q2 đóng theo hướng "không lọc gì" thay vì thử đoán ý Owner
+đã lọc sẵn.** Đề bài (và `DEC-151` trước đó) đã tường minh cấm suy đoán
+business rule filtering từ code — hai câu hỏi đó CHỈ có thể đóng bằng lời
+Owner trực tiếp, không phải bằng phân tích thêm. Owner chọn "không lọc" —
+đơn giản nhất, khớp đúng semantics literal mà chính Owner đã mô tả ở
+`DEC-151` §3/§4 mà không thêm điều kiện nào.
+
+**2. Vì sao product identity mapping được đặt tên là dependency thay vì
+được "giải quyết tạm" bằng text-matching.** `TASK-105`'s tiền lệ interim
+("dùng `product_raw` làm khoá tạm") hoạt động cho `FilePriceProvider` vì
+đó là một không gian khoá TỰ NHẤT QUÁN (Reports tự đặt tên trong file của
+chính mình). Nó KHÔNG hoạt động cho `HistoricalVendorPriceProvider` vì
+`phist` sống trong không gian khoá CỦA TRACKING (`<MÃ>`) — một hệ thống
+khác, độc lập. Đánh đồng hai tình huống sẽ lặp lại đúng lỗi
+`extractCode()` đã thất bại.
+
+**3. Vì sao chọn compose `FilePriceProvider` thay vì một class hoàn toàn
+mới.** Giảm bề mặt cần review/test (validation 4-cột đã qua `CHECK-105B-
+01`…`16`), và giữ đúng ranh giới `ADR-101` một cách tự nhiên: phần duy nhất
+chạm mạng (`tools/pricing/`) không cần nằm trong `app/modules/`, nên không
+đe doạ tính "thư viện Python thuần" của Phase 1.
+
+Risk:
+
+`Effective Risk = HIGH` — không đổi (V4.1 §4, data path). Quyết định này
+KHÔNG làm rủi ro cao hơn hay thấp hơn; nó khoá lại chính xác những gì cần
+đúng trước khi code chạm vào con số ảnh hưởng lương.
+
+Rủi ro cụ thể của chính bản ghi này:
+
+- **Q1/Q2 "không lọc gì" có thể cho ra giá thấp bất thường (garbage NCC
+  quote) làm `HistoricalVendorPrice` sai trong một số ít trường hợp.**
+  Đây là đánh đổi CÓ Ý THỨC của Owner (mục 3 ở trên) — chấp nhận trong
+  Phase 1, có đường mở review signal sau nếu cần, không tự vá bây giờ.
+- **Nếu implementation sau này tự tiện thêm fuzzy matching để "tăng tỉ lệ
+  khớp mã"** — vi phạm trực tiếp `CHECK-105C-13` và `OD-105B-01` §B. Giảm
+  nhẹ: check đã có sẵn trong Completion Gate frozen, không cần đợi review
+  phát hiện.
+- **`TASK-105B` chưa DONE nhưng `TASK-105C` đã Scope Lock** — rủi ro thứ tự
+  công việc, không phải rủi ro dữ liệu: nếu `TASK-105B` implement khác đi
+  so với contract `DEC-145` (không nên xảy ra vì đã frozen từ trước), việc
+  compose sẽ phải điều chỉnh. Giảm nhẹ: ghi rõ ở Dependencies/Ready Gate
+  của file task, không giả định `TASK-105B` đã xong.
+
+Impact:
+- `PROJECT/PROJECT_DECISIONS.md` — DEC này (ID cấp sau khi quét namespace
+  toàn repo; `DEC-152` xác nhận trống).
+- `docs/tasks/TASK-105C-historical-vendor-price-provider.md` — file MỚI,
+  canonical spec, Scope Lock + Completion Gate frozen tại DEC này.
+- `PROJECT/PROJECT_PROGRESS.md` — đóng Q1/Q2; `TASK-105C` chuyển
+  `SEMANTIC_DEFINITION = COMPLETE`, `SCOPE_LOCK = COMPLETE`,
+  `IMPLEMENTATION = READY`.
+- `PROJECT/LO_TRINH_DE_HIEU.md` — cập nhật bước 11b, đóng hai câu hỏi nhỏ
+  còn lại bằng ngôn ngữ phổ thông.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — ghi nhận; không tiêu repair cycle
+  (Scope Lock recording, không phải repair).
+- `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` — Phần XI (con
+  trỏ ngắn tới file task mới, không lặp nội dung).
+- `docs/sessions/S029-task-105c-final-decision-scope-lock.md` — bàn giao.
+- **Không** sửa `app/**`, `config/**`, `tests/**`, Golden fixture/expected,
+  `TASK-110`, `CHECK-110-16`, `R1-A1`, `governance/**`.
+- **Không** sửa repo B (`Tracking`) — 0 file.
+
+Can Revisit After:
+- `TASK-105C` implementation thật chạy — session sau, dùng đúng Scope Lock
+  + Completion Gate đã frozen ở đây. Không đổi Completion Gate mà không
+  qua `COMPLETION GATE CHANGE PROPOSAL`.
+- Product identity mapping có lời giải (task riêng, hoặc Owner cấp bảng
+  trực tiếp) ⇒ `TASK-108B` hết blocker thứ 2.

@@ -366,15 +366,20 @@ mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-10
 
 ```
 SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
-IMPLEMENTATION (FilePriceProvider)  = KHÔNG ĐỔI bởi DEC-151 — contract §38
-                                giữ nguyên, vai trò bootstrap/fixture độc
-                                lập với nguồn giá lịch sử được chọn cho
-                                TASK-105C
+IMPLEMENTATION (FilePriceProvider)  = KHÔNG ĐỔI, nay là DEPENDENCY CỨNG
+                                cho TASK-105C (HistoricalVendorPriceProvider
+                                compose FilePriceProvider, DEC-152 §11) —
+                                chưa DONE, phải implement trước/cùng lúc
 
-HistoricalVendorPriceProvider (TASK-105C, tên đề xuất sau DEC-151, thay
-RTDBPriceProvider) = OWNER_DECISION_REQUIRED, hẹp còn 2 câu hỏi (DEC-151 §7):
-  Q1 — NCC retired/MIN_LOAI hồi tố; Q2 — outlier threshold hồi tố.
-  Q1/Q2 KHÔNG chặn mở implementation (mặc định an toàn = không lọc).
+HistoricalVendorPriceProvider (TASK-105C, tên chính thức từ DEC-152)
+    SEMANTIC_DEFINITION = COMPLETE
+    SCOPE_LOCK           = COMPLETE
+    IMPLEMENTATION        = READY (chưa bắt đầu)
+    Canonical spec: docs/tasks/TASK-105C-historical-vendor-price-provider.md
+    (Scope Lock + Completion Gate 20 check, FROZEN tại DEC-152)
+    Dependency riêng, chưa mở task: product identity mapping
+    (product_raw ↔ <MÃ> Tracking) — không chặn implement/test provider,
+    chặn kết quả không-Pending trên dữ liệu thật.
 ```
 
 **`DEC-151` (2026-08-27, Owner Decision) — đóng dứt điểm 4/5 câu hỏi cũ
@@ -386,6 +391,18 @@ thiếu căn cứ → `Pending` chủ đích. `DEC-149` OPTION B (capture cả
 `_c.min` lẫn `inv.cong`) **không còn là khuyến nghị hiện hành**. Chi tiết:
 `DEC-151`, `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
 `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
+
+**`DEC-152` (2026-08-27, Owner Decision cuối) — đóng Q1/Q2, Scope Lock +
+Completion Gate FROZEN.** Q1 (NCC retired/MIN_LOAI hồi tố) và Q2 (outlier
+threshold hồi tố) **CLOSED** — cả hai KHÔNG áp ngược; Phase 1 = MIN qua
+mọi candidate hợp lệ, loại sentinel `0`, không lọc gì thêm. Kiến trúc thực
+thi: `HistoricalVendorPriceProvider` compose `FilePriceProvider` (đọc file
+snapshot bất biến do một script export sinh ra, tách khỏi
+`app/modules/pricing/`) — thay hẳn `DEC-149` OPTION B. Canonical task spec
+mới: `docs/tasks/TASK-105C-historical-vendor-price-provider.md`. Product
+identity mapping (`product_raw` ↔ `<MÃ>`) đặt tên tường minh làm dependency
+riêng, không tự vá bằng fuzzy matching. Chi tiết: `DEC-152`,
+`docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
 
 *(Đoạn dưới đây — từ `DEC-147` — giữ lại nguyên văn làm bản ghi lịch sử.
 Trạng thái CURRENT nằm ở khối trên và ở `DEC-151`, không phải ở đây.)*
@@ -716,3 +733,33 @@ Owner Extension, và **không** cấp thêm repair cycle.
   **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-151`,
   `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
+
+- 2026-08-27 — `DEC-152` (**Owner Decision cuối** + Scope Lock/Completion
+  Gate) — đóng Q1 (NCC retired/MIN_LOAI hồi tố) và Q2 (outlier threshold
+  hồi tố), cả hai **CLOSED**: trạng thái NCC/config HIỆN TẠI không được áp
+  ngược cho quá khứ; Phase 1 = MIN qua mọi candidate hợp lệ tại D (loại
+  sentinel `0`), không lọc gì thêm. Tạo
+  `docs/tasks/TASK-105C-historical-vendor-price-provider.md` — canonical
+  spec 24 mục, Scope Lock (Phạm Vi/Ngoài Phạm Vi/Vùng Tác Động), Completion
+  Gate 20 check (`CHECK-105C-01`…`20`, toàn bộ `NOT_TESTED` — chưa
+  implementation). Kiến trúc thực thi: `HistoricalVendorPriceProvider`
+  compose `FilePriceProvider` (đọc file snapshot bất biến do
+  `tools/pricing/` sinh ra, tách khỏi `app/modules/pricing/` — giữ ranh
+  giới `ADR-101`); thay hẳn `DEC-149` OPTION B. Xác định rõ dependency
+  chưa đóng: mapping `product_raw` (Reports) ↔ `<MÃ>` (Tracking) — chưa mở
+  task, **không** tự vá bằng fuzzy matching (`OD-105B-01` §B, tiền lệ
+  `extractCode()` thất bại — `DEC-147` §56). `TASK-105B` trở thành
+  dependency CỨNG (chưa DONE) cho `TASK-105C`.
+  Verdict: `TASK-105C` `SEMANTIC_DEFINITION = COMPLETE`,
+  `SCOPE_LOCK = COMPLETE`, `IMPLEMENTATION = READY`. `TASK-108B`
+  `BLOCKED_BY` = [`TASK-105C` implementation (kèm `TASK-105B`), product
+  identity mapping, `TASK-105B-Q3`] — không còn câu hỏi nghiệp vụ nào chờ
+  Owner.
+  Đây là **Owner Decision + Scope Lock recording, không phải repair
+  cycle** — ngân sách mọi lineage không đổi: `TASK-105B` 2/0/2 (dùng
+  chung cho `TASK-105C`), `TASK-108B` 2/0/2, `TASK-110`
+  `EXHAUSTED_PRE_V4.1` remaining = 0, `TASK-GOLDEN-BASELINE-001`
+  remaining = 1 UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-152`,
+  `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
+  `docs/sessions/S029-task-105c-final-decision-scope-lock.md`.

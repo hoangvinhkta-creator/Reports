@@ -70,6 +70,29 @@ KNOWN_EXEMPT_PAIRS = {
     # Subtask 03.4 của chính task file này: trích dẫn token lỗi làm ví dụ
     # minh họa cho loại reference cần loại trừ.
     ("docs/tasks/TASK-REM-T03-validator-hardening.md", "OPTIONAL_ENFORCEMENT_LAYER.md"),
+    # TASK-105C (DEC-152) Scope Lock: forward-reference tới các file mà
+    # TASK-105C implementation (READY, chưa IN_PROGRESS) sẽ tạo — đúng module
+    # code (app/modules/pricing/), export tool (tools/pricing/), và test suite
+    # (tests/) được mô tả trong Scope Lock/Completion Gate, chưa tồn tại vì
+    # chưa implementation.
+    ("docs/tasks/TASK-105C-historical-vendor-price-provider.md",
+     "app/modules/pricing/historical_vendor_price.py"),
+    ("docs/tasks/TASK-105C-historical-vendor-price-provider.md",
+     "app/modules/pricing/historical_vendor_price_provider.py"),
+    ("docs/tasks/TASK-105C-historical-vendor-price-provider.md",
+     "tools/pricing/export_historical_vendor_prices.py"),
+    ("docs/tasks/TASK-105C-historical-vendor-price-provider.md",
+     "tests/test_historical_vendor_price.py"),
+    ("docs/tasks/TASK-105C-historical-vendor-price-provider.md",
+     "tests/test_historical_vendor_price_provider.py"),
+    # DEC-152 trong PROJECT_DECISIONS.md: cùng forward-reference tới export
+    # tool mà TASK-105C sẽ tạo, trích dẫn trong phần mô tả kiến trúc.
+    ("PROJECT/PROJECT_DECISIONS.md",
+     "tools/pricing/export_historical_vendor_prices.py"),
+    # S029 (bàn giao session DEC-152): cùng forward-reference, trong phần
+    # "File Đã Thay Đổi" liệt kê những gì TASK-105C sẽ tạo ở phiên sau.
+    ("docs/sessions/S029-task-105c-final-decision-scope-lock.md",
+     "tools/pricing/export_historical_vendor_prices.py"),
 }
 
 

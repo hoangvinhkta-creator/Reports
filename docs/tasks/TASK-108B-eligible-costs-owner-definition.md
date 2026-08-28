@@ -2505,3 +2505,40 @@ fixture/expected, `TASK-110`, `CHECK-110-16`. Không mở `TASK-103`,
 `TASK-109`, `R1-A2`→`R8`. Không tạo repair cycle, không mở Independent
 Review. **Không sửa repo B.** Chưa viết `docs/tasks/TASK-105C-*.md`: vẫn
 chờ Q1/Q2 trước khi Scope Lock + Completion Gate có thể chốt.
+
+*(Phần X SUPERSEDED một phần bởi Phần XI — Q1/Q2 đã CLOSED, file task đã
+viết. Giữ nguyên văn Phần X làm lịch sử.)*
+
+---
+
+# PHẦN XI — Q1/Q2 CLOSED, SCOPE LOCK COMPLETE (append 2026-08-27)
+
+> Authority: `DEC-152`. Phiên:
+> `docs/sessions/S029-task-105c-final-decision-scope-lock.md`. Nội dung
+> đầy đủ nay sống ở
+> `docs/tasks/TASK-105C-historical-vendor-price-provider.md` (canonical
+> spec, Scope Lock, Completion Gate 20 check) — phần này chỉ là **con trỏ
+> ngắn**, không lặp lại.
+
+```
+Q1 (NCC retired/MIN_LOAI hồi tố)   = CLOSED — không áp ngược
+Q2 (outlier threshold hồi tố)      = CLOSED — không áp ngược
+TASK-105C  SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
+           IMPLEMENTATION = READY (chưa bắt đầu)
+TASK-105B  dependency CỨNG cho TASK-105C (chưa DONE)
+Dependency riêng, chưa mở task: product identity mapping
+           (product_raw ↔ <MÃ> Tracking) — cấm fuzzy matching
+TASK-108B  BLOCKED_BY = [ TASK-105C implementation (kèm TASK-105B),
+                          product identity mapping, TASK-105B-Q3 ]
+           KHÔNG còn câu hỏi nghiệp vụ nào chờ Owner cho nguồn giá lịch sử
+```
+
+## STOP (Phần XI)
+
+Không implementation trong phiên `DEC-152`. Không sửa `app/**`,
+`config/**`, `tests/**`, Golden fixture/expected, `TASK-110`,
+`CHECK-110-16`. Không mở `TASK-103`, `TASK-108B` implementation,
+`R1-A2`→`R8`. Không tạo repair cycle, không mở Independent Review.
+**Không sửa repo B.** `TASK-105C` implementation là phiên tiếp theo, theo
+đúng Scope Lock + Completion Gate đã frozen ở
+`docs/tasks/TASK-105C-historical-vendor-price-provider.md`.

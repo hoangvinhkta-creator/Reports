@@ -139,18 +139,23 @@ R1-A2 → R8 = OWNER_EXTENSION REQUIRED — không unit nào tự mở
 ```
 SEMANTIC_DEFINITION   = APPROVED   (đầy đủ — formula đã được Owner xác nhận, DEC-144 §1)
 IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
-BLOCKED_BY_DEPENDENCY = [ 1. hai câu hỏi filtering hẹp — NCC retired/
-                             MIN_LOAI hồi tố (Q1) và outlier threshold hồi
-                             tố (Q2), CHỈ ảnh hưởng độ chính xác, KHÔNG
-                             chặn mở implementation (DEC-151 §7),
-                          2. TASK-105B-Q3 (dòng phụ) ]
-                          — BỎ (ĐÃ ĐÓNG bởi DEC-151): "chủ dự án chốt
-                            trường nào là AccountingPurchasePrice" (đã
-                            chốt = HistoricalVendorPrice từ phist);
+BLOCKED_BY_DEPENDENCY = [ 1. TASK-105C implementation thật (Scope Lock +
+                             Completion Gate đã FROZEN, DEC-152 — kèm
+                             TASK-105B làm dependency cứng, chưa DONE),
+                          2. product identity mapping (product_raw Reports
+                             ↔ <MÃ> Tracking — dependency mới đặt tên tại
+                             DEC-152 §5, chưa mở task, cấm fuzzy matching),
+                          3. TASK-105B-Q3 (dòng phụ) ]
+                          — BỎ (ĐÃ ĐÓNG bởi DEC-151/DEC-152): "chủ dự án
+                            chốt trường nào là AccountingPurchasePrice"
+                            (đã chốt = HistoricalVendorPrice từ phist);
                             "tầng capture/export bất biến chưa tồn tại"
-                            (KHÔNG còn bắt buộc trong Phase 1 — Owner thu
-                            hẹp scope, DEC-151 §3/§9); "chưa xác định kiến
-                            trúc RTDB" (đã audit xong từ DEC-147)
+                            (KHÔNG còn bắt buộc trong Phase 1); "chưa xác
+                            định kiến trúc RTDB" (đã audit xong); hai câu
+                            hỏi filtering Q1/Q2 (NCC retired/MIN_LOAI hồi
+                            tố, outlier threshold hồi tố — CLOSED, DEC-152
+                            §1/§2). KHÔNG còn câu hỏi nghiệp vụ nào chờ
+                            Owner cho nguồn giá lịch sử.
 IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ] ← nội bộ TASK-108B,
                           KHÔNG phải blocker chờ Owner (DEC-144 §5)
 EligibleCosts         = {} (CLOSED EMPTY SET — không phải fallback = 0)
@@ -241,9 +246,9 @@ dưới. Giữ lại nguyên văn làm bản ghi lịch sử, không xoá.)*
 
 ```
 DISCOVERY      = COMPLETE (S024/DEC-147, S025/DEC-148, S026/DEC-149,
-                            S027/DEC-150)
-IMPLEMENTATION = OWNER_DECISION_REQUIRED  →  ĐÃ GỠ, xem "Cập nhật sau
-                 DEC-151" ngay dưới
+                            S027/DEC-150, S028/DEC-151, S029/DEC-152)
+SEMANTIC_DEFINITION = COMPLETE, SCOPE_LOCK = COMPLETE,
+IMPLEMENTATION = READY  →  xem "Cập nhật sau DEC-152" ngay dưới
 ```
 
 *(Khối `CONFLICT DETECTED`/`RTDBPriceProvider readiness` ở trên — SUPERSEDED
@@ -264,7 +269,10 @@ càng có ý nghĩa hơn** sau `DEC-151`: nó xác nhận `phist` (không phải
 
 **Cập nhật sau `DEC-151` (2026-08-27, cùng ngày, phiên tiếp theo) — OWNER
 DECISION, đóng `CONFLICT DETECTED` bằng THU HẸP PHẠM VI, không phải bằng
-chọn (A)/(B).**
+chọn (A)/(B).** *(Nguồn giá/scope reduction ở khối này vẫn ĐÚNG và CURRENT.
+Riêng trạng thái Q1/Q2 "BLOCKED_BY" bên dưới — SUPERSEDED bởi `DEC-152`:
+cả hai đã CLOSED. Xem "Cập nhật sau `DEC-152`" phía dưới khối này để có
+trạng thái hiện hành.)*
 
 Chủ dự án xác nhận: Reports **KHÔNG** cố tái dựng `_c.min` lịch sử. Nguồn
 giá lịch sử **DUY NHẤT** cho `AccountingPurchasePrice`/`KpiPurchasePrice`
@@ -331,6 +339,11 @@ Chi tiết đầy đủ: `DEC-151`,
 `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
 `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
 
+*(Khối "CONFLICT DETECTED (DEC-149 §71)" → "Khoá sản phẩm..." ngay dưới
+đây — bản ghi TỪ DEC-149, TRƯỚC `DEC-151`/`DEC-152` — SUPERSEDED. Giữ
+nguyên văn làm lịch sử; trạng thái CURRENT nằm ở "Cập nhật sau `DEC-152`"
+phía dưới cùng của khối này.)*
+
 **`CONFLICT DETECTED` (DEC-149 §71) — chưa giải quyết, không tự chọn.**
 `_c.min` (Min hiển thị trên board) tính bằng `min(giá NCC rẻ nhất còn hàng
 đã lọc outlier, tp.ton)` — `tp.ton` chính là `inv.cong` (`DEC-148`). Nghĩa là
@@ -369,6 +382,63 @@ Khoá sản phẩm (đóng câu hỏi cũ số 3): RTDB **đã có mã ổn đ�
 từ tên hàng bằng máy (`extractCode()`) và **bỏ hẳn** vì đoán sai trên tài sản
 thật, thay bằng bảng `inv.map` do người duyệt — tiền lệ production ủng hộ đúng
 lệnh cấm fuzzy matching của `OD-105B-01` §B. `DEC-145` §2 **không đổi**.
+
+*(Hết khối SUPERSEDED. Trạng thái CURRENT — cập nhật sau `DEC-152` — nằm
+ngay dưới đây.)*
+
+---
+
+**Cập nhật sau `DEC-152` (2026-08-27, cùng ngày, phiên tiếp theo) — OWNER
+DECISION cuối: đóng Q1/Q2 + Scope Lock/Completion Gate cho `TASK-105C`.**
+
+```
+Q1 — NCC retired/MIN_LOAI hồi tố  = CLOSED. Trạng thái NCC HIỆN TẠI KHÔNG
+     áp ngược. Giá lịch sử hợp lệ tại D vẫn là candidate.
+Q2 — Outlier threshold hồi tố     = CLOSED. NGUONG_BAT_THUONG hiện tại
+     KHÔNG áp ngược. Phase 1 = MIN qua mọi candidate hợp lệ (loại sentinel
+     0), không lọc gì thêm.
+```
+
+```
+TASK-105C
+    SEMANTIC_DEFINITION = COMPLETE
+    SCOPE_LOCK           = COMPLETE
+    IMPLEMENTATION        = READY
+    Canonical spec: docs/tasks/TASK-105C-historical-vendor-price-provider.md
+    (Scope Lock + Completion Gate 20 check, CHECK-105C-01…20, FROZEN)
+    Dependency CỨNG: TASK-105B (FilePriceProvider) — CHƯA DONE, phải
+    implement trước/cùng lúc (HistoricalVendorPriceProvider compose nó).
+    Dependency riêng, CHƯA MỞ TASK: product identity mapping
+    (product_raw ↔ <MÃ> Tracking) — không chặn implement/test provider
+    (dùng <MÃ> tổng hợp), CHẶN kết quả không-Pending ở quy mô trên dữ liệu
+    thật. KHÔNG được tự vá bằng fuzzy matching (OD-105B-01 §B, tiền lệ
+    extractCode() thất bại).
+```
+
+Kiến trúc thực thi (quyết định kỹ thuật của phiên, không phải Owner
+Decision): `HistoricalVendorPriceProvider` **compose** `FilePriceProvider`
+(đọc file snapshot 4-cột do một script export sinh ra), thay vì viết lại
+validation. Script fetch mạng (`tools/pricing/`) tách hẳn khỏi
+`app/modules/pricing/`, giữ đúng ranh giới `ADR-101`. Snapshot **bất
+biến**, không ghi đè — một report ghim vào đúng một `capture_id`, miễn
+nhiễm với việc `phist` bị sửa sau đó (`DEC-147` §54 R4).
+
+`DEC-149` OPTION B (capture cả `_c.min` lẫn `inv.cong`) **chính thức
+không còn áp dụng** — thay bằng kiến trúc compose `FilePriceProvider` ở
+trên, ít thay đổi hơn và không cần capture `_c.min` dưới bất kỳ hình thức
+nào.
+
+```
+TASK-108B  BLOCKED_BY = [ 1. TASK-105C implementation (bao gồm TASK-105B
+                          làm dependency cứng); 2. product identity mapping
+                          (dependency mới, chưa mở task); 3. TASK-105B-Q3 ]
+           KHÔNG còn BLOCKED_BY: bất kỳ câu hỏi filtering/kiến trúc/field-
+           selection nào — toàn bộ đã đóng qua DEC-147 → DEC-152.
+```
+
+Chi tiết đầy đủ: `DEC-152`,
+`docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
+`docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
 
 `TASK-105B-Q3` (chính sách zero-price dòng phụ) **không đổi, vẫn BLOCKED** bởi
 `TASK-103`/enumeration — độc lập hoàn toàn với nguồn giá. Audit evidence đang
@@ -470,29 +540,34 @@ phải việc agent tự làm tiếp được:
    (DEC-143 + DEC-144; `OD-108B-01` + `OD-108B-02`, 2026-08-27); C15 ĐÃ ĐÓNG.**
    Chuỗi audit nguồn giá `DEC-146` → `DEC-150` (RTDB discovery → source
    mismatch → `_c.min` path audit → popup verification) khép lại bằng
-   **`DEC-151` (Owner Decision, 2026-08-27): thu hẹp phạm vi**. Reports
-   KHÔNG dùng `_c.min`/`inv.cong` làm nguồn giá lịch sử nữa — nguồn DUY
-   NHẤT là `phist/<mã>/<NCC>/<ngày>`, với semantics
-   `Price(NCC,D) = record gần nhất ≤ D` rồi lấy MIN qua các NCC có căn cứ;
-   không đủ căn cứ → `Pending` có chủ đích, xử lý tay sau. `TASK-105B-Q3`
-   (dòng phụ) không đổi, vẫn chờ `TASK-103`. Xem
-   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III–X.
+   **`DEC-151` + `DEC-152` (Owner Decision, 2026-08-27): thu hẹp phạm vi +
+   chốt cuối.** Reports KHÔNG dùng `_c.min`/`inv.cong` làm nguồn giá lịch
+   sử — nguồn DUY NHẤT là `phist/<mã>/<NCC>/<ngày>`, với semantics
+   `Price(NCC,D) = record gần nhất ≤ D` rồi lấy MIN qua các NCC có căn cứ
+   (không lọc gì thêm ngoài sentinel `0` — Q1/Q2 CLOSED, `DEC-152`); không
+   đủ căn cứ → `Pending` có chủ đích, xử lý tay sau. `TASK-105B-Q3` (dòng
+   phụ) không đổi, vẫn chờ `TASK-103`. Xem
+   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III–XI,
+   `docs/tasks/TASK-105C-historical-vendor-price-provider.md`.
    *(Chi tiết `OD-108B-01` giữ nguyên bên dưới.)* `EligibleCosts = {}` (closed empty
    set), `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by
    definition`, canonical formula đã chốt.
-   `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY` — còn **2 blocker**, cả hai đã
-   hẹp và KHÔNG chặn việc mở implementation (chỉ ảnh hưởng độ chính xác của
-   nhánh không-Pending): (a) hai câu hỏi filtering `TASK-105C` (`DEC-151`
-   §7 — NCC retired/MIN_LOAI hồi tố, outlier threshold hồi tố — dùng mặc
-   định an toàn "không lọc" trong lúc chờ), (b) confirmed
-   `KpiPurchaseAdjustment` persistence. Xem
-   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21, Phần X.
+   `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY` — còn **3 blocker**, KHÔNG còn
+   câu hỏi nghiệp vụ nào chờ Owner: (a) `TASK-105C` implementation thật
+   (kèm `TASK-105B` làm dependency cứng — chưa DONE); (b) product identity
+   mapping (`product_raw` ↔ `<MÃ>` Tracking — dependency mới, chưa mở
+   task, cấm fuzzy matching); (c) confirmed `KpiPurchaseAdjustment`
+   persistence. Xem
+   `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` §19–21, Phần XI.
    `TASK-109` (summary_engine) vẫn theo sau `TASK-108B`.
-   **Next Product Task cụ thể:** mở `docs/tasks/TASK-105C-*.md`
-   (`HistoricalVendorPriceProvider`, Scope Lock + Completion Gate) — kỹ
-   thuật đã READY để bắt đầu với giả định mặc định an toàn cho Q1/Q2; hoặc,
-   nếu ưu tiên đóng dứt điểm trước khi code, xin chủ dự án trả lời Q1/Q2
-   trước.
+   **Next Product Task cụ thể:** implement `TASK-105B`
+   (`FilePriceProvider`, contract đã frozen từ `DEC-145`) rồi
+   `TASK-105C` (`HistoricalVendorPriceProvider`, Scope Lock + Completion
+   Gate FROZEN — `docs/tasks/TASK-105C-historical-vendor-price-provider.md`)
+   — cả hai kỹ thuật đã READY, không còn câu hỏi Owner nào phải chờ. Song
+   song: mở một task mapping sản phẩm (`product_raw` ↔ `<MÃ>`) nếu muốn
+   `TASK-108B` cho ra số không-Pending trên dữ liệu thật thay vì 100%
+   Pending.
 2. **`CHECK-110-16`** — vẫn `BLOCKED`, `Gate Class = POST_MERGE_PRODUCTION_ACCEPTANCE`
    (DEC-141). Chờ Owner cấp file thô toàn công ty 6 tháng (11.765 dòng) để
    đối chiếu; đây là nhánh **độc lập** với Golden Baseline (khác dataset —
@@ -619,48 +694,48 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         `PriceProvider` Protocol đã có sẵn, đọc `AccountingPurchasePrice`; tra
         theo `(normalized product_key, ngày đơn)`.
         **SEMANTIC_READINESS (Q1/Q2/Q3) = READY** (DEC-145, không đổi).
-        **KHÔNG ĐỔI bởi `DEC-151`** — contract §38 (schema 4 cột,
-        validation) vẫn đúng, độc lập với nguồn giá lịch sử được chọn.
-        Vai trò cụ thể (bootstrap/fixture, hay production nếu Owner sau
-        này cần) chờ cùng lúc với `TASK-105C`.
-  - [ ] TASK-105C — `HistoricalVendorPriceProvider` (đổi tên khái niệm từ
-        `RTDBPriceProvider` sau `DEC-151` — đề xuất, đặt tên chính thức là
-        việc của implementation session). Đọc TRỰC TIẾP `phist`, KHÔNG qua
-        `_c.min`/`inv.cong`.
-        **DISCOVERY = COMPLETE** (S024–S028, `DEC-147`–`DEC-151`).
-        **OWNER DECISION (DEC-151, 2026-08-27): đóng `CONFLICT DETECTED`
-        (DEC-149 §71) bằng THU HẸP PHẠM VI**, không phải bằng chọn (A)/(B):
-        Reports KHÔNG dùng `_c.min` làm nguồn nữa, nên câu hỏi "ý định thật
-        của công thức Min" không còn áp dụng.
+        **KHÔNG ĐỔI bởi `DEC-151`/`DEC-152`** — contract §38 (schema 4 cột,
+        validation) vẫn đúng. **Nay là DEPENDENCY CỨNG cho `TASK-105C`**
+        (`HistoricalVendorPriceProvider` compose `FilePriceProvider`,
+        `DEC-152` §11) — phải implement trước hoặc cùng lúc, không còn chỉ
+        là "khuyến nghị chờ cùng lúc".
+  - [ ] TASK-105C — `HistoricalVendorPriceProvider` (tên chính thức, thay
+        `RTDBPriceProvider`, chốt tại `DEC-152`). Đọc TRỰC TIẾP `phist`,
+        KHÔNG qua `_c.min`/`inv.cong`. **Vẫn `[ ]` — implementation thật
+        CHƯA chạy**, dù discovery/semantics/Scope Lock đã xong.
+        **DISCOVERY = COMPLETE. SEMANTIC_DEFINITION = COMPLETE. SCOPE_LOCK
+        = COMPLETE. IMPLEMENTATION = READY (chưa bắt đầu)** (`S024`–`S029`,
+        `DEC-147`–`DEC-152`).
+        Canonical spec:
+        `docs/tasks/TASK-105C-historical-vendor-price-provider.md` —
+        24 mục đầy đủ, Scope Lock, Completion Gate 20 check
+        (`CHECK-105C-01`…`20`, toàn bộ `NOT_TESTED`).
+        **Owner Decision cuối (`DEC-152`) đóng Q1/Q2:**
+        Q1 (NCC retired/MIN_LOAI hồi tố) = **CLOSED** — trạng thái NCC
+        HIỆN TẠI không áp ngược, giá lịch sử hợp lệ vẫn là candidate.
+        Q2 (outlier threshold hồi tố) = **CLOSED** — không áp ngược,
+        Phase 1 = MIN qua mọi candidate hợp lệ, loại sentinel `0`, không
+        lọc gì thêm.
         **Nguồn giá lịch sử DUY NHẤT: `phist/<mã>/<NCC>/<ngày>`.**
         `Price(NCC,D)` = record gần nhất ≤ D; `HistoricalVendorPrice(mã,D)`
-        = MIN qua mọi NCC có giá xác định (loại sentinel `0` = hết hàng);
-        `KpiPurchasePrice(mã,D)` = giá đó nếu xác định được, **else
-        Pending** — chủ đích, không suy đoán, không lấy giá hiện tại, cho
-        xử lý tay sau (explicit, có provenance, không rewrite `phist`,
-        không backdating).
-        `inv.cong`: **KHÔNG** áp ngược quá khứ, **KHÔNG bắt buộc** xây lịch
-        sử trong Phase 1. `MarketMinHistory`: **KHÔNG bắt buộc** trong
-        Phase 1. `DEC-149` OPTION B (capture cả hai) **không còn là khuyến
-        nghị hiện hành**.
-        **IMPLEMENTATION = OWNER_DECISION_REQUIRED, hẹp lại còn 2 câu hỏi
-        filtering** (`DEC-151` §7, audit xác nhận `phist` đủ dữ liệu, KHÔNG
-        cần giả định config hiện tại = config lịch sử — nhưng hai câu hỏi
-        NGHIỆP VỤ sau không suy ra được từ code):
-        Q1 — NCC hiện "retired"/"loại khỏi Min" có giá hợp lệ tại D (trước
-        khi trạng thái đó có hiệu lực) có tính vào `HistoricalVendorPrice`
-        không? Q2 — bộ lọc giá bất thường (`NGUONG_BAT_THUONG`, thêm
-        24/08/2026) có áp dụng hồi tố cho mốc trước ngày đó không?
-        Q1/Q2 **KHÔNG chặn** việc mở implementation — dùng mặc định an toàn
-        (không lọc, đúng y semantics đã chốt) trong lúc chờ, miễn ghi rõ
-        provenance là giả định tạm.
+        = MIN qua mọi NCC có giá xác định > 0; `KpiPurchasePrice(mã,D)` =
+        giá đó nếu xác định được, else **Pending** (chủ đích, xử lý tay
+        sau, explicit + provenance, không rewrite `phist`, không backdate).
+        `inv.cong`/`_c.min`/`MarketMinHistory`: **không bắt buộc** Phase 1.
+        `DEC-149` OPTION B: **không còn áp dụng** — thay bằng kiến trúc
+        compose `FilePriceProvider` (`DEC-152` §11), ít thay đổi hơn.
+        **Dependency riêng, CHƯA MỞ TASK:** product identity mapping
+        (`product_raw` Reports ↔ `<MÃ>` Tracking) — không chặn
+        implement/test provider (dùng `<MÃ>` tổng hợp), CHẶN kết quả
+        không-Pending ở quy mô trên dữ liệu thật. Cấm fuzzy matching
+        (`OD-105B-01` §B, tiền lệ `extractCode()` thất bại — `DEC-147`
+        §56).
         Rủi ro mang theo: `phist` sửa/xoá được (`DEC-147` §54 R4) —
-        provider phải đóng băng/snapshot dữ liệu đã dùng cho một báo cáo cụ
-        thể; `NCC_ALIAS` không hồi tố (nợ kỹ thuật nhỏ).
-        Chưa có `docs/tasks/TASK-105C-*.md`: chờ Q1/Q2 trước khi Scope Lock
-        + Completion Gate có thể chốt. Chi tiết:
-        `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X,
-        `DEC-151`.
+        provider phải đóng băng/snapshot bất biến theo `capture_id`, không
+        đọc `phist` sống mỗi lần chạy lại; `NCC_ALIAS` không hồi tố (nợ kỹ
+        thuật nhỏ). Chi tiết:
+        `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
+        `DEC-152`.
   - [ ] TASK-105B-Q3 — chính sách `AccountingPurchasePrice = 0` cho dòng phụ
         (`Policy:SupplementaryExpenseZeroPurchasePrice`). **BLOCKED** — cần
         `TASK-103` (Product/Transaction Classification, chưa làm) hoặc một danh
@@ -676,17 +751,24 @@ TASK-108 gốc đã tách làm ba (DEC-127, Gate v3):
         IMPLEMENTATION = BLOCKED_BY_DEPENDENCY.** `EligibleCosts = {}`,
         `DeliveryCost = NOT ELIGIBLE`, `OtherKpiAdjustment = 0`, formula chốt
         `(SellPrice − KpiPurchasePrice) × Quantity − Discount`. C15 **ĐÃ ĐÓNG**.
-        Sau **DEC-144 → DEC-151**: `CONFLICT DETECTED` ở `DEC-149` §71
-        **ĐÃ ĐÓNG** bởi `DEC-151` — Owner Decision thu hẹp phạm vi
-        `AccountingPurchasePrice` lịch sử về `HistoricalVendorPrice` tính
-        từ `phist`, loại `_c.min`/`inv.cong` khỏi vai trò nguồn (xem
-        `TASK-105C` ở trên). Blocker ngoại lai còn lại đã hẹp thành **hai
-        câu hỏi filtering không chặn mở implementation** (Q1/Q2, `DEC-151`
-        §7) cộng `TASK-105B-Q3` (dòng phụ, độc lập).
+        Sau **DEC-144 → DEC-152**: `CONFLICT DETECTED` ở `DEC-149` §71
+        **ĐÃ ĐÓNG** bởi `DEC-151`; Q1/Q2 filtering **ĐÃ ĐÓNG** bởi
+        `DEC-152` — Owner Decision thu hẹp phạm vi `AccountingPurchasePrice`
+        lịch sử về `HistoricalVendorPrice` tính từ `phist`, loại
+        `_c.min`/`inv.cong` khỏi vai trò nguồn, và chốt "không lọc gì
+        ngoài sentinel `0`" là quy tắc CUỐI cho Phase 1 (xem `TASK-105C` ở
+        trên — `SCOPE_LOCK = COMPLETE, IMPLEMENTATION = READY`). Blocker
+        ngoại lai còn lại: (1) `TASK-105C` implementation thật (kèm
+        `TASK-105B` làm dependency cứng); (2) product identity mapping
+        (`product_raw` ↔ `<MÃ>` Tracking — dependency mới, chưa mở task,
+        cấm fuzzy matching); (3) `TASK-105B-Q3` (dòng phụ, độc lập).
+        **KHÔNG còn** bất kỳ câu hỏi filtering/kiến trúc/field-selection
+        nào chờ Owner — toàn bộ đã đóng.
         `PendingPriceProvider` trả `None` vô điều kiện; Golden xác nhận
         100 % Pending trên dữ liệu production — chưa đổi, chờ implementation
         thật của `HistoricalVendorPriceProvider`.
-        `TASK-105B` không đổi — xem `TASK-105C` ở trên. Confirmed
+        `TASK-105B` **là dependency cứng**, chưa DONE — xem `TASK-105C` ở
+        trên. Confirmed
         `KpiPurchaseAdjustment` **hết là blocker semantic** (`OD-108B-02`);
         còn lại một yêu cầu cơ chế nội bộ (source khai báo rỗng để phân biệt
         absence với source-unavailable), thuộc phạm vi chính TASK-108B.

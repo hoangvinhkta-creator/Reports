@@ -224,12 +224,25 @@ giá của từng nhà cung cấp theo ngày (đúng loại giá công cụ vừ
 **không** phải lịch sử của số Min đang hiển thị. May mắn là đây đúng là
 nguồn công cụ cần, chỉ là tên gọi trên màn hình dễ gây hiểu lầm.
 
-**Còn hai câu hỏi kỹ thuật nhỏ, không cản việc bắt đầu làm:** nếu một nhà
-cung cấp đã "nghỉ bán" hoặc bị đánh dấu "không tính vào giá Min" ở thời
-điểm HIỆN TẠI, giá họ từng báo trong QUÁ KHỨ có tính hay không; và một luật
-lọc giá bất thường mới thêm gần đây có nên áp ngược cho các mốc giá cũ hơn
-hay không. Cả hai chưa có câu trả lời, nhưng công cụ vẫn làm được — dùng
-tạm cách an toàn nhất (không lọc gì, tính hết) cho tới khi có câu trả lời.
+**Hai câu hỏi kỹ thuật nhỏ đó — chủ dự án đã trả lời dứt điểm (cùng ngày,
+một phiên nữa sau đó):** giá một nhà cung cấp từng báo trong QUÁ KHỨ **vẫn
+được tính**, kể cả khi hôm nay nhà cung cấp đó đã "nghỉ bán" hay bị đánh
+dấu "không tính vào giá Min" — trạng thái hiện tại không được áp ngược về
+quá khứ. Và luật lọc giá bất thường mới thêm gần đây **không** áp ngược
+cho các mốc giá cũ hơn ngày luật đó có hiệu lực. Tóm lại: giai đoạn đầu
+tính đúng y "giá thấp nhất trong mọi báo giá còn tìm thấy", không lọc bớt
+gì thêm ngoài việc bỏ những ngày ghi "hết hàng".
+
+Với quyết định đó, phần **thiết kế kỹ thuật cho bước đọc giá nhập** cũng
+đã xong — có tài liệu riêng
+(`docs/tasks/TASK-105C-historical-vendor-price-provider.md`) mô tả chính
+xác cách tính, cách lưu lại một "bản chụp" dữ liệu để không bị đổi số về
+sau, và những phần nào chưa làm (cố ý, không phải thiếu sót). Một điểm cần
+biết: công cụ vẫn cần một bảng "dịch" tên hàng trên chứng từ bán hàng của
+mình sang đúng mã sản phẩm bên hệ thống giá — bảng này **chưa có**, và
+không được đoán chữ để tự tạo ra nó (đúng nguyên tắc không suy đoán). Cho
+tới khi có bảng dịch đó, phần lớn dòng bán hàng sẽ để trống chờ xử lý tay
+— không phải lỗi, mà là im lặng đúng cách khi chưa chắc chắn.
 
 Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập)
 **vẫn đúng làm định dạng dự phòng** (nạp dữ liệu ban đầu, hoặc dữ liệu mẫu
@@ -705,7 +718,7 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chủ dự án đã chốt nguồn** (đoạn "Chủ dự án đã quyết định" ở trên): lấy giá thấp nhất trong lịch sử báo giá nhà cung cấp tại đúng ngày bán, mã thiếu căn cứ để trống chờ xử lý tay. Kỹ thuật đã sẵn sàng để bắt đầu; còn hai câu hỏi nhỏ (NCC nghỉ bán tính hồi tố không, lọc giá bất thường hồi tố không) không cản việc làm — dùng cách an toàn nhất trong lúc chờ |
+| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chủ dự án đã chốt xong toàn bộ, kể cả hai câu hỏi nhỏ.** Thiết kế kỹ thuật đầy đủ đã có (`docs/tasks/TASK-105C-historical-vendor-price-provider.md`), sẵn sàng bắt đầu viết code. Còn một việc khác cần làm song song: bảng dịch tên hàng ↔ mã sản phẩm (chưa có, chưa chặn việc bắt đầu code, nhưng chặn việc có số thật thay vì để trống hàng loạt) |
 | ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
 | ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
