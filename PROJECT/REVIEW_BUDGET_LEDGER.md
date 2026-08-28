@@ -878,3 +878,24 @@ với chính default tip cũ).
   hoặc trước `FilePriceProvider` activation thật, tuỳ điều kiện nào tới
   trước. `app/**`, `tests/**`, `config/**` **không đổi một byte** qua phiên
   Freeze này.
+
+- 2026-08-28 — `TASK-105B` **CONTROLLED INTEGRATION** (cùng phiên trên).
+  Divergence trước integration: ahead=7 commit, LOC=3294, 0 ngày —
+  `WITHIN_LIMITS` (`branch_authority_check.sh`, dưới ngưỡng V4.1 §8).
+  Qua nhánh trung gian `integration/v4-1-task-105b-price-provider` (cắt từ
+  default tip `c49cb67`), merge `--no-ff` `review/task-105b-independent-review-1`
+  — **0 conflict** (merge-base = default tip cũ, review branch vốn đã là
+  fast-forward-able descendant thuần). Merge nhánh trung gian vào nhánh mặc
+  định bằng `--ff-only`. Post-integration validation trên nhánh trung gian:
+  production content byte-identical với reviewed SHA `c22cef8`; 4 file
+  production lõi diff = 0; `PendingPriceProvider` vẫn default; 0 caller
+  `FilePriceProvider` ngoài module/test; 0 code `TASK-105C`; targeted `33
+  passed`; Golden `58 passed, 2 skipped`; full `pytest -q` `730 passed, 11
+  skipped` (0 regression); 4 validator PASS; `validate_reference_integrity`
+  đúng 3 lỗi tiền tồn `TASK-REM-T06`; `git diff --check` sạch; worktree
+  CLEAN. `repair_cycles_used` vẫn `0`, `remaining` vẫn `2` — integration
+  không tiêu cycle. `TASK-105B = FROZEN + INTEGRATED`, **VẪN CHƯA `DONE`**
+  (Exit Criteria còn thiếu: bảng giá production thật nạp được — data
+  dependency đang mở). `HB-105B-07`/`HB-105B-08` re-trigger giữ nguyên,
+  chưa resolve — bắt buộc trước `TASK-105C` implementation hoặc trước
+  `FilePriceProvider` activation thật.

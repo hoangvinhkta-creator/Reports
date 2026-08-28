@@ -521,6 +521,59 @@ trong diff của phiên Freeze. `HB-105B-07`/`HB-105B-08` re-trigger giữ
 nguyên, chưa resolve. Chi tiết đầy đủ: `DEC-153`
 (`PROJECT/PROJECT_DECISIONS.md`).
 
+**Cập nhật sau CONTROLLED INTEGRATION (2026-08-28, cùng phiên "TASK-105B —
+FREEZE + CONTROLLED INTEGRATION").** Divergence trước integration đo bằng
+`branch_authority_check.sh`: ahead=7 commit, LOC=3294, 0 ngày —
+`WITHIN_LIMITS` (dưới ngưỡng V4.1 §8, không bắt buộc
+`INTEGRATION_DECISION_REQUIRED`, integrate vẫn thực hiện theo đúng khuôn
+Rollout Order `V4.1` §13). `merge-base(review branch, default) == default
+tip cũ` — review branch là fast-forward-able descendant thuần, 0 conflict
+kỳ vọng và xác nhận đúng khi merge.
+
+Qua nhánh trung gian `integration/v4-1-task-105b-price-provider` (cắt từ
+default tip `c49cb67`), merge `--no-ff` `review/task-105b-independent-review-1`
+(chứa implementation, Review A, Review B preserved-archived, reconciliation,
+Freeze) — **0 conflict**, merge commit `2301bf6`. Merge nhánh trung gian vào
+nhánh mặc định bằng `--ff-only` (fast-forward thuần — không tạo merge commit
+thứ hai, không squash, không rebase, không force push, giữ nguyên toàn bộ
+Git ancestry).
+
+Post-integration validation (chạy trên chính nhánh trung gian, trước khi
+ff-only vào default):
+
+```
+Production content check : git diff c22cef8 HEAD -- app/modules/pricing/file_price_provider.py = 0 (byte-identical với reviewed SHA)
+4 file production lõi    : diff c22cef8 HEAD -- app/pipeline.py price_engine.py provider.py models.py = 0
+Default provider          : app/pipeline.py vẫn PendingPriceProvider — không đổi
+FilePriceProvider caller  : grep -rn "FilePriceProvider" app/ tools/ config/ ngoài chính module = 0 hit
+TASK-105C code            : 0 file (chưa tồn tại)
+Targeted (test_file_price_provider.py) : 33 passed
+Golden (test_golden_baseline.py)       : 58 passed, 2 skipped (không đổi)
+Full pytest -q                         : 730 passed, 11 skipped (0 regression so baseline 697+11)
+4 validator (structure/project_state/evidence/task_completion) : PASS
+validate_reference_integrity                                    : đúng 3 lỗi tiền tồn TASK-REM-T06, 0 lỗi mới
+git diff --check                                                 : sạch
+worktree                                                          : CLEAN
+```
+
+Implementation SHA `c22cef8`, reconciliation SHA `95a7ae6`, Freeze SHA
+`b627109`, và cả hai artifact review gốc — toàn bộ **reachable** từ default
+sau integration (ancestor thật, không phải copy nội dung).
+
+`TASK-105B = FROZEN + INTEGRATED`. **VẪN CHƯA `DONE`** — Exit Criteria của
+chính `docs/tasks/TASK-105B-file-price-provider.md` còn đúng một mục chưa
+đạt: *"Bảng giá production thật nạp được"* (data dependency đang mở, không
+phải code blocker — chưa được chủ dự án cấp file trong phiên này). `DONE`
+chỉ được ghi khi mục đó đạt, đúng nguyên tắc CODE COMPLETE ≠ TASK COMPLETE
+(`governance/core/TASK_COMPLETION_GATE_STANDARD.md`).
+
+**NEXT AUTHORIZED ACTION = `TASK-105B` PRICE-PARSER MICRO-HARDENING**
+(`HB-105B-07` NaN + `HB-105B-08` Infinity) — bắt buộc **TRƯỚC**
+`TASK-105C` implementation hoặc trước `FilePriceProvider` activation thật,
+tuỳ điều kiện nào tới trước (điều kiện đi kèm verdict PASS, ghi tại `DEC-153`
+và tại reconciliation §5). Không thực hiện hardening trong phiên Freeze +
+Integration này.
+
 **Cập nhật sau RECONCILIATION (2026-08-28, phiên "TASK-105B — INDEPENDENT
 REVIEW RECONCILIATION").** Hai session Independent Review #1 độc lập chạy
 song song trên hai nhánh khác nhau (`review/task-105b-independent-review-1`
