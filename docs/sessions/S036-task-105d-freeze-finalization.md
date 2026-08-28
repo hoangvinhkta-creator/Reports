@@ -217,6 +217,38 @@ có, F-02 là chép ngữ nghĩa quy phạm đã tồn tại (§1, §6.6, `INV-2
 Song song, không bị chặn: refreeze `TASK-105C`; soạn Scope Lock + Completion
 Gate cho `TASK-105E`; Owner cung cấp dữ liệu thật.
 
+## Cảnh Báo Governance Phát Sinh — `V4.1` §8 Branch Divergence Limit
+
+Sau commit của phiên này, `scripts/branch_authority_check.sh` chuyển từ
+`WITHIN_LIMITS` sang:
+
+```text
+ahead default   : 4 commit          (ngưỡng: > 10)
+divergence days : 0                 (ngưỡng: > 3)
+cumulative LOC  : 5637              (ngưỡng: > 5.000)  ← VƯỢT
+DIVERGENCE      : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY       : BRANCH_WITH_UPSTREAM
+RESULT          : AUTHORITY_OK
+```
+
+`V4.1` §8 yêu cầu Owner chọn một trong ba, và cấm tiếp tục im lặng:
+
+```text
+(A) integrate/merge sớm
+(B) cắt scope
+(C) tiếp tục divergence có lý do + review date
+```
+
+Ghi chú để Owner quyết định đúng bối cảnh: toàn bộ 5637 LOC là
+documentation/governance (`git diff --shortstat 573e051..HEAD` →
+`16 files changed, 5573 insertions(+), 64 deletions(-)`), **0 dòng production**
+(`app/**`, `tests/**`, `config/**`, `tools/**`, `scripts/**`, `pyproject.toml`
+đều rỗng trong diff). Rủi ro integration vì vậy là rủi ro **xung đột văn bản**,
+không phải rủi ro hành vi. `AUTHORITY` vẫn `AUTHORITY_OK` — đây là một quyết
+định integration, không phải một vi phạm thẩm quyền.
+
+Phiên này **không** tự chọn phương án nào và **không** merge.
+
 ## STOP
 
 Phiên này dừng ở đây. Không implementation, không freeze, không merge, không
