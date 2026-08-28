@@ -79,13 +79,201 @@ như **hoàn tất**. Cùng lúc, **bộ quy tắc quản trị dự án phiên 
 sang có hiệu lực đầy đủ** (trước đó mới chỉ "đã thông qua chính sách", giờ ba
 cơ chế máy kiểm tra tự động đi kèm đã chứng minh chạy được trên bản chính).
 
-**Việc còn lại của Track A không phải governance nữa — mà là hai quyết định
-của chủ dự án:** (1) định nghĩa "chi phí đủ điều kiện" (`EligibleCosts`,
-mục C15) để mở tiếp bước 12b/13; (2) cấp file bán hàng thô toàn công ty 6
-tháng để đối chiếu bước 14's `CHECK-110-16` (khác việc vừa xong ở trên — đây
-là một bộ dữ liệu khác, toàn công ty thay vì chỉ Tín Phát). Không có việc nào
-trong hai việc này agent tự làm tiếp được nếu thiếu quyết định/dữ liệu từ chủ
-dự án.
+**Việc còn lại của Track A không phải governance nữa.** Quyết định thứ nhất —
+định nghĩa "chi phí đủ điều kiện" (`EligibleCosts`, mục C15) — **chủ dự án đã
+trả lời ngày 2026-08-27** (DEC-143). Câu trả lời: **không khoản chi phí nào
+được cộng thêm vào lợi nhuận tính KPI**, kể cả chi phí giao hàng. Nói cách
+khác, lợi nhuận tính KPI = tiền bán − chiết khấu − tiền nhập, đúng như cách
+công ty vẫn tính trong file Excel hiện tại; không thêm khoản nào mới.
+
+Nhưng bước 12b **vẫn chưa chạy được**, và lý do bây giờ khác trước: không phải
+thiếu quyết định nữa, mà **thiếu dữ liệu giá nhập**. Công cụ cần biết mỗi món
+hàng nhập vào bao nhiêu tiền thì mới tính được lợi nhuận — hiện **100 % số
+dòng đều để trống ô giá nhập**, vì chưa có bảng giá nào được nạp vào (bước 25
+của lộ trình). Đây không phải lỗi của công cụ: chủ dự án đã yêu cầu để trống
+chờ bảng giá (DEC-103).
+
+Quyết định thứ hai — cách xử lý **điều chỉnh giá nhập** (`Qua kho`, `NCC giao`,
+`KHBH`, `Thợ lắp`) — chủ dự án cũng **đã trả lời** ngày 2026-08-27 (DEC-144).
+Câu trả lời: dòng nào **đã xác định** là không có điều chỉnh thì dùng thẳng giá
+nhập kế toán; nhưng "chưa biết" thì **vẫn phải để trống**, không được coi là
+"không có điều chỉnh". Đây là điểm tinh tế và quan trọng: *thiếu thông tin*
+khác với *biết chắc là không có*.
+
+**Ba câu hỏi đó chủ dự án đã trả lời ngày 2026-08-27 (DEC-145)** — nội dung
+câu trả lời vẫn đúng: bảng giá ghi rõ ngày bắt đầu **và** ngày kết thúc, không
+cho hai mức giá chồng lấn; tên hàng khớp sau khi bỏ qua khoảng trắng thừa và
+hoa/thường (nhưng **không** bỏ dấu tiếng Việt, **không** đoán gần đúng); các
+dòng phí thì giá nhập = 0.
+
+**Nhưng ngay sau đó (cùng ngày, DEC-146), chủ dự án sửa lại một điểm quan
+trọng hơn cả ba câu hỏi trên: giá nhập KHÔNG nằm trong một file cố định.** Giá
+thay đổi liên tục trong ngày, và nơi lưu giá thật hiện tại là một cơ sở dữ
+liệu vận hành (Firebase Realtime Database — RTDB), không phải một file Excel/
+CSV Owner gõ tay một lần. Đây là thông tin mới, chưa từng xuất hiện ở bất kỳ
+đâu trong hồ sơ dự án trước đó.
+
+Điều này **không** làm hỏng ba câu trả lời ở trên — cách xác định "giá nào
+đúng cho ngày nào" và "tên hàng khớp thế nào" vẫn giữ nguyên, chỉ là áp dụng
+cho dữ liệu lấy từ RTDB thay vì từ file. Nhưng nó mở ra một câu hỏi quan trọng
+hơn: **hệ thống RTDB hiện tại có lưu lại lịch sử giá theo thời gian không, hay
+chỉ có giá hiện tại?** Nếu chỉ có giá hiện tại, công cụ sẽ gặp một vấn đề
+nghiêm trọng: tính lại báo cáo tháng 1 vào một ngày bất kỳ sau này phải ra
+đúng giá của tháng 1, không phải giá của ngày hôm tính lại — giống hệt nguyên
+tắc công ty đã chốt cho tỉ lệ quy đổi (không được để chính sách sau này làm
+đổi số liệu báo cáo cũ). Nếu RTDB không tự giữ lịch sử, công cụ cần thêm một
+bước "chụp lại" giá định kỳ, có ghi ngày — việc này cần chủ dự án xác nhận
+trước khi làm tiếp.
+
+Một điểm phải nói thẳng: phần "dòng phí thì giá nhập = 0" **chưa làm được
+ngay**. Chủ dự án đã yêu cầu công cụ dùng lại cách nhận diện dòng phí **có
+sẵn** thay vì tự bịa ra cách mới — yêu cầu đúng. Nhưng kiểm tra lại thì cách
+nhận diện có sẵn được xây cho việc **sắp xếp thứ tự đọc hàng chờ kiểm tra**,
+không phải để quyết định tiền, và tài liệu của chính nó ghi rõ là **tạm thời,
+cấm chỉnh sửa**. Dùng nó để định giá sẽ khiến sau này ai đó chỉnh cho hàng chờ
+bớt ồn lại vô tình đổi lương. Đo thử trên dữ liệu thật: nó bắt **36 dòng**
+trong khi đúng 3 nhóm chủ dự án nêu chỉ có **34** — dôi ra `Phụ Phí` và
+`Phụ Phí Đổi mới`. Nên phần này tách riêng, chờ bước 3 của lộ trình
+(`TASK-103` — phân loại dòng hàng) hoặc chờ chủ dự án cấp một danh sách liệt kê
+rõ ràng.
+
+**Cùng ngày đó, một phiên tiếp theo (DEC-147) đã mở chính kho mã của hệ thống
+giá ra đọc, và bốn trong năm câu hỏi trên nay đã có câu trả lời — không còn
+phải đoán.**
+
+**Tin tốt: RTDB CÓ lưu lịch sử giá.** Có hẳn một nhánh riêng ghi lại từng lần
+đổi giá kèm ngày (`phist`), và nó chỉ ghi khi giá thật sự đổi nên rất gọn. Hỏi
+"ngày 10/01 giá là bao nhiêu" thì hệ thống trả lời được: lấy mốc gần nhất
+trước hoặc bằng ngày đó. Nỗi lo lớn nhất ở đoạn trên — "chỉ có giá hiện tại" —
+**không xảy ra**.
+
+**Tin phải nói thẳng: loại giá có lịch sử lại không phải loại giá công cụ
+cần.** Hệ thống giá đang giữ ba loại giá khác nhau về bản chất:
+
+- **giá nhà cung cấp báo trong ngày** — đây là loại **có** lịch sử đầy đủ.
+  Nhưng nó là *báo giá*, không phải số tiền công ty đã thật sự trả cho lô hàng.
+  Một mã có thể có năm nhà cung cấp cùng báo giá trong cùng một ngày, và không
+  chỗ nào ghi đơn hàng cụ thể đã mua của ai;
+- **giá thực nhập trung bình** của hàng đang nằm trong kho — gần nghĩa kế toán
+  nhất, nhưng **không có lịch sử**: chỉ giữ đúng hai bản (hôm qua và hôm nay),
+  bản mới ghi đè bản cũ;
+- **giá lô** — tiền thật của lần nhập gần nhất, nhân viên gõ tay, cũng **không
+  có lịch sử**.
+
+Nói gọn: đây **không** phải lỗi kiến trúc như đã lo, mà là **chọn nhầm nguồn
+nếu vội**. Lấy loại đầu tiên chỉ vì nó dễ lấy và có sẵn lịch sử là đúng cái bẫy
+mà quy tắc "không được thấy một cột tên là *giá* rồi mặc định đó là giá nhập"
+tồn tại để chặn.
+
+Ba điều nữa tìm ra trong lượt đọc mã, đều ảnh hưởng trực tiếp tới con số:
+
+- **Hệ thống giá lưu tiền theo đơn vị NGHÌN đồng** (5.200 nghĩa là 5,2 triệu),
+  còn công cụ báo cáo lưu theo đồng nguyên. Sai chỗ này là sai đúng 1.000 lần,
+  và sai *đều* nên nhìn bảng không phát hiện ra.
+- **Số 0 trong lịch sử giá nghĩa là "hết hàng", không phải "giá bằng 0".** Đọc
+  nhầm là biến một mã hết hàng thành lãi bằng đúng giá bán.
+- **Lịch sử giá sửa được.** Có bốn thao tác bình thường trong app (xoá mốc từ
+  một ngày, đổi mã hàng, gộp hai mã, khôi phục bảng cũ) làm lịch sử thay đổi
+  hoặc lệch đi. Nghĩa là in lại cùng một báo cáo hai lần vẫn có thể ra hai số —
+  đúng điều công ty đã chốt là không được phép. Vì vậy công cụ phải **tự chụp
+  và đóng băng** dữ liệu đã dùng, chứ không đọc thẳng.
+
+**Hướng đi đề xuất:** thêm một bước "chụp giá định kỳ" ghi lại thành một bản
+lưu **không sửa được**, rồi công cụ báo cáo đọc bản lưu đó theo đúng định dạng
+4 cột đã chốt. Cách này giữ hai hệ thống tách rời, không hệ nào phụ thuộc mã
+nguồn của hệ nào.
+
+**Việc còn lại cần chủ dự án — năm câu hỏi mới** (thay năm câu cũ, đã trả lời
+được 4/5 bằng chính mã nguồn):
+
+1. **Giá nhập kế toán là loại nào trong ba loại trên?** Đây là câu hỏi chính,
+   và không ai ngoài chủ dự án trả lời được.
+2. Nếu chọn "giá nhà cung cấp báo": một mã có nhiều nhà cung cấp cùng ngày thì
+   lấy của ai — rẻ nhất, hay nhà cung cấp đã thật sự mua?
+3. Chấp nhận độ chính xác **theo ngày** không? (giá đổi nhiều lần trong ngày
+   thì chỉ giữ lần cuối trong ngày)
+4. Đồng ý làm bước "chụp giá đóng băng" không, và bao lâu chụp một lần?
+5. Dữ liệu lịch sử hiện có từ ngày nào? — cái này phải mở dữ liệu thật ra xem,
+   đọc mã không trả lời được.
+
+*(Năm câu hỏi trên — SUPERSEDED. Chủ dự án đã trả lời trực tiếp câu 1, và
+làm câu 4 không còn cần thiết trong giai đoạn đầu. Xem đoạn "Chủ dự án đã
+quyết định" ngay dưới đây. Giữ lại nguyên văn làm bản ghi lịch sử.)*
+
+---
+
+**Chủ dự án đã quyết định (cùng ngày, một phiên nữa sau đó).** Câu trả lời
+cho câu hỏi 1 ở trên: **KHÔNG dùng "giá vốn rẻ nhất" (Min) hiện đang hiển
+thị trên bảng, và KHÔNG cần chụp giá nhập kho làm lịch sử ngay bây giờ.**
+
+Thay vào đó, công cụ dùng đúng **một** nguồn đã có sẵn: **lịch sử giá nhà
+cung cấp** (loại đầu tiên trong ba loại kể trên). Cách tính: với mỗi đơn
+hàng bán ra ngày D, lấy giá của TỪNG nhà cung cấp tại đúng ngày đó (mốc gần
+nhất không sau ngày D), rồi lấy giá THẤP NHẤT trong số đó làm giá nhập.
+
+Mã hàng nào không đủ dữ liệu để tính (ví dụ mã lạ, chưa nhà cung cấp nào
+từng báo giá) thì để **trống, chờ xử lý tay** — không đoán, không lấy giá
+hôm nay áp cho quá khứ. Chủ dự án xác nhận đây là lựa chọn có cân nhắc:
+số trường hợp trống dự kiến ít, và xử lý tay từng trường hợp đó **rẻ hơn**
+nhiều so với việc xây hẳn một hệ thống "chụp giá đóng băng" như câu hỏi 4
+từng đặt ra — nên bước đó **không còn bắt buộc** ở giai đoạn này.
+
+Điều này cũng làm rõ một thắc mắc còn treo: cái vòng tròn/popup "Lịch sử
+giá" bấm được ngay trên ô Min của bảng — kiểm tra kỹ thì nó **chỉ** vẽ lại
+giá của từng nhà cung cấp theo ngày (đúng loại giá công cụ vừa chọn dùng),
+**không** phải lịch sử của số Min đang hiển thị. May mắn là đây đúng là
+nguồn công cụ cần, chỉ là tên gọi trên màn hình dễ gây hiểu lầm.
+
+**Hai câu hỏi kỹ thuật nhỏ đó — chủ dự án đã trả lời dứt điểm (cùng ngày,
+một phiên nữa sau đó):** giá một nhà cung cấp từng báo trong QUÁ KHỨ **vẫn
+được tính**, kể cả khi hôm nay nhà cung cấp đó đã "nghỉ bán" hay bị đánh
+dấu "không tính vào giá Min" — trạng thái hiện tại không được áp ngược về
+quá khứ. Và luật lọc giá bất thường mới thêm gần đây **không** áp ngược
+cho các mốc giá cũ hơn ngày luật đó có hiệu lực. Tóm lại: giai đoạn đầu
+tính đúng y "giá thấp nhất trong mọi báo giá còn tìm thấy", không lọc bớt
+gì thêm ngoài việc bỏ những ngày ghi "hết hàng".
+
+Với quyết định đó, phần **thiết kế kỹ thuật cho bước đọc giá nhập** cũng
+đã xong — có tài liệu riêng
+(`docs/tasks/TASK-105C-historical-vendor-price-provider.md`) mô tả chính
+xác cách tính, cách lưu lại một "bản chụp" dữ liệu để không bị đổi số về
+sau, và những phần nào chưa làm (cố ý, không phải thiếu sót). Một điểm cần
+biết: công cụ vẫn cần một bảng "dịch" tên hàng trên chứng từ bán hàng của
+mình sang đúng mã sản phẩm bên hệ thống giá — bảng này **chưa có**, và
+không được đoán chữ để tự tạo ra nó (đúng nguyên tắc không suy đoán). Cho
+tới khi có bảng dịch đó, phần lớn dòng bán hàng sẽ để trống chờ xử lý tay
+— không phải lỗi, mà là im lặng đúng cách khi chưa chắc chắn.
+
+Bốn cột file giá cũ (tên hàng / ngày bắt đầu / ngày kết thúc / giá nhập)
+**vẫn đúng làm định dạng dự phòng** (nạp dữ liệu ban đầu, hoặc dữ liệu mẫu
+kiểm thử) — nhưng **không còn là con đường chính** để lấy giá nhập nữa,
+vì lịch sử giá nhà cung cấp đã có sẵn, không cần chờ ai gõ file.
+
+*(Ba câu hỏi gốc và bảng 4 cột giữ lại bên dưới làm bản ghi lịch sử — nội dung
+câu trả lời vẫn đúng, chỉ thay đổi ở chỗ dữ liệu lấy từ đâu.)*
+
+- **Q1.** Trong bảng giá, mỗi dòng có ghi **ngày kết thúc** hiệu lực không? Nếu
+  chỉ ghi ngày bắt đầu, hai mức giá của cùng một món sẽ cùng có hiệu lực và
+  công cụ **không được phép tự đoán** nên lấy mức nào. (Đề xuất: ghi cả ngày
+  kết thúc — rõ ràng nhất.)
+- **Q2.** Tên hàng trong bảng giá phải khớp **chính xác từng ký tự** với file
+  bán hàng, hay cho phép bỏ qua khoảng trắng thừa và hoa/thường? Kiểm tra trên
+  dữ liệu thật: **15 tên hàng có khoảng trắng thừa**, và có **một cặp tên chỉ
+  khác nhau đúng một dấu cách ở cuối**. Nếu bắt khớp chính xác, những dòng đó
+  sẽ **âm thầm không tra được giá**.
+- **Q3.** Các dòng không phải hàng hoá — `Chi phí vận chuyển`, `Chi phí lắp
+  đặt`, `Chênh VAT` (khoảng **1.250 dòng trong 6 tháng**) — có giá nhập không?
+  Phần mềm kế toán đang ghi lợi nhuận của chúng bằng đúng doanh số, tức giá
+  nhập = 0. Nhưng công cụ **không được tự suy ra điều đó**. Nếu bảng giá bỏ sót
+  nhóm này, lợi nhuận của **cả tháng sẽ không bao giờ tính xong**.
+
+**File giá cần đúng 4 cột** (đơn vị **VND nguyên**, ví dụ `8000000` = tám
+triệu): tên hàng (chép nguyên văn cột `Tên hàng trên chứng từ`), ngày bắt đầu,
+ngày kết thúc, giá nhập. Không cần thêm gì khác. Bảng chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần III mục 29.
+
+**Và một việc độc lập:** cấp file bán hàng thô toàn công ty 6 tháng để đối
+chiếu bước 14's `CHECK-110-16` (bộ dữ liệu toàn công ty, không chỉ Tín Phát).
 
 ## Có gì mới trước đó — bước 14 qua vòng soát xét thứ tư, bị trả 2 lỗi, đã sửa (2026-08-23)
 
@@ -530,7 +718,9 @@ hưởng nếu sai, thang 1–5, số càng cao càng cần cẩn thận.
 | ✅ | 10. TASK-106 (MAJOR, D4/R4/B4) — Xử lý các trường hợp đặc biệt (hàng qua kho, đổi trả, NCC giao thẳng...) | Không phải đơn nào cũng tính bình thường, cần quy tắc riêng. **Xong — phần "gợi ý số tiền", chờ màn hình chọn tay ở giai đoạn sau** (xem "Có gì mới") | C | Xong |
 | ✅ | 11. TASK-107 (MAJOR, D2/R4/B4) — Tính lợi nhuận (lợi nhuận thật và lợi nhuận tính KPI riêng) | Hai con số phục vụ hai mục đích khác nhau (kế toán vs. thưởng KPI) | B | **Xong phần lợi nhuận kế toán** — phần KPI chờ màn hình chọn tay |
 | ✅ | 12a. TASK-108A-1 — Chọn tỷ lệ quy đổi (nhân viên + nhóm + nguồn đơn + loại hàng + ngày) | **Phần rủi ro cao nhất** — sai ở đây nghĩa là sai lương của ai đó | C | **Xong** — đã qua soát xét độc lập 4 vòng |
-| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI, mà khoản đó còn thiếu định nghĩa | C | **Đang chờ** — thiếu định nghĩa `EligibleCosts` |
+| ⬜ | 11b. TASK-105C — Đọc giá nhập (từ lịch sử giá NCC) | Không có giá nhập thì không tính được lợi nhuận; đây là nút thắt duy nhất còn lại | C | **Chủ dự án đã chốt xong toàn bộ, kể cả hai câu hỏi nhỏ.** Thiết kế kỹ thuật đầy đủ đã có (`docs/tasks/TASK-105C-historical-vendor-price-provider.md`), sẵn sàng bắt đầu viết code. Còn một việc khác cần làm song song: bảng dịch tên hàng ↔ mã sản phẩm (chưa có, chưa chặn việc bắt đầu code, nhưng chặn việc có số thật thay vì để trống hàng loạt) |
+| ⬜ | 11c. TASK-105B-Q3 — Dòng phí (vận chuyển/lắp đặt/VAT) tính giá nhập = 0 | Không có bước này thì lợi nhuận cả tháng không tính xong | C | **Chờ bước 3 (`TASK-103` phân loại dòng hàng)** hoặc danh sách liệt kê rõ ràng từ chủ dự án — không liên quan tới câu hỏi RTDB |
+| ⬜ | 12b. TASK-108B — Quy đổi doanh thu theo 2 nhóm nguồn khách hàng | Cần lợi nhuận KPI | C | **Định nghĩa đã xong hoàn toàn** (chủ dự án duyệt 2026-08-27, DEC-143 + DEC-144) — **chờ đúng một thứ: bảng giá nhập** (bước 11b) |
 | ⬜ | 13. TASK-109 (MAJOR, D3/R4/B4) — Tổng hợp báo cáo theo tháng và theo năm, cho từng người | Ra được đúng bảng Summary như công ty đang cần | B | Sau bước 12 |
 | 🔶 | 14. TASK-110 (MAJOR, D3/R3/B2) — Rà soát dữ liệu bất thường, đưa vào hàng chờ kiểm tra tay | Không để một dòng dữ liệu lỗi âm thầm làm sai cả báo cáo | B | **Đã nhập vào bản chính; phần lõi được soát xét độc lập DUYỆT và niêm phong (vòng 8 vòng). CHƯA XONG** — 21/22 điều kiện đạt, 1 điều kiện còn lại là đối chiếu trên file bán hàng thật, chờ chủ dự án cung cấp file |
 | ⬜ | 15. TASK-111 (MAJOR, D3/R2/B2) — Xuất kết quả ra file Excel giống mẫu hiện tại | Người dùng vẫn nhận được đúng định dạng quen thuộc | B | Sau bước 13 và 14 |

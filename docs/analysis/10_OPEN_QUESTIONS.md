@@ -19,7 +19,7 @@ Nội dung đầy đủ giữ nguyên bên dưới để giữ mạch lý do; xe
 | C9 | Đơn của Nội thành / Gia dụng có chữ "ADS" thì quy đổi ở tỉ lệ nào? | **ĐÃ ĐÓNG** (2026-08-23) | Không quan tâm, giữ 7,5 % mặc định — DEC-122 |
 | C10 | Chính sách từ 01/01/2027 khác 2026 ở điểm nào? | **ĐÃ ĐÓNG cho hiện tại** (2026-08-23) | Không đổi — DEC-122, mở lại nếu có tin mới trước 01/12/2026 |
 | **C11** | **Nhân viên chưa map (107 dòng / 5 người) xử lý thế nào khi lên production?** | **CÒN MỞ** — chủ dự án chưa rõ | Vào Review Queue loại `Missing`, không tính vào KPI |
-| **C15** | **`EligibleCosts` trong công thức `EligibleKpiProfit` là gì, lấy từ đâu?** | **CÒN MỞ** — **chặn TASK-108B** | Chưa có. **Cấm** giả định `= 0`, **cấm** suy ra là chi phí giao hàng |
+| C15 | `EligibleCosts` trong công thức `EligibleKpiProfit` là gì, lấy từ đâu? | **ĐÃ ĐÓNG** (2026-08-27) | `EligibleCosts = {}` — closed empty set, **không** phải fallback `= 0`; `DeliveryCost = NOT ELIGIBLE FOR NOW` — DEC-143 / `OD-108B-01` |
 | C12 | Nhân viên có được xem số của nhân viên khác không? | **ĐÃ ĐÓNG** (2026-08-23) | Câu hỏi hết ý nghĩa — chỉ `ADMIN` dùng hệ thống, không có "nhân viên khác" để so — DEC-124 |
 | C13 | Ai được xem giá nhập và biên lợi nhuận? | **ĐÃ ĐÓNG** (2026-08-23) | Chỉ `ADMIN` — DEC-124 |
 | C14 | Ai được chốt (commit) một lần nạp dữ liệu? | **ĐÃ ĐÓNG** (2026-08-23) | Chỉ `ADMIN` — DEC-124 |
@@ -177,7 +177,25 @@ buộc được.
 
 ## C15 — `EligibleCosts` là gì và lấy từ đâu?
 
-**Trạng thái: CÒN MỞ — đây là điều kiện chặn TASK-108B.**
+**Trạng thái: ĐÃ ĐÓNG (DEC-143 / `OD-108B-01`, 2026-08-27).**
+
+> **CURRENT STATE POINTER.** Chủ dự án đã trả lời: `EligibleCosts` = **CLOSED
+> EMPTY SET** (`{}`) — một tuyên bố nghiệp vụ có thẩm quyền rằng tập hiện tại
+> là rỗng, **không phải** fallback kỹ thuật `EligibleCosts = 0` mà mục này cấm.
+> `DeliveryCost` = **NOT ELIGIBLE FOR NOW** (cũng là quyết định, không phải suy
+> đoán). `OtherKpiAdjustment` = **0 BY DEFINITION**. Công thức canonical:
+> `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount`.
+> Thêm bất kỳ cost nào sau này cần Owner Decision riêng + effective date +
+> provenance. Bằng chứng và phân tích double-count đầy đủ:
+> `docs/tasks/TASK-108B-eligible-costs-owner-definition.md`; quyết định:
+> `PROJECT/PROJECT_DECISIONS.md` → `DEC-143`.
+>
+> `TASK-108B` **vẫn chưa implement được**, nhưng lý do đã đổi: không còn là
+> ambiguity nghiệp vụ, mà là **dependency dữ liệu** (Price Master; confirmed
+> `KpiPurchaseAdjustment` persistence).
+
+Phần dưới đây giữ nguyên làm **bản ghi lịch sử** của câu hỏi lúc còn mở —
+không xoá, không viết lại.
 
 Công thức lợi nhuận KPI (`docs/analysis/03_RULE_CLASSIFICATION.md` §U):
 
@@ -213,6 +231,8 @@ quả. Cùng loại rủi ro mà DEC-103 và DEC-126 §6 tồn tại để chặ
 thì công thức đang trừ hai lần.
 
 **Chặn:** TASK-108B (Converted Revenue). Không chặn TASK-108A-1.
+*(Lịch sử — đã gỡ bởi DEC-143. `TASK-108B` nay chặn bởi dependency dữ liệu,
+không phải bởi C15.)*
 
 ---
 
@@ -235,3 +255,4 @@ thì công thức đang trừ hai lần.
 | C12 | Nhân viên xem được số của nhau không? | **DEC-124 — chỉ ADMIN dùng hệ thống, câu hỏi hết ý nghĩa** |
 | C13 | Ai xem giá nhập / biên lợi nhuận? | **DEC-124 — chỉ ADMIN** |
 | C14 | Ai chốt một lần nạp dữ liệu? | **DEC-124 — chỉ ADMIN** |
+| **C15** | `EligibleCosts` là gì và lấy từ đâu? | **DEC-143 / `OD-108B-01` — closed empty set; `DeliveryCost` NOT ELIGIBLE; `OtherKpiAdjustment` = 0** |

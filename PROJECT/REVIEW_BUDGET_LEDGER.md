@@ -261,6 +261,203 @@ review_events:
 
 ---
 
+## Root Task: TASK-108B
+
+Lineage **mới**, độc lập với `TASK-110` (`EXHAUSTED_PRE_V4.1`) và với
+`TASK-GOLDEN-BASELINE-001`. Mở tại `DEC-143` / `OD-108B-01` (2026-08-27).
+
+```
+root_task: TASK-108B
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` **không** đến từ độ khó của việc code (số học đơn giản, module nhỏ). Nó
+đến từ **Blast Radius theo failure path** (`governance/core/V4_1_POLICY_FREEZE.md` §4):
+
+```
+EligibleCosts → EligibleKpiProfit → ConvertedRevenue → % Target → Thưởng → Tổng lương
+```
+
+Failure path kết thúc ở **tiền lương của người thật**. Đo trên dữ liệu Golden
+production: một quyết định CÓ/KHÔNG duy nhất về `DeliveryCost` dịch chuyển
+thưởng **0,8–1,8 triệu VND/người/tháng** (10,94 % lợi nhuận ở 01.2026;
+12,16 % ở 06.2026).
+
+### Golden KHÔNG hạ Blast Radius (V4.1 §4.1)
+
+Golden Baseline `ACTIVE` nhưng **không phủ path nào** của `TASK-108B`:
+
+| Path | Golden |
+|---|---|
+| `EligibleKpiProfit` (số học) | ❌ NOT COVERED — `price_source_distribution = {Pending: 351/180}`, 100 % giá nhập Pending nên profit luôn `None` |
+| Bucket `PERSONAL` | ❌ NOT COVERED — fixture 100 % `ADS` ở cả hai kỳ |
+| `NOI_THANH_2` / `GIA_DUNG_8` | ❌ NOT COVERED — `product_group_distribution = {DIEN_MAY: 351}` |
+| Đơn trộn scheme (118 OrderID) | ❌ NOT COVERED — fixture chỉ 1 scheme |
+| `DeliveryCost` tham gia profit | 🟡 PARTIAL — `money.delivery_cost_total` được ghi, nhưng không invariant nào khẳng định có/không vào profit |
+
+Vì vậy **không** hạ bậc; `Effective Risk = HIGH` giữ nguyên. Coverage gap được
+báo cáo, **không** sửa Golden (phiên `DEC-143` không chạm
+`tests/**`).
+
+### Trạng thái
+
+```
+SEMANTIC_DEFINITION   = APPROVED       (DEC-143 + DEC-144; OD-108B-01 + OD-108B-02)
+                                       đầy đủ — formula đã được Owner xác nhận
+IMPLEMENTATION        = BLOCKED_BY_DEPENDENCY
+BLOCKED_BY_DEPENDENCY = [ nguồn AccountingPurchasePrice production chưa xác
+                          định kiến trúc — schema RTDB cần Owner làm rõ (DEC-146) ]
+IN-SCOPE MECHANISM    = [ confirmed-adjustment source khai báo rỗng ]   ← nội bộ,
+                          KHÔNG phải blocker chờ Owner (DEC-144 §5)
+repair cycle          = CHƯA MỞ (0 used) — chưa có implementation nào để repair
+```
+
+Đường mở khoá: `TASK-105B` (lineage riêng bên dưới) → `TASK-108B` → `TASK-109`.
+
+Sub-unit của lineage này (`108B-*`) **không** có ngân sách riêng, **không**
+reset ngân sách, và **không** được tạo lineage mới chỉ để reset (V4.1 §2).
+`TASK-109` thuộc lineage riêng, **không** dùng chung ngân sách này.
+
+cycles:
+- id: (chưa mở — implementation chưa bắt đầu vì blocker dữ liệu)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
+## Root Task: TASK-105B
+
+Lineage **mới**, độc lập với `TASK-108B`, `TASK-110` và
+`TASK-GOLDEN-BASELINE-001`. Mở tại `DEC-144` §7 (2026-08-27), trạng thái
+**discovery**.
+
+```
+root_task: TASK-105B
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` chấm theo **data path** (V4.1 §4), **không** theo tên module — một
+adapter/file reader **không** được coi là LOW chỉ vì nó là adapter:
+
+```
+Price sai → KpiPurchasePrice sai → EligibleKpiProfit sai → CR sai → KPI/lương sai
+```
+
+`Local Risk = LOW-MEDIUM` (đọc file, tra bảng); `Blast Radius = HIGH`.
+
+### Golden KHÔNG hạ Blast Radius (V4.1 §4.1)
+
+Golden hiện `price_source_distribution = {Pending: 351/180}` — **100 %**, nên
+profit arithmetic chưa từng được đo. Không có test cụ thể nào phủ đúng failure
+path này ⇒ **không hạ bậc**.
+
+Ghi chú coverage (không phải cơ sở hạ bậc): `TASK-105B` **không** cần Golden
+fixture/test mới — nó không thêm field vào `WorkingLine` nên `lines_digest` và
+`_covered_digest_fields` không đổi, và Golden vẫn chạy `PendingPriceProvider`
+mặc định. Việc mở rộng Golden sang profit arithmetic thuộc `TASK-108B`.
+
+### Trạng thái
+
+```
+SEMANTIC_READINESS (Q1/Q2/Q3) = READY   (DEC-145 / OD-105B-01 — KHÔNG đổi)
+IMPLEMENTATION (FilePriceProvider)  = KHÔNG ĐỔI, nay là DEPENDENCY CỨNG
+                                cho TASK-105C (HistoricalVendorPriceProvider
+                                compose FilePriceProvider, DEC-152 §11) —
+                                chưa DONE, phải implement trước/cùng lúc
+
+HistoricalVendorPriceProvider (TASK-105C, tên chính thức từ DEC-152)
+    SEMANTIC_DEFINITION = COMPLETE
+    SCOPE_LOCK           = COMPLETE
+    IMPLEMENTATION        = READY (chưa bắt đầu)
+    Canonical spec: docs/tasks/TASK-105C-historical-vendor-price-provider.md
+    (Scope Lock + Completion Gate 20 check, FROZEN tại DEC-152)
+    Dependency riêng, chưa mở task: product identity mapping
+    (product_raw ↔ <MÃ> Tracking) — không chặn implement/test provider,
+    chặn kết quả không-Pending trên dữ liệu thật.
+```
+
+**`DEC-151` (2026-08-27, Owner Decision) — đóng dứt điểm 4/5 câu hỏi cũ
+bằng THU HẸP PHẠM VI, không phải bằng trả lời từng câu.** Reports dùng
+`phist/<mã>/<NCC>/<ngày>` làm nguồn giá lịch sử DUY NHẤT
+(`Price(NCC,D)` = record gần nhất ≤ D, MIN qua các NCC có căn cứ); `inv.cong`
+loại khỏi scope Phase 1 (không áp ngược, không bắt buộc xây lịch sử); mã
+thiếu căn cứ → `Pending` chủ đích. `DEC-149` OPTION B (capture cả
+`_c.min` lẫn `inv.cong`) **không còn là khuyến nghị hiện hành**. Chi tiết:
+`DEC-151`, `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
+
+**`DEC-152` (2026-08-27, Owner Decision cuối) — đóng Q1/Q2, Scope Lock +
+Completion Gate FROZEN.** Q1 (NCC retired/MIN_LOAI hồi tố) và Q2 (outlier
+threshold hồi tố) **CLOSED** — cả hai KHÔNG áp ngược; Phase 1 = MIN qua
+mọi candidate hợp lệ, loại sentinel `0`, không lọc gì thêm. Kiến trúc thực
+thi: `HistoricalVendorPriceProvider` compose `FilePriceProvider` (đọc file
+snapshot bất biến do một script export sinh ra, tách khỏi
+`app/modules/pricing/`) — thay hẳn `DEC-149` OPTION B. Canonical task spec
+mới: `docs/tasks/TASK-105C-historical-vendor-price-provider.md`. Product
+identity mapping (`product_raw` ↔ `<MÃ>`) đặt tên tường minh làm dependency
+riêng, không tự vá bằng fuzzy matching. Chi tiết: `DEC-152`,
+`docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
+
+*(Đoạn dưới đây — từ `DEC-147` — giữ lại nguyên văn làm bản ghi lịch sử.
+Trạng thái CURRENT nằm ở khối trên và ở `DEC-151`, không phải ở đây.)*
+
+**Audit chéo repo (DEC-147, 2026-08-27) — đã trả lời 4/5 câu hỏi cũ.** Đã
+audit `hoangvinhkta-creator/Tracking` @ `d177363a`. RTDB chạy chế độ **HYBRID**
+(ảnh chụp `board` + lịch sử `phist/<mã>/<NCC>/<YYYY-MM-DD>`) ⇒ điều kiện
+`BLOCKING ARCHITECTURE GAP` của `DEC-146` **KHÔNG kích hoạt**. Nhưng phát hiện
+**SOURCE MISMATCH**: loại giá có lịch sử là *giá NCC báo*, còn *giá thực nhập*
+(`inv.<slot>.gia`/`.lo`) không có lịch sử. Kiến trúc khuyến nghị: OPTION C
+(capture bất biến) giao hàng bằng định dạng OPTION D (file 4 cột) ⇒
+`FilePriceProvider` **được đề cử trở lại làm production path**.
+`RTDBPriceProvider` = `NEEDS_SCHEMA_CHANGE`, không được đề cử. Chi tiết:
+`DEC-147`, `docs/sessions/S024-task-105c-rtdb-price-source-audit.md`,
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần VI.
+
+**Architecture correction (DEC-146) — bối cảnh, đã được `DEC-147` cập nhật.**
+Owner sửa tiền đề: Price Master không
+phải file tĩnh — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
+tục. Repo **không có** integration Firebase nào (đã quét toàn bộ, kể cả
+`pyproject.toml` dependencies và đặc tả gốc) — không có gì để audit từ phía
+code, cần Owner cung cấp schema thật. **Điều kiện `BLOCKING ARCHITECTURE GAP`
+cho `TASK-108B`** nếu RTDB không lưu lịch sử giá: DEC-121 đòi hỏi tra cứu đúng
+giá tại ngày quá khứ của đơn, không phải giá hiện hành — "RTDB đang chạy"
+không tự động thoả điều kiện đó. Đề xuất: giữ `PriceProvider` Protocol, thêm
+`RTDBPriceProvider` song song với `FilePriceProvider` (không thay thế); vai
+trò cụ thể của từng cái chờ Owner xác nhận. Chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần V.
+
+Sub-unit tách riêng, **không** có ngân sách riêng và **không** reset ngân sách:
+
+```
+TASK-105B-Q3  (supplementary zero-price policy — OD-105B-01 §C)
+    IMPLEMENTATION = BLOCKED_BY [ TASK-103 Product/Transaction Classification,
+                                  hoặc danh sách enumerated do Owner cấp ]
+```
+
+Lý do blocker (báo cáo theo đúng dự phòng của `OD-105B-01` §C, không tự phát
+minh matcher): `TASK-103` chưa làm; `config/classification.yaml` không tồn tại;
+cơ chế duy nhất `is_non_product_line()` tự khai là *noise reduction only*,
+**tạm thời** theo HD-110-02, **cấm tune**. Đo trên production: keyword set hiện
+hành khớp **36** dòng trong khi đúng 3 nhóm Owner nêu chỉ **34** (dôi
+`Phụ Phí`, `Phụ Phí Đổi mới`). Chi tiết:
+`docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần IV §40.
+
+Discovery và ghi Owner Decision **không** tiêu repair cycle. Sub-unit `105B-*` không có ngân sách
+riêng, không reset ngân sách.
+
+cycles:
+- id: (chưa mở — discovery, chưa có implementation)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Cách xác định phạm vi một repair cycle (tham chiếu)
 
 ```
@@ -347,3 +544,222 @@ Owner Extension, và **không** cấp thêm repair cycle.
   `TASK-110`, `CHECK-110-16`, `R1-A1`, `app/`, `config/`,
   `tests/fixtures/baseline/**`, `tests/test_task110_non_regression.py`
   **không đổi một byte** qua toàn bộ integration.
+
+- 2026-08-27 — `TASK-108B` **mở lineage mới** sau Owner Decision `OD-108B-01`
+  (ghi tại `DEC-143`). `EligibleCosts = {}` (closed empty set),
+  `DeliveryCost = NOT ELIGIBLE FOR NOW`, `OtherKpiAdjustment = 0 by definition`,
+  canonical formula chốt `(SellPrice − KpiPurchasePrice) × Quantity − Discount`.
+  **C15 ĐÓNG.** `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã dùng** —
+  phiên ghi quyết định **không** phải repair cycle và **không** tiêu ngân sách.
+  `SEMANTIC_DEFINITION = APPROVED` nhưng
+  `IMPLEMENTATION = BLOCKED_BY_DEPENDENCY`: số blocker giảm **4 → 2**, cả hai
+  còn lại là dependency **dữ liệu** (Price Master; confirmed
+  `KpiPurchaseAdjustment` persistence), không phải semantic. `TASK-110`
+  **không đổi**: vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0; `CHECK-110-16` vẫn
+  `REQUIRED · BLOCKED · POST_MERGE_PRODUCTION_ACCEPTANCE`;
+  `TASK-GOLDEN-BASELINE-001` vẫn `remaining = 1` UNUSED. `app/`, `config/`,
+  `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-144` (`OD-108B-02` + Owner confirmation cho `DEC-143`).
+  Canonical `EligibleKpiProfit` được Owner **xác nhận**:
+  `(SellPrice − KpiPurchasePrice) × Quantity − Discount` — đóng divergence
+  §19.1 đã báo cáo theo V4.1 §11. Confirmed `KpiPurchaseAdjustment` chọn
+  phương án A: absence **đã xác định** → `KpiPurchasePrice =
+  AccountingPurchasePrice` + provenance `Config:NoConfirmedAdjustment`;
+  `UNKNOWN`/`SOURCE_UNAVAILABLE`/`LOOKUP_FAILURE` **giữ Pending**, tuyệt đối
+  không thành `0`. `TASK-108B` blocker ngoại lai **2 → 1** (chỉ còn Price
+  Master); yêu cầu cơ chế còn lại (source khai báo rỗng) thuộc phạm vi chính
+  `TASK-108B`, không phải blocker chờ Owner. **`TASK-105B` mở lineage mới** ở
+  trạng thái discovery, `effective_risk = HIGH`, 2 cycle khả dụng, **0 đã
+  dùng** — discovery không tiêu cycle. `TASK-110` **không đổi**
+  (`EXHAUSTED_PRE_V4.1`, remaining = 0; `CHECK-110-16` vẫn `REQUIRED · BLOCKED ·
+  POST_MERGE_PRODUCTION_ACCEPTANCE`); `TASK-GOLDEN-BASELINE-001` vẫn
+  `remaining = 1` UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**.
+
+- 2026-08-27 — `DEC-145` (`OD-105B-01`). Owner chốt Q1/Q2/Q3 của `TASK-105B`:
+  khoảng hiệu lực **đóng** `[from, to]` với overlap/nhiều-record-mở =
+  `INVALID PRICE MASTER` và gap → `Pending` (cấm latest/nearest/current);
+  normalization NFC → strip → collapse → casefold (cấm bỏ dấu, fuzzy,
+  nearest, contains); dòng phụ `AccountingPurchasePrice = 0 BY DEFINITION` với
+  provenance `Policy:SupplementaryExpenseZeroPurchasePrice`. `TASK-105B`
+  chuyển `OWNER_DECISION_REQUIRED` → **`SEMANTIC_READINESS = READY`,
+  `IMPLEMENTATION = READY`**, chỉ chờ file giá 4 cột. **`TASK-105B-Q3` tách
+  riêng và BLOCKED** bởi `TASK-103` — báo cáo theo đúng dự phòng của
+  `OD-105B-01` §C, không tự phát minh matcher. `TASK-108B` blocker cập nhật
+  thành "FilePriceProvider chưa tồn tại + chưa có bảng giá". Ngân sách
+  **không đổi** ở mọi lineage: `TASK-105B` 2/0/2, `TASK-108B` 2/0/2,
+  `TASK-110` `EXHAUSTED_PRE_V4.1` remaining = 0,
+  `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`, `config/`,
+  `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-146` — Architecture Correction Audit cho `TASK-105B`.
+  Owner sửa tiền đề đã dùng ở `DEC-144`/`DEC-145`: Price Master **không phải
+  file tĩnh** — nguồn sự thật vận hành là **Firebase RTDB**, biến động liên
+  tục trong ngày. Quét toàn repo: **0** integration Firebase/RTDB nào tồn tại
+  (chỉ 2 chỗ nhắc "Firebase" là boilerplate template governance chung, không
+  phải quyết định kỹ thuật của dự án này); `pyproject.toml` không có
+  `firebase-admin` hay SDK liên quan; không credential/schema/crawler nào
+  được ghi lại ở bất kỳ đâu. `CONFLICT DETECTED` đã báo cáo theo đúng giao
+  thức: `ADR-101` nêu tên PostgreSQL/SQLite cho Phase 2, không nơi nào nhắc
+  Firebase làm kiến trúc dự án.
+
+  `TASK-105B` chuyển từ `IMPLEMENTATION = READY` (DEC-145) sang **TẠM DỪNG**
+  — không phải blocker kỹ thuật (contract §38 vẫn buildable y hệt), mà là
+  quyết định phạm vi/vai trò cần Owner xác nhận trước khi tránh làm lại.
+  `SEMANTIC_READINESS` (Q1/Q2/Q3, DEC-145) **giữ nguyên đúng** — ba câu hỏi đó
+  ràng buộc **hình dạng dữ liệu giá**, độc lập với nơi nó tới từ đâu.
+
+  **Điều kiện `BLOCKING ARCHITECTURE GAP` cho `TASK-108B`** nếu RTDB chỉ lưu
+  giá hiện hành (overwrite, không giữ lịch sử) — DEC-121 đòi hỏi tra cứu đúng
+  giá tại ngày quá khứ của đơn; "RTDB đang chạy" trả lời câu hỏi khác ("giá
+  hiện tại"), không phải câu hỏi `TASK-108B` cần. Chưa xác định — cần Owner
+  trả lời trực tiếp, không suy đoán.
+
+  Đề xuất: giữ `PriceProvider` Protocol (đã đúng thiết kế từ DEC-103), thêm
+  `TASK-105C` (`RTDBPriceProvider`) **song song** với `TASK-105B`
+  (`FilePriceProvider`, vai trò lùi thành bootstrap/test-fixture/snapshot-export
+  tuỳ câu trả lời Owner) — không thay thế nhau. `RTDBPriceProvider` **không
+  bao giờ** default trong test/Golden (nguyên tắc deterministic).
+
+  `TASK-105B-Q3` (chính sách zero-price dòng phụ) **không đổi**, vẫn `BLOCKED`
+  bởi `TASK-103`/enumeration — hoàn toàn độc lập với nguồn giá. Audit evidence
+  đang làm dở (30 raw label từ `evidence.json`: `Chi phí vận chuyển` 1.074
+  dòng, `Chi phí lắp đặt` 84, `Chênh VAT` 33, cộng biến thể ghép/typo) **không
+  mất** — tạm dừng theo yêu cầu Owner, tiếp tục được ở phiên sau.
+
+  Đây là **audit, không phải repair cycle** — ngân sách mọi lineage không đổi:
+  `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110` `EXHAUSTED_PRE_V4.1`
+  remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
+  `config/`, `tests/`, Golden fixture/expected **không đổi một byte**.
+
+- 2026-08-27 — `DEC-147` — Cross-Repo RTDB Price Source Audit (`TASK-105C`
+  discovery, phiên `S024`). Đã audit repository vận hành hệ thống giá
+  (`hoangvinhkta-creator/Tracking` @ `d177363a390d36fe793e0c1c44a6fb6743ca45f5`)
+  và đối chiếu với contract `PriceProvider`. Hai repo giữ **độc lập** — không
+  subtree, không submodule, không copy source, không merge history; repo giá
+  **không bị sửa một byte nào**.
+
+  **Bốn trong năm câu hỏi của `DEC-146` §49 đã đóng bằng bằng chứng code (E1).**
+  RTDB chạy chế độ **HYBRID**: `board/<mã>/p/<NCC>` là ảnh chụp hiện hành,
+  `phist/<mã>/<NCC>/<YYYY-MM-DD>` là lịch sử append theo ngày, chỉ ghi khi giá
+  đổi. ⇒ Điều kiện **`BLOCKING ARCHITECTURE GAP` của `DEC-146` §3 KHÔNG kích
+  hoạt**.
+
+  **Nhưng kết luận thật là `SOURCE MISMATCH`, không nằm trong hai nhánh
+  `DEC-146` dự trù:** loại giá *có* lịch sử là **giá NCC báo** (báo giá nhà
+  cung cấp trong ngày), còn loại giá Reports *cần* — **giá thực nhập**
+  (`inv.<slot>.gia` / `.lo`) — **không có lịch sử** (hai ô cuốn chiếu
+  `cu`/`moi`, ghi bằng `set()` đè cả nhánh; `backup/` không chứa `inv`).
+
+  Ba phát hiện nữa ảnh hưởng trực tiếp tới con số: RTDB lưu tiền theo **nghìn
+  đồng** (va `ADR-103` — phép ×1.000 phải nằm ở biên nhập, không nằm trong
+  `app/modules/pricing/`); `phist == 0` là **sentinel hết hàng**, phải map
+  thành gap → `Pending`, tuyệt đối không thành `purchase_price = 0`
+  (`DEC-145` §5); và **lịch sử sửa được** — bốn đường xoá/dời/mồ côi/lệch đang
+  chạy trong app ⇒ chỉ một bản ghi **bất biến, đóng băng** mới thoả `DEC-121`.
+
+  **Kiến trúc khuyến nghị: OPTION C (capture bất biến) giao hàng bằng định
+  dạng OPTION D (file 4 cột `DEC-145` §4).** Hệ quả:
+  `FilePriceProvider` **được đề cử trở lại làm production path** — đảo lại
+  nghi vấn của `DEC-146` §6, không huỷ gì của `DEC-145`;
+  `RTDBPriceProvider` = **`NEEDS_SCHEMA_CHANGE`, không được đề cử** (đọc thẳng
+  va `ADR-101` ranh giới mạng + `ADR-103` §2 đơn vị, và nguồn thì mutable).
+
+  Khoá sản phẩm: RTDB **đã có** mã ổn định (`normCode` + `alias`), nhưng
+  Reports dùng `product_raw` = câu tên hàng trên chứng từ ⇒ **cần mapping**.
+  Repo giá đã **thử** rút mã từ tên hàng bằng máy (`extractCode()`) và **bỏ
+  hẳn** vì đoán sai trên tài sản thật — tiền lệ production ủng hộ đúng lệnh
+  cấm fuzzy matching của `OD-105B-01` §B. `DEC-145` §2 **không đổi**.
+
+  Security: **không** có BLOCKING finding — không credential nào committed,
+  service account nằm ở Cloudflare Secret, rules gốc `.read/.write = false`,
+  không nhánh nào cho `auth == null`, App Check Enforce từ 13/08/2026. Ba mục
+  HARDENING thuộc repo giá (nhật ký `hist` tối đa 100 dòng và mọi nhân viên
+  ghi đè được; `phist` sửa được bởi mọi tài khoản `edit`; Reports sẽ cần một
+  mặt phẳng quản lý secret mới nếu đọc thẳng RTDB) — **ngoài phạm vi** sửa của
+  phiên này.
+
+  `TASK-105B-Q3` **không đổi**, vẫn `BLOCKED` bởi `TASK-103`/enumeration —
+  hoàn toàn độc lập với nguồn giá, đúng như `DEC-146` §7. Audit evidence 30
+  raw label **không mất**.
+
+  Đây là **audit, không phải repair cycle** — ngân sách mọi lineage không đổi:
+  `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110` `EXHAUSTED_PRE_V4.1`
+  remaining = 0, `TASK-GOLDEN-BASELINE-001` remaining = 1 UNUSED. `app/`,
+  `config/`, `tests/`, Golden fixture/expected **không đổi một byte**. Repo
+  giá: **0 file thay đổi**.
+
+- 2026-08-27 — `DEC-148` (audit) — `inv.cong` public purchase price audit.
+  Xác nhận 4 semantics chủ dự án đề xuất; kết luận `inv.cong` KHÔNG có lịch
+  sử, NO GUARANTEED DELAY WINDOW. Không tiêu repair cycle. Chi tiết: xem
+  `DEC-148` trong `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-149` (audit) — Market Min Price Path Audit. `CONFLICT
+  DETECTED`: business rule "Min ưu tiên, cong fallback" không khớp công
+  thức `_c.min` thật (`cong` hoà tan bên trong, không phải fallback độc
+  lập). Historical Replay = C (chỉ current snapshot). Không tiêu repair
+  cycle. Chi tiết: xem `DEC-149` trong `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-150` (audit fact, không phải Owner Decision) — xác
+  minh popup "Lịch sử giá" = vendor-price history thuần từ `phist`, KHÔNG
+  phải Min history, không reconstruct Min. Không đổi trạng thái nào của
+  `DEC-149`. Không tiêu repair cycle. Chi tiết: xem `DEC-150` trong
+  `PROJECT_DECISIONS.md`.
+
+- 2026-08-27 — `DEC-151` (**Owner Decision**) — Historical KPI Purchase
+  Price Scope Reduction. Đóng `CONFLICT DETECTED` (`DEC-149` §71) bằng
+  **thu hẹp phạm vi**, không phải bằng chọn giữa hai lựa chọn cũ: Reports
+  dùng `phist` làm nguồn giá lịch sử DUY NHẤT
+  (`Price(NCC,D)` = record gần nhất ≤ D, MIN qua các NCC có căn cứ, loại
+  sentinel `0`); `inv.cong` loại khỏi scope Phase 1 (không áp ngược, không
+  bắt buộc xây lịch sử); mã thiếu căn cứ → `Pending` chủ đích, xử lý tay
+  sau (explicit, có provenance, không rewrite `phist`, không backdating).
+  `DEC-149` OPTION B (capture `_c.min` + `inv.cong`) **không còn là
+  khuyến nghị hiện hành** — mục tiêu nó phục vụ (tái dựng đúng `_c.min`)
+  đã bị loại bỏ, không phải vì sai mà vì không còn cần.
+  Audit hẹp bắt buộc trong phiên: `phist` **đủ** cho `HistoricalVendorPrice`
+  deterministic theo semantics trên, không cần giả định
+  `NCC_RETIRED`/`NCC_MIN_LOAI`/`NGUONG_BAT_THUONG` hiện tại áp cho lịch sử
+  (`buildSync()` ghi `phist` bất kể trạng thái loại trừ). Hai câu hỏi
+  filtering còn mở, không tự trả lời: Q1 (NCC retired/MIN_LOAI hồi tố),
+  Q2 (outlier threshold hồi tố) — KHÔNG chặn mở implementation.
+  `TASK-105C` `BLOCKED_BY` hẹp lại còn Q1/Q2 (không chặn) +
+  `TASK-105B-Q3` (độc lập, không đổi). `TASK-108B` blocker tương ứng.
+  Đây là **Owner Decision recording, không phải repair cycle** — ngân sách
+  mọi lineage không đổi: `TASK-105B` 2/0/2, `TASK-108B` 2/0/2, `TASK-110`
+  `EXHAUSTED_PRE_V4.1` remaining = 0, `TASK-GOLDEN-BASELINE-001`
+  remaining = 1 UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-151`,
+  `docs/sessions/S028-task-105c-historical-kpi-price-scope-reduction.md`,
+  `docs/tasks/TASK-108B-eligible-costs-owner-definition.md` Phần X.
+
+- 2026-08-27 — `DEC-152` (**Owner Decision cuối** + Scope Lock/Completion
+  Gate) — đóng Q1 (NCC retired/MIN_LOAI hồi tố) và Q2 (outlier threshold
+  hồi tố), cả hai **CLOSED**: trạng thái NCC/config HIỆN TẠI không được áp
+  ngược cho quá khứ; Phase 1 = MIN qua mọi candidate hợp lệ tại D (loại
+  sentinel `0`), không lọc gì thêm. Tạo
+  `docs/tasks/TASK-105C-historical-vendor-price-provider.md` — canonical
+  spec 24 mục, Scope Lock (Phạm Vi/Ngoài Phạm Vi/Vùng Tác Động), Completion
+  Gate 20 check (`CHECK-105C-01`…`20`, toàn bộ `NOT_TESTED` — chưa
+  implementation). Kiến trúc thực thi: `HistoricalVendorPriceProvider`
+  compose `FilePriceProvider` (đọc file snapshot bất biến do
+  `tools/pricing/` sinh ra, tách khỏi `app/modules/pricing/` — giữ ranh
+  giới `ADR-101`); thay hẳn `DEC-149` OPTION B. Xác định rõ dependency
+  chưa đóng: mapping `product_raw` (Reports) ↔ `<MÃ>` (Tracking) — chưa mở
+  task, **không** tự vá bằng fuzzy matching (`OD-105B-01` §B, tiền lệ
+  `extractCode()` thất bại — `DEC-147` §56). `TASK-105B` trở thành
+  dependency CỨNG (chưa DONE) cho `TASK-105C`.
+  Verdict: `TASK-105C` `SEMANTIC_DEFINITION = COMPLETE`,
+  `SCOPE_LOCK = COMPLETE`, `IMPLEMENTATION = READY`. `TASK-108B`
+  `BLOCKED_BY` = [`TASK-105C` implementation (kèm `TASK-105B`), product
+  identity mapping, `TASK-105B-Q3`] — không còn câu hỏi nghiệp vụ nào chờ
+  Owner.
+  Đây là **Owner Decision + Scope Lock recording, không phải repair
+  cycle** — ngân sách mọi lineage không đổi: `TASK-105B` 2/0/2 (dùng
+  chung cho `TASK-105C`), `TASK-108B` 2/0/2, `TASK-110`
+  `EXHAUSTED_PRE_V4.1` remaining = 0, `TASK-GOLDEN-BASELINE-001`
+  remaining = 1 UNUSED. `app/`, `config/`, `tests/`, Golden fixture/expected
+  **không đổi một byte**. Repo giá: **0 file thay đổi**. Chi tiết: `DEC-152`,
+  `docs/tasks/TASK-105C-historical-vendor-price-provider.md`,
+  `docs/sessions/S029-task-105c-final-decision-scope-lock.md`.
