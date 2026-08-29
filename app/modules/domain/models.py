@@ -52,6 +52,12 @@ PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT = "HISTORICAL_CONFIRMED_REPORT"
 # HISTORICAL_CONFIRMED_REPORT: giá trị này KHÔNG claim có report reopenable
 # đứng sau nó — xem `ManualLegacyConfirmationRef` (registry.py).
 PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION = "OWNER_MANUAL_LEGACY_CONFIRMATION"
+# Reports History Reader V1 — giá dựng lại từ mốc cutover + lịch sử
+# `purchase_price_history` của Tracking (`board/<mã>/tp/ton`), quy đổi nghìn
+# VND → VND. KHÔNG dùng lại `PriceMaster`: nhãn nguồn là thứ người kiểm dùng
+# để quyết có tin con số hay không, và một giá tái dựng theo thời gian có
+# đúng một điểm yếu riêng (thẩm quyền dấu thời gian) mà nhãn phải nói ra.
+PRICE_SOURCE_TRACKING_PRICE_HISTORY = "TRACKING_PRICE_HISTORY"
 
 # Provenance của KpiPurchasePrice (TASK-108B minimum B7/B8 slice, DEC-143 +
 # DEC-144, Golden #1 KPI vertical slice). Tách biệt hoàn toàn khỏi

@@ -244,6 +244,50 @@ byte `app/**`/`config/**`/`tests/**`/Golden fixture thay đổi; repo giá
 đưa vào nhánh mặc định. **Không được đọc "đã integrate" thành "đã
 implement".**
 
+## Reports History Reader V1 — S060 (2026-08-29)
+
+Current-state pointer cho nhánh giá TRACKING theo thời gian. Không supersede
+`DEC-154`; nó bổ sung một NGUỒN cho nhánh `TRACKING` và không đụng
+`CUTOVER_DATE`.
+
+**HAI cutover, tuyệt đối không gộp:**
+
+```text
+Tracking price-history data cutover = 2026-08-29 19:35:37 (Firebase server time)
+    một THỜI ĐIỂM có múi giờ; là gốc trục thời gian của reader
+    production: 3441 mã kiểm, 341 giá hợp lệ, 3100 absent, 0 invalid
+
+Product Identity architecture cutover = 2026-09-01   (CUTOVER_DATE, DEC-154 §1)
+    một NGÀY; KHÔNG đổi trong S060
+```
+
+Khoảng 29/08 → trước 01/09 KHÔNG phải lý do dời `01/09`.
+
+**Thẩm quyền thời gian (đã đóng trong S060).** Trước S060, mốc cutover dùng
+`ServerValue.TIMESTAMP` còn `purchase_price_history.t` dùng `Date.now()` của
+máy trạm, và rules không có `.validate` nào cho `t` — không tồn tại bằng
+chứng nào chứng minh thẩm quyền của nó. Repair phía Tracking (branch riêng
+`claude/pph-server-timestamp-authority-v1`, base `91e57a00…`, final
+`1821af06…`, **chưa deploy, chưa merge**) làm sự kiện MỚI mang
+`t = ServerValue.TIMESTAMP` + `ta = "SERVER"`, và rules `.validate` bắt buộc
+`t === now && ta === 'SERVER'` nên client không giả được nhãn. Sự kiện CŨ
+không bị viết lại và KHÔNG được nâng thẩm quyền — chúng là
+`UNVERIFIED_CLIENT` và reader fail-safe sang Pending.
+
+**Reader.** `app/modules/pricing/tracking_history/` — nhận một `SaleInterval`
+(không phải một thời điểm, vì Reports chỉ có độ phân giải NGÀY) và chỉ trả
+giá khi trạng thái hằng trên toàn khoảng. Quy đổi nghìn VND → VND đúng một
+chỗ. Unresolved → `price_source = "Pending"` → `Missing.PurchasePrice` của
+`TASK-110`; không tạo hàng chờ mới.
+
+**Điểm tích hợp.** `TrackingHistoryPriceProvider` là `PriceProvider` truyền
+TƯỜNG MINH vào `run_import(price_provider=...)`. Mặc định pipeline vẫn
+`PendingPriceProvider` (`CHECK-105-04`) và `run_import_production` KHÔNG nối
+reader — composition P00–P11 vẫn thuộc `TASK-105E` (`PLANNED`).
+
+Trạng thái: implementation PASS, **NOT DONE**. Evidence đầy đủ ở
+`docs/sessions/S060-reports-history-reader-v1.md`.
+
 ## Current Price Architecture — DEC-154 (2026-08-28)
 
 Khối này là current-state pointer mới nhất. Nó supersede các đoạn current
@@ -3186,7 +3230,17 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
 đổi nội dung. Commit `8f77e20`.
 
 ## Blocker đang hoạt động
-- Không có.
+- **B-01 (S060)** — sự kiện `purchase_price_history` ghi TRƯỚC repair thẩm
+  quyền không có nhãn `ta` và không được viết lại, nên vĩnh viễn không đủ
+  thẩm quyền. Mọi mã có ít nhất một sự kiện như vậy sẽ Pending. Đây là kết
+  quả ĐÚNG theo `SILENT_ERROR_RATE = 0`; gỡ nó cần một artifact thẩm quyền do
+  Owner xác nhận, cùng hạng `HistoricalConfirmedRegistry`.
+- **B-02 (S060)** — repair Tracking chưa deploy (branch riêng, chưa merge),
+  nên trước deploy độ phủ thực tế của reader chỉ gồm các mã KHÔNG có sự kiện
+  lịch sử nào.
+- **B-03 (S060)** — Reports không lưu GIỜ bán, chỉ ngày. Một ngày có thay đổi
+  giá ở giữa là Pending theo thiết kế. Nâng độ phân giải `sale_date` là thay
+  đổi data contract → thuộc quyết định của Owner.
 
 ## Rủi ro đang hoạt động
 
@@ -3285,6 +3339,17 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S060 — REPORTS HISTORY READER V1 (Session 1/2) — 2026-08-29 — Trace mã
+  production hai repo; xác nhận bằng bằng chứng rằng `purchase_price_history.t`
+  không có thẩm quyền nào (client `Date.now()`, rules không `.validate`);
+  repair Tracking trên branch riêng (server timestamp + nhãn `ta` được rules
+  kiểm, không rewrite sự kiện cũ); dựng
+  `app/modules/pricing/tracking_history/` (snapshot/reader/provider) với hợp
+  đồng khoảng-bán vì Reports chỉ có độ phân giải NGÀY; unresolved đi vào
+  `Missing.PurchasePrice` của TASK-110; `CUTOVER_DATE 2026-09-01` không đổi.
+  Reports 1107 passed/11 skipped; Tracking 2286 đạt/0 hỏng + build.
+  Implementation PASS, NOT DONE — chờ independent review (Session 2).
+  Evidence: `docs/sessions/S060-reports-history-reader-v1.md`.
 - S000 — MỞ DỰ ÁN — 2026-08-22 — Đọc đặc tả và cả hai workbook mẫu; xác minh
   business rule với dữ liệu thật; chọn profile PRODUCT; tạo roadmap, sơ đồ phụ
   thuộc, chấm điểm và completion gate sơ bộ; ghi nhận 8 quyết định chiến thuật
