@@ -13,6 +13,42 @@ Trước khi đọc phần còn lại của file này, xác nhận bạn đang �
 File này từng bị đọc từ một nhánh lỗi thời 14 commit, dẫn tới báo cáo tiến độ
 sai — xem DEC-118.
 
+## Trạng thái sau GOLDEN #3 — QUANTITY + DISCOUNT (S057, 2026-08-29)
+
+```text
+GOLDEN #3 = GOLDEN_PASS (Session 1/2 — không cần Session 2)
+
+Case thật   : BH62439 — Điều hòa Daikin FTHF25XVMV (source_row=52, 1 trong
+              4 dòng của đơn), Quantity=2, Discount=100.000 VND
+Purchase price : 10.250.000 VND, OWNER_MANUAL_LEGACY_CONFIRMATION
+              (Owner-confirmed qua AskUserQuestion, DEC-164) — cùng cơ chế
+              BH62063 (DEC-163)
+AccountingProfit    (thật) = 500.000 VND   khớp oracle
+EligibleKpiProfit   (thật) = 400.000 VND   khớp oracle
+              (lệch AccountingProfit đúng bằng Discount — Discount không
+              double-count, hai capability tách biệt như DEC-126 điểm 1)
+
+Blocker duy nhất tìm được : thiếu registry entry Owner-confirmed thứ hai
+              (data class blocker, KHÔNG phải code bug) — cùng lớp blocker
+              khiến Golden #2 (implementation/golden-2-historical-vendor)
+              WAITING_REAL_DATA. KHÔNG bịa giá vốn để né; hỏi Owner trực
+              tiếp và nhận giá thật.
+
+Production diff : +1 dòng data/historical_confirmed/registry.jsonl,
+              +1 file test mới (7 test). 0 dòng app/**/config/** sửa.
+Golden Baseline (58 passed, 2 skipped) : KHÔNG đổi (test đó không đọc
+              registry.jsonl).
+Golden #1 (BH62063)      : regression-safe, không đổi.
+Golden #2                : KHÔNG đọc, KHÔNG sửa, KHÔNG reopen TASK-105C/105E.
+Full pytest : 1035 passed, 11 skipped, 0 failed (trước: 1028 passed).
+Validators  : structure/project_state/evidence/task_completion PASS;
+              reference_integrity FAIL đúng 3 issue baseline TASK-REM-T06
+              (không đổi). branch_authority_check → AUTHORITY_OK.
+```
+
+Bằng chứng đầy đủ: `docs/sessions/S057-golden-3-quantity-discount.md`,
+`DEC-164` trong `PROJECT/PROJECT_DECISIONS.md`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```

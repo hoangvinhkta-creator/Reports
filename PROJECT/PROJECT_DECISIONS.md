@@ -7464,3 +7464,96 @@ Can Revisit After:
   thống hiện tại và xác định `FIRST_FAILING_BOUNDARY` thật.
 - Một session sau đó xác định technical source mapping cho `"Tồn"` (hiện
   `UNRESOLVED`), dựa trên boundary mà `S050` phát hiện.
+
+## DEC-164
+
+Title:
+`GOLDEN #3 — QUANTITY + DISCOUNT` — Owner-confirmed purchase price cho đơn
+thật thứ hai (`BH62439`), đăng ký entry `HistoricalConfirmedRegistry` mới.
+
+Date:
+2026-08-29
+
+Task:
+Ghi kết quả phiên `S057` — Golden #3 (`docs/sessions/S057-golden-3-quantity-discount.md`).
+Nhánh `implementation/golden-3-quantity-discount`, base `89c0a27a`.
+
+**Đây LÀ một Owner Decision record.** Golden #3 yêu cầu MỘT đơn hàng thật
+với `Quantity > 1 AND Discount != 0` chạy qua `run_import_production()` và
+cho ra `AccountingPurchasePrice`/`AccountingProfit`/`KpiPurchasePrice`/
+`EligibleKpiProfit` khớp oracle. Quét cả hai kỳ thật (`period_2026_01.xlsx`,
+`period_2026_06.xlsx`) tìm được đúng 3 dòng thoả điều kiện, nhưng CẢ BA đều
+`Pending` vì `data/historical_confirmed/registry.jsonl` (nguồn giá vốn duy
+nhất cho mọi dòng pre-cutover) khi đó chỉ có một entry, khoá riêng cho
+`BH62063` (`INV-52`). Đây chính là lớp blocker khiến Golden #2
+(`implementation/golden-2-historical-vendor`) `WAITING_REAL_DATA` — session
+này KHÔNG bịa giá vốn để né blocker, mà hỏi trực tiếp Owner qua
+`AskUserQuestion` và nhận được giá vốn thật cho một trong ba candidate.
+
+Decision:
+
+**1. Chọn `BH62439` — Điều hòa Daikin FTHF25XVMV làm Golden #3 case.**
+Owner chọn candidate này trong ba candidate thật được liệt kê
+(`BH62439`/Daikin, `BH63153`/Tivi LG, `BH63608`/Tivi Samsung).
+
+```text
+OrderID              : BH62439
+SaleDate             : 2026-01-08
+RawProductName       : "Điều hòa Daikin FTHF25XVMV" (source_row=52, 1 trong 4 dòng của đơn)
+TrackingCode         : FTHF25XVMV
+ExpectedIdentity     : TRACKING:FTHF25XVMV
+Quantity             : 2
+SellPrice            : 10.500.000 VND
+Discount             : 100.000 VND
+ExpectedPurchasePrice: 10.250.000 VND
+ExpectedAccountingProfit  = (10.500.000 - 10.250.000) × 2            = 500.000 VND
+ExpectedEligibleKpiProfit = (10.500.000 - 10.250.000) × 2 - 100.000  = 400.000 VND
+```
+
+**2. Provenance — cùng cơ chế `BH62063`, KHÔNG phải historical replay đã
+verify.** Owner xác nhận giá vốn 10.250.000 VND là giá "Tồn"/giá mua công
+khai của mã `FTHF25XVMV` trên Tracking tại thời điểm bán (2026-01-08);
+Tracking hiện không giữ snapshot lịch sử reopenable cho ngày đó (LEGACY DATA
+GAP). Entry ghi `provenance = OWNER_MANUAL_LEGACY_CONFIRMATION` (KHÔNG
+`HISTORICAL_CONFIRMED_REPORT`) — đúng tiền lệ `BH62063` (`DEC-163`).
+
+**3. Registry entry mới, KHÔNG sửa entry `BH62063`.** Thêm ĐÚNG một dòng
+`HCR-BH62439-20260108-1` vào `data/historical_confirmed/registry.jsonl`,
+dựng qua `HistoricalConfirmedRegistryEntry.__post_init__` (validate PASS)
+rồi `to_record()` — không viết tay JSON, không sửa entry `BH62063` hiện có.
+Khoá tra cứu `(order_id, raw_identity_key, sale_date)` (`INV-52`) đảm bảo
+entry mới không ảnh hưởng bất kỳ đơn nào khác, kể cả 3 dòng còn lại của
+CHÍNH đơn `BH62439` (Tủ lạnh Panasonic, Máy Giặt Sấy LG, Máy lạnh Daikin
+Inverter 2HP) — cả ba vẫn `Pending`.
+
+**4. Không đây là mapping toàn cục.** Giống `DEC-163` §4: identity
+`TRACKING:FTHF25XVMV` là Owner-confirmed CHO ĐÚNG đơn `BH62439` ngày
+2026-01-08, không thiết lập quy tắc chung cho mọi lần gặp mã này.
+
+**5. Golden Baseline không đổi.** `tests/test_golden_baseline.py` gọi
+`run_import()` KHÔNG truyền `identity_registry=`, nên không đọc
+`data/historical_confirmed/registry.jsonl` — 58 passed/2 skipped giữ
+nguyên, đo lại sau khi thêm entry.
+
+**6. Golden #2 không bị chạm.** Không đọc/sửa nhánh
+`implementation/golden-2-historical-vendor`, không reopen
+`TASK-105C`/`TASK-105E`.
+
+**7. Không đăng ký task mới, không mở Repair Cycle, không V4.2 migration.**
+
+Impact:
+
+- `data/historical_confirmed/registry.jsonl` — +1 dòng (entry `BH62439`).
+- `tests/test_golden_bh62439_kpi.py` — file mới, 7 test tập trung.
+- `docs/sessions/S057-golden-3-quantity-discount.md` — tài liệu session mới.
+- `PROJECT/PROJECT_DECISIONS.md` — `DEC-164` (bản ghi này).
+- **Không** sửa `app/**`, `config/**`, entry `BH62063`, hay bất kỳ test có
+  sẵn nào.
+- Full suite: 1035 passed, 11 skipped, 0 failed (trước: 1028 passed — delta
+  đúng 7 test mới). Golden Baseline 58 passed/2 skipped không đổi.
+
+Can Revisit After:
+
+- Nếu cần Golden #4/#5, lặp lại đúng mẫu hình này: quét candidate thật, xin
+  Owner-confirmed purchase price qua `AskUserQuestion` khi registry chưa có
+  entry, KHÔNG bịa số.
