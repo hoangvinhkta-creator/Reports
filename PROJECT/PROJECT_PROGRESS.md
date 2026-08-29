@@ -49,6 +49,57 @@ Validators  : structure/project_state/evidence/task_completion PASS;
 Bằng chứng đầy đủ: `docs/sessions/S057-golden-3-quantity-discount.md`,
 `DEC-164` trong `PROJECT/PROJECT_DECISIONS.md`.
 
+## Trạng thái sau GOLDEN #4 — SAFE PENDING (S058, 2026-08-29)
+
+```text
+GOLDEN #4 = GOLDEN_PASS (Session 1/2 — không cần Session 2)
+
+Case thật   : BH62439 — Máy lạnh Daikin Inverter 2 HP FTKB50ZVMV
+              (source_row=53, 1 trong 4 dòng của đơn — CÙNG đơn Golden #3,
+              dòng 52 đã resolve), Quantity=1, SellPrice=16.300.000,
+              Discount=50.000, SaleDate=2026-01-08
+Phân loại   : PURCHASE_PRICE_UNRESOLVED (KHÔNG PHẢI IDENTITY_UNRESOLVED —
+              product_raw rõ ràng, giữ nguyên; TASK-105D identity resolver
+              KHÔNG wiring vào app.pipeline nên "Identity" hiện tại = product_raw)
+Mục tiêu    : chứng minh đường SAFE FAILURE — Real input → production thật
+              → insufficient evidence → Pending → không bịa giá/lợi
+              nhuận/identity → dòng vẫn accounted for → reason trung thực →
+              Review Queue hiện có (TASK-110) đã nhận đúng dòng này.
+
+Kết quả (run_import_production() thật, KHÔNG DI/mock/stub):
+    price_source = Pending, accounting_purchase_price = None,
+    accounting_profit = None, kpi_purchase_price = None
+    (provenance = "Pending"), eligible_kpi_profit = None — khớp oracle
+    ghi TRƯỚC khi test. Dòng 52 (cùng đơn, đã resolve = 10.250.000) KHÔNG
+    rò rỉ sang dòng 53 (cross-line leakage = KHÔNG). Dòng có mặt trong
+    result.orders (4/4 dòng, không rơi rớt) VÀ trong Review Queue —
+    detect_missing_purchase_price (aggregate: true, DEC-128 §1) nén thành
+    ĐÚNG MỘT ReviewItem cấp batch, source_rows chứa 53, message trung thực
+    ("... chưa có giá nhập kế toán ... không phải lỗi dữ liệu").
+
+Blocker    : KHÔNG có. Production đã đúng theo thiết kế từ trước (Golden #3
+             xác nhận arithmetic; Golden #4 xác nhận thêm safe-failure/Review
+             Queue). 0 dòng app/**, config/**, data/** sửa.
+
+Production diff : +1 file test mới (6 test), +1 session log,
+              +ghi trạng thái này. 0 dòng app/**/config/**/data/** sửa.
+Golden Baseline (58 passed, 2 skipped) : KHÔNG đổi.
+Golden #1 (BH62063) / Golden #3 (BH62439 dòng 52) : regression-safe, không đổi.
+Golden #2 : KHÔNG đọc, KHÔNG sửa, KHÔNG reopen TASK-105C/105E.
+Full pytest : 1041 passed, 11 skipped, 0 failed (trước: 1035 passed).
+Validators  : structure/project_state/evidence/task_completion PASS;
+              reference_integrity FAIL đúng 3 issue baseline TASK-REM-T06
+              (không đổi). branch_authority_check → AUTHORITY_OK.
+
+QUAN TRỌNG: Golden #4 PASS KHÔNG tuyên bố TASK-110 DONE. TASK-110 (toàn bộ
+lineage R1-A2→R8) vẫn NOT DONE, budget EXHAUSTED_PRE_V4.1, CHECK-110-16 vẫn
+BLOCKED (POST_MERGE_PRODUCTION_ACCEPTANCE) — không đổi bởi phiên này. Golden
+#4 chỉ verify riêng detector missing_purchase_price đã hoạt động đúng trên
+MỘT case thật, không phải toàn bộ Completion Gate của TASK-110.
+```
+
+Bằng chứng đầy đủ: `docs/sessions/S058-golden-4-safe-pending.md`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
