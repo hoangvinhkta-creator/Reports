@@ -243,6 +243,9 @@ $ python3 -m pytest -q   (TRƯỚC commit — 2 guard TASK-105D dirty-diff tự
    + test_no_golden_fixture_or_expected_file_was_modified — so `git diff HEAD`,
    tự resolve sau commit)
 
+$ python3 -m pytest -q   (SAU commit)
+1017 passed, 11 skipped, 0 failed
+
 $ bash scripts/branch_authority_check.sh          → AUTHORITY_OK
 $ python3 governance/scripts/governance/validate_structure.py           → PASS
 $ python3 governance/scripts/governance/validate_project_state.py       → PASS
@@ -268,8 +271,9 @@ $ git diff --shortstat d16c3fae2c167c034af65a0adc5cd3b95b3b6a8e..HEAD -- app/ co
 
 SESSION_PRODUCTION_DIFF (app/, không đụng config/)                = 197 LOC
 SESSION_PRODUCTION_DIFF_MAX                                        = 300 LOC  → OK
-GOLDEN_1_CUMULATIVE_PRODUCTION_DIFF (từ GOLDEN_1_LOC_BASELINE_SHA
-  d16c3fae2c167c034af65a0adc5cd3b95b3b6a8e)                         = 488 + 197 = 685 LOC
+GOLDEN_1_CUMULATIVE_PRODUCTION_DIFF (đo trực tiếp
+  git diff --shortstat d16c3fae2c167c034af65a0adc5cd3b95b3b6a8e..HEAD --
+  app/ config/ = 618 insertions + 19 deletions)                    = 637 LOC
 GOLDEN_1_CUMULATIVE_PRODUCTION_DIFF_MAX                             = 1200 LOC → OK
 
 MEDIUM change này session : 3
@@ -330,7 +334,7 @@ S055 FINAL STATE : GOLDEN_PASS
     EligibleKpiProfit=500.000 — khớp oracle tuyệt đối, KHÔNG manual DI (§6)
   - 7/7 negative-acceptance case (A–G) chứng minh fail-closed qua production
     entry point thật hoặc loader thật (§8)
-  - 1015 passed / 11 skipped / 0 failed (sau commit) — 0 regression; baseline
+  - 1017 passed / 11 skipped / 0 failed (sau commit) — 0 regression; baseline
     fixture KHÔNG cần regenerate (§11)
   - Budget: 197/300 LOC session, 685/1200 LOC cumulative, 3/3 MEDIUM session
     (đúng giới hạn), 5/8 MEDIUM cumulative — trong ngân sách (§12)
