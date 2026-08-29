@@ -8,6 +8,7 @@ from app.modules.adjustment.confirmed_adjustment_source import (
     ConfirmedAdjustmentSource,
     load_confirmed_adjustments_from_jsonl,
 )
+from app.modules.kpi.kpi_profit_engine import load_eligible_costs_authority
 from app.modules.domain.models import (
     ADS,
     KPI_PURCHASE_NO_CONFIRMED_ADJUSTMENT,
@@ -138,11 +139,13 @@ def test_kpi_purchase_price_wired_end_to_end_determined_absence(
         price="200000",
     )
     empty_source = ConfirmedAdjustmentSource(records={})
+    authority = load_eligible_costs_authority(config_dir / "eligible_costs.yaml")
     result = run_import(
         synthetic_raw_path,
         config_dir=config_dir,
         identity_registry=registry,
         confirmed_adjustment_source=empty_source,
+        eligible_costs_authority=authority,
     )
     order = _order(result, "BH0004")
     line = order.lines[0]
@@ -171,20 +174,27 @@ def test_kpi_purchase_price_wired_end_to_end_confirmed_adjustment(
     adjustments_path = tmp_path / "confirmed_adjustments.jsonl"
     adjustments_path.write_text(
         json.dumps(
-            {"order_id": "BH0004", "amount": "10000", "confirmed_by": "chu.du.an"}
+            {
+                "order_id": "BH0004",
+                "amount": "10000",
+                "confirmed_by": "chu.du.an",
+                "confirmed_at": "2026-01-18",
+            }
         ),
         encoding="utf-8",
     )
     source = load_confirmed_adjustments_from_jsonl(adjustments_path)
+    authority = load_eligible_costs_authority(config_dir / "eligible_costs.yaml")
     result = run_import(
         synthetic_raw_path,
         config_dir=config_dir,
         identity_registry=registry,
         confirmed_adjustment_source=source,
+        eligible_costs_authority=authority,
     )
     line = _order(result, "BH0004").lines[0]
     assert line.kpi_purchase_price == Decimal("210000")
-    assert line.kpi_purchase_price_provenance == "Confirmed:chu.du.an"
+    assert line.kpi_purchase_price_provenance == "Confirmed:chu.du.an@2026-01-18"
     assert line.eligible_kpi_profit == (Decimal("300000") - Decimal("210000")) * 2 - Decimal("50000")
 
 
@@ -393,3 +403,153 @@ def test_unmapped_employee_line_gets_no_rate_at_all(synthetic_raw_path, config_d
     assert line.conversion_rate_final is None
     assert line.conversion_scheme_source_of_value == "Unresolved:UnmappedEmployee"
     assert line in result.unmapped_lines  # routed to review
+
+
+# ============== Golden #1 Repair Batch #1 — negative acceptance (brief §8) ==
+
+def test_missing_historical_registry_file_yields_pending_kpi(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    """Negative acceptance A — historical registry unavailable -> Pending.
+    File thiếu -> registry rỗng (S051 §9) -> không entry nào cho order ->
+    AccountingPurchasePrice Pending -> KpiPurchasePrice/EligibleKpiProfit
+    Pending, không suy đoán."""
+    from app.modules.product.identity.registry_store import load_registry_from_jsonl
+
+    registry = load_registry_from_jsonl(tmp_path / "does_not_exist.jsonl")
+    result = run_import(
+        synthetic_raw_path, config_dir=config_dir, identity_registry=registry
+    )
+    line = _order(result, "BH0001").lines[0]
+    assert line.accounting_purchase_price is None
+    assert line.kpi_purchase_price is None
+    assert line.eligible_kpi_profit is None
+
+
+def test_missing_eligible_costs_authority_yields_pending_eligible_kpi_profit(
+    synthetic_raw_path, config_dir
+):
+    """Negative acceptance D — EligibleCosts authority missing -> Pending.
+    `kpi_purchase_price` vẫn resolve (không phụ thuộc authority này), nhưng
+    `eligible_kpi_profit` phải Pending."""
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=ConfirmedAdjustmentSource(records={}),
+        eligible_costs_authority=None,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.kpi_purchase_price == Decimal("200000")  # not gated by authority
+    assert line.eligible_kpi_profit is None
+
+
+def test_invalid_eligible_costs_authority_yields_pending_eligible_kpi_profit(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    """Negative acceptance E — EligibleCosts authority invalid (category
+    khác rỗng, chưa được engine hỗ trợ) -> Pending."""
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    bad_authority_path = tmp_path / "eligible_costs.yaml"
+    bad_authority_path.write_text(
+        "eligible_cost_categories: [DeliveryCost]\n", encoding="utf-8"
+    )
+    authority = load_eligible_costs_authority(bad_authority_path)
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=ConfirmedAdjustmentSource(records={}),
+        eligible_costs_authority=authority,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.eligible_kpi_profit is None
+
+
+def test_duplicate_confirmed_adjustment_yields_pending_kpi(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    """Negative acceptance F — duplicate confirmed adjustment identity ->
+    source invalid -> Pending toàn bộ KPI của dòng liên quan."""
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    adjustments_path = tmp_path / "confirmed_adjustments.jsonl"
+    adjustments_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "order_id": "BH0004",
+                        "amount": "10000",
+                        "confirmed_by": "a",
+                        "confirmed_at": "2026-01-18",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "order_id": "BH0004",
+                        "amount": "99999",
+                        "confirmed_by": "b",
+                        "confirmed_at": "2026-01-19",
+                    }
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    source = load_confirmed_adjustments_from_jsonl(adjustments_path)
+    assert source.is_available is False
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=source,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.kpi_purchase_price is None
+    assert line.eligible_kpi_profit is None
+
+
+def test_non_finite_confirmed_adjustment_yields_pending_kpi(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    """Negative acceptance G — NaN/non-finite confirmed adjustment -> source
+    invalid -> Pending toàn bộ KPI của dòng liên quan."""
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    adjustments_path = tmp_path / "confirmed_adjustments.jsonl"
+    adjustments_path.write_text(
+        '{"order_id": "BH0004", "amount": NaN, "confirmed_by": "a", '
+        '"confirmed_at": "2026-01-18"}',
+        encoding="utf-8",
+    )
+    source = load_confirmed_adjustments_from_jsonl(adjustments_path)
+    assert source.is_available is False
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=source,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.kpi_purchase_price is None
+    assert line.eligible_kpi_profit is None

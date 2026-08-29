@@ -22,9 +22,12 @@ from app.modules.domain.models import (
     WorkingLine,
 )
 from app.modules.kpi.kpi_profit_engine import (
+    AUTHORITY_UNAVAILABLE,
+    EligibleCostsAuthority,
+    PROVENANCE_ELIGIBLE_COSTS_EMPTY_SET,
     apply_kpi_profit,
     compute_eligible_kpi_profit,
-    load_eligible_cost_categories,
+    load_eligible_costs_authority,
     resolve_kpi_purchase_price,
 )
 from app.modules.profit.profit_engine import compute_accounting_profit
@@ -67,9 +70,13 @@ _WITH_RECORD = ConfirmedAdjustmentSource(
     records={
         "BH0001": ConfirmedAdjustmentRecord(
             order_id="BH0001", amount=Decimal("10000"),
-            confirmed_by="chu.du.an", reason="test",
+            confirmed_by="chu.du.an", confirmed_at="2026-01-18", reason="test",
         )
     }
+)
+
+_VALID_AUTHORITY = EligibleCostsAuthority(
+    is_valid=True, categories=(), provenance=PROVENANCE_ELIGIBLE_COSTS_EMPTY_SET
 )
 
 
@@ -107,7 +114,7 @@ def test_confirmed_record_adds_amount_to_accounting_purchase_price():
     line = _line()
     price, provenance = resolve_kpi_purchase_price(line, _WITH_RECORD)
     assert price == Decimal("200000") + Decimal("10000")
-    assert provenance == "Confirmed:chu.du.an"
+    assert provenance == "Confirmed:chu.du.an@2026-01-18"
 
 
 # ---------------------------------------------------- compute_eligible_kpi_profit
@@ -118,7 +125,7 @@ def test_discount_subtracted_exactly_once_and_quantity_multiplies_unit_diff():
     (300000 - 200000) * 2 - 50000 = 150000. Đọc nguyên văn dạng prose sai
     (DEC-143 Reason §4) sẽ cho một số khác hẳn."""
     line = _line(kpi_purchase_price=Decimal("200000"))
-    assert compute_eligible_kpi_profit(line) == Decimal("150000")
+    assert compute_eligible_kpi_profit(line, _VALID_AUTHORITY) == Decimal("150000")
 
 
 def test_quantity_one_discount_zero_matches_golden_1_shape():
@@ -128,12 +135,19 @@ def test_quantity_one_discount_zero_matches_golden_1_shape():
         accounting_purchase_price=Decimal("7000000"),
         kpi_purchase_price=Decimal("7000000"),
     )
-    assert compute_eligible_kpi_profit(line) == Decimal("500000")
+    assert compute_eligible_kpi_profit(line, _VALID_AUTHORITY) == Decimal("500000")
 
 
 def test_eligible_kpi_profit_none_when_kpi_purchase_price_pending():
     line = _line(kpi_purchase_price=None)
-    assert compute_eligible_kpi_profit(line) is None
+    assert compute_eligible_kpi_profit(line, _VALID_AUTHORITY) is None
+
+
+def test_eligible_kpi_profit_none_when_authority_missing():
+    """B02 — authority thiếu/invalid phải fail-closed `EligibleKpiProfit`,
+    kể cả khi mọi input khác đã đủ để tính."""
+    line = _line(kpi_purchase_price=Decimal("200000"))
+    assert compute_eligible_kpi_profit(line, AUTHORITY_UNAVAILABLE) is None
 
 
 def test_eligible_kpi_profit_diverges_from_accounting_profit_when_discount_nonzero():
@@ -141,7 +155,7 @@ def test_eligible_kpi_profit_diverges_from_accounting_profit_when_discount_nonze
     1) — khi Discount != 0, hai con số PHẢI khác nhau, không được trùng."""
     line = _line(kpi_purchase_price=Decimal("200000"))
     accounting_profit = compute_accounting_profit(line)
-    eligible_kpi_profit = compute_eligible_kpi_profit(line)
+    eligible_kpi_profit = compute_eligible_kpi_profit(line, _VALID_AUTHORITY)
     assert accounting_profit == Decimal("200000")  # (300000-200000)*2, no discount
     assert eligible_kpi_profit == Decimal("150000")  # cùng, trừ thêm 50000 discount
     assert accounting_profit != eligible_kpi_profit
@@ -151,18 +165,30 @@ def test_eligible_kpi_profit_diverges_from_accounting_profit_when_discount_nonze
 
 def test_apply_kpi_profit_sets_all_three_fields_together():
     line = _line()
-    apply_kpi_profit([line], _WITH_RECORD)
+    apply_kpi_profit([line], _WITH_RECORD, _VALID_AUTHORITY)
     assert line.kpi_purchase_price == Decimal("210000")
-    assert line.kpi_purchase_price_provenance == "Confirmed:chu.du.an"
+    assert line.kpi_purchase_price_provenance == "Confirmed:chu.du.an@2026-01-18"
     assert line.eligible_kpi_profit == (Decimal("300000") - Decimal("210000")) * 2 - Decimal("50000")
+
+
+def test_apply_kpi_profit_kpi_purchase_price_resolves_even_without_authority():
+    """B02 — `kpi_purchase_price` KHÔNG bị gate bởi EligibleCosts authority
+    (capability khác); chỉ `eligible_kpi_profit` fail-closed."""
+    line = _line()
+    apply_kpi_profit([line], _WITH_RECORD, None)
+    assert line.kpi_purchase_price == Decimal("210000")
+    assert line.eligible_kpi_profit is None
 
 
 # ------------------------------------------------------- EligibleCosts (DEC-143)
 
-def test_eligible_cost_categories_closed_empty_set(tmp_path):
+def test_eligible_costs_authority_closed_empty_set_is_valid(tmp_path):
     path = tmp_path / "eligible_costs.yaml"
     path.write_text("eligible_cost_categories: []\n", encoding="utf-8")
-    assert load_eligible_cost_categories(path) == ()
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is True
+    assert authority.categories == ()
+    assert authority.provenance == PROVENANCE_ELIGIBLE_COSTS_EMPTY_SET
 
 
 def test_real_eligible_costs_config_is_closed_empty_set():
@@ -170,4 +196,37 @@ def test_real_eligible_costs_config_is_closed_empty_set():
     (DEC-143 §1), không phải absence của file."""
     from pathlib import Path
 
-    assert load_eligible_cost_categories(Path("config/eligible_costs.yaml")) == ()
+    authority = load_eligible_costs_authority(Path("config/eligible_costs.yaml"))
+    assert authority.is_valid is True
+    assert authority.categories == ()
+
+
+def test_eligible_costs_authority_missing_file_is_unavailable(tmp_path):
+    authority = load_eligible_costs_authority(tmp_path / "does_not_exist.yaml")
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_missing_key_is_unavailable(tmp_path):
+    """Sự hiện diện tường minh của `eligible_cost_categories` là bằng chứng
+    cho tập rỗng có thẩm quyền — thiếu key ≠ "coi như rỗng" (DEC-103)."""
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("some_other_key: 1\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_invalid_yaml_is_unavailable(tmp_path):
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("eligible_cost_categories: [unterminated\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_non_empty_categories_is_unavailable(tmp_path):
+    """Engine hiện tại KHÔNG tính category cost nào — một category khác rỗng
+    là semantically non-authoritative cho slice này, fail closed thay vì
+    âm thầm coi SUM(EligibleCosts) = 0 (§B02 brief)."""
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("eligible_cost_categories: [DeliveryCost]\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False

@@ -1,8 +1,9 @@
 """`ConfirmedAdjustmentSource` loader — DEC-144 §3/§5 (TASK-108B minimum
-B7/B8 slice, Golden #1 KPI vertical slice).
+B7/B8 slice, Golden #1 KPI vertical slice) + Golden #1 Repair Batch #1 (B03
+minimum data-integrity repair).
 
-Ba trạng thái không được gộp: UNAVAILABLE (thiếu/hỏng) khác LOADED-rỗng
-(DETERMINED_ABSENCE) khác LOADED-có-record.
+Ba trạng thái không được gộp: UNAVAILABLE (thiếu/hỏng/vi phạm integrity)
+khác LOADED-rỗng (DETERMINED_ABSENCE) khác LOADED-có-record.
 """
 
 from __future__ import annotations
@@ -45,7 +46,20 @@ def test_invalid_json_line_makes_whole_source_unavailable(tmp_path):
 
 def test_line_missing_required_field_makes_whole_source_unavailable(tmp_path):
     path = tmp_path / "confirmed.jsonl"
-    _write(path, json.dumps({"order_id": "BH0001"}))  # thiếu amount/confirmed_by
+    _write(path, json.dumps({"order_id": "BH0001"}))  # thiếu amount/confirmed_by/confirmed_at
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_line_missing_confirmed_at_makes_whole_source_unavailable(tmp_path):
+    """DEC-144 §4 — `effective date` (`confirmed_at`) là một trong 5 thứ bắt
+    buộc xác định được khi adjustment tồn tại; thiếu nó phải fail-closed như
+    thiếu bất kỳ field bắt buộc nào khác."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps({"order_id": "BH0001", "amount": "50000", "confirmed_by": "test"}),
+    )
     source = load_confirmed_adjustments_from_jsonl(path)
     assert source.is_available is False
 
@@ -55,7 +69,74 @@ def test_unparseable_amount_makes_whole_source_unavailable(tmp_path):
     _write(
         path,
         json.dumps(
-            {"order_id": "BH0001", "amount": "not-a-number", "confirmed_by": "test"}
+            {
+                "order_id": "BH0001",
+                "amount": "not-a-number",
+                "confirmed_by": "test",
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_nan_amount_makes_whole_source_unavailable(tmp_path):
+    """B03.A — `Decimal(str(float('nan')))` KHÔNG raise (`Decimal('nan')` là
+    một giá trị Decimal hợp lệ); phải chặn tường minh bằng `is_finite()`."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        '{"order_id": "BH0001", "amount": NaN, "confirmed_by": "test", '
+        '"confirmed_at": "2026-01-01"}',
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_infinite_amount_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        '{"order_id": "BH0001", "amount": Infinity, "confirmed_by": "test", '
+        '"confirmed_at": "2026-01-01"}',
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_negative_infinite_amount_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        '{"order_id": "BH0001", "amount": -Infinity, "confirmed_by": "test", '
+        '"confirmed_at": "2026-01-01"}',
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_duplicate_order_id_makes_whole_source_unavailable(tmp_path):
+    """B03.B — record thứ hai KHÔNG được âm thầm ghi đè record thứ nhất;
+    trùng identity là nguồn mâu thuẫn, fail-closed toàn bộ."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": "a",
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "99999",
+                "confirmed_by": "b",
+                "confirmed_at": "2026-01-02",
+            }
         ),
     )
     source = load_confirmed_adjustments_from_jsonl(path)
@@ -69,7 +150,12 @@ def test_one_bad_line_among_good_lines_still_fails_closed(tmp_path):
     _write(
         path,
         json.dumps(
-            {"order_id": "BH0001", "amount": "50000", "confirmed_by": "test"}
+            {
+                "order_id": "BH0001",
+                "amount": "50000",
+                "confirmed_by": "test",
+                "confirmed_at": "2026-01-01",
+            }
         ),
         "{broken",
     )
@@ -86,6 +172,7 @@ def test_confirmed_record_is_found_by_order_id(tmp_path):
                 "order_id": "BH0004",
                 "amount": "10000",
                 "confirmed_by": "chu.du.an",
+                "confirmed_at": "2026-01-18",
                 "reason": "test fixture",
             }
         ),
@@ -97,6 +184,7 @@ def test_confirmed_record_is_found_by_order_id(tmp_path):
     assert record is not None
     assert record.amount == Decimal("10000")
     assert record.confirmed_by == "chu.du.an"
+    assert record.confirmed_at == "2026-01-18"
 
     # Một order khác không có record vẫn là DETERMINED_ABSENCE, không phải lỗi.
     assert source.lookup("BH9999") is None

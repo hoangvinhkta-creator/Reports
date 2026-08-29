@@ -46,7 +46,10 @@ from app.modules.domain.models import (
 from app.modules.importing.normalizer import normalize_lines
 from app.modules.importing.preview import ImportPreview, build_preview
 from app.modules.importing.raw_reader import read_raw_rows
-from app.modules.kpi.kpi_profit_engine import apply_kpi_profit
+from app.modules.kpi.kpi_profit_engine import (
+    EligibleCostsAuthority,
+    apply_kpi_profit,
+)
 from app.modules.lead_source.classifier import LeadSourceClassifier
 from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
@@ -172,6 +175,7 @@ def build_working_data(
     identity_registry: HistoricalConfirmedRegistry | None = None,
     identity_resolver_factory: ResolverFactory | None = None,
     confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
+    eligible_costs_authority: EligibleCostsAuthority | None = None,
 ) -> WorkingData:
     """Steps 1–10 of spec section 22 — everything except the Review Queue."""
     raw_rows = read_raw_rows(raw_path)
@@ -206,11 +210,12 @@ def build_working_data(
     # Bước 9b (TASK-108B minimum B7/B8 slice, DEC-143 + DEC-144). Chạy ngay
     # sau AccountingPurchasePrice/AccountingProfit vì cùng cần
     # accounting_purchase_price đã resolve — nhưng KHÔNG phụ thuộc kết quả
-    # accounting_profit (capability khác, DEC-126 điểm 1). `confirmed_adjustment_source
-    # is None` mặc định (không truyền) nghĩa là chưa có nguồn nào được wiring
-    # cho lời gọi này -> SOURCE_UNAVAILABLE -> Pending, không phải 0 blast
-    # radius giả — hành vi mặc định của mọi `run_import()` hiện có không đổi.
-    apply_kpi_profit(lines, confirmed_adjustment_source)
+    # accounting_profit (capability khác, DEC-126 điểm 1). `confirmed_adjustment_source`/
+    # `eligible_costs_authority` là `None` mặc định (không truyền) nghĩa là
+    # chưa có nguồn nào được wiring cho lời gọi này -> SOURCE_UNAVAILABLE ->
+    # Pending, không phải 0 blast radius giả — hành vi mặc định của mọi
+    # `run_import()` hiện có không đổi (Golden #1 Repair Batch #1, B02).
+    apply_kpi_profit(lines, confirmed_adjustment_source, eligible_costs_authority)
 
     resolver = ConversionSchemeResolver.from_yaml(
         config_dir / "conversion_rates.yaml"
@@ -235,6 +240,7 @@ def run_import(
     identity_registry: HistoricalConfirmedRegistry | None = None,
     identity_resolver_factory: ResolverFactory | None = None,
     confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
+    eligible_costs_authority: EligibleCostsAuthority | None = None,
 ) -> ImportResult:
     working = build_working_data(
         raw_path,
@@ -244,6 +250,7 @@ def run_import(
         identity_registry,
         identity_resolver_factory,
         confirmed_adjustment_source,
+        eligible_costs_authority,
     )
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a

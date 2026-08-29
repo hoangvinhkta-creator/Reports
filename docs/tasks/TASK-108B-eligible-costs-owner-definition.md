@@ -2689,6 +2689,79 @@ Chi tiết đầy đủ: `docs/sessions/S054-golden-1-kpi-vertical-slice.md`.
 
 ## STOP (Phần XIII)
 
+# PHẦN XIV — GOLDEN #1 REPAIR BATCH #1 (append 2026-08-29)
+
+Independent cumulative review sau S054 trả về `GOLDEN_1_REPAIR_REQUIRED` với
+ba BLOCKING finding (B01/B02/B03) — S054 tự nó KHÔNG sai công thức, nhưng
+"GOLDEN_PASS" của S054 chỉ đạt được qua DI thủ công trong test/demo script,
+không phải một đường production thật; và `EligibleCosts` authority tồn tại
+trên đĩa nhưng không được đọc bởi bất cứ code nào. Phiên "GOLDEN #1 REPAIR
+BATCH #1" (`repair/golden-bh62063-production-composition-1`) sửa cả ba trong
+cùng một session, cập nhật boundary implemented/deferred của Phần XIII trên.
+
+**Implemented thêm (B01 — real production composition):**
+
+- `app/composition.py` (mới) — `run_import_production(raw_path, config_dir)`:
+  seam production nhỏ nhất, nạp CẢ BA nguồn canonical committed
+  (`data/historical_confirmed/registry.jsonl`,
+  `data/confirmed_adjustments/confirmed_adjustments.jsonl`,
+  `config/eligible_costs.yaml`) rồi gọi `run_import()` thật — không
+  stub/mock/bypass/Golden-specific branch, không hard-code BH62063 hay bất kỳ
+  order nào khác. `app/pipeline.py` (`run_import`/`build_working_data`) vẫn
+  là pure library entry point, DI mặc định `None` không đổi (0 blast radius
+  — mọi lời gọi hiện có, kể cả Golden Baseline, giữ nguyên hành vi).
+- Test acceptance thật:
+  `tests/test_golden_bh62063_kpi.py::test_bh62063_normal_production_composition_reaches_eligible_kpi_profit`
+  gọi `run_import_production()` KHÔNG một tham số DI thủ công nào.
+
+**Implemented thêm (B02 — EligibleCosts authority thật sự được consume):**
+
+- `app/modules/kpi/kpi_profit_engine.py` — `EligibleCostsAuthority` (dataclass)
+  + `load_eligible_costs_authority()` thay thế `load_eligible_cost_categories()`
+  cũ (chỉ đọc, không validate, không ai gọi ngoài test). Authority hợp lệ CHỈ
+  khi `eligible_cost_categories: []` tường minh; thiếu file/YAML hỏng/thiếu
+  key/category khác rỗng (chưa engine nào tính) đều fail-closed
+  (`AUTHORITY_UNAVAILABLE`).
+- `compute_eligible_kpi_profit()` giờ nhận `authority` và trả `None` ngay khi
+  `authority.is_valid` là `False` — trước đây hoàn toàn bỏ qua tham số này.
+  `kpi_purchase_price` KHÔNG bị gate bởi authority (capability khác, DEC-126
+  điểm 1) — chỉ `eligible_kpi_profit`.
+- `apply_kpi_profit()`/`build_working_data()`/`run_import()` — thêm tham số DI
+  `eligible_costs_authority: EligibleCostsAuthority | None = None`, mặc định
+  giữ hành vi Pending cũ (0 blast radius, cùng pattern các tham số DI khác).
+
+**Implemented thêm (B03 — minimum data-integrity repair, KHÔNG mở rộng subsystem):**
+
+- `app/modules/adjustment/confirmed_adjustment_source.py` —
+  (a) `amount` không finite (`NaN`/`Infinity`/`-Infinity`) nay bị chặn tường
+  minh bằng `Decimal.is_finite()` (trước đây `Decimal(str(nan))` không raise,
+  lọt qua fail-closed); (b) `order_id` trùng lặp giữa hai dòng nay fail-closed
+  toàn bộ nguồn (`UNAVAILABLE`) thay vì record sau âm thầm ghi đè record
+  trước; (c) `confirmed_at` là field bắt buộc tối thiểu mới (DEC-144 §4 —
+  "effective date" là một trong năm thứ bắt buộc xác định được), và provenance
+  của một record khớp nay là `Confirmed:{confirmed_by}@{confirmed_at}` thay vì
+  chỉ `Confirmed:{confirmed_by}` — đủ để trỏ lại đúng dòng nguồn thay vì một
+  nhãn mơ hồ khi nhiều record cùng người xác nhận.
+- KHÔNG thêm: adjustment UI, writer, generic correction workflow, generalized
+  history subsystem, arbitrary effective-date engine, version-management
+  subsystem — đúng SCOPE GUARD của session brief §5. `confirmed_at` là field
+  DỮ LIỆU tối thiểu, không phải một effective-dating engine.
+
+**Vẫn Intentionally Deferred (không đổi so với Phần XIII):**
+
+- Composition `P00–P11` post-cutover (`TASK-105E`).
+- Workflow xác nhận `KpiPurchaseAdjustment` có persistence/UI (writer, màn
+  hình duyệt).
+- `ConvertedRevenue` aggregation / `TASK-109` / phần còn lại `TASK-108B`.
+- Một `EligibleCosts` category thật (vẫn tập rỗng có thẩm quyền).
+
+**Retrigger (không đổi):** một Golden #2–#4 hoặc một batch thật ≥ 50 đơn hàng
+chứa một confirmed KPI purchase adjustment cần semantics đã deferred ở trên.
+
+Chi tiết đầy đủ: `docs/sessions/S055-golden-1-repair-batch-1.md`.
+
+## STOP (Phần XIV)
+
 Không implement `TASK-105E`/composition P00–P11, không xây writer/UI cho
 KpiPurchaseAdjustment, không mở `TASK-109`, không thêm `EligibleCosts`
 category nào trong phiên Golden #1 KPI vertical slice này.

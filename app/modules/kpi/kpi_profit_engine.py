@@ -27,13 +27,27 @@ Bất kỳ input Pending/thiếu nào (accounting_purchase_price, sell_price,
 quantity, hoặc confirmed-adjustment source unavailable) khiến CẢ HAI
 `kpi_purchase_price`/`eligible_kpi_profit` là `None` — không bao giờ suy đoán
 0 (DEC-103).
+
+## EligibleCosts authority gating (Golden #1 Repair Batch #1, B02)
+
+`config/eligible_costs.yaml` là MỘT authority có thẩm quyền (DEC-143 §1),
+không phải config trang trí — `EligibleKpiProfit` chỉ được tính khi authority
+đó nạp + validate THÀNH CÔNG (`EligibleCostsAuthority.is_valid`). Thiếu file /
+không đọc được / YAML hỏng / thiếu key `eligible_cost_categories` tường minh /
+category khác rỗng (engine hiện tại KHÔNG tính category cost nào — semantically
+non-authoritative cho slice này) đều fail-closed: `eligible_kpi_profit = None`.
+`kpi_purchase_price` KHÔNG bị gate bởi authority này — nó chỉ phụ thuộc
+`confirmed_adjustment_source` (capability khác, DEC-126 điểm 1).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
+
+import yaml
 
 from app.modules.adjustment.confirmed_adjustment_source import (
     ConfirmedAdjustmentSource,
@@ -55,11 +69,45 @@ PROVENANCE_ELIGIBLE_COSTS_EMPTY_SET = "Config:EmptySet(OD-108B-01)"
 OTHER_KPI_ADJUSTMENT = Decimal("0")
 
 
-def load_eligible_cost_categories(path: Path) -> tuple[str, ...]:
-    """Chính sự hiện diện tường minh của `eligible_cost_categories: []` trong
-    file (không phải absence của file) là bằng chứng cho tập rỗng có thẩm
-    quyền (DEC-143 §1) — khác một fallback kỹ thuật khi thiếu config."""
-    return tuple(load_yaml(path).get("eligible_cost_categories", []))
+@dataclass(frozen=True)
+class EligibleCostsAuthority:
+    """Kết quả nạp + validate `config/eligible_costs.yaml`. `is_valid=False`
+    là fail-closed — `EligibleKpiProfit` không được tính khi authority không
+    hợp lệ, dù `kpi_purchase_price` vẫn resolve bình thường."""
+
+    is_valid: bool
+    categories: tuple[str, ...]
+    provenance: str
+
+
+AUTHORITY_UNAVAILABLE = EligibleCostsAuthority(
+    is_valid=False, categories=(), provenance="SOURCE_UNAVAILABLE"
+)
+
+
+def load_eligible_costs_authority(path: Path) -> EligibleCostsAuthority:
+    """File thiếu/không đọc được/YAML hỏng/thiếu key tường minh/category khác
+    rỗng -> `AUTHORITY_UNAVAILABLE` (fail-closed, KHÔNG suy đoán tập rỗng khi
+    thiếu — đối xứng với `DEC-103`). Chỉ `eligible_cost_categories: []` tường
+    minh mới là authority hợp lệ cho engine hiện tại (§B02 brief — không tự
+    xây engine tính category cost nào)."""
+    try:
+        data = load_yaml(path)
+    except (OSError, yaml.YAMLError):
+        return AUTHORITY_UNAVAILABLE
+    if "eligible_cost_categories" not in data:
+        return AUTHORITY_UNAVAILABLE
+    raw_categories = data["eligible_cost_categories"]
+    if not isinstance(raw_categories, list):
+        return AUTHORITY_UNAVAILABLE
+    categories = tuple(raw_categories)
+    if categories:
+        return AUTHORITY_UNAVAILABLE  # category chưa được engine này hỗ trợ
+    return EligibleCostsAuthority(
+        is_valid=True,
+        categories=categories,
+        provenance=PROVENANCE_ELIGIBLE_COSTS_EMPTY_SET,
+    )
 
 
 def resolve_kpi_purchase_price(
@@ -73,12 +121,16 @@ def resolve_kpi_purchase_price(
     if record is not None:
         return (
             line.accounting_purchase_price + record.amount,
-            f"Confirmed:{record.confirmed_by}",
+            f"Confirmed:{record.confirmed_by}@{record.confirmed_at}",
         )
     return line.accounting_purchase_price, KPI_PURCHASE_NO_CONFIRMED_ADJUSTMENT
 
 
-def compute_eligible_kpi_profit(line: WorkingLine) -> Optional[Decimal]:
+def compute_eligible_kpi_profit(
+    line: WorkingLine, authority: EligibleCostsAuthority
+) -> Optional[Decimal]:
+    if not authority.is_valid:
+        return None  # EligibleCosts authority missing/invalid — fail closed (B02)
     if (
         line.sell_price is None
         or line.kpi_purchase_price is None
@@ -95,12 +147,14 @@ def compute_eligible_kpi_profit(line: WorkingLine) -> Optional[Decimal]:
 def apply_kpi_profit(
     lines: list[WorkingLine],
     confirmed_adjustment_source: Optional[ConfirmedAdjustmentSource],
+    eligible_costs_authority: Optional[EligibleCostsAuthority] = None,
 ) -> list[WorkingLine]:
+    authority = eligible_costs_authority or AUTHORITY_UNAVAILABLE
     for line in lines:
         price, provenance = resolve_kpi_purchase_price(
             line, confirmed_adjustment_source
         )
         line.kpi_purchase_price = price
         line.kpi_purchase_price_provenance = provenance
-        line.eligible_kpi_profit = compute_eligible_kpi_profit(line)
+        line.eligible_kpi_profit = compute_eligible_kpi_profit(line, authority)
     return lines
