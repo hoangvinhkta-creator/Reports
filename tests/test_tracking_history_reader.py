@@ -680,6 +680,38 @@ def test_negative_price_in_the_snapshot_refuses_to_load():
     assert exc.value.reason == "negative_price"
 
 
+@pytest.mark.parametrize("location", ["baseline", "event"])
+def test_epoch_seconds_are_rejected_not_silently_interpreted_as_1970(location):
+    """A seconds timestamp must not make a post-cutover change disappear.
+
+    The source contract is Firebase epoch *milliseconds*. Parsing a plausible
+    seconds value as milliseconds moves it into 1970; the reader would then
+    discard the event as pre-cutover and incorrectly return the baseline.
+    """
+    export = build_export(
+        prices={"A1": 7000},
+        events={
+            "A1": {
+                "E1": event(
+                    prev=7000,
+                    nxt=6800,
+                    at=datetime(2026, 9, 2, 3, tzinfo=timezone.utc),
+                )
+            }
+        },
+    )
+    if location == "baseline":
+        export["purchase_price_baseline"]["cutover"]["t"] = CUTOVER_MS // 1000
+    else:
+        export["purchase_price_history"]["A1"]["E1"]["t"] = _ms(
+            datetime(2026, 9, 2, 3, tzinfo=timezone.utc)
+        ) // 1000
+
+    with pytest.raises(InvalidTrackingPriceSnapshotError) as exc:
+        build_reader(export)
+    assert exc.value.reason == "invalid_timestamp_unit"
+
+
 def test_production_cutover_counters_load_exactly():
     """Đúng các con số production đã công bố: 3441 / 341 / 3100 / 0."""
     prices = {f"MA{i:04d}": 1000 + i for i in range(341)}

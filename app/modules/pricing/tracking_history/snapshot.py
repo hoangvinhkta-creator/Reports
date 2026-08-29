@@ -55,6 +55,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from enum import Enum
+from math import isfinite
 from typing import Any, Mapping, Optional
 
 from app.modules.product.identity.tracking_catalog import (
@@ -77,6 +78,16 @@ HISTORY_SOURCE_SYNC = "sync"
 
 SERVER_AUTHORITY_MARKER = "SERVER"
 """Giá trị `ta` mà Tracking rules đã kiểm. Chỉ đúng chuỗi này là thẩm quyền."""
+
+MIN_MODERN_EPOCH_MILLIS = 1_000_000_000_000
+"""Giới hạn thấp cho timestamp V1 (2001-09-09) để chặn nhầm seconds thành ms.
+
+Mọi dữ liệu của Tracking Price History V1 đều thuộc thời kỳ hiện đại. Một số
+epoch theo *seconds* (ví dụ ``1720000000``) vẫn là số hợp lệ về kiểu, nhưng
+nếu đem chia 1000 sẽ thành năm 1970 và bị reader bỏ qua như một event trước
+cutover — một silent error. Timestamp Firebase ở miền dữ liệu này luôn là
+epoch milliseconds, tức ít nhất 13 chữ số.
+"""
 
 
 class TimestampAuthority(str, Enum):
@@ -114,7 +125,29 @@ def _to_utc(millis: Any, *, field: str) -> datetime:
             f"Trường '{field}' phải là số mili-giây epoch, nhận {millis!r}.",
             reason="invalid_timestamp",
         )
-    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
+    if isinstance(millis, float) and (
+        not isfinite(millis) or not millis.is_integer()
+    ):
+        raise InvalidTrackingPriceSnapshotError(
+            f"Trường '{field}' phải là số nguyên mili-giây epoch, nhận {millis!r}.",
+            reason="invalid_timestamp",
+        )
+
+    millis_int = int(millis)
+    if millis_int < MIN_MODERN_EPOCH_MILLIS:
+        raise InvalidTrackingPriceSnapshotError(
+            f"Trường '{field}'={millis!r} không nằm trong miền epoch milliseconds "
+            "của Tracking Price History V1; có thể dữ liệu seconds bị đọc nhầm "
+            "thành milliseconds.",
+            reason="invalid_timestamp_unit",
+        )
+    try:
+        return datetime.fromtimestamp(millis_int / 1000, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise InvalidTrackingPriceSnapshotError(
+            f"Trường '{field}' có epoch milliseconds ngoài miền datetime: {millis!r}.",
+            reason="invalid_timestamp",
+        ) from exc
 
 
 def _thousand_vnd(value: Any, *, field: str) -> Decimal:
