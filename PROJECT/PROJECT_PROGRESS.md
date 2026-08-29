@@ -504,6 +504,63 @@ Bằng chứng đầy đủ:
 `docs/sessions/S046-task-105d-h07-validator-alignment.md`,
 `DEC-161` trong `PROJECT/PROJECT_DECISIONS.md`.
 
+### Trạng thái sau GOLDEN ORDER #1 CANONICAL ACCEPTANCE (S049, 2026-08-29)
+
+```text
+TASK-105D  = DONE                                    (không đổi, không reopen)
+
+END_TO_END_ACCEPTANCE : PENDING_OWNER_DATA → DEFINED
+
+             Owner cung cấp đầy đủ dữ liệu còn thiếu cho Golden Order #1
+             (BH62063) — xem mục "END_TO_END_ACCEPTANCE" phía trên (đã cập
+             nhật tại chỗ, KHÔNG tạo framework acceptance song song) và
+             DEC-163.
+
+             Toạ độ Owner-confirmed: OrderID, sale date, raw product name,
+             Tracking code, Public Purchase code, canonical identity kỳ
+             vọng (TRACKING:FV1410S4W1), price source kỳ vọng ("Tồn"),
+             ApplicablePriceDate, ExpectedPurchasePrice (7.000.000 VND),
+             currency/unit, quantity, sell price, discount, Public
+             Purchase fallback authorization, công thức thủ công, số học
+             cụ thể, ExpectedEligibleKpiProfit (500.000 VND), provenance
+             human-readable — đầy đủ, không chỉ con số cuối.
+
+             "Tồn" semantic guard: giữ nguyên đúng nhãn Owner dùng.
+             TECHNICAL_SOURCE_MAPPING của "Tồn" = UNRESOLVED (không tự
+             suy diễn sang phist NCC / Public Purchase / inv.cong). Public
+             Purchase CHỈ là fallback được Owner cho phép khi preferred
+             price path không có giá phù hợp — KHÔNG phải preferred
+             source.
+
+             Production diff = 0 (app/**, config/**, Tracking không đổi).
+             Test implementation diff = 0.
+             Registration guard: SET A 13→13, SET B 22→22,
+                 new_registered_task_ids = 0.
+             V4.2 KHÔNG adoption. TASK-105C/E/108B KHÔNG mở.
+             Owner Decision đóng dấu: DEC-163.
+
+Golden Baseline hiện có (58 passed, 2 skipped) = KHÔNG đổi trong S049.
+BH62063 = business seed cho Golden Baseline, KHÔNG phải Golden framework
+             thứ hai.
+```
+
+Bằng chứng đầy đủ: `DEC-163` trong `PROJECT/PROJECT_DECISIONS.md`,
+`docs/sessions/S049-golden-order-1-canonical-acceptance.md`.
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S049 → …)**
+
+```text
+1. END_TO_END_ACCEPTANCE = DEFINED. Critical path kế tiếp: RUN BH62063
+   THROUGH CURRENT SYSTEM AS-IS để xác định FIRST_FAILING_BOUNDARY thật
+   (session đề xuất: S050 — GOLDEN ORDER #1 AS-IS VERTICAL TRACE). Đây là
+   trace, KHÔNG phải implementation.
+2. KHÔNG tự gán TASK-105C / TASK-105E / TASK-108B là bước kế tiếp trước
+   khi AS-IS execution chứng minh boundary đó. KHÔNG tạo task mới. KHÔNG
+   thực hiện V4.2 migration.
+3. Nhánh governance/golden-order-1-canonicalize KHÔNG merge vào nhánh mặc
+   định trong phiên S049.
+```
+
 ### Trạng thái sau INV-81/INV-82 EVIDENCE CLOSURE (S048, 2026-08-29)
 
 ```text
@@ -1190,12 +1247,18 @@ OUTSIDE CAPABILITY: TASK-108B (downstream consumer, KHÔNG phải member)
 ### END_TO_END_ACCEPTANCE
 
 ```text
-END_TO_END_ACCEPTANCE = PENDING_OWNER_DATA
+END_TO_END_ACCEPTANCE = DEFINED
 ```
 
+**Chuyển từ `PENDING_OWNER_DATA` → `DEFINED` tại S049 (2026-08-29).** Owner
+đã cung cấp đầy đủ dữ liệu còn thiếu cho Golden Order #1 (`BH62063`) — xem
+`DEC-163`. Đây là **business oracle canonicalization**, KHÔNG phải một lần
+chạy production pipeline: `BH62063` CHƯA được chạy qua hệ thống hiện tại
+trong S049 (đó là việc của S050, xem "CRITICAL PATH KẾ TIẾP" bên dưới).
+
 Vertical acceptance slice (`Sales record → identity → price source →
-resolved purchase price → provenance`), điền bằng dữ liệu THẬT có trong
-repo, KHÔNG bịa:
+resolved purchase price → provenance`), Owner-confirmed toàn bộ tại S049,
+KHÔNG bịa:
 
 ```text
 SALES_RECORD
@@ -1209,57 +1272,83 @@ SALES_RECORD
                   — chỉ customer/customer_code bị thay surrogate)
 
 PRODUCT
-  Raw label (chứng từ)  : "Máy giặt LG 10kg FV1410S4W1"
-  Expected canonical identity / namespace / source_product_code : CHƯA CÓ
-                  (chưa có mapping đã Owner-confirm cho raw label này)
+  Raw label (chứng từ)         : "Máy giặt LG 10kg FV1410S4W1"
+  Tracking code                : FV1410S4W1
+  Public Purchase code         : FV1410S4W1
+  Cross-system identity        : OWNER_CONFIRMED — YES (Tracking code và
+                  Public Purchase code cùng trỏ một sản phẩm cho đúng đơn
+                  BH62063; đây KHÔNG phải một quy tắc suy diễn tự động
+                  "code trùng ⇒ cùng sản phẩm" cho mọi trường hợp khác —
+                  chỉ là mapping Owner-confirmed riêng cho Golden Order
+                  này, xem DEC-163 §"IDENTITY GUARD")
+  Expected canonical identity  : TRACKING:FV1410S4W1 (Owner-confirmed,
+                  KHÔNG phải kết luận kỹ thuật của TASK-105D)
 
-PRICE_SOURCE      : CHƯA CÓ — 100% (351/351) dòng bán hàng thật của kỳ
-                  01.2026 có purchase price = Pending
-                  (tests/fixtures/golden/expected/period_2026_01.json →
-                  pricing.price_source_distribution = {"Pending": 351}).
-                  Toàn bộ fixture TASK-105B/TASK-105C hiện có là synthetic,
-                  tự khai trong chính hai task đó
-                  (docs/tasks/TASK-105B-file-price-provider.md:242-243,
-                  docs/tasks/TASK-105C-historical-vendor-price-provider.md:467-468).
+PRICE_SOURCE
+  ExpectedPriceSource (Owner)  : "Tồn"
+  ApplicablePriceDate          : 2026-01-02
+  TECHNICAL_SOURCE_MAPPING     : UNRESOLVED — "Tồn" là nhãn nghiệp vụ Owner
+                  dùng để mô tả nguồn giá áp dụng; repo hiện KHÔNG có mapping
+                  kỹ thuật đã xác nhận từ "Tồn" sang một price provider cụ
+                  thể (không phải phist NCC, không phải Public Purchase,
+                  không phải inv.cong mặc định — KHÔNG suy diễn). Việc xác
+                  định technical path cho "Tồn" thuộc phạm vi S050 (AS-IS
+                  trace), KHÔNG phải S049.
+  Public Purchase fallback     : AUTHORIZED bởi Owner — CHỈ khi preferred
+                  price path (nguồn "Tồn") không có giá phù hợp áp dụng.
+                  Public Purchase KHÔNG phải preferred/default source cho
+                  Golden Order #1.
+  ExpectedPurchasePrice        : 7.000.000 VND
+                  (SOURCE_DISPLAY_VALUE Owner cung cấp = 7.000,
+                  SOURCE_UNIT = THOUSAND_VND → normalize một lần duy nhất
+                  thành 7.000.000 VND — KHÔNG nhân ×1000 lần thứ hai)
 
-EXPECTED_RESOLUTION : CHƯA CÓ (phụ thuộc PRICE_SOURCE)
+EXPECTED_RESOLUTION
+  ExpectedKpiPurchasePrice     : 7.000.000 VND
 
 MANUAL_ORACLE
   Công thức canonical (docs/tasks/TASK-108B-eligible-costs-owner-definition.md:1040,
   xác nhận cuối cùng của Owner, không đổi sau đó trong toàn file):
 
     EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount
-                       = (7.500.000 − KpiPurchasePrice) × 1 − 0
-                       = 7.500.000 − KpiPurchasePrice
+                       = (7.500.000 − 7.000.000) × 1 − 0
+                       = 500.000 VND
 
-  KpiPurchasePrice : CHƯA XÁC ĐỊNH — chờ Owner.
+  ExpectedEligibleKpiProfit    : 500.000 VND
+
+PROVENANCE (kỳ vọng, human-readable)
+  BH62063
+  → "Máy giặt LG 10kg FV1410S4W1"
+  → TRACKING:FV1410S4W1
+  → NCC/nguồn: "Tồn" (technical mapping UNRESOLVED — xem trên)
+  → applicable price tại 2026-01-02
+  → KpiPurchasePrice = 7.000.000 VND
+  → EligibleKpiProfit = 500.000 VND
 ```
 
 ```text
-MISSING_DATA:
-- Nguồn giá mua/vendor thật (Public Purchase hoặc Tracking) áp dụng cho
-  "Máy giặt LG 10kg FV1410S4W1" tại/trước 2026-01-02.
-- Định danh canonical (namespace + source_product_code) TASK-105D dự kiến
-  resolve cho raw label này.
-- Giá mua kỳ vọng (số tiền + đơn vị) cho đúng đơn BH62063.
-- Provenance chain kỳ vọng.
-
-REQUIRED_SOURCE:
-- Lịch sử giá vendor/Public Purchase thật quanh 2026-01 cho nhóm hàng máy
-  giặt LG 10kg, từ hồ sơ kế toán/mua hàng thật của Owner.
-- Xác nhận Owner cho mapping định danh canonical của raw label này.
-
-OWNER_INPUT_REQUIRED:
-- Cung cấp (hoặc chỉ ra) MỘT bản ghi giá mua thật từng có hiệu lực cho sản
-  phẩm này quanh 2026-01-02 — HOẶC xác nhận hiện KHÔNG có bản ghi thật nào
-  (khi đó KpiPurchasePrice = Pending chính là oracle kỳ vọng cho đơn này).
-- Xác nhận định danh canonical kỳ vọng cho "Máy giặt LG 10kg FV1410S4W1".
+OWNER_DATA_COMPLETE      = YES
+BUSINESS_ORACLE_DEFINED  = YES
 ```
 
 `END_TO_END_ACCEPTANCE` là **hạt giống nghiệp vụ** cho cơ chế Golden
 Baseline hiện có, KHÔNG phải một framework acceptance song song — khi
 authority triển khai cho phép, case này NÊN trở thành một Golden case thực
 thi được qua đúng `GOLDEN_BASELINE_STRATEGY`.
+
+**CURRENT VERTICAL GOLDEN = `BH62063`.** Business oracle =
+`EligibleKpiProfit` 500.000 VND. Mọi implementation session tiếp theo trên
+critical path production hiện tại (bao gồm bất kỳ session nào chạm
+`CAP-PRICE-RESOLUTION`) phải khai báo `VERTICAL_SLICE_IMPACT` (trạng thái
+Golden trước/sau, và session đó có đưa `BH62063` tiến gần oracle hay
+không) trong bàn giao session của mình.
+
+**CRITICAL PATH KẾ TIẾP (sau S049):** `RUN BH62063 THROUGH CURRENT SYSTEM
+AS-IS → determine FIRST_FAILING_BOUNDARY` (session đề xuất: `S050 —
+GOLDEN ORDER #1 AS-IS VERTICAL TRACE`). Đây là trace, KHÔNG phải
+implementation — session đó CHƯA được phép tự gán tiếp theo là
+`TASK-105C`, `TASK-105E`, hay `TASK-108B`; lựa chọn đó chỉ được xác nhận
+sau khi AS-IS execution đã chứng minh boundary thật.
 
 ### Task Registry — bằng chứng BEFORE/AFTER (S045)
 

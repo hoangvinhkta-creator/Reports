@@ -7332,3 +7332,135 @@ Can Revisit After:
 
 - Golden Order `BH62063` — vertical critical path kế tiếp
   (`CAP-PRICE-RESOLUTION`), KHÔNG mở trong `S048`.
+
+## DEC-163
+
+Title:
+`GOLDEN ORDER #1 (BH62063) CANONICAL ACCEPTANCE` — `END_TO_END_ACCEPTANCE`
+CHUYỂN `PENDING_OWNER_DATA` → `DEFINED`
+
+Date:
+2026-08-29
+
+Task:
+Ghi kết quả phiên `S049` — Golden Order #1 Canonical Acceptance. Ghi đầy đủ
+trong `docs/sessions/S049-golden-order-1-canonical-acceptance.md`.
+
+**Đây LÀ một Owner Decision record.** Chỉ thị mở phiên ("S049 — GOLDEN
+ORDER #1 CANONICAL ACCEPTANCE") cung cấp trực tiếp toàn bộ dữ liệu
+Owner-confirmed còn thiếu mà `PROJECT/PROJECT_PROGRESS.md` →
+`CAP-PRICE-RESOLUTION` → `END_TO_END_ACCEPTANCE` liệt kê ở
+`MISSING_DATA`/`OWNER_INPUT_REQUIRED` (S045), và yêu cầu tường minh: persist
+dữ liệu này thành canonical project truth với thay đổi nhỏ nhất có thể. Áp
+dụng cùng tiền lệ cấp thẩm quyền hẹp mà `DEC-161`/`DEC-162` đã công nhận
+cho brief mở phiên của chính chúng.
+
+Decision:
+
+**1. `END_TO_END_ACCEPTANCE = DEFINED`.** Toàn bộ `MISSING_DATA` mà S045
+liệt kê nay có giá trị Owner-confirmed — xem
+`PROJECT/PROJECT_PROGRESS.md` → `CAP-PRICE-RESOLUTION` →
+`END_TO_END_ACCEPTANCE` (đã cập nhật tại chỗ, cùng một canonical location,
+KHÔNG tạo framework acceptance song song).
+
+```text
+OrderID                  : BH62063
+SaleDate                 : 2026-01-02
+RawProductName            : "Máy giặt LG 10kg FV1410S4W1"
+TrackingCode              : FV1410S4W1
+PublicPurchaseCode        : FV1410S4W1
+ExpectedCanonicalIdentity : TRACKING:FV1410S4W1
+ExpectedPriceSource       : "Tồn"
+ApplicablePriceDate       : 2026-01-02
+ExpectedPurchasePrice     : 7.000.000 VND
+Quantity                  : 1
+SellPrice                 : 7.500.000 VND
+Discount                  : 0 VND
+ExpectedEligibleKpiProfit : 500.000 VND
+```
+
+**2. "Tồn" semantic guard — giữ nguyên, KHÔNG suy diễn mapping kỹ thuật.**
+`ExpectedPriceSource = "Tồn"` là business oracle Owner xác nhận. Repo
+KHÔNG tự gán "Tồn" cho phist NCC, Public Purchase, hay inv.cong.
+
+```text
+OWNER_EXPECTED_SOURCE     = "Tồn"
+TECHNICAL_SOURCE_MAPPING  = UNRESOLVED
+```
+
+Điều này KHÔNG khiến acceptance quay lại `PENDING_OWNER_DATA` — business
+oracle đã `DEFINED`; technical path cho "Tồn" là việc của session AS-IS kế
+tiếp (`S050`), không phải của `S049`.
+
+**3. Public Purchase = fallback được authorize, KHÔNG phải preferred
+source.** Owner cho phép dùng Public Purchase code (`FV1410S4W1`) CHỈ khi
+preferred price path (nguồn "Tồn") không có giá phù hợp áp dụng tại
+`2026-01-02`. Không coi Public Purchase là default/preferred cho Golden
+Order #1.
+
+**4. Identity guard — mapping riêng cho `BH62063`, KHÔNG phải quy tắc
+toàn cục.** `TrackingCode == PublicPurchaseCode == FV1410S4W1` và
+`ExpectedCanonicalIdentity = TRACKING:FV1410S4W1` là Owner-confirmed
+**cho đúng đơn này**. Đây KHÔNG thiết lập giả định "mọi Tracking code
+trùng Public Purchase code đều là cùng sản phẩm" cho production path.
+Không thêm production mapping record — đây là dữ liệu acceptance, không
+phải hành vi implementation.
+
+**5. Price unit guard.** Giá trị hiển thị Owner mô tả (`7.000` nghìn VND)
+được normalize DUY NHẤT MỘT LẦN thành `7.000.000 VND` (canonical, dùng
+trong toàn bộ oracle). Không nhân ×1000 lần thứ hai ở bất kỳ chỗ nào khác
+đề cập tới con số này.
+
+```text
+SOURCE_DISPLAY_VALUE = 7.000
+SOURCE_UNIT          = THOUSAND_VND
+CANONICAL_VALUE      = 7.000.000 VND
+```
+
+**6. Golden relationship — hạt giống, không phải framework thứ hai.**
+`BH62063` là business seed / end-to-end oracle mà Golden Baseline hiện có
+(58 passed, 2 skipped, KHÔNG đổi trong `S049`) có thể bao phủ về sau, khi
+authority triển khai cho phép. Không tạo Golden framework song song.
+
+**7. `TASK-105D` giữ nguyên `DONE`.** Không reopen, không re-review
+`H-06`/`H-07`/`INV-01`…`INV-87`/`B-01`. `DEC-162` giữ nguyên là bản ghi
+DONE canonical.
+
+**8. Không đăng ký task mới.** `CAP-PRICE-RESOLUTION` là capability
+registration đã có từ `DEC-160` (S045) — `S049` không thêm task ID, không
+mở `TASK-105C`/`TASK-105E`/`TASK-108B`, không thực hiện V4.2 adoption.
+
+```text
+new_registered_task_ids = 0
+SET A (REGISTERED_TASK_SET) BEFORE = 13   AFTER = 13
+SET B (TASK_SPEC_SET)       BEFORE = 22   AFTER = 22
+```
+
+**9. Critical path kế tiếp — trace, không phải implementation.** Sau
+`S049`, bước kế tiếp là `RUN BH62063 THROUGH CURRENT SYSTEM AS-IS` để xác
+định `FIRST_FAILING_BOUNDARY` thật (`S050 — GOLDEN ORDER #1 AS-IS
+VERTICAL TRACE`). Không tự gán trước `TASK-105C`/`TASK-105E`/`TASK-108B`
+là bước kế tiếp — chỉ AS-IS execution mới được xác nhận boundary đó.
+
+Impact:
+
+- `PROJECT/PROJECT_PROGRESS.md` — `END_TO_END_ACCEPTANCE` cập nhật tại chỗ
+  (`PENDING_OWNER_DATA → DEFINED`), thêm mục "Trạng thái sau GOLDEN ORDER
+  #1 CANONICAL ACCEPTANCE (S049...)" và "HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S049
+  → …)".
+- `PROJECT/PROJECT_DECISIONS.md` — `DEC-163` (bản ghi này).
+- `docs/sessions/S049-golden-order-1-canonical-acceptance.md` — tài liệu
+  mới (bàn giao session).
+- **Không** sửa `app/**`, `config/**`, `Tracking`, `governance/core/**`,
+  bất kỳ file test nào.
+- **Không** mở task mới, không mở Repair Cycle, không thực hiện V4.2
+  migration, không chạm `TASK-105B/C/E/108B`.
+- **Không** merge nhánh `governance/golden-order-1-canonicalize` vào nhánh
+  mặc định trong phiên `S049`.
+
+Can Revisit After:
+
+- `S050 — GOLDEN ORDER #1 AS-IS VERTICAL TRACE` chạy `BH62063` qua hệ
+  thống hiện tại và xác định `FIRST_FAILING_BOUNDARY` thật.
+- Một session sau đó xác định technical source mapping cho `"Tồn"` (hiện
+  `UNRESOLVED`), dựa trên boundary mà `S050` phát hiện.
