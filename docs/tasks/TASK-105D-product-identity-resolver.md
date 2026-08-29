@@ -3,7 +3,7 @@
 ## Metadata
 
 Status:
-READY
+DONE
 
 Ready Transition:
 `PLANNED → READY` ngày 2026-08-28, bởi phiên Freeze Finalization retry
@@ -2375,17 +2375,36 @@ phiên implementation không đếm trùng evidence.
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 
-- [ ] 32/32 REQUIRED check PASS với evidence target.
-- [ ] 0 BLOCKING finding.
-- [ ] Migration/rollback + permission/audit contract verified.
-- [ ] Golden và full regression PASS.
-- [ ] Metrics có denominator và validation theo
+- [x] 32/32 REQUIRED check PASS với evidence target — Layer 2 qua
+      `docs/reviews/TASK-105D-GATE-EXECUTION-RECORD.md` (`DEC-159`/`DEC-161`).
+- [x] 0 BLOCKING finding — `B-01` CLOSED (RC-1, xác minh độc lập S043).
+- [x] Migration/rollback + permission/audit contract verified — `INV-81`,
+      `INV-82` đóng tại `S048`
+      (`docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`).
+- [x] Golden và full regression PASS — 58 passed/2 skipped; 965 passed/11
+      skipped/0 failed (S048).
+- [x] Metrics có denominator và validation theo
       `docs/spec/TASK-105D-DATA-CONTRACT.md` §15 (kể cả `INV-83`
-      `AUTO + MANUAL + PENDING = 1`).
-- [ ] Toàn bộ invariant `INV-01`…`INV-87` của data contract có assertion
-      tương ứng hoặc có lý do ghi rõ vì sao không cần.
-- [ ] Independent Review E2 PASS.
-- [ ] Progress/roadmap/session handoff cập nhật.
+      `AUTO + MANUAL + PENDING = 1`) — phủ bởi `HB-105D-F2-03` +
+      `CHECK-105D-*` liên quan §15.
+- [x] Toàn bộ invariant `INV-01`…`INV-87` của data contract có assertion
+      tương ứng hoặc có lý do ghi rõ vì sao không cần — `INV-08` có lý do ghi
+      rõ (§3 data contract); `INV-81`/`INV-82` đóng tại `S048`.
+- [x] Independent Review E2 PASS — `S041`/`S043` (implementation),
+      `S047` (Independent Review cho chính hành động DONE).
+- [x] Progress/roadmap/session handoff cập nhật — `PROJECT/PROJECT_PROGRESS.md`,
+      `docs/sessions/S048-task-105d-inv81-inv82-evidence-closure.md`.
+
+## DONE Transition
+
+`READY → DONE` ngày 2026-08-29, bởi phiên `S048` (đóng dấu bởi `DEC-162`,
+Owner Decision). `S047` (Independent Review cho chính hành động DONE) xác
+định `NEAREST_REMAINING_BLOCKING_CONDITION` duy nhất là evidence chưa đủ cho
+`INV-81`/`INV-82` (`H-06`). `S048` đóng đúng khoảng trống đó bằng
+test-strengthening tối thiểu (không sửa `app/`/`config/`/`Tracking`, không
+mở Repair Cycle #2) — chi tiết đầy đủ:
+`docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`. `GATE_SET_SHA256`
+byte-identical trước/sau (`0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877`).
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 

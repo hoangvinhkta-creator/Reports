@@ -77,12 +77,16 @@ def pp_version(
     *,
     prices: Optional[Sequence[dict[str, Any]]] = None,
     version_id: str = PP_V1,
+    rollback_of: Optional[str] = None,
 ) -> PublicPurchaseSourceVersion:
     """Nạp qua loader thật, không dựng tắt.
 
     Cố ý đi qua `PublicPurchaseSourceLoader.load()` để mọi fixture của bộ test
     đều là một version đã qua `INV-04`…`INV-09` — nếu một fixture vi phạm
     invariant, nó nổ ngay ở đây thay vì làm sai lệch một assertion khác.
+    `rollback_of` (nếu truyền) đi qua đúng khoá top-level mà loader thật đọc
+    (`data.get("rollback_of")`, `public_purchase.py:219`) — không có
+    `object.__setattr__` nào bên ngoài đường nạp sản xuất (`INV-81`).
     """
     products = list(products) or [
         {"product_code": "PPC-1000", "product_name": "Sản phẩm tổng hợp 1000"}
@@ -96,15 +100,16 @@ def pp_version(
                 "purchase_price": "1000000",
             }
         ]
-    return PublicPurchaseSourceLoader.load(
-        {
-            "source_id": "PUBLIC_PURCHASE",
-            "version_id": version_id,
-            "status": "PUBLISHED",
-            "products": products,
-            "prices": list(prices),
-        }
-    )
+    payload: dict[str, Any] = {
+        "source_id": "PUBLIC_PURCHASE",
+        "version_id": version_id,
+        "status": "PUBLISHED",
+        "products": products,
+        "prices": list(prices),
+    }
+    if rollback_of is not None:
+        payload["rollback_of"] = rollback_of
+    return PublicPurchaseSourceLoader.load(payload)
 
 
 def store(tmp_path=None) -> JsonlProductIdentityStore:

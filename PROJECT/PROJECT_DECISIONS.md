@@ -7225,3 +7225,110 @@ Can Revisit After:
   lại (0 BLOCKING re-verify, Independent Review cho hành động DONE,
   INV-01…INV-87, progress/handoff) rồi mới được đặt `TASK-105D` top-level
   `Status: DONE`.
+
+## DEC-162
+
+Title:
+`TASK-105D = DONE` — ĐÓNG `INV-81`/`INV-82` EVIDENCE GAP (`H-06`), ĐÓNG
+ĐIỀU KIỆN CUỐI CÙNG CỦA `S047`
+
+Date:
+2026-08-29
+
+Task:
+Ghi kết quả phiên `S048` — TASK-105D INV-81/INV-82 Evidence Closure. Ghi đầy
+đủ trong `docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md` và
+`docs/sessions/S048-task-105d-inv81-inv82-evidence-closure.md`.
+
+**Đây LÀ một Owner Decision record.** Chỉ thị mở phiên ("S048 — TASK-105D
+INV-81 / INV-82 EVIDENCE CLOSURE") tường minh liệt kê toàn bộ điều kiện DONE
+còn lại theo `DEC-161` §6, yêu cầu phiên tự đối chiếu lại từng điều kiện, và
+tường minh cấp phép: *"Nếu authority cho phép: → cập nhật minimum canonical
+state/evidence → TASK-105D = DONE."* Cùng cấu trúc chỉ thị mà `DEC-161` đã
+công nhận là Owner Decision cấp thẩm quyền cho phạm vi hẹp của chính phiên
+đó (§ "Đây LÀ một Owner Decision record" của `DEC-161`). Áp dụng đúng tiền lệ
+đó ở đây.
+
+Decision:
+
+**1. `INV-81`.** Classification A (production behavior đã tồn tại: `rollback_of`
+được `PublicPurchaseSourceLoader.load()` đọc trực tiếp từ `data`, dòng 219 —
+không có API "rollback" riêng, rollback = một `publish()` thường với
+`rollback_of` set; test cũ dùng `object.__setattr__` bơm field sau khi dựng
+fixture, bỏ qua đường parse thật). Sửa: `tests/support/identity_fixtures.py`
+thêm tham số `rollback_of` cho `pp_version()` (đi đúng khoá loader đọc);
+`tests/test_105d_boundaries.py::test_inv81_…` viết lại để dựng version
+rollback qua loader thật, cộng assertion mới `repo.get(PP_V1) == original`
+chứng minh version cũ 0 byte đổi. `INV-81 = PASS`.
+
+**2. `INV-82`.** Classification B (test G21 —
+`tests/test_105d_audit_replay.py::TestG21ProvenanceActorAndReplay::test_part_c_replay_is_identical_after_store_catalog_and_price_change`
+— đã chứng minh đầy đủ qua đường replay thật; xác minh độc lập tại `S048`
+rằng `rollback_of` không được rẽ nhánh ở bất kỳ đường nào khác trong `app/`
+ngoài parse/khai báo khoá, nên một publish có `rollback_of` và một publish
+thường đi qua CÙNG một đường replay — G21 là trường hợp tổng quát hơn, chứng
+minh luôn trường hợp rollback). KHÔNG viết test trùng lặp. Evidence binding
+ghi tại `docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md` §5.
+`INV-82 = PASS`.
+
+**3. `H-06` = RESOLVED.** Cả hai vế của finding gốc (`object.__setattr__` ở
+`test_inv81_…`, và claim "chứng minh đầy đủ nằm ở G21" của `test_inv82_…`
+chưa được xác minh độc lập) đã được xử lý trực tiếp, không chỉ vì test suite
+PASS. Mapping đầy đủ: `docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`
+§6.
+
+**4. `GATE_SET_SHA256` KHÔNG ĐỔI — xác minh lại trước và sau.**
+
+```text
+$ sed -n '631,2359p' docs/tasks/TASK-105D-product-identity-resolver.md | sha256sum
+0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+```
+
+Khớp tuyệt đối TRƯỚC và SAU phiên này. Thay đổi Status field (dòng 5-6) và
+Exit Criteria (dòng 2378-2396) đều nằm NGOÀI vùng frozen 631-2359.
+
+**5. `TASK-105D` chuyển `Status: DONE`.** 8 điều kiện đóng gói trong `DEC-159`
+§1 cho `H-07` vẫn `PASS` (không đổi bởi phiên này). 4 điều kiện `DEC-161` §6
+để ngỏ nay đối chiếu lại đầy đủ tại `docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`
+§9: 0 BLOCKING re-verify PASS (không đổi), Independent Review cho hành động
+DONE PASS (thực hiện tại `S047`, không lặp lại), `INV-01`…`INV-87` PASS
+(thay đổi duy nhất so với `S047` — `INV-81`/`INV-82` nay PASS),
+progress/handoff cập nhật PASS (khối này + `S048`). `validate_task_completion.py`
+xác nhận Layer 2 PASS thật trên dữ liệu thật sau khi mutate Status field
+(`Checked 7 DONE task(s)`, `0 lỗi`).
+
+```text
+TASK-105D = DONE
+```
+
+**6. Repair Budget KHÔNG ĐỔI.** `allowed = 2, used = 1, remaining = 1`. Toàn
+bộ thay đổi ở `S048` là test-strengthening + evidence-binding +
+completion-evidence correction — không phải production repair
+(`V4.1` §12) — nên không tiêu Repair Cycle. Repair Cycle #2 KHÔNG mở.
+
+**7. HARDENING mở còn lại (14 mục) KHÔNG chặn DONE.** Không mục nào có
+production path hiện tại (`V4.1` §5) — kết luận này không đổi qua `S044`…
+`S048`. `H-06` chuyển từ 14 xuống còn phần của danh sách đã RESOLVED (§3) —
+13 mục HARDENING còn lại vẫn OPEN, không mục nào chặn DONE.
+
+Impact:
+
+- `tests/support/identity_fixtures.py`, `tests/test_105d_boundaries.py` —
+  sửa (evidence, không phải production).
+- `docs/tasks/TASK-105D-product-identity-resolver.md` — `Status: READY →
+  DONE`, Exit Criteria đánh dấu `[x]`, thêm mục `## DONE Transition` — tất cả
+  NGOÀI vùng frozen 631-2359.
+- `docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`,
+  `docs/sessions/S048-task-105d-inv81-inv82-evidence-closure.md` — tài liệu
+  mới.
+- `PROJECT/PROJECT_PROGRESS.md` — cập nhật trạng thái sau `S048`.
+- **Không** sửa `app/**`, `config/**`, `Tracking`, `governance/core/**`,
+  vùng frozen của `docs/tasks/TASK-105D-product-identity-resolver.md`.
+- **Không** mở Repair Cycle #2. **Không** tạo task mới. **Không** chạm
+  `TASK-105B/C/E/108B`. **Không** thực hiện V4.2 migration. **Không** merge
+  nhánh này vào nhánh mặc định.
+
+Can Revisit After:
+
+- Golden Order `BH62063` — vertical critical path kế tiếp
+  (`CAP-PRICE-RESOLUTION`), KHÔNG mở trong `S048`.

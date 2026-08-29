@@ -504,6 +504,74 @@ Bằng chứng đầy đủ:
 `docs/sessions/S046-task-105d-h07-validator-alignment.md`,
 `DEC-161` trong `PROJECT/PROJECT_DECISIONS.md`.
 
+### Trạng thái sau INV-81/INV-82 EVIDENCE CLOSURE (S048, 2026-08-29)
+
+```text
+TASK-105D  = DONE
+
+             S048 đóng đúng NEAREST_REMAINING_BLOCKING_CONDITION mà S047 để
+             lại: evidence INV-81/INV-82 yếu (H-06).
+
+             INV-81  : Classification A — production behavior đã tồn tại
+                 (PublicPurchaseSourceLoader.load() đọc rollback_of trực
+                 tiếp từ data, public_purchase.py:219; không có API
+                 "rollback" riêng). Test viết lại để đi qua đúng loader thật
+                 thay vì object.__setattr__ (tests/test_105d_boundaries.py,
+                 tests/support/identity_fixtures.py). INV-81 = PASS.
+             INV-82  : Classification B — G21
+                 (tests/test_105d_audit_replay.py::TestG21ProvenanceActorAndReplay::
+                 test_part_c_replay_is_identical_after_store_catalog_and_price_change)
+                 đã chứng minh đầy đủ qua đường replay thật; xác minh độc lập
+                 tại S048 rằng rollback_of không rẽ nhánh ở đâu khác trong
+                 app/. Evidence binding ghi tại
+                 docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md, KHÔNG
+                 tạo test trùng lặp. INV-82 = PASS.
+             H-06    = RESOLVED (mapping đầy đủ: xem review doc §6)
+             INV-01…INV-87 = PASS
+
+             GATE_SET_SHA256 = 0444e58c02b04804a116c140af722ffc29ea64adf468aa6c93794c4408a5c877
+                 — KHÔNG đổi (đo lại trước/sau S048, khớp tuyệt đối; thay đổi
+                 Status field + Exit Criteria đều NGOÀI vùng frozen 631-2359)
+             HARDENING = 13 OPEN + 1 RESOLVED_BY_INTEGRATION (H2-02) — H-06
+                 chuyển RESOLVED (không đổi cách phân loại các mục còn lại)
+             validator = structure/project_state/evidence PASS;
+                 task_completion PASS (Checked 7 DONE task(s), 0 lỗi — Layer 2
+                 kích hoạt thật lần đầu trên TASK-105D thật); reference_integrity
+                 FAIL 3 issue (baseline TASK-REM-T06, không đổi, không liên
+                 quan TASK-105D)
+             targeted 199 / Golden 58+2 / full 965+11+0 — khớp tuyệt đối S047
+             production diff = 0 (app/**, config/**, Tracking)
+             registration guard: SET A 13→13, SET B 22→22,
+                 new_registered_task_ids = 0
+             budget = 2 allowed / 1 used / 1 remaining (KHÔNG ĐỔI — S048
+                 không phải repair cycle)
+             Repair Cycle #2 = KHÔNG mở
+             Owner Decision đóng dấu: DEC-162
+
+TASK-105B  = FROZEN + INTEGRATED + RC-1 INTEGRATED / NOT DONE / NOT ACTIVATED (không đổi)
+TASK-105C  = BLOCKED / NOT AUTHORIZED                                        (không đổi)
+TASK-105E  = PLANNED / OUTLINE / READY GATE BLOCKED / NOT AUTHORIZED         (không đổi)
+TASK-108B  = BLOCKED_BY_DEPENDENCY                                           (không đổi)
+```
+
+**HÀNH ĐỘNG KẾ TIẾP ĐƯỢC PHÉP (S048 → …)**
+
+```text
+1. TASK-105D = DONE. Vertical critical path kế tiếp: Golden Order BH62063
+   (Owner-confirmed, §17 của brief S048) — persist END_TO_END_ACCEPTANCE =
+   DEFINED, sau đó chạy hệ thống hiện tại AS-IS để tìm FIRST_FAILING_BOUNDARY.
+   Đây là bước implementation kế tiếp của CAP-PRICE-RESOLUTION — KHÔNG mở
+   trong S048.
+2. KHÔNG mở Repair Cycle #2 mặc định. KHÔNG tạo task mới. KHÔNG chạm
+   TASK-105B/C/E/108B. KHÔNG thực hiện V4.2 migration.
+3. Nhánh review/task-105d-inv81-inv82-closure KHÔNG merge vào nhánh mặc định
+   trong phiên S048.
+```
+
+Bằng chứng đầy đủ:
+`docs/sessions/S048-task-105d-inv81-inv82-evidence-closure.md`,
+`docs/reviews/TASK-105D-INV81-INV82-EVIDENCE-CLOSURE.md`, `DEC-162`.
+
 ### Trạng thái sau FINAL COMPLETION REVIEW (S047, 2026-08-28)
 
 ```text

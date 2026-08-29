@@ -742,14 +742,24 @@ class TestMigrationRollbackHardening:
         assert reopened.read_active_mapping("REPORTS_SALES", "TRK-A100") is not None
 
     def test_inv81_a_rolled_back_pp_version_is_a_new_version_not_an_edit(self):
+        """`INV-81` qua đúng đường sản xuất thật: `rollback_of` đi qua
+        `PublicPurchaseSourceLoader.load()` (khoá top-level được loader đọc
+        trực tiếp, `public_purchase.py:219`), KHÔNG `object.__setattr__` bơm
+        field vào fixture sau khi dựng (H-06, S041/S047)."""
         repo = PublicPurchaseSourceRepository()
-        repo.publish(fx.pp_version())
-        rollback = fx.pp_version(version_id=fx.PP_V2)
-        object.__setattr__(rollback, "rollback_of", fx.PP_V1)
+        original = fx.pp_version()
+        repo.publish(original)
+
+        rollback = fx.pp_version(version_id=fx.PP_V2, rollback_of=fx.PP_V1)
         repo.publish(rollback)
 
+        # Version cũ KHÔNG bị sửa/xoá — publish rollback không đổi một field
+        # nào của nó (§3.3 câu 10).
+        assert repo.get(fx.PP_V1) == original
         assert repo.get(fx.PP_V1).rollback_of is None
+        # Rollback = một version MỚI, riêng biệt, mang rollback_of đúng.
         assert repo.get(fx.PP_V2).rollback_of == fx.PP_V1
+        assert repo.get(fx.PP_V2) is not repo.get(fx.PP_V1)
 
     def test_inv82_a_report_pinned_to_the_old_binding_replays_unchanged(
         self, tmp_path
