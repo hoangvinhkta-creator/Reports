@@ -230,3 +230,40 @@ def test_eligible_costs_authority_non_empty_categories_is_unavailable(tmp_path):
     path.write_text("eligible_cost_categories: [DeliveryCost]\n", encoding="utf-8")
     authority = load_eligible_costs_authority(path)
     assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_scalar_top_level_is_unavailable_not_crash(tmp_path):
+    """Golden #1 Validation Closure, B02 — YAML top-level scalar (vd. `42`)
+    parse thành công (không raise `yaml.YAMLError`), nhưng `"key" not in 42`
+    raise `TypeError` nếu không kiểm tra `isinstance(data, dict)` trước.
+    Phải fail-closed có kiểm soát, không crash."""
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("42\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_null_top_level_is_unavailable(tmp_path):
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("null\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_sequence_top_level_is_unavailable(tmp_path):
+    """Top-level phải là mapping — một sequence không thể xác lập authority
+    tường minh cho `eligible_cost_categories`, dù không crash (list vẫn hỗ trợ
+    `in`)."""
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("- DeliveryCost\n- KpiPurchaseAdjustment\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False
+
+
+def test_eligible_costs_authority_wrong_type_for_categories_is_unavailable(tmp_path):
+    """`eligible_cost_categories` phải là một sequence (`list`) — một scalar/
+    mapping ở vị trí đó không thể là tập category hợp lệ."""
+    path = tmp_path / "eligible_costs.yaml"
+    path.write_text("eligible_cost_categories: not-a-list\n", encoding="utf-8")
+    authority = load_eligible_costs_authority(path)
+    assert authority.is_valid is False

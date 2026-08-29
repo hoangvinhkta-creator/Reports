@@ -86,14 +86,22 @@ AUTHORITY_UNAVAILABLE = EligibleCostsAuthority(
 
 
 def load_eligible_costs_authority(path: Path) -> EligibleCostsAuthority:
-    """File thiếu/không đọc được/YAML hỏng/thiếu key tường minh/category khác
-    rỗng -> `AUTHORITY_UNAVAILABLE` (fail-closed, KHÔNG suy đoán tập rỗng khi
-    thiếu — đối xứng với `DEC-103`). Chỉ `eligible_cost_categories: []` tường
-    minh mới là authority hợp lệ cho engine hiện tại (§B02 brief — không tự
-    xây engine tính category cost nào)."""
+    """File thiếu/không đọc được/YAML hỏng/top-level không phải mapping (scalar,
+    sequence, null)/thiếu key tường minh/category khác rỗng ->
+    `AUTHORITY_UNAVAILABLE` (fail-closed, KHÔNG suy đoán tập rỗng khi thiếu —
+    đối xứng với `DEC-103`). Chỉ `eligible_cost_categories: []` tường minh mới
+    là authority hợp lệ cho engine hiện tại (§B02 brief — không tự xây engine
+    tính category cost nào).
+
+    `data` phải là `dict` TRƯỚC khi kiểm tra `in`/index — YAML top-level scalar
+    (vd. `42`) parse thành công (không raise `yaml.YAMLError`) nhưng
+    `"key" not in 42` raise `TypeError`, không phải fail-closed có kiểm soát
+    (Golden #1 Validation Closure, B02)."""
     try:
         data = load_yaml(path)
     except (OSError, yaml.YAMLError):
+        return AUTHORITY_UNAVAILABLE
+    if not isinstance(data, dict):
         return AUTHORITY_UNAVAILABLE
     if "eligible_cost_categories" not in data:
         return AUTHORITY_UNAVAILABLE

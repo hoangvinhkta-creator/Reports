@@ -143,6 +143,133 @@ def test_duplicate_order_id_makes_whole_source_unavailable(tmp_path):
     assert source.is_available is False
 
 
+def test_null_confirmed_by_makes_whole_source_unavailable(tmp_path):
+    """Golden #1 Validation Closure, B03 — key CÓ MẶT với giá trị `null` không
+    raise `KeyError`; phải kiểm tra type/rỗng tường minh, không chỉ presence,
+    nếu không record trở thành 'CONFIRMED' với provenance giả `Confirmed:None@...`."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": None,
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_empty_confirmed_by_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": "   ",
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_wrong_type_confirmed_by_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": 12345,
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_null_confirmed_at_makes_whole_source_unavailable(tmp_path):
+    """B03 — `Confirmed:None@None` không bao giờ được phát sinh: `confirmed_at:
+    null` phải fail-closed giống hệt `confirmed_at` bị thiếu hoàn toàn."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": None,
+                "confirmed_at": None,
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_empty_confirmed_at_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": "test",
+                "confirmed_at": "",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_wrong_type_confirmed_at_makes_whole_source_unavailable(tmp_path):
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": "BH0001",
+                "amount": "10000",
+                "confirmed_by": "test",
+                "confirmed_at": 20260101,
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
+def test_null_order_id_makes_whole_source_unavailable(tmp_path):
+    """`order_id` là một định danh bắt buộc — `null`/rỗng không thể là identity
+    của một record CONFIRMED (brief §4, "required identifiers present and
+    valid")."""
+    path = tmp_path / "confirmed.jsonl"
+    _write(
+        path,
+        json.dumps(
+            {
+                "order_id": None,
+                "amount": "10000",
+                "confirmed_by": "test",
+                "confirmed_at": "2026-01-01",
+            }
+        ),
+    )
+    source = load_confirmed_adjustments_from_jsonl(path)
+    assert source.is_available is False
+
+
 def test_one_bad_line_among_good_lines_still_fails_closed(tmp_path):
     """Fail-closed: một dòng hỏng không cho biết nó lẽ ra khớp order nào, nên
     order khác trong cùng file KHÔNG được coi là đã xác định vắng mặt."""

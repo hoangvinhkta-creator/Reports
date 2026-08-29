@@ -37,6 +37,17 @@ Hai vi phạm cheap-to-detect fail-closed toàn bộ nguồn, không chỉ dòng
 một trong năm thứ bắt buộc xác định được khi adjustment tồn tại) — dùng để
 làm provenance của một record đã match đủ để trỏ lại đúng dòng nguồn, không
 chỉ một nhãn "Confirmed:<ai đó>" mơ hồ khi nhiều record cùng người xác nhận.
+
+## Validation contract closure (Golden #1 Validation Closure, B03)
+
+`raw_record["confirmed_by"]`/`raw_record["confirmed_at"]` không raise
+`KeyError` khi key CÓ MẶT nhưng giá trị là `null`/số/kiểu khác — dòng JSON
+`{"confirmed_by": null, "confirmed_at": null, ...}` từng đi qua fail-closed
+check cũ (chỉ kiểm tra presence, không kiểm tra type/rỗng) và tạo ra
+provenance giả `Confirmed:None@None`. Cả `order_id`, `confirmed_by`,
+`confirmed_at` đều phải là `str` non-empty (sau `strip()`) — sai type hoặc
+rỗng fail-closed toàn bộ nguồn giống hệt field bị thiếu, KHÔNG bao giờ được
+phép trở thành một `ConfirmedAdjustmentRecord` "CONFIRMED".
 """
 
 from __future__ import annotations
@@ -76,11 +87,22 @@ class ConfirmedAdjustmentSource:
 UNAVAILABLE = ConfirmedAdjustmentSource(records=None)
 
 
+def _non_empty_str(value: object) -> Optional[str]:
+    """`None`, kiểu không phải `str`, hoặc `str` chỉ toàn whitespace -> `None`
+    (invalid). Field CÓ MẶT với giá trị `null`/số/list vẫn phải fail-closed
+    giống hệt field bị thiếu (B03) — presence một mình không đủ."""
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
 def load_confirmed_adjustments_from_jsonl(path: Path) -> ConfirmedAdjustmentSource:
     """File thiếu -> UNAVAILABLE (KHÔNG "loaded rỗng" — thiếu nguồn phải khác
     xác-định-không-có, DEC-144 §3). Một dòng hỏng, một `amount` không finite,
-    hoặc một `order_id` trùng lặp bất kỳ -> toàn bộ nguồn UNAVAILABLE
-    (fail-closed, xem docstring module)."""
+    một `order_id`/`confirmed_by`/`confirmed_at` null/rỗng/sai type, hoặc một
+    `order_id` trùng lặp bất kỳ -> toàn bộ nguồn UNAVAILABLE (fail-closed, xem
+    docstring module)."""
     if not path.exists():
         return UNAVAILABLE
     try:
@@ -95,17 +117,21 @@ def load_confirmed_adjustments_from_jsonl(path: Path) -> ConfirmedAdjustmentSour
             continue
         try:
             raw_record = json.loads(raw_line)
-            order_id = raw_record["order_id"]
+            order_id = _non_empty_str(raw_record["order_id"])
             amount = Decimal(str(raw_record["amount"]))
             if not amount.is_finite():
                 return UNAVAILABLE
+            confirmed_by = _non_empty_str(raw_record["confirmed_by"])
+            confirmed_at = _non_empty_str(raw_record["confirmed_at"])
+            if order_id is None or confirmed_by is None or confirmed_at is None:
+                return UNAVAILABLE  # incomplete confirmation metadata — never a false "CONFIRMED"
             if order_id in records:
                 return UNAVAILABLE  # duplicate identity — fail closed, no silent overwrite
             records[order_id] = ConfirmedAdjustmentRecord(
                 order_id=order_id,
                 amount=amount,
-                confirmed_by=raw_record["confirmed_by"],
-                confirmed_at=raw_record["confirmed_at"],
+                confirmed_by=confirmed_by,
+                confirmed_at=confirmed_at,
                 reason=raw_record.get("reason", ""),
             )
         except (json.JSONDecodeError, KeyError, InvalidOperation, TypeError):
