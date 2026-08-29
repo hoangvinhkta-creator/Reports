@@ -19,6 +19,8 @@ from app.modules.product.identity.public_purchase import (
 from app.modules.product.identity.registry import (
     ConfirmationAuthority,
     HistoricalConfirmedRegistryEntry,
+    ManualLegacyConfirmationRef,
+    PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
     SourceReportRef,
 )
 from app.modules.product.identity.resolver import (
@@ -168,6 +170,39 @@ def registry_entry(
             file_name="bao-cao-thang-08-tong-hop.xlsx",
             content_hash="0" * 64,
         ),
+        confirmed_by="chu.du.an",
+        confirmed_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
+        confirmation_authority=ConfirmationAuthority.OWNER,
+        confirmed_identity=identity,
+    )
+
+
+def registry_entry_manual_legacy(
+    *,
+    entry_id: str = "HCR-LEGACY-1",
+    order_id: str = "ORD-H1",
+    product_raw: str = "Máy lọc nước tổng hợp X1",
+    price: str = "2500000",
+    sale_date: date = PRE_CUTOVER,
+    identity=None,
+) -> HistoricalConfirmedRegistryEntry:
+    """Biến thể `registry_entry()` dùng `ManualLegacyConfirmationRef` thay vì
+    `SourceReportRef` — Golden #1 vertical delivery session brief §2 (LEGACY
+    DATA GAP): hệ thống gốc không giữ lại snapshot lịch sử reopenable."""
+    from app.modules.product.identity.keys import raw_identity_key
+
+    return HistoricalConfirmedRegistryEntry(
+        entry_id=entry_id,
+        sale_date=sale_date,
+        order_id=order_id,
+        raw_product_identity=product_raw,
+        raw_identity_key=raw_identity_key(product_raw),
+        confirmed_purchase_price=Decimal(price),
+        manual_legacy_confirmation_ref=ManualLegacyConfirmationRef(
+            original_system="Tracking",
+            reason="hệ thống gốc không giữ lại snapshot lịch sử reopenable",
+        ),
+        provenance=PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
         confirmed_by="chu.du.an",
         confirmed_at=datetime(2026, 8, 31, tzinfo=timezone.utc),
         confirmation_authority=ConfirmationAuthority.OWNER,

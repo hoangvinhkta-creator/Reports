@@ -53,6 +53,16 @@ CUTOVER_DATE = date(2026, 9, 1)
 
 PROVENANCE_HISTORICAL = "HISTORICAL_CONFIRMED_REPORT"
 
+PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION = "OWNER_MANUAL_LEGACY_CONFIRMATION"
+"""Golden #1 vertical delivery (session brief §2): dùng CHỈ khi hệ thống gốc
+(vd. Tracking "Tồn"/public purchase) đã ghi đè giá trị hiện tại và không giữ
+lại một snapshot lịch sử có thể mở lại — một LEGACY DATA GAP, không phải bằng
+chứng "chủ dự án đã xác nhận" cho một report còn tồn tại mà `INV-51` cấm.
+Provenance này tự khai đúng bản chất của nó (`ManualLegacyConfirmationRef`):
+KHÔNG claim verified historical replay. `INV-51` không bị nới lỏng cho
+trường hợp report thật sự reopenable — nó chỉ không còn là con đường DUY
+NHẤT để một entry E-J hợp lệ."""
+
 
 class RegistryEntryStatus(str, Enum):
     CONFIRMED = "CONFIRMED"
@@ -104,9 +114,54 @@ class SourceReportRef:
         }
 
 
+class InvalidManualLegacyConfirmationError(ValueError):
+    """Một xác nhận legacy không tự khai rõ hệ thống gốc/lý do thì không
+    trung thực — và một provenance không trung thực không phải bằng chứng."""
+
+
+@dataclass(frozen=True)
+class ManualLegacyConfirmationRef:
+    """Provenance cho `PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION`.
+
+    KHÔNG phải một biến thể "nhẹ hơn" của `SourceReportRef` — đây là một loại
+    bằng chứng khác, dùng khi hệ thống gốc thật sự không giữ lại snapshot
+    reopenable (LEGACY DATA GAP). Ba trường REQUIRED tồn tại để entry tự khai
+    đúng bản chất của nó thay vì im lặng trông giống một report đã verify.
+    """
+
+    original_system: str
+    reason: str
+    confirmed_note: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("original_system", "reason"):
+            value = getattr(self, field_name)
+            if not value or not str(value).strip():
+                raise InvalidManualLegacyConfirmationError(
+                    f"manual_legacy_confirmation_ref.{field_name} REQUIRED và "
+                    "không được rỗng — một xác nhận không nói rõ hệ thống gốc/"
+                    "lý do thiếu snapshot lịch sử thì không trung thực"
+                )
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "original_system": self.original_system,
+            "reason": self.reason,
+            "confirmed_note": self.confirmed_note,
+        }
+
+
 @dataclass(frozen=True)
 class HistoricalConfirmedRegistryEntry:
-    """E-J. `confirmed_purchase_price` là `Decimal`, VND thô (`ADR-103`)."""
+    """E-J. `confirmed_purchase_price` là `Decimal`, VND thô (`ADR-103`).
+
+    Bằng chứng của một entry là ĐÚNG MỘT trong hai loại (`__post_init__`
+    thi hành): `source_report_ref` (`SourceReportRef`, `INV-51` — report
+    reopenable thật) hoặc `manual_legacy_confirmation_ref`
+    (`ManualLegacyConfirmationRef` — Golden #1 session brief §2, LEGACY DATA
+    GAP). `provenance` phải khớp loại nào đang có — không được gắn nhãn
+    `HISTORICAL_CONFIRMED_REPORT` cho một entry không có report thật.
+    """
 
     entry_id: str
     sale_date: date
@@ -114,7 +169,6 @@ class HistoricalConfirmedRegistryEntry:
     raw_product_identity: str
     raw_identity_key: str
     confirmed_purchase_price: Decimal
-    source_report_ref: SourceReportRef
     confirmed_by: str
     confirmed_at: datetime
     confirmation_authority: ConfirmationAuthority
@@ -122,6 +176,8 @@ class HistoricalConfirmedRegistryEntry:
     version: int = 1
     confirmed_identity: Optional[CanonicalProductIdentity] = None
     price_unit_note: Optional[str] = None
+    source_report_ref: Optional[SourceReportRef] = None
+    manual_legacy_confirmation_ref: Optional[ManualLegacyConfirmationRef] = None
     source_row_hash: Optional[str] = None
     provenance: str = PROVENANCE_HISTORICAL
     supersedes: Optional[str] = None
@@ -139,6 +195,27 @@ class HistoricalConfirmedRegistryEntry:
                 "confirmed_purchase_price phải là Decimal (ADR-103) — float làm "
                 "tròn sai trên tiền"
             )
+        has_report = self.source_report_ref is not None
+        has_manual = self.manual_legacy_confirmation_ref is not None
+        if has_report == has_manual:
+            raise ValueError(
+                "entry phải có ĐÚNG MỘT trong source_report_ref/"
+                "manual_legacy_confirmation_ref — không cả hai (hai loại bằng "
+                "chứng khác nhau cho cùng một entry), không thiếu cả hai "
+                "(INV-51/INV-54: không có bằng chứng thì không được CONFIRMED)"
+            )
+        if has_report and self.provenance != PROVENANCE_HISTORICAL:
+            raise ValueError(
+                f"provenance phải = {PROVENANCE_HISTORICAL!r} khi có "
+                f"source_report_ref (nhận {self.provenance!r})"
+            )
+        if has_manual and self.provenance != PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION:
+            raise ValueError(
+                f"provenance phải = {PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION!r} "
+                f"khi có manual_legacy_confirmation_ref (nhận {self.provenance!r}) "
+                "— không được gắn nhãn HISTORICAL_CONFIRMED_REPORT cho một xác "
+                "nhận không có report reopenable"
+            )
 
     @property
     def lookup_key(self) -> tuple[str, str, date]:
@@ -155,7 +232,16 @@ class HistoricalConfirmedRegistryEntry:
             "raw_identity_key": self.raw_identity_key,
             "confirmed_purchase_price": str(self.confirmed_purchase_price),
             "price_unit_note": self.price_unit_note,
-            "source_report_ref": self.source_report_ref.to_record(),
+            "source_report_ref": (
+                self.source_report_ref.to_record()
+                if self.source_report_ref is not None
+                else None
+            ),
+            "manual_legacy_confirmation_ref": (
+                self.manual_legacy_confirmation_ref.to_record()
+                if self.manual_legacy_confirmation_ref is not None
+                else None
+            ),
             "source_row_hash": self.source_row_hash,
             "provenance": self.provenance,
             "confirmed_by": self.confirmed_by,
@@ -280,20 +366,28 @@ class HistoricalConfirmedRegistry:
         for event in self._events[:revision]:
             view._events.append(event)
         for event in self._events[:revision]:
-            entry = _entry_from_record(event.new_value)
+            entry = entry_from_record(event.new_value)
             if entry is not None:
                 view._entries[event.aggregate_id] = entry
         return view
 
 
-def _entry_from_record(
+def entry_from_record(
     record: Optional[dict[str, Any]]
 ) -> Optional[HistoricalConfirmedRegistryEntry]:
+    """Deserialize một `HistoricalConfirmedRegistryEntry` từ record §9.2.
+
+    Public (không còn `_`-prefixed): dùng lại bởi `registry_store.py`
+    (loader JSONL, Golden #1 vertical delivery) ngoài `read_at_revision` nội
+    bộ — cùng một logic deserialize, không nhân bản.
+    """
     if not record or "entry_id" not in record:
         return None
     identity_record = record.get("confirmed_identity")
     from app.modules.product.identity.identity import Namespace
 
+    report_record = record.get("source_report_ref")
+    manual_record = record.get("manual_legacy_confirmation_ref")
     return HistoricalConfirmedRegistryEntry(
         entry_id=record["entry_id"],
         sale_date=date.fromisoformat(record["sale_date"]),
@@ -301,7 +395,12 @@ def _entry_from_record(
         raw_product_identity=record["raw_product_identity"],
         raw_identity_key=record["raw_identity_key"],
         confirmed_purchase_price=Decimal(record["confirmed_purchase_price"]),
-        source_report_ref=SourceReportRef(**record["source_report_ref"]),
+        source_report_ref=(
+            SourceReportRef(**report_record) if report_record else None
+        ),
+        manual_legacy_confirmation_ref=(
+            ManualLegacyConfirmationRef(**manual_record) if manual_record else None
+        ),
         confirmed_by=record["confirmed_by"],
         confirmed_at=datetime.fromisoformat(record["confirmed_at"]),
         confirmation_authority=ConfirmationAuthority(record["confirmation_authority"]),

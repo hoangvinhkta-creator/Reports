@@ -8,6 +8,7 @@ from app.modules.domain.models import (
     MAPPING_STATUS_MAPPED,
     PERSONAL,
     PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
+    PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
     PRICE_SOURCE_PENDING,
 )
 from app.modules.product.identity.commands import ConfirmHistoricalEntry
@@ -15,6 +16,8 @@ from app.modules.product.identity.registry import (
     ConfirmationAuthority,
     HistoricalConfirmedRegistry,
     HistoricalConfirmedRegistryEntry,
+    ManualLegacyConfirmationRef,
+    PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
     SourceReportRef,
 )
 from app.modules.product.identity.keys import raw_identity_key
@@ -52,6 +55,66 @@ def _historical_registry(
         )
     )
     return registry
+
+
+def _historical_registry_manual_legacy(
+    *, order_id: str, product_raw: str, sale_date: date, price: str
+) -> HistoricalConfirmedRegistry:
+    """Golden #1 vertical delivery session brief §2 — LEGACY DATA GAP: hệ
+    thống gốc không giữ lại snapshot lịch sử reopenable. Biến thể
+    `_historical_registry()` dùng `ManualLegacyConfirmationRef` thay vì
+    `SourceReportRef`."""
+    registry = HistoricalConfirmedRegistry()
+    entry = HistoricalConfirmedRegistryEntry(
+        entry_id=f"HCR-{order_id}",
+        sale_date=sale_date,
+        order_id=order_id,
+        raw_product_identity=product_raw,
+        raw_identity_key=raw_identity_key(product_raw),
+        confirmed_purchase_price=Decimal(price),
+        manual_legacy_confirmation_ref=ManualLegacyConfirmationRef(
+            original_system="Tracking",
+            reason="hệ thống gốc không giữ lại snapshot lịch sử reopenable",
+        ),
+        provenance=PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
+        confirmed_by="test",
+        confirmed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        confirmation_authority=ConfirmationAuthority.OWNER,
+    )
+    registry.append(
+        ConfirmHistoricalEntry(
+            actor_id="test",
+            client_request_id=f"req-{order_id}-manual",
+            expected_version=0,
+            entry_id=entry.entry_id,
+            entry=entry,
+        )
+    )
+    return registry
+
+
+def test_manual_legacy_confirmation_wired_end_to_end_through_run_import(
+    synthetic_raw_path, config_dir
+):
+    """Golden #1 session brief §2 — provenance mới phải chảy nguyên vẹn từ
+    registry entry tới `WorkingLine.price_source` qua production entry point
+    thật (`run_import`), không bị gắn nhầm nhãn `HISTORICAL_CONFIRMED_REPORT`.
+    """
+    registry = _historical_registry_manual_legacy(
+        order_id="BH0001",
+        product_raw="Máy giặt Test-1",
+        sale_date=date(2026, 1, 15),
+        price="7000000",
+    )
+    result = run_import(
+        synthetic_raw_path, config_dir=config_dir, identity_registry=registry
+    )
+    order = _order(result, "BH0001")
+    line = order.lines[0]
+    assert line.accounting_purchase_price == Decimal("7000000")
+    assert line.price_source == PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION
+    assert line.price_source != PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
+    assert line.accounting_profit == (line.sell_price - Decimal("7000000")) * line.quantity
 
 
 def test_preview_matches_synthetic_file(synthetic_raw_path, config_dir):

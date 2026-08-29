@@ -25,8 +25,13 @@ from app.modules.product.identity.identity import (
 from app.modules.product.identity.keys import raw_identity_key
 from app.modules.product.identity.registry import (
     CUTOVER_DATE,
+    ConfirmationAuthority,
     HistoricalConfirmedRegistry,
+    InvalidManualLegacyConfirmationError,
     InvalidSourceReportRefError,
+    ManualLegacyConfirmationRef,
+    PROVENANCE_HISTORICAL,
+    PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
     RegistryEntryStatus,
     SourceReportRef,
 )
@@ -274,3 +279,97 @@ class TestRegistryIntegrityHardening:
 
     def test_registry_status_enum_is_closed(self):
         assert {s.value for s in RegistryEntryStatus} == {"CONFIRMED", "SUPERSEDED"}
+
+
+class TestManualLegacyConfirmationProvenance:
+    """Golden #1 vertical delivery session brief §2 — LEGACY DATA GAP: hệ
+    thống gốc không giữ lại snapshot lịch sử reopenable. `INV-51` không nới
+    lỏng cho report thật sự reopenable; nó chỉ không còn là đường DUY NHẤT."""
+
+    def test_manual_ref_requires_truthful_non_empty_fields(self):
+        for missing in ("original_system", "reason"):
+            kwargs = {"original_system": "Tracking", "reason": "không rõ lý do"}
+            kwargs[missing] = "   "
+            with pytest.raises(InvalidManualLegacyConfirmationError):
+                ManualLegacyConfirmationRef(**kwargs)
+
+    def test_entry_needs_exactly_one_evidence_type(self):
+        """Không cả hai (hai loại bằng chứng khác nhau), không thiếu cả hai."""
+        base = fx.registry_entry()
+        with pytest.raises(ValueError, match="ĐÚNG MỘT"):
+            type(base)(
+                entry_id="X1",
+                sale_date=fx.PRE_CUTOVER,
+                order_id="O",
+                raw_product_identity="p",
+                raw_identity_key="p",
+                confirmed_purchase_price=Decimal("1000000"),
+                confirmed_by="a",
+                confirmed_at=datetime.now(timezone.utc),
+                confirmation_authority=ConfirmationAuthority.OWNER,
+                # thiếu cả source_report_ref lẫn manual_legacy_confirmation_ref
+            )
+        with pytest.raises(ValueError, match="ĐÚNG MỘT"):
+            type(base)(
+                entry_id="X2",
+                sale_date=fx.PRE_CUTOVER,
+                order_id="O",
+                raw_product_identity="p",
+                raw_identity_key="p",
+                confirmed_purchase_price=Decimal("1000000"),
+                source_report_ref=base.source_report_ref,
+                manual_legacy_confirmation_ref=ManualLegacyConfirmationRef(
+                    original_system="Tracking", reason="lý do"
+                ),
+                confirmed_by="a",
+                confirmed_at=datetime.now(timezone.utc),
+                confirmation_authority=ConfirmationAuthority.OWNER,
+                provenance=PROVENANCE_HISTORICAL,
+                # cả hai cùng có mặt — cũng phải bị từ chối
+            )
+
+    def test_provenance_label_must_match_evidence_type(self):
+        """Không được gắn nhãn HISTORICAL_CONFIRMED_REPORT cho một xác nhận
+        không có report reopenable, và ngược lại."""
+        entry = fx.registry_entry()
+        with pytest.raises(ValueError, match="OWNER_MANUAL_LEGACY_CONFIRMATION"):
+            type(entry)(
+                entry_id="X3",
+                sale_date=fx.PRE_CUTOVER,
+                order_id="O",
+                raw_product_identity="p",
+                raw_identity_key="p",
+                confirmed_purchase_price=Decimal("1000000"),
+                source_report_ref=entry.source_report_ref,
+                confirmed_by="a",
+                confirmed_at=datetime.now(timezone.utc),
+                confirmation_authority=ConfirmationAuthority.OWNER,
+                provenance=PROVENANCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
+            )
+
+    def test_resolve_batch_propagates_manual_legacy_provenance_honestly(self):
+        """`price_source` hạ nguồn phải nói đúng loại bằng chứng — không được
+        đọc như một report đã verify khi thực ra là xác nhận thủ công."""
+        entry = fx.registry_entry_manual_legacy()
+        spy = fx.CallSpy()
+
+        result = resolve_batch(
+            [
+                fx.row(
+                    entry.raw_product_identity,
+                    order_id=entry.order_id,
+                    sale_date=fx.PRE_CUTOVER,
+                )
+            ],
+            registry=_registry(entry),
+            resolver_factory=spy,
+        )
+
+        outcome = result.historical[0][1]
+        assert isinstance(outcome, HistoricalConfirmed)
+        assert outcome.price == Decimal("2500000")
+        assert outcome.provenance.price_provenance == (
+            "OWNER_MANUAL_LEGACY_CONFIRMATION"
+        )
+        assert outcome.provenance.mapping_source == "OWNER_MANUAL_LEGACY_CONFIRMATION"
+        assert spy.calls == 0

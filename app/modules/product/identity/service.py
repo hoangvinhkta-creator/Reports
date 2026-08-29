@@ -122,6 +122,24 @@ def _historical_outcome(
     (`INV-50`) — vắng identity KHÔNG kích hoạt resolver để điền vào chỗ trống.
     """
     entry = registry.lookup(row.order_id, row.raw_identity_key, row.sale_date)
+    if entry is not None and entry.status is RegistryEntryStatus.CONFIRMED:
+        # `entry.provenance` — không hardcode `PROVENANCE_HISTORICAL`: một
+        # entry `OWNER_MANUAL_LEGACY_CONFIRMATION` (Golden #1 §2) phải giữ
+        # đúng nhãn của nó xuống tới `WorkingLine.price_source` — gắn nhãn
+        # HISTORICAL_CONFIRMED_REPORT cho nó là claim sai một report reopenable
+        # không tồn tại.
+        provenance = Provenance(
+            raw_product_identity=row.raw_product_identity,
+            resolution_method=entry.provenance,
+            resolved_at=_midnight(row),
+            mapping_source=entry.provenance,
+            price_provenance=entry.provenance,
+        )
+        return HistoricalConfirmed(
+            price=entry.confirmed_purchase_price,
+            provenance=provenance,
+            identity=entry.confirmed_identity,
+        )
     provenance = Provenance(
         raw_product_identity=row.raw_product_identity,
         resolution_method=PROVENANCE_HISTORICAL,
@@ -129,12 +147,6 @@ def _historical_outcome(
         mapping_source=PROVENANCE_HISTORICAL,
         price_provenance=PROVENANCE_HISTORICAL,
     )
-    if entry is not None and entry.status is RegistryEntryStatus.CONFIRMED:
-        return HistoricalConfirmed(
-            price=entry.confirmed_purchase_price,
-            provenance=provenance,
-            identity=entry.confirmed_identity,
-        )
     return PendingProduct(
         reason_code=PendingReason.PENDING_HISTORICAL_CONFIRMATION,
         attempted_sources=(AttemptedSource.HISTORICAL_CONFIRMED_REGISTRY,),

@@ -46,6 +46,12 @@ PRICE_SOURCE_MANUAL = "Manual"
 # PriceProvider/P01-P11 (DEC-154 P00). Chuỗi này khớp nguyên văn literal
 # `price_source = HISTORICAL_CONFIRMED_REPORT` của chính DEC-154.
 PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT = "HISTORICAL_CONFIRMED_REPORT"
+# Golden #1 vertical delivery session brief §2 — nhánh pre-cutover đặc biệt:
+# hệ thống gốc (Tracking "Tồn"/public purchase) đã ghi đè giá trị hiện tại và
+# không giữ lại snapshot lịch sử reopenable (LEGACY DATA GAP). Khác
+# HISTORICAL_CONFIRMED_REPORT: giá trị này KHÔNG claim có report reopenable
+# đứng sau nó — xem `ManualLegacyConfirmationRef` (registry.py).
+PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION = "OWNER_MANUAL_LEGACY_CONFIRMATION"
 
 # ProductGroup has exactly two values (DEC-127, ADR-106). Like LEAD_SOURCES,
 # this is a structural invariant of the model, not a tunable business value.

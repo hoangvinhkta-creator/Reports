@@ -114,7 +114,16 @@ def _apply_pre_cutover_identity(
     for line, (_, outcome) in zip(pre_cutover, result.historical):
         if isinstance(outcome, HistoricalConfirmed):
             line.accounting_purchase_price = outcome.price
-            line.price_source = PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
+            # `outcome.provenance.price_provenance` — không hardcode hằng số
+            # `HISTORICAL_CONFIRMED_REPORT`: registry entry đứng sau outcome
+            # này có thể là `OWNER_MANUAL_LEGACY_CONFIRMATION` (Golden #1
+            # session brief §2, LEGACY DATA GAP) và `price_source` phải nói
+            # đúng loại bằng chứng thật, không được gắn nhãn "report" cho một
+            # xác nhận không có report.
+            line.price_source = (
+                outcome.provenance.price_provenance
+                or PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
+            )
         elif isinstance(outcome, PendingProduct):
             line.accounting_purchase_price = None
             line.price_source = PRICE_SOURCE_PENDING
