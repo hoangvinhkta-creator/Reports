@@ -58,6 +58,14 @@ PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION = "OWNER_MANUAL_LEGACY_CONFIRMATIO
 # để quyết có tin con số hay không, và một giá tái dựng theo thời gian có
 # đúng một điểm yếu riêng (thẩm quyền dấu thời gian) mà nhãn phải nói ra.
 PRICE_SOURCE_TRACKING_PRICE_HISTORY = "TRACKING_PRICE_HISTORY"
+# TASK-105E composition (DEC-154 §10, P08/P09). Hai nhãn PHẢI tách nhau: cùng
+# là "giá đến từ nguồn Public Purchase", nhưng một cái là identity Public
+# Purchase tra thẳng bảng giá của chính nó (P04/P08), còn cái kia là một
+# identity TRACKING mượn giá công khai qua CrossSystemProductMapping vì nhánh
+# vendor không có candidate hợp lệ (P03/P09). Gộp hai nhãn lại là xoá đúng
+# thông tin người kiểm cần để biết con số này có đi qua một mapping hay không.
+PRICE_SOURCE_PUBLIC_PURCHASE_NO_TRACKING = "PUBLIC_PURCHASE_NO_TRACKING"
+PRICE_SOURCE_PUBLIC_PURCHASE_NO_VENDOR_PRICE = "PUBLIC_PURCHASE_NO_VENDOR_PRICE"
 
 # Provenance của KpiPurchasePrice (TASK-108B minimum B7/B8 slice, DEC-143 +
 # DEC-144, Golden #1 KPI vertical slice). Tách biệt hoàn toàn khỏi

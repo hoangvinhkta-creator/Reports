@@ -161,6 +161,100 @@ nhận: 0 silent error, 100% order accounting, 0 blocker hợp lệ cần sửa.
 Bằng chứng đầy đủ: `docs/sessions/S059-batch-50-real-orders.md`,
 `tools/analysis/batch_50_real_orders.py`.
 
+## TASK-105E — Production Price Composition, Session 1 (S061, 2026-08-29)
+
+Current-state pointer cho nhánh giá POST-cutover. Không supersede `DEC-154`;
+nó **thực thi** `DEC-154` §7/§11 lần đầu tiên trên biên production, và không
+đụng `CUTOVER_DATE`.
+
+**Điều đã đổi thật.** Trước S061, `run_import_production()` chỉ nạp ba nguồn
+của nhánh pre-cutover; mọi dòng `sale_date >= 2026-09-01` rơi thẳng vào
+`PendingPriceProvider`, nên Reports History Reader V1 — dù đã review độc lập
+và tích hợp (S060) — **chưa từng được production gọi một lần nào**. Từ S061,
+seam production nạp thêm bằng chứng giá post-cutover và truyền một
+`PostCutoverPriceComposition` vào `run_import()`.
+
+```text
+run_import_production()
+  ├─ sale_date < 2026-09-01 → HistoricalConfirmedRegistry (P00)   — KHÔNG ĐỔI
+  └─ sale_date >= 2026-09-01 → PostCutoverPriceComposition (TASK-105E)
+        ├─ TASK-105D resolve identity (catalog + PP version + store view)
+        ├─ TRACKING:<mã>        → Reports History Reader V1 (S060)
+        ├─ PUBLIC_PURCHASE:<mã> → bảng giá Public Purchase (TASK-105B)
+        └─ mọi kết cục khác     → Pending → Missing.PurchasePrice (TASK-110)
+```
+
+**Mặc định KHÔNG đổi.** `app/pipeline.py` nhận một tham số DI optional mới
+`price_composition`, mặc định `None` = `PendingPriceProvider` như cũ
+(`CHECK-105-04`). `price_provider` và `price_composition` loại trừ lẫn nhau —
+truyền cả hai là `ValueError`, không phải một lựa chọn thầm lặng.
+
+**`P01`/`P03` bị chặn có chủ đích.** `P03` đòi một absence ĐÃ XÁC ĐỊNH từ
+nguồn vendor (`TASK-105C`), mà nguồn ấy vẫn `BLOCKED / NOT AUTHORIZED` — câu
+hỏi chưa từng được đặt ra. "Chưa hỏi" không phải "đã hỏi và không có". Hệ
+quả: identity `TRACKING` **không bao giờ** mượn giá Public Purchase trong
+kiến trúc hiện tại, kể cả khi có `CrossSystemProductMapping` CONFIRMED — có
+test khẳng định. `PUBLIC_PURCHASE_NO_VENDOR_PRICE` (`P09`) đã được định nghĩa
+đầy đủ và tách khỏi `PUBLIC_PURCHASE_NO_TRACKING` (`P08`) theo `DEC-154` §10,
+nhưng chưa có đường tới.
+
+**`OWNER_DECISION_REQUIRED` (mở, không chặn).** Không artifact frozen nào đặt
+Reports History Reader V1 vào một ô của bảng `P00–P11`; `DEC-154` §7 viết
+trước khi reader tồn tại. S061 đặt nó làm nguồn `TRACKING` duy nhất được nối
+theo luồng của chỉ thị mở phiên. Hôm nay lựa chọn ấy không quan sát được
+(`P01` không có nguồn, `P03` bị chặn); nó trở nên quan sát được ngay khi
+`TASK-105C` có nguồn thật — **retrigger trước khi `TASK-105C` được cấp phép**.
+
+**Hai cutover, không gộp.** `CUTOVER_DATE = 2026-09-01` không đổi một byte.
+Mốc dữ liệu Tracking `2026-08-29 19:35:37` (Firebase server time) là một
+`datetime` có múi giờ; hai giá trị khác KIỂU và test khẳng định Python từ chối
+so sánh trực tiếp chúng. Một đơn ngày `30/08/2026` vẫn đi nhánh lịch sử.
+
+**Nguồn: ba trạng thái không gộp.**
+
+```text
+file không tồn tại    → nguồn CHƯA ĐƯỢC NỐI  → Pending có lý do riêng
+file hỏng             → LỖI NẠP (raise)      → không sinh report giả
+capture_status FAILED → LỖI CỨNG (INV-12)    → không bao giờ thành Pending
+```
+
+Hôm nay cả ba nguồn post-cutover đều VẮNG MẶT trên đĩa, nên hành vi production
+là: post-cutover → `IDENTITY_SOURCES_UNAVAILABLE` → Pending → Review Queue.
+Không crash, không đơn mất, không giá bịa.
+
+**Kết quả đo.**
+
+```text
+Golden Baseline      : 58 passed, 2 skipped   — KHÔNG ĐỔI
+Golden #1 BH62063    : 7.000.000 / EligibleKpiProfit 500.000 — KHÔNG ĐỔI
+Golden #3 BH62439/52 : AccountingProfit 500.000 / EligibleKpiProfit 400.000 — KHÔNG ĐỔI
+Golden #4 BH62439/53 : SAFE PENDING, Missing.PurchasePrice — KHÔNG ĐỔI
+Batch 50 (01/2026)   : INPUT 50, AUTO 1, REVIEW_QUEUE 49,
+                       PENDING_NOT_QUEUED 0, ERROR 0, SILENTLY_DROPPED 0,
+                       AUTOMATION_RATE 2,0%, ORDER_ACCOUNTING_RATE 100,0%
+                       — GIỐNG HỆT baseline S059
+FULL pytest          : 1155 passed, 11 skipped, 0 failed (đo SAU commit)
+                       (base 740f396: 1112 passed, 11 skipped — +43, 0 hồi quy)
+Validators           : structure/project_state/evidence/task_completion PASS;
+                       reference_integrity FAIL đúng 3 issue tiền tồn
+                       TASK-REM-T06 (REG-01), không đổi
+```
+
+Batch 50 nằm trong tháng 01/2026, tức TRƯỚC mốc dữ liệu Tracking 29/08/2026;
+`TASK-105E` không được phép và không hề làm nó tự động hơn. 49 đơn vẫn Pending
+vì thiếu historical authority — đó KHÔNG phải regression.
+
+**`WAITING_REAL_POST_CUTOVER_DATA`.** Repo không có đơn thật nào
+`sale_date >= 2026-09-01` và không có file capture production nào. Wiring được
+chứng minh bằng focused integration fixture chạy qua `run_import()` thật (43
+test) cộng một lần chạy chính `run_import_production()` trên dữ liệu
+post-cutover với nguồn giá đúng như trên đĩa hôm nay.
+
+Trạng thái: `TASK-105E = IMPLEMENTED`, **NOT DONE** — Completion Gate chưa
+soạn/chưa freeze, cần Independent Review (Session 2). Bằng chứng đầy đủ:
+`docs/sessions/S061-task-105e-production-price-composition.md`,
+`docs/tasks/TASK-105E-price-resolution-composition.md`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
@@ -327,8 +421,21 @@ TASK-105B
   PendingPriceProvider vẫn default; FilePriceProvider NOT ACTIVATED
   budget = 2 allowed / 1 used / 1 remaining
 
+TASK-105E
+  = IMPLEMENTED (Session 1, S061 2026-08-29) + NOT DONE
+  Scope Lock Session 1 = SOẠN (chưa freeze); Completion Gate = CHƯA SOẠN
+  production composition P00-P11 đã nối vào run_import_production()
+  P00/P04/P05/P06/P07/P08/P09/P10/P11 = PASS (E1)
+  P01/P02 = NOT_APPLICABLE (nguồn TASK-105C chưa được cấp phép)
+  P03 = BLOCKED (điều kiện "no valid vendor candidate" không xác định được)
+  OWNER_DECISION_REQUIRED = vị trí Reports History Reader V1 trong bảng P00-P11
+  WAITING_REAL_POST_CUTOVER_DATA = chưa có đơn thật >= 2026-09-01,
+      chưa có file capture production cho cả ba nguồn post-cutover
+  budget = 2 allowed / 0 used / 2 remaining (không cycle nào mở bởi S061)
+  Independent Review (Session 2) = CHƯA
+
 TASK-105C
-  = BLOCKED / NOT AUTHORIZED   (KHÔNG đổi bởi DEC-156)
+  = BLOCKED / NOT AUTHORIZED   (KHÔNG đổi bởi DEC-156, KHÔNG đổi bởi S061)
   semantic branch = TRACKING HistoricalVendorMin, DEC-151/152 preserved
   input = resolved TRACKING identity + sale_date
   output = HistoricalVendorMin hoặc absence cho fallback
