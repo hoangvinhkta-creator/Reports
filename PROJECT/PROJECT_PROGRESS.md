@@ -100,6 +100,67 @@ MỘT case thật, không phải toàn bộ Completion Gate của TASK-110.
 
 Bằng chứng đầy đủ: `docs/sessions/S058-golden-4-safe-pending.md`.
 
+## Trạng thái sau BATCH 50 REAL ORDERS (S059, 2026-08-29)
+
+```text
+BATCH 50 = BATCH_50_PASS (Session 1/2 — không cần Session 2)
+
+Cohort   : 50 OrderID DUY NHẤT đầu tiên theo thứ tự xuất hiện trong
+           tests/fixtures/golden/period_2026_01.xlsx (BH62063 .. BH62519,
+           75 dòng thô, 2026-01-02..2026-01-10). Đông lạnh, tái lập được:
+           tools/analysis/batch_50_real_orders.py (mới).
+
+TRƯỚC/SAU (giống hệt nhau — KHÔNG repair):
+  AUTO_SUCCESS = 1, REVIEW_QUEUE = 49, PENDING_NOT_QUEUED = 0, ERROR = 0,
+  SILENTLY_DROPPED = 0
+  AUTOMATION_RATE = 2,0%   ORDER_ACCOUNTING_RATE = 100,0%
+
+Root cause chiếm ưu thế (49/50 đơn REVIEW_QUEUE): Missing.PurchasePrice —
+thiếu giá vốn kế toán, CÙNG LỚP blocker khiến Golden #2 WAITING_REAL_DATA,
+KHÔNG PHẢI code defect. Không đơn nào chạm EmployeeMapping/OrderInconsistency/
+Duplicate/SourceClassification trong toàn file. 8 dòng có tín hiệu
+Suspicious/Suspicious.ERP — xác minh tay: TẤT CẢ đúng dữ liệu thật (phụ kiện
+tặng kèm giá 0, dòng SL=0, lợi nhuận ERP âm), không phải nhiễu do thiếu
+non-product keyword.
+
+Manual validation sample (6 đơn, 9 dòng cụ thể, gồm AUTO_SUCCESS/Qty>1+
+Discount!=0/multi-line/Suspicious/Suspicious.ERP): CORRECT_AUTO=2,
+CORRECT_PENDING=7, SILENT_ERROR=0, UNVERIFIABLE=0.
+SILENT_ERROR_RATE = 0/9 = 0%.
+
+Complete Blocking Set: RỖNG. Không silent wrong monetary result, không
+silently dropped order, không crash, không sai order/line association,
+không sai Review Queue accounting. Một quan sát đã kiểm tra và loại trừ:
+KpiPurchasePrice/EligibleKpiProfit không có detector Review Queue riêng,
+nhưng trên dữ liệu thật hiện có (confirmed_adjustments.jsonl LOADED rỗng),
+mọi dòng KPI-Pending đều là tập con của dòng đã có trong
+Missing.PurchasePrice — không phát sinh PENDING_NOT_QUEUED mới. Không mở
+lại TASK-108B.
+
+Production diff : +1 file mới (tools/analysis/batch_50_real_orders.py, công
+              cụ đo lường, không phải business logic), +1 session log,
+              +ghi trạng thái này. 0 dòng app/**, config/**, data/** sửa —
+              hợp lệ theo mục 12 chỉ thị batch-50 ("zero legitimate code
+              blockers -> zero production changes").
+MANUAL_WORK_REDUCTION: NOT_YET_MEASURABLE — không có baseline thời gian xử
+              lý tay cũ nào trong repo để so sánh; không bịa số.
+Golden Baseline (58 passed, 2 skipped) : KHÔNG đổi.
+Golden #1 (BH62063) / Golden #3+#4 (BH62439 dòng 52/53) : PASS, regression-safe.
+Golden #2 : KHÔNG đọc, KHÔNG sửa, KHÔNG reopen TASK-105C/105E.
+Full pytest : 1041 passed, 11 skipped, 0 failed (không đổi so với S058).
+Validators  : structure/project_state/evidence/task_completion PASS;
+              reference_integrity FAIL đúng 3 issue baseline TASK-REM-T06
+              (REG-01, không đổi). branch_authority_check → AUTHORITY_OK.
+
+QUAN TRỌNG: BATCH_50_PASS KHÔNG tuyên bố TASK-110 DONE và KHÔNG tuyên bố
+90% tự động hoá đã đạt (2,0% hiện tại — trung thực, vì Phase 1 chưa có Price
+Master, đúng dự kiến). Batch 50 chỉ đo hệ thống trên dữ liệu thật và xác
+nhận: 0 silent error, 100% order accounting, 0 blocker hợp lệ cần sửa.
+```
+
+Bằng chứng đầy đủ: `docs/sessions/S059-batch-50-real-orders.md`,
+`tools/analysis/batch_50_real_orders.py`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
