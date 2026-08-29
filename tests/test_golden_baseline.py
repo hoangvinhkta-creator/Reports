@@ -643,8 +643,11 @@ def test_golden_pipeline_entry_point_signature_is_locked():
     """
     assert gb.PIPELINE_ENTRY_POINT == "app.pipeline.run_import"
     params = list(inspect.signature(run_import).parameters)
+    # S051: nối biên `TASK-105D` product identity (DEC-154 P00) — hai tham
+    # số DI mới, cả hai optional/backward-compatible, không đổi 4 tham số cũ.
     assert params == ["raw_path", "config_dir", "price_provider",
-                      "product_group_provider"]
+                      "product_group_provider", "identity_registry",
+                      "identity_resolver_factory"]
     assert list(inspect.signature(build_working_data).parameters) == params
 
 

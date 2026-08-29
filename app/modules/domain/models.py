@@ -41,6 +41,11 @@ MAPPING_STATUSES = (
 PRICE_SOURCE_PENDING = "Pending"
 PRICE_SOURCE_PRICE_MASTER = "PriceMaster"
 PRICE_SOURCE_MANUAL = "Manual"
+# DEC-154 §2 — pre-cutover authority: giá của một HISTORICAL_CONFIRMED entry
+# đến thẳng từ HistoricalConfirmedRegistry (TASK-105D), bypass toàn bộ
+# PriceProvider/P01-P11 (DEC-154 P00). Chuỗi này khớp nguyên văn literal
+# `price_source = HISTORICAL_CONFIRMED_REPORT` của chính DEC-154.
+PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT = "HISTORICAL_CONFIRMED_REPORT"
 
 # ProductGroup has exactly two values (DEC-127, ADR-106). Like LEAD_SOURCES,
 # this is a structural invariant of the model, not a tunable business value.

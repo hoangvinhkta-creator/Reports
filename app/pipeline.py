@@ -31,7 +31,13 @@ from pathlib import Path
 
 from app.modules.conversion.conversion_engine import apply_conversion_schemes
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver
-from app.modules.domain.models import MAPPING_STATUS_MAPPED, Order, WorkingLine
+from app.modules.domain.models import (
+    MAPPING_STATUS_MAPPED,
+    PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
+    PRICE_SOURCE_PENDING,
+    Order,
+    WorkingLine,
+)
 from app.modules.importing.normalizer import normalize_lines
 from app.modules.importing.preview import ImportPreview, build_preview
 from app.modules.importing.raw_reader import read_raw_rows
@@ -40,6 +46,13 @@ from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
 from app.modules.pricing.price_engine import apply_prices
 from app.modules.pricing.provider import PendingPriceProvider, PriceProvider
+from app.modules.product.identity.identity import HistoricalConfirmed, PendingProduct
+from app.modules.product.identity.registry import (
+    CUTOVER_DATE,
+    HistoricalConfirmedRegistry,
+)
+from app.modules.product.identity.resolver import SalesRowRef
+from app.modules.product.identity.service import ResolverFactory, resolve_batch
 from app.modules.product.product_group import (
     DefaultProductGroupProvider,
     ProductGroupProvider,
@@ -49,6 +62,62 @@ from app.modules.validation.models import ReviewQueue
 from app.modules.validation.validator import Validator
 
 DEFAULT_CONFIG_DIR = Path("config")
+
+
+def _post_cutover_resolver_not_wired():
+    """`TASK-105E` (chủ sở hữu composition P01–P11 post-cutover) chưa được
+    authorize/implement (`DEC-154` §11, S050 §13). Không có
+    `TrackingCatalogSnapshot`/`PublicPurchaseSourceVersion`/`StoreView` thật
+    nào được wiring vào `app.pipeline`, nên factory này KHÔNG được phép giả
+    lập khả năng đó — nó nổ rõ ràng nếu thực sự bị gọi. Theo `INV-47`, điều
+    này chỉ xảy ra khi một batch chứa ít nhất một dòng post-cutover
+    (`sale_date >= CUTOVER_DATE`); mọi dữ liệu production/test hiện có đều
+    pre-cutover nên nhánh này chưa từng được kích hoạt (S051 §6, §17)."""
+    raise NotImplementedError(
+        "Post-cutover product identity resolution (TASK-105E composition) "
+        "chưa được wiring vào app.pipeline — không có dependency thật nào "
+        "khả dụng trong production config để dựng ProductIdentityResolver."
+    )
+
+
+def _apply_pre_cutover_identity(
+    lines: list[WorkingLine],
+    *,
+    registry: HistoricalConfirmedRegistry,
+    resolver_factory: ResolverFactory,
+) -> None:
+    """Nối `app.pipeline` với biên `product/identity` của `TASK-105D`
+    (S051) cho nhánh pre-cutover (`DEC-154` §2/P00): giá của một dòng
+    `sale_date < CUTOVER_DATE` đến TỪ `HistoricalConfirmedRegistry` khi có
+    entry `CONFIRMED`, hoặc là Pending khi không có — không bao giờ qua
+    `PriceProvider` (P01–P11 chỉ áp cho nhánh post-cutover). Dòng nào không
+    thuộc nhánh này (post-cutover hoặc thiếu `date`) không bị đụng tới ở đây
+    — `apply_prices` hiện hành vẫn xử lý chúng như trước (S051 §17: đổi tối
+    thiểu, không redesign `TASK-105D`).
+    """
+    pre_cutover = [
+        line for line in lines if line.date is not None and line.date < CUTOVER_DATE
+    ]
+    if not pre_cutover:
+        return
+
+    rows = [
+        SalesRowRef(
+            order_id=line.order_id,
+            sale_date=line.date,
+            raw_product_identity=line.product_raw or "",
+        )
+        for line in pre_cutover
+    ]
+    result = resolve_batch(rows, registry=registry, resolver_factory=resolver_factory)
+
+    for line, (_, outcome) in zip(pre_cutover, result.historical):
+        if isinstance(outcome, HistoricalConfirmed):
+            line.accounting_purchase_price = outcome.price
+            line.price_source = PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
+        elif isinstance(outcome, PendingProduct):
+            line.accounting_purchase_price = None
+            line.price_source = PRICE_SOURCE_PENDING
 
 
 @dataclass(frozen=True)
@@ -85,6 +154,8 @@ def build_working_data(
     config_dir: Path = DEFAULT_CONFIG_DIR,
     price_provider: PriceProvider | None = None,
     product_group_provider: ProductGroupProvider | None = None,
+    identity_registry: HistoricalConfirmedRegistry | None = None,
+    identity_resolver_factory: ResolverFactory | None = None,
 ) -> WorkingData:
     """Steps 1–10 of spec section 22 — everything except the Review Queue."""
     raw_rows = read_raw_rows(raw_path)
@@ -100,7 +171,19 @@ def build_working_data(
     classifier = LeadSourceClassifier.from_yaml(config_dir / "lead_source.yaml")
     classifier.apply(orders, employee_mapper)
 
-    apply_prices(lines, price_provider or PendingPriceProvider())
+    # Bước 8 §22 (TASK-105, nối `TASK-105D` — S051). Pre-cutover đi qua biên
+    # product identity (DEC-154 P00) trước; phần còn lại (post-cutover /
+    # `date` thiếu — không xảy ra trong dữ liệu hiện có) vẫn qua
+    # `PriceProvider` như cũ.
+    _apply_pre_cutover_identity(
+        lines,
+        registry=identity_registry or HistoricalConfirmedRegistry(),
+        resolver_factory=identity_resolver_factory or _post_cutover_resolver_not_wired,
+    )
+    remaining_lines = [
+        line for line in lines if line.date is None or line.date >= CUTOVER_DATE
+    ]
+    apply_prices(remaining_lines, price_provider or PendingPriceProvider())
 
     apply_accounting_profit(lines)
 
@@ -124,9 +207,16 @@ def run_import(
     config_dir: Path = DEFAULT_CONFIG_DIR,
     price_provider: PriceProvider | None = None,
     product_group_provider: ProductGroupProvider | None = None,
+    identity_registry: HistoricalConfirmedRegistry | None = None,
+    identity_resolver_factory: ResolverFactory | None = None,
 ) -> ImportResult:
     working = build_working_data(
-        raw_path, config_dir, price_provider, product_group_provider
+        raw_path,
+        config_dir,
+        price_provider,
+        product_group_provider,
+        identity_registry,
+        identity_resolver_factory,
     )
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a

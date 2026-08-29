@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import fields, is_dataclass, replace
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -23,6 +23,14 @@ from app.modules.domain.models import (
 from app.modules.domain.models import WorkingLine
 from app.modules.importing.normalizer import normalize_line
 from app.modules.orders.order_builder import build_orders
+from app.modules.product.identity.commands import ConfirmHistoricalEntry
+from app.modules.product.identity.keys import raw_identity_key
+from app.modules.product.identity.registry import (
+    ConfirmationAuthority,
+    HistoricalConfirmedRegistry,
+    HistoricalConfirmedRegistryEntry,
+    SourceReportRef,
+)
 from app.modules.validation.models import (
     CATEGORIES,
     CATEGORY_DUPLICATE,
@@ -48,13 +56,36 @@ from tests.factories import make_raw_row
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
-class _RealPriceProvider:
-    """A Price Master that knows one product and misses the rest."""
-
-    def lookup(self, product_code, sale_date):
-        if product_code and "Máy giặt" in product_code:
-            return Decimal("9000000")  # deliberately above the sell price
-        return None
+def _historical_registry_for_bh0001() -> HistoricalConfirmedRegistry:
+    """DEC-154 §2/P00 — BH0001 (2026-01-15) là pre-cutover: từ S051, giá của
+    nó tới từ `HistoricalConfirmedRegistry`, không còn `price_provider`
+    (xem `app.pipeline._apply_pre_cutover_identity`)."""
+    product_raw = "Máy giặt Test-1"
+    registry = HistoricalConfirmedRegistry()
+    entry = HistoricalConfirmedRegistryEntry(
+        entry_id="HCR-BH0001",
+        sale_date=date(2026, 1, 15),
+        order_id="BH0001",
+        raw_product_identity=product_raw,
+        raw_identity_key=raw_identity_key(product_raw),
+        confirmed_purchase_price=Decimal("9000000"),  # deliberately above sell price
+        source_report_ref=SourceReportRef(
+            report_id="RPT-TEST", file_name="test.xlsx", content_hash="0" * 64
+        ),
+        confirmed_by="test",
+        confirmed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        confirmation_authority=ConfirmationAuthority.OWNER,
+    )
+    registry.append(
+        ConfirmHistoricalEntry(
+            actor_id="test",
+            client_request_id="req-bh0001",
+            expected_version=0,
+            entry_id=entry.entry_id,
+            entry=entry,
+        )
+    )
+    return registry
 
 
 def _defective_line(source_row, order_id, employee_raw, **kwargs):
@@ -143,7 +174,9 @@ def test_review_queue_is_ordered_worst_first(synthetic_raw_path):
 
 def test_a_real_price_provider_wakes_the_dormant_computed_rules(synthetic_raw_path):
     pending_run = run_import(synthetic_raw_path)
-    priced_run = run_import(synthetic_raw_path, price_provider=_RealPriceProvider())
+    priced_run = run_import(
+        synthetic_raw_path, identity_registry=_historical_registry_for_bh0001()
+    )
 
     def computed_rules(result):
         return {

@@ -1,17 +1,57 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Optional
 
 from app.modules.domain.models import (
     ADS,
     MAPPING_STATUS_MAPPED,
     PERSONAL,
+    PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
     PRICE_SOURCE_PENDING,
-    PRICE_SOURCE_PRICE_MASTER,
 )
+from app.modules.product.identity.commands import ConfirmHistoricalEntry
+from app.modules.product.identity.registry import (
+    ConfirmationAuthority,
+    HistoricalConfirmedRegistry,
+    HistoricalConfirmedRegistryEntry,
+    SourceReportRef,
+)
+from app.modules.product.identity.keys import raw_identity_key
 from app.pipeline import run_import
+
+
+def _historical_registry(
+    *, order_id: str, product_raw: str, sale_date: date, price: str
+) -> HistoricalConfirmedRegistry:
+    """DEC-154 §2/P00: từ S051, đây là cổng DI thật cho giá pre-cutover — thay
+    cho `price_provider` (chỉ còn áp cho post-cutover/`date` thiếu, xem
+    `app.pipeline._apply_pre_cutover_identity`)."""
+    registry = HistoricalConfirmedRegistry()
+    entry = HistoricalConfirmedRegistryEntry(
+        entry_id=f"HCR-{order_id}",
+        sale_date=sale_date,
+        order_id=order_id,
+        raw_product_identity=product_raw,
+        raw_identity_key=raw_identity_key(product_raw),
+        confirmed_purchase_price=Decimal(price),
+        source_report_ref=SourceReportRef(
+            report_id="RPT-TEST", file_name="test.xlsx", content_hash="0" * 64
+        ),
+        confirmed_by="test",
+        confirmed_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        confirmation_authority=ConfirmationAuthority.OWNER,
+    )
+    registry.append(
+        ConfirmHistoricalEntry(
+            actor_id="test",
+            client_request_id=f"req-{order_id}",
+            expected_version=0,
+            entry_id=entry.entry_id,
+            entry=entry,
+        )
+    )
+    return registry
 
 
 def test_preview_matches_synthetic_file(synthetic_raw_path, config_dir):
@@ -89,22 +129,26 @@ def test_default_run_leaves_every_price_pending(synthetic_raw_path, config_dir):
     assert all(line.price_source == PRICE_SOURCE_PENDING for line in all_lines)
 
 
-class _FixedPriceProvider:
-    def lookup(self, product_code: Optional[str], sale_date: Optional[date]):
-        return Decimal("999000") if product_code == "Máy giặt Test-1" else None
-
-
 def test_custom_price_provider_injected_without_touching_price_engine(
     synthetic_raw_path, config_dir
 ):
+    # BH0001 (2026-01-15) is pre-cutover (DEC-154 CUTOVER_DATE=2026-09-01):
+    # since S051, its price authority is `HistoricalConfirmedRegistry`, not
+    # `PriceProvider` (DEC-154 §2/P00 — bypasses PriceProvider entirely).
+    registry = _historical_registry(
+        order_id="BH0001",
+        product_raw="Máy giặt Test-1",
+        sale_date=date(2026, 1, 15),
+        price="999000",
+    )
     result = run_import(
-        synthetic_raw_path, config_dir=config_dir, price_provider=_FixedPriceProvider()
+        synthetic_raw_path, config_dir=config_dir, identity_registry=registry
     )
     order = _order(result, "BH0001")
     assert order.lines[0].accounting_purchase_price == Decimal("999000")
-    assert order.lines[0].price_source == PRICE_SOURCE_PRICE_MASTER
+    assert order.lines[0].price_source == PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
 
-    # Unmatched product in the same run stays Pending — the provider is real,
+    # Unmatched product in the same run stays Pending — the registry is real,
     # a miss is still a miss, never guessed.
     other_order = _order(result, "BH0004")
     assert other_order.lines[0].accounting_purchase_price is None
@@ -125,8 +169,16 @@ def test_default_run_leaves_every_accounting_profit_pending(
 def test_accounting_profit_computed_when_price_provider_matches(
     synthetic_raw_path, config_dir
 ):
+    # BH0001 is pre-cutover — see
+    # test_custom_price_provider_injected_without_touching_price_engine.
+    registry = _historical_registry(
+        order_id="BH0001",
+        product_raw="Máy giặt Test-1",
+        sale_date=date(2026, 1, 15),
+        price="999000",
+    )
     result = run_import(
-        synthetic_raw_path, config_dir=config_dir, price_provider=_FixedPriceProvider()
+        synthetic_raw_path, config_dir=config_dir, identity_registry=registry
     )
     order = _order(result, "BH0001")
     line = order.lines[0]
