@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+from app.modules.adjustment.confirmed_adjustment_source import (
+    ConfirmedAdjustmentSource,
+    load_confirmed_adjustments_from_jsonl,
+)
 from app.modules.domain.models import (
     ADS,
+    KPI_PURCHASE_NO_CONFIRMED_ADJUSTMENT,
+    KPI_PURCHASE_PENDING,
     MAPPING_STATUS_MAPPED,
     PERSONAL,
     PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
@@ -115,6 +122,95 @@ def test_manual_legacy_confirmation_wired_end_to_end_through_run_import(
     assert line.price_source == PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION
     assert line.price_source != PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
     assert line.accounting_profit == (line.sell_price - Decimal("7000000")) * line.quantity
+
+
+def test_kpi_purchase_price_wired_end_to_end_determined_absence(
+    synthetic_raw_path, config_dir
+):
+    """TASK-108B minimum B7/B8 slice (DEC-143 + DEC-144). BH0004 có
+    Quantity=2, Discount=50000 (khác Golden #1 tự thân) — đủ để phân biệt
+    EligibleKpiProfit khỏi AccountingProfit thật, không chỉ trùng hợp số học.
+    """
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    empty_source = ConfirmedAdjustmentSource(records={})
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=empty_source,
+    )
+    order = _order(result, "BH0004")
+    line = order.lines[0]
+    assert line.sell_price == Decimal("300000")
+    assert line.quantity == Decimal("2")
+    assert line.discount == Decimal("50000")
+
+    assert line.kpi_purchase_price == Decimal("200000")
+    assert line.kpi_purchase_price_provenance == KPI_PURCHASE_NO_CONFIRMED_ADJUSTMENT
+    # (300000 - 200000) * 2 - 50000 = 150000; AccountingProfit (không Discount)
+    # = (300000-200000)*2 = 200000 — hai field PHẢI khác nhau (DEC-126 điểm 1).
+    assert line.eligible_kpi_profit == Decimal("150000")
+    assert line.accounting_profit == Decimal("200000")
+    assert line.eligible_kpi_profit != line.accounting_profit
+
+
+def test_kpi_purchase_price_wired_end_to_end_confirmed_adjustment(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    adjustments_path = tmp_path / "confirmed_adjustments.jsonl"
+    adjustments_path.write_text(
+        json.dumps(
+            {"order_id": "BH0004", "amount": "10000", "confirmed_by": "chu.du.an"}
+        ),
+        encoding="utf-8",
+    )
+    source = load_confirmed_adjustments_from_jsonl(adjustments_path)
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=source,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.kpi_purchase_price == Decimal("210000")
+    assert line.kpi_purchase_price_provenance == "Confirmed:chu.du.an"
+    assert line.eligible_kpi_profit == (Decimal("300000") - Decimal("210000")) * 2 - Decimal("50000")
+
+
+def test_kpi_purchase_price_pending_when_confirmed_adjustment_source_unavailable(
+    synthetic_raw_path, config_dir, tmp_path
+):
+    """DEC-144 §3 — nguồn UNAVAILABLE (file thiếu) KHÔNG được suy đoán thành
+    xác-định-không-có; toàn bộ KPI của dòng phải là Pending."""
+    registry = _historical_registry(
+        order_id="BH0004",
+        product_raw="Bình nóng lạnh Test-5",
+        sale_date=date(2026, 1, 18),
+        price="200000",
+    )
+    source = load_confirmed_adjustments_from_jsonl(tmp_path / "missing.jsonl")
+    result = run_import(
+        synthetic_raw_path,
+        config_dir=config_dir,
+        identity_registry=registry,
+        confirmed_adjustment_source=source,
+    )
+    line = _order(result, "BH0004").lines[0]
+    assert line.accounting_purchase_price == Decimal("200000")  # vẫn resolved
+    assert line.kpi_purchase_price is None
+    assert line.kpi_purchase_price_provenance == KPI_PURCHASE_PENDING
+    assert line.eligible_kpi_profit is None
 
 
 def test_preview_matches_synthetic_file(synthetic_raw_path, config_dir):

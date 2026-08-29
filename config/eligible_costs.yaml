@@ -1,0 +1,18 @@
+# DEC-143 (OD-108B-01) — EligibleCosts = CLOSED EMPTY SET có thẩm quyền: hiện
+# tại không có khoản chi phí nào được cộng/trừ vào EligibleKpiProfit ngoài
+# Discount (đã là số hạng riêng, DEC-114/DEC-122). Đây là quyết định nghiệp
+# vụ, KHÔNG phải fallback khi thiếu dữ liệu (DEC-103) — tập rỗng tường minh ở
+# đây, không phải một danh sách trống ngầm định.
+#
+# Thêm một category đòi hỏi Owner Decision riêng, chứng minh đủ 6 điều
+# (source; scope; sign; ownership; effective date; không nhúng ở nơi khác —
+# DEC-143 điểm 5), không phải sửa file này một mình.
+eligible_cost_categories: []
+
+# Các khoản đã được chủ dự án xét và loại trừ tường minh (DEC-143 Reason §1,
+# §2) — ghi lại để không ai đọc nhầm tập rỗng thành "chưa ai nghĩ tới".
+excluded_by_authority:
+  - name: DeliveryCost
+    reason: "NOT ELIGIBLE FOR NOW (DEC-143 §2) — chưa có authority nghiệp vụ; impact lớn không được suy đoán."
+  - name: KpiPurchaseAdjustment
+    reason: "Đã nhúng trong KpiPurchasePrice (F = L + J), không phải một EligibleCost riêng (DEC-143 Reason §1)."

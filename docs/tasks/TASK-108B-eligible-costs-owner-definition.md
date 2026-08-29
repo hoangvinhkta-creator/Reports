@@ -2634,3 +2634,61 @@ product phải map vào Tracking `<MÃ>`.
 
 Không implement `TASK-105B`/`105C`/`105D`/`108B`, không activate provider,
 không sửa Tracking, không merge/freeze trong phiên reconciliation này.
+
+## 101. Golden #1 KPI vertical slice — DEFERRED_BY_MINIMAL_FIX
+
+Session "GOLDEN #1 KPI VERTICAL SLICE" (kế tiếp S053) implement một **phần
+tối thiểu** của `TASK-108B`, đủ cho đúng path B7/B8 mà `BH62063` thật đi qua —
+KHÔNG phải toàn bộ semantic đã APPROVED ở `DEC-143`/`DEC-144`. Ghi lại theo
+đúng yêu cầu §12 của session brief.
+
+**Implemented (phạm vi hẹp, chỉ path Golden #1):**
+
+- Confirmed-adjustment source (`app/modules/adjustment/confirmed_adjustment_source.py`,
+  `data/confirmed_adjustments/confirmed_adjustments.jsonl` — thật, hiện rỗng)
+  — ba trạng thái tách biệt (DEC-144 §3): UNAVAILABLE / LOADED-rỗng
+  (DETERMINED_ABSENCE) / LOADED-có-record. Tách biệt hoàn toàn khỏi
+  `AdjustmentResolver` (TASK-106, chỉ `suggested_amount`).
+- `WorkingLine.kpi_purchase_price` + `kpi_purchase_price_provenance` — field
+  mới, tách biệt hoàn toàn `accounting_purchase_price`/`price_source`
+  (DEC-126 điểm 1).
+- `EligibleCosts = {}` (`config/eligible_costs.yaml`, tường minh, provenance
+  `Config:EmptySet(OD-108B-01)`) và `OtherKpiAdjustment = 0` (định nghĩa,
+  DEC-143 §3) — cả hai đại diện đúng authority đã APPROVED, không phải
+  fallback kỹ thuật.
+- `WorkingLine.eligible_kpi_profit` — công thức canonical DEC-143/DEC-144:
+  `(SellPrice − KpiPurchasePrice) × Quantity − Discount`.
+- Pending propagation: bất kỳ input nào Pending/thiếu (kể cả nguồn confirmed
+  adjustment UNAVAILABLE) khiến cả `kpi_purchase_price` lẫn
+  `eligible_kpi_profit` là `None` — không suy đoán absence/0 (DEC-144 §3).
+- Nối vào `app/pipeline.py` (bước 9b, ngay sau AccountingProfit) qua tham số
+  DI mới `confirmed_adjustment_source` — optional, mặc định giữ hành vi cũ
+  (0 blast radius lên Golden Baseline, cùng pattern S051/S053).
+
+**Intentionally Deferred (không thuộc phạm vi minimum slice này):**
+
+- Composition `P00–P11` post-cutover (chủ sở hữu `TASK-105E`, vẫn PLANNED/NOT
+  AUTHORIZED) — không đụng tới; slice này chỉ chạm nhánh pre-cutover đã có
+  sẵn từ `TASK-105D`/S051/S053.
+- Workflow xác nhận `KpiPurchaseAdjustment` có persistence/UI (writer, màn
+  hình duyệt) — nguồn hiện tại chỉ là một file JSONL read-only, không có cơ
+  chế ghi/correction (đúng phạm vi §5A của session brief).
+- `ConvertedRevenue` aggregation, tách bucket PERSONAL/ADS, summary engine
+  (`TASK-109` và phần còn lại của `TASK-108B`).
+- Một `EligibleCosts` category thật (vẫn là tập rỗng có thẩm quyền — thêm
+  một category đòi hỏi Owner Decision riêng, DEC-143 điểm 5).
+
+**Reason:** không cần thiết cho path B7/B8 mà real trace `BH62063` (Golden #1)
+thật sự đi qua; mở rộng thêm là SCOPE EXPANSION ngoài authority của session
+này (session brief §5/§6).
+
+**Retrigger:** một Golden #2–#4 hoặc một batch thật ≥ 50 đơn chạm nhánh
+post-cutover hoặc cần workflow xác nhận adjustment có ghi/correction thật.
+
+Chi tiết đầy đủ: `docs/sessions/S054-golden-1-kpi-vertical-slice.md`.
+
+## STOP (Phần XIII)
+
+Không implement `TASK-105E`/composition P00–P11, không xây writer/UI cho
+KpiPurchaseAdjustment, không mở `TASK-109`, không thêm `EligibleCosts`
+category nào trong phiên Golden #1 KPI vertical slice này.

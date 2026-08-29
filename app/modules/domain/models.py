@@ -53,6 +53,14 @@ PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT = "HISTORICAL_CONFIRMED_REPORT"
 # đứng sau nó — xem `ManualLegacyConfirmationRef` (registry.py).
 PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION = "OWNER_MANUAL_LEGACY_CONFIRMATION"
 
+# Provenance của KpiPurchasePrice (TASK-108B minimum B7/B8 slice, DEC-143 +
+# DEC-144, Golden #1 KPI vertical slice). Tách biệt hoàn toàn khỏi
+# PRICE_SOURCE_* ở trên — KpiPurchasePrice/EligibleKpiProfit là một capability
+# KHÁC accounting_purchase_price/price_source/accounting_profit (DEC-126 điểm
+# 1), chỉ dùng chung accounting_purchase_price làm input.
+KPI_PURCHASE_PENDING = "Pending"
+KPI_PURCHASE_NO_CONFIRMED_ADJUSTMENT = "Config:NoConfirmedAdjustment"
+
 # ProductGroup has exactly two values (DEC-127, ADR-106). Like LEAD_SOURCES,
 # this is a structural invariant of the model, not a tunable business value.
 # It is a property of the PRODUCT LINE, never of the order: 118 real OrderIDs
@@ -160,6 +168,14 @@ class WorkingLine:
     # AccountingPurchasePrice) * Quantity`. `None` khi bất kỳ input nào còn
     # Pending/thiếu — không bao giờ suy đoán 0 (DEC-103).
     accounting_profit: Optional[Decimal] = None
+
+    # TASK-108B minimum B7/B8 slice (DEC-143 + DEC-144, Golden #1 KPI vertical
+    # slice). `None` = Pending, không bao giờ suy đoán absence/0 (DEC-144 §3).
+    # KHÔNG alias/copy accounting_profit — Discount không nằm trong công thức
+    # đó (DEC-126 điểm 1), nhưng có trong EligibleKpiProfit (DEC-143 điểm 4).
+    kpi_purchase_price: Optional[Decimal] = None
+    kpi_purchase_price_provenance: str = KPI_PURCHASE_PENDING
+    eligible_kpi_profit: Optional[Decimal] = None
 
     # Bước 10 §22 đặc tả (TASK-108A-1, ADR-106). ProductGroup và
     # ConversionScheme đều ở cấp LINE, không phải cấp Order — một OrderID có

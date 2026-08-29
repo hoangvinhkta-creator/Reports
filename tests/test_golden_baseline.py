@@ -645,9 +645,13 @@ def test_golden_pipeline_entry_point_signature_is_locked():
     params = list(inspect.signature(run_import).parameters)
     # S051: nối biên `TASK-105D` product identity (DEC-154 P00) — hai tham
     # số DI mới, cả hai optional/backward-compatible, không đổi 4 tham số cũ.
+    # Golden #1 KPI vertical slice (TASK-108B minimum B7/B8 slice, DEC-143 +
+    # DEC-144): thêm `confirmed_adjustment_source`, cũng optional/backward-
+    # compatible — không đổi 6 tham số cũ.
     assert params == ["raw_path", "config_dir", "price_provider",
                       "product_group_provider", "identity_registry",
-                      "identity_resolver_factory"]
+                      "identity_resolver_factory",
+                      "confirmed_adjustment_source"]
     assert list(inspect.signature(build_working_data).parameters) == params
 
 

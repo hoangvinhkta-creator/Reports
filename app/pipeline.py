@@ -9,17 +9,19 @@
     7. Propagate LeadSourceFinal to lines    -> (done inside step 6's apply())
     8. Price lookup (Pending if no Price Master) -> pricing.price_engine
     9. AccountingProfit (Universal formula, no KPI Adjustment) -> profit.profit_engine
-   10. ProductGroup + ConversionScheme, PER LINE -> conversion.conversion_engine
-   11. Validation + Review Queue (spec section 18) -> validation.Validator
+   9b. KpiPurchasePrice + EligibleKpiProfit, minimum B7/B8 slice
+       (DEC-143 + DEC-144, Golden #1 KPI vertical slice) -> kpi.kpi_profit_engine
+  10. ProductGroup + ConversionScheme, PER LINE -> conversion.conversion_engine
+  11. Validation + Review Queue (spec section 18) -> validation.Validator
 
 Step 11 never blocks: it reports, it does not gate. An import whose every row
 is defective still returns a full `ImportResult` (spec section 18, DEC-128).
 
 Out of scope here (later tasks): product/transaction classification
-(TASK-103), Adjustment persistence + EligibleKpiProfit (TASK-202/302/305,
-DEC-126 — needs confirmed Adjustment records, not just the suggested-amount
-resolver from TASK-106), Converted Revenue (TASK-108B — blocked, see C15
-`EligibleCosts`), Review Queue persistence (TASK-201), audit trail and real
+(TASK-103), full Converted Revenue aggregation / PERSONAL-ADS bucketing /
+summary engine (TASK-108B remainder + TASK-109 — DEFERRED_BY_MINIMAL_FIX,
+see `PROJECT/PROJECT_PROGRESS.md`), Adjustment persistence/writer UI
+(TASK-202/302/305), Review Queue persistence (TASK-201), audit trail and real
 overrides (TASK-202), the review screen (TASK-305), export (TASK-111),
 CLI (TASK-112).
 """
@@ -29,6 +31,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.modules.adjustment.confirmed_adjustment_source import (
+    ConfirmedAdjustmentSource,
+)
 from app.modules.conversion.conversion_engine import apply_conversion_schemes
 from app.modules.conversion.scheme_resolver import ConversionSchemeResolver
 from app.modules.domain.models import (
@@ -41,6 +46,7 @@ from app.modules.domain.models import (
 from app.modules.importing.normalizer import normalize_lines
 from app.modules.importing.preview import ImportPreview, build_preview
 from app.modules.importing.raw_reader import read_raw_rows
+from app.modules.kpi.kpi_profit_engine import apply_kpi_profit
 from app.modules.lead_source.classifier import LeadSourceClassifier
 from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
@@ -165,6 +171,7 @@ def build_working_data(
     product_group_provider: ProductGroupProvider | None = None,
     identity_registry: HistoricalConfirmedRegistry | None = None,
     identity_resolver_factory: ResolverFactory | None = None,
+    confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
 ) -> WorkingData:
     """Steps 1–10 of spec section 22 — everything except the Review Queue."""
     raw_rows = read_raw_rows(raw_path)
@@ -196,6 +203,15 @@ def build_working_data(
 
     apply_accounting_profit(lines)
 
+    # Bước 9b (TASK-108B minimum B7/B8 slice, DEC-143 + DEC-144). Chạy ngay
+    # sau AccountingPurchasePrice/AccountingProfit vì cùng cần
+    # accounting_purchase_price đã resolve — nhưng KHÔNG phụ thuộc kết quả
+    # accounting_profit (capability khác, DEC-126 điểm 1). `confirmed_adjustment_source
+    # is None` mặc định (không truyền) nghĩa là chưa có nguồn nào được wiring
+    # cho lời gọi này -> SOURCE_UNAVAILABLE -> Pending, không phải 0 blast
+    # radius giả — hành vi mặc định của mọi `run_import()` hiện có không đổi.
+    apply_kpi_profit(lines, confirmed_adjustment_source)
+
     resolver = ConversionSchemeResolver.from_yaml(
         config_dir / "conversion_rates.yaml"
     )
@@ -218,6 +234,7 @@ def run_import(
     product_group_provider: ProductGroupProvider | None = None,
     identity_registry: HistoricalConfirmedRegistry | None = None,
     identity_resolver_factory: ResolverFactory | None = None,
+    confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
 ) -> ImportResult:
     working = build_working_data(
         raw_path,
@@ -226,6 +243,7 @@ def run_import(
         product_group_provider,
         identity_registry,
         identity_resolver_factory,
+        confirmed_adjustment_source,
     )
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a

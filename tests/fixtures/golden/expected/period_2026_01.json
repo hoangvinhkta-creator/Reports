@@ -14,11 +14,14 @@
       "date",
       "delivery_cost",
       "discount",
+      "eligible_kpi_profit",
       "employee_group",
       "employee_mapping_status",
       "employee_normalized",
       "employee_raw",
       "imei",
+      "kpi_purchase_price",
+      "kpi_purchase_price_provenance",
       "lead_source_final",
       "month",
       "note_raw",
@@ -165,7 +168,7 @@
       "Auto:Employee Default (Tín Phát)": 254
     }
   },
-  "lines_digest": "sha256:c8efb2ee51f08d2db59ecb16b4b3084b927f66e2b3ae0d3179a33d186c54a698",
+  "lines_digest": "sha256:ce868cab23d873dcefd2b12deea70d79b1729c0b3692e2c43cb4eb0f2957b979",
   "money": {
     "delivery_cost_total": [
       "26270000",
