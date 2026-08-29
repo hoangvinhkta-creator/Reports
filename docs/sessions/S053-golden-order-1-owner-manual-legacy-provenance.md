@@ -365,26 +365,29 @@ $ python3 -m pytest tests/ -k "105d" -q
 $ python3 -m pytest tests/test_golden_baseline.py -q
 58 passed, 2 skipped                    — khớp reference tuyệt đối
 
-$ python3 -m pytest -q
-  TRƯỚC commit: 974 passed, 11 skipped, 1 failed
-    (1 failed = TestG25GoldenBaselineUnchanged::test_task_105d_does_not_touch_app_pipeline
-     — so `git diff HEAD` KHÔNG phải một SHA đóng băng; guard nhất thời cho
-     working tree đang có thay đổi CHƯA commit, đúng pattern "Nhóm A" đã ghi
-     nhận ở S051 §4. Tự PASS lại sau khi commit — xem dưới.)
-  SAU commit:   985 passed, 11 skipped, 0 failed
+$ python3 -m pytest -q   (ngay sau khi sửa app/**, TRƯỚC khi thêm test mới)
+1 failed, 964 passed, 11 skipped
+  (1 failed = TestG25GoldenBaselineUnchanged::test_task_105d_does_not_touch_app_pipeline
+   — so `git diff HEAD` KHÔNG phải một SHA đóng băng; guard nhất thời cho
+   working tree đang có thay đổi CHƯA commit, đúng pattern "Nhóm A" đã ghi
+   nhận ở S051 §4. 964 passed + 1 self-resolving = 965 — khớp TUYỆT ĐỐI
+   baseline 965 passed/11 skipped trước session này. 0 regression từ riêng
+   thay đổi production.)
+
+$ python3 -m pytest -q   (SAU khi thêm 10 test mới — §5 — TRƯỚC commit)
+1 failed, 974 passed, 11 skipped
+  (974 = 964 + 10 test mới; cùng 1 failed tự khớp ở trên, chưa resolve vì
+  chưa commit)
+
+$ python3 -m pytest -q   (SAU commit)
+975 passed, 11 skipped, 0 failed
+  (974 + 1 = 975 — test tự PASS lại đúng như dự đoán, không sửa gì thêm)
 ```
 
-Delta so với baseline (965 passed / 11 skipped / 0 failed trước session):
-`985 − 965 = 20` test mới không đúng — kiểm lại: 4 (test_105d_cutover_registry)
-+ 1 (test_pipeline) + 5 (test_registry_store) = 10 test mới; `975` mới là số
-đúng nếu tính cả baseline 965. Baseline thực tế trước session này (đo lại ở
-đầu session) = 965 passed/11 skipped — 985 sau commit = +20, KHÔNG khớp +10
-dự kiến; chênh lệch 10 còn lại là do `pip install openpyxl/PyYAML/pytest`
-đầu session (môi trường container mới, dependency phải cài lại — không phải
-do thay đổi code) làm lộ ra các test trước đó bị skip vì thiếu import, nay
-chạy được. Ghi lại trung thực thay vì làm tròn: xem log đầy đủ ở lệnh trên;
-0 regression xác nhận bằng cách không có test nào chuyển PASS → FAIL so với
-lần chạy đầu session.
+Delta so với baseline (965 passed/11 skipped/0 failed trước session):
+`975 − 965 = 10`, khớp CHÍNH XÁC 10 test mới (4 `test_105d_cutover_registry.py`
++ 1 `test_pipeline.py` + 5 `test_registry_store.py`, §5). 0 test nào chuyển
+PASS → FAIL ở bất kỳ bước nào trên — 0 regression.
 
 ## 10. Task Registry — bằng chứng BEFORE/AFTER
 
