@@ -587,6 +587,58 @@ Bằng chứng đầy đủ: `docs/sessions/S065-runtime-repair-403-user-agent.m
 `tools/tracking/capture_purchase_price_history.py`,
 `tests/test_tracking_contract_client.py`.
 
+## PUBLIC PURCHASE TRACE — REAL_SOURCE_MISSING (S066, 2026-08-30)
+
+Tiếp tục cùng task lineage (`S064`→`S065`→`S066`), không mở task mới. Phiên
+TRACE + OPERATION thuần — **0 dòng production code sửa**.
+
+```text
+CLASSIFICATION   = CASE B — REAL_SOURCE_MISSING
+IMPLEMENTATION   = ĐẦY ĐỦ, FROZEN, INTEGRATED (TASK-105B/105D/105E)
+BH73804          = BLOCKED_AT_GATE (IDENTITY_SOURCES_UNAVAILABLE)
+```
+
+**Trace xác nhận bằng code, không suy đoán.** Public Purchase là một nguồn
+giá công khai **độc lập với Tracking** (`DEC-156` §1, `D-01`/`OR-01`
+APPROVED), dữ liệu do **chủ dự án cung cấp trực tiếp** (`TASK-108B` §38.4:
+`prices.yaml` "bảng giá chủ dự án cấp"; `DATA-CONTRACT` §3.3: publish là
+quyền `PUBLIC_PURCHASE_SOURCE_PUBLISH`, role `ADMIN`) — không phải một hệ
+thống Reports tự capture được. Toàn bộ implementation (loader strict
+`INV-02`/`04`/`05`/`06`/`09`, schema `E-A/E-B/E-C`, composition wiring) đã
+FROZEN và INTEGRATED. Blocker DUY NHẤT là dữ liệu thật chưa từng được cấp —
+xác nhận lại bằng chính lịch sử `PROJECT_PROGRESS.md`/`PROJECT_DECISIONS.md`
+("NEXT AUTHORIZED ACTION = chờ Owner cấp bảng giá production thật", `DEC-156`
+§12), không phải phát hiện mới của phiên này.
+
+**Phát hiện đáng ghi lại (phản trực giác).**
+`ProductIdentityResolver.__init__` nhận `pp_version` **không** `Optional` —
+Public Purchase là input bắt buộc để RESOLVE IDENTITY (không riêng định giá),
+vì candidate-discovery phải loại trừ khả năng một raw string là mã Public
+Purchase trước khi khẳng định nó là `TRACKING:<mã>`. Vì vậy dù giá cuối cùng
+của một identity `TRACKING:<mã>` (như `T2109NT1G`) sẽ đến TỪ
+`TrackingHistoryPriceProvider` — KHÔNG BAO GIỜ từ Public Purchase (P03
+fallback bị chặn có chủ đích, `VENDOR_SOURCE_NOT_AUTHORIZED` — `TASK-105C`
+chưa cấp phép) — thiếu Public Purchase vẫn chặn TOÀN BỘ composition ở cổng
+AND của `_resolve_eligible()`. Và `INV-02` cấm `products`/`prices` rỗng, nên
+KHÔNG có "version tối giản vô hại" nào khả dĩ để mở gate mà không mang dữ
+liệu thật — không có đường lách nào trong kiến trúc hiện tại.
+
+**BH73804 không real/preflight thêm được.** Public Purchase gate chặn trước
+khi chạm dòng nào — dù real Tracking capture (`capture_contract_v1_prod_2.json`
+×2 trên Mac, `S065`) đã có. Cũng không có sales file thật
+(`So_chi_tiet_ban_hang (4).xlsx`) trong checkout của phiên này — không
+fabricate fixture thay thế rồi gọi đó là real validation.
+
+**Owner action cần:** (1) cung cấp ≥1 dòng Public Purchase thật (product +
+price, schema tại session doc §1.D); (2) thực hiện/uỷ quyền publish
+(`ADMIN`, `DEC-124`) vào `data/public_purchase/source_version.yaml`,
+`version_id = PP-<YYYYMMDD>-<NN>`. Không phải implementation failure.
+
+Final SHA không đổi: `b0f83d6680629823915cb44050f701b76e2d1d06` + commit tài
+liệu của phiên này.
+
+Bằng chứng đầy đủ: `docs/sessions/S066-public-purchase-trace-real-source-missing.md`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
