@@ -1,5 +1,28 @@
 # TASK-105D — DATA CONTRACT, PERSISTENCE & AUDIT DESIGN
 
+> **PARTIALLY SUPERSEDED — `ADR-107` / `DEC-165` (2026-08-30).**
+>
+> `D-01`/`OR-01` của file này mô tả Public Purchase như một **nguồn giá độc
+> lập do chủ dự án cấp cho Reports** (`data/public_purchase/source_version.yaml`).
+> Quyết định nghiệp vụ của Owner đã thay giả định ấy: Public Purchase là giá
+> **Owner tự quản trong Tracking** (`inv.cong` → `board/<mã>/tp/ton`), có lịch
+> sử effective-dated dấu thời gian máy chủ, và Reports đọc nó qua Data
+> Contract Tracking → Reports.
+>
+> Hệ quả với file này:
+> - `PublicPurchaseSourceVersion` và schema `E-A`/`E-B`/`E-C` giữ nguyên tư
+>   cách **LEGACY SUPPORTED FORMAT**, KHÔNG còn là *production source
+>   authority*.
+> - Catalog `PUBLIC_PURCHASE` KHÔNG còn là điều kiện cần để resolve một mã
+>   `TRACKING:<mã>`; `ProductIdentityResolver(pp_version=...)` nay là
+>   `Optional`.
+> - Mọi phần khác của spec này (identity resolution, persistence, audit,
+>   `INV-*`, `CHECK-105D-*`) **không đổi**.
+>
+> Bản ghi này KHÔNG được viết lại để giả như giả định cũ chưa từng tồn tại —
+> nó đúng với thông tin có tại 2026-08-28. Provenance đầy đủ:
+> `docs/adr/ADR-107-public-purchase-authority-in-tracking.md`.
+
 Artifact Type:
 CANONICAL DESIGN / DATA CONTRACT SPECIFICATION (readiness artifact, không
 phải implementation).

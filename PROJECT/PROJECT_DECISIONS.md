@@ -7557,3 +7557,120 @@ Can Revisit After:
 - Nếu cần Golden #4/#5, lặp lại đúng mẫu hình này: quét candidate thật, xin
   Owner-confirmed purchase price qua `AskUserQuestion` khi registry chưa có
   entry, KHÔNG bịa số.
+
+---
+
+## DEC-165
+
+Title:
+`PUBLIC PURCHASE AUTHORITY CORRECTION` — Public Purchase là giá Owner quản
+trong Tracking (effective-dated), KHÔNG phải nguồn YAML độc lập của Reports;
+supersede `DEC-156 D-01/OR-01`
+
+Date:
+2026-08-30
+
+Task:
+Tiếp tục lineage `CAP-PRICE-RESOLUTION` (`TASK-105D`/`105E`/`110`). **Không**
+đăng ký task mới (`DEC-160` §HORIZONTAL SIBLING PROLIFERATION): đây là một
+architecture correction bên trong capability đã có, không phải một capability
+mới.
+
+**Đây LÀ một Owner Decision.** Owner đã chốt nghiệp vụ trong chỉ thị phiên và
+cấm hỏi lại; phiên này thực thi, không tự quyết định business semantics.
+
+### Nghiệp vụ Owner đã chốt
+
+```text
+inv.gia   = giá vốn tồn THỰC TẾ (Y) — máy tính bình quân gia quyền
+inv.cong  = Public Purchase — Owner tự đặt, có quyền đặt CAO HƠN Y
+KpiPurchasePrice = Public Purchase tại thời điểm bán, KHÔNG PHẢI Y
+```
+
+Ví dụ Owner đưa: `Y = 4.500.000`, Public Purchase `= 5.000.000` →
+`KpiPurchasePrice = 5.000.000`. Lý do nghiệp vụ: nhân viên nhìn thấy giá vốn
+thật thấp sẽ tự hạ giá bán và bỏ mất lợi nhuận.
+
+### Kết quả trace (bằng chứng, không phải suy đoán)
+
+Chỉ thị cấm mặc định `inv.cong`/`tp.ton` là Public Purchase chỉ vì tên nghe
+hợp. Đã trace đủ chuỗi Owner UI → handler → state → Firebase → board →
+employee-visible value:
+
+```text
+invSetGia(el) kind="cong"   -> s.congTay[k]=true; s.cong[k]=n   (Owner sửa tay)
+invRecalcAvg(s,x)           -> s.gia[k]=bình quân; CHỈ khi !congTay mới kéo cong theo
+invSyncPart(upd)            -> u[k+"/tp/ton"] = cong[...]        (CHỈ giá công khai)
+applySync()  -> savePpHist(stats.pph) -> purchase_price_history/<mã>/<pushId>
+                { prev, next, t=ServerValue.TIMESTAMP, ta:"SERVER", by, src:"sync" }
+```
+
+Chú thích nguyên văn trong `public/index.html`:
+`"Chỉ GIÁ CÔNG KHAI đi sang cột Tồn/Min. Giá thực nhập trung bình ở lại tab
+Tồn kho và tab Giá trị tồn kho."`
+
+**Phân loại gap = CASE A.** `purchase_price_history` đang ghi lịch sử của
+`board/<mã>/tp/ton`, tức lịch sử của Public Purchase — KHÔNG phải của `Y`.
+Reuse; không dựng nhánh history thứ hai, không dựng baseline thứ hai, không
+backfill.
+
+### Quyết định
+
+**1. Tracking là production source of truth DUY NHẤT cho Public Purchase.**
+Đường production: `inv.cong` → `board/<mã>/tp/ton` →
+`purchase_price_baseline`/`purchase_price_history` → Data Contract →
+`TrackingPriceHistoryReader` → `KpiPurchasePrice`.
+
+**2. `data/public_purchase/source_version.yaml` KHÔNG còn là production source
+authority.** Nó chuyển sang tư cách `LEGACY SUPPORTED FORMAT`. Loader, schema
+`E-A`/`E-B`/`E-C`, các invariant `INV-02`/`INV-04`…`INV-09` và namespace
+identity `PUBLIC_PURCHASE` giữ nguyên, không xoá.
+
+**3. Catalog `PUBLIC_PURCHASE` không còn là điều kiện cần để resolve mã
+Tracking.** `ProductIdentityResolver(pp_version=...)` thành `Optional`; cổng
+`AND` của `PostCutoverPriceComposition._resolve_eligible` chỉ còn
+`TrackingCatalogSnapshot` + `ProductIdentityStore view`. `pp_version=None` ghi
+vào provenance là `pp_version_id=None` — "chưa nối", không phải "rỗng".
+
+**4. `Y` không bao giờ thay Public Purchase.** Không có fallback. Public
+Purchase không xác định được tại ngày bán → `Pending` → Review Queue canonical
+(`TASK-110`). `Y` cũng không có đường tới Reports: hợp đồng chiếu `board`
+xuống đúng `{name, alt}`, allowlist không có nhánh `inv`.
+
+**5. Supersede `DEC-156 D-01/OR-01`** đúng ở phần "Public Purchase là nguồn
+độc lập do chủ dự án cấp". Phần còn lại của `DEC-156` không đổi. **Không**
+viết lại bản ghi `DEC-156`: nó là quyết định đúng với thông tin có lúc đó.
+Provenance đầy đủ ở `docs/adr/ADR-107-public-purchase-authority-in-tracking.md`.
+
+**6. Không sửa Firebase Rules, không mở rộng allowlist hợp đồng.** Bốn nhánh
+`board`/`alias`/`purchase_price_baseline`/`purchase_price_history` đã đủ.
+
+### Nợ kỹ thuật ghi nhận (không sửa trong quyết định này)
+
+Hai đường phụ ghi `board/<mã>/tp/ton` mà KHÔNG sinh mốc lịch sử:
+`mergePaths()` (gộp mã — chỉ lấp ô đang trống) và nhập bảng giá từ Excel.
+Khoá chuỗi `prev` của `TrackingPriceHistoryReader` bắt đúng loại lỗ hổng này
+và trả `Pending`, nên nó **không** sinh số sai — chỉ giảm độ phủ.
+
+Impact:
+
+- `app/modules/product/identity/resolver.py` — `pp_version` thành `Optional`
+  + ba accessor chịu được vắng mặt.
+- `app/modules/pricing/resolution/composition.py` — bỏ `pp_version` khỏi cổng
+  `AND`.
+- `docs/adr/ADR-107-public-purchase-authority-in-tracking.md` — file MỚI.
+- `tests/test_public_purchase_authority.py` — file MỚI, 11 test.
+- Repo `Tracking`: `kiem/gia-cong-khai-tham-quyen.js` — file MỚI, 27 bài kiểm.
+  **0 dòng production Tracking.**
+- **Không** sửa `config/**`, `data/**`, `governance/**`, Golden fixture/expected,
+  Firebase Rules, allowlist hợp đồng.
+- Reports full suite: 1286 passed, 11 skipped, 0 failed (trước: 1275 passed —
+  delta đúng 11 test mới).
+- Tracking: 57 bộ · 2461 đạt · 0 hỏng · 2 bỏ qua (trước: 56 bộ · 2434 đạt).
+  `npm run build` PASS.
+
+Can Revisit After:
+
+- Nếu Owner sau này muốn hai đường phụ (`mergePaths`, nhập Excel) cũng sinh
+  mốc lịch sử, đó là một thay đổi Tracking riêng — mở quyết định mới, không
+  sửa quyết định này.

@@ -346,12 +346,20 @@ class PostCutoverPriceComposition:
         pp_version = self._sources.public_purchase
         view = self._sources.identity_store_view
 
-        if catalog is None or pp_version is None or view is None:
+        # `pp_version` KHÔNG còn nằm trong cổng này (DEC-165). Public Purchase
+        # là giá Owner quản trong Tracking, hiệu lực theo thời gian, và Reports
+        # đọc nó qua `purchase_price_baseline`/`purchase_price_history` — cùng
+        # một đường với nhánh TRACKING bên dưới. Catalog PP YAML chỉ còn là
+        # danh mục identity LEGACY: nó cần cho các mã `PUBLIC_PURCHASE:<mã>`,
+        # và nhánh `_public_purchase_branch` đã tự trả Pending
+        # (`PUBLIC_PURCHASE_SOURCE_UNAVAILABLE`) khi nó vắng mặt. Để nó trong
+        # cổng AND là bắt một mã Tracking có đủ bằng chứng phải Pending vì một
+        # file không liên quan — một Pending KHÔNG trung thực.
+        if catalog is None or view is None:
             missing = [
                 name
                 for name, value in (
                     ("TrackingCatalogSnapshot", catalog),
-                    ("PublicPurchaseSourceVersion", pp_version),
                     ("ProductIdentityStore view", view),
                 )
                 if value is None

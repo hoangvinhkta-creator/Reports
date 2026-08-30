@@ -1,5 +1,26 @@
 """E-A/E-B/E-C — MỘT nguồn Public Purchase versioned, HAI projection.
 
+## ⚠ LEGACY SUPPORTED FORMAT — KHÔNG còn là production source authority
+
+`ADR-107` / `DEC-165` (2026-08-30) thay giả định gốc của module này. Public
+Purchase **không** phải một nguồn giá độc lập do chủ dự án cấp cho Reports:
+nó là giá Owner tự quản trong Tracking (`inv.cong` → `board/<mã>/tp/ton`), có
+lịch sử effective-dated dấu thời gian máy chủ
+(`purchase_price_baseline`/`purchase_price_history`), và Reports đọc nó qua
+Data Contract. Đường production của `KpiPurchasePrice` đi qua
+`TrackingPriceHistoryReader`, KHÔNG qua file này.
+
+Module này **ở lại nguyên vẹn** và vẫn được nạp khi có file, vì hai lý do
+thật: namespace identity `PUBLIC_PURCHASE` còn phục vụ các mã ngoài danh mục
+Tracking, và test/fixture/bằng chứng lịch sử đang dựa vào nó. Nhưng
+`data/public_purchase/source_version.yaml` vắng mặt KHÔNG còn chặn được một
+mã Tracking: `ProductIdentityResolver(pp_version=...)` nay là `Optional`.
+
+Đọc nguyên văn quyết định tại
+`docs/adr/ADR-107-public-purchase-authority-in-tracking.md`.
+
+---
+
 `D-01` + `OR-01` (`DEC-156` §1, APPROVED): identity catalog và price table
 **không** phải hai nguồn dữ liệu độc lập. Chúng là hai projection của cùng một
 `PublicPurchaseSourceVersion`, publish cùng lúc, mang cùng `version_id`, và

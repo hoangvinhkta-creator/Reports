@@ -73,7 +73,10 @@ from app.modules.product.identity.mapping import (
     MappingStatus,
     SOURCE_SYSTEM_REPORTS_SALES,
 )
-from app.modules.product.identity.public_purchase import PublicPurchaseSourceVersion
+from app.modules.product.identity.public_purchase import (
+    PublicPurchaseIdentityRow,
+    PublicPurchaseSourceVersion,
+)
 from app.modules.product.identity.store import StoreView
 from app.modules.product.identity.tracking_catalog import TrackingCatalogSnapshot
 
@@ -139,13 +142,35 @@ class ProductIdentityResolver:
     Không import price provider nào (`CHECK-105D-16`): identity là toàn bộ
     trách nhiệm của lớp này, và giá là của `TASK-105B`/`105C`, còn việc ghép
     chúng lại là của `TASK-105E`.
+
+    ## `pp_version` là TUỲ CHỌN (DEC-165)
+
+    Trước đây `pp_version` bắt buộc, vì kiến trúc cũ coi Public Purchase là
+    một nguồn giá ĐỘC LẬP do chủ dự án cấp bằng YAML (DEC-156 D-01/OR-01).
+    Quyết định nghiệp vụ của Owner đã thay giả định ấy: Public Purchase là
+    giá Owner tự quản trong Tracking (`inv.cong` → `board/<mã>/tp/ton`), có
+    lịch sử effective-dated, và Reports đọc nó qua Data Contract. Xem
+    `docs/adr/ADR-107-public-purchase-authority-in-tracking.md`.
+
+    Hệ quả trực tiếp: catalog PUBLIC_PURCHASE trở thành một danh mục identity
+    LEGACY/ngoại vi, không còn là điều kiện cần để resolve một mã Tracking.
+    Bắt `TRACKING:<mã>` phải chờ một file YAML không liên quan là ghép hai
+    trách nhiệm rời nhau vào một cổng AND — và cổng ấy trả Pending cho những
+    dòng mà bằng chứng Tracking đã đủ để kết luận.
+
+    `pp_version=None` nghĩa là "danh mục PP KHÔNG được nối", chứ không phải
+    "danh mục PP rỗng". Hai câu ấy khác nhau và resolver nói đúng câu thứ
+    nhất: `pp_version_id` trong provenance là `None`, nên mọi bản ghi audit
+    đều đọc lại được rằng lần resolve này không có catalog PP nào tham gia.
+    Đây KHÔNG phải một đường vòng qua bằng chứng: không có PP nghĩa là không
+    có candidate PP nào, chứ không phải một candidate PP được đoán ra.
     """
 
     def __init__(
         self,
         *,
         tracking_snapshot: TrackingCatalogSnapshot,
-        pp_version: PublicPurchaseSourceVersion,
+        pp_version: Optional[PublicPurchaseSourceVersion] = None,
         store_view: StoreView,
         now: Optional[datetime] = None,
     ) -> None:
@@ -153,6 +178,22 @@ class ProductIdentityResolver:
         self.pp_version = pp_version
         self.view = store_view
         self._now = now or datetime.now(timezone.utc)
+
+    # ---- truy cập catalog PP khi nó có thể vắng mặt ----------------------
+
+    @property
+    def _pp_version_id(self) -> Optional[str]:
+        """`None` khi catalog PP không được nối — dùng cho provenance/fingerprint."""
+        return self.pp_version.version_id if self.pp_version is not None else None
+
+    @property
+    def _pp_identity_rows(self) -> tuple[PublicPurchaseIdentityRow, ...]:
+        return self.pp_version.identity_rows if self.pp_version is not None else ()
+
+    def _pp_exact_hits(self, *, raw_key: str, aid: str) -> tuple[tuple[str, str], ...]:
+        if self.pp_version is None:
+            return ()
+        return self.pp_version.exact_match_codes(raw_key=raw_key, aid=aid)
 
     # ---- API -------------------------------------------------------------
 
@@ -218,7 +259,7 @@ class ProductIdentityResolver:
         aid = identity.normalized_matching_aid
 
         tracking_hits = self.tracking.exact_match_codes(raw_key=raw_key, aid=aid)
-        pp_hits = self.pp_version.exact_match_codes(raw_key=raw_key, aid=aid)
+        pp_hits = self._pp_exact_hits(raw_key=raw_key, aid=aid)
         if not tracking_hits and not pp_hits:
             return None
 
@@ -407,7 +448,7 @@ class ProductIdentityResolver:
             ).casefold()
             if any(token in haystack for token in tokens):
                 hits.append((Namespace.TRACKING, row.tracking_code, row.tracking_code))
-        for row in self.pp_version.identity_rows:
+        for row in self._pp_identity_rows:
             haystack = " ".join(
                 filter(None, [row.product_code, row.product_name, *row.aliases])
             ).casefold()
@@ -465,7 +506,7 @@ class ProductIdentityResolver:
         hash.
         """
         return evidence_fingerprint(
-            pp_version_id=self.pp_version.version_id,
+            pp_version_id=self._pp_version_id,
             tracking_capture_id=self.tracking.capture_id,
             candidate_set_ids=tuple(c.candidate_id for c in candidates),
             ranking_method_id=RANKING_METHOD_ID,
@@ -658,7 +699,7 @@ class ProductIdentityResolver:
             source_product_code=target.source_product_code if target else None,
             mapping_id=mapping_id,
             mapping_version=mapping_version,
-            pp_version_id=self.pp_version.version_id,
+            pp_version_id=self._pp_version_id,
             tracking_capture_id=self.tracking.capture_id,
             price_provenance=(
                 "PUBLIC_PURCHASE_NO_TRACKING"

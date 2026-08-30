@@ -639,6 +639,90 @@ liệu của phiên này.
 
 Bằng chứng đầy đủ: `docs/sessions/S066-public-purchase-trace-real-source-missing.md`.
 
+## PUBLIC PURCHASE AUTHORITY CORRECTION (S067, 2026-08-30)
+
+Tiếp tục cùng task lineage (`S064`→`S065`→`S066`→`S067`), không mở task mới.
+Phiên TRACE → DESIGN → IMPLEMENT → TEST. Quyết định: `DEC-165` /
+`docs/adr/ADR-107-public-purchase-authority-in-tracking.md`.
+
+```text
+CLASSIFICATION   = CASE A — REUSE (purchase_price_history ĐÃ là lịch sử PP)
+AUTHORITY        = TRACKING (single source of truth cho Public Purchase)
+S066 CASE B      = SUPERSEDED (đúng với giả định cũ, sai với nghiệp vụ thật)
+```
+
+**Owner đã chốt nghiệp vụ thật, và nó khác giả định trong `DEC-156`.** Public
+Purchase KHÔNG phải một nguồn giá độc lập do chủ dự án cấp bằng YAML cho
+Reports. Nó là **giá Owner tự quản trong Tracking**, có quyền đặt cao hơn giá
+vốn thật để nhân viên không tự hạ giá bán, và là giá chuẩn tính KPI.
+
+**Trace Tracking (bằng chứng, không suy đoán).** Chỉ thị cấm mặc định
+`inv.cong`/`tp.ton` là Public Purchase chỉ vì tên nghe hợp; đã trace đủ chuỗi
+Owner UI → handler → state → Firebase → board → giá nhân viên nhìn thấy:
+
+```text
+inv.gia   = giá vốn tồn THỰC TẾ (Y)  — invRecalcAvg(), bình quân gia quyền
+                                        Ở LẠI tab Tồn kho, không rời Tracking
+inv.cong  = PUBLIC PURCHASE           — invSetGia(kind="cong") Owner sửa tay
+inv.congTay                           — cờ khoá: từ đó Y KHÔNG ghi đè PP nữa
+   -> invSyncPart()  u[k+"/tp/ton"] = cong[...]     (CHỈ giá công khai)
+   -> savePpHist()   purchase_price_history/<mã>/<pushId>
+                     { prev, next, t=ServerValue.TIMESTAMP, ta:"SERVER", by, src }
+```
+
+Chú thích nguyên văn trong `public/index.html` (Tracking): *"Chỉ GIÁ CÔNG KHAI
+đi sang cột Tồn/Min. Giá thực nhập trung bình ở lại tab Tồn kho và tab Giá trị
+tồn kho."*
+
+**Hệ quả: `purchase_price_baseline` + `purchase_price_history` — hai nhánh
+Reports ĐÃ đọc qua Data Contract — chính là lịch sử effective-dated của Public
+Purchase**, không phải của `Y`. `TrackingPriceHistoryReader` (History Reader
+V1, `S060`) đã dựng lại đúng đại lượng cần dựng từ trước. Không cần nhánh
+history mới, không cần baseline thứ hai, không cần migration, không cần sửa
+Rules, không cần mở rộng allowlist.
+
+**Sửa kiến trúc phía Reports (`ADR-107` / `DEC-165`).** Finding của `S066` —
+`ProductIdentityResolver` nhận `pp_version` không `Optional` — nay được xử lý
+đúng bản chất: nó ghép hai trách nhiệm rời nhau vào một cổng AND.
+
+```text
+TRƯỚC: catalog Tracking AND catalog PP YAML AND store  -> mới resolve identity
+SAU  : catalog Tracking AND store                      -> đủ cho TRACKING:<mã>
+```
+
+`data/public_purchase/source_version.yaml` chuyển sang tư cách **LEGACY
+SUPPORTED FORMAT** — loader, schema `E-A/E-B/E-C`, invariant `INV-02`/`04`…`09`
+và namespace identity `PUBLIC_PURCHASE` giữ nguyên, KHÔNG xoá; chỉ mất tư cách
+*production source authority*. `pp_version=None` ghi vào provenance là
+`pp_version_id=None` — "chưa nối", không phải "rỗng".
+
+**Không có fallback sang `Y`.** Public Purchase không xác định được tại ngày
+bán → `Pending` → Review Queue canonical (`TASK-110`). `Y` cũng không có đường
+nào tới Reports: hợp đồng chiếu `board` xuống đúng `{name, alt}`, allowlist
+không có nhánh `inv`.
+
+**Production LOC:** Tracking `0`; Reports `78+/8-` trong `app/` (trong đó ~57
+dòng là docstring/chú thích; phần thực thi ~21+/8-); Rules `0`;
+migration/cutover `0`. Dưới ngưỡng `400` — không `CHANGE_BUDGET_EXCEEDED`.
+
+**Tests.** Reports `1286 passed, 11 skipped, 0 failed` (trước `1275` — delta
+đúng 11 test mới, `tests/test_public_purchase_authority.py`). Tracking
+`57 bộ · 2461 đạt · 0 hỏng · 2 bỏ qua` (trước `56 bộ · 2434 đạt` — delta đúng
+27 bài mới, `kiem/gia-cong-khai-tham-quyen.js`), `npm run build` PASS.
+
+**BH73804 vẫn chưa AUTO được, và đó là câu trả lời đúng.** Cổng Public
+Purchase YAML đã gỡ, nhưng checkout này không có capture production nào
+(`data/tracking_catalog/`, `data/purchase_price_history/` đều vắng) và không
+có file bán hàng thật. Không fabricate fixture rồi gọi đó là real validation.
+Điều kiện còn lại là **vận hành**, không phải implementation — xem "Session
+tiếp theo".
+
+**Nợ kỹ thuật ghi nhận (không sửa trong phiên này).** Hai đường phụ ghi
+`board/<mã>/tp/ton` mà KHÔNG sinh mốc lịch sử: `mergePaths()` (gộp mã — chỉ
+lấp ô đang trống) và nhập bảng giá từ Excel. Khoá chuỗi `prev` của reader bắt
+đúng loại lỗ hổng này và trả `Pending`, nên nó **không** sinh số sai — chỉ
+giảm độ phủ.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
