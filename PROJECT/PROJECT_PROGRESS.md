@@ -255,6 +255,104 @@ soạn/chưa freeze, cần Independent Review (Session 2). Bằng chứng đầy
 `docs/sessions/S061-task-105e-production-price-composition.md`,
 `docs/tasks/TASK-105E-price-resolution-composition.md`.
 
+## POST-CUTOVER PRODUCTION VALIDATION V1 (S062, 2026-08-30)
+
+Bộ kiểm định production hậu-cutover. Không phải task kiến trúc mới, không
+supersede `TASK-105E`/`DEC-154`; nó là công cụ ĐO composition đã tích hợp ở
+S061, chạy trên chính seam production.
+
+```text
+VALIDATOR_IMPLEMENTATION_PASS    = YES
+PRODUCTION_POST_CUTOVER_ACCEPTED = NO
+Trạng thái vận hành              = WAITING_REAL_POST_CUTOVER_DATA
+```
+
+**Vì sao `WAITING_REAL_POST_CUTOVER_DATA`.** Repo không có đơn bán thật nào
+`sale_date >= 2026-09-01`; hai kỳ nghiệp vụ thật hiện có là 01/2026 (254 đơn)
+và 06/2026 (146 đơn), đều PRE-cutover — hôm nay là 2026-08-30, mốc Product
+Identity còn chưa tới. Bốn nguồn giá post-cutover trên đĩa đều
+`SOURCE_NOT_CAPTURED`. Đây là trạng thái vận hành mong đợi, KHÔNG phải một
+thất bại quy trình, và KHÔNG được nhảy sang `PRODUCTION_POST_CUTOVER_ACCEPTED`
+bằng fixture.
+
+**Công cụ.** `tools/analysis/validate_post_cutover.py` (mới) — một lệnh:
+
+```text
+python3 tools/analysis/validate_post_cutover.py \
+    --sales <so_chi_tiet_ban_hang.xlsx> --output <dir>
+```
+
+Nó đông lạnh cohort (N `OrderID` DUY NHẤT đầu tiên theo thứ tự xuất hiện, chỉ
+đơn hoàn toàn hậu-cutover; `MIXED`/`UNDATED` loại ra nhưng ĐẾM RIÊNG), đông
+lạnh mọi nguồn giá ĐÚNG MỘT LẦN qua loader production kèm `sha256`, chạy
+`app.composition.run_import_production()` THẬT, rồi ĐỌC kết quả. 0 dòng
+business logic mới: không tính giá, không resolve identity, không dựng lại
+engine KPI.
+
+**Kết quả trên dữ liệu THẬT hiện có.** Cohort hậu-cutover rỗng ở cả hai file,
+nhưng bộ phát hiện silent error vẫn chạy trên toàn bộ dòng — đó chính là phép
+kiểm §14 (Batch 50 không được tự động hoá bằng dữ liệu Tracking 08/2026):
+
+```text
+period_2026_01.xlsx : 254 đơn, LINES_CHECKED_FOR_SILENT_ERRORS = 351,
+                      SILENT_ERROR_FINDINGS = 0
+period_2026_06.xlsx : 146 đơn, LINES_CHECKED_FOR_SILENT_ERRORS = 180,
+                      SILENT_ERROR_FINDINGS = 0
+```
+
+531 dòng thật: không rò thẩm quyền qua mốc cutover theo cả hai chiều, không
+sai số học `AccountingProfit`/`EligibleKpiProfit`, không dòng nào mang giá khi
+input còn Pending, không nhãn nguồn lạ.
+
+**Hai lớp silent error, không gộp.** (A) 26 code mâu thuẫn cấu trúc máy chấm
+được — mỗi code có một test làm nó đỏ, cộng một kiểm soát âm, cộng một meta-test
+quét mã nguồn công cụ để chính bất biến "không code nào thiếu test" được kiểm
+bằng máy. (B) Kiểm
+tay: `manual_sample.csv` với cột `outcome` để trống; chừng nào chưa ai điền,
+`SILENT_ERROR_RATE = NOT_YET_MEASURED`, **không phải `0%`**. Verdict đã điền
+không bao giờ bị một lần chạy lại ghi đè.
+
+**Giới hạn thẩm quyền.** Công cụ không phân biệt được sổ bán hàng THẬT với một
+fixture cùng hình dạng, nên trạng thái cao nhất nó in ra là
+`ELIGIBLE_FOR_PRODUCTION_ACCEPTANCE_REVIEW`. `PRODUCTION_POST_CUTOVER_ACCEPTED`
+là quyết định governance, ghi ở chính file này, và đòi bằng chứng về tính thật
+của dữ liệu mà chỉ con người mới cấp được.
+
+**Kết quả đo.**
+
+```text
+Golden Baseline      : 58 passed, 2 skipped   — KHÔNG ĐỔI
+Golden #1 / #3 / #4  : 16 passed              — KHÔNG ĐỔI
+TASK-110 / TASK-105E / Tracking Reader / KPI engine : 146 passed — KHÔNG ĐỔI
+Batch 50 (01/2026)   : INPUT 50, AUTO 1, REVIEW_QUEUE 49,
+                       PENDING_NOT_QUEUED 0, ERROR 0, SILENTLY_DROPPED 0,
+                       AUTOMATION_RATE 2,0%, ORDER_ACCOUNTING_RATE 100,0%
+                       — GIỐNG HỆT baseline S059/S061
+Focused              : tests/test_post_cutover_validation.py — 58 passed
+FULL pytest          : 1213 passed, 11 skipped, 0 failed
+                       (base b1eeadc: 1155 passed, 11 skipped — +58, 0 hồi quy)
+Validators           : structure/project_state/evidence/task_completion PASS;
+                       reference_integrity FAIL đúng 3 issue tiền tồn
+                       TASK-REM-T06 (REG-01), không đổi
+
+Production diff : +1 công cụ đo lường (tools/analysis/validate_post_cutover.py),
+              +1 file test mới (58 test), +1 session log, +ghi trạng thái này.
+              0 dòng app/**, config/**, data/** sửa. Repo Tracking KHÔNG bị sửa.
+MANUAL_WORK_REDUCTION: NOT_YET_MEASURABLE — không có baseline thời gian xử lý
+              tay cũ nào trong repo để so sánh; không bịa số.
+```
+
+**QUAN TRỌNG.** Phiên này KHÔNG tuyên `TASK-105E = DONE` (vẫn `IMPLEMENTED`,
+Completion Gate chưa soạn/chưa freeze, cần Independent Review), KHÔNG tuyên
+`TASK-110 = DONE`, KHÔNG đóng `OWNER_DECISION_REQUIRED` mở từ S061 (vị trí của
+Reports History Reader V1 trong bảng `P00–P11`), và KHÔNG mở `TASK-105C`.
+`P01`/`P03` vẫn bị chặn có chủ đích; validator có detector
+`VENDOR_FALLBACK_REACHED_WHILE_BLOCKED` cho ngày nhánh ấy vô tình mở ra.
+
+Bằng chứng đầy đủ: `docs/sessions/S062-post-cutover-production-validation.md`,
+`tools/analysis/validate_post_cutover.py`,
+`tests/test_post_cutover_validation.py`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
