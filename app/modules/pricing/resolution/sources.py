@@ -58,6 +58,7 @@ from app.modules.product.identity.tracking_catalog import (
     CaptureStatus,
     TrackingCatalogRow,
     TrackingCatalogSnapshot,
+    canonical_content_hash,
 )
 
 __all__ = [
@@ -267,6 +268,19 @@ def load_tracking_catalog_capture(
             f"{path}: 'alias_map' phải là một ánh xạ old_code → primary_code.",
             reason="malformed_alias_map",
         )
+
+    # Capture tool hiện hành ghi SHA-256 của đúng payload identity canonical.
+    # So sánh lại ở consumer giúp phát hiện file đã bị sửa sau immutable write.
+    # Các artifact trước khi acquisition tool tồn tại dùng hash opaque, nên giữ
+    # tương thích đọc cho đến khi chúng được recapture/migrate có chủ đích.
+    if content_hash.startswith("sha256:"):
+        expected_hash = canonical_content_hash(raw_rows, raw_alias)
+        if content_hash != expected_hash:
+            raise InvalidTrackingCatalogCaptureFileError(
+                f"{path}: content_hash không khớp rows/alias_map; capture có thể "
+                "đã bị sửa sau khi ghi bất biến.",
+                reason="content_hash_mismatch",
+            )
 
     return TrackingCatalogSnapshot(
         capture_id=capture_id,

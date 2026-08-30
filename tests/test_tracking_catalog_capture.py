@@ -394,6 +394,18 @@ def test_the_production_loader_accepts_the_produced_artifact(tmp_path):
     assert snapshot.row_for("SJX198VDG").name == "SJ-X198V-DG"
 
 
+def test_the_production_loader_detects_mutation_after_capture_write(tmp_path):
+    """`content_hash` SHA-256 của tool không chỉ là metadata trang trí."""
+    path = write_capture(capture(), tmp_path / "capture.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["rows"][0]["name"] = "đã bị sửa"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(InvalidTrackingCatalogCaptureFileError) as error:
+        load_tracking_catalog_capture(path)
+    assert error.value.reason == "content_hash_mismatch"
+
+
 def test_the_production_resolver_consumes_the_produced_snapshot(tmp_path):
     """Từ file capture tới một `Resolved` thật — không fixture trung gian."""
     path = write_capture(capture(), tmp_path / "capture.json")

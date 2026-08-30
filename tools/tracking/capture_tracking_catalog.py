@@ -29,8 +29,8 @@ cụ này KHÔNG phát một request nào tới `inv`, `phist`, `backup` hay `dn
 
 Riêng `board` thì trả về cả cây, trong đó có `p/<NCC>` (giá NCC báo) và
 `tp/ton` (giá nhập công khai). Chúng đi qua bộ nhớ tiến trình nhưng KHÔNG
-BAO GIỜ được ghi ra: mỗi dòng chỉ được dựng từ danh sách trắng
-`_IDENTITY_FIELDS`, không phải từ một bản sao dict. `test_the_capture_never_
+BAO GIỜ được ghi ra: mỗi dòng chỉ được dựng từ hai trường trắng `name` và
+`alt`, không phải từ một bản sao dict. `test_the_capture_never_
 persists_private_pricing_fields` kiểm điều đó trên envelope đã serialize.
 
 ## Không tái phát minh identity logic
@@ -76,8 +76,6 @@ là `FAILED`, và người vận hành phải xác nhận, không phải hệ th
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import os
 import sys
 import uuid
@@ -95,14 +93,11 @@ from tools.tracking.capture_purchase_price_history import (
     _http_fetcher,
     write_capture,
 )
+from app.modules.product.identity.tracking_catalog import canonical_content_hash
 
 BOARD_NODE = "board"
 ALIAS_NODE = "alias"
 ALIAS_MAP_CHILD = "map"
-
-_IDENTITY_FIELDS = ("name", "alt")
-"""Danh sách trắng — §4.3. Mọi trường khác của `board/<MÃ>` (`p`, `tp`, `_c`)
-là giá và KHÔNG có chỗ trong `TrackingCatalogSnapshot`."""
 
 SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
 MALFORMED_SOURCE = "MALFORMED_SOURCE"
@@ -114,7 +109,7 @@ class MalformedSourceError(RuntimeError):
 
 
 def _rows_from_board(board: Any) -> list[dict[str, Any]]:
-    """`board` → `rows` theo `§4.4`, chỉ giữ `_IDENTITY_FIELDS`."""
+    """`board` → `rows` theo `§4.4`, chỉ giữ `name` và `alt`."""
     if not isinstance(board, dict):
         raise MalformedSourceError(
             f"nhánh {BOARD_NODE!r} phải là một ánh xạ mã → dòng, nhận "
@@ -185,22 +180,6 @@ def _alias_map_from(alias: Any) -> dict[str, str]:
     return dict(sorted(out.items()))
 
 
-def _content_hash(rows: list[dict[str, Any]], alias_map: dict[str, str]) -> str:
-    """`content_hash` trên ĐÚNG nội dung được ghi ra, không trên provenance.
-
-    Nhờ vậy hai lần capture cùng một nguồn cho cùng một hash dù `capture_id`
-    và `captured_at` khác nhau — hash trả lời "nguồn có đổi không", không phải
-    "đã chạy lại chưa".
-    """
-    payload = json.dumps(
-        {"rows": rows, "alias_map": alias_map},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
 def build_capture(
     fetch: Fetcher,
     *,
@@ -223,7 +202,7 @@ def build_capture(
         # `content_hash` là REQUIRED kể cả ở nhánh FAILED (loader đọc nó trước
         # khi rẽ nhánh). Ở đây nó là hash của thứ ĐÃ chụp được — tức không có
         # gì — và `capture_status` mới là cổng, không phải hash.
-        envelope["content_hash"] = _content_hash([], {})
+        envelope["content_hash"] = canonical_content_hash([], {})
         envelope["capture_status"] = "FAILED"
         envelope["failure_reason"] = reason
         return envelope
@@ -247,7 +226,7 @@ def build_capture(
     except MalformedSourceError as exc:
         return failed(f"{MALFORMED_SOURCE}: {exc}")
 
-    envelope["content_hash"] = _content_hash(rows, alias_map)
+    envelope["content_hash"] = canonical_content_hash(rows, alias_map)
     envelope["capture_status"] = "COMPLETE"
     envelope["rows"] = rows
     envelope["alias_map"] = alias_map
