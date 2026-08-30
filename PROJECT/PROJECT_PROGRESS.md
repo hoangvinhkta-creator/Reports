@@ -434,6 +434,93 @@ Bằng chứng đầy đủ: `docs/sessions/S063-tracking-catalog-acquisition-re
 `tools/tracking/capture_tracking_catalog.py`,
 `tests/test_tracking_catalog_capture.py`.
 
+## REPORTS → TRACKING DATA CONTRACT V1 INTEGRATION (S064, 2026-08-30)
+
+Sửa transport của chính hai công cụ capture ở trên, không phải một task mới.
+Reports KHÔNG còn đọc Firebase RTDB trực tiếp.
+
+```text
+CONTRACT_CLIENT_IMPLEMENTED      = YES
+FIREBASE_DIRECT_PATH_RETIRED     = YES
+REAL_TRACKING_CAPTURE_EXECUTED   = NO   (thiếu secret + egress bị chặn)
+BH73804_REAL_TRACE_EXECUTED      = NO
+Verdict                          = IMPLEMENTATION_PASS_RUNTIME_PENDING
+```
+
+**Vì sao.** Đường cũ `<database_url>/<node>.json?auth=<TRACKING_RTDB_TOKEN>`
+đòi Firebase Auth/App Check — thứ Reports không có và không nên có; nó đã hỏng
+trên production. Tracking đã phát hành Data Contract V1 và merge vào main của
+họ; Reports chuyển sang đúng hợp đồng đó.
+
+**Điểm sửa.** Đúng MỘT hàm: `_http_fetcher()` trong
+`tools/tracking/capture_purchase_price_history.py` — vốn đã là đường mạng duy
+nhất của cả repo (`capture_tracking_catalog.py` import lại chính nó), nên cả
+hai công cụ đổi nguồn cùng lúc, không có client thứ hai.
+
+```text
+GET <source_url>/api/xuat/<node>      Header: X-Report-Key: <TRACKING_REPORT_API_KEY>
+ALLOWED_NODES = {board, alias, purchase_price_baseline, purchase_price_history}
+```
+
+`--database-url` → `--source-url` (không giữ alias: tên cũ nói sai sự thật cho
+người vận hành; không caller nào ngoài test dùng nó). `TRACKING_RTDB_TOKEN`
+XOÁ khỏi mã. `--source-system-ref` mặc định → `tracking/api/xuat`. Thêm kiểm
+`Content-Type: application/json` (HTML 200 là cách im lặng nhất để rác thành
+"capture thành công"). **Không có fallback Firebase** — hợp đồng lỗi thì
+capture `FAILED`, vì hai đường nguồn song song đúng là thứ `INV-12` chặn.
+
+**Không đổi:** `_rows_from_board()`, `_alias_map_from()`,
+`canonical_content_hash()`, `write_capture()` (`INV-11`), toàn bộ
+`app/modules/**`. Hợp đồng trả `board` đã chiếu sẵn `{name, alt[]}` với `alt`
+là mảng — đúng hình dạng tầng envelope đã đọc từ S063. Ranh giới `ADR-101`
+nguyên vẹn: mạng chỉ ở `tools/tracking/**`.
+
+**Artifact bất biến.** Lần thử Firebase/App Check hỏng KHÔNG bị viết đè thành
+COMPLETE; `write_capture()` vẫn từ chối ghi đè và có test khoá điều đó. Lần
+capture mới = file mới, `capture_id` mới. (Artifact FAILED của phiên trước
+không nằm trong repo — không xoá gì, cũng không bịa một cái để "có bằng chứng".)
+
+**BH73804 — preflight, KHÔNG phải real trace.** Không capture thật, không file
+doanh số thật trong container, nên `validate_post_cutover.py` không chạy được.
+Chạy được là câu hỏi offline, qua `ProductIdentityResolver` thật:
+`"Máy Giặt LG T2109NT1G"` → `PendingProduct(ONLY_SIMILARITY_EVIDENCE)`, 1
+candidate; `"T2109NT1G"` → `Resolved TRACKING:T2109NT1G`. XÁC NHẬN dự đoán của
+S063, và nói thêm: kết cục phụ thuộc `board/<mã>/name` THẬT — chỉ biết sau một
+capture thật. Đây là TRUTHFUL PENDING; KHÔNG thêm regex/fuzzy/AI matching để
+`BH73804` AUTO.
+
+**Đính chính.** Cơ chế confirmation của `TASK-105D` tồn tại ở mức hàm
+(`cli.confirm`, `cli.callable_surfaces()`) và `build_parser()` có đủ tham số,
+nhưng **không có `main()` nối hai thứ đó** — `python3 -m
+app.modules.product.identity.cli` không chạy được. Ghi ra làm finding, KHÔNG
+lấp trong phiên này (ngoài Scope Lock của một repair transport).
+
+**Public Purchase.** `PUBLIC_PURCHASE_VERSION_REQUIRED`, chặn ở
+`composition.py:349` (cổng AND). `data/public_purchase/source_version.yaml`
+không tồn tại. Kể cả khi capture Tracking thật thành công, `BH73804` vẫn dừng
+ở `IDENTITY_SOURCES_UNAVAILABLE` chừng nào PP còn vắng. KHÔNG nhầm blocker này
+với Tracking transport — transport là PASS.
+
+```text
+Focused  tests/test_tracking_contract_client.py (mới)        21 passed
+Tracking capture + 105E + History Reader + Batch 50
+  + Post-Cutover Validator                                  211 passed
+Toàn bộ suite                                 1273 passed, 11 skipped
+Production LOC chạm tới: 72 (+50/−22, bỏ docstring/comment) trên trần 100
+Sửa: 2 file tools/, +1 file tests/, 1 file tests/ cập nhật, +1 doc session,
+     +1 mục progress. 0 dòng app/**, config/**, data/**.
+```
+
+**QUAN TRỌNG.** Phiên này KHÔNG chạy capture thật, KHÔNG tuyên Production
+Acceptance, KHÔNG merge, KHÔNG deploy. Bốn nguồn giá post-cutover trên đĩa vẫn
+`SOURCE_NOT_CAPTURED`. Egress tới `price.tinphatcrm.com` bị network policy của
+môi trường phiên chặn ở tầng CONNECT (`http=000`, **không phải** `403` của hợp
+đồng) — phiên này chưa từng chạm tới endpoint production.
+
+Bằng chứng đầy đủ: `docs/sessions/S064-reports-tracking-contract-integration.md`,
+`tools/tracking/capture_purchase_price_history.py`,
+`tests/test_tracking_contract_client.py`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```

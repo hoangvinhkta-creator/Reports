@@ -280,33 +280,33 @@ def test_the_capture_never_reads_a_branch_that_holds_accounting_prices():
     assert asked == [BOARD_NODE, ALIAS_NODE]
 
 
-def test_no_token_is_persisted_or_printed(tmp_path, monkeypatch, capsys):
-    """Chạy CẢ đường CLI với một token thật trong môi trường — token phải đi
-    tới fetcher và dừng ở đó, không vào artifact, không ra stdout/stderr."""
+def test_no_api_key_is_persisted_or_printed(tmp_path, monkeypatch, capsys):
+    """Chạy CẢ đường CLI với một secret thật trong môi trường — secret phải đi
+    tới client hợp đồng và dừng ở đó, không vào artifact, không ra stdout/stderr."""
     import tools.tracking.capture_tracking_catalog as tool
 
-    token = "s3cr3t-token-value"
-    monkeypatch.setenv("TRACKING_RTDB_TOKEN", token)
+    secret = "s3cr3t-report-key-value"
+    monkeypatch.setenv("TRACKING_REPORT_API_KEY", secret)
     seen: list[str] = []
 
-    def fake_http_fetcher(database_url, tok):
-        seen.append(tok)
+    def fake_http_fetcher(source_url, key):
+        seen.append(key)
         return fetcher()
 
     monkeypatch.setattr(tool, "_http_fetcher", fake_http_fetcher)
     out = tmp_path / "capture.json"
     code = tool.main(
         [
-            "--database-url", "https://tracking.example",
+            "--source-url", "https://tracking.example",
             "--captured-by", "operator@tinphat",
             "--out", str(out),
         ]
     )
     assert code == 0
-    assert seen == [token]  # credential ĐI qua biến môi trường, đúng đường
-    assert token not in out.read_text(encoding="utf-8")
+    assert seen == [secret]  # credential ĐI qua biến môi trường, đúng đường
+    assert secret not in out.read_text(encoding="utf-8")
     streams = capsys.readouterr()
-    assert token not in streams.out and token not in streams.err
+    assert secret not in streams.out and secret not in streams.err
 
 
 def test_the_cli_exits_non_zero_and_writes_a_failed_artifact_on_failure(
@@ -316,7 +316,7 @@ def test_the_cli_exits_non_zero_and_writes_a_failed_artifact_on_failure(
     không phải một file rỗng, cũng không phải không có file nào."""
     import tools.tracking.capture_tracking_catalog as tool
 
-    def boom(database_url, tok):
+    def boom(source_url, key):
         def fetch(node):
             raise CaptureError("HTTP Error 401: Unauthorized")
 
@@ -325,13 +325,13 @@ def test_the_cli_exits_non_zero_and_writes_a_failed_artifact_on_failure(
     monkeypatch.setattr(tool, "_http_fetcher", boom)
     out = tmp_path / "capture.json"
     assert tool.main(
-        ["--database-url", "https://x", "--captured-by", "op", "--out", str(out)]
+        ["--source-url", "https://x", "--captured-by", "op", "--out", str(out)]
     ) == 1
     assert load_tracking_catalog_capture(out).capture_status is CaptureStatus.FAILED
     assert SOURCE_UNAVAILABLE in capsys.readouterr().err
 
 
-def test_the_tool_never_embeds_a_credential_or_a_database_url():
+def test_the_tool_never_embeds_a_credential_or_a_source_url():
     source = Path("tools/tracking/capture_tracking_catalog.py").read_text("utf-8")
     for leak in ("firebaseio.com", "firebasedatabase.app", "auth=", "Bearer "):
         assert leak not in source, leak
