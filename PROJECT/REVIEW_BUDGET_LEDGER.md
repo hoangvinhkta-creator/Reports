@@ -608,10 +608,16 @@ repair_cycles_allowed: 2
 repair_cycles_used: 0
 repair_cycles_remaining: 2
 cycles: []
-status: PLANNED — task ID và phạm vi trách nhiệm do Owner cấp; Scope Lock
-        chưa soạn; Completion Gate chưa soạn/chưa freeze; implementation
-        not authorized
+status: IMPLEMENTED (Session 1, S061 2026-08-29) — Scope Lock Session 1 đã
+        SOẠN (chưa freeze); Completion Gate vẫn CHƯA soạn/CHƯA freeze;
+        implementation Session 1 được cấp phép tường minh bởi chỉ thị mở
+        phiên "TASK-105E — PRODUCTION PRICE COMPOSITION, SESSION 1/2".
+        Independent Review (Session 2) CHƯA chạy.
 ```
+
+**S061 KHÔNG tiêu cycle nào.** `repair_cycles` đếm các vòng repair SAU một
+Independent Review (`V4.1` §3); S061 là implementation Session 1 và chưa có
+review nào để repair. `cycles: []` giữ nguyên, `remaining = 2`.
 
 Failure path:
 

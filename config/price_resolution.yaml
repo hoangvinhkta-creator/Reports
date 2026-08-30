@@ -1,0 +1,16 @@
+# Múi giờ nghiệp vụ của Tín Phát — authority cho biên NGÀY BÁN.
+#
+# Vì sao phải là một file config chứ không phải một hằng số trong mã:
+# `SaleInterval.for_sale_date` (Reports History Reader V1) cố ý KHÔNG có múi
+# giờ mặc định, vì một mặc định sai dịch biên ngày đi vài giờ và đẩy nó qua
+# bên kia một sự kiện đổi giá — một giá vốn sai mà không có gì đỏ lên. Chôn
+# hằng số ấy trong lớp composition chỉ là chuyển chỗ giấu; để ở đây thì nó
+# có provenance và sửa được mà không phải sửa mã.
+#
+# Việt Nam không áp dụng DST, nên một offset cố định là biểu diễn ĐÚNG (và
+# không kéo theo một cơ sở dữ liệu múi giờ nào).
+#
+# Thiếu file / offset sai kiểu / offset ngoài [-14, 14] -> fail-closed:
+# múi giờ = KHÔNG HỢP LỆ -> nhánh TRACKING Pending, KHÔNG có mặc định thầm lặng.
+business_timezone_offset_hours: 7
+business_timezone_label: "Asia/Ho_Chi_Minh (UTC+07:00)"

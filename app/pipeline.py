@@ -7,7 +7,9 @@
     5. Group by OrderID                      -> orders.build_orders
     6. LeadSource rule at order level        -> lead_source.LeadSourceClassifier
     7. Propagate LeadSourceFinal to lines    -> (done inside step 6's apply())
-    8. Price lookup (Pending if no Price Master) -> pricing.price_engine
+    8. Price lookup: pre-cutover -> HistoricalConfirmedRegistry (DEC-154 P00);
+       post-cutover -> pricing.resolution composition (TASK-105E, P01-P11) khi
+       được nối, ngược lại pricing.price_engine + PendingPriceProvider
     9. AccountingProfit (Universal formula, no KPI Adjustment) -> profit.profit_engine
    9b. KpiPurchasePrice + EligibleKpiProfit, minimum B7/B8 slice
        (DEC-143 + DEC-144, Golden #1 KPI vertical slice) -> kpi.kpi_profit_engine
@@ -54,6 +56,9 @@ from app.modules.lead_source.classifier import LeadSourceClassifier
 from app.modules.mapping.employee_mapper import EmployeeMapper
 from app.modules.orders.order_builder import build_orders
 from app.modules.pricing.price_engine import apply_prices
+from app.modules.pricing.resolution.composition import (
+    PostCutoverPriceComposition,
+)
 from app.modules.pricing.provider import PendingPriceProvider, PriceProvider
 from app.modules.product.identity.identity import HistoricalConfirmed, PendingProduct
 from app.modules.product.identity.registry import (
@@ -74,18 +79,24 @@ DEFAULT_CONFIG_DIR = Path("config")
 
 
 def _post_cutover_resolver_not_wired():
-    """`TASK-105E` (chủ sở hữu composition P01–P11 post-cutover) chưa được
-    authorize/implement (`DEC-154` §11, S050 §13). Không có
-    `TrackingCatalogSnapshot`/`PublicPurchaseSourceVersion`/`StoreView` thật
-    nào được wiring vào `app.pipeline`, nên factory này KHÔNG được phép giả
-    lập khả năng đó — nó nổ rõ ràng nếu thực sự bị gọi. Theo `INV-47`, điều
-    này chỉ xảy ra khi một batch chứa ít nhất một dòng post-cutover
-    (`sale_date >= CUTOVER_DATE`); mọi dữ liệu production/test hiện có đều
-    pre-cutover nên nhánh này chưa từng được kích hoạt (S051 §6, §17)."""
+    """Guard của nhánh PRE-cutover (`DEC-154` §2/P00), không phải của P01–P11.
+
+    `_apply_pre_cutover_identity` chỉ đưa các dòng `sale_date < CUTOVER_DATE`
+    vào `resolve_batch`, nên theo `INV-47` factory này KHÔNG BAO GIỜ được gọi:
+    nhánh lịch sử phải bypass hoàn toàn resolver/catalog/price-provider, kể cả
+    khi registry không có entry. Nó nổ rõ ràng nếu thực sự bị gọi — đó là một
+    bug định tuyến, không phải một trạng thái dữ liệu.
+
+    Nhánh post-cutover KHÔNG đi qua đây. Từ `TASK-105E`, nó thuộc
+    `PostCutoverPriceComposition` (`app/modules/pricing/resolution/`), được
+    truyền vào qua tham số `price_composition` và dựng nguồn thật ở
+    `app/composition.py`.
+    """
     raise NotImplementedError(
-        "Post-cutover product identity resolution (TASK-105E composition) "
-        "chưa được wiring vào app.pipeline — không có dependency thật nào "
-        "khả dụng trong production config để dựng ProductIdentityResolver."
+        "resolver_factory của nhánh pre-cutover bị gọi — vi phạm INV-47: "
+        "sale_date < CUTOVER_DATE phải bypass hoàn toàn resolver/catalog/"
+        "price-provider. Composition post-cutover (TASK-105E) đi qua tham số "
+        "price_composition, không qua đây."
     )
 
 
@@ -176,6 +187,7 @@ def build_working_data(
     identity_resolver_factory: ResolverFactory | None = None,
     confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
     eligible_costs_authority: EligibleCostsAuthority | None = None,
+    price_composition: PostCutoverPriceComposition | None = None,
 ) -> WorkingData:
     """Steps 1–10 of spec section 22 — everything except the Review Queue."""
     raw_rows = read_raw_rows(raw_path)
@@ -192,9 +204,10 @@ def build_working_data(
     classifier.apply(orders, employee_mapper)
 
     # Bước 8 §22 (TASK-105, nối `TASK-105D` — S051). Pre-cutover đi qua biên
-    # product identity (DEC-154 P00) trước; phần còn lại (post-cutover /
-    # `date` thiếu — không xảy ra trong dữ liệu hiện có) vẫn qua
-    # `PriceProvider` như cũ.
+    # product identity (DEC-154 P00) trước. Phần còn lại (post-cutover hoặc
+    # `date` thiếu) đi qua `PostCutoverPriceComposition` khi caller nối nó
+    # (TASK-105E, `app/composition.py`), hoặc qua `PriceProvider` như cũ khi
+    # không — hai đường loại trừ nhau, không đường nào ghi đè đường kia.
     _apply_pre_cutover_identity(
         lines,
         registry=identity_registry or HistoricalConfirmedRegistry(),
@@ -203,7 +216,21 @@ def build_working_data(
     remaining_lines = [
         line for line in lines if line.date is None or line.date >= CUTOVER_DATE
     ]
-    apply_prices(remaining_lines, price_provider or PendingPriceProvider())
+    if price_composition is None:
+        # Mặc định KHÔNG ĐỔI (`CHECK-105-04`): `PendingPriceProvider`, đúng hành
+        # vi của mọi lời gọi `run_import()` đã tồn tại, Golden Baseline gồm.
+        apply_prices(remaining_lines, price_provider or PendingPriceProvider())
+    else:
+        if price_provider is not None:
+            # Hai nguồn cùng có quyền ghi `accounting_purchase_price` thì
+            # "giá này đến từ đâu" không còn trả lời được từ output — và đó
+            # đúng là câu hỏi `price_source` sinh ra để trả lời. Nổ, không chọn hộ.
+            raise ValueError(
+                "price_provider và price_composition loại trừ lẫn nhau: "
+                "composition (TASK-105E) là chủ sở hữu DUY NHẤT của giá "
+                "post-cutover khi nó được truyền vào."
+            )
+        price_composition.apply(remaining_lines)
 
     apply_accounting_profit(lines)
 
@@ -241,6 +268,7 @@ def run_import(
     identity_resolver_factory: ResolverFactory | None = None,
     confirmed_adjustment_source: ConfirmedAdjustmentSource | None = None,
     eligible_costs_authority: EligibleCostsAuthority | None = None,
+    price_composition: PostCutoverPriceComposition | None = None,
 ) -> ImportResult:
     working = build_working_data(
         raw_path,
@@ -251,6 +279,7 @@ def run_import(
         identity_resolver_factory,
         confirmed_adjustment_source,
         eligible_costs_authority,
+        price_composition,
     )
 
     # Step 11. Runs exactly once, last, and only reads: the Review Queue is a

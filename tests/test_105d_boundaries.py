@@ -579,40 +579,86 @@ class TestG31G32CrossSystemMapping:
         assert a_store.current_revision() == revision
 
 
-class TestG25GoldenBaselineUnchanged:
-    """`CHECK-105D-25` — Golden không đổi, default provider không đổi."""
+TASK_105E_REVIEW_BASE = "740f396acb11cf279f303f09ea22dffd0ca95462"
+GOLDEN_PROTECTED_PATHS = (
+    "tests/fixtures/golden/",
+    "tests/fixtures/baseline_snapshot.py",
+)
 
-    def test_no_golden_fixture_or_expected_file_was_modified(self):
-        diff = subprocess.run(
-            [
-                "git",
-                "diff",
-                "HEAD",
-                "--stat",
-                "--",
-                "tests/test_golden_baseline.py",
-                "tests/fixtures/golden/",
-                "tests/fixtures/baseline_snapshot.py",
-            ],
-            capture_output=True,
-            text=True,
-        )
+
+def _protected_golden_diff(base: str, *, repo_root: pathlib.Path = pathlib.Path(".")):
+    """So protected Golden với một base bất biến, không phải với `HEAD`.
+
+    `git diff HEAD` chỉ nhìn thay đổi chưa commit; sau khi commit chính thay đổi
+    cần phát hiện, gate lại rỗng. Base của independent review TASK-105E là
+    canonical 40-char SHA dưới đây, nên cả staged, unstaged và committed diff
+    của review range đều hiện ra.
+    """
+    return subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--stat",
+            base,
+            "--",
+            *GOLDEN_PROTECTED_PATHS,
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+class TestG25GoldenBaselineUnchanged:
+    """`CHECK-105D-25` — Golden bất biến, default provider không đổi.
+
+    Gate này chỉ bảo vệ artifact Golden; test code như
+    `tests/test_golden_baseline.py` không phải snapshot nghiệp vụ và có thể
+    thay đổi có chủ đích khi API pipeline mở rộng tương thích ngược.
+    """
+
+    def test_protected_golden_artifacts_match_the_task_105e_review_base(self):
+        diff = _protected_golden_diff(TASK_105E_REVIEW_BASE)
         assert diff.returncode == 0, diff.stderr
         assert diff.stdout == "", f"Golden bị sửa:\n{diff.stdout}"
+
+    def test_review_base_gate_rejects_a_changed_protected_golden_artifact(
+        self, tmp_path
+    ):
+        """Chứng minh gate đỏ khi artifact protected đổi sau base."""
+        repo = tmp_path / "gate-proof"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.email", "test@example.invalid"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Golden gate test"],
+            check=True,
+        )
+        protected = repo / "tests" / "fixtures" / "golden"
+        protected.mkdir(parents=True)
+        (protected / "expected.json").write_text('{"price": 1}\n', encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+        base = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        (protected / "expected.json").write_text('{"price": 2}\n', encoding="utf-8")
+
+        diff = _protected_golden_diff(base, repo_root=repo)
+        assert diff.returncode == 0
+        assert "tests/fixtures/golden/expected.json" in diff.stdout
 
     def test_the_pipeline_default_is_still_pending_price_provider(self):
         source = pathlib.Path("app/pipeline.py").read_text(encoding="utf-8")
         assert "PendingPriceProvider" in source
         assert "FilePriceProvider" not in source
-
-    def test_task_105d_does_not_touch_app_pipeline(self):
-        diff = subprocess.run(
-            ["git", "diff", "HEAD", "--", "app/pipeline.py"],
-            capture_output=True,
-            text=True,
-        )
-        assert diff.stdout == "", "app/pipeline.py nằm ngoài Scope Lock của TASK-105D"
-
 
 class TestMetricsHardening:
     """`HB-105D-F2-03` — `INV-83`…`INV-86` không có gate riêng."""

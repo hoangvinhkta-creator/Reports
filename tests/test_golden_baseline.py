@@ -649,12 +649,16 @@ def test_golden_pipeline_entry_point_signature_is_locked():
     # DEC-144): thêm `confirmed_adjustment_source`, cũng optional/backward-
     # compatible — không đổi 6 tham số cũ. Golden #1 Repair Batch #1 (B02):
     # thêm `eligible_costs_authority`, optional/backward-compatible — không
-    # đổi 7 tham số cũ.
+    # đổi 7 tham số cũ. TASK-105E (composition P00-P11): thêm
+    # `price_composition`, optional/backward-compatible — không đổi 8 tham số
+    # cũ, và mặc định `None` giữ nguyên đường `PendingPriceProvider` mà chính
+    # Golden Baseline đi qua (`CHECK-105-04`).
     assert params == ["raw_path", "config_dir", "price_provider",
                       "product_group_provider", "identity_registry",
                       "identity_resolver_factory",
                       "confirmed_adjustment_source",
-                      "eligible_costs_authority"]
+                      "eligible_costs_authority",
+                      "price_composition"]
     assert list(inspect.signature(build_working_data).parameters) == params
 
 
