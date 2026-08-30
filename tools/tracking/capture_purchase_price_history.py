@@ -44,6 +44,20 @@ Nó KHÔNG BAO GIỜ được ghi vào file capture, vào thông điệp lỗi h
 file capture đi vào repo, còn secret thì không. Thiếu secret là fail-closed:
 capture `FAILED`, không thử một request không key.
 
+## `User-Agent`/`Accept` tường minh — `S065` runtime finding
+
+Một lần chạy thật trên production (`S065`) cho `curl -H "X-Report-Key: ..."`
+→ `HTTP 200` nhưng client này → `HTTP 403 Forbidden`, CÙNG secret, cùng máy,
+cùng URL. Trace đúng chuẩn (dựng một HTTP server cục bộ, đọc lại chuỗi header
+thô thật sự nhận được) loại `X-Report-Key` khỏi nghi vấn: `urllib`'s
+`do_open()` luôn `.title()`-hoá mọi tên header trước khi gửi, nên case trên
+dây luôn đúng bất kể client đặt case gì lúc dựng `Request`. Khác biệt THẬT
+giữa hai request: `curl` tự gửi `User-Agent: curl/<version>` +
+`Accept: */*`; `urllib` mặc định tự xưng `User-Agent: Python-urllib/<version>`
+và không đặt `Accept` — đúng chữ ký mà một WAF/Cloudflare phía trước hợp đồng
+thường chặn theo tên thư viện HTTP. `CLIENT_USER_AGENT` và `Accept: */*` được
+đặt tường minh để đóng khoảng cách đó.
+
 ## Capture hỏng ghi ra `capture_status = FAILED`, không ghi file rỗng
 
 `INV-12`: một lần capture hỏng và một lịch sử thật sự rỗng là hai sự kiện
@@ -78,6 +92,10 @@ CONTRACT_PREFIX = "/api/xuat"
 ALLOWED_NODES = frozenset({BASELINE_NODE, HISTORY_NODE, "board", "alias"})
 JSON_CONTENT_TYPE = "application/json"
 MISSING_API_KEY = "MISSING_API_KEY"
+# `S065`: mặc định `Python-urllib/<version>` của urllib khớp chữ ký bot mà WAF
+# phía trước hợp đồng chặn. Không giả curl — một UA riêng, trung thực nói
+# đúng client là gì, đứng ngoài mọi danh sách chặn khớp theo tên thư viện.
+CLIENT_USER_AGENT = "TinPhat-Reports-TrackingClient/1.0"
 
 Fetcher = Callable[[str], Any]
 """`node_path -> JSON đã decode`. Được tiêm vào để test không cần mạng."""
@@ -110,8 +128,23 @@ def _http_fetcher(source_url: str, api_key: Optional[str]) -> Fetcher:
                 f"node {node!r} nằm ngoài hợp đồng V1 {sorted(ALLOWED_NODES)}"
             )
         url = f"{base}{CONTRACT_PREFIX}/{node}"
+        # `User-Agent`/`Accept` tường minh (`S065` runtime finding): mặc định
+        # của `urllib` không đặt `Accept` và tự xưng `User-Agent:
+        # Python-urllib/<version>` — đúng chữ ký mà WAF/Cloudflare phía trước
+        # hợp đồng Tracking production chặn, trong khi `curl` (UA riêng +
+        # `Accept: */*`) qua lọt với CÙNG secret, cùng máy, cùng URL. (Tên
+        # header `X-Report-Key` KHÔNG phải nguyên nhân: `do_open()` của
+        # `urllib` luôn `.title()`-hoá mọi tên header ngay trước khi gửi, nên
+        # case luôn đúng trên dây bất kể client đặt case gì — đã xác nhận
+        # bằng một server cục bộ đọc lại chuỗi header thô thật sự nhận được.)
         request = urllib.request.Request(
-            url, method="GET", headers={API_KEY_HEADER: api_key}
+            url,
+            method="GET",
+            headers={
+                API_KEY_HEADER: api_key,
+                "User-Agent": CLIENT_USER_AGENT,
+                "Accept": "*/*",
+            },
         )
         try:
             with urllib.request.urlopen(request, timeout=60) as response:

@@ -113,7 +113,14 @@ def test_the_client_calls_the_contract_endpoint_not_a_firebase_node(monkeypatch)
 def test_the_secret_travels_only_in_the_report_key_header(monkeypatch):
     sent = install_transport(monkeypatch, contract_handler)
     _http_fetcher(SOURCE_URL, SECRET)(BASELINE_NODE)
-    # `Request` viết hoa-thường lại tên header, nên so khớp không phân biệt hoa.
+    # So khớp không phân biệt hoa-thường CÓ CHỦ ĐÍCH: `Request.header_items()`
+    # là biểu diễn NỘI BỘ trước khi gửi — `urllib`'s `do_open()` luôn
+    # `.title()`-hoá mọi tên header ngay trước khi đẩy ra dây (xem
+    # `test_the_header_name_reaches_the_socket_with_its_exact_case` — test
+    # DUY NHẤT chấm đúng byte trên dây, bằng một server thật, không mock).
+    # So khớp case-sensitive ở TẦNG NÀY sẽ chẩn đoán sai (`S065` — case từng
+    # bị nghi là root cause của 403 production; trace tới `do_open()` mới lộ
+    # ra case luôn tự đúng, và root cause thật là `User-Agent`/`Accept`).
     headers = {k.lower(): v for k, v in sent[0].header_items()}
     assert headers[API_KEY_HEADER.lower()] == SECRET
     assert SECRET not in sent[0].full_url
@@ -135,6 +142,85 @@ def test_all_four_contract_nodes_are_reachable_and_nothing_else(monkeypatch):
     for forbidden in ("inv", "phist", "backup", "dnhap"):
         with pytest.raises(CaptureError, match="ngoài hợp đồng"):
             fetch(forbidden)
+
+
+# ======================================================================
+# 1b. S065 — runtime-confirmed: curl 200 / client Reports 403, cùng secret
+# ======================================================================
+
+
+def _wire_request_headers(fetcher_kwargs_source_url_builder):
+    """Chạy MỘT HTTP server thật trên `127.0.0.1` và trả về chuỗi header thô
+    THẬT SỰ nhận được — không mock `urlopen`, không tra cứu qua
+    `email.message.Message` (nó so khớp không phân biệt hoa-thường, sẽ che
+    mất chính xác điều cần chấm)."""
+    import http.server
+    import threading
+
+    received: dict[str, object] = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            received["raw"] = self.headers.as_string()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            return None
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.handle_request)
+    thread.start()
+    try:
+        fetch = fetcher_kwargs_source_url_builder(server.server_port)
+        assert fetch("board") == {}
+    finally:
+        thread.join(timeout=5)
+        server.server_close()
+    return received["raw"]
+
+
+def test_the_header_name_reaches_the_socket_with_its_exact_case():
+    """Loại trừ giả thuyết case đầu tiên đã điều tra cho `S065`.
+
+    Nghi vấn ban đầu: `urllib.request.Request(url, headers={...})` định
+    tuyến mỗi cặp qua `Request.add_header()`, hàm này chạy `key.capitalize()`
+    trên tên header — `X-Report-Key` thành `X-report-key`. Trace SÂU HƠN một
+    tầng (`urllib.request.AbstractHTTPHandler.do_open()`) lộ ra dòng
+    `headers = {name.title(): val for name, val in headers.items()}` — mọi
+    tên header đều bị `.title()`-hoá lại NGAY TRƯỚC khi gửi, bất kể client
+    đặt case gì lúc dựng `Request`. `"X-report-key".title() ==
+    "X-Report-Key"` — case luôn tự đúng trên dây. Test này khoá lại kết luận
+    ĐÃ LOẠI TRỪ đó bằng một server thật, không phải bằng suy luận.
+    """
+    raw = _wire_request_headers(
+        lambda port: _http_fetcher(f"http://127.0.0.1:{port}", SECRET)
+    )
+    assert f"{API_KEY_HEADER}:" in raw, (
+        f"header không tới đúng case {API_KEY_HEADER!r} — nhận:\n{raw}"
+    )
+    assert "X-report-key:" not in raw
+
+
+def test_the_client_sends_a_non_default_user_agent_and_an_accept_header():
+    """Root cause thật của `S065`: `curl -H "X-Report-Key: ..."` → HTTP 200;
+    cùng secret, cùng máy, `python3 -m tools.tracking...` → HTTP 403.
+
+    So `curl`'s request thật (đã bắt bằng một server cục bộ) với request của
+    `urllib` mặc định: khác biệt là `User-Agent: curl/<version>` +
+    `Accept: */*` (curl) so với `User-Agent: Python-urllib/<version>` + không
+    `Accept` nào (urllib mặc định) — đúng chữ ký thư viện HTTP mà một
+    WAF/Cloudflare phía trước hợp đồng thường chặn. Test này khoá lại: client
+    KHÔNG được tự xưng `Python-urllib` và PHẢI gửi `Accept`.
+    """
+    raw = _wire_request_headers(
+        lambda port: _http_fetcher(f"http://127.0.0.1:{port}", SECRET)
+    )
+    assert "Python-urllib" not in raw, f"vẫn tự xưng UA mặc định:\n{raw}"
+    assert "User-Agent: " in raw
+    assert "Accept: " in raw
 
 
 # ======================================================================

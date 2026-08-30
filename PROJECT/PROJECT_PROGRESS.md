@@ -521,6 +521,72 @@ Bằng chứng đầy đủ: `docs/sessions/S064-reports-tracking-contract-integ
 `tools/tracking/capture_purchase_price_history.py`,
 `tests/test_tracking_contract_client.py`.
 
+## RUNTIME REPAIR — 403 Forbidden trên client contract thật (S065, 2026-08-30)
+
+Tiếp tục `S064`, cùng task lineage, không mở task mới. Operator chạy thật
+trên Mac (`TRACKING_REPORT_API_KEY` đã nạp) cung cấp evidence bác bỏ ba giả
+thuyết: `curl -H "X-Report-Key: $KEY" .../api/xuat/board` → `HTTP 200`
+(secret đúng, network đúng); `capture_tracking_catalog.py` cùng secret/cùng
+máy → `HTTP 403 Forbidden`.
+
+```text
+ROOT_CAUSE          = User-Agent mặc định + thiếu Accept (WAF/Cloudflare)
+RULED_OUT           = MISSING_API_KEY, WRONG_SECRET, EGRESS_BLOCKED (curl 200 bác cả ba)
+INVESTIGATED_AND_RULED_OUT = header case (X-Report-Key → X-report-key)
+Verdict              = RUNTIME_REPAIR_READY
+```
+
+**Root cause.** `urllib` mặc định tự xưng `User-Agent: Python-urllib/
+<version>` và không gửi `Accept` — đúng chữ ký thư viện HTTP mà một
+WAF/Cloudflare phía trước hợp đồng chặn; `curl` (UA riêng + `Accept: */*`)
+qua lọt với cùng secret. Sửa: đặt tường minh `CLIENT_USER_AGENT =
+"TinPhat-Reports-TrackingClient/1.0"` + `Accept: */*` trong `_http_fetcher()`
+— đúng MỘT hàm, dùng chung bởi cả hai công cụ capture.
+
+**Một giả thuyết đã điều tra và loại trừ bằng thực nghiệm, ghi lại để không
+lặp lại.** Nghi vấn đầu (đúng hướng checklist "case normalization"):
+`Request(url, headers={...})` chạy `add_header()` → `key.capitalize()` →
+`X-Report-Key` thành `X-report-key`. Trace sâu hơn một tầng lộ ra
+`do_open()`: `headers = {name.title(): val for name, val in headers.items()}`
+— MỌI header bị `.title()`-hoá lại ngay trước khi gửi, bất kể case đặt lúc
+dựng `Request`; `"X-report-key".title() == "X-Report-Key"`. Case luôn tự
+đúng trên dây — xác nhận bằng một `http.server` cục bộ đọc lại chuỗi header
+thô thật nhận được, cho cả hai đường dựng `Request`.
+
+**Repair xác nhận bằng CLI thật (subprocess), không mock.** Không có egress
+thật tới `price.tinphatcrm.com` trong môi trường phiên (như `S064`); repair
+được exercise qua `python3 -m tools.tracking.capture_tracking_catalog` thật
+nhắm vào một server local đúng hình dạng hợp đồng — mọi lớp (argparse, env
+var, `_http_fetcher`, `urlopen`) đều chạy thật. Kết quả: `COMPLETE`, header
+nhận được đúng `User-Agent: TinPhat-Reports-TrackingClient/1.0` + `Accept:
+*/*` + `X-Report-Key`. Đây KHÔNG phải bằng chứng production.
+
+```text
+Focused  tests/test_tracking_contract_client.py                23 passed (21 cũ + 2 mới)
+Tracking capture + 105E + History Reader + Batch 50
+  + Post-Cutover Validator                                    211 passed
+Toàn bộ suite                                   1275 passed, 11 skipped
+Additional production LOC: +8/−1 = 9 dòng (cộng dồn 81/100 với S064)
+```
+
+Test mới `test_the_client_sends_a_non_default_user_agent_and_an_accept_header`
+đã XÁC NHẬN bắt được lỗi: revert tạm phần header về bản không có `User-Agent`/
+`Accept` tường minh → FAIL đúng thông điệp trỏ vào `Python-urllib`; áp lại
+repair → PASS.
+
+**Failed artifacts.** `data/tracking_catalog/capture*.json` không nằm trong
+checkout của phiên (sống trên đĩa operator, không commit) — không có gì bị
+overwrite/delete. `write_capture()` (`INV-11`, không đổi) vẫn từ chối ghi đè.
+
+**QUAN TRỌNG.** Local repair hoàn tất, có test thật. KHÔNG tuyên production
+PASS — operator phải chạy lại lệnh capture thật trên máy có secret + egress,
+ghi ra tên artifact mới (`capture_contract_v1_prod_2.json`, không ghi đè lần
+`_prod.json` đã `FAILED` với `403`).
+
+Bằng chứng đầy đủ: `docs/sessions/S065-runtime-repair-403-user-agent.md`,
+`tools/tracking/capture_purchase_price_history.py`,
+`tests/test_tracking_contract_client.py`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
