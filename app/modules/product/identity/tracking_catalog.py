@@ -29,12 +29,32 @@ canonical code. `name` và `alt[]` chỉ là evidence khớp. Đổi tên hiển
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from app.modules.validation.text import fold
+
+
+def canonical_content_hash(
+    rows: list[dict[str, Any]], alias_map: dict[str, str]
+) -> str:
+    """Hash canonical cho nội dung identity của một catalog capture.
+
+    Provenance (`capture_id`, thời điểm, actor và nguồn) cố ý không thuộc
+    payload này: hash trả lời catalog/alias đã đổi hay chưa, không phải lần
+    capture có phải một lần chạy mới hay không.
+    """
+    payload = json.dumps(
+        {"rows": rows, "alias_map": alias_map},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class CaptureStatus(str, Enum):

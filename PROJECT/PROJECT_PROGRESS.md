@@ -353,6 +353,87 @@ Bằng chứng đầy đủ: `docs/sessions/S062-post-cutover-production-validat
 `tools/analysis/validate_post_cutover.py`,
 `tests/test_post_cutover_validation.py`.
 
+## IDENTITY SOURCE ACQUISITION REPAIR — Tracking catalog (S063, 2026-08-30)
+
+Sửa một nửa ranh giới bị bỏ dở, không phải một task kiến trúc mới. `TASK-105D`
+§4.1 vẽ hai phía (`tools/tracking/` ghi file capture bất biến, `app/modules/`
+chỉ đọc); `TASK-105E` xây phía ĐỌC; phía GHI cho `TrackingCatalogSnapshot`
+chưa bao giờ được xây.
+
+```text
+ACQUISITION_REPAIR_IMPLEMENTED  = YES
+ROOT_CAUSE_CONFIRMED            = YES
+REAL_TRACKING_CAPTURE_EXECUTED  = NO
+Trạng thái vận hành             = WAITING_REAL_TRACKING_CATALOG_CAPTURE
+```
+
+**Root cause của `BH73804`.** `PostCutoverPriceComposition._resolve_eligible()`
+(`app/modules/pricing/resolution/composition.py:345-374`) chặn ở một cổng
+**AND** trên ba nguồn; `tracking_catalog` là `None` vì
+`data/tracking_catalog/capture.json` không tồn tại và **không công cụ nào
+trong repo ghi được file đó**. `tools/tracking/capture_purchase_price_history.py`
+chỉ chụp `purchase_price_baseline` + `purchase_price_history`.
+
+**Repair.** `tools/tracking/capture_tracking_catalog.py` — READ-ONLY, đọc đúng
+hai nhánh `board` và `alias` theo bằng chứng đã audit (`DEC-147` §4, `S024`
+C-01), dùng lại nguyên `_http_fetcher`/`write_capture`/`TOKEN_ENV_VAR` của
+công cụ chị em nên cả repo có đúng một đường mạng và một đường credential.
+Công cụ cũ **0 dòng thay đổi**. `inv`/`phist`/`backup` KHÔNG BAO GIỜ được hỏi
+tới; `board` trả cả cây nhưng chỉ danh sách trắng `("name", "alt")` được ghi
+ra, nên `p/<NCC>`, `tp/ton`, `tp/chot`, `_c` không vào artifact.
+
+**Fail closed.** `CaptureStatus` giữ nguyên enum ĐÓNG `{COMPLETE, FAILED}`
+(`INV-12` treo lên đúng nó); bốn kết cục của chỉ thị được phân biệt bằng tiền
+tố máy đọc được trong `failure_reason`: `SOURCE_UNAVAILABLE:` /
+`MALFORMED_SOURCE:` / `EMPTY_SOURCE_NOT_ASSERTABLE:`. Một `board` rỗng KHÔNG
+được ghi thành danh mục rỗng — RTDB trả cùng một `null` cho "nhánh không tồn
+tại" và "nhánh rỗng", nên emptiness không khẳng định được từ dây.
+
+**Public Purchase — không phải implementation gap.**
+`PublicPurchaseSourceVersion` là một nguồn **file được publish**
+(`data/public_purchase/source_version.yaml` → `PublicPurchaseSourceLoader.load()`,
+`D-01`/`OR-01`), không phải một lần chụp mạng. Cơ chế đã tồn tại; absence hôm
+nay nghĩa là chưa ai publish version đầu tiên. Không dựng capture tool, không
+fabricate dữ liệu PP.
+
+**Đính chính tiền đề.** Tracking catalog là blocker đã được trace, nhưng cổng
+ở `composition.py:349` là AND — `BH73804` chỉ thoát
+`IDENTITY_SOURCES_UNAVAILABLE` khi **cả** catalog **và** Public Purchase có
+mặt.
+
+**Điều gì xảy ra khi có capture thật.** Phép dò trên chính resolver production:
+`product_raw = "Máy Giặt LG T2109NT1G"` với catalog có dòng `T2109NT1G` cho
+`PendingProduct(ONLY_SIMILARITY_EVIDENCE)`, không phải `Resolved`; chỉ
+`product_raw = "T2109NT1G"` mới cho `TRACKING:T2109NT1G`. Đây là hành vi ĐÚNG
+theo `INV-01`/`D-04` (exact-match-only; `extractCode()` là tiền lệ đã bỏ).
+Nghĩa là `BH73804` vẫn vào Review Queue, nhưng đổi chất: từ "chưa nối được
+nguồn" thành "đã hỏi cả bốn nguồn, chỉ có bằng chứng similarity" — đường đi
+tiếp là **một `confirmation_action` của người dùng Reports**, không phải một
+thay đổi mã. Finding kế tiếp; S063 KHÔNG sửa trước, KHÔNG thêm fuzzy mapping,
+KHÔNG special-case `T2109NT1G`.
+
+```text
+Focused        tests/test_tracking_catalog_capture.py   34 passed
+Product Identity / TASK-105D                          218 passed
+TASK-105E                                              43 passed
+Post-Cutover Validator                                 62 passed
+Golden Baseline                            58 passed, 2 skipped
+Golden #1/#3/#4                                        16 passed
+Batch 50                                                5 passed
+Toàn bộ suite                          1251 passed, 11 skipped
+Sửa: +1 file tools/, +1 file tests/, +1 doc session, +1 mục progress.
+     0 dòng app/**, config/**, data/** sửa. Repo Tracking KHÔNG bị sửa.
+```
+
+**QUAN TRỌNG.** Phiên này KHÔNG tuyên `TASK-105E = DONE`, KHÔNG đóng bất kỳ
+`OWNER_DECISION_REQUIRED` nào, KHÔNG chạy capture thật (không có credential),
+KHÔNG merge, KHÔNG deploy. Bốn nguồn giá post-cutover trên đĩa vẫn
+`SOURCE_NOT_CAPTURED`.
+
+Bằng chứng đầy đủ: `docs/sessions/S063-tracking-catalog-acquisition-repair.md`,
+`tools/tracking/capture_tracking_catalog.py`,
+`tests/test_tracking_catalog_capture.py`.
+
 ## Governance V4.1 — Trạng Thái Adoption
 
 ```
