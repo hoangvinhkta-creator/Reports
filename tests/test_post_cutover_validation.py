@@ -154,6 +154,15 @@ def test_1_cohort_selection_is_deterministic(mixed_sales):
     assert list(first.order_ids) == ["BH9001", "BH9002", "BH9003", "BH9004", "BH9101"]
 
 
+def test_1b_repo_commit_supports_a_git_worktree_pointer(tmp_path):
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    expected = "0123456789abcdef0123456789abcdef01234567"
+    (metadata / "HEAD").write_text(expected + "\n", encoding="utf-8")
+    (tmp_path / ".git").write_text(f"gitdir: {metadata}\n", encoding="utf-8")
+    assert vpc.repo_commit(tmp_path) == expected
+
+
 def test_2_input_orders_counts_unique_order_ids_not_lines(sales, sources):
     """Đơn BH9004 có hai dòng. `INPUT_ORDERS` vẫn đếm nó MỘT lần."""
     result = run(sales, sources)
@@ -191,6 +200,8 @@ def test_4_every_record_of_a_run_shares_one_evidence_snapshot(sales, sources):
     # Định danh nguồn được ghi lại kèm băm file — mở lại được.
     assert result.freeze.hashes["tracking_price_history_capture"] != "ABSENT"
     assert result.freeze.statuses["tracking_price_history_capture"] == "PRESENT"
+    assert result.freeze.hashes["price_resolution_config"] != "ABSENT"
+    assert result.freeze.statuses["price_resolution_config"] == "PRESENT"
     evidence = result.freeze.as_dict()["evidence_snapshot"]
     assert evidence["tracking_price_history_capture_id"]
     assert evidence["public_purchase_version_id"]
@@ -334,6 +345,10 @@ def test_9b_silently_dropped_sibling_line_is_detected(sales, sources, monkeypatc
     monkeypatch.setattr(vpc, "run_import_production", drop_sibling)
     result = run(sales, sources)
     assert result.metrics["SILENTLY_DROPPED_LINES"] == 1
+    assert result.metrics["SILENTLY_DROPPED"] == 1
+    assert result.metrics["ORDER_ACCOUNTING_RATE"] == 0.75
+    outcome = next(o for o in result.order_outcomes if o.order_id == "BH9004")
+    assert outcome.outcome == "SILENTLY_DROPPED"
     assert any(f.code == "SILENTLY_DROPPED_LINE" for f in result.findings)
 
 
@@ -498,6 +513,47 @@ def test_13g_existing_verdicts_are_never_overwritten(sales, sources, tmp_path):
     assert (out / "manual_sample.SKIPPED_EXISTING_VERDICTS").exists()
 
 
+def test_13h_verdicts_are_bound_to_the_frozen_sample_identity(sales, sources, tmp_path):
+    """Không được áp verdict cũ sang source file khác chỉ vì source_row trùng."""
+    first = run(sales, sources)
+    out = tmp_path / "artifacts"
+    vpc.write_artifacts(first, out)
+    filled = _fill(out / "manual_sample.csv", tmp_path / "filled.csv", "CORRECT_AUTO")
+
+    changed = write_workbook(
+        tmp_path / "changed.xlsx",
+        [
+            _row(BOUNDARY_DAY, "BH-NEW", "Máy giặt Tracking A1"),
+            *ROWS_POST_CUTOVER,
+        ],
+    )
+    second = run(changed, sources)
+    summary = vpc.load_manual_verdicts(filled, second.manual_sample)
+    assert summary["MANUALLY_VALIDATED"] == 0
+    assert summary["rows_outside_sample"]
+    assert summary["complete"] is False
+
+
+def test_13i_duplicate_or_extra_verdict_rows_cannot_complete_a_sample(
+    sales, sources, tmp_path
+):
+    result = run(sales, sources)
+    out = tmp_path / "artifacts"
+    vpc.write_artifacts(result, out)
+    filled = _fill(out / "manual_sample.csv", tmp_path / "filled.csv", "CORRECT_AUTO")
+    with open(filled, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+        fields = list(rows[0])
+    rows.append(dict(rows[0]))
+    with open(filled, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    summary = vpc.load_manual_verdicts(filled, result.manual_sample)
+    assert summary["duplicate_sample_ids"]
+    assert summary["complete"] is False
+
+
 def _fill(src: Path, dst: Path, outcome: str, *, first_outcome: str | None = None):
     with open(src, newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -647,6 +703,22 @@ def test_18_pre_cutover_orders_are_excluded_but_counted(mixed_sales):
         + cohort.excluded_undated_orders
         == cohort.total_orders_in_file
     )
+
+
+def test_18b_post_and_undated_lines_are_undated_not_a_post_cohort(tmp_path):
+    """Một line không ngày làm trạng thái cutover không chứng minh được."""
+    source = write_workbook(
+        tmp_path / "post_plus_undated.xlsx",
+        [
+            _row(BOUNDARY_DAY, "BH-MAY-BE", "Máy giặt Tracking A1"),
+            _row(None, "BH-MAY-BE", "Máy giặt Tracking A1"),
+        ],
+    )
+    classified = vpc.classify_orders_by_cutover(source)
+    cohort = vpc.select_post_cutover_cohort(source)
+    assert classified["BH-MAY-BE"]["cutover_class"] == vpc.CutoverClass.UNDATED
+    assert cohort.order_ids == ()
+    assert cohort.excluded_undated_orders == 1
 
 
 def test_19_an_order_exactly_on_the_cutover_date_is_included(mixed_sales):
@@ -1167,6 +1239,7 @@ def test_silent_every_detector_code_has_a_test_that_makes_it_red():
     kiểm — và danh sách "đã phủ hết" là thứ dễ mục nhất trong một tài liệu.
     Nên nó được kiểm bằng máy, không bằng trí nhớ.
     """
+    import ast
     import re
 
     source = Path("tools/analysis/validate_post_cutover.py").read_text(
@@ -1174,7 +1247,19 @@ def test_silent_every_detector_code_has_a_test_that_makes_it_red():
     )
     emitted = set(re.findall(r'\n\s+(?:add|code=)\(?\s*"([A-Z_]{6,})"', source))
     emitted |= set(re.findall(r'code="([A-Z_]{6,})"', source))
-    tested = Path(__file__).read_text(encoding="utf-8")
-    missing = sorted(code for code in emitted if f'"{code}"' not in tested)
-    assert not missing, f"detector chưa có test làm nó đỏ: {missing}"
-    assert len(emitted) >= 20
+    assert len(vpc.DETECTOR_CODES) == len(set(vpc.DETECTOR_CODES))
+    assert emitted == set(vpc.DETECTOR_CODES)
+
+    # Chỉ một string xuất hiện trong file test không chứng minh gì: nó có thể
+    # nằm trong docstring hoặc data fixture. Đòi mã phải nằm trong một `assert`
+    # thực thi, nên test của chính detector phải đỏ nếu detector bị xoá/dead.
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    asserted = {
+        node.value
+        for assertion in ast.walk(tree)
+        if isinstance(assertion, ast.Assert)
+        for node in ast.walk(assertion.test)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    missing = sorted(code for code in emitted if code not in asserted)
+    assert not missing, f"detector chưa có assertion thực thi: {missing}"

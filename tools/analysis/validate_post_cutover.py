@@ -136,6 +136,7 @@ from app.modules.validation.models import (  # noqa: E402
 __all__ = [
     "CohortDefinition",
     "CutoverClass",
+    "DETECTOR_CODES",
     "MANUAL_OUTCOMES",
     "OrderOutcome",
     "SilentErrorFinding",
@@ -193,6 +194,38 @@ MANUAL_OUTCOMES = ("CORRECT_AUTO", "CORRECT_PENDING", "SILENT_ERROR", "UNVERIFIA
 """Bốn kết cục của một dòng đã kiểm tay (§10). Enum ĐÓNG: một giá trị lạ
 trong bảng verdict là lỗi nhập liệu, không phải một loại kết cục mới."""
 
+# Danh mục đóng của các mâu thuẫn cấu trúc mà V1 biết phát hiện. Registry này
+# được test như một hợp đồng: detector mới phải khai báo ở đây, và mọi mã phải
+# có assertion thực thi làm nó đỏ.
+DETECTOR_CODES = (
+    "ACCOUNTING_PROFIT_FABRICATED",
+    "ACCOUNTING_PROFIT_MISMATCH",
+    "CROSS_CUTOVER_LEGACY_AUTHORITY_LEAK",
+    "CROSS_CUTOVER_POST_AUTHORITY_LEAK",
+    "ELIGIBLE_KPI_PROFIT_FABRICATED",
+    "ELIGIBLE_KPI_PROFIT_MISMATCH",
+    "LINE_PRICE_NOT_FROM_RECORD",
+    "LINE_PRICE_SOURCE_NOT_FROM_RECORD",
+    "PENDING_LINE_CARRIES_PRICE",
+    "PRICED_LABEL_WITHOUT_PRICE",
+    "PRICE_AFTER_SALE_USED_FOR_HISTORICAL_STATE",
+    "PUBLIC_PURCHASE_PRICE_MISMATCH",
+    "PUBLIC_PURCHASE_PRICE_NOT_EFFECTIVE_AT_SALE_DATE",
+    "RECONSTRUCTION_PRICE_MISMATCH",
+    "RESOLUTION_RECORD_AMBIGUOUS",
+    "RESOLUTION_RECORD_MISSING",
+    "RESOLVED_WITHOUT_IDENTITY",
+    "SILENTLY_DROPPED_LINE",
+    "SILENTLY_DROPPED_ORDER",
+    "SOURCE_UNAVAILABLE_BUT_PRICED",
+    "TRACKING_PRICE_WITHOUT_RECONSTRUCTION",
+    "TRACKING_PROVENANCE_WRONG_NAMESPACE",
+    "UNIT_CONVERSION_MISMATCH",
+    "UNKNOWN_PRICE_SOURCE_LABEL",
+    "UNRESOLVED_NOT_IN_REVIEW_QUEUE",
+    "VENDOR_FALLBACK_REACHED_WHILE_BLOCKED",
+)
+
 
 # ======================================================================
 # 1. Phân loại cutover + đông lạnh cohort
@@ -231,15 +264,22 @@ def classify_orders_by_cutover(raw_path: Path) -> dict[str, dict[str, Any]]:
                 "first_seen_index": index,
                 "source_rows": [],
                 "dates": [],
+                "undated_source_rows": [],
             }
             orders[row.order_id] = entry
         entry["source_rows"].append(row.source_row)
         if row.date is not None:
             entry["dates"].append(row.date)
+        else:
+            entry["undated_source_rows"].append(row.source_row)
 
     for entry in orders.values():
         dates = entry["dates"]
-        if not dates:
+        # Một dòng không ngày không thể chứng minh đơn "hoàn toàn hậu
+        # cutover". Ưu tiên UNDATED cả khi các dòng khác sau mốc để một đơn
+        # vừa post vừa undated chỉ có đúng một lớp và không lọt cohort bằng
+        # suy đoán thuận lợi.
+        if entry["undated_source_rows"]:
             entry["cutover_class"] = CutoverClass.UNDATED
         elif all(d >= CUTOVER_DATE for d in dates):
             entry["cutover_class"] = CutoverClass.POST
@@ -373,10 +413,25 @@ def sha256_of(path: Path) -> str:
 
 
 def repo_commit(repo_root: Path = REPO_ROOT) -> Optional[str]:
-    """Commit Reports đang chạy, đọc thẳng từ `.git/` — không gọi tiến trình
-    con, không mạng. `None` khi không xác định được (checkout không phải git):
-    một giá trị bịa ở đây làm hỏng đúng thứ nó phải bảo vệ."""
+    """Commit Reports đang chạy, đọc thẳng từ metadata Git, không subprocess.
+
+    Git worktree dùng file `.git` chứa `gitdir: ...`, còn checkout thường dùng
+    thư mục `.git/`. Cả hai phải trả cùng SHA; `None` khi không xác định được
+    tốt hơn bịa version evidence.
+    """
     git_dir = repo_root / ".git"
+    if git_dir.is_file():
+        try:
+            pointer = git_dir.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        if not pointer.startswith("gitdir:"):
+            return None
+        location = pointer[len("gitdir:"):].strip()
+        if not location:
+            return None
+        candidate = Path(location)
+        git_dir = candidate if candidate.is_absolute() else repo_root / candidate
     try:
         head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
     except OSError:
@@ -488,6 +543,7 @@ def freeze_sources(
     """
     paths = {
         "config_dir": str(config_dir),
+        "price_resolution_config": str(config_dir / "price_resolution.yaml"),
         "tracking_price_history_capture": str(tracking_capture),
         "tracking_catalog_capture": str(tracking_catalog),
         "public_purchase_source": str(public_purchase),
@@ -1234,7 +1290,12 @@ def analyze(
                 )
             )
 
-        if uncovered:
+        # Một line provenance bị mất làm toàn order không còn là AUTO hay
+        # REVIEW_QUEUE hợp lệ. Nếu vẫn đếm theo các dòng còn lại, accounting
+        # rate có thể trông 100% dù một sibling đã biến mất.
+        if missing:
+            outcome = "SILENTLY_DROPPED"
+        elif uncovered:
             outcome = "PENDING_NOT_QUEUED"
         elif queue_categories:
             outcome = "REVIEW_QUEUE"
@@ -1263,6 +1324,8 @@ def analyze(
     for view in views:
         view["order_outcome"] = outcome_by_order.get(view["order_id"], "")
         view["sample_categories"] = _sample_categories(view)
+        view["sales_input_sha256"] = cohort.source_sha256
+        view["manual_sample_id"] = manual_sample_id(cohort.source_sha256, view)
 
     sample, sample_coverage = build_manual_sample(views, sample_size)
     metrics = _metrics(cohort=cohort, counts=counts, dropped_lines=dropped_lines)
@@ -1397,6 +1460,26 @@ def _line_view(
     }
 
 
+def manual_sample_id(sales_input_sha256: str, view: dict[str, Any]) -> str:
+    """Khoá bất biến của đúng một dòng được chọn để kiểm tay.
+
+    `source_row` chỉ có ý nghĩa trong đúng một file. Gắn nó với hash nội dung
+    đầu vào, OrderID, ngày và product ngăn một CSV của run A bị áp sang run B
+    khi file đã đổi nhưng số dòng tình cờ giữ nguyên.
+    """
+    payload = {
+        "sales_input_sha256": sales_input_sha256,
+        "source_row": view["source_row"],
+        "order_id": view["order_id"],
+        "sale_date": view["sale_date"],
+        "product_raw": view["product_raw"],
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 def _metrics(
     *, cohort: CohortDefinition, counts: dict[str, int], dropped_lines: int
 ) -> dict[str, Any]:
@@ -1452,11 +1535,13 @@ def load_manual_verdicts(
     `CORRECT_AUTO` — và chừng nào còn một dòng chưa chấm thì mẫu chưa hoàn
     tất, dù mọi dòng đã chấm đều đúng.
     """
-    sample_rows = {int(v["source_row"]) for v in sample}
-    verdicts: dict[int, str] = {}
+    sample_by_id = {str(v["manual_sample_id"]): v for v in sample}
+    verdicts: dict[str, str] = {}
     notes: dict[int, str] = {}
     invalid: list[str] = []
     unknown_rows: list[int] = []
+    duplicate_ids: list[str] = []
+    seen_ids: set[str] = set()
 
     with open(path, newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
@@ -1477,10 +1562,27 @@ def load_manual_verdicts(
                     f"{MANUAL_OUTCOMES}"
                 )
                 continue
-            if source_row not in sample_rows:
+            sample_id = (row.get("manual_sample_id") or "").strip()
+            expected = sample_by_id.get(sample_id)
+            if expected is None:
                 unknown_rows.append(source_row)
-            verdicts[source_row] = outcome
-            notes[source_row] = (row.get("note") or "").strip()
+                continue
+            if sample_id in seen_ids:
+                duplicate_ids.append(sample_id)
+                continue
+            # `source_row` không đủ để gắn verdict: nó chỉ có nghĩa trong
+            # đúng file sales đã freeze. Hai cột lặp này bắt lỗi copy/paste
+            # sai và làm mapping giữa hai run fail-closed.
+            for key in ("order_id", "sales_input_sha256"):
+                if (row.get(key) or "").strip() != str(expected[key]):
+                    invalid.append(
+                        f"dòng {source_row}: {key} không khớp mẫu đã freeze"
+                    )
+                    break
+            else:
+                seen_ids.add(sample_id)
+                verdicts[sample_id] = outcome
+                notes[source_row] = (row.get("note") or "").strip()
 
     counts = {outcome: 0 for outcome in MANUAL_OUTCOMES}
     for outcome in verdicts.values():
@@ -1493,11 +1595,22 @@ def load_manual_verdicts(
         "MANUALLY_VALIDATED": validated,
         "SILENT_ERROR": silent,
         "SILENT_ERROR_RATE": _rate(silent, validated),
-        "sample_size": len(sample_rows),
-        "not_validated_rows": sorted(sample_rows - set(verdicts)),
+        "sample_size": len(sample_by_id),
+        "not_validated_rows": sorted(
+            int(v["source_row"])
+            for sample_id, v in sample_by_id.items()
+            if sample_id not in verdicts
+        ),
         "rows_outside_sample": sorted(unknown_rows),
+        "duplicate_sample_ids": sorted(duplicate_ids),
         "invalid_entries": invalid,
-        "complete": validated > 0 and not (sample_rows - set(verdicts)) and not invalid,
+        "complete": (
+            validated > 0
+            and len(verdicts) == len(sample_by_id)
+            and not invalid
+            and not unknown_rows
+            and not duplicate_ids
+        ),
         "notes": {str(k): v for k, v in notes.items() if v},
     }
 
@@ -1577,6 +1690,8 @@ _LINE_CSV_FIELDS = (
 )
 
 _SAMPLE_CSV_FIELDS = (
+    "manual_sample_id",
+    "sales_input_sha256",
     "source_row",
     "order_id",
     "sale_date",
