@@ -5,13 +5,76 @@
 > thuật ngữ code.
 >
 > Bản đầy đủ, chi tiết kỹ thuật (dành cho người trực tiếp code): xem
-> `PROJECT/PROJECT_PROGRESS.md`. File này là bản dịch dễ hiểu của cùng một
-> lộ trình — **không phải một lộ trình khác**. Khi bản kỹ thuật thay đổi,
-> file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
-> phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
+> `PROJECT/PROJECT_PROGRESS.md`. File này là bản diễn giải dễ hiểu của cùng
+> một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
+> về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
-> Cập nhật lần cuối: 2026-08-31 — đã có bản Demo V1 xuất một file Excel
-> cho chủ dự án. Các mốc cũ bên dưới được giữ nguyên như lịch sử.
+> Cập nhật lần cuối: 2026-08-31 — Demo V1, Owner Usability V1 và lần đối
+> chiếu canonical đã nằm trên nhánh canonical và đã được push. Các mốc cũ
+> bên dưới được giữ nguyên như lịch sử.
+
+# TRẠNG THÁI HIỆN TẠI
+
+Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
+thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-08-31.
+
+## ĐÃ XONG
+
+- Lõi đọc và xử lý file bán hàng: giữ đủ đơn và dòng, không âm thầm bỏ sót.
+- Nhận dạng và xử lý các nguồn dữ liệu cần thiết cho báo cáo.
+- Authority Public Purchase của Tracking, cùng contract Tracking → Reports.
+- Reports History Reader và ghép giá production.
+- Safe Pending / Review Queue: chưa đủ bằng chứng thì đưa vào hàng kiểm tra,
+  không đoán giá hoặc lợi nhuận.
+- Golden validation, validation trên dữ liệu thật và kiểm tra accounting 100%.
+- Demo V1: tạo workbook Excel có Tổng quan, từng dòng đơn và Review Queue.
+- Owner Usability V1: chọn file native trên macOS và mở bằng double-click đi
+  đúng vào luồng Demo V1.
+- Đối chiếu trạng thái giao hàng canonical giữa tài liệu kỹ thuật và bản cho
+  Owner.
+
+## ĐANG LÀM
+
+**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Mục tiêu là
+chạy một cohort bán hàng thật để đo rõ bao nhiêu đơn tự hoàn tất và bao nhiêu
+đơn cần kiểm tra tay.
+
+## ĐANG CHỜ
+
+**Capture COMPLETE trọn ngày bán 2026-08-31**, tại hoặc sau
+`2026-09-01T00:00:00+07:00`. Đây là phụ thuộc về thời điểm và bằng chứng từ
+bên ngoài (*temporal / external evidence dependency*), không phải lỗi code.
+
+## SAU KHI CÓ CAPTURE
+
+Capture COMPLETE → chạy cohort thật → kiểm tra accounting 100% → đo tỷ lệ
+AUTO / Review Queue → xác định nguyên nhân lớn nhất làm Review Queue nhiều →
+chỉ sửa blocker tác động trực tiếp → chạy lại → nghiệm thu Internal Beta.
+
+## CÓ THỂ LÀM LÚC RẢNH
+
+`TASK-REM-T06` (repository-root hygiene) là hạng mục maintenance/governance
+độc lập duy nhất đã được canonical ghi nhận. Tuy vậy, nó còn chờ Owner chọn
+điều khoản license, nên **chưa actionable**. Hiện không có việc code độc lập
+nào nên chen vào critical path.
+
+## ĐỂ SAU
+
+- Dashboard.
+- Batch 200.
+- Signed macOS installer.
+- Styling/polish.
+- Tối ưu AUTO lịch sử và hardening giá trị thấp không chặn kết quả thật.
+
+## CÁCH ĐỌC HỒ SƠ LỊCH SỬ
+
+Các mục “Có gì mới trước đó”, session cũ, quyết định cũ và roadmap/bảng cũ ở
+bên dưới là **hồ sơ lịch sử** để giữ evidence. Chúng không xác định trạng thái
+hiện tại khi mâu thuẫn với “TRẠNG THÁI HIỆN TẠI” ở trên. Một quyết định business
+đã bị thay thế vẫn được giữ để audit; đặc biệt, không được dùng các mô tả cũ
+về giá NCC/vendor để khôi phục authority cũ. Semantics Public Purchase hiện
+hành luôn lấy từ `PROJECT_PROGRESS.md` canonical và implementation/evidence
+đã accepted.
 
 ## Có gì mới — Demo V1 dùng được (2026-08-31)
 
@@ -27,8 +90,9 @@ hoặc đoán giá. Đơn thử BH73804 cũng được giữ trong hàng chờ v
 đã lưu chưa phủ ngày bán.
 
 Chủ dự án có thể mở báo cáo để xem ngay. Bước tiếp theo là đọc hàng chờ và
-bổ sung bằng chứng phù hợp, không cần xây dashboard. Bản Demo chưa được
-gộp vào nhánh chính và không tự thay đổi các quyết định nghiệm thu cũ.
+bổ sung bằng chứng phù hợp, không cần xây dashboard. Demo V1 đã được tích hợp
+vào nhánh canonical và push lên remote; việc đó không tự thay đổi các quyết
+định nghiệm thu lịch sử.
 
 ## Có gì mới — chủ dự án đã duyệt bước 11a (2026-08-28)
 
@@ -733,6 +797,10 @@ chọn thật của người dùng sẽ làm ở giai đoạn có giao diện.
 
 ## Có gì mới trước đó — bước 9 xong (2026-08-23)
 
+> **LỊCH SỬ — ĐÃ BỊ TRẠNG THÁI MỚI THAY THẾ.** Đoạn này ghi đúng bối cảnh
+> ngày 2026-08-23, nhưng không phải trạng thái dự án hiện tại; xem
+> “TRẠNG THÁI HIỆN TẠI” ở đầu file.
+
 **Bước 9 (TASK-105 — tính giá nhập hàng) đã xong.** Vì công ty chưa có bảng
 giá nhập điện tử (Price Master) nào, hệ thống hiện để **mọi giá nhập ở
 trạng thái "Chờ nhập"** — đúng như đã thống nhất từ đầu (không suy đoán giá,
@@ -800,7 +868,11 @@ Xây một công cụ tự động tạo ra **Báo cáo Kinh doanh** hằng thá
 ty, thay thế việc nhân viên phải tự tay ráp file Excel mỗi tháng — nhập
 số liệu bán hàng thô, tự tính hoa hồng/lợi nhuận, tự lên báo cáo.
 
-## Đang tới đâu rồi (tóm tắt nhanh)
+## LỊCH SỬ — tóm tắt tiến độ cũ (2026-08-23)
+
+> **ĐÃ BỊ TRẠNG THÁI MỚI THAY THẾ.** Các số 9/34 và trạng thái “bước 10 tạm
+> dừng” dưới đây chỉ là ảnh chụp tiến độ ngày 2026-08-23, được giữ làm evidence.
+> Chúng không trả lời “dự án đang tới đâu”; xem “TRẠNG THÁI HIỆN TẠI” ở đầu file.
 
 File này gồm **hai bảng độc lập, không chặn nhau**:
 
@@ -915,7 +987,7 @@ cẩn thận. `Tier` dùng chung thang A–D như bảng Track A ở trên.
 | ✅ | Phase Gate 01 — Xác nhận PHASE-01 hoàn tất | Chốt chính thức trước khi coi giai đoạn dọn nền governance là xong | Gate | PASS (S006) — 10/10 check |
 | ✅ | REM-T05 (MAJOR, D2/R2/B3) — Sửa tài liệu tham khảo đang ghi sai thực tế | Một báo cáo cũ đang khẳng định "đã kiểm tra PASS" không đúng sự thật — sửa để tài liệu đáng tin lại | B | DONE (S008) — 4/4 việc kiểm tra bắt buộc PASS |
 | ⬜ | Phase Gate 02 — Xác nhận PHASE-02 hoàn tất | Chốt sau khi REM-T06 xong | Gate | Sau REM-T06 |
-| 🟡 | REM-T06 (MICRO, D1/R1/B1) — Dọn dẹp thư mục gốc repo (thêm README/LICENSE) | Repo có tài liệu giới thiệu chuẩn khi người ngoài ghé xem | A | **Sẵn sàng làm ngay** — kế hoạch đã chốt xong |
+| 🟡 | REM-T06 (MICRO, D1/R1/B1) — Dọn dẹp thư mục gốc repo (thêm README/LICENSE) | Repo có tài liệu giới thiệu chuẩn khi người ngoài ghé xem | A | **LỊCH SỬ — đã từng được ghi là sẵn sàng.** Hiện còn chờ Owner chọn điều khoản license, nên chưa actionable. |
 | ⬜ | Phase Gate 03 — Xác nhận PHASE-03 hoàn tất, xem lại việc sao lưu dữ liệu | Chốt toàn bộ track dọn nền governance | Gate | Sau REM-T06 |
 
 *(REM-T01 không có trong bảng — đã hủy vì trùng việc đã làm xong ở nơi
@@ -967,9 +1039,11 @@ theo thiết kế khi tới Giai đoạn 2. Bản kỹ thuật đầy đủ:
 
 ## Ghi chú quan trọng
 
-- File này **không tự động cập nhật**. Người thực hiện dự án phải cập nhật
-  tay cột Tick ở đây mỗi khi trạng thái trong `PROJECT/PROJECT_PROGRESS.md`
-  (bản kỹ thuật) thay đổi — kể cả khi thêm/bớt bước hoặc đổi thứ tự.
+- File này **không tự động cập nhật**. Trong cùng delivery checkpoint của mỗi
+  milestone làm thay đổi `DONE`, `CURRENT`, `WAITING_EXTERNAL`, `DO_WHEN_IDLE`
+  hoặc `DEFERRED`, người thực hiện phải cập nhật đồng thời
+  `PROJECT/PROJECT_PROGRESS.md` và file này. Không đợi đến một phiên sau mới
+  đồng bộ Owner-facing status.
 - Số thứ tự đầu mỗi dòng ("5.", "12."...) chỉ để dễ trao đổi ("bước số 8"),
   không phải mã chính thức. Mã chính thức là phần `TASK-xxx`/`GATE-xx`/
   `REM-Txx` đi kèm ngay sau — lấy nguyên văn từ `PROJECT/PROJECT_PROGRESS.md`,

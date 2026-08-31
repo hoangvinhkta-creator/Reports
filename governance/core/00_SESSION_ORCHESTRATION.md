@@ -161,10 +161,13 @@ Trước khi đóng một phiên Major Task:
 2. Thực thi Completion Gate.
 3. Ghi lại evidence kèm Evidence Level.
 4. Cập nhật trạng thái task.
-5. Cập nhật `PROJECT/PROJECT_PROGRESS.md`. Nếu thay đổi động tới roadmap
-   sản phẩm (thêm/bớt bước, đổi thứ tự, đổi trạng thái), cập nhật đồng thời
-   `PROJECT/LO_TRINH_DE_HIEU.md` — bản dễ hiểu song song, không thuật ngữ
-   kỹ thuật, dành cho người ngoài dự án. Không để hai file lệch nhau.
+5. Cập nhật `PROJECT/PROJECT_PROGRESS.md`. Trong cùng delivery checkpoint,
+   mỗi milestone làm thay đổi một trong các trạng thái `DONE`, `CURRENT`,
+   `WAITING_EXTERNAL`, `DO_WHEN_IDLE` hoặc `DEFERRED` phải cập nhật đồng thời
+   `PROJECT/LO_TRINH_DE_HIEU.md` — bản dễ hiểu song song, không thuật ngữ kỹ
+   thuật, dành cho người ngoài dự án. Quy tắc này cũng áp dụng khi thêm/bớt
+   bước hoặc đổi thứ tự; không để hai file lệch nhau hay đợi sang phiên sau
+   mới đồng bộ.
 6. Ghi lại các file đã thay đổi.
 7. Ghi lại các quyết định mới.
 8. Ghi lại các blocker/rủi ro.
