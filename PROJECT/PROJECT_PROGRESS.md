@@ -1,5 +1,30 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## Reports Demo V1 — đã triển khai (2026-08-31)
+
+Theo yêu cầu Owner, CLI + xuất Excel + Review Queue được triển khai trong
+cùng phiên trên `codex/demo-v1`, từ đúng SHA
+`1ab5dbdfdd70deff1f0636ec1bb5f734ba6a0592`. Worktree đầu phiên detached,
+nhánh kỳ vọng `claude/bh73804-confirmed-identity` trỏ cùng SHA; không đồng bộ
+sang baseline khác với chỉ định Owner. Không merge.
+
+`app/demo.py` gọi production composition hiện có, giữ PriceResolutionRecord
+từng dòng và xuất đúng Summary / Order Lines / Review Queue. Không đổi engine,
+business rule, Tracking hay coverage; không đọc PP YAML cũ. Workbook tháng 1
+thật đã ẩn danh: 254/254 đơn, 351/351 dòng; AUTO=1, REVIEW_QUEUE=253,
+ORDER_ACCOUNTING_RATE=100%, SILENT_DROPPED=0. BH73804 preflight có sẵn:
+1/1 đơn Pending do snapshot không phủ ngày bán, không sửa ngày để ép AUTO.
+
+13 focused tests PASS. Full regression trong checkout Git sạch, có quyền
+localhost cho test HTTP: 1305 passed, 11 skipped. 15 artifact runtime đầu
+phiên còn nguyên và không đưa vào commit. Hướng dẫn: `docs/demo-v1.md`;
+bằng chứng: `docs/sessions/DEMO-V1-20260831.md`.
+
+Trạng thái: IMPLEMENTED trong phạm vi Demo V1; Owner có thể mở workbook để
+xem AUTO và hàng chờ. Không tuyên bố đóng toàn bộ task xuất báo cáo/CLI lịch
+sử hoặc thay trạng thái gate TASK-105/110. Bước tiếp theo: Owner đọc báo cáo
+và xử lý bằng chứng còn thiếu của các đơn Pending; không cần dashboard.
+
 ## Đồng Bộ Nhánh
 
 Nhánh mặc định (canonical) trên GitHub remote hiện tại:

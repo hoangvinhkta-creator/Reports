@@ -10,10 +10,25 @@
 > file này phải được cập nhật theo (xem "Ghi chú" ở cuối) — ô Tick ở đây
 > phải luôn khớp với trạng thái thật trong `PROJECT_PROGRESS.md`.
 >
-> Cập nhật lần cuối: 2026-08-28 — **chủ dự án đã trả lời cả 3 câu hỏi của
-> bước 11a và cấp thêm một bước mới (11e)**. Bước 11a nay chỉ còn chờ đúng
-> một việc: "niêm phong" danh sách 32 điều kiện nghiệm thu. Chi tiết ở mục
-> ngay dưới đây.
+> Cập nhật lần cuối: 2026-08-31 — đã có bản Demo V1 xuất một file Excel
+> cho chủ dự án. Các mốc cũ bên dưới được giữ nguyên như lịch sử.
+
+## Có gì mới — Demo V1 dùng được (2026-08-31)
+
+Đã có một lệnh nhận file kế toán và dữ liệu Tracking đã lưu để tạo một file
+Excel với ba trang: tổng quan, chi tiết từng dòng bán hàng, danh sách cần
+kiểm tra. Không phải mở nhiều công cụ hoặc biết bên trong Python hoạt động
+thế nào; xem cách chạy ở `docs/demo-v1.md`.
+
+Đã thử trên dữ liệu thật tháng 1 được ẩn danh: đủ **254 đơn / 351 dòng**,
+không mất đơn nào. **1 đơn tự động hoàn tất, 253 đơn cần kiểm tra** vì còn
+thiếu bằng chứng. Ô giá/lợi nhuận chưa xác định được để trống, không điền 0
+hoặc đoán giá. Đơn thử BH73804 cũng được giữ trong hàng chờ vì dữ liệu giá
+đã lưu chưa phủ ngày bán.
+
+Chủ dự án có thể mở báo cáo để xem ngay. Bước tiếp theo là đọc hàng chờ và
+bổ sung bằng chứng phù hợp, không cần xây dashboard. Bản Demo chưa được
+gộp vào nhánh chính và không tự thay đổi các quyết định nghiệm thu cũ.
 
 ## Có gì mới — chủ dự án đã duyệt bước 11a (2026-08-28)
 
