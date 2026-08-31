@@ -120,6 +120,9 @@ class UnresolvedReason(str, Enum):
     NON_DETERMINISTIC_EVENT_ORDER = "NON_DETERMINISTIC_EVENT_ORDER"
     PRICE_CHANGED_WITHIN_SALE_INTERVAL = "PRICE_CHANGED_WITHIN_SALE_INTERVAL"
     HISTORY_CHAIN_INCONSISTENT = "HISTORY_CHAIN_INCONSISTENT"
+    SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL = (
+        "SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL"
+    )
     PRICE_CLEARED = "PRICE_CLEARED"
     NO_BASELINE_PRICE_AT_CUTOVER = "NO_BASELINE_PRICE_AT_CUTOVER"
     BASELINE_ABSENCE_AMBIGUOUS = "BASELINE_ABSENCE_AMBIGUOUS"
@@ -317,6 +320,18 @@ class TrackingPriceHistoryReader:
                 f"Khoảng bán bắt đầu {interval.lo.isoformat()} < mốc cutover "
                 f"{t0.isoformat()}; trước cutover baseline/history V1 không "
                 "chứng minh được giá lịch sử.",
+            )
+
+        # Capture là biên thẩm quyền trên của chính export. Dù baseline hay
+        # history nói trạng thái nào trước đó, một capture kết thúc trước `hi`
+        # không loại trừ một thay đổi chưa được quan sát trong phần còn lại của
+        # khoảng bán. `hi` là đầu mở, nên capture tại đúng `hi` là đủ.
+        if snap.captured_at < interval.hi:
+            return pending(
+                UnresolvedReason.SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL,
+                f"Capture {snap.capture_id} lúc {snap.captured_at.isoformat()} "
+                f"kết thúc trước cuối khoảng bán {interval.hi.isoformat()}; "
+                "không được ngoại suy giá qua terminal authority gap.",
             )
 
         # --- 3. CASE F — thẩm quyền thời gian của lịch sử ------------------

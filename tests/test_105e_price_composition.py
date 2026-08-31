@@ -87,13 +87,14 @@ def write_history_capture(
     export: dict,
     *,
     capture_id: str = "PPH-20260929T120000Z-aaaa",
+    captured_at: datetime | None = None,
     capture_status: str = "COMPLETE",
     failure_reason: str | None = None,
 ) -> Path:
     path = tmp_path / "tracking_price_history.json"
     payload = {
         "capture_id": capture_id,
-        "captured_at": (CUTOVER + timedelta(days=30)).isoformat(),
+        "captured_at": (captured_at or CUTOVER + timedelta(days=30)).isoformat(),
         "captured_by": "reports-capture-tool",
         "source_system_ref": "tracking/rtdb",
         "capture_status": capture_status,
@@ -186,6 +187,7 @@ def build_sources(
     catalog_rows: list[dict] | None = None,
     pp_products: list[dict] | None = None,
     pp_prices: list[dict] | None = None,
+    history_captured_at: datetime | None = None,
     with_history: bool = True,
     with_catalog: bool = True,
     with_public_purchase: bool = True,
@@ -197,7 +199,9 @@ def build_sources(
     if with_history:
         history = load_tracking_price_history_capture(
             write_history_capture(
-                tmp_path, DEFAULT_EXPORT if export is None else export
+                tmp_path,
+                DEFAULT_EXPORT if export is None else export,
+                captured_at=history_captured_at,
             )
         )
     catalog = None
@@ -384,6 +388,30 @@ def test_unresolved_tracking_reaches_the_canonical_task110_review_queue(
     categories = {item.category for item in result.review_queue.items}
     assert CATEGORY_MISSING_PURCHASE_PRICE in categories
     assert len(categories) >= 1
+
+
+def test_stale_tracking_capture_cannot_emit_kpi_price_or_profit(tmp_path, config_dir):
+    """The normal production composition turns a terminal authority gap into TASK-110."""
+    comp = composition(
+        tmp_path,
+        history_captured_at=datetime(2026, 9, 5, tzinfo=timezone.utc),
+    )
+    raw = write_workbook(tmp_path / "stale_capture.xlsx", [ROWS_POST_CUTOVER[0]])
+    result = run(raw, config_dir, comp)
+
+    line = lines_by_order(result)["BH9001"][0]
+    assert line.accounting_purchase_price is None
+    assert line.kpi_purchase_price is None
+    assert line.eligible_kpi_profit is None
+    assert line.price_source == PRICE_SOURCE_PENDING
+    assert comp.records[0].tracking_reconstruction.reason is (
+        UnresolvedReason.SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL
+    )
+    assert any(
+        item.category == CATEGORY_MISSING_PURCHASE_PRICE
+        and line.raw.source_row in {row.source_row for row in item.provenance.rows}
+        for item in result.review_queue.items
+    )
 
 
 def test_every_pending_line_is_covered_by_the_queue_no_gap(

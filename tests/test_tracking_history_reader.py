@@ -94,11 +94,13 @@ def event(
     return node
 
 
-def build_reader(export: dict) -> TrackingPriceHistoryReader:
+def build_reader(
+    export: dict, *, captured_at: datetime = CUTOVER + timedelta(days=30)
+) -> TrackingPriceHistoryReader:
     snapshot = TrackingPriceHistorySnapshot.from_export(
         export,
         capture_id="cap-001",
-        captured_at=CUTOVER + timedelta(days=30),
+        captured_at=captured_at,
         captured_by="reports-capture-tool",
         source_system_ref="tracking/rtdb",
     )
@@ -165,6 +167,68 @@ def test_baseline_price_resolves_for_a_full_day_after_cutover():
     assert out.price_vnd == Decimal("7000000")
     assert out.provenance.decisive_source is DecisiveSource.BASELINE
     assert out.provenance.decisive_event_id is None
+
+
+def test_capture_predating_the_sale_interval_is_pending_never_a_price():
+    interval = sale_on(date(2026, 9, 5))
+    reader = build_reader(
+        build_export(prices={"A1": 7000}),
+        captured_at=interval.lo - timedelta(microseconds=1),
+    )
+
+    out = reader.price_at("A1", interval)
+
+    assert out.status is ReconstructionStatus.PENDING
+    assert out.reason is UnresolvedReason.SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL
+    assert out.price_vnd is None
+
+
+def test_stale_baseline_is_not_extrapolated_through_sale_interval():
+    interval = sale_on(date(2026, 9, 5))
+    reader = build_reader(
+        build_export(prices={"A1": 7000}), captured_at=interval.lo
+    )
+
+    out = reader.price_at("A1", interval)
+
+    assert out.reason is UnresolvedReason.SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL
+    assert out.price_vnd is None
+
+
+def test_stale_terminal_history_event_is_not_extrapolated_through_sale_interval():
+    interval = sale_on(date(2026, 9, 5))
+    reader = build_reader(
+        build_export(
+            prices={"A1": 7000},
+            events={
+                "A1": {
+                    "E1": event(
+                        prev=7000,
+                        nxt=6800,
+                        at=interval.lo - timedelta(hours=1),
+                    )
+                }
+            },
+        ),
+        captured_at=interval.lo,
+    )
+
+    out = reader.price_at("A1", interval)
+
+    assert out.reason is UnresolvedReason.SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL
+    assert out.price_vnd is None
+
+
+def test_capture_at_sale_interval_end_preserves_valid_resolution():
+    interval = sale_on(date(2026, 9, 5))
+    reader = build_reader(
+        build_export(prices={"A1": 7000}), captured_at=interval.hi
+    )
+
+    out = reader.price_at("A1", interval)
+
+    assert out.is_resolved
+    assert out.price_vnd == Decimal("7000000")
 
 
 # ===================================================================== §12.4
