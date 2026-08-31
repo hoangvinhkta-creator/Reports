@@ -1,5 +1,51 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT DELIVERY STATUS — AUTHORITATIVE (2026-08-31)
+
+Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho bản giao canonical sau
+phiên đối chiếu/tích hợp. Các khối tiến độ, trạng thái task, và evidence theo
+từng session ở bên dưới được giữ nguyên như lịch sử; một trạng thái cũ chỉ là
+trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu lại nó.
+
+### DONE
+
+- Core production pipeline của Reports.
+- Đường authority Public Purchase của Tracking.
+- Contract Tracking → Reports.
+- Reports History Reader.
+- Production price composition.
+- Pending / Review Queue an toàn.
+- Golden validations.
+- Real batch validation.
+- Demo V1: thin CLI, XLSX Summary / Order Lines / Review Queue.
+- Owner Usability V1: native macOS picker và luồng double-click
+  `Open Reports.command` đi vào production path của Demo V1.
+
+### CURRENT
+
+- Chuẩn bị và chạy cohort thật đầu tiên sau authority.
+
+### WAITING_EXTERNAL
+
+- Một capture COMPLETE phủ toàn bộ khoảng ngày bán 2026-08-31. Chỉ có thể
+  capture từ `2026-09-01T00:00:00+07:00` trở đi.
+
+### DO_WHEN_IDLE
+
+- TASK-REM-T06 repository-root hygiene: hoàn tất phạm vi README/LICENSE đã có
+  khi Owner chọn điều khoản license. Việc này độc lập với capture, không đổi
+  business rules, và là hạng mục maintenance/governance còn lại đã được tài
+  liệu hóa có đủ giá trị.
+
+### DEFERRED
+
+- Dashboard.
+- Batch 200.
+- Tối ưu AUTO lịch sử tháng 1.
+- Signed macOS installer.
+- Styling/polish.
+- Low-value hardening không chặn kết quả thật.
+
 ## Reports Demo V1 — đã triển khai (2026-08-31)
 
 Theo yêu cầu Owner, CLI + xuất Excel + Review Queue được triển khai trong
