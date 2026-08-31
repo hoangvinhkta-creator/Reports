@@ -1,5 +1,22 @@
 # Reports Demo V1 — tạo báo cáo cho Owner
 
+## Dành cho Owner trên macOS
+
+Nhấp đúp **`Open Reports.command`** trong thư mục Reports. Cửa sổ Reports sẽ
+hiện ra: chọn một workbook kế toán `.xlsx`, nhấn **Tạo báo cáo**, rồi chọn mở
+tệp khi cửa sổ báo hoàn tất. Không cần biết đường dẫn capture hay chạy lệnh
+Python.
+
+Launcher chỉ tự chọn capture lịch sử giá và danh mục Tracking có metadata hợp
+lệ, `capture_status = COMPLETE`, và thời điểm `captured_at` mới nhất. Capture
+FAILED, hỏng hoặc không có múi giờ bị bỏ qua; nếu không còn capture COMPLETE
+hợp lệ, launcher dừng với hướng dẫn tạo capture mới. Nó không suy ra coverage
+theo ngày bán: production vẫn quyết định AUTO hay Review Queue cho từng dòng.
+
+Báo cáo mới được lưu tại `outputs/reports/report-<UTC timestamp>.xlsx`. Tên
+trùng trong cùng giây nhận hậu tố số, nên không ghi đè báo cáo có sẵn. Workbook
+kế toán, capture và các tệp nguồn khác không bị sửa.
+
 Một lệnh đọc workbook kế toán và hai capture Tracking đã có, gọi production
 composition rồi xuất **một** workbook Excel. Không kết nối Firebase, không
 đọc PP YAML cũ và không tự điền giá còn thiếu.
