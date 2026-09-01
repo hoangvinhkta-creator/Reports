@@ -44,8 +44,8 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 ### CURRENT
 
 - **S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
-  baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), branch chưa
-  integrate canonical, đang chờ independent review.** Thêm `app/web/`
+  baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), Independent Review
+  PASS sau 1 repair, branch chưa integrate canonical.** Thêm `app/web/`
   (Flask, opt-in dependency dưới `[project.optional-dependencies].web` —
   core CLI/Tkinter footprint không đổi): Owner mở browser tại
   `127.0.0.1:8765` qua double-click `Open Reports Web.command`, chọn/upload
@@ -72,10 +72,34 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   `tools/tracking/`); sửa cục bộ ngay trong phiên bằng
   `werkzeug.serving.make_server` + bắt `OSError` (không cần `socket`, không
   còn race check-rồi-bind) — regression PASS lại đủ, bất biến gốc không bị
-  hạ thấp. Regression toàn repo: `1403 passed, 11 skipped` (từ `1373 passed,
-  11 skipped` trước S070; +30 test mới cho `app/web/*`, không skip nào đổi).
-  Chi tiết đầy đủ, evidence từng bước, và giới hạn đã biết tại
-  `docs/sessions/S070-web-beta-v1.md`.
+  hạ thấp. Regression toàn repo (implementation SHA `026c7db`): `1403 passed,
+  11 skipped` (từ `1373 passed, 11 skipped` trước S070; +30 test mới cho
+  `app/web/*`, không skip nào đổi).
+  **Independent Review** (cùng ngày, SHA implementation `026c7db` →
+  repair `s070/web-beta-v1` HEAD mới) verify lại độc lập toàn bộ bằng git,
+  code, test thật (python3.11, không mock `test_client` cho phần runtime) và
+  tìm ra 1 finding LOCAL + CLEAR + DIRECT BLOCKER: `app/web/launcher.py` gọi
+  `werkzeug.serving.make_server(HOST, PORT, app)` KHÔNG truyền
+  `threaded=True` → server single-threaded; verify trực tiếp bằng repro (giữ
+  một kết nối HTTP/1.1 keep-alive mở, request độc lập thứ hai timeout 100%
+  cho tới khi connection đầu đóng) — vì launcher tự mở browser
+  (`webbrowser.open`) ngay sau khi bind, tab đó giữ đúng loại kết nối này,
+  nghĩa là flow bình thường (double-click → browser tự mở) có thể tự khoá
+  toàn bộ server cho chính Owner (upload lần 2, refresh, tải file, gửi phản
+  hồi đều treo vô thời hạn). Repair: thêm `threaded=True` vào lệnh
+  `make_server` (không đổi bind host, không bật debugger/reloader) + 1 test
+  regression mới xác nhận cấu hình. Sau repair: `1404 passed, 11 skipped`;
+  repro xác nhận hết treo; rerun toàn bộ battery upload adversarial (path
+  traversal, `.xlsx.exe`, empty/zero-byte/malformed workbook, >25MB thật,
+  Unicode filename, artifact bị xoá khỏi đĩa sau khi đăng ký) đều fail-safe;
+  2 run liên tiếp qua server thật → đúng 2 artifact riêng biệt (SHA256 khớp
+  byte-for-byte đĩa), đúng 2 dòng telemetry, đúng 2 dòng feedback liên kết
+  đúng run; LOCAL (`run_owner_report()` gọi trực tiếp) và WEB (server thật)
+  trên cùng workbook thật khớp tuyệt đối: `58/83/22/36 (AUTO/Review), 100%
+  accounting, business severity 3, dropped 0`; render thật qua Browser pane
+  (không chỉ Flask test client) xác nhận trang usable, nhãn đúng, không lộ
+  thông tin kỹ thuật. Chi tiết đầy đủ, evidence từng bước, và giới hạn đã
+  biết tại `docs/sessions/S070-web-beta-v1.md` → "Independent Review".
 
 - **S068 — Internal Beta review (checkpoint `f8d3ffc3c2071a33f2818664713c62da9cfe176f`,
   nhánh `s068/inv-map-vertical`, ĐÃ merge canonical qua

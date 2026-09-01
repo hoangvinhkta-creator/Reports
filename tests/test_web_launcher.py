@@ -16,9 +16,10 @@ def test_main_binds_via_make_server_and_serves_in_the_foreground(monkeypatch):
         def serve_forever(self):
             calls["served"] = True
 
-    def fake_make_server(host, port, app):
+    def fake_make_server(host, port, app, **kwargs):
         calls["host"] = host
         calls["port"] = port
+        calls["kwargs"] = kwargs
         return FakeHttpd()
 
     class FakeTimer:
@@ -39,12 +40,26 @@ def test_main_binds_via_make_server_and_serves_in_the_foreground(monkeypatch):
     assert calls["host"] == "127.0.0.1"
     assert calls["port"] == 8765
     assert calls["served"] is True
+    assert calls["kwargs"].get("threaded") is True
+
+
+def test_server_is_threaded_so_one_open_browser_connection_never_blocks_another_request():
+    """Regression cho S070 Independent Review: ``make_server`` mặc định là
+    single-threaded — một kết nối keep-alive (vd: tab trình duyệt launcher tự
+    mở) sẽ treo vô thời hạn mọi request khác nếu thiếu ``threaded=True``.
+    Đã verify trực tiếp bằng repro: giữ một HTTP/1.1 keep-alive connection mở,
+    request độc lập thứ hai timeout 100% cho tới khi connection đầu đóng.
+    """
+    import inspect
+
+    source = inspect.getsource(launcher.main)
+    assert "threaded=True" in source
 
 
 def test_main_reuses_an_already_running_server_instead_of_starting_a_second_one(monkeypatch):
     opened = {}
 
-    def fake_make_server(host, port, app):
+    def fake_make_server(host, port, app, **kwargs):
         raise OSError("Address already in use")
 
     monkeypatch.setattr(launcher, "create_app", lambda: object())

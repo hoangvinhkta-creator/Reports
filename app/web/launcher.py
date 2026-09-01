@@ -10,6 +10,16 @@ raise ``OSError`` nếu cổng đã bận — không có race giữa bước ki�
 bind. Server dựng bằng cách này cũng không kèm Werkzeug debugger/reloader,
 nên "debug mode off" là bất biến theo cấu trúc, không chỉ một cờ có thể quên
 truyền.
+
+``threaded=True`` là bắt buộc, không phải tối ưu: ``make_server`` mặc định
+dựng ``BaseWSGIServer`` (single-threaded) — khi launcher tự mở trình duyệt
+(``webbrowser.open`` bên dưới), tab đó giữ một kết nối HTTP keep-alive, và
+server single-threaded sẽ treo BẤT KỲ request nào khác (upload lần 2,
+refresh, download, feedback) vô thời hạn cho đến khi tab đó đóng kết nối —
+đã verify trực tiếp bằng repro (giữ một keep-alive connection mở, request
+độc lập thứ hai timeout 100% cho tới khi connection đầu đóng). ``threaded``
+chỉ đổi model I/O (mỗi connection một thread) chứ không bật debugger/
+reloader — "debug off" ở trên vẫn đúng nguyên.
 """
 
 from __future__ import annotations
@@ -35,7 +45,7 @@ def main() -> int:
     url = f"http://{HOST}:{PORT}/"
     app = create_app()
     try:
-        httpd = make_server(HOST, PORT, app)
+        httpd = make_server(HOST, PORT, app, threaded=True)
     except OSError:
         print(f"REPORTS_WEB_ALREADY_RUNNING\nMở trình duyệt vào: {url}")
         webbrowser.open(url)

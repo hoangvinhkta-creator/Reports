@@ -187,3 +187,109 @@ Web.command`, `pyproject.toml`, `tests/test_web_server.py`,
 chính để chạy real cohort — cố ý không track), `data/uploads/`,
 `data/beta_feedback/`, `outputs/reports/*.xlsx`, `data/product_identity/
 mappings.jsonl.lock` (lock file byproduct khi chạy pipeline).
+
+## Independent Review (cùng ngày, sau implementation SHA `026c7db`)
+
+Review độc lập không tin `S070_GATE_RESULT=PASS` của phiên implementation —
+tự verify lại bằng git (`fad7647..026c7db` đúng 1 commit, đúng diffstat khai
+báo), đọc lại toàn bộ `app/web/server.py` + `launcher.py` + template, chạy
+lại `1403 passed, 11 skipped` bằng `python3.11` thật (không phải giả định từ
+báo cáo), và chạy server thật trên `127.0.0.1:8765` qua đúng đường
+`python3.11 -m app.web.launcher` (launcher thật, không chỉ `test_client`).
+
+### Finding — LOCAL + CLEAR + DIRECT S070 BLOCKER
+
+`app/web/launcher.py` gọi `werkzeug.serving.make_server(HOST, PORT, app)`
+KHÔNG truyền `threaded=True`. Mặc định này dựng `BaseWSGIServer`
+single-threaded (đã xác nhận bằng `inspect.signature(make_server)`:
+`threaded: bool = False`). Verify bằng repro trực tiếp, không suy đoán từ
+đọc code: mở một kết nối TCP thô gửi `GET / HTTP/1.1` kèm
+`Connection: keep-alive`, giữ kết nối đó mở — trong lúc đó, một request độc
+lập hoàn toàn khác (`curl --max-time 5 GET /`) timeout 100% (`http_code=000`)
+cho tới khi kết nối đầu đóng. CPU của process ở 0% trong lúc treo (`sample`
+xác nhận thread chính block ở `sock_recv_into` trên đúng connection cũ, không
+phải đang tính toán) — đây là treo I/O thật, không phải xử lý chậm.
+
+Vì `launcher.py` tự gọi `webbrowser.open(url)` ngay sau khi bind thành công,
+tab trình duyệt launcher tự mở CHÍNH LÀ loại kết nối giữ server bị khoá này —
+nghĩa là luồng sử dụng bình thường nhất (double-click → browser tự mở →
+Owner dùng tiếp) có xác suất cao tự khoá server cho chính Owner: upload lần
+hai, bấm refresh, tải Excel, hay gửi phản hồi từ CÙNG tab đó đều có thể treo
+vô thời hạn cho tới khi tab đóng kết nối. Đây trực tiếp vi phạm mục tiêu cốt
+lõi của S070 ("Owner quen dùng web") và mục 10/17/18 của đề bài review
+(multi-run correctness, real smoke, visual experience) — không phải edge
+case hiếm, mà là hệ quả gần như chắc chắn của chính flow launcher tạo ra.
+
+### Repair
+
+Thêm `threaded=True` vào lệnh `make_server(...)` trong `app/web/launcher.py`
+— tham số chính thức của werkzeug cho đúng lớp vấn đề này, không đổi
+`HOST`/`PORT`, không bật debugger/reloader (tham số `threaded` chỉ đổi model
+I/O sang một thread/connection, không liên quan `use_debugger`/
+`use_reloader` — "debug off" vẫn là bất biến cấu trúc như cũ). Rủi ro đánh
+đổi duy nhất: `_RUNS` dict và việc tạo file qua
+`owner_usability.default_output_path()` giờ có thể được gọi từ nhiều thread
+cùng lúc thay vì tuần tự — chấp nhận được cho Beta single-user local (ghi
+key mới vào dict là an toàn dưới GIL; đụng độ tên file chỉ xảy ra nếu hai
+request thật sự trùng giây tạo file, xác suất không đáng kể với một Owner
+thao tác tay), không mở rộng thành thay đổi kiến trúc nào khác.
+
+Thêm 1 test regression (`tests/test_web_launcher.py`,
+`test_server_is_threaded_so_one_open_browser_connection_never_blocks_another_request`)
+khẳng định `threaded=True` có mặt trong `launcher.main`, cộng với cập nhật
+`fake_make_server` ở 2 test cũ để nhận `**kwargs` (trước đó ký hiệu 3 tham số
+dương sẽ vỡ ngay khi `launcher.py` truyền thêm `threaded=True`).
+
+### Regression + Re-verify sau repair
+
+- `python3.11 -m pytest -q` toàn repo: `1404 passed, 11 skipped` (1403 cũ +
+  1 test mới, không skip nào đổi).
+- Repro treo chạy lại với server đã sửa: giữ đúng kết nối keep-alive như cũ,
+  request độc lập thứ hai trả `200` trong `0.018s` (trước đó timeout 100%).
+- Rerun toàn bộ battery upload adversarial trên server thật (không phải
+  `test_client`): path traversal filename, `.xlsx.exe`, filename rỗng,
+  `.xlsx` 0 byte, bytes hỏng nhưng đuôi `.xlsx`, file thật >25MiB
+  (`27_000_000` byte, đúng dùng `Content-Length` thật chứ không chunked) —
+  tất cả fail-safe (`400`/`413`), không traceback, `data/uploads/` rỗng sau
+  mỗi lần (kể cả khi request lỗi).
+- 2 run liên tiếp qua server thật (cùng workbook thật, cách nhau ~1.2s):
+  2 `run_id` khác nhau, download đúng artifact của đúng run (SHA256 khớp
+  byte-for-byte file trên đĩa cho cả hai), `runs.jsonl` đúng 1 dòng/run (kể
+  cả sau nhiều lần `GET /?run_id=...` refresh — không duplicate), 2 lần gửi
+  `POST /feedback` cho 2 run khác nhau → `feedback.jsonl` đúng 2 dòng, đúng
+  `run_id` tương ứng, field đúng schema (`feedback_id, timestamp, run_id,
+  category, comment`) — không tự đính kèm business data.
+- Xoá thẳng artifact `.xlsx` khỏi đĩa sau khi đã đăng ký `run_id` rồi tải lại
+  → `404` fail-safe, không traceback (`path.is_file()` check hoạt động đúng
+  như thiết kế).
+- Equivalence độc lập: gọi trực tiếp `run_owner_report()` (không qua web)
+  trên cùng workbook thật + cùng capture evidence, so với kết quả WEB ở trên
+  — khớp tuyệt đối: `ORDERS=58, LINES=83, AUTO=22, REVIEW=36,
+  ACCOUNTING=100%, BUSINESS_SEVERITY=3, DROPPED=0`, cùng
+  `review_reason_counts` (`IDENTITY_UNRESOLVED=31,
+  Missing.PurchasePrice=44, Pending.accounting_purchase_price=44,
+  Pending.accounting_profit=44, Pending.eligible_kpi_profit=44,
+  Suspicious=3, TRACKING_HISTORY_PENDING=13`) — khớp đúng REAL COHORT kỳ
+  vọng của đề bài review.
+- Response privacy re-check trên trang kết quả thật (không chỉ
+  `test_client`): grep không thấy `TRACKING_REPORT_API_KEY`, `content_hash`,
+  `captured_by`, `source_system_ref`, `inv_map`, `alias.map`, `board.json`,
+  `purchase_price_baseline`, đường dẫn `/Users/...` hay `outputs/reports/...`
+  nào trong response.
+- Visual runtime evidence: render thật qua Browser pane (không chỉ suy từ
+  HTML string) — trang hiển thị đúng nhãn tiếng Việt, đủ nút hành động (CHẠY
+  BÁO CÁO / TẢI BÁO CÁO EXCEL / GỬI PHẢN HỒI), không lộ thông tin kỹ thuật.
+- Toàn bộ dữ liệu runtime dùng để test (captures copy thủ công,
+  `data/uploads/`, `data/beta_feedback/`, `outputs/reports/*.xlsx`,
+  `data/product_identity/mappings.jsonl.lock`) đã dọn sạch khỏi worktree sau
+  review — `git status` chỉ còn đúng 2 file sửa
+  (`app/web/launcher.py`, `tests/test_web_launcher.py`).
+
+### Giới hạn đã biết — không đổi so với implementation
+
+Registry `run_id → path` vẫn process-local (DEFERRED, không phải blocker);
+`Open Reports Web.command` vẫn dùng `python3` hệ thống theo đúng convention
+đã accepted của `Open Reports.command` (Tkinter) — không phải rủi ro mới do
+S070 tạo ra, ngoài phạm vi Change Budget của review này.
+
+**S070_INDEPENDENT_REVIEW = PASS (sau 1 repair).**
