@@ -1,9 +1,25 @@
 # Reports Web Shared Online Beta (S071, STATELESS từ S071B) — container
 # tối thiểu.
 #
-# Đóng gói ĐÚNG Python Reports Core hiện có (app/, tools/, config/) + tầng
-# web mỏng (app/web/) chạy qua gunicorn. Không rewrite sang JavaScript, không
-# microservice — một process Python duy nhất, nhiều worker/thread.
+# Đóng gói ĐÚNG Python Reports Core hiện có (app/, tools/, config/, data/) +
+# tầng web mỏng (app/web/) chạy qua gunicorn. Không rewrite sang JavaScript,
+# không microservice — một process Python duy nhất, nhiều worker/thread.
+#
+# `data/` (Render production regression, S071B follow-up): `app/
+# composition.py::run_import_production()` — đường production DUY NHẤT của
+# `app/demo.py::run_demo()`, cả CLI lẫn web — nạp KHÔNG ĐIỀU KIỆN vài nguồn
+# "canonical committed" cố định dưới `data/` (`HISTORICAL_REGISTRY_PATH`,
+# `CONFIRMED_ADJUSTMENTS_PATH`). Thiếu `COPY data` khiến
+# `confirmed_adjustments.jsonl` VẮNG MẶT (khác "tồn tại nhưng rỗng") trong
+# container — `ConfirmedAdjustmentSource` thành UNAVAILABLE (fail-closed,
+# DEC-144 §3) cho MỌI dòng thay vì chỉ những dòng vốn đã Pending vì thiếu
+# giá, kéo theo `eligible_kpi_profit = None` toàn bộ và AUTO = 0 dù đúng
+# workbook đã accepted có 22 AUTO order (xem `tests/
+# test_deployment_canonical_data_packaging.py`). Repo `.gitignore` đã loại
+# mọi thư mục con runtime/PII thật của `data/` (`samples/`, `uploads/`,
+# `exports/`, `beta_feedback/`, `web_runs/`, `tracking_live_tmp/`) nên
+# `COPY data ./data` chỉ mang đúng 3 file nhỏ đã commit — không đổi
+# S071B stateless (đây là input tĩnh đọc-only, không phải state runtime).
 #
 # S071B: KHÔNG cần volume persistent nào nữa. Registry run + artifact .xlsx
 # sống trên Cloudflare R2 (app/web/storage_backend.py, tools/storage/
@@ -39,12 +55,15 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY tools ./tools
 COPY config ./config
+COPY data ./data
 
 RUN pip install --no-cache-dir ".[web-prod]"
 
-# Chỉ scratch space cục bộ cho một lần chạy (upload tạm, artifact tạm trước
-# khi upload lên R2, tracking pull-on-run tạm) — KHÔNG cần sống qua restart.
-RUN mkdir -p /app/data /app/outputs/reports
+# mkdir -p không ghi đè data/ đã COPY ở trên — chỉ đảm bảo outputs/reports/
+# (artifact tạm trước khi upload R2) có sẵn; data/uploads, data/
+# tracking_live_tmp là scratch cho một lần chạy, tự mkdir lúc runtime
+# (app/web/server.py, tools/tracking/live_pull.py), không cần tạo trước.
+RUN mkdir -p /app/outputs/reports
 
 ENV PORT=8080
 EXPOSE 8080

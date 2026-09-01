@@ -1,0 +1,21 @@
+# Bound `COPY data ./data` (Dockerfile) — chỉ mang đúng 3 file canonical
+# committed nhỏ (data/confirmed_adjustments/, data/historical_confirmed/,
+# data/product_identity/), không bao giờ dữ liệu thật/PII hay state runtime
+# của một lần triển khai cụ thể, kể cả khi build context không phải một git
+# clone sạch. Cùng danh sách với .gitignore — xem
+# governance/product/17_DATA_GOVERNANCE_PRIVACY.md.
+data/samples/
+data/uploads/
+data/exports/
+data/beta_feedback/
+data/web_runs/
+data/tracking_live_tmp/
+*.jsonl.lock
+*.xlsx
+
+.git/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
