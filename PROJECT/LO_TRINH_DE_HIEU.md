@@ -42,16 +42,18 @@ toàn (10 dòng); 53 đơn vẫn vào hàng kiểm tra (73 dòng) vì chưa đ�
 
 ## ĐANG CHỜ
 
-**Cần thêm bằng chứng nhận dạng sản phẩm.** 70 dòng chưa có identity đủ chắc
-chắn để tra giá; hệ thống giữ chúng trong hàng kiểm tra thay vì đoán. Một dòng
-khác không có giá tại mốc baseline. Đây không phải lý do để lấy giá hiện tại
-điền ngược về quá khứ.
+**Cần thêm bằng chứng nhận dạng sản phẩm.** 70 dòng tương ứng 50 loại hàng
+khác nhau chưa có identity đủ chắc chắn để tra giá. Catalog đã được kiểm là
+đầy đủ về trạng thái, nhưng chỉ cho gợi ý giống tên chứ không có candidate an
+toàn để xác nhận; hệ thống giữ chúng trong hàng kiểm tra thay vì đoán. Một
+dòng khác không có giá tại mốc baseline. Đây không phải lý do để lấy giá hiện
+tại điền ngược về quá khứ.
 
 ## SAU KHI OWNER QUYẾT ĐỊNH
 
-Xác nhận identity theo luồng mapping hiện có → chạy lại đúng cohort thật → đo
-lại AUTO / Review Queue. Không tự điền giá hay dùng fixture để tăng tỷ lệ
-AUTO.
+Bổ sung evidence identity authoritative cho sản phẩm có thật → xác nhận qua
+luồng mapping hiện có → chạy lại đúng cohort thật → đo lại AUTO / Review
+Queue. Không tự điền giá hay dùng fixture để tăng tỷ lệ AUTO.
 
 ## CÓ THỂ LÀM LÚC RẢNH
 

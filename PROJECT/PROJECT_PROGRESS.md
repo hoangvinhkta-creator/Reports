@@ -29,15 +29,20 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   exact identity + strict history reader. Cohort 58 đơn / 83 dòng đạt 5 AUTO
   đơn / 10 AUTO dòng, 53 Review Queue đơn / 73 dòng, accounting coverage
   100% và zero silent-error candidate.
-- Blocker hiện tại là evidence identity: 70 dòng chưa có authoritative product
-  identity; một dòng thiếu baseline price. Pending giữ nguyên, không backfill
-  current PP và không suy đoán identity. Xem hồ sơ sanitized S068.
+- Vertical identity tiếp theo đã gom 70 dòng này thành 50 accounting product
+  duy nhất: toàn bộ chỉ có similarity evidence, không có candidate
+  deterministic/ambiguous hay existing mapping bị bỏ sót. Catalog COMPLETE và
+  runtime store đã được kiểm, nên đây là `DATA_IDENTITY_MISSING`, không phải
+  local repair. Một dòng riêng thiếu baseline price. Pending giữ nguyên,
+  không backfill current PP và không suy đoán identity. Xem hồ sơ sanitized
+  S068.
 
 ### WAITING_EXTERNAL
 
-- Không có blocker authority/cutover còn mở cho S068. Nếu Owner muốn tăng
-  coverage, cần xác nhận identity authoritative theo luồng mapping hiện có;
-  không dùng giá tồn kho, giá vendor lịch sử hoặc current PP thay thế.
+- Không có blocker authority/cutover còn mở cho S068. Muốn tăng coverage cần
+  evidence identity authoritative mới; không có candidate credible để yêu cầu
+  Owner bấm confirm trong cohort này. Không dùng giá tồn kho, giá vendor lịch
+  sử hoặc current PP thay thế.
 
 ### DO_WHEN_IDLE
 

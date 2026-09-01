@@ -114,9 +114,41 @@ REMOTE_PUSHED=NO
 ```
 
 `TEST_PP_AUTH_001` không cần có trong catalog hiện tại và không được tạo lại.
-Bước vertical tiếp theo là xác nhận identity authoritative cho 70 dòng Pending
-qua luồng mapping/confirmation hiện có; không dùng fixture hoặc giá hiện tại
-để thay thế cohort thật.
+Bước vertical tiếp theo là bổ sung evidence identity authoritative rồi mới
+xác nhận qua luồng mapping hiện có; không dùng fixture hoặc giá hiện tại để
+thay thế cohort thật.
+
+## Tiếp Tục S068 — Product Identity Vertical
+
+Phân tích chỉ đọc của đúng workbook và đúng catalog Owner workflow cho thấy
+70 dòng Pending tương ứng 50 accounting product identity duy nhất. Cả 70 dòng
+đều chỉ có similarity-ranked evidence; không có exact alias, mapping CONFIRMED,
+candidate deterministic, ambiguity hay stale target để Owner xác nhận an toàn.
+Catalog được chọn là COMPLETE (3.503 product present, 1.303 alias), và mapping
+store runtime đã được nạp tại revision 1. Vì vậy đây là thiếu evidence identity
+ở cấp dữ liệu, không phải normalization/routing/local loading defect.
+
+```text
+UNRESOLVED_LINES_BEFORE=70
+UNIQUE_UNRESOLVED_ACCOUNTING_PRODUCTS=50
+A_EXISTING_MAPPING_NOT_LOADED=0
+B_DETERMINISTIC_NORMALIZATION_GAP=0
+C_UNIQUE_CANDIDATE_NEEDS_CONFIRMATION=0
+D_MULTIPLE_CANDIDATES=0
+E_NO_TRACKING_PRODUCT_FOUND=70
+F_CATALOG_INCOMPLETE=0
+G_OTHER=0
+LOCAL_REPAIR_PERFORMED=NO
+OWNER_CONFIRMATION_UNIQUE_PRODUCTS=0
+VERDICT=DATA_IDENTITY_MISSING
+```
+
+Hai `ERROR` đều là `Suspicious`: giá nhập authoritative cao hơn giá bán trên
+một dòng. Cả hai đơn vẫn accounted, không drop, không silent; finding này
+không do product identity unresolved tạo ra và không phải local software defect.
+Không có repair nên không đo lại cohort để tránh tạo thêm artifact không cần.
+Bước cần thiết là bổ sung evidence identity authoritative hoặc alias/mapping
+đã được Owner xác nhận cho từng product thực sự có bằng chứng, rồi mới rerun.
 
 ## Git Safety
 
