@@ -32,24 +32,28 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
   đúng vào luồng Demo V1.
 - Đối chiếu trạng thái giao hàng canonical giữa tài liệu kỹ thuật và bản cho
   Owner.
+- S069 Beta Operator UI + Feedback: đã merge vào bản canonical sau khi soát
+  xét độc lập PASS — xem chi tiết ngay dưới đây.
 
-## ĐANG LÀM
-
-**S069 — Beta Operator UI + Feedback, nhánh `s069/beta-operator-ui`, chưa
-gộp vào bản canonical, chờ soát xét độc lập.** Cửa sổ chạy báo cáo (giống
-Owner Usability V1) nay hiện thêm: dữ liệu Tracking sẵn sàng hay chưa, số
-Lỗi, danh sách lý do cần xem lại theo đúng tên gọi hệ thống dùng, nút mở
-báo cáo Excel bấm lại được nhiều lần, và một nút "Gửi phản hồi" nhỏ lưu
-ngay trên máy (không gửi đi đâu). Mỗi lần chạy thành công cũng tự ghi lại
-vài con số tổng hợp (bao nhiêu đơn, AUTO, cần xem, lỗi) trên máy, để sau
-Beta biết thật sự công cụ đang được dùng ra sao — không ghi tên khách,
-số điện thoại, giá cả hay bất kỳ dữ liệu nhạy cảm nào. Khi audit lại cửa sổ
-cũ, phát hiện nó **chưa từng dùng** nguồn `inv.map` mà mục dưới đây nói đã
-duyệt — nghĩa là trước S069, bấm chạy báo cáo thật ra vẫn cho ra kết quả CŨ
-(hầu như mọi đơn đều "cần xem lại"), không phải kết quả đã duyệt (22 đơn tự
-động). S069 đã nối đúng nguồn đó vào cửa sổ; chạy lại trên đúng dữ liệu
-thật cho ra lại đúng **22 đơn tự động / 36 đơn cần xem lại**, khớp con số
-đã duyệt.
+**S069 — Beta Operator UI + Feedback, nhánh `s069/beta-operator-ui`, ĐÃ GỘP
+vào bản canonical sau khi soát xét độc lập PASS (2026-09-01).** Cửa sổ chạy
+báo cáo (giống Owner Usability V1) nay hiện thêm: dữ liệu Tracking có capture
+hợp lệ trên máy hay chưa, số dòng cần ưu tiên xem trước, danh sách lý do cần
+xem lại theo đúng tên gọi hệ thống dùng, nút mở báo cáo Excel bấm lại được
+nhiều lần, và một nút "Gửi phản hồi" nhỏ lưu ngay trên máy (không gửi đi
+đâu). Mỗi lần chạy thành công cũng tự ghi lại vài con số tổng hợp (bao nhiêu
+đơn, AUTO, cần xem, ưu tiên xem trước) trên máy, để sau Beta biết thật sự
+công cụ đang được dùng ra sao — không ghi tên khách, số điện thoại, giá cả
+hay bất kỳ dữ liệu nhạy cảm nào. Khi audit lại cửa sổ cũ, phát hiện nó
+**chưa từng dùng** nguồn `inv.map` mà mục dưới đây nói đã duyệt — nghĩa là
+trước S069, bấm chạy báo cáo thật ra vẫn cho ra kết quả CŨ (hầu như mọi đơn
+đều "cần xem lại"), không phải kết quả đã duyệt (22 đơn tự động). S069 đã
+nối đúng nguồn đó vào cửa sổ; chạy lại trên đúng dữ liệu thật cho ra lại
+đúng **22 đơn tự động / 36 đơn cần xem lại**, khớp con số đã duyệt. Soát
+xét độc lập sau đó chạy lại một lần nữa, độc lập, cho kết quả khớp tuyệt
+đối, và sửa 3 chỗ chữ hiển thị nhỏ cho đúng nghĩa hơn (không đổi cách tính
+gì) — ví dụ số hiển thị trước đây gọi là "Lỗi" thực ra là mức ưu tiên đọc
+trước, không phải báo lỗi phần mềm.
 
 **Internal Beta review — nhánh `s068/inv-map-vertical`, đã gộp vào bản
 canonical (`claude/extract-upload-repo-gq2ws4`) qua checkpoint
@@ -63,6 +67,11 @@ lặng. Kết quả: **22 đơn / 23 dòng tự động hoàn tất** (tăng t�
 dòng còn vào hàng kiểm tra. Toàn bộ kiểm tra tự động (1349 trường hợp) và
 việc chạy lại trên dữ liệu thật đã được xác nhận độc lập hai lần trong cùng
 đợt review này.
+
+## ĐANG LÀM
+
+Không có việc engineering nào đang mở. Giai đoạn tiếp theo là **dùng thật**
+(xem "SAU KHI OWNER QUYẾT ĐỊNH" và mục bên dưới) — không phải viết thêm code.
 
 ## ĐANG CHỜ
 
@@ -80,6 +89,19 @@ chứng: cả 13 mặt hàng còn Pending phía trên đều khớp đúng kịc
 thống vẫn AN TOÀN — những dòng này chỉ nằm chờ kiểm tra, không bao giờ tự
 động hoàn tất sai. Đây là giới hạn đã biết, CHỈ MỞ LẠI SAU BETA nếu dùng thực
 tế cho thấy việc này xảy ra đủ thường xuyên để đáng làm.
+
+**Nếu Tracking sửa lại một mã sản phẩm đã gán trước đó (không phải gán mới),
+Reports có thể chưa biết ngay** — vì Reports chỉ đọc một bản chụp (capture)
+dữ liệu Tracking tại một thời điểm, không tự động cập nhật liên tục. Đây là
+cách hệ thống đã hoạt động từ trước (áp dụng cho cả 3 nguồn mã sản phẩm:
+`alias.map`, `board`, và `inv.map` mới thêm ở S068), không phải lỗi mới của
+S069. Soát xét độc lập khi gộp S069 phát hiện: trường hợp này khác trường
+hợp phía trên — nếu xảy ra, đơn đó có thể bị đánh dấu "tự động hoàn tất"
+bằng mã CŨ đã bị Tracking sửa, chứ không rơi vào hàng kiểm tra an toàn.
+Xác suất xảy ra rất thấp (Tracking phải SỬA một mã đã duyệt, đúng lúc giữa
+hai lần Reports lấy dữ liệu, đúng trên một đơn đang bán) và tới nay chưa có
+bằng chứng nào cho thấy đã xảy ra. CHỈ MỞ LẠI nếu Owner phát hiện một đơn
+"tự động hoàn tất" sai thật sự do nguyên nhân này.
 
 ## SAU KHI OWNER QUYẾT ĐỊNH
 
