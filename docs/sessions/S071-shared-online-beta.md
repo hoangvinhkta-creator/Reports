@@ -446,7 +446,7 @@ S071_DEPLOYMENT_GATE = HOSTING_SELECTED_AND_CONFIGURED, NOT_PROVISIONED (giới 
 
 GIT_BRANCH = claude/s071-shared-online-beta-inydpg
 HEAD_BEFORE = 25413f2ed291efc01935bf6aedb702e5782a65a5
-HEAD_AFTER = <ghi ở commit cuối cùng của follow-up này — xem git log>
+HEAD_AFTER = c36972b19af830457178589c25387adb65d16903
 
 HOSTING_OPTIONS = Render (Web Service+Disk) / Fly.io (Machines+Volume) / VPS thô (Hetzner/DO+Docker tay) — bảng so sánh đầy đủ tại docs/deployment/S071_DEPLOYMENT.md
 SELECTED_HOSTING = Render — Web Service, runtime Docker, plan Starter + 1GB Disk
@@ -490,7 +490,7 @@ OWNER_PAYMENT_REQUIRED = YES — Render Starter + Disk, ~US$7–10/tháng, xem S
 OWNER_ACTION_REQUIRED = 6 bước chính xác tại docs/deployment/S071_DEPLOYMENT.md "Việc Owner cần làm" — tạo tài khoản Render, Deploy Blueprint, dán TRACKING_REPORT_API_KEY thật, trỏ Cloudflare CNAME, gắn Custom Domain, tạo Cloudflare Access Application
 
 FILES_CHANGED = Dockerfile, app/web/run_registry.py, app/web/server.py, docs/deployment/S071_DEPLOYMENT.md, render.yaml (mới), tests/test_web_data_root.py (mới)
-DEPLOYMENT_SHA = <= HEAD_AFTER, xem trên>
+DEPLOYMENT_SHA = c36972b19af830457178589c25387adb65d16903 (commit này chỉnh lại 2 placeholder SHA trong chính tài liệu — sẽ có một SHA kế tiếp)
 REMOTE_BRANCH = claude/s071-shared-online-beta-inydpg
 
 RELEASE_BLOCKERS = tài khoản+thanh toán Render (Owner); secret TRACKING_REPORT_API_KEY thật; Cloudflare Access application; DNS thật — không còn blocker code/kiến trúc nào
