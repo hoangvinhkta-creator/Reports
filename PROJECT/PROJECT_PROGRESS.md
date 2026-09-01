@@ -20,35 +20,94 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 - Demo V1: thin CLI, XLSX Summary / Order Lines / Review Queue.
 - Owner Usability V1: native macOS picker và luồng double-click
   `Open Reports.command` đi vào production path của Demo V1.
+- S068 identity authority vertical (nhánh `s068/inv-map-vertical`, checkpoint
+  `f8d3ffc3c2071a33f2818664713c62da9cfe176f`): `inv.map` của Tracking được
+  consume làm authority THỨ HAI, cùng cấp `alias.map`/`board` — xem chi tiết
+  dưới CURRENT.
 
 ### CURRENT
 
-- S068 đã hoàn tất cohort thật 2026-08-31 theo Owner decision: 01/09/2026 là
-  cutover kỹ thuật, không tự cấm Reports consult Public Purchase evidence.
-  Repair routing tối thiểu giữ registry lịch sử CONFIRMED ưu tiên và strict
-  history/baseline temporal validation.
-- Owner tiếp tục xác nhận Tracking là identity authority. Production Reports
-  nay chỉ resolve `normalized_code → alias.map (nếu có) → board[canonical]`;
-  không dùng display `name`/`alt`, fuzzy/substrings hay Reports-only mapping
-  store để suy ra identity. Hai endpoint đã nằm trong capture/catalog accepted;
-  không có Tracking change hay acquisition failure.
-- Đo đúng 50 accounting product unresolved: confirmed alias `0`, canonical
-  exact `0`, approved deterministic code available `0` (70 dòng); đây không
-  phải acquisition unknown. Rerun cohort thật 58 đơn / 83 dòng: AUTO `0/0`,
-  Review Queue `58/83`, Error `0`, accounting coverage `100%`, silent error
-  `0`. 10 AUTO lines của phép
-  đo cũ đã được trace: cả 10 là `board.name`/`board.alt` display match, không
-  phải exact canonical/confirmed alias; không có approved Reports code
-  extraction để thay thế. Vì vậy chúng không hợp lệ dưới contract Owner mới
-  và được giữ Pending/queued trung thực. Xem hồ sơ sanitized S068.
+- **S068 — Internal Beta review (checkpoint `f8d3ffc3c2071a33f2818664713c62da9cfe176f`,
+  nhánh `s068/inv-map-vertical`, chưa merge canonical).** Owner xác nhận
+  `inv.map` (bảng do người của Tracking duyệt, khoá bằng câu tên hàng kế toán
+  đầy đủ đã `normCode()`) là authority cùng cấp `alias.map` — không còn
+  candidate-tier, không cần `confirmation_action` thứ hai từ Reports.
+  `ProductIdentityResolver` mở rộng: thử `alias.map`/`board` (khoá mã) trước,
+  MISS thì thử `inv.map` (khoá câu tên hàng); `"-"` = Ignore đã người xác
+  nhận (`PendingReason.TRACKING_INV_MAP_EXPLICIT_IGNORE`); target hết hợp lệ
+  trong `board` = Pending (`MAPPING_STALE_TARGET_ABSENT`, tái dùng lý do có
+  sẵn); khoá vắng mặt = Pending như MISS gốc. Không fuzzy, không substring,
+  không `board.name`/`board.alt`, không `extractCode()`.
+  Acquisition: `tools/tracking/capture_inv_map.py` (mới), đọc
+  `GET /api/xuat/inv_map`, cùng credential/fail-safe/`INV-12` với
+  board/alias/PPH; production đã capture thật COMPLETE, 468 entries, 18
+  explicit Ignore.
+  Rerun cohort thật 2026-08-31 (58 đơn / 83 dòng), độc lập tái xác nhận hai
+  lần (implementation + Internal Beta review), cùng một kết quả: **AUTO
+  22 đơn / 23 dòng** (từ `0/0`), Review Queue 36 đơn / 60 dòng, Error `0`,
+  Dropped `0`, accounting coverage `100%`, silent error candidates `0`.
+  52 dòng resolve identity qua `inv.map` (39 có giá đầy đủ qua
+  `TrackingHistoryPriceProvider` hiện có — không current-PP backfill, không
+  suy đoán temporal; 13 dòng identity đã có nhưng PP evidence chưa phủ ngày
+  bán, giữ Pending trung thực). 31 dòng còn `IDENTITY_UNRESOLVED` — 19 unique
+  mô tả chưa có khoá `inv.map`: 13 là sản phẩm thật (đã chuẩn bị candidate
+  gợi ý không-authority cho Owner), 6 là dòng chi phí/dịch vụ (KHÔNG đưa vào
+  hành động classify sản phẩm — xem finding riêng dưới).
+  Focused/affected/full regression tái xác nhận độc lập tại review: `1349
+  passed, 11 skipped` (11 skip là ngoại lệ môi trường đã biết, không đổi từ
+  trước vertical này).
+  Backend/security review (Internal Beta gate, phiên này): Reports không có
+  frontend/server network split của riêng nó (CLI + cửa sổ Tkinter cục bộ,
+  cùng tiến trình tin cậy với logic nghiệp vụ) — ranh giới tin cậy THẬT DUY
+  NHẤT là Reports (client) ↔ Tracking `/api/xuat/*` (server), và ranh giới đó
+  giữ nguyên: chỉ `GET`, danh sách node đóng, credential chỉ qua biến môi
+  trường/header (không log/không persist/không hardcode — có test xác nhận),
+  fail-closed trên mọi hình dạng lạ. Không có write path Reports→Tracking
+  (`grep` xác nhận 0 lệnh `PUT/POST/PATCH/.push/.set/.update` trong toàn bộ
+  `tools/tracking/`). `PriceResolutionRecord.__post_init__` là bất biến cứng
+  chặn RESOLVED-thiếu-giá và PENDING-mang-giá ở tầng dữ liệu, không chỉ tầng
+  hiển thị. `data/captures/`, `data/tracking_catalog/`, `data/tracking_inv_map/`,
+  `data/tracking_price_history/` là runtime evidence thật, cố ý KHÔNG commit
+  (kỷ luật thao tác, không phải `.gitignore` pattern — xem DEFERRED).
+
+### DEFERRED FINDING — Product Identity Discovery Gap (S068 follow-up audit)
+
+- **Case:** một sản phẩm nhập → bán hết trong ngày → tồn cuối kỳ = 0. Nguồn
+  discovery DUY NHẤT đã audit cho `inv.map` (khoá bằng câu tên hàng đầy đủ)
+  là file "tồn kho" Owner tải lên (`invNameKey()`/`invRowKey()` khoá theo
+  đúng dòng trong file đó — xác nhận trên `origin/main` Tracking thật,
+  commit `9ede079413065ae0beef2c3ae005d332d8d92eca`). Một SKU không xuất
+  hiện dòng dương trong lần tải "tồn" gần nhất sẽ không bao giờ sinh khoá
+  `inv.map`, dù `board` có thể đã biết SKU đó qua một đường khác. `dnhap`
+  (nhánh RTDB khác) ĐÃ audit và loại trừ hoàn toàn — đó là nhật ký đăng nhập
+  thiết bị lạ, không mang trường sản phẩm nào (`{t, email, may}`), không
+  liên quan Product Identity.
+- **Bằng chứng thật, cohort 2026-08-31:** 13/13 mô tả kế toán "chưa
+  classify" đều có mã ứng viên ĐÃ tồn tại trong `board` (present_in_board
+  =true) nhưng KHÔNG có key `inv.map` và 0 hoạt động giá
+  (`purchase_price_baseline`/`history` trống cho cả 13 mã) — khớp hồ sơ
+  "sản phẩm hiếm, không nhập lại", đúng kịch bản Owner mô tả.
+- **STATUS = DEFERRED_KNOWN_LIMITATION.**
+- **BETA_BLOCKER = NO** — hệ thống fail-safe đúng: các dòng này ở Pending
+  trung thực (Review Queue), không AUTO sai, không mất dòng, không giả giá.
+- **REOPEN CONDITION:** chỉ mở lại sau Beta nếu dữ liệu sử dụng thực tế
+  chứng minh việc phân loại các mã kiểu này xảy ra đủ thường xuyên và tạo
+  workload tay đáng kể.
+- **KHÔNG implement trước Beta:** Persistent Identity Inbox, Tracking
+  discovery pipeline mới, workaround sales-quantity→inventory, fuzzy
+  identity authority, generic MDM, event architecture. Phương án khả dĩ đã
+  audit (Reports export mô tả chưa-classify + SL đã bán → Owner tự tải vào
+  đúng nút "Tải file tồn" có sẵn của Tracking) vẫn CHƯA implement vì cần
+  Owner chấp nhận rủi ro ý nghĩa dữ liệu (số hiển thị tạm thời trên màn Tồn
+  kho là "đã bán" chứ không phải "đang tồn") — một quyết định nghiệp vụ,
+  không phải một sửa code trung lập.
 
 ### WAITING_EXTERNAL
 
 - Không có blocker authority/cutover hay acquisition còn mở cho S068. Muốn
-  tăng coverage cần Tracking persist confirmed alias hoặc canonical exact cho
-  accounting product thật; hiện 50 product / 70 lines cũ không có identity
-  authority. Không dùng display match, giá tồn kho, giá vendor lịch sử hoặc
-  current PP thay thế.
+  tăng coverage cho 13 sản phẩm thật còn Pending, cần Owner classify qua
+  Tracking workflow hiện có (đã chuẩn bị candidate gợi ý — không phải
+  authority) hoặc Owner quyết định về DEFERRED FINDING ở trên.
 
 ### DO_WHEN_IDLE
 
@@ -56,6 +115,10 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   khi Owner chọn điều khoản license. Việc này độc lập với capture, không đổi
   business rules, và là hạng mục maintenance/governance còn lại đã được tài
   liệu hóa có đủ giá trị.
+- (Low-severity, không chặn Beta) `data/captures/`, `data/tracking_catalog/`,
+  `data/tracking_inv_map/`, `data/tracking_price_history/` hiện chỉ tránh
+  commit bằng kỷ luật thao tác ("không `git add .`"), không bằng
+  `.gitignore` pattern tường minh — có thể thêm pattern phòng vệ khi rảnh.
 
 ### DEFERRED
 
@@ -65,6 +128,8 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 - Signed macOS installer.
 - Styling/polish.
 - Low-value hardening không chặn kết quả thật.
+- Product Identity Discovery Gap (A1/zero-stock) — xem khối riêng ở trên,
+  KHÔNG được coi là đã đóng.
 
 ## Reports Demo V1 — đã triển khai (2026-08-31)
 

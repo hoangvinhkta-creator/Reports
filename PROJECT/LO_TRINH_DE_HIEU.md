@@ -35,28 +35,39 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
 ## ĐANG LÀM
 
-**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Đã chạy lại
-cohort thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chiếu, không mất
-đơn và không có lỗi im lặng máy phát hiện được. Theo contract Owner mới,
-Reports chỉ chấp nhận mã canonical chính xác hoặc alias đã Tracking xác nhận;
-không đoán từ tên hàng. Kết quả hiện là 0 đơn tự động hoàn toàn và 58 đơn vào
-hàng kiểm tra (83 dòng), vì không có mã/alias authority cho cohort này.
-Mười dòng từng tự động được kiểm tra lại: chúng chỉ khớp tên hiển thị/alias
-hiển thị trong catalog, không phải mã authoritative, nên không được khôi phục.
+**Internal Beta review — nhánh `s068/inv-map-vertical`, chưa gộp vào bản
+canonical.** Owner xác nhận thêm: `inv.map` của Tracking (bảng người của
+Tracking gán câu tên hàng kế toán → mã sản phẩm) cũng là authority, cùng cấp
+với alias đã xác nhận trước đây — không cần Owner xác nhận lại lần hai bên
+Reports. Sau khi Reports đọc thêm nguồn này, chạy lại đúng cohort thật ngày
+2026-08-31: 58 đơn / 83 dòng vẫn đối chiếu đủ, không mất đơn, không lỗi im
+lặng. Kết quả: **22 đơn / 23 dòng tự động hoàn tất** (tăng từ 0), 36 đơn / 60
+dòng còn vào hàng kiểm tra. Toàn bộ kiểm tra tự động (1349 trường hợp) và
+việc chạy lại trên dữ liệu thật đã được xác nhận độc lập hai lần trong cùng
+đợt review này.
 
 ## ĐANG CHỜ
 
-**Cần Tracking xác nhận mã sản phẩm.** Trong 50 loại hàng / 70 dòng unresolved
-ban đầu, không loại nào có alias xác nhận hay mã canonical chính xác; đây
-không phải lỗi tải dữ liệu. Tên gần giống chỉ để hiển thị/audit, không phải lý
-do để đoán. Hệ thống giữ hàng trong hàng kiểm tra thay vì điền giá hiện tại
-ngược về quá khứ.
+**Cần Owner phân loại 13 mặt hàng thật còn lại** (đã có gợi ý mã khả dĩ từ
+Tracking, KHÔNG phải quyết định thay Owner) qua đúng màn hình Tracking hiện
+có. 6 dòng còn lại trong hàng kiểm tra là chi phí/dịch vụ (vận chuyển, lắp
+đặt...) — không phải sản phẩm, cố tình KHÔNG đưa vào việc phân loại này.
+
+## PHÁT HIỆN ĐÃ GHI NHẬN, CHƯA XỬ LÝ (không chặn Beta)
+
+**Sản phẩm nhập rồi bán hết ngay trong ngày có thể không được Tracking "thấy"
+để phân loại** — vì cách Tracking phát hiện sản phẩm mới hiện dựa vào file
+tồn kho cuối ngày; hàng bán hết sẽ không còn dòng nào trong file đó. Đã kiểm
+chứng: cả 13 mặt hàng còn Pending phía trên đều khớp đúng kịch bản này. Hệ
+thống vẫn AN TOÀN — những dòng này chỉ nằm chờ kiểm tra, không bao giờ tự
+động hoàn tất sai. Đây là giới hạn đã biết, CHỈ MỞ LẠI SAU BETA nếu dùng thực
+tế cho thấy việc này xảy ra đủ thường xuyên để đáng làm.
 
 ## SAU KHI OWNER QUYẾT ĐỊNH
 
-Tracking persist alias đã xác nhận hoặc canonical exact cho sản phẩm có thật
-→ chạy lại đúng cohort thật → đo lại AUTO / Review Queue. Không tự điền giá,
-dùng display matching hay fixture để tăng tỷ lệ AUTO.
+Owner phân loại xong (hoặc một phần) 13 mặt hàng → chạy lại đúng cohort thật
+→ đo lại AUTO / Review Queue. Không tự điền giá, dùng display matching hay
+fixture để tăng tỷ lệ AUTO.
 
 ## CÓ THỂ LÀM LÚC RẢNH
 
