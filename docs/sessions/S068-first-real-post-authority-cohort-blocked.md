@@ -71,7 +71,8 @@ legacy mode; Owner workflow/load production vẫn strict Tracking authority.
 UNIQUE_PREVIOUSLY_UNRESOLVED=50
 KNOWN_TO_TRACKING_AS_CONFIRMED_ALIAS=0
 KNOWN_CANONICAL_EXACT=0
-GENUINELY_UNCLASSIFIED=50
+TRULY_UNCLASSIFIED_IN_TRACKING=0
+NO_DETERMINISTIC_CODE_AVAILABLE=50
 UNKNOWN_DUE_TO_DATA_ACQUISITION=0
 LINES_RESOLVED_BY_ALIAS=0
 LINES_RESOLVED_BY_CANONICAL_EXACT=0
@@ -79,9 +80,9 @@ LINES_STILL_IDENTITY_PENDING=70
 ```
 
 Trên toàn cohort, 60 unique accounting product / 83 lines đều không có exact
-canonical hay confirmed alias. Vì vậy 10 AUTO lines của phép đo trước contract
-mới đã không còn hợp lệ: chúng phụ thuộc display-name/`alt` matching và phải
-trở thành Pending an toàn.
+canonical hay confirmed alias khi dùng input identity đã được architecture cho
+phép. Vì vậy 10 AUTO lines của phép đo trước contract mới đã không còn hợp lệ:
+chúng phụ thuộc display-name/`alt` matching và phải trở thành Pending an toàn.
 
 ## Cohort Thật Rerun
 
@@ -111,6 +112,44 @@ Top queue reason: `IDENTITY_UNRESOLVED` + `Missing.PurchasePrice` covers all
 `EmployeeMapping`. Các reason này đều hiện trong Review Queue, nên không là
 silent error. Top blocker là thiếu exact Tracking canonical/confirmed alias
 cho cohort thật, không phải acquisition, PP temporal gate hay local loader.
+
+## Reconciliation: 10 AUTO Lines Trước Identity Consumer
+
+Trace đọc lại đường legacy trên cùng workbook/capture cho thấy 12 dòng từng
+được resolve giá; 10 trong số đó mang line status `AUTO`. Cả 10 dùng
+`CATALOG_EXACT_UNIQUE` nhưng exact hit ở `board.name` hoặc `board.alt`, không
+phải exact board key hay `alias.map`. Sau hit này, cả 10 đều dùng
+`TRACKING_PRICE_HISTORY` / `TRACKING_HISTORY_AUTHORITY`; temporal PP evidence
+không phải nguyên nhân thay đổi.
+
+| Nhóm old hit | AUTO lines | Canonical code cũ |
+|---|---:|---|
+| `TRACKING_ALT` display match | 5 | `43F6000`, `WB700VGV4GBK` (2), `RT236WEPMV68`, `WB700PGV4GBK` |
+| `TRACKING_NAME` display match | 5 | `TIVI` (2), `E2500`, `E95`, `INOX` |
+
+Strict consumer mới nhận full normalized accounting display làm lookup value.
+Không có giá trị nào trong 10 giá trị ấy là key của `alias.map` hay exact key
+của `board`, nên alias fallback về chính display text và `board` từ chối đúng.
+Đây không phải lost authoritative identity: `name`/`alt` đã được Owner chỉ
+định là display/audit, không phải identity inference.
+
+Không có deterministic Reports parser đã được chấp nhận để rút model code từ
+tên hàng. Hồ sơ architecture xác nhận `extractCode()` từng bị bỏ vì đoán sai;
+không được tái lập. Với đúng 50 product / 70 lines legacy unresolved, kết quả
+sau recheck là `KNOWN_CONFIRMED_ALIAS=0`, `KNOWN_CANONICAL_EXACT=0`,
+`NO_DETERMINISTIC_CODE_AVAILABLE=50`, `TRULY_UNCLASSIFIED_IN_TRACKING=0`.
+Trên toàn cohort, strict Pending là 60 unique product / 83 lines.
+
+```text
+OLD_AUTO_CLASSIFICATION:
+A_AUTHORITATIVE_EXACT=0
+B_AUTHORITATIVE_ALIAS=0
+C_NON_AUTHORITATIVE_HEURISTIC=10
+D_OTHERWISE_INVALID=0
+E_OTHER=0
+EXISTING_DETERMINISTIC_CODE_EXTRACTION_EXISTS=NO
+EXTRACTION_BUSINESS_RULE_CHANGED=NO
+```
 
 ## Regression Và Trạng Thái
 

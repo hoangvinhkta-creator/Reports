@@ -41,6 +41,8 @@ cohort thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chi�
 Reports chỉ chấp nhận mã canonical chính xác hoặc alias đã Tracking xác nhận;
 không đoán từ tên hàng. Kết quả hiện là 0 đơn tự động hoàn toàn và 58 đơn vào
 hàng kiểm tra (83 dòng), vì không có mã/alias authority cho cohort này.
+Mười dòng từng tự động được kiểm tra lại: chúng chỉ khớp tên hiển thị/alias
+hiển thị trong catalog, không phải mã authoritative, nên không được khôi phục.
 
 ## ĐANG CHỜ
 

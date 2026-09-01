@@ -33,11 +33,14 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   store để suy ra identity. Hai endpoint đã nằm trong capture/catalog accepted;
   không có Tracking change hay acquisition failure.
 - Đo đúng 50 accounting product unresolved: confirmed alias `0`, canonical
-  exact `0`, genuinely unclassified `50`, acquisition unknown `0` (70 dòng).
-  Rerun cohort thật 58 đơn / 83 dòng: AUTO `0/0`, Review Queue `58/83`, Error
-  `0`, accounting coverage `100%`, silent error `0`. 10 AUTO lines của phép
-  đo cũ đã dựa vào display matching nên không hợp lệ dưới contract Owner mới;
-  tất cả được giữ Pending/queued trung thực. Xem hồ sơ sanitized S068.
+  exact `0`, approved deterministic code available `0` (70 dòng); đây không
+  phải acquisition unknown. Rerun cohort thật 58 đơn / 83 dòng: AUTO `0/0`,
+  Review Queue `58/83`, Error `0`, accounting coverage `100%`, silent error
+  `0`. 10 AUTO lines của phép
+  đo cũ đã được trace: cả 10 là `board.name`/`board.alt` display match, không
+  phải exact canonical/confirmed alias; không có approved Reports code
+  extraction để thay thế. Vì vậy chúng không hợp lệ dưới contract Owner mới
+  và được giữ Pending/queued trung thực. Xem hồ sơ sanitized S068.
 
 ### WAITING_EXTERNAL
 
