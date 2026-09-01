@@ -70,8 +70,20 @@ việc chạy lại trên dữ liệu thật đã được xác nhận độc l�
 
 ## ĐANG LÀM
 
-Không có việc engineering nào đang mở. Giai đoạn tiếp theo là **dùng thật**
-(xem "SAU KHI OWNER QUYẾT ĐỊNH" và mục bên dưới) — không phải viết thêm code.
+**S070 — Web Beta V1, nhánh `s070/web-beta-v1`, ĐANG CHỜ soát xét độc lập,
+CHƯA gộp vào bản canonical.** Đây là một cách mở khác để chạy đúng báo cáo
+đã duyệt — mở trình duyệt trên chính máy Owner (double-click file "Open
+Reports Web.command"), chọn workbook, bấm chạy, xem đúng những con số và
+đúng nút bấm như cửa sổ Tkinter hiện có (Tổng đơn/AUTO/Cần xem lại/Ưu tiên
+xem ngay/Accounting coverage, tải Excel, gửi phản hồi) — không phải một
+công cụ tính toán khác, chỉ là một cửa vào khác cho cùng một engine. Đã tự
+kiểm chứng: chạy cùng workbook thật qua cả hai cửa (Tkinter và trình duyệt)
+cho ra đúng cùng một con số, file Excel tải về khớp tuyệt đối file gốc. Cửa
+sổ Tkinter hiện có KHÔNG bị thay đổi và vẫn dùng bình thường như trước.
+
+Ngoài S070, không có việc engineering nào khác đang mở. Giai đoạn tiếp theo
+sau khi S070 được soát xét là **dùng thật** (xem "SAU KHI OWNER QUYẾT ĐỊNH"
+và mục bên dưới) — không phải viết thêm code.
 
 ## ĐANG CHỜ
 

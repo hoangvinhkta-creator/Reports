@@ -43,6 +43,40 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
+- **S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
+  baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), branch chưa
+  integrate canonical, đang chờ independent review.** Thêm `app/web/`
+  (Flask, opt-in dependency dưới `[project.optional-dependencies].web` —
+  core CLI/Tkinter footprint không đổi): Owner mở browser tại
+  `127.0.0.1:8765` qua double-click `Open Reports Web.command`, chọn/upload
+  workbook `.xlsx`, chạy báo cáo, xem Tổng đơn/AUTO/Cần xem lại/Ưu tiên xem
+  ngay/Accounting coverage + Review reasons theo dòng, tải Excel, gửi phản
+  hồi — không cần terminal sau khi server đã chạy. Tầng web KHÔNG tính lại
+  business rule: gọi nguyên `app.owner_usability.run_owner_report()` (đúng
+  adapter `owner_launcher.py` Tkinter đã dùng), reuse nguyên
+  `app/beta_feedback.py` + `app/beta_telemetry.py` (S069, không tạo taxonomy
+  hay schema thứ hai), reuse nhãn Review reason qua
+  `app/beta_presentation.py`. Download artifact chỉ resolve qua `run_id` từ
+  registry server tự tạo (không nhận path tuỳ ý từ browser); upload luôn lưu
+  bằng tên server sinh (không tin filename client, không path traversal).
+  Real cohort rerun qua server thật (`127.0.0.1:8765`, upload qua `curl -F`,
+  cùng workbook + capture evidence với LOCAL): `58/83/22/36/100%/0
+  dropped/3` business severity, Review reason counts khớp tuyệt đối LOCAL,
+  artifact tải về SHA256 khớp byte-for-byte file trên đĩa, feedback +
+  telemetry ghi đúng 1 dòng mỗi loại (không duplicate), response không rò rỉ
+  secret/absolute path/authority payload (grep xác nhận). Trong lúc
+  implement, `app/web/launcher.py` bản đầu dùng `import socket` để pre-check
+  cổng đã làm FAIL 3 test bất biến kiến trúc có sẵn
+  (`test_no_module_under_app_reaches_the_network` — không module nào dưới
+  `app/` được import network primitive trực tiếp, Tracking phải qua
+  `tools/tracking/`); sửa cục bộ ngay trong phiên bằng
+  `werkzeug.serving.make_server` + bắt `OSError` (không cần `socket`, không
+  còn race check-rồi-bind) — regression PASS lại đủ, bất biến gốc không bị
+  hạ thấp. Regression toàn repo: `1403 passed, 11 skipped` (từ `1373 passed,
+  11 skipped` trước S070; +30 test mới cho `app/web/*`, không skip nào đổi).
+  Chi tiết đầy đủ, evidence từng bước, và giới hạn đã biết tại
+  `docs/sessions/S070-web-beta-v1.md`.
+
 - **S068 — Internal Beta review (checkpoint `f8d3ffc3c2071a33f2818664713c62da9cfe176f`,
   nhánh `s068/inv-map-vertical`, ĐÃ merge canonical qua
   `3f92c953b4c6d12834d4d3a0c611a7b27e7e0061` — xác nhận lúc mở phiên S069

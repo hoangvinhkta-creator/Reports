@@ -12,6 +12,11 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+# S070 — Web Beta V1: chỉ cần khi chạy app/web/*. Core CLI/Tkinter (demo.py,
+# owner_launcher.py) không phụ thuộc Flask.
+web = [
+    "Flask>=3.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
