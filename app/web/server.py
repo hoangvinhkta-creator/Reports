@@ -19,6 +19,11 @@ S071 thay đổi so với S070 (Web Beta V1, local-only):
 3. Thêm trang lịch sử run (``/history``) — sếp mở web thấy cùng run mới nhất
    và lịch sử mà Owner thấy, không phụ thuộc session trình duyệt của ai.
 
+S071B thay tiếp SQLite + đĩa persistent bằng Cloudflare R2 khi đã cấu hình
+(``app.web.storage_backend``, ``tools.storage.r2_store``) để runtime STATELESS
+— xem ``docs/deployment/S071_DEPLOYMENT.md``. Module này KHÔNG biết đang chạy
+trên backend nào; toàn bộ đọc/ghi đi qua ``store`` (``storage_backend.RunStore``).
+
 Trust boundary: browser chỉ gửi workbook + lựa chọn feedback; browser không
 bao giờ nhận secret, raw Tracking payload, hay đường dẫn filesystem tuyệt đối.
 Download chỉ được resolve từ ``run_id`` qua registry do chính server tạo.
@@ -34,7 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask, abort, redirect, render_template, request, send_file, url_for
+from flask import Flask, abort, redirect, render_template, request, url_for
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import beta_feedback, beta_telemetry
@@ -43,7 +48,8 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
-from app.web import run_registry
+from app.web import run_registry, storage_backend
+from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
 from tools.tracking import live_pull
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -65,6 +71,17 @@ TRACKING_TEMP_DIR = DATA_ROOT / "data" / "tracking_live_tmp"
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 HISTORY_PAGE_LIMIT = 50
+
+
+def _guarded(fn, *args, **kwargs):
+    """Gọi ``fn`` (một lời gọi store) và biến lỗi storage (R2 unavailable/
+    JSON hỏng) thành HTTP 503 rõ ràng — KHÔNG âm thầm coi như "không tìm
+    thấy"/"lịch sử rỗng" (S071B: phải phân biệt lỗi storage với dữ liệu
+    thật sự rỗng)."""
+    try:
+        return fn(*args, **kwargs)
+    except (StorageUnavailableError, CorruptRunRecordError):
+        abort(503)
 
 
 def _readiness_text() -> str:
@@ -140,15 +157,20 @@ def _select_captures_for_run() -> tuple[Optional[SelectedCaptures], Optional[dic
     return captures, live.evidence, live
 
 
-def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
+def create_app(
+    *,
+    db_path: Path = run_registry.DEFAULT_DB_PATH,
+    store: Optional[storage_backend.RunStore] = None,
+) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
-    registry = run_registry.RunRegistry(db_path=db_path)
-    app.config["RUN_REGISTRY"] = registry
+    if store is None:
+        store = storage_backend.build(db_path=db_path, artifact_dir=ARTIFACT_DIR)
+    app.config["RUN_REGISTRY"] = store
 
     def _page(*, error: Optional[str] = None, run_id: Optional[str] = None,
              not_found: bool = False, feedback_ok: bool = False, status: int = 200):
-        record = registry.get_run(run_id) if run_id else None
+        record = _guarded(store.get_run, run_id) if run_id else None
         return render_template(
             "index.html",
             readiness=_readiness_text(),
@@ -165,7 +187,7 @@ def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
     @app.get("/")
     def index():
         run_id = request.args.get("run_id") or None
-        found = run_id is not None and registry.get_run(run_id) is not None
+        found = run_id is not None and _guarded(store.get_run, run_id) is not None
         return _page(
             run_id=run_id if found else None,
             not_found=run_id is not None and not found,
@@ -174,7 +196,7 @@ def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
 
     @app.get("/history")
     def history():
-        runs = registry.list_runs(limit=HISTORY_PAGE_LIMIT)
+        runs = _guarded(store.list_runs, limit=HISTORY_PAGE_LIMIT)
         return render_template("history.html", runs=runs)
 
     @app.post("/run")
@@ -221,21 +243,26 @@ def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
         summary = owner_run.demo_run.summary
         dropped_lines = len(owner_run.demo_run.result.unmapped_lines)
         run_id = owner_run.output_path.stem
-        artifact_path = owner_run.output_path.relative_to(ARTIFACT_DIR)
         try:
-            registry.create_run(
+            # save_artifact (R2: upload + verify + xoá temp; local: chỉ tính
+            # path tương đối, file đã nằm sẵn dưới ARTIFACT_DIR) PHẢI thành
+            # công trước khi ghi run — không được để lộ một run "thành công"
+            # mà artifact không thực sự tồn tại ở nơi lưu (fail closed).
+            artifact_ref = store.save_artifact(owner_run.output_path, run_id)
+            store.create_run(
                 run_id=run_id,
                 created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 status=run_registry.STATUS_COMPLETE,
                 workbook_display_name=display_name,
-                artifact_path=str(artifact_path),
+                artifact_path=artifact_ref,
                 view=_build_view(summary, dropped_lines=dropped_lines),
                 tracking_evidence=tracking_evidence,
             )
         except Exception:
-            # Report ĐÃ được tạo trên đĩa, nhưng không ghi được vào registry
-            # (vd: storage lỗi) — không được trả về như thể mọi thứ thành
-            # công (không có run_id để Owner tra lại). Fail rõ, không giả.
+            # Report ĐÃ được tạo trên đĩa tạm, nhưng không lưu được vào nơi
+            # lưu trữ (artifact upload lỗi HOẶC ghi metadata lỗi) — không
+            # được trả về như thể mọi thứ thành công (không có run_id để
+            # Owner tra lại). Fail rõ, không giả.
             return _page(
                 error=(
                     "Báo cáo đã tạo nhưng không lưu được vào lịch sử run. "
@@ -249,20 +276,17 @@ def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
 
     @app.get("/artifact/<run_id>")
     def download_artifact(run_id: str):
-        record = registry.get_run(run_id)
+        record = _guarded(store.get_run, run_id)
         if record is None or not record.artifact_path:
             abort(404)
-        # `artifact_path` được lưu dạng tương đối, luôn được join lại dưới
-        # ARTIFACT_DIR ở đây — không bao giờ tin một đường dẫn tuyệt đối từ
-        # registry lẫn từ browser (chống path traversal đằng nào cũng chặn).
-        candidate = (ARTIFACT_DIR / record.artifact_path).resolve()
-        try:
-            candidate.relative_to(ARTIFACT_DIR)
-        except ValueError:
+        # store.artifact_response() tự resolve artifact_path CHỈ qua đúng
+        # record authoritative này — browser không bao giờ cung cấp key/path
+        # trực tiếp (local: chặn path traversal dưới ARTIFACT_DIR; R2: key
+        # luôn tự suy từ run_id, xem app/web/storage_backend.py).
+        response = _guarded(store.artifact_response, record)
+        if response is None:
             abort(404)
-        if not candidate.is_file():
-            abort(404)
-        return send_file(candidate, as_attachment=True, download_name=candidate.name)
+        return response
 
     @app.post("/feedback")
     def submit_feedback():
@@ -292,5 +316,11 @@ def create_app(*, db_path: Path = run_registry.DEFAULT_DB_PATH) -> Flask:
     @app.errorhandler(500)
     def _server_error(_exc):
         return _page(error="Có lỗi xử lý phía máy chủ. Vui lòng thử lại.", status=500)
+
+    @app.errorhandler(503)
+    def _storage_unavailable(_exc):
+        return _page(
+            error="Lưu trữ tạm thời không khả dụng. Vui lòng thử lại.", status=503,
+        )
 
     return app

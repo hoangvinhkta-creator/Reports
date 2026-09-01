@@ -17,11 +17,18 @@ dev = [
 web = [
     "Flask>=3.0",
 ]
+# S071B — Stateless persistence: client S3-compatible cho Cloudflare R2.
+# Chỉ import trong tools/storage/r2_store.py (ngoài app/, xem ADR-101) — local
+# dev/test không cần cài nếu R2 chưa cấu hình (fallback SQLite, xem
+# app/web/storage_backend.py).
+storage = [
+    "boto3>=1.34",
+]
 # S071 — Shared Online Beta: chỉ cần cho triển khai production (gunicorn
 # chạy app/web/wsgi.py). Local launcher (app/web/launcher.py) và test vẫn chỉ
 # cần "web" ở trên — gunicorn không tồn tại trên Windows nên KHÔNG gộp vào đó.
 web-prod = [
-    "tinphat-reporting-engine[web]",
+    "tinphat-reporting-engine[web,storage]",
     "gunicorn>=22.0; platform_system != 'Windows'",
 ]
 

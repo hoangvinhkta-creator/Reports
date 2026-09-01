@@ -1,21 +1,24 @@
-# S071 Deployment Gate — Render Blueprint cho Reports Web Shared Online Beta.
+# S071B — Render Blueprint cho Reports Web Shared Online Beta, STATELESS.
 #
-# Lựa chọn hosting (xem docs/deployment/S071_DEPLOYMENT.md "So sánh kiến trúc
-# hosting" cho lý do đầy đủ): Render Web Service (runtime Docker, dùng đúng
-# `Dockerfile` ở root, không sửa) + MỘT persistent Disk duy nhất mount tại
-# `/app/persistent` — cả registry SQLite lẫn artifact/upload/tracking-tạm
-# đều trỏ vào đây qua biến `REPORTS_DATA_ROOT` (app/web/server.py,
-# app/web/run_registry.py), đúng giới hạn "một disk mỗi service" của Render.
+# SUPERSEDES kiến trúc S071 Deployment Gate (Render Web Service + MỘT
+# persistent Disk mount `/app/persistent`, `REPORTS_DATA_ROOT`) — xem
+# docs/deployment/S071_DEPLOYMENT.md và docs/sessions/S071-shared-online-beta.md
+# §12 cho lý do đầy đủ. Persistent disk là implementation convenience của
+# S071, KHÔNG phải Reports Core requirement — S071B thay registry SQLite +
+# artifact trên đĩa bằng Cloudflare R2 (`app/web/storage_backend.py`,
+# `tools/storage/r2_store.py`), nên container không còn cần đĩa persistent
+# nào cả: runtime chạy được trên BẤT KỲ stateless Python host nào.
 #
-# Áp dụng blueprint này (Owner thực hiện, cần tài khoản Render + phương thức
-# thanh toán — session S071 không tạo được thay Owner):
+# Áp dụng blueprint này (Owner thực hiện — cần tài khoản Render + phương
+# thức thanh toán, VÀ một R2 bucket + API token từ Cloudflare dashboard):
 #   1. Đăng nhập render.com bằng GitHub, chọn repo Reports.
-#   2. New → Blueprint → trỏ vào file này (Render tự đọc khi thấy render.yaml
-#      ở root, hoặc chọn thủ công qua "New Blueprint Instance").
-#   3. Ở bước review, điền giá trị cho biến `TRACKING_REPORT_API_KEY`
-#      (đánh dấu `sync: false` bên dưới — Render bắt nhập tay trong dashboard,
-#      KHÔNG lưu trong file này, KHÔNG commit).
-#   4. Deploy. Render tự build Dockerfile, tạo Disk, gắn domain mặc định
+#   2. New → Blueprint → trỏ vào file này.
+#   3. Ở bước review, điền giá trị cho các biến đánh dấu `sync: false`
+#      (secret — Render bắt nhập tay trong dashboard, KHÔNG lưu trong file
+#      này, KHÔNG commit): `TRACKING_REPORT_API_KEY`, `R2_ACCESS_KEY_ID`,
+#      `R2_SECRET_ACCESS_KEY`. Sửa `R2_ACCOUNT_ID`/`R2_BUCKET` bên dưới
+#      thành giá trị thật của bucket R2 đã tạo.
+#   4. Deploy. Render tự build Dockerfile, gắn domain mặc định
 #      `*.onrender.com` trước — thêm custom domain `reports.tinphatcrm.com`
 #      sau khi service chạy được (Render dashboard → Settings → Custom Domain).
 #
@@ -30,9 +33,22 @@ services:
     region: singapore
     healthCheckPath: /
     envVars:
-      # Gộp registry SQLite + artifact dưới cùng một Disk (xem đầu file).
-      - key: REPORTS_DATA_ROOT
-        value: /app/persistent
+      # Bắt buộc R2 trong production — server FAIL khi khởi động (không
+      # deploy được) nếu thiếu bất kỳ biến R2_* nào bên dưới, thay vì âm
+      # thầm rơi về SQLite/đĩa ephemeral trong container (S071B fail closed).
+      - key: REPORTS_REQUIRE_R2
+        value: "1"
+      # R2 account/bucket — không phải secret, nhưng riêng của Owner; sửa
+      # thành giá trị thật từ Cloudflare dashboard trước khi deploy.
+      - key: R2_ACCOUNT_ID
+        value: REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID
+      - key: R2_BUCKET
+        value: reports-web-runs
+      # R2 API token (R2 → Manage API Tokens) — secret thật, Owner nhập tay.
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
       # Render tự đặt PORT khi build từ Dockerfile CMD dùng ${PORT} — khai
       # báo tường minh ở đây để khớp đúng cổng container lắng nghe.
       - key: PORT
@@ -44,7 +60,6 @@ services:
       # sau đó ở Settings → Environment. KHÔNG có giá trị nào ở đây.
       - key: TRACKING_REPORT_API_KEY
         sync: false
-    disk:
-      name: reports-persistent-data
-      mountPath: /app/persistent
-      sizeGB: 1
+    # KHÔNG có `disk:` — S071B stateless, không persistent disk nào (xem
+    # đầu file). Container có thể bị Render thay thế/restart bất kỳ lúc nào
+    # mà không mất run/artifact nào — toàn bộ state authoritative nằm ở R2.

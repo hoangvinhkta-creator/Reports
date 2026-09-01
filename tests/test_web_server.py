@@ -21,8 +21,10 @@ import pytest
 from app import beta_feedback, beta_telemetry
 from app.modules.exporting.excel_exporter import ReportSummary
 from app.owner_usability import OwnerUsabilityError
-from app.web import run_registry
+from app.web import run_registry, storage_backend
 from app.web import server as web_server
+from tests.fixtures.fake_r2_client import FakeClientError, FakeR2Client
+from tools.storage import r2_store
 from tools.tracking import live_pull
 
 
@@ -627,3 +629,137 @@ def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_pat
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
     assert live_result.cleanup_called == [True]
+
+
+# --- R2 backend end-to-end (S071B) ------------------------------------------
+
+R2_ENV = {
+    r2_store.ACCOUNT_ID_ENV_VAR: "acct",
+    r2_store.BUCKET_ENV_VAR: "bucket",
+    r2_store.ACCESS_KEY_ID_ENV_VAR: "key",
+    r2_store.SECRET_ACCESS_KEY_ENV_VAR: "secret",
+}
+
+
+def _r2_app(monkeypatch, tmp_path, *, r2_client=None):
+    monkeypatch.setattr(web_server, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(web_server, "TRACKING_TEMP_DIR", tmp_path / "tracking_live_tmp")
+    monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
+    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
+    monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
+    store = storage_backend.R2RunStore(client=r2_client or FakeR2Client(), env=R2_ENV)
+    application = web_server.create_app(store=store)
+    application.testing = True
+    return application
+
+
+def test_r2_run_then_download_round_trips(monkeypatch, tmp_path):
+    app = _r2_app(monkeypatch, tmp_path)
+    client = app.test_client()
+    owner_run = _fake_owner_run(tmp_path, output_name="report-r2.xlsx")
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+
+    resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
+    assert resp.status_code == 302
+
+    result = client.get("/?run_id=report-r2")
+    assert "58" in result.data.decode()
+
+    download = client.get("/artifact/report-r2")
+    assert download.status_code == 200
+    assert download.data == b"fake xlsx bytes"
+    # Temp local artifact đã bị xoá sau khi upload — không còn trên đĩa.
+    assert not owner_run.output_path.exists()
+
+
+def test_r2_second_viewer_reads_the_same_persisted_run(monkeypatch, tmp_path):
+    shared_client = FakeR2Client()
+    viewer_a = _r2_app(monkeypatch, tmp_path, r2_client=shared_client).test_client()
+    owner_run = _fake_owner_run(tmp_path, output_name="report-shared-r2.xlsx")
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    viewer_a.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
+
+    viewer_b = _r2_app(monkeypatch, tmp_path, r2_client=shared_client).test_client()
+    resp = viewer_b.get("/?run_id=report-shared-r2")
+    assert "58" in resp.data.decode()
+    download = viewer_b.get("/artifact/report-shared-r2")
+    assert download.status_code == 200
+    assert download.data == b"fake xlsx bytes"
+
+
+def test_r2_two_runs_created_close_together_both_land_independently(monkeypatch, tmp_path):
+    shared_client = FakeR2Client()
+    app = _r2_app(monkeypatch, tmp_path, r2_client=shared_client)
+    client = app.test_client()
+
+    owner_run_a = _fake_owner_run(tmp_path, output_name="report-conc-A.xlsx")
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_a)
+    client.post("/run", data=_upload("first.xlsx"), content_type="multipart/form-data")
+
+    owner_run_b = _fake_owner_run(tmp_path, output_name="report-conc-B.xlsx")
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_b)
+    client.post("/run", data=_upload("second.xlsx"), content_type="multipart/form-data")
+
+    runs = app.config["RUN_REGISTRY"].list_runs(limit=10)
+    assert {r.run_id for r in runs} == {"report-conc-A", "report-conc-B"}
+
+
+def test_r2_artifact_upload_failure_does_not_create_a_visible_run(monkeypatch, tmp_path):
+    client_obj = FakeR2Client()
+    app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
+    client = app.test_client()
+    owner_run = _fake_owner_run(tmp_path, output_name="report-fail.xlsx")
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    client_obj.fail["put_object"] = FakeClientError("503", "R2 unavailable")
+
+    resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
+
+    assert resp.status_code == 500
+    assert "Traceback" not in resp.data.decode()
+    # Không được xuất hiện như một run thành công mà artifact không tồn tại.
+    assert app.config["RUN_REGISTRY"].get_run("report-fail") is None
+
+
+def test_r2_get_run_failure_returns_503_not_404(monkeypatch, tmp_path):
+    client_obj = FakeR2Client()
+    app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
+    client_obj.fail["get_object"] = FakeClientError("500", "unavailable")
+
+    resp = app.test_client().get("/?run_id=report-anything")
+    assert resp.status_code == 503
+    assert "không khả dụng" in resp.data.decode()
+
+
+def test_r2_history_list_failure_returns_503_not_empty_history(monkeypatch, tmp_path):
+    client_obj = FakeR2Client()
+    app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
+    client_obj.fail["list_objects_v2"] = FakeClientError("500")
+
+    resp = app.test_client().get("/history")
+    assert resp.status_code == 503
+
+
+def test_r2_download_rejects_artifact_run_mismatch(monkeypatch, tmp_path):
+    app = _r2_app(monkeypatch, tmp_path)
+    store = app.config["RUN_REGISTRY"]
+    store.create_run(
+        run_id="evil-r2", created_at="2026-09-01T08:00:00+00:00",
+        status=run_registry.STATUS_COMPLETE,
+        artifact_path="artifacts/someone-elses-run.xlsx", view={},
+    )
+    resp = app.test_client().get("/artifact/evil-r2")
+    assert resp.status_code == 404
+
+
+def test_r2_download_unknown_run_id_is_404(monkeypatch, tmp_path):
+    app = _r2_app(monkeypatch, tmp_path)
+    resp = app.test_client().get("/artifact/never-ran")
+    assert resp.status_code == 404
+
+
+def test_require_r2_fails_app_startup_when_r2_unconfigured(monkeypatch, tmp_path):
+    monkeypatch.setenv(storage_backend.REQUIRE_R2_ENV_VAR, "1")
+    for name in r2_store._REQUIRED_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(storage_backend.StorageConfigurationError):
+        web_server.create_app(db_path=tmp_path / "runs.db")
