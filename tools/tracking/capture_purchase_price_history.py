@@ -21,13 +21,16 @@ GET <source_url>/api/xuat/purchase_price_baseline
 GET <source_url>/api/xuat/purchase_price_history
 GET <source_url>/api/xuat/board
 GET <source_url>/api/xuat/alias
+GET <source_url>/api/xuat/inv_map
 Header: X-Report-Key: <secret>
 ```
 
-`ALLOWED_NODES` là danh sách ĐÓNG bốn node trên; hỏi một node ngoài danh sách
-là lỗi ngay tại client, không phát request. Không có fallback Firebase: hợp
-đồng lỗi thì capture `FAILED`, chứ không lặng lẽ rơi về một đường thứ hai —
-hai đường nguồn song song chính là thứ `INV-12` tồn tại để chặn.
+`ALLOWED_NODES` là danh sách ĐÓNG năm node trên (`inv_map` thêm vào ở S068
+follow-up — bảng `inv.map` là authority cho câu tên hàng kế toán đầy đủ);
+hỏi một node ngoài danh sách là lỗi ngay tại client, không phát request.
+Không có fallback Firebase: hợp đồng lỗi thì capture `FAILED`, chứ không
+lặng lẽ rơi về một đường thứ hai — hai đường nguồn song song chính là thứ
+`INV-12` tồn tại để chặn.
 
 ## Chỉ ĐỌC
 
@@ -89,7 +92,15 @@ HISTORY_NODE = "purchase_price_history"
 API_KEY_ENV_VAR = "TRACKING_REPORT_API_KEY"
 API_KEY_HEADER = "X-Report-Key"
 CONTRACT_PREFIX = "/api/xuat"
-ALLOWED_NODES = frozenset({BASELINE_NODE, HISTORY_NODE, "board", "alias"})
+INV_MAP_NODE = "inv_map"
+ALLOWED_NODES = frozenset(
+    {BASELINE_NODE, HISTORY_NODE, "board", "alias", INV_MAP_NODE}
+)
+"""S068 follow-up: `inv_map` thêm vào — bảng `inv.map` là authority CHO CÂU
+TÊN HÀNG kế toán đầy đủ, cùng quyết định Owner đã cấp cho `alias`/`board`.
+Vẫn CHỈ đúng node `inv_map` (semantic-scoped), KHÔNG resurrect `/api/xuat/inv`
+(nhánh mang cả `p`/`tp`/`_c`/`cu`/`moi`/`pend` riêng tư mà không tool nào ở
+đây được phép hỏi tới — xem docstring `capture_tracking_catalog.py`)."""
 JSON_CONTENT_TYPE = "application/json"
 MISSING_API_KEY = "MISSING_API_KEY"
 # `S065`: mặc định `Python-urllib/<version>` của urllib khớp chữ ký bot mà WAF

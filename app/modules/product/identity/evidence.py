@@ -64,6 +64,7 @@ class ResolutionMethod(str, Enum):
     TRACKING_ALIAS_MAP = "TRACKING_ALIAS_MAP"
     TRACKING_CONFIRMED_ALIAS = "TRACKING_CONFIRMED_ALIAS"
     TRACKING_CANONICAL_EXACT = "TRACKING_CANONICAL_EXACT"
+    TRACKING_INV_MAP_CONFIRMED = "TRACKING_INV_MAP_CONFIRMED"
     SIMILARITY_RANKED = "SIMILARITY_RANKED"
     CROSS_NAMESPACE_TIE = "CROSS_NAMESPACE_TIE"
     MULTIPLE_EXACT = "MULTIPLE_EXACT"
@@ -75,12 +76,16 @@ AUTO_RESOLVE_METHODS: frozenset[ResolutionMethod] = frozenset(
         ResolutionMethod.CATALOG_EXACT_UNIQUE,
         ResolutionMethod.TRACKING_CONFIRMED_ALIAS,
         ResolutionMethod.TRACKING_CANONICAL_EXACT,
+        ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
     }
 )
 """TẬP ĐÓNG — mỗi phần tử được Owner cấp authority tường minh.
 
 Thêm một phần tử vào đây là một quyết định Owner, không phải một quyết định
-implementation.
+implementation. `TRACKING_INV_MAP_CONFIRMED` thêm theo quyết định S068
+follow-up: `inv.map` là bảng do người của Tracking duyệt, cùng tiền lệ
+`alias.map` — không còn candidate-tier D-05, không cần `confirmation_action`
+thứ hai từ Reports.
 """
 
 

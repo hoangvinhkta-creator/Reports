@@ -118,6 +118,7 @@ class TestClosedEnums:
             "MAPPING_STALE_TARGET_ABSENT",
             "AWAITING_HUMAN_CONFIRMATION",
             "PENDING_HISTORICAL_CONFIRMATION",
+            "TRACKING_INV_MAP_EXPLICIT_IGNORE",
         }
 
     def test_mapping_status_matches_the_contract_exactly(self):
@@ -145,6 +146,7 @@ class TestClosedEnums:
             "TRACKING_ALIAS_MAP",
             "TRACKING_CONFIRMED_ALIAS",
             "TRACKING_CANONICAL_EXACT",
+            "TRACKING_INV_MAP_CONFIRMED",
             "SIMILARITY_RANKED",
             "CROSS_NAMESPACE_TIE",
             "MULTIPLE_EXACT",
@@ -167,7 +169,7 @@ class TestClosedEnums:
         """§17.2 — AMBIGUOUS = KHÔNG thuộc tập auto-resolve đóng."""
         for method in ResolutionMethod:
             assert is_ambiguous(method) is not is_auto_resolvable(method)
-        assert len(AUTO_RESOLVE_METHODS) == 4
+        assert len(AUTO_RESOLVE_METHODS) == 5
 
     def test_attempted_source_covers_both_catalogs(self):
         values = {s.value for s in AttemptedSource}

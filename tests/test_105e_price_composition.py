@@ -45,6 +45,7 @@ from app.modules.pricing.resolution.sources import (
     PriceResolutionSources,
     load_business_timezone,
     load_tracking_catalog_capture,
+    load_tracking_inv_map_capture,
     InvalidTrackingCatalogCaptureFileError,
 )
 from app.modules.pricing.tracking_history.capture_file import (
@@ -61,6 +62,10 @@ from app.modules.product.identity.cli import confirm_cross_system
 from app.modules.product.identity.identity import Namespace
 from app.modules.product.identity.public_purchase import PublicPurchaseSourceLoader
 from app.modules.product.identity.registry import CUTOVER_DATE
+from app.modules.product.identity.tracking_inv_map import (
+    canonical_content_hash as inv_map_canonical_content_hash,
+    inv_map_key,
+)
 from app.modules.validation.models import CATEGORY_MISSING_PURCHASE_PRICE
 from app.pipeline import run_import
 from tests.fixtures.synthetic_workbook import HEADER
@@ -118,6 +123,25 @@ def write_catalog_capture(tmp_path: Path, rows: list[dict]) -> Path:
                 "content_hash": "hash-cat-1",
                 "capture_status": "COMPLETE",
                 "rows": rows,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def write_inv_map_capture(tmp_path: Path, entries: dict[str, str]) -> Path:
+    path = tmp_path / "tracking_inv_map.json"
+    path.write_text(
+        json.dumps(
+            {
+                "capture_id": "INVMAP-20260901T000000Z-aaaa",
+                "captured_at": datetime(2026, 9, 1, tzinfo=timezone.utc).isoformat(),
+                "captured_by": "reports-capture-tool",
+                "source_system_ref": "tracking/api/xuat",
+                "content_hash": inv_map_canonical_content_hash(entries),
+                "capture_status": "COMPLETE",
+                "entries": entries,
             }
         ),
         encoding="utf-8",
@@ -194,6 +218,7 @@ def build_sources(
     timezone_config: Path | None = None,
     store=None,
     tracking_identity_authority: bool = False,
+    inv_map_entries: dict[str, str] | None = None,
 ) -> PriceResolutionSources:
     """Dựng `PriceResolutionSources` QUA ĐÚNG các loader production."""
     history = None
@@ -211,6 +236,11 @@ def build_sources(
             write_catalog_capture(
                 tmp_path, CATALOG_ROWS if catalog_rows is None else catalog_rows
             )
+        )
+    inv_map = None
+    if inv_map_entries is not None:
+        inv_map = load_tracking_inv_map_capture(
+            write_inv_map_capture(tmp_path, inv_map_entries)
         )
     pp = None
     if with_public_purchase:
@@ -235,6 +265,7 @@ def build_sources(
         business_timezone=tz,
         tracking_price_history=history,
         tracking_catalog=catalog,
+        tracking_inv_map=inv_map,
         public_purchase=pp,
         identity_store_view=a_store.read_at_revision(a_store.current_revision()),
         tracking_identity_authority=tracking_identity_authority,
@@ -370,6 +401,94 @@ def test_the_tracking_history_reader_is_actually_invoked_post_cutover(
             record.tracking_reconstruction.provenance.snapshot_capture_id
             == "PPH-20260929T120000Z-aaaa"
         )
+
+
+# ======================================================================
+# 1b — `inv.map` (S068 follow-up): identity resolved qua câu tên hàng đầy đủ
+#      vẫn phải đi ĐÚNG con đường PP/AUTO hiện có — không có nhánh riêng.
+# ======================================================================
+
+INV_MAP_DESCRIPTION_RESOLVED = "Máy giặt Samsung mô tả kế toán đầy đủ WW10"
+INV_MAP_DESCRIPTION_NO_PP = "Bàn ủi hơi nước mô tả kế toán đầy đủ không giá"
+
+ROWS_INV_MAP = [
+    # BH9101 — identity CHỈ resolve được qua inv.map (câu tên hàng không khớp
+    # bất kỳ mã/alias nào) -> "A1", có baseline price -> phải AUTO như mọi
+    # dòng TRACKING resolved khác (test #9 của TASK 6).
+    (SALE_DAY, "BH9101", "Bán hàng Inv Map A", INV_MAP_DESCRIPTION_RESOLVED,
+     "KH9101", "Khách E", "5 Đường Test", "0900000005", 1, 12_000_000,
+     12_000_000, 0, "Vũ Hạnh Ly 0868345633", "Shipper E", 50_000, None, 3_000_000),
+    # BH9102 — identity resolve qua inv.map -> "E1", NHƯNG "E1" không có giá
+    # baseline nào trong export -> Pending sau khi identity đã có (test #8).
+    (SALE_DAY, "BH9102", "Bán hàng Inv Map B", INV_MAP_DESCRIPTION_NO_PP,
+     "KH9102", "Khách F", "6 Đường Test", "0900000006", 1, 5_000_000,
+     5_000_000, 0, "Lê Mạnh Hoàng 0865111533", "Shipper F", 50_000, None, 500_000),
+]
+
+
+@pytest.fixture
+def inv_map_raw_path(tmp_path: Path) -> Path:
+    return write_workbook(tmp_path / "inv_map.xlsx", ROWS_INV_MAP)
+
+
+CATALOG_ROWS_WITH_E1 = CATALOG_ROWS + [
+    {"tracking_code": "E1", "name": "Bàn ủi Tracking E1", "alt": [],
+     "present_in_board": True},
+]
+
+
+def test_inv_map_confirmed_identity_reaches_normal_auto_path(
+    inv_map_raw_path, config_dir, tmp_path
+):
+    """Test #9 (TASK 6) — identity qua `inv.map` + PP hiệu lực tại sale_date
+    phải đi ĐÚNG con đường `TRACKING_HISTORY_AUTHORITY`/AUTO hiện có, giống
+    hệt một identity resolve qua `alias.map`/`board`. Không có xử lý AUTO
+    riêng cho `inv.map` (`§ TASK 5`)."""
+    comp = composition(
+        tmp_path,
+        tracking_identity_authority=True,
+        inv_map_entries={inv_map_key(INV_MAP_DESCRIPTION_RESOLVED): "A1"},
+    )
+    result = run(inv_map_raw_path, config_dir, comp)
+    line = lines_by_order(result)["BH9101"][0]
+
+    assert line.accounting_purchase_price == Decimal("9000000")
+    assert line.price_source == PRICE_SOURCE_TRACKING_PRICE_HISTORY
+
+    [record] = [
+        r for r in comp.records if r.raw_product_identity == INV_MAP_DESCRIPTION_RESOLVED
+    ]
+    assert record.identity.namespace is Namespace.TRACKING
+    assert record.identity.source_product_code == "A1"
+    assert record.rule is CompositionRule.TRACKING_HISTORY_AUTHORITY
+
+
+def test_inv_map_identity_resolved_but_pp_missing_stays_pending(
+    inv_map_raw_path, config_dir, tmp_path
+):
+    """Test #8 (TASK 6) — identity CÓ qua `inv.map`, nhưng không có bằng
+    chứng PP hiệu lực tại sale_date. Identity resolve ĐƯỢC KHÔNG được tự
+    suy ra AUTO (`§ TASK 5`); dòng vẫn Pending, đúng lý do PP thiếu, không
+    phải lý do identity."""
+    comp = composition(
+        tmp_path,
+        catalog_rows=CATALOG_ROWS_WITH_E1,
+        tracking_identity_authority=True,
+        inv_map_entries={inv_map_key(INV_MAP_DESCRIPTION_NO_PP): "E1"},
+    )
+    result = run(inv_map_raw_path, config_dir, comp)
+    line = lines_by_order(result)["BH9102"][0]
+
+    assert line.accounting_purchase_price is None
+    assert line.price_source == PRICE_SOURCE_PENDING
+
+    [record] = [
+        r for r in comp.records if r.raw_product_identity == INV_MAP_DESCRIPTION_NO_PP
+    ]
+    # Identity ĐÃ resolve — không phải IDENTITY_UNRESOLVED.
+    assert record.identity is not None
+    assert record.identity.source_product_code == "E1"
+    assert record.reason is PriceResolutionReason.TRACKING_HISTORY_PENDING
 
 
 # ======================================================================

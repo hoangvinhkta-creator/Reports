@@ -60,20 +60,27 @@ from app.modules.product.identity.tracking_catalog import (
     TrackingCatalogSnapshot,
     canonical_content_hash,
 )
+from app.modules.product.identity.tracking_inv_map import (
+    TrackingInvMapSnapshot,
+    canonical_content_hash as inv_map_canonical_content_hash,
+)
 
 __all__ = [
     "BusinessTimezone",
     "InvalidTrackingCatalogCaptureFileError",
+    "InvalidTrackingInvMapCaptureFileError",
     "PriceEvidenceSnapshot",
     "PriceResolutionSources",
     "PUBLIC_PURCHASE_SOURCE_PATH",
     "TRACKING_CATALOG_CAPTURE_PATH",
+    "TRACKING_INV_MAP_CAPTURE_PATH",
     "TRACKING_PRICE_HISTORY_CAPTURE_PATH",
     "IDENTITY_STORE_LOG_PATH",
     "BUSINESS_TIMEZONE_CONFIG",
     "load_business_timezone",
     "load_price_resolution_sources",
     "load_tracking_catalog_capture",
+    "load_tracking_inv_map_capture",
 ]
 
 # Canonical committed paths — cùng hạng `DEFAULT_CONFIG_DIR` của `app/pipeline.py`.
@@ -81,6 +88,7 @@ TRACKING_PRICE_HISTORY_CAPTURE_PATH = Path(
     "data/tracking_price_history/capture.json"
 )
 TRACKING_CATALOG_CAPTURE_PATH = Path("data/tracking_catalog/capture.json")
+TRACKING_INV_MAP_CAPTURE_PATH = Path("data/tracking_inv_map/capture.json")
 PUBLIC_PURCHASE_SOURCE_PATH = Path("data/public_purchase/source_version.yaml")
 IDENTITY_STORE_LOG_PATH = Path("data/product_identity/mappings.jsonl")
 
@@ -297,6 +305,117 @@ def load_tracking_catalog_capture(
 
 
 # ---------------------------------------------------------------------------
+# Ảnh chụp `inv.map` (E-D2) — authority cho câu tên hàng kế toán đầy đủ
+# ---------------------------------------------------------------------------
+
+
+class InvalidTrackingInvMapCaptureFileError(ValueError):
+    def __init__(self, message: str, *, reason: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+def load_tracking_inv_map_capture(
+    path: Path,
+) -> Optional[TrackingInvMapSnapshot]:
+    """File không tồn tại → `None` (`inv.map` chưa được capture lần nào —
+    nguồn TUỲ CHỌN, cùng khuôn `load_tracking_catalog_capture`).
+
+    Mọi hư hỏng khác raise: một `inv.map` rỗng/sai hình dạng im lặng đọc
+    thành "không có mục nào" sẽ làm mọi khoá tra ra `None` — trông y hệt
+    "chưa ai duyệt dòng này", trong khi thật ra là capture hỏng.
+    """
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InvalidTrackingInvMapCaptureFileError(
+            f"{path}: không đọc/parse được file capture inv.map: {exc}.",
+            reason="unreadable",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise InvalidTrackingInvMapCaptureFileError(
+            f"{path}: nội dung phải là một ánh xạ khoá-giá trị.",
+            reason="not_a_mapping",
+        )
+
+    capture_id = _text(payload, "capture_id", path)
+    captured_by = _text(payload, "captured_by", path)
+    source_system_ref = _text(payload, "source_system_ref", path)
+    content_hash = _text(payload, "content_hash", path)
+    raw_at = _text(payload, "captured_at", path)
+    try:
+        captured_at = _dt.datetime.fromisoformat(raw_at)
+    except ValueError as exc:
+        raise InvalidTrackingInvMapCaptureFileError(
+            f"{path}: captured_at không phải ISO-8601 hợp lệ ({raw_at!r}).",
+            reason="invalid_datetime",
+        ) from exc
+
+    try:
+        capture_status = CaptureStatus(payload.get("capture_status"))
+    except ValueError as exc:
+        raise InvalidTrackingInvMapCaptureFileError(
+            f"{path}: capture_status={payload.get('capture_status')!r} ngoài "
+            f"enum đóng {[s.value for s in CaptureStatus]}.",
+            reason="invalid_capture_status",
+        ) from exc
+
+    if capture_status is CaptureStatus.FAILED:
+        return TrackingInvMapSnapshot(
+            capture_id=capture_id,
+            captured_at=captured_at,
+            captured_by=captured_by,
+            source_system_ref=source_system_ref,
+            content_hash=content_hash,
+            capture_status=capture_status,
+            failure_reason=payload.get("failure_reason") or "không ghi lý do",
+        )
+
+    raw_entries = payload.get("entries")
+    if not isinstance(raw_entries, dict):
+        raise InvalidTrackingInvMapCaptureFileError(
+            f"{path}: thiếu khối 'entries' hoặc nó không phải một ánh xạ.",
+            reason="missing_entries_block",
+        )
+    entries: list[tuple[str, str]] = []
+    for key, value in raw_entries.items():
+        if not isinstance(key, str) or not key.strip():
+            raise InvalidTrackingInvMapCaptureFileError(
+                f"{path}: khoá 'entries' rỗng/không phải chuỗi: {key!r}.",
+                reason="malformed_entry_key",
+            )
+        if not isinstance(value, str) or not value.strip():
+            raise InvalidTrackingInvMapCaptureFileError(
+                f"{path}: entries[{key!r}] phải là chuỗi không rỗng, nhận "
+                f"{value!r}.",
+                reason="malformed_entry_value",
+            )
+        entries.append((key, value))
+    entries.sort(key=lambda item: item[0])
+
+    if content_hash.startswith("sha256:"):
+        expected_hash = inv_map_canonical_content_hash(dict(entries))
+        if content_hash != expected_hash:
+            raise InvalidTrackingInvMapCaptureFileError(
+                f"{path}: content_hash không khớp entries; capture có thể đã "
+                "bị sửa sau khi ghi bất biến.",
+                reason="content_hash_mismatch",
+            )
+
+    return TrackingInvMapSnapshot(
+        capture_id=capture_id,
+        captured_at=captured_at,
+        captured_by=captured_by,
+        source_system_ref=source_system_ref,
+        content_hash=content_hash,
+        capture_status=capture_status,
+        entries=tuple(entries),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Nguồn Public Purchase (E-A)
 # ---------------------------------------------------------------------------
 
@@ -328,6 +447,7 @@ class PriceEvidenceSnapshot:
     tracking_price_history_capture_id: Optional[str]
     tracking_price_history_captured_at: Optional[_dt.datetime]
     tracking_catalog_capture_id: Optional[str]
+    tracking_inv_map_capture_id: Optional[str]
     public_purchase_version_id: Optional[str]
     public_purchase_content_hash: Optional[str]
     identity_store_revision: Optional[int]
@@ -350,6 +470,13 @@ class PriceResolutionSources:
     tracking_catalog: Optional[TrackingCatalogSnapshot]
     public_purchase: Optional[PublicPurchaseSourceVersion]
     identity_store_view: Optional[StoreView]
+    tracking_inv_map: Optional[TrackingInvMapSnapshot] = None
+    """`inv.map` — authority cho câu tên hàng kế toán đầy đủ (S068 follow-up).
+
+    TUỲ CHỌN, cùng khuôn `pp_version` (DEC-165): vắng mặt = "chưa nối",
+    resolver vẫn chạy đúng đường `alias.map`/`board` cũ, không Pending hàng
+    loạt vì thiếu nguồn phụ trợ này.
+    """
     tracking_identity_authority: bool = True
     """Production dùng `alias.map` + khoá `board` của Tracking làm authority.
 
@@ -361,6 +488,7 @@ class PriceResolutionSources:
     def evidence_snapshot(self) -> PriceEvidenceSnapshot:
         history = self.tracking_price_history
         catalog = self.tracking_catalog
+        inv_map = self.tracking_inv_map
         pp = self.public_purchase
         return PriceEvidenceSnapshot(
             tracking_price_history_capture_id=(
@@ -370,6 +498,7 @@ class PriceResolutionSources:
                 history.captured_at if history else None
             ),
             tracking_catalog_capture_id=catalog.capture_id if catalog else None,
+            tracking_inv_map_capture_id=inv_map.capture_id if inv_map else None,
             public_purchase_version_id=pp.version_id if pp else None,
             public_purchase_content_hash=pp.content_hash if pp else None,
             identity_store_revision=(
@@ -388,14 +517,15 @@ def load_price_resolution_sources(
     config_dir: Path,
     tracking_price_history_path: Path = TRACKING_PRICE_HISTORY_CAPTURE_PATH,
     tracking_catalog_path: Path = TRACKING_CATALOG_CAPTURE_PATH,
+    tracking_inv_map_path: Path = TRACKING_INV_MAP_CAPTURE_PATH,
     public_purchase_path: Path = PUBLIC_PURCHASE_SOURCE_PATH,
     identity_store_log_path: Path = IDENTITY_STORE_LOG_PATH,
 ) -> PriceResolutionSources:
     """Đọc mọi nguồn ĐÚNG MỘT LẦN và đóng băng chúng.
 
     Store identity luôn dựng được (log vắng mặt = store rỗng, `INV-79`: "một
-    store rỗng là trạng thái khởi đầu ĐÚNG"), khác với ba nguồn kia — vắng mặt
-    ở đó nghĩa là chưa capture lần nào.
+    store rỗng là trạng thái khởi đầu ĐÚNG"), khác với các nguồn capture khác
+    — vắng mặt ở đó nghĩa là chưa capture lần nào.
     """
     store = JsonlProductIdentityStore(
         log_path=identity_store_log_path,
@@ -407,6 +537,7 @@ def load_price_resolution_sources(
             tracking_price_history_path
         ),
         tracking_catalog=load_tracking_catalog_capture(tracking_catalog_path),
+        tracking_inv_map=load_tracking_inv_map_capture(tracking_inv_map_path),
         public_purchase=load_public_purchase_source(public_purchase_path),
         identity_store_view=store.read_at_revision(store.current_revision()),
     )

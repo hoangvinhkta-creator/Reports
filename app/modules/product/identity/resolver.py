@@ -85,6 +85,10 @@ from app.modules.product.identity.public_purchase import (
 )
 from app.modules.product.identity.store import StoreView
 from app.modules.product.identity.tracking_catalog import TrackingCatalogSnapshot
+from app.modules.product.identity.tracking_inv_map import (
+    IGNORE_VALUE as TRACKING_INV_MAP_IGNORE_VALUE,
+    TrackingInvMapSnapshot,
+)
 
 _MATCHED_ON_BY_FIELD = {
     "TRACKING_CODE": MatchedOn.TRACKING_CODE,
@@ -182,12 +186,21 @@ class ProductIdentityResolver:
         store_view: StoreView,
         tracking_identity_authority: bool = False,
         now: Optional[datetime] = None,
+        inv_map_snapshot: Optional[TrackingInvMapSnapshot] = None,
     ) -> None:
         self.tracking = tracking_snapshot.require_complete()
         self.pp_version = pp_version
         self.view = store_view
         self._tracking_identity_authority = tracking_identity_authority
         self._now = now or datetime.now(timezone.utc)
+        # `inv.map` là nguồn TUỲ CHỌN, cùng khuôn `pp_version` (DEC-165): vắng
+        # mặt nghĩa là "chưa nối", KHÔNG phải "danh mục rỗng" — resolver vẫn
+        # chạy đúng đường alias.map/board cũ, không Pending hàng loạt vì thiếu
+        # một nguồn phụ trợ. `require_complete()` áp `INV-12` khi nó CÓ mặt:
+        # một inv.map FAILED phải nổ ngay, không lặng lẽ thành Pending.
+        self.inv_map = (
+            inv_map_snapshot.require_complete() if inv_map_snapshot is not None else None
+        )
 
     # ---- truy cập catalog PP khi nó có thể vắng mặt ----------------------
 
@@ -231,45 +244,122 @@ class ProductIdentityResolver:
         store, `name`, `alt` hay similarity: chúng không phải authority theo
         contract mới. Cùng một normalizer đang dùng ở `keys.py` tạo mã tra;
         không có extract-code hoặc quy tắc mới nào ở đây.
+
+        `inv.map` (S068 follow-up) là đường THỨ HAI, cùng cấp authority: nó
+        chỉ được hỏi khi đường `alias.map`/`board` (khoá bằng MÃ) đã MISS —
+        `inv.map` khoá bằng CÂU TÊN HÀNG kế toán đầy đủ (`normCode()` khác
+        hẳn phép chuẩn hoá mã), nên hai đường không tranh nhau: một identity
+        chỉ có thể khớp cái này hoặc cái kia theo đúng hình dạng dữ liệu của
+        chính nó, không phải theo một thứ tự ưu tiên áp đặt.
         """
         normalized_code = identity.normalized_matching_aid.upper()
         aliases = self.tracking.alias_map()
         canonical = aliases.get(normalized_code, normalized_code)
         row = self.tracking.row_for(canonical)
 
+        if row is not None and row.present_in_board:
+            target = CanonicalProductIdentity(
+                namespace=Namespace.TRACKING, source_product_code=canonical
+            )
+            method = (
+                ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+                if canonical != normalized_code
+                else ResolutionMethod.TRACKING_CANONICAL_EXACT
+            )
+            return IdentityResolution(
+                identity=identity,
+                outcome=Resolved(
+                    identity=target,
+                    provenance=self._provenance(
+                        identity,
+                        method,
+                        target=target,
+                        mapping_source=method.value,
+                    ),
+                ),
+                resolution_method=method,
+            )
+
+        inv_map_resolution = self._tracking_inv_map_authoritative(identity)
+        if inv_map_resolution is not None:
+            return inv_map_resolution
+
+        return IdentityResolution(
+            identity=identity,
+            outcome=PendingProduct(
+                reason_code=(
+                    PendingReason.MAPPING_STALE_TARGET_ABSENT
+                    if normalized_code in aliases
+                    else PendingReason.NO_CANDIDATE_IN_ANY_CATALOG
+                ),
+                attempted_sources=(AttemptedSource.TRACKING_CATALOG,),
+                provenance=self._provenance(
+                    identity,
+                    (
+                        ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+                        if normalized_code in aliases
+                        else ResolutionMethod.TRACKING_CANONICAL_EXACT
+                    ),
+                ),
+            ),
+            resolution_method=(
+                ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+                if normalized_code in aliases
+                else ResolutionMethod.TRACKING_CANONICAL_EXACT
+            ),
+        )
+
+    def _tracking_inv_map_authoritative(
+        self, identity: DistinctIdentity
+    ) -> Optional["IdentityResolution"]:
+        """`inv.map` — authority cho CÂU TÊN HÀNG kế toán đầy đủ (S068 follow-up).
+
+        Trả `None` khi nguồn vắng mặt HOẶC khoá vắng mặt trong `inv.map`: cả
+        hai đường đó phải rơi về đúng Pending reason mà nhánh `alias.map`/
+        `board` MISS đã tính (`MAPPING_STALE_TARGET_ABSENT` nếu `alias.map`
+        từng có mục cho mã này, ngược lại `NO_CANDIDATE_IN_ANY_CATALOG`) —
+        không tạo một nhánh Pending song song mang cùng ý nghĩa.
+
+        `"-"` và "target hết hợp lệ trong board" là hai sự kiện khác biệt đã
+        được xác nhận qua `inv.map` (không phải "chưa ai xem"), nên chúng trả
+        `IdentityResolution` trực tiếp ở đây, không rơi về nhánh MISS chung.
+        """
+        if self.inv_map is None:
+            return None
+
+        value = self.inv_map.lookup(identity.raw_product_identity)
+        if value is None:
+            return None
+
+        if value == TRACKING_INV_MAP_IGNORE_VALUE:
+            return IdentityResolution(
+                identity=identity,
+                outcome=PendingProduct(
+                    reason_code=PendingReason.TRACKING_INV_MAP_EXPLICIT_IGNORE,
+                    attempted_sources=(AttemptedSource.TRACKING_CATALOG,),
+                    provenance=self._provenance(
+                        identity, ResolutionMethod.TRACKING_INV_MAP_CONFIRMED
+                    ),
+                ),
+                resolution_method=ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
+            )
+
+        row = self.tracking.row_for(value)
         if row is None or not row.present_in_board:
             return IdentityResolution(
                 identity=identity,
                 outcome=PendingProduct(
-                    reason_code=(
-                        PendingReason.MAPPING_STALE_TARGET_ABSENT
-                        if normalized_code in aliases
-                        else PendingReason.NO_CANDIDATE_IN_ANY_CATALOG
-                    ),
+                    reason_code=PendingReason.MAPPING_STALE_TARGET_ABSENT,
                     attempted_sources=(AttemptedSource.TRACKING_CATALOG,),
                     provenance=self._provenance(
-                        identity,
-                        (
-                            ResolutionMethod.TRACKING_CONFIRMED_ALIAS
-                            if normalized_code in aliases
-                            else ResolutionMethod.TRACKING_CANONICAL_EXACT
-                        ),
+                        identity, ResolutionMethod.TRACKING_INV_MAP_CONFIRMED
                     ),
                 ),
-                resolution_method=(
-                    ResolutionMethod.TRACKING_CONFIRMED_ALIAS
-                    if normalized_code in aliases
-                    else ResolutionMethod.TRACKING_CANONICAL_EXACT
-                ),
+                resolution_method=ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
             )
 
         target = CanonicalProductIdentity(
-            namespace=Namespace.TRACKING, source_product_code=canonical
-        )
-        method = (
-            ResolutionMethod.TRACKING_CONFIRMED_ALIAS
-            if canonical != normalized_code
-            else ResolutionMethod.TRACKING_CANONICAL_EXACT
+            namespace=Namespace.TRACKING, source_product_code=value
         )
         return IdentityResolution(
             identity=identity,
@@ -277,12 +367,12 @@ class ProductIdentityResolver:
                 identity=target,
                 provenance=self._provenance(
                     identity,
-                    method,
+                    ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
                     target=target,
-                    mapping_source=method.value,
+                    mapping_source=ResolutionMethod.TRACKING_INV_MAP_CONFIRMED.value,
                 ),
             ),
-            resolution_method=method,
+            resolution_method=ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
         )
 
     def resolve_all(

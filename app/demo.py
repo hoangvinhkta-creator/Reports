@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 # Cho phép `python3 /đường/dẫn/Reports/app/demo.py` từ bất kỳ thư mục nào.
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +24,7 @@ from app.modules.pricing.resolution.composition import (
 from app.modules.pricing.resolution.sources import (
     IDENTITY_STORE_LOG_PATH, PriceResolutionSources,
     load_business_timezone, load_tracking_catalog_capture,
+    load_tracking_inv_map_capture,
 )
 from app.modules.pricing.tracking_history.capture_file import load_tracking_price_history_capture
 from app.modules.product.identity.store import JsonlProductIdentityStore
@@ -38,22 +40,32 @@ class DemoRun:
 
 
 def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
-             output: Path) -> DemoRun:
+             output: Path, tracking_inv_map: Optional[Path] = None) -> DemoRun:
     """Giữ nguyên kết quả và audit trail của đúng lần chạy production này.
 
     Production dùng đường dẫn canonical tương đối với repo. CLI đơn luồng
     chuyển thư mục trong lượt chạy và luôn khôi phục thư mục của caller.
+
+    `tracking_inv_map` TUỲ CHỌN (S068 follow-up): vắng mặt = "chưa nối",
+    resolver vẫn chạy đúng đường `alias.map`/`board` cũ — cùng khuôn
+    `public_purchase=None` tường minh ngay dưới đây.
     """
-    sales, tracking_capture, tracking_catalog, output = (
-        Path(path).expanduser().resolve()
-        for path in (sales, tracking_capture, tracking_catalog, output)
-    )
-    for path in (sales, tracking_capture, tracking_catalog):
+    paths_to_resolve = [sales, tracking_capture, tracking_catalog, output]
+    if tracking_inv_map is not None:
+        paths_to_resolve.append(tracking_inv_map)
+    resolved = [Path(p).expanduser().resolve() for p in paths_to_resolve]
+    sales, tracking_capture, tracking_catalog, output = resolved[:4]
+    tracking_inv_map = resolved[4] if tracking_inv_map is not None else None
+
+    required_inputs = [sales, tracking_capture, tracking_catalog]
+    if tracking_inv_map is not None:
+        required_inputs.append(tracking_inv_map)
+    for path in required_inputs:
         if not path.is_file():
             raise FileNotFoundError("Không tìm thấy một tệp đầu vào đã chỉ định.")
     if sales.suffix.lower() != ".xlsx" or output.suffix.lower() != ".xlsx":
         raise ValueError("Tệp kế toán và báo cáo phải có đuôi .xlsx.")
-    if output.exists() or output in (sales, tracking_capture, tracking_catalog):
+    if output.exists() or output in required_inputs:
         raise FileExistsError("Tệp output đã tồn tại; hãy chọn tên mới.")
     original_directory = Path.cwd()
     try:
@@ -63,6 +75,11 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
             business_timezone=load_business_timezone(REPO_ROOT / "config"),
             tracking_price_history=load_tracking_price_history_capture(tracking_capture),
             tracking_catalog=load_tracking_catalog_capture(tracking_catalog),
+            tracking_inv_map=(
+                load_tracking_inv_map_capture(tracking_inv_map)
+                if tracking_inv_map is not None
+                else None
+            ),
             # Tắt tường minh, không đọc đường dẫn legacy rồi mới xóa dữ liệu.
             public_purchase=None,
             identity_store_view=store.read_at_revision(store.current_revision()),
@@ -85,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--sales", required=True, type=Path, help="Workbook kế toán .xlsx")
     parser.add_argument("--tracking-capture", required=True, type=Path, help="Capture lịch sử giá JSON")
     parser.add_argument("--tracking-catalog", required=True, type=Path, help="Capture danh mục JSON")
+    parser.add_argument(
+        "--tracking-inv-map", required=False, default=None, type=Path,
+        help="Capture inv.map JSON (TUỲ CHỌN — S068 follow-up; vắng mặt = chưa nối)",
+    )
     parser.add_argument("--output", required=True, type=Path, help="Báo cáo .xlsx mới, không ghi đè")
     args = parser.parse_args(argv)
     try:

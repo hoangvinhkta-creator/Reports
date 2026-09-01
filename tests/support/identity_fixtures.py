@@ -33,6 +33,7 @@ from app.modules.product.identity.tracking_catalog import (
     TrackingCatalogRow,
     TrackingCatalogSnapshot,
 )
+from app.modules.product.identity.tracking_inv_map import TrackingInvMapSnapshot
 
 PRE_CUTOVER = date(2026, 8, 20)
 POST_CUTOVER = date(2026, 9, 15)
@@ -70,6 +71,27 @@ def tracking_snapshot(
             for code, name, alt, present in rows
         ),
         alias_map_rows=tuple(alias_map_rows),
+        failure_reason=failure_reason,
+    )
+
+
+def inv_map_snapshot(
+    entries: Sequence[tuple[str, str]] = (),
+    *,
+    capture_id: str = "INVMAP-20260901T000000Z-aaaaaaaa",
+    status: CaptureStatus = CaptureStatus.COMPLETE,
+    failure_reason: Optional[str] = None,
+) -> TrackingInvMapSnapshot:
+    """`entries` là các tuple `(inv_map_key, value)` — `value` là mã board
+    hoặc `"-"`. Test dựng khoá bằng `inv_map_key()` thật, không đoán chuỗi."""
+    return TrackingInvMapSnapshot(
+        capture_id=capture_id,
+        captured_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        captured_by=ACTOR,
+        source_system_ref="tracking-fake/inv_map",
+        content_hash="hash-" + capture_id,
+        capture_status=status,
+        entries=tuple(entries),
         failure_reason=failure_reason,
     )
 

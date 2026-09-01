@@ -340,6 +340,7 @@ class TestG07FuzzyHasNoProductionAuthority:
             ResolutionMethod.CATALOG_EXACT_UNIQUE,
             ResolutionMethod.TRACKING_CONFIRMED_ALIAS,
             ResolutionMethod.TRACKING_CANONICAL_EXACT,
+            ResolutionMethod.TRACKING_INV_MAP_CONFIRMED,
         }
         assert not is_auto_resolvable(ResolutionMethod.SIMILARITY_RANKED)
         assert not is_auto_resolvable(ResolutionMethod.ALIAS_AID_UNIQUE)

@@ -53,6 +53,10 @@ class PendingReason(str, Enum):
     MAPPING_STALE_TARGET_ABSENT = "MAPPING_STALE_TARGET_ABSENT"
     AWAITING_HUMAN_CONFIRMATION = "AWAITING_HUMAN_CONFIRMATION"
     PENDING_HISTORICAL_CONFIRMATION = "PENDING_HISTORICAL_CONFIRMATION"
+    TRACKING_INV_MAP_EXPLICIT_IGNORE = "TRACKING_INV_MAP_EXPLICIT_IGNORE"
+    """`inv.map[key] == "-"` — người của Tracking đã xem và xác nhận đây
+    KHÔNG phải một sản phẩm cần map (S068 follow-up). Khác `NO_CANDIDATE_IN_
+    ANY_CATALOG` (chưa ai xem): đây là một sự kiện đã người quyết định."""
 
 
 class AttemptedSource(str, Enum):
