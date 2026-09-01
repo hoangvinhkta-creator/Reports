@@ -51,6 +51,56 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
+- **S071 — Shared Online Beta / Cloud-First (nhánh
+  `claude/s071-shared-online-beta-inydpg`, baseline
+  `d64d208775c96a02791c957df25c11d6bf9835f8` = HEAD canonical tại thời điểm
+  mở phiên, không drift). CODE COMPLETE + VERIFYING, CHƯA DEPLOYED, CHƯA
+  merge canonical.** Xây trên S070 (Web Beta V1, chạy cục bộ trên máy
+  Owner) để biến Reports Web thành một shared online beta thật: (1) run
+  registry đổi từ `dict` process-local sang SQLite persistent
+  (`app/web/run_registry.py`) — sống qua restart, nhiều viewer/nhiều worker
+  process cùng đọc một trạng thái; (2) Tracking Sync Model đổi từ "đọc
+  capture chụp tay trên máy Owner" sang **PULL ON REPORT RUN**
+  (`tools/tracking/live_pull.py`) khi
+  `TRACKING_REPORT_SOURCE_URL`/`TRACKING_REPORT_API_KEY` được cấu hình ở
+  environment (deployment cloud) — máy Owner không còn nằm trên critical
+  path; khi CHƯA cấu hình (máy Owner local, đúng trạng thái S068–S070),
+  hành vi cũ giữ nguyên tuyệt đối, không đổi gì; (3) thêm trang `/history`
+  (lịch sử run, mới nhất trước); (4) `app/web/wsgi.py` + `Dockerfile` cho
+  triển khai production qua gunicorn (khác `app/web/launcher.py` cục bộ,
+  không đổi).
+
+  Test mới: `tests/test_web_run_registry.py` (12 test — round-trip field,
+  PERSIST qua "restart" mô phỏng bằng việc mở `RunRegistry` MỚI trỏ cùng
+  file DB sau khi xoá reference Python cũ, MULTI-VIEWER bằng 2 instance
+  registry độc lập, concurrent reads/writes 8–10 thread), cùng
+  `tests/test_tracking_live_pull.py` (20 test — thành công, REQUIRED
+  `purchase_price_history`/`catalog` fail → raise rõ node, mô phỏng
+  timeout/403/502/404/malformed-schema, TUỲ CHỌN `inv_map` fail không chặn
+  run). `tests/test_web_server.py` viết lại cho registry mới (43 test, từ
+  34 — restart persistence, multi-viewer qua 2 Flask app + 2 test client
+  cùng `db_path`, storage-failure trả 500 rõ ràng không traceback, live-pull
+  integration không âm thầm fallback khi Tracking unavailable). Full
+  regression: **1440 passed, 11 skipped** (từ `1404 passed, 11 skipped`
+  baseline S070). Bất biến kiến trúc `test_no_module_under_app_reaches_the_network`
+  (ranh giới network `ADR-101`/`DEC-152` §6) verify lại PASS sau khi thêm
+  `tools/tracking/live_pull.py` (nằm ngoài `app/modules/**`, đúng vị trí).
+
+  **`TRACKING_LIVE_VERIFICATION = BLOCKED_BY_REMOTE_SECRET`** — môi trường
+  Claude Cloud chạy session S071 không có
+  `TRACKING_REPORT_SOURCE_URL`/`TRACKING_REPORT_API_KEY`; adapter live pull
+  chỉ verify được bằng test có mock (30/30 PASS, không mạng thật), đúng như
+  S071 §7 dự liệu trước — KHÔNG coi là architecture blocker.
+
+  **`DEPLOYMENT_STATUS = DEPLOYMENT_READY`, KHÔNG DEPLOYED** — session
+  không có credential hosting/DNS/Cloudflare nào. `docs/deployment/
+  S071_DEPLOYMENT.md` ghi đủ "exact minimal deployment action" cho Owner:
+  chọn nhà cung cấp compute+volume (Dockerfile provider-agnostic), mount
+  volume vào `/app/data` + `/app/outputs`, đặt hai biến môi trường
+  Tracking, trỏ DNS `reports.tinphatcrm.com`, bật Cloudflare Access. Chi
+  tiết đầy đủ, bảng so sánh kiến trúc, DECISION log, và RETURN block đầy đủ
+  tại `docs/sessions/S071-shared-online-beta.md`.
+
 - **S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
   baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), Independent Review
   PASS sau 1 repair, ĐÃ merge canonical qua

@@ -147,16 +147,24 @@ def default_output_path(*, repo_root: Path = REPO_ROOT,
 
 
 def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
-                     now: datetime | None = None) -> OwnerRun:
+                     now: datetime | None = None,
+                     captures: SelectedCaptures | None = None) -> OwnerRun:
     """Gọi đúng Demo V1 sau khi chọn đầu vào Owner cần thấy.
 
     ``run_demo`` vẫn là đường production duy nhất; lớp này không truyền bất
     kỳ quyết định nghiệp vụ nào ngoài hai capture COMPLETE đã chọn.
+
+    ``captures`` (S071): khi bên gọi đã tự chọn captures — ví dụ Reports Web
+    Shared Beta pull-on-run LIVE từ Tracking thay vì đọc capture cục bộ trên
+    máy Owner (``tools.tracking.live_pull``) — truyền thẳng vào đây, bỏ qua
+    ``select_latest_valid_captures()``. Mặc định ``None`` giữ nguyên hành vi
+    local Owner đã accepted (S068–S070): tự quét kho capture cục bộ.
     """
     sales = Path(sales).expanduser().resolve()
     if not sales.is_file() or sales.suffix.lower() != ".xlsx":
         raise OwnerUsabilityError("Hãy chọn một workbook kế toán có đuôi .xlsx.")
-    captures = select_latest_valid_captures(repo_root=repo_root)
+    if captures is None:
+        captures = select_latest_valid_captures(repo_root=repo_root)
     output = default_output_path(repo_root=repo_root, now=now)
     output.parent.mkdir(parents=True, exist_ok=True)
     run = demo.run_demo(

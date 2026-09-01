@@ -19,6 +19,15 @@ data/beta_feedback/
 *.xlsx
 !tests/fixtures/**/*.xlsx
 
+# S071 — Shared Online Beta: run registry (SQLite) + artifact/upload state
+# đều là dữ liệu runtime của một lần triển khai cụ thể, không phải nội dung
+# repo. `data/tracking_live_tmp/` là capture Tracking tạm cho MỘT lần chạy
+# (xoá ngay sau khi dùng — xem tools/tracking/live_pull.py), không bao giờ
+# nên tồn tại lâu để mà commit.
+data/web_runs/
+data/tracking_live_tmp/
+*.jsonl.lock
+
 # --- Python ---
 __pycache__/
 *.py[cod]

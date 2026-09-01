@@ -12,6 +12,10 @@
 > Cập nhật lần cuối: 2026-09-01 — Owner đã chốt: 01/09/2026 chỉ là mốc kỹ
 > thuật. Báo cáo được dùng evidence giá đã xác minh cho đơn cũ khi evidence
 > thật sự phủ ngày bán. Các mốc cũ bên dưới được giữ nguyên như lịch sử.
+>
+> Cập nhật thêm 2026-09-01 (S071): đã viết xong + test xong phần đưa Web
+> Beta V1 lên thành trang dùng chung nhiều người — xem mục "ĐANG LÀM" bên
+> dưới. Chưa lên mạng thật, chưa gộp bản canonical.
 
 # TRẠNG THÁI HIỆN TẠI
 
@@ -91,9 +95,37 @@ file, hay gửi phản hồi từ tab đó đều có thể treo. Đã sửa b�
 cấu hình chuẩn của thư viện web đang dùng, verify lại: không còn treo, chạy
 lại toàn bộ kiểm tra (bao gồm 2 lần chạy báo cáo liên tiếp thật) đều đúng.
 
-Ngoài S070, không có việc engineering nào khác đang mở. Giai đoạn tiếp theo
-là **dùng thật** (xem "SAU KHI OWNER QUYẾT ĐỊNH" và mục bên dưới) — không
-phải viết thêm code.
+## ĐANG LÀM — S071, chưa gộp bản canonical, chưa lên mạng thật
+
+**Mục tiêu:** biến "Web Beta V1" (S070, chỉ chạy được trên đúng máy Owner)
+thành một trang web thật dùng chung được — `reports.tinphatcrm.com` — để
+sếp cũng mở được, xem cùng kết quả, xem lịch sử các lần chạy, tải cùng file
+Excel, mà không cần Owner bật máy hay chạy gì trước.
+
+**Đã làm xong về code (nhánh `claude/s071-shared-online-beta-inydpg`),
+chạy test đầy đủ, PASS:**
+- Kết quả mỗi lần chạy giờ được lưu vào một file cơ sở dữ liệu trên đĩa
+  (thay vì chỉ nằm trong bộ nhớ máy chủ) — tắt/bật lại máy chủ không còn
+  mất lịch sử, và nhiều người mở web cùng lúc sẽ thấy đúng cùng một kết
+  quả.
+- Thêm trang xem lịch sử các lần đã chạy.
+- Thêm cách lấy dữ liệu Tracking (giá, mã sản phẩm) trực tiếp mỗi lần chạy
+  báo cáo, thay vì phải chụp sẵn dữ liệu đó trên máy Owner trước — để máy
+  Owner không còn là điểm bắt buộc phải bật.
+- Đã chuẩn bị sẵn file đóng gói (Docker) để đưa lên một máy chủ chạy 24/7.
+
+**CHƯA làm được, cần Owner quyết định/thực hiện (không phải việc code):**
+Session này chạy trong môi trường không có tài khoản/mật khẩu của bất kỳ
+nhà cung cấp máy chủ, tên miền, hay Cloudflare nào — nên KHÔNG tự đưa được
+trang web lên mạng thật. Owner (hoặc người có quyền) cần làm các bước ghi
+đầy đủ tại `docs/deployment/S071_DEPLOYMENT.md`: chọn nơi thuê máy chủ nhỏ
+(có ổ đĩa lưu lâu dài), trỏ tên miền `reports.tinphatcrm.com`, bật khoá
+truy cập riêng tư (Cloudflare Access — không phải tự xây đăng nhập/mật
+khẩu riêng), và nhập secret kết nối Tracking vào đúng chỗ máy chủ đó (không
+bao giờ dán secret vào đây).
+
+Cho tới khi các bước trên xong, "Web Beta V1" (S070) trên máy Owner vẫn
+dùng bình thường như cũ, không bị ảnh hưởng gì.
 
 ## ĐANG CHỜ
 

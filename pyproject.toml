@@ -17,6 +17,13 @@ dev = [
 web = [
     "Flask>=3.0",
 ]
+# S071 — Shared Online Beta: chỉ cần cho triển khai production (gunicorn
+# chạy app/web/wsgi.py). Local launcher (app/web/launcher.py) và test vẫn chỉ
+# cần "web" ở trên — gunicorn không tồn tại trên Windows nên KHÔNG gộp vào đó.
+web-prod = [
+    "tinphat-reporting-engine[web]",
+    "gunicorn>=22.0; platform_system != 'Windows'",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

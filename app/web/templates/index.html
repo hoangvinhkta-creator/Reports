@@ -27,9 +27,10 @@
 </style>
 </head>
 <body>
-  <p class="badge">Reports · Internal Beta</p>
+  <p class="badge">Reports · Shared Online Beta</p>
   <h1>BÁO CÁO BÁN HÀNG</h1>
   <p class="readiness">Dữ liệu Tracking: {{ readiness }}</p>
+  <p><a href="{{ url_for('history') }}">Xem lịch sử các lần chạy →</a></p>
 
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   {% if not_found %}
@@ -43,11 +44,14 @@
 
   {% if result %}
   <div class="card">
+    {% if run_created_at %}<p class="badge">Chạy lúc: {{ run_created_at }}</p>{% endif %}
+    {% if workbook_display_name %}<p class="badge">Workbook: {{ workbook_display_name }}</p>{% endif %}
     <div class="summary-grid">
       <div><span class="label">Tổng đơn:</span> {{ result.input_orders }}</div>
       <div><span class="label">AUTO:</span> {{ result.auto_orders }}</div>
       <div><span class="label">Cần xem lại:</span> {{ result.review_orders }}</div>
       <div><span class="label">Ưu tiên xem ngay:</span> {{ result.error_count }}</div>
+      <div><span class="label">Dòng không nhận diện được:</span> {{ result.dropped_lines }}</div>
       <div><span class="label">Accounting coverage:</span> {{ result.accounting_rate }}</div>
     </div>
   </div>
