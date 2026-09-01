@@ -35,8 +35,26 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
 ## ĐANG LÀM
 
-**Internal Beta review — nhánh `s068/inv-map-vertical`, chưa gộp vào bản
-canonical.** Owner xác nhận thêm: `inv.map` của Tracking (bảng người của
+**S069 — Beta Operator UI + Feedback, nhánh `s069/beta-operator-ui`, chưa
+gộp vào bản canonical, chờ soát xét độc lập.** Cửa sổ chạy báo cáo (giống
+Owner Usability V1) nay hiện thêm: dữ liệu Tracking sẵn sàng hay chưa, số
+Lỗi, danh sách lý do cần xem lại theo đúng tên gọi hệ thống dùng, nút mở
+báo cáo Excel bấm lại được nhiều lần, và một nút "Gửi phản hồi" nhỏ lưu
+ngay trên máy (không gửi đi đâu). Mỗi lần chạy thành công cũng tự ghi lại
+vài con số tổng hợp (bao nhiêu đơn, AUTO, cần xem, lỗi) trên máy, để sau
+Beta biết thật sự công cụ đang được dùng ra sao — không ghi tên khách,
+số điện thoại, giá cả hay bất kỳ dữ liệu nhạy cảm nào. Khi audit lại cửa sổ
+cũ, phát hiện nó **chưa từng dùng** nguồn `inv.map` mà mục dưới đây nói đã
+duyệt — nghĩa là trước S069, bấm chạy báo cáo thật ra vẫn cho ra kết quả CŨ
+(hầu như mọi đơn đều "cần xem lại"), không phải kết quả đã duyệt (22 đơn tự
+động). S069 đã nối đúng nguồn đó vào cửa sổ; chạy lại trên đúng dữ liệu
+thật cho ra lại đúng **22 đơn tự động / 36 đơn cần xem lại**, khớp con số
+đã duyệt.
+
+**Internal Beta review — nhánh `s068/inv-map-vertical`, đã gộp vào bản
+canonical (`claude/extract-upload-repo-gq2ws4`) qua checkpoint
+`3f92c953b4c6d12834d4d3a0c611a7b27e7e0061`, xác nhận lúc mở phiên S069.**
+Owner xác nhận thêm: `inv.map` của Tracking (bảng người của
 Tracking gán câu tên hàng kế toán → mã sản phẩm) cũng là authority, cùng cấp
 với alias đã xác nhận trước đây — không cần Owner xác nhận lại lần hai bên
 Reports. Sau khi Reports đọc thêm nguồn này, chạy lại đúng cohort thật ngày

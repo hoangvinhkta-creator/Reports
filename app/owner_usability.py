@@ -7,13 +7,16 @@ không thay đổi capture hay workbook nguồn.
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
 from app import demo
-from app.modules.pricing.resolution.sources import load_tracking_catalog_capture
+from app.modules.pricing.resolution.sources import (
+    load_tracking_catalog_capture, load_tracking_inv_map_capture,
+)
 from app.modules.pricing.tracking_history.capture_file import (
     load_tracking_price_history_capture,
 )
@@ -25,6 +28,7 @@ HISTORY_CAPTURE_DIRECTORIES = (
     Path("data/tracking_price_history"),
 )
 CATALOG_CAPTURE_DIRECTORIES = (Path("data/tracking_catalog"),)
+INV_MAP_CAPTURE_DIRECTORIES = (Path("data/tracking_inv_map"),)
 
 
 class OwnerUsabilityError(RuntimeError):
@@ -35,6 +39,7 @@ class OwnerUsabilityError(RuntimeError):
 class SelectedCaptures:
     tracking_capture: Path
     tracking_catalog: Path
+    tracking_inv_map: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -64,7 +69,8 @@ def _latest_complete_capture(
     directories: Iterable[Path],
     loader: Callable[[Path], Snapshot | None],
     label: str,
-) -> Path:
+    required: bool = True,
+) -> Path | None:
     """Trả về capture COMPLETE mới nhất theo ``captured_at`` đã được loader kiểm.
 
     Các file FAILED, hỏng hoặc không phải capture đúng loại đều bị loại. Không
@@ -89,6 +95,8 @@ def _latest_complete_capture(
             # hành động, không được lộ failure_reason hay payload nguồn.
             continue
     if not candidates:
+        if not required:
+            return None
         locations = ", ".join(str(path) for path in directories)
         raise OwnerUsabilityError(
             f"Không có capture {label} COMPLETE hợp lệ trong {locations}. "
@@ -110,7 +118,17 @@ def select_latest_valid_captures(*, repo_root: Path = REPO_ROOT) -> SelectedCapt
         loader=load_tracking_catalog_capture,
         label="danh mục Tracking",
     )
-    return SelectedCaptures(tracking_capture=history, tracking_catalog=catalog)
+    # inv.map là authority TUỲ CHỌN (S068 follow-up): vắng mặt = chưa nối,
+    # demo.run_demo vẫn chạy đúng đường alias.map/board cũ — không chặn Owner.
+    inv_map = _latest_complete_capture(
+        directories=tuple(root / path for path in INV_MAP_CAPTURE_DIRECTORIES),
+        loader=load_tracking_inv_map_capture,
+        label="inv.map Tracking",
+        required=False,
+    )
+    return SelectedCaptures(
+        tracking_capture=history, tracking_catalog=catalog, tracking_inv_map=inv_map,
+    )
 
 
 def default_output_path(*, repo_root: Path = REPO_ROOT,
@@ -145,6 +163,7 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
         sales=sales,
         tracking_capture=captures.tracking_capture,
         tracking_catalog=captures.tracking_catalog,
+        tracking_inv_map=captures.tracking_inv_map,
         output=output,
     )
     if run.summary.input_orders != run.summary.accounted_orders:
@@ -152,3 +171,8 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
             "Báo cáo không đối chiếu đủ đơn hàng; không xem đây là kết quả hoàn tất."
         )
     return OwnerRun(demo_run=run, captures=captures)
+
+
+def open_report_file(path: Path) -> None:
+    """Mở đúng artifact vừa tạo bằng ứng dụng mặc định của macOS (S069)."""
+    subprocess.run(["open", str(path)], check=False)

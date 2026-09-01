@@ -24,11 +24,20 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   `f8d3ffc3c2071a33f2818664713c62da9cfe176f`): `inv.map` của Tracking được
   consume làm authority THỨ HAI, cùng cấp `alias.map`/`board` — xem chi tiết
   dưới CURRENT.
+- S069 Beta Operator UI + Feedback (nhánh `s069/beta-operator-ui`, baseline
+  `3f92c953b4c6d12834d4d3a0c611a7b27e7e0061`): Owner launcher nối thêm
+  `tracking_inv_map` (gap chưa từng nối trước S069 — launcher V1 ra
+  `AUTO=0` thay vì `22` đã accepted), Review summary + Lỗi hiển thị đúng
+  authoritative, feedback + telemetry local (`data/beta_feedback/`,
+  git-ignored). Gate PASS — xem
+  `docs/sessions/S069-beta-operator-ui-feedback.md`.
 
 ### CURRENT
 
 - **S068 — Internal Beta review (checkpoint `f8d3ffc3c2071a33f2818664713c62da9cfe176f`,
-  nhánh `s068/inv-map-vertical`, chưa merge canonical).** Owner xác nhận
+  nhánh `s068/inv-map-vertical`, ĐÃ merge canonical qua
+  `3f92c953b4c6d12834d4d3a0c611a7b27e7e0061` — xác nhận lúc mở phiên S069
+  bằng `git merge-base --is-ancestor`).** Owner xác nhận
   `inv.map` (bảng do người của Tracking duyệt, khoá bằng câu tên hàng kế toán
   đầy đủ đã `normCode()`) là authority cùng cấp `alias.map` — không còn
   candidate-tier, không cần `confirmation_action` thứ hai từ Reports.
@@ -878,6 +887,59 @@ tiếp theo".
 lấp ô đang trống) và nhập bảng giá từ Excel. Khoá chuỗi `prev` của reader bắt
 đúng loại lỗ hổng này và trả `Pending`, nên nó **không** sinh số sai — chỉ
 giảm độ phủ.
+
+## BETA OPERATOR UI + FEEDBACK (S069, 2026-09-01)
+
+Nhánh `s069/beta-operator-ui`, baseline
+`3f92c953b4c6d12834d4d3a0c611a7b27e7e0061`. Chi tiết đầy đủ:
+`docs/sessions/S069-beta-operator-ui-feedback.md`.
+
+**Phát hiện trước khi sửa.** Audit `app/owner_usability.py` (Owner launcher
+V1) cho thấy nó chưa từng chọn/nối capture `data/tracking_inv_map/` —
+nghĩa là double-click `Open Reports.command` trước S069 vẫn ra baseline CŨ
+(`AUTO=0/58`) thay vì baseline `22 AUTO/36 Review` mà S068 đã accept. Đây là
+gap chặn Exit Criteria "AUTO/Review hiển thị đúng", được sửa trong S069
+bằng cách nối đúng tham số `tracking_inv_map` (đã tồn tại từ S068,
+`demo.run_demo` đã hỗ trợ tuỳ chọn) vào launcher — không phải business rule
+mới, không tăng AUTO ngoài baseline đã accepted.
+
+**Thay đổi chính.** `ReportSummary` thêm `error_count` +
+`review_reason_counts` (đếm lại đúng dữ liệu authoritative đã tính cho
+Excel, không phân loại lại). Owner launcher thêm data readiness, Result
+summary đầy đủ, Review summary (nhãn hiển thị qua `app/beta_presentation.py`,
+reason gốc giữ nguyên), nút "Mở báo cáo Excel" thường trực
+(`owner_usability.open_report_file`, tách để test được), nút "Gửi phản
+hồi". `app/beta_feedback.py` + `app/beta_telemetry.py` (mới): JSONL
+append-only local tại `data/beta_feedback/` (đã thêm `.gitignore`), schema
+cố định, không PII, không secret, không payload Tracking.
+
+**Real Beta Smoke — evidence đã refresh, không phải regression.** Lần chạy
+đầu qua launcher đã nối cho `AUTO=0/58` thay vì `22/36`: trace ra
+`data/captures/PPH-20260831T080038Z.json` cục bộ đã STALE so với capture
+lúc S068 accept (không còn trên máy này). Dùng lại đúng
+`tools/tracking/capture_purchase_price_history.py` +
+`tools/tracking/capture_inv_map.py` (cơ chế đã accepted, không code mới) để
+refresh cả hai capture → rerun ra đúng `58 đơn/83 dòng/22 AUTO/36
+Review/100% accounting/0 dropped` — khớp tuyệt đối baseline S068 đã accept.
+
+**Regression.** `1373 passed, 11 skipped` (từ `1349 passed, 11 skipped`;
++24 test mới, không skip nào đổi).
+
+**Giới hạn đã biết, không che giấu.** `owner_launcher.py` dùng Tkinter
+thật; môi trường session này không có interpreter nào vừa có Tkinter vừa có
+dependency dự án cùng lúc, nên phần widget-wiring chỉ được xác nhận bằng
+`py_compile` + review thủ công (đúng giới hạn đã tồn tại từ bản gốc trước
+S069, bản đó cũng chưa từng có test). Toàn bộ logic thuần (feedback,
+telemetry, presentation, capture wiring, open-file adapter) đã unit test
+đầy đủ, độc lập Tkinter.
+
+**Known deferred findings không đổi**: A1 Product Identity Discovery Gap,
+13 sản phẩm Pending thật, 6 dòng service/cost, PP coverage, AUTO rate
+target, fuzzy/substring mapping, generic MDM, web frontend/backend.
+
+**S069_GATE_RESULT = PASS.** Chưa merge canonical trong phiên này; đã push
+`s069/beta-operator-ui` lên origin, chờ independent review trước
+integration.
 
 ## Governance V4.1 — Trạng Thái Adoption
 

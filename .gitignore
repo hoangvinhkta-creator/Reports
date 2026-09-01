@@ -13,6 +13,9 @@
 data/samples/
 data/uploads/
 data/exports/
+
+# S069 — Beta Operator UI: telemetry aggregate + feedback local, PRIVATE.
+data/beta_feedback/
 *.xlsx
 !tests/fixtures/**/*.xlsx
 

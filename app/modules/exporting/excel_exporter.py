@@ -20,7 +20,7 @@ from app.modules.domain.models import (
 )
 from app.modules.pricing.resolution.composition import PriceResolutionRecord
 from app.modules.validation.models import (
-    CATEGORY_MISSING_PURCHASE_PRICE, SEVERITY_INFO, SCOPE_ORDER,
+    CATEGORY_MISSING_PURCHASE_PRICE, SEVERITY_ERROR, SEVERITY_INFO, SCOPE_ORDER,
 )
 from app.pipeline import ImportResult
 
@@ -53,6 +53,8 @@ class ReportSummary:
     auto_orders: int
     review_orders: int
     review_lines: int
+    error_count: int
+    review_reason_counts: dict[str, int]
 
     @property
     def order_accounting_rate(self) -> float:
@@ -208,12 +210,18 @@ def export_report(
     """Xuất một snapshot kết quả; ô trống giữ nguyên nghĩa chưa xác định."""
     views = _present_lines(result, records, raw_rows)
     pending_orders = {v.line.order_id for v in views if v.reasons}
+    review_reason_counts: dict[str, int] = defaultdict(int)
+    for view in views:
+        for reason in view.reasons:
+            review_reason_counts[reason] += 1
     summary = ReportSummary(
         input_orders=len({r.order_id for r in raw_rows}),
         accounted_orders=len(result.orders), total_lines=len(views),
         auto_orders=len(result.orders) - len(pending_orders),
         review_orders=len(pending_orders),
         review_lines=sum(bool(v.reasons) for v in views),
+        error_count=len(result.review_queue.by_severity(SEVERITY_ERROR)),
+        review_reason_counts=dict(review_reason_counts),
     )
     workbook = Workbook()
     summary_sheet = workbook.active
