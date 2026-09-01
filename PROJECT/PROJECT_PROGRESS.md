@@ -51,9 +51,49 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
+- **S071B — Render deployment thật đầu tiên + 2 packaging repair (nhánh
+  `s071b/stateless-r2`, cùng ngày 2026-09-01, SAU khi Owner deploy blueprint
+  S071B lên Render).** Render build/deploy thật lần đầu (SHA `9fed597`)
+  phát hiện HAI blocker packaging pre-existing (không phải bug S071B tự
+  sinh ra, nhưng chỉ bị lộ ra khi build Docker thật lần đầu):
+  1. `pip install ".[web-prod]"` FAIL — setuptools "Multiple top-level
+     packages discovered: ['app', 'config']" (chưa từng khai báo packages
+     tường minh trong `pyproject.toml`). Sửa: `tools/__init__.py` (mới) +
+     `[tool.setuptools.packages.find] include = ["app*", "tools*"]`. SHA
+     `9fed597dc5f6307bd3102c4683f62dbeccb675f2`.
+  2. Sau khi build PASS, chạy workbook thật đã accepted ở S068 qua
+     production cho **0 AUTO order** thay vì **22 AUTO order** baseline —
+     điều tra xác nhận KHÔNG PHẢI business rule/identity/PP thay đổi
+     (identity unresolved 31, PP pending 13, accounting coverage 100% đều
+     khớp tuyệt đối baseline) mà do `Dockerfile` không `COPY data ./data`:
+     `app/composition.py::run_import_production()` nạp KHÔNG ĐIỀU KIỆN
+     `data/confirmed_adjustments/confirmed_adjustments.jsonl` (một nguồn
+     "canonical committed"), file này vắng mặt trong container (khác "tồn
+     tại nhưng rỗng" ở checkout local) → `ConfirmedAdjustmentSource`
+     UNAVAILABLE (fail-closed đúng thiết kế DEC-144 §3) cho **mọi dòng**
+     (không chỉ dòng vốn đã Pending vì thiếu giá) → mọi order mất
+     `eligible_kpi_profit` → 0 AUTO. Sửa: `Dockerfile` thêm `COPY data
+     ./data` (đúng 3 file nhỏ đã commit) + `.dockerignore` (mới, chặn mọi
+     thư mục con `data/` chứa dữ liệu thật/PII). Test mới `tests/
+     test_deployment_canonical_data_packaging.py` (5 test, tái hiện đúng
+     production failure trước khi sửa). SHA
+     `122f170150a3fb681c8ee7fcd448574b69a074c1`.
+
+  Cả hai đều là gap đóng gói Docker (file/package cần thiết không nằm
+  trong build context), KHÔNG phải thay đổi kiến trúc/business logic —
+  không đụng AUTO rule, Product Identity Authority, R2/Render/Cloudflare
+  architecture. Full regression sau cả hai: **1494 passed, 11 skipped**
+  (từ `1489 passed, 11 skipped` baseline S071B implementation — +5 test
+  mới, không regression). Chi tiết đầy đủ, evidence từng bước, RETURN
+  block: `docs/sessions/S071-shared-online-beta.md` §13–§14.
+  `RENDER_NEXT_ACTION` (chưa xác nhận trong session): Owner chờ Render
+  auto-deploy build trên `122f170`, chạy lại đúng workbook cohort, xác
+  nhận số liệu khớp lại 22 AUTO/36 Review/100%/0 lỗi im lặng.
+
 - **S071B — Stateless Persistence Adapter (nhánh `s071b/stateless-r2`,
   baseline `5f12516cde2c51b4307413ac960eb6a1c97da2ec` = HEAD của nhánh S071
-  tại thời điểm mở phiên). CODE COMPLETE + VERIFYING, CHƯA DEPLOYED, CHƯA
+  tại thời điểm mở phiên). CODE COMPLETE + VERIFYING, CHƯA DEPLOYED
+  (deployment thật + 2 packaging repair — xem entry ngay trên), CHƯA
   merge canonical.** Follow-up trực tiếp của "S071 DEPLOYMENT GATE" bên
   dưới: thay SQLite + persistent Disk (Render, 1 disk/service) bằng
   **Cloudflare R2** để Reports Python web runtime trở thành STATELESS —

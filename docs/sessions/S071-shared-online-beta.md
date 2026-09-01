@@ -775,3 +775,173 @@ INDEPENDENT_REVIEW_READY = YES cho phần code/test/config; ý nghĩa nhất SAU
 
 NEXT_VERTICAL_ACTION = Owner tạo R2 bucket + API token trên Cloudflare dashboard → dán 4 biến R2_* vào Render (hoặc host stateless khác) → xoá Render Disk cũ nếu còn (không cần nữa) → deploy lại → tick Production Acceptance Checklist cập nhật (docs/deployment/S071_DEPLOYMENT.md) → báo lại kết quả để mở một phiên Independent Review xác nhận trên R2 thật trước khi merge canonical
 ```
+
+## 13. Render packaging repair #1 — setuptools "Multiple top-level packages"
+
+Ngày: 2026-09-01. Render deploy thật đầu tiên trên đúng SHA `9fed597`
+(§12.8) FAIL tại `Dockerfile:43` (`pip install ".[web-prod]"`) với lỗi
+setuptools flat-layout: `Multiple top-level packages discovered in a
+flat-layout: ['app', 'config']`. Đây là bug packaging pre-existing (từ khi
+thêm optional-dependency "web" ở S070) — chưa từng bị phát hiện vì đây là
+lần `pip install ".[web-prod]"`/`docker build` thật ĐẦU TIÊN chạy trên hạ
+tầng thật (mọi test/dev trước đó dùng dependency cài trực tiếp, không qua
+build chính project).
+
+**ROOT_CAUSE**: `pyproject.toml` chưa từng khai báo packages tường minh —
+dựa hoàn toàn vào setuptools auto-discovery. `config/` (data YAML runtime,
+không `__init__.py`) bị auto-discovery hiểu nhầm thành một package
+namespace top-level ngang hàng `app/` → ambiguous, setuptools từ chối
+đoán. `tools/` (dù có `tools.storage`/`tools.tracking` dùng thật trong
+`app/web/server.py`) không xuất hiện trong danh sách lỗi vì tên "tools"
+nằm sẵn trong danh sách default-exclude của setuptools flat-layout — che
+giấu một vấn đề THỨ HAI (tools/ thiếu `__init__.py` top-level, nên dù sửa
+xong ambiguity vẫn không được cài đúng).
+
+**REPAIR**: `tools/__init__.py` (mới, rỗng, cùng convention
+`app/__init__.py`) + `pyproject.toml` thêm
+`[tool.setuptools.packages.find] include = ["app*", "tools*"]` — khai báo
+tường minh, loại bỏ hoàn toàn nhu cầu auto-discovery đoán mò.
+
+**VALIDATION** (Docker daemon không có trong môi trường Cloud session này
+— dùng equivalent build validation): dựng lại chính xác Dockerfile COPY
+context (`pyproject.toml` + `app/` + `tools/` + `config/`) từ bản sao CHỈ
+gồm file git-tracked (`git ls-files`), chạy đúng lệnh
+`pip install ".[web-prod]"` trong venv sạch → PASS; verify `import
+app.web.wsgi:application` + `GET /` (health check path của `render.yaml`)
+từ site-packages đã cài → PASS; `pip install -e ".[dev,web]"` từ repo root
+đầy đủ cũng PASS (bonus, sửa luôn local dev workflow vốn cũng lỗi từ
+trước). Full regression không đổi: `1489 passed, 11 skipped`.
+
+`IMPLEMENTATION_SHA = fbc8fc74e88e50f8005504e0ea19ee44a64f4adf` (S071B
+gốc) → `9fed597dc5f6307bd3102c4683f62dbeccb675f2` (repair #1). Render
+auto-deploy commit mới, build PASS, web UI production PASS — xem §14 cho
+regression tiếp theo phát hiện ngay sau đó trên cùng SHA `9fed597`.
+
+## 14. Render packaging repair #2 — AUTO 22 → 0 (thiếu `COPY data`)
+
+Ngày: 2026-09-01, cùng ngày với §13. Sau khi build/web UI PASS trên
+`9fed597`, Owner chạy workbook thật đã accepted ở S068
+(`SO_CHI_TIET_BAN_HANG (6).XLSX`) qua production — cùng workbook, cùng
+code, nhưng kết quả lệch nghiêm trọng so với baseline S068:
+
+| | S068 baseline (local) | Render production (`9fed597`) |
+|---|---|---|
+| AUTO orders/lines | 22 / 23 | **0 / 0** |
+| Review orders/lines | 36 / 60 | **58 / 83** |
+| Identity unresolved | 31 | 31 (khớp) |
+| PP pending sau identity | 13 | 13 (khớp) |
+| Accounting coverage | 100% | 100% (khớp) |
+| Silent error | 0 | 0 (khớp) |
+
+**ĐIỀU TRA (không đoán, trace trực tiếp code)**: `identity unresolved` (31)
+và `PP pending` (13) khớp TUYỆT ĐỐI baseline — nghĩa là Product Identity
+Authority (Tracking, qua `alias.map`/`board`/`inv_map`, live-pull ở web
+mode) và Tracking price-history temporal resolution hành xử Y HỆT baseline
+(`TRACKING_LIVE_PULL = PASS`, `IDENTITY_EQUIVALENCE = PASS`,
+`PP_TEMPORAL_EQUIVALENCE = PASS` — không phải nguồn gây lệch). Review
+reason "Thiếu giá mua tham chiếu" = 44 = 31 + 13 khớp đúng tổng hai số
+trên — cũng không phải nguồn gây lệch. Bằng chứng quyết định: "Thiếu lợi
+nhuận KPI" = **83 (TẤT CẢ dòng)**, trong khi "Thiếu lợi nhuận kế toán" chỉ
+= 44 — tức 39 dòng ĐÃ có đủ giá kế toán vẫn mất KPI profit, một tầng hoàn
+toàn khác với identity/PP.
+
+Trace `app/modules/kpi/kpi_profit_engine.py::resolve_kpi_purchase_price()`
+(dòng 126-127): `kpi_purchase_price = None` khi
+`confirmed_adjustment_source.is_available` là `False` — ĐỘC LẬP với
+`accounting_purchase_price` đã có hay chưa. `confirmed_adjustment_source`
+nạp từ `app/composition.py::CONFIRMED_ADJUSTMENTS_PATH =
+Path("data/confirmed_adjustments/confirmed_adjustments.jsonl")` — một
+"nguồn canonical committed" (docstring `composition.py`), nạp KHÔNG ĐIỀU
+KIỆN trong `run_import_production()` (đường production duy nhất của cả
+CLI lẫn web, qua `app/demo.py::run_demo()`). `Dockerfile` root cause của
+§13 sửa xong packaging Python nhưng KHÔNG COPY `data/` — chỉ `mkdir -p
+/app/data` (thư mục rỗng). File JSONL thật trong checkout git RỖNG (0
+byte) nhưng TỒN TẠI → `ConfirmedAdjustmentSource` LOADED-rỗng
+(`is_available=True`, đúng baseline S068). Trong container: file hoàn
+toàn VẮNG MẶT (khác "tồn tại nhưng rỗng") →
+`app/modules/adjustment/confirmed_adjustment_source.py:106-107` trả
+UNAVAILABLE (fail-closed đúng thiết kế DEC-144 §3: "absence ≠ unknown ≠
+zero") → mọi dòng mất `kpi_purchase_price` → mọi dòng mất
+`eligible_kpi_profit` (`kpi_profit_engine.py:142-146`) → mọi order có ít
+nhất 1 dòng Pending → 0 AUTO order (`excel_exporter.py` — 1 lý do Pending
+đủ khiến cả order thành Review).
+
+`HISTORICAL_REGISTRY_PATH = Path("data/historical_confirmed/registry.jsonl")`
+cùng lớp "canonical committed" nhưng loader riêng
+(`app/modules/product/identity/registry_store.py::load_registry_from_jsonl`)
+xử lý "file vắng mặt" khác hẳn: `INV-54` — vắng mặt = registry rỗng, một
+trạng thái HỢP LỆ, không fail-closed. Cùng lý do,
+`data/product_identity/mappings.jsonl` (`IDENTITY_STORE_LOG_PATH`) vắng
+mặt = store rỗng, `INV-79`. Hai file này KHÔNG gây regression AUTO (không
+ảnh hưởng cohort 58 đơn này), nhưng vẫn được COPY cho nhất quán tuyệt đối
+với checkout local đã accepted — không để lại một gap packaging tương tự
+âm thầm tồn tại cho case khác.
+
+**KHÔNG có business rule nào bị đổi**: `confirmed_adjustment_source.py`
+hành xử ĐÚNG design của nó (đã có test riêng từ trước,
+`tests/test_kpi_profit_engine.py::test_unavailable_source_is_pending`) —
+UNAVAILABLE luôn fail-closed sang Pending, đúng ý đồ DEC-144. Bug nằm
+100% ở tầng đóng gói Docker, cùng lớp lỗi với §13.
+
+**REPAIR**: `Dockerfile` thêm `COPY data ./data` (đúng 3 file nhỏ đã
+commit dưới `data/`: `confirmed_adjustments/`, `historical_confirmed/`,
+`product_identity/` — không file nào khác, `.gitignore` đã loại hết mọi
+thư mục con `data/` chứa dữ liệu thật/PII/state runtime).
+`.dockerignore` (mới) chặn tường minh các thư mục con đó
+(`data/samples/`, `data/uploads/`, `data/exports/`, `data/beta_feedback/`,
+`data/web_runs/`, `data/tracking_live_tmp/`, `*.jsonl.lock`, `*.xlsx`)
+khỏi build context, phòng khi build context không phải một git clone
+sạch — không đổi S071B stateless (đây là input tĩnh đọc-only commit sẵn
+trong repo, không phải state runtime của một lần triển khai).
+
+**TEST MỚI**: `tests/test_deployment_canonical_data_packaging.py` (5
+test) — parametrize trực tiếp trên các hằng số path thật của
+`app/composition.py` (không hardcode string, tự động bắt được nếu path
+đổi sau này), assert Dockerfile COPY đúng thư mục top-level chứa từng
+nguồn canonical; assert file thật tồn tại trong checkout; tái hiện đúng
+cơ chế lỗi (path vắng mặt → UNAVAILABLE) đối chiếu file thật đã commit
+(→ LOADED-rỗng, khớp baseline). **Verify: 2/5 test FAIL trên Dockerfile
+trước khi sửa** (đúng tái hiện production failure), **5/5 PASS sau khi
+sửa**.
+
+**VALIDATION** (không có Docker daemon, dùng equivalent build validation
+như §13): dựng lại Dockerfile COPY context mới (`pyproject.toml` + `app` +
+`tools` + `config` + `data`, chỉ file git-tracked) → `pip install
+".[web-prod]"` vẫn PASS (data/ không ảnh hưởng packaging Python) → mô
+phỏng cwd container, verify trực tiếp
+`CONFIRMED_ADJUSTMENTS_PATH.exists()` = `True` và
+`load_confirmed_adjustments_from_jsonl(...).is_available` = `True` —
+đúng khớp trạng thái baseline S068. Full regression: **1494 passed, 11
+skipped** (từ 1489 — +5 test mới, không regression).
+
+### RETURN (repair #2)
+
+```
+S071B_AUTO_REGRESSION_INVESTIGATION = ROOT_CAUSE_FOUND, REPAIRED, VERIFIED (equivalent build validation, không phải docker build thật — không có Docker daemon trong session)
+
+ROOT_CAUSE = Dockerfile không COPY data/ — app/composition.py::run_import_production() nạp KHÔNG ĐIỀU KIỆN data/confirmed_adjustments/confirmed_adjustments.jsonl; file vắng mặt trong container (khác "tồn tại nhưng rỗng" ở checkout local) → ConfirmedAdjustmentSource UNAVAILABLE (fail-closed, DEC-144 §3) → kpi_purchase_price/eligible_kpi_profit = None trên MỌI dòng (không chỉ dòng đã Pending vì thiếu giá) → mọi order có ≥1 lý do Pending → AUTO = 0
+
+S068_22_AUTO_SOURCE = 39/83 dòng có đủ accounting_purchase_price + confirmed_adjustment_source LOADED-rỗng (is_available=True, file commit tồn tại dù rỗng) → kpi_purchase_price/eligible_kpi_profit tính được → 22 order (23 dòng) đủ điều kiện AUTO
+PRODUCTION_0_AUTO_CAUSE = confirmed_adjustment_source UNAVAILABLE cho TẤT CẢ 83 dòng (file vắng mặt trong container, không phải logic nghiệp vụ khác biệt) → eligible_kpi_profit=None toàn bộ → 0 order còn đủ điều kiện AUTO
+LOST_AUTO_BOUNDARY = accounting purchase price (deployment-packaging gap tại tầng KPI profit — cụ thể là confirmed-adjustment authority, KHÔNG phải tầng identity/PP/accounting-price như nghi ngờ ban đầu)
+
+TRACKING_LIVE_PULL = PASS (identity unresolved 31 + PP pending 13 khớp tuyệt đối baseline)
+IDENTITY_EQUIVALENCE = PASS
+PP_TEMPORAL_EQUIVALENCE = PASS
+ACCOUNTING_INPUT_EQUIVALENCE = PASS (44 = 31+13, đúng tổng identity-unresolved + PP-pending, không có dòng nào mất giá kế toán ngoài dự kiến)
+BUSINESS_RULE_CHANGED = NO
+REPAIR_REQUIRED = YES
+
+FILES_CHANGED = Dockerfile, .dockerignore (mới), tests/test_deployment_canonical_data_packaging.py (mới)
+TEST_ADDED = tests/test_deployment_canonical_data_packaging.py (5 test — 2/5 FAIL trước sửa đúng tái hiện production failure, 5/5 PASS sau sửa)
+FOCUSED_TESTS = 5/5 PASS (tests/test_deployment_canonical_data_packaging.py)
+FULL_REGRESSION = 1494 passed, 11 skipped (từ 1489 passed, 11 skipped — +5, không regression)
+OLD_HEAD = 9fed597dc5f6307bd3102c4683f62dbeccb675f2
+NEW_HEAD = 122f170150a3fb681c8ee7fcd448574b69a074c1
+PUSHED_TO_ORIGIN = YES
+RENDER_NEXT_ACTION = Render Auto-Deploy tự chạy lại build trên commit mới; sau khi build PASS, Owner chạy lại ĐÚNG workbook SO_CHI_TIET_BAN_HANG (6).XLSX qua production — kỳ vọng khớp lại đúng baseline S068 (22 AUTO order/23 AUTO line, 36 Review order/60 Review line, identity/PP/accounting numbers không đổi vì vốn đã khớp)
+
+DEFERRED = data/historical_confirmed/registry.jsonl + data/product_identity/mappings.jsonl không gây regression AUTO ở cohort này (thiết kế "vắng mặt = rỗng hợp lệ", INV-54/INV-79) nhưng vẫn được COPY cùng data/ cho nhất quán — không có tác vụ nào bị hoãn thêm
+SCOPE_DRIFT = NO — đúng một mục tiêu duy nhất (giải thích + sửa AUTO 22→0), không đổi AUTO rule/identity/PP/architecture R2/Render/Cloudflare
+NEXT_VERTICAL_ACTION = Owner theo dõi Render Auto-Deploy build trên 122f170 → chạy lại đúng workbook cohort → xác nhận số liệu khớp lại 22/36/100%/0 → nếu khớp, coi §14 là DONE và tiếp tục Production Acceptance Checklist (GATE A-H, docs/deployment/S071_DEPLOYMENT.md)
+```
