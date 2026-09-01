@@ -143,6 +143,8 @@ class TestClosedEnums:
             "CATALOG_EXACT_UNIQUE",
             "ALIAS_AID_UNIQUE",
             "TRACKING_ALIAS_MAP",
+            "TRACKING_CONFIRMED_ALIAS",
+            "TRACKING_CANONICAL_EXACT",
             "SIMILARITY_RANKED",
             "CROSS_NAMESPACE_TIE",
             "MULTIPLE_EXACT",
@@ -165,7 +167,7 @@ class TestClosedEnums:
         """§17.2 — AMBIGUOUS = KHÔNG thuộc tập auto-resolve đóng."""
         for method in ResolutionMethod:
             assert is_ambiguous(method) is not is_auto_resolvable(method)
-        assert len(AUTO_RESOLVE_METHODS) == 2
+        assert len(AUTO_RESOLVE_METHODS) == 4
 
     def test_attempted_source_covers_both_catalogs(self):
         values = {s.value for s in AttemptedSource}

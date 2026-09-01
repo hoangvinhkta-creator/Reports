@@ -1,44 +1,21 @@
 # S068 — COHORT THẬT ĐẦU TIÊN SAU AUTHORITY: HOÀN TẤT
 
 Ngày: 2026-09-01 ICT
-Task: capture → cohort thật → đo lường → sửa cổng định tuyến tối thiểu
+Task: capture → cohort thật → đo lường → consume Tracking identity authority
 
-## Kết Quả
+## Kết Quả Cuối
 
-Owner đã xác nhận `2026-09-01` chỉ là cutover kỹ thuật, không phải ranh giới
-chính sách giá. Reports nay có thể hỏi Public Purchase cho đơn trước ngày này
-nhưng chỉ khi identity là exact/đã xác nhận và evidence authoritative thực sự
-phủ toàn bộ ngày bán. Không có backfill giá hiện tại, không suy đoán identity
-và không nới temporal validation.
+Owner xác nhận `2026-09-01` chỉ là cutover kỹ thuật, không phải ranh giới
+chính sách giá. Reports có thể consult Public Purchase cho đơn trước ngày đó
+khi identity và evidence effective-dated thực sự đủ. Không current-PP
+backfill, không suy đoán identity, không nới temporal validation.
 
-Capture immutable `PPH-20260901T021755Z-s068.json` được strict loader chấp
-nhận. Owner workflow chọn chính capture này và catalog COMPLETE mới nhất, rồi
-chạy workbook thật ngày 2026-08-31 thành công.
-
-## Cutover Baseline Check Trước Sửa
-
-| Phân loại evidence | Dòng |
-|---|---:|
-| `PP_HISTORY_COVERS_SALE_DATE` | 1 |
-| `CUTOVER_BASELINE_COVERS_SALE_DATE` | 11 |
-| `NO_AUTHORITATIVE_PRODUCT_IDENTITY` | 70 |
-| `NO_PP_AUTHORITY_FOR_SALE_DATE` | 1 |
-| `OTHER` | 0 |
-
-Baseline tồn tại, mang timestamp authority `SERVER`, tại
-`2026-08-29T12:35:37.774000+00:00`; history authoritative có điểm cho 39 mã.
-Dòng còn thiếu authority nhận `NO_BASELINE_PRICE_AT_CUTOVER`, không nhận giá
-thay thế. Kết quả này được đo trước khi sửa routing và không dùng current PP.
-
-## Sửa Tối Thiểu
-
-`HistoricalConfirmedRegistry` vẫn được chạy trước và entry `CONFIRMED` không
-bị composition ghi đè. Với miss lịch sử, production composition nay gọi exact
-identity resolver và Tracking History Reader bất kể ngày bán trước hay sau
-01/09/2026. Reader vẫn quyết định bằng baseline, temporal coverage và chuỗi
-history; bất kỳ thiếu hụt nào là `Pending` có provenance. Catalog không
-`COMPLETE` được xem là identity source unavailable, không làm report crash và
-không tự tạo identity/giá.
+Sau đó Owner xác nhận Tracking là authority identity: production chỉ dùng
+normalization đã duyệt, `alias.map[normalized_code]` (nếu có), rồi exact key
+`board[canonical]`. `name`, `alt`, similarity, substring và Reports mapping
+store không được dùng để tạo identity production. Capture/catalog hiện hữu đã
+chứa cả hai endpoint authority nên không cần acquisition song song hay sửa
+Tracking.
 
 ## Capture Và Owner Workflow
 
@@ -54,101 +31,113 @@ CAPTURE_VALIDATION=PASS
 SALE_DATE_2026_08_31_COVERED=YES
 OWNER_HISTORY_CAPTURE=data/captures/PPH-20260901T021755Z-s068.json
 OWNER_CATALOG_CAPTURE=data/tracking_catalog/capture_contract_v1_prod_2.json
-REPORT_OUTPUT=outputs/reports/report-20260901T024747Z.xlsx
+ALIAS_ENDPOINT_CONSUMED=YES
+BOARD_ENDPOINT_CONSUMED=YES
 ```
 
-Không xoay credential, không log secret, không sửa Tracking/Firebase hay luật
-nghiệp vụ ngoài Owner decision về quyền consult evidence.
+Không xoay credential, không log secret, không sửa Tracking/Firebase.
 
-## Cohort Thật Sau Sửa
+## Cutover Baseline Check
+
+Đo trước repair routing (không dùng current PP):
+
+| Phân loại evidence | Dòng |
+|---|---:|
+| `PP_HISTORY_COVERS_SALE_DATE` | 1 |
+| `CUTOVER_BASELINE_COVERS_SALE_DATE` | 11 |
+| `NO_AUTHORITATIVE_PRODUCT_IDENTITY` | 70 |
+| `NO_PP_AUTHORITY_FOR_SALE_DATE` | 1 |
+| `OTHER` | 0 |
+
+Baseline accepted có timestamp authority `SERVER`; temporal validation giữ
+nguyên. Repair S068 trước đó đã bỏ cổng artificial pre-2026-09-01 nhưng không
+cho phép extrapolate hoặc backfill giá.
+
+## Tracking Identity Authority Consumer
+
+Resolver production thực hiện chính xác:
 
 ```text
+normalized accounting code → alias.map (nếu có) → board[canonical] required
+```
+
+Nếu target không có trong `board`, kết quả là Pending; không fallback qua
+display field hay candidate ranking. Compatibility fixture cũ phải nêu rõ
+legacy mode; Owner workflow/load production vẫn strict Tracking authority.
+
+Đo chỉ đọc trên đúng 50 accounting product trước đây unresolved:
+
+```text
+UNIQUE_PREVIOUSLY_UNRESOLVED=50
+KNOWN_TO_TRACKING_AS_CONFIRMED_ALIAS=0
+KNOWN_CANONICAL_EXACT=0
+GENUINELY_UNCLASSIFIED=50
+UNKNOWN_DUE_TO_DATA_ACQUISITION=0
+LINES_RESOLVED_BY_ALIAS=0
+LINES_RESOLVED_BY_CANONICAL_EXACT=0
+LINES_STILL_IDENTITY_PENDING=70
+```
+
+Trên toàn cohort, 60 unique accounting product / 83 lines đều không có exact
+canonical hay confirmed alias. Vì vậy 10 AUTO lines của phép đo trước contract
+mới đã không còn hợp lệ: chúng phụ thuộc display-name/`alt` matching và phải
+trở thành Pending an toàn.
+
+## Cohort Thật Rerun
+
+```text
+REPORT_OUTPUT=outputs/reports/report-20260901T032732Z.xlsx
 TOTAL_ORDERS=58
 TOTAL_LINES=83
-BEFORE_AUTO_LINES=0
-AFTER_AUTO_LINES=10
-AFTER_REVIEW_QUEUE_LINES=73
-AUTO_ORDERS=5
-AUTO_LINES=10
-REVIEW_QUEUE_ORDERS=53
-REVIEW_QUEUE_LINES=73
-ERROR_ORDERS=2
+BEFORE_AUTO_LINES=10
+AFTER_AUTO_LINES=0
+BEFORE_REVIEW_QUEUE_LINES=73
+AFTER_REVIEW_QUEUE_LINES=83
+AUTO_ORDERS=0
+AUTO_LINES=0
+REVIEW_QUEUE_ORDERS=58
+REVIEW_QUEUE_LINES=83
+ERROR_ORDERS=0
 DROPPED_ORDERS=0
 DROPPED_LINES=0
 ACCOUNTING_COVERAGE_PERCENT=100.0%
 SILENT_ERROR_CANDIDATES=0
-MANUAL_WORK_PERCENT=91.38%
-MANUAL_WORK_REDUCTION_PERCENT=8.62%
+MANUAL_WORK_PERCENT=100.0%
+MANUAL_WORK_REDUCTION_PERCENT=0.0%
 ```
 
-Có 12/83 dòng resolve `AccountingPurchasePrice`; 10 dòng trong số đó thành
-AUTO hoàn toàn. 71 dòng Pending đều có record giá và Review Queue tương ứng
-(`UNQUEUED_PRICE_PENDING_LINES=0`). Hai `ERROR` là finding đã hiển thị trong
-queue, không phải silent error.
+Top queue reason: `IDENTITY_UNRESOLVED` + `Missing.PurchasePrice` covers all
+83 lines / 58 orders. One line also has `Suspicious`; two queue entries carry
+`EmployeeMapping`. Các reason này đều hiện trong Review Queue, nên không là
+silent error. Top blocker là thiếu exact Tracking canonical/confirmed alias
+cho cohort thật, không phải acquisition, PP temporal gate hay local loader.
 
-Top Review Queue theo dòng / đơn: `Missing.PurchasePrice` 71 / 52,
-`Suspicious` 6 / 3 và `Suspicious.ERP` 1 / 1. Top blocker là
-`NO_AUTHORITATIVE_PRODUCT_IDENTITY` (70 dòng), không phải temporal gate.
-Theo 90/10, cohort chưa đạt ngưỡng AUTO 90%; không có sửa thêm để nâng AUTO
-vì mọi dòng chưa đủ evidence đang Pending trung thực.
+## Regression Và Trạng Thái
 
-## Regression
-
-- Focused: `tests/test_105e_price_composition.py`,
-  `tests/test_tracking_history_pipeline.py`, `tests/test_pipeline.py` —
-  `79 passed`.
-- Golden/batch affected by source-unavailable handling — `22 passed`.
-- Full regression: `1307 passed, 11 skipped`; ba fail còn lại là environment
-  only: tripwire yêu cầu Python 3.11 nhưng runtime bundled là Python 3.12, và
-  hai test socket loopback bị sandbox chặn. Bốn boundary cases pass trên 3.12;
-  hai test socket đều pass khi chạy với quyền loopback.
-
-## Trạng Thái Và Bước Tiếp Theo
+- Focused Tracking-authority/capture/identity tests: `104 passed`.
+- Affected golden/batch/legacy compatibility tests: `183 passed`; legacy
+  fixture explicitly opts out of the strict production contract.
+- Full regression: `1313 passed, 11 skipped`; three environment-only
+  exceptions are the Python-3.11 interpreter tripwire and two loopback socket
+  tests in sandbox. All four boundary cases pass on bundled Python 3.12; both
+  socket tests pass with loopback permission.
 
 ```text
-PRE_2026_09_01_GATE_REMOVED=YES
+TRACKING_CHANGE_REQUIRED=NO
+REPORTS_IDENTITY_CONSUMER_IMPLEMENTED=YES
+FUZZY_MATCHING_USED=NO
+SUBSTRING_MATCHING_USED=NO
 CURRENT_PP_BACKFILL_ALLOWED=NO
 TEMPORAL_AUTHORITY_PRESERVED=YES
 CANONICAL_INTEGRATED=NO
 REMOTE_PUSHED=NO
 ```
 
-`TEST_PP_AUTH_001` không cần có trong catalog hiện tại và không được tạo lại.
-Bước vertical tiếp theo là bổ sung evidence identity authoritative rồi mới
-xác nhận qua luồng mapping hiện có; không dùng fixture hoặc giá hiện tại để
-thay thế cohort thật.
+## Bước Tiếp Theo
 
-## Tiếp Tục S068 — Product Identity Vertical
-
-Phân tích chỉ đọc của đúng workbook và đúng catalog Owner workflow cho thấy
-70 dòng Pending tương ứng 50 accounting product identity duy nhất. Cả 70 dòng
-đều chỉ có similarity-ranked evidence; không có exact alias, mapping CONFIRMED,
-candidate deterministic, ambiguity hay stale target để Owner xác nhận an toàn.
-Catalog được chọn là COMPLETE (3.503 product present, 1.303 alias), và mapping
-store runtime đã được nạp tại revision 1. Vì vậy đây là thiếu evidence identity
-ở cấp dữ liệu, không phải normalization/routing/local loading defect.
-
-```text
-UNRESOLVED_LINES_BEFORE=70
-UNIQUE_UNRESOLVED_ACCOUNTING_PRODUCTS=50
-A_EXISTING_MAPPING_NOT_LOADED=0
-B_DETERMINISTIC_NORMALIZATION_GAP=0
-C_UNIQUE_CANDIDATE_NEEDS_CONFIRMATION=0
-D_MULTIPLE_CANDIDATES=0
-E_NO_TRACKING_PRODUCT_FOUND=70
-F_CATALOG_INCOMPLETE=0
-G_OTHER=0
-LOCAL_REPAIR_PERFORMED=NO
-OWNER_CONFIRMATION_UNIQUE_PRODUCTS=0
-VERDICT=DATA_IDENTITY_MISSING
-```
-
-Hai `ERROR` đều là `Suspicious`: giá nhập authoritative cao hơn giá bán trên
-một dòng. Cả hai đơn vẫn accounted, không drop, không silent; finding này
-không do product identity unresolved tạo ra và không phải local software defect.
-Không có repair nên không đo lại cohort để tránh tạo thêm artifact không cần.
-Bước cần thiết là bổ sung evidence identity authoritative hoặc alias/mapping
-đã được Owner xác nhận cho từng product thực sự có bằng chứng, rồi mới rerun.
+Owner/Tracking cần persist confirmed alias hoặc canonical exact cho các
+accounting product thật còn thiếu, rồi rerun đúng cohort. Không tạo
+Reports-only mapping, không dùng fixture hay giá hiện tại để nâng AUTO.
 
 ## Git Safety
 

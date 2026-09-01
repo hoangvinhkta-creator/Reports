@@ -334,10 +334,12 @@ class TestG07FuzzyHasNoProductionAuthority:
             a_store.append(command)
         assert a_store.current_revision() == 0
 
-    def test_the_auto_resolve_set_is_exactly_two_methods(self):
+    def test_the_auto_resolve_set_contains_only_owner_authorized_methods(self):
         assert AUTO_RESOLVE_METHODS == {
             ResolutionMethod.ALIAS_EXACT,
             ResolutionMethod.CATALOG_EXACT_UNIQUE,
+            ResolutionMethod.TRACKING_CONFIRMED_ALIAS,
+            ResolutionMethod.TRACKING_CANONICAL_EXACT,
         }
         assert not is_auto_resolvable(ResolutionMethod.SIMILARITY_RANKED)
         assert not is_auto_resolvable(ResolutionMethod.ALIAS_AID_UNIQUE)

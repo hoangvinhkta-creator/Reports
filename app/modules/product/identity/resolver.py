@@ -14,7 +14,7 @@ trả `RESOLVED` với `mapping_source = DETERMINISTIC_CATALOG_MATCH` và không
 `INV-70` — import lại cùng một file thì 0 mapping mới, 0 rejection mới, 0
 audit event mới — đúng theo cấu trúc chứ không nhờ một phép so sánh cẩn thận.
 
-## Thứ tự phân giải
+## Thứ tự phân giải legacy/compatibility
 
 ```text
 alias memory (ALIAS_EXACT)          → auto-resolve
@@ -23,6 +23,12 @@ catalog exact, CẢ HAI namespace     → CATALOG_EXACT_UNIQUE | CROSS_NAMESPACE
 candidate discovery (aid, alias.map, similarity)  → REQUIRES_CONFIRMATION
 không gì cả                          → PENDING_PRODUCT
 ```
+
+Production S068 dùng một contract riêng, hẹp hơn: deterministic normalized
+code → Tracking `alias.map` (nếu có) → exact `board[canonical]`. Chế độ ấy
+không consult Reports mapping store, `name`, `alt` hoặc candidate ranking;
+không có `board` target là Pending. Đường legacy dưới đây chỉ được giữ khi
+caller nêu rõ `tracking_identity_authority=False` cho fixture tương thích.
 
 Hai điểm dễ làm sai, ghi rõ ở đây:
 
@@ -91,6 +97,8 @@ _MATCHED_ON_BY_FIELD = {
 _METHOD_RANK = {
     ResolutionMethod.ALIAS_AID_UNIQUE: 0,
     ResolutionMethod.TRACKING_ALIAS_MAP: 1,
+    ResolutionMethod.TRACKING_CONFIRMED_ALIAS: 1,
+    ResolutionMethod.TRACKING_CANONICAL_EXACT: 2,
     ResolutionMethod.CATALOG_EXACT_UNIQUE: 2,
     ResolutionMethod.MULTIPLE_EXACT: 2,
     ResolutionMethod.CROSS_NAMESPACE_TIE: 2,
@@ -172,11 +180,13 @@ class ProductIdentityResolver:
         tracking_snapshot: TrackingCatalogSnapshot,
         pp_version: Optional[PublicPurchaseSourceVersion] = None,
         store_view: StoreView,
+        tracking_identity_authority: bool = False,
         now: Optional[datetime] = None,
     ) -> None:
         self.tracking = tracking_snapshot.require_complete()
         self.pp_version = pp_version
         self.view = store_view
+        self._tracking_identity_authority = tracking_identity_authority
         self._now = now or datetime.now(timezone.utc)
 
     # ---- truy cập catalog PP khi nó có thể vắng mặt ----------------------
@@ -198,6 +208,9 @@ class ProductIdentityResolver:
     # ---- API -------------------------------------------------------------
 
     def resolve(self, identity: DistinctIdentity) -> IdentityResolution:
+        if self._tracking_identity_authority:
+            return self._tracking_authoritative(identity)
+
         alias_hit = self._alias_exact(identity)
         if alias_hit is not None:
             return alias_hit
@@ -207,6 +220,70 @@ class ProductIdentityResolver:
             return exact
 
         return self._candidate_stage(identity)
+
+    def _tracking_authoritative(
+        self, identity: DistinctIdentity
+    ) -> IdentityResolution:
+        """Đọc authority đã được Tracking xác nhận, không suy diễn identity.
+
+        Owner xác định `alias.map` là bảng human-confirmed và khoá `board` là
+        canonical identity. Chế độ production này cố ý KHÔNG hỏi Reports alias
+        store, `name`, `alt` hay similarity: chúng không phải authority theo
+        contract mới. Cùng một normalizer đang dùng ở `keys.py` tạo mã tra;
+        không có extract-code hoặc quy tắc mới nào ở đây.
+        """
+        normalized_code = identity.normalized_matching_aid.upper()
+        aliases = self.tracking.alias_map()
+        canonical = aliases.get(normalized_code, normalized_code)
+        row = self.tracking.row_for(canonical)
+
+        if row is None or not row.present_in_board:
+            return IdentityResolution(
+                identity=identity,
+                outcome=PendingProduct(
+                    reason_code=(
+                        PendingReason.MAPPING_STALE_TARGET_ABSENT
+                        if normalized_code in aliases
+                        else PendingReason.NO_CANDIDATE_IN_ANY_CATALOG
+                    ),
+                    attempted_sources=(AttemptedSource.TRACKING_CATALOG,),
+                    provenance=self._provenance(
+                        identity,
+                        (
+                            ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+                            if normalized_code in aliases
+                            else ResolutionMethod.TRACKING_CANONICAL_EXACT
+                        ),
+                    ),
+                ),
+                resolution_method=(
+                    ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+                    if normalized_code in aliases
+                    else ResolutionMethod.TRACKING_CANONICAL_EXACT
+                ),
+            )
+
+        target = CanonicalProductIdentity(
+            namespace=Namespace.TRACKING, source_product_code=canonical
+        )
+        method = (
+            ResolutionMethod.TRACKING_CONFIRMED_ALIAS
+            if canonical != normalized_code
+            else ResolutionMethod.TRACKING_CANONICAL_EXACT
+        )
+        return IdentityResolution(
+            identity=identity,
+            outcome=Resolved(
+                identity=target,
+                provenance=self._provenance(
+                    identity,
+                    method,
+                    target=target,
+                    mapping_source=method.value,
+                ),
+            ),
+            resolution_method=method,
+        )
 
     def resolve_all(
         self, identities: Sequence[DistinctIdentity]

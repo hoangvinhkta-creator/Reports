@@ -37,23 +37,24 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
 **Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Đã chạy lại
 cohort thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chiếu, không mất
-đơn và không có lỗi im lặng máy phát hiện được. Kết quả có 5 đơn tự động hoàn
-toàn (10 dòng); 53 đơn vẫn vào hàng kiểm tra (73 dòng) vì chưa đủ bằng chứng.
+đơn và không có lỗi im lặng máy phát hiện được. Theo contract Owner mới,
+Reports chỉ chấp nhận mã canonical chính xác hoặc alias đã Tracking xác nhận;
+không đoán từ tên hàng. Kết quả hiện là 0 đơn tự động hoàn toàn và 58 đơn vào
+hàng kiểm tra (83 dòng), vì không có mã/alias authority cho cohort này.
 
 ## ĐANG CHỜ
 
-**Cần thêm bằng chứng nhận dạng sản phẩm.** 70 dòng tương ứng 50 loại hàng
-khác nhau chưa có identity đủ chắc chắn để tra giá. Catalog đã được kiểm là
-đầy đủ về trạng thái, nhưng chỉ cho gợi ý giống tên chứ không có candidate an
-toàn để xác nhận; hệ thống giữ chúng trong hàng kiểm tra thay vì đoán. Một
-dòng khác không có giá tại mốc baseline. Đây không phải lý do để lấy giá hiện
-tại điền ngược về quá khứ.
+**Cần Tracking xác nhận mã sản phẩm.** Trong 50 loại hàng / 70 dòng unresolved
+ban đầu, không loại nào có alias xác nhận hay mã canonical chính xác; đây
+không phải lỗi tải dữ liệu. Tên gần giống chỉ để hiển thị/audit, không phải lý
+do để đoán. Hệ thống giữ hàng trong hàng kiểm tra thay vì điền giá hiện tại
+ngược về quá khứ.
 
 ## SAU KHI OWNER QUYẾT ĐỊNH
 
-Bổ sung evidence identity authoritative cho sản phẩm có thật → xác nhận qua
-luồng mapping hiện có → chạy lại đúng cohort thật → đo lại AUTO / Review
-Queue. Không tự điền giá hay dùng fixture để tăng tỷ lệ AUTO.
+Tracking persist alias đã xác nhận hoặc canonical exact cho sản phẩm có thật
+→ chạy lại đúng cohort thật → đo lại AUTO / Review Queue. Không tự điền giá,
+dùng display matching hay fixture để tăng tỷ lệ AUTO.
 
 ## CÓ THỂ LÀM LÚC RẢNH
 

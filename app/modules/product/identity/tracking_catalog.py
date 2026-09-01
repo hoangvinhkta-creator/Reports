@@ -20,8 +20,10 @@ thành "target biến mất". Nên resolver TỪ CHỐI chạy trên một snaps
 ## Tên không phải identity
 
 `INV-13`/`INV-21`: `tracking_code` (khoá node `board/<MÃ>` sau `aliasOf()`) là
-canonical code. `name` và `alt[]` chỉ là evidence khớp. Đổi tên hiển thị không
-được làm mất một mapping đã confirm — đó là `CHECK-105D-10` Phần B1.
+canonical code. Trong contract production S068, chỉ `alias.map` đã người xác
+nhận và exact key `board/<MÃ>` được dùng để resolve; `name` và `alt[]` chỉ còn
+display/audit evidence. Đổi tên hiển thị không được làm mất một mapping đã
+confirm — đó là `CHECK-105D-10` Phần B1.
 
 `D-04` (`DEC-147` §4): tuyệt đối không tái phát minh `extractCode()`. Tracking
 đã thử rút mã từ câu tên hàng bằng máy và bỏ hẳn vì sai trên tài sản thật.
@@ -119,9 +121,9 @@ class TrackingCatalogSnapshot:
     def alias_map(self) -> dict[str, str]:
         """`old_code → primary_code` của `alias.map` (`INV-16`).
 
-        Bảng này do người của Tracking duyệt — evidence rất mạnh, nhưng phê
-        duyệt của Tracking không phải phê duyệt của Reports (`D-05`). Nó chỉ
-        sinh candidate #1, không bao giờ tự di chuyển một mapping đã confirm.
+        Bảng này do người của Tracking duyệt. Production S068 dùng nó cùng
+        exact key `board` như authority identity; đường resolver legacy chỉ
+        dùng nó để tạo candidate tương thích với contract cũ.
         """
         return {old: primary for old, primary in self.alias_map_rows}
 

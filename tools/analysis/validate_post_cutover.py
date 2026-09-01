@@ -81,7 +81,7 @@ import hashlib
 import json
 import sys
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable, Optional
@@ -534,6 +534,7 @@ def freeze_sources(
     tracking_catalog: Path,
     public_purchase: Path,
     identity_store: Path,
+    tracking_identity_authority: bool = True,
 ) -> SourceFreeze:
     """Nạp mọi nguồn giá QUA ĐÚNG loader production, đúng một lần.
 
@@ -567,6 +568,10 @@ def freeze_sources(
         public_purchase_path=public_purchase,
         identity_store_log_path=identity_store,
     )
+    if not tracking_identity_authority:
+        # Chỉ dành cho regression fixture dựng trước S068. Owner workflow và
+        # production loader giữ strict Tracking alias.map + board authority.
+        sources = replace(sources, tracking_identity_authority=False)
     return SourceFreeze(
         sources=sources, paths=paths, hashes=hashes, statuses=statuses
     )
@@ -1129,6 +1134,7 @@ def analyze(
     identity_store: Path = IDENTITY_STORE_LOG_PATH,
     cohort_size: int = DEFAULT_COHORT_SIZE,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
+    tracking_identity_authority: bool = True,
 ) -> ValidationRun:
     """Một lần kiểm định đầy đủ: đông lạnh → chạy production → đọc kết quả."""
     cohort = select_post_cutover_cohort(sales_path, cohort_size)
@@ -1138,6 +1144,7 @@ def analyze(
         tracking_catalog=tracking_catalog,
         public_purchase=public_purchase,
         identity_store=identity_store,
+        tracking_identity_authority=tracking_identity_authority,
     )
     cohort_ids = set(cohort.order_ids)
     classified = classify_orders_by_cutover(sales_path)

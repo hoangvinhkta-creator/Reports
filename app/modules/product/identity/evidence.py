@@ -1,6 +1,6 @@
 """Evidence, `resolution_method` và candidate ranking — data contract §6.6/§6.7.
 
-## Tập auto-resolve là một TẬP ĐÓNG ĐÚNG HAI PHẦN TỬ
+## Tập auto-resolve là một TẬP ĐÓNG
 
 `INV-28` (sửa theo `DEC-156`/`OR-02`): chỉ `ALIAS_EXACT` và
 `CATALOG_EXACT_UNIQUE` được auto-resolve. `ALIAS_AID_UNIQUE` — khớp duy nhất
@@ -62,15 +62,22 @@ class ResolutionMethod(str, Enum):
     CATALOG_EXACT_UNIQUE = "CATALOG_EXACT_UNIQUE"
     ALIAS_AID_UNIQUE = "ALIAS_AID_UNIQUE"
     TRACKING_ALIAS_MAP = "TRACKING_ALIAS_MAP"
+    TRACKING_CONFIRMED_ALIAS = "TRACKING_CONFIRMED_ALIAS"
+    TRACKING_CANONICAL_EXACT = "TRACKING_CANONICAL_EXACT"
     SIMILARITY_RANKED = "SIMILARITY_RANKED"
     CROSS_NAMESPACE_TIE = "CROSS_NAMESPACE_TIE"
     MULTIPLE_EXACT = "MULTIPLE_EXACT"
 
 
 AUTO_RESOLVE_METHODS: frozenset[ResolutionMethod] = frozenset(
-    {ResolutionMethod.ALIAS_EXACT, ResolutionMethod.CATALOG_EXACT_UNIQUE}
+    {
+        ResolutionMethod.ALIAS_EXACT,
+        ResolutionMethod.CATALOG_EXACT_UNIQUE,
+        ResolutionMethod.TRACKING_CONFIRMED_ALIAS,
+        ResolutionMethod.TRACKING_CANONICAL_EXACT,
+    }
 )
-"""TẬP ĐÓNG — ĐÚNG HAI phương thức (`INV-28`, `DEC-156` §2).
+"""TẬP ĐÓNG — mỗi phần tử được Owner cấp authority tường minh.
 
 Thêm một phần tử vào đây là một quyết định Owner, không phải một quyết định
 implementation.

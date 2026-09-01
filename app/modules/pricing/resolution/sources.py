@@ -350,6 +350,12 @@ class PriceResolutionSources:
     tracking_catalog: Optional[TrackingCatalogSnapshot]
     public_purchase: Optional[PublicPurchaseSourceVersion]
     identity_store_view: Optional[StoreView]
+    tracking_identity_authority: bool = True
+    """Production dùng `alias.map` + khoá `board` của Tracking làm authority.
+
+    `False` chỉ giữ đường legacy cho fixture/compatibility đã được dựng tường
+    minh; loader production và Owner workflow luôn dùng mặc định `True`.
+    """
 
     @property
     def evidence_snapshot(self) -> PriceEvidenceSnapshot:

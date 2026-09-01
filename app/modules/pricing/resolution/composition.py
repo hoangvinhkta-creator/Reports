@@ -390,6 +390,7 @@ class PostCutoverPriceComposition:
             tracking_snapshot=catalog,
             pp_version=pp_version,
             store_view=view,
+            tracking_identity_authority=self._sources.tracking_identity_authority,
         ).resolve_all(
             tuple(
                 SalesRowRef(

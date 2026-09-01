@@ -25,24 +25,27 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 - S068 đã hoàn tất cohort thật 2026-08-31 theo Owner decision: 01/09/2026 là
   cutover kỹ thuật, không tự cấm Reports consult Public Purchase evidence.
-  Repair tối thiểu giữ registry lịch sử CONFIRMED ưu tiên, còn miss đi qua
-  exact identity + strict history reader. Cohort 58 đơn / 83 dòng đạt 5 AUTO
-  đơn / 10 AUTO dòng, 53 Review Queue đơn / 73 dòng, accounting coverage
-  100% và zero silent-error candidate.
-- Vertical identity tiếp theo đã gom 70 dòng này thành 50 accounting product
-  duy nhất: toàn bộ chỉ có similarity evidence, không có candidate
-  deterministic/ambiguous hay existing mapping bị bỏ sót. Catalog COMPLETE và
-  runtime store đã được kiểm, nên đây là `DATA_IDENTITY_MISSING`, không phải
-  local repair. Một dòng riêng thiếu baseline price. Pending giữ nguyên,
-  không backfill current PP và không suy đoán identity. Xem hồ sơ sanitized
-  S068.
+  Repair routing tối thiểu giữ registry lịch sử CONFIRMED ưu tiên và strict
+  history/baseline temporal validation.
+- Owner tiếp tục xác nhận Tracking là identity authority. Production Reports
+  nay chỉ resolve `normalized_code → alias.map (nếu có) → board[canonical]`;
+  không dùng display `name`/`alt`, fuzzy/substrings hay Reports-only mapping
+  store để suy ra identity. Hai endpoint đã nằm trong capture/catalog accepted;
+  không có Tracking change hay acquisition failure.
+- Đo đúng 50 accounting product unresolved: confirmed alias `0`, canonical
+  exact `0`, genuinely unclassified `50`, acquisition unknown `0` (70 dòng).
+  Rerun cohort thật 58 đơn / 83 dòng: AUTO `0/0`, Review Queue `58/83`, Error
+  `0`, accounting coverage `100%`, silent error `0`. 10 AUTO lines của phép
+  đo cũ đã dựa vào display matching nên không hợp lệ dưới contract Owner mới;
+  tất cả được giữ Pending/queued trung thực. Xem hồ sơ sanitized S068.
 
 ### WAITING_EXTERNAL
 
-- Không có blocker authority/cutover còn mở cho S068. Muốn tăng coverage cần
-  evidence identity authoritative mới; không có candidate credible để yêu cầu
-  Owner bấm confirm trong cohort này. Không dùng giá tồn kho, giá vendor lịch
-  sử hoặc current PP thay thế.
+- Không có blocker authority/cutover hay acquisition còn mở cho S068. Muốn
+  tăng coverage cần Tracking persist confirmed alias hoặc canonical exact cho
+  accounting product thật; hiện 50 product / 70 lines cũ không có identity
+  authority. Không dùng display match, giá tồn kho, giá vendor lịch sử hoặc
+  current PP thay thế.
 
 ### DO_WHEN_IDLE
 

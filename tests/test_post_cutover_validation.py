@@ -128,6 +128,10 @@ def mixed_sales(tmp_path: Path) -> Path:
 
 
 def run(sales_path: Path, sources: dict[str, Path], **kwargs):
+    # This suite preserves a pre-S068 compatibility fixture whose asserted
+    # catalog-name/legacy-PP route is intentionally not the Owner production
+    # identity contract. Strict production behavior is covered separately.
+    kwargs.setdefault("tracking_identity_authority", False)
     return vpc.analyze(
         sales_path,
         config_dir=kwargs.pop("config_dir", CONFIG_DIR),
@@ -790,6 +794,7 @@ def production(sales, sources):
         tracking_catalog=sources["tracking_catalog"],
         public_purchase=sources["public_purchase"],
         identity_store=sources["identity_store"],
+        tracking_identity_authority=False,
     )
     composition = PostCutoverPriceComposition(freeze.sources)
     result = run_import_production(

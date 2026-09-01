@@ -193,6 +193,7 @@ def build_sources(
     with_public_purchase: bool = True,
     timezone_config: Path | None = None,
     store=None,
+    tracking_identity_authority: bool = False,
 ) -> PriceResolutionSources:
     """Dựng `PriceResolutionSources` QUA ĐÚNG các loader production."""
     history = None
@@ -236,6 +237,7 @@ def build_sources(
         tracking_catalog=catalog,
         public_purchase=pp,
         identity_store_view=a_store.read_at_revision(a_store.current_revision()),
+        tracking_identity_authority=tracking_identity_authority,
     )
 
 
