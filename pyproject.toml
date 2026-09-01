@@ -35,3 +35,15 @@ web-prod = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+# Deployment-packaging repair: repo root có nhiều thư mục top-level không phải
+# Python package (config/ — data YAML runtime, PROJECT/ — governance, data/ —
+# runtime state, v.v.) — setuptools flat-layout auto-discovery không tự phân
+# biệt được, raise "Multiple top-level packages discovered" (build FAIL trên
+# Render, Dockerfile:43 `pip install ".[web-prod]"`). Khai báo tường minh
+# đúng hai package thật cần cài (app/, tools/) thay vì dựa vào auto-discovery
+# mơ hồ — config/ (không có __init__.py, chỉ đọc qua filesystem path lúc
+# runtime, xem app/pipeline.py::DEFAULT_CONFIG_DIR) và mọi thư mục khác ở
+# repo root tự động bị loại vì không khớp include pattern.
+[tool.setuptools.packages.find]
+include = ["app*", "tools*"]
