@@ -40,12 +40,24 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   đủ và finding mới `inv.map` staleness (DEFERRED, không phải regression)
   tại `docs/sessions/S069-beta-operator-ui-feedback.md` →
   "Independent Review".
+- S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
+  Independent Review PASS sau 1 repair, **ĐÃ merge canonical qua
+  `8d1f87902fea840b034227ae460bb0fa3a42d52b`** — xác nhận bằng
+  `git merge-base --is-ancestor`): Owner có thêm một cửa vào web
+  (`127.0.0.1:8765`, double-click `Open Reports Web.command`) chạy đúng
+  engine đã accepted, không tính lại business rule. Cửa sổ Tkinter
+  (`Open Reports.command`) giữ nguyên, không đổi — dùng như tham chiếu/
+  fallback. Chi tiết đầy đủ dưới CURRENT.
 
 ### CURRENT
 
 - **S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
   baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), Independent Review
-  PASS sau 1 repair, branch chưa integrate canonical.** Thêm `app/web/`
+  PASS sau 1 repair, ĐÃ merge canonical qua
+  `8d1f87902fea840b034227ae460bb0fa3a42d52b` — xác nhận bằng
+  `git merge-base --is-ancestor`.** Web Beta V1 giờ là cửa vào có sẵn cho
+  Owner (Tkinter `Open Reports.command` giữ vai trò tham chiếu/fallback,
+  không đổi hành vi). Thêm `app/web/`
   (Flask, opt-in dependency dưới `[project.optional-dependencies].web` —
   core CLI/Tkinter footprint không đổi): Owner mở browser tại
   `127.0.0.1:8765` qua double-click `Open Reports Web.command`, chọn/upload

@@ -68,10 +68,12 @@ dòng còn vào hàng kiểm tra. Toàn bộ kiểm tra tự động (1349 trư�
 việc chạy lại trên dữ liệu thật đã được xác nhận độc lập hai lần trong cùng
 đợt review này.
 
-## ĐANG LÀM
+## ĐÃ XONG (mới)
 
-**S070 — Web Beta V1, nhánh `s070/web-beta-v1`, soát xét độc lập đã xong,
-ĐẠT sau khi sửa 1 lỗi, CHƯA gộp vào bản canonical.** Đây là một cách mở khác
+**S070 — Web Beta V1 ĐÃ ĐƯỢC CHẤP NHẬN và có sẵn để dùng.** Soát xét độc lập
+đã xong, đạt sau khi sửa 1 lỗi, và đã gộp chính thức vào bản canonical (nhánh
+`s070/web-beta-v1` → `claude/extract-upload-repo-gq2ws4`, xác nhận bằng
+Git). Đây là một cách mở khác
 để chạy đúng báo cáo đã duyệt — mở trình duyệt trên chính máy Owner
 (double-click file "Open Reports Web.command"), chọn workbook, bấm chạy, xem
 đúng những con số và đúng nút bấm như cửa sổ Tkinter hiện có (Tổng đơn/AUTO/
