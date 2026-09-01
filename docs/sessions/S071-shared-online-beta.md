@@ -274,7 +274,7 @@ CLOUD_ENVIRONMENT = Claude Code Cloud, không có credential hosting/DNS
 
 BASELINE = d64d208775c96a02791c957df25c11d6bf9835f8
 BRANCH = claude/s071-shared-online-beta-inydpg (branch do harness chỉ định — xem §1)
-HEAD = <xem output `git log -1` sau commit — ghi ngay dưới trong lần push>
+HEAD = 9c3b515db2a70b7645ffe33d73bd7eb7be19422f
 
 REPORTS_DEPLOYMENT_AUDIT = xem §2 — Flask+werkzeug local server, SQLite/JSONL đã có sẵn cho feedback/telemetry, chỉ registry run là process-local
 PROCESS_LOCAL_STATE_FOUND = app/web/server.py::_RUNS (S070) — đã thay bằng app/web/run_registry.py (SQLite)
@@ -319,7 +319,7 @@ DEPLOYMENT_STATUS = DEPLOYMENT_READY (KHÔNG deployed — không có credential 
 PRODUCTION_URL = (chưa có — target reports.tinphatcrm.com)
 OWNER_ACTION_REQUIRED = xem docs/deployment/S071_DEPLOYMENT.md — chọn nhà cung cấp, mount volume, đặt TRACKING_REPORT_SOURCE_URL/TRACKING_REPORT_API_KEY, trỏ DNS, bật Cloudflare Access
 
-IMPLEMENTATION_SHA = <ghi cùng lúc với push>
+IMPLEMENTATION_SHA = 9c3b515db2a70b7645ffe33d73bd7eb7be19422f
 REMOTE_BRANCH = claude/s071-shared-online-beta-inydpg
 
 FILES_CHANGED = 14 file (xem git diff --cached --stat §... : Dockerfile, .gitignore, app/owner_usability.py, app/web/run_registry.py (mới), app/web/server.py, app/web/templates/history.html (mới), app/web/templates/index.html, app/web/wsgi.py (mới), docs/deployment/S071_DEPLOYMENT.md (mới), pyproject.toml, tests/test_tracking_live_pull.py (mới), tests/test_web_run_registry.py (mới), tests/test_web_server.py, tools/tracking/live_pull.py (mới)
