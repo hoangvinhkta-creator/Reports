@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT DELIVERY STATUS — AUTHORITATIVE (2026-08-31)
+## CANONICAL CURRENT DELIVERY STATUS — AUTHORITATIVE (2026-09-01)
 
 Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho bản giao canonical sau
 phiên đối chiếu/tích hợp. Các khối tiến độ, trạng thái task, và evidence theo
@@ -23,12 +23,19 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
-- Chuẩn bị và chạy cohort thật đầu tiên sau authority.
+- S068 đã xác định root cause của cohort 2026-08-31:
+  `OWNER_DECISION_REQUIRED`. Tất cả 83 dòng đi qua gate pre-cutover P00,
+  gate này bắt buộc bypass catalog/resolver/Public Purchase History và chỉ
+  chấp nhận `HistoricalConfirmedRegistry`. Trace hẹp chứng minh 12 dòng có
+  exact identity + Public Purchase history resolve được tại ngày bán nhưng
+  Reports không được phép tiêu thụ chúng dưới rule hiện hành.
 
 ### WAITING_EXTERNAL
 
-- Một capture COMPLETE phủ toàn bộ khoảng ngày bán 2026-08-31. Chỉ có thể
-  capture từ `2026-09-01T00:00:00+07:00` trở đi.
+- Owner quyết định theo ngôn ngữ nghiệp vụ: có cho phép Reports dùng Public
+  Purchase History đã capture, có temporal coverage và resolve tại ngày bán
+  cho đơn trước `2026-09-01` hay vẫn giữ P00 chỉ nhận historical confirmation
+  thủ công. Đây là thay đổi authority/cutover semantics, không phải local bug.
 
 ### DO_WHEN_IDLE
 

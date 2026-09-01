@@ -9,14 +9,15 @@
 > một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
 > về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
-> Cập nhật lần cuối: 2026-08-31 — Demo V1, Owner Usability V1 và lần đối
-> chiếu canonical đã nằm trên nhánh canonical và đã được push. Các mốc cũ
-> bên dưới được giữ nguyên như lịch sử.
+> Cập nhật lần cuối: 2026-09-01 — lần truy nguyên cohort thật đã chỉ ra một
+> quyết định cần Owner chốt: dữ liệu giá công khai có thể đã có, nhưng luật
+> hiện hành cấm dùng nó cho đơn trước 01/09/2026. Các mốc cũ bên dưới được giữ
+> nguyên như lịch sử.
 
 # TRẠNG THÁI HIỆN TẠI
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
-thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-08-31.
+thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
 ## ĐÃ XONG
 
@@ -35,21 +36,24 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-08-31.
 
 ## ĐANG LÀM
 
-**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Mục tiêu là
-chạy một cohort bán hàng thật để đo rõ bao nhiêu đơn tự hoàn tất và bao nhiêu
-đơn cần kiểm tra tay.
+**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Đã chạy cohort
+thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chiếu, không mất đơn và
+không có lỗi im lặng máy phát hiện được. Trace hẹp cho thấy một số hàng đã có
+bằng chứng giá Public Purchase dùng được ở ngày bán, nhưng luật đang áp dụng
+vẫn buộc đơn trước 01/09/2026 chỉ dùng hồ sơ xác nhận lịch sử thủ công.
 
 ## ĐANG CHỜ
 
-**Capture COMPLETE trọn ngày bán 2026-08-31**, tại hoặc sau
-`2026-09-01T00:00:00+07:00`. Đây là phụ thuộc về thời điểm và bằng chứng từ
-bên ngoài (*temporal / external evidence dependency*), không phải lỗi code.
+**Cần Owner quyết định.** Reports có được dùng Public Purchase History đã
+capture và kiểm được cho các đơn trước 01/09/2026 hay không? Nếu không, các
+đơn này tiếp tục chỉ nhận giá khi có hồ sơ xác nhận lịch sử thủ công. Đây là
+quyết định về thẩm quyền dữ liệu, không phải lỗi nhỏ để tự sửa.
 
-## SAU KHI CÓ CAPTURE
+## SAU KHI OWNER QUYẾT ĐỊNH
 
-Capture COMPLETE → chạy cohort thật → kiểm tra accounting 100% → đo tỷ lệ
-AUTO / Review Queue → xác định nguyên nhân lớn nhất làm Review Queue nhiều →
-chỉ sửa blocker tác động trực tiếp → chạy lại → nghiệm thu Internal Beta.
+Ghi rõ phạm vi ngày và loại bằng chứng được phép dùng → thực hiện thay đổi
+được Owner cấp quyền → chạy lại đúng cohort 58 đơn / 83 dòng → đo lại AUTO /
+Review Queue. Không tự đánh dấu Internal Beta chỉ vì report đã chạy.
 
 ## CÓ THỂ LÀM LÚC RẢNH
 
