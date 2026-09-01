@@ -26,6 +26,7 @@ Download chỉ được resolve từ ``run_id`` qua registry do chính server t�
 
 from __future__ import annotations
 
+import os
 import tempfile
 import time
 import uuid
@@ -46,9 +47,18 @@ from app.web import run_registry
 from tools.tracking import live_pull
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-UPLOAD_DIR = REPO_ROOT / "data" / "uploads"
-ARTIFACT_DIR = (REPO_ROOT / "outputs" / "reports").resolve()
-TRACKING_TEMP_DIR = REPO_ROOT / "data" / "tracking_live_tmp"
+
+# S071 Deployment Gate: một số nhà cung cấp hosting managed (vd Render Web
+# Service) chỉ cho gắn ĐÚNG MỘT persistent disk trên mỗi service — registry
+# SQLite và artifact/upload/tracking-tạm phải cùng nằm dưới một gốc mount
+# duy nhất để cả hai sống qua restart/redeploy. `REPORTS_DATA_ROOT` cho phép
+# production trỏ toàn bộ state runtime vào gốc disk đó; mặc định (không đặt
+# biến này) giữ NGUYÊN các đường dẫn tương đối REPO_ROOT đã dùng từ S070 —
+# không đổi hành vi local/test nào.
+DATA_ROOT = Path(os.environ.get("REPORTS_DATA_ROOT") or REPO_ROOT)
+UPLOAD_DIR = DATA_ROOT / "data" / "uploads"
+ARTIFACT_DIR = (DATA_ROOT / "outputs" / "reports").resolve()
+TRACKING_TEMP_DIR = DATA_ROOT / "data" / "tracking_live_tmp"
 
 # Beta technical safety limit — không phải quyết định nghiệp vụ của Owner.
 # Workbook kế toán thật (mẫu đã audit) nằm dưới vài MB; 25MB để dư biên độ.

@@ -333,3 +333,171 @@ INDEPENDENT_REVIEW_READY = YES — code+test sẵn sàng review độc lập nga
 
 NEXT_VERTICAL_ACTION = Owner/người có credential thực hiện docs/deployment/S071_DEPLOYMENT.md (chọn nhà cung cấp, mount volume, đặt secret, trỏ DNS, bật Cloudflare Access), sau đó chạy Production Acceptance Checklist trong cùng tài liệu; sau khi PASS, một phiên Independent Review xác nhận lại toàn bộ trên production thật trước khi merge canonical
 ```
+
+## 11. S071 DEPLOYMENT GATE — tiếp tục trực tiếp (cùng ngày, follow-up)
+
+Yêu cầu: không mở task/kiến trúc mới, không independent review — thực hiện
+**deployment architecture selection** ngay trong session (không đẩy việc
+"chọn nhà cung cấp" cho Owner), rồi đưa Shared Online Beta tới sát nhất có
+thể với production thật.
+
+### 11.1 Verify Git trước khi tiếp tục
+
+**FACT** — `git fetch origin claude/extract-upload-repo-gq2ws4`: canonical
+vẫn `d64d208775c96a02791c957df25c11d6bf9835f8`, KHÔNG di chuyển từ phiên
+trước. Branch `claude/s071-shared-online-beta-inydpg` local khớp
+`HEAD_BEFORE = 25413f2ed291efc01935bf6aedb702e5782a65a5` (đúng số báo cáo ở
+phiên trước), 3 commit ahead canonical, 0 behind. Không có công việc trùng
+lặp nào cần audit.
+
+### 11.2 Kiểm tra khả năng deploy thật trong session (FACT, đã verify trực tiếp)
+
+Trước khi chọn kiến trúc, verify xem session này có thể TỰ thực hiện
+provisioning hay không — không giả định:
+
+- Không có CLI provider nào cài sẵn (`flyctl`, `render`, `railway`, `aws`,
+  `gcloud`, `az`, `doctl`, `heroku`, `wrangler` — đều "not found").
+- `docker` CLI có sẵn (build/test container cục bộ được), nhưng không giúp
+  provisioning hạ tầng thật ở một provider từ xa.
+- `curl https://api.fly.io` từ trong session → proxy trả **403** tại tầng
+  CONNECT. `curl http://127.0.0.1:38243/__agentproxy/status` xác nhận:
+  `recentRelayFailures` ghi lại đúng sự kiện
+  `{"kind":"connect_rejected","detail":"gateway answered 403 to CONNECT
+  (policy denial or upstream failure)","host":"api.fly.io:443"}`.
+  `/root/.ccr/README.md` xác nhận đây là "chính sách egress của tổ chức từ
+  chối host ngoài allowlist — không retry, không route around, báo cáo lại
+  host bị chặn" — áp dụng chung cho mọi provider hosting/DNS ngoài
+  allowlist nội bộ (npm/pypi/crates/GitHub/Anthropic), không riêng Fly.io.
+
+**INFERENCE** — cùng chính sách egress chặn `render.com`, `railway.app`,
+`api.cloudflare.com`, v.v. (không test riêng từng host vì hành vi đã xác
+nhận là chính sách allowlist tổ chức, không phải lỗi tạm thời của một host
+cụ thể — retry sẽ không đổi kết quả, đúng hướng dẫn README).
+
+**Kết luận**: session có thể chọn kiến trúc + viết mọi code/config hỗ trợ
+deploy, nhưng KHÔNG thể tự gọi API/CLI của bất kỳ provider hosting nào để
+thật sự tạo service/volume/domain — đây là giới hạn hạ tầng mạng của MÔI
+TRƯỜNG CHẠY SESSION, đã verify bằng lệnh thật, không phải giả định.
+
+### 11.3 Deployment architecture selection (thực hiện trong session, không hỏi Owner)
+
+**DECISION — `SELECTED_HOSTING = Render`** (Web Service, runtime Docker,
+plan Starter + 1 Disk). So sánh đầy đủ 3 lựa chọn (Render / Fly.io / VPS
+thô) — bảng, lý do chọn, lý do loại hai phương án còn lại — ghi tại
+`docs/deployment/S071_DEPLOYMENT.md` "So sánh kiến trúc hosting", không lặp
+lại ở đây. Tóm tắt quyết định: Render là lựa chọn duy nhất vừa có persistent
+disk vừa deploy-từ-GitHub hoàn toàn qua dashboard (không đòi Owner học CLI)
+— đúng trọng số "operational simplicity" ngang hàng "chi phí" trong tiêu chí
+đầu bài, cho một Owner không chuyên kỹ thuật.
+
+**`OWNER_PAYMENT_REQUIRED = YES`** — không có lựa chọn managed nào (kể cả
+hai phương án bị loại) cấp persistent disk thật miễn phí vĩnh viễn. Plan cụ
+thể: **Render Starter (~US$7/tháng) + 1GB Disk (~US$0.25/tháng) ≈
+US$7–10/tháng**. Dừng đúng tại đây theo yêu cầu — KHÔNG tự tạo tài khoản/
+subscription thay Owner.
+
+### 11.4 SQLite + artifact trên MỘT persistent disk (S071 §3/§4)
+
+**FACT** — kiểm tra lại implementation hiện có (trước follow-up này): artifact
+`.xlsx` lưu tại `outputs/reports/` (`ARTIFACT_DIR`, tương đối `REPO_ROOT`),
+registry SQLite tại `data/web_runs/runs.db` (`DEFAULT_DB_PATH`, cũng tương
+đối `REPO_ROOT`) — HAI gốc khác nhau (`outputs/` vs `data/`) dưới cùng
+`REPO_ROOT`. Trên container ephemeral filesystem, cả hai đều mất khi
+container bị thay thế trừ khi được mount — không tự động "cùng nằm trên một
+volume" chỉ vì cùng nằm trong repo.
+
+**Render chỉ cho gắn ĐÚNG MỘT persistent Disk mỗi Web Service** (giới hạn
+platform, không phải giả định) — hai gốc riêng biệt sẽ không cùng persist
+được nếu không hợp nhất.
+
+**DECISION** — thêm biến môi trường `REPORTS_DATA_ROOT` (mới,
+`app/web/server.py` + `app/web/run_registry.py`): khi đặt, `UPLOAD_DIR`,
+`ARTIFACT_DIR`, `TRACKING_TEMP_DIR`, `run_registry.DEFAULT_DB_PATH` đều tự
+trỏ vào cùng gốc đó (`<gốc>/data/...`, `<gốc>/outputs/reports/`) — một biến
+duy nhất, một Disk duy nhất. Khi KHÔNG đặt (mọi test, mọi local dev trước
+đây), hành vi cũ (tương đối `REPO_ROOT`) giữ nguyên tuyệt đối — đây là thay
+đổi tối thiểu trực tiếp cần cho deployment gate, không phải refactor lại
+kiến trúc registry/artifact đã accept ở phiên trước (đúng yêu cầu "không mở
+task/kiến trúc mới", "không refactor nếu không có blocker deployment trực
+tiếp" — đây LÀ blocker deployment trực tiếp: không có cách nào Render's
+1-disk-per-service chạy đúng nếu không hợp nhất gốc).
+
+`render.yaml` (mới, root) đặt `REPORTS_DATA_ROOT=/app/persistent`, Disk
+1GB mount đúng đường đó — Owner không cần tự nghĩ ra cấu hình này.
+
+**Test mới**: `tests/test_web_data_root.py` (2 test) — có `REPORTS_DATA_ROOT`
+→ cả 4 đường dẫn cùng dưới một gốc; vắng mặt → giữ nguyên đường
+`REPO_ROOT` cũ. **2/2 PASS.** Full regression sau thay đổi: **1442 passed,
+11 skipped** (từ 1440 baseline implementation gate — +2 test mới, không
+regression).
+
+### 11.5 Gate hoàn thành được / không hoàn thành được trong session này
+
+Không fabricate PASS cho các gate cần production thật (đúng "Luật Cuối
+Cùng" CLAUDE.md — chứng minh bằng artifact/bằng chứng, không phải lời kể).
+Trạng thái chính xác từng gate ở RETURN block bên dưới
+(`HTTPS_GATE`…`REAL_COHORT_GATE`) — tất cả `NOT_EXECUTABLE_IN_THIS_SESSION`,
+không phải `PASS` hay `FAIL` giả.
+
+### 11.6 RETURN (deployment gate)
+
+```
+S071_DEPLOYMENT_GATE = HOSTING_SELECTED_AND_CONFIGURED, NOT_PROVISIONED (giới hạn mạng session + tài khoản/thanh toán thuộc Owner — xem §11.2)
+
+GIT_BRANCH = claude/s071-shared-online-beta-inydpg
+HEAD_BEFORE = 25413f2ed291efc01935bf6aedb702e5782a65a5
+HEAD_AFTER = <ghi ở commit cuối cùng của follow-up này — xem git log>
+
+HOSTING_OPTIONS = Render (Web Service+Disk) / Fly.io (Machines+Volume) / VPS thô (Hetzner/DO+Docker tay) — bảng so sánh đầy đủ tại docs/deployment/S071_DEPLOYMENT.md
+SELECTED_HOSTING = Render — Web Service, runtime Docker, plan Starter + 1GB Disk
+SELECTED_PLAN = Starter (~US$7/tháng) + Disk 1GB (~US$0.25/tháng)
+ESTIMATED_COST = ~US$7–10/tháng
+PAYMENT_REQUIRED = YES — không provider managed nào trong 3 lựa chọn có persistent disk miễn phí vĩnh viễn; Owner cần tạo tài khoản Render + phương thức thanh toán (session không làm thay được)
+
+PYTHON_RUNTIME = Python 3.11-slim (Dockerfile), gunicorn qua app/web/wsgi.py
+START_COMMAND = gunicorn --workers 2 --threads 4 --bind 0.0.0.0:${PORT} --timeout 120 app.web.wsgi:application
+
+SQLITE_PATH = ${REPORTS_DATA_ROOT}/data/web_runs/runs.db (production: /app/persistent/data/web_runs/runs.db qua render.yaml)
+SQLITE_PERSISTENT = YES — nằm dưới Render Disk mount path /app/persistent (theo blueprint; CHƯA verify trên Render thật — chưa provisioned)
+SQLITE_SURVIVES_RESTART = ĐÃ verify bằng test (tests/test_web_run_registry.py, tests/test_web_server.py restart persistence) — CHƯA verify trên production thật
+SQLITE_SURVIVES_REDEPLOY = Theo thiết kế Render Disk (Disk sống độc lập với service instance, tài liệu Render) — CHƯA verify trên production thật (chưa deploy)
+
+ARTIFACT_PATH = ${REPORTS_DATA_ROOT}/outputs/reports/*.xlsx (production: /app/persistent/outputs/reports/)
+ARTIFACT_PERSISTENT = YES — cùng Disk với SQLite (REPORTS_DATA_ROOT hợp nhất cả hai, xem §11.4)
+ARTIFACT_SURVIVES_RESTART = Đã verify bằng test — CHƯA verify production thật
+ARTIFACT_SURVIVES_REDEPLOY = Theo thiết kế Render Disk — CHƯA verify production thật (chưa deploy)
+
+TRACKING_SOURCE_URL = https://price.tinphatcrm.com (điền sẵn trong render.yaml, không phải secret)
+TRACKING_SECRET_CONFIGURATION = OWNER_ACTION_REQUIRED — TRACKING_REPORT_API_KEY đánh dấu sync:false trong render.yaml, Owner nhập tay trong Render dashboard lúc deploy
+TRACKING_LIVE_READY = BLOCKED_BY_REMOTE_SECRET (không đổi từ phiên trước — session vẫn không có secret thật để verify network call)
+
+DEPLOYMENT_STATUS = DEPLOYMENT_READY — HOSTING_SELECTED, CONFIG_COMPLETE (render.yaml + REPORTS_DATA_ROOT), KHÔNG DEPLOYED
+ORIGIN_URL = (chưa có — cấp sau khi Owner deploy blueprint, dạng reports-web-xxxx.onrender.com trước khi gắn domain thật)
+
+CLOUDFLARE_DNS_REQUIRED = CNAME "reports" → domain Render cấp (DNS-only lúc đầu để verify + cấp cert, có thể proxy lại sau)
+CLOUDFLARE_DNS_TARGET = reports.tinphatcrm.com → <domain Render cấp, biết được sau khi Owner deploy>
+CLOUDFLARE_ACCESS_REQUIRED = YES — Access Application self-hosted giới hạn theo email công ty, tạo trong Cloudflare Zero Trust dashboard (không cần Reports tự xây đăng nhập)
+
+HTTPS_GATE = NOT_EXECUTABLE_IN_THIS_SESSION (chưa có production URL)
+ACCESS_GATE = NOT_EXECUTABLE_IN_THIS_SESSION
+PERSISTENCE_GATE = NOT_EXECUTABLE_IN_THIS_SESSION trên production; PASS trên test (tests/test_web_run_registry.py, tests/test_web_server.py restart tests)
+MULTI_RUN_GATE = NOT_EXECUTABLE_IN_THIS_SESSION trên production; PASS trên test
+MULTI_VIEWER_GATE = NOT_EXECUTABLE_IN_THIS_SESSION trên production; PASS trên test
+TRACKING_GATE = NOT_EXECUTABLE_IN_THIS_SESSION (không có secret thật + không có mạng ra ngoài tới Tracking source)
+REAL_COHORT_GATE = OWNER_REAL_COHORT_REQUIRED — không có workbook thật trong Cloud, không fabricate; Owner upload qua production sau khi site available (không đổi từ phiên trước)
+
+OWNER_PAYMENT_REQUIRED = YES — Render Starter + Disk, ~US$7–10/tháng, xem SELECTED_PLAN
+OWNER_ACTION_REQUIRED = 6 bước chính xác tại docs/deployment/S071_DEPLOYMENT.md "Việc Owner cần làm" — tạo tài khoản Render, Deploy Blueprint, dán TRACKING_REPORT_API_KEY thật, trỏ Cloudflare CNAME, gắn Custom Domain, tạo Cloudflare Access Application
+
+FILES_CHANGED = Dockerfile, app/web/run_registry.py, app/web/server.py, docs/deployment/S071_DEPLOYMENT.md, render.yaml (mới), tests/test_web_data_root.py (mới)
+DEPLOYMENT_SHA = <= HEAD_AFTER, xem trên>
+REMOTE_BRANCH = claude/s071-shared-online-beta-inydpg
+
+RELEASE_BLOCKERS = tài khoản+thanh toán Render (Owner); secret TRACKING_REPORT_API_KEY thật; Cloudflare Access application; DNS thật — không còn blocker code/kiến trúc nào
+SCOPE_DRIFT = KHÔNG — REPORTS_DATA_ROOT là thay đổi tối thiểu trực tiếp cần cho ràng buộc "1 Disk/service" của hosting đã chọn (§11.4), không refactor gì khác của registry/artifact/live-pull đã accept ở implementation gate
+
+S071_PRODUCTION_ACCEPTANCE = CHƯA — chờ Owner thực hiện 6 bước + Production Acceptance Checklist trong docs/deployment/S071_DEPLOYMENT.md
+INDEPENDENT_REVIEW_READY = YES cho phần code/config (đúng yêu cầu "không independent review lúc này" — chỉ ghi sẵn trạng thái, không tự chạy review); review đầy đủ có ý nghĩa nhất SAU khi Owner deploy thật và tick được Production Acceptance Checklist
+
+NEXT_VERTICAL_ACTION = Owner thực hiện đúng 6 bước tại docs/deployment/S071_DEPLOYMENT.md (tạo tài khoản Render có thanh toán → Deploy Blueprint từ render.yaml → dán secret Tracking thật → Cloudflare CNAME → Custom Domain → Cloudflare Access) → tick Production Acceptance Checklist (GATE A–G) → báo lại kết quả để mở một phiên Independent Review xác nhận trên production thật trước khi merge canonical
+```

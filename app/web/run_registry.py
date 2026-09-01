@@ -18,6 +18,7 @@ riêng của từng tiến trình, là nguồn sự thật.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,7 +26,12 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB_PATH = REPO_ROOT / "data" / "web_runs" / "runs.db"
+# Cùng biến `REPORTS_DATA_ROOT` mà `app.web.server` dùng cho artifact/upload
+# — một số hosting managed chỉ cho một persistent disk mỗi service, nên
+# registry SQLite phải trỏ vào cùng gốc mount đó (xem `app/web/server.py`
+# docstring `DATA_ROOT`). Mặc định (biến vắng mặt) giữ nguyên đường cũ.
+_DATA_ROOT = Path(os.environ.get("REPORTS_DATA_ROOT") or REPO_ROOT)
+DEFAULT_DB_PATH = _DATA_ROOT / "data" / "web_runs" / "runs.db"
 
 STATUS_COMPLETE = "COMPLETE"
 STATUS_FAILED = "FAILED"

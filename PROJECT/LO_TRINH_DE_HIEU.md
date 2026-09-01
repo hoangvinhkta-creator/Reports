@@ -127,6 +127,26 @@ bao giờ dán secret vào đây).
 Cho tới khi các bước trên xong, "Web Beta V1" (S070) trên máy Owner vẫn
 dùng bình thường như cũ, không bị ảnh hưởng gì.
 
+**Cập nhật cùng ngày — đã chọn xong nơi đặt máy chủ, không cần Owner tự
+tìm hiểu.** Đã so sánh 3 nơi thuê máy chủ nhỏ, thực tế, và **chọn Render**
+— nơi cho phép "kết nối repo GitHub → tự động chạy lên" hoàn toàn bằng cách
+bấm chuột trên trang web quản trị, không cần Owner học dòng lệnh. Đã viết
+sẵn file cấu hình (`render.yaml`) để khi Owner bấm "Deploy" trên Render,
+mọi thứ tự động đúng — Owner chỉ cần làm 6 bước đơn giản, viết chính xác
+từng bước tại `docs/deployment/S071_DEPLOYMENT.md`.
+
+Có một chi phí không tránh được: **không có nơi thuê máy chủ nào cho lưu
+trữ lâu dài (để không mất dữ liệu khi khởi động lại) mà miễn phí hoàn
+toàn** — nơi rẻ nhất phù hợp rơi vào khoảng **7–10 đô la Mỹ/tháng**. Đây là
+quyết định cần Owner duyệt (tạo tài khoản + nhập thẻ thanh toán), phiên làm
+việc này không tự làm thay được.
+
+Phiên làm việc này cũng không tự "bấm nút" đưa trang web lên mạng thật
+được — máy chạy phiên này bị chặn kết nối mạng ra ngoài tới các trang thuê
+máy chủ (đã kiểm tra trực tiếp, không phải đoán), và việc tạo tài khoản/
+thanh toán vốn dĩ luôn phải là Owner tự làm. Mọi phần có thể chuẩn bị sẵn
+(chọn nơi thuê, viết cấu hình, viết hướng dẫn từng bước) đã làm xong.
+
 ## ĐANG CHỜ
 
 **Cần Owner phân loại 13 mặt hàng thật còn lại** (đã có gợi ý mã khả dĩ từ

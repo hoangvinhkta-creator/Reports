@@ -101,6 +101,42 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   tiết đầy đủ, bảng so sánh kiến trúc, DECISION log, và RETURN block đầy đủ
   tại `docs/sessions/S071-shared-online-beta.md`.
 
+  **Cập nhật cùng ngày — S071 DEPLOYMENT GATE.** Tiếp tục trực tiếp (không
+  mở task/kiến trúc mới): thực hiện đúng "deployment architecture
+  selection" thay vì đẩy việc chọn nhà cung cấp cho Owner. Verify trực tiếp
+  bằng lệnh (không giả định): session KHÔNG có CLI provider nào cài sẵn
+  (`flyctl`/`render`/`railway`/`aws`/`gcloud`/... đều "not found") và
+  egress mạng session bị chính sách tổ chức chặn tới host hosting/DNS
+  ngoài allowlist nội bộ (`curl https://api.fly.io` → proxy `403`,
+  `recentRelayFailures` của agent proxy xác nhận `connect_rejected`) — hai
+  giới hạn độc lập, mỗi cái đã đủ chặn tự provisioning từ trong session.
+  Trong phạm vi làm được: so sánh 3 lựa chọn hosting thực tế (Render/
+  Fly.io/VPS thô), **CHỌN Render** (Web Service, Docker + 1 Disk) — lý do:
+  duy nhất vừa có persistent disk vừa deploy-từ-GitHub hoàn toàn qua
+  dashboard, không đòi Owner học CLI, đúng trọng số "operational
+  simplicity" cho một Owner không chuyên kỹ thuật. Phát hiện: Render chỉ
+  cho gắn ĐÚNG MỘT persistent Disk mỗi service, trong khi SQLite registry
+  (`data/web_runs/`) và artifact (`outputs/reports/`) trước đó là hai gốc
+  khác nhau — thêm biến môi trường `REPORTS_DATA_ROOT` (mới,
+  `app/web/server.py` + `app/web/run_registry.py`) để cả hai cùng trỏ vào
+  một gốc mount khi biến này được đặt; vắng mặt (mọi test/local dev) giữ
+  nguyên đường cũ tuyệt đối — đây là thay đổi tối thiểu trực tiếp cần cho
+  blocker deployment thật, không phải refactor lại kiến trúc đã accept.
+  Viết `render.yaml` (blueprint đầy đủ, Owner chỉ cần bấm theo, không tự
+  cấu hình) và viết lại `docs/deployment/S071_DEPLOYMENT.md` thành đúng 6
+  bước Owner cần làm (tạo tài khoản Render có thanh toán, Deploy Blueprint,
+  dán secret Tracking thật, Cloudflare CNAME, Custom Domain, Cloudflare
+  Access). `OWNER_PAYMENT_REQUIRED = YES` (~US$7–10/tháng, Render Starter +
+  1GB Disk — không provider managed nào trong 3 lựa chọn có persistent disk
+  miễn phí vĩnh viễn, không riêng Render) — dừng đúng tại đây, không tự tạo
+  tài khoản/subscription thay Owner. Test mới `tests/test_web_data_root.py`
+  (2 test — có/không `REPORTS_DATA_ROOT`), full regression sau thay đổi:
+  **1442 passed, 11 skipped** (từ 1440). Không gate nào cần production thật
+  (HTTPS/Access/multi-viewer trên mạng thật/Tracking live/real cohort) được
+  fabricate PASS — tất cả ghi `NOT_EXECUTABLE_IN_THIS_SESSION` đúng thực
+  tế. Chi tiết đầy đủ + RETURN block: `docs/sessions/S071-shared-online-beta.md`
+  §11.
+
 - **S070 — Web Beta V1 / Thin Web Delivery Layer (nhánh `s070/web-beta-v1`,
   baseline `fad7647a5f07e5eeaa3587a03f0688cb6f7bb904`), Independent Review
   PASS sau 1 repair, ĐÃ merge canonical qua

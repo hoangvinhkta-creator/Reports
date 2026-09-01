@@ -5,12 +5,23 @@
 # microservice — một process Python duy nhất, nhiều worker/thread.
 #
 # Yêu cầu khi chạy container này trong production:
-#   - Volume persistent mount vào /app/data VÀ /app/outputs (registry SQLite
-#     + artifact .xlsx phải sống qua restart/redeploy — S071 §14).
+#   - Một volume persistent mount vào MỘT thư mục gốc (vd /app/persistent —
+#     đúng cấu hình đã chọn trong render.yaml), cộng biến môi trường
+#     REPORTS_DATA_ROOT trỏ vào đúng gốc đó. Registry SQLite VÀ artifact
+#     .xlsx đều tự đặt dưới gốc này (app/web/server.py, app/web/
+#     run_registry.py) — sống qua restart/redeploy (S071 §14). KHÔNG đặt
+#     REPORTS_DATA_ROOT: container vẫn chạy được (test/dev), nhưng dùng
+#     /app/data + /app/outputs bên trong container — MẤT khi container bị
+#     thay thế, không phải lỗi, chỉ là "chưa gắn volume".
 #   - Biến môi trường TRACKING_REPORT_SOURCE_URL + TRACKING_REPORT_API_KEY
 #     (pull-on-run Tracking, S071 §2/§3/§7) — thiếu thì server vẫn chạy được
 #     nhưng dùng local capture path thay vì live pull.
 #   - PORT (mặc định 8080) — khớp cổng mà front door (Cloudflare) trỏ vào.
+#
+# Kiến trúc hosting cụ thể đã chọn: Render Web Service (Docker runtime) +
+# một Disk — xem render.yaml (root) + docs/deployment/S071_DEPLOYMENT.md.
+# Dockerfile này vẫn chạy được trên bất kỳ host nào hỗ trợ Docker + volume
+# (không khoá cứng Render ở tầng image).
 
 FROM python:3.11-slim
 

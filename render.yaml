@@ -1,0 +1,50 @@
+# S071 Deployment Gate — Render Blueprint cho Reports Web Shared Online Beta.
+#
+# Lựa chọn hosting (xem docs/deployment/S071_DEPLOYMENT.md "So sánh kiến trúc
+# hosting" cho lý do đầy đủ): Render Web Service (runtime Docker, dùng đúng
+# `Dockerfile` ở root, không sửa) + MỘT persistent Disk duy nhất mount tại
+# `/app/persistent` — cả registry SQLite lẫn artifact/upload/tracking-tạm
+# đều trỏ vào đây qua biến `REPORTS_DATA_ROOT` (app/web/server.py,
+# app/web/run_registry.py), đúng giới hạn "một disk mỗi service" của Render.
+#
+# Áp dụng blueprint này (Owner thực hiện, cần tài khoản Render + phương thức
+# thanh toán — session S071 không tạo được thay Owner):
+#   1. Đăng nhập render.com bằng GitHub, chọn repo Reports.
+#   2. New → Blueprint → trỏ vào file này (Render tự đọc khi thấy render.yaml
+#      ở root, hoặc chọn thủ công qua "New Blueprint Instance").
+#   3. Ở bước review, điền giá trị cho biến `TRACKING_REPORT_API_KEY`
+#      (đánh dấu `sync: false` bên dưới — Render bắt nhập tay trong dashboard,
+#      KHÔNG lưu trong file này, KHÔNG commit).
+#   4. Deploy. Render tự build Dockerfile, tạo Disk, gắn domain mặc định
+#      `*.onrender.com` trước — thêm custom domain `reports.tinphatcrm.com`
+#      sau khi service chạy được (Render dashboard → Settings → Custom Domain).
+#
+# KHÔNG cần Owner biết cú pháp render.yaml — chỉ cần bấm theo 4 bước trên.
+
+services:
+  - type: web
+    name: reports-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: singapore
+    healthCheckPath: /
+    envVars:
+      # Gộp registry SQLite + artifact dưới cùng một Disk (xem đầu file).
+      - key: REPORTS_DATA_ROOT
+        value: /app/persistent
+      # Render tự đặt PORT khi build từ Dockerfile CMD dùng ${PORT} — khai
+      # báo tường minh ở đây để khớp đúng cổng container lắng nghe.
+      - key: PORT
+        value: "8080"
+      # Nguồn Tracking Data Contract V1 — cố định, không phải secret.
+      - key: TRACKING_REPORT_SOURCE_URL
+        value: https://price.tinphatcrm.com
+      # Secret thật — Owner nhập tay trong Render dashboard lúc deploy hoặc
+      # sau đó ở Settings → Environment. KHÔNG có giá trị nào ở đây.
+      - key: TRACKING_REPORT_API_KEY
+        sync: false
+    disk:
+      name: reports-persistent-data
+      mountPath: /app/persistent
+      sizeGB: 1
