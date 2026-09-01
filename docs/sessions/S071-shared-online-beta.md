@@ -501,3 +501,277 @@ INDEPENDENT_REVIEW_READY = YES cho phần code/config (đúng yêu cầu "không
 
 NEXT_VERTICAL_ACTION = Owner thực hiện đúng 6 bước tại docs/deployment/S071_DEPLOYMENT.md (tạo tài khoản Render có thanh toán → Deploy Blueprint từ render.yaml → dán secret Tracking thật → Cloudflare CNAME → Custom Domain → Cloudflare Access) → tick Production Acceptance Checklist (GATE A–G) → báo lại kết quả để mở một phiên Independent Review xác nhận trên production thật trước khi merge canonical
 ```
+
+## 12. S071B — Stateless Persistence Adapter (follow-up trực tiếp)
+
+Ngày: 2026-09-01. Nhánh: `s071b/stateless-r2`. Baseline: đúng HEAD của
+nhánh `claude/s071-shared-online-beta-inydpg` tại §11.6
+(`c36972b19af830457178589c25387adb65d16903`, sau đó có thêm 1 commit
+doc-touch-up — baseline thật của S071B là HEAD tại thời điểm mở phiên,
+xem RETURN bên dưới).
+
+**Mục tiêu duy nhất**: thay SQLite + persistent filesystem (§11.4) bằng
+Cloudflare R2 để Reports Python web runtime trở thành STATELESS. KHÔNG đổi
+Reports Core/business logic.
+
+### 12.1 SUPERSEDES §3 và §11
+
+§3 ("Kiến trúc — So sánh và lựa chọn") loại bỏ mọi kiến trúc dùng database
+managed (Postgres/D1) hay object storage với lý do "SQLite trên đĩa persistent
+là managed solution nhỏ nhất phù hợp quy mô Beta". §11.3–§11.4 sau đó chọn
+Render + MỘT persistent Disk chính vì ràng buộc "1 Disk/service" của
+Render buộc SQLite + artifact phải hợp nhất một gốc mount
+(`REPORTS_DATA_ROOT`).
+
+**S071B đảo lại tiền đề đó**: registry run + artifact chưa bao giờ cần
+đọc/ghi ngẫu nhiên trên một file hệ thống — toàn bộ truy cập chỉ là
+put/get theo `run_id` (tạo, đọc một run, liệt kê tất cả) — đúng hình dạng
+một object store, không phải một cơ sở dữ liệu quan hệ. Việc S071 chọn
+SQLite + Disk là **implementation convenience** để tái dùng persistence
+sẵn có (SQLite driver có sẵn trong Python), **không phải một Reports Core
+requirement**. Object storage (R2) khớp đúng hình dạng truy cập thật hơn,
+và loại bỏ hoàn toàn ràng buộc "1 Disk/service" — không phải vì ràng buộc
+đó được giải quyết khéo hơn, mà vì nó không còn áp dụng nữa (không có Disk
+nào).
+
+`REPORTS_DATA_ROOT`, SQLite (`app/web/run_registry.py`), và `render.yaml`
+Disk KHÔNG bị xoá khỏi lịch sử §3/§11 — vẫn đúng như log lịch sử của quyết
+định S071 tại thời điểm đó. Code hiện tại vẫn GIỮ `RunRegistry` (SQLite)
+nguyên vẹn làm fallback local/test (xem §12.3) — S071B không xoá đường cũ,
+chỉ thêm một đường mới và đổi đường nào là production default.
+
+### 12.2 R2 object model
+
+```
+runs/<run_id>.json       — một run. run_id đã sortable theo thời gian
+                            (report-<UTC timestamp compact>[-NN]) — dùng
+                            thẳng làm key, không lặp lại created_at.
+artifacts/<run_id>.xlsx  — artifact .xlsx của đúng run đó.
+```
+
+**DECISION** — không dùng nguyên văn `runs/<sortable-created-at>-<run-id>.json`
+như gợi ý trong brief. `run_id` hiện tại (`app.owner_usability.
+default_output_path`) đã có dạng `report-<UTC timestamp compact>[-NN]`,
+tức bản thân nó ĐÃ sortable theo thời gian — lặp lại `created_at` ở đầu key
+là dữ liệu trùng lặp không cần thiết. Dùng thẳng `run_id` làm key cho phép:
+`get_run` resolve O(1) chính xác (một `head_object`/`get_object`, không cần
+scan/index phụ để tìm key theo run_id), VÀ liệt kê mới→cũ bằng cách sort
+TÊN KHOÁ giảm dần (không fetch body). Đánh đổi: key scheme này coupling
+với format run_id hiện tại của `owner_usability.py` — nếu format đó đổi
+sang thứ không còn sortable (vd UUID ngẫu nhiên), listing sẽ sai thứ tự.
+DEFERRED — không phải rủi ro thật trong scope S071B (không đổi
+`owner_usability.py`).
+
+Không có một file index JSON dùng chung mà nhiều writer phải race để cập
+nhật — mỗi run là một object độc lập, đúng yêu cầu CONCURRENCY của task.
+
+`put_json_if_absent` dùng HEAD-rồi-PUT (không `IfNoneMatch` điều kiện của
+S3/R2) để phát hiện `run_id` trùng — có một khe race lý thuyết giữa hai
+lời gọi đồng thời cho CÙNG run_id, nhưng run_id luôn do server sinh mới mỗi
+lần chạy (đúng docstring gốc của `RunRegistry.create_run`: "một run_id
+trùng là lỗi lập trình, không phải một tình huống cần xử lý êm") — không
+phải kịch bản concurrency thật trong beta này.
+
+### 12.3 Implementation
+
+- `tools/storage/r2_store.py` (mới, NGOÀI `app/`) — client S3-compatible
+  (`boto3`, `endpoint_url` trỏ `https://<account_id>.r2.cloudflarestorage.com`,
+  `region_name="auto"`) cho put/get JSON + bytes trên R2. Nằm ngoài `app/`
+  bắt buộc: `boto3` nằm trong danh sách cấm import trực tiếp dưới `app/`
+  của `test_no_module_under_app_reaches_the_network` (`ADR-101`) — đúng
+  ranh giới `tools/tracking/live_pull.py` đã dùng cho network primitive
+  khác. `tools/storage/errors.py` (mới) — `StorageUnavailableError`
+  (network/timeout/auth), `RunAlreadyExistsError` (run_id trùng),
+  `CorruptRunRecordError` (JSON hỏng — KHÔNG lẫn với "không tồn tại").
+- `app/web/storage_backend.py` (mới, dưới `app/`, KHÔNG tự `import boto3`
+  — chỉ gọi hàm public của `tools.storage.r2_store`) — `LocalRunStore`
+  (SQLite + file cục bộ, bọc nguyên `RunRegistry` đã có, hành vi S070/S071
+  không đổi) và `R2RunStore` cùng một interface tối thiểu (`create_run`/
+  `get_run`/`list_runs`/`save_artifact`/`artifact_response`) —
+  `app/web/server.py` không biết đang chạy trên backend nào.
+  `build(db_path, artifact_dir)` chọn `R2RunStore` khi đủ 4 biến
+  `R2_ACCOUNT_ID`/`R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`,
+  ngược lại `LocalRunStore` — TRỪ khi `REPORTS_REQUIRE_R2=1` (production),
+  khi đó raise `StorageConfigurationError` ngay khi tạo Flask app thay vì
+  âm thầm chạy bằng SQLite/đĩa ephemeral trong container (đúng yêu cầu
+  "Production mode phải fail configuration validation").
+- `app/web/server.py` — `create_app()` nhận thêm tham số `store=` (test
+  tiêm trực tiếp, không cần credential R2 thật); construction đổi
+  `registry = run_registry.RunRegistry(...)` → `store =
+  storage_backend.build(...)`; mọi route đổi `registry.` → `store.`, bọc
+  qua `_guarded()` (mới) — bắt `StorageUnavailableError`/
+  `CorruptRunRecordError`, trả HTTP 503 rõ ràng thay vì để lộ traceback
+  hoặc âm thầm hiểu nhầm thành "không tìm thấy"/"lịch sử rỗng". Artifact
+  save (R2: đọc bytes file tạm cục bộ đã có sẵn → `put_bytes` (upload +
+  verify `head_object` so khớp `ContentLength`) → xoá file tạm; local:
+  giữ nguyên logic cũ) PHẢI thành công trước khi `create_run` — fail
+  closed đúng yêu cầu "run không được xuất hiện như successful completed
+  run với artifact không tồn tại". Raw workbook upload (`UPLOAD_DIR`) vẫn
+  temp-only như S070/S071 — S071B không đổi, không upload workbook thô lên
+  R2.
+- `render.yaml` — xoá khối `disk:`; thêm `REPORTS_REQUIRE_R2=1` +
+  `R2_ACCOUNT_ID`/`R2_BUCKET` (giá trị Owner tự điền) +
+  `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` (`sync: false`, Owner nhập tay,
+  cùng convention `TRACKING_REPORT_API_KEY` đã có). `Dockerfile` — cập
+  nhật comment phản ánh đúng kiến trúc mới; `mkdir /app/data
+  /app/outputs/reports` giữ nguyên nhưng chỉ còn ý nghĩa scratch space tạm
+  cho một lần chạy, không phải mount point persistent. `pyproject.toml` —
+  thêm optional-dependency `storage = ["boto3>=1.34"]`, gộp vào
+  `web-prod`; core CLI/Tkinter/`web` (Flask-only, local dev) không cần
+  cài `boto3`.
+
+### 12.4 Test
+
+`tests/fixtures/fake_r2_client.py` (mới) — fake S3-compatible client
+in-memory (`head_object`/`get_object`/`put_object`/`list_objects_v2`),
+tiêm lỗi theo method (`fail[method] = exception_hoặc_callable`) — không
+cần credential/mạng R2 thật, đúng dự liệu của task ("Nếu credential không
+tồn tại trong Claude Cloud: tests dùng fake/mock"). `tools/storage/
+r2_store.py` (và mọi hàm gọi xuống nó) nhận tham số `client=`/`env=` xuyên
+suốt để test tiêm fake — production path (`client=None`) mới thật sự tạo
+`boto3.client(...)`.
+
+`tests/test_r2_store.py` (20 test): put/get JSON round-trip, unknown key
+→ `None`, duplicate `run_id` → `RunAlreadyExistsError`, JSON corrupt →
+`CorruptRunRecordError` (KHÔNG phải `None`), R2 unavailable/timeout/auth
+failure → `StorageUnavailableError` (head/get/put), list newest-first +
+tôn trọng `limit`, list lịch sử rỗng → `[]` không lỗi, list failure →
+`StorageUnavailableError` không phải lịch sử rỗng, artifact put/get bytes
+round-trip, artifact missing → `None`, verify-sau-upload sai kích thước →
+fail closed, artifact upload failure → `StorageUnavailableError`.
+
+`tests/test_storage_backend.py` (18 test): `build()` chọn Local khi R2
+chưa cấu hình / chọn R2 khi đã cấu hình đủ / fail closed
+(`StorageConfigurationError`) khi `REPORTS_REQUIRE_R2=1` thiếu credential
+(kể cả chỉ thiếu 1 trong 4 biến); `R2RunStore` create/get round-trip đủ
+field, unknown run_id → `None`, run_id không hợp lệ (path traversal) →
+`None` không phải exception, list newest-first, hai instance độc lập
+cùng client đọc chung một run (MULTI-VIEWER), duplicate run_id →
+`RunAlreadyExistsError`, list bỏ qua đúng 1 record hỏng mà vẫn giữ các
+record tốt (không sập cả trang), list propagate lỗi storage thật (không
+biến thành lịch sử rỗng); artifact save → upload + verify + xoá file tạm
++ download lại đúng bytes, artifact missing → `None`, artifact-run
+mismatch (artifact_path không khớp key tự suy từ run_id) → `None` (không
+bao giờ resolve theo artifact_path thô), artifact upload failure không để
+lại reference lơ lửng (run không tồn tại sau đó).
+
+`tests/test_web_server.py` thêm 9 test tích hợp Flask end-to-end qua R2
+(fake client, `create_app(store=...)`): run→download round-trip qua R2
+thật (đường code thật, không mock `run_owner_report`/`store`), file tạm
+cục bộ bị xoá sau upload; 2 viewer độc lập (2 Flask app + 2 test client)
+đọc chung một run qua CÙNG fake R2 client (MULTI-VIEWER); 2 run tạo gần
+đồng thời (cùng client) đều lưu độc lập, đọc lại đủ cả hai
+(CONCURRENT_RUNS); artifact upload failure → response 500 không traceback
++ run KHÔNG xuất hiện trong registry (fail closed, không phải "thành công
+giả"); get_run/list_runs failure → HTTP 503 (không phải 404/lịch sử rỗng
+giả); artifact-run mismatch → 404; `REPORTS_REQUIRE_R2=1` thiếu credential
+→ `create_app()` raise `StorageConfigurationError` (fail lúc khởi động,
+không lúc runtime).
+
+**Full regression**: `1489 passed, 11 skipped` (từ baseline `1442 passed,
+11 skipped` — +47 test mới, KHÔNG skip nào đổi, KHÔNG giảm coverage sẵn
+có). Bất biến kiến trúc `test_no_module_under_app_reaches_the_network`
+verify lại PASS.
+
+### 12.5 Production LOC
+
+429 dòng Python net mới (`app/web/storage_backend.py` +176,
+`tools/storage/r2_store.py` +198, `tools/storage/errors.py` +25,
+`app/web/server.py` net +30) — vượt ước tính audit ban đầu (~250–350)
+nhưng dưới ngưỡng dừng cứng 500, KHÔNG trigger `CHANGE_BUDGET_EXCEEDED`.
+Nguyên nhân vượt ước tính: failure model tường minh theo đúng yêu cầu của
+task (phân biệt rõ 4 loại lỗi — storage unavailable / corrupt / not-found
+/ already-exists — thay vì gộp chung một exception mơ hồ) cộng với
+dependency injection (`client=`/`env=`) xuyên suốt để test không cần
+credential thật. KHÔNG có generic storage framework, KHÔNG abstract nhiều
+provider — đúng một R2 adapter duy nhất, đúng yêu cầu.
+
+### 12.6 Không verify được trong session này
+
+**`R2_LIVE_VERIFICATION = BLOCKED_BY_MISSING_CREDENTIAL`** — môi trường
+Claude Cloud chạy session S071B không có
+`R2_ACCOUNT_ID`/`R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` thật,
+và cũng không có `boto3` cài sẵn (không cần cho test — toàn bộ 47 test
+mới tiêm `client=` fake, không import `boto3` thật, xem §12.4). Đúng dự
+liệu trước của task ("Nếu credential không tồn tại trong Claude Cloud:
+tests dùng fake/mock. Không STOP implementation") — KHÔNG coi là
+architecture blocker, KHÔNG fabricate PASS cho một R2 call thật.
+
+**`DEPLOYMENT_STATUS`** — không đổi so với §11: session không có tài khoản
+Cloudflare/Render để tạo R2 bucket/API token thật hay deploy lại. DEFERRED
+cho Owner — xem `docs/deployment/S071_DEPLOYMENT.md` (đã cập nhật SUPERSEDES
++ bước Owner cần làm).
+
+### 12.7 DEFERRED (không phải regression)
+
+- Migration SQLite → R2: KHÔNG build (đúng yêu cầu — Internal Beta chưa
+  production-deploy, dữ liệu SQLite local hiện có không phải production
+  authority).
+- Key scheme coupling với format `run_id` của `owner_usability.py` — xem
+  §12.2 DECISION.
+- `list_run_keys_desc` quét tối đa 5000 key mỗi lần gọi `/history` — đủ
+  cho quy mô Internal Beta, không phải một giải pháp phân trang tổng quát.
+- R2 IfNoneMatch điều kiện thật (thay HEAD-rồi-PUT) — không cần thiết ở
+  quy mô/kịch bản concurrency thật của run_id server-generated, xem §12.2.
+
+### 12.8 RETURN
+
+```
+S071B_IMPLEMENTATION = CODE_COMPLETE, TEST_COMPLETE (fake client), CHƯA DEPLOYED, CHƯA merge canonical
+
+BASELINE = 5f12516cde2c51b4307413ac960eb6a1c97da2ec
+BRANCH = s071b/stateless-r2
+HEAD = fbc8fc74e88e50f8005504e0ea19ee44a64f4adf (implementation SHA — sẽ có thêm 1 commit doc-touch-up ngay sau, xem commit cuối cùng thật trên nhánh cho HEAD chính xác nhất)
+
+R2_RUN_STORE = tools/storage/r2_store.py + app/web/storage_backend.py::R2RunStore — put/get JSON qua boto3 S3-compatible client, endpoint https://<account_id>.r2.cloudflarestorage.com
+R2_ARTIFACT_STORE = cùng r2_store.py — put_bytes (upload + verify head_object) / get_bytes cho artifacts/<run_id>.xlsx
+R2_KEY_SCHEME = runs/<run_id>.json (run_id đã sortable theo thời gian, xem §12.2 DECISION) + artifacts/<run_id>.xlsx
+
+SQLITE_PRODUCTION_DEPENDENCY = KHÔNG — production (REPORTS_REQUIRE_R2=1) dùng R2RunStore, SQLite chỉ còn là fallback local/test
+PERSISTENT_DISK_DEPENDENCY = KHÔNG — render.yaml không còn khối disk:
+REPORTS_DATA_ROOT_PRODUCTION_DEPENDENCY = KHÔNG BẮT BUỘC — chỉ còn ý nghĩa local-only/fallback (LocalRunStore khi R2 chưa cấu hình và REPORTS_REQUIRE_R2 không bật)
+
+LOCAL_COMPATIBILITY = GIỮ NGUYÊN — LocalRunStore bọc nguyên RunRegistry (SQLite) đã có, R2 chưa cấu hình → hành vi S070/S071 không đổi, mọi test cũ PASS không sửa
+
+RAW_WORKBOOK_PERSISTED = KHÔNG — vẫn temp-only (UPLOAD_DIR, xoá trong finally), không đổi từ S070/S071, không upload lên R2
+TEMP_FILE_CLEANUP = CÓ — artifact temp file bị unlink() ngay sau khi R2 upload xác nhận verify xong (app/web/storage_backend.py::R2RunStore.save_artifact); workbook temp file xoá trong finally của run_report() (không đổi)
+
+RUN_CREATE = PASS (test_r2_store, test_storage_backend, test_web_server — 20+18+9 test)
+RUN_GET = PASS — unknown run_id → None, invalid run_id → None, corrupt JSON → CorruptRunRecordError (không lẫn "not found")
+RUN_LIST = PASS — newest-first, list rỗng an toàn, 1 record hỏng không sập cả trang, storage failure propagate không giả làm lịch sử rỗng
+ARTIFACT_UPLOAD = PASS — upload + verify head_object + xoá temp; verify sai kích thước → fail closed, KHÔNG create_run
+ARTIFACT_DOWNLOAD = PASS — resolve qua run metadata authoritative, key luôn tự suy từ run_id, artifact-run mismatch → None/404
+
+MULTI_VIEWER = PASS (test — 2 R2RunStore/2 Flask app độc lập, cùng fake R2 client, đọc chung 1 run)
+CONCURRENT_RUNS = PASS (test — 2 run tạo gần đồng thời, cùng client, đều lưu + đọc lại độc lập)
+
+R2_FAILURE_TESTS = PASS — unavailable/timeout/auth (head/get/put), verify-mismatch, list failure — tất cả StorageUnavailableError, không silent swallow
+ARTIFACT_FAILURE_TESTS = PASS — upload failure không tạo run "thành công giả"; artifact missing → 404; artifact-run mismatch → 404
+SECURITY_TESTS = PASS — run_id không hợp lệ (path traversal) → None/404 không phải lỗi; R2 key luôn server tự suy, browser không bao giờ cung cấp key trực tiếp; response không lộ credential/traceback (kế thừa test cũ + test mới _storage_unavailable handler)
+
+PRODUCTION_ENV_VARS = REPORTS_REQUIRE_R2 (bool), R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID (secret), R2_SECRET_ACCESS_KEY (secret) — tên biến xem tools/storage/r2_store.py
+SECRETS_BROWSER_EXPOSED = KHÔNG — credential R2 chỉ đọc server-side (tools/storage/r2_store.py, os.environ), không log, không truyền vào bất kỳ response nào
+
+RENDER_DISK_REMOVED = CÓ — render.yaml không còn khối disk:
+STATELESS_RUNTIME = CÓ theo thiết kế + test (R2RunStore không giữ state process-local nào ngoài client/env tham số tiêm khi test; production path tự tạo client ngắn hạn per-call) — CHƯA verify trên container Render thật (chưa deploy, không có credential R2 thật trong session)
+
+PRODUCTION_LOC_ADDED = 429 dòng Python net (chi tiết §12.5) — dưới ngưỡng dừng cứng 500, vượt ước tính audit ~250–350
+
+FOCUSED_TESTS = tests/test_r2_store.py (20) + tests/test_storage_backend.py (18) = 38 test, tất cả PASS
+AFFECTED_TESTS = tests/test_web_server.py +9 test R2 integration, tất cả 47 test cũ của file này vẫn PASS không sửa logic (chỉ thêm import) = 56/56 PASS
+FULL_REGRESSION = 1489 passed, 11 skipped (từ baseline 1442 passed, 11 skipped — +47, không skip đổi, không regression)
+
+FILES_CHANGED = app/web/server.py, app/web/storage_backend.py (mới), tools/storage/__init__.py (mới), tools/storage/errors.py (mới), tools/storage/r2_store.py (mới), render.yaml, Dockerfile, pyproject.toml, PROJECT/PROJECT_PROGRESS.md, PROJECT/LO_TRINH_DE_HIEU.md, docs/sessions/S071-shared-online-beta.md (file này), docs/deployment/S071_DEPLOYMENT.md, tests/test_r2_store.py (mới), tests/test_storage_backend.py (mới), tests/test_web_server.py, tests/fixtures/fake_r2_client.py (mới)
+IMPLEMENTATION_SHA = fbc8fc74e88e50f8005504e0ea19ee44a64f4adf
+REMOTE_BRANCH = s071b/stateless-r2 (push sau khi commit — KHÔNG merge canonical, KHÔNG force)
+
+RELEASE_BLOCKERS = tài khoản Cloudflare + R2 bucket + API token thật (Owner); credential R2 dán vào Render dashboard; verify R2 live thật (không mock) sau khi Owner có credential — không còn blocker code/kiến trúc nào
+DEFERRED = migration SQLite→R2 (§12.7, không cần cho Internal Beta); key scheme coupling với format run_id (§12.2); list_run_keys_desc quét tối đa 5000 key/lần (đủ cho Internal Beta)
+
+SCOPE_DRIFT = KHÔNG — đúng một mục tiêu duy nhất (thay SQLite+Disk bằng R2), không đổi Reports Core/business logic, không đổi call site nào ngoài chỗ chọn backend, không build provider abstraction/migration framework
+
+S071B_GATE = CODE_COMPLETE, VERIFYING (test fake client PASS, R2 live thật CHƯA verify được — thiếu credential trong môi trường này, không phải architecture blocker)
+INDEPENDENT_REVIEW_READY = YES cho phần code/test/config; ý nghĩa nhất SAU khi Owner có credential R2 thật để verify ít nhất một R2 call thật (không chỉ fake client)
+
+NEXT_VERTICAL_ACTION = Owner tạo R2 bucket + API token trên Cloudflare dashboard → dán 4 biến R2_* vào Render (hoặc host stateless khác) → xoá Render Disk cũ nếu còn (không cần nữa) → deploy lại → tick Production Acceptance Checklist cập nhật (docs/deployment/S071_DEPLOYMENT.md) → báo lại kết quả để mở một phiên Independent Review xác nhận trên R2 thật trước khi merge canonical
+```

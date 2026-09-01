@@ -51,6 +51,116 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
+- **S071B — Stateless Persistence Adapter (nhánh `s071b/stateless-r2`,
+  baseline `5f12516cde2c51b4307413ac960eb6a1c97da2ec` = HEAD của nhánh S071
+  tại thời điểm mở phiên). CODE COMPLETE + VERIFYING, CHƯA DEPLOYED, CHƯA
+  merge canonical.** Follow-up trực tiếp của "S071 DEPLOYMENT GATE" bên
+  dưới: thay SQLite + persistent Disk (Render, 1 disk/service) bằng
+  **Cloudflare R2** để Reports Python web runtime trở thành STATELESS —
+  chạy được trên bất kỳ host Python nào, không cần volume.
+
+  **SUPERSEDES** kiến trúc "S071 DEPLOYMENT GATE" bên dưới (Render + MỘT
+  persistent Disk `/app/persistent`, `REPORTS_DATA_ROOT` gộp SQLite +
+  artifact). Lý do: persistent disk là implementation convenience của
+  S071 (giải quyết ràng buộc "1 disk/service" của Render), KHÔNG phải một
+  yêu cầu của Reports Core — bản thân registry run + artifact chưa từng
+  cần đọc/ghi ngẫu nhiên trên đĩa, chỉ cần put/get theo `run_id`, đúng hình
+  dạng một object store. `REPORTS_DATA_ROOT`/SQLite/`render.yaml` disk cũ
+  của S071 KHÔNG bị xoá khỏi lịch sử — chỉ không còn là đường production
+  hiện hành.
+
+  Implementation (đổi tối thiểu, không đổi Reports Core/business logic,
+  không đổi call site nào ngoài đúng chỗ cần chọn backend):
+  - `tools/storage/r2_store.py` (mới, NGOÀI `app/` — `boto3` bị cấm import
+    trực tiếp dưới `app/`, xem `ADR-101`/
+    `test_no_module_under_app_reaches_the_network`): put/get JSON + bytes
+    trên R2 qua client S3-compatible, key `runs/<run_id>.json` (run_id đã
+    sortable theo thời gian — `get_run` O(1), liệt kê mới→cũ bằng sort tên
+    khoá, không cần index JSON dùng chung) và `artifacts/<run_id>.xlsx`.
+    `tools/storage/errors.py` (mới): `StorageUnavailableError`/
+    `RunAlreadyExistsError`/`CorruptRunRecordError` dùng chung.
+  - `app/web/storage_backend.py` (mới): `LocalRunStore` (SQLite + file cục
+    bộ — hành vi S070/S071 giữ nguyên tuyệt đối) và `R2RunStore` cùng một
+    interface (`create_run`/`get_run`/`list_runs`/`save_artifact`/
+    `artifact_response`); `build()` chọn R2 khi đã cấu hình đủ 4 biến
+    `R2_ACCOUNT_ID`/`R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`,
+    ngược lại fallback `LocalRunStore` — TRỪ khi `REPORTS_REQUIRE_R2=1`
+    (production), khi đó fail `StorageConfigurationError` ngay lúc khởi
+    động thay vì âm thầm chạy bằng đĩa ephemeral trong container.
+  - `app/web/server.py`: thay `registry = run_registry.RunRegistry(...)`
+    bằng `store = storage_backend.build(...)` (tham số `store=` cho phép
+    test tiêm trực tiếp); mọi route đổi `registry.` → `store.`, bọc qua
+    `_guarded()` (lỗi storage → HTTP 503 rõ ràng, KHÔNG hiểu nhầm thành
+    "không tìm thấy"/"lịch sử rỗng"); artifact upload (R2: temp local →
+    upload → verify `head_object` → xoá temp) PHẢI thành công trước khi ghi
+    run — fail closed, không để lộ run "thành công" mà artifact không tồn
+    tại. Raw workbook upload vẫn temp-only, không đổi (không upload lên R2
+    ở S071B).
+  - `render.yaml`: xoá `disk:` (không còn Disk nào); thêm
+    `REPORTS_REQUIRE_R2=1` + 4 biến `R2_*` (secret `sync: false`).
+    `Dockerfile`: cập nhật comment, `mkdir` giữ nguyên nhưng chỉ còn ý nghĩa
+    scratch space tạm, không phải mount point persistent.
+    `pyproject.toml`: thêm optional-dependency `storage = ["boto3>=1.34"]`,
+    gộp vào `web-prod`.
+
+  Test mới: `tests/test_r2_store.py` (20 test — put/get JSON round-trip,
+  duplicate run_id → `RunAlreadyExistsError`, JSON corrupt →
+  `CorruptRunRecordError` (không phải `None`), R2 unavailable/timeout/auth
+  → `StorageUnavailableError`, list newest-first + list rỗng an toàn + list
+  lỗi không biến thành lịch sử rỗng, artifact put/get round-trip, verify
+  upload sai kích thước → fail closed), `tests/test_storage_backend.py`
+  (18 test — chọn backend theo env, fail closed khi `REPORTS_REQUIRE_R2`
+  thiếu credential, `R2RunStore` round-trip/multi-viewer/list bỏ qua đúng
+  1 record hỏng mà không sập cả trang/artifact upload-verify-xoá temp/
+  artifact-run mismatch bị từ chối), cùng 9 test tích hợp Flask mới trong
+  `tests/test_web_server.py` (run→download round-trip qua R2 thật (fake
+  client), 2 viewer độc lập đọc chung 1 run qua R2, 2 run tạo gần đồng thời
+  đều lưu độc lập, artifact upload fail → run không xuất hiện, get/list
+  fail → 503 không phải 404/lịch sử rỗng, artifact-run mismatch → 404,
+  `REPORTS_REQUIRE_R2` fail app startup khi thiếu credential). `tests/
+  fixtures/fake_r2_client.py` (mới): fake S3-compatible client in-memory,
+  tiêm lỗi theo method — không cần credential/mạng R2 thật (Claude Cloud
+  không có credential R2, đúng dự liệu của task S071B). Full regression:
+  **1489 passed, 11 skipped** (từ baseline `1442 passed, 11 skipped` —
+  +47 test mới, không skip nào đổi, không giảm coverage nào có sẵn). Bất
+  biến kiến trúc `test_no_module_under_app_reaches_the_network` verify lại
+  PASS sau khi thêm `tools/storage/r2_store.py` (nằm ngoài `app/`, đúng vị
+  trí — `app/web/storage_backend.py` chỉ import `tools.storage.r2_store`,
+  không tự `import boto3`).
+
+  **Production LOC**: 429 dòng Python net mới (`app/web/storage_backend.py`
+  176 + `tools/storage/r2_store.py` 198 + `tools/storage/errors.py` 25 +
+  `app/web/server.py` net +30) — vượt ước tính audit ban đầu (~250–350)
+  nhưng dưới ngưỡng dừng cứng 500 (không trigger `CHANGE_BUDGET_EXCEEDED`).
+  Vượt ước tính chủ yếu do failure model tường minh (phân biệt rõ
+  storage-unavailable/corrupt/not-found/already-exists thay vì gộp chung
+  một exception) và test injection (`client=`/`env=` xuyên suốt) — không
+  phải do một generic storage framework hay abstraction nhiều provider
+  (đúng constraint "một R2 adapter, không abstract 5 provider").
+
+  **`R2_LIVE_VERIFICATION = BLOCKED_BY_MISSING_CREDENTIAL`** — môi trường
+  Claude Cloud chạy session này không có credential R2 thật
+  (`R2_ACCOUNT_ID`/`R2_BUCKET`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`);
+  `boto3` cũng không cài sẵn (không cần cho test — toàn bộ test tiêm
+  `client=` fake, không import `boto3` thật). Verify được bằng test có
+  fake client (47/47 PASS), KHÔNG verify được bằng R2 thật — đúng dự liệu
+  trước của task ("Nếu credential không tồn tại trong Claude Cloud: tests
+  dùng fake/mock. Không STOP implementation"), không coi là architecture
+  blocker.
+
+  **`DEPLOYMENT_STATUS = DEPLOYMENT_READY`, KHÔNG DEPLOYED** — session
+  không có tài khoản Cloudflare/Render nào để tạo R2 bucket/API token thật
+  hay deploy blueprint mới. `docs/deployment/S071_DEPLOYMENT.md` đã cập
+  nhật SUPERSEDES + bước Owner cần làm (tạo R2 bucket, API token, cập nhật
+  biến môi trường Render). Chi tiết đầy đủ, DECISION log, RETURN block tại
+  `docs/sessions/S071-shared-online-beta.md` §12.
+
+- **S071 — Shared Online Beta / Cloud-First** — kiến trúc SQLite +
+  `REPORTS_DATA_ROOT` + Render Disk. **SUPERSEDED BY S071B** (bên trên) kể
+  từ implementation SHA của nhánh `s071b/stateless-r2`. Giữ nguyên như bản
+  ghi lịch sử bên dưới — không sửa lại các đoạn cũ để giả như S071 từng
+  chọn kiến trúc stateless ngay từ đầu.
+
 - **S071 — Shared Online Beta / Cloud-First (nhánh
   `claude/s071-shared-online-beta-inydpg`, baseline
   `d64d208775c96a02791c957df25c11d6bf9835f8` = HEAD canonical tại thời điểm

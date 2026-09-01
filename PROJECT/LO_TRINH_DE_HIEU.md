@@ -16,6 +16,10 @@
 > Cập nhật thêm 2026-09-01 (S071): đã viết xong + test xong phần đưa Web
 > Beta V1 lên thành trang dùng chung nhiều người — xem mục "ĐANG LÀM" bên
 > dưới. Chưa lên mạng thật, chưa gộp bản canonical.
+>
+> Cập nhật thêm 2026-09-01 (S071B): đã đổi cách lưu trữ để không cần thuê
+> thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
+> chưa lên mạng thật, chưa gộp bản canonical.
 
 # TRẠNG THÁI HIỆN TẠI
 
@@ -146,6 +150,37 @@ Phiên làm việc này cũng không tự "bấm nút" đưa trang web lên mạ
 máy chủ (đã kiểm tra trực tiếp, không phải đoán), và việc tạo tài khoản/
 thanh toán vốn dĩ luôn phải là Owner tự làm. Mọi phần có thể chuẩn bị sẵn
 (chọn nơi thuê, viết cấu hình, viết hướng dẫn từng bước) đã làm xong.
+
+## ĐANG LÀM — S071B, chưa gộp bản canonical, chưa lên mạng thật
+
+**Mục tiêu:** bỏ luôn phần "phải thuê thêm ổ đĩa lưu lâu dài" mà mục S071 ở
+trên vừa mô tả. Thay vì lưu lịch sử chạy báo cáo + file Excel trên một ổ
+đĩa gắn liền với máy chủ, giờ lưu trên Cloudflare R2 — một dịch vụ lưu trữ
+file tách rời khỏi máy chủ. Máy chủ chạy Reports không còn giữ dữ liệu gì
+lâu dài trong chính nó nữa (gọi là "stateless") — có thể tắt/bật lại/đổi
+máy chủ bất cứ lúc nào, dữ liệu vẫn còn nguyên vì nó nằm ở R2, không nằm
+trên máy chủ.
+
+**Đã làm xong về code (nhánh `s071b/stateless-r2`), chạy test đầy đủ,
+PASS:** đổi đúng phần lưu trữ (nơi ghi/đọc lịch sử chạy + file Excel), giữ
+nguyên toàn bộ cách Reports tính toán báo cáo (không đổi công thức, không
+đổi engine). Nếu upload file Excel lên R2 bị lỗi giữa chừng, hệ thống KHÔNG
+báo "thành công" giả — báo lỗi rõ ràng để chạy lại, không để lộ một lần
+chạy "xong" mà file thật ra không lưu được ở đâu cả.
+
+**CHƯA làm được, cần Owner quyết định/thực hiện:** giống hệt S071 ở trên —
+cần Owner tạo tài khoản Cloudflare (nếu chưa có), tạo một R2 bucket + một
+API token, rồi dán 2 giá trị đó vào đúng chỗ cấu hình máy chủ (không dán
+vào đây, không dán vào bất kỳ file nào trong repo). File hướng dẫn từng
+bước: `docs/deployment/S071_DEPLOYMENT.md`.
+
+**Về chi phí:** thay vì phải trả tiền cố định hàng tháng cho một ổ đĩa lưu
+trữ gắn liền với máy chủ (mục "7–10 đô la Mỹ/tháng" ghi ở S071 phía trên),
+R2 tính phí theo dung lượng thực tế dùng và Cloudflare không tính phí băng
+thông tải xuống — với quy mô một đội bán hàng nhỏ (vài chục file Excel một
+ngày), chi phí lưu trữ dự kiến rất nhỏ, gần như không đáng kể. Chi phí thuê
+máy chủ chạy Reports (Render hoặc nơi tương đương) vẫn còn, không đổi — chỉ
+riêng phần "ổ đĩa lưu lâu dài" là không cần mua nữa.
 
 ## ĐANG CHỜ
 

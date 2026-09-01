@@ -1,46 +1,208 @@
 # S071 Deployment Gate — Triển khai Reports Web Shared Online Beta
 
-Trạng thái: **HOSTING ĐÃ CHỌN, DEPLOYMENT CHƯA THỰC HIỆN.** Session S071
-không public/deploy được trực tiếp — lý do chính xác ở mục "Vì sao session
-không tự deploy được" bên dưới (KHÔNG phải "chưa quyết định được", mà là một
-giới hạn mạng/tài khoản cụ thể, có thể verify).
+Trạng thái: **HOSTING ĐÃ CHỌN (Render), KIẾN TRÚC LƯU TRỮ ĐÃ ĐỔI SANG
+STATELESS + R2 (S071B), DEPLOYMENT CHƯA THỰC HIỆN.**
 
-## So sánh kiến trúc hosting (3 lựa chọn thực tế)
+> **SUPERSEDED (2026-09-01, S071B):**
+> **OLD** — Render Web Service + MỘT persistent Disk (`REPORTS_DATA_ROOT`
+> gộp SQLite + artifact vào cùng một mount, xem "Kiến trúc lịch sử (SUPERSEDED
+> — trước S071B)" ở cuối file).
+> **SUPERSEDED BỞI** — Reports Python web runtime STATELESS + Cloudflare R2
+> (registry run + artifact `.xlsx` lưu trên R2, không còn Disk nào).
+> **Lý do**: persistent disk là implementation convenience của S071 (giải
+> quyết ràng buộc "1 Disk/service" của Render), không phải một Reports Core
+> requirement — registry + artifact chỉ cần put/get theo `run_id`, đúng
+> hình dạng object store hơn là filesystem. Chi tiết đầy đủ:
+> `docs/sessions/S071-shared-online-beta.md` §12.
+>
+> Session S071 KHÔNG public/deploy được trực tiếp (chưa có credential
+> Cloudflare/Render/R2 thật) — lý do chính xác ở mục "Vì sao session không
+> tự deploy được" bên dưới.
 
-Tiêu chí: Python/Docker, persistent volume, custom domain, env secrets,
-HTTPS, đơn giản vận hành, chi phí hợp Beta nội bộ, deploy từ GitHub thuận
-tiện, không phụ thuộc Owner Mac, tương thích Cloudflare DNS/Access.
+## So sánh kiến trúc hosting (3 lựa chọn thực tế — vẫn đúng, không đổi ở S071B)
 
-| | **Render** (Web Service, Docker + Disk) | Fly.io (Machines + Volume) | VPS thô (Hetzner/DO + Docker tay) |
+R2 tách rời khỏi lựa chọn hosting compute — bảng dưới đây so sánh NƠI CHẠY
+container Python (không đổi ở S071B), không phải nơi lưu dữ liệu (nay luôn
+là R2, không phụ thuộc host nào được chọn).
+
+Tiêu chí: Python/Docker, custom domain, env secrets, HTTPS, đơn giản vận
+hành, chi phí hợp Beta nội bộ, deploy từ GitHub thuận tiện, không phụ thuộc
+Owner Mac, tương thích Cloudflare DNS/Access.
+
+| | **Render** (Web Service, Docker) | Fly.io (Machines) | VPS thô (Hetzner/DO + Docker tay) |
 |---|---|---|---|
-| Persistent volume | Disk gắn kèm service, 1 disk/service | Volume gắn kèm machine | Ổ đĩa VPS — luôn "persistent" nhưng Owner tự quản lý |
+| Persistent volume | **Không cần nữa (S071B)** — state nằm ở R2, container stateless | Không cần nữa (S071B) | Không cần nữa (S071B) |
 | Deploy từ GitHub | **Có sẵn, tự động khi push** (blueprint `render.yaml`) | Có (CLI `flyctl deploy` hoặc GitHub Action) | Không có — Owner tự SSH + `docker compose up` |
 | Vận hành hàng ngày | Dashboard, không cần CLI | CLI (`flyctl`) là luồng chính | Owner tự lo update OS, TLS renew (trừ khi tự dựng Caddy/Traefik), firewall |
 | Custom domain + HTTPS | Managed cert tự động | Managed cert tự động | Owner tự cài Let's Encrypt/reverse proxy |
-| Chi phí ước tính | ~US$7–10/tháng (Starter + 1GB Disk) | ~US$2–5/tháng (machine nhỏ + volume) | ~US$4–6/tháng compute, cộng thời gian vận hành |
+| Chi phí compute ước tính | ~US$7/tháng (Starter, không còn cộng thêm Disk) | ~US$2–5/tháng (machine nhỏ) | ~US$4–6/tháng compute, cộng thời gian vận hành |
 | Rủi ro vận hành cho Owner không chuyên | Thấp nhất — bấm dashboard | Trung bình — cần quen CLI | Cao nhất — tự chịu trách nhiệm bảo trì server |
 
-**SELECTED_HOSTING = Render** (Web Service, runtime Docker, plan Starter +
-1 Disk).
+**SELECTED_HOSTING = Render** (Web Service, runtime Docker, plan Starter,
+KHÔNG còn Disk). Lý do chọn Render giữ nguyên như quyết định gốc (luồng
+"kết nối GitHub → tự deploy" hoàn toàn qua dashboard) — S071B không đổi
+lựa chọn hosting, chỉ bỏ được phần "+ Disk" khỏi chi phí/cấu hình.
 
-**REASON**: Render là lựa chọn duy nhất trong ba vừa có persistent disk vừa
-có luồng "kết nối GitHub repo → tự deploy khi push" hoàn toàn qua dashboard,
-không đòi Owner cài/học một CLI mới. Rẻ hơn (Fly.io) đổi lấy việc Owner phải
-tự chạy lệnh `flyctl` là một đánh đổi KHÔNG đáng cho một internal Beta có
-lưu lượng thấp — chênh lệch chi phí (~$5/tháng) không đủ lớn để bỏ qua tiêu
-chí "operational simplicity" mà brief xếp ngang hàng chi phí. VPS thô bị
-loại tường minh theo yêu cầu brief ("Không mặc định VPS") và vì nó chuyển
-toàn bộ gánh nặng vận hành (bảo mật OS, TLS, restart khi crash) sang Owner —
-đúng loại việc governance dự án này cố tránh cho một người không chuyên kỹ
-thuật.
+## Kiến trúc triển khai hiện hành (S071B — Stateless + R2)
 
-**REJECTED_OPTIONS**: Fly.io (rẻ hơn nhưng CLI-first, không đúng "không yêu
-cầu Owner tự vận hành"), VPS thô (bị brief loại tường minh + gánh vận hành
-cao nhất), Postgres/Redis/Kubernetes/Firebase/Cloudflare Worker rewrite —
-loại tường minh từ khi chọn kiến trúc tổng thể ở phiên trước
-(`docs/sessions/S071-shared-online-beta.md` §3), không đánh giá lại ở đây.
+```
+Cloudflare (DNS + Access, trước reports.tinphatcrm.com)
+        ↓
+Render Web Service (container từ Dockerfile, gunicorn) — KHÔNG Disk
+        ↓ (đọc/ghi qua tools/storage/r2_store.py)
+Cloudflare R2 (bucket riêng, không phải Render)
+   ├── runs/<run_id>.json        (registry — app.web.storage_backend.R2RunStore)
+   └── artifacts/<run_id>.xlsx   (artifact .xlsx — sản phẩm cuối)
 
-## Kiến trúc triển khai cụ thể
+Scratch space TẠM trong container (không cần sống qua restart):
+   ├── data/uploads/             (workbook tạm — xoá ngay sau mỗi lần chạy)
+   ├── data/tracking_live_tmp/   (capture Tracking tạm — xoá ngay sau mỗi lần chạy)
+   └── outputs/reports/*.xlsx    (artifact tạm TRƯỚC khi upload lên R2 — xoá ngay sau upload)
+```
+
+Container có thể bị Render thay thế/restart bất kỳ lúc nào — không mất run
+hay artifact nào, vì không có gì thuộc registry/artifact còn nằm trong
+container cả.
+
+`render.yaml` (root repo) là blueprint đầy đủ — Render đọc file này khi
+Owner chọn "New Blueprint Instance" trỏ vào repo, không cần Owner gõ tay bất
+kỳ cấu hình nào ngoài các secret đánh dấu `sync: false`.
+
+## Việc Owner cần làm (OWNER_ACTION_REQUIRED / OWNER_PAYMENT_REQUIRED)
+
+Session S071B KHÔNG tạo được tài khoản/bucket/token thay Owner — đây luôn
+là hành động của chủ tài khoản. Các bước chính xác, không cần Owner tự
+nghiên cứu gì thêm:
+
+1. **Tạo tài khoản Render** (render.com, đăng nhập bằng GitHub) — **cần
+   phương thức thanh toán**. Plan cần: **Starter Web Service (~US$7/tháng)**
+   — KHÔNG còn cần mua Disk. Đây là `OWNER_PAYMENT_REQUIRED` cho phần
+   compute (không đổi bản chất so với trước S071B, chỉ giảm số tiền).
+2. **Tạo R2 bucket + API token trên Cloudflare dashboard** (R2 → Create
+   bucket, đặt tên bất kỳ, vd `reports-web-runs`; R2 → Manage API Tokens →
+   Create API Token → quyền Object Read & Write, giới hạn đúng bucket vừa
+   tạo). Ghi lại 4 giá trị: **Account ID**, **tên bucket**, **Access Key
+   ID**, **Secret Access Key** — KHÔNG dán bất kỳ giá trị nào trong 4 giá
+   trị này vào chat Claude hay commit vào repo.
+3. Trong Render dashboard: **New → Blueprint**, chọn repo Reports, nhánh
+   `s071b/stateless-r2` (hoặc nhánh canonical sau khi merge). Render tự
+   đọc `render.yaml`.
+4. Ở bước review biến môi trường, dán trực tiếp trên Render (KHÔNG bao giờ
+   dán vào chat Claude):
+   - `TRACKING_REPORT_API_KEY` (secret Tracking Data Contract V1 — không
+     đổi từ S071).
+   - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (từ bước 2).
+   Sửa lại giá trị mặc định trong `render.yaml` cho `R2_ACCOUNT_ID` và
+   `R2_BUCKET` thành đúng giá trị thật từ bước 2 (hai biến này không phải
+   secret, nhưng cần đúng bucket của Owner) — có thể sửa trực tiếp trong ô
+   review biến môi trường trên Render trước khi bấm Deploy.
+5. Bấm Deploy. Render build Dockerfile, cấp domain tạm
+   `reports-web-xxxx.onrender.com` — mở thử domain này để xác nhận chạy
+   được TRƯỚC khi gắn domain thật. Nếu bất kỳ biến `R2_*` nào thiếu, server
+   sẽ FAIL khởi động ngay (không chạy được ở trạng thái nửa vời) — đúng
+   thiết kế fail-closed của `REPORTS_REQUIRE_R2=1`.
+6. Vào Cloudflare (Owner đã có domain `tinphatcrm.com` ở đó):
+   - Thêm **CNAME** `reports` → domain Render vừa cấp (`reports-web-xxxx.
+     onrender.com`), **DNS-only** (mây xám) lúc đầu để Render verify + cấp
+     TLS cert cho `reports.tinphatcrm.com`.
+   - Vào Render → service → Settings → **Custom Domain** → thêm
+     `reports.tinphatcrm.com`, làm theo hướng dẫn verify của Render.
+   - Sau khi Render báo domain đã verify + cert đã cấp: có thể bật lại mây
+     cam (proxied qua Cloudflare) nếu muốn Cloudflare Access ở bước sau.
+7. Tạo **Cloudflare Access** application cho `reports.tinphatcrm.com`
+   (Cloudflare Zero Trust dashboard → Access → Applications → Add an
+   application → Self-hosted): giới hạn theo email công ty/domain của Owner
+   và sếp — đây là lớp "không public anonymous" bắt buộc (S071 §13), không
+   cần Reports tự xây đăng nhập/mật khẩu.
+
+Nếu service Render cũ từ trước S071B còn Disk gắn kèm: xoá Disk đó sau khi
+deploy thành công trên cấu hình mới (Render → service → Disks → Delete) —
+không còn cần, tránh trả phí Disk không dùng.
+
+## Vì sao session không tự deploy được
+
+Hai giới hạn CỤ THỂ, đã verify trực tiếp trong session S071 gốc, không đổi
+ở S071B:
+
+1. **Egress mạng của session bị chặn tới các host hosting/DNS/Cloudflare
+   API provisioning provider.** `curl https://api.fly.io` từ session này
+   trả về lỗi proxy `403` (chính sách egress của tổ chức từ chối kết nối
+   tới host ngoài allowlist nội bộ — xem `/root/.ccr/README.md` "403/407
+   from the proxy"). Cùng chính sách áp dụng cho `render.com` và Cloudflare
+   API — session không có đường mạng nào tới các API provisioning của bất
+   kỳ provider nào. Đây là giới hạn hạ tầng của MÔI TRƯỜNG CHẠY SESSION,
+   không phải của kiến trúc đã chọn.
+2. **Tạo tài khoản/bucket/token/subscription phải gắn danh tính + thanh
+   toán của Owner.** Kể cả nếu mạng không bị chặn, session không có thẩm
+   quyền tạo tài khoản, bucket R2, hay nhập thẻ thanh toán thay chủ dự án.
+
+Vì hai lý do trên ĐỘC LẬP với nhau, session tập trung làm mọi việc chuẩn bị
+được TRỌN VẸN mà không cần mạng ra ngoài hay tài khoản: viết code hỗ trợ
+(`tools/storage/r2_store.py`, `app/web/storage_backend.py`), viết blueprint
+(`render.yaml`), viết đúng từng bước Owner cần bấm, verify toàn bộ logic
+bằng test với fake R2 client (không cần credential thật). Owner KHÔNG cần
+tự nghiên cứu kiến trúc — chỉ cần làm đúng theo các bước ở trên.
+
+## Build & chạy container cục bộ (kiểm tra trước khi deploy thật)
+
+Với R2 thật (production path):
+
+```bash
+docker build -t reports-web .
+docker run --rm -p 8080:8080 \
+  -e REPORTS_REQUIRE_R2=1 \
+  -e R2_ACCOUNT_ID="***" \
+  -e R2_BUCKET="reports-web-runs" \
+  -e R2_ACCESS_KEY_ID="***" \
+  -e R2_SECRET_ACCESS_KEY="***" \
+  -e TRACKING_REPORT_SOURCE_URL="https://price.tinphatcrm.com" \
+  -e TRACKING_REPORT_API_KEY="***" \
+  reports-web
+```
+
+Không có `R2_*`/`REPORTS_REQUIRE_R2`: server vẫn khởi động và phục vụ
+được ở chế độ local/test — dùng SQLite + file cục bộ trong container
+(`LocalRunStore`), KHÔNG sống qua restart container, CHỈ dùng để build-test
+cục bộ, không phải đường production. Không có
+`TRACKING_REPORT_API_KEY`/`TRACKING_REPORT_SOURCE_URL`: mỗi lần `/run` dùng
+lại đường local capture cũ (S068–S070), đúng hành vi fallback đã document ở
+`tools/tracking/live_pull.is_configured()` — không đổi ở S071B.
+
+## Production acceptance checklist (Owner tick sau khi deploy thật — S071 §8, cập nhật S071B)
+
+- [ ] GATE A — HTTPS hoạt động trên `reports.tinphatcrm.com`.
+- [ ] GATE B — Request không qua Cloudflare Access bị chặn; viewer đã xác
+      thực (email được phép) vào được.
+- [ ] GATE C — Tạo Run A → redeploy service trên Render (hoặc restart) →
+      Run A vẫn còn, artifact A vẫn tải được (S071B: đúng theo thiết kế vì
+      không có gì thuộc registry/artifact nằm trong container — verify lại
+      một lần trên production thật, không chỉ tin thiết kế).
+- [ ] GATE D — Tạo Run B → `/history` hiện cả A và B.
+- [ ] GATE E — Mở `reports.tinphatcrm.com` trên một máy/trình duyệt khác →
+      thấy đúng Run A/B mà không cần làm gì thêm.
+- [ ] GATE F — Kiểm tra log Render KHÔNG thấy nhánh dùng local capture (xem
+      `_readiness_text()` phải hiện "Sẵn sàng — dữ liệu Tracking lấy trực
+      tiếp (live)") — xác nhận pull-on-run LIVE đang chạy, không phải local
+      capture path.
+- [ ] GATE G — Owner upload một workbook thật qua `reports.tinphatcrm.com`,
+      xác nhận kết quả hợp lý (không fabricate số liệu trước — xem
+      `docs/sessions/S071-shared-online-beta.md` §7 "REAL_COHORT_REMOTE").
+- [ ] GATE H (mới, S071B) — Vào Cloudflare R2 dashboard, xác nhận bucket có
+      object `runs/<run_id>.json` và `artifacts/<run_id>.xlsx` đúng cho các
+      run đã tạo ở GATE C/D — dữ liệu thật sự nằm trên R2, không phải một
+      giả định.
+
+Session S071/S071B KHÔNG thể tự tick các mục trên (không có môi trường
+production thật) — checklist này để Owner xác nhận sau khi deploy.
+
+---
+
+## Kiến trúc lịch sử (SUPERSEDED — trước S071B, giữ lại làm bản ghi)
+
+Phần dưới đây mô tả kiến trúc S071 gốc (Render + MỘT persistent Disk,
+`REPORTS_DATA_ROOT` gộp SQLite + artifact) — KHÔNG còn là đường production.
+Giữ nguyên làm bản ghi lịch sử, không sửa lại để giả như S071 từng chọn R2
+ngay từ đầu.
 
 ```
 Cloudflare (DNS + Access, trước reports.tinphatcrm.com)
@@ -56,113 +218,12 @@ Render Disk (1 GB) mount tại /app/persistent
 
 Registry + artifact BẮT BUỘC cùng một Disk vì Render chỉ cho gắn đúng một
 persistent disk mỗi service — giải quyết bằng biến môi trường
-`REPORTS_DATA_ROOT=/app/persistent` (mới thêm ở session này,
-`app/web/server.py` + `app/web/run_registry.py`): khi đặt biến này, cả
-registry lẫn artifact/upload/tracking-tạm tự trỏ vào cùng gốc mount đó. Khi
-KHÔNG đặt (mọi test, mọi môi trường dev/local trước đây), hành vi cũ
-(đường tương đối `REPO_ROOT`) giữ nguyên tuyệt đối — verify bằng
-`tests/test_web_data_root.py`, 2/2 PASS.
+`REPORTS_DATA_ROOT=/app/persistent`: khi đặt biến này, cả registry lẫn
+artifact/upload/tracking-tạm tự trỏ vào cùng gốc mount đó. Biến này vẫn tồn
+tại trong code (`app/web/server.py`, `app/web/run_registry.py`) làm
+local-only fallback khi R2 chưa cấu hình — xem "Build & chạy container cục
+bộ" ở trên — nhưng KHÔNG còn là đường production kể từ S071B.
 
-`render.yaml` (root repo) là blueprint đầy đủ — Render đọc file này khi
-Owner chọn "New Blueprint Instance" trỏ vào repo, không cần Owner gõ tay bất
-kỳ cấu hình nào ngoài secret Tracking.
-
-## Việc Owner cần làm (OWNER_ACTION_REQUIRED / OWNER_PAYMENT_REQUIRED)
-
-Session S071 KHÔNG tạo được tài khoản hay thanh toán thay Owner — đây luôn
-là hành động của chủ tài khoản, bất kể provider nào được chọn. Các bước
-chính xác, không cần Owner tự nghiên cứu gì thêm:
-
-1. **Tạo tài khoản Render** (render.com, đăng nhập bằng GitHub) — **cần
-   phương thức thanh toán**. Plan cần: **Starter Web Service (~US$7/tháng)
-   + 1GB Disk (~US$0.25/tháng)** ≈ **~US$7–10/tháng tổng**. Đây là
-   `OWNER_PAYMENT_REQUIRED` — không có gói miễn phí nào của bất kỳ provider
-   managed nào hỗ trợ persistent disk thật (đã so sánh cả ba lựa chọn ở
-   trên, không riêng Render).
-2. Trong Render dashboard: **New → Blueprint**, chọn repo Reports, nhánh
-   `claude/s071-shared-online-beta-inydpg` (hoặc nhánh canonical sau khi
-   merge). Render tự đọc `render.yaml`.
-3. Ở bước review biến môi trường, dán giá trị thật cho
-   `TRACKING_REPORT_API_KEY` (secret Tracking Data Contract V1) — KHÔNG bao
-   giờ dán vào chat Claude, chỉ dán trực tiếp vào ô này trên Render.
-   `TRACKING_REPORT_SOURCE_URL` đã điền sẵn `https://price.tinphatcrm.com`
-   trong blueprint.
-4. Bấm Deploy. Render build Dockerfile, tạo Disk, cấp domain tạm
-   `reports-web-xxxx.onrender.com` — mở thử domain này để xác nhận chạy
-   được TRƯỚC khi gắn domain thật.
-5. Vào Cloudflare (Owner đã có domain `tinphatcrm.com` ở đó):
-   - Thêm **CNAME** `reports` → domain Render vừa cấp (`reports-web-xxxx.
-     onrender.com`), **DNS-only** (mây xám) lúc đầu để Render verify + cấp
-     TLS cert cho `reports.tinphatcrm.com`.
-   - Vào Render → service → Settings → **Custom Domain** → thêm
-     `reports.tinphatcrm.com`, làm theo hướng dẫn verify của Render.
-   - Sau khi Render báo domain đã verify + cert đã cấp: có thể bật lại mây
-     cam (proxied qua Cloudflare) nếu muốn Cloudflare Access ở bước sau.
-6. Tạo **Cloudflare Access** application cho `reports.tinphatcrm.com`
-   (Cloudflare Zero Trust dashboard → Access → Applications → Add an
-   application → Self-hosted): giới hạn theo email công ty/domain của Owner
-   và sếp — đây là lớp "không public anonymous" bắt buộc (S071 §13), không
-   cần Reports tự xây đăng nhập/mật khẩu.
-
-## Vì sao session không tự deploy được
-
-Hai giới hạn CỤ THỂ, đã verify trực tiếp trong session này, không phải suy
-đoán:
-
-1. **Egress mạng của session bị chặn tới các host hosting/DNS provider.**
-   `curl https://api.fly.io` từ session này trả về lỗi proxy `403` (chính
-   sách egress của tổ chức từ chối kết nối tới host ngoài allowlist nội bộ —
-   xem `/root/.ccr/README.md` "403/407 from the proxy" và
-   `/root/.ccr/__agentproxy/status` ghi lại đúng sự kiện `connect_rejected`
-   cho `api.fly.io:443`). Cùng chính sách áp dụng cho `render.com` — session
-   không có đường mạng nào tới các API provisioning của bất kỳ provider
-   nào trong bảng so sánh trên. Đây là giới hạn hạ tầng của MÔI TRƯỜNG
-   CHẠY SESSION, không phải của kiến trúc đã chọn.
-2. **Tạo tài khoản/subscription phải gắn danh tính + thanh toán của Owner.**
-   Kể cả nếu mạng không bị chặn, session không có thẩm quyền tạo tài khoản
-   hay nhập thẻ thanh toán thay chủ dự án.
-
-Vì hai lý do trên ĐỘC LẬP với nhau (mất một trong hai vẫn đủ để chặn tự
-deploy), session tập trung làm mọi việc chuẩn bị được TRỌN VẸN mà không cần
-mạng ra ngoài hay tài khoản: chọn kiến trúc, viết code hỗ trợ
-(`REPORTS_DATA_ROOT`), viết blueprint (`render.yaml`), viết đúng từng bước
-Owner cần bấm. Owner KHÔNG cần tự nghiên cứu kiến trúc — chỉ cần làm đúng
-theo 6 bước ở trên.
-
-## Build & chạy container cục bộ (kiểm tra trước khi deploy thật)
-
-```bash
-docker build -t reports-web .
-docker run --rm -p 8080:8080 \
-  -v "$(pwd)/local-persistent:/app/persistent" \
-  -e REPORTS_DATA_ROOT=/app/persistent \
-  -e TRACKING_REPORT_SOURCE_URL="https://price.tinphatcrm.com" \
-  -e TRACKING_REPORT_API_KEY="***" \
-  reports-web
-```
-
-Không có `TRACKING_REPORT_API_KEY`/`TRACKING_REPORT_SOURCE_URL`: server vẫn
-khởi động và phục vụ được — chỉ khác ở chỗ mỗi lần `/run` dùng lại đường
-local capture cũ (S068–S070), đúng hành vi fallback đã document ở
-`tools/tracking/live_pull.is_configured()`.
-
-## Production acceptance checklist (Owner tick sau khi deploy thật — S071 §8)
-
-- [ ] GATE A — HTTPS hoạt động trên `reports.tinphatcrm.com`.
-- [ ] GATE B — Request không qua Cloudflare Access bị chặn; viewer đã xác
-      thực (email được phép) vào được.
-- [ ] GATE C — Tạo Run A → redeploy service trên Render (hoặc restart) →
-      Run A vẫn còn, artifact A vẫn tải được.
-- [ ] GATE D — Tạo Run B → `/history` hiện cả A và B.
-- [ ] GATE E — Mở `reports.tinphatcrm.com` trên một máy/trình duyệt khác →
-      thấy đúng Run A/B mà không cần làm gì thêm.
-- [ ] GATE F — Kiểm tra log Render KHÔNG thấy nhánh dùng local capture (xem
-      `_readiness_text()` phải hiện "Sẵn sàng — dữ liệu Tracking lấy trực
-      tiếp (live)") — xác nhận pull-on-run LIVE đang chạy, không phải local
-      capture path.
-- [ ] GATE G — Owner upload một workbook thật qua `reports.tinphatcrm.com`,
-      xác nhận kết quả hợp lý (không fabricate số liệu trước — xem
-      `docs/sessions/S071-shared-online-beta.md` §7 "REAL_COHORT_REMOTE").
-
-Session S071 KHÔNG thể tự tick các mục trên (không có môi trường production
-thật) — checklist này để Owner xác nhận sau khi deploy.
+`OWNER_PAYMENT_REQUIRED` (lịch sử): **Render Starter (~US$7/tháng) + 1GB
+Disk (~US$0.25/tháng) ≈ US$7–10/tháng tổng.** S071B bỏ được phần Disk khỏi
+chi phí này.
