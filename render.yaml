@@ -32,6 +32,11 @@ services:
     plan: starter
     region: singapore
     healthCheckPath: /
+    # Chặn truy cập trực tiếp qua domain mặc định *.onrender.com — mọi
+    # người dùng phải đi qua reports.tinphatcrm.com (Cloudflare Access
+    # phía trước, đã cấu hình + kiểm thử) thay vì bypass được qua domain
+    # Render cấp sẵn. Không ảnh hưởng custom domain đã gắn.
+    renderSubdomainPolicy: disabled
     envVars:
       # Bắt buộc R2 trong production — server FAIL khi khởi động (không
       # deploy được) nếu thiếu bất kỳ biến R2_* nào bên dưới, thay vì âm
