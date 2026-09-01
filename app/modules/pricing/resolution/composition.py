@@ -6,7 +6,7 @@ Nó nhận identity đã resolve (`TASK-105D`), hỏi đúng nguồn giá theo �
 tự, và giữ nguyên provenance. Không matching, không parsing, không suy ra mã,
 không tính giá. Mọi con số đều đến từ một nguồn đã được review riêng.
 
-## Bản đồ nhánh (chỉ áp cho `sale_date >= CUTOVER_DATE`)
+## Bản đồ nhánh (áp cho mọi ngày bán mà không có entry lịch sử đã xác nhận)
 
 ```text
 identity TRACKING:<mã>
@@ -92,15 +92,11 @@ from app.modules.product.identity.keys import (
     EmptyRawIdentityError,
     raw_identity_key,
 )
-from app.modules.product.identity.registry import (
-    CUTOVER_DATE,
-    HistoricalConfirmedRegistry,
-)
 from app.modules.product.identity.resolver import (
     ProductIdentityResolver,
     SalesRowRef,
 )
-from app.modules.product.identity.service import resolve_batch
+from app.modules.product.identity.tracking_catalog import CaptureStatus
 
 __all__ = [
     "CompositionRule",
@@ -244,7 +240,7 @@ class PriceResolutionReport:
 
 
 class PostCutoverPriceComposition:
-    """Áp `P00–P11` cho các dòng `sale_date >= CUTOVER_DATE`.
+    """Áp composition giá cho các dòng không có registry đã xác nhận.
 
     Dựng MỘT LẦN cho MỘT lần import (`app/composition.py`), từ một
     `PriceResolutionSources` đã đóng băng. Một `capture_status = FAILED` nổ
@@ -284,18 +280,16 @@ class PostCutoverPriceComposition:
     # ------------------------------------------------------------------
 
     def apply(self, lines: list[WorkingLine]) -> PriceResolutionReport:
-        """Đặt `accounting_purchase_price`/`price_source` cho từng dòng
-        post-cutover. Dòng pre-cutover KHÔNG bị chạm (P00 đã sở hữu chúng)."""
+        """Đặt `accounting_purchase_price`/`price_source` theo evidence.
+
+        Caller loại các dòng `HistoricalConfirmed` trước khi gọi. Với dòng
+        pre-cutover còn lại, reader vẫn tự kiểm mốc baseline, capture cuối và
+        chuỗi sự kiện; thiếu bất kỳ điều kiện nào thì Pending, không backfill.
+        """
         records: list[PriceResolutionRecord] = []
-        skipped = 0
         eligible: list[tuple[WorkingLine, str]] = []
 
         for line in lines:
-            if line.date is not None and line.date < CUTOVER_DATE:
-                # P00 sở hữu nhánh này và đã chạy ở `app/pipeline.py`. Ghi đè
-                # ở đây sẽ xoá một giá Owner-confirmed bằng một Pending.
-                skipped += 1
-                continue
             if line.date is None:
                 records.append(
                     self._pending(
@@ -333,7 +327,7 @@ class PostCutoverPriceComposition:
         report = PriceResolutionReport(
             evidence=self._evidence,
             records=tuple(records),
-            skipped_pre_cutover_lines=skipped,
+            skipped_pre_cutover_lines=0,
         )
         return report
 
@@ -355,7 +349,11 @@ class PostCutoverPriceComposition:
         # (`PUBLIC_PURCHASE_SOURCE_UNAVAILABLE`) khi nó vắng mặt. Để nó trong
         # cổng AND là bắt một mã Tracking có đủ bằng chứng phải Pending vì một
         # file không liên quan — một Pending KHÔNG trung thực.
-        if catalog is None or view is None:
+        if (
+            catalog is None
+            or catalog.capture_status is not CaptureStatus.COMPLETE
+            or view is None
+        ):
             missing = [
                 name
                 for name, value in (
@@ -364,6 +362,8 @@ class PostCutoverPriceComposition:
                 )
                 if value is None
             ]
+            if catalog is not None and catalog.capture_status is not CaptureStatus.COMPLETE:
+                missing.append("TrackingCatalogSnapshot COMPLETE")
             detail = (
                 "Chưa nối được nguồn identity post-cutover: "
                 f"{', '.join(missing)} vắng mặt. Đây là NGUỒN CHƯA CÓ, không "
@@ -381,31 +381,31 @@ class PostCutoverPriceComposition:
                 for line, key in eligible
             ]
 
-        rows = [
-            SalesRowRef(
-                order_id=line.order_id,
-                sale_date=line.date,
-                raw_product_identity=line.product_raw or "",
+        # Owner đã cho phép consult Public Purchase trước 01/09/2026 khi
+        # evidence phủ ngày bán. `resolve_batch()` cũ có gate kỹ thuật theo
+        # cutover, nên composition gọi resolver trực tiếp cho tập đã được
+        # pipeline loại entry lịch sử xác nhận. Identity vẫn phải exact hoặc
+        # confirmed; không có nhánh đoán mã.
+        resolutions = ProductIdentityResolver(
+            tracking_snapshot=catalog,
+            pp_version=pp_version,
+            store_view=view,
+        ).resolve_all(
+            tuple(
+                SalesRowRef(
+                    order_id=line.order_id,
+                    sale_date=line.date,
+                    raw_product_identity=line.product_raw or "",
+                )
+                for line, _ in eligible
             )
-            for line, _ in eligible
-        ]
-        # Mọi dòng ở đây đều `sale_date >= CUTOVER_DATE`, nên nhánh lịch sử của
-        # `resolve_batch` rỗng và registry không bao giờ được hỏi — nhưng tham
-        # số vẫn đi qua đúng entry point canonical của `TASK-105D` thay vì một
-        # đường vòng riêng của composition.
-        batch = resolve_batch(
-            rows,
-            registry=HistoricalConfirmedRegistry(),
-            resolver_factory=lambda: ProductIdentityResolver(
-                tracking_snapshot=catalog,
-                pp_version=pp_version,
-                store_view=view,
-            ),
         )
 
         identity_index: dict[str, CanonicalProductIdentity] = {}
-        for resolution in batch.resolutions:
+        by_key = {}
+        for resolution in resolutions:
             outcome = resolution.outcome
+            by_key[resolution.identity.raw_identity_key] = outcome
             if isinstance(outcome, Resolved):
                 identity_index[resolution.identity.raw_identity_key] = outcome.identity
 
@@ -413,7 +413,7 @@ class PostCutoverPriceComposition:
 
         records: list[PriceResolutionRecord] = []
         for line, key in eligible:
-            outcome = batch.outcome_for(key)
+            outcome = by_key[key]
             if isinstance(outcome, Resolved):
                 identity = outcome.identity
                 if identity.namespace is Namespace.TRACKING:

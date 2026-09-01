@@ -497,16 +497,16 @@ def test_a_code_present_in_both_namespaces_does_not_collapse(tmp_path, config_di
 
 
 # ======================================================================
-# 4 — legacy pre-cutover Owner-confirmed KHÔNG bị composition đụng
+# 4 — pre-cutover chỉ được resolve khi baseline/history thực sự phủ ngày bán
 # ======================================================================
 
 
-def test_pre_cutover_lines_are_never_touched_by_the_composition(
+def test_pre_cutover_line_uses_authoritative_baseline_when_it_covers_sale_date(
     tmp_path, config_dir
 ):
-    """P00 sở hữu nhánh lịch sử; composition đi qua mà không ghi gì."""
+    """01/09 là cutover kỹ thuật, không chặn evidence phủ 31/08."""
     pre_row = (
-        date(2026, 1, 15), "BH0001", "Bán hàng Khách Lẻ A", "Máy giặt Tracking A1",
+        date(2026, 8, 31), "BH0001", "Bán hàng Khách Lẻ A", "Máy giặt Tracking A1",
         "KH0001", "Khách A", "1 Đường Test", "0900000001", 1, 12_000_000,
         12_000_000, 0, "Vũ Hạnh Ly 0868345633", "Shipper A", 50_000, None, 1_000_000,
     )
@@ -516,16 +516,34 @@ def test_pre_cutover_lines_are_never_touched_by_the_composition(
 
     line = lines_by_order(result)["BH0001"][0]
     assert line.date < CUTOVER_DATE
-    assert line.price_source == PRICE_SOURCE_PENDING  # registry rỗng -> Pending
-    # Không bản ghi composition nào cho dòng pre-cutover: nó chưa từng vào P01–P11.
-    assert comp.records == ()
+    assert line.accounting_purchase_price == Decimal("9000000")
+    assert line.price_source == PRICE_SOURCE_TRACKING_PRICE_HISTORY
+    assert len(comp.records) == 1
 
 
-def test_golden_1_and_3_still_run_through_the_real_production_entry_point():
-    """Golden #1/#3 dùng `run_import_production()` THẬT — nay có composition."""
+def test_pre_cutover_line_before_baseline_remains_pending(tmp_path, config_dir):
+    """Không được kéo baseline hiện có ngược về ngày chưa được nó chứng minh."""
+    pre_row = (
+        date(2026, 8, 20), "BH0001", "Bán hàng Khách Lẻ A", "Máy giặt Tracking A1",
+        "KH0001", "Khách A", "1 Đường Test", "0900000001", 1, 12_000_000,
+        12_000_000, 0, "Vũ Hạnh Ly 0868345633", "Shipper A", 50_000, None, 1_000_000,
+    )
+    comp = composition(tmp_path)
+    result = run(write_workbook(tmp_path / "pre-baseline.xlsx", [pre_row]), config_dir, comp)
+    line = lines_by_order(result)["BH0001"][0]
+    assert line.accounting_purchase_price is None
+    assert line.price_source == PRICE_SOURCE_PENDING
+    assert comp.records[0].reason is PriceResolutionReason.TRACKING_HISTORY_PENDING
+    assert comp.records[0].tracking_reconstruction.reason is UnresolvedReason.SALE_BEFORE_CUTOVER
+
+
+def test_golden_1_and_3_keep_confirmed_registry_price_with_composition(
+    tmp_path, config_dir
+):
+    """Registry CONFIRMED vẫn thắng composition, kể cả khi nó đã được nối."""
     from tests.test_golden_bh62063_kpi import GOLDEN_FIXTURE as G1
 
-    result = run_import_production(G1, config_dir=Path("config"))
+    result = run(G1, config_dir, composition(tmp_path))
     line = next(
         line
         for order in result.orders
@@ -806,19 +824,21 @@ def test_the_two_cutovers_are_different_kinds_and_cannot_be_compared():
         _ = CUTOVER_DATE < CUTOVER
 
 
-def test_a_sale_between_the_two_cutovers_is_still_pre_cutover_for_identity(
+def test_a_sale_between_the_two_cutovers_can_use_authoritative_evidence(
     tmp_path, config_dir
 ):
-    """30/08/2026 nằm SAU mốc dữ liệu Tracking nhưng TRƯỚC 01/09 — nó vẫn đi
-    nhánh lịch sử, và composition không đụng tới nó."""
+    """30/08 được resolver hỏi, nhưng reader vẫn là cổng temporal quyết định."""
     row = list(ROWS_POST_CUTOVER[0])
     row[0] = date(2026, 8, 30)
     comp = composition(tmp_path)
     raw = write_workbook(tmp_path / "between.xlsx", [tuple(row)])
     result = run(raw, config_dir, comp)
 
-    assert comp.records == ()
-    assert lines_by_order(result)["BH9001"][0].price_source == PRICE_SOURCE_PENDING
+    assert len(comp.records) == 1
+    assert (
+        lines_by_order(result)["BH9001"][0].price_source
+        == PRICE_SOURCE_TRACKING_PRICE_HISTORY
+    )
 
 
 # ======================================================================
@@ -1018,11 +1038,10 @@ def test_the_pipeline_default_is_still_pending_price_provider(
             assert line.price_source == PRICE_SOURCE_PENDING
 
 
-def test_production_sources_are_absent_today_so_production_stays_pending():
-    """Trạng thái production THẬT của repo hôm nay, không phải fixture."""
+def test_production_sources_keep_temporal_and_vendor_provenance_explicit():
+    """Nguồn local có thể được recapture; provenance contract thì không đổi."""
     comp = build_price_composition(Path("config"))
     assert comp.evidence.tracking_price_history_capture_id is None
-    assert comp.evidence.tracking_catalog_capture_id is None
     assert comp.evidence.public_purchase_version_id is None
     assert comp.evidence.business_timezone_label.startswith("Asia/Ho_Chi_Minh")
     assert comp.evidence.vendor_price_source == "NOT_AUTHORIZED:TASK-105C"
@@ -1135,7 +1154,7 @@ def test_no_module_under_app_reaches_the_network():
 
 
 def test_the_real_production_entry_point_handles_post_cutover_lines_safely(
-    post_cutover_raw_path,
+    post_cutover_raw_path, tmp_path,
 ):
     """Trước `TASK-105E`, `run_import_production()` chưa từng chạy một dòng
     `sale_date >= CUTOVER_DATE` nào (dữ liệu thật hiện có toàn pre-cutover).
@@ -1146,7 +1165,7 @@ def test_the_real_production_entry_point_handles_post_cutover_lines_safely(
     mất, không giá nào bị bịa, và mọi dòng chưa có giá đều nằm trong Review
     Queue canonical.
     """
-    comp = build_price_composition(Path("config"))
+    comp = composition(tmp_path)
     result = run_import_production(
         post_cutover_raw_path, config_dir=Path("config"), price_composition=comp
     )
@@ -1156,17 +1175,12 @@ def test_the_real_production_entry_point_handles_post_cutover_lines_safely(
     }
     assert sum(len(o.lines) for o in result.orders) == len(ROWS_POST_CUTOVER)
 
-    for order in result.orders:
-        for line in order.lines:
-            assert line.accounting_purchase_price is None
-            assert line.price_source == PRICE_SOURCE_PENDING
+    lines = [line for order in result.orders for line in order.lines]
+    assert any(line.accounting_purchase_price is not None for line in lines)
+    assert any(line.accounting_purchase_price is None for line in lines)
 
     # Mọi dòng Pending đều được Review Queue phủ — PENDING_NOT_QUEUED = 0.
-    pending_rows = {
-        line.raw.source_row
-        for order in result.orders
-        for line in order.lines
-    }
+    pending_rows = {line.raw.source_row for line in lines if line.accounting_purchase_price is None}
     queued_rows = {
         row.source_row
         for item in result.review_queue.items
@@ -1175,8 +1189,14 @@ def test_the_real_production_entry_point_handles_post_cutover_lines_safely(
     }
     assert pending_rows <= queued_rows
 
-    # Lý do phải nói đúng "nguồn chưa được nối", KHÔNG phải "sản phẩm không có giá".
+    # Mỗi Pending phải giữ lý do có kiểu; không có giá trị số giả.
     assert comp.records
-    assert {r.reason for r in comp.records} == {
-        PriceResolutionReason.IDENTITY_SOURCES_UNAVAILABLE
-    }
+    assert all(
+        record.price_vnd is None
+        for record in comp.records
+        if record.reason is not None
+    )
+    assert any(
+        record.reason is PriceResolutionReason.TRACKING_HISTORY_PENDING
+        for record in comp.records
+    )

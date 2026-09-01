@@ -23,19 +23,21 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
 
 ### CURRENT
 
-- S068 đã xác định root cause của cohort 2026-08-31:
-  `OWNER_DECISION_REQUIRED`. Tất cả 83 dòng đi qua gate pre-cutover P00,
-  gate này bắt buộc bypass catalog/resolver/Public Purchase History và chỉ
-  chấp nhận `HistoricalConfirmedRegistry`. Trace hẹp chứng minh 12 dòng có
-  exact identity + Public Purchase history resolve được tại ngày bán nhưng
-  Reports không được phép tiêu thụ chúng dưới rule hiện hành.
+- S068 đã hoàn tất cohort thật 2026-08-31 theo Owner decision: 01/09/2026 là
+  cutover kỹ thuật, không tự cấm Reports consult Public Purchase evidence.
+  Repair tối thiểu giữ registry lịch sử CONFIRMED ưu tiên, còn miss đi qua
+  exact identity + strict history reader. Cohort 58 đơn / 83 dòng đạt 5 AUTO
+  đơn / 10 AUTO dòng, 53 Review Queue đơn / 73 dòng, accounting coverage
+  100% và zero silent-error candidate.
+- Blocker hiện tại là evidence identity: 70 dòng chưa có authoritative product
+  identity; một dòng thiếu baseline price. Pending giữ nguyên, không backfill
+  current PP và không suy đoán identity. Xem hồ sơ sanitized S068.
 
 ### WAITING_EXTERNAL
 
-- Owner quyết định theo ngôn ngữ nghiệp vụ: có cho phép Reports dùng Public
-  Purchase History đã capture, có temporal coverage và resolve tại ngày bán
-  cho đơn trước `2026-09-01` hay vẫn giữ P00 chỉ nhận historical confirmation
-  thủ công. Đây là thay đổi authority/cutover semantics, không phải local bug.
+- Không có blocker authority/cutover còn mở cho S068. Nếu Owner muốn tăng
+  coverage, cần xác nhận identity authoritative theo luồng mapping hiện có;
+  không dùng giá tồn kho, giá vendor lịch sử hoặc current PP thay thế.
 
 ### DO_WHEN_IDLE
 

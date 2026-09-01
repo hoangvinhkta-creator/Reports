@@ -12,9 +12,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from app.modules.domain.models import RawRow, WorkingLine
+from app.modules.domain.models import (
+    PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
+    PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
+    RawRow,
+    WorkingLine,
+)
 from app.modules.pricing.resolution.composition import PriceResolutionRecord
-from app.modules.product.identity.registry import CUTOVER_DATE
 from app.modules.validation.models import (
     CATEGORY_MISSING_PURCHASE_PRICE, SEVERITY_INFO, SCOPE_ORDER,
 )
@@ -99,7 +103,10 @@ def _present_lines(result, records, raw_rows):
     presented = []
     for line in lines:
         record = None
-        if line.date is None or line.date >= CUTOVER_DATE:
+        if line.price_source not in (
+            PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT,
+            PRICE_SOURCE_OWNER_MANUAL_LEGACY_CONFIRMATION,
+        ):
             matches = by_key[_record_key(line.order_id, line.product_raw, line.date)]
             if not matches:
                 raise ReportIntegrityError("Thiếu PriceResolutionRecord của dòng.")

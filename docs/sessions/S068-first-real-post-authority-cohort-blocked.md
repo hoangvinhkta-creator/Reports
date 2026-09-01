@@ -1,146 +1,124 @@
-# S068 — COHORT THẬT ĐẦU TIÊN SAU AUTHORITY: OWNER_DECISION_REQUIRED
+# S068 — COHORT THẬT ĐẦU TIÊN SAU AUTHORITY: HOÀN TẤT
 
 Ngày: 2026-09-01 ICT
-Task Mode: MICRO
-Task: first real post-authority cohort — capture → run → measure
-Base SHA: `dc6a02cebb5fd9c6c8c80fc40803402d350c67e0`
+Task: capture → cohort thật → đo lường → sửa cổng định tuyến tối thiểu
 
 ## Kết Quả
 
-Safety result của cohort là `PASS_WITH_TRUTHFUL_PENDING`; verdict sau trace
-root cause là `OWNER_DECISION_REQUIRED`. Đã tạo capture production immutable
-mới, kiểm tra PASS qua strict loader và chạy cohort thật ngày 2026-08-31 qua
-Owner production path. Không sửa production code, không đoán giá và không
-dùng fixture thay thế.
+Owner đã xác nhận `2026-09-01` chỉ là cutover kỹ thuật, không phải ranh giới
+chính sách giá. Reports nay có thể hỏi Public Purchase cho đơn trước ngày này
+nhưng chỉ khi identity là exact/đã xác nhận và evidence authoritative thực sự
+phủ toàn bộ ngày bán. Không có backfill giá hiện tại, không suy đoán identity
+và không nới temporal validation.
 
-## Evidence Xác Minh
+Capture immutable `PPH-20260901T021755Z-s068.json` được strict loader chấp
+nhận. Owner workflow chọn chính capture này và catalog COMPLETE mới nhất, rồi
+chạy workbook thật ngày 2026-08-31 thành công.
 
-| Check | Status | Evidence | Kết quả |
-|---|---|---|---|
-| Branch authority | PASS | `TARGET_SHA=dc6a02cebb5fd9c6c8c80fc40803402d350c67e0 ./scripts/branch_authority_check.sh` sau fetch remote | `DETACHED_EXACT_TARGET`; default remote và HEAD cùng SHA. |
-| Runtime worktree | PASS | `git status --short --branch` | Chỉ có `artifacts/`, `data/captures/`, `data/tracking_catalog/`, `data/tracking_price_history/` untracked; không có tracked modification. |
-| Capture credential | PASS | Kiểm tra hiện diện biến trong execution environment, không in giá trị | `TRACKING_REPORT_API_KEY=FOUND`. |
-| Tracking endpoint | PASS | Một request read-only theo contract với header client canonical | `HTTP 200`. |
-| Capture mới | PASS | `capture_purchase_price_history.py` canonical | `PPH-20260901T021755Z-s068.json`, `COMPLETE`. |
-| Strict loader và temporal coverage | PASS | `load_tracking_price_history_capture()` + `require_complete()` + `SaleInterval.for_sale_date(2026-08-31, UTC+07:00)` | Capture sau `2026-09-01T00:00:00+07:00` và không còn `SNAPSHOT_DOES_NOT_COVER_SALE_INTERVAL`. |
-| Workbook cohort thật | PASS | Workbook Owner cung cấp trực tiếp, đọc bằng raw reader production | 58 OrderID / 83 dòng; toàn bộ có `sale_date=2026-08-31`. |
-| Owner capture discovery | PASS | `select_latest_valid_captures()` trước khi chạy report | Chọn `PPH-20260901T021755Z-s068.json` theo metadata `captured_at`. |
-| Owner production report | PASS | `run_owner_report()` | Report tồn tại; Summary đối chiếu 58/58 đơn và dùng capture S068. |
-| Focused pytest | NOT_TESTED | `python3 -m pytest tests/test_tracking_contract_client.py tests/test_owner_usability.py -q` | Python có sẵn không cài `pytest`; không cài dependency mới chỉ để kiểm tra. |
+## Cutover Baseline Check Trước Sửa
 
-## Capture Và Cohort
+| Phân loại evidence | Dòng |
+|---|---:|
+| `PP_HISTORY_COVERS_SALE_DATE` | 1 |
+| `CUTOVER_BASELINE_COVERS_SALE_DATE` | 11 |
+| `NO_AUTHORITATIVE_PRODUCT_IDENTITY` | 70 |
+| `NO_PP_AUTHORITY_FOR_SALE_DATE` | 1 |
+| `OTHER` | 0 |
 
-`CAPTURE_CREATED=YES`.
+Baseline tồn tại, mang timestamp authority `SERVER`, tại
+`2026-08-29T12:35:37.774000+00:00`; history authoritative có điểm cho 39 mã.
+Dòng còn thiếu authority nhận `NO_BASELINE_PRICE_AT_CUTOVER`, không nhận giá
+thay thế. Kết quả này được đo trước khi sửa routing và không dùng current PP.
+
+## Sửa Tối Thiểu
+
+`HistoricalConfirmedRegistry` vẫn được chạy trước và entry `CONFIRMED` không
+bị composition ghi đè. Với miss lịch sử, production composition nay gọi exact
+identity resolver và Tracking History Reader bất kể ngày bán trước hay sau
+01/09/2026. Reader vẫn quyết định bằng baseline, temporal coverage và chuỗi
+history; bất kỳ thiếu hụt nào là `Pending` có provenance. Catalog không
+`COMPLETE` được xem là identity source unavailable, không làm report crash và
+không tự tạo identity/giá.
+
+## Capture Và Owner Workflow
 
 ```text
+CREDENTIAL_AVAILABLE=YES
+TRACKING_ENDPOINT_HTTP_STATUS=200
+CAPTURE_CREATED=YES
 CAPTURE_FILE=data/captures/PPH-20260901T021755Z-s068.json
 CAPTURE_ID=PPH-20260901T021755Z-9040fbdf
 CAPTURED_AT=2026-09-01T02:17:55.754948+00:00
 CAPTURE_STATUS=COMPLETE
 CAPTURE_VALIDATION=PASS
 SALE_DATE_2026_08_31_COVERED=YES
+OWNER_HISTORY_CAPTURE=data/captures/PPH-20260901T021755Z-s068.json
+OWNER_CATALOG_CAPTURE=data/tracking_catalog/capture_contract_v1_prod_2.json
+REPORT_OUTPUT=outputs/reports/report-20260901T024747Z.xlsx
 ```
 
-Không sửa capture cũ, không chạm Firebase hay Tracking ngoài các GET
-read-only.
+Không xoay credential, không log secret, không sửa Tracking/Firebase hay luật
+nghiệp vụ ngoài Owner decision về quyền consult evidence.
 
-## Cohort Thật
+## Cohort Thật Sau Sửa
 
 ```text
-COHORT_SOURCE=So_chi_tiet_ban_hang (6).xlsx, sale_date=2026-08-31
-REPORT_OUTPUT=outputs/reports/report-20260901T022706Z.xlsx
-
 TOTAL_ORDERS=58
 TOTAL_LINES=83
-AUTO_ORDERS=0
-AUTO_LINES=0
-REVIEW_QUEUE_ORDERS=58
-REVIEW_QUEUE_LINES=83
-ERROR_ORDERS=0
+BEFORE_AUTO_LINES=0
+AFTER_AUTO_LINES=10
+AFTER_REVIEW_QUEUE_LINES=73
+AUTO_ORDERS=5
+AUTO_LINES=10
+REVIEW_QUEUE_ORDERS=53
+REVIEW_QUEUE_LINES=73
+ERROR_ORDERS=2
 DROPPED_ORDERS=0
 DROPPED_LINES=0
 ACCOUNTING_COVERAGE_PERCENT=100.0%
 SILENT_ERROR_CANDIDATES=0
-MANUAL_WORK_PERCENT=100.0%
-MANUAL_WORK_REDUCTION_PERCENT=NOT_YET_MEASURABLE
+MANUAL_WORK_PERCENT=91.38%
+MANUAL_WORK_REDUCTION_PERCENT=8.62%
 ```
 
-`MANUAL_WORK_PERCENT` là tỷ lệ đơn vào Review Queue (`58/58`); không có
-baseline thời gian xử lý tay canonical để tính reduction. Machine check phủ
-83 dòng, không tìm thấy Pending không có Review Queue hay đơn/dòng bị mất.
-Không có manual verdict nên `SILENT_ERROR_RATE=NOT_YET_MEASURED`; con số
-candidate bằng 0 không được diễn giải thành xác nhận thủ công.
+Có 12/83 dòng resolve `AccountingPurchasePrice`; 10 dòng trong số đó thành
+AUTO hoàn toàn. 71 dòng Pending đều có record giá và Review Queue tương ứng
+(`UNQUEUED_PRICE_PENDING_LINES=0`). Hai `ERROR` là finding đã hiển thị trong
+queue, không phải silent error.
 
-Review Queue reason theo số đơn / dòng:
+Top Review Queue theo dòng / đơn: `Missing.PurchasePrice` 71 / 52,
+`Suspicious` 6 / 3 và `Suspicious.ERP` 1 / 1. Top blocker là
+`NO_AUTHORITATIVE_PRODUCT_IDENTITY` (70 dòng), không phải temporal gate.
+Theo 90/10, cohort chưa đạt ngưỡng AUTO 90%; không có sửa thêm để nâng AUTO
+vì mọi dòng chưa đủ evidence đang Pending trung thực.
 
-1. `Missing.PurchasePrice` = 58 / 83.
-2. `Suspicious` = 1 / 1.
+## Regression
 
-Các trường `Pending.accounting_purchase_price`,
-`Pending.accounting_profit` và `Pending.eligible_kpi_profit` đều là hệ quả
-cùng của `Missing.PurchasePrice` trên 58 đơn / 83 dòng, không phải ba blocker
-độc lập.
+- Focused: `tests/test_105e_price_composition.py`,
+  `tests/test_tracking_history_pipeline.py`, `tests/test_pipeline.py` —
+  `79 passed`.
+- Golden/batch affected by source-unavailable handling — `22 passed`.
+- Full regression: `1307 passed, 11 skipped`; ba fail còn lại là environment
+  only: tripwire yêu cầu Python 3.11 nhưng runtime bundled là Python 3.12, và
+  hai test socket loopback bị sandbox chặn. Bốn boundary cases pass trên 3.12;
+  hai test socket đều pass khi chạy với quyền loopback.
 
-`TEST_PP_AUTH_001_REQUIRED=NO`; sự vắng mặt của nó không được kiểm tra và
-không ảnh hưởng kết luận này.
+## Trạng Thái Và Bước Tiếp Theo
 
-## 90/10 Decision
+```text
+PRE_2026_09_01_GATE_REMOVED=YES
+CURRENT_PP_BACKFILL_ALLOWED=NO
+TEMPORAL_AUTHORITY_PRESERVED=YES
+CANONICAL_INTEGRATED=NO
+REMOTE_PUSHED=NO
+```
 
-Top blocker là `Missing.PurchasePrice`: ảnh hưởng 58 đơn / 83 dòng. Nó giảm
-AUTO nhưng không chặn vertical outcome hiện tại, vì tất cả Pending đều
-truthful, accounted và có Review Queue; thêm giá hay đổi cutover để tăng AUTO
-là suy đoán/đổi authority ngoài phạm vi S068.
-
-`REPAIR_PERFORMED=NO`; `BUSINESS_RULE_CHANGED=NO`;
-`PUBLIC_PURCHASE_SEMANTICS_CHANGED=NO`; `TRACKING_CHANGED=NO`;
-`FIREBASE_MUTATED=NO`.
-
-## Root-Cause Trace — tiếp tục S068
-
-Trace dùng năm dòng sản phẩm thật, chọn từ các product identity có một exact
-hit trong captured Tracking catalog. Không ghi tên hàng, mã hàng, giá, khách
-hàng hoặc raw workbook vào repository.
-
-| Mẫu | Tracking present | Public Purchase history | Resolve ngày 2026-08-31 | Reports result | Primary root cause |
-|---|---|---|---|---|---|
-| 1–5 | YES | YES | RESOLVED | `PENDING / Pending` | `H: PRE_CUTOVER_AUTHORITY_ROUTING_GATE` |
-
-Tất cả 83 dòng cohort có `sale_date < 2026-09-01`. `app.pipeline` đưa toàn
-bộ vào P00 (`_apply_pre_cutover_identity`) và chỉ gọi
-`HistoricalConfirmedRegistry`; `remaining_lines` dành cho
-`PostCutoverPriceComposition` chỉ chứa dòng `sale_date >= 2026-09-01`.
-Catalog, resolver và Public Purchase History vì vậy không được gọi trên bất
-kỳ dòng nào trong cohort — đúng một gate có chủ đích, không phải lỗi ingest.
-
-Phép đo hẹp trên toàn cohort: 13/83 dòng có một exact unique catalog match;
-12/83 trong số đó có Public Purchase History resolve được cho 2026-08-31;
-1/83 còn Pending khi hỏi reader. 70/83 chưa có exact unique catalog match.
-Các con số sau chỉ mô tả mức evidence nếu Owner đổi authority; chúng không
-được dùng để auto-map hay backfill dưới rule hiện tại.
-
-Kết luận: gate P00 là systemic root cause của 83/83 `Missing.PurchasePrice`.
-Evidence Public Purchase đã tồn tại nhưng bị Reports bỏ qua do routing rule
-đối với ít nhất 12 dòng; mức evidence của 71 dòng còn lại không đủ để kết
-luận từ trace hẹp.
-
-## Owner Decision Required
-
-Owner cần chốt: **Reports có được dùng Public Purchase History đã capture,
-có temporal coverage và resolve tại đúng ngày bán, cho các đơn trước
-2026-09-01 hay không?**
-
-Chọn “có” thay đổi authority/cutover semantics của P00 (`DEC-154`/`INV-47`),
-nên không phải repair local. Chọn “không” giữ trạng thái Pending hiện tại và
-chỉ `HistoricalConfirmedRegistry`/authority lịch sử được Owner cấp mới có thể
-resolve các dòng này.
-
-## Việc Tiếp Theo
-
-Chờ Owner trả lời quyết định authority ở trên. Sau đó mới được xác định phạm
-vi implementation hợp lệ và chạy lại đúng cohort 58 đơn / 83 dòng. Không mở
-repair chỉ để thay đổi AUTO.
+`TEST_PP_AUTH_001` không cần có trong catalog hiện tại và không được tạo lại.
+Bước vertical tiếp theo là xác nhận identity authoritative cho 70 dòng Pending
+qua luồng mapping/confirmation hiện có; không dùng fixture hoặc giá hiện tại
+để thay thế cohort thật.
 
 ## Git Safety
 
-Không commit runtime artifact, raw private data hay secret. Chỉ tài liệu
-sanitized của S068 có thể được stage/commit theo đường delivery hiện hành.
+Không commit workbook, capture runtime, output report, secret hay dữ liệu
+private. Chỉ code, test và tài liệu sanitized của S068 được stage tường minh.

@@ -9,10 +9,9 @@
 > một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
 > về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
-> Cập nhật lần cuối: 2026-09-01 — lần truy nguyên cohort thật đã chỉ ra một
-> quyết định cần Owner chốt: dữ liệu giá công khai có thể đã có, nhưng luật
-> hiện hành cấm dùng nó cho đơn trước 01/09/2026. Các mốc cũ bên dưới được giữ
-> nguyên như lịch sử.
+> Cập nhật lần cuối: 2026-09-01 — Owner đã chốt: 01/09/2026 chỉ là mốc kỹ
+> thuật. Báo cáo được dùng evidence giá đã xác minh cho đơn cũ khi evidence
+> thật sự phủ ngày bán. Các mốc cũ bên dưới được giữ nguyên như lịch sử.
 
 # TRẠNG THÁI HIỆN TẠI
 
@@ -36,24 +35,23 @@ thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
 ## ĐANG LÀM
 
-**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Đã chạy cohort
-thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chiếu, không mất đơn và
-không có lỗi im lặng máy phát hiện được. Trace hẹp cho thấy một số hàng đã có
-bằng chứng giá Public Purchase dùng được ở ngày bán, nhưng luật đang áp dụng
-vẫn buộc đơn trước 01/09/2026 chỉ dùng hồ sơ xác nhận lịch sử thủ công.
+**Đợt bán hàng thật đầu tiên sau authority Public Purchase.** Đã chạy lại
+cohort thật ngày 2026-08-31: 58 đơn / 83 dòng đều được đối chiếu, không mất
+đơn và không có lỗi im lặng máy phát hiện được. Kết quả có 5 đơn tự động hoàn
+toàn (10 dòng); 53 đơn vẫn vào hàng kiểm tra (73 dòng) vì chưa đủ bằng chứng.
 
 ## ĐANG CHỜ
 
-**Cần Owner quyết định.** Reports có được dùng Public Purchase History đã
-capture và kiểm được cho các đơn trước 01/09/2026 hay không? Nếu không, các
-đơn này tiếp tục chỉ nhận giá khi có hồ sơ xác nhận lịch sử thủ công. Đây là
-quyết định về thẩm quyền dữ liệu, không phải lỗi nhỏ để tự sửa.
+**Cần thêm bằng chứng nhận dạng sản phẩm.** 70 dòng chưa có identity đủ chắc
+chắn để tra giá; hệ thống giữ chúng trong hàng kiểm tra thay vì đoán. Một dòng
+khác không có giá tại mốc baseline. Đây không phải lý do để lấy giá hiện tại
+điền ngược về quá khứ.
 
 ## SAU KHI OWNER QUYẾT ĐỊNH
 
-Ghi rõ phạm vi ngày và loại bằng chứng được phép dùng → thực hiện thay đổi
-được Owner cấp quyền → chạy lại đúng cohort 58 đơn / 83 dòng → đo lại AUTO /
-Review Queue. Không tự đánh dấu Internal Beta chỉ vì report đã chạy.
+Xác nhận identity theo luồng mapping hiện có → chạy lại đúng cohort thật → đo
+lại AUTO / Review Queue. Không tự điền giá hay dùng fixture để tăng tỷ lệ
+AUTO.
 
 ## CÓ THỂ LÀM LÚC RẢNH
 

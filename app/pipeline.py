@@ -7,9 +7,10 @@
     5. Group by OrderID                      -> orders.build_orders
     6. LeadSource rule at order level        -> lead_source.LeadSourceClassifier
     7. Propagate LeadSourceFinal to lines    -> (done inside step 6's apply())
-    8. Price lookup: pre-cutover -> HistoricalConfirmedRegistry (DEC-154 P00);
-       post-cutover -> pricing.resolution composition (TASK-105E, P01-P11) khi
-       được nối, ngược lại pricing.price_engine + PendingPriceProvider
+    8. Price lookup: `HistoricalConfirmedRegistry` giữ quyền ưu tiên cho dòng
+       lịch sử đã xác nhận; mọi dòng còn lại đi qua pricing.resolution
+       composition khi được nối. Cutover 01/09/2026 chỉ là ranh giới kỹ thuật
+       của cơ chế cũ, không tự cấm bằng chứng Public Purchase có thẩm quyền.
     9. AccountingProfit (Universal formula, no KPI Adjustment) -> profit.profit_engine
    9b. KpiPurchasePrice + EligibleKpiProfit, minimum B7/B8 slice
        (DEC-143 + DEC-144, Golden #1 KPI vertical slice) -> kpi.kpi_profit_engine
@@ -105,21 +106,19 @@ def _apply_pre_cutover_identity(
     *,
     registry: HistoricalConfirmedRegistry,
     resolver_factory: ResolverFactory,
-) -> None:
+) -> list[WorkingLine]:
     """Nối `app.pipeline` với biên `product/identity` của `TASK-105D`
-    (S051) cho nhánh pre-cutover (`DEC-154` §2/P00): giá của một dòng
-    `sale_date < CUTOVER_DATE` đến TỪ `HistoricalConfirmedRegistry` khi có
-    entry `CONFIRMED`, hoặc là Pending khi không có — không bao giờ qua
-    `PriceProvider` (P01–P11 chỉ áp cho nhánh post-cutover). Dòng nào không
-    thuộc nhánh này (post-cutover hoặc thiếu `date`) không bị đụng tới ở đây
-    — `apply_prices` hiện hành vẫn xử lý chúng như trước (S051 §17: đổi tối
-    thiểu, không redesign `TASK-105D`).
+    (S051) với registry lịch sử. Một entry `CONFIRMED` vẫn là bằng chứng
+    riêng, được giữ nguyên và trả về cho caller để không bị ghi đè. Một miss
+    chỉ đặt Pending tạm thời: khi production composition đã được nối, caller
+    sẽ hỏi Public Purchase theo đúng evidence/temporal contract. Ngày
+    01/09/2026 không còn là cổng cấm cuộc hỏi này.
     """
     pre_cutover = [
         line for line in lines if line.date is not None and line.date < CUTOVER_DATE
     ]
     if not pre_cutover:
-        return
+        return []
 
     rows = [
         SalesRowRef(
@@ -131,6 +130,7 @@ def _apply_pre_cutover_identity(
     ]
     result = resolve_batch(rows, registry=registry, resolver_factory=resolver_factory)
 
+    confirmed: list[WorkingLine] = []
     for line, (_, outcome) in zip(pre_cutover, result.historical):
         if isinstance(outcome, HistoricalConfirmed):
             line.accounting_purchase_price = outcome.price
@@ -144,9 +144,11 @@ def _apply_pre_cutover_identity(
                 outcome.provenance.price_provenance
                 or PRICE_SOURCE_HISTORICAL_CONFIRMED_REPORT
             )
+            confirmed.append(line)
         elif isinstance(outcome, PendingProduct):
             line.accounting_purchase_price = None
             line.price_source = PRICE_SOURCE_PENDING
+    return confirmed
 
 
 @dataclass(frozen=True)
@@ -203,20 +205,22 @@ def build_working_data(
     classifier = LeadSourceClassifier.from_yaml(config_dir / "lead_source.yaml")
     classifier.apply(orders, employee_mapper)
 
-    # Bước 8 §22 (TASK-105, nối `TASK-105D` — S051). Pre-cutover đi qua biên
-    # product identity (DEC-154 P00) trước. Phần còn lại (post-cutover hoặc
-    # `date` thiếu) đi qua `PostCutoverPriceComposition` khi caller nối nó
-    # (TASK-105E, `app/composition.py`), hoặc qua `PriceProvider` như cũ khi
-    # không — hai đường loại trừ nhau, không đường nào ghi đè đường kia.
-    _apply_pre_cutover_identity(
+    # Bước 8 §22. Registry lịch sử luôn chạy trước: một entry đã xác nhận là
+    # evidence độc lập, nên composition không được ghi đè nó. Các miss lịch sử
+    # được composition hỏi bằng cùng hợp đồng evidence/temporal với mọi dòng
+    # khác; 01/09/2026 không phải biên chính sách giá.
+    confirmed_pre_cutover = _apply_pre_cutover_identity(
         lines,
         registry=identity_registry or HistoricalConfirmedRegistry(),
         resolver_factory=identity_resolver_factory or _post_cutover_resolver_not_wired,
     )
-    remaining_lines = [
-        line for line in lines if line.date is None or line.date >= CUTOVER_DATE
-    ]
     if price_composition is None:
+        # `PriceProvider` tổng quát không có temporal authority contract của
+        # Public Purchase, nên không bao giờ dùng nó để backfill pre-cutover.
+        # Không có composition thì các miss lịch sử giữ Pending.
+        remaining_lines = [
+            line for line in lines if line.date is None or line.date >= CUTOVER_DATE
+        ]
         # Mặc định KHÔNG ĐỔI (`CHECK-105-04`): `PendingPriceProvider`, đúng hành
         # vi của mọi lời gọi `run_import()` đã tồn tại, Golden Baseline gồm.
         apply_prices(remaining_lines, price_provider or PendingPriceProvider())
@@ -230,7 +234,10 @@ def build_working_data(
                 "composition (TASK-105E) là chủ sở hữu DUY NHẤT của giá "
                 "post-cutover khi nó được truyền vào."
             )
-        price_composition.apply(remaining_lines)
+        confirmed_ids = {id(line) for line in confirmed_pre_cutover}
+        price_composition.apply(
+            [line for line in lines if id(line) not in confirmed_ids]
+        )
 
     apply_accounting_profit(lines)
 

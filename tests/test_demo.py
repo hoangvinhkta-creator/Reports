@@ -179,7 +179,10 @@ def test_pre_cutover_golden_prices_are_not_relabelled_as_tracking(inputs):
     run = demo.run_demo(**inputs)
     assert run.summary.input_orders == run.summary.accounted_orders
     assert run.summary.order_accounting_rate == 1
-    assert run.price_records == ()
+    # Các miss pre-cutover được hỏi qua composition, nhưng sale trước baseline
+    # vẫn Pending; entry registry CONFIRMED không bị relabel/ghi đè.
+    assert run.price_records
+    assert all(record.price_vnd is None for record in run.price_records)
     workbook = openpyxl.load_workbook(inputs["output"], data_only=True)
     rows = values(workbook["Order Lines"])
     golden = next(r for r in rows if r[1] == "BH62063")
