@@ -85,7 +85,10 @@ class OwnerLauncher:
         except Exception:
             self.readiness.set("Dữ liệu Tracking: Chưa sẵn sàng")
         else:
-            self.readiness.set("Dữ liệu Tracking: Sẵn sàng")
+            # Chỉ xác nhận có capture COMPLETE hợp lệ trên máy — KHÔNG xác nhận
+            # capture đó đủ mới cho workbook sắp chạy (temporal coverage do
+            # production path tự kiểm khi chạy, an toàn fail-safe về Pending).
+            self.readiness.set("Dữ liệu Tracking: Có capture hợp lệ trên máy")
 
     def choose_sales(self) -> None:
         selected = filedialog.askopenfilename(
@@ -124,7 +127,7 @@ class OwnerLauncher:
                 f"Tổng đơn: {summary.input_orders}    "
                 f"AUTO: {summary.auto_orders}    "
                 f"Cần xem lại: {summary.review_orders}    "
-                f"Lỗi: {summary.error_count}    "
+                f"Ưu tiên xem ngay: {summary.error_count}    "
                 f"Accounting coverage: {summary.order_accounting_rate:.0%}"
             )
             self.review_text.set(format_review_reasons(summary.review_reason_counts))

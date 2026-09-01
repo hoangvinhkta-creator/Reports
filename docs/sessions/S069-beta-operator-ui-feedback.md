@@ -131,3 +131,106 @@ Commit chỉ các file tracked thuộc S069 (liệt kê tường minh, không
 `git add -A`/`git add .`). Không add `data/beta_feedback/`, `data/captures/`,
 `data/tracking_catalog/`, `data/tracking_inv_map/`, `data/tracking_price_history/`,
 `artifacts/`, workbook thật. Không merge canonical trong phiên này.
+
+## Independent Review (phiên #2, 2026-09-01)
+
+Review SHA gốc của implementation: `938a2a8e8b07632eacd2f633d7880e8b13e2bcb3`.
+Không tin PASS của implementation session; tự xác minh lại từ Git, code,
+test và runtime evidence trên đúng máy Owner sẽ dùng.
+
+**Xác minh lại độc lập, khớp tuyệt đối:**
+- Real cohort `/Users/hoangvinh/Downloads/So_chi_tiet_ban_hang (6).xlsx` chạy
+  lại qua `run_owner_report` (không qua GUI) trên capture hiện có trên máy
+  → `58 đơn / 83 dòng / 22 AUTO / 36 Review / Accounting 100% / Dropped 0 /
+  ERRORS 3`, khớp tuyệt đối con số implementation báo và baseline S068 đã
+  accept.
+- `ERRORS = 3` xác nhận đúng là 3 finding `Suspicious`/`SEVERITY_ERROR`
+  (đối chiếu `config/validation.yaml` + `app/modules/validation/rules.py`:
+  severity là "nhãn thứ tự đọc", không phải cổng chặn) — không phải lỗi xử
+  lý runtime. Regression độc lập: `1373 passed, 11 skipped`, khớp báo cáo.
+
+**Data freshness (mục 3 brief) — trả lời bằng code, không suy luận:**
+- A/B: double-click launcher KHÔNG tự lấy dữ liệu Tracking mới — chỉ gọi
+  `select_latest_valid_captures()` quét `data/captures/`,
+  `data/tracking_catalog/`, `data/tracking_inv_map/`,
+  `data/tracking_price_history/` trên đĩa cục bộ. Không có lệnh HTTP/network
+  nào trong `app/owner_usability.py`.
+- C: nguồn cần freshness — PP history (có temporal validation thật,
+  `TrackingPriceHistoryReader` so `captured_at`/interval với `sale_date`,
+  fail-safe về Pending nếu capture không phủ ngày bán — CHECK độc lập tại
+  `app/modules/pricing/tracking_history/reader.py`); `inv.map`/`alias.map`/
+  `board`/catalog KHÔNG có temporal validation nào — đây là bảng khoá-giá
+  trị tại một thời điểm, không có timestamp theo từng entry để so sánh.
+- D: nhãn "Dữ liệu Tracking: Sẵn sàng" (bản implementation) CHỈ xác nhận có
+  capture COMPLETE + schema hợp lệ trên đĩa — KHÔNG xác nhận capture đó đủ
+  mới/đủ phủ ngày bán cho workbook Owner sắp chạy. Hai khái niệm khác nhau,
+  đúng như brief cảnh báo. Label gây hiểu lầm — ĐÃ SỬA trong review này
+  (xem "Repair" bên dưới).
+- E: xác nhận bằng bằng chứng SỐNG, không phải suy luận: trong lúc review,
+  một phiên GUI thật đã chạy launcher trên đúng SHA `938a2a8` (xác nhận qua
+  `git_sha` trong `data/beta_feedback/runs.jsonl`), chọn một workbook cũ hơn
+  (`So_chi_tiet_ban_hang (5).xlsx`) trong khi capture hiện tại vẫn "Sẵn
+  sàng" — kết quả ra đúng `0 AUTO / 53 Review` (an toàn: vẫn 100% accounting,
+  0 dropped, không AUTO sai) nhưng label không hề cảnh báo Owner trước khi
+  chạy. Đây là bằng chứng thật, không phải kịch bản giả định.
+- F: KHÔNG cần terminal cho luồng an toàn (fail-safe về Pending không cần
+  Owner làm gì). Terminal/Python chỉ cần khi Owner muốn TĂNG AUTO rate bằng
+  cách refresh capture — đây là tối ưu coverage, không phải blocker đúng
+  sai. Ngoại lệ: xem finding `inv.map` staleness bên dưới.
+
+**Finding mới — `inv.map` không có temporal safety net (không phải S069
+regression):** audit riêng cho thấy `inv.map` (và `alias.map`/`board` —
+cùng kiến trúc, đã được chấp nhận từ Owner Usability V1) là bảng khoá→giá
+trị tại một thời điểm, không có timestamp theo từng entry. Nếu Tracking
+SỬA một mapping đã có (không phải thêm mới) giữa hai lần capture, Reports
+dùng capture cũ sẽ resolve theo giá trị CŨ và coi là AUTO — khác với PP
+history (có temporal validation, luôn fail-safe về Pending khi stale).
+Đây LÀ rủi ro "wrong AUTO", không chỉ "missed AUTO" — nhưng là đặc tính
+kiến trúc kế thừa từ `alias.map`/`board` gốc, S068 chỉ mở rộng cùng mô
+hình cho `inv.map`, và S069 không hề chạm resolver — S069 chỉ là session
+ĐẦU TIÊN mà launcher thật sự dùng đường `inv.map` này (trước S069 launcher
+V1 chưa từng nối). Không phải regression của S069. Không sửa trong review
+này (sửa đòi hỏi thêm temporal/versioning cho `inv.map`, một thay đổi kiến
+trúc/schema Tracking — bị cấm rõ ở mục 4 của brief). Ghi nhận
+DEFERRED — xem entry mới trong `PROJECT/PROJECT_PROGRESS.md`.
+
+**Repair — 3 sửa nhỏ, cục bộ, presentation-only, không đổi business
+severity/logic:**
+1. `app/owner_launcher.py`: nhãn kết quả `"Lỗi: {N}"` → `"Ưu tiên xem ngay:
+   {N}"` — `error_count` là số finding `SEVERITY_ERROR` (nhãn thứ tự đọc
+   theo `config/validation.yaml`, gồm cả `missing` field bắt buộc,
+   `employee_mismatch`, `employee_mapping` invariant — không chỉ
+   `Suspicious`), không phải processing failure; nhãn cũ "Lỗi" dễ khiến
+   Owner hiểu nhầm app bị lỗi.
+2. `app/owner_launcher.py`: nhãn readiness `"Sẵn sàng"` → `"Có capture hợp
+   lệ trên máy"` — đúng những gì check thực sự xác nhận (tồn tại +
+   schema), không ngụ ý đã kiểm freshness/temporal coverage.
+3. `app/beta_presentation.py`: header `"Lý do cần xem lại:"` →
+   `"Lý do cần xem lại (đếm theo dòng, một dòng có thể có nhiều lý do):"` —
+   tránh Owner đọc nhầm tổng theo dòng (có thể > số đơn Review) thành tổng
+   theo đơn.
+
+Sau sửa: `py_compile` OK, launcher khởi động lại không lỗi (process sống,
+đăng ký foreground app qua `lsappinfo`), `1373 passed, 11 skipped` không
+đổi. Không sửa `error_count`/`review_reason_counts`/business severity nào.
+
+**GUI runtime (mục 8 brief):** môi trường review không có quyền Screen
+Recording/Accessibility (`screencapture`, `osascript System Events` đều bị
+từ chối quyền) nên KHÔNG chụp được pixel màn hình hay tự động click.
+EVIDENCE_MISSING cho phần click-through tự động. Bù lại có bằng chứng
+mạnh hơn suy luận: launcher chạy thật trên đúng SHA `938a2a8` trong lúc
+review (`lsappinfo` xác nhận process Python là foreground GUI app thật,
+không crash); và một phiên sử dụng thật đã diễn ra sống trong lúc review
+— `data/beta_feedback/runs.jsonl` có bản ghi `git_sha=938a2a8`, workbook
+khác, output mới; `lsof` xác nhận Microsoft Excel đang mở ĐÚNG file report
+vừa tạo (`report-20260901T082842Z.xlsx`), không phải artifact cũ. Điều
+này xác nhận: window mở được, chọn file được, run hoạt động, "Mở báo cáo
+Excel" mở đúng file vừa chạy. Nút "Gửi phản hồi" không có lượt dùng mới
+trong phiên này để quan sát trực tiếp — dựa vào unit test +
+`py_compile` + review thủ công (cùng giới hạn implementation session đã
+nêu).
+
+**Kết luận review:** S069 PASS với 3 repair truthfulness nhỏ đã áp dụng.
+Finding `inv.map` staleness là DEFERRED, không blocker S069 (kế thừa từ
+S068, không phải regression), cần Owner biết trước khi mở rộng thêm
+authority tương tự trong tương lai.

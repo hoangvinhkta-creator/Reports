@@ -25,12 +25,21 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   consume làm authority THỨ HAI, cùng cấp `alias.map`/`board` — xem chi tiết
   dưới CURRENT.
 - S069 Beta Operator UI + Feedback (nhánh `s069/beta-operator-ui`, baseline
-  `3f92c953b4c6d12834d4d3a0c611a7b27e7e0061`): Owner launcher nối thêm
+  `3f92c953b4c6d12834d4d3a0c611a7b27e7e0061`, implementation SHA
+  `938a2a8e8b07632eacd2f633d7880e8b13e2bcb3`): Owner launcher nối thêm
   `tracking_inv_map` (gap chưa từng nối trước S069 — launcher V1 ra
-  `AUTO=0` thay vì `22` đã accepted), Review summary + Lỗi hiển thị đúng
-  authoritative, feedback + telemetry local (`data/beta_feedback/`,
-  git-ignored). Gate PASS — xem
-  `docs/sessions/S069-beta-operator-ui-feedback.md`.
+  `AUTO=0` thay vì `22` đã accepted), Review summary + severity hiển thị
+  đúng authoritative, feedback + telemetry local (`data/beta_feedback/`,
+  git-ignored). **Independent Review (phiên #2, 2026-09-01) PASS** sau 3
+  repair truthfulness nhỏ, cục bộ, presentation-only (nhãn "Lỗi" →
+  "Ưu tiên xem ngay", nhãn readiness "Sẵn sàng" → "Có capture hợp lệ trên
+  máy", header Review reasons ghi rõ đếm theo dòng) — real cohort rerun độc
+  lập khớp tuyệt đối `58/83/22/36/100%/0 dropped/3 ERRORS`, regression độc
+  lập `1373 passed, 11 skipped`, GUI chạy thật xác nhận trên đúng SHA qua
+  telemetry + `lsof` (Excel mở đúng file report vừa tạo). Xem chi tiết đầy
+  đủ và finding mới `inv.map` staleness (DEFERRED, không phải regression)
+  tại `docs/sessions/S069-beta-operator-ui-feedback.md` →
+  "Independent Review".
 
 ### CURRENT
 
@@ -110,6 +119,40 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   Owner chấp nhận rủi ro ý nghĩa dữ liệu (số hiển thị tạm thời trên màn Tồn
   kho là "đã bán" chứ không phải "đang tồn") — một quyết định nghiệp vụ,
   không phải một sửa code trung lập.
+
+### DEFERRED FINDING — `inv.map`/`alias.map`/`board` Không Có Temporal Safety Net (S069 Independent Review)
+
+- **Case:** `PP history` (Purchase Price) có temporal validation thật —
+  `TrackingPriceHistoryReader` so `captured_at`/khoảng thời gian capture với
+  `sale_date` từng dòng, fail-safe về Pending nếu capture không phủ đúng
+  ngày bán (`app/modules/pricing/tracking_history/reader.py`). `inv.map`,
+  `alias.map`, `board` KHÔNG có cơ chế tương đương: đây là bảng
+  khoá→giá trị tại MỘT THỜI ĐIỂM, không có timestamp theo từng entry để so
+  sánh. Nếu Tracking SỬA một mapping đã có (không phải thêm mới) giữa hai
+  lần Reports capture, Reports dùng capture cũ sẽ resolve theo giá trị CŨ
+  và coi là AUTO — khác hẳn PP history (luôn fail-safe về Pending khi
+  stale). Đây LÀ rủi ro "wrong AUTO", không chỉ "missed AUTO".
+- **Không phải regression của S069 hay S068.** Đặc tính này tồn tại từ
+  kiến trúc `alias.map`/`board` gốc (Owner Usability V1, trước cả S068).
+  S068 chỉ mở rộng CÙNG mô hình cho `inv.map` như authority thứ hai; S069
+  không chạm resolver, chỉ là session ĐẦU TIÊN launcher thật sự dùng đường
+  `inv.map` (launcher V1 chưa từng nối trước đó), nên đây là session đầu
+  tiên rủi ro này trở thành "sống" trên đường Owner double-click thật thay
+  vì chỉ tồn tại trong test/CLI.
+- **STATUS = DEFERRED_KNOWN_LIMITATION.**
+- **BETA_BLOCKER = NO** — xác suất Tracking SỬA (không phải thêm) một
+  mapping đã duyệt, đúng trong khoảng thời gian giữa hai lần Owner capture,
+  đúng trên một dòng đang bán, là rủi ro biên rất hiếm; hệ thống vẫn
+  fail-safe cho toàn bộ các trường hợp phổ biến hơn (thêm mới, xoá, target
+  hết hợp lệ → Pending trung thực).
+- **REOPEN CONDITION:** mở lại nếu (a) Owner ghi nhận một trường hợp AUTO
+  sai thực tế do mapping bị sửa sau capture, hoặc (b) trước khi thêm một
+  authority point-in-time thứ ba tương tự `inv.map`, nên đánh giá lại liệu
+  có cần temporal/versioning chung cho cả nhóm nguồn này.
+- **KHÔNG implement trước Beta:** thêm timestamp/versioning cho từng entry
+  `inv.map`/`alias.map`/`board`, hay đổi Tracking API/schema để hỗ trợ — đây
+  là thay đổi kiến trúc/schema Tracking, ngoài phạm vi S069 và cần quyết
+  định nghiệp vụ riêng.
 
 ### WAITING_EXTERNAL
 
