@@ -58,6 +58,50 @@
 </div>
 
 <div class="module">
+  <h2>Snapshot kế toán <span class="cnt">{{ snapshots|length }}</span></h2>
+  {% if not snapshots_configured %}
+    {{ legacy.not_configured() }}
+  {% else %}
+  <p class="insight">
+    Mỗi lần chạy sổ kế toán qua pipeline tạo một snapshot. Dòng đã có từ trước và
+    không đổi được ghi <strong>SAME</strong> — KHÔNG tạo phiên bản mới, KHÔNG cộng
+    thêm vào tổng hiện hành.
+  </p>
+  {% if snapshots %}
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th>Mã snapshot</th><th>Nguồn</th><th>Chạy lúc</th><th>Coverage</th>
+      <th>Ngày đo được</th><th class="num">Đơn</th><th class="num">Dòng</th>
+      <th class="num">Mới</th><th class="num">Không đổi</th><th class="num">Nguồn sửa</th>
+      <th class="num">Trùng khoá</th><th></th>
+    </tr>
+    {% for snap in snapshots %}
+    <tr>
+      <td class="code">{{ snap.snapshot_id }}</td>
+      <td>{{ snap.source_file_name or '—' }}{% if snap.duplicate_of_snapshot_id %}
+        <span class="tag tag-defect" title="Đúng file này đã chạy trước đó">FILE TRÙNG</span>{% endif %}</td>
+      <td>{{ snap.created_at }}</td>
+      <td>{{ snap.coverage_state }}</td>
+      <td>{{ snap.detected_date_min }} → {{ snap.detected_date_max }}</td>
+      <td class="num">{{ snap.order_count }}</td>
+      <td class="num">{{ snap.line_count }}</td>
+      <td class="num">{{ snap.n_insert }}</td>
+      <td class="num">{{ snap.n_same }}</td>
+      <td class="num">{{ snap.n_source_changed }}</td>
+      <td class="num">{{ snap.n_collision }}</td>
+      <td><a href="{{ url_for('snapshot_detail', snapshot_id=snap.snapshot_id) }}">Xem</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Chưa có snapshot nào.</p>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="module">
   <h2>Các lần chạy pipeline <span class="cnt">{{ runs|length }}</span></h2>
   <p class="insight">Số do pipeline hiện tại tính — KHÁC nguồn với bảng legacy ở trên.</p>
   {% if runs %}
@@ -65,7 +109,8 @@
   <table>
     <tr>
       <th>Chạy lúc</th><th>Workbook</th><th>Trạng thái</th>
-      <th class="num">Tổng đơn</th><th class="num">AUTO</th><th class="num">Cần xem lại</th><th></th>
+      <th class="num">Tổng đơn</th><th class="num">AUTO</th><th class="num">Cần xem lại</th>
+      <th>Lịch sử</th><th></th>
     </tr>
     {% for run in runs %}
     <tr>
@@ -75,6 +120,9 @@
       <td class="num">{{ run.view.input_orders if run.view else '—' }}</td>
       <td class="num">{{ run.view.auto_orders if run.view else '—' }}</td>
       <td class="num">{{ run.view.review_orders if run.view else '—' }}</td>
+      <td>{% if not snapshots_configured %}—
+        {% elif run.run_id in runs_with_snapshot %}<span class="tag tag-current">CÓ SNAPSHOT</span>
+        {% else %}<span class="tag tag-defect">KHÔNG CÓ LỊCH SỬ (ghi lỗi)</span>{% endif %}</td>
       <td><a href="{{ url_for('index', run_id=run.run_id) }}">Xem</a></td>
     </tr>
     {% endfor %}

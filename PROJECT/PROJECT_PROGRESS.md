@@ -1,6 +1,57 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S079)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S080)
+
+Cập nhật sau phiên implement **slice A**. Khối S079 ngay dưới giữ nguyên như
+bản ghi lịch sử đúng tại thời điểm freeze contract; khi hai khối mâu thuẫn về
+trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                 = S080 — PRA-002 Slice A Implementation (MAJOR)
+TASK-PRA-002            = IN_PROGRESS  (slice A IMPLEMENTED; slice B, C chưa bắt đầu)
+PRA002_IMPLEMENTATION_STARTED = YES
+SLICE_A_RESULT          = PASS  (vertical chạy end-to-end, chờ Independent Review E2)
+IMPLEMENTATION_BASE_SHA = 7fad3f76908d6d56114a5e2e947d83e15f8eda02
+BRANCH                  = claude/pra-002-slice-a-umygjq  (cắt từ đúng SHA trên, chưa integrate)
+MIGRATION               = 0002_snapshots (head mới; additive, 4 bảng legacy KHÔNG đổi)
+TEST                    = full suite 1710 passed, 11 skipped  (baseline 1608/11 — +102 test, 0 skip mới)
+                          Golden 58 passed, 2 skipped — KHÔNG đổi
+CHANGE_BUDGET DÙNG      = 1.080 / 1.200 dòng logic production (dừng cứng 1.500 không chạm)
+CHECK PASS              = 01, 02, 03, 04, 05, 09, 10, 11, 12, 13, 16(RECOMMENDED)
+CHECK PARTIAL           = 06 (DETECTED/HEADER xong; xác nhận tường minh = slice B)
+CHECK NOT_TESTED        = 07 (slice B), 08 (slice C), 14 (RDA — thiếu workbook thật),
+                          15 (Production Acceptance — Owner), 17 (Independent Review E2)
+REVIEW BUDGET           = 2 cycle, ĐÃ DÙNG 0
+PROTECTED_CORE_IMPACT   = alias exporter (3 dòng) + 2 trường DemoRun — không đổi hành vi, XLSX không đổi
+TRACKING_CHANGED        = NO
+EVIDENCE                = docs/sessions/S080-pra-002-slice-a-implementation.md
+```
+
+**Đã chứng minh trong slice A (E1, bằng chứng nguyên văn ở handoff S080):**
+
+- Một upload golden `period_2026_01.xlsx` → snapshot 351 dòng / 254 đơn,
+  `SUM(current total_sales) = 3.562.310.000` = `sales_normalized` của Golden.
+- Upload lại đúng file → 351 `SAME`, **0 version nguồn mới**, tổng hiện hành
+  không đổi tới từng đồng (no-double-count).
+- A (≤10/01: 89 dòng/61 đơn) rồi B (351/254) → **đẳng thức**
+  `state(A,B) == state(B trên DB sạch)` trên cả tập khoá lẫn tập
+  `(khoá, line_fingerprint)`; đảo thứ tự không đổi tổng.
+- Sửa đúng một dòng → 1 `SOURCE_CHANGED`, version cũ đọc lại nguyên văn,
+  `changed_fields` nêu đúng `sell_price` + `total_sales_raw`, tổng đổi đúng
+  delta.
+- Cùng BH lệch > 90 ngày → `ORDER_KEY_COLLISION`: ghi đủ, dựng cờ, **không**
+  ghi đè hiện trạng, **không** merge, **không** mất bản ghi.
+- Kịch bản A→A→B→B' chạy lại trên **PostgreSQL 16 thật**; migration
+  `0001_legacy → 0002_snapshots` giữ nguyên dòng legacy đã có.
+- `ru_maxrss` end-to-end `/run` = **75,6 MB** (mục tiêu < 300 MB).
+
+**NEXT_VERTICAL_ACTION:** Independent Review E2 cho slice A trước Controlled
+Integration (`docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD` theo
+`governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`). KHÔNG bắt đầu
+slice B trước khi review xong.
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (bản ghi lịch sử, 2026-09-02, S079)
 
 Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho `TASK-PRA-002`. Các
 khối bên dưới (S078R, S078, PRA-001, S073…) giữ nguyên như **bản ghi lịch
@@ -59,9 +110,11 @@ duy nhất: Phase D bảo mật (`0.0.0.0/0` trong allowed IP list của
 PRA-002 (`CHECK-PRA002-15`) vẫn cần một lần deploy RIÊNG cho SHA mang
 migration `0002_snapshots`, sau khi implement xong.
 
-**NEXT_VERTICAL_ACTION:** mở session implement `TASK-PRA-002` slice A theo
-handoff `docs/sessions/S079-pra-002-roadmap-finalization.md` →
-"IMPLEMENTATION HANDOFF".
+**NEXT_VERTICAL_ACTION (tại thời điểm S079):** mở session implement
+`TASK-PRA-002` slice A theo handoff
+`docs/sessions/S079-pra-002-roadmap-finalization.md` → "IMPLEMENTATION
+HANDOFF". *(Đã thực hiện ở S080 — xem khối CANONICAL CURRENT STATE S080 ở
+đầu file.)*
 
 
 ## PRODUCTION STATE RECONCILIATION — S079 CLOSE-OUT (2026-09-02, HIỆN HÀNH)

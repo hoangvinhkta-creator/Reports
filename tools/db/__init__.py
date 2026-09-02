@@ -30,7 +30,7 @@ from tools.db import schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-ALEMBIC_HEAD = "0001_legacy"
+ALEMBIC_HEAD = "0002_snapshots"
 
 # Alembic ghi phiên bản schema hiện tại vào bảng này; ``assert_schema_current``
 # đọc trực tiếp thay vì gọi alembic (alembic KHÔNG được import dưới app/).

@@ -22,6 +22,9 @@
 <div class="module">
   {% if run_created_at %}<p class="tp-label">Chạy lúc: {{ run_created_at }}</p>{% endif %}
   {% if workbook_display_name %}<p class="tp-label">Workbook: {{ workbook_display_name }}</p>{% endif %}
+  {% if not history_configured %}
+  <p class="error">Run này KHÔNG được lưu lịch sử — history store chưa cấu hình.</p>
+  {% endif %}
   <div class="summary-grid">
     <div><span class="label">Tổng đơn:</span> {{ result.input_orders }}</div>
     <div><span class="label">AUTO:</span> {{ result.auto_orders }}</div>

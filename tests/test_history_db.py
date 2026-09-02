@@ -71,7 +71,7 @@ def test_schema_check_rejects_an_out_of_date_revision():
         connection.exec_driver_sql("UPDATE alembic_version SET version_num = '0000_old'")
     with pytest.raises(history_db.HistoryConfigurationError) as exc:
         history_db.assert_schema_current(engine)
-    assert "0001_legacy" in str(exc.value)
+    assert history_db.ALEMBIC_HEAD in str(exc.value)
 
 
 def test_schema_check_accepts_a_database_at_head(history_engine):
@@ -80,10 +80,10 @@ def test_schema_check_accepts_a_database_at_head(history_engine):
 
 # --- Migration ------------------------------------------------------------
 
-def _alembic(command: str, db_path: Path):
+def _alembic(command: str, db_path: Path, target: str | None = None):
     return subprocess.run(
-        [sys.executable, "-m", "alembic", command if command != "downgrade" else "downgrade",
-         "head" if command == "upgrade" else "base"],
+        [sys.executable, "-m", "alembic", command,
+         target or ("head" if command == "upgrade" else "base")],
         cwd=REPO_ROOT, capture_output=True, text=True,
         env={"PATH": "/usr/bin:/bin", "HISTORY_DATABASE_URL": f"sqlite:///{db_path}",
              "PYTHONPATH": str(REPO_ROOT)},
@@ -95,6 +95,12 @@ LEGACY_TABLES = {
     "legacy_monthly_reference",
 }
 
+# TASK-PRA-002 mục 4 — sáu bảng origin PIPELINE_GENERATED của `0002_snapshots`.
+PIPELINE_TABLES = {
+    "source_snapshot", "order_line_source_version", "snapshot_line",
+    "order_line_result_version", "order_line_current", "reconciliation_flag",
+}
+
 
 def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
     db_path = tmp_path / "history.db"
@@ -102,34 +108,71 @@ def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
     assert up.returncode == 0, up.stderr
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert LEGACY_TABLES <= set(inspect(connection).get_table_names())
+        names = set(inspect(connection).get_table_names())
+        assert LEGACY_TABLES <= names
+        assert PIPELINE_TABLES <= names
         assert connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
-        ).scalar() == "0001_legacy"
+        ).scalar() == "0002_snapshots"
     engine.dispose()
 
     down = _alembic("downgrade", db_path)
     assert down.returncode == 0, down.stderr
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert not (LEGACY_TABLES & set(inspect(connection).get_table_names()))
+        assert not ((LEGACY_TABLES | PIPELINE_TABLES)
+                    & set(inspect(connection).get_table_names()))
     engine.dispose()
 
 
-def test_migration_chain_contains_only_the_legacy_revision():
-    """PRA-002 (snapshot/version/reconciliation) KHÔNG được prebuild ở slice này."""
+def test_migration_0002_is_additive_and_leaves_legacy_rows_untouched(tmp_path):
+    """CHECK-PRA002-01: nâng cấp 0001 → 0002 KHÔNG chạm dữ liệu PRA-001.
+
+    Đây là điều kiện để migration này chạy được trên production đang có dữ
+    liệu legacy thật: một bản nâng cấp làm mất một dòng legacy nào cũng là
+    hỏng, kể cả khi sáu bảng mới dựng lên đúng.
+    """
+    db_path = tmp_path / "history.db"
+    assert _alembic("upgrade", db_path, "0001_legacy").returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO legacy_import (import_id, origin, file_fingerprint, is_current)"
+            " VALUES ('LEG-TEST', 'LEGACY_REFERENCE', 'abc123', 0)"
+        )
+        before = connection.exec_driver_sql(
+            "SELECT import_id, file_fingerprint FROM legacy_import"
+        ).fetchall()
+        assert not (PIPELINE_TABLES & set(inspect(connection).get_table_names()))
+    engine.dispose()
+
+    assert _alembic("upgrade", db_path, "head").returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as connection:
+        assert PIPELINE_TABLES <= set(inspect(connection).get_table_names())
+        assert connection.exec_driver_sql(
+            "SELECT import_id, file_fingerprint FROM legacy_import"
+        ).fetchall() == before
+        assert connection.exec_driver_sql(
+            "SELECT version_num FROM alembic_version"
+        ).scalar() == "0002_snapshots"
+    engine.dispose()
+
+
+def test_migration_chain_is_exactly_the_two_frozen_revisions():
+    """Chain đúng bằng những revision đã freeze — không prebuild PRA-003+."""
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
     )
-    assert versions == ["0001_legacy.py"]
+    assert versions == ["0001_legacy.py", "0002_snapshots.py"]
 
 
-def test_schema_declares_exactly_the_four_frozen_legacy_tables():
-    assert set(schema.METADATA.tables) == LEGACY_TABLES
+def test_schema_declares_exactly_the_frozen_legacy_and_pipeline_tables():
+    assert set(schema.METADATA.tables) == LEGACY_TABLES | PIPELINE_TABLES
 
 
 def test_every_fact_table_carries_an_explicit_origin_column():
-    for name in LEGACY_TABLES:
+    for name in LEGACY_TABLES | (PIPELINE_TABLES - {"snapshot_line", "reconciliation_flag"}):
         table = schema.METADATA.tables[name]
         assert "origin" in table.c, name
         assert any(

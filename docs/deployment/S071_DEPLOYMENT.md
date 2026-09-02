@@ -180,6 +180,30 @@ DEC-167).
     này nên không bị ảnh hưởng. Owner cần `psql` từ máy mình thì thêm đúng
     IP của mình, không mở dải rộng.
 
+### Migration `0002_snapshots` (TASK-PRA-002 — bổ sung ở S080)
+
+Từ SHA mang slice A của `TASK-PRA-002`, `ALEMBIC_HEAD` là **`0002_snapshots`**
+(trước đó `0001_legacy`). Deploy vẫn đi đúng đường cũ — `alembic upgrade head`
+chạy trong `Dockerfile` CMD trước gunicorn — không có bước thủ công nào thêm.
+
+Điều cần biết khi deploy SHA đó:
+
+- Migration **ADDITIVE thuần**: thêm 6 bảng `PIPELINE_GENERATED`
+  (`source_snapshot`, `order_line_source_version`, `snapshot_line`,
+  `order_line_result_version`, `order_line_current`, `reconciliation_flag`);
+  KHÔNG đổi một cột nào của 4 bảng `legacy_*` và KHÔNG backfill. Đã verify
+  trên PostgreSQL 16 local với dữ liệu legacy có sẵn: dòng legacy nguyên vẹn
+  sau nâng cấp (`docs/sessions/S080-pra-002-slice-a-implementation.md`).
+- Sau deploy, kiểm nhanh:
+  `SELECT version_num FROM alembic_version;` → `0002_snapshots`.
+- **Rollback không phải chỉ deploy lại SHA cũ.** App fail-closed theo
+  revision (`assert_schema_current`), nên một SHA PRA-001 gặp database ở
+  `0002_snapshots` sẽ KHÔNG khởi động. Rollback đúng =
+  `alembic downgrade 0001_legacy` **rồi** mới deploy SHA cũ. Downgrade XOÁ
+  6 bảng đó, tức là mất toàn bộ lịch sử snapshot đã ghi — chấp nhận được
+  TRƯỚC Production Acceptance (`CHECK-PRA002-15`), sau đó thì cần Owner
+  quyết trước khi downgrade.
+
 Fail-closed đã cấu hình sẵn trong `render.yaml`
 (`REPORTS_REQUIRE_HISTORY_DB=1`): thiếu `HISTORY_DATABASE_URL` thì service
 KHÔNG khởi động. Đây là cố ý — nếu rơi về SQLite trong container, mỗi lần

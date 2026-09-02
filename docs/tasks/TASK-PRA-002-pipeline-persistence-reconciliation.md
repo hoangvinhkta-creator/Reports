@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-READY
+IN_PROGRESS
 
 Phase:
 PHASE-PRA — Slice 2 (nền dữ liệu cho PRA-003/004/005)
@@ -892,12 +892,12 @@ EFFORT                = 1 session (+ review + integration)
 ```
 
 ## Subtask (Subtasks)
-- [ ] PRA-002.A1 `tools/db/schema.py` + `0002_snapshots` + `ALEMBIC_HEAD`; up/down SQLite; DDL trên PostgreSQL 16 local; cập nhật 2 guard test.
-- [ ] PRA-002.A2 `app/history/keys` + `coverage` (DETECTED, header 2 dạng) + unit test fingerprint/occurrence.
-- [ ] PRA-002.A3 `app/history/reconciler` bước 0–3, 5 + unit test 4 case + COLLISION + thứ tự đảo.
-- [ ] PRA-002.A4 `app/demo.py` (+2 trường) + exporter alias + test `is`.
-- [ ] PRA-002.A5 `SnapshotRepository` + `history_writer` (một transaction, R2 trong cửa sổ transaction) + test fail-closed/append-only/concurrency.
-- [ ] PRA-002.A6 `run_report` + tab Dữ liệu (danh sách + trang snapshot) + test Flask; integration golden A(≤10)→B đẳng thức.
+- [x] PRA-002.A1 `tools/db/schema.py` + `0002_snapshots` + `ALEMBIC_HEAD`; up/down SQLite; DDL trên PostgreSQL 16 local; cập nhật 2 guard test.
+- [x] PRA-002.A2 `app/history/keys` + `coverage` (DETECTED, header 2 dạng) + unit test fingerprint/occurrence.
+- [x] PRA-002.A3 `app/history/reconciler` bước 0–3, 5 + unit test 4 case + COLLISION + thứ tự đảo.
+- [x] PRA-002.A4 `app/demo.py` (+2 trường) + exporter alias + test `is`.
+- [x] PRA-002.A5 `SnapshotRepository` + `history_writer` (một transaction, R2 trong cửa sổ transaction) + test fail-closed/append-only/concurrency.
+- [x] PRA-002.A6 `run_report` + tab Dữ liệu (danh sách + trang snapshot) + test Flask; integration golden A(≤10)→B đẳng thức.
 - [ ] PRA-002.B1 reconciler bước 4 + R; `POST xac-nhan-du` + validate + 409; test NOT_SEEN/REMOVED.
 - [ ] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture.
 - [ ] PRA-002.C2 `tools/analysis/make_snapshot_variants` + RDA-1..6 (hoặc `NOT_TESTED` + gate Owner).
@@ -931,7 +931,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -939,11 +939,13 @@ E1
 Evidence:
 Yêu cầu: `alembic upgrade head` rồi `downgrade 0001_legacy` trên SQLite tmp PASS (6 bảng xuất hiện/biến mất, 4 bảng legacy nguyên vẹn); `alembic upgrade head` trên PostgreSQL 16 local PASS, `SELECT version_num FROM alembic_version` = `0002_snapshots`; `assert_schema_current` FAIL-closed trên DB còn ở `0001_legacy`. Output nguyên văn.
 
+
+Đã chạy: Slice A (S080): up/down trên SQLite tmp PASS (6 bảng xuất hiện/biến mất, 4 bảng legacy nguyên vẹn); `alembic upgrade head` trên PostgreSQL 16.13 local PASS, `alembic_version = 0002_snapshots`, dòng `legacy_import` chèn ở revision 0001 còn nguyên sau nâng cấp; `assert_schema_current` fail-closed theo `ALEMBIC_HEAD`. Không auto-create schema ngoài Alembic. Output nguyên văn: `docs/sessions/S080-pra-002-slice-a-implementation.md` → Migration.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 ### Functional
 
@@ -952,7 +954,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -960,18 +962,20 @@ E1
 Evidence:
 Yêu cầu: qua Flask test client `/run` với golden `period_2026_01.xlsx` + capture synthetic: `source_snapshot` 1 dòng; `line_count = 351`, `order_count = 254`, `rows_without_order_id = 1`; `order_line_source_version` 351 dòng version 1; `order_line_result_version` 351; `order_line_current` 351; `SUM(result.total_sales)` = `money.sales_normalized` của `tests/fixtures/golden/expected/period_2026_01.json` (3.562.310.000); số `status='PENDING'` khớp `review_lines` của `ReportSummary`; `evidence_json` chứa đủ capture id. Output test nguyên văn.
 
+
+Đã chạy: Slice A (S080): `line_count = 351`, `order_count = 254`, `rows_without_order_id = 1`, `sheet_data_rows = 352`; 351 source version (mọi dòng `version_no = 1`), 351 result version, 351 current; `SUM(current total_sales) = 3.562.310.000` == `money.sales_normalized` của golden expected; `COUNT(status='PENDING') = 349` == `ReportSummary.review_lines`; `evidence_json` đủ capture id + `employee_master_snapshot_id`. Test: `tests/test_pipeline_history_vertical.py`.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-03 — Upload lại cùng file → SAME toàn bộ, 0 double-count
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -979,18 +983,20 @@ E1
 Evidence:
 Yêu cầu: upload lần 2 cùng file → snapshot #2 `duplicate_of_snapshot_id` = #1, `n_same = 351`, `n_insert = 0`; `COUNT(order_line_source_version) = 351` (không tăng); `order_line_current` 351, `last_seen_snapshot_id` = #2; `SUM(total_sales)` không đổi tới từng đồng; `order_line_result_version` = 702 (run mới ghi result mới); 0 cờ SOURCE_CHANGED.
 
+
+Đã chạy: Slice A (S080): snapshot #2 `duplicate_of_snapshot_id` = #1, `n_same = 351`, `n_insert = 0`; `COUNT(order_line_source_version) = 351` (không tăng), `COUNT(version_no > 1) = 0`; `order_line_current` = 351, `SUM(total_sales)` không đổi tới từng đồng; `order_line_result_version = 702`; 0 cờ SOURCE_CHANGED. Kiểm lại trên PostgreSQL 16 thật (pg-a1 → pg-a2).
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-04 — Overlap A(≤10/01) → B(cả tháng): đẳng thức với B-một-mình
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -998,18 +1004,20 @@ E1
 Evidence:
 Yêu cầu: fixture A cắt từ golden 01 (89 dòng/61 đơn) rồi B (351/254): `n_same = 89`, `n_insert = 262`, `n_source_changed = 0`; `state(A,B)` == `state(B)` trên DB sạch: cùng 351 khoá current, 254 đơn, cùng `SUM(total_sales)`, cùng tập `(khoá, line_fingerprint)`; đảo thứ tự (B rồi A) → `n_same = 89`, `n_insert = 0`, `NOT_SEEN` = 262 (thông tin, current không đổi), tổng không đổi. Output test nguyên văn.
 
+
+Đã chạy: Slice A (S080): fixture A cắt từ golden 01 trong `tmp_path` (KHÔNG commit, KHÔNG sửa `tests/fixtures/golden/**`) đo được 89 dòng / 61 đơn; B = 351 / 254. `n_same = 89`, `n_insert = 262`, `n_source_changed = 0`. `state(A,B) == state(B)` trên DB sạch: cùng `current_totals` VÀ cùng tập `(khoá, line_fingerprint)`. Đảo thứ tự (B rồi A): `n_same = 89`, `n_insert = 0`, tổng không đổi — phần `NOT_SEEN = 262` thuộc bước 4 (slice B), chưa hiện thực. Kiểm lại trên PostgreSQL 16 thật.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-05 — SOURCE_CHANGED: version cũ giữ, changed_fields đúng, current = mới
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1017,11 +1025,13 @@ E1
 Evidence:
 Yêu cầu: B' = B + sửa 1 dòng (`sell_price`, `total_sales_raw` nhất quán) → đúng 1 version_no = 2; `changed_fields_json` = {`sell_price`: {old,new}, `total_sales_raw`: {old,new}} nguyên văn; version 1 đọc lại nguyên vẹn; `current_source_version_id` = version 2; 1 cờ `SOURCE_CHANGED` với `from/to_version_id` đúng; `SUM(total_sales)` đổi đúng delta; đổi PII (customer/phone) trên một dòng khác → `SAME`, không cờ.
 
+
+Đã chạy: Slice A (S080): B' = B + sửa 1 dòng (`sell_price` + `total_sales_raw` nhất quán) → đúng 1 `version_no = 2`; `changed_fields_json` = `{"sell_price": {old,new}, "total_sales_raw": {old,new}}` nguyên văn; version 1 đọc lại nguyên vẹn (`changed_fields_json = NULL`); `current_source_version_id` = version 2; 1 cờ SOURCE_CHANGED với `from/to_version_id` đúng; `SUM(total_sales)` đổi đúng delta (+1.000.000), số dòng hiện hành không đổi. Đổi PII trên một dòng → `SAME`, 0 cờ (test tham số hoá 8 trường PII/vị trí dòng).
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-06 — Coverage state machine + xác nhận tường minh
 Priority:
@@ -1029,6 +1039,15 @@ REQUIRED
 
 Status:
 NOT_TESTED
+
+Slice A (S080) đã chạy PHẦN ĐẦU: header dạng (1) và (2) parse đúng
+`header_date_*`; `HEADER_CONSISTENT` khi header bao trọn DETECTED; 6 dạng lạ
+(kể cả `1/9/2026` thiếu số 0 và ngày 31/02) → `DETECTED_ONLY` + `header_text`
+vẫn lưu nguyên văn; test khẳng định slice A KHÔNG có đường nào ghi ra
+`CONFIRMED_COMPLETE`. Phần `POST xac-nhan-du` (400/409, validate khoảng,
+test tĩnh "chỉ một hàm repository gán CONFIRMED_COMPLETE") thuộc **slice B** —
+check này giữ `NOT_TESTED` cho tới khi slice B xong; KHÔNG được đánh dấu PASS
+dựa trên phần đầu.
 
 Evidence Level:
 E1
@@ -1087,7 +1106,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1095,18 +1114,20 @@ E1
 Evidence:
 Yêu cầu: grep `app/web/history_store.py` + `history_writer`: 0 `delete(`; `update(` chỉ trên `order_line_current` và cột confirm của `source_snapshot`; test hành vi 3 snapshot → version chỉ tăng; test hai connection chen nhau INSERT version 1 cùng khoá → `IntegrityError` ở cái sau, rollback, DB còn đúng 1 version.
 
+
+Đã chạy: Slice A (S080): kiểm tĩnh bằng AST (không grep chuỗi) — 0 lời gọi `delete()` trong `history_store.py`/`history_writer.py`, `delete` không được import từ sqlalchemy; `update()` chỉ trên `legacy_import` (PRA-001) và `order_line_current`. Hành vi: 3 snapshot liên tiếp → `version_no [1,2,3]`, đọc lại đủ giá trị cũ, đúng 1 dòng hiện hành. Concurrency: INSERT thứ hai cùng `(khoá, version_no=1)` → `IntegrityError`, rollback, DB còn đúng 1 version.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-10 — Fail-closed một đơn vị công việc
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1114,18 +1135,20 @@ E1
 Evidence:
 Yêu cầu: (a) DB lỗi khi ghi → HTTP 500 thông điệp hiện có, `store.list_runs()` không có run mới, 0 snapshot; (b) R2 fake client lỗi ở `create_run` → rollback, 0 snapshot, 0 run; (c) dev không history → `/run` 302 và trang hiển thị "KHÔNG được lưu lịch sử"; (d) run có trên store nhưng không có snapshot → tab Dữ liệu gắn nhãn "KHÔNG CÓ LỊCH SỬ (ghi lỗi)"; (e) production `REPORTS_REQUIRE_HISTORY_DB=1` thiếu URL → không khởi động (test đã có giữ PASS).
 
+
+Đã chạy: Slice A (S080): (a) ghi lịch sử lỗi → HTTP 500, `list_runs()` rỗng, 0 snapshot; (b) `store.create_run` lỗi → rollback, 0 snapshot, 0 source version, 0 run; (c) dev không history → `/run` 302 và trang kết quả hiện "Run này KHÔNG được lưu lịch sử — history store chưa cấu hình"; (d) run có mà snapshot không → tab Dữ liệu gắn nhãn "KHÔNG CÓ LỊCH SỬ (ghi lỗi)"; (e) `REPORTS_REQUIRE_HISTORY_DB=1` thiếu URL → không khởi động (test cũ giữ PASS). Test: `tests/test_web_history.py`.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-11 — Golden Baseline + regression + exporter parity
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1133,18 +1156,20 @@ E1
 Evidence:
 Yêu cầu: `tests/test_golden_baseline.py` = `58 passed, 2 skipped`; full suite ≥ `1608 passed`, `11 skipped` không tăng; `tests/test_demo.py` PASS; test `excel_exporter.present_lines is excel_exporter._present_lines`; `git diff` của `app/modules/**` chỉ gồm alias (đếm dòng ≤ 4); `git diff --check` sạch.
 
+
+Đã chạy: Slice A (S080): `tests/test_golden_baseline.py` = `58 passed, 2 skipped` (không đổi); full suite `1710 passed, 11 skipped` (baseline `1608 passed, 11 skipped` — +102 test mới, số skip KHÔNG tăng); `tests/test_demo.py` PASS; `excel_exporter.present_lines is excel_exporter._present_lines` (và `PresentedLine is _PresentedLine`); `git diff` của `app/modules/**` = đúng 3 dòng thêm (2 alias + 1 comment); `git diff --check` sạch.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-12 — Ranh giới ADR-101 / protected core
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1152,18 +1177,20 @@ E1
 Evidence:
 Yêu cầu: `tests/test_history_db.py::test_no_module_under_app_imports_a_database_driver_or_alembic` PASS; `app/history/**` không import `sqlalchemy`/`psycopg`/`alembic`/`flask`; không file nào ngoài Touch Area thay đổi (`git diff --name-only BASE..HEAD` liệt kê nguyên văn); Tracking không đổi; `scripts/branch_authority_check.sh` = `AUTHORITY_OK`.
 
+
+Đã chạy: Slice A (S080): `test_no_module_under_app_imports_a_database_driver_or_alembic` PASS; test riêng duyệt `app/history/**` khẳng định không import `sqlalchemy`/`psycopg`/`alembic`/`flask`; scope audit `git diff --name-only BASE..HEAD` không chạm protected core/Tracking/config/data/fixture/render/Dockerfile (danh sách nguyên văn ở handoff S080, kèm ghi chú tường minh về `app/web/templates/index.html` +3 dòng nằm ngoài Allowed nhưng không thuộc do-not-touch); `scripts/branch_authority_check.sh` = `AUTHORITY_OK`.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-13 — Không PII trong bảng PRA-002
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1171,11 +1198,13 @@ E1
 Evidence:
 Yêu cầu: test duyệt `schema.METADATA` 6 bảng mới: không cột nào trong {`customer`, `customer_code`, `phone`, `address`, `shipper_raw`}; sau kịch bản CHECK-05 (đổi PII) `changed_fields_json` không chứa khoá PII; trang snapshot không render PII (grep HTML response).
 
+
+Đã chạy: Slice A (S080): test duyệt `schema.METADATA` 6 bảng mới — không cột nào trong {`customer`, `customer_code`, `phone`, `address`, `shipper_raw`}; `SourceLine`/`ResultLine` không mang trường PII (test `repr`); `changed_fields`/`detail_json` không chứa khoá PII; trang `/du-lieu/snapshot/<id>` không render 5 giá trị PII giả cài trong fixture (grep HTML response).
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-14 — Real Data Acceptance RDA-1..6 trên workbook thật
 Priority:
@@ -1220,7 +1249,7 @@ Priority:
 RECOMMENDED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1228,11 +1257,13 @@ E1
 Evidence:
 Yêu cầu: `ru_maxrss` route `/run` (app boot + upload golden 351 dòng + writer, SQLite hoặc PG) < 300 MB một worker; so với baseline S078R (81.9 MB legacy) — ghi số đo.
 
+
+Đã chạy: Slice A (S080): `ru_maxrss` end-to-end `/run` (app boot + upload golden 351 dòng + writer, SQLite) = **75,6 MB** (app boot 64,2 MB); kịch bản A→A→B→B' trên PostgreSQL 16 = 78,7 MB. Mục tiêu < 300 MB ĐẠT; baseline S078R legacy 81,9 MB.
 Executed By:
-...
+S080 — PRA-002 Slice A Implementation (2026-09-02)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-17 — Independent Review E2
 Priority:

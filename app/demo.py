@@ -16,7 +16,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.composition import run_import_production
-from app.modules.exporting.excel_exporter import ReportSummary, export_report
+from app.modules.exporting.excel_exporter import ReportSummary, export_report, present_lines
 from app.modules.importing.raw_reader import read_raw_rows
 from app.modules.pricing.resolution.composition import (
     PostCutoverPriceComposition, PriceResolutionRecord,
@@ -37,6 +37,9 @@ class DemoRun:
     price_records: tuple[PriceResolutionRecord, ...]
     summary: ReportSummary
     output_path: Path
+    # Đã tính trong lượt chạy này; trả ra để tầng lưu lịch sử khỏi tính lại.
+    raw_rows: tuple = ()
+    presented_lines: tuple = ()
 
 
 def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
@@ -92,7 +95,9 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
             tracking_capture=tracking_capture, tracking_catalog=tracking_catalog,
             output_path=output, processed_at=datetime.now().astimezone(),
         )
-        return DemoRun(result, composition.records, summary, output)
+        return DemoRun(result, composition.records, summary, output,
+                       tuple(raw_rows), tuple(present_lines(
+                           result, composition.records, raw_rows)))
     finally:
         os.chdir(original_directory)
 

@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% set active_tab = 'du-lieu' %}
+{% block title %}Reports — Snapshot {{ snapshot.snapshot_id }}{% endblock %}
+
+{% block content %}
+<h1>SNAPSHOT KẾ TOÁN</h1>
+<p class="tp-label"><a href="{{ url_for('data_tab') }}">← Về tab Dữ liệu</a></p>
+
+<div class="module">
+  <h2>{{ snapshot.snapshot_id }}</h2>
+  <p class="insight">
+    Nguồn: {{ snapshot.source_file_name or '—' }} · chạy lúc {{ snapshot.created_at }} ·
+    run <span class="code">{{ snapshot.run_id }}</span>.
+    {% if snapshot.duplicate_of_snapshot_id %}
+    Đúng file này đã được chạy trước đó ở
+    <a href="{{ url_for('snapshot_detail', snapshot_id=snapshot.duplicate_of_snapshot_id) }}">{{ snapshot.duplicate_of_snapshot_id }}</a>.
+    {% endif %}
+  </p>
+  <div class="summary-grid">
+    <div><span class="label">Coverage:</span> {{ snapshot.coverage_state }}</div>
+    <div><span class="label">Ngày đo được:</span> {{ snapshot.detected_date_min }} → {{ snapshot.detected_date_max }}</div>
+    <div><span class="label">Ngày trên header:</span>
+      {% if snapshot.header_date_min %}{{ snapshot.header_date_min }} → {{ snapshot.header_date_max }}{% else %}không đọc được dạng đã biết{% endif %}</div>
+    <div><span class="label">Dòng sổ:</span> {{ snapshot.sheet_data_rows }}</div>
+    <div><span class="label">Dòng thiếu Số BH:</span> {{ snapshot.rows_without_order_id }}</div>
+    <div><span class="label">Dòng đã lưu:</span> {{ snapshot.line_count }}</div>
+    <div><span class="label">Số đơn:</span> {{ snapshot.order_count }}</div>
+  </div>
+  <p class="tp-label">Header nguyên văn: {{ snapshot.header_text or '—' }}</p>
+  <p class="insight">
+    <strong>CHƯA XÁC NHẬN ĐỦ.</strong> Khoảng ngày ở trên là khoảng ĐO ĐƯỢC từ dữ liệu,
+    không phải bằng chứng rằng sổ đã đầy đủ mọi chứng từ của khoảng đó.
+  </p>
+</div>
+
+<div class="module">
+  <h2>Kết quả đối chiếu</h2>
+  <div class="summary-grid">
+    <div><span class="label">Mới (INSERT):</span> {{ snapshot.n_insert }}</div>
+    <div><span class="label">Không đổi (SAME):</span> {{ snapshot.n_same }}</div>
+    <div><span class="label">Nguồn đã sửa:</span> {{ snapshot.n_source_changed }}</div>
+    <div><span class="label">Trùng khoá (chưa phân xử):</span> {{ snapshot.n_collision }}</div>
+  </div>
+  <p class="insight">
+    Dòng <strong>SAME</strong> KHÔNG tạo phiên bản nguồn mới và KHÔNG được cộng thêm
+    một lần nữa vào tổng hiện hành — upload lại cùng một sổ không làm doanh thu tăng.
+  </p>
+</div>
+
+<div class="module">
+  <h2>Hiện hành trong khoảng ngày của snapshot</h2>
+  <div class="summary-grid">
+    <div><span class="label">Số đơn:</span> {{ totals.orders }}</div>
+    <div><span class="label">Số dòng:</span> {{ totals.lines }}</div>
+    <div><span class="label">Doanh thu (VND):</span> {{ '{:,.0f}'.format(totals.total_sales) }}</div>
+  </div>
+  <p class="insight">
+    Số ở đây là TRẠNG THÁI HIỆN HÀNH (mỗi khoá đúng một lần), không phải tổng cộng dồn
+    mọi phiên bản lịch sử.
+  </p>
+</div>
+
+<div class="module">
+  <h2>Cờ do snapshot này dựng <span class="cnt">{{ flags|length }}</span></h2>
+  {% if flags %}
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Phiên bản</th><th>Chi tiết</th></tr>
+    {% for flag in flags %}
+    <tr>
+      <td><span class="tag tag-defect">{{ flag.kind }}</span></td>
+      <td class="code">{{ flag.order_key }}</td>
+      <td class="num">#{{ flag.occurrence_index }}</td>
+      <td class="num">{{ flag.from_version_id or '—' }} → {{ flag.to_version_id or '—' }}</td>
+      <td>
+        {% if flag.detail_json %}
+        {% for field, change in flag.detail_json.items() %}
+        <div><span class="label">{{ field }}:</span>
+          {% if change is mapping %}{{ change.old }} → {{ change.new }}{% else %}{{ change }}{% endif %}
+        </div>
+        {% endfor %}
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Không có cờ nào — mọi dòng đối chiếu sạch.</p>
+  {% endif %}
+</div>
+{% endblock %}

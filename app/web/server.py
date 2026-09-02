@@ -49,7 +49,9 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
-from app.web import history_store, legacy_presentation, run_registry, storage_backend
+from app.web import (
+    history_store, history_writer, legacy_presentation, run_registry, storage_backend,
+)
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
 from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
@@ -208,11 +210,32 @@ def _build_history(env=None) -> Optional[history_store.LegacyRepository]:
         return None
 
 
+SNAPSHOT_PAGE_LIMIT = 50
+
+FLAG_PAGE_LIMIT = 200
+
+
+def _build_snapshots(
+    legacy: Optional[history_store.LegacyRepository],
+) -> Optional[history_store.SnapshotRepository]:
+    """Repository PRA-002 trên ĐÚNG engine mà LegacyRepository đang dùng.
+
+    Dùng chung một ``Engine`` là điều kiện để lịch sử snapshot và bản nhập
+    legacy nằm trong cùng một database — hai origin tách bảng, không tách nơi
+    lưu. Không có history store thì cũng không có snapshot: ``None``, và tầng
+    trên nói thẳng là run không được lưu lịch sử.
+    """
+    if legacy is None:
+        return None
+    return history_store.build_snapshots(engine=legacy.engine, verify_schema=False)
+
+
 def create_app(
     *,
     db_path: Path = run_registry.DEFAULT_DB_PATH,
     store: Optional[storage_backend.RunStore] = None,
     history: Optional[history_store.LegacyRepository] = None,
+    snapshots: Optional[history_store.SnapshotRepository] = None,
 ) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
@@ -223,6 +246,8 @@ def create_app(
     # mất biến này trong closure của create_app.
     history_repo = history if history is not None else _build_history()
     app.config["HISTORY_STORE"] = history_repo
+    snapshot_repo = snapshots if snapshots is not None else _build_snapshots(history_repo)
+    app.config["SNAPSHOT_STORE"] = snapshot_repo
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
 
@@ -253,6 +278,7 @@ def create_app(
             workbook_display_name=record.workbook_display_name if record else None,
             not_found=not_found,
             feedback_ok=feedback_ok,
+            history_configured=snapshot_repo is not None,
             feedback_categories=beta_feedback.FEEDBACK_CATEGORIES,
         ), status
 
@@ -278,10 +304,43 @@ def create_app(
             _guarded(history_repo.list_imports, limit=LEGACY_IMPORT_PAGE_LIMIT)
             if history_repo else []
         )
+        snapshots, runs_with_snapshot = [], set()
+        if snapshot_repo is not None:
+            snapshots = _guarded(snapshot_repo.list_snapshots, limit=SNAPSHOT_PAGE_LIMIT)
+            # Một run có trên store mà KHÔNG có snapshot nghĩa là lần ghi lịch
+            # sử đó đã hỏng. Trang phải nói ra, không im lặng bỏ qua.
+            runs_with_snapshot = _guarded(
+                snapshot_repo.run_ids_with_snapshot, [run.run_id for run in runs],
+            )
         return _legacy_page(
-            "du_lieu.html", runs=runs, imports=imports,
+            "du_lieu.html", runs=runs, imports=imports, snapshots=snapshots,
+            snapshots_configured=snapshot_repo is not None,
+            runs_with_snapshot=runs_with_snapshot,
             imported=request.args.get("imported") or None,
             error=request.args.get("loi") or None,
+        )
+
+    @app.get("/du-lieu/snapshot/<snapshot_id>")
+    def snapshot_detail(snapshot_id: str):
+        """Trang chỉ-đọc của MỘT snapshot: coverage, số đếm reconcile, cờ.
+
+        Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ và các
+        trường nghiệp vụ đã đổi — tên/SĐT/địa chỉ khách không có mặt trong bất
+        kỳ bảng nào của PRA-002 nên cũng không có đường nào ra tới đây.
+        """
+        if snapshot_repo is None:
+            abort(503)
+        snapshot = _guarded(snapshot_repo.get_snapshot, snapshot_id)
+        if snapshot is None:
+            abort(404)
+        flags = _guarded(snapshot_repo.list_flags, snapshot_id=snapshot_id,
+                         limit=FLAG_PAGE_LIMIT)
+        totals = _guarded(
+            snapshot_repo.current_totals,
+            date_from=snapshot["detected_date_min"], date_to=snapshot["detected_date_max"],
+        )
+        return _legacy_page(
+            "snapshot.html", snapshot=snapshot, flags=flags, totals=totals,
         )
 
     @app.get("/history")
@@ -422,42 +481,61 @@ def create_app(
                     error="Không thể tạo báo cáo. Kiểm tra workbook và thử lại.",
                     status=400,
                 )
+
+            duration_ms = int((time.monotonic() - started) * 1000)
+            summary = owner_run.demo_run.summary
+            dropped_lines = len(owner_run.demo_run.result.unmapped_lines)
+            run_id = owner_run.output_path.stem
+
+            def _persist_run() -> None:
+                # save_artifact (R2: upload + verify + xoá temp; local: chỉ
+                # tính path tương đối, file đã nằm sẵn dưới ARTIFACT_DIR) PHẢI
+                # thành công trước khi ghi run — không được để lộ một run
+                # "thành công" mà artifact không thực sự tồn tại ở nơi lưu.
+                artifact_ref = store.save_artifact(owner_run.output_path, run_id)
+                store.create_run(
+                    run_id=run_id,
+                    created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    status=run_registry.STATUS_COMPLETE,
+                    workbook_display_name=display_name,
+                    artifact_path=artifact_ref,
+                    view=_build_view(summary, dropped_lines=dropped_lines),
+                    tracking_evidence=tracking_evidence,
+                )
+
+            try:
+                if snapshot_repo is None:
+                    # Dev chưa cấu hình history store: vẫn chạy như S071B,
+                    # nhưng trang kết quả nói thẳng là run này KHÔNG có lịch sử
+                    # — không bao giờ để người dùng tin là đã lưu.
+                    _persist_run()
+                else:
+                    # MỘT đơn vị công việc: lịch sử + artifact + run cùng cam
+                    # kết hoặc cùng rollback (TASK-PRA-002 mục 11.2).
+                    history_writer.write_run_history(
+                        snapshot_repo, demo_run=owner_run.demo_run, run_id=run_id,
+                        workbook_path=temp_path, display_name=display_name,
+                        tracking_evidence=tracking_evidence, on_persisted=_persist_run,
+                    )
+            except Exception:
+                # Report ĐÃ được tạo trên đĩa tạm, nhưng không lưu được vào
+                # nơi lưu trữ (artifact upload lỗi, ghi metadata lỗi, hoặc ghi
+                # lịch sử lỗi) — không được trả về như thể mọi thứ thành công
+                # (không có run_id để Owner tra lại). Fail rõ, không giả.
+                return _page(
+                    error=(
+                        "Báo cáo đã tạo nhưng không lưu được vào lịch sử run. "
+                        "Vui lòng thử lại."
+                    ),
+                    status=500,
+                )
         finally:
+            # Workbook chỉ được xoá SAU khi history writer đã đọc xong header
+            # và fingerprint của chính bytes đã upload.
             temp_path.unlink(missing_ok=True)
             if live_handle is not None:
                 live_handle.cleanup()
 
-        duration_ms = int((time.monotonic() - started) * 1000)
-        summary = owner_run.demo_run.summary
-        dropped_lines = len(owner_run.demo_run.result.unmapped_lines)
-        run_id = owner_run.output_path.stem
-        try:
-            # save_artifact (R2: upload + verify + xoá temp; local: chỉ tính
-            # path tương đối, file đã nằm sẵn dưới ARTIFACT_DIR) PHẢI thành
-            # công trước khi ghi run — không được để lộ một run "thành công"
-            # mà artifact không thực sự tồn tại ở nơi lưu (fail closed).
-            artifact_ref = store.save_artifact(owner_run.output_path, run_id)
-            store.create_run(
-                run_id=run_id,
-                created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                status=run_registry.STATUS_COMPLETE,
-                workbook_display_name=display_name,
-                artifact_path=artifact_ref,
-                view=_build_view(summary, dropped_lines=dropped_lines),
-                tracking_evidence=tracking_evidence,
-            )
-        except Exception:
-            # Report ĐÃ được tạo trên đĩa tạm, nhưng không lưu được vào nơi
-            # lưu trữ (artifact upload lỗi HOẶC ghi metadata lỗi) — không
-            # được trả về như thể mọi thứ thành công (không có run_id để
-            # Owner tra lại). Fail rõ, không giả.
-            return _page(
-                error=(
-                    "Báo cáo đã tạo nhưng không lưu được vào lịch sử run. "
-                    "Vui lòng thử lại."
-                ),
-                status=500,
-            )
         _record_telemetry(run_id, summary, duration_ms)
         # Post-Redirect-Get: tránh chạy lại báo cáo khi Owner bấm refresh.
         return redirect(url_for("index", run_id=run_id))

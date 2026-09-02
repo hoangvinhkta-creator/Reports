@@ -367,18 +367,27 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S079, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S080, 2026-09-02 — HIỆN HÀNH)
 
 ```
-TASK-PRA-002                 : READY (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : CHƯA BẮT ĐẦU
+TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
+Implementation               : SLICE A IMPLEMENTED (slice B, C chưa bắt đầu)
 repair cycle đã dùng         : 0 / 2
-CHANGE_BUDGET                : mục tiêu ≤ 1.200 dòng logic, dừng cứng 1.500
+CHANGE_BUDGET slice A        : 1.080 dòng logic production / mục tiêu 1.200 / dừng cứng 1.500
 Baseline tại BASE_SHA        : Golden 58 passed, 2 skipped; full suite 1608 passed, 11 skipped
+Sau slice A                  : Golden 58 passed, 2 skipped; full suite 1710 passed, 11 skipped
 ```
+
+Slice A (S080) — nhánh `claude/pra-002-slice-a-umygjq`, cắt từ
+`IMPLEMENTATION_BASE_SHA = 7fad3f76908d6d56114a5e2e947d83e15f8eda02`
+(== origin/`claude/extract-upload-repo-gq2ws4` lúc mở phiên). Bằng chứng đầy
+đủ: `docs/sessions/S080-pra-002-slice-a-implementation.md`. Check PASS sau
+slice A: 01, 02, 03, 04, 05, 09, 10, 11, 12, 13, 16 (RECOMMENDED); 06 =
+PARTIAL; 07 (slice B), 08 (slice C), 14, 15, 17 = NOT_TESTED.
 
 cycles:
-- id: (chưa mở)
+- id: (chưa mở — slice A chưa qua Independent Review; repair cycle chỉ tính
+  từ finding BLOCKING của review E2)
   base_sha: N/A
   head_sha: N/A
 

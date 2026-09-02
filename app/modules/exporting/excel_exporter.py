@@ -155,6 +155,11 @@ def _present_lines(result, records, raw_rows):
     return presented
 
 
+# Alias public: cùng object đã in ra XLSX — không có nguồn sự thật thứ hai.
+PresentedLine = _PresentedLine
+present_lines = _present_lines
+
+
 def _append(sheet, values):
     sheet.append(values)
     # Chuỗi nguồn là dữ liệu hiển thị, không phải công thức Excel.
