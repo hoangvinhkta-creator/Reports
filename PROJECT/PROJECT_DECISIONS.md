@@ -7971,7 +7971,17 @@ Date:
 Task:
 `PRE-PRA-002` / Production PostgreSQL Activation (S078).
 
-**Đây LÀ một Decision của agent, chờ Owner phủ quyết nếu muốn.** Bối cảnh:
+Authority:
+OWNER_ACCEPTED
+
+**Đây LÀ một Owner Decision.** Owner đã chính thức ACCEPT quyết định này
+(2026-09-02, cùng lúc với Independent Review ACCEPT của S078) và đã cấu
+hình Render production theo đúng contract: biến `HISTORY_DATABASE_URL`,
+scheme `postgresql+psycopg://`. Contract canonical là
+`HISTORY_DATABASE_URL`, **không có fallback sang `DATABASE_URL`**.
+
+Phần dưới đây giữ nguyên lập luận kỹ thuật đã trình bày khi đề xuất — nó
+là căn cứ của quyết định, không phải trạng thái thẩm quyền. Bối cảnh:
 Owner đã provision `tinphat-reports-db` (PostgreSQL 18, Virginia) và dán
 Internal Database URL vào Render Environment dưới **tên biến `DATABASE_URL`**
 — tên Render gợi ý sẵn. Code canonical đọc `HISTORY_DATABASE_URL`
@@ -7999,11 +8009,15 @@ Chọn (1). Lý do:
 
 Chi phí của lựa chọn này rơi hoàn toàn vào Owner (một thao tác đổi tên) và
 đã được viết thành bước cụ thể ở `docs/deployment/S071_DEPLOYMENT.md` bước
-10, kèm bảng bốn biến thể cấu hình đã đo thật.
+10, kèm bảng bốn biến thể cấu hình đã đo thật. **Owner đã thực hiện thao
+tác đó** — biến `HISTORY_DATABASE_URL` với scheme `postgresql+psycopg://`
+đã có mặt trong Render Environment (Owner xác nhận; session KHÔNG yêu cầu
+và KHÔNG nhận giá trị của biến này).
 
 ### Ranh giới (không được suy rộng)
 
 Quyết định này KHÔNG cho phép: đổi tên biến trong code, thêm biến môi trường
 mới, sửa `REPORTS_REQUIRE_HISTORY_DB`, hay đụng bất kỳ đường nào của R2 /
-Tracking. `PROTECTED_CORE_IMPACT` = NONE. Nếu Owner muốn phương án (2), đó
-là một task riêng có Ready Gate riêng.
+Tracking. `PROTECTED_CORE_IMPACT` = NONE. Phương án (2) đã bị loại bỏ bởi
+chính Owner Decision này; nếu về sau Owner đổi ý, đó là một task riêng có
+Ready Gate riêng, không phải một sửa đổi âm thầm ở đây.

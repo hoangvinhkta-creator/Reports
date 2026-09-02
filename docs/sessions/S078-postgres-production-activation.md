@@ -9,9 +9,26 @@ Base: `90f85a7edfd6acc497db1d18304baef87ab62d99` (HEAD nhánh canonical
 Mục tiêu: đưa Render PostgreSQL production mà Owner vừa provision vào
 Reports có kiểm soát, KHÔNG mở rộng sang `TASK-PRA-002`.
 
-Kết quả: **OWNER_DECISION_REQUIRED** — mọi phần thuộc thẩm quyền session đã
-PASS (lineage, compatibility, proof trên PostgreSQL thật), nhưng ba thao tác
-cuối nằm hoàn toàn trong Render dashboard và session không có đường tới đó.
+Kết quả **tại thời điểm đóng phiên**: `OWNER_DECISION_REQUIRED` — mọi phần
+thuộc thẩm quyền session đã PASS (lineage, compatibility, proof trên
+PostgreSQL thật), nhưng ba thao tác cuối nằm hoàn toàn trong Render
+dashboard và session không có đường tới đó.
+
+> **CẬP NHẬT 2026-09-02 — Independent Review + Owner Decision + Controlled
+> Integration.** Independent Review trên `c5e1994` = **ACCEPT**,
+> `BLOCKING_FINDINGS = 0`. Owner chính thức **ACCEPT `DEC-170`**: contract
+> canonical là `HISTORY_DATABASE_URL` với scheme `postgresql+psycopg://`,
+> **không fallback sang `DATABASE_URL`**; Owner cũng đã cấu hình xong biến
+> đó trên Render (session KHÔNG yêu cầu và KHÔNG nhận giá trị). S078 đã
+> được Controlled Integration (fast-forward, giữ lịch sử) vào nhánh
+> canonical `claude/extract-upload-repo-gq2ws4`.
+>
+> Nghĩa là: **thao tác 1 dưới đây đã XONG**, `RESULT` hiện hành là `PASS`,
+> và SHA cần deploy KHÔNG còn là `90f85a7` mà là HEAD canonical sau
+> integration. Trạng thái hiện hành có thẩm quyền nằm ở
+> `PROJECT/PROJECT_PROGRESS.md` → "PRODUCTION POSTGRESQL ACTIVATION".
+> Phần còn lại của tài liệu này giữ nguyên như **bản ghi đúng tại thời
+> điểm của nó** và không bị viết lại.
 
 ---
 
@@ -174,6 +191,10 @@ chạy session, không phải của kiến trúc — cùng lý do đã ghi ở
 
 ## Ba thao tác Owner (theo đúng thứ tự này)
 
+*(Bản ghi tại thời điểm đóng phiên. Xem khối CẬP NHẬT ở đầu tài liệu:
+thao tác 1 đã hoàn tất, và SHA ở thao tác 2 đã được thay bằng HEAD canonical
+sau Controlled Integration.)*
+
 1. **Đổi tên biến** trong Render → `reports-web` → Settings → Environment:
    `DATABASE_URL` → **`HISTORY_DATABASE_URL`**, và **đổi tiền tố giá trị
    thành `postgresql+psycopg://`**. Không cần tạo lại database, không cần
@@ -226,7 +247,8 @@ deployment packaging                         5 passed
 
 ## Session tiếp theo
 
-Sau khi Owner làm xong 3 thao tác trên và `/nhan-vien` production xanh:
+Sau khi Owner deploy HEAD canonical (xem khối CẬP NHẬT ở đầu tài liệu) và
+`/nhan-vien` production xanh:
 đóng Phase D (xoá `0.0.0.0/0`), rồi mở
 **`TASK-PRA-002` — Persistence + overlapping-upload reconciliation**, bắt
 đầu bằng Roadmap Finalization + freeze Completion Gate trước khi code.

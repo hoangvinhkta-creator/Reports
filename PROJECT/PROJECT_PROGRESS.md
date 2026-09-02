@@ -2,43 +2,59 @@
 
 ## PRODUCTION POSTGRESQL ACTIVATION — TRẠNG THÁI HIỆN HÀNH (2026-09-02, S078)
 
+Cập nhật 2026-09-02 sau Independent Review (`ACCEPT`, 0 blocking finding)
+và Owner Decision: `DEC-170 = OWNER_ACCEPTED`, S078 đã Controlled
+Integration vào nhánh canonical. Khối này là trạng thái HIỆN HÀNH có thẩm
+quyền; `docs/sessions/S078-postgres-production-activation.md` giữ nguyên
+làm bản ghi lịch sử đúng tại thời điểm của nó.
+
 ```text
-RESULT                  = OWNER_DECISION_REQUIRED
+RESULT                  = PASS  (đã tích hợp; chờ đúng một thao tác deploy)
 PHASE_A_LINEAGE         = PASS  (production stale, KHÔNG divergent)
-PHASE_B_COMPATIBILITY   = PASS  (code) / FAIL (cấu hình Render)
-PHASE_C_PRODUCTION      = KHÔNG THỰC HIỆN ĐƯỢC — egress bị chặn 403
+PHASE_B_COMPATIBILITY   = PASS  (code) / RESOLVED (cấu hình Render — Owner
+                          đã đặt HISTORY_DATABASE_URL + postgresql+psycopg://)
+PHASE_C_PRODUCTION      = CHỜ OWNER DEPLOY — session không có egress (403)
 PHASE_D_SECURITY        = ĐÃ VIẾT THÀNH BƯỚC, chờ Phase C
 CHECK-PRA001-09         = PASS trên PostgreSQL 16.13 thật (KHÔNG phải
                           Render PostgreSQL 18 production)
+DEC-170                 = OWNER_ACCEPTED
+INDEPENDENT_REVIEW      = ACCEPT (BLOCKING_FINDINGS = 0)
 PRA002_STARTED          = NO
 TRACKING_CHANGED        = NO
 PROTECTED_CORE_IMPACT   = NONE
 
 canonical branch        = claude/extract-upload-repo-gq2ws4
-canonical SHA           = 90f85a7edfd6acc497db1d18304baef87ab62d99
-production before SHA   = 596564b  (ancestor, behind 10 commit)
-production after SHA    = CHƯA ĐỔI — cần Owner deploy
+CANONICAL_BEFORE_SHA    = 90f85a7edfd6acc497db1d18304baef87ab62d99
+ACCEPTED_SHA (S078)     = c5e19949df81a5ee456bc1b7735b8eb5a814735e
+CANONICAL_AFTER_SHA     = HEAD của claude/extract-upload-repo-gq2ws4 sau
+                          Controlled Integration S078 — chính là commit
+                          authority reconciliation này (kiểm chứng:
+                          `git rev-parse origin/claude/extract-upload-repo-gq2ws4`)
+production before SHA   = 596564b  (ancestor, behind 11 commit)
+production after SHA    = CHƯA ĐỔI — cần Owner deploy CANONICAL_AFTER_SHA
 ```
 
-**Blocker duy nhất, và nó KHÔNG phải lineage:** Owner đã dán Internal
-Database URL vào Render dưới tên biến `DATABASE_URL`, nhưng code canonical
-đọc `HISTORY_DATABASE_URL` (`tools/db/__init__.py::resolve_url()`). Service
-hiện vẫn Live vì đang chạy `596564b` — commit đó có TRƯỚC toàn bộ history
-store, nên nó không đọc biến đó và cũng không có
-`REPORTS_REQUIRE_HISTORY_DB=1`. Nghĩa là **lần redeploy thành công vừa rồi
-không chứng minh gì về PostgreSQL**: ngay khi deploy `90f85a7`, fail-closed
-có hiệu lực và container sẽ KHÔNG khởi động.
+**Canonical contract (Owner accepted, không được nới lỏng):** biến môi
+trường là `HISTORY_DATABASE_URL`, scheme `postgresql+psycopg://`. **Không
+có fallback sang `DATABASE_URL`** — xem `DEC-170`.
 
-Ba thao tác Owner, đúng thứ tự (chi tiết + cách đọc log lỗi ở
+Vì sao production hiện tại chưa chứng minh gì về PostgreSQL: service đang
+chạy `596564b`, commit đó có TRƯỚC toàn bộ history store nên không đọc
+`HISTORY_DATABASE_URL` và cũng không có `REPORTS_REQUIRE_HISTORY_DB=1`.
+Chỉ sau khi deploy `CANONICAL_AFTER_SHA` thì fail-closed mới có hiệu lực
+và `alembic upgrade head` mới chạy trên PostgreSQL 18 production.
+
+Thao tác còn lại của Owner (chi tiết + cách đọc log lỗi ở
 `docs/sessions/S078-postgres-production-activation.md`; quy trình đầy đủ ở
 `docs/deployment/S071_DEPLOYMENT.md` bước 8–13):
 
-1. Đổi tên biến Render `DATABASE_URL` → `HISTORY_DATABASE_URL`, và đổi tiền
-   tố giá trị thành `postgresql+psycopg://`. (Vì sao không sửa code cho
-   nhận `DATABASE_URL`: `DEC-170`.)
-2. Manual Deploy commit `90f85a7` (fast-forward từ `596564b`, không force
-   push, không sửa lịch sử, không dùng `main`).
-3. Kiểm tra `/du-lieu` → tab **Nhân viên** hiện số cũ kèm nhãn `LEGACY`.
+1. ✅ ĐÃ XONG — biến Render `HISTORY_DATABASE_URL` với scheme
+   `postgresql+psycopg://` (Owner xác nhận; session KHÔNG nhận giá trị).
+2. ▶️ Manual Deploy **`CANONICAL_AFTER_SHA`** trên nhánh
+   `claude/extract-upload-repo-gq2ws4` (fast-forward từ `596564b` — không
+   force push, không sửa lịch sử, không dùng `main`). Đây là SHA DUY NHẤT
+   được deploy.
+3. ⏳ Kiểm tra `/du-lieu` → tab **Nhân viên** hiện số cũ kèm nhãn `LEGACY`.
    Xanh rồi mới xoá `0.0.0.0/0` khỏi allowed IP list của database
    (Phase D, bước 13).
 
