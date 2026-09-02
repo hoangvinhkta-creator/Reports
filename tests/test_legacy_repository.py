@@ -198,13 +198,19 @@ def test_build_can_skip_schema_verification_for_dev_tools():
 def test_the_cell_by_cell_verifier_reports_zero_mismatches(
     legacy_repository, legacy_workbook_path,
 ):
-    """Chính script mà Owner sẽ chạy trên file thật, chạy trên fixture."""
+    """Chính script mà Owner sẽ chạy trên file thật, chạy trên fixture.
+
+    Sau repair FIND-PRA001-R01, `ok` đòi CẢ HAI: khớp giá trị VÀ phủ hết
+    dòng nguồn. Riêng `mismatched=0` không còn được coi là fidelity.
+    """
     from tools.analysis.verify_legacy_import import verify
 
     legacy_repository.create_import(parse_workbook(legacy_workbook_path))
-    matched, mismatches = verify(legacy_workbook_path, legacy_repository)
-    assert mismatches == []
-    assert matched > 500
+    result = verify(legacy_workbook_path, legacy_repository)
+    assert result.mismatches == []
+    assert result.summary_unaccounted_rows == []
+    assert result.matched > 500
+    assert result.ok is True
 
 
 def test_the_verifier_detects_a_value_that_drifted_from_the_source(
@@ -220,5 +226,6 @@ def test_the_verifier_detects_a_value_that_drifted_from_the_source(
         connection.execute(text(
             "UPDATE legacy_summary_row SET sales = '1' WHERE sheet_row = 4"
         ))
-    _, mismatches = verify(legacy_workbook_path, legacy_repository)
-    assert any("E4" in line for line in mismatches)
+    result = verify(legacy_workbook_path, legacy_repository)
+    assert any("E4" in line for line in result.mismatches)
+    assert result.ok is False

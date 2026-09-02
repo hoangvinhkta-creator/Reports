@@ -119,6 +119,12 @@ Allowed:
   `app/web/static/css/` (mới), `pyproject.toml` (extra `history`),
   `render.yaml`, `Dockerfile` (chỉ nếu cần `alembic upgrade` ở entrypoint),
   `tests/` (mới), `docs/`, `PROJECT/`.
+- (Bổ sung S076, N03 — hai file frozen gate THỰC SỰ cần, thiếu trong bản
+  liệt kê ban đầu; không phải scope mới) `app/web/legacy_presentation.py`
+  (mới — nơi DUY NHẤT gắn badge LEGACY + đơn vị + dấu nhắc lỗi công thức,
+  điều kiện để CHECK-PRA001-04 có thể đạt) và
+  `tools/analysis/verify_legacy_import.py` (mới — script đối chiếu ô mà
+  CHECK-PRA001-01 chỉ đích danh trong Evidence đã freeze).
 
 Không được đụng vào nếu chưa có Scope Expansion:
 - `app/modules/**`, `app/pipeline.py`, `app/composition.py`,
@@ -199,7 +205,7 @@ Evidence Level:
 E1
 
 Evidence:
-Script đối chiếu ĐÃ VIẾT: `tools/analysis/verify_legacy_import.py` (đọc lại Excel bằng openpyxl `data_only=True`, so từng ô số với bản ghi DB, in `matched=N mismatched=0`). Chạy thật trên fixture + SQLite đã `alembic upgrade head`: `matched=628 mismatched=0` (exit=0). Test khoá hành vi: `tests/test_legacy_repository.py::test_the_cell_by_cell_verifier_reports_zero_mismatches` PASS, và test đối ngẫu `::test_the_verifier_detects_a_value_that_drifted_from_the_source` chứng minh script THẬT SỰ bắt được lệch. FILE THẬT "Báo cáo Kinh doanh 2026.xlsx" KHÔNG có trong Claude Cloud (`.gitignore`: `data/samples/`; không commit workbook chứa PII) → check này giữ NOT_TESTED và là gate Owner chạy khi deploy, đúng điều khoản Ready Gate.
+Fidelity gồm HAI phần, không phải một — `VALUE MATCH` + `SOURCE COVERAGE` (DEC-168, sau FIND-PRA001-R01). Bằng chứng `matched=628 mismatched=0` của bản `7d84072` KHÔNG còn được dùng một mình làm bằng chứng completeness: verifier khi đó duyệt từ DB → Excel nên không thể thấy dòng chưa từng được nhập. Sau repair, `tools/analysis/verify_legacy_import.py` duyệt Summary từ EXCEL → DB và in thêm ba con số coverage. Chạy thật trên fixture + SQLite đã `alembic upgrade head`: `SUMMARY_SOURCE_ROWS_WITH_VALUES = 16`, `SUMMARY_IMPORTED_ROWS = 16`, `SUMMARY_UNACCOUNTED_ROWS = 0`, `matched=628 mismatched=0`, exit=0. Đối ngẫu (xoá trộm cả sheet `Summary 2025` khỏi DB): `SUMMARY_UNACCOUNTED_ROWS = 3`, `matched=580 mismatched=0`, **exit=1** — tức thiếu dòng nguồn nay là FAIL dù không ô nào sai giá trị. 11 test khoá hành vi ở `tests/test_legacy_source_coverage.py`. FILE THẬT "Báo cáo Kinh doanh 2026.xlsx" vẫn KHÔNG có trong Claude Cloud (`.gitignore`: `data/samples/`; không commit workbook chứa PII) → check này giữ NOT_TESTED và là gate Owner chạy khi deploy. Nếu file thật làm verifier báo `SUMMARY_UNACCOUNTED_ROWS > 0` hoặc parser raise `LegacyImportError`: DỪNG, ghi `UNKNOWN / OWNER_DECISION_REQUIRED`, KHÔNG mở rộng parser semantics (DEC-168).
 
 Executed By:
 Claude (S075) — gate Owner cho file thật
@@ -291,7 +297,7 @@ Evidence Level:
 E1
 
 Evidence:
-Ba nhánh fail-closed đều có test PASS. (1) `REPORTS_REQUIRE_HISTORY_DB=1` thiếu `HISTORY_DATABASE_URL` → `HistoryConfigurationError`, app không khởi động: `tests/test_history_db.py::test_production_without_a_database_url_fails_closed`, `::test_empty_database_url_in_production_is_treated_as_missing`, `tests/test_web_legacy_routes.py::test_production_mode_refuses_to_start_without_a_database_url`. Không có fallback ngầm sang SQLite: `::test_production_never_silently_falls_back_to_sqlite`. (2) Schema chưa `upgrade head` → không khởi động: `::test_schema_check_rejects_a_database_with_no_schema`, `::test_schema_check_rejects_an_out_of_date_revision`, `tests/test_legacy_repository.py::test_build_refuses_an_unmigrated_database`. (3) DB lỗi lúc request → HTTP 503, KHÔNG phải trang rỗng: `tests/test_web_legacy_routes.py::test_a_database_failure_returns_503_not_an_empty_page`, `::test_an_unconfigured_history_store_says_so_instead_of_showing_no_data`, `::test_importing_without_a_history_store_is_503_not_a_silent_success`; ở tầng repository `tests/test_legacy_repository.py::test_a_broken_database_raises_unavailable_not_an_empty_result`. Ở production, `Dockerfile` chạy `alembic upgrade head && gunicorn` nên migration lỗi = container không start.
+Bốn nhánh fail-closed đều có test PASS. (1) `REPORTS_REQUIRE_HISTORY_DB=1` thiếu `HISTORY_DATABASE_URL` → `HistoryConfigurationError`, app không khởi động: `tests/test_history_db.py::test_production_without_a_database_url_fails_closed`, `::test_empty_database_url_in_production_is_treated_as_missing`, `tests/test_web_legacy_routes.py::test_production_mode_refuses_to_start_without_a_database_url`. Không có fallback ngầm sang SQLite: `::test_production_never_silently_falls_back_to_sqlite`. (2) Schema chưa `upgrade head` → không khởi động: `::test_schema_check_rejects_a_database_with_no_schema`, `::test_schema_check_rejects_an_out_of_date_revision`, `tests/test_legacy_repository.py::test_build_refuses_an_unmigrated_database`. (3) DB lỗi trên đường ĐỌC → HTTP 503, KHÔNG phải trang rỗng: `tests/test_web_legacy_routes.py::test_a_database_failure_returns_503_not_an_empty_page`, `::test_an_unconfigured_history_store_says_so_instead_of_showing_no_data`, `::test_importing_without_a_history_store_is_503_not_a_silent_success`; ở tầng repository `tests/test_legacy_repository.py::test_a_broken_database_raises_unavailable_not_an_empty_result`. (4) **MỚI sau FIND-PRA001-R02** — DB lỗi trên đường GHI (`repository.create_import` raise `HistoryUnavailableError`) → HTTP **503**, không còn bị `except Exception` nuốt thành redirect 302 đổ lỗi cho workbook của Owner: `tests/test_web_legacy_routes.py::test_a_database_failure_on_the_write_path_is_503_not_a_blamed_workbook` (khẳng định `status_code == 503` và chuỗi "Không đọc được workbook" KHÔNG có trong body), `::test_a_write_path_database_failure_still_deletes_the_uploaded_file` (fail-closed không đánh đổi bằng bỏ quên file trên đĩa), và test đối ngẫu `::test_a_workbook_error_is_still_reported_as_a_workbook_error` chứng minh repair KHÔNG biến mọi lỗi thành 503. Ở production, `Dockerfile` chạy `alembic upgrade head && gunicorn` nên migration lỗi = container không start.
 
 Executed By:
 Claude (S075)
@@ -327,7 +333,7 @@ Evidence Level:
 E1
 
 Evidence:
-`test_no_module_under_app_reaches_the_network` PASS (không đổi). Không module nào dưới `app/` import `psycopg`/`alembic`: `tests/test_history_db.py::test_no_module_under_app_imports_a_database_driver_or_alembic` quét toàn bộ `app/**/*.py`. `tests/test_golden_baseline.py` không đổi kết quả. Full suite: baseline đầu phiên `1494 passed, 11 skipped, 0 failed`; sau implementation `1586 passed, 11 skipped, 0 failed` (+92 test mới, 0 test mất, 0 skip mới). Bốn test trong `tests/test_web_server.py` được sửa endpoint `/history` → `/du-lieu` vì scope item 4 của chính task này yêu cầu mở rộng `/history` thành tab "Dữ liệu"; nội dung assertion giữ nguyên, và redirect `/history` → `/du-lieu` có test riêng (`tests/test_web_legacy_routes.py::test_the_old_history_url_still_leads_to_the_data_tab`). `git diff --check` sạch. `app/modules/**`, `app/pipeline.py`, `app/composition.py`, `app/web/storage_backend.py`, `app/web/run_registry.py`, `tools/storage/**`, `tools/tracking/**`, `config/**`, `data/**`, `tests/fixtures/golden/**` KHÔNG bị chạm (xem Changed Files Registry).
+`test_no_module_under_app_reaches_the_network` PASS (không đổi). Không module nào dưới `app/` import `psycopg`/`alembic`: `tests/test_history_db.py::test_no_module_under_app_imports_a_database_driver_or_alembic` quét toàn bộ `app/**/*.py`. `tests/test_golden_baseline.py` không đổi kết quả. Full suite: baseline đầu phiên `1494 passed, 11 skipped, 0 failed`; sau implementation `1600 passed, 11 skipped, 0 failed` (+106 test mới, 0 test mất, 0 skip mới; +14 test của repair cycle 1). Bốn test trong `tests/test_web_server.py` được sửa endpoint `/history` → `/du-lieu` vì scope item 4 của chính task này yêu cầu mở rộng `/history` thành tab "Dữ liệu"; nội dung assertion giữ nguyên, và redirect `/history` → `/du-lieu` có test riêng (`tests/test_web_legacy_routes.py::test_the_old_history_url_still_leads_to_the_data_tab`). `git diff --check` sạch. `app/modules/**`, `app/pipeline.py`, `app/composition.py`, `app/web/storage_backend.py`, `app/web/run_registry.py`, `tools/storage/**`, `tools/tracking/**`, `config/**`, `data/**`, `tests/fixtures/golden/**` KHÔNG bị chạm (xem Changed Files Registry).
 
 Executed By:
 Claude (S075)
@@ -371,9 +377,22 @@ Timestamp:
 2026-09-02
 
 ## CHANGE_BUDGET
-- Production Python mới: mục tiêu ≤ 450 dòng, ngưỡng dừng cứng 600 dòng
-  (`tools/db` + `app/legacy` + `app/web/history_store` + delta `server.py`).
-  Vượt → `CHANGE_BUDGET_EXCEEDED`, dừng, báo Owner.
+
+> **CẬP NHẬT 2026-09-02 (DEC-168, Owner approved sau Independent Review):**
+> `PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED`.
+> **Ngân sách production logic mới = ~1.050 dòng** (thay ngưỡng cứng 600
+> bên dưới, CHỈ cho `TASK-PRA-001`). Review xác minh: `ESSENTIAL ≈ 950`,
+> `REASONABLE_HARDENING ≈ 60`, `OUT_OF_SCOPE = 0 material`,
+> `SPECULATIVE ≈ 15` → không cắt capability, không nén code để đạt chỉ tiêu.
+> Đo sau repair cycle 1: **1.045 dòng logic** (`tools/db` 209 + `app/legacy`
+> 384 + `history_store` 223 + `legacy_presentation` 94 + delta `server.py`
+> 135) — **trong ngân sách**.
+> Ngân sách mới KHÔNG được dùng để mở thêm scope: mọi capability mới vẫn là
+> `SCOPE EXPANSION REQUIRED`.
+
+- (LỊCH SỬ, đã được DEC-168 thay) Production Python mới: mục tiêu ≤ 450
+  dòng, ngưỡng dừng cứng 600 dòng (`tools/db` + `app/legacy` +
+  `app/web/history_store` + delta `server.py`).
 - Template mới ≤ 300 dòng; CSS ≤ 450 dòng (token + class chép có chọn lọc).
 - Test mới ≥ 25; không skip mới.
 - Không thêm dependency ngoài `sqlalchemy`, `alembic`, `psycopg[binary]`.
@@ -411,6 +430,8 @@ Created:
 - `tests/test_history_db.py`, `tests/test_legacy_importer.py`,
   `tests/test_legacy_repository.py`, `tests/test_web_legacy_routes.py`
 - `docs/sessions/S075-pra-001-legacy-reference-vertical.md`
+- `tests/test_legacy_source_coverage.py` (repair cycle 1, FIND-PRA001-R01)
+- `docs/sessions/S076-pra-001-repair-cycle-1.md` (repair cycle 1)
 
 Modified:
 - `app/web/server.py` (khởi tạo history store tiêm được + 5 route legacy;
@@ -429,6 +450,19 @@ Modified:
 - `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`
 - `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md` (chính file này)
 
+Repair cycle 1 (S076) — sửa thêm:
+- `app/legacy/parser.py` (guard FAIL TO cho dòng có giá trị nghiệp vụ nhưng
+  không khớp contract phân loại — FIND-PRA001-R01)
+- `tools/analysis/verify_legacy_import.py` (kiểm SOURCE COVERAGE từ phía
+  Excel + in ba con số coverage + exit khác 0 khi thiếu dòng — R01)
+- `app/web/server.py` (`except HTTPException: raise` trong route import, để
+  abort(503) của `_guarded` không bị nuốt thành redirect — FIND-PRA001-R02)
+- `tests/fixtures/legacy/build_legacy_workbook.py` (`strip_formula_markers`
+  — tái tạo đúng case reviewer)
+- `tests/test_legacy_repository.py`, `tests/test_web_legacy_routes.py`
+  (cập nhật theo kết quả verifier mới + test đường ghi)
+- `PROJECT/PROJECT_DECISIONS.md` (DEC-168)
+
 Deleted:
 - `app/web/templates/history.html` (nội dung chuyển vào `du_lieu.html`;
   đường `/history` giữ dưới dạng redirect)
@@ -442,9 +476,15 @@ KHÔNG bị chạm (xác nhận bằng `git diff --stat`): `app/modules/**`,
 Migration Impact:
 - Thêm schema history (migration `0001_legacy`) trên DB MỚI; không đụng dữ liệu R2/run hiện có.
 
-## ESCALATION — CHANGE_BUDGET_EXCEEDED (2026-09-02, S075)
+## ESCALATION — CHANGE_BUDGET_EXCEEDED (2026-09-02, S075) — ĐÃ GIẢI QUYẾT
 
-Trạng thái: **CẦN OWNER PHÂN XỬ.** Implementation đã xong và PASS, nhưng
+> **ĐÓNG 2026-09-02 (DEC-168):** Owner approve
+> `PRA-001_CHANGE_BUDGET_EXCEPTION`, ngân sách mới ~1.050 dòng logic;
+> đo sau repair cycle 1 = **1.045** → trong ngân sách. Không cắt
+> capability, không nén code. Phần bên dưới giữ nguyên làm bản ghi
+> lịch sử của lúc escalation được nêu.
+
+Trạng thái (lúc nêu, S075): **CẦN OWNER PHÂN XỬ.** Implementation đã xong và PASS, nhưng
 vượt ngân sách thay đổi đã freeze. Ghi ra đây thay vì âm thầm bỏ qua.
 
 Đo bằng **dòng logic** (bỏ dòng trống, comment, docstring — script đo:

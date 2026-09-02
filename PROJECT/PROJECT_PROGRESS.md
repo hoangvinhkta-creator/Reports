@@ -430,6 +430,53 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
   bên dưới nay có kế hoạch nhưng vẫn chưa READY.
 
+### S076 (2026-09-02) — TASK-PRA-001 repair cycle 1/1: hai blocking finding đã sửa; DEC-168 mở ngân sách ~1.050 LOC
+
+Independent Review trên `7d84072765288b7a9dc28679a09325fce7860b48` =
+`CHANGES_REQUIRED`. Repair base giữ nguyên, KHÔNG rewrite.
+
+Hai finding cùng một bản chất — **một sự cố được trình bày như trạng thái
+bình thường**, đúng loại sai mà cả PRA-001 tồn tại để ngăn:
+
+- **FIND-PRA001-R01** — verifier duyệt từ DB → Excel nên chỉ trả lời được
+  "cái đã nhập có đúng không", không bao giờ thấy "cái chưa từng được nhập".
+  Tái tạo trước repair: mất trọn `Summary 2025` (0 dòng nhập, nguồn có số ở
+  dòng 4/5/6) mà vẫn in `matched=372 mismatched=0`. Sửa: parser raise
+  `LegacyImportError` nêu đích danh sheet + dòng khi một dòng có giá trị
+  nghiệp vụ không khớp contract phân loại; verifier đổi vòng lặp Summary
+  sang EXCEL → DB, in `SUMMARY_SOURCE_ROWS_WITH_VALUES` /
+  `SUMMARY_IMPORTED_ROWS` / `SUMMARY_UNACCOUNTED_ROWS`, thiếu dòng nguồn =
+  exit khác 0. Sau repair, đúng case reviewer: `SUMMARY_UNACCOUNTED_ROWS=3`,
+  `matched=580 mismatched=0`, **exit=1**.
+- **FIND-PRA001-R02** — `abort(503)` của `_guarded` ném `HTTPException`, bị
+  `except Exception` trong route import nuốt thành redirect 302 "Không đọc
+  được workbook legacy": một sự cố DATABASE hiển thị thành LỖI FILE của
+  Owner, phá `CHECK-PRA001-06` trong im lặng. Sửa tối thiểu:
+  `except HTTPException: raise` trong đúng route đó.
+
+Cả hai test repair đã chứng minh FAIL trên code trước repair (`assert 302 ==
+503`; `DID NOT RAISE LegacyImportError`).
+
+**DEC-168 (Owner):** (1) `PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED`, ngân
+sách production logic ~1.050 dòng — review xác minh `ESSENTIAL ≈ 950`,
+`OUT_OF_SCOPE = 0 material`, nên chỉnh ngân sách theo thực tế thay vì cắt
+capability; đo sau repair = **1.045**, trong ngân sách. (2) Hợp đồng nghiệp
+vụ: dòng Summary có giá trị nghiệp vụ mà contract không nhận ra thì **FAIL
+TO**, KHÔNG auto-guess `row_kind` từ việc dòng có số.
+
+Regression: `1586 passed, 11 skipped` → `1600 passed, 11 skipped` (+14 test
+repair, 0 test mất). PRA-001 focused suite `106 passed`. Validator 4/5 PASS;
+reference integrity chỉ còn 3 finding PRE_EXISTING của REM-T06.
+Repair budget: **1/1 đã dùng, còn 0**.
+
+`CHECK-PRA001-01` vẫn NOT_TESTED (cần file Excel thật) nhưng evidence đã
+viết lại: fidelity kể từ đây gồm `VALUE MATCH` **+** `SOURCE COVERAGE`;
+`628/0` không còn được dùng một mình. `CHECK-PRA001-06` mở rộng sang cả
+đường GHI. `CHECK-PRA001-09` vẫn BLOCKED (cần PostgreSQL thật).
+
+PROTECTED_CORE_IMPACT = NONE. TRACKING_CHANGED = NO. Không implement PRA-002.
+Chi tiết: `docs/sessions/S076-pra-001-repair-cycle-1.md`.
+
 ### S075 (2026-09-02) — TASK-PRA-001 = IMPLEMENTED; Legacy Reference Vertical chạy đầu-cuối; CHANGE_BUDGET_EXCEEDED chờ Owner
 
 Nhánh `claude/reports-pipeline-architecture-gj8bji`, base authority
@@ -4893,6 +4940,13 @@ trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-30
 
 ## Session tiếp theo
 
+> **Cập nhật 2026-09-02 (S076):** repair cycle 1/1 của TASK-PRA-001 đã
+> xong — hai blocking finding của Independent Review đã sửa, DEC-168 đóng
+> `CHANGE_BUDGET_EXCEEDED`. `1600 passed, 11 skipped`. Session tiếp theo:
+> re-review độc lập; rồi Owner deploy PostgreSQL (CHECK-09) và chạy
+> `verify_legacy_import` trên file Excel thật (CHECK-01). Repair budget đã
+> hết (0 còn lại) — finding blocking tiếp theo phải leo thang.
+>
 > **Cập nhật 2026-09-02 (S075):** TASK-PRA-001 = IMPLEMENTED. Legacy
 > Reference Vertical chạy đầu-cuối; `1586 passed, 11 skipped`. Session tiếp
 > theo: (1) Owner phân xử `CHANGE_BUDGET_EXCEEDED`, (2) Independent Review,

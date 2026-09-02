@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Optional
 
 from flask import Flask, abort, redirect, render_template, request, url_for
-from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import beta_feedback, beta_telemetry
 from app.beta_presentation import REASON_DISPLAY_LABELS
@@ -315,6 +315,13 @@ def create_app(
             )
         except LegacyImportError as exc:
             return redirect(url_for("data_tab", loi=str(exc)))
+        except HTTPException:
+            # `_guarded` biến lỗi history store thành abort(503) — mà abort
+            # ném HTTPException. Không cho `except Exception` bên dưới nuốt
+            # nó, nếu không sự cố DB sẽ hiện ra thành "không đọc được
+            # workbook": đổ lỗi cho file của Owner vì một lỗi hạ tầng, và
+            # phá đúng CHECK-PRA001-06 (FIND-PRA001-R02).
+            raise
         except Exception:
             return redirect(url_for(
                 "data_tab",

@@ -64,6 +64,20 @@ class LegacyImportError(ValueError):
     """Workbook không đúng hình dạng đã freeze cho import legacy."""
 
 
+def row_has_business_values(values: dict[str, object]) -> bool:
+    """Dòng có ít nhất một số ở CỘT DỮ LIỆU đã freeze của Summary.
+
+    Chỉ xét các cột trong ``SUMMARY_COLUMN_FIELDS`` — vùng nhãn (A–B) chứa
+    chữ và đôi khi cả số điều hành (số ngày trong năm), không phải giá trị
+    nghiệp vụ của một dòng người bán.
+    """
+    return any(
+        isinstance(values.get(column), (int, float))
+        and not isinstance(values.get(column), bool)
+        for column in SUMMARY_COLUMN_FIELDS
+    )
+
+
 # Kích thước khối đọc file khi băm — hằng số I/O, không phải số nghiệp vụ.
 # Viết thành hằng số để bất biến "không có phép tính nào trong app/legacy"
 # kiểm chứng được bằng AST (xem tests/test_legacy_importer.py).
@@ -159,10 +173,17 @@ def _parse_summary_sheet(value_sheet, formula_sheet) -> list[SummaryRow]:
     columns = LABEL_COLUMNS + tuple(SUMMARY_COLUMN_FIELDS)
     rows: list[SummaryRow] = []
     last_period: Optional[tuple[int, int]] = None
+    unaccounted: list[int] = []
 
     for row_index, raw_values, formulas in _read_rows(value_sheet, formula_sheet, columns):
         row_kind = _classify(formulas)
         if row_kind is None:
+            # Dòng KHÔNG khớp contract phân loại. Nếu nó vẫn mang giá trị
+            # nghiệp vụ thì đây là dữ liệu của Owner mà importer không có
+            # thẩm quyền diễn giải — ghi lại để báo to ở cuối sheet, TUYỆT
+            # ĐỐI không đoán `row_kind` từ việc "dòng có số" (DEC-168).
+            if row_has_business_values(raw_values):
+                unaccounted.append(row_index)
             continue
         values = {
             field: _as_decimal(raw_values.get(column))
@@ -202,6 +223,20 @@ def _parse_summary_sheet(value_sheet, formula_sheet) -> list[SummaryRow]:
             sheet_name=sheet_name, sheet_row=row_index, values=values,
             formula_text=dict(formulas), known_defects=row_defects,
         ))
+
+    if unaccounted:
+        # FAIL LOUDLY (DEC-168). Bỏ qua im lặng một dòng có số nghĩa là báo
+        # cáo hiển thị thiếu số của Owner mà không ai biết — đúng kiểu sai
+        # âm thầm mà cả task này tồn tại để ngăn.
+        preview = ", ".join(str(index) for index in unaccounted[:20])
+        more = f" (và {len(unaccounted) - 20} dòng nữa)" if len(unaccounted) > 20 else ""
+        raise LegacyImportError(
+            f"Sheet '{sheet_name}': {len(unaccounted)} dòng có giá trị nghiệp vụ "
+            f"nhưng không khớp contract phân loại dòng — dòng {preview}{more}. "
+            "Importer KHÔNG đoán ý nghĩa dòng từ việc dòng có số. Đây là "
+            "UNKNOWN / OWNER_DECISION_REQUIRED: cần Owner xác nhận ý nghĩa "
+            "các dòng này trước khi mở rộng contract."
+        )
     return rows
 
 

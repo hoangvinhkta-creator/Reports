@@ -272,6 +272,68 @@ def test_a_database_failure_returns_503_not_an_empty_page(monkeypatch, tmp_path,
     assert response.status_code == 503
 
 
+def test_a_database_failure_on_the_write_path_is_503_not_a_blamed_workbook(
+    monkeypatch, tmp_path, repository, legacy_workbook_path,
+):
+    """Repair FIND-PRA001-R02 — đường GHI cũng phải fail-closed như đường ĐỌC.
+
+    `_guarded` biến lỗi history store thành `abort(503)`, nhưng `abort` ném
+    `HTTPException`; trước repair, `except Exception` trong route import đã
+    nuốt nó và trả về redirect "Không đọc được workbook legacy". Tức là một
+    sự cố DATABASE bị hiển thị thành LỖI FILE CỦA OWNER — Owner sẽ đi sửa
+    workbook cho một lỗi hạ tầng, và CHECK-PRA001-06 bị phá trong im lặng.
+    """
+    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
+    monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
+    monkeypatch.setattr(web_server, "UPLOAD_DIR", tmp_path / "uploads")
+
+    def _explode(*args, **kwargs):
+        raise history_store.HistoryUnavailableError("mất kết nối lúc ghi")
+
+    monkeypatch.setattr(repository, "create_import", _explode)
+    application = web_server.create_app(db_path=tmp_path / "runs.db", history=repository)
+    application.testing = False          # để errorhandler 503 chạy thật
+    response = application.test_client().post(
+        "/du-lieu/legacy",
+        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 503
+    assert response.status_code != 302
+    assert "Không đọc được workbook" not in response.get_data(as_text=True)
+
+
+def test_a_write_path_database_failure_still_deletes_the_uploaded_file(
+    monkeypatch, tmp_path, repository, legacy_workbook_path,
+):
+    """Fail-closed không được đánh đổi bằng việc bỏ quên file trên đĩa."""
+    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
+    monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(web_server, "UPLOAD_DIR", upload_dir)
+
+    def _explode(*args, **kwargs):
+        raise history_store.HistoryUnavailableError("mất kết nối lúc ghi")
+
+    monkeypatch.setattr(repository, "create_import", _explode)
+    application = web_server.create_app(db_path=tmp_path / "runs.db", history=repository)
+    application.testing = False
+    application.test_client().post(
+        "/du-lieu/legacy",
+        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert list(upload_dir.glob("*")) == []
+
+
+def test_a_workbook_error_is_still_reported_as_a_workbook_error(client):
+    """Repair R02 không được biến MỌI lỗi thành 503 — lỗi file vẫn là lỗi file."""
+    response = client.post("/du-lieu/legacy", data=_upload("hong.xlsx", b"khong phai zip"),
+                           content_type="multipart/form-data", follow_redirects=True)
+    assert response.status_code == 200
+    assert "Không đọc được workbook legacy" in response.get_data(as_text=True)
+
+
 def test_an_unconfigured_history_store_says_so_instead_of_showing_no_data(
     monkeypatch, tmp_path,
 ):

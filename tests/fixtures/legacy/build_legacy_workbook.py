@@ -299,3 +299,38 @@ def _inject_cached_values(data: bytes, values: dict[str, object]) -> bytes:
         if count != 1:
             raise AssertionError(f"Không chèn được cached value cho ô {ref}")
     return text.encode("utf-8")
+
+
+def strip_formula_markers(path: Path) -> Path:
+    """Giữ nguyên GIÁ TRỊ nghiệp vụ, xoá sạch công thức khỏi ``Summary 2025``.
+
+    Tái tạo đúng case của Independent Review (FIND-PRA001-R01): một sheet
+    Summary vẫn đầy đủ số của Owner nhưng không còn dấu hiệu công thức nào
+    để parser bám vào phân loại dòng. Trước repair, cả sheet biến mất khỏi
+    bản nhập mà verifier vẫn báo `mismatched=0`.
+    """
+    from openpyxl import load_workbook
+
+    # Đọc GIÁ TRỊ đã cache của riêng Summary 2025 trước...
+    values_book = load_workbook(path, data_only=True)
+    values = {
+        cell.coordinate: cell.value
+        for row in values_book["Summary 2025"].iter_rows()
+        for cell in row
+        if cell.value is not None
+    }
+    values_book.close()
+
+    # ...rồi ghi đè vào bản CÓ công thức, chỉ trên sheet đó. Các sheet khác
+    # giữ nguyên công thức để bài test cô lập đúng một sheet hỏng.
+    workbook = load_workbook(path, data_only=False)
+    sheet = workbook["Summary 2025"]
+    for row in sheet.iter_rows():
+        for cell in row:
+            if isinstance(cell.value, str) and cell.value.startswith("="):
+                cell.value = None
+    for coordinate, value in values.items():
+        sheet[coordinate] = value
+    workbook.save(path)
+    workbook.close()
+    return path

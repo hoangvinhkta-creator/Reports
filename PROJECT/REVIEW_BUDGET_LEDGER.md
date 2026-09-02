@@ -169,9 +169,16 @@ không tiêu ngân sách của bất kỳ lineage nào trước đó.
 root_task: TASK-PRA-001
 effective_risk: MEDIUM
 repair_cycles_allowed: 1
-repair_cycles_used: 0
-repair_cycles_remaining: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
 ```
+
+Cycle 1 đã dùng ở **S076** (2026-09-02) cho Independent Review
+`CHANGES_REQUIRED` trên `7d84072`: hai blocking finding
+`FIND-PRA001-R01` (thiếu dòng nguồn vẫn báo khớp 100%) và
+`FIND-PRA001-R02` (sự cố database hiển thị thành lỗi workbook của Owner).
+**Ngân sách repair đã hết** — mọi finding blocking tiếp theo phải leo thang
+theo `governance/core/ESCALATION_PROTOCOL.md`, không tự mở cycle 2.
 
 `MEDIUM` theo **Blast Radius tính theo failure path**
 (`governance/core/V4_1_POLICY_FREEZE.md` §4), không theo độ khó code:
@@ -203,16 +210,22 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 schema PRA-002 (snapshot/version/…)     : FORBIDDEN — không prebuild
 ```
 
-### Trạng thái (S075, 2026-09-02)
+### Trạng thái (S076, 2026-09-02 — sau repair cycle 1)
 
 ```
 TASK-PRA-001                 : IMPLEMENTED (KHÔNG phải DONE)
-Independent Review           : CHƯA THỰC HIỆN
-repair cycle đã dùng         : 0
-Blocker chờ Owner            : CHANGE_BUDGET_EXCEEDED (1.024 dòng logic
-                               production Python / ngưỡng cứng 600)
-CHECK-PRA001-01              : NOT_TESTED — cần file Excel thật (gate Owner)
+Independent Review #1        : CHANGES_REQUIRED trên 7d84072
+repair cycle đã dùng         : 1 / 1  → CÒN 0
+CHANGE_BUDGET                : GIẢI QUYẾT — DEC-168 approve ~1.050 LOC;
+                               đo sau repair = 1.045 (trong ngân sách)
+FIND-PRA001-R01              : ĐÃ SỬA (parser fail to + verifier source
+                               coverage; 11 test hồi quy)
+FIND-PRA001-R02              : ĐÃ SỬA (except HTTPException: raise;
+                               3 test đường ghi)
+CHECK-PRA001-01              : NOT_TESTED — cần file Excel thật (gate Owner);
+                               evidence viết lại: VALUE MATCH + SOURCE COVERAGE
 CHECK-PRA001-09              : BLOCKED — cần PostgreSQL thật (gate deploy)
+Re-review                    : CHƯA THỰC HIỆN
 ```
 
 Bằng chứng thực thi của phiên (E1):
@@ -227,7 +240,8 @@ validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-RE
 branch_authority_check.sh    : AUTHORITY_OK
 git diff --check             : sạch
 Full suite baseline          : 1494 passed, 11 skipped
-Full suite cuối phiên        : 1586 passed, 11 skipped
+Full suite cuối S075         : 1586 passed, 11 skipped
+Full suite cuối S076 (repair): 1600 passed, 11 skipped
 migration 0001_legacy        : upgrade PASS, downgrade PASS (SQLite thật)
 verify_legacy_import         : matched=628 mismatched=0 (trên fixture)
 ```

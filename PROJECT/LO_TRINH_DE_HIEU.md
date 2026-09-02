@@ -21,6 +21,11 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S076): một lượt **soát xét độc lập** đã tìm ra
+> hai lỗi thật và cả hai đã được sửa — xem mục "SOÁT XÉT ĐỘC LẬP TÌM RA HAI
+> LỖI (S076)" bên dưới. Owner cũng đã duyệt việc phần này viết dài hơn dự
+> tính, nên việc số 3 trước đây coi như đã xong.
+
 > Cập nhật thêm 2026-09-02 (S075): **đã làm xong phần đầu tiên của kế hoạch
 > đó** — Reports giờ mở được số báo cáo cũ ngay trên web, không phải mở
 > Excel nữa. Xem mục "XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)" bên
@@ -68,7 +73,38 @@ Và nếu có trục trặc (mất kết nối kho dữ liệu chẳng hạn), t
 rõ ràng**, chứ không hiện ra một bảng trống trông y như "tháng này chưa có
 số liệu" — đó là kiểu nhầm nguy hiểm nhất.
 
-### Ba việc còn lại
+### SOÁT XÉT ĐỘC LẬP TÌM RA HAI LỖI (S076) — đã sửa
+
+Một lượt soát xét độc lập đã kiểm lại toàn bộ phần này và tìm ra hai lỗi
+mà bản đầu chưa thấy. Cả hai cùng một kiểu: **máy gặp sự cố nhưng lại hiện
+ra như thể mọi thứ bình thường** — đúng loại nguy hiểm nhất, vì không ai
+biết mà kiểm tra lại.
+
+**Lỗi 1 — "khớp 100%" trong khi thiếu hẳn một năm dữ liệu.**
+Công cụ đối chiếu chỉ kiểm được *"những dòng đã nạp có đúng không"*, chứ
+không kiểm *"có dòng nào chưa được nạp không"*. Hậu quả: nếu toàn bộ số của
+năm 2025 bị bỏ sót lúc nạp, màn hình vẫn báo "khớp 100%, không lệch ô nào".
+Nay đã sửa: công cụ đếm cả từ phía file Excel, in rõ ba con số — *bao nhiêu
+dòng nguồn có số*, *bao nhiêu dòng đã nạp*, *bao nhiêu dòng bị bỏ sót* — và
+báo TRƯỢT nếu có dòng bị bỏ sót, kể cả khi không ô nào sai giá trị.
+
+Kèm theo là một quyết định của Owner: nếu gặp một dòng có số mà phần mềm
+**không chắc** dòng đó nghĩa là gì, nó phải **báo lỗi to** và dừng lại —
+tuyệt đối không được tự đoán "chắc dòng này là dòng người bán" chỉ vì dòng
+đó có số. Máy không có thẩm quyền tự gán ý nghĩa nghiệp vụ cho dữ liệu của
+Owner.
+
+**Lỗi 2 — mất kết nối kho dữ liệu nhưng lại đổ lỗi cho file của Owner.**
+Khi nạp file mà kho dữ liệu gặp sự cố, màn hình hiện "Không đọc được
+workbook legacy. Kiểm tra file và thử lại." Owner sẽ ngồi sửa file Excel
+cho một lỗi hoàn toàn không nằm ở file. Nay đã sửa: sự cố kho dữ liệu báo
+đúng là sự cố kho dữ liệu; lỗi file vẫn báo là lỗi file.
+
+Cả hai lỗi đều có bài kiểm tra tự động riêng, và đã chứng minh được là hai
+bài kiểm tra đó **trượt trên bản cũ, đạt trên bản mới** — tức là chúng thật
+sự bắt được lỗi, không phải viết cho có.
+
+### Hai việc còn lại
 
 1. **Owner tạo kho lưu trữ trên Render (~150.000đ/tháng).** Hiện phần mềm
    chạy và test đầy đủ trên máy, nhưng để lưu thật trên mạng thì cần một
@@ -79,18 +115,13 @@ số liệu" — đó là kiểu nhầm nguy hiểm nhất.
    liệu khách hàng nên không được đưa lên kho mã nguồn. Có sẵn một lệnh
    đối chiếu từng ô, chạy xong in ra "khớp bao nhiêu ô, lệch bao nhiêu ô";
    kỳ vọng là lệch = 0.
-3. **Owner quyết một việc: phần này viết dài hơn dự tính.** Lúc lập kế
-   hoạch có đặt hạn mức "không quá 600 dòng mã"; thực tế viết hết khoảng
-   1.024 dòng. Không phải vì làm thêm chức năng ngoài kế hoạch — mà vì bản
-   thân kế hoạch (4 bảng dữ liệu, khoảng 30 cột, đọc Excel theo cấu trúc
-   công thức chứ không theo vị trí dòng) vốn đã lớn hơn con số ước lượng
-   ban đầu. Phần mềm đang chạy tốt và qua hết kiểm tra; việc cần Owner là
-   chọn: chấp nhận con số thật, hay chia nhỏ phần việc này ra, hay yêu cầu
-   cắt bớt chức năng. Ba phương án viết rõ trong
-   `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`.
+*(Việc thứ ba trước đây — "phần này viết dài hơn dự tính" — đã xong: soát
+xét độc lập kiểm lại từng phần mã và kết luận gần như toàn bộ là cần
+thiết, không có chức năng thừa để cắt. Owner đã duyệt nâng hạn mức lên
+khoảng 1.050 dòng; con số thực tế sau khi sửa hai lỗi trên là 1.045.)*
 
-Vì việc số 3 chưa được quyết, phần này **chưa được gộp vào bản chính** —
-đang chờ Owner và chờ một lượt soát xét độc lập.
+Phần này **vẫn chưa được gộp vào bản chính** — đang chờ một lượt soát xét
+độc lập lần hai trên bản đã sửa.
 
 ## ĐÃ XONG
 

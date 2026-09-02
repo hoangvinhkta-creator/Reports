@@ -7748,6 +7748,87 @@ không mở task cho LATER/DEFER.
 - Quyết định còn blocking duy nhất: Owner approve `ADR-108`. Khi approve,
   ghi DEC mới (không sửa DEC này) và chuyển ADR-108 sang Accepted.
 
+## DEC-168
+
+Title:
+`PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED` (~1.050 LOC) + hợp đồng nghiệp
+vụ cho dòng Summary không phân loại được: FAIL TO, KHÔNG đoán semantics
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-001` — Independent Review trên
+`7d84072765288b7a9dc28679a09325fce7860b48` = `CHANGES_REQUIRED`; repair
+cycle 1/1 (S076). Không mở lại architecture, không mở PRA-002.
+
+**Đây LÀ một Owner Decision.** Owner quyết hai việc:
+
+```text
+1. PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED
+   NEW PRODUCTION LOGIC BUDGET = ~1.050 LOC
+   (thay ngưỡng cứng 600 đã freeze ở S073, CHỈ cho TASK-PRA-001)
+
+2. SOURCE ROW WITH BUSINESS VALUES
+        → contract phân loại nhận ra?
+             ├─ CÓ    → IMPORT
+             └─ KHÔNG → FAIL TO (LegacyImportError / acceptance failure)
+   Không auto-guess row_kind.
+   Không suy SELLER / MONTH_TOTAL / YEAR_TOTAL / PROGRESS từ numeric values.
+```
+
+### Cơ sở của quyết định 1
+
+Independent review phân loại 1.024 dòng logic của bản
+`7d84072`: `ESSENTIAL ≈ 950`, `REASONABLE_HARDENING ≈ 60`,
+`OUT_OF_SCOPE = 0 material`, `SPECULATIVE ≈ 15`. Không có capability nào
+thừa để cắt, và nén code chỉ để quay về con số 600 sẽ đánh đổi tính đọc
+được lấy một chỉ tiêu — nên ngân sách được chỉnh theo thực tế đã kiểm
+chứng, KHÔNG phải capability bị cắt theo ngân sách.
+
+Ngưỡng 600 ở S073 là ước lượng đặt trước khi viết dòng nào, cho một vertical
+đi hết từ Excel tới UI với `DATA_MODEL_MINIMUM` 4 bảng / ~30 cột đã freeze.
+
+**Ngân sách mới KHÔNG được dùng để mở thêm scope.** Nó chỉ hợp thức hoá
+implementation đã được review xác minh là essential. Mọi capability mới vẫn
+là `SCOPE EXPANSION REQUIRED`.
+
+### Cơ sở của quyết định 2
+
+Review chứng minh một lỗ hổng thật (`FIND-PRA001-R01`): một sheet Summary có
+thể mất TOÀN BỘ dòng khi import mà verifier vẫn in `matched>0 mismatched=0`,
+vì verifier duyệt từ DB → Excel nên không bao giờ thấy thứ chưa từng được
+nhập. Một bản nhập thiếu hẳn kỳ 2025 mà báo "khớp 100%" là bằng chứng còn
+tệ hơn không có bằng chứng.
+
+Hai hướng sai đều bị loại tường minh:
+- Bỏ qua im lặng dòng không phân loại được → mất số của Owner, không ai biết.
+- Đoán `row_kind` vì "dòng có số" → công cụ tự gán ý nghĩa nghiệp vụ mà nó
+  không có thẩm quyền gán, đúng chiều đảo ngược mà governance cấm
+  (`CODE → AI INFERENCE → BUSINESS RULE`).
+
+Nên: **fail to**. Nếu workbook thật về sau chứng minh có legitimate
+value-only row, REAL DATA ACCEPTANCE phải DỪNG, ghi
+`UNKNOWN / OWNER_DECISION_REQUIRED`, và contract được bổ sung bằng một
+quyết định riêng dựa trên evidence thật — không tự mở rộng parser semantics.
+
+### Hệ quả
+
+- `CHANGE_BUDGET` của `TASK-PRA-001` cập nhật lên ~1.050 dòng logic; đo
+  được sau repair: **1.045**.
+- `app/legacy/parser.py` raise `LegacyImportError` khi một sheet Summary bắt
+  buộc có dòng mang giá trị nghiệp vụ nhưng không khớp contract phân loại,
+  nêu đích danh sheet và số dòng.
+- `tools/analysis/verify_legacy_import.py` kiểm tra **SOURCE COVERAGE** từ
+  phía Excel và in `SUMMARY_SOURCE_ROWS_WITH_VALUES` /
+  `SUMMARY_IMPORTED_ROWS` / `SUMMARY_UNACCOUNTED_ROWS`; thiếu dòng nguồn =
+  FAIL (exit khác 0) ngang hàng với lệch giá trị.
+- Evidence `CHECK-PRA001-01` không còn được dùng riêng `628/0`: fidelity kể
+  từ đây gồm **VALUE MATCH + SOURCE COVERAGE**.
+- `Expected Touch Area` của task bổ sung hai file mà frozen gate thực sự
+  cần: `tools/analysis/verify_legacy_import.py` (CHECK-01) và
+  `app/web/legacy_presentation.py` (CHECK-04).
+
 ## DEC-167
 
 Title:
