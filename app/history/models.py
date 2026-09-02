@@ -118,7 +118,15 @@ class ResultLine:
 
 @dataclass(frozen=True)
 class CurrentState:
-    """Hiện trạng đã lưu của một khoá — đầu vào đọc-chỉ của reconciler."""
+    """Hiện trạng đã lưu của một khoá — đầu vào đọc-chỉ của reconciler.
+
+    ``version_no`` là version ĐANG là hiện hành; ``max_version_no`` là version
+    LỚN NHẤT đã từng ghi cho khoá này. Hai số đó KHÁC nhau sau một
+    ``ORDER_KEY_COLLISION``: bản ghi collision được lưu nhưng không được làm
+    hiện hành, nên hiện hành tụt lại phía sau. Version mới phải đánh số theo
+    ``max`` (mục 5.3), nếu không lần ghi sau sẽ đụng UNIQUE
+    ``(khoá, version_no)`` và cả lần chạy bị rollback.
+    """
 
     source_version_id: int
     version_no: int
@@ -127,6 +135,13 @@ class CurrentState:
     fingerprint_values: tuple
     order_key_collision: bool = False
     first_seen_snapshot_id: Optional[str] = None
+    max_version_no: Optional[int] = None
+
+    @property
+    def next_version_no(self) -> int:
+        """Số version kế tiếp = max đã ghi + 1 (mục 5.3)."""
+        highest = self.version_no if self.max_version_no is None else self.max_version_no
+        return max(highest, self.version_no) + 1
 
 
 @dataclass(frozen=True)

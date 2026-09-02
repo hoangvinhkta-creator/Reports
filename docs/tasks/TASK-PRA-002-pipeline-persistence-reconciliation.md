@@ -1278,11 +1278,13 @@ E2
 Evidence:
 Yêu cầu: `docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD` theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`; reviewer chạy lại CHECK-03/04/05/07/09 độc lập; `BLOCKING_FINDINGS = 0` sau ≤ 2 repair cycle; ledger cập nhật `base_sha/head_sha` từng cycle.
 
+
+Đã chạy MỘT PHẦN (slice A, S081): `docs/reviews/TASK-PRA-002-SLICE-A-INDEPENDENT-REVIEW-RECORD.md`. Reviewer tự chạy lại CHECK-03/04/05/09 (E2) trên lineage `7fad3f7..80c6fe1`, cộng migration up/down trên PostgreSQL 16.13 thật. Một finding BLOCKING (FIND-PRA002-A1 — version mới đánh số theo hiện hành thay vì max, mục 5.3; sau `ORDER_KEY_COLLISION` mọi upload sau trên khoá đó vi phạm UNIQUE và `/run` trả 500) đã sửa trong repair cycle 1/2; sau repair `BLOCKING_FINDINGS = 0`, full suite `1711 passed, 11 skipped`, Golden `58 passed, 2 skipped`. Check TOÀN TASK vẫn `NOT_TESTED` vì CHECK-07 (slice B) và CHECK-08 (slice C) chưa tồn tại để chạy lại.
 Executed By:
-...
+S081 — PRA-002 Slice A Independent Review (2026-09-02) — phần slice A
 
 Timestamp:
-...
+2026-09-02
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [ ] 100% REQUIRED checks PASS (01–15, 17); 16 RECOMMENDED có số đo.

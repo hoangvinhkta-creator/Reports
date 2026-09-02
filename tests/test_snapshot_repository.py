@@ -237,6 +237,41 @@ def test_a_colliding_key_is_stored_flagged_and_left_out_of_the_current_state(
     assert flag["detail_json"]["day_gap"] == COLLISION_DAY_THRESHOLD + 1
 
 
+def test_uploading_again_after_a_collision_still_works(repository, history_engine):
+    """Sau một cờ tranh chấp, mọi lần upload SAU vẫn phải chạy được.
+
+    Bản ghi collision được lưu nhưng KHÔNG làm hiện hành, nên số version hiện
+    hành tụt lại phía sau số version lớn nhất. Nếu version mới được đánh số
+    theo hiện hành thay vì theo max (mục 5.3), lần upload kế tiếp sẽ đụng
+    UNIQUE ``(khoá, version_no)`` và cả lần chạy bị rollback — Owner mất
+    luôn báo cáo, không chỉ mất lịch sử.
+    """
+    far = date(2026, 1, 5) + timedelta(days=COLLISION_DAY_THRESHOLD + 1)
+    write(repository, [source_line("BH1", sale_date=date(2026, 1, 5))],
+          run_id="run-1", created_at="2026-02-01T00:00:00")
+    write(repository, [source_line("BH1", sale_date=far)], run_id="run-2",
+          created_at="2026-02-02T00:00:00", fingerprint="fp-b")
+
+    # (a) nạp lại ĐÚNG file đã gây tranh chấp — thao tác bình thường của Owner.
+    again = write(repository, [source_line("BH1", sale_date=far)], run_id="run-3",
+                  created_at="2026-02-03T00:00:00", fingerprint="fp-b")
+    assert again.counts["ORDER_KEY_COLLISION"] == 1
+    # (b) kế toán sửa chính dòng đang hiện hành → vẫn lên version được.
+    edited = write(repository, [source_line("BH1", sale_date=date(2026, 1, 5),
+                                            sell_price="9000000")],
+                   run_id="run-4", created_at="2026-02-04T00:00:00", fingerprint="fp-c")
+    assert edited.counts["SOURCE_CHANGED"] == 1
+
+    versions = [row["version_no"] for row in
+                rows(history_engine, schema.order_line_source_version,
+                     schema.order_line_source_version.c.id)]
+    assert versions == [1, 2, 3, 4], "mỗi version một số riêng, không đánh trùng"
+    current, = _current(repository)
+    assert current["order_key_collision"] is True
+    assert current["sale_date"] == date(2026, 1, 5), "hiện trạng vẫn là dòng không tranh chấp"
+    assert repository.current_totals()["total_sales"] == Decimal("9000000")
+
+
 # --- append-only / bất biến cấu trúc --------------------------------------
 
 def test_three_snapshots_only_ever_add_versions(repository, history_engine):

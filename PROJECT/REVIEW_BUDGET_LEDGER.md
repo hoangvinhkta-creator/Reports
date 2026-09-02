@@ -367,15 +367,16 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S080, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S081, 2026-09-02 — HIỆN HÀNH)
 
 ```
 TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : SLICE A IMPLEMENTED (slice B, C chưa bắt đầu)
-repair cycle đã dùng         : 0 / 2
-CHANGE_BUDGET slice A        : 1.080 dòng logic production / mục tiêu 1.200 / dừng cứng 1.500
+Implementation               : SLICE A REVIEWED + REPAIRED (slice B, C chưa bắt đầu)
+repair cycle đã dùng         : 1 / 2
+CHANGE_BUDGET slice A        : 1.104 dòng logic production / mục tiêu 1.200 / dừng cứng 1.500
 Baseline tại BASE_SHA        : Golden 58 passed, 2 skipped; full suite 1608 passed, 11 skipped
-Sau slice A                  : Golden 58 passed, 2 skipped; full suite 1710 passed, 11 skipped
+Sau slice A (trước repair)   : Golden 58 passed, 2 skipped; full suite 1710 passed, 11 skipped
+Sau repair cycle 1           : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
 ```
 
 Slice A (S080) — nhánh `claude/pra-002-slice-a-umygjq`, cắt từ
@@ -385,11 +386,24 @@ Slice A (S080) — nhánh `claude/pra-002-slice-a-umygjq`, cắt từ
 slice A: 01, 02, 03, 04, 05, 09, 10, 11, 12, 13, 16 (RECOMMENDED); 06 =
 PARTIAL; 07 (slice B), 08 (slice C), 14, 15, 17 = NOT_TESTED.
 
+Independent Review E2 slice A (S081) — kết luận **E2 PASS** sau một repair
+cycle. Bằng chứng: `docs/reviews/TASK-PRA-002-SLICE-A-INDEPENDENT-REVIEW-RECORD.md`.
+Mọi check trong bảng xác minh do phiên review tự chạy (E2), kể cả migration
+up/down trên PostgreSQL 16.13 thật.
+
 cycles:
-- id: (chưa mở — slice A chưa qua Independent Review; repair cycle chỉ tính
-  từ finding BLOCKING của review E2)
-  base_sha: N/A
-  head_sha: N/A
+- id: PRA-002-RC-1
+  base_sha: 80c6fe1d1c98497d821a8802fdbc9a1ca6a48b60
+  head_sha: (commit repair của S081 trên `claude/pra-002-slice-a-umygjq`)
+  finding: FIND-PRA002-A1 (BLOCKING) — version nguồn mới đánh số theo version
+    hiện hành thay vì theo max đã ghi (trái mục 5.3). Sau một
+    `ORDER_KEY_COLLISION`, mọi lần ghi version sau trên khoá đó vi phạm UNIQUE
+    `(khoá, version_no)` → rollback → `/run` HTTP 500 vĩnh viễn với sổ chứa Số
+    BH đó. Tái hiện trên cả SQLite và PostgreSQL 16.13.
+  fix: `CurrentState.max_version_no` + `next_version_no`; reconciler dùng
+    `next_version_no`; `_load_current` nạp `MAX(version_no)` theo khoá; thêm
+    `test_uploading_again_after_a_collision_still_works`.
+  result: Golden 58/2, full suite 1711 passed / 11 skipped, PostgreSQL 16.13 PASS
 
 ---
 

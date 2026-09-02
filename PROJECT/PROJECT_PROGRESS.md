@@ -1,5 +1,45 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S081)
+
+Cập nhật sau **Independent Review E2 của slice A**. Khối S080 ngay dưới giữ
+nguyên như bản ghi lịch sử đúng tại thời điểm implement; khi hai khối mâu
+thuẫn về trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                 = S081 — PRA-002 Slice A Independent Review (MAJOR)
+TASK-PRA-002            = IN_PROGRESS  (slice A REVIEWED + REPAIRED; slice B, C chưa bắt đầu)
+REVIEW_BASE_SHA         = 7fad3f76908d6d56114a5e2e947d83e15f8eda02  (canonical, chưa dịch chuyển)
+REVIEW_HEAD_SHA         = 80c6fe1d1c98497d821a8802fdbc9a1ca6a48b60
+BRANCH                  = claude/pra-002-slice-a-umygjq  (chưa integrate)
+REVIEW_RESULT           = E2 PASS sau 1 repair cycle
+FINAL_ACCEPTANCE        = ACCEPT
+INTEGRATION_READY       = YES
+BLOCKING FINDING        = FIND-PRA002-A1 — ĐÃ SỬA trong chính phiên review
+NON_BLOCKING FINDING    = FIND-PRA002-A2 (present_lines tính hai lần, DEFER slice C),
+                          FIND-PRA002-A3 (detected_date_* nullable, DEFER),
+                          FIND-PRA002-A4 (câu "CHƯA XÁC NHẬN ĐỦ" cố định, slice B)
+TEST                    = full suite 1711 passed, 11 skipped; Golden 58 passed, 2 skipped
+                          PostgreSQL 16.13 thật: migration up/down + vertical PASS
+CHANGE_BUDGET DÙNG      = 1.104 / 1.200 dòng logic production (dừng cứng 1.500 không chạm)
+CHECK PASS (E2)         = 01, 02, 03, 04, 05, 09, 10, 11, 12, 13; 16 (E1, RECOMMENDED)
+CHECK PARTIAL           = 06 (xác nhận tường minh = slice B)
+CHECK NOT_TESTED        = 07 (slice B), 08 (slice C), 14 (RDA — Owner), 15 (Production — Owner)
+CHECK-PRA002-17         = PARTIAL — phần slice A đã review E2 và PASS; CHECK-07
+                          (slice B) chưa chạy được nên check toàn task chưa đóng
+REVIEW BUDGET           = 2 cycle, ĐÃ DÙNG 1
+TRACKING_CHANGED        = NO
+EVIDENCE                = docs/reviews/TASK-PRA-002-SLICE-A-INDEPENDENT-REVIEW-RECORD.md
+NEXT_VERTICAL_ACTION    = Controlled Integration slice A vào canonical claude/extract-upload-repo-gq2ws4
+```
+
+**Điều review chứng minh thêm mà implement chưa bắt được:** sau một
+`ORDER_KEY_COLLISION`, lần upload TIẾP THEO trên cùng Số BH vi phạm UNIQUE
+`(khoá, version_no)` và làm `/run` trả HTTP 500 vĩnh viễn — vì version mới
+được đánh số theo version hiện hành thay vì theo max đã ghi (trái mục 5.3).
+Tái hiện trên cả SQLite và PostgreSQL 16.13; đã sửa và đã có test chặn
+(`test_uploading_again_after_a_collision_still_works`).
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S080)
 
 Cập nhật sau phiên implement **slice A**. Khối S079 ngay dưới giữ nguyên như

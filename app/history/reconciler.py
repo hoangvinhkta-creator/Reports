@@ -46,7 +46,7 @@ def _decide(line: SourceLine, state: CurrentState | None) -> Decision:
         # vẫn là UNKNOWN — D2). Ghi lại đầy đủ, dựng cờ, và KHÔNG đụng vào
         # hiện trạng: không SAME, không CHANGED, không merge, không mất bản ghi.
         return Decision(
-            line=line, outcome=OUTCOME_COLLISION, version_no=state.version_no + 1,
+            line=line, outcome=OUTCOME_COLLISION, version_no=state.next_version_no,
             creates_version=True, becomes_current=False,
             previous_version_id=state.source_version_id,
             collision_detail={
@@ -66,7 +66,7 @@ def _decide(line: SourceLine, state: CurrentState | None) -> Decision:
                         previous_version_id=state.source_version_id)
 
     return Decision(
-        line=line, outcome=OUTCOME_SOURCE_CHANGED, version_no=state.version_no + 1,
+        line=line, outcome=OUTCOME_SOURCE_CHANGED, version_no=state.next_version_no,
         creates_version=True, becomes_current=True,
         previous_version_id=state.source_version_id,
         changed_fields=changed_fields(state.fingerprint_values, line.fingerprint_values),

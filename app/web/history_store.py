@@ -458,6 +458,24 @@ class SnapshotRepository:
         state: dict = {}
         for start in range(0, len(order_keys), _KEY_CHUNK):
             chunk = order_keys[start:start + _KEY_CHUNK]
+            highest = {
+                _key_of(row): int(row.max_version_no)
+                for row in connection.execute(
+                    select(
+                        order_line_source_version.c.order_key,
+                        order_line_source_version.c.product_key,
+                        order_line_source_version.c.occurrence_index,
+                        func.max(order_line_source_version.c.version_no)
+                        .label("max_version_no"),
+                    )
+                    .where(order_line_source_version.c.order_key.in_(chunk))
+                    .group_by(
+                        order_line_source_version.c.order_key,
+                        order_line_source_version.c.product_key,
+                        order_line_source_version.c.occurrence_index,
+                    )
+                ).all()
+            }
             rows = connection.execute(
                 select(
                     order_line_current.c.order_key, order_line_current.c.product_key,
@@ -486,6 +504,7 @@ class SnapshotRepository:
                 state[_key_of(row)] = history_models.CurrentState(
                     source_version_id=int(row.version_id),
                     version_no=int(row.version_no),
+                    max_version_no=highest.get(_key_of(row)),
                     fingerprint=row.line_fingerprint,
                     sale_date=row.sale_date,
                     fingerprint_values=(
