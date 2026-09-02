@@ -1268,11 +1268,21 @@ E1
 Evidence:
 Yêu cầu: bảng mục 15, mỗi bước có output HTTP/CLI + SQL count nguyên văn; SHA256 workbook trước/sau không đổi; ghi rõ đường ưu tiên (hai export thật) hay controlled copy (ASSUMPTION D14). Thiếu file → `NOT_TESTED` + gate Owner.
 
+S090 — RDA một phần trên workbook THẬT do Owner cung cấp (`So_chi_tiet_ban_hang_7.xlsx`, SHA256 `e1c6cec2e27e5fd831a818cda5fd538fee53e4b5a3e7cb7d9af3e729c40bfa56`, trước == sau; 48 dòng / 34 đơn / 2026-09-01..2026-09-01), PostgreSQL 16.13 thật trên database cô lập `rda_pra002`, `alembic_version = 0002_snapshots`, qua route production `POST /run`:
+- RDA-1 = PASS — HTTP 302; `SNAP-20260902154531-e1c6cec2`; `line_count` 48; `order_count` 34; `n_insert` 48; `n_same` 0; `n_source_changed` 0; mọi cờ khác 0.
+- RDA-2 = PASS — HTTP 302; `duplicate_of_snapshot_id` = snapshot #1; `n_same` 48 = `line_count`; `COUNT(version_no>1)` = 0; current state T1 == T2 tới từng đồng (48 dòng / 34 đơn / `SUM(total_sales)` 468.300.000); result version 48 → 96 (history observation); `n_result_revised` 0; không cờ SOURCE.
+- Accounting oracle: khớp tuyệt đối `app.pipeline.run_import` (GB-4) và footer "Tổng cộng" của workbook (SL 55; doanh số 468.500.000; chiết khấu 200.000); `input_orders == accounted_orders` = 34; `unmapped_lines` 0; 48/48 PENDING với 0 giá nhập/lợi nhuận bịa (capture Tracking giá rỗng — Cloud không có secret).
+- Coverage = `DETECTED_ONLY`; KHÔNG POST `xac-nhan-du`.
+- RDA-6 = PARTIAL — Golden `58 passed, 2 skipped`; cohort S068 không có trong môi trường.
+- RDA-3/4/5 = `BLOCKED_OWNER_INPUT` — cần export thật thứ hai (A ⊂ B) hoặc Owner cho phép đường controlled copy (ASSUMPTION D14). `SOURCE_CHANGED` = `NOT_OBSERVED_IN_REAL_DATA`.
+- `FIND-RDA-01`: header dạng thứ ba `Ngày 01 tháng 9 năm 2026` → `DATA_SHAPE_UNKNOWN` + `OWNER_DECISION_REQUIRED`, NON_BLOCKING; hệ thống fail-safe đúng (`DETECTED_ONLY`), KHÔNG nới regex (mục 794–796).
+Status giữ `NOT_TESTED` vì hợp đồng đòi ĐỦ bảng mục 15. Bằng chứng đầy đủ: `docs/sessions/S090-pra-002-real-data-acceptance.md`.
+
 Executed By:
-...
+S090 — PRA-002 Real Data Acceptance (EVIDENCE ONLY), agent Claude Code
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-15 — Production Acceptance trên Render PostgreSQL
 Priority:

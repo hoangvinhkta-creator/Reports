@@ -1,6 +1,84 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S088)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S090)
+
+Cập nhật sau **Real Data Acceptance trên workbook kế toán THẬT do Owner cung
+cấp trong phiên** (continuation của S089). Khối S088 và các khối cũ hơn bên
+dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về trạng
+thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S090 — PRA-002 Real Data Acceptance (EVIDENCE ONLY)
+RESULT                     = PARTIAL — RDA-1 PASS · RDA-2 PASS · RDA-6 PASS (Golden) ·
+                             RDA-3/4/5 BLOCKED_OWNER_INPUT
+TASK-PRA-002               = IN_PROGRESS   (KHÔNG DONE — RDA chưa đủ bảng mục 15;
+                             Production Acceptance chưa xong)
+CANONICAL_SHA              = d7a1154a2892e5869e286e10da49f750aa0611df  (khớp EXPECTED — canonical KHÔNG dịch chuyển)
+BRANCH_AUTHORITY           = AUTHORITY_OK (0 ahead / 0 behind default)
+REAL_WORKBOOK              = So_chi_tiet_ban_hang_7.xlsx — REAL_OWNER_PROVIDED
+                             (KHÔNG commit, KHÔNG sửa; SHA256 trước == sau)
+REAL_WORKBOOK_SHA256       = e1c6cec2e27e5fd831a818cda5fd538fee53e4b5a3e7cb7d9af3e729c40bfa56
+REAL_DATA_PROFILE          = 48 dòng · 34 đơn · 2026-09-01..2026-09-01 · 16.196 bytes ·
+                             BH 48/48 khớp `BH\d+` · 0 đơn nhiều ngày
+POSTGRESQL_CONTEXT         = PostgreSQL 16.13 THẬT, database cô lập `rda_pra002` (non-production);
+                             `alembic upgrade head` → alembic_version = 0002_snapshots
+PRODUCTION_PATH            = route production `POST /run` (app/web/server.py) trên
+                             SnapshotRepository PostgreSQL — không patch production code
+RDA1_FIRST_IMPORT          = PASS — HTTP 302 · SNAP-20260902154531-e1c6cec2 ·
+                             line_count 48 · order_count 34 · INSERT 48 · SAME 0 ·
+                             SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 ·
+                             REMOVED_CANDIDATE 0 · RESULT_REVISED 0
+RDA2_EXACT_REUPLOAD        = PASS — HTTP 302 · SNAP-...-01 ·
+                             duplicate_of_snapshot_id = snapshot #1 · SAME 48 = line_count ·
+                             INSERT 0 · SOURCE_CHANGED 0 · mọi cờ 0 · không cờ SOURCE trên trang
+SOURCE_VERSION_EVIDENCE    = 48 version, version_no>1 = 0, MAX(version_no) = 1
+                             → exact reupload KHÔNG tạo source version mới
+RESULT_VERSION_EVIDENCE    = 48 → 96 (history observation theo frozen Slice A contract);
+                             0 khoá có result_fingerprint khác nhau giữa hai run
+NO_DOUBLE_COUNT            = PROVEN — current state T1 (sau RDA-1) == T2 (sau RDA-2):
+                             lines 48 · orders 34 · total_sales 468.300.000 ·
+                             raw_sales 468.500.000 · qty 55 · discount 200.000 ·
+                             keyset identical · per-order identical · 0 flag
+ACCOUNTING_SAFETY          = PASS — khớp tuyệt đối oracle `app.pipeline.run_import` (GB-4)
+                             VÀ footer "Tổng cộng" của chính workbook:
+                             34 đơn / 48 dòng / SL 55 / chiết khấu 200.000 /
+                             doanh số 468.500.000 / net 468.300.000 · unmapped_lines 0.
+                             AUTO/PENDING safety: input_orders == accounted_orders = 34;
+                             48/48 PENDING, 0 giá nhập bịa, 0 lợi nhuận bịa
+RDA_TRACKING_LIMITATION    = Cloud không có secret Tracking → capture giá RỖNG (đúng tiền lệ
+                             tests/test_pipeline_history_vertical.py) → auto_orders = 0.
+                             Chiều an toàn ĐƯỢC chứng minh; đường AUTO CHƯA thực thi trên dữ liệu thật
+COVERAGE_STATE             = DETECTED_ONLY (detected 2026-09-01..2026-09-01;
+                             header_date_min/max NULL) — KHÔNG tự nâng CONFIRMED_COMPLETE
+SOURCE_CHANGED             = NOT_OBSERVED_IN_REAL_DATA (một workbook không đổi không thể tự sinh)
+RESULT_REVISED             = 0 — kết quả ĐÚNG, không phải thiếu sót (C1 đã có E2 evidence riêng)
+RDA6_GOLDEN                = PASS — tests/test_golden_baseline.py → 58 passed, 2 skipped;
+                             cohort S068 NOT_TESTED (không có trong môi trường)
+LEGACY_NON_REGRESSION      = GET /du-lieu 200 · /du-lieu/snapshot/<id> 200 (cả hai) ·
+                             /nhan-vien 200
+CHECK-PRA002-14            = NOT_TESTED (giữ nguyên — hợp đồng frozen đòi ĐỦ bảng mục 15).
+                             RDA-1 PASS · RDA-2 PASS · RDA-6 PARTIAL ·
+                             RDA-3/4/5 BLOCKED_OWNER_INPUT
+CHECK-PRA002-15            = NOT_TESTED — Production Acceptance pending (Owner; phiên KHÔNG deploy)
+FINDINGS                   = FIND-RDA-01 header dạng thứ ba `Ngày 01 tháng 9 năm 2026` →
+                             DATA_SHAPE_UNKNOWN + OWNER_DECISION_REQUIRED, NON_BLOCKING
+                             (hệ thống fail-safe đúng: DETECTED_ONLY, không đoán, không nới regex).
+                             FIND-RDA-02 một dòng `Suspicious` → NON_BLOCKING, có ở cả oracle.
+                             KHÔNG có BLOCKING_PRODUCTION_DEFECT
+CODE_REQUIRED              = NO
+PRODUCTION_CODE_ADDED      = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500      REMAINING = 40 LOC   (KHÔNG đổi)
+TRACKING_CHANGED           = NO (READ-ONLY — không gọi, không sửa)
+OWNER_CONFIRMATION_REQUIRED= YES (chỉ để đóng RDA-5) — SNAPSHOT_ID = SNAP-20260902154531-e1c6cec2,
+                             RANGE = 2026-09-01..2026-09-01. Phiên KHÔNG POST xac-nhan-du
+OWNER_SECOND_FILE_REQUIRED = YES (cho RDA-3) — export THẬT chứa trọn 2026-09-01 và rộng hơn (A ⊂ B)
+EVIDENCE                   = docs/sessions/S090-pra-002-real-data-acceptance.md
+NEXT_VERTICAL_ACTION       = Owner cung cấp export thật thứ hai (A ⊂ B) HOẶC cho phép đường
+                             controlled copy ASSUMPTION D14 → chạy RDA-3/4/5 → đóng CHECK-PRA002-14
+```
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-02, S088)
 
 Cập nhật sau **Controlled Integration slice C1** vào canonical. Khối S087 và các
 khối cũ hơn bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu
@@ -5451,6 +5529,22 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S090 — PRA-002 REAL DATA ACCEPTANCE (EVIDENCE ONLY) — 2026-09-02 — Owner
+  upload MỘT workbook kế toán THẬT trong phiên (`So_chi_tiet_ban_hang_7.xlsx`,
+  48 dòng / 34 đơn / 2026-09-01; không commit, không sửa, SHA256 trước == sau).
+  Chạy qua route production `POST /run` trên PostgreSQL 16.13 thật, database cô
+  lập, `alembic_version = 0002_snapshots`. RDA-1 PASS (INSERT 48 / SAME 0 /
+  SOURCE_CHANGED 0); RDA-2 exact reupload PASS (SAME 48 = line_count, 0 source
+  version mới, `duplicate_of` đúng); no-double-count chứng minh bằng current
+  state chụp xen giữa hai lần import — 48 dòng / 34 đơn / 468.300.000 không
+  đổi, keyset và per-order identical; accounting oracle khớp tuyệt đối
+  `run_import` (GB-4) và footer workbook; Golden 58 passed/2 skipped.
+  RDA-3/4/5 `BLOCKED_OWNER_INPUT` (cần export thật thứ hai A ⊂ B);
+  `SOURCE_CHANGED = NOT_OBSERVED_IN_REAL_DATA`; `RESULT_REVISED = 0` là kết quả
+  đúng. FIND-RDA-01 header dạng thứ ba → `OWNER_DECISION_REQUIRED`,
+  NON_BLOCKING, không nới parser. 0 dòng production code; CHANGE_BUDGET không
+  đổi (1.460/1.500). CHECK-PRA002-14 giữ `NOT_TESTED` (hợp đồng đòi đủ bảng
+  mục 15). Evidence: `docs/sessions/S090-pra-002-real-data-acceptance.md`.
 - S060 — REPORTS HISTORY READER V1 (Session 1/2) — 2026-08-29 — Trace mã
   production hai repo; xác nhận bằng bằng chứng rằng `purchase_price_history.t`
   không có thẩm quyền nào (client `Date.now()`, rules không `.validate`);
