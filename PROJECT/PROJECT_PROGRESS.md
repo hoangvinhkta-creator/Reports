@@ -1,5 +1,96 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-001 (AUTHORITATIVE, 2026-09-02, S077)
+
+Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho `TASK-PRA-001`. Mọi
+khối session bên dưới (S073, S074, S075, S076) được giữ nguyên như **bản ghi
+lịch sử đúng tại thời điểm của chúng** — đặc biệt S076 ghi
+`CHECK-PRA001-01 = NOT_TESTED` và `TASK-PRA-001 = IMPLEMENTED`, đó là trạng
+thái đúng của S076 và KHÔNG bị viết lại. Khi một khối lịch sử mâu thuẫn với
+mục này về trạng thái *hiện tại*, mục này đúng.
+
+```text
+TASK-PRA-001            = DONE
+CODE_ACCEPTANCE         = PASS
+REAL_DATA_ACCEPTANCE    = PASS
+CHECK-PRA001-01         = PASS   (file Excel THẬT, không còn NOT_TESTED)
+CHECK-PRA001-09         = BLOCKED (RECOMMENDED — cần PostgreSQL thật,
+                                   gate deploy Owner, không chặn DONE)
+FINAL_DELTA_REVIEW      = PASS
+DEC169_REVIEW           = FAITHFUL
+REQUIRED_GATES          = 9/9 PASS  (CHECK-PRA001-01…08 + -10)
+BLOCKING_FINDINGS       = NONE
+REPAIR_CYCLES_REMAINING = 0
+EXACT_ACCEPTED_SHA      = 3faedfdebc1f14d8a27e89955d9cfa64d6a462cd
+SOURCE_BRANCH           = claude/reports-pipeline-architecture-gj8bji
+```
+
+### Phạm vi import production đã chốt (DEC-169)
+
+```text
+Summary 2025    = REFERENCE_ONLY   (không import / persist / query / display)
+Summary 2026    = REQUIRED_IMPORT
+DataChart 2026  = REQUIRED_IMPORT
+```
+
+`Summary 2025` là sheet đã dán cứng (0 ô công thức, 99 dòng value-only trên
+workbook thật). Importer raise `LegacyImportError` thay vì đoán `row_kind` —
+đúng theo guard DEC-168 / FIND-PRA001-R01. Owner bác bỏ giả định "phải
+production-import Summary 2025"; đây là `OWNER_SCOPE_CLARIFICATION`, KHÔNG
+phải repair cycle 2, và repair budget PRA-001 vẫn `0 used sau cycle 1 /
+0 remaining` (xem `PROJECT/PROJECT_DECISIONS.md` DEC-169).
+
+**Không được đọc mục này thành "toàn bộ workbook lịch sử đã được import".**
+Chỉ dữ liệu 2026 cần thiết được đưa vào production store.
+
+### Real Data Acceptance — bằng chứng (E1, workbook thật)
+
+Workbook Owner cung cấp trong Claude Cloud (KHÔNG commit vào repo, KHÔNG bị
+sửa — SHA256 trước/sau giống hệt): `Báo cáo Kinh doanh 2026.xlsx`, SHA256
+`4ffe51983306a16f507d3fe5fad6b0f2acf9bfe8b0486f30c83cb64398d11f72`.
+
+```text
+sheets_imported = ['Summary 2026', 'DataChart 2026']
+summary_rows    = 71     daily_sales = 174     monthly_reference = 12
+import_id       = LEG-20260902-4ffe5198
+
+SUMMARY_SOURCE_ROWS_WITH_VALUES  = 71
+SUMMARY_IMPORTED_ROWS            = 71
+SUMMARY_UNACCOUNTED_ROWS         = 0
+SUMMARY_REFERENCE_ONLY_PERSISTED = 0
+matched=1508 mismatched=0
+exit=0
+```
+
+Fidelity ở đây gồm **HAI** phần và phải được đọc như vậy: `VALUE MATCH`
+(`mismatched=0`) **và** `SOURCE COVERAGE`
+(`SUMMARY_SOURCE_ROWS_WITH_VALUES == SUMMARY_IMPORTED_ROWS`). Con số
+`matched=N mismatched=0` đứng MỘT MÌNH không còn được chấp nhận làm bằng
+chứng completeness kể từ FIND-PRA001-R01.
+
+### Vòng review — bản ghi durable
+
+| Vòng | SHA được review | Kết quả |
+|---|---|---|
+| Independent Review #1 | `7d84072765288b7a9dc28679a09325fce7860b48` | `CHANGES_REQUIRED` — 2 blocking (`FIND-PRA001-R01`, `FIND-PRA001-R02`) |
+| Repair Re-review (cycle 1/1) | `5bea87ad` (repair của S076) | `PASS` — cả hai finding đã đóng |
+| Final Independent Delta Review | `3faedfdebc1f14d8a27e89955d9cfa64d6a462cd` | `PASS` — `DEC169_REVIEW = FAITHFUL`, 0 blocking |
+
+Bản ghi đầy đủ: `docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md`.
+
+### Ranh giới đã giữ
+
+```text
+PROTECTED_CORE_IMPACT = NONE
+TRACKING_CHANGED      = NO
+PRA002_STARTED        = NO   (PRA-002 chỉ là NEXT, chưa mở)
+PRA002_PREBUILD       = NONE (không prebuild schema snapshot/version)
+POSTGRESQL_PROVISIONED = NO  — gate infra riêng, SAU integration
+```
+
+PostgreSQL production provisioning là **NEXT INFRA GATE** tách biệt
+(`docs/deployment/S071_DEPLOYMENT.md` bước 8–12), không thuộc PRA-001 DONE.
+
 ## CANONICAL CURRENT DELIVERY STATUS — AUTHORITATIVE (2026-09-01)
 
 Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho bản giao canonical sau
@@ -393,6 +484,185 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   hiển thị. `data/captures/`, `data/tracking_catalog/`, `data/tracking_inv_map/`,
   `data/tracking_price_history/` là runtime evidence thật, cố ý KHÔNG commit
   (kỷ luật thao tác, không phải `.gitignore` pattern — xem DEFERRED).
+
+### PLANNED — PHASE-PRA: Persistent Reporting & Analytics (S072, 2026-09-02)
+
+- **TASK-PRA-000 — Kế hoạch kiến trúc (SPIKE, DONE trong S072, nhánh
+  `claude/reports-pipeline-architecture-gj8bji`).** Chỉ lập kế hoạch: không
+  code feature, không refactor, không migration, không deploy, không sửa
+  Tracking (READ-ONLY REFERENCE). Tài liệu chốt tại
+  `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md` (18 mục
+  A–R) và bàn giao
+  `docs/sessions/S072-persistent-reporting-analytics-planning.md`.
+  Kết luận chính: (1) Reports hiện chỉ persist 7 số tổng hợp/run + XLSX —
+  chưa có dữ liệu đơn/dòng để query lịch sử; AUTO/Review chỉ được suy ra
+  trong exporter. (2) Hai origin lịch sử tách biệt tuyệt đối:
+  `LEGACY_REFERENCE` (Excel cũ nhập nguyên trạng, kèm cờ lỗi công thức
+  A1–A6, không tính lại) và `PIPELINE_GENERATED` (kết quả pipeline, có
+  provenance snapshot + evidence Tracking). (3) `ORDER_KEY = Số BH chuẩn hoá`
+  (guard 90 ngày chống trùng số khi reset); `ORDER_LINE_KEY = (ORDER_KEY,
+  product_key, occurrence_index)` + `line_fingerprint` — nguồn ERP không có
+  khoá dòng tự nhiên. (4) Snapshot model với coverage tường minh và HAI trục
+  phiên bản (nguồn kế toán đổi ≠ pipeline chạy lại với evidence mới) → 4
+  CASE INSERT / SAME / CHANGED / REMOVED_CANDIDATE + RESULT_REVISED; không
+  DELETE/UPDATE-in-place fact. (5) UI giữ 6 khu vực, chỉnh: "Cần kiểm tra"
+  gộp Review Queue + Thay đổi nguồn + Đối chiếu cũ/mới; "Lịch sử dữ liệu" →
+  "Dữ liệu" (coverage calendar); "Sản phẩm" lùi slice cuối; điều hướng tab
+  ngang + thanh ngữ cảnh sticky theo token `--tp-*` của Tracking (chỉ chép
+  CSS, không runtime dependency).
+  Roadmap 5 slice dọc (đều `TRACKING_CHANGE_REQUIRED = NO`,
+  `PROTECTED_CORE_IMPACT = NONE`): PRA-001 Legacy reference + nền DB →
+  PRA-002 Persistence + overlapping-upload reconciliation (slice nặng nhất,
+  Tier C, E2 review) → PRA-003 Tổng quan + Nhân viên → PRA-004 Bán hàng
+  drill-down + Review Operations → PRA-005 Sản phẩm + analytics LATER.
+  **Chưa task nào READY.** Chặn bởi 4 quyết định Owner (DB production,
+  nguồn coverage, chính sách CHANGED, chính sách REMOVED) + ratify
+  amendment ADR-101 (web layer = Flask/Jinja) — danh sách đủ 13 quyết định
+  tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
+  bên dưới nay có kế hoạch nhưng vẫn chưa READY.
+
+### S076 (2026-09-02) — TASK-PRA-001 repair cycle 1/1: hai blocking finding đã sửa; DEC-168 mở ngân sách ~1.050 LOC
+
+Independent Review trên `7d84072765288b7a9dc28679a09325fce7860b48` =
+`CHANGES_REQUIRED`. Repair base giữ nguyên, KHÔNG rewrite.
+
+Hai finding cùng một bản chất — **một sự cố được trình bày như trạng thái
+bình thường**, đúng loại sai mà cả PRA-001 tồn tại để ngăn:
+
+- **FIND-PRA001-R01** — verifier duyệt từ DB → Excel nên chỉ trả lời được
+  "cái đã nhập có đúng không", không bao giờ thấy "cái chưa từng được nhập".
+  Tái tạo trước repair: mất trọn `Summary 2025` (0 dòng nhập, nguồn có số ở
+  dòng 4/5/6) mà vẫn in `matched=372 mismatched=0`. Sửa: parser raise
+  `LegacyImportError` nêu đích danh sheet + dòng khi một dòng có giá trị
+  nghiệp vụ không khớp contract phân loại; verifier đổi vòng lặp Summary
+  sang EXCEL → DB, in `SUMMARY_SOURCE_ROWS_WITH_VALUES` /
+  `SUMMARY_IMPORTED_ROWS` / `SUMMARY_UNACCOUNTED_ROWS`, thiếu dòng nguồn =
+  exit khác 0. Sau repair, đúng case reviewer: `SUMMARY_UNACCOUNTED_ROWS=3`,
+  `matched=580 mismatched=0`, **exit=1**.
+- **FIND-PRA001-R02** — `abort(503)` của `_guarded` ném `HTTPException`, bị
+  `except Exception` trong route import nuốt thành redirect 302 "Không đọc
+  được workbook legacy": một sự cố DATABASE hiển thị thành LỖI FILE của
+  Owner, phá `CHECK-PRA001-06` trong im lặng. Sửa tối thiểu:
+  `except HTTPException: raise` trong đúng route đó.
+
+Cả hai test repair đã chứng minh FAIL trên code trước repair (`assert 302 ==
+503`; `DID NOT RAISE LegacyImportError`).
+
+**DEC-168 (Owner):** (1) `PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED`, ngân
+sách production logic ~1.050 dòng — review xác minh `ESSENTIAL ≈ 950`,
+`OUT_OF_SCOPE = 0 material`, nên chỉnh ngân sách theo thực tế thay vì cắt
+capability; đo sau repair = **1.045**, trong ngân sách. (2) Hợp đồng nghiệp
+vụ: dòng Summary có giá trị nghiệp vụ mà contract không nhận ra thì **FAIL
+TO**, KHÔNG auto-guess `row_kind` từ việc dòng có số.
+
+Regression: `1586 passed, 11 skipped` → `1600 passed, 11 skipped` (+14 test
+repair, 0 test mất). PRA-001 focused suite `106 passed`. Validator 4/5 PASS;
+reference integrity chỉ còn 3 finding PRE_EXISTING của REM-T06.
+Repair budget: **1/1 đã dùng, còn 0**.
+
+`CHECK-PRA001-01` vẫn NOT_TESTED (cần file Excel thật) nhưng evidence đã
+viết lại: fidelity kể từ đây gồm `VALUE MATCH` **+** `SOURCE COVERAGE`;
+`628/0` không còn được dùng một mình. `CHECK-PRA001-06` mở rộng sang cả
+đường GHI. `CHECK-PRA001-09` vẫn BLOCKED (cần PostgreSQL thật).
+
+PROTECTED_CORE_IMPACT = NONE. TRACKING_CHANGED = NO. Không implement PRA-002.
+Chi tiết: `docs/sessions/S076-pra-001-repair-cycle-1.md`.
+
+### S075 (2026-09-02) — TASK-PRA-001 = IMPLEMENTED; Legacy Reference Vertical chạy đầu-cuối; CHANGE_BUDGET_EXCEEDED chờ Owner
+
+Nhánh `claude/reports-pipeline-architecture-gj8bji`, base authority
+`b50e8bc29b92e8f5199675cfc8574332970fe1b9` (close-out S074, đã xác minh).
+
+**Owner giờ xem được số báo cáo cũ ngay trong Reports.** Nhập workbook
+"Báo cáo Kinh doanh" ở tab **Dữ liệu** → mở tab **Nhân viên** (ma trận
+tháng × người bán, nghìn đồng) hoặc **Doanh số ngày** (từ DataChart, VND
+nguyên) → chọn kỳ lịch sử. Mọi con số đeo nhãn `LEGACY` kèm đơn vị; ô có
+lỗi công thức đã biết mang dấu nhắc A1/A2/A4/A6 — không cần mở Excel để
+xem summary cơ bản nữa.
+
+Đã dựng: `tools/db/` (engine builder + fail-closed + `assert_schema_current`),
+Alembic chain với ĐÚNG một migration `0001_legacy` (4 bảng `legacy_*`),
+`app/legacy/` (importer thuần openpyxl), `app/web/history_store.py`
+(`LegacyRepository`, SQLAlchemy Core, engine tiêm được), 5 route web,
+layout + tab bar + CSS token `--tp-*` chép tĩnh từ đặc tả design của
+TASK-PRA-000 mục E (không hot-link, không JS Tracking).
+
+Ba bất biến được khoá bằng test, không phải bằng lời:
+1. **Không tính lại số cũ** — fixture có ô giá trị `999` với công thức
+   `=G9/5.5%` (đúng công thức ~547.272); hệ thống lưu và hiện `999`. Quét
+   AST: không phép chia/nhân nào trong `app/legacy/`; quét mã sau khi xoá
+   chuỗi/chú thích: `/2`, `/ 2`, `5.5%` không có trong logic.
+2. **Không số cũ nào hiển thị thiếu nhãn** — test trích MỌI ô số từ HTML
+   và khẳng định ô nào cũng mang `LEGACY` + đơn vị.
+3. **Không biến sự cố thành "chưa có dữ liệu"** — thiếu cấu hình hoặc
+   schema cũ → app không khởi động; DB lỗi lúc request → HTTP 503.
+
+Trạng thái check: 8 REQUIRED PASS (E1); CHECK-01 (fidelity trên FILE THẬT)
+= NOT_TESTED vì workbook thật không có trong Claude Cloud và không được
+commit (PII) — script đối chiếu `tools/analysis/verify_legacy_import.py`
+đã viết và chạy PASS trên fixture (`matched=628 mismatched=0`); CHECK-09
+(DDL trên PostgreSQL thật) = BLOCKED vì session không có Postgres và không
+được tự tạo dịch vụ trả phí. Cả hai thành gate của Owner, quy trình đã
+viết ở `docs/deployment/S071_DEPLOYMENT.md` bước 8–12.
+
+Regression: baseline đầu phiên `1494 passed, 11 skipped` → cuối phiên
+`1586 passed, 11 skipped` (+92 test mới, 0 test mất, 0 skip mới).
+Validator 4/5 PASS; reference integrity chỉ còn 3 finding PRE_EXISTING của
+REM-T06 (S075 thêm 0). Protected core, R2, Tracking KHÔNG bị chạm.
+
+**BLOCKER CẦN OWNER: `CHANGE_BUDGET_EXCEEDED`.** 1.024 dòng logic
+production Python so với ngưỡng dừng cứng 600 (930 nếu chỉ tính đúng tập
+file mà CHANGE_BUDGET liệt kê). Ngân sách khác vẫn trong hạn (template
+284/300, CSS 200/450, test 92 ≥ 25, đúng 3 dependency được phép). Ba
+phương án A/B/C đã viết ở mục "ESCALATION — CHANGE_BUDGET_EXCEEDED" trong
+`docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`; session KHÔNG tự
+chọn. Vì vậy TASK-PRA-001 = **IMPLEMENTED**, KHÔNG phải DONE, và KHÔNG
+merge canonical trước khi Owner phân xử + Independent Review.
+
+Chi tiết đầy đủ: `docs/sessions/S075-pra-001-legacy-reference-vertical.md`.
+
+### CLOSE-OUT S074 (2026-09-02) — ADR-108 APPROVED; TASK-PRA-000 = DONE / architecture finalized; TASK-PRA-001 = READY
+
+- Owner approve ADR-108 (DEC-167): Production structured history = Managed
+  PostgreSQL; Artifacts / run JSON / XLSX = R2; Local/test = SQLite;
+  PRA-001 database scope = minimum legacy schema only; không prebuild schema
+  PRA-002; Tracking READ-ONLY, không đổi.
+- `docs/adr/ADR-108-persistent-history-store.md` → Accepted.
+- `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md` → READY (gate
+  FROZEN từ S073 không đổi; Ready Gate còn 2 điều kiện vận hành: file Excel
+  legacy trên máy chạy acceptance, đồng bộ nhánh đầu session).
+- Session close-out docs-only: không code, không migration, không provision,
+  không deploy. Implementation base = HEAD nhánh
+  `claude/reports-pipeline-architecture-gj8bji` sau commit S074.
+- Session tiếp theo: implement TASK-PRA-001 theo handoff
+  `docs/sessions/S073-pra-finalization.md` (10 bước; bước 2 đã làm ở S074).
+
+### PLANNED — PHASE-PRA finalization (S073, 2026-09-02) — TASK-PRA-001 gate FROZEN
+
+- Owner review kế hoạch S072: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`.
+  Owner chốt 5 quyết định nền (DEC-166): A giữ Flask + Jinja (amendment
+  `docs/adr/ADR-109-web-layer-flask-jinja.md`, ADR-101 thêm Superseded By);
+  B coverage auto-detect, phân biệt `DETECTED_DATE_RANGE` với
+  `CONFIRMED_COMPLETE_COVERAGE`; C SOURCE_CHANGED giữ version + changed_fields;
+  D REMOVED_CANDIDATE không silent delete, không tự loại khỏi analytics;
+  E legacy nguyên trạng. Policy reconciliation chốt tại
+  `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md` phụ lục F3.
+- Persistence: decision audit R2 vs D1 vs PostgreSQL tại
+  `docs/adr/ADR-108-persistent-history-store.md` — đề xuất HYBRID
+  (PostgreSQL managed cho structured records + R2 artifact không đổi +
+  SQLite local/test). **Status Proposed — Owner CHƯA approve.** Đây là
+  quyết định blocking duy nhất còn lại, và chỉ chặn deploy production của
+  PRA-001, không chặn implement/test local.
+- **TASK-PRA-001 — Legacy Reference Vertical**: task file
+  `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`, Status PLANNED,
+  Completion Gate FROZEN (10 check, 9 REQUIRED, Risk 3 → E1), Change Budget
+  ≤450 LOC Python (dừng cứng 600). Ready Gate còn 3 ô chưa tick: approve
+  ADR-108, file Excel legacy có trên máy chạy acceptance, đồng bộ nhánh
+  đầu session. `READY_FOR_PRA_001 = YES` có điều kiện (approve ADR-108
+  trước deploy). Implementation handoff:
+  `docs/sessions/S073-pra-finalization.md`.
+- PRA-002…005: PLANNED, không mở implementation (preview PRA-002 tại phụ
+  lục F6 chứng minh PRA-001 không dead-end).
 
 ### DEFERRED FINDING — Product Identity Discovery Gap (S068 follow-up audit)
 
@@ -4760,6 +5030,38 @@ cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
 trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo
+
+> **Cập nhật 2026-09-02 (S076):** repair cycle 1/1 của TASK-PRA-001 đã
+> xong — hai blocking finding của Independent Review đã sửa, DEC-168 đóng
+> `CHANGE_BUDGET_EXCEEDED`. `1600 passed, 11 skipped`. Session tiếp theo:
+> re-review độc lập; rồi Owner deploy PostgreSQL (CHECK-09) và chạy
+> `verify_legacy_import` trên file Excel thật (CHECK-01). Repair budget đã
+> hết (0 còn lại) — finding blocking tiếp theo phải leo thang.
+>
+> **Cập nhật 2026-09-02 (S075):** TASK-PRA-001 = IMPLEMENTED. Legacy
+> Reference Vertical chạy đầu-cuối; `1586 passed, 11 skipped`. Session tiếp
+> theo: (1) Owner phân xử `CHANGE_BUDGET_EXCEEDED`, (2) Independent Review,
+> (3) Owner tạo Render PostgreSQL để đóng CHECK-09, (4) Owner chạy
+> `verify_legacy_import` trên file Excel thật để đóng CHECK-01. Xem khối
+> "S075 (2026-09-02)" ở đầu file và
+> `docs/sessions/S075-pra-001-legacy-reference-vertical.md`.
+>
+> **Cập nhật 2026-09-02 (S074, close-out):** ADR-108 Accepted (DEC-167);
+> TASK-PRA-000 DONE; TASK-PRA-001 READY — session tiếp theo implement PRA-001.
+>
+> **Cập nhật 2026-09-02 (S073):** kế hoạch đã được Owner review PASS;
+> TASK-PRA-001 gate FROZEN, còn chờ Owner approve ADR-108 (persistence).
+> Xem khối "PLANNED — PHASE-PRA finalization (S073)" ở đầu file.
+>
+> **Cập nhật 2026-09-02 (S072):** track mới PHASE-PRA (Persistent Reporting
+> & Analytics) đã có kế hoạch tại
+> `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md`. Session
+> đề xuất tiếp theo cho track này: Owner trả lời quyết định N.1–N.4 + N.12,
+> rồi mở TASK-PRA-001 (Slice 1 — Legacy reference + nền DB) theo Roadmap
+> Finalization. Xem khối "PLANNED — PHASE-PRA" trong CANONICAL CURRENT
+> DELIVERY STATUS ở đầu file. Nội dung bên dưới là lịch sử của các track
+> trước, giữ nguyên.
+
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:

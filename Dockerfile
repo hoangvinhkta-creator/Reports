@@ -51,7 +51,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY pyproject.toml ./
+COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY tools ./tools
 COPY config ./config
@@ -68,4 +68,8 @@ RUN mkdir -p /app/outputs/reports
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["sh", "-c", "gunicorn --workers 2 --threads 4 --bind 0.0.0.0:${PORT} --timeout 120 app.web.wsgi:application"]
+# TASK-PRA-001: nâng schema history TRƯỚC khi mở cổng. `alembic upgrade head`
+# thất bại → container không start (fail closed): thà không deploy còn hơn
+# chạy lên với schema cũ/chưa có rồi hiển thị lịch sử rỗng như thể chưa ai
+# nhập gì. Migration idempotent nên chạy lại ở mỗi lần deploy là an toàn.
+CMD ["sh", "-c", "alembic upgrade head && gunicorn --workers 2 --threads 4 --bind 0.0.0.0:${PORT} --timeout 120 app.web.wsgi:application"]

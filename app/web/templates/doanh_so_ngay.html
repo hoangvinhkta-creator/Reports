@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% import "_legacy_bits.html" as legacy %}
+{% set active_tab = 'doanh-so-ngay' %}
+{% block title %}Reports — Doanh số theo ngày (số cũ){% endblock %}
+
+{% block content %}
+<h1>DOANH SỐ THEO NGÀY — SỐ CŨ</h1>
+
+{% if not history_configured %}
+  {{ legacy.not_configured() }}
+{% else %}
+{{ legacy.source_note(legacy_import) }}
+
+<div class="module">
+  {% if periods %}
+    {{ legacy.period_picker(periods, selected, url_for('daily_sales')) }}
+  {% endif %}
+
+  {% if not periods %}
+  <p class="empty">Chưa nhập bản báo cáo cũ nào — vào tab Dữ liệu để nhập workbook.</p>
+  {% elif not selected %}
+  <p class="empty">Kỳ được chọn không có trong bản legacy đang xem.</p>
+  {% elif not days %}
+  <p class="empty">Sheet DataChart của bản legacy đang xem không có ngày nào cho kỳ này.</p>
+  {% else %}
+  <h2>Tháng {{ '%02d' % selected[1] }}/{{ selected[0] }} {{ legacy.legacy_badge() }}
+      <span class="cnt">{{ days|length }} ngày</span></h2>
+  <p class="insight">
+    Đơn vị: đồng (số cũ) — DataChart lưu VND nguyên, KHÁC đơn vị nghìn đồng của
+    Summary. Hai nguồn số này không được đối chiếu với nhau (ý nghĩa chưa xác định).
+  </p>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Ngày</th><th class="num">Doanh số</th></tr>
+    {% for item in days %}
+    <tr><td class="code">{{ '%02d' % item.day }}</td>{{ legacy.legacy_cell(item.cell) }}</tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% if monthly %}
+  <h2>Tham chiếu tháng {{ legacy.legacy_badge() }}</h2>
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th class="num">Tổng tháng</th><th class="num">Cùng kỳ năm trước</th>
+      <th class="num">So cùng kỳ</th><th class="num">So target</th><th class="num">Target/ngày</th>
+    </tr>
+    <tr>
+      {{ legacy.legacy_cell(monthly_cells.sales_current_year_vnd) }}
+      {{ legacy.legacy_cell(monthly_cells.sales_prev_year_vnd) }}
+      {{ legacy.legacy_cell(monthly_cells.vs_last_year_ratio) }}
+      {{ legacy.legacy_cell(monthly_cells.vs_target_ratio) }}
+      {{ legacy.legacy_cell(monthly_cells.target_per_day) }}
+    </tr>
+  </table>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

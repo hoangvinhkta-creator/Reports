@@ -126,4 +126,6 @@ thấy màn hình nào.
 None
 
 ## Superseded By
-None
+ADR-109 (một phần, 2026-09-02): web layer canonical là Flask + Jinja, không
+FastAPI/React. Phần phân lớp engine/repository và lựa chọn PostgreSQL/SQLite
+của ADR này giữ nguyên hiệu lực; xem thêm ADR-108 cho history store.

@@ -11,6 +11,8 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "SQLAlchemy>=2.0",
+    "alembic>=1.13",
 ]
 # S070 — Web Beta V1: chỉ cần khi chạy app/web/*. Core CLI/Tkinter (demo.py,
 # owner_launcher.py) không phụ thuộc Flask.
@@ -24,11 +26,20 @@ web = [
 storage = [
     "boto3>=1.34",
 ]
+# TASK-PRA-001 — History store (ADR-108): SQLAlchemy Core + Alembic cho
+# structured history. `psycopg` chỉ cần ở production (PostgreSQL); local/test
+# chạy SQLite nên KHÔNG cần cài driver Postgres để chạy test. Không có
+# package nào dưới app/ import psycopg hay alembic — xem tools/db/.
+history = [
+    "SQLAlchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+]
 # S071 — Shared Online Beta: chỉ cần cho triển khai production (gunicorn
 # chạy app/web/wsgi.py). Local launcher (app/web/launcher.py) và test vẫn chỉ
 # cần "web" ở trên — gunicorn không tồn tại trên Windows nên KHÔNG gộp vào đó.
 web-prod = [
-    "tinphat-reporting-engine[web,storage]",
+    "tinphat-reporting-engine[web,storage,history]",
     "gunicorn>=22.0; platform_system != 'Windows'",
 ]
 

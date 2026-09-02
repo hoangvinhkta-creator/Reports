@@ -119,6 +119,54 @@ Nếu service Render cũ từ trước S071B còn Disk gắn kèm: xoá Disk đ�
 deploy thành công trên cấu hình mới (Render → service → Disks → Delete) —
 không còn cần, tránh trả phí Disk không dùng.
 
+### Bổ sung TASK-PRA-001 — Managed PostgreSQL cho history store (ADR-108)
+
+Từ PRA-001, Reports có thêm một nơi lưu **lịch sử có cấu trúc** (số báo cáo
+cũ, sau này là snapshot pipeline). R2 **không** thay được vai trò này: R2 giữ
+artifact/run JSON bất biến theo `run_id`, không trả lời được câu hỏi "tháng
+03/2026, người bán X, tổng bán bao nhiêu". Đây là hai kho khác nhau, cùng
+tồn tại — xem `docs/adr/ADR-108-persistent-history-store.md` (Accepted,
+DEC-167).
+
+`OWNER_PAYMENT_REQUIRED` — thêm khoảng **US$6–7/tháng**:
+
+8. **Render → New → PostgreSQL.** Đặt tên (vd `reports-history`), chọn cùng
+   region với web service (`singapore`) để độ trễ thấp và không tính phí
+   egress chéo vùng. Plan trả phí nhỏ nhất là đủ: khối lượng dữ liệu ở đây
+   là vài chục nghìn dòng, tiêu chí chọn là **an toàn ghi + backup**, không
+   phải hiệu năng.
+9. Mở database vừa tạo → copy **Internal Database URL** (dạng
+   `postgres://user:pass@host/db`).
+10. Vào web service `reports-web` → Settings → Environment → dán vào biến
+    **`HISTORY_DATABASE_URL`**, nhưng **đổi tiền tố thành
+    `postgresql+psycopg://`** (giữ nguyên phần còn lại). Đây là secret —
+    KHÔNG commit, KHÔNG dán vào chat.
+11. Deploy lại. Container chạy `alembic upgrade head` TRƯỚC gunicorn: schema
+    được tạo tự động, và nếu migration lỗi thì service **không** khởi động.
+12. Kiểm tra: mở `https://reports.tinphatcrm.com/du-lieu` → nhập workbook
+    "Báo cáo Kinh doanh 2026.xlsx" → mở tab **Nhân viên** và **Doanh số
+    ngày**, chọn kỳ, thấy số cũ kèm nhãn `LEGACY`.
+
+Fail-closed đã cấu hình sẵn trong `render.yaml`
+(`REPORTS_REQUIRE_HISTORY_DB=1`): thiếu `HISTORY_DATABASE_URL` thì service
+KHÔNG khởi động. Đây là cố ý — nếu rơi về SQLite trong container, mỗi lần
+redeploy sẽ xoá sạch lịch sử trong khi giao diện vẫn trông như bình thường.
+
+Chạy lại được ở máy Owner (không cần Render):
+
+```
+pip install -e ".[web,history]"
+alembic upgrade head            # tạo data/history/history.db
+python3 -m app.web.launcher
+```
+
+Đối chiếu fidelity trên file Excel thật (bằng chứng CHECK-PRA001-01):
+
+```
+python3 -m tools.analysis.verify_legacy_import "<đường dẫn>/Báo cáo Kinh doanh 2026.xlsx"
+# kỳ vọng: matched=<N> mismatched=0
+```
+
 ## Vì sao session không tự deploy được
 
 Hai giới hạn CỤ THỂ, đã verify trực tiếp trong session S071 gốc, không đổi

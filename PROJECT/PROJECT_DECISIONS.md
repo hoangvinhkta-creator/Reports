@@ -7674,3 +7674,285 @@ Can Revisit After:
 - Nếu Owner sau này muốn hai đường phụ (`mergePaths`, nhập Excel) cũng sinh
   mốc lịch sử, đó là một thay đổi Tracking riêng — mở quyết định mới, không
   sửa quyết định này.
+
+## DEC-166
+
+Title:
+`PRA FINALIZATION` — Owner chốt 5 quyết định nền cho Persistent Reporting &
+Analytics (A web architecture, B snapshot coverage, C SOURCE_CHANGED,
+D REMOVED, E legacy); persistence CHƯA approve, chờ ADR-108
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-000` (planning, S072) → finalization S073; mở `TASK-PRA-001`
+(PLANNED, gate frozen). Không mở task cho PRA-002+.
+
+**Đây LÀ một Owner Decision** cho A–E (Owner chốt trong chỉ thị phiên S073
+sau khi review kế hoạch S072: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`).
+Persistence (mục "Còn phải giải quyết") KHÔNG nằm trong quyết định này —
+chỉ có decision audit tại `docs/adr/ADR-108-persistent-history-store.md`
+(Status Proposed).
+
+### Quyết định
+
+**A. Web architecture.** KEEP Flask + Jinja làm production web layer canonical.
+Không refactor sang FastAPI/React để khớp `ADR-101`. Không mở architecture
+migration task. Amendment tài liệu tối thiểu:
+`docs/adr/ADR-109-web-layer-flask-jinja.md` (Accepted) + dòng "Superseded
+By" trong `docs/adr/ADR-101-architecture-and-stack.md`. Phần DB của ADR-101
+không đổi.
+
+**B. Snapshot coverage.** Coverage được AUTO-DETECT từ dữ liệu
+(`DETECTED_DATE_RANGE` = min/max ngày bán). Người dùng không nhập tay ở
+normal path. Hệ thống phân biệt `DETECTED_DATE_RANGE` với
+`CONFIRMED_COMPLETE_COVERAGE`; min/max không mặc nhiên chứng minh file
+complete. Khi coverage không chắc, có gap đáng ngờ, hoặc file không đại
+diện đủ khoảng thời gian → cảnh báo / yêu cầu xác nhận khi thực sự cần,
+không tự suy diễn completeness.
+
+**C. SOURCE_CHANGED.** Cùng ORDER/ORDER_LINE xuất hiện với source values khác:
+không silent overwrite, không mất version cũ, lưu `SOURCE_CHANGED` +
+`changed_fields` + provenance; bản mới có thể là current candidate theo
+reconciliation policy; lịch sử phải truy được và UI phải hiển thị được.
+
+**D. REMOVED.** Record có ở snapshot trước, vắng ở snapshot mới →
+`REMOVED_CANDIDATE`. Không silent delete, không tự coi là đơn huỷ, không tự
+loại khỏi analytics chỉ vì biến mất. Vào Cần kiểm tra cho tới khi semantics
+đủ chắc. `DETECTED_DATE_RANGE` không đủ authority để kết luận REMOVED; chỉ
+coverage/completeness đủ mạnh mới tạo removed candidate đáng tin. Không tự
+tạo business rule để resolve REMOVED.
+
+**E. Legacy.** `LEGACY_REFERENCE` giữ nguyên dữ liệu cũ; không chạy lại bằng
+pipeline; không sửa lỗi công thức cũ; known defects ghi metadata; luôn phân
+biệt với `PIPELINE_GENERATED`.
+
+**Order identity.** Giữ candidate `ORDER_KEY = normalize(Số BH)`,
+`ORDER_LINE_KEY = ORDER_KEY + product_key + occurrence_index`. BH reset theo
+năm vẫn UNKNOWN, không chặn PRA-001; schema phải hỗ trợ namespace năm bằng
+một migration mà không áp business rule.
+`OWNER_CONFIRMATION_REQUIRED_BEFORE = historical pipeline reconciliation
+xuyên nhiều năm`.
+
+**Analytics priority** giữ nguyên NOW/LATER/DEFER của TASK-PRA-000 mục L;
+không mở task cho LATER/DEFER.
+
+### Hệ quả
+
+- Policy reconciliation được viết thành bảng tại `TASK-PRA-000` phụ lục F3;
+  PRA-002 implement đúng bảng đó ở mức capability cần, không generic
+  event-sourcing.
+- `TASK-PRA-001` scope hẹp: legacy reference vertical + nền persistence tối
+  thiểu + extension point; không "build toàn bộ analytics database".
+- Quyết định còn blocking duy nhất: Owner approve `ADR-108`. Khi approve,
+  ghi DEC mới (không sửa DEC này) và chuyển ADR-108 sang Accepted.
+
+## DEC-168
+
+Title:
+`PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED` (~1.050 LOC) + hợp đồng nghiệp
+vụ cho dòng Summary không phân loại được: FAIL TO, KHÔNG đoán semantics
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-001` — Independent Review trên
+`7d84072765288b7a9dc28679a09325fce7860b48` = `CHANGES_REQUIRED`; repair
+cycle 1/1 (S076). Không mở lại architecture, không mở PRA-002.
+
+**Đây LÀ một Owner Decision.** Owner quyết hai việc:
+
+```text
+1. PRA-001_CHANGE_BUDGET_EXCEPTION = APPROVED
+   NEW PRODUCTION LOGIC BUDGET = ~1.050 LOC
+   (thay ngưỡng cứng 600 đã freeze ở S073, CHỈ cho TASK-PRA-001)
+
+2. SOURCE ROW WITH BUSINESS VALUES
+        → contract phân loại nhận ra?
+             ├─ CÓ    → IMPORT
+             └─ KHÔNG → FAIL TO (LegacyImportError / acceptance failure)
+   Không auto-guess row_kind.
+   Không suy SELLER / MONTH_TOTAL / YEAR_TOTAL / PROGRESS từ numeric values.
+```
+
+### Cơ sở của quyết định 1
+
+Independent review phân loại 1.024 dòng logic của bản
+`7d84072`: `ESSENTIAL ≈ 950`, `REASONABLE_HARDENING ≈ 60`,
+`OUT_OF_SCOPE = 0 material`, `SPECULATIVE ≈ 15`. Không có capability nào
+thừa để cắt, và nén code chỉ để quay về con số 600 sẽ đánh đổi tính đọc
+được lấy một chỉ tiêu — nên ngân sách được chỉnh theo thực tế đã kiểm
+chứng, KHÔNG phải capability bị cắt theo ngân sách.
+
+Ngưỡng 600 ở S073 là ước lượng đặt trước khi viết dòng nào, cho một vertical
+đi hết từ Excel tới UI với `DATA_MODEL_MINIMUM` 4 bảng / ~30 cột đã freeze.
+
+**Ngân sách mới KHÔNG được dùng để mở thêm scope.** Nó chỉ hợp thức hoá
+implementation đã được review xác minh là essential. Mọi capability mới vẫn
+là `SCOPE EXPANSION REQUIRED`.
+
+### Cơ sở của quyết định 2
+
+Review chứng minh một lỗ hổng thật (`FIND-PRA001-R01`): một sheet Summary có
+thể mất TOÀN BỘ dòng khi import mà verifier vẫn in `matched>0 mismatched=0`,
+vì verifier duyệt từ DB → Excel nên không bao giờ thấy thứ chưa từng được
+nhập. Một bản nhập thiếu hẳn kỳ 2025 mà báo "khớp 100%" là bằng chứng còn
+tệ hơn không có bằng chứng.
+
+Hai hướng sai đều bị loại tường minh:
+- Bỏ qua im lặng dòng không phân loại được → mất số của Owner, không ai biết.
+- Đoán `row_kind` vì "dòng có số" → công cụ tự gán ý nghĩa nghiệp vụ mà nó
+  không có thẩm quyền gán, đúng chiều đảo ngược mà governance cấm
+  (`CODE → AI INFERENCE → BUSINESS RULE`).
+
+Nên: **fail to**. Nếu workbook thật về sau chứng minh có legitimate
+value-only row, REAL DATA ACCEPTANCE phải DỪNG, ghi
+`UNKNOWN / OWNER_DECISION_REQUIRED`, và contract được bổ sung bằng một
+quyết định riêng dựa trên evidence thật — không tự mở rộng parser semantics.
+
+### Hệ quả
+
+- `CHANGE_BUDGET` của `TASK-PRA-001` cập nhật lên ~1.050 dòng logic; đo
+  được sau repair: **1.045**.
+- `app/legacy/parser.py` raise `LegacyImportError` khi một sheet Summary bắt
+  buộc có dòng mang giá trị nghiệp vụ nhưng không khớp contract phân loại,
+  nêu đích danh sheet và số dòng.
+- `tools/analysis/verify_legacy_import.py` kiểm tra **SOURCE COVERAGE** từ
+  phía Excel và in `SUMMARY_SOURCE_ROWS_WITH_VALUES` /
+  `SUMMARY_IMPORTED_ROWS` / `SUMMARY_UNACCOUNTED_ROWS`; thiếu dòng nguồn =
+  FAIL (exit khác 0) ngang hàng với lệch giá trị.
+- Evidence `CHECK-PRA001-01` không còn được dùng riêng `628/0`: fidelity kể
+  từ đây gồm **VALUE MATCH + SOURCE COVERAGE**.
+- `Expected Touch Area` của task bổ sung hai file mà frozen gate thực sự
+  cần: `tools/analysis/verify_legacy_import.py` (CHECK-01) và
+  `app/web/legacy_presentation.py` (CHECK-04).
+
+## DEC-167
+
+Title:
+`ADR-108 APPROVED` — Persistence cho Persistent Reporting & Analytics:
+Managed PostgreSQL (structured history) + R2 (artifact) + SQLite (local/test)
+
+Date:
+2026-09-02
+
+Task:
+Close-out S074 cho `TASK-PRA-000` → mở `TASK-PRA-001` (READY). Không mở
+task khác; roadmap đã freeze không đổi.
+
+**Đây LÀ một Owner Decision.** Owner approve nguyên văn:
+
+```text
+ADR-108 = APPROVED
+- Production structured history = Managed PostgreSQL
+- Artifacts / existing run JSON / XLSX = R2
+- Local/test = SQLite
+- PRA-001 database scope = minimum legacy schema only
+- Không prebuild schema PRA-002
+- Tracking = READ-ONLY REFERENCE
+- Tracking change required = NO
+```
+
+### Hệ quả
+
+- `docs/adr/ADR-108-persistent-history-store.md` → Accepted.
+- `TASK-PRA-001` → READY; Ready Gate còn hai điều kiện vận hành (file Excel
+  legacy có trên máy chạy acceptance; đồng bộ nhánh đầu session), không còn
+  quyết định nào chặn.
+- Schema PRA-001 giới hạn đúng bốn bảng `legacy_import`,
+  `legacy_summary_row`, `legacy_daily_sales`, `legacy_monthly_reference`
+  (+ bảng version của Alembic). Mọi bảng snapshot/version/current của
+  PRA-002 là out of scope — đề xuất tạo trước = `SCOPE EXPANSION REQUIRED`.
+- `TASK-PRA-000` = DONE / architecture finalized.
+
+## DEC-169
+
+Title:
+`Summary 2025` = REFERENCE_ONLY — làm rõ business scope import production
+của PRA-001 (Owner scope clarification, KHÔNG phải repair)
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-001` — Legacy Reference Vertical. Phát sinh trong Real Data
+Acceptance trên workbook thật, tại `5bea87a`.
+
+**Đây LÀ một Owner Decision.** Owner xác nhận nguyên văn:
+
+```text
+Summary 2025 chỉ là REFERENCE_ONLY.
+Mục đích của sheet này trong workbook cũ là làm dữ liệu tham chiếu
+cho báo cáo 2026.
+
+Owner KHÔNG yêu cầu:
+- import Summary 2025;
+- persist Summary 2025;
+- query Summary 2025;
+- display Summary 2025;
+- xây parser cho value-only rows của Summary 2025.
+
+Production business scope của PRA-001 là:
+REQUIRED:      Summary 2026, DataChart 2026
+REFERENCE_ONLY: Summary 2025
+```
+
+### Vì sao có quyết định này
+
+Real Data Acceptance (S075, workbook thật `Báo cáo Kinh doanh 2026.xlsx`,
+SHA256 `4ffe5198…d11f72`) đo được hình dạng thật:
+
+| Sheet | Formula rows | Value-only business rows |
+|---|---|---|
+| `Summary 2026` | 71 | 0 |
+| `Summary 2025` | **0** | **99** |
+
+`Summary 2025` không có MỘT ô công thức nào trên toàn sheet (quét đủ 755
+dòng × 27 cột). Contract phân loại dòng của parser bám hoàn toàn vào cấu
+trúc công thức, nên không dòng nào của sheet đó phân loại được.
+
+Importer đã hành xử ĐÚNG: nó raise `LegacyImportError` và trả
+`OWNER_DECISION_REQUIRED` theo DEC-168 thay vì đoán `row_kind` từ việc
+"dòng có số". Đây chính là guard mà FIND-PRA001-R01 dựng lên.
+
+Cái sai không nằm ở code, mà ở một **giả định chưa từng được Owner xác
+nhận**: "Summary 2025 phải được production-import". Owner nay bác bỏ giả
+định đó. Vì vậy sửa **contract/scope** cho khớp thẩm quyền Owner, KHÔNG sửa
+parser để hiểu 99 dòng kia.
+
+### Phân loại thay đổi
+
+- `OWNER_SCOPE_CLARIFICATION` = YES
+- `REPAIR_CYCLE_2` = NO — không phải repair của implementation defect.
+  Repair budget PRA-001 giữ nguyên `0 remaining`, không bị tiêu.
+- Không xây "Static Legacy Summary Contract". Không thêm parser semantics
+  cho value-only rows.
+
+### Hệ quả
+
+- `app/legacy/parser.py`: tách tường minh `SUMMARY_IMPORT_SHEETS`
+  (`Summary 2026`) khỏi `SUMMARY_REFERENCE_ONLY_SHEETS` (`Summary 2025`).
+  `REQUIRED_SHEETS` = `Summary 2026` + `DataChart 2026`. Sheet
+  REFERENCE_ONLY không được parse, không vào `summary_rows`, không xuất
+  hiện trong `sheets_imported`. Loại trừ là **explicit**, không phải nuốt
+  lỗi: không có nhánh nào bắt rồi bỏ qua `LegacyImportError`.
+- `tools/analysis/verify_legacy_import.py`: chỉ đối chiếu fidelity trên
+  sheet REQUIRED_IMPORT, và kiểm CHỦ ĐỘNG rằng sheet REFERENCE_ONLY không
+  để lại bản ghi nào trong bảng production — in
+  `SUMMARY_REFERENCE_ONLY_PERSISTED`, khác 0 thì exit 1.
+- Kỳ 2025 không còn trong `available_periods()` — đúng với "không query,
+  không display".
+- Guard DEC-168 / FIND-PRA001-R01 **không bị nới lỏng**, chỉ đổi phạm vi áp
+  dụng: toàn bộ test guard đã được chĩa sang `Summary 2026`, nơi một dòng
+  value-only không phân loại được vẫn FAIL TO.
+- `CHECK-PRA001-01` chỉ yêu cầu fidelity + source coverage cho
+  `Summary 2026` và `DataChart 2026`. `Summary 2025` không còn là REQUIRED
+  acceptance gate.
+
+### Ranh giới (không được suy rộng)
+
+Quyết định này KHÔNG cho phép: bỏ qua sheet REQUIRED_IMPORT, hạ ngưỡng
+source coverage, đoán semantics dòng, hay mở PRA-002 / đổi Tracking /
+đổi kiến trúc. `PROTECTED_CORE_IMPACT` = NONE.

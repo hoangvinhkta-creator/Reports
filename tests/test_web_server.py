@@ -332,7 +332,7 @@ def test_history_response_contains_no_secret_or_authority_payload(client, monkey
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/history")
+    resp = client.get("/du-lieu")
     body = resp.data.decode()
     for token in FORBIDDEN_SUBSTRINGS:
         assert token not in body
@@ -418,6 +418,11 @@ def test_413_over_limit_response_is_short_and_actionable(client, app):
 
 # --- History page (S071 §11) -----------------------------------------------
 
+# Ghi chú PRA-001: trang lịch sử run của S071 đã trở thành tab "Dữ liệu"
+# (`/du-lieu`), nơi danh sách run nằm cạnh danh sách bản nhập legacy — hai
+# origin, hai bảng tách bạch. Đường cũ `/history` giữ lại dưới dạng redirect
+# để link/bookmark đã phát ra không gãy; redirect đó được kiểm riêng ở
+# tests/test_web_legacy_routes.py.
 def test_history_page_lists_runs_newest_first(client, monkeypatch, tmp_path):
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     owner_run_a = _fake_owner_run(tmp_path, output_name="report-A.xlsx")
@@ -428,7 +433,7 @@ def test_history_page_lists_runs_newest_first(client, monkeypatch, tmp_path):
     monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_b)
     client.post("/run", data=_upload("second.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/history")
+    resp = client.get("/du-lieu")
     assert resp.status_code == 200
     body = resp.data.decode()
     assert "report-A" in body
@@ -437,7 +442,7 @@ def test_history_page_lists_runs_newest_first(client, monkeypatch, tmp_path):
 
 
 def test_history_page_is_empty_state_safe_with_no_runs(client):
-    resp = client.get("/history")
+    resp = client.get("/du-lieu")
     assert resp.status_code == 200
     assert "Chưa có lần chạy nào".encode() in resp.data
 
@@ -475,7 +480,7 @@ def test_run_and_artifact_survive_a_simulated_server_restart(monkeypatch, tmp_pa
     assert download.status_code == 200
     assert download.data == b"fake xlsx bytes"
 
-    history_resp = client2.get("/history")
+    history_resp = client2.get("/du-lieu")
     assert "report-restart" in history_resp.data.decode()
 
 
@@ -735,7 +740,7 @@ def test_r2_history_list_failure_returns_503_not_empty_history(monkeypatch, tmp_
     app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
     client_obj.fail["list_objects_v2"] = FakeClientError("500")
 
-    resp = app.test_client().get("/history")
+    resp = app.test_client().get("/du-lieu")
     assert resp.status_code == 503
 
 
