@@ -78,6 +78,29 @@ chứng completeness kể từ FIND-PRA001-R01.
 
 Bản ghi đầy đủ: `docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md`.
 
+### Controlled Integration — ĐÃ THỰC HIỆN (2026-09-02, S077)
+
+```text
+CANONICAL_BRANCH         = claude/extract-upload-repo-gq2ws4
+CANONICAL_BEFORE_SHA     = 596564bf5e7c3f088f60fe173cc83f5faa7f1ace
+CANONICAL_AFTER_SHA      = a4f5fd68195b9097811a23ac8767bc9af3952d71
+phương pháp              = git merge --no-ff x2 qua nhánh trung gian
+                           integration/pra-001-legacy-reference-vertical;
+                           KHÔNG squash / rebase / cherry-pick / force push
+conflict                 = 0
+ACCEPTED_SHA_IS_ANCESTOR = YES (3faedfde)
+CLOSEOUT_SHA_IS_ANCESTOR = YES (741be69)
+REMOTE_CANONICAL_VERIFIED = YES
+```
+
+Post-integration trên canonical: 4/5 validator PASS,
+`validate_reference_integrity` FAIL với ĐÚNG 3 issue pre-existing của
+REM-T06 (0 finding mới); full suite `1608 passed, 11 skipped`; Golden
+`58 passed, 2 skipped`; PRA-001 focused `114 passed`; `git diff --check`
+sạch. `branch_authority_check.sh` = `AUTHORITY_OK`, `DIVERGENCE =
+WITHIN_LIMITS` — điều kiện `INTEGRATION_DECISION_REQUIRED [loc>5000]`
+(V4.1 §8) đã ĐÓNG bằng chính integration này.
+
 ### Ranh giới đã giữ
 
 ```text

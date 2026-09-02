@@ -229,7 +229,55 @@ Hai việc độc lập, Owner chọn thứ tự:
   PRA-002)
 - `governance/core/V4_1_POLICY_FREEZE.md`
 
-## Controlled Integration
+## Controlled Integration — ĐÃ THỰC HIỆN (2026-09-02)
 
-*(mục này được ghi bổ sung ngay sau khi integration hoàn tất — xem
-`PROJECT/PROJECT_PROGRESS.md` để có bản ghi có thẩm quyền)*
+Theo `governance/core/PHASE_RELEASE_GATE_STANDARD.md` và tiền lệ
+`TASK-GOLDEN-BASELINE-001` / `TASK-110` (DEC-142, DEC-141 §3): nhánh trung
+gian cắt từ default tip, `git merge --no-ff` giữ nguyên ancestry.
+
+```text
+phương pháp   : git merge --no-ff x2 (ancestry-preserving)
+nhánh trung gian: integration/pra-001-legacy-reference-vertical
+                  (cắt từ default tip 596564bf)
+squash        : KHÔNG
+rebase        : KHÔNG
+cherry-pick   : KHÔNG
+force push    : KHÔNG
+rewrite history: KHÔNG
+merge vào main: KHÔNG (repo này không có nhánh `main`; canonical là
+                claude/extract-upload-repo-gq2ws4)
+
+conflict      : 0
+merge trung gian : 18f56808efb79f8b7bbfa63e8617bd8351082f40
+                   tree == tree của 741be69 : YES (byte-exact)
+merge canonical  : a4f5fd68195b9097811a23ac8767bc9af3952d71
+                   tree == tree của 741be69 : YES (byte-exact)
+
+CANONICAL_BRANCH        = claude/extract-upload-repo-gq2ws4
+CANONICAL_BEFORE_SHA    = 596564bf5e7c3f088f60fe173cc83f5faa7f1ace
+CANONICAL_AFTER_SHA     = a4f5fd68195b9097811a23ac8767bc9af3952d71
+ACCEPTED_SHA_IS_ANCESTOR = YES  (3faedfde)
+CLOSEOUT_SHA_IS_ANCESTOR = YES  (741be69)
+REMOTE_CANONICAL_VERIFIED = YES (git ls-remote origin
+                            refs/heads/claude/extract-upload-repo-gq2ws4
+                            → a4f5fd68…; cả hai SHA là ancestor của
+                            origin/claude/extract-upload-repo-gq2ws4)
+```
+
+### Post-integration checks (chạy TRÊN nhánh canonical sau merge)
+
+```text
+validate_structure           : PASS
+validate_project_state       : PASS
+validate_task_completion     : PASS
+validate_evidence            : PASS
+validate_reference_integrity : FAIL — ĐÚNG 3 issue pre-existing của REM-T06
+                               (204 file quét, 0 finding thứ 4)
+git diff --check             : sạch
+Full suite                   : 1608 passed, 11 skipped
+Golden Baseline              : 58 passed, 2 skipped
+PRA-001 focused suite        : 114 passed
+branch_authority_check.sh    : AUTHORITY_OK, DIVERGENCE = WITHIN_LIMITS
+                               (behind 0 / ahead 0) — điều kiện
+                               INTEGRATION_DECISION_REQUIRED đã ĐÓNG
+```
