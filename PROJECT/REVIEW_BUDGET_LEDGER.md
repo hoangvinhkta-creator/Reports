@@ -394,7 +394,7 @@ up/down trên PostgreSQL 16.13 thật.
 cycles:
 - id: PRA-002-RC-1
   base_sha: 80c6fe1d1c98497d821a8802fdbc9a1ca6a48b60
-  head_sha: (commit repair của S081 trên `claude/pra-002-slice-a-umygjq`)
+  head_sha: b0ecab78b5a460f09b78e4b084ab680520920669
   finding: FIND-PRA002-A1 (BLOCKING) — version nguồn mới đánh số theo version
     hiện hành thay vì theo max đã ghi (trái mục 5.3). Sau một
     `ORDER_KEY_COLLISION`, mọi lần ghi version sau trên khoá đó vi phạm UNIQUE
