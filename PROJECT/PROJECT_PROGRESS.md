@@ -1,5 +1,57 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S085)
+
+Cập nhật sau **Controlled Integration của slice B vào canonical**. Khối S084 bên
+dưới (Independent Review E2) giữ nguyên như bản ghi lịch sử đúng của phiên đó;
+khối này chỉ thêm sự kiện tích hợp — kết luận review không đổi.
+
+```text
+SESSION                    = S085 — PRA-002 Slice B Controlled Integration
+TASK-PRA-002               = IN_PROGRESS  (slice A INTEGRATED; slice B INTEGRATED; slice C NEXT)
+SLICE A                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE B                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE C                    = NEXT — bắt buộc BUDGET-AWARE PLAN trước implementation (xem dưới)
+INTEGRATION_METHOD         = git merge --ff-only (KHÔNG squash/rebase/force/cherry-pick)
+CANONICAL_BEFORE_SHA       = 27b9d1c5a578742450099c53f2f82411f07aa9dc
+ACCEPTED_SLICE_B_SHA       = d2c7691210313ef82016a6c28106885e5f58c19a
+                              (== origin/claude/pra-002-slice-b-snapshot-8rbwip; chứa 7658c5e + d2c7691)
+CANONICAL_AFTER_SHA        = d2c7691210313ef82016a6c28106885e5f58c19a  (fast-forward, tree == accepted tree)
+REMOTE_CANONICAL_SHA       = d2c7691210313ef82016a6c28106885e5f58c19a  (khớp local sau push + fetch lại)
+TREE_EQUIVALENCE           = ĐÚNG (git rev-parse HEAD^{tree} == ACCEPTED_SLICE_B_SHA^{tree})
+POST-INTEGRATION SMOKE     = slice B focused 79 passed; slice A reconciliation focused 96 passed;
+                              git diff --check sạch trên toàn khoảng 27b9d1c..HEAD
+                              (tree fast-forward y hệt accepted tree — không chạy lại full suite,
+                              đúng thứ chỉ thị integration cho phép khi tree identical)
+VALIDATORS                 = structure/project_state/task_completion/evidence PASS;
+                              reference_integrity FAIL với ĐÚNG 3 pre-existing REM-T06
+                              (/README.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md) → DEFER, không phải integration blocker
+CHECK-PRA002-06            = PASS
+CHECK-PRA002-07            = PASS
+CHECK-PRA002-08            = NOT_TESTED (slice C, NEXT)
+CHECK-PRA002-14            = NOT_TESTED (Owner/RDA pending)
+CHECK-PRA002-15            = NOT_TESTED (Owner/production pending)
+CHECK-PRA002-17            = PASS cho phần slice A + slice B (evidence hiện có); KHÔNG PASS ở cấp toàn task —
+                              frozen gate còn đòi CHECK-08/14/15 thuộc slice C
+TASK-PRA-002 STATUS        = IN_PROGRESS (KHÔNG đánh DONE — slice C + RDA + Production Acceptance chưa xong)
+CHANGE_BUDGET_STATE        = 1.393 / 1.500 (dừng cứng)   REMAINING_TO_HARD_STOP = 107 LOC
+                              (giá trị authoritative từ Independent Review S084; số 1.346/154 của S083 đã bị supersede)
+TRACKING_CHANGED           = NO
+EVIDENCE                   = docs/reviews/TASK-PRA-002-SLICE-B-INDEPENDENT-REVIEW-RECORD.md (review),
+                              lệnh git/test/validator của chính phiên S085 (integration)
+NEXT_VERTICAL_ACTION       = PRA-002 Slice C — Budget-Aware Implementation Plan (KHÔNG code-first)
+```
+
+**Slice C handoff — chỉ kế hoạch, không code.** Cumulative production logic của
+PRA-002 hiện là **1.393 LOC** trên dừng cứng **1.500** → còn đúng **107 LOC**.
+Session Slice C KHÔNG được bắt đầu bằng code-first; trước implementation phải có
+một **BUDGET-AWARE SLICE C PLAN** xác định: (a) minimum code path cho
+`RESULT_REVISED`; (b) phần RDA/production acceptance nào không cần code (checklist
+Owner thực hiện thủ công); (c) ước tính LOC production; (d) tận dụng primitives/
+repository/schema hiện có, không tạo mới nếu tránh được; (e) không refactor
+slice A/B chỉ để lấy budget. Nếu ước tính > 107 LOC, lập đề xuất CHANGE_BUDGET cho
+Owner **TRƯỚC** khi viết mã — không viết trước rồi xin sau.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S084)
 
 Cập nhật sau **Independent Review E2 của slice B**. Khối S083/S082/S081/S080 bên

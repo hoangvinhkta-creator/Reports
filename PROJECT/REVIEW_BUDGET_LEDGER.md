@@ -367,27 +367,38 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S084, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S085, 2026-09-02 — HIỆN HÀNH)
 
 ```
 TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : SLICE A INTEGRATED; SLICE B IMPLEMENTED + REVIEWED E2 + ACCEPTED (chờ Controlled Integration); slice C PENDING
-repair cycle đã dùng         : 1 / 2   (còn 1 — review slice B KHÔNG tiêu cycle nào: 0 finding BLOCKING)
+Implementation               : SLICE A INTEGRATED; SLICE B INTEGRATED; slice C NEXT
+repair cycle đã dùng         : 1 / 2   (còn 1 — integration KHÔNG tiêu cycle)
 CHANGE_BUDGET slice B        : 289 dòng logic production / mục tiêu slice ≤ 500 / cảnh báo 600 / dừng cứng 800 → ĐẠT
 CHANGE_BUDGET lineage        : 1.104 (A) + 289 (B) = 1.393 / mục tiêu 1.200 / dừng cứng 1.500
-                                → VƯỢT mục tiêu mềm, còn **107 dòng** trước dừng cứng; slice C phải lập kế hoạch
-                                  trong 107 dòng đó hoặc mở CHANGE_BUDGET đề xuất TRƯỚC khi viết mã
-                                (S083 tự báo 242 → 1.346 → 154 còn lại. Reviewer S084 đo lại độc lập bằng
-                                 phương pháp ĐÃ HIỆU CHUẨN — đo lại slice A ra đúng 1.104 — và ra 289/1.393/107.
-                                 Xem FIND-PRA002-B1. Ngân sách KHÔNG bị tăng; chỉ phép đo được sửa.)
+                                → VƯỢT mục tiêu mềm, còn **107 dòng** trước dừng cứng (authoritative — không
+                                  dùng lại số cũ 1.346/154 của S083, đã bị supersede bởi phép đo hiệu chuẩn của S084)
+                                Slice C phải lập BUDGET-AWARE PLAN trong 107 dòng đó trước khi viết mã, hoặc mở
+                                  đề xuất CHANGE_BUDGET cho Owner TRƯỚC implementation
 Baseline slice B (27b9d1c5)  : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
 Sau slice B                  : Golden 58 passed, 2 skipped; full suite 1781 passed, 11 skipped (+70 test, 0 skip thêm)
 Sau review S084 (+3 test)    : full suite 1784 passed, 11 skipped; PostgreSQL 16.13 thật 113 passed
+Sau integration S085         : fast-forward, tree == accepted tree; smoke slice B 79 passed, slice A 96 passed;
+                                git diff --check sạch; validators PASS (trừ reference_integrity — 3 pre-existing REM-T06, DEFER)
 Migration slice B            : KHÔNG có — schema 0002_snapshots đã đủ; ALEMBIC_HEAD không đổi
                                 (reviewer xác minh bằng `alembic upgrade head` trên PostgreSQL 16.13 thật)
-Nhánh slice B                : claude/pra-002-slice-b-snapshot-8rbwip (BASE_SHA 27b9d1c5, chưa integrate)
-Canonical hiện tại           : claude/extract-upload-repo-gq2ws4 @ 27b9d1c5a578742450099c53f2f82411f07aa9dc
+Nhánh slice B                : claude/pra-002-slice-b-snapshot-8rbwip (BASE_SHA 27b9d1c5, ĐÃ integrate)
+Canonical hiện tại           : claude/extract-upload-repo-gq2ws4 @ d2c7691210313ef82016a6c28106885e5f58c19a
+                                (fast-forward từ 27b9d1c5, không merge commit, tree == accepted head)
 ```
+
+Controlled Integration (S085) — `git merge --ff-only` slice B
+(`ACCEPTED_SLICE_B_SHA = d2c7691210313ef82016a6c28106885e5f58c19a`, chứa
+`7658c5e5` implementation + `d2c7691` independent review) vào
+`claude/extract-upload-repo-gq2ws4` từ `27b9d1c5a578742450099c53f2f82411f07aa9dc`.
+Fast-forward thuần, không squash/rebase/force/cherry-pick, không merge commit.
+Push xong, fetch lại xác nhận `origin/claude/extract-upload-repo-gq2ws4 ==
+d2c7691` và working tree sạch. `TASK-PRA-002` vẫn `IN_PROGRESS` — KHÔNG đánh
+DONE (slice C + RDA + Production Acceptance chưa xong).
 
 Independent Review E2 slice B (S084) — `REVIEW_BASE_SHA = 27b9d1c5`,
 `REVIEW_HEAD_SHA = 7658c5e5`, `FINAL_ACCEPTANCE = ACCEPT`,
