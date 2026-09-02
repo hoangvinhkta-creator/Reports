@@ -7866,3 +7866,93 @@ ADR-108 = APPROVED
   (+ bảng version của Alembic). Mọi bảng snapshot/version/current của
   PRA-002 là out of scope — đề xuất tạo trước = `SCOPE EXPANSION REQUIRED`.
 - `TASK-PRA-000` = DONE / architecture finalized.
+
+## DEC-169
+
+Title:
+`Summary 2025` = REFERENCE_ONLY — làm rõ business scope import production
+của PRA-001 (Owner scope clarification, KHÔNG phải repair)
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-001` — Legacy Reference Vertical. Phát sinh trong Real Data
+Acceptance trên workbook thật, tại `5bea87a`.
+
+**Đây LÀ một Owner Decision.** Owner xác nhận nguyên văn:
+
+```text
+Summary 2025 chỉ là REFERENCE_ONLY.
+Mục đích của sheet này trong workbook cũ là làm dữ liệu tham chiếu
+cho báo cáo 2026.
+
+Owner KHÔNG yêu cầu:
+- import Summary 2025;
+- persist Summary 2025;
+- query Summary 2025;
+- display Summary 2025;
+- xây parser cho value-only rows của Summary 2025.
+
+Production business scope của PRA-001 là:
+REQUIRED:      Summary 2026, DataChart 2026
+REFERENCE_ONLY: Summary 2025
+```
+
+### Vì sao có quyết định này
+
+Real Data Acceptance (S075, workbook thật `Báo cáo Kinh doanh 2026.xlsx`,
+SHA256 `4ffe5198…d11f72`) đo được hình dạng thật:
+
+| Sheet | Formula rows | Value-only business rows |
+|---|---|---|
+| `Summary 2026` | 71 | 0 |
+| `Summary 2025` | **0** | **99** |
+
+`Summary 2025` không có MỘT ô công thức nào trên toàn sheet (quét đủ 755
+dòng × 27 cột). Contract phân loại dòng của parser bám hoàn toàn vào cấu
+trúc công thức, nên không dòng nào của sheet đó phân loại được.
+
+Importer đã hành xử ĐÚNG: nó raise `LegacyImportError` và trả
+`OWNER_DECISION_REQUIRED` theo DEC-168 thay vì đoán `row_kind` từ việc
+"dòng có số". Đây chính là guard mà FIND-PRA001-R01 dựng lên.
+
+Cái sai không nằm ở code, mà ở một **giả định chưa từng được Owner xác
+nhận**: "Summary 2025 phải được production-import". Owner nay bác bỏ giả
+định đó. Vì vậy sửa **contract/scope** cho khớp thẩm quyền Owner, KHÔNG sửa
+parser để hiểu 99 dòng kia.
+
+### Phân loại thay đổi
+
+- `OWNER_SCOPE_CLARIFICATION` = YES
+- `REPAIR_CYCLE_2` = NO — không phải repair của implementation defect.
+  Repair budget PRA-001 giữ nguyên `0 remaining`, không bị tiêu.
+- Không xây "Static Legacy Summary Contract". Không thêm parser semantics
+  cho value-only rows.
+
+### Hệ quả
+
+- `app/legacy/parser.py`: tách tường minh `SUMMARY_IMPORT_SHEETS`
+  (`Summary 2026`) khỏi `SUMMARY_REFERENCE_ONLY_SHEETS` (`Summary 2025`).
+  `REQUIRED_SHEETS` = `Summary 2026` + `DataChart 2026`. Sheet
+  REFERENCE_ONLY không được parse, không vào `summary_rows`, không xuất
+  hiện trong `sheets_imported`. Loại trừ là **explicit**, không phải nuốt
+  lỗi: không có nhánh nào bắt rồi bỏ qua `LegacyImportError`.
+- `tools/analysis/verify_legacy_import.py`: chỉ đối chiếu fidelity trên
+  sheet REQUIRED_IMPORT, và kiểm CHỦ ĐỘNG rằng sheet REFERENCE_ONLY không
+  để lại bản ghi nào trong bảng production — in
+  `SUMMARY_REFERENCE_ONLY_PERSISTED`, khác 0 thì exit 1.
+- Kỳ 2025 không còn trong `available_periods()` — đúng với "không query,
+  không display".
+- Guard DEC-168 / FIND-PRA001-R01 **không bị nới lỏng**, chỉ đổi phạm vi áp
+  dụng: toàn bộ test guard đã được chĩa sang `Summary 2026`, nơi một dòng
+  value-only không phân loại được vẫn FAIL TO.
+- `CHECK-PRA001-01` chỉ yêu cầu fidelity + source coverage cho
+  `Summary 2026` và `DataChart 2026`. `Summary 2025` không còn là REQUIRED
+  acceptance gate.
+
+### Ranh giới (không được suy rộng)
+
+Quyết định này KHÔNG cho phép: bỏ qua sheet REQUIRED_IMPORT, hạ ngưỡng
+source coverage, đoán semantics dòng, hay mở PRA-002 / đổi Tracking /
+đổi kiến trúc. `PROTECTED_CORE_IMPACT` = NONE.

@@ -29,9 +29,26 @@ from app.legacy.models import (
     SummaryRow,
 )
 
-SUMMARY_SHEETS = ("Summary 2026", "Summary 2025")
+# Phạm vi import production của PRA-001 — thẩm quyền Owner (DEC-169).
+#
+# `Summary 2026` và `DataChart 2026` là REQUIRED_IMPORT: nguồn dữ liệu
+# production, phải nhập đủ và đúng.
+#
+# `Summary 2025` là REFERENCE_ONLY: trong workbook cũ nó tồn tại để làm số
+# tham chiếu cho báo cáo 2026, KHÔNG phải nguồn dữ liệu production. Nó nằm
+# NGOÀI authoritative import scope: không parse, không persist, không query.
+#
+# Đây là ranh giới scope do Owner xác lập, KHÔNG phải parser bug và cũng
+# KHÔNG phải "nuốt lỗi". Real Data Acceptance trên workbook thật cho thấy
+# `Summary 2025` đã bị dán cứng thành giá trị tĩnh (0 ô công thức trên toàn
+# sheet, 99 dòng value-only), nên contract phân loại dòng theo cấu trúc
+# công thức không áp dụng được cho nó — và Owner xác nhận không cần áp
+# dụng. Guard DEC-168 vẫn nguyên vẹn cho các sheet REQUIRED_IMPORT: một
+# dòng có giá trị nghiệp vụ mà contract không phân loại được vẫn FAIL TO.
+SUMMARY_IMPORT_SHEETS = ("Summary 2026",)
+SUMMARY_REFERENCE_ONLY_SHEETS = ("Summary 2025",)
 DATACHART_SHEET = "DataChart 2026"
-REQUIRED_SHEETS = SUMMARY_SHEETS + (DATACHART_SHEET,)
+REQUIRED_SHEETS = SUMMARY_IMPORT_SHEETS + (DATACHART_SHEET,)
 
 PRODUCTS_COLUMN = "D"
 VS_PREV_MONTH_COLUMN = "I"
@@ -286,7 +303,13 @@ def _parse_datachart(value_sheet, formula_sheet):
 
 
 def parse_workbook(path: Path) -> LegacyWorkbook:
-    """Đọc ba sheet đã freeze của workbook legacy. Thiếu sheet → lỗi rõ."""
+    """Đọc các sheet REQUIRED_IMPORT đã freeze. Thiếu sheet → lỗi rõ.
+
+    Sheet REFERENCE_ONLY (``SUMMARY_REFERENCE_ONLY_SHEETS``) KHÔNG được đọc
+    ở đây và KHÔNG xuất hiện trong ``sheets_imported`` — chúng nằm ngoài
+    authoritative import scope theo DEC-169. Sự vắng mặt của chúng trong
+    kết quả là có chủ đích và kiểm chứng được, không phải bỏ sót.
+    """
     path = Path(path)
     values_wb = load_workbook(path, data_only=True, read_only=False)
     formulas_wb = load_workbook(path, data_only=False, read_only=False)
@@ -298,7 +321,9 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
                 + ", ".join(missing)
             )
         summary_rows: list[SummaryRow] = []
-        for name in SUMMARY_SHEETS:
+        # Chỉ duyệt sheet REQUIRED_IMPORT. Sheet REFERENCE_ONLY không đi qua
+        # đây, nên không có đường nào để nó lọt vào bản ghi production.
+        for name in SUMMARY_IMPORT_SHEETS:
             summary_rows.extend(_parse_summary_sheet(values_wb[name], formulas_wb[name]))
         daily, monthly = _parse_datachart(
             values_wb[DATACHART_SHEET], formulas_wb[DATACHART_SHEET],

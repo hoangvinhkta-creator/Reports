@@ -137,9 +137,15 @@ def test_a_period_with_no_data_returns_an_empty_list_not_zeros(legacy_repository
 
 
 def test_available_periods_lists_only_periods_that_exist(legacy_repository, workbook):
+    """Chỉ các kỳ THẬT SỰ được nhập mới hiện ra.
+
+    Kỳ 2025 vắng mặt là ĐÚNG theo DEC-169: `Summary 2025` là REFERENCE_ONLY,
+    không được import nên cũng không được query. Nếu một kỳ 2025 xuất hiện
+    trở lại ở đây thì ranh giới scope đã bị vi phạm ở đâu đó.
+    """
     legacy_repository.create_import(workbook)
     assert legacy_repository.available_periods() == [
-        (2026, 3), (2026, 2), (2026, 1), (2025, 1)]
+        (2026, 3), (2026, 2), (2026, 1)]
 
 
 def test_queries_read_the_current_version_by_default(legacy_repository, workbook, tmp_path):

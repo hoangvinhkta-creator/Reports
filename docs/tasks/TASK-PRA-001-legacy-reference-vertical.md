@@ -101,6 +101,28 @@ IN_SCOPE:
 - Owner tạo Render Postgres + dán `HISTORY_DATABASE_URL` khi deploy.
 - File Excel "Báo cáo Kinh doanh 2026.xlsx" có mặt lúc chạy acceptance
   thật (không commit).
+- (DEC-169) Production import scope = `Summary 2026` + `DataChart 2026`.
+  `Summary 2025` = REFERENCE_ONLY, không import/persist/query.
+
+## Vai Trò Sheet — Production Import Scope (DEC-169)
+
+Thẩm quyền Owner, xác lập trong Real Data Acceptance S075. Đây là ranh giới
+scope, không phải kết quả của một repair.
+
+| Sheet | Vai trò | Import | Persist | Query / Display |
+|---|---|---|---|---|
+| `Summary 2026` | `REQUIRED_IMPORT` | CÓ | CÓ | CÓ |
+| `DataChart 2026` | `REQUIRED_IMPORT` | CÓ | CÓ | CÓ |
+| `Summary 2025` | `REFERENCE_ONLY` | KHÔNG | KHÔNG | KHÔNG |
+
+`Summary 2025` tồn tại trong workbook cũ để làm số tham chiếu cho báo cáo
+2026. Trên file thật nó là sheet đã dán cứng: 0 ô công thức, 99 dòng
+value-only. Nó nằm NGOÀI authoritative import scope — loại trừ tường minh
+bằng `SUMMARY_REFERENCE_ONLY_SHEETS` trong `app/legacy/parser.py`, không
+phải bằng cách bắt rồi bỏ qua lỗi.
+
+Guard DEC-168 giữ nguyên hiệu lực trên các sheet `REQUIRED_IMPORT`: dòng có
+giá trị nghiệp vụ mà contract phân loại không nhận ra vẫn phải FAIL TO.
 
 ## Chặn (Blocks)
 - TASK-PRA-002 (dùng chung engine/migration chain/`history_store`/tab Dữ liệu).
@@ -199,16 +221,38 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
-Fidelity gồm HAI phần, không phải một — `VALUE MATCH` + `SOURCE COVERAGE` (DEC-168, sau FIND-PRA001-R01). Bằng chứng `matched=628 mismatched=0` của bản `7d84072` KHÔNG còn được dùng một mình làm bằng chứng completeness: verifier khi đó duyệt từ DB → Excel nên không thể thấy dòng chưa từng được nhập. Sau repair, `tools/analysis/verify_legacy_import.py` duyệt Summary từ EXCEL → DB và in thêm ba con số coverage. Chạy thật trên fixture + SQLite đã `alembic upgrade head`: `SUMMARY_SOURCE_ROWS_WITH_VALUES = 16`, `SUMMARY_IMPORTED_ROWS = 16`, `SUMMARY_UNACCOUNTED_ROWS = 0`, `matched=628 mismatched=0`, exit=0. Đối ngẫu (xoá trộm cả sheet `Summary 2025` khỏi DB): `SUMMARY_UNACCOUNTED_ROWS = 3`, `matched=580 mismatched=0`, **exit=1** — tức thiếu dòng nguồn nay là FAIL dù không ô nào sai giá trị. 11 test khoá hành vi ở `tests/test_legacy_source_coverage.py`. FILE THẬT "Báo cáo Kinh doanh 2026.xlsx" vẫn KHÔNG có trong Claude Cloud (`.gitignore`: `data/samples/`; không commit workbook chứa PII) → check này giữ NOT_TESTED và là gate Owner chạy khi deploy. Nếu file thật làm verifier báo `SUMMARY_UNACCOUNTED_ROWS > 0` hoặc parser raise `LegacyImportError`: DỪNG, ghi `UNKNOWN / OWNER_DECISION_REQUIRED`, KHÔNG mở rộng parser semantics (DEC-168).
+**Phạm vi (sửa đổi theo DEC-169, 2026-09-02).** Gate này FROZEN tại S073 với giả định `Summary 2025` phải được production-import. Owner bác bỏ giả định đó: production import scope = `Summary 2026` + `DataChart 2026`; `Summary 2025` = REFERENCE_ONLY (không import/persist/query). Sửa đổi này là `OWNER_SCOPE_CLARIFICATION`, KHÔNG phải repair — repair budget PRA-001 vẫn `0 remaining`, không bị tiêu. Ghi ở đây để việc đổi một frozen gate là auditable, không âm thầm.
 
+**Fidelity gồm HAI phần** — `VALUE MATCH` + `SOURCE COVERAGE` (DEC-168, sau FIND-PRA001-R01). `matched=... mismatched=0` một mình KHÔNG được dùng làm bằng chứng completeness: verifier bản cũ duyệt DB → Excel nên không thể thấy dòng chưa từng được nhập. Verifier hiện tại duyệt Summary từ EXCEL → DB và in các con số coverage.
+
+**Chạy thật trên FILE THẬT.** Workbook Owner cung cấp trong Claude Cloud session S075: `Báo cáo Kinh doanh 2026.xlsx`, SHA256 `4ffe51983306a16f507d3fe5fad6b0f2acf9bfe8b0486f30c83cb64398d11f72`, 3.022.121 bytes, 59 sheets. Workbook KHÔNG commit vào repo, KHÔNG sửa (SHA256 trước và sau khi chạy giống hệt nhau). DB acceptance = SQLite dùng một lần, ngoài repo, đã `alembic upgrade head`.
+
+Import production tại `5bea87a` + scope DEC-169: `sheets_imported = ['Summary 2026', 'DataChart 2026']`, `summary_rows = 71` (toàn bộ từ `Summary 2026`), `daily_sales = 174`, `monthly_reference = 12`, `import_id = LEG-20260902-4ffe5198`.
+
+Output `python3 -m tools.analysis.verify_legacy_import` trên chính file thật đó:
+
+```text
+SUMMARY_SOURCE_ROWS_WITH_VALUES = 71
+SUMMARY_IMPORTED_ROWS           = 71
+SUMMARY_UNACCOUNTED_ROWS        = 0
+SUMMARY_REFERENCE_ONLY_PERSISTED = 0
+matched=1508 mismatched=0
+exit=0
+```
+
+`SUMMARY_SOURCE_ROWS_WITH_VALUES == SUMMARY_IMPORTED_ROWS == 71` → SOURCE COVERAGE đầy đủ trên `Summary 2026`. `mismatched=0` trên 1508 ô → VALUE MATCH. `SUMMARY_REFERENCE_ONLY_PERSISTED = 0` → `Summary 2025` không để lại bản ghi nào trong bảng production; kiểm chéo trực tiếp ở DB: `SELECT count(*) FROM legacy_summary_row WHERE sheet_name='Summary 2025'` = 0, `WHERE year=2025` = 0.
+
+**N09 / N10 trên file thật.** N09 (dòng được phân loại nhưng toàn bộ vùng dữ liệu rỗng): KHÔNG xảy ra — 71/71 dòng classified của `Summary 2026` đều có giá trị số. N10 (số lưu dạng TEXT trong frozen region): KHÔNG xảy ra — quét `Summary 2026` C–S, `Summary 2025` C–S và `DataChart 2026` B–AJ dòng 3–14 → 0 ô numeric-as-text. Không normalize gì.
+
+**Guard không bị nới lỏng.** `tests/test_legacy_source_coverage.py` giữ nguyên toàn bộ bài test R01/DEC-168, chĩa sang `Summary 2026`: sheet REQUIRED_IMPORT bị bóc hết công thức vẫn FAIL TO và kể tên đúng dòng; mất một dòng khỏi DB → `UNACCOUNTED`, exit 1; thêm bài test mới bắt trường hợp `Summary 2025` bị persist trở lại → verifier phải trượt. Full regression: `1608 passed, 11 skipped`.
 Executed By:
-Claude (S075) — gate Owner cho file thật
+Claude (S075) — Real Data Acceptance trên workbook thật Owner cung cấp
 Timestamp:
 2026-09-02
 

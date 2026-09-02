@@ -301,21 +301,26 @@ def _inject_cached_values(data: bytes, values: dict[str, object]) -> bytes:
     return text.encode("utf-8")
 
 
-def strip_formula_markers(path: Path) -> Path:
-    """Giữ nguyên GIÁ TRỊ nghiệp vụ, xoá sạch công thức khỏi ``Summary 2025``.
+def strip_formula_markers(path: Path, sheet_name: str = "Summary 2025") -> Path:
+    """Giữ nguyên GIÁ TRỊ nghiệp vụ, xoá sạch công thức khỏi ``sheet_name``.
 
     Tái tạo đúng case của Independent Review (FIND-PRA001-R01): một sheet
     Summary vẫn đầy đủ số của Owner nhưng không còn dấu hiệu công thức nào
     để parser bám vào phân loại dòng. Trước repair, cả sheet biến mất khỏi
     bản nhập mà verifier vẫn báo `mismatched=0`.
+
+    Tham số ``sheet_name`` cho phép chĩa đúng case này vào một sheet
+    REQUIRED_IMPORT (`Summary 2026`) — nơi guard DEC-168 PHẢI còn hiệu lực —
+    thay vì chỉ vào sheet REFERENCE_ONLY (`Summary 2025`), nơi sau DEC-169
+    hình dạng value-only là hợp lệ và không được làm import trượt.
     """
     from openpyxl import load_workbook
 
-    # Đọc GIÁ TRỊ đã cache của riêng Summary 2025 trước...
+    # Đọc GIÁ TRỊ đã cache của riêng sheet đích trước...
     values_book = load_workbook(path, data_only=True)
     values = {
         cell.coordinate: cell.value
-        for row in values_book["Summary 2025"].iter_rows()
+        for row in values_book[sheet_name].iter_rows()
         for cell in row
         if cell.value is not None
     }
@@ -324,7 +329,7 @@ def strip_formula_markers(path: Path) -> Path:
     # ...rồi ghi đè vào bản CÓ công thức, chỉ trên sheet đó. Các sheet khác
     # giữ nguyên công thức để bài test cô lập đúng một sheet hỏng.
     workbook = load_workbook(path, data_only=False)
-    sheet = workbook["Summary 2025"]
+    sheet = workbook[sheet_name]
     for row in sheet.iter_rows():
         for cell in row:
             if isinstance(cell.value, str) and cell.value.startswith("="):

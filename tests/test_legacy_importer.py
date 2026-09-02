@@ -192,7 +192,6 @@ def test_row_kinds_follow_formula_structure_not_fixed_offsets(workbook):
 def test_period_comes_from_the_referenced_source_sheet(workbook):
     assert (_row(workbook, "Summary 2026", 4).year, _row(workbook, "Summary 2026", 4).month) == (2026, 1)
     assert (_row(workbook, "Summary 2026", 8).year, _row(workbook, "Summary 2026", 8).month) == (2026, 2)
-    assert (_row(workbook, "Summary 2025", 4).year, _row(workbook, "Summary 2025", 4).month) == (2025, 1)
 
 
 def test_year_total_row_is_not_attached_to_any_month(workbook):
@@ -232,14 +231,18 @@ def test_a_workbook_missing_a_frozen_sheet_fails_with_a_clear_error(tmp_path):
     book.save(path)
     with pytest.raises(LegacyImportError) as exc:
         parse_workbook(path)
-    assert "Summary 2025" in str(exc.value)
     assert "DataChart 2026" in str(exc.value)
+    # `Summary 2025` là REFERENCE_ONLY (DEC-169) nên KHÔNG còn là sheet bắt
+    # buộc: thiếu nó không phải lỗi, và không được kể tên trong lỗi này.
+    assert "Summary 2025" not in str(exc.value)
 
 
 def test_sheet_visibility_state_is_recorded_as_imported(workbook):
     states = {item["sheet_name"]: item["state"] for item in workbook.sheets_imported}
-    assert states["Summary 2025"] == "hidden"
     assert states["Summary 2026"] == "visible"
+    assert states["DataChart 2026"] == "visible"
+    # Sheet REFERENCE_ONLY không được ghi là đã nhập (DEC-169).
+    assert "Summary 2025" not in states
 
 
 def test_fingerprint_is_stable_for_the_same_bytes(legacy_workbook_path, tmp_path):
