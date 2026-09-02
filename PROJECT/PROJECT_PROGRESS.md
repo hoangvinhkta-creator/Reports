@@ -1,6 +1,75 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S087)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S088)
+
+Cập nhật sau **Controlled Integration slice C1** vào canonical. Khối S087 và các
+khối cũ hơn bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu
+thuẫn về trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S088 — PRA-002 Slice C1 Controlled Integration (INTEGRATION ONLY)
+RESULT                     = PASS
+C1_FINAL_STATUS            = ACCEPTED + INTEGRATED
+TASK-PRA-002               = IN_PROGRESS   (KHÔNG DONE — RDA + Production Acceptance chưa xong)
+SLICE A                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE B                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE C1                   = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+CANONICAL_BEFORE_SHA       = bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82  (khớp EXPECTED — canonical KHÔNG dịch chuyển)
+ACCEPTED_C1_SHA            = 579b497ba7427d66838d9b2769863ccca20a104e  (== origin/claude/pra-002-slice-c-plan-jg798m)
+REVIEW_LINEAGE             = bfe7008 → 3cd92ea (implementation) → 579b497 (Independent Review E2, docs-only).
+                              Cả 3cd92ea lẫn 579b497 đều là tổ tiên của ACCEPTED_C1_SHA; BASE là tổ tiên của HEAD
+INTEGRATION_METHOD         = git merge --ff-only  → fast-forward THUẦN.
+                              KHÔNG squash · KHÔNG rebase · KHÔNG cherry-pick · KHÔNG force · KHÔNG merge commit
+CANONICAL_AFTER_FF_SHA     = 579b497ba7427d66838d9b2769863ccca20a104e
+TREE_EQUIVALENCE           = IDENTICAL — tree SHA canonical == tree SHA accepted (ba9220ccd3d964331aab3762600d44237ea6bc0a);
+                              git diff HEAD..579b497 rỗng
+REMOTE_CANONICAL_SHA       = 579b497ba7427d66838d9b2769863ccca20a104e  (fetch lại sau push, khớp local)
+BRANCH_AUTHORITY           = AUTHORITY_OK (0 ahead / 0 behind default; DIVERGENCE WITHIN_LIMITS)
+TESTS                      = tree IDENTICAL với accepted tree đã E2 verify → KHÔNG rerun full suite (đúng policy).
+                              Smoke: C1 focused 83 passed · Slice A/B persistence 97 passed ·
+                              git diff --check sạch. Bằng chứng đầy đủ (full 1806/11, Golden 81/2,
+                              PRA-001 101, PostgreSQL 16.13 PASS) giữ nguyên từ S087
+VALIDATORS                 = structure PASS · project_state PASS · task_completion PASS · evidence PASS ·
+                              reference_integrity FAIL với ĐÚNG 3 pre-existing REM-T06 (/README.md,
+                              CODE_OF_CONDUCT.md, CONTRIBUTING.md) → DEFER, KHÔNG phải integration blocker
+CHECK-PRA002-08            = PASS (E2 — reviewer tái lập độc lập trên PostgreSQL 16.13 thật, S087)
+CHECK-PRA002-14            = NOT_TESTED — RDA pending (Owner; cần workbook thật)
+CHECK-PRA002-15            = NOT_TESTED — Production Acceptance pending (Owner)
+CHECK-PRA002-17            = PASS cho slice A + B + C1; CHƯA PASS ở cấp toàn task
+REVIEW_BUDGET_USED         = 1 / 2        REVIEW_BUDGET_REMAINING = 1
+                              (đối chiếu đã chốt ở review commit 579b497 — KHÔNG sửa lại,
+                              KHÔNG tiêu repair cycle trong integration)
+CHANGE_BUDGET_STATE        = 1.460 / 1.500      REMAINING = 40 LOC
+                              (A 1.104 + B 289 + C1 67. KHÔNG dùng lại 1.393/107 làm ngân sách hiện hành)
+TRACKING_CHANGED           = NO
+PRODUCTION_CODE_ADDED      = 0 dòng trong phiên integration
+EVIDENCE                   = docs/reviews/TASK-PRA-002-SLICE-C1-INDEPENDENT-REVIEW-RECORD.md
+NEXT_VERTICAL_ACTION       = PRA-002 Real Data Acceptance Preparation / Execution
+                              (KHÔNG mặc định là "Slice C2 implementation" — xem phân loại bên dưới)
+```
+
+**Phân loại phần việc PRA-002 còn lại — KHÔNG mặc định là code.**
+
+| Nhóm | Nội dung | CODE_REQUIRED? |
+|---|---|---|
+| A. RDA / evidence | `CHECK-PRA002-14` RDA-1..6 trên workbook thật (mục 15) | **KHÔNG** trên đường ưu tiên — mục 15 chỉ định "hai export thật" do Owner cung cấp. `tools/analysis/make_snapshot_variants` chỉ thuộc đường dự phòng controlled copy (ASSUMPTION D14), và mục 792–793 cho phép `NOT_TESTED` + gate Owner |
+| B. PostgreSQL verification | PRA-002.C3 — kịch bản A→B→B'→B'' trên PostgreSQL 16 local, đo `ru_maxrss` | Là **thực thi kịch bản + ghi bằng chứng**, không phải production feature |
+| C. Production deployment | deployment doc + deploy | Owner / vận hành |
+| D. Owner production acceptance | `CHECK-PRA002-15` (mục 16) | Owner |
+
+Không nhóm nào chứng minh được `CODE_REQUIRED` trên production path ngay lúc
+này. Vì vậy bước kế tiếp là **chuẩn bị/thực thi RDA**, không phải mở thêm mã.
+
+**Luật 40 LOC (bắt buộc đọc trước khi viết bất kỳ dòng mã nào).** 40 LOC còn
+lại **KHÔNG** phải ngân sách để tiện tay sửa incidental finding. KHÔNG dùng cho:
+`FIND-PRA002-A2`, `A3`, `B2`, `B3`, `B4`, same-second sequencing, `REM-T06`,
+CSRF, pagination, acknowledgement, hay refactor. Nếu RDA phát hiện thiếu
+capability production cần **> 40 LOC** → **DỪNG TRƯỚC KHI VIẾT MÃ** và lập
+`CHANGE_BUDGET` proposal cho Owner. Nếu RDA phát hiện hình dạng dữ liệu thật mà
+contract không nhận ra → ghi `UNKNOWN / OWNER_DECISION_REQUIRED`, KHÔNG mở rộng
+parser/thuật toán (mục 794–796).
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-02, S087)
 
 Cập nhật sau **Independent Review E2 slice C1**. Khối S086 và các khối cũ hơn
 bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về

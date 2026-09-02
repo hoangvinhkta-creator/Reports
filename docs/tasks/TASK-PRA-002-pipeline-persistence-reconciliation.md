@@ -899,7 +899,7 @@ EFFORT                = 1 session (+ review + integration)
 - [x] PRA-002.A5 `SnapshotRepository` + `history_writer` (một transaction, R2 trong cửa sổ transaction) + test fail-closed/append-only/concurrency.
 - [x] PRA-002.A6 `run_report` + tab Dữ liệu (danh sách + trang snapshot) + test Flask; integration golden A(≤10)→B đẳng thức.
 - [x] PRA-002.B1 reconciler bước 4 + R; `POST xac-nhan-du` + validate + 409; test NOT_SEEN/REMOVED. (S083; không cần migration — schema 0002 đã đủ; FIND-PRA002-A4 đã sửa)
-- [x] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture. (S086; không cần migration — schema 0002 đã đủ; 67 dòng logic production)
+- [x] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture. (S086; không cần migration — schema 0002 đã đủ; 67 dòng logic production. Independent Review E2 ACCEPT ở S087; Controlled Integration ở S088 — canonical `bfe7008` → `579b497`, fast-forward thuần)
 - [ ] PRA-002.C2 `tools/analysis/make_snapshot_variants` + RDA-1..6 (hoặc `NOT_TESTED` + gate Owner).
 - [ ] PRA-002.C3 Kịch bản A→B→B'→B'' trên PostgreSQL 16 local; đo `ru_maxrss`.
 - [ ] PRA-002.R Independent Review E2 (`docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD`), repair ≤ 2 cycle, Controlled Integration, deployment doc, PROGRESS/LO_TRINH/handoff.

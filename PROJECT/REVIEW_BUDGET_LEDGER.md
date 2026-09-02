@@ -414,6 +414,23 @@ Push xong, fetch lại xác nhận `origin/claude/extract-upload-repo-gq2ws4 ==
 d2c7691` và working tree sạch. `TASK-PRA-002` vẫn `IN_PROGRESS` — KHÔNG đánh
 DONE (slice C + RDA + Production Acceptance chưa xong).
 
+Controlled Integration slice C1 (S088) — fast-forward `claude/extract-upload-repo-gq2ws4`
+từ `bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82` lên
+`579b497ba7427d66838d9b2769863ccca20a104e` (== exact remote HEAD của
+`claude/pra-002-slice-c-plan-jg798m` đã qua Independent Review E2 ACCEPT, chứa
+`3cd92ea` implementation + `579b497` review docs-only). `git merge --ff-only`,
+fast-forward thuần, KHÔNG squash/rebase/force/cherry-pick, KHÔNG merge commit.
+Tree sau integration IDENTICAL với accepted tree (cùng tree SHA
+`ba9220cc…`) → không rerun full suite; smoke: C1 focused 83 passed, Slice A/B
+persistence 97 passed, `git diff --check` sạch. Push xong, fetch lại xác nhận
+`origin/claude/extract-upload-repo-gq2ws4 == 579b497` và working tree sạch;
+`branch_authority_check.sh` → `AUTHORITY_OK`. Validators: structure /
+project_state / task_completion / evidence PASS; `reference_integrity` FAIL với
+ĐÚNG 3 lỗi pre-existing `TASK-REM-T06` → DEFER. **0 repair cycle tiêu thụ**
+(lineage vẫn 1/2, còn 1); **0 dòng production code thêm** — ngân sách vẫn
+1.460 / 1.500, còn 40 LOC. `TASK-PRA-002` vẫn `IN_PROGRESS` — KHÔNG đánh DONE
+(RDA `CHECK-PRA002-14` + Production Acceptance `CHECK-PRA002-15` chưa xong).
+
 Independent Review E2 slice C1 (S087) — `REVIEW_BASE_SHA =
 bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82`, `REVIEW_HEAD_SHA =
 3cd92eae3035dd40aaf3f64bd3ba96a1d1b49cd0`, `FINAL_ACCEPTANCE = ACCEPT`,
