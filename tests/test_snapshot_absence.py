@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app.web import history_store
 from tools.db import schema
@@ -426,6 +427,92 @@ def test_confirming_a_snapshot_that_does_not_exist_is_a_key_error(repository):
     with pytest.raises(KeyError):
         confirm(repository, "SNAP-khong-ton-tai",
                 start=date(2026, 1, 1), end=date(2026, 1, 31))
+
+
+def _explode_on(monkeypatch, name, table):
+    """Ép đúng MỘT câu lệnh SQL trên ``table`` hỏng, các câu khác chạy bình thường."""
+    real = getattr(history_store, name)
+
+    def broken(target, *args, **kwargs):
+        if target is table:
+            raise OperationalError("mô phỏng mất kết nối", {}, Exception(name))
+        return real(target, *args, **kwargs)
+
+    monkeypatch.setattr(history_store, name, broken)
+
+
+@pytest.mark.parametrize("statement,table", [
+    ("update", schema.source_snapshot),
+    ("insert", schema.reconciliation_flag),
+])
+def test_a_database_failure_midway_leaves_neither_half_of_the_confirmation(
+    repository, history_engine, monkeypatch, statement, table,
+):
+    """Nâng coverage và bước R là MỘT đơn vị công việc (mục 7.3) — chứng minh
+    bằng cách làm hỏng từng nửa.
+
+    Hai trạng thái nửa vời bị cấm, và mỗi tham số ở đây ép đúng một nửa hỏng:
+
+    * ``CONFIRMED_COMPLETE`` mà thiếu cờ → hệ thống đã tuyên bố "sổ này đầy
+      đủ" rồi im lặng nuốt các dòng vắng mặt — đúng thứ BR-2 nói là mất doanh
+      thu không ai thấy.
+    * cờ ``REMOVED_IN_SOURCE_CANDIDATE`` mà coverage chưa xác nhận → database
+      mang những "ứng viên đã bị xoá" mà không hành động tường minh nào của
+      con người đứng sau, phá vỡ chính bất biến của slice B.
+
+    Sau lỗi, database phải trở về trạng thái TRƯỚC lệnh xác nhận, không phải
+    một trạng thái "gần đúng".
+    """
+    both = [source_line("BH1", row=6), source_line("BH2", row=7)]
+    write(repository, both, run_id="run-1", created_at="2026-02-01T00:00:00")
+    narrow = write(repository, [both[0]], run_id="run-2", fingerprint="fp-b",
+                   created_at="2026-02-02T00:00:00")
+    before = state(repository, history_engine)
+    flags_before = count(history_engine, schema.reconciliation_flag)
+
+    _explode_on(monkeypatch, statement, table)
+    with pytest.raises(history_store.HistoryUnavailableError):
+        confirm(repository, narrow.snapshot_id,
+                start=date(2026, 1, 1), end=date(2026, 1, 31))
+    monkeypatch.undo()
+
+    snapshot = repository.get_snapshot(narrow.snapshot_id)
+    assert snapshot["coverage_state"] != "CONFIRMED_COMPLETE"
+    assert snapshot["confirmed_range_start"] is None
+    assert snapshot["confirmed_at"] is None
+    assert snapshot["n_removed_candidate"] == 0
+    assert count(history_engine, schema.reconciliation_flag) == flags_before
+    assert flags(repository, "REMOVED_IN_SOURCE_CANDIDATE") == []
+    assert state(repository, history_engine) == before
+
+
+def test_the_confirmation_can_still_be_made_after_a_failed_attempt(
+    repository, history_engine, monkeypatch,
+):
+    """Rollback không được để lại một snapshot "kẹt": lần thử sau phải chạy đủ."""
+    both = [source_line("BH1", row=6), source_line("BH2", row=7)]
+    write(repository, both, run_id="run-1", created_at="2026-02-01T00:00:00")
+    narrow = write(repository, [both[0]], run_id="run-2", fingerprint="fp-b",
+                   created_at="2026-02-02T00:00:00")
+
+    _explode_on(monkeypatch, "update", schema.source_snapshot)
+    with pytest.raises(history_store.HistoryUnavailableError):
+        confirm(repository, narrow.snapshot_id,
+                start=date(2026, 1, 1), end=date(2026, 1, 31))
+    monkeypatch.undo()
+
+    result = confirm(repository, narrow.snapshot_id,
+                     start=date(2026, 1, 1), end=date(2026, 1, 31))
+
+    assert result.removed_candidates == 1
+    snapshot = repository.get_snapshot(narrow.snapshot_id)
+    assert snapshot["coverage_state"] == "CONFIRMED_COMPLETE"
+    assert snapshot["n_removed_candidate"] == 1
+    removed, = flags(repository, "REMOVED_IN_SOURCE_CANDIDATE")
+    assert removed["order_key"] == "BH2"
+    assert count(history_engine, schema.reconciliation_flag) == 2, (
+        "đúng một NOT_SEEN (bước 4) + một REMOVED (bước R) — lần hỏng không để lại gì"
+    )
 
 
 def test_confirmation_uses_this_snapshots_membership_not_the_latest_state(

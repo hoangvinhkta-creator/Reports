@@ -367,22 +367,39 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S083, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S084, 2026-09-02 — HIỆN HÀNH)
 
 ```
 TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : SLICE A INTEGRATED; SLICE B IMPLEMENTED (chờ Independent Review E2); slice C PENDING
-repair cycle đã dùng         : 1 / 2   (còn 1 — slice B chưa tiêu cycle nào)
-CHANGE_BUDGET slice B        : 242 dòng logic production / mục tiêu slice ≤ 500 / cảnh báo 600 / dừng cứng 800
-CHANGE_BUDGET lineage        : 1.104 (A) + 242 (B) = 1.346 / mục tiêu 1.200 / dừng cứng 1.500
-                                → VƯỢT mục tiêu mềm, còn 154 dòng trước dừng cứng; slice C phải lập kế hoạch
-                                  trong 154 dòng đó hoặc mở CHANGE_BUDGET đề xuất TRƯỚC khi viết mã
+Implementation               : SLICE A INTEGRATED; SLICE B IMPLEMENTED + REVIEWED E2 + ACCEPTED (chờ Controlled Integration); slice C PENDING
+repair cycle đã dùng         : 1 / 2   (còn 1 — review slice B KHÔNG tiêu cycle nào: 0 finding BLOCKING)
+CHANGE_BUDGET slice B        : 289 dòng logic production / mục tiêu slice ≤ 500 / cảnh báo 600 / dừng cứng 800 → ĐẠT
+CHANGE_BUDGET lineage        : 1.104 (A) + 289 (B) = 1.393 / mục tiêu 1.200 / dừng cứng 1.500
+                                → VƯỢT mục tiêu mềm, còn **107 dòng** trước dừng cứng; slice C phải lập kế hoạch
+                                  trong 107 dòng đó hoặc mở CHANGE_BUDGET đề xuất TRƯỚC khi viết mã
+                                (S083 tự báo 242 → 1.346 → 154 còn lại. Reviewer S084 đo lại độc lập bằng
+                                 phương pháp ĐÃ HIỆU CHUẨN — đo lại slice A ra đúng 1.104 — và ra 289/1.393/107.
+                                 Xem FIND-PRA002-B1. Ngân sách KHÔNG bị tăng; chỉ phép đo được sửa.)
 Baseline slice B (27b9d1c5)  : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
 Sau slice B                  : Golden 58 passed, 2 skipped; full suite 1781 passed, 11 skipped (+70 test, 0 skip thêm)
+Sau review S084 (+3 test)    : full suite 1784 passed, 11 skipped; PostgreSQL 16.13 thật 113 passed
 Migration slice B            : KHÔNG có — schema 0002_snapshots đã đủ; ALEMBIC_HEAD không đổi
+                                (reviewer xác minh bằng `alembic upgrade head` trên PostgreSQL 16.13 thật)
 Nhánh slice B                : claude/pra-002-slice-b-snapshot-8rbwip (BASE_SHA 27b9d1c5, chưa integrate)
 Canonical hiện tại           : claude/extract-upload-repo-gq2ws4 @ 27b9d1c5a578742450099c53f2f82411f07aa9dc
 ```
+
+Independent Review E2 slice B (S084) — `REVIEW_BASE_SHA = 27b9d1c5`,
+`REVIEW_HEAD_SHA = 7658c5e5`, `FINAL_ACCEPTANCE = ACCEPT`,
+`INTEGRATION_READY = YES`. 0 finding BLOCKING → **0 repair cycle tiêu thụ**
+(lineage vẫn 1/2). 4 finding NON_BLOCKING: B1 (số liệu CHANGE_BUDGET — đã sửa
+ngay trong phiên review), B2 (nhân đôi cờ khi hai lần xác nhận ĐỒNG THỜI → DEFER
+PRA-004), B3 (trần `FLAG_PAGE_LIMIT = 200` trên trang snapshot → DEFER PRA-004),
+B4 (không CSRF trên mọi route POST — baseline có sẵn, Cloudflare Access là front
+door → DEFER). Bổ sung trong phiên review, được mục 13 chỉ thị cho phép: 3 test
+rollback cho transaction xác nhận (`tests/test_snapshot_absence.py` +87 dòng,
+KHÔNG sửa production), đã mutation-check. Bằng chứng đầy đủ:
+`docs/reviews/TASK-PRA-002-SLICE-B-INDEPENDENT-REVIEW-RECORD.md`.
 
 Slice B (S083) — nhánh `claude/pra-002-slice-b-snapshot-8rbwip`, cắt từ
 `IMPLEMENTATION_BASE_SHA = 27b9d1c5a578742450099c53f2f82411f07aa9dc`

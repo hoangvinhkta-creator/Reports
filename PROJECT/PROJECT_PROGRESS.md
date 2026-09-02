@@ -1,5 +1,51 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S084)
+
+Cập nhật sau **Independent Review E2 của slice B**. Khối S083/S082/S081/S080 bên
+dưới giữ nguyên như bản ghi lịch sử đúng tại thời điểm của chúng; khi mâu thuẫn về
+trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                 = S084 — PRA-002 Slice B Independent Review E2
+TASK-PRA-002            = IN_PROGRESS  (slice A INTEGRATED; slice B REVIEWED + ACCEPTED, chờ Controlled Integration; slice C PENDING)
+REVIEW_RESULT           = PASS
+FINAL_ACCEPTANCE        = ACCEPT
+INTEGRATION_READY       = YES
+REVIEW_BASE_SHA         = 27b9d1c5a578742450099c53f2f82411f07aa9dc  (== origin/claude/extract-upload-repo-gq2ws4 — canonical KHÔNG dịch chuyển)
+REVIEW_HEAD_SHA         = 7658c5e5341935c7e3ff4edf31505b8a1d205e85  (== origin/claude/pra-002-slice-b-snapshot-8rbwip)
+EXACT_DIFF              = 16 file, +2.254 / −44  (1 commit)
+BLOCKING findings       = 0  → repair cycle tiêu thụ trong phiên này = 0 (lineage vẫn 1/2, còn 1)
+NON_BLOCKING findings   = FIND-PRA002-B1 (số liệu CHANGE_BUDGET — đã sửa), B2/B3/B4 (DEFER, có re-trigger)
+RANGE_SEMANTICS         = ĐÚNG frozen contract (mục 8 bước 4 dùng DETECTED, bước R dùng khoảng ĐÃ XÁC NHẬN).
+                          Chỉ thị phiên trước KHÔNG override frozen contract — không sửa để khớp wording.
+CONFIRMATION_AUTHORITY  = đúng MỘT cửa ghi CONFIRMED_COMPLETE (SnapshotRepository.confirm_coverage),
+                          checkbox mặc định chưa tick, mọi nhánh từ chối fail-closed và không ghi gì
+ABSENCE_SET             = bước R dùng snapshot_line membership của CHÍNH snapshot đang xác nhận, KHÔNG dùng last_seen
+CURRENT/TOTALS          = current_totals() không đổi một dòng nào trong diff và không tham chiếu bảng cờ;
+                          đo trên PostgreSQL 16.13 thật: 262 cờ REMOVED → current + tổng tiền KHÔNG đổi
+TRANSACTION             = nâng coverage + bước R trong MỘT engine.begin(); review bổ sung 3 test rollback
+                          (ép hỏng từng nửa) — đã mutation-check, chỉ sửa file test
+TEST                    = full suite 1784 passed, 11 skipped (sau khi thêm 3 test)
+                          Golden 74 passed, 2 skipped (2 skip môi trường, có sẵn ở BASE)
+                          PostgreSQL 16.13 THẬT: alembic upgrade head → 0002_snapshots; vertical 113 passed
+CHANGE_BUDGET slice B   = 289 dòng logic production (đo lại độc lập; S083 báo 242) / mục tiêu slice ≤ 500 → ĐẠT
+CHANGE_BUDGET lineage   = 1.104 (A) + 289 (B) = 1.393 / mục tiêu 1.200 / dừng cứng 1.500
+REMAINING_TO_HARD_STOP  = 107 dòng  (KHÔNG phải 154 — xem FIND-PRA002-B1)
+CHECK PASS (E1)         = 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 12, 13, 16  (reviewer tái lập độc lập 06 và 07 ở mức E2)
+CHECK NOT_TESTED        = 08 (slice C), 14 (RDA — Owner), 15 (Production — Owner)
+CHECK-PRA002-17         = PASS cho phần slice B (còn slice C trước khi đóng toàn task)
+TRACKING_CHANGED        = NO
+EVIDENCE                = docs/reviews/TASK-PRA-002-SLICE-B-INDEPENDENT-REVIEW-RECORD.md
+NEXT_VERTICAL_ACTION    = Controlled Integration slice B vào canonical (KHÔNG bắt đầu slice C)
+```
+
+**Điều phiên slice C phải biết trước khi mở việc.** Headroom thật trước dừng cứng
+CHANGE_BUDGET là **107 dòng logic production**, không phải 154: con số 242 của S083
+bị đo thiếu 47 dòng, và phương pháp đo lại đã được hiệu chuẩn bằng cách đo lại
+slice A ra đúng 1.104 như đã chấp nhận. Nếu slice C không nằm gọn trong 107 dòng,
+mở đề xuất CHANGE_BUDGET cho Owner **TRƯỚC** khi viết mã.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S083)
 
 Cập nhật sau phiên implement **slice B**. Các khối S082/S081/S080 bên dưới giữ
