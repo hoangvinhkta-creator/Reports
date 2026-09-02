@@ -241,3 +241,95 @@ AUTHORITY            : BRANCH_WITH_UPSTREAM
 RESULT               : AUTHORITY_OK
 $ Golden: 58 passed, 2 skipped · Full suite: 1608 passed, 11 skipped   (BASE_SHA, venv riêng)
 ```
+
+---
+
+# CLOSE-OUT + CONTROLLED INTEGRATION (2026-09-02, cùng phiên S079)
+
+Phần trên giữ nguyên như bản ghi tại thời điểm viết. Phần này ghi việc đóng
+phiên: reconcile trạng thái production, tích hợp roadmap đã freeze vào
+canonical, và freeze base cho session implement.
+
+## 1. Production state reconciliation (docs-only, KHÔNG phải repair)
+
+Owner báo lại quan sát production sau S078R. Trạng thái tài liệu cũ ("chờ
+Owner deploy") vì vậy đã lỗi thời và được reconcile tối thiểu — chi tiết,
+nguồn bằng chứng và giới hạn của nó nằm ở `PROJECT/PROJECT_PROGRESS.md` →
+"PRODUCTION STATE RECONCILIATION — S079 CLOSE-OUT".
+
+```text
+PRODUCTION_DEPLOYED         = canonical (có repair S078R)
+LEGACY_IMPORT_PRODUCTION    = PASS  (workbook thật; không còn OOM ở 512 MB)
+LEGACY_PERSIST_AND_READ     = PASS  (đọc lại được trên web)
+LEGACY_MULTI_PERIOD_QUERY   = PASS  (tab Nhân viên, nhiều kỳ)
+PHASE_C_PRODUCTION          = ĐÃ ĐÓNG (quan sát production của Owner)
+PHASE_D_SECURITY            = OPEN / PENDING  (0.0.0.0/0 — bước 13 deployment doc)
+COMPUTE_TARGET              = 512 MB (Owner: KHÔNG nâng 2 GB, không mở task)
+Evidence                    = E1, Executed By = Owner (production).
+                              Session KHÔNG tự đo được (egress 403);
+                              repo KHÔNG lưu output nguyên văn; không suy diễn thêm.
+Gate frozen CHECK-PRA001-09 = KHÔNG SỬA (giữ evidence PostgreSQL 16.13 local)
+```
+
+Không mở S078/S078R repair mới. Không ghi Phase D = DONE.
+
+## 2. Controlled Integration
+
+```text
+phương pháp              = FAST-FORWARD (canonical là ancestor thẳng của nhánh S079)
+                           KHÔNG squash / rebase / force push / main / thay đổi ngoài phạm vi
+CANONICAL_BEFORE_SHA     = 553d8a36f578b082128a6e45d2748da2bc371e70
+PLANNING_SOURCE_SHA      = c83f58c (freeze contract) → 1c3ec3f (evidence authority check)
+RECONCILIATION_COMMIT    = commit thứ 3 trên nhánh S079 (docs-only, mục 1 ở trên)
+CANONICAL_AFTER_SHA      = HEAD của claude/extract-upload-repo-gq2ws4 sau fast-forward
+                           (xác minh: `git rev-parse origin/claude/extract-upload-repo-gq2ws4`)
+conflict                 = 0 (fast-forward)
+```
+
+## 3. IMPLEMENTATION_BASE_SHA (frozen)
+
+```text
+IMPLEMENTATION_BASE_SHA = HEAD remote hiện tại của claude/extract-upload-repo-gq2ws4
+                          sau close-out S079
+xác minh                = git fetch origin claude/extract-upload-repo-gq2ws4 &&
+                          git rev-parse origin/claude/extract-upload-repo-gq2ws4
+```
+
+Đây là base DUY NHẤT cho session `TASK-PRA-002` Slice A. Không cắt nhánh từ
+`main`, không từ nhánh S079 sau khi nó đã được fast-forward vào canonical.
+
+## 4. SLICE A HANDOFF (ngắn — không thiết kế lại task)
+
+Đọc trước khi viết code: `docs/tasks/TASK-PRA-002-pipeline-persistence-reconciliation.md`
+(toàn bộ), `PROJECT/PROJECT_DECISIONS.md` → DEC-166 + DEC-171,
+`docs/adr/ADR-108-persistent-history-store.md`, `PROJECT/PROJECT_PROGRESS.md`
+(hai khối canonical đầu file), và handoff này.
+
+Scope Slice A = đúng frozen contract, không hơn:
+
+```text
+pipeline result → PostgreSQL persistence
+                → INSERT / SAME / SOURCE_CHANGED / ORDER_KEY_COLLISION
+                → result version (ghi cho mọi khoá của snapshot)
+                → current pointer (một khoá một dòng)
+KHÔNG có ở Slice A:
+  - coverage confirmation, NOT_SEEN_IN_LATEST_SNAPSHOT, REMOVED_CANDIDATE   (Slice B)
+  - RESULT_REVISED, Real Data Acceptance, PostgreSQL acceptance             (Slice C)
+  - mọi UI của PRA-003/004/005
+```
+
+Thứ tự thực hiện + check phải đạt: xem mục "IMPLEMENTATION HANDOFF —
+TASK-PRA-002 slice A" ở phần trên của file này (bước 1–9) và Completion Gate
+`CHECK-PRA002-01/02/03/04/05/09/10/11/12/13`.
+
+## 5. Trạng thái đóng phiên
+
+```text
+S079                             = DONE
+TASK-PRA-002                     = READY   (17 check, 16 REQUIRED, gate FROZEN — KHÔNG đổi)
+implementation slices            = A / B / C  (không mở thêm slice/task)
+PRA002_IMPLEMENTATION_STARTED    = NO
+app/ tools/ tests/ config/ data/ = KHÔNG ĐỔI trong toàn bộ S079
+Tracking                         = KHÔNG ĐỔI
+NEXT_VERTICAL_ACTION             = PRA-002 Slice A implementation
+```

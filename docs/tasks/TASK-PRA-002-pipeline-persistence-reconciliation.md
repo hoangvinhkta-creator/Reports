@@ -285,9 +285,17 @@ IN_SCOPE:
 ## Phụ Thuộc (Dependencies)
 - `TASK-PRA-001` = DONE (engine/migration chain/`history_store`/tab Dữ liệu).
 - ADR-108 Accepted (DEC-167); DEC-170 contract env.
-- Production PostgreSQL đã activation (S078, DEC-170 OWNER_ACCEPTED). Việc
-  Owner deploy HEAD canonical là điều kiện của **Production Acceptance**,
-  KHÔNG phải của implementation/test local (SQLite).
+- Production PostgreSQL đã activation (S078, DEC-170 OWNER_ACCEPTED) và —
+  cập nhật S079 close-out — Owner **đã deploy canonical**, đã import
+  workbook legacy thật thành công, dữ liệu persist/đọc lại được trên
+  production, không còn OOM ở 512 MB (bằng chứng: quan sát production của
+  Owner; xem `PROJECT/PROJECT_PROGRESS.md` → "PRODUCTION STATE
+  RECONCILIATION — S079 CLOSE-OUT"). Dependency hạ tầng vì vậy ĐÃ THOẢ.
+  `CHECK-PRA002-15` vẫn là gate riêng: cần một lần deploy SHA mang
+  migration `0002_snapshots` SAU khi implement — KHÔNG phải điều kiện của
+  implementation/test local (SQLite).
+- Phase D bảo mật (`0.0.0.0/0` của `tinphat-reports-db`) còn OPEN/PENDING —
+  không chặn task này; không mở repair S078/S078R mới.
 - Real Data Acceptance cần workbook kế toán thật (Owner cung cấp lúc chạy,
   không commit — `.gitignore` `data/samples/`).
 

@@ -51,15 +51,66 @@ TRACKING_CHANGED        = NO
 Fixture golden 01: 351 dòng/254 đơn, 0 cặp `(đơn, sản phẩm)` lặp, dòng ≤
 10/01 = 89 (61 đơn) → fixture hai snapshot cắt từ golden có sẵn số kỳ vọng.
 
-**Việc còn treo bên ngoài PRA-002 (không đổi):** Owner deploy HEAD
-canonical để Production PostgreSQL activation Phase C/D đóng (xem khối
-"PRODUCTION POSTGRESQL ACTIVATION" bên dưới) — là điều kiện của Production
-Acceptance PRA-002 (CHECK-PRA002-15), không chặn implement/test local.
+**Việc còn treo bên ngoài PRA-002 (cập nhật S079 close-out):** Owner ĐÃ
+deploy canonical và ĐÃ import workbook legacy thật thành công trên
+production — xem khối "PRODUCTION STATE RECONCILIATION" ngay dưới. Còn treo
+duy nhất: Phase D bảo mật (`0.0.0.0/0` trong allowed IP list của
+`tinphat-reports-db`) — không chặn PRA-002. Production Acceptance của
+PRA-002 (`CHECK-PRA002-15`) vẫn cần một lần deploy RIÊNG cho SHA mang
+migration `0002_snapshots`, sau khi implement xong.
 
 **NEXT_VERTICAL_ACTION:** mở session implement `TASK-PRA-002` slice A theo
 handoff `docs/sessions/S079-pra-002-roadmap-finalization.md` →
 "IMPLEMENTATION HANDOFF".
 
+
+## PRODUCTION STATE RECONCILIATION — S079 CLOSE-OUT (2026-09-02, HIỆN HÀNH)
+
+Khối này là **trạng thái production hiện hành có thẩm quyền**. Nó thay thế
+mọi mô tả cũ nói rằng "production chờ Owner deploy" (khối
+"PRODUCTION POSTGRESQL ACTIVATION — S078" và ghi chú `EXACT_DEPLOY_SHA`
+trong khối S078R bên dưới giữ nguyên như **bản ghi lịch sử đúng tại thời
+điểm của chúng**, không bị viết lại).
+
+Đây là **state reconciliation**, KHÔNG phải một repair mới của S078/S078R
+và KHÔNG mở task mới.
+
+```text
+PRODUCTION_DEPLOYED_SHA     = canonical (S078R) — Owner đã deploy
+LEGACY_IMPORT_PRODUCTION    = PASS   — workbook legacy THẬT import thành công
+OOM_ON_IMPORT               = KHÔNG CÒN (repair S078R có hiệu lực trên production)
+LEGACY_PERSIST_AND_READ     = PASS   — dữ liệu LEGACY đã persist và đọc lại được trên web
+LEGACY_MULTI_PERIOD_QUERY   = PASS   — tab Nhân viên query được nhiều kỳ legacy
+PHASE_C_PRODUCTION          = ĐÃ ĐÓNG bằng quan sát production của Owner
+                              (thay thế "CHỜ OWNER DEPLOY" của khối S078)
+COMPUTE_TARGET              = Render 512 MB — Owner quyết định KHÔNG nâng 2 GB
+PAID_COMPUTE_UPGRADE        = KHÔNG MỞ TASK
+PHASE_D_SECURITY            = OPEN / PENDING — nếu `0.0.0.0/0` còn trong allowed
+                              IP list của `tinphat-reports-db` thì database vẫn
+                              phơi inbound public (chỉ mật khẩu chắn).
+                              Thao tác: `docs/deployment/S071_DEPLOYMENT.md` bước 13.
+                              KHÔNG được ghi Phase D = DONE khi chưa có bằng chứng.
+```
+
+**Nguồn và giới hạn của bằng chứng (không được đọc rộng hơn).** Các dòng
+`PASS` ở trên là **quan sát trực tiếp của Owner trên production**, do Owner
+báo lại tại phiên close-out S079. Session KHÔNG tự đo được: egress tới
+`api.render.com` và `reports.tinphatcrm.com` bị chặn `403` (đã ghi ở S078).
+Vì vậy:
+
+- `Evidence Level = E1`, `Executed By = Owner (production)` — một lần chạy
+  thật, không phải tường thuật của agent;
+- repo KHÔNG lưu output nguyên văn (số dòng import, log Render, ảnh chụp);
+  không con số nào ở đây được suy ra hay bịa thêm;
+- `CHECK-PRA001-09` trong `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`
+  GIỮ NGUYÊN evidence đã freeze (PostgreSQL 16.13 local). Quan sát production
+  này **củng cố** nó chứ không thay evidence đã ghi, và không sửa gate frozen.
+
+**Hệ quả cho PRA-002:** dependency hạ tầng của `TASK-PRA-002` đã thoả trên
+thực tế (production chạy đúng canonical, history store PostgreSQL hoạt động
+đầu-cuối với dữ liệu thật). `CHECK-PRA002-15` (Production Acceptance) vẫn
+là gate riêng, cần một lần deploy SHA có migration `0002_snapshots` SAU khi
+implement — không phải lần deploy này.
 
 ## S078R — LEGACY IMPORT OOM REPAIR (2026-09-02, HIỆN HÀNH)
 
@@ -100,8 +151,21 @@ origin/claude/extract-upload-repo-gq2ws4`). Biến `HISTORY_DATABASE_URL` +
 scheme `postgresql+psycopg://` Owner đã cấu hình xong từ trước, không phải
 làm lại.
 
+> **Cập nhật S079 close-out (2026-09-02):** thao tác deploy này **đã được
+> Owner thực hiện**. Production chạy bản có repair S078R; import workbook
+> legacy thật không còn OOM ở 512 MB. Xem khối "PRODUCTION STATE
+> RECONCILIATION — S079 CLOSE-OUT" phía trên.
 
-## PRODUCTION POSTGRESQL ACTIVATION — TRẠNG THÁI HIỆN HÀNH (2026-09-02, S078)
+
+## PRODUCTION POSTGRESQL ACTIVATION — BẢN GHI S078 (2026-09-02)
+
+> **BỊ THAY THẾ MỘT PHẦN (S079 close-out, 2026-09-02).** Dòng
+> `PHASE_C_PRODUCTION = CHỜ OWNER DEPLOY` và `production after SHA = CHƯA
+> ĐỔI` trong khối này đúng tại thời điểm S078 và được giữ nguyên làm bản
+> ghi lịch sử. Trạng thái production HIỆN HÀNH nằm ở khối
+> "PRODUCTION STATE RECONCILIATION — S079 CLOSE-OUT" phía trên: Owner đã
+> deploy, legacy import thật đã chạy thành công, Phase C đóng; chỉ Phase D
+> (`0.0.0.0/0`) còn OPEN/PENDING.
 
 Cập nhật 2026-09-02 sau Independent Review (`ACCEPT`, 0 blocking finding)
 và Owner Decision: `DEC-170 = OWNER_ACCEPTED`, S078 đã Controlled

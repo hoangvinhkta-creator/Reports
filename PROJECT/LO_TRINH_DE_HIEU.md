@@ -21,6 +21,12 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S079 đóng phiên): **phần mềm đã chạy thật trên
+> mạng với cơ sở dữ liệu thật** — chủ dự án đã bật bản mới lên và nạp được
+> file báo cáo cũ, máy không còn bị tràn bộ nhớ. Xem mục "ĐÃ CHẠY THẬT
+> TRÊN MẠNG" ngay đầu phần TRẠNG THÁI HIỆN TẠI. Còn đúng một việc bảo mật
+> nhỏ chưa xong.
+
 > Cập nhật thêm 2026-09-02 (S079): **việc 2 của kế hoạch mới (PRA-002) đã
 > có bản thiết kế chốt, sẵn sàng bắt tay làm** — xem mục "VIỆC 2 CỦA KẾ
 > HOẠCH MỚI ĐÃ CHỐT THIẾT KẾ" ngay đầu phần TRẠNG THÁI HIỆN TẠI. Chỉ là
@@ -53,6 +59,32 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## ĐÃ CHẠY THẬT TRÊN MẠNG (2026-09-02) — kho dữ liệu thật đã hoạt động
+
+Trước đây mục này ghi "còn chờ chủ dự án bật lên". **Nay đã bật rồi**, và
+đây là những gì chủ dự án tự nhìn thấy trên trang web thật:
+
+- Bản mới nhất của phần mềm đã được đưa lên mạng.
+- Nạp **file Excel báo cáo cũ thật** lên trang web: chạy xong, không còn bị
+  lỗi tràn bộ nhớ như lần trước.
+- Số liệu cũ đã được **lưu lại** trong kho dữ liệu thật (không mất khi khởi
+  động lại) và **đọc lại được** trên trang web.
+- Thẻ **Nhân viên** xem được nhiều tháng khác nhau của số liệu cũ.
+- Chủ dự án quyết định **không nâng gói máy chủ lên 2 GB**. Mức 512 MB hiện
+  tại là đủ và tiếp tục là mức chuẩn — không mở việc nào để tăng tiền máy.
+
+**Còn đúng một việc chưa xong (bảo mật, không chặn việc 2):** trong phần
+cài đặt của kho dữ liệu trên Render, nếu danh sách địa chỉ được phép truy
+cập vẫn còn dòng `0.0.0.0/0` thì nghĩa là kho dữ liệu đang mở ra toàn
+Internet, chỉ có mật khẩu chắn. Việc cần làm: xoá dòng đó đi (phần mềm
+không cần nó, vì nó nói chuyện với kho dữ liệu qua đường nội bộ). Hướng dẫn
+đã viết sẵn ở bước 13 của tài liệu triển khai.
+
+**Lưu ý về bằng chứng:** những điều trên là **chủ dự án tự quan sát trên
+production và báo lại**; phiên làm việc này không tự vào được máy chủ để
+kiểm tra (bị chặn), nên không có ảnh chụp hay số liệu chi tiết lưu trong
+hồ sơ. Không có con số nào ở đây được suy đoán thêm.
 
 ## VIỆC 2 CỦA KẾ HOẠCH MỚI ĐÃ CHỐT THIẾT KẾ (2026-09-02) — PRA-002 = SẴN SÀNG LÀM
 
