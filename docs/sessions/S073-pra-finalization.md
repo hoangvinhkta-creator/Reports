@@ -46,7 +46,7 @@ mới trên nhánh mặc định).
 - Freeze roadmap 5 slice; viết PRA-001; PRA-002 chỉ preview.
 
 ## Subtask Còn Lại (Subtasks Remaining)
-- Owner approve ADR-108 (một tin nhắn) → ghi DEC mới, ADR-108 → Accepted.
+- (ĐÃ XONG ở close-out S074, 2026-09-02) Owner approve ADR-108 → DEC-167, ADR-108 Accepted, TASK-PRA-001 READY.
 - Session tiếp theo implement PRA-001 theo handoff bên dưới.
 
 ## Tóm Tắt Completion Gate (Completion Gate Summary)
@@ -96,14 +96,14 @@ Deleted:
 - (không)
 
 ## Quyết Định Chính (Key Decisions)
-- DEC-166 (Owner): A–E. Persistence chưa quyết — ADR-108 Proposed.
+- DEC-166 (Owner): A–E. Persistence: ADR-108 Accepted (DEC-167, close-out S074).
 - Policy: `LATEST_SNAPSHOT_IS_CURRENT_CANDIDATE` cho SOURCE_CHANGED (hằng số
   policy, có cờ tới khi acknowledged); REMOVED_CANDIDATE vẫn tính vào
   analytics cho tới khi phân xử; NOT_SEEN_IN_LATEST_SNAPSHOT khi coverage
   chưa CONFIRMED_COMPLETE.
 
 ## Rủi Ro / Vướng Mắc (Risks / Blockers)
-- Blocking duy nhất: approve ADR-108 trước deploy production PRA-001.
+- (Đã đóng ở S074) Blocking duy nhất là approve ADR-108 — nay Accepted; không còn blocker cho PRA-001.
 - Ước tính chi phí Render Postgres cần xác minh giá hiện hành khi tạo.
 - Hai dialect SQLite/Postgres: giữ SQL Core trong tập giao; CHECK-PRA001-09
   có thể BLOCKED trong session không có Postgres → thành gate deploy Owner.
@@ -119,14 +119,18 @@ Deleted:
 
 ### IMPLEMENTATION HANDOFF — TASK-PRA-001 (đi thẳng vào implement)
 
-Điều kiện mở: Owner đã trả lời "approve ADR-108" (hoặc chấp nhận implement
-local trước, deploy sau). Nếu Owner chọn phương án khác Postgres → dừng,
-ghi DEC, cập nhật ADR-108, không tự chọn.
+Điều kiện mở: ĐÃ THOẢ — ADR-108 Accepted (DEC-167, 2026-09-02):
+Production DB = Managed PostgreSQL; Artifacts/run JSON/XLSX = R2;
+Local/test = SQLite; PRA-001 = minimum legacy schema only (4 bảng
+`legacy_*`); KHÔNG prebuild schema PRA-002; Tracking READ-ONLY, không đổi.
+IMPLEMENTATION_BASE_SHA = HEAD của nhánh
+`claude/reports-pipeline-architecture-gj8bji` sau commit close-out S074
+(xem `PROJECT/PROJECT_PROGRESS.md` khối S074).
 
 Thứ tự thực hiện (mỗi bước có test trước khi sang bước sau):
 1. Đồng bộ nhánh (bước 0 Session Open Protocol). Ghi baseline full suite
    (`python3 -m pytest -q`) — số passed/skipped để so ở CHECK-PRA001-08.
-2. Ghi DEC approve ADR-108; ADR-108 Status → Accepted.
+2. (Đã làm ở S074 — bỏ qua) DEC-167 đã ghi, ADR-108 đã Accepted.
 3. `pyproject.toml`: extra `history = ["SQLAlchemy>=2.0", "alembic>=1.13", "psycopg[binary]>=3.1"]`, gộp vào `web-prod`.
 4. `tools/db/`: `build_engine(env) -> Engine` (`HISTORY_DATABASE_URL`; mặc định
    `sqlite:///<REPORTS_DATA_ROOT|REPO_ROOT>/data/history/history.db`; `REPORTS_REQUIRE_HISTORY_DB=1`

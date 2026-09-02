@@ -1,9 +1,13 @@
 # ADR-108 — Nơi lưu structured history cho Persistent Reporting & Analytics
 
 ## Status
-Proposed — chờ Owner approve (decision audit thực hiện tại S073, 2026-09-02).
-Không được coi là Accepted cho tới khi `PROJECT/PROJECT_DECISIONS.md` có DEC
-ghi nhận Owner approve.
+Accepted — Owner approved 2026-09-02 (close-out S074, ghi tại DEC-167 trong
+`PROJECT/PROJECT_DECISIONS.md`). Decision audit thực hiện tại S073.
+
+Owner approval nguyên văn: Production structured history = Managed
+PostgreSQL; Artifacts / existing run JSON / XLSX = R2; Local/test = SQLite;
+PRA-001 database scope = minimum legacy schema only; không prebuild schema
+PRA-002; Tracking = READ-ONLY REFERENCE; Tracking change required = NO.
 
 ## Date
 2026-09-02
@@ -45,7 +49,7 @@ Ràng buộc kiến trúc không đổi: driver mạng/DB không được import
 
 ## Decision
 
-**Đề xuất (chờ approve): HYBRID — Managed PostgreSQL cho structured
+**Quyết định (Owner approved, DEC-167): HYBRID — Managed PostgreSQL cho structured
 analytical records; R2 giữ nguyên cho workbook/XLSX artifact và run JSON;
 Tracking giữ nguyên là authority upstream, chỉ tham chiếu bằng capture id.
 SQLite chỉ cho local/test qua cùng một lớp SQL (SQLAlchemy Core).**

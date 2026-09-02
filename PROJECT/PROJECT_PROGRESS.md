@@ -430,6 +430,22 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
   bên dưới nay có kế hoạch nhưng vẫn chưa READY.
 
+### CLOSE-OUT S074 (2026-09-02) — ADR-108 APPROVED; TASK-PRA-000 = DONE / architecture finalized; TASK-PRA-001 = READY
+
+- Owner approve ADR-108 (DEC-167): Production structured history = Managed
+  PostgreSQL; Artifacts / run JSON / XLSX = R2; Local/test = SQLite;
+  PRA-001 database scope = minimum legacy schema only; không prebuild schema
+  PRA-002; Tracking READ-ONLY, không đổi.
+- `docs/adr/ADR-108-persistent-history-store.md` → Accepted.
+- `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md` → READY (gate
+  FROZEN từ S073 không đổi; Ready Gate còn 2 điều kiện vận hành: file Excel
+  legacy trên máy chạy acceptance, đồng bộ nhánh đầu session).
+- Session close-out docs-only: không code, không migration, không provision,
+  không deploy. Implementation base = HEAD nhánh
+  `claude/reports-pipeline-architecture-gj8bji` sau commit S074.
+- Session tiếp theo: implement TASK-PRA-001 theo handoff
+  `docs/sessions/S073-pra-finalization.md` (10 bước; bước 2 đã làm ở S074).
+
 ### PLANNED — PHASE-PRA finalization (S073, 2026-09-02) — TASK-PRA-001 gate FROZEN
 
 - Owner review kế hoạch S072: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`.
@@ -4824,6 +4840,9 @@ trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-30
 
 ## Session tiếp theo
 
+> **Cập nhật 2026-09-02 (S074, close-out):** ADR-108 Accepted (DEC-167);
+> TASK-PRA-000 DONE; TASK-PRA-001 READY — session tiếp theo implement PRA-001.
+>
 > **Cập nhật 2026-09-02 (S073):** kế hoạch đã được Owner review PASS;
 > TASK-PRA-001 gate FROZEN, còn chờ Owner approve ADR-108 (persistence).
 > Xem khối "PLANNED — PHASE-PRA finalization (S073)" ở đầu file.

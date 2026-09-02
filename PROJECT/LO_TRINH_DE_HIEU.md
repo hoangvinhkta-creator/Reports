@@ -188,6 +188,14 @@ ngày), chi phí lưu trữ dự kiến rất nhỏ, gần như không đáng k�
 máy chủ chạy Reports (Render hoặc nơi tương đương) vẫn còn, không đổi — chỉ
 riêng phần "ổ đĩa lưu lâu dài" là không cần mua nữa.
 
+## KẾ HOẠCH MỚI — chủ dự án đã chốt nơi lưu dữ liệu, bước 1 sẵn sàng làm (2026-09-02, tối)
+
+Chủ dự án đã đồng ý: dữ liệu lịch sử lưu trong một cơ sở dữ liệu
+PostgreSQL thuê sẵn; file Excel và kết quả chạy vẫn ở kho R2; trên máy lập
+trình dùng SQLite. Bước 1 chỉ tạo đúng phần bảng cho số cũ, chưa tạo trước
+bảng của bước 2. Không còn gì phải hỏi trước khi bắt tay bước 1; phiên
+tiếp theo sẽ bắt đầu lập trình.
+
 ## KẾ HOẠCH MỚI — bước 1 đã sẵn sàng bắt tay (2026-09-02, chiều)
 
 Chủ dự án đã duyệt bản kế hoạch và chốt 5 điều: giữ nguyên cách làm trang

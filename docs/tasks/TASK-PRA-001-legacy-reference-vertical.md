@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-PLANNED
+READY
 
 Phase:
 PHASE-PRA — Slice 1
@@ -33,7 +33,7 @@ Root task lineage (V4.1): `TASK-PRA-001` (root mới). Review budget: MEDIUM =
 
 Kế hoạch gốc: `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md`
 (mục G, M — Slice 1; phụ lục Finalization S073). Quyết định nền:
-`docs/adr/ADR-108-persistent-history-store.md` (Proposed — chờ Owner),
+`docs/adr/ADR-108-persistent-history-store.md` (Accepted — DEC-167),
 `docs/adr/ADR-109-web-layer-flask-jinja.md` (Accepted).
 
 Quy ước: file DỰ KIẾN tạo được viết không kèm phần mở rộng; file đã tồn tại
@@ -95,8 +95,9 @@ IN_SCOPE:
 - Backup `pg_dump` lên R2 (PRA-002 hardening).
 
 ## Phụ Thuộc (Dependencies)
-- Owner approve `ADR-108` (Postgres hybrid) — **BLOCKING cho production
-  deploy**, không chặn implement + test local (SQLite).
+- Owner đã approve `ADR-108` (DEC-167, 2026-09-02): Production DB =
+  Managed PostgreSQL; Artifacts/run JSON/XLSX = R2; Local/test = SQLite;
+  PRA-001 = minimum legacy schema only; schema PRA-002 = out of scope.
 - Owner tạo Render Postgres + dán `HISTORY_DATABASE_URL` khi deploy.
 - File Excel "Báo cáo Kinh doanh 2026.xlsx" có mặt lúc chạy acceptance
   thật (không commit).
@@ -177,9 +178,9 @@ Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
 - [x] Decision A/B/C/D/E đã chốt (DEC-166); Decision B/C/D không ảnh hưởng PRA-001.
 - [x] Scope Lock ở trên; Out of Scope tường minh; Change Budget đã đặt.
 - [x] Completion Gate bên dưới đã FROZEN (S073).
-- [ ] Owner approve `ADR-108` (ghi DEC) — cần trước khi **deploy** production; implement local không chờ.
-- [ ] File Excel legacy có trên máy chạy acceptance (PRA-001.5).
-- [ ] Đồng bộ nhánh đầu session (`git remote show origin` → HEAD branch, fetch, so HEAD).
+- [x] Owner approve `ADR-108` (DEC-167, 2026-09-02).
+- [ ] File Excel legacy có trên máy chạy acceptance (PRA-001.5) — điều kiện vận hành, không phải quyết định; nếu thiếu, CHECK-PRA001-01 ghi NOT_TESTED và thành gate Owner.
+- [ ] Đồng bộ nhánh đầu session (`git remote show origin` → HEAD branch, fetch, so HEAD) — thực hiện ở bước 0 của session implement.
 
 ## Completion Gate
 Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và `governance/core/EVIDENCE_STANDARD.md`.
@@ -400,7 +401,7 @@ Timestamp:
 - Cần chạm bất kỳ file nào trong "Không được đụng" → `SCOPE EXPANSION REQUIRED`, dừng.
 - Phát hiện ô Summary/DataChart mà ý nghĩa nghiệp vụ không rõ và ảnh hưởng cách lưu → `UNKNOWN / OWNER_DECISION_REQUIRED`, lưu nguyên trạng, không diễn giải.
 - Vượt Change Budget → `CHANGE_BUDGET_EXCEEDED`.
-- Owner từ chối ADR-108 → dừng trước bước deploy; implement local vẫn hợp lệ nhưng không merge canonical cho tới khi có nơi lưu production.
+- Bất kỳ đề xuất nào tạo bảng ngoài bốn bảng `legacy_*` (ví dụ snapshot/version của PRA-002) → `SCOPE EXPANSION REQUIRED`, dừng: Owner chốt "không prebuild schema PRA-002".
 
 ## Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 

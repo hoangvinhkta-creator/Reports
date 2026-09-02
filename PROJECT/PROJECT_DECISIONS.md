@@ -7747,3 +7747,41 @@ không mở task cho LATER/DEFER.
   thiểu + extension point; không "build toàn bộ analytics database".
 - Quyết định còn blocking duy nhất: Owner approve `ADR-108`. Khi approve,
   ghi DEC mới (không sửa DEC này) và chuyển ADR-108 sang Accepted.
+
+## DEC-167
+
+Title:
+`ADR-108 APPROVED` — Persistence cho Persistent Reporting & Analytics:
+Managed PostgreSQL (structured history) + R2 (artifact) + SQLite (local/test)
+
+Date:
+2026-09-02
+
+Task:
+Close-out S074 cho `TASK-PRA-000` → mở `TASK-PRA-001` (READY). Không mở
+task khác; roadmap đã freeze không đổi.
+
+**Đây LÀ một Owner Decision.** Owner approve nguyên văn:
+
+```text
+ADR-108 = APPROVED
+- Production structured history = Managed PostgreSQL
+- Artifacts / existing run JSON / XLSX = R2
+- Local/test = SQLite
+- PRA-001 database scope = minimum legacy schema only
+- Không prebuild schema PRA-002
+- Tracking = READ-ONLY REFERENCE
+- Tracking change required = NO
+```
+
+### Hệ quả
+
+- `docs/adr/ADR-108-persistent-history-store.md` → Accepted.
+- `TASK-PRA-001` → READY; Ready Gate còn hai điều kiện vận hành (file Excel
+  legacy có trên máy chạy acceptance; đồng bộ nhánh đầu session), không còn
+  quyết định nào chặn.
+- Schema PRA-001 giới hạn đúng bốn bảng `legacy_import`,
+  `legacy_summary_row`, `legacy_daily_sales`, `legacy_monthly_reference`
+  (+ bảng version của Alembic). Mọi bảng snapshot/version/current của
+  PRA-002 là out of scope — đề xuất tạo trước = `SCOPE EXPANSION REQUIRED`.
+- `TASK-PRA-000` = DONE / architecture finalized.
