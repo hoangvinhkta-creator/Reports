@@ -21,6 +21,11 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S079): **việc 2 của kế hoạch mới (PRA-002) đã
+> có bản thiết kế chốt, sẵn sàng bắt tay làm** — xem mục "VIỆC 2 CỦA KẾ
+> HOẠCH MỚI ĐÃ CHỐT THIẾT KẾ" ngay đầu phần TRẠNG THÁI HIỆN TẠI. Chỉ là
+> thiết kế + kế hoạch kiểm tra; chưa viết dòng code nào.
+
 > Cập nhật thêm 2026-09-02 (S077): **việc 1 của kế hoạch mới đã XONG HẲN
 > và đã gộp vào bản chính** — xem mục "VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN"
 > ngay đầu phần TRẠNG THÁI HIỆN TẠI. Chỉ dữ liệu 2026 được nạp; `Summary
@@ -48,6 +53,55 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 2 CỦA KẾ HOẠCH MỚI ĐÃ CHỐT THIẾT KẾ (2026-09-02) — PRA-002 = SẴN SÀNG LÀM
+
+**Việc 2 giải bài toán gì:** Owner nạp sổ bán hàng của kế toán nhiều lần,
+mà các lần đó **chồng ngày lên nhau** — ví dụ ngày 10/09 nạp sổ 01–10/09,
+ngày 30/09 nạp sổ 01–30/09. Phần mềm phải **không cộng trùng** mười ngày
+đầu, phải **nhận ra dòng nào kế toán đã sửa** (sửa gì, từ bao nhiêu thành
+bao nhiêu), và **không tự xoá** dòng nào chỉ vì file mới không có nó.
+
+**Đã chốt trong bản thiết kế (Owner đã duyệt nguyên tắc; phần kỹ thuật do
+phiên này chốt và ghi lại để Owner có thể bác từng điểm):**
+
+| Tình huống | Phần mềm sẽ làm gì |
+|---|---|
+| Dòng mới chưa từng thấy | Ghi bản số 1 |
+| Dòng đã thấy, không đổi gì | Không ghi bản mới, **không cộng thêm lần nữa** |
+| Dòng đã thấy nhưng kế toán sửa số | Ghi bản số 2, giữ nguyên bản số 1, ghi rõ sửa ô nào từ gì sang gì; bản mới là bản hiện hành |
+| Dòng cũ không còn trong file mới, nhưng Owner **chưa xác nhận** file mới là đủ | Chỉ ghi chú "không thấy trong file mới" — không kết luận gì |
+| Dòng cũ không còn, và Owner **đã bấm xác nhận** file mới là đủ cho khoảng ngày đó | Đưa vào danh sách "cần kiểm tra"; **vẫn giữ, vẫn tính** cho tới khi có người xử lý — không tự xoá |
+| Số liệu không đổi nhưng phần mềm tính lại ra kết quả khác (vì Tracking có giá mới) | Ghi là "kết quả được tính lại" — không phải kế toán sửa |
+
+**Ba điều an toàn cố ý:**
+
+1. Phần mềm **không bao giờ tự suy ra** một file là "đủ cả tháng" chỉ vì
+   thấy ngày cuối tháng. Chỉ Owner bấm xác nhận (ghi rõ khoảng ngày) thì
+   mới coi là đủ.
+2. Không lưu tên, số điện thoại, địa chỉ khách vào phần dữ liệu này —
+   không cần cho việc 2.
+3. Chưa biết số chứng từ BH có bị đếm lại từ đầu mỗi năm không (kế toán
+   chưa xác nhận). Phần mềm không đoán: nếu gặp cùng số BH mà ngày cách
+   nhau quá 90 ngày, nó tách ra và hỏi — không tự gộp.
+
+**Cách chứng minh không cộng trùng (sẽ làm khi viết code):** nạp file
+ngắn rồi nạp file dài; kết quả phải **bằng đúng** kết quả khi chỉ nạp
+file dài một lần. Bằng nhau tới từng đồng thì mới đạt. Sau đó thử lại
+trên **sổ kế toán thật** của Owner: nạp, nạp lại, nạp bản dài hơn, nạp
+bản có một dòng bị sửa, nạp bản thiếu một dòng — mỗi bước có số đo.
+
+**Làm theo 3 chặng:** (A) lưu + nhận ra mới/không đổi/đã sửa; (B) xác
+nhận "file đủ" + phát hiện dòng biến mất; (C) kết quả tính lại + chạy trên
+sổ thật + chạy trên cơ sở dữ liệu thật. Sau đó có người soát xét độc lập
+(tối đa 2 vòng sửa), rồi gộp vào bản chính và Owner kiểm trên trang web
+thật.
+
+**Owner cần làm gì lúc này:** không có quyết định nào đang chặn. Khi tới
+chặng C, nếu Owner có **hai file xuất từ kế toán cho cùng một tháng** (một
+bản giữa tháng, một bản cuối tháng) thì đưa vào — đó là bằng chứng thật
+tốt nhất; không có thì phần mềm dùng bản sao có kiểm soát cắt từ một file
+thật.
 
 ## VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN (2026-09-02) — PRA-001 = XONG
 

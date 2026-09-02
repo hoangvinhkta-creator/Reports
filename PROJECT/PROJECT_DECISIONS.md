@@ -8021,3 +8021,94 @@ mới, sửa `REPORTS_REQUIRE_HISTORY_DB`, hay đụng bất kỳ đường nào
 Tracking. `PROTECTED_CORE_IMPACT` = NONE. Phương án (2) đã bị loại bỏ bởi
 chính Owner Decision này; nếu về sau Owner đổi ý, đó là một task riêng có
 Ready Gate riêng, không phải một sửa đổi âm thầm ở đây.
+
+---
+
+## DEC-171
+
+Title:
+`TASK-PRA-002` contract freeze — các quyết định chiến thuật của phiên
+Roadmap Finalization S079 (KHÔNG phải Owner Decision; nằm trong thẩm quyền
+session theo authority/risk/budget đã cấp)
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-002` — Pipeline Persistence + Overlapping Snapshot Reconciliation.
+Phiên S079 chỉ lập kế hoạch / freeze contract; không implementation.
+Task file: `docs/tasks/TASK-PRA-002-pipeline-persistence-reconciliation.md`.
+`BASE_SHA = 553d8a36f578b082128a6e45d2748da2bc371e70`.
+
+Authority:
+SESSION_TACTICAL — Owner có thể bác bỏ từng mục bằng một DEC mới; không mục
+nào ở đây đổi business rule của pipeline, đổi kiến trúc ADR-108, hay đụng
+Tracking.
+
+### Những gì ĐÃ là Owner Decision (chỉ tham chiếu, không quyết lại)
+
+- Contract reconcile INSERT / SAME / SOURCE_CHANGED / REMOVED_CANDIDATE /
+  NOT_SEEN_IN_LATEST_SNAPSHOT / RESULT_REVISED; hai trục version tách
+  riêng — DEC-166 C/D + chỉ thị S079 (Owner chấp nhận nguyên văn).
+- Coverage ba mức, chỉ explicit user confirmation nâng
+  `CONFIRMED_COMPLETE` — DEC-166 B + chỉ thị S079.
+- Hai origin `LEGACY_REFERENCE` / `PIPELINE_GENERATED` tách biệt — DEC-166 E.
+- PostgreSQL + R2 + SQLite test — DEC-167/ADR-108; `HISTORY_DATABASE_URL` — DEC-170.
+- Render 512 MB đủ, không mở task nâng compute — chỉ thị S079 (sau S078R).
+- Candidate khoá `ORDER_KEY = normalize(BH)`,
+  `ORDER_LINE_KEY = ORDER_KEY + product_key + occurrence_index` — DEC-166.
+
+### Quyết định chiến thuật của S079 (INFERENCE / implementation-local)
+
+1. **`normalize(BH)` = đúng chuẩn hoá engine đang dùng** (`NFC + strip`,
+   `app/modules/importing/raw_reader.py::_normalize_text`), KHÔNG thêm
+   upper/bỏ khoảng trắng như PRA-000 I.2 gợi ý. Lý do: tầng lưu trữ mà
+   chuẩn hoá khác engine sẽ tạo hai "sự thật" về cùng một đơn (engine coi
+   là hai đơn, DB coi là một). `product_key` cũng theo đúng `product_raw`
+   engine (không casefold — DEFER D9).
+2. **`line_fingerprint`** = bộ trường nguồn nghiệp vụ của PRA-000 I.2 +
+   `source_profit`; KHÔNG gồm PII, `source_row`, `row_hash`; Decimal
+   canonical hoá bằng `normalize()` để `1000` ≡ `1000.0`.
+3. **Không persist PII** trong PRA-002 (`customer`, `customer_code`,
+   `phone`, `address`, `shipper_raw`) — vertical không cần, và
+   `RULE_PRECEDENCE` đặt Privacy (3) trên Architecture/UX. N.5 của
+   PRA-000 DEFER sang PRA-004.
+4. **Xác nhận coverage là hành động riêng sau upload** (`POST
+   /du-lieu/snapshot/<id>/xac-nhan-du`, khai báo khoảng ngày + checkbox,
+   validate `DETECTED ⊆ khoảng`, 409 khi xác nhận lại) — không phải ô nhập
+   tay ở normal path upload (đúng DEC-166 B), không phải UI PRA-004.
+   Bước REMOVED chạy trong cùng transaction với xác nhận.
+5. **Guard `ORDER_KEY_COLLISION` 90 ngày giữ** làm fail-safe cho UNKNOWN
+   BH reset: version mới KHÔNG current, current cũ giữ, cờ; lần đầu xuất
+   hiện trên production → `OWNER_DECISION_REQUIRED` N.13.
+6. **Bảng membership `snapshot_line`** (dòng nào có trong snapshot nào)
+   được thêm vào data model để bước REMOVED đúng với mọi thứ tự upload và
+   không phụ thuộc `last_seen` (một snapshot chồng kỳ sau đó có thể đổi
+   `last_seen` và gây REMOVED giả). Bỏ `order_source_version` và
+   `review_item` khỏi PRA-002 (DEFER D6) — cấp đơn là `GROUP BY`.
+7. **`result_fingerprint` chỉ gồm 3 trường F3** (`status`,
+   `accounting_purchase_price`, `eligible_kpi_profit`); result version vẫn
+   lưu đủ mọi trường.
+8. **Đơn vị công việc**: history transaction bao cả `save_artifact` +
+   `create_run` (R2) và commit sau cùng; R2 lỗi → rollback → 500 (đúng
+   thông điệp hiện có). Residual: commit lỗi sau R2 → run không có snapshot
+   → hiển thị "KHÔNG CÓ LỊCH SỬ (ghi lỗi)" (fail-visible).
+9. **Ba slice** A/B/C thay cho năm slice A–E của chỉ thị (A+B+C của chỉ
+   thị là một thuật toán, tách ra chỉ tạo thêm task); mỗi slice có check
+   riêng trong cùng một Completion Gate frozen.
+10. **Change budget** mục tiêu ≤ 1.200 dòng logic, dừng cứng 1.500 (đặt
+    theo thực tế PRA-001 = 1.045 cho một vertical nhỏ hơn). **Review budget
+    HIGH = 2 blocking repair cycles** (Effective Risk = Blast Radius theo
+    failure path: double-count → sai KPI/lương).
+11. **Chạm `app/modules/exporting/excel_exporter.py` chỉ bằng alias public**
+    (`present_lines`, `PresentedLine`) và `app/demo.py` chỉ thêm 2 trường
+    `DemoRun` — không đổi hành vi, không đổi XLSX; đây là khoảng cách nhỏ
+    nhất để tầng lưu dùng đúng MỘT nguồn sự thật AUTO/PENDING.
+
+### Hệ quả
+
+- `TASK-PRA-002` = `READY`, Completion Gate FROZEN (17 check, 16 REQUIRED).
+- `PRA002_READY_FOR_IMPLEMENTATION = YES`; không `OWNER_DECISION_REQUIRED`
+  chặn vertical tháng 09/2026. UNKNOWN/ASSUMPTION có fail-safe và
+  re-trigger ghi ở mục 18 của task file.
+- Ledger mở lineage `TASK-PRA-002` (HIGH, 2 cycle, 0 dùng).

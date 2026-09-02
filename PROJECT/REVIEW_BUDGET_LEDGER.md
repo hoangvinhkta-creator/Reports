@@ -316,6 +316,74 @@ verify_legacy_import (fixture): SUMMARY_SOURCE_ROWS_WITH_VALUES = 13
                                 matched=580 mismatched=0, exit=0
 ```
 
+## Root Task: TASK-PRA-002
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/TASK-PRA-002-pipeline-persistence-reconciliation.md`). Không kế
+thừa và không tiêu ngân sách của `TASK-PRA-001` hay bất kỳ lineage nào khác.
+Mở tại phiên Roadmap Finalization S079 (2026-09-02), `BASE_SHA =
+553d8a36f578b082128a6e45d2748da2bc371e70`.
+
+```
+root_task: TASK-PRA-002
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), không theo tên module:
+
+- **BR-1** — một dòng bán được đếm hai lần khi hai snapshot chồng kỳ →
+  doanh thu/đơn/LN KPI tháng sai → lương/thưởng sai. Giảm nhẹ: PK
+  `order_line_current` theo khoá + UNIQUE `(khoá, version_no)`; oracle
+  đẳng thức `state(A,B) == state(B)` (CHECK-PRA002-04).
+- **BR-2** — một dòng bị âm thầm mất/xoá khi snapshot mới thiếu nó. Giảm
+  nhẹ: append-only, `REMOVED_CANDIDATE` vẫn current và vẫn tính
+  (CHECK-PRA002-07/09).
+- **BR-3** — source version bị ghi đè tại chỗ → mất bằng chứng kế toán đã
+  sửa gì. Giảm nhẹ: `changed_fields` + version cũ giữ (CHECK-PRA002-05).
+- KHÔNG chạm business rule pipeline (Product Identity, PP, accounting
+  reconciliation, AUTO/Pending) — tầng lưu chỉ ghi lại engine đã quyết gì.
+
+### Scope Lock
+
+```
+app/modules/**                          : FORBIDDEN — trừ ĐÚNG alias public
+                                          present_lines/PresentedLine trong
+                                          app/modules/exporting/excel_exporter.py (≤ 4 dòng)
+app/pipeline.py, app/composition.py     : FORBIDDEN
+app/owner_usability.py, app/owner_launcher.py : FORBIDDEN
+app/demo.py                             : CHỈ +2 trường DemoRun (raw_rows, presented_lines)
+app/web/storage_backend.py              : FORBIDDEN
+app/web/run_registry.py                 : FORBIDDEN
+tools/storage/**, tools/tracking/**     : FORBIDDEN
+config/**, data/**                      : FORBIDDEN
+tests/fixtures/golden/**                : FORBIDDEN (fixture hai snapshot sinh trong test, không commit)
+app/legacy/**, 4 bảng legacy_*          : FORBIDDEN
+render.yaml, Dockerfile                 : FORBIDDEN
+Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
+DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
+```
+
+### Trạng thái (S079, 2026-09-02 — HIỆN HÀNH)
+
+```
+TASK-PRA-002                 : READY (gate FROZEN, 17 check / 16 REQUIRED)
+Implementation               : CHƯA BẮT ĐẦU
+repair cycle đã dùng         : 0 / 2
+CHANGE_BUDGET                : mục tiêu ≤ 1.200 dòng logic, dừng cứng 1.500
+Baseline tại BASE_SHA        : Golden 58 passed, 2 skipped; full suite 1608 passed, 11 skipped
+```
+
+cycles:
+- id: (chưa mở)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Root Task: TASK-GOLDEN-BASELINE-001
 
 Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của
@@ -2043,3 +2111,7 @@ HB-105D-F2-03  MỞ  — 13 invariant chưa có gate assertion riêng
 Cả bốn **vẫn phân loại `HARDENING`**, không nâng thành `BLOCKING` (không có
 evidence mới), không hạ khỏi `HARDENING`. `docs/spec/TASK-105D-DATA-CONTRACT.md`
 không bị sửa trong phiên này.
+- 2026-09-02 — `TASK-PRA-002` mở lineage mới tại phiên Roadmap Finalization
+  S079 (`BASE_SHA = 553d8a3`). `effective_risk = HIGH` (double-count →
+  sai KPI/lương), 2 cycle khả dụng, **0 đã dùng**. Task READY, gate FROZEN
+  (17 check). `TASK-PRA-001` không đổi: DONE, remaining = 0.

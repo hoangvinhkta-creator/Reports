@@ -1,5 +1,66 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S079)
+
+Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho `TASK-PRA-002`. Các
+khối bên dưới (S078R, S078, PRA-001, S073…) giữ nguyên như **bản ghi lịch
+sử đúng tại thời điểm của chúng**; khi một khối lịch sử mâu thuẫn với mục
+này về trạng thái *hiện tại*, mục này đúng.
+
+```text
+SESSION                 = S079 — Roadmap Finalization / Freeze Contract (SPIKE, không code)
+TASK-PRA-002            = READY   (Completion Gate FROZEN — 17 check, 16 REQUIRED, Risk 4 → E1, E2 review)
+PRA002_READY_FOR_IMPLEMENTATION = YES
+OWNER_DECISION_REQUIRED = NONE (blocking)  — mọi UNKNOWN có fail-safe + re-trigger (task file mục 18)
+BASE_SHA                = 553d8a36f578b082128a6e45d2748da2bc371e70  (HEAD canonical lúc freeze)
+Baseline                = Golden 58 passed, 2 skipped · full suite 1608 passed, 11 skipped
+TASK FILE               = docs/tasks/TASK-PRA-002-pipeline-persistence-reconciliation.md
+DEC                     = DEC-171 (quyết định chiến thuật S079; Owner Decision nền = DEC-166/167/170)
+REVIEW BUDGET           = HIGH = 2 blocking repair cycles (ledger "Root Task: TASK-PRA-002", 0 dùng)
+CHANGE BUDGET           = ≤ 1.200 dòng logic (dừng cứng 1.500)
+IMPLEMENTATION SLICES   = A (persistence + INSERT/SAME/SOURCE_CHANGED/COLLISION + result + current)
+                          → B (coverage xác nhận + NOT_SEEN/REMOVED_CANDIDATE)
+                          → C (RESULT_REVISED + Real Data Acceptance + PostgreSQL thật)
+PRA002_IMPLEMENTATION_STARTED = NO
+PROTECTED_CORE_IMPACT   = NONE (phiên này); implementation chỉ alias exporter + 2 trường DemoRun
+TRACKING_CHANGED        = NO
+```
+
+**Contract đã freeze (tóm tắt — chi tiết ở task file):**
+
+- Vertical: upload sổ kế toán chồng kỳ → pipeline hiện có (không đổi) →
+  `PIPELINE_GENERATED` vào PostgreSQL (6 bảng, migration `0002_snapshots`)
+  → reconcile theo `ORDER_LINE_KEY = (order_id engine, product_key,
+  occurrence_index)` + `line_fingerprint` → current một khoá một dòng →
+  tổng theo kỳ không đếm trùng (oracle đẳng thức `state(A,B) == state(B)`).
+- INSERT / SAME / SOURCE_CHANGED (version n+1, `changed_fields`, giữ cũ,
+  mới = current) / NOT_SEEN (chưa xác nhận) / REMOVED_CANDIDATE (chỉ khi
+  `CONFIRMED_COMPLETE`, vẫn current, vẫn tính, không xoá) / RESULT_REVISED
+  (trục kết quả riêng, 3 trường). `ORDER_KEY_COLLISION` (cùng BH lệch > 90
+  ngày) là fail-safe cho UNKNOWN BH reset.
+- Coverage: `DETECTED_ONLY` / `HEADER_CONSISTENT` / `CONFIRMED_COMPLETE` —
+  chỉ `POST /du-lieu/snapshot/<id>/xac-nhan-du` (khai báo khoảng + checkbox,
+  validate `DETECTED ⊆ khoảng`) nâng lên CONFIRMED. Không UI PRA-004.
+- Không PII trong bảng PRA-002. Không `DELETE`/`UPDATE` fact. Một
+  transaction bao cả ghi R2; lỗi → 500, không run COMPLETE.
+
+**FACT mới đo được ở S079:** ô A2 của fixture golden là
+`"Nhân viên: Tín Phát 0869931931, Tháng 1 năm 2026"`, khác dạng
+`"Từ ngày … đến ngày …"` của file production (`docs/analysis/01_DATA_MAPPING.md`)
+→ header parser chỉ nhận đúng hai dạng này, còn lại `DETECTED_ONLY`.
+Fixture golden 01: 351 dòng/254 đơn, 0 cặp `(đơn, sản phẩm)` lặp, dòng ≤
+10/01 = 89 (61 đơn) → fixture hai snapshot cắt từ golden có sẵn số kỳ vọng.
+
+**Việc còn treo bên ngoài PRA-002 (không đổi):** Owner deploy HEAD
+canonical để Production PostgreSQL activation Phase C/D đóng (xem khối
+"PRODUCTION POSTGRESQL ACTIVATION" bên dưới) — là điều kiện của Production
+Acceptance PRA-002 (CHECK-PRA002-15), không chặn implement/test local.
+
+**NEXT_VERTICAL_ACTION:** mở session implement `TASK-PRA-002` slice A theo
+handoff `docs/sessions/S079-pra-002-roadmap-finalization.md` →
+"IMPLEMENTATION HANDOFF".
+
+
 ## S078R — LEGACY IMPORT OOM REPAIR (2026-09-02, HIỆN HÀNH)
 
 ```text
