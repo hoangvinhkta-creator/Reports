@@ -1,5 +1,48 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## PRODUCTION POSTGRESQL ACTIVATION — TRẠNG THÁI HIỆN HÀNH (2026-09-02, S078)
+
+```text
+RESULT                  = OWNER_DECISION_REQUIRED
+PHASE_A_LINEAGE         = PASS  (production stale, KHÔNG divergent)
+PHASE_B_COMPATIBILITY   = PASS  (code) / FAIL (cấu hình Render)
+PHASE_C_PRODUCTION      = KHÔNG THỰC HIỆN ĐƯỢC — egress bị chặn 403
+PHASE_D_SECURITY        = ĐÃ VIẾT THÀNH BƯỚC, chờ Phase C
+CHECK-PRA001-09         = PASS trên PostgreSQL 16.13 thật (KHÔNG phải
+                          Render PostgreSQL 18 production)
+PRA002_STARTED          = NO
+TRACKING_CHANGED        = NO
+PROTECTED_CORE_IMPACT   = NONE
+
+canonical branch        = claude/extract-upload-repo-gq2ws4
+canonical SHA           = 90f85a7edfd6acc497db1d18304baef87ab62d99
+production before SHA   = 596564b  (ancestor, behind 10 commit)
+production after SHA    = CHƯA ĐỔI — cần Owner deploy
+```
+
+**Blocker duy nhất, và nó KHÔNG phải lineage:** Owner đã dán Internal
+Database URL vào Render dưới tên biến `DATABASE_URL`, nhưng code canonical
+đọc `HISTORY_DATABASE_URL` (`tools/db/__init__.py::resolve_url()`). Service
+hiện vẫn Live vì đang chạy `596564b` — commit đó có TRƯỚC toàn bộ history
+store, nên nó không đọc biến đó và cũng không có
+`REPORTS_REQUIRE_HISTORY_DB=1`. Nghĩa là **lần redeploy thành công vừa rồi
+không chứng minh gì về PostgreSQL**: ngay khi deploy `90f85a7`, fail-closed
+có hiệu lực và container sẽ KHÔNG khởi động.
+
+Ba thao tác Owner, đúng thứ tự (chi tiết + cách đọc log lỗi ở
+`docs/sessions/S078-postgres-production-activation.md`; quy trình đầy đủ ở
+`docs/deployment/S071_DEPLOYMENT.md` bước 8–13):
+
+1. Đổi tên biến Render `DATABASE_URL` → `HISTORY_DATABASE_URL`, và đổi tiền
+   tố giá trị thành `postgresql+psycopg://`. (Vì sao không sửa code cho
+   nhận `DATABASE_URL`: `DEC-170`.)
+2. Manual Deploy commit `90f85a7` (fast-forward từ `596564b`, không force
+   push, không sửa lịch sử, không dùng `main`).
+3. Kiểm tra `/du-lieu` → tab **Nhân viên** hiện số cũ kèm nhãn `LEGACY`.
+   Xanh rồi mới xoá `0.0.0.0/0` khỏi allowed IP list của database
+   (Phase D, bước 13).
+
+
 ## CANONICAL CURRENT STATE — TASK-PRA-001 (AUTHORITATIVE, 2026-09-02, S077)
 
 Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho `TASK-PRA-001`. Mọi
@@ -14,8 +57,8 @@ TASK-PRA-001            = DONE
 CODE_ACCEPTANCE         = PASS
 REAL_DATA_ACCEPTANCE    = PASS
 CHECK-PRA001-01         = PASS   (file Excel THẬT, không còn NOT_TESTED)
-CHECK-PRA001-09         = BLOCKED (RECOMMENDED — cần PostgreSQL thật,
-                                   gate deploy Owner, không chặn DONE)
+CHECK-PRA001-09         = PASS   (S078 — PostgreSQL 16.13 THẬT; xem
+                                   "PRODUCTION POSTGRESQL ACTIVATION" bên dưới)
 FINAL_DELTA_REVIEW      = PASS
 DEC169_REVIEW           = FAITHFUL
 REQUIRED_GATES          = 9/9 PASS  (CHECK-PRA001-01…08 + -10)

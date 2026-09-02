@@ -130,22 +130,55 @@ DEC-167).
 
 `OWNER_PAYMENT_REQUIRED` — thêm khoảng **US$6–7/tháng**:
 
-8. **Render → New → PostgreSQL.** Đặt tên (vd `reports-history`), chọn cùng
-   region với web service (`singapore`) để độ trễ thấp và không tính phí
-   egress chéo vùng. Plan trả phí nhỏ nhất là đủ: khối lượng dữ liệu ở đây
-   là vài chục nghìn dòng, tiêu chí chọn là **an toàn ghi + backup**, không
-   phải hiệu năng.
+8. **Render → New → PostgreSQL.** Đặt tên tuỳ ý, chọn **cùng region với web
+   service**. Đây không phải tối ưu độ trễ mà là điều kiện cần: Render
+   **Internal Database URL chỉ định tuyến trong cùng region + cùng
+   account** — database khác region với service thì kết nối nội bộ không
+   tồn tại và buộc phải mở External URL ra Internet. Plan trả phí nhỏ nhất
+   là đủ: dữ liệu ở đây là vài chục nghìn dòng, tiêu chí chọn là **an toàn
+   ghi + backup**, không phải hiệu năng.
+   *Hiện trạng 2026-09-02:* Owner đã tạo `tinphat-reports-db`
+   (PostgreSQL 18, Virginia/US East), cùng region với Reports Web Service.
 9. Mở database vừa tạo → copy **Internal Database URL** (dạng
    `postgres://user:pass@host/db`).
-10. Vào web service `reports-web` → Settings → Environment → dán vào biến
-    **`HISTORY_DATABASE_URL`**, nhưng **đổi tiền tố thành
-    `postgresql+psycopg://`** (giữ nguyên phần còn lại). Đây là secret —
-    KHÔNG commit, KHÔNG dán vào chat.
-11. Deploy lại. Container chạy `alembic upgrade head` TRƯỚC gunicorn: schema
-    được tạo tự động, và nếu migration lỗi thì service **không** khởi động.
+10. Vào web service `reports-web` → Settings → Environment. **Tên biến và
+    tiền tố URL đều phải đúng — sai một trong hai thì service KHÔNG khởi
+    động được** (fail closed, không phải lỗi âm thầm). S078 đã chạy thử cả
+    bốn biến thể trên PostgreSQL thật; đây là kết quả đo được, không phải
+    suy đoán:
+
+    | Cấu hình                                              | Kết quả |
+    |-------------------------------------------------------|---------|
+    | Tên biến `DATABASE_URL`                               | `HistoryConfigurationError: REPORTS_REQUIRE_HISTORY_DB=1 nhưng thiếu HISTORY_DATABASE_URL` |
+    | `HISTORY_DATABASE_URL=postgres://…` (dán nguyên)      | `NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres` |
+    | `HISTORY_DATABASE_URL=postgresql://…`                 | `ModuleNotFoundError: No module named 'psycopg2'` |
+    | `HISTORY_DATABASE_URL=postgresql+psycopg://…`         | **OK** |
+
+    Nên: đặt biến tên **`HISTORY_DATABASE_URL`** (KHÔNG phải `DATABASE_URL`
+    — tên Render gợi ý sẵn khi liên kết database; `tools/db/__init__.py::
+    resolve_url()` không đọc tên đó), dán Internal Database URL vào và
+    **đổi tiền tố thành `postgresql+psycopg://`**, giữ nguyên phần còn lại.
+    Đây là secret — KHÔNG commit, KHÔNG dán vào chat.
+
+    Nếu trước đó đã lỡ tạo biến `DATABASE_URL`: **đổi tên** biến đó thành
+    `HISTORY_DATABASE_URL` (hoặc tạo biến mới rồi xoá biến cũ) — không cần
+    tạo lại database, không cần lấy lại credential.
+11. Deploy lại **đúng commit canonical**, không phải commit cũ đang chạy.
+    Container chạy `alembic upgrade head` TRƯỚC gunicorn: schema được tạo
+    tự động, và nếu migration lỗi thì service **không** khởi động. Chạy lại
+    `upgrade head` ở mỗi lần deploy là idempotent (đã verify trên
+    PostgreSQL thật).
 12. Kiểm tra: mở `https://reports.tinphatcrm.com/du-lieu` → nhập workbook
     "Báo cáo Kinh doanh 2026.xlsx" → mở tab **Nhân viên** và **Doanh số
     ngày**, chọn kỳ, thấy số cũ kèm nhãn `LEGACY`.
+13. **Sau khi bước 12 xanh** — Render → database `tinphat-reports-db` →
+    Settings → *Access Control* / allowed IP list: nếu đang có `0.0.0.0/0`
+    thì XOÁ. Reports chỉ dùng Internal URL nên không cần cổng PostgreSQL
+    công khai; để `0.0.0.0/0` là phơi database KPI/lương ra toàn Internet,
+    chỉ còn mật khẩu chắn. Sau khi xoá, danh sách rỗng = không có inbound
+    public nào; kết nối nội bộ trong cùng region KHÔNG đi qua danh sách
+    này nên không bị ảnh hưởng. Owner cần `psql` từ máy mình thì thêm đúng
+    IP của mình, không mở dải rộng.
 
 Fail-closed đã cấu hình sẵn trong `render.yaml`
 (`REPORTS_REQUIRE_HISTORY_DB=1`): thiếu `HISTORY_DATABASE_URL` thì service

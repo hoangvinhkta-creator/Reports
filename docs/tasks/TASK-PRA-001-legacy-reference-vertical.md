@@ -389,16 +389,28 @@ Priority:
 RECOMMENDED
 
 Status:
-BLOCKED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
-Claude Cloud session này KHÔNG có PostgreSQL (không được tự tạo dịch vụ trả phí — xem §27 của prompt phiên). Đã làm những gì kiểm chứng được mà không cần Postgres: mọi kiểu cột nằm trong tập giao SQLite ↔ PostgreSQL (`Text`, `Integer`, `Numeric`, `Boolean`; JSON lưu TEXT); `tools/db/schema.py::ExactNumeric` render `NUMERIC` trên PostgreSQL và `TEXT` trên SQLite để fidelity thập phân đúng trên CẢ HAI dialect; migration `0001_legacy` sinh DDL từ cùng một `MetaData` nên không có SQL viết tay riêng cho dialect nào; `alembic upgrade head` + `downgrade base` PASS trên SQLite thật (`tests/test_history_db.py::test_migration_upgrade_then_downgrade_round_trips`). Việc chạy `alembic upgrade head` trên PostgreSQL thật và render `/nhan-vien` từ Postgres trở thành GATE DEPLOY của Owner — quy trình đã viết ở `docs/deployment/S071_DEPLOYMENT.md` bước 8–12.
+S078 (2026-09-02) đã chạy trên **PostgreSQL thật** — `PostgreSQL 16.13 (Ubuntu 16.13-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu`, một instance local dựng bằng `initdb`/`pg_ctl` trong session (KHÔNG phải Render production; xem "Giới hạn" bên dưới). Bằng chứng đo được:
+
+`alembic upgrade head` (đúng cơ chế canonical, cùng lệnh Dockerfile chạy) → 5 bảng: `alembic_version`, `legacy_import`, `legacy_summary_row`, `legacy_daily_sales`, `legacy_monthly_reference`; `select version_num from alembic_version` → `0001_legacy`. `alembic downgrade base` → 0 bảng `legacy%`; `alembic upgrade head` lại → 4 bảng; chạy `upgrade head` lần nữa → exit 0, `version_num = 0001_legacy` (idempotent như Dockerfile CMD giả định ở mỗi lần redeploy).
+
+`ExactNumeric` render đúng `NUMERIC` trên PostgreSQL: 25 cột thuộc ba bảng fact có `data_type = numeric` trong `information_schema.columns`. Mọi ràng buộc đã freeze tồn tại thật: PK, `uq_legacy_import_fingerprint`, `uq_legacy_daily_cell`, `uq_legacy_summary_cell`, `uq_legacy_monthly_cell`, ba `CHECK origin = 'LEGACY_REFERENCE'`, `ck_legacy_summary_row_kind`, và ba FK trỏ về `legacy_import.import_id`.
+
+Fidelity + persistence qua ranh giới process/restart: ghi workbook fixture qua `LegacyRepository.create_import` (process #1, pid 2357) → đọc lại ngay: `fidelity_checked=214 mismatched=0`. Dừng hẳn PostgreSQL (`pg_ctl -m fast stop`, xác nhận `Connection refused`) → khởi động lại → đọc bằng **process Python mới** (pid 2387): snapshot JSON (count_imports, current_import_id, periods, summary/daily/monthly) **giống hệt** snapshot trước restart. Giá trị thập phân `87.6` trở về đúng `Decimal('87.6')` từ cột `NUMERIC` thật.
+
+Render `/nhan-vien` từ PostgreSQL: `create_app()` không tiêm engine (tự đọc `HISTORY_DATABASE_URL`, tự `assert_schema_current`) báo `dialect = postgresql | driver = psycopg | server_version = 160013`; `GET /nhan-vien?ky=2026-1` → HTTP 200, 66 nhãn `LEGACY`, hiện đúng `NV-A`, `NV-B`, `Kênh-1`, `1.240.500`, `87,6`. `GET /doanh-so-ngay?ky=2026-1` → 200, 19 nhãn `LEGACY`. `GET /du-lieu` → 200.
+
+Bộ test hiện có chạy lại trên PostgreSQL thật (override fixture `history_engine`, mỗi test một schema riêng): `tests/test_legacy_repository.py` + `tests/test_web_legacy_routes.py` → `56 passed`. Baseline SQLite không đổi: full suite `1608 passed, 11 skipped`; Golden `58 passed, 2 skipped`.
+
+Giới hạn (không được đọc rộng hơn bằng chứng): instance dùng ở đây là PostgreSQL **16.13** local, KHÔNG phải Render Managed PostgreSQL **18** của `tinphat-reports-db`. Schema chỉ dùng cấu trúc nền (TEXT/INTEGER/NUMERIC/BOOLEAN, PK/FK/UNIQUE/CHECK, `SERIAL`) nên ASSUMPTION là 18 chạy y hệt 16, nhưng đó là suy luận chứ chưa đo. Phần còn lại thuộc Owner và KHÔNG nằm trong check này: chạy đúng chuỗi trên trong container Render, trên chính database production. Quy trình: `docs/deployment/S071_DEPLOYMENT.md` bước 8–13.
 
 Executed By:
-Claude (S075) — gate deploy Owner
+Claude (S078)
 Timestamp:
 2026-09-02
 
@@ -444,8 +456,11 @@ Timestamp:
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [x] 100% REQUIRED checks PASS — 9/9 (`CHECK-PRA001-01`…`-08`, `-10`).
-      `CHECK-PRA001-09` là RECOMMENDED và `BLOCKED` (cần PostgreSQL thật,
-      gate deploy Owner) nên không chặn DONE.
+      `CHECK-PRA001-09` là RECOMMENDED và tại thời điểm close-out S077 còn
+      `BLOCKED` (chưa có PostgreSQL thật) nên không chặn DONE — ghi lại
+      đúng lý do đã dùng lúc đó. Cập nhật S078 (2026-09-02):
+      `CHECK-PRA001-09 = PASS` trên PostgreSQL 16.13 thật; không làm thay
+      đổi kết luận DONE ở trên, chỉ nâng bằng chứng.
 - [x] Không có lỗi nghiêm trọng (critical) chưa xử lý — `FIND-PRA001-R01`
       và `-R02` đã đóng ở repair cycle 1/1; Final Independent Delta Review
       tại `3faedfde` = `PASS`, `BLOCKING_FINDINGS = NONE`.

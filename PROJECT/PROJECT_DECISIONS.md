@@ -7956,3 +7956,54 @@ parser để hiểu 99 dòng kia.
 Quyết định này KHÔNG cho phép: bỏ qua sheet REQUIRED_IMPORT, hạ ngưỡng
 source coverage, đoán semantics dòng, hay mở PRA-002 / đổi Tracking /
 đổi kiến trúc. `PROTECTED_CORE_IMPACT` = NONE.
+
+---
+
+## DEC-170
+
+Title:
+Giữ `HISTORY_DATABASE_URL` làm tên biến duy nhất — KHÔNG thêm fallback đọc
+`DATABASE_URL`
+
+Date:
+2026-09-02
+
+Task:
+`PRE-PRA-002` / Production PostgreSQL Activation (S078).
+
+**Đây LÀ một Decision của agent, chờ Owner phủ quyết nếu muốn.** Bối cảnh:
+Owner đã provision `tinphat-reports-db` (PostgreSQL 18, Virginia) và dán
+Internal Database URL vào Render Environment dưới **tên biến `DATABASE_URL`**
+— tên Render gợi ý sẵn. Code canonical đọc `HISTORY_DATABASE_URL`
+(`tools/db/__init__.py::resolve_url()`), nên hai bên không gặp nhau.
+
+Có đúng hai cách đóng khoảng cách này:
+
+1. **Owner đổi tên biến trong Render** thành `HISTORY_DATABASE_URL`.
+2. **Sửa code** cho `resolve_url()` đọc `DATABASE_URL` khi thiếu
+   `HISTORY_DATABASE_URL`.
+
+Chọn (1). Lý do:
+
+- `DATABASE_URL` là tên chung của cả nền tảng: Render tự đặt nó cho **mọi**
+  database liên kết vào service. Nếu sau này Reports liên kết thêm một
+  database khác (hoặc Render tự inject), fallback sẽ âm thầm trỏ history
+  store vào SAI database — đúng loại lỗi im lặng mà `REPORTS_REQUIRE_HISTORY_DB`
+  được dựng lên để chặn. Tên riêng `HISTORY_DATABASE_URL` nói rõ *kho nào*.
+- Đổi tên một biến trong Render dashboard là thao tác một phút, không cần
+  tạo lại database, không cần lấy lại credential, không đụng Git.
+- Sửa code để nhận một tên biến rộng hơn là nới lỏng một ràng buộc
+  fail-closed đã freeze ở `ADR-108`/`TASK-PRA-001`, để đổi lấy đúng một lần
+  tiện tay. Rule không được tự biến thành Owner requirement, và ngược lại,
+  sự tiện tay của một lần cấu hình không được biến thành nới lỏng luật.
+
+Chi phí của lựa chọn này rơi hoàn toàn vào Owner (một thao tác đổi tên) và
+đã được viết thành bước cụ thể ở `docs/deployment/S071_DEPLOYMENT.md` bước
+10, kèm bảng bốn biến thể cấu hình đã đo thật.
+
+### Ranh giới (không được suy rộng)
+
+Quyết định này KHÔNG cho phép: đổi tên biến trong code, thêm biến môi trường
+mới, sửa `REPORTS_REQUIRE_HISTORY_DB`, hay đụng bất kỳ đường nào của R2 /
+Tracking. `PROTECTED_CORE_IMPACT` = NONE. Nếu Owner muốn phương án (2), đó
+là một task riêng có Ready Gate riêng.

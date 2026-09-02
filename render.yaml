@@ -30,7 +30,18 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
-    region: singapore
+    # S078 — CONFLICT ĐÃ GIẢI QUYẾT: file này ghi `singapore` từ S071B, nhưng
+    # Web Service THẬT của Owner và Managed PostgreSQL `tinphat-reports-db`
+    # đều nằm ở Virginia (US East). Render Internal Database URL CHỈ định
+    # tuyến trong cùng region + cùng account — hai bên khác region thì
+    # connectivity nội bộ không tồn tại, không có cách nào "cấu hình cho
+    # đúng". Nên giá trị đúng ở đây là region thật, không phải region cũ.
+    # ASSUMPTION (chưa verify được từ session — không có egress tới
+    # api.render.com): Render coi `region` là bất biến sau khi service được
+    # tạo, nên dòng này GHI LẠI hiện trạng chứ không yêu cầu di chuyển
+    # service. Nếu Render báo lỗi sync vì dòng này, Owner báo lại —
+    # KHÔNG tự tay tạo service mới.
+    region: virginia
     healthCheckPath: /
     # Chặn truy cập trực tiếp qua domain mặc định *.onrender.com — mọi
     # người dùng phải đi qua reports.tinphatcrm.com (Cloudflare Access
@@ -74,8 +85,25 @@ services:
       - key: REPORTS_REQUIRE_HISTORY_DB
         value: "1"
       # Chuỗi kết nối PostgreSQL (Render → New → PostgreSQL → Internal
-      # Database URL). Là secret, Owner dán tay; đổi tiền tố thành
-      # `postgresql+psycopg://` để khớp driver đã khai ở extra `history`.
+      # Database URL). Là secret, Owner dán tay.
+      #
+      # HAI ĐIỀU KIỆN BẮT BUỘC — S078 đã chạy thử cả bốn biến thể trên
+      # PostgreSQL thật, xem `docs/sessions/S078-postgres-production-activation.md`:
+      #
+      #   1. TÊN BIẾN phải đúng là `HISTORY_DATABASE_URL`. `tools/db/
+      #      __init__.py::resolve_url()` KHÔNG đọc `DATABASE_URL` (tên mặc
+      #      định Render gợi ý khi liên kết database). Đặt sai tên + biến
+      #      `REPORTS_REQUIRE_HISTORY_DB=1` ở trên → container FAIL lúc khởi
+      #      động với `HistoryConfigurationError`, service KHÔNG lên.
+      #   2. TIỀN TỐ phải đổi thành `postgresql+psycopg://` (giữ nguyên phần
+      #      còn lại của URL). Dán nguyên `postgres://` mà Render đưa →
+      #      `NoSuchModuleError: Can't load plugin: sqlalchemy.dialects:postgres`.
+      #      Đổi thành `postgresql://` thôi cũng chưa đủ → SQLAlchemy mặc
+      #      định chọn psycopg2, mà extra `history` chỉ cài psycopg 3 →
+      #      `ModuleNotFoundError: No module named 'psycopg2'`.
+      #
+      # Cả hai lỗi đều là fail-closed (service không lên), KHÔNG phải lỗi âm
+      # thầm — nhưng đều làm deploy hỏng, nên kiểm tra trước khi bấm deploy.
       - key: HISTORY_DATABASE_URL
         sync: false
     # KHÔNG có `disk:` — S071B stateless, không persistent disk nào (xem
