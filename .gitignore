@@ -26,6 +26,10 @@ data/beta_feedback/
 # nên tồn tại lâu để mà commit.
 data/web_runs/
 data/tracking_live_tmp/
+# TASK-PRA-001 — history store SQLite local/dev (production dùng PostgreSQL
+# quản lý, xem ADR-108). Dữ liệu runtime của một máy cụ thể, không phải nội
+# dung repo.
+data/history/
 *.jsonl.lock
 
 # --- Python ---

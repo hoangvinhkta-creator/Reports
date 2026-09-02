@@ -1,0 +1,60 @@
+{# Mảnh dùng chung cho các trang legacy: nhãn nguồn, bản đang xem, ô số.
+   Mọi con số legacy PHẢI đi qua legacy_cell() — đó là chỗ duy nhất gắn badge
+   LEGACY + đơn vị + dấu nhắc lỗi công thức, nên không có đường nào hiển thị
+   một số cũ mà thiếu nhãn. #}
+
+{% macro legacy_badge() -%}
+<span class="tag tag-legacy" title="{{ LEGACY_BADGE_TITLE }}">{{ LEGACY_BADGE }}</span>
+{%- endmacro %}
+
+{% macro legacy_cell(cell) -%}
+<td class="num{{ ' empty-cell' if cell.empty }}"
+    title="{{ LEGACY_BADGE }} · {{ cell.unit }}{% for d in cell.defects %} · {{ d.label }}{% endfor %}">
+  <span class="tp-unit">{{ LEGACY_BADGE }}</span>
+  {{ cell.text }}
+  {% for d in cell.defects %}<span class="tag tag-defect" title="{{ d.label }}">{{ d.code }}</span>{% endfor %}
+</td>
+{%- endmacro %}
+
+{% macro source_note(legacy_import) -%}
+{% if legacy_import %}
+<p class="insight">
+  {{ legacy_badge() }}
+  Bản đang xem: <strong>{{ legacy_import.import_id }}</strong>
+  {% if legacy_import.version_label %}— {{ legacy_import.version_label }}{% endif %}
+  · nguồn: {{ legacy_import.source_file_name }} · nhập lúc {{ legacy_import.imported_at }}.
+  Số dưới đây là số cũ đã tính thủ công trong Excel, giữ nguyên trạng — không do pipeline tính lại.
+</p>
+{% endif %}
+{%- endmacro %}
+
+{% macro period_picker(periods, selected, action) -%}
+<form class="filter-row" method="get" action="{{ action }}">
+  <span class="kpi-period">
+    <label class="tp-label" for="ky">Kỳ lịch sử</label>
+    <select name="ky" id="ky" onchange="this.form.submit()">
+      {% for year, month in periods %}
+      <option value="{{ year }}-{{ '%02d' % month }}"
+              {{ 'selected' if selected and selected[0] == year and selected[1] == month }}>
+        Tháng {{ '%02d' % month }}/{{ year }}
+      </option>
+      {% endfor %}
+    </select>
+  </span>
+  <button class="ghost btn-mini" type="submit">XEM</button>
+</form>
+{%- endmacro %}
+
+{% macro not_configured() -%}
+<div class="module">
+  <h2>History store chưa cấu hình</h2>
+  <p class="error">
+    Chưa có kết nối tới database lịch sử, nên trang này KHÔNG thể nói là
+    "chưa có dữ liệu" — nó chỉ chưa có nơi để đọc.
+  </p>
+  <p class="insight">
+    Đặt <code>HISTORY_DATABASE_URL</code> rồi chạy <code>alembic upgrade head</code>.
+    Xem <code>docs/deployment/S071_DEPLOYMENT.md</code>.
+  </p>
+</div>
+{%- endmacro %}

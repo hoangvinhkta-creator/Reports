@@ -21,6 +21,12 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S075): **đã làm xong phần đầu tiên của kế hoạch
+> đó** — Reports giờ mở được số báo cáo cũ ngay trên web, không phải mở
+> Excel nữa. Xem mục "XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)" bên
+> dưới. Còn hai việc cần Owner làm mới dùng thật được, và một việc cần
+> Owner quyết.
+
 > Cập nhật thêm 2026-09-02 (S072): đã có **bản kế hoạch** để Reports không
 > chỉ "nạp file → xem → tải Excel" mà lưu lại số liệu theo thời gian, xem lại
 > số cũ, so sánh tháng này với tháng trước, và không cộng trùng khi nạp hai
@@ -31,6 +37,60 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)
+
+**Trước:** muốn xem số của tháng 03/2026 thì phải mở file Excel "Báo cáo
+Kinh doanh" và tự dò trong sheet Summary.
+
+**Giờ:** vào Reports → thẻ **Dữ liệu** → nạp file Excel cũ một lần. Sau đó
+thẻ **Nhân viên** cho xem bảng tháng × người bán (tổng đơn, số sản phẩm,
+tổng bán, doanh số quy đổi, lợi nhuận, so tháng trước, so target), và thẻ
+**Doanh số ngày** cho xem doanh số từng ngày trong tháng. Chọn kỳ nào cũng
+được, miễn là kỳ đó có trong file đã nạp.
+
+Ba điều được làm rất kỹ, vì đây là **số cũ của Owner**, không phải số máy
+tự tính:
+
+1. **Không sửa số cũ, kể cả khi biết công thức cũ sai.** Phần mềm không
+   được phép "tính lại cho đúng" rồi hiện ra con số khác với con số Owner
+   đã dùng bấy lâu. Số nào trong Excel thì hiện đúng số đó.
+2. **Số cũ luôn có nhãn.** Mỗi con số đều đeo chữ `LEGACY` và ghi rõ đơn vị
+   (nghìn đồng hay đồng), để không bao giờ nhầm số cũ với số do phần mềm
+   tính. Hai loại số này nằm ở hai bảng riêng, không trộn.
+3. **Ô nào công thức cũ có lỗi thì có dấu nhắc.** Ví dụ ô "số sản phẩm" ra
+   `87,6` (số sản phẩm lẽ ra phải là số nguyên), hay dòng tổng tháng cộng
+   thiếu một người bán. Phần mềm **chỉ ra** chỗ đó — mã A1/A2/A4/A6, di
+   chuột vào sẽ thấy giải thích — nhưng **không tự sửa**. Sửa hay không là
+   quyết định của Owner, không phải của máy.
+
+Và nếu có trục trặc (mất kết nối kho dữ liệu chẳng hạn), trang sẽ **báo lỗi
+rõ ràng**, chứ không hiện ra một bảng trống trông y như "tháng này chưa có
+số liệu" — đó là kiểu nhầm nguy hiểm nhất.
+
+### Ba việc còn lại
+
+1. **Owner tạo kho lưu trữ trên Render (~150.000đ/tháng).** Hiện phần mềm
+   chạy và test đầy đủ trên máy, nhưng để lưu thật trên mạng thì cần một
+   database PostgreSQL. Các bước bấm cụ thể đã viết sẵn ở
+   `docs/deployment/S071_DEPLOYMENT.md` (bước 8–12), không cần Owner tự tìm hiểu.
+2. **Owner chạy đối chiếu trên file Excel THẬT.** Phần mềm đã được kiểm tra
+   kỹ trên một file mẫu tự dựng, nhưng file thật thì chưa — file thật có dữ
+   liệu khách hàng nên không được đưa lên kho mã nguồn. Có sẵn một lệnh
+   đối chiếu từng ô, chạy xong in ra "khớp bao nhiêu ô, lệch bao nhiêu ô";
+   kỳ vọng là lệch = 0.
+3. **Owner quyết một việc: phần này viết dài hơn dự tính.** Lúc lập kế
+   hoạch có đặt hạn mức "không quá 600 dòng mã"; thực tế viết hết khoảng
+   1.024 dòng. Không phải vì làm thêm chức năng ngoài kế hoạch — mà vì bản
+   thân kế hoạch (4 bảng dữ liệu, khoảng 30 cột, đọc Excel theo cấu trúc
+   công thức chứ không theo vị trí dòng) vốn đã lớn hơn con số ước lượng
+   ban đầu. Phần mềm đang chạy tốt và qua hết kiểm tra; việc cần Owner là
+   chọn: chấp nhận con số thật, hay chia nhỏ phần việc này ra, hay yêu cầu
+   cắt bớt chức năng. Ba phương án viết rõ trong
+   `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`.
+
+Vì việc số 3 chưa được quyết, phần này **chưa được gộp vào bản chính** —
+đang chờ Owner và chờ một lượt soát xét độc lập.
 
 ## ĐÃ XONG
 

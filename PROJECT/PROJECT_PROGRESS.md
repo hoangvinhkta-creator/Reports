@@ -430,6 +430,59 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
   bên dưới nay có kế hoạch nhưng vẫn chưa READY.
 
+### S075 (2026-09-02) — TASK-PRA-001 = IMPLEMENTED; Legacy Reference Vertical chạy đầu-cuối; CHANGE_BUDGET_EXCEEDED chờ Owner
+
+Nhánh `claude/reports-pipeline-architecture-gj8bji`, base authority
+`b50e8bc29b92e8f5199675cfc8574332970fe1b9` (close-out S074, đã xác minh).
+
+**Owner giờ xem được số báo cáo cũ ngay trong Reports.** Nhập workbook
+"Báo cáo Kinh doanh" ở tab **Dữ liệu** → mở tab **Nhân viên** (ma trận
+tháng × người bán, nghìn đồng) hoặc **Doanh số ngày** (từ DataChart, VND
+nguyên) → chọn kỳ lịch sử. Mọi con số đeo nhãn `LEGACY` kèm đơn vị; ô có
+lỗi công thức đã biết mang dấu nhắc A1/A2/A4/A6 — không cần mở Excel để
+xem summary cơ bản nữa.
+
+Đã dựng: `tools/db/` (engine builder + fail-closed + `assert_schema_current`),
+Alembic chain với ĐÚNG một migration `0001_legacy` (4 bảng `legacy_*`),
+`app/legacy/` (importer thuần openpyxl), `app/web/history_store.py`
+(`LegacyRepository`, SQLAlchemy Core, engine tiêm được), 5 route web,
+layout + tab bar + CSS token `--tp-*` chép tĩnh từ đặc tả design của
+TASK-PRA-000 mục E (không hot-link, không JS Tracking).
+
+Ba bất biến được khoá bằng test, không phải bằng lời:
+1. **Không tính lại số cũ** — fixture có ô giá trị `999` với công thức
+   `=G9/5.5%` (đúng công thức ~547.272); hệ thống lưu và hiện `999`. Quét
+   AST: không phép chia/nhân nào trong `app/legacy/`; quét mã sau khi xoá
+   chuỗi/chú thích: `/2`, `/ 2`, `5.5%` không có trong logic.
+2. **Không số cũ nào hiển thị thiếu nhãn** — test trích MỌI ô số từ HTML
+   và khẳng định ô nào cũng mang `LEGACY` + đơn vị.
+3. **Không biến sự cố thành "chưa có dữ liệu"** — thiếu cấu hình hoặc
+   schema cũ → app không khởi động; DB lỗi lúc request → HTTP 503.
+
+Trạng thái check: 8 REQUIRED PASS (E1); CHECK-01 (fidelity trên FILE THẬT)
+= NOT_TESTED vì workbook thật không có trong Claude Cloud và không được
+commit (PII) — script đối chiếu `tools/analysis/verify_legacy_import.py`
+đã viết và chạy PASS trên fixture (`matched=628 mismatched=0`); CHECK-09
+(DDL trên PostgreSQL thật) = BLOCKED vì session không có Postgres và không
+được tự tạo dịch vụ trả phí. Cả hai thành gate của Owner, quy trình đã
+viết ở `docs/deployment/S071_DEPLOYMENT.md` bước 8–12.
+
+Regression: baseline đầu phiên `1494 passed, 11 skipped` → cuối phiên
+`1586 passed, 11 skipped` (+92 test mới, 0 test mất, 0 skip mới).
+Validator 4/5 PASS; reference integrity chỉ còn 3 finding PRE_EXISTING của
+REM-T06 (S075 thêm 0). Protected core, R2, Tracking KHÔNG bị chạm.
+
+**BLOCKER CẦN OWNER: `CHANGE_BUDGET_EXCEEDED`.** 1.024 dòng logic
+production Python so với ngưỡng dừng cứng 600 (930 nếu chỉ tính đúng tập
+file mà CHANGE_BUDGET liệt kê). Ngân sách khác vẫn trong hạn (template
+284/300, CSS 200/450, test 92 ≥ 25, đúng 3 dependency được phép). Ba
+phương án A/B/C đã viết ở mục "ESCALATION — CHANGE_BUDGET_EXCEEDED" trong
+`docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`; session KHÔNG tự
+chọn. Vì vậy TASK-PRA-001 = **IMPLEMENTED**, KHÔNG phải DONE, và KHÔNG
+merge canonical trước khi Owner phân xử + Independent Review.
+
+Chi tiết đầy đủ: `docs/sessions/S075-pra-001-legacy-reference-vertical.md`.
+
 ### CLOSE-OUT S074 (2026-09-02) — ADR-108 APPROVED; TASK-PRA-000 = DONE / architecture finalized; TASK-PRA-001 = READY
 
 - Owner approve ADR-108 (DEC-167): Production structured history = Managed
@@ -4840,6 +4893,14 @@ trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-30
 
 ## Session tiếp theo
 
+> **Cập nhật 2026-09-02 (S075):** TASK-PRA-001 = IMPLEMENTED. Legacy
+> Reference Vertical chạy đầu-cuối; `1586 passed, 11 skipped`. Session tiếp
+> theo: (1) Owner phân xử `CHANGE_BUDGET_EXCEEDED`, (2) Independent Review,
+> (3) Owner tạo Render PostgreSQL để đóng CHECK-09, (4) Owner chạy
+> `verify_legacy_import` trên file Excel thật để đóng CHECK-01. Xem khối
+> "S075 (2026-09-02)" ở đầu file và
+> `docs/sessions/S075-pra-001-legacy-reference-vertical.md`.
+>
 > **Cập nhật 2026-09-02 (S074, close-out):** ADR-108 Accepted (DEC-167);
 > TASK-PRA-000 DONE; TASK-PRA-001 READY — session tiếp theo implement PRA-001.
 >

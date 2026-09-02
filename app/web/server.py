@@ -32,9 +32,9 @@ Download chỉ được resolve từ ``run_id`` qua registry do chính server t�
 from __future__ import annotations
 
 import os
-import tempfile
 import time
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -44,11 +44,14 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import beta_feedback, beta_telemetry
 from app.beta_presentation import REASON_DISPLAY_LABELS
+from app.legacy import LegacyImportError, parse_workbook
 from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
-from app.web import run_registry, storage_backend
+from app.web import history_store, legacy_presentation, run_registry, storage_backend
+import tools.db as history_db
+from tools.db import HistoryConfigurationError
 from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
 from tools.tracking import live_pull
 
@@ -72,6 +75,8 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 HISTORY_PAGE_LIMIT = 50
 
+LEGACY_IMPORT_PAGE_LIMIT = 50
+
 
 def _guarded(fn, *args, **kwargs):
     """Gọi ``fn`` (một lời gọi store) và biến lỗi storage (R2 unavailable/
@@ -80,7 +85,8 @@ def _guarded(fn, *args, **kwargs):
     thật sự rỗng)."""
     try:
         return fn(*args, **kwargs)
-    except (StorageUnavailableError, CorruptRunRecordError):
+    except (StorageUnavailableError, CorruptRunRecordError,
+            history_store.HistoryUnavailableError):
         abort(503)
 
 
@@ -138,6 +144,24 @@ def _safe_display_name(filename: str) -> str:
     return name[:120]
 
 
+def _selected_period(periods: list[tuple[int, Optional[int]]]) -> Optional[tuple[int, Optional[int]]]:
+    """Kỳ đang xem: lấy từ query string nếu hợp lệ, nếu không thì kỳ mới nhất.
+
+    Chỉ chấp nhận kỳ THỰC SỰ có trong dữ liệu đã nhập — một kỳ do người dùng
+    gõ tay mà không có dữ liệu sẽ rơi về ``None`` để trang hiện trạng thái
+    rỗng trung thực, thay vì một bảng toàn số 0.
+    """
+    raw = request.args.get("ky") or ""
+    if not raw:
+        return periods[0] if periods else None
+    year_text, _, month_text = raw.partition("-")
+    try:
+        chosen = (int(year_text), int(month_text) if month_text else None)
+    except ValueError:
+        return None
+    return chosen if chosen in periods else None
+
+
 def _select_captures_for_run() -> tuple[Optional[SelectedCaptures], Optional[dict], Optional[live_pull.LiveSelectedCaptures]]:
     """Trả về ``(captures, tracking_evidence, live_handle)``.
 
@@ -157,16 +181,64 @@ def _select_captures_for_run() -> tuple[Optional[SelectedCaptures], Optional[dic
     return captures, live.evidence, live
 
 
+def _build_history(env=None) -> Optional[history_store.LegacyRepository]:
+    """Dựng repository history nếu môi trường đã sẵn sàng.
+
+    ``REPORTS_REQUIRE_HISTORY_DB=1`` (production) → lỗi cấu hình được ném
+    tiếp ra ngoài và app KHÔNG khởi động: thà chết lúc khởi động còn hơn
+    chạy lên rồi hiển thị lịch sử rỗng trong khi thật ra không có database.
+    Ngoài chế độ đó (máy dev chưa `alembic upgrade head`), trả ``None`` và
+    các trang legacy nói thẳng là history store CHƯA cấu hình — vẫn không
+    bao giờ giả vờ "chưa có dữ liệu".
+    """
+    values = os.environ if env is None else env
+    required = (values.get("REPORTS_REQUIRE_HISTORY_DB") or "").strip() == "1"
+    if not required and not (values.get("HISTORY_DATABASE_URL") or "").strip():
+        # Chưa cấu hình gì: chỉ dùng SQLite mặc định nếu database ĐÃ được
+        # tạo bằng `alembic upgrade head`. Không tự tạo file/thư mục database
+        # khi khởi động — một database rỗng do app tự sinh ra sẽ khiến trang
+        # legacy trông như "chưa nhập gì" trong khi thật ra chưa ai migrate.
+        if not history_db.default_sqlite_path(values).exists():
+            return None
+    try:
+        return history_store.build(values)
+    except HistoryConfigurationError:
+        if required:
+            raise
+        return None
+
+
 def create_app(
     *,
     db_path: Path = run_registry.DEFAULT_DB_PATH,
     store: Optional[storage_backend.RunStore] = None,
+    history: Optional[history_store.LegacyRepository] = None,
 ) -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     if store is None:
         store = storage_backend.build(db_path=db_path, artifact_dir=ARTIFACT_DIR)
     app.config["RUN_REGISTRY"] = store
+    # Tên cục bộ khác tên endpoint: một view function tên ``history`` sẽ che
+    # mất biến này trong closure của create_app.
+    history_repo = history if history is not None else _build_history()
+    app.config["HISTORY_STORE"] = history_repo
+    app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
+    app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
+
+    def _require_history() -> history_store.LegacyRepository:
+        if history_repo is None:
+            # Không phải "chưa có dữ liệu" — là chưa có nơi lưu dữ liệu.
+            abort(503)
+        return history_repo
+
+    def _legacy_page(template: str, **context):
+        return render_template(
+            template,
+            history_configured=history_repo is not None,
+            legacy_import=_guarded(history_repo.current_import) if history_repo else None,
+            **context,
+        )
 
     def _page(*, error: Optional[str] = None, run_id: Optional[str] = None,
              not_found: bool = False, feedback_ok: bool = False, status: int = 200):
@@ -194,10 +266,119 @@ def create_app(
             feedback_ok=request.args.get("feedback") == "ok",
         )
 
-    @app.get("/history")
-    def history():
+    @app.get("/du-lieu")
+    def data_tab():
+        """Tab "Dữ liệu": các lần chạy pipeline VÀ các bản nhập legacy.
+
+        Hai origin nằm trong hai bảng tách biệt trên trang, mỗi bảng ghi rõ
+        nguồn — không bao giờ trộn số pipeline với số cũ vào một danh sách.
+        """
         runs = _guarded(store.list_runs, limit=HISTORY_PAGE_LIMIT)
-        return render_template("history.html", runs=runs)
+        imports = (
+            _guarded(history_repo.list_imports, limit=LEGACY_IMPORT_PAGE_LIMIT)
+            if history_repo else []
+        )
+        return _legacy_page(
+            "du_lieu.html", runs=runs, imports=imports,
+            imported=request.args.get("imported") or None,
+            error=request.args.get("loi") or None,
+        )
+
+    @app.get("/history")
+    def history_redirect():
+        # Đường cũ của S071 — giữ để link/bookmark đã phát ra không gãy.
+        return redirect(url_for("data_tab"), code=302)
+
+    @app.post("/du-lieu/legacy")
+    def import_legacy():
+        repository = _require_history()
+        upload = request.files.get("workbook")
+        if upload is None or not upload.filename:
+            return redirect(url_for("data_tab", loi="Hãy chọn workbook legacy .xlsx."))
+        if not upload.filename.lower().endswith(".xlsx"):
+            return redirect(url_for("data_tab", loi="Chỉ chấp nhận file .xlsx."))
+
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        # Tên file lưu trên đĩa LUÔN do server sinh — tên client gửi lên chỉ
+        # dùng để hiển thị, nên không có chuỗi đường dẫn nào của client chạm
+        # tới filesystem (chống path traversal).
+        temp_path = UPLOAD_DIR / f"{uuid.uuid4().hex}.xlsx"
+        upload.save(temp_path)
+        try:
+            workbook = parse_workbook(temp_path)
+            workbook = replace(
+                workbook, source_file_name=_safe_display_name(upload.filename),
+            )
+            result = _guarded(
+                repository.create_import, workbook,
+                version_label=(request.form.get("version_label") or "").strip()[:120],
+            )
+        except LegacyImportError as exc:
+            return redirect(url_for("data_tab", loi=str(exc)))
+        except Exception:
+            return redirect(url_for(
+                "data_tab",
+                loi="Không đọc được workbook legacy. Kiểm tra file và thử lại.",
+            ))
+        finally:
+            # Workbook cũ chứa dữ liệu kinh doanh: không giữ lại trên đĩa
+            # máy chủ quá một lần import, kể cả khi import lỗi.
+            temp_path.unlink(missing_ok=True)
+        message = (
+            f"Đã nhập bản legacy {result.import_id}." if result.created
+            else f"File này đã được nhập trước đó ({result.import_id}) — không tạo bản mới."
+        )
+        return redirect(url_for("data_tab", imported=message))
+
+    @app.post("/du-lieu/legacy/<import_id>/chon")
+    def choose_legacy(import_id: str):
+        repository = _require_history()
+        try:
+            _guarded(repository.set_current, import_id)
+        except KeyError:
+            abort(404)
+        return redirect(url_for("data_tab", imported=f"Đang xem bản {import_id}."))
+
+    @app.get("/nhan-vien")
+    def sellers():
+        """Ma trận tháng × người bán từ Summary cũ (đơn vị nghìn đồng)."""
+        if history_repo is None:
+            return _legacy_page("nhan_vien.html", periods=[], selected=None,
+                                rows=[], columns=legacy_presentation.MATRIX_COLUMNS), 503
+        periods = _guarded(history_repo.available_periods)
+        selected = _selected_period(periods)
+        rows = (
+            _guarded(history_repo.query_summary, selected[0], selected[1])
+            if selected else []
+        )
+        return _legacy_page(
+            "nhan_vien.html", periods=periods, selected=selected,
+            rows=legacy_presentation.matrix(rows),
+            columns=legacy_presentation.MATRIX_COLUMNS,
+        )
+
+    @app.get("/doanh-so-ngay")
+    def daily_sales():
+        """Doanh số theo ngày từ DataChart cũ (đơn vị VND nguyên)."""
+        if history_repo is None:
+            return _legacy_page("doanh_so_ngay.html", periods=[], selected=None,
+                                days=[], monthly=None, monthly_cells={}), 503
+        periods = _guarded(history_repo.available_periods)
+        selected = _selected_period(periods)
+        days, monthly = [], None
+        if selected and selected[1]:
+            days = legacy_presentation.daily_grid(
+                _guarded(history_repo.query_daily, selected[0], selected[1])
+            )
+            monthly = next(
+                (row for row in _guarded(history_repo.query_monthly_reference, selected[0])
+                 if row["month"] == selected[1]),
+                None,
+            )
+        return _legacy_page(
+            "doanh_so_ngay.html", periods=periods, selected=selected, days=days,
+            monthly=monthly, monthly_cells=legacy_presentation.monthly_cells(monthly),
+        )
 
     @app.post("/run")
     def run_report():

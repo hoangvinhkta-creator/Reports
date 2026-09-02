@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% import "_legacy_bits.html" as legacy %}
+{% set active_tab = 'nhan-vien' %}
+{% block title %}Reports — Nhân viên (số cũ){% endblock %}
+
+{% block content %}
+<h1>NHÂN VIÊN — SỐ CŨ THEO THÁNG</h1>
+
+{% if not history_configured %}
+  {{ legacy.not_configured() }}
+{% else %}
+{{ legacy.source_note(legacy_import) }}
+
+<div class="module">
+  {% if periods %}
+    {{ legacy.period_picker(periods, selected, url_for('sellers')) }}
+  {% endif %}
+
+  {% if not periods %}
+  <p class="empty">Chưa nhập bản báo cáo cũ nào — vào tab Dữ liệu để nhập workbook.</p>
+  {% elif not selected %}
+  <p class="empty">Kỳ được chọn không có trong bản legacy đang xem.</p>
+  {% elif not rows %}
+  <p class="empty">Kỳ {{ selected[0] }}{% if selected[1] %}/{{ '%02d' % selected[1] }}{% endif %}
+     không có dòng nào trong bản legacy đang xem.</p>
+  {% else %}
+  <h2>Tháng {{ '%02d' % selected[1] }}/{{ selected[0] }} {{ legacy.legacy_badge() }}
+      <span class="cnt">{{ rows|length }} dòng</span></h2>
+  <p class="insight">Đơn vị tiền: nghìn đồng (số cũ). Tỉ lệ giữ đúng dạng đã lưu trong Excel.</p>
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th>Người bán / dòng</th>
+      <th>Loại dòng</th>
+      {% for field, label, unit_kind in columns %}<th class="num">{{ label }}</th>{% endfor %}
+      <th>Ô nguồn</th>
+    </tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.row_kind != 'SELLER' }}">
+      <td class="code">{{ row.seller_label }}</td>
+      <td>{{ row.row_kind_label }}</td>
+      {% for cell in row.cells %}{{ legacy.legacy_cell(cell) }}{% endfor %}
+      <td class="tp-unit">{{ row.sheet_name }}!{{ row.sheet_row }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

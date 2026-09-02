@@ -159,6 +159,79 @@ permanent exception.
 
 ---
 
+## Root Task: TASK-PRA-001
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`). Không kế thừa và
+không tiêu ngân sách của bất kỳ lineage nào trước đó.
+
+```
+root_task: TASK-PRA-001
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+`MEDIUM` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), không theo độ khó code:
+
+- **BR-1** — số cũ hiển thị sai, hoặc hiển thị thiếu nhãn `LEGACY`, khiến
+  Owner đọc nhầm số cũ thành số pipeline và ra quyết định kinh doanh trên
+  con số sai nguồn. Giảm nhẹ: mọi giá trị đi qua đúng MỘT macro Jinja gắn
+  nhãn, và test trích toàn bộ ô số từ HTML để khẳng định không ô nào thiếu
+  nhãn (CHECK-PRA001-04).
+- **BR-2** — cấu hình database sai làm production không khởi động. Đây là
+  failure path đã được chọn CÓ Ý (fail closed): thà không deploy còn hơn
+  chạy lên rồi hiển thị lịch sử rỗng như thể chưa ai nhập gì.
+- **KHÔNG** chạm production pipeline, KPI, lương, Product Identity, PP,
+  accounting reconciliation, R2, Tracking — nên failure path dừng ở tầng
+  đọc lịch sử, không lan vào đường tính toán đang chạy.
+
+### Scope Lock
+
+```
+app/modules/**                          : FORBIDDEN
+app/pipeline.py, app/composition.py     : FORBIDDEN
+app/owner_usability.py, app/demo.py     : FORBIDDEN
+app/web/storage_backend.py              : FORBIDDEN
+app/web/run_registry.py                 : FORBIDDEN
+tools/storage/**, tools/tracking/**     : FORBIDDEN
+config/**, data/**                      : FORBIDDEN
+tests/fixtures/golden/**                : FORBIDDEN
+Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
+schema PRA-002 (snapshot/version/…)     : FORBIDDEN — không prebuild
+```
+
+### Trạng thái (S075, 2026-09-02)
+
+```
+TASK-PRA-001                 : IMPLEMENTED (KHÔNG phải DONE)
+Independent Review           : CHƯA THỰC HIỆN
+repair cycle đã dùng         : 0
+Blocker chờ Owner            : CHANGE_BUDGET_EXCEEDED (1.024 dòng logic
+                               production Python / ngưỡng cứng 600)
+CHECK-PRA001-01              : NOT_TESTED — cần file Excel thật (gate Owner)
+CHECK-PRA001-09              : BLOCKED — cần PostgreSQL thật (gate deploy)
+```
+
+Bằng chứng thực thi của phiên (E1):
+
+```text
+validate_structure           : PASS
+validate_project_state       : PASS
+validate_evidence            : PASS  (99 REQUIRED PASS record)
+validate_task_completion     : PASS  (8 DONE task)
+validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-REM-T06,
+                               không phát sinh mới (203 file quét)
+branch_authority_check.sh    : AUTHORITY_OK
+git diff --check             : sạch
+Full suite baseline          : 1494 passed, 11 skipped
+Full suite cuối phiên        : 1586 passed, 11 skipped
+migration 0001_legacy        : upgrade PASS, downgrade PASS (SQLite thật)
+verify_legacy_import         : matched=628 mismatched=0 (trên fixture)
+```
+
 ## Root Task: TASK-GOLDEN-BASELINE-001
 
 Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của
