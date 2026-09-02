@@ -21,6 +21,12 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S072): đã có **bản kế hoạch** để Reports không
+> chỉ "nạp file → xem → tải Excel" mà lưu lại số liệu theo thời gian, xem lại
+> số cũ, so sánh tháng này với tháng trước, và không cộng trùng khi nạp hai
+> file có ngày chồng nhau — xem mục "KẾ HOẠCH MỚI" bên dưới. Chỉ là kế
+> hoạch, chưa làm gì thêm vào phần mềm.
+
 # TRẠNG THÁI HIỆN TẠI
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
@@ -181,6 +187,45 @@ thông tải xuống — với quy mô một đội bán hàng nhỏ (vài chụ
 ngày), chi phí lưu trữ dự kiến rất nhỏ, gần như không đáng kể. Chi phí thuê
 máy chủ chạy Reports (Render hoặc nơi tương đương) vẫn còn, không đổi — chỉ
 riêng phần "ổ đĩa lưu lâu dài" là không cần mua nữa.
+
+## KẾ HOẠCH MỚI — Reports lưu lịch sử và so sánh được (2026-09-02, chưa bắt đầu làm)
+
+Hôm nay Reports giống một "máy phân tích file": nạp file kế toán, xem vài con
+số tổng, tải Excel. Mỗi lần chạy chỉ lưu lại 7 con số tổng và file Excel —
+không lưu từng đơn, từng dòng, nên không thể hỏi "tháng này so tháng trước
+thế nào" hay "nhân viên A bán gì trong tháng 9" mà không mở lại Excel.
+
+Kế hoạch mới (đã viết xong, chưa làm) chia làm 5 bước nhỏ, bước nào xong
+cũng có thứ nhìn thấy được:
+
+1. **Đưa số cũ vào Reports.** Nhập nguyên bảng "Báo cáo Kinh doanh 2026"
+   (bảng tổng theo tháng/người, bảng doanh số theo ngày) vào Reports để xem
+   lại và so sánh. Số cũ giữ nguyên như cũ, kể cả chỗ công thức Excel đang
+   sai (có gắn dấu nhắc), không tính lại, và luôn đeo nhãn "số cũ".
+2. **Lưu từng đơn, từng dòng mỗi lần nạp file, và không cộng trùng.** Ví dụ
+   ngày 10/09 nạp file 01–10/09, cuối tháng nạp file 01–30/09: phần 01–10/09
+   chỉ tính một lần; dòng nào kế toán sửa (đổi giá, đổi số lượng) thì hiện
+   "đã đổi, từ X thành Y"; đơn nào có trong file trước mà biến mất ở file
+   sau thì hiện cảnh báo, không âm thầm xoá.
+3. **Trang Tổng quan và trang Nhân viên** lấy số thật từ dữ liệu đã lưu:
+   doanh thu, số đơn, số sản phẩm, lợi nhuận (chỉ trên đơn tự động), so tháng
+   trước, so chỉ tiêu, bảng nhân viên × tháng giống bảng Summary cũ.
+4. **Xem chi tiết đến từng đơn và xử lý hàng "cần xem lại" ngay trên web**,
+   không cần mở Excel.
+5. **Trang Sản phẩm** theo mã sản phẩm chuẩn (chỉ những dòng đã nhận diện
+   được), và các so sánh dài hơn (cùng kỳ năm trước, cả năm).
+
+Giao diện sẽ dùng cùng "bộ quần áo" với Tracking (màu, chữ, bảng, nút) để
+hai phần mềm nhìn như một, nhưng **không** nối vào Tracking và **không** sửa
+gì bên Tracking.
+
+Trước khi bắt đầu bước 1, chủ dự án cần chốt 4 điều: (a) thuê chỗ lưu dữ
+liệu lâu dài nào (đề xuất một cơ sở dữ liệu quản lý sẵn, khoảng 6–7 USD/
+tháng); (b) khoảng ngày của mỗi file nạp lấy từ dòng "Từ ngày … đến ngày …"
+trong file hay do người nạp khai; (c) khi kế toán sửa số, lấy số mới làm số
+chính (có đánh dấu) hay giữ số cũ chờ duyệt; (d) đơn biến mất khỏi file mới
+thì bỏ khỏi tổng (có đánh dấu) hay vẫn tính. Danh sách đầy đủ 13 câu hỏi nằm
+trong bản kế hoạch kỹ thuật (mục N).
 
 ## ĐANG CHỜ
 

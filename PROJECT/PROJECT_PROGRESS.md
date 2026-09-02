@@ -394,6 +394,42 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   `data/tracking_price_history/` là runtime evidence thật, cố ý KHÔNG commit
   (kỷ luật thao tác, không phải `.gitignore` pattern — xem DEFERRED).
 
+### PLANNED — PHASE-PRA: Persistent Reporting & Analytics (S072, 2026-09-02)
+
+- **TASK-PRA-000 — Kế hoạch kiến trúc (SPIKE, DONE trong S072, nhánh
+  `claude/reports-pipeline-architecture-gj8bji`).** Chỉ lập kế hoạch: không
+  code feature, không refactor, không migration, không deploy, không sửa
+  Tracking (READ-ONLY REFERENCE). Tài liệu chốt tại
+  `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md` (18 mục
+  A–R) và bàn giao
+  `docs/sessions/S072-persistent-reporting-analytics-planning.md`.
+  Kết luận chính: (1) Reports hiện chỉ persist 7 số tổng hợp/run + XLSX —
+  chưa có dữ liệu đơn/dòng để query lịch sử; AUTO/Review chỉ được suy ra
+  trong exporter. (2) Hai origin lịch sử tách biệt tuyệt đối:
+  `LEGACY_REFERENCE` (Excel cũ nhập nguyên trạng, kèm cờ lỗi công thức
+  A1–A6, không tính lại) và `PIPELINE_GENERATED` (kết quả pipeline, có
+  provenance snapshot + evidence Tracking). (3) `ORDER_KEY = Số BH chuẩn hoá`
+  (guard 90 ngày chống trùng số khi reset); `ORDER_LINE_KEY = (ORDER_KEY,
+  product_key, occurrence_index)` + `line_fingerprint` — nguồn ERP không có
+  khoá dòng tự nhiên. (4) Snapshot model với coverage tường minh và HAI trục
+  phiên bản (nguồn kế toán đổi ≠ pipeline chạy lại với evidence mới) → 4
+  CASE INSERT / SAME / CHANGED / REMOVED_CANDIDATE + RESULT_REVISED; không
+  DELETE/UPDATE-in-place fact. (5) UI giữ 6 khu vực, chỉnh: "Cần kiểm tra"
+  gộp Review Queue + Thay đổi nguồn + Đối chiếu cũ/mới; "Lịch sử dữ liệu" →
+  "Dữ liệu" (coverage calendar); "Sản phẩm" lùi slice cuối; điều hướng tab
+  ngang + thanh ngữ cảnh sticky theo token `--tp-*` của Tracking (chỉ chép
+  CSS, không runtime dependency).
+  Roadmap 5 slice dọc (đều `TRACKING_CHANGE_REQUIRED = NO`,
+  `PROTECTED_CORE_IMPACT = NONE`): PRA-001 Legacy reference + nền DB →
+  PRA-002 Persistence + overlapping-upload reconciliation (slice nặng nhất,
+  Tier C, E2 review) → PRA-003 Tổng quan + Nhân viên → PRA-004 Bán hàng
+  drill-down + Review Operations → PRA-005 Sản phẩm + analytics LATER.
+  **Chưa task nào READY.** Chặn bởi 4 quyết định Owner (DB production,
+  nguồn coverage, chính sách CHANGED, chính sách REMOVED) + ratify
+  amendment ADR-101 (web layer = Flask/Jinja) — danh sách đủ 13 quyết định
+  tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
+  bên dưới nay có kế hoạch nhưng vẫn chưa READY.
+
 ### DEFERRED FINDING — Product Identity Discovery Gap (S068 follow-up audit)
 
 - **Case:** một sản phẩm nhập → bán hết trong ngày → tồn cuối kỳ = 0. Nguồn
@@ -4760,6 +4796,16 @@ cài đặt. Xem `docs/tasks/TASK-110-validation-review-queue.md`.
 trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-305 xong.
 
 ## Session tiếp theo
+
+> **Cập nhật 2026-09-02 (S072):** track mới PHASE-PRA (Persistent Reporting
+> & Analytics) đã có kế hoạch tại
+> `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md`. Session
+> đề xuất tiếp theo cho track này: Owner trả lời quyết định N.1–N.4 + N.12,
+> rồi mở TASK-PRA-001 (Slice 1 — Legacy reference + nền DB) theo Roadmap
+> Finalization. Xem khối "PLANNED — PHASE-PRA" trong CANONICAL CURRENT
+> DELIVERY STATUS ở đầu file. Nội dung bên dưới là lịch sử của các track
+> trước, giữ nguyên.
+
 
 Có hai session được đề xuất, thuộc hai track độc lập — chủ dự án chọn thứ tự,
 không có ràng buộc kỹ thuật bắt buộc cái nào trước:
