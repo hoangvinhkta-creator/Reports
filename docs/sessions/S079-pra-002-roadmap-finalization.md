@@ -230,6 +230,14 @@ $ bash scripts/branch_authority_check.sh
 DEFAULT_BRANCH       : claude/extract-upload-repo-gq2ws4
 DEFAULT_TIP          : 553d8a36f578b082128a6e45d2748da2bc371e70
 HEAD_SHA             : 553d8a36f578b082128a6e45d2748da2bc371e70   (trước commit S079)
-# Trước push: STOP — nhánh chưa có upstream (đúng thiết kế; giải quyết bằng `git push -u`). Kết quả sau push ghi ở PROGRESS/commit message.
+# Trước push: STOP — nhánh chưa có upstream (đúng thiết kế; giải quyết bằng `git push -u`).
+$ git push -u origin claude/pra-002-roadmap-finalization-xis6vb && bash scripts/branch_authority_check.sh   (sau commit c83f58c)
+ahead  default       : 1 commit
+behind default       : 0 commit
+divergence days      : 0
+cumulative LOC       : 1803
+DIVERGENCE           : WITHIN_LIMITS
+AUTHORITY            : BRANCH_WITH_UPSTREAM
+RESULT               : AUTHORITY_OK
 $ Golden: 58 passed, 2 skipped · Full suite: 1608 passed, 11 skipped   (BASE_SHA, venv riêng)
 ```
