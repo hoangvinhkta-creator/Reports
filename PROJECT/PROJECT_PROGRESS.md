@@ -1,5 +1,73 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S086)
+
+Cập nhật sau phiên implement **slice C1 (`RESULT_REVISED`)**. Khối S085 và các
+khối cũ hơn bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu
+thuẫn về trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S086 — PRA-002 Slice C1 Implementation (MAJOR)
+TASK-PRA-002               = IN_PROGRESS  (slice A INTEGRATED; slice B INTEGRATED;
+                              slice C1 IMPLEMENTED, chờ Independent Review E2)
+SLICE_C1_RESULT            = PASS
+SLICE A                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE B                    = IMPLEMENTED · REVIEWED · ACCEPTED · INTEGRATED
+SLICE C1                   = IMPLEMENTED — chờ Independent Review E2 (CHƯA integrate, CHƯA DONE)
+BASE_SHA                   = bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82  (== origin/claude/extract-upload-repo-gq2ws4;
+                              canonical KHÔNG dịch chuyển — đã fetch và so khớp trước khi mở việc)
+BRANCH                     = claude/pra-002-slice-c-plan-jg798m  (đứng đúng tại canonical SHA lúc mở phiên:
+                              0 ahead / 0 behind → phát triển trên nó LÀ phát triển từ exact canonical)
+MIGRATION                  = KHÔNG có migration mới; KHÔNG schema change (tools/db/** không sửa một dòng).
+                              Schema 0002_snapshots đã đủ: cột n_result_revised đã có, CHECK kind đã chứa
+                              RESULT_REVISED, và from/to_version_id KHÔNG có FK nên tham chiếu result version hợp lệ
+CONTRACT                   = RESULT_REVISED ⟺ (đã có current result) ∧ (nguồn SAME) ∧ (không COLLISION)
+                              ∧ (result_fingerprint khác). SOURCE_CHANGED thắng; COLLISION → 0 cờ
+FINGERPRINT                = sha256(status, accounting_purchase_price, eligible_kpi_profit) — đúng 3 trường F3
+DETAIL_JSON                = chỉ diff 3 trường F3, dạng canon, json sort_keys → deterministic. KHÔNG PII
+VERSION_REFS               = from_version_id/to_version_id trỏ order_line_result_version (cấp KẾT QUẢ),
+                              KHÔNG dùng source version id
+CURRENT_POINTER            = current_source_version_id GIỮ NGUYÊN; current_result_version_id ĐỔI;
+                              result version cũ còn nguyên vẹn; KHÔNG tạo source version n+1
+                              (đo trên PostgreSQL 16.13 thật: source COUNT 2→2, result COUNT 2→4)
+TEMPLATE_CHANGED           = KHÔNG — snapshot.html render kind/cặp version/detail_json tổng quát;
+                              chứng minh bằng test web thật, không bằng đọc code
+SLICE_B_SAFETY             = NOT_SEEN/REMOVED/coverage/confirmation/is_active KHÔNG đổi một dòng;
+                              khoá vắng mặt không thể sinh RESULT_REVISED (test khoá lại)
+TRANSACTION                = phát hiện + result version + cờ + con trỏ + counter trong đúng engine.begin() đã có;
+                              test ép lỗi giữa chừng → không có partial RESULT_REVISED state
+TEST                       = full suite 1806 passed, 11 skipped (BASE bfe7008 = 1784/11 → +22 test, 0 skip thêm)
+                              Golden 58 passed, 2 skipped (KHÔNG đổi); PRA-001 focused 81 passed
+                              PostgreSQL 16.13 THẬT: alembic upgrade head + 113 passed
+                              Mutation check: hoàn nguyên riêng app/ → 6 test mới FAIL đúng như phải thế
+CHANGE_BUDGET slice C1     = 67 dòng logic production (LOW 55 / EXPECTED 73 / HIGH 95 của planning)
+CHANGE_BUDGET lineage      = 1.393 (A+B) + 67 (C1) = 1.460 / dừng cứng 1.500
+REMAINING_TO_HARD_STOP     = 40 LOC   ← siết lại đáng kể, phiên sau phải biết trước khi mở việc
+LOC_METHOD                 = hiệu chuẩn lại từ đầu trong phiên này và tái lập ĐÚNG cả ba số đã chấp nhận:
+                              slice A +1104, slice B +289 (khớp cả 5 dòng per-file), lineage +1393
+CHECK-PRA002-08            = PASS (E1; bằng chứng persistence + PostgreSQL 16.13 thật đạt mức E2)
+CHECK-PRA002-14            = NOT_TESTED (RDA — Owner)
+CHECK-PRA002-15            = NOT_TESTED (Production Acceptance — Owner)
+CHECK-PRA002-17            = PASS cho phần slice A + B + C1 hiện có; KHÔNG PASS ở cấp toàn task
+TASK-PRA-002 STATUS        = IN_PROGRESS (KHÔNG đánh DONE — RDA + Production Acceptance chưa xong)
+REVIEW_BUDGET_STATUS       = UNKNOWN_CONFLICT — ledger tự mâu thuẫn (khối máy đọc repair_cycles_used: 0
+                              vs prose S085 "1/2" vs danh sách cycles có PRA-002-RC-1). C1 KHÔNG tự sửa;
+                              Independent Review C1 phải xác minh TRƯỚC khi tiêu repair cycle mới
+BLOCKING findings          = 0
+NON_BLOCKING findings      = FIND-PRA002-C1-N1 (mâu thuẫn ledger review budget — governance, không phải production)
+TRACKING_CHANGED           = NO
+VALIDATORS                 = structure/project_state/task_completion/evidence PASS;
+                              reference_integrity FAIL với ĐÚNG 3 pre-existing REM-T06 → DEFER, không phải blocker
+EVIDENCE                   = docs/sessions/S086-pra-002-slice-c1-result-revised.md
+NEXT_VERTICAL_ACTION       = Independent Review E2 Slice C1 (KHÔNG bắt đầu RDA/C2)
+```
+
+**Điều phiên sau phải biết.** Headroom CHANGE_BUDGET còn **40 dòng logic
+production** trước dừng cứng 1.500. Slice C2/C3 (RDA thật, production
+acceptance) phần lớn là việc Owner thực hiện thủ công và KHÔNG cần code; nếu
+phần nào cần code vượt 40 dòng, mở đề xuất CHANGE_BUDGET cho Owner **TRƯỚC**
+khi viết mã.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S085)
 
 Cập nhật sau **Controlled Integration của slice B vào canonical**. Khối S084 bên

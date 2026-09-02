@@ -412,6 +412,13 @@ class SnapshotRepository:
                     connection, present=[line.key for line in source_lines],
                     start=detected[0], end=detected[1],
                 )
+                # Bước 3 (mục 8): kết quả đổi TRONG KHI nguồn không đổi. Tính
+                # ở đây — trước mọi lần ghi — vì ``current`` còn là hiện trạng
+                # TRƯỚC run này; sau ``_update_current`` thì kết quả cũ đã bị
+                # con trỏ bỏ lại và không còn so sánh được nữa.
+                revisions = history_reconciler.result_revisions(
+                    outcome.decisions, result_lines, current,
+                )
                 snapshot_id = self._next_snapshot_id(connection, created_at, file_fingerprint)
 
                 connection.execute(insert(source_snapshot).values(
@@ -432,6 +439,7 @@ class SnapshotRepository:
                     n_source_changed=counts[history_models.OUTCOME_SOURCE_CHANGED],
                     n_collision=counts[history_models.OUTCOME_COLLISION],
                     n_not_seen=len(absent),
+                    n_result_revised=len(revisions),
                     evidence_json=_json(evidence) or "{}",
                     summary_json=_json(summary) or "{}",
                 ))
@@ -448,7 +456,8 @@ class SnapshotRepository:
                     versions, results, current,
                 )
                 self._insert_flags(
-                    connection, snapshot_id, run_id, created_at, outcome.decisions, versions,
+                    connection, snapshot_id, run_id, created_at, outcome.decisions,
+                    versions, revisions, results,
                 )
                 self._insert_absence_flags(
                     connection, kind=history_models.FLAG_NOT_SEEN, snapshot_id=snapshot_id,
@@ -489,9 +498,15 @@ class SnapshotRepository:
         tỉ lệ với snapshot đang xử lý, không với toàn bộ lịch sử (mục 19).
         """
         order_keys = sorted({line.key.order_key for line in source_lines})
+        # Cả hai trục hiện hành trong CÙNG một truy vấn: reconcile kết quả cần
+        # biết kết quả đang hiện hành là gì, và đọc nó ở một vòng riêng sẽ nhân
+        # đôi số truy vấn theo số lô khoá mà không thêm thông tin nào.
         joined = order_line_current.join(
             order_line_source_version,
             order_line_source_version.c.id == order_line_current.c.current_source_version_id,
+        ).join(
+            order_line_result_version,
+            order_line_result_version.c.id == order_line_current.c.current_result_version_id,
         )
         state: dict = {}
         for start in range(0, len(order_keys), _KEY_CHUNK):
@@ -534,6 +549,11 @@ class SnapshotRepository:
                     order_line_source_version.c.note_raw,
                     order_line_source_version.c.employee_raw,
                     order_line_source_version.c.source_profit,
+                    order_line_result_version.c.id.label("result_version_id"),
+                    order_line_result_version.c.result_fingerprint,
+                    order_line_result_version.c.status,
+                    order_line_result_version.c.accounting_purchase_price,
+                    order_line_result_version.c.eligible_kpi_profit,
                 )
                 .select_from(joined)
                 .where(order_line_current.c.order_key.in_(chunk))
@@ -552,6 +572,12 @@ class SnapshotRepository:
                     ),
                     order_key_collision=bool(row.order_key_collision),
                     first_seen_snapshot_id=row.first_seen_snapshot_id,
+                    result_version_id=int(row.result_version_id),
+                    result_fingerprint=row.result_fingerprint,
+                    result_values=(
+                        row.status, row.accounting_purchase_price,
+                        row.eligible_kpi_profit,
+                    ),
                 )
         return state
 
@@ -714,7 +740,16 @@ class SnapshotRepository:
             connection.execute(insert(order_line_current), fresh)
 
     @staticmethod
-    def _insert_flags(connection, snapshot_id, run_id, created_at, decisions, versions) -> None:
+    def _insert_flags(connection, snapshot_id, run_id, created_at, decisions,
+                      versions, revisions, results) -> None:
+        """Cờ cấp NGUỒN (theo decision) và cờ cấp KẾT QUẢ (theo revision).
+
+        Hai nhóm dùng chung một lần INSERT nhưng KHÔNG dùng chung trục version:
+        cờ nguồn trỏ vào ``order_line_source_version``, cờ ``RESULT_REVISED``
+        trỏ vào ``order_line_result_version``. Cột ``from_version_id`` /
+        ``to_version_id`` cố ý không có FOREIGN KEY nên schema cho phép cả hai
+        (mục 7 chỉ thị slice C1) — nghĩa của chúng do ``kind`` quyết định.
+        """
         rows = []
         for decision in decisions:
             key = decision.line.key
@@ -730,6 +765,18 @@ class SnapshotRepository:
                 "raised_by_snapshot_id": snapshot_id, "run_id": run_id,
                 "from_version_id": decision.previous_version_id,
                 "to_version_id": versions[key], "detail_json": _json(detail),
+                "created_at": created_at, "acknowledged_at": None,
+            })
+        for revision in revisions:
+            key = revision.key
+            rows.append({
+                "kind": history_models.FLAG_RESULT_REVISED,
+                "order_key": key.order_key, "product_key": key.product_key,
+                "occurrence_index": key.occurrence_index,
+                "raised_by_snapshot_id": snapshot_id, "run_id": run_id,
+                "from_version_id": revision.from_result_version_id,
+                "to_version_id": results[key],
+                "detail_json": _json(revision.changed_fields),
                 "created_at": created_at, "acknowledged_at": None,
             })
         if rows:

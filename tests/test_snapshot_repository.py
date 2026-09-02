@@ -57,13 +57,14 @@ def source_line(order="BH1", product="Tủ lạnh", occurrence=1, *, row=6,
     )
 
 
-def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="3000000"):
+def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="3000000",
+                price_source="TRACKING_PRICE_HISTORY"):
     return ResultLine(
         key=line.key, status=status, pending_reasons=() if status == "AUTO" else ("x",),
         total_sales=line.total_sales_raw, employee_normalized="VuHanhLy",
         employee_group="G1", lead_source_final="PERSONAL",
         identity_namespace="TRACKING", canonical_product_code="A1",
-        accounting_purchase_price=Decimal(purchase), price_source="TRACKING_PRICE_HISTORY",
+        accounting_purchase_price=Decimal(purchase), price_source=price_source,
         composition_rule="TRACKING_HISTORY_AUTHORITY",
         accounting_profit=Decimal("3000000"), kpi_purchase_price=Decimal(purchase),
         kpi_purchase_provenance="Config:NoConfirmedAdjustment",
@@ -74,14 +75,18 @@ def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="300
 
 
 def write(repository, lines, *, run_id, created_at, fingerprint="fp-a",
-          header_text="Nhân viên: Tín Phát, Tháng 1 năm 2026", **kwargs):
+          header_text="Nhân viên: Tín Phát, Tháng 1 năm 2026", results=None,
+          evidence=None, **kwargs):
+    """``results``/``evidence`` cho phép chạy LẠI cùng một sổ với bằng chứng
+    Tracking khác — đúng kịch bản mà RESULT_REVISED tồn tại để mô tả."""
     return repository.write_snapshot(
         run_id=run_id, created_at=created_at, source_file_name="so.xlsx",
         file_fingerprint=fingerprint, file_size=1024,
         header_text=header_text,
         sheet_data_rows=len(lines) + 1, rows_without_order_id=1,
-        source_lines=lines, result_lines=[result_line(line) for line in lines],
-        evidence={"tracking_catalog_capture_id": "cap-1"},
+        source_lines=lines,
+        result_lines=results if results is not None else [result_line(line) for line in lines],
+        evidence=evidence or {"tracking_catalog_capture_id": "cap-1"},
         summary={"input_orders": len(lines)}, **kwargs,
     )
 
@@ -499,3 +504,232 @@ def test_no_pra002_table_declares_a_customer_column():
     for name in PIPELINE_TABLES:
         columns = set(schema.METADATA.tables[name].c.keys())
         assert PII_COLUMNS.isdisjoint(columns), f"{name}: {columns & PII_COLUMNS}"
+
+
+# --- RESULT_REVISED vertical (slice C1) -----------------------------------
+#
+# Bất biến sống hay chết của slice C1: kết quả đổi KHÔNG được giả vờ là nguồn
+# đổi. Các test dưới đây hỏi thẳng database — số source version, số result
+# version, hai con trỏ hiện hành, và bản ghi cũ có còn nguyên vẹn không.
+
+def revised(line, **overrides):
+    """Cùng khoá, cùng nguồn — chỉ khác kết quả pipeline."""
+    return result_line(line, **overrides)
+
+
+def flags_of(engine, kind):
+    return [row for row in rows(engine, schema.reconciliation_flag, "id")
+            if row["kind"] == kind]
+
+
+def test_rerunning_the_same_source_with_a_changed_result_revises_without_touching_source(
+        repository, history_engine):
+    lines = [source_line("BH1", row=6), source_line("BH2", row=7)]
+    write(repository, lines, run_id="run-1", created_at="2026-02-01T00:00:00")
+    before = rows(history_engine, schema.order_line_current, "order_key")
+
+    outcome = write(
+        repository, lines, run_id="run-2", created_at="2026-02-02T00:00:00",
+        results=[revised(lines[0], purchase="5100000"), result_line(lines[1])],
+    )
+
+    # Nguồn KHÔNG đổi: cùng số source version, cùng con trỏ nguồn, 0 SOURCE_CHANGED.
+    assert outcome.counts["SAME"] == 2
+    assert outcome.counts["SOURCE_CHANGED"] == 0
+    assert count(history_engine, schema.order_line_source_version) == 2
+    snapshots = rows(history_engine, schema.source_snapshot, "created_at")
+    assert snapshots[1]["n_source_changed"] == 0
+    assert snapshots[1]["n_result_revised"] == 1
+
+    # Kết quả: mỗi khoá vẫn có result version mới (hợp đồng SAME của slice A).
+    assert count(history_engine, schema.order_line_result_version) == 4
+
+    after = rows(history_engine, schema.order_line_current, "order_key")
+    for old, new in zip(before, after):
+        assert old["current_source_version_id"] == new["current_source_version_id"]
+    assert after[0]["current_result_version_id"] != before[0]["current_result_version_id"]
+    assert after[1]["current_result_version_id"] != before[1]["current_result_version_id"]
+
+    # Đúng MỘT cờ, trên đúng khoá đã đổi.
+    flag, = flags_of(history_engine, "RESULT_REVISED")
+    assert flag["order_key"] == "BH1"
+    assert ast.literal_eval(flag["detail_json"]) == {
+        "accounting_purchase_price": {"old": "5000000", "new": "5100000"},
+    }
+
+
+def test_a_result_revision_flag_points_at_result_versions_not_source_versions(
+        repository, history_engine):
+    line = source_line("BH1")
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+    first = rows(history_engine, schema.order_line_result_version, "id")[0]
+
+    write(repository, [line], run_id="run-2", created_at="2026-02-02T00:00:00",
+          results=[revised(line, status="PENDING")])
+
+    second = rows(history_engine, schema.order_line_result_version, "id")[1]
+    flag, = flags_of(history_engine, "RESULT_REVISED")
+    assert (flag["from_version_id"], flag["to_version_id"]) == (first["id"], second["id"])
+
+    # Bản cũ còn NGUYÊN VẸN, và con trỏ hiện hành đã sang bản mới.
+    assert first["status"] == "AUTO"
+    assert second["status"] == "PENDING"
+    current, = rows(history_engine, schema.order_line_current)
+    assert current["current_result_version_id"] == second["id"]
+    source_version, = rows(history_engine, schema.order_line_source_version)
+    assert current["current_source_version_id"] == source_version["id"]
+    assert source_version["version_no"] == 1
+
+
+def test_rerunning_with_an_identical_result_still_writes_a_version_but_raises_no_flag(
+        repository, history_engine):
+    line = source_line("BH1")
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+    write(repository, [line], run_id="run-2", created_at="2026-02-02T00:00:00")
+
+    assert count(history_engine, schema.order_line_result_version) == 2
+    assert count(history_engine, schema.order_line_source_version) == 1
+    assert flags_of(history_engine, "RESULT_REVISED") == []
+    assert rows(history_engine, schema.source_snapshot, "created_at")[1]["n_result_revised"] == 0
+
+
+def test_a_changed_source_reports_source_changed_and_no_result_revision(
+        repository, history_engine):
+    line = source_line("BH1", sell_price="8000000")
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+
+    moved = source_line("BH1", sell_price="8500000")
+    write(repository, [moved], run_id="run-2", created_at="2026-02-02T00:00:00",
+          fingerprint="fp-b", results=[revised(moved, purchase="5100000")])
+
+    assert count(history_engine, schema.order_line_source_version) == 2
+    snapshot = rows(history_engine, schema.source_snapshot, "created_at")[1]
+    assert (snapshot["n_source_changed"], snapshot["n_result_revised"]) == (1, 0)
+    assert len(flags_of(history_engine, "SOURCE_CHANGED")) == 1
+    assert flags_of(history_engine, "RESULT_REVISED") == []
+
+
+def test_a_collision_raises_no_result_revision_and_leaves_the_current_result_alone(
+        repository, history_engine):
+    line = source_line("BH1", sale_date=date(2026, 1, 5))
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+    before, = rows(history_engine, schema.order_line_current)
+
+    far = source_line("BH1", sale_date=date(2026, 1, 5) + timedelta(
+        days=COLLISION_DAY_THRESHOLD + 1))
+    write(repository, [far], run_id="run-2", created_at="2026-02-02T00:00:00",
+          fingerprint="fp-b", results=[revised(far, purchase="5100000")])
+
+    assert flags_of(history_engine, "RESULT_REVISED") == []
+    assert rows(history_engine, schema.source_snapshot, "created_at")[1]["n_result_revised"] == 0
+    # Khoá tranh chấp: KHÔNG ghi result version, con trỏ kết quả giữ nguyên.
+    assert count(history_engine, schema.order_line_result_version) == 1
+    after, = rows(history_engine, schema.order_line_current)
+    assert after["current_result_version_id"] == before["current_result_version_id"]
+    assert after["current_source_version_id"] == before["current_source_version_id"]
+
+
+def test_a_change_outside_the_three_fingerprint_fields_writes_a_version_without_a_flag(
+        repository, history_engine):
+    line = source_line("BH1")
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+
+    write(repository, [line], run_id="run-2", created_at="2026-02-02T00:00:00",
+          results=[revised(line, price_source="CONFIRMED_ADJUSTMENT")])
+
+    versions = rows(history_engine, schema.order_line_result_version, "id")
+    assert len(versions) == 2
+    assert versions[1]["price_source"] == "CONFIRMED_ADJUSTMENT"
+    assert versions[1]["result_fingerprint"] == versions[0]["result_fingerprint"]
+    assert flags_of(history_engine, "RESULT_REVISED") == []
+
+
+def test_the_revision_counter_matches_the_number_of_revised_lines_in_the_run(
+        repository, history_engine):
+    lines = [source_line(f"BH{n}", row=5 + n) for n in range(1, 5)]
+    write(repository, lines, run_id="run-1", created_at="2026-02-01T00:00:00")
+
+    write(repository, lines, run_id="run-2", created_at="2026-02-02T00:00:00", results=[
+        revised(lines[0], status="PENDING"),
+        revised(lines[1], purchase="5100000"),
+        revised(lines[2], kpi="2900000"),
+        result_line(lines[3]),
+    ])
+
+    assert rows(history_engine, schema.source_snapshot, "created_at")[1]["n_result_revised"] == 3
+    assert {f["order_key"] for f in flags_of(history_engine, "RESULT_REVISED")} == {
+        "BH1", "BH2", "BH3",
+    }
+
+
+def test_a_failure_after_detection_leaves_no_partial_result_revision(
+        repository, history_engine):
+    """Cùng một transaction: cờ, result version và con trỏ cùng sống hoặc cùng chết."""
+    line = source_line("BH1")
+    write(repository, [line], run_id="run-1", created_at="2026-02-01T00:00:00")
+    before, = rows(history_engine, schema.order_line_current)
+
+    def boom():
+        raise RuntimeError("R2 down")
+
+    with pytest.raises(RuntimeError):
+        write(repository, [line], run_id="run-2", created_at="2026-02-02T00:00:00",
+              results=[revised(line, purchase="5100000")], on_persisted=boom)
+
+    assert count(history_engine, schema.source_snapshot) == 1
+    assert count(history_engine, schema.order_line_result_version) == 1
+    assert flags_of(history_engine, "RESULT_REVISED") == []
+    assert rows(history_engine, schema.order_line_current) == [before]
+
+
+def test_absence_keys_never_produce_a_result_revision(repository, history_engine):
+    """Slice B an toàn: khoá VẮNG MẶT không có kết quả mới, nên không có gì để sửa."""
+    both = [source_line("BH1", row=6), source_line("BH2", row=7)]
+    write(repository, both, run_id="run-1", created_at="2026-02-01T00:00:00")
+
+    write(repository, [both[0]], run_id="run-2", created_at="2026-02-02T00:00:00",
+          fingerprint="fp-b", results=[revised(both[0], purchase="5100000")])
+
+    assert len(flags_of(history_engine, "NOT_SEEN_IN_LATEST_SNAPSHOT")) == 1
+    revisions = flags_of(history_engine, "RESULT_REVISED")
+    assert [f["order_key"] for f in revisions] == ["BH1"]
+    assert rows(history_engine, schema.source_snapshot, "created_at")[1]["n_result_revised"] == 1
+
+
+def test_two_captures_of_the_same_workbook_revise_results_without_a_source_conflict(
+        repository, history_engine):
+    """Vertical hai lần capture: cùng sổ, bằng chứng Tracking khác nhau.
+
+    Đây là hình chiếu ở tầng persistence của CHECK-PRA002-08: cùng
+    ``file_fingerprint`` (đúng một sổ), hai ``tracking_catalog_capture_id``
+    khác nhau, một dòng PENDING → AUTO. Không dựng tooling mới — chỉ dùng
+    đúng các object đã có.
+    """
+    lines = [source_line("BH1", row=6), source_line("BH2", row=7)]
+    write(repository, lines, run_id="run-1", created_at="2026-02-01T00:00:00",
+          fingerprint="fp-book", evidence={"tracking_catalog_capture_id": "cap-A"},
+          results=[result_line(lines[0], status="PENDING"), result_line(lines[1])])
+    before = rows(history_engine, schema.order_line_current, "order_key")
+
+    outcome = write(
+        repository, lines, run_id="run-2", created_at="2026-02-02T00:00:00",
+        fingerprint="fp-book", evidence={"tracking_catalog_capture_id": "cap-B"},
+        results=[result_line(lines[0], status="AUTO"), result_line(lines[1])],
+    )
+
+    # Cùng sổ → snapshot thứ hai là bản trùng của bản đầu, KHÔNG phải sổ mới.
+    assert outcome.duplicate_of_snapshot_id is not None
+    snapshot = rows(history_engine, schema.source_snapshot, "created_at")[1]
+    assert (snapshot["n_source_changed"], snapshot["n_result_revised"]) == (0, 1)
+    assert count(history_engine, schema.order_line_source_version) == 2
+
+    after = rows(history_engine, schema.order_line_current, "order_key")
+    assert [r["current_source_version_id"] for r in after] == [
+        r["current_source_version_id"] for r in before
+    ]
+    assert after[0]["current_result_version_id"] != before[0]["current_result_version_id"]
+
+    flag, = flags_of(history_engine, "RESULT_REVISED")
+    assert ast.literal_eval(flag["detail_json"]) == {
+        "status": {"old": "PENDING", "new": "AUTO"},
+    }

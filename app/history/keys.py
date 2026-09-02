@@ -37,6 +37,11 @@ FINGERPRINT_FIELDS = (
     "source_profit",
 )
 
+# Đúng ba trường F3 của ``result_fingerprint``, theo ĐÚNG thứ tự tham số của
+# hàm đó. Tên nằm ở đây để diff RESULT_REVISED và fingerprint không bao giờ nói
+# về hai tập trường khác nhau.
+RESULT_FIELDS = ("status", "accounting_purchase_price", "eligible_kpi_profit")
+
 _BH_NUMBER = re.compile(r"^BH(\d+)$")
 
 _SEPARATOR = "\x1f"
@@ -104,7 +109,8 @@ def result_fingerprint(status: str, accounting_purchase_price, eligible_kpi_prof
     )).encode("utf-8")).hexdigest()
 
 
-def changed_fields(before: Sequence, after: Sequence) -> dict:
+def changed_fields(before: Sequence, after: Sequence,
+                   fields: Sequence[str] = FINGERPRINT_FIELDS) -> dict:
     """``{field: {"old": ..., "new": ...}}`` cho mọi trường có ``canon`` khác.
 
     Giá trị ghi ra là dạng ``canon`` — chính thứ đã quyết định fingerprint —
@@ -112,7 +118,7 @@ def changed_fields(before: Sequence, after: Sequence) -> dict:
     không phải suy đoán lại.
     """
     diff = {}
-    for name, old, new in zip(FINGERPRINT_FIELDS, before, after):
+    for name, old, new in zip(fields, before, after):
         old_text, new_text = canon(old), canon(new)
         if old_text != new_text:
             diff[name] = {"old": old_text, "new": new_text}

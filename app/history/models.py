@@ -36,6 +36,7 @@ FLAG_SOURCE_CHANGED = "SOURCE_CHANGED"
 FLAG_COLLISION = "ORDER_KEY_COLLISION"
 FLAG_NOT_SEEN = "NOT_SEEN_IN_LATEST_SNAPSHOT"
 FLAG_REMOVED_CANDIDATE = "REMOVED_IN_SOURCE_CANDIDATE"
+FLAG_RESULT_REVISED = "RESULT_REVISED"
 
 # Hai loại cờ nói về sự VẮNG MẶT của một khoá trong snapshot mới. Chúng khác
 # mọi cờ khác ở một điểm: một cờ vắng mặt có thể bị chính lịch sử phủ nhận —
@@ -138,6 +139,11 @@ class ResultLine:
     conversion_rate_final: Optional[Decimal]
     result_fingerprint: str
 
+    @property
+    def result_values(self) -> tuple:
+        """Đúng thứ tự ``keys.RESULT_FIELDS`` — dùng cho diff RESULT_REVISED."""
+        return (self.status, self.accounting_purchase_price, self.eligible_kpi_profit)
+
 
 @dataclass(frozen=True)
 class CurrentState:
@@ -159,6 +165,9 @@ class CurrentState:
     order_key_collision: bool = False
     first_seen_snapshot_id: Optional[str] = None
     max_version_no: Optional[int] = None
+    result_version_id: Optional[int] = None
+    result_fingerprint: Optional[str] = None
+    result_values: Optional[tuple] = None
 
     @property
     def next_version_no(self) -> int:
@@ -185,6 +194,21 @@ class Decision:
     previous_version_id: Optional[int] = None
     changed_fields: Optional[dict] = None
     collision_detail: Optional[dict] = None
+
+
+@dataclass(frozen=True)
+class ResultRevision:
+    """Một lần kết quả bị sửa TRONG KHI nguồn không đổi.
+
+    ``from_result_version_id`` là result version ĐANG hiện hành trước lần ghi
+    này. Cờ RESULT_REVISED là cờ cấp KẾT QUẢ, nên hai đầu version của nó phải
+    là hai result version — dùng id của source version ở đây sẽ khiến người
+    đọc lịch sử truy ngược sang trục sai (mục 7 chỉ thị slice C1).
+    """
+
+    key: LineKey
+    from_result_version_id: Optional[int]
+    changed_fields: dict
 
 
 @dataclass(frozen=True)

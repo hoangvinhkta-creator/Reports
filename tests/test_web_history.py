@@ -28,7 +28,9 @@ from tools.tracking import live_pull
 
 
 def _presented(order="BH1", *, row=6, product="Tủ lạnh", price="8000000",
-               sale_date=date(2026, 1, 5)):
+               sale_date=date(2026, 1, 5), status="PENDING", purchase=None, kpi=None):
+    """``status``/``purchase``/``kpi`` mô phỏng lần chạy lại với bằng chứng
+    Tracking MỚI trên CÙNG một dòng sổ: nguồn y hệt, kết quả khác."""
     raw = SimpleNamespace(
         source_file="so.xlsx", source_sheet="Sheet1", source_row=row, row_hash=f"h{row}",
         date=sale_date, order_id=order, note_raw=None, product_raw=product,
@@ -41,13 +43,18 @@ def _presented(order="BH1", *, row=6, product="Tủ lạnh", price="8000000",
     line = SimpleNamespace(
         raw=raw, order_id=order, total_sales=Decimal(price),
         employee_normalized="VuHanhLy", employee_group="G1", lead_source_final="PERSONAL",
-        accounting_purchase_price=None, price_source="Pending", accounting_profit=None,
-        kpi_purchase_price=None, kpi_purchase_price_provenance="Pending",
-        eligible_kpi_profit=None, product_group_final="DIEN_MAY",
+        accounting_purchase_price=None if purchase is None else Decimal(purchase),
+        price_source="Pending" if purchase is None else "TRACKING_PRICE_HISTORY",
+        accounting_profit=None,
+        kpi_purchase_price=None if purchase is None else Decimal(purchase),
+        kpi_purchase_price_provenance="Pending" if purchase is None else "Tracking",
+        eligible_kpi_profit=None if kpi is None else Decimal(kpi),
+        product_group_final="DIEN_MAY",
         conversion_scheme_final=None, conversion_rate_final=None,
     )
-    return SimpleNamespace(line=line, record=None, reasons=("Pending.x",),
-                           details=(), status="PENDING")
+    return SimpleNamespace(line=line, record=None,
+                           reasons=("Pending.x",) if status == "PENDING" else (),
+                           details=(), status=status)
 
 
 def _summary() -> ReportSummary:
@@ -266,6 +273,41 @@ def test_the_snapshot_page_shows_the_source_changed_flag_with_both_values(
     page = client.get(f"/du-lieu/snapshot/{latest['snapshot_id']}").get_data(as_text=True)
     assert "SOURCE_CHANGED" in page
     assert "8000000" in page and "9000000" in page
+
+
+def test_the_snapshot_page_shows_a_result_revised_flag_after_a_second_capture(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Vertical hai lần capture qua đúng đường web: CÙNG sổ, kết quả đã giải.
+
+    Đây là hình chiếu UI của CHECK-PRA002-08. Nó cũng là bằng chứng cho quyết
+    định KHÔNG sửa template: trang snapshot render ``kind``, cặp version và
+    ``detail_json`` một cách tổng quát, nên cờ mới hiện ra mà không cần thêm
+    một nhánh nào cho riêng RESULT_REVISED.
+    """
+    monkeypatch.setattr(web_server, "run_owner_report", lambda **_: _owner_run(tmp_path))
+    client.post("/run", data=_upload(), content_type="multipart/form-data")
+
+    # Cùng bytes workbook → cùng file_fingerprint → KHÔNG phải sổ mới.
+    resolved = (
+        _presented("BH1", row=6, status="AUTO", purchase="5000000", kpi="3000000"),
+        _presented("BH2", row=7),
+    )
+    monkeypatch.setattr(
+        web_server, "run_owner_report",
+        lambda **_: _owner_run(tmp_path, name="report-20260901T090000Z.xlsx", lines=resolved),
+    )
+    client.post("/run", data=_upload(), content_type="multipart/form-data")
+
+    latest = _by_run(snapshots, "report-20260901T090000Z")
+    assert latest["n_source_changed"] == 0
+    assert latest["n_result_revised"] == 1
+    assert _count(snapshots, schema.order_line_source_version) == 2
+
+    page = client.get(f"/du-lieu/snapshot/{latest['snapshot_id']}").get_data(as_text=True)
+    assert "RESULT_REVISED" in page
+    assert "SOURCE_CHANGED" not in page
+    assert "PENDING" in page and "AUTO" in page
 
 
 def test_an_unknown_snapshot_is_a_404_not_an_empty_page(client):

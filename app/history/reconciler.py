@@ -30,11 +30,11 @@ from __future__ import annotations
 from datetime import date
 from typing import Iterable, Mapping, Optional, Sequence
 
-from app.history.keys import changed_fields
+from app.history.keys import RESULT_FIELDS, changed_fields
 from app.history.models import (
     COLLISION_DAY_THRESHOLD, CurrentKey, CurrentState, Decision, LineKey,
     OUTCOME_COLLISION, OUTCOME_INSERT, OUTCOME_SAME, OUTCOME_SOURCE_CHANGED,
-    ReconcileResult, SourceLine,
+    ReconcileResult, ResultLine, ResultRevision, SourceLine,
 )
 
 
@@ -94,6 +94,49 @@ def _day_gap(line: SourceLine, state: CurrentState) -> int | None:
 
 def _iso(value) -> str | None:
     return None if value is None else value.isoformat()
+
+
+def result_revisions(
+    decisions: Sequence[Decision],
+    results: Sequence[ResultLine],
+    current: Mapping[LineKey, CurrentState],
+) -> tuple[ResultRevision, ...]:
+    """Khoá nào có KẾT QUẢ đổi trong khi NGUỒN không đổi (mục 8 bước 3).
+
+    Điều kiện là giao của bốn thứ, và mỗi thứ bị bỏ đi sẽ tạo ra một loại cờ
+    sai khác nhau:
+
+    1. Khoá đã có kết quả hiện hành. Chưa có thì đây là lần đầu, không phải
+       "sửa" — INSERT không bao giờ sinh RESULT_REVISED.
+    2. Nguồn KHÔNG đổi ở lần chạy này (``SAME``). Đây chính là điều kiện
+       ``source_version_id`` mới == ``current_source_version_id`` của hợp
+       đồng: ``SAME`` là nhánh DUY NHẤT không ghi source version mới. Khi
+       nguồn cũng đổi thì SOURCE_CHANGED THẮNG — kết quả đổi lúc đó là hệ quả
+       của nguồn đổi, và dựng thêm một cờ nữa là nói cùng một sự kiện hai lần.
+    3. Khoá không tranh chấp danh tính. ``ORDER_KEY_COLLISION`` còn không được
+       ghi result version (mục 6), nên càng không được sinh cờ sửa kết quả.
+    4. ``result_fingerprint`` thực sự khác. Bằng nhau → vẫn ghi result version
+       mới (hợp đồng SAME của slice A) nhưng KHÔNG cờ.
+
+    Chỉ chạy trên khoá CÓ MẶT trong snapshot mới: ``decisions`` chỉ chứa các
+    khoá đó, nên khoá vắng mặt (slice B) không thể lọt vào đây.
+    """
+    unchanged_source = {d.line.key for d in decisions if d.outcome == OUTCOME_SAME}
+    revisions = []
+    for result in results:
+        state = current.get(result.key)
+        if (result.key not in unchanged_source or state is None
+                or state.result_fingerprint is None
+                or state.result_fingerprint == result.result_fingerprint):
+            continue
+        revisions.append(ResultRevision(
+            key=result.key,
+            from_result_version_id=state.result_version_id,
+            changed_fields=changed_fields(
+                state.result_values or (), result.result_values, fields=RESULT_FIELDS,
+            ),
+        ))
+    return tuple(revisions)
 
 
 def absent_keys(

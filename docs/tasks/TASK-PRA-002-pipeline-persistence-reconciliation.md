@@ -899,7 +899,7 @@ EFFORT                = 1 session (+ review + integration)
 - [x] PRA-002.A5 `SnapshotRepository` + `history_writer` (một transaction, R2 trong cửa sổ transaction) + test fail-closed/append-only/concurrency.
 - [x] PRA-002.A6 `run_report` + tab Dữ liệu (danh sách + trang snapshot) + test Flask; integration golden A(≤10)→B đẳng thức.
 - [x] PRA-002.B1 reconciler bước 4 + R; `POST xac-nhan-du` + validate + 409; test NOT_SEEN/REMOVED. (S083; không cần migration — schema 0002 đã đủ; FIND-PRA002-A4 đã sửa)
-- [ ] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture.
+- [x] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture. (S086; không cần migration — schema 0002 đã đủ; 67 dòng logic production)
 - [ ] PRA-002.C2 `tools/analysis/make_snapshot_variants` + RDA-1..6 (hoặc `NOT_TESTED` + gate Owner).
 - [ ] PRA-002.C3 Kịch bản A→B→B'→B'' trên PostgreSQL 16 local; đo `ru_maxrss`.
 - [ ] PRA-002.R Independent Review E2 (`docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD`), repair ≤ 2 cycle, Controlled Integration, deployment doc, PROGRESS/LO_TRINH/handoff.
@@ -1117,7 +1117,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1125,11 +1125,28 @@ E1
 Evidence:
 Yêu cầu: cùng file, capture Tracking thứ hai làm ≥ 1 dòng PENDING → AUTO (hoặc đổi `accounting_purchase_price`) → `n_source_changed = 0`, `COUNT(version_no > 1) = 0`, cờ `RESULT_REVISED` đúng số dòng đổi với `detail_json` (old,new) 3 trường; `current_result_version_id` trỏ run mới; dòng đổi trường ngoài 3 trường (ví dụ `price_source` nhãn) → 0 cờ nhưng result version vẫn ghi đủ.
 
+Thực hiện S086 trên PostgreSQL 16.13 THẬT (cùng sổ, hai capture, BH1 PENDING → AUTO):
+
+```text
+  n_source_changed (run 2)       = 0
+  COUNT(version_no > 1)          = 0
+  cờ RESULT_REVISED              = 1   (đúng số dòng đổi)
+  detail_json chỉ 3 trường F3    = {"status": {"new": "AUTO", "old": "PENDING"}}
+  BH1: current_source_version_id 1 -> 1 (GIỮ NGUYÊN); current_result_version_id 1 -> 3 (ĐỔI)
+  result version cũ id=1 status=PENDING — vẫn tồn tại nguyên vẹn
+  RUN 3 (kết quả y hệt): result_version COUNT = 6 (vẫn +2/run), tổng cờ RESULT_REVISED = 1 (KHÔNG thêm cờ)
+```
+
+Trường ngoài F3 (`price_source` đổi nhãn) → 0 cờ nhưng result version vẫn ghi đủ:
+`test_a_change_outside_the_three_fingerprint_fields_writes_a_version_without_a_flag`.
+Vertical hai capture qua đúng đường web: `test_the_snapshot_page_shows_a_result_revised_flag_after_a_second_capture`.
+Bằng chứng đầy đủ: `docs/sessions/S086-pra-002-slice-c1-result-revised.md`.
+
 Executed By:
-...
+S086 — PRA-002 Slice C1 Implementation
 
 Timestamp:
-...
+2026-09-02
 
 ### Security / Data / API / Regression
 

@@ -8,6 +8,7 @@ thật (đếm hai lần một dòng bán → doanh thu/KPI/lương sai), nên n
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -16,9 +17,9 @@ import pytest
 from app.history import keys
 from app.history.models import (
     COLLISION_DAY_THRESHOLD, CurrentState, LineKey, OUTCOME_COLLISION, OUTCOME_INSERT,
-    OUTCOME_SAME, OUTCOME_SOURCE_CHANGED, SourceLine,
+    OUTCOME_SAME, OUTCOME_SOURCE_CHANGED, ResultLine, SourceLine,
 )
-from app.history.reconciler import reconcile
+from app.history.reconciler import reconcile, result_revisions
 
 
 def source_line(order="BH1", product="Tủ lạnh", occurrence=1, *, row=6,
@@ -187,3 +188,171 @@ def test_each_occurrence_of_a_repeated_product_reconciles_on_its_own(occurrence)
     other = source_line(occurrence=occurrence + 1)
     decision, = reconcile([line], {other.key: state_of(other)}).decisions
     assert decision.outcome == OUTCOME_INSERT
+
+
+# --- RESULT_REVISED (slice C1, mục 8 bước 3) -------------------------------
+#
+# Trục KẾT QUẢ, không phải trục nguồn: các test dưới đây giữ nguồn ĐỨNG YÊN
+# (luôn là SAME trừ khi nói rõ) và chỉ đổi kết quả pipeline, vì đó là đúng
+# tình huống mà cờ này tồn tại để mô tả — Reports chạy lại với bằng chứng
+# Tracking mới trên cùng một sổ kế toán.
+
+def result_of(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="3000000",
+              price_source="TRACKING_PRICE_HISTORY") -> ResultLine:
+    return ResultLine(
+        key=line.key, status=status, pending_reasons=() if status == "AUTO" else ("x",),
+        total_sales=line.total_sales_raw, employee_normalized="VuHanhLy",
+        employee_group="G1", lead_source_final="PERSONAL",
+        identity_namespace="TRACKING", canonical_product_code="A1",
+        accounting_purchase_price=None if purchase is None else Decimal(purchase),
+        price_source=price_source, composition_rule="TRACKING_HISTORY_AUTHORITY",
+        accounting_profit=Decimal("3000000"),
+        kpi_purchase_price=None if purchase is None else Decimal(purchase),
+        kpi_purchase_provenance="Config:NoConfirmedAdjustment",
+        eligible_kpi_profit=None if kpi is None else Decimal(kpi),
+        product_group_final="DIEN_MAY", conversion_scheme_final="S1",
+        conversion_rate_final=Decimal("1"),
+        result_fingerprint=keys.result_fingerprint(
+            status, None if purchase is None else Decimal(purchase),
+            None if kpi is None else Decimal(kpi),
+        ),
+    )
+
+
+def state_with_result(line: SourceLine, result: ResultLine, *, version_id=10,
+                      result_version_id=77, **overrides) -> CurrentState:
+    base = state_of(line, version_id=version_id)
+    return replace(
+        base, result_version_id=result_version_id,
+        result_fingerprint=result.result_fingerprint,
+        result_values=result.result_values, **overrides,
+    )
+
+
+def classify(line: SourceLine, previous: ResultLine, incoming: ResultLine, *,
+             state=None, source_line_now=None):
+    """Chạy đúng đường thật: reconcile nguồn trước, rồi phân loại kết quả."""
+    current = {line.key: state if state is not None else state_with_result(line, previous)}
+    lines = [source_line_now if source_line_now is not None else line]
+    decisions = reconcile(lines, current).decisions
+    return decisions, result_revisions(decisions, [incoming], current)
+
+
+def test_same_source_and_identical_result_fingerprint_raises_no_revision():
+    """Hợp đồng SAME của slice A: vẫn ghi result version mới, nhưng KHÔNG cờ."""
+    line = source_line()
+    previous = result_of(line)
+    decisions, revisions = classify(line, previous, result_of(line))
+    assert decisions[0].outcome == OUTCOME_SAME
+    assert revisions == ()
+
+
+def test_same_source_with_a_changed_status_is_one_revision():
+    line = source_line()
+    previous = result_of(line, status="PENDING")
+    _, revisions = classify(line, previous, result_of(line, status="AUTO"))
+    revision, = revisions
+    assert revision.key == line.key
+    assert revision.from_result_version_id == 77
+    assert revision.changed_fields == {"status": {"old": "PENDING", "new": "AUTO"}}
+
+
+def test_same_source_with_a_changed_accounting_purchase_price_is_one_revision():
+    line = source_line()
+    previous = result_of(line, purchase="5000000")
+    _, revisions = classify(line, previous, result_of(line, purchase="5100000"))
+    revision, = revisions
+    assert revision.changed_fields == {
+        "accounting_purchase_price": {"old": "5000000", "new": "5100000"},
+    }
+
+
+def test_same_source_with_a_changed_eligible_kpi_profit_is_one_revision():
+    line = source_line()
+    previous = result_of(line, kpi="3000000")
+    _, revisions = classify(line, previous, result_of(line, kpi="2900000"))
+    revision, = revisions
+    assert revision.changed_fields == {
+        "eligible_kpi_profit": {"old": "3000000", "new": "2900000"},
+    }
+
+
+def test_all_three_f3_fields_changing_is_still_exactly_one_revision():
+    """Một lần chạy lại = một sự kiện, dù đổi bao nhiêu trường trong F3."""
+    line = source_line()
+    previous = result_of(line, status="PENDING", purchase="5000000", kpi="3000000")
+    _, revisions = classify(
+        line, previous, result_of(line, status="AUTO", purchase="5100000", kpi="2900000"),
+    )
+    revision, = revisions
+    assert revision.changed_fields == {
+        "status": {"old": "PENDING", "new": "AUTO"},
+        "accounting_purchase_price": {"old": "5000000", "new": "5100000"},
+        "eligible_kpi_profit": {"old": "3000000", "new": "2900000"},
+    }
+
+
+def test_source_changed_wins_and_suppresses_the_result_revision():
+    """Kết quả đổi vì NGUỒN đổi — một sự kiện, một cờ, và cờ đó là nguồn."""
+    line = source_line(sell_price="8000000")
+    moved = source_line(sell_price="8500000")
+    decisions, revisions = classify(
+        line, result_of(line), result_of(line, purchase="5100000"), source_line_now=moved,
+    )
+    assert decisions[0].outcome == OUTCOME_SOURCE_CHANGED
+    assert revisions == ()
+
+
+def test_collision_raises_no_revision_even_when_the_result_changed():
+    """Khoá tranh chấp danh tính còn không được ghi result version (mục 6)."""
+    line = source_line(sale_date=date(2026, 1, 5))
+    far = source_line(sale_date=date(2026, 1, 5) + timedelta(days=COLLISION_DAY_THRESHOLD + 1))
+    decisions, revisions = classify(
+        line, result_of(line), result_of(far, purchase="5100000"), source_line_now=far,
+    )
+    assert decisions[0].outcome == OUTCOME_COLLISION
+    assert revisions == ()
+
+
+def test_a_first_ever_result_is_not_a_revision():
+    """INSERT: chưa có kết quả hiện hành thì không có gì để 'sửa'."""
+    line = source_line()
+    decisions = reconcile([line], {}).decisions
+    assert decisions[0].outcome == OUTCOME_INSERT
+    assert result_revisions(decisions, [result_of(line)], {}) == ()
+
+
+def test_a_field_outside_f3_changing_leaves_the_fingerprint_and_the_verdict_alone():
+    """``price_source`` đổi nhãn trong khi ba con số F3 không đổi → 0 cờ."""
+    line = source_line()
+    previous = result_of(line, price_source="TRACKING_PRICE_HISTORY")
+    incoming = result_of(line, price_source="CONFIRMED_ADJUSTMENT")
+    assert incoming.result_fingerprint == previous.result_fingerprint
+    assert incoming.price_source != previous.price_source
+    _, revisions = classify(line, previous, incoming)
+    assert revisions == ()
+
+
+def test_the_detail_diff_is_deterministic_across_equal_but_differently_typed_amounts():
+    """``5000000`` và ``5000000.00`` là CÙNG số tiền — không phải một lần sửa."""
+    line = source_line()
+    previous = result_of(line, purchase="5000000")
+    same_value = result_of(line, purchase="5000000.00")
+    assert same_value.result_fingerprint == previous.result_fingerprint
+    _, revisions = classify(line, previous, same_value)
+    assert revisions == ()
+
+    _, changed = classify(line, previous, result_of(line, purchase="5000001"))
+    assert [r.changed_fields for r in changed] == [
+        {"accounting_purchase_price": {"old": "5000000", "new": "5000001"}},
+    ]
+
+
+def test_a_none_amount_becoming_a_number_is_a_revision_with_canonical_empty_old():
+    line = source_line()
+    previous = result_of(line, purchase=None)
+    _, revisions = classify(line, previous, result_of(line, purchase="5000000"))
+    revision, = revisions
+    assert revision.changed_fields == {
+        "accounting_purchase_price": {"old": "", "new": "5000000"},
+    }
