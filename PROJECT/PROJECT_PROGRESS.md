@@ -26,11 +26,12 @@ PROTECTED_CORE_IMPACT   = NONE
 canonical branch        = claude/extract-upload-repo-gq2ws4
 CANONICAL_BEFORE_SHA    = 90f85a7edfd6acc497db1d18304baef87ab62d99
 ACCEPTED_SHA (S078)     = c5e19949df81a5ee456bc1b7735b8eb5a814735e
-CANONICAL_AFTER_SHA     = HEAD của claude/extract-upload-repo-gq2ws4 sau
-                          Controlled Integration S078 — chính là commit
-                          authority reconciliation này (kiểm chứng:
-                          `git rev-parse origin/claude/extract-upload-repo-gq2ws4`)
-production before SHA   = 596564b  (ancestor, behind 11 commit)
+CANONICAL_AFTER_SHA     = HEAD hiện tại của claude/extract-upload-repo-gq2ws4
+                          sau Controlled Integration S078. Kiểm chứng:
+                          `git rev-parse origin/claude/extract-upload-repo-gq2ws4`
+production before SHA   = 596564b  (ancestor THẲNG của canonical — kiểm
+                          chứng khoảng cách: `git rev-list --count
+                          596564b..origin/claude/extract-upload-repo-gq2ws4`)
 production after SHA    = CHƯA ĐỔI — cần Owner deploy CANONICAL_AFTER_SHA
 ```
 
