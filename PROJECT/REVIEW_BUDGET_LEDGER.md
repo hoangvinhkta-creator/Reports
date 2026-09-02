@@ -328,9 +328,23 @@ Mở tại phiên Roadmap Finalization S079 (2026-09-02), `BASE_SHA =
 root_task: TASK-PRA-002
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
 ```
+
+> **Đính chính bookkeeping (S087, Independent Review E2 slice C1, 2026-09-02).**
+> Khối máy đọc ở trên trước đó ghi `repair_cycles_used: 0` /
+> `repair_cycles_remaining: 2`, mâu thuẫn với chính file này. Đã sửa thành
+> `1` / `1`. Thẩm quyền hoàn toàn rõ, ba nguồn cùng chỉ một hướng:
+> (a) `governance/core/V4_1_POLICY_FREEZE.md` §3 định nghĩa cycle **tính theo
+> LẦN SỬA**, và `PRA-002-RC-1` là một lần sửa BLOCKING có đủ `base_sha`/
+> `head_sha` như luật bắt buộc ghi; (b) danh sách `cycles:` của chính lineage
+> này có ĐÚNG một mục; (c) prose của khối S084 trong cùng file đã ghi
+> "lineage vẫn 1/2". Cùng quy ước với `TASK-GOLDEN-BASELINE-001` (một mục
+> `cycles:` → `used: 1`). Đây là defect bookkeeping của governance, KHÔNG
+> chạm production path → **KHÔNG tiêu repair cycle** (đúng
+> `TASK-PRA-002` mục 23 chỉ thị review slice C1). Ngân sách thật còn lại:
+> **1 blocking repair cycle**. Đóng `FIND-PRA002-C1-N1` do S086 mở.
 
 `HIGH` theo **Blast Radius tính theo failure path**
 (`governance/core/V4_1_POLICY_FREEZE.md` §4), không theo tên module:
@@ -399,6 +413,22 @@ Fast-forward thuần, không squash/rebase/force/cherry-pick, không merge commi
 Push xong, fetch lại xác nhận `origin/claude/extract-upload-repo-gq2ws4 ==
 d2c7691` và working tree sạch. `TASK-PRA-002` vẫn `IN_PROGRESS` — KHÔNG đánh
 DONE (slice C + RDA + Production Acceptance chưa xong).
+
+Independent Review E2 slice C1 (S087) — `REVIEW_BASE_SHA =
+bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82`, `REVIEW_HEAD_SHA =
+3cd92eae3035dd40aaf3f64bd3ba96a1d1b49cd0`, `FINAL_ACCEPTANCE = ACCEPT`,
+`INTEGRATION_READY = YES`. 0 finding BLOCKING → **0 repair cycle tiêu thụ**
+(lineage 1/2, còn 1). Reviewer tái lập độc lập trên PostgreSQL 16.13 thật:
+vertical hai lần capture (`n_source_changed = 0`, `n_result_revised = 1`,
+source version không đổi, result version mới, con trỏ kết quả dịch, cờ hiện),
+SOURCE_CHANGED precedence, COLLISION, rollback ép lỗi, đếm theo khoá, và bất
+biến repair `FIND-PRA002-A1` sau collision. Mutation check độc lập: 4 đột biến
+ngữ nghĩa (bỏ điều kiện SAME / sai tập trường diff / tính revisions sau khi
+dịch con trỏ / trỏ cờ vào source version) đều bị test bắt. `CHANGE_BUDGET` đo
+lại độc lập khớp từng file: **+67**, cumulative **1.460 / 1.500**. Một finding
+NON_BLOCKING (`FIND-PRA002-C1-N1`, bookkeeping ledger) đã sửa trong phiên
+review, không tiêu cycle. Bằng chứng đầy đủ:
+`docs/reviews/TASK-PRA-002-SLICE-C1-INDEPENDENT-REVIEW-RECORD.md`.
 
 Independent Review E2 slice B (S084) — `REVIEW_BASE_SHA = 27b9d1c5`,
 `REVIEW_HEAD_SHA = 7658c5e5`, `FINAL_ACCEPTANCE = ACCEPT`,

@@ -1,6 +1,59 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S086)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S087)
+
+Cập nhật sau **Independent Review E2 slice C1**. Khối S086 và các khối cũ hơn
+bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về
+trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S087 — PRA-002 Slice C1 Independent Review E2 (INDEPENDENT REVIEW)
+REVIEW_RESULT              = PASS
+FINAL_ACCEPTANCE           = ACCEPT
+INTEGRATION_READY          = YES
+TASK-PRA-002               = IN_PROGRESS  (slice A INTEGRATED; slice B INTEGRATED;
+                              slice C1 REVIEWED · ACCEPTED — chờ Controlled Integration)
+SLICE C1                   = IMPLEMENTED · REVIEWED · ACCEPTED  (CHƯA integrate, CHƯA DONE)
+REVIEW_BASE_SHA            = bfe7008f7dfd42c90465f6d32ca38b4c2dfeaf82  (== origin/claude/extract-upload-repo-gq2ws4;
+                              canonical KHÔNG dịch chuyển — fetch và so khớp trước khi đọc dòng mã nào)
+REVIEW_HEAD_SHA            = 3cd92eae3035dd40aaf3f64bd3ba96a1d1b49cd0  (== origin/claude/pra-002-slice-c-plan-jg798m)
+BRANCH_AUTHORITY           = AUTHORITY_OK (BRANCH_WITH_UPSTREAM; DIVERGENCE WITHIN_LIMITS)
+VERSION_ID_SEMANTICS       = GIẢI QUYẾT BẰNG THẨM QUYỀN, không bằng "DB cho phép". Frozen contract mục 12 ghi
+                              tường minh: from_version_id = "source hoặc result version cũ (THEO KIND)" →
+                              generic version reference. RESULT_REVISED dùng result-version id là ĐÚNG hợp đồng.
+                              Kiểm chứng máy: mọi đầu version của cờ đều thuộc id space của
+                              order_line_result_version. KHÔNG redesign schema, KHÔNG thêm FK/cột
+BLOCKING findings          = 0
+NON_BLOCKING findings      = FIND-PRA002-C1-N1 (bookkeeping ledger) — ĐÃ SỬA trong phiên, docs-only
+REPAIR_CYCLES_THIS_SESSION = 0
+REVIEW_BUDGET_USED         = 1 / 2       (PRA-002-RC-1 — FIND-PRA002-A1, Independent Review slice A)
+REVIEW_BUDGET_REMAINING    = 1
+REVIEW_BUDGET_RECONCILIATION = GIẢI QUYẾT. Khối máy đọc của ledger ghi sai `repair_cycles_used: 0`;
+                              thẩm quyền rõ ba chiều: V4.1 §3 tính cycle theo LẦN SỬA + danh sách `cycles:`
+                              có đúng 1 mục có base_sha/head_sha + prose S084 ghi "lineage vẫn 1/2"; cùng quy
+                              ước với TASK-GOLDEN-BASELINE-001. Đã sửa thành 1/1. KHÔNG tiêu cycle cho bookkeeping
+TESTS (reviewer tự chạy)   = full suite 1806 passed, 11 skipped · Golden 81 passed, 2 skipped
+                              C1 focused 83 passed · Slice A/B persistence 97 passed · PRA-001 101 passed
+                              PostgreSQL 16.13 THẬT: vertical A+B+C1 do reviewer tự viết → PASS
+MUTATION (độc lập)         = 4 đột biến ngữ nghĩa đều bị bắt: bỏ điều kiện SAME (4 fail) · sai tập trường diff
+                              (8 fail) · tính revisions sau khi dịch con trỏ (6 fail) · cờ trỏ source version (1 fail)
+CHANGE_BUDGET slice C1     = +67 — ĐO LẠI ĐỘC LẬP, khớp S086 TỪNG FILE (keys +2 · models +12 ·
+                              reconciler +21 · history_store +32). Không refactor/minify để đạt số
+CHANGE_BUDGET lineage      = 1.460 / 1.500        REMAINING_TO_HARD_STOP = 40 LOC
+DATABASE                   = KHÔNG migration, KHÔNG schema change; 0002_snapshots vẫn head, không có 0003.
+                              n_result_revised và FLAG_KINDS.RESULT_REVISED đã có SẴN ở BASE (git show bfe7008)
+SLICE_B_REGRESSION         = coverage.py / extraction.py / history_writer.py / server.py UNCHANGED;
+                              cờ khoá-có-mặt và cờ khoá-vắng-mặt rời nhau theo cấu trúc
+CHECK-PRA002-08            = PASS (E2 — reviewer tái lập độc lập trên PostgreSQL 16.13 thật)
+CHECK-PRA002-14            = NOT_TESTED (RDA — Owner)
+CHECK-PRA002-15            = NOT_TESTED (Production Acceptance — Owner)
+TASK-PRA-002 STATUS        = IN_PROGRESS (KHÔNG đánh DONE — RDA + Production Acceptance chưa xong)
+TRACKING_CHANGED           = NO
+EVIDENCE                   = docs/reviews/TASK-PRA-002-SLICE-C1-INDEPENDENT-REVIEW-RECORD.md
+NEXT_VERTICAL_ACTION       = Controlled integration Slice C1 (KHÔNG bắt đầu RDA/C2)
+```
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-02, S086)
 
 Cập nhật sau phiên implement **slice C1 (`RESULT_REVISED`)**. Khối S085 và các
 khối cũ hơn bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu
@@ -53,6 +106,7 @@ TASK-PRA-002 STATUS        = IN_PROGRESS (KHÔNG đánh DONE — RDA + Productio
 REVIEW_BUDGET_STATUS       = UNKNOWN_CONFLICT — ledger tự mâu thuẫn (khối máy đọc repair_cycles_used: 0
                               vs prose S085 "1/2" vs danh sách cycles có PRA-002-RC-1). C1 KHÔNG tự sửa;
                               Independent Review C1 phải xác minh TRƯỚC khi tiêu repair cycle mới
+                              [ĐÃ GIẢI QUYẾT ở S087: đúng là 1/2, còn 1 — xem khối AUTHORITATIVE ở trên]
 BLOCKING findings          = 0
 NON_BLOCKING findings      = FIND-PRA002-C1-N1 (mâu thuẫn ledger review budget — governance, không phải production)
 TRACKING_CHANGED           = NO
