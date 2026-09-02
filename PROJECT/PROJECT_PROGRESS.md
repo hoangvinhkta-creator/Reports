@@ -1,5 +1,45 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## S078R — LEGACY IMPORT OOM REPAIR (2026-09-02, HIỆN HÀNH)
+
+```text
+RESULT                  = PASS
+SỰ CỐ                   = Render kill container ("used over 512MB") khi
+                          Owner import workbook Legacy ~3 MB trên c0fc2f7
+ROOT CAUSE              = app/legacy/parser.py mở workbook 2 lần ở chế độ
+                          read_only=False → openpyxl dựng cây Cell cho MỌI
+                          sheet, kể cả hàng chục sheet sổ bán hàng thô mà
+                          import legacy không đọc dòng nào
+PEAK RSS BEFORE         = 379.6 MB (parse đơn lẻ) / 474.2 MB (end-to-end,
+                          một gunicorn worker; Dockerfile chạy 2 worker)
+PEAK RSS AFTER          =  32.0 MB (parse đơn lẻ) /  81.9 MB (end-to-end)
+BUSINESS_FIDELITY       = KHÔNG ĐỔI — output parser cũ/mới IDENTICAL
+                          (diff JSON 767 dòng, 0 khác biệt, 2 workbook)
+NEW_INFRASTRUCTURE      = NONE (không worker/queue/Redis/service/DB mới)
+PAID_COMPUTE            = NONE (giữ 512 MB, không nâng plan)
+CHANGED FILES           = app/legacy/parser.py (1 file code)
+PRA002_STARTED          = NO
+TRACKING_CHANGED        = NO
+PROTECTED_CORE_IMPACT   = NONE
+```
+
+Điểm cốt lõi: sau repair, peak RAM **không còn phụ thuộc kích thước sổ bán
+hàng trong workbook**. Workbook 7.79 MB tốn đúng bằng workbook 3.15 MB
+(31.8 vs 32.0 MB) vì sheet không được đọc thì XML của nó không bao giờ được
+phân tích. Đây là sửa cấu trúc, không phải chỉnh tham số — nên không cần
+theo dõi lại mỗi khi workbook của Owner lớn thêm.
+
+Bằng chứng đầy đủ, giới hạn của bằng chứng, và finding DEFER:
+`docs/sessions/S078R-legacy-import-memory-repair.md`.
+
+**SHA cần deploy đã đổi.** `c0fc2f7` là bản BỊ OOM — không deploy lại nó.
+`EXACT_DEPLOY_SHA` mới = HEAD hiện tại của
+`claude/extract-upload-repo-gq2ws4` (`git rev-parse
+origin/claude/extract-upload-repo-gq2ws4`). Biến `HISTORY_DATABASE_URL` +
+scheme `postgresql+psycopg://` Owner đã cấu hình xong từ trước, không phải
+làm lại.
+
+
 ## PRODUCTION POSTGRESQL ACTIVATION — TRẠNG THÁI HIỆN HÀNH (2026-09-02, S078)
 
 Cập nhật 2026-09-02 sau Independent Review (`ACCEPT`, 0 blocking finding)
