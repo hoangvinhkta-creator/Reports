@@ -210,3 +210,55 @@ SUMMARY_UNACCOUNTED_ROWS        = 0
 matched=628 mismatched=0
 exit=0
 ```
+
+---
+
+## Cập nhật sau DEC-169 (ghi thêm 2026-09-02, S077 close-out — KHÔNG sửa bản ghi trên)
+
+Toàn bộ nội dung phía trên là **bản ghi lịch sử đúng tại `5bea87a152b303138dff89ac8e3aef78bec5a630`**
+và được giữ nguyên. Mục này chỉ nói rõ con số nào đã đổi kể từ đó, để không
+ai tái tạo lại theo con số cũ rồi tưởng là hồi quy (finding `N07`).
+
+`DEC-169` (2026-09-02, `3faedfdebc1f14d8a27e89955d9cfa64d6a462cd`) đưa
+`Summary 2025` ra khỏi phạm vi import production (`REFERENCE_ONLY`). Fixture
+`tests/fixtures/legacy/build_legacy_workbook.py` không đổi, nhưng phạm vi
+đối chiếu thì đổi, nên các con số reproduction ở khối "Test run cuối" phía
+trên đã **stale**. Chạy lại trên fixture tại `3faedfde`:
+
+```text
+$ python3 -m pytest -q
+1608 passed, 11 skipped
+
+$ python3 -m pytest tests/test_history_db.py tests/test_legacy_importer.py \
+    tests/test_legacy_repository.py tests/test_web_legacy_routes.py \
+    tests/test_legacy_source_coverage.py -q
+114 passed
+
+$ python3 -m tools.analysis.verify_legacy_import <fixture>.xlsx
+SUMMARY_SOURCE_ROWS_WITH_VALUES  = 13
+SUMMARY_IMPORTED_ROWS            = 13
+SUMMARY_UNACCOUNTED_ROWS         = 0
+SUMMARY_REFERENCE_ONLY_PERSISTED = 0
+matched=580 mismatched=0
+exit=0
+```
+
+Đối chiếu con số:
+
+| Chỉ số (trên fixture) | S076 (`5bea87a`) | Hiện hành (`3faedfde`) | Vì sao đổi |
+|---|---|---|---|
+| Full suite | `1600 passed, 11 skipped` | `1608 passed, 11 skipped` | +8 test của DEC-169 |
+| PRA-001 focused suite | `106 passed` | `114 passed` | +8 test của DEC-169 |
+| `SUMMARY_SOURCE_ROWS_WITH_VALUES` | 16 | 13 | 3 dòng `Summary 2025` ra khỏi phạm vi |
+| `SUMMARY_IMPORTED_ROWS` | 16 | 13 | như trên |
+| `matched` | 628 | 580 | ô của `Summary 2025` không còn được đối chiếu |
+| `SUMMARY_REFERENCE_ONLY_PERSISTED` | (chưa tồn tại) | 0 | kiểm mới do DEC-169 thêm |
+
+`SUMMARY_UNACCOUNTED_ROWS = 0` và `mismatched = 0` giữ nguyên — guard
+`FIND-PRA001-R01` không bị nới lỏng, chỉ đổi phạm vi áp dụng sang
+`Summary 2026`.
+
+Trạng thái task ghi ở đầu file này (`IMPLEMENTED`, `CHECK-PRA001-01 =
+NOT_TESTED`) là trạng thái đúng **của S076**. Trạng thái hiện tại
+(`DONE`, `CHECK-PRA001-01 = PASS` trên file Excel thật) nằm ở
+`PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE — TASK-PRA-001".

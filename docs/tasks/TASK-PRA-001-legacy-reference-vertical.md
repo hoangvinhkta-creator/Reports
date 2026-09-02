@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-IMPLEMENTED
+DONE
 
 Phase:
 PHASE-PRA — Slice 1
@@ -443,12 +443,44 @@ Timestamp:
 - Hardening ≤ 10 % effort (ví dụ dark mode, retention) — chỉ khi 01–08 PASS.
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
-- [ ] 100% REQUIRED checks PASS
-- [ ] Không có lỗi nghiêm trọng (critical) chưa xử lý
-- [ ] Đạt mức evidence yêu cầu (E1)
-- [ ] Tài liệu bắt buộc đã được cập nhật
-- [ ] Tiến độ dự án đã được cập nhật (`PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`)
-- [ ] Đã viết Session Handoff
+- [x] 100% REQUIRED checks PASS — 9/9 (`CHECK-PRA001-01`…`-08`, `-10`).
+      `CHECK-PRA001-09` là RECOMMENDED và `BLOCKED` (cần PostgreSQL thật,
+      gate deploy Owner) nên không chặn DONE.
+- [x] Không có lỗi nghiêm trọng (critical) chưa xử lý — `FIND-PRA001-R01`
+      và `-R02` đã đóng ở repair cycle 1/1; Final Independent Delta Review
+      tại `3faedfde` = `PASS`, `BLOCKING_FINDINGS = NONE`.
+- [x] Đạt mức evidence yêu cầu (E1) — mọi check REQUIRED có evidence E1
+      thực thi; `CHECK-PRA001-01` là E1 trên FILE EXCEL THẬT.
+- [x] Tài liệu bắt buộc đã được cập nhật — `PROJECT/PROJECT_DECISIONS.md`
+      (DEC-168, DEC-169), `PROJECT/REVIEW_BUDGET_LEDGER.md`,
+      `docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md`,
+      `docs/deployment/S071_DEPLOYMENT.md`.
+- [x] Tiến độ dự án đã được cập nhật — `PROJECT/PROJECT_PROGRESS.md`
+      (mục "CANONICAL CURRENT STATE — TASK-PRA-001") và
+      `PROJECT/LO_TRINH_DE_HIEU.md`.
+- [x] Đã viết Session Handoff —
+      `docs/sessions/S077-pra-001-closeout-controlled-integration.md`
+      (kèm S075, S076 cho các phiên trước).
+
+### Chuyển trạng thái IMPLEMENTED → DONE (S077, 2026-09-02)
+
+Điều kiện đã kiểm trước khi chuyển, không phải khẳng định suông:
+
+```text
+REQUIRED_GATES               = 9/9 PASS
+CHECK-PRA001-01              = PASS  (real data, không còn NOT_TESTED)
+FINAL_DELTA_REVIEW           = PASS @ 3faedfde
+BLOCKING_FINDINGS            = NONE
+validate_structure           = PASS
+validate_project_state       = PASS
+validate_evidence            = PASS
+validate_task_completion     = PASS  (9 DONE task)
+validate_reference_integrity = FAIL — ĐÚNG 3 issue REM-T06 đã biết,
+                               0 finding mới → không chặn PRA-001
+Golden                       = 58 passed, 2 skipped
+Full suite                   = 1608 passed, 11 skipped
+git diff --check             = sạch
+```
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 - Cần chạm bất kỳ file nào trong "Không được đụng" → `SCOPE EXPANSION REQUIRED`, dừng.
@@ -506,6 +538,16 @@ Repair cycle 1 (S076) — sửa thêm:
 - `tests/test_legacy_repository.py`, `tests/test_web_legacy_routes.py`
   (cập nhật theo kết quả verifier mới + test đường ghi)
 - `PROJECT/PROJECT_DECISIONS.md` (DEC-168)
+
+Close-out S077 (docs-only, không chạm production code):
+- `docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md` (mới — N11)
+- `docs/sessions/S077-pra-001-closeout-controlled-integration.md` (mới)
+- `PROJECT/PROJECT_PROGRESS.md` (current-state authority — N12)
+- `PROJECT/LO_TRINH_DE_HIEU.md` (roadmap dễ hiểu — N13)
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` (clarification hiện hành — N08)
+- `docs/sessions/S075-…md`, `docs/sessions/S076-…md` (ghi thêm mục
+  "Cập nhật sau DEC-169", KHÔNG sửa bản ghi lịch sử — N07)
+- `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md` (Status → DONE)
 
 Deleted:
 - `app/web/templates/history.html` (nội dung chuyển vào `du_lieu.html`;

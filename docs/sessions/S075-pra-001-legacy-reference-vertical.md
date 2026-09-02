@@ -218,3 +218,19 @@ $ python3 -m tools.analysis.verify_legacy_import <fixture>.xlsx
 matched=628 mismatched=0
 exit=0
 ```
+
+---
+
+## Cập nhật sau DEC-169 (ghi thêm 2026-09-02, S077 close-out — KHÔNG sửa bản ghi trên)
+
+Bản ghi phía trên là lịch sử đúng tại `7d84072765288b7a9dc28679a09325fce7860b48`.
+Kể từ `DEC-169` (`3faedfde`), `Summary 2025` = `REFERENCE_ONLY`, nên con số
+fixture `matched=628 mismatched=0` ở khối "Test run cuối" đã **stale**: con
+số hiện hành là `matched=580 mismatched=0`, kèm
+`SUMMARY_SOURCE_ROWS_WITH_VALUES = SUMMARY_IMPORTED_ROWS = 13` và
+`SUMMARY_REFERENCE_ONLY_PERSISTED = 0`.
+
+Ngoài ra, `matched/mismatched` đứng một mình KHÔNG còn là bằng chứng
+completeness kể từ `FIND-PRA001-R01` (DEC-168): fidelity gồm `VALUE MATCH`
+**và** `SOURCE COVERAGE`. Bảng đối chiếu đầy đủ ở cuối
+`docs/sessions/S076-pra-001-repair-cycle-1.md`.

@@ -21,6 +21,12 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S077): **việc 1 của kế hoạch mới đã XONG HẲN
+> và đã gộp vào bản chính** — xem mục "VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN"
+> ngay đầu phần TRẠNG THÁI HIỆN TẠI. Chỉ dữ liệu 2026 được nạp; `Summary
+> 2025` là số tham chiếu, cố ý không nạp. Việc 2 (PRA-002) là VIỆC TIẾP
+> THEO, chưa bắt đầu. Thuê cơ sở dữ liệu thật vẫn là việc riêng của Owner.
+
 > Cập nhật thêm 2026-09-02 (S076): một lượt **soát xét độc lập** đã tìm ra
 > hai lỗi thật và cả hai đã được sửa — xem mục "SOÁT XÉT ĐỘC LẬP TÌM RA HAI
 > LỖI (S076)" bên dưới. Owner cũng đã duyệt việc phần này viết dài hơn dự
@@ -42,6 +48,68 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN (2026-09-02) — PRA-001 = XONG
+
+**Xong** nghĩa là: đã viết, đã tự kiểm, đã có người soát xét độc lập, đã
+chạy thử trên **đúng file Excel thật của Owner**, và đã gộp vào bản chính.
+Không phải "code xong chờ duyệt".
+
+**Owner nhìn thấy gì:** Reports giờ có đường đi hoàn chỉnh đầu tiên cho số
+liệu cũ —
+
+```
+File Excel cũ  →  nạp phần dữ liệu 2026 cần thiết  →  máy lưu lại
+               →  tra cứu được  →  hiện lên trang web
+```
+
+Cụ thể: vào Reports → thẻ **Dữ liệu** → nạp file "Báo cáo Kinh doanh
+2026.xlsx" một lần. Sau đó thẻ **Nhân viên** cho xem bảng tháng × người
+bán, thẻ **Doanh số ngày** cho xem doanh số từng ngày. Không phải mở Excel
+để dò tay nữa.
+
+**Quan trọng — phần nào của file được nạp:**
+
+| Phần trong file Excel | Có được nạp không |
+|---|---|
+| `Summary 2026` | **CÓ** — nạp và hiển thị |
+| `DataChart 2026` (doanh số theo ngày) | **CÓ** — nạp và hiển thị |
+| `Summary 2025` | **KHÔNG** — chỉ là số tham chiếu cho báo cáo 2026 |
+
+Owner đã tự chốt điều này: `Summary 2025` trong file cũ là sheet đã dán
+cứng số, mục đích của nó chỉ là làm mốc tham chiếu cho năm 2026, nên không
+cần nạp/lưu/tra cứu/hiển thị. Phần mềm **cố ý** không đoán mò nội dung sheet
+đó — nếu gặp dòng có số mà không hiểu chắc chắn nó là gì, phần mềm báo lỗi
+to chứ không âm thầm bỏ qua.
+
+**Vì vậy đừng đọc mục này thành "toàn bộ file Excel lịch sử đã được nạp
+vào phần mềm".** Mới chỉ có dữ liệu 2026 cần thiết.
+
+**Ba điều đã được kiểm rất kỹ, vì đây là số cũ của Owner:**
+
+1. Không sửa số cũ, kể cả khi biết công thức cũ trong Excel sai — chỗ nào
+   sai thì gắn dấu nhắc, không tự chữa.
+2. Mọi con số cũ đều đeo nhãn **LEGACY**, để không ai nhầm số cũ thành số
+   do phần mềm tính.
+3. Không được phép "nạp thiếu mà vẫn báo khớp 100 %". Một vòng soát xét độc
+   lập đã bắt đúng lỗi này (số cũ mất trọn một kỳ mà máy vẫn báo khớp), lỗi
+   đã sửa, và giờ máy kiểm **hai chiều**: vừa kiểm số đã nạp có đúng không,
+   vừa kiểm có dòng nào trong file mà chưa được nạp không.
+
+**Trên file Excel thật của Owner:** 71 dòng của `Summary 2026` — nạp đủ 71,
+thiếu 0; 1.508 ô số đối chiếu — lệch 0; `Summary 2025` để lại 0 bản ghi
+(đúng như đã chốt). File Excel gốc **không bị sửa** (kiểm bằng mã băm trước
+và sau khi chạy, giống hệt nhau).
+
+**Còn hai việc chưa làm, và chúng là việc riêng — không phải phần dở dang
+của việc 1:**
+
+- **Thuê cơ sở dữ liệu thật (PostgreSQL) trên mạng.** Đây là việc trả tiền
+  dịch vụ, thuộc quyền Owner, phiên làm việc này **không** được tự tạo. Chạy
+  thử ở máy vẫn dùng bản lưu trữ nhẹ nên không cần thuê gì. Quy trình bật
+  lên đã viết sẵn.
+- **Việc 2 của kế hoạch (PRA-002)** — nạp nhiều file có ngày chồng nhau mà
+  không cộng trùng. Việc này giờ là **VIỆC TIẾP THEO**, chưa bắt đầu.
 
 ## XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)
 

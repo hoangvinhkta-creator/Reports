@@ -246,6 +246,76 @@ migration 0001_legacy        : upgrade PASS, downgrade PASS (SQLite thật)
 verify_legacy_import         : matched=628 mismatched=0 (trên fixture)
 ```
 
+> **CLARIFICATION HIỆN HÀNH (thêm 2026-09-02, S077 close-out — finding `N08`;
+> KHÔNG sửa record S076 phía trên).** Dòng
+> `verify_legacy_import : matched=628 mismatched=0 (trên fixture)` ở khối
+> trên chỉ ghi **một nửa** của fidelity, và nửa đó chính là nửa đã được
+> `FIND-PRA001-R01` chứng minh là không đủ. Ledger là bản ghi immutable
+> theo phiên nên dòng đó được giữ nguyên; cách đọc đúng hiện hành là:
+>
+> ```text
+> fidelity = VALUE MATCH + SOURCE COVERAGE   (DEC-168)
+>
+> VALUE MATCH     : mismatched = 0
+> SOURCE COVERAGE : SUMMARY_SOURCE_ROWS_WITH_VALUES == SUMMARY_IMPORTED_ROWS
+>                   AND SUMMARY_UNACCOUNTED_ROWS == 0
+>                   AND SUMMARY_REFERENCE_ONLY_PERSISTED == 0   (DEC-169)
+> ```
+>
+> `matched=N mismatched=0` đứng MỘT MÌNH không được dùng làm bằng chứng
+> completeness — verifier bản cũ duyệt DB → Excel nên không thể thấy dòng
+> chưa từng được nhập.
+
+### Trạng thái (S077 close-out, 2026-09-02 — HIỆN HÀNH)
+
+Mục này thay thế mục "Trạng thái (S076…)" phía trên **về trạng thái hiện
+tại**; mục S076 giữ nguyên như bản ghi lịch sử của phiên đó.
+
+```
+TASK-PRA-001                 : DONE
+Independent Review #1        : CHANGES_REQUIRED trên 7d84072
+Repair Re-review (cycle 1/1) : PASS trên 5bea87a
+Final Independent Delta Review: PASS trên 3faedfde (DEC169_REVIEW = FAITHFUL)
+review record durable        : docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md
+repair cycle đã dùng         : 1 / 1  → CÒN 0 (KHÔNG đổi; DEC-169 là
+                               OWNER_SCOPE_CLARIFICATION, không tiêu budget)
+FIND-PRA001-R01              : ĐÃ ĐÓNG
+FIND-PRA001-R02              : ĐÃ ĐÓNG
+CHECK-PRA001-01              : PASS — Real Data Acceptance trên workbook
+                               THẬT (VALUE MATCH matched=1508 mismatched=0;
+                               SOURCE COVERAGE 71 == 71, unaccounted 0,
+                               reference-only persisted 0)
+CHECK-PRA001-09              : BLOCKED (RECOMMENDED) — cần PostgreSQL thật,
+                               gate deploy Owner, không chặn DONE
+REQUIRED_GATES               : 9/9 PASS
+BLOCKING_FINDINGS            : NONE
+```
+
+Bằng chứng thực thi của phiên close-out (E1), chạy trên `3faedfde`:
+
+```text
+validate_structure           : PASS (21 required path)
+validate_project_state       : PASS
+validate_evidence            : PASS  (100 REQUIRED PASS record)
+validate_task_completion     : PASS  (9 DONE task, đã gồm PRA-001)
+validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-REM-T06
+                               (/README.md, CODE_OF_CONDUCT.md,
+                                CONTRIBUTING.md), 204 file quét, 0 finding mới
+branch_authority_check.sh    : AUTHORITY_OK
+                               (DIVERGENCE = INTEGRATION_DECISION_REQUIRED
+                                [loc>5000] → Owner chọn phương án (A)
+                                integrate, chính là phiên này — V4.1 §8)
+git diff --check             : sạch
+Golden                       : 58 passed, 2 skipped
+Full suite                   : 1608 passed, 11 skipped
+PRA-001 focused suite        : 114 passed
+verify_legacy_import (fixture): SUMMARY_SOURCE_ROWS_WITH_VALUES = 13
+                                SUMMARY_IMPORTED_ROWS           = 13
+                                SUMMARY_UNACCOUNTED_ROWS        = 0
+                                SUMMARY_REFERENCE_ONLY_PERSISTED = 0
+                                matched=580 mismatched=0, exit=0
+```
+
 ## Root Task: TASK-GOLDEN-BASELINE-001
 
 Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của

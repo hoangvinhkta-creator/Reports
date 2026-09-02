@@ -1,5 +1,96 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-001 (AUTHORITATIVE, 2026-09-02, S077)
+
+Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho `TASK-PRA-001`. Mọi
+khối session bên dưới (S073, S074, S075, S076) được giữ nguyên như **bản ghi
+lịch sử đúng tại thời điểm của chúng** — đặc biệt S076 ghi
+`CHECK-PRA001-01 = NOT_TESTED` và `TASK-PRA-001 = IMPLEMENTED`, đó là trạng
+thái đúng của S076 và KHÔNG bị viết lại. Khi một khối lịch sử mâu thuẫn với
+mục này về trạng thái *hiện tại*, mục này đúng.
+
+```text
+TASK-PRA-001            = DONE
+CODE_ACCEPTANCE         = PASS
+REAL_DATA_ACCEPTANCE    = PASS
+CHECK-PRA001-01         = PASS   (file Excel THẬT, không còn NOT_TESTED)
+CHECK-PRA001-09         = BLOCKED (RECOMMENDED — cần PostgreSQL thật,
+                                   gate deploy Owner, không chặn DONE)
+FINAL_DELTA_REVIEW      = PASS
+DEC169_REVIEW           = FAITHFUL
+REQUIRED_GATES          = 9/9 PASS  (CHECK-PRA001-01…08 + -10)
+BLOCKING_FINDINGS       = NONE
+REPAIR_CYCLES_REMAINING = 0
+EXACT_ACCEPTED_SHA      = 3faedfdebc1f14d8a27e89955d9cfa64d6a462cd
+SOURCE_BRANCH           = claude/reports-pipeline-architecture-gj8bji
+```
+
+### Phạm vi import production đã chốt (DEC-169)
+
+```text
+Summary 2025    = REFERENCE_ONLY   (không import / persist / query / display)
+Summary 2026    = REQUIRED_IMPORT
+DataChart 2026  = REQUIRED_IMPORT
+```
+
+`Summary 2025` là sheet đã dán cứng (0 ô công thức, 99 dòng value-only trên
+workbook thật). Importer raise `LegacyImportError` thay vì đoán `row_kind` —
+đúng theo guard DEC-168 / FIND-PRA001-R01. Owner bác bỏ giả định "phải
+production-import Summary 2025"; đây là `OWNER_SCOPE_CLARIFICATION`, KHÔNG
+phải repair cycle 2, và repair budget PRA-001 vẫn `0 used sau cycle 1 /
+0 remaining` (xem `PROJECT/PROJECT_DECISIONS.md` DEC-169).
+
+**Không được đọc mục này thành "toàn bộ workbook lịch sử đã được import".**
+Chỉ dữ liệu 2026 cần thiết được đưa vào production store.
+
+### Real Data Acceptance — bằng chứng (E1, workbook thật)
+
+Workbook Owner cung cấp trong Claude Cloud (KHÔNG commit vào repo, KHÔNG bị
+sửa — SHA256 trước/sau giống hệt): `Báo cáo Kinh doanh 2026.xlsx`, SHA256
+`4ffe51983306a16f507d3fe5fad6b0f2acf9bfe8b0486f30c83cb64398d11f72`.
+
+```text
+sheets_imported = ['Summary 2026', 'DataChart 2026']
+summary_rows    = 71     daily_sales = 174     monthly_reference = 12
+import_id       = LEG-20260902-4ffe5198
+
+SUMMARY_SOURCE_ROWS_WITH_VALUES  = 71
+SUMMARY_IMPORTED_ROWS            = 71
+SUMMARY_UNACCOUNTED_ROWS         = 0
+SUMMARY_REFERENCE_ONLY_PERSISTED = 0
+matched=1508 mismatched=0
+exit=0
+```
+
+Fidelity ở đây gồm **HAI** phần và phải được đọc như vậy: `VALUE MATCH`
+(`mismatched=0`) **và** `SOURCE COVERAGE`
+(`SUMMARY_SOURCE_ROWS_WITH_VALUES == SUMMARY_IMPORTED_ROWS`). Con số
+`matched=N mismatched=0` đứng MỘT MÌNH không còn được chấp nhận làm bằng
+chứng completeness kể từ FIND-PRA001-R01.
+
+### Vòng review — bản ghi durable
+
+| Vòng | SHA được review | Kết quả |
+|---|---|---|
+| Independent Review #1 | `7d84072765288b7a9dc28679a09325fce7860b48` | `CHANGES_REQUIRED` — 2 blocking (`FIND-PRA001-R01`, `FIND-PRA001-R02`) |
+| Repair Re-review (cycle 1/1) | `5bea87ad` (repair của S076) | `PASS` — cả hai finding đã đóng |
+| Final Independent Delta Review | `3faedfdebc1f14d8a27e89955d9cfa64d6a462cd` | `PASS` — `DEC169_REVIEW = FAITHFUL`, 0 blocking |
+
+Bản ghi đầy đủ: `docs/reviews/TASK-PRA-001-INDEPENDENT-REVIEW-RECORD.md`.
+
+### Ranh giới đã giữ
+
+```text
+PROTECTED_CORE_IMPACT = NONE
+TRACKING_CHANGED      = NO
+PRA002_STARTED        = NO   (PRA-002 chỉ là NEXT, chưa mở)
+PRA002_PREBUILD       = NONE (không prebuild schema snapshot/version)
+POSTGRESQL_PROVISIONED = NO  — gate infra riêng, SAU integration
+```
+
+PostgreSQL production provisioning là **NEXT INFRA GATE** tách biệt
+(`docs/deployment/S071_DEPLOYMENT.md` bước 8–12), không thuộc PRA-001 DONE.
+
 ## CANONICAL CURRENT DELIVERY STATUS — AUTHORITATIVE (2026-09-01)
 
 Đây là chỉ dẫn trạng thái hiện hành có thẩm quyền cho bản giao canonical sau
