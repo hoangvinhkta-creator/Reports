@@ -7674,3 +7674,76 @@ Can Revisit After:
 - Nếu Owner sau này muốn hai đường phụ (`mergePaths`, nhập Excel) cũng sinh
   mốc lịch sử, đó là một thay đổi Tracking riêng — mở quyết định mới, không
   sửa quyết định này.
+
+## DEC-166
+
+Title:
+`PRA FINALIZATION` — Owner chốt 5 quyết định nền cho Persistent Reporting &
+Analytics (A web architecture, B snapshot coverage, C SOURCE_CHANGED,
+D REMOVED, E legacy); persistence CHƯA approve, chờ ADR-108
+
+Date:
+2026-09-02
+
+Task:
+`TASK-PRA-000` (planning, S072) → finalization S073; mở `TASK-PRA-001`
+(PLANNED, gate frozen). Không mở task cho PRA-002+.
+
+**Đây LÀ một Owner Decision** cho A–E (Owner chốt trong chỉ thị phiên S073
+sau khi review kế hoạch S072: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`).
+Persistence (mục "Còn phải giải quyết") KHÔNG nằm trong quyết định này —
+chỉ có decision audit tại `docs/adr/ADR-108-persistent-history-store.md`
+(Status Proposed).
+
+### Quyết định
+
+**A. Web architecture.** KEEP Flask + Jinja làm production web layer canonical.
+Không refactor sang FastAPI/React để khớp `ADR-101`. Không mở architecture
+migration task. Amendment tài liệu tối thiểu:
+`docs/adr/ADR-109-web-layer-flask-jinja.md` (Accepted) + dòng "Superseded
+By" trong `docs/adr/ADR-101-architecture-and-stack.md`. Phần DB của ADR-101
+không đổi.
+
+**B. Snapshot coverage.** Coverage được AUTO-DETECT từ dữ liệu
+(`DETECTED_DATE_RANGE` = min/max ngày bán). Người dùng không nhập tay ở
+normal path. Hệ thống phân biệt `DETECTED_DATE_RANGE` với
+`CONFIRMED_COMPLETE_COVERAGE`; min/max không mặc nhiên chứng minh file
+complete. Khi coverage không chắc, có gap đáng ngờ, hoặc file không đại
+diện đủ khoảng thời gian → cảnh báo / yêu cầu xác nhận khi thực sự cần,
+không tự suy diễn completeness.
+
+**C. SOURCE_CHANGED.** Cùng ORDER/ORDER_LINE xuất hiện với source values khác:
+không silent overwrite, không mất version cũ, lưu `SOURCE_CHANGED` +
+`changed_fields` + provenance; bản mới có thể là current candidate theo
+reconciliation policy; lịch sử phải truy được và UI phải hiển thị được.
+
+**D. REMOVED.** Record có ở snapshot trước, vắng ở snapshot mới →
+`REMOVED_CANDIDATE`. Không silent delete, không tự coi là đơn huỷ, không tự
+loại khỏi analytics chỉ vì biến mất. Vào Cần kiểm tra cho tới khi semantics
+đủ chắc. `DETECTED_DATE_RANGE` không đủ authority để kết luận REMOVED; chỉ
+coverage/completeness đủ mạnh mới tạo removed candidate đáng tin. Không tự
+tạo business rule để resolve REMOVED.
+
+**E. Legacy.** `LEGACY_REFERENCE` giữ nguyên dữ liệu cũ; không chạy lại bằng
+pipeline; không sửa lỗi công thức cũ; known defects ghi metadata; luôn phân
+biệt với `PIPELINE_GENERATED`.
+
+**Order identity.** Giữ candidate `ORDER_KEY = normalize(Số BH)`,
+`ORDER_LINE_KEY = ORDER_KEY + product_key + occurrence_index`. BH reset theo
+năm vẫn UNKNOWN, không chặn PRA-001; schema phải hỗ trợ namespace năm bằng
+một migration mà không áp business rule.
+`OWNER_CONFIRMATION_REQUIRED_BEFORE = historical pipeline reconciliation
+xuyên nhiều năm`.
+
+**Analytics priority** giữ nguyên NOW/LATER/DEFER của TASK-PRA-000 mục L;
+không mở task cho LATER/DEFER.
+
+### Hệ quả
+
+- Policy reconciliation được viết thành bảng tại `TASK-PRA-000` phụ lục F3;
+  PRA-002 implement đúng bảng đó ở mức capability cần, không generic
+  event-sourcing.
+- `TASK-PRA-001` scope hẹp: legacy reference vertical + nền persistence tối
+  thiểu + extension point; không "build toàn bộ analytics database".
+- Quyết định còn blocking duy nhất: Owner approve `ADR-108`. Khi approve,
+  ghi DEC mới (không sửa DEC này) và chuyển ADR-108 sang Accepted.

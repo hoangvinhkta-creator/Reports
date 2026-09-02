@@ -188,6 +188,24 @@ ngày), chi phí lưu trữ dự kiến rất nhỏ, gần như không đáng k�
 máy chủ chạy Reports (Render hoặc nơi tương đương) vẫn còn, không đổi — chỉ
 riêng phần "ổ đĩa lưu lâu dài" là không cần mua nữa.
 
+## KẾ HOẠCH MỚI — bước 1 đã sẵn sàng bắt tay (2026-09-02, chiều)
+
+Chủ dự án đã duyệt bản kế hoạch và chốt 5 điều: giữ nguyên cách làm trang
+web hiện tại (không đập đi làm lại); khoảng ngày của file nạp tự nhận từ dữ
+liệu, nhưng "file có đủ hết đơn của khoảng đó hay không" là chuyện khác,
+không tự suy; số kế toán sửa thì giữ cả bản cũ lẫn bản mới và ghi rõ đổi
+chỗ nào; đơn biến mất khỏi file mới thì đưa vào "cần kiểm tra", không tự
+xoá, không tự coi là huỷ; số cũ trong Excel giữ nguyên, không tính lại.
+
+Còn đúng **một việc** chủ dự án cần quyết trước khi đưa bước 1 lên mạng
+thật: chọn nơi lưu dữ liệu lâu dài. Đề xuất: thuê một cơ sở dữ liệu
+PostgreSQL có sẵn trên Render (khoảng 6–7 USD/tháng), còn file Excel/kết
+quả chạy vẫn để ở kho R2 như hiện nay. Đã so sánh với hai cách khác (lưu
+thành nhiều tệp trong kho R2; dùng D1 của Cloudflare) và giải thích vì sao
+không chọn — xem bản kỹ thuật ADR-108. Khi chủ dự án đồng ý, bước 1 (đưa
+số cũ vào Reports) có thể làm ngay; phần lập trình và kiểm thử trên máy
+không cần chờ.
+
 ## KẾ HOẠCH MỚI — Reports lưu lịch sử và so sánh được (2026-09-02, chưa bắt đầu làm)
 
 Hôm nay Reports giống một "máy phân tích file": nạp file kế toán, xem vài con

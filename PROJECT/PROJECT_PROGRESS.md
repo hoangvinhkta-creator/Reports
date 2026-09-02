@@ -430,6 +430,33 @@ trạng thái lịch sử trừ khi chỉ dẫn hiện hành này tham chiếu l
   tại mục N của kế hoạch. `SCOPE_DRIFT = NO`. Mục "DEFERRED → Dashboard"
   bên dưới nay có kế hoạch nhưng vẫn chưa READY.
 
+### PLANNED — PHASE-PRA finalization (S073, 2026-09-02) — TASK-PRA-001 gate FROZEN
+
+- Owner review kế hoạch S072: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`.
+  Owner chốt 5 quyết định nền (DEC-166): A giữ Flask + Jinja (amendment
+  `docs/adr/ADR-109-web-layer-flask-jinja.md`, ADR-101 thêm Superseded By);
+  B coverage auto-detect, phân biệt `DETECTED_DATE_RANGE` với
+  `CONFIRMED_COMPLETE_COVERAGE`; C SOURCE_CHANGED giữ version + changed_fields;
+  D REMOVED_CANDIDATE không silent delete, không tự loại khỏi analytics;
+  E legacy nguyên trạng. Policy reconciliation chốt tại
+  `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md` phụ lục F3.
+- Persistence: decision audit R2 vs D1 vs PostgreSQL tại
+  `docs/adr/ADR-108-persistent-history-store.md` — đề xuất HYBRID
+  (PostgreSQL managed cho structured records + R2 artifact không đổi +
+  SQLite local/test). **Status Proposed — Owner CHƯA approve.** Đây là
+  quyết định blocking duy nhất còn lại, và chỉ chặn deploy production của
+  PRA-001, không chặn implement/test local.
+- **TASK-PRA-001 — Legacy Reference Vertical**: task file
+  `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md`, Status PLANNED,
+  Completion Gate FROZEN (10 check, 9 REQUIRED, Risk 3 → E1), Change Budget
+  ≤450 LOC Python (dừng cứng 600). Ready Gate còn 3 ô chưa tick: approve
+  ADR-108, file Excel legacy có trên máy chạy acceptance, đồng bộ nhánh
+  đầu session. `READY_FOR_PRA_001 = YES` có điều kiện (approve ADR-108
+  trước deploy). Implementation handoff:
+  `docs/sessions/S073-pra-finalization.md`.
+- PRA-002…005: PLANNED, không mở implementation (preview PRA-002 tại phụ
+  lục F6 chứng minh PRA-001 không dead-end).
+
 ### DEFERRED FINDING — Product Identity Discovery Gap (S068 follow-up audit)
 
 - **Case:** một sản phẩm nhập → bán hết trong ngày → tồn cuối kỳ = 0. Nguồn
@@ -4797,6 +4824,10 @@ trong `ImportResult`, chưa có UI hiển thị. Đóng hẳn TD-001 khi TASK-30
 
 ## Session tiếp theo
 
+> **Cập nhật 2026-09-02 (S073):** kế hoạch đã được Owner review PASS;
+> TASK-PRA-001 gate FROZEN, còn chờ Owner approve ADR-108 (persistence).
+> Xem khối "PLANNED — PHASE-PRA finalization (S073)" ở đầu file.
+>
 > **Cập nhật 2026-09-02 (S072):** track mới PHASE-PRA (Persistent Reporting
 > & Analytics) đã có kế hoạch tại
 > `docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md`. Session

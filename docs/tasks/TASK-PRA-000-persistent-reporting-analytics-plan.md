@@ -930,3 +930,126 @@ Deleted:
 
 Migration Impact:
 - Không. Chỉ tài liệu.
+
+---
+
+# PHỤ LỤC — FINALIZATION S073 (2026-09-02)
+
+Owner review kế hoạch: `PLANNING_REVIEW = PASS`, `SCOPE_DRIFT = NO`. Phụ lục
+này chốt các quyết định đã có, không mở lại discovery, không lập lại
+roadmap. Nội dung A–R phía trên giữ nguyên như bản S072; chỗ nào khác, phụ
+lục này thắng.
+
+## F1. Quyết định Owner đã chốt (DEC-166)
+
+| Quyết định | Nội dung chốt | Tác động lên kế hoạch |
+|---|---|---|
+| A — Web architecture | KEEP Flask + Jinja; không refactor sang FastAPI/React; không migration task | Mục B.5 CONFLICT đóng bằng `docs/adr/ADR-109-web-layer-flask-jinja.md`; ADR-101 thêm dòng Superseded By |
+| B — Snapshot coverage | AUTO-DETECT từ dữ liệu (`DETECTED_DATE_RANGE`); không nhập tay ở normal path; phân biệt với `CONFIRMED_COMPLETE_COVERAGE`; min/max không chứng minh complete | Thay N.2 và J.1 bước 2/6 — xem F3 |
+| C — SOURCE_CHANGED | Không silent overwrite, không mất version cũ, lưu `changed_fields`/provenance; bản mới có thể là current candidate theo policy; lịch sử truy được, UI hiển thị được | Giữ J.2; policy hoá ở F3 |
+| D — REMOVED | `REMOVED_CANDIDATE`, không silent delete, không tự coi là huỷ, không tự loại khỏi analytics; vào Cần kiểm tra; `DETECTED_DATE_RANGE` không đủ authority để kết luận REMOVED | Thay J.1 bước 4 và N.4 — xem F3 |
+| E — Legacy | Giữ nguyên, không chạy lại pipeline, không sửa lỗi công thức, known defects là metadata, luôn phân biệt PIPELINE_GENERATED | Xác nhận mục G và N.6 |
+
+Persistence (N.1): **chưa approve**; decision audit tại
+`docs/adr/ADR-108-persistent-history-store.md` (Proposed) — đề xuất hybrid
+PostgreSQL managed + R2 artifact.
+
+## F2. Persistence — tóm tắt quyết định đề xuất
+
+```
+RECOMMENDATION     = HYBRID: Managed PostgreSQL (structured analytical records) + R2 (artifact/run JSON, không đổi) + SQLite (local/test)
+WHY                = PRA-002 cần transaction thật (snapshot + N version + current all-or-nothing), index theo khoá cho reconciliation/drill-down, migration có kiểm soát (Alembic); Python driver chuẩn; portable (pg_dump); < 300 MB cho 3 năm
+WHY_NOT_OTHERS     = R2 structured objects: không transaction, không index thứ cấp → phải tự viết index/khoá/versioning = tự viết một DB, lỗi giữa chừng = silent wrong result.
+                     D1: từ Render chỉ qua REST API (mỗi query một HTTPS round-trip, không interactive transaction, không SQLAlchemy/psycopg), migration bằng wrangler (Node) = toolchain thứ hai, và cùng tài khoản/toolchain với Tracking → coupling bị cấm.
+ESTIMATED_COST     = ≈ US$6–7/tháng (Render Postgres Basic-256mb; xác minh giá khi tạo). Free tier hết hạn sau 30 ngày → không dùng.
+OPERATIONAL_IMPACT = +1 dịch vụ managed cùng region Render; +2 env (`HISTORY_DATABASE_URL`, `REPORTS_REQUIRE_HISTORY_DB`); `alembic upgrade head` khi deploy; backup managed hằng ngày (+ pg_dump lên R2 ở PRA-002 hardening)
+MIGRATION_IMPACT   = Không đụng R2/RunStore/pipeline; schema mới hoàn toàn; SQLite test cùng SQL Core (giữ tập SQL giao nhau)
+```
+
+## F3. FINALIZED_RECONCILIATION_POLICY (thay J.1–J.3 ở chỗ khác biệt)
+
+Trạng thái coverage của một snapshot:
+```
+DETECTED_DATE_RANGE        = [min(sale_date), max(sale_date)] từ dữ liệu — luôn có, tự động, không nhập tay
+HEADER_DATE_RANGE          = parse "Từ ngày … đến ngày …" ở dòng 2 workbook nếu có — chỉ là bằng chứng phụ
+coverage_state             ∈ { DETECTED_ONLY, HEADER_CONSISTENT, CONFIRMED_COMPLETE }
+  HEADER_CONSISTENT        = có HEADER và HEADER ⊇ DETECTED
+  CONFIRMED_COMPLETE       = người dùng bấm xác nhận "file này đủ cho khoảng [a, b]" — CHỈ được đề nghị khi HEADER_CONSISTENT
+                             hoặc khi có REMOVED tiềm năng cần phân xử; không bao giờ suy diễn tự động
+Cảnh báo tự động (không chặn): DETECTED hẹp hơn HEADER; rows_without_order_id > 0; DETECTED chồng một snapshot CONFIRMED_COMPLETE trước đó mà số đơn ít hơn.
+```
+
+Kết quả reconcile theo ORDER_LINE_KEY (và tổng hợp lên ORDER_KEY):
+```
+INSERT             = khoá chưa từng có → source version 1, current trỏ tới; không cần coverage
+SAME               = khoá đã có, line_fingerprint bằng → KHÔNG tạo version mới, current trỏ snapshot mới nhất (last_seen_snapshot), không double-count; không cần coverage
+SOURCE_CHANGED     = khoá đã có, fingerprint khác → source version n+1 với changed_fields {trường: (cũ, mới)} + snapshot provenance; current = version mới nhất (policy LATEST_SNAPSHOT_IS_CURRENT_CANDIDATE — hằng số policy, không phải khẳng định giá trị nào "đúng"); conflict_state = SOURCE_CHANGED cho tới khi acknowledged; version cũ giữ nguyên, truy được, UI hiển thị được
+REMOVED_CANDIDATE  = khoá current có date ∈ coverage của snapshot mới, KHÔNG xuất hiện trong snapshot mới, VÀ snapshot mới có coverage_state = CONFIRMED_COMPLETE → conflict_state = REMOVED_IN_SOURCE_CANDIDATE, vào Cần kiểm tra; VẪN nằm trong current và VẪN tính vào analytics cho tới khi Owner/người dùng phân xử (không tự coi là huỷ, không tự loại). Nếu snapshot mới chỉ DETECTED_ONLY/HEADER_CONSISTENT → chỉ gắn cờ NOT_SEEN_IN_LATEST_SNAPSHOT (thông tin), không phải REMOVED_CANDIDATE
+RESULT_REVISED     = cùng source version, run mới cho status AUTO/PENDING, accounting_purchase_price hoặc eligible_kpi_profit khác run trước → result version mới, current result = run COMPLETE mới nhất, cờ RESULT_REVISED (thông tin, không phải conflict nguồn)
+Bất biến           = không DELETE fact; không UPDATE tại chỗ version; mọi thay đổi current có snapshot_id/run_id; ORDER_KEY_COLLISION (cùng BH, lệch ngày > 90) → Cần kiểm tra, không SAME/CHANGED
+```
+
+Phân xử REMOVED_CANDIDATE và ý nghĩa "huỷ/hoàn" là **business semantics
+chưa có Owner rule** → `OWNER_DECISION_REQUIRED` trước PRA-002 phần UI phân
+xử; PRA-002 chỉ phát hiện + hiển thị.
+
+## F4. Order identity — namespace năm
+
+Giữ `ORDER_KEY = normalize(Số BH)`, `ORDER_LINE_KEY = (ORDER_KEY,
+product_key, occurrence_index)`. Schema PRA-002: `order_key` là chuỗi opaque
++ cột riêng `bh_number`, `bh_year_hint` (năm của `order_date`) → nếu Owner
+xác nhận BH reset theo năm, một migration đặt
+`order_key = bh_year_hint || ':' || bh_number` cho tập bị ảnh hưởng và chạy
+lại reconcile cho tập COLLISION; không code path nào giả định định dạng
+khoá. `OWNER_CONFIRMATION_REQUIRED_BEFORE = historical pipeline
+reconciliation xuyên nhiều năm` (snapshot đầu tiên có ngày ở năm mới khi DB
+đã có khoá năm trước). Guard 90 ngày vẫn bật để không SAME nhầm xuyên năm.
+
+## F5. Roadmap FROZEN
+
+| Slice | Task | Trạng thái |
+|---|---|---|
+| 1 | TASK-PRA-001 — Legacy Reference Vertical | PLANNED, gate FROZEN, `docs/tasks/TASK-PRA-001-legacy-reference-vertical.md` |
+| 2 | TASK-PRA-002 — Pipeline persistence + overlapping reconciliation | PLANNED (preview F6; không mở implementation) |
+| 3 | TASK-PRA-003 — Tổng quan + Nhân viên | PLANNED |
+| 4 | TASK-PRA-004 — Bán hàng + Review Operations | PLANNED |
+| 5 | TASK-PRA-005 — Sản phẩm + LATER analytics | PLANNED |
+
+Analytics: NOW/LATER/DEFER giữ nguyên mục L; không mở task cho LATER/DEFER.
+
+## F6. PRA-002 PREVIEW (chỉ để chứng minh PRA-001 không dead-end)
+
+- Dùng lại: engine + migration chain (`0002_snapshots`), `history_store`
+  (thêm `SnapshotRepository`), tab Dữ liệu (thêm danh sách snapshot +
+  coverage), bộ chọn kỳ, badge origin, fail-closed startup.
+- Thêm: `source_snapshot` (detected/header/coverage_state), `order_source_version`,
+  `order_line_source_version`, `order_line_result_version`, current view,
+  `reconciliation_flag` (SOURCE_CHANGED / REMOVED_IN_SOURCE_CANDIDATE /
+  NOT_SEEN_IN_LATEST / RESULT_REVISED / ORDER_KEY_COLLISION, acknowledged_at).
+- History writer gọi sau exporter trong cùng đơn vị công việc với
+  `create_run`; exporter chỉ expose `present_lines()` (parity byte-identical).
+- Acceptance lõi: kịch bản mục K với fixture hai snapshot cắt từ golden
+  01/2026; Golden Baseline không đổi; cohort thật 22 AUTO / 36 Review khớp.
+
+## F7. OWNER_DECISIONS_STILL_REQUIRED (blocking)
+
+1. Approve `ADR-108` (hybrid Postgres + R2) — chặn **deploy production** của
+   PRA-001; không chặn implement/test local.
+
+Không blocking PRA-001 (giữ ở mục N cho slice sau): định nghĩa Số SP /
+LN / margin (PRA-003), nguồn target (PRA-003), PII pipeline (PRA-002), phân
+xử REMOVED_CANDIDATE và ý nghĩa huỷ/hoàn (PRA-002 UI), BH reset theo năm
+(trước reconcile xuyên năm), email Cloudflare Access (hardening), lương/thưởng
+(DEFER). `UNKNOWN`: ý nghĩa "Doanh số" DataChart ≠ "Tổng bán" Summary.
+
+## F8. DOCUMENTATION_CHANGES_REQUIRED
+
+Đã làm trong S073: ADR-109 (mới, Accepted), ADR-101 (dòng Superseded By),
+ADR-108 (mới, Proposed), DEC-166, TASK-PRA-001 (mới, gate frozen), phụ lục
+này, PROGRESS + LO_TRINH, handoff S073. Làm trong PRA-001 (phụ thuộc
+approve ADR-108): `docs/deployment/S071_DEPLOYMENT.md` (bước Postgres +
+env), `render.yaml`, DEC ghi approve ADR-108, ADR-108 → Accepted.
+
+`SCOPE_DRIFT = NO`. `READY_FOR_PRA_001 = YES` với đúng một điều kiện còn lại
+(approve ADR-108 trước khi deploy); implementation handoff ở
+`docs/sessions/S073-pra-finalization.md`.
