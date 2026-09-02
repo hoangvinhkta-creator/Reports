@@ -1,0 +1,200 @@
+/* Reports — design language tham chiếu Tracking (TASK-PRA-000 mục E).
+ *
+ * Đây là BẢN CHÉP TĨNH có chọn lọc: token màu/khoảng cách/bo góc, tab, card,
+ * bảng, badge. KHÔNG hot-link file nào của Tracking, KHÔNG có runtime
+ * dependency, KHÔNG chép engine/JS/data contract của Tracking. Tracking chỉ
+ * là tham chiếu thị giác, chỉ đọc.
+ *
+ * Lưu ý kỹ thuật đã biết: --tp-card và --tp-line là màu TRONG SUỐT, chỉ đúng
+ * khi nền trang được đặt bằng --tp-bg — nên body luôn khai nền tường minh.
+ *
+ * Khác Tracking ở một điểm nghiệp vụ, cố ý: Tracking quy ước tăng = đỏ vì nó
+ * nói về GIÁ. Reports nói về doanh thu/lợi nhuận nên tăng = xanh lá.
+ */
+
+:root {
+  --tp-ink: #16181d;
+  --tp-ink2: #3c4149;
+  --tp-mut: #6b7280;
+  --tp-bg: #f7f7f5;
+  --tp-card: rgba(255, 255, 255, 0.86);
+  --tp-line: rgba(22, 24, 29, 0.10);
+  --tp-line2: rgba(22, 24, 29, 0.045);
+  --tp-blue: #1d5bea;
+  --tp-blue-d: #1546b8;
+  --tp-sky: #e8effd;
+  --tp-green: #0a7a2f;
+  --tp-green-bg: #e6f4ea;
+  --tp-gold: #8a6100;
+  --tp-gold-bg: #fdf2d8;
+  --tp-red: #b00020;
+  --tp-red-bg: #fdecef;
+
+  --tp-r-sm: 4px;
+  --tp-r-md: 8px;
+  --tp-r-lg: 12px;
+  --tp-r-xl: 16px;
+  --tp-r-pill: 999px;
+
+  --tp-s1: 4px;
+  --tp-s2: 8px;
+  --tp-s3: 12px;
+  --tp-s4: 16px;
+  --tp-s5: 20px;
+  --tp-s6: 24px;
+  --tp-s8: 32px;
+
+  --tp-shadow: 0 1px 2px rgba(22, 24, 29, 0.06);
+  --tp-tr: 120ms ease;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--tp-bg);
+  color: var(--tp-ink);
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+a { color: var(--tp-blue); }
+a:hover { color: var(--tp-blue-d); }
+
+/* --- Header + tab bar ------------------------------------------------- */
+
+.tp-header {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--tp-s4);
+  height: 58px; padding: 0 var(--tp-s5);
+  background: var(--tp-card); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--tp-line);
+}
+
+.tp-brand { font-size: 15px; font-weight: 800; letter-spacing: .02em; }
+
+.tp-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--tp-mut);
+}
+
+.ncc-tabs {
+  display: flex; gap: var(--tp-s4); overflow-x: auto;
+  padding: 0 var(--tp-s5); background: var(--tp-card);
+  border-bottom: 1px solid var(--tp-line);
+  position: sticky; top: 58px; z-index: 19; min-height: 38px;
+}
+
+.ncc-tab {
+  padding: var(--tp-s2) var(--tp-s1); white-space: nowrap;
+  font-size: 14px; font-weight: 600; color: var(--tp-ink2);
+  text-decoration: none; border-bottom: 2px solid transparent;
+  transition: color var(--tp-tr), border-color var(--tp-tr);
+}
+.ncc-tab:hover { color: var(--tp-blue); }
+.ncc-tab.on { color: var(--tp-blue); border-bottom-color: var(--tp-blue); }
+
+.tp-main { padding: var(--tp-s6) var(--tp-s5) var(--tp-s8); }
+h1 { font-size: 21px; margin: 0 0 var(--tp-s4); }
+h2 { font-size: 17px; margin: 0 0 var(--tp-s3); }
+
+/* --- Card ------------------------------------------------------------- */
+
+.module {
+  background: var(--tp-card); border: 1px solid var(--tp-line);
+  border-radius: var(--tp-r-xl); padding: var(--tp-s5);
+  margin-bottom: var(--tp-s5); box-shadow: var(--tp-shadow);
+}
+.module > h2 { display: flex; align-items: center; gap: var(--tp-s2); }
+.cnt {
+  border-radius: var(--tp-r-pill); background: var(--tp-line2);
+  padding: 0 var(--tp-s2); font-size: 12px; font-weight: 700; color: var(--tp-ink2);
+}
+
+/* --- Bảng ------------------------------------------------------------- */
+
+.tp-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--tp-ink2); text-align: left;
+  background: var(--tp-line2); padding: var(--tp-s2) var(--tp-s3); white-space: nowrap;
+}
+td {
+  padding: var(--tp-s2) var(--tp-s3); font-size: 14px;
+  border-bottom: 1px solid var(--tp-line2);
+}
+td.num, th.num { text-align: right; white-space: nowrap; font-weight: 600; }
+td.code { font-weight: 700; white-space: nowrap; }
+td.empty-cell { color: var(--tp-mut); font-weight: 400; }
+tbody tr:hover td { box-shadow: inset 0 0 0 1px var(--tp-line); }
+tr.row-total td { background: var(--tp-line2); font-weight: 700; }
+
+/* --- Badge / tag ------------------------------------------------------ */
+
+.tag {
+  display: inline-block; border-radius: var(--tp-r-pill);
+  padding: 1px var(--tp-s2); font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.tag-legacy { background: var(--tp-gold-bg); color: var(--tp-gold); }
+.tag-current { background: var(--tp-green-bg); color: var(--tp-green); }
+.tag-defect {
+  background: var(--tp-red-bg); color: var(--tp-red); cursor: help;
+  margin-left: var(--tp-s1);
+}
+.tp-unit { color: var(--tp-mut); font-size: 11px; }
+
+/* --- Nút, bộ lọc, trạng thái ----------------------------------------- */
+
+.act, .ghost, button {
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  border-radius: var(--tp-r-md); padding: var(--tp-s2) var(--tp-s4);
+  border: 1px solid var(--tp-blue); background: var(--tp-blue); color: #fff;
+  transition: background var(--tp-tr);
+}
+.act:hover, button:hover { background: var(--tp-blue-d); }
+.ghost { background: transparent; color: var(--tp-blue); }
+.ghost:hover { background: var(--tp-sky); }
+.btn-mini { padding: 2px var(--tp-s2); font-size: 12px; }
+
+.filter-row {
+  display: flex; flex-wrap: wrap; gap: var(--tp-s2);
+  align-items: center; margin-bottom: var(--tp-s3);
+}
+.kpi-period {
+  display: inline-flex; align-items: center; gap: var(--tp-s2);
+  border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
+  padding: var(--tp-s1) var(--tp-s2); background: #fff;
+}
+select, input[type="text"], input[type="file"], textarea {
+  font: inherit; font-size: 14px; border: 1px solid var(--tp-line);
+  border-radius: var(--tp-r-sm); padding: var(--tp-s1) var(--tp-s2); background: #fff;
+}
+textarea { width: 100%; }
+
+.empty { color: var(--tp-mut); padding: var(--tp-s5) 0; }
+.error { color: var(--tp-red); font-weight: 600; }
+.ok { color: var(--tp-green); font-weight: 600; }
+.insight { color: var(--tp-ink2); font-size: 13px; }
+
+.summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--tp-s2) var(--tp-s6);
+}
+.summary-grid .label { color: var(--tp-mut); }
+
+.status-COMPLETE { color: var(--tp-green); font-weight: 600; }
+.status-FAILED, .status-TRACKING_UNAVAILABLE { color: var(--tp-red); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .tp-main { padding: var(--tp-s4) var(--tp-s3) var(--tp-s6); }
+  .tp-header { padding: 0 var(--tp-s3); }
+  .ncc-tabs { padding: 0 var(--tp-s3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

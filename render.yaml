@@ -65,6 +65,19 @@ services:
       # sau đó ở Settings → Environment. KHÔNG có giá trị nào ở đây.
       - key: TRACKING_REPORT_API_KEY
         sync: false
+      # TASK-PRA-001 / ADR-108 — structured history (số cũ + lịch sử phân
+      # tích) nằm ở Managed PostgreSQL, KHÔNG ở R2: R2 giữ artifact/run JSON
+      # bất biến theo run_id, không phục vụ truy vấn theo kỳ/người bán.
+      # Bắt buộc trong production: thiếu HISTORY_DATABASE_URL thì server
+      # KHÔNG khởi động, thay vì âm thầm dùng SQLite trên filesystem
+      # ephemeral của container (mất toàn bộ lịch sử mỗi lần redeploy).
+      - key: REPORTS_REQUIRE_HISTORY_DB
+        value: "1"
+      # Chuỗi kết nối PostgreSQL (Render → New → PostgreSQL → Internal
+      # Database URL). Là secret, Owner dán tay; đổi tiền tố thành
+      # `postgresql+psycopg://` để khớp driver đã khai ở extra `history`.
+      - key: HISTORY_DATABASE_URL
+        sync: false
     # KHÔNG có `disk:` — S071B stateless, không persistent disk nào (xem
     # đầu file). Container có thể bị Render thay thế/restart bất kỳ lúc nào
     # mà không mất run/artifact nào — toàn bộ state authoritative nằm ở R2.

@@ -21,10 +21,175 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-02 (S077): **việc 1 của kế hoạch mới đã XONG HẲN
+> và đã gộp vào bản chính** — xem mục "VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN"
+> ngay đầu phần TRẠNG THÁI HIỆN TẠI. Chỉ dữ liệu 2026 được nạp; `Summary
+> 2025` là số tham chiếu, cố ý không nạp. Việc 2 (PRA-002) là VIỆC TIẾP
+> THEO, chưa bắt đầu. Thuê cơ sở dữ liệu thật vẫn là việc riêng của Owner.
+
+> Cập nhật thêm 2026-09-02 (S076): một lượt **soát xét độc lập** đã tìm ra
+> hai lỗi thật và cả hai đã được sửa — xem mục "SOÁT XÉT ĐỘC LẬP TÌM RA HAI
+> LỖI (S076)" bên dưới. Owner cũng đã duyệt việc phần này viết dài hơn dự
+> tính, nên việc số 3 trước đây coi như đã xong.
+
+> Cập nhật thêm 2026-09-02 (S075): **đã làm xong phần đầu tiên của kế hoạch
+> đó** — Reports giờ mở được số báo cáo cũ ngay trên web, không phải mở
+> Excel nữa. Xem mục "XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)" bên
+> dưới. Còn hai việc cần Owner làm mới dùng thật được, và một việc cần
+> Owner quyết.
+
+> Cập nhật thêm 2026-09-02 (S072): đã có **bản kế hoạch** để Reports không
+> chỉ "nạp file → xem → tải Excel" mà lưu lại số liệu theo thời gian, xem lại
+> số cũ, so sánh tháng này với tháng trước, và không cộng trùng khi nạp hai
+> file có ngày chồng nhau — xem mục "KẾ HOẠCH MỚI" bên dưới. Chỉ là kế
+> hoạch, chưa làm gì thêm vào phần mềm.
+
 # TRẠNG THÁI HIỆN TẠI
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 1 CỦA KẾ HOẠCH MỚI ĐÃ XONG HẲN (2026-09-02) — PRA-001 = XONG
+
+**Xong** nghĩa là: đã viết, đã tự kiểm, đã có người soát xét độc lập, đã
+chạy thử trên **đúng file Excel thật của Owner**, và đã gộp vào bản chính.
+Không phải "code xong chờ duyệt".
+
+**Owner nhìn thấy gì:** Reports giờ có đường đi hoàn chỉnh đầu tiên cho số
+liệu cũ —
+
+```
+File Excel cũ  →  nạp phần dữ liệu 2026 cần thiết  →  máy lưu lại
+               →  tra cứu được  →  hiện lên trang web
+```
+
+Cụ thể: vào Reports → thẻ **Dữ liệu** → nạp file "Báo cáo Kinh doanh
+2026.xlsx" một lần. Sau đó thẻ **Nhân viên** cho xem bảng tháng × người
+bán, thẻ **Doanh số ngày** cho xem doanh số từng ngày. Không phải mở Excel
+để dò tay nữa.
+
+**Quan trọng — phần nào của file được nạp:**
+
+| Phần trong file Excel | Có được nạp không |
+|---|---|
+| `Summary 2026` | **CÓ** — nạp và hiển thị |
+| `DataChart 2026` (doanh số theo ngày) | **CÓ** — nạp và hiển thị |
+| `Summary 2025` | **KHÔNG** — chỉ là số tham chiếu cho báo cáo 2026 |
+
+Owner đã tự chốt điều này: `Summary 2025` trong file cũ là sheet đã dán
+cứng số, mục đích của nó chỉ là làm mốc tham chiếu cho năm 2026, nên không
+cần nạp/lưu/tra cứu/hiển thị. Phần mềm **cố ý** không đoán mò nội dung sheet
+đó — nếu gặp dòng có số mà không hiểu chắc chắn nó là gì, phần mềm báo lỗi
+to chứ không âm thầm bỏ qua.
+
+**Vì vậy đừng đọc mục này thành "toàn bộ file Excel lịch sử đã được nạp
+vào phần mềm".** Mới chỉ có dữ liệu 2026 cần thiết.
+
+**Ba điều đã được kiểm rất kỹ, vì đây là số cũ của Owner:**
+
+1. Không sửa số cũ, kể cả khi biết công thức cũ trong Excel sai — chỗ nào
+   sai thì gắn dấu nhắc, không tự chữa.
+2. Mọi con số cũ đều đeo nhãn **LEGACY**, để không ai nhầm số cũ thành số
+   do phần mềm tính.
+3. Không được phép "nạp thiếu mà vẫn báo khớp 100 %". Một vòng soát xét độc
+   lập đã bắt đúng lỗi này (số cũ mất trọn một kỳ mà máy vẫn báo khớp), lỗi
+   đã sửa, và giờ máy kiểm **hai chiều**: vừa kiểm số đã nạp có đúng không,
+   vừa kiểm có dòng nào trong file mà chưa được nạp không.
+
+**Trên file Excel thật của Owner:** 71 dòng của `Summary 2026` — nạp đủ 71,
+thiếu 0; 1.508 ô số đối chiếu — lệch 0; `Summary 2025` để lại 0 bản ghi
+(đúng như đã chốt). File Excel gốc **không bị sửa** (kiểm bằng mã băm trước
+và sau khi chạy, giống hệt nhau).
+
+**Còn hai việc chưa làm, và chúng là việc riêng — không phải phần dở dang
+của việc 1:**
+
+- **Thuê cơ sở dữ liệu thật (PostgreSQL) trên mạng.** Đây là việc trả tiền
+  dịch vụ, thuộc quyền Owner, phiên làm việc này **không** được tự tạo. Chạy
+  thử ở máy vẫn dùng bản lưu trữ nhẹ nên không cần thuê gì. Quy trình bật
+  lên đã viết sẵn.
+- **Việc 2 của kế hoạch (PRA-002)** — nạp nhiều file có ngày chồng nhau mà
+  không cộng trùng. Việc này giờ là **VIỆC TIẾP THEO**, chưa bắt đầu.
+
+## XEM ĐƯỢC BÁO CÁO CŨ NGAY TRÊN REPORTS (S075)
+
+**Trước:** muốn xem số của tháng 03/2026 thì phải mở file Excel "Báo cáo
+Kinh doanh" và tự dò trong sheet Summary.
+
+**Giờ:** vào Reports → thẻ **Dữ liệu** → nạp file Excel cũ một lần. Sau đó
+thẻ **Nhân viên** cho xem bảng tháng × người bán (tổng đơn, số sản phẩm,
+tổng bán, doanh số quy đổi, lợi nhuận, so tháng trước, so target), và thẻ
+**Doanh số ngày** cho xem doanh số từng ngày trong tháng. Chọn kỳ nào cũng
+được, miễn là kỳ đó có trong file đã nạp.
+
+Ba điều được làm rất kỹ, vì đây là **số cũ của Owner**, không phải số máy
+tự tính:
+
+1. **Không sửa số cũ, kể cả khi biết công thức cũ sai.** Phần mềm không
+   được phép "tính lại cho đúng" rồi hiện ra con số khác với con số Owner
+   đã dùng bấy lâu. Số nào trong Excel thì hiện đúng số đó.
+2. **Số cũ luôn có nhãn.** Mỗi con số đều đeo chữ `LEGACY` và ghi rõ đơn vị
+   (nghìn đồng hay đồng), để không bao giờ nhầm số cũ với số do phần mềm
+   tính. Hai loại số này nằm ở hai bảng riêng, không trộn.
+3. **Ô nào công thức cũ có lỗi thì có dấu nhắc.** Ví dụ ô "số sản phẩm" ra
+   `87,6` (số sản phẩm lẽ ra phải là số nguyên), hay dòng tổng tháng cộng
+   thiếu một người bán. Phần mềm **chỉ ra** chỗ đó — mã A1/A2/A4/A6, di
+   chuột vào sẽ thấy giải thích — nhưng **không tự sửa**. Sửa hay không là
+   quyết định của Owner, không phải của máy.
+
+Và nếu có trục trặc (mất kết nối kho dữ liệu chẳng hạn), trang sẽ **báo lỗi
+rõ ràng**, chứ không hiện ra một bảng trống trông y như "tháng này chưa có
+số liệu" — đó là kiểu nhầm nguy hiểm nhất.
+
+### SOÁT XÉT ĐỘC LẬP TÌM RA HAI LỖI (S076) — đã sửa
+
+Một lượt soát xét độc lập đã kiểm lại toàn bộ phần này và tìm ra hai lỗi
+mà bản đầu chưa thấy. Cả hai cùng một kiểu: **máy gặp sự cố nhưng lại hiện
+ra như thể mọi thứ bình thường** — đúng loại nguy hiểm nhất, vì không ai
+biết mà kiểm tra lại.
+
+**Lỗi 1 — "khớp 100%" trong khi thiếu hẳn một năm dữ liệu.**
+Công cụ đối chiếu chỉ kiểm được *"những dòng đã nạp có đúng không"*, chứ
+không kiểm *"có dòng nào chưa được nạp không"*. Hậu quả: nếu toàn bộ số của
+năm 2025 bị bỏ sót lúc nạp, màn hình vẫn báo "khớp 100%, không lệch ô nào".
+Nay đã sửa: công cụ đếm cả từ phía file Excel, in rõ ba con số — *bao nhiêu
+dòng nguồn có số*, *bao nhiêu dòng đã nạp*, *bao nhiêu dòng bị bỏ sót* — và
+báo TRƯỢT nếu có dòng bị bỏ sót, kể cả khi không ô nào sai giá trị.
+
+Kèm theo là một quyết định của Owner: nếu gặp một dòng có số mà phần mềm
+**không chắc** dòng đó nghĩa là gì, nó phải **báo lỗi to** và dừng lại —
+tuyệt đối không được tự đoán "chắc dòng này là dòng người bán" chỉ vì dòng
+đó có số. Máy không có thẩm quyền tự gán ý nghĩa nghiệp vụ cho dữ liệu của
+Owner.
+
+**Lỗi 2 — mất kết nối kho dữ liệu nhưng lại đổ lỗi cho file của Owner.**
+Khi nạp file mà kho dữ liệu gặp sự cố, màn hình hiện "Không đọc được
+workbook legacy. Kiểm tra file và thử lại." Owner sẽ ngồi sửa file Excel
+cho một lỗi hoàn toàn không nằm ở file. Nay đã sửa: sự cố kho dữ liệu báo
+đúng là sự cố kho dữ liệu; lỗi file vẫn báo là lỗi file.
+
+Cả hai lỗi đều có bài kiểm tra tự động riêng, và đã chứng minh được là hai
+bài kiểm tra đó **trượt trên bản cũ, đạt trên bản mới** — tức là chúng thật
+sự bắt được lỗi, không phải viết cho có.
+
+### Hai việc còn lại
+
+1. **Owner tạo kho lưu trữ trên Render (~150.000đ/tháng).** Hiện phần mềm
+   chạy và test đầy đủ trên máy, nhưng để lưu thật trên mạng thì cần một
+   database PostgreSQL. Các bước bấm cụ thể đã viết sẵn ở
+   `docs/deployment/S071_DEPLOYMENT.md` (bước 8–12), không cần Owner tự tìm hiểu.
+2. **Owner chạy đối chiếu trên file Excel THẬT.** Phần mềm đã được kiểm tra
+   kỹ trên một file mẫu tự dựng, nhưng file thật thì chưa — file thật có dữ
+   liệu khách hàng nên không được đưa lên kho mã nguồn. Có sẵn một lệnh
+   đối chiếu từng ô, chạy xong in ra "khớp bao nhiêu ô, lệch bao nhiêu ô";
+   kỳ vọng là lệch = 0.
+*(Việc thứ ba trước đây — "phần này viết dài hơn dự tính" — đã xong: soát
+xét độc lập kiểm lại từng phần mã và kết luận gần như toàn bộ là cần
+thiết, không có chức năng thừa để cắt. Owner đã duyệt nâng hạn mức lên
+khoảng 1.050 dòng; con số thực tế sau khi sửa hai lỗi trên là 1.045.)*
+
+Phần này **vẫn chưa được gộp vào bản chính** — đang chờ một lượt soát xét
+độc lập lần hai trên bản đã sửa.
 
 ## ĐÃ XONG
 
@@ -181,6 +346,71 @@ thông tải xuống — với quy mô một đội bán hàng nhỏ (vài chụ
 ngày), chi phí lưu trữ dự kiến rất nhỏ, gần như không đáng kể. Chi phí thuê
 máy chủ chạy Reports (Render hoặc nơi tương đương) vẫn còn, không đổi — chỉ
 riêng phần "ổ đĩa lưu lâu dài" là không cần mua nữa.
+
+## KẾ HOẠCH MỚI — chủ dự án đã chốt nơi lưu dữ liệu, bước 1 sẵn sàng làm (2026-09-02, tối)
+
+Chủ dự án đã đồng ý: dữ liệu lịch sử lưu trong một cơ sở dữ liệu
+PostgreSQL thuê sẵn; file Excel và kết quả chạy vẫn ở kho R2; trên máy lập
+trình dùng SQLite. Bước 1 chỉ tạo đúng phần bảng cho số cũ, chưa tạo trước
+bảng của bước 2. Không còn gì phải hỏi trước khi bắt tay bước 1; phiên
+tiếp theo sẽ bắt đầu lập trình.
+
+## KẾ HOẠCH MỚI — bước 1 đã sẵn sàng bắt tay (2026-09-02, chiều)
+
+Chủ dự án đã duyệt bản kế hoạch và chốt 5 điều: giữ nguyên cách làm trang
+web hiện tại (không đập đi làm lại); khoảng ngày của file nạp tự nhận từ dữ
+liệu, nhưng "file có đủ hết đơn của khoảng đó hay không" là chuyện khác,
+không tự suy; số kế toán sửa thì giữ cả bản cũ lẫn bản mới và ghi rõ đổi
+chỗ nào; đơn biến mất khỏi file mới thì đưa vào "cần kiểm tra", không tự
+xoá, không tự coi là huỷ; số cũ trong Excel giữ nguyên, không tính lại.
+
+Còn đúng **một việc** chủ dự án cần quyết trước khi đưa bước 1 lên mạng
+thật: chọn nơi lưu dữ liệu lâu dài. Đề xuất: thuê một cơ sở dữ liệu
+PostgreSQL có sẵn trên Render (khoảng 6–7 USD/tháng), còn file Excel/kết
+quả chạy vẫn để ở kho R2 như hiện nay. Đã so sánh với hai cách khác (lưu
+thành nhiều tệp trong kho R2; dùng D1 của Cloudflare) và giải thích vì sao
+không chọn — xem bản kỹ thuật ADR-108. Khi chủ dự án đồng ý, bước 1 (đưa
+số cũ vào Reports) có thể làm ngay; phần lập trình và kiểm thử trên máy
+không cần chờ.
+
+## KẾ HOẠCH MỚI — Reports lưu lịch sử và so sánh được (2026-09-02, chưa bắt đầu làm)
+
+Hôm nay Reports giống một "máy phân tích file": nạp file kế toán, xem vài con
+số tổng, tải Excel. Mỗi lần chạy chỉ lưu lại 7 con số tổng và file Excel —
+không lưu từng đơn, từng dòng, nên không thể hỏi "tháng này so tháng trước
+thế nào" hay "nhân viên A bán gì trong tháng 9" mà không mở lại Excel.
+
+Kế hoạch mới (đã viết xong, chưa làm) chia làm 5 bước nhỏ, bước nào xong
+cũng có thứ nhìn thấy được:
+
+1. **Đưa số cũ vào Reports.** Nhập nguyên bảng "Báo cáo Kinh doanh 2026"
+   (bảng tổng theo tháng/người, bảng doanh số theo ngày) vào Reports để xem
+   lại và so sánh. Số cũ giữ nguyên như cũ, kể cả chỗ công thức Excel đang
+   sai (có gắn dấu nhắc), không tính lại, và luôn đeo nhãn "số cũ".
+2. **Lưu từng đơn, từng dòng mỗi lần nạp file, và không cộng trùng.** Ví dụ
+   ngày 10/09 nạp file 01–10/09, cuối tháng nạp file 01–30/09: phần 01–10/09
+   chỉ tính một lần; dòng nào kế toán sửa (đổi giá, đổi số lượng) thì hiện
+   "đã đổi, từ X thành Y"; đơn nào có trong file trước mà biến mất ở file
+   sau thì hiện cảnh báo, không âm thầm xoá.
+3. **Trang Tổng quan và trang Nhân viên** lấy số thật từ dữ liệu đã lưu:
+   doanh thu, số đơn, số sản phẩm, lợi nhuận (chỉ trên đơn tự động), so tháng
+   trước, so chỉ tiêu, bảng nhân viên × tháng giống bảng Summary cũ.
+4. **Xem chi tiết đến từng đơn và xử lý hàng "cần xem lại" ngay trên web**,
+   không cần mở Excel.
+5. **Trang Sản phẩm** theo mã sản phẩm chuẩn (chỉ những dòng đã nhận diện
+   được), và các so sánh dài hơn (cùng kỳ năm trước, cả năm).
+
+Giao diện sẽ dùng cùng "bộ quần áo" với Tracking (màu, chữ, bảng, nút) để
+hai phần mềm nhìn như một, nhưng **không** nối vào Tracking và **không** sửa
+gì bên Tracking.
+
+Trước khi bắt đầu bước 1, chủ dự án cần chốt 4 điều: (a) thuê chỗ lưu dữ
+liệu lâu dài nào (đề xuất một cơ sở dữ liệu quản lý sẵn, khoảng 6–7 USD/
+tháng); (b) khoảng ngày của mỗi file nạp lấy từ dòng "Từ ngày … đến ngày …"
+trong file hay do người nạp khai; (c) khi kế toán sửa số, lấy số mới làm số
+chính (có đánh dấu) hay giữ số cũ chờ duyệt; (d) đơn biến mất khỏi file mới
+thì bỏ khỏi tổng (có đánh dấu) hay vẫn tính. Danh sách đầy đủ 13 câu hỏi nằm
+trong bản kế hoạch kỹ thuật (mục N).
 
 ## ĐANG CHỜ
 

@@ -1,90 +1,65 @@
-<!doctype html>
-<html lang="vi">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reports — Internal Beta</title>
-<style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1a1a1a;
-  }
-  .badge { color: #666; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
-  h1 { font-size: 22px; margin: 4px 0 20px; }
-  .readiness { color: #444; margin-bottom: 16px; }
-  .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
-  .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 8px 24px; }
-  .summary-grid .label { color: #555; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  td { padding: 4px 0; border-bottom: 1px solid #eee; }
-  td.count { text-align: right; }
-  .error { color: #b00020; }
-  .ok { color: #0a7a2f; }
-  .upload-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  button { cursor: pointer; padding: 8px 14px; }
-  textarea, select { width: 100%; box-sizing: border-box; }
-  label { display: block; margin-top: 10px; font-size: 14px; color: #333; }
-</style>
-</head>
-<body>
-  <p class="badge">Reports · Shared Online Beta</p>
-  <h1>BÁO CÁO BÁN HÀNG</h1>
-  <p class="readiness">Dữ liệu Tracking: {{ readiness }}</p>
-  <p><a href="{{ url_for('history') }}">Xem lịch sử các lần chạy →</a></p>
+{% extends "layout.html" %}
+{% set active_tab = 'chay' %}
+{% block title %}Reports — Chạy báo cáo{% endblock %}
 
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  {% if not_found %}
-  <p class="error">Không tìm thấy kết quả chạy trước (máy chủ có thể đã khởi động lại). Vui lòng chạy lại.</p>
-  {% endif %}
+{% block content %}
+<h1>BÁO CÁO BÁN HÀNG</h1>
+<p class="insight">Dữ liệu Tracking: {{ readiness }}</p>
 
-  <form class="upload-row" action="{{ url_for('run_report') }}" method="post" enctype="multipart/form-data">
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if not_found %}
+<p class="error">Không tìm thấy kết quả chạy trước (máy chủ có thể đã khởi động lại). Vui lòng chạy lại.</p>
+{% endif %}
+
+<div class="module">
+  <form class="filter-row" action="{{ url_for('run_report') }}" method="post" enctype="multipart/form-data">
     <input type="file" name="workbook" accept=".xlsx" required>
-    <button type="submit">CHẠY BÁO CÁO</button>
+    <button class="act" type="submit">CHẠY BÁO CÁO</button>
   </form>
+</div>
 
-  {% if result %}
-  <div class="card">
-    {% if run_created_at %}<p class="badge">Chạy lúc: {{ run_created_at }}</p>{% endif %}
-    {% if workbook_display_name %}<p class="badge">Workbook: {{ workbook_display_name }}</p>{% endif %}
-    <div class="summary-grid">
-      <div><span class="label">Tổng đơn:</span> {{ result.input_orders }}</div>
-      <div><span class="label">AUTO:</span> {{ result.auto_orders }}</div>
-      <div><span class="label">Cần xem lại:</span> {{ result.review_orders }}</div>
-      <div><span class="label">Ưu tiên xem ngay:</span> {{ result.error_count }}</div>
-      <div><span class="label">Dòng không nhận diện được:</span> {{ result.dropped_lines }}</div>
-      <div><span class="label">Accounting coverage:</span> {{ result.accounting_rate }}</div>
-    </div>
+{% if result %}
+<div class="module">
+  {% if run_created_at %}<p class="tp-label">Chạy lúc: {{ run_created_at }}</p>{% endif %}
+  {% if workbook_display_name %}<p class="tp-label">Workbook: {{ workbook_display_name }}</p>{% endif %}
+  <div class="summary-grid">
+    <div><span class="label">Tổng đơn:</span> {{ result.input_orders }}</div>
+    <div><span class="label">AUTO:</span> {{ result.auto_orders }}</div>
+    <div><span class="label">Cần xem lại:</span> {{ result.review_orders }}</div>
+    <div><span class="label">Ưu tiên xem ngay:</span> {{ result.error_count }}</div>
+    <div><span class="label">Dòng không nhận diện được:</span> {{ result.dropped_lines }}</div>
+    <div><span class="label">Accounting coverage:</span> {{ result.accounting_rate }}</div>
   </div>
+</div>
 
-  {% if result.review_reason_lines %}
-  <div class="card">
-    <strong>CẦN XEM LẠI — THEO DÒNG</strong>
-    <table>
-      {% for label, count in result.review_reason_lines %}
-      <tr><td>{{ label }}</td><td class="count">{{ count }}</td></tr>
+{% if result.review_reason_lines %}
+<div class="module">
+  <h2>CẦN XEM LẠI — THEO DÒNG</h2>
+  <table>
+    {% for label, count in result.review_reason_lines %}
+    <tr><td>{{ label }}</td><td class="num">{{ count }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<p><a href="{{ url_for('download_artifact', run_id=run_id) }}"><button class="act" type="button">TẢI BÁO CÁO EXCEL</button></a></p>
+{% endif %}
+
+<div class="module">
+  <h2>GỬI PHẢN HỒI</h2>
+  {% if feedback_ok %}<p class="ok">Đã lưu phản hồi. Cảm ơn!</p>{% endif %}
+  <form action="{{ url_for('submit_feedback') }}" method="post">
+    <input type="hidden" name="run_id" value="{{ run_id or '' }}">
+    <label class="tp-label" for="category">Loại phản hồi</label>
+    <select name="category" id="category">
+      {% for option in feedback_categories %}
+      <option value="{{ option }}">{{ option }}</option>
       {% endfor %}
-    </table>
-  </div>
-  {% endif %}
-
-  <p><a href="{{ url_for('download_artifact', run_id=run_id) }}"><button type="button">TẢI BÁO CÁO EXCEL</button></a></p>
-  {% endif %}
-
-  <div class="card">
-    <strong>GỬI PHẢN HỒI</strong>
-    {% if feedback_ok %}<p class="ok">Đã lưu phản hồi. Cảm ơn!</p>{% endif %}
-    <form action="{{ url_for('submit_feedback') }}" method="post">
-      <input type="hidden" name="run_id" value="{{ run_id or '' }}">
-      <label for="category">Loại phản hồi</label>
-      <select name="category" id="category">
-        {% for option in feedback_categories %}
-        <option value="{{ option }}">{{ option }}</option>
-        {% endfor %}
-      </select>
-      <label for="comment">Ghi chú (không bắt buộc)</label>
-      <textarea name="comment" id="comment" rows="3"></textarea>
-      <p><button type="submit">GỬI PHẢN HỒI</button></p>
-    </form>
-  </div>
-</body>
-</html>
+    </select>
+    <label class="tp-label" for="comment">Ghi chú (không bắt buộc)</label>
+    <textarea name="comment" id="comment" rows="3"></textarea>
+    <p><button class="act" type="submit">GỬI PHẢN HỒI</button></p>
+  </form>
+</div>
+{% endblock %}

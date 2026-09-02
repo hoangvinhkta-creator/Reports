@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% import "_legacy_bits.html" as legacy %}
+{% set active_tab = 'du-lieu' %}
+{% block title %}Reports — Dữ liệu{% endblock %}
+
+{% block content %}
+<h1>DỮ LIỆU</h1>
+
+{% if imported %}<p class="ok">{{ imported }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<div class="module">
+  <h2>Báo cáo cũ (Excel) <span class="cnt">{{ imports|length }}</span> {{ legacy.legacy_badge() }}</h2>
+  {% if not history_configured %}
+    {{ legacy.not_configured() }}
+  {% else %}
+  <p class="insight">
+    Workbook "Báo cáo Kinh doanh" đã tính thủ công. Số được lưu NGUYÊN TRẠNG để
+    tra cứu lịch sử — không chạy qua pipeline, không tính lại.
+  </p>
+  <form class="filter-row" action="{{ url_for('import_legacy') }}" method="post"
+        enctype="multipart/form-data">
+    <input type="file" name="workbook" accept=".xlsx" required>
+    <input type="text" name="version_label" placeholder="Nhãn bản (không bắt buộc)">
+    <button class="act" type="submit">NHẬP BẢN LEGACY</button>
+  </form>
+
+  {% if imports %}
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th>Mã bản</th><th>Nguồn</th><th>Nhãn</th><th>Nhập lúc</th>
+      <th>Nguồn dữ liệu</th><th>Đang xem</th><th></th>
+    </tr>
+    {% for item in imports %}
+    <tr>
+      <td class="code">{{ item.import_id }}</td>
+      <td>{{ item.source_file_name or '—' }}</td>
+      <td>{{ item.version_label or '—' }}</td>
+      <td>{{ item.imported_at }}</td>
+      <td><span class="tag tag-legacy">{{ item.origin }}</span></td>
+      <td>{% if item.is_current %}<span class="tag tag-current">ĐANG XEM</span>{% else %}—{% endif %}</td>
+      <td>
+        {% if not item.is_current %}
+        <form action="{{ url_for('choose_legacy', import_id=item.import_id) }}" method="post">
+          <button class="ghost btn-mini" type="submit">CHỌN BẢN NÀY</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Chưa nhập bản báo cáo cũ nào.</p>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>Các lần chạy pipeline <span class="cnt">{{ runs|length }}</span></h2>
+  <p class="insight">Số do pipeline hiện tại tính — KHÁC nguồn với bảng legacy ở trên.</p>
+  {% if runs %}
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th>Chạy lúc</th><th>Workbook</th><th>Trạng thái</th>
+      <th class="num">Tổng đơn</th><th class="num">AUTO</th><th class="num">Cần xem lại</th><th></th>
+    </tr>
+    {% for run in runs %}
+    <tr>
+      <td>{{ run.created_at }}</td>
+      <td>{{ run.workbook_display_name or '—' }}</td>
+      <td class="status-{{ run.status }}">{{ run.status }}</td>
+      <td class="num">{{ run.view.input_orders if run.view else '—' }}</td>
+      <td class="num">{{ run.view.auto_orders if run.view else '—' }}</td>
+      <td class="num">{{ run.view.review_orders if run.view else '—' }}</td>
+      <td><a href="{{ url_for('index', run_id=run.run_id) }}">Xem</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Chưa có lần chạy nào.</p>
+  {% endif %}
+</div>
+{% endblock %}
