@@ -367,17 +367,28 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S081, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S082, 2026-09-02 — HIỆN HÀNH)
 
 ```
 TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : SLICE A REVIEWED + REPAIRED (slice B, C chưa bắt đầu)
+Implementation               : SLICE A IMPLEMENTED + REVIEWED + ACCEPTED + INTEGRATED (slice B NEXT, slice C PENDING)
 repair cycle đã dùng         : 1 / 2
 CHANGE_BUDGET slice A        : 1.104 dòng logic production / mục tiêu 1.200 / dừng cứng 1.500
 Baseline tại BASE_SHA        : Golden 58 passed, 2 skipped; full suite 1608 passed, 11 skipped
 Sau slice A (trước repair)   : Golden 58 passed, 2 skipped; full suite 1710 passed, 11 skipped
 Sau repair cycle 1           : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
+Canonical sau integration    : claude/extract-upload-repo-gq2ws4 @ 86f26a0e15b9655d3b0384b59c221f68bc3a1665
+                                (fast-forward từ 7fad3f7, không merge commit, tree == accepted head)
 ```
+
+Controlled Integration (S082) — fast-forward `claude/extract-upload-repo-gq2ws4`
+từ `7fad3f76908d6d56114a5e2e947d83e15f8eda02` lên
+`86f26a0e15b9655d3b0384b59c221f68bc3a1665` (== exact remote HEAD của
+`claude/pra-002-slice-a-umygjq` đã qua Independent Review E2 PASS). Sau
+integration: `branch_authority_check.sh` → `AUTHORITY_OK`; focused Slice A
+tests (116) PASS trên canonical mới; `validate_reference_integrity` vẫn FAIL
+với đúng 3 lỗi pre-existing của `TASK-REM-T06` (ngoài scope, DEFER, không
+liên quan diff PRA-002).
 
 Slice A (S080) — nhánh `claude/pra-002-slice-a-umygjq`, cắt từ
 `IMPLEMENTATION_BASE_SHA = 7fad3f76908d6d56114a5e2e947d83e15f8eda02`

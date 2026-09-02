@@ -1,5 +1,32 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S082)
+
+Cập nhật sau **Controlled Integration của slice A vào canonical**. Khối S081
+ngay dưới giữ nguyên như bản ghi lịch sử đúng tại thời điểm Independent
+Review; khi hai khối mâu thuẫn về trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                 = S082 — PRA-002 Slice A Controlled Integration (MAJOR)
+TASK-PRA-002            = IN_PROGRESS  (slice A IMPLEMENTED + REVIEWED + ACCEPTED + INTEGRATED; slice B NEXT; slice C PENDING)
+CANONICAL_BEFORE_SHA    = 7fad3f76908d6d56114a5e2e947d83e15f8eda02
+ACCEPTED_SLICE_A_SHA    = 86f26a0e15b9655d3b0384b59c221f68bc3a1665  (== exact remote HEAD của claude/pra-002-slice-a-umygjq lúc integrate)
+CANONICAL_AFTER_SHA     = 86f26a0e15b9655d3b0384b59c221f68bc3a1665
+INTEGRATION_METHOD      = fast-forward (không merge commit, không squash, không rebase, không cherry-pick)
+LINEAGE                 = 7fad3f7 (canonical before) → 80c6fe1 (slice A implementation) → b0ecab7 (review repair cycle 1) → 86f26a0 (ledger head_sha) — cả ba đều là ancestor của canonical sau integrate
+REMOTE_CANONICAL_SHA    = 86f26a0e15b9655d3b0384b59c221f68bc3a1665  (khớp local — xác minh sau push)
+TREE_EQUIVALENCE        = ĐÚNG (fast-forward: tree canonical sau integrate == tree accepted head, không có thay đổi nào phát sinh trong integration)
+TESTS_AFTER_INTEGRATION = focused Slice A (test_history_keys/reconciler/db, test_snapshot_repository, test_web_history, test_pipeline_history_vertical): 116 passed
+                          (full suite/Golden/PostgreSQL không chạy lại vì tree không đổi so với accepted head đã E2-verify)
+VALIDATORS              = validate_structure PASS; validate_project_state PASS; validate_evidence PASS;
+                          validate_reference_integrity FAIL — 3 lỗi pre-existing trong TASK-REM-T06, ngoài scope integration, DEFER
+BRANCH_AUTHORITY        = AUTHORITY_OK (branch_authority_check.sh)
+CHECK-PRA002-17         = NOT_TESTED ở cấp toàn task (frozen gate đòi CHECK-07 slice B); phần slice A đã PASS E2, xem
+                          docs/reviews/TASK-PRA-002-SLICE-A-INDEPENDENT-REVIEW-RECORD.md
+EVIDENCE                = commit fast-forward trên claude/extract-upload-repo-gq2ws4 (86f26a0), branch_authority_check log, test log phiên này
+NEXT_VERTICAL_ACTION    = PRA-002 Slice B — Coverage Semantics
+```
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S081)
 
 Cập nhật sau **Independent Review E2 của slice A**. Khối S080 ngay dưới giữ
