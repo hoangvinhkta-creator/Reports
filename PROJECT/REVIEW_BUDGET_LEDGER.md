@@ -367,19 +367,33 @@ Tracking (mọi thứ)                      : FORBIDDEN — READ-ONLY REFERENCE
 DELETE / UPDATE-in-place trên bảng fact : FORBIDDEN — DATA_INTEGRITY_RISK
 ```
 
-### Trạng thái (S082, 2026-09-02 — HIỆN HÀNH)
+### Trạng thái (S083, 2026-09-02 — HIỆN HÀNH)
 
 ```
 TASK-PRA-002                 : IN_PROGRESS (gate FROZEN, 17 check / 16 REQUIRED)
-Implementation               : SLICE A IMPLEMENTED + REVIEWED + ACCEPTED + INTEGRATED (slice B NEXT, slice C PENDING)
-repair cycle đã dùng         : 1 / 2
-CHANGE_BUDGET slice A        : 1.104 dòng logic production / mục tiêu 1.200 / dừng cứng 1.500
-Baseline tại BASE_SHA        : Golden 58 passed, 2 skipped; full suite 1608 passed, 11 skipped
-Sau slice A (trước repair)   : Golden 58 passed, 2 skipped; full suite 1710 passed, 11 skipped
-Sau repair cycle 1           : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
-Canonical sau integration    : claude/extract-upload-repo-gq2ws4 @ 86f26a0e15b9655d3b0384b59c221f68bc3a1665
-                                (fast-forward từ 7fad3f7, không merge commit, tree == accepted head)
+Implementation               : SLICE A INTEGRATED; SLICE B IMPLEMENTED (chờ Independent Review E2); slice C PENDING
+repair cycle đã dùng         : 1 / 2   (còn 1 — slice B chưa tiêu cycle nào)
+CHANGE_BUDGET slice B        : 242 dòng logic production / mục tiêu slice ≤ 500 / cảnh báo 600 / dừng cứng 800
+CHANGE_BUDGET lineage        : 1.104 (A) + 242 (B) = 1.346 / mục tiêu 1.200 / dừng cứng 1.500
+                                → VƯỢT mục tiêu mềm, còn 154 dòng trước dừng cứng; slice C phải lập kế hoạch
+                                  trong 154 dòng đó hoặc mở CHANGE_BUDGET đề xuất TRƯỚC khi viết mã
+Baseline slice B (27b9d1c5)  : Golden 58 passed, 2 skipped; full suite 1711 passed, 11 skipped
+Sau slice B                  : Golden 58 passed, 2 skipped; full suite 1781 passed, 11 skipped (+70 test, 0 skip thêm)
+Migration slice B            : KHÔNG có — schema 0002_snapshots đã đủ; ALEMBIC_HEAD không đổi
+Nhánh slice B                : claude/pra-002-slice-b-snapshot-8rbwip (BASE_SHA 27b9d1c5, chưa integrate)
+Canonical hiện tại           : claude/extract-upload-repo-gq2ws4 @ 27b9d1c5a578742450099c53f2f82411f07aa9dc
 ```
+
+Slice B (S083) — nhánh `claude/pra-002-slice-b-snapshot-8rbwip`, cắt từ
+`IMPLEMENTATION_BASE_SHA = 27b9d1c5a578742450099c53f2f82411f07aa9dc`
+(== origin/`claude/extract-upload-repo-gq2ws4` lúc mở phiên; canonical không
+dịch chuyển). Bằng chứng đầy đủ:
+`docs/sessions/S083-pra-002-slice-b-coverage-semantics.md`. Check chuyển trạng
+thái: **CHECK-PRA002-06 PARTIAL → PASS (E1)** và **CHECK-PRA002-07 NOT_TESTED →
+PASS (E1)**. BR-2 của bảng blast radius ở trên ("một dòng bị âm thầm mất/xoá
+khi snapshot mới thiếu nó") nay có bằng chứng trực tiếp trên PostgreSQL 16.13
+thật: ở CẢ hai nhánh `NOT_SEEN` và `REMOVED_CANDIDATE`, `order_line_current`,
+`SUM(total_sales)` và `COUNT(*)` của mọi bảng fact đều KHÔNG đổi.
 
 Controlled Integration (S082) — fast-forward `claude/extract-upload-repo-gq2ws4`
 từ `7fad3f76908d6d56114a5e2e947d83e15f8eda02` lên

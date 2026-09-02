@@ -28,10 +28,50 @@
   </div>
   <p class="tp-label">Header nguyên văn: {{ snapshot.header_text or '—' }}</p>
   <p class="insight">
-    <strong>CHƯA XÁC NHẬN ĐỦ.</strong> Khoảng ngày ở trên là khoảng ĐO ĐƯỢC từ dữ liệu,
-    không phải bằng chứng rằng sổ đã đầy đủ mọi chứng từ của khoảng đó.
+    <strong>{{ coverage_label }}.</strong>
+    {% if snapshot.coverage_state == 'CONFIRMED_COMPLETE' %}
+    Người dùng đã xác nhận sổ này đầy đủ cho
+    <strong>{{ snapshot.confirmed_range_start }} → {{ snapshot.confirmed_range_end }}</strong>
+    (lúc {{ snapshot.confirmed_at }}). Ngoài khoảng đó, snapshot này KHÔNG nói gì.
+    {% else %}
+    Khoảng ngày ở trên là khoảng ĐO ĐƯỢC từ dữ liệu, không phải bằng chứng rằng sổ
+    đã đầy đủ mọi chứng từ của khoảng đó.
+    {% endif %}
   </p>
 </div>
+
+{% if confirm_message %}<p class="insight">{{ confirm_message }}</p>{% endif %}
+{% if confirm_error %}<p class="error">{{ confirm_error }}</p>{% endif %}
+
+{% if can_confirm %}
+<div class="module">
+  <h2>Xác nhận sổ này đầy đủ</h2>
+  <p class="insight">
+    Hệ thống KHÔNG BAO GIỜ tự kết luận một sổ đã đầy đủ — không từ header, không từ
+    min/max ngày, không từ số dòng. Chỉ khi bạn xác nhận ở đây, hệ thống mới coi các
+    dòng hiện hành trong khoảng khai báo mà sổ này không có là ứng viên đã bị xoá khỏi
+    nguồn (đưa vào Review — <strong>không xoá, không huỷ, vẫn tính vào tổng</strong>).
+  </p>
+  <p class="tp-label">
+    Phạm vi hệ thống phát hiện:
+    <strong>{{ snapshot.detected_date_min }} → {{ snapshot.detected_date_max }}</strong>
+  </p>
+  <form method="post"
+        action="{{ url_for('confirm_snapshot', snapshot_id=snapshot.snapshot_id) }}">
+    <label>Từ ngày
+      <input type="date" name="tu_ngay" value="{{ snapshot.detected_date_min }}" required>
+    </label>
+    <label>Đến ngày
+      <input type="date" name="den_ngay" value="{{ snapshot.detected_date_max }}" required>
+    </label>
+    <label>
+      <input type="checkbox" name="xac_nhan" value="1">
+      Tôi xác nhận sổ này là ĐẦY ĐỦ mọi chứng từ bán hàng cho khoảng ngày ở trên.
+    </label>
+    <button type="submit">Xác nhận đầy đủ</button>
+  </form>
+</div>
+{% endif %}
 
 <div class="module">
   <h2>Kết quả đối chiếu</h2>
@@ -40,7 +80,14 @@
     <div><span class="label">Không đổi (SAME):</span> {{ snapshot.n_same }}</div>
     <div><span class="label">Nguồn đã sửa:</span> {{ snapshot.n_source_changed }}</div>
     <div><span class="label">Trùng khoá (chưa phân xử):</span> {{ snapshot.n_collision }}</div>
+    <div><span class="label">Không thấy trong sổ này:</span> {{ snapshot.n_not_seen }}</div>
+    <div><span class="label">Ứng viên đã xoá khỏi nguồn:</span> {{ snapshot.n_removed_candidate }}</div>
   </div>
+  <p class="insight">
+    <strong>Không thấy</strong> KHÔNG có nghĩa là <strong>đã xoá</strong>. Cả hai loại cờ
+    vắng mặt đều chỉ là thông tin/Review: dòng liên quan vẫn là dòng hiện hành và vẫn
+    được tính vào mọi con số ở dưới.
+  </p>
   <p class="insight">
     Dòng <strong>SAME</strong> KHÔNG tạo phiên bản nguồn mới và KHÔNG được cộng thêm
     một lần nữa vào tổng hiện hành — upload lại cùng một sổ không làm doanh thu tăng.
@@ -65,13 +112,20 @@
   {% if flags %}
   <div class="tp-scroll">
   <table>
-    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Phiên bản</th><th>Chi tiết</th></tr>
+    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Phiên bản</th><th>Hiệu lực</th><th>Chi tiết</th></tr>
     {% for flag in flags %}
     <tr>
       <td><span class="tag tag-defect">{{ flag.kind }}</span></td>
       <td class="code">{{ flag.order_key }}</td>
       <td class="num">#{{ flag.occurrence_index }}</td>
       <td class="num">{{ flag.from_version_id or '—' }} → {{ flag.to_version_id or '—' }}</td>
+      <td>
+        {% if flag.is_active is none %}—
+        {% elif flag.is_active %}Còn hiệu lực
+        {% else %}Đã xuất hiện lại ở
+          <a href="{{ url_for('snapshot_detail', snapshot_id=flag.seen_again_in_snapshot_id) }}">{{ flag.seen_again_in_snapshot_id }}</a>
+        {% endif %}
+      </td>
       <td>
         {% if flag.detail_json %}
         {% for field, change in flag.detail_json.items() %}

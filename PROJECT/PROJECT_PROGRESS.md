@@ -1,5 +1,48 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S083)
+
+Cập nhật sau phiên implement **slice B**. Các khối S082/S081/S080 bên dưới giữ
+nguyên như bản ghi lịch sử đúng tại thời điểm của chúng; khi mâu thuẫn về trạng
+thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                 = S083 — PRA-002 Slice B Implementation (MAJOR)
+TASK-PRA-002            = IN_PROGRESS  (slice A INTEGRATED; slice B IMPLEMENTED, chờ Independent Review E2; slice C PENDING)
+SLICE_B_RESULT          = PASS
+IMPLEMENTATION_BASE_SHA = 27b9d1c5a578742450099c53f2f82411f07aa9dc  (== origin/claude/extract-upload-repo-gq2ws4 lúc mở phiên — canonical KHÔNG dịch chuyển)
+BRANCH                  = claude/pra-002-slice-b-snapshot-8rbwip     (cắt từ đúng SHA trên; chưa integrate)
+MIGRATION               = KHÔNG có migration mới — schema 0002_snapshots đã đủ (ALEMBIC_HEAD không đổi; tools/db/** không sửa)
+COVERAGE                = DETECTED_ONLY / HEADER_CONSISTENT / CONFIRMED_COMPLETE; CHỈ POST /du-lieu/snapshot/<id>/xac-nhan-du
+                          (có tick ô) nâng được mức thứ ba — 2 test tĩnh AST khoá "đúng một cửa"
+FAIL-SAFE               = "không thấy" KHÔNG BAO GIỜ thành "đã xoá": NOT_SEEN và REMOVED_CANDIDATE đều
+                          giữ nguyên current + tổng + mọi bảng fact (đo trên PostgreSQL 16.13 thật)
+RANH GIỚI PHẠM VI       = absence chỉ có nghĩa trong phạm vi snapshot đại diện: xác nhận 01–10 → 0 REMOVED cho đơn 11–31;
+                          xác nhận cả tháng → 262 REMOVED, hiện hành vẫn 351 dòng / 3.562.310.000 VND
+FIND-PRA002-A4          = ĐÃ SỬA — nhãn trang snapshot theo coverage_state thật, ba nhãn khác nhau đôi một
+TEST                    = full suite 1781 passed, 11 skipped (baseline 1711/11 → +70 test, 0 skip thêm)
+                          Golden 58 passed, 2 skipped (KHÔNG đổi); PRA-001 focused 81 passed
+                          PostgreSQL 16.13 thật: migration + 5 kịch bản slice B PASS
+CHANGE_BUDGET slice B   = 242 dòng logic production / mục tiêu ≤ 500 (cảnh báo 600, dừng cứng 800 KHÔNG chạm)
+CHANGE_BUDGET lineage   = 1.104 (A) + 242 (B) = 1.346 / mục tiêu 1.200 / dừng cứng 1.500 — VƯỢT mục tiêu mềm,
+                          còn 154 dòng trước dừng cứng; slice C phải biết trước khi mở việc
+CHECK PASS (E1)         = 01, 02, 03, 04, 05, **06**, **07**, 09, 10, 11, 12, 13, 16
+CHECK NOT_TESTED        = 08 (slice C), 14 (RDA — Owner), 15 (Production — Owner), 17 (Independent Review E2 slice B)
+REVIEW BUDGET           = 2 cycle, ĐÃ DÙNG 1 (còn 1)
+TRACKING_CHANGED        = NO
+EVIDENCE                = docs/sessions/S083-pra-002-slice-b-coverage-semantics.md
+NEXT_VERTICAL_ACTION    = Independent Review E2 slice B (KHÔNG bắt đầu slice C)
+```
+
+**Điểm Reviewer cần soi trước tiên.** (1) Chỉ thị phiên (mục 12) và frozen
+contract (mục 8 bước 4) nói khác nhau về việc có dựng `NOT_SEEN` cho các khoá
+NGOÀI khoảng đo được của snapshot mới hay không; implementation theo **frozen
+contract** (không dựng), đúng thứ tự thẩm quyền mà chính chỉ thị đặt ra và đúng
+nguyên tắc "absence chỉ có nghĩa trong phạm vi coverage". (2) Trạng thái "cờ
+vắng mặt còn hiệu lực" được DẪN XUẤT bằng so sánh NGẶT trên `created_at`; hai
+snapshot cùng một giây → giữ cờ còn hiệu lực (fail-safe). Không con số nghiệp vụ
+nào phụ thuộc nhãn này.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S082)
 
 Cập nhật sau **Controlled Integration của slice A vào canonical**. Khối S081

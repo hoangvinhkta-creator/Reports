@@ -315,3 +315,132 @@ def test_the_demo_run_carries_the_rows_and_lines_the_writer_needs(captures, tmp_
     run = run_pipeline(GOLDEN, captures, tmp_path / "boundary.xlsx")
     assert len(run.raw_rows) == len(run.presented_lines) == run.summary.total_lines
     assert {view.status for view in run.presented_lines} <= {"AUTO", "PENDING"}
+
+
+# --- slice B: vắng mặt trên dữ liệu golden thật ----------------------------
+
+def drop_one_line(source: Path, target: Path) -> tuple[Path, str, Decimal]:
+    """Bỏ ĐÚNG một dòng cuối sổ — mô phỏng kế toán xoá một chứng từ.
+
+    Chọn dòng CUỐI có Số BH để phép bỏ không làm dịch ``occurrence_index`` của
+    dòng nào khác: test này nói về sự vắng mặt, không phải về hiệu ứng phụ của
+    việc đánh lại chỉ số.
+    """
+    workbook = openpyxl.load_workbook(source)
+    sheet = workbook.active
+    for row in range(sheet.max_row, FIRST_DATA_ROW - 1, -1):
+        order_key = sheet.cell(row, 2).value
+        sales = sheet.cell(row, 11).value
+        if order_key and str(order_key).strip() and sales:
+            key = str(order_key).strip()
+            sheet.delete_rows(row)
+            workbook.save(target)
+            workbook.close()
+            return target, key, Decimal(str(sales))
+    raise AssertionError("fixture golden không có dòng nào để bỏ")
+
+
+def test_a_dropped_line_is_only_not_seen_until_someone_confirms_the_book(
+    captures, tmp_path, snapshot_files,
+):
+    """CHECK-PRA002-07 trên dữ liệu golden: NOT_SEEN → (xác nhận) → REMOVED.
+
+    Ở CẢ HAI trạng thái, dòng bị bỏ vẫn là dòng hiện hành và vẫn nằm trong
+    tổng doanh thu — đó là toàn bộ điểm của slice B.
+    """
+    _, snapshot_b = snapshot_files
+    dropped, order_key, _ = drop_one_line(snapshot_b, tmp_path / "snapshot_b_dropped.xlsx")
+    repository = fresh_repository()
+    persist(repository, snapshot_b, captures, tmp_path, run_id="drop-1",
+            at="2026-02-01T00:00:00")
+    before = repository.current_totals()
+    facts = {table.name: count(repository, table) for table in schema.PIPELINE_TABLES}
+
+    _, second = persist(repository, dropped, captures, tmp_path, run_id="drop-2",
+                        at="2026-02-02T00:00:00")
+
+    not_seen = [flag for flag in repository.list_flags(snapshot_id=second.snapshot_id)
+                if flag["kind"] == "NOT_SEEN_IN_LATEST_SNAPSHOT"]
+    assert len(not_seen) == 1 and not_seen[0]["order_key"] == order_key
+    assert repository.count_flags(kind="REMOVED_IN_SOURCE_CANDIDATE") == 0
+    assert repository.current_totals() == before, "chưa xác nhận: không đổi gì"
+
+    confirmation = repository.confirm_coverage(
+        second.snapshot_id, start=date(2026, 1, 1), end=date(2026, 1, 31),
+        confirmed=True, confirmed_at="2026-02-03T00:00:00",
+    )
+
+    assert confirmation.removed_candidates == 1
+    removed, = [flag for flag in repository.list_flags()
+                if flag["kind"] == "REMOVED_IN_SOURCE_CANDIDATE"]
+    assert removed["order_key"] == order_key
+    assert repository.current_totals() == before, (
+        "REMOVED_CANDIDATE vẫn current, vẫn tính — không xoá, không trừ tiền"
+    )
+    for table in schema.PIPELINE_TABLES:
+        assert count(repository, table) >= facts[table.name], (
+            f"{table.name}: không bảng fact nào được phép mất bản ghi"
+        )
+
+
+def test_confirming_the_half_month_book_never_touches_the_second_half(
+    captures, tmp_path, snapshot_files,
+):
+    """Ranh giới phạm vi trên dữ liệu thật: xác nhận 01–10 KHÔNG đụng 11–31.
+
+    Kịch bản ngược của mục 3.1: sổ cả tháng đã lưu, rồi Owner upload lại sổ
+    nửa đầu tháng và xác nhận nó đầy đủ cho ĐÚNG 01–10/01. Các đơn ngày
+    11–31/01 nằm ngoài phạm vi được xác nhận, nên chúng không phải ứng viên
+    bị xoá — dù chúng "không có" trong sổ vừa xác nhận.
+    """
+    snapshot_a, snapshot_b = snapshot_files
+    lines_a, _ = measured(snapshot_a)
+    lines_b, _ = measured(snapshot_b)
+    repository = fresh_repository()
+    persist(repository, snapshot_b, captures, tmp_path, run_id="scope-1",
+            at="2026-02-01T00:00:00")
+    before = repository.current_totals()
+    _, narrow = persist(repository, snapshot_a, captures, tmp_path, run_id="scope-2",
+                        at="2026-02-02T00:00:00")
+
+    assert repository.get_snapshot(narrow.snapshot_id)["n_not_seen"] == 0, (
+        "sổ nửa tháng không phát biểu gì về nửa sau — không cờ vắng mặt giả"
+    )
+
+    confirmation = repository.confirm_coverage(
+        narrow.snapshot_id, start=date(2026, 1, 1), end=CUT_UNTIL,
+        confirmed=True, confirmed_at="2026-02-03T00:00:00",
+    )
+
+    assert confirmation.removed_candidates == 0
+    assert repository.count_flags(kind="REMOVED_IN_SOURCE_CANDIDATE") == 0
+    assert repository.current_totals() == before
+    assert repository.current_totals()["lines"] == lines_b > lines_a
+
+
+def test_confirming_the_narrow_book_for_the_whole_month_does_reach_the_rest(
+    captures, tmp_path, snapshot_files,
+):
+    """Cùng dữ liệu, khoảng khai báo rộng hơn → thẩm quyền rộng hơn, có kiểm soát.
+
+    Đây là mặt kia của cùng một luật: phạm vi do người xác nhận khai, và hệ
+    quả bám đúng phạm vi đó. Ngay cả ở đây, hệ quả vẫn chỉ là cờ Review —
+    tổng tiền không suy chuyển một đồng.
+    """
+    snapshot_a, snapshot_b = snapshot_files
+    lines_a, _ = measured(snapshot_a)
+    lines_b, _ = measured(snapshot_b)
+    repository = fresh_repository()
+    persist(repository, snapshot_b, captures, tmp_path, run_id="wide-1",
+            at="2026-02-01T00:00:00")
+    before = repository.current_totals()
+    _, narrow = persist(repository, snapshot_a, captures, tmp_path, run_id="wide-2",
+                        at="2026-02-02T00:00:00")
+
+    confirmation = repository.confirm_coverage(
+        narrow.snapshot_id, start=date(2026, 1, 1), end=date(2026, 1, 31),
+        confirmed=True, confirmed_at="2026-02-03T00:00:00",
+    )
+
+    assert confirmation.removed_candidates == lines_b - lines_a
+    assert repository.current_totals() == before, "vẫn không xoá, vẫn tính đủ"

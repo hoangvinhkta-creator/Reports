@@ -39,6 +39,14 @@ class HistoryUnavailableError(RuntimeError):
     """History store không truy cập được — fail rõ, không giả vờ rỗng."""
 
 
+class CoverageRangeError(ValueError):
+    """Yêu cầu xác nhận đủ KHÔNG hợp lệ — không có gì được ghi (fail-closed)."""
+
+
+class CoverageAlreadyConfirmedError(RuntimeError):
+    """Snapshot đã xác nhận rồi. Xác nhận là BẤT BIẾN ở PRA-002 (mục 7.3)."""
+
+
 @dataclass(frozen=True)
 class ImportResult:
     import_id: str
@@ -327,6 +335,21 @@ class SnapshotWriteResult:
     snapshot_id: str
     counts: dict
     duplicate_of_snapshot_id: Optional[str]
+    not_seen: int = 0
+
+
+@dataclass(frozen=True)
+class CoverageConfirmation:
+    """Kết quả của MỘT lần xác nhận đủ — số ứng viên đã bị đưa vào Review.
+
+    ``removed_candidates`` là số CỜ được dựng, KHÔNG phải số dòng bị xoá: ở
+    PRA-002 không có dòng nào bị xoá, bị huỷ hay bị loại khỏi tổng.
+    """
+
+    snapshot_id: str
+    confirmed_range_start: object
+    confirmed_range_end: object
+    removed_candidates: int
 
 
 def _decode(data: dict, keys: tuple[str, ...]) -> dict:
@@ -381,6 +404,14 @@ class SnapshotRepository:
                 current = self._load_current(connection, source_lines)
                 outcome = history_reconciler.reconcile(source_lines, current)
                 counts = outcome.counts()
+                # Bước 4 (mục 8): khoá hiện hành NẰM TRONG khoảng đo được của
+                # snapshot này mà snapshot không chứa. Phạm vi là khoảng ĐO
+                # ĐƯỢC — không phải cả database: một sổ 01–10/09 không có thẩm
+                # quyền nói gì về đơn ngày 20/09.
+                absent, absent_versions = self._absent_keys_in_range(
+                    connection, present=[line.key for line in source_lines],
+                    start=detected[0], end=detected[1],
+                )
                 snapshot_id = self._next_snapshot_id(connection, created_at, file_fingerprint)
 
                 connection.execute(insert(source_snapshot).values(
@@ -400,6 +431,7 @@ class SnapshotRepository:
                     n_same=counts[history_models.OUTCOME_SAME],
                     n_source_changed=counts[history_models.OUTCOME_SOURCE_CHANGED],
                     n_collision=counts[history_models.OUTCOME_COLLISION],
+                    n_not_seen=len(absent),
                     evidence_json=_json(evidence) or "{}",
                     summary_json=_json(summary) or "{}",
                 ))
@@ -418,11 +450,17 @@ class SnapshotRepository:
                 self._insert_flags(
                     connection, snapshot_id, run_id, created_at, outcome.decisions, versions,
                 )
+                self._insert_absence_flags(
+                    connection, kind=history_models.FLAG_NOT_SEEN, snapshot_id=snapshot_id,
+                    run_id=run_id, created_at=created_at, absent=absent,
+                    version_ids=absent_versions, scope="DETECTED",
+                    start=detected[0], end=detected[1],
+                )
                 if on_persisted is not None:
                     on_persisted()
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
-        return SnapshotWriteResult(snapshot_id, counts, duplicate_of)
+        return SnapshotWriteResult(snapshot_id, counts, duplicate_of, len(absent))
 
     @staticmethod
     def _next_snapshot_id(connection, created_at: str, file_fingerprint: str) -> str:
@@ -697,6 +735,139 @@ class SnapshotRepository:
         if rows:
             connection.execute(insert(reconciliation_flag), rows)
 
+    def _absent_keys_in_range(self, connection, *, present, start, end):
+        """Khoá hiện hành trong ``[start, end]`` KHÔNG có trong tập ``present``.
+
+        Dùng chung cho bước 4 (phạm vi = khoảng đo được) và bước R (phạm vi =
+        khoảng đã xác nhận). Lọc theo ngày NGAY TRONG SQL để bộ nhớ tỉ lệ với
+        kỳ của snapshot chứ không với toàn bộ lịch sử; luật vắng mặt thật sự
+        vẫn nằm ở hàm thuần ``reconciler.absent_keys`` — SQL ở đây chỉ thu hẹp
+        đầu vào, không được phép là nơi định nghĩa nghiệp vụ.
+        """
+        if start is None or end is None:
+            return (), {}
+        rows = connection.execute(
+            select(
+                order_line_current.c.order_key, order_line_current.c.product_key,
+                order_line_current.c.occurrence_index, order_line_current.c.sale_date,
+                order_line_current.c.order_key_collision,
+                order_line_current.c.current_source_version_id,
+            )
+            .where(order_line_current.c.sale_date >= start,
+                   order_line_current.c.sale_date <= end)
+        ).all()
+        candidates = [
+            history_models.CurrentKey(
+                key=_key_of(row), sale_date=row.sale_date,
+                order_key_collision=bool(row.order_key_collision),
+            )
+            for row in rows
+        ]
+        version_ids = {
+            _key_of(row): int(row.current_source_version_id) for row in rows
+        }
+        absent = history_reconciler.absent_keys(
+            present=present, candidates=candidates, start=start, end=end,
+        )
+        return absent, version_ids
+
+    @staticmethod
+    def _insert_absence_flags(
+        connection, *, kind, snapshot_id, run_id, created_at, absent, version_ids,
+        scope, start, end,
+    ) -> None:
+        """Ghi cờ vắng mặt. KHÔNG chạm ``order_line_current``, KHÔNG xoá gì.
+
+        Đây là toàn bộ hệ quả của "không thấy" ở PRA-002: một dòng trong bảng
+        cờ. Con trỏ hiện hành, các bảng version và mọi con số analytics đi ra
+        khỏi hàm này y hệt lúc đi vào — bất biến an toàn của slice B.
+        """
+        if not absent:
+            return
+        detail = {
+            "scope": scope,
+            "range_start": start.isoformat() if start else None,
+            "range_end": end.isoformat() if end else None,
+        }
+        connection.execute(insert(reconciliation_flag), [
+            {
+                "kind": kind, "order_key": key.order_key, "product_key": key.product_key,
+                "occurrence_index": key.occurrence_index,
+                "raised_by_snapshot_id": snapshot_id, "run_id": run_id,
+                "from_version_id": version_ids.get(key), "to_version_id": None,
+                "detail_json": _json(detail), "created_at": created_at,
+                "acknowledged_at": None,
+            }
+            for key in absent
+        ])
+
+    def confirm_coverage(
+        self, snapshot_id: str, *, start, end, confirmed: bool, confirmed_at: str,
+    ) -> CoverageConfirmation:
+        """Đường DUY NHẤT ghi ``CONFIRMED_COMPLETE`` — và chỉ khi ``confirmed``.
+
+        Hai việc trong MỘT transaction (mục 7.3): nâng coverage của snapshot
+        này, và chạy bước R trên đúng phạm vi vừa được xác nhận. Không tách
+        được, vì một coverage đã CONFIRMED mà chưa chạy bước R sẽ là một lời
+        khẳng định "sổ đầy đủ" chưa ai đối chiếu.
+
+        Thứ hàm này KHÔNG làm, và không bao giờ được làm: xoá dòng, đổi con
+        trỏ hiện hành, đổi bất kỳ con số analytics nào, hay kết luận một đơn
+        đã bị huỷ. ``REMOVED_IN_SOURCE_CANDIDATE`` là một trạng thái REVIEW,
+        không phải một quyết định nghiệp vụ (phân xử = PRA-004 + Owner).
+        """
+        try:
+            with self._engine.begin() as connection:
+                row = connection.execute(
+                    select(source_snapshot).where(
+                        source_snapshot.c.snapshot_id == snapshot_id)
+                ).mappings().first()
+                if row is None:
+                    raise KeyError(snapshot_id)
+                already = row["coverage_state"] == history_models.CONFIRMED_COMPLETE
+                reason = history_coverage.confirmation_error(
+                    confirmed=confirmed, start=start, end=end,
+                    detected=(row["detected_date_min"], row["detected_date_max"]),
+                    already_confirmed=already,
+                )
+                if already:
+                    raise CoverageAlreadyConfirmedError(reason)
+                if reason is not None:
+                    raise CoverageRangeError(reason)
+
+                # Bước R dựa trên MEMBERSHIP của chính snapshot này (DEC-171
+                # #6), không dựa trên ``last_seen``: một snapshot chồng kỳ
+                # upload sau đó đã đổi ``last_seen`` và sẽ tạo REMOVED giả.
+                present = [
+                    _key_of(member) for member in connection.execute(
+                        select(snapshot_line.c.order_key, snapshot_line.c.product_key,
+                               snapshot_line.c.occurrence_index)
+                        .where(snapshot_line.c.snapshot_id == snapshot_id)
+                    )
+                ]
+                absent, version_ids = self._absent_keys_in_range(
+                    connection, present=present, start=start, end=end,
+                )
+                self._insert_absence_flags(
+                    connection, kind=history_models.FLAG_REMOVED_CANDIDATE,
+                    snapshot_id=snapshot_id, run_id=row["run_id"],
+                    created_at=confirmed_at, absent=absent, version_ids=version_ids,
+                    scope="CONFIRMED", start=start, end=end,
+                )
+                connection.execute(
+                    update(source_snapshot)
+                    .where(source_snapshot.c.snapshot_id == snapshot_id)
+                    .values(
+                        coverage_state=history_models.CONFIRMED_COMPLETE,
+                        confirmed_range_start=start, confirmed_range_end=end,
+                        confirmed_at=confirmed_at,
+                        n_removed_candidate=len(absent),
+                    )
+                )
+        except SQLAlchemyError as exc:
+            raise HistoryUnavailableError(str(exc)) from exc
+        return CoverageConfirmation(snapshot_id, start, end, len(absent))
+
     # --- đọc ----------------------------------------------------------
 
     def _read(self, statement) -> list[dict]:
@@ -729,10 +900,87 @@ class SnapshotRepository:
             statement = statement.where(
                 reconciliation_flag.c.raised_by_snapshot_id == snapshot_id
             )
-        return [
+        return self._with_absence_state([
             _decode(row, ("detail_json",))
             for row in self._read(statement.order_by(reconciliation_flag.c.id).limit(limit))
-        ]
+        ])
+
+    def _with_absence_state(self, flags: list[dict]) -> list[dict]:
+        """Gắn ``is_active`` cho cờ vắng mặt — DẪN XUẤT, không sửa lịch sử.
+
+        Một cờ "không thấy dòng này" là một phát biểu đúng vĩnh viễn về
+        snapshot đã dựng nó; nếu kế toán xuất lại sổ và dòng đó quay về, cờ cũ
+        KHÔNG sai và KHÔNG được xoá — nó chỉ thôi mô tả hiện tại. Vì vậy trạng
+        thái "còn hiệu lực" được tính lúc đọc, bằng cách hỏi lịch sử
+        membership: khoá này có xuất hiện ở snapshot nào SAU snapshot đã dựng
+        cờ không? (Bảng cờ vẫn append-only — ``acknowledged_at`` luôn NULL.)
+        """
+        for flag in flags:
+            flag["is_active"] = None
+            flag["seen_again_in_snapshot_id"] = None
+        absence = [f for f in flags
+                   if f["kind"] in history_models.ABSENCE_FLAG_KINDS]
+        if not absence:
+            return flags
+        raised_at = self._snapshot_times({f["raised_by_snapshot_id"] for f in absence})
+        latest = self._latest_membership({
+            (f["order_key"], f["product_key"], f["occurrence_index"]) for f in absence
+        })
+        for flag in absence:
+            key = (flag["order_key"], flag["product_key"], flag["occurrence_index"])
+            seen, anchor = latest.get(key), raised_at.get(flag["raised_by_snapshot_id"])
+            # So sánh NGẶT: chỉ một snapshot có ``created_at`` LỚN HƠN hẳn mới
+            # được coi là "dòng đã quay lại". Hai snapshot cùng một giây không
+            # có thứ tự đáng tin (``snapshot_id`` sắp theo fingerprint, không
+            # theo thời gian), và ở đây nghiêng về phía an toàn có nghĩa là
+            # GIỮ cờ ở trạng thái còn hiệu lực: một cảnh báo thừa để người dùng
+            # tự kiểm còn hơn âm thầm giấu một sự vắng mặt thật. Không con số
+            # nghiệp vụ nào phụ thuộc vào nhãn này (hiện trạng và tổng tiền
+            # không bao giờ do cờ quyết định).
+            reappeared = (
+                seen is not None and anchor is not None and seen[0] > anchor
+            )
+            flag["is_active"] = not reappeared
+            flag["seen_again_in_snapshot_id"] = seen[1] if reappeared else None
+        return flags
+
+    def _snapshot_times(self, snapshot_ids) -> dict:
+        """``{snapshot_id: created_at}`` cho đúng các snapshot đã dựng cờ."""
+        wanted = sorted(snapshot_ids)
+        times: dict = {}
+        for start in range(0, len(wanted), _KEY_CHUNK):
+            for row in self._read(
+                select(source_snapshot.c.snapshot_id, source_snapshot.c.created_at)
+                .where(source_snapshot.c.snapshot_id.in_(wanted[start:start + _KEY_CHUNK]))
+            ):
+                times[row["snapshot_id"]] = row["created_at"]
+        return times
+
+    def _latest_membership(self, keys) -> dict:
+        """Snapshot MỚI NHẤT từng chứa mỗi khoá, theo bảng ``snapshot_line``."""
+        order_keys = sorted({key[0] for key in keys})
+        wanted = set(keys)
+        latest: dict = {}
+        joined = snapshot_line.join(
+            source_snapshot, snapshot_line.c.snapshot_id == source_snapshot.c.snapshot_id,
+        )
+        for start in range(0, len(order_keys), _KEY_CHUNK):
+            for row in self._read(
+                select(
+                    snapshot_line.c.order_key, snapshot_line.c.product_key,
+                    snapshot_line.c.occurrence_index, snapshot_line.c.snapshot_id,
+                    source_snapshot.c.created_at,
+                )
+                .select_from(joined)
+                .where(snapshot_line.c.order_key.in_(order_keys[start:start + _KEY_CHUNK]))
+            ):
+                key = (row["order_key"], row["product_key"], row["occurrence_index"])
+                if key not in wanted:
+                    continue
+                position = (row["created_at"], row["snapshot_id"])
+                if latest.get(key) is None or position > latest[key]:
+                    latest[key] = position
+        return latest
 
     def run_ids_with_snapshot(self, run_ids) -> set:
         """Các ``run_id`` THỰC SỰ có snapshot — dùng để gắn nhãn trung thực.
@@ -830,6 +1078,7 @@ def build_snapshots(
 
 
 __all__ = [
+    "CoverageAlreadyConfirmedError", "CoverageConfirmation", "CoverageRangeError",
     "HistoryUnavailableError", "ImportResult", "LegacyRepository",
     "SnapshotRepository", "SnapshotWriteResult", "build", "build_snapshots",
 ]

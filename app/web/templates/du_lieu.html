@@ -74,7 +74,8 @@
       <th>Mã snapshot</th><th>Nguồn</th><th>Chạy lúc</th><th>Coverage</th>
       <th>Ngày đo được</th><th class="num">Đơn</th><th class="num">Dòng</th>
       <th class="num">Mới</th><th class="num">Không đổi</th><th class="num">Nguồn sửa</th>
-      <th class="num">Trùng khoá</th><th></th>
+      <th class="num">Trùng khoá</th><th class="num">Không thấy</th>
+      <th class="num">Ứng viên xoá</th><th></th>
     </tr>
     {% for snap in snapshots %}
     <tr>
@@ -90,6 +91,8 @@
       <td class="num">{{ snap.n_same }}</td>
       <td class="num">{{ snap.n_source_changed }}</td>
       <td class="num">{{ snap.n_collision }}</td>
+      <td class="num">{{ snap.n_not_seen }}</td>
+      <td class="num">{{ snap.n_removed_candidate }}</td>
       <td><a href="{{ url_for('snapshot_detail', snapshot_id=snap.snapshot_id) }}">Xem</a></td>
     </tr>
     {% endfor %}

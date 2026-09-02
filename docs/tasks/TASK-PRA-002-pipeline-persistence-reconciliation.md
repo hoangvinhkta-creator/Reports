@@ -898,7 +898,7 @@ EFFORT                = 1 session (+ review + integration)
 - [x] PRA-002.A4 `app/demo.py` (+2 trường) + exporter alias + test `is`.
 - [x] PRA-002.A5 `SnapshotRepository` + `history_writer` (một transaction, R2 trong cửa sổ transaction) + test fail-closed/append-only/concurrency.
 - [x] PRA-002.A6 `run_report` + tab Dữ liệu (danh sách + trang snapshot) + test Flask; integration golden A(≤10)→B đẳng thức.
-- [ ] PRA-002.B1 reconciler bước 4 + R; `POST xac-nhan-du` + validate + 409; test NOT_SEEN/REMOVED.
+- [x] PRA-002.B1 reconciler bước 4 + R; `POST xac-nhan-du` + validate + 409; test NOT_SEEN/REMOVED. (S083; không cần migration — schema 0002 đã đủ; FIND-PRA002-A4 đã sửa)
 - [ ] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture.
 - [ ] PRA-002.C2 `tools/analysis/make_snapshot_variants` + RDA-1..6 (hoặc `NOT_TESTED` + gate Owner).
 - [ ] PRA-002.C3 Kịch bản A→B→B'→B'' trên PostgreSQL 16 local; đo `ru_maxrss`.
@@ -1038,16 +1038,14 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Slice A (S080) đã chạy PHẦN ĐẦU: header dạng (1) và (2) parse đúng
 `header_date_*`; `HEADER_CONSISTENT` khi header bao trọn DETECTED; 6 dạng lạ
 (kể cả `1/9/2026` thiếu số 0 và ngày 31/02) → `DETECTED_ONLY` + `header_text`
 vẫn lưu nguyên văn; test khẳng định slice A KHÔNG có đường nào ghi ra
-`CONFIRMED_COMPLETE`. Phần `POST xac-nhan-du` (400/409, validate khoảng,
-test tĩnh "chỉ một hàm repository gán CONFIRMED_COMPLETE") thuộc **slice B** —
-check này giữ `NOT_TESTED` cho tới khi slice B xong; KHÔNG được đánh dấu PASS
-dựa trên phần đầu.
+`CONFIRMED_COMPLETE`. Phần `POST xac-nhan-du` đã chạy ở **slice B (S083)** —
+check đóng ở phiên đó, không phải dựa trên phần đầu.
 
 Evidence Level:
 E1
@@ -1055,18 +1053,33 @@ E1
 Evidence:
 Yêu cầu: header dạng (1) và (2) → `header_date_*` đúng, `HEADER_CONSISTENT` khi bao DETECTED; header lạ → `DETECTED_ONLY`, `header_text` lưu; không API/route nào khác đặt `CONFIRMED_COMPLETE`; `POST xac-nhan-du` với khoảng không bao DETECTED → 400 và trạng thái không đổi; khoảng > 366 ngày → 400; hợp lệ → `CONFIRMED_COMPLETE` + `confirmed_*`; lần 2 → 409. Test tĩnh: chuỗi `'CONFIRMED_COMPLETE'` chỉ được gán trong đúng một hàm repository do route xác nhận gọi.
 
+Kết quả S083 (chi tiết: `docs/sessions/S083-pra-002-slice-b-coverage-semantics.md`):
+GET trang chưa xác nhận → 200, `<input name="xac_nhan">` KHÔNG có `checked` (mặc định không tick);
+POST thiếu `xac_nhan` → 400 "Chưa tích ô xác nhận", `coverage_state` KHÔNG đổi;
+POST khoảng không bao DETECTED → 400, nêu đúng ngày lệch (`2026-01-20`), `confirmed_at` = NULL;
+POST khoảng > 366 ngày → 400 (đúng 366 ngày ĐƯỢC nhận, 367 thì không — test ranh giới);
+POST hợp lệ → 302 PRG, `coverage_state = CONFIRMED_COMPLETE`, `confirmed_range_* = 2026-01-01 → 2026-01-31`, `confirmed_by = NULL`;
+POST lần 2 → 409, bản ghi snapshot y hệt trước đó, cờ REMOVED không nhân đôi;
+POST snapshot không tồn tại → 404.
+Khoảng hiển thị trên form == khoảng đã lưu (`value="2026-01-05"`/`value="2026-01-20"` == `detected_date_min`/`max`).
+Test tĩnh AST (`tests/test_snapshot_repository.py`):
+`test_confirmed_complete_is_written_by_exactly_one_function` — duyệt toàn bộ `app/**/*.py`, chuỗi `CONFIRMED_COMPLETE` chỉ được gán cho `coverage_state` tại `{app/web/history_store.py}`, trong hàm `confirm_coverage`;
+`test_only_the_confirmation_function_updates_the_snapshot_row` — mọi `update(source_snapshot)` nằm trong `confirm_coverage` và tập cột ghi == `{coverage_state, confirmed_range_start, confirmed_range_end, confirmed_at, n_removed_candidate}`.
+Tầng thuần không bao giờ trả `CONFIRMED_COMPLETE` (test tích 3 header × 3 khoảng, gồm "đúng trọn tháng" và "thấy ngày cuối tháng").
+Chạy trên PostgreSQL 16.13 thật với fixture golden qua pipeline authoritative.
+
 Executed By:
-...
+S083 — PRA-002 Slice B Implementation (nhánh `claude/pra-002-slice-b-snapshot-8rbwip`, BASE_SHA `27b9d1c5`)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-07 — NOT_SEEN vs REMOVED_CANDIDATE, không xoá, vẫn tính
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1074,11 +1087,30 @@ E1
 Evidence:
 Yêu cầu: B'' = B' bỏ 1 dòng → trước xác nhận: 1 cờ `NOT_SEEN_IN_LATEST_SNAPSHOT`, 0 `REMOVED`; sau xác nhận đủ tháng 01/2026: 1 cờ `REMOVED_IN_SOURCE_CANDIDATE`; dòng đó vẫn trong `order_line_current`, vẫn trong `SUM(total_sales)` và `COUNT(order_key)`; `COUNT(*)` mọi bảng fact không giảm; xác nhận với snapshot không chồng khoá → 0 REMOVED.
 
+Kết quả S083 trên PostgreSQL 16.13 thật, fixture golden `period_2026_01.xlsx` qua pipeline authoritative
+(chi tiết: `docs/sessions/S083-pra-002-slice-b-coverage-semantics.md`):
+B (351 dòng / 254 đơn / 3.562.310.000 VND) → B'' (bỏ đúng 1 dòng, khoá `BH64081`, 20.900.000 VND):
+`n_same = 350`, `n_not_seen = 1`, `n_removed_candidate = 0`; cờ NOT_SEEN = 1, REMOVED = 0;
+hiện hành 351 dòng / 254 đơn / 3.562.310.000 VND — KHÔNG ĐỔI.
+Sau `POST xac-nhan-du` 01–31/01: `coverage_state = CONFIRMED_COMPLETE`, REMOVED = 1 (đúng khoá `BH64081`);
+hiện hành 351 dòng / 254 đơn / 3.562.310.000 VND — KHÔNG ĐỔI tới từng đồng;
+bảng fact trước → sau: `order_line_source_version` 351 → 351, `order_line_current` 351 → 351,
+`snapshot_line` 351 → 701, `order_line_result_version` 351 → 701, `reconciliation_flag` 0 → 2 — KHÔNG bảng nào giảm;
+cờ NOT_SEEN cũ của cùng khoá giữ nguyên bên cạnh cờ REMOVED (append-only); `acknowledged_at` = NULL.
+Lịch sử `order_line_source_version` so nguyên văn từng dòng trước/sau: bằng nhau.
+NOT_SEEN được dựng ở CẢ HAI mức chưa xác nhận (`DETECTED_ONLY` và `HEADER_CONSISTENT`) — test tham số hoá.
+Ranh giới phạm vi (mục 8 bước 4 và bước R): B đã lưu rồi upload A (cắt ≤ 10/01, 89 dòng) →
+`n_not_seen = 0`; xác nhận A cho ĐÚNG 01–10/01 → REMOVED = 0 (đơn 11–31/01 KHÔNG là ứng viên);
+xác nhận A cho cả tháng 01–31 → REMOVED = 262 (= 351 − 89); cả hai: hiện hành KHÔNG đổi.
+Chồng kỳ A ⊂ B: `n_same = 89`, `n_insert = 262`, `n_not_seen = 0`, 0 cờ; xác nhận B → REMOVED = 0.
+Xuất hiện trở lại: cờ BẤT BIẾN (2 → 2, không cờ nào bị xoá/sửa), trạng thái "còn hiệu lực" DẪN XUẤT lúc đọc.
+Loại trừ fail-safe có test riêng: `sale_date` NULL, ngày ngoài phạm vi, khoá `ORDER_KEY_COLLISION`, phạm vi mở.
+
 Executed By:
-...
+S083 — PRA-002 Slice B Implementation (nhánh `claude/pra-002-slice-b-snapshot-8rbwip`, BASE_SHA `27b9d1c5`)
 
 Timestamp:
-...
+2026-09-02
 
 #### CHECK-PRA002-08 — RESULT_REVISED: source version không đổi, result version mới
 Priority:
@@ -1315,11 +1347,32 @@ Modified (S079):
 - `PROJECT/PROJECT_DECISIONS.md` (DEC-171)
 - `PROJECT/REVIEW_BUDGET_LEDGER.md` (Root Task: TASK-PRA-002)
 
+Created (S083 — slice B):
+- `tests/test_history_coverage_confirmation.py`
+- `tests/test_snapshot_absence.py`
+- `docs/sessions/S083-pra-002-slice-b-coverage-semantics.md`
+
+Modified (S083 — slice B):
+- `app/history/coverage.py` (nhãn coverage, `parse_iso_date`, `confirmation_error`)
+- `app/history/models.py` (`FLAG_NOT_SEEN`, `FLAG_REMOVED_CANDIDATE`, `ABSENCE_FLAG_KINDS`, `CurrentKey`)
+- `app/history/reconciler.py` (`absent_keys` — hàm thuần dùng chung bước 4 và bước R)
+- `app/web/history_store.py` (bước 4, `confirm_coverage`/bước R, dẫn xuất `is_active`)
+- `app/web/server.py` (`POST /du-lieu/snapshot/<id>/xac-nhan-du`, `_snapshot_page`)
+- `app/web/templates/snapshot.html`, `app/web/templates/du_lieu.html`
+- `tests/test_snapshot_repository.py`, `tests/test_web_history.py`,
+  `tests/test_pipeline_history_vertical.py`
+- `PROJECT/PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md`
+
 Deleted:
 - (không)
 
 Migration Impact:
-- S079: không. Implementation: `0002_snapshots` (+6 bảng, không đổi bảng cũ) — mục 13.
+- S079: không. Slice A: `0002_snapshots` (+6 bảng, không đổi bảng cũ) — mục 13.
+- S083 (slice B): **KHÔNG có migration mới**. `0002_snapshots` đã có sẵn
+  `coverage_state` CHECK gồm `CONFIRMED_COMPLETE`, bốn cột `confirmed_*`,
+  `n_not_seen`/`n_removed_candidate`, và `reconciliation_flag.kind` CHECK gồm
+  `NOT_SEEN_IN_LATEST_SNAPSHOT`/`REMOVED_IN_SOURCE_CANDIDATE`. `ALEMBIC_HEAD`
+  giữ nguyên `0002_snapshots`; `tools/db/**` không có một thay đổi nào.
 
 ## Ghi Chú (Notes)
 - Code hiện tại là implementation evidence, không phải business authority:

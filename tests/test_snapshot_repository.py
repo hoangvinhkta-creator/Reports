@@ -73,11 +73,12 @@ def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="300
     )
 
 
-def write(repository, lines, *, run_id, created_at, fingerprint="fp-a", **kwargs):
+def write(repository, lines, *, run_id, created_at, fingerprint="fp-a",
+          header_text="Nhân viên: Tín Phát, Tháng 1 năm 2026", **kwargs):
     return repository.write_snapshot(
         run_id=run_id, created_at=created_at, source_file_name="so.xlsx",
         file_fingerprint=fingerprint, file_size=1024,
-        header_text="Nhân viên: Tín Phát, Tháng 1 năm 2026",
+        header_text=header_text,
         sheet_data_rows=len(lines) + 1, rows_without_order_id=1,
         source_lines=lines, result_lines=[result_line(line) for line in lines],
         evidence={"tracking_catalog_capture_id": "cap-1"},
@@ -324,9 +325,81 @@ def test_the_write_path_contains_no_delete_and_updates_only_the_pointer_table():
     assert _called_with(writer, "delete") == set()
     # Câu lệnh DELETE của SQLAlchemy Core thậm chí không được import vào đây.
     assert "delete" not in _imported_from_sqlalchemy(store)
-    # `legacy_import` là bảng con trỏ của PRA-001 (`is_current`); PRA-002 chỉ
-    # được UPDATE bảng con trỏ của chính nó.
-    assert _called_with(store, "update") <= {"legacy_import", "order_line_current"}
+    # `legacy_import` là bảng con trỏ của PRA-001 (`is_current`); PRA-002 được
+    # UPDATE bảng con trỏ của chính nó, và — CHỈ TỪ SLICE B — các cột xác nhận
+    # coverage trên `source_snapshot` (mục 4 của task cho phép đúng ngoại lệ
+    # này). Ràng buộc hẹp hơn nằm ở hai test ngay dưới đây.
+    assert _called_with(store, "update") <= {
+        "legacy_import", "order_line_current", "source_snapshot",
+    }
+
+
+CONFIRM_COLUMNS = {
+    "coverage_state", "confirmed_range_start", "confirmed_range_end",
+    "confirmed_at", "n_removed_candidate",
+}
+
+
+def _function_named(tree: ast.AST, name: str) -> ast.FunctionDef:
+    match, = [node for node in ast.walk(tree)
+              if isinstance(node, ast.FunctionDef) and node.name == name]
+    return match
+
+
+def test_only_the_confirmation_function_updates_the_snapshot_row():
+    """`source_snapshot` là bảng fact — chỉ cột xác nhận được sửa, chỉ ở một chỗ.
+
+    Nới lỏng append-only là chỗ dễ trượt nhất của slice B: một `update(
+    source_snapshot)` lọt vào đường ghi bình thường sẽ cho phép ghi đè lịch sử
+    một lần chạy. Test đọc thẳng AST nên nó chặn được cả những lần sửa tương
+    lai, không chỉ lần này.
+    """
+    store = REPO_ROOT / "app/web/history_store.py"
+    # MỘT lần parse cho cả hai phép so: định danh node chỉ có nghĩa trong
+    # cùng một cây AST.
+    tree = ast.parse(store.read_text(encoding="utf-8"))
+    confirm = _function_named(tree, "confirm_coverage")
+    inside = {id(node) for node in ast.walk(confirm)}
+    updates = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id == "update" and node.args
+        and getattr(node.args[0], "id", None) == "source_snapshot"
+    ]
+    assert updates, "phải có đúng đường ghi xác nhận"
+    assert all(id(node) in inside for node in updates), (
+        "chỉ `confirm_coverage` được UPDATE source_snapshot"
+    )
+    written = {
+        keyword.arg
+        for node in ast.walk(confirm)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "values"
+        for keyword in node.keywords
+    }
+    assert written == CONFIRM_COLUMNS, "không cột nào khác của snapshot được sửa"
+
+
+def test_confirmed_complete_is_written_by_exactly_one_function():
+    """CHECK-PRA002-06 tĩnh: `CONFIRMED_COMPLETE` chỉ ra khỏi một cửa.
+
+    Toàn bộ `app/` chỉ có MỘT nơi gán giá trị đó cho `coverage_state`, và nơi
+    đó là hàm repository do route xác nhận gọi. Nếu một route/aut path thứ hai
+    xuất hiện, test này đỏ trước khi dữ liệu sai kịp sinh ra.
+    """
+    writers = set()
+    for path in sorted((REPO_ROOT / "app").rglob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "values"):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg != "coverage_state":
+                    continue
+                source = ast.unparse(keyword.value)
+                if "CONFIRMED_COMPLETE" in source:
+                    writers.add(path.relative_to(REPO_ROOT).as_posix())
+    assert writers == {"app/web/history_store.py"}
 
 
 def test_the_schema_makes_two_current_rows_for_one_key_impossible():

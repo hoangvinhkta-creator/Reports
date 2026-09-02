@@ -10,6 +10,7 @@ thì không còn dấu vết nửa vời, và rằng các trang nói đúng sự
 from __future__ import annotations
 
 import io
+import itertools
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -20,7 +21,7 @@ from sqlalchemy import create_engine, func, select
 
 import tools.db as history_db
 from app.modules.exporting.excel_exporter import ReportSummary
-from app.web import history_store
+from app.web import history_store, history_writer
 from app.web import server as web_server
 from tools.db import schema
 from tools.tracking import live_pull
@@ -278,3 +279,229 @@ def test_the_snapshot_page_is_unavailable_rather_than_empty_without_a_store(
     application = web_server.create_app(db_path=tmp_path / "runs.db")
     application.testing = True
     assert application.test_client().get("/du-lieu/snapshot/SNAP-x").status_code == 503
+
+
+# --- slice B: xác nhận coverage tường minh --------------------------------
+
+def _snapshot_id(snapshots) -> str:
+    snapshot, = snapshots.list_snapshots()
+    return snapshot["snapshot_id"]
+
+
+@pytest.fixture
+def sequential_clock(monkeypatch):
+    """Mỗi lần chạy nhận một ``created_at`` KHÁC nhau.
+
+    Trong đời thật hai lần upload sổ kế toán không rơi vào cùng một giây; trong
+    test thì có. Trạng thái "cờ vắng mặt còn hiệu lực không" được suy ra từ
+    thứ tự thời gian của snapshot, nên test nào nói về thứ tự phải điều khiển
+    đồng hồ thay vì trông chờ vào tốc độ máy chạy test.
+    """
+    real = history_writer.write_run_history
+    day = itertools.count(1)
+
+    def with_clock(*args, **kwargs):
+        kwargs["created_at"] = f"2026-02-{next(day):02d}T00:00:00+00:00"
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(history_writer, "write_run_history", with_clock)
+
+
+def _run(client, monkeypatch, tmp_path, *, name, lines, content):
+    monkeypatch.setattr(web_server, "run_owner_report",
+                        lambda **_: _owner_run(tmp_path, name=name, lines=lines))
+    return client.post("/run", data=_upload(content), content_type="multipart/form-data")
+
+
+def test_the_confirmation_form_is_offered_with_the_box_unticked(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Mặc định KHÔNG tick: hệ thống không bao giờ mở sẵn một lời khẳng định."""
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    page = client.get(f"/du-lieu/snapshot/{_snapshot_id(snapshots)}")
+
+    body = page.get_data(as_text=True)
+    assert page.status_code == 200
+    assert 'name="xac_nhan"' in body and "checked" not in body
+    assert "Tôi xác nhận" in body
+
+
+def test_the_form_shows_the_detected_range_that_is_actually_stored(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Người dùng phải thấy ĐÚNG phạm vi họ đang xác nhận — không phải một mô tả."""
+    lines = (_presented("BH1", row=6, sale_date=date(2026, 1, 5)),
+             _presented("BH2", row=7, sale_date=date(2026, 1, 20)))
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx", lines=lines, content=b"a")
+    snapshot, = snapshots.list_snapshots()
+
+    body = client.get(f"/du-lieu/snapshot/{snapshot['snapshot_id']}").get_data(as_text=True)
+
+    assert str(snapshot["detected_date_min"]) == "2026-01-05"
+    assert str(snapshot["detected_date_max"]) == "2026-01-20"
+    assert 'value="2026-01-05"' in body and 'value="2026-01-20"' in body
+
+
+def test_posting_without_ticking_the_box_is_refused_and_stores_nothing(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    snapshot_id = _snapshot_id(snapshots)
+
+    response = client.post(f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du",
+                           data={"tu_ngay": "2026-01-01", "den_ngay": "2026-01-31"})
+
+    assert response.status_code == 400
+    assert "Chưa tích ô xác nhận" in response.get_data(as_text=True)
+    assert snapshots.get_snapshot(snapshot_id)["coverage_state"] != "CONFIRMED_COMPLETE"
+
+
+def test_a_declared_range_that_leaves_data_outside_is_refused(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    lines = (_presented("BH1", row=6, sale_date=date(2026, 1, 20)),)
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx", lines=lines, content=b"a")
+    snapshot_id = _snapshot_id(snapshots)
+
+    response = client.post(
+        f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du",
+        data={"tu_ngay": "2026-01-01", "den_ngay": "2026-01-10", "xac_nhan": "1"},
+    )
+
+    assert response.status_code == 400
+    assert "2026-01-20" in response.get_data(as_text=True)
+    assert snapshots.get_snapshot(snapshot_id)["confirmed_at"] is None
+
+
+def test_an_over_long_range_is_refused_as_a_year_typo(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    snapshot_id = _snapshot_id(snapshots)
+
+    response = client.post(
+        f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du",
+        data={"tu_ngay": "2026-01-01", "den_ngay": "2030-01-31", "xac_nhan": "1"},
+    )
+
+    assert response.status_code == 400
+    assert snapshots.get_snapshot(snapshot_id)["coverage_state"] != "CONFIRMED_COMPLETE"
+
+
+def test_an_explicit_confirmation_reaches_the_store_and_shows_the_new_label(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Đường hạnh phúc: tick ô → CONFIRMED_COMPLETE + PRG, nhãn đổi theo trạng thái."""
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    snapshot_id = _snapshot_id(snapshots)
+
+    response = client.post(
+        f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du",
+        data={"tu_ngay": "2026-01-01", "den_ngay": "2026-01-31", "xac_nhan": "1"},
+    )
+
+    assert response.status_code == 302
+    stored = snapshots.get_snapshot(snapshot_id)
+    assert stored["coverage_state"] == "CONFIRMED_COMPLETE"
+    assert (str(stored["confirmed_range_start"]), str(stored["confirmed_range_end"])) == (
+        "2026-01-01", "2026-01-31"
+    )
+    body = client.get(f"/du-lieu/snapshot/{snapshot_id}").get_data(as_text=True)
+    assert "ĐÃ XÁC NHẬN ĐẦY ĐỦ" in body
+    assert "2026-01-01" in body and "2026-01-31" in body
+    assert 'name="xac_nhan"' not in body, "đã xác nhận thì không mời xác nhận lại"
+
+
+def test_confirming_a_second_time_is_refused_with_409(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    snapshot_id = _snapshot_id(snapshots)
+    form = {"tu_ngay": "2026-01-01", "den_ngay": "2026-01-31", "xac_nhan": "1"}
+    client.post(f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du", data=form)
+    before = snapshots.get_snapshot(snapshot_id)
+
+    response = client.post(f"/du-lieu/snapshot/{snapshot_id}/xac-nhan-du", data=form)
+
+    assert response.status_code == 409
+    assert snapshots.get_snapshot(snapshot_id) == before
+
+
+def test_confirming_an_unknown_snapshot_is_a_404(client):
+    response = client.post("/du-lieu/snapshot/SNAP-khong-co/xac-nhan-du",
+                           data={"tu_ngay": "2026-01-01", "den_ngay": "2026-01-31",
+                                 "xac_nhan": "1"})
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("header,expected", [
+    ("Nhân viên: Tín Phát, Tháng 1 năm 2026", "header khớp phạm vi dữ liệu"),
+    ("Sổ chi tiết bán hàng quý 1", "chỉ phát hiện phạm vi từ dữ liệu"),
+])
+def test_the_page_label_follows_the_stored_coverage_state(
+    client, monkeypatch, tmp_path, snapshots, header, expected,
+):
+    """FIND-PRA002-A4: câu trên trang phải đến từ `coverage_state`, không cố định."""
+    monkeypatch.setattr(web_server.history_writer, "scan_workbook",
+                        lambda path: (header, 2, 0))
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+
+    body = client.get(f"/du-lieu/snapshot/{_snapshot_id(snapshots)}").get_data(as_text=True)
+
+    assert expected in body
+
+
+def test_the_page_reports_absence_without_ever_calling_it_a_deletion(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Cờ vắng mặt hiện ra, kèm câu nói rõ dòng đó VẪN được tính."""
+    both = (_presented("BH1", row=6), _presented("BH2", row=7))
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx", lines=both, content=b"a")
+    totals_before = snapshots.current_totals()
+    _run(client, monkeypatch, tmp_path, name="report-2.xlsx", lines=both[:1], content=b"b")
+
+    second, = [row for row in snapshots.list_snapshots() if row["n_not_seen"] == 1]
+    body = client.get(f"/du-lieu/snapshot/{second['snapshot_id']}").get_data(as_text=True)
+
+    assert "NOT_SEEN_IN_LATEST_SNAPSHOT" in body
+    assert "Còn hiệu lực" in body
+    assert snapshots.current_totals() == totals_before, "tổng hiện hành KHÔNG đổi"
+
+
+def test_a_line_that_returns_is_shown_as_no_longer_absent(
+    client, monkeypatch, tmp_path, snapshots, sequential_clock,
+):
+    both = (_presented("BH1", row=6), _presented("BH2", row=7))
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx", lines=both, content=b"a")
+    _run(client, monkeypatch, tmp_path, name="report-2.xlsx", lines=both[:1], content=b"b")
+    second, = [row for row in snapshots.list_snapshots() if row["n_not_seen"] == 1]
+    _run(client, monkeypatch, tmp_path, name="report-3.xlsx", lines=both, content=b"c")
+
+    body = client.get(f"/du-lieu/snapshot/{second['snapshot_id']}").get_data(as_text=True)
+
+    assert "Đã xuất hiện lại ở" in body
+    assert snapshots.count_flags(kind="NOT_SEEN_IN_LATEST_SNAPSHOT") == 1, (
+        "cờ cũ vẫn còn nguyên — trạng thái hiệu lực là dẫn xuất, không phải xoá"
+    )
+
+
+def test_no_route_other_than_the_confirmation_one_can_confirm_coverage(
+    client, monkeypatch, tmp_path, snapshots,
+):
+    """Chạy lại, xem trang, upload legacy — không đường nào nâng coverage."""
+    _run(client, monkeypatch, tmp_path, name="report-1.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    _run(client, monkeypatch, tmp_path, name="report-2.xlsx",
+         lines=(_presented("BH1", row=6),), content=b"a")
+    client.get("/du-lieu")
+    for snapshot in snapshots.list_snapshots():
+        client.get(f"/du-lieu/snapshot/{snapshot['snapshot_id']}")
+
+    assert all(row["coverage_state"] != "CONFIRMED_COMPLETE"
+               for row in snapshots.list_snapshots())

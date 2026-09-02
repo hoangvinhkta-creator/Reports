@@ -49,6 +49,8 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
+from app.history import coverage as history_coverage
+from app.history import models as history_models
 from app.web import (
     history_store, history_writer, legacy_presentation, run_registry, storage_backend,
 )
@@ -320,8 +322,7 @@ def create_app(
             error=request.args.get("loi") or None,
         )
 
-    @app.get("/du-lieu/snapshot/<snapshot_id>")
-    def snapshot_detail(snapshot_id: str):
+    def _snapshot_page(snapshot_id: str, *, message=None, error=None, status=200):
         """Trang chỉ-đọc của MỘT snapshot: coverage, số đếm reconcile, cờ.
 
         Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ và các
@@ -341,7 +342,52 @@ def create_app(
         )
         return _legacy_page(
             "snapshot.html", snapshot=snapshot, flags=flags, totals=totals,
+            coverage_label=history_coverage.coverage_label(snapshot["coverage_state"]),
+            can_confirm=snapshot["coverage_state"] != history_models.CONFIRMED_COMPLETE,
+            confirm_message=message, confirm_error=error,
+        ), status
+
+    @app.get("/du-lieu/snapshot/<snapshot_id>")
+    def snapshot_detail(snapshot_id: str):
+        return _snapshot_page(
+            snapshot_id, message=request.args.get("xac_nhan") or None,
         )
+
+    @app.post("/du-lieu/snapshot/<snapshot_id>/xac-nhan-du")
+    def confirm_snapshot(snapshot_id: str):
+        """Xác nhận TƯỜNG MINH rằng sổ này đầy đủ cho một khoảng ngày.
+
+        Đây là hành động DUY NHẤT nâng coverage lên ``CONFIRMED_COMPLETE``, và
+        nó luôn là một hành động riêng của con người sau khi đã nhìn thấy phạm
+        vi hệ thống đo được (mục 7.3, DEC-171 #4). Không có suy diễn nào ở đây:
+        không tick ô → 400; khoảng ngày không bao trọn dữ liệu → 400; xác nhận
+        lần hai → 409. Mọi nhánh từ chối đều KHÔNG ghi gì.
+        """
+        if snapshot_repo is None:
+            abort(503)
+        try:
+            confirmation = _guarded(
+                snapshot_repo.confirm_coverage, snapshot_id,
+                start=history_coverage.parse_iso_date(request.form.get("tu_ngay")),
+                end=history_coverage.parse_iso_date(request.form.get("den_ngay")),
+                confirmed=request.form.get("xac_nhan") == "1",
+                confirmed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
+        except KeyError:
+            abort(404)
+        except history_store.CoverageAlreadyConfirmedError as exc:
+            return _snapshot_page(snapshot_id, error=str(exc), status=409)
+        except history_store.CoverageRangeError as exc:
+            return _snapshot_page(snapshot_id, error=str(exc), status=400)
+        return redirect(url_for(
+            "snapshot_detail", snapshot_id=snapshot_id,
+            xac_nhan=(
+                f"Đã ghi nhận xác nhận đầy đủ cho {confirmation.confirmed_range_start} "
+                f"→ {confirmation.confirmed_range_end}. "
+                f"{confirmation.removed_candidates} dòng hiện hành trong khoảng này không "
+                "có trong sổ vừa xác nhận — đã đưa vào Review, KHÔNG xoá và VẪN tính."
+            ),
+        ))
 
     @app.get("/history")
     def history_redirect():

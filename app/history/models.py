@@ -34,6 +34,15 @@ OUTCOME_COLLISION = "ORDER_KEY_COLLISION"
 
 FLAG_SOURCE_CHANGED = "SOURCE_CHANGED"
 FLAG_COLLISION = "ORDER_KEY_COLLISION"
+FLAG_NOT_SEEN = "NOT_SEEN_IN_LATEST_SNAPSHOT"
+FLAG_REMOVED_CANDIDATE = "REMOVED_IN_SOURCE_CANDIDATE"
+
+# Hai loại cờ nói về sự VẮNG MẶT của một khoá trong snapshot mới. Chúng khác
+# mọi cờ khác ở một điểm: một cờ vắng mặt có thể bị chính lịch sử phủ nhận —
+# khoá xuất hiện trở lại ở snapshot sau. Bản ghi cờ là BẤT BIẾN (append-only);
+# việc "còn hiệu lực hay không" được DẪN XUẤT khi đọc, không bao giờ bằng cách
+# sửa hay xoá lịch sử (mục 11 của chỉ thị slice B).
+ABSENCE_FLAG_KINDS = (FLAG_NOT_SEEN, FLAG_REMOVED_CANDIDATE)
 
 # Toàn bộ tập giá trị hợp lệ của hai cột enum. Slice A chỉ DỰNG được hai loại
 # cờ đầu; ba loại còn lại thuộc slice B/C nhưng phải có mặt trong từ vựng để
@@ -55,6 +64,20 @@ class LineKey:
     order_key: str
     product_key: str
     occurrence_index: int
+
+
+@dataclass(frozen=True)
+class CurrentKey:
+    """Một khoá ĐANG hiện hành, rút gọn về đúng ba thứ bước 4/R cần biết.
+
+    Không mang tiền, không mang fingerprint: so sánh vắng mặt chỉ hỏi "khoá
+    này có trong snapshot mới không" và "nó có nằm trong phạm vi mà snapshot
+    đó thực sự đại diện không" — chứ không hỏi giá trị của nó có đổi không.
+    """
+
+    key: LineKey
+    sale_date: Optional[date]
+    order_key_collision: bool = False
 
 
 @dataclass(frozen=True)

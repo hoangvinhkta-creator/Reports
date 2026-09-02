@@ -10,6 +10,12 @@ giá trị đó.
 Header chỉ được parse theo HAI dạng đã đo được trong dữ liệu thật/fixture.
 Dạng thứ ba xuất hiện → ``None`` và ``DETECTED_ONLY``; không đoán, không nới
 regex (escalation trigger của task).
+
+Slice B thêm phần XÁC NHẬN (mục 7.3): ``confirmation_error`` là toàn bộ luật
+quyết định một yêu cầu xác nhận có được chấp nhận hay không, viết THUẦN để
+kiểm được bằng bảng vào/ra. Nó vẫn không tự nâng trạng thái: nó chỉ trả lời
+"yêu cầu này có hợp lệ không"; việc ghi ``CONFIRMED_COMPLETE`` xuống database
+nằm ở đúng MỘT hàm repository (``SnapshotRepository.confirm_coverage``).
 """
 
 from __future__ import annotations
@@ -116,3 +122,76 @@ def scan_sheet(path: Path) -> tuple[Optional[str], int, int]:
         return header_text, data_rows, without_order_id
     finally:
         workbook.close()
+
+
+# Nhãn tiếng Việt của ba mức coverage — nguồn sự thật DUY NHẤT cho phần chữ mà
+# người dùng đọc. Trước slice B trang snapshot in một câu cố định
+# ("CHƯA XÁC NHẬN ĐỦ") bất kể trạng thái thật (FIND-PRA002-A4); nhãn đúng phải
+# đến từ chính ``coverage_state`` đã lưu, nếu không UI sẽ nói sai ngay ở lần
+# xác nhận đầu tiên.
+COVERAGE_LABELS = {
+    DETECTED_ONLY: "CHƯA XÁC NHẬN ĐỦ — chỉ phát hiện phạm vi từ dữ liệu",
+    HEADER_CONSISTENT: "CHƯA XÁC NHẬN ĐỦ — header khớp phạm vi dữ liệu",
+    CONFIRMED_COMPLETE: "ĐÃ XÁC NHẬN ĐẦY ĐỦ cho phạm vi được khai báo",
+}
+
+# Fail-safe chống gõ nhầm năm (mục 7.3): một sổ kế toán "đầy đủ" cho hơn một
+# năm không phải là thứ hệ thống này được phép nhận mà không hỏi lại.
+MAX_CONFIRMED_RANGE_DAYS = 366
+
+
+def coverage_label(state: Optional[str]) -> str:
+    """Câu mô tả trạng thái coverage. Trạng thái lạ → nói thẳng là không rõ."""
+    return COVERAGE_LABELS.get(state or "", "Không rõ trạng thái coverage")
+
+
+def parse_iso_date(text: Optional[str]) -> Optional[date]:
+    """``YYYY-MM-DD`` → ``date``; mọi thứ khác → ``None`` (không đoán định dạng)."""
+    try:
+        return date.fromisoformat((text or "").strip())
+    except ValueError:
+        return None
+
+
+def confirmation_error(
+    *,
+    confirmed: bool,
+    start: Optional[date],
+    end: Optional[date],
+    detected: tuple[Optional[date], Optional[date]],
+    already_confirmed: bool = False,
+) -> Optional[str]:
+    """Lý do TỪ CHỐI một yêu cầu xác nhận đủ, hoặc ``None`` nếu hợp lệ.
+
+    Thứ tự kiểm là thứ tự "người dùng cần biết điều gì trước": chưa tick ô xác
+    nhận là chuyện khác hẳn với gõ sai khoảng ngày. Mọi nhánh đều fail-closed
+    — không có đường nào trả ``None`` khi thiếu hành động tường minh.
+    """
+    if already_confirmed:
+        return "Snapshot này đã được xác nhận đủ trước đó — không xác nhận lại."
+    if not confirmed:
+        return "Chưa tích ô xác nhận. Hệ thống không bao giờ tự kết luận sổ đã đầy đủ."
+    if start is None or end is None:
+        return "Khoảng ngày không hợp lệ. Nhập theo dạng YYYY-MM-DD."
+    if start > end:
+        return "Từ ngày phải nhỏ hơn hoặc bằng đến ngày."
+    if (end - start).days + 1 > MAX_CONFIRMED_RANGE_DAYS:
+        return (
+            f"Khoảng xác nhận dài hơn {MAX_CONFIRMED_RANGE_DAYS} ngày — "
+            "kiểm tra lại năm đã nhập."
+        )
+    detected_min, detected_max = detected
+    if detected_min is None or detected_max is None:
+        return "Snapshot này không có ngày bán nào để đối chiếu phạm vi."
+    outside = []
+    if detected_min < start:
+        outside.append(f"sớm nhất {detected_min.isoformat()}")
+    if detected_max > end:
+        outside.append(f"muộn nhất {detected_max.isoformat()}")
+    if outside:
+        return (
+            "Dữ liệu của snapshot có ngày nằm NGOÀI khoảng khai báo ("
+            + ", ".join(outside)
+            + "). Khoảng xác nhận phải bao trọn dữ liệu đang có."
+        )
+    return None
