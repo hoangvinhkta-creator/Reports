@@ -215,8 +215,11 @@ def test_each_pending_line_explains_itself_in_readable_vietnamese(client):
     """Câu hỏi 5 của mục 1: "tại sao dòng này cần kiểm tra?"."""
     blocks = reason_blocks(body(client, "/ban-hang/BH62439?ky=tat-ca"))
     assert len(blocks) == 3
+    # DEC-PAN-001 — "Thiếu giá nhập kế toán"/"Thiếu lợi nhuận kế toán" KHÔNG
+    # còn xuất hiện trên kết quả MỚI: chúng nhân bản đúng một nguyên nhân gốc
+    # đã có mã actionable riêng ("Thiếu giá mua tham chiếu"). Nhãn của chúng
+    # vẫn tồn tại để đọc lại lịch sử đã persist, không phải để sinh mới.
     expected = ["Chưa có dữ liệu để nhận diện sản phẩm", "Thiếu giá mua tham chiếu",
-                "Thiếu giá nhập kế toán", "Thiếu lợi nhuận kế toán",
                 "Thiếu lợi nhuận KPI"]
     assert blocks == [expected] * 3
 

@@ -7,10 +7,25 @@ văn, không che giấu.
 
 from __future__ import annotations
 
+#: DEC-PAN-001 (PRICE_AUTHORITY_NORMALIZATION) — hai mã KHÔNG còn được sinh ra
+#: cho kết quả MỚI (xem `excel_exporter._present_lines`), nhưng nhãn của chúng
+#: PHẢI ở lại: `pending_reasons_json` của các result version đã persist trước
+#: quyết định này vẫn chứa chúng, và kiến trúc hiện hành hiển thị trung thực
+#: lịch sử đã lưu. KHÔNG backfill, KHÔNG migration, KHÔNG viết lại evidence cũ
+#: — một lần chạy cũ là bằng chứng của luật đang hiệu lực LÚC ĐÓ. Bỏ nhãn ở
+#: đây chỉ khiến màn hình lịch sử hiện mã tiếng Anh thô, không làm lịch sử
+#: sạch hơn.
+RETIRED_PENDING_REASONS = frozenset({
+    "Pending.accounting_purchase_price",
+    "Pending.accounting_profit",
+})
+
 REASON_DISPLAY_LABELS = {
     "IDENTITY_UNRESOLVED": "Chưa nhận diện sản phẩm",
     "TRACKING_HISTORY_PENDING": "Thiếu giá lịch sử Tracking",
     "Missing.PurchasePrice": "Thiếu giá mua tham chiếu",
+    # Hai nhãn dưới đây là RETIRED_PENDING_REASONS — chỉ dùng để đọc lại lịch
+    # sử đã persist, không còn là business status reason của kết quả mới.
     "Pending.accounting_purchase_price": "Thiếu giá nhập kế toán",
     "Pending.accounting_profit": "Thiếu lợi nhuận kế toán",
     "Pending.eligible_kpi_profit": "Thiếu lợi nhuận KPI",

@@ -1,5 +1,129 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PRICE AUTHORITY NORMALIZATION (AUTHORITATIVE, 2026-09-03)
+
+**Phân loại: `OWNER_DECISION` / `PRICE_AUTHORITY_NORMALIZATION`** — thẩm quyền
+cao nhất, SUPERSEDES ngữ nghĩa hiện hành khi có xung đột về price authority kể
+từ thời điểm này. Quyết định đầy đủ: **DEC-172**
+(`PROJECT/PROJECT_DECISIONS.md`). KHÔNG phải PRA-004 defect —
+`TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
+`PRA-005` NOT STARTED.
+
+Owner xác nhận: trong Reports chỉ có **MỘT** authority cho giá mua phục vụ
+phân tích bán hàng — **Tracking PP có hiệu lực tại ngày bán**, gọi ở nghiệp vụ
+là **"Giá mua tham chiếu"**. Sổ bán hàng KHÔNG phải nguồn giá nhập; nó chỉ
+cung cấp `sản phẩm + ngày bán` để đối chiếu Tracking. **Không tồn tại** một
+`Accounting Purchase Price Authority` hay `Accounting Profit` management metric
+chạy song song. Lợi nhuận quản trị chính là **LN KPI**.
+
+```text
+BASE_CANONICAL          = 522a093ff952702b479d975aab42d0e10deb461a
+                         (khớp EXACT kỳ vọng đầu phiên, CANONICAL_MOVED = KHÔNG)
+BRANCH                  = claude/price-authority-semantic-norm-vh43s3
+
+PRICE_AUTHORITY         = TRACKING_PP_AT_SALE_DATE_ONLY
+ACCOUNTING_INDEPENDENT_SOURCE = NO — không có nguồn giá nhập kế toán độc lập
+                         nào feed vào field; carrier chở đúng Tracking PP đã
+                         resolve theo sale_date
+
+LEGACY_FIELD_CLASSIFICATION =
+                         accounting_purchase_price = LEGACY_INTERNAL_PP_CARRIER
+                         accounting_profit         = LEGACY_DERIVED_FIELD
+                         (tồn tại nội bộ; KHÔNG mang business authority)
+
+GENERATION_POINT_TRACED = app/modules/exporting/excel_exporter.py::
+                         _present_lines — vòng lặp `Pending.<field>`. Đây là
+                         nguồn sự thật DUY NHẤT cho status AUTO/PENDING,
+                         review_reason_counts, và pending_reasons được persist.
+
+ACCOUNTING_REASON_CHANGE = Pending.accounting_purchase_price ĐÃ GỠ khỏi đường
+                         sinh reason mới
+                         Pending.accounting_profit ĐÃ GỠ khỏi đường sinh mới
+                         (backend field/công thức/storage/schema KHÔNG đổi)
+
+KPI_REASON_DECISION     = KEEP — Pending.eligible_kpi_profit là lý do ĐỘC LẬP,
+                         có bằng chứng: khi config/eligible_costs.yaml hỏng
+                         hoặc confirmed_adjustment_source UNAVAILABLE, nó là
+                         None NGAY CẢ KHI identity đã nhận diện và PP đã
+                         resolve — và là mã DUY NHẤT báo lỗi authority đó.
+                         KHÔNG phải KPI_REASON_OWNER_DECISION_REQUIRED.
+
+STATUS_PRESENTATION_MISMATCH = ĐÃ ĐÓNG (được nêu "TIỀM ẨN" ở mục KPI-FIRST
+                         PRESENTATION bên dưới). Giả thuyết "một dòng có thể
+                         PENDING CHỈ VÌ thiếu dữ liệu kế toán" đã được ĐO
+                         trên đường production thật: accounting-only Pending
+                         lines = 0 ở CẢ HAI fixture Golden, TRƯỚC lẫn SAU —
+                         khớp audit fact F. Mọi dòng từng mang mã kế toán đều
+                         còn ít nhất một mã actionable khác
+                         (Missing.PurchasePrice), nên không dòng nào lật
+                         PENDING → AUTO.
+
+STATUS_SEMANTICS_GLOBAL_REDESIGN = NO — không đại tu AUTO/PENDING, không
+                         Review Management System, không status architecture
+                         mới.
+
+STATUS_DELTA            = 0 — AUTO/PENDING lines và AUTO/Review orders KHÔNG
+                         đổi ở cả period_2026_01 và period_2026_06.
+REASON_COUNT_DELTA      = period_2026_01: −349 accounting_purchase_price,
+                                          −349 accounting_profit
+                         period_2026_06: −180 accounting_purchase_price,
+                                          −180 accounting_profit
+                         (Số Review KHÔNG giảm — đúng kỳ vọng audit, KHÔNG
+                         phải thất bại. Mục tiêu là SEMANTIC CORRECTNESS +
+                         REASON CLARITY.)
+
+HISTORICAL_DATA_REWRITE = NO — DO NOT BACKFILL. pending_reasons_json của các
+                         result version đã lưu giữ nguyên hai mã kế toán;
+                         không migration, không mutate historical evidence.
+                         UI hiển thị kết quả CŨ vẫn hiện mã lịch sử — hành vi
+                         này được chấp nhận tường minh, không phải bug. Hai
+                         nhãn tiếng Việt vì thế GIỮ LẠI trong
+                         REASON_DISPLAY_LABELS, đánh dấu bằng
+                         app/beta_presentation.py::RETIRED_PENDING_REASONS.
+
+REASON_UNIVERSE_TIERS   = reason_universe()     = 19 mã (sinh cho kết quả MỚI)
+                         renderable_universe() = 21 mã = 19 + RETIRED (đọc
+                         lại lịch sử). Cả hai dẫn xuất TỪ MÃ NGUỒN qua AST,
+                         không chép tay.
+
+SCHEMA_CHANGE           = NO
+TRACKING_CHANGE         = NO (Tracking = READ-ONLY REFERENCE)
+PP_ALGORITHM_CHANGE     = NO (PricingEffectiveDate = sale date giữ nguyên;
+                         không backfill giá hiện tại, không ngoại suy,
+                         NULL != 0 giữ nguyên)
+KPI_FORMULA_CHANGE      = NO
+IDENTITY_CHANGE         = NO (Tracking vẫn là Product Identity Authority)
+
+PRODUCTION_LOGIC_LOC    = ~14 dòng (2 file: excel_exporter.py vòng lặp reason;
+                         beta_presentation.py thêm RETIRED_PENDING_REASONS)
+                         — trong change budget ≤ 80 LOC.
+
+NUMERIC_ORACLES         = KHÔNG ĐỔI. BH73844 (9.550.000 / 9.450.000 /
+                         100.000) và BH73877 (32.800.000 / 456.667 /
+                         coverage 2/3) giữ nguyên. Chỉ ngữ nghĩa reason đổi,
+                         và chỉ trên xử lý MỚI.
+
+BH73877_NEW_SEMANTIC    = Chưa nhận diện sản phẩm · Thiếu giá mua tham chiếu ·
+                         Thiếu lợi nhuận KPI
+                         (bản đã persist KHÔNG bị sửa)
+
+TESTS                   = Full suite 1984 passed, 11 skipped
+                         Golden baseline 58 passed, 2 skipped (khớp con số
+                         authority trong CLAUDE.md)
+                         PRA-003 68 passed · PRA-004 94 passed
+                         Focused mới: tests/test_price_authority_
+                         normalization.py — 16 passed (brief §17 A–K)
+GOVERNANCE_VALIDATORS   = structure PASS · project_state PASS ·
+                         reference_integrity FAIL với ĐÚNG 3 issue REM-T06 đã
+                         biết từ trước (không phát sinh issue mới)
+```
+
+**Bài học governance (DEC-172 §9):** `SOURCE FIELD / LEGACY FIELD NAME` không
+tự động tạo ra `BUSINESS AUTHORITY`. Một metric/status/reason mới có tác động
+tới business state đòi hỏi **authority classification tường minh** — không
+được suy ra từ tên field, tên cột nguồn, hay tên module.
+
+
 ## CANONICAL CURRENT STATE — MANAGEMENT UI SIMPLIFICATION (AUTHORITATIVE, 2026-09-03 — KPI-FIRST PRESENTATION)
 
 **Phân loại: `OWNER_PRESENTATION_DECISION`** — KHÔNG phải PRA-004 defect,

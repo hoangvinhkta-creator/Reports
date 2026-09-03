@@ -332,9 +332,15 @@ def test_the_auto_line_of_bh62439_carries_both_purchase_prices(golden_engine):
 
 
 def test_the_persisted_reason_codes_of_bh62439_are_read_back_in_order(golden_engine):
-    """Ba dòng PENDING, mỗi dòng ĐÚNG 5 mã theo ĐÚNG thứ tự đã persist."""
+    """Ba dòng PENDING, mỗi dòng ĐÚNG 3 mã theo ĐÚNG thứ tự đã persist.
+
+    Trước DEC-PAN-001 con số này là 5: hai mã `Pending.accounting_*` đi kèm.
+    Chúng đã bị gỡ khỏi đường SINH reason (Reports không có nguồn giá nhập kế
+    toán độc lập), nên một lần chạy MỚI như `golden_engine` persist ba mã.
+    Đây KHÔNG phải backfill: các result version cũ vẫn giữ nguyên 5 mã của
+    chúng — xem `RETIRED_PENDING_REASONS`.
+    """
     expected = ["IDENTITY_SOURCES_UNAVAILABLE", "Missing.PurchasePrice",
-                "Pending.accounting_purchase_price", "Pending.accounting_profit",
                 "Pending.eligible_kpi_profit"]
     pending = [line for line in sq.order_detail(golden_engine, "BH62439")["lines_detail"]
                if line["status"] == "PENDING"]

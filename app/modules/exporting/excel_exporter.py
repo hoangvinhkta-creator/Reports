@@ -139,9 +139,27 @@ def _present_lines(result, records, raw_rows):
                     details.append(item.message)
 
         # Chỉ phơi bày các kết quả còn trống, không tự suy đoán nguyên nhân.
+        #
+        # DEC-PAN-001 (PRICE_AUTHORITY_NORMALIZATION) — vòng lặp này CHỈ còn
+        # `eligible_kpi_profit`. Hai trường `accounting_*` đã bị gỡ khỏi đường
+        # sinh reason vì Owner đã xác nhận Reports KHÔNG có nguồn giá nhập kế
+        # toán độc lập: `accounting_purchase_price` là LEGACY_INTERNAL_PP_CARRIER
+        # chở đúng Tracking PP tại ngày bán, và `accounting_profit` là
+        # LEGACY_DERIVED_FIELD suy ra từ nó. Khi PP không resolve được thì cả
+        # hai cùng None — phát ba mã cho MỘT nguyên nhân gốc khiến người đọc
+        # tưởng có ba việc phải làm, trong khi việc thật đã nằm ở
+        # `Missing.PurchasePrice`/`IDENTITY_*`. Tên trường legacy không tự nó
+        # tạo ra một business authority (bài học ADR/DEC-PAN-001).
+        #
+        # `eligible_kpi_profit` GIỮ LẠI vì nó KHÔNG phải hệ quả dẫn xuất thuần
+        # tuý: khi authority KPI hỏng (`config/eligible_costs.yaml` thiếu/sai,
+        # hoặc confirmed-adjustment source UNAVAILABLE) nó là None NGAY CẢ KHI
+        # identity đã nhận diện, PP đã resolve và `kpi_purchase_price` đã có —
+        # lúc đó đây là mã DUY NHẤT báo cho người vận hành rằng một authority
+        # cần được sửa (xem `tests/test_demo.py::
+        # test_kpi_unavailable_is_queued_even_with_resolved_price`). Gỡ nó đi
+        # sẽ giấu mất một lỗi authority thật.
         for field, label in (
-            ("accounting_purchase_price", "Giá nhập kế toán"),
-            ("accounting_profit", "Lợi nhuận kế toán"),
             ("eligible_kpi_profit", "Lợi nhuận KPI"),
         ):
             if getattr(line, field) is None:

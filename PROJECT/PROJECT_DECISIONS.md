@@ -8112,3 +8112,195 @@ Tracking.
   chặn vertical tháng 09/2026. UNKNOWN/ASSUMPTION có fail-safe và
   re-trigger ghi ở mục 18 của task file.
 - Ledger mở lineage `TASK-PRA-002` (HIGH, 2 cycle, 0 dùng).
+
+## DEC-172
+
+Title:
+`PRICE_AUTHORITY_NORMALIZATION` + `ACCOUNTING_REASON_NORMALIZATION` — Tracking
+PP tại ngày bán là authority DUY NHẤT của giá mua trong Reports; tên trường
+legacy `accounting_*` KHÔNG tạo ra business authority
+
+Date:
+2026-09-03
+
+Task:
+Sửa ngữ nghĩa nghiệp vụ theo chỉ thị Owner (OWNER-DIRECTED BUSINESS SEMANTIC
+CORRECTION / MINIMAL VERTICAL REPAIR). Reports = phạm vi ghi DUY NHẤT;
+Tracking = READ-ONLY REFERENCE. `BASE_SHA =
+522a093ff952702b479d975aab42d0e10deb461a`.
+`TASK-PRA-004` giữ nguyên `DONE`; `PRA-005` NOT STARTED.
+
+Authority:
+**OWNER_DECISION** — thẩm quyền cao nhất. Quyết định này SUPERSEDES ngữ nghĩa
+hiện hành khi có xung đột về price authority, KỂ TỪ THỜI ĐIỂM NÀY TRỞ ĐI.
+
+Classify:
+`OWNER_DECISION` / `PRICE_AUTHORITY_NORMALIZATION`
+
+### 1. Nội dung quyết định
+
+1. Trong Reports chỉ có **MỘT** authority cho giá mua phục vụ phân tích bán
+   hàng: **Tracking PP có hiệu lực tại ngày bán**.
+2. Sổ bán hàng / accounting workbook **KHÔNG** phải nguồn giá nhập. Owner chưa
+   từng yêu cầu Reports truy xuất một nguồn giá nhập kế toán độc lập.
+3. Reports dùng thông tin bán hàng để xác định `sản phẩm + ngày bán`, sau đó
+   đối chiếu Tracking để resolve PP.
+4. PP này được gọi ở business/UI là **"Giá mua tham chiếu"**.
+5. Lợi nhuận quản trị chính là **LN KPI**.
+6. Owner **KHÔNG** yêu cầu một hệ `Accounting Purchase Price Authority` hoặc
+   `Accounting Profit` management metric chạy song song với Tracking PP/KPI.
+7. Các field legacy `accounting_purchase_price` / `accounting_profit` **được
+   tiếp tục tồn tại nội bộ** để tránh refactor/migration không cần thiết.
+8. Nhưng tên `accounting_*` **KHÔNG được phép tự tạo thêm** business
+   requirement, business authority hay management-facing semantic.
+9. Sự thật implementation hiện tại: `accounting_purchase_price` đang làm
+   **carrier** của Tracking PP đã resolve theo `sale_date`.
+10. **Không tồn tại hai nguồn giá.** `Tracking PP` và "Accounting Purchase
+    Price" KHÔNG phải hai authority độc lập trong implementation hiện tại.
+11. Historical specs/DEC vẫn giữ nguyên như historical artifacts.
+
+### 2. Business flow được FREEZE
+
+    Sổ bán hàng → Product + sale_date → Product Identity → Tracking
+    → PP effective at sale_date → Giá mua tham chiếu → KPI calculation → LN KPI
+
+KHÔNG tạo thêm nhánh `Sổ bán hàng → Giá nhập kế toán → LN kế toán`.
+
+### 3. Phân loại lại field legacy (KHÔNG rename, KHÔNG xoá)
+
+| Field | Phân loại mới |
+|---|---|
+| `accounting_purchase_price` | `LEGACY_INTERNAL_PP_CARRIER` |
+| `accounting_profit` | `LEGACY_DERIVED_FIELD` |
+
+Lý do không rename: đổi tên carrier nội bộ lúc này tạo blast radius ngang
+(schema, persistence, history, query, presentation, fixture) mà không đổi được
+một con số nào cho người dùng.
+
+### 4. Hệ quả hành vi DUY NHẤT — `ACCOUNTING_REASON_NORMALIZATION`
+
+Hai mã Pending sau **không còn được SINH RA** cho kết quả MỚI:
+
+- `Pending.accounting_purchase_price` ("Thiếu giá nhập kế toán")
+- `Pending.accounting_profit` ("Thiếu lợi nhuận kế toán")
+
+Điểm sinh DUY NHẤT đã được truy vết và sửa: vòng lặp `Pending.<field>` trong
+`app/modules/exporting/excel_exporter.py::_present_lines`. Đây cũng là nguồn
+sự thật duy nhất cho `status` AUTO/PENDING, `review_reason_counts`, và
+`pending_reasons` được persist — nên chuẩn hoá tại đây là chuẩn hoá ở tầng
+reason-generation/business, KHÔNG phải giấu trong template (yêu cầu §10).
+
+Nguyên tắc trình bày mới: **MỘT NGUYÊN NHÂN GỐC → MỘT LÝ DO QUẢN TRỊ
+ACTIONABLE.** Không trình bày nhiều hệ quả dẫn xuất như thể chúng là các vấn
+đề độc lập.
+
+KHÔNG đụng tới: công thức, storage, schema, PP resolution, temporal rule
+(`PricingEffectiveDate = sale date`), KPI formula, identity algorithm.
+
+### 5. `Pending.eligible_kpi_profit` — GIỮ LẠI, có bằng chứng
+
+Câu hỏi §7 của chỉ thị: mã này là lý do ĐỘC LẬP hay luôn là hệ quả dẫn xuất?
+
+**Bằng chứng (không phỏng đoán):** tồn tại case reachable trong đó identity đã
+nhận diện, PP đã resolve, mọi input actionable phía trên đều hợp lệ, nhưng
+`eligible_kpi_profit` vẫn `None`:
+
+- `config/eligible_costs.yaml` thiếu/hỏng → `EligibleCostsAuthority.is_valid`
+  = `False` → fail-closed (B02). `kpi_purchase_price` vẫn resolve bình thường,
+  nên KHÔNG mã nào khác báo lỗi này.
+- `confirmed_adjustment_source` UNAVAILABLE (DEC-144 §3) → `kpi_purchase_price`
+  = `None` → KPI `None`, dù PP đã resolve.
+
+Ở cả hai case, `Pending.eligible_kpi_profit` là mã **DUY NHẤT** nói cho người
+vận hành biết có một authority cần được sửa. Nó thoả đúng tiêu chuẩn Owner:
+"CẦN KIỂM TRA phải đại diện cho một vấn đề input/authority mà con người thật
+sự phải xử lý". Gỡ nó đi sẽ **giấu một lỗi authority thật**.
+
+Bằng chứng đã tồn tại TRƯỚC quyết định này:
+`tests/test_demo.py::test_kpi_unavailable_is_queued_even_with_resolved_price`.
+Bằng chứng bổ sung: hai test `test_kpi_reason_is_independent_when_*` trong
+`tests/test_price_authority_normalization.py`.
+
+→ `KPI_REASON_DECISION = KEEP`. Không cần `KPI_REASON_OWNER_DECISION_REQUIRED`.
+
+### 6. Lịch sử đã persist — KHÔNG BACKFILL
+
+`pending_reasons_json` của các result version đã lưu vẫn chứa hai mã kế toán.
+Quyết định: **DO NOT BACKFILL** — không migration, không rewrite result version
+cũ, không mutate historical evidence. Một lần chạy cũ là bằng chứng của luật
+đang hiệu lực LÚC ĐÓ.
+
+Hệ quả hiển thị được chấp nhận tường minh: **UI hiển thị một kết quả CŨ đã
+persist sẽ vẫn hiện các mã reason lịch sử**, vì kiến trúc hiện hành render
+trung thực lịch sử đã lưu. Đây không phải bug. Vì vậy hai nhãn tiếng Việt
+được **GIỮ LẠI** trong `REASON_DISPLAY_LABELS`, và được đánh dấu tường minh
+bằng `app/beta_presentation.py::RETIRED_PENDING_REASONS`.
+
+Vũ trụ mã reason vì thế có HAI TẦNG, cả hai đều dẫn xuất từ mã nguồn:
+
+- `reason_universe()` = 19 mã — tập pipeline CÓ THỂ sinh cho kết quả MỚI.
+- `renderable_universe()` = 21 mã = 19 + `RETIRED_PENDING_REASONS` — tập UI
+  CÓ THỂ phải hiển thị khi đọc lịch sử.
+
+### 7. Đo tác động (fixture Golden, đường production thật)
+
+| Chỉ số | Trước | Sau | Delta |
+|---|---|---|---|
+| `period_2026_01` total lines | 351 | 351 | 0 |
+| `period_2026_01` AUTO / PENDING lines | 2 / 349 | 2 / 349 | 0 |
+| `period_2026_01` AUTO / Review orders | 1 / 253 | 1 / 253 | 0 |
+| `period_2026_01` `Pending.accounting_purchase_price` | 349 | 0 | −349 |
+| `period_2026_01` `Pending.accounting_profit` | 349 | 0 | −349 |
+| `period_2026_06` total lines | 180 | 180 | 0 |
+| `period_2026_06` AUTO / PENDING lines | 0 / 180 | 0 / 180 | 0 |
+| `period_2026_06` AUTO / Review orders | 0 / 146 | 0 / 146 | 0 |
+| `period_2026_06` `Pending.accounting_purchase_price` | 180 | 0 | −180 |
+| `period_2026_06` `Pending.accounting_profit` | 180 | 0 | −180 |
+
+`accounting-only Pending lines` = **0** ở cả hai fixture, TRƯỚC lẫn SAU. Đây là
+lý do cấu trúc khiến status không đổi: mọi dòng từng mang mã kế toán đều còn ít
+nhất một mã actionable khác (`Missing.PurchasePrice`), nên không dòng nào có
+thể lật `PENDING → AUTO`. Điều kiện này được canh bằng test
+(`test_k_removing_the_two_codes_changes_no_line_status`), không phải bằng một
+con số đếm cứng.
+
+**Số Review KHÔNG giảm, và đó KHÔNG phải thất bại** — mục tiêu là
+`SEMANTIC CORRECTNESS + REASON CLARITY`, đúng như audit đã cảnh báo (audit fact
+F: accounting-only Pending không tìm thấy trong fixture đã audit).
+
+### 8. Oracle số học — KHÔNG ĐỔI
+
+Không giá trị số nào bị đụng. `BH73844` (9.550.000 / 9.450.000 / 100.000),
+`BH73877` (32.800.000 / 456.667 / coverage 2/3), và toàn bộ oracle Golden giữ
+nguyên. Golden baseline: `58 passed, 2 skipped` — đúng con số authority đang
+ghi trong `CLAUDE.md`.
+
+Với `BH73877`, kết quả MỚI (khi xử lý lại nguồn) sẽ mang:
+
+    Chưa nhận diện sản phẩm
+    Thiếu giá mua tham chiếu
+    Thiếu lợi nhuận KPI
+
+Bản đã persist của `BH73877` KHÔNG bị sửa (mục 6).
+
+### 9. Bài học governance
+
+**SOURCE FIELD / LEGACY FIELD NAME does not automatically create BUSINESS
+AUTHORITY.**
+
+Một cái tên trường có sẵn trong code (`accounting_*`) đã âm thầm sinh ra một
+"authority kế toán" mà Owner chưa bao giờ yêu cầu, rồi từ đó sinh ra hai mã
+reason quản trị, rồi hiện lên màn hình như hai việc phải làm. Không bước nào
+trong chuỗi ấy đi qua một quyết định nghiệp vụ.
+
+Luật rút ra: **một metric/status/reason mới có tác động tới business state đòi
+hỏi authority classification tường minh** — không được suy ra từ tên field,
+tên cột nguồn, hay tên module.
+
+### 10. Phạm vi KHÔNG làm
+
+Không `PRA-005`; không Tracking write; không schema/database migration; không
+rename campaign; không xoá field `accounting_*`; không backfill/rewrite lịch
+sử; không đổi PP algorithm / KPI formula / identity algorithm; không subsystem
+mới; không Review workflow; không pagination; không export redesign; không sửa
+`REM-T06`; không refactor tổng quát.

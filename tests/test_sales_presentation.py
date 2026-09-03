@@ -13,7 +13,10 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from app.beta_presentation import REASON_DISPLAY_LABELS
+from app.beta_presentation import (
+    REASON_DISPLAY_LABELS,
+    RETIRED_PENDING_REASONS,
+)
 from app.modules.pricing.resolution.composition import PriceResolutionReason
 from app.modules.validation.models import CATEGORIES
 from app.web import sales_presentation as sp
@@ -64,10 +67,25 @@ def pending_fields_from_source() -> set[str]:
 
 
 def reason_universe() -> set[str]:
-    """O-D1 — vũ trụ ĐÓNG, dẫn xuất TỪ MÃ NGUỒN, không chép tay."""
+    """O-D1 — vũ trụ SINH RA, dẫn xuất TỪ MÃ NGUỒN, không chép tay.
+
+    Đây là tập mã mà pipeline CÓ THỂ sinh cho một kết quả MỚI.
+    """
     return ({reason.value for reason in PriceResolutionReason}
             | set(CATEGORIES)
             | {f"Pending.{field}" for field in pending_fields_from_source()})
+
+
+def renderable_universe() -> set[str]:
+    """DEC-PAN-001 — tập mã mà UI CÓ THỂ phải hiển thị.
+
+    Rộng hơn `reason_universe()` đúng bằng `RETIRED_PENDING_REASONS`: hai mã
+    `accounting_*` không còn được SINH RA nữa, nhưng vẫn nằm trong
+    `pending_reasons_json` của các result version đã persist trước quyết định
+    ấy — và kiến trúc hiện hành hiển thị trung thực lịch sử đã lưu, không viết
+    lại nó. Bảng nhãn vì thế phải phủ cả hai tầng.
+    """
+    return reason_universe() | set(RETIRED_PENDING_REASONS)
 
 
 def order(**overrides) -> dict:
@@ -98,26 +116,45 @@ def line(**overrides) -> dict:
 
 # --- Vũ trụ reason code (CHECK-PRA004-04) --------------------------------
 
-def test_the_reason_universe_derived_from_source_is_closed_at_21_codes():
-    """O-D1 — 10 ``PriceResolutionReason`` + 8 ``CATEGORIES`` + 3 ``Pending``."""
+def test_the_reason_universe_derived_from_source_is_closed_at_19_codes():
+    """O-D1 + DEC-PAN-001 — 10 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
+    1 ``Pending``.
+
+    Trước DEC-PAN-001 vòng lặp sinh ba mã ``Pending.<field>`` (vũ trụ 21).
+    ``accounting_purchase_price``/``accounting_profit`` đã bị gỡ khỏi đường
+    sinh reason: Reports không có nguồn giá nhập kế toán độc lập, nên hai mã
+    ấy chỉ nhân bản MỘT nguyên nhân gốc đã có mã actionable riêng.
+    """
     universe = reason_universe()
     assert len(PriceResolutionReason) == 10
     assert len(CATEGORIES) == 8
-    assert pending_fields_from_source() == {
-        "accounting_purchase_price", "accounting_profit", "eligible_kpi_profit"}
-    assert len(universe) == 21
+    assert pending_fields_from_source() == {"eligible_kpi_profit"}
+    assert len(universe) == 19
+
+
+def test_the_two_retired_accounting_codes_are_no_longer_generated():
+    """DEC-PAN-001 — không mã kế toán nào còn là business status reason mới."""
+    assert RETIRED_PENDING_REASONS == {
+        "Pending.accounting_purchase_price", "Pending.accounting_profit"}
+    assert reason_universe() & set(RETIRED_PENDING_REASONS) == set()
+
+
+def test_the_renderable_universe_still_covers_persisted_history():
+    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 19 mã sinh mới + 2 mã
+    đã nghỉ = 21 mã UI có thể phải hiển thị. Không backfill, không migration."""
+    assert len(renderable_universe()) == 21
 
 
 def test_the_label_table_covers_the_whole_closed_universe():
     """O-D2 — TOÀN PHẦN. Nhánh dự phòng "hiện nguyên mã" vì vậy không bao giờ
     chạy trên dữ liệu thật, và nó vẫn tồn tại cho ngày engine mở thêm mã."""
-    assert reason_universe() - set(REASON_DISPLAY_LABELS) == set()
+    assert renderable_universe() - set(REASON_DISPLAY_LABELS) == set()
 
 
 def test_the_label_table_invents_no_code_of_its_own():
     """Bảng nhãn KHÔNG được rộng hơn vũ trụ đóng: một khoá thừa ở đây là một
     mã không tồn tại ở engine, tức một taxonomy mới đang lén hình thành."""
-    assert set(REASON_DISPLAY_LABELS) - reason_universe() == set()
+    assert set(REASON_DISPLAY_LABELS) - renderable_universe() == set()
 
 
 def test_the_seven_s069_labels_are_unchanged_word_for_word():
