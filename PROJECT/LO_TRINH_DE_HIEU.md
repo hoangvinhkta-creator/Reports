@@ -9,6 +9,12 @@
 > một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
 > về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
+> Cập nhật thêm 2026-09-03 (S099): **việc 3 (PRA-003 — Tổng quan + Nhân
+> viên) đã XONG HẲN.** Chủ dự án đã tự tay mở trang thật và xác nhận đúng
+> những con số đã hứa. Xem mục "VIỆC 3 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ
+> THỐNG CHẠY THẬT" ngay đầu phần TRẠNG THÁI HIỆN TẠI. Việc tiếp theo: việc 4
+> (bán hàng chi tiết + màn hình xem lại) — chưa bắt đầu.
+>
 > Cập nhật lần cuối: 2026-09-01 — Owner đã chốt: 01/09/2026 chỉ là mốc kỹ
 > thuật. Báo cáo được dùng evidence giá đã xác minh cho đơn cũ khi evidence
 > thật sự phủ ngày bán. Các mốc cũ bên dưới được giữ nguyên như lịch sử.
@@ -69,6 +75,41 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 3 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03) — PRA-003 = DONE
+
+Chủ dự án đã tự tay mở trang **Tổng quan** thật trên mạng, chọn "Tháng
+09/2026", và đối chiếu với đúng những con số đã hứa trước khi làm
+(mục "Cách kiểm tra" của bản kế hoạch S095 bên dưới):
+
+- **40 đơn · 61 dòng · 15 đơn AUTO · 25 đơn cần kiểm tra** — khớp ĐÚNG.
+- Ô "so với tháng trước" **để trống**, kèm câu "Reports chưa có dữ liệu kỳ
+  trước" — không hiện `0%`, không bịa số. Đúng như đã cam kết.
+
+Ngoài bốn con số đã hứa trước, chủ dự án còn đọc và ghi lại các số **thật**
+mà lần đầu tiên nhìn thấy trên màn hình mới (không ai đặt trước, không có gì
+để so — chỉ là quan sát của lần này):
+
+- Tổng số lượng: **71**
+- Doanh thu (net): **593.550.000 đ**
+- Lợi nhuận KPI: **8.936.667 đ** (chắc chắn được cho 32/61 dòng)
+- Lợi nhuận kế toán: **8.085.000 đ** (chắc chắn được cho 35/61 dòng)
+- Dòng chưa có ngày bán: **0**
+
+Hai điều quan trọng nhất vẫn giữ đúng: trang **Nhân viên** mở lên không có
+gì thay đổi (vẫn đọc được sổ cũ `Báo cáo Kinh doanh 2026.xlsx` như trước),
+và **số cũ / số mới không hề bị trộn lẫn** ở bất kỳ đâu.
+
+Một lượt soát xét độc lập trước đó không tìm ra lỗi nào ảnh hưởng tới con số
+hiển thị. Có hai điểm ghi chú nhỏ về tài liệu (không ảnh hưởng số liệu, đã
+sửa lại cho rõ) và một điểm để dành theo dõi (một nhân viên thuộc hai nhóm
+khác nhau trong cùng tháng — chưa gặp trong dữ liệu thật, không cần sửa gì
+bây giờ).
+
+**Việc 3 đã xong hẳn.** Việc tiếp theo là việc 4 của kế hoạch: bán hàng chi
+tiết và màn hình xem lại từng đơn — chưa bắt đầu.
+
+---
 
 ## VIỆC 3 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S095)
 

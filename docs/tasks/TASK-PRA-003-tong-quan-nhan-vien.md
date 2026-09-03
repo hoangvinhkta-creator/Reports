@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-IN_PROGRESS
+DONE
 
 Phase:
 PHASE-PRA — Slice 3 (màn hình quản lý đọc từ nền dữ liệu PRA-002)
@@ -889,7 +889,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -898,10 +898,52 @@ Evidence:
 Yêu cầu (Owner thực hiện trên production sau deploy, giống mô hình `CHECK-PRA002-15`): mở `/tong-quan`, chọn kỳ "Tháng 09/2026", đọc và trả về bằng chứng: `Tổng đơn = 40`, `Số dòng hàng = 61`, `AUTO (đơn) = 15`, `Cần kiểm tra (đơn) = 25`, và ô so tháng trước TRỐNG / `—` kèm chữ "chưa có dữ liệu kỳ trước" (KHÔNG phải `0%`). Tiền, số lượng và hai lợi nhuận: Owner ĐỌC và ghi lại giá trị thật — KHÔNG đặt giá trị kỳ vọng trước trong task file này. `/nhan-vien` mặc định vẫn trả trang legacy như trước.
 
 Executed By:
-(chưa thực thi)
+Owner — Production Acceptance (E1)
 
 Timestamp:
-(chưa thực thi)
+2026-09-03
+
+Kết quả — Owner Production Acceptance (S099):
+
+FROZEN_EXPECTED (đối chiếu với oracle O-G đã freeze tại S095 — KHỚP ĐÚNG):
+```
+Tổng đơn          = 40   ✓ khớp
+Số dòng hàng      = 61   ✓ khớp
+Đơn AUTO          = 15   ✓ khớp
+Đơn cần kiểm tra  = 25   ✓ khớp
+So tháng trước    = TRỐNG/"—" kèm "Reports chưa có dữ liệu kỳ trước, nên mọi
+                    ô so sánh dưới đây để trống." — KHÔNG có 0%   ✓ khớp
+```
+
+OBSERVED_ONLY (Owner ĐỌC trên production ngày 2026-09-03 — KHÔNG phải oracle
+đặt trước, KHÔNG suy ra kỳ vọng ngược cho task file; ghi lại NGUYÊN VĂN theo
+mục 15 "CHƯA QUAN SÁT — KHÔNG BỊA" của task file):
+```
+Tổng số lượng            = 71
+Doanh thu (net)          = 593.550.000 VND
+Lợi nhuận KPI             = 8.936.667 VND    coverage 32 / 61 dòng
+Lợi nhuận kế toán         = 8.085.000 VND    coverage 35 / 61 dòng
+Dòng chưa có ngày bán     = 0
+```
+
+An toàn kỳ trước (mục 6, FROZEN): xác nhận trực tiếp trên UI — ô "So với
+Tháng 08/2026" hiện `Chênh lệch = —`, `Tỉ lệ = —`, kèm câu giải thích, TUYỆT
+ĐỐI không `0%`. PASS.
+
+Tách nguồn (O-E/O-F, mục 5.2/16): `GET /nhan-vien` không tham số → trang
+"NHÂN VIÊN — SỐ CŨ THEO THÁNG", badge SỐ CŨ, dữ liệu legacy
+`LEG-20260902-4ffe5198` (nguồn `Báo cáo Kinh doanh 2026.xlsx`, kỳ
+Tháng 08/2026) vẫn đọc được nguyên vẹn. Trang phân biệt tường minh SỐ CŨ/SỐ
+MỚI và nói rõ hai nguồn không bao giờ cộng chung. PASS.
+
+`NOT_CLAIMED_AS_PRODUCTION` (mục 15) — bộ số `qty 71 · gross 593.750.000 ·
+net 593.550.000` của ca RDA S090/S091 KHÔNG được dùng làm oracle ở đây; giá
+trị `71`/`593.550.000` ghi trên là quan sát Owner ĐỘC LẬP trên production
+Tháng 09/2026 thật, đọc trực tiếp từ `/tong-quan`, không mượn số của ca khác.
+
+`CHECK-PRA003-07 = PASS`. Giá trị OBSERVED_ONLY ở trên KHÔNG được ghi ngược
+thành oracle mới trong task file — chúng là bằng chứng nghiệm thu của MỘT lần
+quan sát, không phải một khẳng định lặp lại được cho các kỳ khác.
 
 ### Period / Safety
 

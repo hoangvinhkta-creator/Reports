@@ -1,13 +1,78 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S098 — NON-BLOCKING DOC RECONCILIATION + CONTROLLED INTEGRATION)
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S099 — OWNER PRODUCTION ACCEPTANCE + TASK CLOSEOUT) — TASK-PRA-003 = DONE
+
+Owner đã tự tay nghiệm thu `CHECK-PRA003-07` trên production thật (Tháng
+09/2026). Toàn bộ 12/12 check REQUIRED nay PASS. Đây là trạng thái hiện hành
+có thẩm quyền của `TASK-PRA-003`; khối S098 ngay bên dưới là bản ghi lịch sử
+đúng của phiên đối chiếu tài liệu + tích hợp. Khối `TASK-PRA-002` phía dưới
+KHÔNG bị khối này thay thế.
+
+```text
+SESSION                    = S099 — PRA-003 Owner Production Acceptance + Task Closeout
+TASK-PRA-003               = DONE
+CANONICAL_BEFORE           = d368b2d21a21dbb92b59d2676061b10938b2a9de (khớp kỳ vọng, không moved)
+CHECK-PRA003-07            = PASS — Owner Production Acceptance (E1)
+
+FROZEN_EXPECTED (oracle O-G, khớp ĐÚNG):
+  Tổng đơn = 40 · Số dòng hàng = 61 · AUTO = 15 · Cần kiểm tra = 25
+  So tháng trước = TRỐNG/"—" kèm "chưa có dữ liệu kỳ trước", KHÔNG 0%
+
+OBSERVED_ONLY (Owner đọc trên production 2026-09-03 — KHÔNG phải oracle đặt
+trước, KHÔNG viết ngược thành kỳ vọng mới trong task file):
+  Tổng số lượng      = 71
+  Doanh thu (net)    = 593.550.000 VND
+  Lợi nhuận KPI      = 8.936.667 VND    coverage 32/61 dòng
+  Lợi nhuận kế toán  = 8.085.000 VND    coverage 35/61 dòng
+  Dòng chưa có ngày bán = 0
+
+Tách nguồn (Owner quan sát trực tiếp): /nhan-vien không tham số → SỐ CŨ,
+LEG-20260902-4ffe5198 (Báo cáo Kinh doanh 2026.xlsx, Tháng 08/2026) vẫn đọc
+được nguyên vẹn; SỐ CŨ/SỐ MỚI phân biệt tường minh, không cộng chung.
+
+CHECK MATRIX (sau closeout)
+  01 PASS  02 PASS  03 PASS  04 PASS  05 PASS  06 PASS
+  07 PASS  08 PASS  09 PASS  10 PASS  11 PASS  12 PASS   (12/12 REQUIRED)
+  13 PASS  14 PASS                                        (2/2 RECOMMENDED)
+
+EXIT CRITERIA (mục cuối task file) — cả 8 điều đã thoả:
+  1. 12/12 REQUIRED PASS với evidence level bắt buộc          ✓
+  2. 0 BLOCKING; HARDENING (FIND-03) có RE-TRIGGER CONDITION   ✓
+  3. CHANGE_BUDGET (284/191/16) dưới DỪNG CỨNG                 ✓
+  4. Review budget 0/1 — chưa vượt                             ✓
+  5. Golden 58 passed 2 skipped; full suite không giảm;
+     validators giữ nguyên baseline (3 issue REM-T06 đã biết)  ✓
+  6. PROJECT_PROGRESS.md + REVIEW_BUDGET_LEDGER.md đã cập nhật ✓ (phiên này)
+  7. Session handoff đã viết (MAJOR)                           ✓ (docs/sessions/S099-*.md)
+  8. SCHEMA=0 · MIGRATION=0 · DEPENDENCY=0 · TRACKING=NO ·
+     INFRASTRUCTURE=NO · PROTECTED_CORE_IMPACT=NONE             ✓
+
+BLOCKING_FINDINGS   = 0
+NON_BLOCKING        = FIND-PRA003-01 CONTRACT_MISMATCH — đã đối chiếu tài liệu (S098)
+                      FIND-PRA003-02 EVIDENCE_DEFECT — đã đối chiếu tài liệu (S098)
+                      FIND-PRA003-03 HARDENING — DEFER/RECORD ONLY, RE-TRIGGER CONDITION
+                      giữ nguyên trong docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md
+CHANGE_BUDGET       = Python 284 · template 191 · CSS 16 — KHÔNG đổi (closeout = 0 LOC)
+REVIEW_BUDGET       = repair_cycles_used 0 / 1 — closeout KHÔNG tiêu cycle
+
+PRODUCTION_CODE_DELTA (phiên này) = 0 — chỉ sửa docs/state
+Không upload workbook mới, không query PostgreSQL, không inspect R2/Render
+Metrics, không restart, không repair REM-T06/FIND-03, không mở PRA-004/005.
+
+VIỆC TIẾP THEO      = PRA-004 — Bán hàng + Review/detail (chưa mở trong
+                      phiên này).
+```
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-003 (lịch sử, 2026-09-03, S098 — NON-BLOCKING DOC RECONCILIATION + CONTROLLED INTEGRATION)
 
 Sau Independent Review E2 (S097, `ACCEPT_WITH_NON_BLOCKING_FINDINGS`), phiên
 này (a) đối chiếu tài liệu cho hai finding non-blocking KHÔNG cần repair cycle,
 rồi (b) tích hợp nhánh đã accept vào canonical bằng fast-forward THUẦN TUÝ. Đây
-là trạng thái hiện hành có thẩm quyền của `TASK-PRA-003`. Khối S097 ngay bên
-dưới là bản ghi lịch sử đúng của phiên review. Khối `TASK-PRA-002` phía dưới
-KHÔNG bị khối này thay thế.
+là BẢN GHI LỊCH SỬ đúng của phiên đối chiếu + tích hợp — trạng thái hiện hành
+có thẩm quyền của `TASK-PRA-003` nằm ở khối S099 phía TRÊN. Khối `TASK-PRA-002`
+phía dưới KHÔNG bị khối này thay thế.
 
 ```text
 SESSION                    = S098 — PRA-003 Doc Reconciliation + Controlled Integration

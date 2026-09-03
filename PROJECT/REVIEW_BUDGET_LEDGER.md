@@ -591,7 +591,28 @@ cycles:
   base_sha: N/A
   head_sha: N/A
 
-### Trạng thái (S098, 2026-09-03 — HIỆN HÀNH)
+### Trạng thái (S099, 2026-09-03 — HIỆN HÀNH) — TASK-PRA-003 = DONE
+
+```
+TASK-PRA-003          : DONE — Owner đã nghiệm thu CHECK-PRA003-07 trên production
+                        thật (Tháng 09/2026); 12/12 REQUIRED check PASS; Exit Criteria
+                        thoả đủ 8/8.
+CHECK-PRA003-07        : PASS — FROZEN_EXPECTED (40 đơn/61 dòng/AUTO 15/Review 25/so
+                        tháng trước trống) khớp ĐÚNG oracle O-G. OBSERVED_ONLY (số
+                        lượng 71, doanh thu 593.550.000, LN KPI 8.936.667 (32/61),
+                        LN kế toán 8.085.000 (35/61), dòng thiếu ngày bán 0) ghi lại
+                        NGUYÊN VĂN, KHÔNG viết ngược thành oracle mới.
+repair cycle đã dùng   : 0 / 1   ← closeout KHÔNG tiêu repair cycle
+CHANGE_BUDGET cuối cùng: Python 284 · template 191 · CSS 16 — không đổi so với S096/S098
+BLOCKING_FINDINGS      : 0
+NON_BLOCKING (đóng sổ) : FIND-PRA003-01 đã đối chiếu tài liệu (S098)
+                        FIND-PRA003-02 đã đối chiếu tài liệu (S098)
+                        FIND-PRA003-03 DEFER/RECORD ONLY — RE-TRIGGER CONDITION còn
+                        hiệu lực trong docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md
+                        cho lineage kế tiếp nếu có
+```
+
+### Trạng thái (S098, 2026-09-03 — lịch sử)
 
 ```
 TASK-PRA-003          : IN_PROGRESS — đối chiếu tài liệu FIND-01/FIND-02 xong (KHÔNG
