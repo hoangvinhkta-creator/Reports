@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-IN_PROGRESS
+DONE
 
 Phase:
 PHASE-PRA — Slice 2 (nền dữ liệu cho PRA-003/004/005)
@@ -1305,7 +1305,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1313,11 +1313,21 @@ E1
 Evidence:
 Yêu cầu: mục 16 bước 1–6; SHA deploy = HEAD canonical sau Controlled Integration; `alembic_version = 0002_snapshots`; upload thật 302 + snapshot hiện; upload lại `n_same = line_count`; không OOM. Do Owner thực hiện (session không có egress). Nếu quá 30 ngày chưa deploy → V4.1 §9 `OWNER DECISION REQUIRED` (A cung cấp / B `POST_MERGE_PRODUCTION_ACCEPTANCE` / C gỡ khỏi gate).
 
+
+Đã chạy (S093, 2026-09-03, OWNER_PROVIDED_PRODUCTION_EVIDENCE trên hệ thống thật):
+Bước 1 — Render Manual Deploy commit `c2142dd` (branch `claude/extract-upload-repo-gq2ws4`, == HEAD canonical sau Controlled Integration), **Live**, 2026-09-03 10:36:11 GMT+7, 24.0s. `alembic_version = 0002_snapshots` xác lập bằng suy dẫn loại trừ từ fail-closed: `create_app()` → `_build_history()` → `history_store.build()` → `tools/db.assert_schema_current()` ném `HistoryConfigurationError` nếu `version_num != ALEMBIC_HEAD`, và `REPORTS_REQUIRE_HISTORY_DB=1` khiến app KHÔNG khởi động; service Live + ghi snapshot thành công ⟹ guard đã PASS ⟹ không `HistoryConfigurationError`.
+Bước 2 — `/du-lieu` 200 với module "Snapshot kế toán"; `/nhan-vien` 200 hiển thị "NHÂN VIÊN — SỐ CŨ THEO THÁNG", legacy source `LEG-20260902-4ffe5198` (`Báo cáo Kinh doanh 2026.xlsx`, kỳ Tháng 08/2026), bảng nhân viên legacy đầy đủ → PRA-001 KHÔNG hồi quy; cùng legacy import hiện ở `/du-lieu` (`LEGACY_REFERENCE`, ĐANG XEM) → bản nhập legacy cũ không đổi, không rerun import.
+Bước 3 — Upload workbook kế toán thật `So_chi_tiet_ban_hang (8).xlsx` qua `reports.tinphatcrm.com/run`: redirect tới trang kết quả, run COMPLETE trong lịch sử run (R2, 03:40:28), snapshot `SNAP-20260903034024-7b421983` hiện ở tab Dữ liệu, `HEADER_CONSISTENT`, range 2026-09-01 → 2026-09-03 đúng header thật; 61 dòng / 40 đơn; INSERT 61 · SAME 0 · SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 · REMOVED_CANDIDATE 0; Accounting coverage 100%; Tracking live thật ("Sẵn sàng — dữ liệu Tracking lấy trực tiếp (live) mỗi lần chạy"), AUTO 15 · Review 25 · priority review 3 · 0 dòng không nhận ra.
+Bước 4 — Upload lại ĐÚNG file: snapshot `SNAP-20260903034120-7b421983` gắn nhãn "FILE TRÙNG", `n_same = 61 = line_count`; INSERT 0 · SOURCE_CHANGED 0 · COLLISION 0 → 0 source version mới (theo semantics đã freeze: `SAME` là nhánh DUY NHẤT không ghi source version mới — `app/history/reconciler.py::_decide`), trang snapshot #2 KHÔNG có cờ SOURCE; run #2 COMPLETE (03:41:23). Sau F5: cả hai snapshot và cả hai run còn nguyên, 61 dòng / 40 đơn KHÔNG đổi → không double count.
+Bước 5 — Không OOM: hai upload đều COMPLETE, service Live liên tục, KHÔNG "Instance failed", KHÔNG restart, state sống sau F5. Render Metrics cho khung 10:40–11:03 GMT+7 hiển thị `Memory Limit 512 MB` nhưng KHÔNG có data point (CPU cũng không) → OBSERVABILITY_LIMITATION của Render UI: KHÔNG có numeric peak, KHÔNG bịa số, KHÔNG đọc đường trống thành 0 MB. Cận trên `RAM đỉnh < 512 MB` vẫn được xác lập bằng cơ chế fail-stop: instance bị giới hạn CỨNG ở 512 MB, vượt ngưỡng ⟹ OOM-kill ⟹ instance failed + request dở dang; hai upload hoàn tất và service không hề bị thay thế ⟹ đỉnh chưa từng chạm 512 MB. Đối chiếu độ lớn (không phải bằng chứng production): CHECK-PRA002-16 đo `ru_maxrss` end-to-end `/run` + writer = 75,6 MB (SQLite) / 78,7 MB (PostgreSQL) trên workbook golden 351 dòng, lớn hơn hẳn workbook production 61 dòng.
+Bước 6 — Kết quả ghi vào `PROJECT/PROJECT_PROGRESS.md` (khối canonical S093) và `docs/deployment/S071_DEPLOYMENT.md`.
+Ma trận ánh xạ từng assertion REQUIRED → bằng chứng: `docs/sessions/S093-pra-002-production-acceptance.md` mục 10 và 15.
+KHÔNG tuyên bố là bằng chứng production: `qty 71` / `gross 593.750.000` / `discount 200.000` / `net 593.550.000` (provenance RDA S090/S091, CHECK-PRA002-14) · `COUNT(*)` source version thô · kết quả truy vấn `SELECT version_num` · numeric RAM peak.
 Executed By:
-...
+Owner (thao tác production) + S093 — PRA-002 Production Acceptance (ánh xạ bằng chứng, docs-only)
 
 Timestamp:
-...
+2026-09-03
 
 #### CHECK-PRA002-16 — Bộ nhớ end-to-end với writer
 Priority:
@@ -1366,12 +1376,12 @@ Timestamp:
 2026-09-03
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
-- [ ] 100% REQUIRED checks PASS (01–15, 17); 16 RECOMMENDED có số đo.
-- [ ] Không có lỗi nghiêm trọng (critical) chưa xử lý; `BLOCKING_FINDINGS = 0`.
-- [ ] Đạt mức evidence yêu cầu (Risk 4 → E1; 04/05/07/09 có E2 qua CHECK-17).
-- [ ] Tài liệu bắt buộc đã được cập nhật (DEC, ledger, review record, `docs/deployment/S071_DEPLOYMENT.md`).
-- [ ] Tiến độ dự án đã được cập nhật (`PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`).
-- [ ] Đã viết Session Handoff cho từng session A/B/C/review/close-out.
+- [x] 100% REQUIRED checks PASS (01–15, 17); 16 RECOMMENDED có số đo (75,6 / 78,7 MB).
+- [x] Không có lỗi nghiêm trọng (critical) chưa xử lý; `BLOCKING_FINDINGS = 0`.
+- [x] Đạt mức evidence yêu cầu (Risk 4 → E1; 04/05/07/09 có E2 qua CHECK-17).
+- [x] Tài liệu bắt buộc đã được cập nhật (DEC, ledger, review record, `docs/deployment/S071_DEPLOYMENT.md`).
+- [x] Tiến độ dự án đã được cập nhật (`PROJECT/PROJECT_PROGRESS.md`, `PROJECT/LO_TRINH_DE_HIEU.md`).
+- [x] Đã viết Session Handoff cho từng session A/B/C/review/close-out (S080, S083, S086, S087, S090, S091, S092, S093).
 
 ## Điều Kiện Kích Hoạt Leo Thang (Escalation Triggers)
 - Cần chạm file trong "Không được đụng" → `SCOPE EXPANSION REQUIRED`, dừng.

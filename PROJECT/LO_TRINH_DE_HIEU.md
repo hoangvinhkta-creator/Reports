@@ -86,6 +86,40 @@ production và báo lại**; phiên làm việc này không tự vào được m
 kiểm tra (bị chặn), nên không có ảnh chụp hay số liệu chi tiết lưu trong
 hồ sơ. Không có con số nào ở đây được suy đoán thêm.
 
+## VIỆC 2 ĐÃ XONG THẬT TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03) — PRA-002 = DONE
+
+Nói gọn: **máy giờ đã nhớ được các lần nạp sổ, và nạp lại cùng một file
+không làm doanh số bị đếm hai lần.** Điều này đã được chứng minh trên chính
+`reports.tinphatcrm.com`, không phải chỉ trên máy thử.
+
+Owner đã tự tay làm trên hệ thống thật ngày 03/09/2026:
+
+- Deploy bản `c2142dd` lên Render lúc 10:36:11 (24 giây, chạy Live).
+- Nạp sổ chi tiết bán hàng thật (kỳ 01/09 → 03/09): máy ghi **61 dòng, 40
+  đơn**, nhận đúng kỳ của file, đối chiếu kế toán **100%**.
+- Nạp **lại đúng file đó**: máy nhận ra "FILE TRÙNG", báo **61 dòng không
+  đổi**, **0 dòng mới**, **0 dòng sửa** — tổng vẫn 61 dòng / 40 đơn. Đây
+  chính là điều cần: nạp trùng không cộng dồn sai.
+- Bấm F5: cả hai lần nạp và cả hai lần chạy vẫn còn nguyên — số liệu không
+  bốc hơi khi tải lại trang.
+- Trang **Nhân viên** (số cũ theo tháng) vẫn chạy bình thường, bản nhập cũ
+  `Báo cáo Kinh doanh 2026.xlsx` không suy suyển — việc mới không làm hỏng
+  việc cũ.
+
+Phần giá nhập/lợi nhuận vẫn đi đúng đường an toàn: 15 đơn tự động lấy được
+giá từ Tracking, 25 đơn còn lại đưa vào diện xem lại thay vì đoán bừa. Không
+có dòng nào bị bịa giá.
+
+Còn một điểm nhỏ, không ảnh hưởng số liệu: bảng đo bộ nhớ của Render không
+hiện số cho khung giờ đó. Không sao — nếu tràn bộ nhớ thì máy đã bị ngắt
+giữa chừng và hai lần nạp không thể chạy xong; cả hai đều xong và trang vẫn
+sống, nên phần này coi như đạt.
+
+**Việc tiếp theo:** gộp hồ sơ cuối của việc 2 vào nhánh chính, rồi mới sang
+việc 3 (PRA-003 — Tổng quan + Nhân viên).
+
+---
+
 ## VIỆC 2 CỦA KẾ HOẠCH MỚI ĐÃ CHỐT THIẾT KẾ (2026-09-02) — PRA-002 = SẴN SÀNG LÀM
 
 **Việc 2 giải bài toán gì:** Owner nạp sổ bán hàng của kế toán nhiều lần,

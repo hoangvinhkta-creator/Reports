@@ -332,3 +332,57 @@ bộ" ở trên — nhưng KHÔNG còn là đường production kể từ S071B.
 `OWNER_PAYMENT_REQUIRED` (lịch sử): **Render Starter (~US$7/tháng) + 1GB
 Disk (~US$0.25/tháng) ≈ US$7–10/tháng tổng.** S071B bỏ được phần Disk khỏi
 chi phí này.
+
+---
+
+## Bản ghi deploy production — TASK-PRA-002 (2026-09-03, S093)
+
+Lần deploy nghiệm thu `CHECK-PRA002-15`. Ghi lại để lần sau không phải dựng
+lại bối cảnh từ đầu.
+
+```text
+SERVICE        = Render web service "Reports" (reports.tinphatcrm.com, Virginia)
+BRANCH         = claude/extract-upload-repo-gq2ws4 (canonical)
+COMMIT         = c2142ddee795d1e4d829cabfd01b1774d3441651  (Render hiển thị "c2142dd")
+KIỂU DEPLOY    = Manual Deploy (không đổi plan, không đổi kiến trúc, không tạo
+                 service/queue/worker, không đổi PostgreSQL/R2/Cloudflare)
+THỜI ĐIỂM      = 2026-09-03 10:36:11 GMT+7
+THỜI LƯỢNG     = 24,0 s
+TRẠNG THÁI     = Live
+```
+
+**Migration.** `Dockerfile` CMD chạy `alembic upgrade head && gunicorn …` nên
+schema được nâng TRƯỚC khi mở cổng. Head sau lần này là `0002_snapshots`
+(TASK-PRA-002, +6 bảng snapshot/version/current, không đụng 4 bảng
+`legacy_*`). Không migration phá huỷ, không reset/drop database, không mất
+run/lịch sử cũ.
+
+**Vì sao "service Live" đủ để kết luận `alembic_version = 0002_snapshots`.**
+`create_app()` → `_build_history()` → `history_store.build()` →
+`tools/db.assert_schema_current()`, hàm này ném `HistoryConfigurationError`
+nếu bảng `alembic_version` thiếu HOẶC `version_num != ALEMBIC_HEAD`. Trong
+production `REPORTS_REQUIRE_HISTORY_DB=1` nên lỗi được ném tiếp và app KHÔNG
+khởi động. App Live và ghi được snapshot ⟹ guard đã PASS. Đây là fail-closed
+theo thiết kế, không phải may mắn.
+
+**Kết quả nghiệm thu trên production** (chi tiết:
+`docs/sessions/S093-pra-002-production-acceptance.md`):
+
+```text
+/du-lieu 200 (module "Snapshot kế toán") · /nhan-vien 200 (legacy PRA-001 không hồi quy,
+LEG-20260902-4ffe5198 đọc bình thường)
+Upload thật #1 → SNAP-20260903034024-7b421983 · HEADER_CONSISTENT · 2026-09-01 → 2026-09-03
+                 61 dòng / 40 đơn · INSERT 61 · run COMPLETE · CÓ SNAPSHOT
+Upload lại      → SNAP-20260903034120-7b421983 "FILE TRÙNG" · SAME 61 · INSERT 0 ·
+                 SOURCE_CHANGED 0 · COLLISION 0 · 0 source version mới
+F5              → cả hai snapshot + cả hai run còn nguyên, 61 dòng / 40 đơn không đổi
+Tracking        → live thật · AUTO 15 · Review 25 · 0 dòng không nhận ra · coverage 100%
+Bộ nhớ          → không OOM, không "Instance failed", service Live liên tục
+```
+
+**Giới hạn quan trắc đã biết (OBSERVABILITY_LIMITATION).** Render Metrics của
+service này KHÔNG trả data point Memory/CPU (chỉ hiển thị `Limit 512 MB`).
+Gate tương lai nếu cần một CON SỐ bộ nhớ production sẽ không lấy được từ dụng
+cụ này — đừng mất thời gian tìm lại. Cận trên `< 512 MB` vẫn suy được từ cơ
+chế fail-stop: limit cứng 512 MB, vượt ⟹ OOM-kill ⟹ instance failed; hai
+upload hoàn tất và service không bị thay thế ⟹ đỉnh chưa chạm ngưỡng.

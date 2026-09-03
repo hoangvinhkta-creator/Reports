@@ -320,11 +320,11 @@ workbook thật — provenance là `PASS_EXISTING_ACCEPTED_EVIDENCE` của
 `CHECK-PRA002-14`, KHÔNG phải ảnh chụp production. Frozen CHECK-15 không
 đòi các giá trị này ở UI production nên chúng không chặn.
 
-## 12. Kết luận gate — GIAI ĐOẠN 2
+## 12. Kết luận gate — GIAI ĐOẠN 2 (đã bị thay thế bởi mục 14–17)
 
 ```text
-PRODUCTION_ACCEPTANCE_RESULT = PARTIAL_PENDING_OWNER_EVIDENCE
-CHECK-PRA002-15              = NOT_TESTED  (giữ nguyên — 3 assertion REQUIRED chưa quan sát)
+PRODUCTION_ACCEPTANCE_RESULT = PARTIAL_PENDING_OWNER_EVIDENCE   (trạng thái tại giai đoạn 2)
+CHECK-PRA002-15              = NOT_TESTED  (tại giai đoạn 2 — 3 assertion REQUIRED chưa quan sát)
 BLOCKING_FINDINGS            = 0   (không defect nào; thiếu là ẢNH BẰNG CHỨNG, không phải lỗi hệ thống)
 TASK-PRA-002                 = IN_PROGRESS
 ```
@@ -359,4 +359,149 @@ TRACKING_CHANGED      = NO       INFRASTRUCTURE_CHANGED = NO
 SCOPE_CHECK           = OK — docs-only; không deploy lại, không rerun RDA,
                         không migration/schema/parser, không refactor/hardening,
                         không PRA-003
+```
+
+---
+
+# GIAI ĐOẠN 3 — Owner hoàn tất thao tác đọc · ĐÓNG CHECK-PRA002-15
+
+Continuation cùng phiên S093. Không deploy lại · không upload lần ba ·
+không restart · không mở PostgreSQL · không sửa code · không đổi Render plan.
+
+## 14. Bằng chứng bổ sung của Owner
+
+### 14.1 `/nhan-vien` — production
+
+```text
+URL       = reports.tinphatcrm.com/nhan-vien   → trang hiển thị bình thường
+Tiêu đề   = "NHÂN VIÊN — SỐ CŨ THEO THÁNG"
+Legacy source đang xem = LEG-20260902-4ffe5198
+Nguồn                  = Báo cáo Kinh doanh 2026.xlsx
+Kỳ hiển thị            = Tháng 08/2026
+Bảng nhân viên legacy  = hiển thị đầy đủ dữ liệu
+```
+
+→ Bước 2 assertion "`/nhan-vien` legacy vẫn 200 (PRA-001 không hồi quy)" =
+`PASS_PRODUCTION_UI`.
+
+### 14.2 Legacy import cũ không đổi
+
+Cùng ảnh production chứng minh bản nhập legacy có TRƯỚC deploy PRA-002 vẫn
+tồn tại và đọc được SAU deploy: `/nhan-vien` đang đọc chính
+`LEG-20260902-4ffe5198`; ảnh `/du-lieu` trước đó hiển thị cùng ID với nhãn
+`LEGACY_REFERENCE` / `ĐANG XEM`.
+
+→ Bước 2 assertion "legacy import hiện có KHÔNG đổi" = `PASS_PRODUCTION_UI`.
+KHÔNG rerun legacy import.
+
+### 14.3 Render Metrics — giới hạn quan trắc
+
+```text
+Render → Reports → Metrics, khoảng Sep 3, 10:40 AM – 11:03 AM (GMT+7)
+Memory : hiển thị "Limit 512 MB" — biểu đồ KHÔNG CÓ data point
+CPU    : cũng KHÔNG CÓ data point
+```
+
+→ `numeric peak RAM` = `NOT_OBSERVED_FROM_METRICS_UI`. Không bịa số. Không
+đọc đường biểu đồ trống thành "0 MB".
+
+## 15. Phân xử assertion bộ nhớ theo đúng chữ của hợp đồng freeze
+
+Hai văn bản, KHÔNG mâu thuẫn — cần đọc đúng vai của từng cái:
+
+```text
+(A) Trường Evidence của CHECK-PRA002-15 — phát biểu yêu cầu của chính check:
+    "... upload lại `n_same = line_count`; KHÔNG OOM."
+        → yêu cầu là một MỆNH ĐỀ về hành vi hệ thống.
+
+(B) Mục 16 bước 5 — thao tác nghiệm thu:
+    "Render Metrics: RAM đỉnh lúc upload < 512 MB, không 'Instance failed'."
+        → nêu DỤNG CỤ ĐO (Render Metrics) + CẬN TRÊN (< 512 MB) + hệ quả.
+```
+
+Điểm quyết định: trên chính instance này, `Limit = 512 MB` là giới hạn
+**cứng**. Vượt ngưỡng ⟹ Render OOM-kill container ⟹ "Instance failed" +
+request đang chạy đứt. Nên trên plan này, "RAM đỉnh < 512 MB" và "không bị
+OOM-kill" KHÔNG phải hai sự kiện độc lập — chúng là **cùng một sự kiện** phát
+biểu dưới dạng nguyên nhân và hệ quả.
+
+Bằng chứng production quan sát trực tiếp:
+
+```text
+upload #1 COMPLETE (03:40:28) · upload #2 COMPLETE (03:41:23)
+service Live liên tục · KHÔNG "Instance failed" · KHÔNG restart
+cả hai snapshot + cả hai run còn nguyên sau F5
+```
+
+⟹ Không có OOM-kill trong hai lần upload ⟹ đỉnh bộ nhớ **chưa từng chạm
+512 MB**. Cận trên của hợp đồng được xác lập; chỉ **giá trị số** là không có.
+Hợp đồng khẳng định một CẬN, không đòi một CON SỐ: dòng Evidence của chính
+check quy đúng mục này về "không OOM".
+
+Phân loại: **`PASS_PRODUCTION_BEHAVIOR`** cho assertion 5a.
+
+Đối chiếu độ lớn (bối cảnh, KHÔNG phải bằng chứng production và không gánh
+kết luận): `CHECK-PRA002-16` đo `ru_maxrss` end-to-end `/run` + writer =
+**75,6 MB** (SQLite) / **78,7 MB** (PostgreSQL 16) trên workbook golden 351
+dòng — gấp gần 6 lần workbook production 61 dòng.
+
+Đây KHÔNG phải nới lỏng hợp đồng: không assertion nào bị bỏ, không dụng cụ
+nào bị thay bằng phỏng đoán. Cái duy nhất không có là số đo, và số đo không
+phải là điều hợp đồng khẳng định.
+
+### 15.1 Ma trận REQUIRED — trạng thái cuối
+
+| # | Assertion REQUIRED | Phân loại cuối |
+|---|---|---|
+| 1a–1e | Manual Deploy canonical · SHA `c2142dd` · `alembic_version = 0002_snapshots` · Live · không `HistoryConfigurationError` | PASS_PRODUCTION_UI |
+| 2a | `/du-lieu` 200 + module "Snapshot kế toán" | PASS_PRODUCTION_UI |
+| 2b | legacy import hiện có KHÔNG đổi | PASS_PRODUCTION_UI (mục 14.2) |
+| 2c | `/nhan-vien` 200 — PRA-001 không hồi quy | PASS_PRODUCTION_UI (mục 14.1) |
+| 3a–3c | upload thật → redirect · run trong lịch sử R2 · snapshot `HEADER_CONSISTENT` đúng header | PASS_PRODUCTION_UI |
+| 4a–4c | `n_same = line_count` = 61 · 0 source version mới · không cờ SOURCE | PASS_PRODUCTION_UI |
+| 5a | RAM đỉnh lúc upload < 512 MB | PASS_PRODUCTION_BEHAVIOR (mục 15) |
+| 5b | Không "Instance failed" | PASS_PRODUCTION_UI |
+| 6 | Ghi kết quả vào `PROJECT/PROJECT_PROGRESS.md` | PASS — khối canonical S093 + `docs/deployment/S071_DEPLOYMENT.md` |
+| E | "không OOM" (dòng Evidence freeze) | PASS_PRODUCTION_BEHAVIOR |
+
+`MISSING_REQUIRED_EVIDENCE = NONE`.
+
+## 16. OBSERVABILITY_LIMITATION (ghi nhận, KHÔNG chặn)
+
+Render Metrics của service Reports không trả telemetry Memory/CPU cho khung
+giờ đã chọn. Hệ quả: mọi gate TƯƠNG LAI nếu đòi một **numeric** memory/CPU
+measurement từ Render UI sẽ không thoả được bằng dụng cụ đó trên cấu hình
+hiện tại. Ghi lại ở đây để phiên sau không mất thời gian đi tìm.
+
+KHÔNG mở finding, KHÔNG mở task, KHÔNG đổi plan, KHÔNG thêm dependency
+observability — nằm ngoài phạm vi PRA-002 và ngoài ngân sách.
+
+## 17. Kết luận cuối — CHECK-PRA002-15 = PASS
+
+```text
+PRODUCTION_ACCEPTANCE_RESULT = PASS
+CHECK-PRA002-15              = PASS   (E1, REQUIRED)
+MISSING_REQUIRED_EVIDENCE    = NONE
+BLOCKING_FINDINGS            = 0
+
+COMPLETION GATE — 16 check REQUIRED:
+  01–13 PASS (E1; 04/05/07/09 thêm E2 qua CHECK-17)
+  14    PASS (E1 real data — S090/S091)
+  15    PASS (E1 production — phiên này)
+  17    PASS (E2 toàn task — S092)
+  16    PASS (RECOMMENDED, có số đo 75,6 / 78,7 MB)
+Exit Criteria: 6/6 ✔
+
+TASK-PRA-002 = DONE
+```
+
+```text
+CODE_REQUIRED         = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE   = 1.460 / 1.500   REMAINING = 40 LOC (KHÔNG chạm)
+REVIEW_BUDGET_STATE   = 1 / 2 USED · 1 REMAINING (không tiêu cycle)
+TRACKING_CHANGED      = NO       INFRASTRUCTURE_CHANGED = NO
+INTEGRATION_READY     = YES — Controlled Integration KHÔNG làm trong phiên này
+NEXT_VERTICAL_ACTION  = Controlled Integration docs/state cuối của PRA-002 vào
+                        canonical claude/extract-upload-repo-gq2ws4, SAU ĐÓ mới mở
+                        PRA-003 (Tổng quan + Nhân viên). KHÔNG mở PRA-003 ở phiên này.
 ```

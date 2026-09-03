@@ -1,6 +1,74 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 giai đoạn 2)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 FINAL — TASK DONE)
+
+Production Acceptance đã đóng. Đây là trạng thái hiện hành có thẩm quyền của
+`TASK-PRA-002`. Các khối bên dưới là bản ghi lịch sử đúng của thời điểm chúng;
+khi mâu thuẫn về trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S093 (giai đoạn 3) — PRA-002 Production Acceptance closeout (docs-only)
+PRODUCTION_ACCEPTANCE_RESULT = PASS
+EVIDENCE_PROVENANCE        = OWNER_PROVIDED_PRODUCTION_EVIDENCE (Owner thao tác + đọc UI production thật)
+
+TASK-PRA-002               = DONE
+CHECK-PRA002-14            = PASS  (E1 real data — S090/S091)
+CHECK-PRA002-15            = PASS  (E1 production — phiên này)
+CHECK-PRA002-17            = PASS  (E2 toàn task — S092)
+COMPLETION_GATE            = ĐỦ — 16/16 check REQUIRED PASS; 16 RECOMMENDED có số đo; Exit Criteria 6/6
+MISSING_REQUIRED_EVIDENCE  = NONE
+BLOCKING_FINDINGS          = 0
+
+DEPLOYED_SHA               = c2142dd (== REQUIRED canonical c2142ddee795d1e4d829cabfd01b1774d3441651)
+                             Render Manual Deploy · Live · 2026-09-03 10:36:11 GMT+7 · 24.0s
+ALEMBIC_VERSION            = 0002_snapshots (suy dẫn loại trừ từ fail-closed assert_schema_current +
+                             REPORTS_REQUIRE_HISTORY_DB=1; service Live + ghi snapshot ⟹ guard PASS.
+                             KHÔNG có ảnh chụp truy vấn SQL — không tuyên bố có)
+LEGACY_NON_REGRESSION      = /nhan-vien 200 — "NHÂN VIÊN — SỐ CŨ THEO THÁNG", legacy source
+                             LEG-20260902-4ffe5198 (Báo cáo Kinh doanh 2026.xlsx, Tháng 08/2026),
+                             bảng đầy đủ; cùng ID hiện ở /du-lieu (LEGACY_REFERENCE, ĐANG XEM)
+                             ⟹ bản nhập legacy trước deploy KHÔNG đổi. PRA-001 không hồi quy.
+FIRST_UPLOAD               = So_chi_tiet_ban_hang (8).xlsx · SNAP-20260903034024-7b421983 ·
+                             HEADER_CONSISTENT · 2026-09-01 → 2026-09-03 · 61 dòng / 40 đơn ·
+                             INSERT 61 · SAME 0 · SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 ·
+                             REMOVED_CANDIDATE 0 · run COMPLETE (03:40:28) · CÓ SNAPSHOT
+SECOND_UPLOAD              = đúng file đó · SNAP-20260903034120-7b421983 · "FILE TRÙNG" ·
+                             SAME 61 = line_count · INSERT 0 · SOURCE_CHANGED 0 · COLLISION 0 ·
+                             0 source version mới · không cờ SOURCE · run COMPLETE (03:41:23)
+NO_DOUBLE_COUNT            = OBSERVED_ON_PRODUCTION — sau hai upload vẫn 61 dòng / 40 đơn; F5 giữ nguyên
+TRACKING_AUTO              = REAL — "Sẵn sàng — dữ liệu Tracking lấy trực tiếp (live) mỗi lần chạy" ·
+                             AUTO 15 · Review 25 · priority review 3 · 0 dòng không nhận ra ·
+                             Accounting coverage 100% · không fake, không mutate, không ép tỉ lệ AUTO
+MEMORY / OOM               = PASS_PRODUCTION_BEHAVIOR. Render Metrics KHÔNG có data point Memory/CPU
+                             cho khung 10:40–11:03 GMT+7 (chỉ hiện "Limit 512 MB") → numeric peak
+                             NOT_OBSERVED, KHÔNG bịa số, KHÔNG đọc đường trống thành 0 MB.
+                             Cận trên < 512 MB xác lập bằng cơ chế fail-stop: limit CỨNG 512 MB,
+                             vượt ⟹ OOM-kill ⟹ Instance failed + request đứt; hai upload COMPLETE,
+                             service Live liên tục, state sống sau F5 ⟹ đỉnh chưa từng chạm 512 MB.
+                             Dòng Evidence của chính CHECK-15 quy mục này về "không OOM".
+                             Bối cảnh độ lớn (không gánh kết luận): CHECK-16 đo 75,6 MB / 78,7 MB
+                             trên workbook golden 351 dòng vs production 61 dòng.
+OBSERVABILITY_LIMITATION   = Render Metrics không trả telemetry Memory/CPU trên cấu hình hiện tại.
+                             Ghi nhận, KHÔNG chặn, KHÔNG mở finding/task, KHÔNG đổi plan.
+NOT_CLAIMED_AS_PRODUCTION  = qty 71 · gross 593.750.000 · discount 200.000 · net 593.550.000
+                             (provenance RDA S090/S091 = CHECK-14) · COUNT(*) source version thô ·
+                             kết quả truy vấn alembic_version · numeric RAM peak
+
+CODE_REQUIRED              = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500   REMAINING = 40 LOC (KHÔNG chạm)
+REVIEW_BUDGET_STATE        = 1 / 2 USED · 1 REMAINING (không tiêu repair cycle)
+TRACKING_CHANGED           = NO       INFRASTRUCTURE_CHANGED = NO
+INTEGRATION_READY          = YES — Controlled Integration KHÔNG thực hiện trong phiên này
+EVIDENCE                   = docs/sessions/S093-pra-002-production-acceptance.md (mục 14–17;
+                             ma trận REQUIRED cuối ở mục 15.1) ·
+                             docs/tasks/TASK-PRA-002-...md CHECK-PRA002-15 ·
+                             docs/deployment/S071_DEPLOYMENT.md
+NEXT_VERTICAL_ACTION       = Controlled Integration docs/state cuối của PRA-002 vào canonical
+                             claude/extract-upload-repo-gq2ws4, SAU ĐÓ mới mở PRA-003
+                             (Tổng quan + Nhân viên). KHÔNG mở PRA-003 ở phiên này.
+```
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-03, S093 giai đoạn 2)
 
 Cập nhật sau khi **Owner trả về bằng chứng production thật**. Đây là bước 6
 của mục 16 (ghi kết quả vào file này). Các khối bên dưới giữ nguyên như bản
@@ -5808,6 +5876,16 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S093 (giai đoạn 3) — PRA-002 PRODUCTION ACCEPTANCE CLOSEOUT — 2026-09-03 — Owner hoàn tất
+  ba thao tác đọc còn lại. `/nhan-vien` 200 với legacy source LEG-20260902-4ffe5198
+  (Báo cáo Kinh doanh 2026.xlsx, Tháng 08/2026) → PRA-001 không hồi quy và bản nhập legacy
+  trước deploy không đổi. Render Metrics KHÔNG có telemetry Memory/CPU → numeric peak
+  NOT_OBSERVED, không bịa số; cận trên < 512 MB xác lập bằng cơ chế fail-stop (limit cứng
+  512 MB, vượt ⟹ OOM-kill ⟹ instance failed; hai upload COMPLETE + service Live liên tục +
+  state sống sau F5 ⟹ chưa từng chạm ngưỡng), đúng như dòng Evidence của CHECK-15 quy về
+  "không OOM". MISSING_REQUIRED_EVIDENCE = NONE. `CHECK-PRA002-15 = PASS`; 16/16 check
+  REQUIRED PASS; Exit Criteria 6/6 → **TASK-PRA-002 = DONE**. 0 dòng production code;
+  budget 1.460/1.500 không đổi; review budget 1/2. INTEGRATION_READY = YES (chưa integrate).
 - S093 (giai đoạn 2) — PRA-002 PRODUCTION ACCEPTANCE TỪ BẰNG CHỨNG OWNER — 2026-09-03 —
   Owner deploy `c2142dd` lên Render (Live, manual, 10:36:11 GMT+7, 24.0s) và chạy hai
   lần upload workbook thật trên `reports.tinphatcrm.com`. Production chứng minh trực tiếp:
