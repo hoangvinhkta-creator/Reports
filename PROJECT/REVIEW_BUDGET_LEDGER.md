@@ -2722,6 +2722,36 @@ repair_cycles_used             : 0 / 1  — KHÔNG có Independent Review nào
 cycles: []
 ```
 
-`TASK-PRA-005` = `IMPLEMENTED` (KHÔNG phải `DONE`).
-`NEXT_VERTICAL_ACTION = PRA-005 INDEPENDENT REVIEW E2`. Chi tiết:
+### Trạng thái tại S109 (Independent Review E2)
+
+```
+Independent Review E2         : ĐÃ CHẠY — ACCEPT (S109)
+                               docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md
+REVIEW_CYCLE_USED             : 1 / 1  — chu kỳ Independent Review E2 DUY NHẤT
+                               đã hoạch định cho lineage PRA-005, nay đã dùng
+repair_cycles_used            : 0 / 1  — KHÔNG có finding BLOCKING nào ⟹
+                               KHÔNG mở repair batch; ngân sách repair còn
+                               nguyên
+cycles: [
+  { id: "PRA-005-V1-IMPLEMENTATION-REVIEW-1", session: "S109",
+    target: "18ab5d39a15b224d34aa04e5c6bbe8261f60efeb",
+    result: "ACCEPT", blocking: 0, non_blocking: 2, repair: "NO" }
+]
+BLOCKING_FINDINGS             : 0
+NON_BLOCKING_FINDINGS         : 2 (FIND-PRA005-R1 độ chính xác LOC báo cáo ·
+                               FIND-PRA005-R2 thứ tự NULL doanh thu
+                               SQLite/PostgreSQL — chưa đạt tới trên dữ liệu
+                               đã nghiệm thu)
+CHECK PASS                    : 13/14 REQUIRED (CHECK-PRA005-01..12 E1 +
+                               CHECK-PRA005-14 E2)
+CHECK-PRA005-15               : NOT_TESTED (Owner Production Acceptance)
+FINAL_REVIEWED_HEAD_SHA       : 18ab5d39a15b224d34aa04e5c6bbe8261f60efeb
+INTEGRATION_READY             : YES
+CANONICAL_INTEGRATION_STATUS  : NOT_YET_INTEGRATED
+```
+
+`TASK-PRA-005` = `IMPLEMENTED` + `REVIEWED` (KHÔNG phải `DONE` — còn
+`CHECK-PRA005-15` Owner Production Acceptance).
+`NEXT_VERTICAL_ACTION = PRA-005 CONTROLLED INTEGRATION`. Chi tiết:
+`docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md` và
 `docs/sessions/S108-pra-005-major-implementation.md`.

@@ -108,7 +108,18 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 5 ĐÃ CÓ CODE, ĐANG CHỜ NGƯỜI SOÁT LẠI ĐỘC LẬP (2026-09-03, S108) — PRA-005 = ĐÃ VIẾT XONG / CHỜ SOÁT
+## VIỆC 5 ĐÃ VIẾT XONG VÀ ĐÃ ĐƯỢC SOÁT LẠI ĐỘC LẬP (2026-09-03, S109) — PRA-005 = CHỜ GỘP VÀO BẢN CHÍNH + CHỜ NGHIỆM THU
+
+Cập nhật 2026-09-03 (S109): một phiên làm việc KHÁC đã **soát lại độc lập**
+toàn bộ code của trang "Sản phẩm" — tự tính lại các con số từ dữ liệu gốc
+thay vì tin bản báo cáo của người viết code — và **kết luận: ĐẠT**. Không
+tìm thấy lỗi nào phải sửa. Các con số trên trang Sản phẩm khớp CHÍNH XÁC với
+trang Tổng quan (số lượng 407, doanh thu 3.562.310.000). Toàn bộ 2.032 phép
+kiểm của cả hệ thống vẫn chạy đúng.
+
+Còn đúng hai bước nữa: (1) gộp code này vào bản chính thức, (2) chủ dự án tự
+mở trang thật để nghiệm thu. **Chưa bước nào xảy ra**, nên trang Sản phẩm
+vẫn CHƯA được coi là xong.
 
 Cập nhật 2026-09-03 (S108): trang **"Sản phẩm"** đã có code thật, chạy được,
 và đã tự kiểm tra bằng 48 phép kiểm mới trên đúng dữ liệu mẫu đã dùng cho các

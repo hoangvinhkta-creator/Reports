@@ -8,11 +8,15 @@ từ thời điểm này. Quyết định đầy đủ: **DEC-172**
 (`PROJECT/PROJECT_DECISIONS.md`). KHÔNG phải PRA-004 defect —
 `TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
 `PRA-005` DISCOVERY = DONE (S105, xác minh + tích hợp tại S106) · `PRA-005`
-CONTRACT = FROZEN (S107) · `PRA-005` IMPLEMENTATION = COMPLETE /
-REVIEW_PENDING (S108, nhánh dedicated `claude/pra-005-v1-implementation-
-3dcd5k`, CHƯA tích hợp canonical). `PRA-005` TỔNG THỂ CHƯA `DONE` —
-`NEXT_VERTICAL_ACTION = PRA-005 INDEPENDENT REVIEW E2`. Xem khối "CANONICAL
-CURRENT STATE — TASK-PRA-005 IMPLEMENTATION" bên dưới.
+CONTRACT = FROZEN (S107) · `PRA-005` IMPLEMENTATION = COMPLETE (S108, nhánh
+dedicated `claude/pra-005-v1-implementation-3dcd5k`) · `PRA-005` INDEPENDENT
+REVIEW E2 = **ACCEPT** (S109, `BLOCKING_FINDINGS = 0`, không repair,
+`FINAL_REVIEWED_HEAD_SHA = 18ab5d39a15b224d34aa04e5c6bbe8261f60efeb`,
+`docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md`). VẪN **CHƯA tích
+hợp canonical**. `PRA-005` TỔNG THỂ CHƯA `DONE` — còn `CHECK-PRA005-15`
+Owner Production Acceptance (`NOT_TESTED`).
+`NEXT_VERTICAL_ACTION = PRA-005 CONTROLLED INTEGRATION`. Xem khối "CANONICAL
+CURRENT STATE — TASK-PRA-005 INDEPENDENT REVIEW E2" bên dưới.
 
 Owner xác nhận: trong Reports chỉ có **MỘT** authority cho giá mua phục vụ
 phân tích bán hàng — **Tracking PP có hiệu lực tại ngày bán**, gọi ở nghiệp vụ
@@ -259,6 +263,63 @@ Contract artifact đầy đủ (30 mục theo brief Contract Freeze, ánh xạ 1
 cấu trúc Task file chuẩn của dự án): `docs/tasks/TASK-PRA-005-san-pham.md`.
 Bàn giao chi tiết: `docs/sessions/S107-pra-005-contract-freeze.md`.
 
+
+## CANONICAL CURRENT STATE — TASK-PRA-005 INDEPENDENT REVIEW E2 (AUTHORITATIVE, 2026-09-03, S109)
+
+`TASK-PRA-005` V1 implementation đã qua **Independent Review E2** — chu kỳ
+review DUY NHẤT đã hoạch định cho lineage PRA-005. Kết quả: **ACCEPT**.
+Bản ghi đầy đủ: `docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md`.
+
+```
+REVIEW_RESULT                 = ACCEPT
+CANONICAL_SHA                 = 4e06515895814d8fff41580dc0f3c64da464ac83
+                                (khớp EXACT kỳ vọng; CANONICAL_MOVED = KHÔNG)
+CANDIDATE_FULL_SHA            = 18ab5d39a15b224d34aa04e5c6bbe8261f60efeb
+CANDIDATE_BASE                = 4e06515895814d8fff41580dc0f3c64da464ac83 (cha TRỰC TIẾP)
+ANCESTRY                      = tuyến tính, 1 commit, 0 behind / 1 ahead
+CONTRACT_VERDICT              = PASS
+DEC173_VERDICT                = PASS
+GROUPING_VERDICT              = PASS — product_key re-derive khớp 226/226 nhóm
+PRODUCT_IDENTITY_CLAIM        = NOT_CANONICAL_PRODUCT_IDENTITY
+ALL_LINE_INCLUSION            = PASS
+QUANTITY / ORDER_COUNT / REVENUE = PASS / PASS / PASS
+KPI_SOURCE / NULL / KNOWN_ZERO / COVERAGE = PASS / PASS / PASS / PASS
+REFERENCE_PRICE_VERDICT       = PASS — 10/10 thuật ngữ PP đếm 0 trên HTML thật
+DISCLOSURE_VERDICT            = PASS
+EMPTY_STATE_VERDICT           = PASS
+SPLIT_ORACLE / SERVICE_FEE_ORACLE = PASS / PASS
+ORACLE                        = quantity 407 · revenue 3.562.310.000 ·
+                                kpi 900.000 · 226 nhóm · 351 dòng
+                                (reviewer recompute bằng SQL THÔ, 0 sai lệch)
+PERFORMANCE_EVIDENCE          = CREDIBLE_SESSION_MEASUREMENT (+ hình dạng
+                                truy vấn do reviewer đo: 1 query phẳng,
+                                4 query/trang, không N+1)
+FULL_SUITE                    = 2032 passed, 11 skipped, 0 failed (chạy lại độc lập)
+GOLDEN_EXPECTATION_CHANGE     = NO
+BLOCKING_FINDINGS             = 0
+NON_BLOCKING_FINDINGS         = 2 (FIND-PRA005-R1, FIND-PRA005-R2)
+REPAIR_BATCH_USED             = NO
+SCOPE_DRIFT                   = NO
+COMPLETION_GATE               = 13/14 REQUIRED PASS (01..12 E1 + 14 E2);
+                                CHECK-PRA005-13 NOT_APPLICABLE (RECOMMENDED);
+                                CHECK-PRA005-15 NOT_TESTED
+GOVERNANCE_VALIDATORS         = validate_structure PASS · validate_project_state
+                                PASS · validate_evidence PASS · validate_task_
+                                completion PASS · validate_reference_integrity
+                                FAIL với ĐÚNG 3 reference REM-T06 đã biết
+                                (baseline, không issue mới)
+FINAL_REVIEWED_HEAD_SHA       = 18ab5d39a15b224d34aa04e5c6bbe8261f60efeb
+INTEGRATION_READY             = YES
+CANONICAL_INTEGRATION_STATUS  = NOT_YET_INTEGRATED
+NEXT_VERTICAL_ACTION          = PRA-005 CONTROLLED INTEGRATION
+```
+
+`TASK-PRA-005` tổng thể **CHƯA `DONE`**: `CHECK-PRA005-15` (Owner Production
+Acceptance) giữ `NOT_TESTED` — không đánh PASS bất kỳ tiêu chí deployment /
+dữ liệu thật nào trước khi có bằng chứng production.
+
+SHA đầy đủ 40 ký tự `18ab5d39a15b224d34aa04e5c6bbe8261f60efeb` là ứng viên
+**DUY NHẤT** được uỷ quyền cho Controlled Integration.
 
 ## CANONICAL CURRENT STATE — TASK-PRA-005 IMPLEMENTATION (AUTHORITATIVE, 2026-09-03, S108)
 

@@ -1271,14 +1271,41 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E2)
+E2
 
 Yêu cầu:
 Theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Ghi tại
 `docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md`.
+
+Executed By:
+Session S109 — TASK-PRA-005 Independent Review E2 (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S109. `docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md`.
+`REVIEW_RESULT = ACCEPT`, `BLOCKING_FINDINGS = 0`, `SCOPE_DRIFT = NO`,
+`REPAIR_BATCH_USED = NO`,
+`FINAL_REVIEWED_HEAD_SHA = 18ab5d39a15b224d34aa04e5c6bbe8261f60efeb`.
+Reviewer TỰ RECOMPUTE toàn bộ phép gộp bằng SQL THÔ (`sqlalchemy.text()`)
+KHÔNG gọi `product_totals()`, rồi so khớp: 226 nhóm, 0 sai lệch dòng-theo-
+dòng. Reconcile với `period_totals()` đã nghiệm thu đồng nhất 5/5
+(`quantity 407`, `revenue 3.562.310.000`, `kpi_profit 900.000`,
+`kpi_lines 2`, `lines 351`). Khoá gộp re-derive độc lập bằng
+`app.history.keys.product_key` khớp 226/226 ⟹ `sha256(NFC(product_raw)
+.strip())`. SQL phát sinh đo được `COALESCE: 0`, không subquery, 2 JOIN
+đẳng thức PRIMARY KEY, `GET /san-pham` = 4 truy vấn hằng số (không N+1).
+Split `FTKB50ZVMV` tách 2 nhóm; 3 mô tả dịch vụ/phí thật còn nguyên; 10/10
+thuật ngữ PP đếm 0 trên HTML đã render. Regression reviewer chạy lại:
+full suite `2032 passed, 11 skipped, 0 failed`; PRA-003 42; PRA-004 261;
+Golden 345 passed/2 skipped; `GOLDEN_EXPECTATION_CHANGE = NO`. Governance:
+4 validator PASS + `validate_reference_integrity` FAIL với ĐÚNG 3 reference
+REM-T06 đã biết (không issue mới). `CHECK-PRA005-15` GIỮ `NOT_TESTED` —
+`TASK-PRA-005` tổng thể CHƯA `DONE`.
 
 #### CHECK-PRA005-15 — Owner Production Acceptance
 Priority:
