@@ -8,8 +8,8 @@ từ thời điểm này. Quyết định đầy đủ: **DEC-172**
 (`PROJECT/PROJECT_DECISIONS.md`). KHÔNG phải PRA-004 defect —
 `TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
 `PRA-005` DISCOVERY = DONE (S105, xác minh + tích hợp tại S106) · `PRA-005`
-CONTRACT = NOT STARTED. Xem khối "CANONICAL CURRENT STATE — TASK-PRA-005
-DISCOVERY" bên dưới.
+CONTRACT = FROZEN (S107) · `PRA-005` IMPLEMENTATION = NOT STARTED. Xem khối
+"CANONICAL CURRENT STATE — TASK-PRA-005 CONTRACT FREEZE" bên dưới.
 
 Owner xác nhận: trong Reports chỉ có **MỘT** authority cho giá mua phục vụ
 phân tích bán hàng — **Tracking PP có hiệu lực tại ngày bán**, gọi ở nghiệp vụ
@@ -163,10 +163,98 @@ NEXT_VERTICAL_ACTION         = PRA-005 CONTRACT FREEZE
 ```
 
 OD-PRA005-1 (khoá gộp sản phẩm) và OD-PRA005-2 (dòng dịch vụ trong bảng sản
-phẩm) là **khuyến nghị Discovery**, chưa phải `OWNER_DECISION`. Cả hai giữ
-nguyên trạng thái chờ Owner tại phiên Contract Freeze; nếu Owner không trả
-lời, S105 §28 đã ghi rõ mặc định an toàn (A/A) để dùng làm
-`RECOMMENDED_DEFAULT`, không phải quyết định đã đóng.
+phẩm) là **khuyến nghị Discovery**, chưa phải `OWNER_DECISION` — *(trạng
+thái lịch sử tại thời điểm S106; đã được khoá thành `OWNER_DECISION` chính
+thức tại S107, xem khối "TASK-PRA-005 CONTRACT FREEZE" ngay dưới đây)*.
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-005 CONTRACT FREEZE (AUTHORITATIVE, 2026-09-03, S107)
+
+`PRA-005` **Discovery = DONE** (không đổi, S105/S106). `PRA-005`
+**Contract = FROZEN** (phiên này, S107). `PRA-005` **Implementation = NOT
+STARTED**. Contract chạy trên nhánh `claude/pra-005-contract-freeze-99nuai`,
+mở trực tiếp từ canonical HEAD hiện hành — KHÔNG cần fast-forward để đồng bộ
+(0 ahead, 0 behind lúc mở phiên).
+
+```text
+SESSION                      = S107 — PRA-005 Contract Freeze SẢN PHẨM
+BASE_CANONICAL                = 1ebb0021e13f85fe7ac7825e1219583e4c682889
+                              (khớp EXACT kỳ vọng đầu phiên, CANONICAL_MOVED = KHÔNG)
+BRANCH                        = claude/pra-005-contract-freeze-99nuai
+DISCOVERY_STATUS               = DONE (S105, xác minh + tích hợp S106)
+DISCOVERY_ARTIFACT             = docs/sessions/S105-pra-005-san-pham-discovery.md
+
+OD_PRA005_01                   = RAW_DOCUMENT_DESCRIPTION — nâng từ khuyến
+                              nghị Discovery thành OWNER_DECISION, ghi
+                              PROJECT/PROJECT_DECISIONS.md DEC-173
+OD_PRA005_02                   = INCLUDE_ALL_DOCUMENT_LINES — nâng từ khuyến
+                              nghị Discovery thành OWNER_DECISION, ghi
+                              PROJECT/PROJECT_DECISIONS.md DEC-173
+OWNER_DECISIONS_RECORDED       = YES
+
+GROUPING_CONTRACT              = NORMALIZED_RAW_DOCUMENT_DESCRIPTION
+                              (= product_key đã tồn tại, TÁI DỤNG nguyên vẹn)
+PRODUCT_IDENTITY_CLAIM         = NOT_CANONICAL_PRODUCT_IDENTITY
+SERVICE_FEE_TREATMENT          = INCLUDE_ALL
+SUMMARY_CONTRACT               = 4 chỉ tiêu (Số mặt hàng trên chứng từ ·
+                              Tổng số lượng · Doanh thu NET · LN KPI + coverage)
+TABLE_CONTRACT                 = 5 cột (Mặt hàng · Số lượng · Số đơn ·
+                              Doanh thu · LN KPI)
+DEFAULT_SORT                   = REVENUE_DESC (trình bày, KHÔNG phân loại)
+KPI_PROFIT_SEMANTICS           = SUM_KNOWN_VALUES_WITH_EXPLICIT_COVERAGE
+NULL_SEMANTICS                 = UNKNOWN_IS_NOT_ZERO
+REFERENCE_PRICE_CONTRACT       = LINE_LEVEL_ONLY
+
+SCHEMA_REQUIRED                = NO
+NEW_AUTHORITY_REQUIRED         = NO
+TRACKING_CHANGE_REQUIRED       = NO
+PRODUCTION_CODE_CHANGE         = NO
+
+BLOCKING_FINDINGS              = 0
+SCOPE_DRIFT                    = NO
+
+CONTRACT_ARTIFACT              = docs/tasks/TASK-PRA-005-san-pham.md
+                              Status: READY · Completion Gate FROZEN
+                              (15 check: 14 REQUIRED · 1 RECOMMENDED, tất cả NOT_TESTED)
+CONTRACT_EXIT_GATE             = PASS (13/13 điều kiện)
+IMPLEMENTATION_READY           = YES
+
+NEXT_VERTICAL_ACTION           = PRA-005 IMPLEMENTATION
+```
+
+Bằng chứng thực thi của phiên (E1):
+
+```text
+validate_structure           : PASS (21 required path)
+validate_project_state       : PASS
+validate_evidence            : PASS (141 REQUIRED PASS evidence record)
+validate_task_completion     : PASS (12 DONE task)
+validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-REM-T06
+                               (/README.md, CODE_OF_CONDUCT.md,
+                                CONTRIBUTING.md) — không phát sinh mới. Một
+                               forward-reference mới của phiên này
+                               (docs/tasks/TASK-PRA-005-san-pham.md →
+                               docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-
+                               RECORD.md, file CHECK-PRA005-14 sẽ tạo ở
+                               implementation) đã được thêm vào
+                               KNOWN_EXEMPT_PAIRS của
+                               validate_reference_integrity.py, đúng khuôn
+                               tiền lệ TASK-105C (DEC-152) — đây là thay đổi
+                               governance-script tối thiểu, KHÔNG phải
+                               production feature code.
+git diff --check              : sạch
+branch_authority_check.sh     : cần `git push -u origin
+                               claude/pra-005-contract-freeze-99nuai` trước
+                               khi AUTHORITY_OK — nhánh mới chưa có upstream
+                               tại thời điểm chạy lệnh, đây là trạng thái
+                               ĐÚNG của một nhánh mới (không phải
+                               CANONICAL_MOVED), theo đúng cách S105 đã ghi
+                               nhận hiện tượng tương tự.
+```
+
+Contract artifact đầy đủ (30 mục theo brief Contract Freeze, ánh xạ 1:1 vào
+cấu trúc Task file chuẩn của dự án): `docs/tasks/TASK-PRA-005-san-pham.md`.
+Bàn giao chi tiết: `docs/sessions/S107-pra-005-contract-freeze.md`.
 
 
 ## CANONICAL CURRENT STATE — MANAGEMENT UI SIMPLIFICATION (AUTHORITATIVE, 2026-09-03 — KPI-FIRST PRESENTATION)

@@ -2617,3 +2617,90 @@ không bị sửa trong phiên này.
   **0 đã dùng**. Task READY_FOR_IMPLEMENTATION, gate FROZEN (14 check / 12
   REQUIRED). `TASK-PRA-002` không đổi: DONE, 1/2 used, remaining = 1.
   `TASK-PRA-001` không đổi: DONE.
+- 2026-09-03 — `TASK-PRA-005` mở lineage mới tại phiên Contract Freeze S107
+  (`BASE_SHA = 1ebb0021e13f85fe7ac7825e1219583e4c682889`, sau Discovery
+  S105 + tích hợp S106). Xem chi tiết ở "Root Task: TASK-PRA-005" bên dưới.
+  `TASK-PRA-002`/`003`/`004` không đổi: DONE.
+
+---
+
+## Root Task: TASK-PRA-005
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/TASK-PRA-005-san-pham.md`). KHÔNG kế thừa và KHÔNG tiêu ngân
+sách của `TASK-PRA-001`, `TASK-PRA-002`, `TASK-PRA-003`, `TASK-PRA-004` hay
+bất kỳ lineage nào khác.
+
+Mở tại phiên Contract Freeze S107 (2026-09-03), sau Discovery S105
+(`docs/sessions/S105-pra-005-san-pham-discovery.md`, docs-only) và xác minh +
+tích hợp fast-forward S106. `BASE_SHA =
+1ebb0021e13f85fe7ac7825e1219583e4c682889` (HEAD nhánh canonical
+`claude/extract-upload-repo-gq2ws4` lúc freeze contract, đã verify khớp
+EXACT kỳ vọng đầu phiên).
+
+```
+root_task: TASK-PRA-005
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+`MEDIUM` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), KHÔNG theo tên module:
+
+- **BR-1** — một dòng dịch vụ/phí bị lọc âm thầm khỏi bảng mặt hàng, làm
+  tổng bảng KHÔNG còn khớp tổng kỳ mà Owner không biết. Giảm nhẹ:
+  CHECK-PRA005-04 (Σ nhóm = tổng kỳ) + CHECK-PRA005-08 (dòng dịch vụ/phí vẫn
+  nằm trong bảng) + OD-PRA005-02 (DEC-173).
+- **BR-2** — ô LN KPI của một mặt hàng bị coalesce về `0` thay vì `—` khi
+  không có dòng `AUTO` nào, khiến Owner đọc nhầm "không lãi" thành "không có
+  dữ liệu". Giảm nhẹ: CHECK-PRA005-06 (`NULL != 0`, EAC-2/EAC-3).
+- **BR-3** — nhãn/khoá gộp ngụ ý canonical Product Identity trong khi thực
+  chất là mô tả thô đã chuẩn hoá, khiến Owner tin nhầm hai dòng tách biệt
+  (ví dụ `FTKB50ZVMV`) là hai sản phẩm khác nhau thật. Giảm nhẹ:
+  CHECK-PRA005-02 + CHECK-PRA005-07 (split được bảo toàn có kiểm chứng) +
+  disclosure bắt buộc trên trang (mục 5 file task) + OD-PRA005-01 (DEC-173).
+- **KHÔNG phải HIGH** vì: toàn bộ touch area CHỈ-ĐỌC (không một câu
+  `INSERT`/`UPDATE`/`DELETE` nào); không ghi đè dữ liệu đã lưu; không đổi
+  KPI/lương đã tính; không chạm bất biến no-double-count (thuộc
+  `TASK-PRA-002`, PRA-005 chỉ đọc lại kết quả của nó); không tạo product
+  identity thứ hai (Tracking vẫn là authority duy nhất).
+
+### Điều kiện mở repair cycle
+
+Finding KHÔNG tự động trở thành repair work. Chỉ mở cycle khi finding đe doạ
+TRỰC TIẾP một trong bốn điều:
+
+1. tính trung thực/reconciliation của tổng doanh thu-số lượng-LN KPI cấp
+   mặt hàng so với phân tích đã accepted;
+2. an toàn `NULL`/coverage (EAC-2/EAC-3);
+3. bảo toàn OD-PRA005-01/OD-PRA005-02 (KHÔNG âm thầm gộp/lọc);
+4. ranh giới PII (EAC-9, tiền lệ `TASK-PRA-004` mục 14.4).
+
+Finding ngoài bốn nhóm đó: `HARDENING` kèm RE-TRIGGER CONDITION cụ thể
+(V4.1 §7) hoặc `OUT_OF_SCOPE`. Vượt 1 cycle → `OWNER_EXTENSION REQUIRED`;
+KHÔNG tách sub-unit, KHÔNG đổi tên task, KHÔNG mở nhánh mới để reset ngân
+sách (V4.1 §2).
+
+### Trạng thái tại S107
+
+```
+Discovery                    : XONG (S105, docs-only, PRODUCTION_CODE_DELTA = 0)
+Contract Freeze               : XONG (S107, docs-only, PRODUCTION_CODE_DELTA = 0)
+BLOCKING_FINDINGS            : 0
+Non-blocking đã ghi          : FIND-PRA005-01 (split product_key, KHÔNG BLOCKING,
+                               xử lý bằng cách gọi tên + OD-PRA005-01)
+                               FIND-PRA005-02 (nhãn "Số sản phẩm" va chạm EAC-5,
+                               đã đổi nhãn)
+                               FIND-PRA005-03 (product_group_final là hằng số,
+                               không phải category — ghi nhớ cho phiên sau)
+Owner Decisions               : OD-PRA005-01, OD-PRA005-02 — khoá tại S107,
+                               ghi PROJECT/PROJECT_DECISIONS.md DEC-173
+repair_cycles_used            : 0 / 1  — Discovery + Contract Freeze KHÔNG tiêu cycle
+cycles: []
+```
+
+`TASK-PRA-005` = `READY`. Completion Gate FROZEN (15 check: 14 REQUIRED · 1
+RECOMMENDED, tất cả `NOT_TESTED` — chưa implementation).
+`IMPLEMENTATION_READY = YES`.

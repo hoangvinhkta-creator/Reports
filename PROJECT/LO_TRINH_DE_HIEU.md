@@ -23,6 +23,18 @@
 > hai đơn thật để kiểm tra việc đi từ đơn xuống từng dòng hàng. Xem mục
 > "VIỆC 4 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT" ngay đầu phần
 > TRẠNG THÁI HIỆN TẠI. Việc tiếp theo: việc 5, chưa bắt đầu.
+>
+> Cập nhật thêm 2026-09-03 (S107): **việc 5 (trang "Sản phẩm" — xem mặt hàng
+> nào bán chạy/tạo doanh thu) đã có kế hoạch đầy đủ và sẵn sàng bắt tay
+> làm.** Phiên này chưa viết một dòng code nào — chỉ chốt xong hai điều
+> quan trọng: (1) bảng sẽ gộp mặt hàng theo ĐÚNG TÊN GHI TRÊN CHỨNG TỪ, nên
+> hai cách gọi tên khác nhau của cùng một máy (ví dụ "Điều hoà Daikin" và
+> "Máy lạnh Daikin Inverter 2 HP") vẫn có thể hiện thành hai dòng riêng —
+> đây là lựa chọn AN TOÀN, chấp nhận tách nhầm còn hơn gộp nhầm; (2) bảng sẽ
+> giữ TẤT CẢ dòng trên chứng từ, kể cả phí vận chuyển/lắp đặt, vì Reports
+> chưa có cách nào đáng tin để phân biệt "sản phẩm thật" với "phí" — chúng
+> sẽ tự chìm xuống cuối bảng vì bảng mặc định sắp theo doanh thu. Xem mục
+> "VIỆC 5 ĐÃ CHỐT XONG, SẴN SÀNG LÀM" ngay đầu phần TRẠNG THÁI HIỆN TẠI.
 
 > Cập nhật thêm 2026-09-03 (S100): **việc 4 (bán hàng chi tiết + xem lại
 > từng đơn) đã có kế hoạch đầy đủ và sẵn sàng bắt tay làm.** Phiên này chưa
@@ -95,6 +107,38 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 5 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S107) — PRA-005 = READY
+
+Phiên này **chưa viết một dòng code nào**. Việc của nó là chốt lại thật rõ
+"trang Sản phẩm sẽ làm đúng những gì" trước khi bắt tay code.
+
+Trang mới, gọi là **"Sản phẩm"**, sẽ trả lời câu hỏi: *"Trong khoảng thời
+gian đang xem, các mặt hàng ghi trên sổ bán hàng đóng góp bao nhiêu vào số
+lượng, số đơn, doanh thu và lợi nhuận KPI đã biết?"*
+
+Hai điều quan trọng đã chốt:
+
+1. **Gộp theo tên ghi trên chứng từ**, KHÔNG theo mã sản phẩm chuẩn của
+   Tracking. Lý do: không phải mọi dòng bán hàng đều đã được đối chiếu với
+   Tracking, nên nếu gộp theo mã chuẩn sẽ có nguy cơ BỎ SÓT những dòng chưa
+   đối chiếu được. Cái giá phải trả: đôi khi cùng một máy được gõ hai cách
+   khác nhau sẽ hiện thành hai dòng riêng trên bảng. Đây là đánh đổi có chủ
+   ý — thà tách nhầm (an toàn) còn hơn gộp nhầm (sai số liệu).
+2. **Giữ nguyên tất cả các dòng trên chứng từ**, kể cả những dòng như "Chi
+   phí vận chuyển" hay "Phụ phí lắp đặt". Reports hiện chưa có quy tắc đáng
+   tin để tự động phân biệt "đây là sản phẩm thật" với "đây là một khoản
+   phí". Bảng mặc định sắp theo doanh thu giảm dần, nên các dòng phí/dịch vụ
+   (thường doanh thu rất nhỏ) sẽ tự nằm ở cuối bảng mà không cần lọc.
+
+Bốn con số tóm tắt đầu trang, năm cột của bảng, và quy tắc "thiếu dữ liệu
+hiện gạch ngang chứ không phải số 0" — tất cả đều tái dùng nguyên xi những
+gì trang Tổng quan/Bán hàng đã làm và đã được chấp nhận, không phát minh gì
+mới.
+
+Bước tiếp theo: một phiên làm việc riêng sẽ viết code thật cho trang này,
+rồi một người soát lại độc lập, rồi chủ dự án tự mở trang thật để nghiệm
+thu — đúng quy trình đã áp dụng cho các trang trước.
 
 ## VIỆC 4 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03, S104) — PRA-004 = DONE
 

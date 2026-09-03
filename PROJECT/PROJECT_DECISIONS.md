@@ -8304,3 +8304,102 @@ rename campaign; không xoá field `accounting_*`; không backfill/rewrite lịc
 sử; không đổi PP algorithm / KPI formula / identity algorithm; không subsystem
 mới; không Review workflow; không pagination; không export redesign; không sửa
 `REM-T06`; không refactor tổng quát.
+
+## DEC-173
+
+Title:
+`OD-PRA005-01` (khoá gộp mặt hàng = mô tả thô đã chuẩn hoá trên chứng từ) +
+`OD-PRA005-02` (bao gồm toàn bộ dòng chứng từ, kể cả dịch vụ/phí) — hai
+Owner Decision khoá Contract của `TASK-PRA-005` "SẢN PHẨM"
+
+Date:
+2026-09-03
+
+Task:
+`TASK-PRA-005` — Sản phẩm (Mặt hàng trên chứng từ) — Aggregation View
+(CHỈ-ĐỌC). Phiên Contract Freeze S107 (nhánh
+`claude/pra-005-contract-freeze-99nuai`), sau Discovery S105
+(`docs/sessions/S105-pra-005-san-pham-discovery.md`) và tích hợp S106.
+Task file: `docs/tasks/TASK-PRA-005-san-pham.md`.
+`BASE_SHA = 1ebb0021e13f85fe7ac7825e1219583e4c682889`.
+
+Authority:
+`OWNER_DECISION`. Cả hai quyết định làm đổi Ý NGHĨA NGHIỆP VỤ của con số
+Owner đọc trên trang Sản phẩm (khoá gộp và tập dòng tham gia), nên không
+thuộc thẩm quyền tự quyết của session. Discovery S105 §28 đã đề xuất đúng
+phương án A cho cả hai mục kèm phân tích trade-off; phiên Contract Freeze
+này khoá A/A thành `OWNER_DECISION` chính thức theo brief Contract Freeze
+đã nhận.
+
+### OD-PRA005-01 — Khoá gộp mặt hàng
+
+```
+GROUPING_CONTRACT = NORMALIZED_RAW_DOCUMENT_DESCRIPTION
+RAW_PRODUCT_GROUP = NFC(product_raw).strip()
+```
+
+Về kỹ thuật, đây CHÍNH LÀ `product_key` đã tồn tại và đã nghiệm thu ở
+`TASK-PRA-002` (`app/history/keys.py:70`, DEC-166, DEC-171) — tái dụng
+nguyên vẹn, KHÔNG dựng hàm chuẩn hoá thứ hai.
+
+Đây **KHÔNG PHẢI** canonical Product Identity, SKU authority, hay Tracking
+Product Identity. Tracking vẫn là Product Identity Authority duy nhất
+(DEC-103/ADR-106) — không bị thay thế hay đụng chạm.
+
+Lý do: Discovery đo được `canonical_product_code` = 0/349 trên fixture
+golden (identity chỉ điền khi có Tracking capture, không nằm trong repo
+theo đúng thiết kế); bằng chứng thật S068 cho thấy trên production nó cũng
+không phủ hết (`identity unresolved 31/83`). Một khoá gộp có thể `NULL`
+trên phần lớn dòng không thể là khoá phân hoạch của một bảng "toàn bộ mặt
+hàng trong kỳ". Owner chấp nhận **SPLIT trung thực thay vì MERGE không an
+toàn** — ví dụ đo được: `FTKB50ZVMV` tách thành hai dòng (`Điều hoà Daikin
+FTKB50ZVMV` và `Máy lạnh Daikin Inverter 2 HP FTKB50ZVMV`, gộp lại sẽ là
+mặt hàng doanh thu #1 của kỳ 01/2026).
+
+Cấm tường minh: fuzzy merge, substring merge, model-code merge, hybrid
+`COALESCE(product_raw_key, canonical_product_code)`. Bằng chứng bác bỏ
+model-code merge: ca `TD-H80SEV(SK)` / `TD-H80SEV(WK)` là hai SKU màu khác
+nhau — một quy tắc gộp theo mã model sẽ sửa đúng ca `FTKB50ZVMV` nhưng làm
+HỎNG ca này.
+
+Hệ quả chấp nhận: các tên gọi khác nhau trên chứng từ của CÙNG một sản phẩm
+thực tế có thể tiếp tục hiển thị thành các dòng riêng biệt trong PRA-005 V1
+— hành vi ĐÃ CHẤP NHẬN, ghi lại là `FIND-PRA005-01`, không mở task repair.
+
+### OD-PRA005-02 — Bao gồm toàn bộ dòng chứng từ
+
+```
+SERVICE_FEE_TREATMENT = INCLUDE_ALL
+```
+
+PRA-005 V1 gồm TẤT CẢ dòng chứng từ, kể cả mô tả không giống hàng tồn kho
+thật (`Chi phí vận chuyển`, `Chênh VAT`, `Phụ Phí`, `Giá treo Tivi`…), nếu
+tồn tại trong dữ liệu nguồn đã accepted.
+
+Lý do: Reports hiện KHÔNG có phân loại có thẩm quyền cho
+`product`/`service`/`fee`/`adjustment` (đã đóng băng ở EAC-5/EAC-8 của
+`TASK-PRA-003`/`TASK-PRA-004`). `is_non_product_line()`
+(`app/modules/validation/rules.py`) là heuristic GIẢM NHIỄU validation,
+docstring của chính nó nói rõ *"must never be tuned to reproduce a
+historical count"* — dùng nó để lọc bảng sản phẩm sẽ biến một công cụ giảm
+nhiễu thành một authority phân loại nó chưa từng được thiết kế để làm, và
+sẽ vừa thiếu (bỏ sót phụ kiện thật như "Giá treo Tivi") vừa thừa.
+
+Cấm tường minh: heuristic exclusion, `is_product`/`is_service`/`is_fee`
+authority mới nào.
+
+Mặc định trình bày: `DEFAULT_SORT = REVENUE DESC` — mặc định TRÌNH BÀY,
+không phải phân loại nghiệp vụ. Đo được (Discovery S105 §13/§28): dòng
+dịch vụ/phí chiếm 6,3%–7,8% SỐ DÒNG nhưng chỉ 0,14%–0,25% DOANH THU của kỳ
+— sắp theo doanh thu khiến chúng tự chìm xuống mà không cần luật loại trừ
+nào.
+
+### Hệ quả
+
+- `TASK-PRA-005` Contract = FROZEN tại phiên S107; task file
+  `docs/tasks/TASK-PRA-005-san-pham.md`, Status = READY, Completion Gate
+  FROZEN (15 check: 14 REQUIRED · 1 RECOMMENDED).
+- Ledger mở lineage `TASK-PRA-005` (MEDIUM, 1 cycle, 0 dùng) tại
+  `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+- `IMPLEMENTATION_READY = YES`. Không `OWNER_DECISION_REQUIRED` nào còn
+  treo chặn PRA-005 V1. `TASK-PRA-002`/`003`/`004` không đổi: DONE.

@@ -93,6 +93,14 @@ KNOWN_EXEMPT_PAIRS = {
     # "File Đã Thay Đổi" liệt kê những gì TASK-105C sẽ tạo ở phiên sau.
     ("docs/sessions/S029-task-105c-final-decision-scope-lock.md",
      "tools/pricing/export_historical_vendor_prices.py"),
+    # TASK-PRA-005 Contract Freeze (S107): forward-reference tới bản ghi
+    # Independent Review E2 mà CHECK-PRA005-14 sẽ tạo ở phiên implementation
+    # sau — cùng khuôn tiền lệ TASK-PRA-001..004
+    # (docs/reviews/TASK-PRA-0XX-INDEPENDENT-REVIEW-RECORD.md), file chưa
+    # tồn tại vì PRA-005 mới ở trạng thái Contract FROZEN, chưa
+    # implementation.
+    ("docs/tasks/TASK-PRA-005-san-pham.md",
+     "docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md"),
 }
 
 
