@@ -1,11 +1,140 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S100 — DISCOVERY + VERTICAL CONTRACT FREEZE)
+## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S101 — MAJOR IMPLEMENTATION)
+
+Phiên triển khai hợp đồng đã freeze tại S100. Vertical Bán hàng + chi tiết
+đơn/dòng + Review visibility đã CHẠY THẬT trên fixture golden, nhưng
+`TASK-PRA-004` **CHƯA DONE**: còn Independent Review E2 và Owner Production
+Acceptance. Đây là trạng thái hiện hành có thẩm quyền của `TASK-PRA-004`.
+Khối `TASK-PRA-003` phía dưới KHÔNG bị khối này thay thế — `TASK-PRA-003`
+vẫn `DONE`.
+
+```text
+SESSION                    = S101 — PRA-004 MAJOR Implementation
+IMPLEMENTATION_RESULT      = PASS
+TASK-PRA-004               = IN_PROGRESS   (KHÔNG phải DONE)
+BASE_CANONICAL             = 8181cebe0619a9c8d12604168a90914c04b3692f
+                             (khớp EXACT kỳ vọng, CANONICAL_MOVED = KHÔNG)
+FROZEN_CONTRACT_HEAD       = 46a5cdb08bbac77eb4c6a7a3ad483edba988b7f9
+                             (khớp EXACT kỳ vọng, CONTRACT_HEAD_MOVED = KHÔNG)
+PRA004_BRANCH              = claude/pra-004-sales-review-detail-0b2z4w
+TASK_FILE                  = docs/tasks/TASK-PRA-004-ban-hang-review-detail.md
+SESSION_FILE               = docs/sessions/S101-pra-004-major-implementation.md
+
+ROUTE MỚI                  = GET /ban-hang · GET /ban-hang/<order_key>
+MODULE MỚI                 = app/web/sales_queries.py · app/web/sales_presentation.py
+TEMPLATE MỚI               = ban_hang.html · ban_hang_chi_tiet.html
+NAVIGATION                 = Option A — MỘT tab "Bán hàng" (Option B vẫn DEFER)
+
+CHANGE_BUDGET  Python production = +282  (MỤC TIÊU 266 · CẢNH BÁO MỀM 330 · DỪNG CỨNG 400)
+               Template          = +126  (trần 220)
+               CSS               = +10   (trần 25)
+               Test              = 89 test mới (sàn 30 · 0 skip mới)
+SCHEMA = 0 · MIGRATION = 0 · INDEX = 0 · DEPENDENCY = 0 · CONFIG = 0
+TRACKING_CHANGED = NO · INFRASTRUCTURE_CHANGED = NO · PROTECTED_CORE_IMPACT = NONE
+PRA-001 / PRA-002 / PRA-003 CHANGED = NO (không một file production hay test nào bị chạm)
+
+CHECK PASS                 = 12/14  (11/13 REQUIRED + 1/1 RECOMMENDED)
+CHECK-PRA004-12            = NOT_TESTED — Independent Review E2
+CHECK-PRA004-14            = NOT_TESTED — Owner Production Acceptance Tháng 09/2026
+repair_cycles_used         = 0 / 1  — phiên implement KHÔNG tiêu cycle
+BLOCKING_FINDINGS          = 0
+OWNER_DECISIONS_REQUIRED   = NONE
+SCOPE_DRIFT                = NO
+NEXT_VERTICAL_ACTION       = PRA-004 INDEPENDENT REVIEW E2
+```
+
+### Vertical đã chạy thật
+
+Đường truy vết mà `TASK-PRA-004` tồn tại để dựng đã hoạt động đầu-cuối trên
+fixture golden `period_2026_01`, khẳng định trên HTML THẬT:
+
+```text
+Tổng quan → Bán hàng (254 đơn) → mở BH62439 → 4 dòng hiện hành
+          → 1 AUTO + 3 CẦN KIỂM TRA → 5 lý do tiếng Việt cho mỗi dòng PENDING
+```
+
+Ca TRỘN `BH62439` — oracle quan trọng nhất của hợp đồng — render ĐÚNG:
+
+```text
+Trạng thái   : CẦN KIỂM TRA   (dù chứa 1 dòng AUTO)
+Doanh thu    : 66.000.000
+LN kế toán   : 500.000   coverage 1 / 4 dòng   ← coverage MỘT PHẦN
+LN KPI       : 400.000   coverage 1 / 4 dòng   ← coverage MỘT PHẦN
+Ba dòng PENDING: mọi giá vốn và mọi lợi nhuận hiện "—", KHÔNG BAO GIỜ 0
+Cảnh báo     : trang nói thẳng rằng con số này KHÔNG phải lợi nhuận toàn đơn
+```
+
+### Bằng chứng kiểm thử
+
+```text
+Focused PRA-004  : 89 passed in 6.55s
+PRA-003          : 67 passed in 7.07s  (3 file test KHÔNG bị sửa một dòng nào)
+Golden Baseline  : 58 passed, 2 skipped in 6.45s
+FULL SUITE       : 1962 passed, 11 skipped in 78.83s
+Baseline 8181ceb : 1873 passed, 11 skipped in 77.08s  (đo lại bằng git worktree)
+                   → chênh +89 = ĐÚNG số test mới; số skip KHÔNG đổi
+CHECK-PRA004-13  : 4000 đơn / 12.000 dòng · order_list = 85,2 ms
+                   (ngưỡng RE-TRIGGER 3 giây ⟹ KHÔNG thêm pagination)
+
+GOVERNANCE STRUCTURE : PASS      PROJECT STATE   : PASS
+EVIDENCE VALIDATION  : PASS      TASK COMPLETION : PASS
+REFERENCE INTEGRITY  : FAIL — ĐÚNG 3 issue REM-T06 pre-existing, KHÔNG thêm mới
+git diff --check     : sạch trên DẢI COMMIT 8181cebe..HEAD
+branch authority     : AUTHORITY_OK · DIVERGENCE = WITHIN_LIMITS
+```
+
+### Ranh giới đã giữ
+
+- **CHỈ-ĐỌC tuyệt đối** — chứng minh bằng AST trên `app/web/sales_queries.py`,
+  không phải bằng grep chuỗi: không import `insert`/`update`/`delete`/`text`,
+  không gọi `begin`/`commit`/`execution_options`. SQLAlchemy 2.0 không
+  autocommit ⟹ đường ghi KHÔNG TỒN TẠI.
+- **Ranh giới PII riêng của PRA-004** — `sales_queries` không tham chiếu
+  `.c.imei`/`.c.note_raw`/`.c.employee_raw`/`.c.customer`/`.c.phone`/
+  `.c.address`; `product_raw` CỐ Ý nằm ngoài hàng rào (REQUIRED_NOW, mục
+  14.4). Gate PII của PRA-003 tiếp tục PASS NGUYÊN VẸN, KHÔNG bị sửa.
+- **Không trạng thái mới** — đúng hai nhãn `AUTO` / `CẦN KIỂM TRA`.
+- **Không taxonomy reason mới** — `REASON_DISPLAY_LABELS` chỉ được THÊM key
+  để phủ trọn vũ trụ ĐÓNG 21 mã; 7 nhãn S069 giữ NGUYÊN TỪNG CHỮ.
+
+### Finding mới của phiên
+
+`FIND-PRA004-04` — `DOC_INCONSISTENCY` · KHÔNG BLOCKING · **KHÔNG tự sửa**.
+Header Completion Gate của file task viết "13 check: 11 REQUIRED · 2
+RECOMMENDED" trong khi phần liệt kê có 14 check (13 REQUIRED · 1 RECOMMENDED);
+Exit Criteria số 1 viết "11/11 REQUIRED". Sai lệch SỐ ĐẾM trong tài liệu, KHÔNG
+phải check bị thiếu hay bị làm yếu — cả 14 check đều còn nguyên. Phiên
+implement không sửa vì đó là phần đã FROZEN, phải đi qua
+`COMPLETION GATE CHANGE PROPOSAL`. RE-TRIGGER: giải quyết TRƯỚC khi đóng
+`TASK-PRA-004` = DONE. Chi tiết:
+`docs/sessions/S101-pra-004-major-implementation.md`.
+
+`FIND-PRA004-01` / `-02` / `-03` của S100 giữ nguyên trạng thái đã ghi
+(`-02` đã giải bằng thiết kế; `-01` và `-03` vẫn DEFER với RE-TRIGGER
+CONDITION nguyên vẹn).
+
+### Việc KHÔNG được làm tiếp
+
+Không tích hợp vào canonical, không deploy, không Owner production acceptance,
+không đánh dấu Independent Review PASS. Không mở PRA-005, không pagination,
+không review workflow. Không repair REM-T06 hay FIND-PRA003-03.
+
+VIỆC TIẾP THEO = **`PRA-004 INDEPENDENT REVIEW E2`** theo
+`governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`, artifact
+`docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN). Reviewer phải
+RECOMPUTE ĐỘC LẬP bằng SQL thô (KHÔNG qua `sales_queries`) cho danh sách đơn
+và cho chi tiết `BH62439` rồi mới đem so.
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-004 (lịch sử, 2026-09-03, S100 — DISCOVERY + VERTICAL CONTRACT FREEZE)
 
 Phiên discovery cho vertical slice tiếp theo (Bán hàng + chi tiết đơn/dòng +
-Review visibility). Contract đã FREEZE, task = `READY`. Đây là trạng thái hiện
-hành có thẩm quyền của `TASK-PRA-004`. Khối `TASK-PRA-003` ngay bên dưới
-KHÔNG bị khối này thay thế — `TASK-PRA-003` vẫn `DONE`.
+Review visibility). Contract đã FREEZE, task = `READY`. Trạng thái hiện hành
+có thẩm quyền của `TASK-PRA-004` nằm ở khối S101 phía TRÊN; khối này là bản
+ghi lịch sử của phiên freeze contract. Khối `TASK-PRA-003` bên dưới KHÔNG bị
+khối này thay thế — `TASK-PRA-003` vẫn `DONE`.
 
 ```text
 SESSION                    = S100 — PRA-004 Discovery + Vertical Contract Freeze (docs-only)

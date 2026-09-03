@@ -214,3 +214,22 @@ textarea { width: 100%; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* --- TASK-PRA-004 · Bán hàng + chi tiết đơn ---------------------------- */
+
+/* AUTO dùng chính màu "đã chốt" của tag-current, CẦN KIỂM TRA dùng màu cảnh
+   báo của tag-defect: hai trạng thái này là hai trạng thái DUY NHẤT của đơn
+   và của dòng, nên chúng không được trông giống nhau khi liếc qua bảng. */
+.tag-auto { background: var(--tp-green-bg); color: var(--tp-green); }
+.tag-review { background: var(--tp-gold-bg); color: var(--tp-gold); }
+
+/* Dòng lý do là chú giải của dòng hàng ngay TRÊN nó, không phải một dòng dữ
+   liệu ngang hàng — nền chìm và thụt vào để mắt đọc đúng thứ bậc đó. */
+.reason-row td {
+  background: var(--tp-line2); padding-left: var(--tp-s4);
+}
+.reason-list {
+  margin: var(--tp-s1) 0 0; padding-left: var(--tp-s5);
+  color: var(--tp-ink2); font-size: 12px;
+}
+.sales-orders td, .sales-lines td { vertical-align: top; }

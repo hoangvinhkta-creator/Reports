@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-READY
+IN_PROGRESS
 
 Phase:
 PHASE-PRA — Slice 4 (truy vết từ con số tổng hợp xuống dòng hàng)
@@ -1158,7 +1158,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1166,12 +1166,33 @@ E1
 Evidence:
 Yêu cầu: bằng chứng CẤU TRÚC bằng AST trên `app/web/sales_queries` (file DỰ KIẾN) (không phải grep chuỗi), theo đúng khuôn `tests/test_analytics_queries.py::test_the_query_module_never_writes_and_never_reads_a_run_summary`: (a) không import `insert`/`update`/`delete`/`text`; (b) không gọi `begin()`/`commit()`/`execution_options()`; (c) không định danh nào là `summary_json` hoặc `source_snapshot`; (d) mọi truy vấn xuất phát từ `order_line_current` và join qua `current_source_version_id`/`current_result_version_id`. Kèm test dòng `SOURCE_CHANGED`: chỉ version hiện hành xuất hiện trong chi tiết đơn, version cũ KHÔNG. Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03). Bằng chứng CẤU TRÚC bằng AST trên `app/web/sales_queries.py`:
+`tests/test_sales_queries.py::test_the_sales_query_module_has_no_path_that_writes`
+(không import `insert`/`update`/`delete`/`text`; không gọi `begin`/`commit`/
+`execution_options`; có `connect`),
+`::test_the_sales_query_module_never_aggregates_run_history`
+(`summary_json` và `source_snapshot` không xuất hiện như định danh),
+`::test_every_sales_query_starts_from_the_current_pointers`
+(`order_line_current` + `current_source_version_id` + `current_result_version_id`).
+Dòng `SOURCE_CHANGED`:
+`::test_only_the_current_version_of_a_changed_line_reaches_the_detail` — sau hai lần
+chạy, chi tiết đơn hiện ĐÚNG 1 dòng với `sell_price = 9.000.000` (version mới), version
+cũ KHÔNG lọt vào. Output: `89 passed in 6.55s`
+(`python -m pytest tests/test_sales_queries.py tests/test_sales_presentation.py tests/test_web_sales_detail.py -q`).
+
 #### CHECK-PRA004-02 — Oracle golden: danh sách đơn khớp và KHÔNG double-count
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1179,12 +1200,37 @@ E1
 Evidence:
 Yêu cầu: persist fixture `tests/fixtures/golden/period_2026_01.xlsx` qua ĐƯỜNG PRODUCTION (`run_import_production` → `present_lines` → `extraction.build_source_lines`/`build_result_lines` → `history_writer.write_run_history`), rồi khẳng định O-A1 … O-A4 của mục 20.1: 254 đơn · 351 dòng · 1 đơn AUTO · 253 đơn cần kiểm tra · phân bố số dòng/đơn · Σ(số dòng × số đơn) = 351. Thêm INV-3 và INV-4 dạng khẳng định. KHÔNG sửa một byte nào trong `tests/fixtures/golden/**`. Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03). Fixture `tests/fixtures/golden/period_2026_01.xlsx` được persist qua
+ĐƯỜNG PRODUCTION trong `tests/test_sales_queries.py::load_golden`
+(`build_price_composition` → `run_import_production` → `export_report` → `present_lines`
+→ `history_writer.write_run_history` → `extraction.build_source_lines`/`build_result_lines`).
+KHÔNG một byte nào trong `tests/fixtures/golden/**` bị sửa
+(`git diff --stat 8181cebe -- tests/fixtures/golden/` = rỗng).
+
+O-A1 `::test_the_golden_period_lists_the_orders_the_production_path_produced` — 254 đơn,
+351 dòng. O-A2 `::test_the_golden_period_has_exactly_one_all_auto_order` — đơn AUTO thuần
+= `["BH62063"]`, đơn cần kiểm tra = 253. O-A3 (INV-4) — phân hoạch AUTO + Review = tổng
+đơn, khẳng định trong cùng test và trong
+`tests/test_web_sales_detail.py::test_the_sales_layer_reconciles_with_the_overview_on_the_same_period`.
+O-A4 + INV-3 `::test_the_line_count_distribution_adds_back_up_to_every_line` — phân bố
+`{1: 191, 2: 41, 3: 16, 4: 3, 5: 1, 6: 1, 7: 1}` và `Σ(số dòng × số đơn) = 351`.
+No-double-count thêm: `::test_reuploading_the_same_book_moves_no_order_total` (nạp lại
+cùng sổ ⟹ danh sách đơn KHÔNG đổi một ô nào) và
+`::test_a_multi_line_order_aggregates_its_lines_exactly_once` (INV-1/INV-2).
+
 #### CHECK-PRA004-03 — Oracle đơn AUTO thuần (BH62063) và đơn TRỘN (BH62439)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1192,12 +1238,41 @@ E1
 Evidence:
 Yêu cầu: trên cùng dữ liệu đã persist của CHECK-02, khẳng định TRỌN VẸN Oracle B (mục 20.2) và Oracle C (mục 20.3) — bao gồm: BH62439 có trạng thái CẦN KIỂM TRA dù chứa 1 dòng AUTO; 4 dòng đúng thứ tự `occurrence_index`; doanh thu net 66.000.000; LN kế toán 500.000 coverage 1/4; LN KPI 400.000 coverage 1/4; ba dòng PENDING mỗi dòng ĐÚNG 5 mã lý do theo đúng thứ tự; mọi giá vốn/lợi nhuận của ba dòng đó là NULL. Kèm INV-1 và INV-2 cho cả hai đơn. Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03). Trên CÙNG dữ liệu đã persist của CHECK-PRA004-02.
+
+Oracle B — `::test_the_pure_auto_order_bh62063_reads_exactly_as_the_oracle`: AUTO, 1 dòng,
+`2026-01-02`, SL 1, doanh thu 7.500.000, LN kế toán 500.000 coverage 1/1, LN KPI 500.000
+coverage 1/1, giá vốn kế toán = giá vốn KPI = 7.000.000, `reasons == []`.
+
+Oracle C — `::test_the_mixed_order_bh62439_is_review_even_though_one_line_is_auto`
+(CẦN KIỂM TRA dù có 1 dòng AUTO; 4 dòng = 1 AUTO + 3 PENDING; cùng ngày `2026-01-08`;
+SL 5; doanh thu 66.000.000; đúng 1 nhân viên),
+`::test_the_mixed_order_reports_partial_coverage_on_both_profits` (LN kế toán 500.000
+coverage 1/4, LN KPI 400.000 coverage 1/4),
+`::test_the_detail_lines_follow_the_order_they_had_in_the_book` (4 dòng đúng thứ tự sổ),
+`::test_the_auto_line_of_bh62439_carries_both_purchase_prices` (SL 2 · đơn giá 10.500.000
+· chiết khấu 100.000 · doanh thu dòng 20.900.000 · hai giá vốn 10.250.000 · LN kế toán
+500.000 · LN KPI 400.000),
+`::test_the_three_pending_lines_of_bh62439_carry_no_value_at_all` (mọi giá vốn và mọi lợi
+nhuận của ba dòng = `NULL`),
+`::test_the_persisted_reason_codes_of_bh62439_are_read_back_in_order` (mỗi dòng ĐÚNG 5 mã
+theo ĐÚNG thứ tự đã persist).
+INV-1/INV-2 trên chính HTML:
+`tests/test_web_sales_detail.py::test_the_detail_totals_add_back_up_from_its_own_lines`.
+
 #### CHECK-PRA004-04 — Vũ trụ reason code ĐÓNG và bảng nhãn TOÀN PHẦN
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1205,12 +1280,33 @@ E1
 Evidence:
 Yêu cầu: test DẪN XUẤT tập mã hợp lệ TỪ CHÍNH mã nguồn — `PriceResolutionReason` (enum), `validation.models.CATEGORIES` (hằng số), và ba chuỗi `Pending.<field>` đọc từ chính vòng lặp sinh chúng trong `excel_exporter._present_lines` — KHÔNG chép tay danh sách. Sau đó khẳng định O-D1 … O-D4 của mục 20.4: `REASON_DISPLAY_LABELS` phủ TOÀN PHẦN tập đó; 7 nhãn S069 giữ nguyên TỪNG CHỮ; không nhãn nào chứa từ vựng nội bộ của mục 14.3. Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03). Tập mã hợp lệ được DẪN XUẤT từ mã nguồn trong
+`tests/test_sales_presentation.py::reason_universe` — `PriceResolutionReason` (enum),
+`app.modules.validation.models.CATEGORIES` (hằng số), và ba chuỗi `Pending.<field>` đọc
+bằng AST TỪ CHÍNH vòng lặp sinh chúng trong `excel_exporter._present_lines`
+(`::pending_fields_from_source`). Không danh sách nào chép tay.
+
+O-D1 `::test_the_reason_universe_derived_from_source_is_closed_at_21_codes` — 10 + 8 + 3
+= 21 mã. O-D2 `::test_the_label_table_covers_the_whole_closed_universe` — phủ TOÀN PHẦN
+(hiệu tập = rỗng). Thêm `::test_the_label_table_invents_no_code_of_its_own` — bảng nhãn
+KHÔNG rộng hơn vũ trụ đóng, tức không có taxonomy mới nào lén hình thành.
+O-D3 `::test_the_seven_s069_labels_are_unchanged_word_for_word`.
+O-D4 `::test_no_label_leaks_internal_vocabulary`.
+Hành vi khi thiếu nhãn: `::test_an_unlabelled_code_is_shown_verbatim_not_swallowed`.
+
 #### CHECK-PRA004-05 — Trạng thái đơn derive đúng, KHÔNG có trạng thái mới
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1218,12 +1314,36 @@ E1
 Evidence:
 Yêu cầu: (a) INV-5 dạng khẳng định trên mọi đơn của fixture golden — đơn có ≥1 dòng PENDING ⟺ CẦN KIỂM TRA; (b) test hồi quy riêng cho ca TRỘN BH62439 chứng minh một triển khai "lấy trạng thái dòng đầu tiên" sẽ ĐỎ; (c) grep chứng minh không chuỗi trạng thái nào ngoài hai nhãn tiếng Việt của AUTO / CẦN KIỂM TRA xuất hiện trong `sales_presentation` và hai template mới (không `PARTIAL`/`WARNING`/`RESOLVED`/`APPROVED`); (d) `auto_orders + review_orders = COUNT(DISTINCT order_key)` trên cùng kỳ. Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03).
+(a) INV-5 — `tests/test_sales_queries.py::test_the_golden_period_has_exactly_one_all_auto_order`
+trên toàn bộ 254 đơn của fixture golden.
+(b) `::test_an_order_whose_first_line_is_auto_is_still_review` — đơn tổng hợp có dòng ĐẦU
+TIÊN `AUTO` và dòng sau `PENDING` vẫn phải là CẦN KIỂM TRA; một triển khai "lấy trạng
+thái dòng đầu tiên" ĐỎ ở đây (nhánh mà oracle golden không canh được, vì dòng đầu của
+BH62439 tình cờ là PENDING). Phía golden:
+`::test_the_mixed_order_bh62439_is_review_even_though_one_line_is_auto`.
+(c) `tests/test_sales_presentation.py::test_the_presentation_module_names_no_third_status`
+và `::test_neither_new_template_names_a_third_status` — không `PARTIAL`/`WARNING`/
+`RESOLVED`/`APPROVED`/`REJECTED` trong `sales_presentation` (xét chuỗi in ra + định danh,
+bỏ docstring) và trong hai template mới (bỏ chú thích Jinja). Hai nhãn duy nhất:
+`AUTO` / `CẦN KIỂM TRA` (`::test_there_are_exactly_two_status_labels`).
+(d) `auto_orders + review_orders = COUNT(DISTINCT order_key)` —
+`tests/test_web_sales_detail.py::test_the_sales_layer_reconciles_with_the_overview_on_the_same_period`,
+chạy trên cả "Toàn bộ dữ liệu" và Tháng 01/2026.
+
 #### CHECK-PRA004-06 — `NULL` ≠ `0` và coverage bắt buộc ở cấp đơn LẪN dòng
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
@@ -1231,18 +1351,59 @@ E1
 Evidence:
 Yêu cầu: (a) INV-6 — với ba dòng PENDING của BH62439 (mọi giá vốn/lợi nhuận NULL), HTML render ra `—` và KHÔNG chứa `0đ`/`0%`/`0` ở các ô đó; (b) INV-7 — mọi ô lợi nhuận cấp đơn trên `/ban-hang` VÀ trên trang chi tiết đều mang chuỗi coverage dạng `N / M dòng`, khẳng định bằng cách duyệt DOM/`data-metric`, không phải bằng mắt; (c) đơn có coverage < số dòng hiện câu cảnh báo tường minh (kiểm trên BH62439 với coverage 1/4). Output test nguyên văn.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03). Khẳng định trên HTML THẬT, duyệt theo `data-metric`.
+(a) INV-6 — `tests/test_web_sales_detail.py::test_the_pending_lines_show_a_dash_and_never_a_zero`:
+với cả ba dòng PENDING của BH62439, bốn ô tiền (`accounting_purchase_price`,
+`kpi_purchase_price`, `accounting_profit`, `kpi_profit`) render `—`, và không ô nào chứa
+`0` hay `%`.
+(b) INV-7 — `::test_every_profit_cell_on_the_list_carries_its_coverage`: duyệt CẢ 254 dòng
+đơn của `/ban-hang`, mỗi ô lợi nhuận có chuỗi coverage khớp `\d+ / \d+ dòng`;
+`::test_the_detail_page_of_the_mixed_order_reads_as_the_oracle` khẳng định cùng điều trên
+trang chi tiết. Ở tầng trình bày:
+`tests/test_sales_presentation.py::test_every_order_profit_cell_carries_its_own_coverage`.
+(c) `::test_the_mixed_order_shows_partial_coverage_on_the_list` (coverage 1/4 hiện cạnh
+cả hai con số) và `::test_the_detail_page_warns_that_the_profit_is_only_part_of_the_order`
+(BH62439 hiện câu cảnh báo tường minh); phía đối xứng
+`::test_the_pure_auto_order_raises_no_partial_coverage_warning`.
+Phân biệt `0` thật với "chưa biết":
+`tests/test_sales_presentation.py::test_a_real_zero_profit_still_renders_as_zero` và
+`tests/test_sales_queries.py::test_a_real_zero_profit_stays_a_real_zero`.
+
 #### CHECK-PRA004-07 — Reconcile với Tổng quan trên cùng kỳ
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
 Yêu cầu: trên cùng dữ liệu và cùng tham số `ky`, so trực tiếp kết quả tầng truy vấn của `/ban-hang` với `analytics_queries.period_totals()`: tổng đơn, tổng dòng, tổng số lượng, doanh thu net, LN KPI + coverage, LN kế toán + coverage, số đơn AUTO, số đơn cần kiểm tra — TẤT CẢ phải bằng nhau. Kiểm trên cả "Toàn bộ dữ liệu" và một tháng cụ thể. Output test nguyên văn.
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03).
+`tests/test_web_sales_detail.py::test_the_sales_layer_reconciles_with_the_overview_on_the_same_period`
+so TRỰC TIẾP `sales_queries.order_list()` với `analytics_queries.period_totals()` trên
+cùng dữ liệu và cùng tham số kỳ, cho CẢ HAI kỳ (`{}` = Toàn bộ dữ liệu, và Tháng
+01/2026): tổng đơn, tổng dòng, tổng số lượng, doanh thu net, LN KPI + `kpi_lines`, LN kế
+toán + `accounting_lines`, số đơn AUTO, số đơn cần kiểm tra — TẤT CẢ bằng nhau.
+Reconcile ở tầng HTML: `::test_the_two_pages_agree_on_how_many_orders_the_period_has`
+(ô `orders` của `/ban-hang` và `/tong-quan` cùng kỳ).
 
 ### Bảo Toàn / Không Hồi Quy
 
@@ -1251,13 +1412,43 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
 Yêu cầu: chạy lại và dán nguyên văn output của `tests/test_analytics_queries.py`, `tests/test_analytics_presentation.py`, `tests/test_web_pipeline_analytics.py` (PRA-003 — phải PASS NGUYÊN VẸN, không sửa một dòng test nào), bộ test legacy routes (PRA-001), Golden Baseline (`58 passed, 2 skipped`), và FULL SUITE (không giảm số test PASS so với baseline canonical `8181cebe`). Đặc biệt phải chứng minh `test_the_query_module_never_selects_a_personal_data_column` vẫn PASS mà KHÔNG bị sửa.
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03).
+
+PRA-003 — `python -m pytest tests/test_analytics_queries.py tests/test_analytics_presentation.py tests/test_web_pipeline_analytics.py -q`
+→ `67 passed in 7.07s`. Ba file test này KHÔNG bị sửa một dòng nào:
+`git diff --stat 8181cebe -- tests/test_analytics_queries.py tests/test_analytics_presentation.py tests/test_web_pipeline_analytics.py`
+= rỗng. Riêng gate PII:
+`python -m pytest "tests/test_analytics_queries.py::test_the_query_module_never_selects_a_personal_data_column" -q`
+→ `1 passed in 0.18s`, trên file test NGUYÊN VẸN.
+
+Golden Baseline — `python -m pytest tests/test_golden_baseline.py -q` →
+`58 passed, 2 skipped in 6.45s` (khớp ĐÚNG baseline đã freeze).
+
+FULL SUITE — `python -m pytest -q` → `1962 passed, 11 skipped in 78.83s`.
+Baseline canonical đo lại trong chính phiên này bằng `git worktree` tại `8181cebe`:
+`1873 passed, 11 skipped in 77.08s`. Chênh lệch `+89` ĐÚNG BẰNG số test mới của PRA-004
+(`89 passed`), số skip KHÔNG đổi (11), số test PASS KHÔNG giảm.
+
+Ghi chú môi trường (KHÔNG phải finding của PRA-004): lần chạy full suite đầu tiên có
+`tests/test_105d_boundaries.py::TestG25GoldenBaselineUnchanged::test_protected_golden_artifacts_match_the_task_105e_review_base`
+FAIL với `fatal: bad object 740f396acb11cf279f303f09ea22dffd0ca95462` — hệ quả của
+shallow clone, không phải của thay đổi nào trong phiên. Sau `git fetch --unshallow`
+(`git rev-parse --is-shallow-repository` → `false`) test này PASS và toàn bộ suite xanh.
 
 ### Bảo Mật / Riêng Tư
 
@@ -1266,7 +1457,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E2
@@ -1274,18 +1465,73 @@ E2
 Evidence:
 Yêu cầu: (a) khẳng định trên HTML thật của cả `/ban-hang` và `/ban-hang/<order_key>` (dùng đơn TRỘN BH62439 và đơn AUTO BH62063) rằng KHÔNG xuất hiện: `imei`, `note_raw`, `employee_raw`, `customer`, `phone`, `address`, và các giá trị PII mẫu; (b) hàng rào CẤU TRÚC riêng của PRA-004 trên `app/web/sales_queries` (file DỰ KIẾN) — module KHÔNG tham chiếu `.c.imei`, `.c.note_raw`, `.c.employee_raw`, `.c.customer`, `.c.phone`, `.c.address` (`product_raw` CỐ Ý không nằm trong hàng rào này, lý do ở mục 14.4); (c) khẳng định cấu trúc rằng `customer`/`phone`/`address`/`shipper_raw` KHÔNG tồn tại như cột trong `tools/db/schema.py`. E2 vì đây là ranh giới bảo mật/dữ liệu cá nhân.
 
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03) — E2 (ranh giới bảo mật/dữ liệu cá nhân), ba lớp bằng chứng ĐỘC LẬP.
+
+(a) HTML THẬT — `tests/test_web_sales_detail.py::test_no_new_page_ever_renders_a_personal_data_field`
+chạy trên CẢ BA trang (`/ban-hang?ky=tat-ca`, `/ban-hang/BH62439?ky=tat-ca` = đơn TRỘN,
+`/ban-hang/BH62063?ky=tat-ca` = đơn AUTO) và khẳng định KHÔNG xuất hiện `imei`,
+`note_raw`, `employee_raw`, `source_profit`, `customer`, `phone`, `address`, `shipper`.
+
+(b) Hàng rào CẤU TRÚC riêng của PRA-004 —
+`tests/test_sales_queries.py::test_the_sales_query_module_never_selects_a_personal_data_column`:
+`app/web/sales_queries.py` không tham chiếu `.c.imei`, `.c.note_raw`, `.c.employee_raw`,
+`.c.customer`, `.c.phone`, `.c.address`. Phía đối xứng
+`::test_the_sales_query_module_does_read_product_raw` canh CHIỀU NGƯỢC LẠI: nếu ai đó
+"dọn dẹp" cho khớp hàng rào PRA-003 thì trang chi tiết mất khả năng phân biệt các dòng
+và test đỏ TRƯỚC. `product_raw` = REQUIRED_NOW, lý do ở mục 14.4.
+Ở tầng trình bày:
+`tests/test_sales_presentation.py::test_the_presentation_object_of_a_line_carries_no_prohibited_field`
+— object đi TỚI Jinja không chứa trường cấm nào, tức ranh giới không chỉ nằm ở template.
+
+(c) Bảo đảm cấu trúc mạnh hơn quy ước —
+`tests/test_web_sales_detail.py::test_the_customer_columns_do_not_even_exist_in_the_schema`:
+`customer`/`phone`/`address`/`shipper` KHÔNG tồn tại như cột trong `tools/db/schema.py`,
+nên chúng không thể rò rỉ qua bất kỳ truy vấn nào.
+
+Gate PII của PRA-003 tiếp tục PASS NGUYÊN VẸN, không bị sửa — xem CHECK-PRA004-08.
+
 #### CHECK-PRA004-10 — Hai trang mới KHÔNG rò rỉ từ vựng nội bộ
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
 Yêu cầu: khẳng định trên HTML thật của cả hai trang rằng KHÔNG xuất hiện bất kỳ chuỗi nào trong danh sách mục 14.3 (`snapshot_id`, `run_id`, `coverage_state`, `source_version`, `result_version`, `reconciliation_flag`, `PIPELINE_GENERATED`, `LEGACY_REFERENCE`, `price_source`, `kpi_purchase_provenance`, `composition_rule`, `identity_namespace`, `result_fingerprint`, `row_hash`, `line_fingerprint`, `product_key`, `occurrence_index`) và không chứa đường dẫn tuyệt đối của repo. Thêm: `/ban-hang/<order_key>` với mã đơn không tồn tại trả HTTP 404 (không phải trang rỗng); khi không có kho dữ liệu trả HTTP 503 (không phải "chưa có dữ liệu"). Output test nguyên văn.
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03).
+`tests/test_web_sales_detail.py::test_no_new_page_leaks_internal_vocabulary` khẳng định
+trên HTML thật của cả hai trang rằng KHÔNG xuất hiện bất kỳ chuỗi nào trong danh sách mục
+14.3 (`snapshot_id`, `run_id`, `coverage_state`, `source_version`, `result_version`,
+`reconciliation_flag`, `PIPELINE_GENERATED`, `LEGACY_REFERENCE`, `price_source`,
+`kpi_purchase_provenance`, `composition_rule`, `identity_namespace`,
+`result_fingerprint`, `row_hash`, `line_fingerprint`, `product_key`,
+`occurrence_index`), và không chứa đường dẫn tuyệt đối của repo. Nhãn cột cũng sạch:
+`tests/test_sales_presentation.py::test_the_line_columns_expose_no_internal_field`.
+
+Biên route: `::test_an_unknown_order_key_is_a_404_not_an_empty_page` (HTTP 404, KHÔNG
+phải trang rỗng), `::test_without_a_data_store_the_pages_answer_503_not_no_data_yet`
+(HTTP 503 cho CẢ HAI route khi `snapshot_repo is None`),
+`::test_an_invalid_period_falls_back_to_all_data_instead_of_failing` (`ky` sai ⟹ rơi về
+"Toàn bộ dữ liệu", không HTTP 500), `::test_an_empty_period_says_so_instead_of_showing_a_blank_table`.
 
 ### Phạm Vi / Ngân Sách
 
@@ -1294,13 +1540,51 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
 Yêu cầu: `git diff --stat` so với `BASE_SHA = 8181cebe` chứng minh KHÔNG file nào trong danh sách CẤM của mục 18 bị chạm; đếm dòng Python production / template / CSS theo quy ước mục 23 và đối chiếu với DỪNG CỨNG; khẳng định `SCHEMA_CHANGE = 0`, `MIGRATION = 0`, `INDEX = 0`, `DEPENDENCY = 0`, `CONFIG = 0`, `TRACKING_CHANGED = NO`, `INFRASTRUCTURE_CHANGED = NO`, `PROTECTED_CORE_IMPACT = NONE`. Kèm `git diff --check` sạch trên DẢI COMMIT (không chỉ working tree — xem FIND-PRA003-02).
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
+PASS (S101, 2026-09-03).
+
+Scope Lock — `git diff --name-only 8181cebe` + `git status --porcelain` cho ĐÚNG 12 file,
+tất cả nằm trong danh sách ĐƯỢC PHÉP của mục 18:
+`app/web/sales_queries.py`, `app/web/sales_presentation.py` (mới),
+`app/web/templates/ban_hang.html`, `app/web/templates/ban_hang_chi_tiet.html` (mới),
+`tests/test_sales_queries.py`, `tests/test_sales_presentation.py`,
+`tests/test_web_sales_detail.py` (mới), `app/web/server.py` (chỉ 2 route + globals Jinja),
+`app/beta_presentation.py` (chỉ THÊM key), `app/web/templates/layout.html` (1 dòng tab),
+`app/web/templates/_pipeline_bits.html` (chỉ THÊM macro `reason_row`),
+`app/web/static/css/tinphat-ui.css` (chỉ THÊM). Lọc danh sách CẤM của mục 18 trên
+`git diff --name-only 8181cebe` → 0 kết quả.
+
+Change Budget đo theo quy ước mục 23 (dòng MÃ, bỏ dòng trống và docstring/comment thuần):
+```
+app/web/sales_queries.py        +141
+app/web/sales_presentation.py    +93
+app/web/server.py                +34
+app/beta_presentation.py         +14
+------------------------------------
+PYTHON PRODUCTION               +282   (MỤC TIÊU 266 · CẢNH BÁO MỀM 330 · DỪNG CỨNG 400)
+TEMPLATE                        +126   (trần 220)
+CSS                              +10   (trần 25)
+TEST                          89 test  (sàn 30 · 0 skip mới)
+```
+`SCHEMA_CHANGE = 0` · `MIGRATION = 0` · `INDEX = 0` · `DEPENDENCY = 0` · `CONFIG = 0` ·
+`TRACKING_CHANGED = NO` · `INFRASTRUCTURE_CHANGED = NO` · `PROTECTED_CORE_IMPACT = NONE`.
+
+`git diff --check` sạch trên DẢI COMMIT (không chỉ working tree — bài học FIND-PRA003-02):
+`git diff --check 8181cebe..HEAD` → không output.
 
 #### CHECK-PRA004-12 — Independent Review E2
 Priority:
@@ -1313,6 +1597,15 @@ Evidence Level:
 E2
 
 Evidence:
+Yêu cầu: đo thời gian dựng danh sách đơn cho kỳ "Toàn bộ dữ liệu" trên tập ≥12.000 dòng hiện hành và ghi số đo thật. Đây là ứng viên hardening DUY NHẤT được phép. RE-TRIGGER CONDITION tường minh: nếu số đo > 3 giây, pagination trở thành REQUIRED và phải mở như một quyết định riêng — KHÔNG tự thêm pagination trong phiên implement chỉ vì "để chắc".
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
 Yêu cầu: reviewer ĐỘC LẬP theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Phải: (a) verify `BASE_SHA`, `REVIEW_TARGET_SHA`, `FROZEN_CONTRACT_SHA` khớp kỳ vọng; (b) khẳng định frozen contract KHÔNG bị nới lỏng — không một dòng `Yêu cầu:`, không một oracle O-A…O-D, không một bất biến INV-1…INV-7 nào bị sửa chữ; (c) RECOMPUTE ĐỘC LẬP bằng SQL thô (không qua `sales_queries`) cho danh sách đơn và cho chi tiết BH62439, RỒI mới đem so; (d) chạy lại toàn bộ suite + validators; (e) đo lại change budget. Artifact: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN).
 
 ### Nghiệm Thu Thật
@@ -1322,13 +1615,25 @@ Priority:
 RECOMMENDED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
-Yêu cầu: đo thời gian dựng danh sách đơn cho kỳ "Toàn bộ dữ liệu" trên tập ≥12.000 dòng hiện hành và ghi số đo thật. Đây là ứng viên hardening DUY NHẤT được phép. RE-TRIGGER CONDITION tường minh: nếu số đo > 3 giây, pagination trở thành REQUIRED và phải mở như một quyết định riêng — KHÔNG tự thêm pagination trong phiên implement chỉ vì "để chắc".
+PASS (S101, 2026-09-03) — CHỈ ĐO, không tối ưu suy đoán.
+`tests/test_web_sales_detail.py::test_the_order_list_stays_usable_on_a_large_period` dựng
+12.000 dòng hiện hành (4.000 đơn × 3 dòng) rồi đo `sales_queries.order_list()` cho kỳ
+"Toàn bộ dữ liệu":
+
+```
+CHECK-PRA004-13 · 4000 đơn / 12.000 dòng · order_list = 85.2 ms
+```
+
+Dưới ngưỡng RE-TRIGGER 3 giây gần hai bậc độ lớn ⟹ pagination KHÔNG trở thành REQUIRED,
+và phiên này KHÔNG tự thêm pagination, KHÔNG thêm chỉ mục nào (`INDEX = 0`).
+RE-TRIGGER CONDITION giữ nguyên: số đo > 3 giây ⟹ pagination thành REQUIRED và phải mở
+như một quyết định RIÊNG.
 
 #### CHECK-PRA004-14 — Owner Production Acceptance Tháng 09/2026
 Priority:
@@ -1404,7 +1709,26 @@ thay đổi**.
 
 | File | Loại | Delta | Phiên |
 |---|---|---|---|
-| *(chưa có)* | | | |
+| `app/web/sales_queries.py` | Python production (MỚI) | +141 | S101 |
+| `app/web/sales_presentation.py` | Python production (MỚI) | +93 | S101 |
+| `app/web/server.py` | Python production (chỉ 2 route + globals Jinja) | +34 | S101 |
+| `app/beta_presentation.py` | Python production (chỉ THÊM 14 key nhãn) | +14 | S101 |
+| `app/web/templates/ban_hang.html` | Template (MỚI) | +46 | S101 |
+| `app/web/templates/ban_hang_chi_tiet.html` | Template (MỚI) | +69 | S101 |
+| `app/web/templates/_pipeline_bits.html` | Template (chỉ THÊM macro `reason_row`) | +10 | S101 |
+| `app/web/templates/layout.html` | Template (1 dòng tab "Bán hàng") | +1 | S101 |
+| `app/web/static/css/tinphat-ui.css` | CSS (chỉ THÊM) | +10 | S101 |
+| `tests/test_sales_queries.py` | Test (MỚI) | 31 test | S101 |
+| `tests/test_sales_presentation.py` | Test (MỚI) | 24 test | S101 |
+| `tests/test_web_sales_detail.py` | Test (MỚI) | 34 test | S101 |
+| `docs/tasks/TASK-PRA-004-ban-hang-review-detail.md` | Evidence (check matrix + registry) | — | S101 |
+| `docs/sessions/S101-pra-004-major-implementation.md` | Session record (MỚI) | — | S101 |
+| `PROJECT/PROJECT_PROGRESS.md` | Trạng thái dự án | — | S101 |
+| `PROJECT/LO_TRINH_DE_HIEU.md` | Lộ trình | — | S101 |
+| `PROJECT/REVIEW_BUDGET_LEDGER.md` | Ngân sách review (cycle KHÔNG tiêu) | — | S101 |
+
+Tổng: **Python production +282** (MỤC TIÊU 266 · CẢNH BÁO MỀM 330 · DỪNG CỨNG 400) ·
+**Template +126** (trần 220) · **CSS +10** (trần 25) · **89 test mới** (sàn 30, 0 skip mới).
 
 ---
 

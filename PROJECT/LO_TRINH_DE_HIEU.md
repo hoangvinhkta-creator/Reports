@@ -9,11 +9,17 @@
 > một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
 > về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
+> Cập nhật thêm 2026-09-03 (S101): **việc 4 đã VIẾT XONG và chạy được thật.**
+> Trang "Bán hàng" và trang chi tiết từng đơn đã hoạt động: mở một đơn ra là
+> thấy đủ các dòng hàng, dòng nào chắc chắn, dòng nào cần kiểm tra, và vì sao
+> — bằng tiếng Việt. Nhưng **việc 4 CHƯA XONG HẲN**: còn hai bước nữa là (1)
+> một người soát lại độc lập, và (2) chủ dự án tự mở trang thật để nghiệm thu.
+> Xem mục "VIỆC 4 ĐÃ VIẾT XONG, CHỜ SOÁT LẠI" ngay đầu phần TRẠNG THÁI HIỆN TẠI.
+>
 > Cập nhật thêm 2026-09-03 (S100): **việc 4 (bán hàng chi tiết + xem lại
 > từng đơn) đã có kế hoạch đầy đủ và sẵn sàng bắt tay làm.** Phiên này chưa
 > viết một dòng code nào — chỉ đi tìm hiểu và chốt xong "sẽ làm đúng những
-> gì". Xem mục "VIỆC 4 ĐÃ CHỐT XONG, SẴN SÀNG LÀM" ngay đầu phần TRẠNG THÁI
-> HIỆN TẠI.
+> gì". Xem mục "VIỆC 4 ĐÃ CHỐT XONG, SẴN SÀNG LÀM" bên dưới.
 >
 > Cập nhật thêm 2026-09-03 (S099): **việc 3 (PRA-003 — Tổng quan + Nhân
 > viên) đã XONG HẲN.** Chủ dự án đã tự tay mở trang thật và xác nhận đúng
@@ -81,6 +87,76 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 4 ĐÃ VIẾT XONG, CHỜ SOÁT LẠI (2026-09-03, S101) — PRA-004 = ĐANG LÀM
+
+Phiên này đã **viết xong phần code** của việc 4, đúng theo kế hoạch đã chốt ở
+phiên trước. Không thêm bớt gì ngoài kế hoạch đó.
+
+### Bây giờ chủ dự án làm được gì
+
+Có thêm một tab **"Bán hàng"** nằm giữa "Tổng quan" và "Nhân viên". Con đường
+đi từ con số tổng xuống tận dòng hàng đã thông:
+
+```
+Tổng quan  →  bấm tab Bán hàng  →  danh sách đơn của kỳ
+           →  bấm vào một mã đơn  →  các dòng hàng của đơn đó
+           →  dòng nào AUTO / dòng nào CẦN KIỂM TRA  →  vì sao (tiếng Việt)
+```
+
+Danh sách đơn cho mỗi đơn: mã đơn, ngày bán, nhân viên, số dòng, tổng số
+lượng, doanh thu, hai loại lợi nhuận, và trạng thái. Trang chi tiết cho từng
+dòng: tên hàng, số lượng, đơn giá, chiết khấu, doanh thu dòng, hai loại giá
+vốn, hai loại lợi nhuận, trạng thái, và lý do nếu dòng đó cần kiểm tra.
+
+### Điều quan trọng nhất đã làm đúng
+
+**Một con số lợi nhuận không bao giờ đứng một mình.** Ví dụ thật đã chạy: đơn
+`BH62439` bán được **66.000.000**, lợi nhuận kế toán hiện **500.000** — nhưng
+con số 500.000 đó chỉ tính được cho **1 trong 4 dòng** của đơn. Nếu trang chỉ
+hiện "lợi nhuận 500.000" trần trụi, chủ dự án sẽ tin đó là lãi của cả đơn 66
+triệu. Nên mỗi ô lợi nhuận luôn kèm dòng chữ nhỏ **"1 / 4 dòng"**, và trang
+còn nói thẳng một câu: con số này chỉ gộp các dòng đã có giá trị, không phải
+lợi nhuận của toàn đơn.
+
+Đi kèm là hai kỷ luật cũ được giữ nguyên:
+
+- **Chưa biết thì để trống, không ghi số 0.** Ba dòng chưa có giá nhập của
+  `BH62439` hiện dấu `—`, không hiện `0đ`. "Chưa biết" và "lãi bằng không" là
+  hai chuyện khác nhau.
+- **Đơn có một dòng cần kiểm tra thì cả đơn cần kiểm tra.** `BH62439` có 1
+  dòng đã chắc chắn và 3 dòng chưa, và nó vẫn hiện **CẦN KIỂM TRA**.
+
+### Trang này chỉ ĐỌC, không sửa gì
+
+Không có nút duyệt, không có nút từ chối, không ghi chú, không giao việc.
+Toàn bộ phần code mới không có một câu lệnh ghi nào vào cơ sở dữ liệu — điều
+này được kiểm bằng máy, không phải bằng lời hứa. Việc 4 là **đi xem cho hiểu**,
+không phải một hệ thống duyệt đơn.
+
+### Đã kiểm những gì
+
+- 89 bài kiểm tra mới cho riêng việc 4 — đạt hết.
+- Toàn bộ bài kiểm tra cũ của việc 3 vẫn đạt nguyên vẹn, **không sửa một dòng
+  test cũ nào**.
+- Chạy lại toàn bộ: trước khi làm 1.873 bài đạt, sau khi làm 1.962 bài đạt —
+  tăng đúng 89 bài mới, không bài nào cũ bị hỏng.
+- Thử với 12.000 dòng hàng: danh sách đơn dựng xong trong **0,085 giây**, nên
+  chưa cần chia trang.
+- Kiểm tra không có thông tin khách hàng (tên, số điện thoại, địa chỉ, IMEI,
+  ghi chú thô) lọt lên hai trang mới.
+
+### Còn thiếu gì trước khi gọi là XONG
+
+1. **Một người soát lại độc lập** — tự tính lại các con số bằng cách khác rồi
+   đem so, chứ không tin bản đã viết.
+2. **Chủ dự án tự mở trang thật** và xác nhận: chọn Tháng 09/2026 thấy đúng
+   40 đơn, 15 đơn AUTO, 25 đơn cần kiểm tra — khớp với trang Tổng quan.
+
+Trước khi hai bước đó xong, **việc 4 chưa được gọi là xong**, và bản này chưa
+được gộp vào bản chính, chưa đưa lên mạng.
+
+---
 
 ## VIỆC 4 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S100) — PRA-004 = READY
 

@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% import "_pipeline_bits.html" as pipeline %}
+{% set active_tab = 'ban-hang' %}
+{% block title %}Reports — Bán hàng (số mới){% endblock %}
+
+{% block content %}
+<h1>BÁN HÀNG — SỐ MỚI</h1>
+
+{{ pipeline.source_note() }}
+
+<div class="module">
+  {{ pipeline.period_picker(periods, selected_period, url_for('sales')) }}
+
+  <h2>{{ period_label }} {{ pipeline.pipeline_badge() }}
+      <span class="cnt"><span data-metric="orders">{{ orders | length }}</span> đơn</span></h2>
+
+  {% if orders %}
+  {# Mỗi ô lợi nhuận đi qua profit_cells, nên nó KHÔNG BAO GIỜ render mà thiếu
+     coverage của chính nó: con số và mẫu số nằm trong cùng một thẻ. #}
+  <table class="sales-orders">
+    <tr>{% for column in columns %}
+      <th class="{{ 'num' if loop.index > 3 }}">{{ column }}</th>{% endfor %}
+    </tr>
+    {% for order in orders %}
+    <tr data-order="{{ order.order_key }}">
+      <td><a href="{{ url_for('sales_order', order_key=order.order_key,
+                              ky=selected_period) }}"
+             data-metric="order-key">{{ order.order_key }}</a></td>
+      <td data-metric="sale-date">{{ order.sale_date }}</td>
+      <td data-metric="employees">{{ order.employees }}</td>
+      <td class="num" data-metric="lines">{{ order.lines }}</td>
+      <td class="num" data-metric="quantity">{{ order.quantity }}</td>
+      <td class="num" data-metric="total_sales">{{ order.total_sales }}</td>
+      {{ pipeline.profit_cells(order) }}
+      <td class="num">
+        <span class="tag {{ 'tag-review' if order.review else 'tag-auto' }}"
+              data-metric="status">{{ order.status }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <p class="insight">{{ QUANTITY_NOTE }}</p>
+  <p class="insight">
+    Lợi nhuận KPI chỉ cộng các dòng đã đủ chắc chắn (AUTO); lợi nhuận kế toán
+    chỉ cộng các dòng đã có giá nhập. Coverage đi kèm cho biết con số đó tổng
+    hợp được BAO NHIÊU trên tổng số dòng của đơn — ô trống nghĩa là chưa có
+    giá trị nào, không phải bằng không.
+  </p>
+  {% else %}
+  <p class="insight" data-metric="no-orders">{{ NO_ORDERS_NOTE }}</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -15,6 +15,26 @@ REASON_DISPLAY_LABELS = {
     "Pending.accounting_profit": "Thiếu lợi nhuận kế toán",
     "Pending.eligible_kpi_profit": "Thiếu lợi nhuận KPI",
     "Suspicious": "Bất thường",
+    # TASK-PRA-004 — phần còn lại của vũ trụ mã ĐÓNG (10 giá trị
+    # `PriceResolutionReason` ∪ 8 `validation.models.CATEGORIES` ∪ 3 chuỗi
+    # `Pending.<field>`). KHÔNG phải taxonomy mới: tập mã đã đóng sẵn ở tầng
+    # engine, đây chỉ là đặt tên tiếng Việt cho phần chưa có tên, để trang
+    # Bán hàng không phải hiện một mã tiếng Anh cho người đọc nghiệp vụ.
+    # Bảy nhãn phía trên GIỮ NGUYÊN TỪNG CHỮ — chúng đang chạy thật ở nơi khác.
+    "SALE_DATE_MISSING": "Dòng chưa có ngày bán",
+    "RAW_PRODUCT_IDENTITY_EMPTY": "Dòng chưa ghi tên sản phẩm",
+    "IDENTITY_SOURCES_UNAVAILABLE": "Chưa có dữ liệu để nhận diện sản phẩm",
+    "IDENTITY_REQUIRES_CONFIRMATION": "Sản phẩm cần người xác nhận trước khi lấy giá",
+    "TRACKING_HISTORY_SOURCE_UNAVAILABLE": "Chưa có nguồn giá lịch sử Tracking",
+    "VENDOR_SOURCE_NOT_AUTHORIZED": "Nguồn giá nhà cung cấp chưa được cho phép dùng",
+    "PUBLIC_PURCHASE_SOURCE_UNAVAILABLE": "Chưa có bảng giá PP",
+    "PUBLIC_PURCHASE_NO_PRICE_AT_SALE_DATE": "Thiếu giá PP tại ngày bán",
+    "Missing": "Thiếu dữ liệu bắt buộc trên dòng",
+    "Suspicious.ERP": "ERP báo lợi nhuận âm",
+    "OrderInconsistency": "Đơn có thông tin không thống nhất giữa các dòng",
+    "SourceClassification": "Nguồn khách ghi tay khác kết quả tự động",
+    "Duplicate": "Có dòng trùng nội dung trong sổ",
+    "EmployeeMapping": "Chưa khớp được nhân viên với danh sách",
 }
 
 

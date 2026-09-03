@@ -61,3 +61,18 @@
 </td>
 {% endfor %}
 {%- endmacro %}
+
+{# TASK-PRA-004 — lý do cần kiểm tra của MỘT dòng hàng, đặt thành dòng phụ ngay
+   dưới chính dòng đó chứ không phải một cột: một dòng có tới 6 lý do, nhét vào
+   một ô bảng là không đọc được. Hiện TẤT CẢ lý do, đúng thứ tự đã lưu — không
+   gộp, không chọn "lý do chính", không cắt bớt. #}
+{% macro reason_row(reasons, label, span) -%}
+<tr class="reason-row">
+  <td colspan="{{ span }}" data-metric="reasons">
+    <span class="tp-label">{{ label }}</span>
+    <ul class="reason-list">
+      {% for reason in reasons %}<li>{{ reason }}</li>{% endfor %}
+    </ul>
+  </td>
+</tr>
+{%- endmacro %}

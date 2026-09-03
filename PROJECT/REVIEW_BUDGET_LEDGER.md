@@ -763,6 +763,30 @@ Non-blocking đã ghi          : FIND-PRA004-01 (TRUTHFULNESS_CONSTRAINT, đã �
 repair_cycles_used           : 0 / 1  — phiên discovery KHÔNG tiêu cycle
 ```
 
+### Trạng thái tại S101 (MAJOR Implementation)
+
+```
+MAJOR Implementation         : XONG — IMPLEMENTATION_RESULT = PASS
+TASK-PRA-004                 : IN_PROGRESS (KHÔNG phải DONE)
+CHECK PASS                   : 12/14 — CHECK-PRA004-12 (Independent Review E2) và
+                               CHECK-PRA004-14 (Owner Production Acceptance) = NOT_TESTED
+BLOCKING_FINDINGS            : 0
+Non-blocking THÊM            : FIND-PRA004-04 (DOC_INCONSISTENCY — header Completion
+                               Gate đếm "13 check · 11 REQUIRED · 2 RECOMMENDED" trong
+                               khi thực tế là 14 check · 13 REQUIRED · 1 RECOMMENDED;
+                               KHÔNG tự sửa vì thuộc phần FROZEN, cần
+                               COMPLETION GATE CHANGE PROPOSAL)
+repair_cycles_used           : 0 / 1
+repair_cycles_remaining      : 1
+```
+
+Phiên implement **KHÔNG tiêu** repair cycle. Theo chỉ thị §29, việc một phiên
+triển khai tự sửa khiếm khuyết trong CHÍNH mã nó vừa viết là công việc bình
+thường của phiên đó, KHÔNG phải một repair cycle của Independent Review —
+ngân sách 1 cycle được giữ NGUYÊN VẸN cho vòng review E2 sắp tới. Phiên này
+cũng không nới hợp đồng, không refactor module ngoài phạm vi, và không sửa
+finding lịch sử/DEFER nào.
+
 ---
 
 ## Root Task: TASK-GOLDEN-BASELINE-001

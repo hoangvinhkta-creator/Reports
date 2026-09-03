@@ -53,7 +53,8 @@ from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.web import (
     analytics_presentation, analytics_queries, history_store, history_writer,
-    legacy_presentation, run_registry, storage_backend,
+    legacy_presentation, run_registry, sales_presentation, sales_queries,
+    storage_backend,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -258,6 +259,9 @@ def create_app(
     app.jinja_env.globals["QUANTITY_NOTE"] = analytics_presentation.QUANTITY_NOTE
     app.jinja_env.globals["ORDER_COLUMN_NOTE"] = analytics_presentation.ORDER_COLUMN_NOTE
     app.jinja_env.globals["BOTH_SOURCES_NOTE"] = analytics_presentation.BOTH_SOURCES_NOTE
+    for _name in ("MULTI_DATE_NOTE", "MULTI_EMPLOYEE_NOTE", "NO_ORDERS_NOTE",
+                  "REASON_LABEL"):
+        app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
 
     def _require_history() -> history_store.LegacyRepository:
         if history_repo is None:
@@ -509,6 +513,51 @@ def create_app(
                 view["totals"], view["previous"], period=view["period"],
                 undated=_guarded(analytics_queries.undated_lines, snapshot_repo.engine),
             ),
+        )
+
+    @app.get("/ban-hang")
+    def sales():
+        """Danh sách đơn của kỳ — bậc đầu tiên của đường truy vết.
+
+        Cùng bộ chọn kỳ, cùng ngữ nghĩa kỳ với Tổng quan: Owner chọn "Tháng
+        09/2026" ở cả hai trang và phải thấy CÙNG một tập đơn. Không có kho dữ
+        liệu ⟹ 503 giống hệt ``/tong-quan`` — lỗi database không bao giờ được
+        hiện thành "chưa có dữ liệu".
+        """
+        if snapshot_repo is None:
+            abort(503)
+        view = _pipeline_view(snapshot_repo.engine)
+        return render_template(
+            "ban_hang.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=analytics_presentation.period_label(view["period"]),
+            columns=sales_presentation.ORDER_COLUMNS,
+            orders=sales_presentation.order_rows(
+                _guarded(sales_queries.order_list, snapshot_repo.engine,
+                         date_from=view["bounds"][0], date_to=view["bounds"][1])),
+        )
+
+    @app.get("/ban-hang/<order_key>")
+    def sales_order(order_key: str):
+        """Chi tiết MỘT đơn: khối tổng hợp, các dòng hiện hành, lý do kiểm tra.
+
+        Mã đơn không có dòng hiện hành nào trong kỳ ⟹ 404. KHÔNG dựng một
+        trang rỗng trông như "đơn này không có dòng nào": hai tình huống đó
+        khác nhau, và chỉ một trong hai là sự thật.
+        """
+        if snapshot_repo is None:
+            abort(503)
+        view = _pipeline_view(snapshot_repo.engine)
+        detail = _guarded(sales_queries.order_detail, snapshot_repo.engine, order_key,
+                          date_from=view["bounds"][0], date_to=view["bounds"][1])
+        if detail is None:
+            abort(404)
+        return render_template(
+            "ban_hang_chi_tiet.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=analytics_presentation.period_label(view["period"]),
+            line_columns=sales_presentation.LINE_COLUMNS,
+            order=sales_presentation.order_detail(detail),
         )
 
     @app.get("/nhan-vien")

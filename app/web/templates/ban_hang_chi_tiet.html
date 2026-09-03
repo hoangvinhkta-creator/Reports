@@ -1,0 +1,83 @@
+{% extends "layout.html" %}
+{% import "_pipeline_bits.html" as pipeline %}
+{% set active_tab = 'ban-hang' %}
+{% block title %}Reports — Đơn {{ order.order_key }}{% endblock %}
+
+{% block content %}
+<h1>ĐƠN <span data-metric="order-key">{{ order.order_key }}</span></h1>
+
+{{ pipeline.source_note() }}
+
+<p class="insight">
+  <a href="{{ url_for('sales', ky=selected_period) }}">← Danh sách đơn</a>
+  · {{ period_label }}
+</p>
+
+{# 1. KHỐI TỔNG HỢP — đúng các ô của danh sách đơn, cho MỘT đơn. #}
+<div class="module">
+  <h2>Tổng hợp đơn {{ pipeline.pipeline_badge() }}
+      <span class="tag {{ 'tag-review' if order.review else 'tag-auto' }}"
+            data-metric="status">{{ order.status }}</span></h2>
+
+  <div class="kpi-grid">
+    {{ pipeline.kpi('Ngày bán', order.sale_date, 'sale-date') }}
+    {{ pipeline.kpi('Nhân viên', order.employees, 'employees') }}
+    {{ pipeline.kpi('Dòng hàng', order.lines, 'lines') }}
+    {{ pipeline.kpi('Tổng số lượng', order.quantity, 'quantity') }}
+    {{ pipeline.kpi('Doanh thu (net)', order.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.profit_kpi('Lợi nhuận KPI', order.kpi_profit, 'kpi_profit') }}
+    {{ pipeline.profit_kpi('Lợi nhuận kế toán', order.accounting_profit,
+                           'accounting_profit') }}
+  </div>
+
+  {% if order.multi_employee %}
+  <p class="error" data-metric="multi-employee">{{ MULTI_EMPLOYEE_NOTE }}</p>
+  {% endif %}
+  {% if order.multi_date %}
+  <p class="insight" data-metric="multi-date">{{ MULTI_DATE_NOTE }}</p>
+  {% endif %}
+  {# Cảnh báo coverage một phần KHÔNG phụ thuộc vào việc người đọc có nhìn
+     xuống mẫu số hay không: một đơn 66 triệu hiện "lợi nhuận 500.000" trần
+     trụi là đúng failure path nghiêm trọng nhất của slice này. #}
+  {% if order.partial_coverage %}
+  <p class="error" data-metric="partial-coverage">{{ order.coverage_note }}</p>
+  {% endif %}
+</div>
+
+{# 2. BẢNG DÒNG HÀNG — 3. LÝ DO đi ngay dưới đúng dòng cần kiểm tra. #}
+<div class="module">
+  <h2>Các dòng của đơn
+      <span class="cnt">{{ order.lines }} dòng</span></h2>
+
+  <table class="sales-lines">
+    <tr>{% for column in line_columns %}
+      <th class="{{ 'num' if loop.index > 1 and loop.index < line_columns | length }}">
+        {{ column }}</th>{% endfor %}
+    </tr>
+    {% for line in order.lines_detail %}
+    <tr data-line="{{ loop.index }}">
+      <td data-metric="product">{{ line.product }}</td>
+      {% for metric in ['quantity', 'sell_price', 'discount', 'total_sales',
+                        'accounting_purchase_price', 'kpi_purchase_price',
+                        'accounting_profit', 'kpi_profit'] %}
+      <td class="num{{ ' empty-cell' if line[metric] == '—' }}"
+          data-metric="{{ metric }}">{{ line[metric] }}</td>
+      {% endfor %}
+      <td class="num">
+        <span class="tag {{ 'tag-review' if line.review else 'tag-auto' }}"
+              data-metric="status">{{ line.status }}</span>
+      </td>
+    </tr>
+    {% if line.reasons %}
+    {{ pipeline.reason_row(line.reasons, REASON_LABEL, line_columns | length) }}
+    {% endif %}
+    {% endfor %}
+  </table>
+
+  <p class="insight">
+    Doanh thu dòng, hai giá vốn và hai lợi nhuận là các số ĐÃ LƯU của lần chạy
+    hiện hành, đặt cạnh nhau để đối chiếu. Ô trống nghĩa là chưa có giá trị
+    nào cho dòng đó, không phải bằng không.
+  </p>
+</div>
+{% endblock %}
