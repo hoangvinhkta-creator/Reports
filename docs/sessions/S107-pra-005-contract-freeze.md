@@ -221,13 +221,22 @@ Chạy cuối phiên (E1). Output nguyên văn ghi tại khối tương ứng tr
 CONTRACT FREEZE".
 
 ```text
-validate_structure           : (xem PROJECT_PROGRESS.md)
-validate_project_state       : (xem PROJECT_PROGRESS.md)
-validate_evidence            : (xem PROJECT_PROGRESS.md)
-validate_task_completion      : (xem PROJECT_PROGRESS.md)
-validate_reference_integrity  : kỳ vọng ĐÚNG 3 issue REM-T06 đã biết, không mới
-git diff --check              : (xem PROJECT_PROGRESS.md)
-branch_authority_check.sh     : (xem PROJECT_PROGRESS.md)
+validate_structure            : PASS (21 required path)
+validate_project_state        : PASS
+validate_evidence             : PASS (141 REQUIRED PASS evidence record)
+validate_task_completion      : PASS (12 DONE task)
+validate_reference_integrity  : FAIL — ĐÚNG 3 issue REM-T06 đã biết
+                                (/README.md, CODE_OF_CONDUCT.md,
+                                CONTRIBUTING.md), không phát sinh issue mới.
+                                Một entry KNOWN_EXEMPT_PAIRS được thêm vào
+                                validate_reference_integrity.py cho
+                                forward-reference tới bản ghi Independent
+                                Review chưa tồn tại (đúng tiền lệ DEC-152/
+                                TASK-105C).
+git diff --check               : sạch
+branch_authority_check.sh      : AUTHORITY_OK sau khi push
+                                (AUTHORITY = BRANCH_WITH_UPSTREAM, ahead
+                                default 1 commit, DIVERGENCE = WITHIN_LIMITS)
 ```
 
 ## (18) BLOCKING_FINDINGS / NON_BLOCKING / DEFERRED

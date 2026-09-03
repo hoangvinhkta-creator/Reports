@@ -243,13 +243,13 @@ validate_reference_integrity : FAIL — ĐÚNG 3 issue đã biết của TASK-RE
                                governance-script tối thiểu, KHÔNG phải
                                production feature code.
 git diff --check              : sạch
-branch_authority_check.sh     : cần `git push -u origin
-                               claude/pra-005-contract-freeze-99nuai` trước
-                               khi AUTHORITY_OK — nhánh mới chưa có upstream
-                               tại thời điểm chạy lệnh, đây là trạng thái
-                               ĐÚNG của một nhánh mới (không phải
-                               CANONICAL_MOVED), theo đúng cách S105 đã ghi
-                               nhận hiện tượng tương tự.
+branch_authority_check.sh     : AUTHORITY_OK (sau khi push
+                               `git push -u origin
+                               claude/pra-005-contract-freeze-99nuai`) —
+                               AUTHORITY = BRANCH_WITH_UPSTREAM, ahead
+                               default 1 commit / behind 0, DIVERGENCE =
+                               WITHIN_LIMITS (cumulative LOC 1783, dưới
+                               ngưỡng 5.000 của V4.1 §8)
 ```
 
 Contract artifact đầy đủ (30 mục theo brief Contract Freeze, ánh xạ 1:1 vào
