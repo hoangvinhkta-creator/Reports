@@ -9,6 +9,12 @@
 > một trạng thái — **không phải một lộ trình khác**. Khi hai file mâu thuẫn
 > về trạng thái hiện tại, `PROJECT_PROGRESS.md` luôn là nguồn đúng.
 >
+> Cập nhật thêm 2026-09-03 (S100): **việc 4 (bán hàng chi tiết + xem lại
+> từng đơn) đã có kế hoạch đầy đủ và sẵn sàng bắt tay làm.** Phiên này chưa
+> viết một dòng code nào — chỉ đi tìm hiểu và chốt xong "sẽ làm đúng những
+> gì". Xem mục "VIỆC 4 ĐÃ CHỐT XONG, SẴN SÀNG LÀM" ngay đầu phần TRẠNG THÁI
+> HIỆN TẠI.
+>
 > Cập nhật thêm 2026-09-03 (S099): **việc 3 (PRA-003 — Tổng quan + Nhân
 > viên) đã XONG HẲN.** Chủ dự án đã tự tay mở trang thật và xác nhận đúng
 > những con số đã hứa. Xem mục "VIỆC 3 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ
@@ -75,6 +81,128 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 4 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S100) — PRA-004 = READY
+
+Phiên này **chưa viết một dòng code nào**. Việc của nó là đi tìm hiểu kỹ xem
+Reports hiện đã lưu đủ những gì, rồi chốt lại thật rõ "việc 4 sẽ làm đúng
+những gì, và làm xong thì kiểm thế nào".
+
+### Việc 4 để làm gì
+
+Hôm nay chủ dự án mở **Tổng quan** và thấy "Tháng 09/2026: 40 đơn, 25 đơn cần
+kiểm tra". Nhưng không có cách nào đi tiếp để biết *40 đơn đó là những đơn
+nào*, và *vì sao 25 đơn kia cần kiểm tra*.
+
+Việc 4 mở đúng con đường đó:
+
+```
+Tổng quan  →  Bán hàng (danh sách đơn)  →  Mở một đơn  →  Xem các dòng hàng
+           →  Dòng nào chắc chắn / dòng nào cần kiểm tra  →  Vì sao
+```
+
+### Câu hỏi lo nhất — và câu trả lời
+
+Trước phiên này chưa ai biết chắc: **Reports có thật sự lưu lại "vì sao dòng
+này cần kiểm tra" hay không?** Nếu không lưu, việc 4 sẽ phải xây thêm cả một
+hệ thống mới — rất tốn.
+
+Phiên này đã kiểm tra tận nơi và câu trả lời là **CÓ, đã lưu đủ**:
+
+- Lý do được lưu ngay cạnh kết quả của từng dòng hàng.
+- Nó là **mã lý do cố định** (một danh sách đóng, nhiều nhất 21 loại), không
+  phải câu chữ tự do — nên hiển thị được ổn định, không sợ mỗi lần một kiểu.
+- Một dòng có thể có **nhiều lý do cùng lúc** (đo được: 5 hoặc 6 lý do trên
+  một dòng) — trang sẽ hiện đủ, không cắt bớt.
+- Phần chữ nghĩa chẩn đoán kỹ thuật (số dòng trong file gốc, thông báo lỗi
+  nội bộ) **không hề được lưu**, nên không có đường nào để mấy thứ đó lọt lên
+  màn hình của chủ dự án.
+- Và quan trọng nhất: **bảng dịch mã lý do sang tiếng Việt đã có sẵn và đang
+  chạy thật** ở màn hình khác (ví dụ "Thiếu giá nhập kế toán", "Chưa nhận
+  diện sản phẩm"). Việc 4 chỉ dùng lại bảng đó và bổ sung tên tiếng Việt cho
+  những mã còn thiếu — **không đặt ra hệ thống phân loại mới**.
+
+⟹ Không phải xây thêm gì. Không có gì chặn.
+
+### Cái bẫy nguy hiểm nhất đã tìm ra — và cách chặn
+
+Phiên này chạy thử trên một bộ dữ liệu mẫu thật và tìm được **đơn BH62439** —
+một đơn cho thấy đúng hai cách mà màn hình mới có thể nói dối chủ dự án:
+
+```
+Đơn BH62439 — 4 dòng hàng, doanh thu 66.000.000 đ
+  1 dòng đã chắc chắn, 3 dòng cần kiểm tra
+  Lợi nhuận kế toán: 500.000 đ — nhưng CHỈ tính được cho 1 trong 4 dòng
+```
+
+**Bẫy 1:** đơn này có một dòng "chắc chắn", nên một cách làm cẩu thả (nhìn
+dòng đầu tiên rồi kết luận) sẽ hiện cả đơn thành **"đã chắc chắn"** — trong
+khi thật ra 3/4 dòng còn chưa kiểm. Kế hoạch đã khoá đúng quy tắc mà việc 3
+đã dùng và đã được nghiệm thu: **đơn có bất kỳ dòng nào cần kiểm tra thì cả
+đơn là cần kiểm tra**.
+
+**Bẫy 2:** hiện trơ con số "Lợi nhuận: 500.000 đ" sẽ khiến chủ dự án tưởng
+đó là lãi của cả đơn 66 triệu. Kế hoạch đã khoá: **mọi ô lợi nhuận đều phải
+kèm "tính được cho mấy trên mấy dòng"** — ở đây là "1 / 4 dòng" — và khi
+chưa đủ dòng thì trang nói thẳng ra điều đó. Giữ nguyên nguyên tắc của việc
+3: **chưa biết thì hiện dấu gạch, không bao giờ hiện số 0.**
+
+Đơn BH62439 này được ghi thành **bài kiểm tra bắt buộc**: làm xong việc 4 mà
+đơn này hiện sai một trong hai chỗ trên là không đạt.
+
+### Sẽ hiện những gì trên màn hình
+
+Danh sách đơn: mã đơn · ngày bán · nhân viên · số dòng · tổng số lượng ·
+doanh thu · lợi nhuận KPI · lợi nhuận kế toán · trạng thái (chắc chắn / cần
+kiểm tra).
+
+Mở một đơn ra: từng dòng hàng với tên sản phẩm · số lượng · đơn giá bán ·
+chiết khấu · doanh thu dòng · giá vốn · lợi nhuận · trạng thái, và **lý do
+cần kiểm tra viết bằng tiếng Việt** ngay dưới dòng đó.
+
+Mỗi cột đều phải trả lời được câu "bỏ cột này đi thì chủ dự án mất khả năng
+kiểm tra điều gì?". Không trả lời được thì cắt. **Không bê nguyên các cột
+của file Excel cũ lên web.**
+
+### Những gì việc 4 KHÔNG làm
+
+- **Không sửa được gì cả** — chỉ xem. Không có nút duyệt, từ chối, gán việc,
+  ghi chú, hay thông báo. Chỉ nhìn cho hiểu trước đã.
+- Không đụng vào dữ liệu đã lưu. Không đụng vào hệ thống Tracking.
+- **Không hiện IMEI, tên khách, số điện thoại, địa chỉ, hay ghi chú thô.**
+  Phiên này kiểm lại và xác nhận một điều đáng yên tâm: tên khách, số điện
+  thoại, địa chỉ **vốn không hề được lưu** trong kho dữ liệu này — nên chúng
+  không thể lọt ra được, kể cả nếu ai đó làm sai.
+- Không đổi cấu trúc kho dữ liệu, không cần thêm thư viện, không thêm máy
+  chủ. Mọi thứ cần thiết đã có sẵn.
+
+### Còn cần chủ dự án quyết gì không
+
+**Không.** Phiên này không tìm thấy câu hỏi nghiệp vụ nào mà dữ liệu và các
+quyết định trước đó chưa trả lời được. Việc 4 có thể bắt tay làm ngay.
+
+Một chỗ duy nhất được xử lý cẩn thận thay vì tự đoán: khi **một đơn có nhiều
+nhân viên** trên các dòng khác nhau, Reports sẽ **hiện đủ tất cả tên** kèm
+câu ghi chú, chứ **không tự chọn ai là chủ đơn** — vì chưa ai quyết định
+quy tắc đó, và tự đoán ở đây là biến một thói quen cũ của máy thành một
+khẳng định về quyền sở hữu.
+
+### Làm xong thì kiểm thế nào
+
+Chủ dự án tự làm, trên hệ thống chạy thật, **không cần tải lại file nào**:
+
+1. Mở **Bán hàng**, chọn "Tháng 09/2026" → thấy đúng **40 đơn**.
+2. Thấy đúng **15 đơn chắc chắn** và **25 đơn cần kiểm tra**.
+3. Mở ít nhất một đơn chắc chắn → thấy các dòng, không dòng nào có lý do.
+4. Mở ít nhất một đơn cần kiểm tra → thấy lý do bằng **tiếng Việt đọc hiểu
+   được**.
+5. Cộng doanh thu các dòng phải bằng doanh thu của đơn.
+6. Mở **Tổng quan** cùng tháng → các con số khớp nhau.
+7. Không thấy IMEI, tên khách, số điện thoại, địa chỉ ở bất kỳ đâu.
+
+**Việc tiếp theo: bắt tay viết code cho việc 4.**
+
+---
 
 ## VIỆC 3 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03) — PRA-003 = DONE
 

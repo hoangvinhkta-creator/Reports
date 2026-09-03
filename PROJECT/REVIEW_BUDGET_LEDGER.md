@@ -692,6 +692,79 @@ repair cycle đã dùng  : 0 / 1
 
 ---
 
+## Root Task: TASK-PRA-004
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/TASK-PRA-004-ban-hang-review-detail.md`). KHÔNG kế thừa và KHÔNG
+tiêu ngân sách của `TASK-PRA-001`, `TASK-PRA-002`, `TASK-PRA-003` hay bất kỳ
+lineage nào khác. Đặc biệt: KHÔNG kế thừa phần CHANGE_BUDGET còn dư của
+`TASK-PRA-003` — đó là ngân sách THAY ĐỔI của lineage khác, không phải ngân
+sách REVIEW và không chuyển nhượng được.
+
+Mở tại phiên Discovery + Contract Freeze S100 (2026-09-03),
+`BASE_SHA = 8181cebe0619a9c8d12604168a90914c04b3692f` (HEAD nhánh canonical
+`claude/extract-upload-repo-gq2ws4` lúc freeze contract, đã verify khớp EXACT
+kỳ vọng đầu phiên).
+
+```
+root_task: TASK-PRA-004
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+`MEDIUM` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), KHÔNG theo tên module:
+
+- **BR-1** — một đơn có dòng `PENDING` hiện thành `AUTO` (ví dụ triển khai
+  lấy trạng thái của dòng đầu tiên thay vì `MAX(CASE WHEN PENDING)`) → Owner
+  tin một đơn chưa chắc chắn là đã chắc chắn. Giảm nhẹ: CHECK-PRA004-05, với
+  oracle ca TRỘN thật `BH62439` (1 dòng AUTO + 3 dòng PENDING).
+- **BR-2** — lợi nhuận đơn hiện đầy đủ trong khi chỉ một phần dòng có giá
+  trị. Đo được trên `BH62439`: doanh thu net 66.000.000 nhưng LN kế toán
+  500.000 chỉ phủ 1/4 dòng → Owner tin "đơn này lãi 500.000" cho cả đơn 66
+  triệu. Giảm nhẹ: CHECK-PRA004-06 (coverage bắt buộc ở CẤP ĐƠN lẫn cấp
+  dòng, INV-6/INV-7).
+- **BR-3** — trang chi tiết đi sâu hơn PRA-003 nên có bề mặt PII lớn hơn
+  (`imei`, `note_raw` — trường mà `tests/fixtures/golden/anonymize.py` xác
+  nhận CÓ chứa tên và số điện thoại khách trên dữ liệu thật). Giảm nhẹ:
+  CHECK-PRA004-09 (E2) và CHECK-PRA004-10.
+- **KHÔNG phải HIGH** vì: toàn bộ touch area CHỈ-ĐỌC (không một câu
+  `INSERT`/`UPDATE`/`DELETE` nào, kiểm bằng AST chứ không bằng grep); không
+  ghi đè dữ liệu đã lưu; không đổi KPI/lương đã tính; không chạm bất biến
+  no-double-count — bất biến đó thuộc `TASK-PRA-002` và PRA-004 chỉ đọc lại
+  kết quả của nó.
+
+### Điều kiện mở repair cycle
+
+Finding KHÔNG tự động trở thành repair work. Chỉ mở cycle khi finding đe doạ
+TRỰC TIẾP một trong năm điều:
+
+1. tính trung thực của kết quả quản lý ở cấp ĐƠN hoặc DÒNG;
+2. bất biến no-double-count (INV-1 … INV-4 của mục 20.5 file task);
+3. sự tách bạch `LEGACY_REFERENCE` ↔ `PIPELINE_GENERATED`;
+4. an toàn `NULL` / coverage (INV-6, INV-7) hoặc ranh giới PII (mục 14 file task);
+5. nghiệm thu real vertical Tháng 09/2026.
+
+Finding ngoài năm nhóm đó: `HARDENING` kèm RE-TRIGGER CONDITION cụ thể
+(V4.1 §7) hoặc `OUT_OF_SCOPE`. Vượt 1 cycle → `OWNER_EXTENSION REQUIRED`;
+KHÔNG tách sub-unit, KHÔNG đổi tên task, KHÔNG mở nhánh mới để reset ngân
+sách (V4.1 §2).
+
+### Trạng thái tại S100
+
+```
+Discovery + Contract Freeze  : XONG (docs-only, PRODUCTION_CODE_DELTA = 0)
+BLOCKING_FINDINGS            : 0
+Non-blocking đã ghi          : FIND-PRA004-01 (TRUTHFULNESS_CONSTRAINT, đã đưa vào contract)
+                               FIND-PRA004-02 (DOC_INCONSISTENCY, giải bằng thiết kế)
+                               FIND-PRA004-03 (HARDENING, DEFER + RE-TRIGGER)
+repair_cycles_used           : 0 / 1  — phiên discovery KHÔNG tiêu cycle
+```
+
+---
+
 ## Root Task: TASK-GOLDEN-BASELINE-001
 
 Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của
@@ -1826,6 +1899,13 @@ Owner Extension, và **không** cấp thêm repair cycle.
   **Ngân sách không đổi:** `TASK-110` vẫn `EXHAUSTED_PRE_V4.1`, remaining = 0.
   Thay đổi tài liệu của phiên integration được phân loại
   `INTEGRATION STATE RECONCILIATION`, **không** tính là repair cycle.
+- 2026-09-03 — `TASK-PRA-004` mở lineage MỚI tại phiên Discovery + Contract
+  Freeze S100 (`docs/sessions/S100-pra-004-ban-hang-review-detail-discovery.md`),
+  `BASE_SHA = 8181cebe0619a9c8d12604168a90914c04b3692f`. `effective_risk = MEDIUM`,
+  1 repair cycle khả dụng, 0 đã dùng. Phiên discovery là docs-only
+  (`PRODUCTION_CODE_DELTA = 0`) và **KHÔNG** tiêu repair cycle. 0 BLOCKING
+  finding. KHÔNG kế thừa ngân sách của `TASK-PRA-003` hay bất kỳ lineage nào.
+
 - 2026-08-27 — `TASK-GOLDEN-BASELINE-001` mở lineage mới sau Owner Decision
   `OD-GB-1 = A + A1`. Discovery (`b738fa4`) + implementation Golden Business
   Baseline trên hai kỳ Tín Phát 01.2026/06.2026 từ workbook production thật do

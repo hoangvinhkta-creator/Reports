@@ -1,5 +1,191 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S100 — DISCOVERY + VERTICAL CONTRACT FREEZE)
+
+Phiên discovery cho vertical slice tiếp theo (Bán hàng + chi tiết đơn/dòng +
+Review visibility). Contract đã FREEZE, task = `READY`. Đây là trạng thái hiện
+hành có thẩm quyền của `TASK-PRA-004`. Khối `TASK-PRA-003` ngay bên dưới
+KHÔNG bị khối này thay thế — `TASK-PRA-003` vẫn `DONE`.
+
+```text
+SESSION                    = S100 — PRA-004 Discovery + Vertical Contract Freeze (docs-only)
+DISCOVERY_RESULT           = CONTRACT_FROZEN
+TASK-PRA-004               = READY
+CANONICAL_BEFORE           = 8181cebe0619a9c8d12604168a90914c04b3692f
+                             (khớp EXACT kỳ vọng, CANONICAL_MOVED = KHÔNG)
+PRA004_BRANCH              = claude/pra-004-sales-review-detail-0b2z4w
+                             (tạo từ ĐÚNG canonical trên, KHÔNG dùng main)
+TASK_FILE                  = docs/tasks/TASK-PRA-004-ban-hang-review-detail.md
+SESSION_FILE               = docs/sessions/S100-pra-004-ban-hang-review-detail-discovery.md
+
+PRODUCTION_CODE_DELTA      = 0 — phiên này CHỈ sửa docs/state
+SCHEMA = 0 · MIGRATION = 0 · INDEX = 0 · DEPENDENCY = 0 · CONFIG = 0
+TRACKING_CHANGED = NO · INFRASTRUCTURE_CHANGED = NO · PROTECTED_CORE_IMPACT = NONE
+PRA-001 / PRA-002 / PRA-003 CHANGED = NO (không một file production hay test nào bị chạm)
+
+BLOCKING_FINDINGS          = 0
+OWNER_DECISIONS_REQUIRED   = NONE
+SCOPE_DRIFT                = NO
+IMPLEMENTATION_READY       = YES
+NEXT_VERTICAL_ACTION       = PRA-004 MAJOR IMPLEMENTATION
+```
+
+### Câu trả lời discovery quan trọng nhất — Review reason ĐỦ để trình bày
+
+Câu hỏi chặn của §6 chỉ thị PRA-004 ("hiện tại Reports có lưu đủ dữ liệu
+authoritative để giải thích lý do PENDING/Review không?") — **CÓ**. Toàn bộ
+`FACT`, đo trong phiên này:
+
+```text
+Vị trí        : order_line_result_version.pending_reasons_json
+Phía          : RESULT (không phải source)
+Current ptr   : current_result_version_id (nullable=False)
+Nhiều reason/dòng : CÓ — đo được 5 hoặc 6 reason trên một dòng
+Dạng          : MÃ NGỮ NGHĨA ỔN ĐỊNH, vũ trụ ĐÓNG ≤ 21 mã
+                (10 PriceResolutionReason ∪ 8 validation CATEGORIES ∪ 3 Pending.<field>)
+PII / chẩn đoán nội bộ : KHÔNG — `details` (văn xuôi có số dòng nguồn,
+                order_id, thông điệp chẩn đoán) KHÔNG được persist; chỉ
+                `reasons` đi vào JSON (app/web/history_store.py:662)
+Thẩm quyền trình bày : ĐÃ TỒN TẠI và ĐANG CHẠY PRODUCTION —
+                app/beta_presentation.py::REASON_DISPLAY_LABELS (S069,
+                dùng bởi Owner Launcher + trang /). PRA-004 TÁI DỤNG và chỉ
+                MỞ RỘNG cho 14 mã còn thiếu. KHÔNG xây taxonomy mới.
+```
+
+⟹ KHÔNG mở subsystem mới. KHÔNG BLOCKING.
+
+### Đo được trên fixture golden `period_2026_01` (E1, đường production thật)
+
+Chạy `run_import_production` → `present_lines` → `extraction.build_*_lines` →
+`history_writer.write_run_history`, rồi truy vấn SQL trên dữ liệu đã persist:
+
+```text
+351 dòng · 254 đơn
+Q1 danh sách 254 đơn (1 câu SQL, GROUP BY order_key) : 6,6 ms
+Q2 chi tiết đơn BH62439 (4 dòng)                     : 1,3 ms
+
+Đơn TOÀN AUTO        : 1   (BH62063)      Đơn CẦN KIỂM TRA : 253
+Đơn TRỘN AUTO+PENDING: 1   (BH62439)      Đơn nhiều ngày bán: 0
+Phân bố số dòng/đơn  : {1:191, 2:41, 3:16, 4:3, 5:1, 6:1, 7:1} → Σ = 351
+
+Coverage / 351 dòng:
+  total_sales 351 · employee_normalized 351 · product_group_final 351
+  accounting_purchase_price 2 · kpi_purchase_price 2
+  accounting_profit 2 · eligible_kpi_profit 2
+  canonical_product_code 0   ← KHÔNG dùng được làm tên sản phẩm
+  product_raw rỗng 0/351     ← dùng được trên MỌI dòng
+
+Reason codes: IDENTITY_SOURCES_UNAVAILABLE 349 · Missing.PurchasePrice 349 ·
+  Pending.accounting_purchase_price 349 · Pending.accounting_profit 349 ·
+  Pending.eligible_kpi_profit 349 · Suspicious 8
+  Số reason/dòng: {0: 2 dòng, 5: 341 dòng, 6: 8 dòng}
+```
+
+### Acceptance Oracle đã FREEZE (độc lập, đo lại được)
+
+```text
+O-A  254 đơn · 351 dòng · 1 đơn AUTO · 253 đơn cần kiểm tra
+     auto_orders + review_orders = 254 = COUNT(DISTINCT order_key)
+O-B  BH62063 — AUTO thuần, 1 dòng, net 7.500.000,
+     LN kế toán 500.000 (1/1), LN KPI 500.000 (1/1), reasons = []
+O-C  BH62439 — TRỘN (1 AUTO + 3 PENDING) ⟹ đơn = CẦN KIỂM TRA
+     4 dòng · SL 5 · net 66.000.000
+     LN kế toán 500.000 coverage 1/4 dòng   ← COVERAGE MỘT PHẦN
+     LN KPI     400.000 coverage 1/4 dòng
+     3 dòng PENDING mỗi dòng ĐÚNG 5 mã lý do, mọi giá vốn/lợi nhuận = NULL ⟹ "—"
+O-D  Vũ trụ reason code ĐÓNG ≤ 21 mã; bảng nhãn phủ TOÀN PHẦN;
+     7 nhãn S069 giữ NGUYÊN TỪNG CHỮ
+INV-1…INV-7  bất biến an toàn thắng mọi literal (mục 20.5 file task)
+```
+
+`BH62439` là oracle quan trọng nhất: nó bắt CẢ HAI failure path của Blast
+Radius trong một đơn — trạng thái TRỘN (đơn phải là CẦN KIỂM TRA dù có dòng
+AUTO) và coverage MỘT PHẦN (lợi nhuận 500.000 chỉ phủ 1/4 dòng của một đơn
+66 triệu).
+
+### Quyết định kiến trúc
+
+```text
+PAGINATION          = KHÔNG (254 đơn / 6,6 ms; production 09/2026 = 40 đơn).
+                      Thay vào đó CHECK-PRA004-13 ĐO trên ≥12k dòng kèm
+                      RE-TRIGGER CONDITION (> 3 giây ⟹ pagination thành REQUIRED)
+SCHEMA / MIGRATION  = 0. Mọi trường đã persisted; `order_key` là cột DẪN ĐẦU
+                      của PK `order_line_current` ⟹ đã index;
+                      `ix_order_line_current_sale_date` đã tồn tại
+PRODUCTION WRITE    = KHÔNG · TRACKING DEPENDENCY = KHÔNG · DEPENDENCY MỚI = 0
+NAVIGATION          = Option A (một tab "Bán hàng"). Option B (bấm ô số trên
+                      Tổng quan) = USEFUL_BUT_DEFER, KHÔNG triển khai
+SOURCE SEPARATION   = SỐ MỚI ONLY, bảo đảm bằng CheckConstraint(origin) × 3 bảng
+PII                 = customer/phone/address/shipper_raw KHÔNG tồn tại như cột
+                      trong schema ⟹ không thể rò rỉ (bảo đảm CẤU TRÚC).
+                      imei · note_raw · employee_raw · source_profit = PROHIBITED.
+                      product_raw = REQUIRED_NOW (anonymize.py xếp là dữ liệu
+                      nghiệp vụ, giữ nguyên văn trong fixture)
+```
+
+### Findings (không cái nào BLOCKING)
+
+```text
+FIND-PRA004-01 TRUTHFULNESS_CONSTRAINT — chỉ 2 dòng AUTO trong fixture và cả
+  hai đều delivery_cost = NULL (trong khi 325/351 dòng CÓ delivery_cost), nên
+  KHÔNG chứng minh được lợi nhuận luôn dẫn xuất từ (SL, đơn giá, chiết khấu,
+  giá vốn). Xử lý ĐÃ đưa vào contract: trang KHÔNG in công thức, KHÔNG tuyên
+  bố tự dẫn xuất; delivery_cost = USEFUL_BUT_DEFER kèm RE-TRIGGER CONDITION.
+
+FIND-PRA004-02 DOC_INCONSISTENCY — analytics_queries.py (docstring) xếp
+  `product_raw` chung nhóm PII và test PRA-003 canh điều đó, trong khi
+  tests/fixtures/golden/anonymize.py (đo trên workbook production thật, GB-3
+  / OD-GB-1) xếp nó là dữ liệu nghiệp vụ. Giải bằng THIẾT KẾ, KHÔNG nới gate:
+  PRA-004 tạo module truy vấn RIÊNG với hàng rào PII riêng, KHÔNG chạm
+  analytics_queries.py và KHÔNG sửa test nào của PRA-003.
+
+FIND-PRA004-03 HARDENING — "0 đơn nhiều nhân viên" trên fixture là ARTEFACT
+  của ẩn danh hoá (mọi dòng mang cùng một surrogate), KHÔNG phải bằng chứng
+  về production. Contract vẫn thiết kế cho n ≥ 1 và CẤM lấy nhân viên của
+  dòng đầu tiên. RE-TRIGGER: khi production lần đầu có một đơn mà các dòng
+  mang từ hai employee_normalized trở lên.
+```
+
+### Ngân sách
+
+```text
+Python production : mục tiêu 266 · cảnh báo mềm 330 · DỪNG CỨNG 400
+Template ≤ 220 · CSS ≤ 25 · Test ≥ 30 (0 skip mới)
+Review budget     : MEDIUM = 1 blocking repair cycle · 1 Independent Review E2
+                    repair_cycles_used 0 / 1 — phiên discovery KHÔNG tiêu cycle
+Completion Gate   : FROZEN — 11 REQUIRED + 2 RECOMMENDED
+```
+
+### VALIDATORS (E1, phiên này)
+
+```text
+validate_structure       : GOVERNANCE STRUCTURE: PASS · Deployment root: PASS · 21 required paths
+validate_project_state   : PROJECT STATE: PASS
+validate_evidence        : EVIDENCE VALIDATION: PASS
+validate_task_completion : TASK COMPLETION: PASS
+git diff --check         : sạch (không output)
+branch_authority_check   : DEFAULT_TIP = HEAD_SHA = 8181cebe...; nhánh phiên chưa
+                           có upstream ở thời điểm chạy — giải quyết bằng chính
+                           lần push của phiên này
+reference_integrity      : KHÔNG chạy repair — 3 issue REM-T06 pre-existing giữ nguyên
+```
+
+### Việc phiên này KHÔNG làm
+
+Không viết production code. Không sửa schema/migration/index. Không thêm
+dependency vào `pyproject.toml`. Không sửa `analytics_queries.py`,
+`analytics_presentation.py`, hay bất kỳ test nào của PRA-003. Không sửa
+`tests/fixtures/golden/**`. Không upload workbook mới. Không truy vấn
+PostgreSQL production. Không deploy. Không tích hợp canonical. Không đánh dấu
+PRA-004 DONE. Không repair REM-T06 hay FIND-PRA003-03. Không mở PRA-005.
+
+VIỆC TIẾP THEO = `PRA-004 MAJOR IMPLEMENTATION`. Thứ tự bắt buộc:
+`sales_queries` → mở rộng `REASON_DISPLAY_LABELS` → `sales_presentation` →
+hai route → hai template → CSS. Test đơn vị viết TRƯỚC test route và
+integration.
+
+---
+
 ## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S099 — OWNER PRODUCTION ACCEPTANCE + TASK CLOSEOUT) — TASK-PRA-003 = DONE
 
 Owner đã tự tay nghiệm thu `CHECK-PRA003-07` trên production thật (Tháng
