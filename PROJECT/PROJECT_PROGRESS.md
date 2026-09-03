@@ -1,6 +1,130 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S094 — DISCOVERY)
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S095 — GATE FROZEN)
+
+Roadmap Finalization đã đóng: task file tồn tại, Completion Gate FROZEN,
+lineage review budget đã mở. Đây là trạng thái hiện hành có thẩm quyền của
+`TASK-PRA-003`; khối S094 ngay bên dưới là bản ghi lịch sử đúng của phiên
+discovery. Khối `TASK-PRA-002` phía dưới KHÔNG bị khối này thay thế — hai
+task khác nhau.
+
+```text
+SESSION                    = S095 — PRA-003 Roadmap Finalization (docs-only)
+FINALIZATION_RESULT        = CONTRACT_FROZEN — PRA-003 sẵn sàng cho MỘT phiên MAJOR implement
+TASK-PRA-003               = IN_PROGRESS / READY_FOR_IMPLEMENTATION
+CANONICAL_SHA              = facf090c782b022730ecc5f1cf0d0b02e29ca8d7
+                             (khớp EXPECTED — CANONICAL_NOT_MOVED)
+DISCOVERY_INPUT_SHA        = c776c8ae2656458099f5bcbc054bfec6f73ed058
+                             (claude/pra-003-vertical-slice-346ebn — planning input,
+                              KHÔNG phải production authority; đã fast-forward vào
+                              nhánh phiên này để giữ nguyên ancestry)
+
+PRODUCTION_CODE_ADDED      = 0 dòng      SCHEMA_CHANGED = NO      MIGRATION = NO
+TRACKING_CHANGED           = NO          INFRASTRUCTURE_CHANGED = NO
+PRA-001 / PRA-002 CHANGED  = NO          DEPENDENCY_ADDED = 0
+
+OWNER_DECISIONS_LOCKED
+  D1 = LN KPI là số CHÍNH (chỉ cộng dòng AUTO) · LN kế toán là số PHỤ ·
+       CẢ HAI bắt buộc kèm coverage · source_profit KHÔNG lên dashboard
+  D2 = Target/So target DEFER hoàn toàn khỏi PRA-003. Cấm sao chép hoặc kết
+       hợp legacy_summary_row.target vào bất kỳ chỉ tiêu PIPELINE_GENERATED
+       nào (vi phạm DEC-166 E). Không config/schema/ingestion target.
+  D3 = Nhãn ô số lượng = "Tổng số lượng" (mọi dòng). Cấm nhãn "Số lượng sản
+       phẩm"/"Tổng số SP" cho tới khi có quy tắc phân loại product-line có
+       thẩm quyền (N.7 vẫn MỞ).
+
+MINIMUM_VALUE_FILTER       = Tổng quan: 12 đề xuất → 10 REQUIRED_NOW ·
+                               1 USEFUL_BUT_DEFER (top nhân viên) ·
+                               1 NOT_NEEDED (ô AUTO/Review theo DÒNG — trùng
+                               lặp với coverage LN KPI, thông tin KHÔNG mất)
+                             Nhân viên: 10 cột → 8 REQUIRED_NOW ·
+                               1 USEFUL_BUT_DEFER (Δ doanh thu theo nhân viên) ·
+                               1 NOT_NEEDED (cột AUTO/Review — cùng lý do trùng lặp)
+                             Không chỉ tiêu trang trí nào lọt vào.
+
+PERIOD_MODEL               = "Toàn bộ dữ liệu" + "Tháng MM/YYYY", MỌI tuỳ chọn
+                             dẫn xuất từ order_line_current.sale_date.
+                             So sánh = tháng dương lịch liền trước; kỳ trước
+                             không có dữ liệu ⟹ TRỐNG/"—", TUYỆT ĐỐI không 0/0%.
+                             "Toàn bộ dữ liệu" ⟹ KHÔNG có kỳ so sánh.
+                             DEFER: khoảng ngày tự do, quý, năm, "hôm nay".
+                             Cấm dẫn xuất kỳ từ header workbook (FIND-RDA-01).
+
+TOUCH_AREA                 = MỚI: app/web/analytics_queries, analytics_presentation,
+                             templates/tong_quan.html, templates/_pipeline_bits.html
+                             SỬA: app/web/server.py (+1 route /tong-quan, +1 tham số
+                             nguon), templates/layout.html (+1 tab), nhan_vien.html,
+                             static/css/tinphat-ui.css
+                             FORBIDDEN: tools/db/**, app/history/**, history_store.py,
+                             history_writer.py, run_registry.py, storage_backend.py,
+                             legacy_presentation.py, app/modules/**, config/**, data/**,
+                             tests/fixtures/golden/**, alembic.ini, render.yaml,
+                             Dockerfile, Tracking, và MỌI câu INSERT/UPDATE/DELETE
+                             (PRA-003 là tầng CHỈ-ĐỌC)
+PROTECTED_CORE_IMPACT      = NONE
+
+CHANGE_BUDGET (riêng PRA-003, KHÔNG kế thừa 40 LOC còn lại của PRA-002)
+                           = Python production mục tiêu ~255 · CẢNH BÁO MỀM 320 ·
+                             DỪNG CỨNG 400 → vượt = STOP = CHANGE_BUDGET_EXCEEDED
+                             template ≤220 · CSS ≤25 · test ≥30 (0 skip mới) ·
+                             dependency 0 · schema 0 · migration 0 · index 0 · config 0
+                             Mục tiêu 255 (thấp hơn ước tính 275 của S094) nhờ headroom
+                             từ Minimum-Value Filter; headroom đó KHÔNG được tiêu việc khác.
+
+REVIEW_BUDGET              = effective_risk MEDIUM → 1 blocking repair cycle · 0 đã dùng
+                             Independent Review E2 BẮT BUỘC (CHECK-PRA003-12)
+                             Lineage ĐÃ MỞ: PROJECT/REVIEW_BUDGET_LEDGER.md →
+                             "Root Task: TASK-PRA-003", BASE_SHA = facf090
+
+COMPLETION_GATE            = FROZEN tại S095 — 14 check: 12 REQUIRED + 2 RECOMMENDED
+                             01 no-double-count current-state · 02 oracle golden độc lập ·
+                             03 NULL≠0 hiện "—" · 04 LN KPI chỉ AUTO + 2 coverage ·
+                             05 nhân viên đối soát tổng kỳ (Đơn KHÔNG cộng được) ·
+                             06 tách nguồn + legacy không hồi quy · 07 real vertical
+                             production 09/2026 · 08 kỳ trước vắng ⟹ blank không 0% ·
+                             09 dòng thiếu sale_date được phơi ra · 10 không PII
+                             (gồm imei, note_raw) · 11 không hồi quy Golden/suite/validators ·
+                             12 Independent Review E2 · [R] 13 CHANGE_BUDGET đo được ·
+                             [R] 14 thời gian tải ≥12k dòng (ứng viên hardening DUY NHẤT)
+                             Tất cả Status = NOT_TESTED (chưa implement — không bịa PASS)
+
+ACCEPTANCE_ORACLE          = O-B golden 01/2026: orders 254 · lines 351 · quantity 407 ·
+                               doanh thu 3.562.310.000 (ĐỌC từ tests/fixtures/golden/
+                               expected/period_2026_01.json, KHÔNG hard-code)
+                             O-C LN KPI và LN kế toán cùng kỳ = "—" (0/351), KHÔNG 0
+                             O-G production Tháng 09/2026: 40 đơn · 61 dòng · AUTO 15 ·
+                               Review 25 (ĐÃ QUAN SÁT S093) · so tháng trước TRỐNG
+                             O-K Golden 58 passed / 2 skipped, full suite không giảm
+GIỚI HẠN ORACLE GOLDEN     = fixture ẩn danh về ĐÚNG 1 nhân viên và 351/351 dòng
+                             price_source = Pending ⟹ KHÔNG làm oracle được cho phân rã
+                             nhiều nhân viên hay cho giá trị lợi nhuận dương. Hai vùng đó
+                             do test đơn vị phủ. KHÔNG dựng fixture "giống production"
+                             rồi gọi là bằng chứng thật.
+NOT_CLAIMED                = tiền/số lượng/lợi nhuận của ca production 01→03/09 (chưa quan
+                             sát). Bộ số qty 71 / gross 593.750.000 / net 593.550.000 là
+                             provenance RDA S090/S091 — KHÔNG phải số production của ca này
+                             và KHÔNG được dùng làm kỳ vọng.
+
+VALIDATORS (S095, E1)      = structure PASS · project_state PASS · evidence PASS (116 record) ·
+                             task_completion PASS (10 DONE task) ·
+                             reference_integrity FAIL đúng 3 issue REM-T06 đã biết
+                             (không phát sinh mới; KHÔNG sửa — hard exclusion)
+SCOPE_DRIFT                = NO — 0 dòng production, không schema/migration/tracking/
+                             hạ tầng, không mở PRA-004/PRA-005, không repair REM-T06,
+                             không repair finding DEFER của PRA-002
+IMPLEMENTATION_READY       = YES
+EVIDENCE                   = docs/sessions/S095-pra-003-roadmap-finalization.md ·
+                             docs/tasks/TASK-PRA-003-tong-quan-nhan-vien.md ·
+                             PROJECT/REVIEW_BUDGET_LEDGER.md → Root Task: TASK-PRA-003
+NEXT_VERTICAL_ACTION       = MỘT phiên MAJOR implement theo thứ tự bắt buộc
+                             analytics_queries → analytics_presentation → route →
+                             template → CSS; test đơn vị viết TRƯỚC test route/integration.
+                             Sau đó: Independent Review E2 (≤1 repair cycle) → Owner
+                             nghiệm thu trên production kỳ Tháng 09/2026 (CHECK-PRA003-07).
+                             KHÔNG mở PRA-004/PRA-005.
+```
+
+## CANONICAL CURRENT STATE — TASK-PRA-003 (lịch sử, 2026-09-03, S094 — DISCOVERY)
 
 Phiên discovery/plan của `TASK-PRA-003` (Tổng quan + Nhân viên). Đây là trạng
 thái hiện hành có thẩm quyền của PRA-003. Khối PRA-002 ngay bên dưới vẫn đúng

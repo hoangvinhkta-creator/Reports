@@ -21,11 +21,15 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
-> Cập nhật thêm 2026-09-03 (S094): **việc 3 của kế hoạch mới (màn hình Tổng
-> quan + Nhân viên) đã có bản kế hoạch chi tiết, sẵn sàng bắt tay làm** — xem
-> mục "VIỆC 3 CỦA KẾ HOẠCH MỚI ĐÃ CÓ KẾ HOẠCH" ngay đầu phần TRẠNG THÁI HIỆN
-> TẠI. Chỉ là kế hoạch; chưa viết dòng code nào. Việc 2 (PRA-002) đã XONG HẲN
-> và đã gộp vào bản chính.
+> Cập nhật thêm 2026-09-03 (S095): **ba câu hỏi cần chủ dự án cho ý kiến đã
+> được chốt**, và bản mô tả công việc chính thức của việc 3 đã viết xong và
+> khoá lại. Bước tiếp theo là ngồi làm thật. Xem mục "VIỆC 3 ĐÃ CHỐT XONG,
+> SẴN SÀNG LÀM" ngay đầu phần TRẠNG THÁI HIỆN TẠI. Vẫn chưa viết dòng code
+> nào. Việc 2 (PRA-002) đã XONG HẲN và đã gộp vào bản chính.
+
+> Cập nhật 2026-09-03 (S094): việc 3 của kế hoạch mới (màn hình Tổng quan +
+> Nhân viên) đã có bản kế hoạch chi tiết. Chỉ là kế hoạch; chưa viết dòng code
+> nào.
 
 > Cập nhật thêm 2026-09-02 (S079 đóng phiên): **phần mềm đã chạy thật trên
 > mạng với cơ sở dữ liệu thật** — chủ dự án đã bật bản mới lên và nạp được
@@ -66,7 +70,77 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 3 CỦA KẾ HOẠCH MỚI ĐÃ CÓ KẾ HOẠCH (2026-09-03)
+## VIỆC 3 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S095)
+
+Phiên này không viết code. Nó làm đúng một việc: **biến bản kế hoạch thành một
+bản mô tả công việc đã khoá**, để phiên làm thật không còn chỗ nào phải đoán.
+
+### Ba câu hỏi hôm trước — nay đã có câu trả lời
+
+1. **Con số "lợi nhuận" trên màn hình quản lý là con số nào?**
+   → **Lãi KPI** là số chính (số dùng để tính thưởng), **lãi kế toán** đứng
+   bên cạnh làm số phụ. Mỗi số đều ghi rõ nó phủ được bao nhiêu phần dữ liệu.
+   Cột lãi mà phần mềm kế toán tự ghi sẵn trong sổ **không** đưa lên màn hình
+   — nó chưa qua quy tắc nào của Reports, đặt cạnh hai số kia chỉ khiến người
+   đọc phải so ba số mà không ai giải thích được chênh lệch.
+
+2. **Chỉ tiêu (target) lấy ở đâu?**
+   → **Chưa đưa vào lần này.** Kho dữ liệu mới hoàn toàn không có số chỉ tiêu.
+   Số chỉ tiêu duy nhất đang có nằm trong file Excel cũ và là số của kỳ cũ —
+   gán nó cho kỳ mới là nói sai. Nghĩa là màn hình lần này **không trả lời
+   được "có đạt chỉ tiêu không"**; đó là một mất mát thật, nhưng nó không nói
+   sai. Muốn có, chủ dự án cần cung cấp bảng chỉ tiêu theo từng người từng
+   tháng, và đó sẽ là một việc nhỏ riêng sau này.
+
+3. **Ô "số lượng" đếm thế nào?**
+   → Đếm **tất cả các dòng** và gọi đúng tên là **"Tổng số lượng"**. Chưa được
+   phép gọi là "Số lượng sản phẩm" hay "Tổng số SP" cho tới khi có quy tắc
+   phân biệt đâu là hàng hoá, đâu là phí vận chuyển / công lắp đặt / chiết
+   khấu. Con số này **sẽ không khớp** cột "Tổng số SP" của báo cáo cũ, và trên
+   trang sẽ có một dòng chú thích nói rõ vì sao.
+
+### Màn hình đã được cắt gọn lại
+
+Bản kế hoạch hôm trước đề xuất 12 ô cho trang Tổng quan. Phiên này hỏi từng ô
+một câu: *"Bỏ ô này đi thì người quản lý có mất một quyết định nào không?"*
+
+Kết quả: **giữ 10, bỏ 2.**
+
+- Bỏ **bảng "5 nhân viên dẫn đầu"** trên Tổng quan — trang Nhân viên đã trả
+  lời đầy đủ câu đó rồi, đây chỉ là lối tắt một cú nhấp.
+- Bỏ **ô "AUTO / cần kiểm tra tính theo dòng"** — nó lặp lại đúng hai con số
+  đã hiện trong phần "lãi KPI phủ được bao nhiêu". Không mất thông tin nào,
+  chỉ bớt một ô thừa.
+
+Bảng Nhân viên cũng gọn lại từ 10 cột xuống 8 vì cùng lý do.
+
+Nguyên tắc áp dụng: **màn hình nhỏ nhất mà vẫn nói đủ sự thật**, không chạy
+theo số lượng tính năng.
+
+### Vẫn giữ nguyên hai điều quan trọng nhất
+
+- **Máy không bịa số.** Ô nào chưa có dữ liệu để trống bằng dấu gạch, không
+  hiện số 0. Tháng 8 chưa có gì, nên ô "so với tháng trước" sẽ để trống kèm
+  chữ "chưa có dữ liệu kỳ trước" — chứ không hiện "giảm 100%".
+- **Số cũ và số mới không bao giờ cộng chung.** Trang Nhân viên mở lên vẫn
+  đúng như hôm nay (số cũ từ Excel); số mới nằm ở một nút riêng.
+
+### Cách kiểm tra khi làm xong
+
+Mở Tổng quan, chọn "Tháng 09/2026", phải thấy đúng **40 đơn / 61 dòng / 15 đơn
+AUTO / 25 đơn cần kiểm tra** — đúng những con số chủ dự án đã tự nhìn thấy
+trên trang web hôm 03/09. Ô so với tháng trước phải để trống.
+
+### Còn lại bao nhiêu bước
+
+1. Một phiên làm thật (viết code).
+2. Một lượt soát xét độc lập.
+3. Gộp vào bản chính, đưa lên mạng.
+4. Chủ dự án nghiệm thu trên trang web theo mục "Cách kiểm tra" ở trên.
+
+---
+
+## VIỆC 3 CỦA KẾ HOẠCH MỚI ĐÃ CÓ KẾ HOẠCH (2026-09-03, S094 — bản ghi trước đó)
 
 **Việc 2 đã xong hẳn.** Phần mềm giờ nhớ được số liệu của từng lần nạp sổ,
 nạp lại đúng file cũ thì không cộng trùng, và chủ dự án đã tự kiểm chứng

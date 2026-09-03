@@ -518,6 +518,93 @@ cycles:
 
 ---
 
+## Root Task: TASK-PRA-003
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/TASK-PRA-003-tong-quan-nhan-vien.md`). KHÔNG kế thừa và KHÔNG
+tiêu ngân sách của `TASK-PRA-001`, `TASK-PRA-002` hay bất kỳ lineage nào
+khác. Đặc biệt: KHÔNG kế thừa 40 LOC còn lại trong CHANGE_BUDGET của
+`TASK-PRA-002` — đó là ngân sách THAY ĐỔI của lineage khác, không phải ngân
+sách REVIEW và không chuyển nhượng được.
+
+Mở tại phiên Roadmap Finalization S095 (2026-09-03),
+`BASE_SHA = facf090c782b022730ecc5f1cf0d0b02e29ca8d7` (HEAD nhánh canonical
+`claude/extract-upload-repo-gq2ws4` lúc freeze gate).
+
+```
+root_task: TASK-PRA-003
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+`MEDIUM` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), KHÔNG theo tên module:
+
+- **BR-1** — một ô dashboard hiển thị sai (cộng cả dòng `PENDING` vào Lợi
+  nhuận KPI; hiện `0`/`0%` thay vì `—` cho kỳ trước không có dữ liệu; trộn
+  `LEGACY_REFERENCE` với `PIPELINE_GENERATED` trong cùng một ô) → Owner ra
+  quyết định quản lý dựa trên số sai. Giảm nhẹ: CHECK-PRA003-03/04/06/08.
+- **BR-2** — dòng `sale_date IS NULL` biến mất trong im lặng khỏi mọi kỳ →
+  tổng "Toàn bộ dữ liệu" nhỏ hơn tổng thật mà không ai biết. Giảm nhẹ:
+  CHECK-PRA003-09.
+- **KHÔNG phải HIGH** vì: toàn bộ touch area là tầng CHỈ-ĐỌC (không một câu
+  `INSERT`/`UPDATE`/`DELETE` nào); không ghi đè dữ liệu; không đổi KPI/lương
+  đã tính; không chạm bất biến no-double-count — bất biến đó thuộc
+  `TASK-PRA-002` và PRA-003 chỉ đọc lại kết quả của nó.
+
+### Điều kiện mở repair cycle
+
+Finding KHÔNG tự động trở thành repair work. Chỉ mở cycle khi finding đe doạ
+TRỰC TIẾP một trong năm điều:
+
+1. tính trung thực của kết quả quản lý;
+2. bất biến no-double-count;
+3. sự tách bạch `LEGACY_REFERENCE` ↔ `PIPELINE_GENERATED`;
+4. an toàn `NULL` / coverage (`NULL` ≠ `0`);
+5. nghiệm thu real vertical (Tháng 09/2026).
+
+Finding ngoài năm nhóm đó: `HARDENING` kèm RE-TRIGGER CONDITION cụ thể
+(V4.1 §7) hoặc `OUT_OF_SCOPE`. Vượt 1 cycle → `OWNER_EXTENSION REQUIRED`;
+KHÔNG tách sub-unit, KHÔNG đổi tên task, KHÔNG mở nhánh mới để reset ngân
+sách (V4.1 §2, §3).
+
+### Scope Lock (tóm tắt — bản đầy đủ ở task file mục 12)
+
+```
+tools/db/**, app/history/**                   : FORBIDDEN
+app/web/history_store.py, history_writer.py   : FORBIDDEN
+app/web/run_registry.py, storage_backend.py   : FORBIDDEN
+app/web/legacy_presentation.py                : FORBIDDEN (chỉ đọc/import)
+app/modules/**, app/pipeline.py               : FORBIDDEN
+config/**, data/**, tests/fixtures/golden/**  : FORBIDDEN
+alembic.ini, render.yaml, Dockerfile          : FORBIDDEN
+Tracking (mọi thứ)                            : FORBIDDEN — READ-ONLY REFERENCE
+Mọi INSERT/UPDATE/DELETE                      : FORBIDDEN — PRA-003 là tầng CHỈ-ĐỌC
+```
+
+cycles:
+- id: (chưa mở — implementation chưa bắt đầu tại thời điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
+
+### Trạng thái (S095, 2026-09-03 — HIỆN HÀNH)
+
+```
+TASK-PRA-003          : IN_PROGRESS / READY_FOR_IMPLEMENTATION
+                        (gate FROZEN, 14 check / 12 REQUIRED / 2 RECOMMENDED)
+Implementation        : CHƯA BẮT ĐẦU — 0 dòng production
+repair cycle đã dùng  : 0 / 1
+CHANGE_BUDGET         : Python production mục tiêu ~255 · cảnh báo mềm 320 · DỪNG CỨNG 400
+                        template ≤220 · CSS ≤25 · test ≥30 · dependency 0 · schema 0 · migration 0
+Baseline trước khi code: Golden 58 passed, 2 skipped (trích S092/S093 — CHƯA chạy lại ở S095)
+                        validators: structure/project_state/evidence/task_completion = PASS;
+                        reference_integrity = FAIL đúng 3 issue REM-T06 đã biết (DEFER)
+```
+
+---
+
 ## Root Task: TASK-GOLDEN-BASELINE-001
 
 Lineage **mới**, độc lập với `TASK-110`. Ngân sách `EXHAUSTED_PRE_V4.1` của
@@ -2249,3 +2336,9 @@ không bị sửa trong phiên này.
   S079 (`BASE_SHA = 553d8a3`). `effective_risk = HIGH` (double-count →
   sai KPI/lương), 2 cycle khả dụng, **0 đã dùng**. Task READY, gate FROZEN
   (17 check). `TASK-PRA-001` không đổi: DONE, remaining = 0.
+- 2026-09-03 — `TASK-PRA-003` mở lineage mới tại phiên Roadmap Finalization
+  S095 (`BASE_SHA = facf090`). `effective_risk = MEDIUM` (tầng chỉ-đọc; hỏng
+  = hiển thị sai một số quản lý, không ghi đè dữ liệu), 1 cycle khả dụng,
+  **0 đã dùng**. Task READY_FOR_IMPLEMENTATION, gate FROZEN (14 check / 12
+  REQUIRED). `TASK-PRA-002` không đổi: DONE, 1/2 used, remaining = 1.
+  `TASK-PRA-001` không đổi: DONE.
