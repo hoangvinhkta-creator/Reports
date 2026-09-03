@@ -1,10 +1,96 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S096 — IMPLEMENTATION)
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S097 — INDEPENDENT REVIEW E2)
 
-Phiên MAJOR implement hợp đồng đã freeze ở S095 đã xong. Đây là trạng thái
-hiện hành có thẩm quyền của `TASK-PRA-003`; khối S095 ngay bên dưới là bản ghi
-lịch sử đúng của phiên freeze gate. Khối `TASK-PRA-002` phía dưới KHÔNG bị
+Phiên reviewer ĐỘC LẬP đã chạy lại toàn bộ và ra quyết định. Đây là trạng thái
+hiện hành có thẩm quyền của `TASK-PRA-003`; khối S096 ngay bên dưới là bản ghi
+lịch sử đúng của phiên implement. Khối `TASK-PRA-002` phía dưới KHÔNG bị khối
+này thay thế — hai task khác nhau.
+
+```text
+SESSION                    = S097 — PRA-003 Independent Review E2 (docs-only)
+REVIEW_RESULT              = ACCEPT_WITH_NON_BLOCKING_FINDINGS
+TASK-PRA-003               = IN_PROGRESS — review ĐÃ ACCEPT, CHỜ Controlled Integration
+                             (KHÔNG phải DONE: còn CHECK-07 — Owner nghiệm thu production)
+BASE_SHA                   = facf090c782b022730ecc5f1cf0d0b02e29ca8d7   ✓ KHỚP kỳ vọng
+REVIEW_TARGET_SHA          = a36f95917ce35acee0a05e215fbfa08df3a9ebe9   ✓ KHỚP kỳ vọng
+FROZEN_CONTRACT_SHA        = c12c5635b5e4298a9584b5fa93e21762c0d70c5b   ✓ KHỚP kỳ vọng
+REVIEW_TARGET_MOVED        = KHÔNG
+ARTIFACT                   = docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md
+
+FROZEN CONTRACT CÓ BỊ NỚI LỎNG KHÔNG?
+  KHÔNG. Diff c12c563..a36f959 trên file task chỉ đổi các trường ghi bằng chứng
+  (Status/Executed By/Timestamp/khối "Kết quả S096"). KHÔNG một dòng "Yêu cầu:",
+  KHÔNG một oracle O-A…O-K, KHÔNG một Owner Decision D1–D3 nào bị sửa chữ.
+  tests/fixtures/golden/** KHÔNG bị sửa một byte — oracle độc lập còn nguyên.
+
+RECOMPUTE ĐỘC LẬP (SQL THÔ, không qua analytics_queries — rồi mới đem so)
+  raw SQL        : 351 dòng · 254 đơn · SL 407 · doanh thu 3.562.310.000 · AUTO 2 / PENDING 349
+  expected JSON  : 351 dòng · 254 đơn · SL 407 · doanh thu 3.562.310.000
+  implementation : KHỚP cả hai · auto_orders + review_orders = 1 + 253 = 254 = orders
+
+CHỨNG MINH CẤU TRÚC (mạnh hơn grep)
+  PK order_line_current + hai join đều trỏ vào cột `id` là PRIMARY KEY
+    ⟹ many-to-one nghiêm ngặt, KHÔNG có đường nhân bản cardinality
+  current_source_version_id / current_result_version_id đều nullable=False
+    ⟹ inner join KHÔNG âm thầm đánh rơi dòng nào
+  CheckConstraint(status IN ('AUTO','PENDING'))       ⟹ phân hoạch thật ở cấp DB
+  CheckConstraint(origin='PIPELINE_GENERATED') × 3 bảng
+    ⟹ dòng legacy KHÔNG THỂ lọt vào về mặt vật lý (tách nguồn theo cấu trúc)
+
+CHECK MATRIX (sau review)
+  01 PASS  02 PASS  03 PASS  04 PASS  05 PASS  06 PASS
+  07 NOT_TESTED — real vertical production 09/2026, CHỜ Owner sau deploy
+  08 PASS  09 PASS  10 PASS  11 PASS
+  12 PASS — Independent Review E2 ĐÃ ACCEPT (phiên này)
+  13 PASS  14 PASS
+
+REVIEWER CHẠY LẠI
+  PRA-003 focused : 67 passed
+  Golden Baseline : 58 passed, 2 skipped        ← khớp O-K
+  legacy routes   : 34 passed                   ← non-regression PRA-001
+  PRA-002 vertical: 12 passed
+  FULL SUITE      : 1873 passed, 11 skipped (exit 0)
+  validators      : structure/project_state/evidence/task_completion = PASS
+                    reference_integrity = FAIL đúng 3 issue REM-T06 đã biết, không issue mới
+  budget đo lại   : Python 284 · template 191 · CSS 16 — tái lập ĐÚNG số implementer báo
+  Scope Lock      : 0 vi phạm · schema/migration/index/dependency/config = 0
+
+BLOCKING_FINDINGS   = 0
+NON_BLOCKING        = FIND-PRA003-01 CONTRACT_MISMATCH — minh hoạ số học của O-C
+                      (`0/351`) dẫn xuất từ block `pricing` của golden JSON, vốn do
+                      build_expected.py sinh bằng run_import() TRẦN. Đường persist
+                      THẬT là run_owner_report → demo.run_demo → run_import_production
+                      (có nạp registry canonical), nên coverage đúng của kỳ golden là
+                      2/351. Reviewer chạy CẢ HAI đường trên cùng fixture để xác nhận.
+                      Implementation test ĐÚNG đường production, KHÔNG sửa fixture, còn
+                      assert ngược lại rằng golden JSON vẫn đọc {Pending: 351} — bảo tồn
+                      oracle chứ không làm yếu. Khắc phục = sửa TÀI LIỆU O-C, không sửa mã.
+                      FIND-PRA003-02 EVIDENCE_DEFECT — `git diff --check` trên DẢI COMMIT
+                      có 1 trailing whitespace (docs/sessions/S094-…md:341, chỉ file docs);
+                      dạng working-tree của lệnh đúng là sạch, nên tuyên bố S096 "sạch"
+                      đúng cho dạng lệnh đó nhưng không đúng cho dải commit.
+                      FIND-PRA003-03 HARDENING — một employee_normalized mang hai
+                      employee_group sẽ hiện thành hai dòng cùng tên; bất biến cộng được
+                      VẪN đúng và dòng TỔNG vẫn đếm mỗi đơn một lần. RE-TRIGGER: khi dữ
+                      liệu thật lần đầu có một nhân viên mang hai nhóm trong cùng kỳ.
+REVIEW BUDGET       = repair_cycles_used 0 / 1 — review KHÔNG tiêu cycle; KHÔNG finding
+                      nào đe doạ 1 trong 5 điều kiện mục 14 ⟹ KHÔNG mở repair cycle
+
+VIỆC TIẾP THEO      = Controlled Integration vào canonical
+                      (claude/extract-upload-repo-gq2ws4), SAU ĐÓ Owner nghiệm thu
+                      CHECK-PRA003-07 trên production. Phiên này KHÔNG tích hợp canonical,
+                      KHÔNG đánh dấu task DONE, KHÔNG sửa mã production.
+```
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-003 (lịch sử, 2026-09-03, S096 — IMPLEMENTATION)
+
+Phiên MAJOR implement hợp đồng đã freeze ở S095 đã xong. Đây là BẢN GHI LỊCH
+SỬ đúng của phiên implement — trạng thái hiện hành có thẩm quyền của
+`TASK-PRA-003` nằm ở khối S097 phía TRÊN; khối S095 bên dưới là bản ghi lịch
+sử của phiên freeze gate. Khối `TASK-PRA-002` phía dưới KHÔNG bị
 khối này thay thế — hai task khác nhau.
 
 ```text

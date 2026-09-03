@@ -591,7 +591,37 @@ cycles:
   base_sha: N/A
   head_sha: N/A
 
-### Trạng thái (S096, 2026-09-03 — HIỆN HÀNH)
+### Trạng thái (S097, 2026-09-03 — HIỆN HÀNH)
+
+```
+TASK-PRA-003          : IN_PROGRESS — Independent Review E2 ĐÃ ACCEPT, CHỜ Controlled
+                        Integration; sau đó CHECK-07 (Owner nghiệm thu production)
+Independent Review E2 : XONG — REVIEW_RESULT = ACCEPT_WITH_NON_BLOCKING_FINDINGS
+                        artifact: docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md
+                        BASE facf090c… · TARGET a36f9591… · CONTRACT c12c5635… — cả ba KHỚP
+CHECK đã đóng         : 01-06 PASS · 08-11 PASS · 12 PASS · 13-14 PASS  (13/14)
+CHECK còn mở          : 07 NOT_TESTED (Owner nghiệm thu production, sau deploy) — việc CUỐI
+BLOCKING_FINDINGS     : 0  (reviewer tự chạy lại, không tìm được đường tới số sai)
+NON_BLOCKING          : FIND-PRA003-01 CONTRACT_MISMATCH (minh hoạ số học O-C dẫn xuất từ
+                        run_import() TRẦN của build_expected.py; đường persist thật là
+                        run_import_production ⟹ coverage golden đúng là 2/351. Oracle
+                        KHÔNG bị làm yếu: fixture không sửa, test còn assert ngược lại
+                        rằng file golden vẫn đọc {Pending: 351}. Khắc phục = sửa DOCS O-C)
+                        FIND-PRA003-02 EVIDENCE_DEFECT (git diff --check trên DẢI COMMIT có
+                        1 trailing whitespace ở docs/sessions/S094-…md:341, chỉ file docs;
+                        dạng working-tree của lệnh đúng là sạch)
+                        FIND-PRA003-03 HARDENING (một nhân viên mang hai employee_group sẽ
+                        hiện hai dòng; bất biến cộng được vẫn đúng; có RE-TRIGGER CONDITION)
+repair cycle đã dùng  : 0 / 1   ← review KHÔNG tiêu cycle; không finding nào đủ điều kiện mở
+Reviewer chạy lại     : PRA-003 67 passed · Golden 58 passed 2 skipped · legacy 34 passed
+                        PRA-002 vertical 12 passed · FULL SUITE 1873 passed, 11 skipped
+                        oracle golden recompute bằng SQL THÔ: 351 dòng / 254 đơn / SL 407 /
+                        doanh thu 3.562.310.000 — KHỚP expected JSON và KHỚP implementation
+                        budget đo lại độc lập: Python 284 · template 191 · CSS 16 (tái lập ĐÚNG)
+                        Scope Lock: 0 vi phạm · tests/fixtures/golden/** KHÔNG bị sửa
+```
+
+### Trạng thái (S096, 2026-09-03 — lịch sử)
 
 ```
 TASK-PRA-003          : IN_PROGRESS — implementation XONG, CHỜ Independent Review E2

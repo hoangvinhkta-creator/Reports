@@ -1017,7 +1017,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E2
@@ -1026,10 +1026,69 @@ Evidence:
 Yêu cầu: một reviewer session ĐỘC LẬP theo `governance/core/EVIDENCE_STANDARD.md` → "Quy trình Review độc lập cho Solo Developer": bắt đầu từ trạng thái thật của repository, đọc gate FROZEN này, kiểm tra diff thật, CHẠY LẠI độc lập tối thiểu CHECK-PRA003-01, -02, -03, -04, -05 (oracle golden + bất biến), ghi evidence của chính mình. Artifact lưu tại `docs/reviews/` theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Reviewer phải phân loại mọi finding thành BLOCKING / HARDENING / OUT_OF_SCOPE theo V4.1 §5 và §7; chỉ finding đe doạ 1 trong 5 điều ở mục 14 mới được mở repair cycle.
 
 Executed By:
-(chưa thực thi)
+Session S097 — TASK-PRA-003 Independent Review E2 (Claude Code)
 
 Timestamp:
-(chưa thực thi)
+2026-09-03
+
+Kết quả S097 — Independent Review E2:
+Artifact: `docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md`.
+Reviewer xác minh TRƯỚC khi đọc governance: `BASE_SHA = facf090c…`,
+`REVIEW_TARGET = a36f9591…`, `CONTRACT_SHA = c12c5635…` — cả ba KHỚP, không
+`REVIEW_TARGET_MOVED`. Diff `c12c563..a36f959` trên chính file task chỉ đổi các
+trường ghi bằng chứng; KHÔNG oracle O-A…O-K hay Owner Decision D1–D3 nào bị
+sửa chữ. `CHECK-PRA003-07` và `-12` được implementer giữ đúng `NOT_TESTED`.
+
+Chạy lại ĐỘC LẬP (E2 — reviewer tự viết khẳng định; các tổng được recompute
+bằng SQL THÔ, độc lập với `analytics_queries`, rồi mới đem so):
+
+```
+oracle golden — ba nguồn KHỚP (raw SQL · expected JSON · implementation):
+  lines=351 orders=254 qty=407 sales=3562310000 · status AUTO=2 PENDING=349
+  auto_orders + review_orders = 1 + 253 = 254 = orders
+
+CHECK-01 no-double-count : A→B == B một mình · re-upload no-op · SOURCE_CHANGED chỉ version hiện hành
+CHECK-03 NULL ≠ 0        : tập rỗng → None (không Decimal 0); None→'—', Decimal(0)→'0'
+CHECK-04 KPI chỉ AUTO    : dòng PENDING có kpi=5.000.000 BỊ LOẠI; hai coverage khác tử số, chung mẫu số
+CHECK-05 đối soát NV     : Σ khớp trên cả 5 chỉ tiêu cộng được; cột Đơn CỐ Ý không cộng được
+CHECK-06 tách nguồn      : không <table> nào mang cả hai nhãn; nguon lạ → 200 về legacy; escape đúng
+CHECK-08 kỳ trước vắng   : '—' chứ không 0%/-100%; biên năm Jan 2026 → Tháng 12/2025 đúng
+CHECK-09 thiếu sale_date : rơi khỏi MỌI kỳ và được undated_lines() phơi ra
+CHECK-10 PII             : dò bằng GIÁ TRỊ THẬT đọc ngược từ DB — không rò rỉ; không từ vựng nội bộ
+
+test  : PRA-003 67 passed · golden 58 passed 2 skipped · legacy 34 passed
+        PRA-002 vertical 12 passed · FULL SUITE 1873 passed, 11 skipped (exit 0)
+budget: Python 284 (< cảnh báo mềm 320) · template 191 (≤220) · CSS 16 (≤25)
+        schema/migration/index/dependency/config = 0 · Scope Lock 0 vi phạm
+        tests/fixtures/golden/** KHÔNG bị sửa — oracle golden còn nguyên
+```
+
+Chứng minh CẤU TRÚC (mạnh hơn grep): PK của `order_line_current` cộng với hai
+join đều trỏ vào cột `id` là PRIMARY KEY ⟹ many-to-one nghiêm ngặt, KHÔNG có
+đường nhân bản cardinality; hai con trỏ hiện hành `nullable=False` ⟹ không âm
+thầm đánh rơi dòng; `CheckConstraint(status IN ('AUTO','PENDING'))` ⟹ phân
+hoạch thật ở cấp DB; `CheckConstraint(origin='PIPELINE_GENERATED')` trên cả ba
+bảng ⟹ một dòng legacy KHÔNG THỂ lọt vào về mặt vật lý.
+
+Finding: **0 BLOCKING**. Ba finding NON_BLOCKING —
+`FIND-PRA003-01` = `CONTRACT_MISMATCH`: minh hoạ số học của O-C dẫn xuất từ
+đường `run_import()` TRẦN mà `build_expected.py` dùng; đường persist thật là
+`run_import_production`, nên coverage đúng của kỳ golden là `2/351`.
+Implementation test ĐÚNG đường production, KHÔNG sửa fixture, và còn assert
+ngược lại rằng file golden vẫn đọc ra `{Pending: 351}` — bảo tồn oracle chứ
+không làm yếu. Khắc phục đúng là sửa TÀI LIỆU O-C, không sửa mã.
+`FIND-PRA003-02` = `EVIDENCE_DEFECT`: 1 trailing whitespace ở
+`docs/sessions/S094-…md:341` trên dải commit (chỉ file docs); dạng working-tree
+của `git diff --check` đúng là sạch — hai dạng lệnh đo hai thứ khác nhau.
+`FIND-PRA003-03` = `HARDENING`: một nhân viên mang hai `employee_group` sẽ hiện
+thành hai dòng; bất biến cộng được vẫn đúng, kèm RE-TRIGGER CONDITION.
+
+Không finding nào đe doạ 1 trong 5 điều kiện mục 14 ⟹ KHÔNG mở repair cycle:
+`repair_cycles_used = 0`, `repair_cycles_remaining = 1`.
+
+```
+REVIEW_RESULT = ACCEPT_WITH_NON_BLOCKING_FINDINGS
+```
 
 ### Budget / Performance
 
