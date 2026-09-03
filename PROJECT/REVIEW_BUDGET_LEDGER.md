@@ -591,7 +591,26 @@ cycles:
   base_sha: N/A
   head_sha: N/A
 
-### Trạng thái (S097, 2026-09-03 — HIỆN HÀNH)
+### Trạng thái (S098, 2026-09-03 — HIỆN HÀNH)
+
+```
+TASK-PRA-003          : IN_PROGRESS — đối chiếu tài liệu FIND-01/FIND-02 xong (KHÔNG
+                        repair), fast-forward vào canonical xong, CHỜ CHECK-07
+Đối chiếu tài liệu     : FIND-PRA003-01 — thêm footnote [^oc-context] dưới bảng
+                        Acceptance Oracle (mục 16 task file), làm rõ 0/351 (đường
+                        golden TRẦN) vs 2/351 (đường giống production) đều đúng cho
+                        ngữ cảnh của mình; bất biến có thẩm quyền là NULL ≠ 0, không
+                        phải literal cụ thể. KHÔNG đổi Yêu cầu: gốc của CHECK-03/04,
+                        KHÔNG đổi Owner Decision, KHÔNG đổi fixture/expected JSON.
+                        FIND-PRA003-02 — xoá 1 trailing whitespace ở
+                        docs/sessions/S094-…md:341; git diff --check working tree sạch.
+                        FIND-PRA003-03 — DEFER/RECORD ONLY, không sửa.
+repair cycle đã dùng  : 0 / 1   ← đối chiếu tài liệu KHÔNG tiêu repair cycle
+Integration           : PURE FAST-FORWARD claude/pra-003-roadmap-finalization-di33bn
+                        → claude/extract-upload-repo-gq2ws4 (không merge/squash/rebase)
+```
+
+### Trạng thái (S097, 2026-09-03 — lịch sử)
 
 ```
 TASK-PRA-003          : IN_PROGRESS — Independent Review E2 ĐÃ ACCEPT, CHỜ Controlled

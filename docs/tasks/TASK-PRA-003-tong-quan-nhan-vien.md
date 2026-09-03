@@ -631,7 +631,7 @@ nhánh dễ sai nhất của mọi dashboard (hiện `0` hoặc `-100%` thay vì
 |---|---|---|---|
 | **O-A** | Tổng hợp theo trạng thái hiện hành KHÔNG double-count: upload sổ A (nửa kỳ) rồi sổ B (cả kỳ) → Tổng quan kỳ đó == upload MÌNH sổ B | cấu trúc PK `order_line_current`; kịch bản của `tests/test_pipeline_history_vertical.py` | 01 |
 | **O-B** | Golden kỳ 01/2026 (`Toàn bộ dữ liệu` hoặc `Tháng 01/2026`): `orders = 254` · `lines = 351` · `quantity = 407` · `doanh thu = 3.562.310.000` | `tests/fixtures/golden/expected/period_2026_01.json` → `counts.orders`, `counts.lines`, `money.quantity_total`, `money.sales_normalized`. Oracle ĐỘC LẬP: file do `TASK-GOLDEN-BASELINE-001` sinh TRƯỚC khi PRA-003 tồn tại | 02 |
-| **O-C** | Lợi nhuận thiếu hiển thị `—`, KHÔNG hiển thị `0`. Cùng kỳ golden: LN KPI = `—` (coverage `0/351`) và LN kế toán = `—` (`pricing.price_source_distribution = {Pending: 351}`) | oracle về TÍNH TRUNG THỰC | 03, 04 |
+| **O-C** | Lợi nhuận thiếu hiển thị `—`, KHÔNG hiển thị `0` — đây là bất biến an toàn được bảo vệ, không phải một con số literal cụ thể. Minh hoạ bằng cùng kỳ golden: LN KPI và LN kế toán đều `—` khi tập cộng rỗng.[^oc-context] | oracle về TÍNH TRUNG THỰC | 03, 04 |
 | **O-D** | Với MỌI kỳ: Σ(các dòng nhân viên) == `period_totals` cùng kỳ trên 5 chỉ tiêu CỘNG ĐƯỢC (dòng, số lượng, doanh thu, LN KPI, LN kế toán). Bảng nhân viên golden có ĐÚNG 1 dòng `Tín Phát` khớp block `employees` | bất biến nội bộ + `employees` của cùng file JSON | 05 |
 | **O-D′** | Cột **Đơn** KHÔNG áp bất biến trên — một đơn có thể liên quan nhiều nhân viên. Trang phải nói rõ điều đó | `counts.orders_with_multiple_employee_raw` tồn tại như một khái niệm trong golden | 05 |
 | **O-E** | `GET /nhan-vien` không tham số cho ra ĐÚNG trang legacy như trước PRA-003 | non-regression `TASK-PRA-001` | 06 |
@@ -641,6 +641,25 @@ nhánh dễ sai nhất của mọi dashboard (hiện `0` hoặc `-100%` thay vì
 | **O-I** | Dòng `sale_date IS NULL` được đếm và hiển thị riêng; chúng KHÔNG vào bất kỳ kỳ nào và KHÔNG bị lờ đi | `FACT #3` mục 9 | 09 |
 | **O-J** | Không PII trong management UI: body không chứa tên/SĐT/địa chỉ khách, không chứa `imei`, không chứa `note_raw` | `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`; `PROJECT/PROJECT_PROFILE.md` (IMEI/serial là dữ liệu cá nhân) | 10 |
 | **O-K** | Golden Baseline giữ `58 passed, 2 skipped`; full suite không giảm; `validate_*` giữ nguyên trạng thái hiện tại (kể cả 3 issue `reference_integrity` đã biết của REM-T06 — DEFER, KHÔNG sửa) | S092/S093 | 11 |
+
+[^oc-context]: **Làm rõ ngữ cảnh thực thi (bổ sung tại S098, sau Independent
+Review E2 — `FIND-PRA003-01`, `CONTRACT_MISMATCH`, NON_BLOCKING, KHÔNG đổi bất
+biến an toàn hay Owner Decision nào).** Có HAI ngữ cảnh thực thi khác nhau
+trên cùng fixture golden, và mỗi ngữ cảnh có một coverage LITERAL khác nhau —
+cả hai đều ĐÚNG cho ngữ cảnh của mình:
+`0/351` thuộc ngữ cảnh sinh golden TRẦN (`tests/fixtures/golden/build_expected.py`
+gọi `run_import()` không nạp historical-confirmed registry, mọi dòng ra
+`Pending`); `2/351` thuộc ngữ cảnh giống production mà PRA-003 thực sự đọc
+(`demo.run_demo` → `run_import_production`, có nạp registry canonical đã
+commit, 2 dòng ra `AUTO`). Bất biến CÓ THẨM QUYỀN của O-C không phải một trong
+hai con số literal đó — nó là `NULL ≠ 0`: một tập lợi nhuận rỗng/không đủ điều
+kiện PHẢI hiển thị `—`, không bao giờ `0`. Cả hai coverage `0/351` và `2/351`
+đều thoả bất biến đó (không dòng nào lọt vào tổng khiến ô hiện `0`).
+`CHECK-PRA003-03`/`CHECK-PRA003-04` xác nhận bất biến này bằng dữ liệu tổng
+hợp có kiểm soát (không phụ thuộc ngữ cảnh nào ở trên) VÀ bằng chính đường
+production trên fixture golden (`tests/test_web_pipeline_analytics.py::test_the_golden_period_reports_the_coverage_it_actually_has`,
+khoá `2/351` — coverage THẬT của đường mà PRA-003 đọc). Chi tiết điều tra:
+`docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md`.
 
 **Giới hạn đã biết của oracle golden — phải nói ra, không được lờ đi:**
 fixture golden đã ẩn danh về ĐÚNG MỘT nhân viên (`employees` chỉ có

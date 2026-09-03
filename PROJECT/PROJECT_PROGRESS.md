@@ -1,11 +1,107 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S097 — INDEPENDENT REVIEW E2)
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S098 — NON-BLOCKING DOC RECONCILIATION + CONTROLLED INTEGRATION)
 
-Phiên reviewer ĐỘC LẬP đã chạy lại toàn bộ và ra quyết định. Đây là trạng thái
-hiện hành có thẩm quyền của `TASK-PRA-003`; khối S096 ngay bên dưới là bản ghi
-lịch sử đúng của phiên implement. Khối `TASK-PRA-002` phía dưới KHÔNG bị khối
-này thay thế — hai task khác nhau.
+Sau Independent Review E2 (S097, `ACCEPT_WITH_NON_BLOCKING_FINDINGS`), phiên
+này (a) đối chiếu tài liệu cho hai finding non-blocking KHÔNG cần repair cycle,
+rồi (b) tích hợp nhánh đã accept vào canonical bằng fast-forward THUẦN TUÝ. Đây
+là trạng thái hiện hành có thẩm quyền của `TASK-PRA-003`. Khối S097 ngay bên
+dưới là bản ghi lịch sử đúng của phiên review. Khối `TASK-PRA-002` phía dưới
+KHÔNG bị khối này thay thế.
+
+```text
+SESSION                    = S098 — PRA-003 Doc Reconciliation + Controlled Integration
+FIND-PRA003-01             = ĐỐI CHIẾU TÀI LIỆU (KHÔNG repair) — xem bên dưới
+FIND-PRA003-02             = ĐỐI CHIẾU TÀI LIỆU (KHÔNG repair) — xem bên dưới
+FIND-PRA003-03             = DEFER / RECORD ONLY — không sửa, không mở task
+repair_cycles_used         = 0 / 1  (đối chiếu tài liệu KHÔNG tiêu repair cycle)
+INTEGRATION_RESULT         = PASS (fast-forward thuần tuý, không merge/squash/rebase)
+CANONICAL_BEFORE           = facf090c782b022730ecc5f1cf0d0b02e29ca8d7
+FINAL_ACCEPTED_HEAD        = chính commit đối chiếu tài liệu này (SHA in trong
+                             commit message + tại git log claude/extract-upload-repo-gq2ws4
+                             sau fast-forward)
+TASK-PRA-003               = IN_PROGRESS — CHỜ CHECK-PRA003-07 (Owner nghiệm thu production)
+```
+
+### FIND-PRA003-01 — đối chiếu tài liệu (không phải repair)
+
+Minh hoạ số học literal của oracle O-C (mục 16 file task) gây hiểu nhầm: nó
+viết `coverage 0/351` như thể đó là con số DUY NHẤT đúng, trong khi có HAI
+ngữ cảnh thực thi trên cùng fixture golden — `0/351` thuộc đường sinh golden
+TRẦN (`build_expected.py` gọi `run_import()` không nạp registry), `2/351`
+thuộc đường giống production mà PRA-003 thực sự đọc (`run_import_production`).
+Đã sửa: thêm footnote `[^oc-context]` ngay dưới bảng Acceptance Oracle, nói rõ
+CẢ HAI con số đều đúng cho ngữ cảnh của mình, và bất biến CÓ THẨM QUYỀN của
+O-C là tính chất an toàn `NULL ≠ 0` (lợi nhuận thiếu/không đủ điều kiện PHẢI
+hiện `—`, không bao giờ `0`) — không phải một literal cụ thể nào.
+
+KHÔNG đổi: Owner Decision D1–D3, implementation, fixture, expected JSON,
+`Yêu cầu:` gốc của `CHECK-PRA003-03`/`CHECK-PRA003-04` (văn bản gate FROZEN
+tại S095), hay bất kỳ business semantics nào. Đây là làm rõ ngữ cảnh thực thi,
+không phải thiết kế lại contract.
+
+### FIND-PRA003-02 — đối chiếu tài liệu (không phải repair)
+
+`git diff --check` trên dải commit `facf090..bb5b63a` có đúng 1 trailing
+whitespace: `docs/sessions/S094-pra-003-vertical-slice-discovery.md:341`. Đã
+xoá khoảng trắng cuối dòng đó — KHÔNG dọn định dạng nào khác trong file. Xác
+nhận lại: `git diff --check` trên working tree sạch (không output).
+
+### FIND-PRA003-03 — DEFER, không sửa
+
+Một `employee_normalized` mang nhiều `employee_group` trong cùng kỳ sẽ hiện
+thành nhiều dòng cùng tên trên bảng Nhân viên; bất biến cộng được VẪN đúng
+(đã kiểm chứng ở Independent Review S097). Phiên này KHÔNG sửa grouping
+semantics, KHÔNG mở task, chỉ ghi nhận RE-TRIGGER CONDITION đã có trong
+`docs/reviews/TASK-PRA-003-INDEPENDENT-REVIEW-RECORD.md`: kích hoạt lại khi
+dữ liệu thật lần đầu có một nhân viên mang hai nhóm trong cùng kỳ.
+
+### Verify Accepted Production Delta (facf090 → final accepted HEAD)
+
+```
+18 file: 2 module Python mới (analytics_queries, analytics_presentation) +
+2 template mới (tong_quan.html, _pipeline_bits.html) + 4 file sửa
+(server.py, nhan_vien.html, layout.html, tinphat-ui.css) + 3 file test mới +
+docs (task/session/review/progress/ledger)
+
+Tracking = 0     schema = 0     migration = 0     index = 0
+dependency = 0   config = 0     infrastructure = 0
+protected persistence/reconciliation core (app/history/**, history_store.py,
+history_writer.py, run_registry.py, storage_backend.py, app/modules/**,
+app/pipeline.py, app/composition.py) = KHÔNG đổi
+```
+
+### Change Budget (đo lại sau đối chiếu tài liệu)
+
+```
+Python production = 284   (mục tiêu 255 · cảnh báo mềm 320 · DỪNG CỨNG 400) → TRONG NGƯỠNG
+Template           = 191   (trần 220) ✓
+CSS                =  16   (trần  25) ✓
+Đối chiếu tài liệu thêm 0 dòng Python/template/CSS production — chỉ docs.
+```
+
+### Fast-Forward Integration
+
+```
+Phương pháp bắt buộc : PURE FAST-FORWARD ONLY
+Nhánh nguồn           : claude/pra-003-roadmap-finalization-di33bn (sau đối chiếu tài liệu)
+Nhánh đích             : claude/extract-upload-repo-gq2ws4 (canonical)
+merge commit / squash / cherry-pick / rebase / force-push = KHÔNG dùng cái nào
+```
+
+VIỆC TIẾP THEO = Deploy canonical (nếu chưa) và thực hiện tối thiểu quy trình
+Owner nghiệm thu production cho `CHECK-PRA003-07` (mở `/tong-quan`, chọn
+"Tháng 09/2026", đọc và ghi lại các giá trị thật). Phiên này KHÔNG deploy,
+KHÔNG đánh dấu CHECK-07 PASS, KHÔNG đánh dấu task DONE.
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-003 (lịch sử, 2026-09-03, S097 — INDEPENDENT REVIEW E2)
+
+Phiên reviewer ĐỘC LẬP đã chạy lại toàn bộ và ra quyết định. Đây là BẢN GHI
+LỊCH SỬ đúng của phiên review — trạng thái hiện hành có thẩm quyền của
+`TASK-PRA-003` nằm ở khối S098 phía TRÊN; khối S096 bên dưới là bản ghi lịch
+sử của phiên implement.
 
 ```text
 SESSION                    = S097 — PRA-003 Independent Review E2 (docs-only)

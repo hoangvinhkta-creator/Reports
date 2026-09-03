@@ -338,7 +338,7 @@ Trạng thái hiện hành     : 61 dòng · 40 đơn
 AUTO / Review (theo ĐƠN) : 15 / 25
 Dòng không nhận ra       : 0
 order_accounting_rate    : 100%   (= 40/40 đơn dựng được — KHÔNG phải coverage giá nhập)
-Snapshot                 : SNAP-20260903034024-7b421983 (upload 1), 
+Snapshot                 : SNAP-20260903034024-7b421983 (upload 1),
                            SNAP-20260903034120-7b421983 (upload 2, FILE TRÙNG, SAME 61)
 Coverage state           : HEADER_CONSISTENT
 ```
