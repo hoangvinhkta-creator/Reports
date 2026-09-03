@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% import "_pipeline_bits.html" as pipeline %}
+{% set active_tab = 'tong-quan' %}
+{% block title %}Reports — Tổng quan (số mới){% endblock %}
+
+{% block content %}
+<h1>TỔNG QUAN — SỐ MỚI</h1>
+
+{{ pipeline.source_note() }}
+
+<div class="module">
+  {{ pipeline.period_picker(periods, selected_period, url_for('overview')) }}
+
+  {# Tổng đơn và Số dòng hàng đi CHUNG một cụm, không thành hai thẻ KPI riêng:
+     số dòng là MẪU SỐ của cả hai coverage, đọc nó cạnh số đơn mới có nghĩa. #}
+  <h2>{{ overview.period_label }} {{ pipeline.pipeline_badge() }}
+      <span class="cnt"><span data-metric="orders">{{ overview.orders }}</span> đơn ·
+        <span data-metric="lines">{{ overview.lines }}</span> dòng</span></h2>
+
+  <div class="kpi-grid">
+    {{ pipeline.kpi('Tổng số lượng', overview.quantity, 'quantity') }}
+    {{ pipeline.kpi('Doanh thu (net)', overview.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.profit_kpi('Lợi nhuận KPI', overview.kpi_profit, 'kpi_profit') }}
+    {{ pipeline.profit_kpi('Lợi nhuận kế toán', overview.accounting_profit,
+                           'accounting_profit') }}
+    {{ pipeline.kpi('Đơn AUTO', overview.auto_orders, 'auto_orders') }}
+    {{ pipeline.kpi('Đơn cần kiểm tra', overview.review_orders, 'review_orders') }}
+  </div>
+
+  <p class="insight">{{ QUANTITY_NOTE }}</p>
+  <p class="insight">
+    Lợi nhuận KPI chỉ cộng các dòng đã đủ chắc chắn (AUTO); lợi nhuận kế toán
+    chỉ cộng các dòng đã có giá nhập. Hai coverage đi kèm có TỬ SỐ khác nhau —
+    ô trống nghĩa là chưa có giá trị nào, không phải bằng không.
+  </p>
+</div>
+
+{# So kỳ trước: chỉ tồn tại khi đang xem MỘT tháng. "Toàn bộ dữ liệu" không có
+   kỳ liền trước để so — không bịa ra một cái. #}
+{% if overview.comparison %}
+<div class="module">
+  <h2>So với {{ overview.comparison.label }}</h2>
+  {% if overview.comparison.empty %}
+  <p class="insight" data-metric="no-previous-period">
+    {{ pipeline.pipeline_badge() }}
+    Reports chưa có dữ liệu kỳ trước, nên mọi ô so sánh dưới đây để trống.
+  </p>
+  {% endif %}
+  <table>
+    <tr><th>Chỉ tiêu</th><th class="num">Chênh lệch</th><th class="num">Tỉ lệ</th></tr>
+    {% for label, metric in [('Tổng đơn', 'orders'), ('Doanh thu (net)', 'total_sales')] %}
+    <tr>
+      <td>{{ label }}</td>
+      <td class="num{{ ' empty-cell' if overview.comparison[metric].missing }}"
+          data-metric="delta-{{ metric }}">{{ overview.comparison[metric].delta }}</td>
+      <td class="num{{ ' empty-cell' if overview.comparison[metric].missing }}"
+          data-metric="ratio-{{ metric }}">{{ overview.comparison[metric].ratio }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{# Thông tin an toàn, không phải chỉ tiêu: các dòng này rơi khỏi MỌI kỳ vì
+   chúng không có ngày bán. Không hiện chúng ra thì tổng của "Toàn bộ dữ liệu"
+   nhỏ hơn tổng thật mà không ai biết. #}
+<div class="module">
+  <h2>Dòng chưa có ngày bán</h2>
+  {% if overview.undated_lines %}
+  <p class="error" data-metric="undated-lines">
+    Có <strong>{{ overview.undated_lines }}</strong> dòng hiện hành chưa có ngày bán.
+    Chúng KHÔNG được tính vào bất kỳ kỳ nào ở trên, kể cả "Toàn bộ dữ liệu".
+  </p>
+  {% else %}
+  <p class="insight" data-metric="undated-lines">
+    Không có dòng nào thiếu ngày bán — mọi dòng hiện hành đều nằm trong một kỳ.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

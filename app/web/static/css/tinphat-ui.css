@@ -189,6 +189,22 @@ textarea { width: 100%; }
 .status-COMPLETE { color: var(--tp-green); font-weight: 600; }
 .status-FAILED, .status-TRACKING_UNAVAILABLE { color: var(--tp-red); font-weight: 600; }
 
+/* TASK-PRA-003 — lưới thẻ KPI của Tổng quan (SỐ MỚI). Tái dụng token --tp-*,
+   .module, .tag và .empty-cell sẵn có; chỉ thêm phần chưa tồn tại. */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--tp-s3); margin: var(--tp-s3) 0;
+}
+.kpi-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--tp-s2) var(--tp-s3); border: 1px solid var(--tp-line);
+  border-radius: 6px;
+}
+.kpi-value { font-size: 20px; }
+.kpi-value.empty-cell { color: var(--tp-mut); font-weight: 400; }
+.tag-pipeline { background: var(--tp-green-bg); color: var(--tp-green); }
+.source-switch .on { background: var(--tp-blue); color: #fff; }
+
 @media (max-width: 760px) {
   .tp-main { padding: var(--tp-s4) var(--tp-s3) var(--tp-s6); }
   .tp-header { padding: 0 var(--tp-s3); }

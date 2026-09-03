@@ -1,11 +1,87 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S095 — GATE FROZEN)
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S096 — IMPLEMENTATION)
+
+Phiên MAJOR implement hợp đồng đã freeze ở S095 đã xong. Đây là trạng thái
+hiện hành có thẩm quyền của `TASK-PRA-003`; khối S095 ngay bên dưới là bản ghi
+lịch sử đúng của phiên freeze gate. Khối `TASK-PRA-002` phía dưới KHÔNG bị
+khối này thay thế — hai task khác nhau.
+
+```text
+SESSION                    = S096 — PRA-003 MAJOR Implementation
+IMPLEMENTATION_RESULT      = PASS
+TASK-PRA-003               = IN_PROGRESS — implementation XONG, CHỜ Independent Review E2
+                             (KHÔNG phải DONE: còn CHECK-07 và CHECK-12)
+BASE_CANONICAL             = claude/extract-upload-repo-gq2ws4 @ facf090c782b022730ecc5f1cf0d0b02e29ca8d7
+                             (xác minh đầu phiên — CANONICAL_NOT_MOVED)
+FROZEN_CONTRACT_SHA        = c12c5635b5e4298a9584b5fa93e21762c0d70c5b
+NHÁNH IMPLEMENT            = claude/pra-003-roadmap-finalization-di33bn
+HANDOFF                    = docs/sessions/S096-pra-003-major-implementation.md
+
+FILE PRODUCTION MỚI (4)
+  app/web/analytics_queries.py           117 dòng mã  — toàn bộ SQL, CHỈ-ĐỌC
+  app/web/analytics_presentation.py      105 dòng mã  — định dạng + nhãn nguồn
+  app/web/templates/tong_quan.html        80 dòng
+  app/web/templates/_pipeline_bits.html   63 dòng
+FILE PRODUCTION SỬA (4)
+  app/web/server.py                      +62 dòng mã  — route /tong-quan, tham số nguon
+  app/web/templates/nhan_vien.html       +47 dòng     — bộ chuyển nguồn + nhánh SỐ MỚI
+  app/web/static/css/tinphat-ui.css      +16 dòng
+  app/web/templates/layout.html           +1 dòng     — tab "Tổng quan"
+TEST MỚI (3 file, 67 test)
+  tests/test_analytics_queries.py         22 test
+  tests/test_analytics_presentation.py    20 test
+  tests/test_web_pipeline_analytics.py    25 test
+
+SCHEMA_CHANGED = NO     MIGRATION = 0     INDEX_ADDED = 0     DEPENDENCY_ADDED = 0
+CONFIG_ADDED   = 0      TRACKING_CHANGED = NO      INFRASTRUCTURE_CHANGED = NO
+PROTECTED_CORE_IMPACT = NONE               ALEMBIC_HEAD = 0002_snapshots (không đổi)
+PRA-001 / PRA-002 CHANGED = NO             MỌI INSERT/UPDATE/DELETE = 0 (tầng CHỈ-ĐỌC)
+
+CHANGE_BUDGET (đo bằng script AST, dòng mã — bỏ trống/comment/docstring)
+  Python production  = 284   mục tiêu 255 · cảnh báo mềm 320 · DỪNG CỨNG 400 → TRONG NGƯỠNG
+  Template           = 191   trần 220  ✓
+  CSS                =  16   trần  25  ✓
+  Test mới           =  67   sàn  30, 0 skip mới ✓
+
+CHECK MATRIX
+  01 PASS  02 PASS  03 PASS  04 PASS  05 PASS  06 PASS
+  07 NOT_TESTED — real vertical production 09/2026, CHỜ Owner sau deploy
+  08 PASS  09 PASS  10 PASS  11 PASS
+  12 NOT_TESTED — Independent Review E2, phiên implement KHÔNG tự review mình
+  13 PASS  14 PASS — đo thật: chậm nhất 64 ms trên 12.000 dòng ⟹ KHÔNG thêm index
+
+REGRESSION (đo TRƯỚC và SAU)
+  Golden Baseline : 58 passed, 2 skipped  →  58 passed, 2 skipped   (KHÔNG đổi)
+  Full suite      : 1806 passed, 11 skipped  →  1873 passed, 11 skipped
+  Validators      : structure/project_state/evidence/task_completion = PASS (cả hai lần)
+                    reference_integrity = FAIL đúng 3 issue REM-T06 đã biết, không issue mới
+  git diff --check: sạch
+
+BLOCKING_FINDINGS   = 0
+NON_BLOCKING        = FIND-PRA003-01 (HARDENING) — block `pricing` của
+                      tests/fixtures/golden/expected/period_2026_01.json mô tả đường
+                      `run_import()` TRẦN (build_expected), không phải đường production
+                      `run_import_production` mà PRA-003 đọc. Trên cùng fixture, đường
+                      production cho 2 dòng AUTO (price_source =
+                      OWNER_MANUAL_LEGACY_CONFIRMATION), nên coverage thật là 2/351 chứ
+                      không phải 0/351 như O-C mô tả. Không phải defect mã; chi tiết và
+                      RE-TRIGGER CONDITION ở handoff S096.
+REVIEW BUDGET       = repair_cycles_used 0 / 1 (phiên implement KHÔNG tiêu repair cycle)
+
+VIỆC TIẾP THEO      = Independent Review E2 (CHECK-PRA003-12), artifact tại docs/reviews/
+                      theo governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md.
+                      Phiên này KHÔNG tích hợp canonical và KHÔNG đánh dấu task DONE.
+```
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-003 (lịch sử, 2026-09-03, S095 — GATE FROZEN)
 
 Roadmap Finalization đã đóng: task file tồn tại, Completion Gate FROZEN,
-lineage review budget đã mở. Đây là trạng thái hiện hành có thẩm quyền của
-`TASK-PRA-003`; khối S094 ngay bên dưới là bản ghi lịch sử đúng của phiên
-discovery. Khối `TASK-PRA-002` phía dưới KHÔNG bị khối này thay thế — hai
+lineage review budget đã mở. Khối này là bản ghi LỊCH SỬ của phiên freeze gate
+— trạng thái hiện hành có thẩm quyền của `TASK-PRA-003` nằm ở khối S096 phía
+TRÊN; khối S094 bên dưới là bản ghi lịch sử của phiên discovery. Khối `TASK-PRA-002` phía dưới KHÔNG bị khối này thay thế — hai
 task khác nhau.
 
 ```text

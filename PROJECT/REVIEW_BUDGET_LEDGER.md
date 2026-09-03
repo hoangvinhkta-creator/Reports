@@ -585,22 +585,39 @@ Mọi INSERT/UPDATE/DELETE                      : FORBIDDEN — PRA-003 là tầ
 ```
 
 cycles:
-- id: (chưa mở — implementation chưa bắt đầu tại thời điểm ghi ledger này)
+- id: (chưa mở — implementation S096 hoàn tất với 0 BLOCKING finding; repair
+  cycle chỉ mở nếu Independent Review E2 tìm ra finding đe doạ 1 trong 5 điều
+  ở trên)
   base_sha: N/A
   head_sha: N/A
 
-### Trạng thái (S095, 2026-09-03 — HIỆN HÀNH)
+### Trạng thái (S096, 2026-09-03 — HIỆN HÀNH)
+
+```
+TASK-PRA-003          : IN_PROGRESS — implementation XONG, CHỜ Independent Review E2
+                        (gate FROZEN, 14 check / 12 REQUIRED / 2 RECOMMENDED)
+Implementation        : XONG — 284 dòng Python production, 191 dòng template, 16 dòng CSS
+CHECK đã đóng         : 01-06 PASS · 08-11 PASS · 13-14 PASS  (12/14)
+CHECK còn mở          : 07 NOT_TESTED (Owner nghiệm thu production, sau deploy)
+                        12 NOT_TESTED (Independent Review E2 — việc TIẾP THEO)
+BLOCKING_FINDINGS     : 0
+repair cycle đã dùng  : 0 / 1   ← phiên implement KHÔNG tiêu repair cycle
+CHANGE_BUDGET đã đo   : Python 284 / mục tiêu 255 / cảnh báo mềm 320 / DỪNG CỨNG 400 → TRONG NGƯỠNG
+                        template 191/220 · CSS 16/25 · test mới 67 (≥30) · dependency 0 · schema 0 · migration 0
+Baseline TRƯỚC code   : Golden 58 passed, 2 skipped · full suite 1806 passed, 11 skipped
+                        validators: structure/project_state/evidence/task_completion = PASS;
+                        reference_integrity = FAIL đúng 3 issue REM-T06 đã biết (DEFER)
+Đo lại SAU code       : Golden 58 passed, 2 skipped (KHÔNG đổi)
+                        full suite 1873 passed, 11 skipped (+67 test, skip KHÔNG tăng)
+                        validators GIỐNG HỆT baseline — không issue mới
+```
+
+### Trạng thái (S095, 2026-09-03 — lịch sử)
 
 ```
 TASK-PRA-003          : IN_PROGRESS / READY_FOR_IMPLEMENTATION
-                        (gate FROZEN, 14 check / 12 REQUIRED / 2 RECOMMENDED)
 Implementation        : CHƯA BẮT ĐẦU — 0 dòng production
 repair cycle đã dùng  : 0 / 1
-CHANGE_BUDGET         : Python production mục tiêu ~255 · cảnh báo mềm 320 · DỪNG CỨNG 400
-                        template ≤220 · CSS ≤25 · test ≥30 · dependency 0 · schema 0 · migration 0
-Baseline trước khi code: Golden 58 passed, 2 skipped (trích S092/S093 — CHƯA chạy lại ở S095)
-                        validators: structure/project_state/evidence/task_completion = PASS;
-                        reference_integrity = FAIL đúng 3 issue REM-T06 đã biết (DEFER)
 ```
 
 ---

@@ -1,9 +1,54 @@
 {% extends "layout.html" %}
 {% import "_legacy_bits.html" as legacy %}
+{% import "_pipeline_bits.html" as pipeline %}
 {% set active_tab = 'nhan-vien' %}
-{% block title %}Reports — Nhân viên (số cũ){% endblock %}
+{% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
+{# Bộ chuyển nguồn. Hai nguồn nằm trong hai NHÁNH tách biệt của trang, không
+   bao giờ trong cùng một <table>: LEGACY_REFERENCE và PIPELINE_GENERATED
+   không được cộng chung, nên cũng không được đặt cạnh nhau trong một hàng. #}
+<nav class="filter-row source-switch">
+  <a class="ghost btn-mini {{ 'on' if not pipeline_view }}"
+     href="{{ url_for('sellers') }}">SỐ CŨ</a>
+  <a class="ghost btn-mini {{ 'on' if pipeline_view }}"
+     href="{{ url_for('sellers', nguon='moi') }}">SỐ MỚI</a>
+</nav>
+<p class="insight">{{ BOTH_SOURCES_NOTE }}</p>
+
+{% if pipeline_view %}
+<h1>NHÂN VIÊN — SỐ MỚI</h1>
+{{ pipeline.source_note() }}
+
+<div class="module">
+  {{ pipeline.period_picker(periods, selected_period, url_for('sellers')) }}
+
+  <h2>{{ period_label }} {{ pipeline.pipeline_badge() }}
+      <span class="cnt">{{ rows|length - 1 }} nhân viên</span></h2>
+  <p class="insight">{{ ORDER_COLUMN_NOTE }}</p>
+  <p class="insight">{{ QUANTITY_NOTE }}</p>
+
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if not loop.first and loop.index > 2 }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.total_row }}">
+      <td class="code">{{ row.employee }}</td>
+      <td>{{ row.employee_group }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="lines">{{ row.lines }}</td>
+      <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+      <td class="num" data-metric="total_sales">{{ row.total_sales }}</td>
+      {{ pipeline.profit_cells(row) }}
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+{% else %}
 <h1>NHÂN VIÊN — SỐ CŨ THEO THÁNG</h1>
 
 {% if not history_configured %}
@@ -47,5 +92,6 @@
   </div>
   {% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}

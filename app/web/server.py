@@ -52,7 +52,8 @@ from app.owner_usability import SelectedCaptures
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.web import (
-    history_store, history_writer, legacy_presentation, run_registry, storage_backend,
+    analytics_presentation, analytics_queries, history_store, history_writer,
+    legacy_presentation, run_registry, storage_backend,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -252,6 +253,11 @@ def create_app(
     app.config["SNAPSHOT_STORE"] = snapshot_repo
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
+    app.jinja_env.globals["PIPELINE_BADGE"] = analytics_presentation.ORIGIN_BADGE
+    app.jinja_env.globals["PIPELINE_BADGE_TITLE"] = analytics_presentation.ORIGIN_TITLE
+    app.jinja_env.globals["QUANTITY_NOTE"] = analytics_presentation.QUANTITY_NOTE
+    app.jinja_env.globals["ORDER_COLUMN_NOTE"] = analytics_presentation.ORDER_COLUMN_NOTE
+    app.jinja_env.globals["BOTH_SOURCES_NOTE"] = analytics_presentation.BOTH_SOURCES_NOTE
 
     def _require_history() -> history_store.LegacyRepository:
         if history_repo is None:
@@ -451,12 +457,86 @@ def create_app(
             abort(404)
         return redirect(url_for("data_tab", imported=f"Đang xem bản {import_id}."))
 
+    def _pipeline_period(periods: list[tuple[int, int]]) -> Optional[tuple[int, int]]:
+        """Kỳ SỐ MỚI đang xem. Mặc định "Toàn bộ dữ liệu" (``None``).
+
+        Mặc định đó là lựa chọn có chủ đích: nó là kỳ DUY NHẤT không bao giờ
+        giấu bớt dòng nào và không cần một kỳ so sánh, nên trang mở ra lần đầu
+        không thể nói sai. Một ``ky`` không có trong dữ liệu cũng rơi về đây —
+        trang hiện tổng thật, thay vì một bảng toàn số 0 cho một tháng bịa.
+        """
+        raw = request.args.get("ky") or ""
+        year_text, _, month_text = raw.partition("-")
+        try:
+            chosen = (int(year_text), int(month_text))
+        except ValueError:
+            return None
+        return chosen if chosen in periods else None
+
+    def _pipeline_view(engine) -> dict:
+        """Kỳ + tổng kỳ + tổng kỳ trước, dùng chung cho Tổng quan và Nhân viên."""
+        periods = _guarded(analytics_queries.available_periods, engine)
+        period = _pipeline_period(periods)
+        bounds = analytics_queries.month_bounds(*period) if period else (None, None)
+        previous = None
+        if period is not None:
+            # Kỳ so sánh LUÔN được truy vấn khi đang xem một tháng: chính kết
+            # quả "kỳ trước không có dòng nào" là thứ trang phải nói ra, nên
+            # không được bỏ qua truy vấn đó.
+            previous = _guarded(analytics_queries.period_totals, engine,
+                                **dict(zip(("date_from", "date_to"),
+                                           analytics_queries.month_bounds(
+                                               *analytics_presentation.previous_period(period)))))
+        return {
+            "periods": analytics_presentation.period_options(periods),
+            "period": period, "bounds": bounds,
+            "selected_period": analytics_presentation.period_value(period),
+            "totals": _guarded(analytics_queries.period_totals, engine,
+                               date_from=bounds[0], date_to=bounds[1]),
+            "previous": previous,
+        }
+
+    @app.get("/tong-quan")
+    def overview():
+        """Tổng quan SỐ MỚI — 10 ô đã qua Minimum-Value Filter, không hơn."""
+        if snapshot_repo is None:
+            abort(503)
+        view = _pipeline_view(snapshot_repo.engine)
+        return render_template(
+            "tong_quan.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            overview=analytics_presentation.overview(
+                view["totals"], view["previous"], period=view["period"],
+                undated=_guarded(analytics_queries.undated_lines, snapshot_repo.engine),
+            ),
+        )
+
     @app.get("/nhan-vien")
     def sellers():
-        """Ma trận tháng × người bán từ Summary cũ (đơn vị nghìn đồng)."""
+        """Ma trận tháng × người bán từ Summary cũ (đơn vị nghìn đồng).
+
+        ``?nguon=moi`` chuyển sang bảng SỐ MỚI. MỌI giá trị khác — kể cả không
+        có tham số và các giá trị lạ — giữ NGUYÊN VẸN đường legacy: bảo toàn
+        bằng chứng non-regression của TASK-PRA-001 quan trọng hơn sự đối xứng
+        của route, và một tham số gõ sai không được phép thành HTTP 500.
+        """
+        if request.args.get("nguon") == "moi" and snapshot_repo is not None:
+            view = _pipeline_view(snapshot_repo.engine)
+            return render_template(
+                "nhan_vien.html", pipeline_view=True,
+                periods=view["periods"], selected_period=view["selected_period"],
+                columns=analytics_presentation.EMPLOYEE_COLUMNS,
+                period_label=analytics_presentation.period_label(view["period"]),
+                rows=analytics_presentation.employee_rows(
+                    _guarded(analytics_queries.employee_totals, snapshot_repo.engine,
+                             date_from=view["bounds"][0], date_to=view["bounds"][1]),
+                    view["totals"],
+                ),
+            )
         if history_repo is None:
             return _legacy_page("nhan_vien.html", periods=[], selected=None,
-                                rows=[], columns=legacy_presentation.MATRIX_COLUMNS), 503
+                                rows=[], columns=legacy_presentation.MATRIX_COLUMNS,
+                                pipeline_view=False), 503
         periods = _guarded(history_repo.available_periods)
         selected = _selected_period(periods)
         rows = (
@@ -467,6 +547,7 @@ def create_app(
             "nhan_vien.html", periods=periods, selected=selected,
             rows=legacy_presentation.matrix(rows),
             columns=legacy_presentation.MATRIX_COLUMNS,
+            pipeline_view=False,
         )
 
     @app.get("/doanh-so-ngay")

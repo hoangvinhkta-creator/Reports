@@ -1,0 +1,63 @@
+{# Mảnh dùng chung cho các trang SỐ MỚI, đối xứng với _legacy_bits.html.
+
+   Mọi con số PIPELINE_GENERATED đi qua đây, nên không có đường nào hiển thị
+   một số mới mà thiếu badge nguồn. Không macro nào ở đây làm phép tính: giá
+   trị đã được analytics_presentation định dạng xong, template chỉ đặt nó vào
+   đúng ô. #}
+
+{% macro pipeline_badge() -%}
+<span class="tag tag-pipeline" title="{{ PIPELINE_BADGE_TITLE }}">{{ PIPELINE_BADGE }}</span>
+{%- endmacro %}
+
+{% macro source_note() -%}
+<p class="insight">
+  {{ pipeline_badge() }} Số do Reports tính từ sổ kế toán đã nạp.
+</p>
+{%- endmacro %}
+
+{% macro kpi(label, value, metric, note='') -%}
+<div class="kpi-card">
+  <span class="tp-label">{{ label }}</span>
+  <strong class="kpi-value" data-metric="{{ metric }}">{{ value }}</strong>
+  {% if note %}<span class="tp-unit">{{ note }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# Ô lợi nhuận LUÔN mang coverage của chính nó (quy tắc P4): con số và mẫu số
+   của nó nằm trong CÙNG một thẻ, nên không cắt bớt cái này mà giữ cái kia. #}
+{% macro profit_kpi(label, cell, metric) -%}
+<div class="kpi-card">
+  <span class="tp-label">{{ label }}</span>
+  <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
+          data-metric="{{ metric }}">{{ cell.text }}</strong>
+  <span class="tp-unit" data-metric="{{ metric }}-coverage">{{ cell.coverage }}</span>
+</div>
+{%- endmacro %}
+
+{% macro period_picker(periods, selected, action) -%}
+<form class="filter-row" method="get" action="{{ action }}">
+  {% if request.args.get('nguon') %}
+  <input type="hidden" name="nguon" value="{{ request.args.get('nguon') }}">
+  {% endif %}
+  <span class="kpi-period">
+    <label class="tp-label" for="ky">Kỳ báo cáo</label>
+    <select name="ky" id="ky" onchange="this.form.submit()">
+      {% for option in periods %}
+      <option value="{{ option.value }}" {{ 'selected' if option.value == selected }}>
+        {{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </span>
+  <button class="ghost btn-mini" type="submit">XEM</button>
+</form>
+{%- endmacro %}
+
+{% macro profit_cells(row) -%}
+{% for metric in ['kpi_profit', 'accounting_profit'] %}
+<td class="num{{ ' empty-cell' if row[metric].missing }}"
+    title="{{ PIPELINE_BADGE }} · coverage {{ row[metric].coverage }}">
+  <span data-metric="{{ metric }}">{{ row[metric].text }}</span>
+  <span class="tp-unit" data-metric="{{ metric }}-coverage">{{ row[metric].coverage }}</span>
+</td>
+{% endfor %}
+{%- endmacro %}
