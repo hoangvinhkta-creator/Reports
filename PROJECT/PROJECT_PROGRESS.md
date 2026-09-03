@@ -1,5 +1,57 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-005 = DONE (AUTHORITATIVE, 2026-09-03, S111)
+
+`TASK-PRA-005` (Sản phẩm — Mặt hàng trên chứng từ) **TỔNG THỂ = `DONE`**.
+Owner đã trực tiếp mở `reports.tinphatcrm.com` thật, chọn CÙNG kỳ **Tháng
+09/2026** trên `/tong-quan` và `/san-pham`, và bốn cặp số reconcile EXACT.
+`CHECK-PRA005-15` đổi từ `NOT_TESTED` → **`PASS`**. Đầy đủ tại
+`docs/sessions/S111-pra-005-owner-acceptance-closeout.md` và
+`docs/tasks/TASK-PRA-005-san-pham.md` → CHECK-PRA005-15.
+
+```text
+CANONICAL_BRANCH        = claude/extract-upload-repo-gq2ws4
+DEPLOY_CANDIDATE_SHA     = 1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948 (không đổi)
+OWNER_PRODUCTION_ACCEPTANCE = PASS
+PERIOD                  = Tháng 09/2026
+QUANTITY                = 185 (`/tong-quan`) = 185 (`/san-pham`)   — MATCH
+REVENUE                 = 1.470.385.000 = 1.470.385.000            — MATCH
+KPI                     = 9.586.667 = 9.586.667                    — MATCH
+KPI_COVERAGE            = 34/142 dòng = 34/142 dòng                — MATCH
+ITEM_COUNT              = 102 (Số mặt hàng trên chứng từ, Tháng 09/2026)
+NULL_SEMANTICS          = PASS — "Tivi Xiaomi L55MB-ASEA"/"Tủ lạnh Funiki
+                          HR-T6185TDG" hiện `—` (0/1 dòng); "Tivi Samsung
+                          75Q6FA" hiện 1.400.000 (1/1 dòng, biết chắc)
+DEFAULT_SORT            = PASS — REVENUE DESC quan sát trực tiếp
+                          (107.100.000 · 69.500.000 · 68.800.000 · …)
+PRODUCT_LEVEL_PP        = ABSENT (quan sát trực tiếp)
+ACCEPTANCE_A..F         = PASS (Owner + cấu trúc product_summary() tái dụng
+                          period_totals(), E2 mục 5/11)
+ACCEPTANCE_G, H         = PASS — ví dụ cụ thể NOT_PRESENT_IN_CURRENT_REAL_DATA
+                          (Tháng 09/2026), hành vi generic đã PASS tại E2
+                          (docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-
+                          RECORD.md mục 8-9), không phụ thuộc kỳ
+ACCEPTANCE_I, J, K       = PASS (Owner, trực tiếp)
+ACCEPTANCE_L             = DEFERRED_WITHIN_CONTRACT (RECOMMENDED, không chặn)
+COMPLETION_GATE          = 14/14 REQUIRED PASS · 1/1 RECOMMENDED
+                          NOT_APPLICABLE có giải thích
+BLOCKING_FINDINGS        = 0
+NON_BLOCKING_FINDINGS    = FIND-PRA005-01/02/03, FIND-PRA005-R1/R2 (không đổi,
+                          không repair)
+DRILLDOWN_STATUS         = DEFERRED_WITHIN_CONTRACT
+SCOPE_DRIFT              = NO
+PRA005_FINAL_STATUS      = DONE
+GOVERNANCE_VALIDATORS    = validate_structure PASS · validate_project_state
+                          PASS · validate_evidence PASS (155 REQUIRED PASS) ·
+                          validate_task_completion PASS (13 DONE task) ·
+                          validate_reference_integrity FAIL với ĐÚNG 3
+                          reference REM-T06 đã biết (baseline không đổi)
+```
+
+Bản ghi lịch sử S110 (session AI KHÔNG thể tự thực hiện nghiệm thu vì không
+có egress tới production) được GIỮ NGUYÊN, không viết lại — xem khối canonical
+S110 bên dưới và `docs/sessions/S110-pra-005-production-acceptance-attempt.md`.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-005 PRODUCTION ACCEPTANCE ATTEMPT (AUTHORITATIVE, 2026-09-03, S110)
 
 `PRA-005` **Discovery = DONE** · **Contract = FROZEN** · **Implementation =

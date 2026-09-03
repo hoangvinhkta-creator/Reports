@@ -3,7 +3,7 @@
 ## Metadata
 
 Status:
-READY
+DONE
 
 Phase:
 PHASE-PRA — Slice 5 (phân hoạch lại cùng tập dòng bán hiện hành theo chiều
@@ -1312,25 +1312,98 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1, thực hiện bởi Owner trên hệ thống thật)
+E1
 
 Yêu cầu:
 Bảy bước mục 27 (A–G tối thiểu; H–L khi áp dụng) thực hiện trực tiếp trên
 `reports.tinphatcrm.com` bởi Owner, KHÔNG phải ảnh chụp/fixture.
 
-S110 (2026-09-03, docs-only): xác nhận canonical/candidate không đổi
-(`1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948`), đo lại y hệt tiền lệ
-`CHECK-PRA002-15` (S093): session KHÔNG có egress tới
+S110 (2026-09-03, docs-only, LỊCH SỬ — giữ nguyên, không sửa): xác nhận
+canonical/candidate không đổi (`1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948`),
+đo lại y hệt tiền lệ `CHECK-PRA002-15` (S093): session KHÔNG có egress tới
 `reports.tinphatcrm.com` lẫn `api.render.com` (`curl` → `CONNECT tunnel
-failed, response 403`, policy denial cố định, không phải lỗi tạm thời).
-Đây là gate chỉ định rõ tác nhân Owner — session không có thẩm quyền lẫn
-khả năng kỹ thuật để tự đóng. Owner runbook (ánh xạ 1-1 vào mục 27 A–L) phát
-hành tại `docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục
-5. Status GIỮ NGUYÊN `NOT_TESTED` — không đánh PASS từ bất kỳ bằng chứng E1/
-E2 nào đã có trước đó.
+failed, response 403`, policy denial cố định, không phải lỗi tạm thời). Gate
+này chỉ định rõ tác nhân Owner — session KHÔNG có thẩm quyền lẫn khả năng
+kỹ thuật để tự đóng. Owner runbook (ánh xạ 1-1 vào mục 27 A–L) phát hành tại
+`docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục 5. Đây là
+bản ghi TRUNG THỰC của một AI session KHÔNG thể tự thực hiện nghiệm thu
+production — không bị viết lại thành PASS ở đây.
+
+Executed By:
+Owner (trực tiếp trên `reports.tinphatcrm.com`), ghi nhận qua Session S111 —
+TASK-PRA-005 Owner Production Acceptance + Final Closeout (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S111 (`OWNER_PRODUCTION_ACCEPTANCE`): Owner đã trực tiếp mở
+`reports.tinphatcrm.com` thật (không phải ảnh chụp mô tả lại, không phải
+fixture), chọn CÙNG kỳ **Tháng 09/2026** trên cả `/tong-quan` và `/san-pham`,
+và đọc số production:
+
+```
+/tong-quan (Tháng 09/2026):
+  Tổng số lượng   = 185
+  Doanh thu (NET) = 1.470.385.000
+  LN KPI          = 9.586.667
+  KPI coverage    = 34 / 142 dòng
+
+/san-pham (Tháng 09/2026):
+  Số mặt hàng trên chứng từ = 102
+  Tổng số lượng             = 185
+  Doanh thu (NET)           = 1.470.385.000
+  LN KPI                    = 9.586.667
+  KPI coverage              = 34 / 142 dòng
+```
+
+Reconcile cùng phạm vi lọc: `185 = 185` · `1.470.385.000 = 1.470.385.000` ·
+`9.586.667 = 9.586.667` · `34/142 = 34/142` — bốn cặp số khớp EXACT (mục 27
+A, B, E, F).
+
+Owner quan sát trực tiếp trên trang `/san-pham` production:
+
+- Trang render thành công, đúng bốn ô tóm tắt (Số mặt hàng trên chứng từ ·
+  Tổng số lượng · Doanh thu (NET) · LN KPI) và đúng năm cột bảng (`Mặt hàng ·
+  Số lượng · Số đơn · Doanh thu · LN KPI`).
+- Ghi chú công khai bắt buộc xuất hiện nguyên văn: "Mặt hàng được gộp theo
+  tên ghi trên chứng từ. Các tên khác nhau của cùng một sản phẩm có thể được
+  hiển thị thành các dòng riêng." (mục 5, 9).
+- KHÔNG có ô/cột Giá mua tham chiếu cấp mặt hàng nào hiển thị (mục 15).
+- Dãy doanh thu các dòng đầu bảng KHÔNG tăng:
+  `107.100.000 · 69.500.000 · 68.800.000 · 59.000.000 · 49.300.000 ·
+  48.100.000 · 42.130.000 · 33.050.000 · …` — đúng `DEFAULT_SORT = REVENUE
+  DESC` (mục 17, Acceptance I).
+- `NULL != 0` quan sát trực tiếp trên hai mặt hàng coverage rỗng: "Tivi
+  Xiaomi L55MB-ASEA" (LN KPI `—`, `0 / 1 dòng`) và "Tủ lạnh Funiki
+  HR-T6185TDG" (LN KPI `—`, `0 / 1 dòng`) — hiện `—`, KHÔNG hiện `0`/`0đ`;
+  đối chứng một mặt hàng biết chắc: "Tivi Samsung 75Q6FA" (LN KPI
+  `1.400.000`, `1 / 1 dòng`) — phân biệt rõ UNKNOWN với giá trị biết chắc kể
+  cả khi giá trị đó khác 0 (mục 8.4, 13, Acceptance K).
+
+Kỳ Tháng 09/2026 hiện tại KHÔNG lộ ra trong ảnh Owner cặp mô tả trùng máy
+kiểu `FTKB50ZVMV` hay dòng dịch vụ/phí — không suy ra là bị lọc/gộp âm thầm:
+hành vi SPLIT (Acceptance G) và ALL-LINE-INCLUSION (Acceptance H) đã có bằng
+chứng E2 độc lập không phụ thuộc kỳ (`docs/reviews/TASK-PRA-005-
+INDEPENDENT-REVIEW-RECORD.md` mục 9, 8 — reviewer tự recompute bằng SQL thô
+trên oracle golden thật, tách đúng 2 nhóm FTKB50ZVMV, giữ nguyên 3 mô tả
+dịch vụ/phí thật). Đúng Contract mục 27 cho phép: khi ví dụ cụ thể không có
+trong cohort thật đang xem, phân loại quan sát production là
+`NOT_PRESENT_IN_CURRENT_REAL_DATA` và dùng E2 làm bằng chứng hành vi generic
+— KHÔNG chặn nghiệm thu.
+
+Drill-down (Acceptance L): `DEFERRED_WITHIN_CONTRACT` — mục 18 cho phép
+tường minh, `CHECK-PRA005-13` là RECOMMENDED (không REQUIRED); không có
+drill-down một phần/hỏng nào được triển khai. Không áp dụng thêm yêu cầu nào
+mạnh hơn Contract đã freeze.
+
+KẾT LUẬN: bốn cặp số reconciliation khớp EXACT, disclosure/cột/thứ tự/PP-
+absence/NULL-semantics đều quan sát trực tiếp PASS trên production thật, G/H
+dùng đúng đường Contract cho phép (E2 regression khi cohort hiện tại không
+lộ ví dụ) ⟹ **PASS**. `OWNER_PRODUCTION_ACCEPTANCE = PASS`.
 
 ---
 

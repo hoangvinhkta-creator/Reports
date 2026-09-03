@@ -108,21 +108,28 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 5 ĐÃ VIẾT XONG, ĐÃ SOÁT LẠI ĐỘC LẬP, ĐÃ GỘP VÀO BẢN CHÍNH — PRA-005 = CHỜ CHỦ DỰ ÁN TỰ NGHIỆM THU (cập nhật 2026-09-03, S110)
+## VIỆC 5 ĐÃ XONG HOÀN TOÀN — TRANG "SẢN PHẨM" ĐÃ NGHIỆM THU TRÊN HỆ THỐNG THẬT (cập nhật 2026-09-03, S111)
 
-Cập nhật 2026-09-03 (S110): code trang "Sản phẩm" **đã được gộp vào bản
-chính thức** (bước (1) ở dưới ĐÃ XONG — không cần một bước riêng, vì chính
-nhánh soát lại độc lập đã trở thành bản chính thức). Một phiên khác đã thử
-tự mở trang thật để đóng bước nghiệm thu còn lại, nhưng phiên đó **không có
-kết nối mạng** tới `reports.tinphatcrm.com` lẫn trang quản trị Render (đúng
-giới hạn kỹ thuật đã gặp trước đây ở các trang Bán hàng/Tổng quan) — nên
-KHÔNG thể tự thay chủ dự án bấm nút hay tự mở trang. Một bản hướng dẫn từng
-bước cho chủ dự án đã được viết sẵn tại
-`docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục 5.
+Cập nhật 2026-09-03 (S111): chủ dự án đã tự mở trang "Sản phẩm" thật trên
+`reports.tinphatcrm.com`, chọn cùng kỳ Tháng 09/2026 trên cả trang Sản phẩm
+và trang Tổng quan, và các con số khớp CHÍNH XÁC: tổng số lượng 185, doanh
+thu 1.470.385.000, lợi nhuận KPI 9.586.667, độ phủ KPI 34/142 dòng — cả bốn
+số đều bằng nhau giữa hai trang. Trang hiện đúng bốn ô tóm tắt, đúng năm cột
+bảng, đúng câu ghi chú bắt buộc, không hiện giá mua tham chiếu gộp, sắp theo
+doanh thu giảm dần, và phân biệt đúng "chưa biết" (`—`) với "biết chắc bằng
+một số cụ thể" cho lợi nhuận KPI.
 
-Còn đúng MỘT bước nữa: chủ dự án tự mở trang Sản phẩm thật (sau khi bấm
-Deploy đúng bản đã soát) và đối chiếu vài con số theo hướng dẫn. **Chưa bước
-đó xảy ra**, nên trang Sản phẩm vẫn CHƯA được coi là xong.
+**Trang "Sản phẩm" (PRA-005) chính thức XONG.** Không còn việc nào treo lại
+của trang này.
+
+Cập nhật 2026-09-03 (S110, lịch sử — giữ nguyên): code trang "Sản phẩm" **đã
+được gộp vào bản chính thức**. Một phiên khác đã thử tự mở trang thật để
+đóng bước nghiệm thu còn lại, nhưng phiên đó **không có kết nối mạng** tới
+`reports.tinphatcrm.com` lẫn trang quản trị Render — nên KHÔNG thể tự thay
+chủ dự án bấm nút hay tự mở trang. Một bản hướng dẫn từng bước cho chủ dự án
+đã được viết sẵn tại
+`docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục 5 — chính
+bản hướng dẫn đó đã được chủ dự án dùng để hoàn tất việc nghiệm thu ở trên.
 
 Cập nhật 2026-09-03 (S109): một phiên làm việc KHÁC đã **soát lại độc lập**
 toàn bộ code của trang "Sản phẩm" — tự tính lại các con số từ dữ liệu gốc
