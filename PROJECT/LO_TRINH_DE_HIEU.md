@@ -21,6 +21,12 @@
 > thêm ổ đĩa lưu lâu dài nữa — xem mục "ĐANG LÀM — S071B" bên dưới. Vẫn
 > chưa lên mạng thật, chưa gộp bản canonical.
 
+> Cập nhật thêm 2026-09-03 (S094): **việc 3 của kế hoạch mới (màn hình Tổng
+> quan + Nhân viên) đã có bản kế hoạch chi tiết, sẵn sàng bắt tay làm** — xem
+> mục "VIỆC 3 CỦA KẾ HOẠCH MỚI ĐÃ CÓ KẾ HOẠCH" ngay đầu phần TRẠNG THÁI HIỆN
+> TẠI. Chỉ là kế hoạch; chưa viết dòng code nào. Việc 2 (PRA-002) đã XONG HẲN
+> và đã gộp vào bản chính.
+
 > Cập nhật thêm 2026-09-02 (S079 đóng phiên): **phần mềm đã chạy thật trên
 > mạng với cơ sở dữ liệu thật** — chủ dự án đã bật bản mới lên và nạp được
 > file báo cáo cũ, máy không còn bị tràn bộ nhớ. Xem mục "ĐÃ CHẠY THẬT
@@ -59,6 +65,54 @@
 
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
+
+## VIỆC 3 CỦA KẾ HOẠCH MỚI ĐÃ CÓ KẾ HOẠCH (2026-09-03)
+
+**Việc 2 đã xong hẳn.** Phần mềm giờ nhớ được số liệu của từng lần nạp sổ,
+nạp lại đúng file cũ thì không cộng trùng, và chủ dự án đã tự kiểm chứng
+điều đó trên trang web thật.
+
+**Việc 3 là màn hình để đọc số**, gồm hai trang:
+
+- **Tổng quan** — mở lên là thấy ngay: tháng này bao nhiêu đơn, bao nhiêu
+  dòng hàng, bán được bao nhiêu tiền, lãi bao nhiêu, và bao nhiêu phần trong
+  đó máy đã chắc chắn (AUTO) so với phần còn phải kiểm tra bằng mắt.
+- **Nhân viên (số mới)** — cùng những con số đó nhưng tách theo từng người
+  bán. Bảng số cũ lấy từ file Excel vẫn giữ nguyên như hiện nay, nằm ở một
+  nút riêng, **không bao giờ trộn chung với số mới**.
+
+Ba điều đã chốt trong phiên này, đáng để chủ dự án biết:
+
+1. **Không phải sửa gì ở phần lõi.** Toàn bộ số cần hiển thị đã nằm sẵn
+   trong kho dữ liệu từ việc 2. Không cần đổi cấu trúc kho, không cần nạp
+   thêm dữ liệu, không cần đụng vào phần tính toán.
+2. **Máy sẽ không bịa số.** Ô nào chưa có dữ liệu sẽ để trống bằng dấu gạch,
+   **không hiện số 0**. Ví dụ cụ thể: hiện tại mới có dữ liệu 3 ngày đầu
+   tháng 9, tháng 8 chưa có gì, nên ô "so với tháng trước" sẽ để trống kèm
+   dòng chữ "chưa có dữ liệu kỳ trước" — chứ không hiện "giảm 100%".
+3. **Ba việc cần chủ dự án cho ý kiến** (không việc nào chặn — nếu không trả
+   lời thì làm theo phương án mặc định đã ghi sẵn):
+   - Trên màn hình quản lý, **con số "lợi nhuận" nên là con số nào?** Hệ
+     thống đang có ba con số lãi khác nhau: lãi dùng để tính KPI/thưởng, lãi
+     kế toán, và cột lãi mà phần mềm kế toán tự ghi sẵn trong sổ. *Mặc định:
+     lấy lãi KPI làm số chính, để lãi kế toán bên cạnh, mỗi số đều ghi rõ nó
+     phủ được bao nhiêu phần dữ liệu.*
+   - **Chỉ tiêu (target) lấy ở đâu?** Kho dữ liệu mới hoàn toàn không có số
+     chỉ tiêu; số chỉ tiêu duy nhất đang có nằm trong file Excel cũ và là số
+     của kỳ cũ. *Mặc định: chưa đưa cột chỉ tiêu vào lần này. Muốn có, chủ dự
+     án cần cung cấp bảng chỉ tiêu theo từng người từng tháng.*
+   - **Ô "số lượng" nên đếm thế nào?** Trong sổ có những dòng không phải hàng
+     hoá (phí vận chuyển, công lắp đặt, chiết khấu, voucher). *Mặc định: đếm
+     tất cả và ghi rõ nhãn "mọi dòng"; con số này sẽ không khớp với cột "Tổng
+     số SP" của báo cáo cũ, một phần vì báo cáo cũ có lỗi công thức đã biết.*
+
+**Cách kiểm tra khi làm xong:** mở Tổng quan, chọn "Tháng 09/2026", phải thấy
+đúng **40 đơn / 61 dòng / 15 đơn AUTO / 25 đơn cần kiểm tra** — đúng những con
+số chủ dự án đã tự nhìn thấy trên trang web hôm 03/09. Ô so với tháng trước
+phải để trống.
+
+Sau phiên này còn: viết bản mô tả công việc chính thức, rồi một phiên làm
+thật, rồi một lượt soát xét độc lập, rồi chủ dự án nghiệm thu trên trang web.
 
 ## ĐÃ CHẠY THẬT TRÊN MẠNG (2026-09-02) — kho dữ liệu thật đã hoạt động
 

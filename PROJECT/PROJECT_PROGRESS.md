@@ -1,5 +1,94 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-003 (AUTHORITATIVE, 2026-09-03, S094 — DISCOVERY)
+
+Phiên discovery/plan của `TASK-PRA-003` (Tổng quan + Nhân viên). Đây là trạng
+thái hiện hành có thẩm quyền của PRA-003. Khối PRA-002 ngay bên dưới vẫn đúng
+và không bị khối này thay thế — hai task khác nhau.
+
+```text
+SESSION                    = S094 — PRA-003 Vertical Slice Discovery (docs-only)
+TASK-PRA-003               = PLANNED (discovery xong; task file + gate CHƯA tạo)
+RESULT                     = DISCOVERY_COMPLETE
+CANONICAL_SHA              = facf090c782b022730ecc5f1cf0d0b02e29ca8d7
+                             (khớp EXPECTED — canonical KHÔNG moved; branch authority
+                              check: DEFAULT_TIP == HEAD_SHA, WORKTREE CLEAN)
+TIỀN ĐỀ                    = TASK-PRA-002 = DONE và ĐÃ tích hợp vào canonical
+                             (facf090/189516e/432ad4e nằm trên default branch)
+
+PRODUCTION_CODE_ADDED      = 0 dòng      SCHEMA_CHANGED = NO      MIGRATION = NO
+TRACKING_CHANGED           = NO          INFRASTRUCTURE_CHANGED = NO
+PRA-001 / PRA-002 CHANGED  = NO
+
+SLICE ĐÃ CHỌN              = Tổng quan (12 ô) + Nhân viên bản pipeline (10 cột),
+                             kỳ theo THÁNG dẫn xuất từ order_line_current.sale_date,
+                             so kỳ trước = tháng liền trước (TRỐNG khi không có dữ liệu)
+TOUCH_AREA                 = MỚI: app/web/analytics_queries.py,
+                             app/web/analytics_presentation.py,
+                             templates/tong_quan.html, templates/_pipeline_bits.html
+                             SỬA: app/web/server.py (+1 route, +1 tham số nguon),
+                             templates/layout.html (+1 tab), templates/nhan_vien.html,
+                             static/css/tinphat-ui.css
+                             KHÔNG CHẠM: tools/db, app/history, history_store,
+                             history_writer, app/modules/**, config/**, hạ tầng
+CHANGE_BUDGET (riêng PRA-003, KHÔNG kế thừa 40 LOC còn lại của PRA-002)
+                           = Python production mục tiêu ~275, DỪNG CỨNG 400
+                             template ≤220 · CSS ≤25 · test ≥30 · dependency 0
+REVIEW_BUDGET              = effective_risk MEDIUM → 1 blocking repair cycle (V4.1 §2)
+                             Chấm theo failure path: tầng CHỈ-ĐỌC, không INSERT/UPDATE/
+                             DELETE; hỏng = hiện sai một số quản lý, KHÔNG ghi đè dữ
+                             liệu và KHÔNG đụng bất biến no-double-count của PRA-002.
+                             Lineage CHƯA mở trong REVIEW_BUDGET_LEDGER.md.
+
+FACT NỀN (đọc từ mã nguồn, dùng cho mọi phiên PRA-003 sau)
+  1. status AUTO ⟹ chắc chắn có đủ accounting_purchase_price + accounting_profit
+     + eligible_kpi_profit (excel_exporter.py:71-73 + 141-149). Chiều ngược lại
+     KHÔNG đúng. Nên "LN KPI chỉ cộng dòng AUTO" là quy tắc trình bày có định
+     nghĩa chặt, luôn cộng được.
+  2. "Accounting coverage 100%" = accounted_orders/input_orders (đơn dựng được),
+     KHÔNG phải coverage giá nhập. KHÔNG suy ra 61 dòng đều có lợi nhuận.
+  3. order_line_current.sale_date NULLABLE; _period() lọc bằng >=/<= nên dòng
+     không có ngày bán rơi khỏi mọi kỳ TRONG IM LẶNG → bắt buộc đếm và hiện riêng.
+  4. source_snapshot.summary_json là số của MỘT lần chạy; cộng nó theo kỳ là
+     double-count. AUTO/Review theo kỳ PHẢI dẫn xuất từ order_line_current →
+     order_line_result_version.status.
+  5. Fixture golden KHÔNG làm oracle được cho nhân viên (chỉ 1 nhân viên sau ẩn
+     danh) và cho lợi nhuận (351/351 dòng price_source = Pending).
+
+DATA_GAPS                  = Số lượng SP loại dòng phí = MISSING_BUSINESS_RULE (N.7);
+                             target/so target = MISSING_DATA (N.8, config/targets
+                             không tồn tại); margin = MISSING_BUSINESS_RULE (§L LATER);
+                             doanh số quy đổi = §L LATER, cấm tính ở tầng UI.
+OWNER_DECISIONS_REQUIRED   = 3, TẤT CẢ NON-BLOCKING (có default an toàn):
+                             D1 lợi nhuận nào là số chính → mặc định KPI(AUTO)+coverage
+                                là số chính, LN kế toán là cột phụ, source_profit KHÔNG lên
+                             D2 target → mặc định DEFER khỏi slice 1 (không có dữ liệu;
+                                dùng target legacy bị loại vì vi phạm DEC-166 E)
+                             D3 ô số lượng → mặc định "Tổng số lượng (mọi dòng)",
+                                DEFER chỉ tiêu "Số lượng SP"
+ACCEPTANCE_ORACLE          = golden 01/2026 (orders 254 · lines 351 · qty 407 ·
+                             doanh thu 3.562.310.000 từ expected/period_2026_01.json)
+                             + LN KPI/kế toán phải là "—" chứ KHÔNG phải 0
+                             + production 2026-09/2026: 40 đơn · 61 dòng · AUTO 15 ·
+                               Review 25 (ĐÃ QUAN SÁT) · so tháng trước TRỐNG
+NOT_CLAIMED                = tiền/số lượng của ca production 01→03/09 (chưa quan sát);
+                             bộ số qty 71 / gross 593.750.000 / net 593.550.000 là
+                             provenance RDA S090/S091, KHÔNG phải số production của ca này
+SCOPE_DRIFT                = NO. Kế hoạch HẸP HƠN TASK-PRA-000 §M SLICE 3 ở 3 chỗ có
+                             bằng chứng: bỏ drill-down nhân viên→ngày→đơn (PRA-004),
+                             bỏ bảng lệch legacy/pipeline (chưa có kỳ chồng nhau),
+                             bỏ target (không có dữ liệu).
+IMPLEMENTATION_READY       = YES (với default D1/D2/D3)
+EVIDENCE                   = docs/sessions/S094-pra-003-vertical-slice-discovery.md
+NEXT_VERTICAL_ACTION       = (1) Owner xác nhận/ghi đè D1-D3 → (2) phiên Roadmap
+                             Finalization viết docs/tasks/TASK-PRA-003-*.md + FREEZE
+                             gate + mở lineage trong REVIEW_BUDGET_LEDGER.md →
+                             (3) 1 phiên MAJOR implement → (4) Independent Review →
+                             (5) Owner nghiệm thu trên production kỳ Tháng 09/2026.
+                             KHÔNG mở PRA-004/PRA-005; KHÔNG freeze gate trong phiên
+                             discovery.
+```
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 FINAL — TASK DONE)
 
 Production Acceptance đã đóng. Đây là trạng thái hiện hành có thẩm quyền của
