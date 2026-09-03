@@ -8,8 +8,11 @@ từ thời điểm này. Quyết định đầy đủ: **DEC-172**
 (`PROJECT/PROJECT_DECISIONS.md`). KHÔNG phải PRA-004 defect —
 `TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
 `PRA-005` DISCOVERY = DONE (S105, xác minh + tích hợp tại S106) · `PRA-005`
-CONTRACT = FROZEN (S107) · `PRA-005` IMPLEMENTATION = NOT STARTED. Xem khối
-"CANONICAL CURRENT STATE — TASK-PRA-005 CONTRACT FREEZE" bên dưới.
+CONTRACT = FROZEN (S107) · `PRA-005` IMPLEMENTATION = COMPLETE /
+REVIEW_PENDING (S108, nhánh dedicated `claude/pra-005-v1-implementation-
+3dcd5k`, CHƯA tích hợp canonical). `PRA-005` TỔNG THỂ CHƯA `DONE` —
+`NEXT_VERTICAL_ACTION = PRA-005 INDEPENDENT REVIEW E2`. Xem khối "CANONICAL
+CURRENT STATE — TASK-PRA-005 IMPLEMENTATION" bên dưới.
 
 Owner xác nhận: trong Reports chỉ có **MỘT** authority cho giá mua phục vụ
 phân tích bán hàng — **Tracking PP có hiệu lực tại ngày bán**, gọi ở nghiệp vụ
@@ -255,6 +258,114 @@ branch_authority_check.sh     : AUTHORITY_OK (sau khi push
 Contract artifact đầy đủ (30 mục theo brief Contract Freeze, ánh xạ 1:1 vào
 cấu trúc Task file chuẩn của dự án): `docs/tasks/TASK-PRA-005-san-pham.md`.
 Bàn giao chi tiết: `docs/sessions/S107-pra-005-contract-freeze.md`.
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-005 IMPLEMENTATION (AUTHORITATIVE, 2026-09-03, S108)
+
+`PRA-005` **Discovery = DONE** (không đổi). `PRA-005` **Contract = FROZEN**
+(không đổi, S107). `PRA-005` **Implementation = COMPLETE / REVIEW_PENDING**
+(phiên này, S108) — trên nhánh dedicated `claude/pra-005-v1-implementation-
+3dcd5k`, tạo ĐÚNG từ `BASE_SHA` freeze, **CHƯA tích hợp vào canonical**.
+`PRA-005` tổng thể **CHƯA `DONE`** — còn Independent Review E2 (CHECK-
+PRA005-14) và Owner Production Acceptance (CHECK-PRA005-15).
+
+```text
+SESSION                       = S108 — PRA-005 MAJOR Implementation
+BASE_CANONICAL                = 4e06515895814d8fff41580dc0f3c64da464ac83
+                              (khớp EXACT kỳ vọng đầu phiên, CANONICAL_MOVED = KHÔNG)
+BRANCH                        = claude/pra-005-v1-implementation-3dcd5k
+
+QUERY_IMPLEMENTATION          = app/web/sales_queries.py::product_totals()
+                              — khuôn employee_totals()/_order_metrics() đã
+                              có, GROUP BY product_key
+GROUPING_IMPLEMENTATION       = product_key (NORMALIZED_RAW_DOCUMENT_
+                              DESCRIPTION, OD-PRA005-01/DEC-173), TÁI DỤNG
+                              NGUYÊN VẸN — không hàm chuẩn hoá thứ hai
+ALL_LINE_INCLUSION            = PASS — is_non_product_line() KHÔNG được gọi
+                              (xác nhận AST + test trên oracle thật)
+SUMMARY_IMPLEMENTATION        = sales_presentation.product_summary() TÁI
+                              DỤNG NGUYÊN VẸN analytics_queries.
+                              period_totals() (đã fetch sẵn ở _pipeline_
+                              view() cho /tong-quan cùng kỳ) cho 3/4 chỉ
+                              tiêu; item_count = len(rows) là chỉ tiêu MỚI
+TABLE_IMPLEMENTATION          = đúng 5 cột (Mặt hàng · Số lượng · Số đơn ·
+                              Doanh thu · LN KPI)
+WEB_ROUTE                     = GET /san-pham (app/web/server.py::products)
+DEFAULT_SORT                  = REVENUE_DESC, tie-breaker product_key
+REFERENCE_PRICE_AGGREGATE     = NOT_PRESENT (AST + grep template xác nhận)
+DRILLDOWN_STATUS              = DEFERRED_WITHIN_CONTRACT (mục 18 cho phép;
+                              CHECK-PRA005-13 = NOT_APPLICABLE, RECOMMENDED
+                              nên không chặn task)
+
+SCHEMA_CHANGE                 = NO
+NEW_AUTHORITY                 = NO
+TRACKING_CHANGE                = NO
+PRODUCTION_PYTHON_LOC_DELTA    = 126 dòng (sales_queries.py 54 + sales_
+                              presentation.py 48 + server.py 24) — dưới
+                              ngân sách mềm 200 dòng (mục 24)
+
+FOCUSED_TESTS                  = 48 test PRA-005 mới, tất cả PASS
+                              (28 tests/test_product_queries.py + 14
+                              tests/test_web_product_view.py + 6 tests/
+                              test_sales_presentation.py)
+PRA003_REGRESSION              = PASS, không đổi
+PRA004_REGRESSION              = PASS, không đổi
+GOLDEN_REGRESSION              = PASS, không sửa Golden expectation nào
+FULL_SUITE                     = 2032 passed, 11 skipped, 0 failed
+
+SPLIT_REGRESSION               = PASS (FTKB50ZVMV đo lại đúng chính tả
+                              fixture: 'Điều hoà Daikin  FTKB50ZVMV' SL 7/
+                              113.750.000 · 'Máy lạnh Daikin Inverter 2 HP
+                              FTKB50ZVMV' SL 1/16.250.000 — HAI dòng riêng)
+SERVICE_FEE_REGRESSION         = PASS ('Chi phí vận chuyển'/'Giá treo Tivi'/
+                              'Chi phí lắp đặt' vẫn trong bảng)
+RECONCILIATION_RESULT          = PASS trên oracle THẬT (period_2026_01, 226
+                              nhóm): Σ quantity=407, Σ total_sales=
+                              3.562.310.000, Σ kpi_profit=900.000,
+                              Σ kpi_lines=2, Σ lines=351 — khớp EXACT
+                              analytics_queries.period_totals() cùng kỳ.
+                              Σ(order_count theo mặt hàng)=351 ≠
+                              totals["orders"]=254 — đúng cảnh báo mục 17
+                              (KHÔNG cộng được).
+
+PERFORMANCE_MEASUREMENT        = PostgreSQL 16 (local, sqlalchemy+psycopg3),
+                              12.000 dòng/2.491 nhóm: 81,7/65,4/102,8 ms
+                              (3 lần) — KHÔNG freeze SLA, không blocker
+
+BLOCKING_FINDINGS              = 0
+SCOPE_DRIFT                    = NO
+REPAIR_BATCH_USED               = 1 (tự-review nội bộ — chuyển product_
+                              summary() sang tái dụng period_totals() thay
+                              vì tự cộng lại các dòng đã gộp; KHÔNG phải
+                              repair cycle của Review Budget — chưa có
+                              Independent Review nào chạy ở phiên này)
+
+COMPLETION_GATE                 = 12/14 REQUIRED check đã PASS (E1) tại phiên
+                              này (CHECK-PRA005-01..12); CHECK-PRA005-13
+                              (RECOMMENDED) = NOT_APPLICABLE (DEFERRED);
+                              CHECK-PRA005-14 (Independent Review E2) và
+                              CHECK-PRA005-15 (Owner Production Acceptance)
+                              GIỮ NGUYÊN NOT_TESTED — KHÔNG fabricate.
+GOVERNANCE_VALIDATORS           = validate_structure PASS · validate_
+                              project_state PASS · validate_evidence PASS
+                              (141 REQUIRED PASS evidence) · validate_task_
+                              completion PASS (12 DONE task) · validate_
+                              reference_integrity FAIL ĐÚNG 3 issue baseline
+                              REM-T06 (không phát sinh mới) · git diff
+                              --check sạch
+
+IMPLEMENTATION_REVIEW_READY     = YES
+CANONICAL_INTEGRATION_STATUS    = NOT_YET_INTEGRATED — ở lại nhánh dedicated
+                              chờ Independent Review E2, theo mặc định mục
+                              27 Contract (không tích hợp trong phiên
+                              implementation trừ khi governance yêu cầu)
+
+NEXT_VERTICAL_ACTION            = PRA-005 INDEPENDENT REVIEW E2
+```
+
+Bàn giao chi tiết, oracle verification, và quyết định triển khai đáng ghi
+lại: `docs/sessions/S108-pra-005-major-implementation.md`. Completion Gate
+cập nhật evidence đầy đủ tại `docs/tasks/TASK-PRA-005-san-pham.md`.
 
 
 ## CANONICAL CURRENT STATE — MANAGEMENT UI SIMPLIFICATION (AUTHORITATIVE, 2026-09-03 — KPI-FIRST PRESENTATION)

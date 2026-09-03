@@ -260,7 +260,8 @@ def create_app(
     app.jinja_env.globals["ORDER_COLUMN_NOTE"] = analytics_presentation.ORDER_COLUMN_NOTE
     app.jinja_env.globals["BOTH_SOURCES_NOTE"] = analytics_presentation.BOTH_SOURCES_NOTE
     for _name in ("MULTI_DATE_NOTE", "MULTI_EMPLOYEE_NOTE", "NO_ORDERS_NOTE",
-                  "REASON_LABEL"):
+                  "PRODUCT_GROUPING_NOTE", "PRODUCT_ITEM_COUNT_LABEL",
+                  "PRODUCT_ORDER_COUNT_NOTE", "REASON_LABEL"):
         app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
 
     def _require_history() -> history_store.LegacyRepository:
@@ -558,6 +559,29 @@ def create_app(
             period_label=analytics_presentation.period_label(view["period"]),
             line_columns=sales_presentation.LINE_COLUMNS,
             order=sales_presentation.order_detail(detail),
+        )
+
+    @app.get("/san-pham")
+    def products():
+        """SẢN PHẨM — mặt hàng trên chứng từ (TASK-PRA-005), mặc định sắp
+        Doanh thu giảm dần. Gộp theo mô tả thô đã chuẩn hoá trên chứng từ
+        (OD-PRA005-01, DEC-173) — KHÔNG phải canonical Product Identity.
+        Bao gồm TẤT CẢ dòng chứng từ, kể cả dịch vụ/phí (OD-PRA005-02) —
+        KHÔNG lọc bằng ``is_non_product_line()``. Không có kho dữ liệu ⟹ 503
+        giống hệt ``/tong-quan``/``/ban-hang``.
+        """
+        if snapshot_repo is None:
+            abort(503)
+        view = _pipeline_view(snapshot_repo.engine)
+        rows = _guarded(sales_queries.product_totals, snapshot_repo.engine,
+                        date_from=view["bounds"][0], date_to=view["bounds"][1])
+        return render_template(
+            "san_pham.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=analytics_presentation.period_label(view["period"]),
+            columns=sales_presentation.PRODUCT_COLUMNS,
+            summary=sales_presentation.product_summary(rows, view["totals"]),
+            products=sales_presentation.product_rows(rows),
         )
 
     @app.get("/nhan-vien")

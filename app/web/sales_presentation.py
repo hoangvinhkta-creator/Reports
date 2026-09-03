@@ -157,6 +157,60 @@ def line_row(row: dict) -> dict:
     }
 
 
+# TASK-PRA-005 — đúng năm cột mục 9 Contract, không cột nào khác (KHÔNG Giá
+# mua tham chiếu, KHÔNG Coverage riêng, KHÔNG Trạng thái dữ liệu — coverage
+# LN KPI đã nằm TRONG ô LN KPI qua ``profit()``).
+PRODUCT_COLUMNS: tuple[str, ...] = ("Mặt hàng", "Số lượng", "Số đơn", "Doanh thu", "LN KPI")
+
+# Nhãn ô tóm tắt mục 8.1 — CẤM "Số sản phẩm" (EAC-5): con số đếm MỌI mô tả
+# trên chứng từ, kể cả dòng dịch vụ/phí, KHÔNG chỉ hàng tồn kho thật.
+PRODUCT_ITEM_COUNT_LABEL = "Số mặt hàng trên chứng từ"
+
+# Ghi chú công khai BẮT BUỘC (mục 5, 10) — nguyên văn Contract.
+PRODUCT_GROUPING_NOTE = (
+    "Mặt hàng được gộp theo tên ghi trên chứng từ. Các tên khác nhau của "
+    "cùng một sản phẩm có thể được hiển thị thành các dòng riêng."
+)
+
+PRODUCT_ORDER_COUNT_NOTE = (
+    "Một đơn có nhiều mặt hàng được đếm ở TỪNG dòng mặt hàng liên quan, nên "
+    "cột Số đơn KHÔNG cộng được để suy ra tổng số đơn của kỳ."
+)
+
+
+def product_row(row: dict) -> dict:
+    """Một dòng bảng mặt hàng — đúng năm cột mục 9. Nhãn cột đầu là
+    ``MIN(product_raw)`` của nhóm (mục 9), KHÔNG mang ý nghĩa "Sản phẩm chuẩn"."""
+    lines = row["lines"]
+    return {
+        "product_label": row["product_label"] or "—",
+        "quantity": money(row["quantity"]),
+        "order_count": count(row["order_count"]),
+        "total_sales": money(row["total_sales"]),
+        "kpi_profit": profit(row["kpi_profit"], row["kpi_lines"], lines),
+    }
+
+
+def product_rows(rows: list[dict]) -> list[dict]:
+    return [product_row(row) for row in rows]
+
+
+def product_summary(rows: list[dict], totals: dict) -> dict:
+    """Bốn chỉ tiêu tóm tắt mục 8. ``totals`` là ``analytics_queries.
+    period_totals()`` của CHÍNH cùng phạm vi lọc (đã tính sẵn ở ``_pipeline_
+    view()`` cho ``/tong-quan`` cùng kỳ) — TÁI DỤNG NGUYÊN VẸN thay vì cộng lại
+    các dòng đã gộp, để số lượng/doanh thu/LN KPI của trang Sản phẩm khớp
+    BYTE-IDENTICAL với ``/tong-quan`` (Acceptance A/B, mục 27). Chỉ ``item_
+    count`` là chỉ tiêu MỚI của PRA-005 (mục 8.1), không có ở ``totals``.
+    """
+    return {
+        "item_count": count(len(rows)),
+        "quantity": money(totals["quantity"]),
+        "total_sales": money(totals["total_sales"]),
+        "kpi_profit": profit(totals["kpi_profit"], totals["kpi_lines"], totals["lines"]),
+    }
+
+
 def order_detail(detail: dict) -> dict:
     """Khối tổng hợp của MỘT đơn + bảng dòng hàng của nó.
 
@@ -177,7 +231,10 @@ def order_detail(detail: dict) -> dict:
 
 __all__ = [
     "EMPLOYEE_SEPARATOR", "LINE_COLUMNS", "MULTI_DATE_NOTE", "MULTI_EMPLOYEE_NOTE",
-    "NO_ORDERS_NOTE", "ORDER_COLUMNS", "PARTIAL_COVERAGE_NOTE", "REASON_LABEL",
+    "NO_ORDERS_NOTE", "ORDER_COLUMNS", "PARTIAL_COVERAGE_NOTE",
+    "PRODUCT_COLUMNS", "PRODUCT_GROUPING_NOTE", "PRODUCT_ITEM_COUNT_LABEL",
+    "PRODUCT_ORDER_COUNT_NOTE", "REASON_LABEL",
     "STATUS_AUTO", "STATUS_REVIEW", "day", "employees", "line_row",
-    "order_detail", "order_row", "order_rows", "reason_labels", "sale_dates", "status",
+    "order_detail", "order_row", "order_rows", "product_row", "product_rows",
+    "product_summary", "reason_labels", "sale_dates", "status",
 ]

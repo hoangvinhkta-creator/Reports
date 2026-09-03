@@ -108,10 +108,17 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 5 ĐÃ CHỐT XONG, SẴN SÀNG LÀM (2026-09-03, S107) — PRA-005 = READY
+## VIỆC 5 ĐÃ CÓ CODE, ĐANG CHỜ NGƯỜI SOÁT LẠI ĐỘC LẬP (2026-09-03, S108) — PRA-005 = ĐÃ VIẾT XONG / CHỜ SOÁT
 
-Phiên này **chưa viết một dòng code nào**. Việc của nó là chốt lại thật rõ
-"trang Sản phẩm sẽ làm đúng những gì" trước khi bắt tay code.
+Cập nhật 2026-09-03 (S108): trang **"Sản phẩm"** đã có code thật, chạy được,
+và đã tự kiểm tra bằng 48 phép kiểm mới trên đúng dữ liệu mẫu đã dùng cho các
+trang trước — nhưng **CHƯA đưa vào bản chính thức** (canonical) và **CHƯA
+nghiệm thu**. Bước tiếp theo bắt buộc, theo đúng quy trình đã áp dụng cho các
+trang trước: một người/phiên làm việc khác soát lại độc lập (không phải
+chính người viết code tự chấm), rồi mới tới lượt chủ dự án tự mở trang thật
+để nghiệm thu. Chưa có bước nào trong hai bước đó xảy ra ở phiên này.
+
+Mô tả bên dưới (được chốt tại S107) vẫn giữ nguyên, không đổi gì về nghiệp vụ:
 
 Trang mới, gọi là **"Sản phẩm"**, sẽ trả lời câu hỏi: *"Trong khoảng thời
 gian đang xem, các mặt hàng ghi trên sổ bán hàng đóng góp bao nhiêu vào số
@@ -136,9 +143,10 @@ hiện gạch ngang chứ không phải số 0" — tất cả đều tái dùng
 gì trang Tổng quan/Bán hàng đã làm và đã được chấp nhận, không phát minh gì
 mới.
 
-Bước tiếp theo: một phiên làm việc riêng sẽ viết code thật cho trang này,
-rồi một người soát lại độc lập, rồi chủ dự án tự mở trang thật để nghiệm
-thu — đúng quy trình đã áp dụng cho các trang trước.
+Bước tiếp theo: một phiên soát lại độc lập (Independent Review) sẽ kiểm tra
+lại toàn bộ code này trước khi nó được gộp vào bản chính thức; sau đó chủ dự
+án tự mở trang thật để nghiệm thu — đúng quy trình đã áp dụng cho các trang
+trước.
 
 ## VIỆC 4 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03, S104) — PRA-004 = DONE
 

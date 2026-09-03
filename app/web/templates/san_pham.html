@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% import "_pipeline_bits.html" as pipeline %}
+{% set active_tab = 'san-pham' %}
+{% block title %}Reports — Sản phẩm (số mới){% endblock %}
+
+{% block content %}
+<h1>SẢN PHẨM — SỐ MỚI</h1>
+
+{{ pipeline.source_note() }}
+
+<div class="module">
+  {{ pipeline.period_picker(periods, selected_period, url_for('products')) }}
+
+  <h2>{{ period_label }} {{ pipeline.pipeline_badge() }}</h2>
+
+  <div class="kpi-grid">
+    {{ pipeline.kpi(PRODUCT_ITEM_COUNT_LABEL, summary.item_count, 'item_count') }}
+    {{ pipeline.kpi('Tổng số lượng', summary.quantity, 'quantity') }}
+    {{ pipeline.kpi('Doanh thu (net)', summary.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.profit_kpi('LN KPI', summary.kpi_profit, 'kpi_profit') }}
+  </div>
+
+  <p class="insight" data-metric="grouping-note">{{ PRODUCT_GROUPING_NOTE }}</p>
+  <p class="insight">{{ QUANTITY_NOTE }}</p>
+</div>
+
+<div class="module">
+  {% if products %}
+  {# Mỗi ô LN KPI đi qua profit_cells, nên nó KHÔNG BAO GIỜ render mà thiếu
+     coverage của chính nó — con số và mẫu số nằm trong cùng một thẻ. #}
+  <table class="sales-orders">
+    <tr>{% for column in columns %}
+      <th class="{{ 'num' if loop.index > 1 }}">{{ column }}</th>{% endfor %}
+    </tr>
+    {% for row in products %}
+    <tr data-product-row>
+      <td data-metric="product-label">{{ row.product_label }}</td>
+      <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+      <td class="num" data-metric="order-count">{{ row.order_count }}</td>
+      <td class="num" data-metric="total-sales">{{ row.total_sales }}</td>
+      {{ pipeline.profit_cells(row) }}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <p class="insight">{{ PRODUCT_ORDER_COUNT_NOTE }}</p>
+  <p class="insight">
+    LN KPI chỉ cộng các dòng đã đủ chắc chắn (AUTO). Coverage đi kèm cho biết
+    con số đó tổng hợp được BAO NHIÊU trên tổng số dòng của mặt hàng đó — ô
+    trống nghĩa là chưa có giá trị nào, không phải bằng không.
+  </p>
+  {% else %}
+  <p class="insight" data-metric="no-products">Kỳ này chưa có mặt hàng nào trên số mới.</p>
+  {% endif %}
+</div>
+{% endblock %}

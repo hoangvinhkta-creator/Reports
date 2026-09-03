@@ -361,3 +361,68 @@ def test_the_presentation_object_of_a_line_carries_no_prohibited_field():
     keys = set(sp.line_row(line())) | set(sp.order_row(order()))
     assert keys.isdisjoint({"imei", "note_raw", "employee_raw", "source_profit",
                             "customer", "phone", "address"})
+
+
+# --- TASK-PRA-005 · trình bày Sản phẩm (Mặt hàng trên chứng từ) ------------
+
+def product(**overrides) -> dict:
+    row = {
+        "product_key": "hash-1", "product_label": "Tủ lạnh Panasonic NR-BX471GPKV",
+        "lines": 4, "order_count": 3, "quantity": Decimal("5"),
+        "total_sales": Decimal("66000000"), "kpi_profit": Decimal("400000"),
+        "kpi_lines": 1,
+    }
+    return {**row, **overrides}
+
+
+def test_the_product_columns_are_exactly_the_five_the_contract_freezes():
+    assert sp.PRODUCT_COLUMNS == ("Mặt hàng", "Số lượng", "Số đơn", "Doanh thu", "LN KPI")
+
+
+def test_a_product_row_carries_no_prohibited_field():
+    keys = set(sp.product_row(product()))
+    assert keys.isdisjoint({"imei", "note_raw", "employee_raw", "customer", "phone",
+                            "address", "product_key"})
+
+
+def test_a_product_row_never_names_a_third_status_or_a_rank():
+    row = sp.product_row(product())
+    joined = " ".join(str(value) for value in row.values())
+    for invented in ("best", "worst", "top", "high-margin", "slow-moving", "Rank"):
+        assert invented not in joined
+
+
+def totals(**overrides) -> dict:
+    row = {"lines": 3, "orders": 2, "quantity": Decimal("5"), "total_sales": Decimal("30"),
+           "kpi_profit": Decimal("3"), "kpi_lines": 1, "accounting_profit": None,
+           "accounting_lines": 0}
+    return {**row, **overrides}
+
+
+def test_the_product_summary_reuses_the_accepted_period_totals_verbatim():
+    """Mục 8.2/8.3, Acceptance A/B — số lượng/doanh thu/LN KPI TÁI DỤNG NGUYÊN
+    VẸN ``analytics_queries.period_totals()`` của cùng kỳ; ``item_count`` là
+    chỉ tiêu MỚI (mục 8.1), dẫn từ số dòng bảng đã gộp."""
+    rows = [product(product_key="a"), product(product_key="b")]
+    summary = sp.product_summary(rows, totals())
+    assert summary["item_count"] == "2"
+    assert summary["quantity"] == "5"
+    assert summary["total_sales"] == "30"
+    assert summary["kpi_profit"]["text"] == "3"
+    assert summary["kpi_profit"]["coverage"] == "1 / 3 dòng"
+
+
+def test_the_product_summary_of_zero_known_kpi_lines_is_a_dash_not_zero():
+    rows = [product(product_key="a")]
+    summary = sp.product_summary(rows, totals(kpi_profit=None, kpi_lines=0))
+    assert summary["kpi_profit"]["text"] == "—"
+    assert summary["kpi_profit"]["missing"] is True
+
+
+def test_the_product_summary_of_an_empty_table_shows_no_fabricated_values():
+    summary = sp.product_summary([], totals(
+        lines=0, orders=0, quantity=None, total_sales=None, kpi_profit=None, kpi_lines=0))
+    assert summary["item_count"] == "0"
+    assert summary["quantity"] == "—"
+    assert summary["total_sales"] == "—"
+    assert summary["kpi_profit"]["text"] == "—"

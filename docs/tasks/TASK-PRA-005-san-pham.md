@@ -855,10 +855,10 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Bằng chứng CẤU TRÚC bằng AST trên `app/web/sales_queries.py` (delta), theo
@@ -868,15 +868,30 @@ import `insert`/`update`/`delete`/`text`; không gọi
 `order_line_current` và join qua `current_source_version_id`/
 `current_result_version_id`.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_the_query_module_still_has_no_
+write_path_after_the_product_delta` + `::test_product_totals_starts_from_
+the_current_pointers` — PASS. AST xác nhận không import
+`insert`/`update`/`delete`/`text`, không gọi
+`begin()`/`commit()`/`execution_options()`; `order_line_current`,
+`current_source_version_id`, `current_result_version_id` đều nằm trong tập
+định danh của module (bao gồm delta `product_totals()`).
+
 #### CHECK-PRA005-02 — Khoá gộp đúng `product_key`, KHÔNG fuzzy/substring/model-code merge
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Test khẳng định `product_totals()` group theo đúng `product_key` (đã tồn
@@ -885,30 +900,62 @@ KHÔNG substring/model-code matching mới nào được thêm vào đường t�
 Grep/AST xác nhận `product_totals()`/`product_lines()` không import hoặc gọi
 bất kỳ hàm fuzzy-matching nào.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py`: `test_A_two_lines_with_the_identical_
+raw_name_group_into_one_row`, `test_B_two_different_raw_names_stay_on_
+separate_rows`, `test_grouping_is_case_and_diacritic_sensitive_no_extra_
+normalization`, `test_a_model_code_shared_by_two_real_different_skus_is_not_
+merged` (đối chứng `TD-H80SEV(SK)`/`(WK)`, mục 3), `test_product_totals_
+module_calls_no_fuzzy_matching_helper` (AST định danh, không văn xuôi) — tất
+cả PASS. `product_lines()` KHÔNG được triển khai (drill-down DEFER, mục 18)
+nên không có bề mặt fuzzy-matching thứ hai cần canh.
+
 #### CHECK-PRA005-03 — Tóm tắt reconcile với phân tích đã accepted (Acceptance A, B)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Trên cùng fixture golden đã persist qua đường production, khẳng định
 `SUM(revenue theo mặt hàng)` = doanh thu `/tong-quan` cùng kỳ, và
 `SUM(số lượng theo mặt hàng)` = tổng số lượng `/tong-quan` cùng kỳ.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. Triển khai đi XA HƠN reconcile bằng SUM: tóm tắt `/san-pham`
+(`sales_presentation.product_summary()`) TÁI DỤNG NGUYÊN VẸN
+`analytics_queries.period_totals()` (đã fetch sẵn ở `_pipeline_view()` cho
+`/tong-quan` cùng kỳ) — khớp byte-identical theo cấu trúc, không chỉ theo số
+đo. `tests/test_web_product_view.py::test_the_default_table_order_is_
+revenue_descending` + oracle thật (S108 §"Xác Minh Oracle") xác nhận trên
+`period_2026_01`: 226 nhóm, Σ quantity=407, Σ total_sales=3.562.310.000 —
+khớp EXACT `analytics_queries.period_totals()` cùng kỳ.
+
 #### CHECK-PRA005-04 — Tổng nhóm mặt hàng = tổng kỳ đã lọc (Acceptance C, D)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Khẳng định `Σ(doanh thu theo nhóm) = tổng doanh thu đã lọc` và
@@ -916,89 +963,185 @@ Khẳng định `Σ(doanh thu theo nhóm) = tổng doanh thu đã lọc` và
 `GROUP BY` là một PHÂN HOẠCH đúng của cùng tập dòng (không double-count,
 không mất dòng).
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_L_group_sums_reconcile_with_the_
+accepted_period_totals` — PASS trên oracle THẬT (`period_2026_01`, 226
+nhóm): `Σ(quantity) == totals["quantity"]`, `Σ(total_sales) ==
+totals["total_sales"]`, `Σ(lines) == totals["lines"] == 351`, tất cả bằng
+`==` chính xác (Decimal, không dung sai làm tròn).
+
 #### CHECK-PRA005-05 — LN KPI known-sum + coverage reconcile (Acceptance E, F)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Khẳng định `Σ(LN KPI đã biết theo mặt hàng)` = LN KPI đã biết của
 `/tong-quan` cùng kỳ; tử số/mẫu số coverage của từng mặt hàng khớp số dòng
 `AUTO`/tổng dòng đóng góp thật.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_L_group_sums_reconcile_with_the_
+accepted_period_totals` — `Σ(kpi_profit đã biết) == totals["kpi_profit"] ==
+900.000` và `Σ(kpi_lines) == totals["kpi_lines"] == 2` trên oracle THẬT.
+`tests/test_web_product_view.py::test_a_partial_coverage_item_never_renders_
+zero_profit` xác nhận trên HTML thật hai mặt hàng có KPI đã biết hiện đúng
+coverage `1 / 2 dòng` (Điều hòa Daikin FTHF25XVMV) và `1 / 5 dòng` (Máy giặt
+LG 10kg FV1410S4W1) — khớp mẫu số/tử số dòng đóng góp thật của CHÍNH nhóm đó.
+
 #### CHECK-PRA005-06 — `NULL != 0`
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Test trên một mặt hàng KHÔNG có dòng `AUTO` nào — LN KPI hiển thị `—`,
 KHÔNG BAO GIỜ `0`/`0đ`. Test trên một mặt hàng coverage một phần —
 `N / M dòng` với `N < M`, giá trị KHÔNG bị coalesce.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. Bốn trường hợp mục 8 KPI NULL CASES đều có test riêng, PASS:
+`test_F_full_kpi_coverage_sums_every_known_line` (CASE A),
+`test_G_partial_kpi_coverage_sums_only_the_known_lines` (CASE B, `1 / 2
+dòng`), `test_H_zero_known_kpi_lines_reports_none_not_zero` (CASE C —
+`kpi_profit is None`, ô hiện `—`, `"0" not in text`),
+`test_I_a_real_zero_kpi_profit_is_distinct_from_unknown` (CASE D — `kpi=0`
+AUTO hiện `"0"`, `missing=False`, phân biệt rõ KHÔNG BIẾT). Tầng trình bày
+canh thêm bằng `tests/test_sales_presentation.py::test_the_product_summary_
+of_zero_known_kpi_lines_is_a_dash_not_zero`. Web-level:
+`test_a_partial_coverage_item_never_renders_zero_profit` xác nhận `"0đ" not
+in html`.
+
 #### CHECK-PRA005-07 — Split `FTKB50ZVMV` (hoặc tương đương) được bảo toàn (Acceptance G)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Trên fixture golden `period_2026_01`, khẳng định hai chuỗi `Điều hoà Daikin
 FTKB50ZVMV` và `Máy lạnh Daikin Inverter 2 HP FTKB50ZVMV` xuất hiện thành
 HAI dòng riêng trong bảng, KHÔNG bị gộp.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_the_daikin_ftkb50zvmv_split_
+survives_untouched` — PASS trên oracle THẬT, đo lại đúng chính tả fixture
+(`'Điều hoà Daikin  FTKB50ZVMV'` — hai khoảng trắng, và `'Máy lạnh Daikin
+Inverter 2 HP FTKB50ZVMV'`): SL 7/113.750.000 và SL 1/16.250.000, HAI dòng
+riêng. `tests/test_web_product_view.py::test_the_daikin_ftkb50zvmv_split_
+shows_as_two_separate_rows` xác nhận trên HTML thật của `/san-pham`. Test
+không hardcode xử lý riêng cho FTKB50ZVMV — nó chứng minh hành vi GENERIC
+của `product_key` (đối chứng thêm: `test_a_model_code_shared_by_two_real_
+different_skus_is_not_merged`, ca `TD-H80SEV(SK)`/`(WK)`).
+
 #### CHECK-PRA005-08 — Dòng dịch vụ/phí vẫn nằm trong bảng (Acceptance H)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Trên fixture golden, khẳng định các mô tả dịch vụ/phí đo được ở Discovery
 (S105 §13) vẫn xuất hiện trong bảng kết quả, KHÔNG bị lọc bởi bất kỳ
 heuristic nào (kể cả `is_non_product_line()`).
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_J_the_golden_periods_real_
+service_lines_still_reach_the_table` — PASS, xác nhận "Chi phí vận chuyển"
+(SL 19/4.683.750), "Giá treo Tivi" (SL 15/2.150.000), "Chi phí lắp đặt" (SL
+2/200.000) đều còn trong bảng — khớp EXACT S105 §13. `grep is_non_product_
+line` trên `sales_queries.py` (delta) = KHÔNG khớp
+(`test_product_totals_module_never_calls_the_non_product_line_heuristic`).
+`test_J_a_service_looking_line_is_not_filtered_out` (đơn vị) +
+`tests/test_web_product_view.py::test_service_fee_like_lines_are_still_on_
+the_page` (HTML thật) cùng PASS.
+
 #### CHECK-PRA005-09 — Mặc định sắp theo doanh thu giảm dần (Acceptance I)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Test khẳng định thứ tự mặc định của `product_totals()` là `ORDER BY
 SUM(total_sales) DESC`, không tham số nào khác đảo ngược mặc định.
+
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_K_default_order_is_revenue_
+descending` + `::test_K_equal_revenue_groups_sort_by_a_stable_key_not_load_
+order` (tie-breaker `product_key`, hai lần gọi cho cùng kết quả) — PASS.
+`product_totals()` không nhận tham số sort nào khác — mặc định là ORDER BY
+DUY NHẤT. Web-level: `tests/test_web_product_view.py::test_the_default_
+table_order_is_revenue_descending` xác nhận trên HTML thật (226 dòng, mặt
+hàng #1 KHÔNG phải dòng dịch vụ/phí).
 
 #### CHECK-PRA005-10 — Không hiển thị PP tổng hợp cấp mặt hàng; nhãn đúng (Acceptance J)
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Grep/kiểm template `san_pham.html` xác nhận không cột/ô nào render
@@ -1007,15 +1150,34 @@ nhãn ô tóm tắt là "Số mặt hàng trên chứng từ" (KHÔNG "Số sả
 cột đầu bảng có chữ "Mặt hàng" (KHÔNG "Sản phẩm chuẩn"/"SKU chuẩn"), và câu
 disclosure bắt buộc (mục 5) xuất hiện nguyên văn trên trang.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py`: `test_N_product_totals_never_selects_
+a_purchase_price_column` (AST trên hàm `product_totals()` — không
+`kpi_purchase_price`/`accounting_purchase_price`), `test_N_the_product_
+template_never_renders_an_aggregate_purchase_price` (grep template),
+`test_N_the_summary_label_is_not_so_san_pham`. Web-level: `tests/test_web_
+product_view.py::test_the_required_disclosure_note_appears_verbatim` (nguyên
+văn `PRODUCT_GROUPING_NOTE` trên HTML thật),
+`::test_the_summary_item_count_label_is_not_so_san_pham`, `::test_the_table_
+has_exactly_the_five_contract_columns` (`["Mặt hàng", "Số lượng", "Số đơn",
+"Doanh thu", "LN KPI"]`), `::test_no_forbidden_column_appears_on_the_page`.
+Tất cả PASS.
+
 #### CHECK-PRA005-11 — Hàng rào PII cấu trúc, tái dụng EAC-9
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Xác nhận `sales_queries.py` (delta) không import/chọn `imei`, `note_raw`,
@@ -1024,15 +1186,37 @@ trong touch area sửa `app/web/analytics_queries.py`
 (`git diff --stat <BASE_SHA> -- app/web/analytics_queries.py` = rỗng) và
 `tests/test_analytics_queries.py` vẫn PASS nguyên vẹn.
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. `tests/test_product_queries.py::test_product_totals_selects_no_
+personal_data_column` — PASS (grep `.c.<column>` cho cả sáu trường). Lệnh
+thật, phiên này:
+```
+git diff 4e06515895814d8fff41580dc0f3c64da464ac83 -- app/web/analytics_queries.py
+  → rỗng (0 dòng)
+git diff 4e06515895814d8fff41580dc0f3c64da464ac83 -- app/web/analytics_presentation.py
+  → rỗng (0 dòng)
+git diff 4e06515895814d8fff41580dc0f3c64da464ac83 -- tests/test_analytics_queries.py
+  → rỗng (0 dòng)
+python -m pytest tests/test_analytics_queries.py tests/test_analytics_presentation.py \
+  tests/test_web_pipeline_analytics.py -q
+  → tất cả PASS, không đổi (chạy trong S108)
+```
+
 #### CHECK-PRA005-12 — Hiệu năng đo trên đường query thật
 Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
-(chưa có — mục tiêu E1)
+E1
 
 Yêu cầu:
 Đo thời gian `product_totals()` trên PostgreSQL (hoặc engine test tương
@@ -1040,15 +1224,30 @@ Yêu cầu:
 lại con số đo được KHÔNG dùng làm SLA, chỉ để xác nhận không có blocker
 thuật toán (mục 23).
 
+Executed By:
+Session S108 — PRA-005 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Evidence:
+S108. Đo THẬT trên PostgreSQL 16 (local server, sqlalchemy 2.0 + psycopg3 —
+KHÔNG phải SQLite). Dataset: 12.000 dòng tổng hợp, 2.491 nhóm mặt hàng —
+cùng hình dạng Discovery S105 §35. Kết quả 3 lần chạy: 81,7 ms / 65,4 ms /
+102,8 ms. Đối chiếu: PRA-003 đã nghiệm thu 64 ms cho cùng tầng truy vấn trên
+PostgreSQL production thật, cùng quy mô — không blocker thuật toán. Số đo
+KHÔNG freeze thành SLA (mục 21/23). Database/user scratch đã xoá sau đo,
+không để lại state.
+
 #### CHECK-PRA005-13 — Drill-down dẫn về đúng sự thật PRA-004 (Acceptance L)
 Priority:
 RECOMMENDED
 
 Status:
-NOT_TESTED
+NOT_APPLICABLE
 
 Evidence Level:
-(chưa có — mục tiêu E1 nếu triển khai)
+(không áp dụng — DEFERRED)
 
 Yêu cầu:
 NẾU drill-down được triển khai trong ngân sách: test mở một mặt hàng → một
@@ -1056,6 +1255,16 @@ NẾU drill-down được triển khai trong ngân sách: test mở một mặt 
 KHÔNG đổi so với `TASK-PRA-004`. NẾU DEFER (mục 18 cho phép): ghi rõ lý do
 và RE-TRIGGER CONDITION, check này chuyển `NOT_APPLICABLE` có giải thích —
 không chặn task pass vì là RECOMMENDED.
+
+Evidence:
+S108. `DEFERRED_WITHIN_CONTRACT` — mục 18 cho phép tường minh. Đường tối
+thiểu (`product_lines()` lọc theo `product_key` + route `/san-pham/
+<product_key>` + template dòng-chi-tiết mới) đòi một truy vấn MỚI, một route
+MỚI, một template MỚI — vượt phần ngân sách còn lại nếu cộng cùng vertical
+chính REQUIRED, trong khi check này là RECOMMENDED. Xem S108 §"Quyết Định
+Triển Khai Đáng Ghi Lại" mục 2. RE-TRIGGER CONDITION: Owner yêu cầu xem trực
+tiếp các dòng bán của một mặt hàng từ trang `/san-pham` — mở slice/task
+riêng, KHÔNG mở rộng V1 âm thầm.
 
 #### CHECK-PRA005-14 — Independent Review (E2)
 Priority:

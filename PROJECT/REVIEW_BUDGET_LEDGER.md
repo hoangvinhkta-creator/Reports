@@ -2701,6 +2701,27 @@ repair_cycles_used            : 0 / 1  — Discovery + Contract Freeze KHÔNG ti
 cycles: []
 ```
 
-`TASK-PRA-005` = `READY`. Completion Gate FROZEN (15 check: 14 REQUIRED · 1
-RECOMMENDED, tất cả `NOT_TESTED` — chưa implementation).
-`IMPLEMENTATION_READY = YES`.
+### Trạng thái tại S108 (Implementation)
+
+```
+Implementation                : COMPLETE / REVIEW_PENDING (S108, nhánh
+                               claude/pra-005-v1-implementation-3dcd5k,
+                               CHƯA tích hợp canonical)
+PRODUCTION_PYTHON_LOC_DELTA   : 126 dòng (ngân sách mềm 200)
+CHECK PASS (E1)                : 12/14 REQUIRED (CHECK-PRA005-01..12)
+CHECK-PRA005-13 (RECOMMENDED)  : NOT_APPLICABLE (drill-down DEFERRED_WITHIN_
+                               CONTRACT, mục 18 — không chặn task)
+CHECK-PRA005-14/15             : NOT_TESTED (Independent Review E2 +
+                               Owner Production Acceptance — chưa chạy)
+repair_cycles_used             : 0 / 1  — KHÔNG có Independent Review nào
+                               chạy ở S108 để mở repair cycle; một điều chỉnh
+                               thiết kế nội bộ (product_summary() chuyển
+                               sang tái dụng period_totals()) là tự-review
+                               trước khi hoàn tất, KHÔNG phải phản hồi từ
+                               review — không tính vào ngân sách repair.
+cycles: []
+```
+
+`TASK-PRA-005` = `IMPLEMENTED` (KHÔNG phải `DONE`).
+`NEXT_VERTICAL_ACTION = PRA-005 INDEPENDENT REVIEW E2`. Chi tiết:
+`docs/sessions/S108-pra-005-major-implementation.md`.

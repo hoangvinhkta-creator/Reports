@@ -37,7 +37,7 @@ import json
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, distinct, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -268,4 +268,67 @@ def order_detail(
     }
 
 
-__all__ = ["order_detail", "order_list"]
+def _product_metrics() -> tuple:
+    """Bốn chỉ tiêu mặt hàng (TASK-PRA-005 mục 8) + mẫu số coverage LN KPI.
+
+    ``order_count`` đếm ĐƠN phân biệt TRONG PHẠM VI của chính nhóm mặt hàng đó
+    (mục 11) — KHÔNG cộng được qua các mặt hàng để suy ra tổng đơn của kỳ, vì
+    một đơn nhiều mặt hàng được đếm ở nhiều nhóm. Không hàm nào ở đây coalesce
+    về ``0``: ``SUM``/``kpi_profit`` trên tập rỗng trả ``NULL`` (mục 8.4).
+    """
+    return (
+        func.count().label("lines"),
+        func.count(distinct(order_line_current.c.order_key)).label("order_count"),
+        func.sum(order_line_source_version.c.quantity).label("quantity"),
+        func.sum(order_line_result_version.c.total_sales).label("total_sales"),
+        func.sum(case((_STATUS == "AUTO", _KPI_PROFIT))).label("kpi_profit"),
+        func.sum(case((_STATUS == "AUTO", 1), else_=0)).label("kpi_lines"),
+    )
+
+
+def _product_shaped(row: dict) -> dict:
+    """Ép các ô ĐẾM về ``int``, giữ NGUYÊN ``None`` của các ô TIỀN."""
+    return {
+        "product_key": row["product_key"],
+        "product_label": row["product_label"],
+        "lines": int(row["lines"] or 0),
+        "order_count": int(row["order_count"] or 0),
+        "quantity": row["quantity"],
+        "total_sales": row["total_sales"],
+        "kpi_profit": row["kpi_profit"],
+        "kpi_lines": int(row["kpi_lines"] or 0),
+    }
+
+
+def product_totals(
+    engine: Engine, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
+) -> list[dict]:
+    """Mặt hàng trên chứng từ của một kỳ — một dòng mỗi ``product_key``.
+
+    Khoá gộp là ``order_line_current.product_key`` — khoá KỸ THUẬT đã tồn tại
+    và đã nghiệm thu ở ``TASK-PRA-002`` (``sha256(NFC(product_raw).strip())``),
+    TÁI DỤNG NGUYÊN VẸN theo OD-PRA005-01 (DEC-173). Đây KHÔNG PHẢI canonical
+    Product Identity — Tracking vẫn là Product Identity Authority duy nhất.
+    KHÔNG fuzzy/substring/model-code merge nào được thêm vào đây.
+
+    TẤT CẢ dòng chứng từ tham gia, kể cả dòng dịch vụ/phí (OD-PRA005-02,
+    DEC-173) — hàm này KHÔNG gọi ``is_non_product_line()`` và KHÔNG phân loại
+    product/service/fee dưới bất kỳ hình thức nào.
+
+    Nhãn hiển thị ``product_label`` = ``MIN(product_raw)`` của nhóm, chỉ để có
+    MỘT chuỗi đại diện ổn định (mục 9) — không mang ý nghĩa nghiệp vụ khác.
+
+    Mặc định sắp theo doanh thu giảm dần (mục 11, 17); ``product_key`` làm
+    tie-breaker ổn định cho các nhóm doanh thu bằng nhau.
+    """
+    key = order_line_current.c.product_key
+    label = func.min(order_line_source_version.c.product_raw).label("product_label")
+    statement = select(key, label, *_product_metrics()).select_from(_joined())
+    for condition in _period(date_from, date_to):
+        statement = statement.where(condition)
+    rows = _read(engine, statement.group_by(key).order_by(
+        func.sum(order_line_result_version.c.total_sales).desc(), key))
+    return [_product_shaped(row) for row in rows]
+
+
+__all__ = ["order_detail", "order_list", "product_totals"]
