@@ -1,6 +1,42 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S091 CLOSEOUT)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S092 WHOLE-TASK E2)
+
+Cập nhật sau **Independent Review E2 cấp TOÀN TASK**. Các khối bên dưới giữ nguyên
+như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về trạng thái *hiện tại*,
+khối này đúng.
+
+```text
+SESSION                    = S092 — PRA-002 Whole-Task Independent Review E2 (INDEPENDENT REVIEW, docs-only)
+REVIEW_RESULT              = PASS
+FINAL_ACCEPTANCE           = ACCEPT
+TASK-PRA-002               = IN_PROGRESS   (KHÔNG DONE — CHECK-PRA002-15 Production Acceptance chưa PASS)
+CANONICAL_SHA              = d7a1154a2892e5869e286e10da49f750aa0611df (khớp EXPECTED — canonical KHÔNG moved)
+RDA_EVIDENCE_SHA           = 14499dd6e8f193c5656b85c47b7181a169e32709 (= canonical + 3 commit docs-only; 0 production code)
+IMPLEMENTATION_LINEAGE     = A 80c6fe1→b0ecab7→27b9d1c · B 7658c5e→d2c7691→bfe7008 · C1 3cd92ea→579b497→d7a1154;
+                             diff app/+tools/ sau accepted C1 (579b497..d7a1154) = RỖNG
+E2_REPRODUCED_ON_PG        = PostgreSQL 16.13 thật cô lập: alembic 0002_snapshots (up/down) · CHECK-03/04/05/07/08/09 ·
+                             FIND-PRA002-A1 invariant [1,2,3,4] · route web xac-nhan-du 400/400/302/409 ·
+                             persist sau restart · reappearance is_active dẫn xuất
+TESTS (reviewer tự chạy)   = full 1805 passed / 11 skipped + 1 test môi trường (clone shallow thiếu commit base
+                             740f396a…; PASS sau git fetch --unshallow) · Golden 58 passed / 2 skipped ·
+                             PRA-002 focused 211 · PRA-001 101 · test_demo 13 · git diff --check sạch ·
+                             validators PASS (reference_integrity 3 pre-existing REM-T06 → DEFER)
+LOC_BUDGET (đo lại độc lập) = A 1.104 · B 289 · C1 67 · RDA +0 → 1.460 / 1.500, REMAINING = 40 (KHỚP)
+REVIEW_BUDGET              = 1 / 2 USED · 1 REMAINING (review toàn task KHÔNG tiêu cycle — 0 BLOCKING)
+BLOCKING_FINDINGS          = 0
+NON_BLOCKING               = A2/A3/B2/B3/B4/FIND-RDA-01/FIND-RDA-02 giữ DEFER; không finding mới
+CHECK-PRA002-14            = PASS   (E1 real data — provenance review E2, không rerun)
+CHECK-PRA002-15            = NOT_TESTED (Production Acceptance — Owner deploy Render; KHÔNG deploy trong review)
+CHECK-PRA002-17            = PASS   (E2 toàn task)
+INTEGRATE_RDA_DOCS_READY   = YES    (RDA docs 14499dd + E2 record — Controlled Integration là bước kế tiếp, KHÔNG làm trong review)
+PRODUCTION_ACCEPTANCE_READY= YES    (sau Controlled Integration docs)
+TRACKING_CHANGED           = NO      PRODUCTION_CODE_ADDED = 0
+EVIDENCE                   = docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD.md
+NEXT_VERTICAL_ACTION       = Controlled Integration RDA/E2 docs vào canonical, rồi PRA-002 Production Acceptance (CHECK-15)
+```
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-03, S091 CLOSEOUT)
 
 Cập nhật sau **RDA closeout tiếp nối Owner confirmation tường minh**. Các khối
 bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về
@@ -5670,6 +5706,16 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S092 — PRA-002 WHOLE-TASK INDEPENDENT REVIEW E2 — 2026-09-03 — Review độc lập
+  toàn task (slice A + B + C1 + RDA) đối chiếu Completion Gate frozen S079.
+  Canonical `d7a1154a…` khớp EXPECTED; RDA branch `14499dd` docs-only; 0
+  production code sau accepted C1. Reviewer tái lập trên PostgreSQL 16.13 thật:
+  migration 0002_snapshots, đẳng thức state(A,B) == state(B), SOURCE_CHANGED,
+  NOT_SEEN → REMOVED_CANDIDATE vẫn current vẫn tính, FIND-PRA002-A1 invariant,
+  RESULT_REVISED, route xac-nhan-du, persist sau restart. LOC đo lại 1.460/1.500
+  khớp. RDA evidence S090/S091 review theo provenance. BLOCKING = 0, 0 repair
+  cycle. CHECK-PRA002-17 → PASS (E2); CHECK-15 NOT_TESTED. TASK-PRA-002 vẫn
+  IN_PROGRESS. Evidence: `docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD.md`.
 - S091 (phần 2) — PRA-002 RDA CLOSEOUT — 2026-09-03 — Owner xác nhận tường
   minh "Đúng, đây là file đầy đủ 01/09–03/09" và cho phép đường controlled-copy
   ASSUMPTION D14. Thực hiện coverage confirmation thật qua `POST xac-nhan-du`

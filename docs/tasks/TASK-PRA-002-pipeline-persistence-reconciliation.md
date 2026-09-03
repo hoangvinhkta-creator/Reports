@@ -902,7 +902,7 @@ EFFORT                = 1 session (+ review + integration)
 - [x] PRA-002.C1 `result_fingerprint` + RESULT_REVISED + test hai capture. (S086; không cần migration — schema 0002 đã đủ; 67 dòng logic production. Independent Review E2 ACCEPT ở S087; Controlled Integration ở S088 — canonical `bfe7008` → `579b497`, fast-forward thuần)
 - [ ] PRA-002.C2 `tools/analysis/make_snapshot_variants` + RDA-1..6 (hoặc `NOT_TESTED` + gate Owner).
 - [ ] PRA-002.C3 Kịch bản A→B→B'→B'' trên PostgreSQL 16 local; đo `ru_maxrss`.
-- [ ] PRA-002.R Independent Review E2 (`docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD`), repair ≤ 2 cycle, Controlled Integration, deployment doc, PROGRESS/LO_TRINH/handoff.
+- [ ] PRA-002.R Independent Review E2 (`docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD`), repair ≤ 2 cycle, Controlled Integration, deployment doc, PROGRESS/LO_TRINH/handoff. (S092: E2 toàn task = PASS, 0 blocking, 0 cycle; còn Controlled Integration docs + CHECK-15)
 
 ## Ready Gate
 Dùng `governance/core/TASK_READY_GATE_STANDARD.md`.
@@ -1345,7 +1345,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E2
@@ -1355,11 +1355,15 @@ Yêu cầu: `docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD` theo `governan
 
 
 Đã chạy MỘT PHẦN (slice A, S081): `docs/reviews/TASK-PRA-002-SLICE-A-INDEPENDENT-REVIEW-RECORD.md`. Reviewer tự chạy lại CHECK-03/04/05/09 (E2) trên lineage `7fad3f7..80c6fe1`, cộng migration up/down trên PostgreSQL 16.13 thật. Một finding BLOCKING (FIND-PRA002-A1 — version mới đánh số theo hiện hành thay vì max, mục 5.3; sau `ORDER_KEY_COLLISION` mọi upload sau trên khoá đó vi phạm UNIQUE và `/run` trả 500) đã sửa trong repair cycle 1/2; sau repair `BLOCKING_FINDINGS = 0`, full suite `1711 passed, 11 skipped`, Golden `58 passed, 2 skipped`. Check TOÀN TASK vẫn `NOT_TESTED` vì CHECK-07 (slice B) và CHECK-08 (slice C) chưa tồn tại để chạy lại.
+
+Slice B (S084) và slice C1 (S087): E2 ACCEPT, 0 BLOCKING — `docs/reviews/TASK-PRA-002-SLICE-B-INDEPENDENT-REVIEW-RECORD.md`, `docs/reviews/TASK-PRA-002-SLICE-C1-INDEPENDENT-REVIEW-RECORD.md`.
+
+Đã chạy TOÀN TASK (S092, 2026-09-03): `docs/reviews/TASK-PRA-002-INDEPENDENT-REVIEW-RECORD.md`. Canonical `d7a1154a…` khớp EXPECTED (không moved); RDA branch `14499dd` = canonical + 3 commit docs-only; 0 production code sau accepted C1. Reviewer tự chạy lại CHECK-03/04/05/07/09 (và 01/06/08) trên PostgreSQL 16.13 thật cô lập: `alembic_version = 0002_snapshots` (up/down round-trip); A(89/61)→B(351/254) đẳng thức `state(A,B) == state(B)` trên totals VÀ tập (khoá, fingerprint); B reupload SAME 351 / 0 version mới; B' đúng 1 SOURCE_CHANGED (`{sell_price, total_sales_raw}`, v1 immutable, current v2, delta đúng); B'' NOT_SEEN 1 → xác nhận → REMOVED 1, dòng vẫn current, totals không đổi, COUNT(*) không giảm; FIND-PRA002-A1 invariant [1,2,3,4] sau collision; RESULT_REVISED (source pointer giữ, result pointer dịch, from/to = result-version id, precedence SOURCE_CHANGED, outside-F3 0 cờ); route web POST xac-nhan-du 400/400/302/409 với wiring production; persist sau restart PostgreSQL; reappearance `is_active` dẫn xuất. Suite: full `1805 passed, 11 skipped` + 1 test môi trường (clone shallow thiếu commit base `740f396a…`, PASS sau unshallow); Golden `58 passed, 2 skipped`; PRA-002 focused 211; PRA-001 101; `git diff --check` sạch; validators PASS (reference_integrity 3 pre-existing REM-T06 DEFER). LOC đo lại độc lập A 1104 / B 289 / C1 67 = 1.460 / 1.500 (khớp). RDA evidence S090/S091 review theo provenance (không rerun): số học nhất quán, nhãn REAL vs CONTROLLED_COPY tường minh, Owner confirmation đúng đường ứng dụng. `BLOCKING_FINDINGS = 0`; 0 repair cycle (lineage 1/2). Task vẫn `IN_PROGRESS` — CHECK-15 chưa PASS.
 Executed By:
-S081 — PRA-002 Slice A Independent Review (2026-09-02) — phần slice A
+S081 (slice A) · S084 (slice B) · S087 (slice C1) · S092 — PRA-002 Whole-Task Independent Review E2 (2026-09-03)
 
 Timestamp:
-2026-09-02
+2026-09-03
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 - [ ] 100% REQUIRED checks PASS (01–15, 17); 16 RECOMMENDED có số đo.
