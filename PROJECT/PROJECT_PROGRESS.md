@@ -7,7 +7,9 @@ cao nhất, SUPERSEDES ngữ nghĩa hiện hành khi có xung đột về price 
 từ thời điểm này. Quyết định đầy đủ: **DEC-172**
 (`PROJECT/PROJECT_DECISIONS.md`). KHÔNG phải PRA-004 defect —
 `TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
-`PRA-005` NOT STARTED.
+`PRA-005` DISCOVERY = DONE (S105, xác minh + tích hợp tại S106) · `PRA-005`
+CONTRACT = NOT STARTED. Xem khối "CANONICAL CURRENT STATE — TASK-PRA-005
+DISCOVERY" bên dưới.
 
 Owner xác nhận: trong Reports chỉ có **MỘT** authority cho giá mua phục vụ
 phân tích bán hàng — **Tracking PP có hiệu lực tại ngày bán**, gọi ở nghiệp vụ
@@ -122,6 +124,49 @@ GOVERNANCE_VALIDATORS   = structure PASS · project_state PASS ·
 tự động tạo ra `BUSINESS AUTHORITY`. Một metric/status/reason mới có tác động
 tới business state đòi hỏi **authority classification tường minh** — không
 được suy ra từ tên field, tên cột nguồn, hay tên module.
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-005 DISCOVERY (AUTHORITATIVE, 2026-09-03, S106 — Evidence Verification + Integration)
+
+`PRA-005` **Discovery = DONE**. `PRA-005` **Contract = NOT STARTED**. Discovery
+gốc chạy tại phiên S105 trên nhánh `claude/pra-005-discovery-dsryx5` (docs-only,
+0 dòng production code); phiên S106 xác minh lineage (branch tồn tại, ancestry
+sạch, diff đúng 1 file `docs/sessions/S105-pra-005-san-pham-discovery.md`, 822
+dòng thêm, không production/schema/migration/Tracking) rồi tích hợp bằng
+**fast-forward** vào canonical. Không rerun Discovery — chỉ tái lập độc lập
+được ví dụ SPLIT `FTKB50ZVMV` (đọc trực tiếp `tests/fixtures/golden/
+period_2026_01.xlsx`: dòng `BH63724` qty 7 / doanh thu 113.750.000, dòng
+`BH62439` qty 1 / doanh thu 16.300.000 — khớp đúng số trong S105) và các tham
+chiếu mã nguồn (`app/history/keys.py:70`, `analytics_presentation.py`,
+`tools/db/schema.py`, `product_group.py`).
+
+```text
+SESSION                      = S106 — PRA-005 Discovery Evidence Verification + Integration
+DISCOVERY_SESSION            = S105 (nhánh claude/pra-005-discovery-dsryx5)
+DISCOVERY_HEAD               = f01464c72eac00858c7c0b78cc26329febaf5219
+DISCOVERY_BASE               = 4dfe4b2525ec9496be27b3856e9b3698588dc22a
+                              (= BASE_CANONICAL đầu phiên S106, khớp EXACT)
+ANCESTRY                     = CLEAN (canonical là ancestor trực tiếp của
+                              Discovery HEAD, 1 commit ahead, 0 behind)
+DIFF                         = 1 file, docs/sessions/S105-pra-005-san-pham-
+                              discovery.md, +822/-0, KHÔNG production code
+INTEGRATION_STRATEGY         = FAST_FORWARD (ff-only, không cherry-pick,
+                              không rebase, không squash)
+PRODUCTION_CODE_DELTA        = 0
+SCHEMA_REQUIRED              = NO · NEW_AUTHORITY_REQUIRED = NO ·
+                              TRACKING_CHANGE_REQUIRED = NO
+DISCOVERY_ACCEPTANCE         = ACCEPT
+BLOCKING_FINDINGS            = 0
+SCOPE_DRIFT                  = NO
+
+NEXT_VERTICAL_ACTION         = PRA-005 CONTRACT FREEZE
+```
+
+OD-PRA005-1 (khoá gộp sản phẩm) và OD-PRA005-2 (dòng dịch vụ trong bảng sản
+phẩm) là **khuyến nghị Discovery**, chưa phải `OWNER_DECISION`. Cả hai giữ
+nguyên trạng thái chờ Owner tại phiên Contract Freeze; nếu Owner không trả
+lời, S105 §28 đã ghi rõ mặc định an toàn (A/A) để dùng làm
+`RECOMMENDED_DEFAULT`, không phải quyết định đã đóng.
 
 
 ## CANONICAL CURRENT STATE — MANAGEMENT UI SIMPLIFICATION (AUTHORITATIVE, 2026-09-03 — KPI-FIRST PRESENTATION)
