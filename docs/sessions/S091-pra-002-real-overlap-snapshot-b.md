@@ -336,3 +336,220 @@ CHANGE_BUDGET_REQUIRED = NO
 TRACKING_CHANGED       = NO
 SCOPE_CHECK            = tuân thủ hard exclusions mục 20 của chỉ thị
 ```
+
+---
+
+# S091 — PHẦN 2: RDA CLOSEOUT sau Owner Confirmation
+
+Tiếp tục cùng phiên S091. RDA EVIDENCE / CLOSEOUT ONLY. Không production code ·
+không parser repair · không migration/schema · không sửa Tracking · không deploy ·
+không tooling mới.
+
+## 19. Owner Confirmation — AUTHORITATIVE
+
+Owner xác nhận tường minh: **"Đúng, đây là file đầy đủ 01/09–03/09."**
+
+```text
+OWNER_DECISION / OWNER_CONFIRMATION  (không phải AI inference)
+SNAPSHOT_ID     = SNAP-20260903021014-7b421983
+CONFIRMED_RANGE = 2026-09-01 → 2026-09-03
+```
+
+## 20. Explicit coverage confirmation — đường ứng dụng bình thường
+
+`POST /du-lieu/snapshot/SNAP-20260903021014-7b421983/xac-nhan-du`
+với `tu_ngay=2026-09-01`, `den_ngay=2026-09-03`, `xac_nhan=1` (checkbox = YES).
+
+```text
+TRƯỚC: coverage_state = HEADER_CONSISTENT · confirmed_range = None..None
+       confirmed_at = None · n_removed_candidate = 0
+       flags = {SOURCE_CHANGED: 13} · current lines=61 orders=40 net=593.550.000
+
+HTTP   = 302 → /du-lieu/snapshot/SNAP-20260903021014-7b421983?xac_nhan=...
+         thông điệp: "Đã ghi nhận xác nhận đầy đủ cho 2026-09-01 → 2026-09-03.
+         0 dòng hiện hành trong khoảng này không có trong sổ vừa xác nhận —
+         đã đưa vào Review, KHÔNG xoá và VẪN tính."
+
+SAU  : coverage_state = CONFIRMED_COMPLETE
+       confirmed_range_start = 2026-09-01 · confirmed_range_end = 2026-09-03
+       confirmed_at = 2026-09-03T02:27:08+00:00 · n_removed_candidate = 0
+       flags = {SOURCE_CHANGED: 13} · current lines=61 orders=40 net=593.550.000
+```
+
+Không tự mở rộng range. Trạng thái đã ghi bền (verify lại sau khi PostgreSQL
+khởi động lại).
+
+## 21. RDA-5 — kết quả DỮ LIỆU THẬT trước
+
+Sau confirmation của B thật: **`REMOVED_CANDIDATE = 0`** — đúng, vì A ⊂ B và
+toàn bộ khoá của A vẫn xuất hiện trong B. Đây là real-data evidence ĐÚNG,
+không phải failure. Nhánh disappearance vì thế không tự nhiên xuất hiện trong
+dữ liệu thật và được đóng bằng controlled copy dưới đây.
+
+## 22. CONTROLLED_COPY_EVIDENCE — phương pháp và nguồn gốc
+
+> **Nhãn: `CONTROLLED_COPY_EVIDENCE` — KHÔNG phải `REAL_DATA_EVIDENCE`.**
+> Đây KHÔNG phải dữ liệu kế toán thật.
+
+```text
+AUTHORITY   = Owner cho phép ASSUMPTION D14 controlled-copy fallback
+              (hợp đồng frozen PRA-002 mục 15 đã cho phép)
+NGUỒN       = REAL Snapshot B (So_chi_tiet_ban_hang_8.xlsx,
+              SHA256 7b421983a73210637d618806446e4a4e3a2d03e3b367694e7ee6ecb3207ce901)
+CÔNG CỤ     = openpyxl có sẵn trong environment, script dùng một lần trong
+              scratchpad — KHÔNG tạo make_snapshot_variants, KHÔNG production
+              helper, KHÔNG CLI mới, KHÔNG parser mới, KHÔNG dependency mới.
+              Đúng tiền lệ frozen tests/test_pipeline_history_vertical.py::cut_workbook
+VỊ TRÍ      = chỉ trong scratchpad phiên; KHÔNG commit vào Git
+B GỐC       = KHÔNG sửa — SHA256 trước == sau == 7b421983...ce901
+MÔI TRƯỜNG  = PostgreSQL 16.13 cô lập `rda_ab`; không production; không Tracking mutation
+```
+
+Hai biến thể:
+
+```text
+B'  = B + sửa ĐÚNG MỘT dòng (frozen --edit-line)
+      BH73722 / "Tivi Toshiba 55C350RP" (đơn 1 dòng, SL = 1, chiết khấu = 0
+      → không phát sinh ambiguity)
+      Đơn giá     7.800.000 → 8.000.000
+      Doanh số bán 7.800.000 → 8.000.000
+      delta = +200.000
+      SHA256 = 73b0ba45f46bc6ae26a98dfc4276aa3070916ba4e52888ac5132331fbfd91ade
+
+B'' = B' + xoá ĐÚNG MỘT dòng logic khác (frozen --drop-line)
+      BH73923 / "Điều hòa Panasonic YZ12AKH-8" (đơn 1 dòng, 2026-09-03)
+      SHA256 = b366c54570f0ef9d14238e76032d8d80404e8268a2b8fa59ee666f333e683f79
+```
+
+Kiểm chứng biến thể đúng như khai báo: `B → B'` 0 khoá thêm/bớt, chỉ ô đã nêu
+đổi giá trị; `B' → B''` mất đúng 1 khoá, 0 khoá thêm, 0 khoá chung đổi giá trị.
+(Round-trip openpyxl chuyển ô rỗng `''` → `None`; đã kiểm thực nghiệm trên DB
+nháp `rda_probe`: parser chuẩn hoá cả hai về rỗng nên KHÔNG sinh SOURCE_CHANGED
+giả — B' cho đúng 1 `SOURCE_CHANGED`.)
+
+## 23. RDA-4 — assertion tiền còn thiếu (CONTROLLED_COPY_EVIDENCE)
+
+S091 phần 1 đã chứng minh cơ chế SOURCE_CHANGED bằng **dữ liệu thật** (13 thay
+đổi kế toán: `delivery_cost` và/hoặc `imei`). Assertion DUY NHẤT của bảng frozen
+mà dữ liệu thật không chạm tới là lớp trường tiền (`sell_price` /
+`total_sales_raw`) và bất biến "SUM(total_sales) đổi ĐÚNG bằng delta". Chỉ
+assertion đó dùng controlled copy; **không thay thế evidence thật**.
+
+`POST /run controlled_B_edit.xlsx` → HTTP **302**, snapshot
+`SNAP-20260903023024-73b0ba45`:
+
+| Assertion frozen | Kết quả |
+|---|---|
+| đúng **1** `SOURCE_CHANGED` | `INSERT 0 · SAME 60 · SOURCE_CHANGED 1`; flag 13 → 14 |
+| `changed_fields` nêu đúng `sell_price` và `total_sales_raw` (cũ → mới nguyên văn) | `{"sell_price": {"new": "8000000", "old": "7800000"}, "total_sales_raw": {"new": "8000000", "old": "7800000"}}` |
+| version cũ vẫn đọc được | v1 = 7.800.000, vẫn thuộc `SNAP-20260903021014-7b421983` |
+| current = version mới | current trỏ v2 = 8.000.000 |
+| `SUM(total_sales)` đổi đúng bằng delta | 593.550.000 → 593.750.000 = **+200.000** = đúng delta |
+| 0 cờ khác phát sinh từ phép sửa | `NOT_SEEN` 0 · `COLLISION` 0 · `RESULT_REVISED` 0; source version 74 → 75 (+1) |
+
+## 24. RDA-5 — REMOVED_CANDIDATE (CONTROLLED_COPY_EVIDENCE)
+
+**Bước 1 — `POST /run controlled_B_edit_drop.xlsx`** → HTTP **302**, snapshot
+`SNAP-20260903023024-b366c545` (`line_count` 60, `order_count` 39):
+
+```text
+TRƯỚC XÁC NHẬN
+  n_not_seen = 1 · n_removed_candidate = 0
+  flags = {SOURCE_CHANGED: 14, NOT_SEEN_IN_LATEST_SNAPSHOT: 1}
+  khoá NOT_SEEN (non-PII) = BH73923 / product_key 6c6fb7436561badafc93… / occ 1
+  current lines = 61 · orders = 40 · net = 593.750.000   ← KHÔNG đổi
+  dòng bị xoá VẪN current: BH73923, sale_date 2026-09-03, total_sales 13.350.000, version 1
+```
+
+**Bước 2 — `POST /du-lieu/snapshot/SNAP-20260903023024-b366c545/xac-nhan-du`**
+(`2026-09-01`..`2026-09-03`, `xac_nhan=1`) → HTTP **302**:
+
+```text
+SAU XÁC NHẬN
+  coverage_state = CONFIRMED_COMPLETE · confirmed_range = 2026-09-01..2026-09-03
+  n_not_seen = 1 · n_removed_candidate = 1
+  flags = {SOURCE_CHANGED: 14, NOT_SEEN_IN_LATEST_SNAPSHOT: 1, REMOVED_IN_SOURCE_CANDIDATE: 1}
+  flag provenance: kind=REMOVED_IN_SOURCE_CANDIDATE · order_key=BH73923 ·
+    occurrence_index=1 · raised_by_snapshot_id=SNAP-20260903023024-b366c545 ·
+    from_version_id=72 · to_version_id=NULL ·
+    detail={"range_end":"2026-09-03","range_start":"2026-09-01","scope":"CONFIRMED"}
+  current lines = 61 · orders = 40 · net = 593.750.000   ← KHÔNG đổi
+  dòng bị xoá VẪN current, VẪN trong SUM: BH73923, total_sales 13.350.000
+```
+
+**An toàn nghiệp vụ đã chứng minh:** cờ được giương, lịch sử/nguồn cũ bất biến,
+dòng KHÔNG bị xoá chỉ vì biến mất khỏi snapshot, analytics KHÔNG âm thầm mất
+dữ liệu kinh doanh. Phân xử là việc của Owner (PRA-004), không phải của hệ thống.
+
+**`COUNT(*)` mọi bảng fact không giảm** qua 4 mốc (T_CONFIRMED → B' → B'' →
+sau xác nhận):
+
+```text
+source_snapshot            [3, 4, 5, 5]      không giảm
+order_line_source_version  [74, 75, 75, 75]  không giảm
+order_line_result_version  [170, 231, 291, 291] không giảm
+order_line_current         [61, 61, 61, 61]  không giảm
+snapshot_line              [170, 231, 291, 291] không giảm
+reconciliation_flag        [13, 14, 15, 16]  không giảm
+```
+
+## 25. RDA-6 — đọc đúng chữ nghĩa frozen
+
+Bảng mục 15 viết: *"`tests/test_golden_baseline.py` `58 passed, 2 skipped`;
+**nếu** cohort S068 (58 đơn/83 dòng, 22 AUTO/36 Review) **có trong máy**: chạy
+→ ..."*. Mệnh đề cohort là **có điều kiện**, không phải REQUIRED vô điều kiện.
+
+```text
+Golden          = 58 passed, 2 skipped   → PASS
+Cohort S068     = không có trong environment → mệnh đề điều kiện KHÔNG kích hoạt
+                  (KHÔNG reconstruct, KHÔNG giả PASS)
+→ RDA-6 = PASS
+```
+
+## 26. RESULT_REVISED
+
+Không tạo controlled case cho RESULT_REVISED. `CHECK-PRA002-08` đã có E2
+evidence riêng (reviewer tái lập độc lập trên PostgreSQL 16.13, S087). Real
+S091 `RESULT_REVISED = NOT_OBSERVED_IN_REAL_DATA` là hợp lệ; bảng frozen mục 15
+không có dòng nào bắt buộc real RESULT_REVISED.
+
+## 27. REQUIRED_GATE_MATRIX — bảng frozen mục 15
+
+| Bước | Kết quả | Loại evidence |
+|---|---|---|
+| RDA-1 | **PASS** | `PASS_REAL` — S090 + tái lập S091 |
+| RDA-2 | **PASS** | `PASS_REAL` — A exact reupload (S090) + B exact reupload (S091) |
+| RDA-3 | **PASS** | `PASS_REAL` — hai export thật, đẳng thức `state(A,B) == state(B)` khớp tuyệt đối. Sai lệch ghi rõ: `n_same` 35 + `SOURCE_CHANGED` 13 = 48 (toàn bộ khoá A), vì kế toán thực sự sửa 13 dòng |
+| RDA-4 | **PASS** | `PASS_REAL` (cơ chế: 13 SOURCE_CHANGED thật, changed_fields, immutability, current pointer) **+** `PASS_CONTROLLED_COPY` (assertion lớp trường tiền + delta) |
+| RDA-5 | **PASS** | `PASS_CONTROLLED_COPY` — trên nền Owner confirmation THẬT của B; nhánh disappearance không tồn tại trong dữ liệu thật (A ⊂ B) |
+| RDA-6 | **PASS** | `PASS_REAL` — Golden 58/2; mệnh đề cohort S068 có điều kiện, không kích hoạt |
+
+Toàn bộ REQUIRED acceptance oracle của bảng mục 15 đã đạt. Không tạo requirement mới.
+
+```text
+CHECK-PRA002-14 = PASS
+CHECK-PRA002-15 = NOT_TESTED (Production Acceptance — Owner deploy Render; phiên KHÔNG deploy)
+CHECK-PRA002-17 = NOT_TESTED ở cấp TOÀN TASK (PASS cho slice A + B + C1) — ngoài phạm vi RDA
+```
+
+## 28. FIND-RDA-01 — phân loại cuối
+
+```text
+FINAL          = OWNER_SEMANTIC_CONFIRMED
+OWNER RULE     = "Ngày D tháng M năm YYYY" = single-day business data coverage
+CODE_REQUIRED  = NO — confirmation path không đòi HEADER_CONSISTENT
+                 (confirm_coverage chỉ gọi confirmation_error; không nhánh nào kiểm coverage_state)
+PARSER REPAIR  = DEFERRED. Không tiêu 40 LOC.
+                 Không mở rộng parser Tháng/Quý/Năm.
+```
+
+## 29. Ngân sách và phạm vi
+
+```text
+CODE_REQUIRED          = NO
+PRODUCTION_CODE_ADDED  = 0 dòng
+CHANGE_BUDGET_STATE    = 1.460 / 1.500   REMAINING = 40 LOC   (KHÔNG đổi, KHÔNG dùng)
+REVIEW_BUDGET_STATE    = 1 / 2 USED · 1 REMAINING (RDA evidence KHÔNG tiêu repair cycle)
+TRACKING_CHANGED       = NO
+SCOPE_CHECK            = tuân thủ hard exclusions mục 15 của chỉ thị closeout
+```

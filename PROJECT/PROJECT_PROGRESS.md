@@ -1,6 +1,68 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S091)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S091 CLOSEOUT)
+
+Cập nhật sau **RDA closeout tiếp nối Owner confirmation tường minh**. Các khối
+bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về
+trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S091 (phần 2) — PRA-002 RDA Closeout (EVIDENCE ONLY)
+RDA_CLOSEOUT_RESULT        = PASS
+TASK-PRA-002               = IN_PROGRESS   (KHÔNG DONE — CHECK-15 Production Acceptance chưa PASS)
+CANONICAL_SHA              = d7a1154a2892e5869e286e10da49f750aa0611df (khớp EXPECTED)
+OWNER_CONFIRMATION         = "Đúng, đây là file đầy đủ 01/09–03/09." — OWNER_DECISION, không phải AI inference
+COVERAGE_CONFIRMATION      = POST /du-lieu/snapshot/SNAP-20260903021014-7b421983/xac-nhan-du
+                             (tu_ngay 2026-09-01 · den_ngay 2026-09-03 · xac_nhan=1) → HTTP 302
+                             HEADER_CONSISTENT → CONFIRMED_COMPLETE ·
+                             confirmed_range 2026-09-01..2026-09-03 ·
+                             confirmed_at 2026-09-03T02:27:08+00:00 · n_removed_candidate 0
+REAL_RDA_EVIDENCE          = GIỮ NGUYÊN từ S090/S091 phần 1, không rerun/không diễn giải lại:
+                             A ⊂ B PROVEN · state(A,B) == state(B) PROVEN ·
+                             SAME 35 · INSERT 13 · SOURCE_CHANGED 13 (thật) · COLLISION 0 ·
+                             RESULT_REVISED 0 · exact reupload B SAME 61, source version không tăng
+RDA4                       = PASS — PASS_REAL (cơ chế, 13 thay đổi kế toán thật) +
+                             PASS_CONTROLLED_COPY (assertion lớp trường tiền):
+                             đúng 1 SOURCE_CHANGED · changed_fields = sell_price + total_sales_raw
+                             ("7800000" → "8000000") · version cũ đọc được · current = version mới ·
+                             SUM(total_sales) +200.000 đúng delta · 0 cờ khác
+RDA5                       = PASS (CONTROLLED_COPY_EVIDENCE) — trước xác nhận n_not_seen 1;
+                             sau POST xac-nhan-du n_removed_candidate 1, flag
+                             REMOVED_IN_SOURCE_CANDIDATE (from_version_id 72, scope CONFIRMED);
+                             dòng bị xoá VẪN current VẪN trong SUM (BH73923, 13.350.000);
+                             current 61 dòng / 40 đơn / net 593.750.000 KHÔNG đổi;
+                             COUNT(*) mọi bảng fact không giảm qua 4 mốc
+RDA5_REAL_RESULT           = REMOVED_CANDIDATE = 0 trên dữ liệu thật (đúng: A ⊂ B) — không phải failure
+RDA6                       = PASS — Golden 58 passed / 2 skipped; mệnh đề cohort S068 trong bảng
+                             mục 15 là CÓ ĐIỀU KIỆN ("nếu có trong máy") nên không kích hoạt;
+                             KHÔNG reconstruct, KHÔNG giả PASS
+CONTROLLED_COPY_PROVENANCE = dẫn xuất từ REAL snapshot B (SHA256 7b421983...ce901) bằng openpyxl
+                             có sẵn (tiền lệ tests/test_pipeline_history_vertical.py::cut_workbook);
+                             chỉ trong scratchpad · KHÔNG commit · B gốc KHÔNG sửa (SHA trước == sau) ·
+                             PostgreSQL 16.13 cô lập rda_ab · không production · không Tracking mutation ·
+                             KHÔNG tạo make_snapshot_variants/CLI/parser/dependency mới
+                             B'  SHA256 73b0ba45f46bc6ae26a98dfc4276aa3070916ba4e52888ac5132331fbfd91ade
+                             B'' SHA256 b366c54570f0ef9d14238e76032d8d80404e8268a2b8fa59ee666f333e683f79
+REQUIRED_GATE_MATRIX       = RDA-1 PASS_REAL · RDA-2 PASS_REAL · RDA-3 PASS_REAL ·
+                             RDA-4 PASS_REAL + PASS_CONTROLLED_COPY · RDA-5 PASS_CONTROLLED_COPY ·
+                             RDA-6 PASS_REAL
+CHECK-PRA002-14            = PASS   (toàn bộ REQUIRED acceptance oracle bảng mục 15 đã đạt)
+CHECK-PRA002-15            = NOT_TESTED — Production Acceptance trên Render (Owner; phiên KHÔNG deploy)
+CHECK-PRA002-17            = NOT_TESTED ở cấp TOÀN TASK (PASS cho slice A + B + C1) — ngoài phạm vi RDA
+FIND-RDA-01                = OWNER_SEMANTIC_CONFIRMED · CODE_REQUIRED = NO ·
+                             parser repair DEFERRED · không mở rộng Tháng/Quý/Năm
+CODE_REQUIRED              = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500   REMAINING = 40 LOC   (KHÔNG đổi, KHÔNG dùng)
+REVIEW_BUDGET_STATE        = 1 / 2 USED · 1 REMAINING (RDA evidence không tiêu repair cycle)
+TRACKING_CHANGED           = NO
+EVIDENCE                   = docs/sessions/S091-pra-002-real-overlap-snapshot-b.md (phần 2)
+NEXT_VERTICAL_ACTION       = PRA-002 Production Acceptance (CHECK-PRA002-15, Owner deploy Render)
+                             + Independent Review E2 cấp toàn task (CHECK-PRA002-17).
+                             KHÔNG deploy trong phạm vi RDA
+```
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-03, S091 phần 1)
 
 Cập nhật sau **Real Data Acceptance overlap A → B trên HAI workbook kế toán
 THẬT** do Owner cung cấp (continuation của S090). Khối S090 và các khối cũ hơn
@@ -5608,6 +5670,21 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S091 (phần 2) — PRA-002 RDA CLOSEOUT — 2026-09-03 — Owner xác nhận tường
+  minh "Đúng, đây là file đầy đủ 01/09–03/09" và cho phép đường controlled-copy
+  ASSUMPTION D14. Thực hiện coverage confirmation thật qua `POST xac-nhan-du`
+  (HEADER_CONSISTENT → CONFIRMED_COMPLETE, 2026-09-01..2026-09-03,
+  `n_removed_candidate` 0 — đúng vì A ⊂ B). Đóng hai assertion mà dữ liệu thật
+  không tự tạo ra, bằng controlled copy dẫn xuất từ REAL snapshot B (dán nhãn
+  CONTROLLED_COPY_EVIDENCE, không commit, B gốc không sửa): RDA-4 — đúng 1
+  SOURCE_CHANGED với `changed_fields` = sell_price + total_sales_raw và
+  `SUM(total_sales)` đổi đúng +200.000; RDA-5 — trước xác nhận NOT_SEEN 1, sau
+  xác nhận REMOVED_IN_SOURCE_CANDIDATE 1, dòng bị xoá VẪN current VẪN trong SUM,
+  COUNT(*) mọi bảng fact không giảm. RDA-6 PASS (Golden 58/2; mệnh đề cohort
+  S068 là có điều kiện). CHECK-PRA002-14 chuyển BLOCKED → PASS. 0 dòng
+  production code; CHANGE_BUDGET không đổi (1.460/1.500); review budget không
+  tiêu. TASK-PRA-002 vẫn IN_PROGRESS — CHECK-PRA002-15 Production Acceptance
+  chưa PASS. Evidence: `docs/sessions/S091-pra-002-real-overlap-snapshot-b.md`.
 - S091 — PRA-002 REAL DATA ACCEPTANCE: REAL OVERLAP A → B (EVIDENCE ONLY) —
   2026-09-03 — Owner upload snapshot B thật (`So_chi_tiet_ban_hang_8.xlsx`,
   header `Từ ngày 01/09/2026 đến ngày 03/09/2026`, 61 dòng / 40 đơn); exact

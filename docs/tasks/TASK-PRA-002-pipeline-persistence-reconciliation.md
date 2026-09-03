@@ -1260,7 +1260,7 @@ Priority:
 REQUIRED
 
 Status:
-BLOCKED
+PASS
 
 Evidence Level:
 E1
@@ -1286,7 +1286,13 @@ S091 — đường ƯU TIÊN của mục 15 (HAI export THẬT) đã chạy đư
 - Coverage B = `HEADER_CONSISTENT` (header ⊇ detected). A giữ `DETECTED_ONLY`. KHÔNG POST `xac-nhan-du`.
 - RDA-5 = BLOCKED — cần đồng thời một export thật có chứng từ đã BIẾN MẤT (dữ liệu thật hiện có `NOT_SEEN` = 0 vì B ⊃ A) và Owner xác nhận coverage tường minh.
 - `FIND-RDA-01` → `OWNER_SEMANTIC_CONFIRMED`: Owner xác định `Ngày D tháng M năm YYYY` = coverage đúng ngày đó. Parser repair KHÔNG cần — `confirm_coverage` chỉ gọi `confirmation_error`, không nhánh nào đòi `HEADER_CONSISTENT`, nên snapshot `DETECTED_ONLY` vẫn xác nhận được → DEFER.
-Status = `BLOCKED` (không còn `NOT_TESTED`): RDA-1/2/3 có E1 evidence thật; RDA-4/5 chờ Owner input. Bằng chứng đầy đủ: `docs/sessions/S091-pra-002-real-overlap-snapshot-b.md`.
+S091 CLOSEOUT — sau khi Owner xác nhận tường minh ("Đúng, đây là file đầy đủ 01/09–03/09") và cho phép đường controlled-copy ASSUMPTION D14 mà hợp đồng frozen đã dự liệu:
+- Coverage confirmation THẬT trên đường ứng dụng: `POST /du-lieu/snapshot/SNAP-20260903021014-7b421983/xac-nhan-du` (`tu_ngay=2026-09-01`, `den_ngay=2026-09-03`, `xac_nhan=1`) → HTTP 302; `HEADER_CONSISTENT` → `CONFIRMED_COMPLETE`, `confirmed_range` 2026-09-01..2026-09-03, `confirmed_at` 2026-09-03T02:27:08+00:00, `n_removed_candidate` = 0 (đúng: A ⊂ B).
+- RDA-4 = PASS. Cơ chế đã có `PASS_REAL` từ 13 SOURCE_CHANGED thật; assertion lớp trường tiền còn thiếu được đóng bằng `CONTROLLED_COPY_EVIDENCE` (B' = B + sửa đúng một dòng BH73722, Đơn giá/Doanh số bán 7.800.000 → 8.000.000): đúng **1** `SOURCE_CHANGED`; `changed_fields` = `{"sell_price": {"new": "8000000", "old": "7800000"}, "total_sales_raw": {"new": "8000000", "old": "7800000"}}`; version cũ (7.800.000) vẫn đọc được và vẫn thuộc snapshot B; current trỏ version mới; `SUM(total_sales)` 593.550.000 → 593.750.000 = **+200.000** đúng bằng delta; 0 cờ loại khác phát sinh.
+- RDA-5 = PASS (`CONTROLLED_COPY_EVIDENCE`). B'' = B' + xoá đúng một dòng BH73923: trước xác nhận `n_not_seen` = 1; sau `POST xac-nhan-du` (2026-09-01..2026-09-03) `n_removed_candidate` = 1, `coverage_state` = `CONFIRMED_COMPLETE`, flag `REMOVED_IN_SOURCE_CANDIDATE` với `from_version_id` = 72 và `scope` = `CONFIRMED`. Dòng bị xoá **vẫn current, vẫn trong SUM** (BH73923, 13.350.000); current lines 61 / orders 40 / net 593.750.000 KHÔNG đổi; `COUNT(*)` mọi bảng fact không giảm qua cả 4 mốc.
+- RDA-6 = PASS. Golden `58 passed, 2 skipped`; mệnh đề cohort S068 trong bảng mục 15 là **có điều kiện** ("nếu ... có trong máy") nên không kích hoạt khi cohort vắng mặt — không reconstruct, không giả PASS.
+- Controlled copy được dán nhãn `CONTROLLED_COPY_EVIDENCE` (KHÔNG phải dữ liệu kế toán thật): dẫn xuất từ REAL snapshot B bằng openpyxl có sẵn (đúng tiền lệ `tests/test_pipeline_history_vertical.py::cut_workbook`), chỉ trong scratchpad, KHÔNG commit; B gốc KHÔNG sửa (SHA256 trước == sau); chạy trên PostgreSQL 16.13 cô lập; không tạo `make_snapshot_variants`/CLI/parser/dependency mới.
+Status = `PASS`: toàn bộ REQUIRED acceptance oracle của bảng mục 15 đã đạt — RDA-1/2/3 `PASS_REAL`, RDA-4 `PASS_REAL` + `PASS_CONTROLLED_COPY`, RDA-5 `PASS_CONTROLLED_COPY`, RDA-6 `PASS_REAL`. Bằng chứng đầy đủ: `docs/sessions/S091-pra-002-real-overlap-snapshot-b.md`.
 
 Executed By:
 S090 + S091 — PRA-002 Real Data Acceptance (EVIDENCE ONLY), agent Claude Code
