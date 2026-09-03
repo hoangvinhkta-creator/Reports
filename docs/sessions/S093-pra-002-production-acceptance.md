@@ -68,19 +68,19 @@ Workbook `So_chi_tiet_ban_hang_8.xlsx` (kỳ 2026-09-01 → 2026-09-03) chỉ t�
 tại như attachment trong các phiên S090/S091. KHÔNG sinh file thay thế,
 KHÔNG tái dựng, KHÔNG bịa số production.
 
-## 4. Kết luận gate
+## 4. Kết luận gate — GIAI ĐOẠN 1 (trước khi có bằng chứng Owner)
 
 ```text
-PRODUCTION_ACCEPTANCE_EXECUTED = NO
-CHECK-PRA002-15                = NOT_TESTED  (KHÔNG đổi — không có bằng chứng production)
-BLOCKING_FINDINGS              = 0  (không phát hiện defect; đây là chặn ACCESS, không phải defect)
+PRODUCTION_ACCEPTANCE_EXECUTED = NO (giai đoạn 1)
 STOP_REASON                    = NO_PRODUCTION_EGRESS + WORKBOOK_NOT_IN_SESSION
-TASK-PRA-002                   = IN_PROGRESS
 ```
 
 Không phân loại `PRODUCTION_DEPLOY_FAILURE` — chưa có lần deploy nào được
 thực hiện để mà thất bại. Không phân loại `DATA_INTEGRITY_RISK` — chưa có
 số production để đối chiếu.
+
+**Kết luận này đã bị thay thế bởi mục 8–12 (giai đoạn 2).** Giữ lại nguyên
+văn làm bản ghi lịch sử đúng tại thời điểm đó.
 
 ## 5. Runbook Owner — hành động UI tối thiểu
 
@@ -159,4 +159,204 @@ REVIEW_BUDGET_STATE   = 1 / 2 USED · 1 REMAINING (phiên này không tiêu repa
 TRACKING_CHANGED      = NO
 SCOPE_CHECK           = OK — docs-only; không feature mới, không refactor,
                         không hardening, không PRA-003
+```
+
+---
+
+# GIAI ĐOẠN 2 — Đóng CHECK-15 từ bằng chứng production của Owner
+
+Continuation trong cùng phiên S093. Không deploy lại · không rerun RDA ·
+không sửa production code · không mở PRA-003.
+
+## 8. Bằng chứng production do Owner cung cấp
+
+Nguồn: OWNER_PROVIDED_PRODUCTION_EVIDENCE (Owner thao tác trên hệ thống
+thật + đọc UI production). KHÔNG phải AI inference, KHÔNG phải RDA.
+
+### 8.1 Deploy
+
+```text
+SERVICE            = Render production "Reports"
+BRANCH             = claude/extract-upload-repo-gq2ws4
+DEPLOYED_COMMIT    = c2142dd  (Render hiển thị)
+STATUS             = Live
+DEPLOY_TYPE        = Manual deployment
+DEPLOY_TIME        = 2026-09-03 10:36:11 GMT+7
+DURATION           = 24.0s
+→ khớp REQUIRED canonical c2142ddee795d1e4d829cabfd01b1774d3441651
+```
+
+### 8.2 Lần chạy production thật #1
+
+```text
+WORKBOOK           = So_chi_tiet_ban_hang (8).xlsx  (UI: SO_CHI_TIET_BAN_HANG (8).XLSX)
+ĐƠN                = 40
+AUTO               = 15
+Review             = 25
+priority review    = 3
+dòng không nhận ra = 0
+Accounting coverage= 100%
+Tracking status    = "Sẵn sàng — dữ liệu Tracking lấy trực tiếp (live) mỗi lần chạy"
+
+SNAPSHOT #1        = SNAP-20260903034024-7b421983
+coverage_state     = HEADER_CONSISTENT
+measured range     = 2026-09-01 → 2026-09-03
+lines 61 · orders 40
+INSERT 61 · SAME 0 · SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 · REMOVED_CANDIDATE 0
+run                = COMPLETE · 40 đơn · AUTO 15 · Review 25 · CÓ SNAPSHOT
+```
+
+### 8.3 Upload lại ĐÚNG file đó
+
+```text
+SNAPSHOT #2        = SNAP-20260903034120-7b421983   (UI gắn nhãn "FILE TRÙNG")
+coverage_state     = HEADER_CONSISTENT
+range              = 2026-09-01 → 2026-09-03
+lines 61 · orders 40
+INSERT 0 · SAME 61 · SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 · REMOVED_CANDIDATE 0
+run #2             = COMPLETE · 40 đơn · AUTO 15 · Review 25 · CÓ SNAPSHOT
+```
+
+### 8.4 Sau F5
+
+```text
+Snapshot #1 vẫn hiện: 61 dòng · 40 đơn · INSERT 61
+Snapshot #2 vẫn hiện: 61 dòng · 40 đơn · SAME 61 · FILE TRÙNG
+Lịch sử run giữ CẢ HAI: 03:40:28 và 03:41:23 — đều COMPLETE, 40 đơn,
+AUTO 15, Review 25, CÓ SNAPSHOT
+```
+
+## 9. Hai suy dẫn từ hợp đồng đã freeze (KHÔNG phải phỏng đoán)
+
+Ghi rõ chuỗi dẫn xuất để không ai đọc nhầm thành "đã chụp màn hình SQL".
+
+### 9.1 `alembic_version = 0002_snapshots`
+
+```text
+tools/db/__init__.py::assert_schema_current(engine)
+  → raise HistoryConfigurationError nếu bảng alembic_version thiếu
+    HOẶC version_num != ALEMBIC_HEAD
+ALEMBIC_HEAD @ c2142dd = "0002_snapshots"
+app/web/history_store.py::build(...)  gọi assert_schema_current (verify_schema=True)
+app/web/server.py::create_app() gọi _build_history() lúc dựng app
+_build_history(): REPORTS_REQUIRE_HISTORY_DB=1 (render.yaml) → lỗi được NÉM TIẾP,
+  app KHÔNG khởi động
+Dockerfile CMD = `alembic upgrade head && gunicorn ...` (fail-closed trước khi mở cổng)
+
+Quan sát production: service Live, /du-lieu render, HAI upload ghi snapshot thành công.
+⟹ assert_schema_current đã PASS trên PostgreSQL production
+⟹ alembic_version = '0002_snapshots'.  Cũng ⟹ KHÔNG có HistoryConfigurationError.
+```
+
+Đây là suy dẫn **loại trừ** từ mã đã E2-ACCEPT: nếu revision khác, service
+không thể Live và không thể ghi snapshot. Không phải suy đoán về trạng thái
+chưa quan sát.
+
+### 9.2 "0 source version mới" ở lần upload thứ hai
+
+```text
+app/history/reconciler.py::_decide + docstring result_revisions:
+  INSERT         → version_no = 1            (ghi source version mới)
+  SOURCE_CHANGED → state.next_version_no     (ghi source version mới)
+  COLLISION      → state.next_version_no     (ghi source version mới)
+  SAME           → state.version_no          ← "SAME là nhánh DUY NHẤT không ghi
+                                                source version mới"
+UI production lần 2: INSERT 0 · SOURCE_CHANGED 0 · COLLISION 0 · SAME 61
+⟹ 0 source version mới.
+```
+
+`COUNT(*)` thô trên PostgreSQL KHÔNG được hiển thị và KHÔNG được tuyên bố là
+đã chụp — kết luận đến từ chính định nghĩa đã freeze của bốn cờ trên.
+
+## 10. Ma trận REQUIRED của CHECK-PRA002-15 (nguyên văn hợp đồng freeze)
+
+Thẩm quyền = `docs/tasks/TASK-PRA-002-pipeline-persistence-reconciliation.md` → CHECK-PRA002-15 Evidence
+("mục 16 bước 1–6; SHA deploy = HEAD canonical sau Controlled Integration;
+`alembic_version = 0002_snapshots`; upload thật 302 + snapshot hiện; upload
+lại `n_same = line_count`; không OOM") + mục 16 bước 1–6 nguyên văn.
+KHÔNG thêm yêu cầu ngoài hai nguồn này.
+
+| # | Assertion REQUIRED (nguyên văn hợp đồng) | Phân loại | Bằng chứng |
+|---|---|---|---|
+| 1a | Owner Manual Deploy HEAD canonical (không `main`, không force) | PASS_PRODUCTION_UI | Render: Manual deployment, branch canonical, commit `c2142dd`, 2026-09-03 10:36:11 GMT+7, 24.0s |
+| 1b | SHA deploy = HEAD canonical sau Controlled Integration | PASS_PRODUCTION_UI | Render hiển thị `c2142dd` == REQUIRED SHA |
+| 1c | `alembic upgrade head` tự chạy → `alembic_version = 0002_snapshots` | PASS_PRODUCTION_UI (suy dẫn loại trừ, mục 9.1) | Live + snapshot ghi được ⟹ guard fail-closed đã PASS |
+| 1d | Service Live | PASS_PRODUCTION_UI | Render status = Live |
+| 1e | Không `HistoryConfigurationError` | PASS_PRODUCTION_UI (mục 9.1) | app khởi động được ⟹ không ném |
+| 2a | `/du-lieu` → 200, có module "Snapshot kế toán" | PASS_PRODUCTION_UI | Owner mở `/du-lieu`, thấy danh sách snapshot |
+| 2b | legacy import hiện có KHÔNG đổi | **NOT_OBSERVED** | Owner chưa báo phần legacy import của `/du-lieu` |
+| 2c | `/nhan-vien` legacy vẫn 200 (PRA-001 không hồi quy) | **NOT_OBSERVED** | Owner chưa mở `/nhan-vien` |
+| 3a | Upload sổ kế toán thật qua `reports.tinphatcrm.com/run` → 302 | PASS_PRODUCTION_UI | Upload thành công, trình duyệt đi tới trang kết quả run (hệ quả quan sát được của redirect); mã trạng thái không hiển thị nguyên văn |
+| 3b | Run xuất hiện ở lịch sử run (R2) | PASS_PRODUCTION_UI | Hai run 03:40:28 và 03:41:23 trong lịch sử, đều COMPLETE, CÓ SNAPSHOT |
+| 3c | Snapshot xuất hiện ở tab Dữ liệu với `DETECTED_ONLY`/`HEADER_CONSISTENT` đúng header thật | PASS_PRODUCTION_UI | `SNAP-20260903034024-7b421983`, HEADER_CONSISTENT, 2026-09-01 → 2026-09-03 (khớp header thật A2) |
+| 4a | Upload lại đúng file → snapshot #2 `n_same = line_count` | PASS_PRODUCTION_UI | SAME 61 = line_count 61 |
+| 4b | 0 version mới | PASS_PRODUCTION_UI (suy dẫn từ semantics freeze, mục 9.2) | INSERT 0 · SOURCE_CHANGED 0 · COLLISION 0 |
+| 4c | Trang snapshot #2 KHÔNG có cờ SOURCE | PASS_PRODUCTION_UI | SOURCE_CHANGED 0 · COLLISION 0 |
+| 5a | Render Metrics: RAM đỉnh lúc upload < 512 MB | **NOT_OBSERVED** | Owner chưa cung cấp tab Metrics; RAM đỉnh KHÔNG hiển thị trên bất kỳ ảnh nào |
+| 5b | Không "Instance failed" | PASS_PRODUCTION_UI | Live liên tục, hai run COMPLETE, state còn sau F5 |
+| 6 | Ghi kết quả (số đơn/dòng/`n_same`, SHA deploy, thời điểm) vào `PROJECT/PROJECT_PROGRESS.md` | PASS_PRODUCTION_UI | Khối canonical S093 trong `PROJECT/PROJECT_PROGRESS.md` (commit này) |
+| E | "không OOM" (dòng Evidence freeze) | PASS_PRODUCTION_UI về hành vi; phần định lượng nằm ở 5a | Không instance failure, không restart, hai run COMPLETE |
+
+Assertion KHÔNG có trong hợp đồng freeze → **NOT_REQUIRED**, không chặn:
+`COUNT(*)` thô source-version trên PostgreSQL · truy vấn `SELECT version_num`
+tận mắt · giá trị qty/gross/discount/net hiển thị trên UI production ·
+restart/redeploy Render để thử persistence · kiểm thử người xem thứ hai ·
+tỉ lệ AUTO định trước · `CONFIRMED_COMPLETE`.
+(Multi-viewer: mục 16 KHÔNG yêu cầu cho PRA-002 → không hỏi Owner làm lại.)
+
+## 11. Ranh giới bằng chứng (không tuyên bố quá)
+
+UI production ĐÃ chứng minh trực tiếp: SHA `c2142dd` Live · workbook được xử
+lý · 40 đơn · 61 dòng persist · Accounting coverage 100% · AUTO 15 · Review 25
+· Tracking live · INSERT 61 lần đầu · SAME 61 + INSERT 0 lần hai ·
+SOURCE_CHANGED 0 · COLLISION 0 · NOT_SEEN 0 · REMOVED_CANDIDATE 0 · hai run
+COMPLETE có snapshot · state sống sau F5 · KHÔNG double count.
+
+UI production KHÔNG hiển thị, nên KHÔNG được gắn nhãn "bằng chứng production":
+`qty 71` · `gross 593.750.000` · `discount 200.000` · `net 593.550.000` ·
+`COUNT(*)` source version · kết quả truy vấn `alembic_version` · RAM đỉnh.
+Các giá trị kế toán trên đã được chứng minh ở **RDA (S090/S091)** trên
+workbook thật — provenance là `PASS_EXISTING_ACCEPTED_EVIDENCE` của
+`CHECK-PRA002-14`, KHÔNG phải ảnh chụp production. Frozen CHECK-15 không
+đòi các giá trị này ở UI production nên chúng không chặn.
+
+## 12. Kết luận gate — GIAI ĐOẠN 2
+
+```text
+PRODUCTION_ACCEPTANCE_RESULT = PARTIAL_PENDING_OWNER_EVIDENCE
+CHECK-PRA002-15              = NOT_TESTED  (giữ nguyên — 3 assertion REQUIRED chưa quan sát)
+BLOCKING_FINDINGS            = 0   (không defect nào; thiếu là ẢNH BẰNG CHỨNG, không phải lỗi hệ thống)
+TASK-PRA-002                 = IN_PROGRESS
+```
+
+Toàn bộ phần lõi persistence / reconciliation / no-double-count / real
+Tracking authority / deploy SHA đã ĐẠT trên production. Ba assertion còn
+thiếu đều thuộc bước 2 và bước 5 của mục 16, đều là thao tác đọc, không cần
+upload lại, không cần deploy lại.
+
+### 12.1 MISSING_REQUIRED_EVIDENCE — đúng 3 mục
+
+| Assertion | Nguồn freeze | Hành động Owner tối thiểu |
+|---|---|---|
+| `/nhan-vien` trả 200 (PRA-001 không hồi quy) | mục 16 bước 2 | Mở `https://reports.tinphatcrm.com/nhan-vien` → xác nhận trang hiện bình thường |
+| legacy import hiện có KHÔNG đổi | mục 16 bước 2 | Trên `/du-lieu` đã mở sẵn: xác nhận phần "bản nhập legacy" vẫn đúng như trước deploy |
+| RAM đỉnh lúc upload < 512 MB | mục 16 bước 5 | Render → service Reports → tab **Metrics** → đọc đỉnh Memory trong khung giờ 03:40–03:42 UTC (10:40–10:42 GMT+7) |
+
+KHÔNG hỏi thêm gì ngoài ba mục này. Không hỏi bằng chứng RECOMMENDED/OPTIONAL.
+Không yêu cầu upload lần ba. Không yêu cầu người xem thứ hai. Không yêu cầu
+restart Render.
+
+Khi ba mục này về: `CHECK-PRA002-15 = PASS` → Completion Gate đủ
+(14 PASS · 15 PASS · 17 PASS) → `TASK-PRA-002 = DONE`.
+
+## 13. Ngân sách / phạm vi (giai đoạn 2)
+
+```text
+CODE_REQUIRED         = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE   = 1.460 / 1.500   REMAINING = 40 LOC (KHÔNG chạm)
+REVIEW_BUDGET_STATE   = 1 / 2 USED · 1 REMAINING
+TRACKING_CHANGED      = NO       INFRASTRUCTURE_CHANGED = NO
+SCOPE_CHECK           = OK — docs-only; không deploy lại, không rerun RDA,
+                        không migration/schema/parser, không refactor/hardening,
+                        không PRA-003
 ```

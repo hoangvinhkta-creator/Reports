@@ -1,6 +1,70 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 PRODUCTION ACCEPTANCE)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 giai đoạn 2)
+
+Cập nhật sau khi **Owner trả về bằng chứng production thật**. Đây là bước 6
+của mục 16 (ghi kết quả vào file này). Các khối bên dưới giữ nguyên như bản
+ghi lịch sử đúng của thời điểm đó; khi mâu thuẫn về trạng thái *hiện tại*,
+khối này đúng.
+
+```text
+SESSION                    = S093 (giai đoạn 2) — PRA-002 Production Acceptance từ bằng chứng Owner (docs-only)
+PRODUCTION_ACCEPTANCE_RESULT = PARTIAL_PENDING_OWNER_EVIDENCE
+EVIDENCE_PROVENANCE        = OWNER_PROVIDED_PRODUCTION_EVIDENCE (Owner thao tác + đọc UI production thật)
+
+DEPLOYED_SHA               = c2142dd  — Render hiển thị, service Live
+                             Manual deployment 2026-09-03 10:36:11 GMT+7 · 24.0s
+                             branch claude/extract-upload-repo-gq2ws4 → KHỚP REQUIRED canonical
+                             c2142ddee795d1e4d829cabfd01b1774d3441651
+ALEMBIC_VERSION            = 0002_snapshots (suy dẫn LOẠI TRỪ từ fail-closed:
+                             create_app → _build_history → assert_schema_current raise nếu
+                             version != ALEMBIC_HEAD, và REPORTS_REQUIRE_HISTORY_DB=1 nên app
+                             KHÔNG khởi động; service Live + ghi snapshot thành công ⟹ PASS.
+                             KHÔNG có ảnh chụp truy vấn SQL — không tuyên bố có)
+
+FIRST_UPLOAD               = So_chi_tiet_ban_hang (8).xlsx · 40 đơn · 61 dòng ·
+                             SNAP-20260903034024-7b421983 · HEADER_CONSISTENT ·
+                             range 2026-09-01 → 2026-09-03 ·
+                             INSERT 61 · SAME 0 · SOURCE_CHANGED 0 · COLLISION 0 ·
+                             NOT_SEEN 0 · REMOVED_CANDIDATE 0 · run COMPLETE · CÓ SNAPSHOT
+SECOND_UPLOAD              = đúng file đó · SNAP-20260903034120-7b421983 · "FILE TRÙNG" ·
+                             SAME 61 (= line_count) · INSERT 0 · SOURCE_CHANGED 0 · COLLISION 0 ·
+                             NOT_SEEN 0 · REMOVED_CANDIDATE 0 · run #2 COMPLETE · CÓ SNAPSHOT
+NEW_SOURCE_VERSION         = 0 (suy dẫn từ semantics freeze: SAME là nhánh DUY NHẤT không ghi
+                             source version mới — reconciler._decide; COUNT(*) thô không hiển thị)
+NO_DOUBLE_COUNT            = OBSERVED_ON_PRODUCTION — sau hai lần upload vẫn 61 dòng / 40 đơn
+TRACKING_AUTO              = REAL — "Sẵn sàng — dữ liệu Tracking lấy trực tiếp (live) mỗi lần chạy" ·
+                             AUTO 15 · Review 25 · priority review 3 · dòng không nhận ra 0 ·
+                             Accounting coverage 100% · không tỉ lệ AUTO định trước, không fake Tracking
+PERSISTENCE                = F5 trên /du-lieu: cả hai snapshot và cả hai run (03:40:28, 03:41:23)
+                             vẫn hiện, số liệu không đổi
+
+CHECK-PRA002-14            = PASS   (E1 real data, S091 — không đổi)
+CHECK-PRA002-15            = NOT_TESTED — 3 assertion REQUIRED chưa quan sát (xem MISSING bên dưới)
+CHECK-PRA002-17            = PASS   (E2 toàn task, S092 — không đổi)
+MISSING_REQUIRED_EVIDENCE  = (1) mục 16 bước 2: `/nhan-vien` trả 200 (PRA-001 không hồi quy)
+                             (2) mục 16 bước 2: legacy import hiện có KHÔNG đổi trên /du-lieu
+                             (3) mục 16 bước 5: Render Metrics RAM đỉnh lúc upload < 512 MB
+                             — cả ba là thao tác ĐỌC; không cần upload lại, không cần deploy lại
+NOT_REQUIRED (không chặn)  = COUNT(*) source version thô · truy vấn alembic_version tận mắt ·
+                             qty/gross/net trên UI production · restart Render · người xem thứ hai ·
+                             tỉ lệ AUTO định trước · CONFIRMED_COMPLETE
+COMPLETION_GATE            = CHƯA THOẢ — còn đúng một gate REQUIRED: CHECK-PRA002-15
+TASK-PRA-002               = IN_PROGRESS
+BLOCKING_FINDINGS          = 0  (không defect nào trên production path; thiếu là ảnh bằng chứng)
+CODE_REQUIRED              = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500   REMAINING = 40 LOC (KHÔNG chạm)
+REVIEW_BUDGET_STATE        = 1 / 2 USED · 1 REMAINING
+TRACKING_CHANGED           = NO       INFRASTRUCTURE_CHANGED = NO
+INTEGRATION_READY          = NO — chờ CHECK-15 PASS rồi mới Controlled Integration
+EVIDENCE                   = docs/sessions/S093-pra-002-production-acceptance.md (mục 8–13,
+                             ma trận REQUIRED đầy đủ ở mục 10)
+NEXT_VERTICAL_ACTION       = Owner gửi 3 mục MISSING → CHECK-PRA002-15 = PASS →
+                             TASK-PRA-002 = DONE → Controlled Integration docs/state cuối →
+                             sau đó mới PRA-003 (Tổng quan + Nhân viên)
+```
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-03, S093 giai đoạn 1)
 
 Cập nhật sau phiên **Production Acceptance (CHECK-PRA002-15)**. Các khối bên dưới
 giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về trạng thái
@@ -38,7 +102,7 @@ NEXT_VERTICAL_ACTION       = Owner chạy runbook mục 5 trên Render + reports
                              PRA-003 (Tổng quan + Nhân viên) CHỈ mở sau khi PRA-002 DONE.
 ```
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S092 WHOLE-TASK E2)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-03, S092 WHOLE-TASK E2)
 
 Cập nhật sau **Independent Review E2 cấp TOÀN TASK**. Các khối bên dưới giữ nguyên
 như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về trạng thái *hiện tại*,
@@ -5744,6 +5808,17 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S093 (giai đoạn 2) — PRA-002 PRODUCTION ACCEPTANCE TỪ BẰNG CHỨNG OWNER — 2026-09-03 —
+  Owner deploy `c2142dd` lên Render (Live, manual, 10:36:11 GMT+7, 24.0s) và chạy hai
+  lần upload workbook thật trên `reports.tinphatcrm.com`. Production chứng minh trực tiếp:
+  40 đơn · 61 dòng · HEADER_CONSISTENT 2026-09-01→03 · lần 1 INSERT 61 · lần 2 SAME 61 /
+  INSERT 0 / SOURCE_CHANGED 0 / COLLISION 0 · Accounting coverage 100% · Tracking live thật
+  (AUTO 15 / Review 25 / 0 dòng không nhận ra) · hai run COMPLETE có snapshot · state sống
+  sau F5 · KHÔNG double count. Ma trận REQUIRED của CHECK-15 dựng theo hợp đồng freeze:
+  14/17 assertion PASS_PRODUCTION_UI, 3 assertion NOT_OBSERVED (`/nhan-vien` 200; legacy
+  import không đổi; Render Metrics RAM đỉnh < 512 MB). Không suy PASS cho phần chưa quan sát,
+  không tạo yêu cầu mới. `CHECK-PRA002-15` giữ `NOT_TESTED`; TASK-PRA-002 vẫn IN_PROGRESS;
+  BLOCKING_FINDINGS 0; 0 dòng production code; budget 1.460/1.500 không đổi.
 - S093 — PRA-002 PRODUCTION ACCEPTANCE — 2026-09-03 — Xác minh canonical đứng đúng
   `c2142dd` (khớp REQUIRED, không moved) và chứng minh delta `d7a1154..c2142dd` là
   4 commit docs-only (diff `app/`+`tools/`+hạ tầng = RỖNG) → cây mã deploy bằng
