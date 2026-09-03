@@ -1260,7 +1260,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+BLOCKED
 
 Evidence Level:
 E1
@@ -1276,13 +1276,23 @@ S090 — RDA một phần trên workbook THẬT do Owner cung cấp (`So_chi_tie
 - RDA-6 = PARTIAL — Golden `58 passed, 2 skipped`; cohort S068 không có trong môi trường.
 - RDA-3/4/5 = `BLOCKED_OWNER_INPUT` — cần export thật thứ hai (A ⊂ B) hoặc Owner cho phép đường controlled copy (ASSUMPTION D14). `SOURCE_CHANGED` = `NOT_OBSERVED_IN_REAL_DATA`.
 - `FIND-RDA-01`: header dạng thứ ba `Ngày 01 tháng 9 năm 2026` → `DATA_SHAPE_UNKNOWN` + `OWNER_DECISION_REQUIRED`, NON_BLOCKING; hệ thống fail-safe đúng (`DETECTED_ONLY`), KHÔNG nới regex (mục 794–796).
-Status giữ `NOT_TESTED` vì hợp đồng đòi ĐỦ bảng mục 15. Bằng chứng đầy đủ: `docs/sessions/S090-pra-002-real-data-acceptance.md`.
+Bằng chứng đầy đủ: `docs/sessions/S090-pra-002-real-data-acceptance.md`.
+
+S091 — đường ƯU TIÊN của mục 15 (HAI export THẬT) đã chạy được: Owner cung cấp snapshot B `So_chi_tiet_ban_hang_8.xlsx` (SHA256 `7b421983a73210637d618806446e4a4e3a2d03e3b367694e7ee6ecb3207ce901`, 18.209 bytes, header `Từ ngày 01/09/2026 đến ngày 03/09/2026`, 61 dòng / 40 đơn, detected 2026-09-01..2026-09-03); exact bytes của A còn nguyên nên A → B chạy bằng dữ liệu thật cả hai đầu, trên hai PostgreSQL 16.13 cô lập (`rda_ab` = A→B→B, `rda_bonly` = chỉ B), `alembic_version = 0002_snapshots`:
+- RDA-3 = PASS — A ⊂ B (0 khoá chỉ có ở A, `NOT_SEEN` 0); B first import `INSERT` 13 / `SAME` 35 / `SOURCE_CHANGED` 13 (35+13 = 48 = toàn bộ khoá A); **đẳng thức frozen `state(A,B) == state(B)` khớp tuyệt đối**: current tuple identical, key set identical (61), tập (khoá, `line_fingerprint`) identical, per-order identical (40 đơn). No double count: net A 468.300.000 → A→B 593.550.000 == B 593.550.000, KHÁC naive A+B 1.061.850.000. Sai lệch so với chữ nghĩa bảng: `n_same` = 35 chứ không phải 48, vì 13 khoá của A **thực sự bị kế toán sửa** giữa hai lần export — không ép thành `SAME`.
+- RDA-4 = PARTIAL — `SOURCE_CHANGED` lần đầu quan sát được trên DỮ LIỆU THẬT: 13 dòng 01/09 được bổ sung `delivery_cost` (60.000–130.000), 8 dòng thêm `imei`; mọi trường tiền giữ nguyên. Version cũ immutable (v1 vẫn thuộc snapshot A, `delivery_cost` vẫn NULL), version mới appended (v2 × 13), current trỏ version mới (0 khoá sai), 13 flag với 13 `from_version_id`/`to_version_id` phân biệt, 0 cờ loại khác, trang snapshot B hiện cờ SOURCE. CHƯA thoả assertion riêng của kịch bản `--edit-line`: dữ liệu thật không có thay đổi `sell_price`/`total_sales_raw` nên phép kiểm "SUM(total_sales) đổi đúng bằng delta" = `NOT_OBSERVED_IN_REAL_DATA`.
+- RDA-2 (B) = PASS — exact reupload B: `duplicate_of` đúng, `SAME` 61 = `line_count`, `INSERT` 0, source version 74 → 74 (không tăng), result version 109 → 170 (history observation), current state/keyset/per-order identical, không cờ SOURCE.
+- Accounting oracle B khớp tuyệt đối `app.pipeline.run_import` (GB-4) và footer workbook: 40 đơn / 61 dòng / SL 71 / chiết khấu 200.000 / doanh số 593.750.000 / net 593.550.000; `unmapped_lines` 0. Golden `58 passed, 2 skipped`.
+- Coverage B = `HEADER_CONSISTENT` (header ⊇ detected). A giữ `DETECTED_ONLY`. KHÔNG POST `xac-nhan-du`.
+- RDA-5 = BLOCKED — cần đồng thời một export thật có chứng từ đã BIẾN MẤT (dữ liệu thật hiện có `NOT_SEEN` = 0 vì B ⊃ A) và Owner xác nhận coverage tường minh.
+- `FIND-RDA-01` → `OWNER_SEMANTIC_CONFIRMED`: Owner xác định `Ngày D tháng M năm YYYY` = coverage đúng ngày đó. Parser repair KHÔNG cần — `confirm_coverage` chỉ gọi `confirmation_error`, không nhánh nào đòi `HEADER_CONSISTENT`, nên snapshot `DETECTED_ONLY` vẫn xác nhận được → DEFER.
+Status = `BLOCKED` (không còn `NOT_TESTED`): RDA-1/2/3 có E1 evidence thật; RDA-4/5 chờ Owner input. Bằng chứng đầy đủ: `docs/sessions/S091-pra-002-real-overlap-snapshot-b.md`.
 
 Executed By:
-S090 — PRA-002 Real Data Acceptance (EVIDENCE ONLY), agent Claude Code
+S090 + S091 — PRA-002 Real Data Acceptance (EVIDENCE ONLY), agent Claude Code
 
 Timestamp:
-2026-09-02
+2026-09-03
 
 #### CHECK-PRA002-15 — Production Acceptance trên Render PostgreSQL
 Priority:

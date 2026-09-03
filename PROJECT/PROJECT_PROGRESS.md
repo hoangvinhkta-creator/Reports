@@ -1,6 +1,85 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-02, S090)
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S091)
+
+Cập nhật sau **Real Data Acceptance overlap A → B trên HAI workbook kế toán
+THẬT** do Owner cung cấp (continuation của S090). Khối S090 và các khối cũ hơn
+bên dưới giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về
+trạng thái *hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S091 — PRA-002 Real Data Acceptance: real overlap A → B (EVIDENCE ONLY)
+RESULT                     = PARTIAL — RDA-1/2/3 PASS · RDA-4 PARTIAL · RDA-5 BLOCKED · RDA-6 PARTIAL
+TASK-PRA-002               = IN_PROGRESS   (KHÔNG DONE)
+CANONICAL_SHA              = d7a1154a2892e5869e286e10da49f750aa0611df  (khớp EXPECTED — KHÔNG moved)
+BRANCH_AUTHORITY           = AUTHORITY_OK (0 behind default)
+SNAPSHOT_A                 = So_chi_tiet_ban_hang_7.xlsx — REAL_OWNER_PROVIDED, exact bytes CÒN
+                             trong environment; SHA256 e1c6cec2...0bfa56 verify lại KHỚP S090
+SNAPSHOT_B                 = So_chi_tiet_ban_hang_8.xlsx — REAL_OWNER_PROVIDED
+                             SHA256 7b421983a73210637d618806446e4a4e3a2d03e3b367694e7ee6ecb3207ce901
+                             18.209 bytes · header "Từ ngày 01/09/2026 đến ngày 03/09/2026"
+                             61 dòng · 40 đơn · detected 2026-09-01..2026-09-03
+                             (54 dòng 01/09 · 7 dòng 03/09 · 0 dòng 02/09)
+                             KHÔNG commit · KHÔNG sửa · SHA256 trước == sau
+A_B_RELATIONSHIP           = A ⊂ B XÁC NHẬN — 0 khoá chỉ có ở A; 13 khoá mới ở B
+POSTGRESQL_CONTEXT         = PostgreSQL 16.13 THẬT, hai DB cô lập non-production:
+                             rda_ab (A→B→B) và rda_bonly (chỉ B); cả hai alembic_version = 0002_snapshots
+PRODUCTION_PATH            = route production POST /run — không patch production code
+B_FIRST_IMPORT             = HTTP 302 · SNAP-20260903021014-7b421983 ·
+                             INSERT 13 · SAME 35 · SOURCE_CHANGED 13 · COLLISION 0 ·
+                             NOT_SEEN 0 · REMOVED_CANDIDATE 0 · RESULT_REVISED 0
+                             (35+13 = 48 = toàn bộ khoá A vẫn còn)
+SOURCE_CHANGED_EVIDENCE    = OBSERVED_IN_REAL_DATA — 13 dòng 01/09 được kế toán bổ sung
+                             delivery_cost (60.000–130.000) và 8 dòng thêm imei;
+                             MỌI trường tiền giữ nguyên. version cũ IMMUTABLE (v1 vẫn thuộc
+                             snapshot A, delivery_cost vẫn NULL), version mới APPENDED (v2 × 13),
+                             current → version mới (0 khoá trỏ sai), 13 flag SOURCE_CHANGED với
+                             13 from/to version id phân biệt, 0 cờ loại khác
+STATE_AB_EQUALS_STATE_B    = PROVEN — state(A,B) == state(B) khớp tuyệt đối:
+                             current tuple identical · key_set identical (61) ·
+                             tập (khoá, line_fingerprint) identical · per_order identical (40 đơn)
+NO_DOUBLE_COUNT            = PROVEN — net A=468.300.000 · A→B=593.550.000 · B=593.550.000 ·
+                             naive(A+B)=1.061.850.000 → A→B == B ≠ naive.
+                             dòng 48/61/61 (naive 109) · đơn 34/40/40 (naive 74)
+B_EXACT_REUPLOAD           = PASS — duplicate_of đúng · SAME 61 = line_count · INSERT 0 ·
+                             SOURCE_CHANGED 0 · source version 74 → 74 (không tăng) ·
+                             result version 109 → 170 (history observation) · current state identical
+RESULT_REVISED             = NOT_OBSERVED_IN_REAL_DATA (0 khoá có result_fingerprint khác nhau) — ĐÚNG
+ACCOUNTING_SAFETY          = PASS — khớp tuyệt đối oracle app.pipeline.run_import (GB-4) và footer
+                             workbook: 40 đơn / 61 dòng / SL 71 / chiết khấu 200.000 /
+                             doanh số 593.750.000 / net 593.550.000 · unmapped_lines 0
+AUTO_PENDING_SAFETY        = 61/61 PENDING · price_source "Pending" · 0 giá nhập bịa · 0 lợi nhuận bịa.
+                             REAL ACCOUNTING/PERSISTENCE PATH = tested;
+                             REAL AUTO PATH = not tested (Cloud không có secret Tracking; KHÔNG fake)
+COVERAGE_STATE             = B: HEADER_CONSISTENT (header ⊇ detected) · A: DETECTED_ONLY (giữ nguyên)
+GOLDEN                     = 58 passed, 2 skipped
+LEGACY_NON_REGRESSION      = /du-lieu 200 (cả 3 snapshot) · 3 trang snapshot 200 · /nhan-vien 200
+                             (cờ SOURCE chỉ hiện trên trang snapshot B đầu tiên — đúng)
+FIND-RDA-01                = OWNER_SEMANTIC_CONFIRMED (cũ: DATA_SHAPE_UNKNOWN).
+                             Rule Owner: "Ngày D tháng M năm YYYY" = coverage đúng ngày đó.
+                             Parser repair KHÔNG cần: confirm_coverage chỉ gọi confirmation_error,
+                             không nhánh nào đòi HEADER_CONSISTENT → snapshot DETECTED_ONLY vẫn
+                             xác nhận được → DEFER. Không mở rộng parser Tháng/Quý/Năm
+CHECK-PRA002-14            = BLOCKED (không còn NOT_TESTED). RDA-1 PASS · RDA-2 PASS ·
+                             RDA-3 PASS (sai lệch ghi rõ: n_same 35 ≠ 48 vì 13 khoá A thực sự bị
+                             kế toán sửa) · RDA-4 PARTIAL (cơ chế chứng minh bằng dữ liệu thật;
+                             assertion tiền của kịch bản --edit-line NOT_OBSERVED_IN_REAL_DATA) ·
+                             RDA-5 BLOCKED (cần export thật có chứng từ biến mất + Owner
+                             POST xac-nhan-du) · RDA-6 PARTIAL (Golden PASS; cohort S068 vắng)
+CHECK-PRA002-15            = NOT_TESTED — Production Acceptance pending (Owner; phiên KHÔNG deploy)
+CODE_REQUIRED              = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500      REMAINING = 40 LOC   (KHÔNG đổi)
+TRACKING_CHANGED           = NO (READ-ONLY)
+OWNER_CONFIRMATION_REQUIRED= YES — SNAPSHOT_ID = SNAP-20260903021014-7b421983,
+                             RANGE = 2026-09-01..2026-09-03. Phiên KHÔNG POST xac-nhan-du
+EVIDENCE                   = docs/sessions/S091-pra-002-real-overlap-snapshot-b.md
+NEXT_VERTICAL_ACTION       = Owner xác nhận coverage snapshot B; sau đó quyết đường đóng RDA-4/5
+                             (export thật có chứng từ sửa giá / bị xoá, hoặc cho phép controlled
+                             copy ASSUMPTION D14). Không deploy trong phạm vi RDA
+```
+
+
+## CANONICAL CURRENT STATE — TASK-PRA-002 (lịch sử, 2026-09-02, S090)
 
 Cập nhật sau **Real Data Acceptance trên workbook kế toán THẬT do Owner cung
 cấp trong phiên** (continuation của S089). Khối S088 và các khối cũ hơn bên
@@ -5529,6 +5608,25 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S091 — PRA-002 REAL DATA ACCEPTANCE: REAL OVERLAP A → B (EVIDENCE ONLY) —
+  2026-09-03 — Owner upload snapshot B thật (`So_chi_tiet_ban_hang_8.xlsx`,
+  header `Từ ngày 01/09/2026 đến ngày 03/09/2026`, 61 dòng / 40 đơn); exact
+  bytes của snapshot A (S090) còn nguyên nên chạy được **đường ưu tiên hai
+  export thật** của mục 15, trên hai PostgreSQL 16.13 cô lập. A ⊂ B xác nhận
+  (0 khoá chỉ có ở A). B first import: INSERT 13 / SAME 35 / SOURCE_CHANGED 13.
+  **SOURCE_CHANGED lần đầu quan sát được trên dữ liệu thật** — kế toán bổ sung
+  `delivery_cost` cho 13 dòng 01/09 và `imei` cho 8 dòng, mọi trường tiền giữ
+  nguyên; version cũ immutable, version mới appended, current trỏ version mới,
+  `changed_fields` đúng nguyên văn. Đẳng thức frozen `state(A,B) == state(B)`
+  khớp tuyệt đối kể cả tập (khoá, `line_fingerprint`); no double count (A→B
+  593.550.000 == B, khác naive A+B 1.061.850.000). Exact reupload B: SAME 61,
+  0 source version mới. Accounting oracle B khớp `run_import` (GB-4) và footer
+  workbook; Golden 58 passed/2 skipped. Coverage B = HEADER_CONSISTENT; không
+  POST `xac-nhan-du`. FIND-RDA-01 → OWNER_SEMANTIC_CONFIRMED, parser repair
+  KHÔNG cần (DEFER). RDA-5 BLOCKED (cần export thật có chứng từ biến mất +
+  Owner xác nhận). CHECK-PRA002-14 chuyển NOT_TESTED → BLOCKED. 0 dòng
+  production code; CHANGE_BUDGET không đổi (1.460/1.500).
+  Evidence: `docs/sessions/S091-pra-002-real-overlap-snapshot-b.md`.
 - S090 — PRA-002 REAL DATA ACCEPTANCE (EVIDENCE ONLY) — 2026-09-02 — Owner
   upload MỘT workbook kế toán THẬT trong phiên (`So_chi_tiet_ban_hang_7.xlsx`,
   48 dòng / 34 đơn / 2026-09-01; không commit, không sửa, SHA256 trước == sau).
