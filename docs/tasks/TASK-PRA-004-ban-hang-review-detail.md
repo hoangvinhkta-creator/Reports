@@ -1591,7 +1591,7 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E2
@@ -1607,6 +1607,49 @@ Timestamp:
 
 Kết quả S101:
 Yêu cầu: reviewer ĐỘC LẬP theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Phải: (a) verify `BASE_SHA`, `REVIEW_TARGET_SHA`, `FROZEN_CONTRACT_SHA` khớp kỳ vọng; (b) khẳng định frozen contract KHÔNG bị nới lỏng — không một dòng `Yêu cầu:`, không một oracle O-A…O-D, không một bất biến INV-1…INV-7 nào bị sửa chữ; (c) RECOMPUTE ĐỘC LẬP bằng SQL thô (không qua `sales_queries`) cho danh sách đơn và cho chi tiết BH62439, RỒI mới đem so; (d) chạy lại toàn bộ suite + validators; (e) đo lại change budget. Artifact: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN).
+
+Kết quả S102 — Independent Review E2 (2026-09-03):
+PASS. Reviewer ĐỘC LẬP, artifact
+`docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md`.
+(a) Ba SHA khớp kỳ vọng: `BASE_SHA = 8181cebe…`, `CONTRACT_SHA = 46a5cdb0…`,
+`REVIEW_TARGET = 6a23c328…`; ancestry tuyến tính; `REVIEW_TARGET_MOVED = KHÔNG`.
+(b) Frozen contract KHÔNG bị nới lỏng: `diff` 14 dòng `Yêu cầu:` giữa `46a5cdb`
+và `6a23c32` = IDENTICAL; `Priority` = 13 REQUIRED · 1 RECOMMENDED ở CẢ HAI
+bản; không một oracle O-A…O-D, không một bất biến INV-1…INV-7 nào bị sửa chữ.
+(c) RECOMPUTE ĐỘC LẬP bằng SQL THÔ (`sqlalchemy.text()`, KHÔNG qua
+`sales_queries`): danh sách đơn golden — 254 đơn / 351 dòng / 1 AUTO / 253
+cần kiểm tra / phân bố `{1:191,2:41,3:16,4:3,5:1,6:1,7:1}` / Σ = 351; so với
+`sales_queries.order_list` = **0 lệch** trên 254 đơn × 9 trường. BH62439 đọc
+thẳng persisted rows — 4 dòng (1 AUTO + 3 PENDING), CẦN KIỂM TRA, doanh thu
+66.000.000, LN kế toán 500.000 coverage 1/4, LN KPI 400.000 coverage 1/4, ba
+dòng PENDING mỗi dòng ĐÚNG 5 mã lý do đúng thứ tự, mọi giá vốn/lợi nhuận
+`NULL` ⟹ khớp TRỌN VẸN Oracle C. INV-1…INV-7 recompute độc lập: 0 vi phạm.
+Vũ trụ reason code reviewer TỰ dẫn xuất từ enum/hằng số = ĐÚNG 21 mã, bảng
+nhãn phủ TOÀN PHẦN, 7 nhãn S069 nguyên từng chữ. PII kiểm theo GIÁ TRỊ bằng
+sentinel trên HTML thật của cả hai route: 0 giá trị cấm xuất hiện. CHỈ-ĐỌC
+chứng minh bằng AST + hash 4 bảng trước/sau 7 lượt GET (không một byte đổi).
+(d) Chạy lại: focused 89 passed · PRA-003 67 passed (không sửa test) · legacy
+82 passed · PRA-002 32 passed · Golden Baseline **58 passed, 2 skipped** ·
+full suite 1962 passed, 11 skipped (baseline `8181ceb` = 1873 passed, 11
+skipped ⟹ +89 đúng số test mới, skip không đổi); validators
+structure/project_state/evidence/task_completion = PASS,
+reference_integrity = FAIL đúng 3 issue REM-T06 pre-existing (không issue
+mới); `git diff --check` sạch trên DẢI COMMIT; `branch_authority_check.sh` =
+AUTHORITY_OK.
+(e) Change budget đo lại: Python production 226 · template 132 · CSS 13 ·
+85 test mới — dưới MỌI biên (DỪNG CỨNG 400 / 220 / 25, SÀN 30); 0 file trong
+danh sách CẤM bị chạm; `SCHEMA_CHANGE = MIGRATION = INDEX = DEPENDENCY =
+CONFIG = 0`.
+QUYẾT ĐỊNH: `ACCEPT_WITH_NON_BLOCKING_FINDINGS` — 0 BLOCKING finding;
+6 NON_BLOCKING (`FIND-PRA004-04` xác nhận phân loại `DOC_INCONSISTENCY`;
+`FIND-PRA004-05/06/07/08/09` mới, mỗi cái kèm RE-TRIGGER CONDITION).
+Repair cycle tiêu thụ: **0** (còn lại 1/1).
+LƯU Ý (`FIND-PRA004-09`): hai ô `Evidence:` của CHECK-12 và CHECK-13 trong
+CHÍNH file này đang giữ nhầm văn bản `Yêu cầu:` của nhau, và `Executed By:`
+của CHECK-12 ghi S101. Reviewer CỐ Ý không tự sửa — gộp vào một lần docs
+reconciliation cùng `FIND-PRA004-04` ở khâu chuẩn bị Controlled Integration.
+Bản FROZEN `46a5cdb` nguyên vẹn và vẫn là thẩm quyền; reviewer đã thực thi
+theo yêu cầu đọc từ bản đó.
 
 ### Nghiệm Thu Thật
 

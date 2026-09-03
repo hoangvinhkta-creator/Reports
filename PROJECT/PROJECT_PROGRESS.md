@@ -34,15 +34,65 @@ SCHEMA = 0 · MIGRATION = 0 · INDEX = 0 · DEPENDENCY = 0 · CONFIG = 0
 TRACKING_CHANGED = NO · INFRASTRUCTURE_CHANGED = NO · PROTECTED_CORE_IMPACT = NONE
 PRA-001 / PRA-002 / PRA-003 CHANGED = NO (không một file production hay test nào bị chạm)
 
-CHECK PASS                 = 12/14  (11/13 REQUIRED + 1/1 RECOMMENDED)
-CHECK-PRA004-12            = NOT_TESTED — Independent Review E2
+CHECK PASS                 = 13/14  (12/13 REQUIRED + 1/1 RECOMMENDED)
+CHECK-PRA004-12            = PASS (E2) — Independent Review E2 ĐÃ CHẠY (S102)
 CHECK-PRA004-14            = NOT_TESTED — Owner Production Acceptance Tháng 09/2026
-repair_cycles_used         = 0 / 1  — phiên implement KHÔNG tiêu cycle
+repair_cycles_used         = 0 / 1  — implement VÀ review đều KHÔNG tiêu cycle
 BLOCKING_FINDINGS          = 0
 OWNER_DECISIONS_REQUIRED   = NONE
 SCOPE_DRIFT                = NO
-NEXT_VERTICAL_ACTION       = PRA-004 INDEPENDENT REVIEW E2
+NEXT_VERTICAL_ACTION       = CONTROLLED INTEGRATION → DEPLOY → OWNER PRODUCTION ACCEPTANCE
 ```
+
+### Independent Review E2 — ĐÃ CHẠY (S102, 2026-09-03)
+
+```text
+REVIEW_RESULT       = E2 PASS
+FINAL_DECISION      = ACCEPT_WITH_NON_BLOCKING_FINDINGS
+BASE_SHA            = 8181cebe0619a9c8d12604168a90914c04b3692f   ✓ KHỚP
+CONTRACT_SHA        = 46a5cdb08bbac77eb4c6a7a3ad483edba988b7f9   ✓ KHỚP
+REVIEW_TARGET_SHA   = 6a23c328788af254104b335c80d7091b8c8e8163   ✓ KHỚP
+TARGET_MOVED        = KHÔNG        CANONICAL_MOVED = KHÔNG
+CHECK-PRA004-12     = PASS         CHECK-PRA004-14 = NOT_TESTED (KHÔNG đụng)
+BLOCKING_FINDINGS   = 0
+NON_BLOCKING        = 6  (FIND-PRA004-04 xác nhận · 05 · 06 · 07 · 08 · 09 mới)
+repair_cycles_used  = 0 / 1
+Artifact            = docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md
+```
+
+Reviewer RECOMPUTE ĐỘC LẬP bằng SQL THÔ (`sqlalchemy.text()`, KHÔNG qua
+`sales_queries`): danh sách đơn golden khớp `sales_queries` **0 lệch** trên
+254 đơn × 9 trường; `BH62439` đọc thẳng persisted rows khớp TRỌN VẸN Oracle C
+(4 dòng · CẦN KIỂM TRA · 66.000.000 · LN kế toán 500.000 coverage 1/4 · LN
+KPI 400.000 coverage 1/4 · ba dòng PENDING mỗi dòng ĐÚNG 5 mã lý do đúng thứ
+tự · mọi giá vốn/lợi nhuận `NULL`). INV-1…INV-7: 0 vi phạm. Vũ trụ reason
+code reviewer TỰ dẫn xuất = ĐÚNG 21 mã, bảng nhãn phủ TOÀN PHẦN. PII kiểm
+theo GIÁ TRỊ bằng sentinel trên HTML thật: 0 giá trị cấm. CHỈ-ĐỌC chứng minh
+bằng AST + hash 4 bảng trước/sau 7 lượt GET (không một byte đổi). Đối chiếu
+kỳ với Tổng quan: KHỚP HOÀN TOÀN trên "Toàn bộ dữ liệu", "Tháng 01/2026" và
+tháng rỗng. Golden Baseline `58 passed, 2 skipped`; full suite 1962 passed /
+11 skipped so với baseline `8181ceb` 1873 / 11 (+89 = đúng số test mới).
+Budget đo lại: Python 226 · template 132 · CSS 13 · 85 test — dưới MỌI biên.
+
+**Finding mới của phiên review** (chi tiết đầy đủ + RE-TRIGGER CONDITION trong
+artifact): `FIND-PRA004-05` (docstring `_line()` nói sai — `{**row, …}` mở gói
+TRƯỚC `row.pop()` nên `pending_reasons_json` còn lại trong dict tầng truy vấn;
+KHÔNG tới template, không PII, `HARDENING`/DEFER) · `FIND-PRA004-06` (tử số
+coverage KPI đếm dòng AUTO — ngữ nghĩa TÁI DỤNG NGUYÊN VẸN từ PRA-003, đổi sẽ
+vỡ `CHECK-PRA004-07`, DEFER) · `FIND-PRA004-07` (trang danh sách 3,7 MB ở mốc
+4.000 đơn, vẫn dưới ngưỡng RE-TRIGGER 3 giây, DEFER) · `FIND-PRA004-08` (ổn
+định thứ tự dòng khi `SOURCE_CHANGED`, không hệ quả nghiệp vụ, DEFER) ·
+`FIND-PRA004-09` (`DOC_INCONSISTENCY` — văn bản `Yêu cầu:` của CHECK-12 và
+CHECK-13 bị đặt nhầm khối trong file task, `Executed By:` của CHECK-12 ghi
+S101; bản FROZEN `46a5cdb` NGUYÊN VẸN; gộp vào cùng lần docs reconciliation
+với `FIND-PRA004-04`).
+
+`FIND-PRA004-04` — reviewer ĐẾM ĐỘC LẬP các check trong chính bản FROZEN và
+XÁC NHẬN phân loại **A. `DOC_INCONSISTENCY`**, KHÔNG phải
+`CONTRACT_SEMANTIC_CHANGE`: cả 14 check đã tồn tại đầy đủ trong `46a5cdb`,
+`diff` 14 dòng `Yêu cầu:` = IDENTICAL, `Priority` = 13 REQUIRED · 1
+RECOMMENDED ở CẢ HAI bản. Chỉ con số TÓM TẮT sai ⟹ **KHÔNG tiêu repair
+cycle**; sửa một lần ở khâu chuẩn bị Controlled Integration.
 
 ### Vertical đã chạy thật
 
@@ -116,15 +166,18 @@ CONDITION nguyên vẹn).
 
 ### Việc KHÔNG được làm tiếp
 
-Không tích hợp vào canonical, không deploy, không Owner production acceptance,
-không đánh dấu Independent Review PASS. Không mở PRA-005, không pagination,
-không review workflow. Không repair REM-T06 hay FIND-PRA003-03.
+Independent Review E2 ĐÃ xong (`CHECK-PRA004-12 = PASS`). Vẫn KHÔNG tích hợp
+vào canonical trong phiên review, KHÔNG deploy, KHÔNG Owner production
+acceptance (`CHECK-PRA004-14` giữ `NOT_TESTED`). Không mở PRA-005, không
+pagination, không review workflow. Không repair REM-T06 hay FIND-PRA003-03.
 
-VIỆC TIẾP THEO = **`PRA-004 INDEPENDENT REVIEW E2`** theo
-`governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`, artifact
-`docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN). Reviewer phải
-RECOMPUTE ĐỘC LẬP bằng SQL thô (KHÔNG qua `sales_queries`) cho danh sách đơn
-và cho chi tiết `BH62439` rồi mới đem so.
+VIỆC TIẾP THEO = **`CONTROLLED INTEGRATION`** — trong khâu chuẩn bị, thực
+hiện **MỘT** lần docs reconciliation gộp `FIND-PRA004-04` (header Completion
+Gate + Exit Criteria số 1) và `FIND-PRA004-09` (trả văn bản `Yêu cầu:` của
+CHECK-12/CHECK-13 về đúng khối, sửa `Executed By:` của CHECK-12). Việc này
+KHÔNG tiêu repair cycle. Sau đó: **`DEPLOY`** → **`OWNER PRODUCTION
+ACCEPTANCE Tháng 09/2026`** (`CHECK-PRA004-14`, Owner tự thực hiện trọn vẹn 8
+bước của contract mục 21; bốn con số 40 / 15 / 25 / 61 phải khớp ĐÚNG).
 
 ---
 
