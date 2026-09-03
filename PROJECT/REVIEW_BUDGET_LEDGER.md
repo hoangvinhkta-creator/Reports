@@ -847,6 +847,30 @@ chỉ số học tóm tắt (`FIND-PRA004-04`) và vị trí khối văn bản (
 được sửa; không một `Yêu cầu:`, `Priority:`, oracle hay bất biến nào bị đổi
 chữ. Ngân sách `1/1` cycle giữ NGUYÊN cho Owner Production Acceptance.
 
+### Trạng thái tại S104 (Owner Production Acceptance + Final Closeout)
+
+```
+Owner Production Acceptance  : XONG — CHECK-PRA004-14 = PASS (E1)
+TASK-PRA-004                 : DONE
+CHECK PASS                   : 14/14 — 13/13 REQUIRED · 1/1 RECOMMENDED
+PRODUCTION_TOTALS            : 40 đơn · 61 dòng · 15 AUTO · 25 CẦN KIỂM TRA
+                               (khớp ĐÚNG oracle FROZEN PRA-003)
+BLOCKING_FINDINGS            : 0
+Non-blocking giữ nguyên      : FIND-PRA004-05/06/07/08 (HARDENING/DEFER,
+                               RE-TRIGGER CONDITION không đổi)
+FIND-PRA004-04, -09          : RECONCILED (S103, không mở lại)
+repair_cycles_used           : 0 / 1  — Owner evidence completion KHÔNG
+                               tiêu repair cycle
+repair_cycles_remaining      : 1 / 1
+Artifact                     : docs/sessions/S104-pra-004-owner-acceptance-closeout.md
+```
+
+Owner Production Acceptance **KHÔNG tiêu** repair cycle: không phải một vòng
+sửa lỗi, mà là bằng chứng Owner tự thực hiện trên production thật để đóng
+một REQUIRED check đã có sẵn trong Completion Gate FROZEN. Ngân sách `1/1`
+cycle của `TASK-PRA-004` đóng ở trạng thái **CHƯA TIÊU** — root task lineage
+này kết thúc mà không mở một repair cycle nào.
+
 ---
 
 ## Root Task: TASK-GOLDEN-BASELINE-001

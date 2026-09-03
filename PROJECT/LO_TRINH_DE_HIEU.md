@@ -16,6 +16,14 @@
 > một người soát lại độc lập, và (2) chủ dự án tự mở trang thật để nghiệm thu.
 > Xem mục "VIỆC 4 ĐÃ VIẾT XONG, CHỜ SOÁT LẠI" ngay đầu phần TRẠNG THÁI HIỆN TẠI.
 >
+> Cập nhật thêm 2026-09-03 (S104): **việc 4 (bán hàng + xem chi tiết từng
+> đơn) đã XONG HẲN.** Chủ dự án đã tự tay mở trang "Bán hàng" thật trên
+> production và xác nhận đúng những con số đã hứa: 40 đơn, 61 dòng, 15 đơn
+> AUTO, 25 đơn cần kiểm tra — khớp với trang Tổng quan. Chủ dự án cũng đã mở
+> hai đơn thật để kiểm tra việc đi từ đơn xuống từng dòng hàng. Xem mục
+> "VIỆC 4 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT" ngay đầu phần
+> TRẠNG THÁI HIỆN TẠI. Việc tiếp theo: việc 5, chưa bắt đầu.
+
 > Cập nhật thêm 2026-09-03 (S100): **việc 4 (bán hàng chi tiết + xem lại
 > từng đơn) đã có kế hoạch đầy đủ và sẵn sàng bắt tay làm.** Phiên này chưa
 > viết một dòng code nào — chỉ đi tìm hiểu và chốt xong "sẽ làm đúng những
@@ -88,7 +96,39 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 4 ĐÃ VIẾT XONG, CHỜ SOÁT LẠI (2026-09-03, S101) — PRA-004 = ĐANG LÀM
+## VIỆC 4 ĐÃ XONG HẲN, ĐÃ NGHIỆM THU TRÊN HỆ THỐNG CHẠY THẬT (2026-09-03, S104) — PRA-004 = DONE
+
+Chủ dự án đã tự tay mở `reports.tinphatcrm.com` thật, chọn kỳ **Tháng
+09/2026** trên trang "Bán hàng", và xác nhận đúng những con số đã hứa:
+
+```
+40 đơn · 61 dòng · 15 đơn AUTO · 25 đơn CẦN KIỂM TRA
+```
+
+Chủ dự án mở tiếp hai đơn thật để kiểm tra đường đi từ con số tổng xuống
+từng dòng hàng:
+
+- **Đơn AUTO** (`BH73844`) — 1 dòng, doanh thu 9.550.000, lợi nhuận kế toán
+  và lợi nhuận KPI đều 100.000, không có dòng nào cần kiểm tra.
+- **Đơn TRỘN, CẦN KIỂM TRA** (`BH73877`) — 3 dòng (2 dòng đã chắc chắn, 1
+  dòng chưa), doanh thu 32.800.000, lợi nhuận kế toán 590.000 chỉ tính được
+  cho 2/3 dòng, lợi nhuận KPI 456.667 cũng chỉ 2/3 dòng. Dòng chưa chắc
+  chắn hiện đúng 5 lý do bằng tiếng Việt đọc được, và những ô giá/lợi nhuận
+  chưa biết hiện dấu **"—"**, không hiện số 0.
+
+Cả hai điều quan trọng nhất của việc 4 — *"chưa biết thì để trống, không
+ghi số 0"* và *"một con số lợi nhuận không bao giờ đứng một mình"* — đều
+đúng như đã hứa trên dữ liệu thật, không phải dữ liệu thử.
+
+Trang Tổng quan và trang Bán hàng, cùng chọn Tháng 09/2026, cho ra CÙNG một
+tập đơn — đúng như mục tiêu quan trọng nhất của việc 4.
+
+Từ đây, **việc 4 được coi là XONG HẲN** và đã gộp vào bản trạng thái chính
+(`PROJECT/PROJECT_PROGRESS.md`). Việc tiếp theo (việc 5) chưa bắt đầu.
+
+---
+
+## VIỆC 4 ĐÃ VIẾT XONG, CHỜ SOÁT LẠI (2026-09-03, S101) — PRA-004 = ĐANG LÀM (lịch sử)
 
 Phiên này đã **viết xong phần code** của việc 4, đúng theo kế hoạch đã chốt ở
 phiên trước. Không thêm bớt gì ngoài kế hoạch đó.

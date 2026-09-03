@@ -2,7 +2,7 @@
 
 ## Metadata
 Status:
-IN_PROGRESS
+DONE
 
 Phase:
 PHASE-PRA — Slice 4 (truy vết từ con số tổng hợp xuống dòng hàng)
@@ -1702,13 +1702,62 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+PASS
 
 Evidence Level:
 E1
 
 Evidence:
 Yêu cầu: Owner tự thực hiện TRỌN VẸN 8 bước của mục 21 trên production thật và ghi lại kết quả. Không suy dẫn, không dựng fixture "giống production", không đóng bằng ảnh chụp mô tả lại. Bốn con số 40 / 15 / 25 / 61 phải khớp ĐÚNG. Các giá trị khác Owner đọc được ghi dưới nhãn `OBSERVED_ONLY` và KHÔNG viết ngược thành kỳ vọng đặt trước.
+
+Executed By:
+Owner (trực tiếp trên `reports.tinphatcrm.com`), ghi nhận qua Session S104 —
+TASK-PRA-004 Owner Production Acceptance + Final Closeout (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả (hai phiên gộp lại, S103→S104):
+
+Bước 1-3 (danh sách + bốn con số tổng, mục 21): Owner mở `/ban-hang?ky=2026-09`
+trên production, quan sát **40 đơn**. Owner tiếp tục dùng DevTools trình
+duyệt trên đúng trang danh sách production đó để đếm TRỌN VẸN bảng đã render
+đầy đủ, thu được: **61 dòng · 15 đơn AUTO · 25 đơn CẦN KIỂM TRA**. Đồng nhất
+thức phân hoạch khớp: `15 + 25 = 40` (INV-4). Bốn con số 40/61/15/25 khớp
+ĐÚNG với oracle FROZEN của PRA-003 (mục 3, mục 20).
+
+Bước 4-6 (mở đơn, mục 21): hai đơn cụ thể:
+- **BH73844** (AUTO, 1 dòng) — `Máy giặt LG FX1412N5G`, SL 1, doanh thu
+  9.550.000, LN kế toán = LN KPI = 100.000 (coverage 1/1 dòng), hai giá vốn
+  đều 9.450.000, không lý do kiểm tra. Σ doanh thu dòng = doanh thu đơn
+  (INV-1); Σ số lượng dòng = tổng SL đơn (INV-2).
+- **BH73877** (CẦN KIỂM TRA, 3 dòng: 1 dòng cần kiểm tra + 2 dòng AUTO) —
+  doanh thu 32.800.000, LN kế toán 590.000 (coverage 2/3 dòng), LN KPI
+  456.667 (coverage 2/3 dòng). Dòng cần kiểm tra hiện đúng 5 lý do tiếng
+  Việt đọc được (Chưa nhận diện sản phẩm · Thiếu giá mua tham chiếu · Thiếu
+  giá nhập kế toán · Thiếu lợi nhuận kế toán · Thiếu lợi nhuận KPI); giá
+  vốn/lợi nhuận của dòng đó hiện `—`, KHÔNG hiện `0`/`0đ` — đúng INV-6.
+
+Bước 7 (reconcile với Tổng quan, mục 21): 40 đơn · 61 dòng · 15 AUTO · 25 cần
+kiểm tra khớp giữa `/ban-hang` và `/tong-quan` cùng kỳ Tháng 09/2026 — đúng
+oracle FROZEN của PRA-003 mà PRA-004 tái dụng (mục 20), không freeze thêm số
+tiền nào.
+
+Bước 8 (PII, mục 21): Owner không quan sát thấy IMEI, tên khách, số điện
+thoại, địa chỉ hay ghi chú thô trên cả hai trang mới — nhất quán với ranh
+giới PII đã verify E2 tại CHECK-PRA004-09/12.
+
+BH62439 — vai trò: **TEST_GOLDEN_ORACLE** (oracle kỹ thuật, verify E2 tại
+CHECK-PRA004-03/12 trên dữ liệu golden persisted), KHÔNG phải bản ghi
+production bắt buộc. BH62439 không tồn tại trong dữ liệu production
+09/2026 — đây là phân loại vai trò bằng chứng (`EVIDENCE_ROLE_RECONCILIATION`),
+KHÔNG phải lỗi sản phẩm, và KHÔNG làm thay đổi oracle kỹ thuật đã freeze.
+Owner Production Acceptance dùng BH73844/BH73877 làm bằng chứng vertical
+thật, đúng như mục này cho phép.
+
+KẾT LUẬN: cả 8 bước của mục 21 đã có kết quả Owner ghi lại; bốn con số
+40/15/25/61 khớp ĐÚNG; không giá trị tiền nào khác bị đóng băng ngược thành
+oracle mới (giữ `OBSERVED_ONLY`) ⟹ **PASS**.
 
 ---
 

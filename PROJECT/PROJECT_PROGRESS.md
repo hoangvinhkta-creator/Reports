@@ -1,6 +1,65 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S103 — CONTROLLED INTEGRATION)
+## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S104 — OWNER PRODUCTION ACCEPTANCE + FINAL CLOSEOUT)
+
+`TASK-PRA-004` **ĐÃ DONE**. Owner tự mở `/ban-hang?ky=2026-09` trên production
+thật (`reports.tinphatcrm.com`) và thực hiện TRỌN VẸN 8 bước nghiệm thu của
+mục 21 hợp đồng đã freeze. Bốn con số oracle FROZEN của PRA-003 khớp ĐÚNG
+trên production hiện hành: **40 đơn · 61 dòng · 15 AUTO · 25 CẦN KIỂM TRA**.
+Owner mở trực tiếp hai đơn thật — `BH73844` (AUTO) và `BH73877` (TRỘN,
+CẦN KIỂM TRA) — xác nhận drill-down, coverage một phần, hiển thị lý do bằng
+tiếng Việt, và "chưa biết ≠ 0" đều đúng như đã hứa. Đây là trạng thái hiện
+hành có thẩm quyền của `TASK-PRA-004`, thay thế khối S103 bên dưới. Khối
+`TASK-PRA-003` phía dưới KHÔNG bị khối này thay thế — `TASK-PRA-003` vẫn
+`DONE`.
+
+```text
+SESSION                    = S104 — PRA-004 Owner Production Acceptance + Final Closeout
+TASK-PRA-004                = DONE
+BASE_CANONICAL              = eb26f7b9500144290069171fc168926ccb2c70d1
+                             (khớp EXACT kỳ vọng đầu phiên, CANONICAL_MOVED = KHÔNG)
+TASK_FILE                   = docs/tasks/TASK-PRA-004-ban-hang-review-detail.md
+SESSION_FILE                = docs/sessions/S104-pra-004-owner-acceptance-closeout.md
+
+CHECK PASS                  = 14/14  (13/13 REQUIRED + 1/1 RECOMMENDED)
+CHECK-PRA004-12              = PASS (E2) — Independent Review E2 (S102)
+CHECK-PRA004-14              = PASS (E1) — Owner Production Acceptance Tháng 09/2026 (S104)
+repair_cycles_used           = 0 / 1  — Owner evidence completion KHÔNG tiêu repair cycle
+BLOCKING_FINDINGS            = 0
+OWNER_DECISIONS_REQUIRED     = NONE
+SCOPE_DRIFT                  = NO
+PRODUCTION_CODE_DELTA        = 0  (đóng gate CHỈ bằng file docs/state)
+
+PRODUCTION_TOTALS (Tháng 09/2026, Owner-observed trên production thật)
+  40 đơn · 61 dòng · 15 AUTO · 25 CẦN KIỂM TRA
+  15 + 25 = 40  (INV-4, phân hoạch đúng)
+  Khớp ĐÚNG oracle FROZEN của PRA-003 (mục 3, mục 20 hợp đồng PRA-004)
+
+BH73844 (AUTO)        : 1 dòng · doanh thu 9.550.000 · LN kế toán = LN KPI =
+                         100.000 (coverage 1/1) · không lý do kiểm tra
+BH73877 (CẦN KIỂM TRA) : 3 dòng (1 cần kiểm tra + 2 AUTO) · doanh thu
+                         32.800.000 · LN kế toán 590.000 (coverage 2/3) ·
+                         LN KPI 456.667 (coverage 2/3) · 5 lý do tiếng Việt
+                         đọc được trên dòng cần kiểm tra · giá vốn/lợi nhuận
+                         thiếu hiện "—", KHÔNG hiện 0
+
+BH62439_ROLE                = TEST_GOLDEN_ORACLE (kỹ thuật, E2 tại CHECK-03/12
+                             trên dữ liệu golden persisted) — KHÔNG phải bản
+                             ghi production bắt buộc. Vắng mặt trên production
+                             09/2026 = EVIDENCE_ROLE_RECONCILIATION, KHÔNG
+                             phải lỗi sản phẩm, KHÔNG đổi oracle kỹ thuật.
+
+FINDINGS                    = FIND-PRA004-04, -09 = RECONCILED (S103, không
+                             đổi lại). FIND-PRA004-05/06/07/08 = giữ nguyên
+                             HARDENING/DEFER với RE-TRIGGER CONDITION đã ghi,
+                             KHÔNG mở task mới.
+
+NEXT_VERTICAL_ACTION         = PRA-005 DISCOVERY
+```
+
+---
+
+## CANONICAL CURRENT STATE — TASK-PRA-004 (lịch sử, 2026-09-03, S103 — CONTROLLED INTEGRATION)
 
 Phiên triển khai hợp đồng đã freeze tại S100, Independent Review E2 PASS tại
 S102, docs reconciliation (`FIND-PRA004-04` + `FIND-PRA004-09`) tại S103.
