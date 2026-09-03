@@ -1,16 +1,17 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S101 — MAJOR IMPLEMENTATION)
+## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S103 — CONTROLLED INTEGRATION)
 
-Phiên triển khai hợp đồng đã freeze tại S100. Vertical Bán hàng + chi tiết
-đơn/dòng + Review visibility đã CHẠY THẬT trên fixture golden, nhưng
-`TASK-PRA-004` **CHƯA DONE**: còn Independent Review E2 và Owner Production
+Phiên triển khai hợp đồng đã freeze tại S100, Independent Review E2 PASS tại
+S102, docs reconciliation (`FIND-PRA004-04` + `FIND-PRA004-09`) tại S103.
+Vertical Bán hàng + chi tiết đơn/dòng + Review visibility đã CHẠY THẬT trên
+fixture golden, nhưng `TASK-PRA-004` **CHƯA DONE**: còn Owner Production
 Acceptance. Đây là trạng thái hiện hành có thẩm quyền của `TASK-PRA-004`.
 Khối `TASK-PRA-003` phía dưới KHÔNG bị khối này thay thế — `TASK-PRA-003`
 vẫn `DONE`.
 
 ```text
-SESSION                    = S101 — PRA-004 MAJOR Implementation
+SESSION                    = S103 — PRA-004 Controlled Integration (docs reconciliation)
 IMPLEMENTATION_RESULT      = PASS
 TASK-PRA-004               = IN_PROGRESS   (KHÔNG phải DONE)
 BASE_CANONICAL             = 8181cebe0619a9c8d12604168a90914c04b3692f
@@ -37,12 +38,38 @@ PRA-001 / PRA-002 / PRA-003 CHANGED = NO (không một file production hay test 
 CHECK PASS                 = 13/14  (12/13 REQUIRED + 1/1 RECOMMENDED)
 CHECK-PRA004-12            = PASS (E2) — Independent Review E2 ĐÃ CHẠY (S102)
 CHECK-PRA004-14            = NOT_TESTED — Owner Production Acceptance Tháng 09/2026
-repair_cycles_used         = 0 / 1  — implement VÀ review đều KHÔNG tiêu cycle
+repair_cycles_used         = 0 / 1  — implement, review VÀ reconciliation đều KHÔNG tiêu cycle
 BLOCKING_FINDINGS          = 0
 OWNER_DECISIONS_REQUIRED   = NONE
 SCOPE_DRIFT                = NO
-NEXT_VERTICAL_ACTION       = CONTROLLED INTEGRATION → DEPLOY → OWNER PRODUCTION ACCEPTANCE
+DOCS_RECONCILIATION        = XONG (S103) — FIND-PRA004-04 + FIND-PRA004-09
+NEXT_VERTICAL_ACTION       = FAST-FORWARD CANONICAL → DEPLOY → OWNER PRODUCTION ACCEPTANCE
 ```
+
+### Docs Reconciliation — ĐÃ CHẠY (S103, 2026-09-03)
+
+```text
+RECONCILED           = FIND-PRA004-04, FIND-PRA004-09
+CLASSIFICATION        = DOC_INCONSISTENCY_RECONCILED (cả hai)
+SEMANTIC_CONTRACT_DELTA = 0
+PRODUCTION_DELTA_AFTER_E2 = 0  (chỉ 1 file docs bị chạm: task file)
+repair_cycles_used    = 0 / 1  (KHÔNG tiêu — không phải blocking defect)
+```
+
+`FIND-PRA004-04`: header Completion Gate (dòng 1148) "13 check: 11 REQUIRED
+· 2 RECOMMENDED" → "14 check: 13 REQUIRED · 1 RECOMMENDED"; Exit Criteria số
+1 "11/11 REQUIRED" → "13/13 REQUIRED". Xác minh: 14 dòng `Yêu cầu:` giữa bản
+FROZEN và bản đã sửa = IDENTICAL; `Priority` = 13 REQUIRED · 1 RECOMMENDED ở
+CẢ HAI; mục 20.5 (bất biến), mục 3 (Owner decisions), mục 19 (Hard
+Exclusions) = IDENTICAL.
+
+`FIND-PRA004-09`: văn bản `Yêu cầu:` của CHECK-PRA004-12 và CHECK-PRA004-13
+đã bị đặt nhầm khối trong S101 — trả về đúng khối của từng check;
+`Executed By:` của CHECK-12 sửa từ "Session S101" thành "Session S102 —
+TASK-PRA-004 Independent Review E2". Không đổi `Priority`, không đổi
+`Evidence Level`, không đổi nội dung `Yêu cầu:` của bất kỳ check nào.
+
+Chi tiết đầy đủ: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md`.
 
 ### Independent Review E2 — ĐÃ CHẠY (S102, 2026-09-03)
 

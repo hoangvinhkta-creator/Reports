@@ -1145,8 +1145,16 @@ Dùng `governance/core/TASK_COMPLETION_GATE_STANDARD.md` và
 **FROZEN tại S100 (2026-09-03)**,
 `BASE_SHA = 8181cebe0619a9c8d12604168a90914c04b3692f`.
 
-13 check: **11 REQUIRED** · 2 RECOMMENDED. Risk 3 ⟹ mọi REQUIRED thực thi
+14 check: **13 REQUIRED** · 1 RECOMMENDED. Risk 3 ⟹ mọi REQUIRED thực thi
 được PHẢI đạt E1; CHECK-PRA004-12 phải đạt E2.
+
+*(RECONCILED tại S103, 2026-09-03 — FIND-PRA004-04. Bản gốc S100 viết "13
+check: 11 REQUIRED · 2 RECOMMENDED", sai số học so với 14 check thực có
+trong Completion Gate bên dưới. Independent Review E2 (S102) đếm độc lập và
+xác nhận: DOC_INCONSISTENCY, không phải CONTRACT_SEMANTIC_CHANGE — cả 14
+check, mọi `Priority:`, mọi `Yêu cầu:` đều nguyên vẹn từ bản FROZEN
+`46a5cdb`; chỉ con số tóm tắt sai. Chi tiết:
+`docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md`.)*
 
 Không xoá, không làm yếu bất kỳ REQUIRED check nào để task pass. Thay đổi
 gate phải đi qua `COMPLETION GATE CHANGE PROPOSAL`.
@@ -1597,18 +1605,15 @@ Evidence Level:
 E2
 
 Evidence:
-Yêu cầu: đo thời gian dựng danh sách đơn cho kỳ "Toàn bộ dữ liệu" trên tập ≥12.000 dòng hiện hành và ghi số đo thật. Đây là ứng viên hardening DUY NHẤT được phép. RE-TRIGGER CONDITION tường minh: nếu số đo > 3 giây, pagination trở thành REQUIRED và phải mở như một quyết định riêng — KHÔNG tự thêm pagination trong phiên implement chỉ vì "để chắc".
+Yêu cầu: reviewer ĐỘC LẬP theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Phải: (a) verify `BASE_SHA`, `REVIEW_TARGET_SHA`, `FROZEN_CONTRACT_SHA` khớp kỳ vọng; (b) khẳng định frozen contract KHÔNG bị nới lỏng — không một dòng `Yêu cầu:`, không một oracle O-A…O-D, không một bất biến INV-1…INV-7 nào bị sửa chữ; (c) RECOMPUTE ĐỘC LẬP bằng SQL thô (không qua `sales_queries`) cho danh sách đơn và cho chi tiết BH62439, RỒI mới đem so; (d) chạy lại toàn bộ suite + validators; (e) đo lại change budget. Artifact: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN).
 
 Executed By:
-Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+Session S102 — TASK-PRA-004 Independent Review E2 (Claude Code)
 
 Timestamp:
 2026-09-03
 
-Kết quả S101:
-Yêu cầu: reviewer ĐỘC LẬP theo `governance/templates/E2_INDEPENDENT_REVIEW_TEMPLATE.md`. Phải: (a) verify `BASE_SHA`, `REVIEW_TARGET_SHA`, `FROZEN_CONTRACT_SHA` khớp kỳ vọng; (b) khẳng định frozen contract KHÔNG bị nới lỏng — không một dòng `Yêu cầu:`, không một oracle O-A…O-D, không một bất biến INV-1…INV-7 nào bị sửa chữ; (c) RECOMPUTE ĐỘC LẬP bằng SQL thô (không qua `sales_queries`) cho danh sách đơn và cho chi tiết BH62439, RỒI mới đem so; (d) chạy lại toàn bộ suite + validators; (e) đo lại change budget. Artifact: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD` (file DỰ KIẾN).
-
-Kết quả S102 — Independent Review E2 (2026-09-03):
+Kết quả S102:
 PASS. Reviewer ĐỘC LẬP, artifact
 `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md`.
 (a) Ba SHA khớp kỳ vọng: `BASE_SHA = 8181cebe…`, `CONTRACT_SHA = 46a5cdb0…`,
@@ -1644,12 +1649,17 @@ QUYẾT ĐỊNH: `ACCEPT_WITH_NON_BLOCKING_FINDINGS` — 0 BLOCKING finding;
 6 NON_BLOCKING (`FIND-PRA004-04` xác nhận phân loại `DOC_INCONSISTENCY`;
 `FIND-PRA004-05/06/07/08/09` mới, mỗi cái kèm RE-TRIGGER CONDITION).
 Repair cycle tiêu thụ: **0** (còn lại 1/1).
-LƯU Ý (`FIND-PRA004-09`): hai ô `Evidence:` của CHECK-12 và CHECK-13 trong
-CHÍNH file này đang giữ nhầm văn bản `Yêu cầu:` của nhau, và `Executed By:`
-của CHECK-12 ghi S101. Reviewer CỐ Ý không tự sửa — gộp vào một lần docs
-reconciliation cùng `FIND-PRA004-04` ở khâu chuẩn bị Controlled Integration.
-Bản FROZEN `46a5cdb` nguyên vẹn và vẫn là thẩm quyền; reviewer đã thực thi
-theo yêu cầu đọc từ bản đó.
+
+*(RECONCILED tại S103, 2026-09-03 — FIND-PRA004-09. Trước khi sửa, ô
+`Evidence:` của CHECK-12 và CHECK-13 giữ NHẦM văn bản `Yêu cầu:` của nhau, và
+`Executed By:` của CHECK-12 ghi "Session S101" dù S101 không thực thi review
+độc lập. Đây là lỗi VỊ TRÍ/TRÌNH BÀY trong tài liệu, không phải thay đổi ngữ
+nghĩa: hai dòng `Yêu cầu:` liên quan tự thân KHÔNG bị sửa chữ, `Priority` và
+`Evidence Level` của cả hai check giữ nguyên `REQUIRED`/`E2` và
+`RECOMMENDED`/`E1`. Independent Review E2 (S102) đã thực thi ĐÚNG theo yêu
+cầu đọc từ bản FROZEN `46a5cdb`, không theo văn bản bị đặt nhầm ở đây. Chi
+tiết: `docs/reviews/TASK-PRA-004-INDEPENDENT-REVIEW-RECORD.md` §
+`FIND-PRA004-09`.)*
 
 ### Nghiệm Thu Thật
 
@@ -1664,6 +1674,15 @@ Evidence Level:
 E1
 
 Evidence:
+Yêu cầu: đo thời gian dựng danh sách đơn cho kỳ "Toàn bộ dữ liệu" trên tập ≥12.000 dòng hiện hành và ghi số đo thật. Đây là ứng viên hardening DUY NHẤT được phép. RE-TRIGGER CONDITION tường minh: nếu số đo > 3 giây, pagination trở thành REQUIRED và phải mở như một quyết định riêng — KHÔNG tự thêm pagination trong phiên implement chỉ vì "để chắc".
+
+Executed By:
+Session S101 — PRA-004 MAJOR Implementation (Claude Code)
+
+Timestamp:
+2026-09-03
+
+Kết quả S101:
 PASS (S101, 2026-09-03) — CHỈ ĐO, không tối ưu suy đoán.
 `tests/test_web_sales_detail.py::test_the_order_list_stays_usable_on_a_large_period` dựng
 12.000 dòng hiện hành (4.000 đơn × 3 dòng) rồi đo `sales_queries.order_list()` cho kỳ
@@ -1709,7 +1728,7 @@ Yêu cầu: Owner tự thực hiện TRỌN VẸN 8 bước của mục 21 trên
 
 ## Tiêu Chí Hoàn Thành (Exit Criteria)
 
-1. 11/11 REQUIRED check PASS với evidence level bắt buộc được thoả.
+1. 13/13 REQUIRED check PASS với evidence level bắt buộc được thoả.
 2. 0 BLOCKING finding chưa giải quyết; mọi `HARDENING`/`DEFER` có RE-TRIGGER
    CONDITION cụ thể được ghi lại.
 3. CHANGE_BUDGET không vượt DỪNG CỨNG, hoặc đã có quyết định Owner tường minh.
