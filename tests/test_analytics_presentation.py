@@ -173,11 +173,13 @@ def test_an_employee_row_carries_both_profit_cells_with_coverage():
     assert rows[0]["accounting_profit"]["text"] == "—"
 
 
-def test_the_employee_table_has_exactly_the_eight_frozen_columns():
+def test_the_employee_table_has_exactly_the_seven_frozen_columns():
     """Minimum-Value Filter đã cắt cột AUTO/Review theo dòng và cột so kỳ
-    trước. Test này chặn việc chúng lặng lẽ quay lại."""
-    assert len(ap.EMPLOYEE_COLUMNS) == 8
+    trước; OWNER_PRESENTATION_DECISION (KPI-first) cắt tiếp "LN kế toán" khỏi
+    management UI mặc định. Test này chặn việc chúng lặng lẽ quay lại."""
+    assert len(ap.EMPLOYEE_COLUMNS) == 7
     assert ap.QUANTITY_LABEL in ap.EMPLOYEE_COLUMNS
+    assert "LN kế toán" not in ap.EMPLOYEE_COLUMNS
 
 
 # --- Owner Decision D3 ---------------------------------------------------

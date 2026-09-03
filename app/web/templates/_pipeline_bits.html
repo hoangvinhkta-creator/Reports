@@ -52,8 +52,11 @@
 </form>
 {%- endmacro %}
 
+{# OWNER_PRESENTATION_DECISION (KPI-first): chỉ còn kpi_profit ở đây —
+   accounting_profit không còn là chỉ tiêu quản trị mặc định, dù vẫn được
+   tính và lưu ở backend. #}
 {% macro profit_cells(row) -%}
-{% for metric in ['kpi_profit', 'accounting_profit'] %}
+{% for metric in ['kpi_profit'] %}
 <td class="num{{ ' empty-cell' if row[metric].missing }}"
     title="{{ PIPELINE_BADGE }} · coverage {{ row[metric].coverage }}">
   <span data-metric="{{ metric }}">{{ row[metric].text }}</span>

@@ -141,9 +141,10 @@ def test_the_golden_period_reports_the_coverage_it_actually_has(client, golden_l
     assert golden_loaded["pricing"]["price_source_distribution"] == {"Pending": 351}
     html = body(client, "/tong-quan?ky=tat-ca")
 
-    for metric in ("kpi_profit", "accounting_profit"):
-        assert cell(html, f"{metric}-coverage") == "2 / 351 dòng", metric
-        assert cell(html, metric) not in {"0", "0đ", "0%"}, metric
+    assert cell(html, "kpi_profit-coverage") == "2 / 351 dòng"
+    assert cell(html, "kpi_profit") not in {"0", "0đ", "0%"}
+    assert 'data-metric="accounting_profit"' not in html, (
+        "OWNER_PRESENTATION_DECISION — LN kế toán không còn management-facing")
 
 
 def test_a_period_where_nothing_is_eligible_renders_a_dash_and_zero_coverage(
@@ -157,10 +158,9 @@ def test_a_period_where_nothing_is_eligible_renders_a_dash_and_zero_coverage(
                              kpi=None, accounting=None) for i in range(3)])
     html = body(client, "/tong-quan?ky=2026-09")
 
-    for metric in ("kpi_profit", "accounting_profit"):
-        assert cell(html, metric) == "—", metric
-        assert cell(html, metric) not in {"0", "0đ", "0%"}, metric
-        assert cell(html, f"{metric}-coverage") == "0 / 3 dòng", metric
+    assert cell(html, "kpi_profit") == "—"
+    assert cell(html, "kpi_profit") not in {"0", "0đ", "0%"}
+    assert cell(html, "kpi_profit-coverage") == "0 / 3 dòng"
 
 
 def test_the_golden_employee_table_has_exactly_one_employee_row(client, golden_loaded):
@@ -174,6 +174,17 @@ def test_the_golden_employee_table_has_exactly_one_employee_row(client, golden_l
     assert cell(html, "orders") == _formatted(expected["orders"])
     assert cell(html, "quantity") == _formatted(expected["quantity"][0])
     assert cell(html, "total_sales") == _formatted(expected["sales_normalized"][0])
+
+
+def test_the_employee_new_view_hides_accounting_profit_but_keeps_kpi(
+    client, golden_loaded,
+):
+    """OWNER_PRESENTATION_DECISION — SỐ MỚI của /nhan-vien chỉ còn LN KPI."""
+    html = body(client, "/nhan-vien?nguon=moi&ky=tat-ca")
+    assert "LN kế toán" not in html
+    assert 'data-metric="accounting_profit"' not in html
+    assert "LN KPI" in html
+    assert 'data-metric="kpi_profit"' in html
 
 
 # --- CHECK-PRA003-08 · kỳ trước vắng mặt ---------------------------------
@@ -271,8 +282,7 @@ def test_no_profit_cell_is_ever_rendered_without_its_coverage(client, snapshots)
     persist(snapshots, [line("BH1", month=9, day=2)])
     for path in ("/tong-quan?ky=2026-09", "/nhan-vien?nguon=moi&ky=2026-09"):
         html = body(client, path)
-        for metric in ("kpi_profit", "accounting_profit"):
-            assert cell(html, f"{metric}-coverage"), f"{path} · {metric}"
+        assert cell(html, "kpi_profit-coverage"), path
 
 
 # --- CHECK-PRA003-06 · tách nguồn + non-regression legacy ---------------

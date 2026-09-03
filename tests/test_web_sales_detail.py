@@ -118,9 +118,17 @@ def test_every_profit_cell_on_the_list_carries_its_coverage(client):
     rows = re.findall(r'<tr data-order="[^"]+".*?</tr>', html, re.S)
     assert len(rows) == 254
     for row in rows:
-        for metric in ("kpi_profit", "accounting_profit"):
-            assert re.fullmatch(r"\d+ / \d+ dòng", cell(row, f"{metric}-coverage"))
-            assert re.fullmatch(r"—|[\d.]+", cell(row, metric))
+        assert re.fullmatch(r"\d+ / \d+ dòng", cell(row, "kpi_profit-coverage"))
+        assert re.fullmatch(r"—|[\d.]+", cell(row, "kpi_profit"))
+
+
+def test_the_list_hides_accounting_profit_by_default(client):
+    """OWNER_PRESENTATION_DECISION — "LN kế toán" không còn management-facing
+    trên danh sách đơn; LN KPI vẫn hiện."""
+    html = body(client, "/ban-hang?ky=tat-ca")
+    assert "LN kế toán" not in html
+    assert 'data-metric="accounting_profit"' not in html
+    assert "LN KPI" in html
 
 
 def test_the_mixed_order_shows_partial_coverage_on_the_list(client):
@@ -128,8 +136,6 @@ def test_the_mixed_order_shows_partial_coverage_on_the_list(client):
     row = order_row(body(client, "/ban-hang?ky=tat-ca"), "BH62439")
     assert cell(row, "kpi_profit") == "400.000"
     assert cell(row, "kpi_profit-coverage") == "1 / 4 dòng"
-    assert cell(row, "accounting_profit") == "500.000"
-    assert cell(row, "accounting_profit-coverage") == "1 / 4 dòng"
 
 
 # --- Chi tiết đơn --------------------------------------------------------
@@ -144,8 +150,17 @@ def test_the_detail_page_of_the_mixed_order_reads_as_the_oracle(client):
     assert cell(html, "total_sales") == "66.000.000"
     assert cell(html, "kpi_profit") == "400.000"
     assert cell(html, "kpi_profit-coverage") == "1 / 4 dòng"
-    assert cell(html, "accounting_profit") == "500.000"
-    assert cell(html, "accounting_profit-coverage") == "1 / 4 dòng"
+
+
+def test_the_detail_page_hides_accounting_profit_and_purchase_price_by_default(client):
+    """OWNER_PRESENTATION_DECISION — "Lợi nhuận kế toán" và "Giá vốn (kế
+    toán)" không còn management-facing ở khối tổng hợp lẫn bảng dòng hàng."""
+    html = body(client, "/ban-hang/BH62439?ky=tat-ca")
+    assert "Lợi nhuận kế toán" not in html
+    assert "Giá vốn (kế toán)" not in html
+    assert 'data-metric="accounting_profit"' not in html
+    assert 'data-metric="accounting_purchase_price"' not in html
+    assert "Giá mua tham chiếu" in html
 
 
 def test_the_detail_page_warns_that_the_profit_is_only_part_of_the_order(client):
@@ -171,16 +186,15 @@ def test_the_four_lines_appear_in_the_order_they_had_in_the_book(client):
     ]
 
 
-def test_the_auto_line_shows_both_purchase_prices_and_both_profits(client):
+def test_the_auto_line_shows_the_reference_purchase_price_and_kpi_profit(client):
+    """"Giá vốn (KPI)" đổi tên "Giá mua tham chiếu" — giá trị KHÔNG đổi."""
     row = line_rows(body(client, "/ban-hang/BH62439?ky=tat-ca"))[2]
     assert cell(row, "status") == sp.STATUS_AUTO
     assert cell(row, "quantity") == "2"
     assert cell(row, "sell_price") == "10.500.000"
     assert cell(row, "discount") == "100.000"
     assert cell(row, "total_sales") == "20.900.000"
-    assert cell(row, "accounting_purchase_price") == "10.250.000"
     assert cell(row, "kpi_purchase_price") == "10.250.000"
-    assert cell(row, "accounting_profit") == "500.000"
     assert cell(row, "kpi_profit") == "400.000"
 
 
@@ -191,8 +205,7 @@ def test_the_pending_lines_show_a_dash_and_never_a_zero(client):
     pending = [row for row in rows if cell(row, "status") == sp.STATUS_REVIEW]
     assert len(pending) == 3
     for row in pending:
-        for metric in ("accounting_purchase_price", "kpi_purchase_price",
-                       "accounting_profit", "kpi_profit"):
+        for metric in ("kpi_purchase_price", "kpi_profit"):
             value = cell(row, metric)
             assert value == "—"
             assert "0" not in value and "%" not in value

@@ -298,12 +298,24 @@ def test_the_line_shows_the_product_name_it_was_given():
 
 
 def test_the_line_columns_expose_no_internal_field():
-    """Mười cột của mục 12.B — và KHÔNG ``price_source``/
-    ``kpi_purchase_provenance``, chúng là từ vựng nội bộ."""
-    assert len(sp.LINE_COLUMNS) == 10
+    """Tám cột (OWNER_PRESENTATION_DECISION KPI-first, mục 6/17 task) — và
+    KHÔNG ``price_source``/``kpi_purchase_provenance``, chúng là từ vựng nội
+    bộ."""
+    assert len(sp.LINE_COLUMNS) == 8
     joined = " ".join(sp.ORDER_COLUMNS + sp.LINE_COLUMNS)
     for word in INTERNAL_VOCABULARY:
         assert word.lower() not in joined.lower()
+
+
+def test_the_kpi_first_columns_drop_accounting_and_rename_the_purchase_price():
+    """OWNER_PRESENTATION_DECISION — management UI mặc định không còn "LN kế
+    toán"/"Giá vốn (kế toán)"; "Giá vốn (KPI)" đổi tên "Giá mua tham chiếu"."""
+    assert "LN kế toán" not in sp.ORDER_COLUMNS
+    assert "LN kế toán" not in sp.LINE_COLUMNS
+    assert "Giá vốn (kế toán)" not in sp.LINE_COLUMNS
+    assert "Giá vốn (KPI)" not in sp.LINE_COLUMNS
+    assert "Giá mua tham chiếu" in sp.LINE_COLUMNS
+    assert "LN KPI" in sp.ORDER_COLUMNS and "LN KPI" in sp.LINE_COLUMNS
 
 
 def test_the_presentation_object_of_a_line_carries_no_prohibited_field():

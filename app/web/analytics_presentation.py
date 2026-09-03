@@ -53,11 +53,13 @@ ORDER_COLUMN_NOTE = (
 )
 UNKNOWN_EMPLOYEE = "Chưa xác định nhân viên"
 
-# 8 cột SỐ MỚI của trang Nhân viên (mục 4 của task file). Không thêm cột nào:
-# top-nhân-viên và so-kỳ-trước-theo-nhân-viên là USEFUL_BUT_DEFER.
+# 7 cột SỐ MỚI của trang Nhân viên — OWNER_PRESENTATION_DECISION (KPI-first
+# simplification): "LN kế toán" bị bỏ khỏi management UI mặc định (vẫn tính
+# và lưu ở backend). Không thêm cột nào khác: top-nhân-viên và
+# so-kỳ-trước-theo-nhân-viên là USEFUL_BUT_DEFER.
 EMPLOYEE_COLUMNS: tuple[str, ...] = (
     "Nhân viên", "Nhóm", "Đơn", "Dòng hàng", QUANTITY_LABEL, "Doanh thu",
-    "LN KPI", "LN kế toán",
+    "LN KPI",
 )
 
 

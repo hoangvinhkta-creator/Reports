@@ -1,5 +1,98 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — MANAGEMENT UI SIMPLIFICATION (AUTHORITATIVE, 2026-09-03 — KPI-FIRST PRESENTATION)
+
+**Phân loại: `OWNER_PRESENTATION_DECISION`** — KHÔNG phải PRA-004 defect,
+KHÔNG phải accounting model defect, KHÔNG phải yêu cầu PRA-005.
+`TASK-PRA-004` giữ nguyên `DONE`, evidence PASS lịch sử KHÔNG bị mở lại.
+
+Owner quyết định: trên management UI mặc định, "Giá vốn kế toán" và "Lợi
+nhuận kế toán" không còn là chỉ tiêu quản trị chính. Chỉ tiêu quản trị chính
+là PP có hiệu lực tại ngày bán ("Giá mua tham chiếu") và Lợi nhuận KPI theo
+PP. `accounting_purchase_price`/`accounting_profit` TIẾP TỤC tồn tại ở
+backend (persistence, query layer, audit/reconciliation) — chỉ không còn
+render trên `/tong-quan`, `/ban-hang`, `/ban-hang/<order_key>`,
+`/nhan-vien?nguon=moi`.
+
+```text
+BASE_CANONICAL          = 5f38d5e6e875e5425f6225fe47210475f2b375cb
+                         (khớp EXACT kỳ vọng đầu phiên, CANONICAL_MOVED = KHÔNG)
+BRANCH                  = claude/kpi-first-ui-simplification-g0sl87
+
+SURFACES_TRACED         = /tong-quan · /ban-hang · /ban-hang/<order_key> ·
+                         /nhan-vien?nguon=moi (SỐ MỚI only) — SỐ CŨ/legacy
+                         KHÔNG bị chạm (nhánh khác trong nhan_vien.html)
+
+SALES_LIST_CHANGE       = ORDER_COLUMNS (sales_presentation.py) bỏ "LN kế
+                         toán"; macro profit_cells (_pipeline_bits.html,
+                         dùng chung ban_hang.html + nhan_vien.html SỐ MỚI)
+                         chỉ còn kpi_profit
+ORDER_DETAIL_CHANGE     = bỏ profit_kpi "Lợi nhuận kế toán" (khối tổng hợp);
+                         LINE_COLUMNS bỏ "Giá vốn (kế toán)"/"LN kế toán";
+                         "Giá vốn (KPI)" đổi tên "Giá mua tham chiếu" (giá
+                         trị KHÔNG đổi, chỉ đổi nhãn — data-metric giữ
+                         nguyên "kpi_purchase_price")
+TONG_QUAN_CHANGE        = bỏ profit_kpi "Lợi nhuận kế toán"; LN KPI + coverage
+                         giữ nguyên
+NHAN_VIEN_CHANGE        = EMPLOYEE_COLUMNS (analytics_presentation.py) bỏ
+                         "LN kế toán" trên nhánh SỐ MỚI; SỐ CŨ không đổi
+
+REVIEW_REASON_ANALYSIS  = excel_exporter.py:141-149 — status của
+                         _PresentedLine = "PENDING" if self.reasons else
+                         "AUTO" (dòng 72-73). "Pending.accounting_purchase_
+                         price"/"Pending.accounting_profit" là hai trong ba
+                         nguồn reason ĐỘC LẬP với "Pending.eligible_kpi_
+                         profit" — một dòng có thể bị PENDING CHỈ VÌ thiếu
+                         dữ liệu kế toán dù PP/KPI đã đủ điều kiện AUTO.
+STATUS_PRESENTATION_MISMATCH = TIỀM ẨN, KHÔNG sửa status engine trong task
+                         này. Vì gỡ hai reason "Thiếu giá nhập kế toán"/
+                         "Thiếu lợi nhuận kế toán" khỏi UI có thể để lại một
+                         dòng CẦN KIỂM TRA không còn lý do management-facing
+                         nào hiển thị (nếu đó là hai reason DUY NHẤT của
+                         dòng), nên REASON LABELS GIỮ NGUYÊN — beta_
+                         presentation.py và sales_presentation.reason_labels
+                         KHÔNG bị sửa. Mọi Review reason hiện tại (kể cả hai
+                         reason gốc accounting) tiếp tục hiển thị nguyên vẹn.
+                         Đây là giới hạn CÓ CHỦ Ý của UI simplification lần
+                         này, không phải sai sót.
+
+ACCOUNTING_BACKEND_PRESERVED = YES — không sửa app/modules/, app/pipeline.py,
+                         app/history/, tools/db/schema.py; query layer
+                         (sales_queries.py, analytics_queries.py) giữ
+                         nguyên, vẫn trả accounting_purchase_price/
+                         accounting_profit cho tầng trình bày (chỉ không
+                         render ra template nữa)
+STATUS_SEMANTICS_CHANGED = NO · KPI_FORMULA_CHANGED = NO ·
+PP_SEMANTICS_CHANGED    = NO · SCHEMA_CHANGE = NO · TRACKING_CHANGE = NO
+
+FOCUSED_TESTS           = 107 passed (test_sales_presentation.py +
+                         test_web_sales_detail.py + test_analytics_
+                         presentation.py + test_web_pipeline_analytics.py)
+PRA003_TESTS            = PASS (test_analytics_queries.py, test_sales_
+                         queries.py, test_web_pipeline_analytics.py)
+PRA004_TESTS            = PASS (test_web_sales_detail.py — oracle BH62439/
+                         BH62063 giữ nguyên coverage/partial/reasons)
+GOLDEN                  = 58 passed, 2 skipped (test_golden_baseline.py) —
+                         KHỚP ĐÚNG con số frozen trong CLAUDE.md
+FULL_SUITE              = 1966 passed, 11 skipped, 0 failed
+
+CHANGE_BUDGET           = Python production 26 dòng thay đổi (trần 80) ·
+                         template 31 dòng thay đổi (trần 100) · CSS 0
+                         (trần 20) — KHÔNG vượt ngân sách, KHÔNG
+                         SCOPE_EXPANSION_REQUIRED
+BLOCKING_FINDINGS       = 0
+SCOPE_DRIFT             = NO
+PRODUCTION_ORACLE_REGRESSION = PASS (golden/PRA-003/PRA-004 fixture oracles
+                         không đổi; BH73844/BH73877 production thật cần
+                         Owner visual check sau deploy — không có DB
+                         production để verify trực tiếp từ phiên này)
+
+NEXT_VERTICAL_ACTION    = CONTROLLED INTEGRATION → DEPLOY → OWNER VISUAL
+                         CHECK → PRA-005 DISCOVERY
+```
+
+---
+
 ## CANONICAL CURRENT STATE — TASK-PRA-004 (AUTHORITATIVE, 2026-09-03, S104 — OWNER PRODUCTION ACCEPTANCE + FINAL CLOSEOUT)
 
 `TASK-PRA-004` **ĐÃ DONE**. Owner tự mở `/ban-hang?ky=2026-09` trên production

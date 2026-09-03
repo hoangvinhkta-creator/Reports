@@ -21,17 +21,15 @@
     {{ pipeline.kpi('Tổng số lượng', overview.quantity, 'quantity') }}
     {{ pipeline.kpi('Doanh thu (net)', overview.total_sales, 'total_sales', 'đồng') }}
     {{ pipeline.profit_kpi('Lợi nhuận KPI', overview.kpi_profit, 'kpi_profit') }}
-    {{ pipeline.profit_kpi('Lợi nhuận kế toán', overview.accounting_profit,
-                           'accounting_profit') }}
     {{ pipeline.kpi('Đơn AUTO', overview.auto_orders, 'auto_orders') }}
     {{ pipeline.kpi('Đơn cần kiểm tra', overview.review_orders, 'review_orders') }}
   </div>
 
   <p class="insight">{{ QUANTITY_NOTE }}</p>
   <p class="insight">
-    Lợi nhuận KPI chỉ cộng các dòng đã đủ chắc chắn (AUTO); lợi nhuận kế toán
-    chỉ cộng các dòng đã có giá nhập. Hai coverage đi kèm có TỬ SỐ khác nhau —
-    ô trống nghĩa là chưa có giá trị nào, không phải bằng không.
+    Lợi nhuận KPI chỉ cộng các dòng đã đủ chắc chắn (AUTO). Coverage đi kèm
+    cho biết con số đó tổng hợp được BAO NHIÊU trên tổng số dòng của kỳ — ô
+    trống nghĩa là chưa có giá trị nào, không phải bằng không.
   </p>
 </div>
 

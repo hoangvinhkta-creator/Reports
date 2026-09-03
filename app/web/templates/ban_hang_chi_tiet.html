@@ -26,8 +26,6 @@
     {{ pipeline.kpi('Tổng số lượng', order.quantity, 'quantity') }}
     {{ pipeline.kpi('Doanh thu (net)', order.total_sales, 'total_sales', 'đồng') }}
     {{ pipeline.profit_kpi('Lợi nhuận KPI', order.kpi_profit, 'kpi_profit') }}
-    {{ pipeline.profit_kpi('Lợi nhuận kế toán', order.accounting_profit,
-                           'accounting_profit') }}
   </div>
 
   {% if order.multi_employee %}
@@ -58,8 +56,7 @@
     <tr data-line="{{ loop.index }}">
       <td data-metric="product">{{ line.product }}</td>
       {% for metric in ['quantity', 'sell_price', 'discount', 'total_sales',
-                        'accounting_purchase_price', 'kpi_purchase_price',
-                        'accounting_profit', 'kpi_profit'] %}
+                        'kpi_purchase_price', 'kpi_profit'] %}
       <td class="num{{ ' empty-cell' if line[metric] == '—' }}"
           data-metric="{{ metric }}">{{ line[metric] }}</td>
       {% endfor %}
@@ -75,9 +72,9 @@
   </table>
 
   <p class="insight">
-    Doanh thu dòng, hai giá vốn và hai lợi nhuận là các số ĐÃ LƯU của lần chạy
-    hiện hành, đặt cạnh nhau để đối chiếu. Ô trống nghĩa là chưa có giá trị
-    nào cho dòng đó, không phải bằng không.
+    Doanh thu dòng, giá mua tham chiếu và lợi nhuận KPI là các số ĐÃ LƯU của
+    lần chạy hiện hành. Ô trống nghĩa là chưa có giá trị nào cho dòng đó,
+    không phải bằng không.
   </p>
 </div>
 {% endblock %}

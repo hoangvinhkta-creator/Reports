@@ -52,18 +52,24 @@ PARTIAL_COVERAGE_NOTE = (
 NO_ORDERS_NOTE = "Kỳ này chưa có đơn nào trên số mới."
 REASON_LABEL = "Lý do cần kiểm tra"
 
-# 9 cột của danh sách đơn (mục 12.A). Không thêm cột nào: lọc, sắp xếp tuỳ ý,
-# tìm kiếm mã đơn và nhóm nhân viên đều là USEFUL_BUT_DEFER.
+# 8 cột của danh sách đơn — OWNER_PRESENTATION_DECISION (KPI-first
+# simplification): "LN kế toán" bị bỏ khỏi management UI mặc định. Lợi nhuận
+# kế toán vẫn được tính và lưu ở backend, chỉ không còn là cột hiển thị ở
+# đây. Không thêm cột nào khác: lọc, sắp xếp tuỳ ý, tìm kiếm mã đơn và nhóm
+# nhân viên đều là USEFUL_BUT_DEFER.
 ORDER_COLUMNS: tuple[str, ...] = (
     "Mã đơn", "Ngày bán", "Nhân viên", "Dòng hàng", "Tổng số lượng",
-    "Doanh thu", "LN KPI", "LN kế toán", "Trạng thái",
+    "Doanh thu", "LN KPI", "Trạng thái",
 )
 
-# 10 cột bảng dòng hàng (mục 12.B). Lý do KHÔNG phải cột thứ 11: một dòng có
-# tới 6 lý do, nhét vào một ô bảng là không đọc được — nó xuống dòng phụ.
+# 8 cột bảng dòng hàng — cùng quyết định KPI-first: "Giá vốn (kế toán)" và
+# "LN kế toán" bị bỏ; "Giá vốn (KPI)" đổi tên thành "Giá mua tham chiếu" vì
+# đây là PP có hiệu lực tại ngày bán, chỉ tiêu quản trị chính. Giá trị bên
+# dưới KHÔNG đổi, chỉ đổi nhãn. Lý do KHÔNG phải cột thứ 9: một dòng có tới
+# 6 lý do, nhét vào một ô bảng là không đọc được — nó xuống dòng phụ.
 LINE_COLUMNS: tuple[str, ...] = (
     "Sản phẩm", "Số lượng", "Đơn giá bán", "Chiết khấu", "Doanh thu dòng",
-    "Giá vốn (kế toán)", "Giá vốn (KPI)", "LN kế toán", "LN KPI", "Trạng thái",
+    "Giá mua tham chiếu", "LN KPI", "Trạng thái",
 )
 
 
