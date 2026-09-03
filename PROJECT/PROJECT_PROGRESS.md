@@ -1,5 +1,43 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S093 PRODUCTION ACCEPTANCE)
+
+Cập nhật sau phiên **Production Acceptance (CHECK-PRA002-15)**. Các khối bên dưới
+giữ nguyên như bản ghi lịch sử đúng của phiên đó; khi mâu thuẫn về trạng thái
+*hiện tại*, khối này đúng.
+
+```text
+SESSION                    = S093 — PRA-002 Production Acceptance (docs-only)
+PRODUCTION_ACCEPTANCE_RESULT = BLOCKED_ON_OWNER_ACTION (KHÔNG PASS, KHÔNG FAIL — chưa thực thi)
+CANONICAL_SHA              = c2142ddee795d1e4d829cabfd01b1774d3441651 (khớp REQUIRED — canonical KHÔNG moved)
+DEPLOYED_SHA               = UNKNOWN — không deploy được từ session; chờ bằng chứng Render của Owner
+CANONICAL_DELTA_VERIFIED   = d7a1154..c2142dd = 4 commit docs-only; git diff app/ tools/ alembic.ini
+                             render.yaml Dockerfile = RỖNG → cây mã deploy == cây mã đã E2 ACCEPT (S092)
+ALEMBIC_HEAD_IN_SHA        = 0002_snapshots (tools/db/__init__.py); Dockerfile CMD chạy
+                             `alembic upgrade head` trước gunicorn (fail-closed)
+STOP_REASON                = NO_PRODUCTION_EGRESS + WORKBOOK_NOT_IN_SESSION
+EGRESS_EVIDENCE            = reports.tinphatcrm.com:443 và api.render.com:443 → CONNECT 403
+                             (agent proxy `connect_rejected` — policy denial, không phải lỗi tạm thời)
+WORKBOOK_EVIDENCE          = So_chi_tiet_ban_hang_8.xlsx KHÔNG có trong environment (find toàn hệ
+                             thống = 0 kết quả; data/samples/ rỗng). KHÔNG sinh file thay thế.
+CHECK-PRA002-14            = PASS   (E1 real data, S091 closeout — không đổi)
+CHECK-PRA002-15            = NOT_TESTED (KHÔNG đổi — không có bằng chứng production; Owner thực hiện)
+CHECK-PRA002-17            = PASS   (E2 toàn task, S092 — không đổi)
+COMPLETION_GATE            = CHƯA THOẢ — còn đúng một gate REQUIRED: CHECK-PRA002-15
+TASK-PRA-002               = IN_PROGRESS
+BLOCKING_FINDINGS          = 0  (không phát hiện defect; chặn là ACCESS, không phải defect production path)
+CODE_REQUIRED              = NO       PRODUCTION_CODE_ADDED = 0 dòng
+CHANGE_BUDGET_STATE        = 1.460 / 1.500   REMAINING = 40 LOC (KHÔNG chạm)
+REVIEW_BUDGET_STATE        = 1 / 2 USED · 1 REMAINING (phiên này không tiêu repair cycle)
+TRACKING_CHANGED           = NO
+OWNER_RUNBOOK              = docs/sessions/S093-pra-002-production-acceptance.md mục 5 (6 bước UI tối thiểu)
+                             + mục 6 (oracle nghiệm thu để đối chiếu)
+EVIDENCE                   = docs/sessions/S093-pra-002-production-acceptance.md
+NEXT_VERTICAL_ACTION       = Owner chạy runbook mục 5 trên Render + reports.tinphatcrm.com, trả bằng
+                             chứng về → đóng CHECK-PRA002-15 → TASK-PRA-002 DONE.
+                             PRA-003 (Tổng quan + Nhân viên) CHỈ mở sau khi PRA-002 DONE.
+```
+
 ## CANONICAL CURRENT STATE — TASK-PRA-002 (AUTHORITATIVE, 2026-09-03, S092 WHOLE-TASK E2)
 
 Cập nhật sau **Independent Review E2 cấp TOÀN TASK**. Các khối bên dưới giữ nguyên
@@ -5706,6 +5744,15 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   dải số riêng, xem DEC-117 về lý do tách).
 
 ## Lịch sử Session
+- S093 — PRA-002 PRODUCTION ACCEPTANCE — 2026-09-03 — Xác minh canonical đứng đúng
+  `c2142dd` (khớp REQUIRED, không moved) và chứng minh delta `d7a1154..c2142dd` là
+  4 commit docs-only (diff `app/`+`tools/`+hạ tầng = RỖNG) → cây mã deploy bằng
+  đúng cây mã đã E2 ACCEPT. Deploy KHÔNG thực hiện được: agent proxy trả CONNECT
+  403 cho cả `reports.tinphatcrm.com` và `api.render.com` (policy denial), và
+  workbook thật không có trong environment. KHÔNG chế access, KHÔNG bịa bằng chứng
+  production. `CHECK-PRA002-15` giữ `NOT_TESTED`; TASK-PRA-002 vẫn IN_PROGRESS.
+  0 dòng production code; budget 1.460/1.500 không đổi. Runbook UI tối thiểu cho
+  Owner + oracle nghiệm thu: `docs/sessions/S093-pra-002-production-acceptance.md`.
 - S092 — PRA-002 WHOLE-TASK INDEPENDENT REVIEW E2 — 2026-09-03 — Review độc lập
   toàn task (slice A + B + C1 + RDA) đối chiếu Completion Gate frozen S079.
   Canonical `d7a1154a…` khớp EXPECTED; RDA branch `14499dd` docs-only; 0
