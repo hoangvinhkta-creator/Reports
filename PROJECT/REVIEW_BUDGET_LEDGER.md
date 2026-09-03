@@ -2738,6 +2738,26 @@ cycles: [
     result: "ACCEPT", blocking: 0, non_blocking: 2, repair: "NO" }
 ]
 BLOCKING_FINDINGS             : 0
+
+### Trạng thái tại S110 (Production Acceptance Attempt)
+
+```
+Implementation                : ĐÃ tích hợp canonical (HEAD = commit S109,
+                               1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948)
+Production Acceptance attempt : STOP — session KHÔNG có egress tới
+                               reports.tinphatcrm.com / api.render.com
+                               (đúng policy denial đã ghi nhận ở
+                               CHECK-PRA002-15/S093); gate CHECK-PRA005-15
+                               chỉ định rõ tác nhân Owner
+CHECK-PRA005-15                : NOT_TESTED (không đổi)
+Owner runbook                  : docs/sessions/S110-pra-005-production-
+                               acceptance-attempt.md mục 5
+repair_cycles_used             : 0 / 1 (không đổi — đây không phải finding
+                               BLOCKING, là giới hạn về ai/ở đâu thực thi)
+cycles: [] (không cycle mới)
+BLOCKING_FINDINGS              : 0
+TASK-PRA-005 overall           : CHƯA DONE (PRODUCTION_ACCEPTANCE_PENDING)
+```
 NON_BLOCKING_FINDINGS         : 2 (FIND-PRA005-R1 độ chính xác LOC báo cáo ·
                                FIND-PRA005-R2 thứ tự NULL doanh thu
                                SQLite/PostgreSQL — chưa đạt tới trên dữ liệu

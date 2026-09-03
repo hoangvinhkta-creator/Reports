@@ -1321,6 +1321,17 @@ Yêu cầu:
 Bảy bước mục 27 (A–G tối thiểu; H–L khi áp dụng) thực hiện trực tiếp trên
 `reports.tinphatcrm.com` bởi Owner, KHÔNG phải ảnh chụp/fixture.
 
+S110 (2026-09-03, docs-only): xác nhận canonical/candidate không đổi
+(`1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948`), đo lại y hệt tiền lệ
+`CHECK-PRA002-15` (S093): session KHÔNG có egress tới
+`reports.tinphatcrm.com` lẫn `api.render.com` (`curl` → `CONNECT tunnel
+failed, response 403`, policy denial cố định, không phải lỗi tạm thời).
+Đây là gate chỉ định rõ tác nhân Owner — session không có thẩm quyền lẫn
+khả năng kỹ thuật để tự đóng. Owner runbook (ánh xạ 1-1 vào mục 27 A–L) phát
+hành tại `docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục
+5. Status GIỮ NGUYÊN `NOT_TESTED` — không đánh PASS từ bất kỳ bằng chứng E1/
+E2 nào đã có trước đó.
+
 ---
 
 ## Review Budget

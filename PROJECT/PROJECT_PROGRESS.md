@@ -1,5 +1,42 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-PRA-005 PRODUCTION ACCEPTANCE ATTEMPT (AUTHORITATIVE, 2026-09-03, S110)
+
+`PRA-005` **Discovery = DONE** · **Contract = FROZEN** · **Implementation =
+INTEGRATED** (canonical HEAD = commit S109, không cần bước Controlled
+Integration tách biệt — nhánh review S109 chính là nhánh fast-forward) ·
+**Independent Review E2 = ACCEPT** (S109). `CHECK-PRA005-15` (Owner
+Production Acceptance) **VẪN `NOT_TESTED`** — phiên S110 xác nhận session
+KHÔNG có egress tới `reports.tinphatcrm.com`/`api.render.com` (đúng policy
+denial đã ghi nhận ở `CHECK-PRA002-15`/S093) và gate này chỉ định rõ tác
+nhân Owner. `PRA-005` TỔNG THỂ **CHƯA `DONE`**.
+
+```text
+CANONICAL_BRANCH        = claude/extract-upload-repo-gq2ws4
+REQUIRED_SHA            = 1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948
+REMOTE_CANONICAL_SHA    = 1a011ee66f9e2b2ffee4d04f6864bfb0eeb45948 (KHỚP)
+CANONICAL_MOVED         = KHÔNG
+DEPLOY_RESULT           = NOT_EXECUTED_BY_SESSION (không có egress; Owner
+                          runbook phát hành)
+CHECK-PRA005-15         = NOT_TESTED (không đổi)
+COMPLETION_GATE         = 13/14 REQUIRED PASS (01..12 E1 + 14 E2); 15
+                          NOT_TESTED; 13 NOT_APPLICABLE (RECOMMENDED)
+BLOCKING_FINDINGS       = 0
+SCOPE_DRIFT             = NO
+PRA005_FINAL_STATUS     = PRODUCTION_ACCEPTANCE_PENDING (không đổi)
+OWNER_RUNBOOK           = docs/sessions/S110-pra-005-production-acceptance-
+                          attempt.md mục 5 (ánh xạ 1-1 Acceptance A–L)
+NEXT_VERTICAL_ACTION    = PRA-005 OWNER PRODUCTION ACCEPTANCE (Owner thực
+                          hiện Bước 0–7 của runbook trên hệ thống thật)
+```
+
+Governance validators (phiên S110): `validate_structure` PASS ·
+`validate_project_state` PASS · `validate_evidence` PASS (154 REQUIRED PASS)
+· `validate_task_completion` PASS (12 DONE task, PRA-005 không nằm trong tập
+này vì chưa DONE) · `validate_reference_integrity` FAIL với ĐÚNG 3 reference
+REM-T06 đã biết (baseline không đổi, không issue mới) · `git diff --check`
+sạch.
+
 ## CANONICAL CURRENT STATE — PRICE AUTHORITY NORMALIZATION (AUTHORITATIVE, 2026-09-03)
 
 **Phân loại: `OWNER_DECISION` / `PRICE_AUTHORITY_NORMALIZATION`** — thẩm quyền

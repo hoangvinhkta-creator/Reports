@@ -108,7 +108,21 @@
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 
-## VIỆC 5 ĐÃ VIẾT XONG VÀ ĐÃ ĐƯỢC SOÁT LẠI ĐỘC LẬP (2026-09-03, S109) — PRA-005 = CHỜ GỘP VÀO BẢN CHÍNH + CHỜ NGHIỆM THU
+## VIỆC 5 ĐÃ VIẾT XONG, ĐÃ SOÁT LẠI ĐỘC LẬP, ĐÃ GỘP VÀO BẢN CHÍNH — PRA-005 = CHỜ CHỦ DỰ ÁN TỰ NGHIỆM THU (cập nhật 2026-09-03, S110)
+
+Cập nhật 2026-09-03 (S110): code trang "Sản phẩm" **đã được gộp vào bản
+chính thức** (bước (1) ở dưới ĐÃ XONG — không cần một bước riêng, vì chính
+nhánh soát lại độc lập đã trở thành bản chính thức). Một phiên khác đã thử
+tự mở trang thật để đóng bước nghiệm thu còn lại, nhưng phiên đó **không có
+kết nối mạng** tới `reports.tinphatcrm.com` lẫn trang quản trị Render (đúng
+giới hạn kỹ thuật đã gặp trước đây ở các trang Bán hàng/Tổng quan) — nên
+KHÔNG thể tự thay chủ dự án bấm nút hay tự mở trang. Một bản hướng dẫn từng
+bước cho chủ dự án đã được viết sẵn tại
+`docs/sessions/S110-pra-005-production-acceptance-attempt.md` mục 5.
+
+Còn đúng MỘT bước nữa: chủ dự án tự mở trang Sản phẩm thật (sau khi bấm
+Deploy đúng bản đã soát) và đối chiếu vài con số theo hướng dẫn. **Chưa bước
+đó xảy ra**, nên trang Sản phẩm vẫn CHƯA được coi là xong.
 
 Cập nhật 2026-09-03 (S109): một phiên làm việc KHÁC đã **soát lại độc lập**
 toàn bộ code của trang "Sản phẩm" — tự tính lại các con số từ dữ liệu gốc
@@ -116,10 +130,6 @@ thay vì tin bản báo cáo của người viết code — và **kết luận: 
 tìm thấy lỗi nào phải sửa. Các con số trên trang Sản phẩm khớp CHÍNH XÁC với
 trang Tổng quan (số lượng 407, doanh thu 3.562.310.000). Toàn bộ 2.032 phép
 kiểm của cả hệ thống vẫn chạy đúng.
-
-Còn đúng hai bước nữa: (1) gộp code này vào bản chính thức, (2) chủ dự án tự
-mở trang thật để nghiệm thu. **Chưa bước nào xảy ra**, nên trang Sản phẩm
-vẫn CHƯA được coi là xong.
 
 Cập nhật 2026-09-03 (S108): trang **"Sản phẩm"** đã có code thật, chạy được,
 và đã tự kiểm tra bằng 48 phép kiểm mới trên đúng dữ liệu mẫu đã dùng cho các
