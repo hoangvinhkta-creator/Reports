@@ -2797,3 +2797,89 @@ CANONICAL_INTEGRATION_STATUS  : NOT_YET_INTEGRATED
 `NEXT_VERTICAL_ACTION = PRA-005 CONTROLLED INTEGRATION`. Chi tiết:
 `docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md` và
 `docs/sessions/S108-pra-005-major-implementation.md`.
+
+---
+
+## Root Task: PHB-03
+
+Lineage **mới** (root task riêng, khai ở Metadata của
+`docs/tasks/PHB-03-summary-employee-business-parity.md`). KHÔNG kế thừa và
+KHÔNG tiêu ngân sách của `PHB-01`, `PHB-02` hay bất kỳ lineage nào khác.
+`PHB-02` không có ledger riêng vì nó là vertical HỢP ĐỒNG (0 dòng production
+code); `PHB-03` là vertical implementation đầu tiên đứng trên hợp đồng đó.
+
+Mở tại phiên implementation S115 (2026-09-04). `BASE_SHA =
+c996ca8f92a5abd7d004ffb85a802992dd3c367f` (HEAD nhánh
+`claude/business-parity-contract-me80ij` lúc freeze hợp đồng, đã verify khớp
+EXACT kỳ vọng đầu phiên).
+
+```
+root_task: PHB-03
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+`HIGH` theo **Blast Radius tính theo failure path**
+(`governance/core/V4_1_POLICY_FREEZE.md` §4), KHÔNG theo tên module. Khác
+`TASK-PRA-005` (MEDIUM, toàn bộ touch area CHỈ-ĐỌC), lineage này **ghi dữ
+liệu** và **sinh ra con số đi vào đánh giá hiệu suất nhân viên**:
+
+- **BR-1** — DS quy đổi sai. `DEC-PHB02-04` gọi nó là *"chỉ tiêu cốt lõi đánh
+  giá hiệu suất nhân viên"*, và một lần cài `profit × rate` thay vì
+  `profit ÷ rate` lệch 178 lần ở tỉ lệ 7,5 %. Giảm nhẹ: vector A–D + test
+  khẳng định kết quả KHÁC phép nhân + test chia theo TỪNG DÒNG (không tỉ lệ
+  pha trộn).
+- **BR-2** — một con số chưa đủ giá nhập được trình bày như số CHÍNH THỨC và
+  Owner ký lên nó. Giảm nhẹ: định nghĩa coverage có tử số = tập được cộng
+  (task mục 3) + vector F/G + macro `gated_kpi` giữ con số và nhãn trạng thái
+  trong CÙNG một cấu trúc.
+- **BR-3** — một giá nhập do Owner ghi đè bị báo cáo là `AUTO`, xoá dấu vết
+  quyết định của con người (`DEC-PHB02-02` §3 cấm tường minh). Giảm nhẹ:
+  provenance do SERVER quyết từ giá AUTO đọc lại tại chỗ + cột
+  `auto_price_at_entry` + test "nhập trùng đúng giá AUTO vẫn là
+  MANUAL_OVERRIDE".
+- **BR-4** — đường ghi mới làm hỏng một thẩm quyền đã freeze (PriceProvider,
+  `HistoricalConfirmedRegistry` E-J pre-cutover, hoặc tính append-only của
+  `order_line_result_version`). Giảm nhẹ: bảng riêng + hợp nhất LÚC ĐỌC +
+  `tests/test_business_boundaries.py` đọc chính mã nguồn để canh ranh giới.
+- **BR-5** — một quyết định của Owner (giá nhập tay, tick Gia dụng) bị mất
+  khi kế toán gửi lại sổ. Giảm nhẹ: khoá theo KHOÁ NGHIỆP VỤ chứ không theo
+  `id` version + test `test_an_override_survives_a_re_import_of_the_same_book`.
+
+### Điều kiện mở repair cycle
+
+Finding KHÔNG tự động trở thành repair work. Chỉ mở cycle khi finding đe doạ
+TRỰC TIẾP một trong năm điều:
+
+1. đúng đắn của một chỉ tiêu đã freeze (`DEC-PHB02-03`/`04`/`05`/`07`,
+   `DEC-143`, DEC-114, M1);
+2. tính trung thực của gate `PROFIT_COVERAGE = 100 %` — gồm cả việc tử số
+   coverage có còn đúng bằng tập được cộng hay không;
+3. phân biệt provenance `AUTO` / `MANUAL` / `MANUAL_OVERRIDE`
+   (`DEC-PHB02-02` §3);
+4. ranh giới thẩm quyền của mục 5.1/6 file task (không authority giá nhập thứ
+   hai; không suy Gia dụng từ tên hàng; không nới 8 % ra ngoài `NOI_THANH`);
+5. ranh giới PII (tiền lệ `TASK-PRA-004` mục 14.4).
+
+### Trạng thái tại S115 (Implementation)
+
+```
+BASE_SHA                      : c996ca8f92a5abd7d004ffb85a802992dd3c367f
+INDEPENDENT_REVIEWS_USED      : 0 / 1 (chưa mở)
+repair_cycles_used            : 0 / 2
+cycles: [] (chưa có cycle nào)
+BLOCKING_FINDINGS             : 0
+NON_BLOCKING_FINDINGS         : 5 (FIND-PHB03-N01…N05, xem file task mục 10)
+FULL_TEST_SUITE               : 2106 passed, 11 skipped
+GOLDEN_BASELINE               : 58 passed, 2 skipped — KHÔNG ĐỔI
+BUSINESS_ACCEPTANCE_VECTORS   : 13/13 PASS (A–M)
+EXIT_CRITERIA                 : 14/14 PASS (file task mục 12)
+CANONICAL_INTEGRATION_STATUS  : NOT_YET_INTEGRATED
+DEPLOYED                      : NO
+```
+
+`PHB-03` = `IMPLEMENTED_AWAITING_REVIEW` (KHÔNG phải `DONE` — chưa có
+Independent Review).
+`NEXT_VERTICAL_ACTION = Independent Review của PHB-03 implementation.`

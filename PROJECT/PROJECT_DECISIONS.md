@@ -8489,3 +8489,130 @@ nhóm ngoài wholesale/nội-thành. `DEC-PHB02-06` chi tiết hoá ở PHB-05.
 Chi tiết đầy đủ, ma trận parity và bằng chứng:
 `docs/tasks/PHB-02-business-parity-contract.md`;
 bàn giao phiên: `docs/sessions/S114-phb-02-owner-decisions-freeze.md`.
+
+---
+
+## DEC-175
+
+Title:
+PHB-03 — ba quyết định TRIỂN KHAI mà hợp đồng `PHB-02` để mở: phạm vi đường
+ghi giá nhập, định nghĩa `PROFIT_COVERAGE`, và nơi lưu quyết định của Owner
+
+Date:
+2026-09-04
+
+Task:
+`PHB-03` — Summary + Employee Business Parity V1. Phiên implementation S115
+(nhánh `claude/phb-03-summary-employee-parity-7x3uid`), đứng trên hợp đồng
+FROZEN của `PHB-02` (`DEC-174`). Task file:
+`docs/tasks/PHB-03-summary-employee-business-parity.md`.
+`BASE_SHA = c996ca8f92a5abd7d004ffb85a802992dd3c367f`.
+
+Authority:
+`TACTICAL_DECISION` (session), **không** `OWNER_DECISION`. Cả ba quyết định
+nằm trong khoảng trống mà hợp đồng cố ý để lại cho tầng triển khai: mục 11.1
+gọi câu hỏi phạm vi là *"quyết định ROADMAP, KHÔNG phải quyết định ngữ
+nghĩa"*, và mục 10.11 liệt kê chỗ lưu như *"ý tưởng triển khai — KHÔNG phải
+yêu cầu"*. Không quyết định nào ở đây đổi một chỉ tiêu nghiệp vụ đã freeze.
+Điểm cần Independent Review chất vấn trước tiên là §2 dưới đây.
+
+### 1. Phạm vi — PHB-03 BAO GỒM đường ghi giá nhập
+
+```
+QUYẾT ĐỊNH = BOUNDED WRITE PATH TRONG PHB-03
+```
+
+Chỉ thị phiên (`PHB-03 §3`) chốt điều này. Lý do đứng độc lập với chỉ thị:
+`giá nhập → EligibleKpiProfit → lợi nhuận KPI chính thức → DS quy đổi`. Tách
+đường ghi ra một vertical riêng sẽ giao một PHB-03 mà **chỉ tiêu quyết định**
+— DS quy đổi, thứ `DEC-PHB02-04` gọi là *"chỉ tiêu cốt lõi đánh giá hiệu suất
+nhân viên"* — không chạy được trên dữ liệu thật (coverage đo được hôm nay:
+`0–2/351` golden, `34/142` production 09/2026).
+
+"Bounded" nghĩa là: hai bảng, mỗi bảng giữ đúng MỘT quyết định hiện hành, ghi
+đè tại chỗ. KHÔNG hệ thống quản lý giá nhập, KHÔNG luồng duyệt, KHÔNG
+version-control, KHÔNG audit service, KHÔNG trình soạn dữ liệu kinh tế tổng
+quát.
+
+### 2. `PROFIT_COVERAGE` — 100 % của cái gì
+
+`DEC-PHB02-02` §4 chốt **gate 100 %** và cấm ngưỡng khác, nhưng không nói
+`100 %` **của cái gì**. Câu đó phải được trả lời trước khi chữ "CHÍNH THỨC"
+có nghĩa.
+
+```
+PROFIT_COVERAGE = (số dòng THỰC SỰ góp một giá trị lợi nhuận KPI)
+                / (tổng số dòng hiện hành của kỳ)
+
+Một dòng góp giá trị  ⟺  status = "AUTO"                (D1/P1, TASK-PRA-003)
+                     VÀ  có giá nhập KPI phân giải được (AUTO | MANUAL |
+                                                         MANUAL_OVERRIDE)
+                     VÀ  có sell_price và quantity
+```
+
+**Tử số đúng bằng tập được cộng.** Đó là toàn bộ lý lẽ: `coverage = 100 %`
+khi đó tương đương *"mọi dòng của kỳ đều đã có mặt trong con số này"*, nên
+nhãn CHÍNH THỨC không thể nói dối. Định nghĩa rộng hơn — *"số dòng có giá
+nhập"* — sẽ cho `100 %` trong khi tổng vẫn bỏ sót các dòng `PENDING`, và
+Owner sẽ ký một con số thiếu. Đó là đúng lớp lỗi mà `DEC-PHB02-02` tồn tại
+để chặn.
+
+**Hệ quả đã lường trước, nói thẳng.** `D1/P1` của `TASK-PRA-003` (dòng
+`PENDING` KHÔNG vào tổng lợi nhuận KPI, kể cả khi có sẵn giá trị) **giữ
+nguyên** — PHB-03 không nới nó, vì giá nhập do Owner nhập bù đúng MỘT input
+còn thiếu, nó không phải một lượt duyệt Review Queue. Nên một kỳ còn dòng
+`PENDING` sẽ **không** đạt `100 %` dù Owner nhập đủ giá nhập. Hai lý do "chưa
+đủ" vì vậy được đếm và hiển thị **RIÊNG** (`missing_price_lines` vs
+`review_blocked_lines`): gộp lại là hứa với Owner rằng nhập nốt giá là xong,
+trong khi không phải. Ghi lại thành `FIND-PHB03-N01`, NON-BLOCKING, không mở
+task.
+
+### 3. Nơi lưu — không mở authority thứ hai
+
+```
+PURCHASE_PRICE_AUTHORITY = kpi_purchase_price_override  (migration 0003_business)
+GIA_DUNG_AUTHORITY       = product_group_classification (khoá theo product_key)
+PURCHASE_PRICE_AUTHORITY_CONFLICT = KHÔNG PHÁT SINH
+```
+
+Ba thẩm quyền hiện có **không bị chạm**: `accounting_purchase_price` /
+`price_source` (PriceProvider, `TASK-105`/`105B`–`105E`);
+`HistoricalConfirmedRegistry` (E-J — **chỉ pre-cutover**, seed từ báo cáo
+Owner-confirmed thật, `INV-47`/`INV-51`/`INV-54`, nên **không** tái dụng làm
+chỗ chứa giá nhập tay post-cutover); và `order_line_result_version`
+(**append-only**, mỗi dòng là kết quả của MỘT lần chạy engine).
+
+Giá do Owner nhập sống ở bảng riêng và được hợp nhất **lúc ĐỌC**, nơi
+provenance vẫn nhìn thấy được. Đây đúng là slot mà
+`app/modules/domain/models.py` đã chừa từ `TASK-105`
+(`PRICE_SOURCE_MANUAL` — *"for when override/audit trail exists"*) và đúng ý
+tưởng triển khai đã ghi ở mục 10.11 hợp đồng.
+
+Provenance do **SERVER** quyết, từ giá AUTO đọc lại tại chỗ ngay trước khi
+ghi — không do form của trình duyệt khai. Nhập lại **đúng bằng** giá AUTO vẫn
+là `MANUAL_OVERRIDE`: Owner đã ra một quyết định, và xoá dấu vết quyết định
+đó là nói dối về nguồn con số, đúng điều `DEC-PHB02-02` §3 cấm.
+
+Cả hai bảng khoá theo **KHOÁ NGHIỆP VỤ**, không theo `id` version, để một lần
+kế toán gửi lại sổ không xoá sạch việc Owner đã làm.
+
+Evidence:
+`FULL_TEST_SUITE = 2106 passed, 11 skipped`; `GOLDEN_BASELINE = 58 passed,
+2 skipped` (KHÔNG ĐỔI); `13/13` vector nghiệm thu A–M PASS; `14/14` Exit
+Criteria PASS. Bốn test của `tests/test_history_db.py` được cập nhật vì bản
+kiểm kê schema/migration là danh sách ĐÓNG đã freeze và `DEC-PHB02-02`/
+`DEC-PHB02-05` yêu cầu persistence mới — chúng vẫn khẳng định danh sách ĐÓNG,
+chỉ dài thêm đúng hai bảng và một revision.
+
+Can Revisit After:
+Điểm §2 mở lại nếu Independent Review hoặc Owner cho rằng gate nên đọc coverage
+**giá nhập** thay vì coverage **đóng góp**; đổi nó là đổi ý nghĩa của chữ
+"CHÍNH THỨC" nên cần một quyết định tường minh, không phải một lần sửa code.
+Điểm §3 mở lại nếu dự án có một Price Master thật (`TASK-401`) — lúc đó
+`kpi_purchase_price_override` có thể trở thành lớp override MỎNG trên nó thay
+vì nơi duy nhất giữ giá nhập tay. Điểm §1 đã đóng, không dự kiến mở lại.
+
+Chi tiết đầy đủ và bằng chứng:
+`docs/tasks/PHB-03-summary-employee-business-parity.md`;
+bàn giao phiên: `docs/sessions/S115-phb-03-summary-employee-parity.md`;
+ngân sách review: `PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `PHB-03`.

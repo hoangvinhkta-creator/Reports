@@ -679,6 +679,24 @@ def create_app(
             abort(503)
         return business
 
+    def _business_period_choice(periods: list[tuple[int, int]]):
+        """Kỳ đang xem, đọc từ `request.values` chứ không riêng query string.
+
+        Các trang này có FORM POST (ghi giá nhập, tick Gia dụng) mang `ky`
+        trong BODY. Đọc riêng query string ở đó sẽ âm thầm rơi về "Toàn bộ dữ
+        liệu" và chuyển hướng người dùng sang một kỳ họ không chọn. Ngoài
+        nguồn đọc, ngữ nghĩa giữ đúng `_pipeline_period`: giá trị lạ hoặc kỳ
+        không có trong dữ liệu đều rơi về `None` ("Toàn bộ dữ liệu"), vì đó là
+        kỳ DUY NHẤT không giấu bớt dòng nào.
+        """
+        raw = request.values.get("ky") or ""
+        year_text, _, month_text = raw.partition("-")
+        try:
+            chosen = (int(year_text), int(month_text))
+        except ValueError:
+            return None
+        return chosen if chosen in periods else None
+
     def _business_period() -> dict:
         """Kỳ đang xem + số của kỳ đó + số của kỳ liền trước.
 
@@ -688,7 +706,7 @@ def create_app(
         """
         service = _require_business()
         periods = _guarded(analytics_queries.available_periods, snapshot_repo.engine)
-        period = _pipeline_period(periods)
+        period = _business_period_choice(periods)
         bounds = analytics_queries.month_bounds(*period) if period else (None, None)
         data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
         previous = None
@@ -712,7 +730,10 @@ def create_app(
         """
         employees = _guarded(view["service"].employees,
                              date_from=view["bounds"][0], date_to=view["bounds"][1])
-        raw = request.args.get("nhan-vien")
+        # `request.values`, không phải `request.args`: form POST của trang tick
+        # Gia dụng mang `nhan-vien` trong BODY, và đọc thiếu nó ở đó sẽ biến
+        # một thao tác hợp lệ thành 404.
+        raw = request.values.get("nhan-vien")
         if raw is None:
             return None, None, False
         for name, group in employees:
@@ -726,7 +747,7 @@ def create_app(
         name, group, chosen = _selected_employee(view)
         return {
             "employees": business_presentation.employee_options(employees),
-            "selected_employee": request.args.get("nhan-vien") or "",
+            "selected_employee": request.values.get("nhan-vien") or "",
             "employee": name, "employee_group": group, "chosen": chosen,
         }
 
@@ -813,7 +834,7 @@ def create_app(
         if not exists:
             abort(404)
         redirect_args = {
-            "ky": request.args.get("ky") or request.form.get("ky") or "tat-ca",
+            "ky": request.values.get("ky") or "tat-ca",
             "nhan-vien": request.form.get("nhan-vien") or None,
             "tat-ca": request.form.get("tat-ca") or None,
         }
@@ -893,7 +914,7 @@ def create_app(
                      product_key=product_key)
             saved = "Đã bỏ đánh dấu Gia dụng. Mặt hàng trở lại tỉ lệ mặc định."
         return redirect(url_for(
-            "business_gia_dung", ky=request.form.get("ky") or "tat-ca",
+            "business_gia_dung", ky=request.values.get("ky") or "tat-ca",
             **{"nhan-vien": context["selected_employee"], "da-luu": saved}))
 
     @app.post("/run")

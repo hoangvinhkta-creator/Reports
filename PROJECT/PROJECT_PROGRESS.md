@@ -1,5 +1,115 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-03 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-04, S115)
+
+`PHB-03` (Summary + Employee Business Parity V1) đã **implement xong** trên
+hợp đồng FROZEN của `PHB-02`. Trạng thái là `IMPLEMENTED_AWAITING_REVIEW` —
+**chưa** `DONE`: Completion Gate của task yêu cầu Independent Review trước.
+Task canonical tại `docs/tasks/PHB-03-summary-employee-business-parity.md`;
+bàn giao phiên tại `docs/sessions/S115-phb-03-summary-employee-parity.md`.
+
+```text
+TARGET_GATE               = PASS (BASE_HEAD = c996ca8, branch
+                            claude/phb-03-summary-employee-parity-7x3uid,
+                            behind default 0 commit)
+MODE                      = MAJOR IMPLEMENTATION
+
+SCOPE_DECISION_11_1       = ĐÓNG. PHB-03 BAO GỒM đường ghi giá nhập, dạng
+                            BOUNDED. Lý do: giá nhập → EligibleKpiProfit →
+                            LN KPI chính thức → DS quy đổi; tách ra sẽ giao
+                            một PHB-03 mà chỉ tiêu quyết định không chạy được.
+
+SUMMARY_V1                = DONE — /kinh-doanh (R-S1…R-S8)
+EMPLOYEE_V1               = DONE — /kinh-doanh/nhan-vien (R-E1…R-E8), MỘT
+                            trang có bộ chọn nhân viên + kỳ, KHÔNG phải một
+                            tab mỗi nhân viên (P1)
+PURCHASE_PRICE_COMPLETION = DONE — /kinh-doanh/gia-nhap (R-P1…R-P4)
+GIA_DUNG_CLASSIFICATION   = DONE — /kinh-doanh/gia-dung, chỉ nhóm NOI_THANH
+
+PROFIT_COVERAGE_DEFINITION = (dòng THỰC SỰ góp giá trị LN KPI) / (mọi dòng
+                            của kỳ). Tử số ĐÚNG BẰNG tập được cộng, nên
+                            coverage = 100 % tương đương "mọi dòng đã có mặt
+                            trong con số này". Đây là suy luận DUY NHẤT
+                            PHB-03 thêm vào phần DEC-PHB02-02 chưa nói hết —
+                            điểm cần Independent Review chất vấn trước tiên.
+PROFIT_COVERAGE_GATE      = PASS — 99,72 % KHÔNG mở khoá (vector F);
+                            100 % mở khoá (vector G)
+D1_P1_PRESERVED           = YES — dòng PENDING vẫn KHÔNG vào tổng LN KPI kể
+                            cả khi Owner đã nhập giá nhập. Hai lý do "chưa
+                            đủ" đếm RIÊNG (missing_price / review_blocked).
+
+PURCHASE_PRICE_AUTHORITY  = bảng kpi_purchase_price_override (origin
+                            PIPELINE_GENERATED, migration 0003_business),
+                            hợp nhất LÚC ĐỌC. Đúng slot PRICE_SOURCE_MANUAL
+                            đã chừa từ TASK-105.
+PURCHASE_PRICE_PROVENANCE = AUTO / MANUAL / MANUAL_OVERRIDE đầy đủ.
+                            Provenance do SERVER quyết từ giá AUTO đọc lại
+                            tại chỗ, KHÔNG do form khai. Nhập trùng đúng giá
+                            AUTO vẫn là MANUAL_OVERRIDE.
+PURCHASE_PRICE_AUTHORITY_CONFLICT = KHÔNG PHÁT SINH. accounting_purchase_price
+                            /price_source (PriceProvider) và
+                            HistoricalConfirmedRegistry (E-J, pre-cutover,
+                            INV-47/51/54) KHÔNG bị chạm;
+                            order_line_result_version vẫn append-only.
+GIA_DUNG_AUTHORITY        = bảng product_group_classification, khoá theo
+                            product_key (tick một lần, hiệu lực mọi kỳ).
+                            Ranh giới 8 % chỉ cho NOI_THANH là CẤU TRÚC của
+                            config/conversion_rates.yaml, không phải một câu
+                            if. Cấm suy từ tên hàng — không luật nào đọc
+                            product_label.
+
+CONVERTED_SALES           = DONE — EligibleKpiProfit ÷ rate theo TỪNG DÒNG
+                            rồi cộng (R-E6, không bao giờ tỉ lệ pha trộn).
+                            profit * rate KHÔNG tồn tại trong mã.
+CONVERSION_RATE_MATRIX    = PASS — đo trên config/conversion_rates.yaml thật
+TOTAL_PRODUCT_QUANTITY    = PASS — SUM(quantity) khi ĐƠN GIÁ > 1.000.000
+                            (`>` chặt; dòng đúng 1.000.000 BỊ LOẠI)
+MOM_SALES                 = PASS — % doanh thu bán hàng; ba nhánh "không so
+                            được" tách riêng, không nhánh nào in phần trăm
+TARGET                    = KHÔNG implement (PHB-05). Layout Summary/Employee
+                            KHÔNG chừa hạ tầng riêng cho nó.
+
+BUSINESS_ACCEPTANCE_TESTS = 13/13 vector A–M PASS
+FULL_TEST_SUITE           = 2106 passed, 11 skipped (trước: 2032/11)
+GOLDEN_BASELINE           = 58 passed, 2 skipped — KHÔNG ĐỔI
+NEW_TESTS                 = 74 (business_metrics 33 · business_vertical 35 ·
+                            business_boundaries 6)
+UPDATED_TESTS             = 4 trong tests/test_history_db.py — bản kiểm kê
+                            schema/migration vẫn ĐÓNG, chỉ dài thêm đúng hai
+                            bảng và một revision, vì DEC-PHB02-02/05 yêu cầu
+                            persistence. Frozen business decision supersede
+                            một kỳ vọng cũ, KHÔNG phải nới lỏng tuỳ tiện.
+
+GOVERNANCE_VALIDATORS     = validate_structure PASS · validate_project_state
+                            PASS · validate_evidence PASS (155 REQUIRED PASS) ·
+                            validate_task_completion PASS (13 DONE task) ·
+                            validate_reference_integrity FAIL với ĐÚNG 3
+                            reference REM-T06 đã biết (baseline không đổi)
+
+ALEMBIC_HEAD              = 0002_snapshots → 0003_business (ADDITIVE thuần,
+                            có test round-trip; `alembic upgrade head` trước
+                            khi mở cổng — quy trình đã có, không bước mới)
+DEPLOYED                  = NO (phiên này KHÔNG deploy, KHÔNG merge production)
+
+BLOCKING_FINDINGS         = 0
+NON_BLOCKING_FINDINGS     = FIND-PHB03-N01 coverage 100 % không đạt được bằng
+                            riêng luồng nhập giá khi còn dòng PENDING (đã phơi
+                            riêng trên trang) · N02 FIND-PHB02-N07 xác nhận
+                            lại: hai cách đọc cho CÙNG kết quả trên mọi tổ hợp
+                            thật · N03 giá nhập tay không có lịch sử sửa (đúng
+                            chỉ thị cấm version-control) · N04 entered_by /
+                            classified_by luôn NULL (chưa có xác thực người
+                            dùng; KHÔNG điền giá trị bịa) · N05 migration 0003
+                            phải chạy trước deploy
+SCOPE_DRIFT               = NO
+PHB03_STATUS              = IMPLEMENTED_AWAITING_REVIEW
+NEXT_VERTICAL_ACTION      = Independent Review của PHB-03 implementation
+```
+
+Khối canonical `PHB-02 = DONE` (S114) ngay bên dưới được **GIỮ NGUYÊN như bản
+ghi lịch sử đúng tại thời điểm của nó**, không viết lại. Khi nó mâu thuẫn với
+mục này về trạng thái *hiện tại*, mục này đúng.
+
 ## CANONICAL CURRENT STATE — PHB-02 = DONE (AUTHORITATIVE, 2026-09-04, S114)
 
 `PHB-02` (Business Parity Contract) **TỔNG THỂ = `DONE`**. Owner đã ban hành

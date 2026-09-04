@@ -204,6 +204,35 @@ chạy trong `Dockerfile` CMD trước gunicorn — không có bước thủ cô
   TRƯỚC Production Acceptance (`CHECK-PRA002-15`), sau đó thì cần Owner
   quyết trước khi downgrade.
 
+### Migration `0003_business` (PHB-03 — bổ sung ở S115)
+
+Từ SHA mang implementation của `PHB-03`, `ALEMBIC_HEAD` là **`0003_business`**
+(trước đó `0002_snapshots`). Deploy vẫn đi đúng đường cũ — `alembic upgrade
+head` chạy trong `Dockerfile` CMD trước gunicorn — **không có bước thủ công
+nào thêm**.
+
+Điều cần biết khi deploy SHA đó:
+
+- Migration **ADDITIVE thuần**: thêm 2 bảng quyết-định-của-người
+  (`kpi_purchase_price_override`, `product_group_classification`); KHÔNG đổi
+  một cột nào của 10 bảng đã có và KHÔNG backfill. Round-trip
+  upgrade/downgrade và tính additive được canh bằng test
+  (`tests/test_history_db.py`).
+- Hai bảng này **không mang FK** trỏ sang các bảng dòng hàng: chúng khoá theo
+  KHOÁ NGHIỆP VỤ (`order_key`/`product_key`/`occurrence_index` và
+  `product_key`), vốn phải sống sót qua một lần kế toán gửi lại sổ. Một FK ở
+  đây sẽ biến "gửi lại sổ" thành "mất quyết định của Owner".
+- Sau deploy, kiểm nhanh:
+  `SELECT version_num FROM alembic_version;` → `0003_business`.
+- **Rollback không phải chỉ deploy lại SHA cũ.** App fail-closed theo revision
+  (`assert_schema_current`), nên một SHA trước PHB-03 gặp database ở
+  `0003_business` sẽ KHÔNG khởi động. Rollback đúng =
+  `alembic downgrade 0002_snapshots` **rồi** mới deploy SHA cũ. Downgrade XOÁ
+  hai bảng đó, tức là mất mọi giá nhập Owner đã nhập tay và mọi tick Gia dụng.
+  Khác với `0002`, dữ liệu đó KHÔNG tái tạo được từ sổ kế toán — nó là quyết
+  định của con người. Cần Owner quyết trước khi downgrade, kể cả trước
+  Production Acceptance.
+
 Fail-closed đã cấu hình sẵn trong `render.yaml`
 (`REPORTS_REQUIRE_HISTORY_DB=1`): thiếu `HISTORY_DATABASE_URL` thì service
 KHÔNG khởi động. Đây là cố ý — nếu rơi về SQLite trong container, mỗi lần

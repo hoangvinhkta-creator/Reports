@@ -510,3 +510,47 @@ def test_the_business_pages_return_503_when_there_is_no_history_store(
     for path in ("/kinh-doanh", "/kinh-doanh/nhan-vien", "/kinh-doanh/gia-nhap",
                  "/kinh-doanh/gia-dung"):
         assert client.get(path).status_code == 503, path
+
+
+def test_ticking_gia_dung_through_the_page_reroutes_the_rate(repository, client):
+    """Vòng lặp tick Gia dụng qua HTTP thật, không chỉ qua store.
+
+    Form của trang mang `ky` và `nhan-vien` trong BODY. Test này là chỗ bắt
+    được nếu route quay lại đọc riêng query string — lúc đó một thao tác hợp
+    lệ sẽ thành 404, hoặc âm thầm nhảy sang kỳ "Toàn bộ dữ liệu".
+    """
+    persist(repository, [pair("BH1", product="Nồi chiên không dầu",
+                              kpi_purchase="5000000", kpi_profit="3000000")])
+    html = body(client, "/kinh-doanh/gia-dung?ky=2026-01&nhan-vien=Vinh")
+    assert metric(html, "current_group") == "Điện máy"
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"', html).group(1)
+
+    response = client.post("/kinh-doanh/gia-dung", data={
+        "product_key": product_key, "ky": "2026-01", "nhan-vien": "Vinh",
+        "gia_dung": "1"})
+    assert response.status_code == 302
+
+    assert metric(body(client, "/kinh-doanh/gia-dung?ky=2026-01&nhan-vien=Vinh"),
+                  "current_group") == "Gia dụng"
+    # 3.000.000 / 8 % = 37.500.000 (trước khi tick là 2 % ⟹ 150.000.000)
+    summary = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert metric(summary, "converted_sales") == "37.500.000"
+
+    untick = client.post("/kinh-doanh/gia-dung", data={
+        "product_key": product_key, "ky": "2026-01", "nhan-vien": "Vinh",
+        "gia_dung": "0"})
+    assert untick.status_code == 302
+    assert metric(body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh"),
+                  "converted_sales") == "150.000.000"
+
+
+def test_a_price_post_keeps_the_owner_on_the_period_they_chose(repository, client):
+    """`ky` đến trong BODY của form, nên chuyển hướng phải giữ đúng kỳ đó."""
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"', html).group(1)
+    response = client.post("/kinh-doanh/gia-nhap", data={
+        "order_key": "BH1", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "gia_nhap": "6000000"})
+    assert response.status_code == 302
+    assert "ky=2026-01" in response.headers["Location"]
