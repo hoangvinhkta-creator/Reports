@@ -33,6 +33,12 @@
     <div><span class="label">Dòng không nhận diện được:</span> {{ result.dropped_lines }}</div>
     <div><span class="label">Accounting coverage:</span> {{ result.accounting_rate }}</div>
   </div>
+  {% if result.unresolved_descriptions %}
+  <p class="tp-label">Tên hàng chưa định danh — chờ phân loại:
+    <b>{{ result.unresolved_descriptions }}</b>.
+    Danh sách đầy đủ ở sheet <b>Chưa định danh</b> trong file Excel tải về;
+    chép cột đầu tiên rồi dán vào màn <b>Phân loại theo tên hàng</b> bên Tracking.</p>
+  {% endif %}
 </div>
 
 {% if result.review_reason_lines %}

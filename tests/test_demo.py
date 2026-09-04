@@ -70,7 +70,11 @@ def test_full_production_export_preserves_mixed_lines_and_duplicate_record_keys(
     assert all(r.evidence.public_purchase_version_id is None for r in run.price_records)
 
     workbook = openpyxl.load_workbook(inputs["output"], data_only=True)
-    assert workbook.sheetnames == ["Summary", "Order Lines", "Review Queue"]
+    # PHB-01 — sheet "Chưa định danh" là bản xuất cho Owner mang sang màn
+    # phân loại theo tên hàng của Tracking. Nó LUÔN có mặt, kể cả khi rỗng.
+    assert workbook.sheetnames == [
+        "Summary", "Order Lines", "Review Queue", "Chưa định danh",
+    ]
     rows = values(workbook["Order Lines"])
     assert [r[12] for r in rows] == [6, 7, 8, 9, 10]
     assert [r[9] for r in rows] == ["AUTO", "AUTO", "PENDING", "PENDING", "AUTO"]

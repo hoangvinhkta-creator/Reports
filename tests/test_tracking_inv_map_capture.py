@@ -22,6 +22,7 @@ from app.modules.product.identity.tracking_catalog import (
 from app.modules.product.identity.tracking_inv_map import inv_map_key, norm_code
 from tools.tracking.capture_inv_map import (
     EMPTY_SOURCE_NOT_ASSERTABLE,
+    EMPTY_VALID_AUTHORITY,
     MALFORMED_SOURCE,
     SOURCE_UNAVAILABLE,
     build_capture,
@@ -140,10 +141,42 @@ def test_an_empty_payload_is_refused_not_recorded_as_an_empty_map(payload):
     assert envelope["failure_reason"].startswith(EMPTY_SOURCE_NOT_ASSERTABLE)
 
 
+def test_a_contract_shaped_empty_map_is_valid_empty_authority_not_a_failure():
+    """PHB-01/D1 — `{"map": {}}` là AUTHORITY ĐÃ TRẢ LỜI: "chưa ai phân loại
+    dòng nào".
+
+    Trước PHB-01 nhánh này là `FAILED/EMPTY_SOURCE_NOT_ASSERTABLE`, chung một
+    trạng thái với mất mạng/403/502 — và xuôi dòng, `live_pull` hạ cả hai
+    xuống `tracking_inv_map=None`, tức "chưa nối". Hai sự kiện khác hẳn nhau
+    kết thúc ở cùng một chỗ, đúng thứ D1 cấm.
+
+    Lý do S068 ("payload trống trông giống sai URL/sai node") vẫn được giữ —
+    nhưng cho payload TRỐNG THẬT (`None`/`{}`), xem bài ngay trên. Một
+    `{"map": {}}` đúng hình dạng hợp đồng thì không mơ hồ: hợp đồng Tracking
+    trả 502 khi đọc hỏng và 404 khi sai node, không bao giờ trả hình dạng này.
+    """
+    envelope = capture(fetcher({"map": {}}))
+    assert envelope["capture_status"] == "COMPLETE"
+    assert envelope["entries"] == {}
+    assert envelope["empty_reason"] == EMPTY_VALID_AUTHORITY
+    assert "failure_reason" not in envelope
+
+
+def test_valid_empty_authority_loads_and_answers_none_for_every_key(tmp_path):
+    """Snapshot rỗng HỢP LỆ nạp được, `require_complete()` qua, và tra khoá
+    nào cũng `None` — cùng KẾT QUẢ với "chưa nối", nhưng khác BẰNG CHỨNG: có
+    capture_id/captured_at/content_hash để đọc lại."""
+    path = write_capture(capture(fetcher({"map": {}})), tmp_path / "empty.json")
+    snapshot = load_tracking_inv_map_capture(path)
+    assert snapshot.capture_status is CaptureStatus.COMPLETE
+    snapshot.require_complete()
+    assert snapshot.entries == ()
+    assert snapshot.lookup("Tivi Samsung 75Q6FA") is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [
-        {"map": {}},
         ["not", "a", "map"],
         {"map": "không phải một ánh xạ"},
         {"map": {"N_X": ""}},

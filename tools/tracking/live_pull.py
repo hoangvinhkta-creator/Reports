@@ -23,10 +23,30 @@ retention áp dụng ngang với workbook upload).
 Fail-closed: ``purchase_price_history``(+baseline) và ``catalog`` là
 REQUIRED — FAILED ở một trong hai raise ``TrackingUnavailableError`` ngay,
 KHÔNG rơi về bất kỳ capture cũ nào trên đĩa (S071 §3: "KHÔNG silently
-fallback stale authority"). ``inv_map`` giữ nguyên bán chất TUỲ CHỌN đã có
-từ S068 follow-up: FAILED/lỗi mạng ở riêng nhánh này không chặn lần chạy,
-chỉ làm ``tracking_inv_map=None`` cho lần đó — cùng ngữ nghĩa "chưa nối" sẵn
-có, không phải "bỏ qua lỗi im lặng".
+fallback stale authority").
+
+## PHB-01/D1 — ``inv_map`` cũng fail-closed KHI FETCH HỎNG
+
+Trước PHB-01, một ``inv_map`` FAILED (mất mạng, 403, 502, payload sai hợp
+đồng) chỉ làm ``tracking_inv_map=None`` cho lần chạy đó. Hệ quả không dừng ở
+"thiếu một nguồn phụ": resolver không có ``inv.map`` thì MỌI câu tên hàng kế
+toán đều trả ``PENDING_PRODUCT``, và người vận hành đọc được đúng một câu —
+"sản phẩm chưa được phân loại". Một sự cố hạ tầng mặc lốt một kết luận nghiệp
+vụ, và bản xuất "chờ phân loại" sẽ liệt kê cả những mặt hàng Owner ĐÃ phân
+loại xong từ lâu. Đó chính là điều D1 cấm.
+
+Nay tách đúng hai trạng thái:
+
+* **fetch HỎNG** (``capture_status != "COMPLETE"``) → ``TrackingUnavailable
+  Error`` ngay, không report nào được sinh. Cùng luật với hai node REQUIRED,
+  và đúng ``INV-12`` mà resolver đã áp cho một snapshot FAILED có mặt
+  (``require_complete()``) — chỗ DUY NHẤT còn nuốt nó là đây.
+* **authority rỗng HỢP LỆ** (``{"map": {}}`` → ``COMPLETE``, 0 mục) → chạy
+  tiếp bình thường. "Chưa ai phân loại dòng nào" là một câu trả lời thật của
+  authority, không phải sự cố.
+
+``inv_map_status``/``inv_map_entries`` vẫn đi vào evidence của lần chạy để
+đọc lại được về sau.
 """
 
 from __future__ import annotations
@@ -138,8 +158,7 @@ def pull_live_captures(
     )
     _raise_if_failed(catalog_envelope, node="catalog")
 
-    # inv_map: TUỲ CHỌN — lỗi ở đây không raise, chỉ ghi lại status để đưa
-    # vào evidence; server tiếp tục chạy với `tracking_inv_map=None`.
+    # inv_map: fetch hỏng là LỖI AUTHORITY, không phải "chưa nối" (§ PHB-01/D1).
     inv_map_envelope = capture_inv_map.build_capture(
         fetch,
         capture_id=f"LIVE-INV-{token}",
@@ -147,6 +166,7 @@ def pull_live_captures(
         source_system_ref="tracking/api/xuat (live pull-on-run)",
         captured_at=moment,
     )
+    _raise_if_failed(inv_map_envelope, node="inv_map")
 
     temp_paths: list[Path] = []
     history_path = out_dir / f"{token}-purchase-price-history.json"
@@ -157,21 +177,23 @@ def pull_live_captures(
     write_capture(catalog_envelope, catalog_path)
     temp_paths.append(catalog_path)
 
-    inv_map_path: Optional[Path] = None
-    if inv_map_envelope.get("capture_status") == "COMPLETE":
-        inv_map_path = out_dir / f"{token}-inv-map.json"
-        write_capture(inv_map_envelope, inv_map_path)
-        temp_paths.append(inv_map_path)
+    # Tới đây `inv_map` chắc chắn COMPLETE — `_raise_if_failed` ở trên đã
+    # chặn mọi nhánh khác, nên không còn đường nào ghi ra một lần chạy "thành
+    # công" mà authority định danh thì không có.
+    inv_map_path = out_dir / f"{token}-inv-map.json"
+    write_capture(inv_map_envelope, inv_map_path)
+    temp_paths.append(inv_map_path)
 
     evidence = {
         "purchase_price_history_capture_id": history_envelope["capture_id"],
         "purchase_price_history_captured_at": history_envelope["captured_at"],
         "catalog_capture_id": catalog_envelope["capture_id"],
-        "inv_map_capture_id": inv_map_envelope.get("capture_id") if inv_map_path else None,
-        "inv_map_status": inv_map_envelope.get("capture_status"),
-        "inv_map_failure_reason": (
-            inv_map_envelope.get("failure_reason") if inv_map_path is None else None
-        ),
+        "inv_map_capture_id": inv_map_envelope["capture_id"],
+        "inv_map_status": inv_map_envelope["capture_status"],
+        # 0 mục = authority rỗng HỢP LỆ, đọc lại được từ evidence mà không
+        # phải mở lại file capture tạm (đã bị xoá sau lần chạy).
+        "inv_map_entries": len(inv_map_envelope.get("entries") or {}),
+        "inv_map_empty_reason": inv_map_envelope.get("empty_reason"),
         "pulled_at": moment.isoformat(),
         "source_system_ref": "tracking/api/xuat (live pull-on-run)",
     }

@@ -118,14 +118,27 @@ def select_latest_valid_captures(*, repo_root: Path = REPO_ROOT) -> SelectedCapt
         loader=load_tracking_catalog_capture,
         label="danh mục Tracking",
     )
-    # inv.map là authority TUỲ CHỌN (S068 follow-up): vắng mặt = chưa nối,
-    # demo.run_demo vẫn chạy đúng đường alias.map/board cũ — không chặn Owner.
+    # inv.map: KHÔNG có file nào = chưa nối (Owner chạy đúng đường alias.map/
+    # board cũ, không bị chặn). Nhưng CÓ file mà không file nào COMPLETE là
+    # chuyện khác hẳn — lần chụp authority gần nhất đã HỎNG, và chạy tiếp sẽ
+    # hiện mọi mặt hàng như "chưa được phân loại" (PHB-01/D1). Hai trạng thái
+    # ấy phải nói bằng hai câu khác nhau, không được gộp thành một `None`.
+    inv_map_dirs = tuple(root / path for path in INV_MAP_CAPTURE_DIRECTORIES)
     inv_map = _latest_complete_capture(
-        directories=tuple(root / path for path in INV_MAP_CAPTURE_DIRECTORIES),
+        directories=inv_map_dirs,
         loader=load_tracking_inv_map_capture,
         label="inv.map Tracking",
         required=False,
     )
+    if inv_map is None and _capture_paths(inv_map_dirs):
+        raise OwnerUsabilityError(
+            "Có file capture inv.map trong "
+            + ", ".join(str(path) for path in inv_map_dirs)
+            + " nhưng KHÔNG file nào COMPLETE hợp lệ — lần chụp authority định "
+            "danh gần nhất đã hỏng. Báo cáo dừng có chủ đích: chạy tiếp sẽ "
+            "hiện mọi mặt hàng như 'chưa được phân loại'. Hãy tạo capture "
+            "inv.map COMPLETE mới rồi chạy lại."
+        )
     return SelectedCaptures(
         tracking_capture=history, tracking_catalog=catalog, tracking_inv_map=inv_map,
     )

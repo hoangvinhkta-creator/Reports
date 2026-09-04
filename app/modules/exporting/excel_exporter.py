@@ -19,6 +19,10 @@ from app.modules.domain.models import (
     WorkingLine,
 )
 from app.modules.pricing.resolution.composition import PriceResolutionRecord
+from app.modules.pricing.resolution.unresolved_descriptions import (
+    UnresolvedDescriptionGroup,
+    aggregate_unresolved_descriptions,
+)
 from app.modules.validation.models import (
     CATEGORY_MISSING_PURCHASE_PRICE, SEVERITY_ERROR, SEVERITY_INFO, SCOPE_ORDER,
 )
@@ -38,6 +42,20 @@ REVIEW_FIELDS = (
     "Capture giá", "Capture danh mục", "Identity revision", "Tracking reason",
     "Fallback blocked by", "Fallback detail", "KPI provenance",
 )
+UNRESOLVED_FIELDS = (
+    "Tên hàng trên chứng từ", "Khoá inv.map (Tracking)", "Số dòng", "Số đơn",
+    "Doanh thu (VND)", "Số cách viết", "Lý do chưa định danh",
+)
+"""PHB-01 §4B — CỘT ĐẦU TIÊN là câu tên hàng nguyên văn, cố ý.
+
+Đường dùng thật là: Owner bôi đen cột này trong Excel, Ctrl+C, rồi dán thẳng
+vào ô nhập của màn "Phân loại theo tên hàng" bên Tracking. Excel chép nhiều
+cột ra clipboard bằng ký tự TAB, nên bên Tracking chỉ cần lấy phần trước dấu
+TAB đầu tiên là ra đúng câu tên hàng — KHÔNG cắt theo dấu phẩy, vì tên hàng
+thật có dấu phẩy ("Tivi Samsung 55, model 2026"). Đổi thứ tự cột ở đây là làm
+hỏng thao tác dán ấy.
+"""
+
 MONEY_FORMAT = '#,##0;[Red](#,##0);"0"'
 
 
@@ -55,6 +73,13 @@ class ReportSummary:
     review_lines: int
     error_count: int
     review_reason_counts: dict[str, int]
+    unresolved_description_count: int = 0
+    """PHB-01 — số CÂU TÊN HÀNG (khoá `inv.map`) đang chờ Owner phân loại.
+
+    Mặc định `0` để mọi lời gọi `ReportSummary(...)` đã có (test, telemetry
+    cũ) giữ nguyên hành vi; đường production luôn truyền giá trị thật.
+    Đếm theo khoá chứ không theo dòng — đó mới là số lần Owner phải bấm.
+    """
 
     @property
     def order_accounting_rate(self) -> float:
@@ -178,6 +203,29 @@ PresentedLine = _PresentedLine
 present_lines = _present_lines
 
 
+def unresolved_description_groups(
+    views: "list[_PresentedLine]",
+) -> tuple[UnresolvedDescriptionGroup, ...]:
+    """PHB-01 §4A — các câu tên hàng chờ phân loại, lấy từ CHÍNH các dòng đã
+    trình bày.
+
+    Đi qua `views` chứ không qua `records` thô vì hai lý do, cả hai đều là
+    tính đúng đắn chứ không phải tiện tay:
+
+    1. `_present_lines()` đã đối chiếu 1-1 số dòng/OrderID với workbook nguồn
+       và ném `ReportIntegrityError` nếu lệch. Đếm trên tập đã qua cửa ấy thì
+       "số dòng ảnh hưởng" không thể nhiều hơn hay ít hơn dữ liệu thật.
+    2. Doanh thu nằm ở `WorkingLine`, không nằm ở bản ghi giá. Ghép ở đây là
+       ghép đúng cặp dòng-bản ghi mà báo cáo đang in ra, không phải một phép
+       nối lại tự làm.
+    """
+    return aggregate_unresolved_descriptions(
+        (view.record, view.line.total_sales)
+        for view in views
+        if view.record is not None
+    )
+
+
 def _append(sheet, values):
     sheet.append(values)
     # Chuỗi nguồn là dữ liệu hiển thị, không phải công thức Excel.
@@ -232,6 +280,7 @@ def export_report(
 ) -> ReportSummary:
     """Xuất một snapshot kết quả; ô trống giữ nguyên nghĩa chưa xác định."""
     views = _present_lines(result, records, raw_rows)
+    unresolved = unresolved_description_groups(views)
     pending_orders = {v.line.order_id for v in views if v.reasons}
     review_reason_counts: dict[str, int] = defaultdict(int)
     for view in views:
@@ -245,14 +294,27 @@ def export_report(
         review_lines=sum(bool(v.reasons) for v in views),
         error_count=len(result.review_queue.by_severity(SEVERITY_ERROR)),
         review_reason_counts=dict(review_reason_counts),
+        unresolved_description_count=len(unresolved),
     )
     workbook = Workbook()
     summary_sheet = workbook.active
     summary_sheet.title = "Summary"
     line_sheet = workbook.create_sheet("Order Lines")
     review_sheet = workbook.create_sheet("Review Queue")
+    unresolved_sheet = workbook.create_sheet("Chưa định danh")
     _append(line_sheet, LINE_FIELDS)
     _append(review_sheet, REVIEW_FIELDS)
+    _append(unresolved_sheet, UNRESOLVED_FIELDS)
+    # PHB-01 §4B — MỘT dòng cho MỖI khoá inv.map, thứ tự xác định do
+    # `aggregate_unresolved_descriptions()` chốt. Sheet luôn có mặt kể cả khi
+    # rỗng: một sheet biến mất khiến người dùng phải đoán xem "không có mục
+    # nào" hay "bản báo cáo này chưa có tính năng đó".
+    for group in unresolved:
+        _append(unresolved_sheet, (
+            group.raw_description, group.inv_map_key, group.line_count,
+            group.order_count, group.revenue_vnd, group.description_variants,
+            "\n".join(group.pending_reasons),
+        ))
     for view in views:
         line, record = view.line, view.record
         employee = line.employee_normalized or line.employee_raw
@@ -312,6 +374,7 @@ def export_report(
         ("Dòng có lợi nhuận KPI", len(kpi_values)),
         ("Dòng chưa xác định doanh thu", len(views) - len(revenues)),
         ("Dòng cần Review Queue", summary.review_lines),
+        ("Tên hàng chưa định danh — chờ phân loại", summary.unresolved_description_count),
         ("Finding cấp lô cần xem", len(batch_items)),
         ("Capture giá đầu vào", tracking_capture.name),
         ("Capture danh mục đầu vào", tracking_catalog.name),
@@ -344,6 +407,13 @@ def export_report(
                 cell.number_format = MONEY_FORMAT
     _style_table(review_sheet, [14, 20, 22, 43, 18, 48, 95, 28, 28, 12, 20, 24,
                                40, 34, 30, 35, 35, 16, 36, 36, 65, 42], status_column=5)
+    _style_table(unresolved_sheet, [60, 40, 10, 10, 20, 14, 40])
+    # `_style_table` đóng băng ở "E2" cho các bảng có bốn cột định danh đầu;
+    # bảng này chỉ có MỘT cột chữ dài nên đóng băng ngay sau nó.
+    unresolved_sheet.freeze_panes = "B2"
+    for row in unresolved_sheet.iter_rows(min_row=2, min_col=5, max_col=5):
+        for cell in row:
+            cell.number_format = MONEY_FORMAT
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Không ghi đè workbook/capture/artifact đã có của Owner.
     with output_path.open("xb") as handle:

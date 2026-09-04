@@ -16,6 +16,11 @@ from app.modules.pricing.resolution.composition import (
     PriceResolutionReport,
     PriceResolutionStatus,
 )
+from app.modules.pricing.resolution.unresolved_descriptions import (
+    UnresolvedDescriptionGroup,
+    aggregate_unresolved_descriptions,
+    is_unresolved_identity_record,
+)
 from app.modules.pricing.resolution.sources import (
     BusinessTimezone,
     PriceEvidenceSnapshot,
@@ -35,6 +40,9 @@ __all__ = [
     "PriceResolutionReport",
     "PriceResolutionSources",
     "PriceResolutionStatus",
+    "UnresolvedDescriptionGroup",
+    "aggregate_unresolved_descriptions",
+    "is_unresolved_identity_record",
     "load_business_timezone",
     "load_price_resolution_sources",
 ]

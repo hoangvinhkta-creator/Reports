@@ -128,7 +128,38 @@ def _build_view(summary, *, dropped_lines: int = 0) -> dict:
         "dropped_lines": dropped_lines,
         "accounting_rate": f"{summary.order_accounting_rate:.0%}",
         "review_reason_lines": _review_reason_lines(summary.review_reason_counts),
+        # PHB-01 — đếm theo KHOÁ inv.map, tức số lần Owner phải bấm ở màn phân
+        # loại bên Tracking; chi tiết nằm ở sheet "Chưa định danh" của file.
+        "unresolved_descriptions": summary.unresolved_description_count,
     }
+
+
+def _tracking_unavailable_message(exc: "live_pull.TrackingUnavailableError") -> str:
+    """PHB-01/D1 — nói ĐÚNG loại sự cố, và nói rõ nó KHÔNG phải kết luận nghiệp vụ.
+
+    Node `inv_map` là authority định danh sản phẩm. Khi nó hỏng, thứ người vận
+    hành nhìn thấy nếu ta cứ chạy tiếp sẽ là "mọi mặt hàng chưa được phân
+    loại" — một câu sai, và sai theo hướng khiến họ đi phân loại lại những thứ
+    đã phân loại xong. Nên nhánh này có câu RIÊNG, không dùng chung câu với hai
+    node giá (QUY-CHUAN.md L3 của Tracking: mỗi nguyên nhân một câu khác nhau,
+    không thì ảnh chụp màn hình của người dùng trở nên vô dụng).
+
+    Không in `exc.reason` ra màn hình: nó chở nguyên văn thông điệp lỗi tầng
+    dưới (URL, tên node, mã HTTP). Người vận hành cần biết PHẢI LÀM GÌ; chi
+    tiết chẩn đoán đã nằm trong log.
+    """
+    if exc.node == "inv_map":
+        return (
+            "Không đọc được bảng phân loại sản phẩm (inv.map) từ Tracking — "
+            "authority định danh đang KHÔNG khả dụng. Báo cáo đã dừng có chủ "
+            "đích: chạy tiếp sẽ hiện mọi mặt hàng như 'chưa được phân loại', "
+            "trong khi thật ra chỉ là không lấy được dữ liệu. Đây KHÔNG phải "
+            "lỗi của workbook. Kiểm tra Tracking rồi chạy lại."
+        )
+    return (
+        f"Không lấy được dữ liệu Tracking trực tiếp (nguồn: {exc.node}). "
+        "Đây KHÔNG phải lỗi của workbook — vui lòng thử lại sau."
+    )
 
 
 def _record_telemetry(run_id: str, summary, duration_ms: int) -> None:
@@ -664,14 +695,7 @@ def create_app(
             try:
                 captures, tracking_evidence, live_handle = _select_captures_for_run()
             except live_pull.TrackingUnavailableError as exc:
-                return _page(
-                    error=(
-                        "Không lấy được dữ liệu Tracking trực tiếp (nguồn: "
-                        f"{exc.node}). Đây KHÔNG phải lỗi của workbook — vui "
-                        "lòng thử lại sau."
-                    ),
-                    status=503,
-                )
+                return _page(error=_tracking_unavailable_message(exc), status=503)
             try:
                 owner_run = run_owner_report(sales=temp_path, captures=captures)
             except OwnerUsabilityError as exc:

@@ -85,6 +85,7 @@ from app.modules.product.identity.identity import (
     CanonicalProductIdentity,
     Namespace,
     PendingProduct,
+    PendingReason,
     RequiresConfirmation,
     Resolved,
 )
@@ -196,6 +197,19 @@ class PriceResolutionRecord:
     fallback_blocked_by: Optional[PriceResolutionReason] = None
     fallback_blocked_detail: str = ""
     tracking_reconstruction: Optional[PriceReconstruction] = None
+    identity_pending_reason: Optional[PendingReason] = None
+    """`reason_code` NGUYÊN BẢN của `PENDING_PRODUCT` (PHB-01).
+
+    `reason` chỉ nói `IDENTITY_UNRESOLVED` — một nhãn gộp mà mọi lý do Pending
+    identity đều rơi vào, kể cả `TRACKING_INV_MAP_EXPLICIT_IGNORE` (một người
+    của Tracking ĐÃ xem dòng này và quyết định bỏ qua). `detail` có chở chuỗi
+    lý do, nhưng đọc lại nó bằng cách bới chữ trong một câu tiếng Việt là dựng
+    một hợp đồng trên định dạng thông điệp. Trường này giữ đúng enum để bên
+    tiêu thụ (gộp mô tả chưa định danh) phân biệt được "chưa ai xem" với "đã
+    có người quyết định" mà không phải parse văn bản.
+
+    Chỉ có mặt ở nhánh `PENDING_PRODUCT`; mọi Pending khác để `None`.
+    """
 
     def __post_init__(self) -> None:
         if self.status is PriceResolutionStatus.RESOLVED:
@@ -444,6 +458,7 @@ class PostCutoverPriceComposition:
                         PriceResolutionReason.IDENTITY_UNRESOLVED,
                         f"TASK-105D trả PENDING_PRODUCT ({outcome.reason_code.value}); "
                         "không có identity nào để hỏi giá.",
+                        identity_pending_reason=outcome.reason_code,
                     )
                 )
             else:  # pragma: no cover — union ĐÓNG, nhánh này không tồn tại
@@ -596,6 +611,7 @@ class PostCutoverPriceComposition:
         reconstruction: Optional[PriceReconstruction] = None,
         fallback_blocked_by: Optional[PriceResolutionReason] = None,
         fallback_blocked_detail: str = "",
+        identity_pending_reason: Optional[PendingReason] = None,
     ) -> PriceResolutionRecord:
         line.accounting_purchase_price = None
         line.price_source = PRICE_SOURCE_PENDING
@@ -615,4 +631,5 @@ class PostCutoverPriceComposition:
             fallback_blocked_by=fallback_blocked_by,
             fallback_blocked_detail=fallback_blocked_detail,
             tracking_reconstruction=reconstruction,
+            identity_pending_reason=identity_pending_reason,
         )

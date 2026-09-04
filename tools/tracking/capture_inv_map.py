@@ -57,6 +57,30 @@ SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
 MALFORMED_SOURCE = "MALFORMED_SOURCE"
 EMPTY_SOURCE_NOT_ASSERTABLE = "EMPTY_SOURCE_NOT_ASSERTABLE"
 
+EMPTY_VALID_AUTHORITY = "EMPTY_VALID_AUTHORITY"
+"""PHB-01/D1 — `inv.map` HỢP LỆ và RỖNG: authority đã trả lời, câu trả lời là
+"chưa ai phân loại dòng nào".
+
+Đây là một trạng thái THẬT và phải giữ khác hẳn `AUTHORITY_FETCH_FAILED`
+(`SOURCE_UNAVAILABLE`/`MALFORMED_SOURCE`), nên nó là `COMPLETE` với `entries`
+rỗng, KHÔNG phải `FAILED`.
+
+Vì sao không còn là `EMPTY_SOURCE_NOT_ASSERTABLE` như S068: lý do ban đầu là
+"một payload trống trông giống hệt nhau ở 'inv.map thật sự chưa có mục nào' và
+'sai URL / sai node / hợp đồng đang lỗi'". Điều đó đúng với một payload TRỐNG
+(`None`/`{}`) — và nhánh ấy GIỮ NGUYÊN `FAILED` ngay bên dưới. Nhưng nó không
+còn đúng với `{"map": {}}`: hợp đồng Tracking (`src/index.js`, nhánh
+`inv_map`) trả `502 {ok:false}` khi đọc hỏng, `404` khi sai node, và `200
+{"map": {}}` CHỈ khi nhánh `inv/map` thật sự chưa tồn tại. `_entries_from_
+payload()` đã bắt buộc đúng hình dạng top-level, nên một `{"map": {}}` lọt tới
+đây là một KHẲNG ĐỊNH của authority, không phải một sự im lặng mơ hồ.
+
+Hệ quả xuôi dòng: `TrackingInvMapSnapshot` `COMPLETE` với 0 mục tra ra `None`
+cho mọi khoá — cùng KẾT QUẢ với "chưa nối", nhưng khác BẰNG CHỨNG: có
+`capture_id`, có `captured_at`, có `content_hash`. Còn một lần fetch hỏng thì
+KHÔNG bao giờ đi tiếp dưới lốt ấy nữa (`tools/tracking/live_pull.py`).
+"""
+
 
 class MalformedSourceError(RuntimeError):
     """Nguồn với tới được nhưng sai hợp đồng. Không phải mất mạng."""
@@ -141,14 +165,13 @@ def build_capture(
     except MalformedSourceError as exc:
         return failed(f"{MALFORMED_SOURCE}: {exc}")
 
-    if not entries:
-        return failed(
-            f"{EMPTY_SOURCE_NOT_ASSERTABLE}: node {INV_MAP_NODE!r}/map rỗng."
-        )
-
+    # `{"map": {}}` — authority trả lời "chưa ai phân loại dòng nào"
+    # (`§ EMPTY_VALID_AUTHORITY`). COMPLETE với 0 mục, KHÔNG phải FAILED.
     envelope["content_hash"] = canonical_content_hash(entries)
     envelope["capture_status"] = "COMPLETE"
     envelope["entries"] = entries
+    if not entries:
+        envelope["empty_reason"] = EMPTY_VALID_AUTHORITY
     return envelope
 
 

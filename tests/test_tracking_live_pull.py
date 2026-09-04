@@ -9,9 +9,13 @@ mà các script capture đã dùng). Mục tiêu là chứng minh:
   ``TrackingUnavailableError`` ngay, KHÔNG ghi report nào, KHÔNG rơi về một
   capture cũ nào (không có "cũ" ở đây — mỗi lần chạy live, không đọc đĩa
   trước).
-- TUỲ CHỌN (``inv_map``) fail → không raise, chỉ ghi nhận status FAILED vào
-  evidence, run vẫn tiếp tục với ``tracking_inv_map=None`` — cùng ngữ nghĩa
-  "chưa nối" của S068 follow-up, không phải một lỗi bị nuốt.
+- ``inv_map`` FETCH HỎNG → raise ``TrackingUnavailableError`` (PHB-01/D1).
+  Trước PHB-01 nhánh này chỉ hạ xuống ``tracking_inv_map=None``, và hệ quả
+  là mọi câu tên hàng kế toán trả PENDING — một sự cố authority mặc lốt kết
+  luận "sản phẩm chưa được phân loại".
+- ``inv_map`` RỖNG HỢP LỆ (``{"map": {}}``) → KHÔNG raise: authority đã trả
+  lời, câu trả lời là "chưa ai phân loại dòng nào". Đây là cặp đối chứng
+  chứng minh hai trạng thái ấy vẫn phân biệt được sau repair.
 - Timeout / 403 / 502 / malformed JSON đều là các hình dạng CỦA CÙNG MỘT
   loại lỗi (``CaptureError`` từ ``_http_fetcher``) — mô phỏng bằng fetch giả
   raise đúng loại lỗi đó, không cần dựng mạng thật.
@@ -247,32 +251,54 @@ def test_missing_endpoint_style_failure_is_reported_as_unavailable(tmp_path):
     assert exc_info.value.node == "catalog"
 
 
-# --- TUỲ CHỌN: inv_map -------------------------------------------------------
+# --- inv_map: AUTHORITY ĐỊNH DANH (PHB-01/D1) --------------------------------
 
 
-def test_inv_map_failure_does_not_block_the_run(tmp_path):
+def test_inv_map_fetch_failure_blocks_the_run(tmp_path):
+    """Mất nguồn `inv_map` KHÔNG được đi tiếp dưới lốt "chưa phân loại"."""
     fetch = _success_fetch(missing=frozenset({INV_MAP_NODE}))
-    result = live_pull.pull_live_captures(
-        out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
-        fetch=fetch,
-    )
-    assert result.tracking_inv_map is None
-    assert result.evidence["inv_map_capture_id"] is None
-    assert result.evidence["inv_map_status"] == "FAILED"
-    assert result.evidence["inv_map_failure_reason"]
-    # Hai nguồn REQUIRED vẫn ghi được file bình thường.
-    assert result.tracking_capture.is_file()
-    assert result.tracking_catalog.is_file()
+    with pytest.raises(live_pull.TrackingUnavailableError) as exc_info:
+        live_pull.pull_live_captures(
+            out_dir=tmp_path, source_url="https://tracking.example",
+            api_key="secret", fetch=fetch,
+        )
+    assert exc_info.value.node == "inv_map"
 
 
-def test_malformed_inv_map_schema_does_not_block_the_run(tmp_path):
+def test_malformed_inv_map_schema_blocks_the_run(tmp_path):
+    """Payload đọc được nhưng sai hợp đồng cũng là authority hỏng."""
     def fetch(node):
         if node == INV_MAP_NODE:
             return {"unexpected_top_level_key": {}}
         return _success_fetch()(node)
 
+    with pytest.raises(live_pull.TrackingUnavailableError) as exc_info:
+        live_pull.pull_live_captures(
+            out_dir=tmp_path, source_url="https://tracking.example",
+            api_key="secret", fetch=fetch,
+        )
+    assert exc_info.value.node == "inv_map"
+
+
+def test_a_valid_empty_inv_map_is_not_a_failure(tmp_path):
+    """ĐỐI CHỨNG của hai bài trên — `{"map": {}}` là câu trả lời THẬT của
+    authority ("chưa ai phân loại dòng nào"), nên lần chạy đi tiếp bình
+    thường và evidence ghi rõ 0 mục. Nếu bài này đỏ cùng chiều với hai bài
+    trên thì repair D1 đã gộp hai trạng thái làm một — đúng thứ nó sinh ra
+    để chống."""
+    def fetch(node):
+        if node == INV_MAP_NODE:
+            return {"map": {}}
+        return _success_fetch()(node)
+
     result = live_pull.pull_live_captures(
-        out_dir=tmp_path, source_url="https://tracking.example", api_key="secret", fetch=fetch,
+        out_dir=tmp_path, source_url="https://tracking.example",
+        api_key="secret", fetch=fetch,
     )
-    assert result.tracking_inv_map is None
-    assert result.evidence["inv_map_status"] == "FAILED"
+    assert result.tracking_inv_map is not None
+    assert result.tracking_inv_map.is_file()
+    assert result.evidence["inv_map_status"] == "COMPLETE"
+    assert result.evidence["inv_map_entries"] == 0
+    assert result.evidence["inv_map_empty_reason"] == "EMPTY_VALID_AUTHORITY"
+    assert result.tracking_capture.is_file()
+    assert result.tracking_catalog.is_file()
