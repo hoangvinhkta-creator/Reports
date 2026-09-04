@@ -63,9 +63,17 @@ Chưa deploy — nhưng bản **được phép** deploy đã chốt và đã đ�
 thức:
 
 ```
-Bản được duyệt   = d066d227da852b17a57d4a8492fa79c7fc7b2aff
-Nhánh chính thức = claude/extract-upload-repo-gq2ws4
+Bản được duyệt        = d066d227da852b17a57d4a8492fa79c7fc7b2aff
+Nhánh chính thức      = claude/extract-upload-repo-gq2ws4
+Commit MỚI NHẤT trên
+nhánh chính thức      = 6016ed5512aa28dbc98ea66cdc10702c3056b2c9
+                        (= bản được duyệt + phần tài liệu của phiên này;
+                         MÃ CHẠY GIỐNG HỆT — xem cuối mục này)
 ```
+
+**Bấm Deploy commit nào?** Bấm commit **mới nhất** — `6016ed5`, cái Render hiện
+sẵn ở trên cùng. Không cần đi tìm `d066d22`. Hai commit này chạy **y hệt nhau**;
+`6016ed5` chỉ thêm giấy tờ.
 
 ### Đã kiểm rằng đây đúng là bản đã được soát xét
 
@@ -621,9 +629,9 @@ NEXT_VERTICAL_ACTION = Chủ dự án deploy trên Render + chạy 8 bước ki�
 ### 8 bước — làm được trên điện thoại
 
 **Bước 1 — Deploy.**
-Vào Render → service `reports-web` → **Manual Deploy** → chọn commit
-`d066d22` trên nhánh `claude/extract-upload-repo-gq2ws4` → Deploy.
-Chờ đến khi hiện **Live**.
+Vào Render → service `reports-web` → **Manual Deploy** → chọn commit **mới
+nhất** trên nhánh `claude/extract-upload-repo-gq2ws4` — là `6016ed5`, nằm trên
+cùng danh sách → Deploy. Chờ đến khi hiện **Live**.
 
 > Nếu deploy **hỏng**: web cũ **vẫn chạy bình thường**, không mất gì. Chụp màn
 > hình phần log lỗi gửi lại. Muốn quay lui hẳn thì Manual Deploy commit
@@ -690,7 +698,11 @@ PRODUCTION_BEFORE_SHA      = NOT_OBSERVABLE_FROM_SESSION
 ROLLBACK_SHA               = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e
 PRODUCTION_DEPLOYED_SHA    = NOT_DEPLOYED_BY_SESSION (chờ chủ dự án)
 
-CANONICAL_INTEGRATION      = DONE — fast-forward, không force, không rewrite
+CANONICAL_INTEGRATION      = DONE — fast-forward eaa3fde..6016ed5
+                             (không force · không rewrite · không squash ·
+                              không merge commit)
+CANONICAL_TIP              = 6016ed5512aa28dbc98ea66cdc10702c3056b2c9
+DEPLOY_THIS_COMMIT         = 6016ed5 (mã chạy == d066d22, chỉ hơn phần docs)
 PRODUCTION_CODE_DELTA      = 0 (app/ tools/ config/ Dockerfile render.yaml
                              alembic.ini pyproject.toml — lệch bằng không so
                              với d066d22; phần thêm vào chỉ là tài liệu)
