@@ -365,3 +365,86 @@ PIPELINE_TABLES = (
     source_snapshot, order_line_source_version, snapshot_line,
     order_line_result_version, order_line_current, reconciliation_flag,
 )
+
+
+# ---------------------------------------------------------------------------
+# PHB-03 — Summary + Employee Business Parity V1 (migration ``0003_business``).
+#
+# Hai bảng dưới đây là TOÀN BỘ persistence mới mà PHB-03 cần, và chúng cố ý
+# KHÔNG phải một subsystem: không workflow duyệt, không lịch sử phiên bản,
+# không audit service, không trình soạn dữ liệu kinh tế tổng quát. Mỗi bảng
+# giữ ĐÚNG MỘT quyết định hiện hành của con người, ghi đè tại chỗ khi người đó
+# đổi ý (DEC-PHB02-02, DEC-PHB02-05 + chỉ thị "keep it SMALL" của PHB-03 §3).
+#
+# Vì sao chúng là bảng RIÊNG chứ không phải cột mới trên
+# ``order_line_result_version``: bảng đó là APPEND-ONLY và mỗi dòng là kết quả
+# của MỘT lần chạy pipeline — bằng chứng kế toán. Một giá trị do Owner nhập
+# sau khi pipeline đã chạy không phải kết quả của lần chạy đó; ghi đè vào đấy
+# sẽ xoá dấu vết "engine đã tính ra gì" và biến một input của con người thành
+# một output của máy. Hai thẩm quyền khác nhau ⟹ hai bảng khác nhau, và tầng
+# truy vấn hợp nhất chúng LÚC ĐỌC (COALESCE), nơi provenance vẫn nhìn thấy được.
+#
+# Thẩm quyền KHÔNG bị đụng tới: ``accounting_purchase_price``/``price_source``
+# (PriceProvider, TASK-105/105D/105E) và ``HistoricalConfirmedRegistry`` (E-J,
+# chỉ pre-cutover, INV-47/INV-51) giữ nguyên. Override ở đây chỉ tác động tới
+# ĐƯỜNG BÁO CÁO KPI (``kpi_purchase_price`` → ``EligibleKpiProfit`` → DS quy
+# đổi), đúng slot từ vựng đã dành sẵn ở ``PRICE_SOURCE_MANUAL``
+# (``app/modules/domain/models.py``), không tạo ra một authority giá nhập thứ hai.
+# ---------------------------------------------------------------------------
+
+# Provenance của giá nhập KPI dùng cho báo cáo (DEC-PHB02-02 §3).
+PURCHASE_PROVENANCE_AUTO = "AUTO"
+PURCHASE_PROVENANCE_MANUAL = "MANUAL"
+PURCHASE_PROVENANCE_MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
+# Chỉ hai giá trị dưới đây được LƯU: ``AUTO`` là trạng thái "chưa có dòng
+# override nào", nên nó không bao giờ là một dòng trong bảng.
+STORED_PURCHASE_PROVENANCES = (
+    PURCHASE_PROVENANCE_MANUAL, PURCHASE_PROVENANCE_MANUAL_OVERRIDE,
+)
+
+PRODUCT_GROUPS = ("DIEN_MAY", "GIA_DUNG")
+
+kpi_purchase_price_override = Table(
+    "kpi_purchase_price_override", METADATA,
+    Column("order_key", Text, primary_key=True),
+    Column("product_key", Text, primary_key=True),
+    Column("occurrence_index", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    Column("purchase_price", ExactNumeric, nullable=False),
+    Column("provenance", Text, nullable=False),
+    # Giá AUTO tại thời điểm Owner ghi đè. Đây KHÔNG phải lịch sử phiên bản —
+    # nó là bằng chứng một dòng cho chính chữ ``MANUAL_OVERRIDE``: không có nó,
+    # "override" chỉ là một cái nhãn tự khai. ``NULL`` ⟺ lúc nhập không có giá
+    # AUTO nào, tức provenance phải là ``MANUAL``.
+    Column("auto_price_at_entry", ExactNumeric, nullable=True),
+    Column("entered_at", Text, nullable=False),
+    Column("entered_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_price_override_origin"),
+    CheckConstraint(_in_check("provenance", STORED_PURCHASE_PROVENANCES),
+                    name="ck_price_override_provenance"),
+)
+
+product_group_classification = Table(
+    "product_group_classification", METADATA,
+    # Khoá theo ``product_key`` = sha256(NFC(product_raw).strip()) — CÙNG khoá
+    # mà ``order_line_source_version`` dùng. Nhờ vậy một mặt hàng đã được tick
+    # một lần thì mọi kỳ sau vẫn giữ phân loại đó, không phải tick lại
+    # (DEC-PHB02-05: "persisted sufficiently for repeat reporting").
+    Column("product_key", Text, primary_key=True),
+    _pipeline_origin_column(),
+    Column("product_group", Text, nullable=False),
+    # Nhãn hiển thị, KHÔNG phải khoá: ``product_key`` là hash nên một danh
+    # sách chỉ có hash thì không ai tick đúng được. Lấy đúng cách mà
+    # ``sales_queries.product_totals`` đã nghiệm thu (``MIN(product_raw)``).
+    Column("product_label", Text, nullable=True),
+    Column("classified_at", Text, nullable=False),
+    Column("classified_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_product_group_origin"),
+    CheckConstraint(_in_check("product_group", PRODUCT_GROUPS),
+                    name="ck_product_group_value"),
+)
+
+# Thứ tự tạo/xoá tường minh cho migration 0003. Không FK nào trỏ ra ngoài: cả
+# hai bảng là quyết định của con người trên một KHOÁ NGHIỆP VỤ, và khoá đó
+# phải sống sót qua một lần re-import làm đổi ``id`` của version.
+BUSINESS_TABLES = (kpi_purchase_price_override, product_group_classification)

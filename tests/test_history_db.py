@@ -101,6 +101,13 @@ PIPELINE_TABLES = {
     "order_line_result_version", "order_line_current", "reconciliation_flag",
 }
 
+# PHB-03 mục 3 + mục 4 — hai bảng QUYẾT ĐỊNH CỦA NGƯỜI của `0003_business`.
+# Chúng được thêm vào bản kiểm kê đã freeze vì `DEC-PHB02-02` (giá nhập phải
+# nhập/sửa được, có provenance) và `DEC-PHB02-05` (tick Gia dụng phải lưu lại
+# được) YÊU CẦU persistence — không phải vì một agent thấy tiện. Hai bảng, và
+# đúng hai bảng: PHB-03 §3 cấm dựng subsystem quanh chúng.
+BUSINESS_TABLES = {"kpi_purchase_price_override", "product_group_classification"}
+
 
 def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
     db_path = tmp_path / "history.db"
@@ -111,16 +118,17 @@ def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
         names = set(inspect(connection).get_table_names())
         assert LEGACY_TABLES <= names
         assert PIPELINE_TABLES <= names
+        assert BUSINESS_TABLES <= names
         assert connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
-        ).scalar() == "0002_snapshots"
+        ).scalar() == history_db.ALEMBIC_HEAD
     engine.dispose()
 
     down = _alembic("downgrade", db_path)
     assert down.returncode == 0, down.stderr
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert not ((LEGACY_TABLES | PIPELINE_TABLES)
+        assert not ((LEGACY_TABLES | PIPELINE_TABLES | BUSINESS_TABLES)
                     & set(inspect(connection).get_table_names()))
     engine.dispose()
 
@@ -143,36 +151,45 @@ def test_migration_0002_is_additive_and_leaves_legacy_rows_untouched(tmp_path):
         before = connection.exec_driver_sql(
             "SELECT import_id, file_fingerprint FROM legacy_import"
         ).fetchall()
-        assert not (PIPELINE_TABLES & set(inspect(connection).get_table_names()))
+        assert not ((PIPELINE_TABLES | BUSINESS_TABLES)
+                    & set(inspect(connection).get_table_names()))
     engine.dispose()
 
     assert _alembic("upgrade", db_path, "head").returncode == 0
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert PIPELINE_TABLES <= set(inspect(connection).get_table_names())
+        assert (PIPELINE_TABLES | BUSINESS_TABLES) <= set(
+            inspect(connection).get_table_names())
         assert connection.exec_driver_sql(
             "SELECT import_id, file_fingerprint FROM legacy_import"
         ).fetchall() == before
         assert connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
-        ).scalar() == "0002_snapshots"
+        ).scalar() == history_db.ALEMBIC_HEAD
     engine.dispose()
 
 
-def test_migration_chain_is_exactly_the_two_frozen_revisions():
-    """Chain đúng bằng những revision đã freeze — không prebuild PRA-003+."""
+def test_migration_chain_is_exactly_the_frozen_revisions():
+    """Chain đúng bằng những revision đã freeze — không prebuild vertical sau.
+
+    `0003_business` gia nhập danh sách này khi PHB-03 implement hai quyết định
+    Owner `DEC-PHB02-02`/`DEC-PHB02-05`; nó KHÔNG mở đường cho một migration
+    "để dành" cho vertical chưa có hợp đồng.
+    """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
     )
-    assert versions == ["0001_legacy.py", "0002_snapshots.py"]
+    assert versions == ["0001_legacy.py", "0002_snapshots.py", "0003_business.py"]
 
 
-def test_schema_declares_exactly_the_frozen_legacy_and_pipeline_tables():
-    assert set(schema.METADATA.tables) == LEGACY_TABLES | PIPELINE_TABLES
+def test_schema_declares_exactly_the_frozen_tables():
+    assert set(schema.METADATA.tables) == (
+        LEGACY_TABLES | PIPELINE_TABLES | BUSINESS_TABLES)
 
 
 def test_every_fact_table_carries_an_explicit_origin_column():
-    for name in LEGACY_TABLES | (PIPELINE_TABLES - {"snapshot_line", "reconciliation_flag"}):
+    for name in (LEGACY_TABLES | BUSINESS_TABLES
+                 | (PIPELINE_TABLES - {"snapshot_line", "reconciliation_flag"})):
         table = schema.METADATA.tables[name]
         assert "origin" in table.c, name
         assert any(
