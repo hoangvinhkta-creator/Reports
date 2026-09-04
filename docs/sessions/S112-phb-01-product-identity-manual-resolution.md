@@ -144,12 +144,16 @@ từ bán là văn xuôi kế toán — rút mã từ nó là đoán chữ.
 ### D8 — an toàn khi ghi phía Tracking
 
 `saveInv()` cũ = `db.ref("inv").set(INV)`, ghi đè CẢ nhánh `/inv` bằng ảnh
-chụp RAM lấy từ lúc `loadInv()`. Tám chỗ gọi. Cảnh mất dữ liệu cụ thể: máy A
-mở tab lúc 9h → máy B phân loại lúc 10h → máy A gõ một ô giá / tải file tồn /
-bấm "Qua ngày mới" lúc 10h30 → mapping của máy B biến mất, không một lời báo,
-và bên Reports nó hiện lại thành "chưa được phân loại".
+chụp RAM lấy từ lúc `loadInv()`. **CHÍN chỗ gọi** — bản ghi đầu của phiên này
+đếm "tám", review độc lập đếm lại từ `public/index.html` tại
+`9ede079` và ra chín (các dòng 7007, 7015, 7171, 7227, 7234, 7328, 7398,
+7554, 7562; định nghĩa ở 7018 không tính). Sửa số liệu, không đổi kết luận:
+cả chín đều đã chuyển. Cảnh mất dữ liệu cụ thể: máy A mở tab lúc 9h → máy B
+phân loại lúc 10h → máy A gõ một ô giá / tải file tồn / bấm "Qua ngày mới"
+lúc 10h30 → mapping của máy B biến mất, không một lời báo, và bên Reports nó
+hiện lại thành "chưa được phân loại".
 
-Đã sửa toàn bộ tám chỗ sang `saveInvPaths()` (multi-path `update()`):
+Đã sửa toàn bộ chín chỗ sang `saveInvPaths()` (multi-path `update()`):
 
 ```text
 phân loại (invSetCls, invUnCls, invTenSet)  → map/<khoá>          (+ 4 bảng
@@ -163,7 +167,37 @@ qua ngày / hoàn tác / di trú giá            → cu, moi
 `saveInv()` đã bỏ HẲN — không còn đường ghi đè cả nhánh nào tồn tại (bài kiểm
 F quét bản phục vụ đã bỏ chú thích). Không đổi
 `firebase-database.rules.json`: `/inv` đã có `.write` ở cấp node nên ghi hẹp
-không cần luật mới. Không refactor Firebase ngoài tám chỗ này.
+không cần luật mới. Không refactor Firebase ngoài chín chỗ này.
+
+#### BLOCKING-01 — sửa sau review độc lập (Tracking `53993f1`)
+
+Review độc lập tìm ra MỘT chỗ trượt trong chín chỗ trên: nhánh di trú (cloud)
+của `loadInv()` ghi `Object.assign(invGiaDuong("cu"), invGiaDuong("moi"))` —
+đúng bốn bảng giá mỗi thẻ — trong khi `invMigrateGia()` còn sửa `giaV2`,
+`giaV3`, `tay` và `lotRequired`. Bảng ngay trên đã khai đúng hình dạng cần có
+("di trú giá → cu, moi"); mã không khớp bảng.
+
+Hệ quả: hai cờ ĐÃ-DI-TRÚ không bao giờ xuống được máy chủ, nên di trú chạy
+lại ở MỖI lần nạp trang, và nhánh `!giaV3` của nó đặt `lo = {}`,
+`cong = bản sao gia`, `congTay = {}` rồi ghi đè — giá lô và giá công khai
+người dùng gõ tay biến mất sau mỗi lần mở trang, rồi chảy tiếp sang cột Tồn
+bảng giá → `tp/ton` → `purchase_price_history`. Bản TRƯỚC D8 (`set` cả `/inv`)
+không có lỗi này vì nó ghi luôn hai cờ, nên đây là hồi quy do PHB-01 gây ra.
+Điều kiện kích hoạt hẹp: chỉ với thẻ chưa từng di trú (không có `giaV2`/
+`giaV3` trên máy chủ).
+
+Đã sửa đúng một dòng — đơn vị ghi của di trú là CẢ THẺ
+(`{cu: INV.cu || null, moi: INV.moi || null}`), cùng lối `invUndoDay()`. Luật
+ghi hẹp giữ nguyên: `map` vẫn không nằm trong danh sách đường ghi, và không
+có lượt ghi đè cả `/inv` nào quay lại. Tám chỗ gọi còn lại không đổi một byte.
+
+Bài kiểm mục H của `kiem/phan-loai-ten-hang.js` chạy CHÍNH `loadInv()` thật
+(không tự dựng payload rồi tự canh payload mình vừa dựng): cờ xuống được máy
+chủ, lần nạp trang sau không ghi gì nữa, giá người dùng gõ còn nguyên, `map`
+không đụng — kèm đối chứng dựng lại hình dạng bốn-bảng cũ để chứng minh bài
+kiểm bắt được bản lỗi. `once()` của kho giả nay trả BẢN SAO thay vì tham
+chiếu sống: tham chiếu sống làm mọi lượt sửa trong RAM tự động "đã lưu" và
+che đúng lớp lỗi này.
 
 ## 5. Bằng chứng
 
@@ -172,7 +206,9 @@ không cần luật mới. Không refactor Firebase ngoài tám chỗ này.
 ```text
 Reports  : 2044 passed, 11 skipped   (baseline 2032; +10 bài PHB-01, +2 bài
                                       đối chứng D1, -0 bài bị xoá)
-Tracking : 59 bộ · 2558 đạt · 0 hỏng · 2 bỏ qua   (baseline 58 · 2500)
+Tracking : 59 bộ · 2572 đạt · 0 hỏng · 2 bỏ qua   (baseline 58 · 2500;
+                                      2558 trước khi sửa BLOCKING-01,
+                                      +14 khẳng định mục H)
 
 Governance validators (không đổi so với baseline đã ghi ở PROJECT_PROGRESS):
   validate_structure          PASS
@@ -212,7 +248,7 @@ KẾT LUẬN: 10/10 KHỚP
 | E | cách ly kinh tế (SL/lô/giá nhập/bình quân/tp-ton/PP history) | PASS (`phan-loai-ten-hang` D — so cả cây dữ liệu trừ nhánh `map`) |
 | F | mapping mới tiêu thụ được qua hợp đồng authority ĐANG CÓ | PASS (`test_a_mapping_written_to_inv_map_resolves_the_identity_on_the_next_run`) |
 | G | EMPTY_VALID ≠ FETCH_FAILED | PASS (`test_tracking_live_pull`, `test_tracking_inv_map_capture`) |
-| H | regression: workflow tồn kho, API inv_map, resolver, PP/KPI | PASS (2558 + 2044 đều xanh, hợp đồng `/api/xuat/inv_map` không đổi một byte) |
+| H | regression: workflow tồn kho, API inv_map, resolver, PP/KPI | PASS SAU SỬA (2572 + 2044 đều xanh, hợp đồng `/api/xuat/inv_map` không đổi một byte). Review độc lập bác kết quả PASS đầu tiên của dòng này: BLOCKING-01 là một hồi quy thật ở nhánh di trú của `loadInv()` mà bộ kiểm lúc đó không canh. Đã sửa (Tracking `53993f1`) và đã có bài kiểm mục H chạy chính `loadInv()` thật. |
 
 ## 6. Findings (thông tin, KHÔNG sinh task — §9)
 

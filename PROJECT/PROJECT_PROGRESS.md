@@ -13,32 +13,60 @@ tên hàng" bên Tracking (KHÔNG đi qua "Tải file tồn") → Owner chọn m
 `"-"` → ghi hẹp `/inv/map/<khoá>` → Reports chạy lại nhận diện được qua ĐÚNG
 hợp đồng authority cũ (`inv.map` → `/api/xuat/inv_map` → resolver).
 
+**Cập nhật 2026-09-04 — sau review độc lập:** review độc lập trả
+`CODE_REVIEW_GATE = FAIL` với ĐÚNG MỘT phát hiện chặn (`BLOCKING-01`, một
+chỗ trượt trong D8 ở nhánh di trú của `loadInv()` bên Tracking). Đã sửa
+trong phạm vi hẹp — xem `BLOCKING-01` bên dưới. `D1 = PASS`, `D2 = PASS`,
+phạm vi D8 tổng thể được review phân loại độc lập là
+`NECESSARY_BOUNDED_CONTAINMENT` nên KHÔNG revert. Gate hiện
+`PENDING_RE_REVIEW`; `PHB-01` VẪN CHƯA `DONE`.
+
 ```text
 REPORTS_BRANCH        = claude/phb-01-product-identity-manual-o28bsn
 REPORTS_HEAD_BEFORE   = bc9af2820b785330c3e5688dece9bce6775281f1
 TRACKING_BRANCH       = claude/phb-01-product-identity-manual-o28bsn
 TRACKING_HEAD_BEFORE  = 9ede079413065ae0beef2c3ae005d332d8d92eca
-TRACKING_HEAD_AFTER   = f0873942a419bc2b18431e6a94668a81eb02235f
+TRACKING_HEAD_AFTER   = 53993f1 (sửa BLOCKING-01; trước đó f0873942)
 D1_AUTHORITY_FAILURE  = IMPLEMENTED — fetch hỏng nay chặn lần chạy (loud);
                         `{"map": {}}` đúng hợp đồng = EMPTY_VALID_AUTHORITY
                         (COMPLETE, 0 mục), KHÁC hẳn FETCH_FAILED
 D2_INTAKE             = IMPLEMENTED — description-only intake, KHÔNG dùng
                         đường "Tải file tồn" (ranh giới toàn vẹn dữ liệu)
 D8_WRITE_SAFETY       = IMPLEMENTED — `saveInv()` (ghi đè cả `/inv`) bỏ hẳn;
-                        8 chỗ gọi chuyển sang multi-path update hẹp
+                        CHÍN chỗ gọi chuyển sang multi-path update hẹp
+                        (bản ghi đầu đếm "8"; review độc lập đếm lại từ
+                        `9ede079` và ra 9 — sửa số liệu, không đổi kết luận)
+BLOCKING_01           = ĐÃ SỬA (Tracking `53993f1`) — nhánh di trú của
+                        `loadInv()` ghi thiếu `giaV2`/`giaV3`/`tay`/
+                        `lotRequired`, làm di trú chạy lại mỗi lần nạp trang
+                        và xoá `lo`/`cong`/`congTay` người dùng đã gõ. Nay
+                        ghi CẢ THẺ (`{cu, moi}`); `map` vẫn không bị đụng.
 ECONOMICS_ISOLATION   = PASS (E1, so cả cây dữ liệu trừ nhánh `map`)
 BACKWARD_COMPAT       = PASS — hợp đồng `/api/xuat/inv_map` không đổi một byte
 TESTS                 = Reports 2044 passed / 11 skipped (baseline 2032)
-                        Tracking 59 bộ · 2558 đạt · 0 hỏng (baseline 58 · 2500)
-CROSS_REPO_KEY_CHECK  = 10/10 KHỚP (`inv_map_key` Python ↔ `invKeyOfName` JS)
+                        Tracking 59 bộ · 2572 đạt · 0 hỏng (baseline 58 · 2500;
+                        2558 trước khi sửa BLOCKING-01)
+CROSS_REPO_KEY_CHECK  = 10/10 KHỚP (`inv_map_key` Python ↔ `invKeyOfName` JS);
+                        review độc lập chạy lại rộng hơn (mọi code point
+                        U+0000–U+2FFFF + 4.070 câu biên) — 0 lệch
 VALIDATORS            = không đổi baseline (reference integrity FAIL đúng 3
                         reference REM-T06 đã biết)
 PRODUCTION_E2E        = NOT_RUN — phiên không có egress tới production
 DEPLOY                = KHÔNG thực hiện (Tracking build từ `main`; nhánh này
                         không tự lên production)
 SCOPE_DRIFT           = NO
-PHB01_STATUS          = IMPLEMENTED (COMPLETE_FOR_REVIEW)
+CODE_REVIEW_GATE      = PENDING_RE_REVIEW — review độc lập lần 1 = FAIL
+                        (BLOCKING-01); đã sửa hẹp, chờ tái review đúng phần
+                        sửa ấy
+PHB01_STATUS          = IMPLEMENTED (COMPLETE_FOR_REVIEW) — CHƯA `DONE`
 ```
+
+Các phát hiện `NON_BLOCKING` mà review độc lập nêu (evidence `inv_map_status`
+chưa hiển thị, HTTP 400 vs 503 ở nhánh capture cục bộ, docstring
+`TrackingUnavailableError` cũ, `invUnCls` không hoàn tác cục bộ khi ghi hỏng,
+hành vi "chưa nối" khi không có capture nào, cách trình bày
+`description_variants`, CI đối chiếu khoá chéo repo) CỐ Ý chưa sửa trong lần
+sửa hẹp này. Chúng là `DEFERRED`; ghi nhận phát hiện KHÔNG tự tạo task.
 
 Bản ghi TASK-PRA-005 bên dưới được GIỮ NGUYÊN — `PRA-005` vẫn `DONE`, phiên
 này không đụng tới nó và không mở `PHB-02`.
