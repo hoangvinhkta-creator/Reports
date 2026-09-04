@@ -1,5 +1,64 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-01 = DONE (AUTHORITATIVE, 2026-09-04, S112)
+
+`PHB-01` (Product Identity — phân loại theo TÊN HÀNG, vertical của repo
+**Tracking**) **TỔNG THỂ = `DONE`**. Ghi ở đây vì Reports là bên tiêu thụ hợp
+đồng `inv.map` (`app/modules/product/identity/tracking_inv_map.py`) và
+`IDENTITY_UNRESOLVED` là một trạng thái của pipeline Reports. Đầy đủ tại
+`docs/sessions/S112-phb-01-tracking-reconciliation-closure.md`.
+
+```text
+TRACKING_REPO             = hoangvinhkta-creator/Tracking
+TRACKING_GIT_GATE         = PASS (main tổ tiên nghiêm ngặt, 0 behind/3 ahead,
+                            worktree sạch, không commit lạ)
+PRE_MERGE_TEST_GATE       = PASS — 59 bộ · 2594 đạt · 0 hỏng · 2 bỏ qua · build OK
+TRACKING_MAIN_BEFORE      = 9ede079413065ae0beef2c3ae005d332d8d92eca
+TRACKING_MAIN_AFTER       = 598b4b1390cc96e552455ab85e2c48d78198b89c
+TRACKING_CANDIDATE        = 598b4b1390cc96e552455ab85e2c48d78198b89c
+FAST_FORWARD              = YES (không force · không rewrite · không squash ·
+                            không rebase · không cherry-pick · không merge commit)
+PUSH_MAIN                 = YES (9ede079..598b4b1)
+ROLLBACK_SHA              = 9ede079413065ae0beef2c3ae005d332d8d92eca
+APP_BUILD                 = b126 (trên main sau reconcile = trên production)
+PRODUCTION_FINGERPRINT    = PASS (nguồn: Owner) — live có `invActiveRow(`
+                            đúng 3 lần; hàm này vắng qua 53993f1, xuất hiện ở
+                            598b4b1 → production khớp bản sửa NB-2 CUỐI CÙNG
+SMOKE_LIVE_HTTP           = NOT_OBSERVABLE (proxy egress 403 tới
+                            price.tinphatcrm.com — cùng lớp denial S093/S110)
+SMOKE_VALUE_TYPE          = PASS bằng đọc-tĩnh + test bắt buộc (`chieuInvMap()`
+                            chỉ giữ giá trị CHUỖI, loại object wrapper;
+                            `kiem/xuat-baocao.js` mục 7b)
+SMOKE_CROSS_REPO_KEY      = PASS ba chiều — Tracking `invKeyOfName()` ≡ Reports
+                            `inv_map_key()` ≡ UI production
+REAL_E2E                  = PASS (Owner, production thật)
+E2E_CASE                  = BH73877 / "Máy giặt Electrolux EWF1143R7SC"
+E2E_KEY                   = N_MYGITELECTROLUXEWF1143R7SC -> EWF1143R7SC
+IDENTITY_BEFORE           = IDENTITY_UNRESOLVED
+IDENTITY_AFTER            = IDENTITY_UNRESOLVED đã biến mất
+ECONOMIC_STATE_AFTER      = PENDING — TRACKING_HISTORY_PENDING /
+                            Missing.PurchasePrice (ĐÚNG: identity không được
+                            bịa bằng chứng kinh tế, không ép AUTO)
+RERUN_WORKBOOK            = So_chi_tiet_ban_hang (10).xlsx
+RERUN_TOTALS              = 106 đơn không đổi · AUTO 17 → 56 · cần review
+                            89 → 50 · identity unresolved 36 → 35
+ECONOMIC_ISOLATION        = GIỮ NGUYÊN (không auto-recalc từ màn mới; khoá
+                            trùng dòng INV.cu/INV.moi đang hoạt động thì TỪ
+                            CHỐI ghi và đẩy về luồng Tồn kho — chốt NB-2)
+BLOCKING_FINDINGS         = 0
+DEFERRED                  = NB-1 · NB-3/4/5 · NB-6 (UI polish) · 35 mô tả chưa
+                            phân giải (OPERATIONAL DATA CLEANUP, không phải
+                            implementation, không chặn PHB-01)
+D8                        = CLOSED trong PHB-01 (không mở task D8 khác)
+SCOPE_DRIFT               = NO
+PHB01_FINAL_STATUS        = DONE
+NEXT_VERTICAL_ACTION      = PHB-02 BUSINESS PARITY CONTRACT (chưa bắt đầu
+                            implementation)
+```
+
+Không cần thêm implementation nào cho Product Identity. Khối canonical
+`TASK-PRA-005` (S111) bên dưới GIỮ NGUYÊN, không viết lại.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-005 = DONE (AUTHORITATIVE, 2026-09-03, S111)
 
 `TASK-PRA-005` (Sản phẩm — Mặt hàng trên chứng từ) **TỔNG THỂ = `DONE`**.
