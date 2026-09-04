@@ -1,5 +1,48 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-01 = IMPLEMENTED, CHƯA DONE (2026-09-04, S112)
+
+`PHB-01` (Product Identity Manual Resolution V1, contract `PHB-PI-001`) đã
+triển khai xong ở CẢ HAI phía và **CHƯA `DONE`**: còn independent review,
+deploy an toàn, và một lượt E2E thật do Owner thực hiện. Chi tiết đầy đủ tại
+`docs/sessions/S112-phb-01-product-identity-manual-resolution.md`.
+
+Luồng đã có mã chạy được: Reports gộp câu tên hàng chưa định danh theo KHOÁ
+`inv.map` → sheet "Chưa định danh" trong báo cáo Excel → màn "Phân loại theo
+tên hàng" bên Tracking (KHÔNG đi qua "Tải file tồn") → Owner chọn mã hoặc
+`"-"` → ghi hẹp `/inv/map/<khoá>` → Reports chạy lại nhận diện được qua ĐÚNG
+hợp đồng authority cũ (`inv.map` → `/api/xuat/inv_map` → resolver).
+
+```text
+REPORTS_BRANCH        = claude/phb-01-product-identity-manual-o28bsn
+REPORTS_HEAD_BEFORE   = bc9af2820b785330c3e5688dece9bce6775281f1
+TRACKING_BRANCH       = claude/phb-01-product-identity-manual-o28bsn
+TRACKING_HEAD_BEFORE  = 9ede079413065ae0beef2c3ae005d332d8d92eca
+TRACKING_HEAD_AFTER   = f0873942a419bc2b18431e6a94668a81eb02235f
+D1_AUTHORITY_FAILURE  = IMPLEMENTED — fetch hỏng nay chặn lần chạy (loud);
+                        `{"map": {}}` đúng hợp đồng = EMPTY_VALID_AUTHORITY
+                        (COMPLETE, 0 mục), KHÁC hẳn FETCH_FAILED
+D2_INTAKE             = IMPLEMENTED — description-only intake, KHÔNG dùng
+                        đường "Tải file tồn" (ranh giới toàn vẹn dữ liệu)
+D8_WRITE_SAFETY       = IMPLEMENTED — `saveInv()` (ghi đè cả `/inv`) bỏ hẳn;
+                        8 chỗ gọi chuyển sang multi-path update hẹp
+ECONOMICS_ISOLATION   = PASS (E1, so cả cây dữ liệu trừ nhánh `map`)
+BACKWARD_COMPAT       = PASS — hợp đồng `/api/xuat/inv_map` không đổi một byte
+TESTS                 = Reports 2044 passed / 11 skipped (baseline 2032)
+                        Tracking 59 bộ · 2558 đạt · 0 hỏng (baseline 58 · 2500)
+CROSS_REPO_KEY_CHECK  = 10/10 KHỚP (`inv_map_key` Python ↔ `invKeyOfName` JS)
+VALIDATORS            = không đổi baseline (reference integrity FAIL đúng 3
+                        reference REM-T06 đã biết)
+PRODUCTION_E2E        = NOT_RUN — phiên không có egress tới production
+DEPLOY                = KHÔNG thực hiện (Tracking build từ `main`; nhánh này
+                        không tự lên production)
+SCOPE_DRIFT           = NO
+PHB01_STATUS          = IMPLEMENTED (COMPLETE_FOR_REVIEW)
+```
+
+Bản ghi TASK-PRA-005 bên dưới được GIỮ NGUYÊN — `PRA-005` vẫn `DONE`, phiên
+này không đụng tới nó và không mở `PHB-02`.
+
 ## CANONICAL CURRENT STATE — TASK-PRA-005 = DONE (AUTHORITATIVE, 2026-09-03, S111)
 
 `TASK-PRA-005` (Sản phẩm — Mặt hàng trên chứng từ) **TỔNG THỂ = `DONE`**.
