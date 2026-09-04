@@ -1,5 +1,82 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-02 = AWAITING_OWNER (AUTHORITATIVE, 2026-09-04, S113)
+
+`PHB-02` (Business Parity Contract — báo cáo tay của Owner so với Reports hiện
+tại) đã hoàn tất phần AUDIT và sinh ra một hợp đồng **ĐỀ XUẤT**. `PHB-02`
+**CHƯA `DONE`**: còn 7 quyết định thuộc thẩm quyền Owner. Hợp đồng đầy đủ tại
+`docs/tasks/PHB-02-business-parity-contract.md`; bàn giao phiên tại
+`docs/sessions/S113-phb-02-business-parity-audit.md`.
+
+```text
+TARGET_GATE               = PASS (HEAD = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e,
+                            worktree sạch, PHB-01 = DONE, PHB-02 = CURRENT)
+MODE                      = READ-ONLY BUSINESS AUDIT — 0 dòng production code
+MANUAL_REPORT             = data/samples/Bao_cao_Kinh_doanh_2026.xlsx
+                            (59 sheet = 56 nhân viên-tháng 01–08.2026 +
+                            Summary 2025 + Summary 2026 + DataChart 2026)
+MANUAL_REPORT_AVAILABLE   = NO  (.xlsx không có trong session — PII, DEC-108)
+MANUAL_REPORT_STRUCTURE   = YES qua trích xuất đã chấp nhận
+                            (docs/analysis/_evidence/evidence.json + docs/analysis/*)
+                            ⟹ đủ thẩm quyền để kết luận parity mà KHÔNG bịa cấu trúc
+
+PARITY_ORACLE_FINDING     = Reports tái tạo sổ ERP ĐẾN TỪNG ĐỒNG
+                            (sales_raw_gross 3.564.610.000 ≡ THÔ 3.564.610k);
+                            báo cáo tay thì KHÔNG và lệch hai chiều ngược nhau
+                            (01.2026 BC thấp hơn ERP 0,58 % doanh số; 06.2026
+                            BC thấp hơn 6,5 % doanh số nhưng CAO HƠN 24,3 %
+                            lợi nhuận) vì chứa 635/18.148 ô giá gõ tay và các
+                            loại trừ đơn thủ công KHÔNG có dấu vết
+MUST_MATCH_PROVEN         = M1 số đơn theo (nhân viên, tháng) — 254=254=254 ·
+                            146=146=146
+                            M2 tổng bán gộp so với sổ ERP — khớp từng đồng
+KPI_PROFIT_COVERAGE       = golden 01/06.2026: price_source = Pending trên
+                            351/351 và 180/180 dòng ⟹ LN KPI KHÔNG TÍNH ĐƯỢC;
+                            production 09/2026 đạt 34/142 dòng
+CONVERSION_SEMANTICS      = MATCH ở chiều lead_source (ADS_7_5@0.075 trên
+                            351/351 dòng Tín Phát, đúng =G6/7.5% của báo cáo
+                            tay); NOT_IMPLEMENTED ở chiều product_group
+                            (product_group_provenance = DEFAULT 100 %)
+CONVERTED_REVENUE         = NOT_IMPLEMENTED trên đường pipeline (chỉ có
+                            conversion_rate_final theo dòng; không có tổng hợp)
+TARGET                    = NOT_IMPLEMENTED trên pipeline (D2 khoá cứng);
+                            target KHÔNG đổi theo thời gian trong 2026
+CLASSIFICATION            = MUST_MATCH 2 · MUST_PRESERVE_SEMANTICS 12 (S1–S12) ·
+                            MAY_IMPROVE_PRESENTATION 5 (P1–P5) · DEFER 9
+                            (D1–D9, gồm UX-PI-01) · DROP_INTENTIONALLY 8
+                            (X1–X8) · LEGACY_DEPENDENT 6 (L1–L6) ·
+                            TARGET_DEPENDENT 1 khối (PHB-05)
+SHEET_COUNT_CONCLUSION    = 56 sheet nhân viên-tháng KHÔNG đòi 56 tab web
+                            (chỉ 6 biến thể layout; 4/6 khác nhau đúng một ký
+                            tự rác ở ô R1)
+
+OWNER_DECISIONS_REQUIRED  = 7 (Q1 oracle parity · Q2 ngưỡng coverage LN KPI ·
+                            Q3 định nghĩa "Tổng số SP" (N.7) · Q4 phạm vi tổng
+                            công ty (lỗi A2) · Q5 "Gia dụng"/ProductGroup ·
+                            Q6 nguồn target (PHB-05) · Q7 mẫu số tỉ suất và
+                            "So tháng trước")
+PHB_03_READY              = NO — chặn bởi Q1, Q2, Q4, Q7
+                            (Q3/Q5/Q6 KHÔNG chặn PHB-03)
+BLOCKING_FINDINGS         = 2 — FIND-PHB02-B01 (parity oracle không xác định),
+                            FIND-PHB02-B02 (DS quy đổi sẽ implement với ngữ
+                            nghĩa đoán). Cả hai là quyết định Owner, KHÔNG
+                            phải defect code.
+NON_BLOCKING_FINDINGS     = FIND-PHB02-N01…N05
+GOVERNANCE_VALIDATORS     = validate_structure PASS · validate_project_state
+                            PASS · validate_evidence PASS (155 REQUIRED PASS) ·
+                            validate_task_completion PASS (13 DONE task) ·
+                            validate_reference_integrity FAIL với ĐÚNG 3
+                            reference REM-T06 đã biết (baseline không đổi)
+TEST_BASELINE             = full suite 2032 passed, 11 skipped ·
+                            Golden Baseline 58 passed, 2 skipped (KHÔNG đổi)
+SCOPE_DRIFT               = NO
+PHB02_FINAL_STATUS        = AWAITING_OWNER
+NEXT_VERTICAL_ACTION      = Owner giải quyết 7 quyết định Business Parity còn
+                            lại, sau đó freeze PHB-02 (KHÔNG bắt đầu PHB-03)
+```
+
+Khối canonical `PHB-01` (S112) bên dưới GIỮ NGUYÊN, không viết lại.
+
 ## CANONICAL CURRENT STATE — PHB-01 = DONE (AUTHORITATIVE, 2026-09-04, S112)
 
 `PHB-01` (Product Identity — phân loại theo TÊN HÀNG, vertical của repo
