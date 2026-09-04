@@ -28,12 +28,12 @@ PRODUCTION_BEFORE_SHA      = NOT_OBSERVABLE_FROM_SESSION. Bản Owner nghiệm t
 ROLLBACK_SHA               = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e
 PRODUCTION_DEPLOYED_SHA    = NOT_DEPLOYED_BY_SESSION
 
-CANONICAL_INTEGRATION      = DONE — fast-forward eaa3fde..6016ed5 (không force ·
+CANONICAL_INTEGRATION      = DONE — fast-forward từ eaa3fde (không force ·
                              không rewrite · không squash · không merge commit)
-CANONICAL_TIP              = 6016ed5512aa28dbc98ea66cdc10702c3056b2c9
-DEPLOY_THIS_COMMIT         = 6016ed5 — mã chạy IDENTICAL với d066d22, chỉ hơn
-                             phần docs; Owner bấm commit mới nhất, không phải
-                             đi tìm d066d22
+DEPLOY_THIS_COMMIT         = commit MỚI NHẤT trên canonical. INVARIANT: mọi
+                             commit từ d066d22 trở về sau có mã chạy IDENTICAL
+                             với candidate đã duyệt — phần thêm chỉ là docs.
+                             Owner không phải dò SHA.
 PRODUCTION_CODE_DELTA      = 0 — app/ tools/ config/ Dockerfile render.yaml
                              alembic.ini pyproject.toml identical với d066d22;
                              phần thêm CHỈ là docs (§6 giữ nguyên)
@@ -113,7 +113,7 @@ OD_C                       = GIỮ NGUYÊN ngữ nghĩa PRA-002: KHÔNG fuzzy-me
 SCOPE_DRIFT                = NO
 
 PHB03_STATUS               = PRODUCTION_VERIFICATION_INCOMPLETE
-NEXT_VERTICAL_ACTION       = Owner deploy 6016ed5 trên canonical + chạy 8 bước
+NEXT_VERTICAL_ACTION       = Owner deploy commit mới nhất trên canonical + 8 bước
                              kiểm ở mục 17 của docs/reviews/PHB-03-production-
                              verification-e2e.md. Đủ bằng chứng ⟹ PHB-03 = DONE
                              ⟹ PHB-04 Legacy Reference V1.
