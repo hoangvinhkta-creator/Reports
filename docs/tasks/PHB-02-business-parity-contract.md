@@ -1,13 +1,10 @@
-# PHB-02 — BUSINESS PARITY CONTRACT (ĐỀ XUẤT, CHỜ OWNER)
+# PHB-02 — BUSINESS PARITY CONTRACT (FROZEN)
 
-Status: AWAITING_OWNER
-Task Mode: MAJOR (audit-only vertical — không có production code trong phiên dựng tài liệu này)
+Status: FROZEN
+Task Mode: MAJOR (audit + contract freeze — 0 dòng production code)
+Frozen: 2026-09-04 (S114) bằng bảy quyết định Owner `DEC-PHB02-01…07`.
 Nguồn thẩm quyền: Owner > báo cáo tay của Owner > tài liệu Phase B đã chấp nhận >
 hành vi production hiện tại của Reports > mã nguồn > test > suy diễn.
-
-Tài liệu này **chưa phải hợp đồng đã freeze**. Nó là hợp đồng ĐỀ XUẤT, kèm
-đúng bảy quyết định mà chỉ Owner mới có thẩm quyền trả lời. Freeze PHB-02 chỉ
-xảy ra sau khi bảy quyết định đó được trả lời.
 
 Câu hỏi trung tâm của PHB-02:
 
@@ -16,21 +13,225 @@ Câu hỏi trung tâm của PHB-02:
 > trình báo cáo thủ công?*
 
 Đây **không** phải bài tập clone giao diện Excel. Kết luận "55 tab Excel ⟹ 55
-tab web" bị bác bỏ ngay từ đầu (xem mục 5.3).
+tab web" bị bác bỏ (mục 5.3 P1).
+
+Bản audit (mục 1–8) là **bản ghi bằng chứng, không viết lại**. Bảy quyết định
+Owner ở mục 0 giải quyết các câu hỏi mà audit đã mở, và mục 9–13 ghi kết quả
+sau khi áp dụng chúng.
+
+---
+
+## 0. QUYẾT ĐỊNH OWNER — ĐÃ CHỐT, THAY THẾ MỌI SUY DIỄN
+
+Bảy quyết định dưới đây do Owner ban hành. Chúng **thay thế** suy diễn của
+agent và **thay thế** mọi suy diễn ngược lại rút ra từ workbook tay cũ.
+
+### DEC-PHB02-01 — Mục đích của Reports / Parity Oracle
+
+```text
+Reports được xây dựng để THAY THẾ quy trình báo cáo thủ công.
+
+Báo cáo production phải được dẫn xuất từ:
+  - sổ kế toán thô;
+  - các nguồn hỗ trợ có thẩm quyền đã được chấp nhận;
+  - business rule đã được Owner duyệt.
+
+Báo cáo tay cũ KHÔNG phải oracle số học.
+
+Reports KHÔNG ĐƯỢC sửa chỉ để tái tạo các con số lịch sử đã nhập/sửa bằng
+tay, khi những giá trị đó không tái tạo được từ nguồn dữ liệu đã chấp nhận
++ business rule đã duyệt.
+
+Báo cáo tay cũ có giá trị với tư cách:  BUSINESS REQUIREMENT / SEMANTIC REFERENCE
+Nó KHÔNG phải:                          FINAL NUMERIC AUTHORITY
+
+⟹ "business parity" nghĩa là thay thế NĂNG LỰC NGHIỆP VỤ và NGỮ NGHĨA hữu ích
+   của quy trình thủ công, KHÔNG phải tái tạo mọi con số lịch sử hay mọi
+   artifact bảng tính.
+```
+
+**Đóng Q1.** Đúng phương án A mà audit khuyến nghị (mục 9.1).
+
+### DEC-PHB02-02 — Giá nhập / coverage lợi nhuận
+
+```text
+1. AUTO-fill giá nhập bất cứ khi nào dữ liệu có thẩm quyền cho phép thuật
+   toán khớp giá nhập ĐÃ ĐƯỢC CHẤP NHẬN trước đó trong dự án phân giải được.
+
+2. Nếu không đủ dữ liệu để phân giải giá nhập:
+   - hiện CẢNH BÁO TƯỜNG MINH;
+   - cho phép Owner/người dùng NHẬP TAY giá nhập.
+
+3. Ô giá nhập PHẢI vẫn sửa được ngay cả khi đã AUTO-fill.
+   Giữ provenance để hệ thống phân biệt được TỐI THIỂU:  AUTO  |  MANUAL / MANUAL_OVERRIDE
+   KHÔNG được âm thầm coi một manual override là AUTO.
+
+4. Lợi nhuận KPI chỉ được công nhận là HOÀN CHỈNH/CHÍNH THỨC khi:
+
+       PROFIT_COVERAGE = 100 %
+
+   Nếu coverage < 100 %:
+   - KHÔNG trình bày kết quả một phần như lợi nhuận KPI chính thức;
+   - phơi rõ phần giá nhập còn thiếu;
+   - cho phép hoàn thiện phần thiếu bằng tay.
+
+   KHÔNG phát minh ngưỡng 90 %, 95 % hay bất kỳ ngưỡng nào khác.
+```
+
+**Đóng Q2** — nhưng bằng một **GATE**, không phải một ngưỡng. Đây là khác biệt
+quan trọng: audit hỏi "ngưỡng nào là đủ"; Owner trả lời "không có ngưỡng —
+100 % hoặc chưa chính thức", cộng với một năng lực mới để đạt được 100 %.
+
+### DEC-PHB02-03 — Tổng số SP
+
+```text
+"Tổng số SP" = SUM(quantity) của các sản phẩm bán ra ĐỦ ĐIỀU KIỆN.
+
+Quy tắc đủ điều kiện:   giá bán sản phẩm > 1.000.000 VND
+
+Sản phẩm có giá bán <= 1.000.000 VND bị LOẠI khỏi chỉ tiêu này, để tránh
+nhiễu từ phụ kiện: giá treo, chân kê, và các phụ kiện giá trị thấp tương tự.
+
+Đây KHÔNG phải:  - số SKU duy nhất;
+                 - số dòng chứng từ.
+Nó là SỐ LƯỢNG sản phẩm đủ điều kiện đã bán.
+
+KHÔNG mở rộng thành một product taxonomy trừ khi có yêu cầu riêng.
+```
+
+**Đóng Q3 và đóng `N.7`** cho chỉ tiêu này. Đây là **quy tắc ngưỡng giá**, cố
+ý KHÔNG phải phân loại hàng hoá.
+
+### DEC-PHB02-04 — DS quy đổi (converted sales)
+
+```text
+DS quy đổi là CHỈ TIÊU CỐT LÕI đánh giá hiệu suất nhân viên.
+
+MỤC ĐÍCH: doanh thu thô tạo động lực sai lệch — một sản phẩm giá cao có thể
+sinh ra lợi nhuận bằng hoặc thấp hơn một sản phẩm giá thấp hơn.
+  Tủ lạnh: giá bán 30.000.000, lợi nhuận 1.000.000
+  Tivi:    giá bán 15.000.000, lợi nhuận 1.000.000
+Dùng doanh thu thô thì bán tủ lạnh được thưởng gấp đôi dù lợi nhuận như nhau.
+DS quy đổi chuẩn hoá hiệu suất qua lợi nhuận và một hệ số quy đổi kỳ vọng.
+
+CÔNG THỨC:
+       PROFIT          = sale_price − purchase_price
+       CONVERTED_SALES = PROFIT / CONVERSION_RATE
+
+  ví dụ: 1.000.000 / 0,075 = 13.333.333,33
+
+TUYỆT ĐỐI KHÔNG implement:  profit * rate     ← công thức này SAI
+
+PHẠM VI: DS quy đổi gồm TẤT CẢ đơn/bán hàng đủ điều kiện do nhân viên bán
+trong tháng. KHÔNG giới hạn ở một tập con được chọn tay.
+
+Vì DS quy đổi phụ thuộc lợi nhuận/giá nhập, implementation phải tôn trọng
+ngữ nghĩa completeness của DEC-PHB02-02.
+KHÔNG bịa DS quy đổi từ giá nhập chưa phân giải.
+```
+
+**Đóng ambiguity công thức DS quy đổi.** Khớp đúng `S4` mà audit đã ghi và
+đúng công thức `=G4/5,5%` của workbook tay.
+
+> **Đọc bắt buộc — `PROFIT` ở đây là gì.** Dòng `PROFIT = sale_price −
+> purchase_price` là minh hoạ **theo một đơn vị sản phẩm**, dùng để nói rõ
+> phép chia (không phải phép nhân). Nó **không** thay thế công thức lợi nhuận
+> KPI đã freeze bởi `DEC-143` / `OD-108B-01`:
+> `EligibleKpiProfit = (SellPrice − KpiPurchasePrice) × Quantity − Discount`
+> (`EligibleCosts = {}` closed empty set, `DeliveryCost` NOT ELIGIBLE,
+> `OtherKpiAdjustment = 0`). Không có gì trong `DEC-PHB02-04` nói bỏ `× Quantity`
+> hay bỏ `− Discount`, và cả hai đều đã là quyết định Owner đứng độc lập
+> (`DEC-114`, `DEC-122`, `DEC-143`). Vì vậy `PROFIT` trong `DEC-PHB02-04`
+> **=** `EligibleKpiProfit`. Ghi lại làm điểm xác nhận một dòng cho PHB-03,
+> KHÔNG phải câu hỏi Owner mới (xem `FIND-PHB02-N06`).
+
+### DEC-PHB02-05 — Định tuyến tỉ lệ quy đổi
+
+```text
+Nhóm nhân viên/nghiệp vụ quyết định tỉ lệ quy đổi MẶC ĐỊNH.
+
+A. TÍN PHÁT                                            rate = 7,5 %
+
+B. WHOLESALE / NỘI THÀNH  — Vinh · Quý · Hiệp
+     mặc định (hàng KHÔNG phải gia dụng)                rate = 2 %
+     nếu sản phẩm được TICK phân loại GIA_DUNG          rate = 8 %
+
+       if product_is_gia_dung:  rate = 8 %
+       else:                    rate = 2 %
+
+   Đây là nhóm DUY NHẤT hiện cần năng lực phân loại/tick "Gia dụng".
+   Phân loại Gia dụng là một PRODUCT-LEVEL OVERRIDE bên trong luồng
+   wholesale/nội-thành. Nó KHÔNG phải một loại nhân viên riêng.
+   KHÔNG suy ra Gia dụng tự động từ tên hàng, trừ khi có hợp đồng khác
+   được chấp nhận cho phép rõ ràng.
+
+C. NHÂN VIÊN BÁN LẺ KHÁC                                rate = 5,5 %
+   Nhóm này KHÔNG cần tính năng tick/phân loại Gia dụng cho luật này.
+   KHÔNG hiện và KHÔNG bắt buộc luồng đó với nhân viên bán lẻ thường.
+
+VÍ DỤ NGHIỆM THU (lợi nhuận = 1.000.000 VND):
+   Tín Phát                    1.000.000 / 7,5 %  = 13.333.333,33
+   Vinh/Quý/Hiệp, hàng thường  1.000.000 / 2 %    = 50.000.000
+   Vinh/Quý/Hiệp, Gia dụng     1.000.000 / 8 %    = 12.500.000
+   Bán lẻ khác                 1.000.000 / 5,5 %  = 18.181.818,18
+```
+
+**Đóng Q5.**
+
+### DEC-PHB02-06 — Target nhân viên
+
+```text
+Target PHẢI cấu hình được theo từng nhân viên.
+Owner/người dùng phải có chỗ để NHẬP và SỬA target.
+KHÔNG hard-code giá trị target của từng nhân viên vào logic tính toán.
+
+PHB-02 chỉ freeze YÊU CẦU NGHIỆP VỤ này.
+Implementation chi tiết của Target ở lại vertical roadmap của nó.
+```
+
+**Đóng Q6** ở mức ý định nghiệp vụ.
+
+### DEC-PHB02-07 — So tháng trước
+
+```text
+"So tháng trước" = phần trăm thay đổi của DOANH THU BÁN HÀNG
+                   tháng hiện tại so với tháng liền trước.
+
+    (doanh_thu_tháng_này − doanh_thu_tháng_trước) / doanh_thu_tháng_trước × 100 %
+
+Chỉ tiêu được so:  DOANH THU BÁN HÀNG
+KHÔNG phải:        DS quy đổi · lợi nhuận · số lượng SP · mức đạt target
+
+Xử lý doanh_thu_tháng_trước = 0 một cách TƯỜNG MINH khi implement;
+KHÔNG bịa vô cực hay một phần trăm gây hiểu nhầm.
+```
+
+**Đóng Q7** (phần So tháng trước). Xác nhận hành vi hiện tại của Reports và
+bác bỏ mẫu số của workbook tay (`I = F/F(tháng trước)` trên DS quy đổi).
 
 ---
 
 ## 1. Target Gate
+
+### 1.1 Gate của phiên audit (S113)
 
 ```text
 EXPECTED_HEAD   = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e
 OBSERVED_HEAD   = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e   → KHỚP
 DEFAULT_BRANCH  = claude/extract-upload-repo-gq2ws4 (origin HEAD branch)
 SESSION_BRANCH  = claude/business-parity-contract-me80ij
-                  (0 ahead / 0 behind default tại thời điểm mở phiên)
 WORKTREE        = sạch
 PHB-01          = DONE      (PROJECT/PROJECT_PROGRESS.md, khối canonical S112)
 PHB-02          = CURRENT   (NEXT_VERTICAL_ACTION của cùng khối)
+TARGET_GATE     = PASS
+```
+
+### 1.2 Gate của phiên freeze (S114)
+
+```text
+EXPECTED_HEAD   = a47c164   OBSERVED = a47c164bc018bfc5fdc97af08dacea406812a17c → KHỚP
+BRANCH          = claude/business-parity-contract-me80ij → KHỚP
+WORKTREE        = sạch
 TARGET_GATE     = PASS
 ```
 
@@ -76,16 +277,12 @@ một lần, có kịch bản tái tạo được, và đã commit:
 - `docs/analysis/01..07, 10_*.md` — sáu tài liệu bắt buộc của mục 27 đặc tả,
   **đã được Owner duyệt** (GATE-00, DEC-122, 2026-08-23).
 
-Vì vậy:
-
 ```text
 MANUAL_REPORT_STRUCTURE_AVAILABLE = YES (qua trích xuất đã chấp nhận, thẩm quyền mức 3)
 ```
 
 Mọi kết luận parity dưới đây trích từ hai nguồn trên hoặc từ mã nguồn/fixture
-tại `EXPECTED_HEAD`. **Không có cấu trúc sheet nào được suy đoán.** Các câu
-hỏi mà trích xuất không trả lời được đều bị đánh dấu `AMBIGUOUS` chứ không
-được điền bằng phỏng đoán.
+tại `EXPECTED_HEAD`. **Không có cấu trúc sheet nào được suy đoán.**
 
 ---
 
@@ -102,52 +299,52 @@ suy ra từ việc nhãn trông giống nhau).
 | A | Tổng quan kỳ — 10 ô | `/tong-quan` | CÓ | VERIFIED (`analytics_queries.period_totals`) |
 | A1 | Tổng đơn (`COUNT DISTINCT order_key`) | `/tong-quan`, `/nhan-vien?nguon=moi` | CÓ | VERIFIED |
 | A2 | Dòng hàng (mẫu số của mọi coverage) | như trên | CÓ | VERIFIED |
-| A3 | Tổng số lượng | như trên | CÓ | VERIFIED — nhưng **cố ý KHÁC** "Tổng số SP" của báo cáo tay (D3) |
+| A3 | Tổng số lượng | như trên | CÓ | VERIFIED — sẽ được thay/bổ sung bởi `DEC-PHB02-03` |
 | A4 | Doanh thu (net) | như trên | CÓ | VERIFIED — `sell_price × quantity − discount` (DEC-114) |
 | A5 | Lợi nhuận KPI + coverage | như trên | CÓ | VERIFIED công thức; **coverage thấp**, xem mục 4.4 |
 | A6 | Lợi nhuận kế toán | KHÔNG render | backend only | VERIFIED — gỡ khỏi UI theo `OWNER_PRESENTATION_DECISION` KPI-first (2026-09-03) |
 | A7 | Đơn AUTO / Đơn cần kiểm tra | `/tong-quan` | CÓ | VERIFIED (theo ĐƠN: một đơn PENDING nếu có ≥1 dòng PENDING) |
 | A8 | Dòng chưa có ngày bán | `/tong-quan` | CÓ | VERIFIED |
-| B | Nhân viên — 7 cột | `/nhan-vien?nguon=moi` | CÓ | VERIFIED (`employee_totals`, `GROUP BY employee_normalized, employee_group`) |
-| C | So kỳ trước (Δ tuyệt đối + Δ %) | `/tong-quan` | CÓ | VERIFIED — chỉ 2 chỉ tiêu (Tổng đơn, Doanh thu), chỉ khi đang xem MỘT tháng |
+| B | Nhân viên — 7 cột | `/nhan-vien?nguon=moi` | CÓ | VERIFIED (`GROUP BY employee_normalized, employee_group`) |
+| C | So kỳ trước (Δ tuyệt đối + Δ %) | `/tong-quan` | CÓ | VERIFIED — Tổng đơn + Doanh thu; **khớp `DEC-PHB02-07`** |
 | D | Danh sách đơn + chi tiết đơn | `/ban-hang`, `/ban-hang/<order_key>` | CÓ | VERIFIED |
-| E | Mặt hàng trên chứng từ | `/san-pham` | CÓ | VERIFIED — gộp theo **mô tả thô đã chuẩn hoá**, KHÔNG phải canonical identity, KHÔNG phải ProductGroup |
+| E | Mặt hàng trên chứng từ | `/san-pham` | CÓ | VERIFIED — gộp theo **mô tả thô đã chuẩn hoá** |
 | F | Review / Pending | `/du-lieu`, cột trạng thái | CÓ | VERIFIED |
-| G | Nhãn nguồn dữ liệu | badge `SỐ MỚI` / `SỐ CŨ` trên mọi số | CÓ | VERIFIED — hai loại số không bao giờ được cộng chung |
+| G | Nhãn nguồn dữ liệu | badge `SỐ MỚI` / `SỐ CŨ` | CÓ | VERIFIED — hai loại số không bao giờ cộng chung |
 
 ### 3.2 SỐ CŨ — legacy reference (chỉ đọc, không tính lại)
 
-| # | Năng lực | Bề mặt | Ghi chú |
-|---|---|---|---|
-| H | Ma trận `Summary 2026` tháng × người bán — 8 cột: Tổng đơn · Tổng số SP · Tổng bán · **DS quy đổi** · Tổng lợi nhuận · So tháng trước · **Target** · So target | `/nhan-vien` (mặc định) | Giá trị Excel nguyên trạng, đơn vị kVND, badge `SỐ CŨ`, ô có lỗi công thức mang dấu (i) |
-| I | `DataChart 2026` — doanh số theo ngày + tham chiếu tháng (cùng kỳ năm trước, so target, target/ngày) | `/doanh-so-ngay` | Đơn vị VND nguyên |
+| # | Năng lực | Bề mặt |
+|---|---|---|
+| H | Ma trận `Summary 2026` tháng × người bán — 8 cột: Tổng đơn · Tổng số SP · Tổng bán · DS quy đổi · Tổng lợi nhuận · So tháng trước · Target · So target | `/nhan-vien` (mặc định) |
+| I | `DataChart 2026` — doanh số theo ngày + tham chiếu tháng | `/doanh-so-ngay` |
 
-`legacy_summary_row` lưu đủ **16 cột** của `Summary 2026` (C..S), kể cả
-`bonus`, `workdays`, `base_salary`, `allowance`, `total_salary` — nghĩa là
-không có thông tin nào của Summary tay bị mất khi số hoá.
+`legacy_summary_row` lưu đủ **16 cột** của `Summary 2026` (C..S) — không có
+thông tin nào của Summary tay bị mất khi số hoá.
 
 ### 3.3 Khoảng trống đã đo được của SỐ MỚI
 
-| Năng lực có trong báo cáo tay | Trạng thái trên đường pipeline |
+| Năng lực | Trạng thái trên đường pipeline |
 |---|---|
-| **DS quy đổi** (cột `F` Summary) | **NOT_IMPLEMENTED.** `conversion_rate_final` được tính và lưu **theo từng dòng** (`order_line_result_version`), nhưng **không có phép tổng hợp `converted_revenue` nào** trong `app/web/*`, trong `tools/db/schema.py` phía pipeline, hay trong exporter. `converted_revenue` chỉ tồn tại ở đường legacy. |
-| **Target / So target** (cột `M`, `N`) | **NOT_IMPLEMENTED** trên pipeline — `OWNER_DECISION` D2 khoá cứng: cấm sao chép `legacy_summary_row.target` vào bất kỳ chỉ tiêu `PIPELINE_GENERATED` nào (DEC-166 E). |
-| **Tỉ suất lợi nhuận** (cột `H` = `G/E`) | **NOT_IMPLEMENTED** — LATER, tử số chưa được Owner chọn (N.7). |
-| **Tỉ lệ tồn kho** (cột `J`, từ `Nơi nhập = "Kho"`) | **DEFER** — cột `Nơi nhập` không tồn tại trong file ERP thô. |
-| **Thưởng / ngày công / lương** (cột `O`–`S`) | **DEFER** (N.9) — luật HR, ngoài đặc tả Reports. |
-| **Dòng "Gia dụng"** như một thực thể báo cáo | **NOT_IMPLEMENTED.** Xem mục 4.5 — đây là thay đổi mô hình có chủ đích (ADR-106/DEC-127), không phải thiếu sót. |
-| **Cùng kỳ năm trước / YTD** | Một phần: `DataChart 2026` đã import mang `sales_prev_year_vnd`. `Summary 2025` = `REFERENCE_ONLY`, **không import** (DEC-169). |
+| **DS quy đổi** | **NOT_IMPLEMENTED.** `conversion_rate_final` được tính/lưu **theo dòng**, nhưng **không có phép tổng hợp `converted_revenue` nào** ở `app/web/*`, ở phần pipeline của `tools/db/schema.py`, hay ở exporter. `converted_revenue` chỉ tồn tại ở đường legacy. |
+| **Target / So target** | **NOT_IMPLEMENTED** trên pipeline (D2 của PRA-003). |
+| **Tỉ suất lợi nhuận** | **NOT_IMPLEMENTED** — DEFER `D1`. |
+| **Nhập tay / override giá nhập** | **NOT_IMPLEMENTED.** Từ vựng đã có (`PRICE_SOURCE_MANUAL = "Manual"`, `app/modules/domain/models.py:43`, dành sẵn cho "when override/audit trail exists"), nhưng **không có đường ghi nào**. Tầng analytics là CHỈ-ĐỌC theo thiết kế. |
+| **Tick GIA_DUNG cấp sản phẩm** | **NOT_IMPLEMENTED.** `DefaultProductGroupProvider` trả `None` cho mọi dòng, CÓ CHỦ ĐÍCH (ADR-106 §6). |
+| Tỉ lệ tồn kho (cột `J`) | **DEFER** — cột `Nơi nhập` không có trong file ERP. |
+| Thưởng / ngày công / lương (cột `O`–`S`) | **DEFER** (N.9) — luật HR. |
+| Cùng kỳ năm trước / YTD | Một phần: `DataChart 2026` mang `sales_prev_year_vnd`. `Summary 2025` = `REFERENCE_ONLY`, không import. |
 
 ---
 
 ## 4. Đối chiếu số thật — bằng chứng quyết định
 
-Đây là phần quan trọng nhất của PHB-02. Ba nguồn được đối chiếu trên **cùng
-một kỳ, cùng một nhân viên**, tất cả đều là artifact đã commit:
+Ba nguồn được đối chiếu trên **cùng kỳ, cùng nhân viên**, tất cả đều là
+artifact đã commit:
 
-- **BC** = báo cáo tay của Owner (`evidence.json → report.sheet_totals`)
+- **BC** = báo cáo tay (`evidence.json → report.sheet_totals`)
 - **THÔ** = sổ ERP (`evidence.json → raw_by_month_employee`)
-- **REPORTS** = kết quả pipeline tại `EXPECTED_HEAD`
+- **REPORTS** = pipeline tại `EXPECTED_HEAD`
   (`tests/fixtures/golden/expected/period_2026_*.json`, sinh từ workbook
   production thật đã ẩn danh, `pipeline_entry_point = app.pipeline.run_import`)
 
@@ -170,245 +367,257 @@ một kỳ, cùng một nhân viên**, tất cả đều là artifact đã commi
 | Tổng bán (gộp) | 1.799.920 k | **1.925.272 k** | **1.924.872.000 VND** (net, sau chiết khấu 400.000) | Reports = THÔ; BC thấp hơn 6,5 % |
 | Lợi nhuận | 119.236 k | 95.957 k (ERP) | **KHÔNG TÍNH ĐƯỢC** | `{"Pending": 180}` — 180/180 dòng |
 
-### 4.3 Kết luận bắt buộc rút ra từ hai bảng trên
-
-**Báo cáo tay KHÔNG phải một oracle số học tái tạo được.**
+### 4.3 Vì sao báo cáo tay không thể là oracle số học
 
 Ba bằng chứng độc lập cùng chỉ một hướng:
 
-1. `01.2026`: BC **thấp hơn** ERP 0,58 % ở doanh số nhưng **thấp hơn** 0,8 % ở
-   lợi nhuận.
+1. `01.2026`: BC **thấp hơn** ERP 0,58 % ở doanh số và thấp hơn 0,8 % ở lợi nhuận.
 2. `06.2026`: BC **thấp hơn** ERP 6,5 % ở doanh số nhưng **CAO HƠN** ERP
-   24,3 % ở lợi nhuận (119.236 vs 95.957). Lệch **hai chiều ngược nhau trong
-   cùng một sheet** — không thể giải thích bằng một quy tắc duy nhất.
-3. `report.manual_price_overrides = 635/18.148` — 635 ô giá nhập bị gõ tay
-   thay vì công thức, và **không có dấu vết nào trong file cho biết ô nào,
-   vì sao, ai sửa**.
+   24,3 % ở lợi nhuận (119.236 vs 95.957) — lệch **hai chiều ngược nhau trong
+   cùng một sheet**, không giải thích được bằng một quy tắc duy nhất.
+3. `report.manual_price_overrides = 635/18.148` — 635 ô giá nhập bị gõ tay,
+   **không có dấu vết nào** cho biết ô nào, vì sao, ai sửa.
 
-Cộng thêm việc số đơn BC lệch tới 9 đơn ở một số kỳ-nhân-viên (ví dụ
-`06.2026 Ly`: BC 98 đơn > THÔ 89 đơn — báo cáo có nhiều hơn nguồn), kết luận
-là:
+Cộng thêm việc số đơn BC lệch tới 9 đơn ở một số kỳ (`06.2026 Ly`: BC 98 đơn >
+THÔ 89 đơn — báo cáo có nhiều hơn nguồn).
 
-> Báo cáo tay chứa các **quyết định nghiệp vụ của con người** (loại trừ đơn,
-> điều chỉnh giá nhập KPI) chồng lên số ERP, và những quyết định đó **không
-> được ghi lại ở đâu cả**. Reports tái tạo sổ ERP một cách chính xác tuyệt
-> đối. Sự chênh lệch giữa hai bên **không phải lỗi của Reports**.
-
-Hệ quả trực tiếp cho hợp đồng parity: **`MUST_MATCH` không thể có nghĩa "khớp
-con số trong báo cáo tay"**, vì con số đó không phải hàm của bất kỳ đầu vào
-nào Reports có. `MUST_MATCH` chỉ có nghĩa "khớp định nghĩa nghiệp vụ đã được
-chấp nhận, tính trên nguồn đã được chấp nhận". Đây chính là **Câu hỏi Owner
-Q1**.
+> **`DEC-PHB02-01` chốt đúng kết luận này.** Báo cáo tay = BUSINESS
+> REQUIREMENT / SEMANTIC REFERENCE, không phải FINAL NUMERIC AUTHORITY.
+> Reports **không được sửa** để đuổi theo con số tay. Một chênh lệch chỉ đáng
+> quan tâm khi Reports vi phạm một business rule đã duyệt hoặc một nguồn có
+> thẩm quyền — không phải khi nó đơn giản khác con số tay.
 
 ### 4.4 Lợi nhuận KPI — chỉ tiêu quản trị chính, và nó chưa có
 
 Trên cả hai kỳ golden, **100 % dòng có `price_source = "Pending"`** ⟹
-`accounting_profit` và `eligible_kpi_profit` đều `NULL` ⟹ ô "Lợi nhuận KPI"
-hiện `—` với coverage `0 / 351` (đường `run_import` trần) hoặc `2 / 351`
-(đường production có nạp historical-confirmed registry — xem
-`FIND-PRA003-01`). Trên production thật kỳ 09/2026, coverage đo được là
-**34 / 142 dòng** (khối canonical `TASK-PRA-005`, S111).
+`eligible_kpi_profit` `NULL` ⟹ ô "Lợi nhuận KPI" hiện `—` với coverage
+`0 / 351` (đường `run_import` trần) hoặc `2 / 351` (đường production có nạp
+historical-confirmed registry — `FIND-PRA003-01`). Trên production thật kỳ
+09/2026, coverage đo được là **34 / 142 dòng**.
 
-Điều này quan trọng vì trong báo cáo tay, **Lợi nhuận KPI là gốc của mọi thứ
-khác**:
+Trong báo cáo tay, Lợi nhuận KPI là gốc của mọi thứ khác:
 
 ```
 Lợi nhuận KPI (cột I) → DS quy đổi (cột F = I/tỉ lệ) → % Target (cột N = F/M)
                                                      → Thưởng (cột O = F × %)
 ```
 
-Không có Lợi nhuận KPI phủ đủ, **không có DS quy đổi, không có % Target,
-không có thưởng**. Đây là **Câu hỏi Owner Q2**.
+> **`DEC-PHB02-02` chốt xử lý.** Không có ngưỡng coverage nào được chấp nhận
+> ngoài **100 %**: dưới 100 % thì lợi nhuận KPI **không phải** số chính thức,
+> phần thiếu phải được phơi rõ, và phải có đường **nhập tay** để hoàn thiện.
+> Giá nhập AUTO vẫn phải sửa được, và override phải mang provenance riêng.
 
 ### 4.5 Tỉ lệ quy đổi — điểm khớp ngữ nghĩa đã được chứng minh
 
 `conversion.scheme_distribution = {"ADS_7_5@0.075": 351}` trên `01.2026 Tín
-Phát`, provenance `Auto:LeadSource`. Báo cáo tay dùng đúng `=G6/7.5%` cho Tín
-Phát ở mọi kỳ.
-
-Toàn bộ bảng tỉ lệ quan sát trong báo cáo tay được `config/conversion_rates.yaml`
-tái hiện đúng:
-
-| Đối tượng trong BC tay | Tỉ lệ BC | Dòng scheme tương ứng |
-|---|---|---|
-| Ly, Thắng, Linh, Fanpage | 5,5 % | `* + PERSONAL → PERSONAL_5_5` |
-| Tín Phát | 7,5 % | `* + ADS → ADS_7_5` (mặc định NV, DEC-109/DEC-119) |
-| Nội thành | 2 % | `NOI_THANH + PERSONAL + DIEN_MAY → NOI_THANH_2` |
-| Gia dụng | 8 % | `NOI_THANH + PERSONAL + GIA_DUNG → GIA_DUNG_8` |
-| Hoàng, Kiên | `(G−X)/5,5% + X/7,5%` gõ tay | hai bucket sinh tự động từ `lead_source_final` cấp đơn |
+Phát`, provenance `Auto:LeadSource` — đúng `=G6/7,5%` mà báo cáo tay dùng cho
+Tín Phát ở mọi kỳ. Toàn bộ bảng tỉ lệ quan sát trong báo cáo tay được
+`config/conversion_rates.yaml` tái hiện đúng.
 
 **Nhưng** `conversion.product_group_provenance = {"DEFAULT": 351}` — 100 %
-dòng rơi về `DIEN_MAY` theo fallback, **không dòng nào được phân loại
-ProductGroup thật**. `DefaultProductGroupProvider` trả `None` cho mọi dòng,
-cố ý (ADR-106 §6 / DEC-127 §5: Phase 1 phân loại 100 % thủ công, chưa có UI).
+dòng rơi về `DIEN_MAY` theo fallback. `DefaultProductGroupProvider` trả `None`
+cho mọi dòng, cố ý (ADR-106 §6 / DEC-127 §5): 155 mã model trong sheet Gia
+dụng lịch sử không phải sự thật nghiệp vụ (50 mã cũng xuất hiện ở sheet cá
+nhân, cùng model quy đổi ở tỉ lệ khác), và chưa ai định nghĩa tiền tố tên hàng
+nào nghĩa là `GIA_DUNG`.
 
-⟹ Hai dòng scheme `NOI_THANH_2` và `GIA_DUNG_8` **hiện không bao giờ được
-kích hoạt đúng**, và dòng báo cáo "Gia dụng" của báo cáo tay **không tái tạo
-được**. Đây là **Câu hỏi Owner Q5**.
+> **`DEC-PHB02-05` chốt xử lý và thu hẹp bài toán.** Tick `GIA_DUNG` là
+> **product-level override chỉ bên trong luồng wholesale/nội-thành
+> (Vinh/Quý/Hiệp)**; nhân viên bán lẻ khác **không cần** tính năng đó. Và
+> **cấm suy ra Gia dụng tự động từ tên hàng** — đúng thiết kế hiện có của
+> `DefaultProductGroupProvider`, nay được nâng thành luật nghiệp vụ.
+
+### 4.6 `DEC-PHB02-03` đo trên dữ liệu thật (E1, phiên S114)
+
+Áp quy tắc `SUM(quantity) khi giá bán > 1.000.000 VND` lên chính hai fixture
+golden (đọc trực tiếp `tests/fixtures/golden/period_2026_*.xlsx`):
+
+| Kỳ | `SUM(qty)` mọi dòng | **`DEC-PHB02-03`** | Số dòng bị loại | BC tay |
+|---|---:|---:|---:|---:|
+| 01.2026 Tín Phát | 407 | **358** | 45 | 387,6271681 |
+| 06.2026 Tín Phát | 210 | **178** | 27 | 178,8029801 |
+
+Hai điều đo được, cả hai đều làm quy tắc này an toàn để implement:
+
+1. **Đơn giá hay tổng dòng — không quan trọng trên dữ liệu thật.** Đọc
+   "giá bán" là **đơn giá** cho ra `358` / `178`; đọc là **tổng dòng** cũng
+   cho ra `358` / `178`. Chênh lệch **bằng 0** ở cả hai kỳ. Cách đọc canonical
+   là **đơn giá** (khớp cột `Giá bán` của sheet tay và cụm từ "product sale
+   price"), và sự mơ hồ này là **vô hại** trên thực tế.
+2. **Quy tắc loại đúng thứ Owner muốn loại.** Các mô tả bị loại nhiều nhất:
+   `Chi phí vận chuyển` (19/10) · `Giá treo Tivi` (12/9) · `Chân máy giặt Đa
+   Năng` (8) · `Chi phí lắp đặt` (2/1) · `Phụ Phí` (1/2) · `Giá treo xoay NB
+   P6`. Đúng nhóm "giá treo, chân kê, phụ kiện giá trị thấp".
+
+Hệ quả đã chấp nhận, nói rõ: vì đây là **ngưỡng giá** chứ không phải taxonomy,
+vài **sản phẩm thật giá thấp** cũng bị loại — đo được 2 dòng ở 01.2026 (`Đèn
+sưởi nhà tắm Kangaroo KGWH03T`) và 1 dòng ở 06.2026 (`Bình nước nóng Ariston
+Slim 3 20 RS VN`). Owner đã chỉ thị rõ *"KHÔNG mở rộng thành product
+taxonomy"*, nên đây là đánh đổi có chủ đích, không phải defect.
 
 ---
 
 ## 5. Phân loại parity
 
-Mỗi mục có bằng chứng hoặc lý do. Mục nào không có bằng chứng thì nằm ở
-`AMBIGUOUS` / câu hỏi Owner, không nằm ở đây.
-
 ### 5.1 MUST_MATCH — kết quả số phải khớp định nghĩa nghiệp vụ đã chấp nhận
 
-Chỉ hai chỉ tiêu đã được **chứng minh** khớp hôm nay. Không suy rộng.
+Theo `DEC-PHB02-01`, mốc so sánh là **sổ kế toán thô + nguồn có thẩm quyền +
+business rule đã duyệt**, KHÔNG phải con số báo cáo tay.
 
 | # | Chỉ tiêu | Định nghĩa chấp nhận | Bằng chứng |
 |---|---|---|---|
-| M1 | **Số đơn** theo (nhân viên, tháng) | `COUNT DISTINCT` mã đơn — tương đương `count(Trans)` của sheet cá nhân | 254=254=254 và 146=146=146 (mục 4.1/4.2); 9/30 kỳ khớp tuyệt đối, ≤3 đơn ở 22/30 kỳ trên toàn dataset |
-| M2 | **Tổng bán gộp** theo (nhân viên, tháng) so với **sổ ERP** | `Σ (Giá bán × SL)` trước chiết khấu | `sales_raw_gross = 3.564.610.000` ≡ `raw…sales_thousands = 3.564.610` — khớp đến từng đồng |
+| M1 | **Số đơn** theo (nhân viên, tháng) | `COUNT DISTINCT` mã đơn | 254=254=254 · 146=146=146 (mục 4.1/4.2) |
+| M2 | **Tổng bán gộp** so với **sổ ERP** | `Σ (Giá bán × SL)` trước chiết khấu | `sales_raw_gross = 3.564.610.000` ≡ `THÔ 3.564.610 k` — khớp từng đồng |
+| M3 | **Tổng số SP** | `DEC-PHB02-03` — `SUM(quantity)` khi đơn giá > 1.000.000 VND | Đo được 358 (01.2026) · 178 (06.2026), mục 4.6 |
+| M4 | **DS quy đổi** | `DEC-PHB02-04` + `DEC-PHB02-05` — `EligibleKpiProfit ÷ rate`, cộng đủ MỌI đơn đủ điều kiện trong tháng | Ví dụ nghiệm thu ở `DEC-PHB02-05`; **chỉ hợp lệ khi coverage = 100 %** |
+| M5 | **So tháng trước** | `DEC-PHB02-07` — `(DT tháng này − DT tháng trước) / DT tháng trước` | Hành vi hiện tại của `/tong-quan` đã đúng chỉ tiêu |
 
-`M1`/`M2` là các neo parity. **Chúng không khớp con số của báo cáo tay** và
-theo mục 4.3 thì không được phép khớp. Việc chốt điều này là Q1.
-
-### 5.2 MUST_PRESERVE_SEMANTICS — nghĩa nghiệp vụ phải tương đương, cách trình bày có thể khác
+### 5.2 MUST_PRESERVE_SEMANTICS
 
 | # | Ngữ nghĩa | Ràng buộc | Nguồn |
 |---|---|---|---|
-| S1 | Lợi nhuận KPI = `(SellPrice − KpiPurchasePrice) × Qty − Discount` | `EligibleCosts = {}` (closed empty set, KHÔNG phải fallback `0`); `DeliveryCost` NOT ELIGIBLE; `OtherKpiAdjustment = 0` | DEC-143 / `OD-108B-01` |
-| S2 | Hai cột giá nhập giữ hai vai trò khác nhau | `L` Giá thực nhập → `AccountingPurchasePrice`; `F` Giá nhập TT → `KpiPurchasePrice` = `L + KpiPurchaseAdjustment` | `docs/analysis/02_FORMULA_MAPPING.md` §1 |
-| S3 | Chiết khấu trừ vào **cả** doanh số **và** lợi nhuận | Doanh thu net ≠ "Tổng bán" của BC tay — đây là **phân kỳ có chủ đích, Owner đã quyết** | DEC-114, DEC-122 (C4b) |
-| S4 | DS quy đổi = **tổng của các bucket**, không bao giờ là một tỉ lệ pha trộn | `Σ(LN KPI theo lead_source ÷ rate(NV, group, lead_source, product_group, **ngày của đơn**))`. Cấm tuyệt đối mọi đường code chia một lợi nhuận gộp cho một tỉ lệ duy nhất | DEC-119, DEC-120, ADR-106 §4 |
-| S5 | `X` (phần lợi nhuận ADS) **không còn là đầu vào** | `X` gõ tay của Hoàng/Kiên thay bằng tổng có truy vết từ phân loại `lead_source` cấp đơn | `docs/analysis/02_FORMULA_MAPPING.md` §4 |
-| S6 | Tỉ lệ tra theo **ngày của đơn**, không theo "hôm nay" | `effective_from`/`effective_to`; in lại báo cáo tháng 3/2026 vào năm 2028 phải ra cùng số | DEC-121 |
-| S7 | Danh tính nhân viên được bảo toàn | Vinh/Quý/Hiệp là **ba** Employee thật thuộc group `NOI_THANH` — KHÔNG gộp thành một Employee giả tên "Nội thành" | DEC-127 §1 |
-| S8 | Đổi tên/vào-ra giữa chừng dùng `effective_from`/`effective_to` | Linh (03.2026) và Fanpage (04–05.2026) là **cùng một thực thể**, khác tên hiển thị | `docs/analysis/05_EXCEPTIONS.md` B3 |
-| S9 | Loại trừ thủ công thầm lặng → **Review Queue tường minh** | Đơn bị bỏ khỏi BC tay không dấu vết ⟹ trong Reports phải là một mục có lý do, có người quyết | đặc tả §18, DEC-128 |
-| S10 | `NULL` không bao giờ là `0`; kỳ trước vắng mặt không bao giờ là `−100 %` | Ô trống hiện `—`; mọi ô lợi nhuận đi kèm coverage `N / M dòng` | `analytics_presentation.py`, quy tắc P4 |
-| S11 | `SỐ CŨ` và `SỐ MỚI` không bao giờ cộng chung | badge nguồn bắt buộc trên mọi con số | DEC-166 E, `TASK-PRA-001` |
-| S12 | Lợi nhuận kế toán vẫn tồn tại ở backend | Gỡ khỏi management UI là quyết định trình bày, KHÔNG phải xoá khỏi mô hình | `OWNER_PRESENTATION_DECISION`, 2026-09-03 |
+| S1 | Lợi nhuận KPI = `(SellPrice − KpiPurchasePrice) × Qty − Discount` | `EligibleCosts = {}` closed empty set; `DeliveryCost` NOT ELIGIBLE; `OtherKpiAdjustment = 0` | DEC-143 / `OD-108B-01`, xác nhận lại bởi `DEC-PHB02-04` |
+| S2 | Hai cột giá nhập giữ hai vai trò khác nhau | `L` → `AccountingPurchasePrice`; `F` → `KpiPurchasePrice` = `L + KpiPurchaseAdjustment` | `docs/analysis/02_FORMULA_MAPPING.md` §1 |
+| S3 | Chiết khấu trừ vào **cả** doanh số **và** lợi nhuận | Doanh thu net ≠ "Tổng bán" của BC tay — phân kỳ có chủ đích | DEC-114, DEC-122 (C4b) |
+| S4 | DS quy đổi = **PHÉP CHIA**, không bao giờ phép nhân, không bao giờ một tỉ lệ pha trộn | `Σ(LN KPI theo nhóm ÷ rate)`. `profit * rate` bị cấm tuyệt đối | **`DEC-PHB02-04`**, DEC-119, DEC-120, ADR-106 §4 |
+| S5 | `X` (phần lợi nhuận ADS gõ tay) **không còn là đầu vào** | thay bằng tổng có truy vết từ phân loại cấp đơn | `docs/analysis/02_FORMULA_MAPPING.md` §4 |
+| S6 | Tỉ lệ tra theo **ngày của đơn**, không theo "hôm nay" | `effective_from`/`effective_to` | DEC-121 |
+| S7 | Danh tính nhân viên được bảo toàn | Vinh/Quý/Hiệp là **ba** Employee thật thuộc `NOI_THANH` — không gộp thành một thực thể giả | DEC-127 §1, xác nhận lại bởi `DEC-PHB02-05` B |
+| S8 | Đổi tên/vào-ra giữa chừng dùng hiệu lực theo thời gian | Linh (03.2026) và Fanpage (04–05.2026) là cùng một thực thể | `docs/analysis/05_EXCEPTIONS.md` B3 |
+| S9 | Loại trừ thủ công thầm lặng → **Review Queue tường minh** | đơn bị bỏ phải có lý do và người quyết | đặc tả §18, DEC-128 |
+| S10 | `NULL` không bao giờ là `0`; kỳ trước vắng mặt không bao giờ là `−100 %` | ô trống hiện `—`; mọi ô lợi nhuận kèm coverage `N / M dòng` | `analytics_presentation.py`; xác nhận lại bởi `DEC-PHB02-07` (xử lý mẫu số 0 tường minh) |
+| S11 | `SỐ CŨ` và `SỐ MỚI` không bao giờ cộng chung | badge nguồn bắt buộc | DEC-166 E |
+| S12 | Lợi nhuận kế toán vẫn tồn tại ở backend | gỡ khỏi UI là quyết định trình bày, không phải xoá khỏi mô hình | `OWNER_PRESENTATION_DECISION`, 2026-09-03 |
+| **S13** | **Giá nhập AUTO phải SỬA ĐƯỢC, và override mang provenance riêng** | tối thiểu phân biệt `AUTO` vs `MANUAL / MANUAL_OVERRIDE`; **cấm** âm thầm coi override là AUTO | **`DEC-PHB02-02`** |
+| **S14** | **Lợi nhuận KPI chỉ CHÍNH THỨC khi coverage = 100 %** | dưới 100 %: không trình bày như số chính thức, phơi rõ phần thiếu, cho hoàn thiện bằng tay. **Không có ngưỡng nào khác** | **`DEC-PHB02-02`** |
+| **S15** | **Tick `GIA_DUNG` là product-level override, chỉ trong luồng Vinh/Quý/Hiệp** | không phải loại nhân viên; **cấm** suy ra tự động từ tên hàng; **không** hiện luồng này cho bán lẻ thường | **`DEC-PHB02-05`** |
+| **S16** | **Target cấu hình được theo nhân viên, nhập/sửa được** | **cấm** hard-code giá trị target vào logic tính | **`DEC-PHB02-06`** |
 
-### 5.3 MAY_IMPROVE_PRESENTATION — cơ học bảng tính, không cần tái tạo
+### 5.3 MAY_IMPROVE_PRESENTATION
 
 | # | Yếu tố của báo cáo tay | Thay bằng |
 |---|---|---|
-| P1 | **56 sheet nhân viên-tháng** | **Một** trang + bộ chọn kỳ + chiều nhân viên. Không có bằng chứng nào cho thấy sheet riêng mang ngữ nghĩa nghiệp vụ ngoài việc là nơi chứa dữ liệu: cả 56 sheet chỉ có **6 biến thể layout**, và 4 trong 6 chỉ khác nhau ở ký tự rác ô `R1` (`,` hoặc `.`) và vùng công thức bị kéo tay. **Không cần một tab web cho mỗi nhân viên.** |
-| P2 | Dòng tổng ngày/tháng nằm **lẫn trong vùng dữ liệu** | `RowType` (`DETAIL`/`DAY_TOTAL`/`MONTH_TOTAL`) + outline row của Excel khi xuất; dòng dữ liệu chỉ là dữ liệu (DEC-115) |
+| P1 | **56 sheet nhân viên-tháng** | **Một** trang + bộ chọn kỳ + chiều nhân viên. 56 sheet chỉ có **6 biến thể layout**, 4/6 khác nhau đúng ký tự rác ô `R1`. **Không cần một tab web cho mỗi nhân viên.** |
+| P2 | Dòng tổng ngày/tháng nằm **lẫn trong vùng dữ liệu** | `RowType` + outline row khi xuất (DEC-115) |
 | P3 | Bố cục Summary một bảng phẳng 16 cột | Thẻ KPI + bảng + drill-down + bộ lọc |
 | P4 | Thứ tự và tên cột Excel | Tự do, miễn giữ ngữ nghĩa mục 5.2 |
-| P5 | Ô rác `R1` (`,` / `.`), `COUNTIF` bắt đầu từ dòng tiêu đề | Không tái tạo |
+| P5 | Ô rác `R1`, `COUNTIF` bắt đầu từ dòng tiêu đề | Không tái tạo |
 
-### 5.4 DEFER — hữu ích, không thuộc lần giao parity đầu tiên
+### 5.4 DEFER
 
 | # | Năng lực | Lý do |
 |---|---|---|
-| D1 | Tỉ suất lợi nhuận (margin) | Tử số chưa được Owner chọn — N.7 (xem Q7) |
+| D1 | Tỉ suất lợi nhuận (margin) | `DEC-PHB02-07` chốt "So tháng trước" nhưng **không** đề cập margin. Margin vẫn LATER theo §L — **không chặn PHB-03** |
 | D2 | Cùng kỳ năm trước / YTD | Cần `Summary 2025`, hiện `REFERENCE_ONLY` — PHB-04 |
 | D3 | Xu hướng nhân viên nhiều tháng | Cần ≥3 tháng dữ liệu pipeline |
-| D4 | Average order value | Không tồn tại trong báo cáo tay — không phải parity |
-| D5 | Sales mix `employee_group` × `product_group` | Chặn bởi ProductGroup chưa phân loại (Q5) |
-| D6 | Top-N nhân viên trên Tổng quan; Δ kỳ trước theo nhân viên | `USEFUL_BUT_DEFER` — trang Nhân viên đã trả lời đủ |
-| D7 | Thưởng / ngày công / lương cứng / phụ cấp (cột `O`–`S`) | Luật HR, ngoài đặc tả Reports — N.9 |
-| D8 | Tỉ lệ tồn kho (cột `J`) | Cột `Nơi nhập` không có trong file ERP; lấy từ Tracking sẽ là `ARCHITECTURE_DEPENDENCY` |
-| D9 | **UX-PI-01 — Inline Product Identity Resolution** | Chưa có vị trí backlog canonical trong repo; ghi tại đây để không mất. Ý định: sau khi Reports phát hiện các mô tả chưa phân giải, Owner phân loại được ngay từ UI của Reports, trong khi **Tracking vẫn là Product Identity Authority** và là nơi validate/persist quyết định. `NB-6` (bất nhất thị giác của modal "Phân loại theo tên hàng" bên Tracking) có thể được hấp thụ vào UX-PI-01. **KHÔNG thiết kế API, KHÔNG implement trong PHB-02.** |
+| D4 | Average order value | Không tồn tại trong báo cáo tay |
+| D5 | Sales mix `employee_group` × `product_group` | Ngoài phạm vi hẹp mà `DEC-PHB02-05` cho phép |
+| D6 | Top-N nhân viên trên Tổng quan; Δ kỳ trước theo nhân viên | `USEFUL_BUT_DEFER` |
+| D7 | Thưởng / ngày công / lương (cột `O`–`S`) | Luật HR — N.9 |
+| D8 | Tỉ lệ tồn kho (cột `J`) | Cột `Nơi nhập` không có trong file ERP |
+| D9 | **UX-PI-01 — Inline Product Identity Resolution** | **DEFERRED / NON-BLOCKING.** Ý định: Reports hiện các mô tả duy nhất chưa phân giải và cho Owner phân giải từ UI của Reports, trong khi **Tracking vẫn là Product Identity Authority**. `NB-6` có thể gộp vào đây. **KHÔNG implement bây giờ.** Repo chưa có vị trí backlog canonical nên mục này là nơi lưu giữ |
 
-### 5.5 DROP_INTENTIONALLY — cố ý không tái tạo
+### 5.5 DROP_INTENTIONALLY
+
+`DEC-PHB02-01` cho phép bỏ dứt khoát mọi artifact bảng tính dưới đây.
 
 | # | Yếu tố | Vì sao bỏ |
 |---|---|---|
-| X1 | `E1 = SUM(E3:E945) − D1 − C1` | Trừ một **tỉ lệ phần trăm** khỏi một **số lượng**. Sinh ra mọi "Tổng số SP" thập phân (387,6 / 178,8 / 62,6). Lỗi A1 |
-| X2 | `F` dòng tổng tháng = `SUM(F4:F8)` | Bỏ sót **cả Nội thành lẫn Gia dụng**; riêng tháng 01.2026 thiếu **60,0 %** tổng DS quy đổi. Ba cột cùng dòng tổng có ba phạm vi khác nhau. Lỗi A2 → thay bằng cấu hình `include_in_company_total` tường minh (Q4) |
-| X3 | Phép `/2` bù layout ở sheet kênh và `Summary!E3` | Bù cho việc dòng tổng nằm lẫn trong vùng `SUM`. DEC-115: một `/2` trong logic tổng hợp bị coi là **lỗi** |
-| X4 | `Summary 2026!D64 = '07.2026 Tín Phát'!$E$1` | Tham chiếu sai sheet (dòng Nội thành lấy số SP của Tín Phát). Lỗi A4 |
-| X5 | Mẫu số tháng trước gõ cứng (`=F4/1571182` …) | Lỗi A6 — thiếu dữ liệu kỳ trước thì để trống, không bịa số, không dùng `0` |
-| X6 | Số `X` gõ tay trong công thức quy đổi của Hoàng/Kiên | Gồm cả `05.2026 Hoàng` = `3770+16190` (cộng tay từng đơn) và Kiên giữ nguyên `7565` suốt 06/07/08.2026 (nhiều khả năng copy công thức chưa cập nhật — lỗi B2). **Đây chính là loại lỗi mà công cụ tồn tại để loại bỏ** |
-| X7 | `G1` trùng `C1` viết khác vùng quét | Lỗi B5, không ảnh hưởng số |
-| X8 | `B1 = 0` trên mọi sheet kênh | Kênh không điền `Trans` ⟹ số đơn kênh của BC tay là **0**, một artifact nhập liệu chứ không phải sự thật nghiệp vụ |
+| X1 | `E1 = SUM(E3:E945) − D1 − C1` | Trừ một **tỉ lệ phần trăm** khỏi một **số lượng** (lỗi A1). Thay bằng `DEC-PHB02-03` |
+| X2 | `F` dòng tổng tháng = `SUM(F4:F8)` | Bỏ sót cả Nội thành lẫn Gia dụng; riêng 01.2026 thiếu **60,0 %** tổng DS quy đổi (lỗi A2). Thay bằng `DEC-PHB02-04` "TẤT CẢ đơn đủ điều kiện" |
+| X3 | Phép `/2` bù layout | DEC-115: một `/2` trong logic tổng hợp bị coi là **lỗi** |
+| X4 | `Summary 2026!D64 = '07.2026 Tín Phát'!$E$1` | Tham chiếu sai sheet (lỗi A4) |
+| X5 | Mẫu số tháng trước gõ cứng (`=F4/1571182` …) | Lỗi A6. `DEC-PHB02-07` yêu cầu xử lý mẫu số 0 tường minh thay vì số cứng |
+| X6 | Số `X` gõ tay trong công thức quy đổi của Hoàng/Kiên | Gồm `05.2026 Hoàng = 3770+16190` và Kiên giữ `7565` suốt 06/07/08.2026 (lỗi B2) |
+| X7 | `G1` trùng `C1` viết khác vùng quét | Lỗi B5 |
+| X8 | `B1 = 0` trên mọi sheet kênh | Artifact nhập liệu (kênh không điền `Trans`), không phải sự thật nghiệp vụ |
+| **X9** | **Cột `I` "So tháng trước" tính trên DS quy đổi** | `DEC-PHB02-07` chốt chỉ tiêu được so là **DOANH THU BÁN HÀNG**, không phải DS quy đổi |
+| **X10** | **Dòng Summary "Gia dụng" như một thực thể nhân viên** | `DEC-PHB02-05`: Gia dụng là **product-level override**, KHÔNG phải một loại nhân viên |
 
-### 5.6 LEGACY_DEPENDENT — yêu cầu giữ lại cho PHB-04
+### 5.6 LEGACY_DEPENDENT (PHB-04) — không implement ở đây
 
-**KHÔNG implement trong PHB-02.**
+| # | Yêu cầu |
+|---|---|
+| L1 | `Summary 2025` = `REFERENCE_ONLY` — không import / persist / query / display (DEC-169) |
+| L2 | Cùng kỳ năm trước lấy từ `DataChart 2026` cột `AH`, đã import thành `legacy_monthly_reference.sales_prev_year_vnd` |
+| L3 | Target lịch sử (`legacy_summary_row.target`) **chỉ đọc**; cấm kết hợp vào chỉ tiêu `PIPELINE_GENERATED`. `DEC-PHB02-06` củng cố: target thật đến từ **cấu hình do Owner nhập**, không từ số lịch sử |
+| L4 | Báo cáo tay 2025 và trước kỳ hiện hành = `LEGACY_REFERENCE` — **KHÔNG chạy lại qua pipeline production như raw accounting input** |
+| L5 | 2026 sẽ **không** khớp tuyệt đối workbook cũ (DEC-120/DEC-121). `DEC-PHB02-01` nâng điều này thành nguyên tắc chung, không còn là ngoại lệ |
+| L6 | `legacy_summary_row` giữ đủ 16 cột `C..S` |
 
-| # | Yêu cầu | Ghi chú |
-|---|---|---|
-| L1 | `Summary 2025` = `REFERENCE_ONLY` — không import / persist / query / display | DEC-169. Là sheet dán cứng, 0 ô công thức, 99 dòng value-only |
-| L2 | Cùng kỳ năm trước lấy từ `DataChart 2026` cột `AH` (số cứng 2025), đã import thành `legacy_monthly_reference.sales_prev_year_vnd` | Chỉ theo tháng |
-| L3 | Target lịch sử (`legacy_summary_row.target`) là số tay gắn với một `import_id` — **chỉ đọc** | Cấm kết hợp vào bất kỳ chỉ tiêu `PIPELINE_GENERATED` nào (D2, DEC-166 E) |
-| L4 | Báo cáo tay 2025 và trước kỳ hiện hành = `LEGACY_REFERENCE` | **KHÔNG chạy lại qua pipeline production như raw accounting input** — luật đã freeze |
-| L5 | 2026 sẽ **không** khớp tuyệt đối workbook cũ | DS quy đổi của Hoàng và Kiên cao hơn ~**6,0 %** vì không di trú số ADS lịch sử. Chênh lệch đã được chấp nhận có ý thức (DEC-120), mốc chuẩn chính thức 01/01/2027 (DEC-121) |
-| L6 | `legacy_summary_row` giữ đủ 16 cột `C..S` | Không mất thông tin nào của Summary tay |
-
-### 5.7 TARGET_DEPENDENT — trích xuất, không phát minh (PHB-05)
-
-**KHÔNG implement Target trong PHB-02.** Chỉ ghi lại đủ để PHB-05 không phải
-đoán:
+### 5.7 TARGET_DEPENDENT (PHB-05) — không implement ở đây
 
 ```text
-CHỈ TIÊU ĐƯỢC ÁP    = cột N = F/M = DS QUY ĐỔI / Target
-                      (KHÔNG phải doanh số, KHÔNG phải lợi nhuận)
-KỲ                  = tháng; cộng thêm một target năm ở Summary!M3
-PHẠM VI             = theo từng nhân viên/kênh + một target công ty/tháng
-TARGET ĐỔI THEO THỜI GIAN? = KHÔNG trong 2026 — hằng số suốt 8 tháng:
-                      Ly 1.300.000 · Thắng 1.300.000 · Hoàng 1.300.000 ·
-                      Kiên 1.300.000 · Tín Phát 2.700.000 ·
-                      Nội thành 12.000.000 · Linh/Fanpage 1.300.000 ·
-                      Gia dụng = KHÔNG CÓ TARGET (null ở cả 8 kỳ)
-                      Công ty/tháng 28.790.000 · Năm 345.474.000 (= 12 × 28.790.000)
-CÔNG THỨC TƯỜNG MINH? = KHÔNG. Ba điểm mơ hồ đã đo được:
-  (a) XUNG ĐỘT ĐƠN VỊ trong CÙNG một sheet DataChart:
-      AJ2 = 28.789.481.081 (VND nguyên) vs J15 = 345.474.000 (nghìn đồng)
-      — lệch nhau 1.000 lần. Đúng loại lỗi mà DEC-106 tồn tại để ngăn.
-  (b) TỔNG KHÔNG KHỚP: tổng target nhân viên tháng 01.2026
-      = 1,3+1,3+2,7+1,3+1,3+12,0 = 19.900.000 nghìn đồng,
-      nhưng target công ty/tháng = 28.790.000. Chênh 8.890.000 không giải thích được.
-  (c) MẪU SỐ BẤT NHẤT: target/ngày = J15/350 nhưng tiến độ năm = B3/A3 với A3 = 365.
-SEMANTICS           = AMBIGUOUS  →  OWNER_DECISION_REQUIRED (Q6)
+YÊU CẦU NGHIỆP VỤ ĐÃ FREEZE (DEC-PHB02-06):
+  - Target cấu hình được THEO TỪNG NHÂN VIÊN.
+  - Owner/người dùng có chỗ để NHẬP và SỬA target.
+  - CẤM hard-code giá trị target của từng nhân viên vào logic tính toán.
+
+CHỈ TIÊU ĐƯỢC ÁP  = DS quy đổi (cột N = F/M), KHÔNG phải doanh số, KHÔNG phải lợi nhuận
+KỲ                = tháng (+ một target năm ở Summary!M3)
+
+QUAN SÁT TỪ WORKBOOK TAY — THAM CHIẾU, KHÔNG PHẢI NGUỒN:
+  target KHÔNG đổi suốt 8 kỳ 2026:
+    Ly · Thắng · Hoàng · Kiên · Linh/Fanpage = 1.300.000
+    Tín Phát = 2.700.000 · Nội thành = 12.000.000 · Gia dụng = KHÔNG CÓ
+    Công ty/tháng = 28.790.000 · Năm = 345.474.000 (= 12 × 28.790.000)
+  Ba điểm bất nhất của số lịch sử (nay KHÔNG còn chặn PHB-02 vì Owner sẽ nhập
+  target, không nhập kế thừa số cũ):
+    (a) xung đột đơn vị 1.000 lần trong cùng sheet DataChart
+        (AJ2 = 28.789.481.081 VND vs J15 = 345.474.000 nghìn đồng);
+    (b) tổng target nhân viên 01.2026 = 19.900.000 ≠ target công ty 28.790.000
+        (chênh 8.890.000);
+    (c) target/ngày chia 350 nhưng tiến độ năm chia 365.
+  ⟹ PHB-05 phải chốt ĐƠN VỊ CHUẨN (DEC-106: VND nguyên) khi dựng ô nhập target,
+     và KHÔNG kế thừa ba điểm bất nhất trên.
 ```
 
 ---
 
 ## 6. Summary Parity Matrix
 
-`Summary 2026` (tay) so với `/tong-quan` + `/nhan-vien?nguon=moi` (SỐ MỚI).
-
-| Cột tay | Nhãn tay | Công thức tay | Reports SỐ MỚI | PARITY |
+| Cột tay | Nhãn tay | Công thức tay | Reports SỐ MỚI | PARITY sau freeze |
 |---|---|---|---|---|
-| `C` | Tổng đơn | `'MM.2026 NV'!$B$1` = `count(Trans)` | Tổng đơn (`COUNT DISTINCT order_key`) | **MATCH** (M1) |
-| `D` | Tổng số SP | `$E$1` = `SUM(SL) − D1 − C1` | "Tổng số lượng" = `SUM(quantity)` **mọi dòng** | **MISMATCH có chủ đích** — tay sai (X1); Reports cố ý đổi nhãn + kèm chú thích cảnh báo (D3). Định nghĩa "SP" thật vẫn MỞ (Q3) |
-| `E` | Tổng bán | `$H$1` = `SUM(Giá bán × SL)` | "Doanh thu (net)" = `Σ(sell_price×qty − discount)` | **MISMATCH có chủ đích** — khác đúng phần chiết khấu (S3/DEC-114). Gộp thì khớp ERP tuyệt đối (M2) |
-| `F` | **DS quy đổi** | `=G/5,5%` \| `=G/7,5%` \| `=(G−X)/5,5%+X/7,5%` | **KHÔNG CÓ** | **NOT_IMPLEMENTED** — chỉ có `conversion_rate_final` theo dòng, không có tổng hợp |
-| `G` | Tổng lợi nhuận | `$I$1` = `Σ(Giá bán − Giá nhập TT)×SL` | "Lợi nhuận KPI" + coverage | **AMBIGUOUS** — công thức tương đương (S1), nhưng coverage 0–2/351 (golden) / 34/142 (production) ⟹ chưa có gì để so (Q2) |
-| `H` | Tỉ suất lợi nhuận | `=G/E` | **KHÔNG CÓ** | **NOT_IMPLEMENTED** — DEFER D1, tử số chưa chốt (Q7) |
-| `I` | So tháng trước | `=F/F(tháng trước)` — **mẫu số là DS quy đổi** | Δ trên **Tổng đơn** và **Doanh thu**, không phải DS quy đổi | **MISMATCH** — cùng tên, khác mẫu số. Reports so 2 chỉ tiêu tay không so; tay so 1 chỉ tiêu Reports chưa có |
-| `J` | Tỉ lệ tồn kho | `SUMIF(Nơi nhập="Kho")/H1` | **KHÔNG CÓ** | **NOT_IMPLEMENTED** — DEFER D8, không có nguồn |
-| `K` | Lợi nhuận thực tế | `$M$1` = `Σ(Giá bán − Giá thực nhập)×SL` | `accounting_profit` — có ở backend, **không render** | **NOT_DISPLAYED** có chủ đích (S12) |
-| `M` | Target | số cứng | **KHÔNG CÓ** | **NOT_IMPLEMENTED** — D2 khoá cứng (Q6) |
-| `N` | % Target | `=IFERROR(F/M,"")` | **KHÔNG CÓ** | **NOT_IMPLEMENTED** — phụ thuộc cả `F` lẫn `M` |
-| `O`–`S` | Thưởng, ngày công, lương cứng, phụ cấp, tổng lương | `=F×%`, nhập tay, `=P×4500/26`, `=IF(P>=26,30*26,P*30)`, `=SUM(O+Q+R)` | **KHÔNG CÓ** | **DEFER D7** — luật HR |
-| — | — | — | Dòng hàng (mẫu số coverage) | **Reports có, tay không** |
-| — | — | — | Đơn AUTO / Đơn cần kiểm tra | **Reports có, tay không** — thay cho việc loại trừ thầm lặng (S9) |
-| — | — | — | Dòng chưa có ngày bán | **Reports có, tay không** |
-| — | — | — | Badge nguồn `SỐ MỚI`/`SỐ CŨ` | **Reports có, tay không** (S11) |
+| `C` | Tổng đơn | `count(Trans)` | Tổng đơn (`COUNT DISTINCT order_key`) | **MATCH** (M1) |
+| `D` | Tổng số SP | `SUM(SL) − D1 − C1` | "Tổng số lượng" = `SUM(quantity)` mọi dòng | **RESOLVED** — `DEC-PHB02-03` thay cả hai: `SUM(qty)` khi đơn giá > 1.000.000 (M3) |
+| `E` | Tổng bán | `SUM(Giá bán × SL)` | "Doanh thu (net)" | **MATCH với ERP** (M2); khác BC tay đúng phần chiết khấu (S3) — chấp nhận theo `DEC-PHB02-01` |
+| `F` | **DS quy đổi** | `=G/tỉ lệ` | **KHÔNG CÓ** | **REQUIRED_V1** — `DEC-PHB02-04`/`05` (M4). Chặn bởi coverage 100 % (S14) |
+| `G` | Tổng lợi nhuận | `Σ(Giá bán − Giá nhập TT)×SL` | "Lợi nhuận KPI" + coverage | **SEMANTICS MATCH** (S1); chính thức chỉ khi coverage = 100 % (S14) |
+| `H` | Tỉ suất lợi nhuận | `=G/E` | **KHÔNG CÓ** | **DEFER D1** — không chặn PHB-03 |
+| `I` | So tháng trước | `=F/F(tháng trước)` trên **DS quy đổi** | Δ trên Tổng đơn + Doanh thu | **RESOLVED** — `DEC-PHB02-07` chốt **doanh thu bán hàng**; công thức tay bị bỏ (X9) |
+| `J` | Tỉ lệ tồn kho | `SUMIF(Nơi nhập="Kho")/H1` | **KHÔNG CÓ** | **DEFER D8** — không có nguồn |
+| `K` | Lợi nhuận thực tế | `Σ(Giá bán − Giá thực nhập)×SL` | backend, không render | **NOT_DISPLAYED** có chủ đích (S12) |
+| `M` | Target | số cứng | **KHÔNG CÓ** | **PHB-05** — `DEC-PHB02-06` (S16) |
+| `N` | % Target | `=IFERROR(F/M,"")` | **KHÔNG CÓ** | **PHB-05** — phụ thuộc `F` và `M` |
+| `O`–`S` | Thưởng, ngày công, lương | | **KHÔNG CÓ** | **DEFER D7** — luật HR |
+| — | — | — | Dòng hàng · Đơn AUTO/cần kiểm tra · Dòng chưa có ngày bán · badge nguồn | **Reports có, tay không** — giữ (S9/S10/S11) |
 
 ### 6.1 Ngữ nghĩa kỳ
 
 | | Báo cáo tay | Reports |
 |---|---|---|
-| Đơn vị kỳ | Tháng, cố định bởi tên sheet | Tháng, dẫn xuất từ `sale_date` thật có trong dữ liệu |
-| "Toàn bộ" | Không có | Có — và **không** bịa kỳ trước để so |
-| Dòng thiếu ngày | Rơi vào sheet của người nhập | Rơi khỏi **mọi** kỳ một cách nhất quán, và được đếm riêng ở ô "Dòng chưa có ngày bán" |
-| Kỳ trước rỗng | `=F/1571182` số cứng | Mọi ô so sánh để trống — **không** `−100 %` |
+| Đơn vị kỳ | Tháng, cố định bởi tên sheet | Tháng, dẫn xuất từ `sale_date` thật |
+| "Toàn bộ" | Không có | Có — và không bịa kỳ trước để so |
+| Dòng thiếu ngày | Rơi vào sheet của người nhập | Rơi khỏi **mọi** kỳ nhất quán, đếm riêng |
+| Kỳ trước rỗng | `=F/1571182` số cứng | Mọi ô so sánh để trống (`DEC-PHB02-07`) |
 
-### 6.2 Ngữ nghĩa gộp theo nhân viên
+### 6.2 Ngữ nghĩa gộp theo nhân viên (sau `DEC-PHB02-05`)
 
-| | Báo cáo tay | Reports |
+| | Báo cáo tay | Reports (frozen) |
 |---|---|---|
-| Thực thể | 8 dòng Summary: Ly, Thắng, Tín Phát, Hoàng, Kiên, Nội thành, Gia dụng, Linh/Fanpage | `employee_normalized` (người thật) × `employee_group` |
-| "Nội thành" | **một** dòng như thể một người | **ba** người thật (Vinh, Quý, Hiệp) trong group `NOI_THANH` (S7) |
-| "Gia dụng" | **một** dòng như thể một người | **không phải người** — là `ProductGroup`, thuộc tính của dòng hàng (ADR-106). Hiện 100 % `DEFAULT` ⟹ không tái tạo được (Q5) |
-| Nhân viên chưa map | im lặng rơi ra ngoài | "Chưa xác định nhân viên" + Review Queue loại `Missing` (C11 còn mở, không chặn) |
-| Đơn nhiều nhân viên | không xử lý | đếm ở **từng** dòng nhân viên; dòng TỔNG đếm mỗi đơn đúng **một** lần, kèm chú thích |
+| Thực thể | 8 dòng Summary gồm cả "Nội thành" và "Gia dụng" | Nhân viên thật × nhóm |
+| "Nội thành" | **một** dòng như thể một người | **ba** người thật: Vinh, Quý, Hiệp — rate 2 % mặc định (S7) |
+| "Gia dụng" | **một** dòng như thể một người | **KHÔNG phải thực thể** — là tick cấp sản phẩm, đổi rate 2 % → 8 % chỉ trong luồng Vinh/Quý/Hiệp (S15, X10) |
+| Bán lẻ khác | mỗi người một dòng | mỗi người một dòng, rate 5,5 %, **không** có luồng Gia dụng |
+| Tín Phát | một dòng, 7,5 % | một dòng, 7,5 % |
+| Nhân viên chưa map | im lặng rơi ra ngoài | "Chưa xác định nhân viên" + Review Queue |
+| Đơn nhiều nhân viên | không xử lý | đếm ở từng dòng NV; dòng TỔNG đếm mỗi đơn một lần |
 
 ---
 
 ## 7. Employee Parity
 
-Cách Owner đánh giá một nhân viên trong báo cáo tay, đọc từ `Summary 2026`
-theo thứ tự cột:
+Chuỗi đánh giá nhân viên của Owner, đọc từ `Summary 2026`:
 
 ```
 Tổng đơn → Tổng SP → Tổng bán → DS QUY ĐỔI → Lợi nhuận → Tỉ suất
@@ -416,331 +625,290 @@ Tổng đơn → Tổng SP → Tổng bán → DS QUY ĐỔI → Lợi nhuận �
 → TARGET → % TARGET → Thưởng → Ngày công → Lương
 ```
 
-**Chỉ tiêu quyết định là `F` — DS quy đổi.** Bằng chứng: nó là mẫu số của
-`% Target` (`N = F/M`), là cơ sở của `Thưởng` (`O = F × %`), và là chỉ tiêu
-mà `So tháng trước` (`I`) so sánh. Doanh số và lợi nhuận thô chỉ là đầu vào
-của nó.
+**Chỉ tiêu quyết định là DS quy đổi** — `DEC-PHB02-04` nâng nó lên thành *"chỉ
+tiêu cốt lõi đánh giá hiệu suất nhân viên"*, không còn là artifact bảng tính.
 
-Reports hôm nay cho Owner: nhân viên, nhóm, đơn, dòng hàng, tổng số lượng,
-doanh thu, LN KPI (+ coverage). **Bốn cột cuối của chuỗi đánh giá — DS quy
-đổi, Target, % Target, Thưởng — đều chưa có.**
+Yêu cầu nghiệp vụ đúng (không phải một tab cho mỗi nhân viên):
 
-**Không kết luận rằng web cần một tab cho mỗi nhân viên.** Yêu cầu nghiệp vụ
-đúng là:
-
-> Owner chọn **nhân viên + kỳ** và nhận đủ chuỗi đánh giá ở trên.
-
-Không có bằng chứng nào trong trích xuất cho thấy 56 sheet riêng mang ngữ
-nghĩa vượt quá việc trình bày: chúng chỉ có 6 biến thể layout, 4 trong đó
-khác nhau đúng một ký tự rác. Sheet riêng là hệ quả của việc Excel không có
-bộ lọc, không phải một quyết định nghiệp vụ.
+> Owner chọn **nhân viên + kỳ** và nhận đủ chuỗi đánh giá.
 
 ---
 
-## 8. Metric Semantic Audit
+## 8. Metric Semantic Audit (sau freeze)
 
-| METRIC | MANUAL_DEFINITION | REPORTS_DEFINITION | PARITY | BUSINESS_CONSEQUENCE | OWNER_DECISION_REQUIRED |
-|---|---|---|---|---|---|
-| **số đơn** | `count(Trans)` trên sheet; kênh = 0 vì không điền `Trans` | `COUNT DISTINCT order_key` | **MATCH** | Neo parity tin cậy | KHÔNG |
-| **tổng bán** | `Σ(Giá bán × SL)`, giá đã bị sửa tay | `Σ(sell_price×qty)` từ ERP, chưa trừ chiết khấu | **MATCH với ERP**, MISMATCH với BC tay | BC tay thấp hơn ERP 0,6–7,0 % tuỳ kỳ | **CÓ — Q1** |
-| **doanh số (net)** | không tồn tại như một khái niệm riêng | `Σ(sell_price×qty − discount)` | **NOT_IN_MANUAL** | 408 dòng, 36.750 k, 0,03 % doanh số công ty | KHÔNG (DEC-114/DEC-122 đã chốt) |
-| **lợi nhuận (KPI)** | `Σ(Giá bán − Giá nhập TT)×SL` — `Giá nhập TT` gõ tay ở 635/18.148 dòng | `(SellPrice − KpiPurchasePrice)×Qty − Discount`, chỉ cộng dòng `AUTO` | **AMBIGUOUS** | 100 % dòng golden `price_source = Pending` ⟹ chưa có số để so | **CÓ — Q2** |
-| **lợi nhuận thực tế / gộp** | `Σ(Giá bán − Giá thực nhập)×SL` (cột `M`) | `accounting_profit` | **MATCH về công thức**, NOT_DISPLAYED | Có ở backend cho audit/reconciliation | KHÔNG |
-| **tỷ lệ lợi nhuận** | `H = G/E` = LN KPI / Tổng bán **gộp** | không có | **NOT_IMPLEMENTED** | Cùng công thức trên mẫu số net sẽ ra số khác | **CÓ — Q7** |
-| **DS quy đổi** | `LN KPI ÷ tỉ lệ`, hai bucket cho Hoàng/Kiên với `X` gõ tay | không có tổng hợp; chỉ `conversion_rate_final` theo dòng | **NOT_IMPLEMENTED** | Chỉ tiêu quản trị chính đang thiếu | **CÓ — Q2 (chặn bởi coverage LN KPI)** |
-| **conversion / tỉ lệ quy đổi** | 5,5 % PERSONAL · 7,5 % ADS · 2 % Nội thành · 8 % Gia dụng | `config/conversion_rates.yaml` 4 chiều, tra theo ngày đơn | **MATCH** ở chiều `lead_source`; **NOT_IMPLEMENTED** ở chiều `product_group` (100 % `DEFAULT`) | Dòng "Gia dụng"/8 % không tái tạo được | **CÓ — Q5** |
-| **đơn hợp lệ** | ngầm định — đơn Owner **chọn giữ lại** trên sheet, không dấu vết | `AUTO` (mọi dòng có kết quả, không finding cần xem) vs `PENDING` | **MISMATCH về bản chất** | Loại trừ thầm lặng → hàng đợi tường minh (S9). Đây là **cải thiện**, không phải hồi quy | **CÓ — Q1** |
-| **số SP / tổng số SP** | `SUM(SL) − dòng phụ − một tỉ lệ %` (sai) | `SUM(quantity)` mọi dòng, nhãn khác đi có chủ đích | **MISMATCH có chủ đích** | Reports ra số nguyên, lớn hơn BC 0,05–0,3 và lớn hơn nữa vì tính cả dòng phụ | **CÓ — Q3** |
-| **target** | số cứng theo (nhân viên, tháng), hằng số suốt 2026 | không có | **NOT_IMPLEMENTED** | Xung đột đơn vị 1.000 lần; tổng NV ≠ tổng công ty | **CÓ — Q6** |
-| **comparison percentages** | `I = F/F(tháng trước)` trên **DS quy đổi**; tháng 01 dùng số cứng | Δ tuyệt đối + Δ % trên **Tổng đơn** và **Doanh thu** | **MISMATCH** | Cùng nhãn "So tháng trước", khác hẳn mẫu số | **CÓ — Q7 (cùng nhóm mẫu số)** |
-| **tỉ lệ tồn kho** | `SUMIF(Nơi nhập="Kho", Tổng bán)/H1` | không có | **NOT_IMPLEMENTED** | Cột `Nơi nhập` không tồn tại trong file ERP | KHÔNG (DEFER D8) |
+| METRIC | MANUAL_DEFINITION | REPORTS_DEFINITION (frozen) | PARITY | OWNER_DECISION_REQUIRED |
+|---|---|---|---|---|
+| **số đơn** | `count(Trans)`; kênh = 0 | `COUNT DISTINCT order_key` | **MATCH** | KHÔNG |
+| **tổng bán** | `Σ(Giá bán × SL)`, giá đã sửa tay | `Σ(sell_price×qty)` từ ERP | **MATCH với ERP** | KHÔNG — `DEC-PHB02-01` |
+| **doanh số (net)** | không tồn tại riêng | `Σ(sell_price×qty − discount)` | **NOT_IN_MANUAL**, chấp nhận | KHÔNG — DEC-114/DEC-122 |
+| **lợi nhuận (KPI)** | `Σ(Giá bán − Giá nhập TT)×SL` | `(SellPrice − KpiPurchasePrice)×Qty − Discount`, chỉ dòng `AUTO` | **SEMANTICS MATCH**; chính thức khi coverage = 100 % | KHÔNG — `DEC-PHB02-02` |
+| **lợi nhuận thực tế** | `Σ(Giá bán − Giá thực nhập)×SL` | `accounting_profit`, backend | **MATCH**, NOT_DISPLAYED | KHÔNG |
+| **tỷ lệ lợi nhuận** | `H = G/E` | chưa có | **DEFER D1** | KHÔNG (đã DEFER, không chặn) |
+| **DS quy đổi** | `LN KPI ÷ tỉ lệ`, `X` gõ tay | `EligibleKpiProfit ÷ rate`, mọi đơn đủ điều kiện | **REQUIRED_V1** | KHÔNG — `DEC-PHB02-04` |
+| **conversion / tỉ lệ** | 5,5 · 7,5 · 2 · 8 % | ma trận `DEC-PHB02-05` | **MATCH**; chiều `product_group` thu hẹp về tick thủ công trong luồng wholesale | KHÔNG — `DEC-PHB02-05` |
+| **đơn hợp lệ** | đơn Owner chọn giữ, không dấu vết | `AUTO` vs `PENDING` + Review Queue | **THAY THẾ có chủ đích** | KHÔNG — `DEC-PHB02-01`/`04` |
+| **số SP / tổng số SP** | `SUM(SL) − phụ − %` (sai) | `SUM(qty)` khi đơn giá > 1.000.000 | **RESOLVED** — 358 / 178 đo được | KHÔNG — `DEC-PHB02-03` |
+| **target** | số cứng theo (NV, tháng) | cấu hình do Owner nhập/sửa | **PHB-05** | KHÔNG ở mức ý định — `DEC-PHB02-06` |
+| **comparison percentages** | `I = F/F(prev)` trên DS quy đổi | Δ % trên **doanh thu bán hàng** | **RESOLVED** | KHÔNG — `DEC-PHB02-07` |
+| **tỉ lệ tồn kho** | `SUMIF(Nơi nhập="Kho")/H1` | chưa có | **DEFER D8** | KHÔNG |
 
 ---
 
-## 9. OWNER QUESTIONS — 7 câu
-
-Chỉ những câu **không thể** trả lời từ file hoặc mã nguồn.
-
-### Q1 — Báo cáo tay là oracle SỐ HỌC hay oracle NGHIỆP VỤ?
+## 9. Bảy câu hỏi Owner — TẤT CẢ ĐÃ ĐÓNG
 
 ```text
-WHY_REQUIRED = Reports tái tạo sổ ERP đến từng đồng (3.564.610.000 ≡ 3.564.610 k).
-  Báo cáo tay thì không: 01.2026 thấp hơn ERP 0,58 % ở doanh số nhưng
-  06.2026 lại thấp hơn 6,5 % ở doanh số VÀ CAO HƠN 24,3 % ở lợi nhuận.
-  635/18.148 ô giá bị gõ tay, không dấu vết ô nào/vì sao/ai. Một số kỳ có
-  nhiều đơn hơn cả sổ nguồn (06.2026 Ly: BC 98 > THÔ 89).
-  Không có hàm nào từ dữ liệu Reports có thể sinh ra con số của báo cáo tay.
-WHAT_DECISION_IT_UNLOCKS = Định nghĩa của chính từ "parity", và do đó toàn bộ
-  tiêu chí nghiệm thu PHB-03. Không trả lời câu này thì mọi con số khác đều
-  đang được so với một mốc không xác định.
-OPTIONS =
-  A (khuyến nghị) — ORACLE NGHIỆP VỤ: Reports phải tái tạo các QUYẾT ĐỊNH của
-     báo cáo tay từ đầu vào kiểm toán được. Số sẽ khác, và mỗi chênh lệch phải
-     giải thích được. Loại trừ thủ công trở thành Review Queue tường minh.
-  B — ORACLE SỐ HỌC: Reports phải khớp con số báo cáo tay. Chỉ khả thi nếu
-     Owner cung cấp được, cho từng kỳ, danh sách đơn bị loại và từng điều
-     chỉnh giá nhập. Nếu không có, phương án này bất khả thi — không phải khó.
-  C — SONG SONG: BC tay giữ nguyên là LEGACY_REFERENCE cạnh SỐ MỚI, không bao
-     giờ hoà làm một, và parity chỉ áp cho các kỳ từ một mốc trở đi.
+OWNER_DECISIONS_REQUIRED (audit S113) = 7
+OWNER_DECISIONS_APPLIED  (freeze S114) = 7
+OWNER_DECISIONS_REMAINING              = 0
 ```
 
-### Q2 — Ngưỡng coverage Lợi nhuận KPI nào được coi là "parity đã giao"?
+| # | Câu hỏi (S113) | Đóng bởi | Kết quả |
+|---|---|---|---|
+| **Q1** | Báo cáo tay là oracle SỐ HỌC hay NGHIỆP VỤ? | **`DEC-PHB02-01`** | **CLOSED** — oracle NGHIỆP VỤ (phương án A). Báo cáo tay = BUSINESS REQUIREMENT / SEMANTIC REFERENCE, không phải FINAL NUMERIC AUTHORITY |
+| **Q2** | Ngưỡng coverage LN KPI nào là "parity đã giao"? | **`DEC-PHB02-02`** | **CLOSED** — **không có ngưỡng**: chính thức chỉ khi 100 %. Kèm năng lực mới: AUTO-fill + cảnh báo + nhập tay + override sửa được có provenance |
+| **Q3** | "Tổng số SP" nghĩa là gì? (`N.7`) | **`DEC-PHB02-03`** | **CLOSED** — `SUM(quantity)` khi giá bán > 1.000.000 VND. Ngưỡng giá, không phải taxonomy. Đo được: 358 / 178 (mục 4.6) |
+| **Q4** | Tổng công ty theo tháng gồm những ai? (lỗi A2) | **`DEC-PHB02-01` + `04` + `05`** (đóng bằng dẫn xuất) | **CLOSED** — xem mục 9.1 |
+| **Q5** | "Gia dụng" có phải dòng báo cáo hạng nhất? | **`DEC-PHB02-05`** | **CLOSED** — KHÔNG. Là product-level override (tick), chỉ trong luồng Vinh/Quý/Hiệp; cấm suy tự động từ tên hàng; bán lẻ khác không có luồng này |
+| **Q6** | Target: tái dùng số lịch sử hay Owner cấp bảng mới? | **`DEC-PHB02-06`** | **CLOSED** ở mức ý định — target **cấu hình được, do Owner nhập/sửa**, cấm hard-code. Số lịch sử ở lại `LEGACY_REFERENCE` (L3). Chi tiết → PHB-05 |
+| **Q7** | Mẫu số của tỉ suất và của "So tháng trước" | **`DEC-PHB02-07`** | **CLOSED cho So tháng trước** — chỉ tiêu = **doanh thu bán hàng**. Phần **tỉ suất/margin** không được đề cập ⟹ giữ nguyên **DEFER `D1`**, và vì đã DEFER nên **không** phải quyết định Owner còn treo |
+
+### 9.1 Q4 đóng bằng dẫn xuất — trình bày đầy đủ
+
+`Q4` không được nêu đích danh trong bảy quyết định. Nó đóng vì **nội dung của
+nó bị hoà tan** bởi ba quyết định khác. Ghi rõ dẫn xuất để không ai phải đoán
+lại:
+
+1. `DEC-PHB02-01`: vùng `SUM(F4:F8)` bị cắt cụt là một **artifact bảng tính**
+   nhập tay, không tái tạo được từ nguồn đã chấp nhận ⟹ bị bỏ dứt khoát (X2).
+2. `DEC-PHB02-04`: DS quy đổi gồm **TẤT CẢ** đơn đủ điều kiện của nhân viên
+   trong tháng, *"không giới hạn ở một tập con được chọn tay"* ⟹ không còn cơ
+   sở nào để loại một nhân viên khỏi tổng.
+3. `DEC-PHB02-05`: liệt kê **đầy đủ** các nhóm và mỗi nhóm đều **có** một tỉ
+   lệ (Tín Phát 7,5 % · Vinh/Quý/Hiệp 2 %/8 % · bán lẻ khác 5,5 %) ⟹ mọi nhân
+   viên đều quy đổi được, nên mọi nhân viên đều vào tổng. Đồng thời "Gia dụng"
+   **không còn là một thực thể** để mà bao gồm hay loại trừ (X10).
 
 ```text
-WHY_REQUIRED = Lợi nhuận KPI là gốc của DS quy đổi → % Target → Thưởng.
-  Đo được: golden 01.2026 và 06.2026 có price_source = "Pending" trên
-  351/351 và 180/180 dòng; production kỳ 09/2026 đạt 34/142 dòng.
-  Reports trung thực hiển thị "—" thay vì bịa số — nhưng một báo cáo mà
-  chỉ tiêu quản trị chính là "—" thì chưa thay được quy trình thủ công.
-WHAT_DECISION_IT_UNLOCKS = Có được phép mở DS quy đổi (PHB-03) hay không, và
-  Reports được coi là "đủ dùng" ở mức phủ nào.
-OPTIONS =
-  A — Đặt một ngưỡng coverage tối thiểu; dưới ngưỡng thì kỳ đó được đánh dấu
-      chưa đủ điều kiện thay báo cáo tay.
-  B — Chấp nhận coverage thấp, hiển thị DS quy đổi chỉ trên phần AUTO, luôn
-      kèm mẫu số.
-  C — Ưu tiên nguồn giá nhập trước (Price Master / persistence của
-      KpiPurchaseAdjustment) và hoãn DS quy đổi cho tới khi coverage đạt.
-```
-
-### Q3 — "Tổng số SP" nghĩa là gì?
-
-```text
-WHY_REQUIRED = Công thức của báo cáo tay chứng minh được là sai (trừ một tỉ lệ
-  phần trăm khỏi một số lượng), nên không dùng làm định nghĩa được. Reports
-  hiện đếm MỌI dòng và cố ý đổi nhãn thành "Tổng số lượng" kèm chú thích.
-  `non_product_lines` trong config/validation.yaml là cấu hình hạ mức cảnh
-  báo cho validator, KHÔNG phải phân loại hàng hoá — dùng nó làm quy tắc đếm
-  là tự cấp thẩm quyền cho một file chưa bao giờ được duyệt cho việc đó (N.7).
-WHAT_DECISION_IT_UNLOCKS = Ô "Tổng số SP" có tồn tại trong V1 hay không, và
-  gián tiếp cả tử số của tỉ suất nếu Owner muốn tính theo SP.
-OPTIONS =
-  A — Giữ "Tổng số lượng" (đếm mọi dòng) làm chỉ tiêu duy nhất, bỏ hẳn "Tổng số SP".
-  B — Owner ban hành danh sách có thẩm quyền các loại dòng KHÔNG phải hàng hoá
-      (phí vận chuyển, công lắp đặt, chiết khấu, voucher, chân máy giặt, giá
-      treo tivi…), và Reports hiển thị CẢ HAI, phân biệt rõ.
-```
-
-### Q4 — Tổng công ty theo tháng gồm những ai?
-
-```text
-WHY_REQUIRED = Trong CÙNG một dòng tổng của báo cáo tay, ba cột có ba phạm vi
-  khác nhau: E = SUM(E4:E9) gồm Nội thành, bỏ Gia dụng; F = SUM(F4:F8) bỏ CẢ
-  HAI; G và K gồm Nội thành, bỏ Gia dụng. Riêng tháng 01.2026, tổng DS quy đổi
-  đang báo cáo thiếu 60,0 % (9.742.558 so với 24.381.683 nghìn đồng) — riêng
-  Nội thành đã lớn hơn tổng của cả 5 nhân viên cá nhân cộng lại.
-  Không thể biết đây là chính sách hay là vùng SUM bị gõ thiếu.
-WHAT_DECISION_IT_UNLOCKS = Ý nghĩa của mọi con số "tổng công ty", và việc có
-  cần cấu hình include_in_company_total tách khỏi include_in_kpi hay không.
-OPTIONS =
-  A — Mọi đối tượng có include_in_kpi = true đều vào tổng, ở MỌI cột (nghĩa là
-      vùng SUM cũ là lỗi gõ).
-  B — Kênh thật sự bị loại khỏi tổng công ty theo chính sách ⟹ khai báo tường
-      minh bằng include_in_company_total, không bằng một vùng SUM.
-```
-
-### Q5 — "Gia dụng" có phải một dòng báo cáo hạng nhất trong V1 không?
-
-```text
-WHY_REQUIRED = Báo cáo tay coi "Gia dụng" như một thực thể (một dòng Summary,
-  16 sheet, tỉ lệ quy đổi 8 %). Mô hình Reports đã cố ý khác: Gia dụng là
-  ProductGroup — thuộc tính của DÒNG HÀNG, không phải một con người
-  (ADR-106/DEC-127), vì đo trên dữ liệu thật thì 34 % dòng hàng Gia dụng do
-  nhóm STANDARD_SALES bán.
-  Đo được tại HEAD: product_group_provenance = {"DEFAULT": 351} — 100 % dòng
-  rơi về DIEN_MAY theo fallback. DefaultProductGroupProvider trả None cho mọi
-  dòng, CÓ CHỦ ĐÍCH: 155 mã model trong sheet Gia dụng lịch sử không phải sự
-  thật nghiệp vụ (50 mã cũng xuất hiện ở sheet cá nhân, cùng model quy đổi ở
-  tỉ lệ khác), và chưa ai định nghĩa tiền tố tên hàng nào nghĩa là GIA_DUNG.
-  ⟹ Hai dòng scheme NOI_THANH_2 và GIA_DUNG_8 hiện không bao giờ kích hoạt đúng.
-WHAT_DECISION_IT_UNLOCKS = DS quy đổi có đúng cho kênh hay không; sales mix
-  theo nhóm hàng; và ai/khi nào phân loại ProductGroup.
-OPTIONS =
-  A — V1 không cần dòng "Gia dụng"; chấp nhận mọi dòng là DIEN_MAY và nói rõ
-      hệ quả lên DS quy đổi của kênh.
-  B — Cần dòng "Gia dụng" ⟹ phải có nguồn phân loại ProductGroup trước
-      (Owner phân loại tay qua UI, hoặc Tracking cấp phân loại).
-```
-
-### Q6 — Target: tái dùng số lịch sử hay Owner cấp bảng mới? (biên PHB-05)
-
-```text
-WHY_REQUIRED = Target ĐÃ tồn tại trong báo cáo tay và ĐÃ được import làm SỐ CŨ
-  (legacy_summary_row.target), nhưng OWNER_DECISION D2 cấm tuyệt đối sao chép
-  nó vào bất kỳ chỉ tiêu PIPELINE_GENERATED nào. Ba điểm mơ hồ đã đo được:
-  (a) xung đột đơn vị 1.000 lần trong cùng sheet DataChart (AJ2 = 28.789.481.081
-      VND vs J15 = 345.474.000 nghìn đồng);
-  (b) tổng target nhân viên tháng 01.2026 = 19.900.000 nghìn đồng nhưng target
-      công ty/tháng = 28.790.000 — chênh 8.890.000 không giải thích được;
-  (c) target/ngày chia 350 nhưng tiến độ năm chia 365.
-  Fact có lợi: target KHÔNG đổi theo thời gian trong suốt 2026, và Gia dụng
-  không có target ở cả 8 kỳ.
-WHAT_DECISION_IT_UNLOCKS = PHB-05 có nguồn target hợp lệ hay không, và đơn vị
-  chuẩn của nó.
-OPTIONS =
-  A — Owner cấp bảng target mới (nhân viên/kênh × tháng, VND nguyên theo DEC-106),
-      số cũ ở lại đường legacy làm tham chiếu.
-  B — Ratify số lịch sử làm target chính thức từ một mốc, kèm quyết định tường
-      minh về đơn vị và về khoản chênh 8.890.000.
-```
-
-### Q7 — Mẫu số của tỉ suất lợi nhuận và của "So tháng trước"
-
-```text
-WHY_REQUIRED = Hai chỗ dùng chung một vấn đề mẫu số, và cả hai đều đổi nghĩa
-  con số Owner đọc:
-  (a) Tỉ suất: báo cáo tay H = G/E = LN KPI / Tổng bán GỘP. Doanh thu của
-      Reports là NET (đã trừ chiết khấu, DEC-114). Cùng công thức, hai mẫu số,
-      hai kết quả khác nhau.
-  (b) So tháng trước: báo cáo tay so trên DS QUY ĐỔI (I = F/F tháng trước).
-      Reports so trên Tổng đơn và Doanh thu. Cùng nhãn, khác hẳn ý nghĩa.
-WHAT_DECISION_IT_UNLOCKS = Mở được ô Tỉ suất (hiện DEFER D1/N.7) và làm cho ô
-  "So tháng trước" nói đúng điều Owner vẫn dùng để ra quyết định.
-OPTIONS =
-  A — Tỉ suất = LN KPI / Doanh thu net; So tháng trước giữ Tổng đơn + Doanh thu
-      cho tới khi DS quy đổi tồn tại, rồi bổ sung DS quy đổi.
-  B — Tỉ suất = LN KPI / Tổng bán gộp để đọc liền mạch với báo cáo cũ; đồng thời
-      hiển thị chiết khấu tách riêng.
-```
-
-```text
-OWNER_DECISIONS_REQUIRED = 7
+KẾT LUẬN Q4 = Tổng công ty theo tháng cộng ĐỦ mọi nhân viên có
+              include_in_kpi = true, ở MỌI cột.
+              KHÔNG cần một cờ include_in_company_total tách biệt.
+              (Ý tưởng cờ đó ở mục 10.11 KHÔNG trở thành yêu cầu.)
 ```
 
 ---
 
-## 10. Hợp đồng đề xuất — tách yêu cầu khỏi ý tưởng triển khai
+## 10. Hợp đồng — yêu cầu nghiệp vụ (FROZEN)
 
 Mọi mục dưới đây là **BUSINESS REQUIREMENT**. Không mục nào mô tả bảng, route,
-schema hay thành phần UI. Ý tưởng triển khai được ghi riêng ở mục 10.11 và
-**không phải** yêu cầu.
+schema hay thành phần UI. Ý tưởng triển khai ở mục 10.11 **không** phải yêu cầu.
 
 ### 10.1 Summary V1 — yêu cầu
-- R-S1 Owner chọn một kỳ (tháng) và thấy: số đơn · doanh thu · lợi nhuận KPI kèm coverage trung thực · khối lượng cần kiểm tra.
-- R-S2 Mọi giá trị chưa xác định hiển thị là "chưa biết", không bao giờ là `0`.
-- R-S3 Mọi con số mang nhãn nguồn; số cũ và số mới không bao giờ cộng chung.
-- R-S4 So kỳ trước tồn tại cho ít nhất Tổng đơn và Doanh thu; kỳ trước không có dữ liệu ⟹ để trống, không suy ra `−100 %`.
-- R-S5 Dòng không rơi vào kỳ nào (thiếu ngày bán) phải được phơi ra, không được im lặng.
-- R-S6 *(chờ Q1)* Tổng công ty theo tháng cộng đủ mọi đối tượng theo một quy tắc **được khai báo**, không theo một vùng SUM.
+- **R-S1** Owner chọn một kỳ (tháng) và thấy: số đơn · doanh thu · lợi nhuận KPI kèm coverage trung thực · khối lượng cần kiểm tra.
+- **R-S2** Mọi giá trị chưa xác định hiển thị là "chưa biết", không bao giờ là `0`.
+- **R-S3** Mọi con số mang nhãn nguồn; số cũ và số mới không bao giờ cộng chung.
+- **R-S4** So kỳ trước = **% thay đổi doanh thu bán hàng** so tháng liền trước; mẫu số `0` xử lý tường minh, không bịa vô cực (`DEC-PHB02-07`).
+- **R-S5** Dòng không rơi vào kỳ nào phải được phơi ra, không im lặng.
+- **R-S6** Tổng công ty cộng đủ mọi nhân viên có `include_in_kpi = true` (mục 9.1).
+- **R-S7** *(mới)* Lợi nhuận KPI chỉ được trình bày là **chính thức** khi coverage giá nhập = **100 %**; dưới đó phải nói rõ nó chưa chính thức và phơi phần thiếu (`DEC-PHB02-02`).
+- **R-S8** *(mới)* "Tổng số SP" = `SUM(quantity)` của dòng có **đơn giá bán > 1.000.000 VND** (`DEC-PHB02-03`).
 
 ### 10.2 Employee V1 — yêu cầu
-- R-E1 Owner chọn **nhân viên + kỳ** và nhận đủ chuỗi đánh giá; **không** yêu cầu một trang riêng cho mỗi nhân viên.
-- R-E2 Danh tính nhân viên được bảo toàn: Vinh/Quý/Hiệp là ba người trong nhóm `NOI_THANH`.
-- R-E3 Đổi tên (Linh → Fanpage) và vào/ra giữa chừng xử lý bằng hiệu lực theo thời gian, không bằng danh sách phẳng.
-- R-E4 Nhân viên chưa map không bị bỏ im lặng.
-- R-E5 Một đơn liên quan nhiều nhân viên được đếm ở từng dòng nhân viên; dòng TỔNG đếm mỗi đơn đúng một lần, và trang phải nói rõ điều đó.
-- R-E6 *(chờ Q2)* DS quy đổi theo nhân viên/kỳ, tính bằng tổng các bucket, không bao giờ bằng một tỉ lệ pha trộn.
+- **R-E1** Owner chọn **nhân viên + kỳ** và nhận đủ chuỗi đánh giá; **không** cần một trang riêng cho mỗi nhân viên.
+- **R-E2** Danh tính nhân viên được bảo toàn: Vinh/Quý/Hiệp là ba người trong nhóm wholesale/nội-thành.
+- **R-E3** Đổi tên và vào/ra giữa chừng xử lý bằng hiệu lực theo thời gian.
+- **R-E4** Nhân viên chưa map không bị bỏ im lặng.
+- **R-E5** Một đơn liên quan nhiều nhân viên đếm ở từng dòng NV; dòng TỔNG đếm mỗi đơn một lần, và trang nói rõ điều đó.
+- **R-E6** **DS quy đổi theo (nhân viên, kỳ) = `EligibleKpiProfit ÷ rate`** — phép **CHIA**, cộng đủ **mọi** đơn đủ điều kiện trong tháng, không bao giờ `profit × rate`, không bao giờ một tỉ lệ pha trộn (`DEC-PHB02-04`).
+- **R-E7** *(mới)* Định tuyến tỉ lệ theo `DEC-PHB02-05`: Tín Phát 7,5 % · Vinh/Quý/Hiệp 2 % (8 % khi sản phẩm được tick `GIA_DUNG`) · bán lẻ khác 5,5 %.
+- **R-E8** *(mới)* DS quy đổi **không được** sinh ra từ giá nhập chưa phân giải (`DEC-PHB02-04`).
 
-### 10.3 So sánh kỳ / tháng — yêu cầu
-- R-C1 Kỳ mặc định là tháng, dẫn xuất từ ngày bán thật có trong dữ liệu.
-- R-C2 Kỳ trước = tháng liền trước cùng độ dài.
-- R-C3 *(chờ Q7)* Chỉ tiêu nào được so, và trên mẫu số nào.
+### 10.3 Giá nhập — yêu cầu *(mới, `DEC-PHB02-02`)*
+- **R-P1** AUTO-fill giá nhập bằng thuật toán khớp giá đã được chấp nhận trước đó, bất cứ khi nào nguồn có thẩm quyền cho phép.
+- **R-P2** Không phân giải được ⟹ **cảnh báo tường minh** + cho phép **nhập tay**.
+- **R-P3** Ô giá nhập **sửa được** kể cả khi đã AUTO-fill.
+- **R-P4** Provenance phân biệt tối thiểu `AUTO` vs `MANUAL / MANUAL_OVERRIDE`; **cấm** âm thầm coi override là AUTO.
 
-### 10.4 Định nghĩa đã được chứng minh (không cần Owner nữa)
-S1 · S2 · S3 · S4 · S5 · S6 · S7 · S8 · S9 · S10 · S11 · S12 và neo M1 · M2 (mục 5.1/5.2).
+### 10.4 Định nghĩa đã được chứng minh / đã freeze
+`M1`–`M5` (mục 5.1) và `S1`–`S16` (mục 5.2).
 
-### 10.5 Định nghĩa còn mơ hồ (cần Owner)
-Q1 oracle parity · Q2 ngưỡng coverage LN KPI · Q3 "SP" · Q4 phạm vi tổng công ty · Q5 Gia dụng/ProductGroup · Q6 target · Q7 mẫu số tỉ suất và so sánh.
+### 10.5 Định nghĩa còn mơ hồ cần Owner
+```text
+KHÔNG CÒN.  OWNER_DECISIONS_REMAINING = 0
+```
+Các điểm còn chưa nói tới (margin `D1`, tỉ lệ tồn kho `D8`, thưởng/lương `D7`)
+đều **đã DEFER**, nên chúng là *phạm vi bị hoãn*, không phải *ngữ nghĩa bị
+treo*.
 
 ### 10.6 Tự do trình bày
-P1–P5 (mục 5.3). Đặc biệt: **không tái tạo 56 sheet thành 56 tab.**
+`P1`–`P5`. Đặc biệt: **không tái tạo 56 sheet thành 56 tab.**
 
 ### 10.7 Yêu cầu phụ thuộc legacy (PHB-04)
-L1–L6 (mục 5.6).
+`L1`–`L6` (mục 5.6).
 
 ### 10.8 Yêu cầu phụ thuộc target (PHB-05)
-Mục 5.7 nguyên khối.
+Mục 5.7 nguyên khối, đã freeze phần ý định nghiệp vụ bằng `DEC-PHB02-06`.
 
 ### 10.9 Loại trừ có chủ đích
-X1–X8 (mục 5.5).
+`X1`–`X10` (mục 5.5).
 
 ### 10.10 Cải thiện đã hoãn
-D1–D9 (mục 5.4), gồm `UX-PI-01`.
+`D1`–`D9` (mục 5.4), gồm `UX-PI-01`.
 
 ### 10.11 Ý tưởng triển khai — KHÔNG phải yêu cầu
-Ghi lại để không bị mất, và **không** được coi là đã chốt:
-`converted_revenue` tổng hợp ở tầng truy vấn thay vì tầng UI · một cấu hình
-`include_in_company_total` tách khỏi `include_in_kpi` · `LearnedProductGroupProvider`
-cắm vào seam `ProductGroupProvider` đã có · bảng target dạng YAML theo
-`(đối tượng, tháng)` với `effective_from`/`effective_to`. Bất kỳ mục nào ở đây
-muốn thành yêu cầu đều phải qua Owner trước.
+Ghi lại để không mất, **không** được coi là đã chốt: tổng hợp
+`converted_revenue` ở tầng truy vấn thay vì tầng UI · tái dùng slot từ vựng
+`PRICE_SOURCE_MANUAL` đã dành sẵn cho override · `LearnedProductGroupProvider`
+cắm vào seam `ProductGroupProvider` đã có · bảng target theo `(nhân viên,
+tháng)` với `effective_from`/`effective_to`. Cờ `include_in_company_total`
+**đã bị bác bỏ** (mục 9.1) và không còn nằm ở đây.
 
 ---
 
 ## 11. Sẵn sàng cho PHB-03
 
 ```text
-PHB_03_READY = NO
+PHB_03_READY = YES
 ```
 
-Ngữ nghĩa nghiệp vụ của Summary + Employee V1 **chưa đủ đóng băng để triển
-khai mà không phải đoán**. Danh sách quyết định Owner đang chặn PHB-03 —
-đúng bằng đây, không hơn:
+Bốn quyết định từng chặn PHB-03 (`Q1`, `Q2`, `Q4`, `Q7`) đều đã đóng, và mọi
+chỉ tiêu của Summary + Employee V1 nay đều có định nghĩa có thẩm quyền:
 
-| Chặn | Vì sao chặn PHB-03 |
+| Chỉ tiêu V1 | Định nghĩa có thẩm quyền |
 |---|---|
-| **Q1** | Không có định nghĩa "parity" thì không có tiêu chí nghiệm thu cho PHB-03 |
-| **Q2** | Quyết định DS quy đổi có được mở trong PHB-03 hay không |
-| **Q4** | Mọi ô "tổng" trên Summary V1 phụ thuộc câu trả lời này |
-| **Q7** | Quyết định ô Tỉ suất và mẫu số của "So tháng trước" |
+| Số đơn | `COUNT DISTINCT order_key` (M1) |
+| Doanh thu | `Σ(sell_price×qty − discount)` (DEC-114) |
+| Lợi nhuận KPI | `DEC-143` + gate 100 % của `DEC-PHB02-02` |
+| Tổng số SP | `DEC-PHB02-03` — đơn giá > 1.000.000 |
+| DS quy đổi | `DEC-PHB02-04` (chia) + `DEC-PHB02-05` (ma trận tỉ lệ) |
+| So tháng trước | `DEC-PHB02-07` — doanh thu bán hàng |
+| Target | `DEC-PHB02-06` — cấu hình được; chi tiết ở PHB-05 |
+| Tỉ suất | DEFER `D1` — không thuộc V1 |
 
-**Không chặn PHB-03** (có thể trả lời song song): Q3 (Reports đã có đường an
-toàn là "Tổng số lượng" kèm chú thích), Q5 (thuộc DS quy đổi/kênh), Q6
-(thuộc PHB-05).
+Không còn ngữ nghĩa nghiệp vụ nào phải đoán.
+
+### 11.1 Ghi chú SEQUENCING cho PHB-03 — không giải ở đây
+
+Đây là **mối bận tâm triển khai**, ghi lại đúng mức cần cho vertical kế tiếp,
+**không** phải một câu hỏi Owner và **không** phải một khoảng trống ngữ nghĩa:
+
+```text
+DS quy đổi (R-E6) và lợi nhuận KPI CHÍNH THỨC (R-S7) đều phụ thuộc
+coverage giá nhập = 100 %.
+Coverage đo được hôm nay: 0–2/351 (golden) · 34/142 (production 09/2026).
+Đường ghi để đạt 100 % (R-P1…R-P4: nhập tay + override có provenance)
+CHƯA TỒN TẠI — tầng analytics hiện là CHỈ-ĐỌC theo thiết kế, và
+PRICE_SOURCE_MANUAL mới chỉ là một slot từ vựng đã dành sẵn.
+
+⟹ Khi mở PHB-03, quyết định PHẠM VI cần trả lời trước:
+   PHB-03 có bao gồm đường nhập/override giá nhập không, hay đường đó
+   thuộc một vertical riêng đứng TRƯỚC phần DS quy đổi của PHB-03?
+   Đây là quyết định ROADMAP, không phải quyết định ngữ nghĩa.
+```
 
 ---
 
-## 12. Findings
+## 12. Findings sau freeze
 
 Finding **không** tự sinh task.
 
-### BLOCKING (2)
+### BLOCKING: 0 — cả hai đã ĐÓNG
 
 ```text
 FIND-PHB02-B01  PARITY ORACLE KHÔNG XÁC ĐỊNH
-  Báo cáo tay không phải hàm của bất kỳ đầu vào nào Reports có (mục 4.3).
-  Nếu không chốt Q1, mọi chỉ tiêu MUST_MATCH sẽ được implement với một mốc
-  so sánh không tồn tại. Đúng tiêu chí blocking: "business parity không thể
-  được định nghĩa an toàn".
+                → CLOSED bởi DEC-PHB02-01. Báo cáo tay = semantic reference,
+                  không phải numeric authority. Chênh lệch so với số tay
+                  KHÔNG còn là blocker; chỉ vi phạm business rule đã duyệt
+                  hoặc nguồn có thẩm quyền mới đáng quan tâm.
 
 FIND-PHB02-B02  DS QUY ĐỔI SẼ ĐƯỢC IMPLEMENT VỚI NGỮ NGHĨA ĐOÁN
-  DS quy đổi là chỉ tiêu quản trị CHÍNH của báo cáo tay, và ba tiền đề của
-  nó đều chưa vững: coverage LN KPI 0–2/351 trên golden (Q2), ProductGroup
-  100 % DEFAULT nên hai scheme kênh không kích hoạt đúng (Q5), và phạm vi
-  tổng công ty mâu thuẫn trong chính báo cáo tay (Q4). Đúng tiêu chí
-  blocking: "một chỉ tiêu sẽ được implement với ngữ nghĩa đoán".
+                → CLOSED bởi DEC-PHB02-04 (công thức chia + phạm vi mọi đơn),
+                  DEC-PHB02-05 (ma trận tỉ lệ đầy đủ + phạm vi Gia dụng), và
+                  DEC-PHB02-02 (điều kiện coverage). Không còn chỗ nào phải đoán.
 ```
 
-### NON-BLOCKING (5)
+### NON-BLOCKING
 
 ```text
-FIND-PHB02-N01  Báo cáo tay chứa 635/18.148 ô giá nhập gõ tay, không dấu vết.
-                Là dữ kiện lịch sử, không phải lỗi cần sửa.
-FIND-PHB02-N02  Target công ty/tháng (28.790.000) ≠ tổng target nhân viên
-                (19.900.000) tháng 01.2026; chênh 8.890.000 không giải thích
-                được từ file. Thuộc PHB-05.
-FIND-PHB02-N03  Xung đột đơn vị 1.000 lần trong cùng sheet DataChart
-                (AJ2 VND vs J15 nghìn đồng). Thuộc PHB-05.
-FIND-PHB02-N04  Không tồn tại vị trí backlog UX canonical trong repo; UX-PI-01
-                được ghi tại mục 5.4 D9 của tài liệu này để không thất lạc.
-FIND-PHB02-N05  `app/modules/conversion/` đã có đủ resolver + engine cấp dòng
-                nhưng không có consumer nào tổng hợp `converted_revenue`.
-                Là trạng thái ĐÚNG theo §L ("LATER", cấm tính ở tầng UI),
-                ghi lại để phiên sau không nhầm là bug.
-```
+FIND-PHB02-N01  635/18.148 ô giá gõ tay trong báo cáo tay, không dấu vết.
+                → GIỮ làm dữ kiện lịch sử. DEC-PHB02-01 khiến nó không còn là
+                  vấn đề cần giải: đó là lý do báo cáo tay không phải oracle.
 
-Không có finding nào thuộc loại hardening — hardening không phải việc của PHB-02.
+FIND-PHB02-N02  Target công ty ≠ tổng target nhân viên (chênh 8.890.000).
+FIND-PHB02-N03  Xung đột đơn vị 1.000 lần trong cùng sheet DataChart.
+                → N02/N03 HẠ CẤP: không còn là vấn đề của PHB-02. DEC-PHB02-06
+                  chốt target đến từ cấu hình do Owner nhập, không kế thừa số
+                  lịch sử. Giữ lại như cảnh báo đơn vị cho PHB-05 (mục 5.7).
+
+FIND-PHB02-N04  Repo chưa có vị trí backlog UX canonical.
+                → GIỮ. UX-PI-01 lưu tại mục 5.4 D9.
+
+FIND-PHB02-N05  app/modules/conversion/ chưa có consumer tổng hợp converted_revenue.
+                → ĐỔI TRẠNG THÁI: từ "trạng thái đúng theo §L LATER" thành
+                  KHOẢNG TRỐNG ĐÃ BIẾT của PHB-03. DEC-PHB02-04 nâng DS quy đổi
+                  thành chỉ tiêu cốt lõi bắt buộc, nên đây là việc của PHB-03,
+                  không còn là "để sau".
+
+FIND-PHB02-N06  (mới) DEC-PHB02-04 viết PROFIT = sale_price − purchase_price,
+                là minh hoạ theo một đơn vị sản phẩm. Công thức thi hành vẫn là
+                EligibleKpiProfit của DEC-143 ((SellPrice − KpiPurchasePrice)
+                × Quantity − Discount). Điểm xác nhận MỘT DÒNG cho PHB-03;
+                không phải câu hỏi Owner (xem ghi chú ở DEC-PHB02-04).
+
+FIND-PHB02-N07  (mới) DEC-PHB02-05 định tuyến theo NHÓM NHÂN VIÊN và không
+                nhắc tới lead_source. Engine hiện định tuyến qua lead_source
+                (bộ lọc cứng), với Tín Phát mặc định ADS. Trên MỌI dữ liệu đã
+                quan sát hai mô hình cho KẾT QUẢ GIỐNG HỆT — Tín Phát 7,5 %,
+                bán lẻ khác 5,5 %, NOI_THANH 2 %/8 % — và chuỗi "ADS" xuất hiện
+                0 lần trong cả hai workbook (ads_keyword_cell_hits). Điểm phân
+                kỳ DUY NHẤT: một đơn của nhân viên bán lẻ có ghi chú "ADS" sẽ
+                ra 7,5 % theo engine nhưng 5,5 % theo cách đọc chữ của
+                DEC-PHB02-05. Vì DEC-PHB02-05 nói "tỉ lệ MẶC ĐỊNH", cách đọc
+                nhất quán là: DEC-PHB02-05 đặt mặc định, cơ chế lead_source đã
+                freeze (DEC-109/DEC-119) vẫn giữ nguyên. NON-BLOCKING (tác động
+                thực tế = 0 dòng); PHB-03 xác nhận lại khi implement.
+
+FIND-PHB02-N08  (mới) DEC-PHB02-03 là NGƯỠNG GIÁ, nên vài sản phẩm thật giá
+                thấp cũng bị loại (đo được: 2 dòng ở 01.2026, 1 dòng ở 06.2026).
+                Đây là đánh đổi CÓ CHỦ ĐÍCH — Owner chỉ thị rõ không mở rộng
+                thành taxonomy. Ghi lại để không ai coi là defect.
+```
 
 ---
 
 ## 13. Ràng buộc phạm vi đã tuân thủ
 
 ```text
-PHB-01 (Product Identity)  = KHÔNG mở lại. Chỉ ghi UX-PI-01 làm backlog hoãn.
-PHB-03                     = KHÔNG bắt đầu.
-PHB-04 (Legacy)            = KHÔNG implement. Yêu cầu bảo toàn ở mục 5.6.
-PHB-05 (Target)            = KHÔNG implement. Trích xuất tối thiểu ở mục 5.7.
-PRODUCTION CODE            = 0 dòng thay đổi.
+PHB-01 (Product Identity)  = KHÔNG mở lại. UX-PI-01 chỉ là backlog hoãn (5.4 D9).
+PHB-03                     = KHÔNG bắt đầu. PHB_03_READY = YES.
+PHB-04 (Legacy)            = KHÔNG implement. Yêu cầu bảo toàn L1–L6.
+PHB-05 (Target)            = KHÔNG implement. Ý định nghiệp vụ freeze ở S16/5.7.
+ProductGroup redesign      = KHÔNG. DEC-PHB02-05 thu hẹp về một tick thủ công
+                             trong đúng một luồng.
+PRODUCTION CODE            = 0 dòng thay đổi
 SCOPE_DRIFT                = NO
-PHB_02                     = AWAITING_OWNER
+BUSINESS_PARITY_CONTRACT   = FROZEN
+PHB_02                     = DONE
 ```
+
+### 13.1 Exit Criteria của PHB-02 — bằng chứng, không phải khẳng định
+
+`PHB-02` là một vertical HỢP ĐỒNG NGHIỆP VỤ (không có production code), nên
+Exit Criteria của nó là các điều kiện dưới đây, mỗi điều kiện chỉ tới bằng
+chứng cụ thể trong chính tài liệu này:
+
+| # | Exit Criterion | Trạng thái | Bằng chứng |
+|---|---|---|---|
+| E1 | Xác định được báo cáo tay của Owner và phân biệt nó với raw input và legacy | **PASS** | Mục 2 |
+| E2 | Năng lực hiện tại của Reports được map, tách `DISPLAY EXISTS` khỏi `SEMANTICS VERIFIED` | **PASS** | Mục 3 |
+| E3 | Năng lực nghiệp vụ của báo cáo tay được trích, không suy đoán cấu trúc | **PASS** | Mục 2, 4, 6, 7 — nguồn `evidence.json` tái tạo được |
+| E4 | Mọi năng lực có ý nghĩa được phân loại vào đúng MỘT nhóm, kèm bằng chứng/lý do | **PASS** | Mục 5.1–5.7 (`M1`–`M5`, `S1`–`S16`, `P1`–`P5`, `D1`–`D9`, `X1`–`X10`, `L1`–`L6`, 5.7) |
+| E5 | Summary Parity Matrix hoàn chỉnh | **PASS** | Mục 6 |
+| E6 | Employee Parity hoàn chỉnh, không kết luận "một tab mỗi nhân viên" | **PASS** | Mục 7, `P1` |
+| E7 | Metric Semantic Audit cho mọi chỉ tiêu giá trị cao | **PASS** | Mục 8 |
+| E8 | Mọi quyết định Owner cần thiết đã được nêu và ĐÃ ĐƯỢC TRẢ LỜI | **PASS** | Mục 9 — 7/7 đóng, `OWNER_DECISIONS_REMAINING = 0` |
+| E9 | Hợp đồng tách BUSINESS REQUIREMENT khỏi IMPLEMENTATION IDEA | **PASS** | Mục 10.1–10.10 vs 10.11 |
+| E10 | Biên PHB-04 (Legacy) và PHB-05 (Target) được giữ, không implement | **PASS** | Mục 5.6, 5.7, 13 |
+| E11 | 0 dòng production code thay đổi | **PASS** | `git diff` chỉ chạm 3 file tài liệu (S113 + S114) |
+| E12 | Governance validator giữ nguyên baseline | **PASS** | Mục 1.2 + bàn giao S114 |
+
+Không có check REQUIRED nào ở trạng thái `NOT_TESTED`, `FAIL` hay `BLOCKED`.

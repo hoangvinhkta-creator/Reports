@@ -1,5 +1,105 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-02 = DONE (AUTHORITATIVE, 2026-09-04, S114)
+
+`PHB-02` (Business Parity Contract) **TỔNG THỂ = `DONE`**. Owner đã ban hành
+bảy quyết định `DEC-PHB02-01…07` (đăng ký tại `PROJECT/PROJECT_DECISIONS.md`
+→ `DEC-174`), đóng toàn bộ bảy câu hỏi mà audit `S113` mở. Hợp đồng
+**FROZEN** tại `docs/tasks/PHB-02-business-parity-contract.md`; bàn giao phiên
+tại `docs/sessions/S114-phb-02-owner-decisions-freeze.md`.
+
+```text
+TARGET_GATE               = PASS (HEAD = a47c164, branch
+                            claude/business-parity-contract-me80ij, worktree sạch)
+MODE                      = BUSINESS CONTRACT FREEZE — 0 dòng production code
+OWNER_DECISIONS_APPLIED   = 7 / 7
+OWNER_DECISIONS_REMAINING = 0
+
+PARITY_ORACLE             = DEC-PHB02-01 — báo cáo tay = BUSINESS REQUIREMENT /
+                            SEMANTIC REFERENCE, KHÔNG phải FINAL NUMERIC
+                            AUTHORITY. Cấm sửa Reports chỉ để tái tạo số tay
+                            không tái tạo được từ nguồn đã chấp nhận + rule
+                            đã duyệt.
+PURCHASE_PRICE_RULE       = DEC-PHB02-02 — AUTO-fill bằng thuật toán khớp giá
+                            đã chấp nhận · thiếu dữ liệu ⟹ cảnh báo tường minh
+                            + nhập tay · ô AUTO vẫn SỬA ĐƯỢC · provenance tối
+                            thiểu AUTO vs MANUAL/MANUAL_OVERRIDE, cấm âm thầm
+                            coi override là AUTO
+PROFIT_COVERAGE_GATE      = DEC-PHB02-02 — LN KPI CHÍNH THỨC chỉ khi
+                            PROFIT_COVERAGE = 100 %. KHÔNG ngưỡng 90/95 %.
+                            Dưới 100 %: không trình bày như số chính thức,
+                            phơi rõ phần thiếu, cho hoàn thiện bằng tay.
+TOTAL_PRODUCT_QUANTITY    = DEC-PHB02-03 — SUM(quantity) khi giá bán >
+                            1.000.000 VND. Ngưỡng giá, KHÔNG phải taxonomy,
+                            KHÔNG phải đếm SKU/dòng. Đóng N.7 cho chỉ tiêu này.
+CONVERTED_SALES_FORMULA   = DEC-PHB02-04 — CONVERTED_SALES = PROFIT /
+                            CONVERSION_RATE (PHÉP CHIA). `profit * rate` bị
+                            CẤM TUYỆT ĐỐI. Phạm vi = TẤT CẢ đơn đủ điều kiện
+                            trong tháng. PROFIT = EligibleKpiProfit (DEC-143).
+CONVERSION_RATE_MATRIX    = DEC-PHB02-05 — Tín Phát 7,5 % · Vinh/Quý/Hiệp
+                            2 % (8 % khi sản phẩm được tick GIA_DUNG) ·
+                            bán lẻ khác 5,5 %
+GIA_DUNG_SCOPE            = PRODUCT-LEVEL OVERRIDE, chỉ trong luồng
+                            wholesale/nội-thành (Vinh/Quý/Hiệp). KHÔNG phải
+                            một loại nhân viên. Cấm suy tự động từ tên hàng.
+                            Bán lẻ thường KHÔNG cần luồng này.
+TARGET_REQUIREMENT        = DEC-PHB02-06 — cấu hình được theo từng nhân viên,
+                            có chỗ nhập/sửa, cấm hard-code vào logic tính.
+                            Implementation → PHB-05.
+MOM_RULE                  = DEC-PHB02-07 — % thay đổi DOANH THU BÁN HÀNG so
+                            tháng liền trước. KHÔNG phải DS quy đổi/lợi
+                            nhuận/số lượng/mức đạt target. Mẫu số 0 xử lý
+                            tường minh.
+
+Q1..Q7                    = CLOSED toàn bộ (Q4 đóng bằng dẫn xuất từ
+                            DEC-PHB02-01+04+05 — xem hợp đồng mục 9.1;
+                            phần margin của Q7 giữ DEFER D1, không phải
+                            quyết định Owner còn treo)
+DEC_PHB02_03_MEASURED     = E1 trên hai fixture golden: 358 (01.2026, loại 45
+                            dòng) · 178 (06.2026, loại 27 dòng) so với
+                            SUM(quantity) mọi dòng 407/210. Đọc "giá bán" là
+                            đơn giá hay tổng dòng cho CÙNG kết quả (chênh 0).
+CONTRACT_ADDITIONS        = S13 giá nhập sửa được có provenance · S14 gate
+                            coverage 100 % · S15 phạm vi tick GIA_DUNG ·
+                            S16 target cấu hình được · M3/M4/M5 ·
+                            X9/X10 · R-P1…R-P4 · R-S7/R-S8 · R-E7/R-E8
+
+BLOCKING_FINDINGS         = 0 — FIND-PHB02-B01 CLOSED (DEC-PHB02-01),
+                            FIND-PHB02-B02 CLOSED (DEC-PHB02-04+05+02)
+NON_BLOCKING_FINDINGS     = N01 giữ · N02/N03 hạ cấp thành cảnh báo đơn vị cho
+                            PHB-05 · N04 giữ · N05 đổi trạng thái thành khoảng
+                            trống đã biết của PHB-03 · N06/N07/N08 mới
+PRA003_D2_D3              = D2 KHÔNG mở lại (cấm sao chép legacy target vào
+                            chỉ tiêu PIPELINE_GENERATED vẫn nguyên hiệu lực).
+                            D3 nay CÓ điều kiện gỡ vì DEC-PHB02-03 chính là
+                            quy tắc có thẩm quyền D3 chờ — nhưng UI KHÔNG đổi
+                            trong PHB-02; áp dụng thuộc PHB-03.
+PHB03_SEQUENCING_NOTE     = DS quy đổi và LN KPI chính thức đều cần coverage
+                            100 %; đường ghi để đạt được (nhập/override giá
+                            nhập) CHƯA TỒN TẠI. PHB-03 phải chốt PHẠM VI:
+                            bao gồm đường ghi đó, hay tách vertical riêng
+                            đứng trước? Đây là quyết định ROADMAP, KHÔNG phải
+                            khoảng trống ngữ nghĩa.
+
+GOVERNANCE_VALIDATORS     = validate_structure PASS · validate_project_state
+                            PASS · validate_evidence PASS (155 REQUIRED PASS) ·
+                            validate_task_completion PASS (13 DONE task) ·
+                            validate_reference_integrity FAIL với ĐÚNG 3
+                            reference REM-T06 đã biết (baseline không đổi)
+PRODUCTION_CODE_CHANGED   = NO
+BUSINESS_PARITY_CONTRACT  = FROZEN
+PHB_03_READY              = YES
+SCOPE_DRIFT               = NO
+PHB02_FINAL_STATUS        = DONE
+NEXT_VERTICAL_ACTION      = PHB-03 Summary + Employee Business Parity V1
+                            (KHÔNG bắt đầu trong phiên này)
+```
+
+Khối canonical `PHB-02 = AWAITING_OWNER` (S113) ngay bên dưới được **GIỮ
+NGUYÊN như bản ghi lịch sử đúng tại thời điểm của nó**, không viết lại — nó
+ghi trạng thái trước khi Owner ban hành bảy quyết định. Khi nó mâu thuẫn với
+mục này về trạng thái *hiện tại*, mục này đúng.
+
 ## CANONICAL CURRENT STATE — PHB-02 = AWAITING_OWNER (AUTHORITATIVE, 2026-09-04, S113)
 
 `PHB-02` (Business Parity Contract — báo cáo tay của Owner so với Reports hiện

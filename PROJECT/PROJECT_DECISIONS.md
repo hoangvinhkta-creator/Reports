@@ -8403,3 +8403,89 @@ nào.
   `PROJECT/REVIEW_BUDGET_LEDGER.md`.
 - `IMPLEMENTATION_READY = YES`. Không `OWNER_DECISION_REQUIRED` nào còn
   treo chặn PRA-005 V1. `TASK-PRA-002`/`003`/`004` không đổi: DONE.
+
+## DEC-174 — PHB-02 Business Parity: bảy quyết định Owner (`DEC-PHB02-01…07`)
+
+Date:
+2026-09-04
+
+Task:
+PHB-02 (Business Parity Contract)
+
+Decision:
+Owner ban hành bảy quyết định nghiệp vụ đóng toàn bộ bảy câu hỏi mà audit
+`S113` mở. Chúng **thay thế** suy diễn của agent và **thay thế** mọi suy diễn
+ngược lại rút ra từ workbook tay cũ. Giữ nguyên mã định danh của Owner:
+
+- **`DEC-PHB02-01` — Parity Oracle.** Reports được xây để THAY THẾ báo cáo thủ
+  công; báo cáo production dẫn xuất từ sổ kế toán thô + nguồn có thẩm quyền đã
+  chấp nhận + business rule đã duyệt. Báo cáo tay cũ = `BUSINESS REQUIREMENT /
+  SEMANTIC REFERENCE`, **không** phải `FINAL NUMERIC AUTHORITY`. Cấm sửa
+  Reports chỉ để tái tạo con số tay không tái tạo được từ nguồn đã chấp nhận.
+- **`DEC-PHB02-02` — Giá nhập / coverage.** AUTO-fill bằng thuật toán khớp giá
+  đã chấp nhận; thiếu dữ liệu ⟹ cảnh báo tường minh + nhập tay; ô AUTO vẫn
+  **sửa được**; provenance tối thiểu `AUTO` vs `MANUAL / MANUAL_OVERRIDE`, cấm
+  âm thầm coi override là AUTO. Lợi nhuận KPI **chính thức** chỉ khi
+  `PROFIT_COVERAGE = 100 %` — **không** ngưỡng 90/95 % hay bất kỳ ngưỡng nào.
+- **`DEC-PHB02-03` — Tổng số SP.** `SUM(quantity)` của sản phẩm có **giá bán >
+  1.000.000 VND**. Ngưỡng giá, **không** phải taxonomy, **không** phải đếm SKU
+  hay đếm dòng. Đóng `N.7` cho chỉ tiêu này.
+- **`DEC-PHB02-04` — DS quy đổi.** Chỉ tiêu **cốt lõi** đánh giá hiệu suất
+  nhân viên. `CONVERTED_SALES = PROFIT / CONVERSION_RATE` — **phép chia**;
+  `profit * rate` bị cấm tuyệt đối. Phạm vi = **tất cả** đơn đủ điều kiện
+  trong tháng, không phải tập con chọn tay. Không bịa từ giá nhập chưa phân
+  giải. `PROFIT` ở đây là `EligibleKpiProfit` của `DEC-143` (dòng
+  `sale_price − purchase_price` là minh hoạ theo một đơn vị sản phẩm).
+- **`DEC-PHB02-05` — Định tuyến tỉ lệ.** Tín Phát `7,5 %`; Vinh/Quý/Hiệp
+  (wholesale/nội-thành) `2 %`, hoặc `8 %` khi sản phẩm được **tick**
+  `GIA_DUNG`; bán lẻ khác `5,5 %`. `GIA_DUNG` là **product-level override**
+  bên trong đúng luồng wholesale/nội-thành, **không** phải một loại nhân
+  viên; cấm suy ra tự động từ tên hàng; bán lẻ thường **không** cần luồng đó.
+- **`DEC-PHB02-06` — Target.** Cấu hình được **theo từng nhân viên**, có chỗ
+  nhập và sửa; cấm hard-code giá trị target vào logic tính. PHB-02 chỉ freeze
+  yêu cầu nghiệp vụ; implementation ở PHB-05.
+- **`DEC-PHB02-07` — So tháng trước.** `%` thay đổi của **doanh thu bán hàng**
+  tháng này so tháng liền trước. **Không** phải DS quy đổi / lợi nhuận / số
+  lượng SP / mức đạt target. Mẫu số `0` xử lý tường minh, không bịa vô cực.
+
+Reason:
+Audit `S113` chứng minh báo cáo tay không phải hàm của bất kỳ đầu vào nào
+Reports có: `01.2026` thấp hơn ERP 0,58 % ở doanh số, `06.2026` thấp hơn 6,5 %
+ở doanh số nhưng **cao hơn 24,3 %** ở lợi nhuận, và 635/18.148 ô giá bị gõ tay
+không dấu vết. Không có bảy quyết định này thì mọi chỉ tiêu `MUST_MATCH` sẽ
+được implement với một mốc so sánh không tồn tại, và DS quy đổi — chỉ tiêu
+quản trị chính — sẽ được implement với ngữ nghĩa đoán.
+
+Impact:
+Bảy câu hỏi Owner của `S113` đóng hết (`OWNER_DECISIONS_REMAINING = 0`); hai
+blocking finding `FIND-PHB02-B01`/`B02` đóng; `BUSINESS_PARITY_CONTRACT =
+FROZEN`; `PHB_03_READY = YES`. Thêm bốn ngữ nghĩa bắt buộc mới vào hợp đồng
+(`S13` giá nhập sửa được có provenance · `S14` gate coverage 100 % · `S15`
+phạm vi tick `GIA_DUNG` · `S16` target cấu hình được) và hai loại trừ mới
+(`X9` cột `I` tính trên DS quy đổi · `X10` dòng Summary "Gia dụng" như một
+thực thể nhân viên). `D2` của `TASK-PRA-003` (Target = DEFER trong PRA-003)
+**không** bị mở lại: `DEC-PHB02-06` chỉ freeze yêu cầu nghiệp vụ, và lệnh cấm
+sao chép `legacy_summary_row.target` vào chỉ tiêu `PIPELINE_GENERATED` vẫn
+nguyên hiệu lực. `D3` của `TASK-PRA-003` (cấm nhãn "Tổng số SP" cho tới khi có
+quy tắc phân loại có thẩm quyền) nay đã có điều kiện gỡ: `DEC-PHB02-03` **là**
+quy tắc có thẩm quyền đó — nhưng UI hiện tại **không đổi trong PHB-02**, việc
+áp dụng thuộc PHB-03.
+
+Evidence:
+Đo trong phiên `S114` trên `tests/fixtures/golden/period_2026_*.xlsx`:
+`DEC-PHB02-03` cho `358` (01.2026, loại 45 dòng) và `178` (06.2026, loại 27
+dòng), so với `SUM(quantity)` mọi dòng là `407`/`210`. Đọc "giá bán" là đơn
+giá hay tổng dòng cho **cùng một kết quả** ở cả hai kỳ (chênh lệch `0`). Các
+mô tả bị loại nhiều nhất đúng nhóm Owner nêu: `Chi phí vận chuyển`, `Giá treo
+Tivi`, `Chân máy giặt Đa Năng`, `Chi phí lắp đặt`, `Phụ Phí`.
+
+Can Revisit After:
+`DEC-PHB02-01` là nguyên tắc nền, không dự kiến mở lại. `DEC-PHB02-02` mở lại
+nếu Owner chấp nhận một mức coverage khác `100 %`. `DEC-PHB02-03` mở lại nếu
+ngưỡng `1.000.000 VND` cần đổi hoặc Owner muốn một taxonomy thật.
+`DEC-PHB02-05` mở lại khi có nhóm nhân viên mới hoặc khi Gia dụng cần cho
+nhóm ngoài wholesale/nội-thành. `DEC-PHB02-06` chi tiết hoá ở PHB-05.
+
+Chi tiết đầy đủ, ma trận parity và bằng chứng:
+`docs/tasks/PHB-02-business-parity-contract.md`;
+bàn giao phiên: `docs/sessions/S114-phb-02-owner-decisions-freeze.md`.
