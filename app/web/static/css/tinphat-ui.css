@@ -233,3 +233,24 @@ textarea { width: 100%; }
   color: var(--tp-ink2); font-size: 12px;
 }
 .sales-orders td, .sales-lines td { vertical-align: top; }
+
+/* --- PHB-03 · Summary + Employee nghiệp vụ ----------------------------- */
+
+/* CHÍNH THỨC và CHƯA HOÀN CHỈNH phải khác nhau khi LIẾC QUA, không chỉ khác
+   nhau khi đọc kỹ (`R-S7`): một con số lợi nhuận chưa đủ giá nhập mà trông
+   y hệt số chính thức là đúng cái nhầm lẫn mà `DEC-PHB02-02` cấm. Màu ở đây
+   dùng lại đúng cặp đã có nghĩa trong hệ thống — xanh "đã chốt", vàng "cần
+   xem" — chứ không đặt ra một bảng màu thứ hai. */
+.tag-official { background: var(--tp-green-bg); color: var(--tp-green); }
+.tag-incomplete { background: var(--tp-gold-bg); color: var(--tp-gold); }
+
+.kpi-card.kpi-incomplete {
+  border-left: 3px solid var(--tp-gold); background: var(--tp-gold-bg);
+}
+
+.module.coverage-ok { border-left: 3px solid var(--tp-green); }
+.module.coverage-gap { border-left: 3px solid var(--tp-gold); }
+
+/* Dòng chưa có giá nhập là việc Owner phải làm, không phải một dòng dữ liệu
+   bình thường — nền cảnh báo để nó không lẫn vào các dòng đã xong. */
+tr.row-pending td { background: var(--tp-gold-bg); }

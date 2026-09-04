@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'kinh-doanh' %}
+{% block title %}Reports — Tổng hợp kinh doanh{% endblock %}
+
+{% block content %}
+<h1>TỔNG HỢP KINH DOANH</h1>
+<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán đã nạp.</p>
+
+<div class="module">
+  {{ biz.period_picker(periods, selected_period, url_for('business_summary')) }}
+
+  <h2>{{ summary.period_label }} {{ biz.business_badge() }}
+      <span class="cnt"><span data-metric="orders">{{ summary.orders }}</span> đơn ·
+        <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
+
+  <div class="kpi-grid">
+    {{ biz.kpi('Doanh thu bán hàng', summary.sales_revenue, 'sales_revenue', 'đồng') }}
+    {{ biz.kpi(QUALIFYING_QUANTITY_LABEL, summary.qualifying_quantity, 'qualifying_quantity') }}
+    {{ biz.gated_kpi('Lợi nhuận KPI', summary.kpi_profit, 'kpi_profit') }}
+    {{ biz.gated_kpi('DS quy đổi', summary.converted_sales, 'converted_sales') }}
+  </div>
+
+  <p class="insight">{{ QUALIFYING_QUANTITY_NOTE }}</p>
+  <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
+</div>
+
+{{ biz.coverage_block(summary.coverage, url_for('business_purchase_price', ky=selected_period)) }}
+
+{# So tháng trước chỉ tồn tại khi đang xem MỘT tháng. "Toàn bộ dữ liệu" không
+   có tháng liền trước — trang nói ra điều đó thay vì bịa một kỳ so sánh. #}
+{{ biz.mom_block(summary.mom, summary.previous_label) }}
+
+<div class="module">
+  <h2>Theo nhân viên
+    <span class="cnt">{{ rows|length - 1 }} nhân viên</span></h2>
+  <p class="insight">{{ BUSINESS_ORDER_COLUMN_NOTE }}</p>
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 2 }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.total_row }}">
+      <td class="code">
+        {% if row.total_row %}{{ row.employee }}{% else %}
+        <a href="{{ url_for('business_employee', ky=selected_period, **{'nhan-vien': row.key}) }}">{{ row.employee }}</a>
+        {% endif %}
+      </td>
+      <td>{{ row.employee_group }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
+      <td class="num" data-metric="sales_revenue">{{ row.sales_revenue }}</td>
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+          data-metric="kpi_profit">{{ row.kpi_profit.text }}</td>
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+          data-metric="converted_sales">{{ row.converted_sales.text }}</td>
+      <td class="num" data-metric="coverage">{{ row.coverage.text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+
+{# Thông tin an toàn, không phải chỉ tiêu: các dòng này rơi khỏi MỌI kỳ vì
+   chúng không có ngày bán (`R-S5`). #}
+<div class="module">
+  <h2>Dòng chưa có ngày bán</h2>
+  {% if summary.undated_lines %}
+  <p class="error" data-metric="undated-lines">
+    Có <strong>{{ summary.undated_lines }}</strong> dòng hiện hành chưa có ngày bán.
+    Chúng KHÔNG được tính vào bất kỳ kỳ nào ở trên.
+  </p>
+  {% else %}
+  <p class="insight" data-metric="undated-lines">
+    Không có dòng nào thiếu ngày bán.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

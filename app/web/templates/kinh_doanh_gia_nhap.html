@@ -1,0 +1,86 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'kinh-doanh' %}
+{% block title %}Reports — Hoàn thiện giá nhập{% endblock %}
+
+{% block content %}
+<h1>HOÀN THIỆN GIÁ NHẬP</h1>
+<p class="insight">{{ biz.business_badge() }}
+  Lợi nhuận KPI và DS quy đổi chỉ trở thành số CHÍNH THỨC khi mọi dòng hàng
+  của kỳ đã có giá nhập. Giá do hệ thống tìm được vẫn sửa được.</p>
+
+{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
+
+<div class="module">
+  {{ biz.employee_picker(employees, selected_employee, periods, selected_period,
+                         url_for('business_purchase_price')) }}
+
+  <h2>{{ period_label }}
+    <span class="cnt" data-metric="coverage">{{ coverage.text }}</span>
+    <span class="tp-unit" data-metric="coverage-percent">{{ coverage.percent }}</span></h2>
+
+  <nav class="filter-row">
+    <a class="ghost btn-mini {{ 'on' if not show_all }}"
+       href="{{ url_for('business_purchase_price', ky=selected_period,
+               **{'nhan-vien': selected_employee}) }}">CÒN THIẾU</a>
+    <a class="ghost btn-mini {{ 'on' if show_all }}"
+       href="{{ url_for('business_purchase_price', ky=selected_period,
+               **{'nhan-vien': selected_employee, 'tat-ca': '1'}) }}">TẤT CẢ DÒNG</a>
+  </nav>
+
+  {% if not rows %}
+  <p class="empty" data-metric="no-rows">
+    {% if show_all %}Kỳ này chưa có dòng hàng nào.
+    {% else %}Mọi dòng của kỳ đã có giá nhập.{% endif %}
+  </p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 3 }}">{{ label }}</th>
+    {% endfor %}<th>Ghi giá nhập</th></tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-pending' if row.pending }}">
+      <td>{{ row.sale_date or '—' }}</td>
+      <td class="code">{{ row.order_key }}</td>
+      <td>{{ row.product_raw }}</td>
+      <td class="num">{{ row.quantity }}</td>
+      <td class="num">{{ row.sell_price }}</td>
+      <td class="num{{ ' empty-cell' if row.pending }}"
+          data-metric="purchase_price">{{ row.purchase_price }}</td>
+      <td data-metric="provenance">{{ row.provenance_label }}</td>
+      <td>
+        {# Mỗi dòng một form riêng: một form chung sẽ khiến một lần bấm ghi đè
+           nhiều dòng cùng lúc, và Owner không thấy được mình vừa đổi cái gì. #}
+        <form class="filter-row" method="post"
+              action="{{ url_for('business_save_purchase_price') }}">
+          <input type="hidden" name="order_key" value="{{ row.order_key }}">
+          <input type="hidden" name="product_key" value="{{ row.product_key }}">
+          <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="nhan-vien" value="{{ selected_employee }}">
+          <input type="hidden" name="tat-ca" value="{{ '1' if show_all }}">
+          <input type="text" name="gia_nhap" inputmode="numeric"
+                 value="{{ row.purchase_price_input }}" aria-label="Giá nhập">
+          <button class="ghost btn-mini" type="submit">LƯU</button>
+          {% if row.overridden %}
+          <button class="ghost btn-mini" type="submit" name="hanh-dong" value="go">GỠ</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% if row.review_blocked %}
+    <tr class="reason-row">
+      <td colspan="8" data-metric="review-blocked">
+        Dòng này đang chờ kiểm tra, nên nó KHÔNG vào tổng lợi nhuận KPI kể cả
+        sau khi đã có giá nhập. Xử lý ở tab Bán hàng.
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

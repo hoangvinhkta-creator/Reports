@@ -1,0 +1,121 @@
+{# PHB-03 — mảnh dùng chung của các trang nghiệp vụ (Summary + Nhân viên).
+
+   Mọi chỉ tiêu phụ thuộc coverage giá nhập đi qua `gated_kpi`, nên KHÔNG có
+   đường nào render một con số lợi nhuận/DS quy đổi mà rơi mất nhãn CHÍNH
+   THỨC / CHƯA HOÀN CHỈNH (`R-S7`). Không macro nào ở đây làm phép tính. #}
+
+{% macro business_badge() -%}
+<span class="tag tag-pipeline" title="{{ PIPELINE_BADGE_TITLE }}">{{ PIPELINE_BADGE }}</span>
+{%- endmacro %}
+
+{% macro state_tag(cell) -%}
+<span class="tag {{ 'tag-official' if cell.official else 'tag-incomplete' }}"
+      data-metric="state">{{ cell.state_label }}</span>
+{%- endmacro %}
+
+{% macro kpi(label, value, metric, note='') -%}
+<div class="kpi-card">
+  <span class="tp-label">{{ label }}</span>
+  <strong class="kpi-value" data-metric="{{ metric }}">{{ value }}</strong>
+  {% if note %}<span class="tp-unit">{{ note }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# Con số và trạng thái của nó nằm trong CÙNG một thẻ: cắt bớt cái này mà giữ
+   cái kia là không thể về mặt cấu trúc. #}
+{% macro gated_kpi(label, cell, metric) -%}
+<div class="kpi-card {{ 'kpi-incomplete' if not cell.official }}">
+  <span class="tp-label">{{ label }} {{ state_tag(cell) }}</span>
+  <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
+          data-metric="{{ metric }}">{{ cell.text }}</strong>
+</div>
+{%- endmacro %}
+
+{% macro coverage_block(coverage, gia_nhap_url) -%}
+<div class="module {{ 'coverage-ok' if coverage.complete else 'coverage-gap' }}">
+  <h2>Giá nhập đã đủ chưa?
+    <span class="cnt" data-metric="coverage">{{ coverage.text }}</span>
+    <span class="tp-unit" data-metric="coverage-percent">{{ coverage.percent }}</span>
+  </h2>
+  {% if coverage.complete %}
+  <p class="insight" data-metric="coverage-note">{{ OFFICIAL_NOTE }}</p>
+  {% else %}
+  <p class="error" data-metric="coverage-note">{{ INCOMPLETE_NOTE }}</p>
+  <ul class="reason-list">
+    {# Hai lý do "chưa đủ" KHÔNG gộp: chỉ lý do đầu hoàn thiện được bằng luồng
+       nhập giá. Gộp lại là hứa với Owner rằng nhập nốt giá là xong. #}
+    <li>
+      <strong data-metric="missing-price-lines">{{ coverage.missing_price_lines }}</strong>
+      dòng chưa có giá nhập — Owner nhập được ngay ở trang hoàn thiện giá nhập.
+    </li>
+    <li>
+      <strong data-metric="review-blocked-lines">{{ coverage.review_blocked_lines }}</strong>
+      dòng đang chờ kiểm tra — nhập giá KHÔNG mở khoá được các dòng này; xử lý
+      chúng ở tab Bán hàng.
+    </li>
+  </ul>
+  {% endif %}
+  {% if gia_nhap_url %}
+  <p><a class="ghost btn-mini" href="{{ gia_nhap_url }}">HOÀN THIỆN GIÁ NHẬP</a></p>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro mom_block(mom, previous_label) -%}
+<div class="module">
+  <h2>So với {{ previous_label or 'tháng trước' }}</h2>
+  <p class="insight">So sánh này chỉ dùng DOANH THU BÁN HÀNG, không dùng lợi
+     nhuận hay DS quy đổi.</p>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="tp-label">Thay đổi doanh thu</span>
+      <strong class="kpi-value{{ ' empty-cell' if mom.missing }}"
+              data-metric="mom">{{ mom.percent }}</strong>
+      {% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro period_picker(periods, selected, action, extra={}) -%}
+<form class="filter-row" method="get" action="{{ action }}">
+  {% for name, value in extra.items() %}{% if value %}
+  <input type="hidden" name="{{ name }}" value="{{ value }}">
+  {% endif %}{% endfor %}
+  <span class="kpi-period">
+    <label class="tp-label" for="ky">Kỳ báo cáo</label>
+    <select name="ky" id="ky" onchange="this.form.submit()">
+      {% for option in periods %}
+      <option value="{{ option.value }}" {{ 'selected' if option.value == selected }}>
+        {{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </span>
+  <button class="ghost btn-mini" type="submit">XEM</button>
+</form>
+{%- endmacro %}
+
+{% macro employee_picker(employees, selected, periods, selected_period, action) -%}
+<form class="filter-row" method="get" action="{{ action }}">
+  <span class="kpi-period">
+    <label class="tp-label" for="ky">Kỳ báo cáo</label>
+    <select name="ky" id="ky">
+      {% for option in periods %}
+      <option value="{{ option.value }}" {{ 'selected' if option.value == selected_period }}>
+        {{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </span>
+  <span class="kpi-period">
+    <label class="tp-label" for="nhan-vien">Nhân viên</label>
+    <select name="nhan-vien" id="nhan-vien">
+      <option value="">— Chọn nhân viên —</option>
+      {% for option in employees %}
+      <option value="{{ option.value }}" {{ 'selected' if option.value == selected }}>
+        {{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </span>
+  <button class="ghost btn-mini" type="submit">XEM</button>
+</form>
+{%- endmacro %}

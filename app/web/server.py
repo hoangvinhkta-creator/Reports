@@ -51,8 +51,11 @@ from app.owner_usability import (
 from app.owner_usability import SelectedCaptures
 from app.history import coverage as history_coverage
 from app.history import models as history_models
+from app.modules.reporting import business_metrics
+from app.modules.reporting.rate_routing import gia_dung_workflow_applies
 from app.web import (
-    analytics_presentation, analytics_queries, history_store, history_writer,
+    analytics_presentation, analytics_queries, business_presentation,
+    business_service, business_store, history_store, history_writer,
     legacy_presentation, run_registry, sales_presentation, sales_queries,
     storage_backend,
 )
@@ -252,6 +255,17 @@ def create_app(
     app.config["HISTORY_STORE"] = history_repo
     snapshot_repo = snapshots if snapshots is not None else _build_snapshots(history_repo)
     app.config["SNAPSHOT_STORE"] = snapshot_repo
+    # PHB-03 — Summary/Employee nghiệp vụ. Dùng CHUNG engine với snapshot repo:
+    # quyết định của Owner về một dòng hàng chỉ có nghĩa cạnh chính dòng đó,
+    # nên chúng phải sống trong cùng một database, cùng một transaction domain.
+    business = (
+        None if snapshot_repo is None
+        else business_service.BusinessReportService(
+            engine=snapshot_repo.engine,
+            store=business_store.BusinessDecisionStore(snapshot_repo.engine),
+        )
+    )
+    app.config["BUSINESS_SERVICE"] = business
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
     app.jinja_env.globals["PIPELINE_BADGE"] = analytics_presentation.ORIGIN_BADGE
@@ -263,6 +277,11 @@ def create_app(
                   "PRODUCT_GROUPING_NOTE", "PRODUCT_ITEM_COUNT_LABEL",
                   "PRODUCT_ORDER_COUNT_NOTE", "REASON_LABEL"):
         app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
+    for _name in ("CONVERTED_SALES_NOTE", "INCOMPLETE_NOTE", "OFFICIAL_NOTE",
+                  "QUALIFYING_QUANTITY_NOTE"):
+        app.jinja_env.globals[_name] = getattr(business_presentation, _name)
+    app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
+        business_presentation.ORDER_COLUMN_NOTE
 
     def _require_history() -> history_store.LegacyRepository:
         if history_repo is None:
@@ -645,6 +664,237 @@ def create_app(
             "doanh_so_ngay.html", periods=periods, selected=selected, days=days,
             monthly=monthly, monthly_cells=legacy_presentation.monthly_cells(monthly),
         )
+
+    # ------------------------------------------------------------------
+    # PHB-03 — Summary + Employee Business Parity V1.
+    #
+    # Bốn trang, MỘT vertical: Tổng hợp (kỳ) · Nhân viên (nhân viên + kỳ) ·
+    # Hoàn thiện giá nhập · Phân loại Gia dụng. Cố ý KHÔNG dựng một tab cho mỗi
+    # nhân viên (`R-E1`, `P1`) — 56 sheet tay trở thành MỘT trang có bộ chọn.
+    # ------------------------------------------------------------------
+
+    def _require_business():
+        if business is None:
+            # Không phải "chưa có dữ liệu" — là chưa có nơi lưu dữ liệu.
+            abort(503)
+        return business
+
+    def _business_period() -> dict:
+        """Kỳ đang xem + số của kỳ đó + số của kỳ liền trước.
+
+        Kỳ so sánh LUÔN được truy vấn khi đang xem một tháng: chính kết quả
+        "tháng trước không có dòng nào" là thứ `DEC-PHB02-07` bắt phải nói ra,
+        nên không được bỏ qua truy vấn đó.
+        """
+        service = _require_business()
+        periods = _guarded(analytics_queries.available_periods, snapshot_repo.engine)
+        period = _pipeline_period(periods)
+        bounds = analytics_queries.month_bounds(*period) if period else (None, None)
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        previous = None
+        if period is not None:
+            previous_bounds = analytics_queries.month_bounds(
+                *analytics_presentation.previous_period(period))
+            previous = _guarded(service.period, date_from=previous_bounds[0],
+                                date_to=previous_bounds[1])
+        return {
+            "service": service, "period": period, "bounds": bounds, "data": data,
+            "previous": previous,
+            "periods": business_presentation.period_options(periods),
+            "selected_period": business_presentation.period_value(period),
+        }
+
+    def _selected_employee(view: dict) -> tuple[Optional[str], Optional[str], bool]:
+        """`(tên, nhóm, đã chọn hợp lệ)` từ tham số `nhan-vien`.
+
+        Một tên không có trong kỳ KHÔNG được dựng thành một trang toàn số 0 —
+        đó là một nhân viên bịa. Trang rơi về "chưa chọn ai" và nói rõ.
+        """
+        employees = _guarded(view["service"].employees,
+                             date_from=view["bounds"][0], date_to=view["bounds"][1])
+        raw = request.args.get("nhan-vien")
+        if raw is None:
+            return None, None, False
+        for name, group in employees:
+            if (name or "") == raw:
+                return name, group, True
+        return None, None, False
+
+    def _employee_context(view: dict) -> dict:
+        employees = _guarded(view["service"].employees,
+                             date_from=view["bounds"][0], date_to=view["bounds"][1])
+        name, group, chosen = _selected_employee(view)
+        return {
+            "employees": business_presentation.employee_options(employees),
+            "selected_employee": request.args.get("nhan-vien") or "",
+            "employee": name, "employee_group": group, "chosen": chosen,
+        }
+
+    @app.get("/kinh-doanh")
+    def business_summary():
+        """SUMMARY V1 — `R-S1`…`R-S8`. Một kỳ, sáu chỉ tiêu đã freeze."""
+        view = _business_period()
+        totals = view["data"].totals
+        return render_template(
+            "kinh_doanh.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            summary=business_presentation.summary(
+                totals, period=view["period"],
+                previous_totals=None if view["previous"] is None
+                                else view["previous"].totals,
+                undated=_guarded(view["service"].undated_lines),
+            ),
+            columns=business_presentation.EMPLOYEE_COLUMNS,
+            rows=business_presentation.employee_rows(
+                business_metrics.group_by_employee(view["data"].lines), totals),
+        )
+
+    @app.get("/kinh-doanh/nhan-vien")
+    def business_employee():
+        """EMPLOYEE V1 — `R-E1`…`R-E8`. Owner chọn NHÂN VIÊN + KỲ."""
+        view = _business_period()
+        context = _employee_context(view)
+        detail = None
+        if context["chosen"]:
+            scoped = view["data"].for_employee(context["employee"])
+            previous = (None if view["previous"] is None
+                        else view["previous"].for_employee(context["employee"]))
+            detail = business_presentation.employee_detail(
+                context["employee"], context["employee_group"], scoped.totals,
+                period=view["period"],
+                previous_totals=None if previous is None else previous.totals,
+                gia_dung=gia_dung_workflow_applies(context["employee_group"]),
+            )
+        return render_template(
+            "kinh_doanh_nhan_vien.html", periods=view["periods"],
+            selected_period=view["selected_period"], detail=detail, **context)
+
+    @app.get("/kinh-doanh/gia-nhap")
+    def business_purchase_price():
+        """Hoàn thiện giá nhập — `R-P1`…`R-P4`, biên hẹp đúng vertical này.
+
+        Danh sách mặc định chỉ hiện các dòng CÒN THIẾU giá (việc Owner phải
+        làm). `?tat-ca=1` hiện mọi dòng, vì `DEC-PHB02-02` §3 nói ô giá nhập
+        phải sửa được KỂ CẢ khi đã AUTO-fill — không có chế độ đó thì quyền
+        sửa một giá tự động không có chỗ nào thực hiện.
+        """
+        view = _business_period()
+        context = _employee_context(view)
+        data = (view["data"].for_employee(context["employee"])
+                if context["chosen"] else view["data"])
+        show_all = request.args.get("tat-ca") == "1"
+        details = [d for d in data.details
+                   if show_all or d["line"].purchase_price is None]
+        return render_template(
+            "kinh_doanh_gia_nhap.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=business_presentation.period_label(view["period"]),
+            columns=business_presentation.MISSING_PRICE_COLUMNS,
+            rows=business_presentation.missing_price_rows(details),
+            coverage=business_presentation.coverage_cell(data.totals.coverage),
+            show_all=show_all, message=request.args.get("da-luu") or None,
+            error=request.args.get("loi") or None, **context)
+
+    @app.post("/kinh-doanh/gia-nhap")
+    def business_save_purchase_price():
+        """Ghi MỘT giá nhập. Provenance do server quyết, không do form khai."""
+        view = _business_period()
+        service = view["service"]
+        try:
+            occurrence = int(request.form.get("occurrence_index") or "")
+        except ValueError:
+            abort(400)
+        keys = {
+            "order_key": request.form.get("order_key") or "",
+            "product_key": request.form.get("product_key") or "",
+            "occurrence_index": occurrence,
+        }
+        exists, auto_price = service.auto_price_of(data=view["data"], **keys)
+        if not exists:
+            abort(404)
+        redirect_args = {
+            "ky": request.args.get("ky") or request.form.get("ky") or "tat-ca",
+            "nhan-vien": request.form.get("nhan-vien") or None,
+            "tat-ca": request.form.get("tat-ca") or None,
+        }
+        if request.form.get("hanh-dong") == "go":
+            _guarded(service.store.clear_purchase_price, **keys)
+            return redirect(url_for(
+                "business_purchase_price",
+                **{k: v for k, v in redirect_args.items() if v},
+                **{"da-luu": "Đã gỡ giá nhập do Owner nhập. Dòng trở lại giá "
+                             "tự động của hệ thống."}))
+        try:
+            price = business_store.parse_purchase_price(request.form.get("gia_nhap"))
+        except business_store.InvalidPurchasePriceError as exc:
+            return redirect(url_for(
+                "business_purchase_price",
+                **{k: v for k, v in redirect_args.items() if v}, loi=str(exc)))
+        provenance = _guarded(service.store.set_purchase_price,
+                              price=price, auto_price=auto_price, **keys)
+        return redirect(url_for(
+            "business_purchase_price",
+            **{k: v for k, v in redirect_args.items() if v},
+            **{"da-luu": (
+                "Đã ghi giá nhập Owner sửa (thay giá tự động)."
+                if provenance == "MANUAL_OVERRIDE"
+                else "Đã ghi giá nhập Owner nhập.")}))
+
+    @app.get("/kinh-doanh/gia-dung")
+    def business_gia_dung():
+        """Tick Gia dụng — CHỈ nhóm Nội thành (`DEC-PHB02-05`).
+
+        Nhân viên bán lẻ thường không được thấy luồng này: chỉ thị PHB-03 §2E
+        nói rõ "Do not expose the Gia dụng workflow to ordinary retail
+        employees". Chọn sai nhân viên ⟹ 404, không phải một trang tick không
+        có tác dụng gì.
+        """
+        view = _business_period()
+        context = _employee_context(view)
+        if not context["chosen"]:
+            abort(404)
+        if not gia_dung_workflow_applies(context["employee_group"]):
+            abort(404)
+        data = view["data"].for_employee(context["employee"])
+        return render_template(
+            "kinh_doanh_gia_dung.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=business_presentation.period_label(view["period"]),
+            columns=business_presentation.GIA_DUNG_COLUMNS,
+            rows=business_presentation.gia_dung_rows(
+                view["service"].products(data)),
+            message=request.args.get("da-luu") or None, **context)
+
+    @app.post("/kinh-doanh/gia-dung")
+    def business_save_gia_dung():
+        """Ghi/gỡ phân loại Gia dụng của MỘT mặt hàng.
+
+        Quyền tick được kiểm lại ở đây, không chỉ ở trang GET: một POST dựng
+        tay vẫn phải đi qua đúng ranh giới `DEC-PHB02-05`.
+        """
+        view = _business_period()
+        context = _employee_context(view)
+        if not context["chosen"] or not gia_dung_workflow_applies(
+                context["employee_group"]):
+            abort(404)
+        product_key = request.form.get("product_key") or ""
+        products = {item["product_key"]: item for item in view["service"].products(
+            view["data"].for_employee(context["employee"]))}
+        product = products.get(product_key)
+        if product is None:
+            abort(404)
+        if request.form.get("gia_dung") == "1":
+            _guarded(view["service"].store.set_product_group,
+                     product_key=product_key, product_group="GIA_DUNG",
+                     product_label=product["product_label"])
+            saved = "Đã đánh dấu mặt hàng này là Gia dụng (tỉ lệ quy đổi 8%)."
+        else:
+            _guarded(view["service"].store.clear_product_group,
+                     product_key=product_key)
+            saved = "Đã bỏ đánh dấu Gia dụng. Mặt hàng trở lại tỉ lệ mặc định."
+        return redirect(url_for(
+            "business_gia_dung", ky=request.form.get("ky") or "tat-ca",
+            **{"nhan-vien": context["selected_employee"], "da-luu": saved}))
 
     @app.post("/run")
     def run_report():

@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'kinh-doanh' %}
+{% block title %}Reports — Nhân viên (nghiệp vụ){% endblock %}
+
+{% block content %}
+<h1>NHÂN VIÊN — ĐÁNH GIÁ THEO KỲ</h1>
+<p class="insight">{{ biz.business_badge() }}
+  Chọn nhân viên và kỳ để xem đủ chuỗi đánh giá. Không có trang riêng cho từng
+  nhân viên — cùng một trang, đổi lựa chọn.</p>
+
+<div class="module">
+  {{ biz.employee_picker(employees, selected_employee, periods, selected_period,
+                         url_for('business_employee')) }}
+
+  {% if not detail %}
+  <p class="empty" data-metric="no-employee">
+    Chưa chọn nhân viên. Chọn một người ở ô trên để xem chỉ tiêu của họ.
+  </p>
+  {% endif %}
+</div>
+
+{% if detail %}
+<div class="module">
+  <h2><span data-metric="employee">{{ detail.employee }}</span> ·
+      {{ detail.period_label }} {{ biz.business_badge() }}
+      <span class="cnt">nhóm <span data-metric="employee_group">{{ detail.employee_group }}</span> ·
+        <span data-metric="orders">{{ detail.orders }}</span> đơn ·
+        <span data-metric="lines">{{ detail.lines }}</span> dòng</span></h2>
+
+  <div class="kpi-grid">
+    {{ biz.kpi('Doanh thu bán hàng', detail.sales_revenue, 'sales_revenue', 'đồng') }}
+    {{ biz.kpi(QUALIFYING_QUANTITY_LABEL, detail.qualifying_quantity, 'qualifying_quantity') }}
+    {{ biz.gated_kpi('Lợi nhuận KPI', detail.kpi_profit, 'kpi_profit') }}
+    {{ biz.gated_kpi('DS quy đổi', detail.converted_sales, 'converted_sales') }}
+  </div>
+
+  <p class="insight">{{ QUALIFYING_QUANTITY_NOTE }}</p>
+  <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
+</div>
+
+{{ biz.coverage_block(detail.coverage, url_for('business_purchase_price',
+      ky=selected_period, **{'nhan-vien': selected_employee})) }}
+
+{{ biz.mom_block(detail.mom, detail.previous_label) }}
+
+{# `DEC-PHB02-05`: luồng tick Gia dụng CHỈ hiện với nhóm Nội thành
+   (Vinh · Quý · Hiệp). Nhân viên bán lẻ thường không thấy khối này. #}
+{% if detail.gia_dung_workflow %}
+<div class="module">
+  <h2>Phân loại Gia dụng</h2>
+  <p class="insight" data-metric="gia-dung-available">
+    Nhân viên thuộc nhóm Nội thành: mặt hàng được đánh dấu Gia dụng quy đổi ở
+    tỉ lệ 8% thay vì 2%. Việc đánh dấu là quyết định của Owner — hệ thống
+    KHÔNG tự đoán theo tên hàng.
+  </p>
+  <p><a class="ghost btn-mini" href="{{ url_for('business_gia_dung',
+        ky=selected_period, **{'nhan-vien': selected_employee}) }}">
+    ĐÁNH DẤU GIA DỤNG</a></p>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

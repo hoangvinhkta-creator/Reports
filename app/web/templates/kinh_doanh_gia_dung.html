@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'kinh-doanh' %}
+{% block title %}Reports — Đánh dấu Gia dụng{% endblock %}
+
+{% block content %}
+<h1>ĐÁNH DẤU GIA DỤNG</h1>
+<p class="insight">{{ biz.business_badge() }}
+  Chỉ áp dụng cho nhóm Nội thành: mặt hàng được đánh dấu Gia dụng quy đổi ở tỉ
+  lệ 8% thay vì 2%. Đây là quyết định của Owner — hệ thống KHÔNG tự đoán theo
+  tên hàng. Đánh dấu một lần là có hiệu lực cho mọi kỳ.</p>
+
+{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
+
+<div class="module">
+  <h2><span data-metric="employee">{{ employee }}</span> · {{ period_label }}
+    <span class="cnt">{{ rows|length }} mặt hàng</span></h2>
+
+  {% if not rows %}
+  <p class="empty" data-metric="no-rows">Kỳ này nhân viên chưa bán mặt hàng nào.</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index in (2, 3) }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.product_label }}</td>
+      <td class="num">{{ row.lines }}</td>
+      <td class="num">{{ row.sales }}</td>
+      <td data-metric="current_group">{{ row.current_label }}</td>
+      <td>
+        <form method="post" action="{{ url_for('business_save_gia_dung') }}">
+          <input type="hidden" name="product_key" value="{{ row.product_key }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="nhan-vien" value="{{ selected_employee }}">
+          <input type="hidden" name="gia_dung" value="{{ '0' if row.gia_dung else '1' }}">
+          <button class="ghost btn-mini" type="submit" data-metric="toggle">
+            {{ 'BỎ ĐÁNH DẤU' if row.gia_dung else 'ĐÁNH DẤU GIA DỤNG' }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<p><a class="ghost btn-mini" href="{{ url_for('business_employee',
+      ky=selected_period, **{'nhan-vien': selected_employee}) }}">
+  ← VỀ TRANG NHÂN VIÊN</a></p>
+{% endblock %}
