@@ -31,9 +31,57 @@
 </div>
 {%- endmacro %}
 
+{# "Thiếu cái gì và tôi cần sửa ở đâu?" — mỗi mục là MỘT việc cụ thể.
+
+   Ô đếm cũ gộp mọi thứ vào hai con số, trong đó một con số luôn bằng 0 theo
+   cấu tạo và con số kia nói "nhập giá không cứu được" cho gần hết số dòng —
+   ngược hẳn sự thật (B02/B03). Nay mỗi cửa chặn tự nói tên mình. #}
+{% macro coverage_breakdown(coverage) -%}
+{% if not coverage.complete %}
+<ul class="reason-list" data-metric="coverage-breakdown">
+  <li>
+    <strong data-metric="missing-price-lines">{{ coverage.missing_price_lines }}</strong>
+    dòng chưa có giá nhập.
+    <span data-metric="owner-fixable-lines">{{ coverage.owner_fixable_lines }}</span>
+    trong số đó chỉ cần gõ giá nhập là có lợi nhuận ngay.
+  </li>
+  {% for item in coverage.blockers %}
+  <li data-metric="coverage-blocker" data-code="{{ item.code }}">
+    <strong>{{ item.lines }}</strong> dòng: {{ item.label }}.
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% if coverage.unresolved_employee_lines %}
+<p class="insight" data-metric="unresolved-employee-note">
+  <strong data-metric="unresolved-employee-lines">{{ coverage.unresolved_employee_lines }}</strong>
+  dòng đã tính được lợi nhuận nhưng CHƯA biết của nhân viên nào.
+  {{ UNRESOLVED_EMPLOYEE_NOTE }}
+</p>
+{% endif %}
+{%- endmacro %}
+
+{# Một ô tiền SUY RA. Thiếu đầu vào ⟹ `—` kèm lý do, KHÔNG BAO GIỜ một số 0
+   bịa: một ô `0` trông như đã tính xong và ra kết quả bằng không. #}
+{% macro derived_cell(cell, metric) -%}
+<td class="num{{ ' empty-cell' if cell.missing }}" data-metric="{{ metric }}"
+    {% if cell.reason %}title="{{ cell.reason }}"{% endif %}>{{ cell.text }}</td>
+{%- endmacro %}
+
+{# Khoá nghiệp vụ + ngữ cảnh trang, dùng chung cho mọi form ghi trên một dòng.
+   Viết một lần để hai form của cùng một dòng không bao giờ lệch khoá. #}
+{% macro line_keys(row, selected_period, selected_employee, mode) -%}
+<input type="hidden" name="order_key" value="{{ row.order_key }}">
+<input type="hidden" name="product_key" value="{{ row.product_key }}">
+<input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
+<input type="hidden" name="ky" value="{{ selected_period }}">
+<input type="hidden" name="nhan-vien" value="{{ selected_employee }}">
+<input type="hidden" name="loc" value="{{ mode }}">
+{%- endmacro %}
+
 {% macro coverage_block(coverage, gia_nhap_url) -%}
 <div class="module {{ 'coverage-ok' if coverage.complete else 'coverage-gap' }}">
-  <h2>Giá nhập đã đủ chưa?
+  <h2>Đã tính được lợi nhuận cho bao nhiêu dòng?
     <span class="cnt" data-metric="coverage">{{ coverage.text }}</span>
     <span class="tp-unit" data-metric="coverage-percent">{{ coverage.percent }}</span>
   </h2>
@@ -41,22 +89,10 @@
   <p class="insight" data-metric="coverage-note">{{ OFFICIAL_NOTE }}</p>
   {% else %}
   <p class="error" data-metric="coverage-note">{{ INCOMPLETE_NOTE }}</p>
-  <ul class="reason-list">
-    {# Hai lý do "chưa đủ" KHÔNG gộp: chỉ lý do đầu hoàn thiện được bằng luồng
-       nhập giá. Gộp lại là hứa với Owner rằng nhập nốt giá là xong. #}
-    <li>
-      <strong data-metric="missing-price-lines">{{ coverage.missing_price_lines }}</strong>
-      dòng chưa có giá nhập — Owner nhập được ngay ở trang hoàn thiện giá nhập.
-    </li>
-    <li>
-      <strong data-metric="review-blocked-lines">{{ coverage.review_blocked_lines }}</strong>
-      dòng đang chờ kiểm tra — nhập giá KHÔNG mở khoá được các dòng này; xử lý
-      chúng ở tab Bán hàng.
-    </li>
-  </ul>
   {% endif %}
+  {{ coverage_breakdown(coverage) }}
   {% if gia_nhap_url %}
-  <p><a class="ghost btn-mini" href="{{ gia_nhap_url }}">HOÀN THIỆN GIÁ NHẬP</a></p>
+  <p><a class="ghost btn-mini" href="{{ gia_nhap_url }}">MỞ BẢNG KÊ CHI TIẾT</a></p>
   {% endif %}
 </div>
 {%- endmacro %}

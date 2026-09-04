@@ -53,23 +53,42 @@ def service(engine, store):
     return business_service.BusinessReportService(engine=engine, store=store)
 
 
+# Hai mã mà pipeline THẬT ghi xuống khi không tra được giá nhập. Bản audit
+# mục 10 đo trên golden: `Missing.PurchasePrice` gắn vào 100 % số dòng của cả
+# hai kỳ, kèm `Pending.eligible_kpi_profit` như hệ quả.
+PRODUCTION_MISSING_PRICE_REASONS = (
+    "TRACKING_HISTORY_PENDING", "Missing.PurchasePrice",
+    "Pending.eligible_kpi_profit",
+)
+
+
 def pair(order, *, product="Tủ lạnh Panasonic", occurrence=1, day=5, month=1,
          year=2026, employee="Vinh", group="NOI_THANH", lead="PERSONAL",
          status="AUTO", quantity="1", sell="8000000", discount="0",
          kpi_purchase="5000000", kpi_profit="3000000", rate="0.020",
-         product_group="DIEN_MAY", row=6):
+         product_group="DIEN_MAY", row=6, reasons=None):
     """Một cặp (dòng nguồn, dòng kết quả) đã khớp khoá.
 
     `kpi_purchase=None` dựng đúng tình trạng của dữ liệu thật hôm nay: pipeline
     KHÔNG phân giải được giá nhập, nên cả giá lẫn lợi nhuận KPI đều `NULL`
     (mục 4.4 của hợp đồng — 100 % dòng golden ở trạng thái này).
+
+    `reasons` là danh sách mã lý do được LƯU XUỐNG cùng dòng. Mặc định của nó
+    dựng đúng trạng thái production: thiếu giá nhập ⟹ `PENDING` + hai mã lý do
+    tương ứng. Tổ hợp `status="AUTO"` + thiếu giá nhập KHÔNG tồn tại trên dữ
+    liệu thật, nên nó không được là mặc định của một fixture nào.
     """
     source = source_line(order, product, occurrence, row=row,
                          sale_date=date(year, month, day), sell_price=sell,
                          quantity=Decimal(quantity), discount=Decimal(discount))
+    if reasons is None:
+        reasons = PRODUCTION_MISSING_PRICE_REASONS if kpi_purchase is None else ()
+    if reasons and status == "AUTO":
+        status = "PENDING"  # `excel_exporter`: có lý do ⟹ đóng dấu PENDING
     base = result_line(source, status=status)
     result = type(base)(**{
         **{field: getattr(base, field) for field in base.__dataclass_fields__},
+        "status": status, "pending_reasons": tuple(reasons),
         "employee_normalized": employee, "employee_group": group,
         "lead_source_final": lead,
         "total_sales": Decimal(sell) * Decimal(quantity) - Decimal(discount),
@@ -554,3 +573,364 @@ def test_a_price_post_keeps_the_owner_on_the_period_they_chose(repository, clien
         "ky": "2026-01", "gia_nhap": "6000000"})
     assert response.status_code == 302
     assert "ky=2026-01" in response.headers["Location"]
+
+
+# --- ĐƯỜNG PRODUCTION THẬT — bản sửa PHB-03 (B01…B04, OD-1…OD-6) ----------
+#
+# Mọi test dưới đây dựng đúng trạng thái mà pipeline SINH RA trên dữ liệu thật
+# (`status = "PENDING"` kèm mã lý do đã lưu), chạy qua database và qua HTML.
+# Đó là điều kiện để chúng nói được điều gì đó về production — bài test cũ
+# dựng `status="AUTO"` + thiếu giá nhập, một tổ hợp không tồn tại.
+
+def test_a_manual_price_rescues_the_exact_lines_it_was_built_to_rescue(
+    repository, service
+):
+    """`B01` — vòng tự khoá đã bị cắt.
+
+    Trước bản sửa: dòng bị `PENDING` CHÍNH VÌ thiếu giá nhập; Owner nhập giá;
+    nhưng dấu `PENDING` đã đóng lúc chạy máy và không bao giờ được tính lại,
+    nên cửa chặn đọc lại đúng cái điều kiện mà thao tác của Owner vừa làm cho
+    hết đúng. Với ĐÚNG tập dòng mà luồng nhập giá sinh ra để cứu, luồng đó
+    không bao giờ có tác dụng lên Lợi nhuận KPI.
+    """
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    data = service.period(**JANUARY)
+    line = data.lines[0]
+    # Trạng thái production thật: nhãn PENDING + đúng những mã lý do đã lưu.
+    assert line.status == "PENDING"
+    assert "Missing.PurchasePrice" in line.pending_reasons
+    assert line.kpi_profit is None
+    # ...và cửa chặn DUY NHẤT là thứ Owner gõ được, không phải cái nhãn.
+    assert line.profit_blockers == ("PURCHASE_PRICE_MISSING",)
+    assert line.owner_fixable is True
+
+    service.store.set_purchase_price(
+        order_key="BH1", product_key=data.details[0]["product_key"],
+        occurrence_index=1, price=Decimal("6000000"), auto_price=None)
+
+    after = service.period(**JANUARY)
+    assert after.lines[0].status == "PENDING"      # lịch sử KHÔNG bị viết lại
+    assert after.lines[0].purchase_provenance == "MANUAL"
+    assert after.lines[0].kpi_profit == Decimal("2000000")
+    assert after.totals.official_kpi_profit == Decimal("2000000")
+    assert after.totals.coverage.is_complete is True
+
+
+def test_a_pending_line_with_a_valid_override_is_not_blocked_by_the_label(
+    repository, service
+):
+    """`OD-6` qua database: nhãn `PENDING` chung chung KHÔNG chặn lợi nhuận."""
+    persist(repository, [pair(
+        "BH1", kpi_purchase="5000000", kpi_profit="3000000", status="PENDING",
+        reasons=("OrderInconsistency", "EmployeeMapping", "Suspicious.ERP"))])
+    data = service.period(**JANUARY)
+    service.store.set_purchase_price(
+        order_key="BH1", product_key=data.details[0]["product_key"],
+        occurrence_index=1, price=Decimal("4000000"),
+        auto_price=Decimal("5000000"))
+
+    after = service.period(**JANUARY)
+    line = after.lines[0]
+    assert line.status == "PENDING"
+    assert line.purchase_provenance == "MANUAL_OVERRIDE"
+    assert line.profit_blockers == ()
+    assert line.kpi_profit == Decimal("4000000")   # (8tr − 4tr) × 1 − 0
+
+
+def test_a_duplicate_line_keeps_both_its_revenue_and_its_profit(
+    repository, service
+):
+    """`OD-3` — hết mâu thuẫn "doanh thu cộng, lợi nhuận bỏ"."""
+    persist(repository, [
+        pair("BH1", kpi_purchase="5000000", kpi_profit="3000000"),
+        pair("BH1", occurrence=2, row=7, kpi_purchase="5000000",
+             kpi_profit="3000000", status="PENDING", reasons=("Duplicate",)),
+    ])
+    totals = service.period(**JANUARY).totals
+    assert totals.sales_revenue == Decimal("16000000")
+    assert totals.kpi_profit == Decimal("6000000")
+    assert totals.coverage.is_complete is True
+    warned = [l for l in service.period(**JANUARY).lines
+              if "POSSIBLE_DUPLICATE" in l.warnings]
+    assert len(warned) == 1
+
+
+def test_a_zero_quantity_line_is_never_finalised_as_zero_profit(
+    repository, service
+):
+    """`OD-1` — ví dụ thật `BTL00300`: SL = 0, đơn giá 6.200.000."""
+    persist(repository, [pair(
+        "BTL00300", product="Máy Giặt Panasonic NA-F10S10BRV", quantity="0",
+        sell="6200000", kpi_purchase="5000000", kpi_profit=None,
+        status="PENDING", reasons=("Suspicious",))])
+    data = service.period(**JANUARY)
+    assert data.lines[0].profit_blockers == ("QUANTITY_ZERO",)
+    assert data.lines[0].kpi_profit is None       # KHÔNG phải 0
+    assert data.totals.kpi_profit is None
+    assert data.totals.coverage.blocked("QUANTITY_ZERO") == 1
+    assert data.totals.coverage.owner_fixable_lines == 0
+
+
+def test_a_zero_sell_price_line_reports_the_real_negative_profit(
+    repository, service
+):
+    """`OD-4` — hàng tặng kèm: giá bán 0, giá nhập 500.000 ⟹ −500.000."""
+    persist(repository, [pair(
+        "BH62171", product="Giá treo Tivi", sell="0", quantity="1",
+        kpi_purchase=None, kpi_profit=None, status="PENDING",
+        reasons=("Suspicious", "Missing.PurchasePrice"))])
+    data = service.period(**JANUARY)
+    service.store.set_purchase_price(
+        order_key="BH62171", product_key=data.details[0]["product_key"],
+        occurrence_index=1, price=Decimal("500000"), auto_price=None)
+
+    line = service.period(**JANUARY).lines[0]
+    assert line.kpi_profit == Decimal("-500000")
+    assert "SELL_PRICE_ZERO" in line.warnings
+    assert "NEGATIVE_PROFIT" in line.warnings
+
+
+def test_a_broken_kpi_authority_still_fails_closed_through_the_whole_stack(
+    repository, engine, store, tmp_path
+):
+    """`DEC-143` §1 qua toàn bộ tầng ráp, KỂ CẢ khi đã có giá tay.
+
+    Đây là cái bẫy mà bản audit mục 9.3 nêu tên. Test dựng một file thẩm quyền
+    HỎNG thật rồi đi qua đúng đường mà production đi.
+    """
+    broken = tmp_path / "eligible_costs.yaml"
+    broken.write_text("eligible_cost_categories: [khong_duoc_ho_tro]\n",
+                      encoding="utf-8")
+    scoped = business_service.BusinessReportService(
+        engine=engine, store=store, eligible_costs_path=broken)
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    data = scoped.period(**JANUARY)
+    store.set_purchase_price(
+        order_key="BH1", product_key=data.details[0]["product_key"],
+        occurrence_index=1, price=Decimal("6000000"), auto_price=None)
+
+    after = scoped.period(**JANUARY)
+    assert after.lines[0].purchase_provenance == "MANUAL"
+    assert after.lines[0].profit_blockers[0] == "KPI_AUTHORITY_UNAVAILABLE"
+    assert after.lines[0].kpi_profit is None
+    assert after.totals.kpi_profit is None
+    assert after.totals.official_kpi_profit is None
+
+
+# --- OD-5 · gán nhân viên, đi hết vòng qua HTTP thật ----------------------
+
+def test_an_unknown_employee_line_still_counts_toward_the_period_profit(
+    repository, service
+):
+    """`OD-5` — hai câu hỏi tách nhau: "lãi bao nhiêu" và "lãi của ai"."""
+    persist(repository, [
+        pair("BH1", employee="Vinh", kpi_purchase="5000000", kpi_profit="3000000"),
+        pair("BH2", employee="", group=None, product="Tivi Sony",
+             kpi_purchase="5000000", kpi_profit="3000000"),
+    ])
+    totals = service.period(**JANUARY).totals
+    assert totals.kpi_profit == Decimal("6000000")
+    assert totals.employee_attributed_profit == Decimal("3000000")
+    assert totals.unattributed_profit == Decimal("3000000")
+    assert totals.coverage.unresolved_employee_lines == 1
+
+
+def test_the_owner_classifies_an_unknown_employee_and_every_view_follows(
+    repository, client, service
+):
+    """Kết quả UX mà `OD-5` yêu cầu, đi hết vòng qua HTTP:
+
+        "Chưa xác định nhân viên" → Owner chọn người → lưu → dòng rời nhóm đó
+        → hiện trong trang của người được chọn → KPI/tổng cập nhật.
+
+    Và KHÔNG cần nạp lại sổ để thấy kết quả.
+    """
+    persist(repository, [
+        pair("BH1", employee="Ly", group="STANDARD_SALES",
+             kpi_purchase="5000000", kpi_profit="3000000"),
+        pair("BH2", employee="", group=None, product="Tivi Sony",
+             kpi_purchase="5000000", kpi_profit="3000000"),
+    ])
+    before = body(client, "/kinh-doanh?ky=2026-01")
+    assert metric(before, "unattributed_profit") == "3.000.000"
+    assert metric(before, "unresolved-employee-lines") == "1"
+
+    listing = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=chua-ro-nv")
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"',
+                            listing).group(1)
+    response = client.post("/kinh-doanh/nhan-vien-dong", data={
+        "order_key": "BH2", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "loc": "chua-ro-nv", "nhan_vien_moi": "Vinh"})
+    assert response.status_code == 302
+
+    after = body(client, "/kinh-doanh?ky=2026-01")
+    # Nhóm "chưa xác định" đã rỗng, và khối tách đôi biến mất cùng nó.
+    assert 'data-metric="unresolved-employee-lines"' not in after
+    # Tổng của cả kỳ KHÔNG đổi — chỉ dời một khoản sang đúng người.
+    assert metric(after, "kpi_profit") == "6.000.000"
+
+    # Dòng đó nay nằm trong trang của Vinh.
+    vinh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert metric(vinh, "employee") == "Vinh"
+    assert metric(vinh, "kpi_profit") == "3.000.000"
+    assert metric(vinh, "lines") == "1"
+
+    # Và ở tầng ngữ nghĩa: bằng chứng gốc không bị ghi đè.
+    moved = [l for l in service.period(**JANUARY).lines if l.order_key == "BH2"][0]
+    assert moved.employee == "Vinh"
+    assert moved.employee_provenance == "MANUAL"
+    assert moved.source_employee is None
+
+
+def test_the_page_refuses_to_assign_a_name_that_is_not_a_real_employee(
+    repository, client, store
+):
+    """Gõ tự do một cái tên vào KPI là mở lại lớp lỗi `HD-110-06` đã đóng."""
+    persist(repository, [pair("BH1", employee="", group=None,
+                              kpi_purchase="5000000", kpi_profit="3000000")])
+    html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=tat-ca")
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"', html).group(1)
+    response = client.post("/kinh-doanh/nhan-vien-dong", data={
+        "order_key": "BH1", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "nhan_vien_moi": "Người Lạ"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert store.employee_overrides() == {}
+
+
+def test_an_employee_assignment_for_a_line_that_does_not_exist_is_refused(
+    repository, client, store
+):
+    persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
+    response = client.post("/kinh-doanh/nhan-vien-dong", data={
+        "order_key": "BH-KHONG-CO", "product_key": "deadbeef",
+        "occurrence_index": "1", "ky": "2026-01", "nhan_vien_moi": "Vinh"})
+    assert response.status_code == 404
+    assert store.employee_overrides() == {}
+
+
+def test_removing_an_assignment_returns_the_line_to_what_the_book_says(
+    repository, client, service
+):
+    """Một lần gán nhầm KHÔNG được mắc kẹt vĩnh viễn."""
+    persist(repository, [pair("BH1", employee="Ly", group="STANDARD_SALES",
+                              kpi_purchase="5000000", kpi_profit="3000000")])
+    data = service.period(**JANUARY)
+    product_key = data.details[0]["product_key"]
+    service.store.set_employee(
+        order_key="BH1", product_key=product_key, occurrence_index=1,
+        employee="Vinh", employee_group="NOI_THANH", source_employee="Ly")
+    assert service.period(**JANUARY).lines[0].employee == "Vinh"
+
+    response = client.post("/kinh-doanh/nhan-vien-dong", data={
+        "order_key": "BH1", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "hanh-dong": "go"})
+    assert response.status_code == 302
+    restored = service.period(**JANUARY).lines[0]
+    assert restored.employee == "Ly"
+    assert restored.employee_provenance == "SOURCE"
+
+
+# --- Bảng kê chi tiết hoạt động như một trang tính ------------------------
+
+def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
+    repository, client
+):
+    """Chỉ thị `ORDER DETAIL TABLE`: sửa một ô nhập ⟹ các ô suy ra tự đổi.
+
+    Không có bước "tính" riêng: cùng một trang, sau khi lưu, đã là số mới.
+    """
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
+    # Doanh thu là con số kế toán đã ghi — có ngay cả khi chưa có giá nhập.
+    assert metric(html, "total-sales") == "8.000.000"
+    # Hai ô suy ra còn lại: `—` KÈM lý do, KHÔNG BAO GIỜ một số 0 bịa.
+    assert metric(html, "line-profit") == "—"
+    assert metric(html, "line-converted") == "—"
+    # Ô trống phải đi kèm LÝ DO, ngay trên chính dòng đó.
+    assert "Chưa có giá nhập" in html
+    assert 'data-metric="line-blocker" data-code="PURCHASE_PRICE_MISSING"' in html
+
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"', html).group(1)
+    client.post("/kinh-doanh/gia-nhap", data={
+        "order_key": "BH1", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "loc": "tat-ca", "gia_nhap": "6.000.000"})
+
+    after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=tat-ca")
+    assert metric(after, "purchase_price") == "6.000.000"
+    assert metric(after, "provenance") == "Owner đã nhập"
+    assert metric(after, "line-profit") == "2.000.000"       # (8tr − 6tr) × 1
+    # DS quy đổi = 2.000.000 ÷ 2 % = 100.000.000 (phép CHIA, `DEC-PHB02-04`).
+    assert metric(after, "line-converted") == "100.000.000"
+    # Doanh thu KHÔNG bị thay bằng số lượng × đơn giá tính lại.
+    assert metric(after, "total-sales") == "8.000.000"
+
+
+def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(
+    repository, client
+):
+    """Ô suy ra là ô ĐỌC. Chỉ hai trường được phép gửi lên từ trình duyệt."""
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
+    typed = set(re.findall(r'<(?:input|select)[^>]*name="([^"]+)"', html))
+    assert typed <= {"order_key", "product_key", "occurrence_index", "ky",
+                     "nhan-vien", "loc", "gia_nhap", "nhan_vien_moi",
+                     "hanh-dong"}
+    for derived in ("loi_nhuan", "kpi_profit", "doanh_thu", "ds_quy_doi"):
+        assert f'name="{derived}"' not in html
+
+
+def test_the_coverage_block_says_what_is_missing_and_where_to_fix_it(
+    repository, client
+):
+    """`B03` — hết chuyện quy mọi thiếu sót về "thiếu giá nhập".
+
+    Ba dòng, ba nguyên nhân khác nhau. Trang phải nói ra cả ba, và phải phân
+    biệt "gõ giá là xong" với "gõ giá không cứu được".
+    """
+    persist(repository, [
+        pair("BH1", kpi_purchase="5000000", kpi_profit="3000000"),
+        pair("BH2", product="Tivi Sony", kpi_purchase=None, kpi_profit=None),
+        pair("BH3", product="Kệ máy giặt", quantity="0", kpi_purchase="5000000",
+             kpi_profit=None, status="PENDING", reasons=("Suspicious",)),
+    ])
+    html = body(client, "/kinh-doanh?ky=2026-01")
+    assert metric(html, "coverage") == "1 / 3 dòng"
+    # Ô đếm cũ LUÔN bằng 0 theo cấu tạo; nay nó nói đúng số dòng thiếu giá.
+    assert metric(html, "missing-price-lines") == "1"
+    assert metric(html, "owner-fixable-lines") == "1"
+    # Và cửa chặn thứ hai tự nói tên mình thay vì bị gộp vào một câu chung.
+    assert 'data-code="QUANTITY_ZERO"' in html
+    assert 'data-code="PURCHASE_PRICE_MISSING"' in html
+    assert "Số lượng bằng 0" in html
+
+
+def test_the_unresolved_employee_bucket_is_a_place_the_owner_can_open(
+    repository, client
+):
+    """`OD-5` yêu cầu một NHÓM nhìn thấy được, không chỉ một con số.
+
+    Nhóm "Chưa xác định nhân viên" là một mục trong bộ chọn nhân viên như mọi
+    người khác, nên Owner mở được nó ra và thấy đúng những dòng đang treo.
+    Khi dòng cuối cùng được gán, mục đó tự biến mất — nếu không, Owner sẽ mở
+    ra một trang trống và tưởng dữ liệu bị mất.
+    """
+    persist(repository, [
+        pair("BH1", employee="Ly", group="STANDARD_SALES",
+             kpi_purchase="5000000", kpi_profit="3000000"),
+        pair("BH2", employee="", group=None, product="Tivi Sony",
+             kpi_purchase="5000000", kpi_profit="3000000"),
+    ])
+    bucket = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=")
+    assert metric(bucket, "employee") == "Chưa xác định nhân viên"
+    assert metric(bucket, "lines") == "1"
+    assert metric(bucket, "kpi_profit") == "3.000.000"
+
+    listing = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=chua-ro-nv")
+    product_key = re.search(r'name="product_key" value="([0-9a-f]+)"',
+                            listing).group(1)
+    client.post("/kinh-doanh/nhan-vien-dong", data={
+        "order_key": "BH2", "product_key": product_key, "occurrence_index": "1",
+        "ky": "2026-01", "nhan_vien_moi": "Vinh"})
+
+    summary = body(client, "/kinh-doanh?ky=2026-01")
+    assert "Chưa xác định nhân viên" not in summary

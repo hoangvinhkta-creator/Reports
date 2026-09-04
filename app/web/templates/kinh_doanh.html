@@ -23,6 +23,20 @@
 
   <p class="insight">{{ QUALIFYING_QUANTITY_NOTE }}</p>
   <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
+
+  {# `OD-5` — lợi nhuận của CẢ KỲ tách làm hai phần cộng lại đúng bằng nó.
+     Trước bản sửa này phần "chưa biết của ai" bị loại khỏi mọi con số và
+     biến mất không dấu vết; nay nó có chỗ đứng riêng và nhìn thấy được. #}
+  {% if summary.unattributed_lines %}
+  <div class="kpi-grid">
+    {{ biz.kpi('Đã cộng cho nhân viên', summary.employee_attributed_profit,
+               'employee_attributed_profit', 'đồng') }}
+    {{ biz.kpi(UNKNOWN_EMPLOYEE, summary.unattributed_profit,
+               'unattributed_profit',
+               summary.unattributed_lines ~ ' dòng chưa gán') }}
+  </div>
+  <p class="insight" data-metric="attribution-note">{{ UNRESOLVED_EMPLOYEE_NOTE }}</p>
+  {% endif %}
 </div>
 
 {{ biz.coverage_block(summary.coverage, url_for('business_purchase_price', ky=selected_period)) }}

@@ -108,6 +108,16 @@ PIPELINE_TABLES = {
 # đúng hai bảng: PHB-03 §3 cấm dựng subsystem quanh chúng.
 BUSINESS_TABLES = {"kpi_purchase_price_override", "product_group_classification"}
 
+# PHB-03 REPAIR (`OD-5`) — bảng thứ ba của cùng loại: Owner gán lại nhân viên
+# cho một dòng hàng. Nó ở migration riêng `0004` chứ không nhét vào `0003` vì
+# `0003` đã chạy trên production — sửa một migration đã chạy là viết lại lịch
+# sử của một database đang sống.
+EMPLOYEE_TABLES = {"employee_attribution_override"}
+
+# Ba bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
+# này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
+OWNER_INPUT_TABLES = BUSINESS_TABLES | EMPLOYEE_TABLES
+
 
 def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
     db_path = tmp_path / "history.db"
@@ -118,7 +128,7 @@ def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
         names = set(inspect(connection).get_table_names())
         assert LEGACY_TABLES <= names
         assert PIPELINE_TABLES <= names
-        assert BUSINESS_TABLES <= names
+        assert OWNER_INPUT_TABLES <= names
         assert connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
         ).scalar() == history_db.ALEMBIC_HEAD
@@ -128,9 +138,108 @@ def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
     assert down.returncode == 0, down.stderr
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert not ((LEGACY_TABLES | PIPELINE_TABLES | BUSINESS_TABLES)
+        assert not ((LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES)
                     & set(inspect(connection).get_table_names()))
     engine.dispose()
+
+
+_SEED_PRICE = (
+    "INSERT INTO kpi_purchase_price_override"
+    " (order_key, product_key, occurrence_index, origin, purchase_price,"
+    "  provenance, auto_price_at_entry, entered_at, entered_by)"
+    " VALUES ('BTL00300', 'pk-panasonic', 1, 'PIPELINE_GENERATED', 6200000,"
+    "         'MANUAL', NULL, '2026-09-04T09:00:00', 'owner')"
+)
+_SEED_GROUP = (
+    "INSERT INTO product_group_classification"
+    " (product_key, origin, product_group, product_label, classified_at,"
+    "  classified_by)"
+    " VALUES ('pk-noicom', 'PIPELINE_GENERATED', 'GIA_DUNG', 'Nồi cơm',"
+    "         '2026-09-04T09:00:00', 'owner')"
+)
+_SEED_EMPLOYEE = (
+    "INSERT INTO employee_attribution_override"
+    " (order_key, product_key, occurrence_index, origin, employee_normalized,"
+    "  employee_group, source_employee_at_entry, assigned_at, assigned_by)"
+    " VALUES ('BTL00300', 'pk-panasonic', 1, 'PIPELINE_GENERATED', 'Vinh',"
+    "         'NOI_THANH', NULL, '2026-09-04T09:00:00', 'owner')"
+)
+
+
+def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
+    """`B04` — `alembic downgrade` KHÔNG được xoá dữ liệu Owner nhập tay.
+
+    Giá nhập Owner gõ, tick Gia dụng và việc gán nhân viên là thứ DUY NHẤT
+    trong database không tái tạo lại được: chạy lại pipeline dựng lại mọi bảng
+    khác từ file sổ gốc, nhưng không dựng lại được những con số nằm trong đầu
+    Owner. Một lệnh rollback thường được gõ vội lúc đang có sự cố khác — đúng
+    lúc không ai kịp nghĩ tới hậu quả đó.
+
+    Test đi hết vòng THẬT qua alembic (không gọi hàm trực tiếp): nạp dữ liệu →
+    downgrade → dữ liệu còn nguyên trong két → upgrade → dữ liệu về đúng chỗ
+    cũ, và cái két rỗng đi.
+    """
+    db_path = tmp_path / "history.db"
+    assert _alembic("upgrade", db_path).returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.begin() as connection:
+        for statement in (_SEED_PRICE, _SEED_GROUP, _SEED_EMPLOYEE):
+            connection.exec_driver_sql(statement)
+    engine.dispose()
+
+    assert _alembic("downgrade", db_path, "0002_snapshots").returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as connection:
+        names = set(inspect(connection).get_table_names())
+        # Bảng thật đã biến mất — downgrade vẫn làm đúng việc của nó...
+        assert not (OWNER_INPUT_TABLES & names)
+        # ...nhưng KHÔNG một dòng nào của Owner bị mất theo.
+        for table in OWNER_INPUT_TABLES:
+            backup = schema.owner_backup_name(table)
+            assert backup in names, table
+            assert connection.exec_driver_sql(
+                f"SELECT COUNT(*) FROM {backup}").scalar() == 1
+    engine.dispose()
+
+    assert _alembic("upgrade", db_path, "head").returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as connection:
+        names = set(inspect(connection).get_table_names())
+        assert OWNER_INPUT_TABLES <= names
+        # Cái két rỗng đi sau khi đã trả hàng: để nó nằm lại thì lần rollback
+        # sau sẽ chèn thêm vào một két đã có nội dung cũ.
+        assert not any(schema.owner_backup_name(t) in names
+                       for t in OWNER_INPUT_TABLES)
+        assert connection.exec_driver_sql(
+            "SELECT purchase_price, provenance, entered_by"
+            " FROM kpi_purchase_price_override").fetchall() == [
+            ("6200000", "MANUAL", "owner")]
+        assert connection.exec_driver_sql(
+            "SELECT product_group FROM product_group_classification"
+        ).fetchall() == [("GIA_DUNG",)]
+        assert connection.exec_driver_sql(
+            "SELECT employee_normalized, employee_group"
+            " FROM employee_attribution_override").fetchall() == [
+            ("Vinh", "NOI_THANH")]
+    engine.dispose()
+
+
+def test_rollback_of_an_empty_database_leaves_no_leftover_backup(tmp_path):
+    """Không có gì để mất ⟹ không tạo két.
+
+    Một cái két rỗng nằm lại trong database production là rác, và tệ hơn: lần
+    sau người vận hành nhìn thấy nó sẽ không biết nó rỗng vì chưa có dữ liệu
+    hay vì đã có ai xoá mất.
+    """
+    db_path = tmp_path / "history.db"
+    assert _alembic("upgrade", db_path).returncode == 0
+    assert _alembic("downgrade", db_path, "0002_snapshots").returncode == 0
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as connection:
+        names = set(inspect(connection).get_table_names())
+    engine.dispose()
+    assert not [name for name in names
+                if name.endswith(schema.OWNER_BACKUP_SUFFIX)]
 
 
 def test_migration_0002_is_additive_and_leaves_legacy_rows_untouched(tmp_path):
@@ -151,14 +260,14 @@ def test_migration_0002_is_additive_and_leaves_legacy_rows_untouched(tmp_path):
         before = connection.exec_driver_sql(
             "SELECT import_id, file_fingerprint FROM legacy_import"
         ).fetchall()
-        assert not ((PIPELINE_TABLES | BUSINESS_TABLES)
+        assert not ((PIPELINE_TABLES | OWNER_INPUT_TABLES)
                     & set(inspect(connection).get_table_names()))
     engine.dispose()
 
     assert _alembic("upgrade", db_path, "head").returncode == 0
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as connection:
-        assert (PIPELINE_TABLES | BUSINESS_TABLES) <= set(
+        assert (PIPELINE_TABLES | OWNER_INPUT_TABLES) <= set(
             inspect(connection).get_table_names())
         assert connection.exec_driver_sql(
             "SELECT import_id, file_fingerprint FROM legacy_import"
@@ -179,16 +288,28 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
     )
-    assert versions == ["0001_legacy.py", "0002_snapshots.py", "0003_business.py"]
+    assert versions == ["0001_legacy.py", "0002_snapshots.py",
+                        "0003_business.py", "0004_employee_attribution.py"]
 
 
 def test_schema_declares_exactly_the_frozen_tables():
     assert set(schema.METADATA.tables) == (
-        LEGACY_TABLES | PIPELINE_TABLES | BUSINESS_TABLES)
+        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES)
+
+
+def test_the_owner_backup_table_is_not_part_of_the_schema():
+    """Cái két của `B04` KHÔNG phải một bảng của lược đồ.
+
+    Nó chỉ tồn tại giữa một lần rollback và lần nâng cấp lại. Khai nó trong
+    `METADATA` sẽ khiến `create_all` dựng một bảng rỗng vĩnh viễn nằm đó, và
+    người vận hành sau này phải đoán nó là gì.
+    """
+    for name in OWNER_INPUT_TABLES:
+        assert schema.owner_backup_name(name) not in schema.METADATA.tables
 
 
 def test_every_fact_table_carries_an_explicit_origin_column():
-    for name in (LEGACY_TABLES | BUSINESS_TABLES
+    for name in (LEGACY_TABLES | OWNER_INPUT_TABLES
                  | (PIPELINE_TABLES - {"snapshot_line", "reconciliation_flag"})):
         table = schema.METADATA.tables[name]
         assert "origin" in table.c, name

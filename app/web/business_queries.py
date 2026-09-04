@@ -28,6 +28,7 @@ Cột KHÔNG được đọc ở đây (PII theo
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -82,12 +83,34 @@ def _read(engine: Engine, statement) -> list[dict]:
 _COLUMNS = (
     _CURRENT.order_key, _CURRENT.product_key, _CURRENT.occurrence_index,
     _CURRENT.sale_date,
-    _RESULT.status, _RESULT.employee_normalized, _RESULT.employee_group,
+    _RESULT.status, _RESULT.pending_reasons_json,
+    _RESULT.employee_normalized, _RESULT.employee_group,
     _RESULT.lead_source_final, _RESULT.total_sales, _RESULT.kpi_purchase_price,
     _RESULT.kpi_purchase_provenance, _RESULT.eligible_kpi_profit,
     _RESULT.product_group_final, _RESULT.conversion_rate_final,
     _SOURCE.product_raw, _SOURCE.quantity, _SOURCE.sell_price, _SOURCE.discount,
 )
+
+
+def reasons(raw: Optional[str]) -> tuple[str, ...]:
+    """`pending_reasons_json` đã lưu → tuple mã, khử trùng lặp, GIỮ thứ tự.
+
+    Cùng cách giải mã đã nghiệm thu ở `sales_queries._reasons` (TASK-PRA-004),
+    và cùng lý do: JSON hỏng trả về tuple RỖNG chứ không phải HTTP 500 — một
+    dòng mất danh sách lý do vẫn hiện đúng mọi con số, còn một trang trắng thì
+    không nói được gì cả.
+
+    Các mã này KHÔNG tham gia vào cửa chặn lợi nhuận (`OD-6`). Chúng chỉ dùng
+    để dựng cảnh báo (`Duplicate`) và để hiện cho Owner biết pipeline đã ghi
+    chú gì trên dòng.
+    """
+    try:
+        parsed = json.loads(raw or "[]")
+    except (TypeError, ValueError):
+        return ()
+    if not parsed:
+        return ()
+    return tuple(dict.fromkeys(str(value) for value in parsed))
 
 
 def raw_lines(
@@ -125,6 +148,32 @@ def employee_names(
     return sorted(seen.items(), key=lambda item: (item[0] is None, item[0] or ""))
 
 
+def merge_assigned_names(
+    names: list[tuple[Optional[str], Optional[str]]], lines: list[BusinessLine],
+) -> list[tuple[Optional[str], Optional[str]]]:
+    """Bộ chọn nhân viên phải phản ánh CẢ những lần Owner gán lại (`OD-5`).
+
+    `employee_names` đọc thẳng cột của pipeline, nên nó không thấy một người
+    vừa được gán lại — và nếu bộ chọn không có tên đó thì trang nhân viên trả
+    404 ngay sau khi Owner vừa lưu thành công. Ngược lại, nhóm "chưa xác định"
+    phải BIẾN MẤT khỏi bộ chọn khi dòng cuối cùng của nó đã được gán, nếu
+    không Owner sẽ mở ra một trang trống và tưởng mất dữ liệu.
+
+    Vì vậy danh sách được dựng lại từ chính tập dòng ĐÃ HỢP NHẤT — một nguồn
+    sự thật, không phải hai.
+    """
+    seen: dict[Optional[str], Optional[str]] = {}
+    for line in lines:
+        seen.setdefault(line.employee or None, line.employee_group)
+    for name, group in names:
+        # Giữ tên chỉ có trong bộ chọn cũ (ví dụ nhân viên có dòng ngoài kỳ
+        # đang xem) thay vì âm thầm bỏ đi — trừ mục "chưa xác định", vốn phải
+        # tự tắt khi không còn dòng nào vô chủ.
+        if name is not None:
+            seen.setdefault(name, group)
+    return sorted(seen.items(), key=lambda item: (item[0] is None, item[0] or ""))
+
+
 def undated_lines(engine: Engine) -> int:
     """Dòng hiện hành KHÔNG có `sale_date`, đếm KHÔNG lọc kỳ (`R-S5`)."""
     rows = _read(engine, select(func.count().label("total"))
@@ -135,12 +184,21 @@ def undated_lines(engine: Engine) -> int:
 
 def build_lines(
     rows: list[dict], *, overrides: dict, classifications: dict,
-    router: ConversionRateRouter,
+    router: ConversionRateRouter, kpi_authority_valid: bool,
+    employee_overrides: Optional[dict] = None,
 ) -> list[BusinessLine]:
     """Hợp nhất dòng pipeline + quyết định Owner thành `BusinessLine`.
 
-    Đây là điểm hợp nhất DUY NHẤT của hai thẩm quyền, và nó xảy ra lúc ĐỌC —
-    không có bản ghi nào bị sửa để đạt được kết quả này.
+    Đây là điểm hợp nhất DUY NHẤT của các thẩm quyền, và nó xảy ra lúc ĐỌC —
+    không có bản ghi nào bị sửa để đạt được kết quả này. Đó cũng là lý do việc
+    Owner sửa giá nhập hay gán lại nhân viên có hiệu lực NGAY ở lần tải trang
+    kế tiếp, không cần chạy lại pipeline (`OD-5`, chỉ thị `PURCHASE PRICE
+    EDITING`).
+
+    `kpi_authority_valid` KHÔNG có giá trị mặc định: nó là van fail-closed của
+    `DEC-143` §1, và một van an toàn có giá trị mặc định "mở" thì không phải
+    van an toàn. Tầng gọi phải đọc `config/eligible_costs.yaml` và nói ra kết
+    quả.
 
     `discount` được coalesce về `0` (và CHỈ nó): công thức đã freeze của
     `DEC-143` là `(SellPrice − KpiPurchasePrice) × Quantity − Discount`, trong
@@ -148,15 +206,26 @@ def build_lines(
     "trừ đi 0". Điều đó khác hẳn `sell_price`/`quantity` vắng mặt — hai cái đó
     làm lợi nhuận KHÔNG XÁC ĐỊNH và vẫn phải là `None`.
     """
+    employee_overrides = employee_overrides or {}
     lines = []
     for row in rows:
         key = (row["order_key"], row["product_key"], int(row["occurrence_index"]))
         override = overrides.get(key)
+        assigned = employee_overrides.get(key)
         classified = classifications.get(row["product_key"])
+        # Bằng chứng gốc ĐI KÈM chứ không bị thay thế: `source_employee` giữ
+        # nguyên tên mà sổ ghi, `employee` mới là tên có hiệu lực để cộng KPI.
+        source_employee = row["employee_normalized"] or None
         lines.append(BusinessLine(
             order_key=row["order_key"],
-            employee=row["employee_normalized"] or None,
-            employee_group=row["employee_group"],
+            employee=(source_employee if assigned is None
+                      else assigned["employee_normalized"]),
+            employee_group=(row["employee_group"] if assigned is None
+                            else assigned["employee_group"]),
+            source_employee=source_employee,
+            employee_provenance="SOURCE" if assigned is None else "MANUAL",
+            pending_reasons=reasons(row["pending_reasons_json"]),
+            kpi_authority_valid=kpi_authority_valid,
             status=row["status"],
             sell_price=row["sell_price"],
             quantity=row["quantity"],
@@ -210,5 +279,6 @@ def line_details(
 
 
 __all__ = [
-    "build_lines", "employee_names", "line_details", "raw_lines", "undated_lines",
+    "build_lines", "employee_names", "line_details", "merge_assigned_names",
+    "raw_lines", "reasons", "undated_lines",
 ]

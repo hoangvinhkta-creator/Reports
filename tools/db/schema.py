@@ -444,7 +444,62 @@ product_group_classification = Table(
                     name="ck_product_group_value"),
 )
 
-# Thứ tự tạo/xoá tường minh cho migration 0003. Không FK nào trỏ ra ngoài: cả
-# hai bảng là quyết định của con người trên một KHOÁ NGHIỆP VỤ, và khoá đó
-# phải sống sót qua một lần re-import làm đổi ``id`` của version.
+# PHB-03 REPAIR (OD-5) — Owner gán lại nhân viên cho MỘT dòng hàng.
+#
+# Vì sao cần một bảng riêng thay vì sửa ``order_line_result_version``: bảng đó
+# APPEND-ONLY, mỗi dòng là kết quả của một lần chạy engine và là BẰNG CHỨNG KẾ
+# TOÁN GỐC. Ghi đè ``employee_normalized`` ở đó sẽ xoá mất "sổ ghi ai" để thay
+# bằng "Owner nghĩ là ai" — hai thứ khác nhau, và chỉ thị PHB-03 cấm việc đó
+# tường minh (*"Do NOT overwrite the raw source field destructively"*).
+#
+# ``source_employee_at_entry`` là provenance một-cột, đúng khuôn
+# ``auto_price_at_entry`` của bảng giá nhập: nó ghi lại giá trị mà pipeline
+# ĐANG nói tại thời điểm Owner sửa. ``NULL`` ⟺ lúc đó dòng chưa có nhân viên
+# nào (trường hợp "Chưa xác định nhân viên" thường gặp).
+employee_attribution_override = Table(
+    "employee_attribution_override", METADATA,
+    Column("order_key", Text, primary_key=True),
+    Column("product_key", Text, primary_key=True),
+    Column("occurrence_index", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    Column("employee_normalized", Text, nullable=False),
+    Column("employee_group", Text, nullable=True),
+    Column("source_employee_at_entry", Text, nullable=True),
+    Column("assigned_at", Text, nullable=False),
+    Column("assigned_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_employee_override_origin"),
+    # Một tên rỗng KHÔNG phải một lần gán: nó sẽ trông như đã sửa xong trong
+    # khi dòng vẫn vô chủ, và làm ô đếm "chưa xác định nhân viên" nói dối.
+    CheckConstraint("length(trim(employee_normalized)) > 0",
+                    name="ck_employee_override_not_blank"),
+)
+
+# Thứ tự tạo/xoá tường minh cho migration 0003/0004. Không FK nào trỏ ra
+# ngoài: cả ba bảng là quyết định của con người trên một KHOÁ NGHIỆP VỤ, và
+# khoá đó phải sống sót qua một lần re-import làm đổi ``id`` của version.
 BUSINESS_TABLES = (kpi_purchase_price_override, product_group_classification)
+EMPLOYEE_TABLES = (employee_attribution_override,)
+
+# ---------------------------------------------------------------------------
+# B04 — ROLLBACK KHÔNG ĐƯỢC XOÁ DỮ LIỆU OWNER TỰ NHẬP
+# ---------------------------------------------------------------------------
+# Ba bảng dưới đây chứa thứ DUY NHẤT trong toàn bộ database không tái tạo lại
+# được: giá nhập Owner gõ tay, tick Gia dụng, và việc gán nhân viên. Chạy lại
+# pipeline dựng lại được mọi bảng khác từ file sổ gốc — nhưng không dựng lại
+# được những con số này, vì chúng ở trong đầu Owner chứ không ở trong file.
+#
+# ``downgrade()`` của migration vì thế KHÔNG được ``DROP TABLE`` thẳng. Cơ chế
+# nhỏ nhất đủ an toàn cho production: trước khi xoá, sao nguyên nội dung sang
+# một bảng lưu tạm cùng database; ``upgrade()`` sau đó nạp lại. Không backup
+# subsystem, không file dump, không dịch vụ mới — một câu ``CREATE TABLE AS
+# SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
+OWNER_INPUT_TABLES = BUSINESS_TABLES + EMPLOYEE_TABLES
+
+#: Hậu tố của bảng lưu tạm. Nó nằm NGOÀI ``METADATA`` một cách có chủ đích:
+#: đây không phải một bảng của lược đồ, nó là một cái két chỉ tồn tại giữa một
+#: lần rollback và lần nâng cấp lại.
+OWNER_BACKUP_SUFFIX = "__owner_backup"
+
+
+def owner_backup_name(table_name: str) -> str:
+    return f"{table_name}{OWNER_BACKUP_SUFFIX}"

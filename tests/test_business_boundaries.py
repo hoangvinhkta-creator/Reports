@@ -10,9 +10,12 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 QUERY_MODULE = REPO_ROOT / "app/web/business_queries.py"
 METRICS_MODULE = REPO_ROOT / "app/modules/reporting/business_metrics.py"
+GATE_MODULE = REPO_ROOT / "app/modules/reporting/profit_gate.py"
 STORE_MODULE = REPO_ROOT / "app/web/business_store.py"
 
 
@@ -80,21 +83,52 @@ def test_the_business_write_layer_never_touches_the_append_only_fact_tables():
         "reconciliation_flag", "legacy_summary_row",
     }
     assert names.isdisjoint(forbidden), sorted(names & forbidden)
-    assert {"kpi_purchase_price_override", "product_group_classification"} <= names
+    assert {"kpi_purchase_price_override", "product_group_classification",
+            "employee_attribution_override"} <= names
 
 
-def test_the_pure_metrics_module_stays_pure():
-    """`business_metrics` không được biết database, web hay filesystem.
-
-    Toàn bộ mục 8 của PHB-03 là mệnh đề về NGỮ NGHĨA; giữ module này thuần là
-    điều kiện để chúng kiểm được mà không dựng database hay browser.
-    """
-    tree = _tree(METRICS_MODULE)
+def _imported_modules(path):
+    tree = _tree(path)
     modules = {node.module for node in ast.walk(tree)
                if isinstance(node, ast.ImportFrom) and node.module}
-    modules |= {alias.name for node in ast.walk(tree)
-                if isinstance(node, ast.Import) for alias in node.names}
-    assert modules <= {"__future__", "dataclasses", "decimal", "typing"}, modules
+    return modules | {alias.name for node in ast.walk(tree)
+                      if isinstance(node, ast.Import) for alias in node.names}
+
+
+@pytest.mark.parametrize("module", [METRICS_MODULE, GATE_MODULE])
+def test_the_pure_business_modules_stay_pure(module):
+    """`business_metrics` và `profit_gate` không được biết database/web/file.
+
+    Toàn bộ mục 8 của PHB-03 là mệnh đề về NGỮ NGHĨA; giữ hai module này thuần
+    là điều kiện để chúng kiểm được mà không dựng database hay browser.
+
+    `app.modules.reporting` được phép ở đây, và CHỈ nó: đó là chính gói này,
+    nơi `business_metrics` lấy `profit_gate` — hai module thuần cạnh nhau, chứ
+    không phải một cánh cửa ra tầng hạ tầng.
+    """
+    allowed = {"__future__", "dataclasses", "decimal", "typing",
+               "app.modules.reporting"}
+    assert _imported_modules(module) <= allowed, _imported_modules(module)
+
+
+def test_the_profit_gate_never_reads_the_pipeline_status_label():
+    """`OD-6` — cửa chặn lợi nhuận KHÔNG được hỏi `status`.
+
+    Đây là bất biến trung tâm của bản sửa PHB-03, và nó kiểm được bằng cấu
+    trúc: `status` là kết quả cộng dồn 19 mã lý do rất khác nhau, nên bất kỳ
+    lần đọc nào của nó trong `profit_gate` đều là một bước quay lại đúng cái
+    cửa chặn tự quy chiếu mà bản audit đã gọi tên.
+    """
+    source = GATE_MODULE.read_text(encoding="utf-8")
+    code = "\n".join(line for line in source.splitlines()
+                      if not line.lstrip().startswith("#"))
+    body = code.split('"""', 2)[-1]  # bỏ docstring module, nơi có giải thích
+    # Tên trường `status` không được xuất hiện ở đâu trong phần mã.
+    assert "status" not in body
+    # Và hai GIÁ TRỊ của nó cũng không — dạng chuỗi nguyên vẹn. Mã lý do
+    # `TRACKING_HISTORY_PENDING` không khớp: nó không phải chuỗi `"PENDING"`.
+    for literal in ('"PENDING"', '"AUTO"'):
+        assert literal not in body, literal
 
 
 def test_the_conversion_rate_table_is_the_only_source_of_rates():

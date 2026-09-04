@@ -24,7 +24,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Optional
 
+from app.beta_presentation import REASON_DISPLAY_LABELS
 from app.modules.reporting import business_metrics as bm
+from app.modules.reporting import profit_gate
 from app.web.analytics_presentation import (
     ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, money, period_label, period_options,
     period_value, previous_period,
@@ -39,14 +41,19 @@ STATE_LABELS = {
     bm.STATE_INCOMPLETE: "CHƯA HOÀN CHỈNH",
 }
 
+# `B03` — hai câu này TỪNG quy mọi thiếu sót về "thiếu giá nhập", trong khi
+# một dòng có thể chưa tính được vì số lượng bằng 0, thiếu giá bán, hoặc file
+# thẩm quyền KPI hỏng. Nói sai nguyên nhân là đẩy Owner đi sửa nhầm chỗ, nên
+# câu chung chỉ nói CÓ THIẾU; phần "thiếu cái gì" nằm ở bảng liệt kê bên dưới,
+# nơi mỗi cửa chặn tự nói tên mình.
 OFFICIAL_NOTE = (
-    "Đã có giá nhập cho toàn bộ dòng hàng của kỳ, nên lợi nhuận KPI và DS quy "
-    "đổi dưới đây là số CHÍNH THỨC."
+    "Mọi dòng hàng của kỳ đều đã tính được lợi nhuận, nên lợi nhuận KPI và DS "
+    "quy đổi dưới đây là số CHÍNH THỨC."
 )
 INCOMPLETE_NOTE = (
-    "Chưa đủ giá nhập cho toàn bộ dòng hàng của kỳ. Các con số lợi nhuận KPI "
+    "Còn dòng hàng của kỳ chưa tính được lợi nhuận. Các con số lợi nhuận KPI "
     "và DS quy đổi dưới đây CHƯA phải số chính thức — chúng chỉ cộng phần đã "
-    "có giá nhập."
+    "tính được. Danh sách ngay dưới nói rõ thiếu cái gì và sửa ở đâu."
 )
 EMPTY_NOTE = "Kỳ này chưa có dòng hàng nào."
 
@@ -78,11 +85,32 @@ ORDER_COLUMN_NOTE = (
 
 EMPLOYEE_COLUMNS: tuple[str, ...] = (
     "Nhân viên", "Nhóm", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
-    "Lợi nhuận KPI", "DS quy đổi", "Giá nhập đã đủ",
+    "Lợi nhuận KPI", "DS quy đổi", "Đã tính được lợi nhuận",
 )
 
-MISSING_PRICE_COLUMNS: tuple[str, ...] = (
+# Bảng kê chi tiết — mỗi dòng hàng là MỘT dòng bảng, ô nhập được nằm ngay
+# trong dòng đó, và các ô tiền suy ra tự cập nhật sau khi lưu (chỉ thị
+# `ORDER DETAIL TABLE`). Bốn cột cuối là SUY RA, không gõ tay được.
+DETAIL_COLUMNS: tuple[str, ...] = (
     "Ngày", "Mã đơn", "Mặt hàng", "SL", "Giá bán", "Giá nhập KPI", "Nguồn giá",
+    "Doanh thu", "Lợi nhuận KPI", "DS quy đổi", "Nhân viên",
+)
+# Tên cũ, giữ lại để không phá vỡ nơi nào còn tham chiếu.
+MISSING_PRICE_COLUMNS = DETAIL_COLUMNS
+
+DERIVED_COLUMNS_NOTE = (
+    "Ba cột Doanh thu · Lợi nhuận KPI · DS quy đổi là số SUY RA — không gõ "
+    "trực tiếp được. Sửa Số lượng/Giá bán trên sổ gốc, hoặc sửa Giá nhập ngay "
+    "tại đây, rồi bấm LƯU: các con số đó tự tính lại trên chính trang này."
+)
+UNRESOLVED_EMPLOYEE_NOTE = (
+    "Những dòng chưa biết của ai VẪN được cộng vào lợi nhuận của cả kỳ. "
+    "Chúng chỉ chưa được cộng cho một nhân viên cụ thể — chọn tên rồi bấm LƯU "
+    "là chúng chuyển sang bảng của người đó."
+)
+NET_SALES_NOTE = (
+    "Cột Doanh thu lấy đúng con số kế toán mà hệ thống đã ghi khi nạp sổ, "
+    "KHÔNG phải phép nhân Số lượng × Giá bán làm lại."
 )
 
 GIA_DUNG_COLUMNS: tuple[str, ...] = (
@@ -115,7 +143,14 @@ def coverage_cell(coverage: bm.Coverage) -> dict:
         "percent": percent(coverage.percent),
         "complete": coverage.is_complete,
         "missing_price_lines": coverage.missing_price_lines,
-        "review_blocked_lines": coverage.review_blocked_lines,
+        "owner_fixable_lines": coverage.owner_fixable_lines,
+        "unresolved_employee_lines": coverage.unresolved_employee_lines,
+        # Mỗi mục là một VIỆC CỤ THỂ, kèm chỗ phải sửa — thay cho ô đếm gộp cũ
+        # vốn nói "nhập giá không cứu được" cho gần như mọi dòng (`B03`).
+        "blockers": [
+            {"code": code, "lines": lines, "label": profit_gate.label(code)}
+            for code, lines in coverage.blocked_lines
+        ],
     }
 
 
@@ -170,6 +205,11 @@ def _metrics(totals: bm.BusinessTotals) -> dict:
         "converted_sales": gated_cell(
             totals.converted_sales, totals.official_converted_sales, state),
         "coverage": coverage_cell(totals.coverage),
+        # `OD-5` — hai con số này luôn cộng lại bằng `kpi_profit`. Hiện cả hai
+        # cạnh nhau để phần đang treo không biến mất không dấu vết.
+        "employee_attributed_profit": _decimal(totals.employee_attributed_profit),
+        "unattributed_profit": _decimal(totals.unattributed_profit),
+        "unattributed_lines": totals.coverage.unresolved_employee_lines,
         "state": state,
         "state_label": STATE_LABELS[state],
         "official": totals.coverage.is_complete,
@@ -251,17 +291,42 @@ def employee_options(
             for name, _group in employees]
 
 
-def missing_price_rows(details: list[dict]) -> list[dict]:
-    """Các dòng cần Owner hoàn thiện giá nhập, hoặc đã hoàn thiện rồi.
+def _derived_cell(value: Optional[Decimal], blockers: tuple[str, ...]) -> dict:
+    """Một ô tiền SUY RA: có số, hoặc `—` KÈM lý do — không bao giờ bịa `0`.
 
-    Bao gồm CẢ dòng đã có giá tự động: `DEC-PHB02-02` §3 nói ô giá nhập phải
-    sửa được kể cả khi đã AUTO-fill, nên một danh sách chỉ có dòng thiếu sẽ
-    không có chỗ nào để thực hiện quyền đó.
+    Chỉ thị `ORDER DETAIL TABLE`: *"Missing required inputs: show blank/N/A +
+    reason rather than fabricate 0."* Một ô `0` trông như đã tính xong và ra
+    kết quả bằng không; một ô `—` kèm câu "chưa có giá nhập" nói đúng sự thật
+    và chỉ luôn việc phải làm.
+    """
+    if value is not None:
+        return {"text": _decimal(value), "missing": False, "reason": ""}
+    reason = profit_gate.label(blockers[0]) if blockers else ""
+    return {"text": "—", "missing": True, "reason": reason}
+
+
+def detail_rows(details: list[dict]) -> list[dict]:
+    """Bảng kê chi tiết — một dòng hàng là một dòng, sửa được ngay tại chỗ.
+
+    Đây là "trang tính" mà chỉ thị `ORDER DETAIL TABLE` mô tả, và nó cố ý
+    KHÔNG phải một Excel trong trình duyệt:
+
+    - Ô nhập được: **giá nhập** (`DEC-PHB02-02` §3 — sửa được kể cả khi đã
+      AUTO-fill) và **nhân viên** (`OD-5`).
+    - Ô suy ra: doanh thu, lợi nhuận KPI, DS quy đổi. Chúng không gõ được, và
+      tự tính lại từ đầu vào hiện tại sau mỗi lần lưu. Không có nút "tính".
+    - Doanh thu lấy NGUYÊN `total_sales` kế toán đã ghi, không thay bằng
+      `số lượng × đơn giá` (chỉ thị: *"Do NOT casually replace authoritative
+      net sales"*).
+
+    Danh sách gồm CẢ dòng đã đủ giá: quyền sửa một giá tự động phải có chỗ
+    thực hiện, và Owner cần nhìn thấy cả kỳ chứ không chỉ phần lỗi.
     """
     rows = []
     for detail in details:
         line = detail["line"]
         provenance = line.purchase_provenance
+        blockers = line.profit_blockers
         rows.append({
             "order_key": detail["order_key"],
             "product_key": detail["product_key"],
@@ -278,9 +343,46 @@ def missing_price_rows(details: list[dict]) -> list[dict]:
             "pending": line.purchase_price is None,
             "overridden": provenance in (
                 bm.PROVENANCE_MANUAL, bm.PROVENANCE_MANUAL_OVERRIDE),
-            "review_blocked": line.blocked_by_review,
+            # --- ba ô SUY RA -------------------------------------------
+            "total_sales": _derived_cell(line.total_sales, ()),
+            "kpi_profit": _derived_cell(line.kpi_profit, blockers),
+            "converted_sales": _derived_cell(line.converted_sales, blockers),
+            # --- nhân viên, sửa được ------------------------------------
+            "employee": line.employee or UNKNOWN_EMPLOYEE,
+            "employee_value": line.employee or "",
+            "employee_resolved": line.employee_resolved,
+            "employee_reassigned": line.employee_provenance == "MANUAL",
+            "source_employee": line.source_employee,
+            # --- cửa chặn và cảnh báo -----------------------------------
+            "blockers": [{"code": code, "label": profit_gate.label(code)}
+                         for code in blockers],
+            "warnings": [{"code": code, "label": profit_gate.label(code)}
+                         for code in line.warnings],
+            # Mã pipeline hiện NGUYÊN VĂN dưới nhãn tiếng Việt: chúng là bằng
+            # chứng lịch sử của lần chạy máy, không còn là cửa chặn.
+            "pipeline_reasons": [REASON_DISPLAY_LABELS.get(code, code)
+                                 for code in line.pending_reasons],
+            "pipeline_status": line.status,
         })
     return rows
+
+
+def missing_price_rows(details: list[dict]) -> list[dict]:
+    """Tên cũ của `detail_rows`, giữ lại cho các nơi còn gọi theo tên cũ."""
+    return detail_rows(details)
+
+
+def assignable_employee_options(
+    employees: list[tuple[str, Optional[str]]]
+) -> list[dict]:
+    """Danh sách nhân viên trong ô chọn của bảng kê (`OD-5`).
+
+    KHÔNG có mục trống: ô này để GÁN một dòng cho ai đó. Muốn trả dòng về
+    trạng thái chưa xác định thì dùng nút GỠ, và nút đó nói rõ nó làm gì —
+    một mục trống lẫn giữa các tên người thì không.
+    """
+    return [{"value": name, "label": name, "group": group}
+            for name, group in employees]
 
 
 def gia_dung_rows(products: list[dict]) -> list[dict]:
@@ -308,12 +410,15 @@ def gia_dung_rows(products: list[dict]) -> list[dict]:
 
 
 __all__ = [
-    "ALL_DATA_LABEL", "CONVERTED_SALES_NOTE", "EMPLOYEE_COLUMNS",
-    "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE", "MISSING_PRICE_COLUMNS",
-    "MOM_ALL_DATA", "MOM_NO_PREVIOUS", "MOM_PREVIOUS_ZERO", "OFFICIAL_NOTE",
-    "ORDER_COLUMN_NOTE", "ORIGIN_BADGE", "PROVENANCE_LABELS",
-    "QUALIFYING_QUANTITY_LABEL", "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS",
-    "coverage_cell", "employee_detail", "employee_options", "employee_rows",
-    "gated_cell", "gia_dung_rows", "missing_price_rows", "month_over_month",
-    "percent", "period_label", "period_options", "period_value", "summary",
+    "ALL_DATA_LABEL", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+    "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
+    "MISSING_PRICE_COLUMNS", "MOM_ALL_DATA", "MOM_NO_PREVIOUS",
+    "MOM_PREVIOUS_ZERO", "NET_SALES_NOTE", "OFFICIAL_NOTE", "ORDER_COLUMN_NOTE",
+    "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
+    "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
+    "UNRESOLVED_EMPLOYEE_NOTE",
+    "assignable_employee_options", "coverage_cell", "detail_rows",
+    "employee_detail", "employee_options", "employee_rows", "gated_cell",
+    "gia_dung_rows", "missing_price_rows", "month_over_month", "percent",
+    "period_label", "period_options", "period_value", "summary",
 ]

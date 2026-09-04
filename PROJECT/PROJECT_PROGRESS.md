@@ -1,5 +1,84 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-03 = REPAIRED_AWAITING_RE_REVIEW (AUTHORITATIVE, 2026-09-04, S117)
+
+`PHB-03` đã được **sửa có ranh giới** theo Owner Decisions `OD-1`…`OD-6`, trên
+đúng HEAD của bản triển khai gốc. Trạng thái là `REPAIRED_AWAITING_RE_REVIEW` —
+**chưa** `DONE`: cần Independent Re-Review, và **KHÔNG deploy**.
+
+Căn cứ nghiệp vụ: `docs/reviews/PHB-03-pending-reason-business-classification.md`
+(audit chỉ-đọc, commit `c597f5a`). Báo cáo triển khai bản sửa:
+`docs/reviews/PHB-03-bounded-business-semantics-repair.md`.
+
+```text
+TARGET_GATE               = PASS (BASE_HEAD = 60adb2ec22efdb4967d6971bbee852db660c8c18,
+                            trùng đúng HEAD của claude/phb-03-summary-employee-parity-7x3uid)
+MODE                      = BOUNDED REPAIR
+REPAIR_BRANCH             = claude/phb-03-bounded-semantics-repair-685gf4
+
+PROFIT_GATE               = ĐỔI. Cửa chặn lợi nhuận nay đọc ĐẦU VÀO KINH TẾ
+                            (giá bán · số lượng > 0 · giá nhập hiệu lực ·
+                            thẩm quyền KPI), KHÔNG đọc `status`. Tập cửa chặn
+                            đã freeze tại app/modules/reporting/profit_gate.py.
+GENERIC_PENDING_BLOCKS    = NO (OD-6). Nhãn `PENDING` là bằng chứng lịch sử
+                            của lần chạy máy, không còn là luật tính toán.
+B01 giá tay có hiệu lực   = PASS — vòng tự khoá đã cắt; giá MANUAL/
+                            MANUAL_OVERRIDE tính lại theo công thức DEC-143.
+B02 missing_price_lines   = PASS — bỏ vế `status == "AUTO"` vốn khiến ô đếm
+                            luôn bằng 0 theo cấu tạo; thêm owner_fixable_lines.
+B03 prose/UI              = PASS — coverage liệt kê TỪNG cửa chặn kèm số dòng;
+                            câu cảnh báo chung thôi quy mọi thiếu sót về giá nhập.
+B04 rollback              = PASS — tools/db/owner_data.py: downgrade cất dữ
+                            liệu Owner vào bảng lưu tạm cùng database, upgrade
+                            nạp lại rồi dọn. KHÔNG backup subsystem.
+
+OD-1 số lượng 0           = CHẶN, cảnh báo, không chốt lợi nhuận (không ghi 0)
+OD-2 số lượng âm          = CHẶN, cảnh báo, KHÔNG vào KPI nhân viên. Cũng
+                            KHÔNG vào tổng công ty — phía thận trọng, cần Owner
+                            xác nhận (mục 13 báo cáo).
+OD-3 Duplicate            = WARNING_ONLY — doanh thu VÀ lợi nhuận đều cộng;
+                            hết mâu thuẫn "cộng doanh thu, bỏ lợi nhuận".
+OD-4 giá bán 0            = WARNING_ONLY — tính đúng phép trừ, ra số âm thật.
+OD-5 chưa rõ nhân viên    = lợi nhuận vào tổng kỳ; KPI cá nhân chưa gán; nhóm
+                            "Chưa xác định nhân viên" mở xem được; gán lại
+                            bằng thao tác hẹp, có provenance, không ghi đè
+                            bằng chứng gốc.
+KPI_AUTHORITY_FAIL_CLOSED = PASS — DEC-143 §1 giữ nguyên, và nay là một vế
+                            TƯỜNG MINH của cửa chặn (bịt đường đi vòng qua van
+                            mà audit mục 9.3 cảnh báo).
+
+SCHEMA_CHANGE             = 0004_employee_attribution (MỘT bảng, ADDITIVE).
+                            Bắt buộc cho OD-5: không có chỗ nào sẵn lưu được
+                            việc gán nhân viên mà không ghi đè bằng chứng kế
+                            toán gốc. ALEMBIC_HEAD = 0004_employee_attribution.
+DETAIL_TABLE              = /kinh-doanh/gia-nhap hoạt động như trang tính:
+                            2 ô nhập (giá nhập · nhân viên), 3 ô suy ra tự
+                            tính lại sau khi lưu, không có bước "tính" riêng.
+                            total_sales GIỮ ngữ nghĩa kế toán, không thay bằng
+                            quantity × unit price.
+
+FULL_TESTS                = PASS — 2136 passed, 11 skipped
+GOLDEN_TESTS              = PASS — 74 passed, 2 skipped
+PRODUCTION_PATH_TESTS     = PASS — 101 passed (business_metrics + vertical +
+                            boundaries). Fixture `pair()` nay dựng trạng thái
+                            production THẬT (PENDING + mã lý do đã lưu); tổ hợp
+                            bất khả `status=AUTO` + thiếu giá nhập đã bị loại.
+MIGRATION_ROLLBACK_SAFETY = PASS — 2 passed (round-trip qua alembic thật)
+SCOPE_DRIFT               = NO — không đụng Tracking · Product Identity ·
+                            Review Queue · sales_queries · analytics_queries ·
+                            Target · Legacy · Brand · Advanced Analytics.
+OWNER_DECISIONS_REQUIRED  = 1 — dòng số lượng ÂM có vào tổng lợi nhuận công ty
+                            không? (bản sửa chọn KHÔNG; xem mục 13 báo cáo)
+PHB03_STATUS              = REPAIRED_AWAITING_RE_REVIEW
+NEXT_VERTICAL_ACTION      = Independent Re-Review; KHÔNG deploy.
+```
+
+Khối canonical `PHB-03 = IMPLEMENTED_AWAITING_REVIEW` (S115) ngay bên dưới
+được **GIỮ NGUYÊN như bản ghi lịch sử đúng tại thời điểm của nó**, không viết
+lại — kể cả dòng `D1_P1_PRESERVED = YES`, vốn mô tả đúng hành vi lúc đó và
+chính là hành vi mà `OD-6` đã thay thế. Khi nó mâu thuẫn với mục này về trạng
+thái *hiện tại*, mục này đúng.
+
 ## CANONICAL CURRENT STATE — PHB-03 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-04, S115)
 
 `PHB-03` (Summary + Employee Business Parity V1) đã **implement xong** trên

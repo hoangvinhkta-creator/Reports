@@ -1,10 +1,16 @@
-"""PHB-03 — đường GHI DUY NHẤT cho hai quyết định của Owner.
+"""PHB-03 — đường GHI DUY NHẤT cho các quyết định của Owner.
 
 Repository này là toàn bộ persistence mới của PHB-03, và nó cố ý nhỏ. Nó biết
-đúng hai việc:
+đúng ba việc:
 
 1. `set_purchase_price` — ghi/ghi đè giá nhập KPI của MỘT dòng hàng.
 2. `set_product_group` — ghi/gỡ phân loại Gia dụng của MỘT mặt hàng.
+3. `set_employee` — gán/gỡ nhân viên cho MỘT dòng hàng (`OD-5`).
+
+Việc thứ ba dùng lại NGUYÊN cấu trúc của việc thứ nhất — cùng khoá nghiệp vụ,
+cùng kiểu upsert, cùng cột provenance-một-cột. Đó là lý do nó không làm module
+này lớn thêm về mặt khái niệm: nó là cùng một hình dạng, áp lên một trường
+khác.
 
 Những gì module này KHÔNG phải, và không được lớn thành (chỉ thị PHB-03 §3):
 không hệ thống quản lý giá nhập, không luồng duyệt, không lịch sử phiên bản,
@@ -48,8 +54,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.web.history_store import HistoryUnavailableError
 from tools.db.schema import (
     ORIGIN_PIPELINE, PURCHASE_PROVENANCE_MANUAL,
-    PURCHASE_PROVENANCE_MANUAL_OVERRIDE, kpi_purchase_price_override,
-    product_group_classification,
+    PURCHASE_PROVENANCE_MANUAL_OVERRIDE, employee_attribution_override,
+    kpi_purchase_price_override, product_group_classification,
 )
 
 PRODUCT_GROUPS = ("DIEN_MAY", "GIA_DUNG")
@@ -61,6 +67,10 @@ class InvalidPurchasePriceError(ValueError):
 
 class InvalidProductGroupError(ValueError):
     """Nhóm sản phẩm không thuộc tập đã freeze (`DEC-127`, ADR-106)."""
+
+
+class InvalidEmployeeError(ValueError):
+    """Tên nhân viên không dùng được — TỪ CHỐI, không gán bừa cho ai."""
 
 
 def parse_purchase_price(raw: Optional[str]) -> Decimal:
@@ -97,7 +107,7 @@ def _now() -> str:
 
 
 class BusinessDecisionStore:
-    """Đọc/ghi hai bảng quyết định của Owner trên CÙNG engine history."""
+    """Đọc/ghi ba bảng quyết định của Owner trên CÙNG engine history."""
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -223,6 +233,74 @@ class BusinessDecisionStore:
             ))
         }
 
+    # --- gán nhân viên (OD-5) -------------------------------------------
+
+    def set_employee(
+        self,
+        *,
+        order_key: str,
+        product_key: str,
+        occurrence_index: int,
+        employee: str,
+        employee_group: Optional[str] = None,
+        source_employee: Optional[str] = None,
+        assigned_by: Optional[str] = None,
+        assigned_at: Optional[str] = None,
+    ) -> None:
+        """Gán dòng hàng này cho một nhân viên, KHÔNG đụng bằng chứng gốc.
+
+        `source_employee` là giá trị mà pipeline ĐANG nói tại thời điểm gán —
+        thường là `None` (đó chính là lý do dòng nằm trong nhóm "Chưa xác định
+        nhân viên"). Lưu nó lại để sau này còn trả lời được câu "sổ ghi ai, và
+        Owner sửa thành ai" mà không phải mở lại lịch sử chạy máy.
+
+        Tên rỗng bị TỪ CHỐI: một bản ghi gán mang tên rỗng sẽ trông như dòng
+        đã được sửa xong trong khi nó vẫn vô chủ, và làm ô đếm "chưa xác định
+        nhân viên" nói dối — đúng lớp lỗi mà `B02` là ví dụ.
+        """
+        name = (employee or "").strip()
+        if not name:
+            raise InvalidEmployeeError("Chưa chọn nhân viên.")
+        keys = {"order_key": order_key, "product_key": product_key,
+                "occurrence_index": occurrence_index}
+        self._upsert(employee_attribution_override, keys, {
+            "employee_normalized": name,
+            "employee_group": employee_group,
+            "source_employee_at_entry": source_employee,
+            "assigned_at": assigned_at or _now(),
+            "assigned_by": assigned_by,
+        })
+
+    def clear_employee(
+        self, *, order_key: str, product_key: str, occurrence_index: int
+    ) -> None:
+        """Gỡ việc gán; dòng trở lại đúng nhân viên mà pipeline đã đọc."""
+        table = employee_attribution_override
+        self._execute(delete(table).where(
+            table.c.order_key == order_key,
+            table.c.product_key == product_key,
+            table.c.occurrence_index == occurrence_index,
+        ))
+
+    def employee_overrides(self) -> dict[tuple[str, str, int], dict]:
+        """Toàn bộ lần gán, khoá theo `(order_key, product_key, occurrence)`.
+
+        Cùng cách đọc-một-lần-rồi-map như `purchase_price_overrides`: số dòng
+        Owner đích thân gán luôn nhỏ so với sổ, và cách này giữ tầng truy vấn
+        ở đúng một câu cho mỗi bảng.
+        """
+        table = employee_attribution_override
+        rows = self._read(select(
+            table.c.order_key, table.c.product_key, table.c.occurrence_index,
+            table.c.employee_normalized, table.c.employee_group,
+            table.c.source_employee_at_entry, table.c.assigned_at,
+            table.c.assigned_by,
+        ))
+        return {
+            (row["order_key"], row["product_key"], int(row["occurrence_index"])): row
+            for row in rows
+        }
+
     # --- hạ tầng --------------------------------------------------------
 
     def _upsert(self, table, keys: dict, values: dict) -> None:
@@ -263,6 +341,6 @@ class BusinessDecisionStore:
 
 
 __all__ = [
-    "BusinessDecisionStore", "InvalidProductGroupError",
+    "BusinessDecisionStore", "InvalidEmployeeError", "InvalidProductGroupError",
     "InvalidPurchasePriceError", "PRODUCT_GROUPS", "parse_purchase_price",
 ]

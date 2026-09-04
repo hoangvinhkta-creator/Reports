@@ -32,19 +32,34 @@ Tử số đúng bằng tập dòng nằm trong tổng lợi nhuận. Vì vậy 
 tương đương "mọi dòng của kỳ đều đã có mặt trong con số này" — đó chính là
 điều kiện để gọi nó là CHÍNH THỨC, không phải một cách viết khác của nó.
 
-Một dòng góp giá trị khi CẢ HAI điều kiện đúng:
+Một dòng góp giá trị khi `profit_gate.profit_blockers()` trả về tập RỖNG —
+nghĩa là có giá bán, có số lượng dương, có giá nhập hiệu lực, và thẩm quyền
+KPI đọc được. **Không vế nào đọc `status`** (`OD-6`): `status` chỉ là kết quả
+cộng dồn 19 mã lý do rất khác nhau, và bản audit đã chứng minh không mã nào
+trong đó là lý do kinh tế một khi các đầu vào trên đã đủ.
 
-1. `status = "AUTO"` — `D1/P1` của `TASK-PRA-003` đã freeze: một dòng
-   `PENDING` KHÔNG bao giờ vào tổng lợi nhuận KPI, kể cả khi nó có sẵn một
-   giá trị. PHB-03 không nới điều đó; giá nhập do Owner nhập bù đúng MỘT
-   input còn thiếu, nó không phải một lượt duyệt Review Queue.
-2. Có giá nhập KPI phân giải được — tự động (`AUTO`) hoặc do Owner nhập
-   (`MANUAL` / `MANUAL_OVERRIDE`) — cùng với `sell_price` và `quantity`.
+Coverage KHÔNG còn là một con số gộp. Nó tách ra đúng những nhóm dẫn tới
+những hành động KHÁC NHAU của Owner (B02/B03):
 
-Hai lý do "chưa đủ" vì thế được đếm RIÊNG (`missing_price_lines` và
-`review_blocked_lines`): chỉ lý do thứ nhất hoàn thiện được bằng luồng nhập
-tay của PHB-03; lý do thứ hai thuộc Review Queue đã có. Gộp chúng lại sẽ hứa
-với Owner rằng nhập nốt giá là xong, trong khi không phải.
+    missing_price_lines     dòng chưa có giá nhập — gõ một con số là xong
+    owner_fixable_lines     dòng mà giá nhập là cửa chặn DUY NHẤT còn lại
+    blocked_lines           mã chặn → số dòng, để Owner biết sửa ở đâu
+    unresolved_employee_lines   dòng tính được lãi nhưng chưa biết của ai
+
+Gộp chúng lại là quay về đúng cái đã sai: một con số nói "còn thiếu" mà không
+nói thiếu cái gì, và một ô đếm `missing_price_lines` luôn bằng 0 theo cấu tạo
+vì nó hỏi `status == "AUTO"` — điều kiện mà một dòng thiếu giá không bao giờ
+thoả.
+
+## Lợi nhuận công ty và KPI nhân viên là HAI câu hỏi (OD-5)
+
+    A. Dòng này lãi bao nhiêu?          → `kpi_profit`
+    B. Khoản lãi đó của ai?             → `employee_attributed_profit`
+
+Trước bản sửa này, không trả lời được câu B thì câu A cũng mất luôn con số.
+Nay một dòng chưa biết ai bán VẪN vào tổng lợi nhuận của kỳ, và hiện riêng
+dưới nhóm "Chưa xác định nhân viên" — hai con số cộng lại luôn đúng bằng
+tổng, nên không đồng nào biến mất không dấu vết.
 
 ## DS quy đổi — chia theo TỪNG DÒNG, không bao giờ một tỉ lệ pha trộn
 
@@ -62,6 +77,8 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from app.modules.reporting import profit_gate
+
 # `DEC-PHB02-03` — ngưỡng GIÁ, cố ý không phải một taxonomy sản phẩm. Hệ quả
 # đã được Owner chấp nhận tường minh (`FIND-PHB02-N08`): vài sản phẩm thật giá
 # thấp cũng bị loại. Đó là đánh đổi có chủ đích, không phải defect.
@@ -72,6 +89,11 @@ PROVENANCE_AUTO = "AUTO"
 PROVENANCE_MANUAL = "MANUAL"
 PROVENANCE_MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
 PROVENANCE_PENDING = "PENDING"
+
+# Khoá của nhóm "chưa xác định nhân viên" trong mọi phân hoạch theo người.
+# `None`, không phải chuỗi rỗng: một chuỗi rỗng ngồi cạnh các tên thật trong
+# cùng một cột trông như một nhân viên tên là "" (`R-E4`).
+UNRESOLVED_EMPLOYEE = None
 
 # `R-S7`/`R-E8`: hai trạng thái, không có trạng thái thứ ba "gần đủ".
 STATE_OFFICIAL = "OFFICIAL"
@@ -104,11 +126,23 @@ class BusinessLine:
     auto_purchase_price: Optional[Decimal]
     # Lợi nhuận KPI do pipeline tính, dùng NGUYÊN VẸN khi không có override.
     auto_kpi_profit: Optional[Decimal]
+    # `DEC-143` §1 — thẩm quyền `config/eligible_costs.yaml` có đọc được không.
+    # KHÔNG có giá trị mặc định: mặc định `True` là fail-OPEN, và cái van này
+    # tồn tại chính để fail-CLOSED. Mọi nơi dựng một dòng phải nói ra nó.
+    kpi_authority_valid: bool
     # Giá nhập do Owner nhập/ghi đè, `None` = Owner chưa động vào dòng này.
     manual_purchase_price: Optional[Decimal] = None
     manual_provenance: Optional[str] = None
     # Tỉ lệ quy đổi hiệu lực của dòng (đã tính cả tick Gia dụng nếu có).
     conversion_rate: Optional[Decimal] = None
+    # Mã lý do pipeline đã lưu (`pending_reasons_json`). Dùng để CẢNH BÁO và
+    # để hiển thị; KHÔNG có vế nào của cửa chặn lợi nhuận đọc trường này.
+    pending_reasons: tuple[str, ...] = ()
+    # Tên nhân viên NGUYÊN BẢN của pipeline, giữ lại kể cả sau khi Owner sửa —
+    # bằng chứng kế toán gốc không bị ghi đè (`OD-5`).
+    source_employee: Optional[str] = None
+    # `SOURCE` = do pipeline gán · `MANUAL` = do Owner phân loại lại.
+    employee_provenance: str = "SOURCE"
 
     @property
     def purchase_price(self) -> Optional[Decimal]:
@@ -131,31 +165,91 @@ class BusinessLine:
         return PROVENANCE_PENDING
 
     @property
+    def profit_blockers(self) -> tuple[str, ...]:
+        """Lý do THẬT khiến dòng chưa chốt được lợi nhuận (rỗng = tính được).
+
+        Đây là cửa chặn duy nhất. Nó hỏi về giá bán, số lượng, giá nhập và
+        thẩm quyền KPI — bốn đại lượng của công thức đã freeze — chứ KHÔNG hỏi
+        `status`. `OD-6`: một trạng thái "cần kiểm tra" chung chung tự nó
+        không phải lý do đủ để từ chối tính lợi nhuận.
+        """
+        return profit_gate.profit_blockers(
+            sell_price=self.sell_price,
+            quantity=self.quantity,
+            purchase_price=self.purchase_price,
+            kpi_authority_valid=self.kpi_authority_valid,
+        )
+
+    @property
     def kpi_profit(self) -> Optional[Decimal]:
         """`EligibleKpiProfit` hiệu lực của dòng — `None` = chưa xác định.
 
-        Không override ⟹ dùng NGUYÊN con số pipeline đã ghi. Không tính lại,
-        vì `compute_eligible_kpi_profit` fail-closed khi authority
-        `config/eligible_costs.yaml` hỏng (`DEC-143` §1); tính lại ở đây sẽ
-        "sửa" một `None` cố ý thành một con số mà engine đã từ chối tạo ra.
+        Bất biến của hàm này, và là thứ giữ cho coverage không nói dối:
 
-        Có override ⟹ áp đúng công thức đã freeze của `DEC-143`/`OD-108B-01`
-        lên giá mới (`FIND-PHB02-N06`):
+            `profit_blockers` rỗng  ⟺  `kpi_profit` KHÁC `None`
+
+        Có cửa chặn ⟹ `None`, và cửa chặn đó có tên để Owner đọc.
+
+        Không cửa chặn nào, và Owner chưa động vào dòng, và pipeline đã ghi
+        một con số ⟹ dùng NGUYÊN con số đó. Đây là mặc định tôn trọng engine.
+
+        Còn lại ⟹ áp đúng công thức đã freeze của `DEC-143`/`OD-108B-01` lên
+        các đầu vào HIỆN TẠI (`FIND-PHB02-N06`):
 
             (SellPrice − KpiPurchasePrice) × Quantity − Discount
 
+        Nhánh cuối này phủ hai tình huống, và cả hai đều bắt buộc:
+
+        1. Owner đã nhập/sửa giá nhập — giá mới phải có hiệu lực kinh tế thật,
+           đó là toàn bộ lý do luồng nhập giá tồn tại (`B01`).
+        2. Pipeline trả `None` trong khi hôm nay mọi đầu vào đã đủ (ví dụ hôm
+           chạy máy thẩm quyền KPI đang hỏng, nay đã sửa). Không tính ở đây
+           thì dòng đó vĩnh viễn không có số MÀ KHÔNG có cửa chặn nào mang
+           tên — đúng kiểu "thiếu trong im lặng" mà bất biến trên cấm.
+
         `EligibleCosts = {}` (tập rỗng có thẩm quyền) và
         `OtherKpiAdjustment = 0` nên hai số hạng đó vắng mặt — không phải bị
-        bỏ quên.
+        bỏ quên. Van fail-closed của `DEC-143` §1 nằm ở `profit_blockers`:
+        thẩm quyền hỏng thì không nhánh nào dưới đây chạy tới.
         """
-        if self.status != "AUTO":
-            return None  # D1/P1 — dòng cần kiểm tra không vào tổng
-        if self.manual_purchase_price is None:
-            return self.auto_kpi_profit
-        if self.sell_price is None or self.quantity is None:
+        if self.profit_blockers:
             return None
-        return ((self.sell_price - self.manual_purchase_price) * self.quantity
+        if self.manual_purchase_price is None and self.auto_kpi_profit is not None:
+            return self.auto_kpi_profit
+        return ((self.sell_price - self.purchase_price) * self.quantity
                 - self.discount)
+
+    @property
+    def warnings(self) -> tuple[str, ...]:
+        """Điều Owner NÊN BIẾT về dòng này. Không điều nào làm mất con số."""
+        codes = list(profit_gate.profit_warnings(
+            sell_price=self.sell_price,
+            purchase_price=self.purchase_price,
+            profit=self.kpi_profit,
+            pending_reasons=self.pending_reasons,
+        ))
+        if not self.employee_resolved:
+            codes.append(profit_gate.BLOCK_EMPLOYEE_UNRESOLVED)
+        return tuple(codes)
+
+    @property
+    def employee_resolved(self) -> bool:
+        """Đã biết chắc dòng này của ai chưa? (`OD-5`)
+
+        Chuỗi rỗng và `None` là CÙNG một tình trạng nghiệp vụ. Một tên đã có
+        mặt ở đây nghĩa là pipeline map được, hoặc Owner đã đích thân gán —
+        cả hai đều là một khẳng định về quyền sở hữu, đủ để cộng KPI.
+        """
+        return bool(self.employee)
+
+    @property
+    def employee_kpi_profit(self) -> Optional[Decimal]:
+        """Lợi nhuận được cộng vào KPI CỦA MỘT NGƯỜI — `None` khi chưa rõ ai.
+
+        Tách khỏi `kpi_profit` là toàn bộ nội dung `OD-5`: dòng chưa biết ai
+        bán vẫn vào tổng công ty, nhưng chưa vào bảng lương của ai.
+        """
+        return self.kpi_profit if self.employee_resolved else None
 
     @property
     def qualifying_quantity(self) -> Decimal:
@@ -183,13 +277,26 @@ class BusinessLine:
 
     @property
     def blocked_by_missing_price(self) -> bool:
-        """Dòng thiếu ĐÚNG một thứ: giá nhập. Luồng PHB-03 hoàn thiện được."""
-        return self.status == "AUTO" and self.purchase_price is None
+        """Dòng chưa có giá nhập hiệu lực — bất kể pipeline dán nhãn gì.
+
+        `B02` — định nghĩa cũ hỏi thêm `status == "AUTO"`, mà một dòng thiếu
+        giá nhập thì luôn mang `Missing.PurchasePrice` nên `status` của nó
+        luôn là `PENDING`. Ô đếm đó vì vậy LUÔN bằng 0 theo cấu tạo, và toàn
+        bộ số dòng thiếu bị dồn sang ô "nhập giá không cứu được" — màn hình
+        nói với Owner điều ngược lại sự thật.
+        """
+        return self.purchase_price is None
 
     @property
-    def blocked_by_review(self) -> bool:
-        """Dòng đang chờ kiểm tra — luồng nhập giá KHÔNG mở khoá được nó."""
-        return self.status != "AUTO"
+    def owner_fixable(self) -> bool:
+        """Gõ một con số giá nhập vào là dòng này có lợi nhuận ngay.
+
+        Đây là con số Owner hành động được. Một dòng vừa thiếu giá nhập vừa
+        có số lượng 0 KHÔNG nằm ở đây — hứa rằng nhập giá là xong với dòng đó
+        chính là lời hứa sai mà `B03` gọi tên.
+        """
+        return set(self.profit_blockers) == set(
+            profit_gate.OWNER_FIXABLE_BLOCKERS)
 
 
 def converted_sales(
@@ -227,12 +334,32 @@ def month_over_month_percent(
 
 @dataclass(frozen=True)
 class Coverage:
-    """Coverage giá nhập/lợi nhuận của một tập dòng + gate 100 % của nó."""
+    """Coverage lợi nhuận của một tập dòng + gate 100 % của nó.
+
+    Ba con số ở đây trả lời ba câu HỎI KHÁC NHAU, và cố ý không gộp (`B02`,
+    `B03`, chỉ thị `COVERAGE`):
+
+        missing_price_lines  "Còn bao nhiêu dòng chưa có giá nhập?"
+        owner_fixable_lines  "Trong đó bao nhiêu dòng chỉ cần gõ giá là xong?"
+        blocked_lines        "Những dòng còn lại vướng cái gì, sửa ở đâu?"
+        unresolved_employee_lines
+                             "Bao nhiêu dòng đã có lãi nhưng chưa biết của ai?"
+
+    `missing_price_lines >= owner_fixable_lines` luôn đúng: nhóm thứ hai là
+    tập con của nhóm thứ nhất. Chênh lệch giữa hai con số chính là số dòng mà
+    nhập giá KHÔNG đủ để cứu — và Owner đọc được ngay, thay vì bị hứa hẹn.
+    """
 
     covered_lines: int
     total_lines: int
     missing_price_lines: int
-    review_blocked_lines: int
+    owner_fixable_lines: int
+    blocked_lines: tuple[tuple[str, int], ...]
+    unresolved_employee_lines: int
+
+    def blocked(self, code: str) -> int:
+        """Số dòng bị chặn bởi MỘT mã cụ thể (0 nếu không dòng nào)."""
+        return dict(self.blocked_lines).get(code, 0)
 
     @property
     def is_complete(self) -> bool:
@@ -256,7 +383,15 @@ class Coverage:
 
 @dataclass(frozen=True)
 class BusinessTotals:
-    """Bộ chỉ tiêu nghiệp vụ của MỘT phạm vi (cả kỳ, hoặc một nhân viên)."""
+    """Bộ chỉ tiêu nghiệp vụ của MỘT phạm vi (cả kỳ, hoặc một nhân viên).
+
+    `kpi_profit` là lợi nhuận của TOÀN phạm vi. Hai trường dưới nó tách chính
+    con số đó làm hai theo `OD-5`, và chúng luôn cộng lại đúng bằng nó:
+
+        kpi_profit = employee_attributed_profit + unattributed_profit
+
+    (với quy ước `NULL + x = x`, vì "chưa có dòng nào" không phải "0 đồng").
+    """
 
     lines: int
     orders: int
@@ -265,6 +400,11 @@ class BusinessTotals:
     kpi_profit: Optional[Decimal]
     converted_sales: Optional[Decimal]
     coverage: Coverage
+    # Phần lợi nhuận đã biết chắc của ai — con số dùng cho KPI/bảng lương.
+    employee_attributed_profit: Optional[Decimal] = None
+    # Phần lợi nhuận có thật nhưng chưa gán được cho ai ("Chưa xác định
+    # nhân viên"). KHÔNG bị bỏ đi, KHÔNG bị cộng nhầm cho ai.
+    unattributed_profit: Optional[Decimal] = None
 
     @property
     def state(self) -> str:
@@ -305,6 +445,10 @@ def totals(lines: list[BusinessLine]) -> BusinessTotals:
     được đếm ở cả hai — đúng sự thật nghiệp vụ `R-E5`, và trang phải nói ra
     điều đó thay vì giấu đi.
     """
+    blocked: dict[str, int] = {}
+    for line in lines:
+        for code in line.profit_blockers:
+            blocked[code] = blocked.get(code, 0) + 1
     return BusinessTotals(
         lines=len(lines),
         orders=len({line.order_key for line in lines}),
@@ -318,9 +462,20 @@ def totals(lines: list[BusinessLine]) -> BusinessTotals:
             total_lines=len(lines),
             missing_price_lines=sum(
                 1 for line in lines if line.blocked_by_missing_price),
-            review_blocked_lines=sum(
-                1 for line in lines if line.blocked_by_review),
+            owner_fixable_lines=sum(1 for line in lines if line.owner_fixable),
+            # Thứ tự cố định theo `PROFIT_BLOCKERS` để màn hình không đổi thứ
+            # tự dòng giữa hai lần tải trang chỉ vì dict đổi thứ tự chèn.
+            blocked_lines=tuple(
+                (code, blocked[code]) for code in profit_gate.PROFIT_BLOCKERS
+                if code in blocked),
+            unresolved_employee_lines=sum(
+                1 for line in lines
+                if line.contributes_profit and not line.employee_resolved),
         ),
+        employee_attributed_profit=_sum(
+            line.employee_kpi_profit for line in lines),
+        unattributed_profit=_sum(
+            line.kpi_profit for line in lines if not line.employee_resolved),
     )
 
 
@@ -362,6 +517,7 @@ def for_employee(
 
 __all__ = [
     "BusinessLine", "BusinessTotals", "Coverage",
+    "UNRESOLVED_EMPLOYEE",
     "PROVENANCE_AUTO", "PROVENANCE_MANUAL", "PROVENANCE_MANUAL_OVERRIDE",
     "PROVENANCE_PENDING", "QUALIFYING_SALE_PRICE_THRESHOLD",
     "STATE_INCOMPLETE", "STATE_OFFICIAL",

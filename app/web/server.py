@@ -277,8 +277,10 @@ def create_app(
                   "PRODUCT_GROUPING_NOTE", "PRODUCT_ITEM_COUNT_LABEL",
                   "PRODUCT_ORDER_COUNT_NOTE", "REASON_LABEL"):
         app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
-    for _name in ("CONVERTED_SALES_NOTE", "INCOMPLETE_NOTE", "OFFICIAL_NOTE",
-                  "QUALIFYING_QUANTITY_NOTE"):
+    for _name in ("CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+                  "INCOMPLETE_NOTE", "NET_SALES_NOTE", "OFFICIAL_NOTE",
+                  "QUALIFYING_QUANTITY_NOTE", "UNKNOWN_EMPLOYEE",
+                  "UNRESOLVED_EMPLOYEE_NOTE"):
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
         business_presentation.ORDER_COLUMN_NOTE
@@ -722,14 +724,25 @@ def create_app(
             "selected_period": business_presentation.period_value(period),
         }
 
+    def _period_employees(view: dict):
+        """Bộ chọn nhân viên của kỳ, ĐÃ tính cả những lần Owner gán lại.
+
+        Truyền `data` vào là điều kiện để `OD-5` khép kín: ngay sau khi Owner
+        gán một dòng cho "Vinh", tên đó phải chọn được — nếu bộ chọn vẫn là
+        danh sách thô của pipeline thì trang nhân viên trả 404 đúng lúc thao
+        tác vừa thành công.
+        """
+        return _guarded(view["service"].employees,
+                        date_from=view["bounds"][0], date_to=view["bounds"][1],
+                        data=view["data"])
+
     def _selected_employee(view: dict) -> tuple[Optional[str], Optional[str], bool]:
         """`(tên, nhóm, đã chọn hợp lệ)` từ tham số `nhan-vien`.
 
         Một tên không có trong kỳ KHÔNG được dựng thành một trang toàn số 0 —
         đó là một nhân viên bịa. Trang rơi về "chưa chọn ai" và nói rõ.
         """
-        employees = _guarded(view["service"].employees,
-                             date_from=view["bounds"][0], date_to=view["bounds"][1])
+        employees = _period_employees(view)
         # `request.values`, không phải `request.args`: form POST của trang tick
         # Gia dụng mang `nhan-vien` trong BODY, và đọc thiếu nó ở đó sẽ biến
         # một thao tác hợp lệ thành 404.
@@ -742,8 +755,7 @@ def create_app(
         return None, None, False
 
     def _employee_context(view: dict) -> dict:
-        employees = _guarded(view["service"].employees,
-                             date_from=view["bounds"][0], date_to=view["bounds"][1])
+        employees = _period_employees(view)
         name, group, chosen = _selected_employee(view)
         return {
             "employees": business_presentation.employee_options(employees),
@@ -790,30 +802,54 @@ def create_app(
             "kinh_doanh_nhan_vien.html", periods=view["periods"],
             selected_period=view["selected_period"], detail=detail, **context)
 
+    # Ba chế độ lọc của bảng kê. Chúng KHÔNG chồng lên nhau và mỗi cái trả lời
+    # một câu hỏi khác của Owner — gộp lại thành một danh sách "còn thiếu"
+    # chung chính là cái đã khiến `B03` xảy ra.
+    _DETAIL_FILTERS = {
+        # Mặc định: đúng việc Owner gõ được ngay bây giờ.
+        "thieu-gia": lambda line: line.purchase_price is None,
+        # Dòng đã có lãi nhưng chưa biết của ai (`OD-5`).
+        "chua-ro-nv": lambda line: (line.contributes_profit
+                                    and not line.employee_resolved),
+        "tat-ca": lambda line: True,
+    }
+
     @app.get("/kinh-doanh/gia-nhap")
     def business_purchase_price():
-        """Hoàn thiện giá nhập — `R-P1`…`R-P4`, biên hẹp đúng vertical này.
+        """BẢNG KÊ CHI TIẾT — một dòng hàng một dòng bảng, sửa ngay tại chỗ.
 
-        Danh sách mặc định chỉ hiện các dòng CÒN THIẾU giá (việc Owner phải
-        làm). `?tat-ca=1` hiện mọi dòng, vì `DEC-PHB02-02` §3 nói ô giá nhập
-        phải sửa được KỂ CẢ khi đã AUTO-fill — không có chế độ đó thì quyền
-        sửa một giá tự động không có chỗ nào thực hiện.
+        Trang này vừa là nơi hoàn thiện giá nhập (`R-P1`…`R-P4`) vừa là "trang
+        tính" mà chỉ thị `ORDER DETAIL TABLE` mô tả: giá nhập và nhân viên sửa
+        được ngay trên dòng, còn doanh thu · lợi nhuận KPI · DS quy đổi là ba
+        ô SUY RA tự tính lại sau mỗi lần lưu. Không có bước "tính" riêng.
+
+        Bộ lọc mặc định là các dòng CÒN THIẾU giá — việc Owner phải làm. Hai
+        chế độ còn lại: dòng chưa rõ nhân viên, và toàn bộ kỳ (quyền sửa một
+        giá đã AUTO-fill theo `DEC-PHB02-02` §3 phải có chỗ thực hiện).
         """
         view = _business_period()
         context = _employee_context(view)
         data = (view["data"].for_employee(context["employee"])
                 if context["chosen"] else view["data"])
-        show_all = request.args.get("tat-ca") == "1"
-        details = [d for d in data.details
-                   if show_all or d["line"].purchase_price is None]
+        # `tat-ca=1` là cách viết cũ còn nằm trong bookmark/redirect — giữ nó
+        # tương đương chế độ "tất cả" thay vì âm thầm rơi về danh sách khác.
+        mode = request.args.get("loc") or (
+            "tat-ca" if request.args.get("tat-ca") == "1" else "thieu-gia")
+        if mode not in _DETAIL_FILTERS:
+            mode = "thieu-gia"
+        keep = _DETAIL_FILTERS[mode]
+        details = [d for d in data.details if keep(d["line"])]
         return render_template(
             "kinh_doanh_gia_nhap.html", periods=view["periods"],
             selected_period=view["selected_period"],
             period_label=business_presentation.period_label(view["period"]),
-            columns=business_presentation.MISSING_PRICE_COLUMNS,
-            rows=business_presentation.missing_price_rows(details),
+            columns=business_presentation.DETAIL_COLUMNS,
+            rows=business_presentation.detail_rows(details),
             coverage=business_presentation.coverage_cell(data.totals.coverage),
-            show_all=show_all, message=request.args.get("da-luu") or None,
+            assignable=business_presentation.assignable_employee_options(
+                view["service"].assignable_employees()),
+            mode=mode, show_all=(mode == "tat-ca"),
+            message=request.args.get("da-luu") or None,
             error=request.args.get("loi") or None, **context)
 
     @app.post("/kinh-doanh/gia-nhap")
@@ -836,7 +872,7 @@ def create_app(
         redirect_args = {
             "ky": request.values.get("ky") or "tat-ca",
             "nhan-vien": request.form.get("nhan-vien") or None,
-            "tat-ca": request.form.get("tat-ca") or None,
+            "loc": request.form.get("loc") or None,
         }
         if request.form.get("hanh-dong") == "go":
             _guarded(service.store.clear_purchase_price, **keys)
@@ -860,6 +896,65 @@ def create_app(
                 "Đã ghi giá nhập Owner sửa (thay giá tự động)."
                 if provenance == "MANUAL_OVERRIDE"
                 else "Đã ghi giá nhập Owner nhập.")}))
+
+    @app.post("/kinh-doanh/nhan-vien-dong")
+    def business_save_employee():
+        """`OD-5` — gán MỘT dòng hàng cho một nhân viên, hoặc gỡ việc gán đó.
+
+        Ranh giới cố ý hẹp: đây KHÔNG phải một trình sửa đơn hàng. Nó ghi đúng
+        một trường, trên đúng một dòng đã tồn tại trong kỳ đang xem, và tên
+        nhân viên phải nằm trong master `config/employees.yaml` — gõ tự do một
+        cái tên vào KPI là mở lại đúng lớp lỗi mà `HD-110-06` đã đóng.
+
+        Bằng chứng gốc không bị đụng: `order_line_result_version` vẫn giữ
+        nguyên tên mà sổ ghi, và bảng override lưu lại tên đó ở cột
+        `source_employee_at_entry`.
+        """
+        view = _business_period()
+        service = view["service"]
+        try:
+            occurrence = int(request.form.get("occurrence_index") or "")
+        except ValueError:
+            abort(400)
+        keys = {
+            "order_key": request.form.get("order_key") or "",
+            "product_key": request.form.get("product_key") or "",
+            "occurrence_index": occurrence,
+        }
+        detail = service.detail_of(data=view["data"], **keys)
+        if detail is None:
+            abort(404)
+        redirect_args = {
+            "ky": request.values.get("ky") or "tat-ca",
+            "nhan-vien": request.form.get("nhan-vien") or None,
+            "loc": request.form.get("loc") or None,
+        }
+
+        def _back(**extra):
+            return redirect(url_for(
+                "business_purchase_price",
+                **{k: v for k, v in redirect_args.items() if v}, **extra))
+
+        if request.form.get("hanh-dong") == "go":
+            _guarded(service.store.clear_employee, **keys)
+            return _back(**{"da-luu": (
+                "Đã gỡ việc gán nhân viên. Dòng trở lại đúng tên mà sổ ghi.")})
+
+        chosen = (request.form.get("nhan_vien_moi") or "").strip()
+        groups = dict(service.assignable_employees())
+        if chosen not in groups:
+            # Không đoán hộ, và không im lặng: một tên lạ nghĩa là master chưa
+            # có người đó, và đó là việc sửa master chứ không phải việc của
+            # trang này.
+            return _back(loi=(
+                f"{chosen!r} không có trong danh sách nhân viên. Hãy chọn một "
+                "tên trong danh sách."))
+        _guarded(service.store.set_employee,
+                 employee=chosen, employee_group=groups[chosen],
+                 source_employee=detail["line"].source_employee, **keys)
+        return _back(**{"da-luu": (
+            f"Đã gán dòng này cho {chosen}. Lợi nhuận của dòng đã chuyển sang "
+            f"bảng của {chosen}; tổng của cả kỳ không đổi.")})
 
     @app.get("/kinh-doanh/gia-dung")
     def business_gia_dung():

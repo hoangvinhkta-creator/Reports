@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from app.modules.reporting import business_metrics as bm
+from app.modules.reporting import profit_gate
 from app.modules.reporting.rate_routing import (
     ConversionRateRouter, gia_dung_workflow_applies,
 )
@@ -27,10 +28,14 @@ CONVERSION_RATES = REPO_ROOT / "config" / "conversion_rates.yaml"
 
 
 def line(**kwargs) -> bm.BusinessLine:
-    """Một dòng hàng mặc định LÀNH: AUTO, có đủ giá bán/số lượng/giá nhập.
+    """Một dòng hàng mặc định LÀNH: có đủ giá bán/số lượng/giá nhập.
 
     Mặc định lành có chủ đích — mỗi test chỉ hỏng đúng một thứ nó đang nói về,
     nên "vì sao dòng này không vào tổng" luôn có đúng một câu trả lời.
+
+    `status="AUTO"` chỉ còn là NHÃN LỊCH SỬ của pipeline. Sau bản sửa PHB-03
+    nó không tham gia vào bất kỳ phép quyết định nào — các test dưới đây chứng
+    minh chính điều đó.
     """
     defaults = dict(
         order_key="BH1", employee="Ly", employee_group="STANDARD_SALES",
@@ -38,9 +43,27 @@ def line(**kwargs) -> bm.BusinessLine:
         discount=Decimal("0"), total_sales=Decimal("8000000"),
         auto_purchase_price=Decimal("7000000"),
         auto_kpi_profit=Decimal("1000000"),
+        kpi_authority_valid=True,
         conversion_rate=Decimal("0.055"),
     )
     return bm.BusinessLine(**{**defaults, **kwargs})
+
+
+def production_pending(**kwargs) -> bm.BusinessLine:
+    """Trạng thái mà production THẬT SỰ tạo ra, và test cũ không dựng được.
+
+    Pipeline không tra được giá nhập ⟹ nó ghi hai mã lý do và đóng dấu
+    `PENDING`. Tổ hợp `status="AUTO"` + thiếu giá nhập — thứ mà bài test cũ
+    `test_a_missing_price_becomes_manual_and_recalculates_the_profit` dựng lên
+    — **không tồn tại trên dữ liệu thật**, nên bài test đó chạy xanh mà không
+    chứng minh gì về production (bản audit mục 11).
+    """
+    defaults = dict(
+        status="PENDING", auto_purchase_price=None, auto_kpi_profit=None,
+        pending_reasons=("TRACKING_HISTORY_PENDING", "Missing.PurchasePrice",
+                         "Pending.eligible_kpi_profit"),
+    )
+    return line(**{**defaults, **kwargs})
 
 
 # --- A–D · DS quy đổi là phép CHIA, theo ma trận tỉ lệ của DEC-PHB02-05 ----
@@ -167,47 +190,69 @@ def test_coverage_numerator_equals_the_set_that_is_actually_summed():
     assert totals.kpi_profit == sum(l.kpi_profit for l in contributing)
 
 
-def test_the_two_reasons_for_incomplete_coverage_are_counted_separately():
-    """Chỉ MỘT trong hai lý do hoàn thiện được bằng luồng nhập giá của PHB-03.
+def test_coverage_separates_what_the_owner_can_fix_from_what_they_cannot():
+    """`B02`/`B03` — hai ô đếm cũ nói với Owner điều ngược lại sự thật.
 
-    Gộp chúng lại là hứa với Owner rằng nhập nốt giá là xong, trong khi dòng
-    chờ kiểm tra vẫn nằm ngoài tổng.
+    Ô `missing_price_lines` cũ được định nghĩa là `status == "AUTO" VÀ chưa có
+    giá nhập`. Nhưng một dòng chưa có giá nhập LUÔN mang `Missing.PurchasePrice`
+    nên `status` của nó luôn là `PENDING` — ô đó vì vậy **luôn bằng 0 theo cấu
+    tạo**, và toàn bộ số dòng thiếu bị dồn sang ô "nhập giá không cứu được".
+
+    Bốn dòng dưới đây dựng đúng bốn tình huống khác nhau. Trước bản sửa, ba
+    trong bốn dòng cùng hiện dưới một câu duy nhất và câu đó sai.
     """
     totals = bm.totals([
-        line(order_key="BH1"),
-        line(order_key="BH2", auto_purchase_price=None, auto_kpi_profit=None),
-        line(order_key="BH3", status="PENDING"),
+        line(order_key="BH1"),                                   # đủ, có lãi
+        production_pending(order_key="BH2"),                      # gõ giá là xong
+        production_pending(order_key="BH3", quantity=Decimal(0)), # thiếu 2 thứ
+        line(order_key="BH4", quantity=Decimal(0)),               # SL = 0 thôi
     ])
-    assert totals.coverage.missing_price_lines == 1
-    assert totals.coverage.review_blocked_lines == 1
+    coverage = totals.coverage
+    assert coverage.covered_lines == 1
+    # Hai dòng thiếu giá nhập — con số này KHÁC 0, khác hẳn ô đếm cũ.
+    assert coverage.missing_price_lines == 2
+    # Nhưng chỉ MỘT trong hai dòng đó gõ giá vào là xong.
+    assert coverage.owner_fixable_lines == 1
+    # Và mỗi cửa chặn tự nói tên mình, kèm số dòng.
+    assert coverage.blocked(profit_gate.BLOCK_PURCHASE_PRICE_MISSING) == 2
+    assert coverage.blocked(profit_gate.BLOCK_QUANTITY_ZERO) == 2
 
 
-def test_a_pending_line_stays_out_of_the_profit_sum_even_with_a_manual_price():
-    """`D1/P1` của TASK-PRA-003 KHÔNG bị PHB-03 nới.
+def test_a_generic_pending_label_alone_never_blocks_profit():
+    """`OD-6` — "cần kiểm tra" chung chung KHÔNG phải một lý do kinh tế.
 
-    Giá nhập do Owner bù đúng MỘT input còn thiếu; nó không phải một lượt
-    duyệt Review Queue. Một dòng đang chờ kiểm tra vì lý do khác vẫn nằm ngoài.
+    Đây là bài test thay cho
+    `test_a_pending_line_stays_out_of_the_profit_sum_even_with_a_manual_price`,
+    bài vốn đang CỐ ĐỊNH HOÁ chính lỗi `B01` thành hành vi mong muốn. Owner đã
+    quyết định ngược lại: phải có một cửa chặn kinh tế CỤ THỂ mới được từ chối
+    tính lợi nhuận.
     """
-    pending = line(status="PENDING", auto_purchase_price=None,
-                   auto_kpi_profit=None,
-                   manual_purchase_price=Decimal("7000000"),
-                   manual_provenance=bm.PROVENANCE_MANUAL)
-    assert pending.kpi_profit is None
-    assert bm.totals([pending]).coverage.is_complete is False
+    rescued = production_pending(manual_purchase_price=Decimal("6500000"),
+                                 manual_provenance=bm.PROVENANCE_MANUAL_OVERRIDE)
+    assert rescued.status == "PENDING"          # nhãn lịch sử vẫn còn nguyên
+    assert rescued.profit_blockers == ()        # nhưng không cửa chặn nào thật
+    assert rescued.kpi_profit == Decimal("1500000")
+    assert bm.totals([rescued]).coverage.is_complete is True
 
 
 # --- H/I · nhập tay và ghi đè, và việc tính lại theo sau ------------------
 
 def test_a_missing_price_becomes_manual_and_recalculates_the_profit():
-    """Vector H: PENDING → MANUAL → tính lại."""
-    pending = line(auto_purchase_price=None, auto_kpi_profit=None)
+    """Vector H, dựng trên trạng thái production THẬT: PENDING → MANUAL.
+
+    Bài cũ dựng `status="AUTO"` + thiếu giá nhập — một tổ hợp production không
+    tạo ra được — nên nó chạy xanh mà không chứng minh gì. Bài này dùng
+    `production_pending()`, tức là đúng cái mà pipeline ghi xuống database.
+    """
+    pending = production_pending()
     assert pending.purchase_provenance == bm.PROVENANCE_PENDING
     assert pending.kpi_profit is None
+    assert pending.profit_blockers == (profit_gate.BLOCK_PURCHASE_PRICE_MISSING,)
+    assert pending.owner_fixable is True
     assert bm.totals([pending]).coverage.is_complete is False
 
-    completed = line(auto_purchase_price=None, auto_kpi_profit=None,
-                     manual_purchase_price=Decimal("6500000"),
-                     manual_provenance=bm.PROVENANCE_MANUAL)
+    completed = production_pending(manual_purchase_price=Decimal("6500000"),
+                                   manual_provenance=bm.PROVENANCE_MANUAL)
     assert completed.purchase_provenance == bm.PROVENANCE_MANUAL
     # (8.000.000 − 6.500.000) × 1 − 0 = 1.500.000  (DEC-143, FIND-PHB02-N06)
     assert completed.kpi_profit == Decimal("1500000")
@@ -257,15 +302,223 @@ def test_the_frozen_profit_formula_keeps_quantity_and_discount():
 
 
 def test_a_line_without_an_override_reuses_the_engine_number_verbatim():
-    """Không tính lại khi Owner chưa động vào dòng.
+    """Owner chưa động vào dòng và engine đã ra số ⟹ dùng NGUYÊN số đó."""
+    untouched = line()
+    assert untouched.manual_purchase_price is None
+    assert untouched.kpi_profit is untouched.auto_kpi_profit
 
-    `compute_eligible_kpi_profit` fail-closed khi authority
-    `config/eligible_costs.yaml` hỏng (`DEC-143` §1). Tính lại ở tầng báo cáo
-    sẽ "sửa" một `None` cố ý thành một con số mà engine đã từ chối tạo ra.
+
+def test_a_broken_kpi_authority_fails_closed_even_with_a_manual_price():
+    """`DEC-143` §1 — cái van an toàn phải sống sót qua bản sửa này.
+
+    Bản audit cảnh báo đúng chỗ này: đường tính lại khi có giá tay trước đây
+    áp thẳng công thức mà KHÔNG hỏi thẩm quyền có đọc được không, nên nới cửa
+    chặn mà không xử lý điểm này sẽ khiến những dòng có giá tay **vẫn ra số**
+    trong lúc file thẩm quyền hỏng — đi vòng qua đúng cái van dựng để chặn.
+
+    Ở đây thẩm quyền là một cửa chặn TƯỜNG MINH, nên nó chặn cả hai đường.
     """
-    engine_said_none = line(auto_kpi_profit=None)
-    assert engine_said_none.auto_purchase_price is not None
-    assert engine_said_none.kpi_profit is None
+    broken = line(kpi_authority_valid=False,
+                  manual_purchase_price=Decimal("6000000"),
+                  manual_provenance=bm.PROVENANCE_MANUAL_OVERRIDE)
+    assert broken.profit_blockers == (
+        profit_gate.BLOCK_KPI_AUTHORITY_UNAVAILABLE,)
+    assert broken.kpi_profit is None
+    assert broken.converted_sales is None
+    # Và nó KHÔNG bị đếm nhầm là "chỉ thiếu giá nhập": gõ giá không cứu được.
+    assert broken.owner_fixable is False
+    totals = bm.totals([broken])
+    assert totals.kpi_profit is None
+    assert totals.coverage.is_complete is False
+
+
+def test_the_invariant_that_keeps_coverage_from_lying():
+    """`cửa chặn rỗng` ⟺ `có lợi nhuận`. Không có khe hở giữa hai vế.
+
+    Nếu một dòng không có cửa chặn nào MÀ vẫn không ra số, nó sẽ nằm ngoài
+    tổng trong khi màn hình không có gì để nói về nó — đúng kiểu "thiếu trong
+    im lặng" mà toàn bộ định nghĩa coverage của PHB-03 tồn tại để chặn.
+
+    Trường hợp cụ thể: pipeline trả `None` (hôm chạy máy thẩm quyền KPI hỏng)
+    nhưng hôm nay mọi đầu vào đã đủ. Dòng đó PHẢI ra số.
+    """
+    lines = [
+        line(),
+        line(auto_kpi_profit=None),
+        production_pending(),
+        production_pending(manual_purchase_price=Decimal("6500000")),
+        line(quantity=Decimal(0)),
+        line(quantity=Decimal(-1)),
+        line(sell_price=None),
+        line(quantity=None),
+        line(kpi_authority_valid=False),
+    ]
+    for item in lines:
+        assert (item.profit_blockers == ()) == (item.kpi_profit is not None), item
+    # Và dòng mà engine bỏ trống nhưng đầu vào đã đủ thì được tính lại đúng.
+    assert lines[1].kpi_profit == Decimal("1000000")
+
+
+# --- OD-1…OD-5 · quyết định Owner đã đóng băng cho bản sửa PHB-03 ---------
+
+def test_quantity_zero_warns_and_never_finalises_a_profit(): # OD-1
+    """`OD-1` — số lượng 0 KHÔNG phải "lãi 0 đồng".
+
+    Ví dụ thật từ golden: `BTL00300`, `Máy Giặt Panasonic`, số lượng 0, đơn giá
+    6.200.000. Không ai biết được đó là "thật sự không giao cái nào" hay "quên
+    gõ số lượng". Owner đã quyết: đây là dữ liệu chưa đủ tin, phải sửa trên sổ
+    gốc — và một con số `0` bịa ra còn nguy hiểm hơn một ô trống, vì nó trông
+    như đã tính xong.
+    """
+    zero = line(quantity=Decimal(0), auto_kpi_profit=None)
+    assert zero.profit_blockers == (profit_gate.BLOCK_QUANTITY_ZERO,)
+    assert zero.kpi_profit is None          # KHÔNG phải Decimal(0)
+    assert zero.converted_sales is None
+    totals = bm.totals([zero])
+    assert totals.kpi_profit is None
+    assert totals.coverage.blocked(profit_gate.BLOCK_QUANTITY_ZERO) == 1
+    # Gõ giá nhập KHÔNG cứu được dòng này — màn hình không được hứa như vậy.
+    assert zero.owner_fixable is False
+
+
+def test_negative_quantity_needs_review_and_never_reaches_an_employee_kpi(): # OD-2
+    """`OD-2` — số lượng âm cần xem lại; KHÔNG tự cộng vào KPI nhân viên.
+
+    Cộng `−1 × biên lợi nhuận` vào một con số nào đó chính là khẳng định dấu
+    âm nghĩa là hoàn hàng — tức là phát minh ngữ nghĩa trả hàng/hoàn tiền,
+    đúng thứ `OD-2` cấm trong task này. Nên dòng dừng ở "cần xem lại".
+    """
+    negative = line(quantity=Decimal(-1), auto_kpi_profit=None)
+    assert negative.profit_blockers == (profit_gate.BLOCK_QUANTITY_NEGATIVE,)
+    assert negative.kpi_profit is None
+    assert negative.employee_kpi_profit is None
+    totals = bm.totals([negative])
+    assert totals.employee_attributed_profit is None
+    assert totals.coverage.blocked(profit_gate.BLOCK_QUANTITY_NEGATIVE) == 1
+
+
+def test_a_possible_duplicate_only_warns_and_keeps_both_revenue_and_profit(): # OD-3
+    """`OD-3` — mâu thuẫn cũ: doanh thu cộng cả hai dòng, lợi nhuận bỏ cả hai.
+
+    Không có cách đọc nào khiến hành vi cũ là đúng: nếu đó thật sự là dòng
+    trùng thì doanh thu ĐÃ bị đếm đúp mà không ai chặn; nếu không phải thì lợi
+    nhuận đang bị loại oan. Owner đã chọn phương án nhất quán: cộng cả hai, và
+    nói rõ có nghi ngờ trùng.
+    """
+    duplicate = line(pending_reasons=("Duplicate",), status="PENDING")
+    assert duplicate.profit_blockers == ()
+    assert duplicate.kpi_profit == Decimal("1000000")
+    assert profit_gate.WARN_POSSIBLE_DUPLICATE in duplicate.warnings
+
+    totals = bm.totals([line(order_key="BH1"), duplicate])
+    assert totals.sales_revenue == Decimal("16000000")   # doanh thu: cả hai
+    assert totals.kpi_profit == Decimal("2000000")       # lợi nhuận: cả hai
+    assert totals.coverage.is_complete is True
+
+
+def test_a_zero_sell_price_warns_and_still_produces_a_negative_profit(): # OD-4
+    """`OD-4` — vector nguyên văn của Owner: SL 1, giá bán 0, giá nhập 500.000.
+
+    `0` là một giá bán THẬT (hàng tặng kèm), không phải một ô trống. Khoản
+    500.000 kia là chi phí doanh nghiệp thật sự chịu, nên nó phải hiện ra dưới
+    dạng −500.000. Thay nó bằng `0` là làm báo cáo đẹp hơn sự thật.
+    """
+    giveaway = line(sell_price=Decimal(0), quantity=Decimal(1),
+                    total_sales=Decimal(0), auto_purchase_price=None,
+                    auto_kpi_profit=None,
+                    manual_purchase_price=Decimal("500000"),
+                    manual_provenance=bm.PROVENANCE_MANUAL)
+    assert giveaway.profit_blockers == ()
+    assert giveaway.kpi_profit == Decimal("-500000")
+    assert profit_gate.WARN_SELL_PRICE_ZERO in giveaway.warnings
+    assert profit_gate.WARN_PURCHASE_ABOVE_SELL in giveaway.warnings
+    assert profit_gate.WARN_NEGATIVE_PROFIT in giveaway.warnings
+    assert bm.totals([giveaway]).kpi_profit == Decimal("-500000")
+
+
+def test_an_unknown_employee_keeps_company_profit_but_not_an_individual_kpi(): # OD-5
+    """`OD-5` — "tính được lãi" và "biết lãi của ai" là HAI câu hỏi.
+
+    Trước bản sửa, không trả lời được câu thứ hai thì câu thứ nhất cũng mất
+    luôn con số: lợi nhuận của cả kỳ bị kéo xuống bởi một vấn đề vốn chỉ là
+    chuyện gán tên người.
+    """
+    known = line(order_key="BH1", employee="Ly")
+    unknown = line(order_key="BH2", employee=None, employee_group=None)
+    assert unknown.kpi_profit == Decimal("1000000")   # vào tổng công ty
+    assert unknown.employee_kpi_profit is None        # chưa vào KPI của ai
+    assert profit_gate.BLOCK_EMPLOYEE_UNRESOLVED in unknown.warnings
+
+    totals = bm.totals([known, unknown])
+    assert totals.kpi_profit == Decimal("2000000")
+    assert totals.employee_attributed_profit == Decimal("1000000")
+    assert totals.unattributed_profit == Decimal("1000000")
+    # Hai phần cộng lại đúng bằng tổng — không đồng nào biến mất.
+    assert (totals.employee_attributed_profit + totals.unattributed_profit
+            == totals.kpi_profit)
+    # Và nhóm "chưa xác định" nhìn thấy được, không im lặng.
+    assert totals.coverage.unresolved_employee_lines == 1
+    # Nó KHÔNG làm coverage tụt: dòng đó ĐÃ có lợi nhuận.
+    assert totals.coverage.is_complete is True
+
+
+def test_assigning_the_employee_moves_the_line_without_changing_the_total(): # OD-5
+    """Sau khi Owner gán, dòng rời nhóm "chưa xác định" và về đúng người.
+
+    Tổng của cả kỳ KHÔNG đổi — đó là điều kiện để Owner tin thao tác này chỉ
+    dời một khoản chứ không tạo ra hay làm mất tiền.
+    """
+    before = bm.totals([line(order_key="BH1", employee="Ly"),
+                        line(order_key="BH2", employee=None)])
+    after = bm.totals([
+        line(order_key="BH1", employee="Ly"),
+        line(order_key="BH2", employee="Vinh", employee_group="NOI_THANH",
+             source_employee=None, employee_provenance="MANUAL"),
+    ])
+    assert after.kpi_profit == before.kpi_profit
+    assert after.coverage.unresolved_employee_lines == 0
+    assert after.unattributed_profit is None
+    assert after.employee_attributed_profit == after.kpi_profit
+    assert [name for name, _g, _t in bm.group_by_employee([
+        line(order_key="BH2", employee="Vinh", employee_provenance="MANUAL")])
+    ] == ["Vinh"]
+
+
+def test_a_rescued_line_stops_shouting_about_the_gap_it_no_longer_has():
+    """Cảnh báo xuất hiện ở khắp nơi thì không còn là cảnh báo.
+
+    Trên dữ liệu thật `Missing.PurchasePrice` gắn vào **100 % số dòng** của cả
+    hai kỳ golden. Nếu mọi mã pipeline đều sinh ra một cảnh báo, mọi dòng của
+    mọi báo cáo sẽ mang câu "có ghi chú cần kiểm tra" — kể cả dòng Owner vừa
+    nhập giá xong.
+
+    Không có gì bị giấu: khi giá nhập còn thiếu, cửa chặn nói đúng điều đó
+    bằng ngôn ngữ hành động được; và bảng kê vẫn liệt kê nguyên văn mọi mã.
+    """
+    rescued = production_pending(manual_purchase_price=Decimal("6500000"),
+                                 manual_provenance=bm.PROVENANCE_MANUAL)
+    assert rescued.pending_reasons                      # mã vẫn còn nguyên
+    assert rescued.warnings == ()                       # nhưng không ồn ào
+
+    # Một ghi chú KHÔNG thuộc nhóm "thiếu giá nhập" thì vẫn được nói ra.
+    other = production_pending(
+        manual_purchase_price=Decimal("6500000"),
+        manual_provenance=bm.PROVENANCE_MANUAL,
+        pending_reasons=("Missing.PurchasePrice", "OrderInconsistency"))
+    assert profit_gate.WARN_PIPELINE_REVIEW in other.warnings
+
+
+def test_the_raw_accounting_employee_survives_a_reassignment():
+    """Bằng chứng gốc ĐI KÈM chứ không bị thay thế.
+
+    Chỉ thị: *"Preserve raw accounting source evidence. Do NOT overwrite the
+    raw source field destructively."* Sau khi gán, vẫn trả lời được câu "sổ
+    ghi ai" mà không phải mở lại lịch sử chạy máy.
+    """
+    reassigned = line(employee="Vinh", source_employee="Vjnh",
+                      employee_provenance="MANUAL")
+    assert reassigned.employee == "Vinh"          # có hiệu lực cho KPI
+    assert reassigned.source_employee == "Vjnh"   # sổ vẫn ghi nguyên như cũ
 
 
 # --- J/K · So tháng trước, trên DOANH THU BÁN HÀNG ------------------------

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from alembic import op
 
-from tools.db import schema
+from tools.db import owner_data, schema
 
 revision = "0003_business"
 down_revision = "0002_snapshots"
@@ -30,8 +30,24 @@ _TABLES = schema.BUSINESS_TABLES
 
 
 def upgrade() -> None:
-    schema.METADATA.create_all(op.get_bind(), tables=list(_TABLES), checkfirst=False)
+    bind = op.get_bind()
+    schema.METADATA.create_all(bind, tables=list(_TABLES), checkfirst=False)
+    # B04 — nếu một lần rollback trước đó đã cất dữ liệu Owner vào két, nạp
+    # lại ngay tại đây. Không có két thì đây là no-op.
+    for name, rows in owner_data.restore_owner_tables(bind, _TABLES):
+        print(f"0003_business: đã nạp lại {rows} dòng Owner vào {name}.")
 
 
 def downgrade() -> None:
-    schema.METADATA.drop_all(op.get_bind(), tables=list(reversed(_TABLES)), checkfirst=False)
+    """B04 — KHÔNG `DROP` thẳng: hai bảng này chứa dữ liệu Owner gõ tay.
+
+    Giá nhập và tick Gia dụng không tái tạo lại được từ file sổ gốc. Xoá
+    chúng để quay lại `0002_snapshots` là một mất mát vĩnh viễn, và một lệnh
+    rollback thường được gõ vội lúc đang có sự cố khác — đúng lúc không ai
+    kịp nghĩ tới hậu quả đó.
+    """
+    bind = op.get_bind()
+    for name, backup, rows in owner_data.archive_owner_tables(bind, _TABLES):
+        print(f"0003_business: giữ lại {rows} dòng của {name} trong {backup} "
+              f"— `alembic upgrade` sẽ nạp lại.")
+    schema.METADATA.drop_all(bind, tables=list(reversed(_TABLES)), checkfirst=False)
