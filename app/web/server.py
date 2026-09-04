@@ -56,8 +56,8 @@ from app.modules.reporting.rate_routing import gia_dung_workflow_applies
 from app.web import (
     analytics_presentation, analytics_queries, business_presentation,
     business_service, business_store, history_store, history_writer,
-    legacy_presentation, run_registry, sales_presentation, sales_queries,
-    storage_backend,
+    legacy_presentation, legacy_reference, run_registry, sales_presentation,
+    sales_queries, storage_backend,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -268,6 +268,9 @@ def create_app(
     app.config["BUSINESS_SERVICE"] = business
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
+    app.jinja_env.globals["LEGACY_PROVENANCE"] = legacy_reference.PROVENANCE
+    app.jinja_env.globals["LEGACY_PROVENANCE_LABEL"] = legacy_reference.PROVENANCE_LABEL
+    app.jinja_env.globals["LEGACY_PROVENANCE_NOTE"] = legacy_reference.PROVENANCE_NOTE
     app.jinja_env.globals["PIPELINE_BADGE"] = analytics_presentation.ORIGIN_BADGE
     app.jinja_env.globals["PIPELINE_BADGE_TITLE"] = analytics_presentation.ORIGIN_TITLE
     app.jinja_env.globals["QUANTITY_NOTE"] = analytics_presentation.QUANTITY_NOTE
@@ -665,6 +668,57 @@ def create_app(
         return _legacy_page(
             "doanh_so_ngay.html", periods=periods, selected=selected, days=days,
             monthly=monthly, monthly_cells=legacy_presentation.monthly_cells(monthly),
+        )
+
+    @app.get("/lich-su")
+    def legacy_reference_page():
+        """PHB-04 — Tham chiếu lịch sử: kỳ legacy, hợp đồng, điều hướng.
+
+        Trang này KHÔNG ghi gì và KHÔNG gọi pipeline. Nó đọc đúng ba thứ đã
+        có: kỳ Summary cũ, dòng tham chiếu tháng của DataChart, và danh mục kỳ
+        của số mới — rồi xếp cạnh nhau với nhãn origin. Không kỳ nào bị hợp
+        nhất thành một con số duy nhất: `DEC-166 E` cấm cộng chung số cũ với
+        số mới, và PHB-04 không xin ngoại lệ nào cho điều đó.
+
+        Danh mục kỳ số mới chỉ có khi snapshot store đã cấu hình. Thiếu nó,
+        trang vẫn hiện đầy đủ phần legacy và nói rõ phần số mới chưa đọc được
+        — KHÔNG im lặng hiện một danh sách chỉ có legacy như thể đó là tất cả.
+        """
+        if history_repo is None:
+            return _legacy_page(
+                "lich_su.html", reference_rows=[], reference_years=[],
+                reference_has_value=False, navigation=[], pipeline_configured=False,
+                summary_periods=[], comparison=legacy_reference.comparison_summary(),
+                reference_contract=legacy_presentation.contract_rows(
+                    legacy_reference.REFERENCE_YEAR_CONTRACT),
+                workbook_contract=legacy_presentation.contract_rows(
+                    legacy_reference.WORKBOOK_YEAR_CONTRACT),
+            ), 503
+
+        monthly = _guarded(history_repo.query_monthly_reference)
+        periods = legacy_reference.reference_periods(monthly)
+        summary_periods = _guarded(history_repo.available_periods)
+        pipeline_periods = (
+            _guarded(analytics_queries.available_periods, snapshot_repo.engine)
+            if snapshot_repo is not None else []
+        )
+        return _legacy_page(
+            "lich_su.html",
+            reference_rows=legacy_presentation.reference_rows(periods),
+            reference_years=legacy_reference.reference_years(periods),
+            reference_has_value=legacy_reference.has_any_value(periods),
+            summary_periods=summary_periods,
+            navigation=legacy_reference.period_navigation(
+                legacy_summary_periods=summary_periods,
+                legacy_reference_periods=periods,
+                pipeline_periods=pipeline_periods,
+            ),
+            pipeline_configured=snapshot_repo is not None,
+            comparison=legacy_reference.comparison_summary(),
+            reference_contract=legacy_presentation.contract_rows(
+                legacy_reference.REFERENCE_YEAR_CONTRACT),
+            workbook_contract=legacy_presentation.contract_rows(
+                legacy_reference.WORKBOOK_YEAR_CONTRACT),
         )
 
     # ------------------------------------------------------------------

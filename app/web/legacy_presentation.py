@@ -137,3 +137,43 @@ def monthly_cells(row: Optional[dict]) -> dict[str, dict]:
     if row is None:
         return {}
     return {field: cell(row, field, unit_kind) for field, unit_kind in MONTHLY_FIELDS}
+
+
+# ---------------------------------------------------------------------------
+# PHB-04 — Legacy Reference V1.
+#
+# Kỳ tham chiếu năm trước đi qua ĐÚNG hàm ``cell()`` như mọi số cũ khác, nên
+# nó thừa hưởng cùng một bảo đảm: không có con số nào hiện ra mà thiếu nhãn
+# nguồn và đơn vị, và ô trống hiện dấu gạch chứ không phải ``0``.
+# ---------------------------------------------------------------------------
+
+def reference_rows(periods: list) -> list[dict]:
+    """Bảng kỳ tham chiếu (một dòng mỗi tháng của năm trước)."""
+    return [
+        {
+            "year": item.year,
+            "month": item.month,
+            "period_label": period_label(item.year, item.month),
+            "available": item.available,
+            "source": item.source,
+            "derived_from": period_label(item.derived_from_year, item.derived_from_month),
+            "cell": cell({item.metric_key: item.value}, item.metric_key, item.unit_kind),
+        }
+        for item in periods
+    ]
+
+
+def contract_rows(rules: tuple) -> list[dict]:
+    """Bảng hợp đồng chỉ tiêu, viết ra nguyên văn cho chủ dự án đọc."""
+    return [
+        {
+            "key": rule.key,
+            "label": rule.label,
+            "metric_class": rule.metric_class,
+            "class_label": rule.class_label,
+            "displayable": rule.displayable,
+            "reason": rule.reason,
+            "evidence": rule.evidence,
+        }
+        for rule in rules
+    ]

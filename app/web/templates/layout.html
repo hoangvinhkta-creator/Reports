@@ -21,6 +21,7 @@
   <a class="ncc-tab {{ 'on' if active_tab == 'san-pham' }}" href="{{ url_for('products') }}">Sản phẩm</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('sellers') }}">Nhân viên</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'doanh-so-ngay' }}" href="{{ url_for('daily_sales') }}">Doanh số ngày</a>
+  <a class="ncc-tab {{ 'on' if active_tab == 'lich-su' }}" href="{{ url_for('legacy_reference_page') }}">Lịch sử</a>
 </nav>
 <main class="tp-main">
 {% block content %}{% endblock %}

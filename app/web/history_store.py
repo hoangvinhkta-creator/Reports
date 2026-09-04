@@ -252,19 +252,25 @@ class LegacyRepository:
         )
 
     def query_monthly_reference(
-        self, year: int, *, import_id: Optional[str] = None,
+        self, year: Optional[int] = None, *, import_id: Optional[str] = None,
     ) -> list[dict]:
+        """Dòng tham chiếu tháng của DataChart. ``year=None`` → mọi năm.
+
+        Nhánh ``year=None`` phục vụ PHB-04: kỳ legacy của năm TRƯỚC nằm trong
+        cột ``sales_prev_year_vnd`` của chính những dòng năm workbook, nên
+        không thể lọc theo năm trước ở tầng SQL mà vẫn thấy chúng.
+        """
         resolved = self._resolve_import_id(import_id)
         if resolved is None:
             return []
-        return self._query(
-            select(legacy_monthly_reference)
-            .where(
-                legacy_monthly_reference.c.import_id == resolved,
-                legacy_monthly_reference.c.year == year,
-            )
-            .order_by(legacy_monthly_reference.c.month)
+        statement = select(legacy_monthly_reference).where(
+            legacy_monthly_reference.c.import_id == resolved,
         )
+        if year is not None:
+            statement = statement.where(legacy_monthly_reference.c.year == year)
+        return self._query(statement.order_by(
+            legacy_monthly_reference.c.year, legacy_monthly_reference.c.month,
+        ))
 
     def available_periods(self, *, import_id: Optional[str] = None) -> list[tuple[int, Optional[int]]]:
         """Các kỳ (năm, tháng) THỰC SỰ có dòng người bán trong bản hiện tại."""

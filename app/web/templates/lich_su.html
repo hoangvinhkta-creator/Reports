@@ -1,0 +1,163 @@
+{% extends "layout.html" %}
+{% import "_legacy_bits.html" as legacy %}
+{% set active_tab = 'lich-su' %}
+{% block title %}Reports — Tham chiếu lịch sử{% endblock %}
+
+{# PHB-04 — Legacy Reference V1.
+   Trang chỉ-đọc. Mọi con số đi qua legacy.legacy_cell() nên không có đường
+   nào hiện một số cũ mà thiếu nhãn nguồn và đơn vị. Không có ô nào trên
+   trang này trộn số cũ với số mới vào cùng một phép tính. #}
+
+{% block content %}
+<h1>THAM CHIẾU LỊCH SỬ</h1>
+
+<p class="insight">
+  {{ legacy.legacy_badge() }} <strong>{{ LEGACY_PROVENANCE_LABEL }}</strong>
+  ({{ LEGACY_PROVENANCE }}). {{ LEGACY_PROVENANCE_NOTE }}
+</p>
+
+{% if not history_configured %}
+  {{ legacy.not_configured() }}
+{% else %}
+{{ legacy.source_note(legacy_import) }}
+
+<div class="module">
+  <h2>1. Kỳ lịch sử của năm trước
+      {% if reference_years %}<span class="cnt">{{ reference_years|join(', ') }}</span>{% endif %}</h2>
+  <p class="insight">
+    Nguồn duy nhất được chấp nhận cho những kỳ này là cột “Doanh số cùng kỳ năm
+    trước” của sheet DataChart — số cứng gõ tay trong workbook. Đơn vị: đồng.
+    Chỉ có <strong>doanh số tháng</strong>; mọi chỉ tiêu khác của năm trước
+    không có bằng chứng và hiện dấu gạch, KHÔNG hiện 0.
+  </p>
+
+  {% if not reference_rows %}
+  <p class="empty">Chưa nhập bản báo cáo cũ nào — vào tab Dữ liệu để nhập workbook.</p>
+  {% elif not reference_has_value %}
+  <p class="empty">
+    Bản legacy đang xem có sheet DataChart nhưng cột cùng kỳ năm trước trống
+    hoàn toàn — không có kỳ lịch sử nào để hiện.
+  </p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Kỳ lịch sử</th><th class="num">Doanh số tháng</th><th>Lấy từ ô của kỳ</th></tr>
+    {% for row in reference_rows %}
+    <tr>
+      <td class="code">{{ row.period_label }}</td>
+      {{ legacy.legacy_cell(row.cell) }}
+      <td class="code">{{ row.derived_from }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="insight">Nguồn ô: {{ reference_rows[0].source }}</p>
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>2. Đi tới kỳ</h2>
+  <p class="insight">
+    Mỗi kỳ ghi rõ có nguồn nào. Kỳ có CẢ HAI nhãn nghĩa là có số cũ và có số
+    mới cho cùng tháng đó — hai con số riêng biệt, KHÔNG bao giờ cộng chung và
+    KHÔNG bao giờ thay thế nhau.
+  </p>
+  {% if not pipeline_configured %}
+  <p class="error">
+    Chưa đọc được danh mục kỳ của số mới (snapshot store chưa cấu hình). Bảng
+    dưới đây vì vậy CHỈ liệt kê kỳ số cũ — không phải là toàn bộ kỳ đang có.
+  </p>
+  {% endif %}
+  {% if not navigation %}
+  <p class="empty">Chưa có kỳ nào để đi tới.</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Kỳ</th><th>Nguồn có sẵn</th><th>Mở</th></tr>
+    {% for row in navigation %}
+    <tr>
+      <td class="code">Tháng {{ '%02d' % row.month }}/{{ row.year }}</td>
+      <td>
+        {% if row.has_legacy %}{{ legacy.legacy_badge() }}{% endif %}
+        {% if row.has_pipeline %}<span class="tag">{{ PIPELINE_BADGE }}</span>{% endif %}
+      </td>
+      <td>
+        {% if row.has_legacy %}
+        <a href="{{ url_for('sellers') }}?ky={{ row.year }}-{{ '%02d' % row.month }}">Số cũ: Nhân viên</a>
+        · <a href="{{ url_for('daily_sales') }}?ky={{ row.year }}-{{ '%02d' % row.month }}">Số cũ: Doanh số ngày</a>
+        {% endif %}
+        {% if row.has_pipeline %}
+        {% if row.has_legacy %} · {% endif %}
+        <a href="{{ url_for('business_summary') }}?ky={{ row.year }}-{{ '%02d' % row.month }}">Số mới: Kinh doanh</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>3. So số cũ với số mới ở đâu?</h2>
+  <p class="insight">
+    Công cụ chỉ tính chênh lệch khi hợp đồng chứng minh được hai bên cùng một
+    nghĩa nghiệp vụ. Ở phiên bản V1 <strong>chưa chỉ tiêu nào đạt điều đó</strong>,
+    nên không có tỉ lệ tăng trưởng nào được sinh ra giữa hai nguồn. Số cũ vẫn
+    xem được cạnh số mới — chỉ là không trừ nhau.
+  </p>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Chỉ tiêu số cũ</th><th>Chỉ tiêu số mới</th><th>Kết luận</th><th>Vì sao</th></tr>
+    {% for row in comparison %}
+    <tr>
+      <td class="code">{{ row.legacy_key }}</td>
+      <td class="code">{{ row.current_key }}</td>
+      <td>{{ row.verdict }}</td>
+      <td>{{ row.reason }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="insight">
+    Tỉ lệ “so cùng kỳ năm trước” hiện ở trang Doanh số ngày là một
+    <strong>số cũ đã lưu sẵn trong workbook</strong>, do Excel tính — không
+    phải phép so do công cụ này thực hiện.
+  </p>
+</div>
+
+<div class="module">
+  <h2>4. Chỉ tiêu lịch sử nào được hỗ trợ?</h2>
+
+  <h3>Kỳ tham chiếu năm trước</h3>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Chỉ tiêu</th><th>Phân loại</th><th>Vì sao</th><th>Bằng chứng</th></tr>
+    {% for row in reference_contract %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td>{{ row.class_label }}</td>
+      <td>{{ row.reason }}</td>
+      <td class="code">{{ row.evidence }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  <h3>Kỳ báo cáo tay của năm workbook</h3>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Chỉ tiêu</th><th>Phân loại</th><th>Vì sao</th><th>Bằng chứng</th></tr>
+    {% for row in workbook_contract %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td>{{ row.class_label }}</td>
+      <td>{{ row.reason }}</td>
+      <td class="code">{{ row.evidence }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

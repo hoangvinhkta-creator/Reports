@@ -1,6 +1,107 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — PHB-03 = PRODUCTION_VERIFICATION_INCOMPLETE (AUTHORITATIVE, 2026-09-04, S118)
+## CANONICAL CURRENT STATE — PHB-04 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-04, S119)
+
+`PHB-03` đã được **chủ dự án nghiệm thu trên production** (tuyên bố mở phiên
+S119: *"PHB-03 = PRODUCTION ACCEPTED"*, kèm chỉ thị **không mở lại PHB-03**).
+Điều đó đóng cửa E2E còn treo ở khối S118 bên dưới — khối đó giữ nguyên làm
+bản ghi lịch sử, không sửa lại như thể nó từng mang trạng thái khác. Các mục
+kiểm hậu-deploy còn lại và phần dọn UX của PHB-03 (`R1`/`R2`/`R3`) đã được
+chuyển sang một nhánh phụ **không chặn**.
+
+Vertical chính hiện tại: **`PHB-04` — Legacy Reference V1**, đã triển khai
+xong và **đang chờ Independent Review**. Báo cáo cho chủ dự án:
+`docs/reviews/PHB-04-legacy-reference-v1-implementation.md`. Hợp đồng và bằng
+chứng đầy đủ: `docs/tasks/PHB-04-legacy-reference-v1.md`. Quyết định:
+`DEC-176`.
+
+```text
+START_BRANCH               = claude/extract-upload-repo-gq2ws4 (origin HEAD branch)
+START_HEAD                 = 51d8fef4499642290398d795e7639e13792bee45
+PHB04_BRANCH               = claude/phb-04-legacy-reference-v1-widtzf
+                             (nhánh do harness của phiên chỉ định; chỉ thị nêu
+                             tên rút gọn `claude/phb-04-legacy-reference-v1`)
+WORKTREE                   = CLEAN lúc mở phiên
+
+LEGACY_CONTRACT            = FROZEN — docs/tasks/PHB-04-legacy-reference-v1.md §3,
+                             biểu diễn thi hành được ở app/web/legacy_reference.py
+LEGACY_PERIODS             = REFERENCE_YEAR: các tháng của năm TRƯỚC năm workbook
+                             (workbook 2026 ⟹ 2025), nguồn DataChart 2026!AH3:AH14
+                             · WORKBOOK_YEAR: các tháng 2026 có dòng người bán
+                             trong Summary 2026
+                             · Summary 2025 VẪN NGOÀI PHẠM VI (DEC-169 giữ nguyên)
+CUTOVER_BOUNDARY           = ORIGIN_BASED_NOT_DATE_BASED — repo KHÔNG có quyết
+                             định nào đặt mốc ngày cho báo cáo; ranh giới là
+                             origin, tính theo từng kỳ. CUTOVER_DATE = 2026-09-01
+                             là mốc GIÁ/Product Identity, KHÔNG tái sử dụng
+                             ("hai cutover, không gộp"). Không bịa ngày.
+SUPPORTED_LEGACY_METRICS   = 2025: doanh số tháng (VND) — DUY NHẤT
+                             workbook 2026: 16 cột C..S giữ nguyên như PRA-001
+REFERENCE_ONLY_METRICS     = TOÀN BỘ chỉ tiêu legacy hiển thị được. COMPARABLE = rỗng
+UNAVAILABLE_LEGACY_METRICS = 2025: tổng đơn · tổng SP · DS quy đổi · lợi nhuận ·
+                             target · chi tiết theo nhân viên · doanh số ngày
+                             workbook: tỉ lệ tồn kho · thưởng · ngày công ·
+                             lương cơ bản · phụ cấp · tổng lương
+LEGACY_STORAGE_MODEL       = TÁI DÙNG bốn bảng legacy_* của TASK-PRA-001.
+                             KHÔNG bảng mới · KHÔNG migration · KHÔNG cột mới ·
+                             KHÔNG đường ghi mới. Phần thêm = phép CHIẾU CHỈ-ĐỌC
+                             (đổi khoá năm, không tính lại) + hợp đồng + 1 trang.
+LEGACY_PROVENANCE          = LEGACY_REFERENCE (CHECK constraint ở tầng schema)
+
+CURRENT_ENGINE_ISOLATION   = PASS — nạp legacy không ghi một dòng nào vào
+                             order_line_*/snapshot_*/reconciliation_flag; đọc
+                             trang /lich-su không ghi gì (đếm dòng MỌI bảng
+                             không đổi)
+LEGACY_COVERAGE_ISOLATION  = PASS — coverage giá nhập, doanh thu và số dòng của
+                             kỳ hiện hành IDENTICAL trước/sau khi nạp legacy
+LEGACY_NAVIGATION          = PASS — tab "Lịch sử" (/lich-su): kỳ dán nhãn
+                             SỐ CŨ / SỐ MỚI / cả hai, liên kết sang đúng trang
+COMPARISON_SEMANTICS       = PASS — cổng compare() đọc CROSS_ORIGIN_CONTRACT;
+                             V1 chặn MỌI cặp kèm lý do; ô thiếu số hiện "—",
+                             không bao giờ 0 hay −100 %
+
+FOCUSED_TESTS              = PASS — tests/test_phb04_legacy_reference.py: 35 passed
+FULL_TESTS                 = PASS — 2171 passed, 11 skipped
+                             (baseline trước phiên 2136 passed, 11 skipped ⟹
+                             chênh +35 đúng bằng số test mới; 0 test cũ bị
+                             sửa/bỏ/tắt)
+GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHỚP baseline
+GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state PASS ·
+                             validate_evidence PASS (155 REQUIRED) ·
+                             validate_task_completion PASS (13 DONE task) ·
+                             validate_reference_integrity FAIL với ĐÚNG 3
+                             reference REM-T06 đã biết (baseline không đổi)
+
+BLOCKING_FINDINGS          = NONE
+NON_BLOCKING_FINDINGS      = F-PHB04-01 — nhánh cảnh báo "chưa đọc được danh mục
+                             kỳ số mới" trên /lich-su không tới được trên
+                             production với cách nối dây hôm nay
+                             (`_build_snapshots()` dựng snapshot repo trên chính
+                             engine của history store). Giữ lại + có test: cùng
+                             kỷ luật với not_configured() của PRA-001 — danh
+                             sách thiếu nguồn không được trông giống danh sách đủ.
+                             F-PHB04-02 — clone rút gọn của phiên thiếu commit
+                             740f396 khiến 1 test golden FAIL lúc đo baseline;
+                             `git fetch --unshallow` xong thì PASS. Lỗi môi
+                             trường, không phải lỗi mã.
+OWNER_DECISIONS_REQUIRED   = NONE (không quyết định nào chặn V1)
+OD-PHB04-A / OD-PHB04-B    = GHI LẠI, KHÔNG CHẶN — hợp nhất số của một kỳ có cả
+                             hai origin; và có kỳ 2026 nào muốn coi là "legacy
+                             thuần" không. Xem task file mục 6.
+SCOPE_DRIFT                = NO
+
+PHB_04                     = IMPLEMENTED_AWAITING_REVIEW
+NEXT_VERTICAL_ACTION       = Independent PHB-04 review (phiên khác, không phải
+                             phiên đã viết mã). Đủ bằng chứng ⟹ PHB-04 = DONE
+                             ⟹ PHB-05 Target (DEC-PHB02-06).
+```
+
+---
+
+## KHỐI LỊCH SỬ — PHB-03 = PRODUCTION_VERIFICATION_INCOMPLETE (S118, 2026-09-04)
+
+Giữ nguyên văn làm bản ghi lịch sử tại thời điểm S118. Trạng thái hiện hành
+của `PHB-03` nằm ở khối CANONICAL CURRENT STATE bên trên.
 
 `PHB-03` đã qua **Controlled Integration** vào nhánh canonical và **sẵn sàng
 deploy**, nhưng **CHƯA `DONE`**: toàn bộ cửa E2E production yêu cầu tác nhân

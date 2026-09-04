@@ -8616,3 +8616,113 @@ Chi tiết đầy đủ và bằng chứng:
 `docs/tasks/PHB-03-summary-employee-business-parity.md`;
 bàn giao phiên: `docs/sessions/S115-phb-03-summary-employee-parity.md`;
 ngân sách review: `PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `PHB-03`.
+
+---
+
+## DEC-176
+
+Title:
+PHB-04 — Legacy Reference V1: ranh giới legacy THEO ORIGIN (không theo ngày),
+`COMPARABLE = rỗng` ở V1, và không dựng cơ chế lưu trữ mới
+
+Date:
+2026-09-04
+
+Task:
+`PHB-04` — Legacy Reference V1. Phiên implementation S119 (nhánh
+`claude/phb-04-legacy-reference-v1-widtzf`), đứng trên hợp đồng FROZEN của
+`PHB-02` mục 5.6 `L1`–`L6` và trên `DEC-169`. Task file:
+`docs/tasks/PHB-04-legacy-reference-v1.md`.
+`BASE_SHA = 51d8fef4499642290398d795e7639e13792bee45`.
+
+Authority:
+`TACTICAL_DECISION` (session), **không** `OWNER_DECISION`. Cả ba quyết định
+dưới đây suy ra từ bằng chứng đã được chấp nhận; không quyết định nào đổi một
+chỉ tiêu nghiệp vụ đã freeze, và không quyết định nào nới lỏng `DEC-169`.
+
+### 1. Ranh giới cutover là THEO ORIGIN, không phải một mốc ngày
+
+```
+CUTOVER_BOUNDARY = ORIGIN_BASED_NOT_DATE_BASED
+```
+
+Chỉ thị PHB-04 mục 10 cấm đoán một ngày và cấm suy ra ngày từ timestamp của
+repo. Audit cho kết quả: repo **không có** quyết định nào định nghĩa một mốc
+ngày cho báo cáo. Cái repo có là ranh giới theo nguồn dữ liệu, tính theo từng
+kỳ — `origin = LEGACY_REFERENCE` (bốn bảng `legacy_*`) và
+`origin = PIPELINE_GENERATED` (`order_line_*`, `snapshot_*`). Một kỳ 2026 có
+thể mang cả hai; 2025 chỉ mang legacy.
+
+`CUTOVER_DATE = 2026-09-01` **không** được tái sử dụng: đó là mốc giá /
+Product Identity, và `PROJECT_PROGRESS.md` đã ghi rõ *"Hai cutover, không
+gộp"*.
+
+Vì V1 không bao giờ hợp nhất hai origin thành một con số, V1 chạy đúng mà
+KHÔNG cần một mốc ngày ⟹ đây **không** phải `OWNER_DECISION_REQUIRED` chặn
+PHB-04. Câu hỏi hợp nhất được ghi lại thành `OD-PHB04-A` / `OD-PHB04-B` (task
+file mục 6), không chặn phần nào của V1.
+
+### 2. `COMPARABLE` = rỗng ở V1 — kết luận, không phải sự thận trọng
+
+```
+LEGACY↔CURRENT COMPARISON = KHÔNG CHỈ TIÊU NÀO ĐƯỢC PHÉP (V1)
+```
+
+Mỗi cặp đều vướng một phân kỳ ngữ nghĩa ĐÃ FREEZE ở `PHB-02`: chiết khấu
+(`S3`, `DEC-114`), DS quy đổi bằng phép chia và dòng tổng cộng thiếu (`S4`,
+`X2`, `X6`), lợi nhuận KPI chỉ chính thức khi coverage 100 % (`S14`,
+`DEC-PHB02-02`), số SP mang lỗi `A1` (`X1`), cột `I` so trên sai chỉ tiêu
+(`X9`). `D2` của hợp đồng ("Cùng kỳ năm trước / YTD") vì vậy đóng lại theo
+hướng **hiện cạnh nhau, không trừ nhau**, chứ không mở ra một phép so.
+
+Cổng `legacy_reference.compare()` đọc bảng `CROSS_ORIGIN_CONTRACT` qua tham
+số, nên mở một cặp trong tương lai là một thay đổi DỮ LIỆU, không phải sửa
+nhánh điều khiển — và người mở phải bác được đúng lý do đã ghi ở dòng đó.
+`test_the_gate_reads_the_contract_instead_of_hardcoding_a_refusal` chứng minh
+cổng thật sự đọc hợp đồng.
+
+Tỉ lệ `vs_last_year_ratio` (cột `AI`) vẫn hiện như trước: đó là số CŨ do Excel
+tính, legacy↔legacy, không phải phép so do công cụ thực hiện.
+
+### 3. Không dựng cơ chế lưu trữ legacy mới
+
+```
+LEGACY_STORAGE_MODEL = TÁI DÙNG bốn bảng legacy_* của TASK-PRA-001
+                       KHÔNG bảng mới · KHÔNG migration · KHÔNG cột mới
+```
+
+PHB-04 mục 6 yêu cầu *audit trước, thiết kế sau*. Audit cho thấy đường lưu đã
+tồn tại và đã được nghiệm thu, kèm CHECK constraint `origin = 'LEGACY_REFERENCE'`
+ở tầng schema và idempotency theo fingerprint. Phần thêm của PHB-04 là một
+phép CHIẾU CHỈ-ĐỌC (`legacy_monthly_reference.sales_prev_year_vnd` khoá theo
+năm workbook → kỳ của năm `year - 1`; đổi khoá, KHÔNG tính lại) cộng một hợp
+đồng ngữ nghĩa và một trang đọc.
+
+Hệ quả về an toàn dữ liệu là **cấu trúc, không phải kỷ luật**: không tồn tại
+đường ghi nào để tạo dòng hàng giả, chạm Product Identity/Tracking, hay sinh
+KPI-profit eligibility. Nguồn của kỳ tham chiếu là `DataChart 2026!AH`
+(`PHB-02` mục 5.6 `L2`) — **không phải** `Summary 2025`, nên `DEC-169` được
+giữ nguyên vẹn, không nới lỏng, không suy rộng.
+
+Evidence:
+`FOCUSED = 35 passed` (`tests/test_phb04_legacy_reference.py`);
+`FULL_TEST_SUITE = 2171 passed, 11 skipped` (baseline trước phiên
+`2136 passed, 11 skipped` ⟹ chênh `+35` đúng bằng số test mới, không test cũ
+nào bị sửa/bỏ/tắt); `GOLDEN = 74 passed, 2 skipped` (KHÔNG ĐỔI);
+`15/15` Exit Criteria PASS trừ `E14` (Independent Review) = PENDING.
+Validator: `validate_structure`/`validate_project_state`/`validate_evidence`/
+`validate_task_completion` PASS; `validate_reference_integrity` FAIL với ĐÚNG
+3 reference `REM-T06` đã biết (baseline không đổi).
+
+Can Revisit After:
+Điểm §2 mở lại khi một chỉ tiêu được CHỨNG MINH là cùng nghĩa ở hai bên —
+thêm một dòng vào `CROSS_ORIGIN_CONTRACT`, kèm bằng chứng bác lý do đang ghi.
+Điểm §1 mở lại nếu chủ dự án yêu cầu hiển thị MỘT con số duy nhất cho một kỳ
+có cả hai origin (`OD-PHB04-A`). Điểm §3 mở lại nếu xuất hiện bằng chứng
+legacy ở mức DÒNG (line-level) mà mô hình period/metric hiện tại không chứa
+được — hôm nay không có bằng chứng nào như vậy.
+
+Chi tiết đầy đủ và bằng chứng:
+`docs/tasks/PHB-04-legacy-reference-v1.md`;
+báo cáo cho chủ dự án:
+`docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.
