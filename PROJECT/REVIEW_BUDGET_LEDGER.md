@@ -2797,3 +2797,91 @@ CANONICAL_INTEGRATION_STATUS  : NOT_YET_INTEGRATED
 `NEXT_VERTICAL_ACTION = PRA-005 CONTROLLED INTEGRATION`. Chi tiết:
 `docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md` và
 `docs/sessions/S108-pra-005-major-implementation.md`.
+
+---
+
+## Root Task: PHB-01
+
+Lineage **mới** (Product Identity Manual Resolution V1, contract
+`PHB-PI-001`, khai ở `docs/sessions/S112-phb-01-product-identity-manual-
+resolution.md`). Vertical này chạm CẢ HAI repo (Reports + Tracking — §5
+contract cho phép tường minh).
+
+```
+root_task: PHB-01
+effective_risk: PENDING_OWNER_DECISION — chưa được Owner/reviewer gán một
+    con số chính thức. S112 §7 ghi rõ: "một con số tự đặt là dựng ngân sách
+    trên một giả định" — phiên implementation/review KHÔNG tự gán. Ghi
+    nhận đây là hành động còn thiếu, không phải giá trị mặc định.
+repair_cycles_allowed: PENDING_OWNER_DECISION (phụ thuộc effective_risk
+    chưa gán — theo bảng ngân sách đã freeze ở đầu file này)
+repair_cycles_used: 1 (lịch sử thực tế đã xảy ra — xem cycles: bên dưới;
+    số này ghi những gì đã xảy ra, KHÔNG suy ra được repair_cycles_remaining
+    khi chưa có repair_cycles_allowed)
+repair_cycles_remaining: PENDING_OWNER_DECISION
+```
+
+### Trạng thái (2026-09-04, governance sync sau focused re-review)
+
+```
+PHB01_STATUS       = IMPLEMENTED (CODE_REVIEW_CLEARED) — CHƯA DONE
+CODE_REVIEW_GATE   = PASS
+BLOCKING_01        = CLOSED
+D8_FINAL           = PASS
+H_REGRESSION       = PASS
+PRODUCTION_DEPLOY  = NOT_DONE
+PRODUCTION_E2E     = NOT_RUN
+SCOPE_DRIFT        = NO
+```
+
+Independent Review #1 (S112, trong phiên implementation) — `CODE_REVIEW_GATE
+= FAIL`, đúng một finding blocking: `BLOCKING-01` (nhánh di trú của
+`loadInv()` bên Tracking ghi thiếu `giaV2`/`giaV3`/`tay`/`lotRequired`, làm
+di trú không bao giờ kết thúc và xoá `lo`/`cong`/`congTay` người dùng đã
+nhập).
+
+Bounded repair — Tracking `f0873942a419bc2b18431e6a94668a81eb02235f` →
+`53993f18f67e76927a2b7e115fdc61301cdfb4ec` (đúng 2 file:
+`public/index.html` 1 hunk logic + APP_BUILD b124→b125,
+`kiem/phan-loai-ten-hang.js` +121 dòng test).
+
+Focused Independent Re-review (phiên độc lập riêng, read-only, sau repair)
+— `CODE_REVIEW_GATE = PASS`, `BLOCKING_01 = CLOSED`, `D8_FINAL = PASS`,
+`H_REGRESSION = PASS`, `NEW_BLOCKING_FINDINGS = NONE`. Xác minh bằng
+mutation testing trên `public/index.html` thật (revert dòng sửa về hình
+dạng cũ → 8 assertion đỏ, đúng hồi quy đã báo cáo), không chỉ đọc báo cáo
+sửa lỗi. Bằng chứng đầy đủ:
+`docs/reviews/PHB-01-BLOCKING-01-FOCUSED-REVIEW-RECORD.md`.
+
+Phiên governance-sync ghi record này đã độc lập tái xác minh (không chỉ
+tin artifact): diff `f0873942..53993f18` đúng 2 file; snippet dòng ~7065
+khớp nguyên văn; `db.ref("inv").set(` không còn lời gọi thật; 9 chỗ gọi
+`saveInvPaths`; và **chạy thật** `npm test` trên `53993f18` cho đúng kết
+quả artifact nêu: `kiem/phan-loai-ten-hang.js` 72 đạt/0 hỏng,
+`59 bộ · 2572 đạt · 0 hỏng · 2 bỏ qua`.
+
+```
+cycles:
+- id: PHB01-RC-1
+  base_sha: f0873942a419bc2b18431e6a94668a81eb02235f
+  head_sha: 53993f18f67e76927a2b7e115fdc61301cdfb4ec
+  finding: BLOCKING-01 — loadInv() cloud migration branch wrote only 4 of 8
+    fields (giaV2/giaV3/tay/lotRequired missing), so migration never
+    terminated and lo/cong/congTay entered by the operator were wiped on
+    every subsequent page load.
+  fix: migration write unit changed from four price tables to the whole
+    card ({cu, moi}) via saveInvPaths()/update() — matches the invUndoDay()
+    precedent already in the codebase. map untouched.
+  result: focused re-review PASS (mutation-tested); Tracking full suite
+    59 bộ · 2572 đạt · 0 hỏng · 2 bỏ qua; Reports delta = docs-only, 0 dòng
+    mã chức năng.
+```
+
+**PHB-01 KHÔNG được đánh `DONE`** ở bản ghi này. `PRODUCTION_DEPLOY` và
+`PRODUCTION_E2E` vẫn là các gate còn mở, độc lập với `CODE_REVIEW_GATE`.
+`NEXT_VERTICAL_ACTION`: (1) Owner gán `effective_risk` chính thức cho
+lineage này để đóng phần `PENDING_OWNER_DECISION` ở trên; (2) merge vào
+nhánh production của từng repo; (3) deploy; (4) một lượt `PRODUCTION_E2E`
+thật do Owner thực hiện (xem
+`docs/sessions/S112-phb-01-product-identity-manual-resolution.md` mục 7
+cho thủ tục đầy đủ). Không mở `PHB-02` trước khi (1)-(4) xong.

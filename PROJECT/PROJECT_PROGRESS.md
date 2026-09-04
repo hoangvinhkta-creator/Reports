@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — PHB-01 = IMPLEMENTED, CHƯA DONE (2026-09-04, S112)
+## CANONICAL CURRENT STATE — PHB-01 = IMPLEMENTED, CODE REVIEW CLEARED, CHƯA DONE (2026-09-04, S112)
 
 `PHB-01` (Product Identity Manual Resolution V1, contract `PHB-PI-001`) đã
 triển khai xong ở CẢ HAI phía và **CHƯA `DONE`**: còn independent review,
@@ -13,13 +13,24 @@ tên hàng" bên Tracking (KHÔNG đi qua "Tải file tồn") → Owner chọn m
 `"-"` → ghi hẹp `/inv/map/<khoá>` → Reports chạy lại nhận diện được qua ĐÚNG
 hợp đồng authority cũ (`inv.map` → `/api/xuat/inv_map` → resolver).
 
-**Cập nhật 2026-09-04 — sau review độc lập:** review độc lập trả
+**Cập nhật 2026-09-04 — sau review độc lập (vòng 1):** review độc lập trả
 `CODE_REVIEW_GATE = FAIL` với ĐÚNG MỘT phát hiện chặn (`BLOCKING-01`, một
 chỗ trượt trong D8 ở nhánh di trú của `loadInv()` bên Tracking). Đã sửa
 trong phạm vi hẹp — xem `BLOCKING-01` bên dưới. `D1 = PASS`, `D2 = PASS`,
 phạm vi D8 tổng thể được review phân loại độc lập là
-`NECESSARY_BOUNDED_CONTAINMENT` nên KHÔNG revert. Gate hiện
-`PENDING_RE_REVIEW`; `PHB-01` VẪN CHƯA `DONE`.
+`NECESSARY_BOUNDED_CONTAINMENT` nên KHÔNG revert. Gate lúc đó
+`PENDING_RE_REVIEW`.
+
+**Cập nhật 2026-09-04 — sau review độc lập tập trung (focused re-review) trên
+đúng phần sửa `BLOCKING-01`:** review thứ hai (độc lập, read-only, phiên
+riêng — xem `docs/reviews/PHB-01-BLOCKING-01-FOCUSED-REVIEW-RECORD.md`) xác
+minh lại bằng mutation testing trên `public/index.html` thật (không chỉ đọc
+báo cáo sửa lỗi) rằng bản sửa Tracking `53993f1` đóng đúng `BLOCKING-01`,
+không đổi 8 chỗ gọi `saveInvPaths()` còn lại, và không mở lại lượt ghi đè cả
+nhánh `/inv`. Kết luận: `BLOCKING_01 = CLOSED`, `D8_FINAL = PASS`,
+`H_REGRESSION = PASS`, `CODE_REVIEW_GATE = PASS`. `PHB-01` VẪN CHƯA `DONE` —
+còn thiếu deploy an toàn và một lượt `PRODUCTION_E2E` thật do Owner thực
+hiện (xem mục 7 của S112).
 
 ```text
 REPORTS_BRANCH        = claude/phb-01-product-identity-manual-o28bsn
@@ -55,10 +66,21 @@ PRODUCTION_E2E        = NOT_RUN — phiên không có egress tới production
 DEPLOY                = KHÔNG thực hiện (Tracking build từ `main`; nhánh này
                         không tự lên production)
 SCOPE_DRIFT           = NO
-CODE_REVIEW_GATE      = PENDING_RE_REVIEW — review độc lập lần 1 = FAIL
-                        (BLOCKING-01); đã sửa hẹp, chờ tái review đúng phần
-                        sửa ấy
-PHB01_STATUS          = IMPLEMENTED (COMPLETE_FOR_REVIEW) — CHƯA `DONE`
+CODE_REVIEW_GATE      = PASS — review độc lập lần 1 = FAIL (BLOCKING-01) →
+                        sửa hẹp (Tracking `53993f1`) → review độc lập tập
+                        trung lần 2 (focused re-review, phiên riêng) =
+                        PASS trên đúng phần sửa. Bằng chứng:
+                        `docs/reviews/PHB-01-BLOCKING-01-FOCUSED-REVIEW-RECORD.md`
+REVIEW_HISTORY        = Round 1: FAIL → BLOCKING-01 (S112, review độc lập)
+                        Repair: Tracking f0873942a419bc2b18431e6a94668a81eb02235f
+                        → 53993f18f67e76927a2b7e115fdc61301cdfb4ec
+                        Focused re-review: PASS (docs/reviews/PHB-01-
+                        BLOCKING-01-FOCUSED-REVIEW-RECORD.md) — TARGET_GATE
+                        PASS, DELTA_BOUNDARY PASS, D8_FINAL PASS,
+                        H_REGRESSION PASS, NEW_BLOCKING_FINDINGS NONE
+PHB01_STATUS          = IMPLEMENTED (CODE_REVIEW_CLEARED) — CHƯA `DONE`.
+                        Còn thiếu: PRODUCTION_DEPLOY (NOT_DONE) và
+                        PRODUCTION_E2E (NOT_RUN) trước khi có thể đánh `DONE`.
 ```
 
 Các phát hiện `NON_BLOCKING` mà review độc lập nêu (evidence `inv_map_status`
