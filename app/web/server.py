@@ -688,11 +688,12 @@ def create_app(
             return _legacy_page(
                 "lich_su.html", reference_rows=[], reference_years=[],
                 reference_has_value=False, navigation=[], pipeline_configured=False,
-                summary_periods=[], comparison=legacy_reference.comparison_summary(),
+                summary_periods=[], summary_years=[], unread=[],
+                comparison=legacy_reference.comparison_summary(),
                 reference_contract=legacy_presentation.contract_rows(
                     legacy_reference.REFERENCE_YEAR_CONTRACT),
                 workbook_contract=legacy_presentation.contract_rows(
-                    legacy_reference.WORKBOOK_YEAR_CONTRACT),
+                    legacy_reference.SUMMARY_SHEET_CONTRACT),
             ), 503
 
         monthly = _guarded(history_repo.query_monthly_reference)
@@ -702,12 +703,21 @@ def create_app(
             _guarded(analytics_queries.available_periods, snapshot_repo.engine)
             if snapshot_repo is not None else []
         )
+        # Mọi dòng Summary đã nhập, MỌI năm. `DEC-177`: chi tiết theo nhân
+        # viên của một năm lịch sử sống ở đây, nên trang phải đọc cả năm
+        # lịch sử chứ không chỉ năm workbook.
+        all_summary = _guarded(history_repo.query_all_summary)
+        years = legacy_reference.summary_years(all_summary)
+        current = _guarded(history_repo.current_import)
         return _legacy_page(
             "lich_su.html",
             reference_rows=legacy_presentation.reference_rows(periods),
             reference_years=legacy_reference.reference_years(periods),
             reference_has_value=legacy_reference.has_any_value(periods),
             summary_periods=summary_periods,
+            summary_years=legacy_presentation.summary_year_rows(years, all_summary),
+            unread=legacy_reference.unread_sheets(
+                (current or {}).get("sheets_imported")),
             navigation=legacy_reference.period_navigation(
                 legacy_summary_periods=summary_periods,
                 legacy_reference_periods=periods,
@@ -718,7 +728,7 @@ def create_app(
             reference_contract=legacy_presentation.contract_rows(
                 legacy_reference.REFERENCE_YEAR_CONTRACT),
             workbook_contract=legacy_presentation.contract_rows(
-                legacy_reference.WORKBOOK_YEAR_CONTRACT),
+                legacy_reference.SUMMARY_SHEET_CONTRACT),
         )
 
     # ------------------------------------------------------------------

@@ -13,12 +13,14 @@ Chính sách Owner (DEC-168) áp dụng cho các sheet REQUIRED_IMPORT:
 
 Không đoán `row_kind` từ việc "dòng có số". Không tự mở rộng semantics.
 
-DEC-169 thu hẹp PHẠM VI mà guard trên áp dụng, chứ không hạ ngưỡng của nó:
-`Summary 2025` là REFERENCE_ONLY nên hình dạng value-only của nó là hợp lệ
-và không được làm import trượt; `Summary 2026` là REQUIRED_IMPORT nên đúng
-hình dạng value-only đó vẫn PHẢI FAIL TO. Vì vậy mọi bài test guard trong
-file này đã được chĩa sang `Summary 2026` — giữ nguyên sức mạnh của R01
-guard trên đúng phạm vi mà Owner tuyên bố là production.
+DEC-169 thu hẹp PHẠM VI mà guard trên áp dụng, chứ không hạ ngưỡng của nó;
+`DEC-177` (đính chính của chủ dự án) mở lại phạm vi đó: `Summary 2025` nay
+là OPTIONAL_IMPORT — dòng phân loại được thì NHẬP, dòng không thì ĐẾM và báo
+lên giao diện, và cả hai trường hợp đều KHÔNG được làm import trượt.
+`Summary 2026` vẫn là REQUIRED_IMPORT nên đúng hình dạng value-only đó vẫn
+PHẢI FAIL TO. Vì vậy mọi bài test guard trong file này chĩa vào
+`Summary 2026` — giữ nguyên sức mạnh của R01 guard trên đúng phạm vi mà
+Owner tuyên bố là production.
 """
 
 from __future__ import annotations
@@ -58,21 +60,26 @@ def test_a_value_only_reference_sheet_does_not_fail_production_import(
     """A. Đúng hình dạng workbook thật: 0 công thức trong `Summary 2025`.
 
     Trước DEC-169 ca này raise LegacyImportError và chặn toàn bộ acceptance.
-    Sau DEC-169 nó phải nhập bình thường, vì sheet đó không thuộc production.
+    Sau DEC-169 nó phải nhập bình thường. `DEC-177` giữ NGUYÊN bất biến đó:
+    mở phạm vi cho `Summary 2025` không được biến hình dạng value-only thành
+    một lần nhập trượt.
     """
     workbook = parse_workbook(workbook_with_value_only_reference_sheet)
     assert workbook.summary_rows, "Sheet REQUIRED_IMPORT vẫn phải được nhập"
-
-
-def test_b_a_reference_only_sheet_is_never_parsed_into_summary_rows(
-    legacy_workbook_path,
-):
-    """B. Không một dòng nào của sheet REFERENCE_ONLY lọt vào bản ghi."""
-    workbook = parse_workbook(legacy_workbook_path)
     assert [r for r in workbook.summary_rows if r.sheet_name == "Summary 2025"] == []
 
 
-def test_b_a_reference_only_sheet_is_never_persisted(
+def test_b_a_classifiable_optional_sheet_is_parsed_into_summary_rows(
+    legacy_workbook_path,
+):
+    """B. `DEC-177` — dòng `Summary 2025` phân loại được thì PHẢI được nhập."""
+    workbook = parse_workbook(legacy_workbook_path)
+    rows = [r for r in workbook.summary_rows if r.sheet_name == "Summary 2025"]
+    assert {r.year for r in rows} == {2025}
+    assert {r.row_kind for r in rows} == {"SELLER", "MONTH_TOTAL"}
+
+
+def test_b_an_optional_sheet_is_persisted_with_the_legacy_origin(
     legacy_repository, legacy_workbook_path, history_engine,
 ):
     """B. Chứng minh ở tầng DB, không chỉ ở tầng parser."""
@@ -82,26 +89,41 @@ def test_b_a_reference_only_sheet_is_never_persisted(
     with history_engine.begin() as connection:
         persisted = connection.execute(text(
             "SELECT COUNT(*) FROM legacy_summary_row"
-            " WHERE sheet_name = 'Summary 2025'"
+            " WHERE sheet_name = 'Summary 2025' AND origin = 'LEGACY_REFERENCE'"
         )).scalar_one()
-    assert persisted == 0
+    assert persisted == 3
 
 
-def test_b_a_reference_only_sheet_is_absent_from_the_import_provenance(
+def test_b_the_optional_sheet_is_recorded_in_the_import_provenance(
     legacy_workbook_path,
 ):
-    """B. Sự vắng mặt phải là CÓ CHỦ ĐÍCH và đọc được từ bản ghi import."""
+    """B. Bản ghi import phải nói RÕ sheet nào thuộc phạm vi nào."""
     workbook = parse_workbook(legacy_workbook_path)
-    names = {item["sheet_name"] for item in workbook.sheets_imported}
-    assert names == {"Summary 2026", "DataChart 2026"}
-    assert "Summary 2025" not in names
+    scopes = {item["sheet_name"]: item["scope"] for item in workbook.sheets_imported}
+    assert scopes == {
+        "Summary 2026": "REQUIRED_IMPORT",
+        "DataChart 2026": "REQUIRED_IMPORT",
+        "Summary 2025": "OPTIONAL_IMPORT",
+    }
+
+
+def test_b_an_unreadable_optional_sheet_is_counted_not_swallowed(tmp_path):
+    """B. Không đoán, nhưng cũng KHÔNG im lặng: dòng chưa đọc được phải đếm."""
+    stripped = strip_formula_markers(
+        build_legacy_workbook(tmp_path / "unread.xlsx"), sheet_name="Summary 2025")
+    workbook = parse_workbook(stripped)
+    entry = next(item for item in workbook.sheets_imported
+                 if item["sheet_name"] == "Summary 2025")
+    assert entry["imported_rows"] == "0"
+    assert entry["unclassified_rows"] == "3"
+    assert entry["unclassified_preview"] == "4, 5, 6"
 
 
 def test_c_the_required_summary_sheet_is_still_imported(legacy_workbook_path):
     """C. Summary 2026 không đổi semantics."""
     workbook = parse_workbook(legacy_workbook_path)
     rows = [r for r in workbook.summary_rows if r.sheet_name == "Summary 2026"]
-    assert len(rows) == len(workbook.summary_rows) == 13
+    assert len(rows) == 13
     assert {r.row_kind for r in rows} == {
         "YEAR_TOTAL", "SELLER", "MONTH_TOTAL"}
 
@@ -114,38 +136,43 @@ def test_d_the_datachart_sheet_is_still_imported(legacy_workbook_path):
     assert len(workbook.monthly_reference) == 12
 
 
-def test_the_verifier_reports_reference_only_sheets_as_not_persisted(
+def test_the_verifier_checks_fidelity_of_imported_optional_rows(
     legacy_repository, legacy_workbook_path,
 ):
+    """Dòng OPTIONAL đã nhập vẫn phải khớp giá trị nguồn như mọi dòng khác."""
     legacy_repository.create_import(parse_workbook(legacy_workbook_path))
     result = verify(legacy_workbook_path, legacy_repository)
-    assert result.reference_only_persisted_rows == []
+    assert result.optional_imported_rows == 3
+    assert result.optional_unimported_rows == []
     assert result.ok is True
 
 
-def test_the_verifier_fails_if_a_reference_only_row_ever_gets_persisted(
-    legacy_repository, legacy_workbook_path, history_engine,
+def test_the_verifier_counts_unimported_optional_rows_without_failing(
+    legacy_repository, tmp_path,
 ):
-    """Ranh giới scope phải được CANH, không chỉ được tuyên bố.
+    """Thiếu dòng OPTIONAL là SỐ ĐO, không phải lỗi — thiếu dòng REQUIRED mới là lỗi.
 
-    Nếu một hồi quy sau này lại nhập `Summary 2025` vào bảng production,
-    verifier phải trượt — nếu không, DEC-169 chỉ là văn bản.
+    Bất đối xứng có chủ đích: thiếu một dòng production nghĩa là số hiển thị
+    sai; thiếu một dòng lịch sử nghĩa là còn một phần chưa đọc được, và điều
+    đó cần được NÓI RA chứ không cần chặn.
     """
-    from sqlalchemy import text
-
-    legacy_repository.create_import(parse_workbook(legacy_workbook_path))
-    with history_engine.begin() as connection:
-        import_id = connection.execute(
-            text("SELECT import_id FROM legacy_summary_row LIMIT 1")
-        ).scalar_one()
-        connection.execute(text(
-            "INSERT INTO legacy_summary_row"
-            " (import_id, year, month, seller_label, row_kind, sheet_name, sheet_row)"
-            " VALUES (:i, 2025, 1, 'NV-A', 'SELLER', 'Summary 2025', 4)"
-        ), {"i": import_id})
-    result = verify(legacy_workbook_path, legacy_repository)
-    assert result.reference_only_persisted_rows == ["Summary 2025!4"]
-    assert result.ok is False
+    stripped = strip_formula_markers(
+        build_legacy_workbook(tmp_path / "unread_verify.xlsx"),
+        sheet_name="Summary 2025")
+    legacy_repository.create_import(parse_workbook(stripped))
+    result = verify(stripped, legacy_repository)
+    assert result.optional_imported_rows == 0
+    assert result.optional_unimported_rows == [
+        "Summary 2025!4", "Summary 2025!5", "Summary 2025!6"]
+    # ĐIỀU ĐANG ĐƯỢC KHẲNG ĐỊNH: dòng OPTIONAL chưa nhập KHÔNG rơi vào rổ
+    # gây trượt (`summary_unaccounted_rows`) và không sinh mismatch nào.
+    assert result.summary_unaccounted_rows == []
+    assert [m for m in result.mismatches if "Summary 2025" in m] == []
+    # KHÔNG khẳng định `result.ok` ở đây: `strip_formula_markers` lưu lại
+    # workbook bằng openpyxl, thao tác đó xoá cached value của các sheet
+    # KHÁC (`Summary 2026`), nên verifier báo lệch trên sheet đó. Đó là giới
+    # hạn của fixture, không phải hành vi sản phẩm — và khẳng định nó ở đây
+    # sẽ biến bài test thành bài test về fixture.
 
 
 # --- DEC-168 guard, trên sheet REQUIRED_IMPORT (không bị nới lỏng) --------
@@ -204,7 +231,13 @@ def test_a_well_formed_workbook_still_imports_with_no_unaccounted_rows(
 ):
     """Guard KHÔNG được biến thành báo động giả trên workbook đúng hình dạng."""
     workbook = parse_workbook(legacy_workbook_path)
-    assert len(workbook.summary_rows) == 13
+    # 13 dòng `Summary 2026` (REQUIRED) + 3 dòng `Summary 2025` (OPTIONAL,
+    # `DEC-177`). Tách theo sheet thay vì đếm gộp: một con số gộp không nói
+    # được sheet nào đóng góp bao nhiêu.
+    by_sheet = {}
+    for row in workbook.summary_rows:
+        by_sheet[row.sheet_name] = by_sheet.get(row.sheet_name, 0) + 1
+    assert by_sheet == {"Summary 2026": 13, "Summary 2025": 3}
 
 
 # --- Verifier: coverage từ phía Excel -------------------------------------
@@ -307,5 +340,6 @@ def test_the_verifier_exits_zero_on_a_complete_faithful_import(
     output = capsys.readouterr().out
     assert exit_code == 0
     assert "SUMMARY_UNACCOUNTED_ROWS        = 0" in output
-    assert "SUMMARY_REFERENCE_ONLY_PERSISTED = 0" in output
+    assert "SUMMARY_OPTIONAL_IMPORTED       = 3" in output
+    assert "SUMMARY_OPTIONAL_UNIMPORTED     = 0" in output
     assert "mismatched=0" in output

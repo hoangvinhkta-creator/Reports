@@ -8726,3 +8726,148 @@ Chi tiết đầy đủ và bằng chứng:
 `docs/tasks/PHB-04-legacy-reference-v1.md`;
 báo cáo cho chủ dự án:
 `docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.
+
+---
+
+## DEC-177
+
+Title:
+PHB-04 — Đính chính của chủ dự án: `Summary 2025` KHÔNG bị cấm, nó là
+OPTIONAL_IMPORT. Làm rõ nghĩa thật của `DEC-169` và mở lại phạm vi 2025
+
+Date:
+2026-09-04
+
+Task:
+`PHB-04` — Legacy Reference V1, phiên S119 (tiếp tục, nhánh
+`claude/phb-04-legacy-reference-v1-widtzf`). Phát sinh khi chủ dự án đọc
+báo cáo PHB-04 lần đầu và bác bỏ kết luận *"với năm 2025 — đúng một chỉ
+tiêu: doanh số tháng"*.
+
+Authority:
+**`OWNER_DECISION`.** Chủ dự án xác nhận nguyên văn rằng 2025 có (1) một
+Summary riêng, (2) báo cáo chi tiết theo nhân viên, (3) cấu trúc gần giống
+báo cáo tay 2026. Tuyên bố hiện tại của chủ dự án có thẩm quyền nghiệp vụ
+CAO HƠN một cách diễn giải của AI về một quyết định cũ.
+
+### 1. `DEC-169` thật sự có nghĩa gì
+
+Đọc đúng nguyên văn `DEC-169`, không diễn giải rộng thêm:
+
+```text
+"Owner KHÔNG yêu cầu: import / persist / query / display Summary 2025;
+ xây parser cho value-only rows của Summary 2025."
+```
+
+Đó là *"chưa cần"* — một tuyên bố **PHẠM VI**. Nó KHÔNG phải *"không được
+có"* — một lệnh **CẤM SẢN PHẨM**. Chính `DEC-169` tự đặt tên mình là
+`OWNER_SCOPE_CLARIFICATION` và ghi rõ `REPAIR_CYCLE_2 = NO`.
+
+Chiếu theo bốn khả năng mà chỉ thị đính chính nêu:
+
+```text
+A. cấm dùng làm CURRENT_ENGINE / production accounting input   → ĐÚNG, vẫn giữ
+B. cấm dùng làm thẩm quyền số cho parity validation            → ĐÚNG, vẫn giữ
+C. cấm parse qua contract phân loại dòng THEO CÔNG THỨC        → ĐÚNG, vẫn giữ
+D. loại khỏi sản phẩm hoàn toàn, kể cả LEGACY_REFERENCE        → **SAI**
+```
+
+Bản triển khai PHB-04 đầu tiên đã đọc `DEC-169` theo nghĩa `D`. Đó là một
+**diễn giải quá rộng của phiên làm việc**, không phải nội dung quyết định.
+`DEC-177` sửa đúng chỗ đó và KHÔNG lật `A`/`B`/`C`.
+
+Bối cảnh kỹ thuật của `DEC-169` cũng cần đọc cho đúng: `Summary 2025` bị dán
+cứng thành giá trị tĩnh (0 ô công thức / 99 dòng value-only), nên contract
+phân loại dòng **theo công thức** không áp dụng được. Đó là một giới hạn của
+CÁCH ĐỌC, không phải một tuyên bố rằng dữ liệu không tồn tại.
+
+### 2. Vì sao bản triển khai đầu tiên chỉ thấy 12 số của 2025
+
+Cả chuỗi bằng chứng đều **bị chặn bởi công thức**, ở ba tầng độc lập:
+
+1. `tools/analysis/extract_evidence.py` chỉ ghi một dòng Summary khi cột `F`
+   của dòng đó **là một công thức**. `Summary 2025` không có công thức nào ⟹
+   `evidence.json` chứa **0 lần xuất hiện chuỗi "2025"**.
+2. `app/legacy/parser.py::_classify()` phân loại `row_kind` hoàn toàn từ
+   cấu trúc công thức ⟹ không dòng 2025 nào phân loại được.
+3. Vì (1) và (2), bằng chứng 2025 DUY NHẤT còn nhìn thấy được là cột `AH`
+   của `DataChart 2026` — 12 ô doanh số tháng.
+
+Kết luận "2025 chỉ có một chỉ tiêu" vì vậy là **kết luận về công cụ đọc**,
+bị trình bày nhầm thành **kết luận về dữ liệu**. Đó là lỗi thật của bản báo
+cáo đầu, và nó được sửa ở đây chứ không được giữ lại.
+
+### 3. `Summary 2025` = OPTIONAL_IMPORT
+
+```text
+SUMMARY_IMPORT_SHEETS   = ("Summary 2026",)            REQUIRED_IMPORT
+SUMMARY_OPTIONAL_SHEETS = ("Summary 2025",)            OPTIONAL_IMPORT
+```
+
+Ngữ nghĩa `OPTIONAL_IMPORT`:
+
+- dòng contract phân loại được → **NHẬP**, `origin = LEGACY_REFERENCE`;
+- dòng không phân loại được → **KHÔNG đoán**, nhưng cũng **KHÔNG bỏ im
+  lặng**: đếm, lưu vào `sheets_imported`, và hiện lên trang `/lich-su`;
+- sheet vắng mặt hoặc không đọc được dòng nào → **KHÔNG** làm trượt cả
+  workbook.
+
+Nhánh cuối là điều kiện để `DEC-177` không lật ngược `DEC-169` thành một hồi
+quy: hình dạng value-only của workbook thật vẫn phải nhập được phần 2026.
+
+**Guard `DEC-168` / `FIND-PRA001-R01` KHÔNG bị nới lỏng.** Trên sheet
+REQUIRED_IMPORT, một dòng có giá trị nghiệp vụ mà contract không phân loại
+được vẫn FAIL TO. Bất đối xứng là có chủ đích: thiếu một dòng production
+nghĩa là **số hiển thị sai**; thiếu một dòng lịch sử nghĩa là **còn một phần
+chưa đọc được** — cần nói ra, không cần chặn.
+
+### 4. Không đổi schema
+
+```text
+SCHEMA_CHANGE_REQUIRED = NO
+```
+
+`legacy_summary_row` vốn đã khoá theo `(year, month, seller_label, row_kind)`
+với đủ 16 cột `C..S` và **không hề gắn với năm 2026**. Nó lưu được ngay cả
+period-level lẫn employee-level của 2025 mà không thêm một cột nào. Vì vậy
+`DEC-177` KHÔNG dùng quyền mở rộng schema mà chỉ thị đính chính cho phép:
+quyền đó chỉ được dùng khi có nhu cầu thật, và ở đây không có.
+
+Hệ quả kèm theo: trang `/nhan-vien` (chi tiết theo nhân viên) vốn đã
+year-agnostic, nên nó phục vụ 2025 **ngay khi có dòng 2025**, không cần sửa.
+
+### 5. Hiển thị ≠ so sánh
+
+`DEC-177` mở phạm vi **HIỂN THỊ**. Nó KHÔNG đổi kết luận của `DEC-176` §2:
+`COMPARABLE` vẫn rỗng, không tỉ lệ tăng trưởng liên-origin nào được sinh ra.
+Một chỉ tiêu 2025 có thể vừa **xem được** vừa **không so được** — hai câu
+hỏi khác nhau, và loại bỏ dữ liệu lịch sử hữu ích chỉ vì phép so không an
+toàn là trả lời nhầm câu hỏi.
+
+### 6. Phần còn thiếu — `NEED_OWNER_SOURCE`
+
+Workbook thật KHÔNG có trong repo (`data/samples/` nằm trong `.gitignore` vì
+chứa dữ liệu cá nhân khách hàng) và không có trên đĩa của phiên. Vì vậy nội
+dung thật của 99 dòng `Summary 2025` **chưa từng được quan sát** bởi bất kỳ
+artifact bằng chứng nào của repo. Năng lực đã sẵn sàng và đã có test; dữ
+liệu thì cần chủ dự án cấp. Xem `docs/tasks/PHB-04-legacy-reference-v1.md`
+mục 10.
+
+Evidence:
+`FOCUSED = 50 passed` (`tests/test_phb04_legacy_reference.py`);
+`FULL_TEST_SUITE = 2187 passed, 11 skipped`;
+`GOLDEN = 74 passed, 2 skipped` (KHÔNG ĐỔI).
+10 test cũ mã hoá phạm vi `DEC-169` đã được cập nhật sang phạm vi
+`DEC-177` — liệt kê đầy đủ ở task file mục 11; không test guard nào bị bỏ.
+Validator giữ nguyên baseline (reference integrity vẫn đúng 3 mục `REM-T06`).
+
+Can Revisit After:
+Mục §3 mở lại nếu chủ dự án cấp nguồn 2025 và contract phân loại vẫn không
+đọc được — lúc đó câu hỏi là "phân loại dòng value-only bằng NHÃN cột A/B
+theo từ vựng nào", và từ vựng đó phải đến từ file thật, không từ phỏng đoán.
+Mục §5 mở lại theo đúng điều kiện của `DEC-176` §2.
+
+Chi tiết đầy đủ và bằng chứng:
+`docs/tasks/PHB-04-legacy-reference-v1.md`;
+báo cáo cho chủ dự án:
+`docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.

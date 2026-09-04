@@ -20,9 +20,11 @@ import pytest
 from sqlalchemy import create_engine, func, select
 
 import tools.db as history_db
+from app.legacy import LegacyImportError, parse_workbook
 from app.web import history_store, legacy_presentation, legacy_reference
 from app.web import business_service, business_store
 from app.web import server as web_server
+from tests.fixtures.legacy.build_legacy_workbook import strip_formula_markers
 from tests.test_business_vertical import pair, persist
 from tools.db import schema
 from tools.tracking import live_pull
@@ -429,20 +431,179 @@ class TestReloadingIsIdempotent:
         assert len(keys) == len(set(keys))
 
 
-# --- Hợp đồng: bảo toàn ranh giới DEC-169 ---------------------------------
+# --- `DEC-177` — Summary 2025 là OPTIONAL_IMPORT, không phải sheet bị cấm --
 
-class TestSummary2025StaysOutOfScope:
-    def test_no_summary_2025_row_is_ever_persisted(self, loaded, engine):
-        """`DEC-169` — không import, không persist, không query, không display."""
+class TestSummary2025IsInScope:
+    """Chủ dự án đính chính (`DEC-177`): 2025 CÓ Summary và CÓ chi tiết nhân
+    viên. `DEC-169` nói *"Owner KHÔNG yêu cầu"* — một tuyên bố PHẠM VI, không
+    phải lệnh cấm sản phẩm. Nhóm test này khoá đúng ngữ nghĩa mới, và khoá
+    luôn điều KHÔNG được đổi: guard DEC-168 trên sheet REQUIRED_IMPORT.
+    """
+
+    def test_a_classifiable_summary_2025_sheet_is_imported(self, loaded, engine):
         with engine.connect() as connection:
             sheets = connection.execute(
                 select(schema.legacy_summary_row.c.sheet_name).distinct()
             ).scalars().all()
-        assert "Summary 2025" not in sheets
+        assert "Summary 2025" in sheets
 
-    def test_the_reference_year_contract_points_at_datachart_not_summary_2025(self):
-        rule = legacy_reference.rule_for("REFERENCE_YEAR", "sales_vnd")
-        assert "AH3:AH14" in rule.evidence
-        by_employee = legacy_reference.rule_for("REFERENCE_YEAR", "by_employee")
-        assert by_employee.metric_class == legacy_reference.UNAVAILABLE
-        assert "DEC-169" in by_employee.evidence
+    def test_imported_summary_2025_rows_keep_the_legacy_origin(self, loaded, engine):
+        with engine.connect() as connection:
+            origins = connection.execute(
+                select(schema.legacy_summary_row.c.origin)
+                .where(schema.legacy_summary_row.c.sheet_name == "Summary 2025")
+                .distinct()
+            ).scalars().all()
+        assert origins == ["LEGACY_REFERENCE"]
+
+    def test_the_summary_contract_applies_to_every_year_not_just_the_workbook_year(self):
+        """Summary 2025 và Summary 2026 dùng CÙNG 16 cột ⟹ cùng hợp đồng."""
+        assert legacy_reference.WORKBOOK_YEAR_CONTRACT is \
+            legacy_reference.SUMMARY_SHEET_CONTRACT
+        assert len(legacy_reference.SUMMARY_SHEET_CONTRACT) == 16
+
+    def test_a_value_only_summary_2025_never_breaks_the_2026_import(
+        self, client, legacy_workbook_path, repository
+    ):
+        """Hình dạng workbook THẬT (0 công thức trong Summary 2025).
+
+        Đây là bất biến của `DEC-169` phải sống sót qua `DEC-177`: mở phạm vi
+        KHÔNG được biến hình dạng value-only thành một lần nhập trượt.
+        """
+        stripped = strip_formula_markers(legacy_workbook_path,
+                                         sheet_name="Summary 2025")
+        upload(client, stripped)
+        rows = repository.query_summary(2026)
+        assert rows, "phần 2026 phải nhập được bình thường"
+        assert repository.query_summary(2025) == []
+
+    def test_unreadable_rows_are_counted_and_surfaced_never_swallowed(
+        self, client, legacy_workbook_path, repository
+    ):
+        stripped = strip_formula_markers(legacy_workbook_path,
+                                         sheet_name="Summary 2025")
+        upload(client, stripped)
+        unread = legacy_reference.unread_sheets(
+            repository.current_import()["sheets_imported"])
+        assert [item.sheet_name for item in unread] == ["Summary 2025"]
+        assert unread[0].unclassified_rows == 3
+        assert unread[0].imported_rows == 0
+
+    def test_the_page_tells_the_owner_what_is_still_unread(
+        self, client, legacy_workbook_path
+    ):
+        stripped = strip_formula_markers(legacy_workbook_path,
+                                         sheet_name="Summary 2025")
+        upload(client, stripped)
+        html = page(client)
+        assert "CHƯA đọc được" in html
+        assert "Summary 2025" in html
+
+    def test_the_dec_168_guard_still_fires_on_a_required_sheet(
+        self, legacy_workbook_path
+    ):
+        """Điều KHÔNG được đổi: sheet REQUIRED value-only vẫn phải FAIL TO."""
+        stripped = strip_formula_markers(legacy_workbook_path,
+                                         sheet_name="Summary 2026")
+        with pytest.raises(LegacyImportError) as exc:
+            parse_workbook(stripped)
+        assert "Summary 2026" in str(exc.value)
+
+
+# --- Câu hỏi thật của chủ dự án về một kỳ 2025 (chỉ thị §11) --------------
+
+class TestOwnerQuestionsAboutALegacyYear:
+    """A–I của chỉ thị đính chính, hỏi bằng đúng ngôn ngữ của chủ dự án."""
+
+    def test_a_total_historical_sales_for_a_2025_month(self, loaded, repository):
+        """A. Tháng 01/2025 tổng bán bao nhiêu? — lấy từ dòng TỔNG của kỳ."""
+        rows = repository.query_summary(2025, 1)
+        totals = [r for r in rows if r["row_kind"] == "MONTH_TOTAL"]
+        assert len(totals) == 1
+        assert totals[0]["sales"] == Decimal("2030000")
+
+    def test_b_the_other_accepted_summary_metrics_of_that_month(self, loaded, repository):
+        total = [r for r in repository.query_summary(2025, 1)
+                 if r["row_kind"] == "MONTH_TOTAL"][0]
+        assert total["converted_revenue"] == Decimal("1050000")
+        assert total["profit"] == Decimal("57750")
+
+    def test_c_which_employees_had_data_that_month(self, loaded, repository):
+        years = legacy_reference.summary_years(repository.query_all_summary())
+        year_2025 = next(y for y in years if y.year == 2025)
+        assert year_2025.has_employee_detail
+        assert set(year_2025.sellers) == {"NV-A", "NV-B"}
+        # Dòng tổng tháng KHÔNG được lẫn vào danh sách nhân viên.
+        assert "Tổng T01" not in year_2025.sellers
+
+    def test_d_the_accepted_metrics_for_one_employee(self, loaded, repository):
+        """Tháng 01/2025, NV-A: bán bao nhiêu, DS quy đổi, lợi nhuận."""
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["sales"] == Decimal("1120000")
+        assert row["converted_revenue"] == Decimal("580000")
+        assert row["profit"] == Decimal("31900")
+
+    def test_e_every_displayed_2025_value_stays_legacy_reference(self, loaded, repository):
+        rows = repository.query_summary(2025)
+        assert rows
+        assert {r["origin"] for r in rows} == {"LEGACY_REFERENCE"}
+        matrix = legacy_presentation.matrix(rows)
+        for row in matrix:
+            for cell in row["cells"]:
+                assert cell["unit"], "mọi ô legacy phải mang nhãn đơn vị"
+
+    def test_f_none_of_it_contaminates_current_engine_coverage(
+        self, client, legacy_workbook_path, snapshots, service
+    ):
+        persist(snapshots, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+        before = service.period(**JANUARY).totals
+        upload(client, legacy_workbook_path)
+        after = service.period(**JANUARY).totals
+        assert after.coverage == before.coverage
+        assert after.sales_revenue == before.sales_revenue
+        assert after.kpi_profit is None
+
+    def test_g_the_owner_can_navigate_from_2025_summary_to_employee_detail(self, loaded):
+        html = page(loaded)
+        assert "Năm 2025" in html
+        assert "/nhan-vien?ky=2025-01" in html
+        detail = page(loaded, "/nhan-vien?ky=2025-01")
+        assert "NV-A" in detail and "NV-B" in detail
+
+    def test_h_an_unavailable_2025_metric_shows_a_dash_not_a_zero(
+        self, loaded, repository
+    ):
+        """Fixture 2025 không có cột lương/thưởng ⟹ phải là `—`, không phải 0."""
+        rows = repository.query_summary(2025, 1)
+        availability = {
+            item.rule.key: item
+            for item in legacy_reference.summary_year_availability(rows)
+        }
+        assert availability["total_salary"].availability == \
+            legacy_reference.NOT_AVAILABLE
+        assert availability["total_salary"].filled_rows == 0
+        cell = legacy_presentation.cell(rows[0], "total_salary", "kvnd")
+        assert cell["text"] == "—" and cell["empty"] is True
+
+    def test_h2_an_available_2025_metric_is_measured_from_the_rows(
+        self, loaded, repository
+    ):
+        """Tính sẵn có được ĐO trên dòng thật, không phải hằng số viết tay."""
+        rows = repository.query_summary(2025, 1)
+        availability = {
+            item.rule.key: item
+            for item in legacy_reference.summary_year_availability(rows)
+        }
+        assert availability["sales"].availability == \
+            legacy_reference.AVAILABLE_WITH_ACCEPTED_EVIDENCE
+        assert availability["sales"].filled_rows == 3   # 2 người bán + 1 dòng tổng
+
+    def test_i_no_cross_engine_percentage_is_generated_for_2025(self, loaded, snapshots):
+        persist(snapshots, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
+        html = page(loaded)
+        assert "Không so được" in html
+        result = legacy_reference.compare(
+            Decimal("1120000"), Decimal("8000000"),
+            legacy_key="sales", current_key="sales_revenue")
+        assert result.allowed is False and result.percent is None

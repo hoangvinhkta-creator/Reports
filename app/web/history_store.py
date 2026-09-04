@@ -235,6 +235,26 @@ class LegacyRepository:
             legacy_summary_row.c.sheet_name, legacy_summary_row.c.sheet_row,
         ))
 
+    def query_all_summary(self, *, import_id: Optional[str] = None) -> list[dict]:
+        """MỌI dòng Summary của bản hiện tại, không lọc năm.
+
+        PHB-04 cần nhìn các năm lịch sử cùng lúc để trả lời "năm nào có gì".
+        Lọc theo năm ở tầng SQL buộc tầng trên phải BIẾT TRƯỚC có những năm
+        nào — đúng thứ giả định mà `DEC-177` bảo là không được có.
+        """
+        resolved = self._resolve_import_id(import_id)
+        if resolved is None:
+            return []
+        return self._query(
+            select(legacy_summary_row)
+            .where(legacy_summary_row.c.import_id == resolved)
+            .order_by(
+                legacy_summary_row.c.year.desc(),
+                legacy_summary_row.c.sheet_name,
+                legacy_summary_row.c.sheet_row,
+            )
+        )
+
     def query_daily(
         self, year: int, month: int, *, import_id: Optional[str] = None,
     ) -> list[dict]:

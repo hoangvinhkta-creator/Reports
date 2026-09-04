@@ -60,12 +60,12 @@ PROVENANCE_NOTE = (
 
 # Hai lớp kỳ legacy. Cả hai cùng `origin = LEGACY_REFERENCE`; khác nhau ở CHỖ
 # lấy số trong workbook, nên khác nhau ở tập chỉ tiêu có bằng chứng.
-PERIOD_REFERENCE_YEAR = "REFERENCE_YEAR"   # năm trước, chỉ có cột AH
-PERIOD_WORKBOOK_YEAR = "WORKBOOK_YEAR"     # năm của workbook: Summary + DataChart
+PERIOD_REFERENCE_YEAR = "REFERENCE_YEAR"   # chuỗi doanh số tháng từ cột AH
+PERIOD_WORKBOOK_YEAR = "SUMMARY_SHEET"     # dòng của một sheet Summary (mọi năm)
 
 PERIOD_CLASS_LABELS = {
-    PERIOD_REFERENCE_YEAR: "Kỳ tham chiếu (chỉ có doanh số tháng)",
-    PERIOD_WORKBOOK_YEAR: "Kỳ báo cáo tay đầy đủ",
+    PERIOD_REFERENCE_YEAR: "Chuỗi doanh số tháng (từ DataChart)",
+    PERIOD_WORKBOOK_YEAR: "Bảng Summary theo người bán",
 }
 
 
@@ -95,17 +95,22 @@ def _rule(key, label, unit_kind, metric_class, reason, evidence) -> MetricRule:
 
 
 # --------------------------------------------------------------------------
-# HỢP ĐỒNG A — kỳ tham chiếu năm trước (2025 với workbook 2026).
+# HỢP ĐỒNG A — chuỗi doanh số tháng của năm trước, suy từ `DataChart`.
 #
-# Bằng chứng DUY NHẤT đã được chấp nhận cho năm 2025 là cột `AH3:AH14` của
-# `DataChart 2026` — "Doanh số cùng kỳ 2025 — số cứng"
-# (`docs/analysis/02_FORMULA_MAPPING.md` §5), đã nhập sẵn thành
+# Nguồn: cột `AH3:AH14` của `DataChart 2026` — "Doanh số cùng kỳ 2025 — số
+# cứng" (`docs/analysis/02_FORMULA_MAPPING.md` §5), đã nhập sẵn thành
 # `legacy_monthly_reference.sales_prev_year_vnd` (PHB-02 mục 5.6 `L2`).
 #
-# Sheet `Summary 2025` KHÔNG phải nguồn: `DEC-169` là quyết định của chủ dự
-# án — không import, không persist, không query, không display. Sheet đó
-# cũng không có MỘT ô công thức nào trên toàn bộ 755 dòng, nên không dòng nào
-# phân loại được. PHB-04 KHÔNG mở lại quyết định đó.
+# ĐÂY KHÔNG PHẢI toàn bộ bằng chứng 2025 — đây là bằng chứng 2025 nằm trong
+# sheet `DataChart`. Nguồn 2025 giàu hơn nhiều là sheet `Summary 2025`, đi
+# theo `SUMMARY_SHEET_CONTRACT` bên dưới (`DEC-177`). Hai nguồn KHÔNG thay
+# thế nhau và KHÔNG được cộng vào nhau: cột `AH` là số tổng tháng gõ cứng,
+# `Summary 2025` là bảng người bán × chỉ tiêu.
+#
+# `UNAVAILABLE` ở bảng này vì vậy có nghĩa hẹp: *không có trong DataChart*.
+# Nó KHÔNG còn là tuyên bố "năm 2025 không có chỉ tiêu này" — tuyên bố đó
+# thuộc về tình trạng nhập của `Summary 2025`, đo bằng
+# `summary_year_availability()`.
 # --------------------------------------------------------------------------
 
 REFERENCE_YEAR_CONTRACT: tuple[MetricRule, ...] = (
@@ -138,15 +143,17 @@ REFERENCE_YEAR_CONTRACT: tuple[MetricRule, ...] = (
     ),
     _rule(
         "target", "Target", "kvnd", UNAVAILABLE,
-        "Target trong workbook là target của NĂM WORKBOOK (J15/AJ2), không "
-        "phải của năm trước.",
-        "docs/analysis/02_FORMULA_MAPPING.md §5 · PHB-02 §5.6 L3",
+        "Ô target trong `DataChart` là target của NĂM WORKBOOK (J15/AJ2), "
+        "không phải của năm trước. Target lịch sử theo người bán, nếu có, "
+        "nằm ở cột `M` của `Summary 2025`.",
+        "docs/analysis/02_FORMULA_MAPPING.md §5 · PHB-02 §5.6 L3 · DEC-177",
     ),
     _rule(
         "by_employee", "Chi tiết theo nhân viên", "count", UNAVAILABLE,
-        "Chia theo người bán của năm trước chỉ có ở sheet `Summary 2025`, mà "
-        "`DEC-169` đã chốt là KHÔNG import / persist / query / display.",
-        "DEC-169",
+        "Sheet `DataChart` không chia theo người bán. Chi tiết theo nhân viên "
+        "của năm trước nằm ở `Summary 2025` và đi theo hợp đồng Summary — "
+        "xem `summary_year_availability()`.",
+        "docs/analysis/02_FORMULA_MAPPING.md §5 · DEC-177",
     ),
     _rule(
         "daily_sales", "Doanh số theo ngày", "vnd", UNAVAILABLE,
@@ -157,17 +164,23 @@ REFERENCE_YEAR_CONTRACT: tuple[MetricRule, ...] = (
 )
 
 # --------------------------------------------------------------------------
-# HỢP ĐỒNG B — kỳ báo cáo tay của năm workbook (Summary 2026).
+# HỢP ĐỒNG B — dòng của MỘT SHEET SUMMARY, áp dụng cho MỌI NĂM.
 #
-# Những dòng này ĐÃ hiển thị từ TASK-PRA-001 (trang Nhân viên / Doanh số
-# ngày). PHB-04 không đổi cách hiển thị chúng; nó chỉ nói RÕ lớp bằng chứng
-# của từng chỉ tiêu, để không ai lấy chúng ra so với số mới.
+# `Summary 2025` và `Summary 2026` có CÙNG 16 cột `C..S` với cùng ý nghĩa
+# (PHB-02 mục 5.6 `L6`; `docs/analysis/02_FORMULA_MAPPING.md` §3). Vì vậy
+# hợp đồng này KHÔNG gắn với một năm: một dòng `legacy_summary_row` bất kỳ,
+# 2025 hay 2026, được đọc theo đúng bảng dưới đây.
+#
+# Đây là chỗ chi tiết theo NHÂN VIÊN của một năm lịch sử sống: mỗi dòng
+# `row_kind = SELLER` là một (kỳ, người bán) với 16 chỉ tiêu.
 #
 # Không chỉ tiêu nào ở đây là `COMPARABLE`: mọi phân kỳ ngữ nghĩa dưới đây là
-# CÓ CHỦ ĐÍCH và đã được freeze ở PHB-02, chứ không phải sai số cần vá.
+# CÓ CHỦ ĐÍCH và đã được freeze ở PHB-02, chứ không phải sai số cần vá. Điều
+# đó KHÔNG ngăn việc HIỂN THỊ chúng — hiển thị và so sánh là hai câu hỏi
+# khác nhau (`DEC-177`).
 # --------------------------------------------------------------------------
 
-WORKBOOK_YEAR_CONTRACT: tuple[MetricRule, ...] = (
+SUMMARY_SHEET_CONTRACT: tuple[MetricRule, ...] = (
     _rule(
         "orders", "Tổng đơn", "count", REFERENCE_ONLY,
         "Báo cáo tay đếm đơn theo cách của người lập; số mới đếm "
@@ -257,9 +270,12 @@ WORKBOOK_YEAR_CONTRACT: tuple[MetricRule, ...] = (
     ),
 )
 
+# Tên cũ giữ lại: hợp đồng Summary không còn giới hạn ở năm workbook.
+WORKBOOK_YEAR_CONTRACT = SUMMARY_SHEET_CONTRACT
+
 CONTRACTS: dict[str, tuple[MetricRule, ...]] = {
     PERIOD_REFERENCE_YEAR: REFERENCE_YEAR_CONTRACT,
-    PERIOD_WORKBOOK_YEAR: WORKBOOK_YEAR_CONTRACT,
+    PERIOD_WORKBOOK_YEAR: SUMMARY_SHEET_CONTRACT,
 }
 
 
@@ -563,4 +579,144 @@ def period_navigation(
             origins=tuple(sorted(origins[key], reverse=True)),
         )
         for key in sorted(origins, reverse=True)
+    ]
+
+
+# --------------------------------------------------------------------------
+# TÌNH TRẠNG BẰNG CHỨNG CỦA MỘT NĂM LỊCH SỬ (`DEC-177`).
+#
+# Câu hỏi *"năm 2025 có chỉ tiêu X không?"* KHÔNG được trả lời bằng một hằng
+# số viết sẵn trong mã. Nó được ĐO trên chính những dòng đã nhập: chỉ tiêu
+# nào có ít nhất một ô mang giá trị thì `AVAILABLE_WITH_ACCEPTED_EVIDENCE`;
+# cột tồn tại nhưng mọi ô đều trống thì `NOT_AVAILABLE`.
+#
+# Cách này chịu được điều mà một danh sách cứng không chịu được: workbook
+# thật của chủ dự án có thể mang nhiều hoặc ít cột hơn fixture, và câu trả
+# lời phải theo FILE, không theo giả định của người viết mã.
+# --------------------------------------------------------------------------
+
+AVAILABLE_WITH_ACCEPTED_EVIDENCE = "AVAILABLE_WITH_ACCEPTED_EVIDENCE"
+AVAILABLE_BUT_SEMANTICS_UNCERTAIN = "AVAILABLE_BUT_SEMANTICS_UNCERTAIN"
+NOT_AVAILABLE = "NOT_AVAILABLE"
+
+AVAILABILITY_LABELS = {
+    AVAILABLE_WITH_ACCEPTED_EVIDENCE: "Có, kèm bằng chứng đã chấp nhận",
+    AVAILABLE_BUT_SEMANTICS_UNCERTAIN: "Có số, nhưng ý nghĩa chưa chắc",
+    NOT_AVAILABLE: "Không có",
+}
+
+
+@dataclass(frozen=True)
+class MetricAvailability:
+    rule: MetricRule
+    availability: str
+    filled_rows: int
+
+    @property
+    def availability_label(self) -> str:
+        return AVAILABILITY_LABELS[self.availability]
+
+
+def summary_year_availability(summary_rows: list[dict]) -> list[MetricAvailability]:
+    """Đo từng chỉ tiêu Summary trên những dòng THẬT của một năm.
+
+    ``AVAILABLE_BUT_SEMANTICS_UNCERTAIN`` dành cho chỉ tiêu mà hợp đồng đã
+    xếp `UNAVAILABLE` (ví dụ tỉ lệ tồn kho, các cột lương) nhưng file lại có
+    số: không giấu số của chủ dự án, cũng không nâng nó lên thành chỉ tiêu
+    được hỗ trợ khi ngữ nghĩa chưa được chốt.
+    """
+    result: list[MetricAvailability] = []
+    for rule in SUMMARY_SHEET_CONTRACT:
+        filled = sum(1 for row in summary_rows if row.get(rule.key) is not None)
+        if filled == 0:
+            availability = NOT_AVAILABLE
+        elif rule.displayable:
+            availability = AVAILABLE_WITH_ACCEPTED_EVIDENCE
+        else:
+            availability = AVAILABLE_BUT_SEMANTICS_UNCERTAIN
+        result.append(MetricAvailability(
+            rule=rule, availability=availability, filled_rows=filled))
+    return result
+
+
+@dataclass(frozen=True)
+class SummaryYear:
+    """Một năm lịch sử có dòng Summary, kèm những gì thật sự đọc được."""
+
+    year: int
+    months: tuple[int, ...]
+    sellers: tuple[str, ...]
+    seller_rows: int
+    total_rows: int
+
+    @property
+    def has_employee_detail(self) -> bool:
+        return bool(self.sellers)
+
+
+def summary_years(summary_rows: list[dict]) -> list[SummaryYear]:
+    """Gom dòng Summary đã nhập thành từng năm, mới nhất trước.
+
+    Chỉ dòng ``row_kind = SELLER`` mới sinh ra tên người bán: dòng tổng
+    tháng cũng có nhãn ở cột B ("Tổng T01") và gộp nó vào danh sách nhân
+    viên sẽ dựng ra một "nhân viên" không tồn tại.
+    """
+    years: dict[int, dict] = {}
+    for row in summary_rows:
+        year = row.get("year")
+        if year is None:
+            continue
+        bucket = years.setdefault(
+            int(year), {"months": set(), "sellers": [], "seller_rows": 0, "rows": 0})
+        bucket["rows"] += 1
+        if row.get("month") is not None:
+            bucket["months"].add(int(row["month"]))
+        if row.get("row_kind") == "SELLER":
+            bucket["seller_rows"] += 1
+            label = row.get("seller_label")
+            if label and label not in bucket["sellers"]:
+                bucket["sellers"].append(label)
+    return [
+        SummaryYear(
+            year=year,
+            months=tuple(sorted(data["months"])),
+            sellers=tuple(data["sellers"]),
+            seller_rows=data["seller_rows"],
+            total_rows=data["rows"],
+        )
+        for year, data in sorted(years.items(), reverse=True)
+    ]
+
+
+# --------------------------------------------------------------------------
+# PHẦN LỊCH SỬ CHƯA ĐỌC ĐƯỢC — phải nói ra, không được im lặng.
+# --------------------------------------------------------------------------
+
+SHEET_SCOPE_OPTIONAL = "OPTIONAL_IMPORT"
+
+
+@dataclass(frozen=True)
+class UnreadSheet:
+    sheet_name: str
+    unclassified_rows: int
+    imported_rows: int
+    preview: str
+
+
+def unread_sheets(sheets_imported) -> list[UnreadSheet]:
+    """Sheet OPTIONAL_IMPORT còn dòng có số mà contract chưa phân loại được.
+
+    Đây là con số duy nhất trả lời được câu "chủ dự án còn phải cấp thêm gì".
+    Nó đến từ chính lần nhập, không phải từ một phỏng đoán.
+    """
+    entries = sheets_imported or []
+    return [
+        UnreadSheet(
+            sheet_name=entry.get("sheet_name", "—"),
+            unclassified_rows=int(entry.get("unclassified_rows") or 0),
+            imported_rows=int(entry.get("imported_rows") or 0),
+            preview=entry.get("unclassified_preview", ""),
+        )
+        for entry in entries
+        if isinstance(entry, dict) and int(entry.get("unclassified_rows") or 0) > 0
     ]

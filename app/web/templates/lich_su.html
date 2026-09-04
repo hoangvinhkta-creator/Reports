@@ -22,7 +22,7 @@
 {{ legacy.source_note(legacy_import) }}
 
 <div class="module">
-  <h2>1. Kỳ lịch sử của năm trước
+  <h2>1. Chuỗi doanh số tháng của năm trước
       {% if reference_years %}<span class="cnt">{{ reference_years|join(', ') }}</span>{% endif %}</h2>
   <p class="insight">
     Nguồn duy nhất được chấp nhận cho những kỳ này là cột “Doanh số cùng kỳ năm
@@ -56,7 +56,71 @@
 </div>
 
 <div class="module">
-  <h2>2. Đi tới kỳ</h2>
+  <h2>2. Năm lịch sử đã nhập</h2>
+  <p class="insight">
+    Mỗi năm dưới đây được đo trên chính những dòng đã nhập của nó — không suy
+    ra từ năm khác. “Có số” nghĩa là ô trong workbook có giá trị; nó KHÔNG có
+    nghĩa con số đó được tính theo cách của công cụ hiện tại.
+  </p>
+
+  {% if not summary_years %}
+  <p class="empty">Chưa có năm nào có dòng Summary trong bản legacy đang xem.</p>
+  {% else %}
+  {% for year in summary_years %}
+  <h3>Năm {{ year.year }} {{ legacy.legacy_badge() }}
+      <span class="cnt">{{ year.total_rows }} dòng · {{ year.months|length }} kỳ</span></h3>
+  <p class="insight">
+    Kỳ có số:
+    {% for m in year.months %}<a href="{{ url_for('sellers') }}?ky={{ year.year }}-{{ '%02d' % m }}">Tháng {{ '%02d' % m }}</a>{% if not loop.last %} · {% endif %}{% else %}—{% endfor %}
+  </p>
+  {% if year.has_employee_detail %}
+  <p class="insight">
+    Chi tiết theo nhân viên: <strong>CÓ</strong> — {{ year.seller_rows }} dòng
+    người bán, {{ year.sellers|length }} người:
+    {{ year.sellers|join(' · ') }}.
+    Bấm một kỳ ở trên để mở bảng người bán × chỉ tiêu của kỳ đó.
+  </p>
+  {% else %}
+  <p class="insight">
+    Chi tiết theo nhân viên: <strong>chưa đọc được</strong> cho năm này.
+  </p>
+  {% endif %}
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Chỉ tiêu</th><th>Tình trạng</th><th class="num">Số ô có giá trị</th><th>Phân loại hợp đồng</th></tr>
+    {% for metric in year.metrics %}
+    <tr>
+      <td>{{ metric.label }}</td>
+      <td>{{ metric.availability_label }}</td>
+      <td class="num">{{ metric.filled_rows }}</td>
+      <td>{{ metric.class_label }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if unread %}
+  <h3>Phần lịch sử CHƯA đọc được</h3>
+  {% for sheet in unread %}
+  <p class="error">
+    Sheet <strong>{{ sheet.sheet_name }}</strong>: {{ sheet.unclassified_rows }}
+    dòng có số nhưng công cụ chưa xác định được dòng đó là người bán hay dòng
+    tổng, nên KHÔNG nhập (dòng {{ sheet.preview }}).
+    Công cụ cố ý không đoán — đoán sai một dòng tổng thành một nhân viên sẽ
+    tạo ra một “nhân viên” không có thật.
+  </p>
+  {% endfor %}
+  <p class="insight">
+    Để đọc được phần này cần chủ dự án cung cấp bản workbook còn giữ công
+    thức của sheet đó, hoặc xác nhận ý nghĩa các dòng trên.
+  </p>
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>3. Đi tới kỳ</h2>
   <p class="insight">
     Mỗi kỳ ghi rõ có nguồn nào. Kỳ có CẢ HAI nhãn nghĩa là có số cũ và có số
     mới cho cùng tháng đó — hai con số riêng biệt, KHÔNG bao giờ cộng chung và
@@ -99,7 +163,7 @@
 </div>
 
 <div class="module">
-  <h2>3. So số cũ với số mới ở đâu?</h2>
+  <h2>4. So số cũ với số mới ở đâu?</h2>
   <p class="insight">
     Công cụ chỉ tính chênh lệch khi hợp đồng chứng minh được hai bên cùng một
     nghĩa nghiệp vụ. Ở phiên bản V1 <strong>chưa chỉ tiêu nào đạt điều đó</strong>,
@@ -127,9 +191,9 @@
 </div>
 
 <div class="module">
-  <h2>4. Chỉ tiêu lịch sử nào được hỗ trợ?</h2>
+  <h2>5. Chỉ tiêu lịch sử nào được hỗ trợ?</h2>
 
-  <h3>Kỳ tham chiếu năm trước</h3>
+  <h3>Chuỗi doanh số tháng (từ DataChart)</h3>
   <div class="tp-scroll">
   <table>
     <tr><th>Chỉ tiêu</th><th>Phân loại</th><th>Vì sao</th><th>Bằng chứng</th></tr>
@@ -144,7 +208,7 @@
   </table>
   </div>
 
-  <h3>Kỳ báo cáo tay của năm workbook</h3>
+  <h3>Bảng Summary theo người bán (áp dụng cho mọi năm)</h3>
   <div class="tp-scroll">
   <table>
     <tr><th>Chỉ tiêu</th><th>Phân loại</th><th>Vì sao</th><th>Bằng chứng</th></tr>

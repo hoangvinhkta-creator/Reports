@@ -29,26 +29,42 @@ from app.legacy.models import (
     SummaryRow,
 )
 
-# Phạm vi import production của PRA-001 — thẩm quyền Owner (DEC-169).
+# Phạm vi import của PRA-001 + PHB-04 — thẩm quyền Owner (DEC-169, DEC-177).
 #
 # `Summary 2026` và `DataChart 2026` là REQUIRED_IMPORT: nguồn dữ liệu
-# production, phải nhập đủ và đúng.
+# production, phải nhập đủ và đúng. Guard DEC-168 áp dụng NGUYÊN VẸN ở đây —
+# một dòng có giá trị nghiệp vụ mà contract không phân loại được vẫn FAIL TO.
 #
-# `Summary 2025` là REFERENCE_ONLY: trong workbook cũ nó tồn tại để làm số
-# tham chiếu cho báo cáo 2026, KHÔNG phải nguồn dữ liệu production. Nó nằm
-# NGOÀI authoritative import scope: không parse, không persist, không query.
+# `Summary 2025` là OPTIONAL_IMPORT (đổi bởi `DEC-177`, làm rõ `DEC-169`).
 #
-# Đây là ranh giới scope do Owner xác lập, KHÔNG phải parser bug và cũng
-# KHÔNG phải "nuốt lỗi". Real Data Acceptance trên workbook thật cho thấy
-# `Summary 2025` đã bị dán cứng thành giá trị tĩnh (0 ô công thức trên toàn
-# sheet, 99 dòng value-only), nên contract phân loại dòng theo cấu trúc
-# công thức không áp dụng được cho nó — và Owner xác nhận không cần áp
-# dụng. Guard DEC-168 vẫn nguyên vẹn cho các sheet REQUIRED_IMPORT: một
-# dòng có giá trị nghiệp vụ mà contract không phân loại được vẫn FAIL TO.
+# Lịch sử cần đọc cho đúng: `DEC-169` ghi *"Owner KHÔNG yêu cầu"* import /
+# persist / query / display `Summary 2025` — đó là một tuyên bố PHẠM VI
+# ("chưa cần"), KHÔNG phải một lệnh cấm sản phẩm ("không được có"). Bối cảnh
+# kỹ thuật đi kèm cũng rất cụ thể: sheet đó đã bị dán cứng thành giá trị
+# tĩnh (0 ô công thức trên toàn sheet, 99 dòng value-only) nên contract phân
+# loại dòng THEO CÔNG THỨC không áp dụng được cho nó.
+#
+# `DEC-177` (chủ dự án, 2026-09-04) mở lại phạm vi: 2025 CÓ Summary riêng và
+# CÓ chi tiết theo nhân viên, và Reports nên giữ được chúng dưới dạng
+# LEGACY_REFERENCE. Ngữ nghĩa OPTIONAL_IMPORT vì vậy là:
+#
+#   - dòng nào contract phân loại được  → NHẬP, origin = LEGACY_REFERENCE;
+#   - dòng nào KHÔNG phân loại được     → KHÔNG đoán, KHÔNG bỏ im lặng:
+#                                         đếm và báo lên tận giao diện;
+#   - sheet vắng mặt hoặc không phân loại được dòng nào
+#                                       → KHÔNG làm trượt cả workbook.
+#
+# Nhánh cuối là điều kiện để `DEC-169` không bị lật ngược thành một hồi quy:
+# hình dạng value-only của workbook thật vẫn phải nhập được phần 2026.
 SUMMARY_IMPORT_SHEETS = ("Summary 2026",)
-SUMMARY_REFERENCE_ONLY_SHEETS = ("Summary 2025",)
+SUMMARY_OPTIONAL_SHEETS = ("Summary 2025",)
+# Tên cũ, giữ lại cho các tham chiếu hiện có; nghĩa mới = OPTIONAL_IMPORT.
+SUMMARY_REFERENCE_ONLY_SHEETS = SUMMARY_OPTIONAL_SHEETS
 DATACHART_SHEET = "DataChart 2026"
 REQUIRED_SHEETS = SUMMARY_IMPORT_SHEETS + (DATACHART_SHEET,)
+
+SHEET_SCOPE_REQUIRED = "REQUIRED_IMPORT"
+SHEET_SCOPE_OPTIONAL = "OPTIONAL_IMPORT"
 
 PRODUCTS_COLUMN = "D"
 VS_PREV_MONTH_COLUMN = "I"
@@ -221,7 +237,19 @@ def _read_rows(value_cells: dict[int, dict[str, object]],
         yield row_index, value_cells[row_index], formulas
 
 
-def _parse_summary_sheet(value_sheet, formula_sheet) -> list[SummaryRow]:
+def _parse_summary_sheet(
+    value_sheet, formula_sheet, *, required: bool = True,
+) -> tuple[list[SummaryRow], list[int]]:
+    """Dòng Summary của một sheet + danh sách dòng KHÔNG phân loại được.
+
+    ``required=True`` (REQUIRED_IMPORT): còn một dòng chưa phân loại được là
+    FAIL TO — guard DEC-168 nguyên vẹn, vì bỏ sót một dòng production nghĩa
+    là báo cáo hiển thị thiếu số mà không ai biết.
+
+    ``required=False`` (OPTIONAL_IMPORT, `DEC-177`): trả về đúng những dòng
+    phân loại được, kèm số dòng chưa phân loại được để tầng trên BÁO LÊN
+    giao diện. Không đoán, và cũng không im lặng — hai điều đó khác nhau.
+    """
     sheet_name = value_sheet.title
     sheet_year = _sheet_year(sheet_name)
     columns = LABEL_COLUMNS + tuple(SUMMARY_COLUMN_FIELDS)
@@ -280,7 +308,7 @@ def _parse_summary_sheet(value_sheet, formula_sheet) -> list[SummaryRow]:
             formula_text=dict(formulas), known_defects=row_defects,
         ))
 
-    if unaccounted:
+    if unaccounted and required:
         # FAIL LOUDLY (DEC-168). Bỏ qua im lặng một dòng có số nghĩa là báo
         # cáo hiển thị thiếu số của Owner mà không ai biết — đúng kiểu sai
         # âm thầm mà cả task này tồn tại để ngăn.
@@ -293,7 +321,7 @@ def _parse_summary_sheet(value_sheet, formula_sheet) -> list[SummaryRow]:
             "UNKNOWN / OWNER_DECISION_REQUIRED: cần Owner xác nhận ý nghĩa "
             "các dòng này trước khi mở rộng contract."
         )
-    return rows
+    return rows, unaccounted
 
 
 def _parse_datachart(value_sheet, formula_sheet):
@@ -348,12 +376,13 @@ def _parse_datachart(value_sheet, formula_sheet):
 
 
 def parse_workbook(path: Path) -> LegacyWorkbook:
-    """Đọc các sheet REQUIRED_IMPORT đã freeze. Thiếu sheet → lỗi rõ.
+    """Đọc sheet REQUIRED_IMPORT (bắt buộc) + OPTIONAL_IMPORT (nếu có).
 
-    Sheet REFERENCE_ONLY (``SUMMARY_REFERENCE_ONLY_SHEETS``) KHÔNG được đọc
-    ở đây và KHÔNG xuất hiện trong ``sheets_imported`` — chúng nằm ngoài
-    authoritative import scope theo DEC-169. Sự vắng mặt của chúng trong
-    kết quả là có chủ đích và kiểm chứng được, không phải bỏ sót.
+    Thiếu một sheet REQUIRED_IMPORT → lỗi rõ. Sheet OPTIONAL_IMPORT
+    (``SUMMARY_OPTIONAL_SHEETS``, hiện là ``Summary 2025``) được đọc khi nó
+    tồn tại: dòng nào phân loại được thì nhập, dòng nào không thì được ĐẾM
+    và ghi vào ``sheets_imported`` để giao diện nói ra. Sheet vắng mặt hoặc
+    không phân loại được dòng nào KHÔNG làm trượt cả workbook (`DEC-177`).
     """
     path = Path(path)
     # `read_only=True` là ràng buộc BỘ NHỚ, không phải tối ưu vặt: ở chế độ
@@ -374,17 +403,47 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
                 + ", ".join(missing)
             )
         summary_rows: list[SummaryRow] = []
-        # Chỉ duyệt sheet REQUIRED_IMPORT. Sheet REFERENCE_ONLY không đi qua
-        # đây, nên không có đường nào để nó lọt vào bản ghi production.
+        sheets_imported: list[dict] = []
+
+        def _record(name: str, scope: str, imported: int, unclassified: list[int]) -> None:
+            entry = {
+                "sheet_name": name, "state": values_wb[name].sheet_state,
+                "scope": scope, "imported_rows": str(imported),
+            }
+            if unclassified:
+                # Số dòng Owner có số mà contract chưa đọc được. Ghi cả vài
+                # số dòng đầu để Owner mở đúng chỗ trong workbook mà đối
+                # chiếu, thay vì phải dò cả sheet.
+                entry["unclassified_rows"] = str(len(unclassified))
+                entry["unclassified_preview"] = ", ".join(
+                    str(index) for index in unclassified[:20])
+            sheets_imported.append(entry)
+
         for name in SUMMARY_IMPORT_SHEETS:
-            summary_rows.extend(_parse_summary_sheet(values_wb[name], formulas_wb[name]))
+            rows, unaccounted = _parse_summary_sheet(
+                values_wb[name], formulas_wb[name], required=True)
+            summary_rows.extend(rows)
+            _record(name, SHEET_SCOPE_REQUIRED, len(rows), unaccounted)
+
         daily, monthly = _parse_datachart(
             values_wb[DATACHART_SHEET], formulas_wb[DATACHART_SHEET],
         )
-        sheets_imported = [
-            {"sheet_name": name, "state": values_wb[name].sheet_state}
-            for name in REQUIRED_SHEETS
-        ]
+        sheets_imported.append({
+            "sheet_name": DATACHART_SHEET,
+            "state": values_wb[DATACHART_SHEET].sheet_state,
+            "scope": SHEET_SCOPE_REQUIRED,
+            "imported_rows": str(len(monthly)),
+        })
+
+        # OPTIONAL_IMPORT sau REQUIRED: một sự cố ở đây không được phép làm
+        # mất phần production đã đọc xong ở trên.
+        for name in SUMMARY_OPTIONAL_SHEETS:
+            if name not in values_wb.sheetnames:
+                continue
+            rows, unaccounted = _parse_summary_sheet(
+                values_wb[name], formulas_wb[name], required=False)
+            summary_rows.extend(rows)
+            _record(name, SHEET_SCOPE_OPTIONAL, len(rows), unaccounted)
     finally:
         values_wb.close()
         formulas_wb.close()

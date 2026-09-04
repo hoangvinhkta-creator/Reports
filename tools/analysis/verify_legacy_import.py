@@ -5,9 +5,13 @@ bằng openpyxl ``data_only=True`` và so từng ô số của các sheet
 REQUIRED_IMPORT — ``Summary 2026`` và ``DataChart 2026`` — với giá trị đã
 lưu. Script KHÔNG sửa gì — nó chỉ đọc.
 
-``Summary 2025`` là REFERENCE_ONLY (DEC-169): nó KHÔNG nằm trong phạm vi
-đối chiếu fidelity, và script kiểm ngược lại rằng nó KHÔNG để lại bản ghi
-nào trong bảng production (``SUMMARY_REFERENCE_ONLY_PERSISTED = 0``).
+``Summary 2025`` là OPTIONAL_IMPORT (`DEC-177` làm rõ `DEC-169`): những
+dòng của nó ĐÃ nhập được vẫn phải khớp giá trị nguồn như mọi dòng khác, còn
+dòng chưa phân loại được thì được ĐẾM và in ra
+(``SUMMARY_OPTIONAL_UNIMPORTED``) chứ không làm script trượt. Lý do bất đối
+xứng này: thiếu một dòng REQUIRED nghĩa là số production sai; thiếu một dòng
+OPTIONAL nghĩa là còn một phần lịch sử chưa đọc được — cần nói ra, không cần
+chặn.
 
 Fidelity ở đây gồm HAI phần, không phải một:
 
@@ -45,7 +49,7 @@ import tools.db as history_db
 from app.legacy.models import SUMMARY_COLUMN_FIELDS
 from app.legacy.parser import (
     DATACHART_DAY_COLUMNS, DATACHART_FIRST_ROW, DATACHART_SHEET,
-    SUMMARY_IMPORT_SHEETS, SUMMARY_REFERENCE_ONLY_SHEETS,
+    SUMMARY_IMPORT_SHEETS, SUMMARY_OPTIONAL_SHEETS,
     row_has_business_values,
 )
 from app.web import history_store
@@ -60,16 +64,17 @@ class VerificationResult:
     summary_source_rows_with_values: int = 0
     summary_imported_rows: int = 0
     summary_unaccounted_rows: list[str] = field(default_factory=list)
-    # Dòng của sheet REFERENCE_ONLY lọt vào bảng production (DEC-169) — phải
-    # rỗng. Không rỗng nghĩa là ranh giới scope đã bị vi phạm.
-    reference_only_persisted_rows: list[str] = field(default_factory=list)
+    # Dòng nguồn của sheet OPTIONAL_IMPORT có số nhưng chưa nhập được
+    # (`DEC-177`). ĐO LƯỜNG, không phải lỗi: nó là thước đo phần lịch sử
+    # còn thiếu, và là con số Owner cần thấy để biết còn phải cấp gì.
+    optional_unimported_rows: list[str] = field(default_factory=list)
+    optional_imported_rows: int = 0
 
     @property
     def ok(self) -> bool:
         return (
             not self.mismatches
             and not self.summary_unaccounted_rows
-            and not self.reference_only_persisted_rows
         )
 
 
@@ -84,17 +89,23 @@ def verify(workbook_path: Path, repository, import_id=None) -> VerificationResul
     result = VerificationResult()
 
     stored_summary = {}
-    for year in {int(name.split()[-1]) for name in SUMMARY_IMPORT_SHEETS}:
+    all_summary_sheets = SUMMARY_IMPORT_SHEETS + SUMMARY_OPTIONAL_SHEETS
+    for year in {int(name.split()[-1]) for name in all_summary_sheets}:
         for row in repository.query_summary(year, import_id=import_id):
             stored_summary[(row["sheet_name"], row["sheet_row"])] = row
-    result.summary_imported_rows = len(stored_summary)
+    result.summary_imported_rows = sum(
+        1 for name, _ in stored_summary if name in SUMMARY_IMPORT_SHEETS)
+    result.optional_imported_rows = sum(
+        1 for name, _ in stored_summary if name in SUMMARY_OPTIONAL_SHEETS)
 
     # Duyệt từ EXCEL → DB: đây là chiều DUY NHẤT phát hiện được dòng nguồn
     # bị bỏ qua khi import. Chiều ngược lại (DB → Excel) không bao giờ thấy
     # một dòng chưa từng được nhập.
-    for sheet_name in SUMMARY_IMPORT_SHEETS:
+    for sheet_name in all_summary_sheets:
+        optional = sheet_name in SUMMARY_OPTIONAL_SHEETS
         if sheet_name not in sheets.sheetnames:
-            result.mismatches.append(f"{sheet_name}: thiếu sheet trong workbook nguồn")
+            if not optional:
+                result.mismatches.append(f"{sheet_name}: thiếu sheet trong workbook nguồn")
             continue
         sheet = sheets[sheet_name]
         for sheet_row in range(1, (sheet.max_row or 0) + 1):
@@ -104,11 +115,15 @@ def verify(workbook_path: Path, repository, import_id=None) -> VerificationResul
             }
             if not row_has_business_values(source_values):
                 continue
-            result.summary_source_rows_with_values += 1
+            if not optional:
+                result.summary_source_rows_with_values += 1
             row = stored_summary.get((sheet_name, sheet_row))
             if row is None:
-                # Dòng nguồn có số nhưng KHÔNG có bản ghi tương ứng.
-                result.summary_unaccounted_rows.append(f"{sheet_name}!{sheet_row}")
+                # Dòng nguồn có số nhưng KHÔNG có bản ghi tương ứng. Với
+                # sheet REQUIRED đây là lỗi; với OPTIONAL đây là số đo.
+                target = (result.optional_unimported_rows if optional
+                          else result.summary_unaccounted_rows)
+                target.append(f"{sheet_name}!{sheet_row}")
                 continue
             for column, field_name in SUMMARY_COLUMN_FIELDS.items():
                 expected = _decimal(source_values[column])
@@ -134,18 +149,6 @@ def verify(workbook_path: Path, repository, import_id=None) -> VerificationResul
             result.mismatches.append(
                 f"{sheet_name}!{sheet_row}: có bản ghi trong DB nhưng dòng nguồn không có giá trị"
             )
-
-    # REFERENCE_ONLY (DEC-169): các sheet này KHÔNG được production-import.
-    # Kiểm CHỦ ĐỘNG rằng chúng không để lại bản ghi nào trong bảng
-    # production — "không import" phải chứng minh được bằng truy vấn, chứ
-    # không phải suy ra từ việc không có test nào chạm tới.
-    for sheet_name in SUMMARY_REFERENCE_ONLY_SHEETS:
-        reference_year = int(sheet_name.split()[-1])
-        for row in repository.query_summary(reference_year, import_id=import_id):
-            if row["sheet_name"] == sheet_name:
-                result.reference_only_persisted_rows.append(
-                    f"{sheet_name}!{row['sheet_row']}"
-                )
 
     chart = sheets[DATACHART_SHEET]
     year = int(DATACHART_SHEET.split()[-1])
@@ -179,14 +182,15 @@ def main(argv: list[str]) -> int:
         print(f"MISMATCH {line}")
     for line in result.summary_unaccounted_rows:
         print(f"UNACCOUNTED {line}")
-    for line in result.reference_only_persisted_rows:
-        print(f"REFERENCE_ONLY_PERSISTED {line}")
+    for line in result.optional_unimported_rows:
+        print(f"OPTIONAL_UNIMPORTED {line}")
     print(f"SUMMARY_SOURCE_ROWS_WITH_VALUES = {result.summary_source_rows_with_values}")
     print(f"SUMMARY_IMPORTED_ROWS           = {result.summary_imported_rows}")
     print(f"SUMMARY_UNACCOUNTED_ROWS        = {len(result.summary_unaccounted_rows)}")
+    print(f"SUMMARY_OPTIONAL_IMPORTED       = {result.optional_imported_rows}")
     print(
-        "SUMMARY_REFERENCE_ONLY_PERSISTED = "
-        f"{len(result.reference_only_persisted_rows)}"
+        "SUMMARY_OPTIONAL_UNIMPORTED     = "
+        f"{len(result.optional_unimported_rows)}"
     )
     print(f"matched={result.matched} mismatched={len(result.mismatches)}")
     # Thiếu dòng nguồn là FAIL, ngang hàng với lệch giá trị: một bản nhập

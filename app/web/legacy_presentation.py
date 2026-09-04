@@ -177,3 +177,35 @@ def contract_rows(rules: tuple) -> list[dict]:
         }
         for rule in rules
     ]
+
+
+def summary_year_rows(years: list, all_summary_rows: list[dict]) -> list[dict]:
+    """Một khối cho mỗi NĂM lịch sử: kỳ nào có, ai có số, chỉ tiêu nào có.
+
+    Tình trạng chỉ tiêu được đo trên chính dòng của năm đó (`DEC-177`), nên
+    một năm nghèo dữ liệu không mượn được vẻ đầy đủ của năm khác.
+    """
+    from app.web import legacy_reference
+
+    rows = []
+    for year in years:
+        year_rows = [r for r in all_summary_rows if r.get("year") == year.year]
+        rows.append({
+            "year": year.year,
+            "months": list(year.months),
+            "sellers": list(year.sellers),
+            "seller_rows": year.seller_rows,
+            "total_rows": year.total_rows,
+            "has_employee_detail": year.has_employee_detail,
+            "metrics": [
+                {
+                    "label": item.rule.label,
+                    "availability": item.availability,
+                    "availability_label": item.availability_label,
+                    "class_label": item.rule.class_label,
+                    "filled_rows": item.filled_rows,
+                }
+                for item in legacy_reference.summary_year_availability(year_rows)
+            ],
+        })
+    return rows

@@ -1,284 +1,343 @@
-# PHB-04 — LEGACY REFERENCE V1 — BÁO CÁO CHO CHỦ DỰ ÁN
+# PHB-04 — LEGACY REFERENCE V1 — BÁO CÁO CHO CHỦ DỰ ÁN (BẢN ĐÍNH CHÍNH)
 
-Ngày: 2026-09-04 · Phiên: S119 · Nhánh: `claude/phb-04-legacy-reference-v1-widtzf`
+Ngày: 2026-09-04 · Phiên: S119 (tiếp tục) · Nhánh:
+`claude/phb-04-legacy-reference-v1-widtzf`
 
-Báo cáo này viết cho người đọc không phải kỹ thuật. Mỗi mục trả lời đúng một
-câu hỏi.
-
----
-
-## 1. Legacy Reference là gì?
-
-Là **số của những kỳ báo cáo cũ, làm bằng tay trên Excel, trước khi công cụ
-này trở thành nơi tính số chính thức.**
-
-Điều quan trọng nhất: số cũ và số mới là **hai loại bằng chứng khác nhau**.
-
-- Số mới do công cụ tính từ sổ bán hàng gốc, theo những quy tắc đã chốt.
-- Số cũ do người lập báo cáo gõ và sửa tay trong Excel.
-
-Cả hai đều là số thật của công ty. Nhưng chúng **không được tính theo cùng một
-cách**, nên đặt cạnh nhau thì xem được, còn trừ nhau ra để lấy phần trăm tăng
-trưởng thì sai.
-
-Nguyên tắc của PHB-04 gói gọn trong một câu:
-
-> Cho phép xem lại số cũ, mà không làm số cũ trông như thể do công cụ mới tính.
+> **Bản này thay thế báo cáo PHB-04 trước đó.**
+> Báo cáo trước kết luận *"với năm 2025 — đúng một chỉ tiêu: doanh số
+> tháng."* Chủ dự án đã bác bỏ kết luận đó. **Kết luận đó SAI**, và bản này
+> nói rõ nó sai ở đâu, vì sao, và đã sửa những gì. Kết luận cũ không được
+> giữ lại ở bất kỳ chỗ nào trong tài liệu dự án.
 
 ---
 
-## 2. Dữ liệu nào được coi là legacy?
+## 1. Năm 2025 thật sự có dữ liệu gì?
 
-Hai nhóm kỳ:
+Đây là kiểm kê đầy đủ, đọc từ chính hồ sơ bằng chứng của dự án
+(`docs/analysis/_evidence/evidence.json`) và từ workbook cũ.
 
-**Nhóm 1 — Các tháng của năm 2025.**
-Nguồn duy nhất được chấp nhận là cột "Doanh số cùng kỳ 2025" nằm trong sheet
-`DataChart 2026` của workbook cũ. Đó là những con số gõ cứng, mỗi tháng một ô.
-Kỳ nào ô đó trống thì kỳ đó **không có dữ liệu** — và công cụ nói thẳng là
-trống, không tự điền 0.
-
-**Nhóm 2 — Các tháng của năm workbook (2026) có trong báo cáo tay.**
-Đây là những dòng của sheet `Summary 2026`, đã hiển thị từ trước ở trang
-"Nhân viên" và "Doanh số ngày". PHB-04 không đổi cách hiện chúng; nó chỉ nói
-rõ từng chỉ tiêu thuộc loại bằng chứng nào.
-
-**Sheet `Summary 2025` KHÔNG được dùng.** Chính chủ dự án đã quyết định điều
-này trước đây (`DEC-169`): sheet đó chỉ là tài liệu tham chiếu, không nhập,
-không lưu, không truy vấn, không hiển thị. Phiên này **không** mở lại quyết
-định đó. Lý do kỹ thuật đi kèm cũng rất rõ: sheet đó không có một ô công thức
-nào trên toàn bộ 755 dòng, nên công cụ không có cách nào biết dòng nào là
-người bán, dòng nào là dòng tổng.
-
----
-
-## 3. Dữ liệu legacy được lưu ở đâu?
-
-**Ở đúng chỗ nó đã nằm từ trước — không có kho mới nào được dựng.**
-
-Khi làm `TASK-PRA-001`, hệ thống đã có sẵn bốn bảng riêng dành cho số cũ, tách
-hoàn toàn khỏi các bảng của dữ liệu kế toán hiện hành. Mỗi dòng trong bốn bảng
-đó mang một dấu cố định `LEGACY_REFERENCE`, và dấu này được **cơ sở dữ liệu ép
-buộc** chứ không phải do quy ước đặt tên — không có cách nào ghi một dòng mang
-dấu khác vào đó.
-
-PHB-04 **không** thêm bảng, **không** thêm cột, **không** chạy bước nâng cấp
-cơ sở dữ liệu nào. Nó chỉ đọc dữ liệu đã có và trình bày lại.
-
-Đây là điều đáng yên tâm nhất trong toàn bộ phiên: phần rủi ro nhất — thay đổi
-cấu trúc dữ liệu production — đã **không xảy ra**, vì audit cho thấy nó không
-cần xảy ra.
-
----
-
-## 4. Vì sao nó không làm sai dữ liệu production hiện tại?
-
-Bốn lý do, xếp theo độ chắc chắn:
-
-1. **Không có đường ghi nào.** Toàn bộ phần mới của PHB-04 chỉ ĐỌC. Không một
-   dòng mã nào ghi, sửa hay xoá dữ liệu.
-2. **Hai kho tách biệt.** Số cũ nằm ở bốn bảng `legacy_*`; số mới nằm ở nhóm
-   bảng khác. Xoá và nhập lại toàn bộ sổ kế toán hiện hành cũng không chạm
-   được vào một con số lịch sử nào, và ngược lại.
-3. **Cơ sở dữ liệu tự ép dấu nguồn.** Ràng buộc `origin = 'LEGACY_REFERENCE'`
-   nằm ở tầng cấu trúc, không phải ở tầng "nhớ viết cho đúng".
-4. **Đã đo, không chỉ suy luận.** Có test nạp một bản legacy rồi đo lại toàn
-   bộ số liệu của kỳ hiện hành: coverage giá nhập, doanh thu, số dòng — tất cả
-   **giống hệt trước khi nạp**.
-
-Những thứ PHB-04 **không** đụng tới, đúng như yêu cầu: dòng hàng kế toán đã
-nhập · Product Identity · Tracking · lịch sử giá nhập · các lần chủ dự án sửa
-tay ở PHB-03 · gán nhân viên · phân loại Gia dụng · các bản snapshot đã lưu.
-
----
-
-## 5. Những chỉ số legacy nào được hỗ trợ?
-
-**Với năm 2025 — đúng một chỉ tiêu: Doanh số tháng** (đơn vị: đồng).
-
-Chỉ có vậy, vì trong toàn bộ bằng chứng đã được chấp nhận, năm 2025 chỉ có
-đúng 12 ô số — mỗi tháng một ô tổng doanh số. Không có gì khác.
-
-**Với các tháng báo cáo tay của 2026** — 16 cột của báo cáo cũ vẫn giữ nguyên
-và vẫn xem được như trước: Tổng đơn, Tổng số SP, Tổng bán, DS quy đổi, Tổng
-lợi nhuận, So tháng trước, Target, So target, và các cột lương/thưởng.
-
----
-
-## 6. Chỉ số nào chỉ để tham khảo?
-
-**Tất cả.** Không có một chỉ tiêu legacy nào được xếp loại "so được với số
-mới" trong phiên bản này.
-
-Đây không phải sự thận trọng thừa. Với mỗi chỉ tiêu đều có một khác biệt về
-cách tính đã được chốt từ trước:
-
-| Chỉ tiêu | Vì sao không so được |
-|---|---|
-| Doanh số / Tổng bán | Báo cáo tay và công cụ mới trừ chiết khấu khác nhau — đây là khác biệt **có chủ đích**, đã chốt ở `DEC-114` |
-| Tổng lợi nhuận | Số cũ dựa trên giá nhập sửa tay; lợi nhuận mới chỉ được coi là chính thức khi đủ 100 % giá nhập |
-| DS quy đổi | Dòng tổng trong workbook cũ cộng thiếu người bán, và vài kỳ dùng số gõ tay |
-| Tổng số SP | Ô nguồn cũ bị trừ nhầm một tỉ lệ phần trăm khỏi một số lượng |
-| So tháng trước | Cột cũ so trên "DS quy đổi"; chỉ tiêu được so của số mới là "Doanh thu bán hàng" |
-| Tổng đơn | Không có bằng chứng hai cách đếm đơn cho cùng kết quả |
-
-Vì vậy công cụ **hiện cả hai số cạnh nhau nhưng không trừ nhau**. Không có
-phần trăm tăng trưởng nào được sinh ra giữa số cũ và số mới.
-
----
-
-## 7. Chỉ số nào không có đủ bằng chứng?
-
-**Với năm 2025:** Tổng đơn · Tổng số SP · DS quy đổi · Tổng lợi nhuận · Target
-· chi tiết theo từng nhân viên · doanh số theo ngày.
-
-**Với các tháng báo cáo tay 2026:** Tỉ lệ tồn kho (cột "Nơi nhập" không tồn
-tại trong file ERP) · Thưởng · Ngày công · Lương cơ bản · Phụ cấp · Tổng lương
-(thuộc luật nhân sự, đã hoãn khỏi V1).
-
-Những chỉ tiêu này hiện **dấu gạch ngang `—`**, kèm câu giải thích vì sao
-không có. Chúng **không bao giờ** hiện thành số 0. Một số 0 bịa ra nguy hiểm
-hơn một ô trống, vì ô trống thì ai cũng biết là thiếu, còn số 0 thì trông như
-một sự thật.
-
----
-
-## 8. Có thể so legacy với dữ liệu hiện tại ở đâu?
-
-**Ở phiên bản này: không ở đâu cả** — và điều đó được ghi rõ ngay trên màn
-hình, kèm lý do cho từng cặp chỉ tiêu.
-
-Có một ngoại lệ cần nói cho đúng: tỉ lệ **"so cùng kỳ năm trước"** đang hiện ở
-trang "Doanh số ngày" là một con số **đã có sẵn trong workbook cũ, do Excel
-tính**. Nó là số cũ so với số cũ, mang nhãn legacy như mọi ô cũ khác — không
-phải phép so do công cụ này thực hiện.
-
-Cơ chế so sánh được viết như một **cánh cổng thật**, không phải một câu "không"
-cứng nhắc: ngày nào một chỉ tiêu được chứng minh là cùng nghĩa ở hai bên, chỉ
-cần thêm một dòng vào bảng hợp đồng là phép so mở ra. Có test chứng minh cổng
-đó thật sự đọc hợp đồng chứ không trả lời cứng.
-
----
-
-## 9. Giao diện Chủ dự án sử dụng thế nào?
-
-Có một tab mới: **"Lịch sử"**.
-
-Trang đó có bốn phần, đọc từ trên xuống:
-
-1. **Kỳ lịch sử của năm trước** — bảng 12 tháng của 2025 với doanh số từng
-   tháng. Tháng nào không có số thì hiện `—`. Mỗi dòng ghi rõ số đó lấy từ ô
-   nào của workbook.
-2. **Đi tới kỳ** — danh sách mọi kỳ đang có, mỗi kỳ dán nhãn `SỐ CŨ`,
-   `SỐ MỚI`, hoặc **cả hai**, kèm liên kết mở đúng trang tương ứng. Đây là chỗ
-   chuyển qua lại giữa kỳ lịch sử và kỳ hiện hành mà không lẫn nguồn.
-3. **So số cũ với số mới ở đâu?** — bảng nói thẳng từng cặp chỉ tiêu có so
-   được không và vì sao.
-4. **Chỉ tiêu lịch sử nào được hỗ trợ?** — hợp đồng đầy đủ, in nguyên văn.
-
-Mọi con số cũ trên toàn hệ thống đều đeo nhãn `LEGACY` kèm đơn vị. Không có
-đường nào hiện một số cũ mà thiếu nhãn.
-
----
-
-## 10. Những gì cố tình KHÔNG làm?
-
-- **Không** nhập lại báo cáo cũ qua đường xử lý kế toán hiện hành.
-- **Không** tạo dòng hàng giả để "giả vờ" 2025 có giao dịch.
-- **Không** dựng bảng mới hay nâng cấp cơ sở dữ liệu.
-- **Không** mở lại `DEC-169` (`Summary 2025` vẫn ngoài phạm vi).
-- **Không** mở lại PHB-03.
-- **Không** dựng parser cho 99 dòng không phân loại được của `Summary 2025`.
-- **Không** làm Target (PHB-05), Brand, Advanced Analytics, dọn dẹp R1/R2/R3.
-- **Không** đổi Product Identity, Tracking, hay logic giá nhập.
-- **Không** tái tạo mỗi sheet Excel thành một tab web.
-
----
-
-## 11. Test đã chạy
+**Workbook có 59 sheet:**
 
 ```text
-Test riêng của PHB-04   tests/test_phb04_legacy_reference.py   35 passed
-Toàn bộ hệ thống        python -m pytest -q                    2171 passed, 11 skipped
-Test golden (chống sai
-số nghiệp vụ)           4 file golden                          74 passed, 2 skipped
+56 sheet chi tiết "tháng + nhân viên"   → TẤT CẢ đều là 2026 (01.2026 … 08.2026)
+ 1 sheet Summary 2026                   → bảng người bán × tháng, năm 2026
+ 1 sheet Summary 2025                   → bảng người bán × tháng, năm 2025
+ 1 sheet DataChart 2026                 → doanh số theo ngày + 12 ô doanh số 2025
 ```
 
-Trước phiên, toàn bộ hệ thống là `2136 passed, 11 skipped`. Chênh lệch `+35`
-đúng bằng số test mới — **không test cũ nào bị sửa, bị bỏ hay bị tắt**.
+Nói theo cách dễ hình dung:
 
-35 test mới chứng minh đúng những điều đã hứa: kỳ legacy đọc được · mọi số mang
-dấu `LEGACY_REFERENCE` · số cũ không lọt vào đường kế toán · số cũ không làm
-nhúc nhích coverage lợi nhuận · các trang PHB-03 giữ nguyên · điều hướng phân
-biệt được hai nguồn · chỉ tiêu thiếu hiện `—` chứ không phải 0 · phép so chỉ
-chạy khi hợp đồng cho phép · chỉ tiêu tham khảo không âm thầm sinh phần trăm ·
-nạp lại cùng một file không nhân đôi số.
+- **2025 KHÔNG có sheet riêng cho từng nhân viên từng tháng.** Không có
+  "06.2025 Vinh". Chỉ 2026 mới có kiểu sheet đó.
+- **2025 CÓ một Summary riêng, và chi tiết theo nhân viên nằm TRONG chính
+  Summary đó** — mỗi dòng là một (tháng, người bán) với đủ 16 cột, y như
+  Summary 2026. Điều này khớp đúng với mô tả của chủ dự án: *"cấu trúc gần
+  giống báo cáo 2026"*.
+- Ngoài ra `DataChart` có thêm 12 ô doanh số tháng của 2025 (số gõ cứng, để
+  làm mốc so với 2026).
 
-Các bộ kiểm tra governance cũng chạy: 4 bộ PASS, 1 bộ báo đúng 3 lỗi cũ đã
-biết từ trước (không phát sinh lỗi mới).
+**Về quy mô của Summary 2025:** sheet đó có **99 dòng mang số**. So sánh:
+Summary 2026 có 71 dòng cho 8 tháng (~8,9 dòng/tháng); Summary 2025 có 99
+dòng cho 12 tháng (~8,3 dòng/tháng). Hai mật độ khớp nhau — nhất quán với
+một bảng người bán × tháng cùng hình dạng.
 
----
-
-## 12. Finding còn lại
-
-Không có finding nào chặn.
-
-**F-PHB04-01 (không chặn).** Trang "Lịch sử" có sẵn một câu cảnh báo cho
-trường hợp không đọc được danh mục kỳ của số mới. Với cách hệ thống đang nối
-dây hôm nay, trạng thái đó không xảy ra được trên production. Câu cảnh báo vẫn
-được giữ và vẫn có test, vì nó là cùng một kỷ luật đã áp dụng ở nơi khác: một
-danh sách thiếu nguồn không bao giờ được trông giống một danh sách đủ.
-
-**F-PHB04-02 (không chặn, môi trường).** Trong phiên này, bản sao repo về máy
-ở dạng rút gọn nên một test golden ban đầu báo lỗi vì thiếu một mốc lịch sử
-git. Đã lấy đủ lịch sử và test PASS. Đây là chuyện của môi trường chạy, không
-phải của mã.
+**Một điều phải nói thẳng:** con số 99 là số ĐẾM DÒNG. **Nội dung** của 99
+dòng đó chưa từng được ghi lại trong repo — xem mục 13.
 
 ---
 
-## 13. Owner decision còn thiếu
+## 2. Vì sao bản trước chỉ thấy 12 con số của 2025?
 
-**Không có quyết định nào đang chặn PHB-04.** Toàn bộ ngữ nghĩa của V1 đều đã
-có thẩm quyền từ PHB-02 và `DEC-169`.
+Vì cả dây chuyền đọc dữ liệu đều **bám vào công thức Excel**, ở ba tầng độc
+lập nhau, và Summary 2025 là một sheet **đã bị dán cứng thành giá trị** —
+không còn một ô công thức nào.
 
-Hai câu hỏi được ghi lại cho tương lai, **không chặn gì cả**:
+| Tầng | Nó tìm gì | Gặp Summary 2025 thì sao |
+|---|---|---|
+| Công cụ trích bằng chứng | chỉ ghi dòng nào có **công thức** ở cột F | ghi được **0** dòng |
+| Bộ nhập workbook | đoán "dòng này là người bán hay dòng tổng" từ **cấu trúc công thức** | không phân loại được dòng nào |
+| Hợp đồng PHB-04 (bản trước) | dựng trên hai tầng trên | kết luận sai "2025 chỉ có doanh số tháng" |
 
-- **`OD-PHB04-A`** — Với một kỳ có **cả** số cũ **và** số mới, có bao giờ chủ
-  dự án muốn nhìn thấy **một con số duy nhất** cho kỳ đó không, và nếu có thì
-  nguồn nào thắng? Hôm nay công cụ hiện hai con số cạnh nhau, mỗi con một nhãn
-  — nên câu hỏi này chưa cần trả lời.
-- **`OD-PHB04-B`** — Có tháng 2026 nào chủ dự án muốn coi là "legacy thuần",
-  kể cả khi công cụ đã có số cho tháng đó không? Hôm nay công cụ không giả
-  định: kỳ có nguồn nào thì hiện đúng nguồn đó.
+Bằng chứng lạnh lùng nhất: file `evidence.json` — hồ sơ bằng chứng chính của
+dự án — chứa **0 lần** chuỗi ký tự `"2025"`.
 
-Một điểm cần nói rõ vì nó dễ bị hiểu nhầm: **ranh giới legacy / hiện hành
-không phải là một cái mốc ngày.** Trong toàn bộ bằng chứng của dự án không có
-quyết định nào đặt ra một ngày như vậy cho báo cáo. Cái thật sự tồn tại là
-ranh giới **theo nguồn dữ liệu, tính riêng cho từng kỳ**. Phiên này **không
-bịa ra một ngày** — mốc `2026-09-01` đã có trong dự án là mốc về **giá nhập**,
-và hồ sơ dự án đã ghi rõ "hai cutover, không gộp".
+Nói gọn: đó là **kết luận về công cụ đọc**, bị trình bày nhầm thành **kết
+luận về dữ liệu**. Dữ liệu 2025 vẫn nằm đó trong workbook; công cụ chỉ chưa
+nhìn thấy nó.
+
+---
+
+## 3. `DEC-169` thật ra có nghĩa gì?
+
+Nguyên văn quyết định cũ:
+
+> *"Owner KHÔNG yêu cầu: import Summary 2025; persist; query; display; xây
+> parser cho value-only rows của Summary 2025."*
+
+**"Không yêu cầu" = "chưa cần". Nó KHÔNG phải "không được có".**
+
+Chính `DEC-169` tự gọi mình là một *"làm rõ phạm vi"*, không phải một lệnh
+cấm. Bản triển khai trước đã đọc rộng thành "bị cấm khỏi sản phẩm" — và đó
+là lỗi diễn giải của phiên làm việc, không phải nội dung quyết định.
+
+Chiếu theo bốn khả năng mà chủ dự án nêu:
+
+| | Nghĩa | Đúng? |
+|---|---|---|
+| A | Không được dùng làm dữ liệu kế toán hiện hành | **ĐÚNG** — vẫn giữ |
+| B | Không được dùng làm thước đo để đối chiếu số mới | **ĐÚNG** — vẫn giữ |
+| C | Không đọc được bằng cách phân loại dòng theo công thức | **ĐÚNG** — vẫn giữ |
+| D | Loại khỏi sản phẩm hoàn toàn, kể cả để tham chiếu | **SAI** — đây là chỗ đọc nhầm |
+
+Quyết định mới `DEC-177` sửa đúng điểm `D` và **không** đụng vào `A`, `B`,
+`C`.
+
+---
+
+## 4. Summary 2025 giờ có được hỗ trợ không?
+
+**CÓ — về mặt năng lực. Còn thiếu dữ liệu nguồn.**
+
+Sheet `Summary 2025` đã chuyển từ *"không đọc tới"* sang **`OPTIONAL_IMPORT`**:
+
+- dòng nào công cụ xác định được ý nghĩa → **NHẬP**, dán nhãn
+  `LEGACY_REFERENCE`;
+- dòng nào chưa xác định được → **không đoán**, nhưng cũng **không im lặng
+  bỏ qua**: đếm lại và hiện lên màn hình kèm số dòng cụ thể;
+- dù thế nào cũng **không làm hỏng phần 2026** đang chạy tốt.
+
+Điều cuối cùng quan trọng: mở phạm vi mà làm gãy phần đang chạy thì là một
+bước lùi. Có test riêng khoá điều đó lại.
+
+---
+
+## 5. Chi tiết theo nhân viên 2025 có được hỗ trợ không?
+
+**CÓ — về mặt năng lực, và không phải viết thêm gì cho phần hiển thị.**
+
+Bảng lưu số cũ (`legacy_summary_row`) từ đầu đã lưu theo
+*(năm, tháng, người bán, loại dòng)* với đủ 16 cột — và **không hề gắn với
+năm 2026**. Trang "Nhân viên" cũng vậy: nó không giả định năm nào.
+
+Nghĩa là **ngay khi có dòng 2025 trong kho, trang chi tiết nhân viên phục vụ
+2025 mà không cần sửa một dòng mã nào.** Điều này đã được chứng minh bằng
+test chạy thật, không phải suy đoán.
+
+Với dữ liệu mẫu đang có, chủ dự án trả lời được đúng những câu đã nêu:
+
+- Tháng 01/2025 tổng bán bao nhiêu? → có
+- Nhân viên nào có số trong kỳ? → có (và dòng "Tổng T01" **không** bị nhầm
+  thành một nhân viên)
+- Một nhân viên bán bao nhiêu, DS quy đổi, lợi nhuận lịch sử? → có
+- Target / So target lịch sử? → có, **nếu** ô đó có số trong file
+
+---
+
+## 6. Những chỉ số lịch sử nào có?
+
+Câu trả lời quan trọng: **công cụ không còn trả lời câu này bằng một danh
+sách viết sẵn.** Nó **ĐẾM trên chính dữ liệu đã nhập của từng năm** và hiện
+ra ba trạng thái:
+
+| Trạng thái | Nghĩa |
+|---|---|
+| Có, kèm bằng chứng đã chấp nhận | ô có số, và ý nghĩa chỉ tiêu đã được chốt |
+| Có số, nhưng ý nghĩa chưa chắc | ô có số, nhưng dự án chưa chốt cách hiểu |
+| Không có | cột tồn tại nhưng mọi ô đều trống |
+
+Đây là điểm sửa quan trọng nhất về mặt phương pháp: bản trước **viết cứng**
+"2025 không có X". Bản này **đo** và báo cáo. Nếu workbook thật của chủ dự
+án giàu hơn dữ liệu mẫu, màn hình sẽ tự phản ánh điều đó — không cần ai sửa
+mã.
+
+Với một sheet Summary bất kỳ (2025 hay 2026, cùng 16 cột nên cùng cách đọc),
+những chỉ tiêu dự án đã chốt cách hiểu là: Tổng đơn · Tổng số SP · Tổng bán ·
+DS quy đổi · Tổng lợi nhuận · So tháng trước · Target · So target · Tỉ suất ·
+Lợi nhuận thực nhận.
+
+---
+
+## 7. Chỉ số nào chỉ để tham khảo?
+
+**Tất cả** — nhưng xin đọc kỹ câu này, vì nó khác hẳn câu ở bản trước.
+
+"Chỉ để tham khảo" ở đây có nghĩa: **xem được đầy đủ, nhưng không đem trừ
+với số của công cụ hiện tại để ra phần trăm tăng trưởng.** Nó **KHÔNG** có
+nghĩa là ẩn đi hay không hỗ trợ.
+
+Bản trước đã trộn lẫn hai chuyện này, và đó là một phần của cái sai. **Hiển
+thị** và **so sánh** là hai câu hỏi khác nhau.
+
+Lý do không so được vẫn như cũ, và vẫn đứng vững: báo cáo tay trừ chiết khấu
+khác cách công cụ mới trừ; lợi nhuận cũ dựa trên giá nhập sửa tay; DS quy
+đổi cũ có kỳ cộng thiếu người bán. Đây là những khác biệt **đã được chốt từ
+trước**, không phải lỗi mới.
+
+---
+
+## 8. Chỉ số nào không đủ bằng chứng?
+
+Theo hợp đồng, các cột lương/thưởng (Thưởng, Ngày công, Lương cơ bản, Phụ
+cấp, Tổng lương) và Tỉ lệ tồn kho vẫn nằm ngoài phiên bản này — cột "Nơi
+nhập" không tồn tại trong file ERP, còn lương/thưởng thuộc luật nhân sự đã
+hoãn.
+
+Ngoài ra, với **từng năm cụ thể**, chỉ tiêu nào mà mọi ô đều trống sẽ hiện
+**dấu gạch `—`**, kèm câu giải thích. **Không bao giờ hiện số 0.** Một số 0
+bịa ra nguy hiểm hơn một ô trống: ô trống thì ai cũng biết là thiếu, còn số
+0 trông như một sự thật.
+
+---
+
+## 9. Chủ dự án xem 2025 thế nào?
+
+Tab **"Lịch sử"**, đi từ trên xuống:
+
+1. **Chuỗi doanh số tháng của năm trước** — 12 ô lấy từ DataChart.
+2. **Năm lịch sử đã nhập** — với mỗi năm (2025, 2026…):
+   - những tháng có số, **mỗi tháng là một liên kết bấm được**;
+   - có chi tiết theo nhân viên hay không, và gồm những ai;
+   - bảng tình trạng từng chỉ tiêu, kèm số ô thực sự có giá trị;
+   - nếu còn dòng chưa đọc được → **nói thẳng còn bao nhiêu dòng, ở dòng số
+     mấy**.
+3. **Đi tới kỳ** — mỗi kỳ dán nhãn `SỐ CŨ` / `SỐ MỚI` / cả hai.
+4. **So số cũ với số mới ở đâu?** — bảng phán quyết từng cặp kèm lý do.
+5. **Chỉ tiêu lịch sử nào được hỗ trợ?** — hợp đồng in nguyên văn.
+
+Luồng chủ dự án yêu cầu:
+
+```text
+Lịch sử → chọn năm → bấm một tháng → bảng người bán × chỉ tiêu của tháng đó
+```
+
+Bước cuối dùng lại trang "Nhân viên" đã có — không dựng trang mới, không tái
+tạo các tab của bảng tính cũ.
+
+Mọi con số vẫn đeo nhãn `LEGACY` và có dòng chữ nói rõ đây là **số liệu tham
+chiếu lịch sử**, không phải số do công cụ hiện tại tính.
+
+---
+
+## 10. Việc này có làm đổi dữ liệu hiện tại không?
+
+**Không.** Bốn lý do, và lần này có thêm bằng chứng đo được:
+
+1. **Không có bảng mới, không nâng cấp cơ sở dữ liệu, không thêm cột.** Kho
+   cũ vốn đã lưu được cả số theo kỳ lẫn số theo nhân viên cho mọi năm.
+2. **Hai kho tách biệt**, và cơ sở dữ liệu tự ép nhãn `LEGACY_REFERENCE` ở
+   tầng cấu trúc.
+3. **Đã đo:** nạp một bản legacy rồi tính lại toàn bộ kỳ hiện hành —
+   coverage giá nhập, doanh thu, số dòng **giống hệt trước khi nạp**.
+4. **Trang "Lịch sử" không ghi gì**: mở trang hai lần, đếm dòng của **mọi
+   bảng** không đổi một đơn vị.
+
+Những thứ không bị đụng tới: dòng hàng kế toán · Product Identity · Tracking
+· lịch sử giá nhập · các lần chủ dự án sửa tay ở PHB-03 · gán nhân viên ·
+phân loại Gia dụng · snapshot đã lưu.
+
+Một điều nữa cần khẳng định vì nó là hàng rào an toàn quan trọng nhất của
+bản nhập: **hàng rào chống bỏ sót dữ liệu 2026 KHÔNG bị nới lỏng.** Với
+sheet 2026, một dòng có số mà công cụ không hiểu vẫn làm cả lần nhập dừng
+lại và báo lỗi. Chỉ với sheet lịch sử, việc chưa đọc được mới là *"đếm và
+báo"* thay vì *"dừng"* — vì thiếu một dòng 2026 nghĩa là số hiện tại sai,
+còn thiếu một dòng lịch sử nghĩa là còn một phần chưa đọc được.
+
+---
+
+## 11. Test nào chứng minh?
+
+```text
+Test riêng của PHB-04   tests/test_phb04_legacy_reference.py   50 passed
+Toàn bộ hệ thống        python -m pytest -q                    2187 passed, 11 skipped
+Test golden             4 file golden                          74 passed, 2 skipped (KHÔNG ĐỔI)
+```
+
+Mười câu hỏi của chủ dự án được khoá bằng mười test đặt tên theo đúng câu
+hỏi: tổng bán một tháng 2025 · các chỉ tiêu Summary khác · nhân viên nào có
+số · chỉ tiêu của một nhân viên · mọi giá trị vẫn là `LEGACY_REFERENCE` ·
+không nhiễm coverage hiện hành · đi được từ Summary 2025 sang chi tiết nhân
+viên · chỉ tiêu thiếu hiện `—` chứ không phải 0 · tính sẵn có được ĐO chứ
+không viết cứng · không sinh phần trăm so hai nguồn.
+
+**10 test cũ đã được sửa** vì chúng khoá phạm vi cũ của `DEC-169` (ví dụ:
+"Summary 2025 không bao giờ được lưu"). Chúng được **cập nhật, không bị
+xoá**, và danh sách đầy đủ nằm ở `docs/tasks/PHB-04-legacy-reference-v1.md`
+mục 8b. **Không hàng rào an toàn nào bị hạ** — ngược lại, có thêm một test
+mới khẳng định hàng rào 2026 vẫn nổ đúng lúc.
+
+---
+
+## 12. Còn Owner decision nào cần không?
+
+**Không có quyết định nghiệp vụ nào đang chặn.** `DEC-177` đã đóng câu hỏi
+phạm vi. Hai câu hỏi mở rộng vẫn ghi lại, không chặn gì:
+
+- **`OD-PHB04-A`** — kỳ có **cả** số cũ **và** số mới: có bao giờ cần một
+  con số duy nhất không, và nguồn nào thắng?
+- **`OD-PHB04-B`** — có tháng 2026 nào muốn coi là "legacy thuần" không?
+
+Nhắc lại một điểm dễ hiểu nhầm: **ranh giới legacy / hiện hành không phải
+một cái mốc ngày.** Trong toàn bộ hồ sơ dự án không có quyết định nào đặt ra
+một ngày như vậy cho báo cáo. Cái thật sự tồn tại là ranh giới **theo nguồn
+dữ liệu, tính riêng từng kỳ**. Phiên này không bịa ra ngày nào — mốc
+`2026-09-01` đã có là mốc về **giá nhập**, và hồ sơ đã ghi rõ *"hai cutover,
+không gộp"*.
+
+---
+
+## 13. Cái duy nhất còn thiếu: nội dung thật của Summary 2025
+
+```text
+NEED_OWNER_SOURCE = nội dung thật của sheet `Summary 2025`
+```
+
+**Năng lực đã sẵn sàng và đã có test. Dữ liệu thì chưa có trong repo.**
+
+Workbook `Báo cáo Kinh doanh 2026.xlsx` **không** được lưu trong kho mã
+(đúng như thiết kế: nó chứa tên, số điện thoại và địa chỉ khách hàng), và
+không có trên máy chạy phiên này. Vì vậy nội dung 99 dòng của Summary 2025
+chưa từng được bất kỳ hồ sơ bằng chứng nào của dự án ghi lại.
+
+Chủ dự án cần cấp **một trong hai** (không cần cả hai):
+
+**Cách 1 — gửi workbook thật.** Nếu Summary 2025 còn giữ công thức, công cụ
+đọc được **ngay**, không phải sửa mã. Đây là đường ngắn nhất.
+
+**Cách 2 — nếu sheet đó thật sự không còn công thức nào:** cần **nội dung
+cột nhãn (cột A/B) của 99 dòng** — tức mỗi dòng ghi chữ gì: "Mr Vinh",
+"Tổng T01", v.v. Có danh sách đó là dựng được cách phân loại dòng theo nhãn.
+
+**Vì sao không tự đoán ngay bây giờ.** Chưa ai trong phiên này nhìn thấy
+cách sheet đó ghi nhãn. Viết luật đọc cho một sheet chưa từng thấy là đoán —
+và đoán sai một dòng tổng thành một người bán sẽ dựng ra một "nhân viên"
+không có thật, làm sai lệch đúng loại số mà chủ dự án dùng để đánh giá người
+thật. Vì vậy công cụ nói thẳng còn bao nhiêu dòng chưa đọc được, thay vì
+đoán bừa.
+
+Trong lúc chờ, hành vi trên workbook thật là: **2026 nhập bình thường**,
+phần Summary 2025 báo rõ còn bao nhiêu dòng chưa đọc được và ở dòng số mấy.
 
 ---
 
 ## 14. Trạng thái PHB-04
 
 ```text
-PHB_04 = IMPLEMENTED_AWAITING_REVIEW
+PHB_04 = IMPLEMENTED_AWAITING_REVIEW   (phần năng lực — đã xong, đã có bằng chứng)
+       + OWNER_SOURCE_REQUIRED         (phần nội dung Summary 2025 — mục 13)
 ```
 
-Phần triển khai đã xong và đã có bằng chứng. Phần còn thiếu duy nhất là
-**một lượt review độc lập** — do một phiên khác thực hiện, không phải phiên đã
-viết mã. Theo quy tắc của dự án, chưa có lượt đó thì **chưa được gọi là
-`DONE`**.
+Phần triển khai đã xong. Còn thiếu **một lượt review độc lập** (do phiên
+khác thực hiện) và **nguồn dữ liệu 2025**. Chưa có review độc lập thì chưa
+được gọi là `DONE`.
 
 ---
 
 ## 15. Bước tiếp theo
 
-1. **Review độc lập PHB-04** — kiểm lại hợp đồng ngữ nghĩa (đặc biệt: kết luận
-   "không chỉ tiêu nào so được" có đúng là suy ra từ bằng chứng không), kiểm
-   phần tách biệt legacy/hiện hành, và kiểm 35 test mới. Đủ bằng chứng ⟹
-   `PHB-04 = DONE`.
-2. Sau đó: **PHB-05 — Target**, theo phần ý định nghiệp vụ đã freeze ở
-   `DEC-PHB02-06`.
-3. Việc dọn dẹp R1/R2/R3 của PHB-03 vẫn nằm ở nhánh phụ không chặn, đúng như
-   đã quyết định.
+1. **Chủ dự án cấp nguồn 2025** theo mục 13 — workbook thật, hoặc danh sách
+   nhãn cột A/B của Summary 2025.
+2. **Review độc lập PHB-04** — kiểm lại cách đọc `DEC-169`, hợp đồng chỉ
+   tiêu, phần tách biệt legacy/hiện hành, và 50 test.
+3. Sau đó: **PHB-05 — Target**.
+
+Việc dọn dẹp R1/R2/R3 của PHB-03 vẫn ở nhánh phụ không chặn.

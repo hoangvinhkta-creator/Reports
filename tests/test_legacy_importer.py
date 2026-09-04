@@ -241,8 +241,11 @@ def test_sheet_visibility_state_is_recorded_as_imported(workbook):
     states = {item["sheet_name"]: item["state"] for item in workbook.sheets_imported}
     assert states["Summary 2026"] == "visible"
     assert states["DataChart 2026"] == "visible"
-    # Sheet REFERENCE_ONLY không được ghi là đã nhập (DEC-169).
-    assert "Summary 2025" not in states
+    # `DEC-177`: sheet OPTIONAL_IMPORT ĐƯỢC ghi vào bản ghi import, kèm
+    # trạng thái ẩn/hiện thật của nó. Một sheet bị Excel để "hidden" vẫn là
+    # dữ liệu của chủ dự án — giấu nó khỏi bản ghi nguồn gốc là làm mất dấu
+    # vết, không phải giữ phạm vi.
+    assert states["Summary 2025"] == "hidden"
 
 
 def test_fingerprint_is_stable_for_the_same_bytes(legacy_workbook_path, tmp_path):
