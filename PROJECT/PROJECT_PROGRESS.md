@@ -1,5 +1,125 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-03 = PRODUCTION_VERIFICATION_INCOMPLETE (AUTHORITATIVE, 2026-09-04, S118)
+
+`PHB-03` đã qua **Controlled Integration** vào nhánh canonical và **sẵn sàng
+deploy**, nhưng **CHƯA `DONE`**: toàn bộ cửa E2E production yêu cầu tác nhân
+Owner (phiên KHÔNG có egress tới `reports.tinphatcrm.com`/`api.render.com` —
+đúng lớp policy denial đã ghi ở `S093`/`S110`/`S112`). Báo cáo đầy đủ cho Owner:
+`docs/reviews/PHB-03-production-verification-e2e.md`.
+
+Bằng chứng review/audit nay nằm trên canonical (docs-only, gom từ các nhánh
+khác): `docs/reviews/PHB-03-bounded-semantics-independent-re-review.md` ·
+`docs/reviews/PHB-03-import-lifecycle-persistence-audit.md` ·
+`docs/reviews/PHB-03-pending-reason-business-classification.md`.
+
+```text
+TARGET_GATE                = PASS (HEAD = d066d227da852b17a57d4a8492fa79c7fc7b2aff,
+                             worktree CLEAN)
+CANDIDATE_SHA              = d066d227da852b17a57d4a8492fa79c7fc7b2aff
+CANDIDATE_UNCHANGED        = PASS — diff mã chạy = 0 so với nhánh re-review
+                             (5bdd838) và nhánh audit (c02d42a)
+
+PRODUCTION_BEFORE_SHA      = NOT_OBSERVABLE_FROM_SESSION. Bản Owner nghiệm thu
+                             gần nhất = 1a011ee (S111); canonical trước phiên =
+                             eaa3fde; diff mã chạy 1a011ee↔eaa3fde = 0 (ba commit
+                             ở giữa docs-only) ⟹ production đang chạy nội dung
+                             tương đương eaa3fde.
+ROLLBACK_SHA               = eaa3fdeb4ffdfd2d5772314ac24cf8a1273cc67e
+PRODUCTION_DEPLOYED_SHA    = NOT_DEPLOYED_BY_SESSION
+
+CANONICAL_INTEGRATION      = DONE — fast-forward (không force · không rewrite ·
+                             không squash · không merge commit)
+PRODUCTION_CODE_DELTA      = 0 — app/ tools/ config/ Dockerfile render.yaml
+                             alembic.ini pyproject.toml identical với d066d22;
+                             phần thêm CHỈ là docs (§6 giữ nguyên)
+
+FULL_TESTS                 = PASS — 2136 passed, 11 skipped (88.87s) — KHỚP baseline
+GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHỚP baseline
+PRODUCTION_PATH_TESTS      = PASS — 101 passed — KHỚP baseline
+MIGRATION_ROLLBACK_SAFETY  = PASS — 3 passed (round-trip qua alembic thật)
+
+ALEMBIC_CHAIN              = 0001 → 0002 → 0003 → 0004 (một head duy nhất)
+PRODUCTION_DB_CURRENT      = 0002_snapshots (canonical eaa3fde chỉ có 0001+0002)
+MIGRATION_REQUIRED         = HAI bước: 0003_business + 0004_employee_attribution.
+                             Chỉ thị PHB-03 chỉ nêu 0004 — 0003 cũng thuộc PHB-03
+                             và cũng chưa có trên production. Ghi lại cho đúng.
+MIGRATION_DRY_RUN          = PASS — 0002_snapshots → 0004_employee_attribution:
+                             11 bảng → 14 bảng · DROPPED [] · ALTERED [] ·
+                             ADDED [kpi_purchase_price_override,
+                             product_group_classification,
+                             employee_attribution_override]
+MIGRATION (production)     = NOT_RUN — chạy tự động lúc container khởi động
+                             (Dockerfile CMD `alembic upgrade head && gunicorn`),
+                             fail-closed: migrate hỏng ⟹ service KHÔNG lên
+APP_BOOT_SMOKE             = PASS (cục bộ, trên DB đã migrate) — / · /kinh-doanh ·
+                             /kinh-doanh/gia-nhap · /kinh-doanh/nhan-vien ·
+                             /du-lieu → 200; /kinh-doanh/gia-dung → 404 ĐÚNG
+                             THIẾT KẾ (chưa chọn nhân viên Nội thành)
+
+PRODUCTION_FINGERPRINT     = NOT_VERIFIABLE_FROM_SESSION
+FINGERPRINT_MECHANISM      = thẻ nav "Kinh doanh" trong layout.html — VẮNG ở
+                             eaa3fde, CÓ ở d066d22. Owner kiểm bằng mắt, không
+                             cần dev tools. KHÔNG chấp nhận "Render báo Live"
+                             làm bằng chứng.
+
+E2E1_PRICE_COVERAGE        = NOT_EXECUTED_NO_SESSION_EGRESS
+E2E2_MANUAL_PP             = NOT_EXECUTED_NO_SESSION_EGRESS (và KHÔNG được đoán
+                             giá vốn kể cả khi có egress)
+E2E2B_CUMULATIVE_REUPLOAD  = NOT_APPLICABLE_NO_SAFE_REAL_CASE — chấp nhận bằng
+                             chứng cấu trúc của import lifecycle audit
+                             (OWNER_PRICE PRESERVED · MANUAL_PROVENANCE PRESERVED ·
+                             PROFIT CORRECT · NO_DUPLICATE_REVENUE YES)
+E2E3_UNKNOWN_EMPLOYEE      = NOT_EXECUTED_NO_SESSION_EGRESS
+E2E4_QUANTITY_ZERO         = NOT_EXECUTED_NO_SESSION_EGRESS
+E2E5_NEGATIVE_QUANTITY     = NOT_EXECUTED_NO_SESSION_EGRESS
+E2E_CROSS_MONTH            = NOT_EXECUTED_NO_SESSION_EGRESS (audit: CROSS_MONTH_MOM
+                             = PASS)
+LATEST_SNAPSHOT_NOT_SEEN       = NOT_MEASURED (chưa có upload thật)
+LATEST_SNAPSHOT_SOURCE_CHANGED = NOT_MEASURED
+UNEXPLAINED_NOT_SEEN           = NOT_MEASURED
+OWNER_DATA_PRESERVED       = NOT_VERIFIED_ON_PRODUCTION — nhưng migration
+                             ADDITIVE thuần (0 drop · 0 alter) ⟹ không có đường
+                             cơ chế nào làm mất dữ liệu Owner sẵn có
+
+EGRESS_EVIDENCE            = reports.tinphatcrm.com:443 → CONNECT tunnel failed,
+                             response 403 · api.render.com:443 ·
+                             dashboard.render.com:443 · price.tinphatcrm.com:443
+                             → không kết nối được
+
+GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state PASS ·
+                             validate_evidence PASS (155 REQUIRED) ·
+                             validate_task_completion PASS (13 DONE task) ·
+                             validate_reference_integrity FAIL với ĐÚNG 3 reference
+                             REM-T06 đã biết (baseline không đổi)
+
+NEW_PRODUCTION_BLOCKERS    = NONE
+NON_BLOCKING_FINDINGS      = F-S118-01 — PROJECT_PROGRESS.md và báo cáo bản sửa
+                             trỏ tới docs/reviews/PHB-03-pending-reason-business-
+                             classification.md vốn không có trên canonical ⟹
+                             reference integrity 5 thay vì baseline 3. Phân loại F
+                             (pre-existing, non-blocking, docs-only). ĐÃ SỬA bằng
+                             cách gom file đó (c597f5a) về canonical; validator
+                             trở lại đúng 3.
+OWNER_DECISIONS_REQUIRED   = NONE
+OD_A / OD_B                = R1 · R2 · R3 GIỮ HOÃN — không implement trong phiên
+OD_C                       = GIỮ NGUYÊN ngữ nghĩa PRA-002: KHÔNG fuzzy-merge,
+                             KHÔNG tự đối soát khi đổi tên hàng / đổi số BH;
+                             NOT_SEEN > 0 ⟹ phải soi trước khi duyệt tổng
+SCOPE_DRIFT                = NO
+
+PHB03_STATUS               = PRODUCTION_VERIFICATION_INCOMPLETE
+NEXT_VERTICAL_ACTION       = Owner deploy d066d22 trên canonical + chạy 8 bước
+                             kiểm ở mục 17 của docs/reviews/PHB-03-production-
+                             verification-e2e.md. Đủ bằng chứng ⟹ PHB-03 = DONE
+                             ⟹ PHB-04 Legacy Reference V1.
+```
+
+Khối canonical `PHB-03 = REPAIRED_AWAITING_RE_REVIEW` (S117) ngay bên dưới được
+**GIỮ NGUYÊN như bản ghi lịch sử đúng tại thời điểm của nó** — kể cả dòng
+`NEXT_VERTICAL_ACTION = Independent Re-Review; KHÔNG deploy.`, vốn đúng khi đó.
+Khi nó mâu thuẫn với mục này về trạng thái *hiện tại*, mục này đúng.
+
 ## CANONICAL CURRENT STATE — PHB-03 = REPAIRED_AWAITING_RE_REVIEW (AUTHORITATIVE, 2026-09-04, S117)
 
 `PHB-03` đã được **sửa có ranh giới** theo Owner Decisions `OD-1`…`OD-6`, trên
