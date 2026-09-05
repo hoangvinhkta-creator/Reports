@@ -9,6 +9,20 @@
 <span class="tag tag-pipeline" title="{{ PIPELINE_BADGE_TITLE }}">{{ PIPELINE_BADGE }}</span>
 {%- endmacro %}
 
+{# `DEC-185` §F-03 — dấu SỔ THÔ.
+
+   Các trang này đọc thẳng sổ kế toán đã nạp, nên chúng KHÔNG trừ những dòng
+   Owner đã loại khỏi báo cáo. Chúng vẫn phải tồn tại (bằng chứng kế toán
+   không được xoá — `§31`/`§17`), và chúng đã rời thanh tab chính. Điều còn
+   thiếu là chúng TỰ NÓI RA điều đó, thay vì để người đọc so hai con số
+   "doanh thu" trên hai màn hình rồi tự kết luận một trong hai đang sai. #}
+{% macro raw_surface_note() -%}
+<p class="insight raw-surface" data-metric="raw-surface">
+  <span class="tag tag-raw" title="{{ RAW_SURFACE_TITLE }}">{{ RAW_SURFACE_BADGE }}</span>
+  {{ RAW_SURFACE_NOTE }}
+</p>
+{%- endmacro %}
+
 {% macro source_note() -%}
 <p class="insight">
   {{ pipeline_badge() }} Số do Reports tính từ sổ kế toán đã nạp.

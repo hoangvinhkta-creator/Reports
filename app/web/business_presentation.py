@@ -32,6 +32,7 @@ from app.web.analytics_presentation import (
     period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
+from app.web import revenue_timeline
 
 ORIGIN_BADGE = "SỐ MỚI"
 
@@ -750,8 +751,121 @@ def gia_dung_rows(products: list[dict]) -> list[dict]:
     ]
 
 
+# --------------------------------------------------------------------------
+# `DEC-185` — MỘT biểu đồ doanh thu theo thời gian.
+#
+# Tầng này KHÔNG tính doanh thu và KHÔNG quyết định điểm nào thuộc mốc nào —
+# `revenue_timeline` đã làm xong cả hai. Việc ở đây đúng bằng: đổi số sang
+# chữ, và tính CHIỀU CAO tương đối của từng cột.
+#
+# Chiều cao là một phép chia trình bày, không phải một chỉ tiêu: nó chuẩn hoá
+# theo cột LỚN NHẤT đang hiện, nên hai lần tải trang với hai mức gộp khác
+# nhau cho hai thang khác nhau — đúng như hai biểu đồ khác nhau phải thế.
+# Chính vì vậy nó nằm ở tầng trình bày chứ không ở `revenue_timeline`: một
+# con số chỉ có nghĩa bên trong MỘT khung nhìn thì không phải dữ liệu nghiệp
+# vụ.
+# --------------------------------------------------------------------------
+
+CHART_EMPTY_NOTE = (
+    "Chưa có kỳ nào có doanh thu để vẽ. Nạp sổ ở tab Dữ liệu, hoặc nhập bản "
+    "báo cáo cũ để thấy phần lịch sử."
+)
+
+CHART_PARTIAL_NOTE = (
+    "Mốc có dấu ∗ được dựng từ ít tháng hơn số tháng nó bao trùm — bằng chứng "
+    "chỉ có tới đó, và hệ thống không cộng thêm gì cho đủ."
+)
+
+CHART_UNDATED_NOTE = (
+    "dòng chưa có ngày bán, nên không nằm trong mốc nào của biểu đồ"
+)
+
+#: Chiều cao tối thiểu của một cột KHÁC 0, tính bằng phần trăm. Một cột nhỏ
+#: xíu vẫn phải nhìn thấy được: vẽ nó cao 0 % sẽ đọc thành "tháng đó không
+#: bán được gì", một câu khác hẳn "tháng đó bán được ít".
+_MIN_BAR_PERCENT = 2
+
+
+def revenue_chart(
+    points, *, granularity: str, has_legacy_months: bool = False,
+    undated: int = 0,
+) -> dict:
+    """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp."""
+    peak = max((point.revenue for point in points), default=Decimal(0))
+    bars = []
+    for point in points:
+        if peak > 0:
+            share = (point.revenue / peak * Decimal(100)).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP)
+            height = max(int(share), _MIN_BAR_PERCENT if point.revenue > 0 else 0)
+        else:
+            height = 0
+        bars.append({
+            "key": point.key,
+            "label": point.label,
+            "height": height,
+            # Giá trị MÁY đọc, không định dạng: `data-revenue` là chỗ test
+            # và công cụ ngoài đọc con số, và một dấu chấm phân nhóm hàng
+            # nghìn trong đó buộc mỗi bên đọc phải tự gỡ định dạng vi-VN ra
+            # — một phép biến đổi mà một dòng có phần thập phân sẽ làm hỏng.
+            "revenue_raw": format(point.revenue, "f"),
+            "revenue": format_number(point.revenue),
+            "revenue_kvnd": _thousand_vnd(point.revenue),
+            "legacy": point.is_legacy,
+            "partial": point.partial,
+            "covered_months": point.covered_months,
+            "span_months": point.span_months,
+            "title": _chart_bar_title(point),
+        })
+    day_level = granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
+    return {
+        "granularity": granularity,
+        "options": [
+            {"key": key, "label": label, "on": key == granularity}
+            for key, label in revenue_timeline.GRANULARITIES
+        ],
+        "bars": bars,
+        "empty": not bars,
+        "empty_note": CHART_EMPTY_NOTE,
+        "note": revenue_timeline.CHART_NOTE,
+        "total": format_number(revenue_timeline.totals_of(points)),
+        "total_kvnd": _thousand_vnd(revenue_timeline.totals_of(points)),
+        "has_partial": any(bar["partial"] for bar in bars),
+        "partial_note": CHART_PARTIAL_NOTE,
+        # Nói ra chỗ biểu đồ KHÔNG biết, thay vì để một khoảng trống im lặng
+        # trông như "tháng đó không bán được gì" (`§CHART-10`).
+        "no_daily_legacy_note": (
+            revenue_timeline.NO_DAILY_LEGACY_NOTE
+            if day_level and has_legacy_months
+            and not any(bar["legacy"] for bar in bars)
+            else None),
+        "undated": undated,
+        "undated_note": CHART_UNDATED_NOTE,
+    }
+
+
+def _chart_bar_title(point) -> str:
+    """Câu giải thích của MỘT cột — nơi duy nhất origin được nói thành lời.
+
+    Owner cấm một bộ chọn nguồn và cấm nhãn "Số cũ"/"Số mới" trên biểu đồ:
+    người đọc đang hỏi một câu về thời gian kinh doanh. Nhưng `DEC-166 E` bắt
+    LUÔN phân biệt được hai origin. Cách thoả cả hai là ở đây — trong lời giải
+    thích của đúng cái cột đó, bằng ngôn ngữ THỜI GIAN ("bản ghi lịch sử"),
+    không bằng tên hệ thống, và không phải một cái nút bấm được.
+    """
+    parts = [f"{point.label}: {format_number(point.revenue)} đồng"]
+    if point.is_legacy:
+        parts.append(revenue_timeline.LEGACY_POINT_NOTE)
+    if point.partial:
+        parts.append(
+            f"Dựng từ {point.covered_months}/{point.span_months} tháng có "
+            "bằng chứng.")
+    return " ".join(parts)
+
+
 __all__ = [
-    "ALL_DATA_LABEL", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+    "ALL_DATA_LABEL", "CHART_EMPTY_NOTE", "CHART_PARTIAL_NOTE",
+    "CHART_UNDATED_NOTE", "revenue_chart", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
     "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
     "DISCOUNT_PROVENANCE", "DISCOUNT_PROVENANCE_LABEL", "DISCOUNT_ROW_LABEL",
     "DISCOUNT_ROW_NOTE",

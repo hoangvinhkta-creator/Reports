@@ -46,6 +46,60 @@
   {% endif %}
 </div>
 
+{# `DEC-185` — MỘT biểu đồ doanh thu theo thời gian, năm mức gộp.
+
+   Ý nghĩa hữu ích của tab "Doanh số ngày" cũ nằm ở đây, và chỉ ở đây: cùng
+   một biểu đồ đổi mức gộp, KHÔNG phải năm biểu đồ cạnh nhau. Các nút là
+   đường dẫn chứ không phải JavaScript — mỗi mức gộp có URL riêng, mở lại
+   được, gửi cho người khác được, và không cần một dòng script nào.
+
+   Không có bộ chọn nguồn và không có nhãn Số cũ/Số mới ở đây: người đọc đang
+   hỏi một câu về THỜI GIAN kinh doanh. Chiều origin không mất — nó nằm trong
+   lời giải thích của đúng cái cột đến từ bản ghi lịch sử. #}
+<div class="module" id="bieu-do-doanh-thu">
+  <h2>Doanh thu theo thời gian
+    <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span></h2>
+
+  <nav class="filter-row chart-gran">
+    {% for option in chart.options %}
+    <a class="ghost btn-mini {{ 'on' if option.on }}"
+       data-gran="{{ option.key }}"
+       href="{{ url_for('business_summary', ky=selected_period, muc=option.key) }}#bieu-do-doanh-thu"
+       >{{ option.label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if chart.empty %}
+  <p class="empty" data-metric="chart-empty">{{ chart.empty_note }}</p>
+  {% else %}
+  <div class="tp-scroll">
+    <div class="rev-chart" data-metric="chart" data-gran="{{ chart.granularity }}">
+      {% for bar in chart.bars %}
+      <div class="rev-bar{{ ' rev-bar-legacy' if bar.legacy }}" title="{{ bar.title }}"
+           data-metric="chart-bar" data-key="{{ bar.key }}"
+           data-origin="{{ 'LEGACY_REFERENCE' if bar.legacy else 'PIPELINE_GENERATED' }}"
+           data-revenue="{{ bar.revenue_raw }}">
+        <span class="rev-bar-value">{{ bar.revenue_kvnd }}</span>
+        <span class="rev-bar-fill" style="height: {{ bar.height }}%"></span>
+        <span class="rev-bar-label">{{ bar.label }}{% if bar.partial %} ∗{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="insight" data-metric="chart-note">{{ chart.note }}</p>
+  {% if chart.has_partial %}
+  <p class="insight" data-metric="chart-partial">{{ chart.partial_note }}</p>
+  {% endif %}
+  {% if chart.no_daily_legacy_note %}
+  <p class="insight" data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>
+  {% endif %}
+  {% if chart.undated %}
+  <p class="insight" data-metric="chart-undated">
+    Có <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}.</p>
+  {% endif %}
+  {% endif %}
+</div>
+
 {# Đường dẫn của khối coverage đi thẳng tới ĐÚNG danh sách mà câu ngay trên
    nó vừa nói: còn thiếu giá ⟹ danh sách dòng thiếu giá; đã đủ ⟹ bảng kê đầy
    đủ. Trước S120 nó luôn mở bộ lọc "chưa có giá nhập", nên khi coverage đã

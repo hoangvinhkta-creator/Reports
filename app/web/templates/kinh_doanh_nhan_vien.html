@@ -198,6 +198,77 @@
 <div class="module">
   <h2>Bảng kê {{ sheet.period_label }}</h2>
 
+  {# `DEC-185` §13/§PI-10 — ĐÚNG MỘT dòng cảnh báo, ở đầu chính sheet này.
+
+     Không có danh sách dài, không có khối thứ hai, không có trang "Mã chưa
+     nhận diện". Bấm vào cảnh báo là nhảy tới khối BH đầu tiên có mã chưa
+     phân loại — cùng một bảng, không rời màn hình (`§PI-11`). #}
+  {% if identity_warning %}
+  <p class="error identity-warning" data-metric="identity-warning"
+     data-count="{{ identity_warning.count }}">
+    ⚠ <a href="#bh-{{ identity_warning.orders[0] }}"
+         data-metric="identity-warning-link">{{ identity_warning.text }}</a>
+  </p>
+  {% endif %}
+
+  {# `§PI-04` — bảng chọn mặt hàng của ĐÚNG MỘT dòng. Nó sống ngay trong
+     module bảng kê: mở nó KHÔNG rời khỏi sheet, và đóng nó là bấm HUỶ. #}
+  {% if identify %}
+  <div class="module confirm-box" id="phan-loai" data-metric="identify-panel">
+    <h2>Phân loại mặt hàng</h2>
+    <p class="insight" data-metric="identify-raw">
+      Tên hàng trên sổ: <strong>{{ identify.product_raw }}</strong></p>
+    {% if identify.shared_lines > 1 %}
+    <p class="insight" data-metric="identify-scope">
+      Xác nhận này áp cho <strong>{{ identify.shared_lines }}</strong> dòng
+      của kỳ dùng chung tên hàng đó ({{ identify.shared_orders|join(', ') }}).</p>
+    {% endif %}
+
+    {% if not identify.tracking_available %}
+    <p class="error" data-metric="identify-no-tracking">{{ identify.no_tracking_note }}</p>
+    {% else %}
+    <form class="filter-row" method="get"
+          action="{{ url_for('business_employee') }}">
+      <input type="hidden" name="ky" value="{{ selected_period }}">
+      <input type="hidden" name="sheet" value="{{ sheet.key }}">
+      <input type="hidden" name="phan-loai" value="1">
+      <input type="hidden" name="order_key" value="{{ identify.order_key }}">
+      <input type="hidden" name="product_key" value="{{ identify.product_key }}">
+      <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
+      <input type="text" name="tim" value="{{ identify.query }}"
+             data-metric="identify-search" aria-label="Tìm mặt hàng Tracking"
+             placeholder="Tìm trong danh mục Tracking">
+      <button class="ghost btn-mini" type="submit">TÌM</button>
+    </form>
+
+    {% if not identify.candidates %}
+    <p class="empty" data-metric="identify-empty">
+      Không có mặt hàng nào của Tracking khớp. Thử một từ khoá khác.</p>
+    {% else %}
+    <form class="filter-row" method="post"
+          action="{{ url_for('business_confirm_identity') }}">
+      <input type="hidden" name="ky" value="{{ selected_period }}">
+      <input type="hidden" name="sheet" value="{{ sheet.key }}">
+      <input type="hidden" name="order_key" value="{{ identify.order_key }}">
+      <input type="hidden" name="product_key" value="{{ identify.product_key }}">
+      <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
+      <select name="ma_tracking" data-metric="identify-select"
+              aria-label="Mặt hàng chuẩn của Tracking">
+        {% for item in identify.candidates %}
+        <option value="{{ item.code }}">{{ item.label }}</option>
+        {% endfor %}
+      </select>
+      <button class="act" type="submit" data-metric="identify-confirm">XÁC NHẬN</button>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    <p><a class="ghost btn-mini" data-metric="identify-cancel"
+          href="{{ url_for('business_employee', ky=selected_period,
+                   sheet=sheet.key) }}">HUỶ</a></p>
+  </div>
+  {% endif %}
+
   {% if not groups %}
   <p class="empty" data-metric="no-rows">{{ EMPTY_PERIOD_NOTE }}</p>
   {% else %}
@@ -212,8 +283,10 @@
     {# Hàng ĐẦU của một BH mang ngày, mã đơn, khách hàng và MỘT nút sửa
        (`§27`). Các dòng hàng tiếp theo của cùng BH để trống bốn ô đó —
        đúng cách sổ kế toán trình bày một đơn nhiều dòng. #}
-    <tr class="bh-head shade-{{ group.shade }}{{ ' bh-open' if open }}"
+    <tr class="bh-head shade-{{ group.shade }}{{ ' bh-open' if open }}{{ ' bh-unresolved' if group.unresolved_identity }}"
+        id="bh-{{ group.order_key }}"
         data-metric="bh-head" data-order="{{ group.order_key }}"
+        {% if group.unresolved_identity %}data-unresolved-identity="1"{% endif %}
         data-shade="{{ group.shade }}">
       <td data-metric="bh-date">{{ group.date_text }}</td>
       <td class="code" data-metric="bh-order">{{ group.order_key }}
@@ -275,8 +348,40 @@
       <td></td>
       <td></td>
       <td></td>
-      <td data-metric="line-product">
-        {%- if row.synthetic %}↳ {% endif -%}{{ row.product_raw }}</td>
+      {# `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện nằm NGAY trong ô mã
+         hàng, không ở một trang khác và không ở một khối khác.
+
+         "Chưa phân loại" là một đường dẫn: bấm vào chính nó mở bảng chọn mặt
+         hàng ngay dưới dòng này. "Thiếu giá" KHÔNG phải đường dẫn — dòng đó
+         đã nhận diện xong, việc còn lại là giá, và giá sửa ở ô Giá nhập bên
+         cạnh chứ không ở đây. Hai trạng thái vì thế trông khác nhau và HÀNH
+         XỬ khác nhau, đúng `§PI-03`. #}
+      <td data-metric="line-product"
+          {% if row.identity_state %}data-identity="{{ row.identity_state }}"{% endif %}>
+        {%- if row.synthetic %}↳ {% endif -%}
+        {%- if row.can_identify -%}
+        <a class="identity-open" data-metric="identity-open"
+           title="{{ row.identity_title }}"
+           href="{{ url_for('business_employee', ky=selected_period,
+                    sheet=sheet.key, order_key=row.order_key,
+                    product_key=row.product_key,
+                    occurrence_index=row.occurrence_index,
+                    **{'phan-loai': '1'}) }}#phan-loai"
+           >{{ row.product_raw }}</a>
+        <span class="tag tag-unresolved" data-metric="identity-label"
+              >{{ row.identity_label }}</span>
+        {%- else -%}
+        {{ row.product_raw }}
+        {%- if row.identity_label %}
+        <span class="tag {{ 'tag-unresolved' if row.identity_state == 'IDENTITY_UNRESOLVED' else 'tag-short' }}"
+              data-metric="identity-label" title="{{ row.identity_title }}"
+              >{{ row.identity_label }}</span>
+        {%- endif %}
+        {%- if row.identity_blocked %}
+        <span class="tp-label" data-metric="identity-blocked">{{ unclassifiable_note }}</span>
+        {%- endif %}
+        {%- endif -%}
+      </td>
       {# `§6`/`§8` — danh tính người bán KHÔNG bao giờ bị thay bằng tên sheet. #}
       <td data-metric="line-employee"
           class="{{ 'empty-cell' if not row.employee_resolved }}">{{ row.employee }}</td>

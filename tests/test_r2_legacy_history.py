@@ -451,7 +451,7 @@ def test_case_18_the_primary_nav_is_unchanged(client, history):
     assert nav is not None
     labels = re.findall(r">([^<>]+)</a>", nav.group(1))
     assert [label.strip() for label in labels] == [
-        "Báo cáo", "Nhân viên", "Doanh số ngày", "Dữ liệu"]
+        "Báo cáo", "Nhân viên", "Dữ liệu"]
 
 
 # ==========================================================================

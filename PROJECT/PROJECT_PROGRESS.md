@@ -1,14 +1,110 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — EMPLOYEE WORKSPACE UX = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
+## CANONICAL CURRENT STATE — NAV + CHART + INLINE IDENTITY = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
+
+Vertical hiện tại: **thanh tab ba mục · MỘT biểu đồ doanh thu theo thời gian ·
+nhận diện sản phẩm tại chỗ · F-02 · F-03** (`DEC-185` / `DEC-PHB02-09`). Đây
+là quyết định nghiệp vụ MỚI của chủ dự án; bản ghi đầy đủ kèm năm phát biểu
+gốc: `DEC-185` trong `PROJECT/PROJECT_DECISIONS.md`.
+
+Trạng thái là ĐÃ TRIỂN KHAI TRÊN NHÁNH, **chưa** integrate: nhánh này chưa
+qua Independent Review và chưa fast-forward vào canonical.
+
+Khối `DEC-184` ngay bên dưới GIỮ NGUYÊN, không viết lại — toàn bộ UX của
+không gian làm việc Nhân viên được BẢO TOÀN, không mục nào bị bỏ.
+
+```text
+VERTICAL                   = NAV REFACTOR + UNIFIED REVENUE CHART
+                             + INLINE PRODUCT IDENTITY + F-02 + F-03
+DECISION                   = DEC-185 (DEC-PHB02-09 — quyết định Owner MỚI)
+STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
+                             Review trên đúng FINAL_HEAD. KHÔNG merge
+                             canonical, KHÔNG deploy.
+
+CONTROLLED_INTEGRATION     = PASS (DEC-184)
+CANONICAL_BEFORE           = ae952d4ef0f5f4c019c8fc7c4a4f11a98815c27b
+REVIEWED_HEAD              = 4729d54ad2779d1a4b1f912cbd94e63935cb8f9b
+CANONICAL_AFTER            = 4729d54ad2779d1a4b1f912cbd94e63935cb8f9b
+FAST_FORWARD               = YES (không merge commit · không rebase · không
+                             squash · không force)
+ROLLBACK_SHA               = ae952d4ef0f5f4c019c8fc7c4a4f11a98815c27b
+MIGRATION_GATE             = PASS — alembic THẬT 0006 → 0007, head tuyến
+                             tính, ADDITIVE thuần, khứ hồi B04 giữ nguyên cả
+                             ba bảng quyết định Owner
+
+F01_PRODUCTION_MATCH_COUNT = NOT_MEASURABLE (không có DSN production trong
+                             phiên; Render Managed PostgreSQL chỉ tiếp cận
+                             được từ mạng nội bộ của Render)
+F01_TOOL                   = tools/db/f01_routing_impact.py — CHỈ ĐỌC, có
+                             test, TỪ CHỐI in ra `0` trên database không
+                             phải sổ thật
+BUSINESS_TOTALS_UNEXPECTEDLY_CHANGED = NO (trên toàn bộ dữ liệu kiểm được)
+
+PRIMARY_NAV                = Báo cáo | Nhân viên | Dữ liệu
+DAILY_SALES_PRIMARY_TAB    = NO
+DAILY_SALES_ROUTE          = PRESERVED (/doanh-so-ngay vẫn 200 — NAV-03)
+
+UNIFIED_REVENUE_CHART      = YES — ĐÚNG MỘT biểu đồ ở /kinh-doanh
+CHART_GRANULARITIES        = DAY | WEEK | MONTH | QUARTER | YEAR
+CHART_SOURCE               = kết quả nghiệp vụ CHÍNH THỨC (đã trừ dòng loại)
+CHART_CROSS_ORIGIN_SUM     = NONE — mỗi mốc đúng MỘT origin (DEC-166 E +
+                             DEC-180 §9 giữ nguyên)
+CHART_SOURCE_TOGGLE        = NONE — không nhãn Số cũ/Số mới trên biểu đồ
+CHART_FABRICATED_POINTS    = NONE — tổng tháng lịch sử KHÔNG chia thành ngày
+
+INLINE_PRODUCT_IDENTITY    = YES — trong chính bảng kê sheet
+NEW_IDENTITY_PAGE          = NO
+IDENTITY_UNRESOLVED_LABEL  = "Chưa phân loại"
+RESOLVED_MISSING_PP_LABEL  = "Thiếu giá"
+IDENTITY_STATE_SOURCE      = pending_reasons THẬT của dòng, KHÔNG suy từ chỗ
+                             trống của giá nhập
+TRACKING_IDENTITY_AUTHORITY = PRESERVED (PHB-01 nguyên vẹn)
+REPORTS_WRITES_INV_MAP     = NO — không đường ghi nào tồn tại trong app/web
+IDENTITY_WRITE_PATH        = ConfirmMapping → ProductIdentityStore.append()
+                             (HUMAN_CONFIRMATION; cùng lệnh CLI Phase 1 dùng)
+ECONOMIC_ISOLATION         = PRESERVED — phân loại xong KHÔNG sinh ra giá
+SHEET_UNRESOLVED_WARNING   = ĐÚNG MỘT dòng/sheet, đếm BH, cuộn trong cùng bảng
+
+BH_REASSIGN_INCLUDES_EXCLUDED_LINES = YES (F-02 đã đóng)
+RESTORED_LINE_KEEPS_NEW_EMPLOYEE    = YES
+SECOND_ATTRIBUTION_TABLE            = NONE
+
+EXCLUSION_AFFECTS_OFFICIAL_REPORT   = YES
+RAW_ACCOUNTING_PRESERVED            = YES — không câu SQL nào chạm bảng
+                                      append-only
+BAO_CAO_NHAN_VIEN_TOTALS_CONSISTENT = YES
+RAW_SURFACES_LABELLED               = /tong-quan · /ban-hang · /san-pham ·
+                                      /nhan-vien mang dấu SỔ THÔ; /nhan-vien
+                                      không còn làm sáng tab Nhân viên
+
+NEW_MIGRATION              = NONE
+ALEMBIC_HEAD               = 0007 (không đổi)
+BUSINESS_FORMULAS_CHANGED  = NO
+
+EMPLOYEE_WORKSPACE_PRESERVED = YES (toàn bộ DEC-184)
+F04_OPENED                 = NO (giữ nguyên phát hiện)
+F05_OPENED                 = NO (3 reference hỏng có sẵn, không sửa)
+
+TEST_RESULT                = 2539 passed · 11 skipped (baseline 2493/11)
+GOLDEN                     = 58 passed · 2 skipped (không đổi)
+GOVERNANCE_VALIDATORS      = 4 PASS · 1 FAIL (đúng F-05 có sẵn) · 1 cần
+                             tham số
+SCOPE_DRIFT                = NO
+```
+
+Khối `DEC-184` bên dưới GIỮ NGUYÊN, không viết lại.
+
+## CANONICAL CURRENT STATE — EMPLOYEE WORKSPACE UX = INTEGRATED (2026-09-05)
 
 Vertical hiện tại: **không gian làm việc Nhân viên** (`DEC-184` /
 `DEC-PHB02-08`). Đây là quyết định nghiệp vụ MỚI của chủ dự án, không phải
 một lần cài đặt quyết định cũ — bản ghi đầy đủ kèm mười sáu phát biểu gốc:
 `DEC-184` trong `PROJECT/PROJECT_DECISIONS.md`.
 
-Trạng thái là ĐÃ TRIỂN KHAI TRÊN NHÁNH, **chưa** integrate: nhánh này chưa
-qua Independent Review và chưa fast-forward vào canonical.
+Trạng thái là ĐÃ INTEGRATE: Independent Review cho
+`REVIEW_RESULT = PASS_WITH_FINDINGS` / `SAFE_TO_INTEGRATE = YES`, và canonical
+đã fast-forward `ae952d4..4729d54` (không merge commit). Hai finding mở của
+lần review đó — `F-02` và `F-03` — được đóng trong `DEC-185`.
 
 Khối PHB-05 bên dưới vẫn đúng và không bị mục này thay thế, TRỪ hai điểm
 được nói tên ở `DEC-184` § Supersedes: hạn chế "Target chỉ đặt được cho kỳ
@@ -20,9 +116,8 @@ Khối PHB-05 bên dưới vẫn đúng và không bị mục này thay thế, T
 VERTICAL                   = EMPLOYEE WORKSPACE UX + GROUP REPORTING
                              + TARGET UX + GIA_DUNG CLASSIFICATION
 DECISION                   = DEC-184 (DEC-PHB02-08 — quyết định Owner MỚI)
-STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
-                             Review trên đúng FINAL_HEAD. KHÔNG merge
-                             canonical, KHÔNG deploy.
+STATUS                     = INTEGRATED vào canonical bằng fast-forward
+                             (ae952d4..4729d54). Review: PASS_WITH_FINDINGS.
 
 DEFAULT_PERIOD             = CURRENT_MONTH — mở được kể cả khi tháng đó chưa
                              có một dòng kế toán nào; KHÔNG lùi tháng

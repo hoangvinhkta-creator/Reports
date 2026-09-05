@@ -638,10 +638,10 @@ def test_case_17_the_primary_navigation_is_unchanged(repository, client):
                  "/kinh-doanh/nhan-vien?ky=2026-09&nhan-vien=Ly"):
         nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>',
                         body(client, path), re.S).group(1)
-        assert nav.count('class="ncc-tab') == 4
+        assert nav.count('class="ncc-tab') == 3
         labels = re.findall(r'>([^<>]+)</a>', nav)
         assert [label.strip() for label in labels] == [
-            "Báo cáo", "Nhân viên", "Doanh số ngày", "Dữ liệu"]
+            "Báo cáo", "Nhân viên", "Dữ liệu"]
         assert "Target" not in nav
 
 

@@ -35,6 +35,30 @@ BOTH_SOURCES_NOTE = (
     "SỐ CŨ = số cũ trong Excel. SỐ MỚI = số Reports tính từ sổ kế toán đã nạp. "
     "Hai loại số không bao giờ được cộng chung."
 )
+# `DEC-185` §F-03 — RANH GIỚI "SỐ CHÍNH THỨC" vs "SỔ THÔ".
+#
+# Quyết định của Owner nói rõ nghĩa của việc loại một dòng: dòng đó KHÔNG còn
+# nằm trong BÁO CÁO NGHIỆP VỤ CHÍNH THỨC. Nhưng bản ghi kế toán gốc vẫn nguyên
+# vẹn (`§31`), nên các trang đọc thẳng sổ đã nạp vẫn thấy dòng đó — và vẫn
+# PHẢI thấy, vì đó là bằng chứng.
+#
+# Hệ quả: hai loại màn hình cùng hiện chữ "doanh thu" nhưng trả lời hai câu
+# hỏi khác nhau, và điều nguy hiểm không phải là chúng khác số — mà là người
+# đọc không biết mình đang xem cái nào. `F03-06` vì thế không đòi xoá các
+# trang thô; nó đòi chúng NÓI RA rằng chúng là bằng chứng, không phải chỉ tiêu.
+#
+# Chỗ để nói ra điều đó là tầng trình bày, một lần, và mọi trang thô dùng lại
+# — chứ không phải một câu chữ chép tay trên từng template.
+RAW_SURFACE_BADGE = "SỔ THÔ"
+RAW_SURFACE_TITLE = (
+    "Đọc thẳng sổ kế toán đã nạp — chưa trừ các dòng Owner đã loại khỏi báo cáo"
+)
+RAW_SURFACE_NOTE = (
+    "Trang này là BẰNG CHỨNG SỔ SÁCH, không phải chỉ tiêu chính thức: nó đếm "
+    "cả những dòng Owner đã loại khỏi báo cáo. Số chính thức của công ty nằm ở "
+    "Báo cáo và Nhân viên."
+)
+
 NO_PREVIOUS_PERIOD = "chưa có dữ liệu kỳ trước"
 ALL_DATA_LABEL = "Toàn bộ dữ liệu"
 

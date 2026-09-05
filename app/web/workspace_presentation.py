@@ -40,7 +40,7 @@ from typing import Optional
 
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate, reporting_sheets
-from app.web import business_store
+from app.web import business_store, line_identity
 from app.web.analytics_presentation import UNKNOWN_EMPLOYEE, count
 from app.web.business_presentation import (
     MOM_NO_PREVIOUS, STATE_LABELS, _decimal, _derived_cell, _thousand_vnd,
@@ -249,8 +249,15 @@ def _is_loss(line: bm.BusinessLine) -> bool:
     return bool(LOSS_CODES.intersection(line.warnings))
 
 
-def _line_row(detail: dict, *, sheet, part, synthetic: bool) -> dict:
+def _line_row(detail: dict, *, sheet, part, synthetic: bool,
+              confirmed_keys=None) -> dict:
     line = detail["line"]
+    # `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện của DÒNG THẬT.
+    #
+    # Dòng "Chiết khấu" là số suy ra từ sổ, không phải một mặt hàng, nên nó
+    # không có trạng thái nhận diện nào và không được mời Owner phân loại.
+    identity = (None if synthetic
+                else line_identity.state_of(detail, confirmed_keys=confirmed_keys))
     return {
         "kind": part.kind,
         "synthetic": synthetic,
@@ -284,6 +291,20 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool) -> dict:
         # khác của mặt hàng đó vẫn nguyên.
         "line_classified": detail.get("line_product_group") is not None,
         "can_exclude": not synthetic,
+        # `§PI-03` — hai trạng thái KHÁC NHAU, hai nhãn khác nhau, và tầng
+        # trình bày không được gộp lại. `identity_label` là `None` khi dòng
+        # bình thường: ô mã hàng khi đó hiện đúng tên hàng, không thêm gì.
+        "identity_state": None if identity is None else identity.state,
+        "identity_label": None if identity is None else identity.label,
+        "identity_title": None if identity is None else identity.title,
+        "identity_key": None if identity is None else identity.identity_key,
+        # `§PI-04` — chỉ dòng CHƯA nhận diện và CÓ khoá định danh mới mở được
+        # luồng phân loại. Dòng thiếu hẳn tên hàng vẫn hiện "Chưa phân loại"
+        # (đó là sự thật) nhưng không có nút — xem `UNCLASSIFIABLE_NOTE`.
+        "can_identify": bool(identity is not None and identity.classifiable),
+        "identity_blocked": bool(
+            identity is not None and identity.unresolved
+            and identity.identity_key is None),
     }
 
 
@@ -291,7 +312,8 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool) -> dict:
 _NO_DATE_YET = object()
 
 
-def sheet_detail_groups(details: list[dict], *, sheet) -> list[dict]:
+def sheet_detail_groups(details: list[dict], *, sheet,
+                        confirmed_keys=None) -> list[dict]:
     """Bảng kê của một sheet, GỘP THEO BH và tô nền theo NGÀY (`§22`, `§38`).
 
     Cấu trúc phản chiếu chính sổ kế toán: một BH là một KHỐI, khách hàng thuộc
@@ -330,16 +352,24 @@ def sheet_detail_groups(details: list[dict], *, sheet) -> list[dict]:
             }
         product, *discount_parts = bm.display_contributions(line)
         group["rows"].append(_line_row(detail, sheet=sheet, part=product,
-                                       synthetic=False))
+                                       synthetic=False,
+                                       confirmed_keys=confirmed_keys))
         for part in discount_parts:
             group["rows"].append(_line_row(detail, sheet=sheet, part=part,
-                                           synthetic=True))
+                                           synthetic=True,
+                                           confirmed_keys=confirmed_keys))
         if line.employee and line.employee not in group["employees"]:
             group["employees"].append(line.employee)
         for tag in _short_tags(line):
             if tag["code"] not in {item["code"] for item in group["tags"]}:
                 group["tags"].append(tag)
         group["loss"] = group["loss"] or _is_loss(line)
+        # `§PI-11` — BH này có dòng chưa phân loại nào không. Cờ ở cấp BH chứ
+        # không cấp dòng vì cảnh báo đầu sheet đếm BH, và cái nó cuộn tới cũng
+        # là một khối BH.
+        group["unresolved_identity"] = group.get("unresolved_identity", False) or any(
+            row.get("identity_state") == line_identity.STATE_UNRESOLVED
+            for row in group["rows"])
 
     ordered = sorted(
         groups.values(),

@@ -1,7 +1,14 @@
 {% extends "layout.html" %}
 {% import "_legacy_bits.html" as legacy %}
 {% import "_pipeline_bits.html" as pipeline %}
-{% set active_tab = 'nhan-vien' %}
+{# `DEC-185` §F-03 — khoá tab RIÊNG.
+
+   Trang này từng dùng khoá `nhan-vien`, tức là nó làm SÁNG tab "Nhân viên"
+   của thanh tab chính — trong khi tab đó trỏ tới không gian làm việc nghiệp
+   vụ ở `/kinh-doanh/nhan-vien`. Hai màn hình khác nhau, hai con số doanh thu
+   khác nhau (trang này đọc sổ thô, không trừ dòng đã loại), mà thanh tab nói
+   rằng đang ở cùng một chỗ. Đó đúng là sự nhầm lẫn mà `F03-06` cấm. #}
+{% set active_tab = 'nhan-vien-so-cu' %}
 {% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
@@ -18,6 +25,7 @@
 
 {% if pipeline_view %}
 <h1>NHÂN VIÊN — SỐ MỚI</h1>
+{{ pipeline.raw_surface_note() }}
 {{ pipeline.source_note() }}
 
 <div class="module">

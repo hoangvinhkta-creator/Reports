@@ -12,13 +12,20 @@
   <span class="tp-label">Shared Online Beta</span>
 </header>
 <nav class="ncc-tabs">
-  {# R1 (`GỠ TRÙNG UX`) — thanh tab chính rút còn 4 mục, mỗi mục trả lời
-     đúng MỘT câu hỏi của người đọc. Các trang sâu hơn (Tổng quan, Bán hàng,
-     Sản phẩm, Nhân viên số cũ, Lịch sử, Chạy báo cáo) vẫn còn nguyên route —
-     không bị xoá — chỉ không còn là tab thường trực (§5). #}
+  {# R1 (`GỠ TRÙNG UX`) rút thanh tab chính còn 4 mục; `DEC-185` rút tiếp còn
+     BA. Mỗi mục trả lời đúng MỘT câu hỏi, và không mục nào hỏi "số này đến từ
+     nguồn nào" — đó là câu hỏi về dữ liệu, không phải về nghiệp vụ.
+
+     "Doanh số ngày" rời thanh tab vì ý nghĩa hữu ích của nó — doanh thu theo
+     thời gian — nay nằm trong ĐÚNG MỘT biểu đồ ở Báo cáo, đọc từ kết quả
+     nghiệp vụ chính thức. Route `/doanh-so-ngay` KHÔNG bị xoá (`NAV-03`): nó
+     là bề mặt tra cứu số cũ thô, và các đường dẫn cũ vẫn mở được.
+
+     Các trang sâu hơn (Tổng quan, Bán hàng, Sản phẩm, Nhân viên số cũ, Lịch
+     sử, Chạy báo cáo) vẫn còn nguyên route — không bị xoá — chỉ không còn là
+     tab thường trực (§5). #}
   <a class="ncc-tab {{ 'on' if active_tab == 'bao-cao' }}" href="{{ url_for('business_summary') }}">Báo cáo</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">Nhân viên</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'doanh-so-ngay' }}" href="{{ url_for('daily_sales') }}">Doanh số ngày</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">Dữ liệu</a>
 </nav>
 <main class="tp-main">

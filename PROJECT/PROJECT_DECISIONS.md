@@ -9975,3 +9975,182 @@ Target cấp công ty vẫn chờ chủ dự án phát biểu con số đó là 
 Target cho các tháng TƯƠNG LAI (ngoài tháng hiện tại) chưa được quyết và
 không nằm trong task này. Nếu sau này xuất hiện một nhóm báo cáo thứ ba,
 `group_target` nhận thêm một khoá — KHÔNG dựng một khung cấu hình tổng quát.
+
+## DEC-185
+
+Title:
+`DEC-PHB02-09` — Thanh tab chính còn BA mục; ý nghĩa của "Doanh số ngày" dời
+vào MỘT biểu đồ doanh thu theo thời gian ở Báo cáo với năm mức gộp; nhận diện
+sản phẩm giải quyết TẠI CHỖ trong bảng kê với hai trạng thái tách bạch; gán
+lại nhân viên cấp BH phủ CẢ dòng đã bị loại; và "loại dòng" định nghĩa BÁO CÁO
+NGHIỆP VỤ CHÍNH THỨC trong khi sổ thô vẫn là bằng chứng
+
+Date:
+2026-09-05
+
+Task:
+`NAV REFACTOR + UNIFIED REVENUE CHART + INLINE PRODUCT IDENTITY + F-02 + F-03`.
+Bounded implementation, nhánh tách từ
+`BASE_HEAD = 4729d54ad2779d1a4b1f912cbd94e63935cb8f9b` (canonical sau lần
+Controlled Integration của `DEC-184`).
+
+Authority:
+`NEW_OWNER_DECISION`. Chủ dự án phát biểu trực tiếp năm yêu cầu; chúng được
+liệt kê nguyên vẹn ở mục 1 để lần sau không ai phải đoán điều gì là quyết
+định của Owner và điều gì là suy luận của một phiên làm việc.
+
+Supersedes:
+Một ranh giới UX, nêu đích danh. Không bản ghi lịch sử nào bị sửa tại chỗ.
+
+1. **`R1` §5 — thanh tab chính bốn mục.** `R1` rút thanh tab xuống đúng bốn
+   mục: Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu. Owner nay bỏ tiếp mục
+   "Doanh số ngày". Lý do của `R1` không đổi và chính nó dẫn tới bước này:
+   mỗi tab trả lời ĐÚNG MỘT câu hỏi của người đọc, và "Doanh số ngày" hỏi một
+   câu về NGUỒN DỮ LIỆU ("số cũ theo ngày ra sao"), không phải một câu về
+   nghiệp vụ. Route `/doanh-so-ngay` KHÔNG bị xoá — nó chỉ thôi làm một đích
+   UX chính.
+
+### 1. Năm phát biểu của chủ dự án
+
+1.1 Bỏ "Doanh số ngày" khỏi thanh tab chính. Thanh tab cuối cùng là
+    `Báo cáo | Nhân viên | Dữ liệu`. KHÔNG dựng một tab thay thế.
+
+1.2 Ý nghĩa hữu ích của nó — doanh thu theo thời gian — dời vào Báo cáo,
+    thành ĐÚNG MỘT biểu đồ với một bộ chọn mức gộp
+    `Ngày · Tuần · Tháng · Quý · Năm`. KHÔNG phải năm biểu đồ.
+
+1.3 Nhận diện sản phẩm giải quyết TẠI CHỖ trong bảng kê nhân viên. KHÔNG
+    trang "Mã chưa nhận diện", KHÔNG sheet mới, KHÔNG tab mới. Mỗi sheet có
+    ĐÚNG MỘT dòng cảnh báo gọn.
+
+1.4 Gán lại nhân viên ở cấp BH áp cho TOÀN BỘ BH, kể cả các dòng đang bị loại
+    khỏi báo cáo. Loại một dòng nghĩa là ẨN KHỎI KẾT QUẢ NGHIỆP VỤ, không
+    phải "dòng này không còn thuộc BH".
+
+1.5 "Loại dòng" định nghĩa BÁO CÁO NGHIỆP VỤ CHÍNH THỨC. Hai màn hình nghiệp
+    vụ chính không được nói hai con số doanh thu chính thức khác nhau.
+
+### 2. Điều hướng — vì sao bỏ một tab lại là một quyết định nghiệp vụ
+
+Ba mục còn lại là ba câu hỏi rời nhau: *công ty ra sao* (Báo cáo), *từng
+người ra sao* (Nhân viên), *dữ liệu vào ra sao* (Dữ liệu). "Doanh số ngày"
+không phải câu thứ tư — nó là một LÁT CẮT của câu thứ nhất, và đặt nó ngang
+hàng khiến người đọc phải tự quyết định con số nào là con số của công ty.
+
+`NAV-03` giữ route sống: các đường dẫn và bookmark cũ vẫn mở được, và trang
+đó vẫn là chỗ tra cứu số cũ thô. Bỏ khỏi thanh tab KHÔNG phải xoá.
+
+### 3. Biểu đồ — MỘT dòng thời gian, và vì sao nó không có bộ chọn nguồn
+
+Đây là chỗ hai luật gặp nhau, nên quyết định được viết ra thay vì để lại một
+mâu thuẫn im lặng cho phiên sau:
+
+- Owner: một dòng thời gian kinh doanh liên tục, KHÔNG nhãn `Số cũ`/`Số mới`,
+  KHÔNG bộ chọn nguồn. Người đọc đang hỏi một câu về THỜI GIAN.
+- `DEC-166 E`: `LEGACY_REFERENCE` LUÔN phải phân biệt được với
+  `PIPELINE_GENERATED`. `DEC-180` §9: MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá trị.
+
+Cách thoả CẢ HAI, và là cách duy nhất:
+
+    một TRỤC · một chuỗi · KHÔNG bộ chọn nguồn
+    nhưng MỖI MỐC chỉ đến từ MỘT origin, không bao giờ từ hai cộng lại
+
+Mốc nào đã có dòng sổ nạp thì thuộc về sổ nạp; lịch sử chỉ điền vào những mốc
+số mới hoàn toàn không có dòng nào. Vì thế KHÔNG có phép cộng liên-origin nào
+tồn tại, và chiều origin không mất — nó nằm trong lời giải thích của đúng cái
+cột đó và trong một khác biệt thị giác, chứ không còn là một cái nút bấm.
+
+**Doanh thu của biểu đồ là doanh thu CHÍNH THỨC**, tức cùng phép cộng mà ô
+"Doanh thu bán hàng" dùng, đã trừ các dòng Owner loại. Không có định nghĩa
+doanh thu thứ hai nào được dựng.
+
+**Không bịa điểm.** Sổ cũ lưu hai độ mịn: `legacy_daily_sales` có từng ngày,
+nguồn chuẩn của một kỳ chỉ có tổng tháng. Nên mức Ngày/Tuần chỉ nhận những kỳ
+lịch sử CÓ bằng chứng ngày; một tổng tháng KHÔNG được chia đều thành 30 ngày.
+Một quý/năm dựng từ ít tháng hơn số tháng nó bao trùm tự khai điều đó.
+
+**Biểu đồ nhìn TOÀN BỘ dòng thời gian**, không theo kỳ đang chọn: hai mức gộp
+Quý và Năm không có nghĩa gì bên trong một tháng.
+
+### 4. Nhận diện sản phẩm — hai trạng thái, và vì sao gộp chúng là nói dối
+
+    A. chưa nhận diện được mặt hàng         → "Chưa phân loại"
+    B. đã nhận diện, chưa có giá nhập       → "Thiếu giá"
+
+Cả hai làm ô Giá nhập trống, nên một câu `if purchase_price is None` chạy
+đúng trên phần lớn dữ liệu và SAI về bản chất — nó đẩy Owner đi phân loại lại
+một thứ đã phân loại rồi, và việc đó không bao giờ làm giá nhập xuất hiện.
+
+Trạng thái vì thế đọc từ MÃ LÝ DO THẬT mà pipeline ghi cùng dòng
+(`IDENTITY_UNRESOLVED` và ba mã anh em), không suy từ chỗ trống của giá.
+
+**Tracking vẫn là thẩm quyền Product Identity (`PHB-01` giữ nguyên).** Bề mặt
+mới KHÔNG biến Reports thành thẩm quyền thứ hai, và ranh giới được giữ bằng
+cấu tạo:
+
+1. danh mục sản phẩm chuẩn đến TỪ Tracking; không đọc được Tracking ⟹ KHÔNG
+   có danh sách, và màn hình nói thẳng ra thay vì mở một ô gõ tự do;
+2. KHÔNG có đường ghi `inv.map` nào từ Reports — bảng đó vẫn do người của
+   Tracking duyệt;
+3. lệnh gửi đi là `ConfirmMapping` — ĐÚNG `confirmation_action` mà CLI Phase 1
+   đã dùng, qua đúng `store.append()`, qua đủ cửa `INV-01`/`INV-59`/`INV-68`.
+   Không lệnh mới nào được phát minh, nên `CHECK-105D-22` vẫn đúng.
+
+**Xác nhận KHÔNG làm giá nhập xuất hiện.** `ECONOMIC_ISOLATION` của `PHB-01`
+giữ nguyên: kết quả đúng của một lần phân loại thành công là dòng chuyển từ
+"Chưa phân loại" sang "Thiếu giá". Đó đúng là hình dạng mà `PHB-01` đã nghiệm
+thu trên production (`IDENTITY_AFTER = IDENTITY_UNRESOLVED đã biến mất`,
+`ECONOMIC_STATE_AFTER = PENDING`).
+
+**Một cảnh báo cho mỗi sheet**, đếm BH chứ không đếm dòng, và bấm vào là cuộn
+tới khối BH trong CHÍNH bảng đó. Không danh sách dài, không khối thứ hai,
+không màn hình mới.
+
+### 5. F-02 — "cả BH" nghĩa là CẢ BH
+
+`PeriodData.details` cố ý chỉ chứa các dòng CÒN được báo cáo, và đó là điều
+đúng cho mọi phép gộp. Nhưng nó là tập SAI cho một lần gán lại BH: dòng bị
+loại vẫn thuộc BH đó. Đọc riêng `details` khiến thao tác bỏ sót đúng những
+dòng đang ẩn, và sự bỏ sót chỉ lộ ra sau khi khôi phục — lúc dòng quay lại
+mang tên nhân viên CŨ, cạnh các dòng anh em đã mang tên mới.
+
+Bản sửa là nhỏ nhất có thể: tập ứng viên gồm cả `details` lẫn `excluded`.
+KHÔNG bảng gán thứ hai, vẫn đúng `store.set_employee` trên đúng khoá nghiệp
+vụ của từng dòng. Màn hình NÓI RA số dòng ẩn đã đổi theo — một thao tác âm
+thầm sửa dữ liệu người dùng không nhìn thấy làm mất lòng tin vào một nút bấm,
+kể cả khi nó làm điều đúng.
+
+### 6. F-03 — hai loại màn hình, và điều nguy hiểm không phải là chúng khác số
+
+Loại một dòng nghĩa là loại khỏi BÁO CÁO NGHIỆP VỤ CHÍNH THỨC. Bản ghi kế
+toán gốc KHÔNG bị đụng tới (`DEC-184` §31), nên các trang đọc thẳng sổ đã nạp
+vẫn thấy dòng đó — và vẫn PHẢI thấy, vì đó là bằng chứng.
+
+Điều nguy hiểm không phải hai loại màn hình ra hai con số; nó là người đọc
+không biết mình đang xem cái nào. Nên quyết định KHÔNG xoá các trang thô, mà
+bắt chúng TỰ NÓI RA:
+
+- `Báo cáo`, `Nhân viên` và mọi trang thuộc tab Nhân viên đọc CÙNG một kết
+  quả nghiệp vụ đã trừ dòng bị loại;
+- `/tong-quan`, `/ban-hang`, `/san-pham`, `/nhan-vien` mang dấu `SỔ THÔ` và
+  một câu nói rõ chúng là bằng chứng sổ sách, không phải chỉ tiêu;
+- `/nhan-vien` nhận một khoá tab RIÊNG. Trước bản sửa này nó làm sáng tab
+  "Nhân viên" của thanh tab chính — trong khi tab đó trỏ tới không gian làm
+  việc nghiệp vụ, và hai màn hình cho hai con số doanh thu khác nhau.
+
+### 7. Không mở rộng phạm vi
+
+KHÔNG migration nào được thêm (`ALEMBIC_HEAD` giữ nguyên `0007`). F-02 dùng
+lại thẩm quyền gán đã có; nhận diện tại chỗ dùng lại thẩm quyền Tracking;
+biểu đồ dùng lại chính dữ liệu báo cáo đang có.
+
+`F-04` (giới hạn kế thừa của `ORDER_LINE_KEY` với `occurrence_index`) và
+`F-05` (ba reference governance hỏng có sẵn) được GIỮ NGUYÊN làm phát hiện,
+KHÔNG mở task, KHÔNG sửa trong lát cắt này.
+
+Can Revisit After:
+Nếu sau này sổ cũ có thêm bằng chứng từng ngày cho các kỳ hiện chỉ có tổng
+tháng, mức Ngày/Tuần của biểu đồ tự nhận chúng mà không cần sửa gì — luật
+"không bịa điểm" đã viết theo bằng chứng chứ không theo một danh sách kỳ.
+Việc thêm đường Target/Lợi nhuận KPI vào cùng biểu đồ CHƯA được quyết và
+không nằm trong task này.

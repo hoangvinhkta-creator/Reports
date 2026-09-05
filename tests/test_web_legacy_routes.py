@@ -271,11 +271,15 @@ def test_the_data_tab_offers_no_way_to_add_or_select_a_legacy_source(loaded):
 
 
 def test_every_page_links_the_tabs_that_actually_exist(loaded):
-    """R1 (`GỠ TRÙNG UX`) rút thanh tab chính còn 4 mục: BÁO CÁO · NHÂN VIÊN ·
-    DOANH SỐ NGÀY · DỮ LIỆU. `/` và `/nhan-vien` không còn là tab chính."""
+    """`R1` rút thanh tab chính còn 4 mục; `DEC-185` `NAV-02` rút còn 3 —
+    BÁO CÁO · NHÂN VIÊN · DỮ LIỆU. `/`, `/nhan-vien` và `/doanh-so-ngay`
+    không còn là tab chính, nhưng route của chúng vẫn sống."""
     body = loaded.get("/du-lieu").get_data(as_text=True)
-    for path in ("/kinh-doanh", "/kinh-doanh/nhan-vien", "/doanh-so-ngay", "/du-lieu"):
+    for path in ("/kinh-doanh", "/kinh-doanh/nhan-vien", "/du-lieu"):
         assert f'href="{path}"' in body
+    assert 'href="/doanh-so-ngay"' not in body
+    # `NAV-03` — bỏ khỏi thanh tab không phải xoá route.
+    assert loaded.get("/doanh-so-ngay").status_code == 200
 
 
 # --- Fail-closed khi database hỏng ---------------------------------------

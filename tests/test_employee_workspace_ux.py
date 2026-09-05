@@ -379,14 +379,19 @@ def test_the_group_sheets_are_there_before_a_single_line_exists(
     assert {"Nội thành", "Gia dụng"} <= set(metrics(html, "sheet-tab"))
 
 
-def test_the_primary_navigation_is_still_exactly_four_tabs(repository, client):
-    """`§4`/`§47` — `R1` không đổi: sheet là khung nhìn CON, không phải tab."""
+def test_the_primary_navigation_is_still_exactly_the_primary_tabs(repository, client):
+    """`§4`/`§47` — sheet là khung nhìn CON, không phải tab.
+
+    Điều test này canh KHÔNG đổi theo `DEC-185`: dù thanh tab còn 4 hay 3
+    mục, một hàng sheet mới KHÔNG được đẻ thêm tab chính nào. Chỉ tập kỳ
+    vọng đổi, theo `NAV-01`/`NAV-02`.
+    """
     persist(repository, [line("BH1", "Tủ lạnh")])
     nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>',
                     body(client, "/kinh-doanh/nhan-vien"), re.S).group(1)
-    assert nav.count('class="ncc-tab') == 4
+    assert nav.count('class="ncc-tab') == 3
     assert [label.strip() for label in re.findall(r'>([^<>]+)</a>', nav)] == [
-        "Báo cáo", "Nhân viên", "Doanh số ngày", "Dữ liệu"]
+        "Báo cáo", "Nhân viên", "Dữ liệu"]
 
 
 # ==========================================================================

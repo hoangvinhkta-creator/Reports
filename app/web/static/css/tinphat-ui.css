@@ -345,3 +345,96 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 /* Hộp xác nhận của hai thao tác ghi (§9). Ngắn, và đủ nổi để không ai
    bấm nhầm nó như một dòng bảng bình thường. */
 .confirm-box { border-left: 3px solid var(--tp-blue); }
+
+/* ------------------------------------------------------------------
+   `DEC-185` — MỘT biểu đồ doanh thu theo thời gian.
+
+   Cột vẽ bằng CSS thuần, không thư viện biểu đồ và không một dòng
+   JavaScript nào: mỗi mức gộp là một URL riêng, nên trình duyệt đã làm
+   xong phần "đổi mức gộp" từ trước khi có script nào được tải. Đó cũng
+   là lý do biểu đồ này in ra giấy và đọc bằng trình đọc màn hình được
+   — con số nằm trong DOM dưới dạng chữ, không nằm trong một canvas.
+   ------------------------------------------------------------------ */
+.rev-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--tp-s2);
+  min-height: 180px;
+  padding: var(--tp-s3) 0 0;
+}
+
+.rev-bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  min-width: 54px;
+  flex: 1 0 54px;
+  height: 180px;
+}
+
+.rev-bar-fill {
+  display: block;
+  width: 100%;
+  background: var(--tp-blue);
+  border-radius: var(--tp-r-sm) var(--tp-r-sm) 0 0;
+  transition: height var(--tp-tr);
+}
+
+/* Mốc đến từ bản ghi lịch sử. `DEC-166 E` bắt LUÔN phân biệt được hai
+   origin; Owner cấm một bộ chọn nguồn. Một khác biệt THỊ GIÁC thoả cả
+   hai — nó không bấm được, và nó không mang tên hệ thống nào. Nét gạch
+   chéo giữ được sự phân biệt cả khi in đen trắng, nơi màu biến mất. */
+.rev-bar-legacy .rev-bar-fill {
+  background: repeating-linear-gradient(
+    45deg, var(--tp-mut), var(--tp-mut) 3px,
+    transparent 3px, transparent 6px);
+  border: 1px solid var(--tp-line);
+  border-bottom: none;
+}
+
+.rev-bar-value,
+.rev-bar-label {
+  font-size: 11px;
+  color: var(--tp-mut);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.rev-bar-value { margin-bottom: var(--tp-s1); }
+.rev-bar-label { margin-top: var(--tp-s1); }
+
+.chart-gran { margin-bottom: var(--tp-s2); }
+
+/* ------------------------------------------------------------------
+   `DEC-185` — trạng thái nhận diện sản phẩm, ngay trong bảng kê.
+
+   "Chưa phân loại" và "Thiếu giá" KHÔNG được trông giống nhau (§PI-03):
+   cái thứ nhất là việc phải làm với Tracking, cái thứ hai là việc phải
+   làm với giá. Dùng chung một cái tag xám cho cả hai sẽ xoá đúng cái
+   khác biệt mà Owner cần để biết đi đâu tiếp.
+   ------------------------------------------------------------------ */
+.tag-unresolved {
+  background: var(--tp-sky);
+  color: var(--tp-blue-d);
+  margin-left: var(--tp-s2);
+}
+
+.identity-open { text-decoration: underline dotted; }
+
+/* Khối BH có mã chưa phân loại. Đây là ĐÍCH của đường dẫn trong câu cảnh
+   báo đầu sheet (§PI-11) — cùng bảng, không màn hình mới. `:target` làm
+   phần đánh dấu xảy ra bằng CSS thuần khi trình duyệt nhảy tới neo. */
+.sheet-table tr.bh-unresolved td { box-shadow: inset 3px 0 0 var(--tp-blue); }
+.sheet-table tr.bh-unresolved:target td { background: var(--tp-sky); }
+
+.identity-warning a { color: inherit; }
+
+/* `DEC-185` §F-03 — dấu của một màn hình SỔ THÔ. Cùng hình dạng với các
+   tag nguồn đã có, màu khác: nó trả lời một câu hỏi khác ("số này đã
+   trừ dòng bị loại chưa"), không phải "số này do đâu tính ra". */
+.tag-raw {
+  background: var(--tp-gold-bg);
+  color: var(--tp-gold);
+  margin-right: var(--tp-s2);
+}

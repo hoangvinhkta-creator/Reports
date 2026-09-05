@@ -112,39 +112,63 @@ def test_case_1_root_falls_back_safely_when_no_current_period_has_data(client):
 
 
 # ==========================================================================
-# CASE 2 · 3 — thanh tab chính rút còn đúng 4 mục, bỏ các mục trùng.
+# CASE 2 · 3 — thanh tab chính rút còn đúng 3 mục, bỏ các mục trùng.
+#
+# `R1` rút thanh tab từ nhiều mục xuống 4; `DEC-185` `NAV-01`/`NAV-02` rút
+# tiếp xuống 3 bằng cách bỏ "Doanh số ngày". Hai test dưới đây KHÔNG bị xoá
+# khi con số đổi — chúng vẫn canh đúng tính chất mà `R1` dựng ra ("thanh tab
+# là một tập ĐÓNG, giống nhau trên mọi trang"), chỉ đổi tập kỳ vọng sang tập
+# đã được Owner chốt. Route `/doanh-so-ngay` vẫn sống và vẫn có test riêng
+# (`NAV-03`, ngay dưới).
 # ==========================================================================
 
-def test_case_2_and_3_the_primary_nav_has_exactly_the_four_new_tabs(repository, client):
+#: Thanh tab chính sau `DEC-185`. Viết MỘT lần ở đây để hai test không thể
+#: nói hai câu khác nhau về cùng một tập.
+PRIMARY_TABS = {"/kinh-doanh", "/kinh-doanh/nhan-vien", "/du-lieu"}
+
+
+def test_case_2_and_3_the_primary_nav_has_exactly_the_three_new_tabs(repository, client):
     persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
     nav = nav_html(body(client, "/kinh-doanh?ky=2026-01"))
 
-    assert nav.count('class="ncc-tab') == 4, "phải có đúng 4 tab chính"
-    assert 'href="/kinh-doanh"' in nav
-    assert 'href="/kinh-doanh/nhan-vien"' in nav
-    assert 'href="/doanh-so-ngay"' in nav
-    assert 'href="/du-lieu"' in nav
+    assert nav.count('class="ncc-tab') == 3, "phải có đúng 3 tab chính"
+    for kept in PRIMARY_TABS:
+        assert f'href="{kept}"' in nav
 
     for removed in ('href="/tong-quan"', 'href="/nhan-vien"', 'href="/ban-hang"',
-                    'href="/san-pham"', 'href="/lich-su"', 'href="/du-lieu/chay-bao-cao"'):
+                    'href="/san-pham"', 'href="/lich-su"', 'href="/du-lieu/chay-bao-cao"',
+                    # `NAV-02` — "Doanh số ngày" không còn là đích UX chính.
+                    'href="/doanh-so-ngay"'):
         assert removed not in nav, f"{removed} không còn là tab chính"
 
 
 def test_case_2_and_3_the_nav_is_identical_on_every_primary_page(repository, client):
-    """Cả 4 trang đích của thanh tab đều thấy CÙNG một tập đường dẫn — không
+    """Cả 3 trang đích của thanh tab đều thấy CÙNG một tập đường dẫn — không
     có trang nào còn giữ lại tab cũ đã bị các trang khác bỏ. (Class `on` của
     tab đang chọn đổi theo trang — đó là highlight, không phải khác nav.)"""
     persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
     navs = {
         path: frozenset(re.findall(r'href="([^"]+)"', nav_html(body(client, path))))
         for path in ("/kinh-doanh?ky=2026-01", "/kinh-doanh/nhan-vien?ky=2026-01",
-                     "/doanh-so-ngay", "/du-lieu")
+                     "/du-lieu")
     }
     reference = navs["/du-lieu"]
-    assert reference == {"/kinh-doanh", "/kinh-doanh/nhan-vien",
-                          "/doanh-so-ngay", "/du-lieu"}
+    assert reference == PRIMARY_TABS
     for path, hrefs in navs.items():
         assert hrefs == reference, path
+
+
+def test_nav_03_the_daily_sales_route_survives_leaving_the_tab_bar(client):
+    """`NAV-03` — bỏ khỏi thanh tab KHÔNG phải xoá route.
+
+    Đây là nửa còn lại của `NAV-02`, và nó phải là một test riêng: một bản
+    sửa "bỏ tab" cẩu thả sẽ xoá luôn route, và mọi đường dẫn/bookmark cũ tới
+    `/doanh-so-ngay` sẽ 404 mà không test nào đỏ.
+    """
+    resp = client.get("/doanh-so-ngay")
+    assert resp.status_code == 200
+    assert 'class="ncc-tab' in resp.get_data(as_text=True), (
+        "trang vẫn dựng bằng layout chung, chỉ không còn là một tab")
 
 
 # ==========================================================================

@@ -53,6 +53,7 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
+from app.modules.pricing.resolution.sources import load_tracking_catalog_capture
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.modules.reporting import business_metrics, reporting_sheets
@@ -60,8 +61,9 @@ from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_appli
 from app.web import (
     analytics_presentation, analytics_queries, business_presentation,
     business_service, business_store, history_store, history_writer,
-    legacy_presentation, legacy_reference, run_registry, sales_presentation,
-    sales_queries, storage_backend, workspace_presentation,
+    identity_gateway, legacy_presentation, legacy_reference, line_identity,
+    revenue_timeline, run_registry, sales_presentation, sales_queries,
+    storage_backend, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -322,6 +324,16 @@ def create_app(
         )
     )
     app.config["BUSINESS_SERVICE"] = business
+    # `DEC-185` — thẩm quyền Product Identity của Phase 1. Dựng MỘT lần cho
+    # cả app: `JsonlProductIdentityStore` giữ khoá liên-tiến-trình trên chính
+    # file log, nên hai instance trong cùng một tiến trình chỉ tổ nạp lại
+    # cùng một log hai lần. Store không dựng được (thư mục chỉ-đọc) ⟹ `None`,
+    # và màn hình nói "chưa phân loại được từ đây" thay vì sập.
+    try:
+        identity_store = identity_gateway.build_store()
+    except Exception:  # noqa: BLE001 — xem chú thích trên
+        identity_store = None
+    app.config["IDENTITY_STORE"] = identity_store
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
     app.jinja_env.globals["LEGACY_PROVENANCE"] = legacy_reference.PROVENANCE
@@ -332,6 +344,9 @@ def create_app(
         legacy_presentation.HISTORY_LOCKED_LABEL
     app.jinja_env.globals["LEGACY_HISTORY_NOTE"] = legacy_presentation.HISTORY_NOTE
     app.jinja_env.globals["PIPELINE_BADGE"] = analytics_presentation.ORIGIN_BADGE
+    # `DEC-185` §F-03 — dấu "sổ thô" của các trang không phải chỉ tiêu chính.
+    for _name in ("RAW_SURFACE_BADGE", "RAW_SURFACE_NOTE", "RAW_SURFACE_TITLE"):
+        app.jinja_env.globals[_name] = getattr(analytics_presentation, _name)
     app.jinja_env.globals["PIPELINE_BADGE_TITLE"] = analytics_presentation.ORIGIN_TITLE
     app.jinja_env.globals["QUANTITY_NOTE"] = analytics_presentation.QUANTITY_NOTE
     app.jinja_env.globals["ORDER_COLUMN_NOTE"] = analytics_presentation.ORDER_COLUMN_NOTE
@@ -945,6 +960,83 @@ def create_app(
             "selected_period": business_presentation.period_value(period),
         }
 
+    def _legacy_month_totals() -> list[dict]:
+        """Tổng bán VND của MỌI kỳ số cũ, mỗi kỳ đúng MỘT nguồn.
+
+        Đi qua `legacy_reference.authoritative_period_sales` chứ không đọc
+        thẳng bảng: hàm đó là nơi `DEC-180` §9 sống ("MỘT kỳ ⟹ MỘT nguồn ⟹
+        MỘT giá trị"), và nó cũng là nơi đơn vị được đổi về VND đúng MỘT lần.
+        Đọc thẳng `legacy_summary_row` ở đây sẽ vừa cộng hai nguồn vừa bỏ
+        quên hệ số 1.000 của Summary — hai lỗi cùng cho ra một đường cong
+        trông hoàn toàn hợp lý.
+
+        Hai câu truy vấn cho TOÀN BỘ lịch sử, không phải một câu mỗi kỳ.
+        """
+        if history_repo is None:
+            return []
+        periods = _guarded(history_repo.available_periods)
+        if not periods:
+            return []
+        summary_rows = _guarded(history_repo.query_all_summary)
+        monthly_rows = _guarded(history_repo.query_monthly_reference)
+        totals = []
+        for year, month in periods:
+            if month is None:
+                continue
+            resolved = legacy_reference.authoritative_period_sales(
+                year=year, month=month,
+                summary_rows=summary_rows, monthly_rows=monthly_rows)
+            if resolved is None or resolved.sales_vnd is None:
+                continue
+            totals.append({"year": year, "month": month,
+                           "sales_vnd": resolved.sales_vnd})
+        return totals
+
+    def _legacy_daily_rows(months: list[tuple[int, int]]) -> list[dict]:
+        """Dòng `legacy_daily_sales` của các kỳ số cũ — bằng chứng TỪNG NGÀY.
+
+        Chỉ được gọi ở mức gộp Ngày/Tuần: ở mức Tháng trở lên nó không thêm
+        thông tin nào mà vẫn tốn đúng bấy nhiêu câu truy vấn.
+        """
+        if history_repo is None:
+            return []
+        rows = []
+        for year, month in months:
+            rows.extend(_guarded(history_repo.query_daily, year, month))
+        return rows
+
+    def _revenue_chart(view: dict) -> dict:
+        """`DEC-185` — MỘT biểu đồ doanh thu theo thời gian cho trang Báo cáo.
+
+        ## Biểu đồ nhìn TOÀN BỘ dòng thời gian, không theo kỳ đang chọn
+
+        Đây là một quyết định, không phải một sự bỏ sót. Bộ chọn kỳ ở trên
+        trả lời "tháng này ra sao"; biểu đồ trả lời "xu hướng đi thế nào" —
+        và hai mức gộp Quý/Năm mà Owner yêu cầu KHÔNG có nghĩa gì bên trong
+        một tháng. Ràng biểu đồ vào kỳ đang chọn sẽ khiến ba trong năm cái
+        nút luôn vẽ ra đúng một cột.
+
+        Khi kỳ đang chọn là "Toàn bộ dữ liệu", tập dòng của biểu đồ CHÍNH LÀ
+        tập đã dựng cho trang — không truy vấn lại lần thứ hai.
+        """
+        service = view["service"]
+        granularity = revenue_timeline.parse_granularity(
+            request.args.get("muc"))
+        data = (view["data"] if view["period"] is None
+                else _guarded(service.period))
+        legacy_months = _legacy_month_totals()
+        legacy_days = []
+        if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK):
+            legacy_days = _legacy_daily_rows(
+                [(item["year"], item["month"]) for item in legacy_months])
+        points = revenue_timeline.series(
+            data.details, granularity=granularity,
+            legacy_months=legacy_months, legacy_days=legacy_days)
+        return business_presentation.revenue_chart(
+            points, granularity=granularity,
+            has_legacy_months=bool(legacy_months),
+            undated=revenue_timeline.undated_count(data.details))
+
     def _period_employees(view: dict):
         """Bộ chọn nhân viên của kỳ, ĐÃ tính cả những lần Owner gán lại.
 
@@ -1000,6 +1092,7 @@ def create_app(
         return render_template(
             "kinh_doanh.html", periods=view["periods"],
             selected_period=view["selected_period"],
+            chart=_revenue_chart(view),
             not_seen=business_presentation.not_seen_warning(absence),
             summary=business_presentation.summary(
                 totals, period=view["period"],
@@ -1126,6 +1219,37 @@ def create_app(
         return {"order_key": order_key, "product_key": product_key,
                 "occurrence_index": occurrence}
 
+    def _confirmed_identity_keys() -> frozenset[str]:
+        """Các mặt hàng Owner đã xác nhận — đọc lại ở MỖI lần tải trang.
+
+        Không nhớ vào bộ nhớ: một lần xác nhận vừa xảy ra phải đổi màn hình
+        NGAY (`§PI-07`), và một cache ở đây sẽ khiến dòng vừa phân loại xong
+        vẫn hiện "Chưa phân loại" cho tới lần khởi động lại tiếp theo. Chi phí
+        là một lần đọc log nhỏ cho mỗi lần tải trang — cùng đánh đổi mà
+        `kpi_authority_valid` đã chấp nhận vì cùng một lý do.
+        """
+        return identity_gateway.confirmed_keys(identity_store)
+
+    def _tracking_snapshot():
+        """Danh mục Tracking để CHỌN mặt hàng, hoặc `None` nếu không đọc được.
+
+        Chỉ được gọi khi Owner thật sự mở bảng chọn của MỘT dòng — không phải
+        ở mỗi lần tải trang. Một lần pull live giữ authority thô của Tracking
+        trên đĩa máy chủ, và `S071` §10 nói rõ nó phải được dọn ngay sau khi
+        dùng; gọi nó cho mọi lần render bảng kê là biến một ngoại lệ có kiểm
+        soát thành thói quen.
+        """
+        captures, _, live = _select_captures_for_run()
+        if captures is None:
+            return None
+        try:
+            return load_tracking_catalog_capture(captures.tracking_catalog)
+        except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
+            return None
+        finally:
+            if live is not None:
+                live.cleanup()
+
     def _workspace_redirect(**extra):
         args = {"ky": request.values.get("ky") or None,
                 "sheet": request.values.get("sheet") or None,
@@ -1133,6 +1257,93 @@ def create_app(
         return redirect(url_for(
             "business_employee",
             **{k: v for k, v in args.items() if v}, **extra))
+
+    def _identify_panel(view: dict, scoped, confirmed: frozenset) -> Optional[dict]:
+        """Bảng chọn mặt hàng Tracking cho ĐÚNG MỘT dòng (`§PI-04`).
+
+        Trả `None` khi dòng không tồn tại hoặc không ở trạng thái chưa phân
+        loại: một bảng chọn mở trên một dòng đã nhận diện xong sẽ mời Owner
+        ghi đè một quyết định mà không ai hỏi họ có muốn không.
+
+        Danh mục RỖNG không bị giấu đi. Nó là một trong hai câu trả lời thật
+        của màn hình này — "Tracking đang không nói được" — và nó khác hẳn
+        "không có mặt hàng nào khớp".
+        """
+        keys = _workspace_line_keys()
+        if keys is None:
+            return None
+        detail = view["service"].detail_of(data=view["data"], **keys)
+        if detail is None:
+            return None
+        state = line_identity.state_of(detail, confirmed_keys=confirmed)
+        if not state.classifiable:
+            return None
+        query = request.args.get("tim") or ""
+        snapshot = _tracking_snapshot()
+        # Phạm vi THẬT của lần xác nhận này: mọi dòng của kỳ dùng chung khoá
+        # định danh, không riêng dòng vừa bấm (`INV-76`/`INV-87`).
+        shared = [item for item in view["data"].details
+                  if line_identity.identity_key_of(item.get("product_raw"))
+                  == state.identity_key]
+        return {
+            **keys,
+            "product_raw": detail["product_raw"] or "",
+            "query": query,
+            "candidates": [
+                {"code": item.code, "label": item.label}
+                for item in identity_gateway.candidates(snapshot, query=query)],
+            "tracking_available": snapshot is not None,
+            "no_tracking_note": identity_gateway.NO_TRACKING_NOTE,
+            "shared_lines": len(shared),
+            "shared_orders": sorted({item["order_key"] for item in shared}),
+        }
+
+    @app.post("/kinh-doanh/nhan-vien/phan-loai")
+    def business_confirm_identity():
+        """`§PI-05`/`§PI-06` — gửi quyết định phân loại qua thẩm quyền Tracking.
+
+        Route này KHÔNG ghi `inv.map` và không dựng một thẩm quyền identity
+        thứ hai. Nó làm đúng ba việc: xác định dòng, đếm phạm vi ảnh hưởng
+        thật, rồi gọi `identity_gateway.confirm_identity` — vốn gửi đúng lệnh
+        `ConfirmMapping` mà CLI đã dùng, qua đúng `store.append()` với đủ cửa
+        `INV-01`/`INV-59`/`INV-68`.
+
+        Không có bước "tính lại giá" nào ở đây, và đó là chủ ý:
+        `ECONOMIC_ISOLATION` của `PHB-01` giữ nguyên (`§PI-09`).
+        """
+        view = _workspace_view()
+        keys = _workspace_line_keys()
+        if keys is None:
+            abort(400)
+        detail = view["service"].detail_of(data=view["data"], **keys)
+        if detail is None:
+            abort(404)
+        product_raw = detail["product_raw"] or ""
+        identity_key = line_identity.identity_key_of(product_raw)
+        if identity_key is None:
+            return _workspace_redirect(loi=line_identity.UNCLASSIFIABLE_NOTE)
+        shared = [item for item in view["data"].details
+                  if line_identity.identity_key_of(item.get("product_raw"))
+                  == identity_key]
+        try:
+            identity_gateway.confirm_identity(
+                identity_store,
+                product_raw=product_raw,
+                tracking_code=request.form.get("ma_tracking") or "",
+                snapshot=_tracking_snapshot(),
+                actor_id=identity_gateway.actor_of(),
+                affected_orders=tuple(sorted({item["order_key"] for item in shared})),
+                affected_lines=len(shared),
+            )
+        except identity_gateway.IdentityGatewayError as exc:
+            return _workspace_redirect(loi=str(exc), **{
+                "phan-loai": "1", "order_key": keys["order_key"],
+                "product_key": keys["product_key"],
+                "occurrence_index": keys["occurrence_index"]})
+        except Exception as exc:  # noqa: BLE001 — xung đột version/log hỏng
+            return _workspace_redirect(loi=(
+                f"Chưa ghi được phân loại: {exc}"))
+        return _workspace_redirect(**{"da-luu": identity_gateway.CONFIRM_OK_NOTE})
 
     @app.get("/kinh-doanh/nhan-vien")
     def business_employee():
@@ -1149,6 +1360,16 @@ def create_app(
             kind = request.args.get("xac-nhan")
             if kind in ("gia-dung", "loai"):
                 confirm = {"kind": kind, **pending}
+
+        confirmed = _confirmed_identity_keys()
+
+        # `DEC-185` §PI-04 — bảng chọn mặt hàng của ĐÚNG MỘT dòng, mở ngay
+        # trong bảng kê. Nó chỉ được dựng khi Owner đã bấm vào một dòng cụ
+        # thể (`phan-loai`), nên danh mục Tracking không bị đọc ở mỗi lần
+        # tải trang.
+        identify = None
+        if request.args.get("phan-loai"):
+            identify = _identify_panel(view, scoped, confirmed)
 
         return render_template(
             "kinh_doanh_nhan_vien.html",
@@ -1167,7 +1388,13 @@ def create_app(
             target=workspace_presentation.target_cell(target),
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
-                scoped.details, sheet=sheet),
+                scoped.details, sheet=sheet, confirmed_keys=confirmed),
+            # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
+            # `None`. Không có khối thứ hai, không có trang thứ hai.
+            identity_warning=line_identity.sheet_warning(
+                scoped.details, confirmed_keys=confirmed),
+            identify=identify,
+            unclassifiable_note=line_identity.UNCLASSIFIABLE_NOTE,
             excluded=workspace_presentation.excluded_rows(view["data"].excluded),
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
@@ -1239,7 +1466,20 @@ def create_app(
             return _workspace_redirect(loi=(
                 f"{chosen!r} không có trong danh sách nhân viên. Hãy chọn một "
                 "tên trong danh sách."))
-        details = [detail for detail in view["data"].details
+        # `DEC-185` §F-02 — "cả BH" nghĩa là CẢ BH, kể cả dòng đã bị loại.
+        #
+        # `PeriodData.details` cố ý chỉ chứa các dòng CÒN được báo cáo, và đó
+        # là điều đúng cho mọi phép gộp. Nhưng ở đây nó là tập sai: loại một
+        # dòng nghĩa là "không tính vào báo cáo" (`§30`), KHÔNG phải "dòng này
+        # không còn thuộc BH". Đọc riêng `details` làm một lần gán BH bỏ sót
+        # đúng những dòng đang ẩn, và sự bỏ sót đó chỉ lộ ra sau khi Owner
+        # khôi phục — lúc dòng quay lại mang tên nhân viên CŨ, cạnh các dòng
+        # anh em đã mang tên mới.
+        #
+        # Không có thẩm quyền gán nào thứ hai được dựng: vẫn đúng
+        # `store.set_employee` trên đúng khoá nghiệp vụ của từng dòng.
+        details = [detail for detail in
+                   (*view["data"].details, *view["data"].excluded)
                    if detail["order_key"] == order_key]
         if not details:
             abort(404)
@@ -1250,8 +1490,12 @@ def create_app(
                      occurrence_index=detail["occurrence_index"],
                      employee=chosen, employee_group=groups[chosen],
                      source_employee=detail["line"].source_employee)
+        hidden = sum(1 for detail in details if "exclusion" in detail)
+        note = ("" if not hidden else
+                f" (gồm {hidden} dòng đang bị loại khỏi báo cáo — khôi phục "
+                "lúc nào chúng cũng mang tên mới)")
         return _workspace_redirect(**{"da-luu": (
-            f"Đã gán {len(details)} dòng của {order_key} cho {chosen}. "
+            f"Đã gán {len(details)} dòng của {order_key} cho {chosen}{note}. "
             "Tổng của cả kỳ không đổi.")})
 
     @app.post("/kinh-doanh/nhan-vien/gia-nhap")
