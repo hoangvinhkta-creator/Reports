@@ -1,5 +1,92 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — S122 R1 GỠ TRÙNG NAVIGATION — CONTROLLED INTEGRATION (AUTHORITATIVE, 2026-09-05)
+
+Ghi nhận bookkeeping tối thiểu cho một Controlled Integration đã diễn ra:
+Independent Review đã PASS trên `REVIEWED_HEAD` bên dưới trước phiên này;
+phiên này chỉ thực hiện fast-forward THUẦN TUÝ và cập nhật tài liệu, không
+sửa business code. Task R1 (gỡ trùng navigation) không có file task/session
+riêng dưới `docs/tasks/`/`docs/sessions/` — khối này là bản ghi canonical
+duy nhất cho việc tích hợp, theo đúng NB-7 (governance bookkeeping vượt mức
+tối thiểu bị hoãn, không mở rộng phạm vi phiên tích hợp này).
+
+```text
+SESSION                    = S122 — R1 Controlled Integration
+REVIEWED_SOURCE_BRANCH     = claude/ux-r1-deduplicate-navigation-devqm1
+REVIEWED_HEAD              = 1ff9e3393fb206396d142a07e9488bc419c7d8b7
+INDEPENDENT_REVIEW         = PASS (đã thực hiện trước phiên này)
+CANONICAL_BRANCH           = claude/extract-upload-repo-gq2ws4
+CANONICAL_BEFORE_SHA       = 4cdfaafdcc23bec58c6483191dcd1a86696a0487 (khớp
+                             kỳ vọng, không moved)
+INTEGRATION_METHOD         = git merge --ff-only → fast-forward THUẦN TUÝ,
+                             không merge commit, không squash, không rebase,
+                             không cherry-pick
+CANONICAL_AFTER_SHA        = 1ff9e3393fb206396d142a07e9488bc419c7d8b7
+                             (== REVIEWED_HEAD, tree fast-forward y hệt
+                             accepted tree)
+
+SCOPE                      = Thuần trình bày + điều hướng — thanh tab chính
+                             rút từ 9 xuống 4 mục (Báo cáo/Nhân viên/Doanh số
+                             ngày/Dữ liệu); `/` redirect sang `/kinh-doanh`
+                             thay vì màn hình upload; màn hình chạy pipeline
+                             dời sang `/du-lieu/chay-bao-cao`. Không đổi công
+                             thức nghiệp vụ, không đổi Legacy source
+                             resolution, không thêm migration.
+BUSINESS_TOTALS_CHANGED    = NO — diff chỉ chạm `app/web/` (routes +
+                             templates) và tests; không chạm module tính
+                             toán nghiệp vụ (`app/pipeline.py`,
+                             `app/modules/**`). Thêm `_thousand_vnd()` ở
+                             `business_presentation.py` chỉ là biểu diễn
+                             (kèm bản VND đầy đủ), không đổi giá trị lưu
+                             trữ/tính toán.
+LEGACY_RESOLVER_CHANGED    = NO
+
+PRE_INTEGRATION_BOUNDED_CHECK = PASS — chạy lại trong worktree tách biệt tại
+                             REVIEWED_HEAD (không rerun audit toàn bộ, theo
+                             đúng yêu cầu bounded check):
+                             tests/test_r1_navigation.py = 14 passed;
+                             route/presentation smoke (test_web_server,
+                             test_web_legacy_routes, test_web_product_view,
+                             test_web_sales_detail,
+                             test_web_pipeline_analytics,
+                             test_business_vertical,
+                             test_dec180_discount_parity,
+                             test_phb03_followup_repairs) = 296 passed;
+                             `git diff --check` = sạch, không lỗi whitespace.
+POST_FF_SMOKE              = PASS — primary nav đúng 4 mục
+                             (Báo cáo→/kinh-doanh, Nhân viên→
+                             /kinh-doanh/nhan-vien, Doanh số ngày→
+                             /doanh-so-ngay, Dữ liệu→/du-lieu); `/` redirect
+                             sang `/kinh-doanh`; `/du-lieu` có liên kết tới
+                             `/du-lieu/chay-bao-cao`; `/nhan-vien` và
+                             `/tong-quan` (route cũ) vẫn truy cập trực tiếp
+                             được, không còn trên thanh tab chính; không tab
+                             chính nào trỏ tới Lịch sử/Tổng quan/Bán
+                             hàng/Sản phẩm/Chạy báo cáo.
+
+NON_BLOCKING_FINDINGS      = NB-1 (active-tab cũ ở /nhan-vien) · NB-2 (stale
+                             active-tab trên route ẩn/run-report con) · NB-3
+                             (đơn vị hiển thị cần polish) · NB-4 (biên trình
+                             bày <500 VND) · NB-5 (tên hàm test đã cũ) · NB-6
+                             (REM-T06 broken references đã biết, baseline
+                             không đổi) · NB-7 (governance bookkeeping vượt
+                             mức tối thiểu — bị hoãn, không xử lý trong
+                             phiên này)
+BLOCKING_FINDINGS          = NONE
+SCOPE_DRIFT                = NO
+MERGE_COMMIT_CREATED       = NO
+NEW_BUSINESS_CODE_COMMIT   = NO
+
+STATUS                     = DONE — đã fast-forward và push lên
+                             `claude/extract-upload-repo-gq2ws4`
+NEXT_VERTICAL_ACTION       = Mở session R2 MỚI: hợp nhất hai workbook cố
+                             định 2025 + T1–T8/2026 thành một nguồn
+                             LEGACY_HISTORY logic duy nhất, và bỏ "Bản đang
+                             xem"/"Chọn bản này" khỏi cả đường giải quyết
+                             nghiệp vụ lẫn UI thường.
+```
+
+
 ## CANONICAL CURRENT STATE — S121 DISCOUNT PARITY + CROSS-BOUNDARY MoM (AUTHORITATIVE, 2026-09-05)
 
 Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-180`). Chủ dự án cung cấp
