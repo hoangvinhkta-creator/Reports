@@ -120,9 +120,20 @@ EMPLOYEE_TABLES = {"employee_attribution_override"}
 # không phải một bảng để dành.
 TARGET_TABLES = {"employee_target"}
 
-# Bốn bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
+# EMPLOYEE WORKSPACE UX (`DEC-PHB02-08`) — ba bảng cùng loại của `0007`:
+# phân loại Gia dụng ở CẤP DÒNG (bảng `product_group_classification` chỉ khoá
+# được theo mặt hàng, nên không nói được "đúng dòng này"), việc Owner loại một
+# dòng khỏi báo cáo, và Target tháng của một NHÓM báo cáo. Migration riêng vì
+# `0003`–`0006` đã chạy trên production.
+WORKSPACE_TABLES = {
+    "line_product_group_classification", "line_exclusion", "group_target",
+}
+
+# Bảy bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
 # này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
-OWNER_INPUT_TABLES = BUSINESS_TABLES | EMPLOYEE_TABLES | TARGET_TABLES
+OWNER_INPUT_TABLES = (
+    BUSINESS_TABLES | EMPLOYEE_TABLES | TARGET_TABLES | WORKSPACE_TABLES
+)
 
 
 def test_migration_upgrade_then_downgrade_round_trips(tmp_path):
@@ -176,6 +187,26 @@ _SEED_TARGET = (
     " VALUES (2026, 9, 'Ly', 'PIPELINE_GENERATED', '500000000',"
     "         '2026-09-04T09:00:00', 'owner')"
 )
+_SEED_LINE_GROUP = (
+    "INSERT INTO line_product_group_classification"
+    " (order_key, product_key, occurrence_index, origin, product_group,"
+    "  classified_at, classified_by)"
+    " VALUES ('BTL00300', 'pk-panasonic', 1, 'PIPELINE_GENERATED', 'GIA_DUNG',"
+    "         '2026-09-04T09:00:00', 'owner')"
+)
+_SEED_EXCLUSION = (
+    "INSERT INTO line_exclusion"
+    " (order_key, product_key, occurrence_index, origin, reason, excluded_at,"
+    "  excluded_by)"
+    " VALUES ('BTL00300', 'pk-thue-nguoi', 1, 'PIPELINE_GENERATED', NULL,"
+    "         '2026-09-04T09:00:00', 'owner')"
+)
+_SEED_GROUP_TARGET = (
+    "INSERT INTO group_target"
+    " (year, month, group_key, origin, target_vnd, updated_at, updated_by)"
+    " VALUES (2026, 9, 'NOI_THANH', 'PIPELINE_GENERATED', '800000000',"
+    "         '2026-09-04T09:00:00', 'owner')"
+)
 
 
 def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
@@ -196,7 +227,8 @@ def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.begin() as connection:
         for statement in (_SEED_PRICE, _SEED_GROUP, _SEED_EMPLOYEE,
-                          _SEED_TARGET):
+                          _SEED_TARGET, _SEED_LINE_GROUP, _SEED_EXCLUSION,
+                          _SEED_GROUP_TARGET):
             connection.exec_driver_sql(statement)
     engine.dispose()
 
@@ -234,6 +266,17 @@ def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
             "SELECT employee_normalized, employee_group"
             " FROM employee_attribution_override").fetchall() == [
             ("Vinh", "NOI_THANH")]
+        # `DEC-PHB02-08` — ba quyết định mới cũng phải sống sót nguyên vẹn.
+        assert connection.exec_driver_sql(
+            "SELECT order_key, occurrence_index, product_group"
+            " FROM line_product_group_classification").fetchall() == [
+            ("BTL00300", 1, "GIA_DUNG")]
+        assert connection.exec_driver_sql(
+            "SELECT order_key, product_key FROM line_exclusion").fetchall() == [
+            ("BTL00300", "pk-thue-nguoi")]
+        assert connection.exec_driver_sql(
+            "SELECT group_key, target_vnd FROM group_target").fetchall() == [
+            ("NOI_THANH", "800000000")]
     engine.dispose()
 
 
@@ -304,6 +347,11 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
 
     `0006_employee_target` gia nhập khi PHB-05 implement `DEC-PHB02-06`
     (Target cấu hình được theo từng nhân viên, không hard-code) — cùng lý do.
+
+    `0007_employee_workspace` gia nhập khi `DEC-PHB02-08` mở không gian làm
+    việc Nhân viên: ba trường khách hàng của chính sổ đang nạp, phân loại Gia
+    dụng ở cấp DÒNG, việc loại một dòng khỏi báo cáo, và Target của NHÓM báo
+    cáo. Bốn khẳng định đó không có chỗ nào trong lược đồ cũ để lưu.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
@@ -311,7 +359,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     assert versions == ["0001_legacy.py", "0002_snapshots.py",
                         "0003_business.py", "0004_employee_attribution.py",
                         "0005_legacy_source_authority.py",
-                        "0006_employee_target.py"]
+                        "0006_employee_target.py",
+                        "0007_employee_workspace.py"]
 
 
 def test_schema_declares_exactly_the_frozen_tables():

@@ -1,5 +1,101 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — EMPLOYEE WORKSPACE UX = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
+
+Vertical hiện tại: **không gian làm việc Nhân viên** (`DEC-184` /
+`DEC-PHB02-08`). Đây là quyết định nghiệp vụ MỚI của chủ dự án, không phải
+một lần cài đặt quyết định cũ — bản ghi đầy đủ kèm mười sáu phát biểu gốc:
+`DEC-184` trong `PROJECT/PROJECT_DECISIONS.md`.
+
+Trạng thái là ĐÃ TRIỂN KHAI TRÊN NHÁNH, **chưa** integrate: nhánh này chưa
+qua Independent Review và chưa fast-forward vào canonical.
+
+Khối PHB-05 bên dưới vẫn đúng và không bị mục này thay thế, TRỪ hai điểm
+được nói tên ở `DEC-184` § Supersedes: hạn chế "Target chỉ đặt được cho kỳ
+đã có dữ liệu" (`NBF-2`) nay đã mở cho THÁNG HIỆN TẠI, và trang
+`/kinh-doanh/nhan-vien` đổi từ bộ chọn nhân viên sang hàng sheet. Màn hình
+`/kinh-doanh/target` của PHB-05 giữ nguyên hành vi và nguyên đơn vị VND.
+
+```text
+VERTICAL                   = EMPLOYEE WORKSPACE UX + GROUP REPORTING
+                             + TARGET UX + GIA_DUNG CLASSIFICATION
+DECISION                   = DEC-184 (DEC-PHB02-08 — quyết định Owner MỚI)
+STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
+                             Review trên đúng FINAL_HEAD. KHÔNG merge
+                             canonical, KHÔNG deploy.
+
+DEFAULT_PERIOD             = CURRENT_MONTH — mở được kể cả khi tháng đó chưa
+                             có một dòng kế toán nào; KHÔNG lùi tháng
+EMPLOYEE_DROPDOWN          = NO
+TOP_SHEET_TABS             = YES (khung nhìn con; R1 vẫn đúng 4 tab)
+NOI_THANH_GROUP            = một sheet gộp cả nhóm NOI_THANH
+NOI_THANH_SHARED_TARGET    = YES — MỘT con số Owner tự đặt, KHÔNG cộng dồn
+                             target của từng thành viên
+GIA_DUNG_SHEET             = YES
+GIA_DUNG_IS_EMPLOYEE       = NO — bucket báo cáo, không phải một người
+GIA_DUNG_GRAIN             = LINE (order_key, product_key, occurrence_index)
+GIA_DUNG_NORMAL_RATE       = 2%  (NOI_THANH + DIEN_MAY)
+GIA_DUNG_RATE              = 8%  (NOI_THANH + GIA_DUNG, GIA_DUNG_8 đã có sẵn)
+GIA_DUNG_SHARED_TARGET     = YES — Target RIÊNG, không mượn của Nội thành
+EMPLOYEE_IDENTITY_IN_ROWS  = PRESERVED — cột Nhân viên luôn ghi người bán thật
+
+TARGET_UI_UNIT             = kVND (chỉ ở không gian làm việc)
+TARGET_CANONICAL_UNIT      = VND (không đổi — PHB-05 §7)
+TARGET_ROUND_TRIP          = PASS — 500,000 ⟷ 500000000, lặp 10 vòng không trôi
+LINE_EXCLUSION             = YES, đảo ngược được
+RAW_ACCOUNTING_DELETED     = NO — không câu SQL nào chạm bảng append-only
+CUSTOMER_FIELDS_VISIBLE    = Tên KH · SĐT · Địa chỉ, từ chính sổ đang nạp
+DATE_FORMAT                = DD/MM/YYYY
+DATE_GROUP_SHADING         = theo NGÀY, không theo dòng
+
+SCHEMA_CHANGE              = 3 cột customer_* (nullable) trên
+                             order_line_source_version + 3 bảng mới
+                             (line_product_group_classification ·
+                             line_exclusion · group_target)
+NEW_MIGRATION              = 0007_employee_workspace (ADDITIVE thuần)
+ALEMBIC_HEAD               = 0006 → 0007
+OWNER_INPUT_TABLES         = 4 → 7 bảng (rollback B04 phủ cả ba bảng mới)
+
+BUSINESS_FORMULAS_CHANGED  = NO
+BUSINESS_TOTALS_UNEXPECTEDLY_CHANGED = NO
+BEHAVIOUR_FIX              = build_lines hỏi tỉ lệ quy đổi bằng danh tính
+                             HIỆU LỰC thay vì danh tính thô — đóng lỗ mà
+                             rate_routing tuyên bố không được xảy ra (một
+                             dòng Gia dụng gán cho nhân viên bán lẻ vẫn
+                             quy đổi 8%). Chỉ chạm dòng ĐÃ phân loại.
+R1_NAV_PRESERVED           = YES (Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu)
+R2_LEGACY_HISTORY_PRESERVED = YES (POST /du-lieu/legacy vẫn là ranh giới duy nhất)
+PHB05_PRESERVED            = YES (canonical VND · công thức So target · rỗng
+                             ≠ 0 · Target Legacy chỉ đọc · /kinh-doanh/target
+                             không đổi)
+
+FULL_SUITE                 = 2493 passed, 11 skipped
+                             (baseline trước thay đổi: 2403 passed, 11
+                             skipped — chênh lệch đúng 88 test mới cộng 2
+                             test tách ra từ hai guard PII được thu hẹp;
+                             không mất một test nào)
+GOLDEN                     = 58 passed, 2 skipped
+MIGRATION_TEST             = alembic THẬT từ revision production 0006, có mô
+                             phỏng database chưa mang ba cột customer_*
+BLOCKING_FINDINGS          = NONE
+
+ĐÃ ĐÓNG:
+  NBF-2                    = "không đặt trước được Target cho một kỳ khi kỳ
+                             đó CHƯA có dữ liệu Current" — mở cho THÁNG
+                             HIỆN TẠI theo quyết định Owner (`DEC-184` §1.1).
+                             Các tháng tương lai khác vẫn chưa mở.
+
+TỒN ĐỌNG (không do task này gây ra, không sửa trong task này):
+  REFERENCE_INTEGRITY      = FAIL sẵn trên BASE_HEAD — ba tham chiếu chết
+                             trong docs/tasks/TASK-REM-T06-repository-root-
+                             hygiene.md (/README.md, CODE_OF_CONDUCT.md,
+                             CONTRIBUTING.md). Đã xác nhận bằng cách chạy
+                             validator trên cây sạch của BASE_HEAD.
+
+NEXT_VERTICAL_ACTION       = Mở Independent Review MỚI, độc lập, trên đúng
+                             FINAL_HEAD của nhánh này.
+```
+
 ## CANONICAL CURRENT STATE — PHB-05 EMPLOYEE TARGET V1 = INTEGRATED (AUTHORITATIVE, 2026-09-05)
 
 Vertical hiện tại: **`PHB-05` — Employee Target V1**, triển khai

@@ -261,3 +261,87 @@ tr.row-pending td { background: var(--tp-gold-bg); }
    cảnh báo của `row-pending`: nó không phải việc phải làm. */
 tr.row-discount td { color: var(--tp-mut); font-style: italic; }
 tr.row-discount td:first-child { padding-left: 1.4rem; }
+
+/* ------------------------------------------------------------------ */
+/* `DEC-PHB02-08` — KHÔNG GIAN LÀM VIỆC NHÂN VIÊN.                     */
+/*                                                                     */
+/* Ba khối dưới đây phục vụ ba yêu cầu đã ghi trong quyết định, không   */
+/* phải trang trí: hàng sheet kiểu bảng tính (§4), nền xen kẽ theo NGÀY */
+/* (§38), và MỘT trạng thái đỏ cho dòng đang lỗ (§35).                  */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* Hai nền của nhóm ngày. Chúng phải phân biệt được nhưng KHÔNG được
+     đọc như một cảnh báo — `row-pending` (vàng) và `row-loss` (đỏ) là
+     những trạng thái có nghĩa, còn hai màu này chỉ là ranh giới ngày. */
+  --tp-shade-a: #ffffff;
+  --tp-shade-b: #f0f1f4;
+}
+
+/* §4 — hàng sheet nằm TRÊN báo cáo, trông gần với tab của một bảng
+   tính. Nó cố ý KHÁC `.ncc-tabs` về hình thức: thanh kia là điều hướng
+   cấp một của cả sản phẩm, hàng này là khung nhìn con của một trang, và
+   hai thứ trông giống hệt nhau sẽ dạy người dùng sai về cấu trúc. */
+.sheet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 var(--tp-s4);
+  margin-bottom: var(--tp-s2);
+}
+.sheet-tab {
+  padding: var(--tp-s2) var(--tp-s3);
+  border: 1px solid var(--tp-line);
+  border-bottom: none;
+  border-radius: var(--tp-r-sm) var(--tp-r-sm) 0 0;
+  background: var(--tp-shade-b);
+  color: var(--tp-mut);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sheet-tab:hover { color: var(--tp-blue); }
+.sheet-tab.on {
+  background: var(--tp-shade-a);
+  color: var(--tp-blue);
+  border-color: var(--tp-blue);
+}
+/* Hai sheet NHÓM (Nội thành · Gia dụng) đứng đầu hàng và phải phân biệt
+   được với sheet của một con người — chúng cộng dòng của nhiều người. */
+.sheet-tab.sheet-group { font-style: italic; }
+
+/* §38 — nền xen kẽ theo NGÀY, KHÔNG theo dòng.
+   Hai mươi dòng cùng ngày dùng chung một nền; ngày kế tiếp đổi nền. Xen
+   kẽ theo từng dòng (zebra thông thường) phá đúng thông tin này: Owner
+   sẽ không còn nhìn thấy ranh giới ngày nếu không đọc cột Ngày. */
+.sheet-table tr.shade-0 td { background: var(--tp-shade-a); }
+.sheet-table tr.shade-1 td { background: var(--tp-shade-b); }
+
+/* Hàng đầu của một BH: ngày · mã đơn · khách hàng · nút sửa. Các dòng
+   hàng bên dưới thuộc về nó, nên nó cần một đường phân cách phía trên. */
+.sheet-table tr.bh-head td {
+  border-top: 2px solid var(--tp-line);
+  font-weight: 600;
+}
+.sheet-table tr.bh-open td { border-top-color: var(--tp-blue); }
+.sheet-table tr.bh-edit-row td { border-top: none; }
+
+/* §35 — MỘT trạng thái đỏ cho "giá nhập cao hơn giá bán" và "lợi nhuận
+   âm". Chúng mô tả cùng một vấn đề vận hành, nên chúng cho ra một dấu
+   hiệu chứ không phải hai đoạn cảnh báo cạnh nhau. */
+.sheet-table tr.row-loss td { color: var(--tp-red); }
+.sheet-table tr.row-loss td.num { font-weight: 600; }
+
+/* §36 — nhãn ngắn cạnh số BH, thay cho những đoạn văn trong lòng bảng. */
+.tag-short {
+  background: var(--tp-gold-bg);
+  color: var(--tp-gold);
+  margin-left: var(--tp-s2);
+}
+
+.line-actions { white-space: nowrap; }
+
+/* Hộp xác nhận của hai thao tác ghi (§9). Ngắn, và đủ nổi để không ai
+   bấm nhầm nó như một dòng bảng bình thường. */
+.confirm-box { border-left: 3px solid var(--tp-blue); }

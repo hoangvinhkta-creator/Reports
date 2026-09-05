@@ -17,10 +17,17 @@ from typing import Optional, Sequence
 from app.history.keys import bh_parts, line_fingerprint, product_key, result_fingerprint
 from app.history.models import LineKey, ResultLine, SourceLine
 
-# PII của khách hàng KHÔNG được rời khỏi tầng pipeline (mục 2 + mục 10):
-# `customer`, `customer_code`, `phone`, `address`, `shipper_raw` không có mặt
-# trong SourceLine/ResultLine, nên chúng không thể lọt vào bảng nào của
-# PRA-002 kể cả do sơ ý sau này.
+# Hàng rào dữ liệu cá nhân, ĐÃ THU HẸP bởi `DEC-PHB02-08` chứ không bị bỏ.
+#
+# PRA-002 mục 2/mục 10 loại MỌI trường khách hàng khỏi tầng lưu trữ. Owner —
+# người kiểm soát chính sổ kế toán này — sau đó yêu cầu tường minh rằng bảng
+# kê nghiệp vụ phải hiện Tên KH · SĐT · Địa chỉ, vì một dòng bán không có
+# khách hàng thì không đối chiếu được với đơn thật. Ranh giới mới:
+#
+#   ĐI QUA   `customer` · `phone` · `address` — đúng ba trường, đúng sổ này.
+#   Ở LẠI    `customer_code`, `shipper_raw` (không ai yêu cầu), và
+#            `ResultLine` vẫn KHÔNG mang một trường khách hàng nào — trục kết
+#            quả là con số của engine, khách hàng không thuộc về nó.
 
 
 def build_source_lines(presented: Sequence) -> list[SourceLine]:
@@ -55,6 +62,9 @@ def build_source_lines(presented: Sequence) -> list[SourceLine]:
             total_sales_raw=raw.total_sales_raw, delivery_cost=raw.delivery_cost,
             imei=raw.imei, note_raw=raw.note_raw, employee_raw=raw.employee_raw,
             source_profit=raw.source_profit,
+            customer_name=getattr(raw, "customer", None),
+            customer_phone=getattr(raw, "phone", None),
+            customer_address=getattr(raw, "address", None),
         ))
     return lines
 

@@ -269,6 +269,24 @@ order_line_source_version = Table(
     Column("imei", Text, nullable=True),
     Column("note_raw", Text, nullable=True),
     Column("employee_raw", Text, nullable=True),
+    # EMPLOYEE WORKSPACE UX (`DEC-PHB02-08`) — ba trường KHÁCH HÀNG của chính
+    # sổ kế toán đang nạp (`app/modules/importing/raw_reader.py` cột 5/6/7).
+    #
+    # Trước quyết định này, PRA-002 mục 2/mục 10 loại chúng khỏi tầng lưu trữ
+    # theo hướng tối thiểu hoá dữ liệu. Owner — người kiểm soát chính sổ kế
+    # toán này — đã yêu cầu tường minh rằng bảng kê nghiệp vụ phải hiện Tên
+    # KH · SĐT · Địa chỉ, vì một dòng bán không có khách hàng thì không đối
+    # chiếu được với đơn thật. Ranh giới cũ vì thế được THU HẸP, không bị xoá:
+    #
+    # - Đúng BA trường này, lấy từ ĐÚNG sổ đang nạp. Không CRM, không ghép
+    #   danh tính liên hệ thống (`§49` của chỉ thị).
+    # - `imei`, `note_raw`, `employee_raw` VẪN nằm ngoài mọi đường báo cáo —
+    #   `tests/test_business_boundaries.py` canh việc đó bằng chính mã nguồn.
+    # - KHÔNG vào `FINGERPRINT_FIELDS`: kế toán sửa tên khách KHÔNG phải là
+    #   "dòng bán này đã bị sửa", nên reconcile không được đổi nghĩa vì nó.
+    Column("customer_name", Text, nullable=True),
+    Column("customer_phone", Text, nullable=True),
+    Column("customer_address", Text, nullable=True),
     Column("row_hash", Text, nullable=False),
     Column("line_fingerprint", Text, nullable=False),
     Column("changed_fields_json", Text, nullable=True),
@@ -550,12 +568,120 @@ employee_target = Table(
                     name="ck_employee_target_employee_not_blank"),
 )
 
+
+# ---------------------------------------------------------------------------
+# EMPLOYEE WORKSPACE UX — ba quyết định MỚI của Owner (migration ``0007``).
+#
+# Cả ba giữ đúng khuôn đã nghiệm thu của `0003`/`0004`/`0006`: khoá NGHIỆP VỤ,
+# không ``snapshot_id``/``version_id`` nào, ghi đè tại chỗ, không lịch sử
+# phiên bản, không luồng duyệt. Nhờ khoá nghiệp vụ, cả ba sống sót qua một lần
+# nạp lại sổ, một lần sửa giá nhập, và một lần phân giải Product Identity.
+# ---------------------------------------------------------------------------
+
+# `line_product_group_classification` — PHÂN LOẠI GIA DỤNG Ở CẤP DÒNG.
+#
+# ## Vì sao KHÔNG dùng lại `product_group_classification`
+#
+# Bảng đó khoá theo ``product_key`` duy nhất, nên nó chỉ nói được "MẶT HÀNG
+# này là Gia dụng" — mọi lần bán của mọi đơn, mọi kỳ. Quyết định mới của Owner
+# là ở cấp DÒNG: một BH có ba dòng, và Owner chuyển đúng MỘT dòng sang Gia
+# dụng trong khi hai dòng còn lại ở lại Nội thành (`§10` của chỉ thị). Không
+# có cách nào biểu diễn điều đó bằng một khoá ``product_key`` mà không nói dối
+# về hai dòng kia.
+#
+# Đây vì thế KHÔNG phải một thẩm quyền Gia dụng thứ hai: nó là cùng một từ
+# vựng (``PRODUCT_GROUPS``), cùng một hệ quả (``ConversionRateRouter`` hỏi lại
+# đúng ``ConversionSchemeResolver``), chỉ khác GRAIN. Quy tắc hợp nhất được
+# viết đúng một chỗ (``app/web/business_queries.effective_product_group``):
+# quyết định cấp DÒNG cụ thể hơn nên thắng quyết định cấp mặt hàng.
+line_product_group_classification = Table(
+    "line_product_group_classification", METADATA,
+    Column("order_key", Text, primary_key=True),
+    Column("product_key", Text, primary_key=True),
+    Column("occurrence_index", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    Column("product_group", Text, nullable=False),
+    Column("classified_at", Text, nullable=False),
+    Column("classified_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_line_product_group_origin"),
+    CheckConstraint(_in_check("product_group", PRODUCT_GROUPS),
+                    name="ck_line_product_group_value"),
+)
+
+# `line_exclusion` — LOẠI MỘT DÒNG KHỎI TOÀN BỘ BÁO CÁO NGHIỆP VỤ.
+#
+# Owner quyết định: cái nút hình thùng rác nghĩa là "dòng này không được tính
+# vào báo cáo nữa" (`§30`). Nhưng nó KHÔNG được xoá bằng chứng kế toán gốc
+# (`§31`): ``order_line_source_version``/``order_line_result_version`` là bản
+# ghi append-only của một lần nạp sổ, và xoá một dòng ở đó là xoá dấu vết sổ
+# đã ghi gì.
+#
+# Vì vậy đây là một quyết định CÓ THỂ ĐẢO NGƯỢC nằm cạnh dữ liệu, đúng khuôn
+# ba bảng override đã có: sự TỒN TẠI của một dòng ở đây ⟺ dòng nghiệp vụ
+# tương ứng bị loại khỏi mọi phép gộp; xoá dòng ở đây ⟺ khôi phục. Không cột
+# ``active``/``deleted_at`` nào — một cột trạng thái mở đường cho "đã xoá
+# nhưng vẫn còn tính", tức là đúng lớp lỗi mà bảng này sinh ra để đóng.
+line_exclusion = Table(
+    "line_exclusion", METADATA,
+    Column("order_key", Text, primary_key=True),
+    Column("product_key", Text, primary_key=True),
+    Column("occurrence_index", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    # Ghi chú tuỳ chọn của Owner. KHÔNG tham gia phép tính nào.
+    Column("reason", Text, nullable=True),
+    Column("excluded_at", Text, nullable=False),
+    Column("excluded_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_line_exclusion_origin"),
+)
+
+# `group_target` — TARGET THÁNG CỦA MỘT NHÓM BÁO CÁO (`§7`, `§13`, `§43`).
+#
+# ## Vì sao KHÔNG nhét "Nội thành" vào `employee_target`
+#
+# ``employee_target.employee_key`` dùng lại danh tính nhân viên hiện hành, và
+# `config/employees.yaml` nói thẳng rằng gộp Vinh · Quý · Hiệp thành một
+# "Employee" tên "Nội thành" là cách đã LÀM MẤT danh tính nhân viên có thật
+# (DEC-127 §1). Ghi một dòng ``employee_key = 'Nội thành'`` sẽ dựng lại đúng
+# cái mô hình danh tính giả đó, và mọi màn hình đọc `employee_target` sẽ thấy
+# một "nhân viên" không tồn tại.
+#
+# ``group_target`` vì thế là bảng ANH EM, không phải bảng thay thế: cùng khoá
+# ``(year, month, …)``, cùng đơn vị VND, cùng quy ước "không có dòng = chưa
+# thiết lập, ``0`` = đã đặt bằng không". Khác đúng một điều — chủ thể của con
+# số là một NHÓM BÁO CÁO, và điều đó được nói ra bằng tên bảng và tên cột chứ
+# không bằng một quy ước ngầm trong dữ liệu.
+#
+# Target của nhóm là con số Owner tự đặt: nó KHÔNG bao giờ được suy ra bằng
+# cách cộng target của Vinh · Quý · Hiệp (`§7`), đúng cùng lý do mà
+# `TARGET_COMPANY_DEFERRED_NOTE` đã nói cho cấp công ty.
+group_target = Table(
+    "group_target", METADATA,
+    Column("year", Integer, primary_key=True),
+    Column("month", Integer, primary_key=True),
+    # Khoá của NHÓM BÁO CÁO (``NOI_THANH`` · ``GIA_DUNG``), không phải tên
+    # người. Từ vựng nằm ở ``app/modules/reporting/reporting_sheets.py``.
+    Column("group_key", Text, primary_key=True),
+    _pipeline_origin_column(),
+    Column("target_vnd", ExactNumeric, nullable=False),
+    Column("updated_at", Text, nullable=False),
+    Column("updated_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_group_target_origin"),
+    CheckConstraint("month >= 1 AND month <= 12", name="ck_group_target_month"),
+    CheckConstraint("target_vnd >= 0", name="ck_group_target_not_negative"),
+    CheckConstraint("length(trim(group_key)) > 0",
+                    name="ck_group_target_group_not_blank"),
+)
+
 # Thứ tự tạo/xoá tường minh cho migration 0003/0004. Không FK nào trỏ ra
 # ngoài: cả ba bảng là quyết định của con người trên một KHOÁ NGHIỆP VỤ, và
 # khoá đó phải sống sót qua một lần re-import làm đổi ``id`` của version.
 BUSINESS_TABLES = (kpi_purchase_price_override, product_group_classification)
 EMPLOYEE_TABLES = (employee_attribution_override,)
 TARGET_TABLES = (employee_target,)
+# Thứ tự tạo/xoá tường minh cho migration 0007.
+WORKSPACE_TABLES = (
+    line_product_group_classification, line_exclusion, group_target,
+)
 
 # ---------------------------------------------------------------------------
 # B04 — ROLLBACK KHÔNG ĐƯỢC XOÁ DỮ LIỆU OWNER TỰ NHẬP
@@ -571,7 +697,9 @@ TARGET_TABLES = (employee_target,)
 # một bảng lưu tạm cùng database; ``upgrade()`` sau đó nạp lại. Không backup
 # subsystem, không file dump, không dịch vụ mới — một câu ``CREATE TABLE AS
 # SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
-OWNER_INPUT_TABLES = BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES
+OWNER_INPUT_TABLES = (
+    BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES + WORKSPACE_TABLES
+)
 
 #: Hậu tố của bảng lưu tạm. Nó nằm NGOÀI ``METADATA`` một cách có chủ đích:
 #: đây không phải một bảng của lược đồ, nó là một cái két chỉ tồn tại giữa một

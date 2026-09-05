@@ -161,11 +161,42 @@ def test_occurrence_index_follows_source_row_not_input_order():
     assert lines[0].source_row == 7 and lines[0].key.occurrence_index == 1
 
 
-def test_extraction_never_carries_pii_out_of_the_pipeline():
+def test_extraction_carries_exactly_the_three_customer_fields_the_owner_asked_for():
+    """Hàng rào dữ liệu cá nhân, ĐÃ THU HẸP bởi `DEC-PHB02-08` — không bị bỏ.
+
+    PRA-002 mục 2/mục 10 loại MỌI trường khách hàng khỏi tầng lưu trữ. Owner —
+    người kiểm soát chính sổ kế toán này — sau đó yêu cầu tường minh rằng bảng
+    kê nghiệp vụ phải hiện Tên KH · SĐT · Địa chỉ (`§23`/`§49`), vì một dòng
+    bán không có khách hàng thì không đối chiếu được với đơn thật.
+
+    Test này canh CẢ HAI nửa của ranh giới mới, vì một nửa không có nửa kia
+    thì không phải một ranh giới:
+
+        ĐI QUA   `customer` · `phone` · `address` — và ĐÚNG ba trường đó.
+        Ở LẠI    `customer_code` và `shipper_raw` — không ai yêu cầu chúng,
+                 nên chúng không được đi nhờ theo.
+    """
     line = extraction.build_source_lines([presented()])[0]
     text = repr(line)
-    for secret in ("Nguyễn Văn A", "0900000000", "1 Lê Lợi", "KH1", "Shipper X"):
-        assert secret not in text
+    assert line.customer_name == "Nguyễn Văn A"
+    assert line.customer_phone == "0900000000"
+    assert line.customer_address == "1 Lê Lợi"
+    for still_excluded in ("KH1", "Shipper X"):
+        assert still_excluded not in text
+
+
+def test_the_customer_fields_never_enter_the_line_fingerprint():
+    """Kế toán sửa tên khách KHÔNG phải "dòng bán này đã bị sửa".
+
+    `line_fingerprint` là thứ quyết định một snapshot mới có sinh ra
+    `SOURCE_CHANGED` hay không. Nếu ba trường khách hàng lọt vào đó, một lần
+    kế toán gõ lại số điện thoại sẽ dựng ra một version nguồn mới và một cờ
+    reconcile — tức là `DEC-PHB02-08` âm thầm đổi nghĩa của PRA-002.
+    """
+    assert not ({"customer", "customer_name", "phone", "customer_phone",
+                 "address", "customer_address"} & set(keys.FINGERPRINT_FIELDS))
+    line = extraction.build_source_lines([presented()])[0]
+    assert "customer" not in " ".join(repr(v) for v in line.fingerprint_values)
 
 
 # --- coverage -------------------------------------------------------------

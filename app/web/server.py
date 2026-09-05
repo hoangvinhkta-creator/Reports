@@ -35,7 +35,7 @@ import os
 import time
 import uuid
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -55,13 +55,13 @@ from app.owner_usability import (
 from app.owner_usability import SelectedCaptures
 from app.history import coverage as history_coverage
 from app.history import models as history_models
-from app.modules.reporting import business_metrics
-from app.modules.reporting.rate_routing import gia_dung_workflow_applies
+from app.modules.reporting import business_metrics, reporting_sheets
+from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
 from app.web import (
     analytics_presentation, analytics_queries, business_presentation,
     business_service, business_store, history_store, history_writer,
     legacy_presentation, legacy_reference, run_registry, sales_presentation,
-    sales_queries, storage_backend,
+    sales_queries, storage_backend, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -94,6 +94,24 @@ _OWNER_EDITED_PROVENANCE = (
     business_metrics.PROVENANCE_MANUAL,
     business_metrics.PROVENANCE_MANUAL_OVERRIDE,
 )
+
+
+# `DEC-PHB02-08` §2 — "hôm nay" của không gian làm việc, đọc qua MỘT hàm.
+#
+# Kỳ mặc định là THÁNG DƯƠNG LỊCH HIỆN TẠI, kể cả khi tháng đó chưa có dòng
+# bán nào (`§45`: Owner đặt Target trước lần nạp sổ đầu tiên). Một hằng số
+# ngày tháng nằm rải rác trong route sẽ khiến hành vi đó không kiểm được mà
+# không đợi sang tháng sau; gom về một hàm là cách test nói được "giả sử hôm
+# nay là ngày 3".
+def _today() -> date:
+    return date.today()
+
+
+# Biên kiểm tra của tham số `ky` (`§3`: "Date/year validation must remain
+# safe"). Một năm ngoài khoảng này không phải một kỳ báo cáo của doanh nghiệp
+# này; nhận nó chỉ để rồi dựng một trang rỗng là mời gọi URL rác.
+_MIN_WORKSPACE_YEAR = 2000
+_MAX_WORKSPACE_YEAR = 2100
 
 
 def _guarded(fn, *args, **kwargs):
@@ -336,6 +354,14 @@ def create_app(
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
         business_presentation.ORDER_COLUMN_NOTE
+    # `DEC-PHB02-08` — chú thích của không gian làm việc. Cùng kỷ luật: viết
+    # MỘT lần ở tầng trình bày, template chỉ hiện ra.
+    for _name in ("EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE",
+                  "EXCLUDE_CONFIRM_POINTS", "EXCLUDE_CONFIRM_QUESTION",
+                  "GIA_DUNG_CONFIRM_POINTS", "GIA_DUNG_CONFIRM_QUESTION",
+                  "PROGRESS_NOTE", "TARGET_KVND_NOTE",
+                  "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL"):
+        app.jinja_env.globals[_name] = getattr(workspace_presentation, _name)
 
     def _require_history() -> history_store.LegacyRepository:
         if history_repo is None:
@@ -987,35 +1013,348 @@ def create_app(
                 business_metrics.group_by_employee(view["data"].lines), totals),
         )
 
+    # ------------------------------------------------------------------
+    # KHÔNG GIAN LÀM VIỆC NHÂN VIÊN (`DEC-PHB02-08`).
+    #
+    # Đây là bản KẾ THỪA của trang Nhân viên PHB-03, không phải một tab mới:
+    # `R1` vẫn đúng bốn mục và mục "Nhân viên" vẫn trỏ vào chính route này.
+    # Khác biệt là cách Owner chọn phạm vi — thay vì một ô thả xuống "chọn
+    # nhân viên", màn hình có một hàng SHEET kiểu bảng tính ở trên cùng, và
+    # sheet đang chọn hiện ngay năm chỉ tiêu rồi tới bảng kê chi tiết.
+    #
+    # Bốn màn hình cũ (`/kinh-doanh`, `/kinh-doanh/gia-nhap`,
+    # `/kinh-doanh/gia-dung`, `/kinh-doanh/target`) KHÔNG bị gỡ: chúng vẫn là
+    # nơi làm những việc mà không gian làm việc cố ý không làm — lọc bảng kê
+    # theo bốn chế độ, phân loại Gia dụng ở cấp MẶT HÀNG, và đặt Target theo
+    # đồng cho toàn bộ nhân viên trong một bảng.
+    # ------------------------------------------------------------------
+
+    def _workspace_period() -> tuple[int, int]:
+        """Tháng đang xem của không gian làm việc. LUÔN là một tháng thật.
+
+        Khác `_business_period_choice` ở đúng hai điểm, và cả hai là quyết
+        định của Owner:
+
+        1. Không có/không hợp lệ ⟹ THÁNG DƯƠNG LỊCH HIỆN TẠI, không phải
+           "Toàn bộ dữ liệu" (`§2`, `§3`).
+        2. Một tháng CHƯA CÓ dòng bán nào vẫn mở được (`§2`, `§45`). Owner
+           chuẩn bị Target trước lần nạp sổ đầu tiên của tháng, và rơi ngược
+           về tháng trước sẽ làm con số đó ghi vào tháng sai.
+
+        Ranh giới an toàn giữ nguyên: tháng phải là `1..12` và năm phải nằm
+        trong khoảng có nghĩa, nếu không rơi về tháng hiện tại.
+        """
+        raw = request.values.get("ky") or ""
+        year_text, _, month_text = raw.partition("-")
+        try:
+            year, month = int(year_text), int(month_text)
+        except ValueError:
+            return (_today().year, _today().month)
+        if not 1 <= month <= 12:
+            return (_today().year, _today().month)
+        if not _MIN_WORKSPACE_YEAR <= year <= _MAX_WORKSPACE_YEAR:
+            return (_today().year, _today().month)
+        return (year, month)
+
+    def _workspace_sheet_key(sheets: list) -> Optional[str]:
+        """Khoá sheet Owner đang xem, đọc từ `sheet` hoặc từ `nhan-vien`.
+
+        `nhan-vien` là bí danh KẾ THỪA, và nó có ngữ nghĩa rõ ràng chứ không
+        phải một phép đoán: một cái tên thuộc nhóm Nội thành dẫn tới sheet
+        NỘI THÀNH (Vinh · Quý · Hiệp không có tab riêng — `§6`), tên rỗng dẫn
+        tới nhóm "chưa xác định", tên khác dẫn tới sheet của chính người đó.
+        Nhờ vậy mọi đường dẫn và bookmark cũ vẫn mở đúng phạm vi.
+        """
+        chosen = request.values.get("sheet")
+        if chosen and reporting_sheets.find_sheet(sheets, chosen) is not None:
+            return chosen
+        raw = request.values.get("nhan-vien")
+        if raw is None:
+            return None
+        alias = reporting_sheets.employee_sheet_key(raw)
+        if reporting_sheets.find_sheet(sheets, alias) is not None:
+            return alias
+        # Tên thuộc nhóm Nội thành ⟹ sheet Nội thành. Tra trong master, không
+        # trong dữ liệu của kỳ: một nhân viên Nội thành chưa bán gì tháng này
+        # vẫn phải mở ra sheet Nội thành chứ không rơi về sheet mặc định.
+        groups = dict(_require_business().assignable_employees())
+        if groups.get(raw) == reporting_sheets.GIA_DUNG_ELIGIBLE_GROUP:
+            return reporting_sheets.NOI_THANH_SHEET
+        return None
+
+    def _workspace_view() -> dict:
+        """Mọi thứ một màn hình không gian làm việc cần, đọc đúng một lần."""
+        service = _require_business()
+        period = _workspace_period()
+        bounds = analytics_queries.month_bounds(*period)
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        sheets = service.sheets(data)
+        key = _workspace_sheet_key(sheets)
+        sheet = (reporting_sheets.find_sheet(sheets, key) if key
+                 else None) or sheets[0]
+        return {
+            "service": service, "period": period, "data": data,
+            "sheets": sheets, "sheet": sheet,
+            "selected_period": f"{period[0]}-{period[1]:02d}",
+        }
+
+    def _workspace_previous(view: dict):
+        """Chỉ tiêu của CHÍNH sheet này ở tháng liền trước (`§16`).
+
+        So sánh cùng ĐƠN VỊ BÁO CÁO với chính nó: Nội thành so Nội thành, Gia
+        dụng so Gia dụng. Không so Nội thành với một nhân viên, không so Gia
+        dụng với Nội thành, và không mượn tổng tháng của cả công ty từ sổ cũ —
+        tổng đó là số của công ty, và dùng nó làm mẫu số cho một nhóm là một
+        phép so sai (`DEC-181` §16).
+        """
+        previous = analytics_presentation.previous_period(view["period"])
+        bounds = analytics_queries.month_bounds(*previous)
+        data = _guarded(view["service"].period,
+                        date_from=bounds[0], date_to=bounds[1])
+        return data.for_sheet(view["sheet"]).totals
+
+    def _workspace_line_keys():
+        """Khoá nghiệp vụ của MỘT dòng, đọc từ form/query. `None` nếu thiếu."""
+        try:
+            occurrence = int(request.values.get("occurrence_index") or "")
+        except ValueError:
+            return None
+        order_key = request.values.get("order_key") or ""
+        product_key = request.values.get("product_key") or ""
+        if not order_key or not product_key:
+            return None
+        return {"order_key": order_key, "product_key": product_key,
+                "occurrence_index": occurrence}
+
+    def _workspace_redirect(**extra):
+        args = {"ky": request.values.get("ky") or None,
+                "sheet": request.values.get("sheet") or None,
+                "nhan-vien": request.values.get("nhan-vien") or None}
+        return redirect(url_for(
+            "business_employee",
+            **{k: v for k, v in args.items() if v}, **extra))
+
     @app.get("/kinh-doanh/nhan-vien")
     def business_employee():
-        """EMPLOYEE V1 — `R-E1`…`R-E8`. Owner chọn NHÂN VIÊN + KỲ."""
-        view = _business_period()
-        context = _employee_context(view)
-        detail = None
-        target = None
-        if context["chosen"]:
-            scoped = view["data"].for_employee(context["employee"])
-            previous = (None if view["previous"] is None
-                        else view["previous"].for_employee(context["employee"]))
-            detail = business_presentation.employee_detail(
-                context["employee"], context["employee_group"], scoped.totals,
-                period=view["period"],
-                previous_totals=None if previous is None else previous.totals,
-                gia_dung=gia_dung_workflow_applies(context["employee_group"]),
-            )
-            # `PHB-05` — Target ĐỌC kết quả của kỳ, nó không tham gia dựng ra
-            # kết quả đó: `scoped.totals` đã tính xong trước khi Target được
-            # đọc, và không giá trị nào ở đây quay ngược lại tác động lên nó.
-            target = business_presentation.employee_target_block(
-                scoped.totals,
-                view["service"].employee_targets(view["period"]).get(
-                    context["employee"]),
-            )
+        """Không gian làm việc theo SHEET — `DEC-PHB02-08` §4/§5/§14/§22."""
+        view = _workspace_view()
+        sheet, period = view["sheet"], view["period"]
+        scoped = view["data"].for_sheet(sheet)
+        target = view["service"].sheet_target(sheet=sheet, period=period)
+        today = _today()
+
+        pending = _workspace_line_keys() if request.args.get("xac-nhan") else None
+        confirm = None
+        if pending is not None:
+            kind = request.args.get("xac-nhan")
+            if kind in ("gia-dung", "loai"):
+                confirm = {"kind": kind, **pending}
+
         return render_template(
-            "kinh_doanh_nhan_vien.html", periods=view["periods"],
-            selected_period=view["selected_period"], detail=detail,
-            target=target, **context)
+            "kinh_doanh_nhan_vien.html",
+            periods=workspace_presentation.period_options(
+                _guarded(analytics_queries.available_periods,
+                         snapshot_repo.engine),
+                selected=period, today=today),
+            selected_period=view["selected_period"],
+            tabs=workspace_presentation.sheet_tabs(view["sheets"], sheet.key),
+            sheet=workspace_presentation.sheet_view(
+                sheet, scoped.totals, period=period),
+            strip=workspace_presentation.summary_strip(
+                scoped.totals, period=period,
+                previous_totals=_workspace_previous(view),
+                target=target, today=today),
+            target=workspace_presentation.target_cell(target),
+            columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
+            groups=workspace_presentation.sheet_detail_groups(
+                scoped.details, sheet=sheet),
+            excluded=workspace_presentation.excluded_rows(view["data"].excluded),
+            assignable=business_presentation.assignable_employee_options(
+                view["service"].assignable_employees()),
+            editing=request.args.get("sua") or "",
+            confirm=confirm,
+            message=request.args.get("da-luu") or None,
+            error=request.args.get("loi") or None,
+        )
+
+    @app.post("/kinh-doanh/nhan-vien/target")
+    def business_save_sheet_target():
+        """Đặt/gỡ Target của SHEET đang xem, nhập theo NGHÌN ĐỒNG (`§17`).
+
+        Ba ranh giới, kiểm ở đây chứ không chỉ trên form:
+
+        1. Sheet phải tồn tại VÀ phải có chủ thể chịu trách nhiệm. Nhóm "chưa
+           xác định nhân viên" không đặt Target được — một chỉ tiêu cho tập
+           dòng chưa biết của ai là con số không ai chịu trách nhiệm.
+        2. Giá trị đi qua `parse_target_kvnd`: rỗng = GỠ, `>= 0` = ĐẶT (kể cả
+           `0`), âm/không phải số nguyên = TỪ CHỐI kèm câu nói rõ.
+        3. Kho lưu vẫn là VND. Việc đổi đơn vị xảy ra ĐÚNG MỘT LẦN, ở
+           `parse_target_kvnd`, nên không có đường nào nhân 1.000 hai lần
+           (`§20`).
+        """
+        view = _workspace_view()
+        sheet, period = view["sheet"], view["period"]
+        if sheet.unresolved or (not sheet.is_group and not sheet.employee):
+            return _workspace_redirect(loi=(
+                "Nhóm chưa xác định nhân viên không đặt Target được."))
+        try:
+            target = business_store.parse_target_kvnd(request.form.get("target"))
+        except business_store.InvalidTargetError as exc:
+            return _workspace_redirect(loi=str(exc))
+        label = sheet.label or business_presentation.UNKNOWN_EMPLOYEE
+        if target is None:
+            _guarded(view["service"].clear_sheet_target,
+                     sheet=sheet, period=period)
+            return _workspace_redirect(**{"da-luu": (
+                f"Đã gỡ Target của {label} trong "
+                f"{business_presentation.period_label(period)}.")})
+        _guarded(view["service"].set_sheet_target,
+                 sheet=sheet, period=period, target_vnd=target)
+        return _workspace_redirect(**{"da-luu": (
+            f"Đã lưu Target của {label} trong "
+            f"{business_presentation.period_label(period)}.")})
+
+    @app.post("/kinh-doanh/nhan-vien/don")
+    def business_save_order_employee():
+        """`§27` — đổi nhân viên cho TOÀN BỘ một BH bằng một thao tác.
+
+        Đây KHÔNG phải một thẩm quyền gán nhân viên thứ hai: nó gọi đúng
+        `BusinessDecisionStore.set_employee` mà `OD-5` đã nghiệm thu, một lần
+        cho mỗi dòng của đơn. Ranh giới của `OD-5` vì thế còn nguyên — tên
+        phải nằm trong master `config/employees.yaml`, và bằng chứng gốc
+        (`source_employee_at_entry`) vẫn được ghi lại trên từng dòng.
+
+        Vì sao lặp ở tầng route thay vì thêm một hàm "gán cả đơn" vào store:
+        store là nơi giữ MỘT quyết định trên MỘT khoá nghiệp vụ. Một phương
+        thức nhận `order_key` và tự đi tìm các dòng của nó sẽ là một quyết
+        định trên một tập dòng mà khoá của nó không có trong bảng — và lần
+        sau ai đó sẽ hỏi tập đó được chốt lúc nào.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        order_key = request.form.get("order_key") or ""
+        chosen = (request.form.get("nhan_vien_moi") or "").strip()
+        groups = dict(service.assignable_employees())
+        if chosen not in groups:
+            return _workspace_redirect(loi=(
+                f"{chosen!r} không có trong danh sách nhân viên. Hãy chọn một "
+                "tên trong danh sách."))
+        details = [detail for detail in view["data"].details
+                   if detail["order_key"] == order_key]
+        if not details:
+            abort(404)
+        for detail in details:
+            _guarded(service.store.set_employee,
+                     order_key=detail["order_key"],
+                     product_key=detail["product_key"],
+                     occurrence_index=detail["occurrence_index"],
+                     employee=chosen, employee_group=groups[chosen],
+                     source_employee=detail["line"].source_employee)
+        return _workspace_redirect(**{"da-luu": (
+            f"Đã gán {len(details)} dòng của {order_key} cho {chosen}. "
+            "Tổng của cả kỳ không đổi.")})
+
+    @app.post("/kinh-doanh/nhan-vien/gia-nhap")
+    def business_save_line_purchase_price():
+        """`§28` — sửa Giá nhập ngay trong ô của dòng, khi BH đang mở sửa.
+
+        Dùng LẠI nguyên vẹn thẩm quyền giá nhập của `DEC-PHB02-02`/PHB-03:
+        cùng `parse_purchase_price`, cùng `auto_price_of` (giá AUTO luôn đọc
+        lại từ server, không nhận từ trình duyệt), cùng `set_purchase_price`.
+        `§28` cấm dựng một thẩm quyền giá nhập thứ hai, và ở đây không có cái
+        nào được dựng — chỉ có một ô nhập ở một chỗ khác.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        keys = _workspace_line_keys()
+        if keys is None:
+            abort(400)
+        exists, auto_price = service.auto_price_of(data=view["data"], **keys)
+        if not exists:
+            abort(404)
+        if request.form.get("hanh-dong") == "go":
+            _guarded(service.store.clear_purchase_price, **keys)
+            return _workspace_redirect(sua=keys["order_key"], **{"da-luu": (
+                "Đã gỡ giá nhập do Owner nhập. Dòng trở lại giá tự động.")})
+        try:
+            price = business_store.parse_purchase_price(
+                request.form.get("gia_nhap"))
+        except business_store.InvalidPurchasePriceError as exc:
+            return _workspace_redirect(sua=keys["order_key"], loi=str(exc))
+        provenance = _guarded(service.store.set_purchase_price,
+                              price=price, auto_price=auto_price, **keys)
+        return _workspace_redirect(sua=keys["order_key"], **{"da-luu": (
+            "Đã ghi giá nhập Owner sửa (thay giá tự động)."
+            if provenance == business_metrics.PROVENANCE_MANUAL_OVERRIDE
+            else "Đã ghi giá nhập Owner nhập.")})
+
+    @app.post("/kinh-doanh/nhan-vien/gia-dung")
+    def business_classify_line_gia_dung():
+        """`§9`–`§11` — chuyển ĐÚNG MỘT DÒNG sang Gia dụng, hoặc gỡ lại.
+
+        Ranh giới, kiểm ở đây chứ không chỉ ở giao diện:
+
+        - Chỉ dòng của nhóm NỘI THÀNH mới chuyển được. `DEC-PHB02-05` giới hạn
+          tỉ lệ 8 % cho riêng nhóm này, và một dòng của nhân viên bán lẻ mang
+          nhãn `GIA_DUNG` vẫn quy đổi 5,5 % — nút bấm sẽ không có tác dụng
+          kinh tế nào, tức là một nút nói dối.
+        - Đúng MỘT dòng, không phải cả BH và không phải mọi lần bán của mặt
+          hàng (`§10`). Khoá là `(order_key, product_key, occurrence_index)`.
+        - Nhân viên bán, khách hàng, đơn giá và bằng chứng gốc KHÔNG đổi
+          (`§11`): route này chỉ ghi vào bảng phân loại cấp dòng.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        keys = _workspace_line_keys()
+        if keys is None:
+            abort(400)
+        detail = service.detail_of(data=view["data"], **keys)
+        if detail is None:
+            abort(404)
+        if not gia_dung_workflow_applies(detail["line"].employee_group):
+            abort(404)
+        if request.form.get("hanh-dong") == "go":
+            _guarded(service.store.clear_line_product_group, **keys)
+            return _workspace_redirect(**{"da-luu": (
+                "Đã trả dòng này về Nội thành.")})
+        _guarded(service.store.set_line_product_group,
+                 product_group=GIA_DUNG, **keys)
+        return _workspace_redirect(**{"da-luu": (
+            "Đã chuyển dòng này sang Gia dụng. Nhân viên bán và số liệu kế "
+            "toán của dòng giữ nguyên; doanh thu công ty không đổi.")})
+
+    @app.post("/kinh-doanh/nhan-vien/loai-dong")
+    def business_exclude_line():
+        """`§29`–`§32` — loại MỘT dòng khỏi báo cáo, hoặc khôi phục nó.
+
+        "Xoá" ở đây là một QUYẾT ĐỊNH có thể đảo ngược, không phải một lệnh
+        xoá dữ liệu: bản ghi kế toán gốc không bị đụng tới (`§31`), và dòng
+        khôi phục lại được từ chính màn hình này (`§56` CASE EX-07).
+
+        Nó KHÁC hẳn phân loại Gia dụng và không được cài bằng nhau (`§33`):
+        loại ⟹ dòng biến khỏi MỌI chỉ tiêu; phân loại ⟹ dòng vẫn được báo
+        cáo, chỉ đổi bucket và tỉ lệ.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        keys = _workspace_line_keys()
+        if keys is None:
+            abort(400)
+        if request.form.get("hanh-dong") == "khoi-phuc":
+            excluded = {(item["order_key"], item["product_key"],
+                         item["occurrence_index"]) for item in view["data"].excluded}
+            if (keys["order_key"], keys["product_key"],
+                    keys["occurrence_index"]) not in excluded:
+                abort(404)
+            _guarded(service.store.restore_line, **keys)
+            return _workspace_redirect(**{"da-luu": (
+                "Đã khôi phục dòng. Nó được tính lại vào báo cáo từ bây giờ.")})
+        if service.detail_of(data=view["data"], **keys) is None:
+            abort(404)
+        _guarded(service.store.exclude_line, **keys)
+        return _workspace_redirect(**{"da-luu": (
+            "Đã loại dòng này khỏi báo cáo. Sổ kế toán gốc giữ nguyên — bấm "
+            "KHÔI PHỤC ở cuối trang là dòng trở lại.")})
 
     # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) ---------------
 
@@ -1142,6 +1481,17 @@ def create_app(
         context = _employee_context(view)
         data = (view["data"].for_employee(context["employee"])
                 if context["chosen"] else view["data"])
+        # `DEC-PHB02-08` — `nhom` thu hẹp bảng kê về ĐÚNG MỘT sheet của không
+        # gian làm việc. Nó tồn tại để đường dẫn "xem tất cả dòng của sheet
+        # này" nói đúng sự thật với sheet NHÓM: `nhan-vien` chỉ khoanh được
+        # một người, nên dùng nó cho Nội thành sẽ mở ra một danh sách rộng
+        # hơn hoặc hẹp hơn cái mà đường dẫn hứa.
+        sheet_key = request.args.get("nhom")
+        if sheet_key and not context["chosen"]:
+            sheet = reporting_sheets.find_sheet(
+                view["service"].sheets(view["data"]), sheet_key)
+            if sheet is not None:
+                data = view["data"].for_sheet(sheet)
         # `tat-ca=1` là cách viết cũ còn nằm trong bookmark/redirect — giữ nó
         # tương đương chế độ "tất cả" thay vì âm thầm rơi về danh sách khác.
         mode = request.args.get("loc") or _DEFAULT_DETAIL_FILTER
@@ -1159,6 +1509,7 @@ def create_app(
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
             mode=mode, show_all=(mode == "tat-ca"),
+            selected_sheet=sheet_key or "",
             message=request.args.get("da-luu") or None,
             error=request.args.get("loi") or None, **context)
 
@@ -1182,6 +1533,7 @@ def create_app(
         redirect_args = {
             "ky": request.values.get("ky") or "tat-ca",
             "nhan-vien": request.form.get("nhan-vien") or None,
+            "nhom": request.form.get("nhom") or None,
             "loc": request.form.get("loc") or None,
         }
         if request.form.get("hanh-dong") == "go":
@@ -1237,6 +1589,7 @@ def create_app(
         redirect_args = {
             "ky": request.values.get("ky") or "tat-ca",
             "nhan-vien": request.form.get("nhan-vien") or None,
+            "nhom": request.form.get("nhom") or None,
             "loc": request.form.get("loc") or None,
         }
 

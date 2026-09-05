@@ -9712,3 +9712,266 @@ Target cấp công ty mở lại khi chủ dự án phát biểu con số đó l
 vào riêng, không phải tổng) — đúng như sổ cũ đã làm. Ngữ nghĩa `So target`
 mở lại chỉ khi chính chủ dự án đổi định nghĩa; không phải suy luận của một
 phiên làm việc.
+
+---
+
+## DEC-184
+
+Title:
+`DEC-PHB02-08` — Không gian làm việc Nhân viên: kỳ mặc định là THÁNG HIỆN
+TẠI, sheet thay bộ chọn nhân viên, Nội thành/Gia dụng là ĐƠN VỊ BÁO CÁO có
+Target riêng, phân loại Gia dụng ở CẤP DÒNG, loại dòng khỏi báo cáo mà không
+xoá sổ, và ba trường khách hàng của chính sổ kế toán
+
+Date:
+2026-09-05
+
+Task:
+`EMPLOYEE WORKSPACE UX + GROUP REPORTING + TARGET UX + GIA_DUNG
+CLASSIFICATION`. Bounded implementation, nhánh tách từ
+`BASE_HEAD = ae952d4ef0f5f4c019c8fc7c4a4f11a98815c27b`.
+
+Authority:
+`NEW_OWNER_DECISION`. Khác `DEC-183` (chỉ cài đặt một quyết định đã freeze),
+bản ghi này chứa những khẳng định nghiệp vụ MỚI mà chủ dự án phát biểu trực
+tiếp. Chúng được liệt kê tường minh ở mục 1 để lần sau không ai phải đoán
+điều gì là quyết định của Owner và điều gì là suy luận của một phiên làm
+việc.
+
+Supersedes:
+Ba ranh giới cũ, mỗi ranh giới nêu đích danh. Không bản ghi lịch sử nào bị
+sửa tại chỗ.
+
+1. **PHB-05 §5 / `business_target`** — "Target chỉ đặt được cho một kỳ đã có
+   trong `analytics_queries.available_periods()`". Owner nay được đặt Target
+   cho THÁNG HIỆN TẠI trước lần nạp sổ đầu tiên của tháng đó. Hạn chế cũ vẫn
+   nguyên vẹn ở màn hình `/kinh-doanh/target` (PHB-05); nó chỉ không áp cho
+   không gian làm việc.
+2. **`TASK-PRA-002` mục 2/mục 10** — "PII của khách hàng không rời khỏi tầng
+   pipeline". Ranh giới THU HẸP về đúng ba trường Owner yêu cầu; xem mục 6.
+3. **PHB-03 `R-E1` — bộ chọn nhân viên trên trang `/kinh-doanh/nhan-vien`.**
+   Nguyên tắc gốc ("56 sheet tay không thành 56 TRANG web") giữ nguyên và
+   chính là thứ bản sửa này thực hiện chặt hơn — vẫn MỘT trang, MỘT route.
+   Chỉ cơ chế chọn phạm vi đổi: ô thả xuống → hàng sheet.
+
+### 1. Những gì chủ dự án phát biểu (quyết định MỚI)
+
+```text
+1.  Kỳ dữ liệu mặc định = THÁNG DƯƠNG LỊCH HIỆN TẠI, kể cả khi tháng đó
+    chưa có một dòng kế toán nào. KHÔNG âm thầm lùi về tháng trước.
+2.  Không gian làm việc Nhân viên là màn hình theo THÁNG. Không có kỳ
+    "Toàn bộ dữ liệu" ở đây.
+3.  Bỏ ô thả xuống "chọn nhân viên". Thay bằng hàng SHEET đặt TRÊN báo cáo.
+4.  Nội thành là MỘT sheet gộp cả nhóm. Từng thành viên KHÔNG có tab riêng.
+5.  Trong dòng chi tiết, cột Nhân viên vẫn ghi ĐÚNG người bán thật.
+6.  Nội thành dùng MỘT Target chung, do Owner tự đặt. KHÔNG cộng target của
+    các thành viên lại để suy ra nó.
+7.  Gia dụng là một BUCKET BÁO CÁO riêng, KHÔNG phải một nhân viên.
+8.  Phân loại Gia dụng ở CẤP DÒNG: một BH nhiều dòng có thể tách bucket.
+9.  Gia dụng có Target RIÊNG, không mượn của Nội thành.
+10. Target nhập theo NGHÌN ĐỒNG; kho lưu vẫn là VND nguyên.
+11. Mỗi BH có MỘT nút sửa: đổi nhân viên cho cả đơn, sửa giá nhập theo dòng.
+12. Mỗi dòng có thao tác LOẠI KHỎI BÁO CÁO — không phải ẩn đi cho đẹp, và
+    cũng không phải xoá sổ kế toán.
+13. Bảng kê hiện Tên KH · SĐT · Địa chỉ, lấy từ chính sổ đang nạp.
+14. Bỏ các đoạn cảnh báo dài trong lòng bảng; dòng lỗ tô ĐỎ; cảnh báo khác
+    thành nhãn ngắn cạnh số BH.
+15. Nền bảng xen kẽ theo NGÀY, không theo dòng.
+16. Thêm ô TIẾN ĐỘ = phần trăm thời gian đã trôi qua của tháng đang xem.
+```
+
+### 2. Sheet là ĐƠN VỊ BÁO CÁO, không phải con người
+
+Đây là điểm dễ hỏng nhất, nên nó được nói ra một lần ở đây và được CẤU TRÚC
+bảo vệ ở mọi nơi khác (`app/modules/reporting/reporting_sheets.py`).
+
+`DEC-127` §1 đã trả giá để giành lại một điều: gộp Vinh · Quý · Hiệp thành
+một "Employee" tên "Nội thành" làm MẤT ba con người có thật. Quyết định này
+KHÔNG đảo lại điều đó — nó thêm một tầng khác:
+
+```text
+EMPLOYEE   ai bán dòng này          giữ nguyên, luôn hiện trong cột Nhân viên
+SHEET      báo cáo cộng dòng vào đâu  Nội thành · Gia dụng · từng nhân viên
+```
+
+`sheet_key_of` là một hàm TOÀN PHẦN trên tập dòng của kỳ, nên các sheet là
+một PHÂN HOẠCH: mỗi dòng thuộc đúng một sheet, và tổng của các sheet luôn
+đúng bằng tổng kỳ. Bất biến "không nhân đôi, không biến mất" vì thế đúng
+theo cấu tạo chứ không theo lời hứa.
+
+Điều kiện `employee_group == NOI_THANH` nằm trong chính hàm đó, cùng lý do
+mà `config/conversion_rates.yaml` khoá dòng `GIA_DUNG_8` trên nhóm ấy: một
+dòng gia dụng do nhân viên bán lẻ bán vẫn quy đổi `5,5 %`, nên nó cũng không
+được rơi vào sheet Gia dụng — nếu không, "DS quy đổi của Gia dụng" sẽ là một
+con số trộn hai tỉ lệ và không tương ứng với chính sách nào. BUCKET và TỈ LỆ
+không bao giờ được nói hai câu khác nhau.
+
+### 3. Target của NHÓM là một bảng riêng, không phải một `employee_key` giả
+
+`employee_target.employee_key` dùng lại danh tính nhân viên hiện hành. Ghi
+một dòng `employee_key = 'Nội thành'` vào đó sẽ dựng lại đúng mô hình danh
+tính giả mà `DEC-127` §1 đã bác bỏ, và mọi màn hình đọc bảng đó sẽ thấy một
+"nhân viên" không tồn tại.
+
+`group_target` vì thế là bảng ANH EM: cùng khoá theo `(năm, tháng, …)`, cùng
+đơn vị VND, cùng quy ước "không có dòng = chưa thiết lập, `0` = đã đặt bằng
+không". Khác đúng một điều — chủ thể là một NHÓM BÁO CÁO — và điều đó được
+nói ra bằng tên bảng, không bằng một quy ước ngầm trong dữ liệu.
+
+Không có đường nào trong mã nguồn cộng target của Vinh · Quý · Hiệp để suy
+ra target Nội thành, đúng cùng lý do mà `DEC-183` §4 đã từ chối suy ra
+target công ty bằng cách cộng target nhân viên.
+
+### 4. Phân loại Gia dụng: MỘT thẩm quyền, HAI độ mịn
+
+`product_group_classification` khoá theo `product_key` nên nó chỉ nói được
+"MẶT HÀNG này là Gia dụng" — mọi lần bán, mọi đơn, mọi kỳ. Khẳng định mới
+của Owner là ở cấp DÒNG, và không có cách nào biểu diễn nó bằng khoá đó mà
+không nói dối về những dòng khác của cùng mặt hàng.
+
+`line_product_group_classification` vì vậy tồn tại, và nó KHÔNG phải một
+thẩm quyền Gia dụng thứ hai: cùng từ vựng `PRODUCT_GROUPS`, cùng hệ quả
+(`ConversionRateRouter` hỏi lại đúng `ConversionSchemeResolver`), khác đúng
+GRAIN. Quy tắc hợp nhất được viết ở MỘT hàm duy nhất
+(`business_queries.effective_product_group`): quyết định cấp DÒNG cụ thể hơn
+nên thắng quyết định cấp mặt hàng. Nhờ vậy hai bảng không bao giờ cho ra hai
+câu trả lời trên hai màn hình.
+
+Tỉ lệ `2 %` → `8 %` KHÔNG phải một công thức mới: đó là dòng `GIA_DUNG_8` đã
+có sẵn trong `config/conversion_rates.yaml` từ ADR-106/`DEC-127`.
+
+### 5. "Loại dòng" là một quyết định đảo ngược được, không phải một lệnh xoá
+
+Owner nói rõ cái nút hình thùng rác nghĩa là "dòng này không được tính vào
+báo cáo nữa" — không phải ẩn đi cho đẹp. Nhưng nó cũng KHÔNG được xoá bằng
+chứng kế toán: `order_line_source_version`/`order_line_result_version` là
+bản ghi append-only của một lần nạp sổ.
+
+`line_exclusion` giữ đúng khẳng định đó và không hơn: sự TỒN TẠI của một
+dòng ở đây ⟺ dòng nghiệp vụ tương ứng bị loại khỏi mọi phép gộp; xoá dòng ở
+đây ⟺ khôi phục. Không cột `active`/`deleted_at` nào — một cột trạng thái mở
+đường cho "đã xoá nhưng vẫn còn tính".
+
+Hiệu lực xảy ra ở tầng ĐỌC (`BusinessReportService.period` tách dòng bị loại
+ra TRƯỚC khi gộp), nên yêu cầu "không góp vào bất kỳ chỉ tiêu nào" đúng cả
+với những chỉ tiêu chưa được viết ra.
+
+`LOẠI DÒNG` và `PHÂN LOẠI GIA DỤNG` là hai thao tác KHÁC NHAU và không cái
+nào được cài bằng cái kia: loại ⟹ dòng biến khỏi mọi sheet; phân loại ⟹ dòng
+vẫn được báo cáo, chỉ đổi bucket và tỉ lệ.
+
+### 6. Ba trường khách hàng — ranh giới THU HẸP, có tên, có lý do
+
+`TASK-PRA-002` mục 2/mục 10 loại MỌI trường khách hàng khỏi tầng lưu trữ
+theo hướng tối thiểu hoá dữ liệu. Chủ dự án — người kiểm soát chính sổ kế
+toán này — sau đó yêu cầu tường minh rằng bảng kê nghiệp vụ phải hiện Tên KH
+· SĐT · Địa chỉ, vì một dòng bán không có khách hàng thì không đối chiếu
+được với đơn thật. Ranh giới mới:
+
+```text
+ĐI QUA   customer_name · customer_phone · customer_address
+         — đúng ba trường, từ ĐÚNG sổ đang nạp (raw_reader cột 5/6/7).
+Ở LẠI    customer_code, shipper_raw — không ai yêu cầu, không đi nhờ theo.
+Ở LẠI    imei, note_raw, employee_raw — hàng rào cũ nguyên vẹn.
+Ở LẠI    ResultLine không mang một trường khách hàng nào — trục kết quả là
+         con số của engine, khách hàng không thuộc về nó.
+Ở LẠI    Mọi bảng legacy_* — sổ cũ đã đóng băng, không màn hình nào cần.
+Ở LẠI    Trang Bán hàng (TASK-PRA-004) — không nằm trong phạm vi yêu cầu.
+KHÔNG    CRM, không ghép danh tính liên hệ thống.
+```
+
+Ba trường này KHÔNG vào `keys.FINGERPRINT_FIELDS`: kế toán sửa tên khách
+KHÔNG phải là "dòng bán này đã bị sửa", nên `SOURCE_CHANGED`/reconcile giữ
+nguyên nghĩa của PRA-002.
+
+### 7. Target theo NGHÌN ĐỒNG là cách VIẾT, không phải cách LƯU
+
+Canonical vẫn là VND nguyên (PHB-05 §7, `DEC-183`). Phép đổi đơn vị xảy ra
+ĐÚNG MỘT LẦN, ở `business_store.parse_target_kvnd`, bằng `Decimal` chứ không
+`float` — nên không có đường nào nhân `1.000` hai lần.
+
+Trong ô nhập đó, dấu phẩy · dấu chấm · khoảng trắng ĐỀU là phân cách nghìn
+và không có dấu thập phân nào. Lý do là bất biến khứ hồi, không phải sở
+thích: người Việt gõ `500.000`, chỉ thị viết `500,000`, và nếu một trong hai
+dấu mang nghĩa thập phân thì hai chuỗi đó sẽ là hai con số cách nhau một
+nghìn lần — trên chính màn hình mà Owner đặt chỉ tiêu bằng lương của người
+khác. `format_target_kvnd` giữ nửa còn lại của bất biến: nó KHÔNG BAO GIỜ
+trả về một chuỗi mà `parse_target_kvnd` sẽ đọc thành con số khác.
+
+Màn hình `/kinh-doanh/target` của PHB-05 giữ NGUYÊN đơn vị VND và nguyên
+hành vi đã nghiệm thu. Hai màn hình, hai nhãn đơn vị tường minh, một kho lưu
+duy nhất — nên không có đường nào để hai bên trôi khỏi nhau.
+
+### 8. Tiến độ tháng là chỉ báo LỊCH
+
+`month_progress_percent` không xuất hiện trong `business_metrics`, không
+tham gia Target, KPI hay DS quy đổi. Quy tắc lịch xác định: tháng đã qua ⟹
+`100 %`; tháng chưa tới ⟹ `0 %`; tháng hiện tại ⟹ số ngày đã trôi qua chia
+số ngày của tháng, TÍNH CẢ ngày hôm nay (ngày 3 của tháng 30 ngày = `10 %`).
+
+### 9. Không mở lại
+
+Không auth/roles, không luồng duyệt, không kế hoạch target theo năm, không
+trình lập kế hoạch target tương lai tuỳ ý, không thưởng/hoa hồng, không
+trình dựng dashboard tổng quát, không CRM, không thiết kế lại định danh nhân
+viên, không khung nguồn dữ liệu tổng quát, không Brand, không Advanced
+Analytics, không nền tảng xoá dữ liệu tổng quát, không thẩm quyền giá nhập
+thứ hai, không thẩm quyền Gia dụng thứ hai. Target cấp công ty vẫn hoãn
+(`DEC-183` §4).
+
+Impact:
+Persistence: ba cột `customer_*` (nullable, additive) trên
+`order_line_source_version`; ba bảng mới
+`line_product_group_classification` · `line_exclusion` · `group_target`;
+migration `0007_employee_workspace` (`ALEMBIC_HEAD` `0006` → `0007`), thuần
+ADDITIVE, không backfill, `downgrade()` cất dữ liệu Owner vào két theo đúng
+cơ chế `B04`. `OWNER_INPUT_TABLES` 4 → 7 bảng.
+
+Mã nguồn: module thuần mới `app/modules/reporting/reporting_sheets.py`; tầng
+trình bày mới `app/web/workspace_presentation.py`; `GET
+/kinh-doanh/nhan-vien` dựng lại thành không gian làm việc + bốn route ghi
+mới của nó; `business_queries.effective_product_group`;
+`BusinessDecisionStore` thêm chín phương thức; `PeriodData.for_sheet` +
+`excluded`.
+
+MỘT thay đổi hành vi nghiệp vụ ngoài giao diện, và nó đóng một lỗ đã có sẵn:
+`build_lines` trước đây hỏi tỉ lệ quy đổi bằng nhóm nhân viên THÔ của
+pipeline, nên sau một lần Owner gán lại dòng (`OD-5`), một dòng đã tick Gia
+dụng chuyển sang nhân viên bán lẻ vẫn quy đổi `8 %` — đúng điều mà
+`rate_routing` tuyên bố là KHÔNG BAO GIỜ được xảy ra. Nay nó hỏi bằng danh
+tính HIỆU LỰC. Phạm vi ảnh hưởng hẹp theo cấu tạo: `rate_for` trả nguyên
+`stored_rate` khi dòng chưa được phân loại, nên chỉ dòng đã tick Gia dụng
+mới hỏi lại resolver.
+
+`BUSINESS_FORMULAS_CHANGED = NO`. `BUSINESS_TOTALS_UNEXPECTEDLY_CHANGED =
+NO`. `R1_NAV_PRESERVED = YES` (vẫn đúng 4 tab; sheet là khung nhìn con).
+`R2_LEGACY_HISTORY_PRESERVED = YES` (`POST /du-lieu/legacy` vẫn là ranh giới
+ghi duy nhất). PHB-05 giữ nguyên: canonical VND, `So target = DS quy đổi /
+Target`, rỗng ≠ `0`, Target Legacy chỉ đọc, `/kinh-doanh/target` không đổi.
+
+Evidence:
+`tests/test_employee_workspace_ux.py` — 88 test phủ toàn bộ CASE nghiệm thu
+(UX-01…11, TG-01…09, DT-01…09, ED-01…05, EX-01…07, GD-01…17, WR-01…04,
+VIS-01…03), cộng E2E `§61` trên Flask thật: kỳ mặc định → chọn sheet → đặt
+Target nhóm → mở BH → đổi nhân viên cả đơn → sửa giá nhập → chuyển một dòng
+sang Gia dụng → kiểm bucket → loại một dòng khác → kiểm tổng → tải lại → nạp
+snapshot MỚI → mọi quyết định Owner còn nguyên.
+
+Bằng chứng mạnh nhất là ba dấu vân tay trước/sau: (a) chuyển bucket không
+đổi Doanh thu · Lợi nhuận KPI · số dòng · số đơn của cả kỳ, và tổng các
+sheet luôn bằng tổng kỳ; (b) đặt/sửa Target không đổi một chỉ tiêu nào; (c)
+loại một dòng đổi tổng ĐÚNG bằng phần của chính dòng đó.
+
+Suite đầy đủ: `2493 passed, 11 skipped` (baseline trước thay đổi
+`2403 passed, 11 skipped` — chênh lệch đúng bằng 88 test mới cộng 2 test
+tách ra từ hai guard PII được thu hẹp; không mất một test nào). Golden
+`58 passed, 2 skipped`. Migration kiểm bằng alembic THẬT từ revision
+production `0006`, có mô phỏng database chưa mang ba cột: nâng cấp sạch, dữ
+liệu Owner của `0006` còn nguyên từng chữ số, và vòng
+`upgrade → downgrade → upgrade` không mất một dòng quyết định nào.
+
+Can Revisit After:
+Target cấp công ty vẫn chờ chủ dự án phát biểu con số đó là gì. Việc mở
+Target cho các tháng TƯƠNG LAI (ngoài tháng hiện tại) chưa được quyết và
+không nằm trong task này. Nếu sau này xuất hiện một nhóm báo cáo thứ ba,
+`group_target` nhận thêm một khoá — KHÔNG dựng một khung cấu hình tổng quát.

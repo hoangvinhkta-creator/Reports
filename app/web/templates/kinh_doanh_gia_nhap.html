@@ -31,19 +31,19 @@
   <nav class="filter-row">
     <a class="ghost btn-mini {{ 'on' if mode == 'tat-ca' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'loc': 'tat-ca'}) }}"
+               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'tat-ca'}) }}"
        >TẤT CẢ DÒNG</a>
     <a class="ghost btn-mini {{ 'on' if mode == 'thieu-gia' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'loc': 'thieu-gia'}) }}"
+               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'thieu-gia'}) }}"
        >CHƯA CÓ GIÁ NHẬP</a>
     <a class="ghost btn-mini {{ 'on' if mode == 'chua-ro-nv' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'loc': 'chua-ro-nv'}) }}"
+               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'chua-ro-nv'}) }}"
        >CHƯA XÁC ĐỊNH NHÂN VIÊN</a>
     <a class="ghost btn-mini {{ 'on' if mode == 'owner-sua' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'loc': 'owner-sua'}) }}"
+               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'owner-sua'}) }}"
        >DÒNG TÔI ĐÃ SỬA</a>
   </nav>
 
@@ -113,7 +113,7 @@
            nhiều dòng cùng lúc, và Owner không thấy được mình vừa đổi cái gì. #}
         <form class="filter-row" method="post"
               action="{{ url_for('business_save_purchase_price') }}">
-          {{ biz.line_keys(row, selected_period, selected_employee, mode) }}
+          {{ biz.line_keys(row, selected_period, selected_employee, mode, selected_sheet) }}
           <input type="text" name="gia_nhap" inputmode="numeric"
                  value="{{ row.purchase_price_input }}" aria-label="Giá nhập">
           <button class="ghost btn-mini" type="submit">LƯU</button>
@@ -124,7 +124,7 @@
         {% if assignable %}
         <form class="filter-row" method="post"
               action="{{ url_for('business_save_employee') }}">
-          {{ biz.line_keys(row, selected_period, selected_employee, mode) }}
+          {{ biz.line_keys(row, selected_period, selected_employee, mode, selected_sheet) }}
           <select name="nhan_vien_moi" aria-label="Nhân viên của dòng">
             {% for option in assignable %}
             <option value="{{ option.value }}"

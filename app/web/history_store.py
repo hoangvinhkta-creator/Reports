@@ -830,6 +830,10 @@ class SnapshotRepository:
                 "delivery_cost": d.line.delivery_cost,
                 "source_profit": d.line.source_profit, "imei": d.line.imei,
                 "note_raw": d.line.note_raw, "employee_raw": d.line.employee_raw,
+                # `DEC-PHB02-08` — ba trường khách hàng của chính sổ đang nạp.
+                "customer_name": d.line.customer_name,
+                "customer_phone": d.line.customer_phone,
+                "customer_address": d.line.customer_address,
                 "row_hash": d.line.row_hash, "line_fingerprint": d.line.fingerprint,
                 "changed_fields_json": _json(d.changed_fields),
                 "created_at": created_at,

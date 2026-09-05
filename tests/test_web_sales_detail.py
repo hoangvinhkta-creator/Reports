@@ -302,12 +302,43 @@ def test_no_new_page_leaks_internal_vocabulary(client, path):
     assert str(REPO_ROOT).lower() not in html, "đường dẫn tuyệt đối của repo"
 
 
-def test_the_customer_columns_do_not_even_exist_in_the_schema():
-    """Bảo đảm CẤU TRÚC, mạnh hơn một quy ước: các trường này KHÔNG BAO GIỜ
-    được persist, nên chúng không thể rò rỉ qua bất kỳ truy vấn nào."""
-    text = (REPO_ROOT / "tools/db/schema.py").read_text(encoding="utf-8")
-    for column in ("customer", "phone", "address", "shipper"):
-        assert not re.search(rf'Column\("{column}', text), column
+def test_the_schema_persists_exactly_three_customer_columns_and_no_more():
+    """Bảo đảm CẤU TRÚC cho ranh giới mà `DEC-PHB02-08` vừa THU HẸP.
+
+    Trước quyết định này không cột khách hàng nào tồn tại, và test cũ khẳng
+    định đúng điều đó. Owner sau đó yêu cầu tường minh Tên KH · SĐT · Địa chỉ
+    trên bảng kê vận hành (`§23`/`§49`). Ranh giới vì thế đổi HÌNH DẠNG chứ
+    không biến mất, và test này canh hình dạng mới:
+
+        ĐÚNG BA cột, ĐÚNG MỘT bảng (`order_line_source_version`).
+
+    `customer_code` và `shipper` KHÔNG được đi nhờ theo: không màn hình nào
+    yêu cầu chúng, và một trường cá nhân được persist "cho tiện" là một
+    trường không ai chịu trách nhiệm.
+    """
+    from tools.db import schema as db_schema
+
+    allowed = {"customer_name", "customer_phone", "customer_address"}
+    found = {
+        (table.name, column.name)
+        for table in db_schema.METADATA.tables.values()
+        for column in table.c
+        if any(word in column.name.lower()
+               for word in ("customer", "phone", "address", "shipper"))
+    }
+    assert found == {("order_line_source_version", name) for name in allowed}
+
+
+def test_the_sales_pages_still_never_render_a_customer_field(client):
+    """Ba trường mới KHÔNG rò rỉ sang những trang chưa ai yêu cầu chúng.
+
+    `DEC-PHB02-08` mở chúng cho ĐÚNG không gian làm việc Nhân viên. Trang Bán
+    hàng của `TASK-PRA-004` không nằm trong phạm vi đó, và
+    `sales_queries` vẫn không đọc một cột nào trong ba cột đó.
+    """
+    text = (REPO_ROOT / "app/web/sales_queries.py").read_text(encoding="utf-8")
+    for column in ("customer_name", "customer_phone", "customer_address"):
+        assert column not in text, column
 
 
 def test_the_detail_page_does_show_the_product_name(client):

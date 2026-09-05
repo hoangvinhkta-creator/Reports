@@ -1,117 +1,390 @@
+{# `DEC-PHB02-08` — KHÔNG GIAN LÀM VIỆC NHÂN VIÊN.
+
+   Trang này thay trang "chọn nhân viên rồi xem" của PHB-03. Trật tự trên
+   màn hình là chính nội dung của quyết định, nên nó cố định:
+
+       1. Kỳ dữ liệu (mặc định THÁNG HIỆN TẠI)
+       2. Hàng SHEET kiểu bảng tính
+       3. Năm chỉ tiêu của sheet đang chọn
+       4. NGAY bên dưới: bảng kê chi tiết, gộp theo BH
+
+   `§14` cấm chèn thêm một bước bung/thu nào giữa (3) và (4). Thanh tab `R1`
+   bốn mục nằm ở `layout.html` và KHÔNG bị đụng tới — các sheet ở đây là khung
+   nhìn con của MỘT trang, không phải điều hướng cấp một (`§4`).
+
+   Không có JavaScript: chế độ sửa và hai hộp xác nhận đều là trạng thái trên
+   URL, do server dựng. Cùng lý do mà phần còn lại của sản phẩm này không có
+   JS — một thao tác ghi số tiền phải hoạt động giống hệt nhau ở mọi trình
+   duyệt, và trạng thái sửa phải nhìn thấy được trên thanh địa chỉ. #}
 {% extends "layout.html" %}
 {% import "_business_bits.html" as biz %}
 {% set active_tab = 'nhan-vien' %}
-{% block title %}Reports — Nhân viên (nghiệp vụ){% endblock %}
+{% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
-<h1>NHÂN VIÊN — ĐÁNH GIÁ THEO KỲ</h1>
+<h1>NHÂN VIÊN — {{ sheet.period_label }}</h1>
+{# Câu này KHÔNG được liệt kê tên nhân viên nào: thành phần của nhóm Nội
+   thành nằm ở `config/employees.yaml` và chỉ ở đó (PHB-05 CASE 10 canh
+   chính điều này bằng cách đọc master rồi grep các template). #}
 <p class="insight">{{ biz.business_badge() }}
-  Chọn nhân viên và kỳ để xem đủ chuỗi đánh giá. Không có trang riêng cho từng
-  nhân viên — cùng một trang, đổi lựa chọn.</p>
+  Mỗi sheet ở dưới là một đơn vị báo cáo. Sheet Nội thành gộp cả nhóm thành
+  một, nhưng cột Nhân viên trong bảng vẫn ghi đúng người bán.</p>
 
+{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
+
+{# --- 1. KỲ DỮ LIỆU ---------------------------------------------------
+   Chỉ có THÁNG. Không có mục "Toàn bộ dữ liệu" (`§3`, CASE UX-03): đây là
+   màn hình vận hành theo tháng, và một Target không biết mình thuộc tháng
+   nào là một Target ghi vào tháng sai. #}
 <div class="module">
-  {{ biz.employee_picker(employees, selected_employee, periods, selected_period,
-                         url_for('business_employee')) }}
-
-  {% if not detail %}
-  <p class="empty" data-metric="no-employee">
-    Chưa chọn nhân viên. Chọn một người ở ô trên để xem chỉ tiêu của họ.
-  </p>
-  {% endif %}
+  <form class="filter-row" method="get" action="{{ url_for('business_employee') }}">
+    <input type="hidden" name="sheet" value="{{ sheet.key }}">
+    <span class="kpi-period">
+      <label class="tp-label" for="ky">KỲ DỮ LIỆU</label>
+      <select name="ky" id="ky" data-metric="period-select">
+        {% for option in periods %}
+        <option value="{{ option.value }}" {{ 'selected' if option.selected }}>
+          {{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <button class="ghost btn-mini" type="submit">XEM</button>
+  </form>
 </div>
 
-{% if detail %}
+{# --- 2. HÀNG SHEET ---------------------------------------------------- #}
+<nav class="sheet-tabs" data-metric="sheet-tabs">
+  {% for tab in tabs %}
+  <a class="sheet-tab {{ 'on' if tab.selected }}{{ ' sheet-group' if tab.group }}"
+     data-metric="sheet-tab" data-sheet="{{ tab.key }}"
+     href="{{ url_for('business_employee', ky=selected_period, sheet=tab.key) }}"
+    >{{ tab.label }}</a>
+  {% endfor %}
+</nav>
+
+{# --- 3. NĂM CHỈ TIÊU CỦA SHEET ---------------------------------------- #}
 <div class="module">
-  {# `business_badge()` đã nói ở câu ngay trên trang (R1 §6). #}
-  <h2><span data-metric="employee">{{ detail.employee }}</span> ·
-      {{ detail.period_label }}
-      <span class="cnt">nhóm <span data-metric="employee_group">{{ detail.employee_group }}</span> ·
-        <span data-metric="orders">{{ detail.orders }}</span> đơn ·
-        <span data-metric="lines">{{ detail.lines }}</span> dòng</span></h2>
+  <h2><span data-metric="employee">{{ sheet.label }}</span>
+    <span class="cnt"><span data-metric="orders">{{ sheet.orders }}</span> đơn ·
+      <span data-metric="lines">{{ sheet.lines }}</span> dòng ·
+      <span data-metric="qualifying_quantity">{{ sheet.qualifying_quantity }}</span> SP</span></h2>
 
-  <div class="kpi-grid">
-    {{ biz.kpi('Doanh thu bán hàng', detail.sales_revenue_kvnd, 'sales_revenue',
-               'nghìn đồng', full=detail.sales_revenue ~ ' đồng') }}
-    {{ biz.kpi(QUALIFYING_QUANTITY_LABEL, detail.qualifying_quantity, 'qualifying_quantity') }}
-    {{ biz.gated_kpi('Lợi nhuận KPI', detail.kpi_profit, 'kpi_profit') }}
-    {{ biz.gated_kpi('DS quy đổi', detail.converted_sales, 'converted_sales') }}
-  </div>
+  <div class="kpi-grid strip">
+    {{ biz.kpi('Doanh thu', strip.sales_revenue_kvnd, 'sales_revenue',
+               'nghìn đồng', full=strip.sales_revenue ~ ' đồng') }}
+    {{ biz.gated_kpi('DS quy đổi', strip.converted_sales, 'converted_sales') }}
 
-  <p class="insight">Định nghĩa Tổng số SP, DS quy đổi và cách đọc tiền nghìn
-    đồng: xem <a class="ghost btn-mini" href="{{ url_for('giai_thich') }}">GIẢI THÍCH</a>.</p>
-</div>
-
-{# PHB-05 (`DEC-PHB02-06`) — Target của CHÍNH nhân viên/kỳ đang xem.
-
-   Hai ô này ĐỌC con số DS quy đổi ngay phía trên; chúng không tham gia vào
-   bất kỳ phép tính nào của khối KPI đó. Đổi Target không đổi một đồng doanh
-   thu, lợi nhuận hay DS quy đổi nào. #}
-<div class="module">
-  <h2>Target {{ detail.period_label }}</h2>
-  <p class="insight" data-metric="target-note">{{ TARGET_NOTE }}</p>
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <span class="tp-label">Target</span>
-      <strong class="kpi-value{{ ' empty-cell' if target.target.unset }}"
-              data-metric="employee-target"
-              {% if not target.target.unset %}title="{{ target.target.text }} đồng"{% endif %}
-        >{{ target.target.text_kvnd }}</strong>
-      {% if not target.target.unset %}<span class="tp-unit">nghìn đồng</span>{% endif %}
-    </div>
-    <div class="kpi-card {{ 'kpi-incomplete' if not target.vs_target.official }}">
-      <span class="tp-label">So target
-        <span class="tag {{ 'tag-official' if target.vs_target.official else 'tag-incomplete' }}"
-              data-metric="employee-vs-target-state">{{ target.vs_target.state_label }}</span></span>
-      <strong class="kpi-value{{ ' empty-cell' if target.vs_target.missing }}"
+    <div class="kpi-card {{ 'kpi-incomplete' if not strip.vs_target.official }}">
+      <span class="tp-label">So Target
+        <span class="tag {{ 'tag-official' if strip.vs_target.official else 'tag-incomplete' }}"
+              data-metric="employee-vs-target-state">{{ strip.vs_target.state_label }}</span></span>
+      <strong class="kpi-value{{ ' empty-cell' if strip.vs_target.missing }}"
               data-metric="employee-vs-target"
-              data-reason="{{ target.vs_target.reason_code }}"
-        >{{ target.vs_target.text }}</strong>
-      {% if target.vs_target.reason %}
-      <span class="tp-unit" data-metric="employee-vs-target-reason">{{ target.vs_target.reason }}</span>
-      {% endif %}
+              data-reason="{{ strip.vs_target.reason_code }}"
+        >{{ strip.vs_target.text }}</strong>
+    </div>
+
+    <div class="kpi-card">
+      <span class="tp-label">So tháng trước</span>
+      <strong class="kpi-value{{ ' empty-cell' if strip.mom.missing }}"
+              data-metric="mom">{{ strip.mom.percent }}</strong>
+      <span class="tp-unit">So với {{ strip.previous_label }}</span>
+      {% if strip.mom.note %}
+      <span class="tp-unit" data-metric="mom-note">{{ strip.mom.note }}</span>{% endif %}
+    </div>
+
+    {# `§15` — chỉ báo LỊCH. Nó không đổi Target, KPI hay một con số kinh
+       doanh nào; câu dưới ô nói rõ điều đó để không ai đọc nó như một chỉ
+       tiêu. #}
+    <div class="kpi-card">
+      <span class="tp-label">Tiến độ</span>
+      <strong class="kpi-value" data-metric="month-progress">{{ strip.progress.text }}</strong>
+      <span class="tp-unit" data-metric="month-progress-note">thời gian đã qua của tháng</span>
     </div>
   </div>
-  <p class="insight" data-metric="target-formula-note">{{ TARGET_FORMULA_NOTE }}</p>
+
+  {# Lợi nhuận KPI + coverage: hai chỉ tiêu của PHB-03 mà không gian làm việc
+     KHÔNG được làm mất. Chúng đứng dưới năm ô chính vì Owner đọc chúng khi
+     một con số ở trên mang nhãn CHƯA HOÀN CHỈNH. #}
+  <div class="kpi-grid">
+    {{ biz.gated_kpi('Lợi nhuận KPI', sheet.kpi_profit, 'kpi_profit') }}
+  </div>
+
+  {# Coverage giá nhập — điều kiện để mọi con số ở trên được gọi là CHÍNH
+     THỨC (`R-S7`/`DEC-PHB02-02` §4). Không gian làm việc không được làm mất
+     nó: nếu chỉ còn cái nhãn CHƯA HOÀN CHỈNH mà không còn con số "bao nhiêu
+     dòng", Owner biết có vấn đề nhưng không biết còn bao nhiêu việc. #}
+  <p class="insight">Đã tính được lợi nhuận:
+    <strong data-metric="coverage">{{ sheet.coverage.text }}</strong>
+    <span class="tp-unit" data-metric="coverage-percent">{{ sheet.coverage.percent }}</span>
+  </p>
+  {{ biz.coverage_breakdown(sheet.coverage) }}
+</div>
+
+{# --- TARGET CỦA SHEET -------------------------------------------------
+   `§17`/`§18`: nhập theo NGHÌN ĐỒNG, và đơn vị nằm ngay trên ô nhập chứ
+   không chỉ trong một câu giải thích. Kho lưu vẫn là VND (PHB-05 §7) —
+   tooltip luôn hiện con số đầy đủ. #}
+{% if not sheet.unresolved %}
+<div class="module">
+  <h2>{{ TARGET_UNIT_LABEL }} — {{ sheet.label }} · {{ sheet.period_label }}</h2>
+  <p class="insight" data-metric="target-unit-note">{{ TARGET_KVND_NOTE }}</p>
+  <div class="filter-row">
+    <span class="kpi-card">
+      <span class="tp-label">Target hiện tại</span>
+      <strong class="kpi-value{{ ' empty-cell' if target.unset }}"
+              data-metric="employee-target"
+              {% if not target.unset %}title="{{ target.text }} đồng"{% endif %}
+        >{{ target.text_kvnd }}</strong>
+      {% if not target.unset %}<span class="tp-unit">nghìn đồng</span>{% endif %}
+    </span>
+    {% if target.kvnd_editable %}
+    <form class="filter-row" method="post"
+          action="{{ url_for('business_save_sheet_target') }}">
+      <input type="hidden" name="ky" value="{{ selected_period }}">
+      <input type="hidden" name="sheet" value="{{ sheet.key }}">
+      <label class="tp-label" for="target">{{ TARGET_UNIT_LABEL }}</label>
+      <input type="text" inputmode="numeric" name="target" id="target"
+             value="{{ target.input_value }}" data-metric="target-input"
+             placeholder="để trống = gỡ target">
+      <button class="ghost btn-mini" type="submit" data-metric="target-save">LƯU</button>
+    </form>
+    {% else %}
+    <span class="tp-unit" data-metric="target-not-kvnd">{{ TARGET_NOT_KVND_NOTE }}</span>
+    {% endif %}
+  </div>
   <p><a class="ghost btn-mini" data-metric="target-link"
         href="{{ url_for('business_target', ky=selected_period) }}"
      >ĐẶT / SỬA TARGET</a></p>
 </div>
+{% endif %}
 
-{# Cùng lý do như trang Tổng hợp: nút này mở đúng danh sách mà câu ngay trên
-   nó vừa nói tới, thay vì luôn mở bộ lọc "chưa có giá nhập". #}
-{{ biz.coverage_block(detail.coverage, url_for('business_purchase_price',
-      ky=selected_period,
-      **{'nhan-vien': selected_employee,
-         'loc': 'tat-ca' if detail.coverage.complete else 'thieu-gia'})) }}
-
-{# Khung nhìn BÁO CÁO của nhân viên: đường vào bảng kê ĐẦY ĐỦ của đúng người
-   và đúng kỳ đang xem, luôn có mặt và không phụ thuộc coverage. #}
-<div class="module">
-  <h2>Bảng kê chi tiết của {{ detail.employee }}</h2>
-  <p class="insight">Toàn bộ dòng hàng của {{ detail.period_label }} — cả dòng
-     đã đủ thông tin lẫn dòng còn thiếu. Bộ lọc nằm ngay trên bảng.</p>
-  <p><a class="ghost btn-mini" data-metric="employee-detail-link"
-        href="{{ url_for('business_purchase_price', ky=selected_period,
-                **{'nhan-vien': selected_employee, 'loc': 'tat-ca'}) }}"
-     >XEM TẤT CẢ DÒNG CỦA NHÂN VIÊN NÀY</a></p>
-</div>
-
-{{ biz.mom_block(detail.mom, detail.previous_label) }}
-
-{# `DEC-PHB02-05`: luồng tick Gia dụng CHỈ hiện với nhóm Nội thành
-   (Vinh · Quý · Hiệp). Nhân viên bán lẻ thường không thấy khối này. #}
-{% if detail.gia_dung_workflow %}
-<div class="module">
-  <h2>Phân loại Gia dụng</h2>
-  <p class="insight" data-metric="gia-dung-available">
-    Nhân viên thuộc nhóm Nội thành: mặt hàng được đánh dấu Gia dụng quy đổi ở
-    tỉ lệ 8% thay vì 2%. Việc đánh dấu là quyết định của Owner — hệ thống
-    KHÔNG tự đoán theo tên hàng.
-  </p>
-  <p><a class="ghost btn-mini" href="{{ url_for('business_gia_dung',
-        ky=selected_period, **{'nhan-vien': selected_employee}) }}">
-    ĐÁNH DẤU GIA DỤNG</a></p>
+{# --- HỘP XÁC NHẬN ----------------------------------------------------
+   `§9` — ngắn, ba gạch đầu dòng, hai nút. Không đoạn giải thích kỹ thuật
+   nào: Owner đang bấm một cái nút, không đang đọc tài liệu. #}
+{% if confirm %}
+<div class="module confirm-box" data-metric="confirm" data-kind="{{ confirm.kind }}">
+  <h2 data-metric="confirm-question">
+    {{ GIA_DUNG_CONFIRM_QUESTION if confirm.kind == 'gia-dung'
+       else EXCLUDE_CONFIRM_QUESTION }}</h2>
+  <ul class="reason-list">
+    {% for point in (GIA_DUNG_CONFIRM_POINTS if confirm.kind == 'gia-dung'
+                     else EXCLUDE_CONFIRM_POINTS) %}
+    <li data-metric="confirm-point">{{ point }}</li>
+    {% endfor %}
+  </ul>
+  <form class="filter-row" method="post"
+        action="{{ url_for('business_classify_line_gia_dung')
+                  if confirm.kind == 'gia-dung'
+                  else url_for('business_exclude_line') }}">
+    <input type="hidden" name="ky" value="{{ selected_period }}">
+    <input type="hidden" name="sheet" value="{{ sheet.key }}">
+    <input type="hidden" name="order_key" value="{{ confirm.order_key }}">
+    <input type="hidden" name="product_key" value="{{ confirm.product_key }}">
+    <input type="hidden" name="occurrence_index" value="{{ confirm.occurrence_index }}">
+    <a class="ghost btn-mini" data-metric="confirm-cancel"
+       href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}">HỦY</a>
+    <button class="ghost btn-mini" type="submit" data-metric="confirm-ok">
+      {{ 'CHUYỂN' if confirm.kind == 'gia-dung' else 'LOẠI DÒNG' }}</button>
+  </form>
 </div>
 {% endif %}
+
+{# --- 4. BẢNG KÊ CHI TIẾT, GỘP THEO BH ---------------------------------
+   Cấu trúc phản chiếu sổ kế toán: một BH là một khối, khách hàng thuộc về
+   khối, các dòng hàng nằm bên trong (`§22`). Nền xen kẽ theo NGÀY, không
+   theo dòng (`§38`). #}
+<div class="module">
+  <h2>Bảng kê {{ sheet.period_label }}</h2>
+
+  {% if not groups %}
+  <p class="empty" data-metric="no-rows">{{ EMPTY_PERIOD_NOTE }}</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table class="sheet-table">
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index in (6, 7, 8, 9, 10) }}">{{ label }}</th>
+    {% endfor %}<th></th></tr>
+
+    {% for group in groups %}
+    {% set open = editing == group.order_key %}
+    {# Hàng ĐẦU của một BH mang ngày, mã đơn, khách hàng và MỘT nút sửa
+       (`§27`). Các dòng hàng tiếp theo của cùng BH để trống bốn ô đó —
+       đúng cách sổ kế toán trình bày một đơn nhiều dòng. #}
+    <tr class="bh-head shade-{{ group.shade }}{{ ' bh-open' if open }}"
+        data-metric="bh-head" data-order="{{ group.order_key }}"
+        data-shade="{{ group.shade }}">
+      <td data-metric="bh-date">{{ group.date_text }}</td>
+      <td class="code" data-metric="bh-order">{{ group.order_key }}
+        {% for tag in group.tags %}
+        <span class="tag tag-short" data-metric="bh-tag"
+              data-code="{{ tag.code }}">{{ tag.label }}</span>
+        {% endfor %}</td>
+      <td data-metric="bh-customer">
+        <span data-metric="customer-name">{{ group.customer_name }}</span>
+        <span class="tp-unit" data-metric="customer-phone">{{ group.customer_phone }}</span>
+        <span class="tp-unit" data-metric="customer-address">{{ group.customer_address }}</span>
+      </td>
+      <td colspan="7" class="cnt">{{ group.lines }} dòng</td>
+      <td>
+        {% if open %}
+        <a class="ghost btn-mini on" data-metric="bh-edit-close"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
+          >XONG</a>
+        {% else %}
+        <a class="ghost btn-mini" data-metric="bh-edit"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                            sua=group.order_key) }}"
+           aria-label="Sửa đơn {{ group.order_key }}">&#9998;</a>
+        {% endif %}
+      </td>
+    </tr>
+
+    {# Chế độ sửa của MỘT BH: đổi nhân viên một lần cho cả đơn (`§27`). Ô
+       chọn để trống khi các dòng đang thuộc nhiều người khác nhau — gợi ý
+       hộ một người ở đó là dời KPI của người khác chỉ vì Owner bấm LƯU. #}
+    {% if open and assignable %}
+    <tr class="bh-edit-row shade-{{ group.shade }}">
+      <td colspan="11">
+        <form class="filter-row" method="post"
+              action="{{ url_for('business_save_order_employee') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="sheet" value="{{ sheet.key }}">
+          <input type="hidden" name="order_key" value="{{ group.order_key }}">
+          <label class="tp-label" for="nv-{{ group.order_key }}">Nhân viên của cả đơn</label>
+          <select name="nhan_vien_moi" id="nv-{{ group.order_key }}"
+                  data-metric="bh-employee-select">
+            {% for option in assignable %}
+            <option value="{{ option.value }}"
+                    {{ 'selected' if option.value == group.employee_value }}>
+              {{ option.label }}</option>
+            {% endfor %}
+          </select>
+          <button class="ghost btn-mini" type="submit"
+                  data-metric="bh-employee-save">GÁN CẢ ĐƠN</button>
+        </form>
+      </td>
+    </tr>
+    {% endif %}
+
+    {% for row in group.rows %}
+    <tr class="shade-{{ group.shade }}{{ ' row-loss' if row.loss }}{{ ' row-discount' if row.synthetic }}"
+        data-metric="line-row" data-order="{{ row.order_key }}"
+        {% if row.loss %}data-metric-loss="1"{% endif %}>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td data-metric="line-product">
+        {%- if row.synthetic %}↳ {% endif -%}{{ row.product_raw }}</td>
+      {# `§6`/`§8` — danh tính người bán KHÔNG bao giờ bị thay bằng tên sheet. #}
+      <td data-metric="line-employee"
+          class="{{ 'empty-cell' if not row.employee_resolved }}">{{ row.employee }}</td>
+      <td class="num">{{ row.quantity }}</td>
+      {# `§25` — Giá nhập TRƯỚC Giá bán. #}
+      <td class="num" data-metric="purchase_price">
+        {% if open and not row.synthetic %}
+        <form class="filter-row" method="post"
+              action="{{ url_for('business_save_line_purchase_price') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="sheet" value="{{ sheet.key }}">
+          <input type="hidden" name="order_key" value="{{ row.order_key }}">
+          <input type="hidden" name="product_key" value="{{ row.product_key }}">
+          <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
+          <input type="text" inputmode="numeric" name="gia_nhap"
+                 value="{{ row.purchase_price_input }}"
+                 data-metric="line-purchase-input" aria-label="Giá nhập">
+          <button class="ghost btn-mini" type="submit">LƯU</button>
+        </form>
+        {% else %}{{ row.purchase_price }}{% endif %}
+      </td>
+      <td class="num">{{ row.sell_price }}</td>
+      {{ biz.derived_cell(row.kpi_profit, 'line-profit') }}
+      {{ biz.derived_cell(row.converted_sales, 'line-converted') }}
+      <td class="line-actions">
+        {# `§33` — hai thao tác KHÁC NHAU, và không cái nào cài bằng cái kia.
+           Cả hai đi qua một hộp xác nhận ngắn trước khi ghi. #}
+        {% if row.can_classify %}
+        {% if row.line_classified %}
+        <form method="post" action="{{ url_for('business_classify_line_gia_dung') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="sheet" value="{{ sheet.key }}">
+          <input type="hidden" name="order_key" value="{{ row.order_key }}">
+          <input type="hidden" name="product_key" value="{{ row.product_key }}">
+          <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
+          <button class="ghost btn-mini" type="submit" name="hanh-dong" value="go"
+                  data-metric="line-gia-dung-undo">↩ Nội thành</button>
+        </form>
+        {% else %}
+        <a class="ghost btn-mini" data-metric="line-gia-dung"
+           title="Chuyển dòng này sang Gia dụng"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                            **{'xac-nhan': 'gia-dung', 'order_key': row.order_key,
+                               'product_key': row.product_key,
+                               'occurrence_index': row.occurrence_index}) }}"
+          >&#8677;</a>
+        {% endif %}
+        {% endif %}
+        {% if row.can_exclude %}
+        <a class="ghost btn-mini" data-metric="line-exclude"
+           title="Loại dòng này khỏi báo cáo"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                            **{'xac-nhan': 'loai', 'order_key': row.order_key,
+                               'product_key': row.product_key,
+                               'occurrence_index': row.occurrence_index}) }}"
+          >&#128465;</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+
+  {# Đường vào bảng kê ĐẦY ĐỦ của đúng sheet này: bốn chế độ lọc của PHB-03
+     không bị gỡ, chúng chỉ không còn nằm trên màn hình vận hành (`§37`). #}
+  {% set detail_scope = {'loc': 'tat-ca'} %}
+  {% if sheet.employee %}{% set _ = detail_scope.update({'nhan-vien': sheet.employee}) %}
+  {% else %}{% set _ = detail_scope.update({'nhom': sheet.key}) %}{% endif %}
+  <p><a class="ghost btn-mini" data-metric="employee-detail-link"
+        href="{{ url_for('business_purchase_price', ky=selected_period, **detail_scope) }}"
+     >XEM TẤT CẢ DÒNG CỦA SHEET NÀY</a></p>
+</div>
+
+{# --- DÒNG ĐÃ LOẠI KHỎI BÁO CÁO ---------------------------------------
+   `§56` CASE EX-07 — bấm nhầm cái thùng rác là chuyện sẽ xảy ra, nên thao
+   tác đó phải đảo ngược được. Danh sách này KHÔNG mang một ô tiền nào: một
+   dòng đã bị loại không góp vào chỉ tiêu nào, và hiện số của nó cạnh số của
+   kỳ chỉ mời gọi người đọc cộng nhầm. #}
+{% if excluded %}
+<div class="module">
+  <h2>Dòng đã loại khỏi báo cáo <span class="cnt">{{ excluded|length }} dòng</span></h2>
+  <p class="insight" data-metric="excluded-note">{{ EXCLUDED_NOTE }}</p>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Ngày</th><th>Mã đơn</th><th>Mặt hàng</th><th>Nhân viên</th><th></th></tr>
+    {% for row in excluded %}
+    <tr data-metric="excluded-row" data-order="{{ row.order_key }}">
+      <td>{{ row.date_text }}</td>
+      <td class="code">{{ row.order_key }}</td>
+      <td>{{ row.product_raw }}</td>
+      <td>{{ row.employee }}</td>
+      <td>
+        <form method="post" action="{{ url_for('business_exclude_line') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="sheet" value="{{ sheet.key }}">
+          <input type="hidden" name="order_key" value="{{ row.order_key }}">
+          <input type="hidden" name="product_key" value="{{ row.product_key }}">
+          <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
+          <button class="ghost btn-mini" type="submit" name="hanh-dong"
+                  value="khoi-phuc" data-metric="line-restore">KHÔI PHỤC</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
 {% endif %}
 {% endblock %}

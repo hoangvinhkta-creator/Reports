@@ -104,6 +104,19 @@ class SourceLine:
     employee_raw: Optional[str]
     source_profit: Optional[Decimal]
 
+    # `DEC-PHB02-08` — ba trường KHÁCH HÀNG của chính sổ đang nạp. Chúng có
+    # giá trị mặc định để mọi nơi dựng `SourceLine` từ trước bản sửa này vẫn
+    # dựng được, và để `None` nói đúng sự thật cho các snapshot cũ: sổ đã nạp
+    # rồi thì thông tin khách của nó không còn chỗ nào để lấy lại.
+    #
+    # Chúng KHÔNG có mặt trong `fingerprint_values` bên dưới, và đó là một
+    # khẳng định nghiệp vụ chứ không phải một chi tiết cài đặt: kế toán sửa
+    # tên hay số điện thoại khách KHÔNG phải là "dòng bán này đã bị sửa", nên
+    # `changed_fields`/`SOURCE_CHANGED` giữ nguyên nghĩa cũ.
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_address: Optional[str] = None
+
     @property
     def fingerprint_values(self) -> tuple:
         """Đúng thứ tự ``keys.FINGERPRINT_FIELDS`` — dùng cho diff changed_fields."""

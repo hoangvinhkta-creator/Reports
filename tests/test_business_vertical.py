@@ -401,27 +401,50 @@ def test_a_previous_month_with_no_data_never_shows_a_percentage(
     assert "Chưa có dữ liệu tháng trước" in metric(html, "mom-note")
 
 
-def test_the_employee_page_is_one_page_with_a_picker_not_one_tab_each(
+def test_the_employee_page_is_one_page_with_sheets_not_one_tab_each(
     repository, client
 ):
-    """`R-E1`/`P1` — 56 sheet tay KHÔNG trở thành 56 trang web."""
+    """`R-E1`/`P1` — 56 sheet tay KHÔNG trở thành 56 TRANG web.
+
+    `DEC-PHB02-08` §4 thay bộ chọn thả xuống bằng một hàng SHEET ở đầu trang.
+    Khẳng định gốc không đổi: vẫn MỘT trang, vẫn MỘT route, và chuyển phạm vi
+    vẫn là đổi lựa chọn chứ không phải mở một trang khác.
+
+    Điều MỚI mà §6/§7 thêm vào: Vinh · Ly không còn là hai sheet đối xứng —
+    một nhân viên Nội thành thuộc SHEET NHÓM, còn nhân viên bán lẻ có sheet
+    của chính mình. Đường dẫn cũ `?nhan-vien=<tên>` vẫn mở đúng phạm vi.
+    """
     persist(repository, [
         pair("BH1", employee="Vinh"),
         pair("BH2", employee="Ly", group="STANDARD_SALES", rate="0.055", row=7),
     ])
-    for name in ("Vinh", "Ly"):
-        html = body(client, f"/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien={name}")
-        assert metric(html, "employee") == name
-    # Không chọn ai ⟹ trang nói rõ, KHÔNG dựng một bảng toàn số 0.
-    assert "Chưa chọn nhân viên" in body(client, "/kinh-doanh/nhan-vien?ky=2026-01")
+    noi_thanh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert metric(noi_thanh, "employee") == "Nội thành"
+    retail = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Ly")
+    assert metric(retail, "employee") == "Ly"
+
+    # Không chọn sheet nào ⟹ mở sheet đầu tiên, KHÔNG bắt chọn trước khi xem.
+    default = body(client, "/kinh-doanh/nhan-vien?ky=2026-01")
+    assert metric(default, "employee") == "Nội thành"
+    assert "Chưa chọn nhân viên" not in default
+    # Và toàn bộ điều hướng phạm vi nằm trên CÙNG một route.
+    assert set(re.findall(r'href="(/kinh-doanh/nhan-vien)\?[^"]*sheet=',
+                          default)) == {"/kinh-doanh/nhan-vien"}
 
 
 def test_an_employee_who_did_not_sell_in_the_period_is_not_invented(
     repository, client
 ):
+    """Một cái tên lạ KHÔNG dựng ra một sheet toàn số 0.
+
+    Trước `DEC-PHB02-08` trang nói "Chưa chọn nhân viên". Nay nó rơi về sheet
+    mặc định — nhưng khẳng định gốc còn nguyên và là thứ được kiểm ở đây:
+    không có sheet nào mang cái tên đó, và không con số nào được bịa cho nó.
+    """
     persist(repository, [pair("BH1", employee="Vinh")])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=KhongCoAi")
-    assert "Chưa chọn nhân viên" in html
+    assert "KhongCoAi" not in html
+    assert metric(html, "employee") == "Nội thành"
 
 
 def test_the_gia_dung_workflow_is_offered_to_noi_thanh_only(repository, client):
@@ -430,10 +453,12 @@ def test_the_gia_dung_workflow_is_offered_to_noi_thanh_only(repository, client):
         pair("BH1", employee="Vinh", group="NOI_THANH"),
         pair("BH2", employee="Ly", group="STANDARD_SALES", rate="0.055", row=7),
     ])
+    # `DEC-PHB02-08` §9 — thao tác phân loại Gia dụng CHỈ có trên sheet Nội
+    # thành. Nhân viên bán lẻ không thấy nó, và cũng không vào được nó.
     noi_thanh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
-    assert 'data-metric="gia-dung-available"' in noi_thanh
+    assert 'data-metric="line-gia-dung"' in noi_thanh
     retail = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Ly")
-    assert 'data-metric="gia-dung-available"' not in retail
+    assert 'data-metric="line-gia-dung"' not in retail
 
     assert client.get("/kinh-doanh/gia-dung?ky=2026-01&nhan-vien=Vinh"
                       ).status_code == 200
@@ -555,9 +580,16 @@ def test_ticking_gia_dung_through_the_page_reroutes_the_rate(repository, client)
 
     assert metric(body(client, "/kinh-doanh/gia-dung?ky=2026-01&nhan-vien=Vinh"),
                   "current_group") == "Gia dụng"
-    # 3.000.000 / 8 % = 37.500.000 (trước khi tick là 2 % ⟹ 150.000.000)
-    summary = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
-    assert metric(summary, "converted_sales") == "37.500"
+    # 3.000.000 / 8 % = 37.500.000 (trước khi tick là 2 % ⟹ 150.000.000).
+    #
+    # `DEC-PHB02-08` §8 — một dòng có ProductGroup hiệu lực `GIA_DUNG` nằm ở
+    # SHEET GIA DỤNG, bất kể Owner đã nói điều đó ở cấp mặt hàng hay cấp
+    # dòng. Hai bảng phân loại là hai độ mịn của CÙNG một thẩm quyền (§40),
+    # nên chúng không được cho ra hai bucket khác nhau.
+    gia_dung = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&sheet=gia-dung")
+    assert metric(gia_dung, "converted_sales") == "37.500"
+    noi_thanh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert metric(noi_thanh, "converted_sales") == "—"
 
     untick = client.post("/kinh-doanh/gia-dung", data={
         "product_key": product_key, "ky": "2026-01", "nhan-vien": "Vinh",
@@ -773,11 +805,15 @@ def test_the_owner_classifies_an_unknown_employee_and_every_view_follows(
     # Tổng của cả kỳ KHÔNG đổi — chỉ dời một khoản sang đúng người.
     assert metric(after, "kpi_profit") == "6.000"
 
-    # Dòng đó nay nằm trong trang của Vinh.
+    # Dòng đó nay nằm trong sheet của Vinh — tức sheet NHÓM Nội thành
+    # (`DEC-PHB02-08` §6: Vinh không có tab riêng, nhưng dòng của anh vẫn
+    # được cộng vào đúng một chỗ).
     vinh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
-    assert metric(vinh, "employee") == "Vinh"
+    assert metric(vinh, "employee") == "Nội thành"
     assert metric(vinh, "kpi_profit") == "3.000"
     assert metric(vinh, "lines") == "1"
+    # Và danh tính người bán KHÔNG bị thay bằng tên sheet (§6/§8).
+    assert metric(vinh, "line-employee") == "Vinh"
 
     # Và ở tầng ngữ nghĩa: bằng chứng gốc không bị ghi đè.
     moved = [l for l in service.period(**JANUARY).lines if l.order_key == "BH2"][0]
@@ -877,7 +913,10 @@ def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(
     html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
     typed = set(re.findall(r'<(?:input|select)[^>]*name="([^"]+)"', html))
     assert typed <= {"order_key", "product_key", "occurrence_index", "ky",
-                     "nhan-vien", "loc", "gia_nhap", "nhan_vien_moi",
+                     # `nhom` (`DEC-PHB02-08`) là một trường PHẠM VI như
+                     # `nhan-vien`/`loc`: nó nói bảng kê đang thu hẹp về sheet
+                     # nào, và không đi vào một phép tính nào.
+                     "nhan-vien", "nhom", "loc", "gia_nhap", "nhan_vien_moi",
                      "hanh-dong"}
     for derived in ("loi_nhuan", "kpi_profit", "doanh_thu", "ds_quy_doi"):
         assert f'name="{derived}"' not in html

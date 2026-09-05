@@ -183,9 +183,27 @@ def test_daily_rows_keep_vnd_and_their_source_sheet(legacy_repository, workbook)
 
 
 def test_no_legacy_table_stores_customer_personal_data():
-    """PII của khách hàng KHÔNG được nhập (governance/product/17)."""
+    """PII của khách hàng KHÔNG được nhập vào SỐ CŨ (governance/product/17).
+
+    Phạm vi của khẳng định này thu hẹp về đúng các bảng `legacy_*` sau
+    `DEC-PHB02-08`, và lý do là một ranh giới nghiệp vụ chứ không phải một
+    ngoại lệ tiện tay:
+
+    - Sổ cũ là bằng chứng lịch sử ĐÃ ĐÓNG BĂNG, chỉ đọc, và không có màn hình
+      nào cần đối chiếu một dòng của nó với một khách hàng cụ thể. Không ai
+      yêu cầu, nên không có gì được nhập.
+    - `order_line_source_version` (origin `PIPELINE_GENERATED`) thì ngược lại:
+      Owner đã yêu cầu tường minh ba trường khách hàng của chính sổ ĐANG NẠP,
+      để bảng kê vận hành đối chiếu được với đơn thật (`§23`/`§49`).
+
+    `tests/test_web_sales_detail.py` canh nửa còn lại: đúng ba trường đó, và
+    không thêm trường nào.
+    """
     banned = ("customer", "phone", "address", "khach", "dien_thoai", "dia_chi")
-    for table in schema.METADATA.tables.values():
+    legacy_tables = [table for name, table in schema.METADATA.tables.items()
+                     if name.startswith("legacy_")]
+    assert legacy_tables, "không tìm thấy bảng legacy_* nào — test sẽ vô nghĩa"
+    for table in legacy_tables:
         for column in table.c:
             assert not any(word in column.name.lower() for word in banned), column.name
 

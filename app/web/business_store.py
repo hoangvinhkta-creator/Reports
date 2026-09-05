@@ -59,7 +59,9 @@ from app.web.history_store import HistoryUnavailableError
 from tools.db.schema import (
     ORIGIN_PIPELINE, PURCHASE_PROVENANCE_MANUAL,
     PURCHASE_PROVENANCE_MANUAL_OVERRIDE, employee_attribution_override,
-    employee_target, kpi_purchase_price_override, product_group_classification,
+    employee_target, group_target, kpi_purchase_price_override,
+    line_exclusion, line_product_group_classification,
+    product_group_classification,
 )
 
 PRODUCT_GROUPS = ("DIEN_MAY", "GIA_DUNG")
@@ -83,6 +85,10 @@ class InvalidTargetError(ValueError):
 
 class InvalidTargetPeriodError(ValueError):
     """Kỳ của Target không phải một tháng thật — không có chỗ nào để lưu."""
+
+
+class InvalidGroupError(ValueError):
+    """Khoá nhóm báo cáo không thuộc tập đã freeze (`DEC-PHB02-08` §43)."""
 
 
 def parse_purchase_price(raw: Optional[str]) -> Decimal:
@@ -150,6 +156,78 @@ def parse_target(raw: Optional[str]) -> Optional[Decimal]:
     if value < 0:
         raise InvalidTargetError("Target không được âm.")
     return value
+
+
+#: Hệ số giữa đơn vị NHẬP LIỆU (nghìn đồng) và đơn vị LƯU TRỮ (VND).
+#: `Decimal` chứ không `int`: mọi phép nhân/chia của con số này phải chính xác
+#: tuyệt đối, và một lần lỡ tay dùng `float` ở đây cho ra `499999999.99999994`
+#: trên một con số đi vào bảng lương (`§19`).
+KVND = Decimal(1000)
+
+
+def parse_target_kvnd(raw: Optional[str]) -> Optional[Decimal]:
+    """Chuỗi Owner gõ theo NGHÌN ĐỒNG → `Decimal` VND, `None`, hoặc lỗi.
+
+    `§17`–`§20` của `DEC-PHB02-08`: Owner gõ `500,000` và ý là 500.000 nghìn
+    đồng = 500.000.000 VND. Kho lưu KHÔNG đổi — canonical vẫn là VND nguyên
+    (PHB-05 §7) — chỉ ô nhập đổi cách viết.
+
+    ## Quy ước phân tách, chọn MỘT lần và nói ra
+
+    Dấu phẩy, dấu chấm và khoảng trắng đều là PHÂN CÁCH NGHÌN; không có dấu
+    thập phân nào. Lý do là bất biến khứ hồi của `§20`, không phải sở thích:
+    người Việt gõ `500.000`, chỉ thị viết `500,000`, và nếu một trong hai dấu
+    mang nghĩa thập phân thì `500.000` và `500,000` sẽ là hai con số cách nhau
+    một nghìn lần — trên chính màn hình mà Owner đặt target bằng lương của
+    người khác. Vì vậy giá trị nhập là một SỐ NGUYÊN nghìn đồng, và mọi thứ
+    khác bị từ chối kèm câu nói rõ.
+
+    Bốn kết quả, đúng `§19`:
+
+        rỗng        ⟹ `None` — GỠ target (chưa thiết lập), không phải `0`.
+        `0`         ⟹ `Decimal(0)` — Owner cố ý đặt target bằng không.
+        nguyên ≥ 0  ⟹ `Decimal(kVND) * 1000`, chính xác tuyệt đối.
+        còn lại     ⟹ `InvalidTargetError` — âm, thập phân, hoặc không phải số.
+
+    Số âm rơi vào nhánh cuối một cách tự nhiên: dấu `-` không phải chữ số, nên
+    chuỗi không còn toàn chữ số sau khi bỏ phân cách.
+    """
+    text = (raw or "").strip()
+    for separator in (",", ".", " ", "\u00a0", "\u202f", "_"):
+        text = text.replace(separator, "")
+    if not text:
+        return None
+    if not text.isdigit():
+        raise InvalidTargetError(
+            f"Target {raw!r} không hợp lệ. Nhập một số nguyên theo NGHÌN "
+            "ĐỒNG, ví dụ 500,000 (= 500.000.000 đồng).")
+    return Decimal(text) * KVND
+
+
+def format_target_kvnd(target_vnd: Optional[Decimal]) -> str:
+    """`Decimal` VND đã lưu → chuỗi cho Ô NHẬP, theo nghìn đồng.
+
+    Đây là nửa còn lại của bất biến khứ hồi `§20`, và nó có đúng một kỷ luật:
+    **không bao giờ trả về một chuỗi mà `parse_target_kvnd` sẽ đọc thành một
+    con số khác.** Cụ thể, một giá trị không chia hết cho 1.000 (chỉ có thể
+    đến từ màn hình Target theo VND của PHB-05) KHÔNG viết được thành số
+    nguyên nghìn đồng, nên ô nhập để TRỐNG thay vì hiện một con số đã bị làm
+    tròn — tầng trình bày nói ra giá trị thật ở chỗ khác.
+
+    Trả `""` cũng đúng cho `None` (chưa thiết lập): ô nhập trống, và bấm LƯU
+    trên một ô trống nghĩa là "gỡ target", tức là không đổi gì.
+    """
+    if target_vnd is None:
+        return ""
+    value = Decimal(target_vnd)
+    if value % KVND != 0:
+        return ""
+    return f"{int(value / KVND):,}"
+
+
+def target_is_kvnd_editable(target_vnd: Optional[Decimal]) -> bool:
+    """Target này có sửa được ở ô nhập nghìn đồng không (xem hàm trên)."""
+    return target_vnd is None or Decimal(target_vnd) % KVND == 0
 
 
 def parse_target_period(raw_year, raw_month) -> tuple[int, int]:
@@ -441,6 +519,186 @@ class BusinessDecisionStore:
         ).where(table.c.year == int(year), table.c.month == int(month)))
         return {row["employee_key"]: row for row in rows}
 
+    # --- phân loại Gia dụng ở CẤP DÒNG (DEC-PHB02-08 §10) ---------------
+
+    def set_line_product_group(
+        self,
+        *,
+        order_key: str,
+        product_key: str,
+        occurrence_index: int,
+        product_group: str,
+        classified_by: Optional[str] = None,
+        classified_at: Optional[str] = None,
+    ) -> None:
+        """Ghi phân loại nhóm sản phẩm cho ĐÚNG MỘT dòng hàng.
+
+        Cùng từ vựng `PRODUCT_GROUPS` và cùng hệ quả kinh tế với
+        `set_product_group`; khác đúng một điều — GRAIN. Một BH ba dòng mà
+        Owner chỉ chuyển một dòng sang Gia dụng không biểu diễn được bằng khoá
+        `product_key`, vì khoá đó nói về MẶT HÀNG chứ không về dòng.
+
+        Không có luật nào ở đây đọc tên hàng: `DEC-PHB02-05` cấm suy ra Gia
+        dụng từ nhãn, và ranh giới đó không đổi khi grain đổi.
+        """
+        if product_group not in PRODUCT_GROUPS:
+            raise InvalidProductGroupError(
+                f"Nhóm sản phẩm {product_group!r} không hợp lệ."
+            )
+        self._upsert(
+            line_product_group_classification,
+            {"order_key": order_key, "product_key": product_key,
+             "occurrence_index": int(occurrence_index)},
+            {"product_group": product_group,
+             "classified_at": classified_at or _now(),
+             "classified_by": classified_by},
+        )
+
+    def clear_line_product_group(
+        self, *, order_key: str, product_key: str, occurrence_index: int,
+    ) -> None:
+        """Gỡ phân loại RIÊNG của dòng; dòng trở lại quyết định cấp mặt hàng.
+
+        Cố ý KHÔNG ghi `DIEN_MAY` để "trả về": một dòng mang `DIEN_MAY` là một
+        khẳng định của Owner về dòng đó và sẽ thắng cả quyết định cấp mặt hàng.
+        Gỡ nghĩa là "tôi không nói gì riêng về dòng này nữa", và điều đó chỉ
+        biểu diễn được bằng sự VẮNG MẶT.
+        """
+        table = line_product_group_classification
+        self._execute(delete(table).where(
+            table.c.order_key == order_key,
+            table.c.product_key == product_key,
+            table.c.occurrence_index == int(occurrence_index),
+        ))
+
+    def line_product_groups(self) -> dict[tuple[str, str, int], dict]:
+        table = line_product_group_classification
+        rows = self._read(select(
+            table.c.order_key, table.c.product_key, table.c.occurrence_index,
+            table.c.product_group, table.c.classified_at, table.c.classified_by,
+        ))
+        return {
+            (row["order_key"], row["product_key"], int(row["occurrence_index"])): row
+            for row in rows
+        }
+
+    # --- loại một dòng khỏi báo cáo (DEC-PHB02-08 §30-§32) --------------
+
+    def exclude_line(
+        self,
+        *,
+        order_key: str,
+        product_key: str,
+        occurrence_index: int,
+        reason: Optional[str] = None,
+        excluded_by: Optional[str] = None,
+        excluded_at: Optional[str] = None,
+    ) -> None:
+        """Loại MỘT dòng khỏi toàn bộ báo cáo nghiệp vụ — có thể đảo ngược.
+
+        Đây là một QUYẾT ĐỊNH nằm cạnh dữ liệu, không phải một lệnh xoá:
+        không câu SQL nào ở đây chạm tới `order_line_source_version`,
+        `order_line_result_version` hay `order_line_current` — chúng là bằng
+        chứng append-only của một lần nạp sổ, và `§31` cấm tường minh việc xoá
+        chúng ("Do not mutate the accounting workbook. Do not delete
+        provenance").
+
+        Hiệu lực xảy ra ở tầng ĐỌC (`BusinessReportService.period`), nơi dòng
+        bị loại khỏi tập trước khi bất kỳ phép gộp nào chạy. Nhờ vậy `§30` đúng
+        theo cấu tạo: không có metric nào phải tự nhớ "trừ dòng bị loại ra".
+        """
+        self._upsert(
+            line_exclusion,
+            {"order_key": order_key, "product_key": product_key,
+             "occurrence_index": int(occurrence_index)},
+            {"reason": reason, "excluded_at": excluded_at or _now(),
+             "excluded_by": excluded_by},
+        )
+
+    def restore_line(
+        self, *, order_key: str, product_key: str, occurrence_index: int,
+    ) -> None:
+        """Khôi phục một dòng đã loại (`§56` CASE EX-07).
+
+        Bấm nhầm cái thùng rác là chuyện sẽ xảy ra, và một thao tác không đảo
+        ngược được trên một con số doanh thu là một thao tác không được phép
+        tồn tại. Vì bản ghi gốc chưa bao giờ bị đụng tới, khôi phục chỉ là xoá
+        đúng dòng quyết định này.
+        """
+        table = line_exclusion
+        self._execute(delete(table).where(
+            table.c.order_key == order_key,
+            table.c.product_key == product_key,
+            table.c.occurrence_index == int(occurrence_index),
+        ))
+
+    def line_exclusions(self) -> dict[tuple[str, str, int], dict]:
+        table = line_exclusion
+        rows = self._read(select(
+            table.c.order_key, table.c.product_key, table.c.occurrence_index,
+            table.c.reason, table.c.excluded_at, table.c.excluded_by,
+        ))
+        return {
+            (row["order_key"], row["product_key"], int(row["occurrence_index"])): row
+            for row in rows
+        }
+
+    # --- Target tháng của một NHÓM báo cáo (DEC-PHB02-08 §7/§13/§43) ----
+
+    def set_group_target(
+        self,
+        *,
+        year: int,
+        month: int,
+        group_key: str,
+        target_vnd: Decimal,
+        updated_by: Optional[str] = None,
+        updated_at: Optional[str] = None,
+    ) -> None:
+        """Đặt Target VND của MỘT nhóm báo cáo trong MỘT tháng.
+
+        Cùng hợp đồng với `set_employee_target` — khoá không chứa
+        `snapshot_id`, đơn vị là VND nguyên, ghi đè tại chỗ, `0` khác rỗng —
+        khác đúng một điều: chủ thể là một ĐƠN VỊ BÁO CÁO, không phải một
+        người. Xem `tools/db/schema.py` (`group_target`) để biết vì sao điều
+        đó phải là một bảng riêng thay vì một `employee_key` giả.
+
+        Con số này là của Owner và CHỈ của Owner: không có đường nào trong mã
+        nguồn cộng target của Vinh · Quý · Hiệp lại để suy ra nó (`§7`).
+        """
+        key = (group_key or "").strip()
+        if not key:
+            raise InvalidGroupError("Chưa chọn nhóm báo cáo cho Target.")
+        if target_vnd is None or target_vnd < 0:
+            raise InvalidTargetError("Target không được âm.")
+        if not 1 <= int(month) <= 12:
+            raise InvalidTargetPeriodError(
+                f"Tháng {month!r} không phải một tháng thật.")
+        self._upsert(
+            group_target,
+            {"year": int(year), "month": int(month), "group_key": key},
+            {"target_vnd": target_vnd, "updated_at": updated_at or _now(),
+             "updated_by": updated_by},
+        )
+
+    def clear_group_target(self, *, year: int, month: int, group_key: str) -> None:
+        """Gỡ Target của một nhóm — XOÁ DÒNG, không ghi `0` (PHB-05 §7)."""
+        table = group_target
+        self._execute(delete(table).where(
+            table.c.year == int(year),
+            table.c.month == int(month),
+            table.c.group_key == (group_key or "").strip(),
+        ))
+
+    def group_targets(self, *, year: int, month: int) -> dict[str, dict]:
+        """Target đã đặt của MỘT tháng, khoá theo nhóm báo cáo."""
+        table = group_target
+        rows = self._read(select(
+            table.c.year, table.c.month, table.c.group_key,
+            table.c.target_vnd, table.c.updated_at, table.c.updated_by,
+        ).where(table.c.year == int(year), table.c.month == int(month)))
+        return {row["group_key"]: row for row in rows}
+
     # --- hạ tầng --------------------------------------------------------
 
     def _upsert(self, table, keys: dict, values: dict) -> None:
@@ -481,8 +739,9 @@ class BusinessDecisionStore:
 
 
 __all__ = [
-    "BusinessDecisionStore", "InvalidEmployeeError", "InvalidProductGroupError",
-    "InvalidPurchasePriceError", "InvalidTargetError",
-    "InvalidTargetPeriodError", "PRODUCT_GROUPS", "parse_purchase_price",
-    "parse_target", "parse_target_period",
+    "BusinessDecisionStore", "InvalidEmployeeError", "InvalidGroupError",
+    "InvalidProductGroupError", "InvalidPurchasePriceError",
+    "InvalidTargetError", "InvalidTargetPeriodError", "KVND", "PRODUCT_GROUPS",
+    "format_target_kvnd", "parse_purchase_price", "parse_target",
+    "parse_target_kvnd", "parse_target_period", "target_is_kvnd_editable",
 ]

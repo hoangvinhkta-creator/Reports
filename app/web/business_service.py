@@ -22,7 +22,7 @@ quy đổi nào (PHB-05 §21).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -31,6 +31,7 @@ from typing import Optional
 from app.modules.kpi.kpi_profit_engine import load_eligible_costs_authority
 from app.modules.mapping.employee_mapper import load_employee_master
 from app.modules.reporting import business_metrics as bm
+from app.modules.reporting import reporting_sheets
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
 from app.web.business_store import BusinessDecisionStore
@@ -43,16 +44,51 @@ EMPLOYEES_PATH = REPO_ROOT / "config" / "employees.yaml"
 
 @dataclass(frozen=True)
 class PeriodData:
-    """Mọi thứ một trang nghiệp vụ cần cho MỘT kỳ, đọc đúng một lần."""
+    """Mọi thứ một trang nghiệp vụ cần cho MỘT kỳ, đọc đúng một lần.
+
+    `lines`/`details` là các dòng ĐANG ĐƯỢC BÁO CÁO. Dòng mà Owner đã loại
+    (`DEC-PHB02-08` §30) KHÔNG có mặt ở đây và vì thế không thể lọt vào một
+    phép gộp nào — `totals` cộng trên chính `lines`, nên `§30` đúng theo cấu
+    tạo chứ không nhờ mỗi metric tự nhớ trừ ra.
+
+    `excluded` giữ RIÊNG các dòng đó, để màn hình khôi phục được chúng
+    (`§56` CASE EX-07). Nó cố ý không phải một phần của `lines`: một danh sách
+    mà "có mặt nhưng không tính" là đúng lớp lỗi mà việc tách này đóng lại.
+    """
 
     lines: list
     details: list
     totals: bm.BusinessTotals
+    excluded: list = field(default_factory=list)
 
     def for_employee(self, employee: Optional[str]) -> "PeriodData":
         """Lát cắt của một nhân viên — cùng cấu trúc, để trang dùng chung code."""
         keep = [index for index, line in enumerate(self.lines)
                 if line.employee == employee]
+        lines = [self.lines[index] for index in keep]
+        return PeriodData(lines=lines, details=[self.details[i] for i in keep],
+                          totals=bm.totals(lines))
+
+    def sheet_assignments(self) -> list[tuple[str, Optional[str]]]:
+        """`(khoá sheet, nhân viên)` của TỪNG dòng đang được báo cáo."""
+        return [
+            (reporting_sheets.sheet_key_of(
+                employee=detail["line"].employee,
+                employee_group=detail["line"].employee_group,
+                product_group=detail["classified_product_group"]),
+             detail["line"].employee)
+            for detail in self.details
+        ]
+
+    def for_sheet(self, sheet: reporting_sheets.Sheet) -> "PeriodData":
+        """Lát cắt của MỘT sheet — cùng cấu trúc, cùng code trình bày.
+
+        Đây là phép chiếu duy nhất của toàn bộ không gian làm việc, và nó là
+        một PHÂN HOẠCH: `sheet_key_of` là hàm toàn phần, nên mọi dòng thuộc
+        đúng một sheet và tổng của các sheet luôn đúng bằng tổng kỳ (`§42`).
+        """
+        keep = [index for index, (key, _employee)
+                in enumerate(self.sheet_assignments()) if key == sheet.key]
         lines = [self.lines[index] for index in keep]
         return PeriodData(lines=lines, details=[self.details[i] for i in keep],
                           totals=bm.totals(lines))
@@ -115,18 +151,51 @@ class BusinessReportService:
     def period(
         self, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
     ) -> PeriodData:
+        """Kỳ đã hợp nhất MỌI quyết định của Owner, sẵn sàng để gộp.
+
+        Thứ tự ở đây là một hợp đồng, không phải sở thích:
+
+        1. Đọc dòng hiện hành (`raw_lines`) — CHỈ ĐỌC.
+        2. Hợp nhất quyết định làm ĐỔI GIÁ TRỊ của một dòng: giá nhập, nhân
+           viên, phân loại Gia dụng (mặt hàng + dòng).
+        3. TÁCH RA các dòng Owner đã loại khỏi báo cáo (`DEC-PHB02-08` §30).
+        4. Gộp — trên đúng tập còn lại.
+
+        Bước 3 nằm SAU bước 2 và TRƯỚC bước 4, và cả hai vị trí đều bắt buộc.
+        Sau bước 2 vì một dòng bị loại vẫn phải hiện đúng giá và đúng tên
+        người bán trên danh sách khôi phục; trước bước 4 vì `§30` yêu cầu dòng
+        đó không góp vào BẤT KỲ chỉ tiêu nào — và cách duy nhất bảo đảm điều
+        đó cho cả những chỉ tiêu chưa được viết ra là không đưa nó vào tập
+        được cộng.
+        """
         rows = business_queries.raw_lines(
             self._engine, date_from=date_from, date_to=date_to)
         overrides = self._store.purchase_price_overrides()
         classifications = self._store.product_groups()
+        line_classifications = self._store.line_product_groups()
         lines = business_queries.build_lines(
             rows, overrides=overrides, classifications=classifications,
             router=self._router,
             kpi_authority_valid=self.kpi_authority_valid(),
-            employee_overrides=self._store.employee_overrides())
+            employee_overrides=self._store.employee_overrides(),
+            line_classifications=line_classifications)
         details = business_queries.line_details(
-            rows, lines, classifications=classifications, overrides=overrides)
-        return PeriodData(lines=lines, details=details, totals=bm.totals(lines))
+            rows, lines, classifications=classifications, overrides=overrides,
+            line_classifications=line_classifications)
+
+        exclusions = self._store.line_exclusions()
+        kept, dropped = [], []
+        for detail in details:
+            key = (detail["order_key"], detail["product_key"],
+                   detail["occurrence_index"])
+            excluded = exclusions.get(key)
+            if excluded is None:
+                kept.append(detail)
+            else:
+                dropped.append({**detail, "exclusion": excluded})
+        kept_lines = [detail["line"] for detail in kept]
+        return PeriodData(lines=kept_lines, details=kept,
+                          totals=bm.totals(kept_lines), excluded=dropped)
 
     def employees(
         self, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
@@ -208,6 +277,76 @@ class BusinessReportService:
         self._store.clear_employee_target(
             year=year, month=month, employee_key=employee_key)
 
+
+    # --- Không gian làm việc theo SHEET (DEC-PHB02-08) ------------------
+
+    def sheets(self, data: PeriodData) -> list:
+        """Các sheet của kỳ, dựng từ chính tập dòng đang được báo cáo.
+
+        Nguồn là dữ liệu ĐÃ HỢP NHẤT, không phải danh sách thô của pipeline —
+        cùng lý do đã nghiệm thu ở `merge_assigned_names` (`OD-5`): ngay sau
+        khi Owner chuyển một dòng sang Gia dụng hay gán lại nhân viên, thanh
+        tab phải phản ánh điều đó ở lần tải trang kế tiếp, không phải sau một
+        lần chạy lại pipeline.
+        """
+        return reporting_sheets.sheets_for(data.sheet_assignments())
+
+    def sheet_target(
+        self, *, sheet, period: Optional[tuple[int, int]],
+    ) -> Optional[Decimal]:
+        """Target VND của MỘT sheet trong MỘT tháng, hoặc `None`.
+
+        Đây là chỗ DUY NHẤT quyết định "Target của đơn vị báo cáo này nằm ở
+        bảng nào", và nó chỉ có hai nhánh:
+
+            sheet NHÓM     → `group_target`     (`§7`, `§13`)
+            sheet NHÂN VIÊN → `employee_target` (PHB-05, `DEC-PHB02-06`)
+
+        Không nhánh nào CỘNG gì lại. Target của Nội thành là con số Owner tự
+        đặt, không phải tổng target của Vinh · Quý · Hiệp (`§7`/`§53` CASE
+        TG-09), và Gia dụng có Target riêng chứ không mượn của Nội thành
+        (`§53` CASE TG-08). Cả hai khẳng định đó đúng ở đây theo cấu tạo: hai
+        khoá khác nhau trong hai bảng khác nhau, và không phép cộng nào.
+
+        Sheet "chưa xác định nhân viên" KHÔNG có Target: đặt chỉ tiêu cho một
+        tập dòng chưa biết của ai là một con số không ai chịu trách nhiệm.
+        """
+        if period is None or sheet is None or sheet.unresolved:
+            return None
+        year, month = period
+        if sheet.is_group:
+            row = self._store.group_targets(year=year, month=month).get(
+                sheet.group_key)
+            return None if row is None else row["target_vnd"]
+        if not sheet.employee:
+            return None
+        row = self._store.employee_targets(year=year, month=month).get(
+            sheet.employee)
+        return None if row is None else row["target_vnd"]
+
+    def set_sheet_target(
+        self, *, sheet, period: tuple[int, int], target_vnd: Decimal,
+    ) -> None:
+        """Ghi Target của một sheet vào ĐÚNG bảng của nó."""
+        year, month = period
+        if sheet.is_group:
+            self._store.set_group_target(
+                year=year, month=month, group_key=sheet.group_key,
+                target_vnd=target_vnd)
+            return
+        self._store.set_employee_target(
+            year=year, month=month, employee_key=sheet.employee,
+            target_vnd=target_vnd)
+
+    def clear_sheet_target(self, *, sheet, period: tuple[int, int]) -> None:
+        """Gỡ Target của một sheet — về CHƯA THIẾT LẬP, không phải `0`."""
+        year, month = period
+        if sheet.is_group:
+            self._store.clear_group_target(
+                year=year, month=month, group_key=sheet.group_key)
+            return
+        self._store.clear_employee_target(
+            year=year, month=month, employee_key=sheet.employee)
 
     def detail_of(
         self, *, order_key: str, product_key: str, occurrence_index: int,

@@ -76,13 +76,16 @@
 
 {# Khoá nghiệp vụ + ngữ cảnh trang, dùng chung cho mọi form ghi trên một dòng.
    Viết một lần để hai form của cùng một dòng không bao giờ lệch khoá. #}
-{% macro line_keys(row, selected_period, selected_employee, mode) -%}
+{% macro line_keys(row, selected_period, selected_employee, mode, selected_sheet='') -%}
 <input type="hidden" name="order_key" value="{{ row.order_key }}">
 <input type="hidden" name="product_key" value="{{ row.product_key }}">
 <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
 <input type="hidden" name="ky" value="{{ selected_period }}">
 <input type="hidden" name="nhan-vien" value="{{ selected_employee }}">
 <input type="hidden" name="loc" value="{{ mode }}">
+{# `DEC-PHB02-08` — giữ phạm vi sheet qua một lần LƯU, nếu không Owner mở
+   bảng kê của Nội thành, sửa một giá, rồi bị trả về danh sách của cả kỳ. #}
+<input type="hidden" name="nhom" value="{{ selected_sheet }}">
 {%- endmacro %}
 
 {% macro coverage_block(coverage, gia_nhap_url) -%}

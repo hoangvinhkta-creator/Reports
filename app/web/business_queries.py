@@ -13,7 +13,7 @@ freeze ở `analytics_queries` (`TASK-PRA-003`) và `sales_queries`
 3. **`NULL` không phải `0`.** Không coalesce gì. Việc phân biệt "chưa biết"
    với "bằng không" được `business_metrics` giữ tiếp.
 
-## Hàng rào PII — hẹp hơn PRA-003 đúng một trường, và nói ra
+## Hàng rào dữ liệu cá nhân — hẹp hơn PRA-003, và nói ra từng trường
 
 Tầng này ĐỌC `product_raw`, giống `sales_queries` và vì cùng một lý do đã
 được nghiệm thu (`TASK-PRA-004`, frozen contract mục 14.4): danh sách "dòng
@@ -21,9 +21,18 @@ còn thiếu giá nhập" và danh sách "mặt hàng cần tick Gia dụng" ph�
 biết ĐANG NÓI VỀ MẶT HÀNG NÀO. `canonical_product_code` rỗng trên dữ liệu
 thật nên không thay thế được, và `product_key` là một hash.
 
-Cột KHÔNG được đọc ở đây (PII theo
-`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`): `imei`, `note_raw`,
-`employee_raw`, và mọi cột khách hàng. Danh sách này được test canh bằng grep.
+`DEC-PHB02-08` mở thêm ĐÚNG BA trường, và đóng lại ngay sau đó:
+
+    ĐI QUA   `customer_name` · `customer_phone` · `customer_address`
+
+Owner yêu cầu tường minh rằng bảng kê nghiệp vụ phải hiện Tên KH · SĐT · Địa
+chỉ: một dòng bán không có khách hàng thì không đối chiếu được với đơn thật,
+và ba trường đó nằm sẵn trong chính sổ kế toán đang nạp (`raw_reader` cột
+5/6/7). Không CRM, không ghép danh tính liên hệ thống.
+
+Cột VẪN KHÔNG được đọc ở đây (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`):
+`imei`, `note_raw`, `employee_raw`. Danh sách này được
+`tests/test_business_boundaries.py` canh bằng chính mã nguồn.
 """
 
 from __future__ import annotations
@@ -89,6 +98,7 @@ _COLUMNS = (
     _RESULT.kpi_purchase_provenance, _RESULT.eligible_kpi_profit,
     _RESULT.product_group_final, _RESULT.conversion_rate_final,
     _SOURCE.product_raw, _SOURCE.quantity, _SOURCE.sell_price, _SOURCE.discount,
+    _SOURCE.customer_name, _SOURCE.customer_phone, _SOURCE.customer_address,
 )
 
 
@@ -182,10 +192,43 @@ def undated_lines(engine: Engine) -> int:
     return int(rows[0]["total"] or 0)
 
 
+def effective_product_group(
+    *, product_key: str, key: tuple, classifications: dict,
+    line_classifications: Optional[dict] = None,
+) -> Optional[str]:
+    """Phân loại Gia dụng HIỆU LỰC của một dòng — quy tắc hợp nhất DUY NHẤT.
+
+    Owner có hai cách nói cùng một câu, ở hai độ mịn khác nhau:
+
+        `product_group_classification`       "MẶT HÀNG này là Gia dụng"
+        `line_product_group_classification`  "ĐÚNG DÒNG này là Gia dụng"
+
+    `DEC-PHB02-08` §10: một BH có ba dòng và Owner chuyển đúng MỘT dòng sang
+    Gia dụng. Không có cách nào biểu diễn điều đó bằng khoá `product_key`, nên
+    quyết định cấp DÒNG tồn tại — và vì nó CỤ THỂ HƠN, nó thắng.
+
+    Đây KHÔNG phải một thẩm quyền Gia dụng thứ hai: cả hai bảng dùng chung từ
+    vựng `PRODUCT_GROUPS`, và kết quả của hàm này đi vào ĐÚNG một chỗ —
+    `ConversionRateRouter`, vốn hỏi lại `ConversionSchemeResolver`. Việc viết
+    quy tắc ưu tiên ở một hàm duy nhất là cách bảo đảm hai bảng không bao giờ
+    cho ra hai câu trả lời khác nhau trên hai màn hình khác nhau.
+
+    `None` ⟹ Owner chưa nói gì về dòng này, và tầng gọi giữ nguyên giá trị mà
+    pipeline đã ghi.
+    """
+    line_classifications = line_classifications or {}
+    at_line = line_classifications.get(key)
+    if at_line is not None:
+        return at_line["product_group"]
+    classified = classifications.get(product_key)
+    return None if classified is None else classified["product_group"]
+
+
 def build_lines(
     rows: list[dict], *, overrides: dict, classifications: dict,
     router: ConversionRateRouter, kpi_authority_valid: bool,
     employee_overrides: Optional[dict] = None,
+    line_classifications: Optional[dict] = None,
 ) -> list[BusinessLine]:
     """Hợp nhất dòng pipeline + quyết định Owner thành `BusinessLine`.
 
@@ -212,7 +255,10 @@ def build_lines(
         key = (row["order_key"], row["product_key"], int(row["occurrence_index"]))
         override = overrides.get(key)
         assigned = employee_overrides.get(key)
-        classified = classifications.get(row["product_key"])
+        classified_group = effective_product_group(
+            product_key=row["product_key"], key=key,
+            classifications=classifications,
+            line_classifications=line_classifications)
         # Bằng chứng gốc ĐI KÈM chứ không bị thay thế: `source_employee` giữ
         # nguyên tên mà sổ ghi, `employee` mới là tên có hiệu lực để cộng KPI.
         source_employee = row["employee_normalized"] or None
@@ -237,12 +283,26 @@ def build_lines(
                 None if override is None else override["purchase_price"]),
             manual_provenance=(
                 None if override is None else override["provenance"]),
+            # Tỉ lệ hỏi lại resolver bằng danh tính HIỆU LỰC của dòng, không
+            # phải danh tính thô của pipeline.
+            #
+            # `rate_routing` nói rõ ranh giới mà `DEC-PHB02-05` đặt ra: *"một
+            # nhân viên bán lẻ vì thế KHÔNG BAO GIỜ đi qua 8 % được, kể cả khi
+            # mặt hàng đã bị tick"*. Đọc `row["employee_group"]` làm thủng
+            # đúng ranh giới đó sau một lần Owner gán lại dòng (`OD-5`): dòng
+            # sang bảng của Ly nhưng vẫn quy đổi theo nhóm Nội thành.
+            #
+            # Phạm vi ảnh hưởng hẹp theo cấu tạo: `rate_for` trả NGUYÊN
+            # `stored_rate` khi `classified_group is None`, nên chỉ những dòng
+            # ĐÃ được phân loại Gia dụng mới hỏi lại resolver — tức đúng tập
+            # dòng mà ranh giới trên nói về.
             conversion_rate=router.rate_for(
                 stored_rate=row["conversion_rate_final"],
-                classified_group=(
-                    None if classified is None else classified["product_group"]),
-                employee=row["employee_normalized"] or None,
-                employee_group=row["employee_group"],
+                classified_group=classified_group,
+                employee=(source_employee if assigned is None
+                          else assigned["employee_normalized"]),
+                employee_group=(row["employee_group"] if assigned is None
+                                else assigned["employee_group"]),
                 lead_source=row["lead_source_final"],
                 sale_date=row["sale_date"],
             ),
@@ -253,6 +313,7 @@ def build_lines(
 def line_details(
     rows: list[dict], lines: list[BusinessLine], *, classifications: dict,
     overrides: Optional[dict] = None,
+    line_classifications: Optional[dict] = None,
 ) -> list[dict]:
     """Ghép mỗi `BusinessLine` với các trường CHỈ dùng để hiển thị/định danh.
 
@@ -269,11 +330,15 @@ def line_details(
     _price`: cái sau là giá tự động HÔM NAY, cái trước là giá tự động LÚC ĐÓ.
     """
     overrides = overrides or {}
+    line_classifications = line_classifications or {}
     details = []
     for row, line in zip(rows, lines):
-        classified = classifications.get(row["product_key"])
-        override = overrides.get(
-            (row["order_key"], row["product_key"], int(row["occurrence_index"])))
+        key = (row["order_key"], row["product_key"], int(row["occurrence_index"]))
+        classified_group = effective_product_group(
+            product_key=row["product_key"], key=key,
+            classifications=classifications,
+            line_classifications=line_classifications)
+        override = overrides.get(key)
         details.append({
             "order_key": row["order_key"],
             "product_key": row["product_key"],
@@ -281,9 +346,19 @@ def line_details(
             "product_raw": row["product_raw"],
             "sale_date": row["sale_date"],
             "auto_provenance": row["kpi_purchase_provenance"],
+            "customer_name": row.get("customer_name"),
+            "customer_phone": row.get("customer_phone"),
+            "customer_address": row.get("customer_address"),
             "pipeline_product_group": row["product_group_final"],
-            "classified_product_group": (
-                None if classified is None else classified["product_group"]),
+            "classified_product_group": classified_group,
+            # `DEC-PHB02-08` — Owner đã nói về ĐÚNG DÒNG NÀY hay chưa. Khác
+            # `classified_product_group`, vốn có thể đến từ quyết định cấp mặt
+            # hàng: chỉ dòng có quyết định riêng mới được phép "gỡ" quyết định
+            # riêng đó, còn gỡ một quyết định cấp mặt hàng là việc của trang
+            # phân loại mặt hàng.
+            "line_product_group": (
+                None if line_classifications.get(key) is None
+                else line_classifications[key]["product_group"]),
             "override_auto_price_at_entry": (
                 None if override is None else override["auto_price_at_entry"]),
             "override_entered_at": (
