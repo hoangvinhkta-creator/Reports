@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Mapping, Optional
 
+from app.legacy.models import SUMMARY_COLUMN_FIELDS, UNIT_SUMMARY
+
 # --------------------------------------------------------------------------
 # Lớp bằng chứng của một chỉ tiêu legacy (PHB-04 mục 5).
 # --------------------------------------------------------------------------
@@ -115,11 +117,13 @@ def _rule(key, label, unit_kind, metric_class, reason, evidence) -> MetricRule:
 
 REFERENCE_YEAR_CONTRACT: tuple[MetricRule, ...] = (
     _rule(
-        "sales_vnd", "Doanh số tháng", "vnd", REFERENCE_ONLY,
-        "Số tổng nhập tay trong workbook. Báo cáo tay trừ chiết khấu khác cách "
-        "công cụ hiện tại trừ, nên KHÔNG cùng nghĩa với Doanh thu bán hàng của "
-        "số mới — hiện được, so thì không.",
-        "PHB-02 §5.2 S3 · DEC-114 · docs/analysis/02_FORMULA_MAPPING.md §5 (AH3:AH14)",
+        "sales_vnd", "Doanh số tháng", "vnd", COMPARABLE,
+        "`DEC-180` — cùng chỉ tiêu nghiệp vụ với Doanh thu bán hàng của số "
+        "mới. Sổ tay cũ trừ chiết khấu bằng một dòng âm \u201cChiết khấu\u201d; "
+        "sổ hiện hành trừ cùng khoản đó bằng cột `discount`. Khác CÁCH GHI, "
+        "không khác NGHĨA. Ô này đã là VND nên không cần đổi đơn vị.",
+        "DEC-180 (thẩm quyền chủ dự án) · PHB-02 §5.2 S3 · DEC-114 · "
+        "docs/analysis/02_FORMULA_MAPPING.md §5 (AH3:AH14)",
     ),
     _rule(
         "orders", "Tổng đơn", "count", UNAVAILABLE,
@@ -194,10 +198,13 @@ SUMMARY_SHEET_CONTRACT: tuple[MetricRule, ...] = (
         "PHB-02 §5.5 X1 · DEC-PHB02-03 · docs/analysis/05_EXCEPTIONS.md",
     ),
     _rule(
-        "sales", "Tổng bán", "kvnd", REFERENCE_ONLY,
-        "Chiết khấu trừ khác nhau: Doanh thu bán hàng của số mới là số NET "
-        "theo `DEC-114`, khác `Tổng bán` của báo cáo tay — phân kỳ có chủ đích.",
-        "PHB-02 §5.2 S3 · DEC-114 · DEC-122 (C4b)",
+        "sales", "Tổng bán", "kvnd", COMPARABLE,
+        "`DEC-180` — cùng chỉ tiêu nghiệp vụ với Doanh thu bán hàng của số "
+        "mới. \u201cChiết khấu trừ khác nhau\u201d đã bị bác: sổ tay cũ trừ "
+        "bằng một dòng âm, sổ hiện hành trừ bằng cột `discount`, kết quả là "
+        "cùng một con số. CẢNH BÁO ĐƠN VỊ: cột này là kVND — mọi phép so với "
+        "số mới phải đi qua `to_vnd()` trước.",
+        "DEC-180 (thẩm quyền chủ dự án) · PHB-02 §5.2 S3 · DEC-114 · DEC-122 (C4b)",
     ),
     _rule(
         "converted_revenue", "DS quy đổi", "kvnd", REFERENCE_ONLY,
@@ -379,16 +386,17 @@ def has_any_value(periods: list[ReferencePeriod]) -> bool:
 # CỔNG SO SÁNH.
 #
 # Quy tắc: so sánh giữa MỘT số cũ và MỘT số của pipeline chỉ được phép khi
-# hợp đồng chứng minh hai bên cùng nghĩa nghiệp vụ. Ở V1 KHÔNG chỉ tiêu nào
-# đạt điều đó — mọi cặp đều có ít nhất một phân kỳ ngữ nghĩa đã freeze ở
-# PHB-02. Vì vậy cổng này trả "không so được" cho mọi cặp thật.
+# hợp đồng chứng minh hai bên cùng nghĩa nghiệp vụ. V1 mở ra với bảng RỖNG
+# cặp được phép, và `DEC-176` §2 đã viết sẵn cách mở: *"thêm một dòng vào
+# `CROSS_ORIGIN_CONTRACT`, kèm bằng chứng bác lý do đang ghi"*.
 #
-# Cổng vẫn được viết như một cổng THẬT, không phải một hằng `False`: bảng
-# `CROSS_ORIGIN_CONTRACT` là dữ liệu, và `compare()` nhận bảng qua tham số.
-# Ngày nào một chỉ tiêu được chứng minh là `COMPARABLE`, chỉ cần thêm một
-# dòng dữ liệu — không phải sửa nhánh điều khiển. Test chĩa một bảng cho
-# phép vào cùng hàm này để chứng minh cổng đọc hợp đồng chứ không cứng hoá
-# câu trả lời.
+# `DEC-180` là lần mở đầu tiên, và nó đi đúng con đường đó — ĐỔI DỮ LIỆU, giữ
+# nguyên nhánh điều khiển. Chỉ hai cặp Tổng bán được mở; bốn cặp còn lại
+# (lợi nhuận, DS quy đổi, số đơn, số SP) giữ nguyên `False` vì lý do chặn của
+# chúng chưa ai bác. Mở lây sang chúng là làm đúng điều `DEC-176` cấm.
+#
+# Test chĩa một bảng tự dựng vào cùng hàm này để chứng minh cổng đọc hợp
+# đồng chứ không cứng hoá câu trả lời.
 # --------------------------------------------------------------------------
 
 COMPARISON_UNAVAILABLE_NOTE = "Không so được — số cũ và số mới không cùng một nghĩa"
@@ -411,17 +419,26 @@ class ComparisonResult:
     percent: Optional[Decimal] = None
 
 
-# V1: MỌI cặp đều bị chặn. Mỗi dòng ghi rõ bằng chứng của phân kỳ, để lần sau
-# ai muốn mở một cặp phải bác được đúng lý do đó.
+# Mỗi dòng ghi rõ bằng chứng, để ai muốn mở một cặp phải bác được đúng lý do
+# đang ghi ở đó. `DEC-180` là lần đầu điều đó xảy ra: chủ dự án đã bác lý do
+# "chiết khấu trừ khác nhau" của hai cặp Tổng bán bằng chính cách sổ tay cũ
+# ghi chiết khấu. Bốn cặp còn lại KHÔNG được mở lây — phân kỳ của chúng nằm ở
+# chỗ khác và chưa ai bác.
+OWNER_SAME_METRIC_REASON = (
+    "`DEC-180` (thẩm quyền chủ dự án) — sổ tay cũ trừ chiết khấu bằng MỘT DÒNG "
+    "ÂM \u201cChiết khấu\u201d ngay sau dòng hàng; sổ hiện hành trừ cùng khoản "
+    "đó bằng cột `discount` (`DEC-114`). HAI CÁCH GHI, MỘT chỉ tiêu nghiệp vụ. "
+    "Lý do chặn cũ (\u201cdoanh số tay là số gộp\u201d) đã bị bác bằng bằng "
+    "chứng, nên cặp này so được. Đơn vị vẫn phải chuẩn hoá tường minh trước khi "
+    "so (`to_vnd`)."
+)
+
 CROSS_ORIGIN_CONTRACT: tuple[CrossOriginRule, ...] = (
     CrossOriginRule(
-        "sales_vnd", "sales_revenue", False,
-        "Doanh số tay là số gộp; Doanh thu bán hàng của số mới đã trừ chiết "
-        "khấu theo DEC-114 — phân kỳ có chủ đích (PHB-02 §5.2 S3).",
+        "sales_vnd", "sales_revenue", True, OWNER_SAME_METRIC_REASON,
     ),
     CrossOriginRule(
-        "sales", "sales_revenue", False,
-        "Cùng lý do: `Tổng bán` của báo cáo tay ≠ doanh thu NET (PHB-02 §5.2 S3).",
+        "sales", "sales_revenue", True, OWNER_SAME_METRIC_REASON,
     ),
     CrossOriginRule(
         "profit", "kpi_profit", False,
@@ -443,6 +460,179 @@ CROSS_ORIGIN_CONTRACT: tuple[CrossOriginRule, ...] = (
         "(PHB-02 §5.5 X1, DEC-PHB02-03).",
     ),
 )
+
+
+# --------------------------------------------------------------------------
+# CHUẨN HOÁ ĐƠN VỊ — `DEC-180` §10.
+#
+# `Summary` ghi tiền bằng **kVND**; `DataChart` và toàn bộ số mới ghi bằng
+# **VND**. Chừng nào hai bên không bao giờ gặp nhau trong một phép tính, chênh
+# lệch 1.000 lần đó vô hại. `DEC-180` cho phép chúng gặp nhau, nên nó lập tức
+# trở thành một lỗi im lặng hạng nặng: `1.000 kVND` vào mẫu số dưới dạng
+# `1.000` thay vì `1.000.000`, và "So tháng trước" ra một tỉ lệ lớn gấp
+# khoảng nghìn lần — một con số TRÔNG NHƯ một con số, không như một lỗi.
+#
+# Vì vậy KHÔNG phép so liên-origin nào được đọc thẳng giá trị đã lưu. Mọi
+# đường đi qua `to_vnd()`, và một `unit_kind` lạ là LỖI chứ không phải một
+# hệ số mặc định — mặc định `1` chính là cách quên nhân 1.000 sống sót.
+# --------------------------------------------------------------------------
+
+UNIT_VND = "vnd"
+UNIT_KVND = "kvnd"
+
+VND_PER_UNIT: dict[str, Decimal] = {
+    UNIT_VND: Decimal(1),
+    UNIT_KVND: Decimal(1000),
+}
+
+# Đơn vị của mỗi NGUỒN, đọc từ chính hằng số của tầng nhập để hai nơi không
+# thể lệch nhau trong im lặng.
+SUMMARY_ROW_UNIT = UNIT_SUMMARY.lower()          # "kvnd"
+MONTHLY_REFERENCE_UNIT = UNIT_VND
+
+
+class UnknownUnitError(ValueError):
+    """Đơn vị không nằm trong bảng — dừng lại, không đoán một hệ số."""
+
+
+def to_vnd(value: Optional[Decimal], unit_kind: str) -> Optional[Decimal]:
+    """Đổi một số tiền legacy về VND. ``None`` giữ nguyên ``None``.
+
+    ``None`` KHÔNG thành ``0``: ô trống nghĩa là không có bằng chứng, và một
+    ``0`` ở đây sẽ đi thẳng vào mẫu số của một phép chia.
+    """
+    try:
+        scale = VND_PER_UNIT[unit_kind]
+    except KeyError as exc:
+        raise UnknownUnitError(
+            f"Không biết đổi đơn vị {unit_kind!r} sang VND — từ chối đoán."
+        ) from exc
+    return None if value is None else Decimal(value) * scale
+
+
+# --------------------------------------------------------------------------
+# NGUỒN CHUẨN CỦA MỘT KỲ — `DEC-180` §9.
+#
+# MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá trị Tổng bán. Không cộng hai nguồn, không lấy
+# trung bình, không trộn dòng thô. Thứ tự dưới đây là thứ tự THẨM QUYỀN, và
+# nguồn đầu tiên CÓ SỐ thắng — không nguồn nào bổ sung cho nguồn nào:
+#
+#   1. Dòng `MONTH_TOTAL` của sheet Summary cho đúng (năm, tháng). Đây là ô
+#      "Tổng bán" mà chính báo cáo tay công bố cho tháng đó, và bản nhập nào
+#      được đọc cho năm đó đã do `DEC-178` chốt ở tầng history store.
+#   2. Ô tháng của `DataChart` (`sales_current_year_vnd`) — dùng khi workbook
+#      không có sheet Summary cho tháng đó.
+#
+# KHÔNG có nhánh "cộng các dòng người bán lại": dòng tổng tháng của workbook
+# mang lỗi đã biết `A2` (cộng thiếu người bán), nhưng SỬA lỗi đó bằng cách tự
+# cộng lại là công cụ hiện tại tính lại số cũ — đúng điều `TASK-PRA-001` §20
+# cấm. Lỗi được NÓI RA (`defects`), không được vá lén.
+# --------------------------------------------------------------------------
+
+PERIOD_SOURCE_SUMMARY_MONTH_TOTAL = "LEGACY_SUMMARY_MONTH_TOTAL"
+PERIOD_SOURCE_DATACHART_MONTH = "LEGACY_DATACHART_MONTH"
+
+PERIOD_SOURCE_LABELS = {
+    PERIOD_SOURCE_SUMMARY_MONTH_TOTAL: "Số cũ — dòng Tổng tháng của sheet Summary",
+    PERIOD_SOURCE_DATACHART_MONTH: "Số cũ — ô doanh số tháng của DataChart",
+}
+
+MONTH_TOTAL_ROW_KIND = "MONTH_TOTAL"
+
+# Cột Excel của mỗi trường Summary, để tra đúng ô khi đọc lỗi công thức.
+_SUMMARY_FIELD_COLUMN = {field: column
+                         for column, field in SUMMARY_COLUMN_FIELDS.items()}
+
+
+@dataclass(frozen=True)
+class AuthoritativePeriodSales:
+    """Tổng bán CHUẨN của một kỳ lịch sử, đã chuẩn hoá về VND."""
+
+    year: int
+    month: int
+    sales_vnd: Decimal
+    metric_key: str
+    raw_value: Decimal
+    unit_kind: str
+    source: str
+    defects: tuple[str, ...] = ()
+    origin: str = PROVENANCE
+
+    @property
+    def source_label(self) -> str:
+        return PERIOD_SOURCE_LABELS[self.source]
+
+    @property
+    def origin_label(self) -> str:
+        return ORIGIN_LABELS[self.origin]
+
+
+def _summary_month_total(rows: list[dict], year: int, month: int):
+    for row in rows:
+        if row.get("row_kind") != MONTH_TOTAL_ROW_KIND:
+            continue
+        if row.get("year") is None or row.get("month") is None:
+            continue
+        if int(row["year"]) != year or int(row["month"]) != month:
+            continue
+        if row.get("sales") is None:
+            continue
+        return row
+    return None
+
+
+def _summary_defects(row: dict, field: str) -> tuple[str, ...]:
+    """Mã lỗi công thức đã biết của ĐÚNG ô đó (`A1`/`A2`/`A4`/`A6`), nếu có.
+
+    `known_defects` khoá theo CỘT Excel, không theo tên trường. Một bản ghi
+    chưa giải mã (còn là chuỗi JSON) hay sai hình dạng trả về tuple RỖNG chứ
+    không làm sập trang: mất danh sách mã lỗi là mất một chú thích, mất trang
+    là mất cả con số.
+    """
+    defects = row.get("known_defects")
+    if not isinstance(defects, Mapping):
+        return ()
+    codes = defects.get(_SUMMARY_FIELD_COLUMN.get(field)) or []
+    if isinstance(codes, str):
+        return ()
+    return tuple(str(code) for code in codes)
+
+
+def authoritative_period_sales(
+    *, year: int, month: int, summary_rows: Optional[list[dict]] = None,
+    monthly_rows: Optional[list[dict]] = None,
+) -> Optional[AuthoritativePeriodSales]:
+    """Tổng bán của MỘT kỳ theo nguồn có thẩm quyền cao nhất, hoặc ``None``.
+
+    ``None`` nghĩa là *kỳ đó không có bằng chứng số cũ* — nó KHÔNG BAO GIỜ
+    được đọc thành 0.
+    """
+    row = _summary_month_total(summary_rows or [], year, month)
+    if row is not None:
+        unit = (row.get("unit") or "").lower() or SUMMARY_ROW_UNIT
+        raw = Decimal(row["sales"])
+        return AuthoritativePeriodSales(
+            year=year, month=month, sales_vnd=to_vnd(raw, unit),
+            metric_key="sales", raw_value=raw, unit_kind=unit,
+            source=PERIOD_SOURCE_SUMMARY_MONTH_TOTAL,
+            defects=_summary_defects(row, "sales"),
+        )
+    for entry in monthly_rows or []:
+        if entry.get("year") is None or entry.get("month") is None:
+            continue
+        if int(entry["year"]) != year or int(entry["month"]) != month:
+            continue
+        if entry.get("sales_current_year_vnd") is None:
+            continue
+        raw = Decimal(entry["sales_current_year_vnd"])
+        return AuthoritativePeriodSales(
+            year=year, month=month,
+            sales_vnd=to_vnd(raw, MONTHLY_REFERENCE_UNIT),
+            metric_key="sales_vnd", raw_value=raw,
+            unit_kind=MONTHLY_REFERENCE_UNIT,
+            source=PERIOD_SOURCE_DATACHART_MONTH,
+        )
+    return None
 
 
 def cross_origin_rule(

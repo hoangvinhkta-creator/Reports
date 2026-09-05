@@ -9070,3 +9070,201 @@ Can Revisit After:
 Mở lại nếu chủ dự án muốn một mặc định khác cho riêng luồng hoàn thiện giá
 nhập. Điều KHÔNG mở lại: một khung nhìn thu hẹp mà không nói ra rằng nó thu
 hẹp.
+
+---
+
+## DEC-180
+
+Title:
+Chủ dự án đính chính: sổ tay cũ KHÔNG báo cáo doanh số gộp — nó trừ chiết
+khấu bằng MỘT DÒNG ÂM. `Tổng bán` cũ và `Doanh thu bán hàng` mới là CÙNG
+một chỉ tiêu nghiệp vụ
+
+Date:
+2026-09-05
+
+Task:
+S121 — bản sửa có ràng buộc theo thẩm quyền chủ dự án, trên nhánh
+`claude/phb-04-legacy-reference-v1-widtzf`.
+`BASE_SHA = e1458862adfd8a945ac2b1df6b42b336fb390b30`.
+
+Authority:
+`OWNER_DECISION`. Đây KHÔNG phải một suy luận của phiên làm việc: chủ dự án
+đã cung cấp trực tiếp ngữ nghĩa nghiệp vụ của sổ tay cũ, và ngữ nghĩa đó bác
+một giả định mà các bản audit trước đã suy sai.
+
+Supersedes:
+`DEC-176` §2 ở PHẦN liên quan tới `Tổng bán` (`sales` / `sales_vnd` →
+`sales_revenue`), và các dòng lý do tương ứng trong `REFERENCE_YEAR_CONTRACT`
+/ `SUMMARY_SHEET_CONTRACT`. Bản ghi `DEC-176` KHÔNG bị sửa tại chỗ — nó là
+bản ghi lịch sử của kết luận ĐÚNG tại thời điểm đó, và `DEC-176` §2 đã viết
+sẵn con đường mở: *"thêm một dòng vào `CROSS_ORIGIN_CONTRACT`, kèm bằng chứng
+bác lý do đang ghi"*. `DEC-180` đi đúng con đường đó.
+
+Không phần nào của `DEC-176` §1 (ranh giới theo origin) hay §3 (không dựng
+lưu trữ mới) bị đụng tới. `DEC-177`, `DEC-178`, `DEC-179` giữ nguyên vẹn.
+
+### 1. Bằng chứng nghiệp vụ — sổ tay cũ trừ chiết khấu bằng một dòng âm
+
+```
+Tủ lạnh      SL 1   giá bán 5.000.000   Tổng bán   5.000.000
+Chiết khấu   SL 1   giá bán 0           Tổng bán    -100.000   (giá nhập KPI = 100.000)
+------------------------------------------------------------
+                                        còn lại    4.900.000
+```
+
+Sổ kế toán hiện hành ghi CÙNG nghiệp vụ đó bằng một CỘT `discount`, và
+pipeline đã trừ nó rồi (`DEC-114` cho doanh thu, `DEC-143` cho lợi nhuận KPI).
+
+```
+LEGACY_TOTAL_SALES  ==  CURRENT_TOTAL_SALES   (cùng chỉ tiêu nghiệp vụ)
+LEGACY_REPRESENTATION  !=  CURRENT_REPRESENTATION   (khác cách GHI)
+```
+
+Lý do chặn cũ — *"báo cáo tay trừ chiết khấu khác cách công cụ hiện tại
+trừ"* (`PHB-02` §5.2 `S3`) — vì vậy bị BÁC. Nó mô tả đúng một khác biệt về
+CÁCH GHI và suy sai ra một khác biệt về NGHĨA.
+
+Điều bản sửa này KHÔNG làm, và mỗi điều đóng một cách hỏng:
+
+```
+KHÔNG bỏ chiết khấu khỏi phép tính hiện hành
+KHÔNG dựng ranh giới phương pháp luận Gross-vs-Net
+KHÔNG trừ chiết khấu hai lần
+```
+
+### 2. Trình bày — phân rã, KHÔNG phải một số hạng mới
+
+Bảng kê chi tiết dựng lại hình dạng của sổ cũ bằng cách CHIA con số canonical
+đã có làm hai phần cộng lại đúng bằng chính nó:
+
+```
+canonical  =  (canonical + discount)  +  (− discount)
+               └── dòng sản phẩm ──┘     └── dòng "Chiết khấu" ──┘
+```
+
+Bất biến bắt buộc, đúng cho cả ba chỉ tiêu tiền và cho mọi dòng (kể cả dòng
+chưa tính được lợi nhuận, nơi CẢ HAI phần đều là `—` chứ không phải `0`):
+
+```
+Σ(DISPLAY_TOTAL_SALES)      ==  CANONICAL_TOTAL_SALES
+Σ(DISPLAY_KPI_PROFIT)       ==  CANONICAL_KPI_PROFIT
+Σ(DISPLAY_CONVERTED_SALES)  ==  CANONICAL_CONVERTED_SALES
+```
+
+DS quy đổi là chỗ DUY NHẤT có làm tròn (`quantize` tới 0,01 VND), nên nó có
+một quy ước để bất biến đúng TUYỆT ĐỐI chứ không "xấp xỉ": phần chiết khấu
+dùng ĐÚNG công thức và ĐÚNG tỉ lệ của dòng cha (`converted_sales(−discount,
+rate)`), và dòng sản phẩm nhận phần CÒN LẠI. Chênh lệch làm tròn (≤ 0,01 VND)
+nằm trong tổng thay vì rơi ra ngoài.
+
+Dòng `"Chiết khấu"` là DỮ LIỆU TRÌNH BÀY suy ra từ nguồn. Nó KHÔNG phải: một
+mặt hàng tồn kho · một đầu vào Product Identity · một ứng viên tra giá nhập ·
+một dòng thiếu giá nhập · một ô nhập giá tay · một vấn đề gán nhân viên · một
+đơn hàng · một sản phẩm đủ điều kiện · một `order_line_current` mới. Ranh giới
+này là CẤU TRÚC, không phải kỷ luật: dòng đó không tồn tại ở tầng mà bộ lọc và
+phép cộng đọc (`BusinessLine`), và template không dựng form nào cho nó ⟹
+không có đường ghi nào từ nó xuống database.
+
+Cột `discount` của nguồn giữ nguyên vai trò bằng chứng thô có thẩm quyền.
+Không bản ghi nào bị sửa, không bảng nào được thêm, không migration nào chạy.
+
+### 3. Liên-origin — mở ĐÚNG hai cặp Tổng bán, không mở lây
+
+```
+sales      → sales_revenue   =  ĐƯỢC PHÉP SO
+sales_vnd  → sales_revenue   =  ĐƯỢC PHÉP SO
+
+profit             → kpi_profit           =  VẪN CHẶN
+converted_revenue  → converted_sales      =  VẪN CHẶN
+orders             → orders               =  VẪN CHẶN
+products           → qualifying_quantity  =  VẪN CHẶN
+```
+
+Bốn cặp còn lại vướng những phân kỳ KHÁC (giá nhập sửa tay trong Excel, dòng
+tổng cộng thiếu người bán, hai cách đếm đơn, lỗi `A1`) mà chủ dự án KHÔNG
+bác. Mở lây sang chúng là làm đúng điều `DEC-176` cấm.
+
+`MetricRule.metric_class` của `sales`/`sales_vnd` đổi từ `REFERENCE_ONLY`
+sang `COMPARABLE` để hai biểu diễn của cùng một phán quyết không mâu thuẫn
+nhau trên màn hình.
+
+### 4. So tháng trước bắc qua ranh giới bàn giao
+
+```
+MỘT kỳ  ⟹  MỘT nguồn có thẩm quyền  ⟹  MỘT giá trị Tổng bán
+```
+
+Khi kỳ đang xem có dữ liệu số mới và tháng LIỀN TRƯỚC không có dòng số mới
+nào, mốc so sánh lấy Tổng bán chuẩn của tháng đó từ sổ cũ. Thứ tự thẩm quyền,
+nguồn đầu tiên CÓ SỐ thắng và không nguồn nào bổ sung cho nguồn nào:
+
+```
+1. dòng MONTH_TOTAL của sheet Summary cho đúng (năm, tháng)   [kVND]
+2. ô tháng của DataChart (`sales_current_year_vnd`)           [VND]
+```
+
+Bản nhập nào được đọc cho một năm đã do `DEC-178` chốt ở tầng history store —
+`DEC-180` không đổi quy tắc đó. KHÔNG cộng hai nguồn, KHÔNG trộn dòng thô,
+KHÔNG tự cộng lại các dòng người bán (tự cộng lại là công cụ TÍNH LẠI số cũ,
+điều `TASK-PRA-001` §20 cấm; lỗi `A2` đã biết của dòng tổng tháng được NÓI RA
+qua `defects`, không được vá lén).
+
+Origin phải HIỆN RA: trang Tổng hợp hiện nhãn `SỐ CŨ`, tên nguồn, và một câu
+nói rõ mốc so đến từ đâu.
+
+Trang NHÂN VIÊN cố ý KHÔNG dùng đường này: số cũ của một tháng là tổng của CẢ
+CÔNG TY, nên đem nó làm mẫu số cho doanh thu của một người là một phép so sai.
+Ghép tên người bán trong sổ cũ với nhân viên hiện hành là một bài toán ánh xạ
+riêng, chưa có quyết định nào cho phép.
+
+### 5. An toàn đơn vị — `Summary` là kVND, số mới là VND
+
+Chừng nào hai bên không gặp nhau trong một phép tính, chênh lệch 1.000 lần đó
+vô hại. `DEC-180` cho phép chúng gặp nhau, nên nó lập tức trở thành một lỗi
+im lặng hạng nặng: quên nhân 1.000 thì `1.000 kVND` vào mẫu số dưới dạng
+`1.000`, và "So tháng trước" ra `+489.900 %` — một con số TRÔNG NHƯ một con
+số, không như một lỗi.
+
+Vì vậy mọi giá trị legacy đi vào một phép tính của số mới phải qua `to_vnd()`,
+và một `unit_kind` lạ là LỖI (`UnknownUnitError`) chứ không phải một hệ số
+mặc định — mặc định `1` chính là cách quên nhân 1.000 sống sót.
+
+Impact:
+KHÔNG chỉ tiêu gộp nào đổi giá trị. Đo trực tiếp: cùng một tập 5 dòng có
+chiết khấu ở bốn hình dạng khác nhau, chạy script gộp ở `e145886` và ở
+`FINAL_HEAD`, hai file JSON GIỐNG NHAU TỪNG BYTE (`lines`, `orders`,
+`sales_revenue`, `qualifying_quantity`, `kpi_profit`, `converted_sales`,
+`employee_attributed_profit`, `unattributed_profit`, toàn bộ `coverage`,
+`state`, và bảng phân hoạch theo nhân viên).
+
+Không schema, không migration, không bảng mới, không cột mới, không đường ghi
+mới, không workflow mới. Phần thêm là: một phép phân rã THUẦN ở
+`business_metrics`, cách render của nó ở `business_presentation` + template,
+một bộ phân giải nguồn kỳ THUẦN ở `legacy_reference`, và một điểm ráp ở
+`server.py`.
+
+Evidence:
+`FOCUSED = 57 passed` (`tests/test_dec180_discount_parity.py`);
+`FULL_TEST_SUITE = 2307 passed, 11 skipped` (baseline trước phiên
+`2248 passed, 11 skipped` ⟹ chênh `+59`, đúng bằng 57 test mới cộng 2 test
+được TÁCH ĐÔI khi cập nhật `test_phb04_legacy_reference.py` — không test nào
+bị xoá, bỏ qua hay tắt);
+`GOLDEN = 74 passed, 2 skipped` (KHÔNG ĐỔI);
+`PHB-03 = 133 passed`; `PHB-04 = 183 passed`.
+Ba phép thử đột biến chứng minh khẳng định có răng: bỏ hệ số kVND→VND ⟹ 6
+FAIL; để dòng cha hiện số NET trong khi vẫn thêm dòng `−discount` (trừ hai
+lần) ⟹ 3 FAIL; thay phần dư làm tròn của DS quy đổi bằng hai phép chia độc
+lập ⟹ 1 FAIL.
+Validator: `validate_structure` / `validate_project_state` /
+`validate_evidence` / `validate_task_completion` PASS;
+`validate_reference_integrity` FAIL với ĐÚNG 3 reference `REM-T06` đã biết
+(baseline không đổi).
+
+Can Revisit After:
+Mở lại phần §3 cho một cặp KHÁC chỉ khi lý do chặn đang ghi của chính cặp đó
+bị bác bằng bằng chứng — đúng cùng một tiêu chuẩn mà `DEC-180` vừa phải đáp
+ứng. Mở lại §4 cho trang nhân viên chỉ sau khi có một quyết định về ánh xạ
+tên người bán lịch sử ↔ nhân viên hiện hành. Điều KHÔNG mở lại: trừ chiết
+khấu hai lần, gộp hai origin vào một con số, và dùng một giá trị legacy chưa
+chuẩn hoá đơn vị trong một phép tính của số mới.

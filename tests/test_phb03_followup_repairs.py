@@ -298,16 +298,22 @@ def test_the_employee_page_renders_the_month_over_month_block(repository, client
     assert metric(html, "mom") == "+50%"
 
 
-def test_month_over_month_never_borrows_a_number_from_the_legacy_reference(
+def test_the_presentation_function_itself_never_goes_looking_for_a_number(
     engine, repository, service
 ):
-    """Ranh giới quan trọng nhất của phiên này — đúng ca chuyển giao tháng.
+    """`S120` viết khẳng định này khi chưa chỉ tiêu nào so được liên-origin.
 
-    Kỳ trước KHÔNG có dòng SỐ MỚI nào, nhưng history store đang giữ đầy đủ số
-    cũ của CHÍNH tháng đó. Câu trả lời đúng vẫn là "chưa có dữ liệu tháng
-    trước": `DEC-PHB02-07` định nghĩa MoM trên doanh thu bán hàng của số mới,
-    và PHB-04 cấm so một chỉ tiêu cũ với một chỉ tiêu mới khi ngữ nghĩa chưa
-    được chứng minh là một. Mượn số cũ ở đây là bịa một mốc so sánh.
+    `DEC-180` đã đổi câu trả lời NGHIỆP VỤ: chủ dự án chứng minh `Tổng bán`
+    cũ và `Doanh thu bán hàng` mới là cùng một chỉ tiêu, nên đúng ca chuyển
+    giao tháng nay CÓ một mốc so hợp lệ (xem
+    `tests/test_dec180_discount_parity.py`).
+
+    Điều KHÔNG đổi, và là điều khẳng định này canh, là RANH GIỚI KIẾN TRÚC:
+    `month_over_month()` nhận một con số đã sẵn sàng và không bao giờ tự đi
+    tìm số ở nguồn khác. Việc phân giải nguồn nằm ở tầng ráp (`server.py`),
+    nơi nó đi qua `authoritative_period_sales()`, chuẩn hoá đơn vị, và gắn
+    nhãn origin. Gọi thẳng hàm trình bày mà không truyền mốc ⟹ vẫn là "chưa
+    có dữ liệu tháng trước", dù history store đang giữ đầy đủ số cũ.
     """
     legacy = history_store.build(engine=engine)
     legacy.create_import(LegacyWorkbook(
@@ -328,12 +334,19 @@ def test_month_over_month_never_borrows_a_number_from_the_legacy_reference(
     assert previous.totals.sales_revenue is None
     result = mom_of(service, FEBRUARY, JANUARY, period=(2026, 2))
     assert result["note"] == business_presentation.MOM_NO_PREVIOUS
-    assert result["percent"] == "—", "không có số nào được mượn từ nguồn khác"
+    assert result["percent"] == "—", "hàm trình bày không tự đi tìm số"
+    assert result["origin"] == "", "và không tự gắn một nhãn nguồn nào"
 
 
 def test_the_cross_origin_gate_is_not_wired_into_the_business_pages():
     """Bằng chứng CẤU TRÚC: cổng so sánh legacy↔current không được nhập vào
-    tầng nghiệp vụ, nên nó không thể chặn nhầm MoM cùng-engine."""
+    tầng nghiệp vụ, nên nó không thể chặn nhầm MoM cùng-engine.
+
+    `DEC-180` KHÔNG nới lỏng ranh giới này. Số cũ nay có thể làm mốc so cho
+    tháng liền trước, nhưng việc phân giải nguồn xảy ra ở tầng ráp và đi
+    xuống ba module này dưới dạng một `dict` THUẦN — chúng vẫn không biết số
+    cũ là gì, và vẫn không thể tự đi tìm nó.
+    """
     import inspect
 
     from app.web import business_presentation as bp

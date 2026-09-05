@@ -299,6 +299,135 @@ class BusinessLine:
             profit_gate.OWNER_FIXABLE_BLOCKERS)
 
 
+# --------------------------------------------------------------------------
+# S121 — PHÂN RÃ HIỂN THỊ CHIẾT KHẤU (`DEC-180`).
+#
+# Sổ tay cũ ghi chiết khấu bằng MỘT DÒNG ÂM đứng ngay sau dòng hàng:
+#
+#     Tủ lạnh   SL 1   giá bán 5.000.000   Tổng bán  5.000.000
+#     Chiết khấu SL 1  giá bán 0           Tổng bán   -100.000
+#     ------------------------------------------------------
+#                                          còn lại  4.900.000
+#
+# Sổ kế toán hiện hành ghi cùng nghiệp vụ đó bằng MỘT CỘT `discount`, và
+# pipeline đã trừ nó rồi: `total_sales` và `eligible_kpi_profit` là số NET
+# (`DEC-114`, `DEC-143`). Hai cách GHI, một nghiệp vụ.
+#
+# Vì vậy phần dưới đây KHÔNG trừ thêm lần nào. Nó CHIA con số canonical đã có
+# thành hai phần cộng lại đúng bằng chính nó:
+#
+#     canonical  =  (canonical + discount)  +  (− discount)
+#                    └── dòng sản phẩm ──┘     └─ dòng "Chiết khấu" ─┘
+#
+# Đó là toàn bộ khác biệt giữa bản sửa này và một lỗi trừ-hai-lần: một bên
+# tách một con số làm hai, một bên cộng thêm một số hạng mới. Bất biến
+# `Σ(hiển thị) == canonical` được `totals()` giữ nguyên vì `totals()` KHÔNG
+# đọc phần này — nó vẫn cộng trên `BusinessLine`, một dòng một lần.
+#
+# DS quy đổi là chỗ DUY NHẤT có làm tròn, nên nó cần một quy ước để bất biến
+# đúng TUYỆT ĐỐI chứ không "xấp xỉ": phần chiết khấu tính bằng ĐÚNG công thức
+# và ĐÚNG tỉ lệ của dòng cha (`converted_sales(−discount, rate)`), còn dòng
+# sản phẩm nhận phần CÒN LẠI. Chênh lệch làm tròn (tối đa 0,01 VND) vì thế
+# nằm ở dòng cha thay vì rơi ra ngoài tổng.
+# --------------------------------------------------------------------------
+
+# Dòng hiển thị này KHÔNG phải một mặt hàng: nó không có `product_key`, không
+# vào Product Identity, không tra giá nhập, không đếm vào số đơn hay số SP.
+DISCOUNT_DISPLAY_LABEL = "Chiết khấu"
+DISCOUNT_DISPLAY_QUANTITY = Decimal(1)
+DISCOUNT_DISPLAY_SELL_PRICE = Decimal(0)
+
+CONTRIBUTION_PRODUCT = "PRODUCT"
+CONTRIBUTION_DISCOUNT = "DISCOUNT"
+
+
+@dataclass(frozen=True)
+class LineContribution:
+    """Một DÒNG BẢNG của bảng kê — không phải một dòng hàng của sổ.
+
+    Một `BusinessLine` sinh ra một `LineContribution` khi không có chiết khấu,
+    và HAI khi có. Không cấu trúc nào ở đây được lưu xuống database: đây là
+    mô hình đọc, dựng lại từ đầu mỗi lần tải trang.
+    """
+
+    kind: str
+    quantity: Optional[Decimal]
+    sell_price: Optional[Decimal]
+    purchase_price: Optional[Decimal]
+    total_sales: Optional[Decimal]
+    kpi_profit: Optional[Decimal]
+    converted_sales: Optional[Decimal]
+
+
+def _plus(value: Optional[Decimal], addend: Decimal) -> Optional[Decimal]:
+    """`None + x = None` — "chưa xác định" cộng gì cũng vẫn chưa xác định."""
+    return None if value is None else Decimal(value) + addend
+
+
+def display_contributions(line: BusinessLine) -> tuple[LineContribution, ...]:
+    """Các dòng bảng của MỘT dòng hàng, theo cách trình bày của sổ tay cũ.
+
+    Bất biến, đúng với mọi `line` (kể cả dòng chưa tính được lợi nhuận):
+
+        Σ total_sales     == line.total_sales
+        Σ kpi_profit      == line.kpi_profit
+        Σ converted_sales == line.converted_sales
+
+    với quy ước `None` là "chưa xác định" và không tham gia phép cộng. Khi
+    dòng cha chưa có một chỉ tiêu nào đó, dòng "Chiết khấu" cũng KHÔNG có —
+    nếu không, một dòng bị chặn lợi nhuận sẽ đẻ ra `−discount` từ hư không và
+    tổng hiển thị vượt khỏi tổng canonical.
+    """
+    canonical_profit = line.kpi_profit
+    canonical_converted = line.converted_sales
+
+    def _product(total_sales, kpi_profit, converted) -> LineContribution:
+        """Dòng sản phẩm — cùng nhận diện hàng hoá, khác nhau ở ba ô tiền."""
+        return LineContribution(
+            kind=CONTRIBUTION_PRODUCT,
+            quantity=line.quantity,
+            sell_price=line.sell_price,
+            purchase_price=line.purchase_price,
+            total_sales=total_sales,
+            kpi_profit=kpi_profit,
+            converted_sales=converted,
+        )
+
+    # `discount <= 0` gộp cả hai ca "không có gì để tách": không chiết khấu,
+    # và một giá trị âm bất thường trong dữ liệu (nó sẽ sinh ra một dòng
+    # "Chiết khấu" mang số DƯƠNG — vô nghĩa, nên không sinh dòng nào).
+    discount = Decimal(line.discount or 0)
+    if discount <= 0:
+        return (_product(line.total_sales, canonical_profit, canonical_converted),)
+
+    if canonical_converted is None:
+        discount_converted = None
+        product_converted = None
+    else:
+        # Cùng tỉ lệ, cùng phép chia, cùng cách làm tròn với dòng cha; dòng
+        # cha nhận phần CÒN LẠI nên tổng khớp tuyệt đối, không "xấp xỉ".
+        discount_converted = converted_sales(-discount, line.conversion_rate)
+        product_converted = Decimal(canonical_converted) - discount_converted
+
+    return (
+        _product(_plus(line.total_sales, discount),
+                 _plus(canonical_profit, discount),
+                 product_converted),
+        LineContribution(
+            kind=CONTRIBUTION_DISCOUNT,
+            quantity=DISCOUNT_DISPLAY_QUANTITY,
+            sell_price=DISCOUNT_DISPLAY_SELL_PRICE,
+            # Cột "Giá nhập KPI" của dòng chiết khấu mang CHÍNH số tiền chiết
+            # khấu, đúng cách sổ tay cũ ghi. Nó KHÔNG phải một giá nhập tra
+            # được, nên không dòng nào ở đây là "chưa có giá nhập".
+            purchase_price=discount,
+            total_sales=None if line.total_sales is None else -discount,
+            kpi_profit=None if canonical_profit is None else -discount,
+            converted_sales=discount_converted,
+        ),
+    )
+
+
 def converted_sales(
     profit: Optional[Decimal], rate: Optional[Decimal]
 ) -> Optional[Decimal]:
@@ -516,7 +645,10 @@ def for_employee(
 
 
 __all__ = [
-    "BusinessLine", "BusinessTotals", "Coverage",
+    "BusinessLine", "BusinessTotals", "Coverage", "LineContribution",
+    "CONTRIBUTION_DISCOUNT", "CONTRIBUTION_PRODUCT",
+    "DISCOUNT_DISPLAY_LABEL", "DISCOUNT_DISPLAY_QUANTITY",
+    "DISCOUNT_DISPLAY_SELL_PRICE", "display_contributions",
     "UNRESOLVED_EMPLOYEE",
     "PROVENANCE_AUTO", "PROVENANCE_MANUAL", "PROVENANCE_MANUAL_OVERRIDE",
     "PROVENANCE_PENDING", "QUALIFYING_SALE_PRICE_THRESHOLD",

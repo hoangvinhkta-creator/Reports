@@ -1,5 +1,140 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — S121 DISCOUNT PARITY + CROSS-BOUNDARY MoM (AUTHORITATIVE, 2026-09-05)
+
+Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-180`). Chủ dự án cung cấp
+trực tiếp ngữ nghĩa nghiệp vụ của sổ tay cũ, và ngữ nghĩa đó bác một giả định
+mà các bản audit trước đã suy sai ("Legacy = Gross, Current = Net").
+
+Khối `S120` bên dưới vẫn đúng về S120; mục này đúng về trạng thái *hiện tại*
+của toàn vertical. Hai dòng của S120 đã bị `DEC-180` thay thế và được ghi rõ
+bên dưới thay vì sửa tại chỗ.
+
+```text
+SESSION                    = S121
+BRANCH                     = claude/phb-04-legacy-reference-v1-widtzf
+BASE_HEAD                  = e145886 (S120)
+CANONICAL_BRANCH           = claude/extract-upload-repo-gq2ws4
+CANONICAL_HEAD             = 6a0213d (nhánh này ahead, behind 0)
+
+OWNER_SEMANTICS            = sổ tay cũ KHÔNG báo cáo doanh số gộp. Nó trừ
+                             chiết khấu bằng MỘT DÒNG ÂM "Chiết khấu" đứng
+                             ngay sau dòng hàng (SL 1 · giá bán 0 · giá nhập
+                             KPI = số tiền chiết khấu · Tổng bán = −chiết khấu).
+LEGACY_VS_CURRENT_METRIC   = CÙNG MỘT chỉ tiêu nghiệp vụ. Khác CÁCH GHI, không
+                             khác NGHĨA (`DEC-180` §1).
+
+DISCOUNT_SOURCE_FIELD      = PRESERVED — cột `discount` giữ nguyên vai trò
+                             bằng chứng thô có thẩm quyền. Không bản ghi nào
+                             bị sửa.
+DISCOUNT_SYNTHETIC_ROW     = IMPLEMENTED — `business_metrics.display_
+                             contributions()` (THUẦN) + `business_presentation
+                             ._discount_row()` + template. Read-model, không
+                             persistence.
+DISCOUNT_DOUBLE_COUNTING   = NO — phân rã, không phải số hạng mới:
+                             canonical = (canonical + discount) + (−discount).
+DISPLAY_INVARIANT          = Σ(hiển thị) == canonical cho CẢ BA chỉ tiêu tiền.
+                             DS quy đổi đúng TUYỆT ĐỐI (không "xấp xỉ"): phần
+                             chiết khấu dùng đúng công thức/tỉ lệ của dòng cha,
+                             dòng cha nhận phần dư làm tròn (≤ 0,01 VND).
+DISCOUNT_ROW_IS_NOT        = sản phẩm tồn kho · Product Identity · ứng viên tra
+                             giá nhập · dòng thiếu giá nhập · ô nhập giá tay ·
+                             vấn đề gán nhân viên · đơn hàng · SP đủ điều kiện ·
+                             order_line_current mới. Ranh giới CẤU TRÚC: dòng
+                             đó không tồn tại ở tầng mà bộ lọc và phép cộng đọc
+                             (`BusinessLine`), và template không dựng form nào
+                             cho nó ⟹ KHÔNG có đường ghi.
+
+AGGREGATE_REGRESSION       = NONE — đo trực tiếp, không suy luận. Cùng một tập
+                             5 dòng có chiết khấu ở bốn hình dạng, chạy script
+                             gộp ở e145886 và ở FINAL_HEAD ⟹ hai file JSON
+                             GIỐNG NHAU TỪNG BYTE (lines · orders ·
+                             sales_revenue · qualifying_quantity · kpi_profit ·
+                             converted_sales · employee_attributed_profit ·
+                             unattributed_profit · toàn bộ coverage · state ·
+                             bảng phân hoạch theo nhân viên).
+
+CROSS_ORIGIN_TOTAL_SALES   = ALLOWED (`sales` → `sales_revenue`,
+                             `sales_vnd` → `sales_revenue`).
+CROSS_ORIGIN_OTHER_PAIRS   = VẪN CHẶN cả bốn (profit → kpi_profit ·
+                             converted_revenue → converted_sales ·
+                             orders → orders · products → qualifying_quantity).
+                             `DEC-180` chứng minh MỘT chỉ tiêu, không mở một
+                             chiều dọc mới.
+
+MOM_CROSS_BOUNDARY         = IMPLEMENTED — kỳ đang xem có số mới + tháng liền
+                             trước không có dòng số mới nào ⟹ mốc so lấy Tổng
+                             bán chuẩn của tháng đó từ SỐ CŨ.
+MOM_PERIOD_AUTHORITY       = MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá trị. Thứ tự:
+                             (1) dòng MONTH_TOTAL của sheet Summary [kVND],
+                             (2) ô tháng DataChart `sales_current_year_vnd` [VND].
+                             KHÔNG cộng hai nguồn · KHÔNG trộn dòng thô ·
+                             KHÔNG tự cộng lại dòng người bán (đó là TÍNH LẠI
+                             số cũ, `TASK-PRA-001` §20 cấm; lỗi `A2` được NÓI
+                             RA qua `defects`, không vá lén).
+MOM_ORIGIN_VISIBLE         = YES — nhãn `SỐ CŨ` + tên nguồn + câu chú thích
+                             trên trang Tổng hợp.
+MOM_EMPLOYEE_PAGE          = KHÔNG dùng đường này (có chủ đích) — số cũ của
+                             một tháng là tổng CẢ CÔNG TY; ghép tên người bán
+                             lịch sử ↔ nhân viên hiện hành chưa có quyết định.
+UNIT_SAFETY                = ENFORCED — mọi giá trị legacy vào phép tính số mới
+                             qua `to_vnd()`; `unit_kind` lạ ⟹ `UnknownUnitError`,
+                             KHÔNG có hệ số mặc định. Test canh: bỏ hệ số
+                             kVND→VND ⟹ 6 FAIL.
+
+SUPERSEDES_S120            = hai dòng của khối S120 bên dưới:
+                             `CURRENT_MOM_SOURCE = CURRENT_ENGINE cả hai vế`
+                             (nay: engine hiện hành TRƯỚC, số cũ SAU và CHỈ khi
+                             tháng trước rỗng) và `MOM = PASS — không sửa mã`
+                             (nay đã sửa theo `DEC-180` §4). Bản ghi S120
+                             KHÔNG bị sửa tại chỗ.
+PRESERVED_S120             = `CURRENT_MOM_LEGACY_CONFLATED = NO` VẪN ĐÚNG —
+                             business_presentation / business_queries /
+                             business_service vẫn KHÔNG import `legacy_reference`
+                             và không nhắc `CROSS_ORIGIN`; test cấu trúc bằng
+                             `inspect.getsource` giữ nguyên và vẫn PASS. Việc
+                             phân giải nguồn nằm ở tầng ráp (`server.py`) và đi
+                             xuống dưới dạng một `dict` THUẦN.
+
+SCHEMA_CHANGE              = NONE · MIGRATION = NONE · NEW_TABLE = NONE ·
+                             NEW_WRITE_PATH = NONE · NEW_WORKFLOW = NONE
+PRESERVED_REPAIRS          = DEC-179 (mặc định `tat-ca`) · bộ lọc thiếu giá ·
+                             bộ lọc chưa rõ NV · bộ lọc owner-sua · R1 NOT_SEEN ·
+                             R2 override context · R3 "Dòng tôi đã sửa" ·
+                             PHB-04 Legacy source authority (`DEC-178`) ·
+                             nguồn chuẩn 2025 độc lập · Current import lifecycle ·
+                             PP override persistence · Product Identity ·
+                             Tracking · Target · Brand — tất cả PASS.
+
+FOCUSED_TESTS              = PASS — 57 passed (tests/test_dec180_discount_parity.py)
+PHB03_TESTS                = PASS — 133 passed
+PHB04_TESTS                = PASS — 183 passed
+GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHÔNG ĐỔI
+FULL_TESTS                 = PASS — 2307 passed, 11 skipped
+                             (baseline S120 = 2248 + 11 ⟹ chênh +59 = 57 test
+                             mới + 2 test được TÁCH ĐÔI khi cập nhật
+                             tests/test_phb04_legacy_reference.py theo `DEC-180`.
+                             KHÔNG test nào bị xoá, bỏ qua hay tắt.)
+MUTATION_CHECKS            = 3/3 bị bắt — bỏ hệ số kVND→VND ⟹ 6 FAIL · để dòng
+                             cha hiện số NET trong khi vẫn thêm −discount (trừ
+                             hai lần) ⟹ 3 FAIL · thay phần dư làm tròn DS quy
+                             đổi bằng hai phép chia độc lập ⟹ 1 FAIL.
+GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state PASS ·
+                             validate_evidence PASS (155 REQUIRED) ·
+                             validate_task_completion PASS (13 DONE task) ·
+                             validate_reference_integrity FAIL với ĐÚNG 3
+                             reference REM-T06 đã biết (baseline không đổi)
+
+BLOCKING_FINDINGS          = NONE
+OWNER_DECISIONS_REQUIRED   = NONE
+SCOPE_DRIFT                = NO
+
+STATUS                     = IMPLEMENTED_AWAITING_INDEPENDENT_REVIEW
+NEXT_VERTICAL_ACTION       = Independent Review MỚI trên FINAL_HEAD của nhánh
+                             này (gồm PHB-04, bản sửa S120, và `DEC-180`).
+```
+
+
 ## CANONICAL CURRENT STATE — S120 PRODUCTION FOLLOW-UP (AUTHORITATIVE, 2026-09-05)
 
 Phiên kiểm chứng hậu-deploy theo ba quan sát của chủ dự án trên production

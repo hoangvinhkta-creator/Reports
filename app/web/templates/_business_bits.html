@@ -107,6 +107,13 @@
       <span class="tp-label">Thay đổi doanh thu</span>
       <strong class="kpi-value{{ ' empty-cell' if mom.missing }}"
               data-metric="mom">{{ mom.percent }}</strong>
+      {# `DEC-180` §9 — mốc so sánh có thể đến từ SỐ CŨ khi tháng liền trước
+         nằm bên kia ranh giới bàn giao. Nguồn đó phải HIỆN RA: một tỉ lệ
+         không nhãn không nói được nó đang so với cái gì. #}
+      {% if mom.origin %}
+      <span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
+      <span class="tp-unit" data-metric="mom-source">{{ mom.source }}</span>
+      {% endif %}
       {% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
     </div>
   </div>

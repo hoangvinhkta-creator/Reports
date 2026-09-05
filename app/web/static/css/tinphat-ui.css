@@ -254,3 +254,10 @@ textarea { width: 100%; }
 /* Dòng chưa có giá nhập là việc Owner phải làm, không phải một dòng dữ liệu
    bình thường — nền cảnh báo để nó không lẫn vào các dòng đã xong. */
 tr.row-pending td { background: var(--tp-gold-bg); }
+
+/* `DEC-180` — dòng "Chiết khấu" là phần THỨ HAI của cùng một nghiệp vụ với
+   dòng ngay trên nó, không phải một dòng hàng riêng. Thụt vào + chữ nhạt để
+   mắt đọc được điều đó ngay, không cần đọc chú thích. Nó KHÔNG dùng nền
+   cảnh báo của `row-pending`: nó không phải việc phải làm. */
+tr.row-discount td { color: var(--tp-mut); font-style: italic; }
+tr.row-discount td:first-child { padding-left: 1.4rem; }

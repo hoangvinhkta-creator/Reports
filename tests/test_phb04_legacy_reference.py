@@ -336,9 +336,15 @@ class TestMissingMetricsAreNeverFabricated:
                         "target", "by_employee", "daily_sales"}
 
     def test_the_only_supported_reference_year_metric_is_monthly_sales(self):
+        """`DEC-180` — vẫn ĐÚNG MỘT chỉ tiêu, nhưng nay nó SO ĐƯỢC.
+
+        Chủ dự án đã bác lý do chặn cũ ("báo cáo tay trừ chiết khấu khác
+        cách công cụ trừ") bằng chính cách sổ tay ghi chiết khấu. Số lượng
+        chỉ tiêu có bằng chứng KHÔNG đổi — chỉ lớp của nó đổi.
+        """
         supported = legacy_reference.supported_metrics("REFERENCE_YEAR")
         assert [rule.key for rule in supported] == ["sales_vnd"]
-        assert supported[0].metric_class == legacy_reference.REFERENCE_ONLY
+        assert supported[0].metric_class == legacy_reference.COMPARABLE
 
     def test_the_page_states_why_a_metric_is_unavailable(self, loaded):
         html = page(loaded)
@@ -348,19 +354,56 @@ class TestMissingMetricsAreNeverFabricated:
 # --- H/I. Cổng so sánh ----------------------------------------------------
 
 class TestComparisonGate:
-    def test_no_metric_is_comparable_in_v1(self):
-        assert legacy_reference.has_comparable_metric() is False
-        assert all(rule.metric_class != legacy_reference.COMPARABLE
-                   for period_class in legacy_reference.CONTRACTS
-                   for rule in legacy_reference.rules(period_class))
+    def test_exactly_the_total_sales_pairs_are_comparable_and_no_others(self):
+        """`DEC-180` mở ĐÚNG hai cặp Tổng bán, không mở lây một cặp nào khác.
+
+        Đây là khẳng định canh "scope creep" của chính bản sửa này: chủ dự án
+        chứng minh Tổng bán cùng nghĩa, KHÔNG chứng minh lợi nhuận, DS quy
+        đổi, số đơn hay số SP cùng nghĩa. Lý do chặn của bốn cặp đó chưa ai
+        bác, nên chúng phải còn nguyên `False`.
+        """
+        allowed = {(rule.legacy_key, rule.current_key)
+                   for rule in legacy_reference.CROSS_ORIGIN_CONTRACT
+                   if rule.allowed}
+        assert allowed == {("sales", "sales_revenue"),
+                           ("sales_vnd", "sales_revenue")}
+        blocked = {(rule.legacy_key, rule.current_key)
+                   for rule in legacy_reference.CROSS_ORIGIN_CONTRACT
+                   if not rule.allowed}
+        assert blocked == {("profit", "kpi_profit"),
+                           ("converted_revenue", "converted_sales"),
+                           ("orders", "orders"),
+                           ("products", "qualifying_quantity")}
+
+    def test_the_metric_class_agrees_with_the_gate_for_total_sales(self):
+        """Hai cách ghi cùng một phán quyết KHÔNG được phép mâu thuẫn nhau.
+
+        `MetricRule.metric_class` và `CROSS_ORIGIN_CONTRACT` là hai biểu diễn
+        của cùng một câu hỏi. Mở cổng mà quên đổi lớp chỉ tiêu là để màn hình
+        nói "không so được" ngay cạnh một tỉ lệ vừa được tính ra.
+        """
+        assert legacy_reference.has_comparable_metric() is True
+        comparable = {rule.key for period_class in legacy_reference.CONTRACTS
+                      for rule in legacy_reference.rules(period_class)
+                      if rule.metric_class == legacy_reference.COMPARABLE}
+        assert comparable == {"sales", "sales_vnd"}
 
     def test_a_reference_only_metric_produces_no_percentage(self):
+        """Cặp CHƯA được chứng minh vẫn không sinh ra một con số nào."""
         result = legacy_reference.compare(
             Decimal("1000"), Decimal("1500"),
-            legacy_key="sales_vnd", current_key="sales_revenue")
+            legacy_key="profit", current_key="kpi_profit")
         assert result.allowed is False
         assert result.percent is None
         assert "Không so được" in result.note
+
+    def test_the_proven_total_sales_pair_now_produces_a_percentage(self):
+        """`DEC-180` — cặp đã được chứng minh thì cổng phải TÍNH, không chặn."""
+        result = legacy_reference.compare(
+            Decimal("1000000"), Decimal("1500000"),
+            legacy_key="sales", current_key="sales_revenue")
+        assert result.allowed is True
+        assert result.percent == Decimal("50")
 
     def test_a_pair_outside_the_contract_is_refused_rather_than_guessed(self):
         result = legacy_reference.compare(
@@ -393,18 +436,27 @@ class TestComparisonGate:
             assert result.percent is None
             assert "không tính được" in result.note
 
-    def test_the_page_never_prints_a_growth_percentage_between_origins(
+    def test_the_page_states_which_metric_is_comparable_and_which_are_not(
         self, loaded, snapshots
     ):
+        """Trang lịch sử phải NÓI RA phán quyết mới, không giữ câu chữ cũ.
+
+        Một trang còn viết "chưa chỉ tiêu nào đạt điều đó" trong khi cổng đã
+        tính được một tỉ lệ là một trang nói dối về chính hệ thống của nó.
+        """
         persist(snapshots, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
         html = page(loaded)
+        assert "đúng một chỉ tiêu đạt điều đó" in html
+        assert "chưa chỉ tiêu nào đạt điều đó" not in html
+        # Bốn cặp còn lại vẫn phải hiện nguyên phán quyết chặn của chúng.
         assert "Không so được" in html
-        assert "chưa chỉ tiêu nào đạt điều đó" in html
 
-    def test_every_contract_pair_records_why_it_is_refused(self):
-        for row in legacy_reference.comparison_summary():
-            assert row["allowed"] is False
+    def test_every_contract_pair_records_its_reason_whichever_way_it_went(self):
+        """Cho phép hay từ chối, mỗi dòng hợp đồng đều phải nói VÌ SAO."""
+        rows = legacy_reference.comparison_summary()
+        for row in rows:
             assert row["reason"].strip(), row["legacy_key"]
+        assert [row["allowed"] for row in rows].count(True) == 2
 
 
 # --- J. Nạp lại cùng một bản không nhân đôi số ----------------------------
@@ -602,14 +654,21 @@ class TestOwnerQuestionsAboutALegacyYear:
             legacy_reference.AVAILABLE_WITH_ACCEPTED_EVIDENCE
         assert availability["sales"].filled_rows == 3   # 2 người bán + 1 dòng tổng
 
-    def test_i_no_cross_engine_percentage_is_generated_for_2025(self, loaded, snapshots):
+    def test_i_only_total_sales_crosses_the_engine_boundary_for_2025(
+        self, loaded, snapshots
+    ):
+        """`DEC-180` — Tổng bán so được; các chỉ tiêu khác của 2025 thì không."""
         persist(snapshots, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
         html = page(loaded)
-        assert "Không so được" in html
-        result = legacy_reference.compare(
+        assert "Không so được" in html, "bốn cặp còn lại vẫn bị chặn"
+        allowed = legacy_reference.compare(
             Decimal("1120000"), Decimal("8000000"),
             legacy_key="sales", current_key="sales_revenue")
-        assert result.allowed is False and result.percent is None
+        assert allowed.allowed is True and allowed.percent is not None
+        blocked = legacy_reference.compare(
+            Decimal("1120000"), Decimal("8000000"),
+            legacy_key="converted_revenue", current_key="converted_sales")
+        assert blocked.allowed is False and blocked.percent is None
 
 
 # ==========================================================================
@@ -949,15 +1008,19 @@ class TestIdempotencyAndIsolationForTheYearWorkbook:
 
 
 class TestComparisonStaysBlockedForTheAuthoritativeSource:
-    def test_s_authoritative_history_is_still_not_comparable_to_the_engine(
+    def test_s_being_the_authoritative_source_does_not_open_other_metrics(
         self, client, year_workbook_path
     ):
-        """"Nguồn chuẩn lịch sử" KHÔNG đồng nghĩa "cùng nghĩa với số mới"."""
+        """"Nguồn chuẩn lịch sử" KHÔNG đồng nghĩa "cùng nghĩa với số mới".
+
+        `DEC-178` nói bản nhập nào THẮNG khi hai nguồn cùng nói về một năm.
+        Nó không nói gì về việc chỉ tiêu nào so được với số mới — câu đó
+        thuộc về `CROSS_ORIGIN_CONTRACT`, và `DEC-180` chỉ mở đúng Tổng bán.
+        """
         upload(client, year_workbook_path)
-        result = legacy_reference.compare(
+        blocked = legacy_reference.compare(
             AUTHORITATIVE_SALES, Decimal("8000000"),
-            legacy_key="sales", current_key="sales_revenue")
-        assert result.allowed is False
-        assert result.percent is None
-        assert legacy_reference.has_comparable_metric() is False
+            legacy_key="profit", current_key="kpi_profit")
+        assert blocked.allowed is False
+        assert blocked.percent is None
         assert "Không so được" in page(client)

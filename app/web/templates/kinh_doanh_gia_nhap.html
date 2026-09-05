@@ -9,6 +9,7 @@
   Mỗi dòng hàng là một dòng ở bảng dưới. Hai ô SỬA ĐƯỢC là <strong>Giá nhập
   KPI</strong> và <strong>Nhân viên</strong>. {{ DERIVED_COLUMNS_NOTE }}</p>
 <p class="insight" data-metric="net-sales-note">{{ NET_SALES_NOTE }}</p>
+<p class="insight" data-metric="discount-row-note">{{ DISCOUNT_ROW_NOTE }}</p>
 
 {% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
 {% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
@@ -65,10 +66,13 @@
       <th class="{{ 'num' if loop.index in (4, 5, 6, 8, 9, 10) }}">{{ label }}</th>
     {% endfor %}<th>Sửa</th></tr>
     {% for row in rows %}
-    <tr class="{{ 'row-pending' if row.pending }}">
+    <tr class="{{ 'row-pending' if row.pending }}{{ ' row-discount' if row.synthetic }}"
+        {% if row.synthetic %}data-row-kind="{{ row.kind }}"{% endif %}>
       <td>{{ row.sale_date or '—' }}</td>
       <td class="code">{{ row.order_key }}</td>
-      <td>{{ row.product_raw }}</td>
+      <td>{% if row.synthetic %}<span data-metric="discount-line"
+            title="{{ DISCOUNT_ROW_NOTE }}">↳ {{ row.product_raw }}</span>
+        {% else %}{{ row.product_raw }}{% endif %}</td>
       <td class="num">{{ row.quantity }}</td>
       <td class="num">{{ row.sell_price }}</td>
       <td class="num{{ ' empty-cell' if row.pending }}"
@@ -100,6 +104,11 @@
         {% endif %}
       </td>
       <td>
+        {# Dòng "Chiết khấu" là số SUY RA từ sổ: không có form nào ở đây, nên
+           không tồn tại đường ghi nào từ nó xuống database. #}
+        {% if row.synthetic %}
+        <span class="tp-unit" data-metric="discount-readonly">Số suy ra từ sổ — không sửa</span>
+        {% else %}
         {# Mỗi dòng một form riêng: một form chung sẽ khiến một lần bấm ghi đè
            nhiều dòng cùng lúc, và Owner không thấy được mình vừa đổi cái gì. #}
         <form class="filter-row" method="post"
@@ -129,6 +138,7 @@
           <button class="ghost btn-mini" type="submit" name="hanh-dong" value="go">GỠ NV</button>
           {% endif %}
         </form>
+        {% endif %}
         {% endif %}
       </td>
     </tr>

@@ -315,6 +315,7 @@ def create_app(
                   "PRODUCT_ORDER_COUNT_NOTE", "REASON_LABEL"):
         app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
     for _name in ("CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+                  "DISCOUNT_ROW_NOTE",
                   "INCOMPLETE_NOTE", "NET_SALES_NOTE", "OFFICIAL_NOTE",
                   "QUALIFYING_QUANTITY_NOTE", "UNKNOWN_EMPLOYEE",
                   "UNRESOLVED_EMPLOYEE_NOTE"):
@@ -818,6 +819,49 @@ def create_app(
             return None
         return chosen if chosen in periods else None
 
+    def _legacy_previous_month(period, previous) -> Optional[dict]:
+        """Mốc "So tháng trước" lấy từ SỐ CŨ — `DEC-180` §9.
+
+        Đây là chỗ DUY NHẤT của vertical nghiệp vụ chạm tới hai origin, và nó
+        cố ý nằm ở tầng RÁP chứ không trong `business_*`: ba module kia phải
+        tiếp tục không biết gì về số cũ, nếu không một ngày nào đó cổng so
+        sánh liên-origin sẽ chặn nhầm một phép so cùng-engine.
+
+        Bốn cửa, mỗi cửa đóng một cách sai khác nhau:
+
+        1. Chỉ chạy khi đang xem MỘT tháng. "Toàn bộ dữ liệu" không có tháng
+           liền trước nào để so.
+        2. Chỉ chạy khi tháng trước KHÔNG có dòng số mới nào. Một tháng đã có
+           số mới không bao giờ bị số cũ thay chỗ.
+        3. Đi qua `authoritative_period_sales`: MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá
+           trị. Không cộng hai nguồn, không trộn dòng thô.
+        4. Giá trị trả về đã chuẩn hoá về VND bằng `to_vnd()` trong chính hàm
+           đó — `Summary` là kVND, số mới là VND, và quên hệ số 1.000 ở đây
+           cho ra một tỉ lệ trông như thật.
+
+        Trang NHÂN VIÊN cố ý KHÔNG dùng đường này: số cũ của một tháng là
+        tổng của CẢ CÔNG TY, nên đem nó làm mẫu số cho doanh thu của một người
+        là một phép so sai. Ghép tên người bán trong sổ cũ với nhân viên hiện
+        hành là một bài toán ánh xạ riêng, chưa có quyết định nào cho phép.
+        """
+        if period is None or history_repo is None:
+            return None
+        if previous is not None and previous.totals.lines > 0:
+            return None
+        year, month = analytics_presentation.previous_period(period)
+        summary_rows = _guarded(history_repo.query_summary, year, month)
+        monthly_rows = _guarded(history_repo.query_monthly_reference, year)
+        resolved = legacy_reference.authoritative_period_sales(
+            year=year, month=month,
+            summary_rows=summary_rows, monthly_rows=monthly_rows)
+        if resolved is None:
+            return None
+        return {
+            "sales_revenue": resolved.sales_vnd,
+            "origin_label": resolved.origin_label,
+            "source_label": resolved.source_label,
+        }
+
     def _business_period() -> dict:
         """Kỳ đang xem + số của kỳ đó + số của kỳ liền trước.
 
@@ -839,6 +883,7 @@ def create_app(
         return {
             "service": service, "period": period, "bounds": bounds, "data": data,
             "previous": previous,
+            "previous_fallback": _legacy_previous_month(period, previous),
             "periods": business_presentation.period_options(periods),
             "selected_period": business_presentation.period_value(period),
         }
@@ -904,6 +949,7 @@ def create_app(
                 previous_totals=None if view["previous"] is None
                                 else view["previous"].totals,
                 undated=_guarded(view["service"].undated_lines),
+                previous_fallback=view["previous_fallback"],
             ),
             columns=business_presentation.EMPLOYEE_COLUMNS,
             rows=business_presentation.employee_rows(
