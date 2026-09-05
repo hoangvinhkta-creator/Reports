@@ -326,7 +326,13 @@ def create_app(
                   "DISCOUNT_ROW_NOTE",
                   "INCOMPLETE_NOTE", "NET_SALES_NOTE", "OFFICIAL_NOTE",
                   "QUALIFYING_QUANTITY_NOTE", "UNKNOWN_EMPLOYEE",
-                  "UNRESOLVED_EMPLOYEE_NOTE"):
+                  "UNRESOLVED_EMPLOYEE_NOTE",
+                  # PHB-05 — chú thích của Target: viết MỘT lần ở tầng trình
+                  # bày, dùng lại ở cả trang Target lẫn trang Nhân viên.
+                  "TARGET_COMPANY_DEFERRED_NOTE", "TARGET_FORMULA_NOTE",
+                  "TARGET_LEGACY_READ_ONLY_NOTE", "TARGET_NOTE",
+                  "TARGET_NO_PERIOD_NOTE", "TARGET_UNIT_NOTE",
+                  "TARGET_ZERO_VS_BLANK_NOTE"):
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
         business_presentation.ORDER_COLUMN_NOTE
@@ -987,6 +993,7 @@ def create_app(
         view = _business_period()
         context = _employee_context(view)
         detail = None
+        target = None
         if context["chosen"]:
             scoped = view["data"].for_employee(context["employee"])
             previous = (None if view["previous"] is None
@@ -997,9 +1004,99 @@ def create_app(
                 previous_totals=None if previous is None else previous.totals,
                 gia_dung=gia_dung_workflow_applies(context["employee_group"]),
             )
+            # `PHB-05` — Target ĐỌC kết quả của kỳ, nó không tham gia dựng ra
+            # kết quả đó: `scoped.totals` đã tính xong trước khi Target được
+            # đọc, và không giá trị nào ở đây quay ngược lại tác động lên nó.
+            target = business_presentation.employee_target_block(
+                scoped.totals,
+                view["service"].employee_targets(view["period"]).get(
+                    context["employee"]),
+            )
         return render_template(
             "kinh_doanh_nhan_vien.html", periods=view["periods"],
-            selected_period=view["selected_period"], detail=detail, **context)
+            selected_period=view["selected_period"], detail=detail,
+            target=target, **context)
+
+    # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) ---------------
+
+    @app.get("/kinh-doanh/target")
+    def business_target():
+        """Đặt/sửa Target tháng cho từng nhân viên — bảng kiểu bảng tính.
+
+        Đây là MỘT khung nhìn con của vertical NGHIỆP VỤ, mở từ trang Nhân
+        viên; nó KHÔNG là một tab chính mới (`R1` giữ nguyên bốn tab). Nội
+        dung đúng những gì Owner cần để ra quyết định trên một dòng:
+
+            Nhân viên · DS quy đổi hiện tại · Target · So target · Sửa
+
+        Kỳ `Toàn bộ dữ liệu` KHÔNG sửa được Target: Target là con số của một
+        THÁNG (`DEC-PHB02-06`), và một ô nhập không biết mình đang ghi vào
+        tháng nào là một ô nhập ghi vào tháng sai.
+        """
+        view = _business_period()
+        period = view["period"]
+        return render_template(
+            "kinh_doanh_target.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=business_presentation.period_label(period),
+            has_period=period is not None,
+            columns=business_presentation.TARGET_COLUMNS,
+            rows=business_presentation.target_rows(
+                view["service"].target_rows(period=period, data=view["data"]),
+                editable=period is not None),
+            message=request.args.get("da-luu") or None,
+            error=request.args.get("loi") or None)
+
+    @app.post("/kinh-doanh/target")
+    def business_save_target():
+        """Ghi hoặc gỡ Target của MỘT nhân viên trong MỘT tháng.
+
+        Ba ranh giới được kiểm ở đây, không chỉ ở trang GET — một POST dựng
+        tay vẫn phải đi qua đủ cả ba:
+
+        1. Phải có KỲ cụ thể. `Toàn bộ dữ liệu` ⟹ 404: không có tháng nào để
+           ghi vào, và đoán hộ một tháng là ghi vào tháng sai.
+        2. Tên nhân viên phải nằm trong master `config/employees.yaml` — cùng
+           thẩm quyền mà `OD-5` đã dùng. Gõ tự do một cái tên vào bảng Target
+           sẽ dựng ra một "nhân viên" chỉ tồn tại trong cột Target.
+        3. Giá trị phải hợp lệ. Rỗng = GỠ; `>= 0` = ĐẶT (kể cả `0`); âm hoặc
+           không phải số = TỪ CHỐI kèm câu nói rõ vì sao.
+
+        Route này KHÔNG chạm vào một bảng số liệu nào: nó chỉ ghi
+        `employee_target`. Không có đường nào từ đây tới snapshot, tới dòng
+        chứng từ, hay tới bảng Legacy.
+        """
+        view = _business_period()
+        service = view["service"]
+        period = view["period"]
+        redirect_args = {"ky": request.values.get("ky") or "tat-ca"}
+
+        def _back(**extra):
+            return redirect(url_for("business_target", **redirect_args, **extra))
+
+        if period is None:
+            abort(404)
+        chosen = (request.form.get("nhan_vien") or "").strip()
+        if chosen not in dict(service.assignable_employees()):
+            return _back(loi=(
+                f"{chosen!r} không có trong danh sách nhân viên. Target chỉ "
+                "đặt được cho một nhân viên trong master."))
+        try:
+            target = business_store.parse_target(request.form.get("target"))
+        except business_store.InvalidTargetError as exc:
+            return _back(loi=str(exc))
+        if target is None:
+            _guarded(service.clear_employee_target,
+                     period=period, employee_key=chosen)
+            return _back(**{"da-luu": (
+                f"Đã gỡ Target của {chosen} trong "
+                f"{business_presentation.period_label(period)}. "
+                "Người này trở lại trạng thái chưa thiết lập target.")})
+        _guarded(service.set_employee_target,
+                 period=period, employee_key=chosen, target_vnd=target)
+        return _back(**{"da-luu": (
+            f"Đã lưu Target của {chosen} trong "
+            f"{business_presentation.period_label(period)}.")})
 
     # Bốn chế độ lọc của bảng kê. Chúng KHÔNG chồng lên nhau và mỗi cái trả
     # lời một câu hỏi khác của Owner — gộp lại thành một danh sách "còn thiếu"

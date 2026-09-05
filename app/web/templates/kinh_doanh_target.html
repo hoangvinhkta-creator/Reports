@@ -1,0 +1,102 @@
+{# PHB-05 — Target tháng của nhân viên (`DEC-PHB02-06`).
+
+   Khung nhìn CON của vertical NGHIỆP VỤ, mở từ trang Nhân viên. Nó KHÔNG là
+   một tab chính mới: thanh tab của `R1` vẫn đúng bốn mục.
+
+   Toàn bộ trang là một bảng kiểu bảng tính — mỗi nhân viên một dòng, ô nhập
+   nằm ngay trong dòng đó, bấm LƯU là xong. Không bước duyệt, không lịch sử
+   phiên bản, không màn hình cấu hình riêng. #}
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'nhan-vien' %}
+{% block title %}Reports — Target nhân viên{% endblock %}
+
+{% block content %}
+<h1>TARGET NHÂN VIÊN — {{ period_label }}</h1>
+<p class="insight">{{ biz.business_badge() }} {{ TARGET_NOTE }}</p>
+
+<div class="module">
+  {{ biz.period_picker(periods, selected_period, url_for('business_target')) }}
+  <p><a class="ghost btn-mini" href="{{ url_for('business_employee', ky=selected_period) }}"
+     >← VỀ TRANG NHÂN VIÊN</a></p>
+</div>
+
+{% if message %}<p class="insight" data-metric="target-saved">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" data-metric="target-error">{{ error }}</p>{% endif %}
+
+{% if not has_period %}
+{# Không có tháng ⟹ không có ô nhập nào. Một ô nhập không biết mình ghi vào
+   tháng nào là một ô nhập ghi vào tháng sai. #}
+<p class="error" data-metric="target-no-period">{{ TARGET_NO_PERIOD_NOTE }}</p>
+{% endif %}
+
+<div class="module">
+  <h2>Target và tiến độ theo {{ period_label }}
+    <span class="cnt">{{ rows|length }} nhân viên</span></h2>
+  <p class="insight" data-metric="target-formula-note">{{ TARGET_FORMULA_NOTE }}</p>
+  <p class="insight" data-metric="target-unit-note">{{ TARGET_UNIT_NOTE }}</p>
+  <p class="insight" data-metric="target-zero-note">{{ TARGET_ZERO_VS_BLANK_NOTE }}</p>
+
+  {% if not rows %}
+  <p class="empty" data-metric="target-empty">Kỳ này chưa có nhân viên nào có
+     dòng hàng, và chưa Target nào được đặt.</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index in (2, 3, 4) }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr data-metric="target-row" data-employee="{{ row.employee_key }}">
+      <td>{{ row.employee }}
+        <span class="cnt">{{ row.employee_group }} · {{ row.lines }} dòng</span></td>
+
+      {# DS quy đổi lấy NGUYÊN con số của trang Báo cáo, kèm đúng nhãn
+         CHÍNH THỨC / CHƯA HOÀN CHỈNH của nó. #}
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+          data-metric="target-converted-sales"
+          {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
+        >{{ row.converted_sales.text_kvnd }}</td>
+
+      <td class="num{{ ' empty-cell' if row.target.unset }}"
+          data-metric="target-value"
+          {% if not row.target.unset %}title="{{ row.target.text }} đồng"{% endif %}
+        >{{ row.target.text_kvnd }}</td>
+
+      {# "So target" thừa hưởng ĐÚNG trạng thái của DS quy đổi mà nó chia —
+         không có hệ trạng thái thứ hai (PHB-05 §9). #}
+      <td class="num{{ ' empty-cell' if row.vs_target.missing }}"
+          data-metric="target-vs" data-reason="{{ row.vs_target.reason_code }}"
+          {% if row.vs_target.reason %}title="{{ row.vs_target.reason }}"{% endif %}
+        >{{ row.vs_target.text }}
+        <span class="tag {{ 'tag-official' if row.vs_target.official else 'tag-incomplete' }}"
+              data-metric="target-vs-state">{{ row.vs_target.state_label }}</span></td>
+
+      <td>
+        {% if row.editable %}
+        <form method="post" action="{{ url_for('business_save_target') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="nhan_vien" value="{{ row.employee_key }}">
+          <input type="text" inputmode="numeric" name="target"
+                 value="{{ row.target.input_value }}" data-metric="target-input"
+                 aria-label="Target của {{ row.employee }}"
+                 placeholder="để trống = gỡ target">
+          <button class="ghost btn-mini" type="submit" data-metric="target-save">LƯU</button>
+        </form>
+        {% else %}
+        <span class="cnt" data-metric="target-not-editable">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>Những gì màn hình này KHÔNG làm</h2>
+  <p class="insight" data-metric="target-company-deferred">{{ TARGET_COMPANY_DEFERRED_NOTE }}</p>
+  <p class="insight" data-metric="target-legacy-readonly">{{ TARGET_LEGACY_READ_ONLY_NOTE }}</p>
+</div>
+{% endblock %}

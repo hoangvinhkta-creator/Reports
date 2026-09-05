@@ -489,26 +489,89 @@ employee_attribution_override = Table(
                     name="ck_employee_override_not_blank"),
 )
 
+# PHB-05 — TARGET THÁNG CỦA MỘT NHÂN VIÊN (DEC-PHB02-06).
+#
+# ``DEC-PHB02-06`` đã freeze ở PHB-02: Target là số Owner tự đặt cho từng nhân
+# viên, sửa được, và KHÔNG được viết cứng trong mã. Bảng này là chỗ duy nhất
+# trong repo lưu được khẳng định đó.
+#
+# ## Vì sao một bảng riêng, khoá theo ``(năm, tháng, nhân viên)``
+#
+# Target KHÔNG phải một sự thật kế toán đọc ra từ sổ — nó là một dự định
+# nghiệp vụ có TRƯỚC khi bán được đồng nào. Vì vậy nó không thuộc về bất kỳ
+# bảng nào của đường nạp sổ:
+#
+# - ``order_line_*`` là dòng chứng từ; một Target không gắn với dòng hàng nào.
+# - ``source_snapshot``/``snapshot_line`` thuộc vòng đời của MỘT lần nạp sổ.
+#   Đặt Target vào đó thì mỗi lần nạp lại sổ kế toán, Target của Owner sẽ bị
+#   một snapshot mới sở hữu — và biến mất hoặc phải nhập lại. Chỉ thị PHB-05
+#   §11 gọi đúng điều này là điểm tới hạn: *"Target must NOT be owned by a
+#   snapshot."*
+# - Bảng ``legacy_*`` là số cũ đã đóng băng, chỉ đọc (PHB-05 §10).
+#
+# Khoá nghiệp vụ ``(year, month, employee_key)`` vì thế độc lập hoàn toàn với
+# ``snapshot_id``/``version_id``: nạp lại sổ, sửa giá, phân giải Product
+# Identity hay sửa PP đều không chạm được vào nó.
+#
+# ``employee_key`` DÙNG LẠI đúng danh tính nhân viên hiện hành của Current —
+# tên đã chuẩn hoá (``employee_normalized``), cùng khoá mà
+# ``employee_attribution_override`` và ``config/employees.yaml`` đã dùng. PHB-05
+# §13 cấm dựng một hệ định danh nhân viên thứ hai, và ở đây không có cái nào
+# được dựng.
+#
+# ## Vì sao ``0`` khác RỖNG
+#
+# Không có dòng ⟺ Owner CHƯA đặt target. Một dòng mang ``target_vnd = 0`` ⟺
+# Owner đã cố ý đặt target bằng không. Hai điều đó dẫn tới hai câu khác nhau
+# trên màn hình, nên chúng phải là hai trạng thái khác nhau trong dữ liệu —
+# "gỡ target" là XOÁ DÒNG, không phải ghi số 0 (PHB-05 §7).
+#
+# Đơn vị lưu là VND nguyên (PHB-05 §7). Sổ cũ viết cột ``M`` theo NGHÌN ĐỒNG
+# (``UNIT_SUMMARY = "kVND"``) và chính workbook đó cũng mang cả hai đơn vị cho
+# CÙNG một target (``Summary 2026!M11 = 28.790.000`` kVND so với
+# ``DataChart!AJ2 = 28.789.481.081`` VND) — một hệ đơn vị kép là thứ đã có sẵn
+# hậu quả trong bằng chứng, nên kho lưu chỉ nhận MỘT đơn vị và tầng trình bày
+# tự đổi cách viết.
+employee_target = Table(
+    "employee_target", METADATA,
+    Column("year", Integer, primary_key=True),
+    Column("month", Integer, primary_key=True),
+    Column("employee_key", Text, primary_key=True),
+    _pipeline_origin_column(),
+    Column("target_vnd", ExactNumeric, nullable=False),
+    Column("updated_at", Text, nullable=False),
+    Column("updated_by", Text, nullable=True),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_employee_target_origin"),
+    CheckConstraint("month >= 1 AND month <= 12", name="ck_employee_target_month"),
+    # Target âm không phải một sự thật nghiệp vụ nào; chấp nhận nó sẽ cho ra
+    # một "So target" âm trông như một tỉ lệ có nghĩa.
+    CheckConstraint("target_vnd >= 0", name="ck_employee_target_not_negative"),
+    CheckConstraint("length(trim(employee_key)) > 0",
+                    name="ck_employee_target_employee_not_blank"),
+)
+
 # Thứ tự tạo/xoá tường minh cho migration 0003/0004. Không FK nào trỏ ra
 # ngoài: cả ba bảng là quyết định của con người trên một KHOÁ NGHIỆP VỤ, và
 # khoá đó phải sống sót qua một lần re-import làm đổi ``id`` của version.
 BUSINESS_TABLES = (kpi_purchase_price_override, product_group_classification)
 EMPLOYEE_TABLES = (employee_attribution_override,)
+TARGET_TABLES = (employee_target,)
 
 # ---------------------------------------------------------------------------
 # B04 — ROLLBACK KHÔNG ĐƯỢC XOÁ DỮ LIỆU OWNER TỰ NHẬP
 # ---------------------------------------------------------------------------
-# Ba bảng dưới đây chứa thứ DUY NHẤT trong toàn bộ database không tái tạo lại
-# được: giá nhập Owner gõ tay, tick Gia dụng, và việc gán nhân viên. Chạy lại
-# pipeline dựng lại được mọi bảng khác từ file sổ gốc — nhưng không dựng lại
-# được những con số này, vì chúng ở trong đầu Owner chứ không ở trong file.
+# Bốn bảng dưới đây chứa thứ DUY NHẤT trong toàn bộ database không tái tạo
+# lại được: giá nhập Owner gõ tay, tick Gia dụng, việc gán nhân viên, và
+# Target tháng của từng nhân viên. Chạy lại pipeline dựng lại được mọi bảng
+# khác từ file sổ gốc — nhưng không dựng lại được những con số này, vì chúng ở
+# trong đầu Owner chứ không ở trong file.
 #
 # ``downgrade()`` của migration vì thế KHÔNG được ``DROP TABLE`` thẳng. Cơ chế
 # nhỏ nhất đủ an toàn cho production: trước khi xoá, sao nguyên nội dung sang
 # một bảng lưu tạm cùng database; ``upgrade()`` sau đó nạp lại. Không backup
 # subsystem, không file dump, không dịch vụ mới — một câu ``CREATE TABLE AS
 # SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
-OWNER_INPUT_TABLES = BUSINESS_TABLES + EMPLOYEE_TABLES
+OWNER_INPUT_TABLES = BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES
 
 #: Hậu tố của bảng lưu tạm. Nó nằm NGOÀI ``METADATA`` một cách có chủ đích:
 #: đây không phải một bảng của lược đồ, nó là một cái két chỉ tồn tại giữa một

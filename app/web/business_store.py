@@ -1,16 +1,20 @@
 """PHB-03 — đường GHI DUY NHẤT cho các quyết định của Owner.
 
-Repository này là toàn bộ persistence mới của PHB-03, và nó cố ý nhỏ. Nó biết
-đúng ba việc:
+Repository này là toàn bộ persistence mới của PHB-03 (và, từ PHB-05, của
+Target), và nó cố ý nhỏ. Nó biết đúng bốn việc:
 
 1. `set_purchase_price` — ghi/ghi đè giá nhập KPI của MỘT dòng hàng.
 2. `set_product_group` — ghi/gỡ phân loại Gia dụng của MỘT mặt hàng.
 3. `set_employee` — gán/gỡ nhân viên cho MỘT dòng hàng (`OD-5`).
+4. `set_employee_target` — đặt/gỡ Target tháng của MỘT nhân viên (PHB-05,
+   `DEC-PHB02-06`).
 
 Việc thứ ba dùng lại NGUYÊN cấu trúc của việc thứ nhất — cùng khoá nghiệp vụ,
 cùng kiểu upsert, cùng cột provenance-một-cột. Đó là lý do nó không làm module
 này lớn thêm về mặt khái niệm: nó là cùng một hình dạng, áp lên một trường
-khác.
+khác. Việc thứ tư cũng vậy, chỉ khác KHOÁ: `(năm, tháng, nhân viên)` thay vì
+`(đơn, mặt hàng, lần xuất hiện)` — vì Target là một dự định của cả tháng, chứ
+không phải một sự thật của một dòng chứng từ.
 
 Những gì module này KHÔNG phải, và không được lớn thành (chỉ thị PHB-03 §3):
 không hệ thống quản lý giá nhập, không luồng duyệt, không lịch sử phiên bản,
@@ -55,7 +59,7 @@ from app.web.history_store import HistoryUnavailableError
 from tools.db.schema import (
     ORIGIN_PIPELINE, PURCHASE_PROVENANCE_MANUAL,
     PURCHASE_PROVENANCE_MANUAL_OVERRIDE, employee_attribution_override,
-    kpi_purchase_price_override, product_group_classification,
+    employee_target, kpi_purchase_price_override, product_group_classification,
 )
 
 PRODUCT_GROUPS = ("DIEN_MAY", "GIA_DUNG")
@@ -71,6 +75,14 @@ class InvalidProductGroupError(ValueError):
 
 class InvalidEmployeeError(ValueError):
     """Tên nhân viên không dùng được — TỪ CHỐI, không gán bừa cho ai."""
+
+
+class InvalidTargetError(ValueError):
+    """Target Owner nhập không dùng được — TỪ CHỐI, không đoán hộ (PHB-05 §14)."""
+
+
+class InvalidTargetPeriodError(ValueError):
+    """Kỳ của Target không phải một tháng thật — không có chỗ nào để lưu."""
 
 
 def parse_purchase_price(raw: Optional[str]) -> Decimal:
@@ -102,12 +114,69 @@ def parse_purchase_price(raw: Optional[str]) -> Decimal:
     return value
 
 
+def parse_target(raw: Optional[str]) -> Optional[Decimal]:
+    """Chuỗi Owner gõ → `Decimal` VND, `None` (gỡ target), hoặc lỗi.
+
+    Dùng LẠI đúng quy ước gõ số của `parse_purchase_price` — dấu chấm là phân
+    cách nghìn kiểu vi-VN, dấu phẩy là thập phân — vì đó là cùng một Owner gõ
+    cùng một loại con số trong cùng một sản phẩm. Hai quy ước nhập số trong
+    một màn hình là một lỗi chờ xảy ra.
+
+    Ba kết quả, cố ý KHÔNG gộp (PHB-05 §7/§14):
+
+        rỗng      ⟹ `None`  — "gỡ target", tức là CHƯA THIẾT LẬP.
+        `>= 0`    ⟹ `Decimal` — kể cả `0`, và `0` KHÔNG phải rỗng.
+        còn lại   ⟹ `InvalidTargetError` — âm, hoặc không phải số.
+
+    `0` và rỗng là hai câu khác nhau: "Owner đặt target bằng không" và "Owner
+    chưa đặt target". Cả hai dẫn tới `So target = N/A` trên màn hình, nhưng
+    dẫn tới hai CÂU khác nhau và hai trạng thái khác nhau trong dữ liệu —
+    trộn chúng lại là mất khả năng phân biệt "đã quyết" với "chưa quyết".
+
+    Đơn vị luôn là VND nguyên. Sổ cũ viết Target theo NGHÌN ĐỒNG và chính
+    workbook đó mang cả hai đơn vị cho cùng một con số (`Summary 2026!M11`
+    so với `DataChart!AJ2`); kho lưu vì thế chỉ nhận một đơn vị.
+    """
+    text = (raw or "").strip().replace(" ", "").replace("\u00a0", "")
+    if not text:
+        return None
+    text = text.replace(".", "").replace(",", ".")
+    try:
+        value = Decimal(text)
+    except (InvalidOperation, ValueError):
+        raise InvalidTargetError(
+            f"Target {raw!r} không phải một số hợp lệ."
+        ) from None
+    if value < 0:
+        raise InvalidTargetError("Target không được âm.")
+    return value
+
+
+def parse_target_period(raw_year, raw_month) -> tuple[int, int]:
+    """`(năm, tháng)` của một Target, hoặc `InvalidTargetPeriodError`.
+
+    Target được khoá theo KỲ BÁO CÁO, nên một kỳ không hợp lệ không có chỗ
+    nào để lưu. Từ chối ở đây thay vì để `CheckConstraint` của database ném
+    ra một lỗi mà người dùng không đọc được.
+    """
+    try:
+        year, month = int(raw_year), int(raw_month)
+    except (TypeError, ValueError):
+        raise InvalidTargetPeriodError(
+            "Target phải gắn với một tháng cụ thể."
+        ) from None
+    if not 1 <= month <= 12 or year < 1:
+        raise InvalidTargetPeriodError(
+            f"Kỳ {raw_year!r}-{raw_month!r} không phải một tháng thật.")
+    return year, month
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 class BusinessDecisionStore:
-    """Đọc/ghi ba bảng quyết định của Owner trên CÙNG engine history."""
+    """Đọc/ghi bốn bảng quyết định của Owner trên CÙNG engine history."""
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -301,6 +370,77 @@ class BusinessDecisionStore:
             for row in rows
         }
 
+    # --- Target tháng của nhân viên (PHB-05, DEC-PHB02-06) ---------------
+
+    def set_employee_target(
+        self,
+        *,
+        year: int,
+        month: int,
+        employee_key: str,
+        target_vnd: Decimal,
+        updated_by: Optional[str] = None,
+        updated_at: Optional[str] = None,
+    ) -> None:
+        """Đặt Target VND của MỘT nhân viên trong MỘT tháng.
+
+        Khoá là `(năm, tháng, nhân viên)` và KHÔNG có `snapshot_id` nào trong
+        đó. Đó là toàn bộ cơ chế giữ lời hứa của PHB-05 §11: nạp lại sổ kế
+        toán dựng ra snapshot mới, version mới, `id` mới — nhưng không chạm
+        được vào một dòng nào ở đây, vì không dòng nào ở đây trỏ tới chúng.
+
+        Ghi đè tại chỗ (UPSERT), không append version: `DEC-PHB02-06` yêu cầu
+        Target sửa được, KHÔNG yêu cầu lịch sử các lần sửa, và PHB-05 §12 cấm
+        dựng version history cho nó.
+        """
+        name = (employee_key or "").strip()
+        if not name:
+            raise InvalidEmployeeError("Chưa chọn nhân viên cho Target.")
+        if target_vnd is None or target_vnd < 0:
+            raise InvalidTargetError("Target không được âm.")
+        if not 1 <= int(month) <= 12:
+            raise InvalidTargetPeriodError(
+                f"Tháng {month!r} không phải một tháng thật.")
+        self._upsert(
+            employee_target,
+            {"year": int(year), "month": int(month), "employee_key": name},
+            {"target_vnd": target_vnd, "updated_at": updated_at or _now(),
+             "updated_by": updated_by},
+        )
+
+    def clear_employee_target(
+        self, *, year: int, month: int, employee_key: str
+    ) -> None:
+        """Gỡ Target của một nhân viên trong một tháng — về CHƯA THIẾT LẬP.
+
+        XOÁ DÒNG, không ghi `0`: `0` là một target Owner đã cố ý đặt, còn
+        không có dòng là chưa đặt gì. Ghi `0` để "gỡ" sẽ xoá đúng sự phân biệt
+        mà PHB-05 §7 bắt phải giữ.
+        """
+        table = employee_target
+        self._execute(delete(table).where(
+            table.c.year == int(year),
+            table.c.month == int(month),
+            table.c.employee_key == (employee_key or "").strip(),
+        ))
+
+    def employee_targets(self, *, year: int, month: int) -> dict[str, dict]:
+        """Target đã đặt của MỘT tháng, khoá theo tên nhân viên.
+
+        Chỉ đọc đúng kỳ đang xem: Target của 09/2026 và của 08/2026 là hai
+        dòng khác nhau, và một truy vấn không lọc kỳ sẽ để tháng này đè lên
+        tháng kia (PHB-05 §4).
+
+        Nhân viên KHÔNG có dòng ⟹ vắng mặt trong dict. "Chưa thiết lập" được
+        biểu diễn bằng sự VẮNG MẶT, không bằng một giá trị `0` giả.
+        """
+        table = employee_target
+        rows = self._read(select(
+            table.c.year, table.c.month, table.c.employee_key,
+            table.c.target_vnd, table.c.updated_at, table.c.updated_by,
+        ).where(table.c.year == int(year), table.c.month == int(month)))
+        return {row["employee_key"]: row for row in rows}
+
     # --- hạ tầng --------------------------------------------------------
 
     def _upsert(self, table, keys: dict, values: dict) -> None:
@@ -342,5 +482,7 @@ class BusinessDecisionStore:
 
 __all__ = [
     "BusinessDecisionStore", "InvalidEmployeeError", "InvalidProductGroupError",
-    "InvalidPurchasePriceError", "PRODUCT_GROUPS", "parse_purchase_price",
+    "InvalidPurchasePriceError", "InvalidTargetError",
+    "InvalidTargetPeriodError", "PRODUCT_GROUPS", "parse_purchase_price",
+    "parse_target", "parse_target_period",
 ]

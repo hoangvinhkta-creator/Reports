@@ -157,6 +157,56 @@ GIA_DUNG_COLUMNS: tuple[str, ...] = (
     "Mặt hàng", "Số dòng", "Doanh thu", "Phân loại hiện tại", "Tick Gia dụng",
 )
 
+# --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) -------------------
+
+TARGET_COLUMNS: tuple[str, ...] = (
+    "Nhân viên", "DS quy đổi hiện tại", "Target", "So target", "Sửa",
+)
+
+# Ba lý do KHÁC NHAU khiến ô "So target" không có số. Gộp chúng thành một chữ
+# "N/A" duy nhất sẽ xoá đúng thông tin Owner cần để biết phải làm gì tiếp.
+TARGET_REASON_LABELS = {
+    bm.TARGET_UNSET: "Chưa thiết lập target",
+    bm.TARGET_ZERO: "Target = 0 — không so được",
+    bm.TARGET_NO_ACTUAL: "Chưa có DS quy đổi để so",
+}
+
+TARGET_UNSET_LABEL = "Chưa thiết lập"
+
+TARGET_NOTE = (
+    "Target là con số Owner tự đặt cho TỪNG nhân viên trong TỪNG tháng — hệ "
+    "thống không tự tính và không viết cứng nó ở đâu. Đổi Target của tháng "
+    "này không đụng tới tháng khác."
+)
+TARGET_FORMULA_NOTE = (
+    "So target = DS quy đổi CHIA cho Target, viết dạng phần trăm — đúng công "
+    "thức của sổ cũ (ô N = F/M). Vượt target thì hiện đúng số vượt, không "
+    "chặn ở 100%."
+)
+TARGET_UNIT_NOTE = (
+    "Nhập Target theo ĐỒNG (VND). Ví dụ: 500.000.000. Bảng hiện lại theo "
+    "nghìn đồng cho gọn, số đầy đủ xem ở ô nhập và ở tooltip."
+)
+TARGET_ZERO_VS_BLANK_NOTE = (
+    "Để trống ô rồi bấm LƯU là GỠ target (trở lại “chưa thiết lập”). Gõ số 0 "
+    "là ĐẶT target bằng không — hai điều khác nhau, và cả hai đều làm So "
+    "target không có số."
+)
+TARGET_NO_PERIOD_NOTE = (
+    "Target gắn với MỘT tháng cụ thể. Chọn một kỳ báo cáo ở ô trên để xem và "
+    "sửa Target — khung nhìn “Toàn bộ dữ liệu” không có Target."
+)
+TARGET_COMPANY_DEFERRED_NOTE = (
+    "Chưa có Target ở cấp công ty. Sổ cũ có một target công ty đặt RIÊNG, và "
+    "nó KHÔNG bằng tổng target của các nhân viên — nên hệ thống không cộng "
+    "dồn để bịa ra một con số Owner chưa đặt."
+)
+TARGET_LEGACY_READ_ONLY_NOTE = (
+    "Target trong SỐ CŨ là bằng chứng lịch sử, chỉ đọc. Ô nhập ở đây chỉ ghi "
+    "Target của hệ thống báo cáo hiện hành."
+)
+
+
 
 def _decimal(value: Optional[Decimal]) -> str:
     return "—" if value is None else format_number(value)
@@ -575,6 +625,107 @@ def assignable_employee_options(
             for name, group in employees]
 
 
+def target_cell(target: Optional[Decimal]) -> dict:
+    """Một ô Target: con số VND, cách viết nghìn đồng, và trạng thái của nó.
+
+    Ba trạng thái, và chúng KHÔNG bao giờ trông giống nhau (PHB-05 §7):
+
+        chưa thiết lập  →  `unset=True`,  chữ "Chưa thiết lập"
+        target = 0      →  `zero=True`,   số `0`
+        target > 0      →  số
+
+    `input_value` là chuỗi VND ĐẦY ĐỦ, không phân cách, để ô nhập trả lại
+    đúng con số canonical khi Owner bấm LƯU mà không sửa gì — làm tròn hay
+    rút gọn ở đây sẽ âm thầm đổi một con số Owner đã đặt.
+    """
+    if target is None:
+        return {"text": TARGET_UNSET_LABEL, "text_kvnd": TARGET_UNSET_LABEL,
+                "input_value": "", "unset": True, "zero": False}
+    return {
+        "text": _decimal(target),
+        "text_kvnd": _thousand_vnd(target),
+        "input_value": format(Decimal(target).normalize(), "f"),
+        "unset": False,
+        "zero": Decimal(target) == 0,
+    }
+
+
+def vs_target_cell(
+    converted: Optional[Decimal], target: Optional[Decimal], *,
+    state: str, official: bool,
+) -> dict:
+    """Ô "So target" — con số, HOẶC `—` kèm lý do; và trạng thái đi cùng.
+
+    `state`/`official` là trạng thái của chính DS QUY ĐỔI mà ô này chia
+    (`R-S7`/`R-E8`). PHB-05 §9 cấm dựng một hệ trạng thái thứ hai: nếu DS quy
+    đổi còn CHƯA HOÀN CHỈNH thì So target cũng vậy, vì nó chỉ là con số đó
+    chia cho một hằng số. Nhãn được lấy từ đúng `STATE_LABELS` mà mọi chỉ tiêu
+    phụ thuộc coverage đang dùng.
+
+    Không cap ở 100 %, không thay DS quy đổi bằng Doanh thu bán hàng: cả hai
+    đều là sửa định nghĩa của một chỉ tiêu Owner đã dùng nhiều năm.
+    """
+    value = bm.vs_target_percent(converted, target)
+    reason = bm.vs_target_reason(converted, target)
+    return {
+        "text": percent(value),
+        "missing": value is None,
+        "reason": "" if reason is None else TARGET_REASON_LABELS[reason],
+        "reason_code": reason or "",
+        "official": official and value is not None,
+        "state": state,
+        "state_label": STATE_LABELS[state],
+    }
+
+
+def target_rows(rows: list[tuple], *, editable: bool) -> list[dict]:
+    """Bảng Target của một kỳ: một dòng cho mỗi nhân viên.
+
+    `rows` đến từ `BusinessReportService.target_rows` — mỗi phần tử là
+    `(tên, nhóm, chỉ tiêu kỳ, Target)`. Cột "DS quy đổi hiện tại" lấy NGUYÊN
+    `totals.converted_sales` của cùng phân hoạch mà trang Báo cáo đang hiện;
+    không có phép tính nghiệp vụ nào ở tầng này.
+
+    Nhóm "chưa xác định nhân viên" (`name is None`) KHÔNG sửa được Target: nó
+    không phải một người, và đặt target cho nó sẽ là đặt target cho một cái ô
+    đếm. Nó vẫn hiện để tổng của bảng không giấu mất dòng nào.
+    """
+    result = []
+    for name, group, totals, target in rows:
+        state = totals.state
+        result.append({
+            "employee": name or UNKNOWN_EMPLOYEE,
+            "employee_key": name or "",
+            "employee_group": group or "—",
+            "is_employee": name is not None,
+            "editable": editable and name is not None,
+            "converted_sales": gated_cell(
+                totals.converted_sales, totals.official_converted_sales, state),
+            "target": target_cell(target),
+            "vs_target": vs_target_cell(
+                totals.converted_sales, target,
+                state=state, official=totals.coverage.is_complete),
+            "lines": count(totals.lines),
+        })
+    return result
+
+
+def employee_target_block(
+    totals: bm.BusinessTotals, target: Optional[Decimal],
+) -> dict:
+    """Hai ô Target/So target của trang MỘT nhân viên.
+
+    Cùng hai hàm `target_cell`/`vs_target_cell` mà bảng Target dùng — hai
+    màn hình không được có hai cách tính "So target".
+    """
+    return {
+        "target": target_cell(target),
+        "vs_target": vs_target_cell(
+            totals.converted_sales, target,
+            state=totals.state, official=totals.coverage.is_complete),
+    }
+
+
 def gia_dung_rows(products: list[dict]) -> list[dict]:
     """Một dòng cho mỗi MẶT HÀNG (không phải mỗi dòng chứng từ) để tick.
 
@@ -606,6 +757,10 @@ __all__ = [
     "DISCOUNT_ROW_NOTE",
     "MISSING_PRICE_COLUMNS", "MOM_ALL_DATA", "MOM_LEGACY_PREVIOUS_NOTE",
     "MOM_NO_PREVIOUS",
+    "TARGET_COLUMNS", "TARGET_COMPANY_DEFERRED_NOTE", "TARGET_FORMULA_NOTE",
+    "TARGET_LEGACY_READ_ONLY_NOTE", "TARGET_NO_PERIOD_NOTE", "TARGET_NOTE",
+    "TARGET_REASON_LABELS", "TARGET_UNIT_NOTE", "TARGET_UNSET_LABEL",
+    "TARGET_ZERO_VS_BLANK_NOTE",
     "MOM_PREVIOUS_ZERO", "NET_SALES_NOTE", "NOT_SEEN_WARNING", "OFFICIAL_NOTE",
     "ORDER_COLUMN_NOTE",
     "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
@@ -616,4 +771,5 @@ __all__ = [
     "gia_dung_rows", "missing_price_rows", "month_over_month",
     "not_seen_warning", "percent",
     "period_label", "period_options", "period_value", "summary",
+    "employee_target_block", "target_cell", "target_rows", "vs_target_cell",
 ]

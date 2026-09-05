@@ -41,6 +41,42 @@
     đồng: xem <a class="ghost btn-mini" href="{{ url_for('giai_thich') }}">GIẢI THÍCH</a>.</p>
 </div>
 
+{# PHB-05 (`DEC-PHB02-06`) — Target của CHÍNH nhân viên/kỳ đang xem.
+
+   Hai ô này ĐỌC con số DS quy đổi ngay phía trên; chúng không tham gia vào
+   bất kỳ phép tính nào của khối KPI đó. Đổi Target không đổi một đồng doanh
+   thu, lợi nhuận hay DS quy đổi nào. #}
+<div class="module">
+  <h2>Target {{ detail.period_label }}</h2>
+  <p class="insight" data-metric="target-note">{{ TARGET_NOTE }}</p>
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="tp-label">Target</span>
+      <strong class="kpi-value{{ ' empty-cell' if target.target.unset }}"
+              data-metric="employee-target"
+              {% if not target.target.unset %}title="{{ target.target.text }} đồng"{% endif %}
+        >{{ target.target.text_kvnd }}</strong>
+      {% if not target.target.unset %}<span class="tp-unit">nghìn đồng</span>{% endif %}
+    </div>
+    <div class="kpi-card {{ 'kpi-incomplete' if not target.vs_target.official }}">
+      <span class="tp-label">So target
+        <span class="tag {{ 'tag-official' if target.vs_target.official else 'tag-incomplete' }}"
+              data-metric="employee-vs-target-state">{{ target.vs_target.state_label }}</span></span>
+      <strong class="kpi-value{{ ' empty-cell' if target.vs_target.missing }}"
+              data-metric="employee-vs-target"
+              data-reason="{{ target.vs_target.reason_code }}"
+        >{{ target.vs_target.text }}</strong>
+      {% if target.vs_target.reason %}
+      <span class="tp-unit" data-metric="employee-vs-target-reason">{{ target.vs_target.reason }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <p class="insight" data-metric="target-formula-note">{{ TARGET_FORMULA_NOTE }}</p>
+  <p><a class="ghost btn-mini" data-metric="target-link"
+        href="{{ url_for('business_target', ky=selected_period) }}"
+     >ĐẶT / SỬA TARGET</a></p>
+</div>
+
 {# Cùng lý do như trang Tổng hợp: nút này mở đúng danh sách mà câu ngay trên
    nó vừa nói tới, thay vì luôn mở bộ lọc "chưa có giá nhập". #}
 {{ biz.coverage_block(detail.coverage, url_for('business_purchase_price',

@@ -9520,3 +9520,195 @@ Chỉ khi chính chủ dự án ra một quyết định mới cho phép một n
 ba, hoặc thay write boundary này bằng một cơ chế khác (vd. một quy trình
 nhập lịch sử có kiểm soát riêng) — không phải suy luận của một phiên làm
 việc. Không mở lại `DEC-181` §7 rationale cũ ("gỡ UI là đủ").
+
+---
+
+## DEC-183
+
+Title:
+PHB-05 triển khai `DEC-PHB02-06` — Target là DỮ LIỆU Owner nhập, khoá theo
+`(năm, tháng, nhân viên)`, đơn vị VND, và `So target = DS quy đổi / Target`
+theo đúng công thức đã đo được của sổ cũ
+
+Date:
+2026-09-05
+
+Task:
+PHB-05 — `EMPLOYEE TARGET V1`. Bounded implementation, nhánh tách từ
+`BASE_HEAD = 756f3a76791fef1b1916878030a3cf5d10dca9fb`.
+
+Authority:
+`IMPLEMENTATION_OF_FROZEN_OWNER_DECISION`. Đây KHÔNG phải một quyết định
+nghiệp vụ mới: `DEC-PHB02-06` (PHB-02) đã freeze rằng Target cấu hình được
+theo từng nhân viên, Owner nhập/sửa được, và không được hard-code. PHB-05
+chỉ trả lời câu "cài đặt nó thế nào", và bản ghi này ghi lại những lựa chọn
+cài đặt đó cùng bằng chứng của chúng. Câu hỏi "Target có nên tồn tại không"
+KHÔNG được mở lại.
+
+Supersedes:
+`D2` của `TASK-PRA-003` ("Target / So target DEFER hoàn toàn khỏi PRA-003")
+đối với vertical NGHIỆP VỤ, và dòng "PHB-05 (Target / So target) = KHÔNG
+implement" của `docs/tasks/PHB-03-summary-employee-business-parity.md` §
+ranh giới. Cả hai là hoãn theo phạm vi slice, không phải cấm — và cả hai
+được gỡ hoãn bằng chính task này. Không bản ghi lịch sử nào bị sửa tại chỗ.
+`D2` vẫn có hiệu lực NGUYÊN VẸN với `/tong-quan` (Tổng quan không có, và
+không được có, Target).
+
+### 1. Bằng chứng Legacy — đọc từ Ô, không đoán từ tên cột
+
+Chỉ thị PHB-05 §16 bắt xác định năm điều trước khi cài đặt. Kết quả, kèm
+nguồn:
+
+```text
+A. Target theo tháng, theo nhân viên?
+   CÓ. `Summary 2026!M4..M9` — mỗi dòng người bán của mỗi tháng một ô Target
+   riêng (docs/analysis/04_HARDCODED_VALUES.md §3).
+
+B. Chỉ tiêu thực tế nào được đem so với Target?
+   DOANH THU QUY ĐỔI (cột `F`), KHÔNG phải Tổng bán (cột `E`).
+   `F4 = G4/5.5%` — docs/analysis/02_FORMULA_MAPPING.md §3.
+
+C. Công thức So target?
+   `N4 = IFERROR(F4/M4,"")` — docs/analysis/02_FORMULA_MAPPING.md §3, và
+   docs/analysis/03_RULE_CLASSIFICATION.md:
+   `PercentTarget = TotalConvertedRevenue / Target` ⟷ `N = F/M`.
+
+D. Target rỗng/bằng 0 xử lý ra sao?
+   `IFERROR(...,"")` ⟹ ô TRỐNG. Không `0 %`, không vô cực, không cap `100 %`.
+   Dòng "Gia dụng" của sổ cũ là ví dụ có thật của "không đặt target".
+
+E. Có Target cấp công ty không?
+   CÓ, nhưng là một con số ĐẶT RIÊNG (`Summary 2026!M11`), KHÔNG phải tổng
+   target của các nhân viên — tổng các dòng người bán không bằng nó.
+```
+
+Điểm E là bằng chứng NGƯỢC với cách cài đặt dễ nhất: cộng dồn target nhân
+viên để ra target công ty sẽ cho một con số mà Owner chưa từng đặt. Vì vậy
+aggregation cấp công ty **DEFER** (mục 4 dưới đây).
+
+Sổ cũ cũng mang CÙNG một target ở HAI đơn vị (`Summary 2026!M11` theo nghìn
+đồng so với `DataChart!AJ2` theo VND nguyên) — một hệ đơn vị kép đã có sẵn
+hậu quả trong bằng chứng. Đó là lý do kho lưu chỉ nhận MỘT đơn vị.
+
+### 2. Hợp đồng nghiệp vụ của Target
+
+```text
+TARGET_SCOPE            = EMPLOYEE_MONTH — khoá (năm, tháng, employee_key)
+TARGET_METRIC           = Converted Sales / DS quy đổi
+SO_TARGET_FORMULA       = DS quy đổi / Target × 100
+TARGET_UNIT             = VND (canonical); trình bày có thể viết nghìn đồng
+TARGET_HARDCODED        = NO — không hằng số, không config seed
+TARGET_EDITABLE         = YES — Owner nhập/sửa/gỡ
+BLANK_TARGET            = CHƯA THIẾT LẬP  → So target N/A
+ZERO_TARGET             = ĐÃ ĐẶT, BẰNG 0  → So target N/A (khác BLANK)
+NEGATIVE_TARGET         = REJECTED
+NON_NUMERIC_TARGET      = REJECTED
+CAP_AT_100_PERCENT      = NO
+COMPANY_TARGET          = DEFERRED
+```
+
+`0` và rỗng cho ra cùng một màn hình trống ở cột So target, nhưng là hai
+trạng thái KHÁC NHAU trong dữ liệu và mang hai câu khác nhau: "Owner đã
+quyết, và quyết bằng không" so với "Owner chưa quyết". Gỡ target là XOÁ
+DÒNG, không phải ghi số `0`.
+
+### 3. Persistence — vì sao một bảng mới, và vì sao khoá đó
+
+```text
+BẢNG   employee_target
+KHOÁ   (year, month, employee_key)
+CỘT    origin · target_vnd · updated_at · updated_by
+```
+
+Không chỗ nào đang có lưu được khẳng định này: `kpi_purchase_price_override`
+là giá của MỘT dòng chứng từ, `employee_attribution_override` là "dòng này
+của ai", `source_snapshot`/`snapshot_line` thuộc vòng đời của MỘT lần nạp
+sổ, và bảng `legacy_*` là số cũ đã đóng băng.
+
+Khoá nghiệp vụ KHÔNG chứa `snapshot_id`/`version_id`/`run_id` nào. Đó là
+toàn bộ cơ chế giữ lời hứa "Target must NOT be owned by a snapshot"
+(PHB-05 §11): đường làm mất Target khi nạp lại sổ không tồn tại về mặt cấu
+trúc, chứ không phải được tránh bằng cẩn thận.
+
+`employee_key` DÙNG LẠI danh tính nhân viên hiện hành đã được nghiệm thu —
+tên đã chuẩn hoá (`employee_normalized`), cùng khoá mà
+`employee_attribution_override` và `config/employees.yaml` dùng. PHB-05
+KHÔNG dựng hệ định danh nhân viên thứ hai và KHÔNG giải bài toán ánh xạ
+người bán lịch sử.
+
+Migration `0006_employee_target`: ADDITIVE thuần — một bảng mới, không đổi
+cột nào của bảng đã có, không backfill, không đụng snapshot, không đụng
+Legacy. `downgrade()` cất dữ liệu vào bảng lưu tạm trước khi xoá, đúng cơ
+chế `B04` mà `0003`/`0004` dùng, vì Target là thứ không tái tạo lại được từ
+bất kỳ file sổ nào.
+
+### 4. Cấp công ty — DEFER, và lý do là bằng chứng chứ không phải phạm vi
+
+`COMPANY_TARGET_AGGREGATION = DEFERRED`. Bằng chứng Legacy (mục 1 điểm E)
+chứng minh target công ty của sổ cũ là một con số Owner ĐẶT RIÊNG, không
+bằng tổng target nhân viên. Vì vậy:
+
+- Cộng dồn target nhân viên để ra target công ty là SAI theo chính bằng
+  chứng — không phải "chưa làm", mà là "đã biết là sai".
+- Một target công ty đặt riêng là một đầu vào Owner THỨ HAI, và PHB-05 V1 đã
+  freeze phạm vi là Target NHÂN VIÊN.
+
+Trang Báo cáo cấp công ty vì thế KHÔNG có ô Target nào; màn hình Target nói
+thẳng điều này ra thay vì im lặng.
+
+### 5. Ranh giới Legacy
+
+Target trong `LEGACY_HISTORY` (cột `M`/`N` của ma trận `/nhan-vien`) giữ
+nguyên CHỈ ĐỌC. PHB-05 không ghi ngược Target vào bản nhập Legacy nào, không
+chạy lại/chuẩn hoá Legacy qua Current, và không tạo luồng sửa số liệu
+workbook lịch sử. `R2`/`DEC-181`/`DEC-182` không bị mở lại: đường ghi
+`LEGACY_HISTORY` vẫn là `POST /du-lieu/legacy` và vẫn khoá.
+
+### 6. Trạng thái CHÍNH THỨC / CHƯA HOÀN CHỈNH
+
+So target THỪA HƯỞNG nguyên trạng thái của DS quy đổi mà nó chia (`R-S7`/
+`R-E8`). Không có hệ trạng thái thứ hai: nhãn lấy từ đúng
+`business_presentation.STATE_LABELS` mà mọi chỉ tiêu phụ thuộc coverage đang
+dùng. Khi DS quy đổi còn `CHƯA HOÀN CHỈNH`, So target hiện con số một phần
+KÈM đúng nhãn đó — không giả vờ chính thức, và cũng không giấu số đi.
+
+### 7. Không mở lại
+
+Không auth/roles, không luồng duyệt Target, không lịch sử phiên bản Target,
+không kế hoạch target theo năm, không forecast, không thưởng/hoa hồng,
+không thiết kế lại định danh nhân viên, không Brand, không Advanced
+Analytics, không khung cấu hình tổng quát, không notification.
+
+Impact:
+Thêm `tools/db/schema.py::employee_target` + migration
+`0006_employee_target` (`ALEMBIC_HEAD` `0005` → `0006`). Thêm đường ghi
+`BusinessDecisionStore.set_employee_target`/`clear_employee_target`/
+`employee_targets`, hai hàm thuần `business_metrics.vs_target_percent`/
+`vs_target_reason`, tầng trình bày `target_cell`/`vs_target_cell`/
+`target_rows`, và khung nhìn con `GET|POST /kinh-doanh/target` mở từ
+`/kinh-doanh/nhan-vien`. `BUSINESS_FORMULAS_CHANGED = NO`.
+`BUSINESS_TOTALS_CHANGED = NO`. `R1_NAV_PRESERVED = YES` (vẫn đúng 4 tab).
+`R2_LEGACY_HISTORY_PRESERVED = YES`. Target nằm NGOÀI `BusinessTotals` một
+cách có chủ đích — đó là cách bảo đảm bằng cấu trúc rằng đặt/sửa Target
+không thể làm đổi một con số nghiệp vụ nào.
+
+Evidence:
+`tests/test_phb05_employee_target.py` — 51 test phủ CASE 1–18 của chỉ thị
+cộng E2E §19 (nạp dữ liệu → POST Flask thật → mở lại trang → snapshot mới →
+Target còn nguyên). Bằng chứng mạnh nhất là dấu vân tay tổng hợp trước/sau
+một lần đổi Target (`test_case_14_changing_a_target_changes_no_business_
+number`): Doanh thu · Số đơn · Tổng số SP · Lợi nhuận KPI · DS quy đổi ·
+coverage · trạng thái giữ nguyên từng chữ số, ở cả cấp kỳ lẫn cấp nhân
+viên. Suite đầy đủ: `2403 passed, 11 skipped` (baseline trước thay đổi
+`2352 passed, 11 skipped` — chênh lệch đúng bằng 51 test mới, không
+regression nào). Golden `58 passed, 2 skipped`; `test_r1_navigation.py`
+14 passed; `test_r2_legacy_history.py` 36 passed;
+`test_dec180_discount_parity.py` 57 passed. Migration kiểm trên schema đã
+tồn tại ở revision `0005`: 14 → 15 bảng, dữ liệu Owner đang có còn nguyên,
+không bảng nào khác bị đụng.
+
+Can Revisit After:
+Target cấp công ty mở lại khi chủ dự án phát biểu con số đó là gì (một đầu
+vào riêng, không phải tổng) — đúng như sổ cũ đã làm. Ngữ nghĩa `So target`
+mở lại chỉ khi chính chủ dự án đổi định nghĩa; không phải suy luận của một
+phiên làm việc.

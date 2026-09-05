@@ -11,6 +11,13 @@ và không có phép tính nghiệp vụ nào của riêng nó. Lý do tồn t�
 tiếp trong `server.py`, mỗi route sẽ tự lặp lại thứ tự bốn bước trên, và lần
 thứ tư ai đó quên áp override giá nhập sẽ là một trang hiện số sai mà không
 test nào bắt được.
+
+PHB-05 thêm MỘT nguồn nữa vào cùng điểm ráp này — Target tháng của nhân viên —
+và cố ý thêm nó ở ĐÂY chứ không vào `business_metrics`: Target ĐỌC kết quả báo
+cáo (DS quy đổi) để tính "So target", nó không tham gia vào bất kỳ phép gộp
+nghiệp vụ nào. Giữ nó ngoài `BusinessTotals` là cách bảo đảm bằng cấu trúc
+rằng đặt/sửa Target không thể làm đổi một con số doanh thu, lợi nhuận hay DS
+quy đổi nào (PHB-05 §21).
 """
 
 from __future__ import annotations
@@ -140,6 +147,67 @@ class BusinessReportService:
 
     def undated_lines(self) -> int:
         return business_queries.undated_lines(self._engine)
+
+    # --- Target tháng của nhân viên (PHB-05, DEC-PHB02-06) ---------------
+
+    def employee_targets(
+        self, period: Optional[tuple[int, int]]
+    ) -> dict[str, Decimal]:
+        """`{tên nhân viên: Target VND}` của MỘT kỳ. Kỳ `None` ⟹ dict rỗng.
+
+        "Toàn bộ dữ liệu" KHÔNG có Target: Target là con số của một THÁNG
+        (`DEC-PHB02-06`, PHB-05 §4), và cộng target của nhiều tháng lại để lấp
+        chỗ trống sẽ là một con số Owner chưa từng đặt. Dict rỗng làm mọi
+        nhân viên hiện "chưa thiết lập" ở khung nhìn đó — đúng sự thật.
+
+        Nhân viên KHÔNG có dòng trong bảng ⟹ vắng mặt khỏi dict. `None` (chưa
+        thiết lập) và `0` (đặt bằng không) vì thế không bao giờ lẫn nhau.
+        """
+        if period is None:
+            return {}
+        year, month = period
+        rows = self._store.employee_targets(year=year, month=month)
+        return {name: row["target_vnd"] for name, row in rows.items()}
+
+    def target_rows(
+        self, *, period: Optional[tuple[int, int]], data: PeriodData,
+    ) -> list[tuple[Optional[str], Optional[str], bm.BusinessTotals, Optional[Decimal]]]:
+        """`(nhân viên, nhóm, chỉ tiêu kỳ, Target)` cho màn hình Target.
+
+        Chỉ tiêu lấy NGUYÊN từ `group_by_employee` — cùng một phân hoạch mà
+        trang Báo cáo đang hiện. Target là cột thứ tư ĐI KÈM, không phải một
+        đầu vào của phép gộp: PHB-05 §21 nói rõ Target ĐỌC kết quả báo cáo,
+        không làm thay đổi nó, và giữ nó ngoài `BusinessTotals` là cách bảo
+        đảm điều đó bằng cấu trúc chứ bằng lời hứa.
+
+        Nhân viên đã được đặt Target nhưng CHƯA có dòng nào trong kỳ vẫn có
+        mặt (Target `>= 0`, chỉ tiêu rỗng): nếu không, Owner đặt target xong
+        mở lại trang và không thấy nó đâu.
+        """
+        targets = self.employee_targets(period)
+        grouped = bm.group_by_employee(data.lines)
+        rows = [(name, group, totals, targets.get(name))
+                for name, group, totals in grouped]
+        seen = {name for name, _group, _totals in grouped}
+        for name in sorted(set(targets) - seen):
+            rows.append((name, None, bm.totals([]), targets[name]))
+        return rows
+
+    def set_employee_target(
+        self, *, period: tuple[int, int], employee_key: str, target_vnd: Decimal,
+    ) -> None:
+        year, month = period
+        self._store.set_employee_target(
+            year=year, month=month, employee_key=employee_key,
+            target_vnd=target_vnd)
+
+    def clear_employee_target(
+        self, *, period: tuple[int, int], employee_key: str,
+    ) -> None:
+        year, month = period
+        self._store.clear_employee_target(
+            year=year, month=month, employee_key=employee_key)
+
 
     def detail_of(
         self, *, order_key: str, product_key: str, occurrence_index: int,

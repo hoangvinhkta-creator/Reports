@@ -1,5 +1,59 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-05 EMPLOYEE TARGET V1 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-05)
+
+Vertical hiện tại: **`PHB-05` — Employee Target V1**, triển khai
+`DEC-PHB02-06` (đã freeze từ PHB-02: Target cấu hình được theo từng nhân
+viên, Owner sửa được, không hard-code). Bản ghi triển khai đầy đủ kèm bằng
+chứng Legacy: `DEC-183` trong `PROJECT/PROJECT_DECISIONS.md`.
+
+Khối R2 bên dưới vẫn đúng về vertical LỊCH SỬ và không bị mục này thay thế:
+PHB-05 không chạm `LEGACY_HISTORY`, không chạm resolver nguồn, và không mở
+lại `DEC-181`/`DEC-182`.
+
+```text
+VERTICAL                   = PHB-05 — EMPLOYEE TARGET V1
+DECISION                   = DEC-183 (triển khai DEC-PHB02-06 đã freeze)
+STATUS                     = IMPLEMENTED_AWAITING_REVIEW — chưa merge
+                             canonical, chưa deploy
+
+BASE_HEAD                  = 756f3a76791fef1b1916878030a3cf5d10dca9fb
+BRANCH                     = claude/phb05-employee-target-ffi68x
+
+TARGET_SCOPE               = EMPLOYEE_MONTH — khoá (năm, tháng, employee_key)
+TARGET_METRIC              = Converted Sales / DS quy đổi
+SO_TARGET_FORMULA          = DS quy đổi / Target × 100  (sổ cũ: `N = F/M`)
+TARGET_UNIT                = VND (canonical), trình bày viết nghìn đồng
+TARGET_HARDCODED           = NO
+TARGET_EDITABLE            = YES
+TARGET_PERSISTS_ACROSS_SNAPSHOTS = YES — khoá nghiệp vụ không chứa
+                             snapshot_id/version_id/run_id nào
+TARGET_ZERO_DISTINCT_FROM_BLANK = YES
+LEGACY_TARGET_EDITABLE     = NO — cột Target/So target của ma trận số cũ
+                             giữ nguyên CHỈ ĐỌC
+COMPANY_TARGET_AGGREGATION = DEFERRED — bằng chứng Legacy chứng minh target
+                             công ty của sổ cũ là số ĐẶT RIÊNG, không bằng
+                             tổng target nhân viên (DEC-183 §1 điểm E)
+
+SCHEMA_CHANGE              = employee_target (migration 0006_employee_target,
+                             ADDITIVE thuần); ALEMBIC_HEAD 0005 → 0006
+UI_SURFACE                 = khung nhìn con GET|POST /kinh-doanh/target, mở
+                             từ /kinh-doanh/nhan-vien. KHÔNG thêm tab chính.
+
+BUSINESS_FORMULAS_CHANGED  = NO
+BUSINESS_TOTALS_CHANGED    = NO
+R1_NAV_PRESERVED           = YES (Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu)
+R2_LEGACY_HISTORY_PRESERVED = YES
+
+FULL_SUITE                 = 2403 passed, 11 skipped
+                             (baseline trước thay đổi: 2352 passed, 11
+                             skipped — chênh lệch đúng 51 test PHB-05 mới,
+                             không regression nào)
+GOLDEN                     = 58 passed, 2 skipped
+NEXT_VERTICAL_ACTION       = Mở phiên Independent Review PHB-05 MỚI trên
+                             đúng FINAL_HEAD của nhánh trên.
+```
+
 ## CANONICAL CURRENT STATE — R2 UNIFIED LEGACY_HISTORY (AUTHORITATIVE, 2026-09-05)
 
 Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-181` + `DEC-182`). Chủ

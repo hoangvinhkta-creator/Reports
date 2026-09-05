@@ -445,6 +445,71 @@ def converted_sales(
     return (Decimal(profit) / Decimal(rate)).quantize(_CENT, rounding=ROUND_HALF_UP)
 
 
+# `PHB-05` — ba lý do KHÁC NHAU khiến "So target" không có số. Chúng không
+# được gộp: mỗi lý do dẫn tới một câu khác nhau và một việc khác nhau cho
+# Owner (đặt target · sửa target · hoàn thiện giá nhập).
+TARGET_UNSET = "TARGET_UNSET"      # Owner CHƯA đặt target cho người này/kỳ này
+TARGET_ZERO = "TARGET_ZERO"        # Owner ĐÃ đặt target, và đặt bằng 0
+TARGET_NO_ACTUAL = "TARGET_NO_ACTUAL"  # chưa có DS quy đổi nào để so
+
+
+def vs_target_percent(
+    converted: Optional[Decimal], target: Optional[Decimal]
+) -> Optional[Decimal]:
+    """`So target % = DS quy đổi / Target × 100`, hoặc `None`.
+
+    ## Vì sao là DS QUY ĐỔI, không phải Doanh thu bán hàng
+
+    Đây là công thức của chính sổ cũ, đọc từ ô chứ không đoán từ tên cột:
+    `Summary 2026!N4 = IFERROR(F4/M4,"")`, trong đó `F` là **Doanh thu quy
+    đổi** (`F4 = G4/5.5%`) và `M` là Target
+    (`docs/analysis/02_FORMULA_MAPPING.md` §3, `03_RULE_CLASSIFICATION.md`:
+    `PercentTarget = TotalConvertedRevenue / Target` ⟷ `N = F/M`). Thay `F`
+    bằng Tổng bán (`E`) sẽ cho ra một tỉ lệ lớn hơn nhiều lần và không còn là
+    chỉ tiêu mà Owner đã dùng để đánh giá nhân viên.
+
+    ## Ba nhánh `None`, và không nhánh nào in ra một con số
+
+    `IFERROR(...,"")` của sổ cũ để TRỐNG khi `M` rỗng hoặc bằng 0 — nó không
+    viết `0 %`, và không cap ở `100 %`. Ở đây giữ đúng như vậy:
+
+        target is None ⟹ chưa thiết lập     ⟹ `None`
+        target == 0    ⟹ không chia được    ⟹ `None`
+        converted is None ⟹ chưa có số để so ⟹ `None`
+
+    Vượt target thì trả về đúng số vượt (`120 %`): cap ở `100 %` là bịa một
+    trần không có trong sổ và làm mất chính thông tin Owner cần.
+
+    Hàm này KHÔNG đọc trạng thái CHÍNH THỨC/CHƯA HOÀN CHỈNH và không quyết
+    định gì về nó: nó nhận vào một con số DS quy đổi, và con số đó mang trạng
+    thái nào thì "So target" thừa hưởng đúng trạng thái ấy (PHB-05 §9). Việc
+    dán nhãn là của tầng trình bày, nơi nhãn đó đã tồn tại — PHB-05 không
+    dựng hệ trạng thái thứ hai.
+    """
+    if converted is None or target is None or target == 0:
+        return None
+    return (Decimal(converted) / Decimal(target)
+            * Decimal(100)).quantize(_CENT, rounding=ROUND_HALF_UP)
+
+
+def vs_target_reason(
+    converted: Optional[Decimal], target: Optional[Decimal]
+) -> Optional[str]:
+    """Mã lý do khi `vs_target_percent` không có số; `None` khi có số.
+
+    Thứ tự kiểm CÓ Ý NGHĨA: "chưa đặt target" được nói trước "chưa có DS quy
+    đổi", vì đặt target là việc Owner làm được ngay, còn DS quy đổi phụ thuộc
+    việc hoàn thiện giá nhập.
+    """
+    if target is None:
+        return TARGET_UNSET
+    if target == 0:
+        return TARGET_ZERO
+    if converted is None:
+        return TARGET_NO_ACTUAL
+    return None
+
+
 def month_over_month_percent(
     current: Optional[Decimal], previous: Optional[Decimal]
 ) -> Optional[Decimal]:
@@ -653,6 +718,8 @@ __all__ = [
     "PROVENANCE_AUTO", "PROVENANCE_MANUAL", "PROVENANCE_MANUAL_OVERRIDE",
     "PROVENANCE_PENDING", "QUALIFYING_SALE_PRICE_THRESHOLD",
     "STATE_INCOMPLETE", "STATE_OFFICIAL",
+    "TARGET_NO_ACTUAL", "TARGET_UNSET", "TARGET_ZERO",
     "converted_sales", "for_employee", "group_by_employee",
-    "month_over_month_percent", "totals",
+    "month_over_month_percent", "totals", "vs_target_percent",
+    "vs_target_reason",
 ]
