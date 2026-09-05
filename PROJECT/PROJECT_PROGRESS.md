@@ -1,5 +1,104 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — REPAIR N-01/F-N02/F-N03 = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
+
+Bản sửa chặn BOUNDED trên đúng `BASE_HEAD = b5b41f1239f6bfd259eba17b6ac119e448cc0b83`
+(khối `NAV + CHART + INLINE IDENTITY` ngay bên dưới) — đóng ba phát hiện còn
+mở của journal quyết định Product Identity và một câu chữ sai của biểu đồ.
+KHÔNG merge canonical, KHÔNG deploy, KHÔNG mở UX mới, KHÔNG đổi thẩm quyền
+Product Identity, KHÔNG đổi công thức nghiệp vụ timeline. Khối `NAV + CHART
++ INLINE IDENTITY` GIỮ NGUYÊN không viết lại — mọi mục PRESERVED của nó vẫn
+đúng sau bản sửa này (kiểm lại bằng `FULL_SUITE`/`GOLDEN` bên dưới).
+
+```text
+VERTICAL                   = JOURNAL SAFETY (N-01) + PAGINATION (F-N02)
+                             + CHART NOTE WORDING (F-N03)
+STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
+                             Review trên đúng FINAL_HEAD. KHÔNG merge
+                             canonical, KHÔNG deploy.
+
+N-01 — GHI ĐỒNG THỜI VÀO CÙNG VỊ TRÍ KẾ TIẾP
+CONDITIONAL_R2_WRITE        = YES — `tools/storage/r2_store.put_json_if_absent`
+                             nay là ĐÚNG một `put_object(..., IfNoneMatch="*")`,
+                             không còn `head_object` đứng trước
+HEAD_THEN_PUT_AUTHORITY_GUARD = NO (đã gỡ — khe race đã đóng)
+CONCURRENT_SAME_SEQUENCE   = ONE_SUCCESS_ONE_CONFLICT (kiểm bằng
+                             `threading.Barrier` ép hai luồng cùng đứng lại
+                             ở checkpoint của `put_object` trước khi ghi)
+LOST_OWNER_CONFIRMATION_RACE = CLOSED
+LOSER_RETRY_SUCCEEDS       = YES (nạp lại rồi ghi ở N+1)
+RESTART_AFTER_RACE_PRESERVES_BOTH = YES (journal mới trên cùng bucket vẫn
+                             thấy đủ cả hai bản ghi, đúng thứ tự)
+
+F-N02 — PHÂN TRANG LOG QUYẾT ĐỊNH
+R2_LIST_PAGINATION         = YES — `tools/storage/r2_store.list_all_keys`
+                             (mới), phân trang triệt để qua
+                             `ContinuationToken`, không dừng ở `_SCAN_LIMIT`
+                             (5000, vẫn giữ nguyên cho `list_run_keys_desc`
+                             của lịch sử `runs/` — không đổi hành vi đó)
+JOURNAL_5003_EVENTS_READ   = PASS — `pull()` thấy đủ 5003 event
+NEXT_SEQUENCE_AFTER_5003   = 5004
+GAP_ACROSS_PAGE_DETECTED   = YES — thiếu key ngay sau ranh giới trang đầu
+                             (1000) vẫn nổ `MappingIntegrityError`
+
+F-N03 — CÂU CHỮ CHÚ THÍCH BIỂU ĐỒ
+CHART_NOTE_MONTH_WORDING   = PASS — "Mỗi mốc chỉ lấy từ MỘT nguồn" (sai với
+                             chính hành vi gộp quý/năm) đổi thành "Mỗi tháng
+                             chỉ lấy từ một nguồn có thẩm quyền; quý và năm
+                             có thể tổng hợp các tháng từ nhiều nguồn lịch
+                             sử/hiện tại". Không thêm bộ chọn/provenance UI.
+
+BẢO TOÀN (kiểm lại, không phải suy diễn):
+FA_MULTI_WORKER_PRESERVED  = YES
+FB_DURABILITY_PRESERVED    = YES
+TRACKING_AUTHORITY_PRESERVED = YES (PHB-01 nguyên vẹn)
+MONTH_FIRST_AUTHORITY_PRESERVED = YES
+Q3_2026_SAMPLE              = 111000000 (không đổi)
+F02_PRESERVED               = YES
+F03_PRESERVED                = YES
+EMPLOYEE_WORKSPACE_PRESERVED = YES
+INLINE_PRODUCT_IDENTITY_PRESERVED = YES
+
+NEW_MIGRATION               = NONE
+ALEMBIC_HEAD                = 0007_employee_workspace (không đổi)
+BUSINESS_FORMULAS_CHANGED   = NO
+
+F01_PRODUCTION_STATUS       = PENDING_PRODUCTION_EXECUTION (không đổi —
+                             không có DSN production trong phiên; checker
+                             không đổi)
+
+FULL_SUITE                  = 2581 passed, 11 skipped (trước sửa: 2569
+                             passed, 11 skipped — chênh lệch đúng +12 test
+                             mới)
+GOLDEN                       = 58 passed, 2 skipped (không đổi)
+GOVERNANCE_VALIDATORS        = 4 PASS · 1 FAIL (đúng REFERENCE_INTEGRITY có
+                             sẵn từ trước, không do task này gây ra)
+PRE_EXISTING_ENV_ISSUE       = `test_105d_boundaries.py::
+                             TestG25GoldenBaselineUnchanged::
+                             test_protected_golden_artifacts_match_the_task_105e_review_base`
+                             FAIL cả trước và sau sửa — `git diff` đối chiếu
+                             một commit không có trong lịch sử clone hiện tại
+                             (`fatal: bad object 740f396a...`), môi trường
+                             clone nông, không liên quan tới N-01/F-N02/F-N03
+
+MUTATION_PROBES              = M1 PASS (khôi phục HEAD-rồi-PUT ⟹ race test
+                             fail — BOTH_SUCCESS) · M2 PASS (cả hai PUT có
+                             điều kiện cùng "thành công" ⟹ test fail) · M3
+                             PASS (bỏ trang sau trang đầu ⟹ test 5003/2500
+                             fail) · M4 PASS (bỏ kiểm lỗ hổng ⟹ test gap
+                             fail) · M5 PASS (khôi phục "mỗi mốc" ⟹ test
+                             wording fail). Cả năm đều đã chạy thật, không
+                             suy diễn, và mã nguồn đã khôi phục đúng bản sửa
+                             sau mỗi lần probe (đối chiếu `diff` = identical).
+
+BLOCKING_FINDINGS            = NONE
+SCOPE_DRIFT                  = NO
+NEXT_VERTICAL_ACTION         = Mở Independent Review MỚI, độc lập, trên đúng
+                             FINAL_HEAD của nhánh này.
+```
+
+Khối `NAV + CHART + INLINE IDENTITY` bên dưới GIỮ NGUYÊN, không viết lại.
+
 ## CANONICAL CURRENT STATE — NAV + CHART + INLINE IDENTITY = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
 
 Vertical hiện tại: **thanh tab ba mục · MỘT biểu đồ doanh thu theo thời gian ·

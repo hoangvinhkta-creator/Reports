@@ -98,23 +98,23 @@ def put_json_if_absent(
 ) -> None:
     """Ghi mới; raise ``RunAlreadyExistsError`` nếu key đã tồn tại.
 
-    HEAD-rồi-PUT, không ``IfNoneMatch`` điều kiện — một khe race lý thuyết
-    giữa hai lời gọi đồng thời CÙNG run_id, nhưng run_id luôn do server sinh
-    mới (trùng là lỗi lập trình, không phải kịch bản concurrency thật).
+    PUT có điều kiện (``IfNoneMatch="*"``) — kiểm tra "đã tồn tại chưa" và
+    ghi xảy ra trong ĐÚNG một request phía R2/S3, không còn khe hở giữa hai
+    request rời nhau (HEAD rồi PUT) như bản trước: hai lời gọi đồng thời
+    tuyệt đối cùng key, đúng một bên thắng — bên kia nhận lỗi precondition
+    thẳng từ server, không phải suy luận từ hai lần đọc rời nhau nữa.
     """
     client = client or _client(env)
     bucket = _bucket(env)
-    try:
-        client.head_object(Bucket=bucket, Key=key)
-    except Exception as exc:
-        if not _is_not_found(exc):
-            raise StorageUnavailableError(str(exc)) from exc
-    else:
-        raise RunAlreadyExistsError(key)
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     try:
-        client.put_object(Bucket=bucket, Key=key, Body=body, ContentType="application/json")
+        client.put_object(
+            Bucket=bucket, Key=key, Body=body, ContentType="application/json",
+            IfNoneMatch="*",
+        )
     except Exception as exc:
+        if _is_precondition_failed(exc):
+            raise RunAlreadyExistsError(key) from exc
         raise StorageUnavailableError(str(exc)) from exc
 
 
@@ -161,6 +161,40 @@ def list_keys(
             keys.extend(item["Key"] for item in response.get("Contents", []))
             token = response.get("NextContinuationToken")
             if not token or len(keys) >= max_keys:
+                break
+    except Exception as exc:
+        raise StorageUnavailableError(str(exc)) from exc
+    return sorted(keys)
+
+
+def list_all_keys(
+    prefix: str, *, client=None, env: Optional[dict[str, str]] = None,
+) -> list[str]:
+    """Mọi key dưới ``prefix``, sắp TĂNG dần theo tên, không giới hạn số
+    lượng — phân trang triệt để qua ``ContinuationToken`` tới khi R2/S3 báo
+    hết trang, không dừng ở một ngưỡng đếm cứng như ``list_keys``.
+
+    Khác ``list_keys`` (dùng cho lịch sử ``runs/`` — cố ý dừng ở
+    ``_SCAN_LIMIT`` vì màn hình chỉ cần N run gần nhất, dư ra không sao):
+    nơi gọi hàm này — journal quyết định Product Identity — không có khái
+    niệm "gần nhất". Thiếu một key ở giữa log biến phần còn lại thành một
+    state một nửa, và log lỡ dừng ở đúng ranh giới một trang sẽ cho log ghi
+    tiếp đè lên chính event đã có (append tưởng vị trí đó còn trống). Không
+    được phép dừng giữa chừng dù bucket có bao nhiêu key.
+    """
+    client = client or _client(env)
+    bucket = _bucket(env)
+    keys: list[str] = []
+    token = None
+    try:
+        while True:
+            kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
+            if token:
+                kwargs["ContinuationToken"] = token
+            response = client.list_objects_v2(**kwargs)
+            keys.extend(item["Key"] for item in response.get("Contents", []))
+            token = response.get("NextContinuationToken")
+            if not token:
                 break
     except Exception as exc:
         raise StorageUnavailableError(str(exc)) from exc
@@ -215,3 +249,10 @@ def _error_code(exc: Exception) -> str:
 
 def _is_not_found(exc: Exception) -> bool:
     return _error_code(exc) in {"NoSuchKey", "404", "NotFound"}
+
+
+def _is_precondition_failed(exc: Exception) -> bool:
+    """Mã lỗi mà S3/R2 trả về khi ``IfNoneMatch`` bị vi phạm (key đã tồn
+    tại) — tên mã khác nhau giữa các bản SDK/endpoint nên gom cả ba dạng đã
+    thấy trong thực tế."""
+    return _error_code(exc) in {"PreconditionFailed", "412", "ConditionalRequestConflict"}

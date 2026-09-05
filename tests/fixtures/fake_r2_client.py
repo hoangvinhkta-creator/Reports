@@ -6,6 +6,7 @@ module đó đã hỗ trợ cho mục đích test.
 
 from __future__ import annotations
 
+import threading
 from typing import Any, Callable, Optional, Union
 
 
@@ -35,6 +36,18 @@ class FakeR2Client:
         self.objects: dict[str, bytes] = {}
         self.fail: dict[str, Union[Exception, Callable[[], Exception]]] = {}
         self.calls: list[tuple[str, str]] = []
+        #: Khoá bảo vệ đúng đoạn kiểm-tra-rồi-ghi của PUT có điều kiện
+        #: (``IfNoneMatch="*"``) — mô phỏng một request PUT có điều kiện thật
+        #: là MỘT thao tác nguyên tử phía server, không phải hai bước rời
+        #: nhau mà caller tự ghép.
+        self._conditional_write_lock = threading.Lock()
+        #: Tên method -> callable() gọi ĐÚNG trước bước method đó đọc trạng
+        #: thái để quyết định absent/present. Test tiêm một
+        #: ``threading.Barrier`` vào đây để ép hai luồng cùng đứng lại ở
+        #: đúng điểm quyết định trước khi cho cả hai đi tiếp — mô phỏng đúng
+        #: hình dạng một cuộc đua thật giữa hai request đồng thời, thay vì
+        #: trông chờ vào may rủi lịch chạy luồng của hệ điều hành.
+        self.before_check: dict[str, Callable[[], None]] = {}
 
     def put_raw(self, key: str, data: bytes) -> None:
         """Ghi thẳng, bỏ qua mọi logic của r2_store — dùng để dựng sẵn dữ
@@ -47,9 +60,15 @@ class FakeR2Client:
             return
         raise trigger() if callable(trigger) else trigger
 
+    def _checkpoint(self, method: str) -> None:
+        hook = self.before_check.get(method)
+        if hook is not None:
+            hook()
+
     def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         self.calls.append(("head_object", Key))
         self._maybe_fail("head_object")
+        self._checkpoint("head_object")
         if Key not in self.objects:
             raise FakeClientError("404")
         return {"ContentLength": len(self.objects[Key])}
@@ -63,9 +82,22 @@ class FakeR2Client:
 
     def put_object(
         self, *, Bucket: str, Key: str, Body: bytes, ContentType: str = "",
+        IfNoneMatch: Optional[str] = None,
     ) -> dict[str, Any]:
         self.calls.append(("put_object", Key))
         self._maybe_fail("put_object")
+        self._checkpoint("put_object")
+        if IfNoneMatch == "*":
+            # Nguyên tử thật: kiểm tra rồi ghi trong CÙNG một khoá, đúng
+            # ngữ nghĩa một request PUT có điều kiện phía R2/S3 — hai luồng
+            # cùng lọt qua `_checkpoint` rồi mới tới đây vẫn chỉ có một
+            # luồng thắng.
+            with self._conditional_write_lock:
+                if Key in self.objects:
+                    raise FakeClientError(
+                        "PreconditionFailed", "conditional PUT: key đã tồn tại")
+                self.objects[Key] = bytes(Body)
+            return {}
         self.objects[Key] = bytes(Body)
         return {}
 
@@ -76,4 +108,10 @@ class FakeR2Client:
         self.calls.append(("list_objects_v2", Prefix))
         self._maybe_fail("list_objects_v2")
         matching = sorted(key for key in self.objects if key.startswith(Prefix))
-        return {"Contents": [{"Key": key} for key in matching]}
+        start = int(ContinuationToken) if ContinuationToken else 0
+        page = matching[start:start + MaxKeys]
+        result: dict[str, Any] = {"Contents": [{"Key": key} for key in page]}
+        next_start = start + len(page)
+        if next_start < len(matching):
+            result["NextContinuationToken"] = str(next_start)
+        return result

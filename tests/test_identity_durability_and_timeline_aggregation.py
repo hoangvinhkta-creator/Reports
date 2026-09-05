@@ -739,6 +739,25 @@ def test_the_chart_scope_note_sits_inside_the_chart_module(repository, worker):
         [], granularity=rt.MONTH)["scope_note"] == rt.CHART_SCOPE_NOTE
 
 
+def test_f_n03_chart_note_resolves_authority_by_month_not_by_bar(repository, worker):
+    """`F-N03` — câu chú thích dưới biểu đồ từng nói "Mỗi mốc chỉ lấy từ MỘT
+    nguồn", sai với chính hành vi gộp quý/năm: MỘT cột quý/năm được phép
+    gộp nhiều THÁNG có origin khác nhau (`§ Q3 sample`), miễn mỗi THÁNG bên
+    trong nó chỉ giải đúng một nguồn. Câu chữ phải nói đúng đơn vị được giải
+    thẩm quyền — THÁNG — không phải "mốc" (một mốc quý/năm không phải một
+    đơn vị thẩm quyền)."""
+    note = business_presentation.revenue_chart([], granularity=rt.MONTH)["note"]
+    assert note == rt.CHART_NOTE
+    assert "mốc" not in note.lower()
+    assert "tháng" in note.lower()
+    assert "quý" in note.lower() and "năm" in note.lower()
+
+    persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])
+    client, _ = worker("a")
+    html = body(client, "/kinh-doanh")
+    assert rt.CHART_NOTE in html
+
+
 def test_the_chart_stays_one_chart_with_no_new_page_or_filter(repository, worker):
     """`§14` — chỉ sửa chỗ mập mờ, KHÔNG thêm trang hay hệ thống lọc mới."""
     persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])

@@ -147,9 +147,8 @@ _MONTHS_IN_BUCKET = {MONTH: 1, QUARTER: 3, YEAR: 12}
 
 CHART_NOTE = (
     "Doanh thu chính thức theo thời gian — đã trừ các dòng Owner loại khỏi "
-    "báo cáo. Mỗi mốc chỉ lấy từ MỘT nguồn: mốc nào đã có sổ nạp thì dùng sổ "
-    "nạp, mốc chỉ còn bản ghi lịch sử thì dùng bản ghi lịch sử. Không mốc nào "
-    "là hai nguồn cộng lại."
+    "báo cáo. Mỗi tháng chỉ lấy từ một nguồn có thẩm quyền; quý và năm có "
+    "thể tổng hợp các tháng từ nhiều nguồn lịch sử/hiện tại."
 )
 
 LEGACY_POINT_NOTE = "Mốc này lấy từ bản ghi lịch sử — chưa có sổ nạp cho kỳ đó."

@@ -61,13 +61,19 @@ một người ghi được, người kia nhận `RunAlreadyExistsError` và b�
 `JournalWriteConflict`. Store hoàn lại state trong bộ nhớ rồi ném tiếp — tức
 đúng `INV-59`/`INV-60` (nạp lại và reconcile), chỉ phát hiện ở tầng lưu trữ.
 
-`put_json_if_absent` dùng HEAD-rồi-PUT, nên vẫn còn một khe race lý thuyết
-hẹp giữa hai lần ghi ĐỒNG THỜI tuyệt đối vào cùng một khoá. Đây là hạn chế
-đã biết và được nói ra, không phải một điều được giả vờ là đã giải quyết: nó
-hẹp hơn hẳn khe race hiện tại (hai worker ghi hai file khác nhau và mất trắng
-một bên sau redeploy), và thu hẹp nốt nó cần một phép ghi có điều kiện
-(`If-None-Match`) — một thay đổi ở tầng adapter R2, ngoài phạm vi bản sửa
-chặn này.
+`put_json_if_absent` nay dùng PUT có điều kiện (`If-None-Match: *`, xem
+`tools/storage/r2_store.py`): kiểm tra "còn trống" và ghi xảy ra trong ĐÚNG
+một request phía R2/S3, nên khe race giữa hai lần ghi ĐỒNG THỜI tuyệt đối
+vào cùng một khoá đã đóng — không còn khoảng cách giữa một HEAD và một PUT
+rời nhau để hai người viết cùng lọt qua.
+
+## Phân trang khi liệt kê
+
+`pull()` gọi `r2_store.list_all_keys` — phân trang triệt để qua
+`ContinuationToken` tới khi hết trang, không dừng ở một ngưỡng đếm cứng
+(khác `list_keys` dùng cho lịch sử `runs/`). Một log quyết định không có
+khái niệm "gần đây là đủ": dừng giữa chừng nghĩa là đọc thiếu event VÀ làm
+`append()` kế tiếp tưởng nhầm một vị trí đã có event là còn trống.
 """
 
 from __future__ import annotations
@@ -133,7 +139,7 @@ class ObjectStoreIdentityJournal:
         còn lại thành một state một nửa — nó là lỗi, không phải một dữ liệu
         thiếu có thể bỏ qua.
         """
-        keys = r2_store.list_keys(
+        keys = r2_store.list_all_keys(
             EVENT_KEY_PREFIX, client=self._client, env=self._env)
         if len(keys) <= self._count:
             return []
