@@ -2,17 +2,28 @@
 
 ## CANONICAL CURRENT STATE — R2 UNIFIED LEGACY_HISTORY (AUTHORITATIVE, 2026-09-05)
 
-Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-181`). Chủ dự án đơn
-giản hoá mô hình sản phẩm: **không còn khái niệm nhiều bản Legacy để chọn**.
-Khối S122 bên dưới vẫn đúng về S122; mục này đúng về trạng thái *hiện tại*
-của vertical lịch sử. `NEXT_VERTICAL_ACTION` của S122 chính là phiên này.
+Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-181` + `DEC-182`). Chủ
+dự án đơn giản hoá mô hình sản phẩm: **không còn khái niệm nhiều bản Legacy
+để chọn**. `DEC-182` sửa lỗi thẩm quyền của `DEC-181` §7 (gỡ UI KHÔNG đủ để
+khoá — phải chặn cứng ở tầng route). R2 (kèm repair R2-B01 khoá write
+boundary) đã qua Independent Review lần hai PASS và đã Controlled
+Integration vào canonical trong phiên này qua fast-forward thuần tuý —
+không merge commit, không sửa business code thêm. Khối S122 bên dưới vẫn
+đúng về S122; mục này đúng về trạng thái *hiện tại* của vertical lịch sử.
 
 ```text
 VERTICAL                   = R2 — UNIFIED LEGACY_HISTORY
-DECISION                   = DEC-181 (OWNER_DECISION, FROZEN)
-BASE_HEAD                  = f0c644fd828b37d35a8363c01f11530727272f01
-STATUS                     = IMPLEMENTED — chờ Independent Review; CHƯA
-                             merge vào canonical, CHƯA deploy
+DECISION                   = DEC-181 + DEC-182 (OWNER_DECISION, FROZEN)
+STATUS                     = INTEGRATED — Independent Review PASS, đã fast-
+                             forward vào canonical, CHƯA deploy production
+
+REVIEWED_CODE_HEAD          = 43b2ba74cf3731e8d40c3c31d4a5caae6970f0e4
+REVIEWED_SOURCE_BRANCH      = claude/extract-upload-repo-gq2ws4-er4lj1
+INDEPENDENT_REVIEW          = PASS (re-review sau R2-B01)
+R2_B01_CLOSED                = YES — `POST /du-lieu/legacy` chặn cứng bằng
+                             HTTP 409 TRƯỚC khi đọc file/parse/chạm
+                             repository; không còn đường tạo nguồn Legacy
+                             thứ ba dù qua HTTP.
 
 LEGACY_LOGICAL_SOURCES     = 1 (LEGACY_HISTORY)
 LEGACY_PHYSICAL_PROVENANCE_FILES = 2
@@ -26,9 +37,11 @@ IS_CURRENT_BUSINESS_AUTHORITY = NO — cột `legacy_import.is_current` còn l�
                              nó KHÔNG đổi kỳ nào có, số nào ra, hay MoM nào.
 SELECTABLE_LEGACY_UI       = NO — "Bản đang xem" / "Chọn bản này" đã gỡ;
                              route `POST /du-lieu/legacy/<id>/chon` đã gỡ.
-NEW_LEGACY_UI              = NO — ô "NHẬP BẢN LEGACY" đã gỡ khỏi `/du-lieu`;
-                             endpoint `POST /du-lieu/legacy` GIỮ cho tương
-                             thích/vận hành (`DEC-181` §7).
+POST_LEGACY_IMPORT_ALLOWED = NO — endpoint `POST /du-lieu/legacy` GIỮ đăng
+                             ký (tương thích liên kết cũ, `DEC-181` §7) nhưng
+                             `DEC-182` bắt nó trả 409 LOCKED cho MỌI request,
+                             không tạo import nào.
+LEGACY_HISTORY_LOCKED      = YES
 AVAILABLE_2025_AND_2026_SIMULTANEOUSLY = YES
 AMBIGUITY_BEHAVIOUR        = FAIL LOUD — `LegacyHistoryAmbiguityError` → HTTP
                              409 kèm tên năm và các bản nhập mâu thuẫn.
@@ -40,21 +53,24 @@ BUSINESS_TOTALS_CHANGED    = NO
 R1_NAV_PRESERVED           = YES (Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu)
 ROOT_LANDING_UNIFIED       = YES — kỳ Current Engine vẫn LUÔN thắng; chỉ khi
                              không có kỳ số mới nào thì `/` mở kỳ lịch sử mới
-                             nhất, dùng lại chính bộ giải nguồn của R2.
+                             nhất, dùng lại chính bộ giải nguồn của R2. Fallback
+                             `/` → `/nhan-vien?ky=<kỳ Legacy>` KHÔNG đổi trong
+                             lần tích hợp này — chủ dự án đã nói đây chưa phải
+                             UX cuối cùng mong muốn, nhưng NON-BLOCKING và
+                             ngoài phạm vi R2.
 EMPLOYEE_IDENTITY_MAPPING  = KHÔNG mở (`DEC-180` §4 / `DEC-181` §9 giữ nguyên)
 
-VALIDATION                 = R2 focused 34 passed · full suite 2355 passed,
-                             11 skipped (baseline 2321 passed, 11 skipped) ·
-                             golden PASS · DEC-180 / R1 nav / PHB-03 / PHB-04
-                             PASS · validator governance = baseline.
-MUTATION_PROBES            = dựng lại cổng `is_current` ⟹ 14 FAIL; bản
-                             `Summary 2025` nhúng thắng nguồn chuẩn ⟹ 8 FAIL;
-                             bỏ hệ số kVND→VND ⟹ 3 FAIL.
+VALIDATION                 = full suite 2352 passed, 11 skipped · golden PASS
+                             · R2 focused / DEC-180 / R1 nav 107 passed (36 +
+                             57 + 14) trước fast-forward · `git diff --check`
+                             sạch · validator governance = baseline.
 BLOCKING_FINDINGS          = NONE
+DEFERRED_FINDINGS          = R2-N01..R2-N08 — non-blocking, KHÔNG tự động
+                             tạo task; không repair trong phiên tích hợp này.
 SCOPE_DRIFT                = NO
-NEXT_VERTICAL_ACTION       = Mở session Claude ĐỘC LẬP review đúng FINAL_HEAD
-                             của nhánh R2; chỉ sau khi PASS mới Controlled
-                             Integration vào canonical.
+NEXT_VERTICAL_ACTION       = Chờ deploy đúng canonical HEAD hiện tại rồi chạy
+                             production E2E cho LEGACY_HISTORY hợp nhất và
+                             bàn giao Aug-2026 (Legacy) → Sep-2026 (Current).
 ```
 
 
