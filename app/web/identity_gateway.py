@@ -60,6 +60,7 @@ from app.modules.product.identity.mapping import (
     MappingStatus, SOURCE_SYSTEM_REPORTS_SALES,
 )
 from app.modules.product.identity.store import JsonlProductIdentityStore
+from app.web import identity_journal
 
 #: Log quyết định Product Identity của Phase 1. Cùng đường dẫn mà CLI dùng —
 #: một đường dẫn thứ hai sẽ là một store thứ hai, đúng thứ `D-06` cấm.
@@ -100,9 +101,37 @@ class Candidate:
         return f"{self.code} — {self.description}" if self.description else self.code
 
 
+class DurableStoreUnavailableError(RuntimeError):
+    """Môi trường đòi nơi lưu bền nhưng không có — `F-B`, fail closed."""
+
+
 def build_store(
     log_path: Optional[Path] = None, index_path: Optional[Path] = None,
+    *, env=None,
 ) -> JsonlProductIdentityStore:
+    """Store quyết định Product Identity, lưu ở nơi BỀN nếu có (`F-B`).
+
+    Thứ tự chọn, và lý do của từng nhánh:
+
+    1. **Journal dùng chung (R2) nếu đã cấu hình.** Đây là nhánh của bản Web:
+       nhiều worker cùng đọc một log, và log sống qua redeploy. Xem
+       `app/web/identity_journal.py` § Vì sao là R2.
+    2. **`REPORTS_REQUIRE_R2` bật mà R2 chưa cấu hình ⟹ LỖI.** Rơi về file
+       cục bộ ở đây là rơi về đúng `F-B`: mọi phân loại của Owner biến mất
+       lặng lẽ ở lần deploy kế tiếp. Thà không có bề mặt phân loại còn hơn
+       có một bề mặt hứa hão.
+    3. **File cục bộ.** Máy Owner (`Open Reports.command`), dev, test — đĩa
+       thật, một tiến trình, bền qua khởi động lại. Nhánh này KHÔNG đổi hành
+       vi so với trước bản sửa.
+    """
+    journal = identity_journal.build(env)
+    if journal is not None:
+        return JsonlProductIdentityStore(journal=journal)
+    if identity_journal.requires_durable_store(env):
+        raise DurableStoreUnavailableError(
+            "REPORTS_REQUIRE_R2 yêu cầu nơi lưu bền cho quyết định Product "
+            "Identity, nhưng R2 chưa cấu hình đủ; KHÔNG rơi về log trên đĩa "
+            "ephemeral của container — nó biến mất ở lần deploy kế tiếp.")
     return JsonlProductIdentityStore(
         log_path=log_path or DEFAULT_LOG_PATH,
         index_path=index_path or DEFAULT_INDEX_PATH)
@@ -116,14 +145,24 @@ def confirmed_keys(store) -> frozenset[str]:
     lại log, không đọc index — vì `INV-63` nói LOG THẮNG, và một index cũ ở
     đây sẽ làm màn hình nói rằng một mặt hàng vừa được phân loại thì vẫn chưa.
 
-    Store không đọc được (chưa có file, đĩa lỗi) ⟹ tập RỖNG, không phải một
-    lỗi trang: hệ quả là màn hình hiện đúng trạng thái mà pipeline đã lưu —
-    thận trọng theo hướng "chưa phân loại", không theo hướng ngược lại.
+    `refresh()` chứ không `current_revision()` — đây là sửa `F-A`. Với
+    `gunicorn --workers 2`, worker đang render trang KHÔNG nhất thiết là
+    worker đã ghi xác nhận; `current_revision()` chỉ đếm event trong bộ nhớ
+    của CHÍNH tiến trình này, nên nó sẽ trả lời câu hỏi "đã phân loại chưa"
+    bằng ảnh chụp riêng của một worker thay vì bằng log dùng chung. Chi phí
+    là một lần chạm nơi lưu cho mỗi lần tải trang — đúng đánh đổi mà
+    `_confirmed_identity_keys` đã tuyên bố là chấp nhận, chỉ nay nó mới thật
+    sự được thực hiện qua biên tiến trình.
+
+    Store không đọc được (chưa có file, đĩa lỗi, R2 không tới được) ⟹ tập
+    RỖNG, không phải một lỗi trang: hệ quả là màn hình hiện đúng trạng thái
+    mà pipeline đã lưu — thận trọng theo hướng "chưa phân loại", không theo
+    hướng ngược lại.
     """
     if store is None:
         return frozenset()
     try:
-        view = store.read_at_revision(store.current_revision())
+        view = store.read_at_revision(store.refresh())
     except Exception:  # noqa: BLE001 — xem docstring
         return frozenset()
     return frozenset(
@@ -213,16 +252,35 @@ def confirm_identity(
             "Danh mục là thẩm quyền của Tracking — Reports không tự thêm mã.")
 
     identity_key = raw_identity_key(key)
+    # Hai con số KHÁC NHAU, và trộn chúng là cách sinh ra đúng câu lỗi mà
+    # `§5` cấm ("expected_version=0 nhưng version hiện tại=1"):
+    #
+    #   revision      số thứ tự của event CUỐI trong log — thuộc về cả store.
+    #   version       số phiên bản của CHÍNH mapping mang khoá này — thuộc về
+    #                 một aggregate, và `_append_mapping_command` so
+    #                 `expected_version` với đúng con số này (`INV-59`).
+    #
+    # Một mapping chưa tồn tại có version 0 dù log đã dài bao nhiêu. Truyền
+    # revision vào chỗ của version vì thế chỉ đúng cho lần xác nhận ĐẦU TIÊN
+    # của cả hệ thống, rồi từ lần thứ hai trở đi từ chối mọi mặt hàng mới
+    # bằng một xung đột không có thật.
+    #
+    # `refresh()` đứng trước cả hai — sửa `F-A` ở đường GHI: cả revision lẫn
+    # version đều phải đọc từ log DÙNG CHUNG, không từ ảnh chụp trong bộ nhớ
+    # của một worker.
+    revision = store.refresh()
+    current = store.read_at_revision(revision).active_mapping(
+        SOURCE_SYSTEM_REPORTS_SALES, identity_key)
     command = ConfirmMapping(
         actor_id=actor_id,
         client_request_id=client_request_id or str(uuid.uuid4()),
-        expected_version=store.current_revision(),
+        expected_version=current.version if current is not None else 0,
         tracking_capture_id=snapshot.capture_id,
         affected_scope=AffectedScope(
             distinct_identity_count=1,
             affected_order_ids=tuple(affected_orders),
             affected_line_count=affected_lines,
-            computed_at_revision=store.current_revision(),
+            computed_at_revision=revision,
         ),
         raw_identity_key=identity_key,
         raw_product_identity=key,
@@ -252,7 +310,8 @@ def actor_of(env=None) -> str:
 
 
 __all__ = [
-    "CANDIDATE_LIMIT", "CONFIRM_OK_NOTE", "Candidate", "IdentityGatewayError",
-    "NO_TRACKING_NOTE", "actor_of", "build_store", "candidates",
-    "confirm_identity", "confirmed_keys",
+    "CANDIDATE_LIMIT", "CONFIRM_OK_NOTE", "Candidate",
+    "DurableStoreUnavailableError", "IdentityGatewayError", "NO_TRACKING_NOTE",
+    "actor_of", "build_store", "candidates", "confirm_identity",
+    "confirmed_keys",
 ]

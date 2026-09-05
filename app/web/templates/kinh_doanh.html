@@ -57,8 +57,12 @@
    hỏi một câu về THỜI GIAN kinh doanh. Chiều origin không mất — nó nằm trong
    lời giải thích của đúng cái cột đến từ bản ghi lịch sử. #}
 <div class="module" id="bieu-do-doanh-thu">
-  <h2>Doanh thu theo thời gian
+  <h2>Xu hướng doanh thu
     <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span></h2>
+  {# `F-E` — phạm vi của biểu đồ nói ngay dưới tiêu đề. Ô chỉ tiêu ở trên là
+     KỲ ĐANG CHỌN, biểu đồ là toàn bộ dòng thời gian; hai phạm vi khác nhau
+     đứng cạnh nhau mà không ai nói ra sẽ đọc thành hai con số mâu thuẫn. #}
+  <p class="insight" data-metric="chart-scope">{{ chart.scope_note }}</p>
 
   <nav class="filter-row chart-gran">
     {% for option in chart.options %}
@@ -77,7 +81,7 @@
       {% for bar in chart.bars %}
       <div class="rev-bar{{ ' rev-bar-legacy' if bar.legacy }}" title="{{ bar.title }}"
            data-metric="chart-bar" data-key="{{ bar.key }}"
-           data-origin="{{ 'LEGACY_REFERENCE' if bar.legacy else 'PIPELINE_GENERATED' }}"
+           data-origin="{{ bar.origin }}"
            data-revenue="{{ bar.revenue_raw }}">
         <span class="rev-bar-value">{{ bar.revenue_kvnd }}</span>
         <span class="rev-bar-fill" style="height: {{ bar.height }}%"></span>

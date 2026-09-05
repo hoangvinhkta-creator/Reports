@@ -107,6 +107,7 @@ from app.modules.product.identity.evidence import (
     is_auto_resolvable,
 )
 from app.modules.product.identity.identity import Namespace
+from app.modules.product.identity.journal import IdentityJournal
 from app.modules.product.identity.mapping import (
     MappingIntegrityError,
     MappingSource,
@@ -244,8 +245,27 @@ class JsonlProductIdentityStore:
     """
 
     def __init__(
-        self, log_path: Optional[Path] = None, index_path: Optional[Path] = None
+        self, log_path: Optional[Path] = None, index_path: Optional[Path] = None,
+        *, journal: Optional[IdentityJournal] = None,
     ) -> None:
+        """`journal` thay NƠI LƯU, không thay luật (`journal.py` § Vì sao).
+
+        Ba cấu hình, và chỉ ba:
+
+            log_path        file JSONL cạnh tiến trình — hành vi Phase 1 gốc,
+                            không đổi một dòng nào.
+            journal         một nơi lưu DÙNG CHUNG, bền qua restart/redeploy
+                            (`app/web/identity_journal.py`). Loại trừ lẫn
+                            nhau với `log_path`: hai nơi lưu cho MỘT store là
+                            đúng thứ `D-06` cấm.
+            không cả hai    thuần bộ nhớ (test, `import_bundle` nguồn).
+        """
+        if journal is not None and (log_path is not None or index_path is not None):
+            raise ValueError(
+                "một store chỉ có MỘT nơi lưu: truyền `journal` hoặc "
+                "`log_path`/`index_path`, không truyền cả hai (D-06)"
+            )
+        self._journal = journal
         self.log_path = Path(log_path) if log_path else None
         self.index_path = Path(index_path) if index_path else None
         self.lock_path = (
@@ -265,6 +285,12 @@ class JsonlProductIdentityStore:
         # tự hoá các luồng của CÙNG instance. KHÔNG thay thế khoá file.
         self._thread_lock = threading.RLock()
         self._lock_depth = 0
+        if self._journal is not None:
+            # Nạp lần đầu đi qua đúng biên giao dịch như mọi lần nạp khác:
+            # một store dựng xong mà chưa thấy log dùng chung là đúng thứ
+            # `F-A` nói tới.
+            with self._transaction():
+                pass
         if self.log_path is not None and self.log_path.exists():
             # Nạp lần đầu cũng phải nằm trong khoá: một tiến trình khác có thể
             # đang ghi dở một dòng, và đọc trúng dòng dở đó sẽ raise
@@ -338,6 +364,22 @@ class JsonlProductIdentityStore:
                     self._lock_depth -= 1
                 return
 
+            if self._journal is not None:
+                # Nơi lưu DÙNG CHUNG. Biên loại trừ do chính journal định
+                # nghĩa; với một object store nhiều container, nó là phép
+                # ghi-nếu-vắng ở `append()` chứ không phải một khoá giữ suốt
+                # giao dịch (`journal.py` § Hợp đồng). Nạp lại vẫn xảy ra ở
+                # ĐÚNG chỗ cũ — ngay khi vào giao dịch, trước mọi phép kiểm
+                # version — nên `INV-59` không mất một bước nào.
+                with self._journal.transaction():
+                    self._lock_depth = 1
+                    try:
+                        self._apply_records(self._journal.pull())
+                        yield
+                    finally:
+                        self._lock_depth = 0
+                return
+
             if self.lock_path is None:
                 # Store thuần bộ nhớ: không có file dùng chung nào để tranh
                 # chấp. `RLock` ở trên đã đủ cho biên luồng.
@@ -406,18 +448,31 @@ class JsonlProductIdentityStore:
         `write()` — bị TỪ CHỐI, không bị bỏ qua: `INV-63` nói log thắng, nên
         một log không đọc được phải nổ chứ không được đọc thành nửa state.
         """
+        records = []
         for line in chunk.decode("utf-8").splitlines():
             self._log_lines += 1
             if not line.strip():
                 continue
             try:
-                record = json.loads(line)
+                records.append(json.loads(line))
             except json.JSONDecodeError as exc:
                 raise MappingIntegrityError(
                     f"{self.log_path}: dòng {self._log_lines} không phải JSON "
                     "hợp lệ — log hỏng, KHÔNG được đọc tiếp thành một state "
                     "một nửa"
                 ) from exc
+        self._apply_records(records)
+        self._log_offset += len(chunk)
+
+    def _apply_records(self, records: Iterable[dict[str, Any]]) -> None:
+        """Chiếu các bản ghi ĐÃ parse vào state trong bộ nhớ.
+
+        Nửa không phụ thuộc nơi lưu của `_consume()`: file JSONL đưa vào đây
+        các dòng đã parse, journal dùng chung đưa vào các object đã đọc. Cả
+        hai đi qua ĐÚNG một phép chiếu, nên hai nơi lưu không thể trôi ra hai
+        cách hiểu khác nhau về cùng một chuỗi event.
+        """
+        for record in records:
             self._raw_records.append(record)
             event = _event_from_record(record)
             self._events.append(event)
@@ -430,7 +485,6 @@ class JsonlProductIdentityStore:
                     revision=event.revision,
                     event=event,
                 )
-        self._log_offset += len(chunk)
 
     # ---- đọc -------------------------------------------------------------
 
@@ -446,6 +500,34 @@ class JsonlProductIdentityStore:
         và vẫn không loại bỏ được cửa sổ giữa đọc và ghi.
         """
         return len(self._events)
+
+    def refresh(self) -> int:
+        """Nạp lại nơi lưu rồi trả về revision HIỆN HÀNH. Sửa `F-A`.
+
+        `current_revision()` cố ý không chạm nơi lưu (xem docstring của nó):
+        đó là mô hình optimistic concurrency của `§10.3`. Nhưng "không nạp lại
+        ở đường đọc" chỉ vô hại khi CHỈ CÓ MỘT tiến trình. Với
+        `gunicorn --workers 2`, nó thành một lời nói dối cụ thể trên màn hình:
+
+            worker A xác nhận một mặt hàng ⟹ log dùng chung có event mới
+            worker B render trang kế tiếp  ⟹ vẫn chiếu ảnh chụp cũ của mình
+                                             ⟹ dòng vừa phân loại vẫn hiện
+                                                "Chưa phân loại", cho tới lần
+                                                khởi động lại tiếp theo
+
+        Và ở đường GHI nó còn tệ hơn: `expected_version` tính từ ảnh chụp cũ
+        sẽ va vào `INV-59` và Owner nhận đúng câu "expected_version=0 nhưng
+        version hiện tại=1" cho một thao tác hoàn toàn hợp lệ.
+
+        Vì thế phép nạp lại được để THÀNH MỘT LỜI GỌI RIÊNG, tường minh, thay
+        vì giấu vào `current_revision()`: mỗi lần đọc-để-hiển-thị và mỗi lần
+        dựng lệnh ghi đều nói rõ rằng nó cần state hiện hành, và chi phí (một
+        lần chạm nơi lưu) nhìn thấy được ở đúng chỗ nó phát sinh.
+
+        Store thuần bộ nhớ: không có gì để nạp, trả về đúng revision đang có.
+        """
+        with self._transaction():
+            return len(self._events)
 
     def read_at_revision(self, revision: int) -> StoreView:
         """Chiếu lại log tới `revision`. Cùng revision → cùng kết quả (`INV-64`)."""
@@ -860,7 +942,19 @@ class JsonlProductIdentityStore:
         self._events.append(event)
         record = event.to_record()
         self._raw_records.append(record)
-        self._persist(record)
+        try:
+            self._persist(record)
+        except Exception:
+            # Ghi hỏng ⟹ HOÀN LẠI state trong bộ nhớ trước khi ném tiếp.
+            # Không có bước này, một `JournalWriteConflict` (hai worker cùng
+            # chiếm một vị trí log) hay một lần đĩa/mạng lỗi sẽ để lại một
+            # event CHỈ có trong RAM: store tự nâng version của mình lên một
+            # bậc mà log dùng chung không hề biết, và mọi phép kiểm `INV-59`
+            # sau đó của chính worker này đều tính trên một sự thật không
+            # tồn tại ở đâu cả.
+            self._events.pop()
+            self._raw_records.pop()
+            raise
         return event
 
     # ---- I/O -------------------------------------------------------------
@@ -871,9 +965,12 @@ class JsonlProductIdentityStore:
         Ghi cả dòng trong một lần `write()` rồi `fsync` trước khi trả về: một
         lần ghi bị ngắt để lại một dòng JSON dở, và dòng dở đó bị `_consume()`
         từ chối thay vì được đọc thành một state "đọc được nhưng sai".
+
+        `_append_line` tự biết nơi lưu nào đang hiệu lực (file, journal dùng
+        chung, hay không nơi nào cả), nên phép kiểm nơi-lưu KHÔNG được lặp ở
+        đây: một điều kiện thứ hai nói về cùng một chuyện là chỗ hai câu trả
+        lời bắt đầu lệch nhau.
         """
-        if self.log_path is None:
-            return
         self._append_line(record)
         self.rebuild_index()
 
@@ -883,7 +980,14 @@ class JsonlProductIdentityStore:
         Đường ghi vật lý DUY NHẤT xuống log. Việc `_log_offset` tiến lên ngay
         tại đây là điều giữ cho `_refresh_from_disk()` không đọc lại chính
         dòng mình vừa ghi thành một event thứ hai.
+
+        Với một journal dùng chung, cùng vai trò đó do journal đảm nhận: nó
+        tự đẩy con trỏ đọc của mình qua bản ghi vừa ghi, vì cùng một lý do.
         """
+        if self._journal is not None:
+            self._journal.append(record)
+            self._log_lines += 1
+            return
         if self.log_path is None:
             return
         self.log_path.parent.mkdir(parents=True, exist_ok=True)

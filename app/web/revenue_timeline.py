@@ -23,6 +23,9 @@ doanh thu mới: nó là cùng phép cộng mà `business_metrics.totals` dùng 
     Σ(mọi điểm của kỳ)  ==  totals.sales_revenue của chính kỳ đó
 
 và nó đúng ở CẢ NĂM mức gộp, vì cả năm mức đều phân hoạch cùng một tập dòng.
+Khi dòng thời gian có thêm các tháng chỉ còn bản ghi lịch sử, bất biến đó nói
+về đúng phần SỔ NẠP; phần lịch sử cộng thêm vào tổng của biểu đồ, và điều đó
+vẫn đúng ở cả năm mức gộp — xem `§ Thẩm quyền được giải ở mức THÁNG`.
 
 Dòng KHÔNG có ngày bán không rơi vào bất kỳ điểm nào — đúng như chúng đã
 không rơi vào bất kỳ kỳ nào (`R-S5`). Chúng được đếm riêng ở `undated`, chứ
@@ -42,13 +45,47 @@ không bị nhét vào một ngày nào đó cho đủ.
 Cách thoả cả hai, và là cách DUY NHẤT thoả được cả hai:
 
     một TRỤC thời gian · một chuỗi · KHÔNG bộ chọn nguồn
-    nhưng MỖI ĐIỂM chỉ đến từ MỘT origin, không bao giờ từ hai cộng lại
+    nhưng MỖI THÁNG chỉ đến từ MỘT origin, không bao giờ từ hai cộng lại
 
-Một mốc thời gian đã có dòng pipeline thì lịch sử KHÔNG được chen vào đó —
-cùng thứ tự thẩm quyền mà `_legacy_previous_month` đã dùng. Lịch sử chỉ điền
-vào những mốc mà số mới hoàn toàn KHÔNG có dòng nào. Vì thế không có phép
-cộng liên-origin nào tồn tại ở đây, và `Point.origin` giữ nguyên chiều mà
-`DEC-166 E` bắt phải giữ — nó chỉ không còn là một cái nút bấm.
+Một THÁNG đã có dòng pipeline thì lịch sử KHÔNG được chen vào đó — cùng thứ
+tự thẩm quyền mà `_legacy_previous_month` đã dùng. Lịch sử chỉ điền vào
+những tháng mà số mới hoàn toàn KHÔNG có dòng nào.
+
+## Thẩm quyền được giải ở mức THÁNG, rồi mới gộp lên — không giải lại ở mức thô
+
+Đây là bản sửa `F-C`, và nó cần nói rõ vì cái sai trước đó rất dễ đọc thành
+đúng. Trước bản sửa, mốc Quý/Năm được dựng bằng cách để chuỗi hiện tại và
+chuỗi lịch sử tự rơi vào cùng một khoá thô rồi cho chuỗi hiện tại thắng CẢ
+KHOÁ đó. Với dữ liệu thật của Owner:
+
+    2026-07 chỉ có sổ cũ   = 50tr
+    2026-08 chỉ có sổ cũ   = 60tr
+    2026-09 đã có sổ nạp   =  1tr
+
+    Quý 3 = 1tr        ← Tháng 7 và Tháng 8 BỐC HƠI
+
+Một quý mất 110 triệu vì hệ thống hỏi sai câu hỏi: nó hỏi "quý này thuộc
+nguồn nào" trong khi thẩm quyền chỉ có nghĩa ở mức THÁNG. Trình tự đúng, và
+là trình tự mà file này thi hành:
+
+    1. giải thẩm quyền cho TỪNG THÁNG   (có sổ nạp ⟹ sổ nạp, ngược lại ⟹ sổ cũ)
+    2. gộp các tháng ĐÃ GIẢI lên trên   (quý = tổng các tháng của nó, năm = tổng
+                                         các tháng của nó)
+
+    Quý 3 = 50 + 60 + 1 = 111tr
+
+Phép cộng ở bước 2 KHÔNG phải phép cộng liên-origin bị cấm. Cái bị cấm là
+cộng hai nguồn vào CÙNG MỘT THÁNG (Tháng 7 sổ cũ + Tháng 7 sổ nạp); cộng
+Tháng 7 với Tháng 9 là điều mà mọi phép tính quý đều làm, và hai tháng đó
+đến từ đâu không đổi được việc chúng là hai tháng khác nhau.
+
+## Một quý gồm nhiều origin: nói ra, nhưng KHÔNG tách đôi giá trị
+
+Hệ quả của bước 2 là một mốc thô có thể gồm cả tháng sổ cũ lẫn tháng sổ nạp.
+Chiều `DEC-166 E` vẫn phải đọc được, nên có `ORIGIN_MIXED` — một giá trị
+TRÌNH BÀY, dùng cho lời giải thích của đúng cột đó. Nó KHÔNG kéo theo một bộ
+chọn nguồn, một chuỗi thứ hai, hay một nhãn Số cũ/Số mới: giá trị kinh doanh
+vẫn là MỘT con số, vì quý đó thật sự chỉ có một con số.
 
 ## Không bịa điểm cho một độ mịn mà bằng chứng không đỡ nổi
 
@@ -77,6 +114,12 @@ from typing import Iterable, Optional
 #: Origin của một điểm. Cùng từ vựng `DEC-166 E`, không phải một cặp nhãn mới.
 ORIGIN_CURRENT = "PIPELINE_GENERATED"
 ORIGIN_LEGACY = "LEGACY_REFERENCE"
+
+#: Mốc THÔ (quý/năm, hoặc một tuần vắt qua hai tháng) gồm các tháng đã giải
+#: về HAI origin khác nhau. Chỉ xuất hiện từ mức gộp lớn hơn tháng trở lên —
+#: một mốc THÁNG không bao giờ mang giá trị này, vì thẩm quyền được giải đúng
+#: ở mức đó (`§ Thẩm quyền được giải ở mức THÁNG`).
+ORIGIN_MIXED = "MIXED_AUTHORITY"
 
 DAY = "ngay"
 WEEK = "tuan"
@@ -110,6 +153,26 @@ CHART_NOTE = (
 )
 
 LEGACY_POINT_NOTE = "Mốc này lấy từ bản ghi lịch sử — chưa có sổ nạp cho kỳ đó."
+
+#: Câu cho một mốc thô gồm cả tháng sổ nạp lẫn tháng sổ cũ. Nó nói ra nguồn
+#: gốc mà KHÔNG mời người đọc tách con số ra làm hai: quý đó có đúng một giá
+#: trị kinh doanh, và các tháng bên trong nó không chồng lên nhau.
+MIXED_POINT_NOTE = (
+    "Mốc này gồm cả tháng đã có sổ nạp lẫn tháng chỉ còn bản ghi lịch sử. Mỗi "
+    "tháng chỉ lấy từ MỘT nguồn, nên không tháng nào bị cộng hai lần."
+)
+
+#: `F-E` — phạm vi thời gian của biểu đồ, nói thành lời ngay cạnh biểu đồ.
+#:
+#: Ô chỉ tiêu ở trên trả lời "kỳ đang chọn ra sao"; biểu đồ trả lời "xu hướng
+#: đi thế nào" và cố ý nhìn TOÀN BỘ dữ liệu khả dụng (`server._revenue_chart`
+#: § Biểu đồ nhìn toàn bộ dòng thời gian). Hai phạm vi khác nhau đứng cạnh
+#: nhau mà không ai nói ra là cách chắc chắn nhất để một người đọc kết luận
+#: rằng hai con số đang mâu thuẫn.
+CHART_SCOPE_NOTE = (
+    "Biểu đồ xu hướng theo TOÀN BỘ dữ liệu khả dụng, không giới hạn trong "
+    "Kỳ dữ liệu đang chọn ở trên."
+)
 
 NO_DAILY_LEGACY_NOTE = (
     "Bản ghi lịch sử của các kỳ cũ chỉ lưu TỔNG THÁNG, nên ở mức Ngày và Tuần "
@@ -150,7 +213,18 @@ class Point:
 
     @property
     def is_legacy(self) -> bool:
+        """Mốc này lấy TOÀN BỘ từ bản ghi lịch sử.
+
+        `ORIGIN_MIXED` cố ý trả `False`: một quý gồm hai tháng sổ cũ và một
+        tháng sổ nạp không phải "một mốc lịch sử", và dán nhãn lịch sử lên nó
+        sẽ nói sai về phần số mới bên trong. Câu đúng cho nó nằm ở
+        `MIXED_POINT_NOTE`.
+        """
         return self.origin == ORIGIN_LEGACY
+
+    @property
+    def is_mixed(self) -> bool:
+        return self.origin == ORIGIN_MIXED
 
     @property
     def partial(self) -> bool:
@@ -292,6 +366,38 @@ def _legacy_day_points(
     return buckets
 
 
+def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict) -> None:
+    """Gộp một mốc lịch sử vào chuỗi — CỘNG, không loại bỏ. Sửa `F-C`.
+
+    Phép cộng ở đây an toàn vì thẩm quyền ĐÃ được giải xong ở mức tháng
+    trước khi hàm này chạy: `taken` đã loại khỏi `slot` mọi tháng mà sổ nạp
+    có dòng, nên hai vế của phép cộng không bao giờ là hai nguồn của CÙNG
+    một tháng — chúng là những tháng khác nhau của cùng một quý/năm/tuần.
+
+    Bản cũ dùng `setdefault` ở đây và vì thế im lặng VỨT BỎ cả một mốc lịch
+    sử mỗi khi nó rơi trúng khoá thô mà sổ nạp đã chiếm: một tháng 9 có sổ
+    nạp làm bốc hơi tháng 7 và tháng 8 chỉ có sổ cũ (`§ Thẩm quyền được giải
+    ở mức THÁNG`).
+    """
+    existing = buckets.get(key)
+    if existing is None:
+        buckets[key] = slot
+        return
+    overlap = existing["months"] & slot["months"]
+    if overlap:
+        # Không `assert`: một bất biến sổ sách không được biến mất khi ai đó
+        # chạy Python với `-O`. Nếu điều này xảy ra, thứ tự thẩm quyền ở trên
+        # đã hỏng và câu trả lời đúng là DỪNG, không phải một con số gấp đôi.
+        raise ValueError(
+            f"tháng {sorted(overlap)} nhận giá trị từ hai origin trong cùng "
+            f"mốc {key!r} — thẩm quyền phải đã giải xong trước khi gộp "
+            "(DEC-180 §9)")
+    existing["revenue"] += slot["revenue"]
+    existing["months"] |= slot["months"]
+    if existing["origin"] != slot["origin"]:
+        existing["origin"] = ORIGIN_MIXED
+
+
 def series(
     details: Iterable[dict], *, granularity: str,
     legacy_months: Optional[Iterable[dict]] = None,
@@ -314,10 +420,7 @@ def series(
     else:
         legacy = _legacy_month_points(legacy_months or [], granularity, taken)
     for key, slot in legacy.items():
-        # Không `setdefault` rồi cộng dồn: một khoá đã có nghĩa là hai origin
-        # rơi vào cùng một mốc, và chuỗi hiện tại thắng theo thứ tự thẩm
-        # quyền. Bỏ qua ở đây là cách phép cộng liên-origin KHÔNG tồn tại.
-        buckets.setdefault(key, slot)
+        _merge_resolved(buckets, key, slot)
 
     span = _MONTHS_IN_BUCKET.get(granularity)
     points = []
@@ -338,9 +441,10 @@ def totals_of(points: Iterable[Point]) -> Decimal:
 
 
 __all__ = [
-    "CHART_NOTE", "DAY", "DEFAULT_GRANULARITY", "GRANULARITIES",
-    "GRANULARITY_KEYS", "LEGACY_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE",
-    "ORIGIN_CURRENT", "ORIGIN_LEGACY", "Point", "QUARTER", "WEEK", "YEAR",
+    "CHART_NOTE", "CHART_SCOPE_NOTE", "DAY", "DEFAULT_GRANULARITY",
+    "GRANULARITIES", "GRANULARITY_KEYS", "LEGACY_POINT_NOTE",
+    "MIXED_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT",
+    "ORIGIN_LEGACY", "ORIGIN_MIXED", "Point", "QUARTER", "WEEK", "YEAR",
     "bucket_of", "current_points", "parse_granularity", "series", "totals_of",
     "undated_count",
 ]

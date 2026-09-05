@@ -45,6 +45,11 @@ _REQUIRED_ENV_VARS = (
 RUN_KEY_PREFIX = "runs/"
 ARTIFACT_KEY_PREFIX = "artifacts/"
 
+#: Số key tối đa quét trong MỘT lần liệt kê. Một giới hạn tường minh: quét
+#: không giới hạn trên một bucket lớn biến một lần tải trang thành một vòng
+#: lặp mạng không có điểm dừng.
+_SCAN_LIMIT = 5000
+
 # run_id do server tự sinh — chỉ alnum/dash/underscore, chặn path traversal
 # trước khi ghép thành key R2.
 _SAFE_RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
@@ -133,27 +138,41 @@ def get_json(
         raise CorruptRunRecordError(key) from exc
 
 
-def list_run_keys_desc(
-    *, limit: int, client=None, env: Optional[dict[str, str]] = None,
+def list_keys(
+    prefix: str, *, client=None, env: Optional[dict[str, str]] = None,
+    max_keys: int = _SCAN_LIMIT,
 ) -> list[str]:
-    """Key dưới ``runs/`` mới nhất trước (sort tên khoá giảm dần, không
-    fetch body), quét tối đa 5000 key mỗi lần gọi — đủ cho Internal Beta."""
+    """Mọi key dưới ``prefix``, sắp TĂNG dần theo tên, không fetch body.
+
+    Quét tối đa ``max_keys`` key mỗi lần gọi. Đây là phép liệt kê thô dùng
+    chung cho mọi object model của bucket — người gọi tự quyết định thứ tự
+    và ngữ nghĩa của tên khoá.
+    """
     client = client or _client(env)
     bucket = _bucket(env)
     keys: list[str] = []
     token = None
     try:
         while True:
-            kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": RUN_KEY_PREFIX, "MaxKeys": 1000}
+            kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
             if token:
                 kwargs["ContinuationToken"] = token
             response = client.list_objects_v2(**kwargs)
             keys.extend(item["Key"] for item in response.get("Contents", []))
             token = response.get("NextContinuationToken")
-            if not token or len(keys) >= 5000:
+            if not token or len(keys) >= max_keys:
                 break
     except Exception as exc:
         raise StorageUnavailableError(str(exc)) from exc
+    return sorted(keys)
+
+
+def list_run_keys_desc(
+    *, limit: int, client=None, env: Optional[dict[str, str]] = None,
+) -> list[str]:
+    """Key dưới ``runs/`` mới nhất trước (sort tên khoá giảm dần, không
+    fetch body), quét tối đa 5000 key mỗi lần gọi — đủ cho Internal Beta."""
+    keys = list_keys(RUN_KEY_PREFIX, client=client, env=env)
     return sorted(keys, reverse=True)[:limit]
 
 

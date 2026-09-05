@@ -812,6 +812,13 @@ def revenue_chart(
             "revenue": format_number(point.revenue),
             "revenue_kvnd": _thousand_vnd(point.revenue),
             "legacy": point.is_legacy,
+            # Origin THẬT của mốc, không phải một phép suy hai nhánh. Từ khi
+            # quý/năm gộp các tháng đã giải (`F-C`), một mốc có thể mang
+            # `MIXED_AUTHORITY`, và `legacy else PIPELINE_GENERATED` sẽ khai
+            # nó là số mới thuần — sai đúng ở chiều mà `DEC-166 E` bắt phải
+            # đọc được.
+            "origin": point.origin,
+            "mixed": point.is_mixed,
             "partial": point.partial,
             "covered_months": point.covered_months,
             "span_months": point.span_months,
@@ -828,6 +835,8 @@ def revenue_chart(
         "empty": not bars,
         "empty_note": CHART_EMPTY_NOTE,
         "note": revenue_timeline.CHART_NOTE,
+        # `F-E` — phạm vi thời gian của biểu đồ, nói cạnh chính biểu đồ.
+        "scope_note": revenue_timeline.CHART_SCOPE_NOTE,
         "total": format_number(revenue_timeline.totals_of(points)),
         "total_kvnd": _thousand_vnd(revenue_timeline.totals_of(points)),
         "has_partial": any(bar["partial"] for bar in bars),
@@ -837,7 +846,7 @@ def revenue_chart(
         "no_daily_legacy_note": (
             revenue_timeline.NO_DAILY_LEGACY_NOTE
             if day_level and has_legacy_months
-            and not any(bar["legacy"] for bar in bars)
+            and not any(bar["legacy"] or bar["mixed"] for bar in bars)
             else None),
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
@@ -856,6 +865,11 @@ def _chart_bar_title(point) -> str:
     parts = [f"{point.label}: {format_number(point.revenue)} đồng"]
     if point.is_legacy:
         parts.append(revenue_timeline.LEGACY_POINT_NOTE)
+    if point.is_mixed:
+        # Cùng chỗ, cùng giọng: một câu trong lời giải thích của ĐÚNG cột đó.
+        # Không một điều khiển nào được thêm cho nó (`§11` — không bộ chọn
+        # nguồn, không chuỗi thứ hai, không nhãn Số cũ/Số mới).
+        parts.append(revenue_timeline.MIXED_POINT_NOTE)
     if point.partial:
         parts.append(
             f"Dựng từ {point.covered_months}/{point.span_months} tháng có "
