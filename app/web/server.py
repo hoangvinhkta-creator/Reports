@@ -523,64 +523,19 @@ def create_app(
 
     @app.post("/du-lieu/legacy")
     def import_legacy():
-        repository = _require_history()
-        upload = request.files.get("workbook")
-        if upload is None or not upload.filename:
-            return redirect(url_for("data_tab", loi="Hãy chọn workbook legacy .xlsx."))
-        if not upload.filename.lower().endswith(".xlsx"):
-            return redirect(url_for("data_tab", loi="Chỉ chấp nhận file .xlsx."))
-
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        # Tên file lưu trên đĩa LUÔN do server sinh — tên client gửi lên chỉ
-        # dùng để hiển thị, nên không có chuỗi đường dẫn nào của client chạm
-        # tới filesystem (chống path traversal).
-        temp_path = UPLOAD_DIR / f"{uuid.uuid4().hex}.xlsx"
-        upload.save(temp_path)
-        try:
-            # `DEC-178` — hai HÌNH DẠNG workbook, một ô tải lên. Nhận dạng
-            # bằng CẤU TRÚC SHEET của chính file (có `Summary` + các sheet
-            # `MM.YYYY <Nhãn>` ⟹ workbook một năm độc lập), không bằng tên
-            # file: tên file do người dùng đặt và đổi được, cấu trúc thì không.
-            workbook = (
-                parse_year_workbook(temp_path)
-                if _looks_like_year_workbook(temp_path)
-                else parse_workbook(temp_path)
-            )
-            workbook = replace(
-                workbook, source_file_name=_safe_display_name(upload.filename),
-            )
-            result = _guarded(
-                repository.create_import, workbook,
-                version_label=(request.form.get("version_label") or "").strip()[:120],
-            )
-        except LegacyImportError as exc:
-            return redirect(url_for("data_tab", loi=str(exc)))
-        except HTTPException:
-            # `_guarded` biến lỗi history store thành abort(503) — mà abort
-            # ném HTTPException. Không cho `except Exception` bên dưới nuốt
-            # nó, nếu không sự cố DB sẽ hiện ra thành "không đọc được
-            # workbook": đổ lỗi cho file của Owner vì một lỗi hạ tầng, và
-            # phá đúng CHECK-PRA001-06 (FIND-PRA001-R02).
-            raise
-        except Exception:
-            return redirect(url_for(
-                "data_tab",
-                loi="Không đọc được workbook legacy. Kiểm tra file và thử lại.",
-            ))
-        finally:
-            # Workbook cũ chứa dữ liệu kinh doanh: không giữ lại trên đĩa
-            # máy chủ quá một lần import, kể cả khi import lỗi.
-            temp_path.unlink(missing_ok=True)
-        if not result.created:
-            message = (f"File này đã được nhập trước đó ({result.import_id})"
-                       " — không tạo bản mới.")
-        elif workbook.source_authority == SOURCE_AUTHORITY_YEAR:
-            year = _workbook_year(workbook)
-            message = (f"Đã nhập bản legacy {result.import_id} — nguồn CHUẨN "
-                       f"của năm {year}.")
-        else:
-            message = f"Đã nhập bản legacy {result.import_id}."
-        return redirect(url_for("data_tab", imported=message))
+        """LEGACY_HISTORY đã khoá vĩnh viễn ở đúng hai nguồn provenance —
+        workbook 2025 độc lập + workbook 01–08/2026 (`DEC-181`, phần bổ sung
+        thẩm quyền chủ dự án). Đây là một RÀNG BUỘC NGHIỆP VỤ, không phải
+        access-control: không nguồn Legacy thứ ba, dù hợp lệ định dạng đến
+        đâu. Route GIỮ ĐĂNG KÝ (tương thích liên kết/vận hành cũ) nhưng từ
+        chối MỌI request ở đây, TRƯỚC khi đọc file, parse workbook, hay chạm
+        `repository` — không `create_import()`, không DB write, không đổi
+        `is_current`, không side effect nào khác.
+        """
+        abort(409, description=(
+            "Dữ liệu lịch sử đã khóa. Hệ thống chỉ sử dụng nguồn lịch sử "
+            "2025 và 01-08/2026 đã được chốt."
+        ))
 
     # `POST /du-lieu/legacy/<id>/chon` ĐÃ GỠ (`DEC-181` §2): chọn "bản đang
     # xem" là chính quy trình chủ dự án bác bỏ. Không có route nào thay thế

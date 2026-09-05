@@ -24,6 +24,7 @@ tắc "bản nhúng không ghi đè nguồn chuẩn" đo được thật chứ k
 
 from __future__ import annotations
 
+import io
 import re
 from decimal import Decimal
 
@@ -516,3 +517,79 @@ def test_an_employee_page_never_borrows_a_company_wide_legacy_month(
     persist(snapshots, [discounted_pair("BH-CK", month=9, day=5)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&nv=Vinh")
     assert "SỐ CŨ" not in html
+
+
+# ==========================================================================
+# R2-B01 — WRITE BOUNDARY: `POST /du-lieu/legacy` KHÓA VĨNH VIỄN
+# ==========================================================================
+#
+# Blocking finding E2 của Independent Review R2: route `POST /du-lieu/legacy`
+# vẫn tạo import mới, tức một nguồn Legacy thứ ba HỢP LỆ về định dạng có thể
+# lọt vào qua chính route production — phá thẳng bất biến "chỉ đúng hai
+# nguồn cố định 2025 + 01–08/2026" mà chủ dự án đã khóa (`DEC-181`, phần bổ
+# sung thẩm quyền). Nhóm test dưới đây tái hiện đúng E2 qua ĐƯỜNG THẬT
+# (route Flask đã đăng ký, không phải một helper nội bộ) và khóa lại
+# CAN_CREATE_THIRD_SOURCE_THROUGH_HTTP = NO.
+
+def _third_2026_workbook_upload(tmp_path, filename="bao_cao_2026_khac.xlsx"):
+    """Một workbook 2026 HỢP LỆ nhưng khác fingerprint bản đã có trong
+    `history` (`summary_months` khác ⟹ nội dung khác ⟹ fingerprint khác) —
+    đúng hình dạng "valid but different" mà E2 mô tả, không phải file rác."""
+    path = build_handover_workbook(tmp_path / "bc_2026_thu_ba.xlsx",
+                                   summary_months=(1, 2, 3, 4))
+    return {"workbook": (io.BytesIO(path.read_bytes()), filename)}
+
+
+def test_r2_b01_post_legacy_cannot_create_a_third_eligible_legacy_source(
+    legacy, snapshots, client, history, tmp_path,
+):
+    """Tái hiện đúng E2 (BLOCKING) của Independent Review R2 — theo đúng kịch
+    bản §5/§6 của repair: baseline hai bản nhập + Số Mới 09/2026, thử tạo bản
+    nhập thứ ba qua route thật, rồi chứng minh mọi trang nghiệp vụ (kể cả MoM
+    Aug Legacy → Sep Current) vẫn phục vụ đúng SAU khi bị từ chối.
+    """
+    persist(snapshots, [discounted_pair("BH-CK", month=9, day=5)])
+
+    before_count = len(legacy.list_imports())
+    assert before_count == 2
+    assert body(client, "/kinh-doanh?ky=2026-09")
+    assert body(client, "/du-lieu")
+
+    response = client.post(
+        "/du-lieu/legacy", data=_third_2026_workbook_upload(tmp_path),
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 409
+    assert "Dữ liệu lịch sử đã khóa" in response.get_data(as_text=True)
+    assert len(legacy.list_imports()) == before_count == 2, \
+        "không WORKBOOK_SNAPSHOT thứ ba nào được tạo"
+    assert len(legacy.history_sources()) == 2
+
+    # Sau refusal — mọi trang nghiệp vụ vẫn phục vụ bình thường, không 500,
+    # không trang rỗng giả.
+    assert body(client, "/kinh-doanh?ky=2026-09")
+    assert body(client, "/du-lieu")
+    assert body(client, "/lich-su")
+    assert body(client, "/doanh-so-ngay?ky=2026-08")
+
+    html = body(client, "/kinh-doanh?ky=2026-09")
+    assert metric(html, "sales_revenue") == "4.900"
+    assert metric(html, "mom") == "+390%"
+    assert metric(html, "mom-origin") == "SỐ CŨ"
+
+
+def test_r2_b01_can_create_third_eligible_source_via_http_is_no(
+    legacy, client, history, tmp_path,
+):
+    """CAN_CREATE_THIRD_SOURCE_THROUGH_HTTP = NO — đi qua đúng route Flask
+    THẬT đã đăng ký (``app.post("/du-lieu/legacy")``), không phải một helper
+    nội bộ hay lời gọi thẳng `LegacyRepository.create_import()`."""
+    before = len(legacy.list_imports())
+    response = client.post(
+        "/du-lieu/legacy", data=_third_2026_workbook_upload(tmp_path, "khac.xlsx"),
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 409
+    assert response.status_code != 302, "không redirect kiểu 'đã nhập thành công'"
+    assert len(legacy.list_imports()) == before

@@ -9419,3 +9419,104 @@ Chỉ mở lại khái niệm "nhiều nguồn lịch sử để chọn" khi ch�
 một quyết định mới bác `DEC-181`. Điều KHÔNG mở lại: `is_current` làm thẩm
 quyền nghiệp vụ, bản sao nhúng ghi đè nguồn chuẩn, chọn thầm lặng một trong
 hai nguồn ngang nhau, và chạy lại lịch sử qua pipeline hiện hành.
+
+## DEC-182
+
+Title:
+OWNER AUTHORITY CORRECTION — DEC-181 §7 sai: gỡ UI KHÔNG đủ để khóa
+`LEGACY_HISTORY`. Write boundary của `POST /du-lieu/legacy` phải tự khóa
+
+Date:
+2026-09-05
+
+Task:
+R2-B01 — LOCK LEGACY_HISTORY WRITE BOUNDARY (bounded blocking repair theo
+đúng MỘT finding BLOCKING của Independent Review R2, tại `BASE_HEAD =
+08cf42ceb4399fc1cc87b41f748b95bd9e63887f`).
+
+Authority:
+**`OWNER_DECISION` — FROZEN.** Chủ dự án xác nhận trực tiếp: đây không phải
+suy luận của phiên làm việc.
+
+Supersedes:
+`DEC-181` §7 — **CHỈ đúng phần rationale** ("siết `POST /du-lieu/legacy`
+thành lỗi cứng ... đường đó đã bịt"). Toàn bộ phần còn lại của `DEC-181`
+(§1–§6, §8–§10) và các quyết định khác giữ NGUYÊN VĂN, không mở lại.
+Bản ghi gốc của `DEC-181` KHÔNG bị sửa tại chỗ — đúng như governance
+(`CLAUDE.md` → "Ngôn Ngữ Nội Dung") yêu cầu với lịch sử coi là bất biến.
+
+### 1. Điều bị bác
+
+`DEC-181` §7 lập luận: gỡ ô "NHẬP BẢN LEGACY" khỏi `/du-lieu` là đủ để niêm
+phong đường sản phẩm ("đường đó đã bịt"), nên giữ nguyên hành vi tạo import
+của `POST /du-lieu/legacy` không thêm rủi ro nào — chỉ UI bị gỡ, route vẫn
+hoạt động bình thường phía sau.
+
+Independent Review R2 (finding BLOCKING, E2) chứng minh lập luận đó **SAI**:
+route vẫn ĐĂNG KÝ và vẫn nhận `POST` trực tiếp qua HTTP (curl, script, form
+dựng tay ngoài UI bình thường) — gỡ nút bấm trên `/du-lieu` không chặn được
+đường đó. Một workbook 2026 hợp lệ về định dạng nhưng khác fingerprint bản
+đã có vẫn tạo được import thứ BA qua đúng route production, phá thẳng bất
+biến "chỉ đúng hai nguồn cố định" mà chính `DEC-181` §1 công bố. **UI removal
+KHÔNG đồng nghĩa write boundary removal.**
+
+### 2. Thẩm quyền mới
+
+```text
+UI_REMOVAL_SUFFICIENT                 = NO
+LEGACY_IMPORT_WRITE_BOUNDARY          = LOCKED — thực thi tại chính route,
+                                        không chỉ ở UI
+THIRD_LEGACY_SOURCE_ALLOWED           = NO — dù qua UI hay HTTP trực tiếp
+LEGACY_HISTORY_FIXED_SOURCE_INVARIANT = ENFORCED_IN_APPLICATION
+```
+
+`POST /du-lieu/legacy` **GIỮ ĐĂNG KÝ** (đúng tinh thần tương thích/vận hành
+mà `DEC-181` §7 dự định) nhưng từ chối **MỌI** request bằng HTTP 409 —
+"Dữ liệu lịch sử đã khóa. Hệ thống chỉ sử dụng nguồn lịch sử 2025 và
+01-08/2026 đã được chốt." — **TRƯỚC** khi đọc file, parse workbook, hay chạm
+`LegacyRepository`: không `create_import()`, không DB write, không đổi
+`is_current`, không side effect nào khác. Đây là một **RÀNG BUỘC NGHIỆP VỤ**
+(business invariant do chủ dự án ra), **không phải** access-control/auth/
+CSRF — không thêm cơ chế xác thực/phân quyền nào cho route này.
+
+`LegacyRepository.create_import()` ở tầng repository **không** bị vô hiệu
+hóa toàn cục — vẫn cần cho test/fixture/dựng dữ liệu khởi tạo (`DEC-181` §7
+đã lường trước nhu cầu này cho mục đích vận hành nội bộ). Quyết định này chỉ
+khóa **đường ghi sản xuất qua HTTP**, không phải toàn bộ tầng repository.
+
+### 3. Không mở lại
+
+Không mở lại bất kỳ semantics nào khác của `DEC-181` (§1–§6, §8–§10 giữ
+nguyên: một nguồn logic hai file provenance, `is_current` không còn là thẩm
+quyền, bộ giải nguồn theo kỳ, fail-loud khi nhập nhằng, không ánh xạ nhân
+viên lịch sử ↔ hiện hành, `/` ưu tiên kỳ Current Engine). Không đổi resolver
+nguồn (`LegacyRepository._history_sources_by_year()`), không đổi công thức
+nghiệp vụ, không thêm UI nào ngoài phạm vi đã có.
+
+Impact:
+Sửa `app/web/server.py::import_legacy()` — route trả `409` trước mọi side
+effect thay vì parse + `create_import()`. `BUSINESS_FORMULAS_CHANGED = NO`.
+`BUSINESS_TOTALS_CHANGED = NO`. `R2_RESOLVER_CHANGED = NO`.
+`SCHEMA_CHANGE_REQUIRED = NO`. Test seed nội bộ (fixtures của
+`tests/test_web_legacy_routes.py`, `tests/test_web_pipeline_analytics.py`,
+`tests/test_phb04_legacy_reference.py`) chuyển từ seed qua HTTP
+(`client.post("/du-lieu/legacy", ...)`) sang seed thẳng qua
+`LegacyRepository.create_import()` — route production không còn đường nào
+để test "nhập qua HTTP" theo đúng thẩm quyền mới; các test đã sửa để seed
+qua đúng tầng repository mà `DEC-181` §7 xác nhận vẫn cần được giữ.
+
+Evidence:
+Regression test tái hiện đúng E2 (BLOCKING) của Independent Review R2 —
+`tests/test_r2_legacy_history.py::test_r2_b01_post_legacy_cannot_create_a_third_eligible_legacy_source`
+và `::test_r2_b01_can_create_third_eligible_source_via_http_is_no`, đi qua
+route Flask ĐÃ ĐĂNG KÝ (không phải helper nội bộ). Đếm import trước/sau một
+`POST /du-lieu/legacy` với workbook hợp lệ nhưng khác fingerprint:
+`IMPORT_COUNT_BEFORE = 2`, `IMPORT_COUNT_AFTER = 2`. Số liệu suite đầy đủ
+(R2 focused / full suite / mutation check) nằm ở bản ghi session tương ứng
+của repair R2-B01.
+
+Can Revisit After:
+Chỉ khi chính chủ dự án ra một quyết định mới cho phép một nguồn Legacy thứ
+ba, hoặc thay write boundary này bằng một cơ chế khác (vd. một quy trình
+nhập lịch sử có kiểm soát riêng) — không phải suy luận của một phiên làm
+việc. Không mở lại `DEC-181` §7 rationale cũ ("gỡ UI là đủ").

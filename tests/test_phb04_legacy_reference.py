@@ -12,7 +12,6 @@ chứng minh một KẾT QUẢ nghiệp vụ chứ không phải "hàm có chạ
 
 from __future__ import annotations
 
-import io
 from datetime import date
 from decimal import Decimal
 
@@ -82,13 +81,24 @@ def client(app):
 
 
 def upload(client, path):
-    """Tải lên GIỮ NGUYÊN tên file thật — `source_file_name` là dấu vết nguồn,
-    và một tên gán cứng sẽ làm mọi khẳng định về nguồn trở nên vô nghĩa."""
-    return client.post(
-        "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(path.read_bytes()), path.name)},
-        content_type="multipart/form-data",
+    """Nạp một workbook vào history store DÙNG CHUNG với `client` (qua
+    `HISTORY_STORE` của Flask app) — GIỮ NGUYÊN tên file thật làm
+    `source_file_name`, đúng hành vi upload cũ (`_safe_display_name` chỉ cắt
+    basename, không đổi tên).
+
+    `POST /du-lieu/legacy` đã khóa vĩnh viễn (`DEC-181`, repair R2-B01) —
+    route không còn tạo import nào, kể cả trong test, nên seed đi thẳng qua
+    tầng repository. Dùng đúng bộ nhận dạng hình dạng workbook
+    (`_looks_like_year_workbook`) mà route từng dùng để hai hình dạng
+    (workbook năm độc lập / workbook nhiều tháng) vẫn phân biệt đúng như cũ.
+    """
+    repository = client.application.config["HISTORY_STORE"]
+    workbook = (
+        web_server.parse_year_workbook(path)
+        if web_server._looks_like_year_workbook(path)
+        else web_server.parse_workbook(path)
     )
+    return repository.create_import(workbook)
 
 
 @pytest.fixture

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import io
 import re
-from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
@@ -45,12 +44,27 @@ def client(app):
 
 
 @pytest.fixture
-def loaded(client, legacy_workbook_path):
-    client.post(
-        "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
-        content_type="multipart/form-data",
+def loaded(client, repository, legacy_workbook_path):
+    """Nạp một bản legacy để các test đọc-trang dùng chung.
+
+    `POST /du-lieu/legacy` đã khóa vĩnh viễn (`DEC-181`, repair R2-B01) —
+    route không còn tạo import nào, kể cả trong test. Seed đi thẳng qua
+    `repository.create_import()`, dùng đúng bộ nhận dạng hình dạng workbook
+    (`_looks_like_year_workbook`) mà route từng dùng, để hành vi seed không
+    lệch khỏi hành vi nhập thật trước đây.
+    """
+    from dataclasses import replace
+
+    from app.legacy import parse_workbook, parse_year_workbook
+
+    workbook = (
+        parse_year_workbook(legacy_workbook_path)
+        if web_server._looks_like_year_workbook(legacy_workbook_path)
+        else parse_workbook(legacy_workbook_path)
     )
+    # Tên hiển thị cũ do form upload gán ("bao_cao.xlsx"), khác tên file tạm
+    # của fixture — giữ nguyên để không lệch các assertion đã có trên tên này.
+    repository.create_import(replace(workbook, source_file_name="bao_cao.xlsx"))
     return client
 
 
@@ -58,78 +72,78 @@ def _upload(filename: str, content: bytes = b"khong phai xlsx"):
     return {"workbook": (io.BytesIO(content), filename)}
 
 
-# --- Nhập workbook legacy -------------------------------------------------
+# --- Nhập workbook legacy — route ĐÃ KHÓA (`DEC-181`, repair R2-B01) -----
+#
+# LEGACY_HISTORY chỉ gồm đúng hai nguồn provenance đã chốt (2025 độc lập +
+# 01–08/2026); route GIỮ ĐĂNG KÝ cho tương thích nhưng từ chối MỌI request
+# TRƯỚC khi đọc file/parse/chạm repository — kể cả file hợp lệ, kể cả file
+# đã nhập trước đó, kể cả file rác. Các test "nhập thành công"/"báo lỗi định
+# dạng" cũ của route này không còn đúng hành vi thật; nhóm dưới đây thay thế
+# chúng bằng đúng bất biến mới.
 
-def test_importing_a_legacy_workbook_makes_it_visible_in_the_data_tab(
-    client, legacy_workbook_path,
+def _import_count(repository) -> int:
+    return len(repository.list_imports())
+
+
+def test_post_legacy_is_refused_with_the_lock_message_before_any_side_effect(
+    client, repository, legacy_workbook_path,
 ):
+    before = _import_count(repository)
     response = client.post(
         "/du-lieu/legacy",
         data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
-        content_type="multipart/form-data", follow_redirects=True,
+        content_type="multipart/form-data",
     )
-    body = response.get_data(as_text=True)
-    assert response.status_code == 200
-    assert "LEG-" in body
-    assert "LEGACY_REFERENCE" in body
+    assert response.status_code == 409
+    assert "Dữ liệu lịch sử đã khóa" in response.get_data(as_text=True)
+    assert _import_count(repository) == before
 
 
-def test_reimporting_the_same_file_says_so_and_adds_no_version(loaded, legacy_workbook_path):
+def test_post_legacy_refuses_even_a_bit_for_bit_identical_reupload(
+    loaded, repository, legacy_workbook_path,
+):
+    """Trước repair, tải lại đúng file đã nhập là thao tác vô hại (trả về
+    bản cũ, không tạo bản mới). Sau `DEC-181`, "vô hại" không còn là lý do
+    cho phép — refuse vẫn refuse, bất kể fingerprint đã tồn tại hay chưa."""
+    before = _import_count(repository)
     response = loaded.post(
         "/du-lieu/legacy",
         data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
-        content_type="multipart/form-data", follow_redirects=True,
+        content_type="multipart/form-data",
     )
-    body = response.get_data(as_text=True)
-    assert "đã được nhập trước đó" in body
-    assert body.count("LEGACY_REFERENCE") == 1
+    assert response.status_code == 409
+    assert _import_count(repository) == before
 
 
-def test_a_non_xlsx_upload_is_rejected(client):
+def test_post_legacy_refuses_a_non_xlsx_upload_with_the_lock_message_not_a_format_error(client):
+    """Refusal chạy TRƯỚC kiểm tra định dạng file — file rác cũng nhận đúng
+    thông điệp khóa, không phải một lỗi "sai định dạng"."""
     response = client.post("/du-lieu/legacy", data=_upload("hack.php"),
-                           content_type="multipart/form-data", follow_redirects=True)
-    assert "Chỉ chấp nhận file .xlsx" in response.get_data(as_text=True)
+                           content_type="multipart/form-data")
+    assert response.status_code == 409
+    assert "Dữ liệu lịch sử đã khóa" in response.get_data(as_text=True)
 
 
-def test_a_missing_upload_is_rejected(client):
-    response = client.post("/du-lieu/legacy", data={},
-                           content_type="multipart/form-data", follow_redirects=True)
-    assert "Hãy chọn workbook legacy" in response.get_data(as_text=True)
+def test_post_legacy_refuses_a_request_with_no_file_at_all(client):
+    response = client.post("/du-lieu/legacy", data={}, content_type="multipart/form-data")
+    assert response.status_code == 409
+    assert "Dữ liệu lịch sử đã khóa" in response.get_data(as_text=True)
 
 
-def test_a_path_traversal_filename_never_reaches_the_filesystem(client, legacy_workbook_path):
+def test_post_legacy_never_touches_the_upload_directory(client, tmp_path, legacy_workbook_path):
+    upload_dir = tmp_path / "uploads"
     client.post(
         "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()),
-                           "../../../etc/passwd.xlsx")},
-        content_type="multipart/form-data", follow_redirects=True,
+        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
+        content_type="multipart/form-data",
     )
-    assert not (Path("/tmp") / "passwd.xlsx").exists()
+    assert not upload_dir.exists() or list(upload_dir.glob("*")) == []
 
 
-def test_the_uploaded_workbook_is_deleted_even_when_the_import_fails(client, tmp_path):
-    upload_dir = tmp_path / "uploads"
-    response = client.post("/du-lieu/legacy", data=_upload("hong.xlsx", b"khong phai zip"),
-                           content_type="multipart/form-data", follow_redirects=True)
-    assert "Không đọc được workbook legacy" in response.get_data(as_text=True)
-    assert list(upload_dir.glob("*")) == []
-
-
-def test_the_uploaded_workbook_is_deleted_after_a_successful_import(loaded, tmp_path):
-    assert list((tmp_path / "uploads").glob("*")) == []
-
-
-def test_the_oversize_limit_still_applies_to_legacy_uploads(app):
+def test_the_oversize_limit_still_applies_at_the_app_level(app):
+    """`MAX_CONTENT_LENGTH` là cấu hình Flask toàn app (mọi route), không
+    phụ thuộc hành vi của riêng `/du-lieu/legacy` — vẫn còn nguyên."""
     assert app.config["MAX_CONTENT_LENGTH"] == web_server.MAX_UPLOAD_BYTES
-
-
-def test_a_workbook_missing_frozen_sheets_reports_the_missing_sheets(client, synthetic_raw_path):
-    response = client.post(
-        "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(synthetic_raw_path.read_bytes()), "sai.xlsx")},
-        content_type="multipart/form-data", follow_redirects=True,
-    )
-    assert "Summary 2026" in response.get_data(as_text=True)
 
 
 # --- Trang Nhân viên ------------------------------------------------------
@@ -280,17 +294,15 @@ def test_a_database_failure_returns_503_not_an_empty_page(monkeypatch, tmp_path,
     assert response.status_code == 503
 
 
-def test_a_database_failure_on_the_write_path_is_503_not_a_blamed_workbook(
+def test_post_legacy_is_refused_even_when_the_old_write_path_would_have_failed(
     monkeypatch, tmp_path, repository, legacy_workbook_path,
 ):
-    """Repair FIND-PRA001-R02 — đường GHI cũng phải fail-closed như đường ĐỌC.
-
-    `_guarded` biến lỗi history store thành `abort(503)`, nhưng `abort` ném
-    `HTTPException`; trước repair, `except Exception` trong route import đã
-    nuốt nó và trả về redirect "Không đọc được workbook legacy". Tức là một
-    sự cố DATABASE bị hiển thị thành LỖI FILE CỦA OWNER — Owner sẽ đi sửa
-    workbook cho một lỗi hạ tầng, và CHECK-PRA001-06 bị phá trong im lặng.
-    """
+    """FIND-PRA001-R02/CHECK-PRA001-06 bảo vệ đường GHI cũ
+    (`_guarded(repository.create_import, ...)`) khỏi lộ lỗi hạ tầng thành lỗi
+    file của Owner. Đường GHI đó không còn tồn tại trong route (repair
+    R2-B01 — refusal chạy TRƯỚC nó), nên `create_import` có nổ cũng không
+    còn cơ hội được gọi tới: response luôn là 409 khóa, không phải 503,
+    không phải "Không đọc được workbook"."""
     monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
     monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
     monkeypatch.setattr(web_server, "UPLOAD_DIR", tmp_path / "uploads")
@@ -300,46 +312,32 @@ def test_a_database_failure_on_the_write_path_is_503_not_a_blamed_workbook(
 
     monkeypatch.setattr(repository, "create_import", _explode)
     application = web_server.create_app(db_path=tmp_path / "runs.db", history=repository)
-    application.testing = False          # để errorhandler 503 chạy thật
+    application.testing = False
     response = application.test_client().post(
         "/du-lieu/legacy",
         data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
         content_type="multipart/form-data",
     )
-    assert response.status_code == 503
-    assert response.status_code != 302
-    assert "Không đọc được workbook" not in response.get_data(as_text=True)
+    assert response.status_code == 409
+    assert "Dữ liệu lịch sử đã khóa" in response.get_data(as_text=True)
 
 
-def test_a_write_path_database_failure_still_deletes_the_uploaded_file(
-    monkeypatch, tmp_path, repository, legacy_workbook_path,
+def test_post_legacy_is_refused_even_without_a_history_store_configured(
+    monkeypatch, tmp_path, legacy_workbook_path,
 ):
-    """Fail-closed không được đánh đổi bằng việc bỏ quên file trên đĩa."""
+    """Refusal là bất biến NGHIỆP VỤ, không phụ thuộc hạ tầng — chưa cấu
+    hình history store vẫn nhận đúng 409 khóa, không phải 503."""
     monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
     monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
-    upload_dir = tmp_path / "uploads"
-    monkeypatch.setattr(web_server, "UPLOAD_DIR", upload_dir)
-
-    def _explode(*args, **kwargs):
-        raise history_store.HistoryUnavailableError("mất kết nối lúc ghi")
-
-    monkeypatch.setattr(repository, "create_import", _explode)
-    application = web_server.create_app(db_path=tmp_path / "runs.db", history=repository)
+    monkeypatch.setattr(web_server, "_build_history", lambda env=None: None)
+    application = web_server.create_app(db_path=tmp_path / "runs.db")
     application.testing = False
-    application.test_client().post(
+    response = application.test_client().post(
         "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "bao_cao.xlsx")},
+        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "a.xlsx")},
         content_type="multipart/form-data",
     )
-    assert list(upload_dir.glob("*")) == []
-
-
-def test_a_workbook_error_is_still_reported_as_a_workbook_error(client):
-    """Repair R02 không được biến MỌI lỗi thành 503 — lỗi file vẫn là lỗi file."""
-    response = client.post("/du-lieu/legacy", data=_upload("hong.xlsx", b"khong phai zip"),
-                           content_type="multipart/form-data", follow_redirects=True)
-    assert response.status_code == 200
-    assert "Không đọc được workbook legacy" in response.get_data(as_text=True)
+    assert response.status_code == 409
 
 
 def test_an_unconfigured_history_store_says_so_instead_of_showing_no_data(
@@ -353,22 +351,6 @@ def test_an_unconfigured_history_store_says_so_instead_of_showing_no_data(
     response = application.test_client().get("/nhan-vien")
     assert response.status_code == 503
     assert "History store chưa cấu hình" in response.get_data(as_text=True)
-
-
-def test_importing_without_a_history_store_is_503_not_a_silent_success(
-    monkeypatch, tmp_path, legacy_workbook_path,
-):
-    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
-    monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
-    monkeypatch.setattr(web_server, "_build_history", lambda env=None: None)
-    application = web_server.create_app(db_path=tmp_path / "runs.db")
-    application.testing = True
-    response = application.test_client().post(
-        "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()), "a.xlsx")},
-        content_type="multipart/form-data",
-    )
-    assert response.status_code == 503
 
 
 def test_production_mode_refuses_to_start_without_a_database_url(monkeypatch):

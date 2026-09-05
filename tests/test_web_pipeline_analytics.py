@@ -9,7 +9,6 @@ chính nó.
 
 from __future__ import annotations
 
-import io
 import json
 import re
 from datetime import date
@@ -288,13 +287,19 @@ def test_no_profit_cell_is_ever_rendered_without_its_coverage(client, snapshots)
 # --- CHECK-PRA003-06 · tách nguồn + non-regression legacy ---------------
 
 def test_the_sellers_page_without_a_parameter_is_still_the_legacy_page(
-    client, legacy_workbook_path,
+    client, legacy, legacy_workbook_path,
 ):
-    """O-E: bằng chứng non-regression của TASK-PRA-001 phải còn nguyên vẹn."""
-    client.post("/du-lieu/legacy",
-                data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()),
-                                   "bao_cao.xlsx")},
-                content_type="multipart/form-data")
+    """O-E: bằng chứng non-regression của TASK-PRA-001 phải còn nguyên vẹn.
+
+    `POST /du-lieu/legacy` đã khóa vĩnh viễn (`DEC-181`, repair R2-B01) — seed
+    đi thẳng qua repository thay vì HTTP.
+    """
+    from dataclasses import replace
+
+    from app.legacy import parse_workbook
+
+    workbook = replace(parse_workbook(legacy_workbook_path), source_file_name="bao_cao.xlsx")
+    legacy.create_import(workbook)
     html = body(client, "/nhan-vien?ky=2026-01")
 
     assert "NHÂN VIÊN — SỐ CŨ THEO THÁNG" in html
@@ -310,14 +315,20 @@ def test_an_unknown_source_value_falls_back_to_legacy_and_never_500s(client):
         assert "SỐ CŨ THEO THÁNG" in response.get_data(as_text=True), value
 
 
-def test_the_new_numbers_page_reads_no_legacy_table(client, snapshots,
+def test_the_new_numbers_page_reads_no_legacy_table(client, legacy, snapshots,
                                                     legacy_workbook_path):
     """O-F: SỐ MỚI chỉ dùng dữ liệu pipeline. Nhập legacy trước, rồi kiểm tra
-    rằng không một dấu vết nào của bản nhập đó lọt sang bảng SỐ MỚI."""
-    client.post("/du-lieu/legacy",
-                data={"workbook": (io.BytesIO(legacy_workbook_path.read_bytes()),
-                                   "bao_cao.xlsx")},
-                content_type="multipart/form-data")
+    rằng không một dấu vết nào của bản nhập đó lọt sang bảng SỐ MỚI.
+
+    `POST /du-lieu/legacy` đã khóa vĩnh viễn (`DEC-181`, repair R2-B01) — seed
+    đi thẳng qua repository thay vì HTTP.
+    """
+    from dataclasses import replace
+
+    from app.legacy import parse_workbook
+
+    workbook = replace(parse_workbook(legacy_workbook_path), source_file_name="bao_cao.xlsx")
+    legacy.create_import(workbook)
     persist(snapshots, [line("BH1", month=9, day=2, employee="VuHanhLy")])
     html = body(client, "/nhan-vien?nguon=moi&ky=2026-09")
 
