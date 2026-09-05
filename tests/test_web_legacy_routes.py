@@ -171,7 +171,7 @@ def test_defective_cells_show_their_defect_code(loaded):
 
 def test_a_period_without_data_shows_an_honest_empty_state_not_zeros(loaded):
     body = loaded.get("/nhan-vien?ky=2019-01").get_data(as_text=True)
-    assert "không có trong bản legacy" in body
+    assert "không có trong dữ liệu lịch sử" in body
     assert "0" not in re.findall(r'<td class="num[^"]*">(.*?)</td>', body, re.S)
 
 
@@ -180,9 +180,16 @@ def test_the_seller_page_is_empty_state_safe_before_any_import(client):
     assert "Chưa nhập bản báo cáo cũ nào" in body
 
 
-def test_the_page_names_the_legacy_version_being_viewed(loaded):
+def test_the_page_names_the_single_locked_history_source(loaded):
+    """`DEC-181` — trang nói MỘT nguồn lịch sử đã khoá + file provenance.
+
+    Không còn "Bản đang xem": khái niệm đó đã bị chủ dự án bác bỏ. Tên file
+    vẫn hiện ra, nhưng với vai trò ĐỐI CHIẾU, không phải một bản để chọn.
+    """
     body = loaded.get("/nhan-vien?ky=2026-01").get_data(as_text=True)
-    assert "Bản đang xem" in body
+    assert "Bản đang xem" not in body
+    assert "DỮ LIỆU LỊCH SỬ" in body
+    assert "ĐÃ KHÓA" in body
     assert "bao_cao.xlsx" in body
 
 
@@ -216,11 +223,11 @@ def test_every_number_on_the_daily_page_carries_the_legacy_label(loaded):
 
 # --- Tab Dữ liệu và điều hướng -------------------------------------------
 
-def test_the_data_tab_keeps_pipeline_runs_and_legacy_imports_apart(loaded):
+def test_the_data_tab_keeps_pipeline_runs_and_legacy_history_apart(loaded):
     body = loaded.get("/du-lieu").get_data(as_text=True)
-    assert "Báo cáo cũ (Excel)" in body
+    assert "DỮ LIỆU LỊCH SỬ" in body
     assert "Các lần chạy pipeline" in body
-    assert body.index("Báo cáo cũ") < body.index("Các lần chạy pipeline")
+    assert body.index("DỮ LIỆU LỊCH SỬ") < body.index("Các lần chạy pipeline")
 
 
 def test_the_old_history_url_still_leads_to_the_data_tab(client):
@@ -229,25 +236,24 @@ def test_the_old_history_url_still_leads_to_the_data_tab(client):
     assert response.headers["Location"].endswith("/du-lieu")
 
 
-def test_choosing_another_legacy_version_changes_what_the_pages_show(
-    loaded, legacy_workbook_path, repository, tmp_path,
-):
-    from app.legacy import parse_workbook
-    from tests.fixtures.legacy.build_legacy_workbook import build_legacy_workbook
+def test_the_legacy_source_selection_route_no_longer_exists(loaded, repository):
+    """`DEC-181` §2 — chọn "bản đang xem" là quy trình chủ dự án bác bỏ.
 
-    other = parse_workbook(build_legacy_workbook(tmp_path / "ban_khac.xlsx"))
-    object.__setattr__(other, "file_fingerprint", "fingerprint-khac")
-    object.__setattr__(other, "source_file_name", "ban_khac.xlsx")
-    second = repository.create_import(other)
-
-    assert "ban_khac.xlsx" in loaded.get("/nhan-vien").get_data(as_text=True)
-    first = next(i for i in repository.list_imports() if i["import_id"] != second.import_id)
-    loaded.post(f"/du-lieu/legacy/{first['import_id']}/chon", follow_redirects=True)
-    assert "bao_cao.xlsx" in loaded.get("/nhan-vien").get_data(as_text=True)
+    Không còn route nào thực hiện nó, nên cũng không còn cách nào (kể cả gõ
+    tay URL) để một bản nhập legacy trở thành "nguồn đang xem".
+    """
+    import_id = repository.list_imports()[0]["import_id"]
+    assert loaded.post(f"/du-lieu/legacy/{import_id}/chon").status_code == 404
 
 
-def test_choosing_an_unknown_legacy_version_is_404(loaded):
-    assert loaded.post("/du-lieu/legacy/LEG-khong-co/chon").status_code == 404
+def test_the_data_tab_offers_no_way_to_add_or_select_a_legacy_source(loaded):
+    """`DEC-181` §8 · §9 — không nút chọn bản, không ô tải Legacy mới."""
+    body = loaded.get("/du-lieu").get_data(as_text=True)
+    for forbidden in ("CHỌN BẢN NÀY", "ĐANG XEM", "Bản đang xem", "NHẬP BẢN LEGACY"):
+        assert forbidden not in body, forbidden
+    assert "/du-lieu/legacy" not in body
+    # Luồng SỐ MỚI không bị đụng tới.
+    assert "CHẠY BÁO CÁO MỚI" in body
 
 
 def test_every_page_links_the_tabs_that_actually_exist(loaded):

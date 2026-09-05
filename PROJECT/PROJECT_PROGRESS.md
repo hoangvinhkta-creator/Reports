@@ -1,5 +1,63 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — R2 UNIFIED LEGACY_HISTORY (AUTHORITATIVE, 2026-09-05)
+
+Bản sửa có ràng buộc theo THẨM QUYỀN CHỦ DỰ ÁN (`DEC-181`). Chủ dự án đơn
+giản hoá mô hình sản phẩm: **không còn khái niệm nhiều bản Legacy để chọn**.
+Khối S122 bên dưới vẫn đúng về S122; mục này đúng về trạng thái *hiện tại*
+của vertical lịch sử. `NEXT_VERTICAL_ACTION` của S122 chính là phiên này.
+
+```text
+VERTICAL                   = R2 — UNIFIED LEGACY_HISTORY
+DECISION                   = DEC-181 (OWNER_DECISION, FROZEN)
+BASE_HEAD                  = f0c644fd828b37d35a8363c01f11530727272f01
+STATUS                     = IMPLEMENTED — chờ Independent Review; CHƯA
+                             merge vào canonical, CHƯA deploy
+
+LEGACY_LOGICAL_SOURCES     = 1 (LEGACY_HISTORY)
+LEGACY_PHYSICAL_PROVENANCE_FILES = 2
+LEGACY_2025_AUTHORITY      = Báo cáo Kinh doanh 2025.xlsx (workbook một năm
+                             độc lập, AUTHORITATIVE_YEAR)
+LEGACY_2026_AUTHORITY      = Báo cáo Kinh doanh 2026.xlsx (01–08/2026)
+EMBEDDED_SUMMARY_2025_AUTHORITATIVE = NO (`DEC-178` giữ nguyên)
+
+IS_CURRENT_BUSINESS_AUTHORITY = NO — cột `legacy_import.is_current` còn lại
+                             như metadata tương thích ngược; đổi giá trị của
+                             nó KHÔNG đổi kỳ nào có, số nào ra, hay MoM nào.
+SELECTABLE_LEGACY_UI       = NO — "Bản đang xem" / "Chọn bản này" đã gỡ;
+                             route `POST /du-lieu/legacy/<id>/chon` đã gỡ.
+NEW_LEGACY_UI              = NO — ô "NHẬP BẢN LEGACY" đã gỡ khỏi `/du-lieu`;
+                             endpoint `POST /du-lieu/legacy` GIỮ cho tương
+                             thích/vận hành (`DEC-181` §7).
+AVAILABLE_2025_AND_2026_SIMULTANEOUSLY = YES
+AMBIGUITY_BEHAVIOUR        = FAIL LOUD — `LegacyHistoryAmbiguityError` → HTTP
+                             409 kèm tên năm và các bản nhập mâu thuẫn.
+
+SCHEMA_CHANGE_REQUIRED     = NO — không bảng mới, không cột mới, không
+                             migration, không kho dữ liệu mới.
+BUSINESS_FORMULAS_CHANGED  = NO
+BUSINESS_TOTALS_CHANGED    = NO
+R1_NAV_PRESERVED           = YES (Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu)
+ROOT_LANDING_UNIFIED       = YES — kỳ Current Engine vẫn LUÔN thắng; chỉ khi
+                             không có kỳ số mới nào thì `/` mở kỳ lịch sử mới
+                             nhất, dùng lại chính bộ giải nguồn của R2.
+EMPLOYEE_IDENTITY_MAPPING  = KHÔNG mở (`DEC-180` §4 / `DEC-181` §9 giữ nguyên)
+
+VALIDATION                 = R2 focused 34 passed · full suite 2355 passed,
+                             11 skipped (baseline 2321 passed, 11 skipped) ·
+                             golden PASS · DEC-180 / R1 nav / PHB-03 / PHB-04
+                             PASS · validator governance = baseline.
+MUTATION_PROBES            = dựng lại cổng `is_current` ⟹ 14 FAIL; bản
+                             `Summary 2025` nhúng thắng nguồn chuẩn ⟹ 8 FAIL;
+                             bỏ hệ số kVND→VND ⟹ 3 FAIL.
+BLOCKING_FINDINGS          = NONE
+SCOPE_DRIFT                = NO
+NEXT_VERTICAL_ACTION       = Mở session Claude ĐỘC LẬP review đúng FINAL_HEAD
+                             của nhánh R2; chỉ sau khi PASS mới Controlled
+                             Integration vào canonical.
+```
+
+
 ## CANONICAL CURRENT STATE — S122 R1 GỠ TRÙNG NAVIGATION — CONTROLLED INTEGRATION (AUTHORITATIVE, 2026-09-05)
 
 Ghi nhận bookkeeping tối thiểu cho một Controlled Integration đã diễn ra:

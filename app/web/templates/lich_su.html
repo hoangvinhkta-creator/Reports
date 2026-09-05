@@ -19,7 +19,7 @@
 {% if not history_configured %}
   {{ legacy.not_configured() }}
 {% else %}
-{{ legacy.source_note(legacy_import) }}
+{{ legacy.source_note(legacy_history) }}
 
 <div class="module">
   <h2>1. Chuỗi doanh số tháng của năm trước
@@ -35,7 +35,7 @@
   <p class="empty">Chưa nhập bản báo cáo cũ nào — vào tab Dữ liệu để nhập workbook.</p>
   {% elif not reference_has_value %}
   <p class="empty">
-    Bản legacy đang xem có sheet DataChart nhưng cột cùng kỳ năm trước trống
+    Nguồn lịch sử có sheet DataChart nhưng cột cùng kỳ năm trước trống
     hoàn toàn — không có kỳ lịch sử nào để hiện.
   </p>
   {% else %}
@@ -64,7 +64,7 @@
   </p>
 
   {% if not summary_years %}
-  <p class="empty">Chưa có năm nào có dòng Summary trong bản legacy đang xem.</p>
+  <p class="empty">Chưa có năm nào có dòng Summary trong dữ liệu lịch sử.</p>
   {% else %}
   {% for year in summary_years %}
   <h3>Năm {{ year.year }} {{ legacy.legacy_badge() }}

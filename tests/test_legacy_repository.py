@@ -148,16 +148,28 @@ def test_available_periods_lists_only_periods_that_exist(legacy_repository, work
         (2026, 3), (2026, 2), (2026, 1), (2025, 1)]
 
 
-def test_queries_read_the_current_version_by_default(legacy_repository, workbook, tmp_path):
+def test_two_equally_eligible_imports_fail_loud_instead_of_picking_one(
+    legacy_repository, workbook, tmp_path,
+):
+    """`DEC-181` §6 — "bản đang xem" KHÔNG được thay bằng một heuristic khác.
+
+    Trước R2, hai workbook cùng hình dạng thì bản `is_current` thắng thầm
+    lặng. Nay lịch sử đã khoá ở MỘT nguồn cho mỗi năm, nên hai ứng viên
+    ngang nhau là một mâu thuẫn phải nổ ra — không phải một lựa chọn tự động.
+    """
     from tests.fixtures.legacy.build_legacy_workbook import build_legacy_workbook
 
     first = legacy_repository.create_import(workbook)
     other = parse_workbook(build_legacy_workbook(tmp_path / "ban_moi.xlsx"))
     object.__setattr__(other, "file_fingerprint", "fingerprint-khac")
-    second = legacy_repository.create_import(other)
+    legacy_repository.create_import(other)
 
-    rows = legacy_repository.query_summary(2026, 1)
-    assert {row["import_id"] for row in rows} == {second.import_id}
+    with pytest.raises(history_store.LegacyHistoryAmbiguityError) as raised:
+        legacy_repository.query_summary(2026, 1)
+    assert "2026" in str(raised.value)
+
+    # Chỉ đích danh MỘT bản nhập vẫn đọc được — đó là đường audit/đối chiếu,
+    # không phải một bộ chọn nguồn nghiệp vụ.
     pinned = legacy_repository.query_summary(2026, 1, import_id=first.import_id)
     assert {row["import_id"] for row in pinned} == {first.import_id}
 

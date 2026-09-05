@@ -9268,3 +9268,154 @@ bị bác bằng bằng chứng — đúng cùng một tiêu chuẩn mà `DEC-18
 tên người bán lịch sử ↔ nhân viên hiện hành. Điều KHÔNG mở lại: trừ chiết
 khấu hai lần, gộp hai origin vào một con số, và dùng một giá trị legacy chưa
 chuẩn hoá đơn vị trong một phép tính của số mới.
+
+---
+
+## DEC-181
+
+Title:
+Chủ dự án đơn giản hoá mô hình sản phẩm: KHÔNG còn "chọn bản legacy". Có
+ĐÚNG MỘT nguồn lịch sử logic `LEGACY_HISTORY`, ghép từ HAI file provenance
+cố định — và `is_current` thôi làm thẩm quyền nghiệp vụ
+
+Date:
+2026-09-05
+
+Task:
+R2 — `UNIFIED LEGACY_HISTORY`. Bản sửa có ràng buộc, nhánh R2 tách từ
+`BASE_HEAD = f0c644fd828b37d35a8363c01f11530727272f01`.
+
+Authority:
+**`OWNER_DECISION` — FROZEN.** Đây không phải suy luận của phiên làm việc:
+chủ dự án ra quyết định sản phẩm và bác thẳng luồng UX đang có.
+
+Supersedes:
+Luồng UX "chọn bản legacy đang xem" (`Bản đang xem` / `CHỌN BẢN NÀY` /
+`POST /du-lieu/legacy/<id>/chon`) và vai trò của `is_current` như thẩm quyền
+đọc lịch sử — vai trò đó đến từ `TASK-PRA-001` và được `DEC-178` §4 vá một
+phần. Các bản ghi lịch sử KHÔNG bị sửa tại chỗ: `DEC-169`, `DEC-176`,
+`DEC-177`, `DEC-178`, `DEC-179`, `DEC-180` giữ nguyên văn. Quy tắc thẩm
+quyền của `DEC-178` (workbook một năm độc lập THẮNG bản sao nhúng) được GIỮ
+NGUYÊN và nay là bậc 1 của bộ giải nguồn thống nhất.
+
+### 1. Quyết định
+
+```text
+LEGACY_LOGICAL_SOURCES           = 1        (LEGACY_HISTORY)
+LEGACY_PHYSICAL_PROVENANCE_FILES = 2
+
+LEGACY_HISTORY
+    2025-01 .. 2025-12  →  Báo cáo Kinh doanh 2025.xlsx (workbook một năm độc lập)
+    2026-01 .. 2026-08  →  Báo cáo Kinh doanh 2026.xlsx (workbook năm hiện hành)
+```
+
+Bản sao `Summary 2025` nhúng trong workbook 2026 **KHÔNG** là thẩm quyền của
+2025 và **KHÔNG** được ghi đè workbook 2025 độc lập (`DEC-178` giữ nguyên).
+
+Hai file là **PROVENANCE**, không phải hai bộ dữ liệu để chọn. Với hệ thống
+nghiệp vụ: `2025 + 01–08/2026 = MỘT` nguồn lịch sử.
+
+### 2. Điều bị gỡ khỏi hành vi sản phẩm bình thường
+
+- "Bản đang xem" / "Chọn bản này" / mọi nút chọn một bản nhập legacy;
+- `is_current` quyết định kỳ lịch sử nào tồn tại;
+- đổi workbook để một năm khác hiện ra;
+- Summary/MoM/lịch sử xuất hiện hay biến mất vì người dùng chọn một file.
+
+Người dùng **không bao giờ** phải chọn workbook 2025 hay 2026 để xem lịch sử.
+
+### 3. `is_current` — metadata tương thích ngược, KHÔNG phải thẩm quyền
+
+Cột `legacy_import.is_current` được GIỮ (không migration để xoá — xoá một
+cột là rủi ro lớn hơn hẳn giá trị của việc xoá). Sau R2 nó KHÔNG điều khiển:
+danh mục kỳ lịch sử, `query_summary()`, `query_monthly_reference()`,
+`query_daily()`, fallback MoM, hay bất kỳ trang báo cáo bình thường nào.
+Đổi giá trị của nó phải cho ra kết quả **GIỐNG HỆT** — có test canh
+(`tests/test_r2_legacy_history.py`, CASE 5 · 6 · 7).
+
+### 4. Sự cố production được chữa — `CODE_PATH_FAILURE`, không phải mất dữ liệu
+
+Production có ĐỦ cả hai bản nhập. Khi cờ "đang xem" trỏ vào workbook 2025,
+mọi kỳ 2026 biến mất, vì `available_periods()` / `query_summary()` /
+`query_monthly_reference()` cuối cùng đều đọc **một bản nhập được chọn**.
+Dữ liệu không thiếu ⟹ **KHÔNG nhập lại** để "chữa", và **KHÔNG** chạy lại
+lịch sử qua pipeline hiện hành.
+
+### 5. Cơ chế — bộ giải nguồn THEO KỲ, ở tầng truy vấn
+
+`LegacyRepository._history_sources_by_year()` dựng bản đồ `{năm → bản nhập}`
+từ bằng chứng THẬT trên cả ba bảng sự kiện (Summary, DataChart tháng,
+DataChart ngày), theo hai bậc:
+
+1. `AUTHORITATIVE_YEAR` — workbook một năm độc lập (`DEC-178`);
+2. `WORKBOOK_SNAPSHOT` — workbook năm hiện hành, cho chính năm của nó.
+
+Mọi hàm đọc lịch sử đi qua bản đồ đó. `SCHEMA_CHANGE_REQUIRED = NO`:
+không bảng mới, không cột mới, không kho dữ liệu mới, không kiến trúc
+đa-nguồn tổng quát.
+
+### 6. Nhập nhằng — FAIL LOUD, không thay một heuristic bằng heuristic khác
+
+Hai bản nhập cùng đủ tư cách cho MỘT năm ⟹ `LegacyHistoryAmbiguityError`
+(HTTP 409 kèm câu nói rõ năm nào, những bản nhập nào). **Không** chọn "mới
+nhất", "cũ nhất", "đang xem", "thứ tự nhập" hay "sắp tên file". Không có
+khái niệm "current" nào được dựng lại dưới một cái tên khác. Không có bằng
+chứng cho một kỳ vẫn là *"chưa có dữ liệu"* như hợp đồng cũ, KHÔNG phải 0.
+
+### 7. Không thêm nguồn legacy nào nữa
+
+Đây là các nguồn lịch sử CUỐI CÙNG. Giao diện bình thường vì vậy không còn
+ô "NHẬP BẢN LEGACY" và không còn luồng thêm/thay/chọn Legacy. Endpoint
+`POST /du-lieu/legacy` được GIỮ cho tương thích/vận hành — siết nó thành
+lỗi cứng sẽ phải đụng tới toàn bộ đường nhập đang có test, tức mở rộng phạm
+vi mà không thêm an toàn nào cho đường sản phẩm (đường đó đã bịt). Luồng số
+mới "CHẠY BÁO CÁO MỚI" **không** bị đụng tới.
+
+### 8. Provenance CÓ, bộ chọn KHÔNG
+
+```text
+PROVENANCE                = YES
+SOURCE_SELECTION_WORKFLOW = NO
+```
+
+`/du-lieu` và `/lich-su` vẫn ghi rõ số 2025 đọc từ file nào, số 2026 đọc từ
+file nào, kèm nhãn thẩm quyền — để đối chiếu được. Không dòng nào trong đó
+bấm được để đổi nguồn.
+
+### 9. Ranh giới — điều quyết định này KHÔNG cho phép
+
+Không đổi bất kỳ công thức nghiệp vụ nào (Tổng bán, chiết khấu, KPI Profit,
+DS quy đổi, tỉ lệ quy đổi, đếm đơn, số lượng SP đủ điều kiện, PP coverage,
+gán nhân viên, Product Identity, cách hiển thị tiền của R1, thanh tab chính
+của R1). Không mở ánh xạ *người bán lịch sử ↔ nhân viên hiện hành*: MoM bắc
+qua ranh giới cho MỘT nhân viên vẫn KHÔNG được triển khai, vì tổng tháng của
+sổ cũ là số của CẢ CÔNG TY (`DEC-180` §4 giữ nguyên). Không dựng framework
+đa nguồn, không auth/roles, không engine phân tích mới, không kho dữ liệu.
+
+### 10. `/` — kỳ mới nhất của dòng thời gian báo cáo
+
+Kỳ mới nhất của Current Engine vẫn LUÔN thắng (production: các kỳ số mới đều
+mới hơn 08/2026 ⟹ hành vi R1 không đổi). Chỉ khi KHÔNG có kỳ số mới nào mà
+lịch sử lại có kỳ, `/` mở kỳ lịch sử mới nhất — dùng LẠI bộ giải nguồn của
+R2, không dựng engine hợp nhất hai nguồn.
+
+Impact:
+`BUSINESS_FORMULAS_CHANGED = NO`. `BUSINESS_TOTALS_CHANGED = NO`.
+`SCHEMA_CHANGE_REQUIRED = NO`. Thay đổi nằm ở: bộ giải nguồn theo kỳ trong
+`app/web/history_store.py`, ngữ cảnh provenance ở `app/web/legacy_presentation.py`,
+điểm ráp + xử lý 409 + landing ở `app/web/server.py`, và bốn template legacy.
+Một route bị gỡ: `POST /du-lieu/legacy/<id>/chon` (chính luồng bị bác).
+
+Evidence:
+`R2_FOCUSED = 34 passed` (`tests/test_r2_legacy_history.py`);
+`FULL_TEST_SUITE = 2355 passed, 11 skipped` (baseline trước phiên
+`2321 passed, 11 skipped`).
+Ba phép thử đột biến chứng minh khẳng định có răng: dựng lại cổng
+`is_current` ⟹ 14 FAIL; cho bản `Summary 2025` nhúng thắng nguồn chuẩn ⟹
+8 FAIL; bỏ hệ số kVND→VND ⟹ 3 FAIL.
+
+Can Revisit After:
+Chỉ mở lại khái niệm "nhiều nguồn lịch sử để chọn" khi chính chủ dự án ra
+một quyết định mới bác `DEC-181`. Điều KHÔNG mở lại: `is_current` làm thẩm
+quyền nghiệp vụ, bản sao nhúng ghi đè nguồn chuẩn, chọn thầm lặng một trong
+hai nguồn ngang nhau, và chạy lại lịch sử qua pipeline hiện hành.

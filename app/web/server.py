@@ -88,8 +88,6 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 HISTORY_PAGE_LIMIT = 50
 
-LEGACY_IMPORT_PAGE_LIMIT = 50
-
 # `R3` — hai provenance có nghĩa "chính Owner đã quyết con số này". Đọc thẳng
 # từ `business_metrics` để bộ lọc không bao giờ lệch với ngữ nghĩa đã freeze.
 _OWNER_EDITED_PROVENANCE = (
@@ -105,6 +103,12 @@ def _guarded(fn, *args, **kwargs):
     thật sự rỗng)."""
     try:
         return fn(*args, **kwargs)
+    except history_store.LegacyHistoryAmbiguityError as exc:
+        # `DEC-181` §6 — nguồn lịch sử mâu thuẫn KHÔNG được nói thành "lưu
+        # trữ tạm thời không khả dụng": đổ lỗi cho hạ tầng vì một mâu thuẫn
+        # dữ liệu là cách chắc chắn nhất để không ai đi sửa nó. 409 mang
+        # theo đúng câu giải thích của tầng repository.
+        abort(409, description=str(exc))
     except (StorageUnavailableError, CorruptRunRecordError,
             history_store.HistoryUnavailableError):
         abort(503)
@@ -305,6 +309,10 @@ def create_app(
     app.jinja_env.globals["LEGACY_PROVENANCE"] = legacy_reference.PROVENANCE
     app.jinja_env.globals["LEGACY_PROVENANCE_LABEL"] = legacy_reference.PROVENANCE_LABEL
     app.jinja_env.globals["LEGACY_PROVENANCE_NOTE"] = legacy_reference.PROVENANCE_NOTE
+    app.jinja_env.globals["LEGACY_HISTORY_LABEL"] = legacy_presentation.HISTORY_LABEL
+    app.jinja_env.globals["LEGACY_HISTORY_LOCKED_LABEL"] = \
+        legacy_presentation.HISTORY_LOCKED_LABEL
+    app.jinja_env.globals["LEGACY_HISTORY_NOTE"] = legacy_presentation.HISTORY_NOTE
     app.jinja_env.globals["PIPELINE_BADGE"] = analytics_presentation.ORIGIN_BADGE
     app.jinja_env.globals["PIPELINE_BADGE_TITLE"] = analytics_presentation.ORIGIN_TITLE
     app.jinja_env.globals["QUANTITY_NOTE"] = analytics_presentation.QUANTITY_NOTE
@@ -329,11 +337,25 @@ def create_app(
             abort(503)
         return history_repo
 
+    def _legacy_history_context():
+        """Ngữ cảnh LEGACY_HISTORY dùng chung — MỘT nguồn, hai file provenance.
+
+        `DEC-181`: trang bình thường không còn "bản đang xem". Cái thay chỗ
+        nó là khoảng kỳ đã khoá cộng danh sách file provenance — thông tin
+        để ĐỐI CHIẾU, không phải một bộ chọn nguồn.
+        """
+        if history_repo is None:
+            return None
+        return legacy_presentation.history_overview(
+            _guarded(history_repo.available_periods),
+            _guarded(history_repo.history_sources),
+        )
+
     def _legacy_page(template: str, **context):
         return render_template(
             template,
             history_configured=history_repo is not None,
-            legacy_import=_guarded(history_repo.current_import) if history_repo else None,
+            legacy_history=_legacy_history_context(),
             **context,
         )
 
@@ -358,17 +380,27 @@ def create_app(
     def landing():
         """R1 (`GỠ TRÙNG UX`) — `/` mở BÁO CÁO, không còn màn hình upload.
 
-        Chỉ đọc kỳ mới nhất từ Current Engine (`analytics_queries`, cùng
-        nguồn `/kinh-doanh` đã dùng) — KHÔNG dò kỳ mới nhất bắc qua Legacy:
-        hợp nhất "mới nhất" giữa hai nguồn là việc của R2, chưa làm ở đây.
-        Không có snapshot store hoặc chưa có kỳ nào ⟹ về thẳng `/kinh-doanh`
-        không kèm `ky`, để trang đó tự nói tình trạng của nó (503/rỗng).
+        Kỳ mới nhất của Current Engine (`analytics_queries`, cùng nguồn
+        `/kinh-doanh` đã dùng) LUÔN thắng — trong production các kỳ số mới
+        đều mới hơn 08/2026, nên hành vi R1 giữ nguyên.
+
+        `DEC-181` §17 nới đúng một bước: KHÔNG có kỳ số mới nào mà
+        LEGACY_HISTORY lại có kỳ ⟹ mở kỳ lịch sử mới nhất, dùng LẠI bộ giải
+        nguồn của R2. Không có engine hợp nhất hai nguồn nào được dựng ở
+        đây: hai nhánh vẫn tách hẳn, chỉ chọn nhánh nào có kỳ để mở.
+        Không nguồn nào có kỳ ⟹ về thẳng `/kinh-doanh` không kèm `ky`, để
+        trang đó tự nói tình trạng của nó (503/rỗng).
         """
         ky = None
         if snapshot_repo is not None:
             periods = _guarded(analytics_queries.available_periods, snapshot_repo.engine)
             if periods:
                 ky = business_presentation.period_value(periods[0])
+        if ky is None and history_repo is not None:
+            legacy_periods = _guarded(history_repo.available_periods)
+            if legacy_periods:
+                year, month = legacy_periods[0]
+                return redirect(url_for("sellers", ky=f"{year}-{month:02d}"))
         return redirect(url_for("business_summary", **({"ky": ky} if ky else {})))
 
     @app.get("/du-lieu/chay-bao-cao")
@@ -389,16 +421,18 @@ def create_app(
 
     @app.get("/du-lieu")
     def data_tab():
-        """Tab "Dữ liệu": các lần chạy pipeline VÀ các bản nhập legacy.
+        """Tab "Dữ liệu": các lần chạy pipeline VÀ nguồn lịch sử đã khoá.
 
         Hai origin nằm trong hai bảng tách biệt trên trang, mỗi bảng ghi rõ
         nguồn — không bao giờ trộn số pipeline với số cũ vào một danh sách.
+
+        `DEC-181`: phần lịch sử là MỘT nguồn đã khoá, nên trang không còn
+        liệt kê "các bản nhập legacy để chọn" — nó liệt kê các file
+        PROVENANCE của nguồn đó. Ô tải workbook legacy cũng đã gỡ: chủ dự án
+        chốt không thêm nguồn lịch sử nào nữa. "CHẠY BÁO CÁO MỚI" (luồng số
+        mới) KHÔNG bị đụng tới.
         """
         runs = _guarded(store.list_runs, limit=HISTORY_PAGE_LIMIT)
-        imports = (
-            _guarded(history_repo.list_imports, limit=LEGACY_IMPORT_PAGE_LIMIT)
-            if history_repo else []
-        )
         snapshots, runs_with_snapshot = [], set()
         if snapshot_repo is not None:
             snapshots = _guarded(snapshot_repo.list_snapshots, limit=SNAPSHOT_PAGE_LIMIT)
@@ -408,7 +442,7 @@ def create_app(
                 snapshot_repo.run_ids_with_snapshot, [run.run_id for run in runs],
             )
         return _legacy_page(
-            "du_lieu.html", runs=runs, imports=imports, snapshots=snapshots,
+            "du_lieu.html", runs=runs, snapshots=snapshots,
             snapshots_configured=snapshot_repo is not None,
             runs_with_snapshot=runs_with_snapshot,
             imported=request.args.get("imported") or None,
@@ -548,14 +582,11 @@ def create_app(
             message = f"Đã nhập bản legacy {result.import_id}."
         return redirect(url_for("data_tab", imported=message))
 
-    @app.post("/du-lieu/legacy/<import_id>/chon")
-    def choose_legacy(import_id: str):
-        repository = _require_history()
-        try:
-            _guarded(repository.set_current, import_id)
-        except KeyError:
-            abort(404)
-        return redirect(url_for("data_tab", imported=f"Đang xem bản {import_id}."))
+    # `POST /du-lieu/legacy/<id>/chon` ĐÃ GỠ (`DEC-181` §2): chọn "bản đang
+    # xem" là chính quy trình chủ dự án bác bỏ. Không có route nào thay thế
+    # nó — lịch sử đã khoá ở MỘT nguồn logic, nên không còn gì để chọn.
+    # `LegacyRepository.set_current()` vẫn còn ở tầng repository như metadata
+    # tương thích ngược (§7), nhưng không còn đường nào từ web gọi tới nó.
 
     def _pipeline_period(periods: list[tuple[int, int]]) -> Optional[tuple[int, int]]:
         """Kỳ SỐ MỚI đang xem. Mặc định "Toàn bộ dữ liệu" (``None``).
@@ -779,12 +810,12 @@ def create_app(
         # lịch sử chứ không chỉ năm workbook.
         all_summary = _guarded(history_repo.query_all_summary)
         years = legacy_reference.summary_years(all_summary)
-        current = _guarded(history_repo.current_import)
-        # `DEC-178` — mỗi năm ghi rõ nó đang đọc từ nguồn nào. Đây là chỗ
-        # quy tắc "nguồn chuẩn thắng" trở thành thứ chủ dự án NHÌN THẤY,
-        # không chỉ là một dòng trong tài liệu.
-        authority_by_year = {
-            year.year: _guarded(history_repo.authority_import_for_year, year.year)
+        # `DEC-178` + `DEC-181` — mỗi năm ghi rõ nó đọc từ FILE nào. Đây là
+        # chỗ quy tắc "một kỳ ⟹ một nguồn" trở thành thứ chủ dự án NHÌN
+        # THẤY, không chỉ là một dòng trong tài liệu. Không còn năm nào rơi
+        # về "bản đang xem".
+        source_by_year = {
+            year.year: _guarded(history_repo.history_source_for_year, year.year)
             for year in years
         }
         return _legacy_page(
@@ -794,9 +825,16 @@ def create_app(
             reference_has_value=legacy_reference.has_any_value(periods),
             summary_periods=summary_periods,
             summary_years=legacy_presentation.summary_year_rows(
-                years, all_summary, authority_by_year, current),
-            unread=legacy_reference.unread_sheets(
-                (current or {}).get("sheets_imported")),
+                years, all_summary, source_by_year),
+            # Phần "chưa đọc được" đo trên MỌI file provenance đang phục vụ
+            # lịch sử, không riêng một bản: bỏ sót của workbook 2025 phải
+            # hiện ra kể cả khi trang đang nói về 2026.
+            unread=[
+                sheet
+                for source in _guarded(history_repo.history_sources)
+                for sheet in legacy_reference.unread_sheets(
+                    source.get("sheets_imported"))
+            ],
             navigation=legacy_reference.period_navigation(
                 legacy_summary_periods=summary_periods,
                 legacy_reference_periods=periods,
@@ -1368,6 +1406,12 @@ def create_app(
     @app.errorhandler(500)
     def _server_error(_exc):
         return _page(error="Có lỗi xử lý phía máy chủ. Vui lòng thử lại.", status=500)
+
+    @app.errorhandler(409)
+    def _history_source_conflict(exc):
+        """Mâu thuẫn nguồn lịch sử — nói ĐÚNG cái đang mâu thuẫn."""
+        return _page(error=getattr(exc, "description", None)
+                     or "Nguồn lịch sử đang mâu thuẫn.", status=409)
 
     @app.errorhandler(503)
     def _storage_unavailable(_exc):

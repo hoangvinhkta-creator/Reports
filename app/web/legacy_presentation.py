@@ -180,22 +180,23 @@ def contract_rows(rules: tuple) -> list[dict]:
 
 
 def summary_year_rows(years: list, all_summary_rows: list[dict],
-                      authority_by_year: dict = None,
-                      current_import: dict = None) -> list[dict]:
+                      source_by_year: dict = None) -> list[dict]:
     """Một khối cho mỗi NĂM lịch sử: kỳ nào có, ai có số, chỉ tiêu nào có.
 
     Tình trạng chỉ tiêu được đo trên chính dòng của năm đó (`DEC-177`), nên
     một năm nghèo dữ liệu không mượn được vẻ đầy đủ của năm khác. Mỗi năm
-    cũng ghi rõ đang đọc từ NGUỒN NÀO (`DEC-178`).
+    ghi rõ file provenance của CHÍNH nó (`DEC-178`, `DEC-181`) — không còn
+    rơi về "bản đang xem" khi năm đó có nguồn riêng.
     """
     from app.web import legacy_reference
 
-    authority_by_year = authority_by_year or {}
+    source_by_year = source_by_year or {}
     rows = []
     for year in years:
         year_rows = [r for r in all_summary_rows if r.get("year") == year.year]
-        authority = authority_by_year.get(year.year)
-        source = authority or current_import or {}
+        source = source_by_year.get(year.year) or {}
+        authority = (source if source.get("source_authority")
+                     == legacy_reference.SOURCE_AUTHORITY_YEAR else None)
         rows.append({
             "source_file": source.get("source_file_name") or "—",
             "source_import_id": source.get("import_id") or "—",
@@ -223,3 +224,75 @@ def summary_year_rows(years: list, all_summary_rows: list[dict],
             ],
         })
     return rows
+
+
+# --------------------------------------------------------------------------
+# LEGACY_HISTORY — MỘT nguồn lịch sử, hai file provenance (`DEC-181`).
+#
+# Trang bình thường KHÔNG được có chỗ nào để chọn "bản legacy nào đang xem":
+# chủ dự án đã bỏ hẳn mô hình đó. Những gì còn lại ở đây là PROVENANCE —
+# trả lời "số 2025 đến từ file nào" — chứ không phải một bộ chọn nguồn.
+# --------------------------------------------------------------------------
+
+HISTORY_LABEL = "DỮ LIỆU LỊCH SỬ"
+HISTORY_LOCKED_LABEL = "ĐÃ KHÓA"
+HISTORY_NOTE = (
+    "Đây là MỘT nguồn lịch sử duy nhất, đã chốt sổ. Số dưới đây là số cũ đã "
+    "tính thủ công trong Excel, giữ nguyên trạng — không do pipeline tính "
+    "lại. Không có bản nào để chọn: mỗi kỳ lịch sử chỉ có đúng một nguồn."
+)
+
+
+def _period_label(period: tuple[int, int]) -> str:
+    return f"{period[1]:02d}/{period[0]}"
+
+
+def history_range_label(periods) -> Optional[str]:
+    """``01/2025 → 08/2026`` — khoảng kỳ THẬT, đo trên dữ liệu đã nhập.
+
+    Không có hằng số ngày tháng nào bị gõ cứng ở đây: nếu nguồn chỉ có tới
+    07/2026 thì nhãn nói 07/2026, chứ không hứa một kỳ không tồn tại.
+    """
+    known = [p for p in periods or [] if p and p[1] is not None]
+    if not known:
+        return None
+    return f"{_period_label(min(known))} → {_period_label(max(known))}"
+
+
+def history_sources(sources) -> list[dict]:
+    """Một dòng provenance cho mỗi FILE, kèm các năm nó giữ."""
+    rows = []
+    for item in sources or []:
+        years = sorted(item.get("years") or [])
+        if not years:
+            label = "Nguồn lịch sử"
+        elif len(years) == 1:
+            label = f"Nguồn {years[0]}"
+        else:
+            label = f"Nguồn {years[0]}–{years[-1]}"
+        rows.append({
+            "role_label": label,
+            "years": years,
+            "import_id": item.get("import_id") or "—",
+            "source_file": item.get("source_file_name") or "—",
+            "imported_at": item.get("imported_at") or "—",
+            "authority_label": _authority_label(item.get("source_authority")),
+        })
+    return rows
+
+
+def _authority_label(value) -> str:
+    from app.web import legacy_reference
+
+    return legacy_reference.source_authority_label(value)
+
+
+def history_overview(periods, sources) -> dict:
+    """Ngữ cảnh dùng chung cho mọi trang lịch sử: khoảng kỳ + provenance."""
+    return {
+        "label": HISTORY_LABEL,
+        "locked_label": HISTORY_LOCKED_LABEL,
+        "note": HISTORY_NOTE,
+        "range_label": history_range_label(periods),
+        "sources": history_sources(sources),
+    }

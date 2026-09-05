@@ -1,4 +1,4 @@
-{# Mảnh dùng chung cho các trang legacy: nhãn nguồn, bản đang xem, ô số.
+{# Mảnh dùng chung cho các trang legacy: nhãn nguồn, nguồn lịch sử, ô số.
    Mọi con số legacy PHẢI đi qua legacy_cell() — đó là chỗ duy nhất gắn badge
    LEGACY + đơn vị + dấu nhắc lỗi công thức, nên không có đường nào hiển thị
    một số cũ mà thiếu nhãn. #}
@@ -16,14 +16,22 @@
 </td>
 {%- endmacro %}
 
-{% macro source_note(legacy_import) -%}
-{% if legacy_import %}
-<p class="insight">
+{# `DEC-181` — MỘT nguồn lịch sử logic. Macro này nói nguồn đó là gì và
+   từ file nào (PROVENANCE); nó KHÔNG có chỗ nào để chọn "bản đang xem",
+   vì mô hình nhiều bản legacy để chọn đã bị chủ dự án bác bỏ. #}
+{% macro source_note(legacy_history) -%}
+{% if legacy_history and legacy_history.sources %}
+<p class="insight" data-metric="legacy-history">
   {{ legacy_badge() }}
-  Bản đang xem: <strong>{{ legacy_import.import_id }}</strong>
-  {% if legacy_import.version_label %}— {{ legacy_import.version_label }}{% endif %}
-  · nguồn: {{ legacy_import.source_file_name }} · nhập lúc {{ legacy_import.imported_at }}.
-  Số dưới đây là số cũ đã tính thủ công trong Excel, giữ nguyên trạng — không do pipeline tính lại.
+  <strong>{{ legacy_history.label }}</strong>
+  {% if legacy_history.range_label %}{{ legacy_history.range_label }}{% endif %}
+  <span class="tag tag-current">{{ legacy_history.locked_label }}</span>
+  {{ legacy_history.note }}
+</p>
+<p class="insight" data-metric="legacy-provenance">
+  Nguồn đối chiếu:
+  {% for source in legacy_history.sources %}{{ source.role_label }} →
+  <strong>{{ source.source_file }}</strong>{% if not loop.last %} · {% endif %}{% endfor %}
 </p>
 {% endif %}
 {%- endmacro %}
