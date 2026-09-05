@@ -80,7 +80,7 @@ def _upload(filename: str, content: bytes = b"pretend workbook bytes"):
 
 def test_index_returns_200_and_shows_readiness(client, monkeypatch):
     monkeypatch.setattr(web_server, "select_latest_valid_captures", lambda: None)
-    resp = client.get("/")
+    resp = client.get("/du-lieu/chay-bao-cao")
     assert resp.status_code == 200
     assert "Có capture hợp lệ trên máy".encode() in resp.data
 
@@ -90,18 +90,18 @@ def test_index_shows_not_ready_when_no_complete_capture(client, monkeypatch):
         raise OwnerUsabilityError("no capture")
 
     monkeypatch.setattr(web_server, "select_latest_valid_captures", _raise)
-    resp = client.get("/")
+    resp = client.get("/du-lieu/chay-bao-cao")
     assert "Chưa sẵn sàng".encode() in resp.data
 
 
 def test_index_shows_live_readiness_when_tracking_configured(client, monkeypatch):
     monkeypatch.setattr(live_pull, "is_configured", lambda env=None: True)
-    resp = client.get("/")
+    resp = client.get("/du-lieu/chay-bao-cao")
     assert "live".encode() in resp.data.lower()
 
 
 def test_unknown_run_id_in_query_is_fail_safe_not_found(client):
-    resp = client.get("/?run_id=does-not-exist")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=does-not-exist")
     assert resp.status_code == 200
     assert "Không tìm thấy kết quả chạy trước".encode() in resp.data
 
@@ -207,7 +207,7 @@ def test_result_page_renders_authoritative_summary_and_reason_labels(
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/?run_id=report-20260901T080000Z")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
     body = resp.data.decode()
     assert "58" in body  # Tổng đơn
     assert "22" in body  # AUTO
@@ -226,7 +226,7 @@ def test_business_severity_is_never_labelled_as_error(client, monkeypatch, tmp_p
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/?run_id=report-20260901T080000Z")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
     body = resp.data.decode()
     assert "Lỗi: 3" not in body
     assert "Ưu tiên xem ngay" in body
@@ -238,7 +238,7 @@ def test_dropped_lines_count_is_shown(client, monkeypatch, tmp_path):
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/?run_id=report-20260901T080000Z")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
     record = client.application.config["RUN_REGISTRY"].get_run("report-20260901T080000Z")
     assert record.view["dropped_lines"] == 2
 
@@ -293,7 +293,7 @@ def test_browser_never_receives_an_absolute_filesystem_path(client, monkeypatch,
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/?run_id=report-20260901T080000Z")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
     body = resp.data.decode()
     assert str(tmp_path) not in body
     assert str(owner_run.output_path) not in body
@@ -308,7 +308,7 @@ FORBIDDEN_SUBSTRINGS = (
 
 
 def test_index_response_contains_no_secret_or_authority_payload(client):
-    resp = client.get("/")
+    resp = client.get("/du-lieu/chay-bao-cao")
     body = resp.data.decode()
     for token in FORBIDDEN_SUBSTRINGS:
         assert token not in body
@@ -320,7 +320,7 @@ def test_result_response_contains_no_secret_or_authority_payload(client, monkeyp
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
-    resp = client.get("/?run_id=report-20260901T080000Z")
+    resp = client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
     body = resp.data.decode()
     for token in FORBIDDEN_SUBSTRINGS:
         assert token not in body
@@ -341,7 +341,7 @@ def test_history_response_contains_no_secret_or_authority_payload(client, monkey
 # --- Feedback reuse (no second taxonomy) ----------------------------------
 
 def test_feedback_categories_come_from_the_s069_reused_module(client):
-    resp = client.get("/")
+    resp = client.get("/du-lieu/chay-bao-cao")
     body = resp.data.decode()
     for category in beta_feedback.FEEDBACK_CATEGORIES:
         assert category in body
@@ -390,8 +390,8 @@ def test_refreshing_the_result_page_never_records_telemetry_again(
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: calls.append(record))
 
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
-    client.get("/?run_id=report-20260901T080000Z")
-    client.get("/?run_id=report-20260901T080000Z")
+    client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
+    client.get("/du-lieu/chay-bao-cao?run_id=report-20260901T080000Z")
 
     assert len(calls) == 1
 
@@ -472,7 +472,7 @@ def test_run_and_artifact_survive_a_simulated_server_restart(monkeypatch, tmp_pa
     app2.testing = True
     client2 = app2.test_client()
 
-    resp = client2.get("/?run_id=report-restart")
+    resp = client2.get("/du-lieu/chay-bao-cao?run_id=report-restart")
     assert resp.status_code == 200
     assert "Không tìm thấy" not in resp.data.decode()
 
@@ -511,7 +511,7 @@ def test_a_second_viewer_reads_the_same_persisted_run_not_a_process_local_copy(
     viewer_b_app.testing = True
     viewer_b_client = viewer_b_app.test_client()
 
-    resp = viewer_b_client.get("/?run_id=report-shared")
+    resp = viewer_b_client.get("/du-lieu/chay-bao-cao?run_id=report-shared")
     body = resp.data.decode()
     assert "58" in body  # cùng summary Viewer A vừa tạo
     assert "Không tìm thấy" not in body
@@ -667,7 +667,7 @@ def test_r2_run_then_download_round_trips(monkeypatch, tmp_path):
     resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
     assert resp.status_code == 302
 
-    result = client.get("/?run_id=report-r2")
+    result = client.get("/du-lieu/chay-bao-cao?run_id=report-r2")
     assert "58" in result.data.decode()
 
     download = client.get("/artifact/report-r2")
@@ -685,7 +685,7 @@ def test_r2_second_viewer_reads_the_same_persisted_run(monkeypatch, tmp_path):
     viewer_a.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
     viewer_b = _r2_app(monkeypatch, tmp_path, r2_client=shared_client).test_client()
-    resp = viewer_b.get("/?run_id=report-shared-r2")
+    resp = viewer_b.get("/du-lieu/chay-bao-cao?run_id=report-shared-r2")
     assert "58" in resp.data.decode()
     download = viewer_b.get("/artifact/report-shared-r2")
     assert download.status_code == 200
@@ -730,7 +730,7 @@ def test_r2_get_run_failure_returns_503_not_404(monkeypatch, tmp_path):
     app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
     client_obj.fail["get_object"] = FakeClientError("500", "unavailable")
 
-    resp = app.test_client().get("/?run_id=report-anything")
+    resp = app.test_client().get("/du-lieu/chay-bao-cao?run_id=report-anything")
     assert resp.status_code == 503
     assert "không khả dụng" in resp.data.decode()
 

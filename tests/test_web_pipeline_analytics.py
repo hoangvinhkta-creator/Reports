@@ -402,5 +402,8 @@ def test_without_a_history_store_the_overview_says_503_not_an_empty_page(
     assert application.test_client().get("/tong-quan").status_code == 503
 
 
-def test_the_overview_tab_is_reachable_from_every_page(client):
-    assert 'href="/tong-quan"' in body(client, "/nhan-vien")
+def test_the_overview_page_still_renders_though_no_longer_cross_linked(client):
+    """R1 (`GỠ TRÙNG UX`) rút thanh tab chung — `/tong-quan` không còn được
+    MỌI trang khác trỏ tới (đó chính là trùng lặp điều hướng R1 phải bỏ) —
+    nhưng route vẫn còn nguyên, truy cập trực tiếp vẫn render đúng (§4C)."""
+    assert "TỔNG QUAN" in body(client, "/tong-quan")

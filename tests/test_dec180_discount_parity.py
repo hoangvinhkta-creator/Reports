@@ -607,7 +607,7 @@ class TestCrossBoundaryMonthOverMonth:
         load_august_legacy(legacy)
         persist(repository, [discounted_pair("BH-CK", month=9, day=5)])
         html = body(client, "/kinh-doanh?ky=2026-09")
-        assert metric(html, "sales_revenue") == "4.900.000"
+        assert metric(html, "sales_revenue") == "4.900"
         assert metric(html, "mom") == "+390%"
 
     def test_case_8_the_borrowed_month_says_where_its_number_came_from(
@@ -672,7 +672,7 @@ class TestCrossBoundaryMonthOverMonth:
         load_august_legacy(legacy)
         persist(repository, [discounted_pair("BH-CK", month=9, day=5)])
         html = body(client, "/kinh-doanh?ky=2026-09")
-        assert metric(html, "sales_revenue") == "4.900.000"
+        assert metric(html, "sales_revenue") == "4.900"
         assert "5.900.000" not in html, "không có phép cộng hai origin"
 
     def test_the_datachart_source_also_bridges_the_boundary(

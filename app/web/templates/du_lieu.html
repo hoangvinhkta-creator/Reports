@@ -5,6 +5,7 @@
 
 {% block content %}
 <h1>DỮ LIỆU</h1>
+<p class="insight">Xem kỳ lịch sử/legacy theo tháng: <a href="{{ url_for('legacy_reference_page') }}">Lịch sử</a>.</p>
 
 {% if imported %}<p class="ok">{{ imported }}</p>{% endif %}
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
@@ -107,6 +108,7 @@
 <div class="module">
   <h2>Các lần chạy pipeline <span class="cnt">{{ runs|length }}</span></h2>
   <p class="insight">Số do pipeline hiện tại tính — KHÁC nguồn với bảng legacy ở trên.</p>
+  <p><a class="act" href="{{ url_for('index') }}">CHẠY BÁO CÁO MỚI</a></p>
   {% if runs %}
   <div class="tp-scroll">
   <table>

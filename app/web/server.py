@@ -355,7 +355,30 @@ def create_app(
         ), status
 
     @app.get("/")
+    def landing():
+        """R1 (`GỠ TRÙNG UX`) — `/` mở BÁO CÁO, không còn màn hình upload.
+
+        Chỉ đọc kỳ mới nhất từ Current Engine (`analytics_queries`, cùng
+        nguồn `/kinh-doanh` đã dùng) — KHÔNG dò kỳ mới nhất bắc qua Legacy:
+        hợp nhất "mới nhất" giữa hai nguồn là việc của R2, chưa làm ở đây.
+        Không có snapshot store hoặc chưa có kỳ nào ⟹ về thẳng `/kinh-doanh`
+        không kèm `ky`, để trang đó tự nói tình trạng của nó (503/rỗng).
+        """
+        ky = None
+        if snapshot_repo is not None:
+            periods = _guarded(analytics_queries.available_periods, snapshot_repo.engine)
+            if periods:
+                ky = business_presentation.period_value(periods[0])
+        return redirect(url_for("business_summary", **({"ky": ky} if ky else {})))
+
+    @app.get("/du-lieu/chay-bao-cao")
     def index():
+        """Chạy báo cáo (upload workbook, xem kết quả) — dời từ `/` sang đây
+        dưới DỮ LIỆU (R1 §3): đây là công cụ vận hành, không phải màn hình
+        Owner/Director đọc báo cáo. Tên hàm ``index`` giữ nguyên để mọi
+        ``url_for("index", ...)`` hiện có (trang Dữ liệu, POST /run, feedback)
+        tự trỏ đúng đường mới, không phải sửa từng nơi gọi.
+        """
         run_id = request.args.get("run_id") or None
         found = run_id is not None and _guarded(store.get_run, run_id) is not None
         return _page(
@@ -786,6 +809,15 @@ def create_app(
             workbook_contract=legacy_presentation.contract_rows(
                 legacy_reference.SUMMARY_SHEET_CONTRACT),
         )
+
+    @app.get("/giai-thich")
+    def giai_thich():
+        """R1 §7 — một nơi DUY NHẤT cho định nghĩa KPI lặp lại trên nhiều
+        trang báo cáo (Tổng số SP, DS quy đổi, tiền hiển thị nghìn đồng,
+        huy hiệu SỐ MỚI). Trang này KHÔNG đọc dữ liệu, không có kỳ, không
+        có nhân viên — chỉ prose tĩnh, nên không cần snapshot/history store.
+        """
+        return render_template("giai_thich.html")
 
     # ------------------------------------------------------------------
     # PHB-03 — Summary + Employee Business Parity V1.

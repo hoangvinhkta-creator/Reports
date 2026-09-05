@@ -60,9 +60,12 @@ def test_O_the_product_page_renders(client):
     assert "SẢN PHẨM" in html
 
 
-def test_the_product_tab_is_reachable_from_every_page(client):
-    assert 'href="/san-pham"' in body(client, "/tong-quan")
-    assert 'href="/san-pham"' in body(client, "/ban-hang")
+def test_tong_quan_and_ban_hang_still_render_without_the_product_cross_link(client):
+    """R1 (`GỠ TRÙNG UX`) rút thanh tab chung — `/tong-quan`/`/ban-hang`
+    không còn trỏ sang `/san-pham` qua nav dùng chung (trùng lặp điều hướng
+    R1 phải bỏ) — nhưng cả hai route vẫn còn nguyên và render đúng (§4C)."""
+    assert "TỔNG QUAN" in body(client, "/tong-quan")
+    assert "BÁN HÀNG" in body(client, "/ban-hang")
 
 
 # --- Bảng năm cột (mục 9) ----------------------------------------------------

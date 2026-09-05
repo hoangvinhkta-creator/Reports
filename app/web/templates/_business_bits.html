@@ -13,21 +13,27 @@
       data-metric="state">{{ cell.state_label }}</span>
 {%- endmacro %}
 
-{% macro kpi(label, value, metric, note='') -%}
+{# `full` (khi có) là con số VND đầy đủ, hiện qua tooltip `title` — R1 §9:
+   `value` có thể đã là bản NGHÌN ĐỒNG, và VND đầy đủ không bao giờ mất hẳn. #}
+{% macro kpi(label, value, metric, note='', full='') -%}
 <div class="kpi-card">
   <span class="tp-label">{{ label }}</span>
-  <strong class="kpi-value" data-metric="{{ metric }}">{{ value }}</strong>
+  <strong class="kpi-value" data-metric="{{ metric }}"
+          {% if full %}title="{{ full }}"{% endif %}>{{ value }}</strong>
   {% if note %}<span class="tp-unit">{{ note }}</span>{% endif %}
 </div>
 {%- endmacro %}
 
 {# Con số và trạng thái của nó nằm trong CÙNG một thẻ: cắt bớt cái này mà giữ
-   cái kia là không thể về mặt cấu trúc. #}
+   cái kia là không thể về mặt cấu trúc. Hiện bản NGHÌN ĐỒNG (`text_kvnd`),
+   VND đầy đủ (`text`) vẫn xem được qua tooltip (R1 §9). #}
 {% macro gated_kpi(label, cell, metric) -%}
 <div class="kpi-card {{ 'kpi-incomplete' if not cell.official }}">
   <span class="tp-label">{{ label }} {{ state_tag(cell) }}</span>
   <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
-          data-metric="{{ metric }}">{{ cell.text }}</strong>
+          data-metric="{{ metric }}"
+          {% if not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+          >{{ cell.text_kvnd }}</strong>
 </div>
 {%- endmacro %}
 

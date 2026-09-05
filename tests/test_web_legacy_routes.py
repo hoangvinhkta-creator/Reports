@@ -251,8 +251,10 @@ def test_choosing_an_unknown_legacy_version_is_404(loaded):
 
 
 def test_every_page_links_the_tabs_that_actually_exist(loaded):
+    """R1 (`GỠ TRÙNG UX`) rút thanh tab chính còn 4 mục: BÁO CÁO · NHÂN VIÊN ·
+    DOANH SỐ NGÀY · DỮ LIỆU. `/` và `/nhan-vien` không còn là tab chính."""
     body = loaded.get("/du-lieu").get_data(as_text=True)
-    for path in ("/", "/du-lieu", "/nhan-vien", "/doanh-so-ngay"):
+    for path in ("/kinh-doanh", "/kinh-doanh/nhan-vien", "/doanh-so-ngay", "/du-lieu"):
         assert f'href="{path}"' in body
 
 

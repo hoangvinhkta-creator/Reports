@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% import "_business_bits.html" as biz %}
-{% set active_tab = 'kinh-doanh' %}
+{% set active_tab = 'nhan-vien' %}
 {% block title %}Reports — Nhân viên (nghiệp vụ){% endblock %}
 
 {% block content %}
@@ -22,21 +22,23 @@
 
 {% if detail %}
 <div class="module">
+  {# `business_badge()` đã nói ở câu ngay trên trang (R1 §6). #}
   <h2><span data-metric="employee">{{ detail.employee }}</span> ·
-      {{ detail.period_label }} {{ biz.business_badge() }}
+      {{ detail.period_label }}
       <span class="cnt">nhóm <span data-metric="employee_group">{{ detail.employee_group }}</span> ·
         <span data-metric="orders">{{ detail.orders }}</span> đơn ·
         <span data-metric="lines">{{ detail.lines }}</span> dòng</span></h2>
 
   <div class="kpi-grid">
-    {{ biz.kpi('Doanh thu bán hàng', detail.sales_revenue, 'sales_revenue', 'đồng') }}
+    {{ biz.kpi('Doanh thu bán hàng', detail.sales_revenue_kvnd, 'sales_revenue',
+               'nghìn đồng', full=detail.sales_revenue ~ ' đồng') }}
     {{ biz.kpi(QUALIFYING_QUANTITY_LABEL, detail.qualifying_quantity, 'qualifying_quantity') }}
     {{ biz.gated_kpi('Lợi nhuận KPI', detail.kpi_profit, 'kpi_profit') }}
     {{ biz.gated_kpi('DS quy đổi', detail.converted_sales, 'converted_sales') }}
   </div>
 
-  <p class="insight">{{ QUALIFYING_QUANTITY_NOTE }}</p>
-  <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
+  <p class="insight">Định nghĩa Tổng số SP, DS quy đổi và cách đọc tiền nghìn
+    đồng: xem <a class="ghost btn-mini" href="{{ url_for('giai_thich') }}">GIẢI THÍCH</a>.</p>
 </div>
 
 {# Cùng lý do như trang Tổng hợp: nút này mở đúng danh sách mà câu ngay trên

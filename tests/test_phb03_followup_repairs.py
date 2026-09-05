@@ -180,7 +180,7 @@ def test_the_employee_page_totals_count_every_line_not_only_the_pending_ones(
     ])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
     assert metric(html, "lines") == "2", "cả dòng đã đủ lẫn dòng còn thiếu"
-    assert metric(html, "sales_revenue") == "16.000.000"
+    assert metric(html, "sales_revenue") == "16.000"
     assert metric(html, "coverage") == "1 / 2 dòng"
 
 
@@ -506,13 +506,14 @@ def test_an_unknown_filter_falls_back_to_the_complete_list(mixed, client):
 # =========================================================================
 
 def test_every_page_offers_the_lich_su_tab(repository, client):
-    """Chủ dự án không thấy tab `Lịch sử` trên production. Đường dẫn có trong
-    mã nguồn từ PHB-04; khẳng định này canh để nó không lặng lẽ biến mất."""
+    """PHB-04: `/lich-su` không được lặng lẽ biến mất khỏi mã nguồn/điều
+    hướng. R1 (`GỠ TRÙNG UX`) rút thanh tab chính còn 4 mục và bỏ `Lịch sử`
+    khỏi tab thường trực — route KHÔNG bị xoá (§4C), vẫn 200 trực tiếp và
+    vẫn có đường dẫn tới nó từ Dữ liệu, chỉ không còn lặp lại trên mọi trang."""
     persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
     for path in ("/kinh-doanh?ky=2026-01", "/tong-quan?ky=2026-01", "/lich-su"):
-        html = body(client, path)
-        assert '>Lịch sử</a>' in html, path
-        assert 'href="/lich-su"' in html, path
+        assert body(client, path)
+    assert 'href="/lich-su"' in body(client, "/du-lieu")
 
 
 def test_the_lich_su_route_answers_even_before_any_legacy_year_is_loaded(client):

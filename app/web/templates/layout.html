@@ -12,16 +12,14 @@
   <span class="tp-label">Shared Online Beta</span>
 </header>
 <nav class="ncc-tabs">
-  {# Chỉ các tab ĐÃ có trang thật — không dựng chỗ trống "sắp có". #}
-  <a class="ncc-tab {{ 'on' if active_tab == 'chay' }}" href="{{ url_for('index') }}">Chạy báo cáo</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">Dữ liệu</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'tong-quan' }}" href="{{ url_for('overview') }}">Tổng quan</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'kinh-doanh' }}" href="{{ url_for('business_summary') }}">Kinh doanh</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'ban-hang' }}" href="{{ url_for('sales') }}">Bán hàng</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'san-pham' }}" href="{{ url_for('products') }}">Sản phẩm</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('sellers') }}">Nhân viên</a>
+  {# R1 (`GỠ TRÙNG UX`) — thanh tab chính rút còn 4 mục, mỗi mục trả lời
+     đúng MỘT câu hỏi của người đọc. Các trang sâu hơn (Tổng quan, Bán hàng,
+     Sản phẩm, Nhân viên số cũ, Lịch sử, Chạy báo cáo) vẫn còn nguyên route —
+     không bị xoá — chỉ không còn là tab thường trực (§5). #}
+  <a class="ncc-tab {{ 'on' if active_tab == 'bao-cao' }}" href="{{ url_for('business_summary') }}">Báo cáo</a>
+  <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">Nhân viên</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'doanh-so-ngay' }}" href="{{ url_for('daily_sales') }}">Doanh số ngày</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'lich-su' }}" href="{{ url_for('legacy_reference_page') }}">Lịch sử</a>
+  <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">Dữ liệu</a>
 </nav>
 <main class="tp-main">
 {% block content %}{% endblock %}

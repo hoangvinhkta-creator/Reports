@@ -343,9 +343,12 @@ def test_without_a_data_store_the_pages_answer_503_not_no_data_yet(monkeypatch,
     assert client.get("/ban-hang/BH62439").status_code == 503
 
 
-def test_the_sales_tab_links_the_two_pages_together(client):
-    """Điều hướng Option A: một tab "Bán hàng", và chi tiết quay lại được."""
-    assert 'href="/ban-hang"' in body(client, "/tong-quan")
+def test_the_sales_detail_page_still_links_back_to_the_list(client):
+    """Điều hướng Option A vẫn đúng GIỮA danh sách và chi tiết của cùng một
+    trang Bán hàng. R1 (`GỠ TRÙNG UX`) chỉ bỏ đường chéo `/tong-quan` →
+    `/ban-hang` khỏi nav dùng chung (trùng lặp điều hướng phải bỏ) — route
+    `/tong-quan` vẫn còn nguyên và render đúng khi vào trực tiếp (§4C)."""
+    assert "TỔNG QUAN" in body(client, "/tong-quan")
     assert 'href="/ban-hang?ky=tat-ca"' in body(client, "/ban-hang/BH62439?ky=tat-ca")
 
 

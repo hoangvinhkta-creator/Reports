@@ -365,8 +365,8 @@ def test_the_summary_page_marks_the_numbers_official_at_full_coverage(
     html = body(client, "/kinh-doanh?ky=2026-01")
     assert metric(html, "state") == "CHÍNH THỨC"
     assert metric(html, "coverage") == "1 / 1 dòng"
-    assert metric(html, "kpi_profit") == "3.000.000"
-    assert metric(html, "converted_sales") == "150.000.000"
+    assert metric(html, "kpi_profit") == "3.000"
+    assert metric(html, "converted_sales") == "150.000"
 
 
 def test_the_summary_shows_the_qualifying_quantity_not_every_line(
@@ -460,7 +460,7 @@ def test_posting_a_price_through_the_page_recalculates_the_report(
 
     summary = body(client, "/kinh-doanh?ky=2026-01")
     assert metric(summary, "state") == "CHÍNH THỨC"
-    assert metric(summary, "kpi_profit") == "2.000.000"
+    assert metric(summary, "kpi_profit") == "2.000"
 
 
 def test_the_page_refuses_a_bad_price_without_writing_anything(
@@ -557,14 +557,14 @@ def test_ticking_gia_dung_through_the_page_reroutes_the_rate(repository, client)
                   "current_group") == "Gia dụng"
     # 3.000.000 / 8 % = 37.500.000 (trước khi tick là 2 % ⟹ 150.000.000)
     summary = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
-    assert metric(summary, "converted_sales") == "37.500.000"
+    assert metric(summary, "converted_sales") == "37.500"
 
     untick = client.post("/kinh-doanh/gia-dung", data={
         "product_key": product_key, "ky": "2026-01", "nhan-vien": "Vinh",
         "gia_dung": "0"})
     assert untick.status_code == 302
     assert metric(body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh"),
-                  "converted_sales") == "150.000.000"
+                  "converted_sales") == "150.000"
 
 
 def test_a_price_post_keeps_the_owner_on_the_period_they_chose(repository, client):
@@ -756,7 +756,7 @@ def test_the_owner_classifies_an_unknown_employee_and_every_view_follows(
              kpi_purchase="5000000", kpi_profit="3000000"),
     ])
     before = body(client, "/kinh-doanh?ky=2026-01")
-    assert metric(before, "unattributed_profit") == "3.000.000"
+    assert metric(before, "unattributed_profit") == "3.000"
     assert metric(before, "unresolved-employee-lines") == "1"
 
     listing = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=chua-ro-nv")
@@ -771,12 +771,12 @@ def test_the_owner_classifies_an_unknown_employee_and_every_view_follows(
     # Nhóm "chưa xác định" đã rỗng, và khối tách đôi biến mất cùng nó.
     assert 'data-metric="unresolved-employee-lines"' not in after
     # Tổng của cả kỳ KHÔNG đổi — chỉ dời một khoản sang đúng người.
-    assert metric(after, "kpi_profit") == "6.000.000"
+    assert metric(after, "kpi_profit") == "6.000"
 
     # Dòng đó nay nằm trong trang của Vinh.
     vinh = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
     assert metric(vinh, "employee") == "Vinh"
-    assert metric(vinh, "kpi_profit") == "3.000.000"
+    assert metric(vinh, "kpi_profit") == "3.000"
     assert metric(vinh, "lines") == "1"
 
     # Và ở tầng ngữ nghĩa: bằng chứng gốc không bị ghi đè.
@@ -927,7 +927,7 @@ def test_the_unresolved_employee_bucket_is_a_place_the_owner_can_open(
     bucket = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=")
     assert metric(bucket, "employee") == "Chưa xác định nhân viên"
     assert metric(bucket, "lines") == "1"
-    assert metric(bucket, "kpi_profit") == "3.000.000"
+    assert metric(bucket, "kpi_profit") == "3.000"
 
     listing = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=chua-ro-nv")
     product_key = re.search(r'name="product_key" value="([0-9a-f]+)"',

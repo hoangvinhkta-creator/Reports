@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Giải thích{% endblock %}
+
+{% block content %}
+<h1>GIẢI THÍCH</h1>
+<p class="insight">
+  Định nghĩa các chỉ tiêu và cách đọc số dùng chung cho BÁO CÁO và NHÂN VIÊN —
+  gom một chỗ thay vì lặp lại trên từng trang (R1 §7). Trang này không tính
+  toán gì, chỉ giải thích những con số các trang khác đã hiện.
+</p>
+
+<div class="module">
+  <h2>Tổng số SP</h2>
+  <p class="insight">{{ QUALIFYING_QUANTITY_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>DS quy đổi</h2>
+  <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>CHÍNH THỨC / CHƯA HOÀN CHỈNH</h2>
+  <p class="insight">{{ OFFICIAL_NOTE }}</p>
+  <p class="insight">{{ INCOMPLETE_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>Vì sao một ô để trống thay vì hiện 0</h2>
+  <p class="insight">
+    Một ô trống (—) nghĩa là hệ thống CHƯA tính được con số đó — thiếu giá
+    nhập, thiếu ngày bán, hoặc chưa đủ dữ liệu. Một ô "0" nghĩa là ĐÃ tính
+    xong và kết quả đúng bằng không. Hai tình huống đó khác nhau, nên hệ
+    thống không bao giờ đổi ô trống thành 0 để trang trông "đầy đủ" hơn.
+  </p>
+</div>
+
+<div class="module">
+  <h2>Tiền hiển thị theo nghìn đồng</h2>
+  <p class="insight">
+    Trang BÁO CÁO và NHÂN VIÊN hiện số tiền theo đơn vị NGHÌN ĐỒNG, làm tròn
+    tới nghìn gần nhất, để bớt số 0 gây rối mắt (vd. 612.400.000 đồng hiện
+    thành 612.400). Số tiền đầy đủ theo VND vẫn xem được — rê chuột vào giá
+    trị để thấy qua chú thích (tooltip). Đây CHỈ là cách VIẾT lại; số lưu
+    trong hệ thống và mọi phép tính không đổi.
+  </p>
+</div>
+
+<div class="module">
+  <h2>Huy hiệu {{ PIPELINE_BADGE }}</h2>
+  <p class="insight">{{ PIPELINE_BADGE_TITLE }}.</p>
+</div>
+{% endblock %}

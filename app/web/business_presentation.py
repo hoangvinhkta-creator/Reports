@@ -21,7 +21,7 @@ phải nhiễu.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from app.beta_presentation import REASON_DISPLAY_LABELS
@@ -162,6 +162,18 @@ def _decimal(value: Optional[Decimal]) -> str:
     return "—" if value is None else format_number(value)
 
 
+# `R1` §9 — Owner-approved: trang BÁO CÁO/NHÂN VIÊN hiện tiền theo NGHÌN ĐỒNG
+# thay vì VND đầy đủ, để bớt số 0. Đây CHỈ là cách VIẾT lại: giá trị lưu trữ
+# và mọi phép tính vẫn dùng `value` VND đầy đủ y nguyên — hàm này không được
+# gọi ở bất kỳ đường TÍNH nào, chỉ ở tầng trình bày, và luôn đi kèm bản VND
+# đầy đủ (`_decimal`) để không đường nào mất khả năng xem lại số gốc.
+def _thousand_vnd(value: Optional[Decimal]) -> str:
+    if value is None:
+        return "—"
+    return format_number(
+        (value / Decimal(1000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
 def percent(value: Optional[Decimal], *, sign: bool = False) -> str:
     """`None` ⟹ `—`. KHÔNG BAO GIỜ in vô cực hay một phần trăm bịa."""
     if value is None:
@@ -205,6 +217,7 @@ def gated_cell(
     """
     return {
         "text": _decimal(value),
+        "text_kvnd": _thousand_vnd(value),
         "official": official is not None,
         "state": state,
         "state_label": STATE_LABELS[state],
@@ -273,6 +286,7 @@ def _metrics(totals: bm.BusinessTotals) -> dict:
         "orders": count(totals.orders),
         "lines": count(totals.lines),
         "sales_revenue": _decimal(totals.sales_revenue),
+        "sales_revenue_kvnd": _thousand_vnd(totals.sales_revenue),
         "qualifying_quantity": _decimal(totals.qualifying_quantity),
         "kpi_profit": gated_cell(
             totals.kpi_profit, totals.official_kpi_profit, state),
@@ -282,7 +296,9 @@ def _metrics(totals: bm.BusinessTotals) -> dict:
         # `OD-5` — hai con số này luôn cộng lại bằng `kpi_profit`. Hiện cả hai
         # cạnh nhau để phần đang treo không biến mất không dấu vết.
         "employee_attributed_profit": _decimal(totals.employee_attributed_profit),
+        "employee_attributed_profit_kvnd": _thousand_vnd(totals.employee_attributed_profit),
         "unattributed_profit": _decimal(totals.unattributed_profit),
+        "unattributed_profit_kvnd": _thousand_vnd(totals.unattributed_profit),
         "unattributed_lines": totals.coverage.unresolved_employee_lines,
         "state": state,
         "state_label": STATE_LABELS[state],
