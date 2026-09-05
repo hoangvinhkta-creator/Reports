@@ -491,9 +491,13 @@ def test_a_price_post_for_a_line_that_does_not_exist_is_refused(
 def test_the_purchase_price_page_lets_the_owner_edit_an_auto_price(
     repository, client
 ):
-    """`DEC-PHB02-02` §3 — ô giá nhập sửa được KỂ CẢ khi đã AUTO-fill."""
+    """`DEC-PHB02-02` §3 — ô giá nhập sửa được KỂ CẢ khi đã AUTO-fill.
+
+    `S120` đổi MẶC ĐỊNH của trang thành "tất cả dòng"; bộ lọc "chưa có giá
+    nhập" vẫn nguyên hành vi, chỉ khác là phải chọn tường minh.
+    """
     persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
-    missing_only = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
+    missing_only = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=thieu-gia")
     assert "Mọi dòng của kỳ đã có giá nhập" in missing_only
 
     all_lines = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&tat-ca=1")

@@ -65,6 +65,16 @@ PROVENANCE_LABELS = {
     bm.PROVENANCE_PENDING: "Chưa có",
 }
 
+# `R1` — cảnh báo "sổ mới nhất không thấy lại một số dòng đang tính".
+# Đây là CẢNH BÁO + ĐƯỜNG DẪN, không phải một phép đối soát: không dòng nào bị
+# gộp, bị sửa hay bị loại khỏi tổng vì cảnh báo này (`OD_C` giữ nguyên ngữ
+# nghĩa PRA-002 — KHÔNG fuzzy-merge, KHÔNG tự đối soát).
+NOT_SEEN_WARNING = (
+    "Sổ nạp gần nhất KHÔNG thấy lại một số dòng đang được tính vào tổng bên "
+    "trên. Chúng VẪN được tính và KHÔNG bị xoá — nhưng nên soi trước khi tin "
+    "vào tổng."
+)
+
 MOM_NO_PREVIOUS = "Chưa có dữ liệu tháng trước"
 MOM_PREVIOUS_ZERO = "Tháng trước doanh thu 0 — không so được"
 MOM_ALL_DATA = "Đang xem toàn bộ dữ liệu — không có tháng liền trước để so"
@@ -216,6 +226,23 @@ def _metrics(totals: bm.BusinessTotals) -> dict:
     }
 
 
+def not_seen_warning(absence: Optional[dict]) -> Optional[dict]:
+    """`R1` — mô hình hiển thị của cảnh báo, hoặc `None` khi không có gì để nói.
+
+    `None` và "đã đo, bằng 0" cho ra CÙNG một kết quả hiển thị (không có cảnh
+    báo) nhưng KHÔNG cùng một nguyên nhân, nên cả hai đều đi qua đây thay vì
+    để template tự đoán từ một con số. Không có snapshot nào ⟹ `None`: chưa
+    nạp sổ lần nào thì không có gì để cảnh báo.
+    """
+    if not absence or not absence.get("not_seen"):
+        return None
+    return {
+        "lines": absence["not_seen"],
+        "snapshot_id": absence.get("snapshot_id") or "",
+        "note": NOT_SEEN_WARNING,
+    }
+
+
 def summary(
     totals: bm.BusinessTotals, *, period, previous_totals, undated: int,
 ) -> dict:
@@ -343,6 +370,13 @@ def detail_rows(details: list[dict]) -> list[dict]:
             "pending": line.purchase_price is None,
             "overridden": provenance in (
                 bm.PROVENANCE_MANUAL, bm.PROVENANCE_MANUAL_OVERRIDE),
+            # `R2` — bối cảnh của chính lần Owner sửa: giá tự động NGAY TRƯỚC
+            # lần sửa đó, và lúc sửa. Chỉ có ở dòng MANUAL_OVERRIDE; dòng
+            # MANUAL không có giá tự động nào để thay, nên `—`.
+            "auto_price_at_entry": _decimal(detail.get("override_auto_price_at_entry")),
+            "has_auto_price_at_entry": (
+                detail.get("override_auto_price_at_entry") is not None),
+            "entered_at": detail.get("override_entered_at") or "",
             # --- ba ô SUY RA -------------------------------------------
             "total_sales": _derived_cell(line.total_sales, ()),
             "kpi_profit": _derived_cell(line.kpi_profit, blockers),
@@ -413,12 +447,14 @@ __all__ = [
     "ALL_DATA_LABEL", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
     "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
     "MISSING_PRICE_COLUMNS", "MOM_ALL_DATA", "MOM_NO_PREVIOUS",
-    "MOM_PREVIOUS_ZERO", "NET_SALES_NOTE", "OFFICIAL_NOTE", "ORDER_COLUMN_NOTE",
+    "MOM_PREVIOUS_ZERO", "NET_SALES_NOTE", "NOT_SEEN_WARNING", "OFFICIAL_NOTE",
+    "ORDER_COLUMN_NOTE",
     "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
     "assignable_employee_options", "coverage_cell", "detail_rows",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
-    "gia_dung_rows", "missing_price_rows", "month_over_month", "percent",
+    "gia_dung_rows", "missing_price_rows", "month_over_month",
+    "not_seen_warning", "percent",
     "period_label", "period_options", "period_value", "summary",
 ]

@@ -1,5 +1,97 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — S120 PRODUCTION FOLLOW-UP (AUTHORITATIVE, 2026-09-05)
+
+Phiên kiểm chứng hậu-deploy theo ba quan sát của chủ dự án trên production
+(thiếu tab `Lịch sử` · trang nhân viên chỉ thấy dòng chưa hoàn thiện · không
+thấy "So tháng trước"), cộng ba việc `R1`/`R2`/`R3` đã hoãn từ `S118`.
+
+Khối `PHB-04 = IMPLEMENTED_AWAITING_REVIEW` (S119) bên dưới vẫn đúng về
+PHB-04; mục này đúng về trạng thái *hiện tại* của toàn vertical.
+
+```text
+SESSION                    = S120
+BRANCH                     = claude/phb-04-legacy-reference-v1-widtzf
+START_HEAD                 = 6a0213d (PHB-04, đã qua Independent Review PASS)
+CANONICAL_BRANCH           = claude/extract-upload-repo-gq2ws4
+CANONICAL_HEAD             = 51d8fef
+
+PHB04_REVIEWED_COMMIT_IN_CANONICAL = NO — 6a0213d KHÔNG phải tổ tiên của
+                             canonical; nhánh này ahead 3 commit, behind 0.
+PRODUCTION_RUNNING         = mã KHÔNG có PHB-04. Bằng chứng cấu trúc: thanh
+                             tab của canonical có ĐÚNG 8 tab và KHÔNG có
+                             `Lịch sử`; ảnh chụp production khớp từng tab.
+                             Dòng `Lịch sử` chỉ tồn tại từ 6a0213d
+                             (app/web/templates/layout.html, +1 dòng).
+PRODUCTION_HISTORY_NAV     = FAIL trên production · PASS trong mã đã review
+                             ⟹ nguyên nhân là TRIỂN KHAI, không phải mã.
+
+EMPLOYEE_PAGE_ROOT_CAUSE   = bộ lọc MẶC ĐỊNH `thieu-gia` của
+                             /kinh-doanh/gia-nhap. Mọi đường dẫn từ trang
+                             nhân viên đều mở đúng trang đó mà không truyền
+                             `loc`, nên chủ dự án chỉ thấy dòng chưa có giá.
+EMPLOYEE_COMPLETE_ROWS_IN_DB = YES
+EMPLOYEE_TOTALS_CORRECT    = YES — tổng/coverage/KPI đọc `data.totals` (tập
+                             CHƯA lọc); bộ lọc chỉ tác động lên danh sách.
+EMPLOYEE_PAGE              = REPAIRED (DEC-179)
+
+CURRENT_MOM_IMPLEMENTED    = YES (business_metrics.month_over_month_percent)
+CURRENT_MOM_RENDERED       = YES (macro `mom_block`, cả Tổng hợp lẫn Nhân viên)
+CURRENT_MOM_SOURCE         = CURRENT_ENGINE cả hai vế — `service.period()` của
+                             kỳ đang xem và của tháng liền trước.
+CURRENT_MOM_LEGACY_CONFLATED = NO — bằng chứng CẤU TRÚC: business_presentation
+                             / business_queries / business_service KHÔNG import
+                             `legacy_reference` và không nhắc `CROSS_ORIGIN`
+                             (test canh bằng inspect.getsource).
+MOM                        = PASS — không sửa mã. Hiện tượng "không thấy %" là
+                             hai nhánh ĐÃ freeze của DEC-PHB02-07: kỳ mặc định
+                             là "Toàn bộ dữ liệu" (không có tháng liền trước),
+                             hoặc tháng liền trước chưa có dòng SỐ MỚI nào.
+
+R1_NOT_SEEN_WARNING        = IMPLEMENTED — cảnh báo trên /kinh-doanh khi
+                             snapshot mới nhất còn cờ NOT_SEEN hiệu lực. CHỈ
+                             cảnh báo + đường dẫn; OD_C giữ nguyên.
+R2_OVERRIDE_CONTEXT        = IMPLEMENTED — `auto_price_at_entry` + `entered_at`
+                             hiện trên dòng MANUAL_OVERRIDE. Dữ liệu đã lưu từ
+                             ngày đầu; không thêm kiến trúc lịch sử nào.
+R3_OWNER_EDITED_FILTER     = IMPLEMENTED — chế độ `owner-sua` ("DÒNG TÔI ĐÃ
+                             SỬA") đọc provenance đã có, không ghi gì.
+
+FOCUSED_TESTS              = PASS — 32 passed (tests/test_phb03_followup_repairs.py)
+PHB03_TESTS                = PASS — 261 passed (business vertical/boundaries/
+                             metrics + followup + phb04 + web history + absence)
+GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHÔNG ĐỔI
+FULL_TESTS                 = PASS — 2248 passed, 11 skipped (baseline 2216 + 32)
+GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state PASS ·
+                             validate_evidence PASS (155 REQUIRED) ·
+                             validate_task_completion PASS (13 DONE task) ·
+                             validate_reference_integrity FAIL với ĐÚNG 3
+                             reference REM-T06 đã biết (baseline không đổi)
+
+E2E_PRODUCTION_REMAINDERS  = NOT_EXECUTED_NO_SESSION_EGRESS — reports.tinphatcrm
+                             .com:443 và api.render.com:443 đều "CONNECT tunnel
+                             failed, response 403" (đo lại trong phiên này).
+BLOCKING_FINDINGS          = NONE
+NON_BLOCKING_FINDINGS      = F-S120-01 (tab `Nhân viên` ở thanh trên mở trang
+                             SỐ CŨ; trang nhân viên nghiệp vụ nằm dưới `Kinh
+                             doanh` — dễ nhầm, không sai số) ·
+                             F-S120-02 (kỳ mặc định của trang nghiệp vụ là
+                             "Toàn bộ dữ liệu" nên "So tháng trước" mặc định
+                             không có %, đúng hợp đồng nhưng dễ đọc nhầm là
+                             thiếu tính năng)
+OWNER_DECISIONS_REQUIRED   = NONE
+SCOPE_DRIFT                = NO
+
+STATUS                     = IMPLEMENTED_AWAITING_INDEPENDENT_REVIEW
+NEXT_VERTICAL_ACTION       = (1) Independent Review MỚI trên FINAL_HEAD của
+                             nhánh này (gồm cả PHB-04 và bản sửa S120).
+                             (2) Controlled Integration vào canonical.
+                             (3) Chủ dự án deploy commit mới nhất trên
+                             canonical — chỉ khi đó tab `Lịch sử` mới xuất hiện
+                             trên production.
+```
+
+
 ## CANONICAL CURRENT STATE — PHB-04 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-05, S119 bản cuối)
 
 `PHB-03` = **PRODUCTION ACCEPTED** (chủ dự án nghiệm thu, chỉ thị S119). Khối

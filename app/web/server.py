@@ -90,6 +90,13 @@ HISTORY_PAGE_LIMIT = 50
 
 LEGACY_IMPORT_PAGE_LIMIT = 50
 
+# `R3` — hai provenance có nghĩa "chính Owner đã quyết con số này". Đọc thẳng
+# từ `business_metrics` để bộ lọc không bao giờ lệch với ngữ nghĩa đã freeze.
+_OWNER_EDITED_PROVENANCE = (
+    business_metrics.PROVENANCE_MANUAL,
+    business_metrics.PROVENANCE_MANUAL_OVERRIDE,
+)
+
 
 def _guarded(fn, *args, **kwargs):
     """Gọi ``fn`` (một lời gọi store) và biến lỗi storage (R2 unavailable/
@@ -877,12 +884,21 @@ def create_app(
 
     @app.get("/kinh-doanh")
     def business_summary():
-        """SUMMARY V1 — `R-S1`…`R-S8`. Một kỳ, sáu chỉ tiêu đã freeze."""
+        """SUMMARY V1 — `R-S1`…`R-S8`. Một kỳ, sáu chỉ tiêu đã freeze.
+
+        `R1` cộng thêm ĐÚNG một cảnh báo: sổ nạp gần nhất không thấy lại một
+        số dòng đang được tính vào các con số trên trang này. Cảnh báo đó
+        KHÔNG sửa, không gộp và không loại bất kỳ dòng nào — nó chỉ dẫn Owner
+        sang trang snapshot để tự soi.
+        """
         view = _business_period()
         totals = view["data"].totals
+        absence = (None if snapshot_repo is None
+                   else _guarded(snapshot_repo.latest_snapshot_absence))
         return render_template(
             "kinh_doanh.html", periods=view["periods"],
             selected_period=view["selected_period"],
+            not_seen=business_presentation.not_seen_warning(absence),
             summary=business_presentation.summary(
                 totals, period=view["period"],
                 previous_totals=None if view["previous"] is None
@@ -914,17 +930,31 @@ def create_app(
             "kinh_doanh_nhan_vien.html", periods=view["periods"],
             selected_period=view["selected_period"], detail=detail, **context)
 
-    # Ba chế độ lọc của bảng kê. Chúng KHÔNG chồng lên nhau và mỗi cái trả lời
-    # một câu hỏi khác của Owner — gộp lại thành một danh sách "còn thiếu"
+    # Bốn chế độ lọc của bảng kê. Chúng KHÔNG chồng lên nhau và mỗi cái trả
+    # lời một câu hỏi khác của Owner — gộp lại thành một danh sách "còn thiếu"
     # chung chính là cái đã khiến `B03` xảy ra.
+    #
+    # `S120`: MẶC ĐỊNH là `tat-ca`, không còn là `thieu-gia`. Bảng kê chi tiết
+    # là KHUNG NHÌN BÁO CÁO của một nhân viên/kỳ, không phải hàng đợi việc
+    # tồn: mặc định lọc bỏ mọi dòng đã đủ giá khiến Owner mở trang ra và thấy
+    # một tập con mà trang không nói là tập con — và khi coverage đã 100 %,
+    # cùng đường dẫn đó cho ra một bảng RỖNG. Ba bộ lọc thu hẹp vẫn còn
+    # nguyên, chỉ khác là Owner phải chọn chúng một cách tường minh.
     _DETAIL_FILTERS = {
-        # Mặc định: đúng việc Owner gõ được ngay bây giờ.
+        "tat-ca": lambda line: True,
+        # Việc Owner gõ được ngay bây giờ.
         "thieu-gia": lambda line: line.purchase_price is None,
         # Dòng đã có lãi nhưng chưa biết của ai (`OD-5`).
         "chua-ro-nv": lambda line: (line.contributes_profit
                                     and not line.employee_resolved),
-        "tat-ca": lambda line: True,
+        # `R3` — "dòng tôi đã sửa": CHỈ đọc lại provenance đã lưu (giá nhập
+        # Owner nhập/sửa, hoặc nhân viên Owner gán lại). Không trạng thái mới,
+        # không workflow mới, không ghi gì.
+        "owner-sua": lambda line: (
+            line.purchase_provenance in _OWNER_EDITED_PROVENANCE
+            or line.employee_provenance == "MANUAL"),
     }
+    _DEFAULT_DETAIL_FILTER = "tat-ca"
 
     @app.get("/kinh-doanh/gia-nhap")
     def business_purchase_price():
@@ -935,9 +965,10 @@ def create_app(
         được ngay trên dòng, còn doanh thu · lợi nhuận KPI · DS quy đổi là ba
         ô SUY RA tự tính lại sau mỗi lần lưu. Không có bước "tính" riêng.
 
-        Bộ lọc mặc định là các dòng CÒN THIẾU giá — việc Owner phải làm. Hai
-        chế độ còn lại: dòng chưa rõ nhân viên, và toàn bộ kỳ (quyền sửa một
-        giá đã AUTO-fill theo `DEC-PHB02-02` §3 phải có chỗ thực hiện).
+        Bộ lọc mặc định là TẤT CẢ DÒNG của kỳ/nhân viên đang xem (`S120`):
+        một khung nhìn báo cáo không được âm thầm giấu bớt dòng. Ba chế độ thu
+        hẹp — còn thiếu giá, chưa rõ nhân viên, dòng Owner đã sửa — nằm ngay
+        trên bảng và Owner chọn tường minh.
         """
         view = _business_period()
         context = _employee_context(view)
@@ -945,10 +976,9 @@ def create_app(
                 if context["chosen"] else view["data"])
         # `tat-ca=1` là cách viết cũ còn nằm trong bookmark/redirect — giữ nó
         # tương đương chế độ "tất cả" thay vì âm thầm rơi về danh sách khác.
-        mode = request.args.get("loc") or (
-            "tat-ca" if request.args.get("tat-ca") == "1" else "thieu-gia")
+        mode = request.args.get("loc") or _DEFAULT_DETAIL_FILTER
         if mode not in _DETAIL_FILTERS:
-            mode = "thieu-gia"
+            mode = _DEFAULT_DETAIL_FILTER
         keep = _DETAIL_FILTERS[mode]
         details = [d for d in data.details if keep(d["line"])]
         return render_template(

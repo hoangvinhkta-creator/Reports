@@ -1227,6 +1227,48 @@ class SnapshotRepository:
             for row in self._read(statement)
         }
 
+    def latest_snapshot_absence(self) -> Optional[dict]:
+        """`R1` — snapshot mới nhất + số dòng nó KHÔNG thấy lại, còn hiệu lực.
+
+        Trả `None` khi chưa có snapshot nào: "chưa nạp sổ lần nào" và "đã nạp,
+        không thiếu dòng nào" là hai tình trạng khác nhau và không được gộp.
+
+        Chỉ ĐỌC, và không đụng tới bất kỳ con số nghiệp vụ nào — cờ vắng mặt
+        chưa bao giờ quyết định hiện trạng hay tổng tiền (`_with_absence_state`
+        nói rõ điều đó). Đây là một CẢNH BÁO để người dùng tự soi, đúng ranh
+        giới `OD_C`: không fuzzy-merge, không tự đối soát.
+
+        Không đặt `limit`: đếm một tập bị cắt cụt sẽ cho ra một con số cảnh báo
+        nhỏ hơn sự thật, và một cảnh báo nói thiếu còn tệ hơn không cảnh báo.
+        """
+        snapshots = self.list_snapshots(limit=1)
+        if not snapshots:
+            return None
+        snapshot = snapshots[0]
+        flags = self._with_absence_state([
+            _decode(row, ("detail_json",))
+            for row in self._read(
+                select(reconciliation_flag)
+                .where(
+                    reconciliation_flag.c.raised_by_snapshot_id
+                    == snapshot["snapshot_id"],
+                    reconciliation_flag.c.kind.in_(
+                        history_models.ABSENCE_FLAG_KINDS),
+                )
+                .order_by(reconciliation_flag.c.id)
+            )
+        ])
+        active = [flag for flag in flags if flag["is_active"]]
+        return {
+            "snapshot_id": snapshot["snapshot_id"],
+            "created_at": snapshot["created_at"],
+            "not_seen": sum(1 for flag in active
+                            if flag["kind"] == history_models.FLAG_NOT_SEEN),
+            "removed_candidate": sum(
+                1 for flag in active
+                if flag["kind"] == history_models.FLAG_REMOVED_CANDIDATE),
+        }
+
     def count_flags(self, *, kind: Optional[str] = None) -> int:
         statement = select(func.count().label("total")).select_from(reconciliation_flag)
         if kind is not None:

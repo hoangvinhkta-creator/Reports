@@ -252,6 +252,7 @@ def build_lines(
 
 def line_details(
     rows: list[dict], lines: list[BusinessLine], *, classifications: dict,
+    overrides: Optional[dict] = None,
 ) -> list[dict]:
     """Ghép mỗi `BusinessLine` với các trường CHỈ dùng để hiển thị/định danh.
 
@@ -259,10 +260,20 @@ def line_details(
     — nó là ngữ nghĩa nghiệp vụ thuần, và nhồi thêm trường trình bày vào đó sẽ
     làm mọi test nghiệp vụ phải dựng dữ liệu mà chúng không quan tâm. Hai danh
     sách đi song song vì `build_lines` giữ nguyên thứ tự của `rows`.
+
+    `R2` — `overrides` chỉ để LẤY LẠI hai trường đã lưu sẵn từ lúc Owner bấm
+    LƯU: `auto_price_at_entry` (giá tự động ngay TRƯỚC lần sửa đó) và
+    `entered_at`. Không có kiến trúc lịch sử mới nào ở đây, và hai trường này
+    KHÔNG tham gia bất kỳ phép tính nào — chúng là bối cảnh để Owner đọc lại
+    quyết định của chính mình. `auto_price_at_entry` khác `line.auto_purchase
+    _price`: cái sau là giá tự động HÔM NAY, cái trước là giá tự động LÚC ĐÓ.
     """
+    overrides = overrides or {}
     details = []
     for row, line in zip(rows, lines):
         classified = classifications.get(row["product_key"])
+        override = overrides.get(
+            (row["order_key"], row["product_key"], int(row["occurrence_index"])))
         details.append({
             "order_key": row["order_key"],
             "product_key": row["product_key"],
@@ -273,6 +284,10 @@ def line_details(
             "pipeline_product_group": row["product_group_final"],
             "classified_product_group": (
                 None if classified is None else classified["product_group"]),
+            "override_auto_price_at_entry": (
+                None if override is None else override["auto_price_at_entry"]),
+            "override_entered_at": (
+                None if override is None else override["entered_at"]),
             "line": line,
         })
     return details

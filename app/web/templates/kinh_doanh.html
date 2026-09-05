@@ -39,11 +39,30 @@
   {% endif %}
 </div>
 
-{{ biz.coverage_block(summary.coverage, url_for('business_purchase_price', ky=selected_period)) }}
+{# Đường dẫn của khối coverage đi thẳng tới ĐÚNG danh sách mà câu ngay trên
+   nó vừa nói: còn thiếu giá ⟹ danh sách dòng thiếu giá; đã đủ ⟹ bảng kê đầy
+   đủ. Trước S120 nó luôn mở bộ lọc "chưa có giá nhập", nên khi coverage đã
+   100 % cùng một nút cho ra một bảng RỖNG. #}
+{{ biz.coverage_block(summary.coverage, url_for('business_purchase_price',
+      ky=selected_period,
+      **{'loc': 'tat-ca' if summary.coverage.complete else 'thieu-gia'})) }}
 
 {# So tháng trước chỉ tồn tại khi đang xem MỘT tháng. "Toàn bộ dữ liệu" không
    có tháng liền trước — trang nói ra điều đó thay vì bịa một kỳ so sánh. #}
 {{ biz.mom_block(summary.mom, summary.previous_label) }}
+
+{# `R1` — sổ nạp gần nhất không thấy lại một số dòng đang được tính ở trên.
+   CẢNH BÁO + ĐƯỜNG DẪN, không phải đối soát: không dòng nào bị gộp, bị sửa
+   hay bị loại vì khối này. #}
+{% if not_seen %}
+<div class="module coverage-gap">
+  <h2>Cần soi trước khi tin vào tổng
+    <span class="cnt" data-metric="not-seen-lines">{{ not_seen.lines }}</span> dòng</h2>
+  <p class="error" data-metric="not-seen-warning">{{ not_seen.note }}</p>
+  <p><a class="ghost btn-mini" href="{{ url_for('snapshot_detail',
+        snapshot_id=not_seen.snapshot_id) }}">MỞ SỔ NẠP GẦN NHẤT</a></p>
+</div>
+{% endif %}
 
 <div class="module">
   <h2>Theo nhân viên

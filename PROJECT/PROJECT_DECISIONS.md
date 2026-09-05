@@ -9022,3 +9022,51 @@ Chi tiết đầy đủ và bằng chứng:
 `docs/tasks/PHB-04-legacy-reference-v1.md`;
 báo cáo cho chủ dự án:
 `docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.
+
+## DEC-179
+
+Date:
+2026-09-05
+
+Task:
+S120 — PHB-03/PHB-04 production follow-up audit
+
+Decision:
+Bảng kê chi tiết `/kinh-doanh/gia-nhap` có bộ lọc **MẶC ĐỊNH = `tat-ca`**
+(toàn bộ dòng của kỳ/nhân viên đang xem), thay cho mặc định cũ `thieu-gia`.
+Ba chế độ thu hẹp — `thieu-gia`, `chua-ro-nv`, và `owner-sua` (`R3`, mới) —
+vẫn giữ nguyên hành vi và phải được chọn TƯỜNG MINH. Khi một chế độ thu hẹp
+đang bật, trang phải NÓI RA rằng danh sách bên dưới là một tập con.
+
+Đường dẫn từ khối coverage của trang Tổng hợp và trang Nhân viên trỏ tới
+`thieu-gia` khi coverage < 100 % và `tat-ca` khi coverage = 100 %. Trang Nhân
+viên có thêm một đường vào cố định "XEM TẤT CẢ DÒNG CỦA NHÂN VIÊN NÀY".
+
+Reason:
+Chủ dự án mở trang nhân viên trên production và chỉ thấy các dòng CHƯA hoàn
+thiện; các dòng đã đủ thông tin không xuất hiện. Nguyên nhân không phải dữ
+liệu và không phải phép tính — tổng, coverage và KPI luôn đọc TOÀN BỘ dòng —
+mà là bộ lọc mặc định của đúng trang mà mọi đường dẫn từ trang nhân viên đều
+dẫn tới. Một khung nhìn BÁO CÁO không được âm thầm trở thành hàng đợi việc
+tồn: chủ dự án phải nhìn được trọn tập dữ liệu liên quan rồi mới thu hẹp.
+
+Hệ quả thứ hai của mặc định cũ: khi coverage đã đạt 100 %, cùng một nút "MỞ
+BẢNG KÊ CHI TIẾT" cho ra một bảng RỖNG — đúng lúc mọi thứ đã hoàn tất thì
+màn hình trông như mất dữ liệu.
+
+Impact:
+Chỉ đổi KHUNG NHÌN. Không chỉ tiêu nghiệp vụ nào đổi giá trị: bộ lọc chỉ tác
+động lên danh sách dòng, còn `coverage` và mọi tổng đều tính từ tập dữ liệu
+CHƯA lọc (`data.totals`). Không thêm trạng thái, không thêm workflow, không
+đổi thẩm quyền nguồn, không đổi schema.
+
+Evidence:
+`tests/test_phb03_followup_repairs.py` (32 passed) — trong đó bốn khẳng định
+tham số hoá chứng minh coverage `1 / 2 dòng · 50%` KHÔNG đổi ở cả bốn chế độ
+lọc; `FULL_TEST_SUITE = 2248 passed, 11 skipped`;
+`GOLDEN = 74 passed, 2 skipped` (KHÔNG ĐỔI so với baseline).
+
+Can Revisit After:
+Mở lại nếu chủ dự án muốn một mặc định khác cho riêng luồng hoàn thiện giá
+nhập. Điều KHÔNG mở lại: một khung nhìn thu hẹp mà không nói ra rằng nó thu
+hẹp.

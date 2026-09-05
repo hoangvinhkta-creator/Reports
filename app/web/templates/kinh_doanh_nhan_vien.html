@@ -39,8 +39,24 @@
   <p class="insight">{{ CONVERTED_SALES_NOTE }}</p>
 </div>
 
+{# Cùng lý do như trang Tổng hợp: nút này mở đúng danh sách mà câu ngay trên
+   nó vừa nói tới, thay vì luôn mở bộ lọc "chưa có giá nhập". #}
 {{ biz.coverage_block(detail.coverage, url_for('business_purchase_price',
-      ky=selected_period, **{'nhan-vien': selected_employee})) }}
+      ky=selected_period,
+      **{'nhan-vien': selected_employee,
+         'loc': 'tat-ca' if detail.coverage.complete else 'thieu-gia'})) }}
+
+{# Khung nhìn BÁO CÁO của nhân viên: đường vào bảng kê ĐẦY ĐỦ của đúng người
+   và đúng kỳ đang xem, luôn có mặt và không phụ thuộc coverage. #}
+<div class="module">
+  <h2>Bảng kê chi tiết của {{ detail.employee }}</h2>
+  <p class="insight">Toàn bộ dòng hàng của {{ detail.period_label }} — cả dòng
+     đã đủ thông tin lẫn dòng còn thiếu. Bộ lọc nằm ngay trên bảng.</p>
+  <p><a class="ghost btn-mini" data-metric="employee-detail-link"
+        href="{{ url_for('business_purchase_price', ky=selected_period,
+                **{'nhan-vien': selected_employee, 'loc': 'tat-ca'}) }}"
+     >XEM TẤT CẢ DÒNG CỦA NHÂN VIÊN NÀY</a></p>
+</div>
 
 {{ biz.mom_block(detail.mom, detail.previous_label) }}
 

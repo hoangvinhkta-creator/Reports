@@ -118,7 +118,7 @@ class BusinessReportService:
             kpi_authority_valid=self.kpi_authority_valid(),
             employee_overrides=self._store.employee_overrides())
         details = business_queries.line_details(
-            rows, lines, classifications=classifications)
+            rows, lines, classifications=classifications, overrides=overrides)
         return PeriodData(lines=lines, details=details, totals=bm.totals(lines))
 
     def employees(

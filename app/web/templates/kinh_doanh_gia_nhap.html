@@ -23,9 +23,15 @@
 
   {{ biz.coverage_breakdown(coverage) }}
 
-  {# Ba bộ lọc = ba câu hỏi khác nhau của Owner. Gộp lại thành một danh sách
-     "còn thiếu" chung chính là cái đã khiến màn hình nói sai (B03). #}
+  {# Bốn bộ lọc = bốn câu hỏi khác nhau của Owner. Gộp lại thành một danh sách
+     "còn thiếu" chung chính là cái đã khiến màn hình nói sai (B03).
+     Mặc định là TẤT CẢ DÒNG (S120): bảng kê là khung nhìn báo cáo, ba chế độ
+     kia thu hẹp nó và phải được chọn tường minh. #}
   <nav class="filter-row">
+    <a class="ghost btn-mini {{ 'on' if mode == 'tat-ca' }}"
+       href="{{ url_for('business_purchase_price', ky=selected_period,
+               **{'nhan-vien': selected_employee, 'loc': 'tat-ca'}) }}"
+       >TẤT CẢ DÒNG</a>
     <a class="ghost btn-mini {{ 'on' if mode == 'thieu-gia' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
                **{'nhan-vien': selected_employee, 'loc': 'thieu-gia'}) }}"
@@ -34,16 +40,22 @@
        href="{{ url_for('business_purchase_price', ky=selected_period,
                **{'nhan-vien': selected_employee, 'loc': 'chua-ro-nv'}) }}"
        >CHƯA XÁC ĐỊNH NHÂN VIÊN</a>
-    <a class="ghost btn-mini {{ 'on' if mode == 'tat-ca' }}"
+    <a class="ghost btn-mini {{ 'on' if mode == 'owner-sua' }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'loc': 'tat-ca'}) }}"
-       >TẤT CẢ DÒNG</a>
+               **{'nhan-vien': selected_employee, 'loc': 'owner-sua'}) }}"
+       >DÒNG TÔI ĐÃ SỬA</a>
   </nav>
+
+  <p class="insight" data-metric="filter-note">
+    {% if mode == 'tat-ca' %}Đang hiện TOÀN BỘ dòng của kỳ/nhân viên đang chọn.
+    {% else %}Đang hiện MỘT PHẦN các dòng — bấm TẤT CẢ DÒNG để xem đủ.{% endif %}
+  </p>
 
   {% if not rows %}
   <p class="empty" data-metric="no-rows">
     {% if mode == 'tat-ca' %}Kỳ này chưa có dòng hàng nào.
     {% elif mode == 'chua-ro-nv' %}Mọi dòng có lợi nhuận của kỳ đều đã biết của ai.
+    {% elif mode == 'owner-sua' %}Bạn chưa sửa giá nhập hay gán lại nhân viên cho dòng nào của kỳ này.
     {% else %}Mọi dòng của kỳ đã có giá nhập.{% endif %}
   </p>
   {% else %}
@@ -61,7 +73,20 @@
       <td class="num">{{ row.sell_price }}</td>
       <td class="num{{ ' empty-cell' if row.pending }}"
           data-metric="purchase_price">{{ row.purchase_price }}</td>
-      <td data-metric="provenance">{{ row.provenance_label }}</td>
+      <td data-metric="provenance">{{ row.provenance_label }}
+        {# `R2` — bối cảnh của chính lần Owner sửa, đọc từ dữ liệu đã lưu sẵn.
+           Không có kiến trúc lịch sử mới: hai trường này nằm trong bảng
+           override từ ngày đầu, chỉ là chưa từng được hiện ra. #}
+        {% if row.overridden and row.entered_at %}
+        <span class="tp-unit" data-metric="override-context">
+          {% if row.has_auto_price_at_entry %}
+          Giá tự động trước khi sửa:
+          <span data-metric="auto-price-at-entry">{{ row.auto_price_at_entry }}</span> ·
+          {% endif %}
+          sửa lúc <span data-metric="entered-at">{{ row.entered_at }}</span>
+        </span>
+        {% endif %}
+      </td>
       {# Ba ô SUY RA. Thiếu đầu vào ⟹ `—` KÈM lý do, không bao giờ một số 0 bịa. #}
       {{ biz.derived_cell(row.total_sales, 'total-sales') }}
       {{ biz.derived_cell(row.kpi_profit, 'line-profit') }}
