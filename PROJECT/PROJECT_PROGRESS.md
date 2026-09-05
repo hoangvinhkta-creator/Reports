@@ -1,11 +1,16 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — PHB-05 EMPLOYEE TARGET V1 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-05)
+## CANONICAL CURRENT STATE — PHB-05 EMPLOYEE TARGET V1 = INTEGRATED (AUTHORITATIVE, 2026-09-05)
 
 Vertical hiện tại: **`PHB-05` — Employee Target V1**, triển khai
 `DEC-PHB02-06` (đã freeze từ PHB-02: Target cấu hình được theo từng nhân
 viên, Owner sửa được, không hard-code). Bản ghi triển khai đầy đủ kèm bằng
 chứng Legacy: `DEC-183` trong `PROJECT/PROJECT_DECISIONS.md`.
+
+Independent Review PHB-05 = PASS trên nhánh `claude/phb05-employee-target-ffi68x`,
+reviewed head `39c94ce28ad759f771276101be8f8f689c9cfc26`. Không có blocking
+finding. Đã fast-forward `claude/extract-upload-repo-gq2ws4` lên đúng
+reviewed head đó — không tạo merge commit, không commit business code mới.
 
 Khối R2 bên dưới vẫn đúng về vertical LỊCH SỬ và không bị mục này thay thế:
 PHB-05 không chạm `LEGACY_HISTORY`, không chạm resolver nguồn, và không mở
@@ -14,11 +19,15 @@ lại `DEC-181`/`DEC-182`.
 ```text
 VERTICAL                   = PHB-05 — EMPLOYEE TARGET V1
 DECISION                   = DEC-183 (triển khai DEC-PHB02-06 đã freeze)
-STATUS                     = IMPLEMENTED_AWAITING_REVIEW — chưa merge
-                             canonical, chưa deploy
+STATUS                     = INTEGRATED — Independent Review = PASS,
+                             SAFE_TO_INTEGRATE = YES, đã fast-forward vào
+                             canonical; chờ deploy + migration 0006 trên
+                             production.
 
 BASE_HEAD                  = 756f3a76791fef1b1916878030a3cf5d10dca9fb
+REVIEWED_HEAD              = 39c94ce28ad759f771276101be8f8f689c9cfc26
 BRANCH                     = claude/phb05-employee-target-ffi68x
+                             (đã fast-forward vào claude/extract-upload-repo-gq2ws4)
 
 TARGET_SCOPE               = EMPLOYEE_MONTH — khoá (năm, tháng, employee_key)
 TARGET_METRIC              = Converted Sales / DS quy đổi
@@ -50,8 +59,18 @@ FULL_SUITE                 = 2403 passed, 11 skipped
                              skipped — chênh lệch đúng 51 test PHB-05 mới,
                              không regression nào)
 GOLDEN                     = 58 passed, 2 skipped
-NEXT_VERTICAL_ACTION       = Mở phiên Independent Review PHB-05 MỚI trên
-                             đúng FINAL_HEAD của nhánh trên.
+BLOCKING_FINDINGS          = NONE
+
+DEFERRED — không sửa, không mở thành task:
+  NBF-1                    = thiếu regression test cho cách ly khi xoá
+                             Target qua ranh giới tháng (cross-month clear
+                             isolation).
+  NBF-2                    = không đặt trước được Target cho một kỳ khi kỳ
+                             đó CHƯA có dữ liệu Current.
+
+NEXT_VERTICAL_ACTION       = Chờ deploy áp dụng migration 0006, sau đó chạy
+                             Owner-side production E2E cho Target
+                             create/edit/zero/clear/persistence và So-target.
 ```
 
 ## CANONICAL CURRENT STATE — R2 UNIFIED LEGACY_HISTORY (AUTHORITATIVE, 2026-09-05)
