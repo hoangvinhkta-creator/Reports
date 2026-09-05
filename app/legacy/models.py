@@ -86,6 +86,20 @@ class MonthlyReference:
     formula_text: dict[str, str] = field(default_factory=dict)
 
 
+# Thẩm quyền nguồn của một lần nhập (`DEC-178`).
+#
+# ``AUTHORITATIVE_YEAR``  — workbook lịch sử MỘT NĂM độc lập. Đây là nguồn
+#                           CHUẨN cho năm đó; không nguồn nào ghi đè nó.
+# ``WORKBOOK_SNAPSHOT``   — bản sao Summary của một năm khác nằm nhúng trong
+#                           workbook của năm hiện hành. Bằng chứng thứ cấp.
+#
+# Vì sao là một trường TƯỜNG MINH chứ không suy từ tên sheet: quy tắc "nguồn
+# nào thắng" là một quyết định của chủ dự án, và một quyết định như thế không
+# được phép phụ thuộc vào việc ai đó có nhớ đặt tên sheet đúng hay không.
+SOURCE_AUTHORITY_YEAR = "AUTHORITATIVE_YEAR"
+SOURCE_AUTHORITY_SNAPSHOT = "WORKBOOK_SNAPSHOT"
+
+
 @dataclass(frozen=True)
 class LegacyWorkbook:
     source_file_name: str
@@ -95,3 +109,4 @@ class LegacyWorkbook:
     summary_rows: list[SummaryRow]
     daily_sales: list[DailySales]
     monthly_reference: list[MonthlyReference]
+    source_authority: str = SOURCE_AUTHORITY_SNAPSHOT

@@ -20,11 +20,12 @@ import pytest
 from sqlalchemy import create_engine, func, select
 
 import tools.db as history_db
-from app.legacy import LegacyImportError, parse_workbook
+from app.legacy import LegacyImportError, parse_workbook, parse_year_workbook
 from app.web import history_store, legacy_presentation, legacy_reference
 from app.web import business_service, business_store
 from app.web import server as web_server
 from tests.fixtures.legacy.build_legacy_workbook import strip_formula_markers
+from tests.fixtures.legacy.build_year_workbook import build_year_workbook
 from tests.test_business_vertical import pair, persist
 from tools.db import schema
 from tools.tracking import live_pull
@@ -81,9 +82,11 @@ def client(app):
 
 
 def upload(client, path):
+    """Tải lên GIỮ NGUYÊN tên file thật — `source_file_name` là dấu vết nguồn,
+    và một tên gán cứng sẽ làm mọi khẳng định về nguồn trở nên vô nghĩa."""
     return client.post(
         "/du-lieu/legacy",
-        data={"workbook": (io.BytesIO(path.read_bytes()), "bao_cao.xlsx")},
+        data={"workbook": (io.BytesIO(path.read_bytes()), path.name)},
         content_type="multipart/form-data",
     )
 
@@ -607,3 +610,354 @@ class TestOwnerQuestionsAboutALegacyYear:
             Decimal("1120000"), Decimal("8000000"),
             legacy_key="sales", current_key="sales_revenue")
         assert result.allowed is False and result.percent is None
+
+
+# ==========================================================================
+# `DEC-178` — THẨM QUYỀN NGUỒN LỊCH SỬ 2025.
+#
+# Chủ dự án đã freeze: workbook lịch sử MỘT NĂM độc lập là nguồn CHUẨN của
+# năm đó; bản sao `Summary <năm>` nhúng trong workbook năm hiện hành chỉ là
+# bằng chứng THỨ CẤP. Lệch nhau ⟹ bản độc lập thắng.
+#
+# Hai fixture cố ý mang SỐ KHÁC NHAU cho cùng kỳ 01.2025 / NV-A:
+#   build_year_workbook()   (nguồn chuẩn)  Tổng bán = 1.180.000
+#   build_legacy_workbook() (bản thứ cấp)  Tổng bán = 1.120.000
+# nên mọi bài test dưới đây đo được một quy tắc thật, không phải một trùng hợp.
+# ==========================================================================
+
+AUTHORITATIVE_SALES = Decimal("1180000")   # SOURCE_A — nguồn chuẩn
+SNAPSHOT_SALES = Decimal("1120000")        # SOURCE_B — bản sao thứ cấp
+
+
+@pytest.fixture
+def year_workbook_path(tmp_path):
+    return build_year_workbook(tmp_path / "bao_cao_2025_doc_lap.xlsx")
+
+
+def upload_both(client, snapshot_path, year_path):
+    """Nạp bản THỨ CẤP trước, rồi bản CHUẨN — thứ tự bất lợi nhất cho quy tắc.
+
+    Nếu hệ thống chỉ chạy theo "ai ghi sau thì thắng", thứ tự này vẫn cho ra
+    kết quả đúng một cách tình cờ; nên các bài test dưới đây kiểm cả thứ tự
+    ngược lại.
+    """
+    upload(client, snapshot_path)
+    upload(client, year_path)
+
+
+class TestSourceAuthority2025:
+    def test_a_the_standalone_year_workbook_is_authoritative(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        authority = repository.authority_import_for_year(2025)
+        assert authority is not None
+        assert authority["source_authority"] == "AUTHORITATIVE_YEAR"
+        assert "doc_lap" in authority["source_file_name"]
+
+    def test_b_the_snapshot_cannot_overwrite_the_authoritative_source(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Nạp bản thứ cấp SAU bản chuẩn vẫn không đổi được số của 2025."""
+        upload(client, year_workbook_path)
+        before = repository.query_summary(2025, 1)
+        upload(client, legacy_workbook_path)
+        after = repository.query_summary(2025, 1)
+        assert [r["sheet_name"] for r in after] == [r["sheet_name"] for r in before]
+        assert all(row["sheet_name"] == "Summary" for row in after)
+
+    def test_c_a_conflicting_value_resolves_to_the_authoritative_source(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Ô lệch nhau THẬT: 1.180.000 (chuẩn) và 1.120.000 (thứ cấp)."""
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["sales"] == AUTHORITATIVE_SALES
+        assert row["sales"] != SNAPSHOT_SALES
+
+    def test_c2_the_same_holds_when_the_snapshot_is_uploaded_last(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Không phải "ai ghi sau thì thắng" — đảo thứ tự, kết quả không đổi."""
+        upload(client, year_workbook_path)
+        upload(client, legacy_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["sales"] == AUTHORITATIVE_SALES
+
+    def test_c3_no_value_is_ever_averaged_or_merged(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Không trộn: giá trị hiện ra phải là MỘT trong hai số nguồn."""
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        midpoint = (AUTHORITATIVE_SALES + SNAPSHOT_SALES) / 2
+        assert row["sales"] != midpoint
+        assert row["sales"] in (AUTHORITATIVE_SALES, SNAPSHOT_SALES)
+
+    def test_the_snapshot_is_still_readable_as_secondary_evidence(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Thứ cấp KHÔNG bị xoá — vẫn tra được khi chỉ đích danh bản nhập đó."""
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        snapshot = next(item for item in repository.list_imports()
+                        if item["source_authority"] != "AUTHORITATIVE_YEAR")
+        rows = repository.query_summary(
+            2025, 1, import_id=snapshot["import_id"])
+        row = next(r for r in rows if r["seller_label"] == "NV-A")
+        assert row["sales"] == SNAPSHOT_SALES
+
+    def test_the_year_workbook_does_not_steal_the_current_pointer(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        """Nạp workbook 2025 KHÔNG được làm biến mất các kỳ 2026."""
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        periods = repository.available_periods()
+        assert (2026, 1) in periods, "kỳ 2026 phải còn nguyên"
+        assert (2025, 1) in periods, "kỳ 2025 phải xuất hiện"
+        assert "bao_cao" in repository.current_import()["source_file_name"]
+
+    def test_the_year_workbook_alone_still_becomes_readable(
+        self, client, year_workbook_path, repository
+    ):
+        """Chỉ có workbook 2025 và không có gì khác — vẫn phải đọc được."""
+        upload(client, year_workbook_path)
+        assert repository.query_summary(2025, 1)
+        assert (2025, 1) in repository.available_periods()
+
+
+class TestYearWorkbookStructure:
+    def test_d_every_month_present_in_the_source_is_discovered(
+        self, client, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        months = sorted({m for y, m in repository.available_periods() if y == 2025})
+        assert months == [1, 2]
+
+    def test_e_detail_sheets_are_recorded_but_never_ingested(
+        self, client, year_workbook_path, repository
+    ):
+        """`LEGACY_LINE_DETAIL_2025 = DEFERRED` — ghi tên, không đọc ô nào."""
+        upload(client, year_workbook_path)
+        current = repository.query_summary(2025)
+        assert all(row["sheet_name"] == "Summary" for row in current)
+        entries = repository.list_imports()[0]["sheets_imported"]
+        deferred = [e for e in entries if e["scope"] == "DETAIL_NOT_INGESTED"]
+        assert len(deferred) == 5
+        assert all(e["imported_rows"] == "0" for e in deferred)
+
+    def test_f_summary_employee_rows_are_recognised(self, client, year_workbook_path,
+                                                    repository):
+        upload(client, year_workbook_path)
+        sellers = [r["seller_label"] for r in repository.query_summary(2025, 1)
+                   if r["row_kind"] == "SELLER"]
+        assert sellers == ["NV-A", "NV-B"]
+
+    def test_g_month_total_rows_are_a_separate_row_kind(
+        self, client, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        kinds = [r["row_kind"] for r in repository.query_summary(2025, 1)]
+        assert kinds.count("MONTH_TOTAL") == 1
+
+    def test_h_a_total_row_is_never_treated_as_an_employee(
+        self, client, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        years = legacy_reference.summary_years(repository.query_all_summary())
+        year = next(y for y in years if y.year == 2025)
+        assert set(year.sellers) == {"NV-A", "NV-B", "NV-C"}
+        for forbidden in ("Tổng", "Total", "Summary", None):
+            assert forbidden not in year.sellers
+
+    def test_i_supported_metrics_preserve_the_source_values(
+        self, client, year_workbook_path, repository
+    ):
+        """Giá trị đi thẳng từ ô Excel ra, KHÔNG tính lại bằng công thức mới."""
+        upload(client, year_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["orders"] == Decimal("41")
+        assert row["products"] == Decimal("111")
+        assert row["sales"] == AUTHORITATIVE_SALES
+        assert row["converted_revenue"] == Decimal("601000")
+        assert row["profit"] == Decimal("33055")
+
+    def test_j_a_blank_metric_stays_unavailable_not_zero(
+        self, client, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["total_salary"] is None
+        cell = legacy_presentation.cell(row, "total_salary", "kvnd")
+        assert cell["text"] == "—" and cell["empty"] is True
+
+    def test_the_kpi_recap_block_is_excluded_with_its_row_count_recorded(
+        self, client, year_workbook_path, repository
+    ):
+        """Khối tổng kết KPI: cột mang nghĩa khác ⟹ loại trừ TƯỜNG MINH."""
+        upload(client, year_workbook_path)
+        entry = next(e for e in repository.list_imports()[0]["sheets_imported"]
+                     if e["sheet_name"] == "Summary")
+        assert entry["recap_rows_excluded"] == "3"
+        # Và không dòng nào của khối đó lọt vào dữ liệu người bán.
+        rows = repository.query_summary(2025)
+        assert all(row["orders"] is None or row["orders"] > 1 or
+                   row["row_kind"] != "SELLER" for row in rows)
+
+    def test_a_progress_ratio_row_never_becomes_a_period(
+        self, client, year_workbook_path, repository
+    ):
+        """Dòng tiến độ (`C = B/A`) có `month = NULL` ⟹ ngoài mọi khung nhìn kỳ."""
+        upload(client, year_workbook_path)
+        for _year, month in repository.available_periods():
+            assert month is not None
+        assert all(r["row_kind"] != "PROGRESS"
+                   for r in repository.query_summary(2025, 1))
+
+    def test_a_multi_year_workbook_fails_loudly_instead_of_being_guessed(self, tmp_path):
+        from openpyxl import Workbook
+        path = tmp_path / "hai_nam.xlsx"
+        book = Workbook()
+        book.active.title = "Summary"
+        book.create_sheet("01.2024 NV-A")
+        book.create_sheet("01.2025 NV-A")
+        book.save(path)
+        with pytest.raises(LegacyImportError) as exc:
+            parse_year_workbook(path)
+        assert "NHIỀU năm" in str(exc.value)
+
+    def test_the_dec_168_guard_applies_to_the_authoritative_summary(self, tmp_path):
+        """Nguồn CHUẨN là REQUIRED: một dòng không phân loại được vẫn FAIL TO."""
+        stripped = strip_formula_markers(
+            build_year_workbook(tmp_path / "mat_formula.xlsx"), sheet_name="Summary")
+        with pytest.raises(LegacyImportError) as exc:
+            parse_year_workbook(stripped)
+        assert "Summary" in str(exc.value)
+
+
+class TestOwnerNavigationForALegacyYear:
+    def test_k_the_owner_can_reach_employee_metrics_for_a_2025_month(
+        self, client, year_workbook_path
+    ):
+        upload(client, year_workbook_path)
+        html = page(client)
+        assert "Năm 2025" in html
+        assert "/nhan-vien?ky=2025-01" in html
+        detail = page(client, "/nhan-vien?ky=2025-01")
+        assert "NV-A" in detail and "NV-B" in detail
+
+    def test_l_legacy_values_stay_labelled_as_legacy_reference(
+        self, client, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        rows = repository.query_summary(2025)
+        assert {r["origin"] for r in rows} == {"LEGACY_REFERENCE"}
+        assert "SỐ CŨ" in page(client, "/nhan-vien?ky=2025-01")
+
+    def test_the_page_names_the_source_of_each_year(self, client, year_workbook_path):
+        upload(client, year_workbook_path)
+        html = page(client)
+        assert "Nguồn chuẩn của năm" in html
+        assert "doc_lap" in html
+
+    def test_the_page_says_detail_sheets_are_deliberately_deferred(
+        self, client, year_workbook_path
+    ):
+        upload(client, year_workbook_path)
+        html = page(client)
+        assert "cố ý chưa nhập" in html
+        assert "địa chỉ khách hàng" in html
+
+
+class TestIdempotencyAndIsolationForTheYearWorkbook:
+    def test_m_repeated_import_of_the_authoritative_source_is_idempotent(
+        self, client, year_workbook_path, engine, repository
+    ):
+        upload(client, year_workbook_path)
+        after_first = table_counts(engine)
+        upload(client, year_workbook_path)
+        assert table_counts(engine) == after_first
+        assert repository.count_imports() == 1
+        # Khoá DUY NHẤT thật của bảng là (import_id, sheet_name, sheet_row):
+        # hai dòng "tiến độ" khác nhau đều có (year=2025, month=NULL), nên bộ
+        # bốn trường nghiệp vụ KHÔNG phải khoá và không dùng để đo trùng lặp.
+        keys = [(r["sheet_name"], r["sheet_row"])
+                for r in repository.query_summary(2025)]
+        assert len(keys) == len(set(keys))
+
+    def test_n_repeated_snapshot_import_cannot_alter_authoritative_values(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        upload(client, year_workbook_path)
+        for _ in range(3):
+            upload(client, legacy_workbook_path)
+        row = next(r for r in repository.query_summary(2025, 1)
+                   if r["seller_label"] == "NV-A")
+        assert row["sales"] == AUTHORITATIVE_SALES
+
+    def test_o_p_q_current_engine_numbers_are_unchanged_by_the_2025_import(
+        self, client, year_workbook_path, snapshots, service
+    ):
+        """O + P + Q: coverage, doanh thu, và giá nhập Owner nhập tay."""
+        persist(snapshots, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+        data = service.period(**JANUARY)
+        first = data.details[0]
+        service.store.set_purchase_price(
+            order_key=first["order_key"], product_key=first["product_key"],
+            occurrence_index=first["occurrence_index"],
+            price=Decimal("6000000"), auto_price=None)
+        before = service.period(**JANUARY).totals
+
+        upload(client, year_workbook_path)
+        after = service.period(**JANUARY).totals
+
+        assert after.coverage == before.coverage
+        assert after.sales_revenue == before.sales_revenue
+        assert after.kpi_profit == before.kpi_profit
+        assert after.kpi_profit == Decimal("2000000"), "giá Owner nhập vẫn còn"
+
+    def test_r_no_product_identity_or_tracking_path_is_reachable_from_legacy(self):
+        """Ranh giới bằng CẤU TRÚC: `app/legacy` không import các module đó."""
+        import ast
+        import pathlib
+
+        forbidden = ("product", "pricing", "tracking", "profit", "kpi")
+        for path in pathlib.Path("app/legacy").glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                names = []
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""]
+                for name in names:
+                    assert not any(f"modules.{token}" in name for token in forbidden), \
+                        f"{path.name} import {name}"
+
+    def test_t_the_2026_workbook_behaviour_is_unchanged(
+        self, client, legacy_workbook_path, year_workbook_path, repository
+    ):
+        upload_both(client, legacy_workbook_path, year_workbook_path)
+        rows = repository.query_summary(2026, 1)
+        assert [r["seller_label"] for r in rows if r["row_kind"] == "SELLER"] == [
+            "NV-A", "NV-B", "Kênh-1"]
+        assert repository.query_daily(2026, 1), "DataChart 2026 vẫn đọc được"
+
+
+class TestComparisonStaysBlockedForTheAuthoritativeSource:
+    def test_s_authoritative_history_is_still_not_comparable_to_the_engine(
+        self, client, year_workbook_path
+    ):
+        """"Nguồn chuẩn lịch sử" KHÔNG đồng nghĩa "cùng nghĩa với số mới"."""
+        upload(client, year_workbook_path)
+        result = legacy_reference.compare(
+            AUTHORITATIVE_SALES, Decimal("8000000"),
+            legacy_key="sales", current_key="sales_revenue")
+        assert result.allowed is False
+        assert result.percent is None
+        assert legacy_reference.has_comparable_metric() is False
+        assert "Không so được" in page(client)

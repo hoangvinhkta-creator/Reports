@@ -98,6 +98,22 @@ DATACHART_READ_COLUMNS = (
 )
 
 YEAR_IN_SHEET_NAME = re.compile(r"(20\d{2})")
+# Sheet chi tiết "MM.YYYY <Nhãn>" của workbook một-năm độc lập.
+DETAIL_SHEET_NAME = re.compile(r"^(?P<month>\d{2})\.(?P<year>20\d{2})\s+(?P<label>.+)$")
+STANDALONE_SUMMARY_SHEET = "Summary"
+
+# Khối tổng kết KPI cuối năm, nằm DƯỚI 12 khối tháng của sheet Summary.
+# Nhận ra bằng chính TIÊU ĐỀ mà workbook tự viết ở cột C — quan sát được
+# đúng MỘT lần trên mỗi sheet Summary của năm 2025 (cả bản độc lập lẫn bản
+# nhúng), và KHÔNG xuất hiện trong `Summary 2026`.
+#
+# Vì sao khối này KHÔNG được nhập: ở đó các cột mang ý nghĩa KHÁC HẲN bảng
+# chính — `C` là "Tổng KPI" (cộng cột `N` của 12 tháng), `D` là "KPI trung
+# bình", chứ không phải "Tổng đơn" và "Tổng số SP". Nhập chúng vào cùng bộ
+# cột sẽ ghi ra những con số sai hẳn nghĩa, ví dụ "Tổng đơn của Ly = 10,79".
+# Loại trừ là TƯỜNG MINH và có ghi lại số dòng, không phải nuốt lỗi.
+SUMMARY_RECAP_HEADER = "Tổng KPI"
+SUMMARY_RECAP_COLUMN = "C"
 SAME_SHEET_RATIO = re.compile(r"^=\s*[A-Z]+\$?\d+\s*/\s*\$?[A-Z]+\$?\d+\s*$")
 
 
@@ -226,6 +242,15 @@ def _sheet_cells(sheet, columns: Iterable[str]) -> dict[int, dict[str, object]]:
     return cells
 
 
+def _recap_header_row(value_cells: dict[int, dict[str, object]]) -> Optional[int]:
+    """Dòng đầu của khối tổng kết KPI, nếu sheet có khối đó."""
+    for row_index in sorted(value_cells):
+        value = value_cells[row_index].get(SUMMARY_RECAP_COLUMN)
+        if isinstance(value, str) and value.strip() == SUMMARY_RECAP_HEADER:
+            return row_index
+    return None
+
+
 def _read_rows(value_cells: dict[int, dict[str, object]],
                formula_cells: dict[int, dict[str, object]]):
     for row_index in sorted(value_cells):
@@ -239,7 +264,8 @@ def _read_rows(value_cells: dict[int, dict[str, object]],
 
 def _parse_summary_sheet(
     value_sheet, formula_sheet, *, required: bool = True,
-) -> tuple[list[SummaryRow], list[int]]:
+    default_year: Optional[int] = None,
+) -> tuple[list[SummaryRow], list[int], list[int]]:
     """Dòng Summary của một sheet + danh sách dòng KHÔNG phân loại được.
 
     ``required=True`` (REQUIRED_IMPORT): còn một dòng chưa phân loại được là
@@ -249,9 +275,18 @@ def _parse_summary_sheet(
     ``required=False`` (OPTIONAL_IMPORT, `DEC-177`): trả về đúng những dòng
     phân loại được, kèm số dòng chưa phân loại được để tầng trên BÁO LÊN
     giao diện. Không đoán, và cũng không im lặng — hai điều đó khác nhau.
+
+    Trả về ``(rows, unaccounted, recap)``. ``recap`` là các dòng thuộc khối
+    tổng kết KPI cuối năm — bị loại trừ CÓ CHỦ ĐÍCH (xem
+    ``SUMMARY_RECAP_HEADER``), và số dòng được trả về để sự loại trừ đó
+    kiểm chứng được thay vì phải tin.
     """
     sheet_name = value_sheet.title
-    sheet_year = _sheet_year(sheet_name)
+    # Sheet của workbook 2025 độc lập tên đúng là "Summary" — không mang năm.
+    # ``default_year`` khi đó đến từ TÊN CÁC SHEET CHI TIẾT của chính workbook
+    # (`01.2025 Ly` …), tức vẫn là bằng chứng đọc được từ file, không phải
+    # một năm do người viết mã chọn.
+    sheet_year = _sheet_year(sheet_name) or default_year
     columns = LABEL_COLUMNS + tuple(SUMMARY_COLUMN_FIELDS)
     rows: list[SummaryRow] = []
     last_period: Optional[tuple[int, int]] = None
@@ -259,7 +294,15 @@ def _parse_summary_sheet(
 
     value_cells = _sheet_cells(value_sheet, columns)
     formula_cells = _sheet_cells(formula_sheet, columns)
+    recap_from = _recap_header_row(value_cells)
+    recap_rows: list[int] = []
     for row_index, raw_values, formulas in _read_rows(value_cells, formula_cells):
+        if recap_from is not None and row_index >= recap_from:
+            # Khối tổng kết KPI — cột mang ý nghĩa khác, KHÔNG nhập. Ghi lại
+            # số dòng để sự loại trừ này kiểm chứng được, không phải im lặng.
+            if row_has_business_values(raw_values):
+                recap_rows.append(row_index)
+            continue
         row_kind = _classify(formulas)
         if row_kind is None:
             # Dòng KHÔNG khớp contract phân loại. Nếu nó vẫn mang giá trị
@@ -321,7 +364,7 @@ def _parse_summary_sheet(
             "UNKNOWN / OWNER_DECISION_REQUIRED: cần Owner xác nhận ý nghĩa "
             "các dòng này trước khi mở rộng contract."
         )
-    return rows, unaccounted
+    return rows, unaccounted, recap_rows
 
 
 def _parse_datachart(value_sheet, formula_sheet):
@@ -405,11 +448,14 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
         summary_rows: list[SummaryRow] = []
         sheets_imported: list[dict] = []
 
-        def _record(name: str, scope: str, imported: int, unclassified: list[int]) -> None:
+        def _record(name: str, scope: str, imported: int, unclassified: list[int],
+                    recap: list[int] = ()) -> None:
             entry = {
                 "sheet_name": name, "state": values_wb[name].sheet_state,
                 "scope": scope, "imported_rows": str(imported),
             }
+            if recap:
+                entry["recap_rows_excluded"] = str(len(recap))
             if unclassified:
                 # Số dòng Owner có số mà contract chưa đọc được. Ghi cả vài
                 # số dòng đầu để Owner mở đúng chỗ trong workbook mà đối
@@ -420,10 +466,10 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
             sheets_imported.append(entry)
 
         for name in SUMMARY_IMPORT_SHEETS:
-            rows, unaccounted = _parse_summary_sheet(
+            rows, unaccounted, recap = _parse_summary_sheet(
                 values_wb[name], formulas_wb[name], required=True)
             summary_rows.extend(rows)
-            _record(name, SHEET_SCOPE_REQUIRED, len(rows), unaccounted)
+            _record(name, SHEET_SCOPE_REQUIRED, len(rows), unaccounted, recap)
 
         daily, monthly = _parse_datachart(
             values_wb[DATACHART_SHEET], formulas_wb[DATACHART_SHEET],
@@ -440,10 +486,10 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
         for name in SUMMARY_OPTIONAL_SHEETS:
             if name not in values_wb.sheetnames:
                 continue
-            rows, unaccounted = _parse_summary_sheet(
+            rows, unaccounted, recap = _parse_summary_sheet(
                 values_wb[name], formulas_wb[name], required=False)
             summary_rows.extend(rows)
-            _record(name, SHEET_SCOPE_OPTIONAL, len(rows), unaccounted)
+            _record(name, SHEET_SCOPE_OPTIONAL, len(rows), unaccounted, recap)
     finally:
         values_wb.close()
         formulas_wb.close()
@@ -456,4 +502,124 @@ def parse_workbook(path: Path) -> LegacyWorkbook:
         summary_rows=summary_rows,
         daily_sales=daily,
         monthly_reference=monthly,
+    )
+
+
+# ---------------------------------------------------------------------------
+# WORKBOOK MỘT-NĂM ĐỘC LẬP (`DEC-178`) — nguồn chuẩn lịch sử của một năm.
+#
+# Hình dạng khác hẳn workbook 2026: sheet tổng hợp tên đúng là ``Summary``
+# (không mang năm), không có ``DataChart``, và mỗi kỳ × người bán có một
+# sheet chi tiết riêng ``MM.YYYY <Nhãn>``.
+#
+# PHB-04 V1 nhập MỘT sheet: ``Summary``. 74 sheet chi tiết của workbook 2025
+# **cố ý KHÔNG được nhập** — xem `LEGACY_LINE_DETAIL_2025 = DEFERRED` ở
+# ``docs/tasks/PHB-04-legacy-reference-v1.md``: chúng mang tên, số điện
+# thoại và địa chỉ khách hàng, nên đưa vào history store là một quyết định
+# quản trị dữ liệu cá nhân, không phải một chi tiết triển khai của PHB-04.
+# Tên sheet vẫn được ghi lại làm dấu vết nguồn, không kèm một ô dữ liệu nào.
+# ---------------------------------------------------------------------------
+
+SOURCE_AUTHORITY_YEAR = "AUTHORITATIVE_YEAR"
+SOURCE_AUTHORITY_SNAPSHOT = "WORKBOOK_SNAPSHOT"
+
+SHEET_SCOPE_DETAIL_NOT_INGESTED = "DETAIL_NOT_INGESTED"
+
+
+def detail_sheets(sheet_names: Iterable[str]) -> list[tuple[int, int, str]]:
+    """(năm, tháng, nhãn) của các sheet chi tiết, theo ĐÚNG tên sheet."""
+    found = []
+    for name in sheet_names:
+        match = DETAIL_SHEET_NAME.match(name)
+        if match is None:
+            continue
+        found.append((
+            int(match.group("year")), int(match.group("month")),
+            match.group("label").strip(),
+        ))
+    return found
+
+
+def is_standalone_year_workbook(sheet_names: Iterable[str]) -> bool:
+    names = list(sheet_names)
+    return STANDALONE_SUMMARY_SHEET in names and bool(detail_sheets(names))
+
+
+def parse_year_workbook(path: Path) -> LegacyWorkbook:
+    """Đọc workbook lịch sử MỘT NĂM độc lập (ví dụ `Báo cáo Kinh doanh 2025`).
+
+    Năm của workbook suy ra từ TÊN các sheet chi tiết, không từ tên file và
+    không từ một hằng số: một workbook 2024 cùng hình dạng sẽ tự cho ra 2024.
+    Nhiều năm lẫn trong một file là hình dạng chưa từng được xác nhận, nên
+    nó FAIL TO thay vì bị đoán.
+
+    Guard `DEC-168` áp dụng ĐẦY ĐỦ ở đây: ``Summary`` là sheet REQUIRED, nên
+    một dòng có giá trị nghiệp vụ mà contract không phân loại được vẫn làm
+    trượt cả lần nhập. Đây là nguồn CHUẨN của năm đó — bỏ sót một dòng của
+    nó nghĩa là báo cáo lịch sử thiếu số mà không ai biết.
+    """
+    path = Path(path)
+    values_wb = load_workbook(path, data_only=True, read_only=True)
+    formulas_wb = load_workbook(path, data_only=False, read_only=True)
+    try:
+        names = values_wb.sheetnames
+        if STANDALONE_SUMMARY_SHEET not in names:
+            raise LegacyImportError(
+                "Workbook lịch sử một năm phải có sheet "
+                f"'{STANDALONE_SUMMARY_SHEET}'. Sheet hiện có: "
+                + ", ".join(names[:10])
+            )
+        details = detail_sheets(names)
+        years = {year for year, _month, _label in details}
+        if not years:
+            raise LegacyImportError(
+                "Không tìm thấy sheet chi tiết nào dạng 'MM.YYYY <Nhãn>', nên "
+                "không xác định được năm của workbook. KHÔNG đoán năm từ tên file."
+            )
+        if len(years) > 1:
+            raise LegacyImportError(
+                "Workbook chứa sheet chi tiết của NHIỀU năm ("
+                + ", ".join(str(year) for year in sorted(years))
+                + "). Hình dạng này chưa được xác nhận — cần chủ dự án xác nhận "
+                "ý nghĩa trước khi nhập."
+            )
+        year = years.pop()
+
+        summary_rows, _unaccounted, recap = _parse_summary_sheet(
+            values_wb[STANDALONE_SUMMARY_SHEET],
+            formulas_wb[STANDALONE_SUMMARY_SHEET],
+            required=True, default_year=year,
+        )
+        summary_entry = {
+            "sheet_name": STANDALONE_SUMMARY_SHEET,
+            "state": values_wb[STANDALONE_SUMMARY_SHEET].sheet_state,
+            "scope": SHEET_SCOPE_REQUIRED,
+            "imported_rows": str(len(summary_rows)),
+            "year": str(year),
+        }
+        if recap:
+            summary_entry["recap_rows_excluded"] = str(len(recap))
+        sheets_imported = [summary_entry]
+        # Sheet chi tiết: GHI TÊN, KHÔNG ĐỌC Ô NÀO. Dấu vết để chủ dự án
+        # thấy chúng tồn tại và đang bị hoãn có chủ đích, không phải bị bỏ sót.
+        for detail_year, month, label in sorted(details):
+            sheets_imported.append({
+                "sheet_name": f"{month:02d}.{detail_year} {label}",
+                "state": "visible",
+                "scope": SHEET_SCOPE_DETAIL_NOT_INGESTED,
+                "imported_rows": "0",
+            })
+    finally:
+        values_wb.close()
+        formulas_wb.close()
+
+    return LegacyWorkbook(
+        source_file_name=path.name,
+        file_fingerprint=fingerprint_file(path),
+        file_size=path.stat().st_size,
+        sheets_imported=sheets_imported,
+        summary_rows=summary_rows,
+        daily_sales=[],
+        monthly_reference=[],
+        source_authority=SOURCE_AUTHORITY_YEAR,
     )

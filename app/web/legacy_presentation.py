@@ -179,18 +179,32 @@ def contract_rows(rules: tuple) -> list[dict]:
     ]
 
 
-def summary_year_rows(years: list, all_summary_rows: list[dict]) -> list[dict]:
+def summary_year_rows(years: list, all_summary_rows: list[dict],
+                      authority_by_year: dict = None,
+                      current_import: dict = None) -> list[dict]:
     """Một khối cho mỗi NĂM lịch sử: kỳ nào có, ai có số, chỉ tiêu nào có.
 
     Tình trạng chỉ tiêu được đo trên chính dòng của năm đó (`DEC-177`), nên
-    một năm nghèo dữ liệu không mượn được vẻ đầy đủ của năm khác.
+    một năm nghèo dữ liệu không mượn được vẻ đầy đủ của năm khác. Mỗi năm
+    cũng ghi rõ đang đọc từ NGUỒN NÀO (`DEC-178`).
     """
     from app.web import legacy_reference
 
+    authority_by_year = authority_by_year or {}
     rows = []
     for year in years:
         year_rows = [r for r in all_summary_rows if r.get("year") == year.year]
+        authority = authority_by_year.get(year.year)
+        source = authority or current_import or {}
         rows.append({
+            "source_file": source.get("source_file_name") or "—",
+            "source_import_id": source.get("import_id") or "—",
+            "source_authority": source.get("source_authority"),
+            "source_authority_label": legacy_reference.source_authority_label(
+                source.get("source_authority")),
+            "is_authoritative": authority is not None,
+            "deferred_detail_sheets": legacy_reference.deferred_detail_sheets(
+                source.get("sheets_imported")),
             "year": year.year,
             "months": list(year.months),
             "sellers": list(year.sellers),

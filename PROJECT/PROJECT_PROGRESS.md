@@ -1,94 +1,98 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — PHB-04 = IMPLEMENTED_AWAITING_REVIEW + OWNER_SOURCE_REQUIRED (AUTHORITATIVE, 2026-09-04, S119 bản đính chính)
+## CANONICAL CURRENT STATE — PHB-04 = IMPLEMENTED_AWAITING_REVIEW (AUTHORITATIVE, 2026-09-05, S119 bản cuối)
 
-`PHB-03` đã được **chủ dự án nghiệm thu trên production** (tuyên bố mở phiên
-S119, kèm chỉ thị **không mở lại PHB-03**). Điều đó đóng cửa E2E còn treo ở
-khối S118 bên dưới — khối đó giữ nguyên làm bản ghi lịch sử. `R1`/`R2`/`R3`
-của PHB-03 nằm ở nhánh phụ **không chặn**.
+`PHB-03` = **PRODUCTION ACCEPTED** (chủ dự án nghiệm thu, chỉ thị S119). Khối
+S118 bên dưới giữ nguyên làm bản ghi lịch sử. `R1`/`R2`/`R3` ở nhánh phụ,
+không chặn.
 
-Vertical hiện tại: **`PHB-04` — Legacy Reference V1**.
+Vertical hiện tại: **`PHB-04` — Legacy Reference V1**, đã triển khai xong
+trên **dữ liệu thật** và **đang chờ Independent Review**.
 
-**ĐÍNH CHÍNH (`DEC-177`).** Bản PHB-04 đầu tiên của phiên kết luận *"năm 2025
-chỉ có một chỉ tiêu: doanh số tháng"*. Chủ dự án BÁC BỎ kết luận đó và xác
-nhận 2025 có Summary riêng + chi tiết theo nhân viên. Kết luận cũ SAI và đã
-bị gỡ khỏi mọi tài liệu. Nguyên nhân gốc: cả ba tầng đọc (`extract_evidence`,
-`parser._classify`, hợp đồng PHB-04) đều BÁM VÀO CÔNG THỨC, còn `Summary
-2025` là sheet đã dán cứng thành giá trị ⟹ `evidence.json` chứa **0** lần
-chuỗi `"2025"`. Đó là kết luận về CÔNG CỤ ĐỌC, bị trình bày nhầm thành kết
-luận về DỮ LIỆU.
+**Ba mốc đính chính của phiên — đọc theo thứ tự.** (1) Bản đầu kết luận sai
+*"2025 chỉ có 12 con số doanh thu"*; nguyên nhân: cả ba tầng đọc đều bám vào
+công thức Excel còn bản sao `Summary 2025` là value-only ⟹ kết luận về CÔNG
+CỤ ĐỌC bị trình bày nhầm thành kết luận về DỮ LIỆU. (2) `DEC-177` sửa cách
+đọc `DEC-169` (tuyên bố PHẠM VI, không phải lệnh cấm) và mở `Summary 2025`
+thành `OPTIONAL_IMPORT`. (3) `DEC-178` — chủ dự án cấp **hai workbook thật**
+và freeze thẩm quyền nguồn. Kết luận cũ đã bị gỡ khỏi mọi tài liệu hiện hành.
 
 ```text
-START_BRANCH               = claude/extract-upload-repo-gq2ws4 (origin HEAD branch)
-START_HEAD                 = 51d8fef4499642290398d795e7639e13792bee45
-PHB04_BRANCH               = claude/phb-04-legacy-reference-v1-widtzf
+SESSION                    = S119
+BRANCH                     = claude/phb-04-legacy-reference-v1-widtzf
+START_HEAD                 = 51d8fef (canonical claude/extract-upload-repo-gq2ws4)
 
-DEC169_EXACT_MEANING       = TUYÊN BỐ PHẠM VI ("Owner KHÔNG yêu cầu" = chưa
-                             cần), KHÔNG phải lệnh cấm sản phẩm. Nghĩa A
-                             (cấm làm CURRENT_ENGINE input) + B (cấm làm
-                             thẩm quyền parity) + C (cấm parse qua contract
-                             phân loại THEO CÔNG THỨC) = ĐÚNG, giữ nguyên.
-                             Nghĩa D (loại khỏi sản phẩm kể cả
-                             LEGACY_REFERENCE) = SAI — đây là chỗ bản đầu
-                             đọc rộng. Xem DEC-177 §1.
-OWNER_CORRECTION_APPLIED   = YES
+OWNER_SOURCE_AUTHORITY_DECISION = FROZEN
+DECISION_ID                = DEC-178 (ID còn trống, không ghi đè quyết định nào)
+AUTHORITATIVE_2025_SOURCE  = Báo cáo Kinh doanh 2025.xlsx (workbook độc lập)
+SECONDARY_2025_SOURCE      = sheet `Summary 2025` nhúng trong
+                             Báo cáo Kinh doanh 2026.xlsx
+                             LỆCH NHAU ⟹ bản độc lập THẮNG. Không trộn, không
+                             trung bình, không "ai ghi sau thì thắng".
+                             "Chuẩn LỊCH SỬ" ≠ "thẩm quyền engine hiện tại":
+                             2025 vẫn là LEGACY_REFERENCE.
 
-WHAT_2025_DATA_ACTUALLY_EXISTS =
-    workbook 59 sheet = 56 sheet "tháng+nhân viên" (TẤT CẢ 2026)
-                      + Summary 2026 + Summary 2025 + DataChart 2026
-    ⟹ KHÔNG có sheet MM.2025 <Nhân viên> nào. Chi tiết 2025 nằm TRONG
-      chính sheet Summary 2025 (99 dòng value-only, 12 tháng — mật độ
-      ~8,3 dòng/tháng, khớp với ~8,9 của Summary 2026).
-    + DataChart 2026!AH3:AH14 = 12 ô doanh số tháng 2025 (đã nhập sẵn).
-    NỘI DUNG thật của 99 dòng đó CHƯA TỪNG được quan sát — xem
-    NEED_OWNER_SOURCE.
+SOURCE_A_TOTAL_SHEETS      = 76
+SOURCE_A_DETAIL_SHEETS     = 74 (đủ 12 tháng: 7·6·5·5·6·6·6·7·7·7·6·6)
+SOURCE_A_SUMMARY_FORMULAS  = 1005
+SOURCE_B_SUMMARY_FORMULAS  = 0 (value-only, cùng bố cục 755 dòng)
+ALL_12_MONTHS              = PASS
+MONTH_INVENTORY            = bảng đầy đủ ở docs/tasks/PHB-04-legacy-reference-v1.md §8a
+                             (74 sheet ↔ 74 dòng SELLER + 12 MONTH_TOTAL)
+2025_EMPLOYEES             = Ly · Thắng · Tín Phát · Hoàng · Kiên · Quân ·
+                             Miền Bắc · Khác · Gia dụng · Nội thành
+2025_SUMMARY_METRICS       = 16 cột C..S; kiểm kê NON_EMPTY/EMPTY ở §8c.
+                             10 chỉ tiêu AVAILABLE_LEGACY_REFERENCE;
+                             6 cột lương/tồn kho AVAILABLE_SEMANTICS_UNCERTAIN
+                             (KHÔNG implement ngữ nghĩa tiền lương)
+UNRESOLVED_CRITICAL_2025_ROWS = 0
 
-SUMMARY_2025               = SUPPORTED (năng lực) / PARTIAL trên dữ liệu thật
-                             — OPTIONAL_IMPORT: dòng phân loại được thì nhập,
-                             dòng không thì ĐẾM + báo lên /lich-su, và KHÔNG
-                             làm trượt phần 2026.
-EMPLOYEE_DETAIL_2025       = SUPPORTED (năng lực) — legacy_summary_row khoá
-                             theo (year, month, seller_label, row_kind) và
-                             KHÔNG gắn với 2026; trang /nhan-vien vốn đã
-                             year-agnostic nên phục vụ 2025 mà không sửa mã.
+SOURCE_A_VS_B              = 1132 ô so sánh — EXACT 573 · ROUNDING_ONLY 505 ·
+                             SUBSTANTIVE 42 (trên 12 dòng) · MISSING_IN_A 0 ·
+                             MISSING_IN_B 12. "Làm tròn" xác định bằng CƠ CHẾ
+                             (B == round(A,n)), không bằng ngưỡng tự chọn.
+SUBSTANTIVE_DIFFERENCES    = tập trung ở 12/2025 (Ly, Nội thành, dòng tổng
+                             tháng) + ô lương Q/R mà SOURCE_B để 0 — ăn khớp
+                             "bản sao chụp trước khi 12/2025 chốt sổ". Mọi con
+                             số chủ dự án nêu đều xác nhận đúng, gồm tổng
+                             tháng 12 (A = 23.016.871 · B = 23.097.181).
+SOURCE_CONFLICT_PRECEDENCE = PASS
 
-SUPPORTED_2025_SUMMARY_METRICS  = 16 cột C..S của sheet Summary, ĐO theo file
-SUPPORTED_2025_EMPLOYEE_METRICS = cùng 16 cột, theo từng dòng row_kind=SELLER
-REFERENCE_ONLY_2025_METRICS     = TOÀN BỘ chỉ tiêu hiển thị được — nghĩa là
-                                  XEM ĐƯỢC ĐẦY ĐỦ nhưng không trừ với số mới
-UNAVAILABLE_2025_METRICS        = theo hợp đồng: tỉ lệ tồn kho + các cột
-                                  lương/thưởng. Ngoài ra, tính sẵn có của
-                                  TỪNG chỉ tiêu được ĐO trên dòng thật
-                                  (AVAILABLE_WITH_ACCEPTED_EVIDENCE /
-                                   AVAILABLE_BUT_SEMANTICS_UNCERTAIN /
-                                   NOT_AVAILABLE), KHÔNG viết cứng.
+2025_MONTHLY_SUMMARY       = PASS
+2025_EMPLOYEE_MONTH_SUMMARY = PASS
+LEGACY_LINE_DETAIL_2025    = DEFERRED — 62.802 dòng trên 6 biến thể bố cục,
+                             MỌI biến thể có Tên khách hàng · Số điện thoại ·
+                             Địa chỉ. Đưa vào history store là quyết định
+                             QUẢN TRỊ DỮ LIỆU CÁ NHÂN, không phải chi tiết
+                             triển khai PHB-04. Tên sheet vẫn được ghi
+                             (scope = DETAIL_NOT_INGESTED, imported_rows = 0)
+                             ⟹ "hoãn có chủ đích", không phải "bị bỏ quên".
+BESTSTAFF                  = OUT_OF_SCOPE (bảng thi đua nhân viên theo quý)
 
 LEGACY_STORAGE_MODEL       = TÁI DÙNG bốn bảng legacy_* của TASK-PRA-001
-SCHEMA_CHANGE_REQUIRED     = NO — quyền mở rộng schema mà chỉ thị cho phép
-                             KHÔNG được dùng: đánh giá lại sau khi biết hình
-                             dạng 2025 cho thấy không cần
-LEGACY_PROVENANCE          = LEGACY_REFERENCE (CHECK constraint ở tầng schema)
+SCHEMA_CHANGE_REQUIRED     = YES — MỘT cột nullable
+                             `legacy_import.source_authority`, migration
+                             0005_legacy_source_authority (ADDITIVE thuần).
+                             Là chỗ DUY NHẤT PHB-04 dùng quyền mở rộng schema.
+                             Lý do đầy đủ: DEC-178 §4 (is_current là con trỏ
+                             MỘT bản cho toàn history, không phải thẩm quyền
+                             THEO NĂM; version_label/notes là văn bản tự do).
+                             Quy tắc sống ở TẦNG TRUY VẤN
+                             (`_import_for_year()`), không ở lời dặn tài liệu.
+LEGACY_PROVENANCE          = PASS — LEGACY_REFERENCE (CHECK constraint) +
+                             thẩm quyền nguồn hiện trên giao diện theo từng năm
+CURRENT_ENGINE_ISOLATION   = PASS — doanh thu, coverage, giá nhập Owner nhập
+                             tay, KPI đều IDENTICAL trước/sau khi nạp 2025;
+                             thêm test CẤU TRÚC: app/legacy không import
+                             Product Identity / Tracking / pricing / KPI
+IDEMPOTENCY                = PASS — nạp lại nguồn chuẩn không nhân đôi; nạp
+                             bản thứ cấp 3 lần không đổi được số của 2025
 
-CUTOVER_BOUNDARY           = ORIGIN_BASED_NOT_DATE_BASED (không đổi, DEC-176 §1)
-CURRENT_ENGINE_ISOLATION   = PASS — nạp legacy không ghi dòng nào vào
-                             order_line_*/snapshot_*; đọc /lich-su không ghi gì
-LEGACY_COVERAGE_ISOLATION  = PASS — coverage, doanh thu, số dòng của kỳ hiện
-                             hành IDENTICAL trước/sau khi nạp legacy
-2025_SUMMARY_NAVIGATION    = PASS
-2025_EMPLOYEE_NAVIGATION   = PASS — /lich-su → năm → tháng → /nhan-vien?ky=2025-MM
-COMPARISON_SEMANTICS       = PASS — COMPARABLE vẫn rỗng (DEC-176 §2 không đổi).
-                             HIỂN THỊ ≠ SO SÁNH: mở phạm vi hiển thị không
-                             mở phạm vi so sánh.
-DEC_168_GUARD              = KHÔNG NỚI LỎNG — sheet REQUIRED_IMPORT value-only
-                             vẫn FAIL TO (test riêng khoá lại)
-
-FOCUSED_TESTS              = PASS — tests/test_phb04_legacy_reference.py: 50 passed
-FULL_TESTS                 = PASS — 2187 passed, 11 skipped
-                             (baseline phiên 2136 · bản PHB-04 đầu 2171)
-GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHỚP baseline ở cả
-                             ba mốc
-TESTS_UPDATED_FOR_SCOPE    = 10 test cũ mã hoá phạm vi DEC-169 đã CẬP NHẬT
-                             (không bỏ) — danh sách đầy đủ ở task file mục 8b
+FOCUSED_TESTS              = PASS — 79 passed (tests/test_phb04_legacy_reference.py)
+FULL_TESTS                 = PASS — 2216 passed, 11 skipped
+                             (2136 baseline → 2171 → 2187 → 2216)
+GOLDEN_TESTS               = PASS — 74 passed, 2 skipped — KHÔNG ĐỔI ở CẢ BỐN mốc
+DB_MIGRATION_TESTS         = PASS — 17 passed (round-trip alembic thật, 0001 → 0005)
 GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state PASS ·
                              validate_evidence PASS (155 REQUIRED) ·
                              validate_task_completion PASS (13 DONE task) ·
@@ -96,28 +100,26 @@ GOVERNANCE_VALIDATORS      = validate_structure PASS · validate_project_state P
                              reference REM-T06 đã biết (baseline không đổi)
 
 BLOCKING_FINDINGS          = NONE
-NEED_OWNER_SOURCE          = nội dung thật của sheet `Summary 2025`. Workbook
-                             không có trong repo (data/samples/ trong
-                             .gitignore vì chứa PII khách hàng) và không có
-                             trên đĩa phiên. Cần MỘT trong hai:
-                             (1) workbook thật — nếu sheet còn công thức thì
-                                 contract hiện tại đọc được NGAY, không sửa mã;
-                             (2) nếu sheet thật sự 0 công thức: nội dung cột
-                                 nhãn A/B của 99 dòng, để dựng contract phân
-                                 loại theo NHÃN.
-                             KHÔNG tự viết contract theo nhãn khi chưa quan
-                             sát từ vựng thật — đoán sai một dòng tổng thành
-                             một người bán sẽ dựng ra "nhân viên" không có
-                             thật (đúng thất bại DEC-168/FIND-PRA001-R01 chặn).
-OWNER_DECISIONS_REQUIRED   = NONE (DEC-177 đã đóng câu hỏi phạm vi)
-OD-PHB04-A / OD-PHB04-B    = GHI LẠI, KHÔNG CHẶN
+NON_BLOCKING_FINDINGS      = F-PHB04-01 (nhánh cảnh báo chưa tới được trên
+                             production, giữ + có test) · F-PHB04-02 (clone
+                             rút gọn thiếu commit golden, đã fetch) ·
+                             F-PHB04-03 (dòng PROGRESS lưu tỉ lệ tiến độ vào ô
+                             `orders` — hành vi có từ PRA-001; month = NULL nên
+                             ngoài mọi khung nhìn kỳ, và đã loại khỏi phép đo
+                             chỉ tiêu) · F-PHB04-04 (3 ô "Gia dụng" lệch do
+                             CÁCH LÀM TRÒN ở chữ số thứ năm, không phải khác
+                             biệt nghiệp vụ)
+OWNER_DECISIONS_REQUIRED   = NONE
+GHI LẠI, KHÔNG CHẶN        = quyết định về dữ liệu cá nhân cho Level 3 ·
+                             OD-PHB04-A · OD-PHB04-B
 SCOPE_DRIFT                = NO
 
-PHB_04                     = IMPLEMENTED_AWAITING_REVIEW (năng lực)
-                             + OWNER_SOURCE_REQUIRED (nội dung Summary 2025)
-NEXT_VERTICAL_ACTION       = (1) Chủ dự án cấp nguồn 2025 theo NEED_OWNER_SOURCE;
-                             (2) Independent PHB-04 review (phiên khác).
-                             Đủ cả hai ⟹ PHB-04 = DONE ⟹ PHB-05 Target.
+PHB_04                     = IMPLEMENTED_AWAITING_REVIEW
+NEXT_VERTICAL_ACTION       = Mở phiên Independent Review PHB-04 MỚI trên đúng
+                             FINAL_HEAD của nhánh này. Nên soi trước: quy tắc
+                             thẩm quyền nguồn ở tầng truy vấn · loại trừ khối
+                             tổng kết KPI · quyết định hoãn Level 3.
+                             Đủ bằng chứng ⟹ PHB-04 = DONE ⟹ PHB-05 Target.
 ```
 
 ---

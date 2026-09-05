@@ -284,12 +284,17 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     `0003_business` gia nhập danh sách này khi PHB-03 implement hai quyết định
     Owner `DEC-PHB02-02`/`DEC-PHB02-05`; nó KHÔNG mở đường cho một migration
     "để dành" cho vertical chưa có hợp đồng.
+
+    `0005_legacy_source_authority` gia nhập khi PHB-04 implement `DEC-178`
+    (thẩm quyền nguồn lịch sử theo năm) — cũng là một quyết định Owner đã
+    freeze, không phải một migration để dành.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
     )
     assert versions == ["0001_legacy.py", "0002_snapshots.py",
-                        "0003_business.py", "0004_employee_attribution.py"]
+                        "0003_business.py", "0004_employee_attribution.py",
+                        "0005_legacy_source_authority.py"]
 
 
 def test_schema_declares_exactly_the_frozen_tables():

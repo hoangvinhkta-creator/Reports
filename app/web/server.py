@@ -44,7 +44,11 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import beta_feedback, beta_telemetry
 from app.beta_presentation import REASON_DISPLAY_LABELS
-from app.legacy import LegacyImportError, parse_workbook
+from app.legacy import (
+    LegacyImportError, is_standalone_year_workbook, parse_workbook,
+    parse_year_workbook,
+)
+from app.legacy.models import SOURCE_AUTHORITY_YEAR
 from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
@@ -235,6 +239,29 @@ def _build_snapshots(
     if legacy is None:
         return None
     return history_store.build_snapshots(engine=legacy.engine, verify_schema=False)
+
+
+def _looks_like_year_workbook(path: Path) -> bool:
+    """Workbook có phải bản lịch sử MỘT NĂM độc lập không.
+
+    Chỉ đọc DANH SÁCH TÊN SHEET (``read_only``), không phân tích ô nào — nên
+    phép thử này rẻ và không thể làm hỏng đường nhập hiện có: file nào không
+    khớp hình dạng đó vẫn đi đúng nhánh cũ.
+    """
+    from openpyxl import load_workbook
+
+    book = load_workbook(path, read_only=True)
+    try:
+        return is_standalone_year_workbook(book.sheetnames)
+    finally:
+        book.close()
+
+
+def _workbook_year(workbook) -> str:
+    for entry in workbook.sheets_imported:
+        if entry.get("year"):
+            return entry["year"]
+    return "?"
 
 
 def create_app(
@@ -445,7 +472,15 @@ def create_app(
         temp_path = UPLOAD_DIR / f"{uuid.uuid4().hex}.xlsx"
         upload.save(temp_path)
         try:
-            workbook = parse_workbook(temp_path)
+            # `DEC-178` — hai HÌNH DẠNG workbook, một ô tải lên. Nhận dạng
+            # bằng CẤU TRÚC SHEET của chính file (có `Summary` + các sheet
+            # `MM.YYYY <Nhãn>` ⟹ workbook một năm độc lập), không bằng tên
+            # file: tên file do người dùng đặt và đổi được, cấu trúc thì không.
+            workbook = (
+                parse_year_workbook(temp_path)
+                if _looks_like_year_workbook(temp_path)
+                else parse_workbook(temp_path)
+            )
             workbook = replace(
                 workbook, source_file_name=_safe_display_name(upload.filename),
             )
@@ -471,10 +506,15 @@ def create_app(
             # Workbook cũ chứa dữ liệu kinh doanh: không giữ lại trên đĩa
             # máy chủ quá một lần import, kể cả khi import lỗi.
             temp_path.unlink(missing_ok=True)
-        message = (
-            f"Đã nhập bản legacy {result.import_id}." if result.created
-            else f"File này đã được nhập trước đó ({result.import_id}) — không tạo bản mới."
-        )
+        if not result.created:
+            message = (f"File này đã được nhập trước đó ({result.import_id})"
+                       " — không tạo bản mới.")
+        elif workbook.source_authority == SOURCE_AUTHORITY_YEAR:
+            year = _workbook_year(workbook)
+            message = (f"Đã nhập bản legacy {result.import_id} — nguồn CHUẨN "
+                       f"của năm {year}.")
+        else:
+            message = f"Đã nhập bản legacy {result.import_id}."
         return redirect(url_for("data_tab", imported=message))
 
     @app.post("/du-lieu/legacy/<import_id>/chon")
@@ -709,13 +749,21 @@ def create_app(
         all_summary = _guarded(history_repo.query_all_summary)
         years = legacy_reference.summary_years(all_summary)
         current = _guarded(history_repo.current_import)
+        # `DEC-178` — mỗi năm ghi rõ nó đang đọc từ nguồn nào. Đây là chỗ
+        # quy tắc "nguồn chuẩn thắng" trở thành thứ chủ dự án NHÌN THẤY,
+        # không chỉ là một dòng trong tài liệu.
+        authority_by_year = {
+            year.year: _guarded(history_repo.authority_import_for_year, year.year)
+            for year in years
+        }
         return _legacy_page(
             "lich_su.html",
             reference_rows=legacy_presentation.reference_rows(periods),
             reference_years=legacy_reference.reference_years(periods),
             reference_has_value=legacy_reference.has_any_value(periods),
             summary_periods=summary_periods,
-            summary_years=legacy_presentation.summary_year_rows(years, all_summary),
+            summary_years=legacy_presentation.summary_year_rows(
+                years, all_summary, authority_by_year, current),
             unread=legacy_reference.unread_sheets(
                 (current or {}).get("sheets_imported")),
             navigation=legacy_reference.period_navigation(

@@ -8871,3 +8871,154 @@ Chi tiết đầy đủ và bằng chứng:
 `docs/tasks/PHB-04-legacy-reference-v1.md`;
 báo cáo cho chủ dự án:
 `docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.
+
+---
+
+## DEC-178
+
+Title:
+2025 Legacy Source Authority — workbook lịch sử một năm độc lập là NGUỒN
+CHUẨN của năm đó; bản sao Summary nhúng trong workbook năm hiện hành là bằng
+chứng THỨ CẤP
+
+Date:
+2026-09-05
+
+Task:
+`PHB-04` — Legacy Reference V1. Phiên S119 (pass triển khai cuối), nhánh
+`claude/phb-04-legacy-reference-v1-widtzf`. Chủ dự án cấp hai workbook thật
+và ra quyết định nguồn.
+
+Authority:
+**`OWNER_DECISION` — FROZEN.** Đây không còn là câu hỏi mở; phiên sau KHÔNG
+được hỏi lại "workbook 2025 nào thắng".
+
+### 1. Quyết định
+
+```text
+AUTHORITATIVE_2025_LEGACY_SOURCE = Báo cáo Kinh doanh 2025.xlsx (workbook độc lập)
+SECONDARY_2025_LEGACY_SOURCE     = sheet `Summary 2025` nhúng trong
+                                   Báo cáo Kinh doanh 2026.xlsx
+KHI LỆCH NHAU                    = workbook độc lập THẮNG
+```
+
+Bản thứ cấp **KHÔNG** được ghi đè, thay thế, hoà trộn hay lấy trung bình với
+bản chuẩn, và **KHÔNG** được trở thành nguồn chính chỉ vì nó dễ parse hơn.
+Nó vẫn được giữ lại làm bằng chứng đối chiếu — không xoá.
+
+### 2. Ranh giới — điều quyết định này KHÔNG cho phép
+
+"Nguồn chuẩn LỊCH SỬ" **không** đồng nghĩa "thẩm quyền của engine hiện tại".
+2025 vẫn là `LEGACY_REFERENCE`. Workbook độc lập có thẩm quyền trả lời
+*"hệ thống báo cáo cũ đã ghi gì cho 2025?"*, **không** trả lời
+*"engine hiện tại sẽ tính ra gì cho 2025?"*. Không chạy lại 2025 qua công
+thức nghiệp vụ hiện hành. `DEC-176` §2 (`COMPARABLE` rỗng) **giữ nguyên**:
+hiển thị và so sánh vẫn là hai hợp đồng khác nhau.
+
+### 3. Hình dạng thật của nguồn chuẩn (đo trực tiếp trên file, S119)
+
+```text
+TỔNG SHEET                  = 76
+  sheet chi tiết MM.2025 X  = 74   (đủ 12 tháng: 7·6·5·5·6·6·6·7·7·7·6·6)
+  Summary                   =  1   1005 ô công thức, liên kết chéo tới 74 sheet
+  BestStaff                 =  1   bảng thi đua nhân viên theo quý
+NGUỒN THỨ CẤP `Summary 2025` = 0 ô công thức (value-only), cùng bố cục 755 dòng
+```
+
+Nhập qua đường production: **93 dòng Summary** — 74 `SELLER` (khớp ĐÚNG 74
+sheet chi tiết) + 12 `MONTH_TOTAL` + 7 `PROGRESS`; **0 dòng chưa phân loại
+được**; 6 dòng khối tổng kết KPI bị loại trừ tường minh (xem §5).
+
+### 4. Cơ chế thực thi — quy tắc sống ở TẦNG TRUY VẤN
+
+Một cột `legacy_import.source_authority` (`AUTHORITATIVE_YEAR` /
+`WORKBOOK_SNAPSHOT`, `NULL` = bản nhập trước quyết định này ⟹ đọc như thứ
+cấp), migration `0005_legacy_source_authority` — ADDITIVE thuần, một cột
+nullable.
+
+`SCHEMA_CHANGE_REQUIRED = YES`, và đây là chỗ duy nhất PHB-04 dùng quyền mở
+rộng schema. Lý do: `is_current` là con trỏ MỘT bản cho toàn history, không
+phải thẩm quyền THEO NĂM — dùng nó sẽ khiến nhập workbook 2025 làm biến mất
+mọi kỳ 2026. `version_label`/`notes` là văn bản tự do; giải quyết một quy tắc
+thẩm quyền bằng cách so chuỗi tự do là để quyết định của chủ dự án phụ thuộc
+vào lỗi chính tả. Suy từ tên sheet thì biến thẩm quyền thành hệ quả tình cờ
+của cách đặt tên — đúng kiểu ngầm định mà quyết định này cấm.
+
+Quy tắc được thực thi ở `LegacyRepository._import_for_year()`: đọc một năm
+thì **thẩm quyền TRƯỚC, "đang xem" SAU**. Vì nó nằm ở tầng truy vấn chứ
+không ở lời dặn trong tài liệu, không có đường nào để bản thứ cấp âm thầm
+thay thế bản chuẩn. Workbook một-năm cũng **không** cướp con trỏ `is_current`
+(trừ khi nó là bản nhập đầu tiên), nên nhập 2025 không làm mất 2026.
+
+### 5. Khối tổng kết KPI bị loại trừ — tường minh, không phải nuốt lỗi
+
+Dưới 12 khối tháng, sheet `Summary` có một khối tổng kết cuối năm mở đầu bằng
+ô `C = "Tổng KPI"` (quan sát: đúng MỘT lần mỗi sheet Summary 2025, và KHÔNG
+có trong `Summary 2026`). Ở đó **các cột mang ý nghĩa khác hẳn**: `C` là
+"Tổng KPI" (cộng cột `N` của 12 tháng), `D` là "KPI trung bình" — không phải
+"Tổng đơn" và "Tổng số SP". Nhập chúng vào cùng bộ cột sẽ ghi ra
+"Tổng đơn của Ly = 10,79".
+
+Guard `DEC-168` đã bắt đúng khối này ngay lần chạy đầu trên file thật. Khối
+được loại trừ theo TIÊU ĐỀ mà workbook tự viết, và số dòng bị loại được ghi
+vào `sheets_imported` (`recap_rows_excluded`) để kiểm chứng được.
+
+### 6. Đối chiếu hai nguồn (bằng chứng, không phải sản phẩm)
+
+`tools/analysis/compare_legacy_2025_sources.py`, so theo từng ô:
+
+```text
+TOTAL_CELLS_COMPARED   = 1132
+EXACT_MATCH            =  573
+ROUNDING_ONLY          =  505   (B == round(A, n) — bản sao lưu số đã làm tròn)
+SUBSTANTIVE_DIFFERENCE =   42   trên 12 dòng
+MISSING_IN_A           =    0
+MISSING_IN_B           =   12
+```
+
+"Chỉ là làm tròn" xác định bằng CƠ CHẾ (`B == round(A, n)`), không bằng một
+ngưỡng tự chọn — nên một đơn hàng lệch (105 so với 104) không bao giờ bị xếp
+nhầm vào đó.
+
+Khác biệt nghiệp vụ thật tập trung ở **tháng 12/2025** (`Ly`, `Nội thành`, và
+dòng tổng tháng), cộng các ô lương `Q`/`R` mà bản thứ cấp để 0. Ăn khớp với
+giả thuyết: bản sao nhúng được lấy trước khi 12/2025 chốt sổ. Mọi con số chủ
+dự án nêu trong chỉ thị đều được xác nhận trên file thật, gồm dòng tổng
+tháng 12 (`A = 23.016.871`, `B = 23.097.181`).
+
+### 7. Chi tiết từng dòng bán hàng — DEFERRED
+
+```text
+LEGACY_LINE_DETAIL_2025 = DEFERRED
+BESTSTAFF               = OUT_OF_SCOPE
+```
+
+74 sheet chi tiết chứa **62.802 dòng** trên **6 biến thể bố cục**, và mọi
+biến thể đều có cột `Tên khách hàng`, `Số điện thoại`, `Địa chỉ`. Đưa chúng
+vào history store là một quyết định **quản trị dữ liệu cá nhân**
+(`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`), không phải một chi
+tiết triển khai của PHB-04 — và §10 của chỉ thị cho phép hoãn đúng khi cần
+parser tổng quát cho nhiều bố cục. Tên sheet vẫn được ghi lại
+(`scope = DETAIL_NOT_INGESTED`, `imported_rows = 0`) để chúng hiện ra là
+"hoãn có chủ đích", không phải "bị bỏ quên".
+
+`BestStaff` là bảng thi đua nhân viên theo quý — tính năng xếp hạng nhân sự,
+ngoài phạm vi. Finding không tạo task.
+
+Evidence:
+`FOCUSED = 79 passed` (`tests/test_phb04_legacy_reference.py`);
+`FULL_TEST_SUITE = 2216 passed, 11 skipped`;
+`GOLDEN = 74 passed, 2 skipped` (KHÔNG ĐỔI);
+`tests/test_history_db.py = 17 passed` (round-trip migration qua alembic thật,
+chain `0001 → 0005`). Validator giữ nguyên baseline (reference integrity vẫn
+đúng 3 mục `REM-T06`).
+
+Can Revisit After:
+§7 mở lại khi có một quyết định quản trị dữ liệu cá nhân cho phép lưu dòng
+chi tiết lịch sử, kèm phạm vi cột được lưu. §1 KHÔNG dự kiến mở lại — đây là
+quyết định đã freeze của chủ dự án.
+
+Chi tiết đầy đủ và bằng chứng:
+`docs/tasks/PHB-04-legacy-reference-v1.md`;
+báo cáo cho chủ dự án:
+`docs/reviews/PHB-04-legacy-reference-v1-implementation.md`.

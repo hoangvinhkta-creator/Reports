@@ -617,6 +617,13 @@ class MetricAvailability:
         return AVAILABILITY_LABELS[self.availability]
 
 
+# Dòng `PROGRESS` (`C = B/A`, số ngày đã qua ÷ số ngày trong tháng) mang một
+# TỈ LỆ TIẾN ĐỘ ở cột `C`, không phải "Tổng đơn". Chúng có `month = NULL` nên
+# đã tự nằm ngoài mọi khung nhìn theo kỳ; loại chúng khỏi phép ĐO tính sẵn có
+# để một tỉ lệ tiến độ không bị đếm như một ô "Tổng đơn có giá trị".
+MEASURED_ROW_KINDS = ("SELLER", "MONTH_TOTAL", "YEAR_TOTAL")
+
+
 def summary_year_availability(summary_rows: list[dict]) -> list[MetricAvailability]:
     """Đo từng chỉ tiêu Summary trên những dòng THẬT của một năm.
 
@@ -625,9 +632,11 @@ def summary_year_availability(summary_rows: list[dict]) -> list[MetricAvailabili
     số: không giấu số của chủ dự án, cũng không nâng nó lên thành chỉ tiêu
     được hỗ trợ khi ngữ nghĩa chưa được chốt.
     """
+    measured = [row for row in summary_rows
+                if row.get("row_kind") in MEASURED_ROW_KINDS]
     result: list[MetricAvailability] = []
     for rule in SUMMARY_SHEET_CONTRACT:
-        filled = sum(1 for row in summary_rows if row.get(rule.key) is not None)
+        filled = sum(1 for row in measured if row.get(rule.key) is not None)
         if filled == 0:
             availability = NOT_AVAILABLE
         elif rule.displayable:
@@ -720,3 +729,51 @@ def unread_sheets(sheets_imported) -> list[UnreadSheet]:
         for entry in entries
         if isinstance(entry, dict) and int(entry.get("unclassified_rows") or 0) > 0
     ]
+
+
+
+# --------------------------------------------------------------------------
+# THẨM QUYỀN NGUỒN (`DEC-178`).
+#
+# Hai nguồn cùng nói về một năm lịch sử. Quyết định của chủ dự án đã freeze:
+# workbook MỘT NĂM độc lập là nguồn chuẩn; bản sao Summary nhúng trong
+# workbook năm hiện hành là bằng chứng thứ cấp. Khi lệch nhau, bản độc lập
+# thắng — không trộn, không trung bình, không "ai ghi sau thì thắng".
+# --------------------------------------------------------------------------
+
+SOURCE_AUTHORITY_YEAR = "AUTHORITATIVE_YEAR"
+SOURCE_AUTHORITY_SNAPSHOT = "WORKBOOK_SNAPSHOT"
+
+SOURCE_AUTHORITY_LABELS = {
+    SOURCE_AUTHORITY_YEAR: "Nguồn chuẩn của năm",
+    SOURCE_AUTHORITY_SNAPSHOT: "Bản sao trong workbook năm khác",
+}
+
+SOURCE_AUTHORITY_NOTE = (
+    "Số của năm này lấy từ workbook lịch sử riêng của năm đó — nguồn chuẩn. "
+    "Bản sao nằm trong workbook năm hiện hành chỉ là bằng chứng đối chiếu và "
+    "KHÔNG bao giờ ghi đè lên nguồn chuẩn."
+)
+
+
+def source_authority_label(value: Optional[str]) -> str:
+    # NULL = bản nhập có trước `DEC-178` ⟹ đọc như bản sao thứ cấp.
+    return SOURCE_AUTHORITY_LABELS.get(
+        value or SOURCE_AUTHORITY_SNAPSHOT,
+        SOURCE_AUTHORITY_LABELS[SOURCE_AUTHORITY_SNAPSHOT],
+    )
+
+
+# Sheet chi tiết của workbook một năm: được GHI TÊN nhưng cố ý KHÔNG nhập ô
+# nào (`LEGACY_LINE_DETAIL_2025 = DEFERRED`). Chúng mang tên, số điện thoại
+# và địa chỉ khách hàng, nên đưa vào history store là một quyết định quản trị
+# dữ liệu cá nhân — không phải một chi tiết triển khai của PHB-04.
+SHEET_SCOPE_DETAIL_NOT_INGESTED = "DETAIL_NOT_INGESTED"
+
+
+def deferred_detail_sheets(sheets_imported) -> int:
+    return sum(
+        1 for entry in (sheets_imported or [])
+        if isinstance(entry, dict)
+        and entry.get("scope") == SHEET_SCOPE_DETAIL_NOT_INGESTED
+    )

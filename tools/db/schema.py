@@ -84,6 +84,21 @@ legacy_import = Table(
     Column("sheets_imported", Text),
     Column("is_current", Boolean, nullable=False, default=False),
     Column("notes", Text),
+    # `DEC-178` — THẨM QUYỀN NGUỒN của lần nhập này.
+    #
+    #   AUTHORITATIVE_YEAR  workbook lịch sử MỘT NĂM độc lập. Là nguồn CHUẨN
+    #                       cho năm đó; không bản nhập nào ghi đè nó.
+    #   WORKBOOK_SNAPSHOT   bản sao Summary của một năm khác nằm nhúng trong
+    #                       workbook năm hiện hành. Bằng chứng THỨ CẤP.
+    #
+    # NULL = các bản nhập có trước `DEC-178`, đọc như WORKBOOK_SNAPSHOT. Cột
+    # nullable nên migration là ADDITIVE thuần: không backfill, không đụng
+    # một dòng dữ liệu nào đang có.
+    #
+    # Vì sao là cột tường minh chứ không suy từ tên sheet: "nguồn nào thắng"
+    # là một quyết định của chủ dự án đã freeze, và một quyết định như thế
+    # không được phép phụ thuộc vào việc ai đó có đặt tên sheet đúng hay không.
+    Column("source_authority", Text, nullable=True),
     UniqueConstraint("file_fingerprint", name="uq_legacy_import_fingerprint"),
     CheckConstraint(_ORIGIN_CHECK, name="ck_legacy_import_origin"),
 )

@@ -70,6 +70,18 @@
   <h3>Năm {{ year.year }} {{ legacy.legacy_badge() }}
       <span class="cnt">{{ year.total_rows }} dòng · {{ year.months|length }} kỳ</span></h3>
   <p class="insight">
+    Nguồn: <strong>{{ year.source_file }}</strong> —
+    {{ year.source_authority_label }}.
+    {% if year.is_authoritative %}
+    Đây là workbook lịch sử riêng của năm {{ year.year }}. Bản sao nằm trong
+    workbook năm khác chỉ dùng để đối chiếu và KHÔNG ghi đè lên số ở đây.
+    {% endif %}
+    {% if year.deferred_detail_sheets %}
+    Workbook còn {{ year.deferred_detail_sheets }} sheet chi tiết từng dòng bán
+    hàng — <strong>cố ý chưa nhập</strong> (xem mục 5).
+    {% endif %}
+  </p>
+  <p class="insight">
     Kỳ có số:
     {% for m in year.months %}<a href="{{ url_for('sellers') }}?ky={{ year.year }}-{{ '%02d' % m }}">Tháng {{ '%02d' % m }}</a>{% if not loop.last %} · {% endif %}{% else %}—{% endfor %}
   </p>
@@ -163,7 +175,24 @@
 </div>
 
 <div class="module">
-  <h2>4. So số cũ với số mới ở đâu?</h2>
+  <h2>4. Chi tiết từng dòng bán hàng của năm lịch sử</h2>
+  <p class="insight">
+    Workbook lịch sử có sheet chi tiết cho từng kỳ × người bán. Phiên bản này
+    <strong>cố ý chưa nhập chúng</strong>, và đây là một quyết định chứ không
+    phải một thiếu sót: mỗi dòng ở đó mang
+    <strong>tên, số điện thoại và địa chỉ khách hàng</strong>.
+    Đưa hàng chục nghìn dòng như vậy vào kho dữ liệu
+    là một quyết định về bảo vệ dữ liệu cá nhân, cần được quyết riêng — không
+    phải một chi tiết kỹ thuật của phần báo cáo lịch sử.
+  </p>
+  <p class="insight">
+    Tên các sheet đó vẫn được ghi lại làm dấu vết, nên chúng hiện ra là
+    “đang hoãn có chủ đích”, không phải “bị bỏ quên”.
+  </p>
+</div>
+
+<div class="module">
+  <h2>5. So số cũ với số mới ở đâu?</h2>
   <p class="insight">
     Công cụ chỉ tính chênh lệch khi hợp đồng chứng minh được hai bên cùng một
     nghĩa nghiệp vụ. Ở phiên bản V1 <strong>chưa chỉ tiêu nào đạt điều đó</strong>,
@@ -191,7 +220,7 @@
 </div>
 
 <div class="module">
-  <h2>5. Chỉ tiêu lịch sử nào được hỗ trợ?</h2>
+  <h2>6. Chỉ tiêu lịch sử nào được hỗ trợ?</h2>
 
   <h3>Chuỗi doanh số tháng (từ DataChart)</h3>
   <div class="tp-scroll">

@@ -4,7 +4,7 @@ Status: IMPLEMENTED_AWAITING_REVIEW
 Task Mode: MAJOR
 Priority: REQUIRED
 Evidence Level: E1
-Executed By: S119 (Claude Code on the web) — bản đính chính DEC-177
+Executed By: S119 (Claude Code on the web) — bản cuối, DEC-177 + DEC-178
 Timestamp: 2026-09-04
 Risk: 3 (số cũ hiện sai nhãn khiến chủ dự án đọc nhầm số tay thành số kế toán
 chính thức; KHÔNG chạm pipeline, KHÔNG chạm KPI/lương, KHÔNG có migration)
@@ -332,9 +332,12 @@ thiết kế lại dashboard. Không mở lại `DEC-169`. Không mở lại PHB
 ## 8. Bằng chứng thực thi (E1)
 
 ```text
-FOCUSED  tests/test_phb04_legacy_reference.py       → 50 passed
-FULL     python -m pytest -q                        → 2187 passed, 11 skipped
+FOCUSED  tests/test_phb04_legacy_reference.py       → 79 passed
+FULL     python -m pytest -q                        → 2216 passed, 11 skipped
 GOLDEN   4 file golden                              → 74 passed, 2 skipped
+DB       tests/test_history_db.py                   → 17 passed
+                                                      (round-trip alembic thật,
+                                                       chain 0001 → 0005)
 
 validate_structure            PASS
 validate_project_state        PASS
@@ -344,8 +347,66 @@ validate_reference_integrity  FAIL với ĐÚNG 3 reference REM-T06 đã biết
                               (baseline không đổi)
 ```
 
-Baseline trước phiên: `2136 passed, 11 skipped`. Bản PHB-04 đầu: `2171`.
-Bản đính chính: `2187`. Golden `74 passed, 2 skipped` không đổi ở cả ba mốc.
+Diễn biến qua bốn mốc của phiên: `2136` (baseline) → `2171` (PHB-04 bản đầu)
+→ `2187` (đính chính `DEC-177`) → **`2216`** (`DEC-178`). Golden giữ nguyên
+`74 passed, 2 skipped` ở **cả bốn mốc** ⟹ không chỉ tiêu nghiệp vụ nào xê dịch.
+
+---
+
+## 8a. Kiểm kê 12 tháng của nguồn chuẩn (chỉ thị §18)
+
+| Tháng | Sheet chi tiết | Dòng SELLER | Dòng MONTH_TOTAL | Chưa phân loại | Người bán / kênh |
+|---|---|---|---|---|---|
+| 01 | 7 | 7 | 1 | 0 | Ly, Thắng, Tín Phát, Miền Bắc, Hoàng, Khác, Nội thành |
+| 02 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Khác, Hoàng, Nội thành |
+| 03 | 5 | 5 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Nội thành |
+| 04 | 5 | 5 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Nội thành |
+| 05 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Gia dụng, Nội thành |
+| 06 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Gia dụng, Nội thành |
+| 07 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Gia dụng, Nội thành |
+| 08 | 7 | 7 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Quân, Gia dụng, Nội thành |
+| 09 | 7 | 7 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Kiên, Gia dụng, Nội thành |
+| 10 | 7 | 7 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Kiên, Gia dụng, Nội thành |
+| 11 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Kiên, Nội thành |
+| 12 | 6 | 6 | 1 | 0 | Ly, Thắng, Tín Phát, Hoàng, Kiên, Nội thành |
+| **Tổng** | **74** | **74** | **12** | **0** | |
+
+`2025_EMPLOYEES` = Ly · Thắng · Tín Phát · Hoàng · Kiên · Quân · Miền Bắc ·
+Khác · Gia dụng · Nội thành.
+
+`74 sheet ↔ 74 dòng SELLER` là một phép kiểm chéo mạnh: mọi sheet chi tiết có
+đúng một dòng tương ứng, không thừa không thiếu.
+
+---
+
+## 8c. Kiểm kê chỉ tiêu Summary 2025 (chỉ thị §19)
+
+Đo trên 86 dòng `SELLER` + `MONTH_TOTAL` của file thật. Dòng `PROGRESS` bị
+loại khỏi phép đo (xem `F-PHB04-03`).
+
+| Chỉ tiêu | NON_EMPTY | EMPTY | SEMANTIC_CLASSIFICATION |
+|---|---|---|---|
+| Tổng đơn | 74 | 12 | `AVAILABLE_LEGACY_REFERENCE` |
+| Tổng số SP | 74 | 12 | `AVAILABLE_LEGACY_REFERENCE` |
+| Tổng bán | 86 | 0 | `AVAILABLE_LEGACY_REFERENCE` |
+| Doanh thu quy đổi | 83 | 3 | `AVAILABLE_LEGACY_REFERENCE` |
+| Tổng lợi nhuận | 86 | 0 | `AVAILABLE_LEGACY_REFERENCE` |
+| Tỉ suất lợi nhuận | 86 | 0 | `AVAILABLE_LEGACY_REFERENCE` |
+| Lợi nhuận thực nhận | 86 | 0 | `AVAILABLE_LEGACY_REFERENCE` |
+| Vs. Tháng trước | 79 | 7 | `AVAILABLE_LEGACY_REFERENCE` |
+| Target | 70 | 16 | `AVAILABLE_LEGACY_REFERENCE` |
+| Vs.Target | 70 | 16 | `AVAILABLE_LEGACY_REFERENCE` |
+| Tỉ lệ tồn kho | 29 | 57 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+| Thưởng | 63 | 23 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+| Ngày công | 60 | 26 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+| Lương cứng | 55 | 31 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+| Phụ cấp | 56 | 30 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+| Tổng lương | 54 | 32 | `AVAILABLE_SEMANTICS_UNCERTAIN` |
+
+Bảng này được ĐO, không viết cứng. Ô trống KHÔNG bao giờ thành `0`. Các cột
+lương/thưởng có số nhưng giữ `SEMANTICS_UNCERTAIN`: dự án chưa chốt luật nhân
+sự, nên PHB-04 **không** tự diễn giải chúng và **không** implement ngữ nghĩa
+tiền lương.
 
 ---
 
@@ -393,38 +454,93 @@ thêm: nay còn khẳng định `Summary 2025` không nhập dòng nào ở ca �
 
 ---
 
-## 10. `NEED_OWNER_SOURCE` — phần duy nhất còn thiếu
+## 10. Nguồn 2025 — ĐÃ ĐƯỢC CẤP VÀ ĐÃ XỬ LÝ (`DEC-178`)
+
+`NEED_OWNER_SOURCE` của bản trước nay **ĐÓNG**. Chủ dự án đã cấp hai workbook
+thật và ra quyết định thẩm quyền nguồn (`DEC-178`).
+
+### 10.1 Hai nguồn, thẩm quyền đã freeze
 
 ```text
-NEED_OWNER_SOURCE = nội dung thật của sheet `Summary 2025`
+SOURCE_A (CHUẨN)   = Báo cáo Kinh doanh 2025.xlsx  — workbook một năm độc lập
+SOURCE_B (THỨ CẤP) = sheet `Summary 2025` nhúng trong Báo cáo Kinh doanh 2026.xlsx
+LỆCH NHAU          = SOURCE_A THẮNG (không trộn, không trung bình, không
+                     "ai ghi sau thì thắng")
 ```
 
-Năng lực đã sẵn sàng và đã có test; **dữ liệu thì chưa có trong repo.**
-Workbook `Báo cáo Kinh doanh 2026.xlsx` không được commit (`data/samples/`
-nằm trong `.gitignore` vì chứa dữ liệu cá nhân khách hàng) và không có trên
-đĩa của phiên. Không artifact bằng chứng nào của repo từng quan sát nội dung
-99 dòng đó — `evidence.json` chứa **0** lần chuỗi `"2025"`.
+### 10.2 Hình dạng thật, đo trực tiếp trên file
 
-Chủ dự án cần cấp MỘT trong hai (không cần cả hai):
+```text
+SOURCE_A_TOTAL_SHEETS    = 76
+SOURCE_A_DETAIL_SHEETS   = 74   (đủ 12 tháng: 7·6·5·5·6·6·6·7·7·7·6·6)
+SOURCE_A_SUMMARY_FORMULAS = 1005
+SOURCE_B_SUMMARY_FORMULAS =    0   (value-only, cùng bố cục 755 dòng)
+```
 
-1. **Workbook thật.** Nếu `Summary 2025` còn giữ công thức (tham chiếu chéo
-   sheet, hoặc `SUM`), contract phân loại hiện tại đọc được **ngay**, không
-   cần sửa mã. Đây là đường ngắn nhất.
+Nhập qua đường production: **93 dòng** — 74 `SELLER` (khớp ĐÚNG 74 sheet chi
+tiết) + 12 `MONTH_TOTAL` + 7 `PROGRESS`, **0 dòng chưa phân loại được**.
 
-2. **Nếu sheet đó thật sự không có công thức nào** (đúng như đo lúc `DEC-169`):
-   cần **nội dung cột nhãn `A`/`B` của 99 dòng** — tức mỗi dòng ghi chữ gì
-   ("Mr Vinh", "Tổng T01", …). Từ đó dựng được một contract phân loại theo
-   NHÃN cho sheet value-only.
+### 10.3 Khối tổng kết KPI — loại trừ tường minh
 
-**Vì sao KHÔNG tự viết contract theo nhãn ngay bây giờ.** Từ vựng nhãn của
-`Summary 2025` chưa ai trong phiên này quan sát. Viết một bộ luật nhãn cho
-một sheet chưa từng nhìn thấy là đoán — và đoán sai một dòng tổng thành một
-người bán sẽ dựng ra một "nhân viên" không tồn tại, đúng thất bại mà
-`DEC-168` / `FIND-PRA001-R01` sinh ra để chặn. Hôm nay công cụ nói thẳng còn
-bao nhiêu dòng chưa đọc được, thay vì đoán.
+Sheet `Summary` có một khối tổng kết cuối năm mở đầu bằng ô `C = "Tổng KPI"`
+(quan sát: đúng MỘT lần mỗi sheet Summary 2025, KHÔNG có ở `Summary 2026`).
+Ở đó `C` = "Tổng KPI" và `D` = "KPI trung bình" — **không** phải "Tổng đơn"
+và "Tổng số SP". Guard `DEC-168` bắt đúng khối này ngay lần chạy đầu trên
+file thật; nó bị loại trừ theo TIÊU ĐỀ workbook tự viết, và số dòng loại trừ
+được ghi vào `sheets_imported` (`recap_rows_excluded = 6`).
 
-Trong lúc chờ, hành vi trên workbook thật là: 2026 nhập bình thường, phần
-`Summary 2025` báo rõ `N` dòng chưa đọc được kèm số dòng cụ thể.
+### 10.4 Đối chiếu hai nguồn
+
+`tools/analysis/compare_legacy_2025_sources.py` (công cụ ĐO, không phải sản
+phẩm; không ghi database, không sửa file):
+
+```text
+TOTAL_CELLS_COMPARED   = 1132
+EXACT_MATCH            =  573
+ROUNDING_ONLY          =  505   (B == round(A, n) — cơ chế, không phải ngưỡng)
+SUBSTANTIVE_DIFFERENCE =   42   trên 12 dòng
+MISSING_IN_A           =    0
+MISSING_IN_B           =   12
+```
+
+Khác biệt nghiệp vụ thật tập trung ở **12/2025** (`Ly`, `Nội thành`, dòng
+tổng tháng) + các ô lương `Q`/`R` mà SOURCE_B để 0 — ăn khớp với giả thuyết
+"bản sao chụp trước khi 12/2025 chốt sổ". Mọi con số chủ dự án nêu đều được
+xác nhận, gồm tổng tháng 12 (`A = 23.016.871` · `B = 23.097.181`).
+
+### 10.5 Level 3 — DEFERRED, và vì sao
+
+```text
+LEGACY_LINE_DETAIL_2025 = DEFERRED
+BESTSTAFF               = OUT_OF_SCOPE
+```
+
+74 sheet chi tiết = **62.802 dòng** trên **6 biến thể bố cục**, và mọi biến
+thể đều có `Tên khách hàng` · `Số điện thoại` · `Địa chỉ`. Đây là quyết định
+**quản trị dữ liệu cá nhân** (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`),
+không phải chi tiết triển khai của PHB-04; và §10 của chỉ thị cho phép hoãn
+đúng khi cần parser tổng quát cho nhiều bố cục. Tên sheet vẫn được ghi
+(`scope = DETAIL_NOT_INGESTED`, `imported_rows = 0`) để hiện ra là "hoãn có
+chủ đích", không phải "bị bỏ quên". `BestStaff` là bảng thi đua nhân viên
+theo quý — tính năng xếp hạng nhân sự, ngoài phạm vi.
+
+### 10.6 Thay đổi schema — MỘT cột, có lý do
+
+```text
+SCHEMA_CHANGE_REQUIRED = YES — legacy_import.source_authority (TEXT NULL)
+MIGRATION              = 0005_legacy_source_authority (ADDITIVE thuần)
+```
+
+Đây là chỗ DUY NHẤT PHB-04 dùng quyền mở rộng schema. `is_current` là con trỏ
+MỘT bản cho toàn history, không phải thẩm quyền THEO NĂM — dùng nó sẽ khiến
+nhập workbook 2025 làm biến mất mọi kỳ 2026. `version_label`/`notes` là văn
+bản tự do; giải quyết một quy tắc thẩm quyền bằng cách so chuỗi tự do là để
+một quyết định của chủ dự án phụ thuộc vào lỗi chính tả. Suy từ tên sheet thì
+biến thẩm quyền thành hệ quả tình cờ của cách đặt tên.
+
+Quy tắc sống ở `LegacyRepository._import_for_year()` — **tầng truy vấn**, nên
+không có đường nào để SOURCE_B âm thầm thay thế SOURCE_A. Workbook một-năm
+cũng không cướp con trỏ `is_current` (trừ khi là bản nhập đầu tiên).
 
 ---
 
@@ -432,29 +548,29 @@ Trong lúc chờ, hành vi trên workbook thật là: 2026 nhập bình thườn
 
 | # | Điều kiện | Trạng thái | Bằng chứng |
 |---|---|---|---|
-| E1 | Hợp đồng Legacy Reference V1 tường minh | **PASS** | Mục 3; `app/web/legacy_reference.py` |
-| E2 | Kỳ legacy được định nghĩa (gồm 2025) | **PASS** | Mục 3.1 |
-| E3 | Chỉ tiêu legacy được hỗ trợ được định nghĩa, ĐO trên dòng thật | **PASS** | Mục 3.3; `summary_year_availability()` |
-| E4 | Provenance tường minh | **PASS** | Mục 3.4; `TestProvenanceIsExplicit` |
-| E5 | Tách biệt legacy/hiện hành được chứng minh | **PASS** | `TestLegacyStaysOutOfTheAccountingPipeline` |
-| E6 | Không tạo lịch sử giao dịch giả | **PASS** | Không có đường ghi nào; mục 4 |
-| E7 | Không nhiễm coverage của engine hiện tại | **PASS** | `test_f_none_of_it_contaminates...` |
-| E8 | Điều hướng 2025 Summary → chi tiết nhân viên | **PASS** | `test_g_the_owner_can_navigate...` |
+| E1 | Hợp đồng Legacy Reference V1 tường minh | **PASS** | Mục 3 |
+| E2 | Kỳ legacy được định nghĩa (gồm cả 12 tháng 2025) | **PASS** | Mục 8a |
+| E3 | Chỉ tiêu được ĐO trên dòng thật, không viết cứng | **PASS** | Mục 8c |
+| E4 | Provenance tường minh (gồm thẩm quyền nguồn) | **PASS** | Mục 10.6 |
+| E5 | Tách biệt legacy/hiện hành được chứng minh | **PASS** | `test_o_p_q_…`, `test_r_…` |
+| E6 | Không tạo lịch sử giao dịch giả | **PASS** | Mục 10.5 |
+| E7 | Không nhiễm coverage/doanh thu/giá nhập tay | **PASS** | `test_o_p_q_…` |
+| E8 | Điều hướng 2025 → tháng → nhân viên | **PASS** | `test_k_…` |
 | E9 | So sánh được phép là hợp lệ về ngữ nghĩa | **PASS** | Mục 3.6 |
-| E10 | So sánh không được phép thất bại an toàn | **PASS** | `TestComparisonGate` |
-| E11 | `DEC-169` được đọc đúng, không diễn giải rộng | **PASS** | `DEC-177` §1; mục 2 |
-| E12 | Guard `DEC-168` trên sheet REQUIRED không bị nới | **PASS** | `test_the_dec_168_guard_still_fires_on_a_required_sheet` |
-| E13 | focused tests PASS | **PASS** | Mục 8 |
-| E14 | full regression PASS | **PASS** | Mục 8 |
-| E15 | golden tests PASS | **PASS** | Mục 8 |
-| E16 | Nội dung thật của `Summary 2025` | **OWNER_SOURCE_REQUIRED** | Mục 10 |
-| E17 | Independent review | **PENDING** | chưa thực hiện |
-| E18 | Tài liệu dự án được cập nhật | **PASS** | file này · `PROJECT/PROJECT_PROGRESS.md` · `PROJECT/PROJECT_DECISIONS.md` (`DEC-176`, `DEC-177`) · `docs/reviews/PHB-04-legacy-reference-v1-implementation.md` |
+| E10 | So sánh không được phép thất bại an toàn | **PASS** | `test_s_…` |
+| E11 | `DEC-169` được đọc đúng | **PASS** | `DEC-177` §1 |
+| E12 | Guard `DEC-168` không bị nới, kể cả trên nguồn chuẩn | **PASS** | `test_the_dec_168_guard_applies_to_the_authoritative_summary` |
+| E13 | `SOURCE_A` là nguồn chuẩn, `SOURCE_B` không ghi đè | **PASS** | `TestSourceAuthority2025` (7 test) |
+| E14 | Ô lệch nhau resolve về `SOURCE_A`, không trộn | **PASS** | `test_c_…`, `test_c2_…`, `test_c3_…` |
+| E15 | Idempotency cả hai nguồn | **PASS** | `test_m_…`, `test_n_…` |
+| E16 | `UNRESOLVED_CRITICAL_2025_ROWS = 0` | **PASS** | Mục 8a, 10.2 |
+| E17 | focused / full / golden PASS | **PASS** | Mục 8 |
+| E18 | Independent review | **PENDING** | chưa thực hiện |
+| E19 | Tài liệu dự án được cập nhật | **PASS** | file này · `PROJECT/PROJECT_PROGRESS.md` · `PROJECT/PROJECT_DECISIONS.md` (`DEC-176`, `DEC-177`, `DEC-178`) · báo cáo Owner |
 
 ```text
-PHB_04 = IMPLEMENTED_AWAITING_REVIEW  (phần năng lực)
-         + OWNER_SOURCE_REQUIRED      (phần nội dung Summary 2025 — mục 10)
+PHB_04 = IMPLEMENTED_AWAITING_REVIEW
 ```
 
-`E17` chưa đóng ⟹ **KHÔNG** được gọi là `DONE`. `E16` không chặn phần còn
-lại: mọi phần khác của V1 đã chạy và đã có bằng chứng.
+`E18` chưa đóng ⟹ **KHÔNG** được gọi là `DONE`. `LEGACY_LINE_DETAIL_2025` đã
+phân loại `DEFERRED` đúng quy trình nên KHÔNG chặn gate (chỉ thị §35).

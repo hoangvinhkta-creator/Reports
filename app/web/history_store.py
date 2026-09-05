@@ -26,7 +26,9 @@ import tools.db as history_db
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.history import reconciler as history_reconciler
-from app.legacy.models import LegacyWorkbook
+from app.legacy.models import (
+    SOURCE_AUTHORITY_SNAPSHOT, SOURCE_AUTHORITY_YEAR, LegacyWorkbook,
+)
 from tools.db.schema import (
     ORIGIN_LEGACY, ORIGIN_PIPELINE, legacy_daily_sales, legacy_import,
     legacy_monthly_reference, legacy_summary_row, order_line_current,
@@ -108,6 +110,8 @@ class LegacyRepository:
                 if existing is not None:
                     return ImportResult(import_id=existing, created=False)
 
+                authority = getattr(
+                    workbook, "source_authority", SOURCE_AUTHORITY_SNAPSHOT)
                 connection.execute(insert(legacy_import).values(
                     import_id=import_id, origin=ORIGIN_LEGACY,
                     source_file_name=workbook.source_file_name,
@@ -116,8 +120,20 @@ class LegacyRepository:
                     imported_by=imported_by, version_label=version_label,
                     sheets_imported=_json(workbook.sheets_imported),
                     is_current=False, notes=notes,
+                    source_authority=authority,
                 ))
                 self._insert_facts(connection, import_id, workbook)
+                # Một workbook MỘT NĂM độc lập KHÔNG được cướp con trỏ "đang
+                # xem": nó là thẩm quyền của riêng năm nó, và đẩy nó thành
+                # `is_current` sẽ làm mọi kỳ của năm hiện hành biến mất khỏi
+                # giao diện. Nó chỉ nhận con trỏ khi chưa có bản nào giữ —
+                # tức khi nó là bản nhập đầu tiên của hệ thống.
+                if make_current and authority == SOURCE_AUTHORITY_YEAR:
+                    has_current = connection.execute(
+                        select(legacy_import.c.import_id)
+                        .where(legacy_import.c.is_current.is_(True)).limit(1)
+                    ).scalar()
+                    make_current = has_current is None
                 if make_current:
                     self._set_current(connection, import_id)
         except SQLAlchemyError as exc:
@@ -218,11 +234,55 @@ class LegacyRepository:
         current = self.current_import()
         return current["import_id"] if current else None
 
+    # --- thẩm quyền nguồn theo NĂM (`DEC-178`) -------------------------
+
+    def authority_import_for_year(self, year: int) -> Optional[dict]:
+        """Bản nhập CHUẨN của một năm, nếu có.
+
+        Là bản nhập `AUTHORITATIVE_YEAR` mới nhất thật sự CÓ dòng cho năm đó.
+        Điều kiện "thật sự có dòng" quan trọng: một workbook 2024 độc lập
+        không được trở thành thẩm quyền của 2025 chỉ vì nó cũng là bản độc lập.
+        """
+        rows = self._query(
+            select(legacy_import)
+            .where(
+                legacy_import.c.source_authority == SOURCE_AUTHORITY_YEAR,
+                legacy_import.c.import_id.in_(
+                    select(legacy_summary_row.c.import_id)
+                    .where(legacy_summary_row.c.year == year)
+                    .distinct()
+                ),
+            )
+            .order_by(legacy_import.c.imported_at.desc(),
+                      legacy_import.c.import_id.desc())
+            .limit(1)
+        )
+        return rows[0] if rows else None
+
+    def _import_for_year(self, year: int, import_id: Optional[str]) -> Optional[str]:
+        """Bản nhập được đọc cho một năm — thẩm quyền TRƯỚC, "đang xem" SAU.
+
+        `DEC-178` đã freeze: khi hai nguồn cùng nói về một năm, workbook một
+        năm độc lập THẮNG. Quy tắc đó sống ở ĐÂY, tại tầng truy vấn — không
+        phải ở lời dặn trong tài liệu — nên không có đường nào để bản thứ cấp
+        âm thầm thay thế bản chuẩn. Không trộn, không lấy trung bình, không
+        "ai ghi sau thì thắng".
+
+        Chỉ định ``import_id`` tường minh thì bỏ qua thứ tự này: người gọi
+        đang muốn xem ĐÚNG một bản nhập cụ thể (audit/đối chiếu).
+        """
+        if import_id:
+            return import_id
+        authority = self.authority_import_for_year(year)
+        if authority is not None:
+            return authority["import_id"]
+        return self._resolve_import_id(None)
+
     def query_summary(
         self, year: int, month: Optional[int] = None, *, import_id: Optional[str] = None,
     ) -> list[dict]:
         """Dòng Summary của một kỳ. ``month=None`` → cả năm (kể cả dòng cấp năm)."""
-        resolved = self._resolve_import_id(import_id)
+        resolved = self._import_for_year(year, import_id)
         if resolved is None:
             return []
         statement = select(legacy_summary_row).where(
@@ -235,25 +295,57 @@ class LegacyRepository:
             legacy_summary_row.c.sheet_name, legacy_summary_row.c.sheet_row,
         ))
 
+    def _readable_import_ids(self) -> list[str]:
+        """Các bản nhập được ĐỌC: bản đang xem + mọi bản chuẩn theo năm.
+
+        `DEC-178`: hai loại nguồn cùng tồn tại, nên "đọc được những gì" không
+        còn là một bản nhập duy nhất. Bản chuẩn của một năm vẫn đọc được kể
+        cả khi con trỏ "đang xem" đang trỏ vào workbook năm khác.
+        """
+        ids: list[str] = []
+        current = self._resolve_import_id(None)
+        if current:
+            ids.append(current)
+        for row in self._query(
+            select(legacy_import.c.import_id)
+            .where(legacy_import.c.source_authority == SOURCE_AUTHORITY_YEAR)
+        ):
+            if row["import_id"] not in ids:
+                ids.append(row["import_id"])
+        return ids
+
     def query_all_summary(self, *, import_id: Optional[str] = None) -> list[dict]:
-        """MỌI dòng Summary của bản hiện tại, không lọc năm.
+        """MỌI dòng Summary đọc được, không lọc năm.
 
         PHB-04 cần nhìn các năm lịch sử cùng lúc để trả lời "năm nào có gì".
         Lọc theo năm ở tầng SQL buộc tầng trên phải BIẾT TRƯỚC có những năm
         nào — đúng thứ giả định mà `DEC-177` bảo là không được có.
+
+        Với mỗi NĂM chỉ lấy dòng của bản nhập có thẩm quyền cao nhất cho năm
+        đó (`DEC-178`), nên hai nguồn cùng nói về 2025 không bao giờ hiện ra
+        thành hai bộ dòng chồng nhau.
         """
-        resolved = self._resolve_import_id(import_id)
-        if resolved is None:
+        ids = [import_id] if import_id else self._readable_import_ids()
+        if not ids:
             return []
-        return self._query(
+        rows = self._query(
             select(legacy_summary_row)
-            .where(legacy_summary_row.c.import_id == resolved)
+            .where(legacy_summary_row.c.import_id.in_(ids))
             .order_by(
                 legacy_summary_row.c.year.desc(),
                 legacy_summary_row.c.sheet_name,
                 legacy_summary_row.c.sheet_row,
             )
         )
+        if import_id:
+            return rows
+        winner: dict[int, str] = {}
+        for year in {int(row["year"]) for row in rows if row.get("year") is not None}:
+            chosen = self._import_for_year(year, None)
+            if chosen:
+                winner[year] = chosen
+        return [row for row in rows
+                if winner.get(int(row["year"])) == row["import_id"]]
 
     def query_daily(
         self, year: int, month: int, *, import_id: Optional[str] = None,
@@ -293,20 +385,41 @@ class LegacyRepository:
         ))
 
     def available_periods(self, *, import_id: Optional[str] = None) -> list[tuple[int, Optional[int]]]:
-        """Các kỳ (năm, tháng) THỰC SỰ có dòng người bán trong bản hiện tại."""
-        resolved = self._resolve_import_id(import_id)
-        if resolved is None:
+        """Các kỳ (năm, tháng) THỰC SỰ có dòng, trên mọi nguồn đọc được.
+
+        Gồm cả kỳ của các năm lịch sử có bản nhập chuẩn riêng (`DEC-178`) —
+        nếu không, workbook 2025 độc lập sẽ nhập được mà không kỳ nào hiện ra.
+        """
+        ids = [import_id] if import_id else self._readable_import_ids()
+        if not ids:
             return []
         rows = self._query(
             select(legacy_summary_row.c.year, legacy_summary_row.c.month)
             .where(
-                legacy_summary_row.c.import_id == resolved,
+                legacy_summary_row.c.import_id.in_(ids),
                 legacy_summary_row.c.month.isnot(None),
             )
             .group_by(legacy_summary_row.c.year, legacy_summary_row.c.month)
             .order_by(legacy_summary_row.c.year.desc(), legacy_summary_row.c.month.desc())
         )
-        return [(row["year"], row["month"]) for row in rows]
+        periods = [(row["year"], row["month"]) for row in rows]
+        if import_id:
+            return periods
+        # Chỉ giữ kỳ đến từ nguồn thắng của năm đó.
+        keep = {year: self._import_for_year(year, None)
+                for year in {year for year, _ in periods}}
+        allowed = self._query(
+            select(legacy_summary_row.c.year, legacy_summary_row.c.month,
+                   legacy_summary_row.c.import_id)
+            .where(
+                legacy_summary_row.c.import_id.in_(ids),
+                legacy_summary_row.c.month.isnot(None),
+            )
+            .distinct()
+        )
+        valid = {(row["year"], row["month"]) for row in allowed
+                 if keep.get(row["year"]) == row["import_id"]}
+        return [period for period in periods if period in valid]
 
     def count_imports(self) -> int:
         rows = self._query(select(func.count().label("total")).select_from(legacy_import))
