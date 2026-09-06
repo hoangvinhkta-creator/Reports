@@ -5,13 +5,10 @@
 
 {% block content %}
 <h1>TỔNG HỢP KINH DOANH</h1>
-<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán đã nạp.</p>
 
 <div class="module">
   {{ biz.period_picker(periods, selected_period, url_for('business_summary')) }}
 
-  {# `business_badge()` đã nói ở câu ngay trên trang (R1 §6) — không lặp lại
-     huy hiệu PIPELINE trên chính tiêu đề kỳ. #}
   <h2>{{ summary.period_label }}
       <span class="cnt"><span data-metric="orders">{{ summary.orders }}</span> đơn ·
         <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
@@ -80,7 +77,12 @@
    vẫn là một phần tử mang `data-metric="chart-bar"` với `data-revenue` thô
    VÀ một `<title>` xem khi rê chuột, kể cả những mốc không hiện chữ dưới
    trục — chỉ CHỮ hiện ra là thưa lại, dữ liệu không mất mốc nào. #}
-<div class="module" id="bieu-do-doanh-thu">
+{# `TASK-OWNER-UIUX-003` §2 — biểu đồ thu nhỏ về NỬA TRÁI, chừa nửa phải cho
+   một biểu đồ khác trong tương lai (loại nào — chưa quyết định, đây chỉ là
+   chỗ dành sẵn). Không tạo thẩm quyền hay chỉ tiêu mới: card bên phải không
+   đọc dữ liệu nào. #}
+<div class="chart-row">
+<div class="module chart-half" id="bieu-do-doanh-thu">
   <h2>Xu hướng doanh thu
     <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span>
     {% if not chart.empty %}{{ biz.chart_help(chart) }}{% endif %}</h2>
@@ -145,6 +147,11 @@
     </div>
   </div>
   {% endif %}
+</div>
+<div class="module chart-half chart-placeholder">
+  <h2>Biểu đồ khác</h2>
+  <p class="empty">Chỗ dành cho một biểu đồ khác — sắp có.</p>
+</div>
 </div>
 
 {# `DEC-PHB02-08` — bảng này gộp theo ĐÚNG phân hoạch sheet của không gian

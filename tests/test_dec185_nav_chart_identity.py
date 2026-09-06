@@ -333,15 +333,25 @@ def test_chart_09_an_excluded_line_leaves_the_official_chart(
 def test_chart_10_a_legacy_month_without_daily_evidence_invents_no_days(
     engine, repository, client
 ):
-    """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra."""
+    """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra.
+
+    `TASK-OWNER-UIUX-003` §2 khoanh biểu đồ mức Tháng về đúng NĂM của kỳ
+    đang xem (chủ dự án yêu cầu trực tiếp, xem `window_bounds` trong
+    `app/web/revenue_timeline.py`) — nên câu hỏi "tháng có xuất hiện không"
+    giờ phải hỏi đúng kỳ mà kỳ đó thuộc về (`ky=2025-06`), không còn hỏi ở
+    kỳ mặc định (09/2026, khác năm). Bằng chứng KHÔNG bị giấu — nó vẫn ở
+    đúng một cú bấm điều hướng kỳ, không mất, chỉ không còn hiện xen giữa
+    một năm khác theo mặc định nữa.
+    """
     persist(repository, [line("BH1", "43F6000", day=5)])
     seed_legacy_month_total_only(engine, year=2025, month=6, vnd=30000000)
 
-    days = chart_bars(body(client, "/kinh-doanh?muc=ngay"))
+    days = chart_bars(body(client, "/kinh-doanh?muc=ngay&ky=2025-06"))
     assert not any(key.startswith("2025-06") for key in days), (
         "một tổng tháng KHÔNG được chia đều thành 30 ngày")
-    # Nhưng ở mức THÁNG nó xuất hiện — bằng chứng có thật thì không bị giấu.
-    months = chart_bars(body(client, "/kinh-doanh?muc=thang"))
+    # Nhưng ở mức THÁNG, trong đúng năm của nó, nó xuất hiện — bằng chứng có
+    # thật không bị giấu, chỉ khoanh theo năm đang xem.
+    months = chart_bars(body(client, "/kinh-doanh?muc=thang&ky=2025-06"))
     assert months["2025-06"] == Decimal("30000000")
 
 
@@ -352,18 +362,31 @@ def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
 
     Và `DEC-166 E` vẫn đúng: mỗi cột chỉ đến từ MỘT origin, và origin đó đọc
     lại được — nó chỉ không còn là một cái nút bấm.
+
+    `TASK-OWNER-UIUX-003` §2 khoanh biểu đồ mức Tháng về đúng NĂM của kỳ
+    đang xem, theo yêu cầu trực tiếp của chủ dự án (revised deliberately —
+    xem `window_bounds` trong `app/web/revenue_timeline.py`). "Một dòng thời
+    gian, không bộ chọn nguồn" vẫn đúng NGUYÊN VĂN trong phạm vi một năm
+    (Số Cũ và Số Mới của CÙNG năm 2026 đứng chung một trục, không nút gạt
+    nguồn nào cả); xuyên NĂM vẫn liền mạch — không có toggle nguồn nào để
+    bật/tắt, chỉ đổi kỳ đang xem là sang năm khác, và `DEC-166 E` vẫn đúng
+    ở từng năm: mỗi cột chỉ đến từ MỘT origin.
     """
     persist(repository, [line("BH1", "43F6000", day=5, month=9, sell="8000000")])
-    seed_legacy(engine, [(6, 10, 30000000)], year=2025)
+    seed_legacy(engine, [(6, 10, 30000000)], year=2026)
+    seed_legacy(engine, [(6, 10, 9000000)], year=2025, import_id="imp-2025b")
 
-    html = body(client, "/kinh-doanh?muc=thang")
+    # Trong CÙNG một năm (2026): Số Cũ (tháng 6) và Số Mới (tháng 9) đứng
+    # chung một trục, không cái toggle nguồn nào chắn giữa hai origin.
+    html = body(client, "/kinh-doanh?muc=thang&ky=2026-09")
     bars = chart_bars(html)
-    assert "2025-06" in bars and "2026-09" in bars, "một dòng thời gian liên tục"
+    assert "2026-06" in bars and "2026-09" in bars, (
+        "một dòng thời gian liên tục trong năm đang xem")
 
     origins = dict(re.findall(
         r'data-metric="chart-bar" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
         html))
-    assert origins["2025-06"] == "LEGACY_REFERENCE"
+    assert origins["2026-06"] == "LEGACY_REFERENCE"
     assert origins["2026-09"] == "PIPELINE_GENERATED"
 
     chart = re.search(r'id="bieu-do-doanh-thu".*?(?=<div class="module")',
@@ -371,6 +394,17 @@ def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
     for forbidden in ("Số cũ", "Số mới", "SỐ CŨ", "SỐ MỚI"):
         assert forbidden not in chart, (
             f"{forbidden!r} là một nhãn nguồn — biểu đồ nói về THỜI GIAN")
+
+    # Xuyên NĂM: không mất, không cần một bộ chọn nguồn — chỉ đổi kỳ đang
+    # xem (`ky=2025-06`) là năm 2025 mở ra, vẫn cùng MỘT biểu đồ, cùng MỘT
+    # route, không route/route con thứ hai nào cho "Số Cũ".
+    html_2025 = body(client, "/kinh-doanh?muc=thang&ky=2025-06")
+    bars_2025 = chart_bars(html_2025)
+    assert "2025-06" in bars_2025
+    origins_2025 = dict(re.findall(
+        r'data-metric="chart-bar" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
+        html_2025))
+    assert origins_2025["2025-06"] == "LEGACY_REFERENCE"
 
 
 def test_chart_never_adds_two_origins_into_one_bucket(engine, repository, client):
@@ -832,14 +866,31 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     seed_legacy(engine, [(6, 10, 30000000)], year=2025)
 
     # --- 1. Báo cáo: đổi mức gộp Ngày → Tuần → Tháng → Quý → Năm ---------
+    # `TASK-OWNER-UIUX-003` §2 khoanh Ngày/Tuần/Tháng về đúng
+    # tháng/quý/năm của kỳ đang xem (chủ dự án yêu cầu trực tiếp); Quý/Năm
+    # giữ nguyên TOÀN BỘ dòng thời gian (`window_bounds` trong
+    # `app/web/revenue_timeline.py`). Kỳ đang xem là 09/2026 nên Ngày/Tuần/
+    # Tháng cùng PHẠM VI (chỉ dữ liệu 2026, không có tổng tháng lịch sử
+    # 06/2025) và phải cộng ra CÙNG một tổng với nhau; Quý/Năm không bị
+    # khoanh nên thấy thêm cả tổng tháng lịch sử đó, và vì vậy cộng ra một
+    # tổng LỚN HƠN — nhưng Quý và Năm vẫn phải khớp nhau, đúng bất biến "đổi
+    # mức gộp không đổi tổng" trong phạm vi KHÔNG bị khoanh.
     totals = {}
     for gran in ("ngay", "tuan", "thang", "quy", "nam"):
         html = body(client, f"/kinh-doanh?muc={gran}")
         assert html.count('data-metric="chart"') == 1, gran
         assert f'data-gran="{gran}"' in html
         totals[gran] = sum(chart_bars(html).values())
-    assert len(set(totals.values())) == 1, (
-        f"năm mức gộp phải cộng ra CÙNG một tổng: {totals}")
+    windowed = {totals["ngay"], totals["tuan"], totals["thang"]}
+    unwindowed = {totals["quy"], totals["nam"]}
+    assert len(windowed) == 1, (
+        f"Ngày/Tuần/Tháng (đều khoanh về kỳ 09/2026) phải cộng ra CÙNG một "
+        f"tổng: {totals}")
+    assert len(unwindowed) == 1, (
+        f"Quý/Năm (không khoanh) phải cộng ra CÙNG một tổng: {totals}")
+    assert next(iter(unwindowed)) > next(iter(windowed)), (
+        "Quý/Năm không khoanh phải thấy thêm tổng tháng lịch sử 06/2025 mà "
+        f"Ngày/Tuần/Tháng đã khoanh ra ngoài kỳ 09/2026: {totals}")
 
     # --- 2. Nhân viên: tháng hiện tại, dòng chưa phân loại, phân loại ----
     sheet = body(client, "/kinh-doanh/nhan-vien")

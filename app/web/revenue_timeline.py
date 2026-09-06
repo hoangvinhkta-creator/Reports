@@ -178,6 +178,11 @@ NO_DAILY_LEGACY_NOTE = (
     "chúng không có điểm nào. Hệ thống không chia đều tổng tháng ra từng ngày."
 )
 
+#: `TASK-OWNER-UIUX-003` §2 — chỉ Ngày/Tuần/Tháng bị "khoanh cửa sổ"; Quý và
+#: Năm giữ nguyên hành vi TOÀN BỘ dòng thời gian của `F-E` (đã đủ thô, không
+#: "dàn trải" như Ngày/Tuần/Tháng nhìn cả lịch sử làm một hàng chấm).
+_WINDOWED_LEVELS = frozenset({DAY, WEEK, MONTH})
+
 
 def parse_granularity(raw: Optional[str], *,
                       default: Optional[str] = None) -> str:
@@ -441,6 +446,86 @@ def series(
     return points
 
 
+def _quarter_bounds(year: int, month: int) -> tuple[date, date]:
+    """`(ngày đầu quý, ngày đầu quý KẾ TIẾP)` chứa `(year, month)` — cận trên
+    KHÔNG bao gồm, cùng quy ước với mọi cận trên khác trong module này."""
+    start_month = (month - 1) // 3 * 3 + 1
+    start = date(year, start_month, 1)
+    end_month, end_year = start_month + 3, year
+    if end_month > 12:
+        end_month, end_year = end_month - 12, year + 1
+    return start, date(end_year, end_month, 1)
+
+
+def window_bounds(
+    granularity: str, period: Optional[tuple[int, int]],
+) -> Optional[tuple[str, str]]:
+    """`(khoá thấp nhất, khoá cao nhất KHÔNG bao gồm)` của cửa sổ hiện tại,
+    hoặc `None` nếu không khoanh.
+
+    `TASK-OWNER-UIUX-003` §2 — Owner: biểu đồ Ngày dàn trải hết lịch sử "nhìn
+    kinh khủng"; muốn Ngày chỉ hiện các ngày trong THÁNG đang chọn, Tuần chỉ
+    hiện các tuần trong QUÝ chứa kỳ đang chọn, Tháng chỉ hiện các tháng trong
+    NĂM chứa kỳ đang chọn.
+
+    Đây LÀ một sửa đổi có chủ đích với `F-E` (`CHART_SCOPE_NOTE` cũ: biểu đồ
+    luôn nhìn TOÀN BỘ dữ liệu, không giới hạn theo kỳ đang chọn) — không phải
+    một vi phạm âm thầm. `F-E` sinh ra để không cho hai con số cạnh nhau nói
+    hai điều mâu thuẫn mà không ai giải thích; cách giữ đúng tinh thần đó khi
+    phạm vi biểu đồ đổi là ĐỔI CÂU CHỮ theo đúng phạm vi mới (xem
+    `business_presentation.revenue_chart` → `scope_note`), không phải xoá
+    câu chữ đi. Quý/Năm KHÔNG bị khoanh — hai mức đó đã đủ thô, và không có
+    "quý chứa quý" hay "năm chứa năm" để khoanh vào.
+
+    `period=None` ("Toàn bộ dữ liệu" đang chọn) ⟹ không có kỳ nào để neo cửa
+    sổ, nên KHÔNG khoanh — giữ hành vi TOÀN BỘ dòng thời gian cũ cho trường
+    hợp đó, ở mọi mức gộp.
+    """
+    if period is None or granularity not in _WINDOWED_LEVELS:
+        return None
+    year, month = period
+    if granularity == DAY:
+        prefix = f"{year:04d}-{month:02d}"
+        return prefix, prefix + "~"
+    if granularity == WEEK:
+        start, next_start = _quarter_bounds(year, month)
+        return start.isoformat(), next_start.isoformat()
+    return f"{year:04d}", f"{year:04d}~"
+
+
+#: Mức gộp CHỨA cửa sổ hiển thị của mỗi mức mịn: Ngày khoanh trong một
+#: THÁNG, Tuần khoanh trong một QUÝ, Tháng khoanh trong một NĂM.
+_WINDOW_CONTAINER = {DAY: MONTH, WEEK: QUARTER, MONTH: YEAR}
+
+
+def window_label(granularity: str, period: Optional[tuple[int, int]]) -> str:
+    """Nhãn NGƯỜI ĐỌC của cửa sổ đang áp dụng ("09/2026", "Quý 3/2026",
+    "Năm 2026"), hoặc chuỗi rỗng khi mức gộp này không bị khoanh."""
+    if period is None or granularity not in _WINDOWED_LEVELS:
+        return ""
+    year, month = period
+    return bucket_of(date(year, month, 1), _WINDOW_CONTAINER[granularity])[1]
+
+
+def window_points(
+    points: list[Point], *, granularity: str, period: Optional[tuple[int, int]],
+) -> list[Point]:
+    """Cắt `points` (đã tính ĐẦY ĐỦ, không đổi) về đúng cửa sổ hiển thị.
+
+    Hàm THUẦN, tách khỏi `series()` một cách cố ý: `series()` vẫn luôn trả về
+    TOÀN BỘ điểm của cả dòng thời gian — bất biến `Σ(mọi điểm của kỳ) ==
+    totals.sales_revenue` và mọi kiểm chứng `DEC-166 E`/`F-N03` vẫn đúng trên
+    chính danh sách đầy đủ đó, không phụ thuộc việc trang có vẽ hết hay không.
+    `window_points` chỉ CHỌN một dải con liên tục của danh sách đã sắp sẵn để
+    VẼ — không tính lại, không đổi origin, không đổi giá trị điểm nào.
+    """
+    bounds = window_bounds(granularity, period)
+    if bounds is None:
+        return points
+    low, high = bounds
+    return [point for point in points if low <= point.key < high]
+
+
 def totals_of(points: Iterable[Point]) -> Decimal:
     """Tổng của một chuỗi — dùng để khẳng định bất biến gộp trong test."""
     return sum((point.revenue for point in points), Decimal(0))
@@ -452,5 +537,5 @@ __all__ = [
     "MIXED_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT",
     "ORIGIN_LEGACY", "ORIGIN_MIXED", "Point", "QUARTER", "WEEK", "YEAR",
     "bucket_of", "current_points", "parse_granularity", "series", "totals_of",
-    "undated_count",
+    "undated_count", "window_bounds", "window_label", "window_points",
 ]

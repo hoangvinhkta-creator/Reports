@@ -45,7 +45,7 @@ from app.web.analytics_presentation import UNKNOWN_EMPLOYEE, count
 from app.web.business_presentation import (
     MOM_NO_PREVIOUS, STATE_LABELS, _decimal, _derived_cell, _thousand_vnd,
     business_date, coverage_cell, gated_cell, month_over_month, percent,
-    period_label,
+    period_label, sheet_display_order,
 )
 from app.web.legacy_presentation import format_number
 
@@ -146,12 +146,19 @@ def sheet_tabs(
     Đây là các KHUNG NHÌN CON của một trang, không phải điều hướng cấp một:
     thanh `R1` bốn mục (Báo cáo · Nhân viên · Doanh số ngày · Dữ liệu) không
     bị đụng tới, và `§4` nói rõ điều đó.
+
+    `TASK-OWNER-UIUX-003` §4 — thứ tự các tab nay khớp ĐÚNG thứ tự hàng của
+    bảng "Theo nhân viên" trên trang Báo cáo (`sheet_display_order`): nhân
+    viên theo thứ tự master trước, rồi "chưa xác định", Nội thành, Gia dụng
+    cuối cùng. Trước bản sửa, `sheets` (từ `reporting_sheets.sheets_for`)
+    đặt hai sheet NHÓM lên đầu — đúng cho URL bookmark cũ nhưng khác thứ tự
+    Owner đã quen đọc ở trang kia.
     """
     return [
         {"key": sheet.key, "label": sheet.label or UNKNOWN_EMPLOYEE,
          "selected": sheet.key == selected_key,
          "group": sheet.is_group}
-        for sheet in sheets
+        for sheet in sorted(sheets, key=sheet_display_order)
     ]
 
 

@@ -11051,3 +11051,233 @@ Routes, số endpoint POST và thanh điều hướng chính không đổi.
 
 Can Revisit After:
 Không có mục hoãn mới.
+
+## DEC-193
+
+Title:
+`TASK-OWNER-UIUX-003` — vòng sửa thứ ba theo phản hồi bằng ảnh chụp màn hình
++ văn bản của chủ dự án trên `DEC-192`: rút gọn chú giải MoM SỐ CŨ, thu nhỏ
+biểu đồ về nửa trái + khoanh cửa sổ hiển thị theo mức gộp (Ngày→tháng,
+Tuần→quý, Tháng→năm) + card dự phòng bên phải, bỏ badge "SỐ MỚI" ở cả hai
+trang Báo cáo/Nhân viên, gộp hàng sheet vào chung card với Kỳ dữ liệu, chia
+lại 5 thẻ chỉ tiêu của không gian làm việc về một hàng, gỡ card Target đứng
+riêng thay bằng icon sửa cạnh dòng tiêu đề sheet, và gộp bảng kê ledger từ
+hai tầng (hàng nhóm + hàng dòng hàng) về một tầng bằng `rowspan`.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng hai ảnh chụp màn hình có khoanh
+đỏ + bảy yêu cầu bằng văn bản của chủ dự án sau khi xem `DEC-192` trên môi
+trường thật). Mục 2 dưới đây REVISE trực tiếp một phần của `F-E` (xem lý do
+tại mục đó); các mục còn lại thuần tầng trình bày, không đảo quyết định
+nghiệp vụ nào.
+
+Supersedes:
+Mục 2 REVISE có chủ đích phần "biểu đồ mức Tháng luôn nhìn TOÀN BỘ dữ liệu,
+không giới hạn theo năm" của `F-E`/`DEC-185` (CHART-10/CHART-11) — xem lý do
+và phạm vi revise tại mục 2. Phần còn lại của `F-E` (biểu đồ RỘNG HƠN ô chỉ
+tiêu, cách giải thẩm quyền theo THÁNG, `DEC-166 E` mỗi mốc một origin) GIỮ
+NGUYÊN. Không đảo `DEC-190`/`DEC-191`/`DEC-192`.
+
+### 1. MoM "SỐ CŨ" — rút gọn chú giải, dời câu dài vào tooltip
+
+`_business_bits.html` macro `mom_inline`: tag "SỐ CŨ" (`mom.origin`) và
+đoạn giải thích dài (`mom.source`/`mom.note`, nguyên văn `DEC-180` §9) không
+còn đứng thẳng trên trang — chúng lùi vào một `kpi-help`-style tooltip
+(`.mom-legacy-help`, rê chuột/lia tới, cùng cơ chế mục 2 của `DEC-192`).
+Chữ hiện thẳng trên trang khi CÓ mốc so là đúng một câu ngắn: "so với
+{previous_label}". Nội dung `mom-source`/`mom-note` KHÔNG đổi, KHÔNG mất —
+chỉ đổi CHỖ ĐỨNG, đúng cùng lý do đã áp dụng cho khối giải thích biểu đồ ở
+`DEC-192` mục 4 (Owner đọc trang không phải đọc tài liệu; câu dài vẫn có
+mặt cho ai cần).
+
+### 2. Biểu đồ — nửa trái + khoanh cửa sổ theo mức gộp + card dự phòng
+
+Owner: biểu đồ chiếm cả hàng ngang là quá to so với thông tin nó mang, và
+Ngày/Tuần/Tháng dàn trải hết toàn bộ dòng thời gian nhiều năm là khó đọc so
+với việc chỉ xem trong phạm vi kỳ Owner đang quan tâm.
+
+- Layout: `kinh_doanh.html` bọc module biểu đồ (`#bieu-do-doanh-thu`,
+  KHÔNG đổi id/nội dung bên trong) và một module `chart-placeholder` mới
+  (rỗng, "Chỗ dành cho một biểu đồ khác — sắp có.") trong một
+  `.chart-row` (flex, `.chart-half { flex: 1 1 0 }`), gập dọc dưới 900px
+  (`tinphat-ui.css`). Placeholder KHÔNG có route, KHÔNG có dữ liệu — thuần
+  chỗ trống dành sẵn theo đúng yêu cầu, không dựng trước một tính năng chưa
+  được xác nhận.
+
+- Khoanh cửa sổ (`app/web/revenue_timeline.py`, hàm mới `window_bounds`/
+  `window_label`/`window_points`, thuần bổ sung — không sửa `series()`):
+  Ngày → khoanh về đúng THÁNG của kỳ đang chọn; Tuần → khoanh về đúng QUÝ
+  (dùng `_quarter_bounds`, xử lý đúng biên năm khi quý tràn sang tháng 1
+  năm sau); Tháng → khoanh về đúng NĂM. Quý và Năm KHÔNG bị khoanh — vẫn
+  TOÀN BỘ dòng thời gian như `F-E` gốc. `window_points()` là một PHÉP LỌC
+  áp SAU khi `series()` đã tính đầy đủ trên toàn bộ điểm — mọi bất biến của
+  `series()` (tổng điểm = tổng thật, `DEC-166E` phân biệt origin, `F-N03`
+  giải thẩm quyền theo tháng) không đổi trên tập điểm ĐẦY ĐỦ; chỉ tập điểm
+  HIỂN THỊ bị cắt. `server._revenue_chart` gọi `window_points` ngay sau
+  `series`, truyền `window_label` vào `business_presentation.revenue_chart`
+  để dựng đúng câu giải thích phạm vi mới.
+
+  Chú giải phạm vi (`business_presentation._chart_scope_note`) đổi theo
+  mức gộp: có `window_label` (Ngày/Tuần/Tháng) → câu nói RÕ phạm vi đang
+  khoanh ("Ở mức Tháng, biểu đồ chỉ hiện các tháng trong Năm 2026 — chưa
+  phải toàn bộ dữ liệu."); không có (Quý/Năm, hoặc `period=None` — "Toàn bộ
+  dữ liệu") → giữ nguyên `CHART_SCOPE_NOTE` cũ của `F-E`. Không bao giờ nói
+  "TOÀN BỘ" khi phạm vi đã bị khoanh — đúng lý do `F-E` được viết ra (không
+  để hai con số khác phạm vi đứng cạnh nhau mà không ai nói rõ).
+
+  **REVISE `F-E`/`DEC-185` CHART-10/CHART-11 tại mức THÁNG**: trước bản
+  này, biểu đồ mức Tháng bảo đảm MỘT dòng thời gian liên tục xuyên NĂM,
+  xuyên nguồn (Số Cũ + Số Mới), không cần bộ chọn nguồn — đây là điều
+  `CHART-10`/`CHART-11`/E2E của `test_dec185_nav_chart_identity.py` kiểm.
+  Owner đã được hỏi thẳng đánh đổi này (khoanh Tháng theo Năm sẽ làm dữ
+  liệu năm khác biến mất khỏi mặc định) và CHỌN đánh đổi đó. Ba test trên
+  được SỬA LẠI để phản ánh đúng: "một dòng thời gian, không bộ chọn nguồn"
+  vẫn đúng NGUYÊN VĂN TRONG PHẠM VI MỘT NĂM (Số Cũ + Số Mới cùng năm đứng
+  chung một trục), và XUYÊN năm vẫn liền mạch — không mất, không có toggle
+  nguồn nào cả, chỉ cần đổi kỳ đang xem (`ky=`) sang năm khác là dữ liệu
+  năm đó mở ra, trên ĐÚNG route/ĐÚNG biểu đồ đó, không phải một trang thứ
+  hai. `DEC-166E` (mỗi cột một origin) và `F-N03` (giải thẩm quyền theo
+  tháng) không đổi ở bất kỳ năm nào.
+
+### 3. Bỏ badge "SỐ MỚI" khỏi Báo cáo và Nhân viên
+
+`kinh_doanh.html`: bỏ dòng `<p class="insight">{{ biz.business_badge() }}
+Số do Reports tính từ sổ kế toán đã nạp.</p>` sau `<h1>`. `kinh_doanh_nhan_
+vien.html`: bỏ đoạn giải thích "Mỗi sheet ở dưới là một đơn vị báo cáo.
+Sheet Nội thành gộp cả nhóm thành một, nhưng cột Nhân viên trong bảng vẫn
+ghi đúng người bán." sau `<h1>`. Cả hai theo yêu cầu trực tiếp của chủ dự
+án — tên sheet ("Nội thành"/"Gia dụng") trên chính tab đã đủ để đọc.
+`test_case_10_the_pipeline_badge_no_longer_repeats_on_the_report_pages`
+(`tests/test_r1_navigation.py`) đổi từ "không lặp lại" (`== 1`) sang "không
+còn nữa" (`== 0`) trên cả hai trang — leo thang đúng từ quy tắc `R1` cũ
+sang chỉ thị mới, không lặng lẽ hạ chuẩn.
+
+### 4. Gộp hàng SHEET vào chung card với Kỳ dữ liệu
+
+`kinh_doanh_nhan_vien.html`: form chọn Kỳ dữ liệu và `<nav class="sheet-
+tabs">` đứng chung một `<div class="module workspace-period-card">` thay vì
+hai module rời — đỡ diện tích dọc, thứ tự Kỳ dữ liệu trước/hàng sheet sau
+không đổi (`§4`/`UX-05`).
+
+`workspace_presentation.sheet_tabs()` đổi khoá sắp xếp sang
+`business_presentation.sheet_display_order` (đổi tên công khai từ
+`_reporting_row_key`) — CÙNG một khoá sắp xếp `reporting_rows()` của trang
+Báo cáo đang dùng, nên thứ tự sheet ở tab Nhân viên nay khớp đúng thứ tự
+hàng ở bảng Theo nhân viên (nhân viên theo thứ tự master → chưa xác định →
+Nội thành → Gia dụng), theo đúng yêu cầu trực tiếp của chủ dự án.
+
+### 5. Năm thẻ chỉ tiêu của không gian làm việc — về một hàng
+
+`tinphat-ui.css` thêm `.kpi-grid.strip { grid-template-columns: repeat(5,
+minmax(0,1fr)) }` (gập 3 cột dưới 900px, 2 cột dưới 560px) — Doanh thu · DS
+quy đổi · So Target · So tháng trước · Tiến độ đứng cùng một hàng ở độ rộng
+màn hình còn hợp lý, cùng lối làm với `.kpi-row` bốn thẻ của `DEC-192` mục
+1. Lợi nhuận KPI (hàng `.kpi-grid-one` riêng, đã có từ trước) không bị
+đụng — đây không phải một trong năm thẻ Owner liệt kê.
+
+### 6. Target — gỡ card đứng riêng, thay bằng icon sửa cạnh dòng tiêu đề
+
+Yêu cầu trực tiếp của chủ dự án: bỏ card "TARGET CỦA SHEET" đứng riêng,
+thay bằng đúng MỘT icon sửa cạnh dòng "Nội thành 181 đơn · 250 dòng · 260
+SP", bấm vào mới hiện ô nhập (nhỏ, gọn).
+
+`kinh_doanh_nhan_vien.html`: con số Target (`employee-target`) đọc thẳng
+trên dòng tiêu đề `<h2>` của sheet, cạnh "... SP". Icon bút (`&#9998;`,
+`data-metric="target-edit"`) nối query param mới `sua-target=1`; bấm vào
+đổi thành nút "XONG" (`target-edit-close`) quay lại URL không có tham số
+đó — CÙNG mẫu URL-là-trạng-thái với `sua=<mã đơn>` đã dùng cho sửa BH. Ô
+nhập (`target-input`) và nút LƯU chỉ dựng trong DOM khi `sua-target=1`
+(`.target-edit-inline`, gọn — không kéo theo card lớn).
+
+`server.py`: `business_employee()` đọc thêm `editing_target =
+bool(request.args.get("sua-target"))`. `business_save_sheet_target()` giữ
+`sua-target=1` qua MỌI nhánh redirect (`reopen` dict) — LƯU xong panel vẫn
+mở, thấy ngay kết quả, không phải bấm sửa lại lần hai (cùng mẫu `sua=
+order_key` giữ mở sau khi lưu Giá nhập).
+
+Đường dẫn sang màn hình Target đầy đủ (`business_target`, `/kinh-doanh/
+target` — đặt Target cho NHIỀU người một lúc, tính năng khác hẳn, có `PHB-
+05` + 51 test riêng bảo vệ) KHÔNG bị gỡ: liên kết "ĐẶT / SỬA TARGET" dời ra
+khỏi card cũ nhưng vẫn đứng ngay dưới dòng tiêu đề, luôn hiện — Owner nói
+"bỏ card này" (card Target CỦA SHEET, đứng ở không gian làm việc), không
+nói bỏ đường dẫn sang màn hình Target đầy đủ; xoá hẳn liên kết đó sẽ làm
+mất khả năng mở một tính năng còn dùng được mà không ai yêu cầu bỏ.
+
+`tests/test_employee_workspace_ux.py`: hai test giả định `target-input`
+luôn có mặt không cần `sua-target`
+(`test_case_ux_02_the_current_month_opens_even_with_no_sales_at_all`,
+`test_case_tg_03_the_round_trip_holds_over_the_real_http_path`) và một test
+E2E (`test_the_owner_runs_a_full_month_through_the_workspace`) được SỬA lại
+để mở panel bằng `sua-target=1` trước khi kiểm ô nhập — ý nghĩa nghiệp vụ
+giữ nguyên (Target vẫn mở được ngay cả tháng rỗng, round-trip vẫn đúng),
+chỉ đường vào ô nhập đổi theo `§6`.
+
+### 7. Bảng kê ledger — gộp hai tầng thành một tầng bằng `rowspan`
+
+Owner: hàng nhóm ("Ngày · Mã đơn · Khách hàng · N dòng · sửa") đứng RIÊNG
+phía trên các dòng hàng là thừa — không cần một ô nói "N dòng" mới biết một
+đơn có mấy dòng, con số hàng đã tự nói điều đó.
+
+`kinh_doanh_nhan_vien.html`: vòng lặp `{% for row in group.rows %}` giờ tự
+quyết định hàng ĐẦU (`loop.first`) mang Ngày/Mã đơn/Khách hàng bằng
+`rowspan="{{ group.lines }}"`, trải xuống các dòng hàng còn lại của CÙNG
+một BH (các dòng đó không render lại ba ô đó — HTML `rowspan` che chúng).
+Ô đếm "N dòng" (`bh-count`, `colspan="7"`) bị BỎ HẲN, không thay bằng gì
+khác. Icon sửa cả BH (`bh-edit`/`bh-edit-close`) chuyển vào ô thao tác
+(`.line-actions`) của dòng hàng ĐẦU, đứng cạnh (không thay thế) hai thao
+tác dòng (chuyển Gia dụng / loại dòng) của chính dòng hàng đó. Hàng "NHÂN
+VIÊN CỦA CẢ ĐƠN" (chế độ sửa) đứng ngay sau hàng đầu đã gộp, trước khi sang
+các dòng hàng còn lại — vị trí không đổi so với trước.
+
+`data-metric="bh-head"` vẫn chỉ đứng trên ĐÚNG một `<tr>` mỗi BH (nay là
+hàng đầu đã gộp, không phải một hàng riêng) — `data-order`/`data-shade`
+theo cùng thứ tự thuộc tính như cũ, giữ nguyên mọi test đọc nền theo ngày
+(`VIS-01…03`) sau khi cập nhật quy tắc rơi vào hàng nào mang metric gì. Số
+`<tr>` mỗi BH giữ nguyên (bằng đúng `group.lines`) — chỉ gộp NỘI DUNG cột,
+không gộp SỐ hàng.
+
+`app/web/static/css/tinphat-ui.css`: `tr.bh-head td { font-weight }` thu
+hẹp còn đúng ba ô định danh (`bh-date`/`bh-order`/`bh-customer`) — không
+còn đậm luôn cả Mặt hàng/Nhân viên/... của chính dòng hàng đầu, việc đó sẽ
+đậm khác các dòng hàng còn lại của cùng BH một cách vô lý. Ba ô đó thêm
+`vertical-align: top` để canh đúng lên đầu khi BH có nhiều dòng.
+
+`test_the_bh_head_count_is_plain_text_not_a_pill_cell`
+(`tests/test_uiux_refinement.py`) bị GỠ, không sửa lại — toàn bộ tiền đề
+của nó (ô đếm "N dòng") không còn tồn tại. `tests/test_employee_workspace_
+ux.py`: quy tắc đọc shade theo ngày (VIS-01) và trích khoá dòng theo tên
+mặt hàng (`_keys_from_html`) cập nhật để chấp nhận CẢ HAI giá trị
+`data-metric` (`bh-head` hoặc `line-row`) tuỳ dòng đó có phải dòng đầu của
+BH hay không — ý nghĩa kiểm (nền theo ngày, khoá nghiệp vụ đúng dòng) không
+đổi.
+
+Impact:
+Tầng trình bày + một hàm tính thuần (`window_bounds`/`window_label`/
+`window_points` trong `revenue_timeline.py`, KHÔNG sửa `series()`) + một
+route param mới (`sua-target`, đọc trong `business_employee()`, không route
+mới, không endpoint ghi mới). Không file nào dưới `app/modules/`,
+`tools/db/`, `config/`. Không migration, không JavaScript, không thư viện
+mới.
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` (nền `c18be98`: `2722
+passed, 11 skipped` — chênh đúng 1 vì `test_the_bh_head_count_is_plain_
+text_not_a_pill_cell` bị GỠ theo mục 7, không có test nào khác biến mất
+hay bị hạ chuẩn). Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance
+validator: `validate_evidence`/`validate_project_state`/`validate_
+structure`/`validate_task_completion` đều PASS (`validate_reference_
+integrity` FAIL với đúng 3 tham chiếu vỡ từ trước, không liên quan tới
+round này — `docs/tasks/TASK-REM-T06-repository-root-hygiene.md` trỏ tới
+`/README.md`/`CODE_OF_CONDUCT.md`/`CONTRIBUTING.md`). Playwright trên
+1440/820/390px xác nhận: 4 KPI Báo cáo một hàng, biểu đồ nửa trái + card dự
+phòng bên phải (gập dọc dưới 900px), 5 KPI Nhân viên một hàng (gập 3/2 cột
+theo bề rộng), panel Target inline mở/đóng đúng qua `sua-target=1`, bảng kê
+ledger một tầng với `rowspan` đúng shade/nhóm ngày, không trang nào tràn
+ngang.
+
+Can Revisit After:
+Không có mục hoãn mới. Module "Biểu đồ khác" ở mục 2 là chỗ trống — chưa có
+task nào định nghĩa nó sẽ hiển thị gì.

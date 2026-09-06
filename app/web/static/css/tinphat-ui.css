@@ -296,6 +296,11 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   padding: 0 var(--tp-s4);
   margin-bottom: var(--tp-s2);
 }
+/* `TASK-OWNER-UIUX-003` §4 — hàng sheet nay SỐNG TRONG card "Kỳ dữ liệu"
+   (tiết kiệm diện tích dọc) thay vì đứng ngoài, ngay trên nó. Trong bối
+   cảnh đó `.module` đã có padding riêng, nên bỏ padding ngang cũ để không
+   thụt vào hai lần. */
+.workspace-period-card .sheet-tabs { padding: 0; margin: var(--tp-s4) 0 0; }
 .sheet-tab {
   padding: var(--tp-s2) var(--tp-s3);
   border: 1px solid var(--tp-line);
@@ -325,10 +330,18 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 .sheet-table tr.shade-0 td { background: var(--tp-shade-a); }
 .sheet-table tr.shade-1 td { background: var(--tp-shade-b); }
 
-/* Hàng đầu của một BH: ngày · mã đơn · khách hàng · nút sửa. Các dòng
-   hàng bên dưới thuộc về nó, nên nó cần một đường phân cách phía trên. */
+/* Hàng đầu của một BH mang Ngày/Mã đơn/Khách hàng (`rowspan` qua các dòng
+   hàng còn lại — `TASK-OWNER-UIUX-003` §7) VÀ dòng hàng đầu tiên cùng lúc,
+   nên nó cần một đường phân cách phía trên để tách khỏi BH trước, nhưng
+   chữ đậm chỉ áp cho đúng ba ô định danh đó — không đậm luôn cả Mặt hàng/
+   Nhân viên/... của chính dòng hàng đó, việc đó sẽ đậm khác các dòng hàng
+   còn lại của cùng BH một cách vô lý. */
 .sheet-table tr.bh-head td {
   border-top: 2px solid var(--tp-line);
+}
+.sheet-table tr.bh-head td[data-metric="bh-date"],
+.sheet-table tr.bh-head td[data-metric="bh-order"],
+.sheet-table tr.bh-head td[data-metric="bh-customer"] {
   font-weight: 600;
 }
 .sheet-table tr.bh-open td { border-top-color: var(--tp-blue); }
@@ -481,6 +494,25 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
    một thẻ rộng bằng cả trang đọc như một dải cảnh báo. */
 .kpi-grid-one { grid-template-columns: repeat(auto-fit, minmax(180px, 320px)); }
 
+/* `TASK-OWNER-UIUX-003` §5 — năm chỉ tiêu của không gian làm việc (Doanh
+   thu · DS quy đổi · So Target · So tháng trước · Tiến độ) LUÔN trên MỘT
+   hàng ở mọi độ rộng còn hợp lý, thay vì bốc thăm 3+2/2+2+1 tuỳ độ rộng cửa
+   sổ như `repeat(auto-fit, minmax(180px,1fr))` mặc định của `.kpi-grid`. */
+.kpi-grid.strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .kpi-grid.strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .kpi-grid.strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Icon sửa Target ngay trên dòng tiêu đề sheet (thay cho card Target đứng
+   riêng — `TASK-OWNER-UIUX-003` §6). Panel nhập chỉ dựng khi `sua-target=1`
+   nên khung nhỏ, không chiếm chiều cao lúc chỉ xem báo cáo. */
+.cnt a[data-metric="target-edit"],
+.cnt a[data-metric="target-edit-close"] { margin-left: var(--tp-s2); }
+.target-edit-inline { margin-top: var(--tp-s3); }
+
 /* CẢNH BÁO khác LỖI. `.error` (đỏ) dành cho điều sai/hỏng; `.warn` (vàng)
    cho một trạng thái dữ liệu còn dang dở mà Owner có việc phải làm; `.notice`
    cho một trạng thái ĐÃ BIẾT, không phải việc của ai trong Reports. */
@@ -514,9 +546,12 @@ td[data-group] { white-space: nowrap; }
 
 /* --- Không gian làm việc Nhân viên: bảng kê --------------------------- */
 
-/* Ô đếm dòng của một BH: chữ nhạt, KHÔNG phải một viên pill kéo dài suốt
-   bảy cột (trước đây `.cnt` đặt thẳng lên `<td colspan>`). */
-.sheet-table td.bh-count { color: var(--tp-mut); font-size: 13px; font-weight: 400; }
+/* Ngày/Mã đơn/Khách hàng trải (`rowspan`) qua mọi dòng hàng của cùng một
+   BH (`TASK-OWNER-UIUX-003` §7) — canh lên đầu ô để đọc thẳng hàng với
+   dòng hàng ĐẦU TIÊN, không lệch xuống giữa khối khi BH có nhiều dòng. */
+.sheet-table td[data-metric="bh-date"],
+.sheet-table td[data-metric="bh-order"],
+.sheet-table td[data-metric="bh-customer"] { vertical-align: top; }
 
 /* Khách hàng: tên trên một dòng, SĐT · địa chỉ lùi xuống dòng dưới với chữ
    nhạt — cột đủ rộng để tên không bị bẻ giữa chừng. */
@@ -591,6 +626,14 @@ td[data-group] { white-space: nowrap; }
 .kpi-help:focus-within .kpi-help-tip { display: block; }
 .kpi-help-tip p { margin: 0 0 var(--tp-s2); }
 .kpi-help-tip p:last-child { margin-bottom: 0; }
+/* Tooltip của "SỐ CŨ" (`mom_inline`) gói hai `<span>` (nguồn + giải thích)
+   thay vì `<p>` — cùng lý do `<details>` bị bỏ ở `kpi_help`: chúng đứng bên
+   trong một `<span class="tag">`, và một `<p>` (block) lồng trong `<span>`
+   (inline) là HTML không hợp lệ. `display:block` trên chính span đó vẫn cho
+   cùng cách xuống dòng mà không phá cấu trúc thẻ. #}
+.mom-legacy-help .kpi-help-tip > span { display: block; margin-bottom: var(--tp-s2); }
+.mom-legacy-help .kpi-help-tip > span:last-child { margin-bottom: 0; }
+.mom-legacy-help .tag-legacy { cursor: help; }
 .kpi-card { position: relative; }
 
 /* BIỂU ĐỒ ĐƯỜNG: một trục Y có lưới + nhãn tròn số bên trái (đứng yên khi
@@ -599,6 +642,17 @@ td[data-group] { white-space: nowrap; }
    một bức tường số dưới MỖI điểm. Mỗi điểm vẫn giữ đủ thuộc tính máy đọc
    (`data-metric`, `data-key`, `data-origin`, `data-revenue`) và một
    `<title>` để rê chuột xem chi tiết, kể cả những điểm không hiện nhãn. */
+/* Biểu đồ chiếm NỬA TRÁI, nửa phải để trống cho một biểu đồ khác sau này.
+   Dưới 900px hai nửa không còn đủ chỗ cho trục Y + đường + nhãn, nên xếp
+   dọc trở lại — card dự phòng luôn đứng SAU biểu đồ chính khi xếp dọc. */
+.chart-row { display: flex; gap: var(--tp-s4); align-items: stretch; }
+.chart-half { flex: 1 1 0; min-width: 0; }
+.chart-placeholder { display: flex; flex-direction: column; }
+.chart-placeholder .empty { margin: auto 0; }
+@media (max-width: 900px) {
+  .chart-row { flex-direction: column; }
+}
+
 .rev-chart-row { display: flex; align-items: stretch; padding-top: var(--tp-s3); }
 .rev-chart-yaxis {
   position: relative; flex: 0 0 auto; width: 52px;

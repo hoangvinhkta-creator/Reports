@@ -209,8 +209,12 @@ def test_case_ux_02_the_current_month_opens_even_with_no_sales_at_all(
     html = body(client, "/kinh-doanh/nhan-vien")
     assert "Tháng 09/2026" in html
     assert metric(html, "no-rows") == wp.EMPTY_PERIOD_NOTE
-    # Ô nhập Target vẫn có mặt — đó là toàn bộ lý do không lùi tháng.
-    assert 'data-metric="target-input"' in html
+    # Ô nhập Target vẫn mở được (sau icon sửa) — đó là toàn bộ lý do không
+    # lùi tháng. `TASK-OWNER-UIUX-003` §6 ẩn ô nhập sau `sua-target=1` mặc
+    # định để đỡ diện tích, nhưng nó vẫn phải mở được ngay khi bấm sửa.
+    assert 'data-metric="target-input"' not in html
+    assert 'data-metric="target-input"' in body(
+        client, "/kinh-doanh/nhan-vien?sua-target=1")
     # Và tiến độ lịch vẫn nói đúng ngày hôm nay.
     assert metric(html, "month-progress") == "10%"
 
@@ -490,7 +494,7 @@ def test_case_tg_03_the_round_trip_holds_over_the_real_http_path(
     sheet = reporting_sheets.Sheet(
         key=reporting_sheets.NOI_THANH_SHEET, label="Nội thành")
     for _ in range(3):
-        html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+        html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
         typed = re.search(r'data-metric="target-input"[^>]*', html)
         current = (re.search(r'value="([^"]*)"',
                              re.search(r'<input[^>]*data-metric="target-input"[^>]*>',
@@ -501,7 +505,7 @@ def test_case_tg_03_the_round_trip_holds_over_the_real_http_path(
         assert typed is not None
     assert service.sheet_target(sheet=sheet, period=(2026, 9)) == Decimal(
         "500000000")
-    html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+    html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
     assert 'value="500,000"' in html
     assert metric(html, "employee-target") == "500.000"      # nghìn đồng
     assert "500.000.000 đồng" in html                        # VND đầy đủ
@@ -754,10 +758,15 @@ def test_case_vis_01_to_vis_03_the_background_alternates_by_date_group(
     assert shades["BH-A"] == "0"
 
     # VIS-01 chặt hơn: cả BỐN dòng của ngày 1 dùng chung một nền, không phải
-    # zebra theo dòng.
+    # zebra theo dòng. Dòng hàng ĐẦU của một BH mang `data-metric="bh-head"`
+    # (đã gộp Ngày/Mã đơn/Khách hàng — `TASK-OWNER-UIUX-003` §7), các dòng
+    # sau vẫn mang `data-metric="line-row"` như cũ; cả hai loại đều phải
+    # cùng nền với nhau vì cùng thuộc BH-A/ngày 1.
     rows_of_first_date = re.findall(
-        r'<tr class="shade-(\d)[^"]*"\s+data-metric="line-row"\s+'
-        r'data-order="BH-A"', html, re.S)
+        r'<tr class="(?:bh-head )?shade-(\d)[^"]*"\s+'
+        r'(?:id="bh-[^"]*"\s+)?'
+        r'data-metric="(?:bh-head|line-row)"\s+data-order="BH-A"',
+        html, re.S)
     assert len(rows_of_first_date) == 3, rows_of_first_date
     assert set(rows_of_first_date) == {shades["BH-A"]}
 
@@ -1236,8 +1245,16 @@ def test_case_gd_16_and_gd_17_each_bucket_measures_against_its_own_target(
 
 
 def _keys_from_html(html: str, product: str) -> dict:
-    """Khoá nghiệp vụ của dòng mang tên hàng này, đọc từ chính bảng đang hiện."""
-    for row in re.findall(r"<tr[^>]*data-metric=\"line-row\".*?</tr>", html, re.S):
+    """Khoá nghiệp vụ của dòng mang tên hàng này, đọc từ chính bảng đang hiện.
+
+    Dòng hàng ĐẦU của một BH mang `data-metric="bh-head"` chứ không phải
+    `"line-row"` (đã gộp Ngày/Mã đơn/Khách hàng — `TASK-OWNER-UIUX-003` §7),
+    nên phải khớp cả hai giá trị để tìm đúng mặt hàng bất kể nó nằm ở dòng
+    thứ mấy trong khối.
+    """
+    for row in re.findall(
+        r'<tr[^>]*data-metric="(?:bh-head|line-row)".*?</tr>', html, re.S
+    ):
         if f">{product}<" not in row and f"{product}</td>" not in row:
             continue
         match = re.search(
@@ -1683,7 +1700,7 @@ def test_the_owner_runs_a_full_month_through_the_workspace(
     assert service.period(**SEPTEMBER).totals.sales_revenue == expected_revenue
 
     # 7. Tải lại — mọi thứ giữ nguyên.
-    reloaded = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+    reloaded = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
     assert 'value="500,000"' in reloaded
     assert set(metrics(reloaded, "line-employee")) == {"Hiệp"}
 

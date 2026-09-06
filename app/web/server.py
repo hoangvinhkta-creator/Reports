@@ -1103,10 +1103,18 @@ def create_app(
         points = revenue_timeline.series(
             data.details, granularity=granularity,
             legacy_months=legacy_months, legacy_days=legacy_days)
+        # `TASK-OWNER-UIUX-003` §2 — `series()` ở trên vẫn tính TOÀN BỘ điểm
+        # (bất biến Σ = totals và mọi kiểm chứng origin không đổi); chỉ phần
+        # VẼ được khoanh lại quanh kỳ đang chọn ở ba mức mịn nhất, để "Ngày"
+        # không dàn trải hết lịch sử thành một hàng chấm không đọc nổi.
+        points = revenue_timeline.window_points(
+            points, granularity=granularity, period=view["period"])
         return business_presentation.revenue_chart(
             points, granularity=granularity,
             has_legacy_months=bool(legacy_months),
-            undated=revenue_timeline.undated_count(data.details))
+            undated=revenue_timeline.undated_count(data.details),
+            window_label=revenue_timeline.window_label(
+                granularity, view["period"]))
 
     def _period_employees(view: dict):
         """Bộ chọn nhân viên của kỳ, ĐÃ tính cả những lần Owner gán lại.
@@ -1487,6 +1495,7 @@ def create_app(
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
             editing=request.args.get("sua") or "",
+            editing_target=bool(request.args.get("sua-target")),
             confirm=confirm,
             message=request.args.get("da-luu") or None,
             error=request.args.get("loi") or None,
@@ -1509,25 +1518,30 @@ def create_app(
         """
         view = _workspace_view()
         sheet, period = view["sheet"], view["period"]
+        # `TASK-OWNER-UIUX-003` §6 — ô nhập Target giờ ẩn sau icon sửa
+        # (`sua-target=1`); LƯU xong phải quay lại đúng trạng thái đang mở
+        # đó, không thì Owner bấm LƯU xong lại thấy ô nhập biến mất.
+        reopen = {"sua-target": "1"}
         if sheet.unresolved or (not sheet.is_group and not sheet.employee):
             return _workspace_redirect(loi=(
-                "Nhóm chưa xác định nhân viên không đặt Target được."))
+                "Nhóm chưa xác định nhân viên không đặt Target được."),
+                **reopen)
         try:
             target = business_store.parse_target_kvnd(request.form.get("target"))
         except business_store.InvalidTargetError as exc:
-            return _workspace_redirect(loi=str(exc))
+            return _workspace_redirect(loi=str(exc), **reopen)
         label = sheet.label or business_presentation.UNKNOWN_EMPLOYEE
         if target is None:
             _guarded(view["service"].clear_sheet_target,
                      sheet=sheet, period=period)
             return _workspace_redirect(**{"da-luu": (
                 f"Đã gỡ Target của {label} trong "
-                f"{business_presentation.period_label(period)}.")})
+                f"{business_presentation.period_label(period)}."), **reopen})
         _guarded(view["service"].set_sheet_target,
                  sheet=sheet, period=period, target_vnd=target)
         return _workspace_redirect(**{"da-luu": (
             f"Đã lưu Target của {label} trong "
-            f"{business_presentation.period_label(period)}.")})
+            f"{business_presentation.period_label(period)}."), **reopen})
 
     @app.post("/kinh-doanh/nhan-vien/don")
     def business_save_order_employee():

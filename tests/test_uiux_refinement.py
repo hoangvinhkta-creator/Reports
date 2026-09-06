@@ -6,12 +6,20 @@ Mỗi test dưới đây canh một điều mà bản audit UI/UX phát hiện l
     thẻ KPI không nhãn · mã enum nội bộ lộ ra màn hình · chênh lệch so tháng
     trước đứng xa con số nó so · số âm không phân biệt được · thẻ "không có
     vấn đề" to bằng thẻ có vấn đề · bảng sổ thô kéo cả trang sang ngang ·
-    ô đếm dòng hoá thành một viên pill dài · khoảng trống nguồn thương hiệu
-    đọc như một lỗi hệ thống · hai màn hình viết ngày theo hai quy ước
+    khoảng trống nguồn thương hiệu đọc như một lỗi hệ thống · hai màn hình
+    viết ngày theo hai quy ước
 
 Không test nào ở đây hỏi về một con số nghiệp vụ: chúng chỉ hỏi con số đó
 ĐƯỢC TRÌNH BÀY như thế nào. Bộ test nghiệp vụ hiện có vẫn là thẩm quyền về
 giá trị của các con số.
+
+`test_the_bh_head_count_is_plain_text_not_a_pill_cell` (từng canh ô đếm
+"N dòng") đã bị GỠ, không chỉ sửa lại: `TASK-OWNER-UIUX-003` §7 bỏ hẳn ô đó
+theo yêu cầu trực tiếp của chủ dự án — số dòng của một BH giờ tự hiện ra
+bằng chính số hàng của khối (Ngày/Mã đơn/Khách hàng gộp bằng `rowspan` qua
+các hàng đó), nên không còn "viên pill dài" nào để kiểm hình dạng của nó.
+Bộ test `tests/test_employee_workspace_ux.py` giữ vai trò kiểm cấu trúc
+bảng kê sau khi gộp hàng.
 """
 
 from __future__ import annotations
@@ -119,13 +127,6 @@ def test_every_table_scrolls_inside_its_card(repository, client):
         for match in re.finditer(r"<table", html):
             before = html[max(0, match.start() - 160):match.start()]
             assert 'class="tp-scroll"' in before, path
-
-
-def test_the_bh_head_count_is_plain_text_not_a_pill_cell(repository, client):
-    persist(repository, three_line_order())
-    html = body(client, "/kinh-doanh/nhan-vien")
-    assert re.search(r'<td colspan="7" class="bh-count">3 dòng</td>', html)
-    assert 'colspan="7" class="cnt"' not in html
 
 
 def test_the_brand_gap_reads_as_a_notice_not_an_error(repository, client):

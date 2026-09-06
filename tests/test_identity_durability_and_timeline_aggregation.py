@@ -704,11 +704,19 @@ def test_daily_legacy_evidence_joins_the_same_week_without_touching_its_month():
 def test_f_e_the_chart_says_it_is_not_limited_to_the_selected_period(
     engine, repository, worker
 ):
-    """`§14` — ô chỉ tiêu là KỲ ĐANG CHỌN, biểu đồ là toàn bộ dữ liệu.
+    """`§14` — ô chỉ tiêu là KỲ ĐANG CHỌN, biểu đồ là một phạm vi RỘNG HƠN.
 
-    Không sửa phạm vi (đó là một quyết định đã có), chỉ sửa chỗ mập mờ: hai
+    Không sửa phạm vi gốc (đó là quyết định `F-E`), chỉ sửa chỗ mập mờ: hai
     con số khác nhau đứng cạnh nhau mà không ai nói ra sẽ đọc thành hai con
     số mâu thuẫn.
+
+    `TASK-OWNER-UIUX-003` §2 REVISE lại đúng phần "biểu đồ luôn nhìn TOÀN BỘ
+    dữ liệu" của `F-E` (chủ dự án yêu cầu trực tiếp — xem `window_bounds`
+    trong `app/web/revenue_timeline.py`): ở mức Tháng, biểu đồ giờ khoanh về
+    đúng NĂM của kỳ đang chọn, không còn toàn bộ mọi năm. Phần còn lại của
+    `F-E` vẫn nguyên — biểu đồ vẫn RỘNG HƠN ô chỉ tiêu (một năm so với một
+    tháng), và câu giải thích dưới biểu đồ vẫn phải nói ĐÚNG phạm vi đang áp
+    dụng, không còn nói "TOÀN BỘ" khi nó không còn đúng nữa.
     """
     persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])
     seed_legacy(engine, [(7, 10, 50000000)], import_id="imp-2026", year=2026)
@@ -717,10 +725,13 @@ def test_f_e_the_chart_says_it_is_not_limited_to_the_selected_period(
     html = body(client, "/kinh-doanh?ky=2026-09&muc=thang")
 
     scope = metric(html, "chart-scope")
-    assert "TOÀN BỘ" in scope and "Kỳ dữ liệu" in scope
+    assert "Năm 2026" in scope and "chưa phải toàn bộ dữ liệu" in scope
+    assert "TOÀN BỘ" not in scope, (
+        "khoanh theo năm rồi thì câu giải thích không được nói TOÀN BỘ nữa")
 
     # Và sự khác nhau là THẬT trên chính trang này: ô chỉ tiêu chỉ có tháng 9,
-    # biểu đồ có cả tháng 7 — nên câu giải thích không phải một câu thừa.
+    # biểu đồ có cả tháng 7 (cùng năm 2026) — nên câu giải thích không phải
+    # một câu thừa.
     bars = chart_bars(html)
     assert set(bars) == {"2026-07", "2026-09"}
     assert Decimal(metric(html, "sales_revenue").replace(".", "")) < \

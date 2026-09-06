@@ -764,7 +764,13 @@ _SHEET_ROW_ORDER = {
 }
 
 
-def _reporting_row_key(sheet) -> tuple:
+def sheet_display_order(sheet) -> tuple:
+    """Khoá sắp xếp DÙNG CHUNG cho mọi màn hình liệt kê sheet: nhân viên theo
+    thứ tự master (`config/employees.yaml`) trước, "chưa xác định" sau, rồi
+    Nội thành, cuối cùng Gia dụng (`TASK-OWNER-UIUX-002` §5). Trang Báo cáo
+    (`reporting_rows`) và thanh tab của không gian làm việc
+    (`workspace_presentation.sheet_tabs`) đều sort theo ĐÚNG một hàm này —
+    một nguồn thứ tự duy nhất, nên hai màn hình không bao giờ lệch nhau."""
     if sheet.employee:
         return (_ROW_ORDER_EMPLOYEE, employee_master_rank(sheet.employee),
                 sheet.employee)
@@ -835,7 +841,7 @@ def reporting_rows(sheet_totals: list[tuple], company: bm.BusinessTotals,
     """
     rows = []
     for sheet, totals in sorted(sheet_totals,
-                                key=lambda item: _reporting_row_key(item[0])):
+                                key=lambda item: sheet_display_order(item[0])):
         rows.append({
             "employee": sheet.label or UNKNOWN_EMPLOYEE,
             "key": sheet.employee or "",
@@ -1211,9 +1217,33 @@ def _chart_y_axis(ceiling: Decimal) -> list[dict]:
     return ticks
 
 
+#: `TASK-OWNER-UIUX-003` §2 — câu chữ của `F-E` khi biểu đồ bị KHOANH cửa sổ
+#: quanh kỳ đang chọn (Ngày/Tuần/Tháng). Không windowed (Quý/Năm, hoặc đang
+#: xem "Toàn bộ dữ liệu") vẫn dùng nguyên `revenue_timeline.CHART_SCOPE_NOTE`
+#: — F-E không bị bỏ, chỉ ĐỔI CÂU theo đúng phạm vi thật của từng trường hợp,
+#: để không câu nào trên trang nói sai biểu đồ đang nhìn xa tới đâu.
+_CHART_WINDOW_SCOPE_TEXT = {
+    revenue_timeline.DAY: (
+        "Ở mức Ngày, biểu đồ chỉ hiện các ngày trong tháng {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+    revenue_timeline.WEEK: (
+        "Ở mức Tuần, biểu đồ chỉ hiện các tuần trong {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+    revenue_timeline.MONTH: (
+        "Ở mức Tháng, biểu đồ chỉ hiện các tháng trong {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+}
+
+
+def _chart_scope_note(granularity: str, window_label: str) -> str:
+    if window_label:
+        return _CHART_WINDOW_SCOPE_TEXT[granularity].format(label=window_label)
+    return revenue_timeline.CHART_SCOPE_NOTE
+
+
 def revenue_chart(
     points, *, granularity: str, has_legacy_months: bool = False,
-    undated: int = 0,
+    undated: int = 0, window_label: str = "",
 ) -> dict:
     """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp."""
     peak = max((point.revenue for point in points), default=Decimal(0))
@@ -1281,7 +1311,8 @@ def revenue_chart(
         "empty_note": CHART_EMPTY_NOTE,
         "note": revenue_timeline.CHART_NOTE,
         # `F-E` — phạm vi thời gian của biểu đồ, nói cạnh chính biểu đồ.
-        "scope_note": revenue_timeline.CHART_SCOPE_NOTE,
+        "scope_note": _chart_scope_note(granularity, window_label),
+        "windowed": bool(window_label),
         "total": format_number(revenue_timeline.totals_of(points)),
         "total_kvnd": _thousand_vnd(revenue_timeline.totals_of(points)),
         "has_partial": any(bar["partial"] for bar in bars),
@@ -1340,7 +1371,7 @@ __all__ = [
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
     "assignable_employee_options", "coverage_cell", "detail_rows",
-    "KPI_PROFIT_NOTE", "pending_items", "reporting_rows",
+    "KPI_PROFIT_NOTE", "pending_items", "reporting_rows", "sheet_display_order",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",
     "not_seen_warning", "percent",

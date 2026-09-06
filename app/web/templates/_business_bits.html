@@ -215,7 +215,16 @@
    `DEC-PHB02-07` vẫn có CHỮ (`mom-note`); nhãn nguồn `DEC-180` §9
    (`mom-origin`/`mom-source`) vẫn hiện đúng khi mốc so đến từ SỐ CŨ.
    Dấu +/− luôn có mặt; màu chỉ bổ sung. Chỉ so DOANH THU BÁN HÀNG — câu đó
-   nằm trong tooltip của chính con số. #}
+   nằm trong tooltip của chính con số.
+
+   `TASK-OWNER-UIUX-003` §1 — câu giải thích đầy đủ của `DEC-180` §9
+   ("SỐ CŨ — dòng Tổng tháng của sheet Summary..." + `MOM_LEGACY_PREVIOUS_
+   NOTE`) quá dài để đứng thẳng trên trang, theo yêu cầu trực tiếp của chủ
+   dự án. Nó KHÔNG bị xoá — `mom-source`/`mom-note` vẫn là hai phần tử mang
+   đúng nội dung cũ — chỉ lùi vào tooltip của chính cái tag "SỐ CŨ", cùng cơ
+   chế rê-chuột/lia-tới như `kpi_help`. Nhánh KHÔNG có origin (Toàn bộ dữ
+   liệu / chưa có tháng trước / tháng trước bằng 0) không đổi: câu đó NGẮN
+   và là thông tin duy nhất thay cho một con số, nên vẫn hiện thẳng. #}
 {% macro mom_inline(mom, previous_label) -%}
 {% set sign = '' if mom.missing else mom.percent[:1] %}
 <span class="kpi-delta{{ ' empty-cell' if mom.missing }}{{ ' up' if sign == '+' }}{{ ' down' if sign == '-' }}"
@@ -224,10 +233,14 @@
       >{{ mom.percent }}</span>
 {% if not mom.missing %}<span class="tp-unit">so với {{ previous_label or 'tháng trước' }}</span>{% endif %}
 {% if mom.origin %}
-<span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
-<span class="tp-unit" data-metric="mom-source">{{ mom.source }}</span>
-{% endif %}
-{% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+<span class="kpi-help mom-legacy-help" tabindex="0" aria-label="Nguồn mốc so sánh">
+  <span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
+  <span class="kpi-help-tip">
+    <span data-metric="mom-source">{{ mom.source }}</span>
+    {% if mom.note %}<span data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+  </span>
+</span>
+{% elif mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
 {%- endmacro %}
 
 {# Ô CHỦ ĐẠO: con số trả lời câu hỏi đầu tiên của người đọc quản trị, to hơn

@@ -23,21 +23,22 @@
 
 {% block content %}
 <h1>NHÂN VIÊN — {{ sheet.period_label }}</h1>
-{# Câu này KHÔNG được liệt kê tên nhân viên nào: thành phần của nhóm Nội
-   thành nằm ở `config/employees.yaml` và chỉ ở đó (PHB-05 CASE 10 canh
-   chính điều này bằng cách đọc master rồi grep các template). #}
-<p class="insight">{{ biz.business_badge() }}
-  Mỗi sheet ở dưới là một đơn vị báo cáo. Sheet Nội thành gộp cả nhóm thành
-  một, nhưng cột Nhân viên trong bảng vẫn ghi đúng người bán.</p>
 
 {% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
 {% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
 
-{# --- 1. KỲ DỮ LIỆU ---------------------------------------------------
+{# --- 1. KỲ DỮ LIỆU + 2. HÀNG SHEET, MỘT CARD -------------------------
+   `TASK-OWNER-UIUX-003` §4 — gộp bộ chọn kỳ và hàng sheet vào CHUNG một
+   card để đỡ diện tích dọc; thứ tự vẫn Kỳ dữ liệu TRƯỚC (`§4`/`UX-05`),
+   hàng sheet NGAY SAU nó, và cả hai vẫn đứng trước năm chỉ tiêu. Câu giải
+   thích "Mỗi sheet ở dưới là một đơn vị báo cáo..." bị bỏ theo yêu cầu
+   trực tiếp của chủ dự án — tên "Nội thành"/"Gia dụng" trên chính tab đã
+   đủ để đọc, không cần một đoạn văn đứng trước nó.
+
    Chỉ có THÁNG. Không có mục "Toàn bộ dữ liệu" (`§3`, CASE UX-03): đây là
    màn hình vận hành theo tháng, và một Target không biết mình thuộc tháng
    nào là một Target ghi vào tháng sai. #}
-<div class="module">
+<div class="module workspace-period-card">
   <form class="filter-row" method="get" action="{{ url_for('business_employee') }}">
     <input type="hidden" name="sheet" value="{{ sheet.key }}">
     <span class="kpi-period">
@@ -51,25 +52,69 @@
     </span>
     <button class="ghost btn-mini" type="submit">XEM</button>
   </form>
+  <nav class="sheet-tabs" data-metric="sheet-tabs">
+    {% for tab in tabs %}
+    <a class="sheet-tab {{ 'on' if tab.selected }}{{ ' sheet-group' if tab.group }}"
+       data-metric="sheet-tab" data-sheet="{{ tab.key }}"
+       href="{{ url_for('business_employee', ky=selected_period, sheet=tab.key) }}"
+      >{{ tab.label }}</a>
+    {% endfor %}
+  </nav>
 </div>
-
-{# --- 2. HÀNG SHEET ---------------------------------------------------- #}
-<nav class="sheet-tabs" data-metric="sheet-tabs">
-  {% for tab in tabs %}
-  <a class="sheet-tab {{ 'on' if tab.selected }}{{ ' sheet-group' if tab.group }}"
-     data-metric="sheet-tab" data-sheet="{{ tab.key }}"
-     href="{{ url_for('business_employee', ky=selected_period, sheet=tab.key) }}"
-    >{{ tab.label }}</a>
-  {% endfor %}
-</nav>
 
 {# --- 3. NĂM CHỈ TIÊU CỦA SHEET ---------------------------------------- #}
 <div class="module">
   <h2><span data-metric="employee">{{ sheet.label }}</span>
     <span class="cnt"><span data-metric="orders">{{ sheet.orders }}</span> đơn ·
       <span data-metric="lines">{{ sheet.lines }}</span> dòng ·
-      <span data-metric="qualifying_quantity">{{ sheet.qualifying_quantity }}</span> SP</span></h2>
+      <span data-metric="qualifying_quantity">{{ sheet.qualifying_quantity }}</span> SP
+      {% if not sheet.unresolved %}
+      · Target <strong class="{{ 'empty-cell' if target.unset }}"
+              data-metric="employee-target"
+              {% if not target.unset %}title="{{ target.text }} đồng"{% endif %}
+        >{{ target.text_kvnd }}</strong>{% if not target.unset %} nghìn{% endif %}
+      {% if editing_target %}
+      <a class="ghost btn-mini on" data-metric="target-edit-close"
+         href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
+        >XONG</a>
+      {% else %}
+      <a class="ghost btn-mini" data-metric="target-edit"
+         href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                          **{'sua-target': '1'}) }}"
+         aria-label="Sửa target của {{ sheet.label }}">&#9998;</a>
+      {% endif %}
+      {% endif %}
+    </span></h2>
 
+  {# `TASK-OWNER-UIUX-003` §6 — bảng "TARGET CỦA SHEET" đứng riêng bị gỡ theo
+     yêu cầu trực tiếp của chủ dự án; con số Target giờ đọc ngay trên dòng
+     tiêu đề (trên), và ô nhập chỉ hiện khi bấm icon sửa — ẩn mặc định để
+     không chiếm diện tích lúc chỉ xem báo cáo. Đường dẫn sang màn hình
+     Target đầy đủ (`PHB-05`, đặt target cho nhiều người một lúc) vẫn còn —
+     nó là một khung nhìn khác hẳn, không phải phần bị gỡ ở đây. #}
+  {% if not sheet.unresolved %}
+  <p><a class="ghost btn-mini" data-metric="target-link"
+        href="{{ url_for('business_target', ky=selected_period) }}"
+     >ĐẶT / SỬA TARGET</a></p>
+  {% endif %}
+  {% if editing_target and not sheet.unresolved %}
+  <div class="target-edit-inline" data-metric="target-edit-panel">
+    {% if target.kvnd_editable %}
+    <form class="filter-row" method="post"
+          action="{{ url_for('business_save_sheet_target') }}">
+      <input type="hidden" name="ky" value="{{ selected_period }}">
+      <input type="hidden" name="sheet" value="{{ sheet.key }}">
+      <label class="tp-label" for="target">{{ TARGET_UNIT_LABEL }}</label>
+      <input type="text" inputmode="numeric" name="target" id="target"
+             value="{{ target.input_value }}" data-metric="target-input"
+             placeholder="để trống = gỡ target">
+      <button class="ghost btn-mini" type="submit" data-metric="target-save">LƯU</button>
+    </form>
+    {% else %}
+    <span class="tp-unit" data-metric="target-not-kvnd">{{ TARGET_NOT_KVND_NOTE }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="kpi-grid strip">
     {{ biz.kpi('Doanh thu', strip.sales_revenue_kvnd, 'sales_revenue',
                'nghìn đồng', full=strip.sales_revenue ~ ' đồng') }}
@@ -121,44 +166,6 @@
   </p>
   {{ biz.coverage_breakdown(sheet.coverage) }}
 </div>
-
-{# --- TARGET CỦA SHEET -------------------------------------------------
-   `§17`/`§18`: nhập theo NGHÌN ĐỒNG, và đơn vị nằm ngay trên ô nhập chứ
-   không chỉ trong một câu giải thích. Kho lưu vẫn là VND (PHB-05 §7) —
-   tooltip luôn hiện con số đầy đủ. #}
-{% if not sheet.unresolved %}
-<div class="module">
-  <h2>{{ TARGET_UNIT_LABEL }} — {{ sheet.label }} · {{ sheet.period_label }}</h2>
-  <p class="insight" data-metric="target-unit-note">{{ TARGET_KVND_NOTE }}</p>
-  <div class="filter-row">
-    <span class="kpi-card">
-      <span class="tp-label">Target hiện tại</span>
-      <strong class="kpi-value{{ ' empty-cell' if target.unset }}"
-              data-metric="employee-target"
-              {% if not target.unset %}title="{{ target.text }} đồng"{% endif %}
-        >{{ target.text_kvnd }}</strong>
-      {% if not target.unset %}<span class="tp-unit">nghìn đồng</span>{% endif %}
-    </span>
-    {% if target.kvnd_editable %}
-    <form class="filter-row" method="post"
-          action="{{ url_for('business_save_sheet_target') }}">
-      <input type="hidden" name="ky" value="{{ selected_period }}">
-      <input type="hidden" name="sheet" value="{{ sheet.key }}">
-      <label class="tp-label" for="target">{{ TARGET_UNIT_LABEL }}</label>
-      <input type="text" inputmode="numeric" name="target" id="target"
-             value="{{ target.input_value }}" data-metric="target-input"
-             placeholder="để trống = gỡ target">
-      <button class="ghost btn-mini" type="submit" data-metric="target-save">LƯU</button>
-    </form>
-    {% else %}
-    <span class="tp-unit" data-metric="target-not-kvnd">{{ TARGET_NOT_KVND_NOTE }}</span>
-    {% endif %}
-  </div>
-  <p><a class="ghost btn-mini" data-metric="target-link"
-        href="{{ url_for('business_target', ky=selected_period) }}"
-     >ĐẶT / SỬA TARGET</a></p>
-</div>
-{% endif %}
 
 {# --- HỘP XÁC NHẬN ----------------------------------------------------
    `§9` — ngắn, ba gạch đầu dòng, hai nút. Không đoạn giải thích kỹ thuật
@@ -280,75 +287,38 @@
 
     {% for group in groups %}
     {% set open = editing == group.order_key %}
-    {# Hàng ĐẦU của một BH mang ngày, mã đơn, khách hàng và MỘT nút sửa
-       (`§27`). Các dòng hàng tiếp theo của cùng BH để trống bốn ô đó —
-       đúng cách sổ kế toán trình bày một đơn nhiều dòng. #}
-    <tr class="bh-head shade-{{ group.shade }}{{ ' bh-open' if open }}{{ ' bh-unresolved' if group.unresolved_identity }}"
-        id="bh-{{ group.order_key }}"
+    {% for row in group.rows %}
+    {% set first = loop.first %}
+    {# `TASK-OWNER-UIUX-003` §7 — Ngày/Mã đơn/Khách hàng KHÔNG còn đứng
+       thành một hàng riêng nữa: chúng nằm trên đúng hàng của dòng hàng ĐẦU
+       TIÊN của BH, trải xuống (`rowspan`) qua các dòng hàng còn lại. Ô đếm
+       "N dòng" bị bỏ theo yêu cầu trực tiếp của chủ dự án — số dòng đã tự
+       hiện ra bằng chính số hàng của khối, không cần một ô nói lại điều đó.
+       Nút sửa của cả BH (`bh-edit`) chuyển vào ô thao tác của dòng đầu. #}
+    <tr class="{{ 'bh-head ' if first }}shade-{{ group.shade }}{{ ' row-loss' if row.loss }}{{ ' row-discount' if row.synthetic }}{{ ' bh-open' if open and first }}{{ ' bh-unresolved' if group.unresolved_identity and first }}"
+        {% if first %}id="bh-{{ group.order_key }}"{% endif %}
+        {% if first %}
         data-metric="bh-head" data-order="{{ group.order_key }}"
         {% if group.unresolved_identity %}data-unresolved-identity="1"{% endif %}
-        data-shade="{{ group.shade }}">
-      <td data-metric="bh-date">{{ group.date_text }}</td>
-      <td class="code" data-metric="bh-order">{{ group.order_key }}
+        data-shade="{{ group.shade }}"
+        {% else %}
+        data-metric="line-row" data-order="{{ row.order_key }}"
+        {% if row.loss %}data-metric-loss="1"{% endif %}
+        {% endif %}>
+      {% if first %}
+      <td rowspan="{{ group.lines }}" data-metric="bh-date">{{ group.date_text }}</td>
+      <td rowspan="{{ group.lines }}" class="code" data-metric="bh-order">{{ group.order_key }}
         {% for tag in group.tags %}
         <span class="tag tag-short" data-metric="bh-tag"
               data-code="{{ tag.code }}">{{ tag.label }}</span>
         {% endfor %}</td>
-      <td data-metric="bh-customer">
+      <td rowspan="{{ group.lines }}" data-metric="bh-customer">
         <span data-metric="customer-name">{{ group.customer_name }}</span>
         {# TASK-UIUX-001 — SĐT · địa chỉ xuống dòng dưới tên, chữ nhạt. #}
         <span class="bh-customer-meta"><span data-metric="customer-phone">{{ group.customer_phone }}</span>
           · <span data-metric="customer-address">{{ group.customer_address }}</span></span>
       </td>
-      <td colspan="7" class="bh-count">{{ group.lines }} dòng</td>
-      <td>
-        {% if open %}
-        <a class="ghost btn-mini on" data-metric="bh-edit-close"
-           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
-          >XONG</a>
-        {% else %}
-        <a class="ghost btn-mini" data-metric="bh-edit"
-           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
-                            sua=group.order_key) }}"
-           aria-label="Sửa đơn {{ group.order_key }}">&#9998;</a>
-        {% endif %}
-      </td>
-    </tr>
-
-    {# Chế độ sửa của MỘT BH: đổi nhân viên một lần cho cả đơn (`§27`). Ô
-       chọn để trống khi các dòng đang thuộc nhiều người khác nhau — gợi ý
-       hộ một người ở đó là dời KPI của người khác chỉ vì Owner bấm LƯU. #}
-    {% if open and assignable %}
-    <tr class="bh-edit-row shade-{{ group.shade }}">
-      <td colspan="11">
-        <form class="filter-row" method="post"
-              action="{{ url_for('business_save_order_employee') }}">
-          <input type="hidden" name="ky" value="{{ selected_period }}">
-          <input type="hidden" name="sheet" value="{{ sheet.key }}">
-          <input type="hidden" name="order_key" value="{{ group.order_key }}">
-          <label class="tp-label" for="nv-{{ group.order_key }}">Nhân viên của cả đơn</label>
-          <select name="nhan_vien_moi" id="nv-{{ group.order_key }}"
-                  data-metric="bh-employee-select">
-            {% for option in assignable %}
-            <option value="{{ option.value }}"
-                    {{ 'selected' if option.value == group.employee_value }}>
-              {{ option.label }}</option>
-            {% endfor %}
-          </select>
-          <button class="ghost btn-mini" type="submit"
-                  data-metric="bh-employee-save">GÁN CẢ ĐƠN</button>
-        </form>
-      </td>
-    </tr>
-    {% endif %}
-
-    {% for row in group.rows %}
-    <tr class="shade-{{ group.shade }}{{ ' row-loss' if row.loss }}{{ ' row-discount' if row.synthetic }}"
-        data-metric="line-row" data-order="{{ row.order_key }}"
-        {% if row.loss %}data-metric-loss="1"{% endif %}>
-      <td></td>
-      <td></td>
-      <td></td>
+      {% endif %}
       {# `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện nằm NGAY trong ô mã
          hàng, không ở một trang khác và không ở một khối khác.
 
@@ -408,6 +378,20 @@
       {{ biz.derived_cell(row.kpi_profit, 'line-profit') }}
       {{ biz.derived_cell(row.converted_sales, 'line-converted') }}
       <td class="line-actions">
+        {# Nút sửa của CẢ BH nằm ở dòng hàng đầu, cùng ô thao tác với dòng
+           đó (`§7`) — một nút cho cả khối, không rải theo từng dòng. #}
+        {% if first %}
+        {% if open %}
+        <a class="ghost btn-mini on" data-metric="bh-edit-close"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
+          >XONG</a>
+        {% else %}
+        <a class="ghost btn-mini" data-metric="bh-edit"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                            sua=group.order_key) }}"
+           aria-label="Sửa đơn {{ group.order_key }}">&#9998;</a>
+        {% endif %}
+        {% endif %}
         {# `§33` — hai thao tác KHÁC NHAU, và không cái nào cài bằng cái kia.
            Cả hai đi qua một hộp xác nhận ngắn trước khi ghi. #}
         {% if row.can_classify %}
@@ -442,6 +426,35 @@
         {% endif %}
       </td>
     </tr>
+
+    {# Chế độ sửa của MỘT BH: đổi nhân viên một lần cho cả đơn (`§27`). Ô
+       chọn để trống khi các dòng đang thuộc nhiều người khác nhau — gợi ý
+       hộ một người ở đó là dời KPI của người khác chỉ vì Owner bấm LƯU.
+       Đứng ngay sau hàng đầu (nay đã gộp Ngày/Mã đơn/Khách hàng), trước khi
+       sang các dòng hàng còn lại của cùng BH. #}
+    {% if first and open and assignable %}
+    <tr class="bh-edit-row shade-{{ group.shade }}">
+      <td colspan="11">
+        <form class="filter-row" method="post"
+              action="{{ url_for('business_save_order_employee') }}">
+          <input type="hidden" name="ky" value="{{ selected_period }}">
+          <input type="hidden" name="sheet" value="{{ sheet.key }}">
+          <input type="hidden" name="order_key" value="{{ group.order_key }}">
+          <label class="tp-label" for="nv-{{ group.order_key }}">Nhân viên của cả đơn</label>
+          <select name="nhan_vien_moi" id="nv-{{ group.order_key }}"
+                  data-metric="bh-employee-select">
+            {% for option in assignable %}
+            <option value="{{ option.value }}"
+                    {{ 'selected' if option.value == group.employee_value }}>
+              {{ option.label }}</option>
+            {% endfor %}
+          </select>
+          <button class="ghost btn-mini" type="submit"
+                  data-metric="bh-employee-save">GÁN CẢ ĐƠN</button>
+        </form>
+      </td>
+    </tr>
+    {% endif %}
     {% endfor %}
     {% endfor %}
   </table>

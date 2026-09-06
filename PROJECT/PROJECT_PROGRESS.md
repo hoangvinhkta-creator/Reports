@@ -1,5 +1,71 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-003 = DONE (2026-09-06)
+
+Vòng sửa thứ ba theo phản hồi bằng hai ảnh chụp màn hình (khoanh đỏ) + bảy
+yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-192` trên môi trường
+thật. Quyết định: `DEC-193`. Ba khối `TASK-OWNER-UIUX-002 R2`/`REPORT
+OVERVIEW`/`TASK-UIUX-001` và Reports Phase B bên dưới GIỮ NGUYÊN thẩm quyền
+— lượt này sửa tiếp trên cùng các trang đó.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = c18be98e266aa1b6b8c842617043e765a1194cfb
+Current Task Mode:            MICRO (bảy sửa trực tiếp trên MAJOR vừa DONE)
+CHANGES                     = chú giải MoM "SỐ CŨ" rút gọn còn "so với
+                              {tháng trước}", câu dài lùi vào tooltip · biểu
+                              đồ thu nửa trái + card "Biểu đồ khác" dự
+                              phòng bên phải + khoanh cửa sổ hiển thị theo
+                              mức gộp (Ngày→tháng, Tuần→quý, Tháng→năm; Quý/
+                              Năm không khoanh) · bỏ badge "SỐ MỚI" khỏi cả
+                              Báo cáo và Nhân viên · gộp hàng sheet vào
+                              chung card với Kỳ dữ liệu, sắp cùng thứ tự
+                              với bảng Theo nhân viên · 5 thẻ chỉ tiêu không
+                              gian làm việc về một hàng · card Target đứng
+                              riêng gỡ bỏ, thay bằng icon sửa cạnh dòng tiêu
+                              đề sheet (mở panel nhỏ qua `sua-target=1`) ·
+                              bảng kê ledger gộp hai tầng (hàng nhóm + hàng
+                              dòng hàng) thành một tầng bằng `rowspan`, bỏ ô
+                              đếm "N dòng"
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (`window_points` là phép lọc HIỂN THỊ áp
+                              sau khi `series()` đã tính đầy đủ; mọi bất
+                              biến tính toán không đổi trên tập điểm ĐẦY ĐỦ)
+F_E_REVISED                 = CÓ, một phần — biểu đồ mức THÁNG nay khoanh
+                              theo NĂM của kỳ đang chọn thay vì luôn TOÀN
+                              BỘ dữ liệu (chủ dự án được hỏi thẳng đánh đổi
+                              này qua AskUserQuestion và CHỌN áp dụng); Quý/
+                              Năm giữ nguyên TOÀN BỘ dòng thời gian như `F-
+                              E` gốc. Xem `DEC-193` mục 2 và `DEC-185`
+                              CHART-10/CHART-11 (test sửa lại để phản ánh:
+                              liên tục trong phạm vi một năm, xuyên năm vẫn
+                              liền mạch qua điều hướng kỳ, không mất, không
+                              cần bộ chọn nguồn)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi — `sua-
+                              target` là một query param đọc thêm ở route
+                              GET đã có, không phải endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `c18be98`: 2722/11 — chênh đúng 1 vì
+                              `test_the_bh_head_count_is_plain_text_not_a_
+                              pill_cell` bị GỠ, tiền đề của nó không còn
+                              tồn tại; không test nào khác mất hay bị hạ
+                              chuẩn, xem DEC-193 mục 7) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/820/390px —
+                              biểu đồ gập dọc dưới 900px, KPI 5 thẻ gập 3/2
+                              cột, bảng kê cuộn trong card
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189), không reference nào của lượt
+                              này
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 R2 (REVISION) = DONE (2026-09-06)
 
 Năm sửa trực tiếp trên trang BÁO CÁO theo phản hồi bằng mắt của chủ dự án
