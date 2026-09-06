@@ -1,5 +1,40 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-006 = DONE (2026-09-06)
+
+Chủ dự án xác nhận lại cách hiểu ở `DEC-195` §2 (mục "Can Revisit After"
+DEC-195 tự nêu ra): card "Tiến độ" của mỗi nhân viên CŨNG lên ngang hàng
+với năm card KPI ở trên, thay vì tách riêng một hàng. Quyết định:
+`DEC-196`. Thuần bố cục — không đổi business logic/database/write
+authority/navigation chính.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = 9ed604a701be5e68bd821c1d4ba5d680181539f2
+Current Task Mode:            MICRO (một sửa bố cục trên MAJOR vừa DONE)
+CHANGES                      = Tiến độ dời từ `.kpi-grid.kpi-grid-one`
+                              (khối riêng) vào thẳng `.kpi-grid.strip`,
+                              đứng sau Lợi nhuận KPI · CSS `.kpi-grid.
+                              strip` đổi `repeat(5,...)` → `repeat(6,...)`
+                              (breakpoint 900px/560px giữ 3 cột/2 cột) ·
+                              markup từng card KHÔNG đổi, chỉ đổi khối cha
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `9ed604a`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (đã ghi từ DEC-189, không tăng
+                              thêm — xác nhận bằng cách dời `.venv` cục bộ
+                              [gitignored, không phải nội dung repo] ra
+                              ngoài trước khi chạy validator để loại nhiễu)
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-005 = DONE (2026-09-06)
 
 Vòng sửa thứ năm theo phản hồi bằng hai ảnh chụp màn hình trang Nhân

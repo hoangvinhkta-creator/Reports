@@ -11695,3 +11695,69 @@ xác nhận trực tiếp bằng lời — cần Owner xem kết quả và xác 
 sâu hơn (Bán hàng, Sản phẩm, Tổng quan, Lịch sử...) chưa được yêu cầu —
 cơ chế `theme-finance` đã sẵn cho bất kỳ template nào muốn dùng, chỉ cần
 thêm đúng một dòng `{% set theme = 'finance' %}`.
+
+## DEC-196
+
+Title:
+`TASK-OWNER-UIUX-006` — chủ dự án xác nhận lại cách hiểu ở `DEC-195` §2:
+card "Tiến độ" của mỗi nhân viên CŨNG lên ngang hàng với năm card KPI ở
+trên, thay vì đứng tách riêng một hàng.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản: "cho card tiến độ của
+mỗi nhân viên lên ngang hàng với 5 card ở trên"). Đây chính là câu trả lời
+Owner cho mục "Can Revisit After" mà `DEC-195` đã chủ động nêu ra — DEC-195
+tự nhận diễn giải "Tiến độ tách hàng riêng" là MỘT SUY LUẬN chưa xác nhận,
+và Owner nay xác nhận theo hướng NGƯỢC LẠI.
+
+Supersedes:
+Đảo lại đúng phần bố cục của `DEC-195` §2 (Tiến độ đứng ở `.kpi-grid.
+kpi-grid-one` tách riêng). Không chạm phần còn lại của DEC-195 (tag dưới
+BH, cột icon sửa đơn riêng, theme Finance) hay bất kỳ bất biến nghiệp vụ
+nào — thuần bố cục.
+
+### 1. Sáu ô KPI cùng một hàng, cùng kích cỡ
+
+`kinh_doanh_nhan_vien.html`: card Tiến độ dời từ khối `.kpi-grid.
+kpi-grid-one` riêng VÀO thẳng `.kpi-grid.strip`, đứng sau Lợi nhuận KPI —
+markup của card (nhãn, `data-metric="month-progress"`, ghi chú) giữ
+NGUYÊN, chỉ đổi khối cha. Khối `.kpi-grid.kpi-grid-one` (chỉ còn card Tiến
+độ) bị gỡ hẳn khỏi trang.
+
+`tinphat-ui.css`: `.kpi-grid.strip` đổi `grid-template-columns` từ
+`repeat(5, minmax(0, 1fr))` sang `repeat(6, minmax(0, 1fr))`; hai
+breakpoint hẹp hơn giữ nguyên bố cục 3 cột (≤900px) rồi 2 cột (≤560px) —
+sáu ô chia đều 3+3 rồi 2+2+2, không xuất hiện hàng lẻ 1 ô. Class
+`.kpi-grid.strip` chỉ dùng trong đúng một template (`kinh_doanh_nhan_
+vien.html`) nên đổi số cột không ảnh hưởng trang nào khác (`kinh_doanh.
+html`/`ban_hang_chi_tiet.html`/`san_pham.html`/`tong_quan.html` dùng
+`.kpi-grid` KHÔNG có class `strip`, không đọc rule này).
+
+Impact:
+Thuần trình bày — không đổi business logic/database/write authority/
+navigation chính. Hai file thay đổi: `kinh_doanh_nhan_vien.html`,
+`tinphat-ui.css`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `9ed604a`
+(DEC-195), không test nào phải sửa đích (không test nào phụ thuộc cấu
+trúc `.kpi-grid.kpi-grid-one` riêng cho Tiến độ). Golden `58 passed, 2
+skipped`, KHÔNG đổi. Governance validator: structure/project_state/
+task_completion/evidence PASS; reference_integrity FAIL với ĐÚNG 3
+reference hỏng có sẵn của TASK-REM-T06 (xác nhận bằng cách chạy validator
+với `.venv` cục bộ — tạo khi cài môi trường test, gitignored, không phải
+nội dung repo — tạm dời sang ngoài để loại nhiễu do chính `.venv` gây ra
+lúc quét toàn bộ file `.md`).
+
+Ảnh chụp (Playwright trên bản dump tĩnh từ Flask test client thật, viewport
+1440px và 900px): sáu ô Doanh thu/DS quy đổi/So Target/So tháng trước/Lợi
+nhuận KPI/Tiến độ cùng một hàng, cùng chiều rộng ở 1440px; chia đều 3+3 ở
+900px, không ô nào bị kéo giãn khác thường.
+
+Can Revisit After:
+Không còn mục nào treo lại từ vòng UIUX-004/005/006. Việc mở rộng theme
+Finance sang các trang sâu hơn (nêu ở DEC-195 Can Revisit After) vẫn chưa
+được yêu cầu.

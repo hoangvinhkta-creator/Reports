@@ -146,17 +146,13 @@
     </div>
 
     {# `TASK-OWNER-UIUX-005` §2 — Lợi nhuận KPI lên NGANG HÀNG với bốn ô số
-       tiền ở trên (chủ dự án yêu cầu trực tiếp), thay chỗ của Tiến độ: năm
-       ô này đều là CHỈ TIÊU kinh doanh, kích cỡ bằng nhau qua `.kpi-grid.
-       strip` sẵn có. Tiến độ không phải một chỉ tiêu (`§15` — chỉ báo
-       LỊCH, không đổi Target/KPI/doanh thu nào) nên dời XUỐNG đúng chỗ Lợi
-       nhuận KPI vừa rời đi, tách khỏi hàng năm ô chính. #}
+       tiền ở trên (chủ dự án yêu cầu trực tiếp), thay chỗ của Tiến độ. #}
     {{ biz.gated_kpi('Lợi nhuận KPI', sheet.kpi_profit, 'kpi_profit') }}
-  </div>
 
-  {# Tiến độ + coverage: hai điều Owner đọc khi một con số ở trên mang nhãn
-     CHƯA HOÀN CHỈNH, đứng dưới năm ô chính. #}
-  <div class="kpi-grid kpi-grid-one">
+    {# `TASK-OWNER-UIUX-006` — chủ dự án xác nhận lại: Tiến độ CŨNG lên
+       NGANG HÀNG với năm ô kia (đảo lại phần tách riêng của `DEC-195` §2,
+       vốn là một suy luận CHƯA được xác nhận trực tiếp). Sáu ô cùng
+       `.kpi-grid.strip`, cùng kích cỡ. #}
     <div class="kpi-card">
       <span class="tp-label">Tiến độ</span>
       <strong class="kpi-value" data-metric="month-progress">{{ strip.progress.text }}</strong>

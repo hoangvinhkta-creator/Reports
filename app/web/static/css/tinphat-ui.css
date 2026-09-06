@@ -568,11 +568,12 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
    một thẻ rộng bằng cả trang đọc như một dải cảnh báo. */
 .kpi-grid-one { grid-template-columns: repeat(auto-fit, minmax(180px, 320px)); }
 
-/* `TASK-OWNER-UIUX-003` §5 — năm chỉ tiêu của không gian làm việc (Doanh
-   thu · DS quy đổi · So Target · So tháng trước · Tiến độ) LUÔN trên MỘT
-   hàng ở mọi độ rộng còn hợp lý, thay vì bốc thăm 3+2/2+2+1 tuỳ độ rộng cửa
-   sổ như `repeat(auto-fit, minmax(180px,1fr))` mặc định của `.kpi-grid`. */
-.kpi-grid.strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+/* `TASK-OWNER-UIUX-003` §5, mở rộng ở `TASK-OWNER-UIUX-006` — sáu chỉ tiêu
+   của không gian làm việc (Doanh thu · DS quy đổi · So Target · So tháng
+   trước · Lợi nhuận KPI · Tiến độ) LUÔN trên MỘT hàng ở mọi độ rộng còn hợp
+   lý, thay vì bốc thăm tuỳ độ rộng cửa sổ như `repeat(auto-fit,
+   minmax(180px,1fr))` mặc định của `.kpi-grid`. */
+.kpi-grid.strip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 @media (max-width: 900px) {
   .kpi-grid.strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
