@@ -11523,3 +11523,175 @@ nghĩa. Việc mở rộng lớp AJAX sang các trang KHÁC ngoài Báo cáo/Nh�
 đã hỗ trợ SẴN cho bất kỳ trang nào extend `layout.html`, nên mở rộng khi
 cần không đòi hỏi sửa lại nền tảng, chỉ cần các trang đó tự đúng cấu trúc
 form/link hiện có.
+
+## DEC-195
+
+Title:
+`TASK-OWNER-UIUX-005` — vòng sửa thứ năm theo phản hồi trực tiếp của chủ
+dự án trên `DEC-194`: hai ảnh chụp màn hình trang Nhân viên + bốn yêu cầu
+bằng văn bản — tag cảnh báo xuống dưới số BH, "Lợi nhuận KPI" lên ngang
+hàng năm ô KPI đầu, cột icon sửa đơn tách riêng cuối bảng, và ÁP DỤNG
+CÓ CHỌN LỌC ngôn ngữ thiết kế (màu sắc/icon/hiển thị) của repo
+`hoangvinhkta-creator/Finance` cho ba trang người xem (Báo cáo/Nhân
+viên/Dữ liệu) — không chạm layout/kiến trúc/hành vi.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (hai ảnh chụp màn hình + bốn yêu cầu bằng văn bản của
+chủ dự án, cùng ba câu trả lời làm rõ qua `AskUserQuestion` trước khi
+triển khai — xem mục 0, đúng yêu cầu "hỏi lại tôi trước khi bắt tay xử
+lí"). Mục 4 (theme Finance) là REVISE có chủ đích bảng màu mặc định của
+`tinphat-ui.css` — bản thân stylesheet đã tự nhận là "bản chép tĩnh có
+chọn lọc" của một hệ thiết kế tham chiếu khác ("Tracking"); DEC-195 làm
+lại đúng khuôn mẫu đó với Finance làm nguồn tham chiếu thứ hai, KHOANH
+VÙNG bằng cơ chế mới (`body.theme-finance`) chứ không thay thế bảng màu
+gốc.
+
+Supersedes:
+Không supersede quyết định nghiệp vụ nào. REVISE có chủ đích phần trình
+bày của `DEC-194` §1/§4 (bố cục ô Mã đơn, dải KPI, cột thao tác bảng kê)
+— các bất biến nghiệp vụ (`F-E`/`F-N03`/`DEC-166E`/`DEC-185`/`PHB-05`)
+không đổi.
+
+### 0. Ba câu hỏi làm rõ trước khi triển khai
+
+1. Phạm vi áp dụng theme Finance → "chỉ áp dụng cho những trang hiện hữu
+   với người xem (báo cáo - nhân viên - dữ liệu)" — không áp dụng cho các
+   trang sâu hơn (Bán hàng, Sản phẩm, Tổng quan, Lịch sử...).
+2. Cách áp icon → "Vẽ icon SVG mới cùng phong cách cho MỌI thao tác"
+   (khuyến nghị) — không chỉ chép icon Finance sẵn có (Finance vốn chỉ
+   dùng icon cho nav + chevron tháng; thao tác dòng bảng của chính
+   Finance là nút chữ thường "sửa"/"xoá", không phải icon).
+3. Cách áp màu → "Đổi màu CHỦ ĐẠO sang đen, GIỮ nghĩa màu trạng thái"
+   (khuyến nghị) — xanh dương (`--tp-blue`) hiện tại đổi sang đen/xám đậm
+   kiểu Finance, còn xanh lá (thành công/AUTO)/vàng (CHƯA HOÀN CHỈNH)/đỏ
+   (lỗi/defect) giữ nguyên Ý NGHĨA, chỉ đổi sắc độ cho khớp tông trung
+   tính của Finance.
+
+### 1. Tag cảnh báo xuống dưới số BH
+
+`kinh_doanh_nhan_vien.html`, ô Mã đơn: trước đây `data-metric="bh-order"`
+nằm thẳng trên `<td>`, tag tràn ra cạnh/xuống dòng chồng lên số BH khi
+đơn mang từ hai tag trở lên. Nay tách hai lớp rõ ràng trong cùng ô: một
+`<span class="bh-order-code" data-metric="bh-order">` mang riêng chữ mã
+đơn, và một `<div class="bh-order-tags">` (flex-wrap) chứa MỌI tag
+(`group.tags` + `group.identity_tags`) đứng NGAY DƯỚI. `data-metric=
+"bh-order"` dời theo xuống `<span>` — ba selector CSS cũ neo theo
+`td[data-metric="bh-order"]` (bôi đậm hàng `bh-head`, `vertical-align`,
+`max-width`) đổi sang neo `td.code` (attribute đã không còn ở `<td>`,
+nếu không sửa ba rule này sẽ lặng lẽ không khớp gì).
+
+### 2. Lợi nhuận KPI lên ngang hàng — Tiến độ dời xuống
+
+Owner: "card lợi nhuận KPI lên ngang hàng với 4 card ở trên và kích cỡ 5
+card này bằng nhau". `kinh_doanh_nhan_vien.html`: `Lợi nhuận KPI` dời
+VÀO `.kpi-grid.strip` (cùng Doanh thu/DS quy đổi/So Target/So tháng
+trước — năm ô CHỈ TIÊU kinh doanh, cùng lưới `.kpi-grid.strip` nên tự
+động bằng kích cỡ, không cần CSS riêng). `Tiến độ` — vốn đứng ở đúng chỗ
+Lợi nhuận KPI vừa rời đi — dời XUỐNG khối `.kpi-grid.kpi-grid-one` một ô
+riêng, tách khỏi hàng năm ô chính.
+
+**Diễn giải một cách hiểu ngầm, CHƯA hỏi lại bằng văn bản**: câu Owner
+viết ("4 card ở trên") không khớp số học với năm ô nhìn thấy trong chính
+ảnh chụp Owner gửi — suy luận Owner không tính "Tiến độ" là một CHỈ TIÊU
+(đúng bình luận có sẵn trong code trước đó: Tiến độ "§15 — chỉ báo LỊCH,
+không đổi Target/KPI/doanh thu nào"), nên năm ô CHỈ TIÊU tiền/phần trăm
+đứng CHUNG một hàng bằng nhau, còn Tiến độ (chỉ báo lịch, không phải chỉ
+tiêu) đứng RIÊNG. Đây là suy luận hợp lý nhất đọc được từ ảnh + văn bản,
+không phải một câu Owner đã xác nhận trực tiếp — **cần Owner xem lại kết
+quả và xác nhận cách hiểu này đúng ý.**
+
+### 3. Icon sửa đơn — cột riêng, cuối bảng
+
+Owner: "cho icon sửa đơn thành 1 cột riêng biệt, nằm cuối cùng". Trước
+đây nút SỬA/XONG của đơn nằm CHUNG `<td class="line-actions">` với icon
+đổi Gia dụng/loại dòng của TỪNG dòng hàng — khó phân biệt hành động ở
+CẤP ĐƠN với hành động ở CẤP DÒNG. Nay `<td class="line-actions
+bh-order-actions" rowspan="{{ group.lines }}">` tách RIÊNG, đặt SAU CÙNG
+mọi cột (bảng từ 11 lên 12 cột: header thêm `<th></th>` thứ hai,
+`bh-edit-row` đổi `colspan="11"` → `colspan="12"`, hàng TỔNG thêm một
+`<td></td>` thứ ba). Icon dùng macro mới ở mục kế tiếp thay cho chữ "SỬA
+ĐƠN" trần trước đây (Owner dùng đúng chữ "icon").
+
+### 4. Bộ icon SVG mới (`_business_bits.html`)
+
+Theo câu trả lời 2 ở mục 0: macro `icon(name)` mới, sáu icon
+(`help`/`edit`/`trash`/`swap`/`undo`/`restore`), vẽ THEO PHONG CÁCH
+Finance (`stroke-width: 1.5`, `stroke-linecap`/`stroke-linejoin: round`,
+`fill: none`, tô màu qua `currentColor`) nhưng KHÔNG chép trực tiếp path
+nào của Finance ngoại trừ icon `swap` (mượn đúng path mũi tên hai chiều
+của mục "Công nợ" trong nav Finance — hình dáng khớp nghĩa "đổi/chuyển").
+CSS mới `.tp-ic`/`.tp-ic-sm` (16px/11px, `stroke: currentColor`). Áp
+dụng: nút sửa đơn (mục 3), swap/trash trong `.line-actions` (thay text
+"Nội thành"/text loại dòng bằng icon + nhãn), nút "KHÔI PHỤC" (icon +
+chữ), và dấu hỏi trợ giúp `kpi_help`/`chart_help` (thay `?` trần bằng
+icon `help` — 2 chỗ dùng chung một macro sẵn có, không macro mới).
+
+### 5. Theme Finance — CHỈ màu/icon/hiển thị, khoanh vùng ba trang
+
+Theo câu trả lời 1 và 3 ở mục 0. Cơ chế: `layout.html` đọc biến Jinja
+`theme` (đặt `{% set theme = 'finance' %}` CHỈ ở đầu ba template
+`kinh_doanh.html`/`kinh_doanh_nhan_vien.html`/`du_lieu.html` — đúng cơ
+chế `active_tab` đã dùng cho thanh tab, biến top-level của template con
+đọc được từ `layout.html` khi render) để gắn class `theme-finance` lên
+`<body>`; MỌI template khác (kể cả `/ban-hang`, `/lich-su`, các trang sâu
+hơn) không khai `theme` nên KHÔNG bị ảnh hưởng.
+
+`tinphat-ui.css` thêm khối `body.theme-finance { --tp-blue: #151515;
+--tp-blue-d: #000000; --tp-ink/--tp-bg/--tp-card/--tp-line/--tp-line2/
+--tp-sky: ...; --tp-green/--tp-gold/--tp-red (+ nền): sắc độ trung tính
+hơn nhưng GIỮ Ý NGHĨA trạng thái; font-family + `font-variant-numeric:
+tabular-nums` kiểu Finance }` — GHI ĐÈ đúng những custom property
+`tinphat-ui.css` đã dùng SẴN xuyên suốt (nav, nút, liên kết, SVG biểu đồ,
+tag, viền — ~21 rule), nên mọi thành phần tự đổi màu theo mà KHÔNG cần
+sửa từng component riêng lẻ. Border-radius/spacing/layout token KHÔNG bị
+đụng — đúng giới hạn "chỉ ngôn ngữ và màu sắc thiết kế, icon, hiển thị,
+ngoài ra không áp dụng bất cứ thứ gì khác" Owner chốt bằng văn bản.
+
+Repo Finance (`hoangvinhkta-creator/finance`, clone riêng đọc-only tại
+phiên này, KHÔNG gắn push credential, KHÔNG phải nguồn code chạy được
+đưa vào Reports) chỉ dùng làm THAM CHIẾU THỊ GIÁC — không kéo theo bất kỳ
+route/kiến trúc/hành vi/dependency nào của Finance vào Reports.
+
+Impact:
+Không đổi business logic, không đổi database/migration, không đổi write
+authority (không route/endpoint mới), không đổi navigation chính
+(`nav.ncc-tabs` vẫn ngoài `#app-content`). `kinh_doanh.html`/
+`kinh_doanh_nhan_vien.html`/`du_lieu.html`/`layout.html`/
+`_business_bits.html`/`tinphat-ui.css` thay đổi; không file nào dưới
+`app/modules/`, `tools/db/`, `config/`. `SHEET_DETAIL_COLUMNS` không đổi
+số cột dữ liệu — chỉ số cột HTML (thêm 1 cột thao tác cấp đơn).
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền
+`73fa960` (DEC-194), 0 test mới hỏng, 0 test phải sửa đích. Golden `58
+passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (đã ghi từ DEC-189,
+không tăng thêm ở lượt này).
+
+Kiểm bằng Playwright dump tĩnh (Flask test client) + ảnh chụp toàn trang:
+- Trang Nhân viên: tag "THIẾU GIÁ" nằm đúng một dòng riêng DƯỚI "BH72803"
+  (không chồng chữ); năm ô KPI (Doanh thu/DS quy đổi/So Target/So tháng
+  trước/Lợi nhuận KPI) cùng hàng, cùng kích cỡ; Tiến độ đứng riêng một ô
+  bên dưới; icon bút chì sửa đơn hiện đúng MỘT cột riêng cuối bảng,
+  rowspan đúng theo số dòng của đơn BH72707 (3 dòng).
+- Trang Báo cáo, trang Nhân viên, trang Dữ liệu (ảnh chụp toàn trang):
+  tab đang chọn/liên kết/nút đổi từ xanh dương sang đen, đường biểu đồ +
+  chấm đổi màu đen, nền thẻ "CHƯA HOÀN CHỈNH" giữ tông vàng kem ấm, icon
+  trợ giúp hiện đúng hình tròn nhỏ SVG thay vì dấu hỏi trần.
+- Trang Bán hàng (`/ban-hang`, NGOÀI phạm vi đã chốt): ảnh chụp xác nhận
+  VẪN giữ nguyên màu xanh dương gốc (`--tp-blue: #1d5bea`) — bằng chứng
+  trực tiếp cơ chế `body.theme-finance` khoanh vùng đúng ba trang, không
+  rò rỉ sang trang khác.
+
+Can Revisit After:
+Mục 2 (giao hàng "Tiến độ" xuống hàng riêng, "Lợi nhuận KPI" lên hàng
+chính) là một diễn giải suy luận từ ảnh + văn bản Owner, chưa được Owner
+xác nhận trực tiếp bằng lời — cần Owner xem kết quả và xác nhận, hoặc chỉ
+định lại nếu ý ban đầu khác. Việc mở rộng theme Finance sang các trang
+sâu hơn (Bán hàng, Sản phẩm, Tổng quan, Lịch sử...) chưa được yêu cầu —
+cơ chế `theme-finance` đã sẵn cho bất kỳ template nào muốn dùng, chỉ cần
+thêm đúng một dòng `{% set theme = 'finance' %}`.

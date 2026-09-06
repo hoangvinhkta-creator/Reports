@@ -1,5 +1,68 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-005 = DONE (2026-09-06)
+
+Vòng sửa thứ năm theo phản hồi bằng hai ảnh chụp màn hình trang Nhân
+viên + bốn yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-194` trên
+môi trường thật — ba câu hỏi làm rõ được đặt qua `AskUserQuestion` trước
+khi triển khai. Quyết định: `DEC-195`. Lần đầu tiên đưa một hệ thiết kế
+tham chiếu THỨ HAI (`hoangvinhkta-creator/Finance`, đọc-only, không gắn
+push credential) vào Reports — CHỈ áp dụng màu sắc/icon/hiển thị, KHOANH
+VÙNG ba trang (Báo cáo/Nhân viên/Dữ liệu) qua `body.theme-finance`.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 73fa960e993e4a56c497e5f205acf3776716dedf
+Current Task Mode:            MICRO (bốn sửa trực tiếp trên MAJOR vừa DONE)
+ARCHITECTURE_REVISED         = KHÔNG (không route/kiến trúc/hành vi mới) —
+                              chỉ REVISE bảng màu MẶC ĐỊNH của
+                              `tinphat-ui.css` bằng cơ chế ghi đè custom
+                              property qua class `body.theme-finance`,
+                              khoanh vùng ba template khai `{% set theme =
+                              'finance' %}` (cùng cơ chế `active_tab`)
+CHANGES                      = (1) tag cảnh báo dời XUỐNG DƯỚI số BH thay
+                              vì chồng cạnh (`data-metric="bh-order"` dời
+                              vào span con) · (2) "Lợi nhuận KPI" lên
+                              NGANG HÀNG bốn ô KPI chính (5 ô cùng lưới
+                              `.kpi-grid.strip`, cùng kích cỡ), "Tiến độ"
+                              dời XUỐNG ô riêng — DIỄN GIẢI SUY LUẬN từ
+                              ảnh + văn bản, CHƯA Owner xác nhận trực
+                              tiếp (xem DEC-195 §2, Can Revisit After) ·
+                              (3) icon sửa đơn tách CỘT RIÊNG cuối bảng
+                              kê (11→12 cột, rowspan theo số dòng đơn) ·
+                              (4) bộ icon SVG mới (`_business_bits.html`:
+                              help/edit/trash/swap/undo/restore, phong
+                              cách Finance) thay chữ trần/dấu hỏi cũ ·
+                              (5) theme Finance: `--tp-blue` đen/xám đậm,
+                              giữ Ý NGHĨA màu trạng thái (xanh lá/vàng/đỏ),
+                              font-family + tabular-nums kiểu Finance —
+                              CHỈ 3 trang, không đụng border-radius/
+                              spacing/layout token
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+                              (`SHEET_DETAIL_COLUMNS` không đổi số cột dữ
+                              liệu, chỉ đổi số cột HTML trình bày)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (không route/endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO (nav.ncc-tabs vẫn ngoài #app-content)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `73fa960`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+THEME_SCOPE_VERIFIED        = ảnh chụp toàn trang xác nhận Báo cáo/Nhân
+                              viên/Dữ liệu đổi màu (xanh dương → đen);
+                              `/ban-hang` (NGOÀI phạm vi) xác nhận VẪN
+                              giữ nguyên `--tp-blue: #1d5bea` gốc — bằng
+                              chứng cơ chế khoanh vùng không rò rỉ
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (đã ghi từ DEC-189, không tăng
+                              thêm ở lượt này)
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-004 = DONE (2026-09-06)
 
 Vòng sửa thứ tư theo phản hồi bằng ba ảnh chụp màn hình (khoanh đỏ) + sáu

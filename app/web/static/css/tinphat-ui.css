@@ -48,6 +48,51 @@
   --tp-tr: 120ms ease;
 }
 
+/* `TASK-OWNER-UIUX-005` §4 — design system tham chiếu Finance
+ * (hoangvinhkta-creator/finance), CÙNG nguyên tắc "bản chép tĩnh có chọn
+ * lọc" đã ghi ở đầu file cho Tracking: chỉ đọc token màu/kiểu chữ, KHÔNG
+ * hot-link, KHÔNG runtime dependency, KHÔNG chép layout/component/JS của
+ * Finance. Theo đúng phạm vi chủ dự án chốt, khối này CHỈ áp dụng cho ba
+ * trang Owner đang xem hằng ngày (Báo cáo/Nhân viên/Dữ liệu) — không đổi
+ * mọi trang khác (Bán hàng, Sản phẩm, Tổng quan, các trang "sổ thô"...),
+ * nên mọi override nằm dưới `body.theme-finance`, không sửa `:root`.
+ * `layout.html` gắn class này khi template đọc được biến `theme == 'finance'`
+ * (khai qua `{% set theme = 'finance' %}` ở ba template trên) — cùng cơ
+ * chế `active_tab` đã dùng cho thanh tab, không route nào tự biết về nó.
+ *
+ * Ánh xạ: `--tp-blue` (màu CHỦ ĐẠO — tab đang chọn/link/nút/đường biểu đồ)
+ * đổi từ xanh dương sang ĐEN như `--ink` của Finance — mọi component dùng
+ * `var(--tp-blue)` (nút, tab, link, đường biểu đồ SVG...) tự đổi màu theo,
+ * không phải sửa lại từng nơi. `--tp-green`/`--tp-gold`/`--tp-red` GIỮ
+ * NGUYÊN Ý NGHĨA trạng thái (chính thức/cảnh báo/lỗi) nhưng lùi bớt độ
+ * bão hoà cho hài hoà với nền giấy ấm của Finance thay vì các màu tươi
+ * gốc. `--tp-gold-bg` dùng ĐÚNG giá trị `--tint` của Finance (nền kem nhạt
+ * cho trạng thái "đang chờ"/CHƯA HOÀN CHỈNH). */
+body.theme-finance {
+  --tp-ink: #151515;
+  --tp-ink2: #3c3c3c;
+  --tp-mut: #8a8a8a;
+  --tp-bg: #f6f6f4;
+  --tp-card: #ffffff;
+  --tp-line: #e4e4e2;
+  --tp-line2: #efefed;
+  --tp-blue: #151515;
+  --tp-blue-d: #000000;
+  --tp-sky: #f1f1ef;
+  --tp-green: #3f6b4a;
+  --tp-green-bg: #eef3ec;
+  --tp-gold: #8a6a1f;
+  --tp-gold-bg: #f8f5ea;
+  --tp-red: #96342a;
+  --tp-red-bg: #f6ece9;
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+body.theme-finance h1,
+body.theme-finance h2,
+body.theme-finance h3 { letter-spacing: -.01em; }
+
 * { box-sizing: border-box; }
 
 body {
@@ -362,7 +407,7 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   border-top: 2px solid var(--tp-line);
 }
 .sheet-table tr.bh-head td[data-metric="bh-date"],
-.sheet-table tr.bh-head td[data-metric="bh-order"],
+.sheet-table tr.bh-head td.code,
 .sheet-table tr.bh-head td[data-metric="bh-customer"] {
   font-weight: 600;
 }
@@ -595,7 +640,7 @@ td[data-group] { white-space: nowrap; }
    BH (`TASK-OWNER-UIUX-003` §7) — canh lên đầu ô để đọc thẳng hàng với
    dòng hàng ĐẦU TIÊN, không lệch xuống giữa khối khi BH có nhiều dòng. */
 .sheet-table td[data-metric="bh-date"],
-.sheet-table td[data-metric="bh-order"],
+.sheet-table td.code,
 .sheet-table td[data-metric="bh-customer"] { vertical-align: top; }
 
 /* Khách hàng: tên trên một dòng, SĐT · địa chỉ lùi xuống dòng dưới với chữ
@@ -612,10 +657,20 @@ td[data-group] { white-space: nowrap; }
    thay vì xuống dòng giữa chừng. `max-width` giới hạn bề rộng cột; mỗi
    `.tag` bên trong vẫn `white-space: nowrap` (không gãy giữa MỘT tag) và
    tự xuống dòng như chữ thường khi không đủ chỗ ngang cho tag kế tiếp. */
-.sheet-table td[data-metric="bh-order"] {
+.sheet-table td.code {
   max-width: 110px; word-break: break-word;
 }
 .sheet-table td[data-metric="line-product"] { white-space: nowrap; }
+
+/* `TASK-OWNER-UIUX-005` §1 — mã đơn và tag cảnh báo xuống HÀNG RIÊNG (chủ
+   dự án yêu cầu trực tiếp): trước đây tag chạy tiếp ngay sau chữ mã đơn
+   trên CÙNG dòng, tràn/chồng lên nhau khi có nhiều tag. `.bh-order-tags`
+   là một khối `flex` riêng, tự xuống dòng dưới `.bh-order-code`. */
+.bh-order-code { display: block; }
+.bh-order-tags {
+  display: flex; flex-wrap: wrap; gap: 3px; margin-top: var(--tp-s1);
+}
+.bh-order-tags .tag { margin-left: 0; }
 
 /* Nút thao tác trên dòng: đủ rộng để bấm, thẳng hàng với nhau. */
 .line-actions .btn-mini { min-width: 30px; text-align: center; }
@@ -662,6 +717,16 @@ td[data-group] { white-space: nowrap; }
   border: 1px solid var(--tp-line); background: #fff;
   color: var(--tp-mut); font-size: 10px; font-weight: 700; line-height: 1;
 }
+/* `TASK-OWNER-UIUX-005` §4 — icon SVG nét mảnh (tham chiếu Finance, xem
+   macro `icon()` ở `_business_bits.html`): tô màu qua `currentColor`, nên
+   mọi quy tắc màu theo trạng thái (`:hover`, `.ghost`, nút `.primary`...)
+   áp dụng lên icon giống hệt chữ, không cần khai lại riêng. */
+.tp-ic {
+  width: 16px; height: 16px; stroke: currentColor; fill: none;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+  flex: none; vertical-align: middle;
+}
+.tp-ic-sm { width: 11px; height: 11px; }
 .kpi-help:hover .kpi-help-icon,
 .kpi-help:focus-within .kpi-help-icon { color: var(--tp-blue); border-color: var(--tp-blue); }
 .kpi-help-tip {

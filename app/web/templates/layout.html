@@ -14,7 +14,11 @@
 <title>{% block title %}Reports{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/tinphat-ui.css') }}?v={{ ASSET_VERSION }}">
 </head>
-<body>
+{# `TASK-OWNER-UIUX-005` §4 — `theme == 'finance'` chỉ được ba template
+   Báo cáo/Nhân viên/Dữ liệu khai (`{% set theme = 'finance' %}`), đúng
+   phạm vi chủ dự án chốt — mọi trang khác không khai biến này nên giữ
+   nguyên giao diện cũ. Cùng cơ chế `active_tab` đã dùng cho thanh tab. #}
+<body class="{{ 'theme-finance' if theme == 'finance' }}">
 <header class="tp-header">
   <span class="tp-brand">REPORTS</span>
   <span class="tp-label">Shared Online Beta</span>

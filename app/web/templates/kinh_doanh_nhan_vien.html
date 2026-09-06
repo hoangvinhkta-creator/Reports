@@ -19,6 +19,7 @@
 {% extends "layout.html" %}
 {% import "_business_bits.html" as biz %}
 {% set active_tab = 'nhan-vien' %}
+{% set theme = 'finance' %}
 {% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
@@ -144,21 +145,23 @@
       <span class="tp-unit" data-metric="mom-note">{{ strip.mom.note }}</span>{% endif %}
     </div>
 
-    {# `§15` — chỉ báo LỊCH. Nó không đổi Target, KPI hay một con số kinh
-       doanh nào; câu dưới ô nói rõ điều đó để không ai đọc nó như một chỉ
-       tiêu. #}
+    {# `TASK-OWNER-UIUX-005` §2 — Lợi nhuận KPI lên NGANG HÀNG với bốn ô số
+       tiền ở trên (chủ dự án yêu cầu trực tiếp), thay chỗ của Tiến độ: năm
+       ô này đều là CHỈ TIÊU kinh doanh, kích cỡ bằng nhau qua `.kpi-grid.
+       strip` sẵn có. Tiến độ không phải một chỉ tiêu (`§15` — chỉ báo
+       LỊCH, không đổi Target/KPI/doanh thu nào) nên dời XUỐNG đúng chỗ Lợi
+       nhuận KPI vừa rời đi, tách khỏi hàng năm ô chính. #}
+    {{ biz.gated_kpi('Lợi nhuận KPI', sheet.kpi_profit, 'kpi_profit') }}
+  </div>
+
+  {# Tiến độ + coverage: hai điều Owner đọc khi một con số ở trên mang nhãn
+     CHƯA HOÀN CHỈNH, đứng dưới năm ô chính. #}
+  <div class="kpi-grid kpi-grid-one">
     <div class="kpi-card">
       <span class="tp-label">Tiến độ</span>
       <strong class="kpi-value" data-metric="month-progress">{{ strip.progress.text }}</strong>
       <span class="tp-unit" data-metric="month-progress-note">thời gian đã qua của tháng</span>
     </div>
-  </div>
-
-  {# Lợi nhuận KPI + coverage: hai chỉ tiêu của PHB-03 mà không gian làm việc
-     KHÔNG được làm mất. Chúng đứng dưới năm ô chính vì Owner đọc chúng khi
-     một con số ở trên mang nhãn CHƯA HOÀN CHỈNH. #}
-  <div class="kpi-grid kpi-grid-one">
-    {{ biz.gated_kpi('Lợi nhuận KPI', sheet.kpi_profit, 'kpi_profit') }}
   </div>
 
   {# Coverage giá nhập — điều kiện để mọi con số ở trên được gọi là CHÍNH
@@ -288,7 +291,7 @@
   <table class="sheet-table">
     <tr>{% for label in columns %}
       <th class="{{ 'num' if loop.index in (5, 6, 7, 8, 9) }}">{{ label }}</th>
-    {% endfor %}<th></th></tr>
+    {% endfor %}<th></th><th></th></tr>
     {# `TASK-OWNER-UIUX-004` §5 — hàng TỔNG ngay dưới tiêu đề cột, chủ dự án
        yêu cầu trực tiếp. Giá nhập/Giá bán cộng thẳng từ CÙNG tập dòng bảng
        này đang hiện (`sheet_detail_totals`); Lợi nhuận/DS quy đổi dùng LẠI
@@ -302,7 +305,7 @@
       <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
       {{ biz.derived_cell(sheet.kpi_profit, 'totals-profit') }}
       {{ biz.derived_cell(strip.converted_sales, 'totals-converted') }}
-      <td></td><td></td>
+      <td></td><td></td><td></td>
     </tr>
 
     {% for group in groups %}
@@ -333,7 +336,18 @@
          hàng của từng dòng (`group.identity_tags`, gộp DUY NHẤT theo NHÃN
          — xem `sheet_detail_groups`). Ô Mặt hàng nhờ vậy chỉ còn tên hàng,
          đọc được trên một dòng. #}
-      <td rowspan="{{ group.lines }}" class="code" data-metric="bh-order">{{ group.order_key }}
+      <td rowspan="{{ group.lines }}" class="code">
+        {# `TASK-OWNER-UIUX-005` §1 — tag cảnh báo xuống HÀNG RIÊNG dưới mã
+           đơn (chủ dự án yêu cầu trực tiếp), thay vì chạy tiếp trên cùng
+           dòng chữ và tràn/chồng lên số mã (`.bh-order-tags` là khối riêng,
+           `display:flex` xuống dòng tự nhiên dưới `.bh-order-code`).
+           `data-metric="bh-order"` dời vào ĐÚNG `<span>` mang chữ (không
+           còn ở `<td>`) — test đọc quy ước "chữ ngay sau dấu >", một `<td>`
+           nay bọc thêm `<span>`/`<div>` bên trong sẽ không còn khớp quy ước
+           đó nếu để `data-metric` ở `<td>`. #}
+        <span class="bh-order-code" data-metric="bh-order">{{ group.order_key }}</span>
+        {% if group.tags or group.identity_tags %}
+        <div class="bh-order-tags">
         {% for tag in group.tags %}
         <span class="tag tag-short" data-metric="bh-tag"
               data-code="{{ tag.code }}">{{ tag.label }}</span>
@@ -362,7 +376,10 @@
               data-metric="identity-label"
               title="{{ tag.title }}">{{ tag.label }}</span>
         {% endif %}
-        {% endfor %}</td>
+        {% endfor %}
+        </div>
+        {% endif %}
+      </td>
       {% endif %}
       {# `DEC-185` §PI-01/§PI-02 — tên hàng vẫn là đường dẫn khi CHƯA phân
          loại (bấm vào mở bảng chọn mặt hàng ngay dưới dòng này); trạng thái
@@ -424,22 +441,11 @@
       </td>
       {% endif %}
       <td class="line-actions">
-        {# Nút sửa của CẢ BH nằm ở dòng hàng đầu, cùng ô thao tác với dòng
-           đó (`§7`) — một nút cho cả khối, không rải theo từng dòng. #}
-        {% if first %}
-        {% if open %}
-        <a class="ghost btn-mini on" data-metric="bh-edit-close"
-           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
-          >XONG</a>
-        {% else %}
-        <a class="ghost btn-mini" data-metric="bh-edit"
-           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
-                            sua=group.order_key) }}"
-           aria-label="Sửa đơn {{ group.order_key }}">&#9998;</a>
-        {% endif %}
-        {% endif %}
-        {# `§33` — hai thao tác KHÁC NHAU, và không cái nào cài bằng cái kia.
-           Cả hai đi qua một hộp xác nhận ngắn trước khi ghi. #}
+        {# `TASK-OWNER-UIUX-005` §3 — icon sửa CẢ BH dời sang cột RIÊNG,
+           nằm cuối cùng (chủ dự án yêu cầu trực tiếp) — ô này giờ chỉ còn
+           thao tác của TỪNG DÒNG hàng (`§33`: hai thao tác khác nhau,
+           không cái nào cài bằng cái kia; cả hai đi qua một hộp xác nhận
+           ngắn trước khi ghi). #}
         {% if row.can_classify %}
         {% if row.line_classified %}
         <form method="post" action="{{ url_for('business_classify_line_gia_dung') }}">
@@ -449,7 +455,7 @@
           <input type="hidden" name="product_key" value="{{ row.product_key }}">
           <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
           <button class="ghost btn-mini" type="submit" name="hanh-dong" value="go"
-                  data-metric="line-gia-dung-undo">↩ Nội thành</button>
+                  data-metric="line-gia-dung-undo">{{ biz.icon('undo') }} Nội thành</button>
         </form>
         {% else %}
         <a class="ghost btn-mini" data-metric="line-gia-dung"
@@ -458,7 +464,7 @@
                             **{'xac-nhan': 'gia-dung', 'order_key': row.order_key,
                                'product_key': row.product_key,
                                'occurrence_index': row.occurrence_index}) }}"
-          >&#8677;</a>
+          >{{ biz.icon('swap') }}</a>
         {% endif %}
         {% endif %}
         {% if row.can_exclude %}
@@ -468,9 +474,23 @@
                             **{'xac-nhan': 'loai', 'order_key': row.order_key,
                                'product_key': row.product_key,
                                'occurrence_index': row.occurrence_index}) }}"
-          >&#128465;</a>
+          >{{ biz.icon('trash') }}</a>
         {% endif %}
       </td>
+      {% if first %}
+      <td class="line-actions bh-order-actions" rowspan="{{ group.lines }}">
+        {% if open %}
+        <a class="ghost btn-mini on" data-metric="bh-edit-close"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
+          >XONG</a>
+        {% else %}
+        <a class="ghost btn-mini" data-metric="bh-edit"
+           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
+                            sua=group.order_key) }}"
+           aria-label="Sửa đơn {{ group.order_key }}">{{ biz.icon('edit') }}</a>
+        {% endif %}
+      </td>
+      {% endif %}
     </tr>
 
     {# Chế độ sửa của MỘT BH: đổi nhân viên một lần cho cả đơn (`§27`). Ô
@@ -480,7 +500,7 @@
        sang các dòng hàng còn lại của cùng BH. #}
     {% if first and open and assignable %}
     <tr class="bh-edit-row shade-{{ group.shade }}">
-      <td colspan="11">
+      <td colspan="12">
         <form class="filter-row" method="post"
               action="{{ url_for('business_save_order_employee') }}">
           <input type="hidden" name="ky" value="{{ selected_period }}">
@@ -543,7 +563,7 @@
           <input type="hidden" name="product_key" value="{{ row.product_key }}">
           <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
           <button class="ghost btn-mini" type="submit" name="hanh-dong"
-                  value="khoi-phuc" data-metric="line-restore">KHÔI PHỤC</button>
+                  value="khoi-phuc" data-metric="line-restore">{{ biz.icon('restore') }} KHÔI PHỤC</button>
         </form>
       </td>
     </tr>
