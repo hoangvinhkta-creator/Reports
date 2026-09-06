@@ -355,7 +355,10 @@ def test_the_summary_page_never_presents_a_partial_profit_as_official(
     assert metric(html, "state") == "CHƯA HOÀN CHỈNH"
     assert metric(html, "coverage") == "1 / 2 dòng"
     assert metric(html, "missing-price-lines") == "1"
-    assert "CHÍNH THỨC" not in metric(html, "coverage-note")
+    # `TASK-OWNER-UIUX-002` R3 — câu văn `coverage-note` bị bỏ theo yêu cầu
+    # trực tiếp của chủ dự án; trạng thái CHƯA chính thức vẫn nói ra được
+    # qua nhãn `state` (đã kiểm ở trên) và giọng cảnh báo của dòng coverage.
+    assert 'class="coverage-line coverage-line-warn"' in html
 
 
 def test_the_summary_page_marks_the_numbers_official_at_full_coverage(

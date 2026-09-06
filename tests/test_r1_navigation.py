@@ -249,7 +249,10 @@ def test_case_9_the_coverage_state_tag_is_still_visible(repository, client):
     ])
     html = body(client, "/kinh-doanh?ky=2026-01")
     assert metric(html, "state") == "CHƯA HOÀN CHỈNH"
-    assert "CHÍNH THỨC" not in metric(html, "coverage-note")
+    # `TASK-OWNER-UIUX-002` R3 bỏ câu văn `coverage-note`; trạng thái CHƯA
+    # chính thức vẫn đọc được qua nhãn `state` và giọng cảnh báo của dòng
+    # coverage cạnh nó.
+    assert 'class="coverage-line coverage-line-warn"' in html
 
 
 # ==========================================================================
@@ -280,7 +283,10 @@ def test_case_10_required_warnings_still_render_when_triggered(repository, clien
              kpi_purchase="5000000", kpi_profit="3000000"),
     ])
     html = body(client, "/kinh-doanh?ky=2026-01")
-    assert 'data-metric="coverage-note"' in html
+    # `TASK-OWNER-UIUX-002` R3 bỏ câu văn `coverage-note` khỏi trang này —
+    # dòng trạng thái coverage (`coverage`/`coverage-percent`) vẫn luôn có
+    # mặt, đó là cảnh báo bắt buộc còn lại ở đây.
+    assert 'data-metric="coverage"' in html
     assert 'data-metric="attribution-note"' in html
     assert 'data-metric="unresolved-employee-lines"' in html
 

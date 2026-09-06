@@ -42,18 +42,40 @@
    Ô đếm cũ gộp mọi thứ vào hai con số, trong đó một con số luôn bằng 0 theo
    cấu tạo và con số kia nói "nhập giá không cứu được" cho gần hết số dòng —
    ngược hẳn sự thật (B02/B03). Nay mỗi cửa chặn tự nói tên mình. #}
-{# `TASK-OWNER-UIUX-002` — chú giải của MỘT chỉ tiêu, sau một lần bấm.
-   `<details>/<summary>` là phần tử gốc của trình duyệt: mở được bằng chuột,
-   bằng bàn phím (Tab rồi Enter/Space), đọc được bằng trình đọc màn hình, in
-   ra giấy vẫn mở được — và không cần một dòng JavaScript nào. `title` lo
-   phần rê chuột. Câu chữ KHÔNG đổi: nó vẫn là đúng hằng số cũ. #}
+{# `TASK-OWNER-UIUX-002` R2 — chú giải của MỘT chỉ tiêu, hiện khi RÊ CHUỘT
+   hoặc LIA TỚI bằng bàn phím (`:hover`/`:focus-within`), KHÔNG cần bấm.
+   Một `<span>` thường, không `<details>`: `<details>` là phần tử BLOCK theo
+   mặc định của trình duyệt, và đặt nó bên trong nhãn chỉ tiêu (`<span
+   class="tp-label">`) từng làm nhãn gãy xuống dòng giữa chừng. Câu chữ
+   KHÔNG đổi — vẫn đúng hằng số cũ; chỉ cách hiện ra đổi. #}
 {% macro kpi_help(note) -%}
 {% if note %}
-<details class="kpi-help">
-  <summary title="{{ note }}" aria-label="Giải thích chỉ tiêu này">?</summary>
-  <p class="insight" data-metric="kpi-help">{{ note }}</p>
-</details>
+<span class="kpi-help" tabindex="0" aria-label="Giải thích chỉ tiêu này">
+  <span class="kpi-help-icon" aria-hidden="true">?</span>
+  <span class="kpi-help-tip" data-metric="kpi-help">{{ note }}</span>
+</span>
 {% endif %}
+{%- endmacro %}
+
+{# Chú giải của biểu đồ — cùng cơ chế rê chuột/lia tới như `kpi_help`, nhưng
+   gộp NHIỀU đoạn (phạm vi, cách giải thẩm quyền, mốc chưa trọn kỳ, sổ cũ
+   không có dòng theo ngày, dòng chưa có ngày bán). Không đoạn nào bị BỎ —
+   `F-E`/`F-N03`/`DEC-166 E` vẫn bắt buộc những câu này có mặt trên trang;
+   chúng chỉ lùi sau một biểu tượng (?) thay vì chiếm một khối riêng dưới
+   biểu đồ. #}
+{% macro chart_help(chart) -%}
+<span class="kpi-help chart-help" tabindex="0" aria-label="Cách đọc biểu đồ này">
+  <span class="kpi-help-icon" aria-hidden="true">?</span>
+  <span class="kpi-help-tip">
+    <p data-metric="chart-scope">{{ chart.scope_note }}</p>
+    <p data-metric="chart-note">{{ chart.note }}</p>
+    {% if chart.has_partial %}<p data-metric="chart-partial">{{ chart.partial_note }}</p>{% endif %}
+    {% if chart.no_daily_legacy_note %}<p data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
+    {% if chart.undated %}
+    <p data-metric="chart-undated">Có <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}.</p>
+    {% endif %}
+  </span>
+</span>
 {%- endmacro %}
 
 {# Thẻ chỉ tiêu của HÀNG TÓM TẮT. Cùng `data-metric`, cùng con số, cùng
@@ -90,7 +112,9 @@
     <span class="cnt"><span data-metric="{{ item.count_metric }}"
       >{{ item.count }}</span>{% if item.count_unit %} {{ item.count_unit }}{% endif %}</span>
   </summary>
+  {% if item.note %}
   <p class="{{ item.severity }}" data-metric="{{ item.note_metric }}">{{ item.note }}</p>
+  {% endif %}
   {% if breakdown %}{{ coverage_reasons(breakdown) }}{% endif %}
   {% if action_url %}
   <p><a class="ghost btn-mini" data-metric="pending-action"

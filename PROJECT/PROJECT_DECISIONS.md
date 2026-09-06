@@ -10916,3 +10916,138 @@ Can Revisit After:
 Chưa có dòng Gia dụng thật trong dữ liệu mẫu nên hàng đó hiện `—` (chưa
 tính được), đúng quy ước "ô trống khác 0". Khi có dữ liệu gia dụng thật,
 kiểm lại bằng mắt một lần.
+
+## DEC-192
+
+Title:
+`TASK-OWNER-UIUX-002` R2 — Năm sửa trực tiếp trên trang Báo cáo theo phản hồi
+bằng mắt của chủ dự án: bốn thẻ chỉ tiêu luôn trên MỘT hàng, chú giải (?)
+đổi từ bấm sang rê-chuột/lia-tới (sửa lỗi gãy dòng nhãn "Doanh thu bán
+hàng"), bỏ câu văn coverage dài, biểu đồ ĐƯỜNG có trục Y + lưới kiểu tham
+chiếu Owner đưa (không còn liệt kê số dưới từng điểm), bỏ cột Nhóm và
+"Cách đọc bảng này" khỏi bảng Theo nhân viên.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng ảnh chụp màn hình + văn bản
+của chủ dự án sau khi xem `DEC-191` trên môi trường thật). Chỉ tầng trình
+bày; không một quyết định nghiệp vụ nào bị đảo.
+
+Supersedes:
+Không đảo ngược quyết định nào đã có, kể cả `DEC-191` — nó SỬA cách trình
+bày `DEC-191` vừa dựng, không đổi thẩm quyền nào bên dưới. `F-E`/`F-N03`
+(chú giải phạm vi + cách giải thẩm quyền của biểu đồ bắt buộc có mặt trên
+trang) và `DEC-166 E` (origin của mỗi mốc phải phân biệt được) đều GIỮ
+NGUYÊN — chỉ đổi CHỖ ĐỨNG của câu chữ đó (xem mục 3).
+
+### 1. Bốn thẻ chỉ tiêu — MỘT hàng thật, không phụ thuộc bề rộng cửa sổ
+
+`.kpi-row` đổi từ `1.4fr 1fr 1fr 1fr` (bất đối xứng, gãy hàng dưới 900px)
+sang `repeat(4, minmax(0, 1fr))` bốn cột bằng nhau, giữ một hàng tới ~760px;
+Doanh thu vẫn đọc trước nhờ cỡ chữ (26px) chứ không nhờ chiếm thêm cột.
+
+### 2. Chú giải (?) — rê chuột/lia tới, không bấm
+
+`kpi_help(note)` đổi từ `<details>/<summary>` sang một `<span class="kpi-
+help" tabindex="0">`, hiện `.kpi-help-tip` qua `:hover`/`:focus-within`.
+
+Nguyên nhân sửa: `<details>` là phần tử BLOCK theo mặc định của trình
+duyệt; đặt nó bên trong `<span class="tp-label">` làm nhãn "DOANH THU BÁN
+HÀNG" gãy xuống dòng ngay trước dấu (?), đúng lỗi Owner chụp màn hình gửi
+lại. Một `<span>` không có vấn đề đó. Câu chữ của từng ghi chú không đổi —
+vẫn đúng hằng số cũ (`NET_SALES_NOTE`, `QUALIFYING_QUANTITY_NOTE`,
+`KPI_PROFIT_NOTE`, `CONVERTED_SALES_NOTE`).
+
+Sự cố kèm theo lúc sửa, đã kiểm bằng `getBoundingClientRect`: hộp tooltip
+ban đầu co về đúng bề rộng của TỪ dài nhất (khung định vị `.kpi-help` chỉ
+rộng bằng biểu tượng) — sửa bằng `width: max-content` (thay `auto`) cộng
+`max-width: 300px`.
+
+### 3. Câu văn coverage dài — bỏ khỏi trang Báo cáo
+
+`INCOMPLETE_NOTE`/`OFFICIAL_NOTE` (đoạn "Còn dòng hàng của kỳ chưa tính
+được lợi nhuận…") không còn render trên `/kinh-doanh`, ở cả dòng trạng thái
+cạnh KPI (nay là một `<p class="coverage-line">` không bấm được, chỉ còn
+con số + phần trăm) LẪN mục "Cần kiểm tra" ở cuối trang (chỉ còn tiêu đề +
+số + danh sách "thiếu cái gì, sửa ở đâu" từ `coverage_reasons`). Trạng thái
+CHƯA chính thức vẫn đọc được qua nhãn `state` (CHÍNH THỨC/CHƯA HOÀN CHỈNH)
+và giọng vàng của `coverage-line-warn`.
+
+Hai module `OFFICIAL_NOTE`/`INCOMPLETE_NOTE` KHÔNG bị xoá khỏi hệ thống —
+`biz.coverage_block` (dùng ở `kinh_doanh_gia_nhap.html`,
+`kinh_doanh_nhan_vien.html`) vẫn hiện chúng nguyên vẹn; đây là một chỉ thị
+riêng cho ĐÚNG một trang.
+
+### 4. Biểu đồ — ĐƯỜNG có trục Y + lưới, không còn liệt kê số dưới từng điểm
+
+Owner gửi kèm ảnh tham chiếu (biểu đồ đường có trục Y giá trị + lưới ngang
++ trục X thưa). `revenue_chart()` thêm:
+
+- `_chart_nice_ceiling(peak)`: làm tròn LÊN đỉnh dữ liệu tới một trong các
+  bậc 1/2/2,5/5/10 × luỹ thừa 10 — cùng thuật toán các thư viện biểu đồ vẫn
+  dùng để đường lưới trên cùng mang một con số tròn.
+- `_chart_y_axis(ceiling)`: 5 mốc lưới (kể đáy 0), toạ độ VÀ nhãn tiền tính
+  sẵn ở tầng trình bày — vẫn "nghìn đồng" (R1 §9), không đổi đơn vị.
+- Toạ độ Y của mỗi điểm nay so với `ceiling` (trần tròn), KHÔNG so với đỉnh
+  dữ liệu như bản `DEC-191` — hai thứ phải cùng một thước đo, nếu không
+  đường sẽ chạm mép trên trong khi lưới trên cùng mang một số khác giá trị
+  thật của điểm cao nhất.
+- `show_label` (thưa lại theo `_CHART_MAX_X_LABELS = 8`, stride =
+  `ceil(n/8)`, mốc đầu/cuối luôn hiện): CHỮ dưới trục X thưa lại khi nhiều
+  điểm, nhưng MỌI điểm vẫn giữ đủ `data-metric`/`data-key`/`data-origin`/
+  `data-revenue` VÀ một `<title>` xem khi rê chuột — không mốc nào mất dữ
+  liệu, chỉ chữ hiện ra là được chọn lọc. Đo trên 112 điểm (dữ liệu tám
+  tháng theo ngày): 9 nhãn hiện ra thay vì 112.
+- Con số doanh thu KHÔNG còn hiện dưới mỗi điểm (`rev-line-value` bị bỏ) —
+  xem qua trục Y (ước lượng) hoặc `<title>` khi rê chuột (chính xác).
+
+`F-E`/`F-N03`/`DEC-166 E` — phạm vi biểu đồ (TOÀN BỘ dữ liệu, không giới
+hạn theo kỳ đang chọn), cách giải thẩm quyền theo THÁNG (không theo "mốc"),
+mốc chưa trọn kỳ, sổ cũ không có dòng theo ngày, dòng chưa có ngày bán:
+CẢ NĂM câu này vẫn có mặt trên trang — dời từ một `<details>` "Cách đọc
+biểu đồ này" (chiếm một khối riêng dưới biểu đồ) vào MỘT biểu tượng (?)
+cạnh tiêu đề "Xu hướng doanh thu", cùng cơ chế mục 2. Owner nói "bỏ luôn
+phải giải thích cách đọc biểu đồ" — quyết định ở đây là bỏ KHỐI GIẢI THÍCH,
+không bỏ NỘI DUNG giải thích: `data-metric="chart-scope"`/`"chart-note"`
+vẫn render đúng chữ cũ (test `F-E`/`F-N03` xác nhận), lý do là hai câu đó
+chặn một cách đọc SAI thật sự (Owner tưởng biểu đồ giới hạn theo kỳ đang
+chọn trong khi nó luôn là toàn bộ dữ liệu) — xoá hẳn sẽ mở lại đúng lỗ hổng
+mà `F-E` được viết ra để đóng.
+
+### 5. Bảng "Theo nhân viên" — bỏ cột Nhóm + "Cách đọc bảng này"
+
+`business_presentation.EMPLOYEE_COLUMNS` bỏ `"Nhóm"` (còn 7 cột thay vì 8);
+`reporting_rows` vẫn TÍNH `employee_group`/`employee_group_code` (không xoá
+khỏi mô hình dữ liệu) — chỉ template không render cột đó nữa. Khối
+`<details class="how-to-read">Cách đọc bảng này</details>` (chứa
+`BUSINESS_ORDER_COLUMN_NOTE`) bị bỏ hẳn khỏi trang này — không tính, không
+tổng số dòng nào phụ thuộc câu đó, và không test nào từng bắt nó có mặt
+trên chính trang Báo cáo.
+
+Bảng `kinh_doanh_target.html` KHÔNG bị chạm — vẫn hiện cột Nhóm bằng chữ
+("Kênh Nội thành"/"Kinh doanh tiêu chuẩn"), vì đó là màn hình khác.
+
+Impact:
+Chỉ tầng trình bày: 1 template (`kinh_doanh.html`), `_business_bits.html`
+(3 macro sửa/thêm), `tinphat-ui.css`, `business_presentation.py` (hình học
+biểu đồ + `EMPLOYEE_COLUMNS` + ghi chú `pending_items`). Không file nào
+dưới `app/modules/`, `tools/db/`, `config/`. Không migration, không route
+mới, không endpoint ghi mới, không JavaScript, không thư viện.
+
+Evidence:
+Suite đầy đủ `2722 passed, 11 skipped, 0 failed` (nền `7b54d84`: cùng
+`2722 passed, 11 skipped` — KHÔNG có test mới, bốn file test được CHỈNH LẠI
+ĐÍCH theo cấu trúc markup mới, không hạ chuẩn). Golden `58 passed, 2
+skipped`, KHÔNG đổi. So render `7b54d84` ↔ sau sửa trên cùng bộ dữ liệu:
+mọi chỉ tiêu đầu trang, hàng TỔNG, và MỌI con số trên 10/11 trang giống
+hệt; trang Báo cáo chỉ khác đúng ở CHỖ hiện số của biểu đồ (số dưới từng
+điểm bị bỏ, số trên trục Y thay vào — không có số MỚI nào phát sinh, không
+số CŨ nào biến mất khỏi khả năng xem, vì `<title>` mỗi điểm vẫn mang giá
+trị chính xác). Không trang nào tràn ngang ở 1440/834/390px — kiểm cả
+trường hợp 112 điểm dữ liệu ngày (tám tháng), trục X thưa còn 9 nhãn.
+Routes, số endpoint POST và thanh điều hướng chính không đổi.
+
+Can Revisit After:
+Không có mục hoãn mới.

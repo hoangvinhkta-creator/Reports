@@ -21,6 +21,7 @@ phải nhiễu.
 
 from __future__ import annotations
 
+import math
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
@@ -117,8 +118,14 @@ ORDER_COLUMN_NOTE = (
     "cột Đơn cộng lại có thể lớn hơn tổng đơn của kỳ."
 )
 
+# `TASK-OWNER-UIUX-002` R2 — cột Nhóm bị bỏ khỏi bảng NÀY theo yêu cầu trực
+# tiếp của chủ dự án: tên nhóm (Kinh doanh tiêu chuẩn/Kênh Nội thành) không
+# đổi việc đọc bảng, và hàng "Nội thành"/"Gia dụng" đã tự nói tên nhóm của
+# nó qua chính nhãn hàng. Dữ liệu nhóm (`employee_group`/`employee_group_code`)
+# vẫn được `reporting_rows` tính — chỉ không render ở đây; bảng Target vẫn
+# hiện cột Nhóm vì đó là màn hình khác, không bị chỉ thị này chạm tới.
 EMPLOYEE_COLUMNS: tuple[str, ...] = (
-    "Nhân viên", "Nhóm", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
+    "Nhân viên", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
     "Lợi nhuận KPI", "DS quy đổi", "Đã tính được lợi nhuận",
 )
 
@@ -803,7 +810,11 @@ def pending_items(*, not_seen: Optional[dict], coverage: dict,
             "count_metric": "pending-count",
             "count_unit": "",
             "severity": "warn",
-            "note": INCOMPLETE_NOTE,
+            # `TASK-OWNER-UIUX-002` R3 — câu giải thích dài (`INCOMPLETE_NOTE`)
+            # bị bỏ theo yêu cầu trực tiếp của chủ dự án: tiêu đề + số + danh
+            # sách "thiếu cái gì, sửa ở đâu" (`coverage_reasons` bên dưới) đã
+            # đủ để hành động, không cần thêm một đoạn văn giải thích.
+            "note": "",
             "note_metric": "pending-note",
             "action_label": "MỞ BẢNG KÊ CHI TIẾT",
             "snapshot_id": None,
@@ -1154,15 +1165,50 @@ CHART_UNDATED_NOTE = (
     "dòng chưa có ngày bán, nên không nằm trong mốc nào của biểu đồ"
 )
 
-#: Chiều cao tối thiểu của một cột KHÁC 0, tính bằng phần trăm. Một cột nhỏ
-#: xíu vẫn phải nhìn thấy được: vẽ nó cao 0 % sẽ đọc thành "tháng đó không
-#: bán được gì", một câu khác hẳn "tháng đó bán được ít".
-_MIN_BAR_PERCENT = 2
-
-# Hình học của biểu đồ ĐƯỜNG (`TASK-OWNER-UIUX-002`), đơn vị SVG.
+# Hình học của biểu đồ ĐƯỜNG (`TASK-OWNER-UIUX-002` R4), đơn vị SVG.
 _CHART_PLOT_H = 160
-_CHART_STEP_X = 76
-_CHART_PAD_X = 28
+_CHART_STEP_X = 64
+_CHART_PAD_X = 8
+#: Số đường lưới ngang, KHÔNG kể đường đáy (0). Bốn đường + đáy = năm mốc,
+#: đủ để đọc độ lớn tương đối mà không dày đặc như một tờ kẻ ô ly.
+_CHART_Y_TICKS = 4
+#: Trần hiển thị của Ox: quá nhiều mốc thì MỖI nhãn dưới MỖI điểm là một bức
+#: tường chữ không ai đọc nổi (đúng thứ Owner gọi là "kinh khủng"). Mọi điểm
+#: vẫn có dữ liệu đầy đủ để máy đọc và để rê chuột xem — chỉ chữ hiện dưới
+#: trục là thưa lại.
+_CHART_MAX_X_LABELS = 8
+
+
+def _chart_nice_ceiling(value: Decimal) -> Decimal:
+    """Trần "tròn" phía trên `value`, dùng làm đỉnh trục Y.
+
+    Neo lưới vào chính đỉnh dữ liệu sẽ luôn vẽ đường ra chạm mép trên — không
+    khoảng thở, và đường lưới trên cùng không mang một con số tròn để đọc
+    nhẩm. Tham chiếu đúng cách các thư viện biểu đồ vẫn làm: làm tròn LÊN một
+    trong các bậc 1/2/2,5/5/10 nhân luỹ thừa của 10 gần `value` nhất.
+    """
+    if value <= 0:
+        return Decimal(0)
+    magnitude = math.floor(math.log10(float(value)))
+    scale = Decimal(10) ** magnitude
+    normalized = value / scale
+    for step in (Decimal("1"), Decimal("2"), Decimal("2.5"), Decimal("5"), Decimal(10)):
+        if normalized <= step:
+            return (step * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return (Decimal(10) * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def _chart_y_axis(ceiling: Decimal) -> list[dict]:
+    """Nhãn + toạ độ của các đường lưới ngang, từ đỉnh xuống đáy."""
+    ticks = []
+    for i in range(_CHART_Y_TICKS, -1, -1):
+        fraction = Decimal(i) / Decimal(_CHART_Y_TICKS)
+        value = (ceiling * fraction).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        ticks.append({
+            "y": _CHART_PLOT_H - round(float(fraction) * _CHART_PLOT_H),
+            "label": _thousand_vnd(value) if ceiling > 0 else "0",
+        })
+    return ticks
 
 
 def revenue_chart(
@@ -1171,22 +1217,12 @@ def revenue_chart(
 ) -> dict:
     """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp."""
     peak = max((point.revenue for point in points), default=Decimal(0))
+    ceiling = _chart_nice_ceiling(peak)
     bars = []
     for point in points:
-        if peak > 0:
-            share = (point.revenue / peak * Decimal(100)).quantize(
-                Decimal("1"), rounding=ROUND_HALF_UP)
-            height = max(int(share), _MIN_BAR_PERCENT if point.revenue > 0 else 0)
-        else:
-            share, height = Decimal(0), 0
         bars.append({
-            # `TASK-OWNER-UIUX-002` — tỉ lệ THẬT so với đỉnh, không có sàn tối
-            # thiểu: sàn tồn tại để một cột 0,3 % vẫn bấm được, nhưng dùng nó
-            # làm toạ độ sẽ vẽ ra một đường gấp khúc không giống dữ liệu.
-            "share": int(share),
             "key": point.key,
             "label": point.label,
-            "height": height,
             # Giá trị MÁY đọc, không định dạng: `data-revenue` là chỗ test
             # và công cụ ngoài đọc con số, và một dấu chấm phân nhóm hàng
             # nghìn trong đó buộc mỗi bên đọc phải tự gỡ định dạng vi-VN ra
@@ -1208,17 +1244,27 @@ def revenue_chart(
             "title": _chart_bar_title(point),
         })
     day_level = granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
-    # `TASK-OWNER-UIUX-002` — hình học của ĐƯỜNG, tính ở tầng trình bày và vẽ
-    # bằng SVG tĩnh: không JavaScript, không thư viện, in ra giấy vẫn đúng.
-    # Toạ độ chỉ dùng lại `share` đã tính ở trên — không con số nào mới.
-    for index, bar in enumerate(bars):
+    # `TASK-OWNER-UIUX-002` R4 — hình học của ĐƯỜNG, tính ở tầng trình bày và
+    # vẽ bằng SVG tĩnh: không JavaScript, không thư viện, in ra giấy vẫn
+    # đúng. Toạ độ Y so với TRẦN TRÒN (`ceiling`), không so với đỉnh dữ liệu
+    # — nên đường lưới và đường doanh thu luôn cùng một thước đo.
+    for index, (point, bar) in enumerate(zip(points, bars)):
+        fraction = float(point.revenue / ceiling) if ceiling > 0 else 0.0
         bar["x"] = _CHART_PAD_X + index * _CHART_STEP_X
-        bar["y"] = _CHART_PLOT_H - round(bar["share"] * _CHART_PLOT_H / 100)
+        bar["y"] = _CHART_PLOT_H - round(fraction * _CHART_PLOT_H)
+    # Nhãn trục X thưa lại khi có quá nhiều mốc — mỗi điểm vẫn giữ đủ thuộc
+    # tính để máy đọc và để rê chuột xem qua `title`; chỉ CHỮ hiện dưới trục
+    # là được chọn lọc. Mốc ĐẦU và mốc CUỐI luôn hiện, để biết biểu đồ bắt
+    # đầu và kết thúc ở đâu.
+    stride = max(1, math.ceil(len(bars) / _CHART_MAX_X_LABELS)) if bars else 1
+    for index, bar in enumerate(bars):
+        bar["show_label"] = (index % stride == 0) or index == len(bars) - 1
     svg_width = max(_CHART_PAD_X * 2 + (len(bars) - 1) * _CHART_STEP_X,
                     _CHART_PAD_X * 2) if bars else 0
     return {
         "svg_width": svg_width,
         "svg_height": _CHART_PLOT_H,
+        "y_axis": _chart_y_axis(ceiling),
         # Ô nhãn dùng CHÍNH bước ngang của đường, nên nhãn luôn nằm đúng dưới
         # mốc của nó và hai nhãn cạnh nhau không bao giờ chồng chữ. Một hằng
         # số thứ hai trong CSS sẽ trôi khỏi cái này lúc nào không biết.

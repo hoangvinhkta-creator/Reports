@@ -144,17 +144,21 @@ def test_r2_the_four_headline_metrics_sit_in_one_row(repository, client):
 def test_r4_every_headline_metric_explains_itself_behind_a_question_mark(
     repository, client
 ):
-    """Định nghĩa KHÔNG bị xoá khỏi hệ thống — nó lùi vào sau một lần bấm."""
+    """Định nghĩa KHÔNG bị xoá khỏi hệ thống — nó hiện khi rê chuột/lia bàn
+    phím tới biểu tượng (?), không cần bấm vào đâu (`TASK-OWNER-UIUX-002` R2)."""
     persist(repository, mixed_month())
     html = report(client)
     row = re.search(r'<div class="kpi-row">(.*?)\n  </div>', html, re.S).group(1)
     assert row.count('class="kpi-help"') == 4
-    helps = re.findall(r'data-metric="kpi-help">(.*?)</p>', html, re.S)
+    helps = re.findall(r'class="kpi-help-tip" data-metric="kpi-help">(.*?)</span>',
+                       html, re.S)
     assert len(helps) >= 4
     assert any("ĐƠN GIÁ BÁN" in text for text in helps)        # Tổng số SP
     assert any("tỉ lệ quy đổi" in text for text in helps)      # DS quy đổi
-    # `<details>` gốc: mở được bằng bàn phím, không cần một dòng script nào.
+    # Không `<details>`, không bấm: `tabindex` lo phần lia bàn phím, và
+    # không một dòng JavaScript nào cần cho việc này.
     assert "<script" not in html
+    assert 'class="kpi-help" tabindex="0"' in html
 
 
 # ==========================================================================

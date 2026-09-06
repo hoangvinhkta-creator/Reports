@@ -54,35 +54,36 @@
 
   {# Coverage giá nhập quyết định hai ô chỉ tiêu ngay trên, nên trạng thái của
      nó phải đọc được CÙNG CHỖ với chúng — nhưng bằng MỘT DÒNG, không bằng một
-     thẻ to. Việc phải làm (còn thiếu bao nhiêu dòng, sửa ở đâu) nằm trong khối
-     "Cần kiểm tra" ở cuối trang. Con số, phần trăm và câu chú thích vẫn đúng
-     là những cái cũ. #}
-  <details class="coverage-line{{ '' if summary.coverage.complete else ' coverage-line-warn' }}">
-    <summary>
-      Đã tính được lợi nhuận:
-      <strong data-metric="coverage">{{ summary.coverage.text }}</strong>
-      <span class="tp-unit" data-metric="coverage-percent">{{ summary.coverage.percent }}</span>
-    </summary>
-    <p class="insight" data-metric="coverage-note"
-       >{{ OFFICIAL_NOTE if summary.coverage.complete else INCOMPLETE_NOTE }}</p>
-  </details>
+     thẻ to và không cần bấm vào đâu cả. Việc phải làm (còn thiếu bao nhiêu
+     dòng, sửa ở đâu) nằm trong khối "Cần kiểm tra" ở cuối trang; câu giải
+     thích dài (`INCOMPLETE_NOTE`/`OFFICIAL_NOTE`) bị bỏ theo yêu cầu trực
+     tiếp của chủ dự án — con số và nhãn CHÍNH THỨC/CHƯA HOÀN CHỈNH đã đủ nói
+     lên trạng thái. #}
+  <p class="coverage-line{{ '' if summary.coverage.complete else ' coverage-line-warn' }}">
+    Đã tính được lợi nhuận:
+    <strong data-metric="coverage">{{ summary.coverage.text }}</strong>
+    <span class="tp-unit" data-metric="coverage-percent">{{ summary.coverage.percent }}</span>
+  </p>
   {{ biz.unresolved_employee_note(summary.coverage) }}
 </div>
 
 {# `DEC-185` — MỘT biểu đồ doanh thu theo thời gian, năm mức gộp.
 
-   `TASK-OWNER-UIUX-002` đổi cách VẼ (cột → đường) và mức mở đầu (Tháng →
-   Ngày). Không đổi tập dòng, không đổi thẩm quyền doanh thu, không đổi cách
-   phân giải Số cũ/Số mới, không thêm một dòng thời gian thứ hai. Các nút vẫn
-   là ĐƯỜNG DẪN, mỗi mức gộp một URL riêng — vẫn không có JavaScript.
+   `TASK-OWNER-UIUX-002` R4 đổi cách VẼ (cột → đường có trục Y + lưới, kiểu
+   biểu đồ Owner đưa làm mẫu) và mức mở đầu (Tháng → Ngày). Không đổi tập
+   dòng, không đổi thẩm quyền doanh thu, không đổi cách phân giải Số cũ/Số
+   mới, không thêm một dòng thời gian thứ hai. Các nút vẫn là ĐƯỜNG DẪN, mỗi
+   mức gộp một URL riêng — vẫn không có JavaScript.
 
-   Đường được vẽ bằng SVG tĩnh, toạ độ tính sẵn ở tầng trình bày từ đúng tỉ
-   lệ so với đỉnh; mỗi mốc vẫn là một phần tử mang `data-metric="chart-bar"`
-   với `data-revenue` thô, nên mọi thứ đọc được bằng máy trước đây vẫn đọc
-   được. #}
+   Đường + lưới được vẽ bằng SVG tĩnh, toạ độ tính sẵn ở tầng trình bày so
+   với một trần tròn phía trên đỉnh dữ liệu (`_chart_nice_ceiling`); mỗi mốc
+   vẫn là một phần tử mang `data-metric="chart-bar"` với `data-revenue` thô
+   VÀ một `<title>` xem khi rê chuột, kể cả những mốc không hiện chữ dưới
+   trục — chỉ CHỮ hiện ra là thưa lại, dữ liệu không mất mốc nào. #}
 <div class="module" id="bieu-do-doanh-thu">
   <h2>Xu hướng doanh thu
-    <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span></h2>
+    <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span>
+    {% if not chart.empty %}{{ biz.chart_help(chart) }}{% endif %}</h2>
 
   <nav class="filter-row chart-gran">
     {% for option in chart.options %}
@@ -96,60 +97,53 @@
   {% if chart.empty %}
   <p class="empty" data-metric="chart-empty">{{ chart.empty_note }}</p>
   {% else %}
-  <div class="tp-scroll">
-    <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
-      <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
-           width="{{ chart.svg_width }}" height="{{ chart.svg_height }}"
-           preserveAspectRatio="none" role="img"
-           aria-label="Xu hướng doanh thu theo {{ chart.granularity }}">
-        {% if not chart.single_point %}
-        <polyline class="rev-line-path" points="{{ chart.polyline }}"/>
-        {% endif %}
-        {# Chấm chỉ VẼ. Mỗi mốc chỉ có ĐÚNG MỘT phần tử mang khoá của nó —
-           ô nhãn ngay dưới — nên không có chuỗi thứ hai chạy song song. #}
-        {% for bar in chart.bars %}
-        <circle class="rev-line-dot{{ ' rev-line-legacy' if bar.legacy }}"
-                cx="{{ bar.x }}" cy="{{ bar.y }}" r="4"><title>{{ bar.title }}</title></circle>
-        {% endfor %}
-      </svg>
-      {# Ô nhãn là phần tử MANG DỮ LIỆU của mốc: cùng `data-metric`, cùng
-         `data-key`, cùng `data-origin`, cùng `data-revenue` thô và cùng lời
-         giải thích như thời biểu đồ cột — và nó là HTML thật nên vẫn chọn,
-         tìm và đọc màn hình được. #}
-      <div class="rev-line-axis">
-        {% for bar in chart.bars %}
-        <span class="rev-line-tick" style="flex-basis: {{ chart.step_x }}px"
-              title="{{ bar.title }}"
-              data-metric="chart-bar" data-key="{{ bar.key }}"
-              data-origin="{{ bar.origin }}"
-              data-revenue="{{ bar.revenue_raw }}">
-          <span class="rev-line-value">{{ bar.revenue_kvnd }}</span>
-          <span class="rev-line-label">{{ bar.label }}{% if bar.partial %} ∗{% endif %}</span>
-        </span>
-        {% endfor %}
+  <div class="rev-chart-row">
+    <div class="rev-chart-yaxis" style="height: {{ chart.svg_height }}px">
+      {% for tick in chart.y_axis %}
+      <span class="rev-chart-ytick" style="top: {{ tick.y }}px">{{ tick.label }}</span>
+      {% endfor %}
+    </div>
+    <div class="tp-scroll">
+      <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
+        <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
+             width="{{ chart.svg_width }}" height="{{ chart.svg_height }}"
+             preserveAspectRatio="none" role="img"
+             aria-label="Xu hướng doanh thu theo {{ chart.granularity }}">
+          {% for tick in chart.y_axis %}
+          <line class="rev-line-grid" x1="0" x2="{{ chart.svg_width }}"
+                y1="{{ tick.y }}" y2="{{ tick.y }}"/>
+          {% endfor %}
+          {% if not chart.single_point %}
+          <polyline class="rev-line-path" points="{{ chart.polyline }}"/>
+          {% endif %}
+          {# Chấm chỉ VẼ. Mỗi mốc chỉ có ĐÚNG MỘT phần tử mang khoá của nó —
+             ô nhãn ngay dưới — nên không có chuỗi thứ hai chạy song song. #}
+          {% for bar in chart.bars %}
+          <circle class="rev-line-dot{{ ' rev-line-legacy' if bar.legacy }}"
+                  cx="{{ bar.x }}" cy="{{ bar.y }}" r="4"><title>{{ bar.title }}</title></circle>
+          {% endfor %}
+        </svg>
+        {# Ô nhãn là phần tử MANG DỮ LIỆU của mốc: cùng `data-metric`, cùng
+           `data-key`, cùng `data-origin`, cùng `data-revenue` thô và cùng lời
+           giải thích như thời biểu đồ cột — và nó là HTML thật nên vẫn chọn,
+           tìm và đọc màn hình được, dù CHỮ dưới trục chỉ hiện ở mốc được
+           chọn (`bar.show_label`, thưa lại khi có nhiều mốc). #}
+        <div class="rev-line-axis">
+          {% for bar in chart.bars %}
+          <span class="rev-line-tick" style="flex-basis: {{ chart.step_x }}px"
+                title="{{ bar.title }}"
+                data-metric="chart-bar" data-key="{{ bar.key }}"
+                data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}">
+            {% if bar.show_label %}
+            <span class="rev-line-label">{{ bar.label }}{% if bar.partial %} ∗{% endif %}</span>
+            {% endif %}
+          </span>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
-
-  {# `F-E` / `DEC-166 E` — phạm vi của biểu đồ, mốc chưa trọn kỳ, sổ cũ không
-     có dòng theo ngày, và số dòng thiếu ngày bán đều là những điều làm người
-     đọc HIỂU SAI biểu đồ nếu không biết. Chúng ở lại trên trang, sau một lần
-     bấm, chứ không bị xoá. #}
-  <details class="how-to-read">
-    <summary>Cách đọc biểu đồ này</summary>
-    <p class="insight" data-metric="chart-scope">{{ chart.scope_note }}</p>
-    <p class="insight" data-metric="chart-note">{{ chart.note }}</p>
-    {% if chart.has_partial %}
-    <p class="insight" data-metric="chart-partial">{{ chart.partial_note }}</p>
-    {% endif %}
-    {% if chart.no_daily_legacy_note %}
-    <p class="insight" data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>
-    {% endif %}
-    {% if chart.undated %}
-    <p class="insight" data-metric="chart-undated">
-      Có <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}.</p>
-    {% endif %}
-  </details>
   {% endif %}
 </div>
 
@@ -173,7 +167,7 @@
   <div class="tp-scroll">
   <table>
     <tr>{% for label in columns %}
-      <th class="{{ 'num' if loop.index > 2 }}">{{ label }}</th>
+      <th class="{{ 'num' if loop.index > 1 }}">{{ label }}</th>
     {% endfor %}</tr>
     {% for row in rows %}
     <tr class="{{ 'row-total' if row.total_row }}">
@@ -186,7 +180,6 @@
            data-metric="unit-row">{{ row.employee }}</a>
         {% endif %}
       </td>
-      <td data-group="{{ row.employee_group_code }}">{{ row.employee_group }}</td>
       <td class="num" data-metric="orders">{{ row.orders }}</td>
       <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
       <td class="num" data-metric="sales_revenue"
@@ -204,10 +197,6 @@
     {% endfor %}
   </table>
   </div>
-  <details class="how-to-read">
-    <summary>Cách đọc bảng này</summary>
-    <p class="insight">{{ BUSINESS_ORDER_COLUMN_NOTE }}</p>
-  </details>
 </div>
 
 {# Thông tin an toàn, không phải chỉ tiêu: các dòng này rơi khỏi MỌI kỳ vì

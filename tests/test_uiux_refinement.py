@@ -32,14 +32,15 @@ def test_the_qualifying_quantity_card_carries_its_label(repository, client):
     nhãn chưa từng được đăng ký với Jinja nên render thành chuỗi rỗng."""
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh?ky=2026-09")
-    # `TASK-OWNER-UIUX-002` dời bốn thẻ vào MỘT hàng và thêm dấu (?) vào giữa
-    # nhãn và con số; câu hỏi của test này KHÔNG đổi: thẻ đó có tên chưa.
-    card = re.search(
-        r'<span class="tp-label">([^<]*?)\s*<details class="kpi-help">'
-        r'(?:(?!</span>).)*</span>\s*<strong class="kpi-value"'
-        r' data-metric="qualifying_quantity"', html, re.S)
-    assert card is not None
-    assert card.group(1).strip() == "Tổng số SP"
+    # `TASK-OWNER-UIUX-002` dời bốn thẻ vào MỘT hàng và thêm biểu tượng (?)
+    # rê-chuột giữa nhãn và con số (KHÔNG còn `<details>` — xem R2); câu hỏi
+    # của test này KHÔNG đổi: thẻ đó có tên chưa.
+    card_html = re.search(
+        r'<div class="kpi-card">.*?data-metric="qualifying_quantity".*?</div>',
+        html, re.S).group(0)
+    label = re.search(r'<span class="tp-label">([^<]*)', card_html)
+    assert label is not None
+    assert label.group(1).strip() == "Tổng số SP"
 
 
 def test_the_group_column_never_shows_an_engineering_code(repository, client):
@@ -48,17 +49,12 @@ def test_the_group_column_never_shows_an_engineering_code(repository, client):
         line("BH2", "Tivi", employee="Ly", group="STANDARD_SALES", row=7),
     ])
     html = body(client, "/kinh-doanh?ky=2026-09")
-    cells = re.findall(r'<td data-group="([^"]*)">([^<]*)</td>', html)
-    # `TASK-OWNER-UIUX-002`: dòng của Vinh nay đọc thành hàng NHÓM "Nội thành",
-    # và một hàng nhóm không phải một con người nên nó KHÔNG mang mã nhóm.
-    # Bảng Target vẫn liệt kê từng người, nên `NOI_THANH` còn nguyên ở đó.
-    assert {code for code, _ in cells} >= {"STANDARD_SALES"}
-    for code, text in cells:
-        if not code:
-            continue  # hàng TỔNG và hàng nhóm không thuộc nhóm nào
-        assert text.strip(), code
-        assert text.strip() not in ENGINEERING_CODES, code
-    # Điều quan trọng nhất của test này: KHÔNG mã máy nào lọt ra chữ người đọc.
+    # `TASK-OWNER-UIUX-002` R5 bỏ hẳn cột Nhóm khỏi bảng NÀY (chủ dự án yêu
+    # cầu trực tiếp) — hàng của Vinh đọc thành hàng NHÓM "Nội thành" và
+    # không còn cột nào để mang mã nhóm nữa. Điều quan trọng nhất của test
+    # này giữ nguyên: KHÔNG mã máy nào lọt ra chữ người đọc, trên TRANG này.
+    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    assert "Nhóm" not in table and 'data-group="' not in table
     for code in ENGINEERING_CODES:
         assert not re.search(rf">[^<]*\b{code}\b[^<]*<", html), code
     # Bảng Target vẫn liệt kê TỪNG NGƯỜI, và tên nhóm ở đó vẫn viết bằng chữ.

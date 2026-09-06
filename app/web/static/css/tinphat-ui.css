@@ -536,55 +536,82 @@ td[data-group] { white-space: nowrap; }
    trên MỘT hàng, biểu đồ là ĐƯỜNG, và việc cần soi lùi xuống cuối trang.
    ------------------------------------------------------------------ */
 
-/* HÀNG TÓM TẮT: bốn ô ngang nhau trên desktop. Ô doanh thu rộng hơn một
-   nhịp vì nó mang thêm dòng so tháng trước, nhưng vẫn nằm TRONG hàng.
-   Hẹp lại thì xuống hai cột, rồi một cột — không ô nào tràn ra ngoài. */
+/* HÀNG TÓM TẮT: bốn ô BẰNG NHAU trên MỘT hàng ngang. Doanh thu vẫn đọc
+   trước nhờ cỡ chữ lớn hơn (không nhờ chiếm thêm cột) — nên cả bốn luôn
+   cùng một hàng ở mọi độ rộng còn hợp lý; chỉ gãy dòng khi thật sự hết chỗ
+   (máy tính bảng dọc, rồi điện thoại). */
 .kpi-row {
   display: grid; gap: var(--tp-s3); margin: var(--tp-s3) 0;
-  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .kpi-row-sub { grid-template-columns: repeat(auto-fit, minmax(180px, 320px)); }
-.kpi-row .kpi-card { min-width: 0; }
-.kpi-row .kpi-strong .kpi-value { font-size: 28px; letter-spacing: -.02em; }
+.kpi-row .kpi-card { min-width: 0; overflow-wrap: break-word; }
+.kpi-row .kpi-strong .kpi-value { font-size: 26px; letter-spacing: -.02em; }
 .kpi-mom { display: block; margin-top: 2px; }
 
-@media (max-width: 900px) {
+@media (max-width: 760px) {
   .kpi-row { grid-template-columns: 1fr 1fr; }
 }
-@media (max-width: 560px) {
+@media (max-width: 420px) {
   .kpi-row { grid-template-columns: 1fr; }
 }
 
-/* Dấu (?) của một chỉ tiêu. `<details>` gốc: bấm được, Tab tới được,
-   không script. Mũi tên mặc định của trình duyệt bị gỡ để nó đọc như một
-   dấu hỏi tròn chứ không như một mục lục. */
-.kpi-help { display: inline-block; margin-left: var(--tp-s1); vertical-align: middle; }
-.kpi-help > summary {
-  list-style: none; cursor: help; display: inline-flex;
-  align-items: center; justify-content: center;
-  width: 15px; height: 15px; border-radius: 50%;
+/* Dấu (?) của một chỉ tiêu: một biểu tượng, KHÔNG một điều khiển bấm được —
+   di chuột hoặc lia bàn phím tới (`:focus`/`:focus-within`) là thấy giải
+   thích, buông ra là biến mất. Không `<details>`: phần tử đó là BLOCK theo
+   mặc định của trình duyệt và từng làm gãy dòng ngay giữa nhãn chỉ tiêu. Một
+   `<span>` không bao giờ có vấn đề đó. */
+.kpi-help {
+  position: relative; display: inline-flex; margin-left: var(--tp-s1);
+  vertical-align: middle;
+}
+.kpi-help-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%; cursor: help;
   border: 1px solid var(--tp-line); background: #fff;
   color: var(--tp-mut); font-size: 10px; font-weight: 700; line-height: 1;
 }
-.kpi-help > summary::-webkit-details-marker { display: none; }
-.kpi-help > summary:hover,
-.kpi-help > summary:focus-visible { color: var(--tp-blue); border-color: var(--tp-blue); }
-.kpi-help[open] > summary { color: var(--tp-blue); border-color: var(--tp-blue); }
-.kpi-help .insight {
-  position: absolute; z-index: 5; max-width: 320px; margin-top: var(--tp-s2);
-  padding: var(--tp-s2) var(--tp-s3); background: #fff;
+.kpi-help:hover .kpi-help-icon,
+.kpi-help:focus-within .kpi-help-icon { color: var(--tp-blue); border-color: var(--tp-blue); }
+.kpi-help-tip {
+  /* `width: max-content` (thay vì `auto`) — `.kpi-help` (khung định vị của
+     tooltip) chỉ rộng bằng biểu tượng (?), nên "shrink-to-fit" mặc định của
+     một hộp `position:absolute` sẽ co về đúng bề rộng của TỪ dài nhất thay
+     vì bề rộng tự nhiên của cả câu. `max-content` bỏ qua ràng buộc đó; `max-
+     width` vẫn chặn nó lại ở 300px khi câu quá dài. */
+  display: none; position: absolute; z-index: 5; left: 0; top: 100%;
+  width: max-content; max-width: 300px; margin-top: var(--tp-s1);
+  text-align: left; padding: var(--tp-s2) var(--tp-s3); background: #fff;
   border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
-  box-shadow: var(--tp-shadow); font-weight: 400; white-space: normal;
+  box-shadow: var(--tp-shadow); color: var(--tp-ink2);
+  font-size: 12px; font-weight: 400; white-space: normal;
 }
+.kpi-help:hover .kpi-help-tip,
+.kpi-help:focus .kpi-help-tip,
+.kpi-help:focus-within .kpi-help-tip { display: block; }
+.kpi-help-tip p { margin: 0 0 var(--tp-s2); }
+.kpi-help-tip p:last-child { margin-bottom: 0; }
 .kpi-card { position: relative; }
 
-/* BIỂU ĐỒ ĐƯỜNG. SVG vẽ đường và các mốc; hàng nhãn bên dưới là HTML thật
-   nên nó vẫn chọn/tìm/đọc được như chữ. Cả hai dùng chung một bước ngang
-   (56px) nên nhãn luôn nằm đúng dưới mốc của nó. */
-.rev-line { padding: var(--tp-s3) 0 0; }
+/* BIỂU ĐỒ ĐƯỜNG: một trục Y có lưới + nhãn tròn số bên trái (đứng yên khi
+   cuộn ngang), một đường doanh thu, và trục X chỉ hiện MỘT SỐ nhãn (thưa
+   theo `chart.step_x`/`show_label` tính sẵn ở tầng trình bày) — không phải
+   một bức tường số dưới MỖI điểm. Mỗi điểm vẫn giữ đủ thuộc tính máy đọc
+   (`data-metric`, `data-key`, `data-origin`, `data-revenue`) và một
+   `<title>` để rê chuột xem chi tiết, kể cả những điểm không hiện nhãn. */
+.rev-chart-row { display: flex; align-items: stretch; padding-top: var(--tp-s3); }
+.rev-chart-yaxis {
+  position: relative; flex: 0 0 auto; width: 52px;
+  padding-right: var(--tp-s2);
+}
+.rev-chart-ytick {
+  position: absolute; right: var(--tp-s2); transform: translateY(-50%);
+  font-size: 11px; color: var(--tp-mut); white-space: nowrap;
+}
 .rev-line-svg { display: block; overflow: visible; }
+.rev-line-grid { stroke: var(--tp-line); stroke-width: 1; }
 .rev-line-path {
-  fill: none; stroke: var(--tp-blue); stroke-width: 2;
+  fill: none; stroke: var(--tp-blue); stroke-width: 2.5;
   stroke-linejoin: round; stroke-linecap: round;
 }
 .rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; }
@@ -597,10 +624,7 @@ td[data-group] { white-space: nowrap; }
   flex: 0 0 auto; text-align: center;
   display: flex; flex-direction: column; gap: 2px;
 }
-.rev-line-label, .rev-line-value { white-space: nowrap; }
-.rev-line-tick:first-child { margin-left: 0; }
-.rev-line-value { font-size: 11px; font-weight: 600; color: var(--tp-ink2); }
-.rev-line-label { font-size: 11px; color: var(--tp-mut); }
+.rev-line-label { white-space: nowrap; font-size: 11px; color: var(--tp-mut); }
 
 /* CẦN KIỂM TRA. Mỗi mục là một dòng gọn; mở ra mới thấy giải thích và nút.
    Chấm màu mang mức nghiêm trọng, và chữ của chính mục đó nói lại điều đó
@@ -624,15 +648,9 @@ td[data-group] { white-space: nowrap; }
 .pending-item > p { margin: 0 0 var(--tp-s2) var(--tp-s4); }
 
 /* Trạng thái coverage: MỘT dòng cạnh các chỉ tiêu nó quyết định, không phải
-   một thẻ to. Câu chú thích đi kèm dùng cỡ ghi chú — nó giải thích con số,
-   nên nó không được to hơn con số. */
+   một thẻ to và không phải một điều khiển bấm được — câu giải thích dài đã
+   dời hẳn xuống khối "Cần kiểm tra" ở cuối trang. */
 .coverage-line { margin: var(--tp-s3) 0 0; font-size: 13px; color: var(--tp-ink2); }
-.coverage-line > summary { list-style: none; cursor: pointer; }
-.coverage-line > summary::-webkit-details-marker { display: none; }
-.coverage-line > summary:hover { color: var(--tp-blue); }
 .coverage-line strong { font-weight: 700; }
-/* Còn việc phải làm ⟹ con số mang giọng cảnh báo. Câu giải thích dài nằm
-   sau một lần bấm và trong khối "Cần kiểm tra" — nó KHÔNG được to hơn chính
-   các chỉ tiêu nó chú thích. */
-.coverage-line-warn > summary strong { color: var(--tp-gold); }
-.coverage-line .insight { margin: var(--tp-s2) 0 0; }
+/* Còn việc phải làm ⟹ con số mang giọng cảnh báo. */
+.coverage-line-warn strong { color: var(--tp-gold); }

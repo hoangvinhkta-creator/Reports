@@ -1,5 +1,55 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 R2 (REVISION) = DONE (2026-09-06)
+
+Năm sửa trực tiếp trên trang BÁO CÁO theo phản hồi bằng mắt của chủ dự án
+sau khi xem `DEC-191` trên môi trường thật. Quyết định: `DEC-192`. Khối
+`TASK-OWNER-UIUX-002` gốc (`DEC-191`) và Reports Phase B bên dưới GIỮ
+NGUYÊN — lượt này SỬA cách trình bày `DEC-191` vừa dựng, không đổi thẩm
+quyền nào bên dưới, không con số nghiệp vụ nào đổi.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 7b54d849f8c9098f49c2373b6fb3b19ace2eb520
+Current Task Mode:            MICRO (sửa trực tiếp trên MAJOR vừa DONE)
+CHANGES                     = 4 thẻ chỉ tiêu luôn MỘT hàng (repeat(4,1fr)) ·
+                              chú giải (?) đổi bấm → rê chuột/lia tới, sửa
+                              lỗi gãy dòng nhãn "Doanh thu bán hàng" · bỏ
+                              câu văn coverage dài khỏi trang này · biểu đồ
+                              ĐƯỜNG có trục Y + lưới (trần tròn phía trên
+                              đỉnh dữ liệu), trục X thưa (tối đa 8 nhãn,
+                              stride động), bỏ số hiện dưới từng điểm · bỏ
+                              cột Nhóm + "Cách đọc bảng này" khỏi bảng Theo
+                              nhân viên
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (so render nền `7b54d84` ↔ sau sửa: mọi
+                              chỉ tiêu đầu trang, hàng TỔNG, và mọi con số
+                              trên 10/11 trang giống hệt; trang Báo cáo chỉ
+                              khác đúng ở CHỖ hiện số của biểu đồ, không số
+                              nào mới phát sinh hay biến mất khỏi khả năng
+                              xem — `<title>` mỗi điểm vẫn mang giá trị
+                              chính xác)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi)
+PRIMARY_NAV_CHANGED         = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2722 passed / 11 skipped / 0 failed
+                              (nền: cùng 2722/11 — 0 test mới, 4 file test
+                              chỉnh lại ĐÍCH theo markup mới, xem DEC-192
+                              Evidence) · GOLDEN 58 passed / 2 skipped,
+                              KHÔNG đổi
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/834/390px,
+                              kiểm cả biểu đồ 112 điểm (dữ liệu ngày, tám
+                              tháng) — trục X thưa còn 9 nhãn
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189), không reference nào của lượt
+                              này
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 REPORT OVERVIEW = DONE (2026-09-06)
 
 Tinh chỉnh trình bày trang BÁO CÁO theo chỉ thị trực tiếp của chủ dự án, sau
