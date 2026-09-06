@@ -10647,3 +10647,141 @@ Khi có artifact repo-tracked thật cho Independent Review (ví dụ transcript
 được commit vào `docs/reviews/`) hoặc khi có bằng chứng deploy log Render
 thật — bản ghi ở đây nên được nâng cấp từ `E0`/Owner-relay lên `E1`/`E2`
 tương ứng, không cần đảo ngược kết luận DONE, chỉ cần thay nhãn bằng chứng.
+
+## DEC-190
+
+Title:
+`TASK-UIUX-001` — Quy ước trình bày cho NGƯỜI ĐỌC QUẢN TRỊ trên toàn bộ web
+Reports: ô chủ đạo với so sánh đứng cạnh con số, tên nhóm đọc từ master,
+ba giọng lỗi / cảnh báo / thông báo, chú giải lùi sau một lần bấm, một quy
+ước ngày. Finance là tham chiếu ngôn ngữ thiết kế CHỈ ĐỌC.
+
+Date:
+2026-09-06
+
+Task:
+`TASK-UIUX-001` (`docs/tasks/TASK-UIUX-001-reports-ui-ux-refinement.md`),
+phiên `docs/sessions/S125-reports-ui-ux-refinement.md`. Lượt tinh chỉnh
+trình bày sau khi Phase B đóng (`DEC-189`); không phải vertical tính năng.
+
+Authority:
+`HANDOFF_DIRECTIVE` (chỉ thị bàn giao của chủ dự án: audit + sửa UI/UX từ
+góc nhìn chủ doanh nghiệp, Finance làm tham chiếu chỉ đọc, không đổi
+nghiệp vụ) + `MEASURED_AUDIT` (ảnh chụp thật trước/sau, đo tràn ngang, test).
+
+Supersedes:
+Không đảo ngược quyết định nào. `DEC-184` (không gian làm việc), `DEC-185`
+(ba tab, một biểu đồ, nhận diện tại chỗ), `DEC-PHB02-02`/`R-S7` (CHÍNH THỨC
+/ CHƯA HOÀN CHỈNH), R1 §9 (nghìn đồng + tooltip VND) giữ nguyên và được
+kiểm lại bằng test. Bản ghi này chỉ THÊM quy ước trình bày.
+
+### 1. Thứ bậc của trang Báo cáo
+
+```text
+1. Ô CHỦ ĐẠO: Doanh thu bán hàng (32px) + chênh lệch so tháng trước ngay
+   cạnh (dấu +/− luôn có; xanh = tăng, đỏ = giảm; nhãn SỐ CŨ + nguồn khi
+   mốc so đến từ sổ cũ — `DEC-180` §9; mọi nhánh "không so được" có CHỮ —
+   `DEC-PHB02-07`)
+2. Ba thẻ còn lại: Tổng số SP · Lợi nhuận KPI · DS quy đổi
+3. Cảnh báo "sổ nạp gần nhất không thấy lại dòng" (điều bất thường là thứ
+   nhìn thấy THỨ HAI, không phải thứ sáu)
+4. Biểu đồ xu hướng (`DEC-185`, không đổi)
+5. Khối coverage (giọng CẢNH BÁO, không phải LỖI)
+6. Bảng theo nhân viên + hàng liên kết Thương hiệu / Cơ cấu
+7. Ghi chú an toàn "dòng chưa có ngày bán": một dòng nhỏ khi không có gì,
+   một thẻ đỏ khi có
+```
+
+Module "So với tháng trước" riêng bị gỡ vì nội dung của nó nay nằm trong
+ô chủ đạo; `data-metric` (`mom`, `mom-origin`, `mom-source`, `mom-note`)
+giữ nguyên tên để mọi test cũ vẫn đọc được.
+
+### 2. Ba giọng, và khi nào dùng giọng nào
+
+```text
+.error   (đỏ)         điều SAI hoặc HỎNG: đối soát không khớp, dòng chưa có
+                      ngày bán, sổ nạp không thấy lại dòng đang tính
+.warn    (vàng)       trạng thái DANG DỞ có việc phải làm: còn dòng chưa
+                      tính được lợi nhuận
+.notice  (khung vàng) trạng thái ĐÃ BIẾT, không phải việc của ai trong
+                      Reports: nguồn danh tính chưa mang thương hiệu
+```
+
+Câu chữ của các hằng trình bày KHÔNG đổi; chỉ giọng thị giác đổi. Một
+trạng thái dữ liệu bình thường mà đỏ đậm sẽ dạy người đọc bỏ qua màu đỏ —
+và lần đỏ thật sự sẽ bị bỏ qua theo.
+
+### 3. Tên nhóm nhân viên đọc từ master, không bịa
+
+`analytics_presentation.group_label` đọc `employee_groups[].name` của
+`config/employees.yaml` — cùng file `business_service` dùng để biết ai là
+nhân viên — nên không có bảng tên thứ hai để lệch. Mã lạ hoặc file không
+đọc được ⟹ trả NGUYÊN mã (một nhãn không được làm trang sập, cũng không
+được bịa tên). Mã vẫn đi cùng ô ở `data-group` cho máy đọc. Áp dụng cho
+bảng Theo nhân viên (Báo cáo), bảng Target, và trang `/nhan-vien` số mới.
+
+### 4. Chú giải lùi sau một lần bấm — trừ không gian làm việc
+
+Trên `/kinh-doanh/thuong-hieu` và `/kinh-doanh/co-cau`, các đoạn "cách đọc
+bảng" nằm trong `<details class="how-to-read">` (phần tử gốc của trình
+duyệt, không script, in ra giấy vẫn mở được). Kết quả đối soát, mẫu số tỉ
+trọng, ghi chú "đơn vị báo cáo khác con người", và các dòng "sửa ở đâu"
+KHÔNG lùi — chúng là điều người đọc phải thấy trước khi tin bảng.
+
+`DEC-184` §14 giữ nguyên: KHÔNG `<details>` nào trên `/kinh-doanh/nhan-vien`
+(có test canh trong `tests/test_uiux_refinement.py`).
+
+### 5. Số trong bảng và ngày nghiệp vụ
+
+Số trong bảng viết THƯỜNG; chỉ dòng TỔNG đậm; giá trị âm mang lớp `.neg`
+(đỏ) trên Báo cáo / Thương hiệu / Cơ cấu — dấu trừ vẫn có mặt, màu chỉ bổ
+sung (quy tắc 21 §5). Không gian làm việc đã có `row-loss` riêng
+(`DEC-184` §35) và không đổi.
+
+Mọi ngày nghiệp vụ trên MỌI màn hình nghiệp vụ viết `DD/MM/YYYY`
+(`DEC-184` §24 mở rộng sang bảng kê chi tiết của PHB-03, kể cả dòng
+"Chiết khấu" suy ra). `business_date` sống ở `business_presentation`,
+`workspace_presentation` import lại — một hàm, một quy ước.
+
+### 6. Finance — tham chiếu chỉ đọc
+
+`FINANCE_REPO_MODE = READ_ONLY_REFERENCE`. Thích nghi: ô chủ đạo + so
+sánh cạnh số; số bảng thường / tổng đậm / âm có màu; chú giải ngắn lùi sau;
+bảng luôn cuộn trong thẻ. Cố ý KHÔNG chép: sidebar và tabbar đáy (`DEC-185`
+giữ ba tab ngang), bảng màu đơn sắc (`R-S7` cần xanh/vàng/đỏ có nghĩa),
+đơn vị `k`/`tr` (R1 §9), render phía client bằng JavaScript.
+
+### 7. Hoãn, có tên, có lý do
+
+```text
+L-05  nhãn "Shared Online Beta" ở header     — nhãn trạng thái triển khai
+                                               (S071), quyết định sản phẩm
+L-06  ô nhập Target trên /kinh-doanh/target
+      hiện VND thô không dấu phân cách        — DEFERRED_REQUIRES_BUSINESS_
+                                               CHANGE: chạm hợp đồng khứ hồi
+                                               PHB-05 §7 / DEC-184 §7
+L-07  timestamp ISO + tag LEGACY_REFERENCE
+      ở tab Dữ liệu                            — DEC-166 E yêu cầu tên origin
+                                               phân biệt được; đổi nhãn cần
+                                               quyết định
+```
+
+Impact:
+Chỉ tầng trình bày: 10 template, `tinphat-ui.css`, ba module
+`*_presentation.py` (nhãn/định dạng), `server.py` (đăng ký ba biến
+template), `app/history/coverage.py` (nhãn ngắn của cùng ba trạng thái).
+Không file nào dưới `app/modules/`, `tools/db/`, `config/`. Không
+migration (`ALEMBIC_HEAD` = `0007_employee_workspace`). Không route mới,
+không tab mới, không JavaScript, không thư viện, không token màu mới.
+
+Evidence:
+Suite đầy đủ `2694 passed, 12 skipped, 1 failed` — test fail duy nhất
+(`test_105d_boundaries` G25) fail y hệt trên HEAD chưa sửa vì clone nông
+thiếu commit `740f396a…` (`fatal: bad object`); Golden `58 passed, 2
+skipped`; 12 test trình bày mới PASS; 0 test cũ bị sửa; 46 ảnh chụp sau
+sửa không trang nào `scrollWidth > viewport` ở 390px. Chi tiết ở file task.
+
+Can Revisit After:
+Ba mục hoãn ở §7 chờ chủ dự án. Nếu sau này Owner muốn một dòng Target /
+Lợi nhuận KPI trên cùng biểu đồ (`DEC-185` "Can Revisit After"), ô chủ đạo
+là chỗ tự nhiên để đặt thêm một dòng so sánh — không cần một module mới.

@@ -105,6 +105,42 @@
 
 # TRẠNG THÁI HIỆN TẠI
 
+## GIAO DIỆN ĐÃ ĐƯỢC DỌN LẠI CHO NGƯỜI ĐỌC QUẢN LÝ (2026-09-06, S125) — TASK-UIUX-001 = XONG
+
+Sau khi mọi tính năng của giai đoạn B đã chạy thật và được nghiệm thu, phiên
+này KHÔNG thêm tính năng nào — chỉ sắp xếp lại cách các con số hiện ra để
+người quản lý mở trang lên là hiểu ngay:
+
+- Trang **Báo cáo** giờ có MỘT con số lớn nhất ở trên cùng — doanh thu
+  tháng — kèm ngay cạnh là "hơn hay kém tháng trước bao nhiêu phần trăm",
+  xanh khi tăng, đỏ khi giảm. Trước đây phải cuộn qua ba khối mới ghép
+  được hai con số này với nhau.
+- Một ô số trước đây hiện ra mà **không có tên** (chỉ thấy con số "13"),
+  nay đã có nhãn "Tổng số SP".
+- Cột "Nhóm" không còn hiện mã máy như `STANDARD_SALES`; nay hiện đúng tên
+  nhóm ghi trong danh sách nhân viên.
+- Số âm (nhân viên đang lỗ) được tô đỏ trong bảng; số bình thường không
+  còn in đậm hàng loạt nên dòng TỔNG nổi lên.
+- Cảnh báo "còn dòng chưa tính được lợi nhuận" đổi sang màu vàng — đó là
+  việc còn dang dở, không phải lỗi; màu đỏ chỉ còn dành cho điều thật sự
+  sai.
+- Bảng kê ở trang **Nhân viên** dễ đọc hơn: tên khách một dòng, số điện
+  thoại và địa chỉ xuống dòng dưới chữ nhạt; ô "N dòng" không còn là một
+  viên thuốc xám kéo dài cả bảng.
+- Hai trang **Theo thương hiệu** và **Cơ cấu doanh thu** bớt chữ: phần
+  giải thích cách đọc bảng gấp lại sau nút "Cách đọc bảng này"; bảng và
+  kết quả đối soát đọc trước.
+- Trên điện thoại, không trang nào còn bị kéo lệch sang ngang.
+- Ngày tháng viết cùng một kiểu `ngày/tháng/năm` ở mọi màn hình nghiệp vụ.
+
+**Không một con số nào đổi.** Toàn bộ công thức, dữ liệu, cách tính, cách
+gán nhân viên, cách loại dòng giữ nguyên — đã kiểm lại bằng toàn bộ bộ
+test (2.694 test qua, 0 test cũ phải sửa). Ba điểm nhỏ để dành chờ chủ dự
+án quyết định (nhãn "Shared Online Beta" ở đầu trang, cách viết số trong ô
+nhập Target, cách viết mốc thời gian ở tab Dữ liệu). Việc tiếp theo: chủ
+dự án mở trang thật để xem bằng mắt sau khi tích hợp.
+
+
 Đây là bản tóm tắt để Owner đọc trước. Nó được đối chiếu với trạng thái kỹ
 thuật canonical trong `PROJECT/PROJECT_PROGRESS.md` ngày 2026-09-01.
 

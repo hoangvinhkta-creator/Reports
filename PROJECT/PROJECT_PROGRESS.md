@@ -1,5 +1,49 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-UIUX-001 UI/UX REFINEMENT = DONE (2026-09-06, S125)
+
+Lượt TINH CHỈNH TRÌNH BÀY toàn bộ web Reports cho người đọc quản trị (chủ
+doanh nghiệp / quản lý cấp cao), theo chỉ thị bàn giao sau khi Phase B
+đóng. Finance là tham chiếu ngôn ngữ thiết kế CHỈ ĐỌC. Quyết định:
+`DEC-190`. Task: `docs/tasks/TASK-UIUX-001-reports-ui-ux-refinement.md`.
+Session: `docs/sessions/S125-reports-ui-ux-refinement.md`. Khối Phase B
+ngay bên dưới GIỮ NGUYÊN — không con số nghiệp vụ nào đổi vì lượt này.
+
+```text
+TASK                        = TASK-UIUX-001 · MAJOR · Difficulty 2 · Risk 2
+                              · Blast Radius 3
+IMPL_HEAD                   = 9d8bda85ce9fa4dfb8b310881758a9a79a0f9e65
+STATUS                      = DONE trên nhánh claude/reports-ui-ux-refinement-3n5v8l
+                              (chờ Owner tích hợp / xem bằng mắt trên production)
+Current Task Mode:            MAJOR
+UI_UX_RESULT                = PASS_WITH_FINDINGS
+FINANCE_USED_AS_REFERENCE   = YES · FINANCE_CODE_CHANGED = NO
+PRIMARY_USER_OPTIMIZED_FOR  = COMPANY_OWNER / SENIOR_MANAGER
+HIGH_FINDINGS               = 4 (H-01…H-04) — tất cả đã sửa
+MEDIUM_FINDINGS             = 8 (M-01…M-08) — tất cả đã sửa
+LOW_FINDINGS                = 10 — L-01…L-04 đã sửa · L-05/L-06/L-07 DEFERRED
+                              · L-08/L-09/L-10 giữ theo DEC-184 / R-S7
+MAJOR_UX_IMPROVEMENTS       = ô chủ đạo doanh thu + so tháng trước · tên
+                              nhóm đọc được (không còn STANDARD_SALES /
+                              NOI_THANH) · ba giọng lỗi/cảnh báo/thông báo ·
+                              bảng kê Nhân viên đọc theo khối BH · chú giải
+                              lùi sau một lần bấm · không tràn ngang 390px ·
+                              một quy ước ngày DD/MM/YYYY
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+DATABASE_CHANGED            = NO (ALEMBIC_HEAD = 0007_employee_workspace)
+NEW_FEATURE_CREATED         = NO · PRIMARY_NAV_CHANGED = NO
+REGRESSION_RESULT           = FULL 2694 passed / 12 skipped / 1 failed
+                              (fail môi trường: clone nông thiếu commit
+                              740f396a… — fail y hệt trên HEAD chưa sửa) ·
+                              GOLDEN 58 passed / 2 skipped · UI subset 488
+                              passed · 12 test trình bày mới PASS · 0 test
+                              cũ bị sửa
+SCOPE_DRIFT                 = NO
+SAFE_FOR_REVIEW             = YES
+GOVERNANCE_VALIDATORS       = xem CHECK-UIUX-07 trong file task
+```
+
+
 ## CANONICAL CURRENT STATE — REPORTS PHASE B = DONE (CLOSEOUT, 2026-09-06)
 
 Đóng lại toàn bộ dải PHB-06 (Brand Reporting) + PHB-07 (Advanced Analytics)
