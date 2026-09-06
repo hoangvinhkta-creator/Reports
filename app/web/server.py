@@ -31,6 +31,7 @@ Download chỉ được resolve từ ``run_id`` qua registry do chính server t�
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 import uuid
@@ -336,6 +337,18 @@ def create_app(
     except Exception:  # noqa: BLE001 — xem chú thích trên
         identity_store = None
     app.config["IDENTITY_STORE"] = identity_store
+    # Cache-bust CSS bằng vân tay NỘI DUNG, tính một lần lúc khởi động tiến
+    # trình. `url_for('static', ...)` của Flask không tự thêm phiên bản vào
+    # URL — phía trước production có Cloudflare cache theo phần mở rộng
+    # `.css`, nên một lần deploy đổi NỘI DUNG file mà giữ NGUYÊN URL sẽ bị
+    # trình duyệt/CDN tiếp tục phục vụ bản CŨ, trong khi HTML (không cache
+    # dài) đã đổi — hai tầng lệch nhau đúng như sự cố "HTML mới, CSS cũ".
+    # Thêm `?v=<hash 10 ký tự>` vào URL khiến mỗi lần nội dung CSS đổi trở
+    # thành một URL MỚI hoàn toàn, buộc phải tải lại — nội dung không đổi
+    # thì hash không đổi, không xả cache một cách không cần thiết.
+    _css_path = Path(__file__).parent / "static" / "css" / "tinphat-ui.css"
+    app.jinja_env.globals["ASSET_VERSION"] = hashlib.sha256(
+        _css_path.read_bytes()).hexdigest()[:10]
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
     app.jinja_env.globals["LEGACY_PROVENANCE"] = legacy_reference.PROVENANCE
