@@ -22,45 +22,44 @@
 {% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
-<h1>NHÂN VIÊN — {{ sheet.period_label }}</h1>
-
-{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
-{% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
-
-{# --- 1. KỲ DỮ LIỆU + 2. HÀNG SHEET, MỘT CARD -------------------------
-   `TASK-OWNER-UIUX-003` §4 — gộp bộ chọn kỳ và hàng sheet vào CHUNG một
-   card để đỡ diện tích dọc; thứ tự vẫn Kỳ dữ liệu TRƯỚC (`§4`/`UX-05`),
-   hàng sheet NGAY SAU nó, và cả hai vẫn đứng trước năm chỉ tiêu. Câu giải
-   thích "Mỗi sheet ở dưới là một đơn vị báo cáo..." bị bỏ theo yêu cầu
-   trực tiếp của chủ dự án — tên "Nội thành"/"Gia dụng" trên chính tab đã
-   đủ để đọc, không cần một đoạn văn đứng trước nó.
+{# `TASK-OWNER-UIUX-004` §3 — kỳ dữ liệu chọn NGAY trên hàng tiêu đề, không
+   còn một card riêng bên dưới; hàng sheet dồn lên NGAY SAU đó, trước năm
+   chỉ tiêu — cùng thứ tự cũ (`DEC-PHB02-08` §1/§2), chỉ đổi CHỖ ĐỨNG để đỡ
+   diện tích dọc. Câu giải thích "Mỗi sheet ở dưới là một đơn vị báo cáo..."
+   vẫn bỏ theo `DEC-193` §4 — tên "Nội thành"/"Gia dụng" trên chính tab đã
+   đủ để đọc.
 
    Chỉ có THÁNG. Không có mục "Toàn bộ dữ liệu" (`§3`, CASE UX-03): đây là
    màn hình vận hành theo tháng, và một Target không biết mình thuộc tháng
    nào là một Target ghi vào tháng sai. #}
-<div class="module workspace-period-card">
+<div class="period-header-row">
+  <h1>NHÂN VIÊN — {{ sheet.period_label }}</h1>
   <form class="filter-row" method="get" action="{{ url_for('business_employee') }}">
     <input type="hidden" name="sheet" value="{{ sheet.key }}">
     <span class="kpi-period">
       <label class="tp-label" for="ky">KỲ DỮ LIỆU</label>
-      <select name="ky" id="ky" data-metric="period-select">
+      <select name="ky" id="ky" data-metric="period-select" data-auto-submit>
         {% for option in periods %}
         <option value="{{ option.value }}" {{ 'selected' if option.selected }}>
           {{ option.label }}</option>
         {% endfor %}
       </select>
     </span>
-    <button class="ghost btn-mini" type="submit">XEM</button>
+    <noscript><button class="ghost btn-mini" type="submit">XEM</button></noscript>
   </form>
-  <nav class="sheet-tabs" data-metric="sheet-tabs">
-    {% for tab in tabs %}
-    <a class="sheet-tab {{ 'on' if tab.selected }}{{ ' sheet-group' if tab.group }}"
-       data-metric="sheet-tab" data-sheet="{{ tab.key }}"
-       href="{{ url_for('business_employee', ky=selected_period, sheet=tab.key) }}"
-      >{{ tab.label }}</a>
-    {% endfor %}
-  </nav>
 </div>
+
+{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
+
+<nav class="sheet-tabs sheet-tabs-top" data-metric="sheet-tabs">
+  {% for tab in tabs %}
+  <a class="sheet-tab {{ 'on' if tab.selected }}{{ ' sheet-group' if tab.group }}"
+     data-metric="sheet-tab" data-sheet="{{ tab.key }}"
+     href="{{ url_for('business_employee', ky=selected_period, sheet=tab.key) }}"
+    >{{ tab.label }}</a>
+  {% endfor %}
+</nav>
 
 {# --- 3. NĂM CHỈ TIÊU CỦA SHEET ---------------------------------------- #}
 <div class="module">
@@ -86,19 +85,22 @@
       {% endif %}
     </span></h2>
 
-  {# `TASK-OWNER-UIUX-003` §6 — bảng "TARGET CỦA SHEET" đứng riêng bị gỡ theo
-     yêu cầu trực tiếp của chủ dự án; con số Target giờ đọc ngay trên dòng
-     tiêu đề (trên), và ô nhập chỉ hiện khi bấm icon sửa — ẩn mặc định để
-     không chiếm diện tích lúc chỉ xem báo cáo. Đường dẫn sang màn hình
-     Target đầy đủ (`PHB-05`, đặt target cho nhiều người một lúc) vẫn còn —
-     nó là một khung nhìn khác hẳn, không phải phần bị gỡ ở đây. #}
-  {% if not sheet.unresolved %}
-  <p><a class="ghost btn-mini" data-metric="target-link"
-        href="{{ url_for('business_target', ky=selected_period) }}"
-     >ĐẶT / SỬA TARGET</a></p>
-  {% endif %}
+  {# `TASK-OWNER-UIUX-004` §4 — liên kết "ĐẶT / SỬA TARGET" (sang màn hình
+     Target đầy đủ, nhiều người một lúc — `PHB-05`) bị GỠ theo yêu cầu trực
+     tiếp của chủ dự án: icon sửa cạnh dòng tiêu đề đã làm đúng việc đặt/
+     sửa Target CỦA SHEET đang xem, nên một nút thứ hai dẫn sang màn hình
+     khác là thừa trên chính màn hình vận hành. `/kinh-doanh/target` không
+     bị xoá — vẫn phục vụ khi gõ thẳng URL — chỉ không còn nút bấm riêng ở
+     đây (xem test đã đổi ở `test_phb05_employee_target.py`).
+
+     Panel sửa nay là một `<dialog>` THẬT: server dựng sẵn `open` khi
+     `sua-target=1` (không JS vẫn đọc được — chỉ không nổi lên thành modal,
+     xem như một khối bình thường trong luồng trang); `app.js` nâng nó
+     thành modal thật (`showModal()`) khi có JS — nền mờ, bẫy focus, phím
+     Esc đóng (gọi lại đúng liên kết XONG, xem `onDialogCancel`). #}
   {% if editing_target and not sheet.unresolved %}
-  <div class="target-edit-inline" data-metric="target-edit-panel">
+  <dialog class="target-edit-inline" data-metric="target-edit-panel" open>
+    <h3>{{ TARGET_UNIT_LABEL }} — {{ sheet.label }}</h3>
     {% if target.kvnd_editable %}
     <form class="filter-row" method="post"
           action="{{ url_for('business_save_sheet_target') }}">
@@ -113,7 +115,10 @@
     {% else %}
     <span class="tp-unit" data-metric="target-not-kvnd">{{ TARGET_NOT_KVND_NOTE }}</span>
     {% endif %}
-  </div>
+    <p><a class="ghost btn-mini" data-metric="target-edit-close"
+          href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
+       >ĐÓNG</a></p>
+  </dialog>
   {% endif %}
   <div class="kpi-grid strip">
     {{ biz.kpi('Doanh thu', strip.sales_revenue_kvnd, 'sales_revenue',
@@ -282,8 +287,23 @@
   <div class="tp-scroll">
   <table class="sheet-table">
     <tr>{% for label in columns %}
-      <th class="{{ 'num' if loop.index in (6, 7, 8, 9, 10) }}">{{ label }}</th>
+      <th class="{{ 'num' if loop.index in (5, 6, 7, 8, 9) }}">{{ label }}</th>
     {% endfor %}<th></th></tr>
+    {# `TASK-OWNER-UIUX-004` §5 — hàng TỔNG ngay dưới tiêu đề cột, chủ dự án
+       yêu cầu trực tiếp. Giá nhập/Giá bán cộng thẳng từ CÙNG tập dòng bảng
+       này đang hiện (`sheet_detail_totals`); Lợi nhuận/DS quy đổi dùng LẠI
+       đúng hai giá trị CHÍNH THỨC đã hiện trong dải KPI phía trên
+       (`sheet.kpi_profit`/`strip.converted_sales`) — không cộng lại lần
+       hai, tránh ra hai con số khác nhau cho cùng một khái niệm. #}
+    <tr class="row-total" data-metric="sheet-totals">
+      <td colspan="2" class="tp-label">TỔNG</td>
+      <td></td><td></td><td></td>
+      <td class="num" data-metric="totals-purchase">{{ detail_totals.purchase_price }}</td>
+      <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
+      {{ biz.derived_cell(sheet.kpi_profit, 'totals-profit') }}
+      {{ biz.derived_cell(strip.converted_sales, 'totals-converted') }}
+      <td></td><td></td>
+    </tr>
 
     {% for group in groups %}
     {% set open = editing == group.order_key %}
@@ -307,26 +327,47 @@
         {% endif %}>
       {% if first %}
       <td rowspan="{{ group.lines }}" data-metric="bh-date">{{ group.date_text }}</td>
+      {# `TASK-OWNER-UIUX-004` §5 — cột thu gọn (chủ dự án yêu cầu trực
+         tiếp): mã đơn + MỌI tag cảnh báo của cả BH đứng đây, kể cả "Thiếu
+         giá"/"Chưa phân loại" vốn trước đây đứng cạnh tên hàng ở ô Mặt
+         hàng của từng dòng (`group.identity_tags`, gộp DUY NHẤT theo NHÃN
+         — xem `sheet_detail_groups`). Ô Mặt hàng nhờ vậy chỉ còn tên hàng,
+         đọc được trên một dòng. #}
       <td rowspan="{{ group.lines }}" class="code" data-metric="bh-order">{{ group.order_key }}
         {% for tag in group.tags %}
         <span class="tag tag-short" data-metric="bh-tag"
               data-code="{{ tag.code }}">{{ tag.label }}</span>
+        {% endfor %}
+        {# `tag.duplicate_text` — "Thiếu giá" của `line_identity` (PI-01…
+           PI-12, bộ test riêng bảo vệ `data-metric="identity-label"`) đúng
+           CHỮ với "Thiếu giá" của `SHORT_TAGS` (`profit_gate`, `bh-tag`
+           ngay phía trên) khi cùng một dòng bị CẢ HAI hệ thống gắn cờ.
+           Phần tử này vẫn LUÔN render đủ (bằng chứng PI-02/PI-03 cần nó) —
+           chỉ ẩn khỏi mắt Owner bằng `sr-only` khi đã có một pill nói cùng
+           một chữ ngay trên, để không thấy "THIẾU GIÁ · THIẾU GIÁ" hai lần
+           liền nhau cho cùng một sự thật. #}
+        {% for tag in group.identity_tags %}
+        {% if tag.can_identify %}
+        <a class="tag tag-unresolved{{ ' sr-only' if tag.duplicate_text }}"
+           data-metric="identity-label"
+           title="{{ tag.title }}"
+           href="{{ url_for('business_employee', ky=selected_period,
+                    sheet=sheet.key, order_key=tag.order_key,
+                    product_key=tag.product_key,
+                    occurrence_index=tag.occurrence_index,
+                    **{'phan-loai': '1'}) }}#phan-loai"
+          >{{ tag.label }}</a>
+        {% else %}
+        <span class="tag tag-short{{ ' sr-only' if tag.duplicate_text }}"
+              data-metric="identity-label"
+              title="{{ tag.title }}">{{ tag.label }}</span>
+        {% endif %}
         {% endfor %}</td>
-      <td rowspan="{{ group.lines }}" data-metric="bh-customer">
-        <span data-metric="customer-name">{{ group.customer_name }}</span>
-        {# TASK-UIUX-001 — SĐT · địa chỉ xuống dòng dưới tên, chữ nhạt. #}
-        <span class="bh-customer-meta"><span data-metric="customer-phone">{{ group.customer_phone }}</span>
-          · <span data-metric="customer-address">{{ group.customer_address }}</span></span>
-      </td>
       {% endif %}
-      {# `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện nằm NGAY trong ô mã
-         hàng, không ở một trang khác và không ở một khối khác.
-
-         "Chưa phân loại" là một đường dẫn: bấm vào chính nó mở bảng chọn mặt
-         hàng ngay dưới dòng này. "Thiếu giá" KHÔNG phải đường dẫn — dòng đó
-         đã nhận diện xong, việc còn lại là giá, và giá sửa ở ô Giá nhập bên
-         cạnh chứ không ở đây. Hai trạng thái vì thế trông khác nhau và HÀNH
-         XỬ khác nhau, đúng `§PI-03`. #}
+      {# `DEC-185` §PI-01/§PI-02 — tên hàng vẫn là đường dẫn khi CHƯA phân
+         loại (bấm vào mở bảng chọn mặt hàng ngay dưới dòng này); trạng thái
+         đó nay đọc qua MÀU (xanh, `§PI-03`) thay vì một tag cạnh tên hàng —
+         tag chữ đứng ở ô Mã đơn rồi (trên), không lặp lại ở đây. #}
       <td data-metric="line-product"
           {% if row.identity_state %}data-identity="{{ row.identity_state }}"{% endif %}>
         {%- if row.synthetic %}↳ {% endif -%}
@@ -339,15 +380,8 @@
                     occurrence_index=row.occurrence_index,
                     **{'phan-loai': '1'}) }}#phan-loai"
            >{{ row.product_raw }}</a>
-        <span class="tag tag-unresolved" data-metric="identity-label"
-              >{{ row.identity_label }}</span>
         {%- else -%}
         {{ row.product_raw }}
-        {%- if row.identity_label %}
-        <span class="tag {{ 'tag-unresolved' if row.identity_state == 'IDENTITY_UNRESOLVED' else 'tag-short' }}"
-              data-metric="identity-label" title="{{ row.identity_title }}"
-              >{{ row.identity_label }}</span>
-        {%- endif %}
         {%- if row.identity_blocked %}
         <span class="tp-label" data-metric="identity-blocked">{{ unclassifiable_note }}</span>
         {%- endif %}
@@ -377,6 +411,18 @@
       <td class="num">{{ row.sell_price }}</td>
       {{ biz.derived_cell(row.kpi_profit, 'line-profit') }}
       {{ biz.derived_cell(row.converted_sales, 'line-converted') }}
+      {% if first %}
+      {# `TASK-OWNER-UIUX-004` §5 — Khách hàng dời ra SAU DS quy đổi (chủ dự
+         án yêu cầu trực tiếp): cụm cột nghiệp vụ của dòng hàng đọc liền
+         mạch trước, thông tin khách hàng đọc sau cùng, ngay trước thao
+         tác. #}
+      <td rowspan="{{ group.lines }}" data-metric="bh-customer">
+        <span data-metric="customer-name">{{ group.customer_name }}</span>
+        {# TASK-UIUX-001 — SĐT · địa chỉ xuống dòng dưới tên, chữ nhạt. #}
+        <span class="bh-customer-meta"><span data-metric="customer-phone">{{ group.customer_phone }}</span>
+          · <span data-metric="customer-address">{{ group.customer_address }}</span></span>
+      </td>
+      {% endif %}
       <td class="line-actions">
         {# Nút sửa của CẢ BH nằm ở dòng hàng đầu, cùng ô thao tác với dòng
            đó (`§7`) — một nút cho cả khối, không rải theo từng dòng. #}

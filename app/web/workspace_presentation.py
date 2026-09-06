@@ -59,9 +59,13 @@ from app.web.legacy_presentation import format_number
 #
 # `§26`: không có cột "Sửa" và không có thao tác "Gán NV bán hàng" riêng —
 # mỗi BH có ĐÚNG MỘT nút sửa (`§27`).
+#: `TASK-OWNER-UIUX-004` §5 — Khách hàng dời ra SAU DS quy đổi (chủ dự án
+#: yêu cầu trực tiếp): cụm cột nghiệp vụ của dòng hàng (Mặt hàng…DS quy đổi)
+#: đọc liền mạch trước, thông tin khách hàng đọc SAU cùng, ngay trước cột
+#: thao tác — thay vì chen giữa Mã đơn và Mặt hàng như trước.
 SHEET_DETAIL_COLUMNS: tuple[str, ...] = (
-    "Ngày", "Mã đơn", "Khách hàng", "Mặt hàng", "Nhân viên", "SL",
-    "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi",
+    "Ngày", "Mã đơn", "Mặt hàng", "Nhân viên", "SL",
+    "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng",
 )
 
 # --- Nhãn ngắn của cảnh báo (`§36`) ---------------------------------------
@@ -351,6 +355,7 @@ def sheet_detail_groups(details: list[dict], *, sheet,
                 "customer_address": detail.get("customer_address") or "—",
                 "rows": [],
                 "tags": [],
+                "identity_tags": [],
                 "loss": False,
                 # Nhân viên ở cấp BH (`§27`): đổi một lần là cả đơn đổi theo.
                 # Khi các dòng của một BH đang thuộc nhiều người khác nhau, ô
@@ -359,18 +364,51 @@ def sheet_detail_groups(details: list[dict], *, sheet,
                 "employees": [],
             }
         product, *discount_parts = bm.display_contributions(line)
-        group["rows"].append(_line_row(detail, sheet=sheet, part=product,
-                                       synthetic=False,
-                                       confirmed_keys=confirmed_keys))
+        new_rows = [_line_row(detail, sheet=sheet, part=product, synthetic=False,
+                              confirmed_keys=confirmed_keys)]
         for part in discount_parts:
-            group["rows"].append(_line_row(detail, sheet=sheet, part=part,
-                                           synthetic=True,
-                                           confirmed_keys=confirmed_keys))
+            new_rows.append(_line_row(detail, sheet=sheet, part=part, synthetic=True,
+                                      confirmed_keys=confirmed_keys))
+        group["rows"].extend(new_rows)
         if line.employee and line.employee not in group["employees"]:
             group["employees"].append(line.employee)
         for tag in _short_tags(line):
             if tag["code"] not in {item["code"] for item in group["tags"]}:
                 group["tags"].append(tag)
+        # `TASK-OWNER-UIUX-004` §5 — "Thiếu giá"/"Chưa phân loại" dồn về ô Mã
+        # đơn (chủ dự án yêu cầu trực tiếp), thay vì đứng cạnh tên hàng ở ô
+        # Mặt hàng của TỪNG dòng — Mặt hàng vì thế đọc được trên một dòng,
+        # không phải xuống hàng vì một cái tag. Gộp DUY NHẤT một tag cho mỗi
+        # NHÃN khác nhau (không phải mỗi dòng): một BH ba dòng cùng "Chưa
+        # phân loại" chỉ cần nói một lần, đúng cách `group["tags"]` ở trên
+        # đã làm cho `SHORT_TAGS`. Bấm vào tag vẫn mở đúng dòng ĐẦU TIÊN
+        # mang trạng thái đó (`§PI-04`) — không mất khả năng phân loại tại
+        # chỗ, chỉ đổi CHỖ ĐỨNG của lối vào.
+        #
+        # `LABEL_MISSING_PRICE` ("Thiếu giá") trùng CHỮ với
+        # `SHORT_TAGS[BLOCK_PURCHASE_PRICE_MISSING]` — cùng sự thật, hai
+        # module tính (`line_identity`, bộ test PI-01…PI-12 bảo vệ, và
+        # `profit_gate`) khác nhau. `identity-label` VẪN phải render đủ —
+        # PI-02/PI-03 đọc đúng `data-metric` này bất kể `bh-tag` có nói gì —
+        # nên KHÔNG được bỏ qua nó; chỉ đánh dấu `duplicate_text` để
+        # template ẩn viền pill trùng chữ khỏi mắt Owner (`aria-hidden`,
+        # `sr-only` — vẫn ở trong DOM cho test và trình đọc màn hình), tránh
+        # "THIẾU GIÁ · THIẾU GIÁ" hai lần liền nhau khi cả hai cùng đúng.
+        existing_identity_labels = {item["label"] for item in group["identity_tags"]}
+        short_tag_labels = {item["label"] for item in group["tags"]}
+        for row in new_rows:
+            label = row.get("identity_label")
+            if label and label not in existing_identity_labels:
+                existing_identity_labels.add(label)
+                group["identity_tags"].append({
+                    "label": label,
+                    "title": row.get("identity_title"),
+                    "can_identify": row.get("can_identify"),
+                    "order_key": row["order_key"],
+                    "product_key": row["product_key"],
+                    "occurrence_index": row["occurrence_index"],
+                    "duplicate_text": label in short_tag_labels,
+                })
         group["loss"] = group["loss"] or _is_loss(line)
         # `§PI-11` — BH này có dòng chưa phân loại nào không. Cờ ở cấp BH chứ
         # không cấp dòng vì cảnh báo đầu sheet đếm BH, và cái nó cuộn tới cũng
@@ -398,6 +436,35 @@ def sheet_detail_groups(details: list[dict], *, sheet,
             group["employees"][0] if len(group["employees"]) == 1 else "")
         group["lines"] = len(group["rows"])
     return ordered
+
+
+def sheet_detail_totals(details: list[dict]) -> dict:
+    """Tổng Giá nhập/Giá bán của TOÀN sheet — một hàng ngay dưới tiêu đề cột
+    của bảng kê (`TASK-OWNER-UIUX-004` §5, chủ dự án yêu cầu trực tiếp).
+
+    Cộng thẳng từ CÙNG tập dòng mà `sheet_detail_groups` hiển thị (kể cả dòng
+    Chiết khấu suy ra — nó cũng đứng trong cột Giá nhập/Giá bán của chính
+    bảng này), nên hàng tổng luôn khớp với những gì Owner đang nhìn thấy phía
+    dưới nó, không phải một phép cộng dựng riêng có thể lệch đi.
+
+    Lợi nhuận KPI và DS quy đổi KHÔNG được cộng lại ở đây: hai con số đó đã
+    có một tổng CHÍNH THỨC, có gate (`sheet.kpi_profit`/`strip.converted_
+    sales`, hiện trong dải KPI của chính trang này) — cộng thẳng từ dòng sẽ
+    bỏ qua gate và có thể ra một con số KHÁC cho CÙNG một khái niệm. Template
+    dùng lại đúng hai giá trị đó cho hàng tổng, không tính hai lần.
+    """
+    purchase = Decimal(0)
+    sell = Decimal(0)
+    for detail in details:
+        for part in bm.display_contributions(detail["line"]):
+            if part.purchase_price is not None:
+                purchase += part.purchase_price
+            if part.sell_price is not None:
+                sell += part.sell_price
+    return {
+        "purchase_price": _decimal(purchase),
+        "sell_price": _decimal(sell),
+    }
 
 
 def excluded_rows(excluded: list[dict]) -> list[dict]:
@@ -480,6 +547,6 @@ __all__ = [
     "PROGRESS_NOTE", "SHEET_DETAIL_COLUMNS", "SHORT_TAGS",
     "TARGET_KVND_NOTE", "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL",
     "business_date", "excluded_rows", "period_options", "progress_cell",
-    "sheet_detail_groups", "sheet_tabs", "sheet_view", "summary_strip",
-    "target_cell", "vs_target_cell",
+    "sheet_detail_groups", "sheet_detail_totals", "sheet_tabs", "sheet_view",
+    "summary_strip", "target_cell", "vs_target_cell",
 ]

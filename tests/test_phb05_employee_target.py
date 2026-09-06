@@ -645,14 +645,27 @@ def test_case_17_the_primary_navigation_is_unchanged(repository, client):
         assert "Target" not in nav
 
 
-def test_case_17_the_target_view_is_reachable_from_the_employee_page(
+def test_case_17_the_target_view_still_answers_even_without_a_link_to_it(
     repository, client
 ):
-    """Khung nhìn con phải MỞ ĐƯỢC — nếu không nó chỉ là một URL bí mật."""
+    """`TASK-OWNER-UIUX-004` §4 — liên kết "ĐẶT / SỬA TARGET" trên trang
+    Nhân viên bị GỠ theo yêu cầu trực tiếp của chủ dự án ("nút ... bị thừa
+    hãy bỏ đi"): icon sửa cạnh dòng tiêu đề sheet (`TASK-OWNER-UIUX-003`
+    §6) đã làm đúng việc đặt/sửa Target CỦA SHEET đang xem, nên liên kết
+    sang màn hình Target ĐẦY ĐỦ (đặt target cho NHIỀU người một lúc, `PHB-
+    05`) là thừa trên chính màn hình vận hành hằng ngày.
+
+    Test gốc (CASE 17) đòi khung nhìn con phải MỞ ĐƯỢC từ một liên kết,
+    không chỉ là một URL bí mật — điều đó vẫn đúng tinh thần: `/kinh-doanh/
+    target` không bị xoá, route vẫn phục vụ đầy đủ, chỉ không còn một nút
+    bấm RIÊNG cho nó trên trang Nhân viên nữa. Owner biết đường vào màn
+    hình đó qua chính URL này khi cần đặt target cho nhiều người cùng lúc.
+    """
     persist(repository, [selling("BH1", month=9)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&nhan-vien=Ly")
-    assert "/kinh-doanh/target" in html
-    assert metric(html, "target-link") == "ĐẶT / SỬA TARGET"
+    assert "/kinh-doanh/target" not in html
+    assert 'data-metric="target-link"' not in html
+    assert body(client, "/kinh-doanh/target?ky=2026-09")
 
 
 def test_case_18_legacy_history_stays_one_locked_source(repository, client):

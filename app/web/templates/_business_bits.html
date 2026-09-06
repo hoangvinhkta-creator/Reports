@@ -258,6 +258,12 @@
 </div>
 {%- endmacro %}
 
+{# `TASK-OWNER-UIUX-004` §2 — đổi kỳ chạy NGAY khi chọn, không cần bấm XEM.
+   `data-auto-submit` là móc cho `app.js` (nghe `change`, gọi
+   `form.requestSubmit()` rồi chặn AJAX y hệt một submit thường — xem
+   `app.js`); KHÔNG có JS thì ô chọn chỉ đứng yên, nên nút XEM vẫn phải có
+   một đường lùi — `<noscript>` hiện nó lại đúng lúc đó, không xoá khả năng
+   vận hành khi JS tắt. #}
 {% macro period_picker(periods, selected, action, extra={}) -%}
 <form class="filter-row" method="get" action="{{ action }}">
   {% for name, value in extra.items() %}{% if value %}
@@ -265,14 +271,14 @@
   {% endif %}{% endfor %}
   <span class="kpi-period">
     <label class="tp-label" for="ky">Kỳ báo cáo</label>
-    <select name="ky" id="ky" onchange="this.form.submit()">
+    <select name="ky" id="ky" data-auto-submit>
       {% for option in periods %}
       <option value="{{ option.value }}" {{ 'selected' if option.value == selected }}>
         {{ option.label }}</option>
       {% endfor %}
     </select>
   </span>
-  <button class="ghost btn-mini" type="submit">XEM</button>
+  <noscript><button class="ghost btn-mini" type="submit">XEM</button></noscript>
 </form>
 {%- endmacro %}
 

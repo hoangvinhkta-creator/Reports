@@ -21,7 +21,9 @@ phải nhiễu.
 
 from __future__ import annotations
 
+import calendar
 import math
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
@@ -1172,9 +1174,117 @@ CHART_UNDATED_NOTE = (
 )
 
 # Hình học của biểu đồ ĐƯỜNG (`TASK-OWNER-UIUX-002` R4), đơn vị SVG.
+#
+# `TASK-OWNER-UIUX-004` §1 đổi từ bề rộng TĂNG THEO SỐ ĐIỂM (mỗi điểm
+# `_CHART_STEP_X` cũ = 64px, nên 6 điểm ra một biểu đồ bé tí giữa một card
+# rộng) sang một `viewBox` CỐ ĐỊNH (`_CHART_VIEW_W`), co giãn 100% bề rộng
+# card qua CSS (`width: 100%` trên `<svg>`, `preserveAspectRatio="none"` đã
+# có sẵn). Card luôn ĐẦY, và khi kỳ đang xem CHƯA đi hết, đường chỉ vẽ tới
+# đúng điểm dữ liệu cuối rồi dừng — phần còn lại để trống, không suy diễn.
 _CHART_PLOT_H = 160
-_CHART_STEP_X = 64
+_CHART_VIEW_W = 960
 _CHART_PAD_X = 8
+
+#: Ngày cố định làm nhãn trục X ở mức Ngày — số tròn Owner yêu cầu, không
+#: phải MỌI ngày có dữ liệu. Ngày nào không tồn tại trong tháng đang xem
+#: (vd 30 của tháng 2) tự động bị lọc bởi điều kiện `<= days_in_month`.
+_CHART_DAY_TICKS = (5, 10, 15, 20, 25, 30)
+
+
+def _chart_day_container(period: Optional[tuple[int, int]]):
+    """`(days_in_month)` của kỳ đang xem — trục X mức Ngày cần con số này để
+    đặt vị trí LỊCH của từng điểm (ngày mấy trên tổng bao nhiêu ngày), chứ
+    không phải thứ tự điểm thứ mấy trong danh sách bằng chứng có được."""
+    if period is None:
+        return None
+    year, month = period
+    return calendar.monthrange(year, month)[1]
+
+
+def _chart_quarter_container(period: Optional[tuple[int, int]]):
+    """`(ngày đầu quý, tổng số ngày của quý)` chứa kỳ đang xem — dùng
+    `window_bounds(WEEK, ...)` đã có sẵn thay vì tính lại ranh giới quý."""
+    if period is None:
+        return None
+    bounds = revenue_timeline.window_bounds(revenue_timeline.WEEK, period)
+    if bounds is None:
+        return None
+    start = date.fromisoformat(bounds[0])
+    end = date.fromisoformat(bounds[1])
+    return start, (end - start).days
+
+
+def _chart_x_fraction(key: str, granularity: str, period: Optional[tuple[int, int]],
+                       index: int, count: int) -> float:
+    """Vị trí NGANG (0..1) của một điểm trên trục X.
+
+    Ngày/Tuần/Tháng có một CONTAINER cố định (tháng/quý/năm của kỳ đang
+    xem) nên vị trí tính theo LỊCH — đúng ngày/tuần/tháng nào trong
+    container đó — thay vì theo thứ tự điểm. Quý/Năm không bị khoanh
+    (`TASK-OWNER-UIUX-003` §2), không có container cố định để so, nên giữ
+    cách chia đều theo THỨ TỰ điểm như cũ.
+    """
+    if granularity == revenue_timeline.DAY:
+        days_in_month = _chart_day_container(period)
+        if days_in_month:
+            day = int(key[8:10])
+            return (day - 1) / max(days_in_month - 1, 1)
+    elif granularity == revenue_timeline.WEEK:
+        container = _chart_quarter_container(period)
+        if container:
+            start, quarter_days = container
+            elapsed = (date.fromisoformat(key) - start).days
+            return max(0.0, min(1.0, elapsed / max(quarter_days - 1, 1)))
+    elif granularity == revenue_timeline.MONTH:
+        if period is not None:
+            month = int(key[5:7])
+            return (month - 1) / 11
+    return index / max(count - 1, 1)
+
+
+def _chart_x_ticks(granularity: str, period: Optional[tuple[int, int]]) -> list[dict]:
+    """Nhãn trục X CỐ ĐỊNH theo lịch (Ngày/Tuần/Tháng) — tách khỏi điểm dữ
+    liệu thật: một mốc lịch tròn (5, 10, 15...) hiện ra dù kỳ đó chưa có
+    dòng nào, và một điểm dữ liệu không rơi đúng mốc tròn vẫn được vẽ (bằng
+    chấm), chỉ không mang nhãn riêng — tránh "một bức tường chữ" của
+    `_CHART_MAX_X_LABELS` cũ mà vẫn không bịa thêm dữ liệu nào.
+    """
+    if period is None:
+        return []
+    if granularity == revenue_timeline.DAY:
+        days_in_month = _chart_day_container(period)
+        if not days_in_month:
+            return []
+        return [
+            {"x_pct": (day - 1) / max(days_in_month - 1, 1) * 100,
+             "label": f"{day:02d}"}
+            for day in _CHART_DAY_TICKS if day <= days_in_month
+        ]
+    if granularity == revenue_timeline.WEEK:
+        container = _chart_quarter_container(period)
+        if not container:
+            return []
+        start, quarter_days = container
+        ticks = []
+        cursor = start
+        for _ in range(3):
+            elapsed = (cursor - start).days
+            ticks.append({
+                "x_pct": max(0.0, min(1.0, elapsed / max(quarter_days - 1, 1))) * 100,
+                "label": f"{cursor.day:02d}/{cursor.month:02d}",
+            })
+            next_month = cursor.month + 1
+            next_year = cursor.year
+            if next_month > 12:
+                next_month, next_year = 1, next_year + 1
+            cursor = date(next_year, next_month, 1)
+        return ticks
+    if granularity == revenue_timeline.MONTH:
+        return [
+            {"x_pct": month / 11 * 100, "label": f"Th{month + 1}"}
+            for month in range(12)
+        ]
+    return []
 #: Số đường lưới ngang, KHÔNG kể đường đáy (0). Bốn đường + đáy = năm mốc,
 #: đủ để đọc độ lớn tương đối mà không dày đặc như một tờ kẻ ô ly.
 _CHART_Y_TICKS = 4
@@ -1244,8 +1354,15 @@ def _chart_scope_note(granularity: str, window_label: str) -> str:
 def revenue_chart(
     points, *, granularity: str, has_legacy_months: bool = False,
     undated: int = 0, window_label: str = "",
+    period: Optional[tuple[int, int]] = None,
 ) -> dict:
-    """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp."""
+    """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp.
+
+    `period` là kỳ ĐANG XEM (không phải kỳ của từng điểm) — chỉ dùng để
+    dựng CONTAINER lịch cho trục X ở mức Ngày/Tuần/Tháng (`§1`). `None` khi
+    không có kỳ nào đang chọn ("Toàn bộ dữ liệu"): trục X khi đó rơi về
+    cách chia đều theo thứ tự điểm như trước `TASK-OWNER-UIUX-004`.
+    """
     peak = max((point.revenue for point in points), default=Decimal(0))
     ceiling = _chart_nice_ceiling(peak)
     bars = []
@@ -1274,31 +1391,42 @@ def revenue_chart(
             "title": _chart_bar_title(point),
         })
     day_level = granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
-    # `TASK-OWNER-UIUX-002` R4 — hình học của ĐƯỜNG, tính ở tầng trình bày và
+    # `TASK-OWNER-UIUX-004` §1 — hình học của ĐƯỜNG, tính ở tầng trình bày và
     # vẽ bằng SVG tĩnh: không JavaScript, không thư viện, in ra giấy vẫn
-    # đúng. Toạ độ Y so với TRẦN TRÒN (`ceiling`), không so với đỉnh dữ liệu
-    # — nên đường lưới và đường doanh thu luôn cùng một thước đo.
+    # đúng (JS ở `app.js` chỉ THÊM tooltip khi rê chuột — không đổi hình học
+    # gốc). Toạ độ Y so với TRẦN TRÒN (`ceiling`), không so với đỉnh dữ liệu
+    # — nên đường lưới và đường doanh thu luôn cùng một thước đo. Toạ độ X
+    # nay theo VỊ TRÍ LỊCH trong container của kỳ đang xem (`_chart_x_
+    # fraction`), không theo thứ tự điểm — nên khi kỳ chưa đi hết, đường
+    # dừng đúng chỗ và phần còn lại của card để trống, không co giãn ra cho
+    # vừa đủ mấy điểm đang có.
+    count = len(bars)
+    fixed_x_axis = (
+        period is not None
+        and granularity in (revenue_timeline.DAY, revenue_timeline.WEEK,
+                            revenue_timeline.MONTH))
     for index, (point, bar) in enumerate(zip(points, bars)):
-        fraction = float(point.revenue / ceiling) if ceiling > 0 else 0.0
-        bar["x"] = _CHART_PAD_X + index * _CHART_STEP_X
-        bar["y"] = _CHART_PLOT_H - round(fraction * _CHART_PLOT_H)
-    # Nhãn trục X thưa lại khi có quá nhiều mốc — mỗi điểm vẫn giữ đủ thuộc
-    # tính để máy đọc và để rê chuột xem qua `title`; chỉ CHỮ hiện dưới trục
-    # là được chọn lọc. Mốc ĐẦU và mốc CUỐI luôn hiện, để biết biểu đồ bắt
-    # đầu và kết thúc ở đâu.
-    stride = max(1, math.ceil(len(bars) / _CHART_MAX_X_LABELS)) if bars else 1
+        y_fraction = float(point.revenue / ceiling) if ceiling > 0 else 0.0
+        x_fraction = _chart_x_fraction(point.key, granularity, period, index, count)
+        bar["x"] = _CHART_PAD_X + x_fraction * (_CHART_VIEW_W - 2 * _CHART_PAD_X)
+        bar["x_pct"] = bar["x"] / _CHART_VIEW_W * 100
+        bar["y"] = _CHART_PLOT_H - round(y_fraction * _CHART_PLOT_H)
+    # Nhãn dưới TỪNG điểm chỉ còn dùng khi trục X KHÔNG có lưới cố định
+    # (Quý/Năm, không container) — Ngày/Tuần/Tháng đọc nhãn từ `x_ticks`
+    # thay vào, tách khỏi việc điểm đó có dữ liệu hay không (`§1`). Mốc ĐẦU
+    # và mốc CUỐI của chuỗi thưa vẫn luôn hiện, để biết biểu đồ bắt đầu và
+    # kết thúc ở đâu.
+    stride = max(1, math.ceil(count / _CHART_MAX_X_LABELS)) if bars else 1
     for index, bar in enumerate(bars):
-        bar["show_label"] = (index % stride == 0) or index == len(bars) - 1
-    svg_width = max(_CHART_PAD_X * 2 + (len(bars) - 1) * _CHART_STEP_X,
-                    _CHART_PAD_X * 2) if bars else 0
+        bar["show_label"] = (
+            not fixed_x_axis
+            and ((index % stride == 0) or index == count - 1))
     return {
-        "svg_width": svg_width,
+        "svg_width": _CHART_VIEW_W,
         "svg_height": _CHART_PLOT_H,
         "y_axis": _chart_y_axis(ceiling),
-        # Ô nhãn dùng CHÍNH bước ngang của đường, nên nhãn luôn nằm đúng dưới
-        # mốc của nó và hai nhãn cạnh nhau không bao giờ chồng chữ. Một hằng
-        # số thứ hai trong CSS sẽ trôi khỏi cái này lúc nào không biết.
-        "step_x": _CHART_STEP_X,
+        "x_ticks": _chart_x_ticks(granularity, period) if fixed_x_axis else [],
+        "fixed_x_axis": fixed_x_axis,
         "polyline": " ".join(f"{bar['x']},{bar['y']}" for bar in bars),
         "single_point": len(bars) == 1,
         "granularity": granularity,

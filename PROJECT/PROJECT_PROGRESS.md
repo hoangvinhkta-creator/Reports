@@ -1,5 +1,78 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-004 = DONE (2026-09-06)
+
+Vòng sửa thứ tư theo phản hồi bằng ba ảnh chụp màn hình (khoanh đỏ) + sáu
+yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-193` trên môi trường
+thật — bốn câu hỏi làm rõ được đặt qua `AskUserQuestion` trước khi triển
+khai. Quyết định: `DEC-194`. Đây là lần đầu tiên JavaScript được đưa vào
+sản phẩm — một REVISE kiến trúc có chủ đích, theo yêu cầu trực tiếp của
+Owner, không phải scope drift.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 9bfccb878d89e019bf9b24c76e5568bd9b2cc641
+Current Task Mode:            MICRO (sáu sửa trực tiếp trên MAJOR vừa DONE)
+ARCHITECTURE_REVISED         = CÓ — "không JavaScript" REVISE có chủ đích
+                              (Owner yêu cầu trực tiếp qua văn bản). Lớp
+                              tăng cường AJAX (`app/web/static/js/app.js`,
+                              thuần, không thư viện): điều hướng TRONG một
+                              tab không tải lại trang (period picker, sheet
+                              tab, granularity biểu đồ, mọi form ghi —
+                              price/gán NV/phân loại/loại dòng/Target),
+                              chuyển TAB chính vẫn tải lại trang. Tắt JS ⟹
+                              mọi thứ hoạt động như cũ (điều hướng thật,
+                              `<noscript>` trả lại nút XEM)
+CHANGES                     = biểu đồ vẽ lại hoàn toàn (viewBox cố định co
+                              giãn 100% card, toạ độ X theo LỊCH trong kỳ
+                              đang xem thay vì theo thứ tự điểm, trục X cố
+                              định tách khỏi dữ liệu — Ngày 5/10/15/20/25/
+                              30, Tuần 3 mốc đầu tháng trong quý, Tháng
+                              Th1-Th12, tooltip khi rê chuột) · gộp hàng
+                              chọn kỳ ở cả Báo cáo và Nhân viên, bỏ nút XEM
+                              · hộp thoại Target thật (`<dialog>` + 
+                              `showModal()`), bỏ liên kết "ĐẶT/SỬA TARGET"
+                              thừa · bảng kê xếp lại cột (Khách hàng ra sau
+                              DS quy đổi), thêm hàng TỔNG Giá nhập/Giá bán/
+                              Lợi nhuận/DS quy đổi, gộp tag "Thiếu giá"/
+                              "Chưa phân loại" về ô Mã đơn (đổi màu xanh),
+                              Mã đơn thu gọn + Mặt hàng đọc trọn một dòng
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO (biểu đồ
+                              vẫn vẽ bằng SVG tĩnh tính sẵn ở tầng trình
+                              bày; JS chỉ thêm tương tác — tooltip, vận
+                              chuyển AJAX — không thay cách tính. `series()`/
+                              `window_points()` của DEC-193 không bị chạm)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi — X-Fragment
+                              là một header đọc qua context processor,
+                              không phải endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO (nav.ncc-tabs đứng ngoài #app-content,
+                              chuyển tab vẫn là điều hướng trang thật)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `9bfccb8`: cùng 2721/11 — 0 test mới,
+                              test PHB-05/PI-01..12 chỉnh lại ĐÍCH theo
+                              markup mới, xem DEC-194 Evidence) · GOLDEN 58
+                              passed / 2 skipped, KHÔNG đổi
+AJAX_VERIFIED               = Playwright trên Flask thật (không phải dump
+                              tĩnh): xác nhận KHÔNG tải lại trang qua
+                              window.__marker sống sót qua mở/lưu/đóng
+                              Target, sửa Giá nhập, Gia dụng + xác nhận,
+                              loại dòng + xác nhận + KHÔI PHỤC (phát hiện
+                              và sửa lỗi thiếu `event.submitter` ở đây),
+                              đổi mức gộp biểu đồ, đổi kỳ, đổi sheet tab,
+                              mở bảng chọn mặt hàng "Chưa phân loại"
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/820/390px
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189) sau khi thêm exempt pair cho
+                              đoạn trích dẫn nguyên văn 3 tên file đó trong
+                              Evidence của DEC-193 — xem DEC-194 Evidence
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-003 = DONE (2026-09-06)
 
 Vòng sửa thứ ba theo phản hồi bằng hai ảnh chụp màn hình (khoanh đỏ) + bảy

@@ -155,10 +155,15 @@ def test_r4_every_headline_metric_explains_itself_behind_a_question_mark(
     assert len(helps) >= 4
     assert any("ĐƠN GIÁ BÁN" in text for text in helps)        # Tổng số SP
     assert any("tỉ lệ quy đổi" in text for text in helps)      # DS quy đổi
-    # Không `<details>`, không bấm: `tabindex` lo phần lia bàn phím, và
-    # không một dòng JavaScript nào cần cho việc này.
-    assert "<script" not in html
+    # Không `<details>`, không bấm: `tabindex` lo phần lia bàn phím, và cơ
+    # chế CSS `:hover`/`:focus-within` của CHÍNH chú giải này không cần một
+    # dòng JavaScript nào — `TASK-OWNER-UIUX-004` thêm `<script>` cho toàn
+    # trang (điều hướng trong tab không tải lại, tooltip biểu đồ khi rê
+    # chuột) là một quyết định KHÁC, không liên quan tới cách chú giải (?)
+    # này hoạt động, nên assertion ở đây thu hẹp lại đúng điều nó kiểm: cơ
+    # chế `.kpi-help` không dùng thuộc tính `onclick`/JS nào của riêng nó.
     assert 'class="kpi-help" tabindex="0"' in html
+    assert "onclick" not in html
 
 
 # ==========================================================================

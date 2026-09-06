@@ -349,6 +349,26 @@ def create_app(
     _css_path = Path(__file__).parent / "static" / "css" / "tinphat-ui.css"
     app.jinja_env.globals["ASSET_VERSION"] = hashlib.sha256(
         _css_path.read_bytes()).hexdigest()[:10]
+    # `TASK-OWNER-UIUX-004` — cùng cơ chế cache-bust cho file JS mới
+    # (`app.js`), lý do giống hệt CSS ở trên.
+    _js_path = Path(__file__).parent / "static" / "js" / "app.js"
+    app.jinja_env.globals["JS_ASSET_VERSION"] = hashlib.sha256(
+        _js_path.read_bytes()).hexdigest()[:10]
+
+    @app.context_processor
+    def _inject_fragment_flag():
+        """`TASK-OWNER-UIUX-004` §6 — điều hướng TRONG một tab không tải lại
+        trang; chuyển TAB vẫn tải lại (`§4`/`§5` — nav chính đứng ngoài
+        `#app-content`, xem `layout.html`).
+
+        Lớp tăng cường ở `app.js` gắn header `X-Fragment: 1` vào mọi
+        fetch() nó tự phát ra; `layout.html` đọc `partial` từ đây để quyết
+        định có dựng lại khung trang (doctype/head/nav) hay chỉ trả đúng
+        nội dung bên trong `#app-content`. Route KHÔNG cần biết gì về việc
+        này — không route nào phải tự thêm tham số `partial` vào
+        `render_template`, nên không có chỗ nào quên làm điều đó.
+        """
+        return {"partial": request.headers.get("X-Fragment") == "1"}
     app.jinja_env.globals["LEGACY_BADGE"] = legacy_presentation.ORIGIN_BADGE
     app.jinja_env.globals["LEGACY_BADGE_TITLE"] = legacy_presentation.ORIGIN_TITLE
     app.jinja_env.globals["LEGACY_PROVENANCE"] = legacy_reference.PROVENANCE
@@ -1114,7 +1134,8 @@ def create_app(
             has_legacy_months=bool(legacy_months),
             undated=revenue_timeline.undated_count(data.details),
             window_label=revenue_timeline.window_label(
-                granularity, view["period"]))
+                granularity, view["period"]),
+            period=view["period"])
 
     def _period_employees(view: dict):
         """Bộ chọn nhân viên của kỳ, ĐÃ tính cả những lần Owner gán lại.
@@ -1485,6 +1506,8 @@ def create_app(
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
                 scoped.details, sheet=sheet, confirmed_keys=confirmed),
+            detail_totals=workspace_presentation.sheet_detail_totals(
+                scoped.details),
             # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
             # `None`. Không có khối thứ hai, không có trang thứ hai.
             identity_warning=line_identity.sheet_warning(

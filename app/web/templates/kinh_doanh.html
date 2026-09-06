@@ -7,11 +7,16 @@
 <h1>TỔNG HỢP KINH DOANH</h1>
 
 <div class="module">
-  {{ biz.period_picker(periods, selected_period, url_for('business_summary')) }}
-
-  <h2>{{ summary.period_label }}
-      <span class="cnt"><span data-metric="orders">{{ summary.orders }}</span> đơn ·
-        <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
+  {# `TASK-OWNER-UIUX-004` §2 — bộ chọn kỳ và dòng "Tháng X · N đơn · N
+     dòng" đứng CHUNG một hàng, thay vì kỳ chọn xong rồi tới một dòng tiêu
+     đề riêng ngay dưới nó — cùng một thông tin (kỳ đang xem), không cần
+     hai hàng để nói. #}
+  <div class="period-header-row">
+    {{ biz.period_picker(periods, selected_period, url_for('business_summary')) }}
+    <h2>{{ summary.period_label }}
+        <span class="cnt"><span data-metric="orders">{{ summary.orders }}</span> đơn ·
+          <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
+  </div>
 
   {# `TASK-OWNER-UIUX-002` — BỐN chỉ tiêu chính trên MỘT hàng. Doanh thu vẫn
      là ô đọc trước (số to hơn, chênh lệch so tháng trước ngay dưới), nhưng nó
@@ -99,16 +104,23 @@
   {% if chart.empty %}
   <p class="empty" data-metric="chart-empty">{{ chart.empty_note }}</p>
   {% else %}
+  {# `TASK-OWNER-UIUX-004` §1 — `viewBox` CỐ ĐỊNH, co giãn 100% bề rộng
+     card qua CSS thay vì bề rộng SVG tăng theo số điểm: card luôn ĐẦY dù
+     có bao nhiêu điểm. Toạ độ X của mỗi điểm nay theo VỊ TRÍ LỊCH trong kỳ
+     đang xem (`business_presentation._chart_x_fraction`) — khi kỳ chưa đi
+     hết, đường chỉ vẽ tới điểm cuối rồi dừng, phần còn lại của card để
+     trống, không suy diễn. Nhãn trục X ở Ngày/Tuần/Tháng (`chart.x_ticks`)
+     tách khỏi điểm dữ liệu — một mốc lịch tròn hiện ra dù kỳ đó chưa có
+     dòng nào. #}
   <div class="rev-chart-row">
     <div class="rev-chart-yaxis" style="height: {{ chart.svg_height }}px">
       {% for tick in chart.y_axis %}
       <span class="rev-chart-ytick" style="top: {{ tick.y }}px">{{ tick.label }}</span>
       {% endfor %}
     </div>
-    <div class="tp-scroll">
+    <div class="rev-chart-plot">
       <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
         <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
-             width="{{ chart.svg_width }}" height="{{ chart.svg_height }}"
              preserveAspectRatio="none" role="img"
              aria-label="Xu hướng doanh thu theo {{ chart.granularity }}">
           {% for tick in chart.y_axis %}
@@ -118,21 +130,23 @@
           {% if not chart.single_point %}
           <polyline class="rev-line-path" points="{{ chart.polyline }}"/>
           {% endif %}
-          {# Chấm chỉ VẼ. Mỗi mốc chỉ có ĐÚNG MỘT phần tử mang khoá của nó —
-             ô nhãn ngay dưới — nên không có chuỗi thứ hai chạy song song. #}
+          {# Chấm mang tooltip gốc (`<title>`, không cần JS) VÀ là mục tiêu
+             rê chuột của tooltip nhanh trong `app.js` (`.rev-line-dot`). #}
           {% for bar in chart.bars %}
           <circle class="rev-line-dot{{ ' rev-line-legacy' if bar.legacy }}"
                   cx="{{ bar.x }}" cy="{{ bar.y }}" r="4"><title>{{ bar.title }}</title></circle>
           {% endfor %}
         </svg>
-        {# Ô nhãn là phần tử MANG DỮ LIỆU của mốc: cùng `data-metric`, cùng
-           `data-key`, cùng `data-origin`, cùng `data-revenue` thô và cùng lời
-           giải thích như thời biểu đồ cột — và nó là HTML thật nên vẫn chọn,
-           tìm và đọc màn hình được, dù CHỮ dưới trục chỉ hiện ở mốc được
-           chọn (`bar.show_label`, thưa lại khi có nhiều mốc). #}
-        <div class="rev-line-axis">
+        {# Phần tử MANG DỮ LIỆU của mốc: cùng `data-metric`, cùng `data-key`,
+           cùng `data-origin`, cùng `data-revenue` thô và cùng lời giải
+           thích như trước — đặt tại ĐÚNG vị trí lịch của điểm đó
+           (`bar.x_pct`), không còn theo bước cố định. Khi trục X có lưới
+           cố định (`chart.fixed_x_axis`) nhãn CHỮ đọc từ `chart.x_ticks`
+           thay vì từ chính điểm — phần tử này khi đó chỉ còn là mục tiêu
+           rê chuột, không hiện chữ riêng để tránh chồng lên lưới cố định. #}
+        <div class="rev-line-points">
           {% for bar in chart.bars %}
-          <span class="rev-line-tick" style="flex-basis: {{ chart.step_x }}px"
+          <span class="rev-line-point" style="left: {{ bar.x_pct }}%"
                 title="{{ bar.title }}"
                 data-metric="chart-bar" data-key="{{ bar.key }}"
                 data-origin="{{ bar.origin }}"
@@ -143,6 +157,13 @@
           </span>
           {% endfor %}
         </div>
+        {% if chart.fixed_x_axis %}
+        <div class="rev-chart-xaxis">
+          {% for tick in chart.x_ticks %}
+          <span class="rev-chart-xtick" style="left: {{ tick.x_pct }}%">{{ tick.label }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>

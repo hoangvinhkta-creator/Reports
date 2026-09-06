@@ -1,3 +1,11 @@
+{# `TASK-OWNER-UIUX-004` §6 — chuyển TAB (thanh dưới) vẫn là điều hướng
+   trang thật; làm việc TRONG một tab thì không tải lại. Ranh giới đó là
+   CHÍNH khối `{% if not partial %}` bên dưới: mọi thứ trong đó (doctype,
+   head, thanh tab) chỉ dựng khi tải trang THẬT; khi `app.js` xin một mảnh
+   (`X-Fragment: 1`, đọc thành `partial` qua context_processor ở
+   `server.py`) thì response CHỈ còn đúng nội dung của `{% block content %}`
+   — không route nào phải tự biết về `partial`, tất cả nằm ở ĐÚNG một chỗ. #}
+{% if not partial %}
 <!doctype html>
 <html lang="vi">
 <head>
@@ -28,8 +36,12 @@
   <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">Nhân viên</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">Dữ liệu</a>
 </nav>
-<main class="tp-main">
+{% endif %}
+<main class="tp-main" id="app-content">
 {% block content %}{% endblock %}
 </main>
+{% if not partial %}
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ JS_ASSET_VERSION }}"></script>
 </body>
 </html>
+{% endif %}

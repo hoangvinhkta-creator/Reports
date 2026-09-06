@@ -11281,3 +11281,245 @@ ngang.
 Can Revisit After:
 Không có mục hoãn mới. Module "Biểu đồ khác" ở mục 2 là chỗ trống — chưa có
 task nào định nghĩa nó sẽ hiển thị gì.
+
+## DEC-194
+
+Title:
+`TASK-OWNER-UIUX-004` — vòng sửa thứ tư theo phản hồi trực tiếp của chủ dự
+án trên `DEC-193`: đưa JavaScript vào sản phẩm lần đầu tiên (điều hướng
+trong tab không tải lại trang, biểu đồ tương tác) — biểu đồ vẽ lại hoàn
+toàn (viewBox cố định, toạ độ X theo lịch, lưới trục cố định, tooltip khi
+rê chuột), gộp hàng chọn kỳ, hộp thoại Target thật, và bảng kê xếp lại cột
++ hàng tổng + tag gọn.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng ba ảnh chụp màn hình có khoanh
+đỏ + sáu yêu cầu bằng văn bản của chủ dự án sau khi xem `DEC-193` trên môi
+trường thật, cùng phần trả lời bốn câu hỏi làm rõ qua `AskUserQuestion`
+trước khi triển khai — xem mục 0). Mục 1/2/6 REVISE trực tiếp nguyên tắc
+kiến trúc "không JavaScript" đã tuyên bố xuyên suốt `DEC-PHB02-08` và nhiều
+quyết định trước đó; phần còn lại thuần tầng trình bày.
+
+Supersedes:
+**REVISE có chủ đích** nguyên tắc "Reports không có JavaScript" (nêu tường
+minh trong docstring `kinh_doanh_nhan_vien.html`, nhiều bình luận
+`business_presentation.py`/`tinphat-ui.css`, và ngầm định trong toàn bộ
+kiến trúc URL-là-trạng-thái của `DEC-PHB02-08`). Owner yêu cầu trực tiếp,
+bằng văn bản, đưa JavaScript vào để điều hướng trong một tab không tải lại
+trang và biểu đồ tương tác — đây KHÔNG phải một quyết định kỹ thuật tự ý.
+Mọi bất biến nghiệp vụ bên dưới (F-E/F-N03/DEC-166E/DEC-185/PHB-05...)
+KHÔNG đổi; JavaScript chỉ thêm ở TẦNG VẬN CHUYỂN (`fetch` thay vì điều
+hướng trình duyệt) và TẦNG HIỂN THỊ biểu đồ, không thêm quyền ghi hay
+đường tính nào mới. `DEC-190`/`191`/`192`/`193` giữ nguyên các quyết định
+trình bày trước đó trừ phần bị mục 1/2 ở đây REVISE tường minh.
+
+### 0. Bốn câu hỏi làm rõ trước khi triển khai
+
+Trước khi sửa, đã hỏi lại chủ dự án qua `AskUserQuestion` (đúng yêu cầu
+"hãy hỏi lại tôi nếu chưa chắc chắn" của Owner) và nhận bốn câu trả lời:
+
+1. JS áp dụng cho TOÀN BỘ thao tác trong tab, kể cả form GHI số liệu (sửa
+   giá nhập, gán nhân viên, phân loại mặt hàng, loại dòng...) — không chỉ
+   điều hướng.
+2. Biểu đồ tương tác bằng JavaScript THUẦN, không thêm thư viện ngoài.
+3. "Đường biểu đồ không kéo dài hết khung khi kỳ chưa đi hết" áp dụng cho
+   MỌI mức gộp (không riêng mức Ngày).
+4. Nhãn trục cố định (5/10/15/20/25/30) áp dụng cho Ngày; Tuần/Tháng dùng
+   lưới cố định tương tự (Quý/Năm giữ nguyên cách thưa nhãn cũ, không có
+   container cố định để so).
+
+### 1. Lớp điều hướng AJAX — TĂNG CƯỜNG, không phải kiến trúc mới
+
+`app/web/static/js/app.js` (mới, thuần, không thư viện) + `layout.html` +
+`server.py` (`_inject_fragment_flag` context processor). Nguyên tắc:
+**progressive enhancement** — mọi liên kết/form trong `#app-content` vẫn
+là URL/method HTTP thật do server dựng; tắt JavaScript thì mọi thứ hoạt
+động Y HỆT trước đây (điều hướng thật, tải lại trang, `<noscript>` trả lại
+nút bấm cho các ô tự-nộp). Có JavaScript thì CÙNG những liên kết/form đó
+được gửi qua `fetch()` mang header `X-Fragment: 1`; server (qua
+`context_processor`, không route nào tự biết về việc này) trả về ĐÚNG nội
+dung `{% block content %}` thay vì cả trang; JS thay thế `#app-content` và
+gọi `history.pushState` — không tải lại trang, không mất vị trí cuộn của
+thanh điều hướng chính.
+
+Ranh giới rõ ràng theo đúng câu 6 gốc: `nav.ncc-tabs` (ba tab chính) đứng
+NGOÀI `#app-content` trong `layout.html`, nên click vào đó KHÔNG bị chặn —
+chuyển tab vẫn là điều hướng trang thật. Mọi liên kết/form BÊN TRONG một
+tab (câu trả lời 1 ở mục 0) đều được `app.js` chặn bằng `addEventListener`
+UỶ QUYỀN (delegated trên `document`, không gắn riêng từng phần tử — DOM
+thay đổi sau mỗi lần fetch không làm mất listener). `<select data-auto-
+submit>` (bộ chọn kỳ) gọi `form.requestSubmit()` khi đổi giá trị, đi qua
+đúng lớp chặn submit — không còn `onchange="this.form.submit()"` nội tuyến
+cũ (gọi trực tiếp `.submit()` sẽ KHÔNG bắn sự kiện `submit`, bỏ qua lớp
+chặn — một cạm bẫy API đã tránh được bằng `requestSubmit()`).
+
+Một nút submit mang `name`/`value` riêng (`hanh-dong=khoi-phuc` của "KHÔI
+PHỤC", khác `value` với "LOẠI" trên cùng route) chỉ được trình duyệt gộp
+vào dữ liệu gửi đi khi CHÍNH nút đó kích hoạt submit — `submitForm()`
+truyền `event.submitter` vào `new FormData(form, submitter)` (chữ ký hai
+tham số), nếu không hai hành động khác nhau trên cùng route sẽ gửi thiếu
+đúng trường quyết định hành động nào (phát hiện qua kiểm thử Playwright
+thực tế trên nút KHÔI PHỤC, xem Evidence).
+
+Hộp thoại Target (`kinh_doanh_nhan_vien.html`, `TASK-OWNER-UIUX-003` §6)
+đổi từ panel nội tuyến sang `<dialog>` THẬT: server dựng sẵn thuộc tính
+`open` khi `sua-target=1` (không JS vẫn đọc/sửa được, chỉ không nổi thành
+modal); `app.js` gỡ `open` rồi gọi `showModal()` (gọi thẳng trên một dialog
+đã mang `open` sẽ ném `InvalidStateError` — một cạm bẫy API thứ hai đã
+tránh được) để vào chế độ modal thật: nền mờ, bẫy focus, phím Esc đóng
+(bắt sự kiện `cancel`, gọi lại đúng liên kết ĐÓNG qua AJAX thay vì để trình
+duyệt tự đóng). Liên kết "ĐẶT / SỬA TARGET" (dẫn sang `/kinh-doanh/target`,
+màn hình đặt target NHIỀU người một lúc — `PHB-05`) bị GỠ khỏi trang này
+theo yêu cầu trực tiếp "nút ... bị thừa hãy bỏ đi" — route không bị xoá,
+vẫn phục vụ đầy đủ khi gõ thẳng URL, chỉ không còn nút bấm riêng ở không
+gian làm việc (`test_case_17...` đổi tên + nội dung trong
+`test_phb05_employee_target.py`, xem Evidence).
+
+Đổi kỳ báo cáo (Báo cáo + Nhân viên) không còn cần nút XEM: `<noscript>`
+trả nó lại khi không có JS, xem `_business_bits.html`.
+
+### 2. Biểu đồ — vẽ lại hoàn toàn theo phản hồi bằng ảnh của Owner
+
+Owner: biểu đồ "xấu", không đầy khung dù mức gộp nào; muốn trục cố định
+gọn (5/10/15/20/25/30, không ghi năm); tooltip khi rê chuột thay vì phải
+ước lượng; đổi mức gộp không tải lại trang.
+
+`business_presentation.py` (`revenue_chart`, hàm mới `_chart_x_fraction`/
+`_chart_x_ticks`/`_chart_day_container`/`_chart_quarter_container`):
+
+- **Bề rộng cố định, co giãn 100% card**: `viewBox` đổi từ TĂNG THEO SỐ
+  ĐIỂM (`_CHART_STEP_X` cũ = 64px/điểm — 6 điểm ra một biểu đồ bé tí giữa
+  card rộng) sang `_CHART_VIEW_W = 960` cố định, SVG có `width: 100%` qua
+  CSS. Card luôn ĐẦY bất kể có bao nhiêu điểm.
+- **Toạ độ X theo LỊCH, không theo thứ tự điểm**: Ngày → vị trí = (ngày-1)/
+  (số ngày trong tháng-1); Tuần → vị trí = số ngày đã trôi qua trong QUÝ
+  chứa kỳ đang xem / tổng số ngày của quý (dùng lại `window_bounds(WEEK,
+  ...)` đã có, không tính lại ranh giới quý); Tháng → vị trí =
+  (tháng-1)/11. Quý/Năm (không bị khoanh theo `DEC-193` §2) giữ nguyên
+  cách chia đều theo THỨ TỰ điểm — không có container cố định để so.
+  **Hệ quả đúng câu trả lời 3 ở mục 0 mà KHÔNG cần logic "kỳ chưa đi hết"
+  riêng**: một điểm dữ liệu ở ngày 24 của tháng 30 ngày tự nhiên rơi vào
+  80% bề rộng card — 20% còn lại để TRỐNG vì không có dữ liệu thật ở đó,
+  không phải một nhánh code đặc biệt.
+- **Trục X cố định, tách khỏi điểm dữ liệu**: Ngày → nhãn tại 5/10/15/20/
+  25/30 (lọc theo `<= days_in_month`); Tuần → 3 nhãn tại đầu mỗi tháng của
+  quý (câu trả lời 4); Tháng → 12 nhãn Th1..Th12; Quý/Năm giữ nguyên cách
+  thưa nhãn cũ (`_CHART_MAX_X_LABELS`/`show_label`, không có container cố
+  định). Nhãn CỐ ĐỊNH này độc lập với điểm dữ liệu thật — một mốc lịch
+  tròn hiện ra dù kỳ đó chưa có dòng nào, và một điểm không rơi đúng mốc
+  tròn vẫn được vẽ bằng chấm.
+- **Tooltip khi rê chuột** (`app.js`, JavaScript thuần — câu trả lời 2):
+  nghe `mouseover`/`mousemove`/`mouseout` uỷ quyền trên
+  `.rev-line-dot`/`.rev-line-point`, đọc lại đúng `title` đã có (không tính
+  lại gì) và hiện trong một hộp `position: fixed` bám theo con trỏ.
+  `<title>` gốc trên SVG `<circle>` vẫn còn — không JS vẫn xem được, chỉ
+  chậm hơn.
+
+Hình học VẪN vẽ bằng SVG tĩnh ở tầng trình bày (không đổi triết lý "server
+tính sẵn toạ độ" của `DEC-192` mục 4) — JavaScript chỉ THÊM tương tác
+(tooltip, không tải lại khi đổi mức gộp qua lớp AJAX ở mục 1), không thay
+thế cách tính. Mọi bất biến của `F-E`/`F-N03`/`DEC-166E`/`DEC-185` (phạm
+vi, cách giải thẩm quyền, phân biệt origin, `covered_months`/`span_months`)
+không đổi — `series()`/`window_points()` của `DEC-193` không bị chạm; chỉ
+CÁCH ĐẶT toạ độ và trục thay đổi.
+
+### 3. Gộp hàng chọn kỳ
+
+`kinh_doanh.html`: bộ chọn "KỲ BÁO CÁO" và dòng "Tháng X · N đơn · N dòng"
+đứng CHUNG một hàng (`.period-header-row`) thay vì hai hàng tách rời.
+`kinh_doanh_nhan_vien.html`: bộ chọn "KỲ DỮ LIỆU" dời hẳn LÊN cùng hàng với
+`<h1>NHÂN VIÊN — ...</h1>`; hàng sheet-tabs dời lên NGAY SAU đó — card
+"Kỳ dữ liệu" đứng riêng của `DEC-193` §4 bị GỠ HẲN (không còn khối bọc
+nào), theo đúng ảnh khoanh đỏ Owner gửi (mục các ô sheet cần "dồn lên
+trên"). Thứ tự đọc không đổi: Kỳ dữ liệu trước, hàng sheet sau, năm chỉ
+tiêu sau cùng (`DEC-PHB02-08` §1/§2).
+
+### 4. Bảng kê — xếp lại cột, hàng tổng, tag gọn (kế tiếp `DEC-193` §7)
+
+`workspace_presentation.py`:
+
+- `SHEET_DETAIL_COLUMNS` đổi thứ tự: Khách hàng dời ra SAU DS quy đổi
+  (trước cột thao tác) thay vì đứng ngay sau Mã đơn — cụm cột nghiệp vụ
+  của dòng hàng đọc liền mạch trước, thông tin khách hàng đọc sau cùng.
+- `sheet_detail_totals()` (hàm mới, thuần): tổng Giá nhập/Giá bán cộng
+  thẳng từ CÙNG tập dòng bảng đang hiện. Lợi nhuận KPI/DS quy đổi của hàng
+  tổng KHÔNG tính lại — dùng LẠI đúng `sheet.kpi_profit`/`strip.converted_
+  sales` (đã có gate, hiện trong dải KPI phía trên) để không có hai con số
+  khác nhau cho cùng một khái niệm trên cùng một trang.
+- `sheet_detail_groups()`: thêm `group["identity_tags"]` — gộp "Thiếu
+  giá"/"Chưa phân loại" (trước đây đứng cạnh tên hàng ở ô Mặt hàng của
+  TỪNG dòng) thành tag DUY NHẤT mỗi NHÃN, hiện ở ô Mã đơn cùng với
+  `SHORT_TAGS` sẵn có — Mặt hàng nhờ vậy chỉ còn tên hàng, đọc trọn trên
+  MỘT dòng (không xuống hàng giữa chừng). "Chưa phân loại" đổi màu XANH
+  (`.tag-unresolved`, dùng `--tp-green`/`--tp-green-bg` — trước đây xanh
+  dương) theo đúng yêu cầu "chỉ cần hiện xanh là được". Bấm vào tag (khi
+  còn phân loại được) vẫn mở đúng bảng chọn mặt hàng của dòng ĐẦU TIÊN
+  mang trạng thái đó — không mất khả năng phân loại tại chỗ của `§PI-04`.
+
+  **`data-metric="identity-label"` VẪN render đủ cho MỌI dòng bị gắn cờ** —
+  bộ test PI-01…PI-12 (`test_dec185_nav_chart_identity.py`,
+  `test_identity_durability_and_timeline_aggregation.py`) đọc đúng thuộc
+  tính này bất kể `bh-tag`/`SHORT_TAGS` có nói gì, và không được bỏ qua dù
+  trùng CHỮ với một `bh-tag` khác (`LABEL_MISSING_PRICE` "Thiếu giá" trùng
+  chữ với `SHORT_TAGS[BLOCK_PURCHASE_PRICE_MISSING]`, hai module tính khác
+  nhau). Khi trùng chữ, phần tử vẫn ở trong DOM (đủ cho test + trình đọc
+  màn hình) nhưng ẩn khỏi mắt Owner bằng `.sr-only` (mới, chuẩn visually-
+  hidden) để không thấy "THIẾU GIÁ · THIẾU GIÁ" hai lần liền nhau cho
+  cùng một sự thật — phát hiện và sửa qua vòng kiểm bằng ảnh chụp trong
+  chính phiên này (xem Problem Solving/Evidence).
+- CSS: `.tag` thu nhỏ (padding/font-size), `.code`/`td[data-metric="bh-
+  order"]` giới hạn `max-width: 110px`, `td[data-metric="line-product"]`
+  `white-space: nowrap` — cột Mã đơn gọn lại, cột Mặt hàng đọc trọn một
+  dòng, đúng yêu cầu trực tiếp của chủ dự án.
+
+Impact:
+Lần đầu tiên đưa JavaScript vào sản phẩm (`app/web/static/js/app.js`,
+~200 dòng thuần, không thư viện/CDN, không build step) — một REVISE kiến
+trúc có chủ đích, không phải scope drift (xem Authority/Supersedes). Một
+route param đọc thêm (`X-Fragment` header qua context processor, không
+route nào tự sửa). Không migration, không endpoint ghi mới, không thư
+viện ngoài. `business_presentation.py`/`workspace_presentation.py`/
+`tinphat-ui.css`/ba template (`layout.html`, `kinh_doanh.html`,
+`kinh_doanh_nhan_vien.html`) thay đổi; không file nào dưới
+`app/modules/`, `tools/db/`, `config/`.
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` (nền `9bfccb8`: cùng
+`2721/11` — 0 test mới, hai file test PHB-05/PI-xx chỉnh lại ĐÍCH theo
+markup mới sau khi dồn tag về Mã đơn + gỡ liên kết Target thừa, không hạ
+chuẩn). Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance validator:
+structure/project_state/task_completion/evidence PASS; reference_integrity
+FAIL với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (đã ghi ở DEC-189)
+sau khi thêm 3 exempt pair cho chính đoạn trích dẫn nguyên văn ba tên file
+đó trong Evidence của DEC-193 (`governance/scripts/governance/validate_
+reference_integrity.py`, cùng khuôn với exempt pair OPTIONAL_ENFORCEMENT_
+LAYER.md đã có từ DEC-011) — không reference nào của lượt này.
+
+Kiểm bằng Playwright trên máy chủ Flask thật (không phải bản dump tĩnh —
+AJAX cần vòng round-trip HTTP thật): xác nhận KHÔNG một hành động nào
+trong tab tải lại trang bằng cách gài `window.__marker` trước và sau mỗi
+thao tác rồi so sánh (context JS sống sót qua điều hướng = không reload
+thật) — mở/lưu/đóng hộp thoại Target, sửa Giá nhập tại chỗ, chuyển Gia
+dụng + xác nhận, loại dòng + xác nhận + KHÔI PHỤC (phát hiện lỗi thiếu
+`event.submitter` ở chính bước này, đã sửa), đổi mức gộp biểu đồ, chuyển
+tab sheet, đổi kỳ báo cáo qua auto-submit, mở bảng chọn mặt hàng
+"Chưa phân loại" + tìm kiếm + huỷ. Tooltip biểu đồ xác nhận đọc đúng
+"05/09/2026: 12.500.000 đồng" khi rê chuột vào điểm. Chart geometry xác
+nhận bằng ảnh chụp ở cả năm mức gộp: Ngày (trục 05-30, đường dừng đúng
+ngày cuối có dữ liệu), Tuần (3 mốc đầu tháng trong quý), Tháng (Th1-Th12),
+Quý/Năm (giữ nguyên hành vi cũ, co giãn responsive). Bảng kê xác nhận bằng
+ảnh chụp: Khách hàng đứng sau DS quy đổi, hàng TỔNG đúng vị trí cột, tag
+"THIẾU GIÁ"/"CHƯA PHÂN LOẠI" gộp về Mã đơn không trùng lặp, Mặt hàng đọc
+trọn một dòng kể cả tên dài. Responsive 1440/820/390px không trang nào
+tràn ngang.
+
+Can Revisit After:
+Module "Biểu đồ khác" (chỗ trống, `DEC-193` §2) vẫn chưa có task định
+nghĩa. Việc mở rộng lớp AJAX sang các trang KHÁC ngoài Báo cáo/Nhân viên
+(Dữ liệu, các trang sâu hơn) chưa được yêu cầu — `layout.html`/`app.js`
+đã hỗ trợ SẴN cho bất kỳ trang nào extend `layout.html`, nên mở rộng khi
+cần không đòi hỏi sửa lại nền tảng, chỉ cần các trang đó tự đúng cấu trúc
+form/link hiện có.

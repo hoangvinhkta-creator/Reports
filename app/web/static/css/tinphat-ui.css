@@ -137,12 +137,24 @@ td.empty-cell { color: var(--tp-mut); font-weight: 400; }
 tbody tr:hover td { box-shadow: inset 0 0 0 1px var(--tp-line); }
 tr.row-total td { background: var(--tp-line2); font-weight: 700; }
 
+/* Ẩn khỏi MẮT nhưng vẫn ở trong DOM — trình đọc màn hình và test đọc HTML
+   (`data-metric`) vẫn thấy đủ. Dùng khi hai cơ chế khác nhau cùng nói một
+   sự thật bằng đúng một chữ (`TASK-OWNER-UIUX-004` §5) và Owner không cần
+   nhìn thấy nó lặp lại — chỉ máy đọc cần cả hai phần tử có mặt. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 /* --- Badge / tag ------------------------------------------------------ */
 
+/* `TASK-OWNER-UIUX-004` §5 — tag nhỏ lại (chủ dự án yêu cầu trực tiếp):
+   cả bảng kê giờ dồn nhiều tag hơn vào ô Mã đơn (Thiếu giá + Chưa phân
+   loại + cảnh báo khác), nên mỗi tag phải nhẹ hơn để không đè lên nhau. */
 .tag {
   display: inline-block; border-radius: var(--tp-r-pill);
-  padding: 1px var(--tp-s2); font-size: 11px; font-weight: 700;
-  letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+  padding: 0 6px; font-size: 10px; font-weight: 700; line-height: 1.6;
+  letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
 }
 .tag-legacy { background: var(--tp-gold-bg); color: var(--tp-gold); }
 .tag-current { background: var(--tp-green-bg); color: var(--tp-green); }
@@ -296,11 +308,21 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   padding: 0 var(--tp-s4);
   margin-bottom: var(--tp-s2);
 }
-/* `TASK-OWNER-UIUX-003` §4 — hàng sheet nay SỐNG TRONG card "Kỳ dữ liệu"
-   (tiết kiệm diện tích dọc) thay vì đứng ngoài, ngay trên nó. Trong bối
-   cảnh đó `.module` đã có padding riêng, nên bỏ padding ngang cũ để không
-   thụt vào hai lần. */
-.workspace-period-card .sheet-tabs { padding: 0; margin: var(--tp-s4) 0 0; }
+/* `TASK-OWNER-UIUX-004` §3 — hàng sheet dồn lên đầu trang (không còn nằm
+   trong một card riêng, cũng không còn card "Kỳ dữ liệu" của `DEC-193` §4
+   nữa) — chỉ còn khoảng cách với hàng tiêu đề phía trên nó. */
+.sheet-tabs-top { margin-top: var(--tp-s2); }
+
+/* `TASK-OWNER-UIUX-004` §2 — bộ chọn kỳ và dòng "Tháng X · N đơn · N dòng"
+   của trang Báo cáo đứng CHUNG một hàng; form không còn `margin-bottom`
+   riêng (nó không phải hàng cuối của card nữa) và `h2` bỏ margin trên để
+   canh giữa cùng bộ chọn. Gập dọc khi không đủ chỗ, giữ đúng thứ tự đọc
+   (kỳ chọn trước, rồi tới con số của kỳ đó). */
+.period-header-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--tp-s3);
+}
+.period-header-row .filter-row { margin-bottom: 0; }
+.period-header-row h2 { margin: 0; }
 .sheet-tab {
   padding: var(--tp-s2) var(--tp-s3);
   border: 1px solid var(--tp-line);
@@ -433,11 +455,18 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
    cái thứ nhất là việc phải làm với Tracking, cái thứ hai là việc phải
    làm với giá. Dùng chung một cái tag xám cho cả hai sẽ xoá đúng cái
    khác biệt mà Owner cần để biết đi đâu tiếp.
-   ------------------------------------------------------------------ */
+
+   `TASK-OWNER-UIUX-004` §5 — "Chưa phân loại" đổi sang XANH (chủ dự án
+   yêu cầu trực tiếp: "chỉ cần hiện xanh là được") thay vì xanh dương —
+   cùng nhóm màu với `.tag-current`/`.tag-official` (đã dùng cho "việc bấm
+   vào là xong ngay"). Tag này giờ có thể là một `<a>` (khi bấm được, mở
+   thẳng bảng chọn mặt hàng) — `text-decoration: none` để nó không lẫn với
+   một liên kết gạch chân thường. */
 .tag-unresolved {
-  background: var(--tp-sky);
-  color: var(--tp-blue-d);
+  background: var(--tp-green-bg);
+  color: var(--tp-green);
   margin-left: var(--tp-s2);
+  text-decoration: none;
 }
 
 .identity-open { text-decoration: underline dotted; }
@@ -508,10 +537,26 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 
 /* Icon sửa Target ngay trên dòng tiêu đề sheet (thay cho card Target đứng
    riêng — `TASK-OWNER-UIUX-003` §6). Panel nhập chỉ dựng khi `sua-target=1`
-   nên khung nhỏ, không chiếm chiều cao lúc chỉ xem báo cáo. */
+   nên khung nhỏ, không chiếm chiều cao lúc chỉ xem báo cáo.
+
+   `TASK-OWNER-UIUX-004` §4 — panel nay là một `<dialog>`. KHÔNG JS: trình
+   duyệt hiện `<dialog open>` như một khối thường trong luồng trang (đúng
+   UA stylesheet mặc định), nên vẫn đọc/sửa được, chỉ không modal. CÓ JS:
+   `app.js` gọi `showModal()`, lúc đó style dưới đây mới thật sự có nghĩa
+   modal (giữa màn hình, nền mờ qua `::backdrop`). */
 .cnt a[data-metric="target-edit"],
 .cnt a[data-metric="target-edit-close"] { margin-left: var(--tp-s2); }
-.target-edit-inline { margin-top: var(--tp-s3); }
+.target-edit-inline {
+  margin-top: var(--tp-s3); width: min(360px, 90vw);
+  padding: var(--tp-s4); border: 1px solid var(--tp-line);
+  border-radius: var(--tp-r-md); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+.target-edit-inline[open] {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  margin: 0;
+}
+.target-edit-inline::backdrop { background: rgba(22, 24, 29, 0.4); }
+.target-edit-inline h3 { margin: 0 0 var(--tp-s3); font-size: 15px; }
 
 /* CẢNH BÁO khác LỖI. `.error` (đỏ) dành cho điều sai/hỏng; `.warn` (vàng)
    cho một trạng thái dữ liệu còn dang dở mà Owner có việc phải làm; `.notice`
@@ -560,6 +605,17 @@ td[data-group] { white-space: nowrap; }
   display: block; color: var(--tp-mut); font-size: 12px;
   font-weight: 400; line-height: 1.35;
 }
+
+/* `TASK-OWNER-UIUX-004` §5 — thu gọn Mã đơn (chủ dự án yêu cầu trực tiếp:
+   cột này chiếm quá nhiều diện tích so với nội dung của nó — một mã ngắn
+   cộng vài tag), nhường chỗ cho Mặt hàng đọc TRỌN tên hàng trên một dòng
+   thay vì xuống dòng giữa chừng. `max-width` giới hạn bề rộng cột; mỗi
+   `.tag` bên trong vẫn `white-space: nowrap` (không gãy giữa MỘT tag) và
+   tự xuống dòng như chữ thường khi không đủ chỗ ngang cho tag kế tiếp. */
+.sheet-table td[data-metric="bh-order"] {
+  max-width: 110px; word-break: break-word;
+}
+.sheet-table td[data-metric="line-product"] { white-space: nowrap; }
 
 /* Nút thao tác trên dòng: đủ rộng để bấm, thẳng hàng với nhau. */
 .line-actions .btn-mini { min-width: 30px; text-align: center; }
@@ -662,23 +718,46 @@ td[data-group] { white-space: nowrap; }
   position: absolute; right: var(--tp-s2); transform: translateY(-50%);
   font-size: 11px; color: var(--tp-mut); white-space: nowrap;
 }
-.rev-line-svg { display: block; overflow: visible; }
+/* `TASK-OWNER-UIUX-004` §1 — card luôn ĐẦY: `.rev-chart-plot` chiếm hết bề
+   rộng còn lại (không còn `.tp-scroll` cuộn ngang — SVG co giãn thay vì
+   tràn), và `.rev-line` là bối cảnh định vị TUYỆT ĐỐI cho cả điểm dữ liệu
+   (`.rev-line-points`) lẫn trục X cố định (`.rev-chart-xaxis`), cả hai đặt
+   theo phần trăm (`bar.x_pct`/`tick.x_pct`) — CÙNG một thước đo với `viewBox`
+   cố định của chính SVG, nên điểm và nhãn không bao giờ lệch nhau. */
+.rev-chart-plot { flex: 1 1 auto; min-width: 0; }
+.rev-line { position: relative; }
+.rev-line-svg { display: block; overflow: visible; width: 100%; height: auto; }
 .rev-line-grid { stroke: var(--tp-line); stroke-width: 1; }
 .rev-line-path {
   fill: none; stroke: var(--tp-blue); stroke-width: 2.5;
   stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
-.rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; }
+.rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; cursor: pointer; }
 /* Mốc đến từ SỔ CŨ: rỗng ruột, phân biệt được cả khi in đen trắng. */
 .rev-line-legacy { fill: #fff; stroke: var(--tp-mut); stroke-width: 2; }
-.rev-line-axis { display: flex; padding-left: 0; }
-/* Bề rộng đến từ `chart.step_x` (tầng trình bày) qua `flex-basis` inline —
-   MỘT nguồn duy nhất, nên nhãn không bao giờ lệch khỏi mốc của nó. */
-.rev-line-tick {
-  flex: 0 0 auto; text-align: center;
-  display: flex; flex-direction: column; gap: 2px;
+.rev-line-points { position: absolute; inset: 0; }
+.rev-line-point {
+  position: absolute; top: 0; bottom: 0; transform: translateX(-50%);
+  width: 1px; display: flex; align-items: flex-end; justify-content: center;
 }
 .rev-line-label { white-space: nowrap; font-size: 11px; color: var(--tp-mut); }
+.rev-chart-xaxis { position: relative; height: 18px; margin-top: 2px; }
+.rev-chart-xtick {
+  position: absolute; top: 0; transform: translateX(-50%);
+  font-size: 11px; color: var(--tp-mut); white-space: nowrap;
+}
+
+/* Tooltip nhanh khi rê chuột vào một điểm (`app.js`) — thay cho việc phải
+   ước lượng qua trục Y. `<title>` gốc vẫn còn (không JS vẫn xem được, chỉ
+   chậm hơn); hộp này chỉ là một lớp hiện nhanh thêm vào, luôn đứng NGOÀI
+   luồng trang (`position: fixed`) nên không đẩy lệch bố cục xung quanh. */
+.rev-tooltip {
+  position: fixed; z-index: 40; max-width: 320px;
+  background: var(--tp-ink); color: #fff; font-size: 12px; line-height: 1.4;
+  padding: var(--tp-s2) var(--tp-s3); border-radius: var(--tp-r-sm);
+  pointer-events: none; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
 
 /* CẦN KIỂM TRA. Mỗi mục là một dòng gọn; mở ra mới thấy giải thích và nút.
    Chấm màu mang mức nghiêm trọng, và chữ của chính mục đó nói lại điều đó

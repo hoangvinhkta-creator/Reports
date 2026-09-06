@@ -101,6 +101,14 @@ KNOWN_EXEMPT_PAIRS = {
     # implementation.
     ("docs/tasks/TASK-PRA-005-san-pham.md",
      "docs/reviews/TASK-PRA-005-INDEPENDENT-REVIEW-RECORD.md"),
+    # DEC-193 (TASK-OWNER-UIUX-003) Evidence: trích dẫn NGUYÊN VĂN ba
+    # reference vỡ có sẵn của TASK-REM-T06 (đã ghi ở DEC-189) làm bằng
+    # chứng "không reference nào của lượt này" — không phải một forward-
+    # reference mới, cùng khuôn trích dẫn với DEC-011/OPTIONAL_ENFORCEMENT_
+    # LAYER.md ở trên.
+    ("PROJECT/PROJECT_DECISIONS.md", "/README.md"),
+    ("PROJECT/PROJECT_DECISIONS.md", "CODE_OF_CONDUCT.md"),
+    ("PROJECT/PROJECT_DECISIONS.md", "CONTRIBUTING.md"),
 }
 
 
