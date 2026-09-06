@@ -1,5 +1,72 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — REPORTS PHASE B = DONE (CLOSEOUT, 2026-09-06)
+
+Đóng lại toàn bộ dải PHB-06 (Brand Reporting) + PHB-07 (Advanced Analytics)
+sau khi Owner xác nhận Independent Review tích luỹ + Controlled Integration
++ deploy + smoke test production. Chi tiết đầy đủ, gồm ranh giới bằng
+chứng: `DEC-188` (đóng quyết định nguồn thương hiệu), `DEC-189` (đóng Phase
+B), `docs/sessions/S124-reports-phase-b-closeout.md`,
+`docs/reviews/PHB-06-PHB-07-CUMULATIVE-REVIEW-SUMMARY.md`. Hai khối PHB-07
+và PHB-06 ngay bên dưới GIỮ NGUYÊN nội dung nghiệp vụ — khối này chỉ đóng
+bước REVIEW → INTEGRATION → DEPLOY → ACCEPTANCE mà chúng còn để ở trạng
+thái "chờ".
+
+```text
+REPORTS_PHASE_B_STATUS         = DONE
+PRODUCTION_STATUS              = ACCEPTED
+CANONICAL_PRODUCTION_HEAD      = 9f539b3a442eb9300a7bd1ae6b45880bf831da12
+CANONICAL_BEFORE               = 0d9d93111c7955fa407e5b43ebee682e5c728c56
+
+PHB06_STATUS                   = PRODUCTION_ACCEPTED
+PHB07_STATUS                   = PRODUCTION_ACCEPTED
+
+EVIDENCE_TYPE (review/integration/deploy/smoke) =
+  OWNER_CONFIRMED_EXTERNAL_OPERATIONAL_EVIDENCE — KHÔNG phải artifact E2 lưu
+  trong repo (transcript review không được commit; không có Render deploy
+  log trong repo). Ngoại lệ: việc canonical đã ở đúng head nêu trên là bằng
+  chứng E1 session này TỰ chạy `git log`/`git rev-parse` xác nhận, không chỉ
+  là lời Owner. Chi tiết đầy đủ ở DEC-189 §1.
+
+CUMULATIVE_REVIEW_RESULT       = PASS_WITH_FINDINGS (Owner tường thuật)
+SAFE_TO_INTEGRATE_BOTH         = YES (Owner tường thuật)
+BLOCKING_FINDINGS              = 0
+TEST_RESULT (đã ghi từ trước)  = BASE 2588 passed/11 skipped → PHB-06 2630
+                                  passed/11 skipped (+42) → HEAD 2684
+                                  passed/11 skipped (+54) · cộng dồn +96
+                                  test, 0 removed, 0 skip/xfail mới
+
+OWNER_BRAND_SOURCE             = TRACKING_BOARD (DEC-188, Lựa chọn A của
+                                  S117 §4)
+OWNER_BRAND_SOURCE_DECISION_OPEN = NO
+TRACKING_BRAND_FIELD_IMPLEMENTATION = PENDING — backlog của dự án Tracking,
+                                  KHÔNG phải blocker của Reports Phase B
+SMALL_REPORTS_ADAPTER_CHANGE_REQUIRED_KHI_BẬT = YES (DEC-188 §3 — sửa lại
+                                  phát biểu "zero code change" trước đó)
+
+CURRENT_CRITICAL_PATH          = NONE
+NEXT_REQUIRED_FEATURE_VERTICAL = NONE
+DEFERRED_BACKLOG                = CR-01 · CR-02 · CR-03 (đã sửa, DEC-188 §3)
+                                  · CR-04 (đã áp dụng, DEC-188 §3) · F-04 ·
+                                  F-05 (reference-integrity có sẵn, KHÔNG
+                                  sửa trong closeout) · Tracking brand
+                                  upstream enablement. Không mục nào chặn
+                                  DONE. KHÔNG mở PHB-08 — các hạng mục phân
+                                  tích nâng cao (mẫu số lợi nhuận, khoá gộp
+                                  sản phẩm, ma trận nhiều tháng, YTD/cùng kỳ,
+                                  forecasting, recommendation, brand
+                                  analytics nâng cao) là quyết định sản phẩm
+                                  TƯƠNG LAI, không phải việc Reports Phase B
+                                  còn dang dở.
+
+GOVERNANCE_VALIDATORS (phiên closeout) = xem kết quả cuối
+`docs/sessions/S124-reports-phase-b-closeout.md` §8. `reference_integrity`
+giữ nguyên FAIL đã biết (F-05), không sửa trong phiên này theo đúng chỉ thị.
+PRODUCTION_CODE_CHANGED = NO · MIGRATION_CHANGED = NO (phiên này chỉ sửa
+docs/governance).
+```
+
+
 ## CANONICAL CURRENT STATE — PHB-07 ADVANCED ANALYTICS = IMPLEMENTED, CHỜ REVIEW TÍCH LUỸ (2026-09-06)
 
 Vertical BOUNDED chồng lên đúng head của PHB-06

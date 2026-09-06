@@ -10405,3 +10405,245 @@ Khi chủ dự án trả lời một trong ba câu ở
 nhuận (`D1`/`N.7`), khoá gộp chính thống của "sản phẩm"
 (`OD-PRA005-01` so với `TASK-PRA-000` §L), hoặc cách hiển thị một ma trận
 nhiều tháng bắc qua ranh giới bàn giao (`DEC-180` §9 · `PHB-04` §3.6).
+
+---
+
+## DEC-188
+
+Title:
+Owner đóng `OWNER_DECISION_REQUIRED` của `DEC-186`/S117 §4 — nguồn thương
+hiệu chính danh là **Lựa chọn A**: Tracking bổ sung `brand` vào `board`.
+Tracking giữ nguyên vai trò Product Identity Authority; Reports vẫn là bên
+TIÊU THỤ, không tự giữ một thẩm quyền thương hiệu thứ hai.
+
+Date:
+2026-09-06
+
+Task:
+Reports Phase B closeout (không phải một vertical mới — đây là quyết định
+Owner đóng một `OWNER_DECISION_REQUIRED` đã mở từ S117/PHB-06).
+
+Authority:
+`OWNER_DECISION` trực tiếp, chọn giữa ba lựa chọn đã liệt kê sẵn ở
+`docs/sessions/S117-phb-06-brand-reporting.md` §4 (A/B/C). Không phát sinh
+lựa chọn mới nào ngoài ba lựa chọn đã có.
+
+Supersedes:
+Không đảo ngược `DEC-186`. `DEC-186` mô tả ĐÚNG trạng thái tại thời điểm ship
+PHB-06 (`BRAND_AUTHORITY = PRODUCT_IDENTITY_CANONICAL`, giá trị `None` cho
+mọi dòng vì Tracking chưa mang trường thương hiệu). DEC-188 chỉ đóng câu hỏi
+"nguồn nào" — nó không tuyên bố trường thương hiệu đã tồn tại hôm nay.
+
+### 1. Quyết định
+
+```text
+OWNER_BRAND_SOURCE                     = TRACKING_BOARD  (Lựa chọn A, S117 §4)
+OWNER_BRAND_SOURCE_DECISION_OPEN       = NO
+TRACKING_BRAND_FIELD_IMPLEMENTATION    = PENDING  (chưa triển khai ở Tracking)
+```
+
+Tracking tiếp tục là Product Identity Authority duy nhất; Reports tiếp tục
+CHỈ ĐỌC qua `app/web/brand_identity.py`. Quyết định này không mở một thẩm
+quyền thương hiệu thứ hai ở Reports, không đảo ngược ranh giới cấu tạo mà
+`DEC-186` §2 đã dựng.
+
+### 2. Việc còn lại KHÔNG nằm trên critical path của Reports Phase B
+
+Việc triển khai trường `brand` ở Tracking (`board.brand` cạnh `name`/`alt`)
+là công việc thuộc dự án Tracking, không phải Reports. Đây là lý do
+`TRACKING_BRAND_FIELD_IMPLEMENTATION = PENDING` không được coi là một
+blocker của Reports Phase B — Phase B của Reports không sở hữu backlog của
+Tracking.
+
+### 3. Sửa lại một phát biểu kiến trúc trước đó (đúng nội dung `CR-03`)
+
+Một phát biểu trước đây trong lịch sử session mô tả việc bật thương hiệu ở
+Reports là "zero code change" một khi Tracking có trường. Phát biểu đó
+**sai** và được sửa lại tại đây: bật thương hiệu đòi hỏi một
+**thay đổi adapter nhỏ, có giới hạn** ở phía Reports, không phải zero-code:
+
+```text
+SMALL_REPORTS_ADAPTER_CHANGE_REQUIRED  = YES
+Các lớp dự kiến cần chạm tới khi Tracking có trường brand:
+  - TrackingCatalogRow (thêm field brand khi đọc board)
+  - Tracking capture/parser (đọc & giữ brand khi capture lại)
+  - identity gateway projection (chiếu brand vào hợp đồng danh tính mà
+    `app/web/brand_identity.py` đọc)
+```
+
+Đây KHÔNG phải một task đang mở của Reports — nó là mô tả trước cho session
+sẽ bật tính năng, để session đó không phải đoán lại phạm vi. Lý do rejection
+cho việc suy luận thương hiệu từ tên hàng/legacy tiếp tục dựa trên
+`DEC-180` §9 + `DEC-185` (một kỳ một nguồn, không dựng lịch sử/thẩm quyền
+thứ hai) — không dựa trên lý do cũ ở `PHB-04` §3.6 (lý do đó nói về đối
+chiếu sổ cũ↔pipeline, một chủ đề khác).
+
+### 4. Findings liên quan test `test_the_canonical_identity_contract_still_carries_no_brand`
+
+Test canh mốc ở `tests/test_phb06_brand_reporting.py` (mục 6, DEC-186 §6)
+giữ nguyên vai trò chuông báo: nó sẽ ĐỎ đúng lúc Tracking thêm trường
+thương hiệu vào hợp đồng danh tính — đó là tín hiệu để mở session triển khai
+adapter ở mục 3, không phải một regression.
+
+Can Revisit After:
+Khi Tracking triển khai `board.brand` và hợp đồng danh tính chiếu trường đó
+sang Reports (mục 3) — session đó thực hiện thay đổi adapter, không phải
+việc mở lại quyết định này.
+
+---
+
+## DEC-189
+
+Title:
+Reports Phase B (PHB-06 Brand Reporting + PHB-07 Advanced Analytics) đóng
+`DONE` sau Independent Review tích luỹ và Production Acceptance — bằng
+chứng review/tích hợp/deploy/smoke test là **bằng chứng vận hành bên ngoài
+do Owner cung cấp trực tiếp trong phiên closeout**, không phải artifact lưu
+trong repo. Ghi nhận rõ ràng ranh giới bằng chứng này thay vì giả vờ nó là
+E2 lưu trong repo.
+
+Date:
+2026-09-06
+
+Task:
+Reports Phase B closeout (docs/governance only — không có thay đổi code sản
+xuất, không migration, `docs/sessions/S124-reports-phase-b-closeout.md`).
+
+Authority:
+`OWNER_DECISION` (Owner trực tiếp xác nhận review/tích hợp/deploy/smoke
+test đã diễn ra và cho phép ghi nhận DONE) + `MEASURED_AUDIT` (test count,
+tình trạng nhánh, git log được session này verify trực tiếp).
+
+Supersedes:
+Không đảo ngược `DEC-186`/`DEC-187` (nội dung nghiệp vụ PHB-06/PHB-07 giữ
+nguyên). DEC-189 chỉ đóng bước tích luỹ REVIEW → INTEGRATION → DEPLOY →
+ACCEPTANCE mà `PROJECT_PROGRESS.md` (khối S123) còn để ở trạng thái "chờ".
+
+### 1. Ranh giới bằng chứng — ghi rõ để không bị hiểu nhầm là E2 nội bộ
+
+`governance/core/EVIDENCE_STANDARD.md` (mục Evidence Levels) định nghĩa `E0` (Claim) là bằng
+chứng không được chấp nhận là bằng chứng DUY NHẤT cho gate rủi ro cao, và
+yêu cầu kết quả `E2` không được chỉ tồn tại trong lịch sử chat. Ba mục dưới
+đây đều là tuyên bố của Owner được chuyển tiếp (relay) vào phiên closeout,
+KHÔNG phải log/artifact mà session này tự chạy hay tự đọc được từ repo hay
+từ hệ thống deploy:
+
+```text
+EVIDENCE_TYPE (cả ba mục 2/3/4)  = OWNER_CONFIRMED_EXTERNAL_OPERATIONAL_EVIDENCE
+LƯU Ở ĐÂU                        = KHÔNG lưu trong repo dưới dạng artifact
+                                    gốc (không có Render deployment log,
+                                    không có PR link, không có transcript
+                                    review đầy đủ được commit)
+GHI LẠI Ở ĐÂY                    = tóm tắt do Owner cung cấp, dán nhãn rõ
+                                    nguồn, không suy diễn thêm chi tiết nào
+                                    ngoài những gì Owner đã nói
+```
+
+Đây là một **độ lệch đã biết** so với khuyến nghị E2 thông thường của
+tiêu chuẩn đó cho gate rủi ro cao (surface này chạm KPI/lợi
+nhuận). Ghi nhận độ lệch này tường minh, không che giấu, để một audit sau
+này biết chính xác mức độ có thể tin cậy của bản ghi DONE này.
+
+### 2. Independent Review tích luỹ — tóm tắt do Owner cung cấp
+
+```text
+REVIEW_BASE_SHA        = 0d9d93111c7955fa407e5b43ebee682e5c728c56
+REVIEW_HEAD_SHA         = 9f539b3a442eb9300a7bd1ae6b45880bf831da12
+REVIEW_BRANCH_AT_TIME   = claude/phb-06-brand-reporting-0i2oun
+REVIEWER                = phiên Claude (Opus/High) độc lập riêng biệt, theo
+                          lời Owner
+CUMULATIVE_REVIEW_RESULT = PASS_WITH_FINDINGS
+PHB06_REVIEW            = PASS
+PHB07_REVIEW            = PASS_WITH_FINDINGS
+BLOCKING_FINDINGS       = 0
+SAFE_TO_INTEGRATE_BOTH  = YES
+TEST_RESULT_REPORTED    = BASE 2588 passed/11 skipped → PHB-06 2630
+                          passed/11 skipped → HEAD 2684 passed/11 skipped
+                          (+96 test, 0 removed, 0 skip/xfail mới) — khớp
+                          đúng số đã ghi trong `PROJECT_PROGRESS.md` khối
+                          S123 cho cùng cặp SHA, session này không tự chạy
+                          lại bộ test để tái xác nhận trong phiên closeout
+```
+
+Không có file review-record dạng `docs/reviews/*-INDEPENDENT-REVIEW-RECORD.md` nào được tạo
+với transcript đầy đủ, vì transcript đó không được cung cấp vào phiên này —
+chỉ có phần tóm tắt kết luận ở trên. Xem
+`docs/reviews/PHB-06-PHB-07-CUMULATIVE-REVIEW-SUMMARY.md` cho bản ghi đầy
+đủ của giới hạn này.
+
+### 3. Integration — canonical fast-forward
+
+```text
+INTEGRATION_FROM        = 0d9d93111c7955fa407e5b43ebee682e5c728c56
+INTEGRATION_TO           = 9f539b3a442eb9300a7bd1ae6b45880bf831da12
+CANONICAL_BRANCH         = claude/extract-upload-repo-gq2ws4
+```
+
+Phần này được session closeout **tự verify được** (không chỉ là lời Owner):
+`git log --oneline` trên `claude/extract-upload-repo-gq2ws4` tại thời điểm
+mở phiên này cho thấy `9f539b3` (PHB-07) và `d0edb09` (PHB-06) nằm trực
+tiếp trên nhánh canonical, và `origin/claude/extract-upload-repo-gq2ws4`
+khớp đúng SHA `9f539b3a442eb9300a7bd1ae6b45880bf831da12`. Đây là bằng chứng
+`E1` (session tự thực thi `git log`/`git rev-parse`), không phải chỉ là lời
+Owner.
+
+### 4. Production deployment + smoke test — tuyên bố của Owner
+
+```text
+DEPLOYMENT_STATUS        = Owner báo cáo đã deploy lên production sau khi
+                            tích hợp canonical
+OWNER_PRODUCTION_SMOKE_ROUTES = Báo cáo · /kinh-doanh/thuong-hieu ·
+                            /kinh-doanh/co-cau
+OWNER_PRODUCTION_SMOKE_RESULT = PASS (Owner xác nhận trực tiếp)
+DEPLOYED_SHA              = KHÔNG có timestamp/log Render nào được cung cấp
+                            để đối chiếu — ghi theo đúng SHA canonical ở
+                            mục 3 vì đó là SHA Owner nói đã deploy, không
+                            phải một SHA được session này tự xác minh trên
+                            hệ thống deploy
+```
+
+### 5. Kết luận đóng Phase B
+
+```text
+PHB06_RESULT             = PRODUCTION_ACCEPTED (theo bằng chứng mục 2/4)
+PHB07_RESULT             = PRODUCTION_ACCEPTED (theo bằng chứng mục 2/4)
+REPORTS_PHASE_B_STATUS   = DONE
+CURRENT_CRITICAL_PATH    = NONE
+NEXT_REQUIRED_FEATURE_VERTICAL = NONE
+```
+
+### 6. Deferred — không nằm trên critical path đã đóng
+
+Bảy mục sau được ghi nhận là backlog/nhận thức treo lại, KHÔNG phải task
+đang mở, KHÔNG chặn `REPORTS_PHASE_B_STATUS = DONE`:
+
+- `CR-01` — page-level regression guard cho mẫu số tỉ trọng cơ cấu (PHB-07).
+- `CR-02` — page-level regression guard cho dòng đơn vị chưa xác định
+  (PHB-07).
+- `CR-03` — đã sửa tại DEC-188 §3 (không phải zero-code change).
+- `CR-04` — lý do rejection sổ cũ↔pipeline nên trích `DEC-180` §9 +
+  `DEC-185`, không phải lý do `PHB-04` §3.6 cũ (đã áp dụng tại DEC-188 §3).
+- `F-04` — giới hạn kế thừa của occurrence-index trong `ORDER_LINE_KEY`.
+- `F-05` — 3 reference hỏng có sẵn trong
+  `docs/tasks/TASK-REM-T06-repository-root-hygiene.md`
+  (`FIND-PHB06-03`/`FIND-PHB07-03`) — **không sửa trong phiên này**, đúng
+  chỉ thị closeout.
+- Tracking brand upstream enablement (`DEC-188`).
+
+Bảy mục trên và ba finding non-blocking cũ của PHB-06
+(`FIND-PHB06-01/02/03`) không đưa Phase B trở lại `OPEN`.
+
+### 7. KHÔNG mở PHB-08 / roadmap phân tích mới
+
+Các hạng mục sau là quyết định sản phẩm TƯƠNG LAI, không phải việc Reports
+Phase B còn dang dở, và KHÔNG được dùng làm lý do giữ dự án ở trạng thái mở:
+mẫu số tỉ suất lợi nhuận; khoá gộp sản phẩm chính danh cho cơ cấu/top-N; ma
+trận phân tích nhiều tháng; so sánh cùng kỳ năm trước/YTD; forecasting;
+recommendation; phân tích thương hiệu nâng cao. Không có `PHB-08` nào được
+tạo.
+
+Can Revisit After:
+Khi có artifact repo-tracked thật cho Independent Review (ví dụ transcript
+được commit vào `docs/reviews/`) hoặc khi có bằng chứng deploy log Render
+thật — bản ghi ở đây nên được nâng cấp từ `E0`/Owner-relay lên `E1`/`E2`
+tương ứng, không cần đảo ngược kết luận DONE, chỉ cần thay nhãn bằng chứng.
