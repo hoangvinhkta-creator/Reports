@@ -45,6 +45,7 @@
     Reports chưa có dữ liệu kỳ trước, nên mọi ô so sánh dưới đây để trống.
   </p>
   {% endif %}
+  <div class="tp-scroll">
   <table>
     <tr><th>Chỉ tiêu</th><th class="num">Chênh lệch</th><th class="num">Tỉ lệ</th></tr>
     {% for label, metric in [('Tổng đơn', 'orders'), ('Doanh thu (net)', 'total_sales')] %}
@@ -57,6 +58,7 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
 </div>
 {% endif %}
 

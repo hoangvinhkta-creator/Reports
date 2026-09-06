@@ -29,6 +29,7 @@
   {% if products %}
   {# Mỗi ô LN KPI đi qua profit_cells, nên nó KHÔNG BAO GIỜ render mà thiếu
      coverage của chính nó — con số và mẫu số nằm trong cùng một thẻ. #}
+  <div class="tp-scroll">
   <table class="sales-orders">
     <tr>{% for column in columns %}
       <th class="{{ 'num' if loop.index > 1 }}">{{ column }}</th>{% endfor %}
@@ -43,6 +44,7 @@
     </tr>
     {% endfor %}
   </table>
+  </div>
 
   <p class="insight">{{ PRODUCT_ORDER_COUNT_NOTE }}</p>
   <p class="insight">

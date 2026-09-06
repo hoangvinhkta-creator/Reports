@@ -30,8 +30,8 @@ from app.modules.reporting import contribution
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate
 from app.web.analytics_presentation import (
-    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, money, period_label, period_options,
-    period_value, previous_period,
+    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, group_label, money, period_label,
+    period_options, period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
 from app.web import brand_identity, revenue_timeline
@@ -332,6 +332,15 @@ TARGET_LEGACY_READ_ONLY_NOTE = (
 
 
 
+def business_date(value) -> str:
+    """Mọi ngày nghiệp vụ viết `DD/MM/YYYY` (`DEC-184` §24) — không bao giờ ISO
+    trên màn hình: `03/08` là hai ngày khác nhau ở hai quy ước, và không gì
+    trên trang nói người đọc đang ở quy ước nào. TASK-UIUX-001 dời hàm này
+    từ `workspace_presentation` về đây để bảng kê chi tiết dùng CÙNG một
+    cách viết ngày với không gian làm việc."""
+    return "—" if value is None else value.strftime("%d/%m/%Y")
+
+
 def _decimal(value: Optional[Decimal]) -> str:
     return "—" if value is None else format_number(value)
 
@@ -539,13 +548,16 @@ def employee_rows(by_employee: list[tuple], company: bm.BusinessTotals) -> list[
     nhân viên được đếm ở cả hai dòng nhân viên, và dòng TỔNG phải đếm mỗi đơn
     đúng MỘT lần (`R-E5`).
     """
+    # TASK-UIUX-001 — cột Nhóm viết tên người đọc được (`group_label`); mã
+    # nhóm vẫn đi cùng dòng ở `employee_group_code` cho máy đọc.
     rows = [
-        {"employee": name or UNKNOWN_EMPLOYEE, "employee_group": group or "—",
+        {"employee": name or UNKNOWN_EMPLOYEE,
+         "employee_group": group_label(group), "employee_group_code": group or "",
          "key": name or "", "total_row": False, **_metrics(totals)}
         for name, group, totals in by_employee
     ]
-    rows.append({"employee": "TỔNG", "employee_group": "", "key": "",
-                 "total_row": True, **_metrics(company)})
+    rows.append({"employee": "TỔNG", "employee_group": "", "employee_group_code": "",
+                 "key": "", "total_row": True, **_metrics(company)})
     return rows
 
 
@@ -742,7 +754,7 @@ def detail_rows(details: list[dict]) -> list[dict]:
             "order_key": detail["order_key"],
             "product_key": detail["product_key"],
             "occurrence_index": detail["occurrence_index"],
-            "sale_date": detail["sale_date"],
+            "sale_date": business_date(detail["sale_date"]),
             "product_raw": detail["product_raw"] or "—",
             "quantity": _decimal(product.quantity),
             "sell_price": _decimal(product.sell_price),
@@ -817,7 +829,7 @@ def _discount_row(detail: dict, line: bm.BusinessLine,
         "order_key": detail["order_key"],
         "product_key": detail["product_key"],
         "occurrence_index": detail["occurrence_index"],
-        "sale_date": detail["sale_date"],
+        "sale_date": business_date(detail["sale_date"]),
         "product_raw": DISCOUNT_ROW_LABEL,
         "quantity": _decimal(part.quantity),
         "sell_price": _decimal(part.sell_price),
@@ -936,7 +948,8 @@ def target_rows(rows: list[tuple], *, editable: bool) -> list[dict]:
         result.append({
             "employee": name or UNKNOWN_EMPLOYEE,
             "employee_key": name or "",
-            "employee_group": group or "—",
+            "employee_group": group_label(group),
+            "employee_group_code": group or "",
             "is_employee": name is not None,
             "editable": editable and name is not None,
             "converted_sales": gated_cell(

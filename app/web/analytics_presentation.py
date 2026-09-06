@@ -22,11 +22,46 @@ liệu — quy ước viết số của Owner không đổi theo việc số đ�
 
 from __future__ import annotations
 
+import functools
 from decimal import Decimal
+from pathlib import Path
 from typing import Optional
 
+import yaml
+
+from app.modules.config.loader import load_yaml
 from app.web.analytics_queries import previous_month
 from app.web.legacy_presentation import format_number, format_ratio
+
+# TASK-UIUX-001 — tên NGƯỜI ĐỌC ĐƯỢC của nhóm nhân viên. Nguồn là chính master
+# `config/employees.yaml` (`employee_groups[].name`) — cùng file mà
+# `business_service` đọc để biết ai là nhân viên — nên không có bảng tên thứ
+# hai nào để lệch. Mã lạ hoặc file không đọc được ⟹ trả NGUYÊN mã: một nhãn
+# không bao giờ được làm trang sập, và cũng không bao giờ được bịa tên.
+_EMPLOYEES_PATH = Path(__file__).resolve().parents[2] / "config" / "employees.yaml"
+
+
+@functools.lru_cache(maxsize=1)
+def _group_names() -> dict[str, str]:
+    try:
+        data = load_yaml(_EMPLOYEES_PATH)
+    except (OSError, yaml.YAMLError):
+        return {}
+    names: dict[str, str] = {}
+    for item in data.get("employee_groups", []) or []:
+        if not isinstance(item, dict):
+            continue
+        code, name = item.get("code"), item.get("name")
+        if isinstance(code, str) and isinstance(name, str) and name.strip():
+            names[code] = name.strip()
+    return names
+
+
+def group_label(code: Optional[str]) -> str:
+    """Tên hiển thị của một nhóm nhân viên; trống ⟹ `—`, mã lạ ⟹ nguyên mã."""
+    if not code:
+        return "—"
+    return _group_names().get(code, code)
 
 ORIGIN_BADGE = "SỐ MỚI"
 ORIGIN_TITLE = "Số do Reports tính từ sổ kế toán đã nạp"
@@ -210,7 +245,7 @@ def _employee_row(row: dict) -> dict:
     lines = row["lines"]
     return {
         "employee": row["employee"] or UNKNOWN_EMPLOYEE,
-        "employee_group": row["employee_group"] or "—",
+        "employee_group": group_label(row["employee_group"]),
         "orders": count(row["orders"]),
         "lines": count(lines),
         "quantity": money(row["quantity"]),
@@ -225,6 +260,7 @@ def _employee_row(row: dict) -> dict:
 __all__ = [
     "ALL_DATA_LABEL", "BOTH_SOURCES_NOTE", "EMPLOYEE_COLUMNS", "NO_PREVIOUS_PERIOD",
     "ORDER_COLUMN_NOTE", "ORIGIN_BADGE", "ORIGIN_NOTE", "ORIGIN_TITLE",
+    "group_label",
     "QUANTITY_LABEL", "QUANTITY_NOTE", "UNKNOWN_EMPLOYEE", "count", "coverage",
     "delta", "employee_rows", "money", "overview", "period_label", "period_options",
     "period_value", "previous_period", "profit",

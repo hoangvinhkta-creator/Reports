@@ -47,6 +47,7 @@
   <h2>Các dòng của đơn
       <span class="cnt">{{ order.lines }} dòng</span></h2>
 
+  <div class="tp-scroll">
   <table class="sales-lines">
     <tr>{% for column in line_columns %}
       <th class="{{ 'num' if loop.index > 1 and loop.index < line_columns | length }}">
@@ -70,6 +71,7 @@
     {% endif %}
     {% endfor %}
   </table>
+  </div>
 
   <p class="insight">
     Doanh thu dòng, giá mua tham chiếu và lợi nhuận KPI là các số ĐÃ LƯU của

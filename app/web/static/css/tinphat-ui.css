@@ -107,7 +107,7 @@ h2 { font-size: 17px; margin: 0 0 var(--tp-s3); }
   border-radius: var(--tp-r-xl); padding: var(--tp-s5);
   margin-bottom: var(--tp-s5); box-shadow: var(--tp-shadow);
 }
-.module > h2 { display: flex; align-items: center; gap: var(--tp-s2); }
+.module > h2 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tp-s2); }
 .cnt {
   border-radius: var(--tp-r-pill); background: var(--tp-line2);
   padding: 0 var(--tp-s2); font-size: 12px; font-weight: 700; color: var(--tp-ink2);
@@ -126,8 +126,13 @@ td {
   padding: var(--tp-s2) var(--tp-s3); font-size: 14px;
   border-bottom: 1px solid var(--tp-line2);
 }
-td.num, th.num { text-align: right; white-space: nowrap; font-weight: 600; }
-td.code { font-weight: 700; white-space: nowrap; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+/* TASK-UIUX-001 — số trong bảng viết THƯỜNG; chỉ dòng TỔNG (row-total) và
+   giá trị ÂM được nhấn. Khi mọi số đều đậm thì không số nào nổi bật —
+   tham chiếu Finance: số thường, tổng đậm, âm có màu. */
+td.num { font-weight: 400; }
+td.num.neg { color: var(--tp-red); }
+td.code { font-weight: 600; white-space: nowrap; }
 td.empty-cell { color: var(--tp-mut); font-weight: 400; }
 tbody tr:hover td { box-shadow: inset 0 0 0 1px var(--tp-line); }
 tr.row-total td { background: var(--tp-line2); font-weight: 700; }
@@ -197,10 +202,12 @@ textarea { width: 100%; }
 }
 .kpi-card {
   display: flex; flex-direction: column; gap: 2px;
-  padding: var(--tp-s2) var(--tp-s3); border: 1px solid var(--tp-line);
-  border-radius: 6px;
+  padding: var(--tp-s3) var(--tp-s4); border: 1px solid var(--tp-line);
+  border-radius: var(--tp-r-md); background: #fff;
 }
-.kpi-value { font-size: 20px; }
+.kpi-value {
+  font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
+}
 .kpi-value.empty-cell { color: var(--tp-mut); font-weight: 400; }
 .tag-pipeline { background: var(--tp-green-bg); color: var(--tp-green); }
 .source-switch .on { background: var(--tp-blue); color: #fff; }
@@ -360,7 +367,7 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   align-items: flex-end;
   gap: var(--tp-s2);
   min-height: 180px;
-  padding: var(--tp-s3) 0 0;
+  padding: var(--tp-s3) var(--tp-s5) 0 0;
 }
 
 .rev-bar {
@@ -368,8 +375,8 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
-  min-width: 54px;
-  flex: 1 0 54px;
+  min-width: 50px;
+  flex: 1 0 50px;
   height: 180px;
 }
 
@@ -387,7 +394,7 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
    chéo giữ được sự phân biệt cả khi in đen trắng, nơi màu biến mất. */
 .rev-bar-legacy .rev-bar-fill {
   background: repeating-linear-gradient(
-    45deg, var(--tp-mut), var(--tp-mut) 3px,
+    45deg, rgba(107, 114, 128, 0.5), rgba(107, 114, 128, 0.5) 3px,
     transparent 3px, transparent 6px);
   border: 1px solid var(--tp-line);
   border-bottom: none;
@@ -438,3 +445,86 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   color: var(--tp-gold);
   margin-right: var(--tp-s2);
 }
+
+/* ------------------------------------------------------------------
+   TASK-UIUX-001 — tinh chỉnh trình bày cho NGƯỜI ĐỌC QUẢN TRỊ.
+
+   Không có token màu mới, không có thư viện, không có JavaScript. Mọi
+   lớp dưới đây chỉ đổi THỨ BẬC THỊ GIÁC: cái gì đọc trước, cái gì lùi
+   lại sau một lần bấm. Không con số nào đổi vì các lớp này.
+   ------------------------------------------------------------------ */
+
+/* Ô CHỦ ĐẠO của trang Báo cáo: câu trả lời đầu tiên ("tháng này bán được
+   bao nhiêu, hơn hay kém tháng trước") nằm trong MỘT ô, to hơn mọi ô khác.
+   Tham chiếu Finance (`.hero .big` + `.vs`): một số lớn, một dòng so sánh
+   ngay cạnh, không phải một module riêng ở cuối trang. */
+.kpi-hero {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: var(--tp-s3) var(--tp-s4); margin: var(--tp-s3) 0 var(--tp-s3);
+  border: 1px solid var(--tp-line); border-radius: var(--tp-r-md); background: #fff;
+}
+.kpi-hero-row {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: var(--tp-s1) var(--tp-s3);
+}
+.kpi-hero .kpi-value { font-size: 32px; letter-spacing: -.02em; }
+
+/* Chênh lệch so tháng trước: tăng = xanh lá, giảm = đỏ (doanh thu, không
+   phải giá — xem chú thích đầu file). Dấu +/− vẫn có mặt: màu chỉ bổ sung,
+   không phải kênh truyền đạt duy nhất (quy tắc 21 §5). */
+.kpi-delta { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.kpi-delta.up { color: var(--tp-green); }
+.kpi-delta.down { color: var(--tp-red); }
+.kpi-delta.empty-cell { color: var(--tp-mut); font-weight: 400; }
+
+/* Một lưới chỉ có MỘT thẻ không được kéo thẻ đó ra hết chiều ngang —
+   một thẻ rộng bằng cả trang đọc như một dải cảnh báo. */
+.kpi-grid-one { grid-template-columns: repeat(auto-fit, minmax(180px, 320px)); }
+
+/* CẢNH BÁO khác LỖI. `.error` (đỏ) dành cho điều sai/hỏng; `.warn` (vàng)
+   cho một trạng thái dữ liệu còn dang dở mà Owner có việc phải làm; `.notice`
+   cho một trạng thái ĐÃ BIẾT, không phải việc của ai trong Reports. */
+.warn { color: var(--tp-gold); font-weight: 600; }
+.notice {
+  border-left: 3px solid var(--tp-gold); background: var(--tp-gold-bg);
+  border-radius: var(--tp-r-sm); padding: var(--tp-s2) var(--tp-s3);
+  color: var(--tp-ink2); font-size: 14px;
+}
+
+/* Chú giải cách đọc bảng: có mặt trên trang, nhưng SAU một lần bấm.
+   `<details>` là phần tử gốc của trình duyệt — không script, in ra giấy vẫn
+   mở được. KHÔNG dùng trên không gian làm việc Nhân viên (`DEC-184` §14). */
+.how-to-read { margin-top: var(--tp-s3); }
+.how-to-read > summary {
+  cursor: pointer; color: var(--tp-blue); font-size: 13px; font-weight: 600;
+}
+.how-to-read > summary:hover { color: var(--tp-blue-d); }
+.how-to-read .insight { margin: var(--tp-s2) 0 0; }
+
+/* Ghi chú an toàn khi KHÔNG có gì để cảnh báo: một dòng nhỏ, không phải một
+   thẻ to nói "không có vấn đề". */
+.footnote { color: var(--tp-mut); font-size: 13px; margin: 0 0 var(--tp-s4); }
+
+/* Tên nhóm nhân viên không bẻ dòng: bảng đã cuộn trong thẻ, một dòng cho
+   mỗi người đọc nhanh hơn ba dòng cho mỗi người. */
+td[data-group] { white-space: nowrap; }
+
+/* Hàng liên kết "xem cùng số này theo chiều khác". */
+.view-links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tp-s2); }
+
+/* --- Không gian làm việc Nhân viên: bảng kê --------------------------- */
+
+/* Ô đếm dòng của một BH: chữ nhạt, KHÔNG phải một viên pill kéo dài suốt
+   bảy cột (trước đây `.cnt` đặt thẳng lên `<td colspan>`). */
+.sheet-table td.bh-count { color: var(--tp-mut); font-size: 13px; font-weight: 400; }
+
+/* Khách hàng: tên trên một dòng, SĐT · địa chỉ lùi xuống dòng dưới với chữ
+   nhạt — cột đủ rộng để tên không bị bẻ giữa chừng. */
+.sheet-table td[data-metric="bh-customer"] { min-width: 220px; }
+.bh-customer-meta {
+  display: block; color: var(--tp-mut); font-size: 12px;
+  font-weight: 400; line-height: 1.35;
+}
+
+/* Nút thao tác trên dòng: đủ rộng để bấm, thẳng hàng với nhau. */
+.line-actions .btn-mini { min-width: 30px; text-align: center; }

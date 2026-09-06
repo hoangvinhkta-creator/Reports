@@ -38,14 +38,11 @@
      data-metric="composition-reconciliation"
      data-reconciled="{{ 'yes' if summary.reconciled else 'no' }}"
      >{{ summary.reconcile_note }}</p>
-  <p class="insight" data-metric="composition-excluded-note">{{ COMPOSITION_EXCLUDED_NOTE }}</p>
 </div>
 
 <div class="module">
   <h2>Bảng cơ cấu
     <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
-  <p class="insight" data-metric="composition-share-note">{{ COMPOSITION_SHARE_NOTE }}</p>
-  <p class="insight" data-metric="composition-order-note">{{ COMPOSITION_ORDER_COLUMN_NOTE }}</p>
   <div class="tp-scroll">
   <table>
     <tr>{% for label in columns %}
@@ -60,11 +57,11 @@
           title="{{ row.sales_revenue }} đồng">{{ row.sales_revenue_kvnd }}</td>
       <td class="num{{ ' empty-cell' if row.share.missing }}"
           data-metric="share">{{ row.share.text }}</td>
-      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}{{ ' neg' if row.kpi_profit.text_kvnd[:1] == '-' }}"
           data-metric="kpi_profit"
           {% if not row.kpi_profit.missing %}title="{{ row.kpi_profit.text }} đồng"{% endif %}
           >{{ row.kpi_profit.text_kvnd }}</td>
-      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}{{ ' neg' if row.converted_sales.text_kvnd[:1] == '-' }}"
           data-metric="converted_sales"
           {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
           >{{ row.converted_sales.text_kvnd }}</td>
@@ -81,7 +78,15 @@
     <strong>{{ row.unit }}</strong> — {{ COMPOSITION_UNRESOLVED_NOTE }}</p>
   {% endfor %}
 
-  <p class="insight" data-metric="composition-no-profit-share">{{ COMPOSITION_NO_PROFIT_SHARE_NOTE }}</p>
-  <p class="insight" data-metric="composition-one-period">{{ COMPOSITION_ONE_PERIOD_NOTE }}</p>
+  {# TASK-UIUX-001 — chú giải cách đọc bảng có mặt trên trang nhưng SAU một
+     lần bấm; bảng, mẫu số và kết quả đối soát ở trên đọc trước. #}
+  <details class="how-to-read">
+    <summary>Cách đọc bảng này</summary>
+    <p class="insight" data-metric="composition-share-note">{{ COMPOSITION_SHARE_NOTE }}</p>
+    <p class="insight" data-metric="composition-order-note">{{ COMPOSITION_ORDER_COLUMN_NOTE }}</p>
+    <p class="insight" data-metric="composition-excluded-note">{{ COMPOSITION_EXCLUDED_NOTE }}</p>
+    <p class="insight" data-metric="composition-no-profit-share">{{ COMPOSITION_NO_PROFIT_SHARE_NOTE }}</p>
+    <p class="insight" data-metric="composition-one-period">{{ COMPOSITION_ONE_PERIOD_NOTE }}</p>
+  </details>
 </div>
 {% endblock %}

@@ -81,7 +81,8 @@
       <td>{{ snap.source_file_name or '—' }}{% if snap.duplicate_of_snapshot_id %}
         <span class="tag tag-defect" title="Đúng file này đã chạy trước đó">FILE TRÙNG</span>{% endif %}</td>
       <td>{{ snap.created_at }}</td>
-      <td>{{ snap.coverage_state }}</td>
+      <td title="{{ coverage_label(snap.coverage_state) }} ({{ snap.coverage_state }})"
+          >{{ coverage_short_label(snap.coverage_state) }}</td>
       <td>{{ snap.detected_date_min }} → {{ snap.detected_date_max }}</td>
       <td class="num">{{ snap.order_count }}</td>
       <td class="num">{{ snap.line_count }}</td>

@@ -145,6 +145,21 @@ def coverage_label(state: Optional[str]) -> str:
     return COVERAGE_LABELS.get(state or "", "Không rõ trạng thái coverage")
 
 
+# TASK-UIUX-001 — bản NGẮN của cùng ba nhãn, cho một ô bảng 14 cột trên tab
+# Dữ liệu. Cùng phân biệt "đã xác nhận" / "chưa xác nhận"; câu đầy đủ ở trên
+# vẫn là bản chính và hiện ở tooltip. Trạng thái lạ → "Không rõ", không đoán.
+COVERAGE_SHORT_LABELS = {
+    DETECTED_ONLY: "Chưa xác nhận đủ",
+    HEADER_CONSISTENT: "Chưa xác nhận đủ",
+    CONFIRMED_COMPLETE: "Đã xác nhận đủ",
+}
+
+
+def coverage_short_label(state: Optional[str]) -> str:
+    """Nhãn ngắn của trạng thái coverage, cho ô bảng. Trạng thái lạ → Không rõ."""
+    return COVERAGE_SHORT_LABELS.get(state or "", "Không rõ")
+
+
 def parse_iso_date(text: Optional[str]) -> Optional[date]:
     """``YYYY-MM-DD`` → ``date``; mọi thứ khác → ``None`` (không đoán định dạng)."""
     try:

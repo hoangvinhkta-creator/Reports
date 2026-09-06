@@ -45,12 +45,16 @@
 {% macro coverage_breakdown(coverage) -%}
 {% if not coverage.complete %}
 <ul class="reason-list" data-metric="coverage-breakdown">
+  {# TASK-UIUX-001 — "0 dòng chưa có giá nhập" không phải một việc để làm; chỉ
+     liệt kê khi thật sự còn dòng thiếu giá. Các cửa chặn khác vẫn tự nói tên. #}
+  {% if coverage.missing_price_lines %}
   <li>
     <strong data-metric="missing-price-lines">{{ coverage.missing_price_lines }}</strong>
     dòng chưa có giá nhập.
     <span data-metric="owner-fixable-lines">{{ coverage.owner_fixable_lines }}</span>
     trong số đó chỉ cần gõ giá nhập là có lợi nhuận ngay.
   </li>
+  {% endif %}
   {% for item in coverage.blockers %}
   <li data-metric="coverage-blocker" data-code="{{ item.code }}">
     <strong>{{ item.lines }}</strong> dòng: {{ item.label }}.
@@ -97,7 +101,9 @@
   {% if coverage.complete %}
   <p class="insight" data-metric="coverage-note">{{ OFFICIAL_NOTE }}</p>
   {% else %}
-  <p class="error" data-metric="coverage-note">{{ INCOMPLETE_NOTE }}</p>
+  {# TASK-UIUX-001 — còn dòng chưa tính được là một trạng thái DANG DỞ có việc
+     để làm, không phải một lỗi hệ thống: giọng cảnh báo (vàng), không đỏ. #}
+  <p class="warn" data-metric="coverage-note">{{ INCOMPLETE_NOTE }}</p>
   {% endif %}
   {{ coverage_breakdown(coverage) }}
   {% if gia_nhap_url %}
@@ -106,25 +112,37 @@
 </div>
 {%- endmacro %}
 
-{% macro mom_block(mom, previous_label) -%}
-<div class="module">
-  <h2>So với {{ previous_label or 'tháng trước' }}</h2>
-  <p class="insight">So sánh này chỉ dùng DOANH THU BÁN HÀNG, không dùng lợi
-     nhuận hay DS quy đổi.</p>
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <span class="tp-label">Thay đổi doanh thu</span>
-      <strong class="kpi-value{{ ' empty-cell' if mom.missing }}"
-              data-metric="mom">{{ mom.percent }}</strong>
-      {# `DEC-180` §9 — mốc so sánh có thể đến từ SỐ CŨ khi tháng liền trước
-         nằm bên kia ranh giới bàn giao. Nguồn đó phải HIỆN RA: một tỉ lệ
-         không nhãn không nói được nó đang so với cái gì. #}
-      {% if mom.origin %}
-      <span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
-      <span class="tp-unit" data-metric="mom-source">{{ mom.source }}</span>
-      {% endif %}
-      {% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
-    </div>
+{# TASK-UIUX-001 — chênh lệch so tháng trước đứng NGAY CẠNH con số nó so,
+   thay vì một module riêng ở cuối trang. Mọi nhánh "không so được" của
+   `DEC-PHB02-07` vẫn có CHỮ (`mom-note`); nhãn nguồn `DEC-180` §9
+   (`mom-origin`/`mom-source`) vẫn hiện đúng khi mốc so đến từ SỐ CŨ.
+   Dấu +/− luôn có mặt; màu chỉ bổ sung. Chỉ so DOANH THU BÁN HÀNG — câu đó
+   nằm trong tooltip của chính con số. #}
+{% macro mom_inline(mom, previous_label) -%}
+{% set sign = '' if mom.missing else mom.percent[:1] %}
+<span class="kpi-delta{{ ' empty-cell' if mom.missing }}{{ ' up' if sign == '+' }}{{ ' down' if sign == '-' }}"
+      data-metric="mom"
+      title="So với {{ previous_label or 'tháng trước' }} — chỉ so doanh thu bán hàng, không so lợi nhuận hay DS quy đổi"
+      >{{ mom.percent }}</span>
+{% if not mom.missing %}<span class="tp-unit">so với {{ previous_label or 'tháng trước' }}</span>{% endif %}
+{% if mom.origin %}
+<span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
+<span class="tp-unit" data-metric="mom-source">{{ mom.source }}</span>
+{% endif %}
+{% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+{%- endmacro %}
+
+{# Ô CHỦ ĐẠO: con số trả lời câu hỏi đầu tiên của người đọc quản trị, to hơn
+   mọi ô khác, kèm chênh lệch so tháng trước ngay cạnh. VND đầy đủ vẫn ở
+   tooltip (R1 §9). #}
+{% macro kpi_hero(label, value, metric, mom, previous_label, full='') -%}
+<div class="kpi-hero" data-metric="hero">
+  <span class="tp-label">{{ label }}</span>
+  <div class="kpi-hero-row">
+    <strong class="kpi-value" data-metric="{{ metric }}"
+            {% if full %}title="{{ full }}"{% endif %}>{{ value }}</strong>
+    <span class="tp-unit">nghìn đồng</span>
+    {{ mom_inline(mom, previous_label) }}
   </div>
 </div>
 {%- endmacro %}

@@ -107,7 +107,7 @@
   {# Lợi nhuận KPI + coverage: hai chỉ tiêu của PHB-03 mà không gian làm việc
      KHÔNG được làm mất. Chúng đứng dưới năm ô chính vì Owner đọc chúng khi
      một con số ở trên mang nhãn CHƯA HOÀN CHỈNH. #}
-  <div class="kpi-grid">
+  <div class="kpi-grid kpi-grid-one">
     {{ biz.gated_kpi('Lợi nhuận KPI', sheet.kpi_profit, 'kpi_profit') }}
   </div>
 
@@ -296,10 +296,11 @@
         {% endfor %}</td>
       <td data-metric="bh-customer">
         <span data-metric="customer-name">{{ group.customer_name }}</span>
-        <span class="tp-unit" data-metric="customer-phone">{{ group.customer_phone }}</span>
-        <span class="tp-unit" data-metric="customer-address">{{ group.customer_address }}</span>
+        {# TASK-UIUX-001 — SĐT · địa chỉ xuống dòng dưới tên, chữ nhạt. #}
+        <span class="bh-customer-meta"><span data-metric="customer-phone">{{ group.customer_phone }}</span>
+          · <span data-metric="customer-address">{{ group.customer_address }}</span></span>
       </td>
-      <td colspan="7" class="cnt">{{ group.lines }} dòng</td>
+      <td colspan="7" class="bh-count">{{ group.lines }} dòng</td>
       <td>
         {% if open %}
         <a class="ghost btn-mini on" data-metric="bh-edit-close"

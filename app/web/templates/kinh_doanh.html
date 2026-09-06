@@ -16,9 +16,13 @@
       <span class="cnt"><span data-metric="orders">{{ summary.orders }}</span> đơn ·
         <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
 
+  {# TASK-UIUX-001 — thứ bậc thị giác: MỘT ô chủ đạo (doanh thu + so tháng
+     trước) rồi mới tới ba chỉ tiêu còn lại. Cùng con số, cùng data-metric —
+     chỉ đổi cái gì được đọc trước. #}
+  {{ biz.kpi_hero('Doanh thu bán hàng', summary.sales_revenue_kvnd, 'sales_revenue',
+                  summary.mom, summary.previous_label,
+                  full=summary.sales_revenue ~ ' đồng') }}
   <div class="kpi-grid">
-    {{ biz.kpi('Doanh thu bán hàng', summary.sales_revenue_kvnd, 'sales_revenue',
-               'nghìn đồng', full=summary.sales_revenue ~ ' đồng') }}
     {{ biz.kpi(QUALIFYING_QUANTITY_LABEL, summary.qualifying_quantity, 'qualifying_quantity') }}
     {{ biz.gated_kpi('Lợi nhuận KPI', summary.kpi_profit, 'kpi_profit') }}
     {{ biz.gated_kpi('DS quy đổi', summary.converted_sales, 'converted_sales') }}
@@ -45,6 +49,19 @@
   <p class="insight" data-metric="attribution-note">{{ UNRESOLVED_EMPLOYEE_NOTE }}</p>
   {% endif %}
 </div>
+
+{# `R1` — sổ nạp gần nhất không thấy lại một số dòng đang được tính ở trên.
+   CẢNH BÁO + ĐƯỜNG DẪN, không phải đối soát: không dòng nào bị gộp, bị sửa
+   hay bị loại vì khối này. #}
+{% if not_seen %}
+<div class="module coverage-gap">
+  <h2>Cần soi trước khi tin vào tổng
+    <span class="cnt" data-metric="not-seen-lines">{{ not_seen.lines }}</span> dòng</h2>
+  <p class="error" data-metric="not-seen-warning">{{ not_seen.note }}</p>
+  <p><a class="ghost btn-mini" href="{{ url_for('snapshot_detail',
+        snapshot_id=not_seen.snapshot_id) }}">MỞ SỔ NẠP GẦN NHẤT</a></p>
+</div>
+{% endif %}
 
 {# `DEC-185` — MỘT biểu đồ doanh thu theo thời gian, năm mức gộp.
 
@@ -112,35 +129,18 @@
       ky=selected_period,
       **{'loc': 'tat-ca' if summary.coverage.complete else 'thieu-gia'})) }}
 
-{# So tháng trước chỉ tồn tại khi đang xem MỘT tháng. "Toàn bộ dữ liệu" không
-   có tháng liền trước — trang nói ra điều đó thay vì bịa một kỳ so sánh. #}
-{{ biz.mom_block(summary.mom, summary.previous_label) }}
-
-{# `R1` — sổ nạp gần nhất không thấy lại một số dòng đang được tính ở trên.
-   CẢNH BÁO + ĐƯỜNG DẪN, không phải đối soát: không dòng nào bị gộp, bị sửa
-   hay bị loại vì khối này. #}
-{% if not_seen %}
-<div class="module coverage-gap">
-  <h2>Cần soi trước khi tin vào tổng
-    <span class="cnt" data-metric="not-seen-lines">{{ not_seen.lines }}</span> dòng</h2>
-  <p class="error" data-metric="not-seen-warning">{{ not_seen.note }}</p>
-  <p><a class="ghost btn-mini" href="{{ url_for('snapshot_detail',
-        snapshot_id=not_seen.snapshot_id) }}">MỞ SỔ NẠP GẦN NHẤT</a></p>
-</div>
-{% endif %}
 
 <div class="module">
   <h2>Theo nhân viên
     <span class="cnt">{{ rows|length - 1 }} nhân viên</span></h2>
   {# PHB-06 — chiều gộp thứ hai của CÙNG kết quả chính thức, mở từ đây chứ
      KHÔNG phải một tab chính mới (`DEC-185` giữ thanh điều hướng ba mục). #}
-  <p class="insight">Cùng số này gộp theo thương hiệu:
-    <a class="ghost btn-mini" href="{{ url_for('business_brand') }}"
-       data-metric="brand-link">THEO THƯƠNG HIỆU</a></p>
   {# PHB-07 — chiều gộp thứ ba của CÙNG kết quả chính thức: đơn vị báo cáo
      (`DEC-PHB02-08`) kèm tỉ trọng doanh thu. Cũng mở từ đây chứ KHÔNG phải
-     một tab chính mới. #}
-  <p class="insight">Cùng số này gộp theo đơn vị báo cáo, kèm tỉ trọng:
+     một tab chính mới. TASK-UIUX-001 gom hai đường dẫn vào MỘT hàng. #}
+  <p class="insight view-links">Cùng số này, gộp theo chiều khác:
+    <a class="ghost btn-mini" href="{{ url_for('business_brand') }}"
+       data-metric="brand-link">THEO THƯƠNG HIỆU</a>
     <a class="ghost btn-mini" href="{{ url_for('business_composition') }}"
        data-metric="composition-link">CƠ CẤU DOANH THU</a></p>
   <p class="insight">{{ BUSINESS_ORDER_COLUMN_NOTE }}</p>
@@ -156,16 +156,16 @@
         <a href="{{ url_for('business_employee', ky=selected_period, **{'nhan-vien': row.key}) }}">{{ row.employee }}</a>
         {% endif %}
       </td>
-      <td>{{ row.employee_group }}</td>
+      <td data-group="{{ row.employee_group_code }}">{{ row.employee_group }}</td>
       <td class="num" data-metric="orders">{{ row.orders }}</td>
       <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
       <td class="num" data-metric="sales_revenue"
           title="{{ row.sales_revenue }} đồng">{{ row.sales_revenue_kvnd }}</td>
-      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}{{ ' neg' if row.kpi_profit.text_kvnd[:1] == '-' }}"
           data-metric="kpi_profit"
           {% if not row.kpi_profit.missing %}title="{{ row.kpi_profit.text }} đồng"{% endif %}
           >{{ row.kpi_profit.text_kvnd }}</td>
-      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}{{ ' neg' if row.converted_sales.text_kvnd[:1] == '-' }}"
           data-metric="converted_sales"
           {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
           >{{ row.converted_sales.text_kvnd }}</td>
@@ -178,17 +178,17 @@
 
 {# Thông tin an toàn, không phải chỉ tiêu: các dòng này rơi khỏi MỌI kỳ vì
    chúng không có ngày bán (`R-S5`). #}
-<div class="module">
+{% if summary.undated_lines %}
+<div class="module coverage-gap">
   <h2>Dòng chưa có ngày bán</h2>
-  {% if summary.undated_lines %}
   <p class="error" data-metric="undated-lines">
     Có <strong>{{ summary.undated_lines }}</strong> dòng hiện hành chưa có ngày bán.
     Chúng KHÔNG được tính vào bất kỳ kỳ nào ở trên.
   </p>
-  {% else %}
-  <p class="insight" data-metric="undated-lines">
-    Không có dòng nào thiếu ngày bán.
-  </p>
-  {% endif %}
 </div>
+{% else %}
+{# TASK-UIUX-001 — không có gì để cảnh báo ⟹ một dòng ghi chú nhỏ, không phải
+   một thẻ to. Câu và data-metric giữ nguyên. #}
+<p class="footnote" data-metric="undated-lines">Không có dòng nào thiếu ngày bán.</p>
+{% endif %}
 {% endblock %}

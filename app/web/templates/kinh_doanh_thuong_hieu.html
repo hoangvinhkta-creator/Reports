@@ -27,7 +27,9 @@
   {# Khoảng trống này là một KẾT LUẬN đo được, không phải một trang hỏng: mọi
      dòng của kỳ đều KHÔNG có thương hiệu chính danh. Trang nói ra điều đó
      bằng chữ, cùng chỗ tiền đang nằm, thay vì hiện một bảng trông như thật. #}
-  <p class="error" data-metric="brand-unavailable">{{ BRAND_UNAVAILABLE_NOTE }}</p>
+  {# TASK-UIUX-001 — đây là một trạng thái ĐÃ BIẾT của nguồn danh tính, không
+     phải lỗi: giọng thông báo (notice), không đỏ. #}
+  <p class="notice" data-metric="brand-unavailable">{{ BRAND_UNAVAILABLE_NOTE }}</p>
   {% endif %}
 
   {# Hai lý do "chưa xác định" luôn tách rời, kể cả ở ô đếm đầu trang. #}
@@ -44,13 +46,11 @@
      data-metric="brand-reconciliation"
      data-reconciled="{{ 'yes' if summary.reconciled else 'no' }}"
      >{{ summary.reconcile_note }}</p>
-  <p class="insight" data-metric="brand-excluded-note">{{ BRAND_EXCLUDED_NOTE }}</p>
 </div>
 
 <div class="module">
   <h2>Bảng thương hiệu
     <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
-  <p class="insight">{{ BRAND_ORDER_COLUMN_NOTE }}</p>
   <div class="tp-scroll">
   <table>
     <tr>{% for label in columns %}
@@ -65,11 +65,11 @@
       <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
       <td class="num" data-metric="sales_revenue"
           title="{{ row.sales_revenue }} đồng">{{ row.sales_revenue_kvnd }}</td>
-      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}{{ ' neg' if row.kpi_profit.text_kvnd[:1] == '-' }}"
           data-metric="kpi_profit"
           {% if not row.kpi_profit.missing %}title="{{ row.kpi_profit.text }} đồng"{% endif %}
           >{{ row.kpi_profit.text_kvnd }}</td>
-      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}{{ ' neg' if row.converted_sales.text_kvnd[:1] == '-' }}"
           data-metric="converted_sales"
           {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
           >{{ row.converted_sales.text_kvnd }}</td>
@@ -86,6 +86,13 @@
     <strong>{{ row.brand }}</strong> — {{ row.unknown_note }}</p>
   {% endfor %}
 
-  <p class="insight" data-metric="brand-no-target">{{ BRAND_NO_TARGET_NOTE }}</p>
+  {# TASK-UIUX-001 — chú giải cách đọc bảng có mặt trên trang nhưng SAU một
+     lần bấm; bảng và các dòng "sửa ở đâu" ở trên đọc trước. #}
+  <details class="how-to-read">
+    <summary>Cách đọc bảng này</summary>
+    <p class="insight">{{ BRAND_ORDER_COLUMN_NOTE }}</p>
+    <p class="insight" data-metric="brand-excluded-note">{{ BRAND_EXCLUDED_NOTE }}</p>
+    <p class="insight" data-metric="brand-no-target">{{ BRAND_NO_TARGET_NOTE }}</p>
+  </details>
 </div>
 {% endblock %}

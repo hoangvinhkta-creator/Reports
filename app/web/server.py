@@ -360,6 +360,10 @@ def create_app(
     for _name in ("CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
                   "DISCOUNT_ROW_NOTE",
                   "INCOMPLETE_NOTE", "NET_SALES_NOTE", "OFFICIAL_NOTE",
+                  # TASK-UIUX-001 — nhãn của thẻ "Tổng số SP" trên Báo cáo
+                  # từng KHÔNG được đăng ký, nên thẻ đó hiện một con số
+                  # không tên (Jinja render biến chưa định nghĩa thành rỗng).
+                  "QUALIFYING_QUANTITY_LABEL",
                   "QUALIFYING_QUANTITY_NOTE", "UNKNOWN_EMPLOYEE",
                   "UNRESOLVED_EMPLOYEE_NOTE",
                   # PHB-05 — chú thích của Target: viết MỘT lần ở tầng trình
@@ -378,6 +382,10 @@ def create_app(
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     for _name in ("BRAND_SOURCE_NOTE", "BRAND_UNAVAILABLE_NOTE"):
         app.jinja_env.globals[_name] = getattr(brand_identity, _name)
+    # TASK-UIUX-001 — trạng thái coverage của snapshot viết bằng CHỮ trên tab
+    # Dữ liệu (mã enum giữ ở tooltip), dùng lại đúng nhãn của trang snapshot.
+    app.jinja_env.globals["coverage_label"] = history_coverage.coverage_label
+    app.jinja_env.globals["coverage_short_label"] = history_coverage.coverage_short_label
     # PHB-07 — chú thích của bảng cơ cấu. Cùng kỷ luật: viết MỘT lần ở tầng
     # trình bày, template chỉ hiện ra.
     for _name in ("COMPOSITION_EXCLUDED_NOTE", "COMPOSITION_NO_PROFIT_SHARE_NOTE",

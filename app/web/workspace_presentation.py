@@ -44,7 +44,8 @@ from app.web import business_store, line_identity
 from app.web.analytics_presentation import UNKNOWN_EMPLOYEE, count
 from app.web.business_presentation import (
     MOM_NO_PREVIOUS, STATE_LABELS, _decimal, _derived_cell, _thousand_vnd,
-    coverage_cell, gated_cell, month_over_month, percent, period_label,
+    business_date, coverage_cell, gated_cell, month_over_month, percent,
+    period_label,
 )
 from app.web.legacy_presentation import format_number
 
@@ -132,9 +133,9 @@ EXCLUDE_CONFIRM_POINTS = (
 )
 
 
-def business_date(value: Optional[date]) -> str:
-    """`§24` — mọi ngày nghiệp vụ của màn hình này viết `DD/MM/YYYY`."""
-    return "—" if value is None else value.strftime("%d/%m/%Y")
+# `§24` — mọi ngày nghiệp vụ của màn hình này viết `DD/MM/YYYY`. Hàm
+# `business_date` nay sống ở `business_presentation` (TASK-UIUX-001) để bảng
+# kê chi tiết của PHB-03 viết ngày y hệt; tên vẫn được xuất từ đây.
 
 
 def sheet_tabs(
