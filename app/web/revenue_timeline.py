@@ -179,16 +179,23 @@ NO_DAILY_LEGACY_NOTE = (
 )
 
 
-def parse_granularity(raw: Optional[str]) -> str:
+def parse_granularity(raw: Optional[str], *,
+                      default: Optional[str] = None) -> str:
     """Mức gộp đang chọn. Giá trị lạ rơi về mặc định, không báo lỗi.
 
     Một tham số URL gõ sai không đáng làm hỏng cả trang báo cáo; nhưng nó
     cũng không được âm thầm thành một mức gộp KHÁC cái người dùng gõ và trông
-    như đã hiểu — nên mặc định là Tháng, và nút Tháng sẽ sáng lên đúng như
-    trạng thái thật.
+    như đã hiểu — nên nó rơi về mức MẶC ĐỊNH, và đúng cái nút đó sẽ sáng lên
+    như trạng thái thật.
+
+    `default` cho phép mỗi trang tự chọn mức mở đầu của mình
+    (`TASK-OWNER-UIUX-002`: trang Báo cáo mở ở NGÀY). Một `default` lạ cũng
+    rơi về `DEFAULT_GRANULARITY`, nên không trang nào đặt được một mức không
+    tồn tại.
     """
+    fallback = default if default in GRANULARITY_KEYS else DEFAULT_GRANULARITY
     value = (raw or "").strip().lower()
-    return value if value in GRANULARITY_KEYS else DEFAULT_GRANULARITY
+    return value if value in GRANULARITY_KEYS else fallback
 
 
 @dataclass(frozen=True)

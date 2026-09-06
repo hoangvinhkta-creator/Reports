@@ -42,7 +42,73 @@
    Ô đếm cũ gộp mọi thứ vào hai con số, trong đó một con số luôn bằng 0 theo
    cấu tạo và con số kia nói "nhập giá không cứu được" cho gần hết số dòng —
    ngược hẳn sự thật (B02/B03). Nay mỗi cửa chặn tự nói tên mình. #}
-{% macro coverage_breakdown(coverage) -%}
+{# `TASK-OWNER-UIUX-002` — chú giải của MỘT chỉ tiêu, sau một lần bấm.
+   `<details>/<summary>` là phần tử gốc của trình duyệt: mở được bằng chuột,
+   bằng bàn phím (Tab rồi Enter/Space), đọc được bằng trình đọc màn hình, in
+   ra giấy vẫn mở được — và không cần một dòng JavaScript nào. `title` lo
+   phần rê chuột. Câu chữ KHÔNG đổi: nó vẫn là đúng hằng số cũ. #}
+{% macro kpi_help(note) -%}
+{% if note %}
+<details class="kpi-help">
+  <summary title="{{ note }}" aria-label="Giải thích chỉ tiêu này">?</summary>
+  <p class="insight" data-metric="kpi-help">{{ note }}</p>
+</details>
+{% endif %}
+{%- endmacro %}
+
+{# Thẻ chỉ tiêu của HÀNG TÓM TẮT. Cùng `data-metric`, cùng con số, cùng
+   tooltip VND đầy đủ (R1 §9) như `kpi`/`gated_kpi`; khác đúng hai chỗ:
+   chú giải nằm sau dấu (?), và thẻ doanh thu mang thêm chênh lệch so tháng
+   trước ngay dưới con số. #}
+{% macro kpi_cell(label, value, metric, note='', full='', strong=False,
+                  cell=None, mom=None, previous_label='') -%}
+<div class="kpi-card{{ ' kpi-strong' if strong }}{{ ' kpi-incomplete' if cell and not cell.official }}">
+  <span class="tp-label">{{ label }}{% if cell %} {{ state_tag(cell) }}{% endif %}{{ kpi_help(note) }}</span>
+  {% if cell %}
+  <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
+          data-metric="{{ metric }}"
+          {% if not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+          >{{ cell.text_kvnd }}</strong>
+  {% else %}
+  <strong class="kpi-value" data-metric="{{ metric }}"
+          {% if full %}title="{{ full }}"{% endif %}>{{ value }}</strong>
+  {% endif %}
+  {% if mom is not none %}<span class="kpi-mom">{{ mom_inline(mom, previous_label) }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# MỘT việc cần soi. Tiêu đề + số + mức nghiêm trọng đọc được ngay; giải
+   thích và đường dẫn hành động nằm sau một lần bấm. Điều kiện cảnh báo,
+   số dòng và đường dẫn đều do tầng trình bày dựng sẵn — macro này không
+   tính lại gì. #}
+{% macro pending_row(item, action_url, breakdown=None) -%}
+<details class="pending-item" data-metric="pending-item" data-code="{{ item.code }}"
+         data-severity="{{ item.severity }}">
+  <summary>
+    <span class="pending-dot pending-{{ item.severity }}" aria-hidden="true"></span>
+    <span class="pending-title">{{ item.title }}</span>
+    <span class="cnt"><span data-metric="{{ item.count_metric }}"
+      >{{ item.count }}</span>{% if item.count_unit %} {{ item.count_unit }}{% endif %}</span>
+  </summary>
+  <p class="{{ item.severity }}" data-metric="{{ item.note_metric }}">{{ item.note }}</p>
+  {% if breakdown %}{{ coverage_reasons(breakdown) }}{% endif %}
+  {% if action_url %}
+  <p><a class="ghost btn-mini" data-metric="pending-action"
+        href="{{ action_url }}">{{ item.action_label }}</a></p>
+  {% endif %}
+</details>
+{%- endmacro %}
+
+{# `TASK-OWNER-UIUX-002` tách `coverage_breakdown` làm hai mảnh mà trước đây
+   luôn đi cùng nhau, vì trang Báo cáo cần chúng ở HAI CHỖ KHÁC NHAU: danh
+   sách việc phải làm lùi xuống khối "Cần kiểm tra" ở cuối trang, còn câu về
+   dòng chưa biết của ai ở lại cạnh khối phân bổ lợi nhuận — nó nói về THẨM
+   QUYỀN NHÂN VIÊN, không phải về giá nhập.
+
+   `coverage_breakdown` vẫn ghép đúng hai mảnh đó theo đúng thứ tự cũ, nên
+   hai trang còn lại (`kinh_doanh_nhan_vien`, `kinh_doanh_gia_nhap`) render
+   ra y hệt như trước — không một `data-metric` nào đổi chỗ hay biến mất. #}
+{% macro coverage_reasons(coverage) -%}
 {% if not coverage.complete %}
 <ul class="reason-list" data-metric="coverage-breakdown">
   {# TASK-UIUX-001 — "0 dòng chưa có giá nhập" không phải một việc để làm; chỉ
@@ -62,6 +128,9 @@
   {% endfor %}
 </ul>
 {% endif %}
+{%- endmacro %}
+
+{% macro unresolved_employee_note(coverage) -%}
 {% if coverage.unresolved_employee_lines %}
 <p class="insight" data-metric="unresolved-employee-note">
   <strong data-metric="unresolved-employee-lines">{{ coverage.unresolved_employee_lines }}</strong>
@@ -69,6 +138,11 @@
   {{ UNRESOLVED_EMPLOYEE_NOTE }}
 </p>
 {% endif %}
+{%- endmacro %}
+
+{% macro coverage_breakdown(coverage) -%}
+{{ coverage_reasons(coverage) }}
+{{- unresolved_employee_note(coverage) }}
 {%- endmacro %}
 
 {# Một ô tiền SUY RA. Thiếu đầu vào ⟹ `—` kèm lý do, KHÔNG BAO GIỜ một số 0

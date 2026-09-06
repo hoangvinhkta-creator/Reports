@@ -10785,3 +10785,134 @@ Can Revisit After:
 Ba mục hoãn ở §7 chờ chủ dự án. Nếu sau này Owner muốn một dòng Target /
 Lợi nhuận KPI trên cùng biểu đồ (`DEC-185` "Can Revisit After"), ô chủ đạo
 là chỗ tự nhiên để đặt thêm một dòng so sánh — không cần một module mới.
+
+## DEC-191
+
+Title:
+`TASK-OWNER-UIUX-002` — Trang Báo cáo đọc theo thứ tự của người quản lý: mở
+sẵn tháng hiện tại, bốn chỉ tiêu trên một hàng với chú giải sau dấu (?), biểu
+đồ ĐƯỜNG mở ở mức Ngày, việc cần soi lùi xuống cuối trang, và bảng "Theo nhân
+viên" đọc theo đúng phân hoạch sheet đã được nghiệm thu.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (chỉ thị trực tiếp của chủ dự án về UX trang Báo cáo).
+Chỉ tầng trình bày; không một quyết định nghiệp vụ nào bị đảo.
+
+Supersedes:
+Không đảo ngược quyết định nào. `DEC-185` (ba tab, MỘT biểu đồ), `DEC-190`
+(ba giọng lỗi/cảnh báo/thông báo, một quy ước ngày), `DEC-PHB02-02`/`R-S7`
+(CHÍNH THỨC / CHƯA HOÀN CHỈNH), `DEC-PHB02-07` (mọi nhánh "không so được"
+có CHỮ), `DEC-127` §1 (Vinh · Quý · Hiệp là ba con người, không phải một
+Employee giả) và R1 §9 (nghìn đồng + tooltip VND) giữ nguyên và được kiểm
+lại bằng test.
+
+### 1. Kỳ mở đầu của trang Báo cáo
+
+Mở `/kinh-doanh` không kèm tham số ⟹ THÁNG DƯƠNG LỊCH HIỆN TẠI, nếu tháng
+đó có trong dữ liệu. Ba ràng buộc giữ cho đây chỉ là một MẶC ĐỊNH:
+
+```text
+1. Chỉ khi tham số `ky` VẮNG MẶT. `ky=` rỗng là Owner đã chủ động chọn
+   "Toàn bộ dữ liệu" — một mặc định không được ghi đè một lựa chọn.
+2. Chỉ khi tháng hiện tại THẬT SỰ có dòng. Mở sẵn một tháng rỗng đầu tháng
+   sẽ cho Owner một trang trắng thay vì tình hình kinh doanh.
+3. Không thoả ⟹ giữ nguyên hành vi cũ ("Toàn bộ dữ liệu").
+```
+
+Các trang `gia-nhap` / `gia-dung` / `target` KHÔNG đi qua đường này: chúng
+có form POST mang `ky` trong body và ngữ nghĩa kỳ của chúng không đổi.
+
+### 2. Hàng chỉ tiêu và chú giải sau dấu (?)
+
+Bốn chỉ tiêu (Doanh thu · Tổng số SP · Lợi nhuận KPI · DS quy đổi) nằm trên
+MỘT hàng; doanh thu vẫn đọc trước (số lớn hơn, chênh lệch so tháng trước
+ngay dưới) nhưng không còn là một dải riêng phía trên. Định nghĩa của từng
+chỉ tiêu lùi vào `<details class="kpi-help">` của chính ô đó — cùng hằng số
+cũ (`NET_SALES_NOTE`, `QUALIFYING_QUANTITY_NOTE`, `CONVERTED_SALES_NOTE`),
+thêm `KPI_PROFIT_NOTE` cho ô duy nhất chưa có câu định nghĩa nào.
+
+Trạng thái coverage ở lại CÙNG CHỖ với hai ô chỉ tiêu nó quyết định, nhưng
+bằng MỘT DÒNG (`7 / 8 dòng · 87,5%`); câu `INCOMPLETE_NOTE`/`OFFICIAL_NOTE`
+nằm sau một lần bấm. `coverage`, `coverage-percent`, `coverage-note`,
+`state` giữ nguyên tên và nội dung.
+
+### 3. Biểu đồ: ĐƯỜNG, mở ở mức NGÀY
+
+Cột → đường, vẽ bằng SVG tĩnh với toạ độ tính ở tầng trình bày từ đúng tỉ
+lệ so với đỉnh. Vẫn KHÔNG JavaScript, không thư viện; năm nút mức gộp vẫn
+là năm URL. `DEFAULT_GRANULARITY` của `revenue_timeline` KHÔNG đổi (vẫn là
+Tháng) — trang Báo cáo tự chọn Ngày qua tham số `default` mới của
+`parse_granularity`, nên không trang nào khác đổi theo.
+
+Ô nhãn của mỗi mốc là phần tử MANG DỮ LIỆU (`chart-bar`, `data-key`,
+`data-origin`, `data-revenue` thô, tooltip); chấm SVG chỉ vẽ. Mỗi mốc vẫn
+có ĐÚNG MỘT phần tử mang khoá của nó.
+
+### 4. "Cần kiểm tra" ở cuối trang
+
+Hai thẻ lớn cũ ("Cần soi trước khi tin vào tổng", "Đã tính được lợi nhuận
+cho bao nhiêu dòng?") thành MỘT khối gọn ở cuối, mỗi mục là một hàng mở
+được. Điều kiện cảnh báo, số dòng, ngữ nghĩa coverage và các đường dẫn hành
+động GIỮ NGUYÊN — kể cả tên `data-metric` (`not-seen-lines`,
+`not-seen-warning`, `missing-price-lines`, `owner-fixable-lines`,
+`coverage-blocker`).
+
+Dòng thiếu ngày bán KHÔNG vào đây: đó là một tình trạng SAI thật sự, nên nó
+giữ khối đỏ riêng (`R-S5`).
+
+### 5. Bảng "Theo nhân viên" — KHÔNG có quy tắc gộp mới
+
+Bảng đọc CHÍNH phân hoạch `reporting_sheets.sheet_key_of` mà không gian làm
+việc đã dùng từ `DEC-PHB02-08`:
+
+```text
+Vinh · Quý · Hiệp   nhóm NOI_THANH ⟹ hàng "Nội thành" (hoặc "Gia dụng" với
+                    dòng hàng gia dụng) — đúng như sheet của họ
+Gia dụng            bucket ProductGroup đã có từ ADR-106, hàng CUỐI
+mọi người còn lại   một hàng riêng, giữ nguyên tên
+```
+
+`sheet_key_of` là hàm TOÀN PHẦN, nên mỗi dòng thuộc ĐÚNG MỘT hàng: tổng các
+hàng luôn bằng tổng kỳ và không hàng nào đếm hai lần — đúng theo cấu tạo,
+không theo lời hứa. Tiêu đề vẫn là "Theo nhân viên"; danh tính ba con người
+Nội thành không mất (mở sheet Nội thành là thấy cột Nhân viên ghi đúng tên
+từng dòng — `DEC-127` §1).
+
+Thứ tự đọc là thứ DUY NHẤT được quyết định thêm, và nó lấy từ thứ tự khai
+báo trong master `config/employees.yaml` (nên Tín Phát đứng đầu vì master
+viết vậy, không vì một tên bị đóng cứng trong mã):
+
+```text
+nhân viên theo thứ tự master → chưa xác định → Nội thành → Gia dụng
+```
+
+Impact:
+Chỉ tầng trình bày: 2 template, `tinphat-ui.css`, 3 module `*_presentation.py`
+(nhãn/thứ tự/hình học), `revenue_timeline.parse_granularity` (thêm tham số
+`default`, mặc định module KHÔNG đổi), `server.py` (kỳ mở đầu + đăng ký một
+biến template). Không file nào dưới `app/modules/`, `tools/db/`, `config/`.
+Không migration, không route mới, không endpoint ghi mới, không tab mới,
+không JavaScript, không thư viện, không token màu mới.
+
+Evidence:
+Suite đầy đủ `2722 passed, 11 skipped, 0 failed` (nền `4b98f6a`:
+`2696 passed, 11 skipped`; chênh lệch đúng bằng 26 test mới của
+`tests/test_owner_report_overview.py`). Golden `58 passed, 2 skipped` —
+KHÔNG đổi. So render nền ↔ sau sửa trên cùng một bộ dữ liệu: mọi chỉ tiêu
+đầu trang, hàng TỔNG của bảng nhân viên, và MỌI con số hiện ra trên 10
+trang còn lại GIỐNG HỆT. Không trang nào tràn ngang ở 1440/834/390px.
+
+Ba test trình bày của `TASK-UIUX-001` được CHỈNH LẠI ĐÍCH (không hạ chuẩn):
+chúng neo vào cấu trúc `.kpi-hero`/`.kpi-grid` mà chính chỉ thị này thay
+bằng `.kpi-row`, và vào việc `NOI_THANH` xuất hiện ở cột Nhóm — điều không
+còn đúng khi ba người đó đọc thành một hàng nhóm. Câu hỏi của cả ba giữ
+nguyên: thẻ có nhãn chưa, chênh lệch có đứng cạnh con số nó so không, và
+KHÔNG mã máy nào lọt ra chữ người đọc.
+
+Can Revisit After:
+Chưa có dòng Gia dụng thật trong dữ liệu mẫu nên hàng đó hiện `—` (chưa
+tính được), đúng quy ước "ô trống khác 0". Khi có dữ liệu gia dụng thật,
+kiểm lại bằng mắt một lần.

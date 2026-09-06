@@ -63,6 +63,36 @@ def group_label(code: Optional[str]) -> str:
         return "—"
     return _group_names().get(code, code)
 
+
+# TASK-OWNER-UIUX-002 — THỨ TỰ ĐỌC của các nhân viên, lấy từ chính thứ tự khai
+# báo trong master `config/employees.yaml`. Đây KHÔNG phải một quy tắc nghiệp
+# vụ mới: nó không đổi một con số nào, không đổi ai thuộc nhóm nào, và không
+# quyết định dòng nào cộng vào đâu — nó chỉ trả lời "ai đọc trước" bằng một
+# thứ tự mà chủ dự án đã tự viết ra và sửa được. Người không có trong master
+# (ví dụ một cái tên vừa được gán lại) xếp SAU, theo alphabet.
+@functools.lru_cache(maxsize=1)
+def _master_order() -> dict[str, int]:
+    try:
+        data = load_yaml(_EMPLOYEES_PATH)
+    except (OSError, yaml.YAMLError):
+        return {}
+    order: dict[str, int] = {}
+    for item in data.get("employees", []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("normalized")
+        if isinstance(name, str) and name.strip():
+            order.setdefault(name.strip(), len(order))
+    return order
+
+
+def employee_master_rank(name: Optional[str]) -> int:
+    """Hạng đọc của một nhân viên. Không có trong master ⟹ xếp sau tất cả."""
+    if not name:
+        return len(_master_order()) + 1
+    return _master_order().get(name, len(_master_order()) + 1)
+
+
 ORIGIN_BADGE = "SỐ MỚI"
 ORIGIN_TITLE = "Số do Reports tính từ sổ kế toán đã nạp"
 ORIGIN_NOTE = "Số do Reports tính từ sổ kế toán đã nạp."
@@ -260,7 +290,7 @@ def _employee_row(row: dict) -> dict:
 __all__ = [
     "ALL_DATA_LABEL", "BOTH_SOURCES_NOTE", "EMPLOYEE_COLUMNS", "NO_PREVIOUS_PERIOD",
     "ORDER_COLUMN_NOTE", "ORIGIN_BADGE", "ORIGIN_NOTE", "ORIGIN_TITLE",
-    "group_label",
+    "employee_master_rank", "group_label",
     "QUANTITY_LABEL", "QUANTITY_NOTE", "UNKNOWN_EMPLOYEE", "count", "coverage",
     "delta", "employee_rows", "money", "overview", "period_label", "period_options",
     "period_value", "previous_period", "profit",

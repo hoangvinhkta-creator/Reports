@@ -29,9 +29,10 @@ from app.modules.reporting import brand_metrics as bmx
 from app.modules.reporting import contribution
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate
+from app.modules.reporting import reporting_sheets
 from app.web.analytics_presentation import (
-    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, group_label, money, period_label,
-    period_options, period_value, previous_period,
+    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, employee_master_rank, group_label,
+    money, period_label, period_options, period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
 from app.web import brand_identity, revenue_timeline
@@ -101,6 +102,11 @@ QUALIFYING_QUANTITY_LABEL = "Tổng số SP"
 QUALIFYING_QUANTITY_NOTE = (
     "Tổng số SP chỉ cộng số lượng của những dòng có ĐƠN GIÁ BÁN trên "
     "1.000.000 đồng, để loại giá treo, chân kê và phụ kiện giá trị thấp."
+)
+KPI_PROFIT_NOTE = (
+    "Lợi nhuận KPI cộng lợi nhuận đủ điều kiện của từng dòng hàng trong kỳ. "
+    "Dòng chưa có giá nhập chưa tính được lợi nhuận, nên khi còn dòng như vậy "
+    "con số này mang nhãn CHƯA HOÀN CHỈNH."
 )
 CONVERTED_SALES_NOTE = (
     "DS quy đổi = lợi nhuận KPI CHIA cho tỉ lệ quy đổi của từng dòng, rồi "
@@ -722,6 +728,122 @@ def _derived_cell(value: Optional[Decimal], blockers: tuple[str, ...]) -> dict:
     return {"text": "—", "missing": True, "reason": reason}
 
 
+# `TASK-OWNER-UIUX-002` — bảng "Theo nhân viên" của trang Báo cáo đọc CHÍNH
+# phân hoạch mà không gian làm việc đã dùng từ `DEC-PHB02-08`
+# (`reporting_sheets.sheet_key_of`), thay vì gộp lại theo `employee` một lần
+# nữa ở đây. Đó là lý do bảng này KHÔNG phát minh ra một quy tắc cộng nào:
+#
+#     Vinh · Quý · Hiệp   nhóm `NOI_THANH` ⟹ dòng của họ nằm trên sheet
+#                         Nội thành (hoặc Gia dụng nếu dòng là hàng gia dụng)
+#     Gia dụng            bucket `ProductGroup` đã có từ ADR-106
+#     mọi người còn lại   sheet của chính họ, giữ nguyên tên
+#
+# `sheet_key_of` là hàm TOÀN PHẦN, nên mỗi dòng thuộc ĐÚNG MỘT hàng của bảng
+# và tổng các hàng luôn đúng bằng tổng kỳ (`§42`) — không hàng nào đếm hai
+# lần, và Nội thành không bao giờ đứng cạnh Vinh/Quý/Hiệp.
+#
+# Thứ tự đọc: nhân viên theo thứ tự khai báo trong master (Tín Phát trước),
+# rồi "chưa xác định", rồi Nội thành, cuối cùng là Gia dụng. Thứ tự là điều
+# DUY NHẤT file này quyết định thêm; nó không đổi một con số nào.
+_ROW_ORDER_EMPLOYEE = 0
+_ROW_ORDER_UNRESOLVED = 1
+_ROW_ORDER_NOI_THANH = 2
+_ROW_ORDER_GIA_DUNG = 3
+
+_SHEET_ROW_ORDER = {
+    reporting_sheets.NOI_THANH_SHEET: _ROW_ORDER_NOI_THANH,
+    reporting_sheets.GIA_DUNG_SHEET: _ROW_ORDER_GIA_DUNG,
+    reporting_sheets.UNRESOLVED_SHEET: _ROW_ORDER_UNRESOLVED,
+}
+
+
+def _reporting_row_key(sheet) -> tuple:
+    if sheet.employee:
+        return (_ROW_ORDER_EMPLOYEE, employee_master_rank(sheet.employee),
+                sheet.employee)
+    return (_SHEET_ROW_ORDER[sheet.key], 0, "")
+
+
+# `TASK-OWNER-UIUX-002` — MỘT khối "Cần kiểm tra" ở CUỐI trang, thay cho hai
+# thẻ lớn từng chen giữa các chỉ tiêu. Hàm này KHÔNG quyết định điều kiện cảnh
+# báo nào: nó nhận đúng hai mô hình đã dựng sẵn (`not_seen_warning` và
+# `coverage_cell`) và chỉ xếp chúng thành danh sách. Không đếm lại số dòng,
+# không đọc lại coverage, không thêm ngưỡng.
+#
+# Ba mức giọng giữ nguyên nghĩa của `DEC-190` §2 và KHÔNG bị hạ cấp: một tình
+# trạng LỖI thật vẫn là `error` khi nằm trong danh sách này.
+def pending_items(*, not_seen: Optional[dict], coverage: dict,
+                  coverage_url: str) -> dict:
+    """Danh sách việc cần soi, đã sắp theo mức nghiêm trọng giảm dần."""
+    items = []
+    if not_seen:
+        items.append({
+            "code": "not-seen",
+            "title": "Sổ nạp gần nhất không thấy lại một số dòng",
+            # `data-metric` của hai con số này là ĐÚNG tên cũ: khối cảnh báo
+            # dời chỗ, nhưng thứ đọc được bằng máy thì không được dời theo.
+            "count": str(not_seen["lines"]),
+            "count_metric": "not-seen-lines",
+            "count_unit": "dòng",
+            "severity": "error",
+            "note": not_seen["note"],
+            "note_metric": "not-seen-warning",
+            "action_label": "MỞ SỔ NẠP GẦN NHẤT",
+            "snapshot_id": not_seen["snapshot_id"],
+            "url": "",
+        })
+    if not coverage["complete"]:
+        items.append({
+            "code": "coverage",
+            "title": "Còn dòng chưa tính được lợi nhuận",
+            # `coverage`/`coverage-percent`/`coverage-note` ở lại dòng trạng
+            # thái cạnh chính hai ô chỉ tiêu chúng quyết định; ở đây chỉ nhắc
+            # lại con số cho người đang đọc danh sách việc phải làm.
+            "count": coverage["text"],
+            "count_metric": "pending-count",
+            "count_unit": "",
+            "severity": "warn",
+            "note": INCOMPLETE_NOTE,
+            "note_metric": "pending-note",
+            "action_label": "MỞ BẢNG KÊ CHI TIẾT",
+            "snapshot_id": None,
+            "url": coverage_url,
+        })
+    return {"items": items, "count": len(items),
+            "has_error": any(item["severity"] == "error" for item in items)}
+
+
+def reporting_rows(sheet_totals: list[tuple], company: bm.BusinessTotals,
+                   *, groups: dict) -> list[dict]:
+    """Một hàng cho mỗi sheet của kỳ, cộng thêm hàng TỔNG.
+
+    `sheet_totals` là `(Sheet, BusinessTotals)` của từng sheet — tầng route
+    dựng chúng bằng `PeriodData.for_sheet`, tức là cùng một phép chiếu mà
+    không gian làm việc dùng. `groups` là master `{tên: mã nhóm}`; cột Nhóm
+    chỉ có nghĩa với một CON NGƯỜI, nên hàng nhóm/chưa xác định để `—`.
+    """
+    rows = []
+    for sheet, totals in sorted(sheet_totals,
+                                key=lambda item: _reporting_row_key(item[0])):
+        rows.append({
+            "employee": sheet.label or UNKNOWN_EMPLOYEE,
+            "key": sheet.employee or "",
+            "sheet_key": sheet.key,
+            "is_employee": bool(sheet.employee),
+            "employee_group": (group_label(groups.get(sheet.employee))
+                               if sheet.employee else "—"),
+            "employee_group_code": (groups.get(sheet.employee) or ""
+                                    if sheet.employee else ""),
+            "total_row": False,
+            **_metrics(totals),
+        })
+    rows.append({"employee": "TỔNG", "key": "", "sheet_key": "",
+                 "is_employee": False, "employee_group": "",
+                 "employee_group_code": "", "total_row": True,
+                 **_metrics(company)})
+    return rows
+
+
 def detail_rows(details: list[dict]) -> list[dict]:
     """Bảng kê chi tiết — một dòng hàng là một dòng, sửa được ngay tại chỗ.
 
@@ -1037,6 +1159,11 @@ CHART_UNDATED_NOTE = (
 #: bán được gì", một câu khác hẳn "tháng đó bán được ít".
 _MIN_BAR_PERCENT = 2
 
+# Hình học của biểu đồ ĐƯỜNG (`TASK-OWNER-UIUX-002`), đơn vị SVG.
+_CHART_PLOT_H = 160
+_CHART_STEP_X = 76
+_CHART_PAD_X = 28
+
 
 def revenue_chart(
     points, *, granularity: str, has_legacy_months: bool = False,
@@ -1051,8 +1178,12 @@ def revenue_chart(
                 Decimal("1"), rounding=ROUND_HALF_UP)
             height = max(int(share), _MIN_BAR_PERCENT if point.revenue > 0 else 0)
         else:
-            height = 0
+            share, height = Decimal(0), 0
         bars.append({
+            # `TASK-OWNER-UIUX-002` — tỉ lệ THẬT so với đỉnh, không có sàn tối
+            # thiểu: sàn tồn tại để một cột 0,3 % vẫn bấm được, nhưng dùng nó
+            # làm toạ độ sẽ vẽ ra một đường gấp khúc không giống dữ liệu.
+            "share": int(share),
             "key": point.key,
             "label": point.label,
             "height": height,
@@ -1077,7 +1208,23 @@ def revenue_chart(
             "title": _chart_bar_title(point),
         })
     day_level = granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
+    # `TASK-OWNER-UIUX-002` — hình học của ĐƯỜNG, tính ở tầng trình bày và vẽ
+    # bằng SVG tĩnh: không JavaScript, không thư viện, in ra giấy vẫn đúng.
+    # Toạ độ chỉ dùng lại `share` đã tính ở trên — không con số nào mới.
+    for index, bar in enumerate(bars):
+        bar["x"] = _CHART_PAD_X + index * _CHART_STEP_X
+        bar["y"] = _CHART_PLOT_H - round(bar["share"] * _CHART_PLOT_H / 100)
+    svg_width = max(_CHART_PAD_X * 2 + (len(bars) - 1) * _CHART_STEP_X,
+                    _CHART_PAD_X * 2) if bars else 0
     return {
+        "svg_width": svg_width,
+        "svg_height": _CHART_PLOT_H,
+        # Ô nhãn dùng CHÍNH bước ngang của đường, nên nhãn luôn nằm đúng dưới
+        # mốc của nó và hai nhãn cạnh nhau không bao giờ chồng chữ. Một hằng
+        # số thứ hai trong CSS sẽ trôi khỏi cái này lúc nào không biết.
+        "step_x": _CHART_STEP_X,
+        "polyline": " ".join(f"{bar['x']},{bar['y']}" for bar in bars),
+        "single_point": len(bars) == 1,
         "granularity": granularity,
         "options": [
             {"key": key, "label": label, "on": key == granularity}
@@ -1147,6 +1294,7 @@ __all__ = [
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
     "assignable_employee_options", "coverage_cell", "detail_rows",
+    "KPI_PROFIT_NOTE", "pending_items", "reporting_rows",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",
     "not_seen_warning", "percent",

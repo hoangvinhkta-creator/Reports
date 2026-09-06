@@ -32,9 +32,12 @@ def test_the_qualifying_quantity_card_carries_its_label(repository, client):
     nhãn chưa từng được đăng ký với Jinja nên render thành chuỗi rỗng."""
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh?ky=2026-09")
+    # `TASK-OWNER-UIUX-002` dời bốn thẻ vào MỘT hàng và thêm dấu (?) vào giữa
+    # nhãn và con số; câu hỏi của test này KHÔNG đổi: thẻ đó có tên chưa.
     card = re.search(
-        r'<span class="tp-label">([^<]*)</span>\s*'
-        r'<strong class="kpi-value" data-metric="qualifying_quantity"', html)
+        r'<span class="tp-label">([^<]*?)\s*<details class="kpi-help">'
+        r'(?:(?!</span>).)*</span>\s*<strong class="kpi-value"'
+        r' data-metric="qualifying_quantity"', html, re.S)
     assert card is not None
     assert card.group(1).strip() == "Tổng số SP"
 
@@ -46,14 +49,23 @@ def test_the_group_column_never_shows_an_engineering_code(repository, client):
     ])
     html = body(client, "/kinh-doanh?ky=2026-09")
     cells = re.findall(r'<td data-group="([^"]*)">([^<]*)</td>', html)
-    assert {code for code, _ in cells} >= {"NOI_THANH", "STANDARD_SALES"}
+    # `TASK-OWNER-UIUX-002`: dòng của Vinh nay đọc thành hàng NHÓM "Nội thành",
+    # và một hàng nhóm không phải một con người nên nó KHÔNG mang mã nhóm.
+    # Bảng Target vẫn liệt kê từng người, nên `NOI_THANH` còn nguyên ở đó.
+    assert {code for code, _ in cells} >= {"STANDARD_SALES"}
     for code, text in cells:
         if not code:
-            continue  # dòng TỔNG không thuộc nhóm nào — ô để trống là đúng
+            continue  # hàng TỔNG và hàng nhóm không thuộc nhóm nào
         assert text.strip(), code
         assert text.strip() not in ENGINEERING_CODES, code
+    # Điều quan trọng nhất của test này: KHÔNG mã máy nào lọt ra chữ người đọc.
+    for code in ENGINEERING_CODES:
+        assert not re.search(rf">[^<]*\b{code}\b[^<]*<", html), code
+    # Bảng Target vẫn liệt kê TỪNG NGƯỜI, và tên nhóm ở đó vẫn viết bằng chữ.
     target = body(client, "/kinh-doanh/target?ky=2026-09")
-    assert "STANDARD_SALES" not in target and "NOI_THANH" not in target
+    assert "Kênh Nội thành" in target
+    for code in ENGINEERING_CODES:
+        assert not re.search(rf">[^<]*\b{code}\b[^<]*<", target), code
 
 
 def test_group_label_reads_the_master_and_never_invents_a_name():
@@ -64,20 +76,23 @@ def test_group_label_reads_the_master_and_never_invents_a_name():
     assert ap.group_label("") == "—"
 
 
-def test_month_over_month_sits_in_the_hero_not_in_a_trailing_module(
+def test_month_over_month_sits_beside_the_revenue_not_in_a_trailing_module(
     repository, client
 ):
+    """`TASK-OWNER-UIUX-002` dời ô chủ đạo vào hàng bốn chỉ tiêu; chênh lệch
+    so tháng trước vẫn phải đứng trong CÙNG một thẻ với con số nó so."""
     persist(repository, [
         line("BH1", "Tủ lạnh", month=8, sell="1000000"),
         line("BH2", "Tủ lạnh", month=9, sell="1200000", row=7),
     ])
     html = body(client, "/kinh-doanh?ky=2026-09")
-    hero = re.search(r'<div class="kpi-hero"[^>]*>(.*?)<div class="kpi-grid">',
-                     html, re.S).group(1)
-    assert 'data-metric="sales_revenue"' in hero
-    assert 'data-metric="mom"' in hero
+    card = re.search(
+        r'<div class="kpi-card kpi-strong[^"]*">(.*?)</div>\s*\n\s*<div class="kpi-card',
+        html, re.S).group(1)
+    assert 'data-metric="sales_revenue"' in card
+    assert 'data-metric="mom"' in card
     assert metric(html, "mom") == "+20%"
-    assert "kpi-delta up" in hero
+    assert "kpi-delta up" in card
     assert html.index('data-metric="mom"') < html.index('data-metric="chart"')
     assert "<h2>So với" not in html
 

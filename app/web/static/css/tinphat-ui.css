@@ -528,3 +528,111 @@ td[data-group] { white-space: nowrap; }
 
 /* Nút thao tác trên dòng: đủ rộng để bấm, thẳng hàng với nhau. */
 .line-actions .btn-mini { min-width: 30px; text-align: center; }
+
+/* ------------------------------------------------------------------
+   TASK-OWNER-UIUX-002 — trang Báo cáo đọc theo thứ tự của người quản lý.
+
+   Không JavaScript, không thư viện, không token màu mới. Bốn chỉ tiêu
+   trên MỘT hàng, biểu đồ là ĐƯỜNG, và việc cần soi lùi xuống cuối trang.
+   ------------------------------------------------------------------ */
+
+/* HÀNG TÓM TẮT: bốn ô ngang nhau trên desktop. Ô doanh thu rộng hơn một
+   nhịp vì nó mang thêm dòng so tháng trước, nhưng vẫn nằm TRONG hàng.
+   Hẹp lại thì xuống hai cột, rồi một cột — không ô nào tràn ra ngoài. */
+.kpi-row {
+  display: grid; gap: var(--tp-s3); margin: var(--tp-s3) 0;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+}
+.kpi-row-sub { grid-template-columns: repeat(auto-fit, minmax(180px, 320px)); }
+.kpi-row .kpi-card { min-width: 0; }
+.kpi-row .kpi-strong .kpi-value { font-size: 28px; letter-spacing: -.02em; }
+.kpi-mom { display: block; margin-top: 2px; }
+
+@media (max-width: 900px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .kpi-row { grid-template-columns: 1fr; }
+}
+
+/* Dấu (?) của một chỉ tiêu. `<details>` gốc: bấm được, Tab tới được,
+   không script. Mũi tên mặc định của trình duyệt bị gỡ để nó đọc như một
+   dấu hỏi tròn chứ không như một mục lục. */
+.kpi-help { display: inline-block; margin-left: var(--tp-s1); vertical-align: middle; }
+.kpi-help > summary {
+  list-style: none; cursor: help; display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid var(--tp-line); background: #fff;
+  color: var(--tp-mut); font-size: 10px; font-weight: 700; line-height: 1;
+}
+.kpi-help > summary::-webkit-details-marker { display: none; }
+.kpi-help > summary:hover,
+.kpi-help > summary:focus-visible { color: var(--tp-blue); border-color: var(--tp-blue); }
+.kpi-help[open] > summary { color: var(--tp-blue); border-color: var(--tp-blue); }
+.kpi-help .insight {
+  position: absolute; z-index: 5; max-width: 320px; margin-top: var(--tp-s2);
+  padding: var(--tp-s2) var(--tp-s3); background: #fff;
+  border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
+  box-shadow: var(--tp-shadow); font-weight: 400; white-space: normal;
+}
+.kpi-card { position: relative; }
+
+/* BIỂU ĐỒ ĐƯỜNG. SVG vẽ đường và các mốc; hàng nhãn bên dưới là HTML thật
+   nên nó vẫn chọn/tìm/đọc được như chữ. Cả hai dùng chung một bước ngang
+   (56px) nên nhãn luôn nằm đúng dưới mốc của nó. */
+.rev-line { padding: var(--tp-s3) 0 0; }
+.rev-line-svg { display: block; overflow: visible; }
+.rev-line-path {
+  fill: none; stroke: var(--tp-blue); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; }
+/* Mốc đến từ SỔ CŨ: rỗng ruột, phân biệt được cả khi in đen trắng. */
+.rev-line-legacy { fill: #fff; stroke: var(--tp-mut); stroke-width: 2; }
+.rev-line-axis { display: flex; padding-left: 0; }
+/* Bề rộng đến từ `chart.step_x` (tầng trình bày) qua `flex-basis` inline —
+   MỘT nguồn duy nhất, nên nhãn không bao giờ lệch khỏi mốc của nó. */
+.rev-line-tick {
+  flex: 0 0 auto; text-align: center;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.rev-line-label, .rev-line-value { white-space: nowrap; }
+.rev-line-tick:first-child { margin-left: 0; }
+.rev-line-value { font-size: 11px; font-weight: 600; color: var(--tp-ink2); }
+.rev-line-label { font-size: 11px; color: var(--tp-mut); }
+
+/* CẦN KIỂM TRA. Mỗi mục là một dòng gọn; mở ra mới thấy giải thích và nút.
+   Chấm màu mang mức nghiêm trọng, và chữ của chính mục đó nói lại điều đó
+   — màu không phải kênh duy nhất (quy tắc 21 §5). */
+.pending > h2 { margin-bottom: var(--tp-s2); }
+.pending-item { border-top: 1px solid var(--tp-line2); }
+.pending-item:first-of-type { border-top: 0; }
+.pending-item > summary {
+  list-style: none; cursor: pointer; display: flex; flex-wrap: wrap;
+  align-items: center; gap: var(--tp-s2); padding: var(--tp-s2) 0;
+}
+.pending-item > summary::-webkit-details-marker { display: none; }
+.pending-item > summary:hover .pending-title { color: var(--tp-blue); }
+.pending-title { font-size: 14px; font-weight: 600; color: var(--tp-ink2); }
+.pending-dot {
+  flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--tp-mut);
+}
+.pending-dot.pending-error { background: var(--tp-red); }
+.pending-dot.pending-warn { background: var(--tp-gold); }
+.pending-item > p { margin: 0 0 var(--tp-s2) var(--tp-s4); }
+
+/* Trạng thái coverage: MỘT dòng cạnh các chỉ tiêu nó quyết định, không phải
+   một thẻ to. Câu chú thích đi kèm dùng cỡ ghi chú — nó giải thích con số,
+   nên nó không được to hơn con số. */
+.coverage-line { margin: var(--tp-s3) 0 0; font-size: 13px; color: var(--tp-ink2); }
+.coverage-line > summary { list-style: none; cursor: pointer; }
+.coverage-line > summary::-webkit-details-marker { display: none; }
+.coverage-line > summary:hover { color: var(--tp-blue); }
+.coverage-line strong { font-weight: 700; }
+/* Còn việc phải làm ⟹ con số mang giọng cảnh báo. Câu giải thích dài nằm
+   sau một lần bấm và trong khối "Cần kiểm tra" — nó KHÔNG được to hơn chính
+   các chỉ tiêu nó chú thích. */
+.coverage-line-warn > summary strong { color: var(--tp-gold); }
+.coverage-line .insight { margin: var(--tp-s2) 0 0; }

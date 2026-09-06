@@ -1,5 +1,45 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 REPORT OVERVIEW = DONE (2026-09-06)
+
+Tinh chỉnh trình bày trang BÁO CÁO theo chỉ thị trực tiếp của chủ dự án, sau
+`TASK-UIUX-001`. Quyết định: `DEC-191`. Hai khối bên dưới (`TASK-UIUX-001`,
+Reports Phase B) GIỮ NGUYÊN — không con số nghiệp vụ nào đổi vì lượt này.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 4b98f6a6098828639617b6b13224ea6d65228bd1
+Current Task Mode:            MAJOR
+CHANGES                     = kỳ mở đầu = tháng hiện tại · 4 chỉ tiêu một
+                              hàng + chú giải sau dấu (?) · biểu đồ ĐƯỜNG mở
+                              ở mức Ngày · "Cần kiểm tra" gọn ở cuối trang ·
+                              bảng "Theo nhân viên" đọc theo phân hoạch sheet
+                              (Vinh/Quý/Hiệp ⟹ một hàng Nội thành; Gia dụng
+                              hàng cuối; Tín Phát đầu theo thứ tự master)
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (so render nền ↔ sau sửa: mọi chỉ tiêu đầu
+                              trang, hàng TỔNG, và mọi con số trên 10 trang
+                              còn lại giống hệt)
+EMPLOYEE_SECTION_DOUBLE_COUNT = NO (phân hoạch `sheet_key_of` là hàm toàn phần)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi)
+PRIMARY_NAV_CHANGED         = NO (`layout.html` không bị chạm)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2722 passed / 11 skipped / 0 failed
+                              (nền: 2696 passed / 11 skipped) · GOLDEN 58
+                              passed / 2 skipped, KHÔNG đổi · 26 test mới
+                              (`tests/test_owner_report_overview.py`) · 3 test
+                              trình bày của TASK-UIUX-001 chỉnh lại đích, xem
+                              `DEC-191` Evidence
+RESPONSIVE                  = không trang nào tràn ngang ở 1440 / 834 / 390px
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã ghi
+                              ở `DEC-189`), không reference nào của lượt này
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-UIUX-001 UI/UX REFINEMENT = DONE (2026-09-06, S125)
 
 Lượt TINH CHỈNH TRÌNH BÀY toàn bộ web Reports cho người đọc quản trị (chủ

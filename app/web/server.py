@@ -359,7 +359,10 @@ def create_app(
         app.jinja_env.globals[_name] = getattr(sales_presentation, _name)
     for _name in ("CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
                   "DISCOUNT_ROW_NOTE",
-                  "INCOMPLETE_NOTE", "NET_SALES_NOTE", "OFFICIAL_NOTE",
+                  "INCOMPLETE_NOTE",
+                  # TASK-OWNER-UIUX-002 — chú giải (?) của bốn thẻ chỉ tiêu.
+                  "KPI_PROFIT_NOTE",
+                  "NET_SALES_NOTE", "OFFICIAL_NOTE",
                   # TASK-UIUX-001 — nhãn của thẻ "Tổng số SP" trên Báo cáo
                   # từng KHÔNG được đăng ký, nên thẻ đó hiện một con số
                   # không tên (Jinja render biến chưa định nghĩa thành rỗng).
@@ -958,7 +961,32 @@ def create_app(
             "source_label": resolved.source_label,
         }
 
-    def _business_period() -> dict:
+    def _summary_period_default(periods: list[tuple[int, int]]):
+        """Kỳ mở đầu của trang BÁO CÁO khi Owner chưa chọn gì.
+
+        `TASK-OWNER-UIUX-002` — Owner mở tab Báo cáo để xem THÁNG NÀY, không
+        phải để bấm thêm một lần nữa vào bộ chọn kỳ. Ba ràng buộc giữ cho
+        việc này chỉ là một MẶC ĐỊNH chứ không phải một ngữ nghĩa mới:
+
+        1. Chỉ áp dụng khi tham số `ky` VẮNG MẶT hoàn toàn. `ky=` rỗng là
+           Owner đã chủ động chọn "Toàn bộ dữ liệu" — mặc định không được
+           ghi đè một lựa chọn.
+        2. Chỉ chọn tháng hiện tại khi tháng đó THẬT SỰ có trong dữ liệu.
+           Mở sẵn một tháng rỗng ngay đầu tháng, trước lần nạp sổ đầu tiên,
+           sẽ cho Owner một trang trắng thay vì tình hình kinh doanh.
+        3. Không có tháng hiện tại ⟹ giữ nguyên hành vi cũ ("Toàn bộ dữ
+           liệu"), tức là vẫn có số để đọc ngay.
+
+        Mọi trang khác (`gia-nhap`, `gia-dung`, `target`…) KHÔNG đi qua đây:
+        chúng có form POST mang `ky` trong body và ngữ nghĩa kỳ của chúng
+        không đổi.
+        """
+        if "ky" in request.values:
+            return None
+        current = (_today().year, _today().month)
+        return current if current in periods else None
+
+    def _business_period(*, default_period=None) -> dict:
         """Kỳ đang xem + số của kỳ đó + số của kỳ liền trước.
 
         Kỳ so sánh LUÔN được truy vấn khi đang xem một tháng: chính kết quả
@@ -968,6 +996,8 @@ def create_app(
         service = _require_business()
         periods = _guarded(analytics_queries.available_periods, snapshot_repo.engine)
         period = _business_period_choice(periods)
+        if period is None and default_period is not None:
+            period = default_period(periods)
         bounds = analytics_queries.month_bounds(*period) if period else (None, None)
         data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
         previous = None
@@ -1044,8 +1074,12 @@ def create_app(
         tập đã dựng cho trang — không truy vấn lại lần thứ hai.
         """
         service = view["service"]
+        # `TASK-OWNER-UIUX-002` — trang Báo cáo mở ở mức NGÀY: câu hỏi đầu
+        # tiên của Owner là "tháng này đang đi thế nào", và một biểu đồ mở ở
+        # mức Tháng trả lời câu đó bằng đúng một điểm. Bốn mức còn lại giữ
+        # nguyên và vẫn đổi được bằng chính các nút cũ.
         granularity = revenue_timeline.parse_granularity(
-            request.args.get("muc"))
+            request.args.get("muc"), default=revenue_timeline.DAY)
         data = (view["data"] if view["period"] is None
                 else _guarded(service.period))
         legacy_months = _legacy_month_totals()
@@ -1109,25 +1143,42 @@ def create_app(
         KHÔNG sửa, không gộp và không loại bất kỳ dòng nào — nó chỉ dẫn Owner
         sang trang snapshot để tự soi.
         """
-        view = _business_period()
-        totals = view["data"].totals
+        view = _business_period(default_period=_summary_period_default)
+        data = view["data"]
+        totals = data.totals
         absence = (None if snapshot_repo is None
                    else _guarded(snapshot_repo.latest_snapshot_absence))
+        summary = business_presentation.summary(
+            totals, period=view["period"],
+            previous_totals=None if view["previous"] is None
+                            else view["previous"].totals,
+            undated=_guarded(view["service"].undated_lines),
+            previous_fallback=view["previous_fallback"],
+        )
+        not_seen = business_presentation.not_seen_warning(absence)
+        # `TASK-OWNER-UIUX-002` — bảng "Theo nhân viên" đọc CHÍNH phân hoạch
+        # sheet của `DEC-PHB02-08`, nên Vinh · Quý · Hiệp gộp thành MỘT hàng
+        # Nội thành và Gia dụng là một hàng riêng, mà không có phép cộng nào
+        # mới ở tầng này: `for_sheet` là phép chiếu duy nhất, và nó là một
+        # phân hoạch nên tổng các hàng luôn đúng bằng tổng kỳ (`§42`).
+        sheets = view["service"].sheets(data)
+        sheet_totals = [(sheet, data.for_sheet(sheet).totals) for sheet in sheets]
         return render_template(
             "kinh_doanh.html", periods=view["periods"],
             selected_period=view["selected_period"],
             chart=_revenue_chart(view),
-            not_seen=business_presentation.not_seen_warning(absence),
-            summary=business_presentation.summary(
-                totals, period=view["period"],
-                previous_totals=None if view["previous"] is None
-                                else view["previous"].totals,
-                undated=_guarded(view["service"].undated_lines),
-                previous_fallback=view["previous_fallback"],
-            ),
+            not_seen=not_seen,
+            summary=summary,
+            pending=business_presentation.pending_items(
+                not_seen=not_seen, coverage=summary["coverage"],
+                coverage_url=url_for(
+                    "business_purchase_price", ky=view["selected_period"],
+                    **{"loc": "tat-ca" if summary["coverage"]["complete"]
+                       else "thieu-gia"})),
             columns=business_presentation.EMPLOYEE_COLUMNS,
-            rows=business_presentation.employee_rows(
-                business_metrics.group_by_employee(view["data"].lines), totals),
+            rows=business_presentation.reporting_rows(
+                sheet_totals, totals,
+                groups=dict(_guarded(view["service"].assignable_employees))),
         )
 
     # ------------------------------------------------------------------
