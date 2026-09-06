@@ -167,6 +167,16 @@ def list_keys(
     return sorted(keys)
 
 
+#: Trần an toàn tuyệt đối cho số TRANG (không phải số key) mà
+#: ``list_all_keys`` sẽ đọc trước khi tự nổ — F-R2. Đây KHÔNG phải một
+#: ngưỡng nghiệp vụ (không tái lập ``_SCAN_LIMIT`` 5000-key cũ đã bị bỏ ở
+#: F-N02): 1_000_000 trang × 1000 key/trang là quy mô không tưởng cho
+#: journal này. Vai trò duy nhất của nó là chặn một backend hỏng theo kiểu
+#: token luôn "tiến" (khác giá trị mỗi lần) nhưng không bao giờ trả hết
+#: trang — dạng lỗi mà phép kiểm token-không-đổi bên dưới không bắt được.
+_PAGINATION_SAFETY_CEILING_PAGES = 1_000_000
+
+
 def list_all_keys(
     prefix: str, *, client=None, env: Optional[dict[str, str]] = None,
 ) -> list[str]:
@@ -181,23 +191,43 @@ def list_all_keys(
     state một nửa, và log lỡ dừng ở đúng ranh giới một trang sẽ cho log ghi
     tiếp đè lên chính event đã có (append tưởng vị trí đó còn trống). Không
     được phép dừng giữa chừng dù bucket có bao nhiêu key.
+
+    F-R2: nếu backend trả lại ĐÚNG ``ContinuationToken`` đã dùng ở lần gọi
+    trước (không tiến trang) thì nổ ``StorageUnavailableError`` ngay thay vì
+    lặp vô hạn — một backend hỏng theo kiểu này trước đây sẽ treo request
+    mãi mãi thay vì fail loud.
     """
     client = client or _client(env)
     bucket = _bucket(env)
     keys: list[str] = []
     token = None
-    try:
-        while True:
-            kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
-            if token:
-                kwargs["ContinuationToken"] = token
+    pages_read = 0
+    while True:
+        kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "MaxKeys": 1000}
+        if token:
+            kwargs["ContinuationToken"] = token
+        try:
             response = client.list_objects_v2(**kwargs)
-            keys.extend(item["Key"] for item in response.get("Contents", []))
-            token = response.get("NextContinuationToken")
-            if not token:
-                break
-    except Exception as exc:
-        raise StorageUnavailableError(str(exc)) from exc
+        except Exception as exc:
+            raise StorageUnavailableError(str(exc)) from exc
+        keys.extend(item["Key"] for item in response.get("Contents", []))
+        pages_read += 1
+        next_token = response.get("NextContinuationToken")
+        if not next_token:
+            break
+        if next_token == token:
+            raise StorageUnavailableError(
+                f"list_objects_v2 (prefix={prefix!r}) trả cùng "
+                f"ContinuationToken liên tiếp ({next_token!r}) — backend "
+                "không tiến trang; dừng thay vì lặp vô hạn."
+            )
+        if pages_read >= _PAGINATION_SAFETY_CEILING_PAGES:
+            raise StorageUnavailableError(
+                f"list_objects_v2 (prefix={prefix!r}) vượt trần an toàn "
+                f"{_PAGINATION_SAFETY_CEILING_PAGES} trang mà vẫn chưa hết "
+                "— dừng thay vì lặp vô hạn."
+            )
+        token = next_token
     return sorted(keys)
 
 

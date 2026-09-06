@@ -23,8 +23,15 @@ web = [
 # Chỉ import trong tools/storage/r2_store.py (ngoài app/, xem ADR-101) — local
 # dev/test không cần cài nếu R2 chưa cấu hình (fallback SQLite, xem
 # app/web/storage_backend.py).
+# F-R1 (2026-09-06): sàn phụ thuộc nâng từ 1.34 lên 1.35.2 — verify trực
+# tiếp bằng service model của botocore cho thấy `PutObject` chỉ có tham số
+# `IfNoneMatch` (dùng bởi `put_json_if_absent`, PUT có điều kiện) từ đúng
+# botocore 1.35.2 trở lên; 1.35.0 và 1.35.1 vẫn thiếu tham số này và sẽ làm
+# `put_object(..., IfNoneMatch="*")` fail với `ParamValidationError` — tức
+# mọi ghi có điều kiện fail closed. Xem test capability ở
+# tests/test_boto3_putobject_ifnonematch_capability.py.
 storage = [
-    "boto3>=1.34",
+    "boto3>=1.35.2",
 ]
 # TASK-PRA-001 — History store (ADR-108): SQLAlchemy Core + Alembic cho
 # structured history. `psycopg` chỉ cần ở production (PostgreSQL); local/test
