@@ -301,7 +301,7 @@
       <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
       {{ biz.derived_cell(sheet.kpi_profit, 'totals-profit') }}
       {{ biz.derived_cell(strip.converted_sales, 'totals-converted') }}
-      <td></td><td></td><td></td>
+      <td></td><td></td><td></td><td></td>
     </tr>
 
     {% for group in groups %}
@@ -434,12 +434,24 @@
       {# `TASK-OWNER-UIUX-004` §5 — Khách hàng dời ra SAU DS quy đổi (chủ dự
          án yêu cầu trực tiếp): cụm cột nghiệp vụ của dòng hàng đọc liền
          mạch trước, thông tin khách hàng đọc sau cùng, ngay trước thao
-         tác. #}
-      <td rowspan="{{ group.lines }}" data-metric="bh-customer">
+         tác.
+
+         `TASK-OWNER-UIUX-008` §2 — tách THÀNH HAI ô bằng nhau (chủ dự án
+         yêu cầu trực tiếp), thay vì tên + SĐT/địa chỉ chồng hai dòng
+         trong CÙNG một ô như trước (`TASK-UIUX-001`). Mỗi ô CẮT một dòng
+         (`.customer-name-cell`/`.customer-contact-cell`, `text-overflow:
+         ellipsis`) thay vì xuống dòng — mọi hàng của BH giữ ĐÚNG một
+         chiều cao, không co giãn chỉ vì một khách hàng có địa chỉ dài.
+         Chữ đầy đủ vẫn đọc được qua `title` khi cần. #}
+      <td rowspan="{{ group.lines }}" class="customer-name-cell"
+          data-metric="bh-customer-name" title="{{ group.customer_name }}">
         <span data-metric="customer-name">{{ group.customer_name }}</span>
-        {# TASK-UIUX-001 — SĐT · địa chỉ xuống dòng dưới tên, chữ nhạt. #}
-        <span class="bh-customer-meta"><span data-metric="customer-phone">{{ group.customer_phone }}</span>
-          · <span data-metric="customer-address">{{ group.customer_address }}</span></span>
+      </td>
+      <td rowspan="{{ group.lines }}" class="customer-contact-cell"
+          data-metric="bh-customer-contact"
+          title="{{ group.customer_phone }} · {{ group.customer_address }}">
+        <span data-metric="customer-phone">{{ group.customer_phone }}</span>
+        · <span data-metric="customer-address">{{ group.customer_address }}</span>
       </td>
       {% endif %}
       <td class="line-actions">
@@ -502,7 +514,7 @@
        sang các dòng hàng còn lại của cùng BH. #}
     {% if first and open and assignable %}
     <tr class="bh-edit-row shade-{{ group.shade }}">
-      <td colspan="12">
+      <td colspan="13">
         <form class="filter-row" method="post"
               action="{{ url_for('business_save_order_employee') }}">
           <input type="hidden" name="ky" value="{{ selected_period }}">

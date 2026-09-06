@@ -441,7 +441,7 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 }
 .sheet-table tr.bh-head td[data-metric="bh-date"],
 .sheet-table tr.bh-head td.code,
-.sheet-table tr.bh-head td[data-metric="bh-customer"] {
+.sheet-table tr.bh-head td[data-metric="bh-customer-name"] {
   font-weight: 600;
 }
 .sheet-table tr.bh-open td { border-top-color: var(--tp-blue); }
@@ -688,24 +688,37 @@ td[data-group] { white-space: nowrap; }
    dòng hàng ĐẦU TIÊN, không lệch xuống giữa khối khi BH có nhiều dòng. */
 .sheet-table td[data-metric="bh-date"],
 .sheet-table td.code,
-.sheet-table td[data-metric="bh-customer"] { vertical-align: top; }
+.sheet-table td[data-metric="bh-customer-name"],
+.sheet-table td[data-metric="bh-customer-contact"] { vertical-align: top; }
 
-/* Khách hàng: tên trên một dòng, SĐT · địa chỉ lùi xuống dòng dưới với chữ
-   nhạt — cột đủ rộng để tên không bị bẻ giữa chừng. */
-.sheet-table td[data-metric="bh-customer"] { min-width: 220px; }
-.bh-customer-meta {
-  display: block; color: var(--tp-mut); font-size: 12px;
-  font-weight: 400; line-height: 1.35;
+/* `TASK-OWNER-UIUX-008` §2 — Khách hàng tách thành HAI cột bằng nhau, HẸP
+   HƠN cột gộp cũ (chủ dự án yêu cầu trực tiếp), thay vì tên + SĐT/địa chỉ
+   chồng hai dòng trong CÙNG một ô (`TASK-UIUX-001`). Mỗi ô CẮT (`text-
+   overflow: ellipsis`) đúng MỘT dòng thay vì xuống dòng — mọi hàng của
+   một BH giữ ĐÚNG một chiều cao dù khách hàng có địa chỉ dài hay ngắn;
+   chữ đầy đủ vẫn đọc được qua `title` (đã gắn ở template). Hai cột dùng
+   CHUNG một `width` nên luôn bằng nhau bất kể nội dung. */
+.sheet-table td.customer-name-cell,
+.sheet-table td.customer-contact-cell {
+  width: 130px; max-width: 130px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.sheet-table td.customer-contact-cell {
+  color: var(--tp-mut); font-size: 12px;
 }
 
 /* `TASK-OWNER-UIUX-004` §5 — thu gọn Mã đơn (chủ dự án yêu cầu trực tiếp:
    cột này chiếm quá nhiều diện tích so với nội dung của nó — một mã ngắn
    cộng vài tag), nhường chỗ cho Mặt hàng đọc TRỌN tên hàng trên một dòng
-   thay vì xuống dòng giữa chừng. `max-width` giới hạn bề rộng cột; mỗi
-   `.tag` bên trong vẫn `white-space: nowrap` (không gãy giữa MỘT tag) và
-   tự xuống dòng như chữ thường khi không đủ chỗ ngang cho tag kế tiếp. */
+   thay vì xuống dòng giữa chừng.
+
+   `TASK-OWNER-UIUX-008` §1 — nới rộng thêm (chủ dự án yêu cầu trực tiếp:
+   BH mang đủ ba chấm cảnh báo phải thấy rõ cả ba, không bị cắt/chồng bởi
+   `max-width` quá hẹp) — `max-width` vẫn giới hạn bề rộng cột, chỉ nới từ
+   110px lên 150px. Mỗi `.tag-dot` bên trong vẫn `inline-block` và tự
+   xuống dòng như chữ thường khi hết chỗ ngang cho chấm kế tiếp. */
 .sheet-table td.code {
-  max-width: 110px; word-break: break-word;
+  max-width: 150px; word-break: break-word;
 }
 .sheet-table td[data-metric="line-product"] { white-space: nowrap; }
 

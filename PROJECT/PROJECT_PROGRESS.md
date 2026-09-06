@@ -1,5 +1,43 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-008 = DONE (2026-09-06)
+
+Hai yêu cầu trực tiếp của chủ dự án trên bảng kê Nhân viên: nới rộng cột
+Mã đơn để đủ chỗ ba chấm cảnh báo, và tách cột Khách hàng thành hai cột
+bằng nhau (tên riêng, liên hệ riêng) — mỗi cột CẮT một dòng thay vì xuống
+dòng, để mọi hàng bảng giữ đúng một chiều cao. Quyết định: `DEC-198`.
+Không có điểm mơ hồ cần hỏi lại.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = 251bdcc50dba28863af2009888d0ab86e21a1451
+Current Task Mode:            MICRO (hai sửa kích thước/cấu trúc trình bày)
+CHANGES                      = (1) `.sheet-table td.code` max-width 110px
+                              → 150px (đủ chỗ 3 chấm cảnh báo không tràn)
+                              · (2) cột Khách hàng (một ô, tên+meta chồng
+                              2 dòng) tách thành HAI `<td>` bằng nhau
+                              (`bh-customer-name`/`bh-customer-contact`,
+                              mỗi ô 130px, `text-overflow: ellipsis` —
+                              cắt 1 dòng, không xuống dòng) — header/
+                              hàng TỔNG/`bh-edit-row` colspan (12→13) cập
+                              nhật theo; ba `data-metric` con (customer-
+                              name/phone/address) giữ nguyên, 0 test sửa
+                              đích
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `251bdcc`: GIỐNG HỆT 2721/11) · GOLDEN
+                              58 passed / 2 skipped, KHÔNG đổi ·
+                              `test_employee_workspace_ux.py` riêng: 146
+                              passed, 2 skipped
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (không tăng thêm)
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-007 = DONE (2026-09-06)
 
 Ba yêu cầu trực tiếp của chủ dự án trên trang Nhân viên: tag cảnh báo đổi

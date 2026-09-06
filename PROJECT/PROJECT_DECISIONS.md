@@ -11891,3 +11891,93 @@ Không còn mục nào treo lại. Nếu Owner muốn cùng cách hiển thị (
 bỏ viền, tab dạng card) áp dụng sang các trang sâu hơn ngoài phạm vi
 theme Finance, cần yêu cầu riêng — cơ chế hiện tại khoanh vùng đúng ba
 trang đã chốt.
+
+## DEC-198
+
+Title:
+`TASK-OWNER-UIUX-008` — hai yêu cầu trực tiếp của chủ dự án trên bảng kê
+Nhân viên: (1) nới rộng cột Mã đơn để BH mang đủ ba chấm cảnh báo vẫn
+thấy rõ cả ba; (2) tách cột Khách hàng thành HAI cột bằng nhau, hẹp hơn,
+mỗi cột CẮT một dòng (không xuống dòng) để mọi hàng của bảng giữ ĐÚNG một
+chiều cao.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, hai mục đánh số).
+Không có điểm mơ hồ cần hỏi lại — cả hai yêu cầu đều cụ thể, không hỏi
+thêm câu nào trước khi triển khai.
+
+Supersedes:
+Không supersede quyết định nghiệp vụ nào — thuần chỉnh kích thước/cấu
+trúc trình bày, tiếp nối trực tiếp `DEC-197` §1 (chấm màu) và `DEC-194`
+§4/`TASK-UIUX-001` (cột Khách hàng gộp một ô hai dòng).
+
+### 1. Mở rộng cột Mã đơn
+
+`tinphat-ui.css`: `.sheet-table td.code` — `max-width` từ 110px (đặt ở
+`DEC-194` §4, trước khi có chấm màu) lên 150px. Đủ chỗ cho số BH (7 ký
+tự, in đậm) cộng ba `.tag-dot` (8px mỗi chấm) không tràn/chồng — kiểm
+chứng bằng fixture riêng dựng một BH mang cả ba màu (vàng+đen+đỏ) cùng
+lúc (xem Evidence).
+
+### 2. Khách hàng → hai cột bằng nhau, cắt một dòng
+
+`workspace_presentation.py`: `SHEET_DETAIL_COLUMNS` thêm nhãn cột "Liên
+hệ" ngay sau "Khách hàng" (10 cột → 11 cột dữ liệu; không đổi vị trí các
+cột số 5-9 nên rule `'num' if loop.index in (5,6,7,8,9)` ở template không
+cần sửa).
+
+`kinh_doanh_nhan_vien.html`: `<td data-metric="bh-customer">` (một ô,
+tên + `.bh-customer-meta` chồng dòng dưới) tách thành HAI `<td>` riêng —
+`data-metric="bh-customer-name"` (chứa `<span data-metric="customer-
+name">`) và `data-metric="bh-customer-contact"` (chứa `<span data-metric=
+"customer-phone">` · `<span data-metric="customer-address">`), cả hai
+đều `rowspan="{{ group.lines }}"` và mang `title` đầy đủ (đọc được khi
+chữ bị cắt). Header `<th>`/hàng TỔNG thêm đúng một cột (`<td></td>` thứ
+tư ở cuối hàng TỔNG); `bh-edit-row` `colspan` 12 → 13. Ba `data-metric`
+con (`customer-name`/`customer-phone`/`customer-address`) giữ NGUYÊN —
+không test nào cần sửa đích (`test_case_...` đọc đúng ba metric này, ĐÚNG
+CHỮ ngay sau dấu `>`, không quan tâm cấu trúc `<td>` cha).
+
+`tinphat-ui.css`: `.customer-name-cell`/`.customer-contact-cell` dùng
+CHUNG `width: 130px; max-width: 130px` (luôn bằng nhau, hẹp hơn 220px cũ)
+cộng `overflow: hidden; white-space: nowrap; text-overflow: ellipsis` —
+CẮT một dòng thay vì xuống dòng, nên mọi hàng của một BH giữ ĐÚNG một
+chiều cao dù khách hàng có địa chỉ dài hay ngắn (khớp đúng yêu cầu "làm
+sao mà mỗi dòng mã hàng sẽ là 1 dòng và các dòng phải có kích thước như
+nhau"). Cột Liên hệ giữ màu chữ nhạt/cỡ nhỏ như dòng meta cũ
+(`color: var(--tp-mut); font-size: 12px`) — `.bh-customer-meta` (không
+còn template nào dùng) bị gỡ.
+
+Impact:
+Thuần trình bày (CSS + cấu trúc `<td>`, không đổi route/database/write
+authority). `workspace_presentation.py`, `kinh_doanh_nhan_vien.html`,
+`tinphat-ui.css` thay đổi. Không file nào dưới `app/modules/`, `tools/
+db/`, `config/`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `251bdcc`
+(DEC-197), 0 test mới hỏng, 0 test phải sửa đích
+(`test_employee_workspace_ux.py` chạy riêng lại: 146 passed, 2 skipped).
+Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (không tăng thêm, xác
+nhận bằng cách dời `.venv` cục bộ ra ngoài trước khi chạy).
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật): dựng
+fixture một BH có `kpi_purchase=None` (chặn "Thiếu giá", vàng) +
+`reasons=("Duplicate", "SomeOtherPipelineNote")` (ra cả `WARN_POSSIBLE_
+DUPLICATE` đen và `WARN_PIPELINE_REVIEW` đỏ) — ảnh chụp cận cảnh ô Mã đơn
+xác nhận CẢ BA chấm (vàng/đen/đỏ) hiện rõ, tách biệt, không chồng lên số
+BH hay lên nhau. Cùng fixture, một khách hàng tên rất dài + địa chỉ rất
+dài ("Nguyễn Thị Bích Ngọc Phương Anh Thảo Vy" / "Số 128/45A Đường Nguyễn
+Văn Trỗi, Phường 8, Quận Phú Nhuận, TP.HCM") đặt CẠNH một khách hàng tên
+2 ký tự ("An"/"Q1") trong CÙNG bảng — ảnh chụp xác nhận cả hai BH có
+CHIỀU CAO HÀNG bằng nhau (không co giãn vì nội dung dài), cột Khách hàng
+và Liên hệ hiện đúng hai cột riêng bằng nhau về bề rộng, nội dung dài bị
+CẮT bằng dấu "…" thay vì xuống dòng.
+
+Can Revisit After:
+Không còn mục nào treo lại từ vòng UIUX-004…008.

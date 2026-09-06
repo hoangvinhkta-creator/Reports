@@ -63,9 +63,12 @@ from app.web.legacy_presentation import format_number
 #: yêu cầu trực tiếp): cụm cột nghiệp vụ của dòng hàng (Mặt hàng…DS quy đổi)
 #: đọc liền mạch trước, thông tin khách hàng đọc SAU cùng, ngay trước cột
 #: thao tác — thay vì chen giữa Mã đơn và Mặt hàng như trước.
+#: `TASK-OWNER-UIUX-008` §2 — "Khách hàng" tách thành HAI cột bằng nhau
+#: (chủ dự án yêu cầu trực tiếp): tên riêng, liên hệ (SĐT · địa chỉ)
+#: riêng — trước đây là hai DÒNG chồng trong CÙNG một ô.
 SHEET_DETAIL_COLUMNS: tuple[str, ...] = (
     "Ngày", "Mã đơn", "Mặt hàng", "Nhân viên", "SL",
-    "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng",
+    "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng", "Liên hệ",
 )
 
 # --- Nhãn ngắn của cảnh báo (`§36`) ---------------------------------------
