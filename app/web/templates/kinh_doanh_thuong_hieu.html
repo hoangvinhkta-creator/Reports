@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Theo thương hiệu{% endblock %}
+
+{% block content %}
+<h1>THEO THƯƠNG HIỆU</h1>
+<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán
+  đã nạp — cùng kết quả chính thức với trang BÁO CÁO, chỉ gộp theo chiều khác.</p>
+
+<div class="module">
+  {{ biz.period_picker(periods, selected_period, url_for('business_brand')) }}
+
+  <h2>{{ summary.period_label }}
+    <span class="cnt"><span data-metric="branded-lines">{{ summary.branded_lines }}</span>
+      / <span data-metric="total-lines">{{ summary.total_lines }}</span> dòng có
+      thương hiệu</span></h2>
+
+  {# Thẩm quyền được NÓI RA trên chính trang, không giấu trong mã: người đọc
+     một bảng thương hiệu cần biết nó tin vào đâu trước khi tin vào nó. #}
+  <p class="insight" data-metric="brand-authority"
+     data-authority="{{ summary.authority }}">{{ BRAND_SOURCE_NOTE }}</p>
+
+  {% if summary.empty %}
+  <p class="empty" data-metric="brand-empty">{{ summary.note }}</p>
+  {% elif summary.brand_unavailable %}
+  {# Khoảng trống này là một KẾT LUẬN đo được, không phải một trang hỏng: mọi
+     dòng của kỳ đều KHÔNG có thương hiệu chính danh. Trang nói ra điều đó
+     bằng chữ, cùng chỗ tiền đang nằm, thay vì hiện một bảng trông như thật. #}
+  <p class="error" data-metric="brand-unavailable">{{ BRAND_UNAVAILABLE_NOTE }}</p>
+  {% endif %}
+
+  {# Hai lý do "chưa xác định" luôn tách rời, kể cả ở ô đếm đầu trang. #}
+  {% if not summary.empty %}
+  <ul class="reason-list" data-metric="brand-coverage">
+    <li><strong data-metric="identity-unresolved-lines">{{ summary.identity_unresolved_lines }}</strong>
+      dòng chưa nhận diện được mặt hàng.</li>
+    <li><strong data-metric="brand-absent-lines">{{ summary.brand_absent_lines }}</strong>
+      dòng đã nhận diện nhưng danh tính không mang thương hiệu.</li>
+  </ul>
+  {% endif %}
+
+  <p class="insight{{ ' error' if not summary.reconciled }}"
+     data-metric="brand-reconciliation"
+     data-reconciled="{{ 'yes' if summary.reconciled else 'no' }}"
+     >{{ summary.reconcile_note }}</p>
+  <p class="insight" data-metric="brand-excluded-note">{{ BRAND_EXCLUDED_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>Bảng thương hiệu
+    <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
+  <p class="insight">{{ BRAND_ORDER_COLUMN_NOTE }}</p>
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 1 }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.total_row }}" data-kind="{{ row.kind }}">
+      <td class="code" data-metric="brand-label"
+          {% if row.unknown_note %}title="{{ row.unknown_note }}"{% endif %}
+          >{{ row.brand }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
+      <td class="num" data-metric="sales_revenue"
+          title="{{ row.sales_revenue }} đồng">{{ row.sales_revenue_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+          data-metric="kpi_profit"
+          {% if not row.kpi_profit.missing %}title="{{ row.kpi_profit.text }} đồng"{% endif %}
+          >{{ row.kpi_profit.text_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+          data-metric="converted_sales"
+          {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
+          >{{ row.converted_sales.text_kvnd }}</td>
+      <td class="num" data-metric="coverage">{{ row.coverage.text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  {# Mỗi dòng "chưa xác định" tự nói lý do và chỗ sửa của CHÍNH nó — một câu
+     chung sẽ chỉ Owner đi sửa nhầm chỗ ở đúng một nửa số dòng. #}
+  {% for row in rows if row.unknown_note %}
+  <p class="insight" data-metric="brand-unknown-note" data-kind="{{ row.kind }}">
+    <strong>{{ row.brand }}</strong> — {{ row.unknown_note }}</p>
+  {% endfor %}
+
+  <p class="insight" data-metric="brand-no-target">{{ BRAND_NO_TARGET_NOTE }}</p>
+</div>
+{% endblock %}

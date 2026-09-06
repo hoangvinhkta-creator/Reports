@@ -25,6 +25,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from app.beta_presentation import REASON_DISPLAY_LABELS
+from app.modules.reporting import brand_metrics as bmx
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate
 from app.web.analytics_presentation import (
@@ -32,7 +33,7 @@ from app.web.analytics_presentation import (
     period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
-from app.web import revenue_timeline
+from app.web import brand_identity, revenue_timeline
 
 ORIGIN_BADGE = "SỐ MỚI"
 
@@ -156,6 +157,56 @@ DISCOUNT_ROW_NOTE = (
 
 GIA_DUNG_COLUMNS: tuple[str, ...] = (
     "Mặt hàng", "Số dòng", "Doanh thu", "Phân loại hiện tại", "Tick Gia dụng",
+)
+
+
+# --- PHB-06: báo cáo theo THƯƠNG HIỆU ------------------------------------
+
+BRAND_COLUMNS: tuple[str, ...] = (
+    "Thương hiệu", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
+    "Lợi nhuận KPI", "DS quy đổi", "Đã tính được lợi nhuận",
+)
+
+# Bảng thương hiệu là một PHÂN HOẠCH của đúng tập dòng đang được báo cáo, nên
+# bốn cột cộng được của nó cộng lại đúng bằng tổng kỳ. Cột Đơn thì không —
+# cùng sự thật `R-E5` mà bảng nhân viên đã phải nói ra, chỉ đổi chiều gộp.
+BRAND_ORDER_COLUMN_NOTE = (
+    "Một đơn có hàng của nhiều thương hiệu được đếm ở TỪNG dòng thương hiệu "
+    "liên quan, nên cột Đơn cộng lại có thể lớn hơn tổng đơn của kỳ. Bốn cột "
+    "còn lại cộng lại đúng bằng tổng kỳ."
+)
+
+# Hai lý do KHÁC NHAU khiến một dòng chưa có thương hiệu. Gộp chúng thành một
+# ô "chưa xác định" duy nhất sẽ nói với Owner rằng cách sửa là như nhau —
+# trong khi chỉ một trong hai sửa được từ trong Reports (`PHB-06 §10`).
+BRAND_UNKNOWN_REASON_NOTES = {
+    bmx.KIND_IDENTITY_UNRESOLVED: (
+        "Chưa nhận diện được mặt hàng, nên chưa có danh tính nào để hỏi "
+        "thương hiệu. Phân loại các dòng này ở bảng kê trang NHÂN VIÊN."),
+    bmx.KIND_BRAND_ABSENT: (
+        "Đã nhận diện được mặt hàng, nhưng danh tính của nó không mang thương "
+        "hiệu. Việc này KHÔNG sửa được từ Reports — nó là một khoảng trống của "
+        "chính nguồn danh tính."),
+}
+
+BRAND_RECONCILED_NOTE = (
+    "Doanh thu · Tổng số SP · Lợi nhuận KPI · DS quy đổi của bảng này cộng "
+    "lại ĐÚNG BẰNG tổng kỳ, kể cả phần chưa xác định thương hiệu. Không dòng "
+    "hàng nào bị bỏ rơi và không dòng nào bị đếm hai lần."
+)
+BRAND_RECONCILE_FAILED_NOTE = (
+    "CẢNH BÁO: bảng thương hiệu KHÔNG cộng lại đúng bằng tổng kỳ. Đây là lỗi "
+    "hệ thống, không phải một trạng thái dữ liệu — đừng dùng bảng này để ra "
+    "quyết định cho tới khi nó được sửa."
+)
+BRAND_EXCLUDED_NOTE = (
+    "Dòng Owner đã loại khỏi báo cáo KHÔNG có mặt ở đây, đúng như ở mọi chỉ "
+    "tiêu khác của kỳ."
+)
+BRAND_NO_TARGET_NOTE = (
+    "Chưa có Target theo thương hiệu. Target hiện chỉ đặt cho nhân viên và "
+    "cho hai nhóm Nội thành · Gia dụng — hệ thống không cộng dồn để bịa ra "
+    "một con số Owner chưa đặt."
 )
 
 # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) -------------------
@@ -424,6 +475,58 @@ def employee_rows(by_employee: list[tuple], company: bm.BusinessTotals) -> list[
     rows.append({"employee": "TỔNG", "employee_group": "", "key": "",
                  "total_row": True, **_metrics(company)})
     return rows
+
+
+def brand_rows(
+    by_brand: list[tuple], company: bm.BusinessTotals,
+) -> list[dict]:
+    """Bảng thương hiệu + dòng `TỔNG` (`PHB-06 §7`).
+
+    Dòng TỔNG lấy từ tổng KỲ chứ không cộng các dòng phía trên — cùng lý do
+    `employee_rows`: cột Đơn của các dòng trên cộng lại có thể lớn hơn tổng
+    đơn của kỳ, nên một dòng TỔNG cộng dọc sẽ hiện một con số sai.
+
+    `unknown_note` chỉ có mặt ở hai dòng "chưa xác định", và nó nói ĐÚNG lý do
+    của chính dòng đó chứ không một câu chung — dòng đầu sửa được từ trang
+    Nhân viên, dòng sau thì không.
+    """
+    rows = [
+        {"brand": bucket.label, "key": bucket.key, "kind": bucket.kind,
+         "known": bucket.known, "total_row": False,
+         "unknown_note": BRAND_UNKNOWN_REASON_NOTES.get(bucket.kind),
+         **_metrics(totals)}
+        for bucket, totals in by_brand
+    ]
+    rows.append({"brand": "TỔNG", "key": "", "kind": "", "known": True,
+                 "total_row": True, "unknown_note": None, **_metrics(company)})
+    return rows
+
+
+def brand_summary(
+    coverage, reconciliation, *, period, totals: bm.BusinessTotals,
+) -> dict:
+    """Mô hình hiển thị của đầu trang thương hiệu.
+
+    `reconciled` là kết quả một phép so ĐÃ CHẠY trên chính các con số đang
+    hiện, không phải một lời khẳng định viết sẵn: nếu bảng lệch, trang phải
+    nói ra ngay trên đầu thay vì để Owner tự phát hiện bằng máy tính tay.
+    """
+    return {
+        "period_label": period_label(period),
+        "authority": brand_identity.BRAND_AUTHORITY,
+        "branded_lines": count(coverage.branded_lines),
+        "identity_unresolved_lines": count(coverage.identity_unresolved_lines),
+        "brand_absent_lines": count(coverage.brand_absent_lines),
+        "total_lines": count(coverage.total_lines),
+        "brand_complete": coverage.is_complete,
+        "brand_unavailable": (
+            coverage.total_lines > 0 and coverage.branded_lines == 0),
+        "reconciled": reconciliation.is_exact,
+        "reconcile_note": (BRAND_RECONCILED_NOTE if reconciliation.is_exact
+                           else BRAND_RECONCILE_FAILED_NOTE),
+        "note": _state_note(totals),
+        "empty": totals.lines == 0,
+    }
 
 
 def employee_detail(

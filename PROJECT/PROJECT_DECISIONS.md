@@ -10154,3 +10154,131 @@ tháng, mức Ngày/Tuần của biểu đồ tự nhận chúng mà không cầ
 "không bịa điểm" đã viết theo bằng chứng chứ không theo một danh sách kỳ.
 Việc thêm đường Target/Lợi nhuận KPI vào cùng biểu đồ CHƯA được quyết và
 không nằm trong task này.
+
+## DEC-186
+
+Title:
+PHB-06 — báo cáo theo THƯƠNG HIỆU là một PHÂN HOẠCH của kết quả nghiệp vụ
+chính thức, tiêu thụ thương hiệu từ thẩm quyền Product Identity; và trên hợp
+đồng danh tính HIỆN HÀNH thương hiệu KHÔNG TỒN TẠI, nên vertical ship phần
+đối soát được và trả lại một `OWNER_DECISION_REQUIRED` thay vì một bảng dựng
+từ tên hàng
+
+Date:
+2026-09-06
+
+Task:
+`PHB-06 BRAND REPORTING VERTICAL`. Bounded implementation, nhánh tách từ
+`BASE_HEAD = 0d9d93111c7955fa407e5b43ebee682e5c728c56` (canonical sau lần
+Controlled Integration của REPAIR N-01/F-N02/F-N03).
+
+Authority:
+`MEASURED_AUDIT` + `EXISTING_OWNER_DECISION`. Phần "thương hiệu chưa có
+nguồn" là kết quả đo lại, và nó TRÙNG với một freeze đã có:
+`docs/tasks/TASK-PRA-005-san-pham.md` §19 — `BRAND = NOT_AVAILABLE (không cột
+nào ở bất kỳ bảng nào)`, `DEFERRED`, *"KHÔNG suy luận từ tên sản phẩm"*.
+
+Supersedes:
+Không. `DEC-185` (thanh tab ba mục) và mọi ngữ nghĩa PHB-03/PHB-05 giữ
+nguyên; PHB-06 chỉ thêm một khung nhìn con và một tầng gộp.
+
+### 1. Thẩm quyền thương hiệu — đo được, không suy đoán
+
+Audit của PHB-06 quét toàn bộ các nguồn có thể mang thương hiệu và không tìm
+thấy trường nào:
+
+```
+CanonicalProductIdentity   (namespace, source_product_code)          — KHÔNG
+TrackingCatalogRow         (tracking_code, present_in_board, name, alt) — KHÔNG
+TrackingInvMapSnapshot     (khoá câu tên hàng → mã | "-")            — KHÔNG
+PublicPurchaseIdentityRow  (product_code, product_name, aliases, …)  — KHÔNG
+order_line_result_version  38 cột, không cột thương hiệu             — KHÔNG
+legacy_summary_row / legacy_daily_sales / legacy_monthly_reference   — KHÔNG
+```
+
+Vì vậy `BRAND_AUTHORITY = PRODUCT_IDENTITY_CANONICAL` và giá trị nó trả về
+hôm nay là `None` cho MỌI dòng. Đó không phải một khiếm khuyết của phép gộp;
+đó là câu trả lời đúng, và trang nói ra nó bằng chữ ở đúng chỗ tiền đang nằm.
+
+Điều KHÔNG được làm, và không được làm ở bất kỳ lát cắt nào sau: rút thương
+hiệu từ `product_raw`, từ mã máy, bằng so chuỗi con hay so gần đúng. Một
+thương hiệu đoán ra sẽ cộng tiền THẬT vào sai chỗ, và không màn hình nào lộ
+ra điều đó — nó chỉ trông như một báo cáo bình thường.
+
+### 2. Ranh giới giữ bằng CẤU TẠO, không bằng lời hứa
+
+- `app/modules/reporting/brand_metrics.py` (tầng gộp) không nhận tên hàng làm
+  tham số. Nó nhận `BrandBucket` đã quyết định sẵn, nên một nhánh suy luận
+  không lọt vào được mà không phải sửa chữ ký hàm.
+- `app/web/brand_identity.py` là cửa DUY NHẤT đọc thương hiệu, và
+  `bucket_for()` cũng không nhận tên hàng — đường duy nhất từ một dòng tới
+  thương hiệu đi qua `line_identity.state_of` → khoá danh tính → hợp đồng
+  Product Identity.
+- `tests/test_phb06_brand_reporting.py` quét MÃ CHẠY (đã bỏ chuỗi/comment qua
+  `tokenize`) của cả hai module để chặn `product_raw`/`startswith`/`fold`/
+  similarity, và quét `server.py` để khẳng định đường production wire ĐÚNG
+  `brand_identity.canonical_brand`.
+
+### 3. Phân hoạch, không phải một tầng số thứ hai
+
+Bảng thương hiệu đọc `BusinessReportService.period(...)` — đúng lời gọi mà
+Báo cáo, Nhân viên và dòng thời gian doanh thu đã dùng — rồi chia đúng tập
+`data.lines` và gọi lại `business_metrics.totals` trên từng phần. Không có
+công thức doanh thu/lợi nhuận/quy đổi thứ hai ở đâu trong đường này.
+
+Ba hệ quả là hệ quả CẤU TẠO chứ không phải ba tính năng phải nhớ:
+
+- dòng Owner đã loại không có mặt (chúng đã bị tách khỏi `PeriodData.lines`);
+- gán lại nhân viên không đổi doanh thu của một thương hiệu nào;
+- chuyển một dòng sang Gia dụng cũng vậy (nó vẫn được phép đổi DS quy đổi qua
+  định tuyến tỉ lệ đã nghiệm thu — đó là hai chuyện khác nhau).
+
+`reconciliation()` biến tính chất đó thành một phép so CHẠY THẬT ở mỗi lần
+tải trang, và kết quả lên màn hình. Một bảng cộng không khớp là lỗi hệ thống;
+trang phải nói ra ngay thay vì để Owner phát hiện bằng máy tính tay.
+
+Cột `Đơn` cố ý KHÔNG đối soát: một đơn có hàng của hai thương hiệu được đếm ở
+cả hai dòng. Đây là cùng sự thật `R-E5` mà bảng nhân viên đã phải nói ra, chỉ
+đổi chiều gộp — và trang nói ra nó.
+
+### 4. "Chưa xác định" là HAI dòng, không phải một
+
+    Chưa xác định thương hiệu — chưa nhận diện sản phẩm
+    Chưa xác định thương hiệu — danh tính không có thương hiệu
+
+Gộp chúng lại sẽ nói với Owner rằng cách sửa là như nhau. Nó không như nhau:
+dòng đầu sửa được bằng luồng phân loại đã nghiệm thu ở bảng kê trang Nhân
+viên; dòng sau thì KHÔNG sửa được từ Reports — nó là khoảng trống của chính
+nguồn danh tính. Đây cùng ranh giới mà `line_identity` đã dựng cho cặp
+"Chưa phân loại"/"Thiếu giá", và vì cùng một lý do.
+
+PHB-06 KHÔNG thêm một luồng phân loại thứ hai. Sửa danh tính vẫn chỉ có một
+chỗ.
+
+### 5. Phạm vi — điều KHÔNG được thêm
+
+`NEW_MIGRATION = NONE`, `ALEMBIC_HEAD` giữ nguyên `0007_employee_workspace`.
+Không bảng ánh xạ thương hiệu, không Target thương hiệu (`BR-11`), không mục
+điều hướng chính mới (`DEC-185` giữ đúng ba mục — bảng thương hiệu là một
+khung nhìn CON của Báo cáo tại `/kinh-doanh/thuong-hieu`), không đường ghi
+nào trên trang, không mở rộng PII.
+
+Kỳ đi qua `_workspace_period()` — mô hình kỳ theo tháng đã nghiệm thu, mặc
+định THÁNG DƯƠNG LỊCH HIỆN TẠI. Không thêm khung lọc mới và không thêm mục
+"Toàn bộ dữ liệu" vào vertical này.
+
+### 6. Lịch sử thương hiệu của sổ cũ — `NOT_SUPPORTED`
+
+`LEGACY_HISTORY` không có sheet hay cột thương hiệu nào (mục 1). Dựng một
+bảng thương hiệu lịch sử từ đó sẽ là bịa. Báo cáo thương hiệu vì thế ship
+KHÔNG kèm so sánh lịch sử theo thương hiệu, và cũng không có MoM thương hiệu:
+`§12` chỉ cho tái dùng một hợp đồng MoM ĐÃ có cho thương hiệu, và không có
+hợp đồng nào như vậy tồn tại.
+
+Can Revisit After:
+Khi hợp đồng Product Identity có thêm trường thương hiệu — hoặc khi Owner
+quyết định nguồn thương hiệu (xem `OWNER_DECISION_REQUIRED` ở
+`docs/sessions/S117-phb-06-brand-reporting.md`).
+`tests/test_phb06_brand_reporting.py::test_the_canonical_identity_contract_still_carries_no_brand`
+là chuông báo đúng thời điểm đó: nó THẤT BẠI ngay khi trường ấy xuất hiện,
+để PHB-06 được mở lại có chủ đích thay vì im lặng tiếp tục hiện 0 dòng.

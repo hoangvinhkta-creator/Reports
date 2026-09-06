@@ -1,5 +1,113 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-06 BRAND REPORTING = IMPLEMENTED, CHỜ REVIEW (2026-09-06)
+
+Vertical BOUNDED trên đúng `BASE_HEAD = 0d9d93111c7955fa407e5b43ebee682e5c728c56`
+(khối "REPAIR N-01/F-N02/F-N03 — CONTROLLED INTEGRATION" ngay bên dưới).
+KHÔNG merge canonical, KHÔNG deploy, KHÔNG mở lại vertical đã đóng, KHÔNG
+migration mới, KHÔNG thẩm quyền mới. Mọi khối bên dưới GIỮ NGUYÊN — chúng vẫn
+đúng sau bản này (kiểm lại bằng `FULL_SUITE`/`GOLDEN` dưới đây, không suy
+diễn). Quyết định: `DEC-186`. Session: `docs/sessions/S117-phb-06-brand-reporting.md`.
+
+```text
+VERTICAL                   = PHB-06 BRAND REPORTING
+STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
+                             Review trên đúng FINAL_HEAD. KHÔNG merge
+                             canonical, KHÔNG deploy.
+FEATURE_BRANCH             = claude/phb-06-brand-reporting-0i2oun
+
+THẨM QUYỀN THƯƠNG HIỆU — KẾT QUẢ ĐO ĐƯỢC
+BRAND_AUTHORITY            = PRODUCT_IDENTITY_CANONICAL (Reports là bên TIÊU
+                             THỤ; `app/web/brand_identity.py` là cửa duy nhất)
+BRAND_FIELD_EXISTS_TODAY   = NO — không nguồn nào mang thương hiệu:
+                             CanonicalProductIdentity · TrackingCatalogRow ·
+                             TrackingInvMapSnapshot · PublicPurchaseIdentityRow ·
+                             order_line_result_version · LEGACY_HISTORY.
+                             TRÙNG freeze đã có: TASK-PRA-005 §19
+                             (`BRAND = NOT_AVAILABLE`, DEFERRED)
+BRAND_SECOND_AUTHORITY_CREATED = NO
+FUZZY_BRAND_AUTHORITY      = NO (canh bằng quét MÃ CHẠY qua `tokenize`, và
+                             bằng chữ ký hàm: `bucket_for` không nhận tên hàng)
+EXISTING_BRAND_SURFACE     = NONE (không route /thuong-hieu, /brand, /hang)
+
+BỀ MẶT ĐÃ SHIP
+BRAND_ROUTE                = GET /kinh-doanh/thuong-hieu (khung nhìn CON của
+                             Báo cáo, CHỈ ĐỌC — không form ghi nào)
+PRIMARY_NAV_CHANGED        = NO (DEC-185 giữ đúng ba mục)
+BRAND_CURRENT_MONTH_DEFAULT = YES (dùng lại `_workspace_period()`; không thêm
+                             mục "Toàn bộ dữ liệu", không khung lọc mới)
+BRAND_METRICS              = Doanh thu · Tổng số SP · Lợi nhuận KPI (qua
+                             `gated_cell`) · DS quy đổi — chỉ chỉ tiêu đã có
+                             trong business engine
+
+ĐỐI SOÁT VỀ TỔNG CÔNG TY (chạy THẬT ở mỗi lần tải trang, kết quả lên màn hình)
+BRAND_SALES_RECONCILES_TO_COMPANY = YES
+BRAND_QUANTITY_RECONCILES  = YES
+BRAND_KPI_PROFIT_RECONCILES = YES
+BRAND_CONVERTED_SALES_RECONCILES = YES
+ORDERS_COLUMN_RECONCILES   = NO — CÓ CHỦ ĐÍCH và được NÓI RA trên trang: một
+                             đơn có hàng hai thương hiệu đếm ở cả hai dòng
+                             (cùng sự thật `R-E5` của bảng nhân viên)
+
+BẤT BIẾN NGHIỆP VỤ
+EXCLUDED_LINE_AFFECTS_BRAND_TOTALS = NO (theo cấu tạo — dòng bị loại đã tách
+                             khỏi `PeriodData.lines` trước mọi phép gộp)
+EMPLOYEE_REASSIGN_CHANGES_BRAND_SALES = NO
+GIA_DUNG_MOVE_CHANGES_BRAND_SALES = NO
+UNKNOWN_BRAND_BUCKET       = YES — và là HAI bucket tách bạch (§10):
+                             "chưa nhận diện sản phẩm" ≠ "danh tính không có
+                             thương hiệu"
+UNRESOLVED_IDENTITY_FABRICATED_BRAND = NO
+MISSING_PP_FABRICATES_KPI_PROFIT = NO (giữ nguyên PHB-03/DEC-143)
+BRAND_TARGET_CREATED       = NO
+LEGACY_BRAND_HISTORY       = NOT_SUPPORTED (sổ cũ không có sheet/cột thương
+                             hiệu; không dựng lịch sử thương hiệu từ đó)
+BRAND_MOM                  = KHÔNG THÊM (không có hợp đồng MoM thương hiệu
+                             nào đã nghiệm thu để tái dùng — §12)
+
+BẢO TOÀN (kiểm lại, không phải suy diễn)
+R1_PRESERVED               = YES
+R2_PRESERVED               = YES
+PHB01_PRESERVED            = YES
+PHB03_PRESERVED            = YES
+PHB05_PRESERVED            = YES
+EMPLOYEE_WORKSPACE_PRESERVED = YES
+DEC180_PRESERVED           = YES
+DEC185_PRESERVED           = YES
+UNIFIED_REVENUE_TIMELINE_PRESERVED = YES
+
+NEW_MIGRATION              = NONE
+ALEMBIC_HEAD               = 0007_employee_workspace
+NEW_PII                    = NONE (giữ nguyên customer_name/phone/address)
+
+TEST_RESULT                = FULL_SUITE 2630 passed, 11 skipped (BASE_HEAD:
+                             2588 passed, 11 skipped — +42 đúng bằng số test
+                             mới) · PHB-06 focused 42 passed · bộ hồi quy §21
+                             622 passed, 2 skipped
+MUTATION_PROBES            = M1…M8 = 8/8 BITE
+GOVERNANCE_VALIDATORS      = structure PASS · project_state PASS · evidence
+                             PASS · reference_integrity FAIL (3 lỗi CÓ SẴN
+                             trên BASE_HEAD — `F-05`/`FIND-PHB06-03`, không
+                             do PHB-06 gây ra, đã xác nhận bằng stash)
+
+BLOCKING_FINDINGS          = NONE
+NONBLOCKING_FINDINGS       = FIND-PHB06-01 (thương hiệu không có nguồn) ·
+                             FIND-PHB06-02 (không MoM/lịch sử thương hiệu) ·
+                             FIND-PHB06-03 (3 reference hỏng CÓ SẴN)
+SCOPE_DRIFT                = NO
+
+OWNER_DECISIONS_REQUIRED   = 1 — nguồn trường thương hiệu chính danh. Ba lựa
+                             chọn nhỏ nhất + khuyến nghị: xem
+                             `docs/sessions/S117-phb-06-brand-reporting.md` §4.
+NEXT_VERTICAL_ACTION       = Đưa OWNER_DECISION ở trên tới Chủ dự án, rồi
+                             Independent Review nhánh này. Không lát cắt
+                             PHB-06 tiếp theo nào có ý nghĩa trước khi nguồn
+                             thương hiệu được quyết — tầng gộp, phép đối soát,
+                             trang và test đã sẵn sàng và sẽ tự lên số mà
+                             không phải sửa mã.
+```
+
+
 ## CANONICAL CURRENT STATE — REPAIR N-01/F-N02/F-N03 — CONTROLLED INTEGRATION (AUTHORITATIVE, 2026-09-06)
 
 Ghi nhận bookkeeping tối thiểu cho một Controlled Integration đã diễn ra,

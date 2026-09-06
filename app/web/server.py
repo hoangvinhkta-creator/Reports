@@ -56,14 +56,14 @@ from app.owner_usability import SelectedCaptures
 from app.modules.pricing.resolution.sources import load_tracking_catalog_capture
 from app.history import coverage as history_coverage
 from app.history import models as history_models
-from app.modules.reporting import business_metrics, reporting_sheets
+from app.modules.reporting import brand_metrics, business_metrics, reporting_sheets
 from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
 from app.web import (
-    analytics_presentation, analytics_queries, business_presentation,
-    business_service, business_store, history_store, history_writer,
-    identity_gateway, legacy_presentation, legacy_reference, line_identity,
-    revenue_timeline, run_registry, sales_presentation, sales_queries,
-    storage_backend, workspace_presentation,
+    analytics_presentation, analytics_queries, brand_identity,
+    business_presentation, business_service, business_store, history_store,
+    history_writer, identity_gateway, legacy_presentation, legacy_reference,
+    line_identity, revenue_timeline, run_registry, sales_presentation,
+    sales_queries, storage_backend, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -369,6 +369,13 @@ def create_app(
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
         business_presentation.ORDER_COLUMN_NOTE
+    # PHB-06 — chú thích của bảng thương hiệu. Cùng kỷ luật: viết MỘT lần ở
+    # tầng trình bày, template chỉ hiện ra.
+    for _name in ("BRAND_EXCLUDED_NOTE", "BRAND_NO_TARGET_NOTE",
+                  "BRAND_ORDER_COLUMN_NOTE"):
+        app.jinja_env.globals[_name] = getattr(business_presentation, _name)
+    for _name in ("BRAND_SOURCE_NOTE", "BRAND_UNAVAILABLE_NOTE"):
+        app.jinja_env.globals[_name] = getattr(brand_identity, _name)
     # `DEC-PHB02-08` — chú thích của không gian làm việc. Cùng kỷ luật: viết
     # MỘT lần ở tầng trình bày, template chỉ hiện ra.
     for _name in ("EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE",
@@ -1601,6 +1608,70 @@ def create_app(
             "KHÔI PHỤC ở cuối trang là dòng trở lại.")})
 
     # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) ---------------
+
+    # ------------------------------------------------------------------
+    # PHB-06 — BÁO CÁO THEO THƯƠNG HIỆU.
+    #
+    # Một KHUNG NHÌN CON của Báo cáo, mở từ trang `/kinh-doanh`. Nó KHÔNG là
+    # một tab chính mới: `DEC-185` giữ thanh điều hướng đúng BA mục (Báo cáo ·
+    # Nhân viên · Dữ liệu), và một chiều gộp mới không phải một lý do đủ để
+    # đổi điều hướng chính (`PHB-06 §6`, `BR-12`).
+    #
+    # Kỳ đi qua `_workspace_period()` — mặc định THÁNG DƯƠNG LỊCH HIỆN TẠI,
+    # luôn là một tháng thật (`PHB-06 §5`, `BR-03`). Đây là mô hình kỳ đã
+    # nghiệm thu của không gian làm việc, dùng lại nguyên vẹn; không có khung
+    # lọc mới và không có mục "Toàn bộ dữ liệu" nào được thêm.
+    # ------------------------------------------------------------------
+
+    @app.get("/kinh-doanh/thuong-hieu")
+    def business_brand():
+        """Kết quả nghiệp vụ CHÍNH THỨC của kỳ, gộp theo thương hiệu.
+
+        Ba tính chất được giữ bằng CẤU TẠO chứ không bằng lời hứa:
+
+        1. **Cùng một kết quả chính thức.** Trang đọc `service.period(...)` —
+           đúng lời gọi mà Báo cáo, Nhân viên và dòng thời gian doanh thu đã
+           dùng. Dòng Owner đã loại không có mặt trong `data.lines` (xem
+           `business_service.PeriodData`), nên chúng không thể lọt vào một
+           bucket thương hiệu nào (`BR-05`).
+
+        2. **Chỉ PHÂN HOẠCH, không tính lại.** `group_by_brand` chia đúng tập
+           `data.lines` rồi gọi lại `business_metrics.totals` trên từng phần.
+           Không có công thức doanh thu/lợi nhuận/quy đổi thứ hai ở đâu trong
+           đường này, nên gán lại nhân viên hay tick Gia dụng không thể làm
+           đổi doanh thu của một thương hiệu (`BR-06`, `BR-07`).
+
+        3. **Thương hiệu chỉ ĐỌC từ thẩm quyền Product Identity.** Nguồn được
+           wire ở đây là `brand_identity.canonical_brand` và không gì khác —
+           không bảng ánh xạ của Reports, không phép so chuỗi con (`BR-02`,
+           `BR-10`).
+
+        Phép đối soát về tổng kỳ CHẠY THẬT ở mỗi lần tải trang và kết quả của
+        nó lên màn hình. Một bảng cộng không khớp là lỗi hệ thống, và trang
+        phải nói ra ngay thay vì để Owner phát hiện bằng máy tính tay.
+        """
+        service = _require_business()
+        period = _workspace_period()
+        bounds = analytics_queries.month_bounds(*period)
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        buckets = brand_identity.buckets_for(
+            data.details, confirmed_keys=_confirmed_identity_keys(),
+            identities=identity_gateway.confirmed_identities(identity_store),
+            brand_source=brand_identity.canonical_brand)
+        grouped = brand_metrics.group_by_brand(data.lines, buckets)
+        return render_template(
+            "kinh_doanh_thuong_hieu.html",
+            periods=workspace_presentation.period_options(
+                _guarded(analytics_queries.available_periods,
+                         snapshot_repo.engine),
+                selected=period, today=_today()),
+            selected_period=f"{period[0]}-{period[1]:02d}",
+            columns=business_presentation.BRAND_COLUMNS,
+            rows=business_presentation.brand_rows(grouped, data.totals),
+            summary=business_presentation.brand_summary(
+                brand_identity.coverage(buckets),
+                brand_metrics.reconciliation(grouped, data.totals),
+                period=period, totals=data.totals))
 
     @app.get("/kinh-doanh/target")
     def business_target():

@@ -173,6 +173,42 @@ def confirmed_keys(store) -> frozenset[str]:
     )
 
 
+def confirmed_identities(store) -> dict:
+    """`{raw_identity_key: CanonicalProductIdentity}` của các mapping CONFIRMED.
+
+    Cùng đường đọc, cùng bộ lọc và cùng cách xử lý lỗi như `confirmed_keys` —
+    khác đúng một điều: nó giữ lại DANH TÍNH chứ không chỉ khoá. PHB-06 cần
+    danh tính vì thương hiệu (nếu có) là một thuộc tính CỦA DANH TÍNH, không
+    phải của khoá thô; `confirmed_keys` chỉ trả lời "đã nhận diện chưa".
+
+    Viết thành hàm riêng thay vì đổi kiểu trả về của `confirmed_keys`: hàm kia
+    là đầu vào của `line_identity.state_of` ở mọi màn hình nghiệp vụ, và một
+    lần đổi kiểu ở đó có bán kính ảnh hưởng lớn hơn hẳn thứ PHB-06 cần.
+
+    Store không đọc được ⟹ dict RỖNG, không phải một lỗi trang: hệ quả là mọi
+    dòng hiện "chưa xác định thương hiệu" — thận trọng đúng hướng, cùng lựa
+    chọn mà `confirmed_keys` đã nghiệm thu.
+    """
+    if store is None:
+        return {}
+    try:
+        view = store.read_at_revision(store.refresh())
+    except Exception:  # noqa: BLE001 — xem docstring
+        return {}
+    resolved = {}
+    for mapping in view.alias_index().values():
+        if mapping.status is not MappingStatus.CONFIRMED:
+            continue
+        if mapping.source_system != SOURCE_SYSTEM_REPORTS_SALES:
+            continue
+        if mapping.namespace is None or mapping.source_product_code is None:
+            continue
+        resolved[mapping.raw_identity_key] = CanonicalProductIdentity(
+            namespace=mapping.namespace,
+            source_product_code=mapping.source_product_code)
+    return resolved
+
+
 def candidates(snapshot, *, query: Optional[str] = None) -> list[Candidate]:
     """Mặt hàng chuẩn của Tracking, lọc theo `query`, giới hạn để đọc được.
 
@@ -313,5 +349,5 @@ __all__ = [
     "CANDIDATE_LIMIT", "CONFIRM_OK_NOTE", "Candidate",
     "DurableStoreUnavailableError", "IdentityGatewayError", "NO_TRACKING_NOTE",
     "actor_of", "build_store", "candidates", "confirm_identity",
-    "confirmed_keys",
+    "confirmed_identities", "confirmed_keys",
 ]
