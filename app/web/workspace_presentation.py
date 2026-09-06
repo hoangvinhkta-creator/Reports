@@ -85,6 +85,24 @@ SHORT_TAGS = {
     profit_gate.BLOCK_KPI_AUTHORITY_UNAVAILABLE: "Cấu hình hỏng",
 }
 
+# `TASK-OWNER-UIUX-007` — chủ dự án chỉ định trực tiếp bốn màu chấm cạnh số
+# BH (thay pill chữ trước đây): VÀNG = thiếu giá, ĐỎ = bất thường (gồm nghi
+# trùng — cùng nhóm "vấn đề vận hành cần Owner xem"), ĐEN = mọi cảnh báo
+# BLOCK còn lại (thiếu SL/thiếu giá bán/chưa rõ NV/cấu hình hỏng — Owner
+# chọn "tất cả các mã còn lại dùng màu đen" khi được hỏi lại). "Chưa phân
+# loại" (`line_identity`, xanh) map riêng ở nơi dựng `identity_tags`.
+TAG_COLORS = {
+    profit_gate.BLOCK_PURCHASE_PRICE_MISSING: "yellow",
+    profit_gate.WARN_PIPELINE_REVIEW: "red",
+    profit_gate.WARN_POSSIBLE_DUPLICATE: "black",
+    profit_gate.BLOCK_EMPLOYEE_UNRESOLVED: "black",
+    profit_gate.BLOCK_SELL_PRICE_MISSING: "black",
+    profit_gate.BLOCK_QUANTITY_MISSING: "black",
+    profit_gate.BLOCK_QUANTITY_ZERO: "black",
+    profit_gate.BLOCK_QUANTITY_NEGATIVE: "black",
+    profit_gate.BLOCK_KPI_AUTHORITY_UNAVAILABLE: "black",
+}
+
 # Hai mã KHÔNG có nhãn ngắn, và cả hai đều cố ý:
 #
 #   WARN_PURCHASE_ABOVE_SELL / WARN_NEGATIVE_PROFIT — `§35` nói rõ chúng là
@@ -253,7 +271,8 @@ def _short_tags(line: bm.BusinessLine) -> list[dict]:
         label = SHORT_TAGS.get(code)
         if label is not None:
             seen.setdefault(code, label)
-    return [{"code": code, "label": label} for code, label in seen.items()]
+    return [{"code": code, "label": label, "color": TAG_COLORS.get(code, "black")}
+            for code, label in seen.items()]
 
 
 def _is_loss(line: bm.BusinessLine) -> bool:
@@ -408,6 +427,13 @@ def sheet_detail_groups(details: list[dict], *, sheet,
                     "product_key": row["product_key"],
                     "occurrence_index": row["occurrence_index"],
                     "duplicate_text": label in short_tag_labels,
+                    # `TASK-OWNER-UIUX-007` — CHỈ hai nhãn có thể ra từ
+                    # `line_identity` (`LABEL_UNRESOLVED`/`LABEL_MISSING_
+                    # PRICE`); xanh cho "Chưa phân loại", còn lại ("Thiếu
+                    # giá") dùng ĐÚNG màu vàng của `TAG_COLORS` — cùng một
+                    # sự thật với `bh-tag`, không có màu thứ ba.
+                    "color": "green" if label == line_identity.LABEL_UNRESOLVED
+                             else "yellow",
                 })
         group["loss"] = group["loss"] or _is_loss(line)
         # `§PI-11` — BH này có dòng chưa phân loại nào không. Cờ ở cấp BH chứ

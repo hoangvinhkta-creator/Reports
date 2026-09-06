@@ -93,6 +93,27 @@ body.theme-finance h1,
 body.theme-finance h2,
 body.theme-finance h3 { letter-spacing: -.01em; }
 
+/* `TASK-OWNER-UIUX-007` §2 — bỏ đường viền kẻ 1px quanh card/button (chủ
+   dự án yêu cầu trực tiếp: "bỏ các viền bo quanh các button đi và tất cả
+   các card, các tag" — xác nhận lại chỉ bỏ ĐƯỜNG KẺ, GIỮ nguyên góc bo
+   tròn/`border-radius` khi hỏi lại). Đổi màu viền thành trong suốt thay vì
+   `border-width: 0` để không đổi kích thước hộp (tránh xê dịch layout do
+   `box-sizing: border-box` đã tính viền vào chiều rộng/cao). `.tag`/
+   `.tag-dot` vốn đã không có viền kẻ nào (chỉ nền màu/`::before`) nên
+   không cần rule riêng. Khoanh vùng đúng ba trang theme Finance — không
+   đụng nút/thẻ của các trang khác (Bán hàng, Sản phẩm, Tổng quan...). */
+body.theme-finance .module,
+body.theme-finance .kpi-card,
+body.theme-finance .kpi-period,
+body.theme-finance .sheet-tab,
+body.theme-finance .act,
+body.theme-finance .ghost,
+body.theme-finance button {
+  border-color: transparent;
+}
+body.theme-finance .act:hover,
+body.theme-finance button:hover { border-color: transparent; }
+
 * { box-sizing: border-box; }
 
 body {
@@ -342,16 +363,22 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   --tp-shade-b: #f0f1f4;
 }
 
-/* §4 — hàng sheet nằm TRÊN báo cáo, trông gần với tab của một bảng
-   tính. Nó cố ý KHÁC `.ncc-tabs` về hình thức: thanh kia là điều hướng
-   cấp một của cả sản phẩm, hàng này là khung nhìn con của một trang, và
-   hai thứ trông giống hệt nhau sẽ dạy người dùng sai về cấu trúc. */
+/* §4 — hàng sheet nằm TRÊN báo cáo. Nó cố ý KHÁC `.ncc-tabs` về hình
+   thức: thanh kia là điều hướng cấp một của cả sản phẩm, hàng này là
+   khung nhìn con của một trang, và hai thứ trông giống hệt nhau sẽ dạy
+   người dùng sai về cấu trúc.
+
+   `TASK-OWNER-UIUX-007` §3 — chủ dự án yêu cầu trực tiếp bố cục/hình dạng
+   GIỐNG các card số liệu (`.kpi-card`) thay vì cụm nhỏ kiểu folder-tab ở
+   một góc: đổi từ `flex` (dải tab dính liền, chiều rộng theo NỘI DUNG chữ)
+   sang `grid` giống `.kpi-grid` (mỗi sheet MỘT ô, chiều rộng CHIA ĐỀU, xếp
+   đầy hàng ngang) — `auto-fit`/`minmax` thay vì số cột cố định như
+   `.kpi-grid.strip` vì số sheet đổi theo số nhân viên, không cố định. */
 .sheet-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  padding: 0 var(--tp-s4);
-  margin-bottom: var(--tp-s2);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--tp-s2);
+  margin-bottom: var(--tp-s3);
 }
 /* `TASK-OWNER-UIUX-004` §3 — hàng sheet dồn lên đầu trang (không còn nằm
    trong một card riêng, cũng không còn card "Kỳ dữ liệu" của `DEC-193` §4
@@ -368,23 +395,29 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 }
 .period-header-row .filter-row { margin-bottom: 0; }
 .period-header-row h2 { margin: 0; }
+/* Hình dạng GIỐNG `.kpi-card` (`TASK-OWNER-UIUX-007` §3): cùng padding,
+   cùng bo góc bốn phía, cùng nền trắng — khác `.kpi-card` ở chỗ đây là
+   LIÊN KẾT bấm được, nên có thêm căn giữa chữ + trạng thái chọn/hover.
+   Viền theo ĐÚNG rule `.kpi-card` (xem `body.theme-finance .kpi-card` ở
+   đầu file) — trang này luôn có `theme-finance` nên viền vốn đã ẩn. */
 .sheet-tab {
-  padding: var(--tp-s2) var(--tp-s3);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--tp-s3) var(--tp-s4);
   border: 1px solid var(--tp-line);
-  border-bottom: none;
-  border-radius: var(--tp-r-sm) var(--tp-r-sm) 0 0;
-  background: var(--tp-shade-b);
+  border-radius: var(--tp-r-md);
+  background: var(--tp-card);
   color: var(--tp-mut);
   font-size: 13px;
   font-weight: 600;
+  text-align: center;
   text-decoration: none;
   white-space: nowrap;
+  transition: background var(--tp-tr), color var(--tp-tr);
 }
-.sheet-tab:hover { color: var(--tp-blue); }
+.sheet-tab:hover { color: var(--tp-blue); background: var(--tp-sky); }
 .sheet-tab.on {
-  background: var(--tp-shade-a);
+  background: var(--tp-sky);
   color: var(--tp-blue);
-  border-color: var(--tp-blue);
 }
 /* Hai sheet NHÓM (Nội thành · Gia dụng) đứng đầu hàng và phải phân biệt
    được với sheet của một con người — chúng cộng dòng của nhiều người. */
@@ -420,12 +453,36 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 .sheet-table tr.row-loss td { color: var(--tp-red); }
 .sheet-table tr.row-loss td.num { font-weight: 600; }
 
-/* §36 — nhãn ngắn cạnh số BH, thay cho những đoạn văn trong lòng bảng. */
-.tag-short {
-  background: var(--tp-gold-bg);
-  color: var(--tp-gold);
+/* `TASK-OWNER-UIUX-007` §36 — chấm màu NGẮN cạnh số BH, thay pill chữ
+   trước đây (chủ dự án yêu cầu trực tiếp). Chữ nhãn vẫn là nội dung THẬT
+   của phần tử (đọc được bởi trình đọc màn hình + bộ test `bh-tag`/
+   `identity-label`), chỉ ẩn khỏi mắt bằng `font-size: 0` — không dùng kỹ
+   thuật `.sr-only` (clip tuyệt đối) ở đây vì nó sẽ ẩn LUÔN `::before`
+   cùng lúc. Chấm tròn tự nó là `::before` (nội dung CSS thuần, không nằm
+   trong HTML nên hoàn toàn không ảnh hưởng quy ước "chữ ngay sau dấu >"
+   mà `metric()`/`metrics()` của bộ test dựa vào). Bốn màu Owner chỉ định
+   trực tiếp: vàng = thiếu giá, đỏ = bất thường, xanh = chưa phân loại,
+   đen = mọi cảnh báo khác. */
+.tag-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  font-size: 0; line-height: 0;
+  vertical-align: middle;
   margin-left: var(--tp-s2);
+  cursor: default;
 }
+a.tag-dot { cursor: pointer; text-decoration: none; }
+.tag-dot::before {
+  content: "";
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--tp-mut);
+}
+.tag-dot-yellow::before { background: var(--tp-gold); }
+.tag-dot-red::before { background: var(--tp-red); }
+.tag-dot-green::before { background: var(--tp-green); }
+.tag-dot-black::before { background: var(--tp-ink); }
 
 .line-actions { white-space: nowrap; }
 
@@ -498,21 +555,10 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 
    "Chưa phân loại" và "Thiếu giá" KHÔNG được trông giống nhau (§PI-03):
    cái thứ nhất là việc phải làm với Tracking, cái thứ hai là việc phải
-   làm với giá. Dùng chung một cái tag xám cho cả hai sẽ xoá đúng cái
-   khác biệt mà Owner cần để biết đi đâu tiếp.
-
-   `TASK-OWNER-UIUX-004` §5 — "Chưa phân loại" đổi sang XANH (chủ dự án
-   yêu cầu trực tiếp: "chỉ cần hiện xanh là được") thay vì xanh dương —
-   cùng nhóm màu với `.tag-current`/`.tag-official` (đã dùng cho "việc bấm
-   vào là xong ngay"). Tag này giờ có thể là một `<a>` (khi bấm được, mở
-   thẳng bảng chọn mặt hàng) — `text-decoration: none` để nó không lẫn với
-   một liên kết gạch chân thường. */
-.tag-unresolved {
-  background: var(--tp-green-bg);
-  color: var(--tp-green);
-  margin-left: var(--tp-s2);
-  text-decoration: none;
-}
+   làm với giá — hai màu chấm khác nhau (`.tag-dot-green`/`.tag-dot-
+   yellow`, `TASK-OWNER-UIUX-007`) giữ đúng khác biệt đó. Tag này có thể
+   là một `<a>` (khi bấm được, mở thẳng bảng chọn mặt hàng) — `.tag-dot`
+   đã có `text-decoration: none` cho biến thể `<a>` ở rule phía trên. */
 
 .identity-open { text-decoration: underline dotted; }
 
@@ -663,15 +709,13 @@ td[data-group] { white-space: nowrap; }
 }
 .sheet-table td[data-metric="line-product"] { white-space: nowrap; }
 
-/* `TASK-OWNER-UIUX-005` §1 — mã đơn và tag cảnh báo xuống HÀNG RIÊNG (chủ
-   dự án yêu cầu trực tiếp): trước đây tag chạy tiếp ngay sau chữ mã đơn
-   trên CÙNG dòng, tràn/chồng lên nhau khi có nhiều tag. `.bh-order-tags`
-   là một khối `flex` riêng, tự xuống dòng dưới `.bh-order-code`. */
-.bh-order-code { display: block; }
-.bh-order-tags {
-  display: flex; flex-wrap: wrap; gap: 3px; margin-top: var(--tp-s1);
-}
-.bh-order-tags .tag { margin-left: 0; }
+/* `TASK-OWNER-UIUX-007` §1 — chấm cảnh báo trở lại NGANG HÀNG với mã đơn
+   (chủ dự án yêu cầu trực tiếp, đảo lại phần "xuống hàng riêng" của
+   `DEC-195` §1) — chấm tròn nhỏ (8px, `.tag-dot`) không còn tràn/chồng
+   lên chữ như pill chữ trước đây, nên không cần khối `.bh-order-tags`
+   flex riêng nữa; `inline-block` mặc định của `.tag-dot` tự xuống dòng
+   như chữ thường khi hết chỗ ngang. */
+.bh-order-code { display: inline; }
 
 /* Nút thao tác trên dòng: đủ rộng để bấm, thẳng hàng với nhau. */
 .line-actions .btn-mini { min-width: 30px; text-align: center; }

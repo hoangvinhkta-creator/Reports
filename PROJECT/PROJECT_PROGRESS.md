@@ -1,5 +1,57 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-007 = DONE (2026-09-06)
+
+Ba yêu cầu trực tiếp của chủ dự án trên trang Nhân viên: tag cảnh báo đổi
+thành CHẤM MÀU ngang hàng với số BH (đảo lại `DEC-195` §1), bỏ đường viền
+kẻ quanh card/button (giữ bo góc), tab sheet đổi hình dạng giống card số
+liệu xếp một hàng đầy đủ. Quyết định: `DEC-197`. Ba câu hỏi làm rõ qua
+`AskUserQuestion` trước khi triển khai (màu 6 mã cảnh báo không nêu tên
+→ ĐEN, phạm vi bỏ viền → chỉ đường kẻ giữ bo góc, hình dạng tab → hẳn
+thành card).
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = f6d73479618e82df7746a692871e83e9efce5591
+Current Task Mode:            MICRO (ba sửa trình bày trên MAJOR vừa DONE)
+CHANGES                      = (1) tag cảnh báo → chấm tròn màu (vàng=
+                              thiếu giá, đỏ=bất thường, xanh=chưa phân
+                              loại, đen=6 mã còn lại — `TAG_COLORS` mới
+                              trong `workspace_presentation.py`), NGAY SAU
+                              số BH trên cùng dòng, không còn khối
+                              `.bh-order-tags` riêng bên dưới · chữ nhãn
+                              vẫn là nội dung trực tiếp của phần tử mang
+                              `data-metric` (ẩn bằng `font-size:0`, KHÔNG
+                              lồng span con) — chấm tự vẽ qua CSS `::
+                              before`, không ảnh hưởng quy ước đọc test ·
+                              (2) bỏ `border` kẻ (giữ `border-radius`) của
+                              `.module`/`.kpi-card`/`.kpi-period`/
+                              `.sheet-tab`/`.act`/`.ghost`/`button`, khoanh
+                              vùng dưới `body.theme-finance` (3 trang) ·
+                              (3) `.sheet-tabs` đổi `flex` → `grid`
+                              (`auto-fit`/`minmax(110px,1fr)`), `.sheet-tab`
+                              đổi hình dạng giống `.kpi-card` (bo bốn góc,
+                              nền trắng), trạng thái chọn dùng nền
+                              `--tp-sky` thay viền màu (viền đã trong suốt)
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `f6d7347`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi · các file test
+                              `bh-tag`/`identity-label`/PI-01…12 chạy
+                              riêng lại xác nhận (217 passed, 2 skipped)
+THEME_SCOPE_VERIFIED        = ảnh chụp xác nhận `/ban-hang` (ngoài phạm
+                              vi) vẫn giữ viền xanh dương gốc — bỏ viền
+                              không rò rỉ ngoài ba trang theme Finance
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (không tăng thêm)
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-006 = DONE (2026-09-06)
 
 Chủ dự án xác nhận lại cách hiểu ở `DEC-195` §2 (mục "Can Revisit After"

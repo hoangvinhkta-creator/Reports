@@ -11761,3 +11761,133 @@ Can Revisit After:
 Không còn mục nào treo lại từ vòng UIUX-004/005/006. Việc mở rộng theme
 Finance sang các trang sâu hơn (nêu ở DEC-195 Can Revisit After) vẫn chưa
 được yêu cầu.
+
+## DEC-197
+
+Title:
+`TASK-OWNER-UIUX-007` — ba yêu cầu trực tiếp của chủ dự án trên trang
+Nhân viên: (1) tag cảnh báo đổi thành CHẤM MÀU, hiện NGANG HÀNG với số BH
+thay vì xuống hàng riêng (đảo lại `DEC-195` §1); (2) bỏ đường viền kẻ
+quanh card/button (giữ bo góc); (3) tab sheet nhân viên đổi hình dạng
+giống card số liệu, xếp một hàng đầy đủ thay vì cụm nhỏ kiểu folder-tab.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, ba mục đánh số).
+Trước khi triển khai đã hỏi lại chủ dự án qua `AskUserQuestion` ba câu làm
+rõ (màu của sáu mã cảnh báo không được nêu tên, phạm vi "bỏ viền", và
+nghĩa chính xác của "giống card số liệu") — xem mục 0.
+
+Supersedes:
+Đảo lại bố cục của `DEC-195` §1 (tag xuống hàng riêng dưới mã đơn) —
+CHỈ vị trí hiển thị, không đổi tập hợp trạng thái cảnh báo nào hay bất
+biến nghiệp vụ (`§35`/`§36`/`§PI-*`). Không supersede quyết định nào khác.
+
+### 0. Ba câu hỏi làm rõ trước khi triển khai
+
+1. Sáu mã cảnh báo KHÔNG được Owner nêu tên (Trùng khóa, Chưa rõ NV,
+   Thiếu giá bán, Thiếu SL, SL bằng 0, SL âm, Cấu hình hỏng) dùng màu gì?
+   → "tất cả các mã còn lại dùng màu đen" (câu trả lời tự do, không khớp
+   3 lựa chọn gợi ý — Owner chọn MỘT màu thứ TƯ riêng cho nhóm này thay vì
+   gộp vào vàng hoặc đỏ).
+2. "Bỏ viền bo quanh" — bỏ đúng phần nào? → "Chỉ bỏ đường viền kẻ (1px),
+   giữ góc bo tròn" (giữ `border-radius`, chỉ mất `border` kẻ).
+3. Tab sheet "giống card số liệu" nghĩa là gì? → "Đổi hẳn thành ô như
+   `.kpi-card`, xếp một hàng ngang đầy đủ" (không phải chỉ đổi màu nền của
+   dải folder-tab cũ).
+
+### 1. Tag cảnh báo → chấm màu, ngang hàng với số BH
+
+`workspace_presentation.py`: thêm `TAG_COLORS` (map mã `profit_gate` →
+`yellow`/`red`/`black`) — `BLOCK_PURCHASE_PRICE_MISSING` = vàng,
+`WARN_PIPELINE_REVIEW` = đỏ, sáu mã còn lại = đen (câu trả lời 1).
+`_short_tags()` gắn `color` vào mỗi tag; `sheet_detail_groups()` gắn
+`color` vào mỗi `identity_tags` entry — `line_identity.LABEL_UNRESOLVED`
+("Chưa phân loại") = xanh, `LABEL_MISSING_PRICE` ("Thiếu giá") = ĐÚNG màu
+vàng của `TAG_COLORS` (cùng một sự thật với `bh-tag`, không phát minh màu
+thứ năm).
+
+`kinh_doanh_nhan_vien.html`: bỏ khối `.bh-order-tags` (div riêng dưới mã
+đơn của `DEC-195` §1); chấm nay render NGAY SAU `.bh-order-code` trên
+CÙNG một dòng. Mỗi chấm giữ NGUYÊN chữ nhãn làm nội dung TRỰC TIẾP của
+phần tử mang `data-metric="bh-tag"`/`"identity-label"` — bộ test
+`metrics()` đọc đúng quy ước "chữ ngay sau dấu >" không đổi
+(`test_case_wr_03`, PI-01…PI-12 KHÔNG cần sửa đích). Chữ bị ẩn khỏi mắt
+Owner bằng `font-size: 0` trên CHÍNH phần tử đó — không lồng thêm
+`<span>` con (sẽ chen `<` trước chữ và làm quy ước đọc hỏng); chấm tròn tự
+nó render qua `::before` (CSS thuần, không nằm trong HTML, không ảnh
+hưởng quy ước đọc). Cơ chế khử trùng lặp `duplicate_text`/`sr-only` sẵn có
+từ `DEC-194` giữ nguyên (chấm trùng nghĩa bị ẩn HẲN, không chỉ ẩn chữ).
+
+CSS (`tinphat-ui.css`): `.tag-short`/`.tag-unresolved` (không còn template
+nào dùng sau đổi này) bỏ hẳn, thay bằng `.tag-dot`/`.tag-dot-{yellow,red,
+green,black}`.
+
+### 2. Bỏ đường viền kẻ quanh card/button (giữ bo góc)
+
+Khoanh vùng dưới `body.theme-finance` (ba trang Báo cáo/Nhân viên/Dữ liệu
+— đúng phạm vi `DEC-195` §4 đã chốt, KHÔNG lan sang Bán hàng/Sản phẩm/
+Tổng quan): `.module`, `.kpi-card`, `.kpi-period`, `.sheet-tab`, `.act`,
+`.ghost`, `button` đổi `border-color: transparent` (không đổi
+`border-width` — tránh xê dịch layout do `box-sizing: border-box`).
+`.tag`/`.tag-dot` vốn không có viền kẻ nào từ trước (chỉ nền màu/`::
+before`) nên không cần rule riêng.
+
+### 3. Tab sheet nhân viên → hình dạng card, một hàng đầy đủ
+
+`.sheet-tabs` đổi từ `flex` (dải tab dính liền, rộng theo chữ) sang
+`grid` (`repeat(auto-fit, minmax(110px, 1fr))`, giống `.kpi-grid` — không
+dùng số cột cố định như `.kpi-grid.strip` vì số sheet đổi theo số nhân
+viên). `.sheet-tab` đổi padding/bo góc/nền để GIỐNG `.kpi-card` (bốn góc
+bo tròn thay vì chỉ hai góc trên, nền trắng thay vì xám, không còn
+`border-bottom: none` kiểu folder-tab); trạng thái chọn (`.on`) và hover
+đổi từ "đổi màu viền" (sẽ vô hình khi viền đã trong suốt theo mục 2) sang
+nền `--tp-sky` — vẫn phân biệt được sheet đang xem mà không cần viền.
+Sheet NHÓM (Nội thành/Gia dụng) giữ nguyên chữ nghiêng để phân biệt với
+sheet của một người.
+
+Impact:
+Thuần trình bày (CSS + cấu trúc HTML của một `<td>`, không đổi
+`SHEET_DETAIL_COLUMNS`/route/database/write authority). `workspace_
+presentation.py`, `kinh_doanh_nhan_vien.html`, `tinphat-ui.css` thay đổi.
+Không file nào dưới `app/modules/`, `tools/db/`, `config/`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `f6d7347`
+(DEC-196), 0 test mới hỏng, 0 test phải sửa đích (`test_case_wr_03_*`,
+PI-01…PI-12, `test_identity_durability_and_timeline_aggregation.py` chạy
+riêng lại lần nữa sau khi sửa để xác nhận: 217 passed, 2 skipped). Golden
+`58 passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (không tăng thêm, xác
+nhận bằng cách dời `.venv` cục bộ ra ngoài trước khi chạy).
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật, dữ liệu
+fixture riêng dựng đủ bốn màu — `Missing.PurchasePrice` cho vàng,
+`SomePipelineNote` (mã lạ, không thuộc `PIPELINE_REASONS_SUBSUMED_BY_
+PURCHASE_PRICE`) cho `WARN_PIPELINE_REVIEW` đỏ, `Duplicate` cho `WARN_
+POSSIBLE_DUPLICATE` đen, `("IDENTITY_UNRESOLVED", "Missing.PurchasePrice")`
+đúng khuôn PI-01 cho `line_identity` xanh): xác nhận cả bốn màu chấm hiện
+đúng trên bảng kê thật, chấm đứng NGAY SAU số BH trên cùng dòng (không còn
+xuống hàng riêng); một BH mang cả tag "Chưa phân loại" (xanh, `<a>` bấm
+được) VÀ "Thiếu giá" (vàng, từ `SHORT_TAGS`) cùng lúc hiện ĐÚNG hai chấm
+khác màu (hai nhãn KHÁC chữ, không phải trường hợp `duplicate_text`); một
+BH khác có CẢ "Thiếu giá" lẫn "Chưa phân loại" trùng CHỮ ("Thiếu giá" từ
+cả `line_identity` và `SHORT_TAGS`) xác nhận đúng MỘT chấm vàng hiện ra,
+chấm thứ hai vẫn trong HTML (`sr-only`) nhưng không hiện — cơ chế khử
+trùng lặp của `DEC-194` còn nguyên. Ảnh chụp cột thao tác xác nhận icon
+sửa/đổi/xoá không còn khung viền bao quanh, chỉ còn icon trần. Ảnh chụp
+`.sheet-tabs` xác nhận năm sheet (Tín Phát/Ly/Kiên/Nội thành/Gia dụng)
+hiện thành năm ô bo góc bốn phía đều nhau, xếp đầy một hàng ngang, sheet
+đang chọn nổi bật bằng nền xám nhạt thay vì viền màu. Ảnh chụp Báo cáo
+xác nhận card cũng bỏ viền đúng theo khoanh vùng `theme-finance`; ảnh
+chụp `/ban-hang` (ngoài phạm vi) xác nhận nút "XEM" vẫn giữ viền xanh
+dương gốc — bằng chứng khoanh vùng không rò rỉ.
+
+Can Revisit After:
+Không còn mục nào treo lại. Nếu Owner muốn cùng cách hiển thị (chấm màu,
+bỏ viền, tab dạng card) áp dụng sang các trang sâu hơn ngoài phạm vi
+theme Finance, cần yêu cầu riêng — cơ chế hiện tại khoanh vùng đúng ba
+trang đã chốt.

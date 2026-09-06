@@ -333,34 +333,41 @@
          — xem `sheet_detail_groups`). Ô Mặt hàng nhờ vậy chỉ còn tên hàng,
          đọc được trên một dòng. #}
       <td rowspan="{{ group.lines }}" class="code">
-        {# `TASK-OWNER-UIUX-005` §1 — tag cảnh báo xuống HÀNG RIÊNG dưới mã
-           đơn (chủ dự án yêu cầu trực tiếp), thay vì chạy tiếp trên cùng
-           dòng chữ và tràn/chồng lên số mã (`.bh-order-tags` là khối riêng,
-           `display:flex` xuống dòng tự nhiên dưới `.bh-order-code`).
-           `data-metric="bh-order"` dời vào ĐÚNG `<span>` mang chữ (không
-           còn ở `<td>`) — test đọc quy ước "chữ ngay sau dấu >", một `<td>`
-           nay bọc thêm `<span>`/`<div>` bên trong sẽ không còn khớp quy ước
-           đó nếu để `data-metric` ở `<td>`. #}
+        {# `TASK-OWNER-UIUX-007` §1 — chấm màu NGANG HÀNG với mã đơn (chủ dự
+           án yêu cầu trực tiếp), đảo lại phần "xuống hàng riêng" của
+           `DEC-195` §1: pill chữ đổi thành chấm tròn nhỏ
+           (`.tag-dot`/`.tag-dot-{màu}`, xem `tinphat-ui.css`), đứng NGAY
+           SAU `.bh-order-code` trên cùng một dòng, không còn khối
+           `.bh-order-tags` bọc riêng bên dưới.
+           `data-metric="bh-order"` vẫn ở ĐÚNG `<span>` mang chữ số đơn —
+           test đọc quy ước "chữ ngay sau dấu >". Mỗi chấm giữ NGUYÊN chữ
+           nhãn (`{{ tag.label }}`) làm nội dung TRỰC TIẾP của phần tử mang
+           `data-metric` — bộ test `bh-tag`/`identity-label` đọc đúng chữ đó
+           bằng quy ước trên; chữ bị ẩn khỏi mắt Owner bằng `font-size: 0`
+           trên CHÍNH phần tử đó (không phải một `<span>` con lồng vào —
+           lồng thêm sẽ chen `<` trước chữ và làm quy ước trên đọc hụt),
+           còn chấm tròn hiện ra bằng `::before` (nội dung CSS thuần, không
+           nằm trong HTML nên không ảnh hưởng quy ước đọc trên). #}
         <span class="bh-order-code" data-metric="bh-order">{{ group.order_key }}</span>
-        {% if group.tags or group.identity_tags %}
-        <div class="bh-order-tags">
         {% for tag in group.tags %}
-        <span class="tag tag-short" data-metric="bh-tag"
-              data-code="{{ tag.code }}">{{ tag.label }}</span>
+        <span class="tag-dot tag-dot-{{ tag.color }}" data-metric="bh-tag"
+              data-code="{{ tag.code }}" title="{{ tag.label }}"
+              aria-label="{{ tag.label }}">{{ tag.label }}</span>
         {% endfor %}
         {# `tag.duplicate_text` — "Thiếu giá" của `line_identity` (PI-01…
            PI-12, bộ test riêng bảo vệ `data-metric="identity-label"`) đúng
            CHỮ với "Thiếu giá" của `SHORT_TAGS` (`profit_gate`, `bh-tag`
            ngay phía trên) khi cùng một dòng bị CẢ HAI hệ thống gắn cờ.
            Phần tử này vẫn LUÔN render đủ (bằng chứng PI-02/PI-03 cần nó) —
-           chỉ ẩn khỏi mắt Owner bằng `sr-only` khi đã có một pill nói cùng
-           một chữ ngay trên, để không thấy "THIẾU GIÁ · THIẾU GIÁ" hai lần
-           liền nhau cho cùng một sự thật. #}
+           chỉ ẩn HẲN khỏi mắt Owner bằng `sr-only` (ẩn cả chấm, không chỉ
+           chữ) khi đã có một chấm nói cùng một chữ ngay trên, để không
+           thấy hai chấm vàng liền nhau cho cùng một sự thật. #}
         {% for tag in group.identity_tags %}
         {% if tag.can_identify %}
-        <a class="tag tag-unresolved{{ ' sr-only' if tag.duplicate_text }}"
+        <a class="tag-dot tag-dot-{{ tag.color }}{{ ' sr-only' if tag.duplicate_text }}"
            data-metric="identity-label"
            title="{{ tag.title }}"
+           aria-label="{{ tag.title }}"
            href="{{ url_for('business_employee', ky=selected_period,
                     sheet=sheet.key, order_key=tag.order_key,
                     product_key=tag.product_key,
@@ -368,13 +375,12 @@
                     **{'phan-loai': '1'}) }}#phan-loai"
           >{{ tag.label }}</a>
         {% else %}
-        <span class="tag tag-short{{ ' sr-only' if tag.duplicate_text }}"
+        <span class="tag-dot tag-dot-{{ tag.color }}{{ ' sr-only' if tag.duplicate_text }}"
               data-metric="identity-label"
-              title="{{ tag.title }}">{{ tag.label }}</span>
+              title="{{ tag.title }}"
+              aria-label="{{ tag.title }}">{{ tag.label }}</span>
         {% endif %}
         {% endfor %}
-        </div>
-        {% endif %}
       </td>
       {% endif %}
       {# `DEC-185` §PI-01/§PI-02 — tên hàng vẫn là đường dẫn khi CHƯA phân
