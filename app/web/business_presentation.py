@@ -26,6 +26,7 @@ from typing import Optional
 
 from app.beta_presentation import REASON_DISPLAY_LABELS
 from app.modules.reporting import brand_metrics as bmx
+from app.modules.reporting import contribution
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate
 from app.web.analytics_presentation import (
@@ -208,6 +209,77 @@ BRAND_NO_TARGET_NOTE = (
     "cho hai nhóm Nội thành · Gia dụng — hệ thống không cộng dồn để bịa ra "
     "một con số Owner chưa đặt."
 )
+
+# --- PHB-07: CƠ CẤU doanh thu theo ĐƠN VỊ BÁO CÁO ------------------------
+
+COMPOSITION_COLUMNS: tuple[str, ...] = (
+    "Đơn vị báo cáo", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
+    "Tỉ trọng doanh thu", "Lợi nhuận KPI", "DS quy đổi",
+    "Đã tính được lợi nhuận",
+)
+
+# Đơn vị báo cáo KHÁC con người (`DEC-PHB02-08`). Câu này phải đứng ngay trên
+# bảng: một người đọc thấy "Nội thành" mà không biết nó gộp ba người sẽ đi
+# tìm dòng của Vinh và kết luận rằng bảng thiếu.
+COMPOSITION_UNIT_NOTE = (
+    "Mỗi dòng là một ĐƠN VỊ BÁO CÁO, không phải một con người. Nội thành và "
+    "Gia dụng mỗi cái là MỘT dòng gộp cả nhóm — đúng như sổ cũ và đúng như "
+    "Target đang đặt cho hai nhóm đó. Nhân viên thuộc nhóm Nội thành vì vậy "
+    "không có dòng riêng ở đây; bảng kê trang NHÂN VIÊN vẫn ghi đúng người "
+    "bán của từng dòng."
+)
+
+COMPOSITION_SHARE_NOTE = (
+    "Tỉ trọng = doanh thu của đơn vị CHIA cho doanh thu bán hàng của cả kỳ. "
+    "Phần trăm hiện ra đã làm tròn hai chữ số nên cộng lại có thể lệch vài "
+    "phần trăm nhỏ; phép đối soát ở trên chạy trên số tiền đầy đủ, không trên "
+    "phần trăm đã làm tròn."
+)
+
+# Tỉ suất lợi nhuận (`D1` của PHB-02, `N.7` của TASK-PRA-000) vẫn đang DEFER:
+# mẫu số của nó chưa được Owner chốt. Trang nói ra khoảng trống đó thay vì
+# lặng lẽ không có cột nào.
+COMPOSITION_NO_PROFIT_SHARE_NOTE = (
+    "Chỉ có tỉ trọng DOANH THU. Chưa có tỉ trọng hay tỉ suất lợi nhuận: mẫu "
+    "số của một tỉ suất lợi nhuận là câu hỏi chủ dự án chưa chốt, và hệ thống "
+    "không tự chọn giúp."
+)
+
+COMPOSITION_ORDER_COLUMN_NOTE = (
+    "Một đơn có cả hàng Gia dụng lẫn hàng khác được đếm ở TỪNG đơn vị liên "
+    "quan, nên cột Đơn cộng lại có thể lớn hơn tổng đơn của kỳ. Bốn cột còn "
+    "lại cộng lại đúng bằng tổng kỳ."
+)
+
+COMPOSITION_RECONCILED_NOTE = (
+    "Doanh thu · Tổng số SP · Lợi nhuận KPI · DS quy đổi của bảng này cộng "
+    "lại ĐÚNG BẰNG tổng kỳ, kể cả phần chưa xác định nhân viên. Không dòng "
+    "hàng nào bị bỏ rơi và không dòng nào bị đếm hai lần."
+)
+COMPOSITION_RECONCILE_FAILED_NOTE = (
+    "CẢNH BÁO: bảng cơ cấu KHÔNG cộng lại đúng bằng tổng kỳ. Đây là lỗi hệ "
+    "thống, không phải một trạng thái dữ liệu — đừng dùng bảng này để ra "
+    "quyết định cho tới khi nó được sửa."
+)
+COMPOSITION_EXCLUDED_NOTE = (
+    "Dòng Owner đã loại khỏi báo cáo KHÔNG có mặt ở đây, đúng như ở mọi chỉ "
+    "tiêu khác của kỳ."
+)
+COMPOSITION_UNRESOLVED_NOTE = (
+    "Dòng chưa biết của nhân viên nào vẫn có dòng riêng và vẫn mang đủ tiền "
+    "của nó. Gán người bán cho những dòng đó ở bảng kê trang NHÂN VIÊN."
+)
+
+# Bảng này là ảnh chụp của MỘT kỳ. Không có chuỗi nhiều tháng theo đơn vị báo
+# cáo: sổ cũ và sổ hiện hành là hai nguồn khác nhau (`DEC-180` §9 — một kỳ,
+# một nguồn), và dựng một chuỗi lịch sử theo đơn vị báo cáo sẽ phải trộn
+# chúng. Xu hướng doanh thu của công ty đã có ĐÚNG MỘT chỗ (`DEC-185`).
+COMPOSITION_ONE_PERIOD_NOTE = (
+    "Bảng này là cơ cấu của ĐÚNG kỳ đang chọn. Xu hướng doanh thu theo thời "
+    "gian xem ở biểu đồ trên trang BÁO CÁO — hệ thống không dựng thêm một "
+    "dòng thời gian thứ hai."
+)
+
 
 # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) -------------------
 
@@ -524,6 +596,70 @@ def brand_summary(
         "reconciled": reconciliation.is_exact,
         "reconcile_note": (BRAND_RECONCILED_NOTE if reconciliation.is_exact
                            else BRAND_RECONCILE_FAILED_NOTE),
+        "note": _state_note(totals),
+        "empty": totals.lines == 0,
+    }
+
+
+def share_cell(
+    part: Optional[Decimal], whole: Optional[Decimal],
+) -> dict:
+    """Ô TỈ TRỌNG. `None` ⟹ `—`, không bao giờ `0%`.
+
+    `missing` đi cùng con số trong CÙNG một dict để template không thể lấy
+    chữ mà bỏ mất chiều "chưa nói được": một `0 %` in ra thay cho một ô trống
+    sẽ đọc thành "đơn vị này không đóng góp gì", trong khi sự thật có thể là
+    kỳ chưa có doanh thu nào để chia.
+    """
+    value = contribution.share_percent(part, whole)
+    return {"text": percent(value), "missing": value is None}
+
+
+def composition_rows(
+    by_unit: list[tuple], company: bm.BusinessTotals,
+) -> list[dict]:
+    """Bảng cơ cấu theo đơn vị báo cáo + dòng `TỔNG` (`PHB-07`).
+
+    Dòng TỔNG lấy từ tổng KỲ chứ không cộng các dòng phía trên — cùng lý do
+    `employee_rows`/`brand_rows`: cột Đơn của các dòng trên cộng lại có thể
+    lớn hơn tổng đơn của kỳ, nên một dòng TỔNG cộng dọc sẽ hiện số sai.
+
+    Tỉ trọng của dòng TỔNG là `100 %` theo đúng phép chia mà mọi dòng khác
+    dùng, không phải một hằng số viết cứng: khi kỳ chưa có doanh thu, ô đó
+    hiện `—` giống hệt các dòng còn lại thay vì một `100 %` không có thật.
+    """
+    whole = company.sales_revenue
+    rows = [
+        {"unit": unit.label, "key": unit.key, "kind": unit.kind,
+         "resolved": unit.resolved, "total_row": False,
+         "share": share_cell(totals.sales_revenue, whole),
+         **_metrics(totals)}
+        for unit, totals in by_unit
+    ]
+    rows.append({"unit": "TỔNG", "key": "", "kind": "", "resolved": True,
+                 "total_row": True, "share": share_cell(whole, whole),
+                 **_metrics(company)})
+    return rows
+
+
+def composition_summary(
+    reconciliation, *, period, totals: bm.BusinessTotals, units: int,
+) -> dict:
+    """Mô hình hiển thị của đầu trang cơ cấu.
+
+    `reconciled` là kết quả một phép so ĐÃ CHẠY trên chính các con số đang
+    hiện, không phải một lời khẳng định viết sẵn — cùng kỷ luật `brand_summary`.
+    """
+    return {
+        "period_label": period_label(period),
+        "units": count(units),
+        "lines": count(totals.lines),
+        "orders": count(totals.orders),
+        "sales_revenue": _decimal(totals.sales_revenue),
+        "sales_revenue_kvnd": _thousand_vnd(totals.sales_revenue),
+        "reconciled": reconciliation.is_exact,
+        "reconcile_note": (COMPOSITION_RECONCILED_NOTE if reconciliation.is_exact
+                           else COMPOSITION_RECONCILE_FAILED_NOTE),
         "note": _state_note(totals),
         "empty": totals.lines == 0,
     }

@@ -137,6 +137,12 @@
   <p class="insight">Cùng số này gộp theo thương hiệu:
     <a class="ghost btn-mini" href="{{ url_for('business_brand') }}"
        data-metric="brand-link">THEO THƯƠNG HIỆU</a></p>
+  {# PHB-07 — chiều gộp thứ ba của CÙNG kết quả chính thức: đơn vị báo cáo
+     (`DEC-PHB02-08`) kèm tỉ trọng doanh thu. Cũng mở từ đây chứ KHÔNG phải
+     một tab chính mới. #}
+  <p class="insight">Cùng số này gộp theo đơn vị báo cáo, kèm tỉ trọng:
+    <a class="ghost btn-mini" href="{{ url_for('business_composition') }}"
+       data-metric="composition-link">CƠ CẤU DOANH THU</a></p>
   <p class="insight">{{ BUSINESS_ORDER_COLUMN_NOTE }}</p>
   <div class="tp-scroll">
   <table>

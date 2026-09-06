@@ -56,7 +56,9 @@ from app.owner_usability import SelectedCaptures
 from app.modules.pricing.resolution.sources import load_tracking_catalog_capture
 from app.history import coverage as history_coverage
 from app.history import models as history_models
-from app.modules.reporting import brand_metrics, business_metrics, reporting_sheets
+from app.modules.reporting import (
+    brand_metrics, business_metrics, contribution, reporting_sheets,
+)
 from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
 from app.web import (
     analytics_presentation, analytics_queries, brand_identity,
@@ -376,6 +378,13 @@ def create_app(
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     for _name in ("BRAND_SOURCE_NOTE", "BRAND_UNAVAILABLE_NOTE"):
         app.jinja_env.globals[_name] = getattr(brand_identity, _name)
+    # PHB-07 — chú thích của bảng cơ cấu. Cùng kỷ luật: viết MỘT lần ở tầng
+    # trình bày, template chỉ hiện ra.
+    for _name in ("COMPOSITION_EXCLUDED_NOTE", "COMPOSITION_NO_PROFIT_SHARE_NOTE",
+                  "COMPOSITION_ONE_PERIOD_NOTE", "COMPOSITION_ORDER_COLUMN_NOTE",
+                  "COMPOSITION_SHARE_NOTE", "COMPOSITION_UNIT_NOTE",
+                  "COMPOSITION_UNRESOLVED_NOTE"):
+        app.jinja_env.globals[_name] = getattr(business_presentation, _name)
     # `DEC-PHB02-08` — chú thích của không gian làm việc. Cùng kỷ luật: viết
     # MỘT lần ở tầng trình bày, template chỉ hiện ra.
     for _name in ("EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE",
@@ -1672,6 +1681,72 @@ def create_app(
                 brand_identity.coverage(buckets),
                 brand_metrics.reconciliation(grouped, data.totals),
                 period=period, totals=data.totals))
+
+    # ------------------------------------------------------------------
+    # PHB-07 — CƠ CẤU DOANH THU THEO ĐƠN VỊ BÁO CÁO.
+    #
+    # Một KHUNG NHÌN CON nữa của Báo cáo, mở từ trang `/kinh-doanh` — KHÔNG
+    # một tab chính mới (`DEC-185` giữ thanh điều hướng đúng BA mục).
+    #
+    # Câu hỏi nghiệp vụ: *"doanh thu của kỳ này đến từ những đơn vị báo cáo
+    # nào, mỗi đơn vị chiếm bao nhiêu phần trăm?"* — đúng hình dạng khối tháng
+    # của sổ cũ (`TASK-PRA-000` §C.1: 5–7 dòng người bán/kênh + một dòng tổng
+    # tháng), và đúng chỉ tiêu đã được phân loại `NOW` ở §L của cùng tài liệu
+    # (*"Employee contribution (share) — doanh thu NV / tổng"*).
+    #
+    # Reports hôm nay đã có đủ số của TỪNG đơn vị, nhưng chỉ xem được mỗi lần
+    # MỘT đơn vị qua hàng tab của không gian làm việc. Trang này không thêm
+    # một chỉ tiêu nào — nó đặt cùng những con số ấy cạnh nhau.
+    # ------------------------------------------------------------------
+
+    @app.get("/kinh-doanh/co-cau")
+    def business_composition():
+        """Kết quả nghiệp vụ CHÍNH THỨC của kỳ, gộp theo đơn vị báo cáo.
+
+        Bốn tính chất được giữ bằng CẤU TẠO chứ không bằng lời hứa:
+
+        1. **Cùng một kết quả chính thức.** Trang đọc `service.period(...)` —
+           đúng lời gọi mà Báo cáo, Nhân viên, bảng thương hiệu và dòng thời
+           gian doanh thu đã dùng. Dòng Owner đã loại không có mặt trong
+           `data.lines`, nên chúng không thể lọt vào một đơn vị nào.
+
+        2. **Chỉ PHÂN HOẠCH, không tính lại.** `group_by_unit` chia đúng tập
+           `data.lines` rồi gọi lại `business_metrics.totals` trên từng phần.
+           Không có công thức doanh thu/lợi nhuận/quy đổi thứ hai ở đâu trong
+           đường này.
+
+        3. **Không có phân loại thứ hai.** Một dòng thuộc đơn vị nào là câu
+           hỏi mà `reporting_sheets.sheet_key_of` đã trả lời cho không gian
+           làm việc; trang này đọc lại đúng câu trả lời đó qua
+           `PeriodData.sheet_assignments()`. Vì vậy hàng tab và bảng cơ cấu
+           không thể nói hai câu khác nhau.
+
+        4. **Không đếm hai lần.** Vinh · Quý · Hiệp KHÔNG có dòng riêng: các
+           dòng của họ nằm trong đơn vị Nội thành hoặc Gia dụng. Đó là hệ quả
+           của việc chỉ có MỘT phân hoạch, không phải một quy tắc phải nhớ.
+
+        Phép đối soát về tổng kỳ CHẠY THẬT ở mỗi lần tải trang và kết quả của
+        nó lên màn hình.
+        """
+        service = _require_business()
+        period = _workspace_period()
+        bounds = analytics_queries.month_bounds(*period)
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        units = [contribution.unit_for(sheet_key, employee)
+                 for sheet_key, employee in data.sheet_assignments()]
+        grouped = contribution.group_by_unit(data.lines, units)
+        return render_template(
+            "kinh_doanh_co_cau.html",
+            periods=workspace_presentation.period_options(
+                _guarded(analytics_queries.available_periods,
+                         snapshot_repo.engine),
+                selected=period, today=_today()),
+            selected_period=f"{period[0]}-{period[1]:02d}",
+            columns=business_presentation.COMPOSITION_COLUMNS,
+            rows=business_presentation.composition_rows(grouped, data.totals),
+            summary=business_presentation.composition_summary(
+                contribution.reconciliation(grouped, data.totals),
+                period=period, totals=data.totals, units=len(grouped)))
 
     @app.get("/kinh-doanh/target")
     def business_target():

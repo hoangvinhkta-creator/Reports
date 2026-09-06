@@ -10282,3 +10282,126 @@ quyết định nguồn thương hiệu (xem `OWNER_DECISION_REQUIRED` ở
 `tests/test_phb06_brand_reporting.py::test_the_canonical_identity_contract_still_carries_no_brand`
 là chuông báo đúng thời điểm đó: nó THẤT BẠI ngay khi trường ấy xuất hiện,
 để PHB-06 được mở lại có chủ đích thay vì im lặng tiếp tục hiện 0 dòng.
+
+---
+
+## DEC-187
+
+Title:
+PHB-07 — "Advanced Analytics" của repo này được định nghĩa bằng bảng phân
+loại đã freeze `TASK-PRA-000` §L, không bằng suy đoán; đúng MỘT chỉ tiêu
+`NOW` còn thiếu nên vertical ship đúng một chỉ tiêu đó — CƠ CẤU doanh thu
+theo ĐƠN VỊ BÁO CÁO kèm tỉ trọng, là một PHÂN HOẠCH của kết quả nghiệp vụ
+chính thức
+
+Date:
+2026-09-06
+
+Task:
+`PHB-07 ADVANCED ANALYTICS VERTICAL`. Bounded implementation, chồng lên đúng
+head của PHB-06 (`d0edb0937476be81991687e0b7c1d64e30a41592`), trên nhánh
+`claude/phb-06-brand-reporting-0i2oun`; dải review tích luỹ tính từ
+`0d9d93111c7955fa407e5b43ebee682e5c728c56`.
+
+Authority:
+`MEASURED_AUDIT` + `EXISTING_OWNER_DECISION`. Phần "không có đặc tả PHB-07"
+là kết quả quét đo được. Phạm vi được lấy từ hai freeze đã có:
+`docs/tasks/TASK-PRA-000-persistent-reporting-analytics-plan.md` §L (phân
+loại `NOW`/`LATER`/`DEFER`, roadmap FROZEN ở §F5) và `DEC-PHB02-08` (đơn vị
+báo cáo). KHÔNG có quyết định Owner mới nào được tạo ra ở đây.
+
+Supersedes:
+Không. `DEC-185` (thanh tab ba mục), `DEC-186` (PHB-06) và mọi ngữ nghĩa
+PHB-03/PHB-05 giữ nguyên; PHB-07 chỉ thêm một khung nhìn con và một tầng gộp.
+
+### 1. "Advanced Analytics" chưa từng được đặc tả — đo được, không suy đoán
+
+```text
+"PHB-07"             xuất hiện 0 lần trong toàn repo
+"Advanced Analytics" xuất hiện 8 lần, TẤT CẢ trong danh sách "cố ý KHÔNG làm"
+```
+
+Vì vậy vertical này KHÔNG được phép phát minh một dashboard. Nguồn phân loại
+phân tích duy nhất của repo là `TASK-PRA-000` §L. Đối chiếu bảng đó với sản
+phẩm hiện hành cho ra ĐÚNG MỘT chỉ tiêu xếp `NOW` mà chưa có mặt trên kết quả
+nghiệp vụ chính thức: *"Employee contribution (share) — doanh thu NV /
+tổng"*. Mọi dòng còn lại hoặc đã ship, hoặc mang nhãn `LATER`/`DEFER`, hoặc
+đã bị một freeze sau đó đóng lại (`PHB-04` §3.6 với đối chiếu cũ↔mới;
+`PHB-02` §11 `DEFER D1` với tỉ suất lợi nhuận; `TASK-PRA-005` §17/§27 với
+ranking/top-N/nhãn "bán chạy").
+
+Ship một chỉ tiêu là kết luận của bằng chứng, không phải một lần cắt ngân
+sách. Bảng đối chiếu đầy đủ 21 dòng nằm ở
+`docs/sessions/S123-phb-07-advanced-analytics.md` §1.1.
+
+### 2. Độ mịn là ĐƠN VỊ BÁO CÁO, và vì sao
+
+`TASK-PRA-000` §L viết *"doanh thu NV / tổng"*. PHB-07 áp nó ở độ mịn ĐƠN VỊ
+BÁO CÁO (`Nội thành` · `Gia dụng` · từng nhân viên bán lẻ · `Chưa xác định
+nhân viên`) chứ không phải từng con người. Ba căn cứ:
+
+1. `DEC-PHB02-08` đã freeze rằng đơn vị báo cáo KHÁC con người, và Nội thành
+   có Target của RIÊNG nó (`group_target`).
+2. Sổ cũ cũng để Nội thành làm MỘT dòng — `TASK-PRA-000` §C.1 đo được mỗi
+   khối tháng của `Summary 2026` gồm *"5–7 dòng người bán/kênh + 1 dòng tổng
+   tháng"*. Bảng cơ cấu vì thế là hình dạng sổ cũ, không phải một màn hình mới.
+3. Đặt cả dòng nhóm LẪN các dòng nhân viên của nhóm vào cùng một bảng là ĐẾM
+   HAI LẦN cùng một số tiền. Trong mã chỉ có MỘT phân hoạch, nên lỗi đó không
+   có chỗ để xảy ra.
+
+Cột Nhân viên của bảng kê KHÔNG đổi: `DEC-127` §1 giữ nguyên, người bán vẫn
+được ghi đúng tên ở nơi đó là câu trả lời đúng.
+
+### 3. Phân hoạch, không phải một tầng số thứ hai
+
+Trang đọc `BusinessReportService.period(...)` — đúng lời gọi mà Báo cáo, Nhân
+viên, bảng thương hiệu và dòng thời gian doanh thu đã dùng — rồi chia đúng
+tập `data.lines` và gọi lại `business_metrics.totals` trên từng phần. Không
+có công thức doanh thu/lợi nhuận/quy đổi thứ hai ở đâu trong đường này.
+
+Việc một dòng thuộc đơn vị nào KHÔNG được quyết lại ở đây: nó đọc lại
+`reporting_sheets.sheet_key_of` qua `PeriodData.sheet_assignments()` — đúng
+hàm toàn phần mà hàng tab của không gian làm việc đang dùng. Chữ ký
+`contribution.unit_for(sheet_key, employee)` không nhận nhóm nhân viên và
+không nhận nhóm mặt hàng, nên một phép phân loại thứ hai không lọt vào được
+mà không phải sửa chữ ký hàm — cùng ranh giới cấu tạo mà `DEC-186` §2 đã dựng
+cho thương hiệu.
+
+Phép đối soát KHÔNG được viết lại: PHB-07 dùng NGUYÊN `brand_metrics.
+reconciliation`, vốn chỉ đọc `BusinessTotals` của từng phần nên đúng cho mọi
+phân hoạch. Hai định nghĩa "đối soát" cho cùng một mệnh đề là hai thứ sẽ lệch
+nhau, và ngày đó không ai biết bản nào đúng.
+
+### 4. Tỉ trọng KHÔNG phải một công thức nghiệp vụ mới
+
+`share_percent` chia doanh thu của một đơn vị cho doanh thu của cả kỳ — hai
+con số đã do `business_metrics.totals` tính xong. Mã chạy của module không
+nhắc tới giá bán, số lượng, chiết khấu, giá nhập hay tỉ lệ quy đổi, và một
+test quét mã nguồn canh điều đó.
+
+Ba ràng buộc đi kèm, mỗi cái đóng một cách nói dối:
+
+- Mẫu số bằng 0 hoặc chưa có ⟹ ô hiện `—`, KHÔNG BAO GIỜ `0 %`.
+- Tỉ trọng ÂM được hiện nguyên, không kẹp về 0.
+- CHỈ có tỉ trọng DOANH THU. Không có tỉ trọng/tỉ suất LỢI NHUẬN: mẫu số của
+  nó là `D1` (`PHB-02` §11) và `N.7` (`TASK-PRA-000`) — hai câu hỏi Owner
+  chưa trả lời. Trang nói ra khoảng trống đó bằng chữ.
+
+### 5. Phạm vi — điều KHÔNG được thêm
+
+`NEW_MIGRATION = NONE`, `ALEMBIC_HEAD` giữ nguyên `0007_employee_workspace`.
+Không bảng mới, không cột mới, không đường ghi nào trên trang, không mở rộng
+PII, không mục điều hướng chính mới (`DEC-185` giữ đúng ba mục — bảng cơ cấu
+là một khung nhìn CON của Báo cáo tại `/kinh-doanh/co-cau`), không dòng thời
+gian thứ hai (`DEC-185` giữ ĐÚNG MỘT biểu đồ doanh thu theo thời gian), không
+so sánh liên nguồn (`DEC-180` §9 và `PHB-04` §3.6 giữ nguyên).
+
+Kỳ đi qua `_workspace_period()` — tháng dương lịch hiện tại, không thêm khung
+lọc mới và không thêm mục "Toàn bộ dữ liệu".
+
+Can Revisit After:
+Khi chủ dự án trả lời một trong ba câu ở
+`docs/sessions/S123-phb-07-advanced-analytics.md` §4 — mẫu số của tỉ suất lợi
+nhuận (`D1`/`N.7`), khoá gộp chính thống của "sản phẩm"
+(`OD-PRA005-01` so với `TASK-PRA-000` §L), hoặc cách hiển thị một ma trận
+nhiều tháng bắc qua ranh giới bàn giao (`DEC-180` §9 · `PHB-04` §3.6).

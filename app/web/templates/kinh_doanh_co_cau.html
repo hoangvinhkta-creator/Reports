@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Cơ cấu doanh thu{% endblock %}
+
+{% block content %}
+<h1>CƠ CẤU DOANH THU</h1>
+<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán
+  đã nạp — cùng kết quả chính thức với trang BÁO CÁO, chỉ gộp theo đơn vị
+  báo cáo.</p>
+
+<div class="module">
+  {{ biz.period_picker(periods, selected_period, url_for('business_composition')) }}
+
+  <h2>{{ summary.period_label }}
+    <span class="cnt"><span data-metric="units">{{ summary.units }}</span> đơn vị ·
+      <span data-metric="orders">{{ summary.orders }}</span> đơn ·
+      <span data-metric="lines">{{ summary.lines }}</span> dòng</span></h2>
+
+  {% if summary.empty %}
+  <p class="empty" data-metric="composition-empty">{{ summary.note }}</p>
+  {% endif %}
+
+  <p class="insight" data-metric="composition-unit-note">{{ COMPOSITION_UNIT_NOTE }}</p>
+
+  {# Mẫu số của mọi ô tỉ trọng phải nhìn thấy được, ở ngay trên bảng: một cột
+     phần trăm mà người đọc không biết chia cho cái gì là một cột không kiểm
+     lại được. Đây đúng con số Doanh thu bán hàng của trang BÁO CÁO. #}
+  <p class="insight">Doanh thu bán hàng của kỳ:
+    <strong data-metric="period-sales-revenue"
+            title="{{ summary.sales_revenue }} đồng"
+            >{{ summary.sales_revenue_kvnd }}</strong> nghìn đồng — mẫu số của
+    mọi ô tỉ trọng bên dưới.</p>
+
+  {# Phép đối soát CHẠY THẬT ở mỗi lần tải trang; kết quả của nó lên màn hình
+     ngay đầu trang, không nằm trong log. #}
+  <p class="insight{{ ' error' if not summary.reconciled }}"
+     data-metric="composition-reconciliation"
+     data-reconciled="{{ 'yes' if summary.reconciled else 'no' }}"
+     >{{ summary.reconcile_note }}</p>
+  <p class="insight" data-metric="composition-excluded-note">{{ COMPOSITION_EXCLUDED_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>Bảng cơ cấu
+    <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
+  <p class="insight" data-metric="composition-share-note">{{ COMPOSITION_SHARE_NOTE }}</p>
+  <p class="insight" data-metric="composition-order-note">{{ COMPOSITION_ORDER_COLUMN_NOTE }}</p>
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 1 }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.total_row }}" data-kind="{{ row.kind }}">
+      <td class="code" data-metric="unit-label">{{ row.unit }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="qualifying_quantity">{{ row.qualifying_quantity }}</td>
+      <td class="num" data-metric="sales_revenue"
+          title="{{ row.sales_revenue }} đồng">{{ row.sales_revenue_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.share.missing }}"
+          data-metric="share">{{ row.share.text }}</td>
+      <td class="num{{ ' empty-cell' if row.kpi_profit.missing }}"
+          data-metric="kpi_profit"
+          {% if not row.kpi_profit.missing %}title="{{ row.kpi_profit.text }} đồng"{% endif %}
+          >{{ row.kpi_profit.text_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.converted_sales.missing }}"
+          data-metric="converted_sales"
+          {% if not row.converted_sales.missing %}title="{{ row.converted_sales.text }} đồng"{% endif %}
+          >{{ row.converted_sales.text_kvnd }}</td>
+      <td class="num" data-metric="coverage">{{ row.coverage.text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+
+  {# Dòng "chưa xác định nhân viên" tự nói chỗ sửa của chính nó, và chỉ hiện
+     khi nó thật sự có mặt trong kỳ. #}
+  {% for row in rows if not row.resolved %}
+  <p class="insight" data-metric="composition-unresolved-note">
+    <strong>{{ row.unit }}</strong> — {{ COMPOSITION_UNRESOLVED_NOTE }}</p>
+  {% endfor %}
+
+  <p class="insight" data-metric="composition-no-profit-share">{{ COMPOSITION_NO_PROFIT_SHARE_NOTE }}</p>
+  <p class="insight" data-metric="composition-one-period">{{ COMPOSITION_ONE_PERIOD_NOTE }}</p>
+</div>
+{% endblock %}

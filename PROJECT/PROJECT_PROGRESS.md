@@ -1,5 +1,152 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — PHB-07 ADVANCED ANALYTICS = IMPLEMENTED, CHỜ REVIEW TÍCH LUỸ (2026-09-06)
+
+Vertical BOUNDED chồng lên đúng head của PHB-06
+(`SOURCE_HEAD = d0edb0937476be81991687e0b7c1d64e30a41592`), trên cùng nhánh
+`claude/phb-06-brand-reporting-0i2oun`. Theo chỉ thị, PHB-06 KHÔNG nhận một
+Independent Review riêng: cả hai vertical đi qua MỘT lần review tích luỹ trên
+dải `0d9d93111c7955fa407e5b43ebee682e5c728c56 → FINAL_HEAD`.
+
+KHÔNG merge canonical, KHÔNG deploy, KHÔNG mở lại vertical đã đóng, KHÔNG
+migration mới, KHÔNG thẩm quyền mới. Khối PHB-06 ngay bên dưới GIỮ NGUYÊN —
+nó vẫn đúng sau bản này (kiểm lại bằng `FULL_SUITE`/PHB-06 focused dưới đây,
+không suy diễn). Quyết định: `DEC-187`. Session:
+`docs/sessions/S123-phb-07-advanced-analytics.md`.
+
+```text
+VERTICAL                   = PHB-07 ADVANCED ANALYTICS
+STATUS                     = IMPLEMENTED trên nhánh bounded; chờ Independent
+                             Review TÍCH LUỸ (PHB-06 + PHB-07) trên đúng
+                             FINAL_HEAD. KHÔNG merge canonical, KHÔNG deploy.
+FEATURE_BRANCH             = claude/phb-06-brand-reporting-0i2oun
+CUMULATIVE_REVIEW_BASE     = 0d9d93111c7955fa407e5b43ebee682e5c728c56
+
+PHẠM VI — KẾT QUẢ CỦA AUDIT, KHÔNG PHẢI CỦA NGÂN SÁCH
+PHB07_SPEC_EXISTS          = NO — chuỗi "PHB-07" xuất hiện 0 lần trong repo;
+                             "Advanced Analytics" xuất hiện 8 lần và TẤT CẢ
+                             đều trong danh sách "cố ý KHÔNG làm"
+SCOPE_AUTHORITY            = TASK-PRA-000 §L (phân loại NOW/LATER/DEFER,
+                             roadmap FROZEN §F5) + DEC-PHB02-08 (đơn vị báo
+                             cáo) + TASK-PRA-000 §C.1/§C.2 (hình dạng sổ cũ)
+PHB07_SELECTED_CAPABILITIES = 1 — Tỉ trọng đóng góp doanh thu theo ĐƠN VỊ
+                             BÁO CÁO ("Employee contribution (share)", §L =
+                             NOW, chỉ tiêu NOW DUY NHẤT chưa có mặt trên kết
+                             quả nghiệp vụ chính thức)
+PHB07_REJECTED_AS_UNSUPPORTED = 12 — tỉ suất lợi nhuận (DEFER D1 · N.7) ·
+                             cơ cấu theo sản phẩm / top-N / Pareto (LATER +
+                             xung đột khoá gộp OD-PRA005-01) · xu hướng nhiều
+                             tháng (LATER + DEC-180 §9) · cùng kỳ năm trước /
+                             YTD · đối chiếu legacy↔pipeline (PHB-04 §3.6 đã
+                             đóng) · doanh thu bình quân mỗi đơn ·
+                             ranking/scoring/nhãn "bán chạy" (PRA-005 §17) ·
+                             tỉ lệ tồn kho · lương/thưởng · anomaly/forecast/
+                             gợi ý · dashboard realtime · phân tích thương
+                             hiệu sâu hơn PHB-06
+NEW_BUSINESS_FORMULAS      = NO
+UNSUPPORTED_ANALYTICS_INVENTED = NO
+
+BỀ MẶT ĐÃ SHIP
+COMPOSITION_ROUTE          = GET /kinh-doanh/co-cau (khung nhìn CON của Báo
+                             cáo, CHỈ ĐỌC — không form ghi nào)
+PRIMARY_NAV_CHANGED        = NO (DEC-185 giữ đúng ba mục)
+PARTITION_AUTHORITY        = reporting_sheets.sheet_key_of (DEC-PHB02-08 §42)
+                             đọc lại qua PeriodData.sheet_assignments() —
+                             KHÔNG có phép phân loại đơn vị thứ hai
+SECOND_GROUPING_AUTHORITY_CREATED = NO (canh bằng chữ ký hàm: `unit_for`
+                             không nhận employee_group, không nhận
+                             product_group; và bằng quét MÃ CHẠY qua
+                             `tokenize`)
+COMPOSITION_METRICS        = Đơn · Tổng số SP · Doanh thu · Lợi nhuận KPI
+                             (qua `gated_cell`) · DS quy đổi · Coverage —
+                             ĐÚNG bộ chỉ tiêu đã có, không thêm chỉ tiêu nào
+NEW_DISPLAY_RATIO          = Tỉ trọng doanh thu = doanh thu đơn vị / doanh
+                             thu bán hàng của kỳ (mẫu số hiện trên trang)
+PROFIT_SHARE_OR_MARGIN     = KHÔNG CÓ — mẫu số là D1/N.7 chưa được Owner chốt
+RECONCILIATION_REUSED      = YES — brand_metrics.reconciliation dùng NGUYÊN
+                             VẸN, không có bản thứ hai
+
+ĐỐI SOÁT VỀ TỔNG CÔNG TY (chạy THẬT ở mỗi lần tải trang, kết quả lên màn hình)
+COMPOSITION_SALES_RECONCILES = YES
+COMPOSITION_QUANTITY_RECONCILES = YES
+COMPOSITION_KPI_PROFIT_RECONCILES = YES
+COMPOSITION_CONVERTED_SALES_RECONCILES = YES
+ORDERS_COLUMN_RECONCILES   = NO — CÓ CHỦ ĐÍCH và được NÓI RA trên trang: một
+                             đơn có cả hàng Gia dụng lẫn hàng khác được đếm ở
+                             cả hai đơn vị (cùng sự thật `R-E5`)
+
+BẤT BIẾN NGHIỆP VỤ (AN-01…AN-12)
+USES_OFFICIAL_BUSINESS_RESULT = YES (BusinessReportService.period)
+EXCLUDED_LINE_AFFECTS_COMPOSITION = NO (theo cấu tạo — dòng bị loại đã tách
+                             khỏi `PeriodData.lines` trước mọi phép gộp)
+DUPLICATE_BUSINESS_CONTRIBUTION = NO (phân hoạch toàn phần + đối soát)
+MISSING_PP_FABRICATES_KPI_PROFIT = NO (giữ nguyên PHB-03/DEC-143)
+UNRESOLVED_EMPLOYEE_PRESERVED = YES (đơn vị "Chưa xác định nhân viên" luôn có
+                             dòng riêng, luôn ở cuối bảng)
+NOI_THANH_DOUBLE_COUNT     = NO (nhân viên nhóm Nội thành KHÔNG có dòng riêng;
+                             chỉ tồn tại MỘT phân hoạch)
+EMPLOYEE_REASSIGN_PROPAGATES = YES (dòng đổi đơn vị, tổng kỳ không đổi)
+GIA_DUNG_MOVE_PROPAGATES   = YES (dòng đổi đơn vị + đổi tỉ lệ quy đổi đã
+                             nghiệm thu; doanh thu kỳ không đổi)
+LEGACY_SERIES_ON_THIS_PAGE = NONE (một kỳ, một nguồn — DEC-180 §9)
+SECOND_REVENUE_TIMELINE    = NO (DEC-185 giữ ĐÚNG MỘT biểu đồ)
+
+BẢO TOÀN (kiểm lại, không phải suy diễn)
+PHB06_PRESERVED            = YES (42 test PHB-06 PASS không đổi; không file
+                             nào của PHB-06 bị sửa hành vi — chỉ được IMPORT
+                             lại)
+BRAND_SOURCE_DECISION_PRESERVED = YES (DEC-186 nguyên vẹn)
+R1_PRESERVED               = YES
+R2_PRESERVED               = YES
+PHB01_PRESERVED            = YES
+PHB03_PRESERVED            = YES
+PHB05_PRESERVED            = YES
+EMPLOYEE_WORKSPACE_PRESERVED = YES
+DEC180_PRESERVED           = YES
+DEC185_PRESERVED           = YES
+UNIFIED_REVENUE_TIMELINE_PRESERVED = YES
+
+NEW_MIGRATION              = NONE
+ALEMBIC_HEAD               = 0007_employee_workspace
+NEW_WRITE_AUTHORITY        = NONE
+NEW_PII                    = NONE
+
+TEST_RESULT                = FULL_SUITE 2684 passed, 11 skipped (SOURCE_HEAD
+                             d0edb09: 2630 passed, 11 skipped — +54 đúng bằng
+                             số test mới) · PHB-07 focused 54 passed ·
+                             PHB-06 focused 42 passed · bộ hồi quy 597
+                             passed, 2 skipped · GOLDEN 58 passed, 2 skipped
+MUTATION_PROBES            = M1…M10 = 10/10 BITE
+GOVERNANCE_VALIDATORS      = structure PASS · project_state PASS · evidence
+                             PASS · reference_integrity FAIL (3 lỗi CÓ SẴN
+                             trên BASE_HEAD — `FIND-PHB07-03`, trùng
+                             `FIND-PHB06-03`, không do PHB-06/PHB-07 gây ra)
+
+BLOCKING_FINDINGS          = NONE
+NONBLOCKING_FINDINGS       = FIND-PHB07-01 (không có đặc tả PHB-07) ·
+                             FIND-PHB07-02 (đúng một chỉ tiêu NOW còn thiếu) ·
+                             FIND-PHB07-03 (3 reference hỏng CÓ SẴN) ·
+                             FIND-PHB07-04 (hai khoá gộp "sản phẩm" cùng tồn
+                             tại) · và ba finding non-blocking của PHB-06 vẫn
+                             mở (FIND-PHB06-01/02/03)
+SCOPE_DRIFT                = NO
+
+OWNER_DECISIONS_REQUIRED   = 1 nhóm, ba lựa chọn cụ thể cho LÁT CẮT PHÂN TÍCH
+                             TIẾP THEO (không lựa chọn nào chặn PHB-07): (A —
+                             khuyến nghị) mẫu số của tỉ suất lợi nhuận
+                             (D1/N.7) · (B) khoá gộp chính thống của "sản
+                             phẩm" · (C) cách hiển thị ma trận nhiều tháng
+                             bắc qua ranh giới bàn giao. Đầy đủ ở
+                             `docs/sessions/S123-phb-07-advanced-analytics.md`
+                             §4. Owner decision của PHB-06 (nguồn thương
+                             hiệu) VẪN MỞ.
+NEXT_VERTICAL_ACTION       = Mở MỘT phiên Independent Review TÍCH LUỸ trên
+                             dải 0d9d931… → FINAL_HEAD, review CẢ HAI vertical
+                             (PHB-06 Brand + PHB-07 Advanced Analytics).
+                             KHÔNG merge canonical, KHÔNG deploy.
+```
+
+
 ## CANONICAL CURRENT STATE — PHB-06 BRAND REPORTING = IMPLEMENTED, CHỜ REVIEW (2026-09-06)
 
 Vertical BOUNDED trên đúng `BASE_HEAD = 0d9d93111c7955fa407e5b43ebee682e5c728c56`
