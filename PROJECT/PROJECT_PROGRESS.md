@@ -1,5 +1,63 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — REPAIR N-01/F-N02/F-N03 — CONTROLLED INTEGRATION (AUTHORITATIVE, 2026-09-06)
+
+Ghi nhận bookkeeping tối thiểu cho một Controlled Integration đã diễn ra,
+theo đúng khuôn mẫu S122 R1 (mục bên dưới): Independent Review đã PASS trên
+`REVIEWED_HEAD` bên dưới trước phiên này; phiên này chỉ thực hiện
+fast-forward THUẦN TUÝ rồi mở một nhánh follow-up nhỏ cho hai phát hiện
+non-blocking, không sửa business code trong chính commit này. Khối "REPAIR
+N-01/F-N02/F-N03 = IMPLEMENTED, CHỜ REVIEW" ngay bên dưới GIỮ NGUYÊN làm
+bản ghi lịch sử của vertical đó — khối này chỉ bổ sung trạng thái tích hợp,
+không viết lại nội dung nghiệp vụ đã có.
+
+```text
+SESSION                    = Controlled Integration + hai follow-up an toàn
+                             sản xuất nhỏ (F-R1 dependency floor, F-R2
+                             pagination loop guard)
+REVIEWED_SOURCE_BRANCH     = claude/journal-safety-timeline-repair-w90zuj
+REVIEWED_HEAD              = d832e4ee9a4780b6e7c91387b3e786ef8586e47b
+INDEPENDENT_REVIEW         = PASS_WITH_FINDINGS (đã thực hiện trước phiên
+                             này) — SAFE_TO_INTEGRATE = YES,
+                             SAFE_FOR_PRODUCTION_E2E = YES,
+                             BLOCKING_FINDINGS = NONE
+CANONICAL_BRANCH           = claude/extract-upload-repo-gq2ws4
+CANONICAL_BEFORE_SHA       = 4729d54ad2779d1a4b1f912cbd94e63935cb8f9b (khớp
+                             kỳ vọng PREVIOUS_CANONICAL_EXPECTED, không
+                             moved)
+INTEGRATION_METHOD         = git push (fast-forward THUẦN TUÝ qua refspec)
+                             → không merge commit, không squash, không
+                             rebase, không cherry-pick
+CANONICAL_AFTER_SHA        = d832e4ee9a4780b6e7c91387b3e786ef8586e47b (==
+                             REVIEWED_HEAD, tree fast-forward y hệt
+                             accepted tree)
+ROLLBACK_SHA               = 4729d54ad2779d1a4b1f912cbd94e63935cb8f9b
+                             (== CANONICAL_BEFORE_SHA — `git push origin
+                             4729d54a:claude/extract-upload-repo-gq2ws4`
+                             (force-with-lease) để lùi nếu cần)
+
+NON_BLOCKING_FINDINGS_ĐƯỢC_MỞ_FOLLOWUP = F-R1 (dependency floor `boto3` cho
+                             `PutObject.IfNoneMatch`) · F-R2 (pagination
+                             loop guard cho `list_all_keys`) — chi tiết kết
+                             quả xem khối follow-up bên dưới sau khi phiên
+                             này hoàn tất.
+BLOCKING_FINDINGS          = NONE
+SCOPE_DRIFT                = NO
+MERGE_COMMIT_CREATED       = NO
+NEW_BUSINESS_CODE_COMMIT   = NO (commit này thuần governance; hai fix F-R1/
+                             F-R2 nằm trên nhánh follow-up riêng, chưa merge
+                             canonical)
+
+STATUS                     = DONE — đã fast-forward và push lên
+                             `claude/extract-upload-repo-gq2ws4`
+NEXT_VERTICAL_ACTION       = Independent Review ngắn cho nhánh follow-up
+                             F-R1/F-R2 trước khi cân nhắc tích hợp tiếp;
+                             F-01 vẫn PENDING_PRODUCTION_EXECUTION; F-R3
+                             (real R2 E2E) vẫn PENDING_PRODUCTION_E2E —
+                             không mở trong phiên này.
+```
+
+
 ## CANONICAL CURRENT STATE — REPAIR N-01/F-N02/F-N03 = IMPLEMENTED, CHỜ REVIEW (2026-09-05)
 
 Bản sửa chặn BOUNDED trên đúng `BASE_HEAD = b5b41f1239f6bfd259eba17b6ac119e448cc0b83`
