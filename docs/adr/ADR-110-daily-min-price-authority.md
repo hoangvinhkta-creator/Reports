@@ -151,6 +151,13 @@ theo ngày, và xuất qua hợp đồng `daily-min-v1`.**
      cũ. Trách nhiệm nằm ở phía có đủ thông tin để kiểm.
    - **Phong bì chở `query_revision`,** và Reports TỪ CHỐI gộp các trang — hoặc
      các ĐOẠN NGÀY, xem §9 — lệch token.
+   - **Nhánh revision có TRẠNG THÁI `WRITING`/`READY`,** không chỉ token.
+     `WRITING` được ghi TRƯỚC lượt ghi dữ liệu đầu tiên; token mới + `READY`
+     sau lượt ghi cuối; bên đọc TỪ CHỐI khi thấy `WRITING`. Chỉ có token là
+     chưa đủ: nếu dữ liệu ghi trước rồi token đổi sau, cả hai lần đọc token
+     đều cho ra giá trị CŨ trong khi trang sau đã đọc trúng dữ liệu MỚI — hai
+     trang khớp nhau và được gộp. Hỏng giữa chừng thì `WRITING` ở lại và bên
+     đọc dừng (hỏng về phía an toàn); lượt cron kế tiếp là cơ chế phục hồi.
 
    Năm trường phong bì cũ không thay được nó: chúng chỉ lặp lại yêu cầu vừa gửi
    đi, nên chúng khớp nhau kể cả khi dữ liệu bên dưới đã đổi hoàn toàn.

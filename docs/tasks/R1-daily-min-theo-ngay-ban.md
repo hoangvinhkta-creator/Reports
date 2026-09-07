@@ -200,6 +200,14 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-40` | Kỳ rộng hơn hợp đồng: chia đoạn + gộp cùng revision, hoặc TỪ CHỐI | REQUIRED | E2 | PASS |
 | `CHECK-R1-41` | Sự cố nhánh `tp/ton` LEGACY không chặn báo cáo R1 | REQUIRED | E2 | PASS |
 
+| `CHECK-R1-42` | Nhánh revision có `WRITING`/`READY`; bên đọc từ chối khi đang ghi | REQUIRED | E1 | PASS |
+| `CHECK-R1-43` | Mọi kết quả ghi được kiểm; không báo thành công khi công bố `READY` hỏng | REQUIRED | E1 | PASS |
+
+`CHECK-R1-42`/`CHECK-R1-43` được THÊM ở lượt sửa finding cuối (07/09/2026,
+Tracking `f9caaa0`). Chỉ có token là chưa đủ: dữ liệu ghi trước rồi token đổi
+sau thì cả hai lần đọc token đều cho ra giá trị CŨ trong khi trang sau đã đọc
+trúng dữ liệu MỚI. Xem `S126` §13, kèm năm rủi ro được CHỌN không xử lý.
+
 `CHECK-R1-37` … `CHECK-R1-41` được THÊM ở lượt Independent Review vòng 2
 (07/09/2026). `CHECK-R1-40` là check đáng chú ý nhất: bản trước bỏ qua lượt hỏi
 giá khi kỳ quá rộng, nên lần chạy vẫn ra một báo cáo đầy đủ hình thức mà không
@@ -229,7 +237,7 @@ Timestamp:
 
 ## 6. Exit Criteria
 
-1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-41` PASS —
+1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-43` PASS —
    **đã đạt**.
 2. `CHECK-R1-24` Independent Review PASS — **chưa**.
 3. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —

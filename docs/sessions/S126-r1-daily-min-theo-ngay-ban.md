@@ -12,6 +12,7 @@ File này gộp BA lượt của cùng một phiên:
 | 2 — kiểm thử/sửa lỗi | bảy chỗ sửa, không chỗ nào ném ngoại lệ | 5.1, 6 |
 | 3 — Independent Review vòng 1 | sáu finding của bên review | **11** |
 | 4 — Independent Review vòng 2 | năm finding, review CHƯA ACCEPT | **12** |
+| 5 — finding cuối, chỉ Tracking | Reports đã ACCEPT ở `4b6006e` | **13** |
 
 Điểm chung của cả ba: mọi lỗi tìm được đều cho ra một con số tiền trông hoàn
 toàn bình thường thay vì một ngoại lệ. Riêng lượt 3 tìm được lỗi TỆ NHẤT của
@@ -813,3 +814,91 @@ git -C <Tracking> show 0442e62a8f701693cae1a983baec59f505e49abd   # đọc lạc
 `NOT_TESTED`: vòng 2 chưa ACCEPT, và kết luận review là của bên review chứ
 không phải của phiên này. `CHECK-R1-23` (Owner nghiệm thu trên dữ liệu thật)
 không đổi.
+
+
+## 13. Finding cuối — WRITING/READY phía Tracking (07/09/2026)
+
+Reports được review **ACCEPT** tại `4b6006e362696dc97e0bb48cd04aeb8ae4556188`.
+Lượt này chỉ chạm Tracking; không mở lại finding Reports nào, không sửa nghiệp
+vụ tính MIN.
+
+### 13.1 Hai lỗi, một hệ quả
+
+1. **Dữ liệu ghi TRƯỚC, token đổi SAU.** Trong đúng khoảng giữa hai việc ấy,
+   một bên đọc thấy token CŨ ở cả trang 1 lẫn trang 2 — trong khi trang 2 đã
+   đọc trúng dữ liệu MỚI. Hai trang khớp token, được gộp, và ảnh chụp ghép đi
+   thẳng vào giá vốn. Phép đọc lạc quan hai đầu (§12, vòng 2) KHÔNG cứu được:
+   cả hai lần đọc token đều cho ra cùng một giá trị cũ.
+2. **`doiRev()` không kiểm `{ok:false}` của `K.ghi`.** Giá đã đổi, token không
+   đổi, hàm vẫn trả `ok: true`.
+
+### 13.2 Đã làm
+
+Nhánh `min_ngay_rev` có TRẠNG THÁI, không chỉ token:
+
+```text
+batDauGhi()   → { s: "WRITING" }               trước lượt ghi dữ liệu ĐẦU TIÊN
+   … ghi dữ liệu …
+congBoRev()   → { n: <token mới>, s: "READY" }  sau lượt ghi CUỐI CÙNG
+```
+
+`xuatMinNgay()` từ chối khi nhánh ở `WRITING` (409 `nguon-dang-ghi`), kiểm ở
+CẢ HAI đầu của phép đọc lạc quan — đầu sau bắt đúng cảnh một lượt ghi vừa mở
+ra giữa chừng, khi token chưa kịp đổi. Đọc token trước/sau và con trỏ mang
+token giữ nguyên khi ở `READY`.
+
+Ba quy tắc của vùng ghi: không đánh dấu được `WRITING` ⇒ dừng, chưa chạm dữ
+liệu; hỏng giữa chừng ⇒ giữ `WRITING` (Báo cáo dừng — đúng, vì dữ liệu đang
+dở), cron kế tiếp phục hồi; công bố `READY` hỏng ⇒ không báo thành công.
+
+Mọi kết quả ghi được kiểm ở `ghiNgayHong`, `chupMinNgay`, `chotNgay`,
+`suaBanGhi` — kể cả lượt cập nhật con trỏ của bản sửa, vốn trước đây bị bỏ qua.
+
+### 13.3 HEAD và kết quả
+
+```text
+Tracking   f9caaa036cc6fbc9a021aeea99158ba6fce9d20e   ← HEAD
+             ← 0442e62a8f701693cae1a983baec59f505e49abd (vòng 2)
+Reports    4b6006e362696dc97e0bb48cd04aeb8ae4556188   ← ACCEPT, không đổi mã
+
+Tracking   npm test          60 bộ · 2737 đạt · 0 hỏng · 2 bỏ qua
+                             (kiem/min-ngay.js 126 → 143 bài, khối 13c)
+           npm run build     ./dist, 7 file, 658 KB → 411 KB
+Reports    nhóm daily-min    160 passed (contract 70 · vertical 22 ·
+                             orchestration 33 · capture tool 28 · web 7)
+smoke      r1_daily_min_smoke.py       19/19 PASS
+           r1_web_upload_smoke.py      13/13 PASS
+```
+
+Fixture xuyên suốt của Reports KHÔNG đổi: hình dạng phong bì không đổi, chỉ
+`query_revision` (một token ngẫu nhiên) mới khác mỗi lần sinh. 160 bài chạy
+trên fixture cũ đều đạt, và đó chính là bằng chứng hợp đồng không đổi.
+
+Khối 13c gồm đúng năm nhóm: bên đọc gặp `WRITING` bị từ chối; trang 2 bị chặn
+khi writer đang dở; ghi `WRITING` hỏng thì dữ liệu không đổi; công bố `READY`
+hỏng thì writer không báo thành công và bên đọc vẫn bị chặn; đường thành công
+vẫn chụp/chốt/sửa/phân trang được.
+
+### 13.4 Rủi ro chấp nhận được do tần suất thấp và có bước đối chiếu thủ công
+
+Công cụ có 2–3 người dùng và báo cáo còn được nhân viên đối chiếu tay. Năm
+điều dưới đây được **chọn** không xử lý, không phải bỏ sót:
+
+1. **Hai Cloudflare isolate ghi đúng cùng một thời điểm** — không có khoá phân
+   tán. Lượt sau đè lượt trước và cả hai cùng để lại `READY`.
+2. **Không dựng immutable/versioned snapshot.** Nhánh chỉ giữ trạng thái hiện
+   tại; không đọc lại được một trạng thái đã qua.
+3. **Không backfill lịch sử cũ.** Lịch sử MIN có thẩm quyền vẫn bắt đầu từ
+   lượt chụp đầu tiên.
+4. **Không thêm retry phức tạp.** Cron kế tiếp LÀ cơ chế phục hồi. Một nhánh
+   kẹt `WRITING` làm Báo cáo DỪNG chứ không sinh số sai — hỏng về phía an
+   toàn, và người vận hành thấy ngay vì báo cáo không chạy được.
+5. **Không mở lại các finding Reports đã PASS.**
+
+### 13.5 Trạng thái R1
+
+`R1` GIỮ NGUYÊN `IMPLEMENTED`. `CHECK-R1-24` (Independent Review) vẫn
+`NOT_TESTED` — kết luận review là của bên review. `CHECK-R1-23` (Owner nghiệm
+thu trên dữ liệu thật) không đổi. Nghiệp vụ không đổi một chữ: MIN đúng ngày
+bán, UTC+7, `TON_KHO` là nguồn độc lập, sentinel 0 không phải giá vốn 0, và
+không fallback sang giá hiện tại, tương lai hay `tp/ton` cũ.

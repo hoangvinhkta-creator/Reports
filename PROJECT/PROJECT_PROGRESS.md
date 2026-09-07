@@ -14,6 +14,15 @@ một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
 của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
 bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
 
+**Reports đã được review ACCEPT tại `4b6006e`.** Finding cuối của R1 nằm hoàn
+toàn phía Tracking (`f9caaa0`): nhánh revision nay có trạng thái
+`WRITING`/`READY` — đánh dấu `WRITING` TRƯỚC lượt ghi dữ liệu đầu tiên, công bố
+token mới + `READY` sau lượt ghi cuối, và bên đọc TỪ CHỐI khi thấy `WRITING`.
+Chỉ có token là chưa đủ: dữ liệu ghi trước rồi token đổi sau thì cả hai lần đọc
+token đều cho ra giá trị CŨ trong khi trang sau đã đọc trúng dữ liệu MỚI. Mọi
+kết quả ghi nay được kiểm, kể cả con trỏ của `suaBanGhi`. Chi tiết + rủi ro
+chấp nhận được: `S126` §13.
+
 **Đã qua Independent Review vòng 2 (cùng ngày) — review CHƯA ACCEPT.** Năm
 finding, tất cả đã xử lý; chi tiết ở `S126` §12. Đáng chú ý nhất: kỳ rộng hơn
 trần 62 ngày của hợp đồng trước đây bỏ qua lượt hỏi giá, nên lần chạy vẫn ra
@@ -71,7 +80,11 @@ CARRY_FORWARD_RULE          = mốc R ≤ D hợp lệ cho D khi và chỉ khi �
                               NGÀY D có bản ngày (bản ngày chỉ ghi được khi
                               engine trả đủ MỌI mã của bảng — CHECK-R1-25);
                               D không có bản ngày ⇒ SOURCE_UNAVAILABLE
-PAGINATION_CONSISTENCY      = min_ngay_rev — token đổi sau MỌI lượt ghi. Đọc
+PAGINATION_CONSISTENCY      = min_ngay_rev có TRẠNG THÁI WRITING/READY:
+                              WRITING trước lượt ghi dữ liệu đầu, token mới +
+                              READY sau lượt ghi cuối; bên đọc TỪ CHỐI khi
+                              WRITING (409 nguon-dang-ghi). Token đổi sau MỌI
+                              lượt ghi. Đọc
                               lạc quan HAI ĐẦU (token → dữ liệu → token, chỉ
                               trả khi bằng nhau; lệch ⇒ 409). Con trỏ mang
                               theo token (<rev>:<vị trí>); lệch ⇒ 409. Reports
@@ -101,7 +114,7 @@ REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển 
                               TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
                               của hai người khác nhau, không gộp)
 
-TRACKING_TESTS              = 60 bộ · 2720 đạt · 0 hỏng · 2 bỏ qua
+TRACKING_TESTS              = 60 bộ · 2737 đạt · 0 hỏng · 2 bỏ qua
                               (nền: 59 · 2594 · 0 · 2)
 TRACKING_BUILD              = `npm run build` dựng ./dist thành công
 REPORTS_TESTS               = 2880 passed, 12 skipped, 0 failed
