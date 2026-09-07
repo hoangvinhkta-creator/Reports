@@ -14,9 +14,17 @@ một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
 của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
 bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
 
+**Đã qua một lượt kiểm thử/sửa lỗi riêng (cùng ngày).** Bảy chỗ sửa, tất cả
+thuộc cùng một lớp: KHÔNG ném ngoại lệ, chỉ cho ra một con số tiền trông hoàn
+toàn bình thường — bốn chốt fail-closed cho `chupMinNgay` phía Tracking, hai
+bất biến toàn vẹn ảnh chụp phía Reports, và một luật đọc được viết lại
+(`CARRY_FORWARD_RULE` bên dưới). Chi tiết từng chỗ: `S126` §5.1. Năm check mới
+`CHECK-R1-25` … `CHECK-R1-29` đã PASS.
+
 ```text
-STATUS                      = IMPLEMENTED — chờ Independent Review + Owner
-                              nghiệm thu trên dữ liệu thật. KHÔNG deploy.
+STATUS                      = IMPLEMENTED — đã kiểm thử và sửa lỗi; chờ
+                              Independent Review + Owner nghiệm thu trên dữ
+                              liệu thật. KHÔNG deploy.
 Current Task Mode:            MAJOR
 BASE_HEAD (Reports)         = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
 BASE_HEAD (Tracking)        = 598b4b1390cc96e552455ab85e2c48d78198b89c
@@ -38,8 +46,10 @@ TRACKING_STORAGE            = min_ngay/<mã>/<ngày> (chỉ ghi khi đổi) ·
                               min_ngay_ngay/<ngày> (bằng chứng ĐÃ QUAN SÁT
                               + PROVISIONAL/FINAL) · min_ngay_dau ·
                               min_ngay_sua — cả bốn: client KHÔNG ghi được
-CARRY_FORWARD_RULE          = mốc R ≤ D chỉ hợp lệ khi MỌI ngày trong (R, D]
-                              có bản ngày; thiếu một ngày ⇒ SOURCE_UNAVAILABLE
+CARRY_FORWARD_RULE          = mốc R ≤ D hợp lệ cho D khi và chỉ khi ĐÚNG
+                              NGÀY D có bản ngày (bản ngày chỉ ghi được khi
+                              engine trả đủ MỌI mã của bảng — CHECK-R1-25);
+                              D không có bản ngày ⇒ SOURCE_UNAVAILABLE
 MIN_0_SENTINEL              = dừng ở biên xuất bản → OUT_OF_STOCK + null
 UNIT_CONVERSION             = ×1000 đúng MỘT lần, daily_min/provider.py
 
@@ -48,11 +58,15 @@ REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển 
                               TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
                               của hai người khác nhau, không gộp)
 
-TRACKING_TESTS              = 60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua
+TRACKING_TESTS              = 60 bộ · 2705 đạt · 0 hỏng · 2 bỏ qua
                               (nền: 59 · 2594 · 0 · 2)
 TRACKING_BUILD              = `npm run build` dựng ./dist thành công
-REPORTS_TESTS               = 2776 passed, 12 skipped, 0 failed
-                              (nền: 2720 passed, 12 skipped) — 56 bài mới
+REPORTS_TESTS               = 2779 passed, 12 skipped, 0 failed
+                              (nền: 2720 passed, 12 skipped) — 59 bài mới
+SMOKE_HAI_HE_THONG          = kiem/smoke/xuat-thang-min.mjs (Tracking) →
+                              tools/smoke/r1_daily_min_smoke.py (Reports):
+                              19/19 khẳng định PASS, output trích nguyên văn
+                              tại docs/sessions/S126 §6
 GOVERNANCE_VALIDATORS       = structure / project_state / evidence (161
                               REQUIRED PASS) / task_completion (14 DONE)
                               PASS · reference_integrity FAIL với ĐÚNG 3
@@ -63,6 +77,14 @@ E2E                         = tests/test_daily_min_vertical.py chạy trên
                               03/09 ra 6.800.000 VND trong khi ảnh chụp có
                               6.000 (nghìn) ở 04/09; lợi nhuận 2.200.000;
                               provenance trỏ đúng revision của Tracking
+SMOKE_BA_LUONG              = (1) đơn 03/09 nạp 30/09 → 6.800.000, trong khi
+                              CÙNG ảnh chụp có giá 30/09 = 5.200 và lịch sử
+                              tp/ton cũ = 4.444, cả hai KHÔNG được dùng ·
+                              (2) TRK-A nguồn SUPPLIER:Tuấn Ngoan, TRK-B
+                              nguồn INVENTORY:TON_KHO (5.000.000) ·
+                              (3) TRK-C hết hàng và TRK-D chưa có dữ liệu →
+                              giá None, lợi nhuận None, Pending với HAI lý do
+                              khác nhau; sentinel 0 KHÔNG thành giá vốn 0
 
 BLOCKING_FINDINGS           = 0
 KNOWN_GAPS                  = (1) không backfill được lịch sử MIN trước lượt

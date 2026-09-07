@@ -1,8 +1,13 @@
 # S126 — Bàn giao R1: Giá MIN theo ngày bán
 
-Phiên IMPLEMENTATION, hai repo. Owner authority: `R1 Execution Brief — Giá MIN
-theo ngày bán` (2026-09-07). Quyết định: `DEC-199`. Kiến trúc: `ADR-110`. Task
-canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`.
+Phiên IMPLEMENTATION + KIỂM THỬ, hai repo. Owner authority: `R1 Execution
+Brief — Giá MIN theo ngày bán` (2026-09-07). Quyết định: `DEC-199`. Kiến trúc:
+`ADR-110`. Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`.
+
+File này gộp cả hai lượt của cùng một phiên: lượt triển khai, và lượt kiểm
+thử/sửa lỗi ngay sau đó (mục 5.1 và mục 6). Bảy chỗ sửa ở lượt sau đều là lỗi
+KHÔNG ném ngoại lệ — chúng cho ra một con số tiền trông hoàn toàn bình thường,
+và đó là lớp lỗi đắt nhất trong một hệ giá vốn.
 
 ---
 
@@ -20,6 +25,21 @@ Tracking  github.com/hoangvinhkta-creator/Tracking
           nhánh làm việc : claude/kiem-tra-tham-chieu-gia-nhap-c57d7z
           BASE_HEAD      : 598b4b1390cc96e552455ab85e2c48d78198b89c
           (nhánh làm việc đã có sẵn 3 commit trên `main`, giữ nguyên)
+```
+
+Commit của R1 trên nhánh làm việc, theo thứ tự:
+
+```text
+Tracking  01f505c  R1: MIN theo ngày bán — Tracking sở hữu giá, xuất theo
+                   hợp đồng daily-min-v1
+          f294edb  R1: ghi nhật ký tiến độ cho MIN theo ngày bán
+          6232ce0  R1: chốt fail-closed cho chụp MIN ngày + sửa luật mang
+                   mốc qua ngày            ← lượt kiểm thử
+          (đã đẩy lên origin: f294edb..6232ce0)
+
+Reports   2b669f5  R1: giá nhập tự động là MIN theo ngày bán, đọc qua hợp
+                   đồng daily-min-v1
+          + commit mang chính bản bàn giao này  ← lượt kiểm thử
 ```
 
 `scripts/branch_authority_check.sh` (Reports) sau khi đặt upstream:
@@ -41,7 +61,10 @@ script chỉ dẫn: `git push -u origin <nhánh>`, rồi chạy lại. Ghi ra đ
 Giá nhập tự động của một mã Tracking tại ngày bán D
   = MIN của ngày D, do engine Tracking tính (minCuaDong),
     lấy từ bản ghi tại mốc R ≤ D gần nhất,
-    HỢP LỆ khi và chỉ khi mọi ngày trong (R, D] đều có BẢN NGÀY.
+    HỢP LỆ khi và chỉ khi ĐÚNG NGÀY D có BẢN NGÀY.
+    (Bản ngày chỉ được ghi khi engine trả kết quả cho TOÀN BỘ mã của bảng,
+     nên "ngày D đã quan sát, mã M không có bản ghi mới" LÀ bằng chứng
+     rằng M không đổi giá. Các ngày ở giữa không thêm thông tin.)
 
 MIN = rẻ nhất trong:
         · giá các nhà cung cấp còn hàng, sau khi loại danh sách bị ẩn/nghỉ/
@@ -49,7 +72,7 @@ MIN = rẻ nhất trong:
         · ô Tồn Tín Phát khi nó dương
 Không có nguồn nào bán được, nhưng đã từng có → OUT_OF_STOCK  (giá null)
 Chưa nhà cung cấp nào đụng tới mã                → NO_DATA       (giá null)
-Ngày không quan sát được / chuỗi ngày đứt        → SOURCE_UNAVAILABLE
+Ngày bán không có bản ngày                       → SOURCE_UNAVAILABLE
 ```
 
 Bốn điều KHÔNG có, và cố ý không có:
@@ -92,18 +115,19 @@ Reports
 
 ## 4. File đã thay đổi
 
-### Tracking (commit `01f505c`)
+### Tracking (commit `01f505c`, sửa tiếp ở `6232ce0`)
 
 | File | Nội dung |
 |---|---|
 | `price-engine/src/nghiepvu.js` | `nguonGiuMin()`; `minCuaDong()` trả thêm nguồn; `tinhMinNgay()`; `TON_KHO`, `PHIEN_BAN_MIN`, `TRANG_THAI_GIA`. `PHIEN_BAN` GIỮ `pe-6` — kết quả giá không đổi |
 | `price-engine/src/index.js` | RPC `tinhMinNgay()` |
-| `src/min-ngay.js` | **mới** — chụp/chốt/sửa/xuất, chuỗi bản ngày, vân tay đầu vào |
+| `src/min-ngay.js` | **mới** — chụp/chốt/sửa/xuất, bản ngày, vân tay đầu vào. `6232ce0`: bốn chốt fail-closed trong `chupMinNgay`, đóng sổ mã bị gỡ khỏi bảng, kiểm nguồn trong `suaBanGhi`, và luật mang mốc qua ngày viết lại theo quan sát TRỰC TIẾP |
 | `src/index.js` | `xuatMinChoReports()`, ba route admin, cron thứ ba, `CRON_MIN_NGAY` |
 | `public/index.html` | `congBoVanTay()` đăng thêm `meta.an` (danh sách NCC bị bỏ, dạng chuỗi) |
 | `firebase-database.rules.json` | bốn nhánh mới: đọc như nhánh giá nhập cũ, GHI = false |
 | `wrangler.toml` | cron thứ ba `*/20 * * * *` |
-| `kiem/min-ngay.js` | **mới** — 93 bài |
+| `kiem/min-ngay.js` | **mới** — 93 bài; `6232ce0` thêm khối 15b–15e → **111 bài** |
+| `kiem/smoke/xuat-thang-min.mjs` | **mới** (`6232ce0`) — bước 1/2 của smoke xuyên hai hệ thống: dựng cả tháng 09/2026 bằng chính mã thật rồi xuất `daily-min-v1`. KHÔNG nằm trong `npm test` |
 | `kiem/chay.js` | vá: bộ TRƯỢT có cảnh báo stderr từng bị báo là "bỏ qua" |
 | `kiem/day-ton-sheet.js` | canh hành vi rẽ nhánh cron thay vì hình dạng ba ngôi |
 
@@ -121,8 +145,10 @@ Reports
 | `app/beta_presentation.py`, `app/modules/reporting/profit_gate.py` | hai mã lý do mới |
 | `tools/analysis/validate_post_cutover.py` | tham số `tracking_daily_min` + `legacy_tracking_history_authority` |
 | `tests/support/daily_min_fixtures.py` | **mới** |
-| `tests/test_daily_min_contract.py` | **mới** — 38 bài |
+| `tests/test_daily_min_contract.py` | **mới** — 38 bài; lượt kiểm thử thêm 3 bài cho `available_without_sources`, `missing_status_with_sources`, `record_outside_declared_range` → **41 bài** |
 | `tests/test_daily_min_vertical.py` | **mới** — 18 bài, chạy trên fixture do Tracking sinh |
+| `app/modules/pricing/daily_min/snapshot.py` | lượt kiểm thử: thêm hai bất biến — `AVAILABLE` bắt buộc có nguồn, và bản ghi phải nằm TRONG khoảng chụp đã khai |
+| `tools/smoke/r1_daily_min_smoke.py` | **mới** — bước 2/2 của smoke: nạp ảnh chụp qua loader production, chạy đường nhập sổ thật, in giá vốn từng đơn kèm provenance |
 | `tests/fixtures/daily_min/tracking_contract_export.json` | **mới** — sinh bằng chính mã Tracking |
 | `tests/test_105e_price_composition.py`, `tests/test_post_cutover_validation.py`, `tests/test_demo.py`, `tests/test_sales_presentation.py` | ghim nhánh legacy / chuyển sang nguồn mới / cập nhật vũ trụ mã đóng |
 | governance | `ADR-110`, `DEC-199`, task R1, ledger, `PROJECT/PROJECT_PROGRESS.md` |
@@ -132,55 +158,213 @@ migration database bên Reports.
 
 ## 5. Test, build, validator — kết quả chính xác
 
+Lệnh chạy nguyên văn, thư mục gốc từng repo:
+
 ```text
-Tracking  npm test   (nền)  59 bộ · 2594 đạt · 0 hỏng · 2 bỏ qua
-          npm test   (sau)  60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua
-          npm run build     "Đã dựng bản phục vụ vào ./dist
-                             7 file, xén chú thích 1 file HTML
-                             658 KB → 411 KB  (bớt 37%)"
+Tracking   npm test
+           npm run build
+           node kiem/smoke/xuat-thang-min.mjs <file.json>
 
-Reports   pytest -q  (nền)  2720 passed, 12 skipped in 143.78s
-          pytest -q  (sau)  2776 passed, 12 skipped in 147.83s
-          bài mới: 93 (Tracking) + 56 (Reports)
+Reports    python -m pytest -q
+           python governance/scripts/governance/validate_structure.py
+           python governance/scripts/governance/validate_project_state.py
+           python governance/scripts/governance/validate_evidence.py
+           python governance/scripts/governance/validate_task_completion.py
+           python governance/scripts/governance/validate_reference_integrity.py
+           python tools/smoke/r1_daily_min_smoke.py <file.json> <thư-mục-tạm>
+```
 
-Governance validator (Reports)
+Kết quả:
+
+```text
+Tracking  npm test   (nền R1)     59 bộ · 2594 đạt · 0 hỏng · 2 bỏ qua
+          npm test   (sau triển)  60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua
+          npm test   (sau kiểm)   60 bộ · 2705 đạt · 0 hỏng · 2 bỏ qua
+          npm run build           "Đã dựng bản phục vụ vào ./dist
+                                   7 file, xén chú thích 1 file HTML
+                                   658 KB → 411 KB  (bớt 37%)"
+
+Reports   pytest -q  (nền R1)     2720 passed, 12 skipped in 143.78s
+          pytest -q  (sau triển)  2776 passed, 12 skipped in 147.83s
+          pytest -q  (sau kiểm)   2779 passed, 12 skipped in 153.28s
+          bài mới tổng cộng: 111 (Tracking, bộ min-ngay) + 59 (Reports, hai
+          bộ daily_min) — chưa kể các bài đã có được cập nhật
+
+Governance validator (Reports, chạy lại SAU lượt kiểm thử)
           validate_structure          PASS  (21 required paths)
           validate_project_state      PASS
           validate_evidence           PASS  (161 REQUIRED PASS)
           validate_task_completion    PASS  (14 DONE task)
           validate_reference_integrity FAIL — ĐÚNG 3 reference TASK-REM-T06
                                       đã biết (/README.md, CODE_OF_CONDUCT.md,
-                                      CONTRIBUTING.md). Baseline KHÔNG đổi.
+                                      CONTRIBUTING.md). Baseline KHÔNG đổi:
+                                      R1 không thêm reference hỏng nào.
 ```
 
-Một bộ Tracking hỏng giữa chừng trong phiên này (`day-ton-sheet.js`, 2 bài) và
-bảng tổng kết vẫn báo "Tất cả đạt" — vì `kiem/chay.js` chỉ đọc DÒNG CUỐI của
-đầu ra, mà một bộ trượt kèm cảnh báo stderr thì dòng cuối không còn là dòng
-tổng kết, và nhánh dự phòng `/BỎ QUA/` khớp trúng tên một bài. Đã vá; ghi ra
-đây vì nó là một lỗ hổng bằng chứng, không phải một phiền toái.
+`scripts/branch_authority_check.sh` → `AUTHORITY_OK / WITHIN_LIMITS`
+(chi tiết ở mục 1).
 
-## 6. Ba smoke result
+**Không có mục NOT_TESTED nào vì lý do môi trường.** Cả hai bộ test, build, cả
+năm validator và cả hai bước smoke đều chạy được trong phiên. Hai check còn
+`NOT_TESTED` trong Completion Gate (`CHECK-R1-23` nghiệm thu trên dữ liệu thật,
+`CHECK-R1-24` Independent Review) là NGƯỜI phải làm, không phải lệnh — chúng
+không thể "chạy" ở đây và không được tính là PASS.
 
-**(1) Đơn cũ đúng ngày.** `test_a_sale_on_03_09_is_priced_with_the_03_09_mark`
-+ `test_a_price_from_a_different_day_is_never_used`. Ảnh chụp chứa `TRK-A` =
-6.800 (nghìn) ở 03/09 và 6.000 ở 04/09. Đơn bán 03/09 ra
-`accounting_purchase_price = 6.800.000 VND`; đơn bán 04/09 ra `6.000.000 VND`.
-Lợi nhuận đi tiếp đúng: `(9.000.000 − 6.800.000) × 1 = 2.200.000 VND`.
+### 5.1 Lượt kiểm thử: bảy chỗ sửa, và vì sao từng chỗ nguy hiểm
 
-**(2) NCC thắng / Tồn thắng.** `TRK-A` → `min_sources = ("SUPPLIER:Tuấn
-Ngoan",)`. `TRK-B` (Tồn 5.000 rẻ hơn mọi nhà cung cấp) → `5.000.000 VND` với
-`min_sources = ("INVENTORY:TON_KHO",)`. Đồng giá giữ ĐỦ nguồn, thứ tự ổn định,
-Tồn đứng cuối (`kiem/min-ngay.js` mục 1). `TRK-E`: một nhà cung cấp báo 150
-nghìn cho món 9.500 nghìn (đúng sự cố đọc nhầm số trong ngoặc đã xảy ra thật)
-→ bị luật lọc, MIN = `9.500.000 VND`, và nguồn bị loại còn nguyên dấu vết
-trong `excluded_sources`.
+Một bộ kiểm xanh không chứng minh mã đúng; nó chứng minh mã đúng ở những chỗ
+đã nghĩ ra để hỏi. Lượt này đi soát riêng một câu hỏi: **chỗ nào có thể ra một
+con số tiền hợp lệ nhưng SAI, mà không có gì đỏ lên?** Bảy chỗ tìm được:
 
-**(3) Thiếu giá KHÔNG thành 0.** `TRK-C` hết hàng hoàn toàn →
-`accounting_purchase_price = None`, `accounting_profit = None`,
-`price_source = "Pending"`, lý do `OUT_OF_STOCK`. `TRK-D` chưa có dữ liệu →
-`NO_DATA`. Mọi dòng Pending đều có mục Review Queue canonical
-(`Missing.PurchasePrice`) phủ. Không dòng nào biến mất, không con số nào bị
-bịa.
+| # | Chỗ | Nếu để nguyên | Đã sửa |
+|---|---|---|---|
+| 1 | `chupMinNgay` báo thành công khi engine không trả gì (bảng rỗng / sai hình dạng / thiếu mã) | Bản ngày là BẰNG CHỨNG cho phép mang mốc cũ qua. Một lượt chụp hỏng tự cấp phép cho mình phát giá cũ, im lặng, không giới hạn thời gian | Dừng, ghi bản ngày `SOURCE_UNAVAILABLE` kèm lý do |
+| 2 | Mã bị gỡ khỏi bảng giá không được đóng sổ | Mốc cuối ở lại, mọi ngày sau mang qua như thể giá còn nguyên | Ghi ĐÚNG MỘT mốc `NO_DATA`, vân tay `ROI-BANG` (cố ý không kèm ngày) |
+| 3 | `suaBanGhi` nhận nguồn lệch trạng thái | Reports từ chối NGUYÊN ảnh chụp — một lần sửa nhầm hỏng cả kỳ | Chặn tại chỗ sửa: `nguon-tren-trang-thai-khong-co-gia`, `thieu-nguon-cho-gia` |
+| 4 | Bản ngày hỏng không được xoá lý do khi chụp lại thành công trong ngày | Ngày đã lành vẫn mang nhãn hỏng | Lượt chụp thành công ghi `ly: null` |
+| 5 | Luật mang mốc qua ngày đòi MỌI ngày trong `(R, D]` có bản ngày | Lỡ MỘT ngày là mọi mã giá ổn định bị khoá ngoài VĨNH VIỄN — mốc của chúng nằm trước chỗ đứt và không bao giờ có mốc mới | Mốc tại `R ≤ D` hợp lệ cho `D` khi và chỉ khi ĐÚNG NGÀY `D` có bản ngày. Đúng được là NHỜ mục 1 ở trên |
+| 6 | Reports nhận `AVAILABLE` mà `min_sources` rỗng | Con số đi hết vào giá vốn nhưng câu "vì sao là 6.800, mua của ai" mất câu trả lời | Từ chối lúc nạp: `available_without_sources` |
+| 7 | Reports nhận bản ghi có ngày NGOÀI khoảng phong bì đã khai | Không sinh giá sai (`covers()` chặn trước), nhưng nói ảnh chụp ghép từ hai lần chụp khác nhau ⇒ mất tính tái lập | Từ chối lúc nạp: `record_outside_declared_range` |
+
+Ba điểm cần nói thẳng về lượt sửa này:
+
+- **Chỗ #5 là sửa LUẬT, không phải vá lỗi.** Luật cũ được viết trong cùng
+  phiên, đã có hai bài kiểm ghim nó, và hai bài ấy đã được VIẾT LẠI kèm chú
+  thích nêu lý do. Đây là chỗ duy nhất trong phiên có bài kiểm bị đổi mong đợi
+  — ghi ra để người review kiểm đúng chỗ ấy trước.
+- **Chỗ #5 phụ thuộc chỗ #1.** Luật mới chỉ đúng chừng nào bản ngày còn chứng
+  minh được "engine đã trả kết quả cho TOÀN BỘ mã". Ai gỡ chốt fail-closed ở
+  `chupMinNgay` là gỡ luôn nền của luật đọc. Đã ghi vào `ADR-110` §2.
+- **Một lỗi trong chính bản sửa** đã bị bài kiểm mới bắt: vân tay đóng sổ ban
+  đầu là `"ROI-BANG:" + ngày`, khiến mã đã gỡ bị ghi lại MỖI NGÀY. Sửa thành
+  vân tay không phụ thuộc ngày.
+
+Ngoài ra, một lỗ hổng BẰNG CHỨNG đã được vá ở lượt triển khai và nhắc lại đây
+vì nó là loại lỗi làm mọi con số phía trên mất giá trị: `kiem/chay.js` chỉ đọc
+DÒNG CUỐI của đầu ra để tìm dòng tổng kết. Một bộ TRƯỢT kèm cảnh báo stderr thì
+dòng cuối không còn là dòng ấy, và nhánh dự phòng `/BỎ QUA/` khớp trúng tên một
+bài — bộ hỏng được báo là "bỏ qua", tổng vẫn "0 hỏng", CI vẫn xanh. Đã xảy ra
+thật trong phiên này với `day-ton-sheet.js` (2 bài hỏng).
+
+## 6. Smoke — bằng chứng nguyên văn
+
+Smoke đi qua CẢ HAI hệ thống, không dùng fixture của bộ kiểm:
+
+```text
+bước 1/2  (Tracking)  node kiem/smoke/xuat-thang-min.mjs <file.json>
+bước 2/2  (Reports)   python tools/smoke/r1_daily_min_smoke.py <file.json> <tmp>
+```
+
+Kịch bản dựng đúng câu Owner hỏi: **đơn bán 03/09, sổ nạp 30/09.** Hai cái bẫy
+được cài SẴN để một lỗi im lặng phải lộ ra thành con số:
+
+- ảnh chụp CÓ giá của ngày 30/09 (`5.200` nghìn) — nhánh nào lấy "bản mới
+  nhất" sẽ ra `5.200.000`;
+- nguồn lịch sử `tp/ton` cũ CÓ MẶT và CÓ GIÁ (`4.444` nghìn) cho đúng những mã
+  ấy — nhánh nào rơi về nguồn cũ sẽ ra `4.444.000`.
+
+Bước 1/2 — Tracking sinh ảnh chụp bằng chính mã thật:
+
+```text
+TRACKING → capture: records=140 errors=0 window=2026-09-03..2026-09-30 unit=VND_THOUSAND tz=Asia/Ho_Chi_Minh
+  TRK-A 2026-09-03 -> {"min_price":6800,"day_status":"FINAL","sources":[{"source_type":"SUPPLIER","source_id":"Tuấn Ngoan"}]}
+  TRK-A 2026-09-04 -> {"min_price":6000,"day_status":"FINAL","sources":[{"source_type":"SUPPLIER","source_id":"Tuấn Ngoan"}]}
+  TRK-A 2026-09-30 -> {"min_price":5200,"day_status":"PROVISIONAL","sources":[{"source_type":"SUPPLIER","source_id":"Tuấn Ngoan"}]}
+  TRK-B 03/09 nguồn -> [{"source_type":"INVENTORY","source_id":"TON_KHO"}]
+  TRK-C 03/09 -> {"p":null,"s":"OUT_OF_STOCK"}
+  TRK-D 03/09 -> {"p":null,"s":"NO_DATA"}
+  TRK-E 03/09 -> {"p":9500,"loai":[{"source_type":"SUPPLIER","source_id":"Đất Việt","price":150,"reference_price":9500,"rule":"ABNORMAL_LOW"}]}
+```
+
+Bước 2/2 — Reports nạp ảnh chụp ấy và chạy đường nhập sổ thật:
+
+```text
+CAPTURE  id=DMIN-20260930T120000Z-smoke001 captured_at=2026-09-30T12:00:00+00:00 status=COMPLETE
+SỔ BÁN   ngày bán = 2026-09-03, kỳ sổ 01/09–30/09 (nạp cuối tháng)
+
+[BH7001] TRK-A
+   giá nhập kế toán = Decimal('6800000')   lợi nhuận = Decimal('2200000')
+   price_source     = TRACKING_DAILY_MIN   rule = TRACKING_DAILY_MIN   reason = None
+   provenance       = sale_date=2026-09-03 observed=2026-09-03 carried_from=None day_status=FINAL
+                      nguồn=['SUPPLIER:Tuấn Ngoan'] raw=6800 nghìn → 6800000 VND rv=min-1 fp=cc441b8f9291f407
+                      capture_id=DMIN-20260930T120000Z-smoke001
+
+[BH7002] TRK-B
+   giá nhập kế toán = Decimal('5000000')   lợi nhuận = Decimal('4000000')
+   price_source     = TRACKING_DAILY_MIN   rule = TRACKING_DAILY_MIN   reason = None
+   provenance       = sale_date=2026-09-03 observed=2026-09-03 carried_from=None day_status=FINAL
+                      nguồn=['INVENTORY:TON_KHO'] raw=5000 nghìn → 5000000 VND rv=min-1 fp=67073e4d9f134d10
+                      capture_id=DMIN-20260930T120000Z-smoke001
+
+[BH7003] TRK-C
+   giá nhập kế toán = None   lợi nhuận = None
+   price_source     = Pending   rule = NOT_RESOLVED   reason = TRACKING_DAILY_MIN_PENDING
+   provenance       = sale_date=2026-09-03 observed=2026-09-03 carried_from=None day_status=FINAL
+                      nguồn=[] raw=None nghìn → None VND rv=min-1 fp=1605bc745c8d4d5f
+                      capture_id=DMIN-20260930T120000Z-smoke001
+
+[BH7004] TRK-D
+   giá nhập kế toán = None   lợi nhuận = None
+   price_source     = Pending   rule = NOT_RESOLVED   reason = TRACKING_DAILY_MIN_PENDING
+   provenance       = sale_date=2026-09-03 observed=2026-09-03 carried_from=None day_status=FINAL
+                      nguồn=[] raw=None nghìn → None VND rv=min-1 fp=1c2c8a86896d3561
+                      capture_id=DMIN-20260930T120000Z-smoke001
+
+[BH7005] TRK-E
+   giá nhập kế toán = Decimal('9500000')   lợi nhuận = Decimal('2500000')
+   price_source     = TRACKING_DAILY_MIN   rule = TRACKING_DAILY_MIN   reason = None
+   provenance       = sale_date=2026-09-03 observed=2026-09-03 carried_from=None day_status=FINAL
+                      nguồn=['SUPPLIER:Tuấn Ngoan'] raw=9500 nghìn → 9500000 VND rv=min-1 fp=82cf3dc593b66db8
+                      capture_id=DMIN-20260930T120000Z-smoke001
+
+=== KHẲNG ĐỊNH SMOKE ===
+  PASS  A. đơn 03/09 nạp 30/09 → 6.800.000 (giá NGÀY BÁN)
+  PASS  A. KHÔNG lấy giá hiện tại 30/09 (5.200.000)
+  PASS  A. KHÔNG lấy giá ngày 04/09 (6.000.000)
+  PASS  A. KHÔNG rơi về lịch sử tp/ton cũ (4.444.000)
+  PASS  A. nguồn thắng là NCC Tuấn Ngoan
+  PASS  A. nhãn nguồn = TRACKING_DAILY_MIN
+  PASS  B. TON_KHO thắng → 5.000.000
+  PASS  B. nguồn thắng là INVENTORY:TON_KHO
+  PASS  C. hết hàng → KHÔNG có giá (không phải 0)
+  PASS  C. sentinel 0 KHÔNG thành giá vốn 0
+  PASS  C. lợi nhuận KHÔNG bằng doanh thu
+  PASS  C. Pending với lý do OUT_OF_STOCK
+  PASS  D. thiếu lịch sử → Pending, lý do NO_DATA
+  PASS  E. NCC báo 150 bị luật lọc → 9.500.000, không phải 150.000
+  PASS  Kỳ 03/09 chỉ dùng ngày ĐÃ CHỐT → prices_are_final
+
+=== NGÀY BÁN KHÁC, CÙNG ẢNH CHỤP ===
+  bán 2026-09-10 → 6000000 VND  observed=2026-09-04 carried_from=2026-09-04 day_status=FINAL final_kỳ=True tạm=0
+  PASS     ngày bán 2026-09-10 → 6000000
+  PASS     mốc 10/09 nói rõ nó được mang từ 04/09
+  bán 2026-09-30 → 5200000 VND  observed=2026-09-30 carried_from=None day_status=PROVISIONAL final_kỳ=False tạm=1
+  PASS     ngày bán 2026-09-30 → 5200000
+  PASS     ngày 30/09 còn PROVISIONAL → kỳ KHÔNG được coi là đã chốt
+
+KẾT QUẢ SMOKE: TẤT CẢ PASS
+```
+
+Ba luồng Owner yêu cầu, đọc thẳng từ output trên:
+
+1. **Đơn 03/09 nạp 30/09 → giá của 03/09.** `6.800.000 VND`, lợi nhuận
+   `(9.000.000 − 6.800.000) × 1 = 2.200.000 VND`. Giá "hiện tại" `5.200` và
+   giá `04/09` là `6.000` đều CÓ trong cùng file mà không được dùng.
+2. **Một mã NCC thắng, một mã TON_KHO thắng.** `TRK-A` →
+   `['SUPPLIER:Tuấn Ngoan']`. `TRK-B` → `['INVENTORY:TON_KHO']`, `5.000.000
+   VND`. `TRK-E`: nhà cung cấp báo `150` nghìn cho món `9.500` nghìn (đúng sự
+   cố đọc nhầm số trong ngoặc đã xảy ra thật) bị luật lọc, giá vốn `9.500.000
+   VND`, nguồn bị loại còn nguyên trong `excluded_sources`.
+3. **Thiếu lịch sử / hết hàng KHÔNG thành 0.** `TRK-C` (hết hàng hoàn toàn,
+   sentinel `MIN = 0` phía Tracking) và `TRK-D` (chưa ai báo giá) đều ra
+   `giá = None`, `lợi nhuận = None`, `price_source = Pending`, với HAI lý do
+   khác nhau (`OUT_OF_STOCK` / `NO_DATA`). Không dòng nào biến mất; mọi dòng
+   Pending đều có mục Review Queue canonical (`Missing.PurchasePrice`) phủ —
+   `test_every_pending_line_is_covered_by_the_canonical_review_queue`.
+
+Hai dòng cuối là hai tính chất mà chỉ ảnh chụp CẢ THÁNG mới hỏi được: mốc mang
+qua nói rõ nó đến từ đâu (`carried_from=2026-09-04` cho đơn bán 10/09), và một
+kỳ chạm ngày còn `PROVISIONAL` thì `prices_are_final = False`.
 
 ## 7. Mốc bắt đầu lịch sử MIN, và phạm vi chưa thể backfill
 

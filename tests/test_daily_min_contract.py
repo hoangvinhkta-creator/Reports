@@ -210,6 +210,54 @@ def test_a_priced_out_of_stock_record_is_refused_at_load_time(tmp_path):
     assert exc.value.reason == "missing_status_with_price"
 
 
+def test_a_price_no_source_holds_is_refused_at_load_time(tmp_path):
+    """Một con số CÓ mà không nguồn nào giữ nó vẫn là một con số hợp lệ về kiểu.
+
+    Nó đi qua mọi phép nhân, cộng vào giá vốn, và chỉ hỏng ở đúng chỗ không ai
+    kiểm ngay: câu "vì sao giá vốn dòng này là 6.800, mua của ai" mất hẳn câu
+    trả lời. Engine Tracking luôn kèm ít nhất một nguồn cho mọi MIN dương, nên
+    hình dạng này chỉ đến từ một bản ghi sửa tay — chặn ở loader là lớp thứ
+    hai, độc lập với lớp chặn bên Tracking (`thieu-nguon-cho-gia`).
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            records=[dmin.record("TRK-A", "2026-09-03", min_price=6800,
+                                 min_sources=[])],
+        ))
+    assert exc.value.reason == "available_without_sources"
+
+
+def test_a_priceless_record_carrying_sources_is_refused_at_load_time(tmp_path):
+    """Chiều ngược lại: không giá mà vẫn khai nguồn giữ MIN.
+
+    Hai trường nói ngược nhau thì không trường nào còn đáng tin; đọc bừa một
+    trong hai là chọn hộ Owner xem hôm ấy mã này có giá hay không.
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            records=[dmin.record("TRK-A", "2026-09-03", price_status="OUT_OF_STOCK",
+                                 min_sources=[dmin.supplier("Tuấn Ngoan")])],
+        ))
+    assert exc.value.reason == "missing_status_with_sources"
+
+
+def test_a_record_outside_the_declared_window_is_refused_at_load_time(tmp_path):
+    """Phong bì khai chụp một khoảng, nội dung lại mang một ngày ngoài khoảng.
+
+    `covers()` chặn mọi ngày ngoài cửa sổ nên bản ghi ấy không tự sinh ra giá
+    sai — nhưng nó nói ảnh chụp được ghép từ hai lần chụp khác nhau, và một
+    ảnh chụp ghép thì không tái lập lại được. Mất đúng tính chất nó tồn tại để
+    giữ, nên từ chối cả file chứ không lặng lẽ bỏ riêng bản ghi thừa.
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            date_from="2026-09-03", date_to="2026-09-04",
+            records=[dmin.record("TRK-A", "2026-09-03", min_price=6800),
+                     dmin.record("TRK-A", "2026-09-09", min_price=6800)],
+        ))
+    assert exc.value.reason == "record_outside_declared_range"
+
+
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), True])
 def test_a_non_price_never_becomes_a_price(tmp_path, bad):
     """`NaN`/vô cực lọt qua mọi phép so sánh rồi đi thẳng vào một phép nhân;

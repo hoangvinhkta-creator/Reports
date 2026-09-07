@@ -6,11 +6,14 @@ Status:
 IMPLEMENTED
 
 Current Status Reason:
-Toàn bộ phạm vi R1 đã triển khai và có bằng chứng E1/E2 trên cả hai repo, kể
-cả đường xuyên suốt Tracking → hợp đồng → Reports → giá nhập → lợi nhuận. Còn
-chờ đúng hai việc trước khi `DONE`: (1) một lượt Independent Review, (2) Owner
-nghiệm thu trên dữ liệu thật sau khi chạy lượt chụp đầu tiên. Triển khai
-production KHÔNG thuộc R1 (brief §2).
+Toàn bộ phạm vi R1 đã triển khai, đã qua một lượt kiểm thử/sửa lỗi riêng
+(07/09/2026: bốn chốt fail-closed phía Tracking, hai chốt toàn vẹn phía
+Reports, và một luật mang-mốc-qua-ngày được sửa lại), và có bằng chứng E1/E2
+trên cả hai repo — kể cả đường xuyên suốt Tracking → hợp đồng → Reports → giá
+nhập → lợi nhuận và ba luồng smoke có output trích nguyên văn. Còn chờ đúng
+hai việc trước khi `DONE`: (1) một lượt Independent Review, (2) Owner nghiệm
+thu trên dữ liệu thật sau khi chạy lượt chụp đầu tiên. Triển khai production
+KHÔNG thuộc R1 (brief §2).
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -96,10 +99,20 @@ Nên mỗi lượt chụp ghi thêm một BẢN NGÀY (`min_ngay_ngay/<ngày>`),
 không mã nào đổi. Quy tắc thành một mệnh đề kiểm được:
 
 > Giá của mã `M` tại ngày `D` = bản ghi tại mốc `R ≤ D` gần nhất, HỢP LỆ khi và
-> chỉ khi MỌI ngày trong khoảng `(R, D]` đều có bản ngày.
+> chỉ khi ĐÚNG NGÀY `D` có bản ngày.
 
-Thiếu một ngày trong chuỗi ⇒ `SOURCE_UNAVAILABLE`. Bản ngày
+Ngày `D` không có bản ngày ⇒ `SOURCE_UNAVAILABLE`. Bản ngày
 `SOURCE_UNAVAILABLE` cố ý KHÔNG tính là ngày đã quan sát.
+
+Mệnh đề này chỉ đúng nhờ một bất biến của phía ghi: **bản ngày chỉ được ghi khi
+engine trả kết quả cho TOÀN BỘ mã của bảng giá** (`CHECK-R1-25`). Khi đó "ngày
+`D` đã quan sát, mã `M` không có bản ghi mới" là bằng chứng TRỰC TIẾP rằng
+trạng thái của `M` ở `D` bằng trạng thái tại `R`, và các ngày ở giữa không thêm
+thông tin gì.
+
+Bản đầu của R1 đòi mọi ngày trong `(R, D]` đều có bản ngày. Đã sửa trong lượt
+kiểm thử: luật ấy khoá ngoài VĨNH VIỄN mọi mã giá ổn định chỉ vì lỡ một ngày —
+mốc của chúng nằm trước chỗ đứt và chúng không bao giờ sinh mốc mới.
 
 ### 3.2. `PROVISIONAL`/`FINAL` nằm ở BẢN NGÀY, không ở từng bản ghi
 
@@ -151,7 +164,7 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-06` | Chốt ngày idempotent, chỉ sau khi ngày kết thúc UTC+7 | REQUIRED | E1 | PASS |
 | `CHECK-R1-07` | Ngày đã chốt bất biến với dữ liệu hiện tại | REQUIRED | E1 | PASS |
 | `CHECK-R1-08` | Sửa bản ghi giữ bản cũ + lý do + revision mới | REQUIRED | E1 | PASS |
-| `CHECK-R1-09` | Thiếu bản ngày ⇒ `SOURCE_UNAVAILABLE`, không lấp giá cũ | REQUIRED | E1 | PASS |
+| `CHECK-R1-09` | Ngày bán KHÔNG có bản ngày ⇒ `SOURCE_UNAVAILABLE`, không lấp giá cũ | REQUIRED | E1 | PASS |
 | `CHECK-R1-10` | Batch nhiều mã/ngày, phân trang phủ đủ, không trùng/sót | REQUIRED | E1 | PASS |
 | `CHECK-R1-11` | Nhánh mới chỉ máy chủ ghi được (Firebase rules) | REQUIRED | E1 | PASS |
 | `CHECK-R1-12` | Reports từ chối schema/đơn vị tiền lạ thay vì đọc sai | REQUIRED | E1 | PASS |
@@ -167,6 +180,18 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-22` | Full regression hai repo không hỏng bài nào | REQUIRED | E1 | PASS |
 | `CHECK-R1-23` | Owner nghiệm thu trên dữ liệu thật | REQUIRED | E2 | NOT_TESTED |
 | `CHECK-R1-24` | Independent Review | REQUIRED | E2 | NOT_TESTED |
+| `CHECK-R1-25` | Lượt chụp KHÔNG ghi bản ngày thành công khi engine không trả đủ mọi mã | REQUIRED | E1 | PASS |
+| `CHECK-R1-26` | Mã bị gỡ khỏi bảng giá được đóng sổ ĐÚNG MỘT lần, không ghi lại mỗi ngày | REQUIRED | E1 | PASS |
+| `CHECK-R1-27` | Sửa bản ghi với nguồn lệch trạng thái bị chặn ở CẢ HAI phía | REQUIRED | E1 | PASS |
+| `CHECK-R1-28` | Reports từ chối `AVAILABLE` không nguồn và bản ghi ngoài khoảng đã khai | REQUIRED | E1 | PASS |
+| `CHECK-R1-29` | Smoke xuyên hai hệ thống: ảnh chụp CÓ giá hiện tại mà giá vốn vẫn theo ngày bán | REQUIRED | E2 | PASS |
+
+`CHECK-R1-25` … `CHECK-R1-29` được THÊM trong phiên kiểm thử (07/09/2026), không
+phải lúc lập kế hoạch: bốn lỗi đầu chỉ lộ ra khi đi soát từng nhánh có thể cho
+ra "một con số hợp lệ nhưng sai", và cả bốn đều đã được sửa trong cùng phiên.
+`CHECK-R1-25` là điều kiện mà luật mang mốc qua ngày (`ADR-110` §2) DỰA VÀO —
+nếu một lượt chụp hỏng vẫn ghi được bản ngày thì bản ngày không còn chứng minh
+được điều gì.
 
 Evidence Level:
 E1 = lệnh đã chạy, output trích nguyên văn ở `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
@@ -180,7 +205,8 @@ Timestamp:
 
 ## 6. Exit Criteria
 
-1. `CHECK-R1-01` … `CHECK-R1-22` PASS — **đã đạt**.
+1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-29` PASS —
+   **đã đạt**.
 2. `CHECK-R1-24` Independent Review PASS — **chưa**.
 3. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —
    **chưa**.

@@ -84,9 +84,24 @@ theo ngày, và xuất qua hợp đồng `daily-min-v1`.**
 
 2. **Lưu theo ngày, chỉ ghi khi đổi, và có bằng chứng ngày đã quan sát.**
    `min_ngay/<mã>/<ngày>` giữ các mốc đổi; `min_ngay_ngay/<ngày>` chứng minh
-   hôm ấy Tracking có nhìn bảng giá. Mang một mốc qua ngày sau chỉ hợp lệ khi
-   MỌI ngày ở giữa đều có bản ngày — thiếu một ngày là `SOURCE_UNAVAILABLE`,
-   không phải giá cũ.
+   hôm ấy Tracking có nhìn bảng giá. **Một mốc tại ngày R ≤ D hợp lệ cho ngày
+   D khi và chỉ khi ĐÚNG NGÀY D có bản ngày**; ngày D không có bản ngày là
+   `SOURCE_UNAVAILABLE`, không phải giá cũ.
+
+   Luật này dựa vào một bất biến của phía ghi, và chỉ đúng chừng nào bất biến
+   ấy còn: **bản ngày chỉ được ghi khi engine trả kết quả cho TOÀN BỘ mã của
+   bảng giá.** Khi đó "ngày D đã quan sát, mã M không có bản ghi mới" là bằng
+   chứng trực tiếp rằng trạng thái của M ở ngày D bằng trạng thái tại R — các
+   ngày ở giữa không thêm thông tin gì. Bất biến ấy được ép bằng bốn chốt
+   fail-closed trong `chupMinNgay` (bảng rỗng, engine sai hình dạng, engine
+   thiếu mã, thiếu phiên bản luật) — trước phiên kiểm thử R1 chúng chưa có,
+   và một lượt chụp hỏng vẫn ghi được bản ngày "thành công".
+
+   Bản đầu của R1 đòi mọi ngày trong khoảng `(R, D]` đều có bản ngày. Luật ấy
+   sai theo hướng tốn kém: lỡ MỘT ngày là mọi mã giá ổn định bị khoá ngoài
+   VĨNH VIỄN — mốc của chúng nằm trước chỗ đứt, chúng không bao giờ sinh mốc
+   mới, nên mọi ngày về sau đều `SOURCE_UNAVAILABLE`. Sửa trong cùng phiên
+   kiểm thử; xem `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
 
 3. **`PROVISIONAL`/`FINAL` là tính chất của NGÀY**, nằm ở bản ngày. Chốt chỉ
    sau khi ngày kết thúc theo UTC+7, idempotent, và chỉ cho ngày thật sự đã

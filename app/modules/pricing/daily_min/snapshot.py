@@ -208,6 +208,19 @@ class DailyMinRecord:
                     f"{self.price_status.value} không thể có nguồn giữ MIN.",
                     reason="missing_status_with_sources",
                 )
+        if self.price_status is PriceStatus.AVAILABLE and not self.min_sources:
+            # Một con số CÓ mà không nguồn nào giữ nó là một con số không giải
+            # thích được: câu "vì sao giá vốn là 6.800" mất hẳn câu trả lời, và
+            # người kiểm không còn cách nào đối chiếu ngược về bảng giá. Engine
+            # Tracking luôn trả ít nhất một nguồn cho mọi MIN dương, nên hình
+            # dạng này chỉ đến từ một bản ghi sửa tay thiếu tham số — chặn ở
+            # đây là lớp thứ hai, độc lập với lớp chặn bên Tracking.
+            raise InvalidDailyMinSnapshotError(
+                f"{self.product_code}@{self.effective_date}: AVAILABLE bắt buộc "
+                "có ít nhất một nguồn giữ MIN — một giá không ai giữ là một giá "
+                "không giải thích được.",
+                reason="available_without_sources",
+            )
         if self.carried_from is not None and self.carried_from != self.observed_on:
             raise InvalidDailyMinSnapshotError(
                 f"{self.product_code}@{self.effective_date}: carried_from "
@@ -385,6 +398,18 @@ class DailyMinSnapshot:
                     "hai câu trả lời cho cùng một câu hỏi; chọn hộ một cái là "
                     "đoán.",
                     reason="duplicate_record",
+                )
+            if not first_day <= record.effective_date <= last_day:
+                # Ảnh chụp tự mâu thuẫn: phong bì khai chụp khoảng này, nội
+                # dung lại chứa một ngày ngoài khoảng. Nó không sinh ra giá sai
+                # (`covers()` chặn mọi ngày ngoài cửa sổ trước khi tra), nhưng
+                # nó nói rằng bản ghi và phong bì đến từ hai lần chụp khác
+                # nhau — và một ảnh chụp ghép từ hai thời điểm thì không còn
+                # tái lập được, tức mất đúng tính chất nó tồn tại để giữ.
+                raise InvalidDailyMinSnapshotError(
+                    f"{record.product_code}@{record.effective_date} nằm ngoài "
+                    f"khoảng chụp đã khai [{first_day}, {last_day}].",
+                    reason="record_outside_declared_range",
                 )
             records[key] = record
 

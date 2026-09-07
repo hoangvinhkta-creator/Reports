@@ -122,7 +122,8 @@ class DailyMinUnresolvedReason(str, Enum):
     NOT_IN_CAPTURE = "NOT_IN_CAPTURE"
     #: Tracking nói: mã ấy chưa từng có bản ghi nào tính tới ngày ấy.
     TRACKING_NO_DATA = "TRACKING_NO_DATA"
-    #: Tracking nói: hôm ấy không quan sát được bảng giá (hoặc chuỗi ngày đứt).
+    #: Tracking nói: ĐÚNG ngày ấy không có bản ngày — hôm ấy không quan sát
+    #: được bảng giá. KHÔNG được đọc thành "giá giữ nguyên như hôm trước".
     TRACKING_SOURCE_UNAVAILABLE = "TRACKING_SOURCE_UNAVAILABLE"
     #: Tracking nói: chuỗi hỏi không phải một mã hợp lệ.
     TRACKING_INVALID_PRODUCT_CODE = "TRACKING_INVALID_PRODUCT_CODE"
