@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R1 = IMPLEMENTED (2026-09-07)
+## CANONICAL CURRENT STATE — R1 = VERIFYING (2026-09-07)
 
 **Thẩm quyền giá nhập ĐÃ ĐỔI.** Owner ban hành `R1 Execution Brief — Giá MIN
 theo ngày bán`: giá nhập tự động của Reports là **MIN của đúng ngày bán**, do
@@ -12,7 +12,31 @@ Tracking tính và lưu, đọc qua hợp đồng `daily-min-v1`. Nhánh cũ (l�
 một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
 `docs/adr/ADR-110-daily-min-price-authority.md` (supersede ĐÚNG một mệnh đề
 của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
-bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
+bàn giao phát triển: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`; bàn
+giao triển khai production: `docs/sessions/S127-r1-production-deployment.md`.
+
+**Independent Review kết luận ACCEPT (07/09/2026) trên SOURCE LOCK Tracking
+`f9caaa036cc6fbc9a021aeea99158ba6fce9d20e` / Reports
+`eafcb08eb56ca89068d4e91e0c0a126dbab906df`.** `CHECK-R1-24` = PASS. Cùng
+phiên đó, SOURCE LOCK đã được fast-forward vào nhánh production của cả hai
+repo và xác nhận trên GitHub bằng fetch sạch: Tracking `main` = `f9caaa0`,
+Reports `claude/extract-upload-repo-gq2ws4` = `6e2620e` (SOURCE LOCK + đúng
+một commit tài liệu cập nhật `CHECK-R1-24`). Cổng trước deploy chạy lại xanh
+ở đúng SOURCE LOCK: Tracking 60 bộ/2737 đạt/0 hỏng + build `./dist` thành
+công; Reports 2880 passed/12 skipped + 176 bài nhóm daily-min + hai smoke
+R1 (19/19, 13/13) đều PASS.
+
+**Deploy thật (Cloudflare Worker build, publish Firebase rules, Render
+deploy) KHÔNG xác nhận được từ phiên triển khai** — phiên không có credential
+Cloudflare/Render/Firebase (đúng giới hạn đã ghi từ `S071`), và egress mạng
+của phiên bị chặn ở tầng proxy đối với CẢ HAI domain production (`price.
+tinphatcrm.com`, `reports.tinphatcrm.com` — `CONNECT tunnel failed, response
+403`, đối chứng `api.github.com` vẫn `200` cùng lúc, nên đây là chặn theo
+domain chứ không phải server đích lỗi). Checklist đầy đủ cho Owner (Cloudflare
+Secret/binding/cron, publish Firebase rules, mở app Bảng giá, xác nhận Render
+env, ba smoke production) nằm ở `S127` mục 8. `CHECK-R1-23` (Owner nghiệm thu
+trên dữ liệu thật) VẪN `NOT_TESTED` — không tự tuyên bố PASS, không tuyên bố
+`R1 = DONE`.
 
 **Reports đã được review ACCEPT tại `4b6006e`.** Finding cuối của R1 nằm hoàn
 toàn phía Tracking (`f9caaa0`): nhánh revision nay có trạng thái
@@ -51,14 +75,21 @@ bất biến toàn vẹn ảnh chụp phía Reports, và một luật đọc đ�
 `CHECK-R1-25` … `CHECK-R1-29` đã PASS.
 
 ```text
-STATUS                      = IMPLEMENTED — đã xử lý sáu finding vòng 1 và
-                              năm finding vòng 2 của Independent Review;
-                              review CHƯA ACCEPT. Chờ kết luận review + Owner
-                              nghiệm thu trên dữ liệu thật. KHÔNG deploy.
+STATUS                      = VERIFYING — Independent Review ACCEPT,
+                              CHECK-R1-24 PASS. SOURCE LOCK đã fast-forward
+                              vào nhánh production (Git) ở cả hai repo. Deploy
+                              thật (Cloudflare/Firebase/Render) CHƯA xác nhận
+                              được — không credential, egress mạng bị chặn
+                              domain production. Chờ Owner hoàn tất S127 mục 8
+                              + CHECK-R1-23. KHÔNG DONE.
 Current Task Mode:            MAJOR
-BASE_HEAD (Reports)         = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
-BASE_HEAD (Tracking)        = 598b4b1390cc96e552455ab85e2c48d78198b89c
-BRANCH (cả hai repo)        = claude/kiem-tra-tham-chieu-gia-nhap-c57d7z
+BASE_HEAD (Reports, trước triển khai) = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
+BASE_HEAD (Tracking, trước triển khai) = 598b4b1390cc96e552455ab85e2c48d78198b89c
+PRODUCTION_HEAD (Reports, SAU triển khai) = 6e2620e3eedf7ad7ae4b4b29ddacd21c97ab70dd
+PRODUCTION_HEAD (Tracking, SAU triển khai) = f9caaa036cc6fbc9a021aeea99158ba6fce9d20e
+BRANCH phát triển (cả hai repo)         = claude/kiem-tra-tham-chieu-gia-nhap-c57d7z
+BRANCH production Tracking              = main
+BRANCH production Reports               = claude/extract-upload-repo-gq2ws4
 
 PRICE_AUTHORITY             = TRACKING_DAILY_MIN_AT_SALE_DATE
                               (thay TRACKING_PP_AT_SALE_DATE_ONLY)
