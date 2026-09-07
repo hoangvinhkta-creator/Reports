@@ -39,15 +39,29 @@ Migration additive `0008_purchase_price_reason`; `ALEMBIC_HEAD` chuyển từ
 `0007_employee_workspace` sang `0008_purchase_price_reason`.
 
 ```text
-R2 STATUS   = IMPLEMENTED
+R2 STATUS   = IMPLEMENTED (repair sau Independent Review, HEAD e7ffaf6)
               CHECK-R2-01 … CHECK-R2-17 = PASS (E1)
               CHECK-R2-18 (Independent Review)  = NOT_TESTED
               CHECK-R2-19 (Owner nghiệm thu)    = NOT_TESTED
-              Full regression: 2932 passed, 11 skipped
+              Full regression: 2943 passed, 11 skipped
               (baseline trước R2: 2882 passed, 11 skipped)
               Migration 0008 upgrade + downgrade + re-upgrade đã chạy thật;
               giá nhập Owner gõ tay SỐNG SÓT qua rollback (S128 §5.3).
 ```
+
+**Repair sau Independent Review (2026-09-07, HEAD `e7ffaf6`, nền `cccdb58`).**
+Hai finding ACCEPTED, cả hai trên chuỗi CONFLICT (`§4.2`): `FIND-R2-IR-01`
+(một mapping CONFIRMED cũ — từ TRƯỚC khi mâu thuẫn xuất hiện — luôn che mất
+`IDENTITY_CONFLICT` của lần chạy hiện hành, vì `state_of()` kiểm quyết định đã
+lưu TRƯỚC khi đọc mã lý do) và `FIND-R2-IR-02` (một lần giải mâu thuẫn miễn
+trừ MỌI bất đồng tương lai thay vì chỉ đúng đối thủ đã thấy — Tracking đổi
+tiếp sang mã thứ ba thì hệ thống lặng lẽ tiếp tục dùng mã cũ). Khi verify
+finding thứ hai bằng test đi hết, phát lộ thêm một lỗi vòng hai ở tầng store
+(idempotency không tính mã đối lập, khiến "chọn lại đúng mã cũ cho một mâu
+thuẫn MỚI" bị coi là không đổi gì) — sửa trong cùng commit. Cả ba đều sửa tận
+gốc, không `ACCEPTED_RISK` nào phát sinh. Chi tiết, evidence và test tái
+hiện+PASS: `S128` §9b. Task VẪN `IMPLEMENTED` — không tự đánh dấu Independent
+Review PASS.
 
 R2 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai: Brief §9
 cấm tự tuyên bố Independent Review và Owner Acceptance. Ba rủi ro giữ lại

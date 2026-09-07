@@ -239,6 +239,11 @@ tools/db/migrations/versions/0008_…py        migration additive
 Lệnh và output nguyên văn: `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay.md`
 §5–§6.
 
+**Repair sau Independent Review (HEAD `e7ffaf6`, nền `cccdb58`):**
+`FIND-R2-IR-01` và `FIND-R2-IR-02` — ACCEPTED, cả hai sửa tận gốc; chi tiết,
+evidence và ba bộ test tái hiện+PASS ở `S128` §9b. `CHECK-R2-05` giữ PASS,
+nay có thêm bằng chứng qua route Flask thật. Không CHECK nào khác đổi.
+
 ## 7. Rủi ro giữ lại (ACCEPTED_RISK)
 
 ### AR-R2-01 — `SetPending` rồi `ConfirmMapping` làm log không đọc được

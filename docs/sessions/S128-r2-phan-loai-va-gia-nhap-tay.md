@@ -12,6 +12,16 @@ trạng thái `CONFLICT`, phần provenance còn thiếu của giá nhập tay, 
 `CHECK-R2-19` (Owner nghiệm thu) VẪN `NOT_TESTED` — phiên này không tự tuyên
 bố hai check đó, đúng như Brief §9 yêu cầu. Task ở `IMPLEMENTED`.
 
+**Cập nhật (repair sau Independent Review, HEAD `e7ffaf6`):** review trên
+`cccdb58` chấp nhận hai finding, cả hai trên chuỗi CONFLICT (`§4.2`) —
+`FIND-R2-IR-01` (mapping cũ che mất conflict của lần chạy hiện hành) và
+`FIND-R2-IR-02` (một lần giải conflict miễn trừ MỌI bất đồng tương lai, không
+riêng đối thủ đã thấy). Cả hai đã sửa tận gốc, cộng một lỗi vòng hai tự phát
+hiện khi verify (idempotency tầng store không tính mã đối lập). Chi tiết đầy
+đủ + evidence: §9b. `CHECK-R2-05` vẫn PASS, nay có thêm bằng chứng qua route
+Flask thật. Task VẪN `IMPLEMENTED` — repair không tự đánh dấu Independent
+Review PASS.
+
 Task canonical: `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md`.
 
 ## 1. Nền và ranh giới
@@ -223,6 +233,136 @@ Ba ca A/B/C giữ nguyên như Brief. Hai lưu ý từ triển khai:
   `CHECK-R2-01`/`-03` canh.
 - Ca C bước 2: từ R2, thay một giá tự động BẮT BUỘC có lý do. Ô lý do nằm ngay
   cạnh ô giá; bỏ trống sẽ nhận một câu từ chối, không phải một lần lưu im lặng.
+
+## 9b. Repair sau Independent Review (HEAD `e7ffaf6`, nền `cccdb58`)
+
+Independent Review trên `cccdb58` chấp nhận hai finding, cả hai trên đúng
+chuỗi CONFLICT của §4.2. Chi tiết đầy đủ, evidence và test nằm trong commit
+`e7ffaf6`; tóm tắt bắt buộc theo yêu cầu bàn giao:
+
+### FIND-R2-IR-01 — ACCEPTED
+
+**Bằng chứng đã xác minh (PROBE-1 tái hiện qua cả domain lẫn route thật):**
+mapping CŨ (xác nhận thường, TRƯỚC khi mâu thuẫn xuất hiện) khiến
+`decisions.confirmed` LUÔN chứa đúng `raw_identity_key` của một `IDENTITY_
+CONFLICT` — vì một conflict chỉ sinh ra khi Reports CÓ SẴN một mapping
+CONFIRMED. `state_of()` kiểm `confirmed` TRƯỚC `reasons`, nên nhánh CONFLICT
+là dead code trên đường đọc từ `reasons`.
+
+**Sửa:** `line_identity.Decisions` thêm `conflict_resolved` (tập con của
+`confirmed`, chỉ những khoá được giải qua ĐÚNG thao tác giải mâu thuẫn —
+`mapping_source = HUMAN_CONFLICT_RESOLUTION`). Thứ tự kiểm trong `state_of()`
+đảo lại: `out_of_catalog` → `conflict_resolved` (thắng ngay, `§4.5`) →
+`reasons & IDENTITY_CONFLICT_REASONS` (CONFLICT của lần chạy hiện hành) →
+`confirmed` thường → phần còn lại như cũ.
+
+**Files:** `app/web/line_identity.py` (`Decisions`, `state_of`),
+`app/web/server.py` (`_identity_decisions` chiếu thêm `conflict_resolved`).
+
+**Test:** `TestFindR2IR01ConflictNotHiddenByAnOldMapping` (4 bài, domain) +
+`TestConflictThroughTheWeb::test_a_stale_mapping_does_not_hide_the_conflict_on_the_page`
+(route Flask thật — tái hiện đúng PROBE-1: seed mapping cũ → persist dòng
+mang `IDENTITY_CONFLICT` → GET trang → khẳng định `data-classification=
+"CONFLICT"` có mặt và hàng đợi `xung-dot` không rỗng).
+
+### FIND-R2-IR-02 — ACCEPTED
+
+**Bằng chứng đã xác minh (PROBE-2 tái hiện, sau khi sửa lỗi trong chính kịch
+bản test ban đầu — helper test gọi `confirm()` thường hai lần, tự xoá mất
+`HUMAN_CONFLICT_RESOLUTION` trước khi resolver kịp chạy; sau khi tách helper
+"chỉ dựng snapshot" khỏi "xác nhận", lỗi tái hiện đúng như finding mô tả):
+`_human_decision_resolution` exempt MỌI bất đồng một khi `mapping_source is
+HUMAN_CONFLICT_RESOLUTION`, không phân biệt mã đối lập nào. Owner giải
+A-vs-B (chọn A), Tracking đổi tiếp sang C (mã thứ ba, chưa ai từng thấy) →
+resolver vẫn `Resolved` với A, dùng giá của A.
+
+**Sửa:** `Evidence.candidate_set_ids` của lệnh giải mâu thuẫn nay mang thêm
+một entry `CONFLICT_OPPOSING_TRACKING_CODE:<mã>` — mã Tracking mà
+`tracking_authority_code()` (free function mới, trước đây là method riêng
+của resolver — factor ra để `identity_gateway` gọi được cùng phép tính) trả
+về NGAY TẠI thời điểm người dùng chọn. Resolver chỉ exempt khi mã authority
+hiện tại TRÙNG mã đã ghi; khác đi (kể cả không xác định được) buộc hỏi lại.
+Hằng số + hàm đọc (`CONFLICT_OPPOSING_CODE_PREFIX`,
+`conflict_opposing_code()`) đặt ở `evidence.py` — không phải `resolver.py`
+hay `store.py` — vì `resolver.py` phụ thuộc `store.py` (`StoreView`), nên
+`store.py` không quay lại phụ thuộc `resolver.py` được; cả hai chỉ cần đọc/so
+một chuỗi đánh dấu, và đó là việc của tầng `Evidence`.
+
+**Files:** `app/modules/product/identity/evidence.py` (hằng số + hàm mới),
+`app/modules/product/identity/resolver.py` (`tracking_authority_code` factor
+ra free function, điều kiện exempt trong `_human_decision_resolution`),
+`app/web/identity_gateway.py` (`confirm_identity` nhận `inv_map_snapshot`,
+tính và ghi mã đối lập khi `resolves_conflict=True`), `app/web/server.py`
+(`_tracking_inv_map_snapshot`, route truyền nó vào khi `state.conflict`).
+
+**Test:** `TestFindR2IR02ConflictResolutionDoesNotExemptFutureConflicts`
+(4 bài, domain — gồm cả đối chứng "cùng mâu thuẫn không hỏi lại" và "authority
+quay về đúng mã đã chọn vẫn Resolved bình thường").
+
+### Vòng hai — tự phát hiện, KHÔNG có trong hai finding gốc
+
+Khi verify FIND-R2-IR-02 bằng test đi hết ("Owner chọn LẠI đúng A cho mâu
+thuẫn MỚI A-vs-C — con đường tự nhiên nhất khi được hỏi lại"), phát hiện bản
+sửa đầu chưa đủ: idempotency của `_next_mapping` (tầng store, `INV-69`) so
+`(identity_tuple, mapping_source)` — cả hai đều KHÔNG đổi khi Owner chọn lại
+đúng A — nên bị coi là `NO_CHANGE`. Hệ quả: mã đối lập đã ghi (vẫn là B cũ)
+không được cập nhật thành C, và resolver tiếp tục hỏi lại A-vs-C mãi mãi dù
+Owner vừa bấm XÁC NHẬN và nhận đúng thông báo "đã ghi nhận".
+
+Đây là hệ quả trực tiếp của repair vừa thêm (mã đối lập giờ là một phần của
+STATE KẾT QUẢ), không phải một finding độc lập — sửa trong cùng commit, cùng
+mức kiểm chứng (test tái hiện lỗi trước sửa, PASS sau sửa).
+
+**Sửa:** `_next_mapping` (`app/modules/product/identity/store.py`) mở rộng
+phép so idempotency: khi `mapping_source is HUMAN_CONFLICT_RESOLUTION`, chỉ
+coi là `NO_CHANGE` nếu mã đối lập đã ghi ở bản hiện tại TRÙNG mã đối lập của
+lệnh mới.
+
+**Test:**
+`TestFindR2IR02...::test_re_choosing_the_same_side_against_a_new_conflict_now_sticks`.
+
+### Bằng chứng thực thi (E1)
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_r2_product_classification.py \
+                                tests/test_r2_web_workflow.py
+61 passed in 3.58s
+
+$ .venv/bin/python -m pytest -q tests/test_105d_resolution.py \
+    tests/test_105d_persistence.py tests/test_105d_audit_replay.py \
+    tests/test_105d_boundaries.py tests/test_105d_identity_keys.py \
+    tests/test_105d_cutover_registry.py \
+    tests/test_105d_interprocess_concurrency.py \
+    tests/test_105e_price_composition.py tests/test_bh73804_confirmed_identity.py \
+    tests/test_dec185_nav_chart_identity.py \
+    tests/test_identity_durability_and_timeline_aggregation.py \
+    tests/test_daily_min_orchestration.py tests/test_employee_workspace_ux.py \
+    tests/test_business_vertical.py tests/test_r2_product_classification.py \
+    tests/test_r2_web_workflow.py
+554 passed in 34.54s
+
+$ .venv/bin/python -m pytest -q tests/
+2943 passed, 11 skipped in 189.21s   (trước repair: 2942 passed, 11 skipped)
+```
+
+Migration `0008` re-verified không đổi (repair này không chạm schema):
+`alembic upgrade head` trên SQLite mới vẫn dừng đúng
+`0008_purchase_price_reason`.
+
+### Rủi ro giữ lại sau repair
+
+`AR-R2-01`, `AR-R2-02`, `AR-R2-03` ở §7 giữ nguyên, không finding nào của
+vòng review này chạm tới chúng. Không rủi ro mới được chấp nhận
+(`ACCEPTED_RISK`) trong vòng repair này — cả ba vấn đề phát hiện (hai finding
+gốc + vòng hai tự phát hiện) đều được sửa tận gốc, không phải khoanh vùng.
+
+### Cập nhật CHECK-R2 (§6 của task)
+
+`CHECK-R2-05` (mapping mâu thuẫn ra CONFLICT, không âm thầm chọn bên thắng)
+giữ `PASS`, nay có thêm bằng chứng qua route Flask thật, không chỉ qua
+domain. Không CHECK nào bị hạ cấp. `CHECK-R2-18`/`-19` vẫn `NOT_TESTED` —
+phiên repair này KHÔNG tự đánh dấu Independent Review PASS; reviewer sẽ kết
+luận lại trên HEAD `e7ffaf6`.
 
 ## 10. Đầu vào cho R3
 
