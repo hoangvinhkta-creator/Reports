@@ -161,6 +161,12 @@ def test_phb07_adds_no_migration():
         "0001_legacy.py", "0002_snapshots.py", "0003_business.py",
         "0004_employee_attribution.py", "0005_legacy_source_authority.py",
         "0006_employee_target.py", "0007_employee_workspace.py",
+        # `0008_purchase_price_reason` là của R2 (`R2 Execution Brief` §4.4),
+        # KHÔNG phải của vertical này. Nó có mặt trong danh sách vì phép
+        # khẳng định ở đây là một phép PIN thư mục; điều nó chứng minh vẫn
+        # nguyên vẹn — không có bản migration nào mang tên hay nội dung của
+        # vertical này.
+        "0008_purchase_price_reason.py",
     ]
 
 

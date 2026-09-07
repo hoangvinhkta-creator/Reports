@@ -452,6 +452,17 @@ kpi_purchase_price_override = Table(
     Column("auto_price_at_entry", ExactNumeric, nullable=True),
     Column("entered_at", Text, nullable=False),
     Column("entered_by", Text, nullable=True),
+    # R2 §4.4 — LÝ DO của quyết định giá. Bắt buộc ở tầng nghiệp vụ khi lần ghi
+    # này THAY một giá AUTO đang có (``MANUAL_OVERRIDE``); tuỳ chọn khi nó chỉ
+    # LẤP một chỗ trống (``MANUAL``), nơi một lý do mặc định ngắn là đủ.
+    #
+    # ``nullable=True`` ở tầng cột là có chủ ý và KHÔNG mâu thuẫn với câu trên:
+    # mọi bản ghi đã tồn tại trước R2 không có lý do, và một ``NOT NULL`` ở đây
+    # sẽ buộc phải bịa một chuỗi cho chúng — tức ghi vào audit trail một câu mà
+    # không người nào từng nói. Ràng buộc nghiệp vụ sống ở
+    # ``BusinessDecisionStore.set_purchase_price``, nơi nó biết được lần ghi
+    # này là MANUAL hay MANUAL_OVERRIDE.
+    Column("reason", Text, nullable=True),
     CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_price_override_origin"),
     CheckConstraint(_in_check("provenance", STORED_PURCHASE_PROVENANCES),
                     name="ck_price_override_provenance"),

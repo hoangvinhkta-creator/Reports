@@ -50,14 +50,16 @@ from pathlib import Path
 from typing import Optional
 
 from app.modules.product.identity.audit import AffectedScope
-from app.modules.product.identity.commands import ConfirmMapping
+from app.modules.product.identity.commands import (
+    ConfirmMapping, MarkOutOfCatalog,
+)
 from app.modules.product.identity.evidence import (
     Evidence, MatchedOn, ResolutionMethod,
 )
 from app.modules.product.identity.identity import CanonicalProductIdentity, Namespace
 from app.modules.product.identity.keys import raw_identity_key
 from app.modules.product.identity.mapping import (
-    MappingStatus, SOURCE_SYSTEM_REPORTS_SALES,
+    MappingSource, MappingStatus, SOURCE_SYSTEM_REPORTS_SALES,
 )
 from app.modules.product.identity.store import JsonlProductIdentityStore
 from app.web import identity_journal
@@ -76,6 +78,24 @@ NO_TRACKING_NOTE = (
     "Chưa đọc được danh mục sản phẩm của Tracking, nên chưa chọn được mặt "
     "hàng chuẩn. Danh mục là thẩm quyền của Tracking — Reports không tự dựng "
     "một danh sách thay thế."
+)
+
+OUT_OF_CATALOG_OK_NOTE = (
+    "Đã ghi nhận: mặt hàng này KHÔNG có trên bảng giá Tracking. Đây là một "
+    "phân loại HOÀN TẤT — dòng không còn nằm trong danh sách chưa phân loại, "
+    "vẫn giữ nguyên doanh thu và số lượng, và chờ một giá nhập tay. Không có "
+    "giá 0 nào được dựng ra."
+)
+
+RELINK_OK_NOTE = (
+    "Đã nối lại mặt hàng này với một mã Tracking. Quyết định ngoài bảng giá cũ "
+    "được thay thế theo đúng cơ chế supersede của log — nó vẫn nằm lại trong "
+    "lịch sử, không bị xoá."
+)
+
+CONFLICT_OK_NOTE = (
+    "Đã ghi nhận lựa chọn cho mâu thuẫn mã Tracking. Từ nay hệ thống dùng mã "
+    "bạn chọn và KHÔNG hỏi lại mâu thuẫn này nữa."
 )
 
 CONFIRM_OK_NOTE = (
@@ -135,6 +155,35 @@ def build_store(
     return JsonlProductIdentityStore(
         log_path=log_path or DEFAULT_LOG_PATH,
         index_path=index_path or DEFAULT_INDEX_PATH)
+
+
+def store_view(store):
+    """Ảnh chụp ĐÃ ĐÓNG BĂNG của log quyết định, hoặc `None`.
+
+    Đây là thứ mà đường CHẠY BÁO CÁO cần, và nó khác `confirmed_keys` ở một
+    điểm quyết định: nó mang CẢ log, nên `ProductIdentityResolver` đọc được
+    mọi trạng thái (`CONFIRMED`, `OUT_OF_CATALOG`, `PENDING`) chứ không chỉ
+    một tập khoá đã lọc sẵn.
+
+    `refresh()` chứ không `current_revision()`, vì cùng lý do đã nghiệm thu ở
+    `confirmed_keys`: với `gunicorn --workers 2`, worker đang chạy báo cáo
+    KHÔNG nhất thiết là worker đã ghi xác nhận.
+
+    Đọc MỘT lần cho cả lần chạy là có chủ ý. Kế hoạch hỏi giá `daily-min` và
+    phép phân giải giá phải nhìn CÙNG một trạng thái; đọc lại giữa chừng thì
+    một xác nhận xảy ra đúng lúc đó sẽ làm tập mã được hỏi khác tập mã được
+    phân giải, và dòng đó thiếu giá mà không có lý do nào nói được vì sao.
+
+    Store không đọc được ⟹ `None`, và mọi tầng dưới đã có nhánh "chưa nối
+    nguồn identity" mang tên riêng (`IDENTITY_SOURCES_UNAVAILABLE`). Không có
+    nhánh nào đoán mã.
+    """
+    if store is None:
+        return None
+    try:
+        return store.read_at_revision(store.refresh())
+    except Exception:  # noqa: BLE001 — xem docstring
+        return None
 
 
 def confirmed_keys(store) -> frozenset[str]:
@@ -209,6 +258,76 @@ def confirmed_identities(store) -> dict:
     return resolved
 
 
+def out_of_catalog_keys(store) -> frozenset[str]:
+    """Các `raw_identity_key` mà người dùng đã xác nhận NGOÀI BẢNG GIÁ (R2 §4.3).
+
+    Tách hẳn khỏi `confirmed_keys`, và đó là toàn bộ điểm: hai tập này dẫn tới
+    hai câu khác nhau trên màn hình ("đã khớp mã X" và "ngoài bảng giá"), và
+    một dòng thuộc tập nào cũng đều là ĐÃ PHÂN LOẠI XONG — không tập nào được
+    đẩy dòng về hàng đợi "chưa phân loại".
+
+    Cùng đường đọc và cùng cách xử lý lỗi như `confirmed_keys`: store không đọc
+    được ⟹ tập RỖNG, tức màn hình thận trọng theo hướng "chưa phân loại" chứ
+    không theo hướng ngược lại.
+    """
+    if store is None:
+        return frozenset()
+    try:
+        view = store.read_at_revision(store.refresh())
+    except Exception:  # noqa: BLE001 — xem `confirmed_keys`
+        return frozenset()
+    return frozenset(
+        mapping.raw_identity_key
+        for mapping in view.alias_index().values()
+        if mapping.status is MappingStatus.OUT_OF_CATALOG
+        and mapping.source_system == SOURCE_SYSTEM_REPORTS_SALES
+    )
+
+
+def mark_out_of_catalog(
+    store, *, product_raw: str, actor_id: str,
+    affected_orders: tuple[str, ...] = (), affected_lines: int = 0,
+    client_request_id: Optional[str] = None, reason: Optional[str] = None,
+) -> str:
+    """Ghi quyết định "hàng này KHÔNG có trên bảng giá" (R2 §4.3).
+
+    KHÔNG cần danh mục Tracking, và đó là chủ ý: đây chính là câu trả lời cho
+    trường hợp danh mục KHÔNG chứa mặt hàng ấy. Bắt màn hình phải pull được
+    danh mục trước khi cho phép nói "không có trong danh mục" sẽ khoá đúng
+    thao tác mà `§4.3` tồn tại để mở.
+
+    Đi qua cùng `store.append()` với mọi quyết định khác, nên `INV-59`
+    (version), `INV-68`/`INV-69` (idempotency) và audit event đều giữ nguyên.
+    """
+    if store is None:
+        raise IdentityGatewayError(
+            "Chưa cấu hình nơi lưu quyết định Product Identity.")
+    key = (product_raw or "").strip()
+    if not key:
+        raise IdentityGatewayError(
+            "Dòng này không có tên hàng trên sổ, nên chưa có gì để phân loại.")
+    identity_key = raw_identity_key(key)
+    revision = store.refresh()
+    current = store.read_at_revision(revision).active_mapping(
+        SOURCE_SYSTEM_REPORTS_SALES, identity_key)
+    store.append(MarkOutOfCatalog(
+        actor_id=actor_id,
+        client_request_id=client_request_id or str(uuid.uuid4()),
+        expected_version=current.version if current is not None else 0,
+        reason=reason,
+        affected_scope=AffectedScope(
+            distinct_identity_count=1,
+            affected_order_ids=tuple(affected_orders),
+            affected_line_count=affected_lines,
+            computed_at_revision=revision,
+        ),
+        raw_identity_key=identity_key,
+        raw_product_identity=key,
+        source_system=SOURCE_SYSTEM_REPORTS_SALES,
+    ))
+    return identity_key
+
+
 def candidates(snapshot, *, query: Optional[str] = None) -> list[Candidate]:
     """Mặt hàng chuẩn của Tracking, lọc theo `query`, giới hạn để đọc được.
 
@@ -243,6 +362,7 @@ def confirm_identity(
     store, *, product_raw: str, tracking_code: str, snapshot,
     actor_id: str, affected_orders: tuple[str, ...] = (),
     affected_lines: int = 0, client_request_id: Optional[str] = None,
+    resolves_conflict: bool = False, reason: Optional[str] = None,
 ) -> str:
     """Ghi quyết định phân loại của Owner qua thẩm quyền đã được nghiệm thu.
 
@@ -271,6 +391,14 @@ def confirm_identity(
     từ chính kỳ đang xem: mọi dòng dùng chung khoá định danh này đều đổi trạng
     thái, không riêng dòng vừa bấm (`INV-76`/`INV-87`). Truyền số đếm thật
     thay vì `1` là điều làm bản ghi audit đọc lại được.
+
+    `resolves_conflict` (R2 §4.2) ghi `mapping_source =
+    HUMAN_CONFLICT_RESOLUTION` thay vì `HUMAN_CONFIRMATION`. Nó KHÔNG phải một
+    nhãn trang trí: mâu thuẫn giữa quyết định của Reports và authority của
+    Tracking được SUY RA từ dữ liệu ở mỗi lần chạy, nên nếu lựa chọn của người
+    dùng không mang dấu vết rằng họ đã nhìn thấy đúng mâu thuẫn ấy, lần chạy
+    sau lại phát hiện lại và lại hỏi lại — mãi mãi. Vẫn là `ConfirmMapping`,
+    tức vẫn đúng một `confirmation_action` đã có, không phải một lệnh mới.
     """
     if store is None:
         raise IdentityGatewayError(
@@ -311,6 +439,10 @@ def confirm_identity(
         actor_id=actor_id,
         client_request_id=client_request_id or str(uuid.uuid4()),
         expected_version=current.version if current is not None else 0,
+        reason=reason,
+        mapping_source=(
+            MappingSource.HUMAN_CONFLICT_RESOLUTION if resolves_conflict
+            else MappingSource.HUMAN_CONFIRMATION),
         tracking_capture_id=snapshot.capture_id,
         affected_scope=AffectedScope(
             distinct_identity_count=1,
@@ -349,5 +481,7 @@ __all__ = [
     "CANDIDATE_LIMIT", "CONFIRM_OK_NOTE", "Candidate",
     "DurableStoreUnavailableError", "IdentityGatewayError", "NO_TRACKING_NOTE",
     "actor_of", "build_store", "candidates", "confirm_identity",
-    "confirmed_identities", "confirmed_keys",
+    "MappingStatus", "SOURCE_SYSTEM_REPORTS_SALES",
+    "confirmed_identities", "confirmed_keys", "out_of_catalog_keys",
+    "mark_out_of_catalog", "store_view",
 ]

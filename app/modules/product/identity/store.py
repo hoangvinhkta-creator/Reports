@@ -93,6 +93,7 @@ from app.modules.product.identity.commands import (
     Command,
     CrossSystemCommand,
     MappingCommand,
+    MarkOutOfCatalog,
     MarkStale,
     RejectCandidate,
     SetPending,
@@ -687,6 +688,14 @@ class JsonlProductIdentityStore:
                 and current.status is MappingStatus.CONFIRMED
                 and current.identity_tuple
                 == (target.namespace, target.source_product_code)
+                # `INV-69` (idempotency lớp 2) so STATE KẾT QUẢ, nên phép so
+                # phải phủ ĐỦ state. `mapping_source` là một phần của state:
+                # R2 §4.2 dùng `HUMAN_CONFLICT_RESOLUTION` để ghi rằng người
+                # dùng đã NHÌN THẤY mâu thuẫn và vẫn chọn mã này. Bỏ nó ra
+                # khỏi phép so thì việc người dùng giữ nguyên lựa chọn cũ sẽ
+                # thành NO_CHANGE, nhãn không bao giờ được ghi, và lần chạy
+                # sau lại báo đúng mâu thuẫn ấy — hỏi mãi không dứt.
+                and current.mapping_source is command.mapping_source
             ):
                 return None, old_record
             return (
@@ -730,6 +739,35 @@ class JsonlProductIdentityStore:
                     raw_identity_key=command.raw_identity_key,
                     normalized_matching_aid=_aid_of(command),
                     status=status,
+                    mapping_source=MappingSource.HUMAN_CONFIRMATION,
+                    resolution_method=ResolutionMethod.SIMILARITY_RANKED,
+                    evidence=command.evidence or _pending_evidence(command),
+                    version=(current.version + 1) if current is not None else 1,
+                    created_at=now,
+                    created_by=command.actor_id,
+                    supersedes=current.mapping_id if current is not None else None,
+                    pp_version_id=command.pp_version_id,
+                    tracking_capture_id=command.tracking_capture_id,
+                ),
+                old_record,
+            )
+
+        if isinstance(command, MarkOutOfCatalog):
+            # R2 §4.3 — cùng khuôn `SetPending` về CƠ CHẾ (không target, đánh
+            # số version tiếp, supersede bản cũ) nhưng KHÁC hẳn về ngữ nghĩa:
+            # đây là một phân loại đã xong. Việc chúng dùng chung hình dạng bản
+            # ghi không làm chúng thành một trạng thái — `status` là chỗ ngữ
+            # nghĩa đó nằm, và nó khác nhau.
+            if current is not None and current.status is MappingStatus.OUT_OF_CATALOG:
+                return None, old_record
+            return (
+                ProductIdentityMapping(
+                    mapping_id=str(uuid.uuid4()),
+                    source_system=command.source_system,
+                    raw_product_identity=command.raw_product_identity,
+                    raw_identity_key=command.raw_identity_key,
+                    normalized_matching_aid=_aid_of(command),
+                    status=MappingStatus.OUT_OF_CATALOG,
                     mapping_source=MappingSource.HUMAN_CONFIRMATION,
                     resolution_method=ResolutionMethod.SIMILARITY_RANKED,
                     evidence=command.evidence or _pending_evidence(command),
@@ -1088,6 +1126,36 @@ def _pending_evidence(command: MappingCommand):
     )
 
 
+_ACTIVE_STATUSES: frozenset[MappingStatus] = frozenset(
+    {MappingStatus.CONFIRMED, MappingStatus.OUT_OF_CATALOG}
+)
+"""Các trạng thái mà bản ghi VẪN LÀ quyết định đang hiệu lực của một khoá.
+
+`OUT_OF_CATALOG` gia nhập ở R2, và nó phải gia nhập — nếu không thì hai thứ
+hỏng, cả hai đều im lặng:
+
+1. **Chuỗi supersede đứt.** `active` là nơi `_append_mapping_command` lấy
+   `current` để điền `supersedes`. Rơi khỏi `active` ⟹ lệnh kế tiếp (chính là
+   "Nối lại Tracking") khai `supersedes=None` trong khi `last_record_id` của
+   khoá đó đã có một bản ghi — và `INV-33` ngay bên dưới sẽ NỔ ở mọi lần ĐỌC
+   về sau. Một quyết định hợp lệ của người dùng làm hỏng vĩnh viễn khả năng
+   đọc log.
+2. **`expected_version` đếm lại từ 0**, nên một lần bấm thứ hai lên cùng khoá
+   trả về xung đột phiên bản không có thật.
+
+`PENDING`/`STALE` KHÔNG nằm ở đây, và đó là hành vi có trước R2 được giữ
+nguyên: chúng có cùng lớp lỗi (xem `S128` §Rủi ro còn lại), nhưng chúng không
+có đường phát sinh nào từ giao diện web, nên sửa chúng là một thay đổi hành vi
+ngoài phạm vi R2 chứ không phải một bản vá cho một lỗi đang xảy ra.
+
+Đọc "có mặt trong `active`" KHÔNG đồng nghĩa "đã khớp một mã": mọi nơi hỏi câu
+đó đều kiểm `status is CONFIRMED` tường minh (`resolver._alias_exact`,
+`identity_gateway.confirmed_keys`, `drift.detect`), và `_discover_candidates`
+lọc thêm `namespace is not None` — mà một bản ghi `OUT_OF_CATALOG` không bao
+giờ có namespace.
+"""
+
+
 def _project(events: Iterable[MappingAuditEvent], revision: int) -> StoreView:
     """Chiếu log thành trạng thái. Đây là toàn bộ "cơ sở dữ liệu" của Phase 1.
 
@@ -1124,7 +1192,7 @@ def _project(events: Iterable[MappingAuditEvent], revision: int) -> StoreView:
                     "cùng một khoá; TUYỆT ĐỐI không tự chọn một cái"
                 )
             last_record_id[key] = mapping.mapping_id
-            if mapping.status is MappingStatus.CONFIRMED:
+            if mapping.status in _ACTIVE_STATUSES:
                 active[key] = mapping
             else:
                 active.pop(key, None)

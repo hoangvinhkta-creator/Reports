@@ -7,9 +7,9 @@
 đó, và cả ba đều test được ngay hôm nay:
 
 ```text
-(a) cả BỐN confirmation_action, cùng với xem candidate/evidence và duyệt hết
-    một batch, chạy được HOÀN TOÀN qua CLI trong môi trường không display,
-    không thiết bị trỏ;
+(a) MỌI confirmation_action (bốn của Phase 1, cộng `MARK_OUT_OF_CATALOG` của
+    R2), cùng với xem candidate/evidence và duyệt hết một batch, chạy được
+    HOÀN TOÀN qua CLI trong môi trường không display, không thiết bị trỏ;
 (b) app/modules/product/** không import thư viện GUI/web/pointer-event nào;
 (c) không confirmation_action nào chỉ tiếp cận được qua một bề mặt con trỏ.
 ```
@@ -17,7 +17,7 @@
 Gate KHÔNG được đánh `NOT_APPLICABLE` với lý do "Phase 1 chưa có UI" — và file
 này là lý do nó không cần phải.
 
-## Bốn command, một hàm mỗi command
+## Một hàm cho mỗi command
 
 `ACTION_COMMANDS` dưới đây là danh sách bề mặt gọi được của từng
 `confirmation_action`. Test của `(c)` đọc chính bảng này: nếu một command tồn
@@ -36,6 +36,7 @@ from app.modules.product.identity.audit import ACTOR_DISCLOSURE, EventType
 from app.modules.product.identity.commands import (
     ConfirmCrossSystem,
     ConfirmMapping,
+    MarkOutOfCatalog,
     RejectCandidate,
     SetPending,
 )
@@ -58,6 +59,7 @@ ACTION_COMMANDS: dict[EventType, str] = {
     EventType.REJECT_CANDIDATE: "reject",
     EventType.CONFIRM_CROSS_SYSTEM: "confirm-cross-system",
     EventType.SET_PENDING: "set-pending",
+    EventType.MARK_OUT_OF_CATALOG: "mark-out-of-catalog",
 }
 """Bề mặt CLI của từng `confirmation_action`. Không mục nào cần con trỏ."""
 
@@ -194,6 +196,37 @@ def set_pending(
     return store.append(command)
 
 
+def mark_out_of_catalog(
+    store: ProductIdentityStore,
+    resolution: IdentityResolution,
+    *,
+    actor_id: str,
+    client_request_id: str,
+    expected_version: int,
+    reason: Optional[str] = None,
+) -> AppendResult:
+    """`MARK_OUT_OF_CATALOG` — R2 §4.3, "hàng này KHÔNG có trên bảng giá".
+
+    Có mặt ở đây vì `CHECK-105D-22` (c) đòi MỌI `confirmation_action` gọi được
+    bằng bàn phím, không riêng những cái có nút trên màn hình. Giao diện web
+    của R2 là một cách gọi THỨ HAI tới cùng command này, không phải một đường
+    vòng qua nó.
+    """
+    command = MarkOutOfCatalog(
+        actor_id=actor_id,
+        client_request_id=client_request_id,
+        expected_version=expected_version,
+        reason=reason,
+        affected_scope=affected_scope_for(
+            resolution.identity, revision=store.current_revision()
+        ),
+        raw_identity_key=resolution.identity.raw_identity_key,
+        raw_product_identity=resolution.identity.raw_product_identity,
+        source_system=resolution.identity.source_system,
+    )
+    return store.append(command)
+
+
 def confirm_cross_system(
     store: ProductIdentityStore,
     *,
@@ -272,4 +305,5 @@ def callable_surfaces() -> dict[EventType, Callable]:
         EventType.REJECT_CANDIDATE: reject,
         EventType.SET_PENDING: set_pending,
         EventType.CONFIRM_CROSS_SYSTEM: confirm_cross_system,
+        EventType.MARK_OUT_OF_CATALOG: mark_out_of_catalog,
     }

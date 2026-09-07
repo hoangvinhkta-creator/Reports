@@ -419,7 +419,9 @@ def test_an_overridden_row_shows_the_auto_price_it_replaced_and_when(
     product_key = product_key_of(html, "BH1")
     assert client.post("/kinh-doanh/gia-nhap", data={
         "order_key": "BH1", "product_key": product_key, "occurrence_index": "1",
+        # R2 §4.4 — dòng này đang có giá tự động, nên lý do là BẮT BUỘC.
         "ky": "2026-01", "loc": "tat-ca", "gia_nhap": "4.000.000",
+        "ly_do": "Đối chiếu hoá đơn",
     }).status_code == 302
 
     after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
@@ -466,7 +468,8 @@ def test_the_owner_edited_filter_returns_exactly_the_lines_the_owner_touched(
     client.post("/kinh-doanh/gia-nhap", data={
         "order_key": "BH-SUA", "product_key": product_key_of(html, "BH-SUA"),
         "occurrence_index": "1", "ky": "2026-01", "loc": "tat-ca",
-        "gia_nhap": "4.000.000"})
+        # R2 §4.4 — thay một giá tự động thì lý do là BẮT BUỘC.
+        "gia_nhap": "4.000.000", "ly_do": "Đối chiếu hoá đơn"})
 
     assert order_keys(
         body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=owner-sua")) == ["BH-SUA"]

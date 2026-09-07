@@ -177,7 +177,8 @@ def test_editing_an_auto_price_records_override_and_moves_the_number(
     assert service.store.set_purchase_price(
         order_key=detail["order_key"], product_key=detail["product_key"],
         occurrence_index=detail["occurrence_index"],
-        price=Decimal("4000000"), auto_price=auto) == "MANUAL_OVERRIDE"
+        price=Decimal("4000000"), auto_price=auto,
+        reason="Đối chiếu hoá đơn nhà cung cấp") == "MANUAL_OVERRIDE"
 
     data = service.period(**JANUARY)
     assert data.lines[0].purchase_provenance == bm.PROVENANCE_MANUAL_OVERRIDE
@@ -190,10 +191,15 @@ def test_the_stored_override_keeps_the_auto_price_it_replaced(repository, store)
     chỉ là một cái nhãn tự khai."""
     store.set_purchase_price(
         order_key="BH1", product_key="pk", occurrence_index=1,
-        price=Decimal("4000000"), auto_price=Decimal("5000000"))
+        price=Decimal("4000000"), auto_price=Decimal("5000000"),
+        entered_by="owner-web", reason="Đối chiếu hoá đơn nhà cung cấp")
     row = store.purchase_price_overrides()[("BH1", "pk", 1)]
     assert row["provenance"] == "MANUAL_OVERRIDE"
     assert row["auto_price_at_entry"] == Decimal("5000000")
+    # R2 §4.4 — provenance THỰC TẾ: ai, và vì sao. Không có hai trường này thì
+    # "override" vẫn chỉ là một cái nhãn tự khai, chỉ khác là có kèm con số.
+    assert row["entered_by"] == "owner-web"
+    assert row["reason"] == "Đối chiếu hoá đơn nhà cung cấp"
 
 
 def test_clearing_an_override_returns_the_line_to_the_engine_number(
@@ -203,7 +209,7 @@ def test_clearing_an_override_returns_the_line_to_the_engine_number(
     keys = dict(order_key="BH1", product_key=service.period(**JANUARY)
                 .details[0]["product_key"], occurrence_index=1)
     service.store.set_purchase_price(price=Decimal("1"), auto_price=Decimal("5000000"),
-                                     **keys)
+                                     reason="Nhập nhầm để kiểm tra", **keys)
     assert service.period(**JANUARY).totals.kpi_profit == Decimal("7999999")
 
     service.store.clear_purchase_price(**keys)
@@ -666,7 +672,7 @@ def test_a_pending_line_with_a_valid_override_is_not_blocked_by_the_label(
     service.store.set_purchase_price(
         order_key="BH1", product_key=data.details[0]["product_key"],
         occurrence_index=1, price=Decimal("4000000"),
-        auto_price=Decimal("5000000"))
+        auto_price=Decimal("5000000"), reason="Giá tự động cao hơn hoá đơn")
 
     after = service.period(**JANUARY)
     line = after.lines[0]
@@ -919,8 +925,11 @@ def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(
                      # `nhom` (`DEC-PHB02-08`) là một trường PHẠM VI như
                      # `nhan-vien`/`loc`: nó nói bảng kê đang thu hẹp về sheet
                      # nào, và không đi vào một phép tính nào.
-                     "nhan-vien", "nhom", "loc", "gia_nhap", "nhan_vien_moi",
-                     "hanh-dong"}
+                     # `ly_do` (R2 §4.4) là VĂN BẢN provenance đi kèm quyết
+                     # định giá, không phải một đầu vào của phép tính nào: nó
+                     # được lưu nguyên văn và không con số nào đọc nó.
+                     "nhan-vien", "nhom", "loc", "gia_nhap", "ly_do",
+                     "nhan_vien_moi", "hanh-dong"}
     for derived in ("loi_nhuan", "kpi_profit", "doanh_thu", "ds_quy_doi"):
         assert f'name="{derived}"' not in html
 

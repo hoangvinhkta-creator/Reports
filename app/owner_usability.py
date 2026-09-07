@@ -131,7 +131,8 @@ def _latest_complete_capture(
 
 
 def select_latest_valid_captures(
-    *, repo_root: Path = REPO_ROOT, sales: Path | None = None
+    *, repo_root: Path = REPO_ROOT, sales: Path | None = None,
+    identity_store_view=None,
 ) -> SelectedCaptures:
     """Chọn các đầu vào Tracking hoàn chỉnh từ các kho capture cục bộ chuẩn.
 
@@ -169,8 +170,9 @@ def select_latest_valid_captures(
     )
     # MIN theo ngày bán — TUỲ CHỌN, cùng lý do đã ghi ở `SelectedCaptures`,
     # nhưng chọn theo KỲ chứ không theo "mới nhất".
-    daily_min = _select_daily_min_capture(root=root, sales=sales, catalog=catalog,
-                                          inv_map=inv_map)
+    daily_min = _select_daily_min_capture(
+        root=root, sales=sales, catalog=catalog, inv_map=inv_map,
+        identity_store_view=identity_store_view)
     return SelectedCaptures(
         tracking_capture=history, tracking_catalog=catalog, tracking_inv_map=inv_map,
         tracking_daily_min=daily_min,
@@ -178,7 +180,8 @@ def select_latest_valid_captures(
 
 
 def _select_daily_min_capture(
-    *, root: Path, sales: Path | None, catalog: Path, inv_map: Path | None
+    *, root: Path, sales: Path | None, catalog: Path, inv_map: Path | None,
+    identity_store_view=None,
 ) -> Path | None:
     """Ảnh chụp MIN phủ ĐÚNG kỳ của workbook này, hoặc ``None``.
 
@@ -193,7 +196,9 @@ def _select_daily_min_capture(
         plan = plan_daily_min_request_for_workbook(
             Path(sales),
             tracking_catalog=load_tracking_catalog_capture(catalog),
-            identity_store_view=_identity_store_view(root),
+            identity_store_view=(
+                _identity_store_view(root) if identity_store_view is None
+                else identity_store_view),
             tracking_inv_map=(
                 load_tracking_inv_map_capture(inv_map) if inv_map is not None else None
             ),
@@ -218,6 +223,13 @@ def _select_daily_min_capture(
 
 
 def _identity_store_view(root: Path):
+    """Log quyết định Product Identity trên ĐĨA CỤC BỘ.
+
+    Đây là nhánh của máy Owner: đĩa thật, một tiến trình, bền qua khởi động
+    lại. Trên bản Web nó KHÔNG đúng — log thật nằm ở R2 — nên
+    `app/web/server.py` truyền `identity_store_view` vào và hàm này không
+    được gọi. Xem `run_owner_report`.
+    """
     store = JsonlProductIdentityStore(log_path=root / IDENTITY_STORE_LOG_PATH)
     return store.read_at_revision(store.current_revision())
 
@@ -239,11 +251,16 @@ def default_output_path(*, repo_root: Path = REPO_ROOT,
 
 def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
                      now: datetime | None = None,
-                     captures: SelectedCaptures | None = None) -> OwnerRun:
+                     captures: SelectedCaptures | None = None,
+                     identity_store_view=None) -> OwnerRun:
     """Gọi đúng Demo V1 sau khi chọn đầu vào Owner cần thấy.
 
     ``run_demo`` vẫn là đường production duy nhất; lớp này không truyền bất
     kỳ quyết định nghiệp vụ nào ngoài hai capture COMPLETE đã chọn.
+
+    ``identity_store_view`` (R2): ảnh chụp đã đóng băng của log quyết định
+    Product Identity. Bản Web truyền vào vì log thật của nó nằm ở R2, không
+    trên đĩa container; ``None`` giữ nguyên nhánh log cục bộ của máy Owner.
 
     ``captures`` (S071): khi bên gọi đã tự chọn captures — ví dụ Reports Web
     Shared Beta pull-on-run LIVE từ Tracking thay vì đọc capture cục bộ trên
@@ -255,7 +272,9 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
     if not sales.is_file() or sales.suffix.lower() != ".xlsx":
         raise OwnerUsabilityError("Hãy chọn một workbook kế toán có đuôi .xlsx.")
     if captures is None:
-        captures = select_latest_valid_captures(repo_root=repo_root, sales=sales)
+        captures = select_latest_valid_captures(
+            repo_root=repo_root, sales=sales,
+            identity_store_view=identity_store_view)
     output = default_output_path(repo_root=repo_root, now=now)
     output.parent.mkdir(parents=True, exist_ok=True)
     run = demo.run_demo(
@@ -265,6 +284,7 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
         tracking_inv_map=captures.tracking_inv_map,
         tracking_daily_min=captures.tracking_daily_min,
         output=output,
+        identity_store_view=identity_store_view,
     )
     if run.summary.input_orders != run.summary.accounted_orders:
         raise OwnerUsabilityError(

@@ -46,7 +46,8 @@ class DemoRun:
 def run_demo(*, sales: Path, tracking_catalog: Path, output: Path,
              tracking_capture: Optional[Path] = None,
              tracking_inv_map: Optional[Path] = None,
-             tracking_daily_min: Optional[Path] = None) -> DemoRun:
+             tracking_daily_min: Optional[Path] = None,
+             identity_store_view=None) -> DemoRun:
     """Giữ nguyên kết quả và audit trail của đúng lần chạy production này.
 
     Production dùng đường dẫn canonical tương đối với repo. CLI đơn luồng
@@ -68,6 +69,18 @@ def run_demo(*, sales: Path, tracking_catalog: Path, output: Path,
     vẫn vào bằng chứng khi CÓ mặt (để đối chiếu kết quả sinh trước R1), nhưng
     bắt nó phải có mặt là bắt báo cáo hôm nay phụ thuộc vào một nguồn hôm nay
     không dùng. Xem `composition.py` và `ADR-110` §6.
+
+    `identity_store_view` (R2) là ảnh chụp ĐÃ ĐÓNG BĂNG của log quyết định
+    Product Identity. Bên gọi đọc nó MỘT lần rồi truyền vào cả đây lẫn bước
+    lập kế hoạch hỏi giá, để kế hoạch và phép phân giải nhìn cùng một trạng
+    thái — hai lần đọc ở hai thời điểm có thể lệch nhau đúng một xác nhận, và
+    khi ấy mã được hỏi giá không trùng với mã được phân giải.
+
+    `None` giữ nguyên hành vi cũ: đọc log cục bộ dưới `data/product_identity/`.
+    Đó là nhánh ĐÚNG trên máy Owner và trong test. Trên bản Web nó SAI —
+    filesystem của container là ephemeral và log thật nằm ở R2 — nên
+    `app/web/server.py` luôn truyền view vào, và `identity_gateway.build_store`
+    là chỗ duy nhất quyết định log thật nằm ở đâu.
     """
     paths_to_resolve = [sales, tracking_catalog, output]
     optional_paths = [tracking_capture, tracking_inv_map, tracking_daily_min]
@@ -96,7 +109,10 @@ def run_demo(*, sales: Path, tracking_catalog: Path, output: Path,
     original_directory = Path.cwd()
     try:
         os.chdir(REPO_ROOT)
-        store = JsonlProductIdentityStore(log_path=IDENTITY_STORE_LOG_PATH)
+        view = identity_store_view
+        if view is None:
+            store = JsonlProductIdentityStore(log_path=IDENTITY_STORE_LOG_PATH)
+            view = store.read_at_revision(store.current_revision())
         sources = PriceResolutionSources(
             business_timezone=load_business_timezone(REPO_ROOT / "config"),
             tracking_price_history=(
@@ -117,7 +133,7 @@ def run_demo(*, sales: Path, tracking_catalog: Path, output: Path,
             ),
             # Tắt tường minh, không đọc đường dẫn legacy rồi mới xóa dữ liệu.
             public_purchase=None,
-            identity_store_view=store.read_at_revision(store.current_revision()),
+            identity_store_view=view,
         )
         composition = PostCutoverPriceComposition(sources)
         raw_rows = read_raw_rows(sales)

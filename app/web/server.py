@@ -210,7 +210,7 @@ def _selected_period(periods: list[tuple[int, Optional[int]]]) -> Optional[tuple
 
 
 def _select_captures_for_run(
-    sales: Optional[Path] = None,
+    sales: Optional[Path] = None, identity_store_view=None,
 ) -> tuple[Optional[SelectedCaptures], Optional[dict], Optional[live_pull.LiveSelectedCaptures]]:
     """Trả về ``(captures, tracking_evidence, live_handle)``.
 
@@ -226,10 +226,17 @@ def _select_captures_for_run(
     dụ đọc danh mục cho bảng chọn mặt hàng) truyền ``None`` một cách có chủ ý:
     chúng không cần giá, và bắt chúng gọi hợp đồng giá là gọi mạng cho một câu
     hỏi không ai đặt ra.
+
+    ``identity_store_view`` (R2) là ảnh chụp đã đóng băng của log quyết định
+    Product Identity — xem ``run_report``. Nó quyết định TẬP MÃ đi hỏi
+    ``daily-min``, nên bỏ trống nó nghĩa là mọi mặt hàng Owner vừa phân loại
+    trên giao diện KHÔNG được hỏi giá ở chính lần chạy đó.
     """
     if not live_pull.is_configured():
         return None, None, None
-    live = live_pull.pull_live_captures(out_dir=TRACKING_TEMP_DIR, sales=sales)
+    live = live_pull.pull_live_captures(
+        out_dir=TRACKING_TEMP_DIR, sales=sales,
+        identity_store_view=identity_store_view)
     captures = SelectedCaptures(
         tracking_capture=live.tracking_capture,
         tracking_catalog=live.tracking_catalog,
@@ -1358,6 +1365,28 @@ def create_app(
         """
         return identity_gateway.confirmed_keys(identity_store)
 
+    def _identity_decisions() -> line_identity.Decisions:
+        """CẢ HAI loại quyết định phân loại đã lưu (R2 §4.1).
+
+        Đọc log ĐÚNG MỘT LẦN cho cả trang rồi chiếu ra hai tập, thay vì gọi
+        `confirmed_keys` và `out_of_catalog_keys` nối tiếp — hai lần đọc là
+        hai ảnh chụp, và một thao tác xảy ra giữa chúng sẽ làm một dòng hiện
+        đồng thời "đã khớp" ở chỗ này và "chưa phân loại" ở chỗ kia.
+        """
+        view = identity_gateway.store_view(identity_store)
+        if view is None:
+            return line_identity.Decisions()
+        confirmed, out_of_catalog = set(), set()
+        for mapping in view.alias_index().values():
+            if mapping.source_system != identity_gateway.SOURCE_SYSTEM_REPORTS_SALES:
+                continue
+            if mapping.status is identity_gateway.MappingStatus.CONFIRMED:
+                confirmed.add(mapping.raw_identity_key)
+            elif mapping.status is identity_gateway.MappingStatus.OUT_OF_CATALOG:
+                out_of_catalog.add(mapping.raw_identity_key)
+        return line_identity.Decisions.of(
+            confirmed=confirmed, out_of_catalog=out_of_catalog)
+
     def _tracking_snapshot():
         """Danh mục Tracking để CHỌN mặt hàng, hoặc `None` nếu không đọc được.
 
@@ -1386,7 +1415,7 @@ def create_app(
             "business_employee",
             **{k: v for k, v in args.items() if v}, **extra))
 
-    def _identify_panel(view: dict, scoped, confirmed: frozenset) -> Optional[dict]:
+    def _identify_panel(view: dict, scoped, decisions) -> Optional[dict]:
         """Bảng chọn mặt hàng Tracking cho ĐÚNG MỘT dòng (`§PI-04`).
 
         Trả `None` khi dòng không tồn tại hoặc không ở trạng thái chưa phân
@@ -1403,8 +1432,8 @@ def create_app(
         detail = view["service"].detail_of(data=view["data"], **keys)
         if detail is None:
             return None
-        state = line_identity.state_of(detail, confirmed_keys=confirmed)
-        if not state.classifiable:
+        state = line_identity.state_of(detail, decisions=decisions)
+        if not (state.classifiable or state.out_of_catalog):
             return None
         query = request.args.get("tim") or ""
         snapshot = _tracking_snapshot()
@@ -1424,6 +1453,14 @@ def create_app(
             "no_tracking_note": identity_gateway.NO_TRACKING_NOTE,
             "shared_lines": len(shared),
             "shared_orders": sorted({item["order_key"] for item in shared}),
+            # R2 §4.1 — bảng chọn phải nói ĐANG ở trạng thái nào, vì ba trạng
+            # thái mở được nó cần ba câu khác nhau: chọn mã lần đầu, chọn LẠI
+            # giữa hai mã đang chỏi nhau, và nối lại một mặt hàng đã xác nhận
+            # ngoài bảng giá.
+            "classification": state.classification,
+            "conflict": state.conflict,
+            "out_of_catalog": state.out_of_catalog,
+            "can_mark_out_of_catalog": not state.out_of_catalog,
         }
 
     @app.post("/kinh-doanh/nhan-vien/phan-loai")
@@ -1453,6 +1490,12 @@ def create_app(
         shared = [item for item in view["data"].details
                   if line_identity.identity_key_of(item.get("product_raw"))
                   == identity_key]
+        # R2 §4.2/§4.3 — trạng thái HIỆN TẠI của dòng quyết định câu trả lời
+        # đúng, và nó được đọc lại ở server chứ không nhận từ form: một form
+        # dựng tay không được tự khai rằng nó đang giải quyết một mâu thuẫn,
+        # vì đúng lời khai đó là thứ làm hệ thống thôi hỏi lại.
+        decisions = _identity_decisions()
+        state = line_identity.state_of(detail, decisions=decisions)
         try:
             identity_gateway.confirm_identity(
                 identity_store,
@@ -1462,6 +1505,8 @@ def create_app(
                 actor_id=identity_gateway.actor_of(),
                 affected_orders=tuple(sorted({item["order_key"] for item in shared})),
                 affected_lines=len(shared),
+                resolves_conflict=state.conflict,
+                reason=(request.form.get("ly_do") or None),
             )
         except identity_gateway.IdentityGatewayError as exc:
             return _workspace_redirect(loi=str(exc), **{
@@ -1471,7 +1516,63 @@ def create_app(
         except Exception as exc:  # noqa: BLE001 — xung đột version/log hỏng
             return _workspace_redirect(loi=(
                 f"Chưa ghi được phân loại: {exc}"))
-        return _workspace_redirect(**{"da-luu": identity_gateway.CONFIRM_OK_NOTE})
+        if state.conflict:
+            note = identity_gateway.CONFLICT_OK_NOTE
+        elif state.out_of_catalog:
+            note = identity_gateway.RELINK_OK_NOTE
+        else:
+            note = identity_gateway.CONFIRM_OK_NOTE
+        return _workspace_redirect(**{"da-luu": note})
+
+    @app.post("/kinh-doanh/nhan-vien/ngoai-bang")
+    def business_mark_out_of_catalog():
+        """R2 §4.3 — "mặt hàng này KHÔNG có trên bảng giá Tracking".
+
+        Đây là một KẾT QUẢ PHÂN LOẠI HOÀN TẤT, và route này giữ cho điều đó
+        đúng ở cả bốn chỗ mà nó có thể sai:
+
+        1. **Không phải loại dòng.** Nó KHÔNG gọi `exclude_line`. Dòng vẫn góp
+           doanh thu, số lượng và chiết khấu y như trước (`§4.3`); thứ duy nhất
+           đổi là dòng thôi nằm trong danh sách "chưa phân loại".
+        2. **Không phải hết hàng.** `OUT_OF_STOCK` là trạng thái của một NGÀY
+           bên Tracking; đây là một khẳng định về MẶT HÀNG.
+        3. **Không sinh ra giá.** Không có nhánh nào ghi `0`. Dòng chuyển sang
+           "Ngoài bảng giá" và chờ một giá tay — `§4.3` nói thẳng là lợi nhuận
+           vẫn Pending cho tới lúc đó.
+        4. **Không cần danh mục Tracking.** Bắt pull được danh mục trước khi
+           cho phép nói "không có trong danh mục" sẽ khoá đúng thao tác mà
+           trạng thái này tồn tại để mở.
+        """
+        view = _workspace_view()
+        keys = _workspace_line_keys()
+        if keys is None:
+            abort(400)
+        detail = view["service"].detail_of(data=view["data"], **keys)
+        if detail is None:
+            abort(404)
+        product_raw = detail["product_raw"] or ""
+        identity_key = line_identity.identity_key_of(product_raw)
+        if identity_key is None:
+            return _workspace_redirect(loi=line_identity.UNCLASSIFIABLE_NOTE)
+        shared = [item for item in view["data"].details
+                  if line_identity.identity_key_of(item.get("product_raw"))
+                  == identity_key]
+        try:
+            identity_gateway.mark_out_of_catalog(
+                identity_store,
+                product_raw=product_raw,
+                actor_id=identity_gateway.actor_of(),
+                affected_orders=tuple(sorted({item["order_key"] for item in shared})),
+                affected_lines=len(shared),
+                reason=(request.form.get("ly_do") or None),
+            )
+        except identity_gateway.IdentityGatewayError as exc:
+            return _workspace_redirect(loi=str(exc))
+        except Exception as exc:  # noqa: BLE001 — xung đột version/log hỏng
+            return _workspace_redirect(loi=(
+                f"Chưa ghi được quyết định ngoài bảng giá: {exc}"))
+        return _workspace_redirect(
+            **{"da-luu": identity_gateway.OUT_OF_CATALOG_OK_NOTE})
 
     @app.get("/kinh-doanh/nhan-vien")
     def business_employee():
@@ -1489,7 +1590,7 @@ def create_app(
             if kind in ("gia-dung", "loai"):
                 confirm = {"kind": kind, **pending}
 
-        confirmed = _confirmed_identity_keys()
+        decisions = _identity_decisions()
 
         # `DEC-185` §PI-04 — bảng chọn mặt hàng của ĐÚNG MỘT dòng, mở ngay
         # trong bảng kê. Nó chỉ được dựng khi Owner đã bấm vào một dòng cụ
@@ -1497,7 +1598,7 @@ def create_app(
         # tải trang.
         identify = None
         if request.args.get("phan-loai"):
-            identify = _identify_panel(view, scoped, confirmed)
+            identify = _identify_panel(view, scoped, decisions)
 
         return render_template(
             "kinh_doanh_nhan_vien.html",
@@ -1516,13 +1617,13 @@ def create_app(
             target=workspace_presentation.target_cell(target),
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
-                scoped.details, sheet=sheet, confirmed_keys=confirmed),
+                scoped.details, sheet=sheet, decisions=decisions),
             detail_totals=workspace_presentation.sheet_detail_totals(
                 scoped.details),
             # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
             # `None`. Không có khối thứ hai, không có trang thứ hai.
             identity_warning=line_identity.sheet_warning(
-                scoped.details, confirmed_keys=confirmed),
+                scoped.details, decisions=decisions),
             identify=identify,
             unclassifiable_note=line_identity.UNCLASSIFIABLE_NOTE,
             excluded=workspace_presentation.excluded_rows(view["data"].excluded),
@@ -1661,8 +1762,17 @@ def create_app(
                 request.form.get("gia_nhap"))
         except business_store.InvalidPurchasePriceError as exc:
             return _workspace_redirect(sua=keys["order_key"], loi=str(exc))
-        provenance = _guarded(service.store.set_purchase_price,
-                              price=price, auto_price=auto_price, **keys)
+        try:
+            # R2 §4.4 — `entered_by`/`reason` là hai nửa còn thiếu của
+            # provenance. Actor đọc từ môi trường, KHÔNG từ form: một form dựng
+            # tay không được tự khai ai đã quyết định.
+            provenance = _guarded(
+                service.store.set_purchase_price,
+                price=price, auto_price=auto_price,
+                entered_by=identity_gateway.actor_of(),
+                reason=(request.form.get("ly_do") or None), **keys)
+        except business_store.MissingPriceReasonError as exc:
+            return _workspace_redirect(sua=keys["order_key"], loi=str(exc))
         return _workspace_redirect(sua=keys["order_key"], **{"da-luu": (
             "Đã ghi giá nhập Owner sửa (thay giá tự động)."
             if provenance == business_metrics.PROVENANCE_MANUAL_OVERRIDE
@@ -1957,21 +2067,51 @@ def create_app(
     # một tập con mà trang không nói là tập con — và khi coverage đã 100 %,
     # cùng đường dẫn đó cho ra một bảng RỖNG. Ba bộ lọc thu hẹp vẫn còn
     # nguyên, chỉ khác là Owner phải chọn chúng một cách tường minh.
+    # Bộ lọc nhận `(line, state)` — `state` là trạng thái phân loại HIỆU LỰC
+    # của chính dòng đó (`line_identity`). Bốn bộ lọc của R2 (`§Gói 4`) cần nó:
+    # "thiếu giá" gộp bốn tình huống có bốn hành động khác nhau, và một hàng
+    # đợi xử lý mà không tách được chúng thì không giúp ai xử lý được gì.
     _DETAIL_FILTERS = {
-        "tat-ca": lambda line: True,
+        "tat-ca": lambda line, state: True,
         # Việc Owner gõ được ngay bây giờ.
-        "thieu-gia": lambda line: line.purchase_price is None,
+        "thieu-gia": lambda line, state: line.purchase_price is None,
         # Dòng đã có lãi nhưng chưa biết của ai (`OD-5`).
-        "chua-ro-nv": lambda line: (line.contributes_profit
-                                    and not line.employee_resolved),
+        "chua-ro-nv": lambda line, state: (line.contributes_profit
+                                           and not line.employee_resolved),
         # `R3` — "dòng tôi đã sửa": CHỈ đọc lại provenance đã lưu (giá nhập
         # Owner nhập/sửa, hoặc nhân viên Owner gán lại). Không trạng thái mới,
         # không workflow mới, không ghi gì.
-        "owner-sua": lambda line: (
+        "owner-sua": lambda line, state: (
             line.purchase_provenance in _OWNER_EDITED_PROVENANCE
             or line.employee_provenance == "MANUAL"),
+        # --- R2 §Gói 4 — bốn hàng đợi, bốn hành động ---------------------
+        # 1. Chưa phân loại ⟹ chọn mã Tracking, hoặc đánh dấu ngoài bảng giá.
+        "chua-phan-loai": lambda line, state: state.needs_review,
+        # 2. Ngoài bảng giá mà chưa có giá tay ⟹ gõ một con số.
+        "ngoai-bang-thieu-gia": lambda line, state: (
+            state.out_of_catalog and line.purchase_price is None),
+        # 3. Đã khớp Tracking nhưng chưa có MIN cho ngày bán ⟹ vẫn gõ tay
+        #    được, và đó là điểm khác biệt so với (1): ở đây KHÔNG cần phân
+        #    loại thêm gì cả, chỉ là Tracking chưa trả được giá của ngày ấy.
+        "thieu-min": lambda line, state: (
+            state.classification == line_identity.CLASS_MATCHED_TRACKING
+            and line.purchase_price is None),
+        # 4. Mâu thuẫn ⟹ chọn LẠI. Không tự chọn bên thắng (`§4.2`).
+        "xung-dot": lambda line, state: state.conflict,
     }
     _DEFAULT_DETAIL_FILTER = "tat-ca"
+
+    #: Nhãn của từng hàng đợi, đúng thứ tự hiện trên thanh lọc.
+    _DETAIL_FILTER_LABELS = (
+        ("tat-ca", "Tất cả dòng"),
+        ("chua-phan-loai", "Chưa phân loại"),
+        ("xung-dot", "Xung đột mã"),
+        ("ngoai-bang-thieu-gia", "Ngoài bảng — thiếu giá"),
+        ("thieu-min", "Đã khớp — thiếu MIN"),
+        ("thieu-gia", "Thiếu giá (tất cả)"),
+        ("chua-ro-nv", "Chưa rõ nhân viên"),
+        ("owner-sua", "Dòng tôi đã sửa"),
+    )
 
     @app.get("/kinh-doanh/gia-nhap")
     def business_purchase_price():
@@ -2008,13 +2148,20 @@ def create_app(
         if mode not in _DETAIL_FILTERS:
             mode = _DEFAULT_DETAIL_FILTER
         keep = _DETAIL_FILTERS[mode]
-        details = [d for d in data.details if keep(d["line"])]
+        # ĐỌC MỘT LẦN cho cả trang, rồi dùng cho CẢ phép lọc lẫn phép dựng
+        # dòng: lọc bằng một ảnh chụp và hiển thị bằng một ảnh chụp khác sẽ
+        # cho ra một bảng mà số dòng không khớp với bộ lọc đang chọn.
+        decisions = _identity_decisions()
+        details = [
+            d for d in data.details
+            if keep(d["line"], line_identity.state_of(d, decisions=decisions))]
         return render_template(
             "kinh_doanh_gia_nhap.html", periods=view["periods"],
             selected_period=view["selected_period"],
             period_label=business_presentation.period_label(view["period"]),
             columns=business_presentation.DETAIL_COLUMNS,
-            rows=business_presentation.detail_rows(details),
+            filters=_DETAIL_FILTER_LABELS,
+            rows=business_presentation.detail_rows(details, decisions=decisions),
             coverage=business_presentation.coverage_cell(data.totals.coverage),
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
@@ -2059,8 +2206,17 @@ def create_app(
             return redirect(url_for(
                 "business_purchase_price",
                 **{k: v for k, v in redirect_args.items() if v}, loi=str(exc)))
-        provenance = _guarded(service.store.set_purchase_price,
-                              price=price, auto_price=auto_price, **keys)
+        try:
+            # R2 §4.4 — xem chú thích ở `business_save_line_purchase_price`.
+            provenance = _guarded(
+                service.store.set_purchase_price,
+                price=price, auto_price=auto_price,
+                entered_by=identity_gateway.actor_of(),
+                reason=(request.form.get("ly_do") or None), **keys)
+        except business_store.MissingPriceReasonError as exc:
+            return redirect(url_for(
+                "business_purchase_price",
+                **{k: v for k, v in redirect_args.items() if v}, loi=str(exc)))
         return redirect(url_for(
             "business_purchase_price",
             **{k: v for k, v in redirect_args.items() if v},
@@ -2199,10 +2355,25 @@ def create_app(
         upload.save(temp_path)
         started = time.monotonic()
         live_handle = None
+        # R2 Gói 1 — ĐỌC MỘT LẦN, DÙNG HAI CHỖ.
+        #
+        # Đây là mối nối mà R2 phải sửa. Trước bản này, `live_pull` và
+        # `demo.run_demo` mỗi bên tự mở một `JsonlProductIdentityStore` trên
+        # `data/product_identity/mappings.jsonl` — tức đĩa EPHEMERAL của
+        # container, trong khi log thật của bản Web nằm ở R2. Cả hai luôn đọc
+        # ra một store RỖNG, nên mọi mặt hàng Owner đã chọn trên giao diện
+        # không lọt vào tập mã hỏi `daily-min` VÀ không được resolver dùng.
+        # Bảng chọn vẫn chạy, log vẫn ghi, và báo cáo không đổi một chữ.
+        #
+        # Một ảnh chụp DUY NHẤT cho cả lần chạy, không phải hai: kế hoạch hỏi
+        # giá và phép phân giải phải nhìn cùng một trạng thái, nếu không một
+        # xác nhận xảy ra giữa hai lần đọc sẽ làm tập mã được hỏi khác tập mã
+        # được phân giải — và dòng đó thiếu giá mà không lý do nào giải thích.
+        identity_view = identity_gateway.store_view(identity_store)
         try:
             try:
                 captures, tracking_evidence, live_handle = _select_captures_for_run(
-                    sales=temp_path
+                    sales=temp_path, identity_store_view=identity_view
                 )
             except live_pull.DailyMinPeriodTooWideError as exc:
                 # KHÔNG phải lỗi Tracking, nên KHÔNG nói "thử lại sau" — thử
@@ -2226,7 +2397,9 @@ def create_app(
                     status=503,
                 )
             try:
-                owner_run = run_owner_report(sales=temp_path, captures=captures)
+                owner_run = run_owner_report(
+                    sales=temp_path, captures=captures,
+                    identity_store_view=identity_view)
             except OwnerUsabilityError as exc:
                 return _page(error=str(exc), status=400)
             except Exception:

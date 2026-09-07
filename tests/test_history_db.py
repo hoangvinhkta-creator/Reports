@@ -352,6 +352,11 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     việc Nhân viên: ba trường khách hàng của chính sổ đang nạp, phân loại Gia
     dụng ở cấp DÒNG, việc loại một dòng khỏi báo cáo, và Target của NHÓM báo
     cáo. Bốn khẳng định đó không có chỗ nào trong lược đồ cũ để lưu.
+
+    `0008_purchase_price_reason` gia nhập khi R2 (`R2 Execution Brief` §4.4)
+    yêu cầu một quyết định giá nhập tay mang đủ provenance THỰC TẾ: ai, lúc
+    nào, giá AUTO lúc đó là bao nhiêu — và VÌ SAO. Ba thứ đầu đã có cột; lý do
+    thì chưa, và không suy ra được từ đâu cả.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
@@ -360,7 +365,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0003_business.py", "0004_employee_attribution.py",
                         "0005_legacy_source_authority.py",
                         "0006_employee_target.py",
-                        "0007_employee_workspace.py"]
+                        "0007_employee_workspace.py",
+                        "0008_purchase_price_reason.py"]
 
 
 def test_schema_declares_exactly_the_frozen_tables():

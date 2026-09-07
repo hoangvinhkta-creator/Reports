@@ -74,17 +74,68 @@ IDENTITY_UNRESOLVED_REASONS = frozenset({
     "RAW_PRODUCT_IDENTITY_EMPTY",
 })
 
+#: R2 §4.2 — mã lý do nói rằng hai nguồn mapping đã xác nhận đang CHỎI NHAU.
+#: Không nằm trong `IDENTITY_UNRESOLVED_REASONS`: "chưa ai xem" và "hai bên đã
+#: xem và không khớp" là hai tình huống khác nhau, cần hai câu khác nhau.
+IDENTITY_CONFLICT_REASONS = frozenset({"IDENTITY_CONFLICT"})
+
+#: R2 §4.3 — mã lý do của một dòng ĐÃ được xác nhận là ngoài bảng giá. Nguồn
+#: SỐNG của trạng thái này là log quyết định (xem `Decisions`); mã dưới đây là
+#: bằng chứng mà lần chạy gần nhất đã ghi lại, dùng khi log không đọc được.
+IDENTITY_OUT_OF_CATALOG_REASONS = frozenset({"IDENTITY_OUT_OF_CATALOG"})
+
 STATE_UNRESOLVED = "IDENTITY_UNRESOLVED"
 STATE_MISSING_PRICE = "MISSING_PURCHASE_PRICE"
 STATE_OK = "OK"
 
+# --- R2 §4.1 — BỐN trạng thái nhận diện hiệu lực --------------------------
+#
+# `state` ở trên trả lời câu hỏi TRÌNH BÀY ("ô mã hàng hiện chữ gì") và nó có
+# ba giá trị. `classification` dưới đây trả lời câu hỏi NGHIỆP VỤ ("dòng này
+# đang ở đâu trong luồng phân loại") và nó có bốn. Hai câu hỏi khác nhau, nên
+# hai trường — gộp chúng lại sẽ buộc một trong hai phải nói dối:
+#
+#     OUT_OF_CATALOG thiếu giá  → trình bày "Thiếu giá", nghiệp vụ "ngoài bảng"
+#     MATCHED_TRACKING thiếu giá → trình bày "Thiếu giá", nghiệp vụ "đã khớp"
+#
+# Hai dòng đó hiện CÙNG một chữ và cần HAI hành động khác nhau.
+CLASS_MATCHED_TRACKING = "MATCHED_TRACKING"
+CLASS_NEEDS_REVIEW = "NEEDS_REVIEW"
+CLASS_OUT_OF_CATALOG = "OUT_OF_CATALOG"
+CLASS_CONFLICT = "CONFLICT"
+
+CLASSIFICATIONS = (
+    CLASS_MATCHED_TRACKING, CLASS_NEEDS_REVIEW, CLASS_OUT_OF_CATALOG,
+    CLASS_CONFLICT,
+)
+
 LABEL_UNRESOLVED = "Chưa phân loại"
 LABEL_MISSING_PRICE = "Thiếu giá"
+LABEL_OUT_OF_CATALOG = "Ngoài bảng giá"
+LABEL_CONFLICT = "Xung đột mã"
+
+CLASSIFICATION_LABELS = {
+    CLASS_MATCHED_TRACKING: "Đã khớp Tracking",
+    CLASS_NEEDS_REVIEW: LABEL_UNRESOLVED,
+    CLASS_OUT_OF_CATALOG: LABEL_OUT_OF_CATALOG,
+    CLASS_CONFLICT: LABEL_CONFLICT,
+}
+
+CLASSIFICATION_TITLES = {
+    CLASS_MATCHED_TRACKING: "Đã khớp một mã sản phẩm của Tracking",
+    CLASS_NEEDS_REVIEW: (
+        "Chưa nhận diện được mặt hàng này — bấm để chọn sản phẩm tương ứng "
+        "bên Tracking, hoặc đánh dấu là hàng ngoài bảng giá"),
+    CLASS_OUT_OF_CATALOG: (
+        "Đã xác nhận mặt hàng này KHÔNG có trên bảng giá Tracking. Phân loại "
+        "đã xong; dòng vẫn nằm trong báo cáo và cần một giá nhập tay"),
+    CLASS_CONFLICT: (
+        "Mã đã xác nhận của Reports và mã do Tracking trả về đang khác nhau — "
+        "bấm để chọn lại. Hệ thống KHÔNG tự chọn bên thắng"),
+}
 
 LABEL_TITLES = {
-    STATE_UNRESOLVED: (
-        "Chưa nhận diện được mặt hàng này — bấm để chọn sản phẩm tương ứng "
-        "bên Tracking"),
+    STATE_UNRESOLVED: CLASSIFICATION_TITLES[CLASS_NEEDS_REVIEW],
     STATE_MISSING_PRICE: (
         "Đã nhận diện được mặt hàng, nhưng chưa có giá nhập cho ngày bán này"),
 }
@@ -101,12 +152,38 @@ UNCLASSIFIABLE_NOTE = (
 
 
 @dataclass(frozen=True)
+class Decisions:
+    """Các quyết định phân loại ĐÃ LƯU, đọc một lần cho cả trang (R2).
+
+    Gói hai tập vào một object thay vì thêm dần tham số vào `state_of`: mọi
+    màn hình nghiệp vụ gọi hàm đó, và mỗi lần thêm một tham số là một lần phải
+    sửa mọi nơi gọi — chính là cách một trong số chúng bị bỏ quên và hiện sai
+    trạng thái.
+
+    RỖNG là mặc định ĐÚNG: nó cho ra chính xác hành vi trước R2.
+    """
+
+    confirmed: frozenset = frozenset()
+    out_of_catalog: frozenset = frozenset()
+
+    @classmethod
+    def of(cls, confirmed=None, out_of_catalog=None) -> "Decisions":
+        return cls(
+            confirmed=frozenset(confirmed or ()),
+            out_of_catalog=frozenset(out_of_catalog or ()),
+        )
+
+
+@dataclass(frozen=True)
 class IdentityState:
     """Trạng thái nhận diện HIỆU LỰC của một dòng."""
 
     state: str
     #: Khoá định danh của mặt hàng trên dòng, `None` khi không dựng được.
     identity_key: Optional[str] = None
+    #: R2 §4.1 — một trong bốn `CLASSIFICATIONS`. Mặc định `MATCHED_TRACKING`
+    #: giữ nguyên ngữ nghĩa cũ cho mọi nơi dựng object này bằng tay.
+    classification: str = CLASS_MATCHED_TRACKING
 
     @property
     def unresolved(self) -> bool:
@@ -117,7 +194,31 @@ class IdentityState:
         return self.state == STATE_MISSING_PRICE
 
     @property
+    def out_of_catalog(self) -> bool:
+        return self.classification == CLASS_OUT_OF_CATALOG
+
+    @property
+    def conflict(self) -> bool:
+        return self.classification == CLASS_CONFLICT
+
+    @property
+    def needs_review(self) -> bool:
+        return self.classification == CLASS_NEEDS_REVIEW
+
+    @property
     def label(self) -> Optional[str]:
+        """Chữ hiện cạnh mã đơn. `None` = không có gì đáng nói.
+
+        `CONFLICT` và `OUT_OF_CATALOG` có chữ RIÊNG: dán "Chưa phân loại" lên
+        một dòng đã xác nhận ngoài bảng giá sẽ mời Owner đi phân loại lại đúng
+        thứ họ vừa phân loại xong, còn dán nó lên một mâu thuẫn sẽ giấu mất
+        chuyện có hai mã đang chỏi nhau.
+        """
+        if self.classification == CLASS_CONFLICT:
+            return LABEL_CONFLICT
+        if self.classification == CLASS_OUT_OF_CATALOG:
+            return (LABEL_OUT_OF_CATALOG if self.state == STATE_MISSING_PRICE
+                    else None)
         if self.state == STATE_UNRESOLVED:
             return LABEL_UNRESOLVED
         if self.state == STATE_MISSING_PRICE:
@@ -126,12 +227,19 @@ class IdentityState:
 
     @property
     def title(self) -> Optional[str]:
+        if self.classification in (CLASS_CONFLICT, CLASS_OUT_OF_CATALOG):
+            return CLASSIFICATION_TITLES[self.classification]
         return LABEL_TITLES.get(self.state)
 
     @property
     def classifiable(self) -> bool:
-        """Có mở được luồng phân loại cho dòng này không (`§PI-04`)."""
-        return self.unresolved and self.identity_key is not None
+        """Có mở được luồng phân loại cho dòng này không (`§PI-04`).
+
+        `CONFLICT` cũng mở được, và bắt buộc phải mở được: §4.2 nói cách thoát
+        khỏi mâu thuẫn là người dùng CHỌN LẠI, nên một dòng mâu thuẫn mà không
+        bấm vào được là một dòng không có đường ra.
+        """
+        return (self.unresolved or self.conflict) and self.identity_key is not None
 
 
 def identity_key_of(product_raw: Optional[str]) -> Optional[str]:
@@ -151,6 +259,7 @@ def identity_key_of(product_raw: Optional[str]) -> Optional[str]:
 
 def state_of(
     detail: dict, *, confirmed_keys: Optional[frozenset[str]] = None,
+    decisions: Optional[Decisions] = None,
 ) -> IdentityState:
     """Trạng thái nhận diện hiệu lực của một dòng đã hợp nhất.
 
@@ -168,16 +277,43 @@ def state_of(
     chưa có giá; dán "Thiếu giá" lên nó sẽ chỉ Owner đi nhập tay một con số
     mà lẽ ra Tracking đã trả lời được sau khi phân loại.
     """
-    confirmed_keys = confirmed_keys or frozenset()
+    if decisions is None:
+        decisions = Decisions.of(confirmed=confirmed_keys)
     line = detail["line"]
     key = identity_key_of(detail.get("product_raw"))
     reasons = set(line.pending_reasons or ())
-    unresolved = bool(reasons & IDENTITY_UNRESOLVED_REASONS)
-    if unresolved and (key is None or key not in confirmed_keys):
-        return IdentityState(STATE_UNRESOLVED, identity_key=key)
+
+    # Thứ tự dưới đây là hợp đồng, không phải sở thích. Quyết định ĐÃ LƯU của
+    # người đứng TRƯỚC mọi mã lý do của pipeline, vì mã lý do là bằng chứng
+    # của lần chạy TRƯỚC ĐÓ còn quyết định là điều mới nhất người dùng nói.
+    if key is not None and key in decisions.out_of_catalog:
+        return _priced(CLASS_OUT_OF_CATALOG, line, key)
+    if key is not None and key in decisions.confirmed:
+        return _priced(CLASS_MATCHED_TRACKING, line, key)
+
+    # Không có quyết định nào đè lên: đọc bằng chứng mà lần chạy đã ghi.
+    if reasons & IDENTITY_OUT_OF_CATALOG_REASONS:
+        return _priced(CLASS_OUT_OF_CATALOG, line, key)
+    if reasons & IDENTITY_CONFLICT_REASONS:
+        return IdentityState(STATE_UNRESOLVED, identity_key=key,
+                             classification=CLASS_CONFLICT)
+    if reasons & IDENTITY_UNRESOLVED_REASONS:
+        return IdentityState(STATE_UNRESOLVED, identity_key=key,
+                             classification=CLASS_NEEDS_REVIEW)
+    return _priced(CLASS_MATCHED_TRACKING, line, key)
+
+
+def _priced(classification: str, line, key) -> IdentityState:
+    """Chiều GIÁ của một dòng đã phân loại xong — `Thiếu giá` hay không.
+
+    Tách ra một hàm vì cả ba nhánh "đã phân loại" của `state_of` cần đúng phép
+    này, và ba bản sao của nó là ba cơ hội để một bản quên mất `None`.
+    """
     if line.purchase_price is None:
-        return IdentityState(STATE_MISSING_PRICE, identity_key=key)
-    return IdentityState(STATE_OK, identity_key=key)
+        return IdentityState(STATE_MISSING_PRICE, identity_key=key,
+                             classification=classification)
+    return IdentityState(STATE_OK, identity_key=key,
+                         classification=classification)
 
 
 # --- Cảnh báo GỌN của một sheet (`§13`, `§PI-10`) -------------------------
@@ -190,6 +326,7 @@ _NAME_LIMIT = 3
 
 def unresolved_orders(
     details: Iterable[dict], *, confirmed_keys: Optional[frozenset[str]] = None,
+    decisions: Optional[Decisions] = None,
 ) -> list[str]:
     """Các BH của sheet còn chứa mã chưa phân loại, theo thứ tự xuất hiện.
 
@@ -199,7 +336,12 @@ def unresolved_orders(
     """
     seen: list[str] = []
     for detail in details:
-        if not state_of(detail, confirmed_keys=confirmed_keys).unresolved:
+        state = state_of(detail, confirmed_keys=confirmed_keys,
+                         decisions=decisions)
+        # `CONFLICT` KHÔNG được đếm vào "chưa phân loại": nó đã có câu cảnh
+        # báo riêng và một hàng đợi riêng. Gộp lại sẽ nói với Owner rằng còn
+        # việc phân loại chưa làm, trong khi việc thật là chọn lại giữa hai mã.
+        if not (state.unresolved and state.needs_review):
             continue
         order_key = detail["order_key"]
         if order_key not in seen:
@@ -209,13 +351,15 @@ def unresolved_orders(
 
 def sheet_warning(
     details: Iterable[dict], *, confirmed_keys: Optional[frozenset[str]] = None,
+    decisions: Optional[Decisions] = None,
 ) -> Optional[dict]:
     """MỘT dòng cảnh báo cho cả sheet, hoặc `None` khi không có gì để báo.
 
     `None` chứ không phải một câu "không có dòng nào chưa phân loại": một
     trạng thái BÌNH THƯỜNG không đáng chiếm một dòng trên đầu mọi sheet.
     """
-    orders = unresolved_orders(details, confirmed_keys=confirmed_keys)
+    orders = unresolved_orders(details, confirmed_keys=confirmed_keys,
+                               decisions=decisions)
     if not orders:
         return None
     if len(orders) <= _NAME_LIMIT:
@@ -226,8 +370,12 @@ def sheet_warning(
 
 
 __all__ = [
-    "IDENTITY_UNRESOLVED_REASONS", "IdentityState", "LABEL_MISSING_PRICE",
-    "LABEL_UNRESOLVED", "STATE_MISSING_PRICE", "STATE_OK", "STATE_UNRESOLVED",
-    "UNCLASSIFIABLE_NOTE", "identity_key_of", "sheet_warning", "state_of",
-    "unresolved_orders",
+    "CLASSIFICATIONS", "CLASSIFICATION_LABELS", "CLASSIFICATION_TITLES",
+    "CLASS_CONFLICT", "CLASS_MATCHED_TRACKING", "CLASS_NEEDS_REVIEW",
+    "CLASS_OUT_OF_CATALOG", "Decisions", "IDENTITY_CONFLICT_REASONS",
+    "IDENTITY_OUT_OF_CATALOG_REASONS", "IDENTITY_UNRESOLVED_REASONS",
+    "IdentityState", "LABEL_CONFLICT", "LABEL_MISSING_PRICE",
+    "LABEL_OUT_OF_CATALOG", "LABEL_UNRESOLVED", "STATE_MISSING_PRICE",
+    "STATE_OK", "STATE_UNRESOLVED", "UNCLASSIFIABLE_NOTE", "identity_key_of",
+    "sheet_warning", "state_of", "unresolved_orders",
 ]

@@ -77,6 +77,7 @@ from app.modules.product.identity.keys import (
 from app.modules.product.identity.mapping import (
     MappingSource,
     MappingStatus,
+    ProductIdentityMapping,
     SOURCE_SYSTEM_REPORTS_SALES,
 )
 from app.modules.product.identity.public_purchase import (
@@ -89,6 +90,17 @@ from app.modules.product.identity.tracking_inv_map import (
     IGNORE_VALUE as TRACKING_INV_MAP_IGNORE_VALUE,
     TrackingInvMapSnapshot,
 )
+
+CONFLICT_MAPPING_SOURCE = "REPORTS_HUMAN_VS_TRACKING_AUTHORITY"
+"""Nhãn `provenance.mapping_source` của một `RequiresConfirmation` do MÂU
+THUẪN (R2 §4.2), phân biệt với `RequiresConfirmation` do AMBIGUOUS thường.
+
+Cả hai đều nghĩa là "cần đúng một quyết định của người" — union
+`ResolutionOutcome` ĐÓNG và không có biến thể thứ năm — nhưng chúng cần hai
+CÂU khác nhau trên màn hình: một bên là "chưa đủ căn cứ, hãy chọn", bên kia là
+"hai nguồn đã xác nhận đang chỏi nhau, hãy chọn lại". Nhãn nằm ở provenance
+thay vì ở kiểu, nên union vẫn đóng đúng như `INV-24` yêu cầu."""
+
 
 _MATCHED_ON_BY_FIELD = {
     "TRACKING_CODE": MatchedOn.TRACKING_CODE,
@@ -234,6 +246,160 @@ class ProductIdentityResolver:
 
         return self._candidate_stage(identity)
 
+    def _reports_human_decision(
+        self, identity: DistinctIdentity
+    ) -> Optional[ProductIdentityMapping]:
+        """Quyết định của NGƯỜI phía Reports cho khoá này, hoặc `None`.
+
+        Chỉ hai trạng thái được tính là một quyết định đã xong: `CONFIRMED`
+        (đã chọn một mã) và `OUT_OF_CATALOG` (đã xác nhận không có trên bảng
+        giá). `PENDING`/`STALE`/`SUPERSEDED` KHÔNG phải — chúng là những trạng
+        thái đang chờ, và đọc chúng như một quyết định sẽ khoá dòng lại ở một
+        kết luận chưa ai đưa ra.
+        """
+        mapping = self.view.active_mapping(
+            identity.source_system, identity.raw_identity_key
+        )
+        if mapping is None:
+            return None
+        if mapping.status is MappingStatus.OUT_OF_CATALOG:
+            return mapping
+        if mapping.status is MappingStatus.CONFIRMED:
+            return mapping
+        return None
+
+    def _human_decision_resolution(
+        self, identity: DistinctIdentity, mapping: ProductIdentityMapping
+    ) -> IdentityResolution:
+        """R2 §4.2/§4.3 — biến một quyết định đã lưu thành một `outcome`.
+
+        Đây là chỗ mà `R2 Gói 1` nối lại đường bị đứt. Trước R2, chế độ
+        production (`tracking_identity_authority=True`) đi thẳng vào
+        `alias.map`/`board` và KHÔNG hỏi store của Reports một câu nào — nên
+        một mặt hàng Owner vừa chọn trên giao diện vẫn Pending ở lần chạy kế
+        tiếp, và mã đó cũng không lọt vào tập mã đi hỏi `daily-min`. Bảng chọn
+        vẫn hoạt động, log vẫn ghi, và không có gì thay đổi trên báo cáo.
+
+        Bốn nhánh, và mỗi nhánh có một cái TÊN thay vì một lần đoán:
+
+        1. `OUT_OF_CATALOG` ⟹ Pending vì GIÁ (`OUT_OF_CATALOG_CONFIRMED`).
+           Việc phân loại đã xong; không hỏi lại, không tra `daily-min`, và
+           tuyệt đối không dựng ra một con số.
+        2. Mã đích không còn trong catalog đang đọc ⟹
+           `MAPPING_STALE_TARGET_ABSENT`. KHÔNG rơi về đoán mã — đó là đúng
+           thứ `D-04` cấm.
+        3. Tracking cũng có một mapping đã xác nhận, và nó chỉ về một mã KHÁC
+           ⟹ `IDENTITY_CONFLICT`. Không last-write-wins, không tự chọn bên
+           thắng (§4.2). Ngoại lệ DUY NHẤT: bản ghi mang
+           `HUMAN_CONFLICT_RESOLUTION`, tức người dùng đã nhìn thấy đúng mâu
+           thuẫn này và vẫn chọn — không có ngoại lệ đó thì mỗi lần chạy lại
+           phát hiện lại cùng một mâu thuẫn và hỏi lại mãi mãi.
+        4. Còn lại ⟹ `Resolved` bằng chính mã người đã chọn.
+        """
+        if mapping.status is MappingStatus.OUT_OF_CATALOG:
+            return IdentityResolution(
+                identity=identity,
+                outcome=PendingProduct(
+                    reason_code=PendingReason.OUT_OF_CATALOG_CONFIRMED,
+                    attempted_sources=(
+                        AttemptedSource.ALIAS_MEMORY,
+                        AttemptedSource.TRACKING_CATALOG,
+                    ),
+                    provenance=self._provenance(
+                        identity, ResolutionMethod.SIMILARITY_RANKED
+                    ),
+                ),
+                resolution_method=ResolutionMethod.SIMILARITY_RANKED,
+            )
+
+        target = CanonicalProductIdentity(
+            namespace=mapping.namespace,
+            source_product_code=mapping.source_product_code,
+        )
+        if target.namespace is Namespace.TRACKING:
+            row = self.tracking.row_for(target.source_product_code)
+            if row is None or not row.present_in_board:
+                return IdentityResolution(
+                    identity=identity,
+                    outcome=PendingProduct(
+                        reason_code=PendingReason.MAPPING_STALE_TARGET_ABSENT,
+                        attempted_sources=(
+                            AttemptedSource.ALIAS_MEMORY,
+                            AttemptedSource.TRACKING_CATALOG,
+                        ),
+                        provenance=self._provenance(
+                            identity, ResolutionMethod.ALIAS_EXACT
+                        ),
+                    ),
+                    resolution_method=ResolutionMethod.ALIAS_EXACT,
+                )
+            tracking_code = self._tracking_authority_code(identity)
+            if (
+                tracking_code is not None
+                and tracking_code != target.source_product_code
+                and mapping.mapping_source
+                is not MappingSource.HUMAN_CONFLICT_RESOLUTION
+            ):
+                return IdentityResolution(
+                    identity=identity,
+                    outcome=RequiresConfirmation(
+                        candidates=(
+                            target,
+                            CanonicalProductIdentity(
+                                namespace=Namespace.TRACKING,
+                                source_product_code=tracking_code,
+                            ),
+                        ),
+                        provenance=self._provenance(
+                            identity,
+                            ResolutionMethod.ALIAS_EXACT,
+                            mapping_source=CONFLICT_MAPPING_SOURCE,
+                            mapping_id=mapping.mapping_id,
+                            mapping_version=mapping.version,
+                        ),
+                    ),
+                    resolution_method=ResolutionMethod.ALIAS_EXACT,
+                )
+
+        return IdentityResolution(
+            identity=identity,
+            outcome=Resolved(
+                identity=target,
+                provenance=self._provenance(
+                    identity,
+                    ResolutionMethod.ALIAS_EXACT,
+                    target=target,
+                    mapping_source=mapping.mapping_source.value,
+                    mapping_id=mapping.mapping_id,
+                    mapping_version=mapping.version,
+                ),
+            ),
+            resolution_method=ResolutionMethod.ALIAS_EXACT,
+        )
+
+    def _tracking_authority_code(self, identity: DistinctIdentity) -> Optional[str]:
+        """Mã mà authority của Tracking trả cho khoá này, hoặc `None`.
+
+        Đọc ĐÚNG hai đường mà `_tracking_authoritative` đọc — `alias.map`/
+        `board` rồi `inv.map` — và không đường nào khác. Một bản sao thứ hai
+        của phép tra sẽ là một nguồn drift: mâu thuẫn phải được đo trên chính
+        cái mà lần chạy này dùng, không phải trên một xấp xỉ của nó.
+        """
+        normalized_code = identity.normalized_matching_aid.upper()
+        canonical = self.tracking.alias_map().get(normalized_code, normalized_code)
+        row = self.tracking.row_for(canonical)
+        if row is not None and row.present_in_board:
+            return canonical
+        if self.inv_map is None:
+            return None
+        value = self.inv_map.lookup(identity.raw_product_identity)
+        if value is None or value == TRACKING_INV_MAP_IGNORE_VALUE:
+            return None
+        inv_row = self.tracking.row_for(value)
+        if inv_row is None or not inv_row.present_in_board:
+            return None
+        return value
+
     def _tracking_authoritative(
         self, identity: DistinctIdentity
     ) -> IdentityResolution:
@@ -252,6 +418,10 @@ class ProductIdentityResolver:
         chỉ có thể khớp cái này hoặc cái kia theo đúng hình dạng dữ liệu của
         chính nó, không phải theo một thứ tự ưu tiên áp đặt.
         """
+        human = self._reports_human_decision(identity)
+        if human is not None:
+            return self._human_decision_resolution(identity, human)
+
         normalized_code = identity.normalized_matching_aid.upper()
         aliases = self.tracking.alias_map()
         canonical = aliases.get(normalized_code, normalized_code)

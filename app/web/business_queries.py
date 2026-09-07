@@ -363,6 +363,12 @@ def line_details(
                 None if override is None else override["auto_price_at_entry"]),
             "override_entered_at": (
                 None if override is None else override["entered_at"]),
+            # R2 §4.4 — hai nửa còn lại của provenance: AI quyết định và VÌ
+            # SAO. Cả hai chỉ để ĐỌC LẠI; không phép tính nào chạm vào chúng.
+            "override_entered_by": (
+                None if override is None else override["entered_by"]),
+            "override_reason": (
+                None if override is None else override["reason"]),
             "line": line,
         })
     return details

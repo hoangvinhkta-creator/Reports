@@ -284,14 +284,15 @@ def _is_loss(line: bm.BusinessLine) -> bool:
 
 
 def _line_row(detail: dict, *, sheet, part, synthetic: bool,
-              confirmed_keys=None) -> dict:
+              confirmed_keys=None, decisions=None) -> dict:
     line = detail["line"]
     # `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện của DÒNG THẬT.
     #
     # Dòng "Chiết khấu" là số suy ra từ sổ, không phải một mặt hàng, nên nó
     # không có trạng thái nhận diện nào và không được mời Owner phân loại.
     identity = (None if synthetic
-                else line_identity.state_of(detail, confirmed_keys=confirmed_keys))
+                else line_identity.state_of(
+                    detail, confirmed_keys=confirmed_keys, decisions=decisions))
     return {
         "kind": part.kind,
         "synthetic": synthetic,
@@ -329,6 +330,10 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
         # trình bày không được gộp lại. `identity_label` là `None` khi dòng
         # bình thường: ô mã hàng khi đó hiện đúng tên hàng, không thêm gì.
         "identity_state": None if identity is None else identity.state,
+        # R2 §4.1 — trạng thái NGHIỆP VỤ (bốn giá trị), tách khỏi trạng thái
+        # TRÌNH BÀY ở ngay trên (ba giá trị). Xem `line_identity`.
+        "identity_classification": (
+            None if identity is None else identity.classification),
         "identity_label": None if identity is None else identity.label,
         "identity_title": None if identity is None else identity.title,
         "identity_key": None if identity is None else identity.identity_key,
@@ -339,6 +344,21 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
         "identity_blocked": bool(
             identity is not None and identity.unresolved
             and identity.identity_key is None),
+        # R2 §4.3 — "không có trên bảng giá" mở được cho mọi dòng CHƯA phân
+        # loại xong và có khoá định danh. Nó KHÔNG cần danh mục Tracking: đây
+        # chính là câu trả lời cho trường hợp danh mục không chứa mặt hàng ấy.
+        "can_mark_out_of_catalog": bool(
+            identity is not None
+            and identity.identity_key is not None
+            and identity.classification in (
+                line_identity.CLASS_NEEDS_REVIEW, line_identity.CLASS_CONFLICT)),
+        # §4.3 — "Nối lại Tracking" chỉ có nghĩa với một dòng ĐANG ngoài bảng
+        # giá. Trên dòng khác nó sẽ là một nút mời ghi đè một quyết định mà
+        # không ai hỏi Owner có muốn không.
+        "can_relink_tracking": bool(
+            identity is not None
+            and identity.identity_key is not None
+            and identity.out_of_catalog),
     }
 
 
@@ -347,7 +367,7 @@ _NO_DATE_YET = object()
 
 
 def sheet_detail_groups(details: list[dict], *, sheet,
-                        confirmed_keys=None) -> list[dict]:
+                        confirmed_keys=None, decisions=None) -> list[dict]:
     """Bảng kê của một sheet, GỘP THEO BH và tô nền theo NGÀY (`§22`, `§38`).
 
     Cấu trúc phản chiếu chính sổ kế toán: một BH là một KHỐI, khách hàng thuộc
@@ -387,10 +407,11 @@ def sheet_detail_groups(details: list[dict], *, sheet,
             }
         product, *discount_parts = bm.display_contributions(line)
         new_rows = [_line_row(detail, sheet=sheet, part=product, synthetic=False,
-                              confirmed_keys=confirmed_keys)]
+                              confirmed_keys=confirmed_keys, decisions=decisions)]
         for part in discount_parts:
             new_rows.append(_line_row(detail, sheet=sheet, part=part, synthetic=True,
-                                      confirmed_keys=confirmed_keys))
+                                      confirmed_keys=confirmed_keys,
+                                      decisions=decisions))
         group["rows"].extend(new_rows)
         if line.employee and line.employee not in group["employees"]:
             group["employees"].append(line.employee)
@@ -426,6 +447,9 @@ def sheet_detail_groups(details: list[dict], *, sheet,
                     "label": label,
                     "title": row.get("identity_title"),
                     "can_identify": row.get("can_identify"),
+                    # R2 §4.3 — nhãn "Ngoài bảng giá" cũng phải là một cửa:
+                    # xem chú thích trong `kinh_doanh_nhan_vien.html`.
+                    "can_relink": row.get("can_relink_tracking"),
                     "order_key": row["order_key"],
                     "product_key": row["product_key"],
                     "occurrence_index": row["occurrence_index"],
@@ -435,15 +459,22 @@ def sheet_detail_groups(details: list[dict], *, sheet,
                     # PRICE`); xanh cho "Chưa phân loại", còn lại ("Thiếu
                     # giá") dùng ĐÚNG màu vàng của `TAG_COLORS` — cùng một
                     # sự thật với `bh-tag`, không có màu thứ ba.
-                    "color": "green" if label == line_identity.LABEL_UNRESOLVED
-                             else "yellow",
+                    # R2 thêm hai nhãn (`Ngoài bảng giá`, `Xung đột mã`).
+                    # Xanh = "cần Owner phân loại"; vàng = "đã phân loại, còn
+                    # thiếu giá". `Xung đột mã` là việc phân loại chưa xong nên
+                    # nó xanh; `Ngoài bảng giá` đã xong nên nó vàng — cùng một
+                    # quy ước màu, không có màu thứ ba.
+                    "color": (
+                        "green" if label in (line_identity.LABEL_UNRESOLVED,
+                                             line_identity.LABEL_CONFLICT)
+                        else "yellow"),
                 })
         group["loss"] = group["loss"] or _is_loss(line)
         # `§PI-11` — BH này có dòng chưa phân loại nào không. Cờ ở cấp BH chứ
         # không cấp dòng vì cảnh báo đầu sheet đếm BH, và cái nó cuộn tới cũng
         # là một khối BH.
         group["unresolved_identity"] = group.get("unresolved_identity", False) or any(
-            row.get("identity_state") == line_identity.STATE_UNRESOLVED
+            row.get("identity_classification") == line_identity.CLASS_NEEDS_REVIEW
             for row in group["rows"])
 
     ordered = sorted(

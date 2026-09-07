@@ -53,6 +53,20 @@ class PendingReason(str, Enum):
     MAPPING_STALE_TARGET_ABSENT = "MAPPING_STALE_TARGET_ABSENT"
     AWAITING_HUMAN_CONFIRMATION = "AWAITING_HUMAN_CONFIRMATION"
     PENDING_HISTORICAL_CONFIRMATION = "PENDING_HISTORICAL_CONFIRMATION"
+    OUT_OF_CATALOG_CONFIRMED = "OUT_OF_CATALOG_CONFIRMED"
+    """R2 §4.3 — người dùng đã xác nhận mặt hàng KHÔNG có trên bảng giá.
+
+    Đây là một Pending về GIÁ, không phải một Pending về NHẬN DIỆN: việc phân
+    loại đã xong và không được hỏi lại. Nó tồn tại tách khỏi
+    `NO_CANDIDATE_IN_ANY_CATALOG` (chưa ai xem) và khỏi
+    `AWAITING_HUMAN_CONFIRMATION` (đang chờ người) vì cả hai mã đó đều đẩy
+    dòng trở lại hàng đợi "chưa phân loại" — đúng thứ §4.3 cấm.
+    """
+
+    IDENTITY_CONFLICT = "IDENTITY_CONFLICT"
+    """R2 §4.2 — mapping đã xác nhận của Reports và authority của Tracking chỉ
+    về hai mã khác nhau. KHÔNG có bên nào tự thắng."""
+
     TRACKING_INV_MAP_EXPLICIT_IGNORE = "TRACKING_INV_MAP_EXPLICIT_IGNORE"
     """`inv.map[key] == "-"` — người của Tracking đã xem và xác nhận đây
     KHÔNG phải một sản phẩm cần map (S068 follow-up). Khác `NO_CANDIDATE_IN_

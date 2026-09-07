@@ -144,6 +144,11 @@ PIPELINE_REASONS_SUBSUMED_BY_PURCHASE_PRICE = frozenset({
     "SALE_DATE_MISSING", "RAW_PRODUCT_IDENTITY_EMPTY",
     "IDENTITY_SOURCES_UNAVAILABLE", "IDENTITY_UNRESOLVED",
     "IDENTITY_REQUIRES_CONFIRMATION", "TRACKING_HISTORY_SOURCE_UNAVAILABLE",
+    # R2 — hai mã mới của luồng phân loại. Cùng lý do như 12 mã trên: chúng
+    # nói lại MỘT nguyên nhân gốc (`Missing.PurchasePrice`) đã có cửa chặn
+    # actionable riêng, nên giữ chúng ở đây sẽ dán thêm một cảnh báo thứ hai
+    # lên đúng những dòng mà cửa chặn kia đã nói tới.
+    "IDENTITY_OUT_OF_CATALOG", "IDENTITY_CONFLICT",
     "TRACKING_HISTORY_PENDING", "VENDOR_SOURCE_NOT_AUTHORIZED",
     "PUBLIC_PURCHASE_SOURCE_UNAVAILABLE",
     "PUBLIC_PURCHASE_NO_PRICE_AT_SALE_DATE",
