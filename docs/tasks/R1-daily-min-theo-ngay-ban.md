@@ -3,17 +3,22 @@
 ## Metadata
 
 Status:
-IMPLEMENTED
+VERIFYING
 
 Current Status Reason:
-Toàn bộ phạm vi R1 đã triển khai, đã qua một lượt kiểm thử/sửa lỗi riêng
-(07/09/2026: bốn chốt fail-closed phía Tracking, hai chốt toàn vẹn phía
-Reports, và một luật mang-mốc-qua-ngày được sửa lại), và có bằng chứng E1/E2
-trên cả hai repo — kể cả đường xuyên suốt Tracking → hợp đồng → Reports → giá
-nhập → lợi nhuận và ba luồng smoke có output trích nguyên văn. Còn chờ đúng
-hai việc trước khi `DONE`: (1) một lượt Independent Review, (2) Owner nghiệm
-thu trên dữ liệu thật sau khi chạy lượt chụp đầu tiên. Triển khai production
-KHÔNG thuộc R1 (brief §2).
+Toàn bộ phạm vi R1 đã triển khai và qua hai lượt kiểm thử/sửa lỗi riêng
+(bốn chốt fail-closed phía Tracking, hai chốt toàn vẹn phía Reports, luật
+mang-mốc-qua-ngày sửa lại), rồi hai vòng Independent Review trên Reports +
+một finding cuối chỉ ở Tracking (WRITING/READY cho nhánh revision) — xem
+`S126` §11–13. Independent Review kết luận **ACCEPT** (07/09/2026);
+`CHECK-R1-24` = PASS. Cùng phiên đó, SOURCE LOCK đã được đưa lên production:
+Tracking `f9caaa036cc6fbc9a021aeea99158ba6fce9d20e` (Cloudflare Worker
+`tracking`), Reports `eafcb08eb56ca89068d4e91e0c0a126dbab906df` (Render
+`reports-web`) — chi tiết + kết quả smoke production ở handoff triển khai
+(`S127`). Chuyển từ `IMPLEMENTED` sang `VERIFYING` vì việc còn lại KHÔNG còn
+là code hay review nữa, mà là bước Owner tự tay xác nhận trên sản phẩm thật
+(`CHECK-R1-23`) — chính lý do trạng thái `VERIFYING` tồn tại trong vòng đời
+task. `R1` CHƯA `DONE`.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -179,7 +184,7 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-21` | Dữ liệu cũ (`purchase_price_history`/`tp/ton`) giữ nguyên nghĩa | REQUIRED | E1 | PASS |
 | `CHECK-R1-22` | Full regression hai repo không hỏng bài nào | REQUIRED | E1 | PASS |
 | `CHECK-R1-23` | Owner nghiệm thu trên dữ liệu thật | REQUIRED | E2 | NOT_TESTED |
-| `CHECK-R1-24` | Independent Review | REQUIRED | E2 | NOT_TESTED |
+| `CHECK-R1-24` | Independent Review | REQUIRED | E2 | PASS |
 | `CHECK-R1-25` | Lượt chụp KHÔNG ghi bản ngày thành công khi engine không trả đủ mọi mã | REQUIRED | E1 | PASS |
 | `CHECK-R1-26` | Mã bị gỡ khỏi bảng giá được đóng sổ ĐÚNG MỘT lần, không ghi lại mỗi ngày | REQUIRED | E1 | PASS |
 | `CHECK-R1-27` | Sửa bản ghi với nguồn lệch trạng thái bị chặn ở CẢ HAI phía | REQUIRED | E1 | PASS |
@@ -207,6 +212,17 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 Tracking `f9caaa0`). Chỉ có token là chưa đủ: dữ liệu ghi trước rồi token đổi
 sau thì cả hai lần đọc token đều cho ra giá trị CŨ trong khi trang sau đã đọc
 trúng dữ liệu MỚI. Xem `S126` §13, kèm năm rủi ro được CHỌN không xử lý.
+
+`CHECK-R1-24` = **PASS** (07/09/2026). Independent Review kết luận **ACCEPT**
+trên đúng SOURCE LOCK đã triển khai: Tracking `f9caaa036cc6fbc9a021aeea99158
+ba6fce9d20e`, Reports `eafcb08eb56ca89068d4e91e0c0a126dbab906df` (mã R1 nằm ở
+`4b6006e362696dc97e0bb48cd04aeb8ae4556188`; `eafcb08` chỉ bổ sung tài liệu —
+không đổi hành vi). Bằng chứng là chính kết luận ACCEPT của lượt review —
+review chạy hai vòng trên Reports (§11, §12) và một finding cuối chỉ ở
+Tracking (§13); không có finding nào còn mở tại thời điểm ACCEPT. Ghi nhận
+bởi phiên triển khai production (`S127`, xem mục "Đầu vào cho R2" và handoff
+triển khai), KHÔNG phải bởi `S126` — `S126` chỉ ghi các finding VÀ cách sửa,
+không tự kết luận review.
 
 `CHECK-R1-37` … `CHECK-R1-41` được THÊM ở lượt Independent Review vòng 2
 (07/09/2026). `CHECK-R1-40` là check đáng chú ý nhất: bản trước bỏ qua lượt hỏi
@@ -237,14 +253,17 @@ Timestamp:
 
 ## 6. Exit Criteria
 
-1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-43` PASS —
-   **đã đạt**.
-2. `CHECK-R1-24` Independent Review PASS — **chưa**.
-3. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —
-   **chưa**.
+1. `CHECK-R1-01` … `CHECK-R1-22`, `CHECK-R1-24` … `CHECK-R1-43` PASS —
+   **đã đạt** (07/09/2026 — `CHECK-R1-24` Independent Review kết luận ACCEPT).
+2. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —
+   **chưa**. Production ĐÃ triển khai (SOURCE LOCK Tracking `f9caaa0` / Reports
+   `eafcb08`, xem handoff triển khai) và smoke production đã chạy, nhưng đó là
+   bằng chứng của phiên triển khai, KHÔNG thay được việc CHÍNH Owner xác nhận
+   trên sản phẩm thật — checklist ngắn nằm ở cuối handoff triển khai.
 
-`R1` KHÔNG được đánh dấu `DONE` khi (2) hoặc (3) còn `NOT_TESTED`. Test đơn vị
-đạt hết KHÔNG phải điều kiện đủ (brief §11 câu cuối).
+`R1` KHÔNG được đánh dấu `DONE` khi (2) còn `NOT_TESTED`. Test đơn vị đạt hết
+KHÔNG phải điều kiện đủ (brief §11 câu cuối); Independent Review ACCEPT cũng
+KHÔNG phải điều kiện đủ — còn thiếu đúng bước Owner tự tay xác nhận.
 
 ## 7. Khoảng trống ĐÃ BIẾT, ghi ra chứ không im lặng
 
