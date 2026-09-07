@@ -116,20 +116,27 @@ def line(**overrides) -> dict:
 
 # --- Vũ trụ reason code (CHECK-PRA004-04) --------------------------------
 
-def test_the_reason_universe_derived_from_source_is_closed_at_19_codes():
-    """O-D1 + DEC-PAN-001 — 10 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
+def test_the_reason_universe_derived_from_source_is_closed_at_21_codes():
+    """O-D1 + DEC-PAN-001 — 12 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
     1 ``Pending``.
 
     Trước DEC-PAN-001 vòng lặp sinh ba mã ``Pending.<field>`` (vũ trụ 21).
     ``accounting_purchase_price``/``accounting_profit`` đã bị gỡ khỏi đường
     sinh reason: Reports không có nguồn giá nhập kế toán độc lập, nên hai mã
     ấy chỉ nhân bản MỘT nguyên nhân gốc đã có mã actionable riêng.
+
+    R1 (2026-09-07) nâng 10 → 12: nhánh MIN theo ngày bán thêm
+    ``TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE`` (chưa nối nguồn) và
+    ``TRACKING_DAILY_MIN_PENDING`` (đã hỏi, Tracking không trả được giá của
+    đúng ngày ấy). Hai mã, không phải một: cái thứ nhất là việc của người vận
+    hành, cái thứ hai là việc của người kiểm dữ liệu — gộp lại thì màn hình
+    bảo người ta đi làm sai việc.
     """
     universe = reason_universe()
-    assert len(PriceResolutionReason) == 10
+    assert len(PriceResolutionReason) == 12
     assert len(CATEGORIES) == 8
     assert pending_fields_from_source() == {"eligible_kpi_profit"}
-    assert len(universe) == 19
+    assert len(universe) == 21
 
 
 def test_the_two_retired_accounting_codes_are_no_longer_generated():
@@ -140,9 +147,9 @@ def test_the_two_retired_accounting_codes_are_no_longer_generated():
 
 
 def test_the_renderable_universe_still_covers_persisted_history():
-    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 19 mã sinh mới + 2 mã
-    đã nghỉ = 21 mã UI có thể phải hiển thị. Không backfill, không migration."""
-    assert len(renderable_universe()) == 21
+    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 21 mã sinh mới + 2 mã
+    đã nghỉ = 23 mã UI có thể phải hiển thị. Không backfill, không migration."""
+    assert len(renderable_universe()) == 23
 
 
 def test_the_label_table_covers_the_whole_closed_universe():

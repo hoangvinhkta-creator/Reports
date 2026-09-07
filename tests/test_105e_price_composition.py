@@ -219,8 +219,23 @@ def build_sources(
     store=None,
     tracking_identity_authority: bool = False,
     inv_map_entries: dict[str, str] | None = None,
+    legacy_tracking_history_authority: bool = True,
+    daily_min=None,
 ) -> PriceResolutionSources:
-    """Dựng `PriceResolutionSources` QUA ĐÚNG các loader production."""
+    """Dựng `PriceResolutionSources` QUA ĐÚNG các loader production.
+
+    `legacy_tracking_history_authority=True` là mặc định CỦA RIÊNG FILE NÀY,
+    không phải của production. Cả file này canh nhánh lịch sử
+    `board/<mã>/tp/ton` (`TASK-105E`/S060), và nhánh ấy vẫn tồn tại, vẫn đúng,
+    vẫn cần được canh — nó chỉ không còn là nguồn giá MẶC ĐỊNH kể từ R1, khi
+    Owner chốt giá nhập tự động là MIN theo ngày bán.
+
+    Ghim tường minh ở đây thay vì đổi kỳ vọng của từng bài: đối tượng các bài
+    này kiểm KHÔNG đổi, chỉ vị thế mặc định của nó đổi. Sửa kỳ vọng sẽ xoá mất
+    bằng chứng đã tích luỹ cho một đường mã vẫn đang chạy. Nhánh MẶC ĐỊNH mới
+    có bài riêng ngay dưới (`test_r1_default_no_longer_reads_tracking_history`)
+    và một bộ đầy đủ ở `tests/test_daily_min_vertical.py`.
+    """
     history = None
     if with_history:
         history = load_tracking_price_history_capture(
@@ -269,6 +284,8 @@ def build_sources(
         public_purchase=pp,
         identity_store_view=a_store.read_at_revision(a_store.current_revision()),
         tracking_identity_authority=tracking_identity_authority,
+        legacy_tracking_history_authority=legacy_tracking_history_authority,
+        tracking_daily_min=daily_min,
     )
 
 

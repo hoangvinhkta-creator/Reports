@@ -137,7 +137,10 @@ PIPELINE_REASON_DUPLICATE = "Duplicate"
 #: `PURCHASE_PRICE_MISSING` đã nói đúng điều đó bằng ngôn ngữ hành động được;
 #: và bảng kê chi tiết vẫn liệt kê NGUYÊN VĂN mọi mã pipeline ở cột Ghi chú.
 PIPELINE_REASONS_SUBSUMED_BY_PURCHASE_PRICE = frozenset({
-    # 10 mã `PriceResolutionReason` (Nhóm A của bản audit).
+    # 12 mã `PriceResolutionReason` (Nhóm A của bản audit; R1 thêm hai mã của
+    # nhánh MIN theo ngày bán — chúng cũng chỉ nói lại MỘT nguyên nhân gốc đã
+    # có mã actionable riêng là `Missing.PurchasePrice`).
+    "TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE", "TRACKING_DAILY_MIN_PENDING",
     "SALE_DATE_MISSING", "RAW_PRODUCT_IDENTITY_EMPTY",
     "IDENTITY_SOURCES_UNAVAILABLE", "IDENTITY_UNRESOLVED",
     "IDENTITY_REQUIRES_CONFIRMATION", "TRACKING_HISTORY_SOURCE_UNAVAILABLE",

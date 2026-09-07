@@ -18,6 +18,7 @@ if __package__ in (None, ""):
 from app.composition import run_import_production
 from app.modules.exporting.excel_exporter import ReportSummary, export_report, present_lines
 from app.modules.importing.raw_reader import read_raw_rows
+from app.modules.pricing.daily_min.capture_file import load_daily_min_capture
 from app.modules.pricing.resolution.composition import (
     PostCutoverPriceComposition, PriceResolutionRecord,
 )
@@ -43,7 +44,8 @@ class DemoRun:
 
 
 def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
-             output: Path, tracking_inv_map: Optional[Path] = None) -> DemoRun:
+             output: Path, tracking_inv_map: Optional[Path] = None,
+             tracking_daily_min: Optional[Path] = None) -> DemoRun:
     """Giữ nguyên kết quả và audit trail của đúng lần chạy production này.
 
     Production dùng đường dẫn canonical tương đối với repo. CLI đơn luồng
@@ -52,17 +54,28 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
     `tracking_inv_map` TUỲ CHỌN (S068 follow-up): vắng mặt = "chưa nối",
     resolver vẫn chạy đúng đường `alias.map`/`board` cũ — cùng khuôn
     `public_purchase=None` tường minh ngay dưới đây.
+
+    `tracking_daily_min` (R1) là ảnh chụp MIN theo NGÀY BÁN — nguồn giá nhập
+    tự động hiện hành. Cũng TUỲ CHỌN, và vắng mặt cũng có nghĩa "chưa nối":
+    mọi dòng Tracking sẽ Pending với `TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE`
+    thay vì mượn một nguồn giá khác. `tracking_capture` (lịch sử
+    `board/<mã>/tp/ton`) VẪN được nạp và vẫn đi vào bằng chứng, nhưng từ R1 nó
+    KHÔNG còn là nguồn giá mặc định — xem `composition.py`.
     """
     paths_to_resolve = [sales, tracking_capture, tracking_catalog, output]
-    if tracking_inv_map is not None:
-        paths_to_resolve.append(tracking_inv_map)
+    optional_paths = [tracking_inv_map, tracking_daily_min]
+    paths_to_resolve += [p for p in optional_paths if p is not None]
     resolved = [Path(p).expanduser().resolve() for p in paths_to_resolve]
     sales, tracking_capture, tracking_catalog, output = resolved[:4]
-    tracking_inv_map = resolved[4] if tracking_inv_map is not None else None
+    extra = iter(resolved[4:])
+    tracking_inv_map = next(extra) if tracking_inv_map is not None else None
+    tracking_daily_min = next(extra) if tracking_daily_min is not None else None
 
     required_inputs = [sales, tracking_capture, tracking_catalog]
     if tracking_inv_map is not None:
         required_inputs.append(tracking_inv_map)
+    if tracking_daily_min is not None:
+        required_inputs.append(tracking_daily_min)
     for path in required_inputs:
         if not path.is_file():
             raise FileNotFoundError("Không tìm thấy một tệp đầu vào đã chỉ định.")
@@ -81,6 +94,11 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
             tracking_inv_map=(
                 load_tracking_inv_map_capture(tracking_inv_map)
                 if tracking_inv_map is not None
+                else None
+            ),
+            tracking_daily_min=(
+                load_daily_min_capture(tracking_daily_min)
+                if tracking_daily_min is not None
                 else None
             ),
             # Tắt tường minh, không đọc đường dẫn legacy rồi mới xóa dữ liệu.
@@ -110,6 +128,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tracking-inv-map", required=False, default=None, type=Path,
         help="Capture inv.map JSON (TUỲ CHỌN — S068 follow-up; vắng mặt = chưa nối)",
+    )
+    parser.add_argument(
+        "--tracking-daily-min", required=False, default=None, type=Path,
+        help=(
+            "Capture MIN theo ngày bán JSON, hợp đồng daily-min-v1 (R1). Đây là "
+            "NGUỒN GIÁ NHẬP TỰ ĐỘNG; vắng mặt = chưa nối, và mọi dòng Tracking "
+            "sẽ chờ giá thay vì mượn một nguồn giá khác. Tạo bằng "
+            "tools/tracking/capture_daily_min.py"
+        ),
     )
     parser.add_argument("--output", required=True, type=Path, help="Báo cáo .xlsx mới, không ghi đè")
     args = parser.parse_args(argv)

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
 from app import demo
+from app.modules.pricing.daily_min.capture_file import load_daily_min_capture
 from app.modules.pricing.resolution.sources import (
     load_tracking_catalog_capture, load_tracking_inv_map_capture,
 )
@@ -29,6 +30,7 @@ HISTORY_CAPTURE_DIRECTORIES = (
 )
 CATALOG_CAPTURE_DIRECTORIES = (Path("data/tracking_catalog"),)
 INV_MAP_CAPTURE_DIRECTORIES = (Path("data/tracking_inv_map"),)
+DAILY_MIN_CAPTURE_DIRECTORIES = (Path("data/tracking_daily_min"),)
 
 
 class OwnerUsabilityError(RuntimeError):
@@ -40,6 +42,11 @@ class SelectedCaptures:
     tracking_capture: Path
     tracking_catalog: Path
     tracking_inv_map: Path | None = None
+    #: R1 — ảnh chụp MIN theo ngày bán. TUỲ CHỌN cùng khuôn `tracking_inv_map`:
+    #: vắng mặt = "chưa nối", và mọi dòng Tracking Pending với đúng lý do ấy.
+    #: KHÔNG bắt buộc vì nó phụ thuộc kỳ báo cáo (danh sách mã + khoảng ngày),
+    #: nên nó không phải một capture "chụp một lần dùng mãi" như hai cái kia.
+    tracking_daily_min: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -126,8 +133,16 @@ def select_latest_valid_captures(*, repo_root: Path = REPO_ROOT) -> SelectedCapt
         label="inv.map Tracking",
         required=False,
     )
+    # MIN theo ngày bán — TUỲ CHỌN, cùng lý do đã ghi ở `SelectedCaptures`.
+    daily_min = _latest_complete_capture(
+        directories=tuple(root / path for path in DAILY_MIN_CAPTURE_DIRECTORIES),
+        loader=load_daily_min_capture,
+        label="MIN theo ngày bán của Tracking",
+        required=False,
+    )
     return SelectedCaptures(
         tracking_capture=history, tracking_catalog=catalog, tracking_inv_map=inv_map,
+        tracking_daily_min=daily_min,
     )
 
 
@@ -172,6 +187,7 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
         tracking_capture=captures.tracking_capture,
         tracking_catalog=captures.tracking_catalog,
         tracking_inv_map=captures.tracking_inv_map,
+        tracking_daily_min=captures.tracking_daily_min,
         output=output,
     )
     if run.summary.input_orders != run.summary.accounted_orders:

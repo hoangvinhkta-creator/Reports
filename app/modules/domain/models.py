@@ -66,6 +66,17 @@ PRICE_SOURCE_TRACKING_PRICE_HISTORY = "TRACKING_PRICE_HISTORY"
 # thông tin người kiểm cần để biết con số này có đi qua một mapping hay không.
 PRICE_SOURCE_PUBLIC_PURCHASE_NO_TRACKING = "PUBLIC_PURCHASE_NO_TRACKING"
 PRICE_SOURCE_PUBLIC_PURCHASE_NO_VENDOR_PRICE = "PUBLIC_PURCHASE_NO_VENDOR_PRICE"
+# R1 (2026-09-07) — giá MIN theo NGÀY BÁN, do Tracking tính và lưu, Reports đọc
+# qua hợp đồng `daily-min-v1`. Đây là nguồn giá nhập tự động DUY NHẤT của R1.
+#
+# Nhãn RIÊNG, cố ý KHÔNG dùng lại `TRACKING_PRICE_HISTORY`: hai thứ khác nhau
+# về bản chất dù cùng đến từ Tracking. `TRACKING_PRICE_HISTORY` là giá công
+# khai `board/<mã>/tp/ton` dựng lại từ lịch sử sự kiện — một đại lượng do Owner
+# đặt tay. `TRACKING_DAILY_MIN` là giá vốn RẺ NHẤT MUA ĐƯỢC của ngày bán, do
+# engine Tracking tính từ giá NCC còn hàng và ô Tồn. Dùng chung một nhãn là
+# xoá mất đúng thứ người kiểm cần để biết con số đến từ đâu — và hai đại lượng
+# tiền tệ hợp lệ bị nhầm nhau thì không có gì đỏ lên.
+PRICE_SOURCE_TRACKING_DAILY_MIN = "TRACKING_DAILY_MIN"
 
 # Provenance của KpiPurchasePrice (TASK-108B minimum B7/B8 slice, DEC-143 +
 # DEC-144, Golden #1 KPI vertical slice). Tách biệt hoàn toàn khỏi

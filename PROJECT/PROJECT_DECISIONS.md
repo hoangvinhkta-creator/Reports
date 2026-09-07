@@ -11981,3 +11981,109 @@ CẮT bằng dấu "…" thay vì xuống dòng.
 
 Can Revisit After:
 Không còn mục nào treo lại từ vòng UIUX-004…008.
+
+---
+
+## DEC-199
+
+Title:
+R1 — giá nhập tự động của Reports là MIN theo NGÀY BÁN do Tracking tính;
+lịch sử `tp/ton` thôi làm nguồn giá mặc định
+
+Date:
+2026-09-07
+
+Status:
+ACCEPTED (Owner Decision — `R1 Execution Brief — Giá MIN theo ngày bán`)
+
+CONFLICT DETECTED:
+Documentation:
+`ADR-107` (Accepted 2026-08-30) chốt "Public Purchase = … và là
+`KpiPurchasePrice`". `PROJECT/PROJECT_PROGRESS.md` ghi
+`PRICE_AUTHORITY = TRACKING_PP_AT_SALE_DATE_ONLY`, và gọi con số ấy ở
+nghiệp vụ là "Giá mua tham chiếu".
+
+Implementation:
+`app/modules/pricing/tracking_history/` dựng lại `board/<mã>/tp/ton` tại
+khoảng ngày bán; `composition._tracking_branch` dùng nó làm nguồn giá của
+mọi identity `TRACKING`. Mã khớp đúng tài liệu — không có sai lệch nội bộ.
+
+Owner (R1 brief §1, §3.1):
+"Tracking sở hữu việc tính và lưu giá MIN theo ngày. Reports dùng giá MIN
+của đúng ngày bán để tính giá nhập KPI." — "Trong R1, giá nhập tự động duy
+nhất là MIN do Tracking tính."
+
+Risk:
+Giá công khai (`tp/ton`) và MIN là HAI đại lượng khác nhau, cùng đơn vị
+tiền, cùng gắn với một mã và một ngày, cùng đến từ Tracking. Owner đặt giá
+công khai CAO HƠN giá vốn thật một cách có chủ đích (`ADR-107` Context).
+Dùng nó làm giá nhập là báo cáo một biên lợi nhuận thấp hơn thực tế, đều
+đặn, trên mọi dòng — và không có gì đỏ lên, vì cả hai đều là số tiền hợp lệ.
+
+Resolution:
+Áp yêu cầu Owner. `ADR-110` ghi lại quyết định kiến trúc và supersede ĐÚNG
+một mệnh đề của `ADR-107` ("Public Purchase … là `KpiPurchasePrice`"); mọi
+phần còn lại của `ADR-107` giữ nguyên hiệu lực. Bản ghi lịch sử của
+`ADR-107` và `DEC-165` KHÔNG được viết lại — chúng đúng với thông tin có
+lúc đó.
+
+Decision:
+1. **Nguồn giá nhập tự động = MIN của đúng ngày bán**, do Tracking tính,
+   lưu theo ngày, xuất qua hợp đồng `daily-min-v1`. Nhãn nguồn riêng:
+   `price_source = TRACKING_DAILY_MIN`.
+2. **Reports KHÔNG tính một MIN thứ hai.** Luật MIN (danh sách nhà cung cấp
+   bị bỏ, ngưỡng giá bất thường, sentinel hết hàng, ô Tồn tham gia) ở lại
+   Tracking. Engine trả thêm nguồn thắng; kết quả GIÁ không đổi (`pe-6`).
+3. **`MIN = 0` không bao giờ ra ngoài như một giá.** Sentinel hết-hàng đổi
+   thành `OUT_OF_STOCK` + `min_price = null` ngay tại biên xuất bản.
+4. **Không fallback sai ngày.** Không lấy bản của ngày sau, không lấy giá
+   tại thời điểm nạp file, không lấy giá 0. Kế thừa trạng thái từ ngày
+   trước CHỈ hợp lệ khi Tracking chứng minh được đã quan sát bảng giá mọi
+   ngày ở giữa (`min_ngay_ngay`); Reports không tự suy ra.
+5. **`PROVISIONAL`/`FINAL` gắn với NGÀY.** Reports dùng được giá của ngày
+   chưa chốt nhưng phải giữ trạng thái ấy; kỳ còn dùng bản tạm thì chưa
+   được gọi là chốt (`PriceResolutionReport.prices_are_final`).
+6. **Nhánh `TrackingPriceHistory` KHÔNG bị xoá và KHÔNG đổi nghĩa**, chỉ
+   thôi làm mặc định. Bật lại phải tường minh
+   (`legacy_tracking_history_authority=True`), và không có đường rơi từ MIN
+   sang nó — kể cả khi ảnh chụp MIN chưa được nối.
+7. **Không backfill.** Không dựng lịch sử MIN từ `tp/ton` hay từ bảng giá
+   hôm nay. Lịch sử MIN có thẩm quyền bắt đầu từ lượt chụp đầu tiên.
+
+Reason:
+Điểm mấu chốt giống hệt `ADR-107` nhưng ở một cặp khái niệm khác: hai đại
+lượng khác nhau tình cờ cùng đơn vị tiền. Nhầm chúng không tạo ra ngoại lệ
+nào, không làm đỏ ô nào, và chỉ hiện ra ở cuối tháng dưới dạng một biên lợi
+nhuận "hơi khác mọi khi". Cách duy nhất chống lại lớp lỗi ấy là gọi tên nó
+ở tầng dữ liệu: mỗi nguồn một nhãn riêng, mỗi bản ghi mang nguồn thắng và
+revision, không nhánh nào rơi từ nguồn này sang nguồn kia.
+
+Impact:
+Tracking — `price-engine/src/nghiepvu.js` (`nguonGiuMin`, `tinhMinNgay`,
+`PHIEN_BAN_MIN`), `src/min-ngay.js` (mới), `src/index.js` (route + cron),
+`public/index.html` (đăng `meta.an`), `firebase-database.rules.json`
+(bốn nhánh mới, client KHÔNG ghi được), `wrangler.toml` (cron thứ ba).
+Reports — `app/modules/pricing/daily_min/` (mới),
+`tools/tracking/capture_daily_min.py` (mới), `composition.py`/`sources.py`
+(nhánh + cờ legacy), `demo.py`/`owner_usability.py` (đầu vào tuỳ chọn),
+`excel_exporter.py` (hai cột provenance trỏ về nguồn ĐÃ QUYẾT ĐỊNH),
+`beta_presentation.py`/`profit_gate.py` (hai mã lý do mới).
+Vũ trụ reason code đóng: 19 → 21 mã sinh mới, 21 → 23 mã UI phải hiển thị.
+
+Evidence:
+Tracking `npm test`: 60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua (nền: 59 · 2594 ·
+0 · 2). `npm run build` dựng `./dist` thành công.
+Reports `python -m pytest -q`: `2776 passed, 12 skipped` (nền `2720 passed,
+12 skipped`) — 56 bài mới, 0 bài cũ hỏng.
+Governance validator: structure / project_state / evidence (161 REQUIRED
+PASS) / task_completion (14 DONE) PASS; reference_integrity FAIL với ĐÚNG
+3 reference `TASK-REM-T06` đã biết — baseline KHÔNG đổi.
+Kiểm xuyên suốt: `tests/test_daily_min_vertical.py` chạy trên fixture do
+CHÍNH mã Tracking sinh (`nghiepvu.js` → `min-ngay.js` → phong bì capture),
+xác nhận đơn bán 03/09 ra 6.800.000 VND trong khi ảnh chụp có 6.000 ở
+04/09, lợi nhuận 2.200.000 VND, provenance trỏ đúng revision của Tracking.
+
+Can Revisit After:
+Mở lại nếu Owner đổi định nghĩa giá nhập tự động, hoặc khi `TASK-105C`
+(giá nhà cung cấp lịch sử) được cấp phép và cần một thứ tự ưu tiên mới.
+Điểm 6 mở lại khi không còn kết quả cũ nào cần đọc bằng nhánh `tp/ton`.

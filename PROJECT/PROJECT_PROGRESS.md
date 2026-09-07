@@ -1,5 +1,86 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — R1 = IMPLEMENTED (2026-09-07)
+
+**Thẩm quyền giá nhập ĐÃ ĐỔI.** Owner ban hành `R1 Execution Brief — Giá MIN
+theo ngày bán`: giá nhập tự động của Reports là **MIN của đúng ngày bán**, do
+Tracking tính và lưu, đọc qua hợp đồng `daily-min-v1`. Nhánh cũ (lịch sử
+`board/<mã>/tp/ton`, tức giá nhập công khai Owner đặt tay) KHÔNG bị xoá, KHÔNG
+đổi nghĩa, và THÔI làm nguồn giá mặc định.
+
+Đây là một `CONFLICT DETECTED` đã được giải quyết theo quy trình, không phải
+một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
+`docs/adr/ADR-110-daily-min-price-authority.md` (supersede ĐÚNG một mệnh đề
+của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
+bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
+
+```text
+STATUS                      = IMPLEMENTED — chờ Independent Review + Owner
+                              nghiệm thu trên dữ liệu thật. KHÔNG deploy.
+Current Task Mode:            MAJOR
+BASE_HEAD (Reports)         = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
+BASE_HEAD (Tracking)        = 598b4b1390cc96e552455ab85e2c48d78198b89c
+BRANCH (cả hai repo)        = claude/kiem-tra-tham-chieu-gia-nhap-c57d7z
+
+PRICE_AUTHORITY             = TRACKING_DAILY_MIN_AT_SALE_DATE
+                              (thay TRACKING_PP_AT_SALE_DATE_ONLY)
+PRICE_SOURCE_LABEL          = TRACKING_DAILY_MIN — nhãn RIÊNG, không dùng
+                              lại TRACKING_PRICE_HISTORY
+LEGACY_TP_TON_PATH          = GIỮ NGUYÊN, thôi mặc định; bật lại phải nêu rõ
+                              `legacy_tracking_history_authority=True`
+FALLBACK_TU_MIN_SANG_CU     = KHÔNG TỒN TẠI, kể cả khi nguồn mới chưa nối
+BACKFILL                    = KHÔNG. Lịch sử MIN bắt đầu từ lượt chụp đầu tiên
+
+CONTRACT                    = daily-min-v1 · đơn vị VND_THOUSAND · múi giờ
+                              Asia/Ho_Chi_Minh · POST /api/min-ngay
+                              (X-Report-Key, batch, phân trang)
+TRACKING_STORAGE            = min_ngay/<mã>/<ngày> (chỉ ghi khi đổi) ·
+                              min_ngay_ngay/<ngày> (bằng chứng ĐÃ QUAN SÁT
+                              + PROVISIONAL/FINAL) · min_ngay_dau ·
+                              min_ngay_sua — cả bốn: client KHÔNG ghi được
+CARRY_FORWARD_RULE          = mốc R ≤ D chỉ hợp lệ khi MỌI ngày trong (R, D]
+                              có bản ngày; thiếu một ngày ⇒ SOURCE_UNAVAILABLE
+MIN_0_SENTINEL              = dừng ở biên xuất bản → OUT_OF_STOCK + null
+UNIT_CONVERSION             = ×1000 đúng MỘT lần, daily_min/provider.py
+
+REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển thị
+                              (thêm TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE và
+                              TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
+                              của hai người khác nhau, không gộp)
+
+TRACKING_TESTS              = 60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua
+                              (nền: 59 · 2594 · 0 · 2)
+TRACKING_BUILD              = `npm run build` dựng ./dist thành công
+REPORTS_TESTS               = 2776 passed, 12 skipped, 0 failed
+                              (nền: 2720 passed, 12 skipped) — 56 bài mới
+GOVERNANCE_VALIDATORS       = structure / project_state / evidence (161
+                              REQUIRED PASS) / task_completion (14 DONE)
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference TASK-REM-T06 đã biết (baseline
+                              KHÔNG đổi)
+E2E                         = tests/test_daily_min_vertical.py chạy trên
+                              fixture do CHÍNH mã Tracking sinh: đơn bán
+                              03/09 ra 6.800.000 VND trong khi ảnh chụp có
+                              6.000 (nghìn) ở 04/09; lợi nhuận 2.200.000;
+                              provenance trỏ đúng revision của Tracking
+
+BLOCKING_FINDINGS           = 0
+KNOWN_GAPS                  = (1) không backfill được lịch sử MIN trước lượt
+                              chụp đầu · (2) đường web pull-on-run chưa lấy
+                              MIN theo ngày (cần tập mã sau resolve identity
+                              — thuộc R2) · (3) lượt chụp cần `meta.an` do
+                              trình duyệt Tracking đăng; chưa có thì bản ngày
+                              SOURCE_UNAVAILABLE và tự khỏi ở lần mở app kế
+DEPLOYED                    = NO (brief §2 loại trừ triển khai production)
+SCOPE_DRIFT                 = NO
+NEXT_VERTICAL_ACTION        = Independent Review của R1, rồi Owner chạy lượt
+                              chụp đầu tiên và nghiệm thu trên dữ liệu thật
+```
+
+Khối `TASK-OWNER-UIUX-008` ngay bên dưới được **GIỮ NGUYÊN như bản ghi lịch sử
+đúng tại thời điểm của nó**. Khi nó mâu thuẫn với mục này về trạng thái *hiện
+tại* của thẩm quyền giá, mục này đúng.
+
 ## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-008 = DONE (2026-09-06)
 
 Hai yêu cầu trực tiếp của chủ dự án trên bảng kê Nhân viên: nới rộng cột

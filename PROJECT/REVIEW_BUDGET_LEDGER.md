@@ -2883,3 +2883,35 @@ DEPLOYED                      : NO
 `PHB-03` = `IMPLEMENTED_AWAITING_REVIEW` (KHÔNG phải `DONE` — chưa có
 Independent Review).
 `NEXT_VERTICAL_ACTION = Independent Review của PHB-03 implementation.`
+
+---
+
+## Root Task: R1
+
+```
+root_task: R1
+title: Giá MIN theo ngày bán (Tracking sở hữu, Reports tiêu thụ)
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo data path, không theo tên module: `MIN → giá nhập → EligibleKpiProfit →
+DS quy đổi → KPI/lương`.
+
+Lineage RIÊNG, không dùng chung với `TASK-105E`/`TASK-105C`: R1 thay THẨM
+QUYỀN của nhánh giá (`DEC-199`/`ADR-110`), không phải sửa tiếp triển khai của
+hai task ấy. `TASK-105B` và `TASK-105C` giữ nguyên ngân sách và trạng thái của
+chúng.
+
+Sub-unit (R1-A, R1-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
+  thời điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
+

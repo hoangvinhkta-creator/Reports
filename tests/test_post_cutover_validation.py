@@ -132,6 +132,9 @@ def run(sales_path: Path, sources: dict[str, Path], **kwargs):
     # catalog-name/legacy-PP route is intentionally not the Owner production
     # identity contract. Strict production behavior is covered separately.
     kwargs.setdefault("tracking_identity_authority", False)
+    # Xem chú thích `legacy_tracking_history_authority` ở `_production()` dưới:
+    # cả file này canh nhánh lịch sử `tp/ton`, không phải nhánh mặc định R1.
+    kwargs.setdefault("legacy_tracking_history_authority", True)
     return vpc.analyze(
         sales_path,
         config_dir=kwargs.pop("config_dir", CONFIG_DIR),
@@ -795,6 +798,11 @@ def production(sales, sources):
         public_purchase=sources["public_purchase"],
         identity_store=sources["identity_store"],
         tracking_identity_authority=False,
+        # Cả file này canh nhánh lịch sử `board/<mã>/tp/ton` — xem chú thích
+        # `build_sources` ở `tests/test_105e_price_composition.py`. Nhánh MẶC
+        # ĐỊNH mới (MIN theo ngày bán) có bộ canh riêng, cùng các lớp lỗi im
+        # lặng, ở `tests/test_daily_min_vertical.py`.
+        legacy_tracking_history_authority=True,
     )
     composition = PostCutoverPriceComposition(freeze.sources)
     result = run_import_production(
