@@ -12083,6 +12083,24 @@ CHÍNH mã Tracking sinh (`nghiepvu.js` → `min-ngay.js` → phong bì capture)
 xác nhận đơn bán 03/09 ra 6.800.000 VND trong khi ảnh chụp có 6.000 ở
 04/09, lợi nhuận 2.200.000 VND, provenance trỏ đúng revision của Tracking.
 
+Amendment (07/09/2026, lượt Independent Review vòng 1 — bản ghi gốc bên trên
+GIỮ NGUYÊN, không viết lại):
+- Điểm 4, mệnh đề "mọi ngày ở giữa": SIẾT LẠI thành **mốc `R ≤ D` hợp lệ cho
+  ngày `D` khi và chỉ khi ĐÚNG ngày `D` có bản ngày**. Luật cũ khoá VĨNH VIỄN
+  mọi mã giá ổn định sau một ngày lỡ. Luật mới đúng được là NHỜ một bất biến
+  phía ghi (`chupMinNgay` fail-closed: bản ngày chỉ ghi khi engine trả đủ mọi
+  mã), nên hai điều này đi liền nhau — xem `ADR-110` §2.
+- Điểm 5, tên cờ: `prices_are_final` → **`resolved_prices_are_final`**, và
+  thêm một cổng riêng `period_is_final`. Tên cũ mời cách đọc sai: một kỳ TOÀN
+  Pending, hay một kỳ rỗng, đều trả `True` cho nó.
+- Bổ sung điểm 8: **mọi trang của một lần chụp phải cùng `query_revision`.**
+  Con trỏ phân trang không đóng băng dữ liệu; Tracking đổi token này sau mọi
+  lượt ghi và trả nó trên từng trang, Reports TỪ CHỐI gộp khi lệch.
+- Bổ sung điểm 9: **đường upload web tự lập kế hoạch hỏi giá** (đọc sổ →
+  resolve identity → tập mã + khoảng ngày bán) rồi gọi hợp đồng MỘT lượt cho
+  lần chạy ấy. Ảnh chụp MIN phụ thuộc kỳ, nên chọn "capture mới nhất" là sai:
+  luồng cục bộ chọn ảnh chụp PHỦ ĐÚNG kỳ, không có thì `None` + Pending.
+
 Can Revisit After:
 Mở lại nếu Owner đổi định nghĩa giá nhập tự động, hoặc khi `TASK-105C`
 (giá nhà cung cấp lịch sử) được cấp phép và cần một thứ tự ưu tiên mới.

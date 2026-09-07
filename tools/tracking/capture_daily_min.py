@@ -29,9 +29,16 @@ trang (`TRAN_TRANG`) để một `next_cursor` lặp vô hạn phía máy chủ 
 thành một vòng lặp không kết thúc ở đây.
 
 Phong bì của mọi trang phải khớp nhau (`schema_version`, `currency_unit`,
-`business_timezone`, `date_from`, `date_to`). Lệch một trường là hai trang đến
-từ hai trạng thái khác nhau, và nối chúng lại là dựng một ảnh chụp chưa từng
-tồn tại ở bất kỳ thời điểm nào.
+`business_timezone`, `date_from`, `date_to`, `query_revision`). Lệch một trường
+là hai trang đến từ hai trạng thái khác nhau, và nối chúng lại là dựng một ảnh
+chụp chưa từng tồn tại ở bất kỳ thời điểm nào.
+
+Năm trường đầu chỉ lặp lại yêu cầu vừa gửi đi, nên chúng khớp nhau kể cả khi dữ
+liệu bên dưới đã đổi. `query_revision` là trường DUY NHẤT nói về trạng thái
+database: Tracking đổi nó sau mọi lượt ghi vào nhánh MIN theo ngày, và đọc nó
+TRƯỚC khi đọc dữ liệu, nên một lượt ghi xen giữa hai trang luôn làm hai trang
+lệch. Con trỏ phân trang chỉ là vị trí trong danh sách mã; nó không đóng băng
+gì cả.
 
 ## Chỉ ĐỌC
 
@@ -89,12 +96,22 @@ Không phải một con số tuỳ tiện: trần mã mỗi trang phía Tracking
 vòng lặp chạy tới khi hết bộ nhớ."""
 
 #: Những trường của phong bì phải GIỐNG NHAU ở mọi trang — xem docstring.
+#:
+#: `query_revision` là trường quan trọng nhất trong danh sách này, và cũng là
+#: trường duy nhất KHÔNG suy ra được từ yêu cầu. Năm trường kia chỉ lặp lại
+#: những gì công cụ này vừa gửi đi, nên chúng khớp nhau kể cả khi dữ liệu phía
+#: dưới đã đổi giữa hai trang. `query_revision` đổi sau MỌI lượt ghi vào các
+#: nhánh MIN theo ngày — một lượt cron chụp thêm, một ngày chuyển sang FINAL,
+#: một lệnh sửa bản ghi cũ. Không có nó thì hai trang của hai trạng thái khác
+#: nhau ghép lại thành một ảnh chụp chưa từng tồn tại, và mọi trường phong bì
+#: khác vẫn khớp nên không có gì đỏ lên.
 TRUONG_PHONG_BI = (
     "schema_version",
     "currency_unit",
     "business_timezone",
     "date_from",
     "date_to",
+    "query_revision",
 )
 
 Poster = Callable[[dict[str, Any]], Any]
@@ -179,6 +196,12 @@ def gop_trang(pages: list[dict[str, Any]]) -> dict[str, Any]:
                     f"trang {so} lệch phong bì ở {field!r}: "
                     f"{trang.get(field)!r} ≠ {dau.get(field)!r}"
                 )
+    revision = dau.get("query_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise CaptureError(
+            "trang 1 thiếu `query_revision` — không chứng minh được các trang "
+            "cùng một trạng thái database; từ chối gộp."
+        )
     if dau.get("schema_version") != SCHEMA_VERSION:
         raise CaptureError(
             f"schema_version={dau.get('schema_version')!r} không phải "

@@ -63,6 +63,7 @@ __all__ = [
     "MinSource",
     "MissingReason",
     "PriceStatus",
+    "SUPPORTED_BUSINESS_TIMEZONE",
     "SUPPORTED_CURRENCY_UNIT",
     "SUPPORTED_SCHEMA_VERSION",
     "SourceType",
@@ -78,6 +79,14 @@ phía Tracking đi thẳng vào giá vốn mà không ai thấy."""
 
 SUPPORTED_CURRENCY_UNIT = "VND_THOUSAND"
 """Đơn vị tiền DUY NHẤT được chấp nhận. Xem docstring module."""
+
+SUPPORTED_BUSINESS_TIMEZONE = "Asia/Ho_Chi_Minh"
+"""Múi giờ nghiệp vụ DUY NHẤT được chấp nhận.
+
+Ranh giới ngày quyết định bản ghi nào thuộc ngày nào. Một ảnh chụp cắt ngày
+theo UTC gán những đơn bán sau 17:00 giờ Việt Nam sang ngày hôm sau — mỗi đơn
+ấy nhận giá của một ngày khác, và con số vẫn là một con số hợp lệ. Không có
+cách nào phát hiện ra từ nội dung, nên phải chặn ở phong bì."""
 
 
 class PriceStatus(str, Enum):
@@ -264,6 +273,12 @@ class DailyMinSnapshot:
     business_timezone: str = ""
     date_from: Optional[_dt.date] = None
     date_to: Optional[_dt.date] = None
+    #: Thời điểm Tracking sinh phong bì này (AWARE). Khác `captured_at` — cái
+    #: kia là lúc Reports chụp, cái này là lúc nguồn trả lời.
+    generated_at: Optional[_dt.datetime] = None
+    #: Token trạng thái của database Tracking tại lúc trả lời. Mọi trang của
+    #: một lần chụp phải mang cùng giá trị; xem `capture_daily_min.gop_trang`.
+    query_revision: str = ""
     records: Mapping[tuple[str, _dt.date], DailyMinRecord] = None  # type: ignore[assignment]
     errors: Mapping[tuple[str, _dt.date], MissingReason] = None  # type: ignore[assignment]
 
@@ -355,6 +370,36 @@ class DailyMinSnapshot:
                 reason="unsupported_currency_unit",
             )
 
+        timezone_name = data.get("business_timezone")
+        if timezone_name != SUPPORTED_BUSINESS_TIMEZONE:
+            raise InvalidDailyMinSnapshotError(
+                f"business_timezone={timezone_name!r} không phải "
+                f"{SUPPORTED_BUSINESS_TIMEZONE!r}. Ranh giới ngày quyết định "
+                "bản ghi nào thuộc ngày nào; cắt ngày theo một múi giờ khác "
+                "đẩy mọi đơn bán buổi tối sang ngày hôm sau, và con số nhận "
+                "được vẫn là một con số hợp lệ.",
+                reason="unsupported_business_timezone",
+            )
+
+        if data.get("generated_at") is None:
+            raise InvalidDailyMinSnapshotError(
+                "Thiếu generated_at — không biết phong bì này được sinh lúc "
+                "nào thì không đối chiếu lại được với nhật ký Tracking, và "
+                "một ảnh chụp không tái lập được thì không còn là bằng chứng.",
+                reason="missing_generated_at",
+            )
+        generated_at = _moment(data.get("generated_at"), "generated_at")
+
+        revision = data.get("query_revision")
+        if not isinstance(revision, str) or not revision.strip():
+            raise InvalidDailyMinSnapshotError(
+                "Thiếu query_revision. Nó là thứ DUY NHẤT chứng minh mọi trang "
+                "của lần chụp này đến từ cùng một trạng thái database — không "
+                "có nó thì một ảnh chụp ghép từ hai trạng thái trông y hệt một "
+                "ảnh chụp bình thường.",
+                reason="missing_query_revision",
+            )
+
         first_day = _date(data.get("date_from"), "date_from")
         last_day = _date(data.get("date_to"), "date_to")
         if first_day is None or last_day is None:
@@ -434,12 +479,31 @@ class DailyMinSnapshot:
                     f"đóng {[r.value for r in MissingReason]}.",
                     reason="unknown_error_reason",
                 ) from exc
+            if not first_day <= day <= last_day:
+                # Cùng lý do với bản ghi ngoài khoảng: phong bì và nội dung
+                # nói hai chuyện khác nhau về việc lần chụp này đã hỏi gì.
+                raise InvalidDailyMinSnapshotError(
+                    f"errors[{index}] {code}@{day} nằm ngoài khoảng chụp đã "
+                    f"khai [{first_day}, {last_day}].",
+                    reason="error_outside_declared_range",
+                )
             key = (code, day)
             if key in records:
                 raise InvalidDailyMinSnapshotError(
                     f"{code}@{day} vừa có bản ghi vừa có lỗi. Hợp đồng nói mỗi "
                     "cặp nằm ở ĐÚNG MỘT bên; nhận cả hai là nhận một mâu thuẫn.",
                     reason="record_and_error_conflict",
+                )
+            if key in errors:
+                # Hai mục lỗi cho cùng một cặp là hai câu trả lời cho cùng một
+                # câu hỏi. Kể cả khi TRÙNG lý do: nó nói hai trang đã được gộp
+                # chồng lên nhau, và nếu chồng ở đây thì cũng chồng ở `records`
+                # — chỉ khác là ở đó nó im lặng thắng bởi mục cuối cùng.
+                raise InvalidDailyMinSnapshotError(
+                    f"Trùng mục lỗi cho {code}@{day} "
+                    f"({errors[key].value} rồi {missing.value}). Một cặp chỉ "
+                    "được trả lời MỘT lần.",
+                    reason="duplicate_error",
                 )
             errors[key] = missing
 
@@ -451,9 +515,11 @@ class DailyMinSnapshot:
             capture_status=capture_status,
             schema_version=str(schema),
             currency_unit=str(unit),
-            business_timezone=str(data.get("business_timezone") or ""),
+            business_timezone=str(timezone_name),
             date_from=first_day,
             date_to=last_day,
+            generated_at=generated_at,
+            query_revision=revision.strip(),
             records=records,
             errors=errors,
         )
@@ -644,6 +710,30 @@ def _record(raw: Any, index: int) -> DailyMinRecord:
         )
 
     observed = _date(raw.get("observed_on"), name + ".observed_on") or day
+
+    # Bốn trường dấu vết dưới đây là REQUIRED, và trước đây chúng được đọc
+    # bằng `str(... or "")` — một trường thiếu lặng lẽ thành chuỗi rỗng.
+    #
+    # Vì sao điều đó không phải chuyện nhỏ: `rule_version` nói con số này được
+    # tính bằng LUẬT NÀO, `source_fingerprint` cho phép chứng minh đầu vào
+    # không đổi, `revision` là địa chỉ để mở lại đúng bản ghi bên Tracking, và
+    # `recorded_by`/`recorded_at` nói ai ghi lúc nào. Mất chúng thì giá vốn
+    # vẫn ra một con số dùng được — chỉ là không ai còn kiểm lại được nó, và
+    # điều đó chỉ lộ ra vào lúc có tranh chấp, tức lúc muộn nhất.
+    #
+    # `_text` raise khi thiếu hoặc rỗng; không có nhánh biến thiếu thành "".
+    rule_version = _text(raw.get("rule_version"), name + ".rule_version")
+    fingerprint = _text(raw.get("source_fingerprint"), name + ".source_fingerprint")
+    revision = _text(raw.get("revision"), name + ".revision")
+    recorded_by = _text(raw.get("recorded_by"), name + ".recorded_by")
+    if raw.get("recorded_at") is None:
+        raise InvalidDailyMinSnapshotError(
+            f"{name} thiếu recorded_at — một bản ghi không có thời điểm ghi "
+            "thì không xếp được vào bất kỳ dòng thời gian nào.",
+            reason="missing_recorded_at",
+        )
+    recorded_at = _moment(raw.get("recorded_at"), name + ".recorded_at")
+
     return DailyMinRecord(
         product_code=code,
         effective_date=day,
@@ -651,11 +741,11 @@ def _record(raw: Any, index: int) -> DailyMinRecord:
         day_status=day_status,
         min_price_thousand_vnd=_money(raw.get("min_price"), name + ".min_price"),
         min_sources=sources,
-        rule_version=str(raw.get("rule_version") or ""),
-        source_fingerprint=str(raw.get("source_fingerprint") or ""),
-        revision=str(raw.get("revision") or ""),
-        recorded_at=_moment(raw.get("recorded_at"), name + ".recorded_at"),
-        recorded_by=str(raw.get("recorded_by") or ""),
+        rule_version=rule_version,
+        source_fingerprint=fingerprint,
+        revision=revision,
+        recorded_at=recorded_at,
+        recorded_by=recorded_by,
         observed_on=observed,
         carried_from=_date(raw.get("carried_from"), name + ".carried_from"),
         excluded_sources=tuple(excluded),

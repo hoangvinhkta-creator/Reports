@@ -557,17 +557,25 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
         tracking_capture=tmp_path / "live-history.json",
         tracking_catalog=tmp_path / "live-catalog.json",
         tracking_inv_map=None,
+        tracking_daily_min=tmp_path / "live-daily-min.json",
         evidence={"catalog_capture_id": "LIVE-CAT-1"},
         cleanup_called=[],
     )
     live_result.tracking_capture.write_text("{}")
     live_result.tracking_catalog.write_text("{}")
+    live_result.tracking_daily_min.write_text("{}")
 
     def fake_cleanup():
         live_result.cleanup_called.append(True)
 
     live_result.cleanup = fake_cleanup
-    monkeypatch.setattr(web_server.live_pull, "pull_live_captures", lambda **kw: live_result)
+    pulled = {}
+
+    def fake_pull(**kw):
+        pulled.update(kw)
+        return live_result
+
+    monkeypatch.setattr(web_server.live_pull, "pull_live_captures", fake_pull)
 
     captured = {}
 
@@ -584,6 +592,14 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
     assert resp.status_code == 302
     assert captured["captures"] is not None
     assert captured["captures"].tracking_capture == live_result.tracking_capture
+    # R1: ảnh chụp MIN theo ngày bán phải ĐI TIẾP tới lượt chạy. Thiếu bước
+    # này thì mọi dòng Tracking Pending, và báo cáo vẫn tạo ra bình thường —
+    # một báo cáo không có giá vốn nào, trông y hệt một báo cáo có.
+    assert captured["captures"].tracking_daily_min == live_result.tracking_daily_min
+    # Và workbook của CHÍNH lần chạy này phải tới được lớp pull: kế hoạch hỏi
+    # giá (tập mã + khoảng ngày) chỉ dựng được từ nó.
+    assert pulled["sales"] is not None
+    assert Path(pulled["sales"]).suffix == ".xlsx"
     assert live_result.cleanup_called == [True]
 
     record = client.application.config["RUN_REGISTRY"].get_run("report-20260901T080000Z")
@@ -621,6 +637,7 @@ def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_pat
         tracking_capture=tmp_path / "live-history.json",
         tracking_catalog=tmp_path / "live-catalog.json",
         tracking_inv_map=None,
+        tracking_daily_min=tmp_path / "live-daily-min.json",
         evidence={},
         cleanup_called=[],
     )

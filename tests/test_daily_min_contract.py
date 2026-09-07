@@ -542,3 +542,190 @@ def test_the_contract_constants_are_the_ones_tracking_publishes():
     assert {s.value for s in SourceType} == {"SUPPLIER", "INVENTORY"}
     assert {s.value for s in PriceStatus} == {"AVAILABLE", "OUT_OF_STOCK", "NO_DATA"}
     assert {s.value for s in DayStatus} == {"PROVISIONAL", "FINAL"}
+
+
+# ======================================================================
+# 10. Phong bì FAIL-CLOSED — trường thiếu KHÔNG được thành "" hay None
+# ======================================================================
+#
+# Mọi bài dưới đây canh cùng một lớp lỗi: hợp đồng thiếu một mảnh, mã vẫn đọc
+# tiếp, và giá vốn vẫn ra một con số dùng được. Thứ mất đi là khả năng KIỂM LẠI
+# con số ấy — và điều đó chỉ lộ ra vào lúc có tranh chấp, tức lúc muộn nhất.
+
+
+def test_a_foreign_business_timezone_is_refused(tmp_path):
+    """Ranh giới ngày quyết định bản ghi nào thuộc ngày nào.
+
+    Cắt ngày theo UTC đẩy mọi đơn bán sau 17:00 giờ Việt Nam sang ngày hôm sau;
+    mỗi đơn ấy nhận giá của một ngày khác, và con số nhận được vẫn hợp lệ về
+    mọi mặt kiểm được từ nội dung.
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(business_timezone="UTC"))
+    assert exc.value.reason == "unsupported_business_timezone"
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_a_missing_business_timezone_is_not_read_as_a_default(tmp_path, value):
+    """Vắng mặt KHÔNG được đọc thành "chắc là giờ Việt Nam"."""
+    payload = dmin.contract()
+    if value is None:
+        payload.pop("business_timezone")
+    else:
+        payload["business_timezone"] = value
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, payload)
+    assert exc.value.reason == "unsupported_business_timezone"
+
+
+def test_a_capture_without_generated_at_is_refused(tmp_path):
+    """Không biết phong bì sinh lúc nào thì không đối chiếu lại được với nhật
+    ký Tracking — và một ảnh chụp không tái lập được thì không còn là bằng
+    chứng, chỉ còn là một con số."""
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(generated_at=None))
+    assert exc.value.reason == "missing_generated_at"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("2026-09-30T12:00:00", "naive_datetime"),
+        ("30/09/2026 12:00", "invalid_datetime"),
+        ("hôm qua", "invalid_datetime"),
+    ],
+)
+def test_generated_at_must_be_iso_8601_with_a_timezone(tmp_path, value, expected):
+    """Một mốc không múi giờ không so được với bất cứ mốc nào — kể cả với
+    `captured_at` ngay bên cạnh nó."""
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(generated_at=value))
+    assert exc.value.reason == expected
+
+
+def test_a_capture_without_a_query_revision_is_refused(tmp_path):
+    """`query_revision` là thứ DUY NHẤT chứng minh mọi trang của lần chụp này
+    đến từ cùng một trạng thái database.
+
+    Năm trường phong bì kia chỉ lặp lại yêu cầu vừa gửi đi, nên chúng khớp nhau
+    kể cả khi dữ liệu bên dưới đã đổi giữa hai trang. Không có trường này thì
+    một ảnh chụp ghép từ hai trạng thái trông y hệt một ảnh chụp bình thường.
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(query_revision=None))
+    assert exc.value.reason == "missing_query_revision"
+
+
+@pytest.mark.parametrize("value", ["", "   ", 17, ["rev"]])
+def test_a_query_revision_that_is_not_a_real_token_is_refused(tmp_path, value):
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(query_revision=value))
+    assert exc.value.reason == "missing_query_revision"
+
+
+def test_the_snapshot_keeps_the_envelope_provenance_it_was_given(tmp_path):
+    """Hai trường ấy phải ĐỌC ĐƯỢC LẠI, không chỉ được kiểm rồi vứt đi."""
+    snap = snapshot(tmp_path, dmin.contract(
+        records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+    ))
+    assert snap.query_revision == dmin.QUERY_REVISION
+    assert snap.generated_at == datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
+    assert snap.business_timezone == "Asia/Ho_Chi_Minh"
+
+
+@pytest.mark.parametrize(
+    "field, expected",
+    [
+        ("rule_version", "missing_text_field"),
+        ("source_fingerprint", "missing_text_field"),
+        ("revision", "missing_text_field"),
+        ("recorded_by", "missing_text_field"),
+        ("recorded_at", "missing_recorded_at"),
+    ],
+)
+def test_every_record_must_carry_its_whole_audit_trail(tmp_path, field, expected):
+    """Năm trường này là toàn bộ đường quay ngược về Tracking.
+
+    `rule_version` nói con số được tính bằng LUẬT NÀO; `source_fingerprint` cho
+    phép chứng minh đầu vào không đổi; `revision` là địa chỉ mở lại đúng bản
+    ghi; `recorded_by`/`recorded_at` nói ai ghi lúc nào. Thiếu bất kỳ cái nào,
+    giá vốn vẫn ra một con số dùng được — chỉ là không còn ai kiểm lại được.
+
+    Bản trước đọc chúng bằng `str(... or "")`, tức một trường thiếu lặng lẽ
+    thành chuỗi rỗng và đi tiếp.
+    """
+    payload = dmin.contract(
+        records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+    )
+    payload["records"][0].pop(field)
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, payload)
+    assert exc.value.reason == expected
+
+
+@pytest.mark.parametrize("field", ["rule_version", "source_fingerprint",
+                                   "revision", "recorded_by"])
+def test_an_empty_audit_field_is_the_same_as_a_missing_one(tmp_path, field):
+    payload = dmin.contract(
+        records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+    )
+    payload["records"][0][field] = "   "
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, payload)
+    assert exc.value.reason == "missing_text_field"
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [("2026-09-05T04:00:00", "naive_datetime"), ("gần đây", "invalid_datetime")],
+)
+def test_recorded_at_must_be_aware_iso_8601(tmp_path, value, expected):
+    payload = dmin.contract(
+        records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+    )
+    payload["records"][0]["recorded_at"] = value
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, payload)
+    assert exc.value.reason == expected
+
+
+def test_an_error_outside_the_declared_window_is_refused(tmp_path):
+    """Cùng lý do với bản ghi ngoài khoảng: phong bì và nội dung đang nói hai
+    chuyện khác nhau về việc lần chụp này đã hỏi những gì."""
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            date_from="2026-09-03", date_to="2026-09-04",
+            errors=[dmin.error("TRK-A", "2026-09-09", "NO_DATA")],
+        ))
+    assert exc.value.reason == "error_outside_declared_range"
+
+
+@pytest.mark.parametrize(
+    "first, second",
+    [("NO_DATA", "NO_DATA"), ("NO_DATA", "SOURCE_UNAVAILABLE")],
+)
+def test_two_error_entries_for_one_pair_are_refused(tmp_path, first, second):
+    """Hai mục lỗi cho cùng một cặp là hai câu trả lời cho cùng một câu hỏi.
+
+    Kể cả khi TRÙNG lý do: nó nói hai trang đã được gộp chồng lên nhau, và nếu
+    chồng ở đây thì cũng chồng ở `records` — chỉ khác là ở đó mục cuối cùng
+    lặng lẽ thắng, không ai biết.
+    """
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            date_from="2026-09-03", date_to="2026-09-03",
+            errors=[dmin.error("TRK-A", "2026-09-03", first),
+                    dmin.error("TRK-A", "2026-09-03", second)],
+        ))
+    assert exc.value.reason == "duplicate_error"
+
+
+def test_a_pair_can_never_be_both_a_record_and_an_error(tmp_path):
+    """Bất biến CŨ, ghim lại ở đây vì hai bài trên vừa động vào cùng vòng lặp."""
+    with pytest.raises(InvalidDailyMinSnapshotError) as exc:
+        snapshot(tmp_path, dmin.contract(
+            date_from="2026-09-03", date_to="2026-09-03",
+            records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+            errors=[dmin.error("TRK-A", "2026-09-03", "NO_DATA")],
+        ))
+    assert exc.value.reason == "record_and_error_conflict"

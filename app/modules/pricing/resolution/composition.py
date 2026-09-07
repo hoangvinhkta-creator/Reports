@@ -293,16 +293,54 @@ class PriceResolutionReport:
         return len(self.provisional_records)
 
     @property
-    def prices_are_final(self) -> bool:
-        """Mọi giá đã resolve của lần import này có đến từ ngày ĐÃ CHỐT không.
+    def resolved_prices_are_final(self) -> bool:
+        """Mọi giá ĐÃ RESOLVE của lần import này có đến từ ngày đã chốt không.
 
-        Đây là điều kiện R1 đặt ra cho câu "kỳ đã chốt": một kỳ còn dùng giá
-        của ngày chưa chốt thì chưa được trình bày như số cuối cùng. Nó KHÔNG
-        chặn việc xem báo cáo, và cố ý không tự gắn vào một cổng nào ở đây —
-        `PriceResolutionReport` là bản ghi bằng chứng, không phải nơi ra quyết
-        định trình bày. Tầng UI/export đọc cờ này (thuộc vòng sau).
+        Cố ý chỉ nói về những dòng CÓ giá, và tên của nó nói đúng điều đó. Một
+        report rỗng hay một report toàn Pending đều trả `True` ở đây — hoàn
+        toàn đúng theo nghĩa hẹp này ("không có giá nào đến từ ngày chưa
+        chốt"), và hoàn toàn SAI nếu ai đó đọc nó thành "kỳ đã chốt".
+
+        Bản trước tên là `prices_are_final`, và cái tên ấy mời đúng cách đọc
+        sai kia: một kỳ chưa nối nguồn giá — mọi dòng Pending — sẽ trả `True`
+        và một cổng "kỳ đã chốt" xây trên nó sẽ mở ra cho một kỳ chưa có lấy
+        một giá vốn nào. Cổng đúng là `period_is_final` ngay bên dưới.
         """
         return self.provisional_count == 0
+
+    @property
+    def has_priceable_lines(self) -> bool:
+        """Lần import này có dòng nào để chốt không.
+
+        Một report RỖNG không phải một kỳ đã hoàn tất; nó là một kỳ chưa có gì.
+        Hai chuyện ấy dẫn tới hai việc khác nhau (trình bày kết quả, hay đi tìm
+        xem sổ bán hàng đâu), nên chúng không được gộp.
+        """
+        return bool(self.records)
+
+    @property
+    def period_is_final(self) -> bool:
+        """CỔNG HOÀN TẤT CẤP KỲ — ba điều kiện, không phải một.
+
+        Một kỳ chỉ được gọi là đã chốt khi:
+
+        1. CÓ dữ liệu cần chốt (`has_priceable_lines`) — kỳ rỗng không phải kỳ
+           đã xong;
+        2. KHÔNG còn dòng Pending (`pending_count == 0`) — một dòng chưa có giá
+           vốn là một con số còn thiếu trong lợi nhuận của kỳ, và nó sẽ xuất
+           hiện SAU khi ai đó đã chốt sổ;
+        3. KHÔNG còn giá đến từ ngày `PROVISIONAL` (`provisional_count == 0`) —
+           Tracking còn có thể ghi thêm một mốc cho ngày ấy.
+
+        Cờ này vẫn KHÔNG chặn việc xem báo cáo và cố ý không tự gắn vào một
+        cổng UI nào ở đây: `PriceResolutionReport` là bản ghi bằng chứng, không
+        phải nơi ra quyết định trình bày.
+        """
+        return (
+            self.has_priceable_lines
+            and self.pending_count == 0
+            and self.provisional_count == 0
+        )
 
 
 class PostCutoverPriceComposition:

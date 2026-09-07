@@ -186,6 +186,19 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-28` | Reports từ chối `AVAILABLE` không nguồn và bản ghi ngoài khoảng đã khai | REQUIRED | E1 | PASS |
 | `CHECK-R1-29` | Smoke xuyên hai hệ thống: ảnh chụp CÓ giá hiện tại mà giá vốn vẫn theo ngày bán | REQUIRED | E2 | PASS |
 
+| `CHECK-R1-30` | Đường upload web GỌI hợp đồng và định giá đúng ngày bán | REQUIRED | E2 | PASS |
+| `CHECK-R1-31` | Kế hoạch hỏi giá suy từ SỔ: tập mã đã resolve + khoảng ngày bán | REQUIRED | E1 | PASS |
+| `CHECK-R1-32` | Chọn ảnh chụp theo KỲ, không theo "mới nhất toàn cục" | REQUIRED | E1 | PASS |
+| `CHECK-R1-33` | Phong bì bắt buộc: timezone, `generated_at` có tz, `query_revision` | REQUIRED | E1 | PASS |
+| `CHECK-R1-34` | Mọi bản ghi mang đủ dấu vết; error trong khoảng, không trùng | REQUIRED | E1 | PASS |
+| `CHECK-R1-35` | Cổng hoàn tất cấp kỳ khác cờ "giá đã chốt" | REQUIRED | E1 | PASS |
+| `CHECK-R1-36` | Trang lệch `query_revision` bị TỪ CHỐI gộp | REQUIRED | E1 | PASS |
+
+`CHECK-R1-30` … `CHECK-R1-36` được THÊM ở lượt Independent Review vòng 1
+(07/09/2026). `CHECK-R1-30` là check quan trọng nhất của cả bảng: trước nó,
+`CHECK-R1-20` (xuyên suốt) PASS bằng một fixture cho sẵn, trong khi đường
+upload thật KHÔNG hề gọi hợp đồng — mọi bài kiểm xanh, đường thật đứt.
+
 `CHECK-R1-25` … `CHECK-R1-29` được THÊM trong phiên kiểm thử (07/09/2026), không
 phải lúc lập kế hoạch: bốn lỗi đầu chỉ lộ ra khi đi soát từng nhánh có thể cho
 ra "một con số hợp lệ nhưng sai", và cả bốn đều đã được sửa trong cùng phiên.
@@ -205,7 +218,7 @@ Timestamp:
 
 ## 6. Exit Criteria
 
-1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-29` PASS —
+1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-36` PASS —
    **đã đạt**.
 2. `CHECK-R1-24` Independent Review PASS — **chưa**.
 3. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —
@@ -219,19 +232,26 @@ Timestamp:
 | Khoảng trống | Vì sao | Hệ quả hôm nay |
 |---|---|---|
 | Lịch sử MIN bắt đầu từ lượt chụp đầu tiên | Bảng giá cũ đã bị ghi đè; `tp/ton` là đại lượng khác nên KHÔNG backfill được | Đơn bán trước mốc ấy Pending, hoặc dùng `HistoricalConfirmedRegistry` |
-| Đường web pull-on-run chưa lấy MIN theo ngày | `live_pull.py` không biết tập mã của kỳ — chỉ có sau khi resolve identity | Bản web trả Pending nhánh Tracking cho tới khi nối (R2) hoặc Owner chạy công cụ chụp |
+| ~~Đường web pull-on-run chưa lấy MIN theo ngày~~ **ĐÃ ĐÓNG 07/09/2026** | `live_pull.py` nay tự lập kế hoạch: đọc sổ → resolve identity → tập mã + khoảng ngày, rồi gọi hợp đồng MỘT lượt | Không còn; `CHECK-R1-30`/`CHECK-R1-31` canh |
+| Kỳ rộng hơn 62 ngày không hỏi được trong MỘT lượt | Trần `TRAN_NGAY_XUAT` của hợp đồng | Lần chạy vẫn đi tiếp, dòng Tracking Pending vì nguồn chưa nối, lý do thật (`PERIOD_WIDER_THAN_CONTRACT`) nằm trong bằng chứng của run. Chia nhiều lượt sẽ cần một `query_revision` chung — thuộc R2 |
 | Lượt chụp cần `meta.an` | Danh sách nhà cung cấp bị bỏ sống ở trình duyệt | Chưa ai mở app Bảng giá kể từ bản này ⇒ bản ngày `SOURCE_UNAVAILABLE`; tự khỏi ngay lần mở đầu tiên |
-| Ảnh chụp gắn với một kỳ | Khác hai capture kia vốn "chụp một lần dùng mãi" | Đầu vào TUỲ CHỌN của luồng Owner; vắng mặt ⇒ Pending có lý do |
+| Ảnh chụp gắn với một kỳ | Khác hai capture kia vốn "chụp một lần dùng mãi" | Luồng cục bộ nay chọn ảnh chụp PHỦ ĐÚNG kỳ (`CHECK-R1-32`); không có thì Pending kèm lý do |
+| `query_revision` chỉ chặn được lượt ghi ĐÃ xảy ra khi đọc | Không có giao dịch đọc nhất quán ở tầng database | Hai trang của hai trạng thái luôn bị từ chối; ngược lại, một lượt ghi xảy ra sau trang cuối không bị phát hiện — đúng như vậy, vì nó không ảnh hưởng ảnh chụp đã lấy |
 
 ## 8. Đầu vào cho R2
 
 - `TrackingDailyMinProvider.audit_trail` và `PriceResolutionRecord.daily_min_resolution`
   đã chở đủ `min_sources`, revision, rule version, `day_status`, `carried_from`
   cho màn hình/xuất Excel của vòng sau.
-- `PriceResolutionReport.prices_are_final` / `provisional_count` sẵn cho cổng
-  "kỳ đã chốt" — R1 cố ý KHÔNG tự gắn nó vào một cổng UI nào.
+- `PriceResolutionReport.period_is_final` (có dữ liệu + không Pending + không
+  PROVISIONAL) là cổng "kỳ đã chốt"; `resolved_prices_are_final` /
+  `provisional_count` là hai chỉ số hẹp hơn đi kèm. R1 cố ý KHÔNG tự gắn cổng
+  ấy vào một màn hình nào.
 - `POST /api/min-ngay/sua` (admin) là đường sửa bản ghi có dấu vết; luồng giá
   tay của Owner (R2) nên đi qua tầng override đã có
   (`kpi_purchase_price_override`), KHÔNG ghi vào nhánh MIN.
-- Nối `live_pull.py`: tập mã lấy từ identity đã resolve, khoảng ngày lấy từ
+- ~~Nối `live_pull.py`~~ — ĐÃ LÀM ở lượt review vòng 1; phần còn lại cho R2 là
+  chia một kỳ rộng hơn 62 ngày thành nhiều lượt gọi mà vẫn giữ được MỘT
+  `query_revision` chung cho cả ảnh chụp.
+- (bản cũ, giữ để đối chiếu) Nối `live_pull.py`: tập mã lấy từ identity đã resolve, khoảng ngày lấy từ
   preview của sổ — cả hai đã có sẵn trong pipeline, chỉ cần đảo thứ tự gọi.

@@ -209,21 +209,32 @@ def _selected_period(periods: list[tuple[int, Optional[int]]]) -> Optional[tuple
     return chosen if chosen in periods else None
 
 
-def _select_captures_for_run() -> tuple[Optional[SelectedCaptures], Optional[dict], Optional[live_pull.LiveSelectedCaptures]]:
+def _select_captures_for_run(
+    sales: Optional[Path] = None,
+) -> tuple[Optional[SelectedCaptures], Optional[dict], Optional[live_pull.LiveSelectedCaptures]]:
     """Trả về ``(captures, tracking_evidence, live_handle)``.
 
     ``live_handle`` khác ``None`` khi captures đến từ live pull — caller phải
     gọi ``live_handle.cleanup()`` sau khi dùng xong (finally), bất kể thành
     công hay lỗi, để không giữ authority thô của Tracking lâu hơn một lần
     chạy trên đĩa máy chủ (S071 §10).
+
+    ``sales`` (R1) là workbook của chính lần chạy này. Nó BẮT BUỘC có mặt trên
+    đường chạy báo cáo: ảnh chụp MIN theo ngày bán phụ thuộc tập mã và khoảng
+    ngày của kỳ, nên không có sổ thì không lập được kế hoạch hỏi giá và mọi
+    dòng Tracking sẽ Pending. Những nơi gọi hàm này KHÔNG để chạy báo cáo (ví
+    dụ đọc danh mục cho bảng chọn mặt hàng) truyền ``None`` một cách có chủ ý:
+    chúng không cần giá, và bắt chúng gọi hợp đồng giá là gọi mạng cho một câu
+    hỏi không ai đặt ra.
     """
     if not live_pull.is_configured():
         return None, None, None
-    live = live_pull.pull_live_captures(out_dir=TRACKING_TEMP_DIR)
+    live = live_pull.pull_live_captures(out_dir=TRACKING_TEMP_DIR, sales=sales)
     captures = SelectedCaptures(
         tracking_capture=live.tracking_capture,
         tracking_catalog=live.tracking_catalog,
         tracking_inv_map=live.tracking_inv_map,
+        tracking_daily_min=live.tracking_daily_min,
     )
     return captures, live.evidence, live
 
@@ -2190,7 +2201,9 @@ def create_app(
         live_handle = None
         try:
             try:
-                captures, tracking_evidence, live_handle = _select_captures_for_run()
+                captures, tracking_evidence, live_handle = _select_captures_for_run(
+                    sales=temp_path
+                )
             except live_pull.TrackingUnavailableError as exc:
                 return _page(
                     error=(

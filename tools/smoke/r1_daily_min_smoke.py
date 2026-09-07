@@ -146,8 +146,12 @@ def main(argv: list[str]) -> int:
     kiem("E. NCC báo 150 bị luật lọc → 9.500.000, không phải 150.000",
          e.accounting_purchase_price == Decimal("9500000"))
 
-    kiem("Kỳ 03/09 chỉ dùng ngày ĐÃ CHỐT → prices_are_final",
-         comp.report.prices_are_final and comp.report.provisional_count == 0)
+    kiem("Kỳ 03/09 chỉ dùng ngày ĐÃ CHỐT → resolved_prices_are_final",
+         comp.report.resolved_prices_are_final and comp.report.provisional_count == 0)
+    # Cổng cấp KỲ khắt khe hơn: kỳ này còn TRK-C/TRK-D Pending nên nó CHƯA chốt
+    # được, dù mọi giá đã resolve đều đến từ ngày đã chốt. Hai câu khác nhau.
+    kiem("   nhưng kỳ CHƯA chốt được vì còn dòng Pending",
+         not comp.report.period_is_final and comp.report.pending_count == 2)
 
     # Cùng ảnh chụp, đổi MỖI ngày bán: mốc mang qua, và ngày còn tạm.
     print("\n=== NGÀY BÁN KHÁC, CÙNG ẢNH CHỤP ===")
@@ -161,7 +165,8 @@ def main(argv: list[str]) -> int:
         print(f"  bán {day} → {line2.accounting_purchase_price} VND  "
               f"observed={prov2.observed_on} carried_from={prov2.carried_from} "
               f"day_status={prov2.day_status.value} "
-              f"final_kỳ={comp2.report.prices_are_final} "
+              f"giá_đã_chốt={comp2.report.resolved_prices_are_final} "
+              f"kỳ_đã_chốt={comp2.report.period_is_final} "
               f"tạm={comp2.report.provisional_count}")
         kiem(f"   ngày bán {day} → {mong}",
              line2.accounting_purchase_price == Decimal(mong))
@@ -171,7 +176,8 @@ def main(argv: list[str]) -> int:
                  and prov2.observed_on == date(2026, 9, 4))
         else:
             kiem("   ngày 30/09 còn PROVISIONAL → kỳ KHÔNG được coi là đã chốt",
-                 not comp2.report.prices_are_final
+                 not comp2.report.resolved_prices_are_final
+                 and not comp2.report.period_is_final
                  and comp2.report.provisional_count == 1)
 
     print("\nKẾT QUẢ SMOKE:", "TẤT CẢ PASS" if _ok else "CÓ MỤC FAIL")

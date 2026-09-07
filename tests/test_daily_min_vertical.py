@@ -452,6 +452,61 @@ def test_the_legacy_path_still_works_when_a_caller_asks_for_it_by_name(
 # ======================================================================
 
 
+def test_an_empty_report_is_not_a_finished_period(tmp_path, daily_min_capture):
+    """Kỳ RỖNG không phải kỳ đã xong — nó là một kỳ chưa có gì.
+
+    `resolved_prices_are_final` trả `True` ở đây và đúng theo nghĩa hẹp của
+    nó ("không giá nào đến từ ngày chưa chốt", vì không có giá nào). Chính vì
+    câu ấy đúng mà nó KHÔNG dùng làm cổng chốt kỳ được: hai tình huống dẫn tới
+    hai việc khác nhau — trình bày kết quả, hay đi tìm xem sổ bán hàng đâu.
+    """
+    comp = build(tmp_path, daily_min=daily_min_capture)
+    run(write_sales(tmp_path / "rong.xlsx", [], day=SALE_DAY), comp)
+    report = comp.report
+    assert report.records == ()
+    assert report.resolved_prices_are_final     # đúng, và vô nghĩa ở đây
+    assert not report.has_priceable_lines
+    assert not report.period_is_final
+
+
+def test_a_report_where_every_line_is_pending_is_not_a_finished_period(tmp_path):
+    """Chưa nối nguồn giá ⇒ mọi dòng Pending. Cổng cấp kỳ phải nói KHÔNG.
+
+    Đây là hình dạng nguy hiểm nhất của bản trước: một kỳ chưa có LẤY MỘT giá
+    vốn nào vẫn trả `True` cho cờ mang tên `prices_are_final`, và bất kỳ cổng
+    "kỳ đã chốt" nào xây trên đó sẽ mở ra cho đúng kỳ tệ nhất.
+    """
+    comp = build(tmp_path, daily_min=None)
+    run(write_sales(tmp_path / "pending.xlsx", ROWS, day=SALE_DAY), comp)
+    report = comp.report
+    assert report.resolved_count == 0
+    assert report.pending_count == len(ROWS)
+    assert report.resolved_prices_are_final     # đúng, và vô nghĩa ở đây
+    assert report.has_priceable_lines
+    assert not report.period_is_final
+
+
+def test_a_period_with_every_line_priced_from_a_final_day_is_finished(tmp_path,
+                                                                      daily_min_capture):
+    """Ca DUY NHẤT được gọi là đã chốt: có dữ liệu, không Pending, không tạm."""
+    comp = build(tmp_path, daily_min=daily_min_capture)
+    run(write_sales(tmp_path / "du.xlsx", ROWS[:2], day=SALE_DAY), comp)
+    report = comp.report
+    assert (report.resolved_count, report.pending_count, report.provisional_count) == (
+        2, 0, 0)
+    assert report.period_is_final
+
+
+def test_one_provisional_line_keeps_the_whole_period_open(tmp_path, daily_min_capture):
+    """Một dòng lấy giá của ngày chưa chốt là đủ để cả kỳ chưa chốt được."""
+    comp = build(tmp_path, daily_min=daily_min_capture)
+    run(write_sales(tmp_path / "tam2.xlsx", ROWS[:2], day=date(2026, 9, 5)), comp)
+    report = comp.report
+    assert report.pending_count == 0
+    assert report.provisional_count == 2
+    assert not report.period_is_final
+
+
 def test_a_period_priced_from_a_provisional_day_is_not_final(tmp_path, daily_min_capture):
     """05/09 trong fixture còn PROVISIONAL. Giá vẫn ra, nhưng báo cáo phải
     tiếp tục nói rằng con số ấy chưa cuối cùng."""
@@ -464,7 +519,7 @@ def test_a_period_priced_from_a_provisional_day_is_not_final(tmp_path, daily_min
     report = comp.report
     assert report.evidence.tracking_daily_min_capture_id
     assert report.provisional_count == 1
-    assert not report.prices_are_final
+    assert not report.resolved_prices_are_final
     assert report.provisional_records[0].daily_min_resolution.is_provisional
 
 
@@ -474,7 +529,7 @@ def test_a_period_priced_only_from_final_days_is_final(tmp_path, daily_min_captu
     report = comp.report
     assert report.resolved_count == 1
     assert report.provisional_count == 0
-    assert report.prices_are_final
+    assert report.resolved_prices_are_final
     assert all(
         r.daily_min_resolution.provenance.day_status is DayStatus.FINAL
         for r in report.records if r.is_resolved

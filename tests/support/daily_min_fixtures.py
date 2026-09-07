@@ -24,6 +24,11 @@ CURRENCY = "VND_THOUSAND"
 BUSINESS_TZ = "Asia/Ho_Chi_Minh"
 
 RECORDED_AT = "2026-09-05T04:00:00+00:00"
+GENERATED_AT = "2026-09-30T12:00:00+00:00"
+QUERY_REVISION = "rev-tong-hop-0001"
+"""Token trạng thái database của Tracking. Giá trị cụ thể không mang nghĩa —
+điều duy nhất hợp đồng đòi là MỌI trang của một lần chụp mang cùng một giá
+trị."""
 
 
 def supplier(source_id: str) -> dict[str, str]:
@@ -108,19 +113,29 @@ def contract(
     schema_version: str = SCHEMA,
     currency_unit: str = CURRENCY,
     business_timezone: str = BUSINESS_TZ,
+    generated_at: Optional[str] = GENERATED_AT,
+    query_revision: Optional[str] = QUERY_REVISION,
 ) -> dict[str, Any]:
-    """Phong bì hợp đồng đã gộp trang — đúng thứ công cụ capture ghi ra."""
-    return {
+    """Phong bì hợp đồng đã gộp trang — đúng thứ công cụ capture ghi ra.
+
+    `generated_at`/`query_revision` nhận `None` để bài kiểm dựng được đúng cảnh
+    "trường REQUIRED vắng mặt" mà không phải viết tay cả phong bì.
+    """
+    payload: dict[str, Any] = {
         "schema_version": schema_version,
         "business_timezone": business_timezone,
         "currency_unit": currency_unit,
         "date_from": date_from if isinstance(date_from, str) else date_from.isoformat(),
         "date_to": date_to if isinstance(date_to, str) else date_to.isoformat(),
-        "generated_at": "2026-09-30T12:00:00+00:00",
         "pages": 1,
         "records": list(records),
         "errors": list(errors),
     }
+    if generated_at is not None:
+        payload["generated_at"] = generated_at
+    if query_revision is not None:
+        payload["query_revision"] = query_revision
+    return payload
 
 
 def write_capture(

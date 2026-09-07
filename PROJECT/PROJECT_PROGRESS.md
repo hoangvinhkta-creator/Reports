@@ -14,6 +14,15 @@ một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
 của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
 bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
 
+**Đã qua một lượt Independent Review vòng 1 (cùng ngày).** Sáu finding, tất
+cả đã xử lý và kiểm chứng — chi tiết ở `S126` §11. Finding tệ nhất:
+`app/web/server.py` KHÔNG hề truyền ảnh chụp MIN vào lượt chạy, nên đường
+upload web làm mọi mã Tracking Pending trong khi 2.776 bài kiểm đều xanh (mọi
+bài đều NHẬN sẵn một capture, không bài nào đi qua chỗ người dùng bấm nút).
+Nay điều phối tự lập kế hoạch hỏi giá từ chính sổ, gọi hợp đồng một lượt, đóng
+băng capture cho lần chạy và dọn trong `finally`. `CHECK-R1-30` …
+`CHECK-R1-36` đã PASS. Trạng thái R1 KHÔNG đổi: vẫn `IMPLEMENTED`.
+
 **Đã qua một lượt kiểm thử/sửa lỗi riêng (cùng ngày).** Bảy chỗ sửa, tất cả
 thuộc cùng một lớp: KHÔNG ném ngoại lệ, chỉ cho ra một con số tiền trông hoàn
 toàn bình thường — bốn chốt fail-closed cho `chupMinNgay` phía Tracking, hai
@@ -22,9 +31,10 @@ bất biến toàn vẹn ảnh chụp phía Reports, và một luật đọc đ�
 `CHECK-R1-25` … `CHECK-R1-29` đã PASS.
 
 ```text
-STATUS                      = IMPLEMENTED — đã kiểm thử và sửa lỗi; chờ
-                              Independent Review + Owner nghiệm thu trên dữ
-                              liệu thật. KHÔNG deploy.
+STATUS                      = IMPLEMENTED — đã kiểm thử, sửa lỗi và xử lý
+                              sáu finding của Independent Review vòng 1; chờ
+                              kết luận review + Owner nghiệm thu trên dữ liệu
+                              thật. KHÔNG deploy.
 Current Task Mode:            MAJOR
 BASE_HEAD (Reports)         = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
 BASE_HEAD (Tracking)        = 598b4b1390cc96e552455ab85e2c48d78198b89c
@@ -50,6 +60,16 @@ CARRY_FORWARD_RULE          = mốc R ≤ D hợp lệ cho D khi và chỉ khi �
                               NGÀY D có bản ngày (bản ngày chỉ ghi được khi
                               engine trả đủ MỌI mã của bảng — CHECK-R1-25);
                               D không có bản ngày ⇒ SOURCE_UNAVAILABLE
+PAGINATION_CONSISTENCY      = min_ngay_rev — token đổi sau MỌI lượt ghi, đọc
+                              TRƯỚC dữ liệu, trả trên từng trang thành
+                              query_revision; Reports TỪ CHỐI gộp khi lệch
+DAILY_MIN_LA_THEO_KY        = ảnh chụp MIN phụ thuộc tập mã + khoảng ngày.
+                              Web: tự lập kế hoạch từ sổ rồi gọi hợp đồng một
+                              lượt. Cục bộ: chọn ảnh chụp PHỦ ĐÚNG kỳ, không
+                              phải "mới nhất"; không có thì None + Pending
+PERIOD_FINAL_GATE           = period_is_final (có dữ liệu + không Pending +
+                              không PROVISIONAL). resolved_prices_are_final
+                              là chỉ số HẸP hơn, không phải cổng chốt kỳ
 MIN_0_SENTINEL              = dừng ở biên xuất bản → OUT_OF_STOCK + null
 UNIT_CONVERSION             = ×1000 đúng MỘT lần, daily_min/provider.py
 
@@ -58,15 +78,20 @@ REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển 
                               TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
                               của hai người khác nhau, không gộp)
 
-TRACKING_TESTS              = 60 bộ · 2705 đạt · 0 hỏng · 2 bỏ qua
+TRACKING_TESTS              = 60 bộ · 2713 đạt · 0 hỏng · 2 bỏ qua
                               (nền: 59 · 2594 · 0 · 2)
 TRACKING_BUILD              = `npm run build` dựng ./dist thành công
-REPORTS_TESTS               = 2779 passed, 12 skipped, 0 failed
-                              (nền: 2720 passed, 12 skipped) — 59 bài mới
+REPORTS_TESTS               = 2853 passed, 12 skipped, 0 failed
+                              (nền: 2720 passed, 12 skipped) — 133 bài mới
 SMOKE_HAI_HE_THONG          = kiem/smoke/xuat-thang-min.mjs (Tracking) →
                               tools/smoke/r1_daily_min_smoke.py (Reports):
                               19/19 khẳng định PASS, output trích nguyên văn
                               tại docs/sessions/S126 §6
+SMOKE_UPLOAD_WEB            = tools/smoke/r1_web_upload_smoke.py: POST /run
+                              thật, HTTP thật, /api/min-ngay do CHÍNH mã
+                              Tracking trả lời (node kiem/smoke/tra-loi-min-
+                              ngay.mjs), rồi mở file .xlsx đọc con số.
+                              13/13 PASS — docs/sessions/S126 §11.4
 GOVERNANCE_VALIDATORS       = structure / project_state / evidence (161
                               REQUIRED PASS) / task_completion (14 DONE)
                               PASS · reference_integrity FAIL với ĐÚNG 3

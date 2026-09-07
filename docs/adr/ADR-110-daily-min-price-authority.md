@@ -124,6 +124,42 @@ theo ngày, và xuất qua hợp đồng `daily-min-v1`.**
 7. **Không backfill.** Không dựng lịch sử MIN từ `tp/ton`, không dựng từ bảng
    giá hôm nay. Lịch sử MIN có thẩm quyền bắt đầu từ lượt chụp đầu tiên.
 
+8. **Một ảnh chụp là ảnh của MỘT trạng thái.** Hợp đồng phân trang theo mã, và
+   con trỏ phân trang chỉ là VỊ TRÍ trong danh sách mã đã sắp — nó không đóng
+   băng gì cả, và Firebase RTDB không có ảnh chụp đọc nhất quán qua nhiều lệnh
+   đọc. Nên Tracking giữ một token trạng thái (`min_ngay_rev`), đổi nó sau MỌI
+   lượt ghi vào các nhánh MIN theo ngày, đọc nó TRƯỚC dữ liệu, và trả nó trên
+   từng trang (`query_revision`). Reports TỪ CHỐI gộp các trang lệch token.
+
+   Năm trường phong bì cũ không thay được nó: chúng chỉ lặp lại yêu cầu vừa
+   gửi đi, nên chúng khớp nhau kể cả khi dữ liệu bên dưới đã đổi hoàn toàn.
+   Thứ tự đọc cũng là một phần của lập luận — đọc token TRƯỚC dữ liệu thì một
+   lượt ghi xen giữa làm hai trang LỆCH (hỏng về phía an toàn); đọc SAU thì
+   hai trang khớp nhau trong khi trang đầu là ảnh của một trạng thái đã không
+   còn.
+
+9. **Ảnh chụp MIN phụ thuộc KỲ, nên phải được HỎI cho từng lần chạy.** Khác
+   `purchase_price_history`/`catalog` — vốn là ảnh chụp toàn bộ một nhánh, chụp
+   một lần dùng mãi — hợp đồng `daily-min-v1` nhận `product_codes` và
+   `date_from..date_to`, nên một ảnh chụp chỉ trả lời được đúng những cặp nó đã
+   hỏi. Hệ quả kiến trúc:
+
+   - Đường upload web LẬP KẾ HOẠCH trước khi gọi: đọc sổ, resolve identity bằng
+     chính resolver production, gom tập mã Tracking + ngày bán nhỏ nhất/lớn
+     nhất, rồi gọi hợp đồng MỘT lượt và đóng băng kết quả cho lần chạy ấy.
+   - Luồng Owner cục bộ chọn ảnh chụp PHỦ ĐÚNG kỳ đang chạy, không phải ảnh
+     chụp mới nhất. Không có ảnh chụp nào phủ đủ ⇒ `None` ⇒ Pending kèm lý do
+     "nguồn chưa nối" — một câu đúng. Đưa ra ảnh chụp của kỳ khác thì mọi dòng
+     vẫn Pending, nhưng với `SALE_DATE_OUTSIDE_CAPTURE`, và người đọc đi sửa
+     nhầm chỗ.
+
+10. **Hoàn tất cấp kỳ là BA điều kiện, không phải một.**
+    `resolved_prices_are_final` chỉ nói về những dòng ĐÃ có giá; một kỳ rỗng
+    hoặc toàn Pending cũng thoả nó, và điều đó đúng theo nghĩa hẹp ấy. Cổng
+    hoàn tất là `period_is_final`: có dữ liệu cần chốt, KHÔNG còn Pending, và
+    KHÔNG còn giá đến từ ngày `PROVISIONAL`. Tên cũ (`prices_are_final`) mời
+    đúng cách đọc sai kia, nên nó được đổi tên chứ không chỉ được chú thích.
+
 ## Alternatives Considered
 
 1. **Reports tự tính MIN từ `board` đã capture.** Bị loại: luật MIN gồm danh
