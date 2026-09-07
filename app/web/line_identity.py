@@ -155,22 +155,38 @@ UNCLASSIFIABLE_NOTE = (
 class Decisions:
     """Các quyết định phân loại ĐÃ LƯU, đọc một lần cho cả trang (R2).
 
-    Gói hai tập vào một object thay vì thêm dần tham số vào `state_of`: mọi
+    Gói ba tập vào một object thay vì thêm dần tham số vào `state_of`: mọi
     màn hình nghiệp vụ gọi hàm đó, và mỗi lần thêm một tham số là một lần phải
     sửa mọi nơi gọi — chính là cách một trong số chúng bị bỏ quên và hiện sai
     trạng thái.
 
     RỖNG là mặc định ĐÚNG: nó cho ra chính xác hành vi trước R2.
+
+    `conflict_resolved` (repair `FIND-R2-IR-01`) là tập CON của `confirmed` —
+    những khoá mà quyết định ĐANG hiệu lực được ghi qua `resolves_conflict=
+    True` (`mapping_source = HUMAN_CONFLICT_RESOLUTION`). Nó tồn tại vì
+    `confirmed` một mình không đủ để `state_of` quyết định đúng: một CONFLICT
+    của lần chạy hiện hành chỉ có thể sinh ra từ chính một mapping CONFIRMED
+    (`_human_decision_resolution` chỉ tạo `IDENTITY_CONFLICT` khi
+    `mapping.status is CONFIRMED`), nên `confirmed` LUÔN chứa khoá đó — kiểm
+    `confirmed` trước `reasons` sẽ che mất CONFLICT vô điều kiện. Chỉ mapping
+    nào ĐƯỢC GIẢI QUA CHÍNH THAO TÁC GIẢI MÂU THUẪN mới được phép thắng một
+    lý do CONFLICT đã lưu ngay lập tức (`§4.5` — quyết định có hiệu lực
+    không chờ chạy lại sổ); một mapping CONFIRMED thường (`HUMAN_CONFIRMATION`
+    cũ, có TRƯỚC khi mâu thuẫn xuất hiện) thì không.
     """
 
     confirmed: frozenset = frozenset()
     out_of_catalog: frozenset = frozenset()
+    conflict_resolved: frozenset = frozenset()
 
     @classmethod
-    def of(cls, confirmed=None, out_of_catalog=None) -> "Decisions":
+    def of(cls, confirmed=None, out_of_catalog=None,
+           conflict_resolved=None) -> "Decisions":
         return cls(
             confirmed=frozenset(confirmed or ()),
             out_of_catalog=frozenset(out_of_catalog or ()),
+            conflict_resolved=frozenset(conflict_resolved or ()),
         )
 
 
@@ -283,20 +299,42 @@ def state_of(
     key = identity_key_of(detail.get("product_raw"))
     reasons = set(line.pending_reasons or ())
 
-    # Thứ tự dưới đây là hợp đồng, không phải sở thích. Quyết định ĐÃ LƯU của
-    # người đứng TRƯỚC mọi mã lý do của pipeline, vì mã lý do là bằng chứng
-    # của lần chạy TRƯỚC ĐÓ còn quyết định là điều mới nhất người dùng nói.
+    # Thứ tự dưới đây là hợp đồng, không phải sở thích.
+    #
+    # 1. `out_of_catalog` là quyết định ĐÃ LƯU, đứng trước mọi mã lý do: mã
+    #    lý do là bằng chứng của lần chạy TRƯỚC ĐÓ, còn quyết định là điều
+    #    mới nhất người dùng nói.
     if key is not None and key in decisions.out_of_catalog:
         return _priced(CLASS_OUT_OF_CATALOG, line, key)
+
+    # 2. Một mapping ĐƯỢC GIẢI QUA CHÍNH THAO TÁC GIẢI MÂU THUẪN thắng NGAY
+    #    LẬP TỨC, kể cả khi `reasons` còn nói CONFLICT (bằng chứng của lần
+    #    chạy TRƯỚC lúc giải) — đây là ngoại lệ DUY NHẤT cho một quyết định
+    #    "đã xác nhận" được thắng TRƯỚC bước 3 (`§4.5` — hiệu lực ngay,
+    #    không chờ chạy lại sổ).
+    if key is not None and key in decisions.conflict_resolved:
+        return _priced(CLASS_MATCHED_TRACKING, line, key)
+
+    # 3. CONFLICT của LẦN CHẠY HIỆN HÀNH (repair `FIND-R2-IR-01`). Phải đứng
+    #    TRƯỚC bước 4: một `IDENTITY_CONFLICT` chỉ sinh ra khi Reports CÓ SẴN
+    #    một mapping CONFIRMED (`_human_decision_resolution` kiểm
+    #    `mapping.status is CONFIRMED` trước khi so authority) — nên
+    #    `decisions.confirmed` LUÔN chứa khoá này, và kiểm `confirmed` trước
+    #    sẽ che mất CONFLICT một cách vô điều kiện. Đây đúng là finding của
+    #    Independent Review: pipeline ghi đúng `IDENTITY_CONFLICT`, nhưng một
+    #    mapping CŨ (xác nhận thường, KHÔNG qua giải mâu thuẫn — đã loại ở
+    #    bước 2) khiến dòng hiện `MATCHED_TRACKING` thay vì mở lại bảng chọn.
+    if reasons & IDENTITY_CONFLICT_REASONS:
+        return IdentityState(STATE_UNRESOLVED, identity_key=key,
+                             classification=CLASS_CONFLICT)
+
+    # 4. Quyết định "đã khớp" bình thường, không mâu thuẫn.
     if key is not None and key in decisions.confirmed:
         return _priced(CLASS_MATCHED_TRACKING, line, key)
 
     # Không có quyết định nào đè lên: đọc bằng chứng mà lần chạy đã ghi.
     if reasons & IDENTITY_OUT_OF_CATALOG_REASONS:
         return _priced(CLASS_OUT_OF_CATALOG, line, key)
-    if reasons & IDENTITY_CONFLICT_REASONS:
-        return IdentityState(STATE_UNRESOLVED, identity_key=key,
-                             classification=CLASS_CONFLICT)
     if reasons & IDENTITY_UNRESOLVED_REASONS:
         return IdentityState(STATE_UNRESOLVED, identity_key=key,
                              classification=CLASS_NEEDS_REVIEW)

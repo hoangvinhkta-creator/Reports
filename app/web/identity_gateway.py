@@ -57,9 +57,14 @@ from app.modules.product.identity.evidence import (
     Evidence, MatchedOn, ResolutionMethod,
 )
 from app.modules.product.identity.identity import CanonicalProductIdentity, Namespace
-from app.modules.product.identity.keys import raw_identity_key
+from app.modules.product.identity.keys import (
+    normalized_matching_aid, raw_identity_key,
+)
 from app.modules.product.identity.mapping import (
     MappingSource, MappingStatus, SOURCE_SYSTEM_REPORTS_SALES,
+)
+from app.modules.product.identity.resolver import (
+    CONFLICT_OPPOSING_CODE_PREFIX, tracking_authority_code,
 )
 from app.modules.product.identity.store import JsonlProductIdentityStore
 from app.web import identity_journal
@@ -363,6 +368,7 @@ def confirm_identity(
     actor_id: str, affected_orders: tuple[str, ...] = (),
     affected_lines: int = 0, client_request_id: Optional[str] = None,
     resolves_conflict: bool = False, reason: Optional[str] = None,
+    inv_map_snapshot=None,
 ) -> str:
     """Ghi quyết định phân loại của Owner qua thẩm quyền đã được nghiệm thu.
 
@@ -399,6 +405,16 @@ def confirm_identity(
     dùng không mang dấu vết rằng họ đã nhìn thấy đúng mâu thuẫn ấy, lần chạy
     sau lại phát hiện lại và lại hỏi lại — mãi mãi. Vẫn là `ConfirmMapping`,
     tức vẫn đúng một `confirmation_action` đã có, không phải một lệnh mới.
+
+    Khi `resolves_conflict=True`, hàm này CŨNG ghi lại mã Tracking đang chỏi
+    NGAY TẠI THỜI ĐIỂM này (repair `FIND-R2-IR-02`) — dùng `snapshot`/
+    `inv_map_snapshot` vừa được tầng route đọc cho chính lần bấm này, qua
+    ĐÚNG một phép tra `tracking_authority_code()` mà resolver production
+    dùng. Không có bước này, `HUMAN_CONFLICT_RESOLUTION` sẽ miễn trừ MỌI mâu
+    thuẫn về sau bất kể mã đối lập là gì — kể cả khi Tracking đổi tiếp sang
+    một mã thứ ba mà người dùng chưa từng thấy. Không xác định được mã đối
+    lập (ví dụ chưa nối `inv.map`) thì không ghi gì thêm — an toàn theo hướng
+    hỏi lại, không theo hướng miễn trừ nhầm.
     """
     if store is None:
         raise IdentityGatewayError(
@@ -435,6 +451,27 @@ def confirm_identity(
     revision = store.refresh()
     current = store.read_at_revision(revision).active_mapping(
         SOURCE_SYSTEM_REPORTS_SALES, identity_key)
+
+    candidate_ids = [f"{Namespace.TRACKING.value}:{code}"]
+    if resolves_conflict:
+        # repair `FIND-R2-IR-02` — ghi lại mã Tracking đang chỏi NGAY LÚC
+        # người dùng chọn, để lần tra cứu sau phân biệt được "vẫn cùng một
+        # mâu thuẫn đã giải" (mã đối lập trùng khớp) với "một mâu thuẫn MỚI"
+        # (Tracking đổi tiếp sang một mã thứ ba). Xem
+        # `resolver.CONFLICT_OPPOSING_CODE_PREFIX`.
+        opposing_code = None
+        try:
+            opposing_code = tracking_authority_code(
+                snapshot, inv_map_snapshot,
+                raw_product_identity=key,
+                normalized_matching_aid=normalized_matching_aid(key),
+            )
+        except Exception:  # noqa: BLE001 — không xác định được ⟹ không ghi gì
+            opposing_code = None
+        if opposing_code is not None:
+            candidate_ids.append(
+                f"{CONFLICT_OPPOSING_CODE_PREFIX}{opposing_code}")
+
     command = ConfirmMapping(
         actor_id=actor_id,
         client_request_id=client_request_id or str(uuid.uuid4()),
@@ -458,7 +495,7 @@ def confirm_identity(
         evidence=Evidence(
             matched_on=MatchedOn.MANUAL_SEARCH,
             matched_value=code,
-            candidate_set_ids=(f"{Namespace.TRACKING.value}:{code}",),
+            candidate_set_ids=tuple(candidate_ids),
         ),
         resolution_method=ResolutionMethod.SIMILARITY_RANKED,
     )
@@ -481,7 +518,7 @@ __all__ = [
     "CANDIDATE_LIMIT", "CONFIRM_OK_NOTE", "Candidate",
     "DurableStoreUnavailableError", "IdentityGatewayError", "NO_TRACKING_NOTE",
     "actor_of", "build_store", "candidates", "confirm_identity",
-    "MappingStatus", "SOURCE_SYSTEM_REPORTS_SALES",
+    "MappingSource", "MappingStatus", "SOURCE_SYSTEM_REPORTS_SALES",
     "confirmed_identities", "confirmed_keys", "out_of_catalog_keys",
     "mark_out_of_catalog", "store_view",
 ]

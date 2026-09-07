@@ -38,6 +38,7 @@ from app.modules.product.identity.keys import raw_identity_key
 from app.modules.product.identity.mapping import MappingSource, MappingStatus
 from app.modules.product.identity.resolver import (
     CONFLICT_MAPPING_SOURCE, ProductIdentityResolver, distinct_identities,
+    recorded_conflict_opposing_code,
 )
 from app.modules.reporting import business_metrics as bm
 from app.web import business_service, business_store, identity_gateway
@@ -664,6 +665,225 @@ class TestCheckR215OneEffectiveState:
                 out_of_catalog={raw_identity_key(RAW_A)}))
         assert matched.state == out.state == line_identity.STATE_MISSING_PRICE
         assert matched.classification != out.classification
+
+
+# --------------------------------------------------------------------------
+# FIND-R2-IR-01 — conflict của lần chạy hiện hành không bị mapping CŨ che
+# --------------------------------------------------------------------------
+
+class TestFindR2IR01ConflictNotHiddenByAnOldMapping:
+    """Independent Review, vòng repair.
+
+    `composition.py` đã ghi đúng `IDENTITY_CONFLICT` vào `pending_reasons` của
+    lần chạy. Nhưng khoá này CŨNG có mặt trong `decisions.confirmed`, vì đúng
+    bản chất của một CONFLICT là "Reports có một mapping CONFIRMED đang chỏi
+    với authority của Tracking" (`_human_decision_resolution` chỉ tạo
+    `IDENTITY_CONFLICT` khi `mapping.status is CONFIRMED`). Trước bản sửa,
+    `state_of()` kiểm `decisions.confirmed` TRƯỚC khi đọc `reasons`, nên
+    nhánh CONFLICT không bao giờ tới lượt — nó là dead code trên đường đọc từ
+    `reasons`.
+    """
+
+    def test_a_stale_confirmed_mapping_does_not_hide_a_fresh_conflict(self):
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",))
+        # Mapping CŨ, xác nhận THƯỜNG (không phải qua giải mâu thuẫn) — đúng
+        # tình huống sinh ra CONFLICT: Reports đã CONFIRMED một mã, rồi
+        # Tracking đổi authority sang mã khác.
+        decisions = line_identity.Decisions.of(
+            confirmed={raw_identity_key(RAW_A)})
+
+        state = line_identity.state_of(detail, decisions=decisions)
+
+        assert state.classification == line_identity.CLASS_CONFLICT
+        assert state.conflict is True
+        assert state.classifiable, "dòng mâu thuẫn phải mở được bảng chọn lại"
+
+    def test_the_conflict_queue_actually_lists_the_line(self):
+        """Hàng đợi xung đột của Gói 4 dùng đúng `state_of` — nếu trạng thái
+        bị che, hàng đợi này cũng trống theo đúng như PROBE-1 mô tả."""
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",))
+        decisions = line_identity.Decisions.of(
+            confirmed={raw_identity_key(RAW_A)})
+        state = line_identity.state_of(detail, decisions=decisions)
+        assert state.conflict is True  # điều kiện lọc "xung-dot" ở server.py
+
+    def test_resolving_the_conflict_still_takes_effect_immediately(self):
+        """Mặt còn lại của cùng một bất biến: MỘT KHI người dùng đã giải
+        xong mâu thuẫn (`HUMAN_CONFLICT_RESOLUTION`), màn hình phải hiện
+        NGAY là đã khớp — không chờ chạy lại sổ để mã lý do CONFLICT cũ
+        biến mất (`§4.5`)."""
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",))
+        decisions = line_identity.Decisions.of(
+            confirmed={raw_identity_key(RAW_A)},
+            conflict_resolved={raw_identity_key(RAW_A)})
+
+        state = line_identity.state_of(detail, decisions=decisions)
+
+        assert state.classification == line_identity.CLASS_MATCHED_TRACKING
+        assert state.conflict is False
+
+    def test_a_plain_confirmed_mapping_with_no_conflict_reason_is_unaffected(
+        self,
+    ):
+        """Không phá con đường đã PASS: một mapping CONFIRMED bình thường,
+        không có lý do CONFLICT nào trong `reasons`, vẫn là MATCHED_TRACKING."""
+        detail = _detail(RAW_A, reasons=())
+        decisions = line_identity.Decisions.of(
+            confirmed={raw_identity_key(RAW_A)})
+        state = line_identity.state_of(detail, decisions=decisions)
+        assert state.classification == line_identity.CLASS_MATCHED_TRACKING
+
+
+# --------------------------------------------------------------------------
+# FIND-R2-IR-02 — một lần giải conflict không được miễn MỌI conflict về sau
+# --------------------------------------------------------------------------
+
+class TestFindR2IR02ConflictResolutionDoesNotExemptFutureConflicts:
+    """Independent Review, vòng repair.
+
+    Trước bản sửa, `_human_decision_resolution` bỏ qua MỌI bất đồng một khi
+    `mapping.mapping_source is HUMAN_CONFLICT_RESOLUTION` — không phân biệt
+    "vẫn cùng đối thủ đã xem" với "một mã Tracking hoàn toàn mới". Sau khi
+    Owner giải xong A-vs-B (chọn A), Tracking đổi tiếp sang C thì hệ thống
+    vẫn lặng lẽ dùng A — đúng dạng lỗi "resolved trông hợp lệ nhưng sai".
+    """
+
+    @staticmethod
+    def _snapshot_with_authority(*, opposing):
+        """Chỉ DỰNG một ảnh chụp catalog — KHÔNG xác nhận gì.
+
+        Tách khỏi việc gọi `confirm()` là chủ đích: bài kiểm cần dựng NHIỀU
+        ảnh chụp (mỗi lần authority đổi) mà KHÔNG được đụng lại vào mapping đã
+        xác nhận — một `confirm()` thứ hai bằng `HUMAN_CONFIRMATION` sẽ tự nó
+        xoá mất `HUMAN_CONFLICT_RESOLUTION` vừa ghi, và bài kiểm sẽ PASS vì
+        một lý do sai (`_next_mapping` đổi `mapping_source`, không phải vì
+        resolver đã sửa đúng).
+        """
+        aid = distinct_identities(
+            [fx.row(RAW_A)])[0].normalized_matching_aid.upper()
+        rows = CATALOG_ROWS
+        if opposing not in {code for code, *_ in CATALOG_ROWS}:
+            rows = CATALOG_ROWS + ((opposing, "Mã đối lập", (), True),)
+        return catalog(rows=rows, alias_map_rows=((aid, opposing),))
+
+    def test_a_new_authority_code_after_resolution_raises_a_new_conflict(
+        self, identity_store
+    ):
+        confirm(identity_store, RAW_A, "TRK-A100")
+        snapshot_ab = self._snapshot_with_authority(opposing="TRK-B200")
+        assert isinstance(
+            resolve(identity_store, RAW_A, snapshot=snapshot_ab).outcome,
+            RequiresConfirmation)
+
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ab,
+                resolves_conflict=True, reason="Đối chiếu tem máy")
+
+        # Xác nhận tiền đề: đã thật sự Resolved trên ĐÚNG mâu thuẫn A-vs-B.
+        assert isinstance(
+            resolve(identity_store, RAW_A, snapshot=snapshot_ab).outcome,
+            Resolved)
+
+        # Tracking đổi authority sang MỘT MÃ THỨ BA — mâu thuẫn HOÀN TOÀN
+        # KHÁC, chưa ai từng được cho xem. KHÔNG gọi `confirm()` lần nào nữa
+        # ở đây — chỉ đổi ảnh chụp catalog, đúng như một lần capture mới của
+        # Tracking sẽ làm trên production.
+        snapshot_ac = self._snapshot_with_authority(opposing="TRK-C300")
+
+        outcome = resolve(identity_store, RAW_A, snapshot=snapshot_ac).outcome
+
+        assert isinstance(outcome, RequiresConfirmation), (
+            "authority đổi sang mã MỚI phải hỏi lại, không được âm thầm "
+            "tiếp tục dùng mã đã chọn cho một mâu thuẫn KHÁC")
+        codes = {c.source_product_code for c in outcome.candidates}
+        assert codes == {"TRK-A100", "TRK-C300"}
+
+    def test_the_composition_pends_the_new_conflict_instead_of_pricing_it(
+        self, identity_store
+    ):
+        """Đúng thứ finding gọi tên: "có thể dùng mã sản phẩm và giá MIN của
+        mã cũ, tạo lợi nhuận sai nhưng vẫn mang trạng thái resolved" — phải
+        KHÔNG xảy ra ở tầng composition."""
+        confirm(identity_store, RAW_A, "TRK-A100")
+        snapshot_ab = self._snapshot_with_authority(opposing="TRK-B200")
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ab,
+                resolves_conflict=True, reason="Đối chiếu tem máy")
+        snapshot_ac = self._snapshot_with_authority(opposing="TRK-C300")
+
+        record, = _compose(identity_store, RAW_A, snapshot=snapshot_ac)
+
+        assert record.status is PriceResolutionStatus.PENDING
+        assert record.reason is PriceResolutionReason.IDENTITY_CONFLICT
+        assert record.price_vnd is None
+
+    def test_re_confirming_the_same_side_of_the_same_conflict_stays_resolved(
+        self, identity_store
+    ):
+        """Đối chứng: KHÔNG được sửa quá tay. Cùng một mâu thuẫn A-vs-B,
+        chưa ai đổi gì, không được hỏi lại lần thứ hai."""
+        confirm(identity_store, RAW_A, "TRK-A100")
+        snapshot_ab = self._snapshot_with_authority(opposing="TRK-B200")
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ab,
+                resolves_conflict=True, reason="Đối chiếu tem máy")
+
+        for _ in range(3):
+            outcome = resolve(identity_store, RAW_A, snapshot=snapshot_ab).outcome
+            assert isinstance(outcome, Resolved)
+            assert outcome.identity.source_product_code == "TRK-A100"
+
+    def test_authority_reverting_to_the_confirmed_code_still_resolves_cleanly(
+        self, identity_store
+    ):
+        """Đối chứng thứ hai: nếu Tracking quay lại đúng mã Owner đã chọn
+        (hết mâu thuẫn hẳn), đường Resolved bình thường vẫn đúng — không
+        phải mọi trường hợp differing-then-matching đều là conflict."""
+        confirm(identity_store, RAW_A, "TRK-A100")
+        snapshot_ab = self._snapshot_with_authority(opposing="TRK-B200")
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ab,
+                resolves_conflict=True, reason="Đối chiếu tem máy")
+
+        aligned = catalog()  # alias.map trống ⟹ authority tự là TRK-A100
+        outcome = resolve(identity_store, RAW_A, snapshot=aligned).outcome
+        assert isinstance(outcome, Resolved)
+        assert outcome.identity.source_product_code == "TRK-A100"
+
+    def test_re_choosing_the_same_side_against_a_new_conflict_now_sticks(
+        self, identity_store
+    ):
+        """Vòng hai của repair — lỗi lộ ra chính TỪ bản sửa đầu của
+        `FIND-R2-IR-02`: idempotency ở tầng store so `(identity_tuple,
+        mapping_source)`, không so MÃ ĐỐI LẬP đã ghi. Owner giải A-vs-B (chọn
+        A), Tracking đổi sang C (mâu thuẫn MỚI, đã hỏi lại đúng), Owner mở
+        bảng chọn và CHỌN LẠI ĐÚNG A — con đường tự nhiên nhất để nói "vẫn là
+        A". Trước bản sửa vòng hai, `_next_mapping` coi đây là NO_CHANGE
+        (cùng `target`, cùng `mapping_source`) nên KHÔNG cập nhật mã đối lập
+        đã ghi (vẫn là B cũ) — hệ thống tiếp tục hỏi lại A-vs-C mãi mãi dù
+        Owner vừa bấm XÁC NHẬN và nhận thông báo thành công.
+        """
+        confirm(identity_store, RAW_A, "TRK-A100")
+        snapshot_ab = self._snapshot_with_authority(opposing="TRK-B200")
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ab,
+                resolves_conflict=True, reason="Đối chiếu tem máy")
+
+        snapshot_ac = self._snapshot_with_authority(opposing="TRK-C300")
+        assert isinstance(
+            resolve(identity_store, RAW_A, snapshot=snapshot_ac).outcome,
+            RequiresConfirmation)
+
+        # Owner mở lại bảng chọn, thấy mâu thuẫn A-vs-C, và CHỌN LẠI A.
+        confirm(identity_store, RAW_A, "TRK-A100", snapshot=snapshot_ac,
+                resolves_conflict=True, reason="Vẫn đúng là A")
+
+        outcome = resolve(identity_store, RAW_A, snapshot=snapshot_ac).outcome
+        assert isinstance(outcome, Resolved), (
+            "Owner vừa xác nhận lại A cho ĐÚNG mâu thuẫn A-vs-C hiện hành — "
+            "hệ thống phải coi là đã giải, không được hỏi lại lần nữa")
+        assert outcome.identity.source_product_code == "TRK-A100"
+
+        # Và mã đối lập đã ghi phải CẬP NHẬT sang C — không phải còn kẹt ở B.
+        view = identity_store.read_at_revision(identity_store.refresh())
+        mapping = view.active_mapping(
+            "REPORTS_SALES", raw_identity_key(RAW_A))
+        assert recorded_conflict_opposing_code(mapping) == "TRK-C300"
 
 
 # --------------------------------------------------------------------------

@@ -54,7 +54,9 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
-from app.modules.pricing.resolution.sources import load_tracking_catalog_capture
+from app.modules.pricing.resolution.sources import (
+    load_tracking_catalog_capture, load_tracking_inv_map_capture,
+)
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.modules.reporting import (
@@ -1366,26 +1368,37 @@ def create_app(
         return identity_gateway.confirmed_keys(identity_store)
 
     def _identity_decisions() -> line_identity.Decisions:
-        """CẢ HAI loại quyết định phân loại đã lưu (R2 §4.1).
+        """BA loại quyết định phân loại đã lưu (R2 §4.1).
 
-        Đọc log ĐÚNG MỘT LẦN cho cả trang rồi chiếu ra hai tập, thay vì gọi
+        Đọc log ĐÚNG MỘT LẦN cho cả trang rồi chiếu ra ba tập, thay vì gọi
         `confirmed_keys` và `out_of_catalog_keys` nối tiếp — hai lần đọc là
         hai ảnh chụp, và một thao tác xảy ra giữa chúng sẽ làm một dòng hiện
         đồng thời "đã khớp" ở chỗ này và "chưa phân loại" ở chỗ kia.
+
+        `conflict_resolved` (repair `FIND-R2-IR-01`) là tập CON của
+        `confirmed`: những khoá mà mapping ĐANG hiệu lực mang
+        `mapping_source = HUMAN_CONFLICT_RESOLUTION`. `line_identity.state_of`
+        cần phân biệt nó với một mapping CONFIRMED bình thường để không cho
+        một quyết định cũ (từ TRƯỚC khi mâu thuẫn xuất hiện) che mất
+        `IDENTITY_CONFLICT` mà lần chạy hiện hành vừa ghi.
         """
         view = identity_gateway.store_view(identity_store)
         if view is None:
             return line_identity.Decisions()
-        confirmed, out_of_catalog = set(), set()
+        confirmed, out_of_catalog, conflict_resolved = set(), set(), set()
         for mapping in view.alias_index().values():
             if mapping.source_system != identity_gateway.SOURCE_SYSTEM_REPORTS_SALES:
                 continue
             if mapping.status is identity_gateway.MappingStatus.CONFIRMED:
                 confirmed.add(mapping.raw_identity_key)
+                if (mapping.mapping_source
+                        is identity_gateway.MappingSource.HUMAN_CONFLICT_RESOLUTION):
+                    conflict_resolved.add(mapping.raw_identity_key)
             elif mapping.status is identity_gateway.MappingStatus.OUT_OF_CATALOG:
                 out_of_catalog.add(mapping.raw_identity_key)
         return line_identity.Decisions.of(
-            confirmed=confirmed, out_of_catalog=out_of_catalog)
+            confirmed=confirmed, out_of_catalog=out_of_catalog,
+            conflict_resolved=conflict_resolved)
 
     def _tracking_snapshot():
         """Danh mục Tracking để CHỌN mặt hàng, hoặc `None` nếu không đọc được.
@@ -1402,6 +1415,33 @@ def create_app(
         try:
             return load_tracking_catalog_capture(captures.tracking_catalog)
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
+            return None
+        finally:
+            if live is not None:
+                live.cleanup()
+
+    def _tracking_inv_map_snapshot():
+        """`inv.map` hiện tại, hoặc `None` — dùng CHỈ khi giải mâu thuẫn.
+
+        Repair `FIND-R2-IR-02`: ghi lại đúng mã Tracking đang chỏi tại thời
+        điểm người dùng chọn đòi hỏi CẢ `alias.map`/`board` LẪN `inv.map`
+        (`tracking_authority_code()` đọc cả hai) — thiếu `inv.map` thì một
+        mâu thuẫn chỉ giải được qua đường đó sẽ không có mã đối lập nào để
+        ghi, và `identity_gateway.confirm_identity` đã tự xử lý `None` theo
+        hướng AN TOÀN (không miễn trừ nhầm — sẽ hỏi lại ở lần chạy sau).
+
+        Tách khỏi `_tracking_snapshot()` (chỉ catalog) để đường xác nhận
+        BÌNH THƯỜNG — không phải giải mâu thuẫn — không phải trả thêm một
+        lần đọc `inv.map` mà nó không cần.
+        """
+        captures, _, live = _select_captures_for_run()
+        if captures is None or captures.tracking_inv_map is None:
+            if live is not None:
+                live.cleanup()
+            return None
+        try:
+            return load_tracking_inv_map_capture(captures.tracking_inv_map)
+        except Exception:  # noqa: BLE001 — đọc `inv.map` lỗi ⟹ coi là chưa đọc được
             return None
         finally:
             if live is not None:
@@ -1507,6 +1547,12 @@ def create_app(
                 affected_lines=len(shared),
                 resolves_conflict=state.conflict,
                 reason=(request.form.get("ly_do") or None),
+                # repair `FIND-R2-IR-02` — chỉ đọc `inv.map` khi thật sự giải
+                # mâu thuẫn: đường xác nhận thường không cần, và mỗi lần đọc
+                # thêm là một lần pull sống giữ authority thô của Tracking
+                # trên đĩa máy chủ lâu hơn cần thiết (`S071 §10`).
+                inv_map_snapshot=(
+                    _tracking_inv_map_snapshot() if state.conflict else None),
             )
         except identity_gateway.IdentityGatewayError as exc:
             return _workspace_redirect(loi=str(exc), **{

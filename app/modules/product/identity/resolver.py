@@ -51,11 +51,13 @@ from datetime import date, datetime, timezone
 from typing import Optional, Sequence
 
 from app.modules.product.identity.evidence import (
+    CONFLICT_OPPOSING_CODE_PREFIX,
     Evidence,
     MatchedOn,
     RANKING_METHOD_ID,
     RankedCandidate,
     ResolutionMethod,
+    conflict_opposing_code,
     evidence_fingerprint,
     is_auto_resolvable,
 )
@@ -100,6 +102,54 @@ Cả hai đều nghĩa là "cần đúng một quyết định của người" �
 CÂU khác nhau trên màn hình: một bên là "chưa đủ căn cứ, hãy chọn", bên kia là
 "hai nguồn đã xác nhận đang chỏi nhau, hãy chọn lại". Nhãn nằm ở provenance
 thay vì ở kiểu, nên union vẫn đóng đúng như `INV-24` yêu cầu."""
+
+def tracking_authority_code(
+    tracking: "TrackingCatalogSnapshot",
+    inv_map: Optional["TrackingInvMapSnapshot"],
+    *,
+    raw_product_identity: str,
+    normalized_matching_aid: str,
+) -> Optional[str]:
+    """Mã mà authority của Tracking trả cho một identity, hoặc `None`.
+
+    Free function — KHÔNG phải method — vì repair `FIND-R2-IR-02` cần đúng
+    phép tính này ở HAI nơi: bên trong resolver (so sánh để phát hiện
+    `CONFLICT`) và ở `identity_gateway.confirm_identity` (ghi lại mã Tracking
+    đang chỏi NGAY LÚC người dùng chọn — xem `CONFLICT_OPPOSING_CODE_PREFIX`).
+    Một bản sao thứ hai của phép tra này là một nguồn drift; đây là bản DUY
+    NHẤT, và `ProductIdentityResolver._tracking_authority_code` chỉ uỷ quyền
+    cho nó.
+
+    Đọc ĐÚNG hai đường mà `_tracking_authoritative` đọc — `alias.map`/`board`
+    rồi `inv.map` — và không đường nào khác.
+    """
+    normalized_code = normalized_matching_aid.upper()
+    canonical = tracking.alias_map().get(normalized_code, normalized_code)
+    row = tracking.row_for(canonical)
+    if row is not None and row.present_in_board:
+        return canonical
+    if inv_map is None:
+        return None
+    value = inv_map.lookup(raw_product_identity)
+    if value is None or value == TRACKING_INV_MAP_IGNORE_VALUE:
+        return None
+    inv_row = tracking.row_for(value)
+    if inv_row is None or not inv_row.present_in_board:
+        return None
+    return value
+
+
+def recorded_conflict_opposing_code(
+    mapping: ProductIdentityMapping,
+) -> Optional[str]:
+    """Mã Tracking đã CHỎI với `mapping` tại thời điểm giải mâu thuẫn.
+
+    Uỷ quyền cho `evidence.conflict_opposing_code()` — xem docstring ở đó
+    (cùng chỗ `CONFLICT_OPPOSING_CODE_PREFIX` được định nghĩa) cho lý do
+    hằng số và phép đọc này sống ở `evidence.py` chứ không ở đây: `store.py`
+    cũng cần đọc/so nó, và `store.py` không thể import ngược từ module này.
+    """
+    return conflict_opposing_code(mapping.evidence.candidate_set_ids)
 
 
 _MATCHED_ON_BY_FIELD = {
@@ -290,10 +340,17 @@ class ProductIdentityResolver:
            thứ `D-04` cấm.
         3. Tracking cũng có một mapping đã xác nhận, và nó chỉ về một mã KHÁC
            ⟹ `IDENTITY_CONFLICT`. Không last-write-wins, không tự chọn bên
-           thắng (§4.2). Ngoại lệ DUY NHẤT: bản ghi mang
-           `HUMAN_CONFLICT_RESOLUTION`, tức người dùng đã nhìn thấy đúng mâu
-           thuẫn này và vẫn chọn — không có ngoại lệ đó thì mỗi lần chạy lại
-           phát hiện lại cùng một mâu thuẫn và hỏi lại mãi mãi.
+           thắng (§4.2). Ngoại lệ: bản ghi mang `HUMAN_CONFLICT_RESOLUTION`
+           VÀ mã authority hiện tại trùng đúng mã đã ghi ở
+           `CONFLICT_OPPOSING_CODE_PREFIX` (tức người dùng đã nhìn thấy ĐÚNG
+           mâu thuẫn này và vẫn chọn) — không có ngoại lệ đó thì mỗi lần chạy
+           lại phát hiện lại cùng một mâu thuẫn và hỏi lại mãi mãi. Ngoại lệ
+           này KHÔNG áp dụng cho một mã đối lập KHÁC: authority đổi từ B sang
+           một mã thứ ba C là một mâu thuẫn MỚI, người dùng chưa từng thấy,
+           và phải hỏi lại (repair `FIND-R2-IR-02` — trước bản sửa này,
+           `HUMAN_CONFLICT_RESOLUTION` miễn trừ MỌI mâu thuẫn tương lai bất
+           kể mã đối lập là gì, nên một dòng có thể lặng lẽ tiếp tục dùng
+           mã cũ trong khi Tracking đã nói một mã hoàn toàn khác).
         4. Còn lại ⟹ `Resolved` bằng chính mã người đã chọn.
         """
         if mapping.status is MappingStatus.OUT_OF_CATALOG:
@@ -334,32 +391,39 @@ class ProductIdentityResolver:
                     resolution_method=ResolutionMethod.ALIAS_EXACT,
                 )
             tracking_code = self._tracking_authority_code(identity)
-            if (
-                tracking_code is not None
-                and tracking_code != target.source_product_code
-                and mapping.mapping_source
-                is not MappingSource.HUMAN_CONFLICT_RESOLUTION
-            ):
-                return IdentityResolution(
-                    identity=identity,
-                    outcome=RequiresConfirmation(
-                        candidates=(
-                            target,
-                            CanonicalProductIdentity(
-                                namespace=Namespace.TRACKING,
-                                source_product_code=tracking_code,
+            if tracking_code is not None and tracking_code != target.source_product_code:
+                # repair `FIND-R2-IR-02` — `HUMAN_CONFLICT_RESOLUTION` miễn
+                # trừ ĐÚNG một mâu thuẫn, không phải MỌI mâu thuẫn tương lai.
+                # Chỉ coi đây là "đã giải" khi mã authority HIỆN TẠI trùng
+                # KHỚP mã mà người dùng đã thấy và bác bỏ lúc chọn. Tracking
+                # đổi tiếp sang một mã thứ ba là một mâu thuẫn HOÀN TOÀN KHÁC
+                # — người dùng chưa từng được cho xem nó — nên phải hỏi lại,
+                # không được lặng lẽ tiếp tục dùng `target` cũ.
+                already_seen_this_conflict = (
+                    mapping.mapping_source is MappingSource.HUMAN_CONFLICT_RESOLUTION
+                    and recorded_conflict_opposing_code(mapping) == tracking_code
+                )
+                if not already_seen_this_conflict:
+                    return IdentityResolution(
+                        identity=identity,
+                        outcome=RequiresConfirmation(
+                            candidates=(
+                                target,
+                                CanonicalProductIdentity(
+                                    namespace=Namespace.TRACKING,
+                                    source_product_code=tracking_code,
+                                ),
+                            ),
+                            provenance=self._provenance(
+                                identity,
+                                ResolutionMethod.ALIAS_EXACT,
+                                mapping_source=CONFLICT_MAPPING_SOURCE,
+                                mapping_id=mapping.mapping_id,
+                                mapping_version=mapping.version,
                             ),
                         ),
-                        provenance=self._provenance(
-                            identity,
-                            ResolutionMethod.ALIAS_EXACT,
-                            mapping_source=CONFLICT_MAPPING_SOURCE,
-                            mapping_id=mapping.mapping_id,
-                            mapping_version=mapping.version,
-                        ),
-                    ),
-                    resolution_method=ResolutionMethod.ALIAS_EXACT,
-                )
+                        resolution_method=ResolutionMethod.ALIAS_EXACT,
+                    )
 
         return IdentityResolution(
             identity=identity,
@@ -380,25 +444,15 @@ class ProductIdentityResolver:
     def _tracking_authority_code(self, identity: DistinctIdentity) -> Optional[str]:
         """Mã mà authority của Tracking trả cho khoá này, hoặc `None`.
 
-        Đọc ĐÚNG hai đường mà `_tracking_authoritative` đọc — `alias.map`/
-        `board` rồi `inv.map` — và không đường nào khác. Một bản sao thứ hai
-        của phép tra sẽ là một nguồn drift: mâu thuẫn phải được đo trên chính
-        cái mà lần chạy này dùng, không phải trên một xấp xỉ của nó.
+        Uỷ quyền cho `tracking_authority_code()` (free function, module này) —
+        xem docstring ở đó cho lý do nó KHÔNG phải một method: repair
+        `FIND-R2-IR-02` cần đúng phép tính này ở cả `identity_gateway`.
         """
-        normalized_code = identity.normalized_matching_aid.upper()
-        canonical = self.tracking.alias_map().get(normalized_code, normalized_code)
-        row = self.tracking.row_for(canonical)
-        if row is not None and row.present_in_board:
-            return canonical
-        if self.inv_map is None:
-            return None
-        value = self.inv_map.lookup(identity.raw_product_identity)
-        if value is None or value == TRACKING_INV_MAP_IGNORE_VALUE:
-            return None
-        inv_row = self.tracking.row_for(value)
-        if inv_row is None or not inv_row.present_in_board:
-            return None
-        return value
+        return tracking_authority_code(
+            self.tracking, self.inv_map,
+            raw_product_identity=identity.raw_product_identity,
+            normalized_matching_aid=identity.normalized_matching_aid,
+        )
 
     def _tracking_authoritative(
         self, identity: DistinctIdentity

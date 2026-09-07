@@ -105,6 +105,7 @@ from app.modules.product.identity.cross_system import (
 )
 from app.modules.product.identity.evidence import (
     ResolutionMethod,
+    conflict_opposing_code,
     is_auto_resolvable,
 )
 from app.modules.product.identity.identity import Namespace
@@ -683,6 +684,7 @@ class JsonlProductIdentityStore:
 
         if isinstance(command, (ConfirmMapping, BootstrapMapping)):
             target = command.target
+            command_evidence = getattr(command, "evidence", None)
             if (
                 current is not None
                 and current.status is MappingStatus.CONFIRMED
@@ -696,6 +698,20 @@ class JsonlProductIdentityStore:
                 # thành NO_CHANGE, nhãn không bao giờ được ghi, và lần chạy
                 # sau lại báo đúng mâu thuẫn ấy — hỏi mãi không dứt.
                 and current.mapping_source is command.mapping_source
+                # repair `FIND-R2-IR-02` (vòng hai) — với
+                # `HUMAN_CONFLICT_RESOLUTION`, "state kết quả" còn bao gồm
+                # MÃ ĐỐI LẬP đã ghi (`evidence.conflict_opposing_code`).
+                # Không kiểm thêm điều này thì "chọn LẠI đúng mã cũ, nhưng
+                # đang bác bỏ một mã authority MỚI (C thay vì B)" sẽ bị coi
+                # là NO_CHANGE — mã đối lập không được cập nhật, và resolver
+                # tiếp tục hỏi lại mãi dù người dùng vừa xác nhận xong.
+                and (
+                    current.mapping_source is not MappingSource.HUMAN_CONFLICT_RESOLUTION
+                    or conflict_opposing_code(current.evidence.candidate_set_ids)
+                    == conflict_opposing_code(
+                        command_evidence.candidate_set_ids
+                        if command_evidence is not None else ())
+                )
             ):
                 return None, old_record
             return (

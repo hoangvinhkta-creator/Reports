@@ -25,8 +25,17 @@ from sqlalchemy import create_engine
 
 import tools.db as history_db
 from app.modules.reporting import business_metrics as bm
-from app.web import business_service, business_store, history_store, line_identity
+from app.modules.product.identity.keys import raw_identity_key
+from app.modules.product.identity.mapping import MappingSource
+from app.modules.product.identity.resolver import (
+    distinct_identities, recorded_conflict_opposing_code,
+)
+from app.web import (
+    business_service, business_store, history_store, identity_gateway,
+    line_identity,
+)
 from app.web import server as web_server
+from tests.support import identity_fixtures as fx
 from tests.test_employee_workspace_ux import (
     SEPTEMBER, TODAY, body, line, metrics, persist,
 )
@@ -406,6 +415,157 @@ class TestTheRunRouteUsesTheDurableStore:
         client.post("/run", data={"workbook": (_empty_xlsx(), "so.xlsx")},
                     content_type="multipart/form-data")
         assert captured["view"] is sentinel
+
+
+# --------------------------------------------------------------------------
+# Independent Review repair — FIND-R2-IR-01 / FIND-R2-IR-02, qua route THẬT
+# --------------------------------------------------------------------------
+
+class TestConflictThroughTheWeb:
+    """PROBE-1 của Independent Review đi qua đúng route Flask; bài kiểm này
+    tái hiện đường đó rồi khẳng định repair đứng vững.
+
+    Cần một danh mục Tracking THẬT (không chỉ log quyết định) để `ma_tracking`
+    xác nhận được, nên lớp này tự dựng `client`/`identity_store` riêng — cùng
+    khuôn `test_dec185_nav_chart_identity.py::tracking_on` — thay vì dùng
+    fixture `client` chung của file (vốn không nối Tracking).
+    """
+
+    RAW_CONFLICT = "43F6000"
+
+    @pytest.fixture
+    def identity_store(self, tmp_path):
+        from app.modules.product.identity.store import JsonlProductIdentityStore
+
+        return JsonlProductIdentityStore(
+            log_path=tmp_path / "identity" / "mappings.jsonl",
+            index_path=tmp_path / "identity" / "index.json")
+
+    @pytest.fixture
+    def catalog(self):
+        """`alias.map` cố ý trỏ THẲNG về `TRK-A100` — đây là điểm khiến kịch
+        bản THẬT SỰ là một mâu thuẫn: authority của Tracking đang nói A100,
+        trong khi bài kiểm sẽ để Owner chọn B200. Không có `alias_map_rows`
+        này, `tracking_authority_code()` không tìm ra authority nào cho tên
+        hàng thô, và không có mã đối lập nào được ghi lại — bài kiểm sẽ
+        "pass" mà không thật sự canh được `FIND-R2-IR-02`."""
+        aid = distinct_identities(
+            [fx.row(self.RAW_CONFLICT)])[0].normalized_matching_aid.upper()
+        return fx.tracking_snapshot(
+            (
+                ("TRK-A100", "Tủ lạnh Panasonic NR-BX", (), True),
+                ("TRK-B200", "Tivi Sony KD-55", (), True),
+            ),
+            alias_map_rows=((aid, "TRK-A100"),),
+        )
+
+    @pytest.fixture
+    def client(self, engine, monkeypatch, tmp_path, identity_store, catalog):
+        from app.owner_usability import SelectedCaptures
+
+        monkeypatch.setattr(web_server, "select_latest_valid_captures",
+                            lambda: None)
+        monkeypatch.setattr(live_pull, "is_configured", lambda env=None: False)
+        monkeypatch.setattr(web_server, "_today", lambda: TODAY)
+        # Log quyết định của app trỏ đúng file mà `identity_store` (ở trên)
+        # cũng ghi vào — hai object, MỘT nguồn sự thật trên đĩa.
+        monkeypatch.setattr(
+            web_server.identity_gateway, "DEFAULT_LOG_PATH",
+            tmp_path / "identity" / "mappings.jsonl")
+        monkeypatch.setattr(
+            web_server.identity_gateway, "DEFAULT_INDEX_PATH",
+            tmp_path / "identity" / "index.json")
+        # Danh mục Tracking: tiêm thẳng vào chỗ route đọc, để cửa kiểm mã của
+        # `identity_gateway.confirm_identity` vẫn chạy thật trên dữ liệu này.
+        captures = SelectedCaptures(
+            tracking_capture=tmp_path / "history.json",
+            tracking_catalog=tmp_path / "catalog.json")
+        monkeypatch.setattr(
+            web_server, "load_tracking_catalog_capture", lambda path: catalog)
+        monkeypatch.setattr(
+            web_server, "_select_captures_for_run",
+            lambda sales=None, identity_store_view=None: (captures, None, None))
+
+        application = web_server.create_app(
+            db_path=tmp_path / "runs.db",
+            history=history_store.LegacyRepository(engine),
+            snapshots=history_store.SnapshotRepository(engine))
+        application.testing = True
+        return application.test_client()
+
+    def _seed_old_mapping(self, identity_store, *, code="TRK-A100"):
+        """Mapping CŨ: xác nhận THƯỜNG, đi qua ĐÚNG cửa mà giao diện đi, TỪ
+        TRƯỚC khi mâu thuẫn (giả lập) xuất hiện."""
+        return identity_gateway.confirm_identity(
+            identity_store, product_raw=self.RAW_CONFLICT,
+            tracking_code=code,
+            snapshot=fx.tracking_snapshot((
+                (code, "Mã ban đầu", (), True),)),
+            actor_id="owner-web", client_request_id="seed-old-mapping")
+
+    def _conflicted_order(self, order="BH-CONFLICT"):
+        """BH mà pipeline đã ghi `IDENTITY_CONFLICT` ở lần chạy gần nhất —
+        bằng chứng của lần chạy đó được fabricate trực tiếp, đúng khuôn
+        `unpriced_order()` của các bài Ca B/C phía trên. Phần resolver/
+        composition production tạo ra chính lý do này đã có bộ
+        `test_r2_product_classification.py` kiểm riêng, đi hết từ đầu."""
+        return [line(order, self.RAW_CONFLICT, day=5, sell="9000000",
+                     kpi_purchase=None, kpi_profit=None,
+                     reasons=("IDENTITY_CONFLICT", "Missing.PurchasePrice"))]
+
+    def test_a_stale_mapping_does_not_hide_the_conflict_on_the_page(
+        self, repository, service, client, identity_store
+    ):
+        """`FIND-R2-IR-01`, PROBE-1 tái hiện qua route thật.
+
+        Trước bản sửa: `web_classification=MATCHED_TRACKING`,
+        `conflict_queue_rows=0` — mapping cũ che mất conflict của lần chạy
+        hiện hành. Bài này khẳng định cả hai con số đó nay đúng.
+        """
+        self._seed_old_mapping(identity_store)
+        persist(repository, self._conflicted_order())
+
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' in workspace
+        assert line_identity.LABEL_CONFLICT in metrics(workspace, "identity-label")
+
+        queue = body(client, "/kinh-doanh/gia-nhap?ky=2026-09&loc=xung-dot")
+        assert 'data-metric="no-rows"' not in queue, (
+            "hàng đợi xung đột trống — đúng PROBE-1: conflict_queue_rows=0")
+        assert any(self.RAW_CONFLICT in text for text in _products(queue))
+
+    def test_choosing_again_clears_the_conflict_from_the_page(
+        self, repository, service, client, identity_store
+    ):
+        """Nửa còn lại của luồng: sau khi CHỌN LẠI, trang phải hiện NGAY là
+        đã khớp — không chờ chạy lại sổ (`§4.5`)."""
+        self._seed_old_mapping(identity_store)
+        persist(repository, self._conflicted_order())
+        keys = keys_of(service, "BH-CONFLICT", self.RAW_CONFLICT)
+
+        response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
+            "ky": "2026-09", "sheet": "noi-thanh", **keys,
+            "ma_tracking": "TRK-B200", "ly_do": "Kiểm tra tem máy lại"})
+        assert response.status_code == 302
+        assert "da-luu=" in response.headers["Location"]
+
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' not in workspace
+        assert line_identity.LABEL_CONFLICT not in metrics(
+            workspace, "identity-label")
+
+        queue = body(client, "/kinh-doanh/gia-nhap?ky=2026-09&loc=xung-dot")
+        assert 'data-metric="no-rows"' in queue
+
+        # Mapping đang hiệu lực phải mang đúng nhãn "đã giải mâu thuẫn", và
+        # mã đối lập ghi lại phải đúng mã đã bác bỏ (`TRK-A100`) — nếu không,
+        # `FIND-R2-IR-02` mở lại: authority quay về A100 sẽ bị hỏi lại dù đó
+        # chính là mã CŨ trước khi giải, không phải một mâu thuẫn mới.
+        view = identity_store.read_at_revision(identity_store.refresh())
+        mapping = view.active_mapping(
+            "REPORTS_SALES", raw_identity_key(self.RAW_CONFLICT))
+        assert mapping.mapping_source is MappingSource.HUMAN_CONFLICT_RESOLUTION
+        assert recorded_conflict_opposing_code(mapping) == "TRK-A100"
 
 
 def _empty_xlsx():

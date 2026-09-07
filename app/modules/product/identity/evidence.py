@@ -160,6 +160,44 @@ class RankedCandidate:
         return f"{self.namespace.value}:{self.source_product_code}"
 
 
+CONFLICT_OPPOSING_CODE_PREFIX = "CONFLICT_OPPOSING_TRACKING_CODE:"
+"""Tiền tố đánh dấu một entry ĐẶC BIỆT trong `Evidence.candidate_set_ids` của
+một `ConfirmMapping` giải mâu thuẫn (repair `FIND-R2-IR-02`).
+
+Sống ở ĐÂY — không phải `resolver.py` hay `store.py` — để cả hai module đều
+import được nó mà không vòng lặp: `resolver.py` phụ thuộc `store.py`
+(`StoreView`), nên `store.py` không thể quay lại phụ thuộc `resolver.py`. Cả
+hai chỉ cần biết CÁCH ĐỌC/GHI đúng một chuỗi đánh dấu, và đó là việc của tầng
+`Evidence` — nơi `candidate_set_ids` vốn đã sống.
+
+## Vì sao cần nhớ mã đối lập, không chỉ nhớ "đã giải mâu thuẫn"
+
+`HUMAN_CONFLICT_RESOLUTION` một mình chỉ ghi RẰNG người dùng đã giải một mâu
+thuẫn nào đó, không ghi VỚI MÃ NÀO. Hệ quả: nếu authority của Tracking sau đó
+đổi TIẾP sang một mã thứ ba C (một mâu thuẫn A-vs-C hoàn toàn khác, người
+dùng chưa từng thấy), resolver không phân biệt được nó với mâu thuẫn A-vs-B
+đã giải — nên nó lặng lẽ tiếp tục dùng A mãi mãi. Nhãn này ghi lại CHÍNH XÁC
+mã Tracking đã bị bác bỏ tại thời điểm chọn, để lần tra cứu sau chỉ miễn trừ
+ĐÚNG mâu thuẫn đó.
+
+Tiền tố không khớp bất kỳ giá trị `Namespace` nào (`TRACKING`/`PUBLIC_
+PURCHASE`), nên nó không lẫn với các entry `NAMESPACE:code` bình thường."""
+
+
+def conflict_opposing_code(candidate_set_ids: tuple[str, ...]) -> Optional[str]:
+    """Mã Tracking đã CHỎI, đọc từ `candidate_set_ids` của một Evidence.
+
+    `None` khi không có entry nào mang tiền tố này — mapping không phải kết
+    quả giải mâu thuẫn, hoặc mã đối lập không xác định được lúc chọn. Cả hai
+    trường hợp PHẢI khiến lần tra cứu sau coi đây là một mâu thuẫn CHƯA từng
+    được xem — không phải một sự miễn trừ mặc định.
+    """
+    for entry in candidate_set_ids:
+        if entry.startswith(CONFLICT_OPPOSING_CODE_PREFIX):
+            return entry[len(CONFLICT_OPPOSING_CODE_PREFIX):]
+    return None
+
+
 def evidence_fingerprint(
     *,
     pp_version_id: Optional[str],
