@@ -12101,6 +12101,23 @@ GIỮ NGUYÊN, không viết lại):
   lần chạy ấy. Ảnh chụp MIN phụ thuộc kỳ, nên chọn "capture mới nhất" là sai:
   luồng cục bộ chọn ảnh chụp PHỦ ĐÚNG kỳ, không có thì `None` + Pending.
 
+Amendment (07/09/2026, lượt Independent Review vòng 2 — review CHƯA ACCEPT):
+- Điểm 8 (phân trang): SIẾT thành **đọc lạc quan HAI ĐẦU** (token → dữ liệu →
+  token, chỉ trả khi bằng nhau) cộng **con trỏ mang theo token**. Chỉ đọc một
+  đầu thì mù với lượt ghi xen vào giữa các lệnh đọc của MỘT trang.
+- Điểm 9 (ảnh chụp theo kỳ): kỳ rộng hơn trần hợp đồng được **CHIA thành các
+  đoạn ≤ 62 ngày**, gộp chỉ khi mọi đoạn cùng `query_revision`; quá trần đoạn
+  mỗi lần chạy thì TỪ CHỐI kèm hướng dẫn tách kỳ. Bỏ qua lượt hỏi giá là ra
+  một báo cáo đầy đủ hình thức mà không một giá vốn nào.
+  Phép chọn ảnh chụp cục bộ hỏi **từng cặp `(mã, ngày)`**, không chỉ khoảng
+  ngày: hai ảnh chụp cùng kỳ có thể được chụp cho hai tập mã khác nhau.
+- Bổ sung điểm 10: **`purchase_price_history` thôi là đầu vào BẮT BUỘC.** Từ R1
+  nó không quyết định giá nào; giữ nó REQUIRED là bắt báo cáo hôm nay phụ thuộc
+  vào một nguồn hôm nay không dùng. Vẫn chụp, vẫn vào bằng chứng, vắng mặt thì
+  bằng chứng nói ra. Danh mục Tracking VẪN REQUIRED.
+- Bổ sung điểm 11: **một lần chạy hỏng không để lại capture tạm trên đĩa**
+  (`S071 §10`) — kể cả khi lỗi đến từ một chỗ không lường trước.
+
 Can Revisit After:
 Mở lại nếu Owner đổi định nghĩa giá nhập tự động, hoặc khi `TASK-105C`
 (giá nhà cung cấp lịch sử) được cấp phép và cần một thứ tự ưu tiên mới.

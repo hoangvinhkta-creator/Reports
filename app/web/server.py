@@ -2204,6 +2204,18 @@ def create_app(
                 captures, tracking_evidence, live_handle = _select_captures_for_run(
                     sales=temp_path
                 )
+            except live_pull.DailyMinPeriodTooWideError as exc:
+                # KHÔNG phải lỗi Tracking, nên KHÔNG nói "thử lại sau" — thử
+                # lại bao nhiêu lần cũng thế. Và tuyệt đối không chạy tiếp để
+                # ra một báo cáo đầy đủ hình thức mà không có giá vốn nào.
+                return _page(
+                    error=(
+                        f"Sổ này trải {exc.day_span} ngày — rộng hơn mức một "
+                        "lần chạy hỏi được giá theo ngày bán. Hãy tách sổ theo "
+                        "tháng (hoặc quý) rồi chạy lại từng kỳ."
+                    ),
+                    status=400,
+                )
             except live_pull.TrackingUnavailableError as exc:
                 return _page(
                     error=(

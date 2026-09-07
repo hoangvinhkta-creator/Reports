@@ -19,7 +19,7 @@ Ba câu hỏi ở đây, và không câu nào trả lời được từ một ca
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -178,8 +178,17 @@ def write_daily_min_capture(
     directory: Path, name: str, *, date_from: str, date_to: str,
     captured_at: datetime, codes=("TRK-A",),
 ) -> Path:
-    """Một capture MIN thật, đi qua đúng loader production khi được chọn."""
+    """Một capture MIN thật, đi qua đúng loader production khi được chọn.
+
+    Trả lời MỌI cặp `(mã, ngày)` trong khoảng — đúng như một lần chụp thật:
+    hợp đồng cam kết mỗi cặp đã hỏi nằm ở `records` hoặc ở `errors`, không cặp
+    nào bốc hơi. Một fixture chỉ điền ngày đầu sẽ khiến bài kiểm nói về một
+    hình dạng dữ liệu mà production không bao giờ nhận được.
+    """
     directory.mkdir(parents=True, exist_ok=True)
+    first = date.fromisoformat(date_from)
+    last = date.fromisoformat(date_to)
+    days = [first + timedelta(days=i) for i in range((last - first).days + 1)]
     payload = {
         "capture_id": f"DMIN-{name}",
         "captured_at": captured_at.isoformat(),
@@ -188,7 +197,8 @@ def write_daily_min_capture(
         "capture_status": "COMPLETE",
         "data": dmin.contract(
             date_from=date_from, date_to=date_to,
-            records=[dmin.record(code, date_from, min_price=6800) for code in codes],
+            records=[dmin.record(code, day, min_price=6800)
+                     for code in codes for day in days],
         ),
     }
     path = directory / f"{name}.json"
@@ -265,6 +275,123 @@ def test_a_capture_that_only_half_covers_the_period_is_not_used(repo):
     sales = write_sales(repo / "trai-rong.xlsx", rows, day=date(2026, 9, 20))
     selected = owner_usability.select_latest_valid_captures(repo_root=repo, sales=sales)
     assert selected.tracking_daily_min is None
+
+
+def test_two_captures_of_the_same_period_are_told_apart_by_their_code_set(repo):
+    """Cùng kỳ, cùng khoảng ngày, KHÁC tập mã.
+
+    Chuyện này xảy ra một cách rất bình thường: một lần chụp cho sổ của nhân
+    viên A, một lần cho sổ của nhân viên B. Cả hai đều "phủ khoảng ngày", nên
+    một phép kiểm chỉ nhìn `date_from`/`date_to` sẽ chọn cái MỚI HƠN — và phần
+    lớn dòng ra `NOT_IN_CAPTURE`. Đó là một câu trả lời trung thực nhưng nói
+    sai vấn đề: người đọc đi tìm hiểu dữ liệu, trong khi việc cần làm là chụp
+    lại cho đúng tập mã — và tệ hơn, trong kho ĐANG CÓ một ảnh chụp trả lời
+    được.
+    """
+    kho = repo / "data" / "tracking_daily_min"
+    dung_ma = write_daily_min_capture(
+        kho, "to-A", date_from="2026-09-01", date_to="2026-09-30",
+        captured_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        codes=("TRK-A", "TRK-B"),
+    )
+    write_daily_min_capture(
+        kho, "to-B", date_from="2026-09-01", date_to="2026-09-30",
+        captured_at=datetime(2026, 10, 2, tzinfo=timezone.utc),   # MỚI HƠN
+        codes=("TRK-C", "TRK-D"),
+    )
+
+    selected = owner_usability.select_latest_valid_captures(
+        repo_root=repo,
+        sales=write_sales(repo / "so-A.xlsx", ROWS[:2], day=SEP),   # TRK-A, TRK-B
+    )
+    assert selected.tracking_daily_min == dung_ma
+
+
+def test_a_capture_missing_one_pair_of_the_period_is_not_used(repo):
+    """Thiếu ĐÚNG MỘT cặp cũng là không trả lời được kỳ này.
+
+    Dùng nó thì dòng ấy Pending giữa một bảng có giá — và một dòng thiếu giữa
+    một bảng đủ là thứ dễ trôi qua nhất khi đọc.
+    """
+    kho = repo / "data" / "tracking_daily_min"
+    write_daily_min_capture(
+        kho, "thieu-mot-ma", date_from="2026-09-01", date_to="2026-09-30",
+        captured_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        codes=("TRK-A",),
+    )
+    selected = owner_usability.select_latest_valid_captures(
+        repo_root=repo,
+        sales=write_sales(repo / "so.xlsx", ROWS[:2], day=SEP),   # cần cả TRK-B
+    )
+    assert selected.tracking_daily_min is None
+
+
+def test_a_pair_answered_by_an_error_still_counts_as_answered(repo):
+    """"Tracking bảo hôm ấy không có dữ liệu" LÀ một câu trả lời.
+
+    Ảnh chụp mới hơn cũng sẽ nói y như thế, nên coi cặp ấy là "chưa trả lời"
+    sẽ loại bỏ một ảnh chụp hoàn toàn hợp lệ và đẩy cả kỳ về Pending vì một
+    lý do khác hẳn.
+    """
+    kho = repo / "data" / "tracking_daily_min"
+    directory = kho
+    directory.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "capture_id": "DMIN-co-loi",
+        "captured_at": datetime(2026, 10, 1, tzinfo=timezone.utc).isoformat(),
+        "captured_by": "kiem",
+        "source_system_ref": "tracking/api/min-ngay",
+        "capture_status": "COMPLETE",
+        "data": dmin.contract(
+            date_from="2026-09-03", date_to="2026-09-03",
+            records=[dmin.record("TRK-A", "2026-09-03", min_price=6800)],
+            errors=[dmin.error("TRK-B", "2026-09-03", "NO_DATA")],
+        ),
+    }
+    path = directory / "co-loi.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    selected = owner_usability.select_latest_valid_captures(
+        repo_root=repo,
+        sales=write_sales(repo / "so.xlsx", ROWS[:2], day=SEP),
+    )
+    assert selected.tracking_daily_min == path
+
+
+def test_the_plan_carries_the_exact_pairs_the_ledger_needs(tmp_path):
+    """Cặp (mã, ngày) THƯA hơn tích Descartes rất nhiều — và đó là điểm chính.
+
+    Một kỳ 30 ngày với 200 mã có 6.000 ô; sổ thật chỉ chạm vài trăm. Giữ đúng
+    những cặp cần trả lời là điều kiện để phép chọn ảnh chụp không đòi hỏi một
+    ảnh chụp đầy đủ hơn mức cần thiết.
+    """
+    plan = plan_for(tmp_path, write_sales_over_days(
+        tmp_path / "hai-ngay.xlsx",
+        [(ROWS[0], date(2026, 9, 3)), (ROWS[1], date(2026, 9, 20))],
+    ))
+    assert plan.pairs == (("TRK-A", date(2026, 9, 3)), ("TRK-B", date(2026, 9, 20)))
+    assert plan.date_from == date(2026, 9, 3) and plan.date_to == date(2026, 9, 20)
+
+
+def test_the_plan_splits_a_wide_period_into_contract_sized_windows(tmp_path):
+    """Đoạn liền kề, không chồng lấn, phủ đúng khoảng — và mỗi đoạn vừa MỘT
+    lượt gọi."""
+    plan = plan_for(tmp_path, write_sales_over_days(
+        tmp_path / "ca-nam.xlsx",
+        [(ROWS[0], date(2026, 1, 5)), (ROWS[1], date(2026, 12, 20))],
+    ))
+    windows = plan.contract_windows()
+    assert len(windows) > 1
+    assert all((b - a).days + 1 <= MAX_CONTRACT_DAYS for a, b in windows)
+    assert windows[0][0] == plan.date_from
+    assert windows[-1][1] == plan.date_to
+    for (_, truoc), (sau, _) in zip(windows, windows[1:]):
+        assert sau == truoc + timedelta(days=1)
+
+
+def test_a_narrow_period_is_exactly_one_window(tmp_path):
+    plan = plan_for(tmp_path, write_sales(tmp_path / "hep.xlsx", ROWS[:1], day=SEP))
+    assert plan.contract_windows() == ((SEP, SEP),)
 
 
 def test_without_a_workbook_no_daily_min_capture_is_chosen(repo):
@@ -412,15 +539,14 @@ def test_a_failed_price_contract_stops_the_run_instead_of_pricing_nothing(
     assert exc.value.node == "daily_min"
 
 
-def test_a_period_wider_than_the_contract_is_skipped_with_its_own_reason(
+def test_a_wide_period_is_split_into_windows_and_merged_into_one_capture(
     monkeypatch, tmp_path
 ):
-    """Kỳ quá rộng là tính chất của SỔ, không phải của Tracking.
+    """Kỳ rộng hơn 62 ngày phải RA GIÁ, không phải ra một báo cáo rỗng giá.
 
-    Nên nó KHÔNG được dựng thành "Tracking đang lỗi" (lần chạy dừng, Owner
-    được bảo thử lại sau — và thử lại bao nhiêu lần cũng thế). Lần chạy đi
-    tiếp, dòng Tracking Pending vì nguồn chưa nối, và lý do thật nằm trong
-    bằng chứng của run để người đọc tìm đúng chỗ.
+    Bản trước bỏ qua lượt hỏi giá và lần chạy vẫn tạo báo cáo — đầy đủ hình
+    thức, không một giá vốn nào, và trông y hệt một báo cáo bình thường. Nay kỳ
+    được chia thành các đoạn ≤ 62 ngày, hỏi từng đoạn, rồi gộp.
     """
     posts: list = []
     post = fake_tracking(monkeypatch, tmp_path, posts=posts)
@@ -432,10 +558,224 @@ def test_a_period_wider_than_the_contract_is_skipped_with_its_own_reason(
         out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
         fetch=lambda node: {}, sales=sales, post=post,
     )
-    assert posts == []
-    assert live.tracking_daily_min is None
-    assert live.evidence["daily_min_skip_reason"] == "PERIOD_WIDER_THAN_CONTRACT"
-    assert live.evidence["daily_min_day_span"] > MAX_CONTRACT_DAYS
+
+    assert len(posts) > 1
+    assert all(
+        (date.fromisoformat(b["date_to"]) - date.fromisoformat(b["date_from"])).days + 1
+        <= MAX_CONTRACT_DAYS
+        for b in posts
+    )
+    # Các đoạn liền kề, không chồng lấn, phủ đúng khoảng của sổ.
+    assert posts[0]["date_from"] == "2026-01-05"
+    assert posts[-1]["date_to"] == "2026-12-20"
+    for truoc, sau in zip(posts, posts[1:]):
+        assert date.fromisoformat(sau["date_from"]) == (
+            date.fromisoformat(truoc["date_to"]) + timedelta(days=1)
+        )
+
+    snapshot = load_daily_min_capture(live.tracking_daily_min)
+    assert snapshot.date_from == date(2026, 1, 5)
+    assert snapshot.date_to == date(2026, 12, 20)
+    assert live.evidence["daily_min_windows"] == len(posts)
+
+
+def test_windows_of_two_different_states_are_never_merged(monkeypatch, tmp_path):
+    """Gộp các đoạn CHỈ hợp lệ khi mọi đoạn cùng `query_revision`.
+
+    Lệch nghĩa là database đã đổi giữa các lượt, và ghép lại thì kỳ báo cáo
+    mang giá của hai thời điểm khác nhau. Đây là sự cố thoáng qua (một lượt
+    cron chạy đúng lúc), nên nó đi đường "Tracking đang lỗi" — thử lại thật sự
+    có tác dụng.
+    """
+    fake_tracking(monkeypatch, tmp_path, posts=[])
+    lan = {"n": 0}
+
+    def post(body):
+        lan["n"] += 1
+        return {
+            **dmin.contract(
+                date_from=body["date_from"], date_to=body["date_to"],
+                records=[dmin.record(code, body["date_from"], min_price=6800)
+                         for code in body["product_codes"]],
+                query_revision=f"rev-{lan['n']}",
+            ),
+            "next_cursor": None,
+        }
+
+    sales = write_sales_over_days(
+        tmp_path / "ca-nam.xlsx",
+        [(ROWS[0], date(2026, 1, 5)), (ROWS[1], date(2026, 12, 20))],
+    )
+    with pytest.raises(live_pull.TrackingUnavailableError) as exc:
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {}, sales=sales, post=post,
+        )
+    assert exc.value.reason == "REVISION_CHANGED_MID_CAPTURE"
+
+
+def test_a_period_beyond_the_window_budget_tells_the_user_to_split_it(
+    monkeypatch, tmp_path
+):
+    """Quá rộng ⇒ nói TÁCH KỲ, không nói "thử lại sau".
+
+    "Thử lại sau" là một lời khuyên sai ở đây: thử bao nhiêu lần cũng thế. Và
+    nó KHÔNG được trả về một báo cáo không giá.
+    """
+    posts: list = []
+    post = fake_tracking(monkeypatch, tmp_path, posts=posts)
+    sales = write_sales_over_days(
+        tmp_path / "muoi-nam.xlsx",
+        [(ROWS[0], date(2020, 1, 5)), (ROWS[1], date(2026, 12, 20))],
+    )
+    with pytest.raises(live_pull.DailyMinPeriodTooWideError) as exc:
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {}, sales=sales, post=post,
+        )
+    assert exc.value.windows > live_pull.MAX_CONTRACT_WINDOWS
+    assert "tách sổ" in str(exc.value).lower()
+    assert posts == []          # không gọi mạng lượt nào
+
+
+# ======================================================================
+# 4. Lần chạy hỏng KHÔNG để lại authority thô trên đĩa
+# ======================================================================
+
+
+def con_lai(tmp_path: Path) -> list[Path]:
+    return sorted((tmp_path / "tmp").glob("*.json"))
+
+
+def test_a_failed_price_contract_leaves_no_capture_behind(monkeypatch, tmp_path):
+    """`cleanup()` của bên gọi chỉ chạy khi hàm này TRẢ VỀ một handle.
+
+    Ném ra thì bên gọi không có gì để dọn, và mỗi lần hỏng lại bỏ lại thêm vài
+    file capture — đúng thứ `S071 §10` cấm giữ lâu hơn một lần chạy.
+    """
+    fake_tracking(monkeypatch, tmp_path, posts=[])
+    with pytest.raises(live_pull.TrackingUnavailableError):
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {},
+            sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP),
+            post=lambda body: {"ok": False, "ly": "nguon-hong"},
+        )
+    assert con_lai(tmp_path) == []
+
+
+def test_an_exception_inside_planning_leaves_no_capture_behind(monkeypatch, tmp_path):
+    """Kể cả một lỗi KHÔNG lường trước từ tận trong kế hoạch hỏi giá.
+
+    Đây là ca mà một khối `except TrackingUnavailableError` hẹp sẽ bỏ lọt —
+    nên chỗ dọn dẹp bắt `BaseException`, không bắt riêng một loại.
+    """
+    fake_tracking(monkeypatch, tmp_path, posts=[])
+
+    def no(*args, **kwargs):
+        raise RuntimeError("resolver nổ giữa chừng")
+
+    monkeypatch.setattr(
+        "app.modules.pricing.daily_min.planning.plan_daily_min_request_for_workbook", no
+    )
+    with pytest.raises(RuntimeError):
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {},
+            sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP),
+            post=lambda body: {},
+        )
+    assert con_lai(tmp_path) == []
+
+
+def test_a_period_too_wide_leaves_no_capture_behind(monkeypatch, tmp_path):
+    fake_tracking(monkeypatch, tmp_path, posts=[])
+    with pytest.raises(live_pull.DailyMinPeriodTooWideError):
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {},
+            sales=write_sales_over_days(
+                tmp_path / "muoi-nam.xlsx",
+                [(ROWS[0], date(2020, 1, 5)), (ROWS[1], date(2026, 12, 20))]),
+            post=lambda body: {},
+        )
+    assert con_lai(tmp_path) == []
+
+
+def test_a_successful_run_still_keeps_its_captures_until_cleanup(monkeypatch, tmp_path):
+    """Đối chứng: đường thành công KHÔNG bị chỗ dọn dẹp mới đụng tới."""
+    post = fake_tracking(monkeypatch, tmp_path, posts=[])
+    live = live_pull.pull_live_captures(
+        out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+        fetch=lambda node: {},
+        sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP), post=post,
+    )
+    assert con_lai(tmp_path) != []
+    live.cleanup()
+    assert con_lai(tmp_path) == []
+
+
+# ======================================================================
+# 5. Lịch sử `tp/ton` cũ: nguồn LEGACY, không được chặn báo cáo R1
+# ======================================================================
+
+
+def test_a_broken_legacy_history_does_not_block_the_r1_report(monkeypatch, tmp_path):
+    """Từ R1, nhánh giá của một mã Tracking đi qua `_daily_min_branch`.
+
+    Lịch sử `tp/ton` chỉ chạy khi caller NÊU RÕ
+    `legacy_tracking_history_authority=True`, nên để một sự cố ở nhánh ấy chặn
+    cả báo cáo là bắt hôm nay phụ thuộc vào một nguồn hôm nay không dùng.
+    Nó vẫn được chụp và vẫn vào bằng chứng — để đối chiếu kết quả sinh trước
+    R1 — nhưng vắng mặt thì lần chạy đi tiếp.
+    """
+    posts: list = []
+    post = fake_tracking(monkeypatch, tmp_path, posts=posts)
+
+    def hong(fetch, *, capture_id, captured_by, source_system_ref,
+             captured_at=None, **kw):
+        return {
+            "capture_id": capture_id,
+            "captured_at": (captured_at or datetime.now(timezone.utc)).isoformat(),
+            "captured_by": captured_by,
+            "source_system_ref": source_system_ref,
+            "content_hash": "hash-pph",
+            "capture_status": "FAILED",
+            "failure_reason": "SOURCE_UNAVAILABLE: 502",
+        }
+
+    monkeypatch.setattr(live_pull, "_build_history_capture", hong)
+    live = live_pull.pull_live_captures(
+        out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+        fetch=lambda node: {},
+        sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP), post=post,
+    )
+    assert live.tracking_capture is None
+    assert live.evidence["purchase_price_history_status"] == "FAILED"
+    assert "502" in live.evidence["purchase_price_history_failure_reason"]
+    # Và giá vẫn được hỏi, vì nguồn giá của R1 không phải nhánh ấy.
+    assert len(posts) == 1
+    assert live.tracking_daily_min is not None
+
+
+def test_a_broken_catalog_still_stops_the_run(monkeypatch, tmp_path):
+    """Đối chứng: danh mục vẫn REQUIRED. Không có nó thì không resolve được mã
+    nào, và mọi dòng Pending vì một lý do identity — không phải vì giá."""
+    fake_tracking(monkeypatch, tmp_path, posts=[])
+
+    def hong(fetch, *, capture_id, **kw):
+        return {"capture_id": capture_id, "capture_status": "FAILED",
+                "failure_reason": "EMPTY_SOURCE_NOT_ASSERTABLE"}
+
+    monkeypatch.setattr(live_pull.capture_tracking_catalog, "build_capture", hong)
+    with pytest.raises(live_pull.TrackingUnavailableError) as exc:
+        live_pull.pull_live_captures(
+            out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+            fetch=lambda node: {},
+            sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP), post=lambda b: {},
+        )
+    assert exc.value.node == "catalog"
+    assert con_lai(tmp_path) == []
 
 
 def test_an_unreadable_workbook_does_not_look_like_a_tracking_outage(

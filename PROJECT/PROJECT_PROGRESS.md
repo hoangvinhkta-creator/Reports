@@ -14,6 +14,17 @@ một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
 của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
 bàn giao phiên: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`.
 
+**Đã qua Independent Review vòng 2 (cùng ngày) — review CHƯA ACCEPT.** Năm
+finding, tất cả đã xử lý; chi tiết ở `S126` §12. Đáng chú ý nhất: kỳ rộng hơn
+trần 62 ngày của hợp đồng trước đây bỏ qua lượt hỏi giá, nên lần chạy vẫn ra
+một báo cáo đầy đủ hình thức mà KHÔNG một giá vốn nào — kết cục tệ hơn cả một
+lỗi vì nó trông giống thành công. Nay kỳ được CHIA thành các đoạn ≤ 62 ngày và
+chỉ gộp khi cùng `query_revision`; rộng quá trần đoạn thì TỪ CHỐI (400) kèm
+hướng dẫn tách kỳ. Bốn finding còn lại: dọn capture tạm khi lần chạy hỏng, đọc
+lạc quan HAI ĐẦU + con trỏ mang revision, chọn ảnh chụp theo TỪNG CẶP
+`(mã, ngày)`, và lịch sử `tp/ton` thôi là nguồn REQUIRED.
+`CHECK-R1-37` … `CHECK-R1-41` đã PASS. `CHECK-R1-24` VẪN `NOT_TESTED`.
+
 **Đã qua một lượt Independent Review vòng 1 (cùng ngày).** Sáu finding, tất
 cả đã xử lý và kiểm chứng — chi tiết ở `S126` §11. Finding tệ nhất:
 `app/web/server.py` KHÔNG hề truyền ảnh chụp MIN vào lượt chạy, nên đường
@@ -31,10 +42,10 @@ bất biến toàn vẹn ảnh chụp phía Reports, và một luật đọc đ�
 `CHECK-R1-25` … `CHECK-R1-29` đã PASS.
 
 ```text
-STATUS                      = IMPLEMENTED — đã kiểm thử, sửa lỗi và xử lý
-                              sáu finding của Independent Review vòng 1; chờ
-                              kết luận review + Owner nghiệm thu trên dữ liệu
-                              thật. KHÔNG deploy.
+STATUS                      = IMPLEMENTED — đã xử lý sáu finding vòng 1 và
+                              năm finding vòng 2 của Independent Review;
+                              review CHƯA ACCEPT. Chờ kết luận review + Owner
+                              nghiệm thu trên dữ liệu thật. KHÔNG deploy.
 Current Task Mode:            MAJOR
 BASE_HEAD (Reports)         = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
 BASE_HEAD (Tracking)        = 598b4b1390cc96e552455ab85e2c48d78198b89c
@@ -60,13 +71,25 @@ CARRY_FORWARD_RULE          = mốc R ≤ D hợp lệ cho D khi và chỉ khi �
                               NGÀY D có bản ngày (bản ngày chỉ ghi được khi
                               engine trả đủ MỌI mã của bảng — CHECK-R1-25);
                               D không có bản ngày ⇒ SOURCE_UNAVAILABLE
-PAGINATION_CONSISTENCY      = min_ngay_rev — token đổi sau MỌI lượt ghi, đọc
-                              TRƯỚC dữ liệu, trả trên từng trang thành
-                              query_revision; Reports TỪ CHỐI gộp khi lệch
+PAGINATION_CONSISTENCY      = min_ngay_rev — token đổi sau MỌI lượt ghi. Đọc
+                              lạc quan HAI ĐẦU (token → dữ liệu → token, chỉ
+                              trả khi bằng nhau; lệch ⇒ 409). Con trỏ mang
+                              theo token (<rev>:<vị trí>); lệch ⇒ 409. Reports
+                              TỪ CHỐI gộp trang HOẶC đoạn ngày khi lệch
+KY_RONG_HON_HOP_DONG        = chia thành đoạn ≤ 62 ngày, gộp CHỈ khi mọi đoạn
+                              cùng query_revision; rộng quá 12 đoạn ⇒ 400 kèm
+                              hướng dẫn tách kỳ. KHÔNG bao giờ ra một báo cáo
+                              thiếu toàn bộ giá vốn
+LEGACY_TP_TON_REQUIRED      = KHÔNG. Từ R1 nó không quyết định giá nào, nên
+                              sự cố ở nhánh ấy không chặn báo cáo; vẫn chụp,
+                              vẫn vào bằng chứng, vắng mặt thì NÓI RA.
+                              Danh mục Tracking VẪN REQUIRED
 DAILY_MIN_LA_THEO_KY        = ảnh chụp MIN phụ thuộc tập mã + khoảng ngày.
-                              Web: tự lập kế hoạch từ sổ rồi gọi hợp đồng một
-                              lượt. Cục bộ: chọn ảnh chụp PHỦ ĐÚNG kỳ, không
-                              phải "mới nhất"; không có thì None + Pending
+                              Web: tự lập kế hoạch từ sổ rồi gọi hợp đồng.
+                              Cục bộ: chọn ảnh chụp trả lời được TỪNG CẶP
+                              (mã, ngày) của kỳ — không phải "mới nhất", và
+                              không chỉ theo khoảng ngày; không có thì None
+                              + Pending. Cặp nằm ở errors VẪN là đã trả lời
 PERIOD_FINAL_GATE           = period_is_final (có dữ liệu + không Pending +
                               không PROVISIONAL). resolved_prices_are_final
                               là chỉ số HẸP hơn, không phải cổng chốt kỳ
@@ -78,11 +101,11 @@ REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển 
                               TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
                               của hai người khác nhau, không gộp)
 
-TRACKING_TESTS              = 60 bộ · 2713 đạt · 0 hỏng · 2 bỏ qua
+TRACKING_TESTS              = 60 bộ · 2720 đạt · 0 hỏng · 2 bỏ qua
                               (nền: 59 · 2594 · 0 · 2)
 TRACKING_BUILD              = `npm run build` dựng ./dist thành công
-REPORTS_TESTS               = 2853 passed, 12 skipped, 0 failed
-                              (nền: 2720 passed, 12 skipped) — 133 bài mới
+REPORTS_TESTS               = 2880 passed, 12 skipped, 0 failed
+                              (nền: 2720 passed, 12 skipped) — 160 bài mới
 SMOKE_HAI_HE_THONG          = kiem/smoke/xuat-thang-min.mjs (Tracking) →
                               tools/smoke/r1_daily_min_smoke.py (Reports):
                               19/19 khẳng định PASS, output trích nguyên văn

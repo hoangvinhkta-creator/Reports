@@ -212,3 +212,79 @@ def test_a_tracking_price_outage_stops_the_run_instead_of_pricing_nothing(
     assert resp.status_code == 503
     assert "Tracking" in resp.get_data(as_text=True)
     assert list(web_server.ARTIFACT_DIR.glob("*.xlsx")) == []
+
+
+def test_a_period_wider_than_one_run_is_refused_with_guidance_not_a_priceless_report(
+    app, tmp_path
+):
+    """Sổ quá rộng ⇒ 400 kèm hướng dẫn TÁCH KỲ, và KHÔNG có artifact nào.
+
+    Bản trước bỏ qua lượt hỏi giá và vẫn tạo báo cáo: đầy đủ hình thức, không
+    một giá vốn nào. Đó là kết cục tệ nhất trong ba kết cục có thể — tệ hơn cả
+    một lỗi, vì nó trông giống thành công.
+    """
+    import openpyxl as _oxl
+
+    from tests.fixtures.synthetic_workbook import HEADER
+
+    book = _oxl.Workbook()
+    sheet = book.active
+    sheet.title = "SỔ CHI TIẾT BÁN HÀNG"
+    sheet.append(["SỔ CHI TIẾT BÁN HÀNG"])
+    sheet.append(["Từ ngày 01/01/2020 đến ngày 31/12/2026"])
+    sheet.append([])
+    sheet.append(HEADER)
+    sheet.append(["", "", "Diễn giải chung"])
+    for (order_id, product, quantity, sell), day in (
+        (ROWS[0], date(2020, 1, 5)), (ROWS[1], date(2026, 12, 20)),
+    ):
+        sheet.append([
+            day, order_id, f"Bán hàng {order_id}", product, f"KH{order_id}",
+            f"Khách {order_id}", "1 Đường Test", "0900000000", quantity, sell,
+            sell * quantity, 0, "Vũ Hạnh Ly 0868345633", "Shipper", 0, None, None,
+        ])
+        sheet.cell(sheet.max_row, 4).data_type = "s"
+    path = tmp_path / "muoi-nam.xlsx"
+    book.save(path)
+    book.close()
+
+    resp = upload(app.test_client(), path)
+    assert resp.status_code == 400
+    text = resp.get_data(as_text=True)
+    assert "tách sổ" in text.lower()
+    assert "thử lại sau" not in text.lower()   # lời khuyên sai ở đây
+    assert list(web_server.ARTIFACT_DIR.glob("*.xlsx")) == []
+    assert list((tmp_path / "tracking_live_tmp").glob("*.json")) == []
+
+
+def test_a_broken_legacy_history_does_not_stop_a_web_report(app, monkeypatch, tmp_path):
+    """Nhánh `tp/ton` cũ KHÔNG quyết định giá nào từ R1 (`ADR-110` §6).
+
+    Để một sự cố ở đó chặn cả báo cáo là bắt hôm nay phụ thuộc vào một nguồn
+    hôm nay không dùng. Giá vẫn phải ra, và bằng chứng phải NÓI RA rằng nhánh
+    legacy vắng mặt — chứ không im lặng.
+    """
+    def hong(fetch, *, capture_id, captured_by, source_system_ref,
+             captured_at=None, **kw):
+        return {
+            "capture_id": capture_id,
+            "captured_at": (captured_at or datetime.now(timezone.utc)).isoformat(),
+            "captured_by": captured_by,
+            "source_system_ref": source_system_ref,
+            "content_hash": "hash-pph",
+            "capture_status": "FAILED",
+            "failure_reason": "SOURCE_UNAVAILABLE: 502 Bad Gateway",
+        }
+
+    monkeypatch.setattr(live_pull, "_build_history_capture", hong)
+    client = app.test_client()
+    resp = upload(client, write_sales(tmp_path / "so.xlsx", ROWS[:1], day=SALE_DAY))
+    assert resp.status_code == 302
+
+    header, rows = order_lines(web_server.ARTIFACT_DIR)
+    assert rows[0][header.index("Giá nhập kế toán / công khai")] == GIA_NGAY_BAN * 1000
+
+    run_id = sorted(p.stem for p in web_server.ARTIFACT_DIR.glob("*.xlsx"))[-1]
+    evidence = client.application.config["RUN_REGISTRY"].get_run(run_id).tracking_evidence
+    assert evidence["purchase_price_history_status"] == "FAILED"
+    assert "502" in evidence["purchase_price_history_failure_reason"]

@@ -24,8 +24,10 @@ import pytest
 from tools.tracking.capture_daily_min import (
     SCHEMA_VERSION,
     TRAN_TRANG,
+    TRUONG_CHUNG_KHOANG,
     TRUONG_PHONG_BI,
     build_capture,
+    gop_khoang,
     gop_trang,
 )
 from tools.tracking.capture_purchase_price_history import CaptureError
@@ -166,3 +168,86 @@ def test_a_contract_refusal_is_not_read_as_an_empty_period():
     envelope = capture(lambda body: {"ok": False, "ly": "khoang-ngay-qua-dai"})
     assert envelope["capture_status"] == "FAILED"
     assert "khoang-ngay-qua-dai" in envelope["failure_reason"]
+
+
+# ======================================================================
+# 3. Gộp nhiều ĐOẠN NGÀY — chỉ khi cùng một trạng thái
+# ======================================================================
+#
+# Hợp đồng có trần 62 ngày mỗi lượt, nên một kỳ rộng hơn phải hỏi làm nhiều
+# lượt. Bỏ qua lượt hỏi giá vì kỳ quá rộng thì lần chạy vẫn ra một báo cáo —
+# đầy đủ hình thức, không một giá vốn nào, và trông y hệt một báo cáo bình
+# thường. Nên phải chia và gộp; nhưng gộp CHỈ hợp lệ khi database không đổi
+# giữa các lượt.
+
+
+def part(*, date_from, date_to, records=(), errors=(), revision=REV, **overrides):
+    body = {
+        "schema_version": SCHEMA_VERSION,
+        "business_timezone": "Asia/Ho_Chi_Minh",
+        "currency_unit": "VND_THOUSAND",
+        "date_from": date_from,
+        "date_to": date_to,
+        "generated_at": "2026-09-30T12:00:00+00:00",
+        "query_revision": revision,
+        "pages": 1,
+        "records": list(records),
+        "errors": list(errors),
+    }
+    body.update(overrides)
+    return body
+
+
+def test_windows_of_one_state_merge_into_the_whole_period():
+    merged = gop_khoang([
+        part(date_from="2026-01-01", date_to="2026-03-03",
+             records=[{"product_code": "A", "effective_date": "2026-01-05"}]),
+        part(date_from="2026-03-04", date_to="2026-05-04",
+             records=[{"product_code": "A", "effective_date": "2026-04-01"}]),
+    ])
+    assert (merged["date_from"], merged["date_to"]) == ("2026-01-01", "2026-05-04")
+    assert len(merged["records"]) == 2
+    assert merged["windows"] == 2
+    assert merged["query_revision"] == REV
+
+
+def test_windows_of_two_states_are_refused():
+    """Ca trung tâm: mỗi đoạn tự nó hợp lệ, chỉ trạng thái đã đổi giữa chúng."""
+    with pytest.raises(CaptureError) as exc:
+        gop_khoang([
+            part(date_from="2026-01-01", date_to="2026-03-03"),
+            part(date_from="2026-03-04", date_to="2026-05-04", revision="rev-0002"),
+        ])
+    assert "query_revision" in str(exc.value)
+
+
+@pytest.mark.parametrize("field", ["schema_version", "currency_unit",
+                                   "business_timezone", "query_revision"])
+def test_every_shared_field_must_match_across_windows(field):
+    with pytest.raises(CaptureError) as exc:
+        gop_khoang([
+            part(date_from="2026-01-01", date_to="2026-03-03"),
+            part(date_from="2026-03-04", date_to="2026-05-04", **{field: "khac"}),
+        ])
+    assert field in str(exc.value)
+
+
+def test_the_date_range_is_never_part_of_the_shared_fields():
+    """Khác `gop_trang`: các đoạn CỐ Ý khác khoảng ngày — đó là lý do có nhiều
+    đoạn. Nhầm hai danh sách này thì hoặc không gộp được gì, hoặc gộp cả những
+    thứ không nên gộp."""
+    assert "date_from" not in TRUONG_CHUNG_KHOANG
+    assert "date_to" not in TRUONG_CHUNG_KHOANG
+    assert "date_from" in TRUONG_PHONG_BI
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_a_window_without_a_revision_is_refused(value):
+    with pytest.raises(CaptureError):
+        gop_khoang([part(date_from="2026-01-01", date_to="2026-03-03",
+                         query_revision=value)])
+
+
+def test_merging_nothing_is_an_error_not_an_empty_period():
+    with pytest.raises(CaptureError):
+        gop_khoang([])

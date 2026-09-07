@@ -43,8 +43,9 @@ class DemoRun:
     presented_lines: tuple = ()
 
 
-def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
-             output: Path, tracking_inv_map: Optional[Path] = None,
+def run_demo(*, sales: Path, tracking_catalog: Path, output: Path,
+             tracking_capture: Optional[Path] = None,
+             tracking_inv_map: Optional[Path] = None,
              tracking_daily_min: Optional[Path] = None) -> DemoRun:
     """Giữ nguyên kết quả và audit trail của đúng lần chạy production này.
 
@@ -58,20 +59,29 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
     `tracking_daily_min` (R1) là ảnh chụp MIN theo NGÀY BÁN — nguồn giá nhập
     tự động hiện hành. Cũng TUỲ CHỌN, và vắng mặt cũng có nghĩa "chưa nối":
     mọi dòng Tracking sẽ Pending với `TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE`
-    thay vì mượn một nguồn giá khác. `tracking_capture` (lịch sử
-    `board/<mã>/tp/ton`) VẪN được nạp và vẫn đi vào bằng chứng, nhưng từ R1 nó
-    KHÔNG còn là nguồn giá mặc định — xem `composition.py`.
+    thay vì mượn một nguồn giá khác.
+
+    `tracking_capture` (lịch sử `board/<mã>/tp/ton`) trở thành TUỲ CHỌN kể từ
+    lượt review vòng 2. Từ R1 nó KHÔNG còn quyết định giá nào — nhánh của một
+    mã Tracking đi qua `_daily_min_branch`, và đường lịch sử chỉ chạy khi
+    caller nêu rõ `legacy_tracking_history_authority=True`. Nó vẫn được nạp và
+    vẫn vào bằng chứng khi CÓ mặt (để đối chiếu kết quả sinh trước R1), nhưng
+    bắt nó phải có mặt là bắt báo cáo hôm nay phụ thuộc vào một nguồn hôm nay
+    không dùng. Xem `composition.py` và `ADR-110` §6.
     """
-    paths_to_resolve = [sales, tracking_capture, tracking_catalog, output]
-    optional_paths = [tracking_inv_map, tracking_daily_min]
+    paths_to_resolve = [sales, tracking_catalog, output]
+    optional_paths = [tracking_capture, tracking_inv_map, tracking_daily_min]
     paths_to_resolve += [p for p in optional_paths if p is not None]
     resolved = [Path(p).expanduser().resolve() for p in paths_to_resolve]
-    sales, tracking_capture, tracking_catalog, output = resolved[:4]
-    extra = iter(resolved[4:])
+    sales, tracking_catalog, output = resolved[:3]
+    extra = iter(resolved[3:])
+    tracking_capture = next(extra) if tracking_capture is not None else None
     tracking_inv_map = next(extra) if tracking_inv_map is not None else None
     tracking_daily_min = next(extra) if tracking_daily_min is not None else None
 
-    required_inputs = [sales, tracking_capture, tracking_catalog]
+    required_inputs = [sales, tracking_catalog]
+    if tracking_capture is not None:
+        required_inputs.append(tracking_capture)
     if tracking_inv_map is not None:
         required_inputs.append(tracking_inv_map)
     if tracking_daily_min is not None:
@@ -89,7 +99,11 @@ def run_demo(*, sales: Path, tracking_capture: Path, tracking_catalog: Path,
         store = JsonlProductIdentityStore(log_path=IDENTITY_STORE_LOG_PATH)
         sources = PriceResolutionSources(
             business_timezone=load_business_timezone(REPO_ROOT / "config"),
-            tracking_price_history=load_tracking_price_history_capture(tracking_capture),
+            tracking_price_history=(
+                load_tracking_price_history_capture(tracking_capture)
+                if tracking_capture is not None
+                else None
+            ),
             tracking_catalog=load_tracking_catalog_capture(tracking_catalog),
             tracking_inv_map=(
                 load_tracking_inv_map_capture(tracking_inv_map)

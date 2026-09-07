@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Optional
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -225,7 +226,10 @@ def export_report(
     raw_rows: list[RawRow],
     *,
     sales_path: Path,
-    tracking_capture: Path,
+    #: `None` khi lịch sử `tp/ton` không được nối cho lần chạy này (từ R1 nó
+    #: không quyết định giá nào — `ADR-110` §6). Ô tóm tắt nói thẳng điều đó
+    #: chứ không để trống: một ô trống ở đây đọc thành "quên ghi".
+    tracking_capture: Optional[Path],
     tracking_catalog: Path,
     output_path: Path,
     processed_at: datetime,
@@ -336,7 +340,8 @@ def export_report(
         ("Dòng chưa xác định doanh thu", len(views) - len(revenues)),
         ("Dòng cần Review Queue", summary.review_lines),
         ("Finding cấp lô cần xem", len(batch_items)),
-        ("Capture giá đầu vào", tracking_capture.name),
+        ("Capture giá đầu vào (lịch sử tp/ton, LEGACY)",
+         tracking_capture.name if tracking_capture is not None else "Không nối"),
         ("Capture danh mục đầu vào", tracking_catalog.name),
         ("Đọc trạng thái", "AUTO: mọi dòng trong đơn có kết quả và không có finding cần xem. "
          "Review Queue: ít nhất một dòng cần kiểm tra. REVIEW_BATCH không tính vào số đơn."),

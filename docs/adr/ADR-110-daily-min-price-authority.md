@@ -121,22 +121,39 @@ theo ngày, và xuất qua hợp đồng `daily-min-v1`.**
    nghĩa, và KHÔNG còn là nguồn giá mặc định.** Nó chỉ chạy khi caller nêu rõ
    `legacy_tracking_history_authority=True`. Không có đường rơi từ MIN sang nó.
 
+   Hệ quả trực tiếp, và nó KHÔNG hiển nhiên: từ R1 nguồn ấy cũng thôi là đầu
+   vào BẮT BUỘC của một lần chạy. Nó vẫn được chụp và vẫn vào bằng chứng khi có
+   mặt — để đối chiếu kết quả sinh trước R1 — nhưng giữ nó REQUIRED là bắt báo
+   cáo hôm nay phụ thuộc vào một nguồn hôm nay không dùng: một sự cố 502 ở
+   nhánh legacy sẽ chặn một lần chạy mà mọi giá đều đến từ nguồn khác. Vắng mặt
+   thì bằng chứng NÓI RA (`purchase_price_history_status`), không im lặng.
+   Danh mục Tracking thì vẫn REQUIRED: không có nó thì không resolve được mã
+   nào.
+
 7. **Không backfill.** Không dựng lịch sử MIN từ `tp/ton`, không dựng từ bảng
    giá hôm nay. Lịch sử MIN có thẩm quyền bắt đầu từ lượt chụp đầu tiên.
 
-8. **Một ảnh chụp là ảnh của MỘT trạng thái.** Hợp đồng phân trang theo mã, và
-   con trỏ phân trang chỉ là VỊ TRÍ trong danh sách mã đã sắp — nó không đóng
-   băng gì cả, và Firebase RTDB không có ảnh chụp đọc nhất quán qua nhiều lệnh
-   đọc. Nên Tracking giữ một token trạng thái (`min_ngay_rev`), đổi nó sau MỌI
-   lượt ghi vào các nhánh MIN theo ngày, đọc nó TRƯỚC dữ liệu, và trả nó trên
-   từng trang (`query_revision`). Reports TỪ CHỐI gộp các trang lệch token.
+8. **Một ảnh chụp là ảnh của MỘT trạng thái — kể cả trong MỘT trang.** Hợp
+   đồng phân trang theo mã, con trỏ chỉ là VỊ TRÍ trong danh sách mã đã sắp, và
+   Firebase RTDB không có ảnh chụp đọc nhất quán qua nhiều lệnh đọc. Tracking
+   giữ một token trạng thái (`min_ngay_rev`) và đổi nó sau MỌI lượt ghi vào các
+   nhánh MIN theo ngày. Ba lớp bảo vệ, và cả ba đều cần:
 
-   Năm trường phong bì cũ không thay được nó: chúng chỉ lặp lại yêu cầu vừa
-   gửi đi, nên chúng khớp nhau kể cả khi dữ liệu bên dưới đã đổi hoàn toàn.
-   Thứ tự đọc cũng là một phần của lập luận — đọc token TRƯỚC dữ liệu thì một
-   lượt ghi xen giữa làm hai trang LỆCH (hỏng về phía an toàn); đọc SAU thì
-   hai trang khớp nhau trong khi trang đầu là ảnh của một trạng thái đã không
-   còn.
+   - **Đọc lạc quan HAI ĐẦU.** `xuatMinNgay()` đọc token trước dữ liệu, đọc lại
+     sau dữ liệu, chỉ trả kết quả khi hai lần bằng nhau. Chỉ đọc một đầu thì
+     bắt được lượt ghi xen giữa hai trang nhưng MÙ với lượt ghi xen vào giữa
+     các lệnh đọc của MỘT trang — mã đọc trước mang trạng thái cũ, mã đọc sau
+     mang trạng thái mới, phong bì vẫn nhất quán. Phân trang không liên quan:
+     một trang duy nhất đã có thể là ảnh ghép.
+   - **Con trỏ MANG THEO token** (`<revision>:<vị trí>`). Máy chủ từ chối con
+     trỏ mang revision khác revision hiện tại, nên một client viết ẩu cũng
+     không tự nối được trang 2 của trạng thái mới vào trang 1 của trạng thái
+     cũ. Trách nhiệm nằm ở phía có đủ thông tin để kiểm.
+   - **Phong bì chở `query_revision`,** và Reports TỪ CHỐI gộp các trang — hoặc
+     các ĐOẠN NGÀY, xem §9 — lệch token.
+
+   Năm trường phong bì cũ không thay được nó: chúng chỉ lặp lại yêu cầu vừa gửi
+   đi, nên chúng khớp nhau kể cả khi dữ liệu bên dưới đã đổi hoàn toàn.
 
 9. **Ảnh chụp MIN phụ thuộc KỲ, nên phải được HỎI cho từng lần chạy.** Khác
    `purchase_price_history`/`catalog` — vốn là ảnh chụp toàn bộ một nhánh, chụp
@@ -145,13 +162,20 @@ theo ngày, và xuất qua hợp đồng `daily-min-v1`.**
    hỏi. Hệ quả kiến trúc:
 
    - Đường upload web LẬP KẾ HOẠCH trước khi gọi: đọc sổ, resolve identity bằng
-     chính resolver production, gom tập mã Tracking + ngày bán nhỏ nhất/lớn
-     nhất, rồi gọi hợp đồng MỘT lượt và đóng băng kết quả cho lần chạy ấy.
-   - Luồng Owner cục bộ chọn ảnh chụp PHỦ ĐÚNG kỳ đang chạy, không phải ảnh
-     chụp mới nhất. Không có ảnh chụp nào phủ đủ ⇒ `None` ⇒ Pending kèm lý do
-     "nguồn chưa nối" — một câu đúng. Đưa ra ảnh chụp của kỳ khác thì mọi dòng
-     vẫn Pending, nhưng với `SALE_DATE_OUTSIDE_CAPTURE`, và người đọc đi sửa
-     nhầm chỗ.
+     chính resolver production, gom tập mã Tracking + từng cặp `(mã, ngày bán)`
+     cần trả lời, rồi gọi hợp đồng và đóng băng kết quả cho lần chạy ấy.
+   - **Kỳ rộng hơn trần 62 ngày của hợp đồng được CHIA thành các đoạn** ≤ 62
+     ngày, hỏi từng đoạn, và chỉ gộp khi mọi đoạn cùng `query_revision`. Bỏ qua
+     lượt hỏi giá vì kỳ quá rộng là kết cục tệ nhất: lần chạy vẫn ra một báo
+     cáo đầy đủ hình thức, không một giá vốn nào, trông y hệt một báo cáo bình
+     thường. Rộng quá mức gộp được (trần đoạn mỗi lần chạy) ⇒ TỪ CHỐI với
+     hướng dẫn TÁCH KỲ, không phải "thử lại sau" — thử lại không giúp gì.
+   - Luồng Owner cục bộ chọn ảnh chụp trả lời được TỪNG CẶP `(mã, ngày)` của kỳ
+     đang chạy, không phải ảnh chụp mới nhất và không chỉ theo khoảng ngày. Hai
+     ảnh chụp cùng kỳ có thể được chụp cho hai TẬP MÃ khác nhau; chọn nhầm thì
+     phần lớn dòng ra `NOT_IN_CAPTURE` trong khi kho ĐANG CÓ một ảnh chụp trả
+     lời được. Một cặp nằm ở `errors` VẪN tính là đã trả lời. Không ảnh chụp
+     nào đủ ⇒ `None` ⇒ Pending kèm "nguồn chưa nối" — một câu đúng.
 
 10. **Hoàn tất cấp kỳ là BA điều kiện, không phải một.**
     `resolved_prices_are_final` chỉ nói về những dòng ĐÃ có giá; một kỳ rỗng

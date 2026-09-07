@@ -228,6 +228,72 @@ def gop_trang(pages: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+#: Những trường phải giống nhau khi gộp nhiều ĐOẠN NGÀY của cùng một lần chụp.
+#: Khác `TRUONG_PHONG_BI` ở đúng hai chỗ: `date_from`/`date_to` cố ý KHÁC nhau
+#: giữa các đoạn (đó là lý do có nhiều đoạn), và khoảng kết quả là hợp của
+#: chúng.
+TRUONG_CHUNG_KHOANG = (
+    "schema_version",
+    "currency_unit",
+    "business_timezone",
+    "query_revision",
+)
+
+
+def gop_khoang(parts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Nối nhiều ĐOẠN NGÀY thành MỘT phong bì cho cả kỳ.
+
+    Hợp đồng có trần 62 ngày mỗi lượt, nên một kỳ rộng hơn phải hỏi làm nhiều
+    lượt. Nối chúng lại CHỈ hợp lệ khi mọi đoạn mang cùng `query_revision`:
+    khi ấy database không đổi giữa các lượt, và hợp của chúng đúng là một ảnh
+    chụp đã từng tồn tại. Lệch một token là hai đoạn của hai trạng thái, và
+    ghép lại thì kỳ báo cáo mang giá của hai thời điểm khác nhau mà không có
+    gì đỏ lên.
+
+    Không tự thử lại ở đây: bên gọi biết nó đang ở trong một lần chạy nào và
+    quyết định được nên báo lỗi hay hỏi lại, còn một vòng lặp thử lại giấu bên
+    trong sẽ biến một database đang bận thành một lần chạy treo.
+    """
+    if not parts:
+        raise CaptureError("không có đoạn nào để gộp")
+    dau = parts[0]
+    for field in TRUONG_CHUNG_KHOANG:
+        gia_tri = dau.get(field)
+        # `.strip()`: một chuỗi toàn khoảng trắng là "thiếu" chứ không phải
+        # một giá trị. Nó vẫn `==` chính nó ở các đoạn sau, nên phép so khớp
+        # bên dưới sẽ cho qua và cả kỳ được gộp trên một token rỗng.
+        if not isinstance(gia_tri, str) or not gia_tri.strip():
+            raise CaptureError(f"đoạn 1 thiếu trường {field!r}")
+    for so, phan in enumerate(parts[1:], start=2):
+        for field in TRUONG_CHUNG_KHOANG:
+            if phan.get(field) != dau.get(field):
+                raise CaptureError(
+                    f"đoạn {so} lệch {field!r}: {phan.get(field)!r} ≠ "
+                    f"{dau.get(field)!r} — hai đoạn đến từ hai trạng thái khác "
+                    "nhau của database; không gộp."
+                )
+
+    records: list[Any] = []
+    errors: list[Any] = []
+    for so, phan in enumerate(parts, start=1):
+        r, e = phan.get("records"), phan.get("errors", [])
+        if not isinstance(r, list) or not isinstance(e, list):
+            raise CaptureError(f"đoạn {so}: `records`/`errors` phải là danh sách")
+        records.extend(r)
+        errors.extend(e)
+
+    return {
+        **{field: dau.get(field) for field in TRUONG_CHUNG_KHOANG},
+        "date_from": min(str(p.get("date_from")) for p in parts),
+        "date_to": max(str(p.get("date_to")) for p in parts),
+        "generated_at": dau.get("generated_at"),
+        "pages": sum(int(p.get("pages") or 1) for p in parts),
+        "windows": len(parts),
+        "records": records,
+        "errors": errors,
+    }
+
+
 def build_capture(
     post: Poster,
     *,

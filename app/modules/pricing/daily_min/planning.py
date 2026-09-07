@@ -76,11 +76,16 @@ nói ra bằng một câu người đọc hiểu được, thay vì trở về d
 
 @dataclass(frozen=True)
 class DailyMinRequestPlan:
-    """Đúng những gì cần để gọi hợp đồng một lần, không hơn."""
+    """Đúng những gì cần để gọi hợp đồng, không hơn."""
 
     product_codes: tuple[str, ...]
     date_from: _dt.date
     date_to: _dt.date
+    #: Từng cặp (mã Tracking, ngày bán) mà lần chạy này THẬT SỰ cần trả lời.
+    #: Thưa hơn tích Descartes `product_codes × [date_from, date_to]` rất
+    #: nhiều: một kỳ 30 ngày với 200 mã có 6.000 ô, nhưng sổ bán hàng thường
+    #: chỉ chạm vài trăm trong số đó.
+    pairs: tuple[tuple[str, _dt.date], ...] = ()
     #: Số dòng đã đọc được từ sổ (có ngày bán và có tên hàng).
     lines_read: int = 0
     #: Số dòng có identity Tracking đã resolve — tức số dòng kế hoạch này phục vụ.
@@ -95,15 +100,48 @@ class DailyMinRequestPlan:
     def fits_one_contract_call(self) -> bool:
         return self.day_span <= MAX_CONTRACT_DAYS
 
+    def contract_windows(self) -> tuple[tuple[_dt.date, _dt.date], ...]:
+        """Chia khoảng hỏi thành các đoạn vừa MỘT lượt gọi hợp đồng.
+
+        Chia theo ngày chứ không theo mã: trần ngày (62) là trần của yêu cầu,
+        còn trần mã (100) đã có phân trang lo. Các đoạn liền kề, không chồng
+        lấn, phủ đúng `[date_from, date_to]`.
+        """
+        ra: list[tuple[_dt.date, _dt.date]] = []
+        dau = self.date_from
+        while dau <= self.date_to:
+            cuoi = min(dau + _dt.timedelta(days=MAX_CONTRACT_DAYS - 1), self.date_to)
+            ra.append((dau, cuoi))
+            dau = cuoi + _dt.timedelta(days=1)
+        return tuple(ra)
+
     def covered_by(self, snapshot: Any) -> bool:
         """Một ảnh chụp đã có sẵn có trả lời được kế hoạch này không.
 
-        Chỉ hỏi về KHOẢNG NGÀY, vì phong bì hợp đồng không liệt kê tập mã đã
-        hỏi. Một ảnh chụp phủ đúng ngày nhưng thiếu mã vẫn bị bắt — ở tầng
-        dưới, bằng `NOT_IN_CAPTURE` ("ảnh chụp không cân sổ"), và đó là một
-        câu trả lời trung thực chứ không phải một giá bịa ra.
+        Hỏi TỪNG CẶP `(mã, ngày)`, không chỉ hai đầu khoảng ngày. Lý do: hai
+        ảnh chụp của cùng một kỳ có thể được chụp cho hai TẬP MÃ khác nhau —
+        một lần chụp cho sổ của nhân viên A, một lần cho sổ của nhân viên B —
+        và cả hai đều "phủ khoảng ngày". Chọn nhầm thì phần lớn dòng ra
+        `NOT_IN_CAPTURE`; đó là một câu trả lời trung thực, nhưng nó nói sai
+        vấn đề (người đọc đi tìm hiểu dữ liệu, trong khi việc cần làm là chụp
+        lại cho đúng tập mã), và nó xảy ra khi trong kho ĐANG CÓ một ảnh chụp
+        trả lời được.
+
+        "Trả lời được" ở đây là ĐÚNG bất biến cân sổ của hợp đồng: mỗi cặp đã
+        hỏi nằm ở `records` HOẶC ở `errors`. Một cặp nằm ở `errors` VẪN tính là
+        đã trả lời — "Tracking bảo hôm ấy không có dữ liệu" là một câu trả
+        lời, và một ảnh chụp mới hơn cũng sẽ nói y như thế.
         """
-        return bool(snapshot.covers(self.date_from) and snapshot.covers(self.date_to))
+        if not self.pairs:
+            return bool(snapshot.covers(self.date_from) and snapshot.covers(self.date_to))
+        for code, day in self.pairs:
+            if not snapshot.covers(day):
+                return False
+            if snapshot.record_for(code, day) is None and (
+                snapshot.error_for(code, day) is None
+            ):
+                return False
+        return True
 
 
 def plan_daily_min_request(
@@ -170,15 +208,19 @@ def plan_daily_min_request(
     if not tracking_codes:
         return None
 
-    days = [
-        ref.sale_date
-        for _, ref in eligible
-        if ref.raw_identity_key in by_key
-    ]
+    days: list[_dt.date] = []
+    pairs: dict[tuple[str, _dt.date], None] = {}
+    for _, ref in eligible:
+        code = by_key.get(ref.raw_identity_key)
+        if code is None:
+            continue
+        days.append(ref.sale_date)
+        pairs[(code, ref.sale_date)] = None
     return DailyMinRequestPlan(
         product_codes=tuple(sorted(tracking_codes)),
         date_from=min(days),
         date_to=max(days),
+        pairs=tuple(sorted(pairs)),
         lines_read=len(eligible),
         tracking_lines=len(days),
     )

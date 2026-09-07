@@ -11,13 +11,14 @@ File này gộp BA lượt của cùng một phiên:
 | 1 — triển khai | toàn bộ phạm vi R1 theo brief | 1–4 |
 | 2 — kiểm thử/sửa lỗi | bảy chỗ sửa, không chỗ nào ném ngoại lệ | 5.1, 6 |
 | 3 — Independent Review vòng 1 | sáu finding của bên review | **11** |
+| 4 — Independent Review vòng 2 | năm finding, review CHƯA ACCEPT | **12** |
 
 Điểm chung của cả ba: mọi lỗi tìm được đều cho ra một con số tiền trông hoàn
 toàn bình thường thay vì một ngoại lệ. Riêng lượt 3 tìm được lỗi TỆ NHẤT của
 cả phiên — đường upload web KHÔNG hề gọi hợp đồng giá, trong khi 2.776 bài
 kiểm đều xanh.
 
-**SHA đầy đủ và gói cho reviewer nằm ở mục 11.5.**
+**SHA đầy đủ và gói cho reviewer nằm ở mục 11.5, cập nhật ở mục 12.5.**
 
 ---
 
@@ -470,9 +471,12 @@ Ba quyết định đáng chất vấn trong lượt này, ghi ra để reviewer
 2. **Ba cảnh KHÔNG phải lỗi Tracking thì KHÔNG dừng lần chạy**, và mỗi cảnh có
    lý do riêng trong bằng chứng của run: không có sổ (`NO_SALES_WORKBOOK`),
    sổ không có dòng nào mang identity Tracking (`NO_TRACKING_IDENTITY_LINES`),
-   kỳ rộng hơn 62 ngày của hợp đồng (`PERIOD_WIDER_THAN_CONTRACT`), và sổ
-   không đọc được (`UNREADABLE_SALES_WORKBOOK` — đường nhập sổ ngay sau đó
-   báo lỗi ở nơi người dùng hiểu được).
+   và sổ không đọc được (`UNREADABLE_SALES_WORKBOOK` — đường nhập sổ ngay sau
+   đó báo lỗi ở nơi người dùng hiểu được).
+
+   *(Vòng 1 xếp "kỳ rộng hơn 62 ngày" vào nhóm này với lý do
+   `PERIOD_WIDER_THAN_CONTRACT`. Vòng 2 bác đúng chỗ ấy — xem §12.1 finding
+   #4 — vì nó cho ra một báo cáo đầy đủ hình thức mà không một giá vốn nào.)*
 3. **Đọc workbook thêm MỘT lần để lập kế hoạch.** Hai đường vòng còn lại đắt
    hơn nhiều: chạy cả pipeline hai lượt, hoặc gọi hợp đồng một lượt cho mỗi
    dòng bán.
@@ -662,3 +666,150 @@ thể tự đổi bằng một lượt sửa mã: `CHECK-R1-24` (Independent Rev
 vòng 1 vừa nêu sáu finding, cả sáu đã xử lý, nhưng KẾT LUẬN review là của bên
 review chứ không phải của phiên này) và `CHECK-R1-23` (Owner nghiệm thu trên
 dữ liệu thật, sau lượt chụp đầu tiên trên production).
+
+
+## 12. Lượt Independent Review vòng 2 (07/09/2026)
+
+Bên review **CHƯA ACCEPT** vòng 1 và nêu thêm năm finding trên
+`ddf490618a96d6f43d1cbbffbf90139c21827b0d`. Tất cả đã xử lý; mục này ghi từng
+cái cùng bằng chứng. `CHECK-R1-24` VẪN `NOT_TESTED` — kết luận review là của
+bên review.
+
+### 12.1 Năm finding và cách xử lý
+
+| # | Finding | Vì sao nó đúng | Đã làm |
+|---|---|---|---|
+| 1 | `pull_live_captures` lỗi sau khi đã ghi file thì bỏ lại capture trên đĩa | `cleanup()` của bên gọi CHỈ chạy khi hàm trả về một handle. Ném ra thì bên gọi không có gì để dọn, và mỗi lần hỏng lại bỏ lại thêm vài file — đúng thứ `S071 §10` cấm giữ lâu hơn một lần chạy | Toàn bộ thân hàm vào một `try`, mọi đường thoát dọn `temp_paths`. Bắt `BaseException` chứ không riêng `TrackingUnavailableError`: một lỗi KHÔNG lường trước từ tận trong kế hoạch hỏi giá cũng phải dọn |
+| 2 | `query_revision` mới đọc ở MỘT đầu | Bắt được lượt ghi xen giữa hai TRANG, nhưng MÙ với lượt ghi xen vào giữa các lệnh đọc của MỘT trang: mã đọc trước mang trạng thái cũ, mã đọc sau mang trạng thái mới, phong bì vẫn nhất quán. Phân trang không liên quan | Đọc lạc quan HAI ĐẦU (token → dữ liệu → token, chỉ trả khi bằng nhau, lệch ⇒ 409 `trang-doc-khong-nhat-quan`), và con trỏ MANG THEO revision (`<rev>:<vị trí>`, lệch ⇒ 409 `cursor-lech-revision`) |
+| 3 | Chọn capture cục bộ chỉ theo khoảng ngày | Hai ảnh chụp cùng kỳ có thể được chụp cho hai TẬP MÃ khác nhau (sổ nhân viên A / nhân viên B). Cả hai đều "phủ khoảng ngày"; chọn nhầm thì phần lớn dòng ra `NOT_IN_CAPTURE` — một câu trung thực nhưng nói sai vấn đề, trong khi kho ĐANG CÓ ảnh chụp trả lời được | Kế hoạch mang TỪNG CẶP `(mã, ngày)`; `covered_by` hỏi từng cặp đúng bất biến cân sổ của hợp đồng. Cặp nằm ở `errors` VẪN tính là đã trả lời |
+| 4 | `PERIOD_WIDER_THAN_CONTRACT` cho ra báo cáo thiếu toàn bộ giá vốn | Kết cục tệ nhất trong ba kết cục có thể — tệ hơn cả một lỗi, vì nó trông giống thành công | Chia kỳ thành các đoạn ≤ 62 ngày, hỏi từng đoạn, gộp CHỈ khi mọi đoạn cùng `query_revision` (`gop_khoang`). Lệch ⇒ 503 (thoáng qua, thử lại có tác dụng). Rộng quá trần đoạn mỗi lần chạy (12 ≈ hai năm) ⇒ **400 kèm hướng dẫn TÁCH KỲ**, không phải "thử lại sau" |
+| 5 | `purchase_price_history` còn REQUIRED trong khi thẩm quyền đã là daily MIN | Đúng: nhánh của một mã Tracking đi qua `_daily_min_branch`, và đường lịch sử chỉ chạy khi caller nêu rõ `legacy_tracking_history_authority=True`. Giữ nó REQUIRED là bắt báo cáo hôm nay phụ thuộc vào một nguồn hôm nay không dùng | Thôi REQUIRED ở CẢ hai luồng (web pull-on-run và chọn capture cục bộ). Vẫn được chụp, vẫn vào bằng chứng khi có mặt; vắng mặt thì bằng chứng NÓI RA (`purchase_price_history_status`). Danh mục Tracking VẪN REQUIRED |
+
+**Xác định lại vai trò nguồn cũ (finding #5), có dẫn chứng mã.** Đường quyết
+định giá của một mã Tracking:
+
+```text
+composition._tracking_branch()
+  if not sources.legacy_tracking_history_authority:      # mặc định False
+      return self._daily_min_branch(...)                 # ← mọi lần chạy đi lối này
+  ...                                                    # TrackingHistoryPriceProvider
+```
+
+`self._reader` (đọc `purchase_price_history`) chỉ được dùng bên trong nhánh
+`legacy` ấy và trong `_build_tracking_provider`. Không có đường nào khác chạm
+tới nó. Nên nguồn cũ hôm nay là **audit/legacy**: giữ để đối chiếu kết quả sinh
+trước R1, và để một caller nêu rõ cờ có thể dựng lại chúng.
+
+**Ba bài kiểm bị đổi mong đợi** (chỗ reviewer nên soi trước):
+`test_purchase_price_history_failure_is_required_and_raises` và hai bài
+timeout/403 trong `tests/test_tracking_live_pull.py`. Chúng được viết ở `S071`,
+khi lịch sử `tp/ton` CÒN là nguồn giá — lúc ấy REQUIRED là đúng. R1 đổi thẩm
+quyền ấy, nên chúng nay ghim hành vi mới (ghi lý do vào bằng chứng, lần chạy đi
+tiếp) và mang tên mới. Bài đối chứng cho danh mục (`catalog`) giữ nguyên
+REQUIRED, không đụng.
+
+### 12.2 File đã thay đổi ở lượt này
+
+**Tracking** (`0442e62`)
+
+| File | Nội dung |
+|---|---|
+| `src/min-ngay.js` | đọc lạc quan hai đầu (`revTruoc`/`revSau`); con trỏ `<rev>:<vị trí>` và từ chối con trỏ lệch revision |
+| `kiem/min-ngay.js` | khối 13b viết lại: 119 → **126 bài** |
+| nhật ký tiến độ của repo Tracking | mô tả lại cơ chế và số liệu kiểm |
+
+**Reports**
+
+| File | Nội dung |
+|---|---|
+| `tools/tracking/live_pull.py` | thân tách thành `_pull` + `try/except BaseException` dọn `temp_paths`; chia kỳ thành đoạn ≤ 62 ngày và gộp theo `query_revision`; `DailyMinPeriodTooWideError`; `MAX_CONTRACT_WINDOWS`; lịch sử `tp/ton` thôi REQUIRED |
+| `tools/tracking/capture_daily_min.py` | `gop_khoang` + `TRUONG_CHUNG_KHOANG` — gộp nhiều ĐOẠN NGÀY, chỉ khi cùng revision |
+| `app/modules/pricing/daily_min/planning.py` | `pairs` trong kế hoạch; `contract_windows()`; `covered_by` hỏi từng cặp |
+| `app/owner_usability.py` | `SelectedCaptures.tracking_capture` thành `Optional`; lịch sử chọn với `required=False` |
+| `app/demo.py` | `tracking_capture` thành tham số TUỲ CHỌN |
+| `app/modules/exporting/excel_exporter.py` | ô tóm tắt nói "Không nối" thay vì để trống khi thiếu capture legacy |
+| `app/web/server.py` | bắt `DailyMinPeriodTooWideError` → 400 kèm hướng dẫn tách kỳ |
+| `tests/test_daily_min_orchestration.py` | 19 → **33 bài** (cặp mã-ngày, chia đoạn, dọn dẹp, nguồn legacy) |
+| `tests/test_daily_min_capture_tool.py` | 17 → **28 bài** (gộp đoạn) |
+| `tests/test_web_daily_min_integration.py` | 5 → **7 bài** (kỳ quá rộng, legacy hỏng) |
+| `tests/test_tracking_live_pull.py` | ba bài đổi mong đợi theo thẩm quyền mới của R1 |
+
+### 12.3 Lệnh và kết quả
+
+```text
+Tracking   npm test                    60 bộ · 2720 đạt · 0 hỏng · 2 bỏ qua
+           npm run build               ./dist, 7 file, 658 KB → 411 KB
+
+Reports    python -m pytest -q         2880 passed, 12 skipped in 158.27s
+                                       (trước vòng 2: 2853 passed, 12 skipped)
+           validate_structure          PASS (21 required paths)
+           validate_project_state      PASS
+           validate_evidence           PASS (161 REQUIRED PASS)
+           validate_task_completion    PASS (14 DONE task)
+           validate_reference_integrity FAIL — ĐÚNG 3 reference TASK-REM-T06
+                                       đã biết; baseline KHÔNG đổi
+```
+
+Hai smoke chạy lại trên mã đã sửa, cả hai PASS:
+
+```text
+node kiem/smoke/xuat-thang-min.mjs /tmp/smoke-capture.json
+python tools/smoke/r1_daily_min_smoke.py /tmp/smoke-capture.json /tmp/rv2
+  → 19/19 PASS
+
+python tools/smoke/r1_web_upload_smoke.py --tracking-repo <Tracking>
+  → 13/13 PASS
+  bằng chứng run: {"daily_min_status": "COMPLETE", "daily_min_capture_id":
+  "LIVE-DMIN-b07fc11a1bf24a12865e0358ecae05cb", "daily_min_date_from":
+  "2026-09-03", "daily_min_date_to": "2026-09-03", "daily_min_product_codes": 3,
+  "daily_min_windows": 1, "daily_min_query_revision":
+  "245a6e02-17a4-47c8-805d-facc3c357588"}
+```
+
+Fixture xuyên suốt sinh lại bằng `kiem/smoke/sinh-fixture-reports.mjs` trên
+commit Tracking `0442e62`; `tests/test_daily_min_vertical.py` 22/22 PASS trên
+bản sinh mới.
+
+### 12.4 Ba chỗ CỐ Ý không làm, và lý do
+
+1. **Không tự thử lại khi các đoạn lệch revision.** Một vòng lặp thử lại giấu
+   bên trong sẽ biến một database đang bận thành một lần chạy treo. Bên gọi
+   biết nó đang ở trong ngữ cảnh nào và quyết định được; ở web, đó là một 503
+   mà thử lại thật sự có tác dụng.
+2. **Không nâng trần 62 ngày phía Tracking.** Trần ấy có lý do riêng (một
+   Worker, một hạn mức subrequest); nâng nó để tránh chia đoạn là đổi một vấn
+   đề nhìn thấy được lấy một vấn đề chết giữa chừng.
+3. **Không bỏ hẳn `purchase_price_history` khỏi lần chạy.** Nó vẫn được chụp
+   và vẫn vào bằng chứng: đối chiếu kết quả sinh trước R1 là một việc thật, và
+   `legacy_tracking_history_authority=True` vẫn là đường được hỗ trợ.
+
+### 12.5 SHA sau vòng 2
+
+```text
+Tracking   0442e62a8f701693cae1a983baec59f505e49abd   ← HEAD
+             ← 299e03142ffa5f04505ba0892448e447131bfea6 (vòng 1)
+             ← 6232ce08d69706e5404db01dc16eb4ffda46cd81 (kiểm thử)
+             ← 01f505c2a9f52fb5c7f754a8d1fe42820c8a336a (triển khai)
+             ← f294edb7aa6dc16a2e1553d14f2b8043cbcdf036 (nhật ký)
+             BASE main 598b4b1390cc96e552455ab85e2c48d78198b89c
+
+Reports    <commit mang chính bản bàn giao này>        ← HEAD
+             ← ddf490618a96d6f43d1cbbffbf90139c21827b0d (vòng 1)
+             ← 78f10be431fd7fcfb6b3bde9bab5c0c8a595aea8 (kiểm thử)
+             ← 2b669f5a6cd4fd07abb7713f6962b772a63e19b7 (triển khai)
+             BASE a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
+```
+
+Gói cho reviewer (mục 11.5) không đổi cách dùng; chỉ thay mốc cuối:
+
+```bash
+git -C <Tracking> diff 598b4b1390cc96e552455ab85e2c48d78198b89c..0442e62a8f701693cae1a983baec59f505e49abd
+git -C <Tracking> show 0442e62a8f701693cae1a983baec59f505e49abd   # đọc lạc quan + con trỏ
+```
+
+### 12.6 Trạng thái R1 sau vòng 2
+
+`R1` GIỮ NGUYÊN `IMPLEMENTED`. `CHECK-R1-24` (Independent Review) VẪN
+`NOT_TESTED`: vòng 2 chưa ACCEPT, và kết luận review là của bên review chứ
+không phải của phiên này. `CHECK-R1-23` (Owner nghiệm thu trên dữ liệu thật)
+không đổi.

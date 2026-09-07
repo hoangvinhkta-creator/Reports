@@ -41,10 +41,18 @@ from typing import Any, Callable, Optional
 from tools.tracking import capture_daily_min, capture_inv_map, capture_tracking_catalog
 from tools.tracking.capture_purchase_price_history import (
     API_KEY_ENV_VAR,
+    CaptureError,
     _http_fetcher,
     build_capture as _build_history_capture,
     write_capture,
 )
+
+MAX_CONTRACT_WINDOWS = 12
+"""Trần số ĐOẠN hỏi giá cho một lần chạy — 12 × 62 ngày ≈ hai năm.
+
+Không phải một giới hạn kỹ thuật mà là một ranh giới nghiệp vụ: một lần chạy
+phải kết thúc trong thời gian người ta còn ngồi đợi, và một sổ trải hơn hai năm
+thì việc đúng là tách kỳ chứ không phải hỏi Tracking 60 lượt."""
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 """Gốc repo Reports. Các đường dẫn canonical (`data/...`) là TƯƠNG ĐỐI với nó,
@@ -69,12 +77,29 @@ class TrackingUnavailableError(RuntimeError):
         self.reason = reason
 
 
+class DailyMinPeriodTooWideError(RuntimeError):
+    """Kỳ của workbook rộng hơn mức một lần chạy hỏi được.
+
+    KHÔNG phải lỗi Tracking, nên nó KHÔNG dùng ``TrackingUnavailableError``:
+    "vui lòng thử lại sau" là một lời khuyên sai — thử lại bao nhiêu lần cũng
+    thế. Đây là một tính chất của SỔ, và việc cần làm là tách kỳ.
+    """
+
+    def __init__(self, message: str, *, day_span: int, windows: int) -> None:
+        super().__init__(message)
+        self.day_span = day_span
+        self.windows = windows
+
+
 @dataclass(frozen=True)
 class LiveSelectedCaptures:
     """Cùng hình dạng ``app.owner_usability.SelectedCaptures`` — bên gọi
     (``run_owner_report``) không cần biết captures đến từ local hay live."""
 
-    tracking_capture: Path
+    #: ``None`` khi lịch sử `tp/ton` không lấy được. Từ R1 nó KHÔNG còn quyết
+    #: định giá nào (xem `_pull_daily_min` và `ADR-110` §6), nên một sự cố ở
+    #: nhánh ấy không được phép chặn cả báo cáo.
+    tracking_capture: Optional[Path]
     tracking_catalog: Path
     tracking_inv_map: Optional[Path]
     evidence: dict[str, Any]
@@ -140,6 +165,44 @@ def pull_live_captures(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    temp_paths: list[Path] = []
+    try:
+        return _pull(
+            fetch=fetch, post=post, sales=sales, out_dir=out_dir, token=token,
+            moment=moment, captured_by=captured_by, source_url=source_url,
+            api_key=api_key, temp_paths=temp_paths,
+        )
+    except BaseException:
+        # Một lần chạy hỏng KHÔNG được để lại authority thô của Tracking trên
+        # đĩa máy chủ. `cleanup()` của bên gọi chỉ chạy khi hàm này TRẢ VỀ một
+        # handle; ném ra thì bên gọi không có gì để dọn, và mỗi lần hỏng lại
+        # bỏ lại thêm vài file (`S071 §10`). Dọn ở đây, cạnh chỗ ghi.
+        for path in temp_paths:
+            Path(path).unlink(missing_ok=True)
+        raise
+
+
+def _pull(
+    *,
+    fetch: Fetcher,
+    post: Optional[Poster],
+    sales: Optional[Path],
+    out_dir: Path,
+    token: str,
+    moment: datetime,
+    captured_by: str,
+    source_url: Optional[str],
+    api_key: Optional[str],
+    temp_paths: list[Path],
+) -> LiveSelectedCaptures:
+    """Thân của ``pull_live_captures``. Tách ra để mọi đường thoát — kể cả
+    ``raise`` từ tận trong kế hoạch hỏi giá — đi qua đúng một chỗ dọn dẹp."""
+    # `purchase_price_history` là nguồn TUỲ CHỌN kể từ R1: nhánh giá của một
+    # mã Tracking đi qua `_daily_min_branch`, và lịch sử `tp/ton` chỉ chạy khi
+    # caller NÊU RÕ `legacy_tracking_history_authority=True`. Nó vẫn được chụp
+    # và vẫn vào bằng chứng — để đối chiếu kết quả sinh trước R1 — nhưng để
+    # một sự cố ở nhánh ấy chặn cả báo cáo là bắt hôm nay phụ thuộc vào một
+    # nguồn hôm nay không dùng.
     history_envelope = _build_history_capture(
         fetch,
         capture_id=f"LIVE-PPH-{token}",
@@ -147,7 +210,6 @@ def pull_live_captures(
         source_system_ref="tracking/api/xuat (live pull-on-run)",
         captured_at=moment,
     )
-    _raise_if_failed(history_envelope, node="purchase_price_history")
 
     catalog_envelope = capture_tracking_catalog.build_capture(
         fetch,
@@ -168,10 +230,11 @@ def pull_live_captures(
         captured_at=moment,
     )
 
-    temp_paths: list[Path] = []
-    history_path = out_dir / f"{token}-purchase-price-history.json"
-    write_capture(history_envelope, history_path)
-    temp_paths.append(history_path)
+    history_path: Optional[Path] = None
+    if history_envelope.get("capture_status") == "COMPLETE":
+        history_path = out_dir / f"{token}-purchase-price-history.json"
+        write_capture(history_envelope, history_path)
+        temp_paths.append(history_path)
 
     catalog_path = out_dir / f"{token}-catalog.json"
     write_capture(catalog_envelope, catalog_path)
@@ -205,6 +268,10 @@ def pull_live_captures(
         **daily_min_evidence,
         "purchase_price_history_capture_id": history_envelope["capture_id"],
         "purchase_price_history_captured_at": history_envelope["captured_at"],
+        "purchase_price_history_status": history_envelope.get("capture_status"),
+        "purchase_price_history_failure_reason": (
+            history_envelope.get("failure_reason") if history_path is None else None
+        ),
         "catalog_capture_id": catalog_envelope["capture_id"],
         "inv_map_capture_id": inv_map_envelope.get("capture_id") if inv_map_path else None,
         "inv_map_status": inv_map_envelope.get("capture_status"),
@@ -244,10 +311,12 @@ def _pull_daily_min(
     * ``sales=None`` — không ai đưa sổ vào, nên không có kế hoạch nào để lập.
     * kế hoạch RỖNG — lần chạy này không có dòng nào mang identity Tracking,
       nên không có câu hỏi nào để đặt ra. Không phải lỗi.
-    * kỳ RỘNG hơn một lượt gọi hợp đồng — đây là tính chất của SỔ, không phải
-      của Tracking, nên nó không được biến thành "Tracking hỏng": lần chạy đi
-      tiếp, mọi dòng Tracking Pending với lý do nguồn chưa nối, và lý do thật
-      nằm trong bằng chứng.
+    Kỳ rộng hơn 62 ngày KHÔNG còn là một trong ba kết cục ấy. Trước đây nó bỏ
+    qua lượt hỏi giá và lần chạy vẫn ra một báo cáo — đầy đủ hình thức, không
+    một giá vốn nào. Nay kỳ được chia thành các đoạn ≤ 62 ngày, hỏi từng đoạn,
+    và chỉ gộp khi mọi đoạn cùng ``query_revision``. Rộng quá mức gộp được thì
+    ném ``DailyMinPeriodTooWideError`` để bên gọi bảo người dùng TÁCH KỲ —
+    không phải "thử lại sau", vì thử lại không giúp gì.
 
     Còn lại — hợp đồng trả FAILED — là REQUIRED và ném ``TrackingUnavailable
     Error``: từ R1, MIN theo ngày bán LÀ nguồn giá nhập tự động, nên một báo
@@ -262,8 +331,7 @@ def _pull_daily_min(
     # `ADR-101`, và giữ import ở đây làm rõ rằng module này gọi sang đó chứ
     # không phải ngược lại.
     from app.modules.pricing.daily_min.planning import (
-        MAX_CONTRACT_DAYS, UnreadableSalesWorkbookError,
-        plan_daily_min_request_for_workbook,
+        UnreadableSalesWorkbookError, plan_daily_min_request_for_workbook,
     )
     from app.modules.pricing.resolution.sources import (
         IDENTITY_STORE_LOG_PATH, load_tracking_catalog_capture,
@@ -292,28 +360,61 @@ def _pull_daily_min(
     if plan is None:
         return None, {"daily_min_status": "NOT_PLANNED",
                       "daily_min_skip_reason": "NO_TRACKING_IDENTITY_LINES"}
-    if not plan.fits_one_contract_call:
-        return None, {
-            "daily_min_status": "NOT_PLANNED",
-            "daily_min_skip_reason": "PERIOD_WIDER_THAN_CONTRACT",
-            "daily_min_day_span": plan.day_span,
-            "daily_min_max_days": MAX_CONTRACT_DAYS,
-        }
+    windows = plan.contract_windows()
+    if len(windows) > MAX_CONTRACT_WINDOWS:
+        # KHÔNG trả None ở đây. Trả None nghĩa là "chưa nối nguồn", và lần chạy
+        # sẽ cho ra một báo cáo đầy đủ hình thức mà KHÔNG có lấy một giá vốn
+        # nào — đúng thứ trông giống một báo cáo bình thường nhất.
+        raise DailyMinPeriodTooWideError(
+            f"Kỳ của sổ trải {plan.day_span} ngày, cần {len(windows)} lượt hỏi "
+            f"giá (tối đa {MAX_CONTRACT_WINDOWS} mỗi lần chạy). Hãy tách sổ "
+            "theo tháng hoặc quý rồi chạy lại từng kỳ.",
+            day_span=plan.day_span, windows=len(windows),
+        )
 
     if post is None:
         post = capture_daily_min._http_poster(source_url or "", api_key)
-    envelope = capture_daily_min.build_capture(
-        post,
-        product_codes=plan.product_codes,
-        date_from=plan.date_from.isoformat(),
-        date_to=plan.date_to.isoformat(),
-        capture_id=f"LIVE-DMIN-{token}",
-        captured_by=captured_by,
-        source_system_ref="tracking/api/min-ngay (live pull-on-run)",
-        captured_at=moment,
-    )
-    _raise_if_failed(envelope, node="daily_min")
 
+    # MỘT lượt gọi cho mỗi đoạn ≤ 62 ngày; mỗi đoạn tự đi hết các trang của nó.
+    parts: list[dict[str, Any]] = []
+    for dau, cuoi in windows:
+        envelope = capture_daily_min.build_capture(
+            post,
+            product_codes=plan.product_codes,
+            date_from=dau.isoformat(),
+            date_to=cuoi.isoformat(),
+            capture_id=f"LIVE-DMIN-{token}",
+            captured_by=captured_by,
+            source_system_ref="tracking/api/min-ngay (live pull-on-run)",
+            captured_at=moment,
+        )
+        _raise_if_failed(envelope, node="daily_min")
+        parts.append(envelope["data"])
+
+    if len(parts) == 1:
+        data = parts[0]
+    else:
+        # Gộp CHỈ khi mọi đoạn cùng `query_revision`. Lệch = database đã đổi
+        # giữa các lượt, và ghép lại thì kỳ báo cáo mang giá của hai thời điểm
+        # khác nhau. Đây là sự cố THOÁNG QUA (một lượt cron chạy đúng lúc), nên
+        # nó đi đường `TrackingUnavailableError`: thử lại thật sự có tác dụng.
+        try:
+            data = capture_daily_min.gop_khoang(parts)
+        except CaptureError as exc:
+            raise TrackingUnavailableError(
+                f"Tracking đổi trạng thái giữa các lượt hỏi giá của cùng một "
+                f"kỳ: {exc}",
+                node="daily_min", reason="REVISION_CHANGED_MID_CAPTURE",
+            ) from exc
+
+    envelope = {
+        "capture_id": f"LIVE-DMIN-{token}",
+        "captured_at": moment.isoformat(),
+        "captured_by": captured_by,
+        "source_system_ref": "tracking/api/min-ngay (live pull-on-run)",
+        "capture_status": "COMPLETE",
+        "data": data,
+    }
     path = Path(out_dir) / f"{token}-daily-min.json"
     write_capture(envelope, path)
     return path, {
@@ -322,7 +423,8 @@ def _pull_daily_min(
         "daily_min_date_from": plan.date_from.isoformat(),
         "daily_min_date_to": plan.date_to.isoformat(),
         "daily_min_product_codes": len(plan.product_codes),
-        "daily_min_query_revision": envelope["data"].get("query_revision"),
+        "daily_min_windows": len(parts),
+        "daily_min_query_revision": data.get("query_revision"),
     }
 
 

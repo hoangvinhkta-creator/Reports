@@ -133,24 +133,42 @@ def test_cleanup_is_safe_to_call_twice(tmp_path):
     result.cleanup()  # không raise
 
 
-# --- REQUIRED: purchase_price_history / baseline ----------------------------
+# --- LEGACY (từ R1): purchase_price_history / baseline ----------------------
+#
+# Ba bài dưới đây ĐỔI MONG ĐỢI ở lượt review vòng 2, và đây là lý do — ghi ra
+# vì một bài kiểm bị đổi mong đợi là chỗ người review phải soi trước.
+#
+# Khi bộ này được viết (`S071`), lịch sử `board/<mã>/tp/ton` LÀ nguồn giá của
+# nhánh Tracking, nên nó REQUIRED: không có nó thì không có giá nào, và một
+# báo cáo không giá phải fail rõ chứ không được trả về như thể bình thường.
+#
+# R1 đổi thẩm quyền ấy (`ADR-110`, `DEC-199`): nhánh của một mã Tracking đi
+# qua `_daily_min_branch`, và đường lịch sử CHỈ chạy khi caller nêu rõ
+# `legacy_tracking_history_authority=True`. Từ đó, giữ nó REQUIRED là bắt báo
+# cáo hôm nay phụ thuộc vào một nguồn hôm nay không dùng: một sự cố 502 ở
+# nhánh legacy chặn cả một lần chạy mà mọi giá đều đến từ nguồn khác.
+#
+# Điều KHÔNG đổi: nó vẫn được chụp, vẫn vào bằng chứng khi có mặt, và khi
+# vắng mặt thì bằng chứng NÓI RA (`purchase_price_history_status`) chứ không
+# im lặng.
 
 
 @pytest.mark.parametrize("failing_node", [BASELINE_NODE, HISTORY_NODE])
-def test_purchase_price_history_failure_is_required_and_raises(tmp_path, failing_node):
+def test_a_broken_legacy_history_no_longer_stops_the_run(tmp_path, failing_node):
     fetch = _success_fetch(missing=frozenset({failing_node}))
-    with pytest.raises(live_pull.TrackingUnavailableError) as exc_info:
-        live_pull.pull_live_captures(
-            out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
-            fetch=fetch,
-        )
-    assert exc_info.value.node == "purchase_price_history"
-    # Không file capture nào được ghi khi REQUIRED fail — không có gì để
-    # cleanup, và không report nào có thể được sinh ra từ trạng thái này.
-    assert list(tmp_path.glob("*.json")) == []
+    result = live_pull.pull_live_captures(
+        out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
+        fetch=fetch,
+    )
+    assert result.tracking_capture is None
+    assert result.tracking_catalog.is_file()
+    assert result.evidence["purchase_price_history_status"] == "FAILED"
+    assert result.evidence["purchase_price_history_failure_reason"]
+    # Và không file lịch sử nào bị bỏ lại nửa vời.
+    assert not any("purchase-price-history" in p.name for p in tmp_path.glob("*.json"))
 
 
-def test_timeout_style_failure_on_history_node_is_reported_as_unavailable(tmp_path):
+def test_a_timeout_on_the_legacy_node_is_recorded_not_raised(tmp_path):
     def fetch(node):
         if node == HISTORY_NODE:
             raise CaptureError(
@@ -159,27 +177,27 @@ def test_timeout_style_failure_on_history_node_is_reported_as_unavailable(tmp_pa
             )
         return _success_fetch()(node)
 
-    with pytest.raises(live_pull.TrackingUnavailableError) as exc_info:
-        live_pull.pull_live_captures(
-            out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
-            fetch=fetch,
-        )
-    assert exc_info.value.node == "purchase_price_history"
-    assert "timed out" in str(exc_info.value) or "URLError" in str(exc_info.value)
+    result = live_pull.pull_live_captures(
+        out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
+        fetch=fetch,
+    )
+    assert result.tracking_capture is None
+    ly_do = result.evidence["purchase_price_history_failure_reason"]
+    assert "timed out" in ly_do or "URLError" in ly_do
 
 
-def test_403_style_failure_on_history_node_is_reported_as_unavailable(tmp_path):
+def test_a_403_on_the_legacy_node_is_recorded_not_raised(tmp_path):
     def fetch(node):
         if node == BASELINE_NODE:
             raise CaptureError(f"node {node!r}: hợp đồng phải trả application/json, nhận 'text/html'")
         return _success_fetch()(node)
 
-    with pytest.raises(live_pull.TrackingUnavailableError) as exc_info:
-        live_pull.pull_live_captures(
-            out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
-            fetch=fetch,
-        )
-    assert exc_info.value.node == "purchase_price_history"
+    result = live_pull.pull_live_captures(
+        out_dir=tmp_path, source_url="https://tracking.example", api_key="secret",
+        fetch=fetch,
+    )
+    assert result.tracking_capture is None
+    assert result.evidence["purchase_price_history_status"] == "FAILED"
 
 
 # --- REQUIRED: catalog (board/alias) ----------------------------------------

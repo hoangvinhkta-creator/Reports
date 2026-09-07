@@ -44,7 +44,11 @@ class OwnerUsabilityError(RuntimeError):
 
 @dataclass(frozen=True)
 class SelectedCaptures:
-    tracking_capture: Path
+    #: Lịch sử `tp/ton` — TUỲ CHỌN kể từ lượt review vòng 2. Từ R1 nó không
+    #: quyết định giá nào (`ADR-110` §6): nhánh của một mã Tracking đi qua
+    #: MIN theo ngày bán, và đường lịch sử chỉ chạy khi caller nêu rõ
+    #: `legacy_tracking_history_authority=True`. Vắng mặt ⇒ vẫn chạy.
+    tracking_capture: Path | None
     tracking_catalog: Path
     tracking_inv_map: Path | None = None
     #: R1 — ảnh chụp MIN theo ngày bán. TUỲ CHỌN cùng khuôn `tracking_inv_map`:
@@ -143,10 +147,12 @@ def select_latest_valid_captures(
     có tiêu chí, và chọn bừa một cái là đúng lỗi vừa mô tả.
     """
     root = Path(repo_root).expanduser().resolve()
+    # Lịch sử `tp/ton`: TUỲ CHỌN — xem chú thích ở `SelectedCaptures`.
     history = _latest_complete_capture(
         directories=tuple(root / path for path in HISTORY_CAPTURE_DIRECTORIES),
         loader=load_tracking_price_history_capture,
         label="lịch sử giá Tracking",
+        required=False,
     )
     catalog = _latest_complete_capture(
         directories=tuple(root / path for path in CATALOG_CAPTURE_DIRECTORIES),

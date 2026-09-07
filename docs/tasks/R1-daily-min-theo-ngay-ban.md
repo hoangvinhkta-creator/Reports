@@ -194,6 +194,17 @@ Reports   tools/tracking/capture_daily_min.py   → data/tracking_daily_min/capt
 | `CHECK-R1-35` | Cổng hoàn tất cấp kỳ khác cờ "giá đã chốt" | REQUIRED | E1 | PASS |
 | `CHECK-R1-36` | Trang lệch `query_revision` bị TỪ CHỐI gộp | REQUIRED | E1 | PASS |
 
+| `CHECK-R1-37` | Lần chạy hỏng KHÔNG để lại capture tạm trên đĩa | REQUIRED | E1 | PASS |
+| `CHECK-R1-38` | Đọc lạc quan hai đầu; con trỏ mang revision | REQUIRED | E1 | PASS |
+| `CHECK-R1-39` | Chọn ảnh chụp theo TỪNG CẶP `(mã, ngày)`, không chỉ khoảng ngày | REQUIRED | E1 | PASS |
+| `CHECK-R1-40` | Kỳ rộng hơn hợp đồng: chia đoạn + gộp cùng revision, hoặc TỪ CHỐI | REQUIRED | E2 | PASS |
+| `CHECK-R1-41` | Sự cố nhánh `tp/ton` LEGACY không chặn báo cáo R1 | REQUIRED | E2 | PASS |
+
+`CHECK-R1-37` … `CHECK-R1-41` được THÊM ở lượt Independent Review vòng 2
+(07/09/2026). `CHECK-R1-40` là check đáng chú ý nhất: bản trước bỏ qua lượt hỏi
+giá khi kỳ quá rộng, nên lần chạy vẫn ra một báo cáo đầy đủ hình thức mà không
+một giá vốn nào — kết cục tệ hơn cả một lỗi, vì nó trông giống thành công.
+
 `CHECK-R1-30` … `CHECK-R1-36` được THÊM ở lượt Independent Review vòng 1
 (07/09/2026). `CHECK-R1-30` là check quan trọng nhất của cả bảng: trước nó,
 `CHECK-R1-20` (xuyên suốt) PASS bằng một fixture cho sẵn, trong khi đường
@@ -218,7 +229,7 @@ Timestamp:
 
 ## 6. Exit Criteria
 
-1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-36` PASS —
+1. `CHECK-R1-01` … `CHECK-R1-22` và `CHECK-R1-25` … `CHECK-R1-41` PASS —
    **đã đạt**.
 2. `CHECK-R1-24` Independent Review PASS — **chưa**.
 3. `CHECK-R1-23` Owner nghiệm thu sau lượt chụp đầu tiên trên dữ liệu thật —
@@ -233,10 +244,12 @@ Timestamp:
 |---|---|---|
 | Lịch sử MIN bắt đầu từ lượt chụp đầu tiên | Bảng giá cũ đã bị ghi đè; `tp/ton` là đại lượng khác nên KHÔNG backfill được | Đơn bán trước mốc ấy Pending, hoặc dùng `HistoricalConfirmedRegistry` |
 | ~~Đường web pull-on-run chưa lấy MIN theo ngày~~ **ĐÃ ĐÓNG 07/09/2026** | `live_pull.py` nay tự lập kế hoạch: đọc sổ → resolve identity → tập mã + khoảng ngày, rồi gọi hợp đồng MỘT lượt | Không còn; `CHECK-R1-30`/`CHECK-R1-31` canh |
-| Kỳ rộng hơn 62 ngày không hỏi được trong MỘT lượt | Trần `TRAN_NGAY_XUAT` của hợp đồng | Lần chạy vẫn đi tiếp, dòng Tracking Pending vì nguồn chưa nối, lý do thật (`PERIOD_WIDER_THAN_CONTRACT`) nằm trong bằng chứng của run. Chia nhiều lượt sẽ cần một `query_revision` chung — thuộc R2 |
+| ~~Kỳ rộng hơn 62 ngày không hỏi được trong MỘT lượt~~ **ĐÃ ĐÓNG 07/09/2026 (vòng 2)** | Trần `TRAN_NGAY_XUAT` của hợp đồng | Kỳ nay được CHIA thành các đoạn ≤ 62 ngày và chỉ gộp khi mọi đoạn cùng `query_revision`; rộng quá trần đoạn mỗi lần chạy (12 ≈ hai năm) thì TỪ CHỐI kèm hướng dẫn tách kỳ. `CHECK-R1-40` |
+| Database đổi giữa các đoạn của một kỳ rộng | Không có giao dịch đọc nhất quán ở tầng database | Lần chạy TỪ CHỐI gộp và báo "Tracking đang lỗi" — thử lại thật sự có tác dụng, vì đây là sự cố thoáng qua (một lượt cron chạy đúng lúc) |
 | Lượt chụp cần `meta.an` | Danh sách nhà cung cấp bị bỏ sống ở trình duyệt | Chưa ai mở app Bảng giá kể từ bản này ⇒ bản ngày `SOURCE_UNAVAILABLE`; tự khỏi ngay lần mở đầu tiên |
 | Ảnh chụp gắn với một kỳ | Khác hai capture kia vốn "chụp một lần dùng mãi" | Luồng cục bộ nay chọn ảnh chụp PHỦ ĐÚNG kỳ (`CHECK-R1-32`); không có thì Pending kèm lý do |
-| `query_revision` chỉ chặn được lượt ghi ĐÃ xảy ra khi đọc | Không có giao dịch đọc nhất quán ở tầng database | Hai trang của hai trạng thái luôn bị từ chối; ngược lại, một lượt ghi xảy ra sau trang cuối không bị phát hiện — đúng như vậy, vì nó không ảnh hưởng ảnh chụp đã lấy |
+| `query_revision` chỉ chặn được lượt ghi ĐÃ xảy ra khi đọc | Không có giao dịch đọc nhất quán ở tầng database | Ảnh ghép luôn bị từ chối (đọc lạc quan hai đầu + con trỏ mang revision); ngược lại, một lượt ghi xảy ra sau lệnh đọc cuối cùng không bị phát hiện — đúng như vậy, vì nó không ảnh hưởng ảnh chụp đã lấy |
+| Ảnh chụp cục bộ phải trả lời được TỪNG CẶP `(mã, ngày)` | Phong bì hợp đồng không liệt kê tập mã đã hỏi, nên phải suy từ nội dung | Một ảnh chụp thiếu đúng một cặp bị loại; đúng như vậy — một dòng thiếu giữa một bảng đủ là thứ dễ trôi qua nhất khi đọc |
 
 ## 8. Đầu vào cho R2
 
