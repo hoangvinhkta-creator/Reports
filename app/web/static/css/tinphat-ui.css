@@ -243,6 +243,25 @@ tr.row-total td { background: var(--tp-line2); font-weight: 700; }
 .ghost:hover { background: var(--tp-sky); }
 .btn-mini { padding: 2px var(--tp-s2); font-size: 12px; }
 
+/* Nút đang xử lý một request chậm (upload + chạy pipeline) — không có gì
+   khác đổi trên trang trong lúc chờ, nên đây là dấu hiệu DUY NHẤT nói "đang
+   chạy, chưa đứng im". `:disabled` chặn double-click gửi trùng workbook.
+   Vòng quay vẽ bằng viền trong suốt một phía, không cần ảnh/font icon. */
+.act:disabled, button:disabled {
+  cursor: wait; opacity: 0.75;
+}
+.tp-spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: var(--tp-s2);
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: tp-spin 0.7s linear infinite;
+}
+@keyframes tp-spin {
+  to { transform: rotate(360deg); }
+}
+
 .filter-row {
   display: flex; flex-wrap: wrap; gap: var(--tp-s2);
   align-items: center; margin-bottom: var(--tp-s3);

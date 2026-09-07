@@ -100,6 +100,30 @@ def test_index_shows_live_readiness_when_tracking_configured(client, monkeypatch
     assert "live".encode() in resp.data.lower()
 
 
+def test_the_upload_form_shows_loading_feedback_and_never_double_submits(client):
+    """Bấm CHẠY BÁO CÁO xong không có gì trên trang đổi cho tới khi máy chủ
+    trả lời — với một request giờ gọi Tracking đồng bộ nhiều lượt (R1), vài
+    chục giây im lặng đó trông y hệt một trang treo. Hai thuộc tính dưới đây
+    là toàn bộ cơ chế báo "đang chạy":
+
+    - `data-loading-label`: app.js khoá nút + hiện spinner ngay khi submit.
+    - `data-no-ajax`: form đi native, KHÔNG qua fetch() của app.js — nhánh
+      lỗi mạng của `submitForm()` tự gửi lại bằng `form.submit()` thật khi
+      fetch() thất bại; với một form vừa tạo báo cáo mới vừa không rẻ để
+      chạy lại, để nó tự gửi trùng chỉ vì mạng trục trặc (trong khi máy chủ
+      có thể vẫn đang xử lý xong lượt đầu) là đúng loại lỗi âm thầm cần
+      tránh. Mất một trong hai thuộc tính đều là mất một lớp bảo vệ khác
+      nhau; bài này ghim cả hai.
+    """
+    resp = client.get("/du-lieu/chay-bao-cao")
+    html = resp.data.decode("utf-8")
+    form_start = html.index("<form", html.index('action="/run"') - 200)
+    form_end = html.index(">", form_start)
+    form_tag = html[form_start:form_end]
+    assert "data-no-ajax" in form_tag
+    assert 'data-loading-label="ĐANG TẢI LÊN VÀ CHẠY BÁO CÁO…"' in form_tag
+
+
 def test_unknown_run_id_in_query_is_fail_safe_not_found(client):
     resp = client.get("/du-lieu/chay-bao-cao?run_id=does-not-exist")
     assert resp.status_code == 200

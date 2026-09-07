@@ -184,8 +184,44 @@
     }
   }
 
+  /* Dấu hiệu "đang chạy" cho các form CHẬM (upload workbook + chạy pipeline
+   * production, có thể mất hàng chục giây từ R1 vì nó gọi thêm Tracking
+   * đồng bộ). Không có gì khác trên trang đổi trong lúc chờ — không có dấu
+   * hiệu nào thì một request chậm-nhưng-bình-thường trông y hệt một trang
+   * treo. Chỉ áp dụng cho form khai `data-loading-label` (opt-in), tránh
+   * đụng các form khác chưa cần việc này.
+   *
+   * Đặt sau `onSubmit` trong cùng danh sách listener của `document`, cùng
+   * capture phase: theo thứ tự đăng ký, hàm này chạy SAU khi `onSubmit` đã
+   * quyết định preventDefault hay chưa — nhưng bản thân nó không quan tâm
+   * AJAX hay native, chỉ cần khoá nút lại trước khi request (dù đi đường
+   * nào) bắt đầu chờ máy chủ.
+   *
+   * KHÔNG tự bật lại nút: nhánh AJAX thành công thay nguyên `#app-content`
+   * (nút cũ biến mất cùng DOM cũ); nhánh native thành công thì trang tải
+   * lại hẳn. Nhánh AJAX THẤT BẠI rơi về `form.submit()` thật trong
+   * `submitForm()` — `HTMLFormElement.submit()` không tự phát sự kiện
+   * `submit` (đặc tả DOM), nên hàm này không chạy lại lần hai; nút giữ
+   * nguyên trạng thái "đang xử lý" đúng lúc request thật đang chờ, không
+   * có khoảng hở nào để bấm gửi trùng lần nữa. */
+  function onSlowSubmit(event) {
+    var form = event.target;
+    if (!form || form.tagName !== "FORM" || !form.hasAttribute("data-loading-label")) return;
+    var btn = (event.submitter && event.submitter.tagName === "BUTTON")
+      ? event.submitter : form.querySelector("button[type=submit], button:not([type])");
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    var spin = document.createElement("span");
+    spin.className = "tp-spinner";
+    spin.setAttribute("aria-hidden", "true");
+    btn.textContent = "";
+    btn.appendChild(spin);
+    btn.appendChild(document.createTextNode(form.getAttribute("data-loading-label")));
+  }
+
   document.addEventListener("click", onClick);
   document.addEventListener("submit", onSubmit, true);
+  document.addEventListener("submit", onSlowSubmit, true);
   document.addEventListener("change", onChange);
   document.addEventListener("cancel", onDialogCancel, true);
   window.addEventListener("popstate", onPopState);
