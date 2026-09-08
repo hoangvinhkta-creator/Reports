@@ -17,6 +17,16 @@ chế chốt kỳ có phiên bản.
 `CHECK-R3-20` (Owner nghiệm thu) VẪN `NOT_TESTED` — phiên này không tự tuyên
 bố hai check đó, đúng kỷ luật đã áp cho R1 và R2. Task ở `IMPLEMENTED`.
 
+**Cập nhật (repair sau Independent Review, nền `8aa6626`).** Review chấp nhận
+HAI finding, cả hai trên CÙNG một hàm (`period_lock.content_fingerprint`) và
+hỏng theo hai chiều NGƯỢC NHAU: `FIND-R3-IR-01` (vân tay mù với phần lớn kết
+quả tài chính — đổi tỉ lệ quy đổi làm DS quy đổi rơi từ 150.000.000 xuống
+37.500.000 mà vân tay không đổi một bit) và `FIND-R3-IR-02` (vân tay cộng số
+override của TOÀN DATABASE, nên một giá tay tháng 02 làm tháng 01 đã chốt báo
+drift). Cả hai sửa tận gốc; không `ACCEPTED_RISK` mới, không migration mới.
+Chi tiết đầy đủ + evidence: §11. Task VẪN `IMPLEMENTED` — repair KHÔNG tự
+đánh dấu Independent Review PASS.
+
 Task canonical: `docs/tasks/R3-nhap-so-den-chot-ky.md`.
 
 ## 1. Nền và ranh giới
@@ -443,3 +453,164 @@ mà Owner đã ghi thì không — không có nơi nào khác giữ chúng.
 - Lệnh đối soát: `python3 -m tools.analysis.r3_reconcile`.
 - Lệnh test: `python -m pytest -q tests/` (full), hoặc năm file `test_r3_*.py`
   cho riêng R3.
+
+## 11. Repair sau Independent Review — `FIND-R3-IR-01` và `-02`
+
+Yêu cầu repair: sửa ĐÚNG hai finding, không mở rộng R3. Hai mục khác mà review
+nêu được ghi thành `ACCEPTED_RISK` và KHÔNG sửa trong vòng này (`AR-R3-05`,
+`AR-R3-06` ở task §8).
+
+### 11.1. Hai chiều hỏng ngược nhau, trên cùng một hàm
+
+```text
+FIND-R3-IR-01   FALSE NEGATIVE   payload thiếu → số đổi mà vân tay im
+FIND-R3-IR-02   FALSE POSITIVE   payload thừa  → số không đổi mà vân tay kêu
+```
+
+Payload trước repair, nguyên văn sáu trường mỗi dòng cộng một con số toàn cục:
+
+```python
+line.order_key, line.purchase_price, line.purchase_provenance,
+line.kpi_profit, line.employee, line.line_type
+...
+digest.update(f"overrides={overrides_count}")   # len(TOÀN BỘ override)
+```
+
+### 11.2. `FIND-R3-IR-01` — ACCEPTED
+
+**Ca tái hiện.** Owner tick Gia dụng cho một mặt hàng của nhân viên Nội thành
+— một thao tác có thật trên giao diện, không phải một giá trị dựng tay. Tỉ lệ
+quy đổi đi `2 %` → `8 %`, DS quy đổi rơi `150.000.000` → `37.500.000`. Lợi
+nhuận KPI KHÔNG đổi, và đó chính là lý do sáu trường kia không thấy gì.
+
+**Ba lỗ hổng, đo trực tiếp bằng chính thuật toán cũ** (script chạy trên hai
+`detail` chỉ khác nhau ở danh tính):
+
+```text
+CŨ  A vs B  (khác product_key)       : True   ← MÙ, hai dòng khác nhau một vân tay
+CŨ  A vs A#2 (khác occurrence_index) : True   ← MÙ
+MỚI A vs B                           : False  ← thấy
+MỚI A vs A#2                         : False  ← thấy
+MỚI totals khác                      : False  ← thấy (payload cũ không có totals)
+```
+
+**Sửa.** Payload gồm hai phần, và cả hai đều là thứ người duyệt đã nhìn thấy:
+bản chụp chỉ tiêu SẼ ĐƯỢC LƯU (`snapshot_of`, JSON `sort_keys=True`) cộng 19
+trường của TỪNG DÒNG — danh tính đầy đủ, đầu vào, giá vốn, kết quả (gồm
+`conversion_rate`, `converted_sales`, `profit_blockers`), và quy thuộc.
+
+`close_period` truyền CÙNG một biến `totals` vào cả bản chụp lẫn vân tay, nên
+hai thứ đó không thể trôi khỏi nhau.
+
+**Thứ tự canonical.** Dòng được SẮP theo khoá dòng đầy đủ trước khi băm;
+`Decimal` đi qua `normalize()` (`2.0` và `2` là cùng một tỉ lệ). Vân tay vì
+thế không phụ thuộc mệnh đề `ORDER BY` của `raw_lines`.
+
+### 11.3. `FIND-R3-IR-02` — ACCEPTED
+
+**Ca tái hiện.** Tháng 01 đã chốt. Owner gõ một giá tay cho một dòng THÁNG 02.
+Không dòng nào của tháng 01 đổi, `totals` tháng 01 không đổi — nhưng
+`period_drift(2026-01)` trả `True`.
+
+**Sửa.** Gỡ hẳn `len(store.purchase_price_overrides())`, và KHÔNG có gì thay
+chỗ nó. Giá nhập HIỆU LỰC cùng provenance của TỪNG DÒNG đã nói đủ về mọi quyết
+định có ảnh hưởng tới kỳ này; một quyết định không chạm dòng nào của kỳ thì
+theo định nghĩa không đổi bộ số của kỳ.
+
+### 11.4. Test — ĐỎ trước sửa
+
+`tests/test_r3_ir_repair_fingerprint.py`, chạy trên `8aa6626`:
+
+```text
+FAILED ...::TestTheFingerprintCoversTheWholeApprovedResult::test_a_conversion_rate_change_is_drift
+FAILED ...::TestTheFingerprintCoversTheWholeApprovedResult::test_a_revenue_change_is_drift_even_when_the_old_fields_hold
+FAILED ...::TestTheFingerprintDependsOnlyOnItsOwnPeriod::test_a_manual_price_in_february_never_drifts_january
+FAILED ...::TestTheFingerprintIsStable::test_the_payload_does_not_depend_on_query_order
+FAILED ...::TestTheDriftWarningThroughTheWeb::test_the_close_page_warns_after_a_conversion_rate_change
+FAILED ...::TestTheDriftWarningThroughTheWeb::test_the_close_page_stays_quiet_for_another_period
+6 failed, 5 passed in 2.06s
+```
+
+Trung thực về mức độ đỏ: `test_swapping_two_prices_within_one_order_is_drift`
+ĐÃ xanh trên payload cũ, nhưng xanh một cách TÌNH CỜ — hai dòng khác giá nên
+thứ tự lặp làm chúng khác nhau. Nó được giữ làm lưới hồi quy, và hai bài đo
+hàm thuần (`test_two_lines_differing_only_in_identity_are_told_apart`,
+`test_the_totals_snapshot_is_part_of_the_fingerprint`) mới là phép đo trực
+tiếp của lỗ hổng danh tính và lỗ hổng `totals` — xem §11.2.
+
+### 11.5. Test — XANH sau sửa, và chín yêu cầu kiểm chứng
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_r3_ir_repair_fingerprint.py
+13 passed in 1.15s
+```
+
+| # | Yêu cầu | Bài canh |
+|---|---|---|
+| 1 | conversion_rate đổi ⇒ drift | `test_a_conversion_rate_change_is_drift` |
+| 2 | sales_revenue đổi, trường cũ giữ nguyên ⇒ drift | `test_a_revenue_change_is_drift_even_when_the_old_fields_hold` |
+| 3 | giá tay tháng 02 (thêm·sửa·xoá) ⇒ tháng 01 KHÔNG drift | `test_a_manual_price_in_february_never_drifts_january` |
+| 4 | sửa dữ liệu thật của tháng 01 ⇒ drift | `test_a_manual_price_in_january_is_drift` |
+| 5 | nạp lại cùng dữ liệu / đổi thứ tự truy vấn ⇒ không drift | `test_reimporting_the_same_data_is_not_drift`, `test_the_payload_does_not_depend_on_query_order` |
+| 6 | qua route Flask thật: chốt → đổi số → thấy cảnh báo | `TestTheDriftWarningThroughTheWeb` (2 bài) |
+| 7 | bản chụp totals vẫn đúng bằng màn hình | `test_the_stored_snapshot_still_equals_the_screen` |
+| 8 | không đổi MIN, không fallback, không sửa Tracking | không file nào của Tracking/`daily_min`/`pricing` bị chạm |
+| 9 | không migration mới nếu schema không đổi | schema KHÔNG đổi; thư mục `versions/` vẫn dừng ở `0009` |
+
+### 11.6. Hồi quy sau repair
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_r3_*.py
+109 passed in 8.29s
+
+$ .venv/bin/python -m pytest -q  (nhóm identity/pricing/daily-min: 105d/105e/
+    bh73804/dec185/identity-durability/daily-min ×3/employee-workspace/
+    business-vertical/business-metrics/business-boundaries/r2 ×2/golden)
+760 passed, 2 skipped in 39.68s
+
+$ .venv/bin/python -m pytest -q tests/
+3056 passed, 12 skipped in 170.32s
+```
+
+Trước repair: `3043 passed, 12 skipped`. Chênh đúng 13 bài mới của file repair.
+
+Migration `0009` round-trip chạy lại sau repair (bản sửa ghi một GIÁ TRỊ khác
+vào một cột đã có, không đổi schema):
+
+```text
+$ alembic upgrade head        → 0009_line_binding_and_period_close
+$ alembic downgrade 0008...   → giữ lại 1 dòng của period_close trong két
+$ alembic upgrade head        → đã nạp lại 1 dòng Owner vào period_close
+period_close sau round-trip: [(2026, 1, 1, 'owner-web', 'sau repair IR', 1, 'fp-r3-fp2')]
+```
+
+### 11.7. Hệ quả vận hành
+
+`FINGERPRINT_VERSION = "R3-FP-2"` nằm ngay đầu payload được băm. Một vân tay
+lưu bởi thuật toán CŨ không so được với vân tay hôm nay, nên một kỳ chốt TRƯỚC
+bản repair sẽ báo drift đúng MỘT lần và cần chốt lại.
+
+Trên thực tế chưa có bản ghi nào như thế: migration `0009` (tạo bảng
+`period_close`) mới ra đời trong CHÍNH nhánh R3 chưa merge, nên chưa database
+production nào từng có một lần chốt kỳ. Ghi ở đây vì nó là ràng buộc thật nếu
+nhánh này được deploy rồi mới nhận repair.
+
+### 11.8. Hai mục ghi ACCEPTED_RISK, KHÔNG sửa trong vòng này
+
+Theo đúng yêu cầu repair:
+
+- `AR-R3-05` — ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ. Bảng kê và file
+  xuất KHÔNG sai (tra theo khoá dòng); chỗ chưa chặt là ô ĐẾM ở trang chốt kỳ
+  (`len(data.binding_exceptions)`) đếm cả ngoại lệ của kỳ khác.
+- `AR-R3-06` — `PeriodData._slice` chở `binding_exceptions`/
+  `discount_double_count` nguyên vẹn và KHÔNG chở `excluded`. Ở khung nhìn
+  một nhân viên/sheet: danh sách khôi phục rỗng, và cảnh báo trừ chiết khấu
+  hai lần có thể nêu một đơn ngoài lát. Không chỉ tiêu cộng được nào sai.
+
+Cả hai đã ghi đầy đủ ở task §8 kèm cách đóng.
+
+### 11.9. Independent Review
+
+`CHECK-R3-19` VẪN `NOT_TESTED`. Phiên repair này KHÔNG tự đánh dấu Independent
+Review PASS và KHÔNG đánh dấu Owner Acceptance — reviewer kết luận lại trên
+commit repair.

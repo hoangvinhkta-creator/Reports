@@ -50,11 +50,13 @@ kỳ đang xem. Migration additive `0009_line_binding_and_period_close`;
 `0009_line_binding_and_period_close`.
 
 ```text
-R3 STATUS   = IMPLEMENTED (HEAD 7df5f48)
+R3 STATUS   = IMPLEMENTED (repair FIND-R3-IR-01/-02, nền 8aa6626)
               CHECK-R3-01 … CHECK-R3-18 = PASS (E1)
+              CHECK-R3-18a/-18b (vân tay chốt kỳ) = PASS (E1)
               CHECK-R3-19 (Independent Review) = NOT_TESTED
               CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
-              Full regression: 3043 passed, 12 skipped
+              Full regression: 3056 passed, 12 skipped (sau repair IR;
+              trước repair 3043 passed, 12 skipped)
               (baseline trước R3 cùng môi trường: 2946 passed, 12 skipped)
               Đối soát trên hai kỳ nghiệp vụ THẬT đã ẩn danh: nạp lại cùng
               file và nạp lại file ĐẢO THỨ TỰ DÒNG đều cho 0 INSERT /
@@ -64,6 +66,36 @@ R3 STATUS   = IMPLEMENTED (HEAD 7df5f48)
               CẢ giá nhập Owner gõ tay LẪN lần chốt kỳ sống sót qua rollback
               (S129 §5.5).
 ```
+
+**Repair sau Independent Review (2026-09-08, nền `8aa6626`).** Hai finding
+ACCEPTED, cả hai trên CÙNG một hàm (`period_lock.content_fingerprint`) và hỏng
+theo hai chiều NGƯỢC NHAU. `FIND-R3-IR-01` (FALSE NEGATIVE): payload chỉ có
+sáu trường mỗi dòng, nên nó mù với phần lớn kết quả tài chính đã được duyệt —
+Owner tick Gia dụng làm tỉ lệ quy đổi đi 2 % → 8 % và DS quy đổi rơi từ
+150.000.000 xuống 37.500.000, mà vân tay không đổi một bit và kỳ đã chốt báo
+"không có gì đổi"; danh tính dòng cũng thiếu `product_key`/`occurrence_index`
+nên hai dòng khác nhau của cùng một đơn cho ra hai khối byte giống hệt.
+`FIND-R3-IR-02` (FALSE POSITIVE): payload cộng `len(purchase_price_overrides())`
+— số override của TOÀN DATABASE — nên một giá tay tháng 02 làm tháng 01 đã
+chốt báo drift dù không dòng nào của tháng 01 đổi.
+
+Sửa tận gốc: payload mới gồm bản chụp chỉ tiêu SẼ ĐƯỢC LƯU cộng 19 trường của
+TỪNG DÒNG (danh tính đầy đủ · đầu vào · giá vốn · kết quả gồm
+`conversion_rate`/`converted_sales`/`profit_blockers` · quy thuộc), sắp theo
+khoá dòng nên không phụ thuộc thứ tự truy vấn; phụ thuộc toàn cục bị gỡ hẳn và
+KHÔNG có gì thay chỗ nó. Không `ACCEPTED_RISK` mới, KHÔNG migration mới
+(schema không đổi), không đụng công thức MIN, không thêm fallback, không sửa
+Tracking — diff đúng hai file mã nguồn. Chi tiết, evidence và test tái hiện
+(6 bài ĐỎ trước sửa, 13 XANH sau sửa): `S129` §11.
+
+Hai mục review nêu được ghi thành `ACCEPTED_RISK` và KHÔNG sửa trong vòng này
+theo đúng yêu cầu: `AR-R3-05` (ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ —
+chỉ ô ĐẾM ở trang chốt kỳ rộng hơn sự thật, không con số tiền nào sai) và
+`AR-R3-06` (`PeriodData._slice` chưa chiếu `excluded`/cảnh báo theo lát).
+
+Task VẪN `IMPLEMENTED`. `CHECK-R3-19` (Independent Review) VẪN `NOT_TESTED` —
+phiên repair KHÔNG tự đánh dấu nó PASS; reviewer kết luận lại trên commit
+repair.
 
 R3 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
 luật đã áp cho R1 và R2. Bốn rủi ro giữ lại (`AR-R3-01` … `AR-R3-04`) ở `S129`

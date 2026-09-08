@@ -7,8 +7,10 @@ IMPLEMENTED
 
 Current Status Reason:
 Toàn bộ năm việc của R3 đã triển khai và có test đi hết chuỗi, gồm một lần
-đối soát trên hai kỳ nghiệp vụ THẬT (đã ẩn danh). `CHECK-R3-01` …
-`CHECK-R3-18` PASS (bằng chứng ở §7 và ở
+đối soát trên hai kỳ nghiệp vụ THẬT (đã ẩn danh). Sau đó Independent Review
+tìm ra HAI finding trên vân tay chốt kỳ (`FIND-R3-IR-01` false negative,
+`FIND-R3-IR-02` false positive) — cả hai đã sửa TẬN GỐC, chi tiết ở §7b.
+`CHECK-R3-01` … `CHECK-R3-18` PASS (bằng chứng ở §7 và ở
 `docs/sessions/S129-r3-nhap-so-den-chot-ky.md`). Hai check còn lại KHÔNG do
 phiên triển khai quyết định và vẫn `NOT_TESTED`: `CHECK-R3-19` (Independent
 Review) và `CHECK-R3-20` (Owner nghiệm thu trên production). Cùng kỷ luật đã
@@ -347,12 +349,107 @@ một giá nhập tay lên dòng thứ nhất, rồi đảo chỗ — và khoá 
 | `CHECK-R3-16` | Tổng trong file khớp giao diện; lệch ⟹ TỪ CHỐI xuất | PASS | E1 |
 | `CHECK-R3-17` | Chốt kỳ TỪ CHỐI mọi đường ghi của kỳ; mở lại bắt buộc có lý do | PASS | E1 |
 | `CHECK-R3-18` | Chốt kỳ có phiên bản, sống qua restart, phát hiện lệch sau chốt | PASS | E1 |
+| `CHECK-R3-18a` | Vân tay chốt kỳ phủ TOÀN BỘ kết quả tài chính đã duyệt | PASS | E1 |
+| `CHECK-R3-18b` | Vân tay chỉ phụ thuộc dữ liệu hiệu lực CỦA ĐÚNG KỲ ĐÓ | PASS | E1 |
 | `CHECK-R3-19` | Independent Review PASS | NOT_TESTED | — |
 | `CHECK-R3-20` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
 Lệnh và output nguyên văn: `docs/sessions/S129-r3-nhap-so-den-chot-ky.md` §5.
 
 ---
+
+## 7b. Repair sau Independent Review — `FIND-R3-IR-01` và `-02`
+
+Cả hai finding nằm trên CÙNG một hàm (`period_lock.content_fingerprint`) và
+hỏng theo hai chiều NGƯỢC NHAU. Cả hai đã sửa tận gốc; không `ACCEPTED_RISK`
+mới nào phát sinh, không migration mới (schema không đổi), không đụng công
+thức MIN, không thêm fallback, không sửa Tracking.
+
+### `FIND-R3-IR-01` — ACCEPTED. Vân tay false negative
+
+**Nguyên nhân.** Payload chỉ có sáu trường: `order_key`, giá nhập hiệu lực,
+provenance, lợi nhuận KPI, nhân viên, loại dòng. Nó MÙ với phần lớn kết quả
+tài chính đã được duyệt — không tỉ lệ quy đổi, không DS quy đổi, không doanh
+thu, không số lượng/đơn giá/chiết khấu, không cả bản chụp chỉ tiêu; và danh
+tính dòng thiếu `product_key`/`occurrence_index`, nên hai dòng khác nhau của
+cùng một đơn cho ra hai khối byte GIỐNG HỆT.
+
+**Ca tái hiện (đo được, không phải giả định).** Owner tick Gia dụng cho một
+mặt hàng của nhân viên Nội thành. Tỉ lệ quy đổi đi 2 % → 8 %; DS quy đổi rơi
+từ `150.000.000` xuống `37.500.000`. Lợi nhuận KPI KHÔNG đổi — và đó chính là
+lý do payload cũ không thấy gì. `period_drift` trả `False`.
+
+**Sửa.** Payload mới có hai phần, và cả hai đều là thứ người duyệt đã nhìn:
+
+```text
+1. bản chụp chỉ tiêu SẼ ĐƯỢC LƯU (`snapshot_of`), JSON khoá đã sắp
+2. 19 trường của TỪNG DÒNG, năm nhóm:
+     danh tính  order_key · product_key · occurrence_index · sale_date
+     đầu vào    quantity · sell_price · discount · total_sales
+     giá vốn    purchase_price · purchase_provenance
+     kết quả    kpi_profit · conversion_rate · converted_sales · profit_blockers
+     quy thuộc  employee · employee_group · employee_provenance
+                · line_type · product_group
+```
+
+`totals` đi vào CẢ bản chụp lẫn vân tay từ CÙNG một biến (`close_period`), nên
+hai thứ đó không thể trôi khỏi nhau.
+
+**Thứ tự canonical.** Các dòng được SẮP theo khoá dòng đầy đủ trước khi băm,
+và `totals` serialize với `sort_keys=True`. `raw_lines` hôm nay trả về theo
+`(sale_date, order_key, occurrence_index)`, nhưng vân tay KHÔNG được phụ thuộc
+chi tiết đó — đổi một mệnh đề `ORDER BY` là một thay đổi kỹ thuật và không
+được biến thành "bộ số đã duyệt đã đổi".
+
+`Decimal` đi qua `normalize()`: `2.0` và `2` là CÙNG một tỉ lệ, và một lần đổi
+cách viết số trong database không được thành drift.
+
+### `FIND-R3-IR-02` — ACCEPTED. Vân tay false positive giữa các kỳ
+
+**Nguyên nhân.** `close_period` và `period_drift` cùng cộng
+`len(store.purchase_price_overrides())` vào payload — số override của TOÀN
+DATABASE, không của kỳ đang chốt.
+
+**Ca tái hiện.** Tháng 01 đã chốt. Owner gõ một giá tay cho một dòng THÁNG 02.
+Không một dòng nào của tháng 01 đổi, `totals` tháng 01 không đổi — nhưng
+`period_drift(2026-01)` trả `True`.
+
+**Sửa.** Gỡ hẳn phụ thuộc toàn cục, và KHÔNG có gì thay chỗ nó. Giá nhập HIỆU
+LỰC cùng provenance của TỪNG DÒNG đã nói đủ về mọi quyết định có ảnh hưởng tới
+kỳ này; một quyết định không chạm dòng nào của kỳ thì theo định nghĩa không
+đổi bộ số của kỳ, và vân tay phải im lặng đúng như vậy.
+
+### Test tái hiện — ĐỎ trước sửa, XANH sau sửa
+
+`tests/test_r3_ir_repair_fingerprint.py` (13 bài). Chạy trên `8aa6626`
+(HEAD trước repair):
+
+```text
+FAILED ...::TestTheFingerprintCoversTheWholeApprovedResult::test_a_conversion_rate_change_is_drift
+FAILED ...::TestTheFingerprintCoversTheWholeApprovedResult::test_a_revenue_change_is_drift_even_when_the_old_fields_hold
+FAILED ...::TestTheFingerprintDependsOnlyOnItsOwnPeriod::test_a_manual_price_in_february_never_drifts_january
+FAILED ...::TestTheFingerprintIsStable::test_the_payload_does_not_depend_on_query_order
+FAILED ...::TestTheDriftWarningThroughTheWeb::test_the_close_page_warns_after_a_conversion_rate_change
+FAILED ...::TestTheDriftWarningThroughTheWeb::test_the_close_page_stays_quiet_for_another_period
+6 failed, 5 passed
+```
+
+Sau sửa: `13 passed`. Hai bài đo hàm THUẦN được thêm sau đó
+(`test_two_lines_differing_only_in_identity_are_told_apart`,
+`test_the_totals_snapshot_is_part_of_the_fingerprint`) — chúng chứng minh lỗ
+hổng danh tính và lỗ hổng `totals` một cách trực tiếp, không phụ thuộc thứ tự
+lặp; xem `S129` §11 để có phép đo chạy trên chính thuật toán cũ.
+
+### Hệ quả vận hành phải nói ra
+
+`FINGERPRINT_VERSION = "R3-FP-2"` nằm ngay đầu payload được băm. Một vân tay
+lưu bởi thuật toán CŨ không so được với vân tay tính ra hôm nay, nên một kỳ đã
+chốt TRƯỚC bản repair sẽ báo drift đúng MỘT lần và cần chốt lại.
+
+Trên thực tế không có bản ghi nào như thế: migration `0009` (tạo bảng
+`period_close`) mới ra đời trong CHÍNH nhánh R3 chưa merge, nên chưa database
+production nào từng có một lần chốt kỳ. Ghi lại ở đây vì nó là ràng buộc thật
+nếu nhánh này được deploy rồi mới nhận repair.
 
 ## 8. Rủi ro giữ lại (ACCEPTED_RISK)
 
@@ -397,6 +494,34 @@ Lỗi có TRƯỚC R2 (`SetPending` rồi `ConfirmMapping` làm log identity kh�
 định về `_ACTIVE_STATUSES` của `PENDING`/`STALE` — ngoài Scope Lock của R3.
 
 ---
+
+### AR-R3-05 — ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ
+
+Independent Review nêu và YÊU CẦU KHÔNG sửa trong vòng repair này.
+
+`PeriodData.binding_exceptions` đọc `BindingExceptionStore.open_keys()` — mọi
+ngoại lệ CÒN MỞ của toàn database, rồi tra theo khoá dòng. Vì tra theo khoá,
+một dòng chỉ nhận đúng ngoại lệ của chính nó, nên bảng kê và file xuất KHÔNG
+sai. Chỗ chưa chặt là các phép ĐẾM đọc thẳng `len(data.binding_exceptions)`
+(ô "còn N ngoại lệ chưa xử lý" ở trang chốt kỳ), vốn đếm cả ngoại lệ của kỳ
+khác.
+
+Tác động: một con số cảnh báo cao hơn sự thật ở đúng một ô, không con số tiền
+nào sai. Cách đóng: lọc theo tập khoá dòng của kỳ trước khi đếm.
+
+### AR-R3-06 — `PeriodData._slice` chưa chiếu `excluded` và cảnh báo theo lát
+
+Independent Review nêu và YÊU CẦU KHÔNG sửa trong vòng repair này.
+
+`_slice()` chở `binding_exceptions`, `discount_double_count` và `closed` NGUYÊN
+VẸN sang lát cắt, và KHÔNG chở `excluded` (lát cắt luôn có `excluded=[]`).
+Nghĩa là ở khung nhìn một nhân viên/một sheet: danh sách dòng đã loại rỗng dù
+nhân viên đó có dòng bị loại, và cảnh báo trừ chiết khấu hai lần có thể nêu
+một đơn không thuộc lát đang xem.
+
+Tác động: cảnh báo rộng hơn cần thiết và một danh sách khôi phục rỗng ở khung
+nhìn con — không chỉ tiêu cộng được nào sai (`totals` vẫn tính trên đúng tập
+dòng của lát). Cách đóng: chiếu cả ba lớp phủ theo tập khoá của lát.
 
 ## 9. Đầu vào cho phiên sau
 

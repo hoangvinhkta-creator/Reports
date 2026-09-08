@@ -34,7 +34,8 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import func, insert, select, update
@@ -85,29 +86,147 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def content_fingerprint(*, lines, overrides_count: int) -> str:
+#: Nhãn phiên bản của THUẬT TOÁN vân tay, nằm ngay đầu payload được băm.
+#:
+#: Nó tồn tại để một lần đổi payload về sau là một sự kiện NHÌN THẤY ĐƯỢC
+#: trong mã, chứ không phải một hằng số hash lặng lẽ đổi nghĩa. Đổi nhãn này
+#: nghĩa là mọi vân tay đã lưu không còn so được với vân tay tính ra hôm nay,
+#: và hệ quả (kỳ đã chốt báo drift một lần, cần chốt lại) phải được ghi vào
+#: tài liệu bàn giao — không được để người vận hành tự đoán.
+FINGERPRINT_VERSION = "R3-FP-2"
+
+#: Các trường của MỘT dòng đi vào vân tay, theo ĐÚNG thứ tự này.
+#:
+#: `FIND-R3-IR-01` — payload đầu tiên chỉ có sáu trường (`order_key`, giá nhập,
+#: provenance, lợi nhuận KPI, nhân viên, loại dòng) và vì thế MÙ với phần lớn
+#: kết quả tài chính đã được duyệt. Ca đo được: Owner tick Gia dụng, tỉ lệ quy
+#: đổi đi từ 2 % lên 8 %, DS quy đổi rơi từ 150.000.000 xuống 37.500.000 — và
+#: vân tay không đổi một bit, nên kỳ đã chốt báo "không có gì đổi".
+#:
+#: Nguyên tắc thay thế: vân tay phải phủ TOÀN BỘ những gì một người duyệt đã
+#: nhìn thấy và ký vào. Bốn nhóm dưới đây, và mỗi nhóm đóng một lớp mù riêng:
+#:
+#:     danh tính   khoá dòng ĐẦY ĐỦ + ngày bán — hai dòng của cùng một đơn
+#:                 phải phân biệt được, kể cả khi truy vấn đổi thứ tự
+#:     đầu vào     số lượng · đơn giá · chiết khấu · doanh thu
+#:     giá vốn     giá nhập hiệu lực + provenance của nó
+#:     kết quả     lợi nhuận KPI · tỉ lệ quy đổi · DS quy đổi · cửa chặn
+#:     quy thuộc   nhân viên + nhóm + nguồn gán · loại dòng · nhóm sản phẩm
+_LINE_FIELDS = (
+    "order_key", "product_key", "occurrence_index", "sale_date",
+    "quantity", "sell_price", "discount", "total_sales",
+    "purchase_price", "purchase_provenance",
+    "kpi_profit", "conversion_rate", "converted_sales", "profit_blockers",
+    "employee", "employee_group", "employee_provenance",
+    "line_type", "product_group",
+)
+
+
+def _text(value) -> str:
+    """Dạng chuỗi ỔN ĐỊNH của một giá trị đi vào vân tay.
+
+    `Decimal` đi qua `normalize()` trước: `2.0` và `2` là CÙNG một tỉ lệ, và
+    một lần đổi cách viết số trong database KHÔNG được biến thành "bộ số đã
+    duyệt đã thay đổi". `None` ra chuỗi rỗng — nhưng vì mọi trường luôn có mặt
+    theo đúng thứ tự `_LINE_FIELDS`, một ô trống không bao giờ trượt sang vị
+    trí của ô bên cạnh.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, Decimal):
+        return format(value.normalize(), "f")
+    if isinstance(value, (tuple, list)):
+        return ",".join(_text(item) for item in value)
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def _line_payload(detail: dict) -> tuple:
+    """Một dòng của kỳ → bộ giá trị đi vào vân tay, theo `_LINE_FIELDS`.
+
+    Đọc từ `detail` (bảng kê đã hợp nhất) chứ không từ `BusinessLine` một
+    mình: `BusinessLine` cố ý KHÔNG mang `product_key`/`occurrence_index`/
+    `sale_date` — nó là ngữ nghĩa nghiệp vụ thuần — nên chỉ nó thì danh tính
+    dòng không đầy đủ, và đó chính là một nửa của `FIND-R3-IR-01`.
+    """
+    line = detail["line"]
+    return (
+        detail.get("order_key"),
+        detail.get("product_key"),
+        detail.get("occurrence_index"),
+        detail.get("sale_date"),
+        line.quantity,
+        line.sell_price,
+        line.discount,
+        line.total_sales,
+        line.purchase_price,
+        line.purchase_provenance,
+        line.kpi_profit,
+        line.conversion_rate,
+        line.converted_sales,
+        line.profit_blockers,
+        line.employee,
+        line.employee_group,
+        line.employee_provenance,
+        line.line_type,
+        detail.get("classified_product_group"),
+    )
+
+
+def content_fingerprint(*, details, totals: dict) -> str:
     """Vân tay của CHÍNH bộ số đang được chốt.
 
-    Nó gồm khoá dòng, giá nhập hiệu lực, provenance và lợi nhuận KPI của từng
-    dòng đang được báo cáo, cộng số quyết định giá nhập tay. Hai lần chốt cùng
-    vân tay ⟹ giữa chúng không có gì đổi; khác vân tay ⟹ có, và trang chốt kỳ
-    nói ra điều đó thay vì để người dùng tự so bằng mắt.
+    Hai đầu vào, và cả hai đều là thứ người duyệt đã nhìn thấy:
 
-    Không gồm thời điểm chạy hay id snapshot: chạy lại pipeline trên CÙNG dữ
-    liệu mà ra cùng con số thì không có gì để báo.
+        `details`  các dòng ĐÃ HỢP NHẤT của đúng kỳ đó (`PeriodData.details`)
+        `totals`   bản chụp chỉ tiêu SẼ ĐƯỢC LƯU cùng lần chốt
+                   (`business_service.snapshot_of`)
+
+    `totals` đi vào vân tay chứ không chỉ đi vào cột `totals_json`, và đó là
+    một khẳng định có ích: vân tay và bản chụp không thể trôi khỏi nhau, vì
+    chúng là hai cách viết của cùng một payload.
+
+    ## Thứ tự canonical — không phụ thuộc truy vấn
+
+    Các dòng được SẮP theo khoá dòng đầy đủ trước khi băm. `raw_lines` hôm nay
+    trả về theo `(sale_date, order_key, occurrence_index)`, nhưng vân tay
+    KHÔNG được phụ thuộc vào chi tiết đó: đổi một mệnh đề `ORDER BY` là một
+    thay đổi kỹ thuật, và nó không được biến thành "bộ số đã duyệt đã đổi".
+
+    ## `FIND-R3-IR-02` — vân tay chỉ phụ thuộc dữ liệu CỦA KỲ NÀY
+
+    Payload đầu tiên cộng thêm `len(store.purchase_price_overrides())` — số
+    override của TOÀN DATABASE. Owner gõ một giá tay cho tháng 02 làm tháng 01
+    đã chốt báo drift, dù không một dòng nào của tháng 01 đổi.
+
+    Phụ thuộc đó nay bị gỡ hẳn, và không có gì thay chỗ nó: giá nhập HIỆU LỰC
+    cùng provenance của TỪNG DÒNG đã nói đủ về mọi quyết định có ảnh hưởng tới
+    kỳ này. Một quyết định không chạm dòng nào của kỳ thì theo định nghĩa
+    không đổi bộ số của kỳ — và vân tay phải im lặng đúng như vậy.
+
+    ## `details` phải là CẢ KỲ
+
+    Hàm này không kiểm được điều đó, nên nó được nói ra ở đây: truyền một lát
+    cắt (một nhân viên, một sheet) sẽ cho ra vân tay của lát cắt ấy. Hai nơi
+    gọi (`close_period`, `period_drift`) đều truyền `PeriodData` của cả kỳ.
     """
     digest = hashlib.sha256()
-    for line in lines:
-        digest.update("\x1f".join((
-            line.order_key or "",
-            "" if line.purchase_price is None else str(line.purchase_price),
-            line.purchase_provenance,
-            "" if line.kpi_profit is None else str(line.kpi_profit),
-            line.employee or "",
-            line.line_type,
-        )).encode("utf-8"))
+    digest.update(FINGERPRINT_VERSION.encode("utf-8"))
+    digest.update(b"\x1d")
+    # Bản chụp chỉ tiêu, khoá sắp xếp — `snapshot_of` đã trả về dict, và thứ
+    # tự chèn của dict KHÔNG được là một phần của vân tay.
+    digest.update(json.dumps(
+        totals or {}, ensure_ascii=False, sort_keys=True,
+        separators=(",", ":")).encode("utf-8"))
+    digest.update(b"\x1d")
+    rows = sorted(
+        (_line_payload(detail) for detail in details),
+        key=lambda row: tuple(_text(value) for value in row[:3]),
+    )
+    for row in rows:
+        digest.update("\x1f".join(_text(value) for value in row).encode("utf-8"))
         digest.update(b"\x1e")
-    digest.update(f"overrides={overrides_count}".encode("utf-8"))
     return digest.hexdigest()
 
 
@@ -271,7 +390,7 @@ def _to_closed(row: dict) -> ClosedPeriod:
 
 
 __all__ = [
-    "ClosedPeriod", "InvalidPeriodError", "MissingReopenReasonError",
-    "PeriodCloseStore", "PeriodClosedError", "PeriodNotClosedError",
-    "content_fingerprint",
+    "ClosedPeriod", "FINGERPRINT_VERSION", "InvalidPeriodError",
+    "MissingReopenReasonError", "PeriodCloseStore", "PeriodClosedError",
+    "PeriodNotClosedError", "content_fingerprint",
 ]

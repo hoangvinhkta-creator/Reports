@@ -365,12 +365,15 @@ class BusinessReportService:
         khác con số người duyệt đã nhìn, và đó đúng là điều một lần chốt phải
         loại trừ.
         """
+        totals = snapshot_of(data.totals)
         return self._period_store.close(
             year=period[0], month=period[1], closed_by=closed_by, note=note,
-            totals=snapshot_of(data.totals), line_count=len(data.lines),
+            totals=totals, line_count=len(data.lines),
+            # CÙNG một `totals` đi vào cả bản chụp lẫn vân tay: hai thứ đó
+            # không thể trôi khỏi nhau, vì chúng là hai cách viết của cùng một
+            # payload (`FIND-R3-IR-01`).
             fingerprint=content_fingerprint(
-                lines=data.lines,
-                overrides_count=len(self._store.purchase_price_overrides())))
+                details=data.details, totals=totals))
 
     def reopen_period(
         self, *, period: tuple[int, int], reason: str,
@@ -389,14 +392,17 @@ class BusinessReportService:
         thật cần nói ra: một kỳ đã duyệt mà số đã đổi (vì một lần nạp lại sổ,
         hay một quyết định lọt qua trước khi chốt) thì bản chụp và màn hình
         không còn nói cùng một câu.
+
+        `data` phải là kỳ ĐẦY ĐỦ, không phải một lát cắt theo nhân viên/sheet
+        — xem `period_lock.content_fingerprint`. Hai nơi gọi trong `server.py`
+        đều truyền `view["data"]`, tức cả kỳ.
         """
         if period is None or data.closed is None:
             return False
         if data.closed.content_fingerprint is None:
             return False
         return data.closed.content_fingerprint != content_fingerprint(
-            lines=data.lines,
-            overrides_count=len(self._store.purchase_price_overrides()))
+            details=data.details, totals=snapshot_of(data.totals))
 
     def employees(
         self, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
