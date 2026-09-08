@@ -1,6 +1,86 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R3 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER (2026-09-08)
+## CANONICAL CURRENT STATE — R4 = IMPLEMENTED (báo cáo đánh giá, chỉ ĐỌC); R3 = IMPLEMENTED đã merge, deploy platform CHỜ OWNER (2026-09-08)
+
+**R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
+`R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
+liệu thành màn báo cáo tháng trả lời bốn câu — kết quả bán hàng, mức đạt
+target, phần nào tạo ra kết quả, và dữ liệu nào còn chưa đủ để kết luận. Quyết
+định: `DEC-201`. Task canonical: `docs/tasks/R4-bao-cao-danh-gia.md`. Bàn giao:
+`docs/sessions/S131-r4-bao-cao-danh-gia.md`. Đặc tả chỉ tiêu:
+`docs/spec/R4-DAC-TA-KPI.md`.
+
+**R4 là một trang CHỈ ĐỌC, và đó là tính chất quan trọng nhất của nó.** Không
+route ghi, không chạm `business_store`, KHÔNG MIGRATION, không schema mới —
+`ALEMBIC_HEAD` vẫn `0009_line_binding_period_close`. Mọi chỉ tiêu cộng được
+vẫn do `business_metrics.totals` cho ra trên ĐÚNG một `PeriodData` của R3;
+R4 chỉ thêm ba phép CHIA hai con số đã có (`Doanh thu/đơn`, `Biên KPI`,
+`Lãi/đơn`), gom về đúng một hàm. Vì vậy Blast Radius là `3/5` chứ không `5/5`:
+failure path dừng ở `kết luận của Owner`, không đi tiếp vào giá nhập KPI,
+`EligibleKpiProfit`, DS quy đổi hay bộ số đã chốt.
+
+**Cửa quan trọng nhất: một kết quả MỘT PHẦN không bao giờ là kết luận cả kỳ.**
+Coverage chưa đủ 100 % ⟹ Lợi nhuận KPI · Biên KPI · Lãi/đơn · DS quy đổi · %
+target ĐỀU hiện `—` kèm mã lý do. Con số một phần vẫn đọc được, nhưng ở vị trí
+BẰNG CHỨNG ("đã tính được…"), cỡ chữ nhỏ hơn, kèm câu "KHÔNG phải kết quả cả
+kỳ". Bất biến "có số ⟺ không có lý do" được canh ở CONSTRUCTOR
+(`evaluation.Kpi.__post_init__`), nên một ô trống không giải thích được là một
+`ValueError` lúc dựng chứ không phải một ô trống trên màn hình.
+
+**So kỳ trước của tháng đang chạy cắt CẢ HAI vế ở cùng số ngày lịch** (01–08/09
+với 01–08/08); tháng trước ngắn hơn thì cắt cả hai ở ngày ngắn hơn. Smoke thật
+chứng minh điều này bằng một dòng `30.000.000` bán ngày 28/08: nó KHÔNG lọt
+vào mốc so sánh — nếu cửa sổ sai, tỉ lệ sẽ là `−34,7 %` thay vì `+291,67 %`.
+
+**Không có target cấp công ty.** Target chỉ đọc `employee_target`/`group_target`
+đã có; phạm vi "Cả kỳ" không hiện ô target nào và hàng TỔNG để trống hai cột
+target. Forecast chỉ là RUN-RATE, luôn mang nhãn "ước tính nếu tốc độ hiện tại
+giữ nguyên", và từ chối chạy khi kỳ đã kết thúc / chỉ tiêu nền chưa chính thức
+/ không có dòng mang ngày bán.
+
+**Một repair ngoài năm gói, trên luồng chính.** `server._today()` trả
+`date.today()` — ngày theo đồng hồ MÁY CHỦ. Container production chạy UTC nên
+từ 17:00 giờ Việt Nam tới nửa đêm nó trả về NGÀY HÔM TRƯỚC: `as_of` lệch một
+ngày, "còn thiếu mỗi ngày" chia sai, cửa sổ "cùng số ngày lịch" lệch, và tháng
+mặc định của không gian làm việc sai vào tối ngày cuối tháng — tức một Target
+có thể ghi vào THÁNG SAI. Không triệu chứng nào. Nay đọc theo
+`Asia/Ho_Chi_Minh`, đúng múi giờ nghiệp vụ mà `daily-min-v1` đã freeze cho
+ranh giới ngày của giá MIN.
+
+```text
+STATUS                      = IMPLEMENTED — R4 triển khai đầy đủ, chỉ ĐỌC,
+                              không migration. Independent Review và Owner
+                              nghiệm thu CHƯA có. KHÔNG DONE.
+Current Task Mode:            MAJOR
+BASE_HEAD (Reports, trước triển khai)   = 824b5d7 (production, PR #9)
+BRANCH phát triển                       = claude/r4-reports-evaluation-u3vs4d
+BRANCH production Reports               = claude/extract-upload-repo-gq2ws4
+
+R4 STATUS   = IMPLEMENTED (exact HEAD mã nguồn 86cee4097194460955fe806a05e3a919a20a0e95)
+              CHECK-R4-01 … CHECK-R4-22 = PASS (E1)
+              CHECK-R4-23 (Independent Review) = NOT_TESTED
+              CHECK-R4-24 (Owner nghiệm thu)   = NOT_TESTED
+              Full regression: 3146 passed, 12 skipped
+              (baseline trước R4 cùng môi trường: 3058 passed, 12 skipped)
+              88 bài mới; migration KHÔNG CÓ; route ghi mới KHÔNG CÓ.
+              Smoke qua HTTP THẬT cho cả ba luồng nghiệm thu, cộng kỳ đã
+              chốt/drift/chặn ghi 409 (S131 §5).
+```
+
+Ba rủi ro ghi nhận (`AR-R4-01` … `AR-R4-03`) ở `S131` §8 và
+`docs/tasks/R4-bao-cao-danh-gia.md` §9; đáng chú ý nhất là `AR-R4-01` —
+trạng thái MIN `FINAL`/`PROVISIONAL` KHÔNG được lưu trên từng dòng (nó sống
+trong ảnh chụp `daily-min-v1` lúc chạy), nên R4 NÓI RA giới hạn đó trên màn
+hình thay vì đoán, và đưa bảng thẩm quyền giá của pipeline làm thứ gần nhất
+mà dữ liệu hiệu lực trả lời được.
+
+R4 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
+luật đã áp cho R1, R2 và R3. R4 cũng KHÔNG chạm tới `CHECK-R3-20`: Owner
+nghiệm thu R3 trên production VẪN `NOT_TESTED`.
+
+---
+
+## R3 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER (2026-09-08)
 
 **R3 đã triển khai đầy đủ, Independent Review `ACCEPT_WITH_RECORDED_RISK`, và
 ĐÃ MERGE vào nhánh mặc định** (PR #8 → `ff1a6d3`, trên nền R2 đã merge trước

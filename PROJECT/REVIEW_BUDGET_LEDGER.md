@@ -3013,3 +3013,56 @@ cycles:
   base_sha: N/A
   head_sha: N/A
 
+
+---
+
+## Root Task: R4
+
+```
+root_task: R4
+title: Báo cáo đánh giá vận hành (chỉ ĐỌC effective data của R3)
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`).
+
+**Blast Radius chấm theo failure path, và đây là chỗ R4 khác hẳn R1–R3.**
+Failure path của R4 là:
+
+```text
+effective data của R3 → chỉ tiêu đánh giá → kết luận của Owner về kết quả tháng
+```
+
+Nó DỪNG ở đó. R4 không có route ghi nào, không chạm `business_store`, không
+migration, không schema mới — nên không lỗi nào của nó đi tiếp được vào
+`giá nhập KPI hiệu lực`, `EligibleKpiProfit`, `DS quy đổi` hay `bộ số đã
+chốt`. Bán kính `3/5` vì thế là một tính chất CẤU TẠO, không phải một lời
+hứa: `CHECK-R4-22` chạy một bài so tổng trước/sau khi mở trang, và route trả
+`405` cho `POST`.
+
+Đây cũng là lý do R4 KHÔNG được cấp `2` cycle như R1/R2/R3: một kết luận sai
+trên màn hình đánh giá là nghiêm trọng, nhưng nó không ghi một con số sai nào
+xuống database và không làm một kỳ đã phát hành đổi số.
+
+Lineage RIÊNG, cùng cách đọc đã dùng cho `R1`, `R2` và `R3`: R4 KHÔNG sửa tiếp
+triển khai của R3 — nó ĐỌC một R3 đã merge vào nhánh mặc định (`824b5d7`). Nó
+có Owner Authority riêng (brief R4, năm gói), phạm vi riêng, và bộ
+`CHECK-R4-01…24` riêng.
+
+Cùng `CONFLICT DETECTED` chưa giải quyết mà `R2`/`R3` đã ghi cũng áp cho `R4`:
+phần đầu ledger này dùng chữ "R2" làm ví dụ sub-unit không có ngân sách riêng,
+và cách đọc đó nếu đúng thì cũng áp cho "R4". Phiên S131 KHÔNG tự chốt việc đó
+— nó là một quyết định về luật. Điều đúng theo CẢ HAI cách đọc: phiên S131 tiêu
+`0` repair cycle, nên số dư hiện tại không đổi dù đọc cách nào.
+
+Sub-unit (R4-§1, R4-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
+  thời điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
