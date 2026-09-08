@@ -193,6 +193,20 @@ def merge_assigned_names(
     return sorted(seen.items(), key=lambda item: (item[0] is None, item[0] or ""))
 
 
+def periods_for_product(engine: Engine, product_key: str) -> set:
+    """`{(năm, tháng)}` có ít nhất một dòng của mặt hàng này (R3 §5).
+
+    Phân loại Gia dụng ở cấp MẶT HÀNG là một quyết định TOÀN CỤC: nó đổi tỉ lệ
+    quy đổi của mọi dòng mang mã đó, ở mọi kỳ. Nên cửa chặn "kỳ đã chốt" cho
+    thao tác này không thể chỉ hỏi kỳ đang xem — nó phải hỏi mọi kỳ mà quyết
+    định ấy chạm tới. Một câu truy vấn cho một thao tác hiếm.
+    """
+    rows = _read(engine, select(_CURRENT.sale_date).distinct()
+                 .where(_CURRENT.product_key == product_key,
+                        _CURRENT.sale_date.is_not(None)))
+    return {(row["sale_date"].year, row["sale_date"].month) for row in rows}
+
+
 def undated_lines(engine: Engine) -> int:
     """Dòng hiện hành KHÔNG có `sale_date`, đếm KHÔNG lọc kỳ (`R-S5`)."""
     rows = _read(engine, select(func.count().label("total"))
@@ -406,5 +420,5 @@ def line_details(
 
 __all__ = [
     "build_lines", "employee_names", "line_details", "merge_assigned_names",
-    "raw_lines", "reasons", "undated_lines",
+    "periods_for_product", "raw_lines", "reasons", "undated_lines",
 ]

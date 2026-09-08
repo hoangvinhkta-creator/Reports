@@ -32,6 +32,7 @@ Download chỉ được resolve từ ``run_id`` qua registry do chính server t�
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import time
 import uuid
@@ -40,7 +41,9 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import (
+    Flask, abort, redirect, render_template, request, send_file, url_for,
+)
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import beta_feedback, beta_telemetry
@@ -60,15 +63,16 @@ from app.modules.pricing.resolution.sources import (
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.modules.reporting import (
-    brand_metrics, business_metrics, contribution, reporting_sheets,
+    brand_metrics, business_metrics, contribution, line_type, reporting_sheets,
 )
 from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
+from app.modules.exporting import business_export
 from app.web import (
     analytics_presentation, analytics_queries, brand_identity,
     business_presentation, business_service, business_store, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
-    line_identity, revenue_timeline, run_registry, sales_presentation,
-    sales_queries, storage_backend, workspace_presentation,
+    line_identity, period_lock, revenue_timeline, run_registry,
+    sales_presentation, sales_queries, storage_backend, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -76,6 +80,23 @@ from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
 from tools.tracking import live_pull
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: MIME của `.xlsx`. Viết ra ở đây một lần thay vì rải chuỗi qua các route —
+#: gõ sai nó làm trình duyệt mở file như văn bản thay vì tải về.
+XLSX_MIMETYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _export_file_name(period_value: str, scope: str) -> str:
+    """Tên file tải về: nói rõ KỲ nào và LÁT nào, không có ký tự lạ.
+
+    Tên file đi ra khỏi hệ thống và thường được lưu cạnh nhau hàng chục cái;
+    một tên không nói kỳ và phạm vi là một tên sẽ bị mở nhầm.
+    """
+    safe = "".join(
+        char if char.isalnum() or char in "-_" else "-" for char in scope)
+    safe = "-".join(part for part in safe.split("-") if part) or "toan-ky"
+    return f"bao-cao-{period_value or 'toan-bo'}-{safe}.xlsx"
 
 # S071 Deployment Gate: một số nhà cung cấp hosting managed (vd Render Web
 # Service) chỉ cho gắn ĐÚNG MỘT persistent disk trên mỗi service — registry
@@ -134,9 +155,27 @@ def _guarded(fn, *args, **kwargs):
         # dữ liệu là cách chắc chắn nhất để không ai đi sửa nó. 409 mang
         # theo đúng câu giải thích của tầng repository.
         abort(409, description=str(exc))
+    except period_lock.PeriodClosedError as exc:
+        # R3 §5 — kỳ đã chốt. 409 (mâu thuẫn trạng thái), KHÔNG phải 503:
+        # đây không phải lỗi hạ tầng và "thử lại sau" là một câu sai — thao
+        # tác này sẽ hỏng y hệt cho tới khi Owner MỞ LẠI kỳ kèm lý do.
+        abort(409, description=str(exc))
     except (StorageUnavailableError, CorruptRunRecordError,
             history_store.HistoryUnavailableError):
         abort(503)
+
+
+def _guard_lines(service, *details) -> None:
+    """Chặn một lần ghi quyết định rơi vào KỲ ĐÃ CHỐT (R3 §5).
+
+    Chặn theo NGÀY BÁN của chính dòng, không theo kỳ đang xem: khung nhìn
+    "toàn bộ dữ liệu" không có kỳ, và sửa một dòng của tháng đã chốt từ màn
+    hình đó vẫn phải bị chặn.
+
+    Dòng không có ngày bán rơi ngoài mọi kỳ — đúng ngữ nghĩa kỳ đã freeze ở
+    PRA-003 — nên nó không bị chốt kỳ nào khoá.
+    """
+    _guarded(lambda: [service.guard_line_open(detail) for detail in details])
 
 
 def _readiness_text() -> str:
@@ -1052,7 +1091,8 @@ def create_app(
         if period is None and default_period is not None:
             period = default_period(periods)
         bounds = analytics_queries.month_bounds(*period) if period else (None, None)
-        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1],
+                        period=period)
         previous = None
         if period is not None:
             previous_bounds = analytics_queries.month_bounds(
@@ -1317,7 +1357,8 @@ def create_app(
         service = _require_business()
         period = _workspace_period()
         bounds = analytics_queries.month_bounds(*period)
-        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1])
+        data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1],
+                        period=period)
         sheets = service.sheets(data)
         key = _workspace_sheet_key(sheets)
         sheet = (reporting_sheets.find_sheet(sheets, key) if key
@@ -1715,6 +1756,8 @@ def create_app(
             target = business_store.parse_target_kvnd(request.form.get("target"))
         except business_store.InvalidTargetError as exc:
             return _workspace_redirect(loi=str(exc), **reopen)
+        # Target là con số CỦA MỘT THÁNG, nên cửa chặn hỏi thẳng tháng đó.
+        _guarded(view["service"].guard_period_open, period)
         label = sheet.label or business_presentation.UNKNOWN_EMPLOYEE
         if target is None:
             _guarded(view["service"].clear_sheet_target,
@@ -1770,6 +1813,7 @@ def create_app(
                    if detail["order_key"] == order_key]
         if not details:
             abort(404)
+        _guard_lines(service, *details)
         for detail in details:
             _guarded(service.store.set_employee,
                      order_key=detail["order_key"],
@@ -1803,6 +1847,7 @@ def create_app(
         exists, auto_price = service.auto_price_of(data=view["data"], **keys)
         if not exists:
             abort(404)
+        _guard_lines(service, service.detail_of(data=view["data"], **keys))
         if request.form.get("hanh-dong") == "go":
             _guarded(service.store.clear_purchase_price, **keys)
             return _workspace_redirect(sua=keys["order_key"], **{"da-luu": (
@@ -1853,6 +1898,7 @@ def create_app(
             abort(404)
         if not gia_dung_workflow_applies(detail["line"].employee_group):
             abort(404)
+        _guard_lines(service, detail)
         if request.form.get("hanh-dong") == "go":
             _guarded(service.store.clear_line_product_group, **keys)
             return _workspace_redirect(**{"da-luu": (
@@ -1881,16 +1927,21 @@ def create_app(
         if keys is None:
             abort(400)
         if request.form.get("hanh-dong") == "khoi-phuc":
-            excluded = {(item["order_key"], item["product_key"],
-                         item["occurrence_index"]) for item in view["data"].excluded}
-            if (keys["order_key"], keys["product_key"],
-                    keys["occurrence_index"]) not in excluded:
+            dropped = {(item["order_key"], item["product_key"],
+                        item["occurrence_index"]): item
+                       for item in view["data"].excluded}
+            item = dropped.get((keys["order_key"], keys["product_key"],
+                                keys["occurrence_index"]))
+            if item is None:
                 abort(404)
+            _guard_lines(service, item)
             _guarded(service.store.restore_line, **keys)
             return _workspace_redirect(**{"da-luu": (
                 "Đã khôi phục dòng. Nó được tính lại vào báo cáo từ bây giờ.")})
-        if service.detail_of(data=view["data"], **keys) is None:
+        detail = service.detail_of(data=view["data"], **keys)
+        if detail is None:
             abort(404)
+        _guard_lines(service, detail)
         _guarded(service.store.exclude_line, **keys)
         return _workspace_redirect(**{"da-luu": (
             "Đã loại dòng này khỏi báo cáo. Sổ kế toán gốc giữ nguyên — bấm "
@@ -2094,6 +2145,7 @@ def create_app(
             target = business_store.parse_target(request.form.get("target"))
         except business_store.InvalidTargetError as exc:
             return _back(loi=str(exc))
+        _guarded(service.guard_period_open, period)
         if target is None:
             _guarded(service.clear_employee_target,
                      period=period, employee_key=chosen)
@@ -2148,6 +2200,18 @@ def create_app(
             and line.purchase_price is None),
         # 4. Mâu thuẫn ⟹ chọn LẠI. Không tự chọn bên thắng (`§4.2`).
         "xung-dot": lambda line, state: state.conflict,
+        # --- R3 §2/§1 — hai hàng đợi ngoại lệ mới -----------------------
+        # 5. Dòng thuộc loại chứng từ chưa ai định nghĩa (hoàn/hủy, hoặc một
+        #    tiền tố Số BH chưa khai). Hành động: Owner quyết nghĩa của nó,
+        #    hoặc loại dòng khỏi báo cáo. KHÔNG phải việc gõ một con số.
+        "loai-chua-ro": lambda line, state: (
+            line.line_type in line_type.UNDECIDED_TYPES),
+        # 6. Dòng phụ đã được chính sách cho giá nhập 0 (`OD-105B-01` §3) —
+        #    ở đây để Owner ĐỐI CHIẾU, không phải để sửa: một dòng phí bị
+        #    nhận nhầm thành hàng bán (hoặc ngược lại) chỉ nhìn ra được khi
+        #    chúng đứng cạnh nhau.
+        "gia-theo-chinh-sach": lambda line, state: (
+            line.purchase_provenance == business_metrics.PROVENANCE_POLICY_ZERO),
     }
     _DEFAULT_DETAIL_FILTER = "tat-ca"
 
@@ -2160,6 +2224,8 @@ def create_app(
         ("thieu-min", "Đã khớp — thiếu MIN"),
         ("thieu-gia", "Thiếu giá (tất cả)"),
         ("chua-ro-nv", "Chưa rõ nhân viên"),
+        ("loai-chua-ro", "Loại dòng chưa rõ"),
+        ("gia-theo-chinh-sach", "Giá theo chính sách"),
         ("owner-sua", "Dòng tôi đã sửa"),
     )
 
@@ -2237,6 +2303,7 @@ def create_app(
         exists, auto_price = service.auto_price_of(data=view["data"], **keys)
         if not exists:
             abort(404)
+        _guard_lines(service, service.detail_of(data=view["data"], **keys))
         redirect_args = {
             "ky": request.values.get("ky") or "tat-ca",
             "nhan-vien": request.form.get("nhan-vien") or None,
@@ -2314,6 +2381,7 @@ def create_app(
                 "business_purchase_price",
                 **{k: v for k, v in redirect_args.items() if v}, **extra))
 
+        _guard_lines(service, detail)
         if request.form.get("hanh-dong") == "go":
             _guarded(service.store.clear_employee, **keys)
             return _back(**{"da-luu": (
@@ -2334,6 +2402,113 @@ def create_app(
         return _back(**{"da-luu": (
             f"Đã gán dòng này cho {chosen}. Lợi nhuận của dòng đã chuyển sang "
             f"bảng của {chosen}; tổng của cả kỳ không đổi.")})
+
+    # ------------------------------------------------------------------
+    # R3 §4 — XUẤT EXCEL, và R3 §5 — CHỐT KỲ.
+    #
+    # Cả hai đọc ĐÚNG `PeriodData` mà các trang khác đang hiển thị. Không có
+    # đường nào từ đây tới `ImportResult` hay tới `excel_exporter`: file xuất
+    # từ kết quả pipeline là ảnh chụp trạng thái TRƯỚC mọi quyết định của
+    # Owner — nó trông đầy đủ, nó cân, và nó nói một bộ số khác màn hình.
+    # ------------------------------------------------------------------
+
+    @app.get("/kinh-doanh/xuat-excel")
+    def business_export_excel():
+        """Tải file Excel của kỳ đang xem (tuỳ chọn: một nhân viên/một sheet).
+
+        Ba tham số, đúng ba lát cắt mà màn hình có: `ky` (kỳ), `nhan-vien`
+        (một người), `nhom` (một sheet báo cáo). Không tham số nào tạo ra một
+        phép gộp mới — chúng chỉ chọn lát nào của cùng một `PeriodData`.
+        """
+        view = _business_period()
+        service = view["service"]
+        context = _employee_context(view)
+        data = view["data"]
+        scope = "toan-ky"
+        if context["chosen"]:
+            data = data.for_employee(context["employee"])
+            scope = context["employee"] or "chua-xac-dinh"
+        else:
+            sheet_key = request.args.get("nhom")
+            if sheet_key:
+                sheet = reporting_sheets.find_sheet(
+                    service.sheets(view["data"]), sheet_key)
+                if sheet is None:
+                    abort(404)
+                data = view["data"].for_sheet(sheet)
+                scope = sheet.key
+        label = business_presentation.period_label(view["period"])
+        try:
+            workbook = service.export_workbook(data=data, period_label=label)
+        except business_export.ExportIntegrityError as exc:
+            # File lệch KHÔNG được ghi ra: nó sẽ được gửi đi và được tin.
+            abort(409, description=str(exc))
+        stream = io.BytesIO()
+        workbook.save(stream)
+        stream.seek(0)
+        return send_file(
+            stream, mimetype=XLSX_MIMETYPE, as_attachment=True,
+            download_name=_export_file_name(view["selected_period"], scope))
+
+    @app.get("/kinh-doanh/chot-ky")
+    def business_period_close():
+        """Trang CHỐT KỲ — bộ số sắp được duyệt, và lịch sử các lần chốt."""
+        view = _business_period()
+        service, period = view["service"], view["period"]
+        data = view["data"]
+        history = ([] if period is None
+                   else _guarded(service.period_store.history,
+                                 year=period[0], month=period[1]))
+        return render_template(
+            "kinh_doanh_chot_ky.html", periods=view["periods"],
+            selected_period=view["selected_period"],
+            period_label=business_presentation.period_label(period),
+            has_period=period is not None,
+            summary=business_presentation.close_summary(data.totals),
+            closed=data.closed,
+            drift=_guarded(service.period_drift, period=period, data=data),
+            history=history,
+            open_exceptions=len(data.binding_exceptions),
+            discount_double_count=list(data.discount_double_count),
+            message=request.args.get("da-luu") or None,
+            error=request.args.get("loi") or None)
+
+    @app.post("/kinh-doanh/chot-ky")
+    def business_close_period():
+        """Chốt kỳ, hoặc mở lại một kỳ đã chốt (kèm LÝ DO bắt buộc)."""
+        view = _business_period()
+        service, period = view["service"], view["period"]
+        if period is None:
+            # "Toàn bộ dữ liệu" không phải một kỳ. Chốt một khoảng không có
+            # tháng nghĩa là chốt một thứ không ai đặt tên được.
+            abort(404)
+
+        def _back(**extra):
+            return redirect(url_for(
+                "business_period_close", ky=view["selected_period"], **extra))
+
+        if request.form.get("hanh-dong") == "mo-lai":
+            try:
+                _guarded(service.reopen_period, period=period,
+                         reason=request.form.get("ly_do") or "",
+                         reopened_by=identity_gateway.actor_of())
+            except (period_lock.MissingReopenReasonError,
+                    period_lock.PeriodNotClosedError) as exc:
+                return _back(loi=str(exc))
+            return _back(**{"da-luu": (
+                f"Đã mở lại kỳ {business_presentation.period_label(period)}. "
+                "Các thao tác sửa số của kỳ này đã mở lại.")})
+        try:
+            closed = _guarded(
+                service.close_period, period=period, data=view["data"],
+                closed_by=identity_gateway.actor_of(),
+                note=request.form.get("ghi_chu") or None)
+        except period_lock.InvalidPeriodError as exc:
+            return _back(loi=str(exc))
+        return _back(**{"da-luu": (
+            f"Đã chốt kỳ {business_presentation.period_label(period)} "
+            f"(lần {closed.version_no}). Mọi thay đổi số của kỳ này từ giờ "
+            "phải MỞ LẠI kỳ trước, và lần mở lại đó được ghi kèm lý do.")})
 
     @app.get("/kinh-doanh/gia-dung")
     def business_gia_dung():
@@ -2378,6 +2553,9 @@ def create_app(
         product = products.get(product_key)
         if product is None:
             abort(404)
+        # Quyết định cấp MẶT HÀNG chạm mọi kỳ có dòng của mã đó, nên cửa chặn
+        # phải hỏi mọi kỳ ấy — không chỉ kỳ đang xem.
+        _guarded(view["service"].guard_product_open, product_key)
         if request.form.get("gia_dung") == "1":
             _guarded(view["service"].store.set_product_group,
                      product_key=product_key, product_group="GIA_DUNG",

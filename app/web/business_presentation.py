@@ -556,6 +556,27 @@ def _state_note(totals: bm.BusinessTotals) -> str:
     return OFFICIAL_NOTE if totals.coverage.is_complete else INCOMPLETE_NOTE
 
 
+def close_summary(totals: bm.BusinessTotals) -> dict:
+    """R3 §5 — bộ số SẮP ĐƯỢC DUYỆT, viết ra để người duyệt đọc trước khi ký.
+
+    Cố ý dùng lại `_metrics` — đúng bộ chỉ tiêu mà trang Báo cáo hiện. Trang
+    chốt kỳ mà tính riêng một bộ số sẽ cho người duyệt ký vào một con số họ
+    chưa từng nhìn thấy ở đâu khác.
+
+    `can_close` là một mệnh đề, không phải một lời khuyên: chốt một kỳ chưa
+    đủ coverage nghĩa là duyệt một bộ số mà chính hệ thống từ chối gọi là
+    CHÍNH THỨC (`R-S7`).
+    """
+    return {
+        **_metrics(totals),
+        "state": totals.state,
+        "state_label": STATE_LABELS.get(totals.state, totals.state),
+        "official": totals.coverage.is_complete,
+        "coverage": coverage_cell(totals.coverage),
+        "can_close": totals.lines > 0,
+    }
+
+
 def employee_rows(by_employee: list[tuple], company: bm.BusinessTotals) -> list[dict]:
     """Bảng nhân viên + dòng `TỔNG`.
 
@@ -1531,7 +1552,8 @@ __all__ = [
     "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
-    "assignable_employee_options", "coverage_cell", "detail_rows",
+    "assignable_employee_options", "close_summary", "coverage_cell",
+    "detail_rows",
     "KPI_PROFIT_NOTE", "pending_items", "reporting_rows", "sheet_display_order",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",

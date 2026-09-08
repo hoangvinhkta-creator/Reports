@@ -1,0 +1,132 @@
+{# R3 §5 — CHỐT KỲ.
+
+   Trang này KHÔNG hiển thị một bộ số riêng. Nó hiện đúng bộ số mà trang Báo
+   cáo đang hiện, rồi hỏi một câu: "duyệt bộ số này chưa?". Tính lại ở đây sẽ
+   khiến người duyệt ký vào một con số họ chưa từng nhìn thấy ở chỗ khác. #}
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Chốt kỳ{% endblock %}
+
+{% block content %}
+<h1>CHỐT KỲ — {{ period_label }}</h1>
+
+<div class="module">
+  {{ biz.period_picker(periods, selected_period, url_for('business_period_close')) }}
+  <p>
+    <a class="ghost btn-mini" href="{{ url_for('business_summary', ky=selected_period) }}"
+      >← VỀ TRANG BÁO CÁO</a>
+    <a class="ghost btn-mini" href="{{ url_for('business_export_excel', ky=selected_period) }}"
+       data-metric="close-export">TẢI EXCEL CỦA KỲ NÀY</a>
+  </p>
+</div>
+
+{% if message %}<p class="insight" data-metric="close-saved">{{ message }}</p>{% endif %}
+{% if error %}<p class="error" data-metric="close-error">{{ error }}</p>{% endif %}
+
+{% if not has_period %}
+{# "Toàn bộ dữ liệu" không phải một kỳ. Chốt một khoảng không có tháng nghĩa
+   là chốt một thứ không ai đặt tên được. #}
+<p class="error" data-metric="close-no-period">Hãy chọn MỘT THÁNG cụ thể ở ô kỳ
+   phía trên. Khung nhìn "toàn bộ dữ liệu" không phải một kỳ để chốt.</p>
+{% else %}
+
+<div class="module">
+  <h2>Trạng thái</h2>
+  {% if closed %}
+  <p class="insight" data-metric="close-state" data-closed="1">
+    <strong>ĐÃ CHỐT</strong> — lần {{ closed.version_no }}, lúc {{ closed.closed_at }}
+    {% if closed.closed_by %}bởi {{ closed.closed_by }}{% endif %}.
+    {% if closed.note %}Ghi chú: {{ closed.note }}{% endif %}
+  </p>
+  <p class="insight">Mọi thao tác sửa số của kỳ này (giá nhập, nhân viên,
+     phân loại, loại dòng, Target) đang bị TỪ CHỐI cho tới khi kỳ được mở lại.</p>
+  {% if drift %}
+  <p class="error" data-metric="close-drift">Bộ số hiện tại đã KHÁC bộ số lúc
+     chốt. Một lần nạp lại sổ, hoặc một quyết định nằm ngoài đường bị khoá
+     (ví dụ phân loại mã sản phẩm), đã làm đổi con số của kỳ đã duyệt. Hãy xem
+     lại rồi mở lại và chốt lần nữa nếu bộ số mới là đúng.</p>
+  {% endif %}
+  {% else %}
+  <p class="insight" data-metric="close-state" data-closed="0">
+    <strong>CHƯA CHỐT</strong> — kỳ này còn sửa được bình thường.</p>
+  {% endif %}
+</div>
+
+<div class="module">
+  <h2>Bộ số sắp được duyệt</h2>
+  <table>
+    <tr><th>Chỉ tiêu</th><th class="num">Giá trị</th></tr>
+    <tr data-metric="close-lines"><td>Số dòng</td><td class="num">{{ summary.lines }}</td></tr>
+    <tr data-metric="close-orders"><td>Số đơn</td><td class="num">{{ summary.orders }}</td></tr>
+    <tr data-metric="close-revenue"><td>Doanh thu bán hàng</td>
+        <td class="num">{{ summary.sales_revenue.text }}</td></tr>
+    <tr data-metric="close-profit"><td>Lợi nhuận KPI</td>
+        <td class="num">{{ summary.kpi_profit.text }}</td></tr>
+    <tr data-metric="close-converted"><td>DS quy đổi</td>
+        <td class="num">{{ summary.converted_sales.text }}</td></tr>
+    <tr data-metric="close-coverage"><td>Dòng đã chốt được lợi nhuận</td>
+        <td class="num">{{ summary.coverage.text }}</td></tr>
+  </table>
+  <p class="insight" data-metric="close-state-label">
+    Trạng thái bộ số: <strong>{{ summary.state_label }}</strong>.
+    {% if not summary.official %}Kỳ vẫn chốt được ở trạng thái này — nhưng
+    chốt nghĩa là duyệt đúng bộ số đang hiện, kể cả phần chưa hoàn chỉnh.{% endif %}
+  </p>
+  {% if open_exceptions %}
+  <p class="error" data-metric="close-binding-exceptions">Còn {{ open_exceptions }}
+     ngoại lệ gắn dòng chưa xử lý. Chúng là những dòng mà hệ thống KHÔNG dám tự
+     ghép vào khoá cũ khi nạp lại sổ — một quyết định của Owner đang treo ở đó.</p>
+  {% endif %}
+  {% if discount_double_count %}
+  <p class="error" data-metric="close-discount-risk">Có {{ discount_double_count|length }}
+     đơn vừa có dòng "Chiết khấu" riêng vừa có cột chiết khấu
+     ({{ discount_double_count|join(', ') }}) — nguy cơ trừ hai lần.</p>
+  {% endif %}
+</div>
+
+<div class="module">
+  {% if closed %}
+  <h2>Mở lại kỳ</h2>
+  <p class="insight">Mở lại một kỳ đã duyệt là khẳng định bộ số đã duyệt có gì
+     đó sai. LÝ DO là bắt buộc — nó được lưu cùng lần chốt đang bị mở.</p>
+  <form method="post" action="{{ url_for('business_close_period') }}">
+    <input type="hidden" name="ky" value="{{ selected_period }}">
+    <input type="hidden" name="hanh-dong" value="mo-lai">
+    <p><input type="text" name="ly_do" data-metric="close-reopen-reason"
+              aria-label="Lý do mở lại kỳ" placeholder="Vì sao phải mở lại kỳ này?"></p>
+    <p><button class="ghost" type="submit" data-metric="close-reopen">MỞ LẠI KỲ</button></p>
+  </form>
+  {% else %}
+  <h2>Chốt kỳ này</h2>
+  <form method="post" action="{{ url_for('business_close_period') }}">
+    <input type="hidden" name="ky" value="{{ selected_period }}">
+    <p><input type="text" name="ghi_chu" data-metric="close-note"
+              aria-label="Ghi chú của lần chốt" placeholder="Ghi chú (không bắt buộc)"></p>
+    <p><button type="submit" data-metric="close-submit">CHỐT KỲ {{ period_label }}</button></p>
+  </form>
+  {% endif %}
+</div>
+
+{% if history %}
+<div class="module">
+  <h2>Lịch sử chốt kỳ <span class="cnt">{{ history|length }} lần</span></h2>
+  <table>
+    <tr><th>Lần</th><th>Chốt lúc</th><th>Bởi</th><th class="num">Số dòng</th><th>Ghi chú</th></tr>
+    {% for item in history %}
+    <tr data-metric="close-history-row" data-version="{{ item.version_no }}">
+      <td>{{ item.version_no }}</td>
+      <td>{{ item.closed_at }}</td>
+      <td>{{ item.closed_by or '—' }}</td>
+      <td class="num">{{ item.line_count if item.line_count is not none else '—' }}</td>
+      <td>{{ item.note or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="insight">Bản ghi là APPEND-ONLY: mở lại một kỳ KHÔNG xoá lần chốt
+     cũ, nó chỉ đánh dấu lần chốt đó đã được mở.</p>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
