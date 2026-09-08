@@ -16,7 +16,7 @@ Toàn bộ dữ liệu là tổng hợp.
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,6 +42,16 @@ from tests.test_employee_workspace_ux import (
 from tools.tracking import live_pull
 
 RAW = "43F6000"
+
+
+def _before_now(days: int = 1) -> str:
+    """Mốc ISO8601 chắc chắn Ở QUÁ KHỨ so với đồng hồ hệ thống thật.
+
+    Dùng khi `persist()` cần đại diện một BH "đã tồn tại từ trước" một quyết
+    định sẽ được ghi bằng đồng hồ thật ngay trong bài kiểm (`confirm_identity`
+    qua route) — xem docstring `TestConflictThroughTheWeb`.
+    """
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
 
 @pytest.fixture
@@ -429,6 +439,17 @@ class TestConflictThroughTheWeb:
     xác nhận được, nên lớp này tự dựng `client`/`identity_store` riêng — cùng
     khuôn `test_dec185_nav_chart_identity.py::tracking_on` — thay vì dùng
     fixture `client` chung của file (vốn không nối Tracking).
+
+    `persist(..., at=...)` cho các BH "đã có từ trước khi Owner giải mâu
+    thuẫn" LUÔN phải truyền tường minh một mốc chắc chắn Ở QUÁ KHỨ so với
+    đồng hồ hệ thống thật (`_before_now`) — mặc định của `persist()`
+    (`"2026-10-01T00:00:00"`, xem `test_employee_workspace_ux.py`) là một
+    ngày nghiệp vụ hư cấu, không phải giờ tường thuật, và có thể rơi SAU
+    đồng hồ thật tại thời điểm chạy CI (`FIND-R2-IR-03`: route
+    `confirm_identity` ghi `confirmed_at` bằng `datetime.now(timezone.utc)`
+    thật — nếu bằng chứng "cũ" lại mang mốc SAU quyết định, `state_of` sẽ
+    đúng đắn coi bằng chứng đó mới hơn và không chịu miễn trừ, khiến bài
+    kiểm sai một cách giả tạo, không phải vì code sai).
     """
 
     RAW_CONFLICT = "43F6000"
@@ -441,6 +462,26 @@ class TestConflictThroughTheWeb:
             log_path=tmp_path / "identity" / "mappings.jsonl",
             index_path=tmp_path / "identity" / "index.json")
 
+    def _snapshot_with_authority(self, code: str):
+        """Một ảnh chụp catalog với `alias.map` trỏ THẲNG về `code`.
+
+        Tách khỏi fixture `catalog` để bài `FIND-R2-IR-03` đổi authority
+        THẬT giữa chừng (A100 → C300) qua đúng cửa mà `confirm_identity` đọc
+        (`tracking_authority_code()`), không chỉ fabricate mã lý do — nếu
+        không, `recorded_conflict_opposing_code` sau khi Owner chọn lại sẽ
+        vẫn ghi mã authority CŨ (catalog tĩnh), làm bài kiểm "pass" sai.
+        """
+        aid = distinct_identities(
+            [fx.row(self.RAW_CONFLICT)])[0].normalized_matching_aid.upper()
+        return fx.tracking_snapshot(
+            (
+                ("TRK-A100", "Tủ lạnh Panasonic NR-BX", (), True),
+                ("TRK-B200", "Tivi Sony KD-55", (), True),
+                ("TRK-C300", "Máy giặt LG FV1450", (), True),
+            ),
+            alias_map_rows=((aid, code),),
+        )
+
     @pytest.fixture
     def catalog(self):
         """`alias.map` cố ý trỏ THẲNG về `TRK-A100` — đây là điểm khiến kịch
@@ -448,16 +489,18 @@ class TestConflictThroughTheWeb:
         trong khi bài kiểm sẽ để Owner chọn B200. Không có `alias_map_rows`
         này, `tracking_authority_code()` không tìm ra authority nào cho tên
         hàng thô, và không có mã đối lập nào được ghi lại — bài kiểm sẽ
-        "pass" mà không thật sự canh được `FIND-R2-IR-02`."""
-        aid = distinct_identities(
-            [fx.row(self.RAW_CONFLICT)])[0].normalized_matching_aid.upper()
-        return fx.tracking_snapshot(
-            (
-                ("TRK-A100", "Tủ lạnh Panasonic NR-BX", (), True),
-                ("TRK-B200", "Tivi Sony KD-55", (), True),
-            ),
-            alias_map_rows=((aid, "TRK-A100"),),
-        )
+        "pass" mà không thật sự canh được `FIND-R2-IR-02`.
+
+        Trả về MỘT hộp chứa thay đổi được (`SimpleNamespace`), không phải
+        thẳng object ảnh chụp: `client` (dưới) đóng nó vào một `lambda`
+        được monkeypatch MỘT lần cho cả bài kiểm, còn bài `FIND-R2-IR-03`
+        cần đổi authority THẬT (A100 → C300) giữa chừng, sau khi `client`
+        đã dựng xong — sửa `catalog.snapshot` thì `lambda` đọc lại ngay,
+        không cần monkeypatch lần hai giữa bài kiểm.
+        """
+        from types import SimpleNamespace
+
+        return SimpleNamespace(snapshot=self._snapshot_with_authority("TRK-A100"))
 
     @pytest.fixture
     def client(self, engine, monkeypatch, tmp_path, identity_store, catalog):
@@ -481,7 +524,8 @@ class TestConflictThroughTheWeb:
             tracking_capture=tmp_path / "history.json",
             tracking_catalog=tmp_path / "catalog.json")
         monkeypatch.setattr(
-            web_server, "load_tracking_catalog_capture", lambda path: catalog)
+            web_server, "load_tracking_catalog_capture",
+            lambda path: catalog.snapshot)
         monkeypatch.setattr(
             web_server, "_select_captures_for_run",
             lambda sales=None, identity_store_view=None: (captures, None, None))
@@ -523,7 +567,7 @@ class TestConflictThroughTheWeb:
         hiện hành. Bài này khẳng định cả hai con số đó nay đúng.
         """
         self._seed_old_mapping(identity_store)
-        persist(repository, self._conflicted_order())
+        persist(repository, self._conflicted_order(), at=_before_now())
 
         workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
         assert 'data-classification="CONFLICT"' in workspace
@@ -540,7 +584,7 @@ class TestConflictThroughTheWeb:
         """Nửa còn lại của luồng: sau khi CHỌN LẠI, trang phải hiện NGAY là
         đã khớp — không chờ chạy lại sổ (`§4.5`)."""
         self._seed_old_mapping(identity_store)
-        persist(repository, self._conflicted_order())
+        persist(repository, self._conflicted_order(), at=_before_now())
         keys = keys_of(service, "BH-CONFLICT", self.RAW_CONFLICT)
 
         response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
@@ -566,6 +610,122 @@ class TestConflictThroughTheWeb:
             "REPORTS_SALES", raw_identity_key(self.RAW_CONFLICT))
         assert mapping.mapping_source is MappingSource.HUMAN_CONFLICT_RESOLUTION
         assert recorded_conflict_opposing_code(mapping) == "TRK-A100"
+
+    def test_authority_changing_again_reopens_as_a_new_conflict(
+        self, engine, tmp_path, repository, service, client, identity_store,
+        catalog,
+    ):
+        """`FIND-R2-IR-03`, xuyên route Flask thật, toàn bộ chuỗi yêu cầu.
+
+        Owner giải A-vs-B (chọn B200 — xem `_seed_old_mapping`/luồng ở bài
+        trên) → trang hết CONFLICT ngay. Sau đó Tracking đổi authority sang
+        C300: một lần chạy sổ MỚI (mô phỏng bằng `persist` lần hai, CÙNG
+        order/product key, `run_id`/`fingerprint` khác — đúng khuôn "nạp lại
+        sổ" của `test_the_customer_fields_survive_a_new_snapshot`) ghi lại
+        `IDENTITY_CONFLICT`. Đây là một mâu thuẫn HOÀN TOÀN KHÁC (A-vs-C,
+        không phải A-vs-B đã giải) — trang phải hiện CONFLICT trở lại, có
+        nút chọn lại, và dòng phải vào hàng đợi xung đột — chứ không được để
+        quyết định A-vs-B cũ (`conflict_resolved` chỉ theo khoá) che mất nó.
+
+        Owner chọn lại A100 cho ĐÚNG mâu thuẫn A-vs-C này; quyết định đó phải
+        đứng vững qua một `create_app()` mới (mô phỏng restart).
+        """
+        self._seed_old_mapping(identity_store)
+        persist(repository, self._conflicted_order(), at=_before_now(days=2))
+        keys = keys_of(service, "BH-CONFLICT", self.RAW_CONFLICT)
+
+        # Nửa đầu: giải A-vs-B, giữ B200 — trang phải hết CONFLICT ngay.
+        response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
+            "ky": "2026-09", "sheet": "noi-thanh", **keys,
+            "ma_tracking": "TRK-B200", "ly_do": "Kiểm tra tem máy lại"})
+        assert response.status_code == 302
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' not in workspace
+
+        # Yêu cầu 3: chạy lại sổ với authority KHÔNG đổi (vẫn B200) — không
+        # được hỏi lại. `_human_decision_resolution` (repair `FIND-R2-IR-02`)
+        # tự miễn trừ ở tầng resolver nên lần chạy lại không còn lý do
+        # `IDENTITY_CONFLICT` nào để fabricate — persist một bản KHÔNG xung
+        # đột, đúng những gì resolver production sẽ thật sự tạo ra.
+        persist(repository, [
+            line("BH-CONFLICT", self.RAW_CONFLICT, day=5, sell="9000000",
+                 kpi_purchase="6000000", kpi_profit="3000000", reasons=())
+        ], run_id="run-2", at=_before_now(), fingerprint="fp-b")
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' not in workspace, (
+            "authority không đổi — không được hỏi lại")
+
+        # Tracking đổi authority sang C300 — THẬT, qua đúng cửa mà
+        # `confirm_identity` đọc (`tracking_authority_code()`), không chỉ
+        # fabricate mã lý do: nếu không, `recorded_conflict_opposing_code`
+        # ở bước chọn lại phía dưới vẫn sẽ ghi A100 (authority CŨ của catalog
+        # tĩnh), và bài kiểm sẽ không thật sự canh được yêu cầu 1.
+        catalog.snapshot = self._snapshot_with_authority("TRK-C300")
+
+        # Lần chạy sổ MỚI, SAU quyết định A-vs-B, lại ghi IDENTITY_CONFLICT —
+        # một mâu thuẫn A-vs-C mới.
+        #
+        # `at` lấy ĐÚNG đồng hồ thật NGAY LÚC NÀY (không lệch ngày hư cấu):
+        # bài kiểm còn một bước giải mâu thuẫn NỮA phía dưới (Owner chọn lại
+        # A cho A-vs-C), và bước đó cũng ghi `confirmed_at` bằng đồng hồ
+        # thật — nó chỉ có thể diễn ra SAU câu lệnh này theo đúng thứ tự thực
+        # thi thật, nên không cần và không nên gán một mốc tương lai hư cấu.
+        persist(repository, self._conflicted_order(), run_id="run-3",
+                at=datetime.now(timezone.utc).isoformat(), fingerprint="fp-c")
+
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' in workspace, (
+            "authority đổi sang C — quyết định A-vs-B cũ không được che mất "
+            "mâu thuẫn A-vs-C mới")
+        assert line_identity.LABEL_CONFLICT in metrics(workspace, "identity-label")
+
+        # Yêu cầu 6: giá/lợi nhuận còn None trong lúc mâu thuẫn MỚI chưa xử lý.
+        data = service.period(**SEPTEMBER)
+        line_detail = next(
+            d for d in data.details
+            if d["order_key"] == "BH-CONFLICT" and d["product_raw"] == self.RAW_CONFLICT)
+        assert line_detail["line"].purchase_price is None
+        assert line_detail["line"].kpi_profit is None
+
+        # Yêu cầu 4: dòng phải vào hàng đợi xung đột, có đường chọn lại.
+        queue = body(client, "/kinh-doanh/gia-nhap?ky=2026-09&loc=xung-dot")
+        assert 'data-metric="no-rows"' not in queue
+        assert any(self.RAW_CONFLICT in text for text in _products(queue))
+
+        # Owner chọn lại A100 cho ĐÚNG mâu thuẫn A-vs-C hiện hành.
+        keys = keys_of(service, "BH-CONFLICT", self.RAW_CONFLICT)
+        response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
+            "ky": "2026-09", "sheet": "noi-thanh", **keys,
+            "ma_tracking": "TRK-A100", "ly_do": "C300 sai — vẫn là A100"})
+        assert response.status_code == 302
+
+        workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' not in workspace
+
+        # Yêu cầu 5: quyết định phải persist qua reload/restart.
+        view = identity_store.read_at_revision(identity_store.refresh())
+        mapping = view.active_mapping(
+            "REPORTS_SALES", raw_identity_key(self.RAW_CONFLICT))
+        assert mapping.mapping_source is MappingSource.HUMAN_CONFLICT_RESOLUTION
+        assert mapping.source_product_code == "TRK-A100"
+        assert recorded_conflict_opposing_code(mapping) == "TRK-C300"
+
+        # "Restart" thật: một `create_app()` MỚI, không phải chỉ đọc lại file
+        # qua object `identity_store` đang mở sẵn — instance Flask cũ đã bị
+        # bỏ hẳn, instance mới tự mở lại `mappings.jsonl`/`index.json` từ đĩa
+        # (đường dẫn đã monkeypatch ở fixture `client` vẫn còn hiệu lực vì
+        # nó vá module-level, không gắn với một app cụ thể).
+        restarted = web_server.create_app(
+            db_path=tmp_path / "runs.db",
+            history=history_store.LegacyRepository(engine),
+            snapshots=history_store.SnapshotRepository(engine))
+        restarted.testing = True
+        restarted_client = restarted.test_client()
+
+        workspace_again = body(
+            restarted_client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
+        assert 'data-classification="CONFLICT"' not in workspace_again, (
+            "quyết định A-vs-C phải đứng vững qua một app mới sau restart")
 
 
 def _empty_xlsx():

@@ -97,6 +97,14 @@ _COLUMNS = (
     _RESULT.lead_source_final, _RESULT.total_sales, _RESULT.kpi_purchase_price,
     _RESULT.kpi_purchase_provenance, _RESULT.eligible_kpi_profit,
     _RESULT.product_group_final, _RESULT.conversion_rate_final,
+    # repair `FIND-R2-IR-03` — mốc lần chạy đã tính ra CHÍNH dòng này, không
+    # phải mốc của bất kỳ bảng nào khác cùng tên cột (`order_line_source_
+    # version` cũng có `created_at`) — `.label()` để tránh đụng khoá khi
+    # `_read()` gộp mọi cột vào MỘT dict phẳng theo tên. `line_identity.
+    # state_of` so nó với `confirmed_at` của một mapping giải mâu thuẫn để
+    # biết quyết định đó MỚI HƠN hay CŨ HƠN bằng chứng đang hiển thị — không
+    # cột/bảng mới nào được thêm, đây là cột ĐÃ CÓ SẴN từ trước R2.
+    _RESULT.created_at.label("result_created_at"),
     _SOURCE.product_raw, _SOURCE.quantity, _SOURCE.sell_price, _SOURCE.discount,
     _SOURCE.customer_name, _SOURCE.customer_phone, _SOURCE.customer_address,
 )
@@ -346,6 +354,10 @@ def line_details(
             "product_raw": row["product_raw"],
             "sale_date": row["sale_date"],
             "auto_provenance": row["kpi_purchase_provenance"],
+            # repair `FIND-R2-IR-03` — xem chú thích ở `_COLUMNS`. Chỉ dùng để
+            # ĐỌC LẠI trong `line_identity.state_of`; không phép tính nghiệp
+            # vụ nào khác chạm vào trường này.
+            "result_created_at": row.get("result_created_at"),
             "customer_name": row.get("customer_name"),
             "customer_phone": row.get("customer_phone"),
             "customer_address": row.get("customer_address"),

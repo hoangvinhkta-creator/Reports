@@ -1375,17 +1375,21 @@ def create_app(
         hai ảnh chụp, và một thao tác xảy ra giữa chúng sẽ làm một dòng hiện
         đồng thời "đã khớp" ở chỗ này và "chưa phân loại" ở chỗ kia.
 
-        `conflict_resolved` (repair `FIND-R2-IR-01`) là tập CON của
-        `confirmed`: những khoá mà mapping ĐANG hiệu lực mang
-        `mapping_source = HUMAN_CONFLICT_RESOLUTION`. `line_identity.state_of`
-        cần phân biệt nó với một mapping CONFIRMED bình thường để không cho
-        một quyết định cũ (từ TRƯỚC khi mâu thuẫn xuất hiện) che mất
-        `IDENTITY_CONFLICT` mà lần chạy hiện hành vừa ghi.
+        `conflict_resolved` (repair `FIND-R2-IR-01`, siết lại ở
+        `FIND-R2-IR-03`) là `{raw_identity_key: confirmed_at}` — KHÔNG phải
+        một tập khoá trần. `mapping.confirmed_at` (đã là `datetime`, ép buộc
+        có mặt ở mọi mapping CONFIRMED — `ProductIdentityMapping.__post_init__`)
+        là mốc "quyết định giải mâu thuẫn này được ghi lúc nào". `line_identity.
+        state_of` so nó với mốc lần chạy đã tính ra dòng đang hiển thị, để
+        không cho một quyết định giải A-vs-B CŨ che mất một `IDENTITY_CONFLICT`
+        MỚI (A-vs-C) mà một lần chạy SAU đó đã đúng đắn phát hiện lại — một
+        tập khoá trần không phân biệt được hai việc này (xem `Decisions`).
         """
         view = identity_gateway.store_view(identity_store)
         if view is None:
             return line_identity.Decisions()
-        confirmed, out_of_catalog, conflict_resolved = set(), set(), set()
+        confirmed, out_of_catalog = set(), set()
+        conflict_resolved: dict = {}
         for mapping in view.alias_index().values():
             if mapping.source_system != identity_gateway.SOURCE_SYSTEM_REPORTS_SALES:
                 continue
@@ -1393,7 +1397,7 @@ def create_app(
                 confirmed.add(mapping.raw_identity_key)
                 if (mapping.mapping_source
                         is identity_gateway.MappingSource.HUMAN_CONFLICT_RESOLUTION):
-                    conflict_resolved.add(mapping.raw_identity_key)
+                    conflict_resolved[mapping.raw_identity_key] = mapping.confirmed_at
             elif mapping.status is identity_gateway.MappingStatus.OUT_OF_CATALOG:
                 out_of_catalog.add(mapping.raw_identity_key)
         return line_identity.Decisions.of(

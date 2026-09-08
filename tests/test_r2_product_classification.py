@@ -715,7 +715,7 @@ class TestFindR2IR01ConflictNotHiddenByAnOldMapping:
         detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",))
         decisions = line_identity.Decisions.of(
             confirmed={raw_identity_key(RAW_A)},
-            conflict_resolved={raw_identity_key(RAW_A)})
+            conflict_resolved={raw_identity_key(RAW_A): datetime.now(timezone.utc)})
 
         state = line_identity.state_of(detail, decisions=decisions)
 
@@ -887,6 +887,76 @@ class TestFindR2IR02ConflictResolutionDoesNotExemptFutureConflicts:
 
 
 # --------------------------------------------------------------------------
+# FIND-R2-IR-03 — `conflict_resolved` phải theo dấu thời gian của bằng
+# chứng, không phải một tập khoá miễn trừ vĩnh viễn
+# --------------------------------------------------------------------------
+
+class TestFindR2IR03ConflictResolutionIsScopedToTheEvidenceItResolved:
+    """`Decisions.conflict_resolved` phải so `confirmed_at` (lúc Owner giải)
+    với `result_created_at` của chính dòng đang xét (lúc lần chạy gần nhất
+    tính ra dòng đó) — chứ không dùng bare `key in set` miễn trừ mọi
+    CONFLICT tương lai của cùng khoá.
+
+    `TestFindR2IR01...test_resolving_the_conflict_still_takes_effect_immediately`
+    đã canh nhánh THIẾU `result_created_at` (mặc định an toàn = hiệu lực
+    ngay); lớp này canh nhánh CÓ đủ hai mốc, đúng trọng tâm của repair.
+    """
+
+    def test_a_resolution_older_than_the_evidence_does_not_hide_a_new_conflict(
+        self,
+    ):
+        """Owner giải A-vs-B lúc T1; lần chạy MỚI ở T2 (T2 > T1) lại ghi
+        `IDENTITY_CONFLICT` — nghĩa là authority đã đổi tiếp (A-vs-C), CHƯA
+        ai xử lý. Quyết định T1 không được che mất bằng chứng T2."""
+        key = raw_identity_key(RAW_A)
+        t1 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        t2 = datetime(2026, 1, 2, tzinfo=timezone.utc)
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",),
+                          result_created_at=t2)
+        decisions = line_identity.Decisions.of(
+            confirmed={key}, conflict_resolved={key: t1})
+
+        state = line_identity.state_of(detail, decisions=decisions)
+
+        assert state.classification == line_identity.CLASS_CONFLICT
+        assert state.conflict is True
+        assert state.classifiable, "phải mở được bảng chọn lại cho A-vs-C"
+
+    def test_a_resolution_newer_than_the_evidence_takes_effect_immediately(
+        self,
+    ):
+        """Chiều ngược lại: bằng chứng CONFLICT ở T1 là của lần chạy TRƯỚC
+        khi Owner giải ở T2 (T2 > T1) — đúng ca `§4.5`, phải khớp NGAY,
+        không chờ chạy lại sổ."""
+        key = raw_identity_key(RAW_A)
+        t1 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        t2 = datetime(2026, 1, 2, tzinfo=timezone.utc)
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",),
+                          result_created_at=t1)
+        decisions = line_identity.Decisions.of(
+            confirmed={key}, conflict_resolved={key: t2})
+
+        state = line_identity.state_of(detail, decisions=decisions)
+
+        assert state.classification == line_identity.CLASS_MATCHED_TRACKING
+        assert state.conflict is False
+
+    def test_a_naive_result_timestamp_still_compares_without_crashing(self):
+        """Một số đường ghi cũ có thể để lại chuỗi KHÔNG múi giờ trên
+        `result_created_at` — `state_of` phải so được, không `TypeError`."""
+        key = raw_identity_key(RAW_A)
+        t2 = datetime(2026, 1, 2, tzinfo=timezone.utc)
+        detail = _detail(RAW_A, reasons=("IDENTITY_CONFLICT",),
+                          result_created_at="2026-01-01T00:00:00")
+        decisions = line_identity.Decisions.of(
+            confirmed={key}, conflict_resolved={key: t2})
+
+        state = line_identity.state_of(detail, decisions=decisions)
+
+        assert state.classification == line_identity.CLASS_MATCHED_TRACKING
+
+
+# --------------------------------------------------------------------------
 # CHECK-R2-16 — R1 không hồi quy
 # --------------------------------------------------------------------------
 
@@ -935,8 +1005,13 @@ class TestCheckR216R1InvariantsHold:
 # Trợ giúp
 # --------------------------------------------------------------------------
 
-def _detail(raw, *, reasons=(), purchase_price=None):
-    """Một `detail` tối thiểu đúng hình dạng mà `line_identity` đọc."""
+def _detail(raw, *, reasons=(), purchase_price=None, result_created_at=None):
+    """Một `detail` tối thiểu đúng hình dạng mà `line_identity` đọc.
+
+    `result_created_at` mặc định vắng mặt — đúng hình dạng mọi bài kiểm đã
+    nghiệm thu trước `FIND-R2-IR-03`, nơi `state_of` phải lùi về nhánh "hiệu
+    lực ngay" khi thiếu mốc để so (xem `state_of`, bước 2).
+    """
     line = bm.BusinessLine(
         order_key="BH1", employee="Vinh", employee_group="NOI_THANH",
         status="PENDING", sell_price=Decimal("8000000"), quantity=Decimal(1),
@@ -944,7 +1019,8 @@ def _detail(raw, *, reasons=(), purchase_price=None):
         auto_purchase_price=purchase_price, auto_kpi_profit=None,
         kpi_authority_valid=True, pending_reasons=tuple(reasons))
     return {"order_key": "BH1", "product_key": "pk", "occurrence_index": 1,
-            "product_raw": raw, "line": line}
+            "product_raw": raw, "line": line,
+            "result_created_at": result_created_at}
 
 
 def _sources(identity_store, snapshot=None):

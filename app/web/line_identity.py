@@ -58,7 +58,8 @@ sang "Thiếu giá", chứ không phải sang một con số. Bịa ra một con
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 
 from app.modules.product.identity.keys import raw_identity_key
@@ -162,23 +163,41 @@ class Decisions:
 
     RỖNG là mặc định ĐÚNG: nó cho ra chính xác hành vi trước R2.
 
-    `conflict_resolved` (repair `FIND-R2-IR-01`) là tập CON của `confirmed` —
-    những khoá mà quyết định ĐANG hiệu lực được ghi qua `resolves_conflict=
-    True` (`mapping_source = HUMAN_CONFLICT_RESOLUTION`). Nó tồn tại vì
-    `confirmed` một mình không đủ để `state_of` quyết định đúng: một CONFLICT
-    của lần chạy hiện hành chỉ có thể sinh ra từ chính một mapping CONFIRMED
-    (`_human_decision_resolution` chỉ tạo `IDENTITY_CONFLICT` khi
-    `mapping.status is CONFIRMED`), nên `confirmed` LUÔN chứa khoá đó — kiểm
-    `confirmed` trước `reasons` sẽ che mất CONFLICT vô điều kiện. Chỉ mapping
-    nào ĐƯỢC GIẢI QUA CHÍNH THAO TÁC GIẢI MÂU THUẪN mới được phép thắng một
-    lý do CONFLICT đã lưu ngay lập tức (`§4.5` — quyết định có hiệu lực
-    không chờ chạy lại sổ); một mapping CONFIRMED thường (`HUMAN_CONFIRMATION`
-    cũ, có TRƯỚC khi mâu thuẫn xuất hiện) thì không.
+    `conflict_resolved` (repair `FIND-R2-IR-01`, siết lại ở `FIND-R2-IR-03`)
+    là `{raw_identity_key: confirmed_at}` — KHÔNG phải một `frozenset` khoá
+    trần. Nó tồn tại vì `confirmed` một mình không đủ để `state_of` quyết
+    định đúng: một CONFLICT của lần chạy hiện hành chỉ có thể sinh ra từ
+    chính một mapping CONFIRMED (`_human_decision_resolution` chỉ tạo
+    `IDENTITY_CONFLICT` khi `mapping.status is CONFIRMED`), nên `confirmed`
+    LUÔN chứa khoá đó — kiểm `confirmed` trước `reasons` sẽ che mất CONFLICT
+    vô điều kiện.
+
+    `FIND-R2-IR-03` — vì sao một `frozenset` khoá trần KHÔNG đủ: Owner giải
+    A-vs-B (chọn A) thì khoá vào `conflict_resolved`; nếu Tracking sau đó đổi
+    authority sang C, lần chạy MỚI đúng đắn ghi lại `IDENTITY_CONFLICT` (một
+    mâu thuẫn A-vs-C HOÀN TOÀN KHÁC, chưa ai từng thấy) — nhưng khoá đó VẪN
+    còn trong `conflict_resolved` (không có gì xoá nó), nên nó lại thắng
+    NGAY một lần nữa, che mất đúng mâu thuẫn mới. Một tập khoá đơn thuần
+    không phân biệt được "đã giải ĐÚNG mâu thuẫn đang hiển thị" khỏi "đã giải
+    MỘT mâu thuẫn cũ hơn của cùng khoá".
+
+    Sửa bằng dấu thời gian: `state_of` so `confirmed_at` (lúc Owner giải) với
+    `result_created_at` của chính dòng đang xét (lúc lần chạy gần nhất tính
+    ra dòng đó). Chỉ khi quyết định MỚI HƠN lần chạy đã tạo ra bằng chứng
+    đang hiển thị thì nó mới được phép thắng ngay (`§4.5`); nếu lần chạy đó
+    diễn ra SAU quyết định (tức nó đã thấy đúng quyết định này và VẪN kết
+    luận còn mâu thuẫn — nghĩa là authority đã đổi tiếp), CONFLICT phải thắng.
+    Không cần một mã đối lập tường minh: dấu thời gian đã đủ để phân biệt
+    "quyết định cũ" khỏi "bằng chứng mới", và không đòi thêm cột hay bảng nào
+    — `confirmed_at` đã có sẵn trên mapping, `result_created_at` đã có sẵn
+    trên `order_line_result_version` (`business_queries._COLUMNS`).
     """
 
     confirmed: frozenset = frozenset()
     out_of_catalog: frozenset = frozenset()
-    conflict_resolved: frozenset = frozenset()
+    #: `{raw_identity_key: confirmed_at}` — xem docstring lớp. `default_factory`
+    #: chứ không `= {}`: dataclass từ chối một default mutable dùng chung.
+    conflict_resolved: dict = field(default_factory=dict)
 
     @classmethod
     def of(cls, confirmed=None, out_of_catalog=None,
@@ -186,7 +205,7 @@ class Decisions:
         return cls(
             confirmed=frozenset(confirmed or ()),
             out_of_catalog=frozenset(out_of_catalog or ()),
-            conflict_resolved=frozenset(conflict_resolved or ()),
+            conflict_resolved=dict(conflict_resolved or {}),
         )
 
 
@@ -308,12 +327,23 @@ def state_of(
         return _priced(CLASS_OUT_OF_CATALOG, line, key)
 
     # 2. Một mapping ĐƯỢC GIẢI QUA CHÍNH THAO TÁC GIẢI MÂU THUẪN thắng NGAY
-    #    LẬP TỨC, kể cả khi `reasons` còn nói CONFLICT (bằng chứng của lần
-    #    chạy TRƯỚC lúc giải) — đây là ngoại lệ DUY NHẤT cho một quyết định
-    #    "đã xác nhận" được thắng TRƯỚC bước 3 (`§4.5` — hiệu lực ngay,
-    #    không chờ chạy lại sổ).
+    #    LẬP TỨC, kể cả khi `reasons` còn nói CONFLICT — NHƯNG chỉ khi quyết
+    #    định đó MỚI HƠN lần chạy đã tạo ra bằng chứng đang hiển thị (repair
+    #    `FIND-R2-IR-03`). Không có điều kiện thời gian này, một quyết định
+    #    giải A-vs-B sẽ miễn trừ VĨNH VIỄN mọi mâu thuẫn tương lai của cùng
+    #    khoá — kể cả một mâu thuẫn HOÀN TOÀN KHÁC (A-vs-C) mà một lần chạy
+    #    SAU đó đã đúng đắn phát hiện lại, vì `conflict_resolved` chỉ là một
+    #    tập khoá, không phân biệt "đã giải ĐÚNG cái đang hiển thị" khỏi "đã
+    #    giải một cái cũ hơn". Xem docstring `Decisions`.
     if key is not None and key in decisions.conflict_resolved:
-        return _priced(CLASS_MATCHED_TRACKING, line, key)
+        resolved_at = decisions.conflict_resolved.get(key)
+        result_at = _parse_timestamp(detail.get("result_created_at"))
+        # Thiếu MỘT trong hai mốc ⟹ không đủ căn cứ để KẾT LUẬN bằng chứng
+        # đang hiển thị mới hơn quyết định ⟹ giữ hành vi "hiệu lực ngay"
+        # (`§4.5`) làm mặc định AN TOÀN — đúng hành vi mọi fixture/test chưa
+        # từng cấp `result_created_at` đã nghiệm thu.
+        if resolved_at is None or result_at is None or resolved_at > result_at:
+            return _priced(CLASS_MATCHED_TRACKING, line, key)
 
     # 3. CONFLICT của LẦN CHẠY HIỆN HÀNH (repair `FIND-R2-IR-01`). Phải đứng
     #    TRƯỚC bước 4: một `IDENTITY_CONFLICT` chỉ sinh ra khi Reports CÓ SẴN
@@ -339,6 +369,35 @@ def state_of(
         return IdentityState(STATE_UNRESOLVED, identity_key=key,
                              classification=CLASS_NEEDS_REVIEW)
     return _priced(CLASS_MATCHED_TRACKING, line, key)
+
+
+def _parse_timestamp(value) -> Optional[datetime]:
+    """Chuỗi ISO8601 đã lưu (hoặc chính `datetime`) → `datetime` CÓ múi giờ,
+    hay `None`.
+
+    Dùng để so `mapping.confirmed_at` (đã là `datetime`, LUÔN có múi giờ —
+    ghi bằng `datetime.now(timezone.utc)`) với `detail["result_created_at"]`
+    (chuỗi từ cột `order_line_result_version.created_at`, ghi cùng cách ở
+    đường production nhưng một số fixture test dùng chuỗi KHÔNG múi giờ,
+    ví dụ `"2026-10-01T00:00:00"`). So một `datetime` có múi giờ với một cái
+    không có sẽ ném `TypeError` — gán UTC cho giá trị thiếu múi giờ ở đây,
+    đúng quy ước mà mọi nơi khác trong package này dùng khi ghi mốc thời
+    gian, thay vì để phép so sánh ở `state_of` sập trang.
+
+    Không bao giờ ném ra: một mốc thiếu/hỏng phải làm phép so sánh ở
+    `state_of` lùi về nhánh AN TOÀN, không làm trang sập.
+    """
+    if value is None:
+        return None
+    parsed = value
+    if not isinstance(parsed, datetime):
+        try:
+            parsed = datetime.fromisoformat(str(parsed))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _priced(classification: str, line, key) -> IdentityState:
