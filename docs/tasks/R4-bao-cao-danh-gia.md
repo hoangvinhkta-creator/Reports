@@ -13,9 +13,10 @@ route ghi mới.
 
 `CHECK-R4-01` … `CHECK-R4-22` PASS (E1, bằng chứng ở §7 và ở
 `docs/sessions/S131-r4-bao-cao-danh-gia.md`). `CHECK-R4-23` (Independent
-Review) và `CHECK-R4-24` (Owner nghiệm thu trên production) VẪN `NOT_TESTED` —
-phiên triển khai KHÔNG có thẩm quyền tự đóng hai check đó. Task DỪNG ở
-`IMPLEMENTED`.
+Review) PASS — phiên review độc lập `S132` kết luận
+`ACCEPT_WITH_RECORDED_RISK` trên exact HEAD `63a066e9`. `CHECK-R4-24` (Owner
+nghiệm thu trên production) VẪN `NOT_TESTED` — không phiên nào có thẩm quyền
+đóng nó thay Owner. Task DỪNG ở `IMPLEMENTED`.
 
 R4 KHÔNG chạm và KHÔNG được coi là đã xác nhận `CHECK-R3-20` (Owner nghiệm thu
 R3 trên production): nó vẫn `NOT_TESTED`, và không con số nào của R4 thay đổi
@@ -217,7 +218,7 @@ xác nhận không bài nào đổi kết quả.
 | `CHECK-R4-20` | Dòng lỗ chỉ xét tập đã tính được lợi nhuận, có nhãn phạm vi | PASS | E1 |
 | `CHECK-R4-21` | Khối chất lượng dữ liệu đủ sáu mục; MIN FINAL/PROVISIONAL nói ra giới hạn | PASS | E1 |
 | `CHECK-R4-22` | Trang chỉ ĐỌC — mở nó không đổi một con số nào; POST trả 405 | PASS | E1 |
-| `CHECK-R4-23` | Independent Review | NOT_TESTED | — |
+| `CHECK-R4-23` | Independent Review | PASS | E1 |
 | `CHECK-R4-24` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn (lệnh + output): `docs/sessions/S131-r4-bao-cao-danh-gia.md`
@@ -225,6 +226,14 @@ Bằng chứng nguyên văn (lệnh + output): `docs/sessions/S131-r4-bao-cao-da
 
 `CHECK-R4-23` và `CHECK-R4-24` KHÔNG được tự đánh dấu bởi bất kỳ phiên triển
 khai nào.
+
+`CHECK-R4-23` được đóng bởi PHIÊN REVIEW ĐỘC LẬP `S132` (không phải phiên
+triển khai `S131`), trên exact HEAD `63a066e9275919df92bceaee58876f2724cf9df0`,
+kết luận **`ACCEPT_WITH_RECORDED_RISK`**: `0` finding REPAIR_REQUIRED, `4`
+`ACCEPTED_RISK` mới (`AR-R4-04` … `AR-R4-07` ở §9). Bằng chứng nguyên văn —
+lệnh, kết quả test, tự tính lại độc lập bảy chuỗi, smoke qua HTTP thật —
+ở `docs/sessions/S132-r4-independent-review.md`. `CHECK-R4-24` VẪN
+`NOT_TESTED`: phiên review KHÔNG được nghiệm thu thay Owner.
 
 ---
 
@@ -238,7 +247,8 @@ khai nào.
 3. Kỳ thiếu MIN/giá tay: trang nói coverage chưa đủ và KHÔNG công bố LN
    KPI/biên/DS quy đổi một phần như toàn kỳ. — `CHECK-R4-05`, smoke (C).
 4. Full regression xanh và không hồi quy so với baseline. — §7 của `S131`.
-5. Independent Review kết luận trên exact HEAD. — `CHECK-R4-23`, CHƯA CÓ.
+5. Independent Review kết luận trên exact HEAD. — `CHECK-R4-23`, ĐÃ CÓ:
+   `ACCEPT_WITH_RECORDED_RISK` trên `63a066e9` (`S132`).
 6. Owner nghiệm thu trên production. — `CHECK-R4-24`, CHƯA CÓ.
 
 ---
@@ -289,6 +299,76 @@ không tưởng R4 đã đóng nó.
 
 ---
 
+### `AR-R4-04` — Run-rate nhân từ giá trị CẢ KỲ, không phải "giá trị đến `as_of`"
+
+Ghi bởi Independent Review `S132`.
+
+`docs/spec/R4-DAC-TA-KPI.md` §4 và docstring của `evaluation.run_rate` viết
+công thức là `(giá trị đến as_of / ngày đã trôi qua) × ngày trong tháng`, còn
+route truyền vào `totals.sales_revenue`/`totals.official_converted_sales`, tức
+tổng CẢ KỲ. Hai con số đó chỉ bằng nhau khi trong kỳ KHÔNG có dòng nào mang
+ngày bán SAU `as_of`.
+
+**Tần suất:** THẤP — cần một dòng ghi ngày trong tương lai (gõ nhầm ngày, hoặc
+đơn đặt trước ghi ngày giao); repo không có luật chặn ngày tương lai.
+**Tác động:** HẠN CHẾ — reviewer tái hiện được mức lệch `380.000` so với
+`80.000` (nghìn đồng) khi một dòng `30.000.000` mang ngày `20/09` trong khi
+`as_of` là `03/09`. Nhưng con số này luôn mang nhãn "ước tính", KHÔNG đi vào
+`% target`, `còn thiếu`, `cần đạt/ngày` hay bất kỳ chỉ tiêu công bố nào, và
+không được ghi xuống đâu cả. **Phát hiện:** TRUNG BÌNH — chính trang đó hiện
+"Ngày bán mới nhất trong phạm vi" (sẽ là một ngày TƯƠNG LAI) và
+`compare-current` cắt theo cửa sổ nên lệch hẳn khỏi doanh thu đầu trang.
+
+**Vì sao chấp nhận:** không thuộc sáu loại bắt buộc repair của brief review —
+không nằm trên luồng chính của dữ liệu bình thường, không công bố một kết quả
+kỳ, không làm sai coverage/target/cutoff, không lệch drill-down, không chạm
+trạng thái chốt.
+
+**Cách đóng:** cắt đầu vào run-rate theo `as_of` trước khi nhân — dùng lại
+`evaluation._lines_up_to_day(data.details, as_of.day)` rồi `bm.totals(...)`;
+hoặc thêm một cửa từ chối thứ năm khi `latest_sale_date > as_of`.
+
+### `AR-R4-05` — "Ngoại lệ gắn dòng" là con số TOÀN CỤC, đứng cạnh bốn con số đã thu hẹp
+
+Ghi bởi Independent Review `S132`. Đây là một BỀ MẶT MỚI của `AR-R3-05` đã
+được chấp nhận, không phải một lỗi mới về bản chất.
+
+`PeriodData.binding_exceptions` là `BindingExceptionStore.open_keys()` — TẤT CẢ
+ngoại lệ còn mở của MỌI kỳ — và `_slice` chở nguyên vẹn nó sang lát sheet. Khối
+"Hàng đợi cần xử lý" hiện `len(...)` của nó ngay cạnh bốn hàng đợi ĐÃ thu hẹp
+theo kỳ + sheet, mà nhãn không nói ra sự khác biệt đó. Reviewer tái hiện: một
+ngoại lệ của kỳ `2026-08` vẫn hiện là `1` khi đang xem kỳ `2026-09`.
+
+**Tần suất:** TRUNG BÌNH khi đã có ngoại lệ gắn dòng. **Tác động:** NHỎ — một
+con số HÀNG ĐỢI, không phải con số tiền: không vào coverage, không vào chỉ tiêu
+nào, không đổi kết luận nào về kết quả tháng. **Phát hiện:** TRUNG BÌNH.
+
+**Cách đóng (rẻ nhất):** thêm nhãn `(toàn bộ dữ liệu)` vào dòng đó, y như dòng
+"Dòng KHÔNG có ngày bán" đang có. Đóng triệt để thì phải lọc `open_keys()` theo
+khoá dòng của lát đang xem — việc của lineage R3 (`AR-R3-05`).
+
+### `AR-R4-06` — Khối "so kỳ trước" in `01–00` ở khung nhìn "Toàn bộ dữ liệu"
+
+Ghi bởi Independent Review `S132`. Khi không chọn kỳ nào,
+`SameDaysComparison.day_cutoff = 0` và template vẫn in nhãn cửa sổ: *"ngày
+01–00 của cả hai tháng"*, thẻ *"Kỳ này (01–00)"*.
+
+**Tác động:** KHÔNG con số nào sai — cả ba ô đều `—` và mã lý do đúng
+(`COMPARE_NO_PERIOD`). Đây là CHỮ hiển thị vô nghĩa. **Phát hiện:** DỄ.
+**Cách đóng:** ẩn nhãn cửa sổ và hai thẻ khi `reason == COMPARE_NO_PERIOD`.
+
+### `AR-R4-07` — Khoá `nhom` lạ rơi về "Cả kỳ" trong IM LẶNG, trái docstring
+
+Ghi bởi Independent Review `S132`. Docstring của `_evaluation_scope` viết
+*"Khoá lạ ⟹ về cả kỳ VÀ nói ra"*; thực tế trang không nói gì.
+
+**Tác động:** NHỎ — hành vi (rơi về cả kỳ) là AN TOÀN và đúng ý định; tiêu đề
+và ô chọn Phạm vi đều hiện "Cả kỳ" nên người đọc thấy ngay mình đang xem gì.
+**Phát hiện:** DỄ. **Cách đóng:** hoặc thêm một câu trên trang, hoặc sửa
+docstring cho khớp hành vi (rẻ hơn và đủ).
+
+---
+
 ## 10. Đầu vào cho Independent Review
 
 Reviewer nên tấn công đúng bốn chỗ sau, xếp theo mức nguy hiểm giảm dần:
@@ -311,3 +391,12 @@ Reviewer nên tấn công đúng bốn chỗ sau, xếp theo mức nguy hiểm g
 
 Nền so sánh: `claude/extract-upload-repo-gq2ws4` @ `824b5d7`, full regression
 `3058 passed, 12 skipped`.
+
+**Đã thực hiện.** `S132` kiểm cả bốn chỗ trên và không tìm được lỗi ở chỗ nào:
+cửa coverage đóng ở mọi đường (kể cả `% target` và run-rate DS quy đổi); cửa
+sổ "cùng số ngày lịch" đối xứng, kể cả 31/03 so tháng 02 (cắt CẢ HAI ở ngày
+28); không phép cộng sai nào (cột Đơn cộng dọc `5` vs TỔNG `3` lấy từ tổng
+phạm vi — đúng; chiết khấu cộng ngược đúng một lần; bảng đơn vị nói ra mẫu số
+cả kỳ); và tổng các drill-down theo mặt hàng bằng đúng số dòng của kỳ, khoá
+không khớp cho bảng RỖNG. Chi tiết:
+`docs/sessions/S132-r4-independent-review.md`.

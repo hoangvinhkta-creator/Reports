@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R4 = IMPLEMENTED (báo cáo đánh giá, chỉ ĐỌC); R3 = IMPLEMENTED đã merge, deploy platform CHỜ OWNER (2026-09-08)
+## CANONICAL CURRENT STATE — R4 = IMPLEMENTED, Independent Review ACCEPT_WITH_RECORDED_RISK; R3 = IMPLEMENTED đã merge, deploy platform CHỜ OWNER (2026-09-08)
 
 **R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
 `R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
@@ -58,7 +58,9 @@ BRANCH production Reports               = claude/extract-upload-repo-gq2ws4
 
 R4 STATUS   = IMPLEMENTED (exact HEAD mã nguồn 86cee4097194460955fe806a05e3a919a20a0e95)
               CHECK-R4-01 … CHECK-R4-22 = PASS (E1)
-              CHECK-R4-23 (Independent Review) = NOT_TESTED
+              CHECK-R4-23 (Independent Review) = PASS
+                  ACCEPT_WITH_RECORDED_RISK trên exact HEAD
+                  63a066e9275919df92bceaee58876f2724cf9df0 (phiên S132)
               CHECK-R4-24 (Owner nghiệm thu)   = NOT_TESTED
               Full regression: 3146 passed, 12 skipped
               (baseline trước R4 cùng môi trường: 3058 passed, 12 skipped)
@@ -77,6 +79,37 @@ mà dữ liệu hiệu lực trả lời được.
 R4 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
 luật đã áp cho R1, R2 và R3. R4 cũng KHÔNG chạm tới `CHECK-R3-20`: Owner
 nghiệm thu R3 trên production VẪN `NOT_TESTED`.
+
+**Independent Review R4 (`S132`) — `ACCEPT_WITH_RECORDED_RISK`.** Phiên review
+độc lập kiểm trên exact HEAD `63a066e9`, tự đo lại cả hai vế regression
+(`3146 passed, 12 skipped` trên HEAD; `3058 passed, 12 skipped` trên nền
+`824b5d7` trong worktree riêng — `+88`, `0` hồi quy), tự tính lại độc lập tám
+chỉ tiêu đầu trang, một phép so cùng ngày, run-rate và đối soát drill-down,
+cộng smoke qua HTTP THẬT (`werkzeug.serving.make_server` + `curl`, không phải
+test client) cho cả ba luồng nghiệm thu.
+
+```text
+REPAIR_REQUIRED  0 finding
+ACCEPTED_RISK    AR-R4-04  run-rate nhân từ giá trị CẢ KỲ, không phải "đến as_of"
+                           (chỉ lệch khi kỳ có dòng ghi ngày TƯƠNG LAI; con số
+                            mang nhãn ước tính và không đi vào chỉ tiêu nào)
+                 AR-R4-05  "Ngoại lệ gắn dòng" là con số TOÀN CỤC đứng cạnh bốn
+                           hàng đợi đã thu hẹp — bề mặt MỚI của AR-R3-05
+                 AR-R4-06  khối "so kỳ trước" in "01–00" ở khung nhìn Toàn bộ
+                           dữ liệu (chữ vô nghĩa, không con số nào sai)
+                 AR-R4-07  khoá `nhom` lạ rơi về "Cả kỳ" im lặng, trái docstring
+REPAIR CYCLE     0 tiêu — ngân sách R4 vẫn 1 allowed / 0 used / 1 remaining
+```
+
+Không finding nào thuộc sáu loại bắt buộc repair (lỗi luồng chính · số sai
+trông hợp lệ · coverage trình bày sai · target/cutoff sai · drill-down không
+khớp · mất trạng thái chốt/audit). Ba rủi ro `AR-R4-01` … `AR-R4-03` của
+`S131` được reviewer GIỮ NGUYÊN; điều kiện của brief cho `AR-R4-01` (giao diện
+nói rõ không có dữ liệu trạng thái, không suy đoán) đã thoả. Bằng chứng nguyên
+văn: `docs/sessions/S132-r4-independent-review.md`.
+
+`CHECK-R4-24` (Owner nghiệm thu R4 trên production) VẪN `NOT_TESTED`. Phiên
+review KHÔNG merge, KHÔNG deploy, và KHÔNG chuyển R4 sang `VERIFYING`/`DONE`.
 
 ---
 

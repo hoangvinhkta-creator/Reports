@@ -3008,10 +3008,31 @@ Sub-unit (R1-A, R1-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset
 sách này.
 
 cycles:
-- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
-  thời điểm ghi ledger này)
-  base_sha: N/A
-  head_sha: N/A
+- id: (KHÔNG MỞ — Independent Review kết luận ACCEPT_WITH_RECORDED_RISK,
+  không repair cycle nào bị tiêu)
+  base_sha: 824b5d742dab07b8b0bd301d56748779e35076aa
+  head_sha: 63a066e9275919df92bceaee58876f2724cf9df0
+
+### Independent Review R4 — `S132` (2026-09-08)
+
+```text
+exact HEAD đã review   63a066e9275919df92bceaee58876f2724cf9df0
+nền                    824b5d742dab07b8b0bd301d56748779e35076aa
+kết luận               ACCEPT_WITH_RECORDED_RISK
+REPAIR_REQUIRED        0 finding
+ACCEPTED_RISK mới      AR-R4-04 … AR-R4-07
+repair cycle tiêu      0
+số dư sau review       1 allowed / 0 used / 1 remaining
+CHECK-R4-23            PASS   (phiên review đóng — không phải phiên triển khai)
+CHECK-R4-24            NOT_TESTED (Owner)
+```
+
+Vì kết luận là `ACCEPT_WITH_RECORDED_RISK` chứ không phải `REPAIR_REQUIRED`,
+**không repair cycle nào được mở**: ngân sách `MEDIUM = 1` của lineage `R4`
+còn nguyên. Bốn `ACCEPTED_RISK` mới được GHI, không được sửa trong lượt review
+— đúng kỷ luật đã áp cho `R2`/`R3`.
+
+Bằng chứng nguyên văn: `docs/sessions/S132-r4-independent-review.md`.
 
 
 ---
@@ -3062,7 +3083,28 @@ Sub-unit (R4-§1, R4-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG res
 sách này.
 
 cycles:
-- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
-  thời điểm ghi ledger này)
-  base_sha: N/A
-  head_sha: N/A
+- id: (KHÔNG MỞ — Independent Review kết luận ACCEPT_WITH_RECORDED_RISK,
+  không repair cycle nào bị tiêu)
+  base_sha: 824b5d742dab07b8b0bd301d56748779e35076aa
+  head_sha: 63a066e9275919df92bceaee58876f2724cf9df0
+
+### Independent Review R4 — `S132` (2026-09-08)
+
+```text
+exact HEAD đã review   63a066e9275919df92bceaee58876f2724cf9df0
+nền                    824b5d742dab07b8b0bd301d56748779e35076aa
+kết luận               ACCEPT_WITH_RECORDED_RISK
+REPAIR_REQUIRED        0 finding
+ACCEPTED_RISK mới      AR-R4-04 … AR-R4-07
+repair cycle tiêu      0
+số dư sau review       1 allowed / 0 used / 1 remaining
+CHECK-R4-23            PASS   (phiên review đóng — không phải phiên triển khai)
+CHECK-R4-24            NOT_TESTED (Owner)
+```
+
+Vì kết luận là `ACCEPT_WITH_RECORDED_RISK` chứ không phải `REPAIR_REQUIRED`,
+**không repair cycle nào được mở**: ngân sách `MEDIUM = 1` của lineage `R4`
+còn nguyên. Bốn `ACCEPTED_RISK` mới được GHI, không được sửa trong lượt review
+— đúng kỷ luật đã áp cho `R2`/`R3`.
+
+Bằng chứng nguyên văn: `docs/sessions/S132-r4-independent-review.md`.
