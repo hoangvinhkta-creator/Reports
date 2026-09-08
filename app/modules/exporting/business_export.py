@@ -292,7 +292,7 @@ def _write_by_employee(workbook, sheets, period_totals) -> None:
 
 
 def _write_lines(workbook, item: ExportSheet, binding_exceptions: dict) -> None:
-    sheet = workbook.create_sheet(_safe_title(item.label))
+    sheet = workbook.create_sheet(_unique_title(workbook, item.label))
     _header(sheet, LINE_COLUMNS)
     for detail in item.details:
         line = detail["line"]
@@ -382,6 +382,23 @@ def _safe_title(label: str) -> str:
     """Tên sheet Excel: tối đa 31 ký tự, không chứa `[]:*?/\\`."""
     cleaned = "".join("-" if char in "[]:*?/\\" else char for char in label)
     return (cleaned or "Sheet")[:31]
+
+
+def _unique_title(workbook, label: str) -> str:
+    """Tên sheet đã bảo đảm KHÔNG trùng tên nào đã có trong workbook.
+
+    Excel giới hạn 31 ký tự, nên hai nhãn dài khác nhau vẫn có thể cắt về cùng
+    một tên — và openpyxl NỔ khi gặp tên trùng. Một lần xuất file hỏng vì hai
+    nhân viên có tên dài giống nhau ở 31 ký tự đầu là một lỗi vừa hiếm vừa
+    không thể đoán từ giao diện, nên nó được đóng ở đây thay vì được hy vọng.
+    """
+    base = _safe_title(label)
+    candidate, suffix = base, 2
+    while candidate in workbook.sheetnames:
+        tail = f"-{suffix}"
+        candidate = f"{base[:31 - len(tail)]}{tail}"
+        suffix += 1
+    return candidate
 
 
 __all__ = [

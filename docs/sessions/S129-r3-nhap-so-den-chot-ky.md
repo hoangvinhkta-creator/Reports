@@ -245,7 +245,7 @@ dòng) thiếu giá vì lý do THẬT — chưa có MIN cho ngày bán, hoặc c
 $ .venv/bin/python -m pytest -q tests/test_r3_import_binding.py \
     tests/test_r3_line_types.py tests/test_r3_export_and_period_close.py \
     tests/test_r3_web_workflow.py tests/test_r3_golden_reconciliation.py
-94 passed in 7.9s
+96 passed in 8.1s
 ```
 
 - `test_r3_import_binding.py` (16) — ba mỏ neo ở tầng thuần, cộng sáu bài đi
@@ -255,7 +255,7 @@ $ .venv/bin/python -m pytest -q tests/test_r3_import_binding.py \
 - `test_r3_line_types.py` (25) — sáu loại dòng trên ĐÚNG từ vựng production,
   ranh giới `0`-chính-sách vs `0`-thay-cho-thiếu, chiết khấu không trừ hai
   lần, và ba bài qua database thật.
-- `test_r3_export_and_period_close.py` (17) — file xuất mang giá Owner đã sửa;
+- `test_r3_export_and_period_close.py` (19) — file xuất mang giá Owner đã sửa;
   đúng một cột `Giá nhập KPI`; ô trống ≠ `0`; tổng khớp; chốt/mở lại/phiên bản.
 - `test_r3_web_workflow.py` (14) — qua ứng dụng Flask THẬT: tải file, chốt kỳ,
   thao tác bị TỪ CHỐI 409 sau khi chốt, mở lại kèm lý do, chốt sống qua một
@@ -279,7 +279,7 @@ $ .venv/bin/python -m pytest -q tests/test_r2_product_classification.py \
 
 ```text
 $ .venv/bin/python -m pytest -q tests/
-3041 passed, 12 skipped in 203.29s
+3043 passed, 12 skipped in 208.68s
 ```
 
 Baseline trước R3 trên cùng môi trường này: `2946 passed, 12 skipped`.
@@ -374,6 +374,22 @@ thái trước R3.
 Lỗi có TRƯỚC R2 (`SetPending` rồi `ConfirmMapping` làm log identity không đọc
 được) giữ nguyên. R3 không chạm chuỗi identity; đóng nó cần một quyết định về
 `_ACTIVE_STATUSES` của `PENDING`/`STALE`, ngoài Scope Lock của R3.
+
+## 7b. Bước bắt buộc khi triển khai
+
+`ALEMBIC_HEAD` chuyển sang `0009_line_binding_and_period_close`, và
+`tools/db.assert_schema_current` fail-closed: một database còn ở `0008` sẽ làm
+app TỪ CHỐI khởi động thay vì chạy lên với hai bảng thiếu. Vì vậy thứ tự triển
+khai bắt buộc là:
+
+```text
+1. alembic upgrade head        (trên database production)
+2. deploy code
+```
+
+Đảo thứ tự sẽ cho một khoảng thời gian app không khởi động được — không mất dữ
+liệu, nhưng là downtime không cần thiết. Đây là cùng ràng buộc đã áp cho
+migration `0008` của R2.
 
 ## 8. Rollback
 

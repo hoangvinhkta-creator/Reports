@@ -180,6 +180,26 @@ class TestTheExportReadsWhatTheScreenReads:
         assert "BH2" not in values(book["Nội thành"], "Số BH")
         assert summary_value(book["Tổng kỳ"], "Dòng bị loại khỏi báo cáo") == 1
 
+    def test_two_long_labels_do_not_collide_into_one_sheet_name(self):
+        """Excel cắt tên sheet ở 31 ký tự; openpyxl NỔ khi tên trùng.
+
+        Hai nhân viên có tên dài giống nhau ở 31 ký tự đầu là chuyện hiếm và
+        không thể đoán từ giao diện — nên nó được đóng bằng cấu trúc, không
+        bằng hy vọng.
+        """
+        from openpyxl import Workbook
+
+        book = Workbook()
+        book.remove(book.active)
+        long_a = "Nhân viên có tên rất dài quá ba mươi mốt ký tự A"
+        long_b = "Nhân viên có tên rất dài quá ba mươi mốt ký tự B"
+        first = business_export._unique_title(book, long_a)
+        book.create_sheet(first)
+        second = business_export._unique_title(book, long_b)
+        book.create_sheet(second)
+        assert first != second
+        assert all(len(name) <= 31 for name in book.sheetnames)
+
     def test_the_export_module_never_imports_the_pipeline_result(self):
         """Kiểm bằng CẤU TRÚC, đọc cây import — không quét văn bản.
 
@@ -283,6 +303,28 @@ class TestClosingAPeriodActuallyLocksIt:
         service.close_period(period=PERIOD, data=data)
         with pytest.raises(period_lock.PeriodClosedError):
             service.close_period(period=PERIOD, data=data)
+
+    def test_a_product_level_classification_is_blocked_by_a_closed_period(
+        self, repository, service
+    ):
+        """Phân loại Gia dụng cấp MẶT HÀNG chạm MỌI kỳ có dòng của mã đó.
+
+        Nên cửa chặn cho thao tác này không thể chỉ hỏi kỳ đang xem — nó phải
+        hỏi mọi kỳ mà quyết định ấy chạm tới. Đây là lý do `guard_product_open`
+        tồn tại tách khỏi `guard_period_open`.
+        """
+        persist(repository, [pair(
+            "BH1", product="Tủ lạnh Panasonic", kpi_purchase="5000000",
+            kpi_profit="3000000", status="AUTO")])
+        key = _product_key("Tủ lạnh Panasonic")
+        service.guard_product_open(key)  # kỳ đang mở — không ném
+
+        service.close_period(period=PERIOD,
+                             data=service.period(**JANUARY, period=PERIOD))
+        with pytest.raises(period_lock.PeriodClosedError):
+            service.guard_product_open(key)
+        # Một mặt hàng KHÔNG có dòng nào trong kỳ đã chốt vẫn phân loại được.
+        service.guard_product_open("pk-khong-co-dong-nao")
 
     def test_the_snapshot_records_the_numbers_that_were_approved(
         self, repository, service

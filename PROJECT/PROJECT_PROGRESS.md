@@ -54,7 +54,7 @@ R3 STATUS   = IMPLEMENTED (HEAD 7df5f48)
               CHECK-R3-01 … CHECK-R3-18 = PASS (E1)
               CHECK-R3-19 (Independent Review) = NOT_TESTED
               CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
-              Full regression: 3039 passed, 12 skipped
+              Full regression: 3043 passed, 12 skipped
               (baseline trước R3 cùng môi trường: 2946 passed, 12 skipped)
               Đối soát trên hai kỳ nghiệp vụ THẬT đã ẩn danh: nạp lại cùng
               file và nạp lại file ĐẢO THỨ TỰ DÒNG đều cho 0 INSERT /
