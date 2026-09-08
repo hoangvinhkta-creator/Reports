@@ -17,6 +17,7 @@ QUERY_MODULE = REPO_ROOT / "app/web/business_queries.py"
 METRICS_MODULE = REPO_ROOT / "app/modules/reporting/business_metrics.py"
 GATE_MODULE = REPO_ROOT / "app/modules/reporting/profit_gate.py"
 STORE_MODULE = REPO_ROOT / "app/web/business_store.py"
+LINE_TYPE_MODULE = REPO_ROOT / "app/modules/reporting/line_type.py"
 
 
 def _tree(path: Path) -> ast.AST:
@@ -105,10 +106,30 @@ def test_the_pure_business_modules_stay_pure(module):
     `app.modules.reporting` được phép ở đây, và CHỈ nó: đó là chính gói này,
     nơi `business_metrics` lấy `profit_gate` — hai module thuần cạnh nhau, chứ
     không phải một cánh cửa ra tầng hạ tầng.
+
+    R3 thêm ĐÚNG một tên nữa vào danh sách: `app.modules.reporting.line_type`
+    — ngữ nghĩa loại dòng, cùng gói, cũng thuần. Phần I/O của nó (đọc
+    `config/line_types.yaml`) đã được tách sang `line_type_config.py` CHÍNH VÌ
+    hàng rào này, và `test_the_line_type_semantics_stay_pure` bên dưới canh
+    cho việc tách đó không bị hoàn tác.
     """
     allowed = {"__future__", "dataclasses", "decimal", "typing",
-               "app.modules.reporting"}
+               "app.modules.reporting", "app.modules.reporting.line_type"}
     assert _imported_modules(module) <= allowed, _imported_modules(module)
+
+
+def test_the_line_type_semantics_stay_pure():
+    """`line_type` là module DUY NHẤT mà R3 mở cửa cho `business_metrics`.
+
+    Nó vì thế phải sạch đúng như hai module kia: không database, không web,
+    không đọc file. Nếu `yaml`/`pathlib` quay lại đây, hàng rào ở bài trên
+    biến thành hình thức — `business_metrics` lại gián tiếp biết tới tầng đọc
+    cấu hình, và một lỗi cấu hình lại có thể nổ ra từ giữa một phép cộng.
+    """
+    allowed = {"__future__", "dataclasses", "decimal", "typing",
+               "unicodedata", "app.modules.validation.text"}
+    imported = _imported_modules(LINE_TYPE_MODULE)
+    assert imported <= allowed, imported
 
 
 def test_the_profit_gate_never_reads_the_pipeline_status_label():

@@ -46,6 +46,7 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.modules.reporting import line_type as line_type_module
 from app.modules.reporting.business_metrics import BusinessLine
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web.history_store import HistoryUnavailableError
@@ -237,6 +238,7 @@ def build_lines(
     router: ConversionRateRouter, kpi_authority_valid: bool,
     employee_overrides: Optional[dict] = None,
     line_classifications: Optional[dict] = None,
+    line_type_vocabulary: Optional[line_type_module.LineTypeVocabulary] = None,
 ) -> list[BusinessLine]:
     """Hợp nhất dòng pipeline + quyết định Owner thành `BusinessLine`.
 
@@ -260,6 +262,21 @@ def build_lines(
     employee_overrides = employee_overrides or {}
     lines = []
     for row in rows:
+        # R3 §2 — loại dòng tính LÚC ĐỌC, cùng chỗ và cùng lý do với override:
+        # nó là một luật nghiệp vụ áp lên bằng chứng đã lưu, không phải một
+        # kết quả của lần chạy máy. Sửa `config/line_types.yaml` vì thế có
+        # hiệu lực ở lần tải trang kế tiếp, không cần nạp lại sổ.
+        #
+        # Bốn đầu vào, và chỉ bốn: số chứng từ, tên hàng, đơn giá, số lượng.
+        # `note_raw` KHÔNG được đọc — hàng rào dữ liệu ở đầu file này liệt kê
+        # nó trong nhóm cột không đi qua tầng truy vấn, và R3 không mở nó ra.
+        effective_line_type = line_type_module.classify(
+            vocabulary=line_type_vocabulary,
+            order_key=row["order_key"],
+            product_raw=row["product_raw"],
+            sell_price=row["sell_price"],
+            quantity=row["quantity"],
+        )
         key = (row["order_key"], row["product_key"], int(row["occurrence_index"]))
         override = overrides.get(key)
         assigned = employee_overrides.get(key)
@@ -291,6 +308,7 @@ def build_lines(
                 None if override is None else override["purchase_price"]),
             manual_provenance=(
                 None if override is None else override["provenance"]),
+            line_type=effective_line_type,
             # Tỉ lệ hỏi lại resolver bằng danh tính HIỆU LỰC của dòng, không
             # phải danh tính thô của pipeline.
             #

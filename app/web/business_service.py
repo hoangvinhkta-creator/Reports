@@ -31,6 +31,8 @@ from typing import Optional
 from app.modules.kpi.kpi_profit_engine import load_eligible_costs_authority
 from app.modules.mapping.employee_mapper import load_employee_master
 from app.modules.reporting import business_metrics as bm
+from app.modules.reporting import line_type as line_type_module
+from app.modules.reporting import line_type_config
 from app.modules.reporting import reporting_sheets
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
@@ -40,6 +42,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONVERSION_RATES_PATH = REPO_ROOT / "config" / "conversion_rates.yaml"
 ELIGIBLE_COSTS_PATH = REPO_ROOT / "config" / "eligible_costs.yaml"
 EMPLOYEES_PATH = REPO_ROOT / "config" / "employees.yaml"
+LINE_TYPES_PATH = REPO_ROOT / "config" / "line_types.yaml"
+
+
+class LineTypeAuthorityError(RuntimeError):
+    """`config/line_types.yaml` không đọc được — DỪNG, không rơi về mặc định.
+
+    Một mặc định "coi mọi dòng là hàng bán" chạy được và SAI theo hướng im
+    lặng: luật giá nhập 0 theo chính sách (`OD-105B-01` §3) biến mất, mọi dòng
+    phí quay lại `PENDING`, coverage tụt khỏi 100 % và cả kỳ mất trạng thái
+    `OFFICIAL` — mà không màn hình nào nói vì sao. Cùng kỷ luật fail-closed của
+    `DEC-143` §1: thà không ra số còn hơn ra một bộ số khác mà không ai biết
+    nó khác.
+    """
+
 
 
 @dataclass(frozen=True)
@@ -100,12 +116,14 @@ class BusinessReportService:
         router: Optional[ConversionRateRouter] = None,
         eligible_costs_path: Optional[Path] = None,
         employees_path: Optional[Path] = None,
+        line_types_path: Optional[Path] = None,
     ) -> None:
         self._engine = engine
         self._store = store
         self._router = router or ConversionRateRouter.from_yaml(CONVERSION_RATES_PATH)
         self._eligible_costs_path = eligible_costs_path or ELIGIBLE_COSTS_PATH
         self._employees_path = employees_path or EMPLOYEES_PATH
+        self._line_types_path = line_types_path or LINE_TYPES_PATH
 
     @property
     def store(self) -> BusinessDecisionStore:
@@ -123,6 +141,19 @@ class BusinessReportService:
         nó đi vòng qua đúng cái van được dựng để chặn.
         """
         return load_eligible_costs_authority(self._eligible_costs_path).is_valid
+
+    def line_type_vocabulary(self) -> line_type_module.LineTypeVocabulary:
+        """Từ vựng loại dòng của R3, đọc lại ở mỗi lần dựng kỳ.
+
+        Đọc lại chứ không nhớ vào bộ nhớ, đúng cùng lý do như
+        `kpi_authority_valid`: một file cấu hình vừa được sửa (hay vừa hỏng)
+        phải có hiệu lực NGAY, chứ không phải sau lần khởi động lại tiếp theo.
+        """
+        try:
+            return line_type_config.load_vocabulary(self._line_types_path)
+        except Exception as exc:  # noqa: BLE001 — mọi lỗi đọc/parse đều fail-closed
+            raise LineTypeAuthorityError(
+                f"Không đọc được {self._line_types_path}: {exc}") from exc
 
     def assignable_employees(self) -> list[tuple[str, Optional[str]]]:
         """`(tên chuẩn hoá, nhóm)` mà Owner được phép gán một dòng cho.
@@ -178,7 +209,8 @@ class BusinessReportService:
             router=self._router,
             kpi_authority_valid=self.kpi_authority_valid(),
             employee_overrides=self._store.employee_overrides(),
-            line_classifications=line_classifications)
+            line_classifications=line_classifications,
+            line_type_vocabulary=self.line_type_vocabulary())
         details = business_queries.line_details(
             rows, lines, classifications=classifications, overrides=overrides,
             line_classifications=line_classifications)
