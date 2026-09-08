@@ -225,10 +225,25 @@
   {# `§PI-04` — bảng chọn mặt hàng của ĐÚNG MỘT dòng. Nó sống ngay trong
      module bảng kê: mở nó KHÔNG rời khỏi sheet, và đóng nó là bấm HUỶ. #}
   {% if identify %}
-  <div class="module confirm-box" id="phan-loai" data-metric="identify-panel">
+  <div class="module confirm-box" id="phan-loai" data-metric="identify-panel"
+       data-classification="{{ identify.classification }}">
     <h2>Phân loại mặt hàng</h2>
     <p class="insight" data-metric="identify-raw">
       Tên hàng trên sổ: <strong>{{ identify.product_raw }}</strong></p>
+    {# R2 §4.2/§4.3 — ba trạng thái mở được bảng này cần ba câu khác nhau.
+       Một câu chung ("hãy chọn mặt hàng") sẽ giấu mất chuyện có hai mã đang
+       chỏi nhau, hoặc mời Owner phân loại lại thứ họ vừa phân loại xong. #}
+    {% if identify.conflict %}
+    <p class="error" data-metric="identify-conflict">
+      Mã đã xác nhận của Reports và mã do Tracking trả về đang KHÁC NHAU. Hệ
+      thống không tự chọn bên thắng — hãy chọn lại mã đúng bên dưới; lựa chọn
+      của bạn sẽ được ghi kèm lý do và mâu thuẫn này sẽ không hỏi lại.</p>
+    {% elif identify.out_of_catalog %}
+    <p class="insight" data-metric="identify-out-of-catalog">
+      Mặt hàng này đang được đánh dấu <strong>ngoài bảng giá</strong>. Chọn một
+      mã Tracking bên dưới để <strong>nối lại</strong> — quyết định cũ được
+      thay thế theo cơ chế supersede của log, không bị xoá.</p>
+    {% endif %}
     {% if identify.shared_lines > 1 %}
     <p class="insight" data-metric="identify-scope">
       Xác nhận này áp cho <strong>{{ identify.shared_lines }}</strong> dòng
@@ -269,9 +284,36 @@
         <option value="{{ item.code }}">{{ item.label }}</option>
         {% endfor %}
       </select>
-      <button class="act" type="submit" data-metric="identify-confirm">XÁC NHẬN</button>
+      {% if identify.conflict %}
+      <input type="text" name="ly_do" data-metric="identify-reason"
+             aria-label="Lý do chọn mã này"
+             placeholder="Vì sao chọn mã này?">
+      {% endif %}
+      <button class="act" type="submit" data-metric="identify-confirm">
+        {{ 'NỐI LẠI TRACKING' if identify.out_of_catalog else 'XÁC NHẬN' }}</button>
     </form>
     {% endif %}
+    {% endif %}
+
+    {# R2 §4.3 — "không có trên bảng giá" KHÔNG phụ thuộc danh mục Tracking:
+       đây chính là câu trả lời cho trường hợp danh mục không chứa mặt hàng
+       ấy, nên nút nằm NGOÀI nhánh `tracking_available` ở trên. #}
+    {% if identify.can_mark_out_of_catalog %}
+    <form class="filter-row" method="post"
+          action="{{ url_for('business_mark_out_of_catalog') }}">
+      <input type="hidden" name="ky" value="{{ selected_period }}">
+      <input type="hidden" name="sheet" value="{{ sheet.key }}">
+      <input type="hidden" name="order_key" value="{{ identify.order_key }}">
+      <input type="hidden" name="product_key" value="{{ identify.product_key }}">
+      <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
+      <button class="ghost btn-mini" type="submit"
+              data-metric="identify-out-of-catalog-confirm">
+        KHÔNG CÓ TRÊN BẢNG GIÁ</button>
+    </form>
+    <p class="insight" data-metric="identify-out-of-catalog-note">
+      Chọn mục này khi mặt hàng thật sự không có trên bảng giá Tracking. Dòng
+      vẫn nằm trong báo cáo và giữ nguyên doanh thu; nó chuyển sang trạng thái
+      cần một giá nhập tay, và không có giá 0 nào được dựng ra.</p>
     {% endif %}
 
     <p><a class="ghost btn-mini" data-metric="identify-cancel"
@@ -363,7 +405,11 @@
            chữ) khi đã có một chấm nói cùng một chữ ngay trên, để không
            thấy hai chấm vàng liền nhau cho cùng một sự thật. #}
         {% for tag in group.identity_tags %}
-        {% if tag.can_identify %}
+        {# R2 §4.3 — dòng ĐÃ ngoài bảng giá cũng phải bấm vào được: đó là cách
+           duy nhất để "Nối lại Tracking" khi hàng xuất hiện trên bảng giá về
+           sau. Một nhãn không bấm được ở đây là một quyết định không có đường
+           đảo ngược. #}
+        {% if tag.can_identify or tag.can_relink %}
         <a class="tag-dot tag-dot-{{ tag.color }}{{ ' sr-only' if tag.duplicate_text }}"
            data-metric="identity-label"
            title="{{ tag.title }}"
@@ -388,9 +434,11 @@
          đó nay đọc qua MÀU (xanh, `§PI-03`) thay vì một tag cạnh tên hàng —
          tag chữ đứng ở ô Mã đơn rồi (trên), không lặp lại ở đây. #}
       <td data-metric="line-product"
-          {% if row.identity_state %}data-identity="{{ row.identity_state }}"{% endif %}>
+          {% if row.identity_state %}data-identity="{{ row.identity_state }}"{% endif %}
+          {% if row.identity_classification %}
+          data-classification="{{ row.identity_classification }}"{% endif %}>
         {%- if row.synthetic %}↳ {% endif -%}
-        {%- if row.can_identify -%}
+        {%- if row.can_identify or row.can_relink_tracking -%}
         <a class="identity-open" data-metric="identity-open"
            title="{{ row.identity_title }}"
            href="{{ url_for('business_employee', ky=selected_period,

@@ -28,23 +28,20 @@
      "còn thiếu" chung chính là cái đã khiến màn hình nói sai (B03).
      Mặc định là TẤT CẢ DÒNG (S120): bảng kê là khung nhìn báo cáo, ba chế độ
      kia thu hẹp nó và phải được chọn tường minh. #}
-  <nav class="filter-row">
-    <a class="ghost btn-mini {{ 'on' if mode == 'tat-ca' }}"
+  {# R2 §Gói 4 — HÀNG ĐỢI XỬ LÝ. Danh sách bộ lọc đến từ `_DETAIL_FILTER_LABELS`
+     ở tầng route, một nguồn duy nhất: viết lại tên và thứ tự ở đây sẽ là bản
+     sao thứ hai, và bản sao đó sẽ lệch. Bốn mục R2 tách "thiếu giá" thành
+     những tình huống có HÀNH ĐỘNG khác nhau — chưa phân loại (chọn mã), xung
+     đột (chọn lại), ngoài bảng (gõ giá), đã khớp nhưng thiếu MIN (cũng gõ
+     giá, nhưng không phải việc phân loại). #}
+  <nav class="filter-row" data-metric="detail-filters">
+    {% for key, label in filters %}
+    <a class="ghost btn-mini {{ 'on' if mode == key }}" data-metric="detail-filter"
+       data-filter="{{ key }}"
        href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'tat-ca'}) }}"
-       >TẤT CẢ DÒNG</a>
-    <a class="ghost btn-mini {{ 'on' if mode == 'thieu-gia' }}"
-       href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'thieu-gia'}) }}"
-       >CHƯA CÓ GIÁ NHẬP</a>
-    <a class="ghost btn-mini {{ 'on' if mode == 'chua-ro-nv' }}"
-       href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'chua-ro-nv'}) }}"
-       >CHƯA XÁC ĐỊNH NHÂN VIÊN</a>
-    <a class="ghost btn-mini {{ 'on' if mode == 'owner-sua' }}"
-       href="{{ url_for('business_purchase_price', ky=selected_period,
-               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': 'owner-sua'}) }}"
-       >DÒNG TÔI ĐÃ SỬA</a>
+               **{'nhan-vien': selected_employee, 'nhom': selected_sheet, 'loc': key}) }}"
+       >{{ label | upper }}</a>
+    {% endfor %}
   </nav>
 
   <p class="insight" data-metric="filter-note">
@@ -57,6 +54,10 @@
     {% if mode == 'tat-ca' %}Kỳ này chưa có dòng hàng nào.
     {% elif mode == 'chua-ro-nv' %}Mọi dòng có lợi nhuận của kỳ đều đã biết của ai.
     {% elif mode == 'owner-sua' %}Bạn chưa sửa giá nhập hay gán lại nhân viên cho dòng nào của kỳ này.
+    {% elif mode == 'chua-phan-loai' %}Mọi dòng của kỳ đã được phân loại.
+    {% elif mode == 'xung-dot' %}Không có mã nào đang mâu thuẫn giữa Reports và Tracking.
+    {% elif mode == 'ngoai-bang-thieu-gia' %}Mọi dòng ngoài bảng giá đều đã có giá nhập tay.
+    {% elif mode == 'thieu-min' %}Mọi dòng đã khớp Tracking đều đã có giá nhập.
     {% else %}Mọi dòng của kỳ đã có giá nhập.{% endif %}
   </p>
   {% else %}
@@ -70,9 +71,20 @@
         {% if row.synthetic %}data-row-kind="{{ row.kind }}"{% endif %}>
       <td>{{ row.sale_date or '—' }}</td>
       <td class="code">{{ row.order_key }}</td>
-      <td>{% if row.synthetic %}<span data-metric="discount-line"
+      <td {% if row.identity_classification %}
+            data-identity="{{ row.identity_classification }}"{% endif %}>
+        {% if row.synthetic %}<span data-metric="discount-line"
             title="{{ DISCOUNT_ROW_NOTE }}">↳ {{ row.product_raw }}</span>
-        {% else %}{{ row.product_raw }}{% endif %}</td>
+        {% else %}{{ row.product_raw }}
+        {# R2 §Gói 4 — trạng thái phân loại đứng NGAY CẠNH tên hàng ở hàng đợi
+           xử lý: đây là nơi Owner quyết định làm gì với dòng, nên câu trả lời
+           "làm gì" phải nhìn thấy được mà không cần mở một trang khác. #}
+        {% if row.identity_label %}
+        <span class="tp-unit" data-metric="detail-identity"
+              data-code="{{ row.identity_classification }}"
+              title="{{ row.identity_title }}">{{ row.identity_label }}</span>
+        {% endif %}
+        {% endif %}</td>
       <td class="num">{{ row.quantity }}</td>
       <td class="num">{{ row.sell_price }}</td>
       <td class="num{{ ' empty-cell' if row.pending }}"
@@ -116,11 +128,33 @@
           {{ biz.line_keys(row, selected_period, selected_employee, mode, selected_sheet) }}
           <input type="text" name="gia_nhap" inputmode="numeric"
                  value="{{ row.purchase_price_input }}" aria-label="Giá nhập">
+          {# R2 §4.4 — lý do BẮT BUỘC khi dòng đang có một giá tự động: gõ đè
+             lên một con số hệ thống đã tính được là một khẳng định rằng con
+             số kia sai, và khẳng định đó không được để lại không dấu vết.
+             Dòng chưa có giá thì lý do là tuỳ chọn (mặc định ngắn ở store). #}
+          <input type="text" name="ly_do" data-metric="price-reason"
+                 value="{{ row.override_reason }}"
+                 aria-label="Lý do"
+                 placeholder="{{ 'Lý do thay giá tự động' if not row.pending
+                                 else 'Lý do (tuỳ chọn)' }}">
           <button class="ghost btn-mini" type="submit">LƯU</button>
           {% if row.overridden %}
           <button class="ghost btn-mini" type="submit" name="hanh-dong" value="go">GỠ</button>
           {% endif %}
         </form>
+        {# R2 §4.3 — hành động phân loại ngay trên hàng đợi. Cả hai đường dẫn
+           mở đúng bảng chọn của DÒNG NÀY trên trang không gian làm việc, nơi
+           thao tác đã được nghiệm thu — không dựng một bề mặt phân loại thứ
+           hai chỉ vì đang ở một trang khác. #}
+        {% if row.can_identify %}
+        <a class="ghost btn-mini" data-metric="detail-identify"
+           href="{{ url_for('business_employee', ky=selected_period,
+                    order_key=row.order_key, product_key=row.product_key,
+                    occurrence_index=row.occurrence_index,
+                    **{'phan-loai': '1'}) }}#phan-loai"
+          >{{ 'CHỌN LẠI MÃ' if row.identity_classification == 'CONFLICT'
+              else 'PHÂN LOẠI' }}</a>
+        {% endif %}
         {% if assignable %}
         <form class="filter-row" method="post"
               action="{{ url_for('business_save_employee') }}">

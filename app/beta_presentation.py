@@ -46,6 +46,11 @@ REASON_DISPLAY_LABELS = {
     # hành (chạy công cụ chụp), cái thứ hai là việc của người kiểm dữ liệu.
     "TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE": "Chưa có dữ liệu giá nhập theo ngày",
     "TRACKING_DAILY_MIN_PENDING": "Chưa có giá nhập cho đúng ngày bán",
+    # R2 — hai mã của luồng phân loại. Cả hai đều là câu trả lời ĐÃ CÓ NGƯỜI
+    # QUYẾT ĐỊNH, không phải "chưa biết": nhãn phải nói ra điều đó, nếu không
+    # Owner sẽ đi phân loại lại thứ mình vừa phân loại xong.
+    "IDENTITY_OUT_OF_CATALOG": "Hàng ngoài bảng giá — cần nhập giá tay",
+    "IDENTITY_CONFLICT": "Mã Tracking đang mâu thuẫn — cần chọn lại",
     "VENDOR_SOURCE_NOT_AUTHORIZED": "Nguồn giá nhà cung cấp chưa được cho phép dùng",
     "PUBLIC_PURCHASE_SOURCE_UNAVAILABLE": "Chưa có bảng giá PP",
     "PUBLIC_PURCHASE_NO_PRICE_AT_SALE_DATE": "Thiếu giá PP tại ngày bán",

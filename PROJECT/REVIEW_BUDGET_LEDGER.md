@@ -2886,6 +2886,56 @@ Independent Review).
 
 ---
 
+## Root Task: R2
+
+```
+root_task: R2
+title: Phân loại sản phẩm và giá nhập tay
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo failure path: `quyết định phân loại → identity → giá nhập KPI →
+EligibleKpiProfit → DS quy đổi → KPI/lương`.
+
+### CONFLICT DETECTED — R2 là root lineage hay sub-unit?
+
+Documentation:
+Phần đầu ledger này (viết trước khi Owner ban hành `R2 Execution Brief`) liệt
+kê chữ "R2" trong ví dụ về sub-unit KHÔNG có ngân sách riêng: *"Sub-unit (ví
+dụ R1-A2, R1-B, R2…) không có ngân sách riêng…"*.
+
+Implementation:
+`R2 Execution Brief` là một Owner Authority riêng, có phạm vi riêng (§3), bộ
+`CHECK-R2-01…19` riêng (§7), prompt Independent Review riêng (§10) và checklist
+nghiệm thu riêng (§12). Nó KHÔNG sửa tiếp triển khai của R1; nó xây tiếp trên
+một R1 đã ACCEPT. Đó đúng là hình dạng mà `R1` đã được cấp lineage riêng vì
+(xem §"Root Task: R1").
+
+Risk:
+Nếu đọc R2 là sub-unit của R1 thì mọi repair cycle của R2 sẽ tiêu vào ngân
+sách còn lại của R1 (`2 remaining`), và một R1 cần sửa về sau sẽ hết ngân sách
+vì lý do không liên quan tới nó.
+
+Recommended resolution:
+Coi `R2` là root lineage RIÊNG như mục này ghi, và sửa câu ví dụ ở đầu ledger
+để nó không còn dùng "R2" làm ví dụ sub-unit. **Phiên S128 KHÔNG tự thực hiện
+việc sửa đó** — nó là một quyết định về luật, không phải một chi tiết triển
+khai.
+
+Điều đúng theo CẢ HAI cách đọc, và vì thế không cần chốt gấp: phiên S128 tiêu
+`0` repair cycle. Mở task không tiêu ngân sách (`V4.1` §2).
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Root Task: R1
 
 ```

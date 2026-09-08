@@ -116,7 +116,7 @@ def line(**overrides) -> dict:
 
 # --- Vũ trụ reason code (CHECK-PRA004-04) --------------------------------
 
-def test_the_reason_universe_derived_from_source_is_closed_at_21_codes():
+def test_the_reason_universe_derived_from_source_is_closed_at_23_codes():
     """O-D1 + DEC-PAN-001 — 12 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
     1 ``Pending``.
 
@@ -131,12 +131,19 @@ def test_the_reason_universe_derived_from_source_is_closed_at_21_codes():
     đúng ngày ấy). Hai mã, không phải một: cái thứ nhất là việc của người vận
     hành, cái thứ hai là việc của người kiểm dữ liệu — gộp lại thì màn hình
     bảo người ta đi làm sai việc.
+
+    R2 (`R2 Execution Brief` §4.1/§4.2) nâng 12 → 14: `IDENTITY_OUT_OF_CATALOG`
+    (người dùng đã xác nhận hàng KHÔNG có trên bảng giá — phân loại XONG, chỉ
+    còn thiếu giá) và `IDENTITY_CONFLICT` (hai nguồn mapping đã xác nhận chỏi
+    nhau). Cả hai đều PHẢI tách khỏi `IDENTITY_UNRESOLVED`: gộp lại thì màn
+    hình đẩy dòng về hàng đợi "chưa phân loại" và hỏi Owner phân loại lại đúng
+    thứ họ vừa phân loại xong.
     """
     universe = reason_universe()
-    assert len(PriceResolutionReason) == 12
+    assert len(PriceResolutionReason) == 14
     assert len(CATEGORIES) == 8
     assert pending_fields_from_source() == {"eligible_kpi_profit"}
-    assert len(universe) == 21
+    assert len(universe) == 23
 
 
 def test_the_two_retired_accounting_codes_are_no_longer_generated():
@@ -147,9 +154,9 @@ def test_the_two_retired_accounting_codes_are_no_longer_generated():
 
 
 def test_the_renderable_universe_still_covers_persisted_history():
-    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 21 mã sinh mới + 2 mã
-    đã nghỉ = 23 mã UI có thể phải hiển thị. Không backfill, không migration."""
-    assert len(renderable_universe()) == 23
+    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 23 mã sinh mới + 2 mã
+    đã nghỉ = 25 mã UI có thể phải hiển thị. Không backfill, không migration."""
+    assert len(renderable_universe()) == 25
 
 
 def test_the_label_table_covers_the_whole_closed_universe():

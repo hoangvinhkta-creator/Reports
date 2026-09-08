@@ -135,6 +135,7 @@ def pull_live_captures(
     fetch: Optional[Fetcher] = None,
     sales: Optional[Path] = None,
     post: Optional[Poster] = None,
+    identity_store_view: Any = None,
 ) -> LiveSelectedCaptures:
     """Fetch các node Tracking LIVE cho đúng một lần chạy report.
 
@@ -148,6 +149,20 @@ def pull_live_captures(
     ``daily-min-v1`` MỘT lượt. Không có nó thì không có ảnh chụp MIN — và mọi
     dòng Tracking sẽ Pending với đúng lý do "chưa nối nguồn", chứ không mượn
     một nguồn giá khác.
+
+    ``identity_store_view`` (R2) là ảnh chụp ĐÃ ĐÓNG BĂNG của log quyết định
+    Product Identity, do bên gọi đọc MỘT lần cho cả lần chạy. Nó phải được
+    truyền vào chứ không được tự dựng ở đây, và lý do là một lỗi thật:
+
+        trên production, log quyết định nằm ở R2 (object store dùng chung),
+        còn hàm này trước đây tự mở một ``JsonlProductIdentityStore`` trên
+        ``data/product_identity/mappings.jsonl`` — tức đĩa ephemeral của
+        container. Nó luôn đọc ra một store RỖNG. Hệ quả: mọi mã mà Owner vừa
+        chọn trên giao diện KHÔNG lọt vào tập mã đi hỏi ``daily-min``, nên
+        dòng đó thiếu giá ở đúng lần chạy mà việc phân loại lẽ ra đã cứu.
+
+    ``None`` giữ nguyên hành vi cũ (đọc log cục bộ) cho máy Owner và cho test:
+    ở đó đĩa là thật, một tiến trình, và log cục bộ ĐÚNG là nơi lưu.
     """
     source_url = source_url or os.environ.get(SOURCE_URL_ENV_VAR)
     api_key = api_key or os.environ.get(API_KEY_ENV_VAR)
@@ -171,6 +186,7 @@ def pull_live_captures(
             fetch=fetch, post=post, sales=sales, out_dir=out_dir, token=token,
             moment=moment, captured_by=captured_by, source_url=source_url,
             api_key=api_key, temp_paths=temp_paths,
+            identity_store_view=identity_store_view,
         )
     except BaseException:
         # Một lần chạy hỏng KHÔNG được để lại authority thô của Tracking trên
@@ -194,6 +210,7 @@ def _pull(
     source_url: Optional[str],
     api_key: Optional[str],
     temp_paths: list[Path],
+    identity_store_view: Any = None,
 ) -> LiveSelectedCaptures:
     """Thân của ``pull_live_captures``. Tách ra để mọi đường thoát — kể cả
     ``raise`` từ tận trong kế hoạch hỏi giá — đi qua đúng một chỗ dọn dẹp."""
@@ -260,6 +277,7 @@ def _pull(
         captured_by=captured_by,
         moment=moment,
         post=post,
+        identity_store_view=identity_store_view,
     )
     if daily_min_path is not None:
         temp_paths.append(daily_min_path)
@@ -303,6 +321,7 @@ def _pull_daily_min(
     captured_by: str,
     moment: datetime,
     post: Optional[Poster],
+    identity_store_view: Any = None,
 ) -> tuple[Optional[Path], dict[str, Any]]:
     """Lập kế hoạch từ sổ rồi gọi ``daily-min-v1`` MỘT lượt cho lần chạy này.
 
@@ -339,12 +358,16 @@ def _pull_daily_min(
     )
     from app.modules.product.identity.store import JsonlProductIdentityStore
 
-    store = JsonlProductIdentityStore(log_path=REPO_ROOT / IDENTITY_STORE_LOG_PATH)
+    view = identity_store_view
+    if view is None:
+        store = JsonlProductIdentityStore(
+            log_path=REPO_ROOT / IDENTITY_STORE_LOG_PATH)
+        view = store.read_at_revision(store.current_revision())
     try:
         plan = plan_daily_min_request_for_workbook(
             Path(sales),
             tracking_catalog=load_tracking_catalog_capture(catalog_path),
-            identity_store_view=store.read_at_revision(store.current_revision()),
+            identity_store_view=view,
             tracking_inv_map=(
                 load_tracking_inv_map_capture(inv_map_path)
                 if inv_map_path is not None else None

@@ -38,7 +38,7 @@ from app.web.analytics_presentation import (
     money, period_label, period_options, period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
-from app.web import brand_identity, revenue_timeline
+from app.web import brand_identity, line_identity, revenue_timeline
 
 ORIGIN_BADGE = "SỐ MỚI"
 
@@ -863,7 +863,7 @@ def reporting_rows(sheet_totals: list[tuple], company: bm.BusinessTotals,
     return rows
 
 
-def detail_rows(details: list[dict]) -> list[dict]:
+def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
     """Bảng kê chi tiết — một dòng hàng là một dòng, sửa được ngay tại chỗ.
 
     Đây là "trang tính" mà chỉ thị `ORDER DETAIL TABLE` mô tả, và nó cố ý
@@ -879,10 +879,17 @@ def detail_rows(details: list[dict]) -> list[dict]:
 
     Danh sách gồm CẢ dòng đã đủ giá: quyền sửa một giá tự động phải có chỗ
     thực hiện, và Owner cần nhìn thấy cả kỳ chứ không chỉ phần lỗi.
+
+    `decisions` (R2 §Gói 4) mang trạng thái phân loại HIỆU LỰC vào từng dòng,
+    để bảng này vừa là bảng kê vừa là HÀNG ĐỢI XỬ LÝ: một dòng thiếu giá vì
+    chưa phân loại và một dòng thiếu giá vì ngoài bảng giá hiện cùng một ô
+    trống, nhưng cần hai hành động khác nhau. `None` cho ra chính xác hành vi
+    trước R2.
     """
     rows = []
     for detail in details:
         line = detail["line"]
+        identity = line_identity.state_of(detail, decisions=decisions)
         provenance = line.purchase_provenance
         blockers = line.profit_blockers
         # `S121` — một dòng hàng cho ra MỘT dòng bảng khi không có chiết khấu,
@@ -914,6 +921,22 @@ def detail_rows(details: list[dict]) -> list[dict]:
             "has_auto_price_at_entry": (
                 detail.get("override_auto_price_at_entry") is not None),
             "entered_at": detail.get("override_entered_at") or "",
+            # R2 §4.4 — hai nửa còn lại của provenance giá tay.
+            "entered_by": detail.get("override_entered_by") or "",
+            "override_reason": detail.get("override_reason") or "",
+            # --- R2 §4.1: trạng thái phân loại HIỆU LỰC của dòng --------
+            # Bốn giá trị, và mỗi giá trị dẫn tới một hành động khác nhau ở
+            # cột thao tác. Gộp chúng lại sẽ làm hàng đợi xử lý mất nghĩa.
+            "identity_classification": identity.classification,
+            "identity_label": identity.label,
+            "identity_title": identity.title,
+            "identity_key": identity.identity_key,
+            "can_identify": identity.classifiable,
+            "can_mark_out_of_catalog": bool(
+                identity.identity_key is not None
+                and identity.classification in (
+                    line_identity.CLASS_NEEDS_REVIEW,
+                    line_identity.CLASS_CONFLICT)),
             # --- ba ô SUY RA -------------------------------------------
             # Có chiết khấu ⟹ đây là số TRƯỚC chiết khấu; dòng "Chiết khấu"
             # ngay dưới mang phần âm, và hai dòng cộng lại đúng bằng canonical.
@@ -983,6 +1006,16 @@ def _discount_row(detail: dict, line: bm.BusinessLine,
         "auto_price_at_entry": "—",
         "has_auto_price_at_entry": False,
         "entered_at": "",
+        "entered_by": "",
+        "override_reason": "",
+        # Dòng "Chiết khấu" là số suy ra từ sổ, không phải một mặt hàng — nó
+        # không có trạng thái phân loại nào và không được mời Owner xử lý.
+        "identity_classification": None,
+        "identity_label": None,
+        "identity_title": None,
+        "identity_key": None,
+        "can_identify": False,
+        "can_mark_out_of_catalog": False,
         # Lý do "—" (nếu có) đã hiện ở dòng cha ngay trên; lặp lại nó ở đây
         # chỉ làm màn hình nói cùng một việc hai lần.
         "total_sales": _derived_cell(part.total_sales, ()),

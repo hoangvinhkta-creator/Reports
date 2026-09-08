@@ -163,13 +163,19 @@ def test_no_brand_table_or_column_exists_anywhere_in_the_schema():
 
 
 def test_phb06_adds_no_migration():
-    """`BR-13` — `NEW_MIGRATION = NONE`. Thư mục version giữ nguyên 7 bản."""
+    """`BR-13` — `NEW_MIGRATION = NONE`: PHB-06 không thêm bản migration nào."""
     versions = sorted(
         p.name for p in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py"))
     assert versions == [
         "0001_legacy.py", "0002_snapshots.py", "0003_business.py",
         "0004_employee_attribution.py", "0005_legacy_source_authority.py",
         "0006_employee_target.py", "0007_employee_workspace.py",
+        # `0008_purchase_price_reason` là của R2 (`R2 Execution Brief` §4.4),
+        # KHÔNG phải của vertical này. Nó có mặt trong danh sách vì phép
+        # khẳng định ở đây là một phép PIN thư mục; điều nó chứng minh vẫn
+        # nguyên vẹn — không có bản migration nào mang tên hay nội dung của
+        # vertical này.
+        "0008_purchase_price_reason.py",
     ]
 
 

@@ -116,8 +116,9 @@ def app(monkeypatch, tmp_path, tracking):
     real = owner_usability.run_owner_report
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: real(
-            sales=sales, captures=captures, repo_root=tmp_path),
+        lambda *, sales, captures=None, identity_store_view=None: real(
+            sales=sales, captures=captures, repo_root=tmp_path,
+            identity_store_view=identity_store_view),
     )
     application = web_server.create_app(db_path=tmp_path / "runs.db")
     application.testing = True

@@ -926,7 +926,9 @@ def test_case_ed_03_to_ed_05_the_purchase_price_is_editable_inline(
     keys = keys_of(service, "BH72707", "43F6000")
     response = client.post("/kinh-doanh/nhan-vien/gia-nhap", data={
         "ky": "2026-09", "sheet": "noi-thanh", **keys,
-        "gia_nhap": "4.000.000"})
+        # R2 §4.4 — dòng này ĐANG có giá tự động, nên đây là một
+        # `MANUAL_OVERRIDE` và lý do là BẮT BUỘC.
+        "gia_nhap": "4.000.000", "ly_do": "Đối chiếu hoá đơn"})
     assert response.status_code == 302
 
     data = service.period(**SEPTEMBER)
@@ -1678,7 +1680,7 @@ def test_the_owner_runs_a_full_month_through_the_workspace(
     keys_43f = keys_of(service, "BH72707", "43F6000")
     client.post("/kinh-doanh/nhan-vien/gia-nhap", data={
         "ky": "2026-09", "sheet": "noi-thanh", **keys_43f,
-        "gia_nhap": "4.000.000"})
+        "gia_nhap": "4.000.000", "ly_do": "Đối chiếu hoá đơn"})
 
     # 5. Chuyển ĐÚNG MỘT dòng sang Gia dụng.
     keys_xp = keys_of(service, "BH72707", "XP352AE-DS")

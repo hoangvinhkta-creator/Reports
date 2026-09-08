@@ -1,6 +1,92 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R1 = VERIFYING (2026-09-07)
+## CANONICAL CURRENT STATE — R2 = IMPLEMENTED, R1 = VERIFYING (2026-09-07)
+
+**R2 đã triển khai đầy đủ trên nền R1 đã ACCEPT.** Owner ban hành `R2
+Execution Brief — Phân loại sản phẩm và giá nhập tay`: hoàn thiện đường xử lý
+cho các dòng chưa tự nhận diện hoặc chưa có giá nhập KPI. Quyết định:
+`DEC-200`. Task canonical: `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md`. Bàn
+giao: `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay.md`. R2 KHÔNG thay công
+thức MIN của Tracking, KHÔNG xây giá thực nhập, và KHÔNG sửa `ADR-110`.
+
+**Hai mối nối bị ĐỨT đã được tái hiện và sửa** — cả hai đều không có triệu
+chứng, tức màn hình phân loại chạy đúng, log ghi đúng, và báo cáo không đổi
+một chữ:
+
+1. `ProductIdentityResolver._tracking_authoritative()` — đường production —
+   KHÔNG hỏi store quyết định của Reports một câu nào. Nhánh duy nhất đọc nó
+   (`_alias_exact`) chỉ chạy ở chế độ legacy, và đó cũng là chế độ mà fixture
+   test cũ dùng, nên mọi bộ test vẫn xanh trong khi production hỏng.
+2. `app/demo.py`, `app/owner_usability.py` và `tools/tracking/live_pull.py`
+   mỗi bên tự mở một `JsonlProductIdentityStore` trên
+   `data/product_identity/mappings.jsonl` — đĩa EPHEMERAL của container, trong
+   khi log thật của bản Web nằm ở R2 object store. Cả ba luôn đọc ra store
+   RỖNG.
+
+Hệ quả cộng lại: Owner chọn một mặt hàng trên giao diện, và mã ấy không bao
+giờ tới được resolver LẪN không bao giờ lọt vào tập mã đi hỏi `daily-min`.
+Nay `/run` đọc MỘT ảnh chụp đóng băng qua `identity_gateway.store_view()` và
+truyền vào cả hai đường.
+
+**Bốn trạng thái nhận diện hiệu lực** nay tách bạch ở model, persistence, UI
+và test: `MATCHED_TRACKING` · `NEEDS_REVIEW` · `OUT_OF_CATALOG` (mới, là một
+phân loại HOÀN TẤT — dòng vẫn trong báo cáo, vẫn giữ doanh thu, chờ giá tay)
+· `CONFLICT` (suy ra tại lần chạy, KHÔNG lưu, và không bên nào tự thắng).
+
+**Giá nhập tay** nay có đủ provenance thực tế: `entered_by`, `entered_at`,
+`auto_price_at_entry` và `reason` — `reason` BẮT BUỘC khi thay một giá AUTO.
+Migration additive `0008_purchase_price_reason`; `ALEMBIC_HEAD` chuyển từ
+`0007_employee_workspace` sang `0008_purchase_price_reason`.
+
+```text
+R2 STATUS   = IMPLEMENTED (repair FIND-R2-IR-03, HEAD f8225d3)
+              CHECK-R2-01 … CHECK-R2-17 = PASS (E1)
+              CHECK-R2-18 (Independent Review)  = NOT_TESTED
+              CHECK-R2-19 (Owner nghiệm thu)    = NOT_TESTED
+              Full regression: 2947 passed, 11 skipped
+              (baseline trước repair IR-03: 2943 passed, 11 skipped)
+              Migration 0008 upgrade + downgrade + re-upgrade đã chạy thật;
+              giá nhập Owner gõ tay SỐNG SÓT qua rollback (S128 §5.3).
+```
+
+**Repair sau Independent Review (2026-09-07, HEAD `e7ffaf6`, nền `cccdb58`).**
+Hai finding ACCEPTED, cả hai trên chuỗi CONFLICT (`§4.2`): `FIND-R2-IR-01`
+(một mapping CONFIRMED cũ — từ TRƯỚC khi mâu thuẫn xuất hiện — luôn che mất
+`IDENTITY_CONFLICT` của lần chạy hiện hành, vì `state_of()` kiểm quyết định đã
+lưu TRƯỚC khi đọc mã lý do) và `FIND-R2-IR-02` (một lần giải mâu thuẫn miễn
+trừ MỌI bất đồng tương lai thay vì chỉ đúng đối thủ đã thấy — Tracking đổi
+tiếp sang mã thứ ba thì hệ thống lặng lẽ tiếp tục dùng mã cũ). Khi verify
+finding thứ hai bằng test đi hết, phát lộ thêm một lỗi vòng hai ở tầng store
+(idempotency không tính mã đối lập, khiến "chọn lại đúng mã cũ cho một mâu
+thuẫn MỚI" bị coi là không đổi gì) — sửa trong cùng commit. Cả ba đều sửa tận
+gốc, không `ACCEPTED_RISK` nào phát sinh. Chi tiết, evidence và test tái
+hiện+PASS: `S128` §9b. Task VẪN `IMPLEMENTED` — không tự đánh dấu Independent
+Review PASS.
+
+**Repair riêng lẻ (2026-09-08, HEAD `f8225d3`, nền `b75bf84`) —
+`FIND-R2-IR-03`.** Cùng chuỗi CONFLICT, một finding thứ ba: `conflict_resolved`
+là một tập khoá trần, nên một lần giải A-vs-B (Owner chọn A) miễn trừ VĨNH
+VIỄN mọi `IDENTITY_CONFLICT` tương lai của cùng khoá — kể cả một A-vs-C hoàn
+toàn khác mà resolver/composition (đã sửa ở `FIND-R2-IR-02`) đúng đắn phát
+hiện lại. Sửa tận gốc bằng so sánh mốc thời gian: `Decisions.conflict_resolved`
+đổi từ `frozenset[key]` sang `dict{key: confirmed_at}`; `state_of()` chỉ cho
+quyết định thắng ngay khi mốc giải MỚI HƠN mốc lần chạy đã tính ra dòng đang
+hiển thị (`result_created_at`, cột đã có sẵn, không thêm schema). Không đụng
+Tracking/công thức MIN/fallback/giá tay/rủi ro đã chấp nhận. Chi tiết, evidence
+và test (domain + route Flask thật, đi hết toàn bộ chuỗi A-vs-B → không đổi →
+A-vs-C → chọn lại → sống qua restart): `S128` §9c. Task VẪN `IMPLEMENTED` —
+không tự đánh dấu Independent Review hay Owner Acceptance PASS.
+
+R2 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai: Brief §9
+cấm tự tuyên bố Independent Review và Owner Acceptance. Ba rủi ro giữ lại
+(`AR-R2-01` … `AR-R2-03`) ở `S128` §7 — đáng chú ý nhất là `AR-R2-01`, một lỗi
+CÓ TRƯỚC R2 làm log identity không đọc được nếu một `SetPending` bị theo sau
+bởi một `ConfirmMapping` trên cùng khoá (chỉ CLI phát được, giao diện web
+không có đường tới).
+
+---
+
+## R1 = VERIFYING (2026-09-07)
 
 **Thẩm quyền giá nhập ĐÃ ĐỔI.** Owner ban hành `R1 Execution Brief — Giá MIN
 theo ngày bán`: giá nhập tự động của Reports là **MIN của đúng ngày bán**, do

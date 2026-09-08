@@ -103,6 +103,7 @@ from app.modules.product.identity.identity import (
     CanonicalProductIdentity,
     Namespace,
     PendingProduct,
+    PendingReason,
     RequiresConfirmation,
     Resolved,
 )
@@ -111,6 +112,7 @@ from app.modules.product.identity.keys import (
     raw_identity_key,
 )
 from app.modules.product.identity.resolver import (
+    CONFLICT_MAPPING_SOURCE,
     ProductIdentityResolver,
     SalesRowRef,
 )
@@ -190,6 +192,14 @@ class PriceResolutionReason(str, Enum):
     IDENTITY_SOURCES_UNAVAILABLE = "IDENTITY_SOURCES_UNAVAILABLE"
     IDENTITY_UNRESOLVED = "IDENTITY_UNRESOLVED"
     IDENTITY_REQUIRES_CONFIRMATION = "IDENTITY_REQUIRES_CONFIRMATION"
+    #: R2 §4.3 — người dùng đã xác nhận hàng KHÔNG có trên bảng giá Tracking.
+    #: Phân loại ĐÃ XONG; dòng chỉ còn thiếu GIÁ, và giá đó nhập tay được.
+    #: Tách khỏi `IDENTITY_UNRESOLVED` là toàn bộ điểm của trạng thái này:
+    #: gộp lại sẽ đẩy dòng về hàng đợi "chưa phân loại" mãi mãi.
+    IDENTITY_OUT_OF_CATALOG = "IDENTITY_OUT_OF_CATALOG"
+    #: R2 §4.2 — mapping đã xác nhận của Reports và authority của Tracking
+    #: chỉ về hai mã khác nhau. Không bên nào tự thắng.
+    IDENTITY_CONFLICT = "IDENTITY_CONFLICT"
     TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE = "TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE"
     TRACKING_DAILY_MIN_PENDING = "TRACKING_DAILY_MIN_PENDING"
     TRACKING_HISTORY_SOURCE_UNAVAILABLE = "TRACKING_HISTORY_SOURCE_UNAVAILABLE"
@@ -555,25 +565,62 @@ class PostCutoverPriceComposition:
                 else:
                     records.append(self._public_purchase_branch(line, key, identity))
             elif isinstance(outcome, RequiresConfirmation):
+                # R2 §4.2 — hai lý do KHÁC NHAU cùng đi qua `RequiresConfirmation`
+                # (union `ResolutionOutcome` ĐÓNG, không có biến thể thứ năm),
+                # và chúng cần hai câu khác nhau trên màn hình: "chưa đủ căn cứ,
+                # hãy chọn" so với "hai nguồn đã xác nhận đang chỏi nhau, hãy
+                # chọn lại". Nhãn nằm ở provenance, nên union vẫn đóng.
+                conflict = (
+                    outcome.provenance is not None
+                    and outcome.provenance.mapping_source == CONFLICT_MAPPING_SOURCE
+                )
                 records.append(
                     self._pending(
                         line,
                         key,
                         None,
-                        PriceResolutionReason.IDENTITY_REQUIRES_CONFIRMATION,
-                        "Identity còn AMBIGUOUS — cần đúng một quyết định của "
-                        "người. Composition không chọn hộ giữa các candidate.",
+                        (
+                            PriceResolutionReason.IDENTITY_CONFLICT
+                            if conflict
+                            else PriceResolutionReason.IDENTITY_REQUIRES_CONFIRMATION
+                        ),
+                        (
+                            "Mapping đã xác nhận của Reports và authority của "
+                            "Tracking chỉ về hai mã khác nhau. Composition KHÔNG "
+                            "chọn bên thắng — người dùng phải chọn lại."
+                            if conflict
+                            else "Identity còn AMBIGUOUS — cần đúng một quyết định "
+                            "của người. Composition không chọn hộ giữa các "
+                            "candidate."
+                        ),
                     )
                 )
             elif isinstance(outcome, PendingProduct):
+                # `OUT_OF_CATALOG_CONFIRMED` là một Pending về GIÁ, không phải
+                # về NHẬN DIỆN. Trộn nó vào `IDENTITY_UNRESOLVED` sẽ làm màn
+                # hình hỏi Owner phân loại lại đúng thứ họ vừa phân loại xong.
+                out_of_catalog = (
+                    outcome.reason_code is PendingReason.OUT_OF_CATALOG_CONFIRMED
+                )
                 records.append(
                     self._pending(
                         line,
                         key,
                         None,
-                        PriceResolutionReason.IDENTITY_UNRESOLVED,
-                        f"TASK-105D trả PENDING_PRODUCT ({outcome.reason_code.value}); "
-                        "không có identity nào để hỏi giá.",
+                        (
+                            PriceResolutionReason.IDENTITY_OUT_OF_CATALOG
+                            if out_of_catalog
+                            else PriceResolutionReason.IDENTITY_UNRESOLVED
+                        ),
+                        (
+                            "Người dùng đã xác nhận mặt hàng này KHÔNG có trên "
+                            "bảng giá Tracking. Phân loại đã xong; dòng vẫn nằm "
+                            "trong báo cáo và chờ một giá nhập tay."
+                            if out_of_catalog
+                            else f"TASK-105D trả PENDING_PRODUCT "
+                            f"({outcome.reason_code.value}); không có identity "
+                            "nào để hỏi giá."
+                        ),
                     )
                 )
             else:  # pragma: no cover — union ĐÓNG, nhánh này không tồn tại

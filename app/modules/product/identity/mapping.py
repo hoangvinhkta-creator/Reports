@@ -32,22 +32,53 @@ SOURCE_SYSTEM_REPORTS_SALES = "REPORTS_SALES"
 
 
 class MappingStatus(str, Enum):
-    """Enum đóng, §6.4."""
+    """Enum đóng, §6.4.
+
+    `OUT_OF_CATALOG` thêm ở R2 theo `R2 Execution Brief` §4.1/§4.3. Nó là một
+    KẾT QUẢ PHÂN LOẠI HOÀN TẤT, không phải một biến thể của `PENDING`, và ba
+    thứ dưới đây là những gì nó KHÔNG có nghĩa (§4.1):
+
+        hết hàng (`OUT_OF_STOCK`)         — đó là trạng thái của một NGÀY
+        Tracking chưa trả được giá        — đó là `SOURCE_UNAVAILABLE`/`NO_DATA`
+        loại dòng khỏi báo cáo            — đó là `line_exclusion`
+
+    Gộp nó vào `PENDING` sẽ làm màn hình hỏi Owner phân loại lại một thứ họ đã
+    phân loại xong; gộp nó vào `CONFIRMED` sẽ đòi một `source_product_code`
+    không tồn tại. Nên nó là một trạng thái riêng.
+    """
 
     CONFIRMED = "CONFIRMED"
     PENDING = "PENDING"
     SUPERSEDED = "SUPERSEDED"
     CONFLICT = "CONFLICT"
     STALE = "STALE"
+    OUT_OF_CATALOG = "OUT_OF_CATALOG"
 
 
 class MappingSource(str, Enum):
-    """Enum đóng, §6.5."""
+    """Enum đóng, §6.5.
+
+    `HUMAN_CONFLICT_RESOLUTION` thêm ở R2 (§4.2). Nó KHÔNG phải một cách nói
+    khác của `HUMAN_CONFIRMATION`: nó ghi rằng người dùng đã được cho xem một
+    mâu thuẫn giữa quyết định của Reports và authority của Tracking, và vẫn
+    chọn. Không có nhãn đó thì lần chạy sau lại phát hiện đúng mâu thuẫn ấy và
+    lại hỏi lại — một vòng lặp không bao giờ kết thúc, vì mâu thuẫn được suy ra
+    từ dữ liệu chứ không được lưu.
+    """
 
     HUMAN_CONFIRMATION = "HUMAN_CONFIRMATION"
+    HUMAN_CONFLICT_RESOLUTION = "HUMAN_CONFLICT_RESOLUTION"
     DETERMINISTIC_CATALOG_MATCH = "DETERMINISTIC_CATALOG_MATCH"
     OWNER_BOOTSTRAP = "OWNER_BOOTSTRAP"
     HISTORICAL_CONFIRMED_REPORT = "HISTORICAL_CONFIRMED_REPORT"
+
+
+#: Các `mapping_source` nói rằng bản ghi đến từ một quyết định của NGƯỜI phía
+#: Reports. Dùng ở resolver để trả lời "đây có phải quyết định người không",
+#: thay vì so chuỗi rải rác ở nhiều nơi.
+HUMAN_MAPPING_SOURCES: frozenset[MappingSource] = frozenset(
+    {MappingSource.HUMAN_CONFIRMATION, MappingSource.HUMAN_CONFLICT_RESOLUTION}
+)
 
 
 PRICE_LIKE_FIELD_NAMES = frozenset(

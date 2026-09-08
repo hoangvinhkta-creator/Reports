@@ -71,6 +71,22 @@ class InvalidPurchasePriceError(ValueError):
     """Giá trị Owner nhập không dùng được — TỪ CHỐI, không đoán hộ."""
 
 
+class MissingPriceReasonError(ValueError):
+    """R2 §4.4 — thay một giá AUTO đang có mà không nói vì sao.
+
+    Chỉ áp cho `MANUAL_OVERRIDE`. Lấp một chỗ TRỐNG thì lý do hiển nhiên
+    ("chưa có giá nào") và một lý do mặc định ngắn là đủ; nhưng THAY một con
+    số mà hệ thống đã tính được là một khẳng định rằng con số kia sai, và một
+    khẳng định như thế không được để lại không dấu vết.
+    """
+
+
+#: Lý do mặc định khi Owner LẤP một giá còn thiếu mà không gõ gì. Ngắn và
+#: đúng: đây là tình huống thường gặp nhất của R2 (`§4.4`), và bắt gõ một câu
+#: cho mỗi dòng ngoài bảng giá là thêm ma sát vào đúng thao tác chính.
+DEFAULT_FILL_REASON = "Hàng ngoài bảng giá"
+
+
 class InvalidProductGroupError(ValueError):
     """Nhóm sản phẩm không thuộc tập đã freeze (`DEC-127`, ADR-106)."""
 
@@ -275,6 +291,7 @@ class BusinessDecisionStore:
         auto_price: Optional[Decimal],
         entered_by: Optional[str] = None,
         entered_at: Optional[str] = None,
+        reason: Optional[str] = None,
     ) -> str:
         """Ghi giá nhập KPI của một dòng; trả về provenance đã lưu.
 
@@ -288,13 +305,31 @@ class BusinessDecisionStore:
         `DEC-PHB02-02` §3: một override KHÔNG BAO GIỜ được ghi thành `AUTO`.
         Nhập lại đúng bằng giá AUTO vẫn là `MANUAL_OVERRIDE` — Owner đã ra một
         quyết định, và xoá dấu vết quyết định đó là nói dối về nguồn con số.
+
+        `reason` (R2 §4.4) là phần còn thiếu của provenance. Ràng buộc nằm ở
+        ĐÂY chứ không ở cột database, vì chỉ chỗ này biết lần ghi là `MANUAL`
+        hay `MANUAL_OVERRIDE`:
+
+            MANUAL_OVERRIDE  reason BẮT BUỘC — đang nói một con số đã có là sai
+            MANUAL           reason tuỳ chọn — mặc định `DEFAULT_FILL_REASON`
+
+        `entered_by` cũng đi vào đây từ R2. Trước đó nó luôn `NULL` trên đường
+        web: cột đã có, nhưng không route nào truyền giá trị vào — một audit
+        trail có chỗ để ghi người quyết định mà không bao giờ ghi.
         """
         provenance = (PURCHASE_PROVENANCE_MANUAL if auto_price is None
                       else PURCHASE_PROVENANCE_MANUAL_OVERRIDE)
+        note = (reason or "").strip()
+        if provenance == PURCHASE_PROVENANCE_MANUAL_OVERRIDE and not note:
+            raise MissingPriceReasonError(
+                "Dòng này đang có giá nhập tự động. Hãy ghi lý do thay giá — "
+                "một con số ghi đè mà không có lý do thì sau này không ai "
+                "dựng lại được vì sao.")
         values = {
             "purchase_price": price, "provenance": provenance,
             "auto_price_at_entry": auto_price,
             "entered_at": entered_at or _now(), "entered_by": entered_by,
+            "reason": note or DEFAULT_FILL_REASON,
         }
         keys = {"order_key": order_key, "product_key": product_key,
                 "occurrence_index": occurrence_index}
@@ -329,6 +364,7 @@ class BusinessDecisionStore:
             table.c.order_key, table.c.product_key, table.c.occurrence_index,
             table.c.purchase_price, table.c.provenance,
             table.c.auto_price_at_entry, table.c.entered_at, table.c.entered_by,
+            table.c.reason,
         ))
         return {
             (row["order_key"], row["product_key"], int(row["occurrence_index"])): row

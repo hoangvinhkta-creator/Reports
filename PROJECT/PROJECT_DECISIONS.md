@@ -12122,3 +12122,81 @@ Can Revisit After:
 Mở lại nếu Owner đổi định nghĩa giá nhập tự động, hoặc khi `TASK-105C`
 (giá nhà cung cấp lịch sử) được cấp phép và cần một thứ tự ưu tiên mới.
 Điểm 6 mở lại khi không còn kết quả cũ nào cần đọc bằng nhánh `tp/ton`.
+
+---
+
+## DEC-200
+
+Title:
+R2 — bốn trạng thái nhận diện hiệu lực, `OUT_OF_CATALOG` là phân loại HOÀN
+TẤT, và quyết định của người phải tới được resolver production
+
+Date:
+2026-09-07
+
+Status:
+ACCEPTED (Owner Decision — `R2 Execution Brief — Phân loại sản phẩm và giá
+nhập tay`)
+
+Context:
+
+R1 trả lời được "giá vốn của ngày bán là bao nhiêu" cho những dòng máy đã biết
+là mặt hàng nào. Phần còn lại — dòng chưa nhận diện và dòng thật sự không có
+trên bảng giá — chưa có đường đi tới đâu cả.
+
+Đáng chú ý hơn: bề mặt phân loại của `DEC-185` đã tồn tại và ĐÃ CHẠY ĐÚNG phần
+việc của nó (ghi `ConfirmMapping` vào log, đổi màn hình), nhưng quyết định ấy
+KHÔNG tới được đường chạy báo cáo. Hai mối nối đứt, cả hai đều im lặng — chi
+tiết ở `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay.md` §2.
+
+Decision:
+
+1. **Bốn trạng thái nhận diện hiệu lực, tách bạch ở model, persistence, UI và
+   test:** `MATCHED_TRACKING` · `NEEDS_REVIEW` · `OUT_OF_CATALOG` · `CONFLICT`.
+
+2. **`OUT_OF_CATALOG` là một KẾT QUẢ PHÂN LOẠI HOÀN TẤT**, không phải một biến
+   thể của Pending. Dòng rời khỏi hàng đợi "chưa phân loại", GIỮ NGUYÊN doanh
+   thu/số lượng/chiết khấu, và chờ một giá nhập tay. Nó KHÔNG đồng nghĩa hết
+   hàng, không đồng nghĩa Tracking chưa trả được giá, và không loại dòng khỏi
+   báo cáo. Chỉ một thao tác tường minh của người mới tạo ra nó.
+
+3. **`CONFLICT` là trạng thái SUY RA, không phải trạng thái LƯU.** Nó là quan
+   hệ giữa một quyết định đã lưu của Reports và authority của Tracking tại một
+   capture cụ thể; lưu nó xuống sẽ đóng băng một quan hệ mà lần capture sau có
+   thể tự giải. Khi mâu thuẫn xảy ra, hệ thống KHÔNG chọn bên thắng.
+
+4. **Mâu thuẫn phải kết thúc được.** Lựa chọn của người dùng khi họ ĐÃ ĐƯỢC
+   CHO XEM cả hai mã được ghi bằng `MappingSource.HUMAN_CONFLICT_RESOLUTION`,
+   có `reason`, có actor, có audit event. Không có nhãn đó thì mỗi lần chạy
+   lại suy ra đúng mâu thuẫn ấy và hỏi lại — mãi mãi. Đây KHÔNG phải
+   last-write-wins.
+
+5. **Thứ tự ưu tiên giá nhập KPI (giữ nguyên, nay có test canh):** giá tay →
+   MIN đúng `sale_date` → Pending có lý do. Giá AUTO xuất hiện hoặc đổi về sau
+   KHÔNG tự đè giá tay.
+
+6. **Provenance của một quyết định giá tay phải đủ để mở lại:** `entered_by`,
+   `entered_at`, `auto_price_at_entry` (khi có) và `reason`. `reason` BẮT BUỘC
+   khi lần ghi thay một giá AUTO đang có; tuỳ chọn khi nó lấp một chỗ trống.
+   Ràng buộc sống ở tầng nghiệp vụ, không ở tầng cột — xem
+   `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md` §4.4.
+
+7. **Nơi lưu quyết định là một, và đường chạy báo cáo phải đọc đúng nơi đó.**
+   `identity_gateway.build_store()` là chỗ DUY NHẤT quyết định log thật nằm ở
+   đâu; `/run` đọc MỘT ảnh chụp đóng băng và truyền nó vào cả kế hoạch hỏi giá
+   lẫn pipeline. Không nơi nào khác được tự mở một store thứ hai.
+
+Reversal Cost:
+
+TRUNG BÌNH-CAO. Điểm 2 thêm một giá trị vào một enum ĐÓNG đã persist
+(`MappingStatus`), nên hạ cấp code sau khi Owner đã dùng nút "ngoài bảng giá"
+là một thao tác MỘT CHIỀU: log append-only vẫn chứa bản ghi ấy và bản đọc cũ
+sẽ từ chối nó. Chi tiết + đường xử lý ở `S128` §8. Điểm 5–6 đảo lại rẻ (một
+migration bỏ cột, tiền không mất). Điểm 7 đảo lại là quay về đúng lỗi mà R2
+sửa, nên không có lý do nào để đảo.
+
+Can Revisit After:
+
+Mở lại điểm 3 nếu Owner muốn một mâu thuẫn được LƯU để theo dõi qua nhiều lần
+chạy. Mở lại điểm 6 nếu Owner quyết định cấm hẳn giá nhập tay `0` (xem `S128`
+§7 `AR-R2-03`).
