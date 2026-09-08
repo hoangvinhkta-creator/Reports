@@ -12200,3 +12200,106 @@ Can Revisit After:
 Mở lại điểm 3 nếu Owner muốn một mâu thuẫn được LƯU để theo dõi qua nhiều lần
 chạy. Mở lại điểm 6 nếu Owner quyết định cấm hẳn giá nhập tay `0` (xem `S128`
 §7 `AR-R2-03`).
+
+---
+
+## DEC-201
+
+Title:
+R4 — báo cáo đánh giá là một trang CHỈ ĐỌC trên một effective data, và không
+chỉ tiêu nào dẫn xuất từ lợi nhuận được công bố khi coverage chưa đủ
+
+Date:
+2026-09-08
+
+Status:
+ACCEPTED (Owner Decision — `R4 Execution Brief — Báo cáo đánh giá vận hành`)
+
+Context:
+
+Sau R1–R3, Reports đã có đủ số để trả lời câu hỏi cuối tháng, nhưng người dùng
+phải mở bốn màn hình và tự cộng trong đầu. Người dùng chính là 2–3 người, nên
+câu trả lời KHÔNG phải là dựng một hệ BI — mà là gom bốn câu hỏi (*kết quả ra
+sao · đạt bao nhiêu phần target · phần nào tạo ra kết quả · số này đã đủ tin
+chưa*) vào MỘT trang.
+
+Rủi ro lớn nhất của một trang như vậy không phải là thiếu chỉ tiêu. Nó là
+**công bố một kết quả một phần như kết luận cả kỳ**: khi còn dòng chưa có giá
+nhập, tổng phần đã biết vẫn là một con số hợp lệ về hình thức, và một biên lợi
+nhuận tính từ nó trông giống hệt một biên thật.
+
+Decision:
+
+1. **`PeriodData` của R3 là nguồn DUY NHẤT.** Không đọc `ImportResult`,
+   snapshot cũ hay Excel thô. Mọi chỉ tiêu cộng được đi qua
+   `business_metrics.totals` của cùng lát dữ liệu mà trang Báo cáo và không
+   gian làm việc đang hiển thị. R4 KHÔNG tính lại con số nào của R1–R3.
+
+2. **Trang chỉ ĐỌC.** Không route ghi, không chạm `business_store`, không
+   migration, không schema mới. Đây là điều quyết định Blast Radius của R4
+   (`3/5` thay vì `5/5`), và nó là một tính chất CẤU TẠO kiểm được bằng test
+   (`CHECK-R4-22`), không phải một lời hứa.
+
+3. **Cổng coverage 100 % áp cho MỌI chỉ tiêu dẫn xuất từ lợi nhuận** — Lợi
+   nhuận KPI, Biên KPI, Lãi/đơn, DS quy đổi và % target. Coverage chưa đủ ⟹ cả
+   năm hiện `—` kèm lý do. Con số một phần vẫn hiện, nhưng ở vị trí BẰNG CHỨNG
+   ("đã tính được…"), không bao giờ ở vị trí kết quả.
+
+4. **`None` không bao giờ thành `0`.** Mọi ô không có số mang MỘT mã lý do
+   thuộc tập đóng. Bất biến này được canh ở constructor (`evaluation.Kpi`),
+   nên vi phạm nó là một `ValueError` lúc dựng chứ không phải một ô trống trên
+   màn hình.
+
+5. **Không có target cấp công ty.** Target chỉ tồn tại ở nhân viên hoặc sheet
+   nhóm. Phạm vi "Cả kỳ" không hiện ô target nào; hàng TỔNG của bảng đơn vị
+   báo cáo để trống hai cột target. Cộng target các đơn vị lên sẽ cho ra một
+   con số chưa ai đặt và không ai chịu trách nhiệm (`DEC-PHB02-08` §7).
+
+6. **So kỳ trước của tháng đang chạy dùng CÙNG SỐ NGÀY LỊCH cho cả hai vế.**
+   Tháng trước ngắn hơn thì cắt CẢ HAI ở ngày ngắn hơn — cắt hai vế ở hai số
+   ngày khác nhau thì phép so không còn là "cùng số ngày lịch", và tháng ngắn
+   sẽ luôn trông kém hơn. Dòng không có ngày bán bị loại khỏi cả hai vế và
+   được đếm riêng.
+
+7. **Forecast chỉ là RUN-RATE, luôn mang nhãn "ước tính nếu tốc độ hiện tại
+   giữ nguyên".** Không mô hình, không mùa vụ, không nguyên nhân, không cam
+   kết. Nó từ chối chạy khi kỳ đã kết thúc, khi chỉ tiêu nền chưa chính thức,
+   khi không có dòng mang ngày bán, và khi chưa có ngày nào trôi qua.
+
+8. **Không nhãn phán quyết trên bảng đóng góp.** "Biên KPI thấp nhất" là một
+   THỨ TỰ SẮP XẾP; không có ngưỡng "biên thấp" nào được đặt ra, vì ngưỡng đó
+   là một quyết định của Owner. Không hàng nào mang nhãn `top`, `tốt` hay
+   `kém`, và trang không viết một câu nguyên nhân nào.
+
+9. **Mặt hàng gộp bằng `product_key`** — khoá đã được repo công nhận, cùng
+   khoá và cùng quy ước nhãn (`min(product_raw)`) mà `sales_queries.
+   product_totals` và `BusinessReportService.products` dùng. Không dựng khoá
+   gộp thứ hai.
+
+10. **Drill-down dùng lại bảng kê chi tiết ĐÃ CÓ**, giữ kỳ + phạm vi + bộ lọc,
+    và bảng kê NÓI RA phạm vi nó vừa thu hẹp về. Không dựng màn hình chi tiết
+    thứ hai, không lộ trường dữ liệu nào mới. Một khoá thu hẹp không khớp gì
+    cho ra bảng RỖNG chứ không im lặng mở rộng về "tất cả".
+
+11. **Ngày nghiệp vụ đọc theo `Asia/Ho_Chi_Minh`**, không theo đồng hồ máy chủ
+    — cùng múi giờ mà hợp đồng `daily-min-v1` đã freeze cho ranh giới ngày của
+    giá MIN. Ngày bán và ngày báo cáo phải cắt theo cùng một ranh giới.
+
+12. **Không thêm tab top-level.** `DEC-185` rút thanh tab còn ba mục có chủ
+    đích; trang đánh giá mở từ một đường dẫn trên trang Báo cáo, mang theo kỳ
+    đang chọn. Đổi thanh tab là một quyết định điều hướng riêng.
+
+Reversal Cost:
+
+THẤP. R4 không ghi gì và không có migration, nên gỡ nó là xoá một route, một
+template và hai module thuần — không dữ liệu nào mất, không con số nào đổi.
+Ngoại lệ duy nhất là điểm 11 (`_today()` theo múi giờ nghiệp vụ): đảo lại nó là
+quay về đúng lỗi lệch một ngày mỗi tối mà nó sửa, nên không có lý do nào để
+đảo.
+
+Can Revisit After:
+
+Mở lại điểm 8 nếu Owner đặt một ngưỡng "biên thấp" tường minh. Mở lại điểm 5
+nếu Owner tạo một bảng target cấp công ty THẬT (không phải một tổng suy ra).
+Mở lại giới hạn `AR-R4-01` (trạng thái MIN `FINAL`/`PROVISIONAL`) khi đường
+NHẬP lưu `day_status` xuống dữ liệu hiệu lực.

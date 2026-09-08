@@ -45,9 +45,30 @@
   </nav>
 
   <p class="insight" data-metric="filter-note">
-    {% if mode == 'tat-ca' %}Đang hiện TOÀN BỘ dòng của kỳ/nhân viên đang chọn.
+    {% if narrow is defined and narrow.active %}Đang hiện MỘT PHẦN các dòng —
+      bảng đã thu hẹp theo phạm vi ghi ngay dưới đây.
+    {% elif mode == 'tat-ca' %}Đang hiện TOÀN BỘ dòng của kỳ/nhân viên đang chọn.
     {% else %}Đang hiện MỘT PHẦN các dòng — bấm TẤT CẢ DÒNG để xem đủ.{% endif %}
   </p>
+
+  {# R4 §5 — một đường dẫn drill-down phải NÓI RA phạm vi nó vừa thu hẹp về.
+     Không có dòng này, Owner bấm từ bảng "theo mặt hàng" rồi đọc một tổng
+     nhỏ hơn tổng kỳ mà không có gì giải thích vì sao. #}
+  {% if narrow is defined and narrow.active %}
+  <p class="insight" data-metric="narrow-scope">Phạm vi đang xem:
+    {% if narrow.product_key %}mặt hàng
+      <strong data-metric="narrow-product">{{ narrow.product_label }}</strong>{% endif %}
+    {% if narrow.product_group is not none %}nhóm hàng
+      <strong data-metric="narrow-product-group"
+        >{{ narrow.product_group or 'Chưa phân nhóm' }}</strong>{% endif %}
+    {% if narrow.lead_source is not none %}nguồn đơn
+      <strong data-metric="narrow-lead-source"
+        >{{ narrow.lead_source or 'Chưa phân loại nguồn' }}</strong>{% endif %}
+    — <a href="{{ url_for('business_purchase_price', ky=selected_period,
+             **{'nhan-vien': selected_employee, 'nhom': selected_sheet,
+                'loc': mode}) }}">bỏ thu hẹp</a>
+  </p>
+  {% endif %}
 
   {% if not rows %}
   <p class="empty" data-metric="no-rows">
