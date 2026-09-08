@@ -13,6 +13,7 @@ lại kỳ. Toàn bộ dữ liệu là tổng hợp.
 from __future__ import annotations
 
 import io
+import re
 from decimal import Decimal
 
 import pytest
@@ -262,6 +263,81 @@ class TestTheNewExceptionQueuesAreReachable:
         assert "43F6000" not in html
         # Và nó hiện đúng NGUỒN của con số 0 ấy — không phải "Tự động".
         assert "Chính sách (dòng phụ)" in metrics(html, "provenance")[0]
+
+    def test_a_binding_exception_can_be_seen_and_closed_from_the_line(
+        self, engine, repository, service, client
+    ):
+        """`R3 §1` — vòng đời ĐẦY ĐỦ của một ngoại lệ gắn dòng, qua web thật.
+
+        Dựng đúng ca mà hệ thống từ chối đoán: một đơn có HAI dòng cùng mặt
+        hàng, một giá nhập tay treo trên dòng thứ nhất, rồi nạp lại sổ với CẢ
+        HAI dòng đã bị sửa. Kỳ vọng: dòng mới hiện ngoại lệ ngay trên dòng,
+        bấm ĐÃ XỬ LÝ là nó biến khỏi hàng đợi — và KHÔNG khoá nào bị đổi.
+        """
+        from decimal import Decimal as D
+
+        from sqlalchemy import insert
+
+        from tests.test_employee_workspace_ux import line as make_line
+        from tools.db import schema
+
+        twins = [
+            make_line("BH72707", "Chi phí vận chuyển", occurrence=1, day=5,
+                      row=6, sell="100000", kpi_purchase=None, kpi_profit=None,
+                      reasons=("Missing.PurchasePrice",)),
+            make_line("BH72707", "Chi phí vận chuyển", occurrence=2, day=5,
+                      row=7, sell="200000", kpi_purchase=None, kpi_profit=None,
+                      reasons=("Missing.PurchasePrice",)),
+        ]
+        persist(repository, twins, run_id="r1", fingerprint="fp-a")
+        keys = keys_of(service, "BH72707", "Chi phí vận chuyển")
+        with engine.begin() as connection:
+            connection.execute(insert(schema.kpi_purchase_price_override).values(
+                order_key=keys["order_key"], product_key=keys["product_key"],
+                occurrence_index=1, origin=schema.ORIGIN_PIPELINE,
+                purchase_price=D("70000"), provenance="MANUAL",
+                auto_price_at_entry=None, entered_at="2026-09-08T01:00:00",
+                entered_by="owner-web", reason="Hàng ngoài bảng giá"))
+
+        edited = [
+            make_line("BH72707", "Chi phí vận chuyển", occurrence=1, day=5,
+                      row=6, sell="110000", kpi_purchase=None, kpi_profit=None,
+                      reasons=("Missing.PurchasePrice",)),
+            make_line("BH72707", "Chi phí vận chuyển", occurrence=2, day=5,
+                      row=7, sell="220000", kpi_purchase=None, kpi_profit=None,
+                      reasons=("Missing.PurchasePrice",)),
+        ]
+        persist(repository, edited, run_id="r2", at="2026-10-02T00:00:00",
+                fingerprint="fp-b")
+
+        html = body(client, f"/kinh-doanh/gia-nhap?{PERIOD_QS}&loc=gan-dong")
+        notes = metrics(html, "binding-exception")
+        assert len(notes) == 2
+        assert "KHÔNG ghép chắc chắn được" in notes[0]
+        assert "giá nhập tay" in notes[0]
+
+        ids = re.findall(r'data-exception="(\d+)"', html)
+        assert len(ids) == 2
+        for exception_id in ids:
+            resolved = client.post("/kinh-doanh/ngoai-le-gan-dong", data={
+                "ky": "2026-09", "loc": "gan-dong", "ngoai_le_id": exception_id})
+            assert resolved.status_code == 302
+
+        after = body(client, f"/kinh-doanh/gia-nhap?{PERIOD_QS}&loc=gan-dong")
+        assert metrics(after, "binding-exception") == []
+        # Giá nhập Owner đã gõ VẪN nằm đúng khoá cũ — không bị di chuyển.
+        with engine.connect() as connection:
+            rows = list(connection.execute(
+                schema.kpi_purchase_price_override.select()))
+        assert len(rows) == 1
+        assert rows[0].occurrence_index == 1
+
+    def test_an_unknown_exception_id_is_refused(self, repository, client):
+        persist(repository, one_order())
+        assert client.post("/kinh-doanh/ngoai-le-gan-dong", data={
+            "ky": "2026-09", "ngoai_le_id": "999"}).status_code == 404
+        assert client.post("/kinh-doanh/ngoai-le-gan-dong", data={
+            "ky": "2026-09", "ngoai_le_id": "khong-phai-so"}).status_code == 400
 
     def test_the_undecided_document_queue_lists_the_btl_order(
         self, repository, client

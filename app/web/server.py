@@ -2174,44 +2174,49 @@ def create_app(
     # "thiếu giá" gộp bốn tình huống có bốn hành động khác nhau, và một hàng
     # đợi xử lý mà không tách được chúng thì không giúp ai xử lý được gì.
     _DETAIL_FILTERS = {
-        "tat-ca": lambda line, state: True,
+        "tat-ca": lambda line, state, flagged: True,
         # Việc Owner gõ được ngay bây giờ.
-        "thieu-gia": lambda line, state: line.purchase_price is None,
+        "thieu-gia": lambda line, state, flagged: line.purchase_price is None,
         # Dòng đã có lãi nhưng chưa biết của ai (`OD-5`).
-        "chua-ro-nv": lambda line, state: (line.contributes_profit
+        "chua-ro-nv": lambda line, state, flagged: (line.contributes_profit
                                            and not line.employee_resolved),
         # `R3` — "dòng tôi đã sửa": CHỈ đọc lại provenance đã lưu (giá nhập
         # Owner nhập/sửa, hoặc nhân viên Owner gán lại). Không trạng thái mới,
         # không workflow mới, không ghi gì.
-        "owner-sua": lambda line, state: (
+        "owner-sua": lambda line, state, flagged: (
             line.purchase_provenance in _OWNER_EDITED_PROVENANCE
             or line.employee_provenance == "MANUAL"),
         # --- R2 §Gói 4 — bốn hàng đợi, bốn hành động ---------------------
         # 1. Chưa phân loại ⟹ chọn mã Tracking, hoặc đánh dấu ngoài bảng giá.
-        "chua-phan-loai": lambda line, state: state.needs_review,
+        "chua-phan-loai": lambda line, state, flagged: state.needs_review,
         # 2. Ngoài bảng giá mà chưa có giá tay ⟹ gõ một con số.
-        "ngoai-bang-thieu-gia": lambda line, state: (
+        "ngoai-bang-thieu-gia": lambda line, state, flagged: (
             state.out_of_catalog and line.purchase_price is None),
         # 3. Đã khớp Tracking nhưng chưa có MIN cho ngày bán ⟹ vẫn gõ tay
         #    được, và đó là điểm khác biệt so với (1): ở đây KHÔNG cần phân
         #    loại thêm gì cả, chỉ là Tracking chưa trả được giá của ngày ấy.
-        "thieu-min": lambda line, state: (
+        "thieu-min": lambda line, state, flagged: (
             state.classification == line_identity.CLASS_MATCHED_TRACKING
             and line.purchase_price is None),
         # 4. Mâu thuẫn ⟹ chọn LẠI. Không tự chọn bên thắng (`§4.2`).
-        "xung-dot": lambda line, state: state.conflict,
+        "xung-dot": lambda line, state, flagged: state.conflict,
         # --- R3 §2/§1 — hai hàng đợi ngoại lệ mới -----------------------
         # 5. Dòng thuộc loại chứng từ chưa ai định nghĩa (hoàn/hủy, hoặc một
         #    tiền tố Số BH chưa khai). Hành động: Owner quyết nghĩa của nó,
         #    hoặc loại dòng khỏi báo cáo. KHÔNG phải việc gõ một con số.
-        "loai-chua-ro": lambda line, state: (
+        "loai-chua-ro": lambda line, state, flagged: (
             line.line_type in line_type.UNDECIDED_TYPES),
         # 6. Dòng phụ đã được chính sách cho giá nhập 0 (`OD-105B-01` §3) —
         #    ở đây để Owner ĐỐI CHIẾU, không phải để sửa: một dòng phí bị
         #    nhận nhầm thành hàng bán (hoặc ngược lại) chỉ nhìn ra được khi
         #    chúng đứng cạnh nhau.
-        "gia-theo-chinh-sach": lambda line, state: (
+        "gia-theo-chinh-sach": lambda line, state, flagged: (
             line.purchase_provenance == business_metrics.PROVENANCE_POLICY_ZERO),
+        # 7. `R3 §1` — dòng mà lần nạp lại KHÔNG ghép chắc chắn được vào khoá
+        #    cũ, trong khi một quyết định của Owner đang treo ở đó. Hành động:
+        #    kiểm tra rồi bấm ĐÃ XỬ LÝ — hệ thống KHÔNG tự chuyển quyết định
+        #    sang khoá mới, vì đó chính là phép đoán nó vừa từ chối.
+        "gan-dong": lambda line, state, flagged: flagged,
     }
     _DEFAULT_DETAIL_FILTER = "tat-ca"
 
@@ -2224,6 +2229,7 @@ def create_app(
         ("thieu-min", "Đã khớp — thiếu MIN"),
         ("thieu-gia", "Thiếu giá (tất cả)"),
         ("chua-ro-nv", "Chưa rõ nhân viên"),
+        ("gan-dong", "Ngoại lệ gắn dòng"),
         ("loai-chua-ro", "Loại dòng chưa rõ"),
         ("gia-theo-chinh-sach", "Giá theo chính sách"),
         ("owner-sua", "Dòng tôi đã sửa"),
@@ -2268,16 +2274,20 @@ def create_app(
         # dòng: lọc bằng một ảnh chụp và hiển thị bằng một ảnh chụp khác sẽ
         # cho ra một bảng mà số dòng không khớp với bộ lọc đang chọn.
         decisions = _identity_decisions()
+        raised = data.binding_exceptions
         details = [
             d for d in data.details
-            if keep(d["line"], line_identity.state_of(d, decisions=decisions))]
+            if keep(d["line"], line_identity.state_of(d, decisions=decisions),
+                    (d["order_key"], d["product_key"],
+                     d["occurrence_index"]) in raised)]
         return render_template(
             "kinh_doanh_gia_nhap.html", periods=view["periods"],
             selected_period=view["selected_period"],
             period_label=business_presentation.period_label(view["period"]),
             columns=business_presentation.DETAIL_COLUMNS,
             filters=_DETAIL_FILTER_LABELS,
-            rows=business_presentation.detail_rows(details, decisions=decisions),
+            rows=business_presentation.detail_rows(
+                details, decisions=decisions, binding_exceptions=raised),
             coverage=business_presentation.coverage_cell(data.totals.coverage),
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
@@ -2411,6 +2421,39 @@ def create_app(
     # từ kết quả pipeline là ảnh chụp trạng thái TRƯỚC mọi quyết định của
     # Owner — nó trông đầy đủ, nó cân, và nó nói một bộ số khác màn hình.
     # ------------------------------------------------------------------
+
+    @app.post("/kinh-doanh/ngoai-le-gan-dong")
+    def business_resolve_binding_exception():
+        """`R3 §1` — đánh dấu MỘT ngoại lệ gắn dòng là ĐÃ XỬ LÝ.
+
+        Nó KHÔNG sửa một khoá nào và KHÔNG di chuyển một quyết định nào. Nó chỉ
+        ghi rằng người đã nhìn và đã quyết — bằng chính các thao tác sẵn có
+        (gõ lại giá nhập cho khoá mới, loại dòng cũ khỏi báo cáo, hoặc không
+        làm gì vì dòng cũ đúng là đã biến mất khỏi sổ).
+
+        Tự động "chuyển quyết định sang khoá mới" chính là phép đoán mà cả cơ
+        chế này sinh ra để từ chối — nên nó không có ở đây, và sẽ không có.
+        """
+        view = _business_period()
+        try:
+            exception_id = int(request.form.get("ngoai_le_id") or "")
+        except ValueError:
+            abort(400)
+        if exception_id not in {
+                item.id for item in view["data"].binding_exceptions.values()}:
+            # Chỉ đóng được ngoại lệ CÒN MỞ và thuộc đúng kỳ đang xem — một id
+            # gõ tay không được đóng một việc ở kỳ khác.
+            abort(404)
+        _guarded(view["service"].binding_store.resolve,
+                 exception_id=exception_id,
+                 resolved_by=identity_gateway.actor_of(),
+                 note=(request.form.get("ghi_chu") or None))
+        return redirect(url_for(
+            "business_purchase_price", ky=view["selected_period"],
+            loc=request.form.get("loc") or "gan-dong",
+            **{"da-luu": ("Đã đánh dấu ngoại lệ gắn dòng là đã xử lý. Không "
+                          "khoá nào bị đổi và không quyết định nào bị di "
+                          "chuyển — bản ghi chỉ nói rằng bạn đã xem xong.")}))
 
     @app.get("/kinh-doanh/xuat-excel")
     def business_export_excel():

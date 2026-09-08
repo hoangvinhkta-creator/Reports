@@ -165,6 +165,16 @@ học cách bấm bỏ qua — và khi đó ngoại lệ THẬT cũng bị bỏ 
 do phép kiểm hỏi "có quyết định nào đang treo không", chứ không hỏi "có mơ hồ
 không".
 
+### 3.1b. "Đã xử lý" KHÔNG chuyển quyết định sang khoá mới
+
+Nút `ĐÃ XỬ LÝ` của hàng đợi `gan-dong` chỉ ghi rằng người đã nhìn và đã quyết
+— bằng chính các thao tác sẵn có (gõ lại giá nhập cho khoá mới, loại dòng cũ
+khỏi báo cáo, hoặc không làm gì vì dòng cũ đúng là đã biến mất khỏi sổ).
+
+Một nút "chuyển quyết định sang khoá mới" sẽ là ĐÚNG phép đoán mà cả cơ chế
+này sinh ra để từ chối, chỉ khác là lần này có một cú bấm đứng ra chịu trách
+nhiệm. Nó không tồn tại, và sẽ không.
+
 ### 3.2. Nhánh ngoại lệ KHÔNG xoá và KHÔNG hủy khoá cũ
 
 Dòng vào nhận khoá MỚI (chỉ số nối tiếp sau chỉ số lớn nhất đã dùng); khoá cũ
@@ -272,7 +282,7 @@ màn hình đó vẫn phải bị chặn. Dòng không có `sale_date` rơi ngo�
 | `app/web/binding_exceptions.py` | MỚI — đọc/đóng hàng đợi ngoại lệ gắn dòng |
 | `app/modules/exporting/business_export.py` | MỚI — xuất từ effective data |
 | `app/web/business_presentation.py` | `close_summary`, nhãn `POLICY_ZERO` |
-| `app/web/server.py` | 2 route mới, 2 hàng đợi mới, 13 cửa chặn kỳ đã chốt |
+| `app/web/server.py` | 3 route mới, 3 hàng đợi mới, 13 cửa chặn kỳ đã chốt |
 | `app/web/templates/kinh_doanh_chot_ky.html` | MỚI |
 | `app/web/templates/kinh_doanh.html` | hai đường dẫn: TẢI EXCEL · CHỐT KỲ |
 | `tools/db/schema.py` | `line_binding_exception`, `period_close` |
@@ -323,6 +333,7 @@ một giá nhập tay lên dòng thứ nhất, rồi đảo chỗ — và khoá 
 | `CHECK-R3-03` | File SỬA một dòng: khoá giữ nguyên, ra `SOURCE_CHANGED` | PASS | E1 |
 | `CHECK-R3-04` | Đơn nhiều hàng và cùng mã lặp: mỗi dòng đúng một khoá | PASS | E1 |
 | `CHECK-R3-05` | Không ghép chắc chắn được ⟹ NGOẠI LỆ, không gắn nhầm override | PASS | E1 |
+| `CHECK-R3-05b` | Ngoại lệ gắn dòng hiện NGAY TRÊN DÒNG và đóng được, không khoá nào bị đổi | PASS | E1 |
 | `CHECK-R3-06` | Đơn vắng ở file sau KHÔNG bị xoá/hủy | PASS | E1 |
 | `CHECK-R3-07` | Dòng phí/chiết khấu nhận giá `0` theo `OD-105B-01` §3, có provenance riêng | PASS | E1 |
 | `CHECK-R3-08` | Hàng bán thiếu giá VẪN Pending, không thành `0` | PASS | E1 |

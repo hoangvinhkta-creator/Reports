@@ -245,7 +245,7 @@ dòng) thiếu giá vì lý do THẬT — chưa có MIN cho ngày bán, hoặc c
 $ .venv/bin/python -m pytest -q tests/test_r3_import_binding.py \
     tests/test_r3_line_types.py tests/test_r3_export_and_period_close.py \
     tests/test_r3_web_workflow.py tests/test_r3_golden_reconciliation.py
-92 passed in 7.71s
+94 passed in 7.9s
 ```
 
 - `test_r3_import_binding.py` (16) — ba mỏ neo ở tầng thuần, cộng sáu bài đi
@@ -257,9 +257,11 @@ $ .venv/bin/python -m pytest -q tests/test_r3_import_binding.py \
   lần, và ba bài qua database thật.
 - `test_r3_export_and_period_close.py` (17) — file xuất mang giá Owner đã sửa;
   đúng một cột `Giá nhập KPI`; ô trống ≠ `0`; tổng khớp; chốt/mở lại/phiên bản.
-- `test_r3_web_workflow.py` (12) — qua ứng dụng Flask THẬT: tải file, chốt kỳ,
+- `test_r3_web_workflow.py` (14) — qua ứng dụng Flask THẬT: tải file, chốt kỳ,
   thao tác bị TỪ CHỐI 409 sau khi chốt, mở lại kèm lý do, chốt sống qua một
-  `create_app` HOÀN TOÀN MỚI, và hai hàng đợi ngoại lệ mới.
+  `create_app` HOÀN TOÀN MỚI, ba hàng đợi ngoại lệ mới, và VÒNG ĐỜI ĐẦY ĐỦ của
+  một ngoại lệ gắn dòng (hiện trên dòng → bấm ĐÃ XỬ LÝ → biến khỏi hàng đợi,
+  giá nhập tay vẫn nằm đúng khoá cũ).
 - `test_r3_golden_reconciliation.py` (22) — các mệnh đề §5.1 thành lưới hồi
   quy, chạy trên chính hai kỳ thật.
 
@@ -277,7 +279,7 @@ $ .venv/bin/python -m pytest -q tests/test_r2_product_classification.py \
 
 ```text
 $ .venv/bin/python -m pytest -q tests/
-3039 passed, 12 skipped in 207.30s
+3041 passed, 12 skipped in 203.29s
 ```
 
 Baseline trước R3 trên cùng môi trường này: `2946 passed, 12 skipped`.
@@ -398,12 +400,16 @@ mà Owner đã ghi thì không — không có nơi nào khác giữ chúng.
    VAT` / `Phụ Phí`, cột Nguồn giá nhập ghi "Chính sách (dòng phụ)". Nếu MỘT
    mặt hàng thật lọt vào đây, đó là lỗi phân loại — báo lại, đừng sửa từ vựng
    để khớp một con số.
-3. **Xem hàng đợi "Loại dòng chưa rõ"** (`?loc=loai-chua-ro`). Kỳ vọng: đúng
+3. **Xem hàng đợi "Ngoại lệ gắn dòng"** (`?loc=gan-dong`). Trên dữ liệu hiện
+   tại nó RỖNG — chỉ có dòng nào mà lần nạp lại không ghép chắc chắn được mới
+   vào đây. Nút ĐÃ XỬ LÝ chỉ ghi "đã xem xong"; nó KHÔNG đổi khoá và KHÔNG di
+   chuyển quyết định nào.
+4. **Xem hàng đợi "Loại dòng chưa rõ"** (`?loc=loai-chua-ro`). Kỳ vọng: đúng
    các đơn `BTL`. Đây là chỗ chờ quyết định của Owner (`AR-R3-02`).
-4. **Tải Excel** từ trang Báo cáo. Kỳ vọng: sheet `Tổng kỳ` khớp từng con số
+5. **Tải Excel** từ trang Báo cáo. Kỳ vọng: sheet `Tổng kỳ` khớp từng con số
    với màn hình; cột `Giá nhập KPI` có đúng MỘT cột; ô trống ở dòng chưa có
    giá — KHÔNG phải số `0`.
-5. **Chốt kỳ**, rồi thử sửa một giá nhập của kỳ đó. Kỳ vọng: bị TỪ CHỐI kèm
+6. **Chốt kỳ**, rồi thử sửa một giá nhập của kỳ đó. Kỳ vọng: bị TỪ CHỐI kèm
    câu giải thích, không phải một cảnh báo rồi vẫn lưu. Mở lại kỳ (bắt buộc gõ
    lý do) rồi sửa lại — lần này phải lưu được, và lịch sử chốt kỳ hiện đủ hai
    dòng.
