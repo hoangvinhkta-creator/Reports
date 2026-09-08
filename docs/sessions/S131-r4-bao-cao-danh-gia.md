@@ -350,10 +350,31 @@ Mọi thứ khác đã được cân nhắc và KHÔNG sửa — xem `AR-R4-01` 
 
 ```text
 $ bash scripts/branch_authority_check.sh
+=== BRANCH AUTHORITY CHECK (Governance V4.1 Machine Control #1) ===
+fetch                : OK (origin --prune)
+DEFAULT_REMOTE_REF   : refs/remotes/origin/claude/extract-upload-repo-gq2ws4
+DEFAULT_BRANCH       : claude/extract-upload-repo-gq2ws4
+DEFAULT_TIP          : 824b5d742dab07b8b0bd301d56748779e35076aa
+HEAD_SHA             : ea6413d16ecef3345dc8561cc8a085684269c686
+WORKTREE             : CLEAN
+MODE                 : BRANCH
+CURRENT_BRANCH       : claude/r4-reports-evaluation-u3vs4d
+UPSTREAM             : origin/claude/r4-reports-evaluation-u3vs4d
+behind upstream      : 0 commit
+ahead  upstream      : 0 commit
+ahead  default       : 2 commit
+behind default       : 0 commit
+divergence days      : 0
+cumulative LOC       : 4826
+DIVERGENCE           : WITHIN_LIMITS
+
+AUTHORITY            : BRANCH_WITH_UPSTREAM
+RESULT               : AUTHORITY_OK
 ```
 
-Kết quả chạy trên exact HEAD của phiên này được ghi tại §4.4; reviewer nên
-chạy lại trên chính commit mình review, không tin bản chép lại.
+`ea6413d` là commit TÀI LIỆU (`86cee40` mã nguồn + đúng một commit doc-only),
+cùng khuôn đã dùng cho R3. Reviewer nên chạy lại trên chính commit mình review
+thay vì tin bản chép lại ở đây.
 
 ---
 
