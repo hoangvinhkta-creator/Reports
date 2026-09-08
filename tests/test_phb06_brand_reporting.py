@@ -176,10 +176,10 @@ def test_phb06_adds_no_migration():
         # nguyên vẹn — không có bản migration nào mang tên hay nội dung của
         # vertical này.
         "0008_purchase_price_reason.py",
-        # `0009_line_binding_and_period_close` là của R3 (§1 gắn dòng, §5 chốt
+        # `0009_line_binding_period_close` là của R3 (§1 gắn dòng, §5 chốt
         # kỳ) — cùng lý do như dòng trên: phép khẳng định ở đây PIN thư mục,
         # và điều nó chứng minh vẫn nguyên vẹn.
-        "0009_line_binding_and_period_close.py",
+        "0009_line_binding_period_close.py",
     ]
 
 

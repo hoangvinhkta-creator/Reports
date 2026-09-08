@@ -301,15 +301,15 @@ này không cài `boto3` — không liên quan tới R3.)
 
 ```text
 $ alembic upgrade head
-head: 0009_line_binding_and_period_close
+head: 0009_line_binding_period_close
 
 # nạp một lần CHỐT KỲ và một giá nhập tay, rồi hạ cấp
 $ alembic downgrade 0008_purchase_price_reason
-0009_line_binding_and_period_close: giữ lại 1 dòng của period_close trong
+0009_line_binding_period_close: giữ lại 1 dòng của period_close trong
 period_close__owner_backup — `alembic upgrade` sẽ nạp lại.
 
 $ alembic upgrade head
-0009_line_binding_and_period_close: đã nạp lại 1 dòng Owner vào period_close.
+0009_line_binding_period_close: đã nạp lại 1 dòng Owner vào period_close.
 
 period_close sau round-trip: [(2026, 1, 1, 'owner-web', 'Đã duyệt', 351, 'fp-r3')]
 giá nhập tay còn nguyên:     [('BH1', '4000000', 'MANUAL_OVERRIDE', 'theo hoá đơn')]
@@ -387,7 +387,7 @@ Lỗi có TRƯỚC R2 (`SetPending` rồi `ConfirmMapping` làm log identity kh�
 
 ## 7b. Bước bắt buộc khi triển khai
 
-`ALEMBIC_HEAD` chuyển sang `0009_line_binding_and_period_close`, và
+`ALEMBIC_HEAD` chuyển sang `0009_line_binding_period_close`, và
 `tools/db.assert_schema_current` fail-closed: một database còn ở `0008` sẽ làm
 app TỪ CHỐI khởi động thay vì chạy lên với hai bảng thiếu. Vì vậy thứ tự triển
 khai bắt buộc là:
@@ -601,7 +601,7 @@ Migration `0009` round-trip chạy lại sau repair (bản sửa ghi một GIÁ 
 vào một cột đã có, không đổi schema):
 
 ```text
-$ alembic upgrade head        → 0009_line_binding_and_period_close
+$ alembic upgrade head        → 0009_line_binding_period_close
 $ alembic downgrade 0008...   → giữ lại 1 dòng của period_close trong két
 $ alembic upgrade head        → đã nạp lại 1 dòng Owner vào period_close
 period_close sau round-trip: [(2026, 1, 1, 'owner-web', 'sau repair IR', 1, 'fp-r3-fp2')]
