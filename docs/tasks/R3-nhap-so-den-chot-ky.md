@@ -7,15 +7,28 @@ IMPLEMENTED
 
 Current Status Reason:
 Toàn bộ năm việc của R3 đã triển khai và có test đi hết chuỗi, gồm một lần
-đối soát trên hai kỳ nghiệp vụ THẬT (đã ẩn danh). Sau đó Independent Review
-tìm ra HAI finding trên vân tay chốt kỳ (`FIND-R3-IR-01` false negative,
+đối soát trên hai kỳ nghiệp vụ THẬT (đã ẩn danh). Independent Review tìm ra
+HAI finding trên vân tay chốt kỳ (`FIND-R3-IR-01` false negative,
 `FIND-R3-IR-02` false positive) — cả hai đã sửa TẬN GỐC, chi tiết ở §7b.
+
+**Independent Review kết luận `ACCEPT_WITH_RECORDED_RISK` trên exact HEAD đã
+review `5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`.** Reviewer đã tự chạy lại
+toàn bộ bằng chứng: test R3 tập trung 111 passed, full regression 3058
+passed/12 skipped, cả hai finding tái hiện được rồi xác nhận đã repair, và
+`branch_authority_check.sh` trên exact HEAD → `AUTHORITY_OK`. `CHECK-R3-19`
+(Independent Review) vì vậy chuyển `PASS`.
+
 `CHECK-R3-01` … `CHECK-R3-18` PASS (bằng chứng ở §7 và ở
-`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`). Hai check còn lại KHÔNG do
-phiên triển khai quyết định và vẫn `NOT_TESTED`: `CHECK-R3-19` (Independent
-Review) và `CHECK-R3-20` (Owner nghiệm thu trên production). Cùng kỷ luật đã
-áp cho R1 và R2 — không tự tuyên bố Independent Review hay Owner Acceptance —
-nên task DỪNG ở `IMPLEMENTED`.
+`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`). `CHECK-R3-20` (Owner nghiệm
+thu trên production) VẪN `NOT_TESTED` — không session triển khai/tích hợp nào
+tự tuyên bố nghiệm thu thay Owner. Task DỪNG ở `IMPLEMENTED` cho tới khi Owner
+xác nhận trên production; KHÔNG chuyển `DONE` trước đó.
+
+Hai rủi ro đã được reviewer CHẤP NHẬN GHI NHẬN (không repair trong vòng review
+này, không đổi tổng tiền nào): `AR-R3-05` (ngoại lệ gắn dòng/cảnh báo có thể
+rộng hơn kỳ đang xem) và `AR-R3-06` (metadata `excluded`/cảnh báo ở export
+theo nhân viên hoặc sheet có thể rộng hoặc hẹp hơn thực tế). Cả hai đã ghi ở
+§8 kèm tác động và cách đóng.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -351,8 +364,13 @@ một giá nhập tay lên dòng thứ nhất, rồi đảo chỗ — và khoá 
 | `CHECK-R3-18` | Chốt kỳ có phiên bản, sống qua restart, phát hiện lệch sau chốt | PASS | E1 |
 | `CHECK-R3-18a` | Vân tay chốt kỳ phủ TOÀN BỘ kết quả tài chính đã duyệt | PASS | E1 |
 | `CHECK-R3-18b` | Vân tay chỉ phụ thuộc dữ liệu hiệu lực CỦA ĐÚNG KỲ ĐÓ | PASS | E1 |
-| `CHECK-R3-19` | Independent Review PASS | NOT_TESTED | — |
+| `CHECK-R3-19` | Independent Review PASS | PASS | E1 |
 | `CHECK-R3-20` | Owner nghiệm thu trên production | NOT_TESTED | — |
+
+`CHECK-R3-19` = PASS ghi nhận kết luận `ACCEPT_WITH_RECORDED_RISK` trên exact
+HEAD `5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c` — bằng chứng đầy đủ ở §7b và
+`S129` §11–§12. `CHECK-R3-20` KHÔNG được tự đánh dấu bởi bất kỳ session nào;
+chỉ Owner xác nhận trên production mới đóng được nó.
 
 Lệnh và output nguyên văn: `docs/sessions/S129-r3-nhap-so-den-chot-ky.md` §5.
 
@@ -524,6 +542,38 @@ một đơn không thuộc lát đang xem.
 Tác động: cảnh báo rộng hơn cần thiết và một danh sách khôi phục rỗng ở khung
 nhìn con — không chỉ tiêu cộng được nào sai (`totals` vẫn tính trên đúng tập
 dòng của lát). Cách đóng: chiếu cả ba lớp phủ theo tập khoá của lát.
+
+## 8b. Independent Review — kết luận
+
+**Kết luận:** `ACCEPT_WITH_RECORDED_RISK`.
+
+**Exact HEAD được review:** `5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`
+(nhánh `claude/r3-import-to-period-close-nakk8e`, repo `Reports`). Commit sửa
+vân tay chốt kỳ: `7ffaf9a`.
+
+**Bằng chứng reviewer đã tự chạy lại** (không nhận báo cáo suông từ session
+triển khai):
+
+```text
+R3 focused (6 file test_r3_*.py):  111 passed
+Full regression:                   3058 passed, 12 skipped
+FIND-R3-IR-01 / FIND-R3-IR-02:     tái hiện được (thuật toán cũ đóng băng
+                                    trong test), rồi xác nhận đã repair
+branch_authority_check (exact HEAD): AUTHORITY_OK
+```
+
+**Quyết định trên hai check:**
+
+- `CHECK-R3-19` (Independent Review) → **PASS**.
+- `CHECK-R3-20` (Owner Acceptance) → giữ nguyên `NOT_TESTED`. Không có
+  session tích hợp/triển khai nào có thẩm quyền tự đóng check này.
+
+**Hai rủi ro được CHẤP NHẬN GHI NHẬN, không yêu cầu repair thêm:**
+`AR-R3-05` và `AR-R3-06` (xem §8) — cả hai đã được xác minh không làm đổi
+tổng tiền nào, chỉ ảnh hưởng phạm vi hiển thị của cảnh báo/metadata phụ.
+
+**Tracking:** không nhánh nào của R3 (bản triển khai lẫn bản repair) chạm vào
+repo Tracking — xác nhận lại bằng diff rỗng trên mọi đường dẫn `tracking/`.
 
 ## 9. Đầu vào cho phiên sau
 

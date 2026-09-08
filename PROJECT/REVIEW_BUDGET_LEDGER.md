@@ -2893,9 +2893,18 @@ root_task: R3
 title: Từ nhập sổ tới bảng nhân viên, xuất Excel và chốt kỳ
 effective_risk: HIGH
 repair_cycles_allowed: 2
-repair_cycles_used: 0
-repair_cycles_remaining: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
 ```
+
+**Repair cycle #1 tiêu bởi Independent Review round 1.** Hai finding
+(`FIND-R3-IR-01` vân tay chốt kỳ false negative, `FIND-R3-IR-02` false
+positive) trên `period_lock.content_fingerprint`, cả hai sửa trong cùng một
+vòng repair (commit `7ffaf9a` + `5952ce8`, nền `8aa6626`). Kết luận review
+trên exact HEAD sau repair (`5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`):
+`ACCEPT_WITH_RECORDED_RISK` — không yêu cầu vòng repair thứ hai. Còn
+`1 repair cycle` dự phòng nếu một vòng review sau (production, hoặc một
+review khác trên cùng lineage) tìm thêm finding.
 
 Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
 theo failure path: `khoá dòng khi nạp lại → quyết định của Owner gắn vào dòng
@@ -2917,9 +2926,11 @@ Sub-unit (R3-§1, R3-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG res
 sách này.
 
 cycles:
-- id: (chưa mở — implementation hoàn thành trong 0 repair cycle)
-  base_sha: N/A
-  head_sha: N/A
+- id: R3-repair-1
+  base_sha: 8aa66268bd56f1d4fee7f621de3c9f658e1b5a4b
+  head_sha: 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c
+  findings: [FIND-R3-IR-01, FIND-R3-IR-02]
+  outcome: ACCEPT_WITH_RECORDED_RISK (Independent Review round 1)
 
 ---
 

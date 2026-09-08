@@ -634,6 +634,48 @@ Cả hai đã ghi đầy đủ ở task §8 kèm cách đóng.
 
 ### 11.9. Independent Review
 
-`CHECK-R3-19` VẪN `NOT_TESTED`. Phiên repair này KHÔNG tự đánh dấu Independent
-Review PASS và KHÔNG đánh dấu Owner Acceptance — reviewer kết luận lại trên
-commit repair.
+`CHECK-R3-19` VẪN `NOT_TESTED` tại thời điểm viết mục này. Phiên repair
+KHÔNG tự đánh dấu Independent Review PASS và KHÔNG đánh dấu Owner Acceptance
+— reviewer kết luận lại trên commit repair.
+
+## 12. Independent Review — kết luận (session tích hợp)
+
+Reviewer đã kết luận trên exact HEAD `5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`
+(nhánh này, sau cả hai commit repair `7ffaf9a` và `5952ce8`):
+
+```text
+Kết luận:                 ACCEPT_WITH_RECORDED_RISK
+R3 focused (6 file):       111 passed
+Full regression:           3058 passed, 12 skipped
+FIND-R3-IR-01/-02:         tái hiện được, đã repair — xác nhận lại
+branch_authority_check:    AUTHORITY_OK (exact HEAD)
+CHECK-R3-19:               → PASS
+CHECK-R3-20 (Owner):       NOT_TESTED (không đổi)
+```
+
+Session tích hợp/triển khai R3 (bàn giao này) đã tự chạy lại toàn bộ evidence
+ở trên TRƯỚC khi merge — không nhận báo cáo suông:
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_r3_import_binding.py \
+    tests/test_r3_line_types.py tests/test_r3_export_and_period_close.py \
+    tests/test_r3_web_workflow.py tests/test_r3_golden_reconciliation.py \
+    tests/test_r3_ir_repair_fingerprint.py
+111 passed in 7.40s
+
+$ .venv/bin/python -m pytest -q tests/
+3058 passed, 12 skipped in 130.01s
+
+$ bash scripts/branch_authority_check.sh
+HEAD_SHA : 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c
+AUTHORITY: BRANCH_WITH_UPSTREAM
+RESULT   : AUTHORITY_OK
+```
+
+Cả bốn con số khớp CHÍNH XÁC với báo cáo reviewer — không lệch một bài nào.
+
+Hai rủi ro `AR-R3-05`/`AR-R3-06` giữ nguyên `ACCEPTED_RISK`, không repair
+thêm trong vòng tích hợp này, đúng theo kết luận review.
+
+`CHECK-R3-20` (Owner Acceptance) KHÔNG được đóng bởi vòng tích hợp/deploy —
+chỉ Owner xác nhận trên production mới đóng được nó (§13 dưới, sau smoke).

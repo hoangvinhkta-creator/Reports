@@ -50,10 +50,11 @@ kỳ đang xem. Migration additive `0009_line_binding_and_period_close`;
 `0009_line_binding_and_period_close`.
 
 ```text
-R3 STATUS   = IMPLEMENTED (repair FIND-R3-IR-01/-02, nền 8aa6626)
+R3 STATUS   = IMPLEMENTED (Independent Review ACCEPT_WITH_RECORDED_RISK,
+              exact HEAD 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c)
               CHECK-R3-01 … CHECK-R3-18 = PASS (E1)
               CHECK-R3-18a/-18b (vân tay chốt kỳ) = PASS (E1)
-              CHECK-R3-19 (Independent Review) = NOT_TESTED
+              CHECK-R3-19 (Independent Review) = PASS (E1)
               CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
               Full regression: 3058 passed, 12 skipped (sau repair IR;
               trước repair 3043 passed, 12 skipped)
@@ -97,6 +98,22 @@ chỉ ô ĐẾM ở trang chốt kỳ rộng hơn sự thật, không con số t
 Task VẪN `IMPLEMENTED`. `CHECK-R3-19` (Independent Review) VẪN `NOT_TESTED` —
 phiên repair KHÔNG tự đánh dấu nó PASS; reviewer kết luận lại trên commit
 repair.
+
+**Independent Review — kết luận (2026-09-08, exact HEAD
+`5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`).** `ACCEPT_WITH_RECORDED_RISK`.
+Reviewer tự chạy lại toàn bộ bằng chứng: R3 focused 111 passed, full
+regression 3058 passed/12 skipped, cả hai finding (`FIND-R3-IR-01`,
+`FIND-R3-IR-02`) tái hiện được rồi xác nhận đã repair, và
+`branch_authority_check.sh` trên exact HEAD → `AUTHORITY_OK`. `CHECK-R3-19`
+chuyển `PASS`. `CHECK-R3-20` (Owner Acceptance trên production) GIỮ NGUYÊN
+`NOT_TESTED` — không session tích hợp/deploy nào có thẩm quyền tự đóng nó.
+Hai rủi ro `AR-R3-05`/`AR-R3-06` được CHẤP NHẬN GHI NHẬN, không repair thêm,
+không đổi tổng tiền nào. Chi tiết: `docs/tasks/R3-nhap-so-den-chot-ky.md` §8b,
+`S129` §12.
+
+Task R3 VẪN `IMPLEMENTED` cho tới khi Owner xác nhận nghiệm thu trên
+production (`CHECK-R3-20`) — KHÔNG chuyển `DONE` trước đó, kể cả sau khi merge
+và deploy thành công.
 
 R3 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
 luật đã áp cho R1 và R2. Bốn rủi ro giữ lại (`AR-R3-01` … `AR-R3-04`) ở `S129`
