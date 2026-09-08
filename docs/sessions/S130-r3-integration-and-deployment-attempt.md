@@ -50,7 +50,7 @@ AUTHORITY : BRANCH_WITH_UPSTREAM
 RESULT    : AUTHORITY_OK
 
 $ .venv/bin/alembic heads
-0009_line_binding_and_period_close (head)
+0009_line_binding_period_close (head)
 ```
 
 Cả bốn con số khớp CHÍNH XÁC với báo cáo reviewer.
@@ -65,7 +65,7 @@ validator đó trên `45f0e1b`, ra CÙNG 3 lỗi).
 ### Migration `0009` — round-trip trên SQLite tạm (mô phỏng, không phải production)
 
 ```text
-upgrade (từ đầu)  → head = 0009_line_binding_and_period_close
+upgrade (từ đầu)  → head = 0009_line_binding_period_close
 seed 2 "quyết định Owner" giả lập: 1 giá nhập tay + 1 lần chốt kỳ
 downgrade 0008    → period_close biến mất, period_close__owner_backup xuất
                     hiện với đúng 1 dòng; line_binding_exception biến mất
@@ -75,6 +75,21 @@ upgrade head      → period_close__owner_backup được dọn, dữ liệu n�
                     NGUYÊN VẸN vào period_close; giá nhập tay vẫn nguyên
 ```
 
+### Repair deploy 2026-09-08 — revision ID PostgreSQL
+
+Lần Auto-Deploy production tại commit `dd369e5` dừng khi Alembic ghi revision
+sau bước DDL, với `psycopg.errors.StringDataRightTruncation: value too long for
+type character varying(32)`. Nguyên nhân là ID cũ
+`0009_line_binding_and_period_close` dài 34 ký tự, trong khi Alembic mặc định
+tạo `alembic_version.version_num` là `VARCHAR(32)` trên PostgreSQL.
+
+Repair đổi ID và tên file thành `0009_line_binding_period_close` (30 ký tự),
+cập nhật `ALEMBIC_HEAD` và các phép pin migration; thêm test canh giới hạn 32.
+Migration vẫn additive, `down_revision` vẫn là `0008_purchase_price_reason`.
+PostgreSQL chạy DDL trong cùng transaction với lần ghi version này, nên deploy
+lỗi phải được kiểm bằng `alembic current` trước khi deploy lại; `create_all(...,
+checkfirst=True)` cũng an toàn nếu hai bảng đã tồn tại từ một lần chạy dở dang.
+
 ## 4. Cập nhật tài liệu canonical (trước merge)
 
 Commit `f576333` (doc-only, xác nhận bằng `git diff --name-only 5952ce8..f576333`
@@ -83,7 +98,7 @@ chỉ đổi 4 file `.md`, không một file `.py`/`.html`/`.yaml` nào):
 - `docs/tasks/R3-nhap-so-den-chot-ky.md` — thêm §8b "Independent Review — kết
   luận": `ACCEPT_WITH_RECORDED_RISK`, exact HEAD, bảng bằng chứng reviewer đã
   tự chạy lại. `CHECK-R3-19` → `PASS`. `CHECK-R3-20` giữ `NOT_TESTED`.
-- `docs/sessions/S129-...md` — thêm §12 ghi lại kết luận review + bằng chứng
+- `docs/sessions/S129-r3-nhap-so-den-chot-ky.md` — thêm §12 ghi lại kết luận review + bằng chứng
   đối chiếu.
 - `PROJECT/PROJECT_PROGRESS.md` — cập nhật khối trạng thái R3, thêm đoạn kết
   luận Independent Review.
@@ -112,7 +127,7 @@ phân giải. Xác minh TRƯỚC khi merge: chạy validator y hệt trên `45f0
 (default branch, commit merge PR #7 của R2) → CÙNG 3 lỗi. Đây là tình trạng
 nền đã có từ trước R3, không có bản sửa nào sẵn có trong scope (task
 `TASK-REM-T06` đang `READY`, và ngay cả khi triển khai xong cũng không đóng
-hết cả 3 reference vì nó không tạo `CODE_OF_CONDUCT.md`/`CONTRIBUTING.md`).
+hết cả 3 reference vì các file quy ước cộng tác ở repository root vẫn chưa tồn tại).
 Ghi một bình luận trên PR #8 nêu rõ điều này trước khi merge, theo đúng tiền
 lệ đã áp dụng khi PR #7 (R2) merge vào `45f0e1b` với cùng tình trạng.
 
@@ -144,7 +159,7 @@ báo cáo thay vì tìm đường vòng.
 
 **Hệ quả cụ thể cho R3, nghiêm trọng hơn R1:** R1 không có migration database
 mới nên rủi ro của việc "không tự deploy được" chỉ là chưa xác nhận code mới
-chạy. **R3 CÓ migration mới (`0009_line_binding_and_period_close`)** chạm
+chạy. **R3 CÓ migration mới (`0009_line_binding_period_close`)** chạm
 schema production thật (Postgres qua `HISTORY_DATABASE_URL`). Sao lưu database
 production TRƯỚC migration — yêu cầu bắt buộc của phiên này — đòi hỏi quyền
 truy cập trực tiếp vào Render Postgres (dashboard, CLI, hoặc kết nối
@@ -167,7 +182,7 @@ tầng, không cần phiên này can thiệp.
 
 **Nhưng nó KHÔNG thay thế được yêu cầu sao lưu trước migration.** Migration
 `0009` là ADDITIVE thuần (hai bảng mới, không đổi cột nào đã có — xem
-`tools/db/migrations/versions/0009_line_binding_and_period_close.py`) nên rủi
+`tools/db/migrations/versions/0009_line_binding_period_close.py`) nên rủi
 ro dữ liệu của riêng nó là THẤP, nhưng đây vẫn là lần đầu database production
 chạy một migration có `CREATE TABLE`/backup-restore logic (`period_close`
 thuộc `OWNER_INPUT_TABLES`, dùng cơ chế B04) kể từ R2 — sao lưu trước khi chạy

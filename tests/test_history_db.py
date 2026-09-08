@@ -386,7 +386,12 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0006_employee_target.py",
                         "0007_employee_workspace.py",
                         "0008_purchase_price_reason.py",
-                        "0009_line_binding_and_period_close.py"]
+                        "0009_line_binding_period_close.py"]
+    # Alembic mặc định tạo ``alembic_version.version_num`` VARCHAR(32) trên
+    # PostgreSQL. Một revision dài hơn chỉ lộ khi deploy: DDL chạy xong nhưng
+    # transaction rollback lúc Alembic ghi version. Giữ giới hạn ở đây để lỗi
+    # được bắt ở test local.
+    assert len(history_db.ALEMBIC_HEAD) <= 32
 
 
 def test_schema_declares_exactly_the_frozen_tables():

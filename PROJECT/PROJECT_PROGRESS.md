@@ -48,9 +48,9 @@ cũ. Đúng MỘT cột `Giá nhập KPI`, ô trống nghĩa là CHƯA CÓ GIÁ.
 **Chốt kỳ** (`app/web/period_lock.py`, bảng `period_close`) là một PHIÊN BẢN
 append-only, mở lại được và BẮT BUỘC kèm lý do. Nó TỪ CHỐI (HTTP 409) mọi
 đường ghi quyết định của kỳ, chặn theo NGÀY BÁN của chính dòng chứ không theo
-kỳ đang xem. Migration additive `0009_line_binding_and_period_close`;
+kỳ đang xem. Migration additive `0009_line_binding_period_close`;
 `ALEMBIC_HEAD` chuyển từ `0008_purchase_price_reason` sang
-`0009_line_binding_and_period_close`.
+`0009_line_binding_period_close`.
 
 ```text
 R3 STATUS   = IMPLEMENTED (Independent Review ACCEPT_WITH_RECORDED_RISK,
@@ -127,13 +127,15 @@ nay ở `ff1a6d3`, xác nhận bằng `git fetch` sạch. CI đỏ ở
 lại tồn tại y hệt trên `45f0e1b` trước khi merge) — không phải lỗi R3, đã ghi
 bình luận trên PR trước khi merge.
 
-**Deploy platform (Cloudflare/Render THẬT) KHÔNG xác nhận được từ phiên tích
-hợp** — cùng giới hạn đã ghi từ `S071`/`S127`: không credential Render/
-Cloudflare/Firebase, không CLI cài sẵn, và egress mạng bị chặn ở tầng proxy
-với CẢ BỐN domain đã thử (`reports.tinphatcrm.com`, `price.tinphatcrm.com`,
-`api.render.com`, `dashboard.render.com` — đều `CONNECT tunnel failed,
-response 403`; đối chứng `api.github.com` vẫn `200` cùng lúc). **Khác R1**:
-R3 có migration `0009_line_binding_and_period_close` chạm schema production
+**Deploy Render tại source `dd369e5` đã FAIL-CLOSED (2026-09-08).** Log
+production xác nhận Alembic từ chối ghi revision cũ dài 34 ký tự vào
+`alembic_version.version_num VARCHAR(32)`; container mới không mở cổng. Repair
+đang chờ deploy đổi revision thành `0009_line_binding_period_close` (30 ký tự)
+và thêm test canh giới hạn. Không nghiệm thu Owner trên release lỗi này.
+
+Phiên tích hợp ban đầu không thể tự thao tác Render/Cloudflare vì không có
+credential, CLI hay egress tới các endpoint quản trị. **Khác R1**:
+R3 có migration `0009_line_binding_period_close` chạm schema production
 thật — sao lưu database TRƯỚC migration là yêu cầu bắt buộc mà phiên này
 KHÔNG có cách nào tự thực hiện hay tự xác nhận. Dockerfile production đã có
 sẵn cơ chế fail-closed (`alembic upgrade head && gunicorn …`) nên migration
