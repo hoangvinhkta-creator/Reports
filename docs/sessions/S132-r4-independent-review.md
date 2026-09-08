@@ -699,8 +699,44 @@ phạm vi.
 
 ## 10. `branch_authority_check.sh` sau khi push nhánh review
 
-Kết quả nguyên văn được ghi ở cuối file này trong commit tiếp theo của chính
-phiên review (lệnh chỉ phân giải được sau khi nhánh có upstream).
+```text
+$ bash scripts/branch_authority_check.sh
+=== BRANCH AUTHORITY CHECK (Governance V4.1 Machine Control #1) ===
+fetch                : OK (origin --prune)
+DEFAULT_REMOTE_REF   : refs/remotes/origin/claude/extract-upload-repo-gq2ws4
+DEFAULT_BRANCH       : claude/extract-upload-repo-gq2ws4
+DEFAULT_TIP          : 824b5d742dab07b8b0bd301d56748779e35076aa
+HEAD_SHA             : 0486871c633717b798b355ce81ef1693f5736370
+WORKTREE             : CLEAN
+MODE                 : BRANCH
+CURRENT_BRANCH       : claude/r4-independent-review-4fbga6
+UPSTREAM             : origin/claude/r4-independent-review-4fbga6
+behind upstream      : 0 commit
+ahead  upstream      : 0 commit
+ahead  default       : 4 commit
+behind default       : 0 commit
+divergence days      : 0
+cumulative LOC       : 5737
+DIVERGENCE           : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+
+AUTHORITY            : BRANCH_WITH_UPSTREAM
+RESULT               : AUTHORITY_OK
+```
+
+`0486871` là commit TÀI LIỆU của chính phiên review (bốn commit trên nền:
+ba commit R4 + một commit review); HEAD MÃ NGUỒN được review vẫn là
+`63a066e9`, không đổi.
+
+**`INTEGRATION_DECISION_REQUIRED [ loc>5000 ]` là một tín hiệu cần Owner
+quyết, không phải một lỗi.** `cumulative LOC` = `5737` = `4826` của R4 cộng
+phần tài liệu của phiên review; nó vượt ngưỡng `5000` của `V4.1`, nghĩa là
+nhánh đã đủ lớn để việc tích hợp phải là một quyết định tường minh chứ không
+phải một lần merge theo thói quen. `AUTHORITY: BRANCH_WITH_UPSTREAM` và
+`RESULT: AUTHORITY_OK` — không có `STOP` nào.
+
+Nhánh R4 đang được review (`claude/r4-reports-evaluation-u3vs4d`) giữ nguyên
+`RESULT: AUTHORITY_OK` như `S131` §7 ghi; phiên này KHÔNG push, KHÔNG rebase
+và KHÔNG force-push lên nhánh đó.
 
 ---
 
