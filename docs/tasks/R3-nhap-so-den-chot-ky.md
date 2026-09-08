@@ -24,6 +24,15 @@ thu trên production) VẪN `NOT_TESTED` — không session triển khai/tích h
 tự tuyên bố nghiệm thu thay Owner. Task DỪNG ở `IMPLEMENTED` cho tới khi Owner
 xác nhận trên production; KHÔNG chuyển `DONE` trước đó.
 
+**Tích hợp (2026-09-08, `S130`): PR #8 đã MERGE** vào nhánh mặc định
+(`ff1a6d3`, không squash). Deploy PLATFORM thật (Render/Cloudflare) KHÔNG xác
+nhận được từ phiên tích hợp — không credential, egress mạng bị chặn ở tầng
+proxy tới cả bốn domain đã thử (`reports.tinphatcrm.com`,
+`price.tinphatcrm.com`, `api.render.com`, `dashboard.render.com`, đều `403`
+policy denial; đối chứng `api.github.com` vẫn `200`). Sao lưu database
+production TRƯỚC migration `0009` — yêu cầu bắt buộc — cũng KHÔNG thực hiện
+được vì cùng lý do. Checklist đầy đủ cho Owner: `S130` §6–§7.
+
 Hai rủi ro đã được reviewer CHẤP NHẬN GHI NHẬN (không repair trong vòng review
 này, không đổi tổng tiền nào): `AR-R3-05` (ngoại lệ gắn dòng/cảnh báo có thể
 rộng hơn kỳ đang xem) và `AR-R3-06` (metadata `excluded`/cảnh báo ở export

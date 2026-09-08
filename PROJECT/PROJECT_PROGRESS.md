@@ -1,13 +1,16 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R3 = IMPLEMENTED (2026-09-08)
+## CANONICAL CURRENT STATE — R3 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER (2026-09-08)
 
-**R3 đã triển khai đầy đủ trên nền R2 ĐÃ MERGE vào nhánh mặc định** (`45f0e1b`,
-PR #7). Owner giao năm việc: củng cố import/idempotency và khoá dòng; chuẩn
-hoá loại dòng và công thức; gom mọi màn hình về một effective data; hoàn thiện
-xuất Excel; thêm cơ chế chốt kỳ/phiên bản. Task canonical:
-`docs/tasks/R3-nhap-so-den-chot-ky.md`. Bàn giao:
-`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`. R3 KHÔNG xây giá thực nhập,
+**R3 đã triển khai đầy đủ, Independent Review `ACCEPT_WITH_RECORDED_RISK`, và
+ĐÃ MERGE vào nhánh mặc định** (PR #8 → `ff1a6d3`, trên nền R2 đã merge trước
+đó ở `45f0e1b`, PR #7). Owner giao năm việc: củng cố import/idempotency và
+khoá dòng; chuẩn hoá loại dòng và công thức; gom mọi màn hình về một effective
+data; hoàn thiện xuất Excel; thêm cơ chế chốt kỳ/phiên bản. Task canonical:
+`docs/tasks/R3-nhap-so-den-chot-ky.md`. Bàn giao phát triển:
+`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`; bàn giao tích hợp/deploy:
+`docs/sessions/S130-r3-integration-and-deployment-attempt.md`. R3 KHÔNG xây
+giá thực nhập,
 KHÔNG thêm nguồn giá nào, KHÔNG sửa công thức MIN, KHÔNG sửa `ADR-110`, và
 KHÔNG định nghĩa ngữ nghĩa hoàn/hủy.
 
@@ -114,6 +117,31 @@ không đổi tổng tiền nào. Chi tiết: `docs/tasks/R3-nhap-so-den-chot-ky
 Task R3 VẪN `IMPLEMENTED` cho tới khi Owner xác nhận nghiệm thu trên
 production (`CHECK-R3-20`) — KHÔNG chuyển `DONE` trước đó, kể cả sau khi merge
 và deploy thành công.
+
+**Tích hợp production (2026-09-08, `S130`).** PR #8 (`claude/r3-import-to-
+period-close-nakk8e` @ `f576333`, tức `5952ce8` + đúng một commit doc-only) đã
+MERGE vào nhánh mặc định (không squash — chuỗi commit là bằng chứng governance
+tham chiếu trực tiếp). Production branch `claude/extract-upload-repo-gq2ws4`
+nay ở `ff1a6d3`, xác nhận bằng `git fetch` sạch. CI đỏ ở
+`validate_reference_integrity` (3 reference `TASK-REM-T06` đã biết, xác minh
+lại tồn tại y hệt trên `45f0e1b` trước khi merge) — không phải lỗi R3, đã ghi
+bình luận trên PR trước khi merge.
+
+**Deploy platform (Cloudflare/Render THẬT) KHÔNG xác nhận được từ phiên tích
+hợp** — cùng giới hạn đã ghi từ `S071`/`S127`: không credential Render/
+Cloudflare/Firebase, không CLI cài sẵn, và egress mạng bị chặn ở tầng proxy
+với CẢ BỐN domain đã thử (`reports.tinphatcrm.com`, `price.tinphatcrm.com`,
+`api.render.com`, `dashboard.render.com` — đều `CONNECT tunnel failed,
+response 403`; đối chứng `api.github.com` vẫn `200` cùng lúc). **Khác R1**:
+R3 có migration `0009_line_binding_and_period_close` chạm schema production
+thật — sao lưu database TRƯỚC migration là yêu cầu bắt buộc mà phiên này
+KHÔNG có cách nào tự thực hiện hay tự xác nhận. Dockerfile production đã có
+sẵn cơ chế fail-closed (`alembic upgrade head && gunicorn …`) nên migration
+lỗi sẽ chặn container khởi động chứ không phục vụ traffic sai schema — nhưng
+điều đó KHÔNG thay thế được bước sao lưu thủ công. Checklist đầy đủ cho Owner
+(kiểm Render Events/Logs, xác nhận/tạo backup Postgres, chín mục smoke test)
+nằm ở `S130` §6–§7. `CHECK-R3-20` VẪN `NOT_TESTED` — không tự tuyên bố PASS,
+không tuyên bố `R3 = DONE`.
 
 R3 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
 luật đã áp cho R1 và R2. Bốn rủi ro giữ lại (`AR-R3-01` … `AR-R3-04`) ở `S129`
