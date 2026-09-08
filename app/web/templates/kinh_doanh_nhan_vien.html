@@ -348,6 +348,7 @@
 
     {% for group in groups %}
     {% set open = editing == group.order_key %}
+    {% set form_id = 'bh-edit-' ~ group.order_key %}
     {% for row in group.rows %}
     {% set first = loop.first %}
     {# `TASK-OWNER-UIUX-003` §7 — Ngày/Mã đơn/Khách hàng KHÔNG còn đứng
@@ -454,25 +455,43 @@
         {%- endif %}
         {%- endif -%}
       </td>
-      {# `§6`/`§8` — danh tính người bán KHÔNG bao giờ bị thay bằng tên sheet. #}
+      {# `§6`/`§8` — danh tính người bán KHÔNG bao giờ bị thay bằng tên sheet.
+
+         R5 §4 — khi BH đang mở sửa, ô chọn nhân viên của CẢ ĐƠN nằm ngay
+         trên hàng ĐẦU của BH, đúng chỗ mắt đang nhìn, thay vì ở một hàng
+         riêng bên dưới các dòng hàng. Các hàng còn lại của cùng BH hiện
+         tên chữ như thường: một BH có đúng MỘT người bán, và ba ô chọn
+         cho ba dòng sẽ mời người dùng làm một việc mà `§27` không cho. #}
       <td data-metric="line-employee"
-          class="{{ 'empty-cell' if not row.employee_resolved }}">{{ row.employee }}</td>
+          class="{{ 'empty-cell' if not row.employee_resolved }}">
+        {%- if first and open and assignable -%}
+        <select name="nhan_vien_moi" form="{{ form_id }}"
+                id="nv-{{ group.order_key }}"
+                aria-label="Nhân viên của cả đơn {{ group.order_key }}"
+                data-metric="bh-employee-select">
+          {% for option in assignable %}
+          <option value="{{ option.value }}"
+                  {{ 'selected' if option.value == group.employee_value }}>
+            {{ option.label }}</option>
+          {% endfor %}
+        </select>
+        {%- else -%}{{ row.employee }}{%- endif -%}
+      </td>
       <td class="num">{{ row.quantity }}</td>
       {# `§25` — Giá nhập TRƯỚC Giá bán. #}
+      {# R5 §4 — ô nhập nằm TRONG bảng nhưng thuộc về form cấp BH đứng
+         NGOÀI bảng (`form="{{ form_id }}"`). Đây là cách duy nhất đúng
+         HTML: `<form>` không được lồng trong `<form>`, và một `<form>`
+         đặt giữa `<tr>`/`<td>` bị trình duyệt đẩy ra khỏi bảng khi phân
+         tích cú pháp — phần bên trong khi ấy im lặng không được gửi.
+         Tên ô mang ĐỦ khoá dòng, không mang chỉ số hàng: R3 §1 đã trả giá
+         một lần cho việc để vị trí làm danh tính. #}
       <td class="num" data-metric="purchase_price">
         {% if open and not row.synthetic %}
-        <form class="filter-row" method="post"
-              action="{{ url_for('business_save_line_purchase_price') }}">
-          <input type="hidden" name="ky" value="{{ selected_period }}">
-          <input type="hidden" name="sheet" value="{{ sheet.key }}">
-          <input type="hidden" name="order_key" value="{{ row.order_key }}">
-          <input type="hidden" name="product_key" value="{{ row.product_key }}">
-          <input type="hidden" name="occurrence_index" value="{{ row.occurrence_index }}">
-          <input type="text" inputmode="numeric" name="gia_nhap"
-                 value="{{ row.purchase_price_input }}"
-                 data-metric="line-purchase-input" aria-label="Giá nhập">
-          <button class="ghost btn-mini" type="submit">LƯU</button>
-        </form>
+        <input type="text" inputmode="numeric" form="{{ form_id }}"
+               name="gia_nhap__{{ row.product_key }}__{{ row.occurrence_index }}"
+               value="{{ row.purchase_price_input }}"
+               data-metric="line-purchase-input" aria-label="Giá nhập">
         {% else %}{{ row.purchase_price }}{% endif %}
       </td>
       <td class="num">{{ row.sell_price }}</td>
@@ -542,9 +561,12 @@
       {% if first %}
       <td class="line-actions bh-order-actions" rowspan="{{ group.lines }}">
         {% if open %}
-        <a class="ghost btn-mini on" data-metric="bh-edit-close"
-           href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key) }}"
-          >XONG</a>
+        {# `XONG` là nút GỬI DUY NHẤT của cả BH (R5 §4): nó lưu mọi thứ vừa
+           gõ rồi đóng chế độ sửa. Trước đây nó chỉ ĐÓNG — bấm nó sau khi gõ
+           giá mà quên `LƯU` là mất trắng phần vừa gõ, và cái nút tên là
+           "XONG". #}
+        <button class="act btn-mini" type="submit" form="{{ form_id }}"
+                data-metric="bh-save">XONG</button>
         {% else %}
         <a class="ghost btn-mini" data-metric="bh-edit"
            href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
@@ -555,38 +577,29 @@
       {% endif %}
     </tr>
 
-    {# Chế độ sửa của MỘT BH: đổi nhân viên một lần cho cả đơn (`§27`). Ô
-       chọn để trống khi các dòng đang thuộc nhiều người khác nhau — gợi ý
-       hộ một người ở đó là dời KPI của người khác chỉ vì Owner bấm LƯU.
-       Đứng ngay sau hàng đầu (nay đã gộp Ngày/Mã đơn/Khách hàng), trước khi
-       sang các dòng hàng còn lại của cùng BH. #}
-    {% if first and open and assignable %}
-    <tr class="bh-edit-row shade-{{ group.shade }}">
-      <td colspan="13">
-        <form class="filter-row" method="post"
-              action="{{ url_for('business_save_order_employee') }}">
-          <input type="hidden" name="ky" value="{{ selected_period }}">
-          <input type="hidden" name="sheet" value="{{ sheet.key }}">
-          <input type="hidden" name="order_key" value="{{ group.order_key }}">
-          <label class="tp-label" for="nv-{{ group.order_key }}">Nhân viên của cả đơn</label>
-          <select name="nhan_vien_moi" id="nv-{{ group.order_key }}"
-                  data-metric="bh-employee-select">
-            {% for option in assignable %}
-            <option value="{{ option.value }}"
-                    {{ 'selected' if option.value == group.employee_value }}>
-              {{ option.label }}</option>
-            {% endfor %}
-          </select>
-          <button class="ghost btn-mini" type="submit"
-                  data-metric="bh-employee-save">GÁN CẢ ĐƠN</button>
-        </form>
-      </td>
-    </tr>
-    {% endif %}
     {% endfor %}
     {% endfor %}
   </table>
   </div>
+  {# R5 §4 — phần tử `<form>` THẬT của chế độ sửa BH đứng ngoài bảng; các ô
+     bên trong bảng trỏ tới nó bằng thuộc tính `form=`. Ô lý do chung nằm ở
+     đây, cạnh chỗ gửi: nó áp cho cả lần sửa, và chỉ BẮT BUỘC khi lần gửi ấy
+     thật sự thay một giá tự động (R2 §4.4, kiểm ở server). #}
+  {% for group in groups %}
+  {% if editing == group.order_key %}
+  <form id="bh-edit-{{ group.order_key }}" class="filter-row bh-edit-form"
+        method="post" action="{{ url_for('business_save_order') }}">
+    <input type="hidden" name="ky" value="{{ selected_period }}">
+    <input type="hidden" name="sheet" value="{{ sheet.key }}">
+    <input type="hidden" name="order_key" value="{{ group.order_key }}">
+    <label class="tp-label" for="ly-do-{{ group.order_key }}">
+      Lý do (chỉ cần khi thay một giá đã có)</label>
+    <input type="text" name="ly_do" id="ly-do-{{ group.order_key }}"
+           data-metric="bh-reason"
+           placeholder="Vì sao thay giá tự động?">
+  </form>
+  {% endif %}
+  {% endfor %}
   {% endif %}
 
   {# Đường vào bảng kê ĐẦY ĐỦ của đúng sheet này: bốn chế độ lọc của PHB-03

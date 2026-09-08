@@ -39,6 +39,7 @@ from app.modules.reporting import reporting_sheets
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
 from app.web.binding_exceptions import BindingExceptionStore
+from app.web import business_store
 from app.web.business_store import BusinessDecisionStore
 from app.web.history_store import SnapshotRepository
 from app.web.period_lock import (
@@ -215,6 +216,66 @@ def snapshot_of(totals: bm.BusinessTotals) -> dict:
 
 def _text(value) -> Optional[str]:
     return None if value is None else str(value)
+
+
+class OrderNotFoundError(LookupError):
+    """Không có dòng nào của BH này trong kỳ đang xem.
+
+    Một khoá do trình duyệt gửi lên chỉ trở thành thật sau khi tìm thấy nó
+    trong kỳ — nếu không, một form dựng tay ghi được quyết định lên một đơn
+    không tồn tại, và bản ghi đó nằm lại trong database mãi mãi.
+    """
+
+
+@dataclass(frozen=True)
+class OrderEditPlan:
+    """MỘT lần sửa BH, đã kiểm xong và chưa ghi gì (R5 §4).
+
+    Đây là đối tượng làm cho "không có thành công một phần" đúng theo cấu
+    tạo: nó hoặc mang `errors` (và khi đó không có đường nào ghi), hoặc mang
+    một danh sách hữu hạn các phép ghi đã biết trước là hợp lệ.
+
+    `price_writes`/`price_clears`/`employee` chỉ chứa những thứ THẬT SỰ ĐỔI.
+    Ô người dùng không chạm vào không có mặt ở đây, nên nó không thể sinh ra
+    một quyết định trong audit trail.
+    """
+
+    order_key: str
+    details: tuple
+    errors: tuple[str, ...] = ()
+    employee: Optional[str] = None
+    employee_group: Optional[str] = None
+    price_writes: tuple = ()
+    price_clears: tuple = ()
+    reason: Optional[str] = None
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    @property
+    def changes_nothing(self) -> bool:
+        return not (self.price_writes or self.price_clears
+                    or self.employee is not None)
+
+    def summary(self) -> str:
+        """Câu nói ra ĐÚNG những gì vừa được ghi, không nhiều hơn.
+
+        Người dùng vừa bấm một nút duy nhất cho cả đơn, nên câu trả lời phải
+        liệt kê được từng phần — nếu không, "đã lưu" trở thành một lời hứa mà
+        họ không kiểm được.
+        """
+        parts = []
+        if self.price_writes:
+            parts.append(f"{len(self.price_writes)} giá nhập")
+        if self.price_clears:
+            parts.append(f"gỡ {len(self.price_clears)} giá tay")
+        if self.employee is not None:
+            parts.append(f"nhân viên của cả đơn → {self.employee} "
+                         f"({len(self.details)} dòng)")
+        if not parts:
+            return f"{self.order_key}: không có gì thay đổi."
+        return f"Đã lưu {self.order_key}: " + ", ".join(parts) + "."
 
 
 class BusinessReportService:
@@ -762,6 +823,138 @@ class BusinessReportService:
         if detail is None:
             return False, None
         return True, detail["line"].auto_purchase_price
+
+    # --- R5 §4: sửa cả BH bằng MỘT lần bấm -----------------------------
+
+    def plan_order_edit(
+        self, *, data: PeriodData, order_key: str, employee: Optional[str],
+        prices: dict, reason: Optional[str],
+    ) -> "OrderEditPlan":
+        """VALIDATE toàn bộ một lần sửa BH, KHÔNG ghi gì.
+
+        Tách hẳn khỏi việc ghi, và đó là toàn bộ điểm của R5 §4. Trước đây
+        mỗi ô giá là một lần POST độc lập: ô thứ hai hỏng thì ô thứ nhất đã
+        nằm trong database rồi, và người dùng nhìn một câu lỗi mà không biết
+        phần nào đã vào. Một hàm "kiểm hết rồi mới ghi" là cách duy nhất làm
+        cho "không có thành công một phần" đúng theo CẤU TẠO chứ nhờ mỗi
+        đường ghi tự nhớ kiểm.
+
+        `prices` là `{khoá dòng: chuỗi người gõ}`. Chuỗi RỖNG nghĩa là GỠ giá
+        tay — dòng trở lại giá tự động. Khoá vắng mặt nghĩa là ô đó không
+        được gửi lên và không ai nói gì về nó.
+
+        Chỉ ô THẬT SỰ ĐỔI đi vào kế hoạch. Một `MANUAL_OVERRIDE` dựng ra chỉ
+        vì Owner bấm nút là một lời khẳng định "giá tự động sai" mà không ai
+        từng nói ra, và nó sẽ nằm lại trong audit trail mãi mãi.
+
+        Lý do (`R2 §4.4`) bắt buộc khi và chỉ khi lần gửi này thật sự chứa ít
+        nhất một override — đó là cùng ràng buộc cũ, đọc ở cấp BH thay vì cấp
+        ô. Không ô nào được nới lỏng: nếu thiếu lý do thì KHÔNG ô nào được
+        ghi, kể cả những ô chỉ lấp một chỗ trống.
+        """
+        # `DEC-185` §F-02 — "cả BH" nghĩa là CẢ BH. `details` cố ý chỉ chứa
+        # các dòng CÒN được báo cáo, và đó là tập đúng cho mọi phép gộp;
+        # nhưng ở đây nó là tập SAI. Một dòng Owner đã loại (`§30`) hay một
+        # dòng đang tạm loại vì không còn trong sổ đã xác nhận đầy đủ (R5 §1)
+        # vẫn THUỘC về BH này — bỏ sót chúng khi gán nhân viên chỉ lộ ra sau
+        # khi dòng quay lại, lúc nó mang tên người bán CŨ cạnh các dòng anh
+        # em đã mang tên mới.
+        details = [detail for detail in (*data.details, *data.excluded,
+                                         *data.removed_in_source)
+                   if detail["order_key"] == order_key]
+        if not details:
+            raise OrderNotFoundError(order_key)
+
+        errors: list[str] = []
+        employee_group = None
+        if employee is not None:
+            groups = dict(self.assignable_employees())
+            if employee not in groups:
+                errors.append(
+                    f"{employee!r} không có trong danh sách nhân viên. Hãy chọn "
+                    "một tên trong danh sách.")
+            else:
+                employee_group = groups[employee]
+
+        price_writes: list[dict] = []
+        price_clears: list[dict] = []
+        for detail in details:
+            key = (detail["order_key"], detail["product_key"],
+                   detail["occurrence_index"])
+            if key not in prices:
+                continue
+            raw = prices[key]
+            line = detail["line"]
+            current, auto = line.purchase_price, line.auto_purchase_price
+            if not (raw or "").strip():
+                # Ô để trống: gỡ giá tay nếu đang có, ngược lại không nói gì.
+                if current is not None and current != auto:
+                    price_clears.append({"order_key": key[0], "product_key": key[1],
+                                         "occurrence_index": key[2]})
+                continue
+            try:
+                value = business_store.parse_purchase_price(raw)
+            except business_store.InvalidPurchasePriceError as exc:
+                errors.append(str(exc))
+                continue
+            if current is not None and value == current:
+                continue  # không đổi ⟹ không quyết định mới
+            price_writes.append({
+                "order_key": key[0], "product_key": key[1],
+                "occurrence_index": key[2], "price": value,
+                # Giá AUTO đọc lại từ SERVER, không nhận từ trình duyệt
+                # (`DEC-PHB02-02` §3) — nó quyết định provenance, và để
+                # client tự khai nó là mở đúng cánh cửa đã đóng.
+                "auto_price": auto,
+            })
+
+        overrides = [write for write in price_writes
+                     if write["auto_price"] is not None]
+        note = (reason or "").strip()
+        if overrides and not note:
+            errors.append(
+                "Có giá nhập đang được THAY một giá tự động. Hãy ghi lý do "
+                "chung cho lần sửa này — một con số ghi đè mà không có lý do "
+                "thì sau này không ai dựng lại được vì sao.")
+
+        change_employee = (
+            employee is not None and employee_group is not None
+            and any(detail["line"].employee != employee for detail in details))
+        return OrderEditPlan(
+            order_key=order_key, details=tuple(details), errors=tuple(errors),
+            employee=employee if change_employee else None,
+            employee_group=employee_group if change_employee else None,
+            price_writes=tuple(price_writes), price_clears=tuple(price_clears),
+            reason=note or None)
+
+    def apply_order_edit(self, plan: "OrderEditPlan", *,
+                         entered_by: Optional[str] = None) -> str:
+        """Ghi một kế hoạch ĐÃ hợp lệ và trả về câu tóm tắt cho người dùng.
+
+        Không kiểm lại gì: mọi cửa đã đóng ở `plan_order_edit`, và kiểm hai
+        lần ở hai chỗ là cách chắc chắn nhất để hai chỗ ấy trôi khỏi nhau.
+        Người gọi phải tự chặn `plan.errors` trước khi gọi hàm này.
+
+        Thứ tự ghi không quan trọng về mặt nghiệp vụ (mỗi đường chạm một bảng
+        khác nhau, trên những khoá khác nhau), nhưng vẫn cố định để câu tóm
+        tắt và audit trail đọc được theo cùng một trình tự mỗi lần.
+        """
+        for write in plan.price_writes:
+            # `entered_by` đến từ tầng route (đọc môi trường), KHÔNG từ form:
+            # một form dựng tay không được tự khai ai đã quyết định (R2 §4.4).
+            self._store.set_purchase_price(
+                entered_by=entered_by, reason=plan.reason, **write)
+        for clear in plan.price_clears:
+            self._store.clear_purchase_price(**clear)
+        if plan.employee is not None:
+            for detail in plan.details:
+                self._store.set_employee(
+                    order_key=detail["order_key"],
+                    product_key=detail["product_key"],
+                    occurrence_index=detail["occurrence_index"],
+                    employee=plan.employee, employee_group=plan.employee_group,
+                    source_employee=detail["line"].source_employee)
+        return plan.summary()
 
     @staticmethod
     def products(data: PeriodData) -> list[dict]:

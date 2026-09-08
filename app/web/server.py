@@ -34,6 +34,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import re
 import time
 import uuid
 from dataclasses import replace
@@ -2078,6 +2079,14 @@ def create_app(
     def business_save_order_employee():
         """`§27` — đổi nhân viên cho TOÀN BỘ một BH bằng một thao tác.
 
+        R5 §4 — không gian làm việc KHÔNG còn nút `GÁN CẢ ĐƠN` gọi route
+        này: nhân viên nay đi cùng giá nhập qua một lần gửi duy nhất
+        (`business_save_order`). Route ở lại vì nó là bề mặt đã nghiệm thu
+        của `§27` và mang bằng chứng test của `DEC-185` §F-02. Nó KHÔNG phải
+        một thẩm quyền thứ hai: cả hai đường vào đều gọi đúng
+        `store.set_employee` trên đúng khoá nghiệp vụ của từng dòng, và cùng
+        đọc master `config/employees.yaml` để biết tên nào có thật.
+
         Đây KHÔNG phải một thẩm quyền gán nhân viên thứ hai: nó gọi đúng
         `BusinessDecisionStore.set_employee` mà `OD-5` đã nghiệm thu, một lần
         cho mỗi dòng của đơn. Ranh giới của `OD-5` vì thế còn nguyên — tên
@@ -2132,9 +2141,81 @@ def create_app(
             f"Đã gán {len(details)} dòng của {order_key} cho {chosen}{note}. "
             "Tổng của cả kỳ không đổi.")})
 
+    _PRICE_FIELD = re.compile(r"^gia_nhap__([0-9a-f]+)__(\d+)$")
+
+    def _submitted_prices(order_key: str) -> dict:
+        """`{khoá dòng: chuỗi người gõ}` đọc từ form sửa BH (R5 §4).
+
+        Tên ô mang ĐỦ khoá dòng (`gia_nhap__<product_key>__<occurrence>`) chứ
+        không mang một chỉ số hàng: một chỉ số hàng chỉ đúng cho đến khi thứ
+        tự dòng đổi, và R3 §1 đã trả giá một lần cho việc để vị trí làm danh
+        tính. `order_key` đến từ chính trường ẩn của form, nên ba thành phần
+        khoá luôn đi cùng nhau.
+
+        Tên ô sai dạng bị BỎ QUA chứ không đoán: một trường lạ trong form là
+        một trường không ai hứa gì về nó.
+        """
+        prices = {}
+        for name, value in request.form.items():
+            match = _PRICE_FIELD.match(name)
+            if match is None:
+                continue
+            prices[(order_key, match.group(1), int(match.group(2)))] = value
+        return prices
+
+    @app.post("/kinh-doanh/nhan-vien/sua-bh")
+    def business_save_order():
+        """R5 §4 — lưu TOÀN BỘ một BH bằng đúng một lần gửi.
+
+        Route này KHÔNG dựng một thẩm quyền nào mới. Nó gọi đúng
+        `store.set_purchase_price` / `clear_purchase_price` / `set_employee`
+        mà `DEC-PHB02-02` và `OD-5` đã nghiệm thu, và mọi ràng buộc của R2
+        §4.4 (giá AUTO đọc lại từ server, override phải có lý do, actor đọc
+        từ môi trường chứ không từ form) còn nguyên — chúng chỉ được kiểm
+        MỘT LƯỢT cho cả đơn thay vì từng ô một.
+
+        Hai bước, và thứ tự là hợp đồng: kiểm hết (`plan_order_edit`), rồi
+        mới ghi (`apply_order_edit`). Không có nhánh nào ghi một phần rồi
+        báo lỗi — đó chính là lớp lỗi mà `§4` sinh ra để đóng.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        order_key = request.form.get("order_key") or ""
+        chosen = (request.form.get("nhan_vien_moi") or "").strip()
+        try:
+            plan = service.plan_order_edit(
+                data=view["data"], order_key=order_key,
+                employee=chosen or None,
+                prices=_submitted_prices(order_key),
+                reason=(request.form.get("ly_do") or None))
+        except business_service.OrderNotFoundError:
+            abort(404)
+        if not plan.ok:
+            # Giữ chế độ sửa MỞ: người dùng vừa gõ một màn hình dữ liệu, và
+            # đóng nó lại cùng lúc với việc báo lỗi là bắt họ gõ lại từ đầu.
+            return _workspace_redirect(sua=order_key,
+                                       loi=" ".join(plan.errors))
+        # Cửa kỳ đã chốt đứng SAU khi kiểm form và TRƯỚC khi ghi: một kỳ đã
+        # chốt phải chặn cả lần sửa hợp lệ, và chặn nó bằng cùng một câu mà
+        # mọi đường ghi khác của vertical đang dùng.
+        _guard_lines(service, *plan.details)
+        if plan.changes_nothing:
+            return _workspace_redirect(**{"da-luu": plan.summary()})
+        message = _guarded(service.apply_order_edit, plan,
+                           entered_by=identity_gateway.actor_of())
+        return _workspace_redirect(**{"da-luu": message})
+
     @app.post("/kinh-doanh/nhan-vien/gia-nhap")
     def business_save_line_purchase_price():
         """`§28` — sửa Giá nhập ngay trong ô của dòng, khi BH đang mở sửa.
+
+        R5 §4 — không gian làm việc KHÔNG còn nút `LƯU` từng ô gọi route
+        này; giá nhập nay đi qua form cấp BH (`business_save_order`). Route
+        ở lại vì nó là bề mặt đã nghiệm thu của R2 §4.4 và mang bằng chứng
+        test của cả vertical đó. Không có thẩm quyền giá nhập thứ hai nào
+        được dựng: cả hai đường vào đều đọc lại giá AUTO từ server rồi gọi
+        đúng `store.set_purchase_price`, nơi ràng buộc "override phải có lý
+        do" được thi hành MỘT lần cho mọi người gọi.
 
         Dùng LẠI nguyên vẹn thẩm quyền giá nhập của `DEC-PHB02-02`/PHB-03:
         cùng `parse_purchase_price`, cùng `auto_price_of` (giá AUTO luôn đọc
