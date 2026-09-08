@@ -12303,3 +12303,135 @@ Mở lại điểm 8 nếu Owner đặt một ngưỡng "biên thấp" tường 
 nếu Owner tạo một bảng target cấp công ty THẬT (không phải một tổng suy ra).
 Mở lại giới hạn `AR-R4-01` (trạng thái MIN `FINAL`/`PROVISIONAL`) khi đường
 NHẬP lưu `day_status` xuống dữ liệu hiệu lực.
+
+---
+
+## DEC-202
+
+Title:
+R5 — sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi số liệu; hai cửa sổ
+liền kề cùng độ dài; một lần bấm lưu cả BH; hãng/model do Tracking chuẩn hoá và
+IMEI mở đúng một route
+
+Date:
+2026-09-08
+
+Status:
+ACCEPTED (Owner Decision — `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §1, xác nhận
+08/09/2026)
+
+Context:
+
+R5 đóng năm khoảng cách mà R1–R4 để lại, và bốn trong năm cái là những khoảng
+cách giữa *điều màn hình nói* với *điều hệ thống biết*.
+
+Cái đắt nhất nằm ở đối soát sổ. `TASK-PRA-002` slice B dựng đúng một bất biến
+an toàn — *"không thấy" KHÔNG BAO GIỜ tự động trở thành "đã xoá"* — và nó đúng
+tuyệt đối khi file mới có thể là một file một phần. Nhưng slice B cũng dựng một
+nút "xác nhận sổ này đầy đủ cho khoảng ngày", và sau khi người dùng bấm nút ấy,
+hệ thống vẫn xử sự y như trước: `REMOVED_IN_SOURCE_CANDIDATE` chỉ là một dòng
+trong bảng cờ, và doanh thu của một đơn đã huỷ vẫn nằm trong tổng. Người dùng
+đã cung cấp đúng căn cứ mà hệ thống nói là nó còn thiếu, rồi không có gì xảy ra.
+
+Bốn khoảng cách còn lại cùng một hình dạng: trang snapshot liệt kê mọi thay đổi
+kể cả những thay đổi không ai cần soi, làm chìm mất cái cần soi; biểu đồ vẽ một
+đường và bắt người đọc nhớ kỳ trước bằng đầu; nút `XONG` của màn hình sửa BH chỉ
+ĐÓNG chứ không lưu; và cột sản phẩm in nguyên tên trên sổ kể cả sau khi Owner đã
+phân loại xong.
+
+Decision:
+
+1. **Sổ đã xác nhận đầy đủ TẠM LOẠI dòng vắng mặt khỏi dữ liệu hiệu lực.** Chỉ
+   cờ `REMOVED_IN_SOURCE_CANDIDATE` phát sinh từ một snapshot `CONFIRMED_
+   COMPLETE` và CÒN HIỆU LỰC mới loại. Cờ `NOT_SEEN_IN_LATEST_SNAPSHOT` của
+   một sổ chưa xác nhận KHÔNG đổi một đồng nào — biên đó là biên cũ và nó giữ
+   nguyên.
+
+   Đây là một sửa đổi CÓ CHỦ ĐÍCH với câu "cờ không bao giờ ảnh hưởng tổng"
+   của `TASK-PRA-002` slice B, không phải một vi phạm âm thầm: điều slice B
+   thật sự bảo vệ là *hệ thống không được tự kết luận*, và ở đây kết luận đến
+   từ một hành động tường minh của con người.
+
+2. **Việc loại xảy ra LÚC ĐỌC, không phải lúc ghi.** Không hard-delete, không
+   đổi con trỏ hiện hành, không migration. `PeriodData` tách chúng sang
+   `removed_in_source` theo đúng cấu tạo mà `excluded` (`DEC-PHB02-08` §30) đã
+   dùng, nên mọi chỉ tiêu — kể cả những chỉ tiêu chưa được viết ra — đúng vì
+   tập bị loại không nằm trong tập được cộng.
+
+3. **Tái xuất hiện khôi phục TỰ ĐỘNG.** Trạng thái "còn hiệu lực" tính lúc đọc
+   từ lịch sử membership (`_with_absence_state`), nên không ai phải nhớ gỡ cờ,
+   và không có bản ghi nào bị sửa để đạt được điều đó.
+
+4. **Danh sách cảnh báo riêng KHÔNG mang một ô tiền nào**, và KHÔNG có nút
+   khôi phục: đường quay lại duy nhất là nạp một sổ có chứa dòng đó, và một
+   cái nút ở đó sẽ hứa một điều Reports không làm được.
+
+5. **`delivery_cost`/`imei` ở lại trong fingerprint; chỉ TẦNG TRÌNH BÀY lọc.**
+   Bỏ chúng khỏi vân tay sẽ làm một lần bổ sung IMEI không sinh source version
+   và giá trị ấy im lặng biến mất giữa hai lần nạp. Con số "cần soi" trên màn
+   hình và con số `n_source_changed` trong bản ghi có quyền khác nhau: một cái
+   trả lời "còn bao nhiêu việc cho tôi", cái kia trả lời "hệ thống đã thấy bao
+   nhiêu dòng đổi nguồn".
+
+6. **Cửa sổ biểu đồ là HAI cửa sổ liền kề CÙNG ĐỘ DÀI: 30 ngày, 12 tuần, 12
+   tháng, 8 quý.** Đây là một sửa đổi có chủ đích với `TASK-OWNER-UIUX-003` §2
+   (cửa sổ theo container lịch), và lý do nằm ở chính phép so sánh: hai
+   container lịch liền nhau không cùng độ dài (tháng 2 có 28 ngày, tháng 3 có
+   31). Mức Năm giữ một chuỗi. Thiếu bằng chứng là KHOẢNG TRỐNG; số 0 chỉ được
+   vẽ khi mốc nằm TRỌN trong một khoảng đã xác nhận đầy đủ.
+
+7. **Một form cấp BH, `XONG` là nút gửi duy nhất.** Kiểm toàn bộ trước khi
+   ghi; chỉ ô THẬT SỰ ĐỔI mới sinh một quyết định. Ràng buộc R2 §4.4 không
+   được nới: giá AUTO vẫn đọc lại từ server, actor vẫn đọc từ môi trường, và
+   thay một giá AUTO vẫn phải có lý do — chỉ chỗ gõ lý do gộp về một ô cho cả
+   BH, và nó chỉ bắt buộc khi lần gửi ấy thật sự chứa một override.
+
+8. **Hãng và model do TRACKING chuẩn hoá.** Reports không có, và không được
+   có, một parser hãng/model từ `product_raw`. Tracking ghép theo một danh
+   sách hãng ĐÓNG và ghép NGUYÊN TỪ; khớp nhiều hơn một hãng ⟹ `null`. `null`
+   là câu trả lời hợp lệ, không phải một khiếm khuyết cần vá.
+
+9. **`PHB-06` mở lại qua một read model canonical**, không qua một trường mới
+   trên `CanonicalProductIdentity`: `INV-18` bắt so sánh bằng đủ tuple, nên
+   một trường hiển thị ở đó sẽ làm hai danh tính cùng mã khác hãng thành hai
+   danh tính KHÁC NHAU. Không có bảng brand nào của riêng Reports.
+
+10. **IMEI mở trên ĐÚNG bảng kê tab nhân viên** (`DEC-R5-03` trong ngôn ngữ
+    của brief). Đây là một sửa đổi có chủ đích với hàng rào dữ liệu cá nhân
+    của `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`, và phạm vi của nó
+    phải đọc được từ MÃ NGUỒN: `app/web/workspace_imei.py` là cánh cửa duy
+    nhất, `business_queries` vẫn không biết `imei` tồn tại, và không trang chỉ
+    tiêu / bản xuất / trang snapshot / dòng nhật ký nào mang nó.
+
+11. **Dòng CHƯA phân loại giữ TÊN THÔ.** Chỉ dòng `MATCHED_TRACKING` mới hiện
+    model canonical (fallback mã Tracking). Tên thô là thứ duy nhất cho người
+    dùng biết dòng này chưa được xử lý; thay nó bằng một nhãn gọn gàng làm một
+    việc còn treo trông như đã xong.
+
+12. **Gợi ý phân loại là GỢI Ý.** Tối đa MỘT candidate, xếp hạng theo một thứ
+    tự CỐ ĐỊNH (khớp chính xác → mã bắt đầu bằng → tên bắt đầu bằng), không
+    phải một điểm số: `INV-01` cấm similarity ở đường resolve, và một thứ tự
+    dựa trên "giống bao nhiêu phần trăm" là cùng phép đo ấy đứng ở chỗ khác.
+    Chuỗi tìm rỗng ⟹ không gợi ý gì. Chỉ một cú click của Owner mới ghi.
+
+Reversal Cost:
+
+TRUNG BÌNH. Không migration nào được thêm, và không bản ghi nào bị xoá — điểm
+1–4 đảo lại là gỡ một phép lọc lúc đọc, và mọi con số quay về đúng giá trị cũ ở
+lần tải trang kế tiếp. Điểm 6–7 và 11–12 là trình bày/luồng thao tác, đảo lại rẻ.
+
+Điểm 8–9 rẻ ở phía Reports (hai trường tùy chọn, artifact cũ vẫn đọc được) và
+TRUNG BÌNH ở phía Tracking: hợp đồng `/api/xuat/board` đã phát thêm hai trường,
+nên rút chúng lại là một thay đổi hợp đồng phải báo trước.
+
+Điểm 10 là điểm đắt nhất để đảo theo nghĩa chính sách, không theo nghĩa kỹ
+thuật: một khi mã máy đã hiện trên màn hình vận hành, việc rút nó lại là một
+quyết định về quyền truy cập chứ không phải một lần xoá code.
+
+Can Revisit After:
+
+Mở lại điểm 6 nếu Owner muốn một độ dài cửa sổ khác, hoặc muốn mức Năm cũng có
+cửa sổ so sánh. Mở lại điểm 8 khi danh sách hãng cần thêm mục — thêm một dòng
+vào danh sách đóng là đúng cách, nới quy tắc ghép thì không. Mở lại điểm 9 nếu
+hợp đồng Product Identity có ngày mang trường `brand` trên chính nó và `INV-18`
+được xem xét lại.

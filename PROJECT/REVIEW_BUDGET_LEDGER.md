@@ -3104,3 +3104,48 @@ kiện duy nhất cho phép mở lại (tái hiện thành lỗi deploy/luồng 
 xảy ra. Ngân sách `R4` giữ nguyên `1 allowed / 0 used / 1 remaining`.
 
 Bằng chứng nguyên văn: `docs/sessions/S133-r4-integration-and-deployment.md`.
+
+---
+
+## Root Task: R5
+
+```
+root_task: R5
+title: Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH = 2`).
+
+**Blast Radius chấm theo failure path.** Failure path CHÍNH của R5 là:
+
+```text
+cờ vắng mặt → effective data → MỌI chỉ tiêu kinh doanh → vân tay chốt kỳ
+            → export Excel
+```
+
+Nó đi xa hơn R4 đúng một bậc (`4/5` thay vì `3/5`) vì R5 có quyền LOẠI dòng
+khỏi tập được cộng: một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN, và thấp hơn
+thì khó thấy hơn cao hơn — không ai đi tìm số tiền mình không biết là mình
+đang thiếu.
+
+Nó KHÔNG đạt `5/5`, và ba lý do đều là tính chất CẤU TẠO chứ không phải lời
+hứa: không đường nào của R5 ghi đè một bản ghi kế toán (việc loại xảy ra LÚC
+ĐỌC), không migration nào chạy (`alembic heads` vẫn là một head duy nhất của
+R3), và mọi phép loại đều đảo ngược được bằng một lần nạp sổ — trạng thái "còn
+hiệu lực" tính lại từ lịch sử membership ở mỗi lần đọc.
+
+R5 có một route GHI mới (`POST /kinh-doanh/nhan-vien/sua-bh`), nhưng nó không
+mở rộng bán kính: nó gọi đúng `store.set_purchase_price` /
+`clear_purchase_price` / `set_employee` mà `DEC-PHB02-02` và `OD-5` đã nghiệm
+thu, qua đúng những cửa cũ, và mọi ràng buộc của R2 §4.4 được thi hành ở đúng
+một chỗ cho mọi người gọi.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S134` KHÔNG sửa tiếp triển
+khai của R4 — nó ĐỌC một R4 đã merge vào nhánh mặc định (`b6756fe`). Bản sửa
+`r1_web_upload_smoke.py` (`dad8513`) là một sửa chữa CÔNG CỤ KIỂM, trên một
+lỗi có trước R5 và đo được là hỏng y hệt trên `b6756fe`; nó không phải một
+repair cycle của R4 và không tiêu ngân sách của lineage nào.

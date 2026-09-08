@@ -1,6 +1,71 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R4 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
+## CANONICAL CURRENT STATE — R5 = IMPLEMENTED (chưa review, chưa merge, chưa deploy) (2026-09-08)
+
+**R5 đã triển khai đầy đủ trên nền R4 đã merge (`b6756fe`), trên CẢ HAI repo.**
+Owner ban hành `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm`: đóng năm khoảng cách giữa
+*điều màn hình nói* và *điều hệ thống biết*. Quyết định: `DEC-202`. Task
+canonical: `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`. Bàn
+giao: `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`.
+
+```text
+Reports   HEAD  dad85135270498ad1dca0bf0980463da0519fb8d
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+Tracking  HEAD  f958226f6127e6055eb411e4c22e12c58d09654b
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+ALEMBIC_HEAD    0009_line_binding_period_close — KHÔNG ĐỔI, R5 không thêm
+                migration nào
+Reports test    3223 passed, 12 skipped   (baseline trước R5: 3146 passed)
+Tracking test   61 bộ · 2767 đạt · 0 hỏng · 2 bỏ qua; npm run build OK
+Smoke HTTP thật TẤT CẢ PASS
+```
+
+Việc quan trọng nhất của R5 sửa một khoảng cách mà người dùng đã tự tay đóng
+lại rồi mà hệ thống không nhận: sau khi họ bấm "sổ này đầy đủ cho khoảng ngày
+X", một đơn cũ trong X mà sổ đó không có VẪN được cộng vào doanh thu. Nay nó
+được TẠM LOẠI khỏi mọi số liệu, vào một danh sách cảnh báo riêng không mang
+tiền, và tự quay lại khi một lần nạp sau có nó. Không hard-delete, không
+migration — việc loại xảy ra LÚC ĐỌC.
+
+Blast Radius `4/5` (xa hơn R4 một bậc): R5 có quyền LOẠI dòng khỏi tập được
+cộng, và một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN — không ai đi tìm số
+tiền mình không biết là mình đang thiếu.
+
+`CHECK-R5-27` (Independent Review) và `CHECK-R5-28` (Owner nghiệm thu) VẪN
+`NOT_TESTED`. Phiên triển khai KHÔNG merge, KHÔNG deploy, và KHÔNG tự đóng hai
+check đó.
+
+### CONFLICT DETECTED — điều kiện mở R5
+
+Documentation:
+`S133` (mục "Tích hợp production R4" bên dưới) ghi: *"**R5 CHƯA `READY`** —
+chỉ mở sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên
+dữ liệu thật đạt."* Hai điều kiện đó CHƯA xảy ra: `CHECK-R3-20` và
+`CHECK-R4-24` vẫn `NOT_TESTED`.
+
+Implementation:
+`R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §0 đặt một điều kiện KHÁC và hẹp hơn: *"R5
+chỉ được mở sau khi nhánh mặc định của Reports chứa commit R4 trên và migration
+production hiện hành đã chạy thành công."* Cả hai điều kiện đó ĐÃ thoả và đã
+được đo ở đầu phiên `S134` (§1). Owner sau đó chỉ thị trực tiếp mở phiên triển
+khai R5 đầy đủ.
+
+Risk:
+R5 đã được xây trên một nền mà Owner CHƯA nghiệm thu trên dữ liệu thật. Nếu
+nghiệm thu R3/R4 phát hiện một lỗi cần sửa ở nền, phần R5 chồng lên nó có thể
+phải làm lại một phần — rủi ro cao nhất nằm ở gói 1 (nó đọc chính cơ chế cờ
+vắng mặt của PRA-002) và gói 3 (nó đọc chính engine doanh thu của R4).
+
+Recommended resolution:
+Giữ nguyên như phiên này đã làm: TRIỂN KHAI theo chỉ thị mới hơn của Owner,
+KHÔNG merge, KHÔNG deploy, và KHÔNG chạm `CHECK-R3-20`/`CHECK-R4-24` — chúng
+vẫn `NOT_TESTED`. Điều kiện của `S133` không bị xoá và không bị coi là đã
+thoả; nó chuyển từ "điều kiện mở R5" thành **điều kiện tích hợp R5**: R5 không
+được merge vào nhánh mặc định trước khi Owner nghiệm thu R3/R4 trên production.
+
+---
+
+## R4 — IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
 
 **R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
 `R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
@@ -146,6 +211,13 @@ bước, trên dữ liệu THẬT) ở `docs/sessions/S133-r4-integration-and-de
 `CHECK-R4-24` và `CHECK-R3-20` VẪN `NOT_TESTED`. **R5 CHƯA `READY`** — chỉ mở
 sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên dữ
 liệu thật đạt.
+
+> **Cập nhật 2026-09-08 (`S134`).** Owner sau đó chỉ thị trực tiếp mở phiên
+> triển khai R5 đầy đủ, trên điều kiện của chính brief R5 §0 (nhánh mặc định
+> chứa R4 HEAD + migration ở head) — cả hai đã
+> thoả. Câu trên KHÔNG bị xoá và KHÔNG bị coi là đã thoả: nó chuyển thành
+> **điều kiện TÍCH HỢP R5** (R5 không merge trước khi Owner nghiệm thu R3/R4
+> trên production). Xem "CONFLICT DETECTED — điều kiện mở R5" ở đầu file.
 
 ---
 
@@ -10331,6 +10403,12 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
     `ADMIN`, không `viewer`/`editor`/`employee_scope`. Đóng C12/C13/C14.
     ADR-105 §4/§5 viết lại, chuyển `Accepted`. Completion Gate TASK-203/204
     vẫn chưa freeze.
+  - **DEC-201** — R4: trang đánh giá CHỈ ĐỌC trên một effective data; không
+    chỉ tiêu dẫn xuất từ lợi nhuận nào được công bố khi coverage chưa đủ.
+  - **DEC-202** — R5: sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi
+    số liệu (loại LÚC ĐỌC, không hard-delete, tái xuất hiện tự khôi phục);
+    biểu đồ hai cửa sổ liền kề cùng độ dài; một form cấp BH với `XONG` là nút
+    gửi duy nhất; hãng/model do Tracking chuẩn hoá và IMEI mở đúng một route.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 
