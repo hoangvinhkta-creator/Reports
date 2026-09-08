@@ -82,6 +82,16 @@ class TrackingCatalogRow:
     present_in_board: bool
     name: Optional[str] = None
     alt: tuple[str, ...] = ()
+    #: R5 §5 — model rút gọn và HÃNG, do TRACKING chuẩn hoá. Hai trường này
+    #: là DISPLAY/EVIDENCE, hệt như `name`/`alt`: `_match_field` không đọc
+    #: chúng, và điều đó là bắt buộc — ghép thêm bằng hãng sẽ làm mọi dòng
+    #: Sony khớp với nhau, và một mapping đã confirm có thể bị dời sang một
+    #: mặt hàng khác cùng hãng (`INV-13`/`INV-21`).
+    #:
+    #: `None` nghĩa là Tracking KHÔNG khẳng định, và đó là một câu trả lời
+    #: hợp lệ — không phải một chỗ để Reports điền vào bằng cách đoán.
+    model_label: Optional[str] = None
+    brand: Optional[str] = None
 
 
 @dataclass(frozen=True)

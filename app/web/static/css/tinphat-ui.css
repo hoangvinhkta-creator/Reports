@@ -1002,3 +1002,36 @@ td[data-group] { white-space: nowrap; }
      `.kpi-row` đã lo phần này, ở đây chỉ giữ chữ lý do không bị tràn. */
   .kpi-reason, .kpi-partial { overflow-wrap: break-word; }
 }
+
+
+/* --- R5 §5: hai cột đối chiếu Hãng & IMEI --------------------------------
+   Mặc định ẨN, và ẩn bằng CSS dựa trên một thuộc tính trên chính `<table>` —
+   không phải bằng JavaScript sau khi trang đã vẽ. Nhờ vậy trạng thái mặc
+   định đúng ngay ở khung hình đầu tiên: không có cú "nháy" hai cột hiện ra
+   rồi biến mất, và trang không JavaScript vẫn hiện đúng một bảng gọn.
+
+   Khi mở, hai cột phải HẸP và cắt MỘT DÒNG. Một mã máy mười lăm chữ số xuống
+   dòng làm cả hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao
+   khác nhau thì không còn dò theo hàng được nữa — đúng thứ nền xen kẽ theo
+   ngày (`§38`) sinh ra để giữ. Chữ đầy đủ đọc qua `title`. */
+.sheet-table[data-optional-hidden] .col-optional { display: none; }
+.sheet-table .col-narrow {
+  max-width: 96px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* --- R5 §5: popover phân loại -------------------------------------------
+   `is-anchored` do JavaScript gắn, và CHỈ khi nó đã tính được toạ độ. Không
+   có JS (hoặc mở bằng bàn phím/URL, khi không có toạ độ click nào) thì khối
+   này giữ nguyên hình dạng cũ — một `.module` đứng trong luồng trang, dùng
+   được bình thường. Trạng thái mặc định vì thế là trạng thái AN TOÀN. */
+.identify-pop.is-anchored {
+  position: fixed; z-index: 60; margin: 0;
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(60vh, 420px); overflow: auto;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
+}
+.identify-result { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Gợi ý LÀ cái nút: bấm vào nó là xác nhận, không có bước nào ở giữa. */
+.identify-result .act { text-align: left; max-width: 100%; white-space: normal; }

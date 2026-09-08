@@ -66,9 +66,29 @@ from app.web.legacy_presentation import format_number
 #: `TASK-OWNER-UIUX-008` §2 — "Khách hàng" tách thành HAI cột bằng nhau
 #: (chủ dự án yêu cầu trực tiếp): tên riêng, liên hệ (SĐT · địa chỉ)
 #: riêng — trước đây là hai DÒNG chồng trong CÙNG một ô.
+#: R5 §5 — hai cột `Hãng` và `IMEI` chen vào NGAY SAU `Mặt hàng`, và
+#: `Mặt hàng` thu hẹp lại: khi một dòng đã phân loại, tên hiển thị là model
+#: canonical ngắn ("K-65S20M2") chứ không còn cả câu tên hàng trên sổ.
+#:
+#: Hai cột này MẶC ĐỊNH ẨN và dùng chung một nút mở/đóng — chúng là thông tin
+#: đối chiếu, không phải thông tin vận hành hằng ngày, và bắt cả bảng hẹp lại
+#: vì hai cột ít dùng là đánh đổi sai. Trạng thái mở/đóng nằm ở trình duyệt
+#: (`localStorage`), nên nó không đi qua server và không thành một thiết lập
+#: cần lưu ở đâu cả.
 SHEET_DETAIL_COLUMNS: tuple[str, ...] = (
-    "Ngày", "Mã đơn", "Mặt hàng", "Nhân viên", "SL",
+    "Ngày", "Mã đơn", "Mặt hàng", "Hãng", "IMEI", "Nhân viên", "SL",
     "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng", "Liên hệ",
+)
+
+#: Các cột ẩn/hiện chung một nút, theo VỊ TRÍ (0-based) trong bảng trên.
+OPTIONAL_COLUMN_INDEXES: tuple[int, ...] = (3, 4)
+
+SHOW_OPTIONAL_LABEL = "HIỆN HÃNG & IMEI"
+HIDE_OPTIONAL_LABEL = "ẨN HÃNG & IMEI"
+
+OPTIONAL_COLUMNS_NOTE = (
+    "Hãng và mã máy (IMEI) chỉ hiện trên trang này. Chúng không đi vào bất kỳ "
+    "trang chỉ tiêu, bản xuất hay bản ghi nhật ký nào."
 )
 
 # --- Nhãn ngắn của cảnh báo (`§36`) ---------------------------------------
@@ -296,8 +316,48 @@ def _is_loss(line: bm.BusinessLine) -> bool:
     return bool(LOSS_CODES.intersection(line.warnings))
 
 
+def _catalog_field(identity, catalog, field: str) -> Optional[str]:
+    """Một trường HIỂN THỊ của danh mục Tracking cho dòng này, hoặc `None`.
+
+    `catalog` là `{raw_identity_key: {"tracking_code", "model_label",
+    "brand"}}` — bản chiếu mà tầng route đã dựng từ log quyết định đã
+    CONFIRMED cộng với bản chiếu hiển thị của Tracking.
+
+    Chỉ dòng `MATCHED_TRACKING` mới được tra. Một dòng chưa phân loại chưa có
+    mã Tracking nào; một dòng đang tranh chấp thì có hai; một dòng ngoài bảng
+    giá thì cố ý không có. Cả ba phải giữ TÊN THÔ để người dùng còn biết mình
+    cần xử lý gì (`§8`).
+    """
+    if not catalog or identity is None:
+        return None
+    if identity.classification != line_identity.CLASS_MATCHED_TRACKING:
+        return None
+    return (catalog.get(identity.identity_key) or {}).get(field)
+
+
+def _product_display(detail: dict, identity, catalog) -> str:
+    """Tên hàng như màn hình hiện nó (R5 §5).
+
+        đã xác nhận + danh mục có model  ⟹  model canonical ("K-65S20M2")
+        đã xác nhận, danh mục chưa nói   ⟹  mã Tracking
+        chưa xác nhận / tranh chấp / ngoài bảng giá ⟹ TÊN THÔ
+
+    Nhánh cuối là nhánh quan trọng nhất, và nó cố ý không "gọn gàng" hơn: tên
+    thô là thứ duy nhất cho người dùng biết dòng này chưa được xử lý. Thay nó
+    bằng một cái nhãn đẹp sẽ làm một việc còn treo trông như đã xong.
+    """
+    label = _catalog_field(identity, catalog, "model_label")
+    if label:
+        return label
+    code = _catalog_field(identity, catalog, "tracking_code")
+    if code:
+        return code
+    return detail["product_raw"] or "—"
+
+
 def _line_row(detail: dict, *, sheet, part, synthetic: bool,
-              confirmed_keys=None, decisions=None) -> dict:
+              confirmed_keys=None, decisions=None,
+              catalog=None, imeis=None) -> dict:
     line = detail["line"]
     # `DEC-185` §PI-01/§PI-02 — trạng thái nhận diện của DÒNG THẬT.
     #
@@ -313,7 +373,15 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
         "product_key": detail["product_key"],
         "occurrence_index": detail["occurrence_index"],
         "product_raw": (bm.DISCOUNT_DISPLAY_LABEL if synthetic
-                        else (detail["product_raw"] or "—")),
+                        else _product_display(detail, identity, catalog)),
+        # R5 §5 — hai cột đối chiếu. `None` ⟹ ô hiện dấu gạch: một dòng chưa
+        # phân loại không có hãng, và một dòng sổ không ghi mã máy thì không
+        # có mã máy. Không nhánh nào đoán bù.
+        "brand": (None if synthetic
+                  else _catalog_field(identity, catalog, "brand")),
+        "imei": (None if synthetic or imeis is None
+                 else imeis.get((detail["order_key"], detail["product_key"],
+                                 detail["occurrence_index"]))),
         "employee": line.employee or UNKNOWN_EMPLOYEE,
         "employee_resolved": line.employee_resolved,
         "quantity": _decimal(part.quantity),
@@ -380,7 +448,8 @@ _NO_DATE_YET = object()
 
 
 def sheet_detail_groups(details: list[dict], *, sheet,
-                        confirmed_keys=None, decisions=None) -> list[dict]:
+                        confirmed_keys=None, decisions=None,
+                        catalog=None, imeis=None) -> list[dict]:
     """Bảng kê của một sheet, GỘP THEO BH và tô nền theo NGÀY (`§22`, `§38`).
 
     Cấu trúc phản chiếu chính sổ kế toán: một BH là một KHỐI, khách hàng thuộc
@@ -420,11 +489,13 @@ def sheet_detail_groups(details: list[dict], *, sheet,
             }
         product, *discount_parts = bm.display_contributions(line)
         new_rows = [_line_row(detail, sheet=sheet, part=product, synthetic=False,
-                              confirmed_keys=confirmed_keys, decisions=decisions)]
+                              confirmed_keys=confirmed_keys, decisions=decisions,
+                              catalog=catalog, imeis=imeis)]
         for part in discount_parts:
             new_rows.append(_line_row(detail, sheet=sheet, part=part, synthetic=True,
                                       confirmed_keys=confirmed_keys,
-                                      decisions=decisions))
+                                      decisions=decisions,
+                                      catalog=catalog, imeis=imeis))
         group["rows"].extend(new_rows)
         if line.employee and line.employee not in group["employees"]:
             group["employees"].append(line.employee)
@@ -661,6 +732,8 @@ def sheet_view(
 __all__ = [
     "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
     "REMOVED_IN_SOURCE_NOTE", "removed_in_source_rows",
+    "HIDE_OPTIONAL_LABEL", "OPTIONAL_COLUMNS_NOTE", "OPTIONAL_COLUMN_INDEXES",
+    "SHOW_OPTIONAL_LABEL",
     "EXCLUDE_CONFIRM_QUESTION", "GIA_DUNG_CONFIRM_POINTS",
     "GIA_DUNG_CONFIRM_QUESTION", "LOSS_CODES", "MOM_NO_PREVIOUS",
     "PROGRESS_NOTE", "SHEET_DETAIL_COLUMNS", "SHORT_TAGS",

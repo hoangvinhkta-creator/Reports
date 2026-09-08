@@ -31,8 +31,15 @@ và ba trường đó nằm sẵn trong chính sổ kế toán đang nạp (`raw
 5/6/7). Không CRM, không ghép danh tính liên hệ thống.
 
 Cột VẪN KHÔNG được đọc ở đây (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`):
-`imei`, `note_raw`, `employee_raw`. Danh sách này được
+mã máy, `note_raw`, `employee_raw`. Danh sách này được
 `tests/test_business_boundaries.py` canh bằng chính mã nguồn.
+
+R5 §5 (`DEC-R5-03`) mở mã máy trên ĐÚNG bảng kê của tab nhân viên — và cố ý
+KHÔNG mở nó ở đây. Tầng này là đầu vào của MỌI trang dùng `PeriodData` (tổng
+hợp, cơ cấu, thương hiệu, đánh giá, export); thêm một cột vào đây là trao nó
+cho tất cả cùng lúc, kể cả những trang chưa được viết. Cánh cửa hẹp nằm ở
+`app/web/workspace_imei.py`, và `tests/test_r5_imei_boundary.py` canh rằng
+chỉ `server.py` mở nó.
 """
 
 from __future__ import annotations

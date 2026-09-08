@@ -77,8 +77,8 @@ from app.web import (
     business_presentation, business_service, business_store, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
     line_identity, period_lock, revenue_timeline, run_registry,
-    sales_presentation, sales_queries, snapshot_presentation, storage_backend,
-    workspace_presentation,
+    catalog_display, sales_presentation, sales_queries, snapshot_presentation,
+    storage_backend, workspace_imei, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -1743,6 +1743,28 @@ def create_app(
             confirmed=confirmed, out_of_catalog=out_of_catalog,
             conflict_resolved=conflict_resolved)
 
+    def _catalog_labels() -> dict:
+        """`{raw_identity_key: {tracking_code, model_label, brand}}` (R5 §5).
+
+        Ghép hai nguồn ĐÃ CÓ, không đọc mạng: log quyết định đã CONFIRMED nói
+        dòng nào trỏ tới mã Tracking nào, và bản chiếu hiển thị nói mã đó là
+        model gì của hãng nào. Bản chiếu vắng mặt ⟹ mỗi khoá vẫn có mã
+        Tracking để làm nhãn dự phòng, và hãng là `None` — đúng trạng thái
+        "chưa xác định", không phải một cái tên đoán ra.
+        """
+        display = catalog_display.read()
+        labels = {}
+        for key, identity in identity_gateway.confirmed_identities(
+                identity_store).items():
+            code = getattr(identity, "source_product_code", None)
+            if not code:
+                continue
+            row = display.get(code) or {}
+            labels[key] = {"tracking_code": code,
+                           "model_label": row.get("model_label"),
+                           "brand": row.get("brand")}
+        return labels
+
     def _tracking_snapshot():
         """Danh mục Tracking để CHỌN mặt hàng, hoặc `None` nếu không đọc được.
 
@@ -1756,7 +1778,12 @@ def create_app(
         if captures is None:
             return None
         try:
-            return load_tracking_catalog_capture(captures.tracking_catalog)
+            snapshot = load_tracking_catalog_capture(captures.tracking_catalog)
+            # R5 §5 — lần pull này đã được cho phép xảy ra vì một lý do khác
+            # (Owner vừa mở bảng chọn). Ghi lại ĐÚNG hai trường hiển thị để
+            # bảng kê không phải gọi mạng ở mỗi lần tải trang.
+            catalog_display.write(snapshot)
+            return snapshot
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
             return None
         finally:
@@ -1820,6 +1847,7 @@ def create_app(
             return None
         query = request.args.get("tim") or ""
         snapshot = _tracking_snapshot()
+        suggestion = identity_gateway.best_candidate(snapshot, query=query)
         # Phạm vi THẬT của lần xác nhận này: mọi dòng của kỳ dùng chung khoá
         # định danh, không riêng dòng vừa bấm (`INV-76`/`INV-87`).
         shared = [item for item in view["data"].details
@@ -1829,9 +1857,13 @@ def create_app(
             **keys,
             "product_raw": detail["product_raw"] or "",
             "query": query,
-            "candidates": [
-                {"code": item.code, "label": item.label}
-                for item in identity_gateway.candidates(snapshot, query=query)],
+            # R5 §5 — TỐI ĐA MỘT gợi ý. Danh sách bốn mươi mã trong lòng
+            # một popover không phải "tương tác nhỏ nhất có thể", và Owner
+            # chỉ chọn được đúng một mã. Gợi ý là GỢI Ý: nó chỉ trở thành
+            # một quyết định khi Owner bấm vào nó (`§PI-05`, `BR-10`).
+            "suggestion": (
+                None if suggestion is None
+                else {"code": suggestion.code, "label": suggestion.label}),
             "tracking_available": snapshot is not None,
             "no_tracking_note": identity_gateway.NO_TRACKING_NOTE,
             "shared_lines": len(shared),
@@ -2006,7 +2038,20 @@ def create_app(
             target=workspace_presentation.target_cell(target),
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
-                scoped.details, sheet=sheet, decisions=decisions),
+                scoped.details, sheet=sheet, decisions=decisions,
+                catalog=_catalog_labels(),
+                # `DEC-R5-03` — mã máy CHỈ được truy vấn ở đây, trên đúng
+                # route này. `workspace_imei` là cánh cửa duy nhất, và
+                # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
+                # mở nó.
+                imeis=_guarded(
+                    workspace_imei.imei_of, snapshot_repo.engine,
+                    [(d["order_key"], d["product_key"], d["occurrence_index"])
+                     for d in scoped.details])),
+            optional_columns=workspace_presentation.OPTIONAL_COLUMN_INDEXES,
+            show_optional_label=workspace_presentation.SHOW_OPTIONAL_LABEL,
+            hide_optional_label=workspace_presentation.HIDE_OPTIONAL_LABEL,
+            optional_columns_note=workspace_presentation.OPTIONAL_COLUMNS_NOTE,
             detail_totals=workspace_presentation.sheet_detail_totals(
                 scoped.details),
             # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
@@ -2365,10 +2410,19 @@ def create_app(
            đường này, nên gán lại nhân viên hay tick Gia dụng không thể làm
            đổi doanh thu của một thương hiệu (`BR-06`, `BR-07`).
 
-        3. **Thương hiệu chỉ ĐỌC từ thẩm quyền Product Identity.** Nguồn được
-           wire ở đây là `brand_identity.canonical_brand` và không gì khác —
-           không bảng ánh xạ của Reports, không phép so chuỗi con (`BR-02`,
-           `BR-10`).
+        3. **Thương hiệu chỉ ĐỌC từ thẩm quyền Product Identity.** R5 §5
+           (`DEC-R5-04`) mở lại PHB-06 CÓ CHỦ ĐÍCH: nguồn nay là
+           `catalog_display.brand_source`, tức chính hai trường mà TRACKING
+           đã chuẩn hoá và trả về qua `/api/xuat/board`. Đây là đường thứ hai
+           mà `PHB-06 §4` đã để ngỏ — một read model canonical tương đương —
+           chứ không phải một bảng ánh xạ của Reports: nó chỉ tra
+           `source_product_code` của một danh tính ĐÃ CONFIRM, và không có
+           nhánh nào suy thương hiệu từ tên hàng, mã máy hay một phép so
+           chuỗi nào (`BR-02`, `BR-10`).
+
+           `brand_identity.canonical_brand` KHÔNG bị xoá: nó vẫn là đường
+           đọc đúng nếu hợp đồng danh tính có ngày mang trường `brand` trên
+           chính nó, và `tests/test_phb06_brand_reporting.py` vẫn canh nó.
 
         Phép đối soát về tổng kỳ CHẠY THẬT ở mỗi lần tải trang và kết quả của
         nó lên màn hình. Một bảng cộng không khớp là lỗi hệ thống, và trang
@@ -2381,7 +2435,7 @@ def create_app(
         buckets = brand_identity.buckets_for(
             data.details, confirmed_keys=_confirmed_identity_keys(),
             identities=identity_gateway.confirmed_identities(identity_store),
-            brand_source=brand_identity.canonical_brand)
+            brand_source=catalog_display.brand_source(catalog_display.read()))
         grouped = brand_metrics.group_by_brand(data.lines, buckets)
         return render_template(
             "kinh_doanh_thuong_hieu.html",

@@ -66,7 +66,7 @@ def pair(order, *, product="Tủ lạnh Panasonic", occurrence=1, day=5, month=1
          year=2026, employee="Vinh", group="NOI_THANH", lead="PERSONAL",
          status="AUTO", quantity="1", sell="8000000", discount="0",
          kpi_purchase="5000000", kpi_profit="3000000", rate="0.020",
-         product_group="DIEN_MAY", row=6, reasons=None):
+         product_group="DIEN_MAY", row=6, reasons=None, imei=None):
     """Một cặp (dòng nguồn, dòng kết quả) đã khớp khoá.
 
     `kpi_purchase=None` dựng đúng tình trạng của dữ liệu thật hôm nay: pipeline
@@ -80,7 +80,8 @@ def pair(order, *, product="Tủ lạnh Panasonic", occurrence=1, day=5, month=1
     """
     source = source_line(order, product, occurrence, row=row,
                          sale_date=date(year, month, day), sell_price=sell,
-                         quantity=Decimal(quantity), discount=Decimal(discount))
+                         quantity=Decimal(quantity), discount=Decimal(discount),
+                         imei=imei)
     if reasons is None:
         reasons = PRODUCTION_MISSING_PRICE_REASONS if kpi_purchase is None else ()
     if reasons and status == "AUTO":
@@ -542,16 +543,26 @@ def test_the_purchase_price_page_lets_the_owner_edit_an_auto_price(
 def test_the_business_pages_never_leak_pii(repository, client):
     """Hàng rào PII giống PRA-004: `product_raw` được phép, phần còn lại không.
 
-    `employee_raw` ("Mr Vinh 0912…") và `imei` là dữ liệu cá nhân; chúng không
-    có lý do gì xuất hiện trên một trang chỉ tiêu.
+    `employee_raw` ("Mr Vinh 0912…") là dữ liệu cá nhân và không có lý do gì
+    xuất hiện trên một trang chỉ tiêu.
+
+    R5 §5 (`DEC-R5-03`) mở `imei` trên ĐÚNG một route — bảng kê của tab nhân
+    viên — nên phép thử "chữ imei không xuất hiện" không còn nói đúng điều
+    cần nói ở đó (nhãn của cái nút mở/đóng có chữ ấy). Điều VẪN phải đúng, và
+    là điều thật sự quan trọng, được canh ở đây theo GIÁ TRỊ: không trang chỉ
+    tiêu nào mang một mã máy. Phạm vi đầy đủ của quyết định nằm ở
+    `tests/test_r5_imei_boundary.py`.
     """
-    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None,
+                              imei="356938035643809")])
     for path in ("/kinh-doanh?ky=2026-01",
-                 "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh",
                  "/kinh-doanh/gia-nhap?ky=2026-01&tat-ca=1"):
         html = body(client, path)
         assert "Vũ Hạnh Ly" not in html  # employee_raw của fixture
         assert "imei" not in html.lower()
+        assert "356938035643809" not in html
+    workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert "Vũ Hạnh Ly" not in workspace
 
 
 def test_the_business_pages_return_503_when_there_is_no_history_store(

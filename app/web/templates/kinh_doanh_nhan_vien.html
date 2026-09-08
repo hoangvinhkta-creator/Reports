@@ -225,7 +225,13 @@
   {# `§PI-04` — bảng chọn mặt hàng của ĐÚNG MỘT dòng. Nó sống ngay trong
      module bảng kê: mở nó KHÔNG rời khỏi sheet, và đóng nó là bấm HUỶ. #}
   {% if identify %}
-  <div class="module confirm-box" id="phan-loai" data-metric="identify-panel"
+  {# R5 §5 — POPOVER neo tại toạ độ click, không phải một khối đứng trên đầu
+     bảng. Khối này vẫn được server dựng NGUYÊN VẸN ở đúng chỗ cũ trong DOM:
+     tắt JavaScript thì nó là một bảng chọn bình thường, và mọi đường ghi vẫn
+     là POST thật. `app.js` chỉ DỜI nó tới chỗ vừa bấm và thu nó lại thành một
+     hộp nhỏ — đúng lớp tăng cường mà `TASK-OWNER-UIUX-004` đã dựng. #}
+  <div class="module confirm-box identify-pop" id="phan-loai"
+       data-metric="identify-panel" data-identify-pop
        data-classification="{{ identify.classification }}">
     <h2>Phân loại mặt hàng</h2>
     <p class="insight" data-metric="identify-raw">
@@ -253,6 +259,9 @@
     {% if not identify.tracking_available %}
     <p class="error" data-metric="identify-no-tracking">{{ identify.no_tracking_note }}</p>
     {% else %}
+    {# R5 §5 — MỘT ô tìm. Không dropdown, không nút xác nhận riêng: chính
+       dòng gợi ý LÀ cái nút. Bấm vào nó là xác nhận, và không có bước nào
+       giữa hai việc đó để người dùng quên. #}
     <form class="filter-row" method="get"
           action="{{ url_for('business_employee') }}">
       <input type="hidden" name="ky" value="{{ selected_period }}">
@@ -263,72 +272,91 @@
       <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
       <input type="text" name="tim" value="{{ identify.query }}"
              data-metric="identify-search" aria-label="Tìm mặt hàng Tracking"
-             placeholder="Tìm trong danh mục Tracking">
+             autocomplete="off" data-identify-search
+             placeholder="Gõ mã hoặc tên mặt hàng">
       <button class="ghost btn-mini" type="submit">TÌM</button>
     </form>
 
-    {% if not identify.candidates %}
-    <p class="empty" data-metric="identify-empty">
-      Không có mặt hàng nào của Tracking khớp. Thử một từ khoá khác.</p>
-    {% else %}
-    <form class="filter-row" method="post"
-          action="{{ url_for('business_confirm_identity') }}">
-      <input type="hidden" name="ky" value="{{ selected_period }}">
-      <input type="hidden" name="sheet" value="{{ sheet.key }}">
-      <input type="hidden" name="order_key" value="{{ identify.order_key }}">
-      <input type="hidden" name="product_key" value="{{ identify.product_key }}">
-      <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
-      <select name="ma_tracking" data-metric="identify-select"
-              aria-label="Mặt hàng chuẩn của Tracking">
-        {% for item in identify.candidates %}
-        <option value="{{ item.code }}">{{ item.label }}</option>
-        {% endfor %}
-      </select>
-      {% if identify.conflict %}
-      <input type="text" name="ly_do" data-metric="identify-reason"
-             aria-label="Lý do chọn mã này"
-             placeholder="Vì sao chọn mã này?">
+    {# Dòng KẾT QUẢ: tối đa một gợi ý, và ngay cạnh nó là đường một-click
+       "Không có trên bảng giá". Hai câu trả lời của cùng một câu hỏi đứng
+       cùng một chỗ — người dùng không phải cuộn đi tìm cái thứ hai. #}
+    <div class="identify-result">
+      {% if identify.suggestion %}
+      <form method="post" action="{{ url_for('business_confirm_identity') }}">
+        <input type="hidden" name="ky" value="{{ selected_period }}">
+        <input type="hidden" name="sheet" value="{{ sheet.key }}">
+        <input type="hidden" name="order_key" value="{{ identify.order_key }}">
+        <input type="hidden" name="product_key" value="{{ identify.product_key }}">
+        <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
+        <input type="hidden" name="ma_tracking" value="{{ identify.suggestion.code }}">
+        <button class="act" type="submit" data-metric="identify-confirm"
+                data-code="{{ identify.suggestion.code }}"
+          >{{ identify.suggestion.label }}</button>
+      </form>
+      {% elif identify.query %}
+      <p class="empty" data-metric="identify-empty">
+        Không có mặt hàng nào của Tracking khớp. Thử một từ khoá khác.</p>
       {% endif %}
-      <button class="act" type="submit" data-metric="identify-confirm">
-        {{ 'NỐI LẠI TRACKING' if identify.out_of_catalog else 'XÁC NHẬN' }}</button>
-    </form>
-    {% endif %}
+
+    </div>
     {% endif %}
 
     {# R2 §4.3 — "không có trên bảng giá" KHÔNG phụ thuộc danh mục Tracking:
        đây chính là câu trả lời cho trường hợp danh mục không chứa mặt hàng
-       ấy, nên nút nằm NGOÀI nhánh `tracking_available` ở trên. #}
+       ấy, nên nó nằm NGOÀI nhánh `tracking_available` ở trên. Nó đứng trong
+       CÙNG dòng kết quả với gợi ý — hai câu trả lời của cùng một câu hỏi ở
+       cùng một chỗ, người dùng không phải cuộn đi tìm cái thứ hai. #}
     {% if identify.can_mark_out_of_catalog %}
-    <form class="filter-row" method="post"
-          action="{{ url_for('business_mark_out_of_catalog') }}">
-      <input type="hidden" name="ky" value="{{ selected_period }}">
-      <input type="hidden" name="sheet" value="{{ sheet.key }}">
-      <input type="hidden" name="order_key" value="{{ identify.order_key }}">
-      <input type="hidden" name="product_key" value="{{ identify.product_key }}">
-      <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
-      <button class="ghost btn-mini" type="submit"
-              data-metric="identify-out-of-catalog-confirm">
-        KHÔNG CÓ TRÊN BẢNG GIÁ</button>
-    </form>
-    <p class="insight" data-metric="identify-out-of-catalog-note">
-      Chọn mục này khi mặt hàng thật sự không có trên bảng giá Tracking. Dòng
-      vẫn nằm trong báo cáo và giữ nguyên doanh thu; nó chuyển sang trạng thái
-      cần một giá nhập tay, và không có giá 0 nào được dựng ra.</p>
+    <div class="identify-result">
+      <form method="post" action="{{ url_for('business_mark_out_of_catalog') }}">
+        <input type="hidden" name="ky" value="{{ selected_period }}">
+        <input type="hidden" name="sheet" value="{{ sheet.key }}">
+        <input type="hidden" name="order_key" value="{{ identify.order_key }}">
+        <input type="hidden" name="product_key" value="{{ identify.product_key }}">
+        <input type="hidden" name="occurrence_index" value="{{ identify.occurrence_index }}">
+        <button class="ghost btn-mini" type="submit"
+                data-metric="identify-out-of-catalog-confirm">
+          KHÔNG CÓ TRÊN BẢNG GIÁ</button>
+      </form>
+    </div>
     {% endif %}
+    <p class="insight" data-metric="identify-out-of-catalog-note">
+      Chọn "Không có trên bảng giá" khi mặt hàng thật sự không có trên bảng
+      giá Tracking. Dòng vẫn nằm trong báo cáo và giữ nguyên doanh thu; nó
+      chuyển sang trạng thái cần một giá nhập tay, và không có giá 0 nào được
+      dựng ra.</p>
 
     <p><a class="ghost btn-mini" data-metric="identify-cancel"
           href="{{ url_for('business_employee', ky=selected_period,
-                   sheet=sheet.key) }}">HUỶ</a></p>
+                   sheet=sheet.key) }}">ĐÓNG</a></p>
   </div>
   {% endif %}
 
   {% if not groups %}
   <p class="empty" data-metric="no-rows">{{ EMPTY_PERIOD_NOTE }}</p>
   {% else %}
+  {# R5 §5 — Hãng và IMEI mặc định ẨN, dùng CHUNG một nút. Chúng là thông
+     tin đối chiếu chứ không phải thông tin vận hành hằng ngày, và bắt cả
+     bảng hẹp lại vì hai cột ít dùng là đánh đổi sai. Trạng thái mở/đóng
+     nằm ở trình duyệt (`localStorage`, xem `app.js`), nên nó không đi qua
+     server và không thành một thiết lập phải lưu ở đâu cả. #}
+  <p class="filter-row">
+    <button type="button" class="ghost btn-mini" data-metric="toggle-optional"
+            data-optional-toggle
+            data-show-label="{{ show_optional_label }}"
+            data-hide-label="{{ hide_optional_label }}"
+            aria-pressed="false">{{ show_optional_label }}</button>
+    <span class="tp-label" data-metric="optional-columns-note"
+      >{{ optional_columns_note }}</span>
+  </p>
   <div class="tp-scroll">
-  <table class="sheet-table">
+  <table class="sheet-table" data-optional-hidden="1">
+    {# Cột số: SL · Giá nhập · Giá bán · Lợi nhuận · DS quy đổi (vị trí 7–11
+       sau khi R5 §5 chen Hãng và IMEI vào sau Mặt hàng). Hai cột chen vào
+       mang `col-optional` — CSS ẩn chúng khi bảng còn `data-optional-hidden`,
+       nên trạng thái mặc định đúng ngay ở lần render đầu, không chờ JS. #}
     <tr>{% for label in columns %}
-      <th class="{{ 'num' if loop.index in (5, 6, 7, 8, 9) }}">{{ label }}</th>
+      <th class="{{ 'num ' if loop.index in (7, 8, 9, 10, 11) }}{{ 'col-optional' if loop.index0 in optional_columns }}">{{ label }}</th>
     {% endfor %}<th></th><th></th></tr>
     {# `TASK-OWNER-UIUX-004` §5 — hàng TỔNG ngay dưới tiêu đề cột, chủ dự án
        yêu cầu trực tiếp. Giá nhập/Giá bán cộng thẳng từ CÙNG tập dòng bảng
@@ -338,7 +366,9 @@
        hai, tránh ra hai con số khác nhau cho cùng một khái niệm. #}
     <tr class="row-total" data-metric="sheet-totals">
       <td colspan="2" class="tp-label">TỔNG</td>
-      <td></td><td></td><td></td>
+      <td></td>
+      <td class="col-optional"></td><td class="col-optional"></td>
+      <td></td><td></td>
       <td class="num" data-metric="totals-purchase">{{ detail_totals.purchase_price }}</td>
       <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
       {{ biz.derived_cell(sheet.kpi_profit, 'totals-profit') }}
@@ -455,6 +485,17 @@
         {%- endif %}
         {%- endif -%}
       </td>
+      {# R5 §5 — HÃNG và IMEI. Cột HẸP, một dòng, cắt bằng ellipsis và đọc
+         đủ qua `title`: một mã máy mười lăm chữ số xuống dòng sẽ làm CẢ
+         hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao khác
+         nhau thì không dò theo hàng được nữa.
+
+         `DEC-R5-03` — IMEI chỉ có mặt ở đây. Không trang chỉ tiêu nào,
+         không bản xuất nào, không dòng nhật ký nào mang nó. #}
+      <td class="col-optional col-narrow" data-metric="line-brand"
+          title="{{ row.brand or '' }}">{{ row.brand or '—' }}</td>
+      <td class="col-optional col-narrow code" data-metric="line-imei"
+          title="{{ row.imei or '' }}">{{ row.imei or '—' }}</td>
       {# `§6`/`§8` — danh tính người bán KHÔNG bao giờ bị thay bằng tên sheet.
 
          R5 §4 — khi BH đang mở sửa, ô chọn nhân viên của CẢ ĐƠN nằm ngay

@@ -508,17 +508,29 @@ def test_pi_04_and_07_to_09_classifying_flips_the_line_to_thieu_gia(
     detail = next(iter(service.period(**SEPTEMBER).details))
 
     # `PI-04` — bấm vào mã mở bảng chọn NGAY trong sheet.
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
-                 f"&order_key=BH73877&product_key={detail['product_key']}"
-                 f"&occurrence_index={detail['occurrence_index']}")
+    #
+    # R5 §5 đổi bảng chọn thành một popover có ĐÚNG một ô tìm và TỐI ĐA MỘT
+    # dòng gợi ý (`DEC-R5-03`): chưa gõ gì thì chưa gợi ý gì, vì gợi ý mã đầu
+    # tiên của danh mục cho một người chưa gõ gì là mời họ bấm bừa. Mệnh đề
+    # của `PI-04` không đổi — bảng chọn mở TẠI CHỖ và đi qua thẩm quyền
+    # Tracking — chỉ cách hỏi là đổi.
+    keys = (f"&order_key=BH73877&product_key={detail['product_key']}"
+            f"&occurrence_index={detail['occurrence_index']}")
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1" + keys)
     assert 'data-metric="identify-panel"' in panel
-    # Khẳng định trên chính Ô CHỌN, không trên cả trang: tên hàng thô của
-    # dòng này CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh
-    # ngay cả khi danh mục Tracking hoàn toàn không đọc được.
-    options = re.search(r'data-metric="identify-select".*?</select>',
-                        panel, re.S)
-    assert options is not None, "phải có ô chọn mặt hàng Tracking"
-    assert 'value="EWF1143R7SC"' in options.group(0)
+    assert 'data-metric="identify-search"' in panel
+    assert 'data-metric="identify-confirm"' not in panel, (
+        "chưa gõ gì thì chưa gợi ý gì")
+
+    # Gõ tìm ⟹ đúng MỘT gợi ý, và chính nó là cái nút xác nhận. Khẳng định
+    # trên chính DÒNG GỢI Ý, không trên cả trang: tên hàng thô của dòng này
+    # CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh ngay cả
+    # khi danh mục Tracking hoàn toàn không đọc được.
+    found = body(client,
+                 "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF" + keys)
+    suggestions = re.findall(
+        r'data-metric="identify-confirm"[^>]*data-code="([^"]+)"', found)
+    assert suggestions == ["EWF1143R7SC"], "tối đa MỘT gợi ý, và đúng mã đó"
 
     # `PI-05` — xác nhận đi qua thẩm quyền Tracking.
     response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
@@ -927,7 +939,8 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
 
     target = next(item for item in service.period(**SEPTEMBER).details
                   if item["product_raw"].startswith("Máy giặt"))
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
+    # R5 §5 — popover có một ô tìm; gõ vào đó mới có gợi ý.
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF"
                  f"&order_key=BH50&product_key={target['product_key']}"
                  f"&occurrence_index={target['occurrence_index']}")
     assert 'value="EWF1143R7SC"' in panel

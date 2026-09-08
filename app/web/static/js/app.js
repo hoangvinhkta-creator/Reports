@@ -272,7 +272,9 @@
   }
 
   function chartPointTarget(event) {
-    return event.target.closest(".rev-line-dot, .rev-line-point[data-metric='chart-bar']");
+    return event.target.closest(
+      ".rev-line-dot, .rev-line-point[data-metric='chart-bar']," +
+      " .rev-line-point[data-metric='chart-bar-prev']");
   }
 
   document.addEventListener("mouseover", function (event) {
@@ -291,4 +293,150 @@
     if (point && !event.relatedTarget) hideTooltip();
   });
   document.addEventListener("app:content-updated", hideTooltip);
+})();
+
+
+/* --- R5 §5: một nút mở/đóng chung cho Hãng & IMEI ------------------------
+ *
+ * Hai cột này ẩn bằng CSS dựa trên `data-optional-hidden` trên chính bảng,
+ * nên trạng thái mặc định đúng ngay ở khung hình đầu tiên và trang không
+ * JavaScript vẫn hiện một bảng gọn. Đoạn dưới đây chỉ thêm cái NÚT.
+ *
+ * Lựa chọn được nhớ trong `localStorage`, không gửi lên server: nó là một
+ * sở thích xem của một người trên một máy, không phải một quyết định nghiệp
+ * vụ. Gửi nó lên server sẽ biến một thao tác xem thành một lần ghi, và biến
+ * một tuỳ chọn giao diện thành một thứ phải có vòng đời, phải sao lưu, phải
+ * giải thích khi hai người thấy hai bảng khác nhau.
+ *
+ * `localStorage` không dùng được (chế độ riêng tư, trình duyệt chặn) là một
+ * trạng thái BÌNH THƯỜNG ở đây: nút vẫn bấm được, chỉ không nhớ qua các lần
+ * tải trang. Vì vậy mọi lần đọc/ghi đều bọc `try`.
+ */
+(function () {
+  var KEY = "tp.workspace.optionalColumns";
+
+  function stored() {
+    try { return window.localStorage.getItem(KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function remember(on) {
+    try { window.localStorage.setItem(KEY, on ? "1" : "0"); } catch (e) { /* bỏ qua */ }
+  }
+
+  function apply(on) {
+    var tables = document.querySelectorAll(".sheet-table");
+    for (var i = 0; i < tables.length; i++) {
+      if (on) tables[i].removeAttribute("data-optional-hidden");
+      else tables[i].setAttribute("data-optional-hidden", "1");
+    }
+    var buttons = document.querySelectorAll("[data-optional-toggle]");
+    for (var j = 0; j < buttons.length; j++) {
+      buttons[j].textContent = on
+        ? buttons[j].getAttribute("data-hide-label")
+        : buttons[j].getAttribute("data-show-label");
+      buttons[j].setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  }
+
+  function sync() {
+    if (document.querySelector("[data-optional-toggle]")) apply(stored());
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-optional-toggle]");
+    if (!button) return;
+    var on = button.getAttribute("aria-pressed") !== "true";
+    remember(on);
+    apply(on);
+  });
+
+  document.addEventListener("DOMContentLoaded", sync);
+  document.addEventListener("app:content-updated", sync);
+  sync();
+})();
+
+
+/* --- R5 §5: popover phân loại neo tại chỗ bấm ---------------------------
+ *
+ * Trước R5, bảng chọn mặt hàng nằm PHÍA TRÊN bảng kê: bấm một dòng ở giữa
+ * trang là màn hình nhảy lên đầu, chọn xong lại phải cuộn tìm về chỗ cũ. Với
+ * một sheet vài trăm dòng, việc đó xảy ra ở mỗi lần phân loại.
+ *
+ * Lớp này KHÔNG đổi kiến trúc: server vẫn dựng đúng khối ấy ở đúng chỗ ấy,
+ * và tắt JavaScript thì nó vẫn là một bảng chọn dùng được với những POST
+ * thật. Ở đây chỉ có ba việc — dời khối tới toạ độ vừa bấm, giữ nó trong
+ * khung nhìn, và đóng bằng Escape hay một cú bấm ra ngoài.
+ *
+ * Toạ độ được nhớ ở `lastClick` khi Owner bấm vào một lối vào phân loại, chứ
+ * không đọc lúc popover xuất hiện: giữa hai thời điểm đó có một lượt fetch,
+ * và con trỏ chuột lúc ấy đã ở đâu thì không ai biết.
+ */
+(function () {
+  "use strict";
+
+  var PAD = 8;
+  var lastClick = null;
+
+  function isOpener(target) {
+    return target.closest(
+      "[data-metric='identity-open'], [data-metric='identity-label']");
+  }
+
+  document.addEventListener("click", function (event) {
+    if (isOpener(event.target)) {
+      lastClick = { x: event.clientX, y: event.clientY };
+    }
+  }, true);
+
+  function place(pop) {
+    if (!lastClick) return;               /* mở bằng bàn phím/URL: để nguyên */
+    pop.classList.add("is-anchored");
+    var rect = pop.getBoundingClientRect();
+    var x = lastClick.x;
+    var y = lastClick.y + 12;
+    if (x + rect.width > window.innerWidth - PAD) {
+      x = window.innerWidth - rect.width - PAD;
+    }
+    if (y + rect.height > window.innerHeight - PAD) {
+      y = lastClick.y - rect.height - 12;
+    }
+    pop.style.left = Math.max(PAD, x) + "px";
+    pop.style.top = Math.max(PAD, y) + "px";
+    var box = pop.querySelector("[data-identify-search]");
+    if (box) box.focus();
+  }
+
+  function current() {
+    return document.querySelector("[data-identify-pop]");
+  }
+
+  function close() {
+    var pop = current();
+    if (!pop) return false;
+    var cancel = pop.querySelector("[data-metric='identify-cancel']");
+    if (cancel) cancel.click();
+    return true;
+  }
+
+  function sync() {
+    var pop = current();
+    if (pop) place(pop);
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && current()) {
+      event.preventDefault();
+      close();
+    }
+  });
+
+  document.addEventListener("click", function (event) {
+    var pop = current();
+    if (!pop || pop.contains(event.target) || isOpener(event.target)) return;
+    close();
+  });
+
+  document.addEventListener("app:content-updated", sync);
+  document.addEventListener("DOMContentLoaded", sync);
+  sync();
 })();
