@@ -434,7 +434,9 @@ FAILED ...::TestTheDriftWarningThroughTheWeb::test_the_close_page_stays_quiet_fo
 6 failed, 5 passed
 ```
 
-Sau sửa: `13 passed`. Hai bài đo hàm THUẦN được thêm sau đó
+Sau sửa: `15 passed`. Thuật toán trước repair được chép NGUYÊN VĂN vào bộ test
+(`_fingerprint_before_repair`) và chạy CẠNH bản mới, nên hai finding tái hiện
+được về sau chứ không chỉ được mô tả. Hai bài đo hàm THUẦN được thêm sau đó
 (`test_two_lines_differing_only_in_identity_are_told_apart`,
 `test_the_totals_snapshot_is_part_of_the_fingerprint`) — chúng chứng minh lỗ
 hổng danh tính và lỗ hổng `totals` một cách trực tiếp, không phụ thuộc thứ tự

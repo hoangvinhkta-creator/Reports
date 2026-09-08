@@ -55,7 +55,7 @@ R3 STATUS   = IMPLEMENTED (repair FIND-R3-IR-01/-02, nền 8aa6626)
               CHECK-R3-18a/-18b (vân tay chốt kỳ) = PASS (E1)
               CHECK-R3-19 (Independent Review) = NOT_TESTED
               CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
-              Full regression: 3056 passed, 12 skipped (sau repair IR;
+              Full regression: 3058 passed, 12 skipped (sau repair IR;
               trước repair 3043 passed, 12 skipped)
               (baseline trước R3 cùng môi trường: 2946 passed, 12 skipped)
               Đối soát trên hai kỳ nghiệp vụ THẬT đã ẩn danh: nạp lại cùng
@@ -86,7 +86,8 @@ khoá dòng nên không phụ thuộc thứ tự truy vấn; phụ thuộc toàn
 KHÔNG có gì thay chỗ nó. Không `ACCEPTED_RISK` mới, KHÔNG migration mới
 (schema không đổi), không đụng công thức MIN, không thêm fallback, không sửa
 Tracking — diff đúng hai file mã nguồn. Chi tiết, evidence và test tái hiện
-(6 bài ĐỎ trước sửa, 13 XANH sau sửa): `S129` §11.
+(6 bài ĐỎ trước sửa, 15 XANH sau sửa — gồm hai bài chạy CHÍNH thuật toán cũ
+cạnh bản mới để finding tái hiện được về sau): `S129` §11.
 
 Hai mục review nêu được ghi thành `ACCEPTED_RISK` và KHÔNG sửa trong vòng này
 theo đúng yêu cầu: `AR-R3-05` (ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ —

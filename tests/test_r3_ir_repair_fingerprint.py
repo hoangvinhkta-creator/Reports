@@ -21,6 +21,7 @@ Cả file này là bằng chứng tái hiện + nghiệm thu của bản repair.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import date
 from decimal import Decimal
@@ -79,6 +80,28 @@ def february(service):
 
 def close_january(service):
     return service.close_period(period=JAN, data=january(service))
+
+
+#: Thuật toán vân tay TRƯỚC repair, chép nguyên văn từ `8aa6626`.
+#:
+#: Nó nằm đây để hai finding vẫn TÁI HIỆN ĐƯỢC về sau: mô tả một lỗ hổng bằng
+#: văn xuôi thì người đọc phải tin, còn chạy được nó cạnh bản mới thì họ đo
+#: được. Đây là bản sao ĐÔNG LẠNH của lịch sử — không được "cập nhật" theo bản
+#: mới, vì như thế là xoá chính bằng chứng.
+def _fingerprint_before_repair(*, lines, overrides_count: int) -> str:
+    digest = hashlib.sha256()
+    for line in lines:
+        digest.update("\x1f".join((
+            line.order_key or "",
+            "" if line.purchase_price is None else str(line.purchase_price),
+            line.purchase_provenance,
+            "" if line.kpi_profit is None else str(line.kpi_profit),
+            line.employee or "",
+            line.line_type,
+        )).encode("utf-8"))
+        digest.update(b"\x1e")
+    digest.update(f"overrides={overrides_count}".encode("utf-8"))
+    return digest.hexdigest()
 
 
 def _detail(*, order="BH1", product="pk-A", occurrence=1, **overrides) -> dict:
@@ -218,6 +241,54 @@ class TestTheFingerprintCoversTheWholeApprovedResult:
         assert period_lock.content_fingerprint(
             details=[first], totals=totals) != period_lock.content_fingerprint(
             details=[third], totals=totals)
+
+    def test_the_old_algorithm_was_blind_where_the_new_one_is_not(self):
+        """Đặt hai thuật toán CẠNH NHAU trên cùng đầu vào, đo cả hai.
+
+        Đây là bằng chứng tái hiện của `FIND-R3-IR-01` ở dạng chạy được: ba
+        cặp dữ liệu KHÁC NHAU mà thuật toán cũ cho ra CÙNG một vân tay, còn
+        thuật toán mới phân biệt được cả ba.
+        """
+        from app.web import period_lock
+
+        totals = business_service.snapshot_of(bm.totals([]))
+        pairs = (
+            ("khác product_key", _detail(product="pk-A"), _detail(product="pk-B")),
+            ("khác occurrence_index",
+             _detail(occurrence=1), _detail(occurrence=2)),
+            ("khác tỉ lệ quy đổi",
+             _detail(conversion_rate=Decimal("0.020")),
+             _detail(conversion_rate=Decimal("0.080"))),
+        )
+        for label, left, right in pairs:
+            old_left = _fingerprint_before_repair(
+                lines=[left["line"]], overrides_count=0)
+            old_right = _fingerprint_before_repair(
+                lines=[right["line"]], overrides_count=0)
+            assert old_left == old_right, f"{label}: bản cũ đáng lẽ MÙ ở đây"
+            assert period_lock.content_fingerprint(
+                details=[left], totals=totals) != period_lock.content_fingerprint(
+                details=[right], totals=totals), f"{label}: bản mới phải THẤY"
+
+    def test_the_old_algorithm_reacted_to_another_period(self):
+        """Bằng chứng tái hiện của `FIND-R3-IR-02`, cũng ở dạng chạy được.
+
+        Cùng MỘT dòng, không đổi gì — chỉ số override của toàn database đổi
+        (một giá tay vừa được gõ cho một kỳ KHÁC). Bản cũ đổi vân tay; bản mới
+        không có chỗ nào cho con số ấy đi vào.
+        """
+        from app.web import period_lock
+
+        detail = _detail()
+        assert _fingerprint_before_repair(
+            lines=[detail["line"]], overrides_count=0) != \
+            _fingerprint_before_repair(
+                lines=[detail["line"]], overrides_count=1)
+        # Bản mới: payload KHÔNG có tham số nào mang nghĩa "toàn database".
+        import inspect
+
+        parameters = inspect.signature(period_lock.content_fingerprint).parameters
+        assert set(parameters) == {"details", "totals"}
 
     def test_the_totals_snapshot_is_part_of_the_fingerprint(self):
         """Cùng các dòng, KHÁC bản chụp chỉ tiêu ⟹ khác vân tay.

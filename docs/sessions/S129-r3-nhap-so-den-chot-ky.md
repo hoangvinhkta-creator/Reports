@@ -483,8 +483,12 @@ digest.update(f"overrides={overrides_count}")   # len(TOÀN BỘ override)
 quy đổi đi `2 %` → `8 %`, DS quy đổi rơi `150.000.000` → `37.500.000`. Lợi
 nhuận KPI KHÔNG đổi, và đó chính là lý do sáu trường kia không thấy gì.
 
-**Ba lỗ hổng, đo trực tiếp bằng chính thuật toán cũ** (script chạy trên hai
-`detail` chỉ khác nhau ở danh tính):
+**Ba lỗ hổng, đo trực tiếp bằng chính thuật toán cũ.** Thuật toán trước repair
+được chép NGUYÊN VĂN vào bộ test (`_fingerprint_before_repair`) và chạy CẠNH
+bản mới trên cùng đầu vào — nên hai finding tái hiện được về sau, không phải
+tin vào một đoạn văn xuôi. Bài canh:
+`test_the_old_algorithm_was_blind_where_the_new_one_is_not` và
+`test_the_old_algorithm_reacted_to_another_period`.
 
 ```text
 CŨ  A vs B  (khác product_key)       : True   ← MÙ, hai dòng khác nhau một vân tay
@@ -542,11 +546,12 @@ tiếp của lỗ hổng danh tính và lỗ hổng `totals` — xem §11.2.
 
 ```text
 $ .venv/bin/python -m pytest -q tests/test_r3_ir_repair_fingerprint.py
-13 passed in 1.15s
+15 passed in 1.16s
 ```
 
 | # | Yêu cầu | Bài canh |
 |---|---|---|
+| 0 | Hai finding TÁI HIỆN ĐƯỢC bằng chính thuật toán cũ | `test_the_old_algorithm_was_blind_where_the_new_one_is_not`, `test_the_old_algorithm_reacted_to_another_period` |
 | 1 | conversion_rate đổi ⇒ drift | `test_a_conversion_rate_change_is_drift` |
 | 2 | sales_revenue đổi, trường cũ giữ nguyên ⇒ drift | `test_a_revenue_change_is_drift_even_when_the_old_fields_hold` |
 | 3 | giá tay tháng 02 (thêm·sửa·xoá) ⇒ tháng 01 KHÔNG drift | `test_a_manual_price_in_february_never_drifts_january` |
@@ -561,7 +566,7 @@ $ .venv/bin/python -m pytest -q tests/test_r3_ir_repair_fingerprint.py
 
 ```text
 $ .venv/bin/python -m pytest -q tests/test_r3_*.py
-109 passed in 8.29s
+111 passed in 8.4s
 
 $ .venv/bin/python -m pytest -q  (nhóm identity/pricing/daily-min: 105d/105e/
     bh73804/dec185/identity-durability/daily-min ×3/employee-workspace/
@@ -569,10 +574,28 @@ $ .venv/bin/python -m pytest -q  (nhóm identity/pricing/daily-min: 105d/105e/
 760 passed, 2 skipped in 39.68s
 
 $ .venv/bin/python -m pytest -q tests/
-3056 passed, 12 skipped in 170.32s
+3058 passed, 12 skipped
 ```
 
-Trước repair: `3043 passed, 12 skipped`. Chênh đúng 13 bài mới của file repair.
+Trước repair: `3043 passed, 12 skipped`. Chênh đúng 15 bài mới của file repair.
+
+Governance validators sau repair: `validate_evidence` (161 REQUIRED PASS),
+`validate_project_state`, `validate_structure` (21 required paths),
+`validate_task_completion` (14 DONE) — cả bốn PASS.
+`validate_reference_integrity` FAIL với ĐÚNG 3 reference `TASK-REM-T06` đã
+biết từ trước (baseline không đổi).
+
+`scripts/branch_authority_check.sh` trên SHA repair, cả hai chế độ:
+
+```text
+MODE : BRANCH     HEAD_SHA 7ffaf9a  AUTHORITY BRANCH_WITH_UPSTREAM   → AUTHORITY_OK
+MODE : DETACHED   TARGET_SHA 7ffaf9a…  AUTHORITY DETACHED_EXACT_TARGET → AUTHORITY_OK
+DIVERGENCE : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]  (8 commit trước default)
+```
+
+`DIVERGENCE` là tín hiệu tích hợp của V4.1, không phải lỗi: nhánh R3 đã tích
+luỹ 6.585 LOC so với nhánh mặc định và cần một quyết định tích hợp — đó đúng
+là việc đang chờ Independent Review + Owner.
 
 Migration `0009` round-trip chạy lại sau repair (bản sửa ghi một GIÁ TRỊ khác
 vào một cột đã có, không đổi schema):
