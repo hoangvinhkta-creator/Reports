@@ -244,6 +244,14 @@ Lệnh và output nguyên văn: `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay
 evidence và ba bộ test tái hiện+PASS ở `S128` §9b. `CHECK-R2-05` giữ PASS,
 nay có thêm bằng chứng qua route Flask thật. Không CHECK nào khác đổi.
 
+**Repair riêng lẻ FIND-R2-IR-03 (HEAD `f8225d3`, nền `b75bf84`):**
+`conflict_resolved` là một tập khoá trần nên một lần giải A-vs-B miễn trừ
+VĨNH VIỄN mọi `IDENTITY_CONFLICT` tương lai của cùng khoá, kể cả một A-vs-C
+hoàn toàn khác. Sửa tận gốc bằng so sánh mốc thời gian (`confirmed_at` vs
+`result_created_at`); chi tiết, evidence và test (domain + route Flask
+thật) ở `S128` §9c. `CHECK-R2-05` giữ PASS. Không CHECK nào khác đổi, không
+`ACCEPTED_RISK` mới.
+
 ## 7. Rủi ro giữ lại (ACCEPTED_RISK)
 
 ### AR-R2-01 — `SetPending` rồi `ConfirmMapping` làm log không đọc được

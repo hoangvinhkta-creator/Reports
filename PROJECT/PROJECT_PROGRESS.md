@@ -39,12 +39,12 @@ Migration additive `0008_purchase_price_reason`; `ALEMBIC_HEAD` chuyển từ
 `0007_employee_workspace` sang `0008_purchase_price_reason`.
 
 ```text
-R2 STATUS   = IMPLEMENTED (repair sau Independent Review, HEAD e7ffaf6)
+R2 STATUS   = IMPLEMENTED (repair FIND-R2-IR-03, HEAD f8225d3)
               CHECK-R2-01 … CHECK-R2-17 = PASS (E1)
               CHECK-R2-18 (Independent Review)  = NOT_TESTED
               CHECK-R2-19 (Owner nghiệm thu)    = NOT_TESTED
-              Full regression: 2943 passed, 11 skipped
-              (baseline trước R2: 2882 passed, 11 skipped)
+              Full regression: 2947 passed, 11 skipped
+              (baseline trước repair IR-03: 2943 passed, 11 skipped)
               Migration 0008 upgrade + downgrade + re-upgrade đã chạy thật;
               giá nhập Owner gõ tay SỐNG SÓT qua rollback (S128 §5.3).
 ```
@@ -62,6 +62,20 @@ thuẫn MỚI" bị coi là không đổi gì) — sửa trong cùng commit. C�
 gốc, không `ACCEPTED_RISK` nào phát sinh. Chi tiết, evidence và test tái
 hiện+PASS: `S128` §9b. Task VẪN `IMPLEMENTED` — không tự đánh dấu Independent
 Review PASS.
+
+**Repair riêng lẻ (2026-09-08, HEAD `f8225d3`, nền `b75bf84`) —
+`FIND-R2-IR-03`.** Cùng chuỗi CONFLICT, một finding thứ ba: `conflict_resolved`
+là một tập khoá trần, nên một lần giải A-vs-B (Owner chọn A) miễn trừ VĨNH
+VIỄN mọi `IDENTITY_CONFLICT` tương lai của cùng khoá — kể cả một A-vs-C hoàn
+toàn khác mà resolver/composition (đã sửa ở `FIND-R2-IR-02`) đúng đắn phát
+hiện lại. Sửa tận gốc bằng so sánh mốc thời gian: `Decisions.conflict_resolved`
+đổi từ `frozenset[key]` sang `dict{key: confirmed_at}`; `state_of()` chỉ cho
+quyết định thắng ngay khi mốc giải MỚI HƠN mốc lần chạy đã tính ra dòng đang
+hiển thị (`result_created_at`, cột đã có sẵn, không thêm schema). Không đụng
+Tracking/công thức MIN/fallback/giá tay/rủi ro đã chấp nhận. Chi tiết, evidence
+và test (domain + route Flask thật, đi hết toàn bộ chuỗi A-vs-B → không đổi →
+A-vs-C → chọn lại → sống qua restart): `S128` §9c. Task VẪN `IMPLEMENTED` —
+không tự đánh dấu Independent Review hay Owner Acceptance PASS.
 
 R2 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai: Brief §9
 cấm tự tuyên bố Independent Review và Owner Acceptance. Ba rủi ro giữ lại

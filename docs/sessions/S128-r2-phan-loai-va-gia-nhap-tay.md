@@ -22,6 +22,15 @@ hiện khi verify (idempotency tầng store không tính mã đối lập). Chi 
 Flask thật. Task VẪN `IMPLEMENTED` — repair không tự đánh dấu Independent
 Review PASS.
 
+**Cập nhật (repair riêng lẻ FIND-R2-IR-03, HEAD `f8225d3`, nền `b75bf84`):**
+một finding thứ ba trên CÙNG chuỗi CONFLICT — `conflict_resolved` là một tập
+khoá trần nên một lần giải A-vs-B miễn trừ VĨNH VIỄN mọi CONFLICT tương lai
+của cùng khoá, kể cả một A-vs-C hoàn toàn khác mà resolver/composition đã
+đúng đắn phát hiện lại. Sửa tận gốc bằng so sánh mốc thời gian, không đụng
+Tracking/công thức MIN/giá tay/rủi ro đã chấp nhận. Chi tiết đầy đủ +
+evidence: §9c. Task VẪN `IMPLEMENTED` — repair không tự đánh dấu Independent
+Review hay Owner Acceptance PASS.
+
 Task canonical: `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md`.
 
 ## 1. Nền và ranh giới
@@ -363,6 +372,137 @@ giữ `PASS`, nay có thêm bằng chứng qua route Flask thật, không chỉ 
 domain. Không CHECK nào bị hạ cấp. `CHECK-R2-18`/`-19` vẫn `NOT_TESTED` —
 phiên repair này KHÔNG tự đánh dấu Independent Review PASS; reviewer sẽ kết
 luận lại trên HEAD `e7ffaf6`.
+
+## 9c. Repair riêng lẻ — FIND-R2-IR-03 (HEAD `f8225d3`, nền `b75bf84`)
+
+Yêu cầu repair chỉ đúng MỘT finding này, trên chuỗi CONFLICT (`§4.2`), không
+mở rộng sang lỗi hiếm khác, không đụng Tracking/công thức MIN/fallback/giá
+tay/rủi ro đã chấp nhận (`AR-R2-01`…`AR-R2-03`).
+
+### FIND-R2-IR-03 — kịch bản
+
+Owner giải A-vs-B (chọn A) → `raw_identity_key` vào `conflict_resolved`. Nếu
+Tracking sau đó đổi authority sang C — một mã THỨ BA, khác cả A lẫn B —
+resolver (`_human_decision_resolution`, đã sửa ở `FIND-R2-IR-02`) đúng đắn
+trả `RequiresConfirmation`; composition đúng đắn trả `PENDING`/
+`IDENTITY_CONFLICT`, không giá. Nhưng UI vẫn hiện `MATCHED_TRACKING`,
+`classifiable=False`, và hàng đợi xung đột trống.
+
+**Nguyên nhân:** `Decisions.conflict_resolved` (trước sửa) là một
+`frozenset[raw_identity_key]`. `state_of()` kiểm `key in decisions.
+conflict_resolved` và cho nó thắng NGAY, không phân biệt "đã giải ĐÚNG
+mâu thuẫn đang hiển thị" khỏi "đã giải một mâu thuẫn CŨ HƠN của cùng khoá".
+Một khoá vào tập này miễn trừ VĨNH VIỄN mọi `IDENTITY_CONFLICT` tương lai
+của khoá đó, kể cả một mâu thuẫn hoàn toàn khác (A-vs-C) mà một lần chạy SAU
+đã đúng đắn phát hiện lại.
+
+**Sửa:** `Decisions.conflict_resolved` đổi kiểu thành
+`dict{raw_identity_key: confirmed_at}` — `confirmed_at` là mốc Owner giải
+mâu thuẫn, đọc từ `mapping.confirmed_at` (đã là `datetime`, bắt buộc có mặt
+ở mọi mapping `CONFIRMED` — `ProductIdentityMapping.__post_init__`).
+`state_of()` so mốc đó với `result_created_at` — mốc lần chạy gần nhất đã
+tính ra CHÍNH dòng đang xét, đọc từ cột `order_line_result_version.
+created_at` đã có sẵn (thêm vào `_COLUMNS`/`line_details()` qua `.label()`
+để tránh đụng cột cùng tên ở `order_line_source_version`; `_read()` gộp mọi
+cột vào một dict phẳng theo tên). Quyết định chỉ thắng ngay khi MỚI HƠN bằng
+chứng đang hiển thị (`resolved_at > result_at`, `§4.5`); nếu bằng chứng mới
+hơn quyết định — nghĩa là một lần chạy sau đó đã thấy đúng quyết định này và
+VẪN kết luận còn xung đột, tức authority đã đổi tiếp — `CONFLICT` thắng.
+Thiếu một trong hai mốc lùi về nhánh "hiệu lực ngay" làm mặc định an toàn,
+đúng hành vi mọi fixture/test đã nghiệm thu trước đây chưa từng cấp
+`result_created_at`.
+
+Không cần một mã đối lập tường minh ở tầng web: dấu thời gian đã đủ để phân
+biệt "quyết định cũ" khỏi "bằng chứng mới", và không đòi thêm cột/bảng nào —
+cả hai mốc đều đã có sẵn. Cơ chế `CONFLICT_OPPOSING_CODE_PREFIX` của
+`FIND-R2-IR-02` (tầng resolver, quyết định resolver có tự miễn trừ hay
+không) và cơ chế mốc thời gian này (tầng web, quyết định UI có hiển thị
+đúng effective state hay không) độc lập và bổ sung cho nhau — không cái nào
+thay thế cái kia.
+
+**Files:** `app/web/line_identity.py` (`Decisions.conflict_resolved` đổi
+kiểu, `Decisions.of()`, `state_of()` bước 2, hàm mới `_parse_timestamp()`
+— chuẩn hoá chuỗi ISO8601 không múi giờ về UTC, không bao giờ ném ra),
+`app/web/business_queries.py` (`_COLUMNS` thêm `result_created_at`,
+`line_details()` chiếu nó vào `detail`), `app/web/server.py`
+(`_identity_decisions()` chiếu `conflict_resolved` thành dict thay vì set).
+
+**Test:**
+
+- `TestFindR2IR03ConflictResolutionIsScopedToTheEvidenceItResolved`
+  (`tests/test_r2_product_classification.py`, 3 bài, domain) — canh trực
+  tiếp hai chiều so sánh mốc (`resolved_at` cũ hơn bằng chứng ⟹ `CONFLICT`
+  thắng; mới hơn ⟹ khớp ngay) cộng một bài đối chứng mốc `result_created_at`
+  KHÔNG múi giờ không làm `state_of` ném lỗi.
+- `test_resolving_the_conflict_still_takes_effect_immediately` (bài đã có
+  từ `FIND-R2-IR-01`) cập nhật để truyền đúng kiểu `dict` mới.
+- `TestConflictThroughTheWeb::test_authority_changing_again_reopens_as_a_new_conflict`
+  (`tests/test_r2_web_workflow.py`, route Flask THẬT, đi hết toàn bộ chuỗi
+  yêu cầu): seed mapping cũ → persist BH mang `IDENTITY_CONFLICT` (mốc
+  trong quá khứ) → Owner giải A-vs-B (chọn B200) qua đúng route
+  `/kinh-doanh/nhan-vien/phan-loai` → trang hết `CONFLICT` NGAY, không chạy
+  lại sổ → nạp lại sổ với authority KHÔNG đổi (không lý do `IDENTITY_
+  CONFLICT` nào, đúng những gì resolver production sẽ tạo ra sau
+  `FIND-R2-IR-02`) → không bị hỏi lại → catalog Tracking đổi authority THẬT
+  sang `TRK-C300` (không chỉ mã lý do fabricate) → nạp một BH mới mang
+  `IDENTITY_CONFLICT` (mốc SAU quyết định A-vs-B) → trang hiện `CONFLICT`
+  trở lại, giá/lợi nhuận `None`, dòng có trong hàng đợi `xung-dot` → Owner
+  chọn lại A100 cho ĐÚNG mâu thuẫn A-vs-C này → hết `CONFLICT` ngay, mã đối
+  lập ghi lại đúng là `TRK-C300` (không còn kẹt ở B100) → dựng lại MỘT
+  `create_app()` mới, trỏ cùng `identity_store`/`db_path` trên đĩa (mô
+  phỏng restart, không chỉ đọc lại qua object đang mở sẵn) → quyết định vẫn
+  đứng vững.
+- Hai bài đã có (`test_a_stale_mapping_does_not_hide_the_conflict_on_the_page`,
+  `test_choosing_again_clears_the_conflict_from_the_page`) sửa `persist(...)`
+  để truyền tường minh một mốc quá khứ (`_before_now()`) thay vì mặc định
+  `"2026-10-01T00:00:00"` của `persist()` — một ngày nghiệp vụ hư cấu có thể
+  rơi SAU đồng hồ hệ thống thật tại thời điểm chạy CI, làm sai thứ tự
+  trước/sau mà bản sửa này cần so.
+
+### Bằng chứng thực thi (E1)
+
+```text
+$ .venv/bin/python -m pytest -q tests/test_r2_product_classification.py \
+                                tests/test_r2_web_workflow.py
+65 passed in 2.45s   (47 + 18)
+
+$ .venv/bin/python -m pytest -q tests/test_105d_resolution.py \
+    tests/test_105d_persistence.py tests/test_105d_audit_replay.py \
+    tests/test_105d_boundaries.py tests/test_105d_identity_keys.py \
+    tests/test_105d_cutover_registry.py \
+    tests/test_105d_interprocess_concurrency.py \
+    tests/test_105e_price_composition.py tests/test_bh73804_confirmed_identity.py \
+    tests/test_dec185_nav_chart_identity.py \
+    tests/test_identity_durability_and_timeline_aggregation.py \
+    tests/test_daily_min_orchestration.py tests/test_employee_workspace_ux.py \
+    tests/test_business_vertical.py tests/test_r2_product_classification.py \
+    tests/test_r2_web_workflow.py
+558 passed in 23.49s
+
+$ .venv/bin/python -m pytest -q tests/
+2947 passed, 11 skipped in 121.89s   (trước repair: 2943 passed, 11 skipped)
+```
+
+Governance validators re-run sau repair: `validate_evidence.py` (161
+REQUIRED PASS), `validate_project_state.py`, `validate_structure.py` (21
+required paths), `validate_task_completion.py` (14 DONE) — cả bốn PASS.
+`validate_reference_integrity.py` FAIL với ĐÚNG 3 reference `TASK-REM-T06`
+đã biết từ trước (baseline không đổi, không do repair này gây ra).
+
+Migration không chạm: repair này không sửa schema, chỉ thêm một cột ĐÃ CÓ
+SẴN vào một câu SELECT hiện có.
+
+### Rủi ro giữ lại sau repair
+
+`AR-R2-01`, `AR-R2-02`, `AR-R2-03` ở §7 giữ nguyên. Không `ACCEPTED_RISK`
+mới nào phát sinh — finding sửa tận gốc, không khoanh vùng.
+
+### Cập nhật CHECK-R2 (§6 của task)
+
+`CHECK-R2-05` giữ `PASS`, nay có thêm bằng chứng qua route Flask thật cho
+đúng kịch bản "authority đổi hai lần liên tiếp" (A-vs-B rồi A-vs-C). Không
+CHECK nào bị hạ cấp. `CHECK-R2-18`/`-19` vẫn `NOT_TESTED` — phiên repair
+này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance PASS.
 
 ## 10. Đầu vào cho R3
 
