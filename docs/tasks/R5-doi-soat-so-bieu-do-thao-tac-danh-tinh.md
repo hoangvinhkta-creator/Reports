@@ -10,9 +10,21 @@ Toàn bộ năm gói của `R5 Audit & Execution Brief — Đối soát sổ, bi
 HAI repo. Không migration mới, không schema mới, không bảng mới.
 
 `CHECK-R5-01` … `CHECK-R5-26` PASS (E1, bằng chứng nguyên văn ở
-`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`). `CHECK-R5-27` (Independent
-Review) và `CHECK-R5-28` (Owner nghiệm thu) VẪN `NOT_TESTED` — phiên triển
-khai này KHÔNG tự đóng hai check đó, đúng kỷ luật đã áp cho R1, R2, R3 và R4.
+`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`; phiên Independent Review đã
+chạy lại và khớp).
+
+**`CHECK-R5-27` = FAIL từ 08/09/2026.** Independent Review (`S135`) đã chạy
+ĐỦ trên đúng exact HEAD được bàn giao và kết luận `REPAIR_REQUIRED` với hai
+finding: `FIND-R5-IR-01` (bấm `XONG` gán lại cả BH cho nhân viên đầu danh
+sách) và `FIND-R5-IR-02` (dòng quay lại không được khôi phục khi hai lần nạp
+rơi vào cùng một giây — tổng kỳ ở lại THẤP HƠN thực tế vĩnh viễn). Review đã
+HOÀN THÀNH; implementation CHƯA được chấp nhận. Bản ghi:
+`docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Repair:
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`.
+
+`CHECK-R5-28` (Owner nghiệm thu) VẪN `NOT_TESTED` — không phiên nào tự đóng
+nó, đúng kỷ luật đã áp cho R1, R2, R3 và R4. Điều kiện tích hợp của `S133`
+(Owner nghiệm thu R3/R4 trên production) cũng còn nguyên.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -165,14 +177,15 @@ Tracking:
 | `CHECK-R5-24` | Tracking xuất `model_label`/`brand` đã chuẩn hoá; không lộ `cat`/giá/tồn/NCC/note/link | PASS | E1 |
 | `CHECK-R5-25` | Reports đọc CẢ artifact cũ lẫn mới; hash mới gồm hai trường; hai trường KHÔNG tham gia nhận diện | PASS | E1 |
 | `CHECK-R5-26` | IMEI chỉ ở route nhân viên; hai cột ẩn mặc định, nút chung, cột hẹp cắt một dòng; popover một ô tìm, tối đa một gợi ý | PASS | E1 |
-| `CHECK-R5-27` | Independent Review | NOT_TESTED | — |
+| `CHECK-R5-27` | Independent Review | FAIL | `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` (`S135`) — review đã chạy đủ, kết luận `REPAIR_REQUIRED` |
 | `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn (lệnh + output):
 `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md` §4–§7.
 
 `CHECK-R5-27` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi bất kỳ phiên triển
-khai nào.
+khai nào. `CHECK-R5-27` được đặt bởi phiên Independent Review `S135` và chỉ
+chuyển sang `PASS` ở lần review thứ hai, sau khi `R5-REPAIR-1` xong.
 
 ---
 
@@ -196,7 +209,9 @@ khai nào.
    chỗ; "Không có trên bảng giá" vẫn chạy. — `CHECK-R5-26`.
 8. Đối chiếu MIN ngày 03/09, lợi nhuận, export và kỳ chốt/drift để chắc R1–R4
    không đổi. — full regression + hai smoke, §7 của `S134`.
-9. Independent Review kết luận trên exact HEAD. — `CHECK-R5-27`, CHƯA CÓ.
+9. Independent Review kết luận trên exact HEAD. — `CHECK-R5-27`, ĐÃ CHẠY
+   (`S135`), kết luận `REPAIR_REQUIRED`. Chưa thoả; thoả lại sau
+   `R5-REPAIR-1` và một lần review thứ hai.
 10. Owner nghiệm thu trên production. — `CHECK-R5-28`, CHƯA CÓ.
 
 ---
@@ -204,4 +219,10 @@ khai nào.
 ## 6. Rủi ro chấp nhận ghi nhận
 
 `AR-R5-01` … `AR-R5-05` — xem `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`
-§8. Không rủi ro nào trong số đó thuộc nhóm `REPAIR_REQUIRED` của brief §8.
+§8. Không rủi ro nào trong số đó thuộc nhóm `REPAIR_REQUIRED` của brief §8;
+Independent Review `S135` đã TÁI KIỂM CHỨNG cả năm và giữ nguyên mức
+`ACCEPTED_RISK`.
+
+`AR-R5-IR-06` … `AR-R5-IR-12` — bảy rủi ro MỚI do `S135` ghi nhận, xem
+`docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` §4. `AR-R5-IR-09` và
+`AR-R5-IR-12` là lỗi baseline có trước R5 (đo trên `b6756fe`).

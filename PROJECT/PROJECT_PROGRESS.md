@@ -1,6 +1,59 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5 = IMPLEMENTED (chưa review, chưa merge, chưa deploy) (2026-09-08)
+## CANONICAL CURRENT STATE — R5 = IMPLEMENTED, Independent Review = REPAIR_REQUIRED (2026-09-08)
+
+**Independent Review của R5 (`S135`) đã chạy ĐỦ trên đúng exact HEAD được bàn
+giao và kết luận `REPAIR_REQUIRED`.** Bản ghi:
+`docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Bàn giao review:
+`docs/sessions/S135-r5-independent-review.md`. Repair brief:
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`.
+
+```text
+HEAD ĐÃ REVIEW  Reports   949e32df7a876d1f6f8003eb5df39e3d11dcc069
+                Tracking  f958226f6127e6055eb411e4c22e12c58d09654b
+NỀN             b6756fef4b43362201a88f8fe13c45488916d3dd
+CHECK-R5-27     FAIL — review ĐÃ HOÀN THÀNH, implementation CHƯA được chấp nhận
+CHECK-R5-28     NOT_TESTED — Owner nghiệm thu, không phiên nào tự đóng
+CHECK-R3-20     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+CHECK-R4-24     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+REPAIR CYCLE    0 đã tiêu (R5: 2 allowed / 0 used / 2 remaining)
+```
+
+Hai finding bắt buộc, cả hai tái hiện được bằng lệnh:
+
+1. `FIND-R5-IR-01` — R5 §4 gộp mọi thứ về MỘT nút gửi, nhưng ô chọn nhân viên
+   của form cấp BH không có mục "giữ nguyên". Một BH chưa có nhân viên, hoặc
+   có nhiều người, bị gán cho người ĐẦU danh sách ở mọi lần bấm `XONG` — kể
+   cả khi người dùng chỉ sửa một ô giá. Đây là dời doanh thu và KPI của cả
+   một BH sang một người khác.
+2. `FIND-R5-IR-02` — mốc snapshot chỉ có độ phân giải GIÂY
+   (`timespec="seconds"`), còn phép so "dòng đã quay lại chưa" là phép so
+   NGẶT. Hai lần nạp trong cùng một giây ⟹ dòng đã có mặt lại trong sổ vẫn ở
+   ngoài mọi con số **vĩnh viễn**, không có đường khôi phục thủ công, trong
+   khi màn hình vẫn hứa điều ngược lại. Trước R5 nhãn ấy chỉ là một cảnh báo;
+   R5 làm nó quyết định tổng tiền, và chiều "an toàn" của phép so đảo ngược
+   mà không ai tính lại.
+
+Bảy rủi ro mới `AR-R5-IR-06` … `AR-R5-IR-12` được ghi `ACCEPTED_RISK`; trong
+đó `AR-R5-IR-09` (`/run` nuốt mọi ngoại lệ thành HTTP 400, `server.py` không
+có một dòng log nào) và `AR-R5-IR-12` (`tools/smoke/r1_daily_min_smoke.py`
+sập giữa chừng) là **lỗi baseline có trước R5**, đo được là hỏng y hệt trên
+`b6756fe`. `AR-R5-01` … `AR-R5-05` đã tái kiểm chứng và giữ nguyên mức.
+
+`INTEGRATION_DECISION_REQUIRED [ loc>5000 ]` được phân loại là **quyết định
+governance**, không phải dấu hiệu code cần chia nhỏ (`cumulative LOC = 5336`,
+nhưng code+test chỉ `4220` — dưới ngưỡng; `RESULT = AUTHORITY_OK`).
+**Khuyến nghị: tích hợp NGUYÊN KHỐI sau repair** — gói 3 và gói 4 đều đọc
+`PeriodData` mà gói 1 định nghĩa lại, nên tách gói tạo ra một tổ hợp chưa ai
+chạy.
+
+Thứ tự việc tiếp theo: `R5-REPAIR-1` → Independent Review lần 2 → Owner
+nghiệm thu R3/R4 trên production → merge nguyên khối → deploy → Owner nghiệm
+thu R5.
+
+---
+
+## R5 = IMPLEMENTED — bàn giao triển khai (2026-09-08)
 
 **R5 đã triển khai đầy đủ trên nền R4 đã merge (`b6756fe`), trên CẢ HAI repo.**
 Owner ban hành `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm`: đóng năm khoảng cách giữa
