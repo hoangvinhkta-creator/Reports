@@ -22,6 +22,16 @@ R4 KHÔNG chạm và KHÔNG được coi là đã xác nhận `CHECK-R3-20` (Own
 R3 trên production): nó vẫn `NOT_TESTED`, và không con số nào của R4 thay đổi
 điều đó.
 
+**Tích hợp production (`S133`, 2026-09-08).** PR #10 đã MERGE vào nhánh mặc
+định thật `claude/extract-upload-repo-gq2ws4` tại merge commit
+`ab5e07d9807c591d6a04584556dacd72689a4ea8`. Deploy Render KHÔNG xác nhận được
+từ phiên tích hợp (không egress/credential tới `api.render.com`/
+`dashboard.render.com`/`reports.tinphatcrm.com`) — trạng thái
+`MERGED_DEPLOY_NOT_VERIFIED`. Bằng chứng đầy đủ + checklist Owner:
+`docs/sessions/S133-r4-integration-and-deployment.md`. `CHECK-R4-24` VẪN
+`NOT_TESTED`; task vẫn DỪNG ở `IMPLEMENTED` cho tới khi Owner xác nhận deploy
+Live và tự nghiệm thu trên dữ liệu thật.
+
 Phase:
 PHASE-01 — Engine tính toán
 

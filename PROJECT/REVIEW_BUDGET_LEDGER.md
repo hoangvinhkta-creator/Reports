@@ -3008,32 +3008,10 @@ Sub-unit (R1-A, R1-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset
 sách này.
 
 cycles:
-- id: (KHÔNG MỞ — Independent Review kết luận ACCEPT_WITH_RECORDED_RISK,
-  không repair cycle nào bị tiêu)
-  base_sha: 824b5d742dab07b8b0bd301d56748779e35076aa
-  head_sha: 63a066e9275919df92bceaee58876f2724cf9df0
-
-### Independent Review R4 — `S132` (2026-09-08)
-
-```text
-exact HEAD đã review   63a066e9275919df92bceaee58876f2724cf9df0
-nền                    824b5d742dab07b8b0bd301d56748779e35076aa
-kết luận               ACCEPT_WITH_RECORDED_RISK
-REPAIR_REQUIRED        0 finding
-ACCEPTED_RISK mới      AR-R4-04 … AR-R4-07
-repair cycle tiêu      0
-số dư sau review       1 allowed / 0 used / 1 remaining
-CHECK-R4-23            PASS   (phiên review đóng — không phải phiên triển khai)
-CHECK-R4-24            NOT_TESTED (Owner)
-```
-
-Vì kết luận là `ACCEPT_WITH_RECORDED_RISK` chứ không phải `REPAIR_REQUIRED`,
-**không repair cycle nào được mở**: ngân sách `MEDIUM = 1` của lineage `R4`
-còn nguyên. Bốn `ACCEPTED_RISK` mới được GHI, không được sửa trong lượt review
-— đúng kỷ luật đã áp cho `R2`/`R3`.
-
-Bằng chứng nguyên văn: `docs/sessions/S132-r4-independent-review.md`.
-
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
+  thời điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
 
 ---
 
@@ -3108,3 +3086,21 @@ còn nguyên. Bốn `ACCEPTED_RISK` mới được GHI, không được sửa tr
 — đúng kỷ luật đã áp cho `R2`/`R3`.
 
 Bằng chứng nguyên văn: `docs/sessions/S132-r4-independent-review.md`.
+
+### Tích hợp production R4 — `S133` (2026-09-08)
+
+```text
+PR                     #10 → MERGED
+merge commit           ab5e07d9807c591d6a04584556dacd72689a4ea8
+AR-R4-01…07 mở lại?     KHÔNG — không cái nào tái hiện thành lỗi deploy hay
+                        sai luồng chính trong phiên tích hợp
+repair cycle tiêu       0
+số dư sau tích hợp      1 allowed / 0 used / 1 remaining  (không đổi)
+deploy Render           KHÔNG XÁC NHẬN ĐƯỢC (không egress/credential)
+```
+
+Phiên tích hợp KHÔNG mở repair cho bất kỳ `ACCEPTED_RISK` nào của R4 — điều
+kiện duy nhất cho phép mở lại (tái hiện thành lỗi deploy/luồng chính) không
+xảy ra. Ngân sách `R4` giữ nguyên `1 allowed / 0 used / 1 remaining`.
+
+Bằng chứng nguyên văn: `docs/sessions/S133-r4-integration-and-deployment.md`.
