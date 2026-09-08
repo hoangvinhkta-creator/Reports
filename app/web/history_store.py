@@ -25,13 +25,17 @@ from sqlalchemy.exc import SQLAlchemyError
 import tools.db as history_db
 from app.history import coverage as history_coverage
 from app.history import models as history_models
+from app.history import keys as history_keys
+from app.history import line_binding as history_line_binding
 from app.history import reconciler as history_reconciler
 from app.legacy.models import (
     SOURCE_AUTHORITY_SNAPSHOT, SOURCE_AUTHORITY_YEAR, LegacyWorkbook,
 )
 from tools.db.schema import (
-    ORIGIN_LEGACY, ORIGIN_PIPELINE, legacy_daily_sales, legacy_import,
-    legacy_monthly_reference, legacy_summary_row, order_line_current,
+    ORIGIN_LEGACY, ORIGIN_PIPELINE, employee_attribution_override,
+    kpi_purchase_price_override, legacy_daily_sales, legacy_import,
+    legacy_monthly_reference, legacy_summary_row, line_binding_exception,
+    line_exclusion, line_product_group_classification, order_line_current,
     order_line_result_version, order_line_source_version, reconciliation_flag,
     snapshot_line, source_snapshot,
 )
@@ -564,6 +568,9 @@ class SnapshotWriteResult:
     counts: dict
     duplicate_of_snapshot_id: Optional[str]
     not_seen: int = 0
+    #: R3 §1 — số chỗ hệ thống TỪ CHỐI tự ghép dòng vào khoá cũ. `0` là kết
+    #: quả bình thường; khác `0` nghĩa là có việc đang chờ Owner.
+    ambiguous_bindings: int = 0
 
 
 @dataclass(frozen=True)
@@ -630,6 +637,25 @@ class SnapshotRepository:
                     .limit(1)
                 ).scalar()
                 current = self._load_current(connection, source_lines)
+                # R3 §1 — GẮN DÒNG trước khi reconcile, và chỉ ở đây.
+                #
+                # `build_source_lines` đánh `occurrence_index` theo vị trí
+                # dòng trong file, vì tầng đó là hàm thuần và không biết
+                # database. Vị trí là một mỏ neo YẾU: kế toán đảo hai dòng
+                # cùng tên hàng trong một đơn là đủ để một quyết định giá nhập
+                # trôi sang dòng khác. Đây là chỗ DUY NHẤT biết đủ ba thứ để
+                # sửa: các dòng vào, hiện trạng theo khoá, và những khoá nào
+                # đang mang quyết định của Owner.
+                binding = history_line_binding.bind_occurrences(
+                    source_lines,
+                    self._existing_occurrences(connection, current),
+                )
+                source_lines = list(binding.lines)
+                # Trục KẾT QUẢ phải đi theo cùng phép đổi khoá; nếu không,
+                # `_insert_result_versions` sẽ ghi kết quả vào một khoá không
+                # có trong `versions` và cả snapshot đổ vỡ (hoặc tệ hơn: ghi
+                # kết quả của dòng này lên dòng kia).
+                result_lines = binding.rebound_results(result_lines)
                 outcome = history_reconciler.reconcile(source_lines, current)
                 counts = outcome.counts()
                 # Bước 4 (mục 8): khoá hiện hành NẰM TRONG khoảng đo được của
@@ -693,11 +719,18 @@ class SnapshotRepository:
                     version_ids=absent_versions, scope="DETECTED",
                     start=detected[0], end=detected[1],
                 )
+                self._insert_binding_exceptions(
+                    connection, snapshot_id=snapshot_id, run_id=run_id,
+                    created_at=created_at, ambiguities=binding.ambiguities,
+                )
                 if on_persisted is not None:
                     on_persisted()
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
-        return SnapshotWriteResult(snapshot_id, counts, duplicate_of, len(absent))
+        return SnapshotWriteResult(
+            snapshot_id, counts, duplicate_of, len(absent),
+            len(binding.ambiguities),
+        )
 
     @staticmethod
     def _next_snapshot_id(connection, created_at: str, file_fingerprint: str) -> str:
@@ -718,6 +751,91 @@ class SnapshotRepository:
             candidate = f"{base}-{suffix:02d}"
             suffix += 1
         return candidate
+
+    #: Bốn bảng quyết định của Owner, và NHÃN của mỗi loại quyết định. Nhãn đi
+    #: thẳng ra ngoại lệ để Owner đọc được "đang treo giá nhập tay" chứ không
+    #: chỉ "có gì đó". Đọc CHỈ ĐỌC ở đây là hợp lệ: `SnapshotRepository` không
+    #: ghi vào bảng nào trong số này, nó chỉ hỏi "khoá này có ai đã quyết chưa".
+    _OWNER_DECISION_TABLES = (
+        (kpi_purchase_price_override, "giá nhập tay"),
+        (employee_attribution_override, "gán nhân viên"),
+        (line_product_group_classification, "phân loại Gia dụng của dòng"),
+        (line_exclusion, "loại dòng khỏi báo cáo"),
+    )
+
+    def _owner_decisions(self, connection, order_keys) -> dict:
+        """``khoá dòng → nhãn các quyết định đang treo trên nó``.
+
+        Đây là dữ kiện quyết định `line_binding` được phép dùng mỏ neo vị trí
+        hay phải dựng một ngoại lệ. Không có nó, hoặc mọi lần đổi thứ tự dòng
+        đều thành ngoại lệ (nhiễu tới mức Owner học cách bỏ qua), hoặc không
+        lần nào thành ngoại lệ (đúng lỗi cần đóng).
+        """
+        decisions: dict = {}
+        keys = sorted(set(order_keys))
+        for start in range(0, len(keys), _KEY_CHUNK):
+            chunk = keys[start:start + _KEY_CHUNK]
+            for table, label in self._OWNER_DECISION_TABLES:
+                rows = connection.execute(
+                    select(table.c.order_key, table.c.product_key,
+                           table.c.occurrence_index)
+                    .where(table.c.order_key.in_(chunk))
+                )
+                for row in rows:
+                    key = (row.order_key, row.product_key,
+                           int(row.occurrence_index))
+                    decisions.setdefault(key, []).append(label)
+        return decisions
+
+    def _existing_occurrences(self, connection, current: dict) -> dict:
+        """``(order_key, product_key) → các khoá đang hiện hành của nhóm``.
+
+        `current` đã được `_load_current` đọc theo ĐÚNG các `order_key` của
+        snapshot mới, nên nó chứa đủ mọi occurrence của mọi nhóm liên quan —
+        kể cả những occurrence mà snapshot mới không có dòng nào tương ứng,
+        vốn chính là các khoá mà phép gắn phải cân nhắc.
+
+        IMEI đọc từ `fingerprint_values`, không từ một câu truy vấn thứ hai:
+        `FINGERPRINT_FIELDS` đã chở nó sẵn (vị trí 7) và mở thêm một đường đọc
+        thứ hai cho cùng một giá trị là mở thêm một chỗ để hai bên lệch nhau.
+        """
+        imei_at = history_keys.FINGERPRINT_FIELDS.index("imei")
+        decisions = self._owner_decisions(
+            connection, (key.order_key for key in current))
+        grouped: dict = {}
+        for key, state in current.items():
+            values = state.fingerprint_values or ()
+            grouped.setdefault((key.order_key, key.product_key), []).append(
+                history_line_binding.ExistingOccurrence(
+                    occurrence_index=key.occurrence_index,
+                    fingerprint=state.fingerprint,
+                    imei=values[imei_at] if len(values) > imei_at else None,
+                    owner_decisions=tuple(decisions.get(
+                        (key.order_key, key.product_key, key.occurrence_index),
+                        ())),
+                ))
+        return grouped
+
+    @staticmethod
+    def _insert_binding_exceptions(
+        connection, *, snapshot_id, run_id, created_at, ambiguities,
+    ) -> None:
+        """Ghi các chỗ hệ thống từ chối đoán. Rỗng ⟹ không câu lệnh nào."""
+        if not ambiguities:
+            return
+        connection.execute(insert(line_binding_exception), [
+            {
+                "order_key": item.order_key,
+                "product_key": item.product_key,
+                "assigned_occurrence_index": item.assigned_occurrence_index,
+                "raised_by_snapshot_id": snapshot_id,
+                "run_id": run_id,
+                "source_row": item.source_row,
+                "detail_json": _json(item.detail()),
+                "created_at": created_at,
+            }
+            for item in ambiguities
+        ])
 
     def _load_current(self, connection, source_lines) -> dict:
         """Hiện trạng của ĐÚNG các khoá đơn xuất hiện trong snapshot mới.

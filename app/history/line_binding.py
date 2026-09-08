@@ -126,8 +126,15 @@ class AmbiguousBinding:
 
 @dataclass(frozen=True)
 class BindingResult:
+    #: Các dòng đã gắn khoá, theo ĐÚNG THỨ TỰ đã nhận vào. Giữ nguyên thứ tự
+    #: là một hợp đồng, không phải một chi tiết: dòng nguồn và dòng kết quả đi
+    #: song song theo vị trí, và `rebound_results` dựa vào đúng điều đó.
     lines: tuple[SourceLine, ...]
-    #: ``khoá tạm (theo vị trí) → khoá đã gắn``. Chỉ chứa các khoá THỰC SỰ đổi.
+    #: ``khoá tạm → khoá đã gắn``, chỉ những khoá THỰC SỰ đổi. Đây là bằng
+    #: chứng để đọc lại, KHÔNG phải cơ chế ghép: khoá tạm do `build_source_
+    #: lines` đánh theo vị trí, và trong một nhóm hai dòng có thể mang cùng
+    #: một khoá tạm nếu tầng gọi dựng dữ liệu bằng tay — ghép bằng dict này sẽ
+    #: sai đúng ở chỗ khó thấy nhất.
     remap: dict
     #: ``khoá đã gắn → mỏ neo``. Bằng chứng, không tham gia phép tính nào.
     anchors: dict
@@ -136,17 +143,23 @@ class BindingResult:
     def rebound_results(self, results: Sequence) -> tuple:
         """Chiếu cùng phép đổi khoá sang các dòng KẾT QUẢ đi kèm.
 
-        Dòng nguồn và dòng kết quả là hai trục của CÙNG một dòng bán, ghép với
-        nhau bằng khoá. Đổi khoá ở một trục mà quên trục kia sẽ làm
-        ``_insert_result_versions`` ghi kết quả vào một khoá không tồn tại —
-        nên phép đổi được viết ĐÚNG MỘT LẦN, ở đây.
+        Dòng nguồn và dòng kết quả là hai trục của CÙNG một dòng bán:
+        `extraction.build_result_lines` dựng đúng một `ResultLine` cho mỗi
+        `SourceLine`, cùng thứ tự. Ghép ở đây vì thế theo VỊ TRÍ, không theo
+        khoá — khoá tạm có thể trùng nhau, vị trí thì không.
+
+        Đổi khoá ở một trục mà quên trục kia sẽ làm `_insert_result_versions`
+        ghi kết quả vào một khoá không có trong `versions`, nên phép đổi được
+        viết ĐÚNG MỘT LẦN, ở đây.
         """
-        if not self.remap:
-            return tuple(results)
+        results = tuple(results)
+        if len(results) != len(self.lines):
+            raise ValueError(
+                f"{len(results)} dòng kết quả nhưng {len(self.lines)} dòng "
+                "nguồn — hai trục không còn đi song song, không ghép bừa.")
         return tuple(
-            replace(result, key=self.remap[result.key])
-            if result.key in self.remap else result
-            for result in results
+            replace(result, key=line.key) if result.key != line.key else result
+            for result, line in zip(results, self.lines)
         )
 
 
@@ -176,7 +189,7 @@ def bind_occurrences(
     ``(order_key, product_key)``; nhóm vắng mặt ⟹ mọi dòng của nhóm là dòng
     mới, và kết quả trùng khớp HÀNH VI TRƯỚC R3 (1..n theo ``source_row``).
     """
-    bound: list[SourceLine] = []
+    bound: list = list(lines)
     remap: dict = {}
     anchors: dict = {}
     ambiguities: list[AmbiguousBinding] = []
@@ -186,34 +199,42 @@ def bind_occurrences(
             existing.get(group, ()), key=lambda item: item.occurrence_index)
         used = {item.occurrence_index for item in available}
         assignments, unresolved = _assign_group(incoming, available, used)
-        for line, occurrence, anchor in assignments:
+        for position, line, occurrence, anchor in assignments:
             key = LineKey(group[0], group[1], occurrence)
             if key != line.key:
                 remap[line.key] = key
                 line = replace(line, key=key)
             anchors[key] = anchor
-            bound.append(line)
+            bound[position] = line
         ambiguities.extend(unresolved)
 
-    # Thứ tự trả về theo ``source_row``: mọi tầng gọi (reconcile, membership,
-    # ghép dòng kết quả) đọc hai danh sách song song theo thứ tự này, và đổi
-    # thứ tự ở đây sẽ ghép kết quả sang nhầm dòng.
-    bound.sort(key=lambda line: line.source_row)
     return BindingResult(
         lines=tuple(bound), remap=remap, anchors=anchors,
         ambiguities=tuple(ambiguities),
     )
 
 
-def _grouped(lines: Iterable[SourceLine]) -> dict:
+def _grouped(lines: Sequence[SourceLine]) -> dict:
+    """``nhóm → [(vị trí trong danh sách vào, dòng)]``, sắp theo ``source_row``.
+
+    Vị trí đi kèm để kết quả trả về đúng thứ tự đã nhận (`BindingResult.lines`
+    là hợp đồng song song với dòng kết quả); `source_row` quyết định thứ tự
+    ghép BÊN TRONG một nhóm, vì đó là thứ tự mà "dòng trên/dòng dưới" có nghĩa.
+    """
     grouped: dict = {}
-    for line in sorted(lines, key=lambda item: item.source_row):
-        grouped.setdefault((line.key.order_key, line.key.product_key), []).append(line)
+    for position, line in sorted(
+            enumerate(lines), key=lambda item: item[1].source_row):
+        grouped.setdefault(
+            (line.key.order_key, line.key.product_key), []).append((position, line))
     return grouped
 
 
 def _assign_group(incoming, available, used):
-    """Ghép các dòng vào của MỘT nhóm với các khoá đang có của nhóm đó."""
+    """Ghép các dòng vào của MỘT nhóm với các khoá đang có của nhóm đó.
+
+    ``incoming`` là ``[(vị trí, dòng)]``; ``assignments`` trả về
+    ``(vị trí, dòng, occurrence_index, mỏ neo)``.
+    """
     assignments: list[tuple] = []
     ambiguities: list[AmbiguousBinding] = []
     free = list(available)
@@ -227,12 +248,15 @@ def _assign_group(incoming, available, used):
             # Không có lựa chọn nào khác để nhầm: một dòng vào, một khoá trống.
             # Đây là ca "kế toán sửa một giá trị trên dòng" — ghép đúng ở đây
             # là toàn bộ lý do `SOURCE_CHANGED` tồn tại.
-            assignments.append((pending[0], free[0].occurrence_index, ANCHOR_POSITION))
+            position, line = pending[0]
+            assignments.append(
+                (position, line, free[0].occurrence_index, ANCHOR_POSITION))
             pending, free = [], []
         elif not any(item.protected for item in free):
             paired = min(len(pending), len(free))
-            for line, slot in zip(pending[:paired], free[:paired]):
-                assignments.append((line, slot.occurrence_index, ANCHOR_POSITION))
+            for (position, line), slot in zip(pending[:paired], free[:paired]):
+                assignments.append(
+                    (position, line, slot.occurrence_index, ANCHOR_POSITION))
             pending, free = pending[paired:], free[paired:]
         else:
             candidates = tuple(item.occurrence_index for item in free)
@@ -240,9 +264,9 @@ def _assign_group(incoming, available, used):
                 item.occurrence_index for item in free if item.protected)
             decisions = tuple(sorted({
                 name for item in free for name in item.owner_decisions}))
-            next_index = (max(used) if used else 0) + 1
-            for line in pending:
-                assignments.append((line, next_index, ANCHOR_NEW))
+            for position, line in pending:
+                next_index = (max(used) if used else 0) + 1
+                assignments.append((position, line, next_index, ANCHOR_NEW))
                 ambiguities.append(AmbiguousBinding(
                     order_key=line.key.order_key,
                     product_key=line.key.product_key,
@@ -253,13 +277,12 @@ def _assign_group(incoming, available, used):
                     protected_decisions=decisions,
                 ))
                 used.add(next_index)
-                next_index += 1
-            pending, free = [], free
+            pending = []
 
-    for line in pending:
+    for position, line in pending:
         next_index = (max(used) if used else 0) + 1
         used.add(next_index)
-        assignments.append((line, next_index, ANCHOR_NEW))
+        assignments.append((position, line, next_index, ANCHOR_NEW))
 
     return assignments, ambiguities
 
@@ -275,17 +298,18 @@ def _match_by_imei(pending, free, assignments):
 
     taken = set()
     rest = []
-    for line in pending:
+    for position, line in pending:
         anchor = normalized_imei(line.imei)
         bucket = by_imei.get(anchor) if anchor is not None else None
         match = next(
             (item for item in bucket or ()
              if item.occurrence_index not in taken), None)
         if match is None:
-            rest.append(line)
+            rest.append((position, line))
             continue
         taken.add(match.occurrence_index)
-        assignments.append((line, match.occurrence_index, ANCHOR_IMEI))
+        assignments.append(
+            (position, line, match.occurrence_index, ANCHOR_IMEI))
     return rest, [item for item in free if item.occurrence_index not in taken]
 
 
@@ -296,16 +320,17 @@ def _match_by_fingerprint(pending, free, assignments):
 
     taken = set()
     rest = []
-    for line in pending:
+    for position, line in pending:
         bucket = by_fingerprint.get(line.fingerprint)
         match = next(
             (item for item in bucket or ()
              if item.occurrence_index not in taken), None)
         if match is None:
-            rest.append(line)
+            rest.append((position, line))
             continue
         taken.add(match.occurrence_index)
-        assignments.append((line, match.occurrence_index, ANCHOR_FINGERPRINT))
+        assignments.append(
+            (position, line, match.occurrence_index, ANCHOR_FINGERPRINT))
     return rest, [item for item in free if item.occurrence_index not in taken]
 
 

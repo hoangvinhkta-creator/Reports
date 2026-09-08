@@ -30,7 +30,7 @@ from tools.db import schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-ALEMBIC_HEAD = "0008_purchase_price_reason"
+ALEMBIC_HEAD = "0009_line_binding_and_period_close"
 
 # Alembic ghi phiên bản schema hiện tại vào bảng này; ``assert_schema_current``
 # đọc trực tiếp thay vì gọi alembic (alembic KHÔNG được import dưới app/).

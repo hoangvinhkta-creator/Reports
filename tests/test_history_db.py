@@ -129,10 +129,21 @@ WORKSPACE_TABLES = {
     "line_product_group_classification", "line_exclusion", "group_target",
 }
 
-# Bảy bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
+# R3 §5 — bảng thứ tám của cùng loại: một lần CHỐT KỲ. Chạy lại pipeline từ
+# file sổ gốc không dựng lại được "tháng 01 đã được duyệt ngày nào, bởi ai,
+# trên bộ số nào", nên nó thuộc nhóm không được `DROP` thẳng lúc rollback.
+PERIOD_TABLES = {"period_close"}
+
+# R3 §1 — bảng DẪN XUẤT, cố ý KHÔNG nằm trong `OWNER_INPUT_TABLES`: một ngoại
+# lệ gắn dòng dựng lại được bằng cách nạp lại đúng sổ đó, nên rollback được
+# phép xoá nó.
+BINDING_TABLES = {"line_binding_exception"}
+
+# Tám bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
 # này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES | EMPLOYEE_TABLES | TARGET_TABLES | WORKSPACE_TABLES
+    | PERIOD_TABLES
 )
 
 
@@ -201,6 +212,14 @@ _SEED_EXCLUSION = (
     " VALUES ('BTL00300', 'pk-thue-nguoi', 1, 'PIPELINE_GENERATED', NULL,"
     "         '2026-09-04T09:00:00', 'owner')"
 )
+_SEED_PERIOD_CLOSE = (
+    "INSERT INTO period_close"
+    " (year, month, version_no, origin, closed_at, closed_by, note,"
+    "  totals_json, line_count, content_fingerprint)"
+    " VALUES (2026, 1, 1, 'PIPELINE_GENERATED', '2026-09-08T02:00:00',"
+    "         'owner-web', 'Đã duyệt tháng 01', '{\"sales_revenue\": \"1\"}',"
+    "         351, 'fp-01')"
+)
 _SEED_GROUP_TARGET = (
     "INSERT INTO group_target"
     " (year, month, group_key, origin, target_vnd, updated_at, updated_by)"
@@ -228,7 +247,7 @@ def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
     with engine.begin() as connection:
         for statement in (_SEED_PRICE, _SEED_GROUP, _SEED_EMPLOYEE,
                           _SEED_TARGET, _SEED_LINE_GROUP, _SEED_EXCLUSION,
-                          _SEED_GROUP_TARGET):
+                          _SEED_GROUP_TARGET, _SEED_PERIOD_CLOSE):
             connection.exec_driver_sql(statement)
     engine.dispose()
 
@@ -366,12 +385,13 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0005_legacy_source_authority.py",
                         "0006_employee_target.py",
                         "0007_employee_workspace.py",
-                        "0008_purchase_price_reason.py"]
+                        "0008_purchase_price_reason.py",
+                        "0009_line_binding_and_period_close.py"]
 
 
 def test_schema_declares_exactly_the_frozen_tables():
     assert set(schema.METADATA.tables) == (
-        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES)
+        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES | BINDING_TABLES)
 
 
 def test_the_owner_backup_table_is_not_part_of_the_schema():
