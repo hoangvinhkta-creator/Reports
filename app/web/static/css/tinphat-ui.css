@@ -929,3 +929,52 @@ td[data-group] { white-space: nowrap; }
 .coverage-line strong { font-weight: 700; }
 /* Còn việc phải làm ⟹ con số mang giọng cảnh báo. */
 .coverage-line-warn strong { color: var(--tp-gold); }
+
+/* --------------------------------------------------------------------------
+   R4 — BÁO CÁO ĐÁNH GIÁ.
+
+   Không có bảng màu mới: mọi thứ dưới đây dùng lại đúng các biến và đúng cặp
+   ý nghĩa đã có (`--tp-gold` = "cần xem", `--tp-mut` = "chưa có số",
+   `--tp-blue` = đường dẫn). Một trang đánh giá đặt ra bảng màu riêng sẽ khiến
+   cùng một trạng thái đọc thành hai nghĩa ở hai trang.
+   -------------------------------------------------------------------------- */
+
+/* Câu LÝ DO đi kèm mọi ô "—". Nó nhỏ hơn con số nhưng KHÔNG mờ tới mức bỏ
+   qua được: một ô trống không giải thích được chính là thứ R4 tồn tại để
+   loại bỏ, nên câu này phải đọc được ở cùng khoảng cách với con số. */
+.kpi-reason {
+  font-size: 12px; line-height: 1.35; color: var(--tp-gold);
+  margin-top: 2px;
+}
+
+/* Con số MỘT PHẦN của một chỉ tiêu bị cổng coverage chặn. Cố ý nhỏ và mờ
+   hơn `.kpi-value`: nó là bằng chứng "đã tính tới đâu", không phải một kết
+   quả thay thế — và cho nó cùng cỡ chữ với con số chính thức sẽ mời người
+   đọc dùng nó như một kết luận. */
+.kpi-partial {
+  font-size: 12px; line-height: 1.35; color: var(--tp-mut); margin-top: 2px;
+}
+
+/* Ô chỉ tiêu bấm được → mở đúng tập dòng đứng sau con số. Giữ nguyên màu chữ
+   của con số (không xanh, không gạch chân) để bảng chỉ tiêu không biến thành
+   một rừng link; con trỏ và gạch chân khi rê chuột là đủ tín hiệu. */
+.kpi-drill { text-decoration: none; color: inherit; display: block; }
+.kpi-drill:hover .kpi-value { text-decoration: underline; }
+
+/* Danh sách hàng đợi/trạng thái của khối "Đủ dữ liệu để kết luận?". */
+.quality-queues {
+  list-style: none; padding: 0; margin: var(--tp-s2) 0 0;
+  font-size: 13px; color: var(--tp-ink2);
+}
+.quality-queues li { padding: 4px 0; border-bottom: 1px solid var(--tp-line); }
+.quality-queues li:last-child { border-bottom: 0; }
+
+/* Đường dẫn mở trang đánh giá từ trang Báo cáo. Cùng hình dạng nút phụ đã có
+   trong hệ thống, không phải một kiểu nút thứ hai. */
+.eval-entry { margin: var(--tp-s3) 0 0; }
+
+@media (max-width: 760px) {
+  /* Hai hàng bốn thẻ chỉ tiêu xếp lại theo chiều dọc ở màn hình hẹp —
+     `.kpi-row` đã lo phần này, ở đây chỉ giữ chữ lý do không bị tràn. */
+  .kpi-reason, .kpi-partial { overflow-wrap: break-word; }
+}

@@ -40,6 +40,7 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from flask import (
     Flask, abort, redirect, render_template, request, send_file, url_for,
@@ -57,6 +58,7 @@ from app.owner_usability import (
     OwnerUsabilityError, run_owner_report, select_latest_valid_captures,
 )
 from app.owner_usability import SelectedCaptures
+from app.modules.pricing.daily_min.snapshot import SUPPORTED_BUSINESS_TIMEZONE
 from app.modules.pricing.resolution.sources import (
     load_tracking_catalog_capture, load_tracking_inv_map_capture,
 )
@@ -67,6 +69,8 @@ from app.modules.reporting import (
 )
 from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
 from app.modules.exporting import business_export
+from app.modules.reporting import evaluation
+from app.web import evaluation_presentation
 from app.web import (
     analytics_presentation, analytics_queries, brand_identity,
     business_presentation, business_service, business_store, history_store,
@@ -129,10 +133,34 @@ _OWNER_EDITED_PROVENANCE = (
 # Kỳ mặc định là THÁNG DƯƠNG LỊCH HIỆN TẠI, kể cả khi tháng đó chưa có dòng
 # bán nào (`§45`: Owner đặt Target trước lần nạp sổ đầu tiên). Một hằng số
 # ngày tháng nằm rải rác trong route sẽ khiến hành vi đó không kiểm được mà
+#: Múi giờ NGHIỆP VỤ — cùng vùng mà hợp đồng `daily-min-v1` đã freeze cho
+#: ranh giới ngày của giá MIN (`daily_min.snapshot.SUPPORTED_BUSINESS_
+#: TIMEZONE`). Dùng lại đúng chuỗi đó thay vì một `timedelta(hours=7)` viết
+#: cứng: chuỗi vùng đi qua cơ sở dữ liệu múi giờ của hệ thống, nên nó vẫn
+#: đúng nếu quy ước giờ của Việt Nam đổi, còn một hằng số +7 thì không.
+BUSINESS_TIMEZONE = ZoneInfo(SUPPORTED_BUSINESS_TIMEZONE)
+
+
 # không đợi sang tháng sau; gom về một hàm là cách test nói được "giả sử hôm
 # nay là ngày 3".
 def _today() -> date:
-    return date.today()
+    """NGÀY NGHIỆP VỤ hôm nay, theo múi giờ Việt Nam.
+
+    R4 — trước bản này hàm trả `date.today()`, tức ngày theo đồng hồ của MÁY
+    CHỦ. Container production chạy UTC, nên từ 17:00 giờ Việt Nam tới nửa đêm
+    hàm trả về NGÀY HÔM TRƯỚC: tháng mặc định của không gian làm việc sai vào
+    tối ngày cuối tháng, và `as_of` của báo cáo đánh giá lệch một ngày mỗi
+    tối — làm "còn thiếu mỗi ngày" chia cho số ngày còn lại sai, mỗi buổi
+    tối, mà không có gì trên màn hình báo.
+
+    `Asia/Ho_Chi_Minh` là múi giờ nghiệp vụ DUY NHẤT của hệ thống này, đã
+    được `daily_min.snapshot.SUPPORTED_BUSINESS_TIMEZONE` freeze cho ranh
+    giới ngày của giá MIN. Ngày bán và ngày báo cáo phải cắt theo CÙNG một
+    ranh giới, nếu không một đơn bán tối muộn sẽ nhận giá của một ngày và
+    được đếm vào một ngày khác.
+    """
+    return datetime.now(BUSINESS_TIMEZONE).date()
+
 
 
 # Biên kiểm tra của tham số `ky` (`§3`: "Date/year validation must remain
@@ -468,6 +496,16 @@ def create_app(
                   "TARGET_NO_PERIOD_NOTE", "TARGET_UNIT_NOTE",
                   "TARGET_ZERO_VS_BLANK_NOTE"):
         app.jinja_env.globals[_name] = getattr(business_presentation, _name)
+    # R4 — chú giải của báo cáo đánh giá. Cùng kỷ luật đã dùng cho PHB-05/06:
+    # câu chữ viết MỘT lần ở tầng trình bày (kiểm được bằng test giá trị
+    # thuần), template chỉ in ra. Một `_name` viết sai ở đây làm Jinja render
+    # ra CHUỖI RỖNG chứ không báo lỗi — đúng lỗi đã xảy ra một lần với
+    # `QUALIFYING_QUANTITY_LABEL` — nên `tests/test_r4_evaluation_web.py`
+    # kiểm rằng từng câu này thật sự có mặt trên trang.
+    for _name in ("LOSS_NOTE", "LOWEST_MARGIN_NOTE", "MONEY_UNIT_NOTE",
+                  "ORDERS_NOT_ADDITIVE_NOTE", "PAGE_TITLE", "RUN_RATE_NOTE",
+                  "SAME_DAYS_NOTE", "TARGET_SCOPE_NOTE"):
+        app.jinja_env.globals[_name] = getattr(evaluation_presentation, _name)
     app.jinja_env.globals["BUSINESS_ORDER_COLUMN_NOTE"] = \
         business_presentation.ORDER_COLUMN_NOTE
     # PHB-06 — chú thích của bảng thương hiệu. Cùng kỷ luật: viết MỘT lần ở
@@ -1281,6 +1319,208 @@ def create_app(
             rows=business_presentation.reporting_rows(
                 sheet_totals, totals,
                 groups=dict(_guarded(view["service"].assignable_employees))),
+        )
+
+    # ------------------------------------------------------------------
+    # R4 — BÁO CÁO ĐÁNH GIÁ THÁNG.
+    #
+    # Một trang ĐỌC, dựng trên ĐÚNG một `PeriodData` của R3. Nó không có route
+    # POST nào, không chạm `business_store`, và không thêm một thẩm quyền nào:
+    # mọi con số ở đây đến từ `business_metrics.totals` của cùng lát dữ liệu
+    # mà trang Báo cáo và không gian làm việc đang hiển thị.
+    #
+    # KHÔNG thêm tab top-level: thanh tab đã được `DEC-185` rút còn ba mục có
+    # chủ đích, và trang này mở từ chính trang Báo cáo. Đổi thanh tab là một
+    # quyết định điều hướng riêng, không phải hệ quả của R4.
+    # ------------------------------------------------------------------
+
+    def _evaluation_scope(view: dict):
+        """`(sheet đang xem hoặc None, lát dữ liệu, nhãn phạm vi)`.
+
+        `None` = phạm vi CẢ KỲ. Cả kỳ KHÔNG có target, và đó không phải một
+        thiếu sót cần lấp: `DEC-PHB02-08` §7 nói target của một nhóm là con
+        số Owner tự đặt, nên cộng target các nhân viên lên thành "target công
+        ty" sẽ cho ra một con số chưa ai đặt và không ai chịu trách nhiệm.
+        """
+        data = view["data"]
+        raw = request.args.get("nhom")
+        if not raw:
+            return None, data, "Cả kỳ"
+        sheet = reporting_sheets.find_sheet(
+            view["service"].sheets(data), raw)
+        if sheet is None:
+            # Khoá lạ ⟹ về cả kỳ VÀ nói ra, thay vì dựng một trang toàn số 0
+            # cho một sheet không tồn tại.
+            return None, data, "Cả kỳ"
+        return sheet, data.for_sheet(sheet), (
+            sheet.label or business_presentation.UNKNOWN_EMPLOYEE)
+
+    def _identity_counts(details: list[dict], decisions) -> dict:
+        """Bốn hàng đợi nhận diện của R2/R3, đếm trên ĐÚNG lát đang xem."""
+        counts = {"needs_review": 0, "out_of_catalog": 0, "conflict": 0,
+                  "missing_price": 0}
+        for detail in details:
+            state = line_identity.state_of(detail, decisions=decisions)
+            if state.needs_review:
+                counts["needs_review"] += 1
+            if state.out_of_catalog:
+                counts["out_of_catalog"] += 1
+            if state.conflict:
+                counts["conflict"] += 1
+            if detail["line"].purchase_price is None:
+                counts["missing_price"] += 1
+        return counts
+
+    @app.get("/kinh-doanh/danh-gia")
+    def business_evaluation():
+        """R4 — báo cáo đánh giá của MỘT kỳ, trên MỘT phạm vi.
+
+        Bốn câu hỏi, theo đúng thứ tự Owner hỏi: kết quả ra sao · đạt bao
+        nhiêu phần target · phần nào tạo ra kết quả · dữ liệu đã đủ để kết
+        luận chưa.
+        """
+        view = _business_period(default_period=_summary_period_default)
+        service, period = view["service"], view["period"]
+        sheet, data, scope_label = _evaluation_scope(view)
+        totals = data.totals
+        today = _today()
+
+        def drill(*, loc: str = "tat-ca", **extra) -> str:
+            """Đường dẫn mở ĐÚNG tập dòng đứng sau một con số.
+
+            Kỳ và phạm vi luôn đi kèm, nên tổng của bảng kê mở ra khớp con số
+            vừa bấm — trừ cột Đơn, vốn không cộng được giữa các phạm vi và
+            trang đã nói ra điều đó ở `ORDERS_NOT_ADDITIVE_NOTE`.
+            """
+            params = {"ky": view["selected_period"], "loc": loc}
+            if sheet is not None:
+                params["nhom"] = sheet.key
+            params.update(extra)
+            return url_for("business_purchase_price", **params)
+
+        official = totals.coverage.is_complete
+        # Một chỉ tiêu bị cổng coverage chặn dẫn Owner tới VIỆC PHẢI LÀM (các
+        # dòng còn thiếu giá), không tới một bảng kê đầy đủ mà họ không tìm
+        # được chỗ nào đang thiếu.
+        gated_loc = "tat-ca" if official else "thieu-gia"
+        kpis = evaluation.headline(totals)
+        cells = evaluation_presentation.headline_cells(
+            kpis, drill=lambda key: drill(
+                loc=gated_loc if kpis[key].gated else "tat-ca"))
+
+        dated = evaluation.dated_line_count(data.details)
+        previous_details = (
+            [] if view["previous"] is None else
+            (view["previous"].for_sheet(sheet).details if sheet is not None
+             else view["previous"].details))
+        comparison = evaluation.same_days_comparison(
+            period=period, current_details=data.details,
+            previous_details=previous_details, today=today)
+
+        target = (None if sheet is None
+                  else _guarded(service.sheet_target, sheet=sheet, period=period))
+        progress = evaluation.target_progress(
+            target=target, totals=totals, period=period, today=today)
+        target_run = evaluation.run_rate(
+            totals.official_converted_sales, period=period, today=today,
+            dated_lines=dated,
+            official=totals.official_converted_sales is not None)
+        revenue_run = evaluation.run_rate(
+            totals.sales_revenue, period=period, today=today,
+            dated_lines=dated, official=totals.sales_revenue is not None)
+
+        # --- Bảng đóng góp ------------------------------------------------
+        #
+        # Bảng "theo đơn vị báo cáo" LUÔN nói về CẢ KỲ, kể cả khi trang đang
+        # thu hẹp về một sheet: nó trả lời "kết quả của kỳ đến từ những đơn vị
+        # nào", và một bảng chỉ có đúng đơn vị đang xem không trả lời được câu
+        # đó. Vì vậy mẫu số tỉ trọng và hàng TỔNG của riêng bảng này lấy từ
+        # tổng KỲ (`view["data"].totals`) — trang nói ra điều đó ngay dưới
+        # bảng, thay vì để hai con số cùng tên "TỔNG" mang hai nghĩa.
+        period_totals = view["data"].totals
+        sheets = service.sheets(view["data"])
+        sheet_targets = {}
+        sheet_units = []
+        for item in sheets:
+            item_totals = view["data"].for_sheet(item).totals
+            item_target = _guarded(service.sheet_target, sheet=item,
+                                   period=period)
+            sheet_targets[item.key] = evaluation.target_progress(
+                target=item_target, totals=item_totals, period=period,
+                today=today)
+            sheet_units.append(evaluation.row_for(
+                item.key,
+                item.label or business_presentation.UNKNOWN_EMPLOYEE,
+                item_totals, whole_revenue=period_totals.sales_revenue))
+
+        products = evaluation.by_product(data.details, whole=totals)
+        product_groups = evaluation.by_product_group(data.details, whole=totals)
+        lead_sources = evaluation.by_lead_source(data.details, whole=totals)
+        decisions = _identity_decisions()
+
+        return render_template(
+            "kinh_doanh_danh_gia.html",
+            periods=view["periods"], selected_period=view["selected_period"],
+            period_label=business_presentation.period_label(period),
+            has_period=period is not None,
+            scope_label=scope_label, selected_sheet=(sheet.key if sheet else ""),
+            sheets=sheets,
+            as_of=evaluation_presentation.business_date(
+                evaluation.as_of(period, today=today)),
+            running=evaluation.is_running(period, today=today),
+            elapsed_days=evaluation.days_elapsed(period, today=today),
+            month_days=(0 if period is None
+                        else evaluation.days_in_month(period)),
+            cells=cells,
+            target=evaluation_presentation.target_block(
+                progress, scope_label=scope_label, run=target_run),
+            has_target_scope=sheet is not None,
+            revenue_run_rate=evaluation_presentation.run_rate_cell(revenue_run),
+            comparison=evaluation_presentation.same_days_block(
+                comparison, period=period),
+            sheet_rows=[
+                {**row,
+                 "target": (None if row["total_row"] else
+                            evaluation_presentation.target_block(
+                                sheet_targets[row["key"]],
+                                scope_label=row["label"]))}
+                for row in evaluation_presentation.group_rows(
+                    sheet_units, period_totals,
+                    drill=lambda unit: drill(nhom=unit.key))],
+            sheet_scope_note=evaluation_presentation.SHEET_TABLE_SCOPE_NOTE,
+            product_rows=evaluation_presentation.group_rows(
+                products, totals,
+                drill=lambda row: drill(**{"mat-hang": row.key})),
+            product_group_rows=evaluation_presentation.group_rows(
+                product_groups, totals,
+                drill=lambda row: drill(**{"nhom-hang": (
+                    "" if row.key == "KHONG_XAC_DINH" else row.key)})),
+            lead_source_rows=evaluation_presentation.group_rows(
+                lead_sources, totals,
+                drill=lambda row: drill(**{"nguon": (
+                    "" if row.key == "KHONG_XAC_DINH" else row.key)})),
+            lowest_margin=[
+                evaluation_presentation.group_row(
+                    row, drill=lambda item: drill(**{"mat-hang": item.key}))
+                for row in evaluation.lowest_margin_rows(products, limit=5)],
+            discount=evaluation_presentation.discount_block(
+                evaluation.discounts(data.lines, whole=totals),
+                drill=drill(loc="co-chiet-khau")),
+            loss=evaluation_presentation.loss_block(
+                evaluation.loss_lines(data.lines), drill=drill(loc="lo")),
+            quality=evaluation_presentation.data_quality_block(
+                totals=totals,
+                provenance=evaluation.provenance_breakdown(data.lines),
+                price_sources=evaluation.price_source_breakdown(data.details),
+                latest_sale=evaluation.latest_sale_date(data.details),
+                undated_lines=_guarded(service.undated_lines),
+                identity_counts=_identity_counts(data.details, decisions),
+                binding_exceptions=len(data.binding_exceptions),
+                closed=data.closed,
+                drift=_guarded(service.period_drift, period=period,
+                               data=view["data"]),
+                period=period,
+                coverage_url=drill(loc="thieu-gia")),
         )
 
     # ------------------------------------------------------------------
@@ -2217,6 +2457,23 @@ def create_app(
         #    kiểm tra rồi bấm ĐÃ XỬ LÝ — hệ thống KHÔNG tự chuyển quyết định
         #    sang khoá mới, vì đó chính là phép đoán nó vừa từ chối.
         "gan-dong": lambda line, state, flagged: flagged,
+        # --- R4 §3/§5 — hai hàng đợi ĐỌC, đích đến của drill-down ---------
+        # Chúng không mở thêm thao tác ghi nào: bảng kê vẫn là bảng kê, chỉ
+        # thu hẹp về đúng tập dòng mà một con số trên trang đánh giá nói tới.
+        # Không có chúng thì "đơn lỗ: 3 dòng" là một con số không mở ra được,
+        # tức đúng thứ brief §5 cấm.
+        #
+        # 8. Dòng có lợi nhuận KPI ÂM. `is not None` là phần bắt buộc: một
+        #    dòng CHƯA tính được lợi nhuận không phải một dòng lỗ, và gộp hai
+        #    thứ đó lại sẽ báo lỗ cho những dòng chỉ đang thiếu giá nhập.
+        "lo": lambda line, state, flagged: (
+            line.kpi_profit is not None and line.kpi_profit < 0),
+        # 9. Dòng có chiết khấu trên cột `discount`. Dòng "Chiết khấu" của sổ
+        #    tay cũ (`line_type` = DISCOUNT) KHÔNG nằm ở đây — số tiền của nó
+        #    nằm ở doanh thu âm của chính nó, không ở cột này.
+        "co-chiet-khau": lambda line, state, flagged: (
+            line.line_type != line_type.TYPE_DISCOUNT
+            and line.discount is not None and line.discount > 0),
     }
     _DEFAULT_DETAIL_FILTER = "tat-ca"
 
@@ -2233,7 +2490,51 @@ def create_app(
         ("loai-chua-ro", "Loại dòng chưa rõ"),
         ("gia-theo-chinh-sach", "Giá theo chính sách"),
         ("owner-sua", "Dòng tôi đã sửa"),
+        ("lo", "Dòng lỗ"),
+        ("co-chiet-khau", "Có chiết khấu"),
     )
+
+    def _narrow_details(details: list[dict]) -> tuple[list[dict], dict]:
+        """Thu hẹp bảng kê về MỘT mặt hàng / nhóm hàng / nguồn đơn.
+
+        Ba tham số ĐỌC (`mat-hang`, `nhom-hang`, `nguon`) là đích đến của
+        drill-down từ trang đánh giá. Chúng dùng ĐÚNG những khoá mà bảng đóng
+        góp đã gộp theo — `product_key`, nhóm hàng hiệu lực, `lead_source` —
+        nên tổng của bảng kê mở ra luôn khớp con số vừa bấm vào.
+
+        `nhom-hang`/`nguon` chấp nhận chuỗi RỖNG có nghĩa: đó là bucket "chưa
+        phân nhóm"/"chưa phân loại nguồn". Một tham số vắng mặt và một tham số
+        rỗng vì thế KHÁC nhau, và `request.args.get` phân biệt được hai thứ đó
+        bằng `None`.
+
+        Giá trị không khớp dòng nào cho ra một bảng RỖNG kèm nhãn phạm vi —
+        không rơi về "tất cả": im lặng mở rộng phạm vi là cách chắc chắn nhất
+        để Owner đọc một tổng khác với con số họ vừa bấm.
+        """
+        product_key = request.args.get("mat-hang")
+        group_key = request.args.get("nhom-hang")
+        lead_source = request.args.get("nguon")
+        narrow = {"product_key": product_key or "", "product_label": "",
+                  "product_group": group_key, "lead_source": lead_source,
+                  "active": False}
+        if product_key:
+            narrow["active"] = True
+            labels = sorted(
+                d["product_raw"] for d in details
+                if d["product_key"] == product_key and d["product_raw"])
+            narrow["product_label"] = labels[0] if labels else product_key
+            details = [d for d in details if d["product_key"] == product_key]
+        if group_key is not None:
+            narrow["active"] = True
+            details = [
+                d for d in details
+                if (d.get("classified_product_group")
+                    or d.get("pipeline_product_group") or "") == group_key]
+        if lead_source is not None:
+            narrow["active"] = True
+            details = [d for d in details
+                       if (d.get("lead_source") or "") == lead_source]
+        return details, narrow
 
     @app.get("/kinh-doanh/gia-nhap")
     def business_purchase_price():
@@ -2280,6 +2581,12 @@ def create_app(
             if keep(d["line"], line_identity.state_of(d, decisions=decisions),
                     (d["order_key"], d["product_key"],
                      d["occurrence_index"]) in raised)]
+        # R4 §5 — ba lát cắt ĐỌC thêm, để mỗi hàng của báo cáo đánh giá mở ra
+        # đúng tập dòng đã sinh ra con số của nó. Chúng THU HẸP tập đã lọc ở
+        # trên chứ không thay nó: kỳ, sheet/nhân viên và chế độ lọc vẫn có
+        # hiệu lực, nên một đường dẫn drill-down không bao giờ âm thầm mở
+        # rộng phạm vi mà nó hứa.
+        details, narrow = _narrow_details(details)
         return render_template(
             "kinh_doanh_gia_nhap.html", periods=view["periods"],
             selected_period=view["selected_period"],
@@ -2292,7 +2599,7 @@ def create_app(
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
             mode=mode, show_all=(mode == "tat-ca"),
-            selected_sheet=sheet_key or "",
+            selected_sheet=sheet_key or "", narrow=narrow,
             message=request.args.get("da-luu") or None,
             error=request.args.get("loi") or None, **context)
 

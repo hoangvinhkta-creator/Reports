@@ -97,6 +97,13 @@ _COLUMNS = (
     _RESULT.employee_normalized, _RESULT.employee_group,
     _RESULT.lead_source_final, _RESULT.total_sales, _RESULT.kpi_purchase_price,
     _RESULT.kpi_purchase_provenance, _RESULT.eligible_kpi_profit,
+    # R4 — THẨM QUYỀN GIÁ mà pipeline đã dùng cho dòng này (`Tracking:DailyMin`,
+    # `Pending`, …). CHỈ để hiển thị ở khối chất lượng dữ liệu: nó trả lời câu
+    # "giá vốn của kỳ này đến từ đâu", vốn khác hẳn câu `kpi_purchase_
+    # provenance` trả lời ("ai/cái gì chốt con số KPI"). Không phép tính nghiệp
+    # vụ nào đọc trường này — thêm nó vào một cửa chặn lợi nhuận sẽ dựng một
+    # thẩm quyền giá thứ hai bên cạnh ba thẩm quyền đã freeze ở R3.
+    _RESULT.price_source,
     _RESULT.product_group_final, _RESULT.conversion_rate_final,
     # repair `FIND-R2-IR-03` — mốc lần chạy đã tính ra CHÍNH dòng này, không
     # phải mốc của bất kỳ bảng nào khác cùng tên cột (`order_line_source_
@@ -386,6 +393,13 @@ def line_details(
             "product_raw": row["product_raw"],
             "sale_date": row["sale_date"],
             "auto_provenance": row["kpi_purchase_provenance"],
+            # R4 — hai trường CHỈ ĐỂ ĐỌC của báo cáo đánh giá. `lead_source`
+            # đã được `build_lines` dùng cho định tuyến tỉ lệ từ trước; đưa nó
+            # sang `details` không mở thêm cột nào của database, chỉ thôi vứt
+            # đi một giá trị đã đọc. Không trường nào ở đây tham gia một phép
+            # gộp tiền nào.
+            "lead_source": row.get("lead_source_final"),
+            "price_source": row.get("price_source"),
             # repair `FIND-R2-IR-03` — xem chú thích ở `_COLUMNS`. Chỉ dùng để
             # ĐỌC LẠI trong `line_identity.state_of`; không phép tính nghiệp
             # vụ nào khác chạm vào trường này.

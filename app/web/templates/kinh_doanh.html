@@ -68,6 +68,18 @@
     <span class="tp-unit" data-metric="coverage-percent">{{ summary.coverage.percent }}</span>
   </p>
   {{ biz.unresolved_employee_note(summary.coverage) }}
+
+  {# R4 — đường vào BÁO CÁO ĐÁNH GIÁ. Cố ý là một ĐƯỜNG DẪN từ đây chứ không
+     một tab thứ tư: `DEC-185` rút thanh tab còn ba mục có chủ đích, và đổi
+     thanh tab là một quyết định điều hướng riêng chứ không phải hệ quả của
+     R4. Kỳ đang chọn đi theo đường dẫn, nên trang đánh giá mở ra ĐÚNG kỳ
+     Owner đang xem thay vì rơi về mặc định. #}
+  <p class="eval-entry">
+    <a class="ghost btn-mini" data-metric="eval-entry"
+       href="{{ url_for('business_evaluation', ky=selected_period) }}"
+       >MỞ BÁO CÁO ĐÁNH GIÁ →</a>
+    <span class="tp-unit">Target · tiến độ · đóng góp · chất lượng dữ liệu</span>
+  </p>
 </div>
 
 {# `DEC-185` — MỘT biểu đồ doanh thu theo thời gian, năm mức gộp.
