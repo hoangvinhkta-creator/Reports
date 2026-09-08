@@ -878,7 +878,31 @@ td[data-group] { white-space: nowrap; }
 .rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; cursor: pointer; }
 /* Mốc đến từ SỔ CŨ: rỗng ruột, phân biệt được cả khi in đen trắng. */
 .rev-line-legacy { fill: #fff; stroke: var(--tp-mut); stroke-width: 2; }
+/* R5 §3 (`DEC-R5-02`) — CỬA SỔ SO SÁNH. Nó phải phân biệt được với cửa sổ
+   hiện tại mà KHÔNG cần màu: nét đứt + mảnh hơn + mờ hơn đọc được cả khi in
+   đen trắng và cả với người không phân biệt được màu. Nó cũng nằm DƯỚI đường
+   hiện tại trong thứ tự vẽ (template đặt nó trước), vì câu hỏi chính của
+   người đọc là về cửa sổ hiện tại. */
+.rev-line-prev {
+  stroke: var(--tp-mut); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .75;
+}
+.rev-line-dot-prev { fill: var(--tp-mut); stroke: #fff; stroke-width: 1; opacity: .8; }
+.chart-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 2px 0 6px;
+  font-size: 12px; color: var(--tp-mut);
+}
+.chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+/* Mẫu đường đứng ngay trước chữ — cùng hình dạng với đường thật trên biểu đồ,
+   nên chú thích không phải nói "đường đậm/đường mờ" bằng lời rồi để người đọc
+   tự đoán cái nào là cái nào. */
+.chart-legend-item::before {
+  content: ""; width: 18px; height: 0; border-top: 2.5px solid var(--tp-blue);
+}
+.chart-legend-prev::before {
+  border-top: 1.5px dashed var(--tp-mut);
+}
 .rev-line-points { position: absolute; inset: 0; }
+.rev-line-point-prev { z-index: 0; }
 .rev-line-point {
   position: absolute; top: 0; bottom: 0; transform: translateX(-50%);
   width: 1px; display: flex; align-items: flex-end; justify-content: center;

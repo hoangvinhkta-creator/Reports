@@ -97,6 +97,8 @@
   <span class="kpi-help-tip">
     <p data-metric="chart-scope">{{ chart.scope_note }}</p>
     <p data-metric="chart-note">{{ chart.note }}</p>
+    {% if chart.comparison_note %}<p data-metric="chart-comparison">{{ chart.comparison_note }}</p>{% endif %}
+    {% if chart.has_gap %}<p data-metric="chart-gap">{{ chart.gap_note }}</p>{% endif %}
     {% if chart.has_partial %}<p data-metric="chart-partial">{{ chart.partial_note }}</p>{% endif %}
     {% if chart.no_daily_legacy_note %}<p data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
     {% if chart.undated %}

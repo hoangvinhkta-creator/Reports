@@ -1264,10 +1264,24 @@ def create_app(
         points = revenue_timeline.series(
             data.details, granularity=granularity,
             legacy_months=legacy_months, legacy_days=legacy_days)
-        # `TASK-OWNER-UIUX-003` §2 — `series()` ở trên vẫn tính TOÀN BỘ điểm
-        # (bất biến Σ = totals và mọi kiểm chứng origin không đổi); chỉ phần
-        # VẼ được khoanh lại quanh kỳ đang chọn ở ba mức mịn nhất, để "Ngày"
-        # không dàn trải hết lịch sử thành một hàng chấm không đọc nổi.
+        # R5 §3 (`DEC-R5-02`) — Ngày/Tuần/Tháng/Quý vẽ HAI cửa sổ liền kề
+        # cùng độ dài. `series()` ở trên vẫn tính TOÀN BỘ điểm bằng đúng
+        # engine doanh thu cũ (bất biến Σ = totals và mọi kiểm chứng origin
+        # không đổi); phần dưới đây chỉ CHỌN và XẾP các điểm đó vào hai cửa
+        # sổ — không một phép cộng doanh thu nào được viết lần thứ hai.
+        paired = revenue_timeline.paired_series(
+            points, granularity=granularity,
+            anchor=revenue_timeline.anchor_date(view["period"], data.details),
+            confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
+            if snapshot_repo is not None else ())
+        if paired is not None:
+            return business_presentation.paired_revenue_chart(
+                paired, granularity=granularity,
+                has_legacy_months=bool(legacy_months),
+                undated=revenue_timeline.undated_count(data.details))
+        # Mức NĂM giữ nguyên đường một chuỗi của `TASK-OWNER-UIUX-003` §2:
+        # Owner không yêu cầu cửa sổ so sánh ở mức đó, và "8 năm so với 8 năm
+        # trước" là một câu hỏi sổ này chưa có bằng chứng để trả lời.
         points = revenue_timeline.window_points(
             points, granularity=granularity, period=view["period"])
         return business_presentation.revenue_chart(

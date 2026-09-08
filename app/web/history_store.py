@@ -1302,6 +1302,29 @@ class SnapshotRepository:
             for row in self._read(statement.order_by(reconciliation_flag.c.id).limit(limit))
         ])
 
+    def confirmed_ranges(self) -> list:
+        """Các khoảng ngày đã được người dùng xác nhận là ĐẦY ĐỦ (R5 §3).
+
+        Đây là bằng chứng duy nhất cho phép biểu đồ vẽ số 0 thay vì để trống:
+        trong một khoảng đã xác nhận đầy đủ, "không có dòng nào" là một sự
+        thật đo được, không phải một chỗ chưa nạp sổ. Mọi khoảng khác đều là
+        khoảng trống, và một khoảng trống phải nhìn ra được.
+
+        Trả về `[(start, end)]`, cận trên BAO GỒM — cùng quy ước với
+        `confirmed_range_start`/`confirmed_range_end` đã lưu.
+        """
+        return [
+            (row["confirmed_range_start"], row["confirmed_range_end"])
+            for row in self._read(
+                select(source_snapshot.c.confirmed_range_start,
+                       source_snapshot.c.confirmed_range_end)
+                .where(source_snapshot.c.coverage_state
+                       == history_models.CONFIRMED_COMPLETE,
+                       source_snapshot.c.confirmed_range_start.is_not(None),
+                       source_snapshot.c.confirmed_range_end.is_not(None))
+            )
+        ]
+
     def removed_candidate_keys(self) -> dict:
         """Khoá dòng ĐANG BỊ TẠM LOẠI khỏi dữ liệu hiệu lực (`DEC-R5-01`).
 
