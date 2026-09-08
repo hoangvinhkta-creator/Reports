@@ -121,39 +121,55 @@
 </div>
 
 <div class="module">
-  <h2>Cờ do snapshot này dựng <span class="cnt">{{ flags|length }}</span></h2>
-  {% if flags %}
+  <h2>Cần soi <span class="cnt" data-metric="review-source-changed">{{ review_count }}</span></h2>
+  <p class="insight" data-metric="review-note">{{ review_note }}</p>
+  {% if review_rows %}
   <div class="tp-scroll">
   <table>
-    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Phiên bản</th><th>Hiệu lực</th><th>Chi tiết</th></tr>
-    {% for flag in flags %}
-    <tr>
-      <td><span class="tag tag-defect">{{ flag.kind }}</span></td>
-      <td class="code">{{ flag.order_key }}</td>
-      <td class="num">#{{ flag.occurrence_index }}</td>
-      <td class="num">{{ flag.from_version_id or '—' }} → {{ flag.to_version_id or '—' }}</td>
+    {# `Phiên bản` (`from_version_id → to_version_id`) đã rời khỏi màn hình
+       ở R5 §2: hai ID ấy là provenance cho audit, không phải thông tin ai đó
+       đọc để quyết định làm gì. Chúng vẫn nằm nguyên trong bảng cờ dưới
+       database — `test_the_two_version_ids_are_still_in_the_audit_record`
+       canh đúng điều đó. #}
+    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Nhân viên</th>
+      <th>Hiệu lực</th><th>Chi tiết</th></tr>
+    {% for row in review_rows %}
+    <tr data-metric="review-row">
+      <td><span class="tag tag-defect">{{ row.kind }}</span></td>
+      <td class="code">
+        {# Số BH là đường dẫn về ĐÚNG dòng: đúng tháng, đúng sheet, neo tại
+           `#bh-<Số BH>` trong bảng kê của tab nhân viên. Không tra được vị
+           trí hiện hành thì in chữ trơn — một liên kết dẫn tới một trang
+           không có dòng đó tệ hơn không có liên kết. #}
+        {% if row.located %}
+        <a data-metric="flag-link"
+           href="{{ url_for('business_employee', ky=row.period, sheet=row.sheet) }}#bh-{{ row.order_key }}"
+          >{{ row.order_key }}</a>
+        {% else %}{{ row.order_key }}{% endif %}
+      </td>
+      <td class="num">#{{ row.occurrence_index }}</td>
+      <td data-metric="flag-employee">{{ row.employee }}</td>
       <td>
-        {% if flag.is_active is none %}—
-        {% elif flag.is_active %}Còn hiệu lực
+        {% if row.is_active is none %}—
+        {% elif row.is_active %}Còn hiệu lực
         {% else %}Đã xuất hiện lại ở
-          <a href="{{ url_for('snapshot_detail', snapshot_id=flag.seen_again_in_snapshot_id) }}">{{ flag.seen_again_in_snapshot_id }}</a>
+          <a href="{{ url_for('snapshot_detail', snapshot_id=row.seen_again_in_snapshot_id) }}">{{ row.seen_again_in_snapshot_id }}</a>
         {% endif %}
       </td>
       <td>
-        {% if flag.detail_json %}
-        {% for field, change in flag.detail_json.items() %}
-        <div><span class="label">{{ field }}:</span>
-          {% if change is mapping %}{{ change.old }} → {{ change.new }}{% else %}{{ change }}{% endif %}
-        </div>
+        {% for field, change in row.changes.items() %}
+        <div data-metric="flag-change"><span class="label">{{ field }}:</span>
+          {{ change.old }} → {{ change.new }}</div>
+        {% else %}
+        {{ row.detail_text or '—' }}
         {% endfor %}
-        {% else %}—{% endif %}
       </td>
     </tr>
     {% endfor %}
   </table>
   </div>
   {% else %}
-  <p class="empty">Không có cờ nào — mọi dòng đối chiếu sạch.</p>
+  <p class="empty">Không có việc nào cần soi — mọi dòng đối chiếu sạch.</p>
   {% endif %}
 </div>
 {% endblock %}

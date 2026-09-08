@@ -22,6 +22,7 @@ quy đổi nào (PHB-05 §21).
 
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -177,6 +178,14 @@ def bm_unknown_employee_label() -> str:
     duy nhất cái nhãn ấy được đặt cho đường xuất file.
     """
     return "Chưa xác định nhân viên"
+
+
+def _month_bounds(year: int, month: int) -> tuple[date, date]:
+    """`(ngày đầu tháng, ngày cuối tháng)` — cùng quy ước với
+    `analytics_queries.month_bounds`, viết lại ở đây để tầng dịch vụ không
+    phải import tầng truy vấn analytics chỉ vì hai phép cộng ngày."""
+    last = monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last)
 
 
 def snapshot_of(totals: bm.BusinessTotals) -> dict:
@@ -370,6 +379,53 @@ class BusinessReportService:
             closed=(None if period is None
                     else self._period_store.closed(year=period[0],
                                                    month=period[1])))
+
+    def locate_lines(self, keys) -> dict:
+        """`{khoá dòng: {employee, period, sheet}}` cho các dòng HIỆN HÀNH.
+
+        R5 §2 — bảng cờ của trang snapshot cần trả lời "dòng này của ai, và
+        mở ở đâu". Câu trả lời phải đến từ ĐÚNG effective data mà tab nhân
+        viên đang hiển thị, không phải từ `employee_normalized` mà pipeline
+        ghi lúc chạy: nếu Owner đã gán lại cả đơn cho người khác, hai nguồn
+        ấy nói hai tên và người đọc sẽ đi hỏi nhầm người.
+
+        Khoá KHÔNG tra được cố ý VẮNG khỏi kết quả thay vì mang một giá trị
+        rỗng. Ba nguyên nhân dẫn tới đó — Owner đã loại dòng, dòng đã bị tạm
+        loại vì không còn trong sổ đã xác nhận đầy đủ, hoặc dòng không có
+        ngày bán nên không thuộc kỳ nào — đều cho ra cùng một kết luận trên
+        màn hình: không còn dòng hiện hành để mở, và tầng trình bày nói ra
+        điều đó thay vì đoán.
+
+        Chi phí là một lần dựng kỳ cho mỗi THÁNG mà các khoá rơi vào; một
+        snapshot của sổ kế toán hầu như luôn nằm gọn trong một hoặc hai
+        tháng, nên đây không phải một vòng lặp theo số dòng.
+        """
+        wanted = {tuple(key) for key in keys}
+        if not wanted:
+            return {}
+        dates = business_queries.sale_dates_of(self._engine, wanted)
+        months = {(value.year, value.month) for value in dates.values()
+                  if value is not None}
+        located: dict = {}
+        for year, month in sorted(months):
+            bounds = _month_bounds(year, month)
+            data = self.period(date_from=bounds[0], date_to=bounds[1])
+            # `sheet_assignments()` là một dãy SONG SONG với `details` — cùng
+            # quy ước mà `for_sheet` dựa vào — nên ghép bằng `zip` chứ không
+            # tra lại theo khoá: một phép tra thứ hai mở ra khả năng hai màn
+            # hình xếp cùng một dòng vào hai sheet khác nhau.
+            for detail, (sheet_key, _employee) in zip(
+                    data.details, data.sheet_assignments()):
+                key = (detail["order_key"], detail["product_key"],
+                       detail["occurrence_index"])
+                if key not in wanted:
+                    continue
+                located[key] = {
+                    "employee": detail["line"].employee,
+                    "period": f"{year}-{month:02d}",
+                    "sheet": sheet_key,
+                }
+        return located
 
     def _removed_in_source(self) -> dict:
         """Khoá dòng đang bị tạm loại, hoặc RỖNG khi không có kho snapshot.

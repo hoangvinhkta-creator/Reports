@@ -76,7 +76,8 @@ from app.web import (
     business_presentation, business_service, business_store, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
     line_identity, period_lock, revenue_timeline, run_registry,
-    sales_presentation, sales_queries, storage_backend, workspace_presentation,
+    sales_presentation, sales_queries, snapshot_presentation, storage_backend,
+    workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -657,9 +658,16 @@ def create_app(
     def _snapshot_page(snapshot_id: str, *, message=None, error=None, status=200):
         """Trang chỉ-đọc của MỘT snapshot: coverage, số đếm reconcile, cờ.
 
-        Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ và các
-        trường nghiệp vụ đã đổi — tên/SĐT/địa chỉ khách không có mặt trong bất
-        kỳ bảng nào của PRA-002 nên cũng không có đường nào ra tới đây.
+        Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ, các
+        trường nghiệp vụ đã đổi và TÊN NHÂN VIÊN bán hàng — tên/SĐT/địa chỉ
+        khách không có mặt trong bất kỳ bảng nào của PRA-002 nên cũng không có
+        đường nào ra tới đây.
+
+        R5 §2 — `imei` cũng KHÔNG ra tới đây, dù nó nằm trong `detail_json`
+        của cờ dưới database: `snapshot_presentation.NOISE_FIELDS` cắt nó ở
+        tầng trình bày, và đó là một trong hai lý do danh sách trường ấy tồn
+        tại (lý do kia là nhiễu). `DEC-R5-03` mở IMEI ở ĐÚNG workspace nhân
+        viên, và trang này không nằm trong phạm vi đó.
         """
         if snapshot_repo is None:
             abort(503)
@@ -673,11 +681,32 @@ def create_app(
             date_from=snapshot["detected_date_min"], date_to=snapshot["detected_date_max"],
         )
         return _legacy_page(
-            "snapshot.html", snapshot=snapshot, flags=flags, totals=totals,
+            "snapshot.html", snapshot=snapshot, totals=totals,
+            review_rows=snapshot_presentation.review_rows(
+                flags, _flag_locations(flags)),
+            review_count=snapshot_presentation.review_count(flags),
+            review_note=snapshot_presentation.REVIEW_NOTE,
             coverage_label=history_coverage.coverage_label(snapshot["coverage_state"]),
             can_confirm=snapshot["coverage_state"] != history_models.CONFIRMED_COMPLETE,
             confirm_message=message, confirm_error=error,
         ), status
+
+    def _flag_locations(flags: list[dict]) -> dict:
+        """Vị trí hiện hành của các dòng mà bảng cờ nói tới (R5 §2).
+
+        Trả về `{}` khi vertical nghiệp vụ chưa dựng được — trang snapshot là
+        một trang ĐỐI CHIẾU và phải mở được kể cả khi phần báo cáo đang hỏng;
+        khi đó mỗi cờ hiện "không còn dòng hiện hành để mở", đúng câu mà tầng
+        trình bày dành sẵn cho trường hợp không tra được.
+        """
+        if business is None:
+            return {}
+        service = business
+        keys = [(flag["order_key"], flag["product_key"],
+                 flag["occurrence_index"])
+                for flag in flags
+                if not snapshot_presentation.is_noise_only(flag)]
+        return _guarded(service.locate_lines, keys)
 
     @app.get("/du-lieu/snapshot/<snapshot_id>")
     def snapshot_detail(snapshot_id: str):
