@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R4 = IMPLEMENTED, Independent Review ACCEPT_WITH_RECORDED_RISK; R3 = IMPLEMENTED đã merge, deploy platform CHỜ OWNER (2026-09-08)
+## CANONICAL CURRENT STATE — R4 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
 
 **R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
 `R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
@@ -110,6 +110,42 @@ văn: `docs/sessions/S132-r4-independent-review.md`.
 
 `CHECK-R4-24` (Owner nghiệm thu R4 trên production) VẪN `NOT_TESTED`. Phiên
 review KHÔNG merge, KHÔNG deploy, và KHÔNG chuyển R4 sang `VERIFYING`/`DONE`.
+
+**Tích hợp production R4 (`S133`) — ĐÃ MERGE, `MERGED_DEPLOY_NOT_VERIFIED`.**
+Phiên tích hợp/deploy (không phải một vòng review mới, không chạm R5) mở
+PR #10 từ `claude/r4-independent-review-4fbga6` vào nhánh mặc định thật
+`claude/extract-upload-repo-gq2ws4`, xác nhận lại toàn bộ gate (test + năm
+validator + `branch_authority_check.sh`) trên chính exact HEAD `ed419cd` rồi
+mới merge.
+
+```text
+PR                #10  https://github.com/hoangvinhkta-creator/Reports/pull/10
+MERGE COMMIT      ab5e07d9807c591d6a04584556dacd72689a4ea8
+Nền trước merge   824b5d742dab07b8b0bd301d56748779e35076aa
+Deploy Render     KHÔNG XÁC NHẬN ĐƯỢC — phiên không có egress/credential tới
+                  api.render.com, dashboard.render.com hay
+                  reports.tinphatcrm.com (curl 403 + WebFetch EGRESS_BLOCKED)
+Migration         0009_line_binding_period_close vẫn là head; R4 không thêm
+                  migration; Dockerfile fail-closed (alembic upgrade head
+                  && gunicorn ...) — không đổi
+Smoke production  KHÔNG THỰC HIỆN ĐƯỢC — cùng lý do egress ở trên
+```
+
+Check CI duy nhất của repo (`governance` workflow) đỏ trên PR head — đã xác
+minh KHÔNG phải lỗi mới: cùng traceback (`PermissionError: /root/.ccr/
+README.md` trong `validate_reference_integrity.py`, chạy dưới quyền non-root
+của GitHub Actions runner) xuất hiện Y HỆT trên chính commit nền `824b5d7`
+(và trên mọi merge PR #6/#8/#9 trước đó của R1–R3) — một crash CI đã biết,
+không phải branch protection bắt buộc, không chặn tiền lệ R1–R3.
+
+`AR-R4-01` … `AR-R4-07` giữ nguyên `ACCEPTED_RISK` — không cái nào tái hiện
+thành lỗi deploy hay sai luồng chính trong phiên tích hợp này nên không có
+finding nào được mở lại thành repair. Bằng chứng đầy đủ + checklist Owner (6
+bước, trên dữ liệu THẬT) ở `docs/sessions/S133-r4-integration-and-deployment.md`.
+
+`CHECK-R4-24` và `CHECK-R3-20` VẪN `NOT_TESTED`. **R5 CHƯA `READY`** — chỉ mở
+sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên dữ
+liệu thật đạt.
 
 ---
 
