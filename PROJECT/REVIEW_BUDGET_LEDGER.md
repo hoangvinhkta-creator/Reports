@@ -2886,6 +2886,43 @@ Independent Review).
 
 ---
 
+## Root Task: R3
+
+```
+root_task: R3
+title: Từ nhập sổ tới bảng nhân viên, xuất Excel và chốt kỳ
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo failure path: `khoá dòng khi nạp lại → quyết định của Owner gắn vào dòng
+nào → giá nhập KPI hiệu lực → EligibleKpiProfit → DS quy đổi → KPI/lương`,
+cộng một nhánh mới mà R3 tạo ra: `bộ số đã chốt`.
+
+Lineage RIÊNG, cùng cách đọc đã dùng cho `R1` và `R2`: R3 KHÔNG sửa tiếp
+triển khai của R2 — nó xây tiếp trên một R2 đã merge vào nhánh mặc định
+(`45f0e1b`, PR #7). Nó có Owner Authority riêng (chỉ thị R3, năm việc), phạm
+vi riêng, và bộ `CHECK-R3-01…20` riêng.
+
+Cùng `CONFLICT DETECTED` chưa giải quyết như R2 áp cho R3: phần đầu ledger này
+dùng chữ "R2" làm ví dụ sub-unit không có ngân sách riêng, và cách đọc đó nếu
+đúng thì cũng áp cho "R3". Phiên S129 KHÔNG tự chốt việc đó — nó là một quyết
+định về luật. Điều đúng theo CẢ HAI cách đọc: phiên S129 tiêu `0` repair
+cycle, nên số dư hiện tại không đổi dù đọc cách nào.
+
+Sub-unit (R3-§1, R3-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
 ## Root Task: R2
 
 ```
