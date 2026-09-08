@@ -69,6 +69,10 @@ PROVENANCE_LABELS = {
     bm.PROVENANCE_AUTO: "Tự động",
     bm.PROVENANCE_MANUAL: "Owner đã nhập",
     bm.PROVENANCE_MANUAL_OVERRIDE: "Owner đã sửa",
+    # R3 §2 — giá `0` do CHÍNH SÁCH loại dòng quy định (`OD-105B-01` §3), không
+    # do một nguồn giá nào trả về. Nhãn riêng vì "Tự động" sẽ khiến một dòng
+    # phí trông như đã tra ra giá 0 từ Tracking.
+    bm.PROVENANCE_POLICY_ZERO: "Chính sách (dòng phụ)",
     bm.PROVENANCE_PENDING: "Chưa có",
 }
 
@@ -931,7 +935,9 @@ def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
             "purchase_price_input": (
                 "" if line.purchase_price is None else format_number(line.purchase_price)),
             "provenance": provenance,
-            "provenance_label": PROVENANCE_LABELS[provenance],
+            # `.get(...)` chứ không `[...]`: một provenance chưa có nhãn phải
+            # hiện NGUYÊN VĂN mã của nó, không làm sập cả trang bảng kê.
+            "provenance_label": PROVENANCE_LABELS.get(provenance, provenance),
             "pending": line.purchase_price is None,
             "overridden": provenance in (
                 bm.PROVENANCE_MANUAL, bm.PROVENANCE_MANUAL_OVERRIDE),

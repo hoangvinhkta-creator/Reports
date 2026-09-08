@@ -193,6 +193,13 @@
        data-metric="brand-link">THEO THƯƠNG HIỆU</a>
     <a class="ghost btn-mini" href="{{ url_for('business_composition') }}"
        data-metric="composition-link">CƠ CẤU DOANH THU</a></p>
+  {# R3 — hai việc làm VỚI bộ số này, không phải một chiều gộp khác của nó:
+     mang nó ra ngoài (Excel), và duyệt nó (chốt kỳ). #}
+  <p class="insight view-links">Với bộ số này:
+    <a class="ghost btn-mini" href="{{ url_for('business_export_excel', ky=selected_period) }}"
+       data-metric="export-link">TẢI EXCEL</a>
+    <a class="ghost btn-mini" href="{{ url_for('business_period_close', ky=selected_period) }}"
+       data-metric="close-link">CHỐT KỲ</a></p>
   <div class="tp-scroll">
   <table>
     <tr>{% for label in columns %}

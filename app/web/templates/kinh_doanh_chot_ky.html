@@ -34,8 +34,9 @@
 <div class="module">
   <h2>Trạng thái</h2>
   {% if closed %}
-  <p class="insight" data-metric="close-state" data-closed="1">
-    <strong>ĐÃ CHỐT</strong> — lần {{ closed.version_no }}, lúc {{ closed.closed_at }}
+  <p class="insight">
+    <strong data-metric="close-state" data-closed="1">ĐÃ CHỐT</strong>
+    — lần {{ closed.version_no }}, lúc {{ closed.closed_at }}
     {% if closed.closed_by %}bởi {{ closed.closed_by }}{% endif %}.
     {% if closed.note %}Ghi chú: {{ closed.note }}{% endif %}
   </p>
@@ -48,8 +49,9 @@
      lại rồi mở lại và chốt lần nữa nếu bộ số mới là đúng.</p>
   {% endif %}
   {% else %}
-  <p class="insight" data-metric="close-state" data-closed="0">
-    <strong>CHƯA CHỐT</strong> — kỳ này còn sửa được bình thường.</p>
+  <p class="insight">
+    <strong data-metric="close-state" data-closed="0">CHƯA CHỐT</strong>
+    — kỳ này còn sửa được bình thường.</p>
   {% endif %}
 </div>
 
@@ -57,19 +59,22 @@
   <h2>Bộ số sắp được duyệt</h2>
   <table>
     <tr><th>Chỉ tiêu</th><th class="num">Giá trị</th></tr>
-    <tr data-metric="close-lines"><td>Số dòng</td><td class="num">{{ summary.lines }}</td></tr>
-    <tr data-metric="close-orders"><td>Số đơn</td><td class="num">{{ summary.orders }}</td></tr>
-    <tr data-metric="close-revenue"><td>Doanh thu bán hàng</td>
-        <td class="num">{{ summary.sales_revenue.text }}</td></tr>
-    <tr data-metric="close-profit"><td>Lợi nhuận KPI</td>
-        <td class="num">{{ summary.kpi_profit.text }}</td></tr>
-    <tr data-metric="close-converted"><td>DS quy đổi</td>
-        <td class="num">{{ summary.converted_sales.text }}</td></tr>
-    <tr data-metric="close-coverage"><td>Dòng đã chốt được lợi nhuận</td>
-        <td class="num">{{ summary.coverage.text }}</td></tr>
+    <tr><td>Số dòng</td>
+        <td class="num" data-metric="close-lines">{{ summary.lines }}</td></tr>
+    <tr><td>Số đơn</td>
+        <td class="num" data-metric="close-orders">{{ summary.orders }}</td></tr>
+    <tr><td>Doanh thu bán hàng</td>
+        <td class="num" data-metric="close-revenue">{{ summary.sales_revenue.text }}</td></tr>
+    <tr><td>Lợi nhuận KPI</td>
+        <td class="num" data-metric="close-profit">{{ summary.kpi_profit.text }}</td></tr>
+    <tr><td>DS quy đổi</td>
+        <td class="num" data-metric="close-converted">{{ summary.converted_sales.text }}</td></tr>
+    <tr><td>Dòng đã chốt được lợi nhuận</td>
+        <td class="num" data-metric="close-coverage">{{ summary.coverage.text }}</td></tr>
   </table>
-  <p class="insight" data-metric="close-state-label">
-    Trạng thái bộ số: <strong>{{ summary.state_label }}</strong>.
+  <p class="insight">
+    Trạng thái bộ số:
+    <strong data-metric="close-state-label">{{ summary.state_label }}</strong>.
     {% if not summary.official %}Kỳ vẫn chốt được ở trạng thái này — nhưng
     chốt nghĩa là duyệt đúng bộ số đang hiện, kể cả phần chưa hoàn chỉnh.{% endif %}
   </p>
