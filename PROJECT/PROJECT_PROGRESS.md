@@ -9,7 +9,7 @@ canonical: `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`. Bàn
 giao: `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`.
 
 ```text
-Reports   HEAD  dad85135270498ad1dca0bf0980463da0519fb8d
+Reports   HEAD  19b853f718e1ed6dbf700468105c9dd38ff4cc2d
                 nhánh claude/r5-reports-tracking-deploy-o77n7t
 Tracking  HEAD  f958226f6127e6055eb411e4c22e12c58d09654b
                 nhánh claude/r5-reports-tracking-deploy-o77n7t

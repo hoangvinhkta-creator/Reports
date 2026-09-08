@@ -92,7 +92,8 @@ Một commit của phiên này (Tracking):
 f958226  R5 §5: /api/xuat/board xuất thêm model_label và brand đã chuẩn hoá
 ```
 
-HEAD Reports: `dad85135270498ad1dca0bf0980463da0519fb8d`
+HEAD Reports (code): `dad85135270498ad1dca0bf0980463da0519fb8d`
+HEAD Reports (gồm tài liệu): `19b853f718e1ed6dbf700468105c9dd38ff4cc2d`
 HEAD Tracking: `f958226f6127e6055eb411e4c22e12c58d09654b`
 
 ---
@@ -436,7 +437,7 @@ bởi phiên này.
 Exact HEAD để review:
 
 ```text
-Reports   dad85135270498ad1dca0bf0980463da0519fb8d
+Reports   19b853f718e1ed6dbf700468105c9dd38ff4cc2d
 Tracking  f958226f6127e6055eb411e4c22e12c58d09654b
 ```
 
