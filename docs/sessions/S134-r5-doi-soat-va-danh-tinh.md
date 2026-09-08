@@ -291,7 +291,7 @@ nó đo chính cái stub của mình chứ không đo hệ thống. Đo trên `b
 hệt. Bản sửa (`dad8513`) đổi lambda thành `**kwargs`, và smoke chuyển từ FAIL
 sang TẤT CẢ PASS.
 
-Branch authority:
+Branch authority (chạy SAU commit tài liệu cuối cùng — xem ghi chú bên dưới):
 
 ```text
 $ bash scripts/branch_authority_check.sh
@@ -299,11 +299,40 @@ DEFAULT_BRANCH       : claude/extract-upload-repo-gq2ws4
 WORKTREE             : CLEAN
 CURRENT_BRANCH       : claude/r5-reports-tracking-deploy-o77n7t
 UPSTREAM             : origin/claude/r5-reports-tracking-deploy-o77n7t
+behind upstream      : 0 commit
 behind default       : 0 commit
-DIVERGENCE           : WITHIN_LIMITS
+divergence days      : 0
+cumulative LOC       : 5306
+DIVERGENCE           : INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
 AUTHORITY            : BRANCH_WITH_UPSTREAM
 RESULT               : AUTHORITY_OK
 ```
+
+**`INTEGRATION_DECISION_REQUIRED` — ghi lại, KHÔNG tự giải quyết.** Ngưỡng
+`loc>5000` của `V4.1` bật ở commit tài liệu cuối cùng (sau năm gói code, khi
+`DEC-202` + `ADR-111` + task + bàn giao + ledger vào nhánh). Phân rã:
+
+```text
+$ git diff --numstat b6756fe..HEAD | awk ...
+docs/ + PROJECT/   1.086 dòng
+code + test        4.220 dòng   (dưới ngưỡng)
+```
+
+Đây là một tín hiệu TÍCH HỢP, không phải một lỗi authority — `RESULT` vẫn
+`AUTHORITY_OK`, nhánh không lệch một commit nào so với mặc định, và
+`divergence days` = 0. Nó nói đúng một điều: nhánh này đã đủ lớn để việc tích
+hợp cần một quyết định tường minh thay vì trôi thêm.
+
+Phiên này KHÔNG tự ra quyết định đó, vì nó va vào đúng ràng buộc đã ghi ở
+`CONFLICT DETECTED` §1: R5 không được merge trước khi Owner nghiệm thu R3/R4
+trên production. Hai đường ra, và cả hai thuộc thẩm quyền Owner:
+
+1. Owner nghiệm thu R3/R4 trên production ⟹ R5 đi qua Independent Review rồi
+   tích hợp NGUYÊN KHỐI.
+2. Owner muốn tích hợp sớm hơn ⟹ tách theo gói (`§1` là gói có bán kính lớn
+   nhất và nên đi riêng; `§2`–`§5` độc lập với nhau về dữ liệu).
+
+Không phiên triển khai nào được tự chọn giữa hai đường đó.
 
 ---
 
