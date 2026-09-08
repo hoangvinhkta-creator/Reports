@@ -1,0 +1,54 @@
+# R3 §2 — TỪ VỰNG LOẠI DÒNG. Thẩm quyền: `OD-105B-01` §3 (dòng phụ / chi phí),
+# `DEC-180` (chiết khấu ghi thành dòng riêng), `OD-4` (giá bán 0 là giá bán
+# THẬT của hàng tặng kèm), `OD-2` (cấm phát minh ngữ nghĩa hoàn/trả hàng).
+#
+# File này KHÔNG phải một bảng phân loại sản phẩm. Nó chỉ trả lời "dòng này
+# thuộc loại nghiệp vụ nào" để đường báo cáo biết có được áp luật giá nhập 0
+# theo chính sách hay không. Không dòng nào ở đây quyết định một con số doanh
+# thu; doanh thu vẫn là `SellPrice × Quantity − Discount` (`DEC-114`).
+#
+# ---------------------------------------------------------------------------
+# CẤM tune danh sách này để tái tạo một con số lịch sử.
+#
+# Cùng ràng buộc mà `config/validation.yaml` đã ghi cho `non_product_lines`, và
+# vì cùng lý do: nếu ngữ nghĩa đúng cho ra một con số khác con số của workbook
+# cũ, hãy GIẢI THÍCH chênh lệch — đừng sửa từ khoá cho khớp. Workbook cũ có
+# những lỗi công thức đã biết (`docs/analysis/05_EXCEPTIONS.md`) và khớp lại
+# chúng là khớp lại lỗi.
+# ---------------------------------------------------------------------------
+
+# Loại của CHỨNG TỪ, theo tiền tố chữ cái của Số BH. Đây là tầng NGOÀI CÙNG:
+# một chứng từ hoàn/hủy thì mọi dòng bên trong nó đều là hoàn/hủy.
+#
+# Một tiền tố KHÔNG có mặt ở đây ⟹ `UNDECIDED_DOCUMENT`, và dòng đi vào hàng
+# đợi ngoại lệ thay vì âm thầm được tính như một dòng bán. Đó là hành vi CỐ Ý:
+# `BTL` có mặt trong dữ liệu thật (3 dòng kỳ 01/2026, 1 dòng kỳ 06/2026) và
+# repo này KHÔNG có một quyết định nào của Owner nói `BTL` nghĩa là gì. Suy ra
+# "bán trả lại" từ tên viết tắt rồi tự cộng một dấu âm vào KPI chính là điều
+# `OD-2` cấm — nên chỗ này để TRỐNG cho tới khi Owner ký.
+document_prefixes:
+  BH: SALE
+
+# Khoá "chiết khấu ghi thành DÒNG RIÊNG" (`DEC-180`). Sổ hiện hành ghi chiết
+# khấu bằng một CỘT và pipeline đã trừ nó (`DEC-114`); một dòng riêng như thế
+# chỉ còn ở sổ tay cũ. Nhận diện nó là cách phát hiện nguy cơ TRỪ HAI LẦN —
+# xem `business_metrics.discount_double_count_orders`.
+discount_keywords:
+  - "chiết khấu"
+  - "voucher"
+  - "giảm giá"
+
+# Dòng phụ / chi phí — `OD-105B-01` §3: `AccountingPurchasePrice = 0 BY
+# DEFINITION`. Danh sách bắt nguồn từ 30 nhãn thô đã audit trên dữ liệu thật
+# (`DEC` ghi ở `PROJECT/PROJECT_DECISIONS.md`, Q3): `Chi phí vận chuyển`,
+# `Chi phí lắp đặt`, `Chênh VAT` cộng các biến thể ghép.
+#
+# Khớp theo BIÊN TỪ (`app/modules/validation/text.py`), nên `"phí"` KHÔNG khớp
+# `"bàn phím"`.
+fee_keywords:
+  - "phí"
+  - "chi phí"
+  - "phụ phí"
+  - "cước"
+  - "công lắp đặt"
+  - "chênh vat"

@@ -23,23 +23,44 @@ quy đổi nào (PHB-05 §21).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
+from app.modules.exporting import business_export
 from app.modules.kpi.kpi_profit_engine import load_eligible_costs_authority
 from app.modules.mapping.employee_mapper import load_employee_master
 from app.modules.reporting import business_metrics as bm
+from app.modules.reporting import line_type as line_type_module
+from app.modules.reporting import line_type_config
 from app.modules.reporting import reporting_sheets
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
+from app.web.binding_exceptions import BindingExceptionStore
 from app.web.business_store import BusinessDecisionStore
+from app.web.period_lock import (
+    ClosedPeriod, PeriodCloseStore, PeriodClosedError, content_fingerprint,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONVERSION_RATES_PATH = REPO_ROOT / "config" / "conversion_rates.yaml"
 ELIGIBLE_COSTS_PATH = REPO_ROOT / "config" / "eligible_costs.yaml"
 EMPLOYEES_PATH = REPO_ROOT / "config" / "employees.yaml"
+LINE_TYPES_PATH = REPO_ROOT / "config" / "line_types.yaml"
+
+
+class LineTypeAuthorityError(RuntimeError):
+    """`config/line_types.yaml` không đọc được — DỪNG, không rơi về mặc định.
+
+    Một mặc định "coi mọi dòng là hàng bán" chạy được và SAI theo hướng im
+    lặng: luật giá nhập 0 theo chính sách (`OD-105B-01` §3) biến mất, mọi dòng
+    phí quay lại `PENDING`, coverage tụt khỏi 100 % và cả kỳ mất trạng thái
+    `OFFICIAL` — mà không màn hình nào nói vì sao. Cùng kỷ luật fail-closed của
+    `DEC-143` §1: thà không ra số còn hơn ra một bộ số khác mà không ai biết
+    nó khác.
+    """
+
 
 
 @dataclass(frozen=True)
@@ -60,14 +81,33 @@ class PeriodData:
     details: list
     totals: bm.BusinessTotals
     excluded: list = field(default_factory=list)
+    # R3 §1 — `khoá dòng → ngoại lệ gắn dòng còn mở`. Đi CÙNG kỳ chứ không
+    # được tra riêng ở từng route: bảng nhân viên, tổng kỳ và hàng đợi ngoại
+    # lệ phải đọc cùng một ảnh chụp, nếu không hai màn hình sẽ nói hai câu về
+    # cùng một dòng.
+    binding_exceptions: dict = field(default_factory=dict)
+    # R3 §2 — các đơn có nguy cơ TRỪ CHIẾT KHẤU HAI LẦN (`DEC-180`).
+    discount_double_count: tuple = ()
+    # R3 §5 — lần chốt đang hiệu lực của kỳ này, `None` = kỳ đang mở.
+    closed: Optional[ClosedPeriod] = None
+
+    def _slice(self, keep: list) -> "PeriodData":
+        """Lát cắt giữ NGUYÊN mọi lớp phủ của kỳ.
+
+        Viết một lần cho cả hai phép chiếu (nhân viên, sheet): mỗi lần một
+        phép chiếu quên chở theo một lớp phủ là một màn hình con nói khác màn
+        hình cha về cùng một dòng.
+        """
+        lines = [self.lines[index] for index in keep]
+        return PeriodData(
+            lines=lines, details=[self.details[i] for i in keep],
+            totals=bm.totals(lines), binding_exceptions=self.binding_exceptions,
+            discount_double_count=self.discount_double_count, closed=self.closed)
 
     def for_employee(self, employee: Optional[str]) -> "PeriodData":
         """Lát cắt của một nhân viên — cùng cấu trúc, để trang dùng chung code."""
-        keep = [index for index, line in enumerate(self.lines)
-                if line.employee == employee]
-        lines = [self.lines[index] for index in keep]
-        return PeriodData(lines=lines, details=[self.details[i] for i in keep],
-                          totals=bm.totals(lines))
+        return self._slice([index for index, line in enumerate(self.lines)
+                            if line.employee == employee])
 
     def sheet_assignments(self) -> list[tuple[str, Optional[str]]]:
         """`(khoá sheet, nhân viên)` của TỪNG dòng đang được báo cáo."""
@@ -87,11 +127,47 @@ class PeriodData:
         một PHÂN HOẠCH: `sheet_key_of` là hàm toàn phần, nên mọi dòng thuộc
         đúng một sheet và tổng của các sheet luôn đúng bằng tổng kỳ (`§42`).
         """
-        keep = [index for index, (key, _employee)
-                in enumerate(self.sheet_assignments()) if key == sheet.key]
-        lines = [self.lines[index] for index in keep]
-        return PeriodData(lines=lines, details=[self.details[i] for i in keep],
-                          totals=bm.totals(lines))
+        return self._slice([index for index, (key, _employee)
+                            in enumerate(self.sheet_assignments())
+                            if key == sheet.key])
+
+
+def bm_unknown_employee_label() -> str:
+    """Nhãn của nhóm "chưa xác định nhân viên" trong file xuất.
+
+    Một sheet Excel BẮT BUỘC có tên; `None` không phải một tên. Đây là chỗ
+    duy nhất cái nhãn ấy được đặt cho đường xuất file.
+    """
+    return "Chưa xác định nhân viên"
+
+
+def snapshot_of(totals: bm.BusinessTotals) -> dict:
+    """Chỉ tiêu của một kỳ → dict JSON được, để lưu kèm một lần chốt.
+
+    Chỉ những con số CỘNG ĐƯỢC và trạng thái coverage. Không lưu từng dòng:
+    bản chụp là bằng chứng "bộ số nào đã được duyệt", không phải một bản sao
+    thứ hai của báo cáo — và một bản sao thứ hai là một nguồn sự thật thứ hai.
+
+    `Decimal` viết ra chuỗi, không float: `str(Decimal)` khứ hồi đúng, còn
+    float thì không (`ADR-103`).
+    """
+    return {
+        "lines": totals.lines,
+        "orders": totals.orders,
+        "sales_revenue": _text(totals.sales_revenue),
+        "qualifying_quantity": _text(totals.qualifying_quantity),
+        "kpi_profit": _text(totals.kpi_profit),
+        "converted_sales": _text(totals.converted_sales),
+        "employee_attributed_profit": _text(totals.employee_attributed_profit),
+        "unattributed_profit": _text(totals.unattributed_profit),
+        "state": totals.state,
+        "coverage_covered_lines": totals.coverage.covered_lines,
+        "coverage_total_lines": totals.coverage.total_lines,
+    }
+
+
+def _text(value) -> Optional[str]:
+    return None if value is None else str(value)
 
 
 class BusinessReportService:
@@ -100,16 +176,32 @@ class BusinessReportService:
         router: Optional[ConversionRateRouter] = None,
         eligible_costs_path: Optional[Path] = None,
         employees_path: Optional[Path] = None,
+        line_types_path: Optional[Path] = None,
+        period_store: Optional[PeriodCloseStore] = None,
+        binding_store: Optional[BindingExceptionStore] = None,
     ) -> None:
         self._engine = engine
         self._store = store
         self._router = router or ConversionRateRouter.from_yaml(CONVERSION_RATES_PATH)
         self._eligible_costs_path = eligible_costs_path or ELIGIBLE_COSTS_PATH
         self._employees_path = employees_path or EMPLOYEES_PATH
+        self._line_types_path = line_types_path or LINE_TYPES_PATH
+        # Cùng `Engine` với mọi thẩm quyền khác của vertical: một lần chốt kỳ
+        # và các con số nó chốt phải nằm trong cùng một database.
+        self._period_store = period_store or PeriodCloseStore(engine)
+        self._binding_store = binding_store or BindingExceptionStore(engine)
 
     @property
     def store(self) -> BusinessDecisionStore:
         return self._store
+
+    @property
+    def period_store(self) -> PeriodCloseStore:
+        return self._period_store
+
+    @property
+    def binding_store(self) -> BindingExceptionStore:
+        return self._binding_store
 
     def kpi_authority_valid(self) -> bool:
         """`DEC-143` §1 — thẩm quyền chi phí KPI có đọc được HÔM NAY không.
@@ -123,6 +215,19 @@ class BusinessReportService:
         nó đi vòng qua đúng cái van được dựng để chặn.
         """
         return load_eligible_costs_authority(self._eligible_costs_path).is_valid
+
+    def line_type_vocabulary(self) -> line_type_module.LineTypeVocabulary:
+        """Từ vựng loại dòng của R3, đọc lại ở mỗi lần dựng kỳ.
+
+        Đọc lại chứ không nhớ vào bộ nhớ, đúng cùng lý do như
+        `kpi_authority_valid`: một file cấu hình vừa được sửa (hay vừa hỏng)
+        phải có hiệu lực NGAY, chứ không phải sau lần khởi động lại tiếp theo.
+        """
+        try:
+            return line_type_config.load_vocabulary(self._line_types_path)
+        except Exception as exc:  # noqa: BLE001 — mọi lỗi đọc/parse đều fail-closed
+            raise LineTypeAuthorityError(
+                f"Không đọc được {self._line_types_path}: {exc}") from exc
 
     def assignable_employees(self) -> list[tuple[str, Optional[str]]]:
         """`(tên chuẩn hoá, nhóm)` mà Owner được phép gán một dòng cho.
@@ -150,6 +255,7 @@ class BusinessReportService:
 
     def period(
         self, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
+        period: Optional[tuple[int, int]] = None,
     ) -> PeriodData:
         """Kỳ đã hợp nhất MỌI quyết định của Owner, sẵn sàng để gộp.
 
@@ -178,7 +284,8 @@ class BusinessReportService:
             router=self._router,
             kpi_authority_valid=self.kpi_authority_valid(),
             employee_overrides=self._store.employee_overrides(),
-            line_classifications=line_classifications)
+            line_classifications=line_classifications,
+            line_type_vocabulary=self.line_type_vocabulary())
         details = business_queries.line_details(
             rows, lines, classifications=classifications, overrides=overrides,
             line_classifications=line_classifications)
@@ -194,8 +301,108 @@ class BusinessReportService:
             else:
                 dropped.append({**detail, "exclusion": excluded})
         kept_lines = [detail["line"] for detail in kept]
-        return PeriodData(lines=kept_lines, details=kept,
-                          totals=bm.totals(kept_lines), excluded=dropped)
+        return PeriodData(
+            lines=kept_lines, details=kept, totals=bm.totals(kept_lines),
+            excluded=dropped,
+            # Ba lớp phủ của R3, đọc MỘT lần cho cả kỳ. Chúng nằm ở đây —
+            # cùng chỗ, cùng lượt đọc với override giá nhập và phân loại — vì
+            # đó là toàn bộ ý nghĩa của "một effective data": bảng nhân viên,
+            # tổng kỳ và hàng đợi ngoại lệ không được đi ba đường khác nhau.
+            binding_exceptions=self._binding_store.open_keys(),
+            discount_double_count=bm.discount_double_count_orders(kept_lines),
+            closed=(None if period is None
+                    else self._period_store.closed(year=period[0],
+                                                   month=period[1])))
+
+    # --- R3 §5: chốt kỳ ------------------------------------------------
+
+    def guard_period_open(self, period: Optional[tuple[int, int]]) -> None:
+        """Chặn MỌI lần ghi quyết định rơi vào một kỳ đã chốt.
+
+        Gọi ở tầng dịch vụ chứ không ở `BusinessDecisionStore`: store không
+        biết — và theo hàng rào của PHB-03, không được biết — `sale_date` của
+        một dòng, vì biết nó nghĩa là đọc `order_line_current`. Kỳ là dữ kiện
+        mà tầng route đã có sẵn trong tay.
+        """
+        if self._period_store.is_closed(period):
+            raise PeriodClosedError(period[0], period[1])
+
+    def guard_line_open(self, detail: Optional[dict]) -> None:
+        """Chặn theo NGÀY BÁN của chính dòng, không theo kỳ đang xem.
+
+        Hai thứ đó khác nhau ở đúng chỗ nguy hiểm: khung nhìn "toàn bộ dữ
+        liệu" không có kỳ, và sửa một dòng của tháng 01 đã chốt từ màn hình
+        đó vẫn phải bị chặn.
+        """
+        sale_date = None if detail is None else detail.get("sale_date")
+        if sale_date is None:
+            return
+        self.guard_period_open((sale_date.year, sale_date.month))
+
+    def guard_product_open(self, product_key: str) -> None:
+        """Chặn một quyết định cấp MẶT HÀNG khi nó chạm vào một kỳ đã chốt."""
+        closed = self._period_store.closed_periods()
+        if not closed:
+            return
+        touched = business_queries.periods_for_product(self._engine, product_key)
+        overlap = sorted(touched & closed)
+        if overlap:
+            raise PeriodClosedError(*overlap[0])
+
+    def closed_period(self, period: Optional[tuple[int, int]]):
+        if period is None:
+            return None
+        return self._period_store.closed(year=period[0], month=period[1])
+
+    def close_period(
+        self, *, period: tuple[int, int], data: PeriodData,
+        closed_by: Optional[str] = None, note: Optional[str] = None,
+    ) -> ClosedPeriod:
+        """Chốt kỳ, kèm bản chụp chỉ tiêu và vân tay của bộ số đã chốt.
+
+        Bản chụp lấy từ CHÍNH `data` mà màn hình vừa hiển thị — không tính
+        lại: nếu chốt kỳ đi một đường tính riêng thì con số được duyệt có thể
+        khác con số người duyệt đã nhìn, và đó đúng là điều một lần chốt phải
+        loại trừ.
+        """
+        totals = snapshot_of(data.totals)
+        return self._period_store.close(
+            year=period[0], month=period[1], closed_by=closed_by, note=note,
+            totals=totals, line_count=len(data.lines),
+            # CÙNG một `totals` đi vào cả bản chụp lẫn vân tay: hai thứ đó
+            # không thể trôi khỏi nhau, vì chúng là hai cách viết của cùng một
+            # payload (`FIND-R3-IR-01`).
+            fingerprint=content_fingerprint(
+                details=data.details, totals=totals))
+
+    def reopen_period(
+        self, *, period: tuple[int, int], reason: str,
+        reopened_by: Optional[str] = None,
+    ) -> None:
+        self._period_store.reopen(
+            year=period[0], month=period[1], reason=reason,
+            reopened_by=reopened_by)
+
+    def period_drift(
+        self, *, period: Optional[tuple[int, int]], data: PeriodData,
+    ) -> bool:
+        """Bộ số HIỆN TẠI đã khác bộ số lúc chốt chưa?
+
+        `False` khi kỳ chưa chốt, hoặc khi vân tay trùng. `True` là một sự
+        thật cần nói ra: một kỳ đã duyệt mà số đã đổi (vì một lần nạp lại sổ,
+        hay một quyết định lọt qua trước khi chốt) thì bản chụp và màn hình
+        không còn nói cùng một câu.
+
+        `data` phải là kỳ ĐẦY ĐỦ, không phải một lát cắt theo nhân viên/sheet
+        — xem `period_lock.content_fingerprint`. Hai nơi gọi trong `server.py`
+        đều truyền `view["data"]`, tức cả kỳ.
+        """
+        if period is None or data.closed is None:
+            return False
+        if data.closed.content_fingerprint is None:
+            return False
+        return data.closed.content_fingerprint != content_fingerprint(
+            details=data.details, totals=snapshot_of(data.totals))
 
     def employees(
         self, *, date_from: Optional[date] = None, date_to: Optional[date] = None,
@@ -290,6 +497,52 @@ class BusinessReportService:
         lần chạy lại pipeline.
         """
         return reporting_sheets.sheets_for(data.sheet_assignments())
+
+    def export_sheets(self, data: PeriodData) -> list:
+        """Các sheet của FILE XUẤT — đúng phân hoạch mà màn hình đang dùng.
+
+        Không có một cách chia thứ hai cho file xuất. `reporting_sheets` là
+        phân hoạch đã nghiệm thu của không gian làm việc (`DEC-PHB02-08`
+        `§42`): mỗi dòng thuộc ĐÚNG một sheet, nên tổng các sheet luôn bằng
+        tổng kỳ. Dựng một cách chia riêng cho file xuất sẽ tạo ra hai câu trả
+        lời cho câu hỏi "doanh thu của Nội thành là bao nhiêu".
+
+        Dòng Owner đã LOẠI khỏi báo cáo không có mặt: `data.details` không
+        chứa chúng, và file xuất phải nói đúng những gì màn hình nói (`§30`).
+        Chúng được đếm riêng ở sheet Tổng kỳ.
+        """
+        assignments = data.sheet_assignments()
+        buckets: dict = {}
+        for detail, (key, _employee) in zip(data.details, assignments):
+            buckets.setdefault(key, []).append(detail)
+        return [
+            business_export.ExportSheet(
+                key=sheet.key,
+                label=sheet.label or bm_unknown_employee_label(),
+                details=buckets.get(sheet.key, []))
+            for sheet in reporting_sheets.sheets_for(assignments)
+        ]
+
+    def export_workbook(
+        self, *, data: PeriodData, period_label: str,
+        generated_at: Optional[datetime] = None,
+    ):
+        """Workbook của kỳ, dựng từ ĐÚNG `data` mà màn hình vừa hiển thị.
+
+        Nhận `data` chứ không tự đọc lại kỳ: đọc lại mở ra một khe thời gian
+        trong đó một lần lưu có thể chen vào giữa "cái Owner nhìn" và "cái
+        Owner tải về", và hai bộ số lệch nhau mà không ai giải thích được.
+        """
+        return business_export.build_workbook(
+            period_label=period_label,
+            sheets=self.export_sheets(data),
+            period_totals=data.totals,
+            generated_at=generated_at,
+            closed=data.closed,
+            binding_exceptions=data.binding_exceptions,
+            discount_double_count=data.discount_double_count,
+            excluded=data.excluded,
+        )
 
     def sheet_target(
         self, *, sheet, period: Optional[tuple[int, int]],

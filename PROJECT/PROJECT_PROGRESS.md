@@ -1,6 +1,136 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R2 = IMPLEMENTED, R1 = VERIFYING (2026-09-07)
+## CANONICAL CURRENT STATE — R3 = IMPLEMENTED (2026-09-08)
+
+**R3 đã triển khai đầy đủ trên nền R2 ĐÃ MERGE vào nhánh mặc định** (`45f0e1b`,
+PR #7). Owner giao năm việc: củng cố import/idempotency và khoá dòng; chuẩn
+hoá loại dòng và công thức; gom mọi màn hình về một effective data; hoàn thiện
+xuất Excel; thêm cơ chế chốt kỳ/phiên bản. Task canonical:
+`docs/tasks/R3-nhap-so-den-chot-ky.md`. Bàn giao:
+`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`. R3 KHÔNG xây giá thực nhập,
+KHÔNG thêm nguồn giá nào, KHÔNG sửa công thức MIN, KHÔNG sửa `ADR-110`, và
+KHÔNG định nghĩa ngữ nghĩa hoàn/hủy.
+
+**Lỗi trung tâm — không có triệu chứng, tái hiện được.** `occurrence_index`
+của một dòng hàng được đánh theo VỊ TRÍ dòng trong file
+(`extraction.build_source_lines`: sắp theo `source_row` rồi đếm 1..n trong
+`(order_key, product_key)`). Sổ gốc CÓ đơn chứa hai dòng cùng tên hàng — chính
+docstring của hàm đó nêu ví dụ "Chi phí vận chuyển". Kế toán đảo hai dòng ấy
+trong file là đủ để giá nhập Owner đã gõ cho dòng này lặng lẽ chuyển sang dòng
+kia; không cờ nào bật, màn hình không đổi, con số thì sai. Nay khoá dòng đi
+theo NỘI DUNG qua ba mỏ neo (`IMEI` → `FINGERPRINT` → vị trí CÓ ĐIỀU KIỆN,
+`app/history/line_binding.py`); khi không kết luận chắc chắn được thì hệ thống
+dựng một NGOẠI LỆ thay vì đoán, và khoá cũ KHÔNG bị xoá hay hủy.
+
+**`TASK-105B-Q3` đã đóng.** `OD-105B-01` §3 ký câu trả lời cho dòng phụ từ lâu
+(`AccountingPurchasePrice = 0 BY DEFINITION`, provenance
+`Policy:SupplementaryExpenseZeroPurchasePrice`), nhưng thiếu một tầng phân
+loại có thẩm quyền để biết dòng nào thuộc nhóm đó — đúng thứ mà `TASK-105B-Q3`
+bị `BLOCKED_BY [TASK-103]` chờ. `app/modules/reporting/line_type.py` là tầng
+đó, đặt ĐÚNG chỗ `OD-105B-01` §C yêu cầu (BÊN TRÊN provider, không nằm trong
+`FilePriceProvider`). Đo trên dữ liệu thật: 22 dòng phí (kỳ 01/2026) và 14
+dòng (kỳ 06/2026) không còn khoá coverage vĩnh viễn.
+
+**Giá nhập KPI hiệu lực nay có BA thẩm quyền theo thứ tự cố định:** giá tay →
+giá tự động (MIN theo ngày bán) → chính sách loại dòng. Chính sách đứng CUỐI:
+một nguồn giá thật vẫn thắng con số `0` của chính sách. Và `0` theo chính sách
+KHÁC `0` thay cho thiếu — hàng bán thiếu giá VẪN Pending (`OD-105B-01` §3 câu
+2), kể cả quà tặng kèm.
+
+**Xuất Excel nay đọc effective data**, không đọc `ImportResult`: một file xuất
+từ kết quả pipeline là ảnh chụp trạng thái TRƯỚC mọi quyết định của Owner —
+trông đầy đủ, cân, và nói một bộ số khác màn hình mà không có gì báo rằng nó
+cũ. Đúng MỘT cột `Giá nhập KPI`, ô trống nghĩa là CHƯA CÓ GIÁ.
+
+**Chốt kỳ** (`app/web/period_lock.py`, bảng `period_close`) là một PHIÊN BẢN
+append-only, mở lại được và BẮT BUỘC kèm lý do. Nó TỪ CHỐI (HTTP 409) mọi
+đường ghi quyết định của kỳ, chặn theo NGÀY BÁN của chính dòng chứ không theo
+kỳ đang xem. Migration additive `0009_line_binding_and_period_close`;
+`ALEMBIC_HEAD` chuyển từ `0008_purchase_price_reason` sang
+`0009_line_binding_and_period_close`.
+
+```text
+R3 STATUS   = IMPLEMENTED (Independent Review ACCEPT_WITH_RECORDED_RISK,
+              exact HEAD 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c)
+              CHECK-R3-01 … CHECK-R3-18 = PASS (E1)
+              CHECK-R3-18a/-18b (vân tay chốt kỳ) = PASS (E1)
+              CHECK-R3-19 (Independent Review) = PASS (E1)
+              CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
+              Full regression: 3058 passed, 12 skipped (sau repair IR;
+              trước repair 3043 passed, 12 skipped)
+              (baseline trước R3 cùng môi trường: 2946 passed, 12 skipped)
+              Đối soát trên hai kỳ nghiệp vụ THẬT đã ẩn danh: nạp lại cùng
+              file và nạp lại file ĐẢO THỨ TỰ DÒNG đều cho 0 INSERT /
+              0 SOURCE_CHANGED / 0 khoá dòng mới / 0 ngoại lệ; tổng kỳ ==
+              Σ nhân viên == Σ sheet; file xuất == màn hình.
+              Migration 0009 upgrade + downgrade + re-upgrade đã chạy thật;
+              CẢ giá nhập Owner gõ tay LẪN lần chốt kỳ sống sót qua rollback
+              (S129 §5.5).
+```
+
+**Repair sau Independent Review (2026-09-08, nền `8aa6626`).** Hai finding
+ACCEPTED, cả hai trên CÙNG một hàm (`period_lock.content_fingerprint`) và hỏng
+theo hai chiều NGƯỢC NHAU. `FIND-R3-IR-01` (FALSE NEGATIVE): payload chỉ có
+sáu trường mỗi dòng, nên nó mù với phần lớn kết quả tài chính đã được duyệt —
+Owner tick Gia dụng làm tỉ lệ quy đổi đi 2 % → 8 % và DS quy đổi rơi từ
+150.000.000 xuống 37.500.000, mà vân tay không đổi một bit và kỳ đã chốt báo
+"không có gì đổi"; danh tính dòng cũng thiếu `product_key`/`occurrence_index`
+nên hai dòng khác nhau của cùng một đơn cho ra hai khối byte giống hệt.
+`FIND-R3-IR-02` (FALSE POSITIVE): payload cộng `len(purchase_price_overrides())`
+— số override của TOÀN DATABASE — nên một giá tay tháng 02 làm tháng 01 đã
+chốt báo drift dù không dòng nào của tháng 01 đổi.
+
+Sửa tận gốc: payload mới gồm bản chụp chỉ tiêu SẼ ĐƯỢC LƯU cộng 19 trường của
+TỪNG DÒNG (danh tính đầy đủ · đầu vào · giá vốn · kết quả gồm
+`conversion_rate`/`converted_sales`/`profit_blockers` · quy thuộc), sắp theo
+khoá dòng nên không phụ thuộc thứ tự truy vấn; phụ thuộc toàn cục bị gỡ hẳn và
+KHÔNG có gì thay chỗ nó. Không `ACCEPTED_RISK` mới, KHÔNG migration mới
+(schema không đổi), không đụng công thức MIN, không thêm fallback, không sửa
+Tracking — diff đúng hai file mã nguồn. Chi tiết, evidence và test tái hiện
+(6 bài ĐỎ trước sửa, 15 XANH sau sửa — gồm hai bài chạy CHÍNH thuật toán cũ
+cạnh bản mới để finding tái hiện được về sau): `S129` §11.
+
+Hai mục review nêu được ghi thành `ACCEPTED_RISK` và KHÔNG sửa trong vòng này
+theo đúng yêu cầu: `AR-R3-05` (ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ —
+chỉ ô ĐẾM ở trang chốt kỳ rộng hơn sự thật, không con số tiền nào sai) và
+`AR-R3-06` (`PeriodData._slice` chưa chiếu `excluded`/cảnh báo theo lát).
+
+Task VẪN `IMPLEMENTED`. `CHECK-R3-19` (Independent Review) VẪN `NOT_TESTED` —
+phiên repair KHÔNG tự đánh dấu nó PASS; reviewer kết luận lại trên commit
+repair.
+
+**Independent Review — kết luận (2026-09-08, exact HEAD
+`5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`).** `ACCEPT_WITH_RECORDED_RISK`.
+Reviewer tự chạy lại toàn bộ bằng chứng: R3 focused 111 passed, full
+regression 3058 passed/12 skipped, cả hai finding (`FIND-R3-IR-01`,
+`FIND-R3-IR-02`) tái hiện được rồi xác nhận đã repair, và
+`branch_authority_check.sh` trên exact HEAD → `AUTHORITY_OK`. `CHECK-R3-19`
+chuyển `PASS`. `CHECK-R3-20` (Owner Acceptance trên production) GIỮ NGUYÊN
+`NOT_TESTED` — không session tích hợp/deploy nào có thẩm quyền tự đóng nó.
+Hai rủi ro `AR-R3-05`/`AR-R3-06` được CHẤP NHẬN GHI NHẬN, không repair thêm,
+không đổi tổng tiền nào. Chi tiết: `docs/tasks/R3-nhap-so-den-chot-ky.md` §8b,
+`S129` §12.
+
+Task R3 VẪN `IMPLEMENTED` cho tới khi Owner xác nhận nghiệm thu trên
+production (`CHECK-R3-20`) — KHÔNG chuyển `DONE` trước đó, kể cả sau khi merge
+và deploy thành công.
+
+R3 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
+luật đã áp cho R1 và R2. Bốn rủi ro giữ lại (`AR-R3-01` … `AR-R3-04`) ở `S129`
+§7; đáng chú ý nhất là `AR-R3-01` (phân loại mã sản phẩm là quyết định TOÀN
+CỤC nên không đi qua cửa chặn kỳ đã chốt — giảm nhẹ bằng `period_drift`, thay
+đổi không bị chặn nhưng không bao giờ im lặng) và `AR-R3-02` (`BTL` vẫn chưa
+có nghĩa; 4 dòng trên hai kỳ golden đang giữ coverage dưới 100 %, chờ đúng một
+quyết định của Owner).
+
+Một lỗi lộ ra từ chính bộ test R3 và đã sửa trong cùng phiên:
+`business_presentation.PROVENANCE_LABELS` tra bằng `[...]` và thiếu mục
+`POLICY_ZERO`, nên trang bảng kê chi tiết ném `KeyError`/HTTP 500 ngay khi kỳ
+có MỘT dòng phí — tức ở mọi kỳ trên dữ liệu thật. Chi tiết: `S129` §6.
+
+---
+
+## R2 = IMPLEMENTED (đã merge vào nhánh mặc định), R1 = VERIFYING (2026-09-07)
 
 **R2 đã triển khai đầy đủ trên nền R1 đã ACCEPT.** Owner ban hành `R2
 Execution Brief — Phân loại sản phẩm và giá nhập tay`: hoàn thiện đường xử lý

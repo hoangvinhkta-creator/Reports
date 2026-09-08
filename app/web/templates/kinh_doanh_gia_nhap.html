@@ -84,6 +84,22 @@
               data-code="{{ row.identity_classification }}"
               title="{{ row.identity_title }}">{{ row.identity_label }}</span>
         {% endif %}
+        {# `R3 §1` — ngoại lệ gắn dòng nằm NGAY TRÊN DÒNG, vì hành động Owner
+           cần làm là một hành động trên chính dòng này. Nút ĐÃ XỬ LÝ chỉ ghi
+           "đã xem xong"; nó KHÔNG đổi khoá và KHÔNG di chuyển quyết định nào. #}
+        {% if row.binding_exception_id %}
+        <div class="tp-unit" data-metric="binding-exception"
+             data-exception="{{ row.binding_exception_id }}">
+          {{ row.binding_exception_note }}
+          <form method="post" action="{{ url_for('business_resolve_binding_exception') }}">
+            <input type="hidden" name="ky" value="{{ selected_period }}">
+            <input type="hidden" name="loc" value="{{ mode }}">
+            <input type="hidden" name="ngoai_le_id" value="{{ row.binding_exception_id }}">
+            <button class="ghost btn-mini" type="submit"
+                    data-metric="binding-exception-resolve">ĐÃ XỬ LÝ</button>
+          </form>
+        </div>
+        {% endif %}
         {% endif %}</td>
       <td class="num">{{ row.quantity }}</td>
       <td class="num">{{ row.sell_price }}</td>

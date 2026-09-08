@@ -91,11 +91,18 @@ BLOCK_QUANTITY_MISSING = "QUANTITY_MISSING"
 BLOCK_QUANTITY_ZERO = "QUANTITY_ZERO"
 BLOCK_QUANTITY_NEGATIVE = "QUANTITY_NEGATIVE"
 BLOCK_PURCHASE_PRICE_MISSING = "PURCHASE_PRICE_MISSING"
+# R3 §2 — dòng thuộc một loại mà KHÔNG Owner Decision nào định nghĩa kinh tế
+# của nó: chứng từ hoàn/hủy, hay một loại chứng từ chưa ai khai trong
+# `config/line_types.yaml`. `OD-2` cấm phát minh ngữ nghĩa trả hàng, nên hệ
+# thống dừng lại và nói ra — thay vì tính dòng đó như một dòng bán bình thường
+# (im lặng SAI) hoặc bỏ nó khỏi mọi phép gộp (im lặng MẤT).
+BLOCK_LINE_TYPE_UNDECIDED = "LINE_TYPE_UNDECIDED"
 
 #: Tập ĐÓNG. Thêm một mã vào đây là một quyết định nghiệp vụ, không phải một
 #: lần refactor — mỗi mã phải chỉ tới một Owner Decision đã ký.
 PROFIT_BLOCKERS: tuple[str, ...] = (
     BLOCK_KPI_AUTHORITY_UNAVAILABLE,
+    BLOCK_LINE_TYPE_UNDECIDED,
     BLOCK_SELL_PRICE_MISSING,
     BLOCK_QUANTITY_MISSING,
     BLOCK_QUANTITY_ZERO,
@@ -175,6 +182,10 @@ BLOCKER_LABELS = {
         "Số lượng âm — cần xem lại. Chưa có quy tắc nào của Owner nói dấu âm "
         "nghĩa là gì, nên hệ thống không tự diễn giải"),
     BLOCK_PURCHASE_PRICE_MISSING: "Chưa có giá nhập — Owner nhập được ngay tại đây",
+    BLOCK_LINE_TYPE_UNDECIDED: (
+        "Dòng này thuộc một loại chứng từ chưa có quyết định nào của Owner "
+        "(hoàn/hủy, hoặc một tiền tố số chứng từ chưa khai). Hệ thống KHÔNG tự "
+        "diễn giải — cần Owner quyết trước, hoặc loại dòng khỏi báo cáo"),
 }
 
 WARNING_LABELS = {
@@ -201,6 +212,7 @@ def profit_blockers(
     quantity: Optional[Decimal],
     purchase_price: Optional[Decimal],
     kpi_authority_valid: bool,
+    line_type_undecided: bool = False,
 ) -> tuple[str, ...]:
     """Mọi lý do THẬT khiến dòng này chưa chốt được lợi nhuận, đã sắp thứ tự.
 
@@ -215,6 +227,17 @@ def profit_blockers(
     blockers: list[str] = []
     if not kpi_authority_valid:
         blockers.append(BLOCK_KPI_AUTHORITY_UNAVAILABLE)
+    # Đứng ngay sau thẩm quyền và TRƯỚC các vế đầu vào: khi loại dòng chưa
+    # được định nghĩa thì "thiếu giá bán" hay "thiếu giá nhập" không phải điều
+    # Owner cần sửa — sửa chúng cũng không mở được dòng này ra.
+    # Tham số là một BOOLEAN, không phải tên loại dòng: module này phải giữ
+    # được tính thuần (`test_the_pure_business_modules_stay_pure`), nên nó
+    # không import từ vựng loại dòng. Tầng gọi — `business_metrics`, nơi đã
+    # biết loại dòng — trả lời câu hỏi "loại này đã có quyết định chưa" và
+    # truyền câu trả lời xuống. Mặc định `False` giữ nguyên hành vi của mọi
+    # lời gọi có từ trước R3.
+    if line_type_undecided:
+        blockers.append(BLOCK_LINE_TYPE_UNDECIDED)
     if sell_price is None:
         blockers.append(BLOCK_SELL_PRICE_MISSING)
     if quantity is None:
@@ -267,7 +290,8 @@ def label(code: str) -> str:
 
 __all__ = [
     "BLOCKER_LABELS", "BLOCK_EMPLOYEE_UNRESOLVED",
-    "BLOCK_KPI_AUTHORITY_UNAVAILABLE", "BLOCK_PURCHASE_PRICE_MISSING",
+    "BLOCK_KPI_AUTHORITY_UNAVAILABLE", "BLOCK_LINE_TYPE_UNDECIDED",
+    "BLOCK_PURCHASE_PRICE_MISSING",
     "BLOCK_QUANTITY_MISSING", "BLOCK_QUANTITY_NEGATIVE", "BLOCK_QUANTITY_ZERO",
     "BLOCK_SELL_PRICE_MISSING", "OWNER_FIXABLE_BLOCKERS",
     "PIPELINE_REASON_DUPLICATE",

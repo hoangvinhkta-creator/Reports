@@ -695,6 +695,98 @@ WORKSPACE_TABLES = (
 )
 
 # ---------------------------------------------------------------------------
+# R3 §1 — NGOẠI LỆ GẮN DÒNG (`line_binding_exception`).
+#
+# Bảng này ghi những chỗ hệ thống TỪ CHỐI ĐOÁN khi nạp lại một sổ đã sửa: một
+# nhóm ``(đơn, mặt hàng)`` có nhiều dòng, thứ tự dòng trong file đã đổi, không
+# mỏ neo nào (IMEI, fingerprint) khớp được, VÀ một quyết định của Owner đang
+# treo trên một trong các khoá cũ. Ghép bừa ở đó là gắn giá nhập của dòng này
+# sang dòng khác — sai một con số mà không cờ nào bật.
+#
+# ## Vì sao KHÔNG dùng lại `reconciliation_flag`
+#
+# Hai bảng nói hai loại câu khác nhau. `reconciliation_flag` là bằng chứng
+# APPEND-ONLY của một lần chạy: "snapshot này đã thấy điều đó". Bản ghi ở đây
+# là một VIỆC CÒN TREO của con người — nó có vòng đời (mở → đã xử lý), và cột
+# ``resolved_at`` là thứ `reconciliation_flag` cố ý không có (`acknowledged_at`
+# ở đó là "đã đọc", không phải "đã xử lý").
+#
+# Đổi CHECK constraint của `reconciliation_flag.kind` để nhét thêm một loại
+# cũng sẽ buộc phải dựng lại cả bảng đó trên SQLite — một thao tác rủi ro trên
+# đúng bảng chứa lịch sử đối soát, để đổi lấy một ngữ nghĩa không khớp.
+line_binding_exception = Table(
+    "line_binding_exception", METADATA,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("order_key", Text, nullable=False),
+    Column("product_key", Text, nullable=False),
+    # Chỉ số MỚI đã cấp cho dòng vào. Các khoá cũ KHÔNG bị đụng tới — chúng
+    # chỉ vắng mặt ở snapshot này, đúng cơ chế `absent_keys` của PRA-002.
+    Column("assigned_occurrence_index", Integer, nullable=False),
+    Column("raised_by_snapshot_id", Text,
+           ForeignKey("source_snapshot.snapshot_id"), nullable=False),
+    Column("run_id", Text, nullable=True),
+    Column("source_row", Integer, nullable=True),
+    # Các khoá cũ ứng viên + khoá nào đang mang quyết định của người, dạng JSON.
+    Column("detail_json", Text, nullable=True),
+    Column("created_at", Text, nullable=False),
+    Column("resolved_at", Text, nullable=True),
+    Column("resolved_by", Text, nullable=True),
+    Column("resolution_note", Text, nullable=True),
+    Index("ix_line_binding_exception_order_key", "order_key"),
+    Index("ix_line_binding_exception_open", "resolved_at"),
+)
+
+# ---------------------------------------------------------------------------
+# R3 §5 — CHỐT KỲ (`period_close`).
+#
+# Chốt một kỳ là nói: "bộ số của tháng này đã được duyệt; từ giờ mọi thay đổi
+# phải đi qua một lần MỞ LẠI có ghi chép". Nó KHÔNG xoá và KHÔNG đóng băng dữ
+# liệu — sổ vẫn nạp lại được, pipeline vẫn chạy — nó khoá đúng ĐƯỜNG GHI
+# QUYẾT ĐỊNH của Owner cho kỳ đó, và giữ lại một bản chụp con số tại thời
+# điểm chốt để so về sau.
+#
+# ## Vì sao có ``version_no`` chứ không một cột ``closed`` nhị phân
+#
+# Một kỳ có thể chốt, mở lại vì phát hiện sai, rồi chốt lần nữa. Một cột nhị
+# phân sẽ ghi đè lịch sử đó và câu hỏi "bộ số nào đã được duyệt hồi tháng
+# trước" không còn trả lời được. Mỗi lần chốt là một PHIÊN BẢN, append-only;
+# lần chốt ĐANG hiệu lực là bản có ``version_no`` lớn nhất mà ``reopened_at``
+# còn rỗng.
+#
+# ``totals_json`` là bản chụp chỉ tiêu tại thời điểm chốt — bằng chứng, không
+# phải nguồn để đọc ra báo cáo. Màn hình vẫn tính từ dữ liệu hiện hành; đối
+# chiếu hai bên là cách phát hiện "có gì đó đã đổi sau khi chốt".
+period_close = Table(
+    "period_close", METADATA,
+    Column("year", Integer, primary_key=True),
+    Column("month", Integer, primary_key=True),
+    Column("version_no", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    Column("closed_at", Text, nullable=False),
+    Column("closed_by", Text, nullable=True),
+    Column("note", Text, nullable=True),
+    # Bản chụp chỉ tiêu + số dòng tại thời điểm chốt.
+    Column("totals_json", Text, nullable=True),
+    Column("line_count", Integer, nullable=True),
+    # Vân tay của tập dòng hiện hành + quyết định Owner đã dùng để ra bộ số
+    # trên. Hai lần chốt cùng vân tay ⟹ không gì đổi giữa chúng.
+    Column("content_fingerprint", Text, nullable=True),
+    Column("reopened_at", Text, nullable=True),
+    Column("reopened_by", Text, nullable=True),
+    Column("reopen_reason", Text, nullable=True),
+    CheckConstraint("month >= 1 AND month <= 12", name="ck_period_close_month"),
+    CheckConstraint("version_no >= 1", name="ck_period_close_version"),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_period_close_origin"),
+    Index("ix_period_close_period", "year", "month"),
+)
+
+#: Hai bảng của R3. `line_binding_exception` là bằng chứng dẫn xuất (dựng lại
+#: được bằng cách nạp lại sổ), nên nó KHÔNG thuộc `OWNER_INPUT_TABLES`.
+#: `period_close` thì CÓ: một lần chốt kỳ là một quyết định của Owner và không
+#: có chỗ nào khác lấy lại được nó.
+R3_TABLES = (line_binding_exception, period_close)
+
+# ---------------------------------------------------------------------------
 # B04 — ROLLBACK KHÔNG ĐƯỢC XOÁ DỮ LIỆU OWNER TỰ NHẬP
 # ---------------------------------------------------------------------------
 # Bốn bảng dưới đây chứa thứ DUY NHẤT trong toàn bộ database không tái tạo
@@ -710,6 +802,7 @@ WORKSPACE_TABLES = (
 # SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES + WORKSPACE_TABLES
+    + (period_close,)
 )
 
 #: Hậu tố của bảng lưu tạm. Nó nằm NGOÀI ``METADATA`` một cách có chủ đích:

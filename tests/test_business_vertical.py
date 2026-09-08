@@ -703,16 +703,25 @@ def test_a_duplicate_line_keeps_both_its_revenue_and_its_profit(
 def test_a_zero_quantity_line_is_never_finalised_as_zero_profit(
     repository, service
 ):
-    """`OD-1` — ví dụ thật `BTL00300`: SL = 0, đơn giá 6.200.000."""
+    """`OD-1` — ví dụ thật `BTL00300`: SL = 0, đơn giá 6.200.000.
+
+    R3 §2 thêm MỘT mã chặn thứ hai cho đúng dòng này, và đó là một thay đổi
+    có chủ đích: `BTL` là một tiền tố chứng từ chưa có quyết định nào của
+    Owner (`config/line_types.yaml` để trống phần hoàn/hủy), nên dòng cũng
+    mang `LINE_TYPE_UNDECIDED`. Mệnh đề mà bài này canh KHÔNG đổi — số lượng
+    0 vẫn không bao giờ được chốt thành lãi 0 đồng.
+    """
     persist(repository, [pair(
         "BTL00300", product="Máy Giặt Panasonic NA-F10S10BRV", quantity="0",
         sell="6200000", kpi_purchase="5000000", kpi_profit=None,
         status="PENDING", reasons=("Suspicious",))])
     data = service.period(**JANUARY)
-    assert data.lines[0].profit_blockers == ("QUANTITY_ZERO",)
+    assert data.lines[0].profit_blockers == (
+        "LINE_TYPE_UNDECIDED", "QUANTITY_ZERO")
     assert data.lines[0].kpi_profit is None       # KHÔNG phải 0
     assert data.totals.kpi_profit is None
     assert data.totals.coverage.blocked("QUANTITY_ZERO") == 1
+    assert data.totals.coverage.blocked("LINE_TYPE_UNDECIDED") == 1
     assert data.totals.coverage.owner_fixable_lines == 0
 
 

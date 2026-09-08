@@ -69,6 +69,10 @@ PROVENANCE_LABELS = {
     bm.PROVENANCE_AUTO: "Tự động",
     bm.PROVENANCE_MANUAL: "Owner đã nhập",
     bm.PROVENANCE_MANUAL_OVERRIDE: "Owner đã sửa",
+    # R3 §2 — giá `0` do CHÍNH SÁCH loại dòng quy định (`OD-105B-01` §3), không
+    # do một nguồn giá nào trả về. Nhãn riêng vì "Tự động" sẽ khiến một dòng
+    # phí trông như đã tra ra giá 0 từ Tracking.
+    bm.PROVENANCE_POLICY_ZERO: "Chính sách (dòng phụ)",
     bm.PROVENANCE_PENDING: "Chưa có",
 }
 
@@ -556,6 +560,27 @@ def _state_note(totals: bm.BusinessTotals) -> str:
     return OFFICIAL_NOTE if totals.coverage.is_complete else INCOMPLETE_NOTE
 
 
+def close_summary(totals: bm.BusinessTotals) -> dict:
+    """R3 §5 — bộ số SẮP ĐƯỢC DUYỆT, viết ra để người duyệt đọc trước khi ký.
+
+    Cố ý dùng lại `_metrics` — đúng bộ chỉ tiêu mà trang Báo cáo hiện. Trang
+    chốt kỳ mà tính riêng một bộ số sẽ cho người duyệt ký vào một con số họ
+    chưa từng nhìn thấy ở đâu khác.
+
+    `can_close` là một mệnh đề, không phải một lời khuyên: chốt một kỳ chưa
+    đủ coverage nghĩa là duyệt một bộ số mà chính hệ thống từ chối gọi là
+    CHÍNH THỨC (`R-S7`).
+    """
+    return {
+        **_metrics(totals),
+        "state": totals.state,
+        "state_label": STATE_LABELS.get(totals.state, totals.state),
+        "official": totals.coverage.is_complete,
+        "coverage": coverage_cell(totals.coverage),
+        "can_close": totals.lines > 0,
+    }
+
+
 def employee_rows(by_employee: list[tuple], company: bm.BusinessTotals) -> list[dict]:
     """Bảng nhân viên + dòng `TỔNG`.
 
@@ -863,7 +888,8 @@ def reporting_rows(sheet_totals: list[tuple], company: bm.BusinessTotals,
     return rows
 
 
-def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
+def detail_rows(details: list[dict], *, decisions=None,
+                binding_exceptions: Optional[dict] = None) -> list[dict]:
     """Bảng kê chi tiết — một dòng hàng là một dòng, sửa được ngay tại chỗ.
 
     Đây là "trang tính" mà chỉ thị `ORDER DETAIL TABLE` mô tả, và nó cố ý
@@ -880,16 +906,26 @@ def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
     Danh sách gồm CẢ dòng đã đủ giá: quyền sửa một giá tự động phải có chỗ
     thực hiện, và Owner cần nhìn thấy cả kỳ chứ không chỉ phần lỗi.
 
+    `binding_exceptions` (R3 §1) là `{khoá dòng: ngoại lệ gắn dòng còn mở}`.
+    Nó đi cùng dòng chứ không ở một trang riêng, vì hành động Owner cần làm là
+    một hành động TRÊN DÒNG ĐÓ (gõ lại giá cho khoá mới, hay loại dòng cũ khỏi
+    báo cáo) — một danh sách ngoại lệ tách khỏi bảng kê sẽ bắt Owner mở hai
+    trang để làm một việc. `None`/rỗng cho ra chính xác hành vi trước R3.
+
     `decisions` (R2 §Gói 4) mang trạng thái phân loại HIỆU LỰC vào từng dòng,
     để bảng này vừa là bảng kê vừa là HÀNG ĐỢI XỬ LÝ: một dòng thiếu giá vì
     chưa phân loại và một dòng thiếu giá vì ngoài bảng giá hiện cùng một ô
     trống, nhưng cần hai hành động khác nhau. `None` cho ra chính xác hành vi
     trước R2.
     """
+    binding_exceptions = binding_exceptions or {}
     rows = []
     for detail in details:
         line = detail["line"]
         identity = line_identity.state_of(detail, decisions=decisions)
+        raised = binding_exceptions.get((
+            detail["order_key"], detail["product_key"],
+            detail["occurrence_index"]))
         provenance = line.purchase_provenance
         blockers = line.profit_blockers
         # `S121` — một dòng hàng cho ra MỘT dòng bảng khi không có chiết khấu,
@@ -910,7 +946,9 @@ def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
             "purchase_price_input": (
                 "" if line.purchase_price is None else format_number(line.purchase_price)),
             "provenance": provenance,
-            "provenance_label": PROVENANCE_LABELS[provenance],
+            # `.get(...)` chứ không `[...]`: một provenance chưa có nhãn phải
+            # hiện NGUYÊN VĂN mã của nó, không làm sập cả trang bảng kê.
+            "provenance_label": PROVENANCE_LABELS.get(provenance, provenance),
             "pending": line.purchase_price is None,
             "overridden": provenance in (
                 bm.PROVENANCE_MANUAL, bm.PROVENANCE_MANUAL_OVERRIDE),
@@ -932,6 +970,10 @@ def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
             "identity_title": identity.title,
             "identity_key": identity.identity_key,
             "can_identify": identity.classifiable,
+            # --- R3 §1: ngoại lệ gắn dòng còn mở trên chính dòng này -----
+            "binding_exception_id": None if raised is None else raised.id,
+            "binding_exception_note": (
+                "" if raised is None else _binding_note(raised)),
             "can_mark_out_of_catalog": bool(
                 identity.identity_key is not None
                 and identity.classification in (
@@ -963,6 +1005,23 @@ def detail_rows(details: list[dict], *, decisions=None) -> list[dict]:
         for part in discount_parts:
             rows.append(_discount_row(detail, line, part))
     return rows
+
+
+def _binding_note(raised) -> str:
+    """Một câu nói ĐỦ để Owner quyết, không phải một mã lỗi.
+
+    Nó phải trả lời được ba câu: hệ thống đang phân vân giữa những khoá nào,
+    quyết định nào đang treo ở đó, và vì sao dòng này lại mang một khoá mới.
+    """
+    decisions = ", ".join(raised.protected_decisions) or "một quyết định"
+    candidates = ", ".join(str(index)
+                           for index in raised.candidate_occurrence_indexes)
+    return (
+        f"Khi nạp lại sổ, hệ thống KHÔNG ghép chắc chắn được dòng này với các "
+        f"khoá cũ ({candidates}) của cùng đơn và cùng mặt hàng — ở đó đang "
+        f"treo {decisions}. Dòng nhận một khoá mới và không quyết định nào bị "
+        f"gắn nhầm. Hãy kiểm tra rồi bấm ĐÃ XỬ LÝ."
+    )
 
 
 def _discount_row(detail: dict, line: bm.BusinessLine,
@@ -1531,7 +1590,8 @@ __all__ = [
     "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
-    "assignable_employee_options", "coverage_cell", "detail_rows",
+    "assignable_employee_options", "close_summary", "coverage_cell",
+    "detail_rows",
     "KPI_PROFIT_NOTE", "pending_items", "reporting_rows", "sheet_display_order",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",
