@@ -144,6 +144,19 @@ EXCLUDED_NOTE = (
     "toán gốc KHÔNG bị xoá — bấm KHÔI PHỤC là dòng trở lại đúng chỗ cũ."
 )
 
+# R5 §1 — câu chữ của danh sách "Không còn trong file đầy đủ". Viết bằng
+# NGÔN NGỮ HÀNH ĐỘNG: nó phải trả lời được hai câu người dùng thật sự hỏi khi
+# nhìn thấy một cái tên đơn biến mất khỏi báo cáo — "vì sao nó rơi ra" và
+# "tôi phải làm gì để nó quay lại". Câu cũ ("ứng viên đã xoá khỏi nguồn, đưa
+# vào Review") trả lời cả hai bằng từ vựng của hệ thống, không của kế toán.
+REMOVED_IN_SOURCE_NOTE = (
+    "Những dòng dưới đây KHÔNG còn trong sổ mà bạn đã xác nhận là đầy đủ cho "
+    "khoảng ngày của chúng, nên chúng đã được TẠM LOẠI: không góp vào doanh "
+    "thu, lợi nhuận, DS quy đổi, Target hay file Excel của bất kỳ sheet nào. "
+    "Lịch sử KHÔNG bị xoá — nạp lại một sổ có chứa dòng đó là cảnh báo tự mất "
+    "và các con số tự khôi phục."
+)
+
 GIA_DUNG_CONFIRM_QUESTION = "Chuyển dòng này sang Gia dụng?"
 GIA_DUNG_CONFIRM_POINTS = (
     "Gỡ khỏi Nội thành",
@@ -551,6 +564,51 @@ def excluded_rows(excluded: list[dict]) -> list[dict]:
     ]
 
 
+def removed_in_source_rows(removed: list[dict]) -> list[dict]:
+    """Dòng đang bị TẠM LOẠI vì không còn trong sổ đã xác nhận đầy đủ (R5 §1).
+
+    Cùng hình dạng và cùng kỷ luật với `excluded_rows`: Số BH · ngày cũ ·
+    sản phẩm · nhân viên, và KHÔNG một ô tiền nào. Ở đây kỷ luật ấy còn chặt
+    hơn một bậc — các con số của những dòng này VỪA bị trừ khỏi mọi chỉ tiêu
+    của kỳ, nên in lại chúng ngay bên dưới là đặt đúng số vừa trừ cạnh đúng
+    cái tổng vừa giảm.
+
+    Khác `excluded_rows` ở một chỗ, và chỗ đó là lý do không gộp hai hàm: ở
+    đây KHÔNG có nút khôi phục. Owner không "bỏ loại" được một dòng mà sổ kế
+    toán không còn chứa — đường quay lại duy nhất là nạp một sổ có nó, và
+    câu chữ phải nói đúng như vậy chứ không mời bấm một nút không tồn tại.
+    """
+    return [
+        {
+            "order_key": detail["order_key"],
+            "product_key": detail["product_key"],
+            "occurrence_index": detail["occurrence_index"],
+            "date_text": business_date(detail["sale_date"]),
+            "product_raw": detail["product_raw"] or "—",
+            "employee": detail["line"].employee or UNKNOWN_EMPLOYEE,
+            "snapshot_id": detail["removed"]["raised_by_snapshot_id"],
+            "range_text": _confirmed_range_text(detail["removed"]),
+        }
+        for detail in sorted(
+            removed,
+            key=lambda item: (item["sale_date"] is None, item["sale_date"],
+                              item["order_key"], item["occurrence_index"]))
+    ]
+
+
+def _confirmed_range_text(removed: dict) -> str:
+    """Khoảng ngày mà sổ kia đã được xác nhận là đầy đủ, viết ra thành lời.
+
+    Thiếu một trong hai đầu ⟹ chuỗi rỗng, không đoán: một khoảng nửa vời in
+    ra màn hình đọc như một sự thật, và người đọc sẽ dùng nó để kết luận sổ
+    nào đã phủ ngày nào.
+    """
+    start, end = removed.get("range_start"), removed.get("range_end")
+    if not start or not end:
+        return ""
+    return f"{business_date(date.fromisoformat(start))} → {business_date(date.fromisoformat(end))}"
+
+
 def period_options(
     periods: list[tuple[int, int]], *, selected: tuple[int, int], today: date,
 ) -> list[dict]:
@@ -602,6 +660,7 @@ def sheet_view(
 
 __all__ = [
     "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
+    "REMOVED_IN_SOURCE_NOTE", "removed_in_source_rows",
     "EXCLUDE_CONFIRM_QUESTION", "GIA_DUNG_CONFIRM_POINTS",
     "GIA_DUNG_CONFIRM_QUESTION", "LOSS_CODES", "MOM_NO_PREVIOUS",
     "PROGRESS_NOTE", "SHEET_DETAIL_COLUMNS", "SHORT_TAGS",

@@ -1302,6 +1302,54 @@ class SnapshotRepository:
             for row in self._read(statement.order_by(reconciliation_flag.c.id).limit(limit))
         ])
 
+    def removed_candidate_keys(self) -> dict:
+        """Khoá dòng ĐANG BỊ TẠM LOẠI khỏi dữ liệu hiệu lực (`DEC-R5-01`).
+
+        Đây là bề mặt DUY NHẤT mà tầng nghiệp vụ hỏi câu "dòng nào đã biến mất
+        khỏi một sổ đã được xác nhận đầy đủ, và còn đang biến mất". Nó KHÔNG
+        đọc gì thêm ngoài đúng bảng cờ mà PRA-002 slice B đã ghi, và nó KHÔNG
+        ghi một byte nào: việc tạm loại xảy ra LÚC ĐỌC, đúng chỗ và đúng cách
+        mà override giá nhập và phân loại Gia dụng đã làm từ PHB-03.
+
+        Hai bộ lọc, và cả hai đều bắt buộc:
+
+        1. ``kind == REMOVED_IN_SOURCE_CANDIDATE``. Cờ ``NOT_SEEN_IN_LATEST_
+           SNAPSHOT`` của một sổ CHƯA xác nhận đầy đủ KHÔNG có mặt ở đây —
+           nó vẫn chỉ là cảnh báo, đúng như trước R5. Phân biệt này là toàn
+           bộ khác biệt giữa "chưa đủ căn cứ loại" và "đã đủ".
+        2. ``is_active``. Một cờ mô tả đúng cái snapshot đã dựng nó và không
+           bao giờ sai; nhưng nếu dòng đã quay lại ở một sổ nạp SAU đó thì nó
+           thôi mô tả hiện tại. Trạng thái ấy do ``_with_absence_state`` tính
+           lúc đọc từ chính lịch sử membership — nên "dòng quay lại thì tổng
+           tự khôi phục" đúng theo cấu tạo, không nhờ ai nhớ gỡ cờ.
+
+        Trả về ``{(order_key, product_key, occurrence_index): bằng chứng}``.
+        Bằng chứng đi kèm để màn hình cảnh báo nói được VÌ SAO một dòng bị
+        loại (sổ nào, khoảng nào, lúc nào) mà không phải hỏi lại database.
+        """
+        flags = self._with_absence_state([
+            _decode(row, ("detail_json",))
+            for row in self._read(
+                select(reconciliation_flag)
+                .where(reconciliation_flag.c.kind
+                       == history_models.FLAG_REMOVED_CANDIDATE)
+                .order_by(reconciliation_flag.c.id)
+            )
+        ])
+        removed: dict = {}
+        for flag in flags:
+            if not flag.get("is_active"):
+                continue
+            detail = flag.get("detail_json") or {}
+            removed[(flag["order_key"], flag["product_key"],
+                     flag["occurrence_index"])] = {
+                "raised_by_snapshot_id": flag["raised_by_snapshot_id"],
+                "confirmed_at": flag["created_at"],
+                "range_start": detail.get("range_start"),
+                "range_end": detail.get("range_end"),
+            }
+        return removed
+
     def _with_absence_state(self, flags: list[dict]) -> list[dict]:
         """Gắn ``is_active`` cho cờ vắng mặt — DẪN XUẤT, không sửa lịch sử.
 

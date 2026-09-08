@@ -599,6 +599,39 @@
      >XEM TẤT CẢ DÒNG CỦA SHEET NÀY</a></p>
 </div>
 
+{# --- KHÔNG CÒN TRONG FILE ĐẦY ĐỦ -------------------------------------
+   R5 §1 — dòng bị TẠM LOẠI vì sổ đã được xác nhận đầy đủ không còn chứa
+   nó. Cùng hình dạng với danh sách "đã loại khỏi báo cáo" ngay dưới, và
+   cùng kỷ luật: KHÔNG một ô tiền nào. Khác đúng một chỗ — không có nút
+   KHÔI PHỤC, vì đường quay lại duy nhất là nạp một sổ có chứa dòng đó, và
+   một cái nút ở đây sẽ hứa một điều Reports không làm được. #}
+{% if removed_in_source %}
+<div class="module">
+  <h2>Không còn trong file đầy đủ
+    <span class="cnt">{{ removed_in_source|length }} dòng</span></h2>
+  <p class="insight" data-metric="removed-note">{{ REMOVED_IN_SOURCE_NOTE }}</p>
+  <div class="tp-scroll">
+  <table>
+    <tr><th>Ngày cũ</th><th>Mã đơn</th><th>Mặt hàng</th><th>Nhân viên</th>
+      <th>Sổ đã xác nhận</th></tr>
+    {% for row in removed_in_source %}
+    <tr data-metric="removed-row" data-order="{{ row.order_key }}">
+      <td data-metric="removed-date">{{ row.date_text }}</td>
+      <td class="code" data-metric="removed-order">{{ row.order_key }}</td>
+      <td data-metric="removed-product">{{ row.product_raw }}</td>
+      <td data-metric="removed-employee">{{ row.employee }}</td>
+      <td class="tp-label">
+        <a href="{{ url_for('snapshot_detail', snapshot_id=row.snapshot_id) }}"
+           data-metric="removed-snapshot">{{ row.snapshot_id }}</a>
+        {% if row.range_text %}<br>{{ row.range_text }}{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endif %}
+
 {# --- DÒNG ĐÃ LOẠI KHỎI BÁO CÁO ---------------------------------------
    `§56` CASE EX-07 — bấm nhầm cái thùng rác là chuyện sẽ xảy ra, nên thao
    tác đó phải đảo ngược được. Danh sách này KHÔNG mang một ô tiền nào: một

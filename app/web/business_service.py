@@ -39,6 +39,7 @@ from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
 from app.web.binding_exceptions import BindingExceptionStore
 from app.web.business_store import BusinessDecisionStore
+from app.web.history_store import SnapshotRepository
 from app.web.period_lock import (
     ClosedPeriod, PeriodCloseStore, PeriodClosedError, content_fingerprint,
 )
@@ -75,12 +76,28 @@ class PeriodData:
     `excluded` giữ RIÊNG các dòng đó, để màn hình khôi phục được chúng
     (`§56` CASE EX-07). Nó cố ý không phải một phần của `lines`: một danh sách
     mà "có mặt nhưng không tính" là đúng lớp lỗi mà việc tách này đóng lại.
+
+    R5 (`DEC-R5-01`) thêm `removed_in_source` theo ĐÚNG hình dạng đó, và có
+    chủ ý dùng lại cấu tạo ấy chứ không phát minh một cơ chế thứ hai: một
+    dòng không còn trong một sổ ĐÃ ĐƯỢC XÁC NHẬN ĐẦY ĐỦ cũng là một dòng
+    "có mặt trong lịch sử nhưng không được tính", và mọi chỉ tiêu chưa được
+    viết ra hôm nay sẽ tự đúng vì nó không nằm trong `lines`.
+
+    Khác biệt DUY NHẤT giữa hai danh sách là ai ra quyết định: `excluded` do
+    Owner bấm, `removed_in_source` do chính người dùng xác nhận "sổ này đầy
+    đủ" rồi sổ đó không chứa dòng. Cái sau tự đảo ngược khi dòng quay lại;
+    cái trước cần một lần bấm KHÔI PHỤC.
     """
 
     lines: list
     details: list
     totals: bm.BusinessTotals
     excluded: list = field(default_factory=list)
+    #: R5 §1 — dòng bị TẠM LOẠI vì không còn trong một sổ đã xác nhận đầy đủ.
+    #: Chỉ để tra cứu (Số BH · ngày cũ · sản phẩm · nhân viên); KHÔNG mang một
+    #: ô tổng tiền nào, vì cộng tiền của chúng ở bất cứ đâu là mời người đọc
+    #: cộng nhầm đúng số vừa được trừ ra.
+    removed_in_source: list = field(default_factory=list)
     # R3 §1 — `khoá dòng → ngoại lệ gắn dòng còn mở`. Đi CÙNG kỳ chứ không
     # được tra riêng ở từng route: bảng nhân viên, tổng kỳ và hàng đợi ngoại
     # lệ phải đọc cùng một ảnh chụp, nếu không hai màn hình sẽ nói hai câu về
@@ -118,6 +135,27 @@ class PeriodData:
                 product_group=detail["classified_product_group"]),
              detail["line"].employee)
             for detail in self.details
+        ]
+
+    def removed_for_sheet(self, sheet: reporting_sheets.Sheet) -> list:
+        """Dòng đã TẠM LOẠI thuộc đúng sheet này (R5 §1).
+
+        Không đi qua `_slice`: những dòng này KHÔNG có mặt trong `lines`, nên
+        không có chỉ số nào để cắt và cũng không được phép có — cắt chúng
+        thành một `PeriodData` sẽ tạo ra một đối tượng mà `totals` của nó
+        cộng đúng những con số vừa bị trừ ra.
+
+        Sheet của một dòng vẫn tính bằng ĐÚNG `sheet_key_of` mà phân hoạch
+        chính đang dùng, chứ không bằng một quy tắc gần đúng: nếu một cảnh
+        báo hiện ở sheet khác với sheet mà dòng ấy từng góp số, người đọc sẽ
+        đi tìm khoản tiền thiếu ở sai chỗ.
+        """
+        return [
+            detail for detail in self.removed_in_source
+            if reporting_sheets.sheet_key_of(
+                employee=detail["line"].employee,
+                employee_group=detail["line"].employee_group,
+                product_group=detail["classified_product_group"]) == sheet.key
         ]
 
     def for_sheet(self, sheet: reporting_sheets.Sheet) -> "PeriodData":
@@ -179,6 +217,7 @@ class BusinessReportService:
         line_types_path: Optional[Path] = None,
         period_store: Optional[PeriodCloseStore] = None,
         binding_store: Optional[BindingExceptionStore] = None,
+        snapshot_repo=None,
     ) -> None:
         self._engine = engine
         self._store = store
@@ -190,6 +229,9 @@ class BusinessReportService:
         # và các con số nó chốt phải nằm trong cùng một database.
         self._period_store = period_store or PeriodCloseStore(engine)
         self._binding_store = binding_store or BindingExceptionStore(engine)
+        # R5 §1 — cùng `Engine`, cùng lý do như hai store trên: tập dòng bị
+        # tạm loại và các con số trừ chúng ra phải đến từ một database.
+        self._snapshot_repo = snapshot_repo or SnapshotRepository(engine)
 
     @property
     def store(self) -> BusinessDecisionStore:
@@ -291,10 +333,25 @@ class BusinessReportService:
             line_classifications=line_classifications)
 
         exclusions = self._store.line_exclusions()
-        kept, dropped = [], []
+        # R5 §1 — tập bị TẠM LOẠI vì sổ đã xác nhận đầy đủ không còn chứa
+        # dòng. Đọc MỘT lần cho cả kỳ, cùng lượt với các lớp phủ khác: nếu
+        # tra riêng ở từng route, một màn hình sẽ cộng dòng mà màn hình bên
+        # cạnh vừa trừ ra.
+        removed = self._removed_in_source()
+        kept, dropped, vanished = [], [], []
         for detail in details:
             key = (detail["order_key"], detail["product_key"],
                    detail["occurrence_index"])
+            # Thứ tự kiểm là một quyết định: "không còn trong sổ đầy đủ" đứng
+            # TRƯỚC "Owner đã loại". Cả hai đều đưa dòng ra khỏi tổng, nên
+            # con số không phụ thuộc thứ tự; nhưng một dòng vừa bị Owner loại
+            # vừa biến mất khỏi nguồn thì lời giải thích ĐÚNG là cái sau —
+            # bấm KHÔI PHỤC sẽ không đưa nó trở lại, và danh sách khôi phục
+            # hứa điều ngược lại.
+            gone = removed.get(key)
+            if gone is not None:
+                vanished.append({**detail, "removed": gone})
+                continue
             excluded = exclusions.get(key)
             if excluded is None:
                 kept.append(detail)
@@ -303,7 +360,7 @@ class BusinessReportService:
         kept_lines = [detail["line"] for detail in kept]
         return PeriodData(
             lines=kept_lines, details=kept, totals=bm.totals(kept_lines),
-            excluded=dropped,
+            excluded=dropped, removed_in_source=vanished,
             # Ba lớp phủ của R3, đọc MỘT lần cho cả kỳ. Chúng nằm ở đây —
             # cùng chỗ, cùng lượt đọc với override giá nhập và phân loại — vì
             # đó là toàn bộ ý nghĩa của "một effective data": bảng nhân viên,
@@ -313,6 +370,19 @@ class BusinessReportService:
             closed=(None if period is None
                     else self._period_store.closed(year=period[0],
                                                    month=period[1])))
+
+    def _removed_in_source(self) -> dict:
+        """Khoá dòng đang bị tạm loại, hoặc RỖNG khi không có kho snapshot.
+
+        `SnapshotRepository` dựng trên CÙNG `Engine` với `business_queries` —
+        `order_line_current` và `reconciliation_flag` nằm trong cùng một
+        migration (`0002_snapshots`), nên một kỳ đọc được dòng thì cũng đọc
+        được cờ của nó. Không có nhánh "bỏ qua nếu lỗi": một lỗi database ở
+        đây phải nổi lên như mọi lỗi database khác của vertical, chứ không
+        âm thầm biến thành "không có dòng nào bị loại" — nhánh im lặng đó
+        làm tổng CAO hơn thực tế, đúng chiều sai mà R5 sinh ra để đóng.
+        """
+        return self._snapshot_repo.removed_candidate_keys()
 
     # --- R3 §5: chốt kỳ ------------------------------------------------
 

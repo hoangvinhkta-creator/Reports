@@ -531,6 +531,7 @@ def create_app(
     for _name in ("EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE",
                   "EXCLUDE_CONFIRM_POINTS", "EXCLUDE_CONFIRM_QUESTION",
                   "GIA_DUNG_CONFIRM_POINTS", "GIA_DUNG_CONFIRM_QUESTION",
+                  "REMOVED_IN_SOURCE_NOTE",
                   "PROGRESS_NOTE", "TARGET_KVND_NOTE",
                   "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL"):
         app.jinja_env.globals[_name] = getattr(workspace_presentation, _name)
@@ -712,11 +713,24 @@ def create_app(
             return _snapshot_page(snapshot_id, error=str(exc), status=400)
         return redirect(url_for(
             "snapshot_detail", snapshot_id=snapshot_id,
+            # R5 §1 — câu này phải nói ra HỆ QUẢ THẬT của cái nút vừa bấm.
+            # Câu cũ ("đã đưa vào Review, KHÔNG xoá và VẪN tính") mô tả đúng
+            # hành vi trước R5 và nay đã sai theo chiều nguy hiểm nhất: người
+            # dùng đọc nó rồi tin rằng tổng không đổi, trong khi tổng vừa
+            # giảm đúng số tiền của những dòng ấy.
             xac_nhan=(
-                f"Đã ghi nhận xác nhận đầy đủ cho {confirmation.confirmed_range_start} "
+                f"Đã xác nhận sổ này đầy đủ cho {confirmation.confirmed_range_start} "
                 f"→ {confirmation.confirmed_range_end}. "
-                f"{confirmation.removed_candidates} dòng hiện hành trong khoảng này không "
-                "có trong sổ vừa xác nhận — đã đưa vào Review, KHÔNG xoá và VẪN tính."
+                + (
+                    f"{confirmation.removed_candidates} dòng cũ trong khoảng này không "
+                    "còn trong sổ vừa xác nhận nên đã được TẠM LOẠI khỏi mọi con số "
+                    "kinh doanh; xem danh sách “Không còn trong file đầy đủ” trên tab "
+                    "nhân viên. Lịch sử KHÔNG bị xoá — nạp lại một sổ có chứa dòng đó "
+                    "thì cảnh báo tự mất và các con số tự khôi phục."
+                    if confirmation.removed_candidates
+                    else "Mọi dòng cũ trong khoảng này đều có mặt trong sổ vừa xác "
+                         "nhận — không dòng nào bị loại và không con số nào đổi."
+                )
             ),
         ))
 
@@ -1958,6 +1972,12 @@ def create_app(
             identify=identify,
             unclassifiable_note=line_identity.UNCLASSIFIABLE_NOTE,
             excluded=workspace_presentation.excluded_rows(view["data"].excluded),
+            # R5 §1 — danh sách RIÊNG cho các dòng đã tạm loại vì không còn
+            # trong sổ đã xác nhận đầy đủ. Lọc theo đúng sheet đang xem, cùng
+            # cách `scoped` lọc mọi thứ khác: một cảnh báo của sheet khác nằm
+            # trên màn hình này là một việc không phải của người đang đọc.
+            removed_in_source=workspace_presentation.removed_in_source_rows(
+                view["data"].removed_for_sheet(sheet)),
             assignable=business_presentation.assignable_employee_options(
                 view["service"].assignable_employees()),
             editing=request.args.get("sua") or "",
