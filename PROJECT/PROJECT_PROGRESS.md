@@ -1,6 +1,93 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R6: Dashboard phân tích kinh doanh, `IMPLEMENTED`, CHƯA merge (`S143`, 2026-09-09)
+## CANONICAL CURRENT STATE — R6: Independent Review vòng 1 → `REPAIR_REQUIRED`, task `BLOCKED` (`S144`, 2026-09-09)
+
+**Phiên Independent Review. KHÔNG sửa một dòng mã sản phẩm nào, KHÔNG merge,
+KHÔNG deploy, KHÔNG làm `R7`, KHÔNG mở rộng phạm vi `R6`, KHÔNG tự đánh dấu
+Owner Acceptance.**
+
+Đối tượng: Reports `claude/r6-business-analytics-dashboard-it73x5`
+@ `56aca4c91bd788b1e14d7f71b9246d1577255c1a`, trên nền
+`claude/extract-upload-repo-gq2ws4` @ `05f2b44` (đã xác minh là ancestor) và
+Tracking `main` @ `66787c0` (chứa `dc98910`). Worktree CLEAN cả hai repo.
+Nhánh mặc định THẬT của Reports được xác định bằng `git remote show origin`,
+**không** giả định là `main`.
+
+```text
+Kết luận            REPAIR_REQUIRED
+CHECK-R6-31         NOT_TESTED → FAIL (vòng 1, E1)
+Task R6             IMPLEMENTED → BLOCKED
+
+Finding
+  FIND-R6-IR-01  REPAIR_REQUIRED — cửa sổ so sánh của CẢ HAI biểu đồ trang
+                 phân tích vẽ SỐ 0 cho một khoảng có doanh thu và số đơn THẬT.
+                 Hai biểu đồ được nạp lát dữ liệu ĐÃ LỌC theo phạm vi, trong
+                 khi cửa sổ liền trước nằm NGOÀI phạm vi ấy; trang Báo cáo của
+                 R5 đọc lại service.period() KHÔNG lọc chính vì lý do này.
+                 Đo trên SERVER FLASK THẬT, cùng sổ/kỳ/mức gộp:
+                   R5 /kinh-doanh           10/08/2026 → 7.000.000 đồng
+                   R6 /kinh-doanh/phan-tich 10/08/2026 → 0 đồng / 0 đơn
+  FIND-R6-IR-02  REPAIR_REQUIRED — bucket "Chưa xác định" đứng làm một NHÓM
+                 HÀNG HOÁ trong Basket: làm tăng ô "đơn nhiều nhóm hàng hoá"
+                 và sinh ra hàng gợi ý bán chéo giữa hai lý do chưa xác định,
+                 trong khi pair_rows không chở known/reason như group_rows.
+  AR-R6-IR-03    RECOMMENDED — mẫu số giá bán bình quân giữ số lượng của dòng
+                 thiếu total_sales trong khi tử số đã loại dòng ấy.
+  COR-R6-IR-01   tài liệu — docstring drilldown_rows dẫn một file test không
+                 tồn tại.
+
+Sáu chuỗi của brief review
+  1 Effective data và phạm vi     PASS
+  2 Tiền, SL, chiết khấu, số đơn  REPAIR_REQUIRED (FIND-R6-IR-01, AR-R6-IR-03)
+  3 Product, hãng, nhóm hàng      PASS
+  4 Basket                        REPAIR_REQUIRED (FIND-R6-IR-02)
+  5 Web, drill-down, riêng tư     PASS
+  6 Bất biến R1–R5.1              PASS
+
+Kiểm đã chạy LẠI trong phiên review (không tin số bàn giao S143)
+  Full regression    3397 passed, 12 skipped, 0 failed
+                     (bài đỏ ở lần chạy đầu là BASELINE clone nông; sau
+                      `git fetch origin 740f396…` → 41 passed)
+  Smoke R5.1         63 PASS / 0 FAIL — khớp đúng số S142 §4.5
+  Smoke xuyên 2 repo 24 PASS / 0 FAIL — producer Tracking THẬT, node v22.22.2
+  Server Flask THẬT  app.run(127.0.0.1:8971) + curl: 8 route/biến thể → 200;
+                     12 tham số hỏng → 200 (không route nào 500); POST → 405
+  Riêng tư           7 chuỗi khách hàng quét trên 8 trang: KHÔNG chuỗi nào lộ
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R6-01 … -29  PASS (E1) — xác nhận lại, không check nào đổi trạng thái
+  CHECK-R6-30        NOT_TESTED — sổ Owner không có trong môi trường review;
+                     công cụ đối soát ĐÃ được kiểm lại và tái tạo ĐỦ 8 con số
+                     vector Owner qua pipeline THẬT (KHỚP TOÀN BỘ, EXIT=0)
+  CHECK-R6-31        FAIL — vòng 1, S144
+  CHECK-R6-32        NOT_TESTED — Owner Acceptance
+  CHECK-R51-26       NOT_TESTED — GIỮ NGUYÊN, và nó VẪN CHẶN merge/deploy R6
+
+Ngân sách review   R6: 1 allowed / 0 used / 1 remaining
+                   phiên review KHÔNG tiêu cycle nào (V4.1 §3 tính theo VÒNG
+                   SỬA); REPAIR-1 sẽ tiêu cycle DUY NHẤT
+                   lineage R5 KHÔNG bị chạm: 2 allowed / 2 used / 0 remaining
+```
+
+**Bước kế tiếp: `REPAIR-1`, và nó phải xử lý CẢ BỐN mục trong CÙNG một vòng.**
+`V4.1` §3 tính cycle theo vòng, nên gộp chúng không tốn thêm gì, còn tách ra
+sẽ tiêu hết ngân sách cho một nửa danh sách. Sau `REPAIR-1` lineage `R6` hết
+ngân sách; một `REPAIR_REQUIRED` thứ hai buộc phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+**`R6` vẫn KHÔNG được merge/deploy:** `CHECK-R51-26` còn `NOT_TESTED` VÀ
+`CHECK-R6-31` vừa `FAIL`.
+
+Tài liệu: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md` ·
+`docs/sessions/S144-r6-independent-review.md` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+---
+
+## R6: Dashboard phân tích kinh doanh, `IMPLEMENTED`, CHƯA merge (`S143`, 2026-09-09)
 
 **Phiên triển khai đầy đủ: mã, test, tài liệu. KHÔNG mở PR, KHÔNG merge,
 KHÔNG deploy, KHÔNG sửa một byte nào của repo Tracking.**

@@ -3,13 +3,14 @@
 ## Metadata
 
 Status:
-IMPLEMENTED
+BLOCKED
 
 Current Status Reason:
-Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports. Không
-migration, không bảng mới, không warehouse, không materialized view, không API
-ngoài, không route GHI — `R6` là một tầng CHỈ ĐỌC dựng trên `PeriodData` hiệu
-lực của `R3`–`R5`.
+Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED` — chi tiết ngay
+dưới. Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
+Không migration, không bảng mới, không warehouse, không materialized view,
+không API ngoài, không route GHI — `R6` là một tầng CHỈ ĐỌC dựng trên
+`PeriodData` hiệu lực của `R3`–`R5`.
 
 `CHECK-R6-01` … `CHECK-R6-29` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S143-r6-dashboard-phan-tich.md` §4).
@@ -20,8 +21,42 @@ trong môi trường phiên này. Công cụ đối soát đã viết và đã �
 trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); còn thiếu đúng một lần
 chạy trên sổ thật.
 
-`CHECK-R6-31` (Independent Review) và `CHECK-R6-32` (Owner Acceptance)
-`NOT_TESTED` — phiên triển khai KHÔNG tự đóng hai check này.
+`CHECK-R6-31` (Independent Review) — **ĐÃ CHẠY vòng 1** ở `S144`
+(2026-09-09) trên exact HEAD `56aca4c91bd788b1e14d7f71b9246d1577255c1a`.
+Kết luận **`REPAIR_REQUIRED`** → `CHECK-R6-31` = `FAIL` (E1). Task chuyển
+`IMPLEMENTED` → `BLOCKED` cho tới khi `REPAIR-1` xử lý xong finding và một
+vòng review thứ hai chạy lại trên HEAD sau repair.
+
+Finding của vòng 1 (hai mục BẮT BUỘC, hai mục nên làm):
+
+```text
+FIND-R6-IR-01  cửa sổ so sánh của CẢ HAI biểu đồ vẽ số 0 cho một khoảng có
+               doanh thu và số đơn THẬT — hai biểu đồ được nạp lát dữ liệu ĐÃ
+               LỌC theo phạm vi, trong khi cửa sổ liền trước nằm NGOÀI phạm vi
+               ấy; `_covered_by_confirmed` biến chỗ trống thành số 0 mang cờ
+               "đã đo". Trang Báo cáo của R5 đọc lại `service.period()` KHÔNG
+               lọc chính vì lý do này.
+FIND-R6-IR-02  bucket "Chưa xác định" đứng làm một NHÓM HÀNG HOÁ trong Basket:
+               nó làm tăng `multi_merchandise_category_orders` và sinh ra hàng
+               gợi ý bán chéo giữa hai lý do chưa xác định, trong khi
+               `pair_rows` không chở `known`/`reason` như `group_rows`.
+AR-R6-IR-03    (RECOMMENDED) mẫu số giá bán bình quân giữ số lượng của dòng
+               thiếu `total_sales` trong khi tử số đã loại dòng ấy — và
+               `data_quality` đang in ra một bất biến mà mã không giữ.
+COR-R6-IR-01   (tài liệu) docstring `drilldown_rows` dẫn một file test không
+               tồn tại.
+```
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
+tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
+
+**Ngân sách:** `R6` có `1 repair cycle`. `REPAIR-1` phải xử lý CẢ BỐN mục
+trên trong CÙNG một vòng — sau đó lineage hết ngân sách, và một
+`REPAIR_REQUIRED` thứ hai buộc phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+`CHECK-R6-32` (Owner Acceptance) vẫn `NOT_TESTED` — phiên review KHÔNG tự
+đóng nó.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -168,7 +203,7 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 [x] Smoke producer Tracking thật → capture thật → dashboard/drill-down
 [x] Full regression R1–R5.1 + validators governance + `git diff --check`
 [ ] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30)
-[ ] Independent Review (CHECK-R6-31)
+[!] Independent Review (CHECK-R6-31) — ĐÃ CHẠY vòng 1, kết luận REPAIR_REQUIRED
 [ ] Owner Acceptance (CHECK-R6-32)
 ```
 
@@ -208,7 +243,7 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 | `CHECK-R6-28` | Công cụ đối soát tái tạo ĐỦ tám con số vector Owner qua pipeline THẬT | PASS | E1 |
 | `CHECK-R6-29` | Smoke xuyên hai repo: producer Tracking THẬT → dashboard THẬT | PASS | E1 |
 | `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | NOT_TESTED | — |
-| `CHECK-R6-31` | Independent Review | NOT_TESTED | — |
+| `CHECK-R6-31` | Independent Review | FAIL | E1 |
 | `CHECK-R6-32` | Owner Acceptance trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md` §4.

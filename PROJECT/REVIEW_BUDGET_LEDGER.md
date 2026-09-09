@@ -3393,6 +3393,8 @@ effective_risk: MEDIUM
 repair_cycles_allowed: 1
 repair_cycles_used: 0
 repair_cycles_remaining: 1
+review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
+next_action: REPAIR-1 (sẽ tiêu cycle duy nhất) — xem mục cuối lineage này
 ```
 
 Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
@@ -3473,3 +3475,75 @@ CHECK-R51-26 NOT_TESTED — chặn MERGE/DEPLOY của R6 (xem DEC-207 §10)
 ```
 
 Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md`.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED` (`S144`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+exact HEAD reviewed    56aca4c91bd788b1e14d7f71b9246d1577255c1a
+nền xác nhận           Reports  claude/extract-upload-repo-gq2ws4 @ 05f2b44
+                       Tracking main                             @ 66787c0
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03)
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu bởi PHIÊN REVIEW   0   (phiên review KHÔNG sửa mã)
+số dư sau S144         1 allowed / 0 used / 1 remaining
+CHECK-R6-31            NOT_TESTED → FAIL (vòng 1, E1)
+```
+
+Phiên review **KHÔNG tiêu** một cycle nào: `V4.1` §3 tính cycle theo VÒNG SỬA,
+và `S144` chỉ đọc/chạy/kiểm, không sửa một dòng mã sản phẩm. Cycle sẽ bị tiêu
+khi `REPAIR-1` chạy — cùng cách hạch toán mà lineage `R5` đã dùng ở `S135`.
+
+Hai finding `REPAIR_REQUIRED`:
+
+```text
+FIND-R6-IR-01  Cửa sổ so sánh của CẢ HAI biểu đồ trang phân tích vẽ SỐ 0 cho
+               một khoảng có doanh thu và số đơn THẬT. `_revenue_chart_for_scope`
+               và `_orders_chart` nạp cho `paired_series()` lát dữ liệu ĐÃ LỌC
+               theo phạm vi, trong khi cửa sổ liền trước theo định nghĩa nằm
+               NGOÀI phạm vi ấy; `_covered_by_confirmed` biến chỗ không có điểm
+               thành `Decimal(0)` mang `origin=ORIGIN_CURRENT`. Trang Báo cáo
+               của R5 đọc lại `service.period()` KHÔNG lọc chính vì lý do này.
+               Đo trên SERVER FLASK THẬT, cùng sổ/kỳ/mức gộp:
+                 R5 /kinh-doanh           10/08/2026 → 7.000.000 đồng
+                 R6 /kinh-doanh/phan-tich 10/08/2026 → 0 đồng / 0 đơn
+FIND-R6-IR-02  Bucket "Chưa xác định" đứng làm một NHÓM HÀNG HOÁ trong Basket:
+               nó làm tăng `multi_merchandise_category_orders` và sinh ra hàng
+               gợi ý bán chéo giữa hai lý do chưa xác định, trong khi
+               `pair_rows` không chở `known`/`reason` như `group_rows` và
+               template render hai cột y hệt một cặp thật.
+```
+
+Cả hai thuộc nhóm mà brief `R6` §7 đã liệt kê TRƯỚC là bắt buộc repair
+("sai tổng tiền, sai số đơn, … hoặc **gộp sai khó phát hiện**"), nên không có
+tranh cãi nào về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+`FIND-R6-IR-01` rơi thẳng vào failure path đã chấm ở trên
+(*"→ quyết định kinh doanh của Owner"*): nó dựng một tín hiệu tăng trưởng bịa
+trên đúng trang được làm ra để quyết định mua hàng.
+
+`AR-R6-IR-03` (mẫu số giá bán bình quân giữ số lượng của dòng thiếu
+`total_sales`) và `COR-R6-IR-01` (docstring dẫn một file test không tồn tại)
+là `RECOMMENDED` và tài liệu — chúng KHÔNG tự tiêu một cycle riêng, nhưng nên
+được xử lý trong cùng `REPAIR-1` vì lý do ngân sách ngay dưới.
+
+**Cảnh báo ngân sách.** `REPAIR-1` sẽ tiêu cycle DUY NHẤT của lineage `R6`
+(`1 allowed / 1 used / 0 remaining`). Vì thế `REPAIR-1` phải xử lý CẢ BỐN mục
+trong CÙNG một vòng — `V4.1` §3 tính theo vòng, nên gộp chúng lại không tốn
+thêm gì, còn tách ra sẽ tiêu hết ngân sách cho một nửa danh sách. Nếu vòng
+Independent Review thứ hai lại ra `REPAIR_REQUIRED`, `R6` KHÔNG được mở repair
+cycle thứ hai mà phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+```text
+CHECK-R6-30  NOT_TESTED — sổ Owner KHÔNG có mặt trong môi trường review
+                          (/Users/hoangvinh/… là đường dẫn trên máy Owner);
+                          công cụ đối soát ĐÃ được kiểm lại trong phiên này và
+                          tái tạo đủ tám con số vector Owner qua pipeline THẬT
+CHECK-R6-31  FAIL       — vòng 1, S144
+CHECK-R6-32  NOT_TESTED — phiên review KHÔNG tự đóng Owner Acceptance
+CHECK-R51-26 NOT_TESTED — vẫn chặn MERGE/DEPLOY của R6 (DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
+tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
