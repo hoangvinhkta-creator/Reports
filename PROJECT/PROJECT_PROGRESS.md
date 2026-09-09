@@ -15,8 +15,21 @@ lược bỏ vì chỉ mô tả trạng thái MÔI TRƯỜNG/nhánh `R6` gốc, 
 nhánh integration này: đoạn giải thích baseline `1 failed → 0 failed` của
 `S145` (một vấn đề clone nông trên nhánh khác), và cờ
 `INTEGRATION_DECISION_REQUIRED` theo LOC tích luỹ của `R6` (`S145` §8b — nhánh
-này không tích luỹ LOC của `R6`). Baseline THẬT của nhánh này được đo lại từ
-đầu — xem §5 của phiên chuẩn bị integration.
+này không tích luỹ LOC của `R6`).
+
+**Baseline THẬT của nhánh integration này** (đo lại từ đầu, KHÔNG suy từ số
+liệu `S146`/`S147` — những số đó là bản ghi lịch sử của nhánh `R6` gốc, có
+tập test khác hẳn):
+
+```text
+Full regression    3275 passed / 11 skipped / 0 failed
+Smoke R5.1          83 PASS / 0 FAIL (§5 trống + §6 cũ)
+Governance          structure/project_state/evidence/task_completion PASS;
+                    reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+git diff --check    sạch
+```
+
+Chi tiết đầy đủ: `docs/sessions/S148-r51-repair-2-integration-branch.md`.
 
 ---
 

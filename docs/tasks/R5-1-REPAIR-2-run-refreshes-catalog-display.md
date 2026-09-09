@@ -23,6 +23,15 @@ ghi gần nhất `NO_METADATA`/`WRITE_FAILED` VÀ có mã CONFIRMED thiếu nhã
 `CHECK-R51R2-17` … `CHECK-R51R2-19` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S147-r51-repair-2-stale-projection-warning.md` §3–§5).
 
+**Integration branch (`S148`).** File task này (và toàn bộ `R5.1 REPAIR-2`)
+đã được cherry-pick TÁCH RIÊNG khỏi `R6` sang nhánh
+`claude/r51-repair-2-integration`, cắt từ `origin/claude/extract-upload-repo-
+gq2ws4` — để Independent Review của `REPAIR-2` không kéo theo `R6` (đang
+`BLOCKED`). Baseline đo lại TRÊN nhánh đó: full regression `3275 passed / 11
+skipped / 0 failed`, smoke `R5.1` `83 PASS / 0 FAIL`. Chi tiết:
+`docs/sessions/S148-r51-repair-2-integration-branch.md`. Trạng thái:
+`READY_FOR_INDEPENDENT_REVIEW`.
+
 `CHECK-R51R2-15` (Independent Review của REPAIR-2, bao CẢ HAI vòng) và
 `CHECK-R51R2-16` (Owner nghiệm thu lại trên production) `NOT_TESTED` — phiên
 repair KHÔNG tự đóng.
