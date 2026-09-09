@@ -390,6 +390,38 @@ def money_kvnd(value: Optional[Decimal]) -> str:
     return _thousand_vnd(value)
 
 
+# `DEC-212` — Owner chốt 09/09/2026: MỌI con số tiền trên màn hình viết theo
+# NGHÌN ĐỒNG, kể cả ĐƠN GIÁ của từng dòng hàng, không riêng các ô tổng đã đổi
+# ở `R1` §9. Lý do là lý do cũ, chỉ mở rộng phạm vi: một bảng mà cột tổng viết
+# `13.550` còn cột giá bán ngay cạnh viết `13.550.000` bắt người đọc đổi đơn
+# vị giữa hai cột kề nhau, và đó là chỗ một con số bị đọc lệch một nghìn lần.
+#
+# Bản VND đầy đủ KHÔNG bị bỏ: nó chuyển sang tooltip, đúng hợp đồng mà
+# `gated_cell`/`money_cell` đã dựng — không đường nào mất khả năng xem lại số
+# gốc. Ô NHẬP LIỆU là ngoại lệ có chủ đích, xem `PRICE_INPUT_NOTE`.
+#: Vì sao Ô NHẬP giữ VND đầy đủ trong khi mọi ô ĐỌC đã rút gọn.
+#:
+#: Rút gọn là một cách VIẾT ra; ô nhập là một cách ĐỌC vào, và hai chiều đó
+#: không đối xứng. Một ô hiện `5.000` mà lưu `5.000.000` buộc Owner phải nhớ
+#: mình đang gõ đơn vị nào — và lần quên đầu tiên ghi vào sổ một giá nhập sai
+#: đúng một nghìn lần, ở một trường mà cả lợi nhuận KPI lẫn DS quy đổi đều
+#: đọc. Không có tooltip nào cứu được một con số đã ghi sai.
+PRICE_INPUT_NOTE = (
+    "Ô nhập giá vẫn dùng VND đầy đủ (13.550.000), khác các ô chỉ để đọc — "
+    "gõ vào và đọc ra là hai chiều khác nhau."
+)
+
+
+def price_pair(value: Optional[Decimal], key: str) -> dict:
+    """`{key: bản nghìn đồng, key + "_full": bản VND đầy đủ}`.
+
+    Trả về một `dict` để nơi gọi `**`-ghép thẳng vào hàng, giữ hai bản LUÔN
+    đi cùng nhau: tách chúng thành hai lệnh gán riêng là mở đường cho một
+    hàng có bản rút gọn mà không có bản đối chiếu.
+    """
+    return {key: _thousand_vnd(value), f"{key}_full": _decimal(value)}
+
+
 def percent(value: Optional[Decimal], *, sign: bool = False) -> str:
     """`None` ⟹ `—`. KHÔNG BAO GIỜ in vô cực hay một phần trăm bịa."""
     if value is None:
@@ -955,8 +987,9 @@ def detail_rows(details: list[dict], *, decisions=None,
             "sale_date": business_date(detail["sale_date"]),
             "product_raw": detail["product_raw"] or "—",
             "quantity": _decimal(product.quantity),
-            "sell_price": _decimal(product.sell_price),
-            "purchase_price": _decimal(product.purchase_price),
+            **price_pair(product.sell_price, "sell_price"),
+            **price_pair(product.purchase_price, "purchase_price"),
+            # Ô NHẬP giữ VND ĐẦY ĐỦ (`PRICE_INPUT_NOTE`).
             "purchase_price_input": (
                 "" if line.purchase_price is None else format_number(line.purchase_price)),
             "provenance": provenance,
@@ -969,7 +1002,8 @@ def detail_rows(details: list[dict], *, decisions=None,
             # `R2` — bối cảnh của chính lần Owner sửa: giá tự động NGAY TRƯỚC
             # lần sửa đó, và lúc sửa. Chỉ có ở dòng MANUAL_OVERRIDE; dòng
             # MANUAL không có giá tự động nào để thay, nên `—`.
-            "auto_price_at_entry": _decimal(detail.get("override_auto_price_at_entry")),
+            **price_pair(detail.get("override_auto_price_at_entry"),
+                         "auto_price_at_entry"),
             "has_auto_price_at_entry": (
                 detail.get("override_auto_price_at_entry") is not None),
             "entered_at": detail.get("override_entered_at") or "",
@@ -1069,14 +1103,15 @@ def _discount_row(detail: dict, line: bm.BusinessLine,
         "sale_date": business_date(detail["sale_date"]),
         "product_raw": DISCOUNT_ROW_LABEL,
         "quantity": _decimal(part.quantity),
-        "sell_price": _decimal(part.sell_price),
-        "purchase_price": _decimal(part.purchase_price),
+        **price_pair(part.sell_price, "sell_price"),
+        **price_pair(part.purchase_price, "purchase_price"),
         "purchase_price_input": "",
         "provenance": DISCOUNT_PROVENANCE,
         "provenance_label": DISCOUNT_PROVENANCE_LABEL,
         "pending": False,
         "overridden": False,
         "auto_price_at_entry": "—",
+        "auto_price_at_entry_full": "—",
         "has_auto_price_at_entry": False,
         "entered_at": "",
         "entered_by": "",

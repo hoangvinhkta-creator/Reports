@@ -45,7 +45,7 @@ from app.web.analytics_presentation import UNKNOWN_EMPLOYEE, count
 from app.web.business_presentation import (
     MOM_NO_PREVIOUS, STATE_LABELS, _decimal, _derived_cell, _thousand_vnd,
     business_date, coverage_cell, gated_cell, month_over_month, percent,
-    period_label, sheet_display_order,
+    period_label, price_pair, sheet_display_order,
 )
 from app.web.legacy_presentation import format_number
 
@@ -621,9 +621,12 @@ def sheet_detail_totals(details: list[dict]) -> dict:
                 purchase += part.purchase_price
             if part.sell_price is not None:
                 sell += part.sell_price
+    # `DEC-212` — hàng tổng viết theo NGHÌN ĐỒNG như mọi ô tiền khác, và phải
+    # dùng ĐÚNG hàm của tầng trình bày nghiệp vụ: viết lại phép chia 1.000 ở
+    # đây là cách hàng tổng làm tròn lệch đi so với chính các dòng nó cộng.
     return {
-        "purchase_price": _decimal(purchase),
-        "sell_price": _decimal(sell),
+        **price_pair(purchase, "purchase_price"),
+        **price_pair(sell, "sell_price"),
     }
 
 

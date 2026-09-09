@@ -925,7 +925,7 @@ def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
         "ky": "2026-01", "loc": "tat-ca", "gia_nhap": "6.000.000"})
 
     after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=tat-ca")
-    assert metric(after, "purchase_price") == "6.000.000"
+    assert metric(after, "purchase_price") == "6.000"  # nghìn đồng (DEC-212)
     assert metric(after, "provenance") == "Owner đã nhập"
     assert metric(after, "line-profit") == "2.000.000"       # (8tr − 6tr) × 1
     # DS quy đổi = 2.000.000 ÷ 2 % = 100.000.000 (phép CHIA, `DEC-PHB02-04`).

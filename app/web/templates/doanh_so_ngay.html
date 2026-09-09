@@ -26,8 +26,10 @@
   <h2>Tháng {{ '%02d' % selected[1] }}/{{ selected[0] }} {{ legacy.legacy_badge() }}
       <span class="cnt">{{ days|length }} ngày</span></h2>
   <p class="insight">
-    Đơn vị: đồng (số cũ) — DataChart lưu VND nguyên, KHÁC đơn vị nghìn đồng của
-    Summary. Hai nguồn số này không được đối chiếu với nhau (ý nghĩa chưa xác định).
+    Hiện theo nghìn đồng như mọi ô tiền khác (`DEC-212`); bản VND đầy đủ xem
+    được khi rê chuột. Nguồn lưu thì khác nhau: DataChart lưu VND nguyên, còn
+    Summary lưu nghìn đồng — hai nguồn số này không được đối chiếu với nhau
+    (ý nghĩa chưa xác định).
   </p>
   <div class="tp-scroll">
   <table>

@@ -426,7 +426,7 @@ def test_an_overridden_row_shows_the_auto_price_it_replaced_and_when(
 
     after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
     assert metric(after, "provenance").startswith("Owner đã sửa")
-    assert metric(after, "auto-price-at-entry") == "5.000.000"
+    assert metric(after, "auto-price-at-entry") == "5.000"  # nghìn đồng
     assert metric(after, "entered-at") != ""
 
 

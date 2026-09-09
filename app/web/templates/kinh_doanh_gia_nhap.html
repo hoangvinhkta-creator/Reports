@@ -123,9 +123,10 @@
         {% endif %}
         {% endif %}</td>
       <td class="num">{{ row.quantity }}</td>
-      <td class="num">{{ row.sell_price }}</td>
+      <td class="num" title="{{ row.sell_price_full }} đồng">{{ row.sell_price }}</td>
       <td class="num{{ ' empty-cell' if row.pending }}"
-          data-metric="purchase_price">{{ row.purchase_price }}</td>
+          data-metric="purchase_price"
+          title="{{ row.purchase_price_full }} đồng">{{ row.purchase_price }}</td>
       <td data-metric="provenance">{{ row.provenance_label }}
         {# `R2` — bối cảnh của chính lần Owner sửa, đọc từ dữ liệu đã lưu sẵn.
            Không có kiến trúc lịch sử mới: hai trường này nằm trong bảng
@@ -134,7 +135,9 @@
         <span class="tp-unit" data-metric="override-context">
           {% if row.has_auto_price_at_entry %}
           Giá tự động trước khi sửa:
-          <span data-metric="auto-price-at-entry">{{ row.auto_price_at_entry }}</span> ·
+          <span data-metric="auto-price-at-entry"
+                title="{{ row.auto_price_at_entry_full }} đồng"
+                >{{ row.auto_price_at_entry }}</span> ·
           {% endif %}
           sửa lúc <span data-metric="entered-at">{{ row.entered_at }}</span>
         </span>

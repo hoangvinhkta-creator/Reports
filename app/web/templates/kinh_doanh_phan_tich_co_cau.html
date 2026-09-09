@@ -29,12 +29,17 @@
        chia") cần hai câu, vì chỉ một trong hai có chỗ sửa. #}
     <td class="num{{ ' empty-cell' if row.average_price.missing }}"
         data-metric="average-price"
-        {% if row.average_price.reason %}title="{{ row.average_price.reason }}"{% endif %}
+        {% if row.average_price.reason %}title="{{ row.average_price.reason }}"
+        {%- elif not row.average_price.missing %}title="{{ row.average_price.text_full }} đồng"{% endif %}
         >{{ row.average_price.text }}</td>
     <td class="num{{ ' empty-cell' if row.min_price.missing }}"
-        data-metric="min-price">{{ row.min_price.text }}</td>
+        data-metric="min-price"
+        {% if not row.min_price.missing %}title="{{ row.min_price.text_full }} đồng"{% endif %}
+        >{{ row.min_price.text }}</td>
     <td class="num{{ ' empty-cell' if row.max_price.missing }}"
-        data-metric="max-price">{{ row.max_price.text }}</td>
+        data-metric="max-price"
+        {% if not row.max_price.missing %}title="{{ row.max_price.text_full }} đồng"{% endif %}
+        >{{ row.max_price.text }}</td>
   </tr>
   {% endfor %}
 </table>

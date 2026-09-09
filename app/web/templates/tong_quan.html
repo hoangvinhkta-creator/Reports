@@ -20,7 +20,8 @@
 
   <div class="kpi-grid">
     {{ pipeline.kpi('Tổng số lượng', overview.quantity, 'quantity') }}
-    {{ pipeline.kpi('Doanh thu (net)', overview.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.kpi('Doanh thu (net)', overview.total_sales, 'total_sales',
+                    'nghìn đồng', full=overview.total_sales_full) }}
     {{ pipeline.profit_kpi('Lợi nhuận KPI', overview.kpi_profit, 'kpi_profit') }}
     {{ pipeline.kpi('Đơn AUTO', overview.auto_orders, 'auto_orders') }}
     {{ pipeline.kpi('Đơn cần kiểm tra', overview.review_orders, 'review_orders') }}

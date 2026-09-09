@@ -179,7 +179,10 @@ def test_G_partial_kpi_coverage_sums_only_the_known_lines(engine):
     assert row["kpi_profit"] == Decimal("1000000")
     assert (row["kpi_lines"], row["lines"]) == (1, 2)
     cell = sp.product_row(row)["kpi_profit"]
-    assert cell["text"] == "1.000.000" and cell["coverage"] == "1 / 2 dòng"
+    # `DEC-212` — ô tiền viết theo NGHÌN ĐỒNG; bản VND đầy đủ đi kèm ở
+    # `text_full` và vẫn phải là con số cũ, không tròn đi.
+    assert cell["text"] == "1.000" and cell["text_full"] == "1.000.000"
+    assert cell["coverage"] == "1 / 2 dòng"
 
 
 def test_H_zero_known_kpi_lines_reports_none_not_zero(engine):
@@ -303,9 +306,13 @@ def test_M_a_period_with_no_lines_returns_an_empty_list_not_an_exception(golden_
     rows = sq.product_totals(golden_engine, **empty_bounds)
     assert rows == []
     empty_totals = aq.period_totals(golden_engine, **empty_bounds)
+    # `DEC-212` — mỗi ô TIỀN nay mang thêm bản VND đầy đủ (`*_full`). Kỳ rỗng
+    # thì cả hai bản đều `—`, không bản nào là `0`.
     assert sp.product_summary(rows, empty_totals) == {
-        "item_count": "0", "quantity": "—", "total_sales": "—",
-        "kpi_profit": {"text": "—", "coverage": "0 / 0 dòng", "missing": True},
+        "item_count": "0", "quantity": "—",
+        "total_sales": "—", "total_sales_full": "—",
+        "kpi_profit": {"text": "—", "text_full": "—",
+                       "coverage": "0 / 0 dòng", "missing": True},
     }
 
 

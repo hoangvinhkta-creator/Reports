@@ -32,7 +32,8 @@
       <td data-metric="employees">{{ order.employees }}</td>
       <td class="num" data-metric="lines">{{ order.lines }}</td>
       <td class="num" data-metric="quantity">{{ order.quantity }}</td>
-      <td class="num" data-metric="total_sales">{{ order.total_sales }}</td>
+      <td class="num" data-metric="total_sales"
+          title="{{ order.total_sales_full }} đồng">{{ order.total_sales }}</td>
       {{ pipeline.profit_cells(order) }}
       <td class="num">
         <span class="tag {{ 'tag-review' if order.review else 'tag-auto' }}"

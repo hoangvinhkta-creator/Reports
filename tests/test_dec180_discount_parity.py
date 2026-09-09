@@ -304,7 +304,9 @@ class TestDiscountRowsNeverContaminatePHB03:
         assert len(synthetic) == 1
         assert synthetic[0]["pending"] is False
         assert synthetic[0]["blockers"] == []
-        assert synthetic[0]["purchase_price"] == "100.000", "là TIỀN chiết khấu"
+        # `DEC-212` — ô đọc theo nghìn đồng, bản VND đầy đủ ở `*_full`.
+        assert synthetic[0]["purchase_price"] == "100", "là TIỀN chiết khấu"
+        assert synthetic[0]["purchase_price_full"] == "100.000"
 
     def test_case_4_the_pending_filter_never_selects_a_discount_row(
         self, repository, client

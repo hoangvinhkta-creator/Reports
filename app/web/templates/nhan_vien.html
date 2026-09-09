@@ -48,7 +48,8 @@
       <td class="num" data-metric="orders">{{ row.orders }}</td>
       <td class="num" data-metric="lines">{{ row.lines }}</td>
       <td class="num" data-metric="quantity">{{ row.quantity }}</td>
-      <td class="num" data-metric="total_sales">{{ row.total_sales }}</td>
+      <td class="num" data-metric="total_sales"
+          title="{{ row.total_sales_full }} đồng">{{ row.total_sales }}</td>
       {{ pipeline.profit_cells(row) }}
     </tr>
     {% endfor %}

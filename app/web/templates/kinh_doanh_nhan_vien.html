@@ -392,8 +392,12 @@
       <td></td>
       <td class="col-optional"></td><td class="col-optional"></td><td class="col-optional"></td>
       <td></td><td></td>
-      <td class="num" data-metric="totals-purchase">{{ detail_totals.purchase_price }}</td>
-      <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
+      <td class="num" data-metric="totals-purchase"
+          title="{{ detail_totals.purchase_price_full }} đồng"
+          >{{ detail_totals.purchase_price }}</td>
+      <td class="num" data-metric="totals-sell"
+          title="{{ detail_totals.sell_price_full }} đồng"
+          >{{ detail_totals.sell_price }}</td>
       {{ biz.derived_cell(sheet.kpi_profit, 'totals-profit') }}
       {{ biz.derived_cell(strip.converted_sales, 'totals-converted') }}
       <td></td><td></td><td></td><td></td>
@@ -570,9 +574,10 @@
                name="gia_nhap__{{ row.product_key }}__{{ row.occurrence_index }}"
                value="{{ row.purchase_price_input }}"
                data-metric="line-purchase-input" aria-label="Giá nhập">
-        {% else %}{{ row.purchase_price }}{% endif %}
+        {% else %}<span title="{{ row.purchase_price_full }} đồng"
+          >{{ row.purchase_price }}</span>{% endif %}
       </td>
-      <td class="num">{{ row.sell_price }}</td>
+      <td class="num" title="{{ row.sell_price_full }} đồng">{{ row.sell_price }}</td>
       {{ biz.derived_cell(row.kpi_profit, 'line-profit') }}
       {{ biz.derived_cell(row.converted_sales, 'line-converted') }}
       {% if first %}

@@ -336,10 +336,17 @@ def test_an_auto_line_shows_both_purchase_prices_and_both_profits():
     trong hai vĩnh viễn không kiểm được (mục 12.C)."""
     row = sp.line_row(line())
     assert row["status"] == "AUTO"
-    assert row["accounting_purchase_price"] == "10.250.000"
-    assert row["kpi_purchase_price"] == "10.250.000"
-    assert row["accounting_profit"] == "500.000"
-    assert row["kpi_profit"] == "400.000"
+    # `DEC-212` — ô đọc viết theo NGHÌN ĐỒNG; bản VND đầy đủ đi kèm ở `*_full`
+    # và phải giữ NGUYÊN con số cũ. Kiểm cả hai: chỉ kiểm bản rút gọn sẽ để
+    # lọt một lỗi chia 1.000 hai lần.
+    assert row["accounting_purchase_price"] == "10.250"
+    assert row["accounting_purchase_price_full"] == "10.250.000"
+    assert row["kpi_purchase_price"] == "10.250"
+    assert row["kpi_purchase_price_full"] == "10.250.000"
+    assert row["accounting_profit"] == "500"
+    assert row["accounting_profit_full"] == "500.000"
+    assert row["kpi_profit"] == "400"
+    assert row["kpi_profit_full"] == "400.000"
     assert row["reasons"] == []
 
 
@@ -421,8 +428,15 @@ def test_the_product_summary_reuses_the_accepted_period_totals_verbatim():
     summary = sp.product_summary(rows, totals())
     assert summary["item_count"] == "2"
     assert summary["quantity"] == "5"
-    assert summary["total_sales"] == "30"
-    assert summary["kpi_profit"]["text"] == "3"
+    # Fixture dùng những con số bé (30 đồng, 3 đồng) để phép TÁI DỤNG nhìn ra
+    # ngay bằng mắt. Ở `DEC-212` chúng rút xuống nghìn đồng thành `0` — đúng
+    # phép làm tròn, và bản `*_full` vẫn giữ con số gốc, nên bài kiểm vẫn canh
+    # đúng mệnh đề của nó: tổng của trang bằng ĐÚNG tổng của kỳ, không tính
+    # lại. Sổ thật của Owner không có ô tiền nào ở độ lớn này.
+    assert summary["total_sales"] == "0"
+    assert summary["total_sales_full"] == "30"
+    assert summary["kpi_profit"]["text"] == "0"
+    assert summary["kpi_profit"]["text_full"] == "3"
     assert summary["kpi_profit"]["coverage"] == "1 / 3 dòng"
 
 

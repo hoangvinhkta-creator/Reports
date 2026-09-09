@@ -17,7 +17,8 @@
   <div class="kpi-grid">
     {{ pipeline.kpi(PRODUCT_ITEM_COUNT_LABEL, summary.item_count, 'item_count') }}
     {{ pipeline.kpi('Tổng số lượng', summary.quantity, 'quantity') }}
-    {{ pipeline.kpi('Doanh thu (net)', summary.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.kpi('Doanh thu (net)', summary.total_sales, 'total_sales',
+                    'nghìn đồng', full=summary.total_sales_full) }}
     {{ pipeline.profit_kpi('LN KPI', summary.kpi_profit, 'kpi_profit') }}
   </div>
 
@@ -39,7 +40,8 @@
       <td data-metric="product-label">{{ row.product_label }}</td>
       <td class="num" data-metric="quantity">{{ row.quantity }}</td>
       <td class="num" data-metric="order-count">{{ row.order_count }}</td>
-      <td class="num" data-metric="total-sales">{{ row.total_sales }}</td>
+      <td class="num" data-metric="total-sales"
+          title="{{ row.total_sales_full }} đồng">{{ row.total_sales }}</td>
       {{ pipeline.profit_cells(row) }}
     </tr>
     {% endfor %}
