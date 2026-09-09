@@ -69,34 +69,49 @@ Chi tiết đầy đủ, rủi ro, và điều kiện xem lại: `DEC-203`.
 ### 3.1 Tracking — PR #26
 
 ```text
-$ merge_pull_request(owner=hoangvinhkta-creator, repo=tracking, pullNumber=26)
+$ merge_pull_request(owner=hoangvinhkta-creator, repo=tracking, pullNumber=26,
+                     expectedHeadSha=f958226f6127e6055eb411e4c22e12c58d09654b,
+                     merge_method="merge")
+→ merged: true
+  sha: 918183c48c4d4c45b5ce1348d734e073e537c6e4
 ```
-
-(Kết quả merge — SHA thật, xem §4 sau khi thực thi.)
 
 ### 3.2 Reports — PR #12
 
 ```text
 $ merge_pull_request(owner=hoangvinhkta-creator, repo=reports, pullNumber=12,
-                     expectedHeadSha=<HEAD của claude/r5-integration-vinh SAU
-                     khi đẩy commit cập nhật CHECK-R5-27/28, DEC-203, S137>)
+                     expectedHeadSha=c91cf78f33c1d12bfe3bbdbe89170da79e7331d8,
+                     merge_method="merge")
+→ merged: true
+  sha: f5e4e76399dfc6c1c1d337f654e6993dcd2990e2
 ```
-
-(Kết quả merge — SHA thật, xem §4.)
 
 ---
 
-## 4. Trạng thái sau merge
-
-(Điền bằng SHA thật ngay sau khi hai lệnh merge ở §3 thực thi — xem commit
-theo sau file này trong cùng phiên nếu bảng dưới chưa được cập nhật.)
+## 4. Trạng thái sau merge — xác nhận lại bằng fetch thật
 
 ```text
-Tracking merge commit    <điền sau merge>
-Tracking default (main)  <tip sau merge>
-Reports merge commit     <điền sau merge>
-Reports default          <tip sau merge>
+Tracking merge commit    918183c48c4d4c45b5ce1348d734e073e537c6e4
+Tracking default (main)  918183c48c4d4c45b5ce1348d734e073e537c6e4 (= merge commit,
+                          GitHub làm fast-forward — không tạo commit merge
+                          hai cha vì main chưa có commit riêng nào lệch)
+Reports merge commit     f5e4e76399dfc6c1c1d337f654e6993dcd2990e2
+Reports default          f5e4e76399dfc6c1c1d337f654e6993dcd2990e2 (= merge
+                          commit, cũng fast-forward)
+
+$ git merge-base --is-ancestor f958226f… origin/main                    → YES
+$ git merge-base --is-ancestor c91cf78f… origin/claude/extract-upload-repo-gq2ws4 → YES
+$ bash scripts/branch_authority_check.sh   (chạy lại trên default SAU merge)
+  DEFAULT_TIP == HEAD_SHA == f5e4e76…   DIVERGENCE: WITHIN_LIMITS   AUTHORITY_OK
+$ python governance/scripts/governance/validate_reference_integrity.py
+  FAIL — đúng 3 baseline TASK-REM-T06 (không đổi so với trước merge)
 ```
+
+Không tạo commit merge hai cha (`--no-ff`) — GitHub tự chọn fast-forward
+merge vì cả hai default branch chưa có commit riêng nào phân kỳ khỏi nhánh
+nguồn. Toàn bộ lịch sử R5 (implementation → REPAIR-1 → review vòng 1 →
+override `DEC-203`) nay nằm nguyên vẹn, tuyến tính trên default branch của
+cả hai repo.
 
 ---
 
