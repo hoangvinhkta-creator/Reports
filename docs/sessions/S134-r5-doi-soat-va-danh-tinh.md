@@ -226,6 +226,16 @@ KẾT QUẢ SMOKE: TẤT CẢ PASS
 
 Smoke này ĐANG HỎNG TRƯỚC R5 và hỏng vì chính nó, không vì sản phẩm — xem §6.
 
+> **ĐÍNH CHÍNH (`S135` §5).** Bản đầu của bàn giao này liệt kê
+> `tools/smoke/r1_daily_min_smoke.py` như một lượt chạy đã PASS. Điều đó SAI:
+> phiên `S134` đo `EXIT=$?` sau một `| tail`, nên nó đọc mã thoát của `tail`
+> chứ không của Python — và công cụ ấy cần một file capture làm tham số nên
+> lượt "chạy" đó chỉ in ra thông báo cách dùng. Chạy đúng với fixture có sẵn
+> thì nó CRASH, và crash y hệt trên nền `b6756fe` trước R5: một lỗi baseline
+> cũ của công cụ kiểm, ghi lại thành `AR-R5-IR-12`. Khẳng định PASS ấy đã
+> được rút; smoke qua HTTP thật ở trên KHÔNG bị ảnh hưởng (nó được đo đúng,
+> `EXIT=0`).
+
 ---
 
 ## 5. Bằng chứng — Tracking
@@ -448,7 +458,8 @@ Lệnh tái lập, từ gốc mỗi repo:
 uv venv .venv && VIRTUAL_ENV=$PWD/.venv uv pip install -e ".[dev,web,history]"
 .venv/bin/python -m pytest -q
 .venv/bin/python tools/smoke/r1_web_upload_smoke.py --tracking-repo <đường/dẫn/Tracking>
-.venv/bin/python tools/smoke/r1_daily_min_smoke.py
+# `r1_daily_min_smoke.py` CẦN một file capture làm tham số, và nó đang CRASH
+# với fixture có sẵn — lỗi baseline cũ, xem `S135` §5 (`AR-R5-IR-12`).
 for v in governance/scripts/governance/validate_*.py; do .venv/bin/python "$v"; done
 bash scripts/branch_authority_check.sh
 

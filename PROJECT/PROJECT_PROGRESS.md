@@ -1,6 +1,51 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5 = IMPLEMENTED (chưa review, chưa merge, chưa deploy) (2026-09-08)
+## CANONICAL CURRENT STATE — R5 = IMPLEMENTED sau REPAIR-1; Independent Review vòng 1 FAIL, chờ chạy lại (2026-09-09)
+
+**Independent Review vòng 1 kết luận `REPAIR_REQUIRED`. REPAIR-1 đã xong.**
+Hai finding, cả hai đã sửa và có test tái hiện đi qua đường production:
+
+```text
+FIND-R5-IR-01  bấm XONG gán lại CẢ BH cho nhân viên đầu danh sách khi BH có
+               0 hoặc ≥2 nhân viên hiệu lực — ô chọn không có mục "giữ
+               nguyên", nên không option nào `selected`, nên trình duyệt gửi
+               option ĐẦU TIÊN.   ['Quý','Vinh'] → ['Hiệp'];  [None] → ['Hiệp']
+
+FIND-R5-IR-02  dòng quay lại KHÔNG được khôi phục khi hai lần nạp rơi vào
+               cùng một giây — mốc snapshot ghi ở `timespec="seconds"`, phép
+               so ngặt. Tổng thấp hơn VĨNH VIỄN, không nút khôi phục.
+               CÙNG GIÂY (độ phân giải thật của production): 12tr → 8tr
+```
+
+Cả hai có CÙNG hình dạng, và nó là bài học chứ không phải hai lỗi rời rạc:
+**R5 lấy một cơ chế đã đúng ở ngữ cảnh cũ, đặt nó vào một ngữ cảnh nơi cái giá
+của sai lầm khác hẳn, và không tính lại chiều an toàn của nó.** Trong cả hai
+trường hợp, mã cũ có một chú thích nói rõ vì sao nó an toàn — và R5 làm cho
+chính câu chú thích ấy thôi đúng, mà không ai đọc lại nó.
+
+```text
+Reports  HEAD  1d971de21a82f5a2ca367180de6ae257133a02b1
+Tracking HEAD  f958226f6127e6055eb411e4c22e12c58d09654b   (KHÔNG đổi)
+Reports  test  3232 passed, 12 skipped   (trước repair: 3223)
+repair cycle   1 tiêu — R5 còn 2 allowed / 1 used / 1 remaining
+```
+
+`CHECK-R5-27` = `FAIL` (vòng 1) và CHƯA được chạy lại trên HEAD sau repair.
+`CHECK-R5-28`, `CHECK-R3-20`, `CHECK-R4-24` KHÔNG chạm. Bàn giao repair:
+`docs/sessions/S135-r5-repair-1.md`.
+
+Hai việc CHỈ Owner nghiệm thu bằng mắt được (phiên kiểm được DOM/CSS/JS,
+không kiểm được hình học thật): toạ độ popover trên màn hình thật, và hai cột
+Hãng/IMEI cắt đúng một dòng.
+
+`INTEGRATION_DECISION_REQUIRED` và điều kiện `S133` KHÔNG đổi. Reviewer khuyến
+nghị tích hợp NGUYÊN KHỐI sau repair — gói 3 và gói 4 đều đọc `PeriodData` mà
+gói 1 định nghĩa lại, nên tách gói tạo một tổ hợp chưa ai chạy. Quyết định vẫn
+thuộc Owner.
+
+---
+
+## R5 — IMPLEMENTED (bản triển khai đầu, trước review) (2026-09-08)
 
 **R5 đã triển khai đầy đủ trên nền R4 đã merge (`b6756fe`), trên CẢ HAI repo.**
 Owner ban hành `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm`: đóng năm khoảng cách giữa
@@ -10406,7 +10451,8 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
   - **DEC-201** — R4: trang đánh giá CHỈ ĐỌC trên một effective data; không
     chỉ tiêu dẫn xuất từ lợi nhuận nào được công bố khi coverage chưa đủ.
   - **DEC-202** — R5: sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi
-    số liệu (loại LÚC ĐỌC, không hard-delete, tái xuất hiện tự khôi phục);
+    số liệu (loại LÚC ĐỌC, không hard-delete, tái xuất hiện tự khôi phục —
+    REPAIR-1 sửa đúng chỗ "tự khôi phục" này khi hai lần nạp cùng một giây);
     biểu đồ hai cửa sổ liền kề cùng độ dài; một form cấp BH với `XONG` là nút
     gửi duy nhất; hãng/model do Tracking chuẩn hoá và IMEI mở đúng một route.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,

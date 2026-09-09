@@ -10,9 +10,20 @@ Toàn bộ năm gói của `R5 Audit & Execution Brief — Đối soát sổ, bi
 HAI repo. Không migration mới, không schema mới, không bảng mới.
 
 `CHECK-R5-01` … `CHECK-R5-26` PASS (E1, bằng chứng nguyên văn ở
-`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`). `CHECK-R5-27` (Independent
-Review) và `CHECK-R5-28` (Owner nghiệm thu) VẪN `NOT_TESTED` — phiên triển
-khai này KHÔNG tự đóng hai check đó, đúng kỷ luật đã áp cho R1, R2, R3 và R4.
+`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`).
+
+**Independent Review vòng 1 → `REPAIR_REQUIRED`; REPAIR-1 đã xong
+(`S135`, 2026-09-09).** Hai finding, cả hai đã sửa và có test tái hiện đi qua
+đường production: `FIND-R5-IR-01` (bấm `XONG` gán lại cả BH cho nhân viên đầu
+danh sách khi BH có 0 hoặc ≥2 nhân viên hiệu lực) và `FIND-R5-IR-02` (dòng
+quay lại không được khôi phục khi hai lần nạp rơi vào cùng một giây — mốc
+snapshot ghi ở độ phân giải giây, phép so ngặt). Thêm `AR-R5-IR-11` (docstring
+hứa một khẳng định không có trong thân bài) đã sửa. Chi tiết + bằng chứng:
+`docs/sessions/S135-r5-repair-1.md`.
+
+`CHECK-R5-27` (Independent Review) = `FAIL` ở vòng 1 và CHƯA được chạy lại
+trên HEAD sau repair — phiên repair KHÔNG tự đóng nó. `CHECK-R5-28` (Owner
+nghiệm thu) VẪN `NOT_TESTED`. Đúng kỷ luật đã áp cho R1, R2, R3 và R4.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -165,14 +176,22 @@ Tracking:
 | `CHECK-R5-24` | Tracking xuất `model_label`/`brand` đã chuẩn hoá; không lộ `cat`/giá/tồn/NCC/note/link | PASS | E1 |
 | `CHECK-R5-25` | Reports đọc CẢ artifact cũ lẫn mới; hash mới gồm hai trường; hai trường KHÔNG tham gia nhận diện | PASS | E1 |
 | `CHECK-R5-26` | IMEI chỉ ở route nhân viên; hai cột ẩn mặc định, nút chung, cột hẹp cắt một dòng; popover một ô tìm, tối đa một gợi ý | PASS | E1 |
-| `CHECK-R5-27` | Independent Review | NOT_TESTED | — |
+| `CHECK-R5-27` | Independent Review | FAIL (vòng 1) — chờ chạy lại sau REPAIR-1 | E1 |
 | `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
+| `CHECK-R5-29` | `XONG` không gán lại cả BH khi BH có 0 hoặc ≥2 nhân viên hiệu lực | PASS | E1 |
+| `CHECK-R5-30` | Mọi ô chọn nhân viên LUÔN có đúng một option được chọn | PASS | E1 |
+| `CHECK-R5-31` | Dòng quay lại được khôi phục kể cả khi ba lần nạp cùng một giây | PASS | E1 |
+| `CHECK-R5-32` | Mốc snapshot phân giải hơn một giây; mốc cũ hơn HẲN vẫn giữ cờ | PASS | E1 |
 
 Bằng chứng nguyên văn (lệnh + output):
 `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md` §4–§7.
 
 `CHECK-R5-27` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi bất kỳ phiên triển
-khai nào.
+khai nào — kể cả một phiên REPAIR. `CHECK-R5-29` … `CHECK-R5-32` là các check
+MỚI do REPAIR-1 thêm, và chúng canh đúng hai finding mà review đã tìm ra;
+chúng KHÔNG thay thế `CHECK-R5-27`.
+
+Bằng chứng REPAIR-1: `docs/sessions/S135-r5-repair-1.md` §2, §3, §6.
 
 ---
 
@@ -205,3 +224,8 @@ khai nào.
 
 `AR-R5-01` … `AR-R5-05` — xem `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`
 §8. Không rủi ro nào trong số đó thuộc nhóm `REPAIR_REQUIRED` của brief §8.
+
+`AR-R5-IR-12` (công cụ `r1_daily_min_smoke.py` crash với fixture có sẵn — lỗi
+baseline cũ, đo được trên `b6756fe`) và `AR-R5-IR-13` (bản ghi CŨ ghi mốc tới
+giây vẫn không phân giải được thứ tự; `>=` nghiêng về GIỮ TIỀN) — xem
+`docs/sessions/S135-r5-repair-1.md` §7.

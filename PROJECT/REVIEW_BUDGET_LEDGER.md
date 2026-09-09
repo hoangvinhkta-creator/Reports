@@ -3149,3 +3149,29 @@ khai của R4 — nó ĐỌC một R4 đã merge vào nhánh mặc định (`b67
 `r1_web_upload_smoke.py` (`dad8513`) là một sửa chữa CÔNG CỤ KIỂM, trên một
 lỗi có trước R5 và đo được là hỏng y hệt trên `b6756fe`; nó không phải một
 repair cycle của R4 và không tiêu ngân sách của lineage nào.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED`; REPAIR-1 (`S135`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+finding REPAIR         2  (FIND-R5-IR-01, FIND-R5-IR-02)
+finding ACCEPTED_RISK  1 sửa luôn (AR-R5-IR-11), 2 mới ghi (AR-R5-IR-12/13)
+repair cycle tiêu      1
+số dư sau REPAIR-1     2 allowed / 1 used / 1 remaining
+HEAD sau repair        1d971de21a82f5a2ca367180de6ae257133a02b1
+CHECK-R5-27            FAIL (vòng 1) — CHƯA chạy lại trên HEAD sau repair
+```
+
+Đây là repair cycle ĐẦU TIÊN và duy nhất bị tiêu trên lineage `R5`. Nó tiêu
+đúng một cycle vì cả hai finding thuộc CÙNG một vòng review và được sửa trong
+CÙNG một phiên — `V4.1` §3 tính theo VÒNG, không theo số finding.
+
+Cả hai finding đều thuộc nhóm `REPAIR_REQUIRED` mà brief R5 §8 đã liệt kê
+trước (`tổng sai khó thấy` và `sửa nhầm dòng/BH`), nên không có tranh cãi nào
+về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+
+Số dư còn `1 remaining`. Nếu vòng review kế tiếp lại ra `REPAIR_REQUIRED`,
+lineage `R5` hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
+
+Bằng chứng nguyên văn: `docs/sessions/S135-r5-repair-1.md`.
