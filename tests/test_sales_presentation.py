@@ -435,8 +435,8 @@ def test_the_product_summary_reuses_the_accepted_period_totals_verbatim():
     # lại. Sổ thật của Owner không có ô tiền nào ở độ lớn này.
     assert summary["total_sales"] == "0"
     assert summary["total_sales_full"] == "30"
-    assert summary["kpi_profit"]["text"] == "0"
-    assert summary["kpi_profit"]["text_full"] == "3"
+    assert summary["kpi_profit"]["text_kvnd"] == "0"
+    assert summary["kpi_profit"]["text"] == "3"
     assert summary["kpi_profit"]["coverage"] == "1 / 3 dòng"
 
 

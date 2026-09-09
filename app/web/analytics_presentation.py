@@ -203,7 +203,7 @@ def coverage(covered: int, total: int) -> str:
 def profit(value: Optional[Decimal], covered: int, total: int) -> dict:
     """Một ô lợi nhuận LUÔN đi kèm coverage (quy tắc P4) — không có đường nào
     render con số lợi nhuận mà thiếu mẫu số của nó."""
-    return {"text": price(value), "text_full": price_full(value),
+    return {"text": price_full(value), "text_kvnd": price(value),
             "coverage": coverage(covered, total),
             "missing": value is None}
 

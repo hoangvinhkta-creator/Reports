@@ -48,8 +48,8 @@
   <span class="tp-label">{{ label }}</span>
   <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
           data-metric="{{ metric }}"
-          {% if not cell.missing %}title="{{ cell.text_full }} đồng"{% endif %}
-          >{{ cell.text }}</strong>
+          {% if not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+          >{{ cell.text_kvnd }}</strong>
   <span class="tp-unit" data-metric="{{ metric }}-coverage">{{ cell.coverage }}</span>
 </div>
 {%- endmacro %}
@@ -78,8 +78,8 @@
 {% macro profit_cells(row) -%}
 {% for metric in ['kpi_profit'] %}
 <td class="num{{ ' empty-cell' if row[metric].missing }}"
-    title="{{ PIPELINE_BADGE }} · coverage {{ row[metric].coverage }}">
-  <span data-metric="{{ metric }}">{{ row[metric].text }}</span>
+    title="{{ PIPELINE_BADGE }} · coverage {{ row[metric].coverage }}{% if not row[metric].missing %} · {{ row[metric].text }} đồng{% endif %}">
+  <span data-metric="{{ metric }}">{{ row[metric].text_kvnd }}</span>
   <span class="tp-unit" data-metric="{{ metric }}-coverage">{{ row[metric].coverage }}</span>
 </td>
 {% endfor %}

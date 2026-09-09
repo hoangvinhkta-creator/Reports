@@ -11,7 +11,7 @@
 <td class="num{{ ' empty-cell' if cell.empty }}"
     title="{{ LEGACY_BADGE }} · {{ cell.unit }}{% if cell.text_full %} · {{ cell.text_full }} đồng{% endif %}{% for d in cell.defects %} · {{ d.label }}{% endfor %}">
   <span class="tp-unit">{{ LEGACY_BADGE }}</span>
-  {{ cell.text }}
+  {{ cell.text_kvnd }}
   {% for d in cell.defects %}<span class="tag tag-defect" title="{{ d.label }}">{{ d.code }}</span>{% endfor %}
 </td>
 {%- endmacro %}

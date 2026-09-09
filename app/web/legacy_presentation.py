@@ -100,17 +100,18 @@ def format_cell(value: Optional[Decimal], unit_kind: str) -> str:
 def cell(row: dict, field: str, unit_kind: str) -> dict:
     """Một ô hiển thị: giá trị đã định dạng + đơn vị + mã lỗi của đúng ô đó.
 
-    `text_full` là bản VND đầy đủ của một ô `"vnd"` đã rút gọn — cùng hợp đồng
-    hai-bản mà `business_presentation.price_pair` dựng, để không ô nào mất
-    đường xem lại số gốc. Ô không phải `"vnd"` không có bản thứ hai nào, và
-    `None` ở đó nói đúng điều ấy thay vì lặp lại `text`.
+    Cùng HỢP ĐỒNG Ô TIỀN với phần còn lại của repo (`DEC-212`): `text` là bản
+    đầy đủ/nguyên gốc, `text_kvnd` là bản để IN RA. Ô không phải `"vnd"` không
+    có gì để rút, nên hai bản bằng nhau — bằng nhau chứ không để trống, để
+    template chỉ cần một đường đọc duy nhất.
     """
     defects = (row.get("known_defects") or {}).get(FIELD_TO_COLUMN.get(field, ""), [])
+    raw = row.get(field)
+    full = format_number(raw) if unit_kind == "vnd" else format_cell(raw, unit_kind)
     return {
-        "text": format_cell(row.get(field), unit_kind),
-        "text_full": (format_number(row.get(field))
-                      if unit_kind == "vnd" and row.get(field) is not None
-                      else None),
+        "text": full,
+        "text_kvnd": format_cell(raw, unit_kind),
+        "text_full": full if unit_kind == "vnd" and raw is not None else None,
         "empty": row.get(field) is None,
         "unit": UNIT_LABELS[unit_kind],
         "defects": [{"code": code, "label": DEFECT_LABELS.get(code, code)} for code in defects],

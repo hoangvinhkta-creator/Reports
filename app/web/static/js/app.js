@@ -440,3 +440,84 @@
   document.addEventListener("DOMContentLoaded", sync);
   sync();
 })();
+
+/*
+ * `DEC-213` — nút CHỦ ĐỀ SÁNG/TỐI, chép cơ chế của Tracking.
+ *
+ * Đây là một tuỳ chọn TRÌNH BÀY thuần tuý: nó chỉ bật/tắt lớp `dark` trên
+ * `<body>` và ghi lựa chọn vào `localStorage`. Nó không gọi một route nào,
+ * không đọc/ghi một con số nghiệp vụ nào, và tắt JS thì trang vẫn dùng chủ
+ * đề sáng — đúng cùng kỷ luật "lớp tăng cường" mà cả file này đứng trên.
+ *
+ * Lớp `dark` được ĐẶT sớm hơn, bởi một script inline trong `layout.html`
+ * chạy trước lần vẽ đầu tiên; ở đây chỉ còn việc vẽ nút và xử lý cú bấm.
+ * Chia hai chỗ là có lý do: gộp cả vào file này (nạp ở cuối trang) thì
+ * người dùng nền tối thấy một nháy trắng ở mỗi lần tải trang.
+ */
+(function () {
+  "use strict";
+
+  var KEY = "tp_theme";
+
+  /* Biểu tượng vẽ VIỆC SẼ XẢY RA khi bấm, không vẽ trạng thái đang có —
+   * đang sáng thì hiện mặt trăng (bấm để sang tối). Cùng quy ước Tracking. */
+  var MOON = '<svg class="tp-ico" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M20.5 14.6A8.5 8.5 0 1 1 9.4 3.5a6.8 6.8 0 0 0 11.1 11.1Z"/></svg>';
+  var SUN = '<svg class="tp-ico" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2' +
+    'M4.6 12H2.4M21.6 12h-2.2M6.8 6.8 5.2 5.2M18.8 18.8l-1.6-1.6' +
+    'M6.8 17.2l-1.6 1.6M18.8 5.2l-1.6 1.6"/></svg>';
+
+  function stored() {
+    /* `localStorage` NÉM lỗi ở chế độ ẩn danh của vài trình duyệt. Một tuỳ
+     * chọn giao diện không được làm hỏng cả trang, nên mọi lần chạm đều
+     * được bọc và lỗi đọc là "chưa chọn gì". */
+    try {
+      return window.localStorage.getItem(KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function remember(value) {
+    try {
+      window.localStorage.setItem(KEY, value);
+    } catch (e) { /* không lưu được thì lựa chọn chỉ sống trong phiên này */ }
+  }
+
+  function render() {
+    var button = document.getElementById("btnTheme");
+    if (!button) return;
+    var dark = document.body.classList.contains("dark");
+    button.innerHTML = dark ? SUN : MOON;
+    button.title = dark ? "Chuyển sang giao diện sáng"
+                        : "Chuyển sang giao diện tối";
+    button.setAttribute("aria-label", button.title);
+    button.setAttribute("aria-pressed", dark ? "true" : "false");
+  }
+
+  function toggle() {
+    var dark = !document.body.classList.contains("dark");
+    document.body.classList.toggle("dark", dark);
+    remember(dark ? "toi" : "sang");
+    render();
+  }
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest && event.target.closest("#btnTheme");
+    if (!button) return;
+    event.preventDefault();
+    toggle();
+  });
+
+  /* Thanh đầu trang nằm NGOÀI `#app-content`, nên nó sống sót qua mỗi lần
+   * thay mảnh — nút chỉ cần vẽ một lần. Vẫn nghe `app:content-updated` để
+   * một lần điều hướng THẬT (tải lại cả trang) cũng vẽ lại đúng. */
+  document.addEventListener("DOMContentLoaded", render);
+  if (stored() === "toi") document.body.classList.add("dark");
+  render();
+})();

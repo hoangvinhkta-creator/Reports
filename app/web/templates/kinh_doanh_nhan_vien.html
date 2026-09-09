@@ -17,9 +17,9 @@
    JS — một thao tác ghi số tiền phải hoạt động giống hệt nhau ở mọi trình
    duyệt, và trạng thái sửa phải nhìn thấy được trên thanh địa chỉ. #}
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 {% import "_business_bits.html" as biz %}
 {% set active_tab = 'nhan-vien' %}
-{% set theme = 'finance' %}
 {% block title %}Reports — Nhân viên{% endblock %}
 
 {% block content %}
@@ -207,7 +207,7 @@
    khối, các dòng hàng nằm bên trong (`§22`). Nền xen kẽ theo NGÀY, không
    theo dòng (`§38`). #}
 <div class="module">
-  <h2>Bảng kê {{ sheet.period_label }}</h2>
+  <h2>{{ icons.ico('bang') }}Bảng kê {{ sheet.period_label }}</h2>
 
   {# `DEC-185` §13/§PI-10 — ĐÚNG MỘT dòng cảnh báo, ở đầu chính sheet này.
 
@@ -255,7 +255,7 @@
   <div class="module confirm-box identify-pop" id="phan-loai"
        data-metric="identify-panel" data-identify-pop
        data-classification="{{ identify.classification }}">
-    <h2>Phân loại mặt hàng</h2>
+    <h2>{{ icons.ico('muc-tieu') }}Phân loại mặt hàng</h2>
     <p class="insight" data-metric="identify-raw">
       Tên hàng trên sổ: <strong>{{ identify.product_raw }}</strong></p>
     {# R2 §4.2/§4.3 — ba trạng thái mở được bảng này cần ba câu khác nhau.
@@ -703,7 +703,7 @@
    một cái nút ở đây sẽ hứa một điều Reports không làm được. #}
 {% if removed_in_source %}
 <div class="module">
-  <h2>Không còn trong file đầy đủ
+  <h2>{{ icons.ico('canh-bao') }}Không còn trong file đầy đủ
     <span class="cnt">{{ removed_in_source|length }} dòng</span></h2>
   <p class="insight" data-metric="removed-note">{{ REMOVED_IN_SOURCE_NOTE }}</p>
   <div class="tp-scroll">

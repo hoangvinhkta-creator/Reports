@@ -181,7 +181,7 @@ def test_G_partial_kpi_coverage_sums_only_the_known_lines(engine):
     cell = sp.product_row(row)["kpi_profit"]
     # `DEC-212` — ô tiền viết theo NGHÌN ĐỒNG; bản VND đầy đủ đi kèm ở
     # `text_full` và vẫn phải là con số cũ, không tròn đi.
-    assert cell["text"] == "1.000" and cell["text_full"] == "1.000.000"
+    assert cell["text_kvnd"] == "1.000" and cell["text"] == "1.000.000"
     assert cell["coverage"] == "1 / 2 dòng"
 
 
@@ -311,7 +311,7 @@ def test_M_a_period_with_no_lines_returns_an_empty_list_not_an_exception(golden_
     assert sp.product_summary(rows, empty_totals) == {
         "item_count": "0", "quantity": "—",
         "total_sales": "—", "total_sales_full": "—",
-        "kpi_profit": {"text": "—", "text_full": "—",
+        "kpi_profit": {"text": "—", "text_kvnd": "—",
                        "coverage": "0 / 0 dòng", "missing": True},
     }
 

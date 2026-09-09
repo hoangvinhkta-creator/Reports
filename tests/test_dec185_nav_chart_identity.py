@@ -810,8 +810,14 @@ def test_f03_06_the_old_sellers_page_no_longer_lights_the_nhan_vien_tab(
     persist(repository, [line("BH1", "43F6000", day=5)])
     nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>',
                     body(client, "/nhan-vien?nguon=moi"), re.S).group(1)
-    on = re.findall(r'class="ncc-tab on"[^>]*>([^<]+)<', nav)
+    # Khớp trên CHÍNH thuộc tính `class`, không trên nội dung thẻ: `DEC-213`
+    # đặt một `<svg>` ngay sau `>`, nên một biểu thức đọc nội dung sẽ trả về
+    # rỗng KỂ CẢ khi có tab đang sáng — bài kiểm khi ấy xanh vĩnh viễn.
+    on = re.findall(r'class="ncc-tab on"', nav)
     assert on == [], "trang sổ thô không làm sáng tab nghiệp vụ nào"
+    # …và biểu thức ấy PHẢI bắt được một tab sáng khi có, nếu không nó chỉ
+    # đang mô tả chính sự vắng mặt của mình.
+    assert re.findall(r'class="ncc-tab on"', '<a class="ncc-tab on">x</a>')
 
 
 def test_the_official_business_screens_are_all_exclusion_aware(

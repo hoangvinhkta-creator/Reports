@@ -135,11 +135,11 @@ def price_cell(value: Optional[Decimal], reason: Optional[str] = None) -> dict:
     `AR-R6-IR-03`): "không có hàng hoá" và "chưa đủ dữ liệu để chia" là hai
     trạng thái khác nhau, và chỉ một trong hai có chỗ sửa.
     """
-    # `DEC-212` — bản NGHÌN ĐỒNG để đọc, bản VND đầy đủ để đối chiếu, cùng
-    # hợp đồng hai-bản mà `money_cell` ngay trên đã dựng. Một ô GIÁ trước đây
+    # `DEC-212` — cùng HỢP ĐỒNG hai-bản mà `money_cell` ngay trên đã dựng:
+    # `text` đầy đủ, `text_kvnd` rút gọn. Một ô GIÁ trước đây
     # chỉ có bản đầy đủ, nên nó là cột duy nhất trong bảng còn viết đủ sáu số
     # 0 cạnh những cột đã rút gọn.
-    return {"text": money_kvnd(value), "text_full": money_text(value),
+    return {"text": money_text(value), "text_kvnd": money_kvnd(value),
             "missing": value is None, "reason": reason}
 
 

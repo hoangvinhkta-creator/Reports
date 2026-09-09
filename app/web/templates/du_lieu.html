@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 {% import "_legacy_bits.html" as legacy %}
 {% set active_tab = 'du-lieu' %}
-{% set theme = 'finance' %}
 {% block title %}Reports — Dữ liệu{% endblock %}
 
 {% block content %}
@@ -57,7 +57,7 @@
 </div>
 
 <div class="module">
-  <h2>Snapshot kế toán <span class="cnt">{{ snapshots|length }}</span></h2>
+  <h2>{{ icons.ico('du-lieu') }}Snapshot kế toán <span class="cnt">{{ snapshots|length }}</span></h2>
   {% if not snapshots_configured %}
     {{ legacy.not_configured() }}
   {% else %}
@@ -105,7 +105,7 @@
 </div>
 
 <div class="module">
-  <h2>Các lần chạy pipeline <span class="cnt">{{ runs|length }}</span></h2>
+  <h2>{{ icons.ico('bang') }}Các lần chạy pipeline <span class="cnt">{{ runs|length }}</span></h2>
   <p class="insight">Số do pipeline hiện tại tính — KHÁC nguồn với bảng legacy ở trên.</p>
   <p><a class="act" href="{{ url_for('index') }}">CHẠY BÁO CÁO MỚI</a></p>
   {% if runs %}

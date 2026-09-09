@@ -802,10 +802,17 @@ def _derived_cell(value: Optional[Decimal], blockers: tuple[str, ...]) -> dict:
     kết quả bằng không; một ô `—` kèm câu "chưa có giá nhập" nói đúng sự thật
     và chỉ luôn việc phải làm.
     """
+    # `DEC-212` — HỢP ĐỒNG Ô TIỀN của repo, giống hệt `gated_cell`/`money_cell`
+    # đã dựng từ `R1` §9 và KHÔNG được đảo: `text` là bản VND ĐẦY ĐỦ (dùng cho
+    # tooltip và cho mọi phép cộng kiểm chứng), `text_kvnd` là bản NGHÌN ĐỒNG
+    # để in ra. Đặt ngược hai tên này là chỗ một `gated_cell` đi qua cùng một
+    # macro sẽ in bản đầy đủ trong khi hàng bên cạnh in bản rút gọn — đúng lỗi
+    # đã xảy ra một lần ở hàng TỔNG của bảng kê.
     if value is not None:
-        return {"text": _decimal(value), "missing": False, "reason": ""}
+        return {"text": _decimal(value), "text_kvnd": _thousand_vnd(value),
+                "missing": False, "reason": ""}
     reason = profit_gate.label(blockers[0]) if blockers else ""
-    return {"text": "—", "missing": True, "reason": reason}
+    return {"text": "—", "text_kvnd": "—", "missing": True, "reason": reason}
 
 
 # `TASK-OWNER-UIUX-002` — bảng "Theo nhân viên" của trang Báo cáo đọc CHÍNH
@@ -1611,6 +1618,36 @@ def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str
     return " — ".join(parts)
 
 
+def _window_x_ticks(slots, *, size: int) -> list[dict]:
+    """Nhãn trục X của một cửa sổ — thưa đều, và KHÔNG chồng lên nhãn cuối.
+
+    Mốc CUỐI luôn có nhãn: nó là mép phải, tức là "đến bao giờ", và một biểu
+    đồ không nói được điều đó thì mọi mốc còn lại cũng mất chỗ neo. Nhưng mốc
+    cuối không rơi đúng bước thưa, nên nó hạ cánh sát ngay cạnh nhãn thưa gần
+    nhất: với cửa sổ 31 ngày, bước 4, hai nhãn cuối là mốc 28 và mốc 30 —
+    cách nhau 6% bề rộng trong khi mỗi nhãn rộng hơn thế, và chúng chồng lên
+    nhau thành một vệt chữ không đọc được.
+
+    Cách xử lý: nhãn thưa nào cách mốc cuối CHƯA ĐỦ MỘT BƯỚC thì bỏ đi. Bỏ
+    cái thưa chứ không bỏ cái cuối — mất mép phải là mất nhiều hơn. Khoảng
+    trống rộng hơn một bước ở cuối trục là cái giá đã biết, và nó nhỏ hơn
+    hẳn cái giá của hai nhãn đè lên nhau.
+    """
+    if size <= 0:
+        return []
+    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS))
+    last = size - 1
+    keep = [slot for slot in slots
+            if slot.index == last
+            or (slot.index % stride == 0 and last - slot.index >= stride)]
+    return [
+        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
+                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
+         "label": slot.label}
+        for slot in keep
+    ]
+
+
 def paired_revenue_chart(
     paired, *, granularity: str, has_legacy_months: bool = False,
     undated: int = 0,
@@ -1637,14 +1674,7 @@ def paired_revenue_chart(
     # Nhãn trục X đọc từ CỬA SỔ HIỆN TẠI — trục là tương đối, nên nó chỉ
     # mang được một bộ nhãn thời gian, và bộ đúng là bộ của cửa sổ người
     # dùng đang hỏi về. Cửa sổ so sánh nói tên mốc của nó trong tooltip.
-    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS)) if size else 1
-    x_ticks = [
-        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
-                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
-         "label": slot.label}
-        for slot in paired.current
-        if slot.index % stride == 0 or slot.index == size - 1
-    ]
+    x_ticks = _window_x_ticks(paired.current, size=size)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
@@ -1745,14 +1775,7 @@ def paired_count_chart(
         point["title"] = _slot_title(point, paired.current_label, unit=unit)
     for point in previous_bars:
         point["title"] = _slot_title(point, paired.comparison_label, unit=unit)
-    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS)) if size else 1
-    x_ticks = [
-        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
-                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
-         "label": slot.label}
-        for slot in paired.current
-        if slot.index % stride == 0 or slot.index == size - 1
-    ]
+    x_ticks = _window_x_ticks(paired.current, size=size)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison

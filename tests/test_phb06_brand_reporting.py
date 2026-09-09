@@ -659,8 +659,10 @@ def test_the_primary_navigation_is_unchanged(client, repository):
     three_brand_period(repository)
     for path in ("/kinh-doanh", "/kinh-doanh/thuong-hieu"):
         html = body(client, path)
-        tabs = re.findall(r'class="ncc-tab[^"]*"[^>]*>([^<]+)</a>', html)
-        assert [t.strip() for t in tabs] == ["Báo cáo", "Nhân viên", "Dữ liệu"]
+        # Bóc thẻ con trước khi so: `DEC-213` đặt một `<svg>` trước nhãn.
+        tabs = re.findall(r'class="ncc-tab[^"]*"[^>]*>(.*?)</a>', html, re.S)
+        assert [re.sub(r"<[^>]+>", "", t).strip() for t in tabs] == [
+            "Báo cáo", "Nhân viên", "Dữ liệu"]
 
 
 def test_the_brand_page_is_reachable_from_bao_cao(client, repository):

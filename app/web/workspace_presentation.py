@@ -402,11 +402,12 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
         "employee_resolved": line.employee_resolved,
         "quantity": _decimal(part.quantity),
         # `§25` — "Giá nhập", đứng TRƯỚC "Giá bán".
-        "purchase_price": _decimal(part.purchase_price),
+        **price_pair(part.purchase_price, "purchase_price"),
+        # Ô NHẬP giữ VND ĐẦY ĐỦ — `business_presentation.PRICE_INPUT_NOTE`.
         "purchase_price_input": (
             "" if line.purchase_price is None
             else format_number(line.purchase_price)),
-        "sell_price": _decimal(part.sell_price),
+        **price_pair(part.sell_price, "sell_price"),
         "kpi_profit": _derived_cell(part.kpi_profit,
                                     () if synthetic else line.profit_blockers),
         "converted_sales": _derived_cell(part.converted_sales,
