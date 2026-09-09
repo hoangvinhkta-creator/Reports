@@ -1,6 +1,50 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1: nhóm hàng `category_label`, IMPLEMENTED, CHƯA merge (`S138`, 2026-09-09)
+
+**Phiên triển khai đầy đủ, KHÔNG merge, KHÔNG deploy** (brief `R5.1` §9).
+
+`category_label` được thêm vào đúng hợp đồng catalog mà `R5` đang dùng
+(`/api/xuat/board`), như một trường TÙY CHỌN thứ năm. Tracking chuẩn hoá và
+xuất; Reports chỉ đọc. Không endpoint thứ hai, không migration, không schema
+mới, không bảng mới, không product key mới.
+
+```text
+Nền đã merge (đầu phiên)
+  Reports   claude/extract-upload-repo-gq2ws4 @ 3b35b7a  (chứa R5 merge f5e4e76)
+  Tracking  main                              @ 918183c  (chứa R5 §5)
+
+HEAD cuối phiên (nhánh claude/r5-1-category-label-1nnct7 ở cả hai repo)
+  Reports   0b8ac31bb138b08356699f70424cda5dbcb6017b
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+
+Kiểm tra
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3257 passed / 11 skipped / 0 failed
+            (nền trước phiên 3233 passed — chênh đúng 24 bài mới)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL, dùng producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51-01 … CHECK-R51-24   PASS (E1)
+  CHECK-R51-25 Independent Review        NOT_TESTED
+  CHECK-R51-26 Owner nghiệm thu production NOT_TESTED
+  Repair cycle tiêu  0   (lineage R5 giữ nguyên 2 allowed / 1 used / 1 remaining)
+```
+
+Thẩm quyền: `DEC-204` — nhóm hàng thừa hưởng `ADR-111` §3 (bằng chứng
+`board/<mã>/cat` không rời khỏi Tracking) chứ KHÔNG mở một ADR mới; điểm khác
+biệt thật so với `brand` là `cat` do người dùng gõ tay, nên nó đi ra qua một
+danh sách trắng HÌNH DẠNG thay vì được chiếu nguyên văn.
+
+Task + checklist: `docs/tasks/R5-1-nhom-hang-category-label.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+Hợp đồng + ví dụ payload: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6.
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
 
 **Owner chỉ thị trực tiếp trong phiên:** đã tự thực hiện Independent Review
 vòng 2 ở một công cụ khác (Codex, không artifact trong repo Reports) và đã

@@ -12549,3 +12549,102 @@ Nếu Owner muốn bổ sung artifact review vòng 2 (xuất từ Codex) vào re
 merge, phiên sau nên thêm nó vào `docs/reviews/` và nâng `CHECK-R5-27`/
 `CHECK-R5R1-09` từ `ACCEPT_WITH_RECORDED_RISK (Owner override)` lên một
 trạng thái có bằng chứng E1/E2 thật, thay vì để mãi ở trạng thái override.
+
+---
+
+## DEC-204
+
+Title:
+R5.1 — nhóm hàng (`category_label`) là thẩm quyền của Tracking, thừa hưởng
+`ADR-111` §3 chứ không mở một ADR mới; xuất qua danh sách trắng HÌNH DẠNG chứ
+không chiếu `cat` thô.
+
+Date:
+2026-09-09
+
+Authority:
+Brief `R5.1 — bổ sung category_label vào hợp đồng metadata sản phẩm Tracking
+→ Reports`, §2 (Tracking là nguồn chính thức duy nhất của `tracking_code`,
+`model_label`, `brand`, `category_label`), §3 (quy tắc chuẩn hoá), §4.5
+(không xuất trường category nội bộ nguyên bản).
+
+Context:
+
+`ADR-111` §3 đặt thẩm quyền thương hiệu ở Tracking với một lập luận về BẰNG
+CHỨNG: `board/<mã>/cat` là ngành hàng do người của Tracking tự tay xếp, nó
+mang tên hãng ("Tivi Sony"), và nó không được phép rời khỏi Tracking — nên
+phép chuẩn hoá phải xảy ra trước ranh giới.
+
+Nhóm hàng đến từ **đúng trường ấy**. Vì thế câu hỏi "ai có thẩm quyền nói
+dòng này thuộc loại hàng gì" đã được `ADR-111` §3 trả lời rồi, chỉ là chưa
+được rút ra thành lời. Mở một ADR thứ hai cho cùng một lập luận trên cùng một
+trường sẽ tạo hai văn bản có thể trôi khỏi nhau.
+
+Nhưng có MỘT khác biệt thật giữa `brand` và `category_label`, và nó không
+nhỏ:
+
+```text
+brand           ra từ HANG — một danh sách ĐÓNG. Thứ đi qua ranh giới luôn là
+                một trong khoảng ba mươi tám từ đã biết trước.
+category_label  ra từ `cat` — một chuỗi NGƯỜI DÙNG GÕ TAY qua ô "+ Ngành hàng
+                mới..." của `pickCat()`. Không có gì ràng buộc nội dung.
+```
+
+Một `cat` thật có thể là "Tivi - hàng NCC Đất Việt 5.000k". Chiếu nó ra ngoài
+sau khi chỉ cắt tên hãng là tin rằng chuỗi ấy luôn sạch, và điều đó biến
+`/api/xuat/board` thành một đường rò dữ liệu ra khỏi Tracking — đúng thứ danh
+sách trắng của `chieuBoard()` sinh ra để chặn.
+
+Decision:
+
+1. **Thẩm quyền:** Tracking là nguồn duy nhất của `category_label`. Reports
+   chỉ tiêu thụ. Không parser, không bảng taxonomy riêng, không suy từ
+   `product_raw`. Đây là `ADR-111` §3 áp cho một trường thứ ba, KHÔNG phải
+   một quyết định kiến trúc mới — R5.1 không mở ADR.
+
+2. **Nguồn là `cat`, và chỉ `cat`.** `name` không được đọc để suy nhóm hàng
+   (`D-04`/`DEC-147` §4). Mã chưa xếp ngành hàng ra `null`, kể cả khi tên
+   hàng nói rõ nó là gì (`ACCEPTED_RISK R5.1-01`).
+
+3. **Danh sách trắng theo HÌNH DẠNG (`HINH_NHOM`), không phải theo giá trị.**
+   Phần còn lại sau khi tách hãng phải là 1–4 từ, chỉ chữ cái (kể cả dấu
+   tiếng Việt), tối đa 40 ký tự. Không lọt ⟹ `null`, KHÔNG đi ra nguyên văn.
+   Một danh sách trắng theo GIÁ TRỊ (liệt kê sẵn các nhóm hợp lệ) bị loại: nó
+   là một taxonomy mới, đúng thứ `§3.3` của brief cấm, và nó phải được duy
+   trì mỗi lần người dùng thêm một ngành hàng.
+
+4. **Tách hãng chỉ khi hãng canonical đã chắc chắn** (`§3.2`). `cat` mang tên
+   hãng mà `hangCua()` không khẳng định được là hãng nào ⟹ `null`, vì phần
+   còn lại phụ thuộc vào việc cắt cái nào.
+
+5. **Bảng ánh xạ giới hạn ở hai sentinel đã có thẩm quyền:** `"Chưa phân
+   loại"` và `CAT_JUNK = "Không sử dụng"` ⟹ `null` (chúng là trạng thái quy
+   trình, không phải tên loại hàng hoá). Gộp tên đồng nghĩa khác: KHÔNG làm —
+   Tracking chưa có cấu hình/thẩm quyền nào (`ACCEPTED_RISK R5.1-03`).
+
+6. **Reports không thêm cổng chặn mới cho `§5.4`.** `confirmed_identities()`
+   và `_catalog_field()` — hai cổng đã giữ `brand` — giữ luôn nhóm hàng. Một
+   cổng thứ hai viết riêng sẽ trôi khỏi cổng thứ nhất.
+
+Consequences:
+
+Tích cực: báo cáo cơ cấu hàng bán có nguồn chính danh đầu tiên, đến từ đúng
+hệ thống sở hữu bằng chứng; sửa ngành hàng bên Tracking hiện ra ở lần capture
+kế tiếp mà không ai phải phân loại lại mã sản phẩm; không có bảng taxonomy
+nào của Reports được sinh ra để rồi trôi khỏi Tracking.
+
+Tiêu cực, đã cân nhắc: quy tắc hình dạng bảo thủ nên một nhóm hàng thật có
+chữ số trong tên ("Tivi 4K") ra `null` (`ACCEPTED_RISK R5.1-02`). Đánh đổi
+ngược lại — nới luật để bắt được nhiều hơn — mở đúng đường rò mà `§4.5` cấm,
+và cái giá của nới là một dòng dữ liệu nội bộ trên màn hình nhân viên, còn
+cái giá của chặt là một ô trống.
+
+Blast radius của R5.1 là `2/5`: failure path dừng ở MỘT ô trên bảng kê nhân
+viên, không chạm tập dòng được cộng, MIN theo ngày bán, giá nhập tay, lợi
+nhuận hay vân tay chốt kỳ.
+
+References:
+- `docs/tasks/R5-1-nhom-hang-category-label.md`
+- `docs/sessions/S138-r51-nhom-hang.md`
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6
+- `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3

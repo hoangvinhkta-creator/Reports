@@ -3214,3 +3214,35 @@ số dư sau override             2 allowed / 1 used / 1 remaining (không đổ
 
 Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`),
 `docs/sessions/S137-r5-owner-override-merge.md`.
+
+### `R5.1` — nhóm hàng `category_label` (`S138`, 2026-09-09)
+
+`R5.1` KHÔNG mở một root lineage mới. Nó mở rộng đúng hợp đồng
+(`/api/xuat/board`) và đúng các module (`tracking_catalog`,
+`capture_tracking_catalog`, `catalog_display`, `_catalog_labels`) mà `R5` vừa
+dựng ra, và nó thừa hưởng thẩm quyền của `ADR-111` §3 thay vì mở một ADR mới
+(`DEC-204`). Theo `V4.1` §3, một mở rộng như vậy thuộc lineage của root task
+đã sinh ra nó.
+
+Phiên triển khai `S138` KHÔNG tiêu repair cycle nào: nó không sửa một finding
+review nào — nó là một phiên triển khai đầu tiên cho một gói việc mới.
+
+```text
+root lineage                 R5
+số dư trước S138             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S138   0
+số dư sau S138               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+`CHECK-R51-25` (Independent Review) còn `NOT_TESTED`. Nếu vòng review đầu
+tiên của `R5.1` ra `REPAIR_REQUIRED`, nó tiêu **cycle cuối cùng** của lineage
+`R5` — sau đó lineage hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
+
+Effective Risk của `R5.1` là `LOW` (Blast Radius `2/5`), thấp hơn hẳn `R5`
+(`HIGH`, `4/5`): failure path của nó dừng ở MỘT ô trên bảng kê nhân viên và
+không chạm tập dòng được cộng, MIN theo ngày bán, giá nhập tay, lợi nhuận hay
+vân tay chốt kỳ. Điều đó KHÔNG cấp thêm ngân sách — ngân sách thuộc về root
+lineage, không thuộc từng gói con.
+
+Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.

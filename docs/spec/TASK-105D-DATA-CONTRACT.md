@@ -383,7 +383,15 @@ TrackingCatalogRow
   name              OPTIONAL
   alt               OPTIONAL list<str>
   present_in_board  REQUIRED bool
+  model_label       OPTIONAL             R5 §5  — do TRACKING chuẩn hoá
+  brand             OPTIONAL             R5 §5  — do TRACKING chuẩn hoá
+  category_label    OPTIONAL             R5.1   — do TRACKING chuẩn hoá
 ```
+
+Ba trường cuối là **mở rộng THÊM (additive)**, thêm vào ở `R5 §5` và `R5.1`.
+Chúng không đổi nghĩa một trường cũ nào, không đổi `tracking_code`, và một
+client đọc theo hợp đồng cũ bỏ qua chúng vẫn chạy đúng như trước. Chi tiết ở
+`§4.6`.
 
 ### 4.5 Ngữ nghĩa bắt buộc
 
@@ -412,6 +420,95 @@ INV-16  Mã bị gộp trong Tracking (alias.map): resolver KHÔNG tự chuyển
 `board` của Tracking **sửa/xoá được** bởi nhiều tài khoản. Snapshot bất biến
 là **cơ chế đối phó**, không phải phủ nhận rủi ro: nó đảm bảo Reports replay
 được, nhưng không đảm bảo dữ liệu nguồn tại thời điểm capture là đúng.
+
+### 4.6 Metadata sản phẩm — thẩm quyền của TRACKING (R5 §5 + R5.1)
+
+**Ba trường trả lời BA câu khác nhau.** Giữ chúng tách bạch là một phần của
+hợp đồng, không phải một lựa chọn trình bày:
+
+```text
+brand            ai LÀM RA mặt hàng này      "Samsung"
+model_label      đúng DÒNG MÁY nào           "55Q6FA"
+category_label   LOẠI HÀNG HOÁ gì            "Tivi"
+```
+
+`category_label` vì thế **không bao giờ** chứa tên hãng, model, nhà cung cấp,
+giá hay tồn. "Tivi Samsung" là một `cat` nội bộ của Tracking, KHÔNG phải một
+`category_label` hợp lệ.
+
+**`null` nghĩa là CHƯA ĐỦ CĂN CỨ**, không phải "chưa kịp làm". Tracking trả
+`null` khi mã chưa được xếp ngành hàng, khi ngành hàng đã xếp là một sentinel
+quy trình (`"Chưa phân loại"`, `"Không sử dụng"`), khi không tách được tên
+hãng một cách chắc chắn, hoặc khi chuỗi còn lại không lọt qua danh sách trắng
+hình dạng. Sai theo hướng "dám quá" tốn kém hơn hẳn hướng ngược lại: một nhãn
+đoán ra gom doanh thu thật vào sai nhóm trên một màn hình trông bình thường,
+còn `null` hiện ra thành "chưa phân loại" và không ai bị lừa.
+
+**Reports BỊ CẤM suy ba trường này từ tên trên sổ kế toán** (`product_raw`).
+`ADR-111 §3` đặt thẩm quyền ở Tracking vì bằng chứng nằm ở đó: `board/<mã>/
+cat` là ngành hàng do người của Tracking tự tay xếp, và nó không được phép rời
+khỏi Tracking. `PHB-06 §3`/`BR-02`/`BR-10` cấm bốn cách dựng một thẩm quyền
+thứ hai, và "rút từ câu tên hàng" là một trong bốn — `D-04` (`DEC-147` §4) ghi
+rằng Tracking đã thử đúng cách ấy bằng máy và **bỏ hẳn** vì sai trên tài sản
+thật.
+
+**Không trường nào tham gia identity matching** (`§4.3` không liệt kê chúng).
+Ghép thêm bằng hãng làm mọi dòng Sony khớp với nhau; ghép bằng nhóm hàng còn
+tệ hơn — mọi cái Tivi trên đời sẽ khớp với nhau, và một mapping đã confirm có
+thể trượt sang một mặt hàng khác cùng nhóm (`INV-13`/`INV-21`).
+
+**Ví dụ payload** — `GET /api/xuat/board` (đã chiếu, không phải RTDB thô):
+
+```json
+{
+  "55Q6FA": {
+    "name": "Tivi Samsung QLED 55Q6FA",
+    "alt": ["QN55Q6FA", "55Q6"],
+    "model_label": "QLED 55Q6FA",
+    "brand": "Samsung",
+    "category_label": "Tivi"
+  },
+  "RT38": {
+    "name": "Tủ lạnh Samsung RT38",
+    "alt": [],
+    "model_label": "RT38",
+    "brand": "Samsung",
+    "category_label": "Tủ lạnh"
+  },
+  "LA-01": {
+    "name": "Tivi cũ trưng bày",
+    "alt": [],
+    "model_label": null,
+    "brand": null,
+    "category_label": null
+  }
+}
+```
+
+`LA-01` là trường hợp quan trọng nhất của ví dụ này: tên hàng nói rõ chữ
+"Tivi", và cả ba trường vẫn là `null` — vì mã ấy chưa được xếp ngành hàng bên
+Tracking. Nếu một phiên bản nào đó bắt đầu trả `"Tivi"` ở đây, thẩm quyền đã
+bị dời từ `cat` sang `name` mà không có quyết định nào cho phép.
+
+**Trong file capture của Reports**, một trường `null` được **bỏ hẳn** khỏi
+dòng thay vì ghi khoá rỗng. Nhờ vậy một dòng mà Tracking chưa khẳng định băm
+ra đúng cùng `content_hash` với chính nó ở hợp đồng cũ — nâng cấp hợp đồng
+không tự khai là một lần đổi danh mục. Ngược lại, **đổi một giá trị thật thì
+`content_hash` PHẢI đổi** (`§4.7` của brief R5.1), vì đó là tín hiệu duy nhất
+nói cho Reports biết phải nhận bản chiếu mới.
+
+```json
+{
+  "tracking_code": "55Q6FA", "present_in_board": true,
+  "name": "Tivi Samsung QLED 55Q6FA", "alt": ["QN55Q6FA", "55Q6"],
+  "model_label": "QLED 55Q6FA", "brand": "Samsung", "category_label": "Tivi"
+}
+```
+
+**Đọc artifact cũ.** Một capture ghi TRƯỚC `R5.1` không có `category_label`;
+loader đọc nó thành `None` và KHÔNG coi đó là lỗi. Sai KIỂU (một con số, một
+mảng) thì ngược lại — từ chối chứ không ép, vì một con số ép thành chuỗi sẽ
+hiện lên màn hình như một cái tên nhóm hàng.
 
 ---
 
