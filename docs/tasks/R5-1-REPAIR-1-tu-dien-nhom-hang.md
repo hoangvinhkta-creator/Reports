@@ -27,6 +27,14 @@ Vòng review 2 để lại 2 `ACCEPTED_RISK` mới (`R5.1R1-04`, `R5.1R1-05`), 2
 chính tài liệu (`COR-R5.1R1-01`, `COR-R5.1R1-02`) và một
 `OWNER_DECISION_REQUIRED` về alias taxonomy — xem mục 6 và mục 7.
 
+**Cập nhật (`S142`, `DEC-206`).** Owner đã CHỐT taxonomy: `Máy lạnh`/
+`Điều hòa`/`Điều hoà` → `"Điều hoà"`, `TV`/`Ti vi` → `"Tivi"`,
+`Máy giặt sấy` → `"Máy giặt"`. `OWNER_DECISION_REQUIRED` và
+`AR-R5.1R1-05` ĐÃ ĐÓNG; `COR-R5.1R1-01`/`-02` đã sửa. `AR-R5.1R1-04` GIỮ
+NGUYÊN. Chi tiết: `DEC-206`, `docs/sessions/S142-r51-owner-taxonomy-merge.md`.
+Sau `DEC-206`, cả hai repo đã MERGE vào nhánh mặc định — SHA merge ở bàn giao
+`S142` §5.
+
 Phase:
 PHASE-01 — Engine tính toán
 
@@ -240,14 +248,12 @@ còn lại phải là hãng". Hiếm (phải gõ hai cách gọi cùng một nh�
 chỉ giảm độ phủ, hiện rõ thành "—". Không tạo category giả, không rò dữ liệu,
 không sai gộp `R6`.
 
-`ACCEPTED_RISK R5.1R1-05` — **Ngành hàng GHÉP ⟹ `null`, và có ca THẬT.**
-Ghi bởi `S141`. `"Máy giặt sấy"` và `"Máy giặt sấy LG"` ra `null`: từ điển có
-`"Máy giặt"` và có `"Máy sấy"` nhưng không có mục ghép; đoạn dài nhất khớp là
-`"Máy giặt"`, còn `"sấy"` không phải hãng. Đây là `R5.1R1-01` với một ca có
-thật thay cho ví dụ giả định — đơn golden `BH62439` gồm `"Máy Giặt Sấy LG"`.
-Quan trọng: nó hỏng theo hướng AN TOÀN — KHÔNG xếp nhầm một máy giặt sấy vào
-bucket `"Máy giặt"`. Sửa đúng chỗ: thêm một dòng `['Máy giặt sấy', []]` vào
-`NHOM` (việc của Owner/phiên sau, không phải của review).
+`ACCEPTED_RISK R5.1R1-05` — **ĐÃ ĐÓNG bởi `DEC-206` (`S142`).** Ghi bởi
+`S141`: `"Máy giặt sấy"` và `"Máy giặt sấy LG"` ra `null` vì từ điển có
+`"Máy giặt"` và có `"Máy sấy"` nhưng không có mục ghép — đơn golden `BH62439`
+gồm `"Máy Giặt Sấy LG"` là ca CÓ THẬT, không phải ví dụ giả định. Owner CHỐT
+`Máy giặt sấy` → `"Máy giặt"`; `Tracking/src/index.js` nay có
+`['Máy giặt', ['Máy giặt sấy']]`.
 
 `ACCEPTED_RISK R5.1-01` … `-04` của `R5.1` **giữ nguyên hiệu lực**, trừ
 `AR-R5.1-03` (không gộp đồng nghĩa) nay đã ĐÓNG: từ điển chính là cấu hình
@@ -257,23 +263,21 @@ cho phép gộp, và "Máy lạnh"/"Điều hoà" đã gộp.
 
 ## 7. Đính chính và câu hỏi mở sau Independent Review vòng 2 (`S141`)
 
-`COR-R5.1R1-01` — hai chú thích mô tả LUẬT CŨ còn lại trong mã sản phẩm
-Reports, nay mâu thuẫn `DEC-205` và hợp đồng §4.6:
-`app/web/catalog_display.py:17-18` và
-`tools/tracking/capture_tracking_catalog.py:134-135` đều còn nói "lọc hình
-dạng"/"danh sách trắng hình dạng". Chỉ là chú thích — 0 tác động hành vi, 0
-test đổi. Phiên nào chạm mã Reports lần kế tiếp nên sửa; không mở phiên riêng.
+`COR-R5.1R1-01` — **ĐÃ SỬA ở `S142`.** Hai chú thích mô tả LUẬT CŨ
+(`app/web/catalog_display.py`, `tools/tracking/capture_tracking_catalog.py`)
+nói "lọc hình dạng"/"danh sách trắng hình dạng" — mâu thuẫn `DEC-205` và hợp
+đồng §4.6. Đã sửa thành mô tả đúng cơ chế: `category_label` được CHỌN từ một
+taxonomy đóng. Chỉ là chú thích — 0 tác động hành vi, 0 test hành vi đổi.
 
 `COR-R5.1R1-02` — bảng quan hệ của `DEC-205` ghi `DEC-204 §5 → GIỮ NGUYÊN`,
 nhưng `§5` còn câu *"Gộp tên đồng nghĩa khác: KHÔNG làm"* mà `DEC-205` §4 đã
 đảo. Lập luận đảo có tường minh ở `DEC-205` §4 và ở mục 6 trên — chỉ DÒNG TÓM
 TẮT là thiếu chính xác. KHÔNG sửa `DEC-204` (artifact lịch sử).
 
-`OWNER_DECISION_REQUIRED` — **alias taxonomy chưa có Owner xác nhận rõ trong
-lịch sử.** `Máy lạnh → Điều hoà` có bằng chứng dữ liệu MẠNH nhưng thẩm quyền
-Owner chỉ tồn tại dưới dạng lời dẫn brief của phiên triển khai. `TV → Tivi` có
-bằng chứng YẾU (chỉ `Tracking/public/kpi-demo.js`, một cấu hình KPI chứ không
-phải giá trị `cat`). `Ti vi → Tivi` **không có bằng chứng in-repo nào** và
-không `CHECK` nào canh riêng. Đây là quyết định BUCKET BÁO CÁO, không phải
-thay đổi tiền, và không thể tạo category giả hay rò dữ liệu — nhưng nên đóng
-TRƯỚC khi `R6` dùng `category_label` làm khoá gộp.
+`OWNER_DECISION_REQUIRED` — **ĐÃ ĐÓNG bởi `DEC-206` (`S142`).** `Máy lạnh →
+Điều hoà` có bằng chứng dữ liệu MẠNH nhưng thẩm quyền Owner trước đó chỉ tồn
+tại dưới dạng lời dẫn brief. `TV → Tivi` có bằng chứng YẾU (chỉ
+`Tracking/public/kpi-demo.js`, một cấu hình KPI chứ không phải giá trị `cat`).
+`Ti vi → Tivi` không có bằng chứng in-repo nào. Owner đã CHỐT chính sách bằng
+chỉ thị trực tiếp — xem `DEC-206`, được đóng TRƯỚC khi `R6` dùng
+`category_label` làm khoá gộp, đúng khuyến nghị của `S141`.

@@ -15,8 +15,9 @@ category_label   LOẠI hàng gì       "Tivi"
 ```
 
 `category_label` vì thế không bao giờ chứa tên hãng, model, nhà cung cấp hay
-giá — Tracking đã tách hãng và đã lọc hình dạng trước khi gửi. `None` nghĩa
-là CHƯA ĐỦ CĂN CỨ, và Reports không lấp chỗ trống ấy từ tên trên sổ kế toán.
+giá — Tracking CHỌN nó từ một taxonomy đóng (`R5.1 REPAIR-1`, `DEC-205`),
+không cắt/lọc từ chuỗi `cat` thô. `None` nghĩa là CHƯA ĐỦ CĂN CỨ, và Reports
+không lấp chỗ trống ấy từ tên trên sổ kế toán.
 
 ## Vì sao KHÔNG đọc thẳng danh mục ở mỗi lần tải trang
 

@@ -132,9 +132,10 @@ def _rows_from_board(board: Any) -> list[dict[str, Any]]:
     BAO GIỜ được ghi ra: mỗi dòng chỉ được dựng từ danh sách trắng dưới đây,
     không phải từ một bản sao dict.
 
-    `category_label` là nhóm hàng ĐÃ CHUẨN HOÁ mà Tracking gửi sang — đã tách
-    tên hãng, đã qua danh sách trắng hình dạng của Tracking. Nó KHÔNG phải
-    `cat` thô, và công cụ này không đọc `cat` dù nguồn có gửi.
+    `category_label` là nhóm hàng ĐÃ CHUẨN HOÁ mà Tracking gửi sang — được
+    CHỌN từ một taxonomy đóng của Tracking (`R5.1 REPAIR-1`, `DEC-205`), không
+    phải cắt/lọc từ `cat` thô. Nó KHÔNG phải `cat`, và công cụ này không đọc
+    `cat` dù nguồn có gửi.
     """
     if not isinstance(board, dict):
         raise MalformedSourceError(

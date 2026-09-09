@@ -1,6 +1,42 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1 REPAIR-1: ĐÃ QUA Independent Review vòng 2 (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S141`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐANG MERGE (`S142`, 2026-09-09)
+
+Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:
+
+```text
+Máy lạnh / Điều hòa / Điều hoà  →  "Điều hoà"
+TV / Ti vi / Tivi               →  "Tivi"
+Máy giặt sấy                    →  "Máy giặt" (không mở nhóm riêng)
+```
+
+Đây là bổ sung taxonomy CÓ CHỦ ĐÍCH sau một review đã kết luận
+`ACCEPT_WITH_RECORDED_RISK` (`REPAIR_REQUIRED = 0`) — KHÔNG phải repair cycle
+thứ ba. `OWNER_DECISION_REQUIRED` và `AR-R5.1R1-05` đã đóng; `AR-R5.1R1-04`
+giữ nguyên. Chi tiết + toàn bộ bằng chứng E1:
+`docs/sessions/S142-r51-owner-taxonomy-merge.md`; quyết định: `DEC-206`.
+
+```text
+Kiểm tra trước merge
+  Tracking  npm test 2882 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3260 passed / 11 skipped / 0 failed
+  Smoke xuyên hai repo  63 PASS / 0 FAIL
+  Bất biến tiền  git diff xác nhận Reports chỉ đổi 2 dòng chú thích;
+                 Tracking không đổi price-engine/ hay min-ngay.js
+
+Trạng thái merge — xem docs/sessions/S142-r51-owner-taxonomy-merge.md §5
+cho PR/SHA thật sau khi hoàn tất.
+
+CHECK-R51-26  VẪN NOT_TESTED — Owner nghiệm thu production, không phiên
+              nào tự đóng, kể cả phiên merge này.
+```
+
+**Phiên này KHÔNG tự đánh dấu Independent Review (đã PASS từ S141) hay Owner
+Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: ĐÃ QUA Independent Review vòng 2 (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S141`, 2026-09-09)
 
 **Phiên review, KHÔNG sửa mã, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
 

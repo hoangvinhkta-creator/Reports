@@ -12681,9 +12681,20 @@ DEC-204 §1  thẩm quyền thuộc Tracking, Reports chỉ tiêu thụ    GIỮ
 DEC-204 §2  nguồn là `cat`, KHÔNG đọc `name`                   GIỮ NGUYÊN
 DEC-204 §3  danh sách trắng theo HÌNH DẠNG (`HINH_NHOM`)       THAY THẾ ⟶ §1 dưới
 DEC-204 §4  chỉ tách hãng khi hãng canonical đã chắc chắn      THAY THẾ ⟶ §2 dưới
-DEC-204 §5  hai sentinel quy trình ra `null`                   GIỮ NGUYÊN
+DEC-204 §5, câu 1: hai sentinel quy trình ra `null`            GIỮ NGUYÊN
+DEC-204 §5, câu 2: "gộp tên đồng nghĩa khác: KHÔNG làm"        ĐÃ ĐẢO NGƯỢC
+                                                                ⟶ §4 dưới
 DEC-204 §6  Reports không thêm cổng chặn mới                   GIỮ NGUYÊN, mở rộng
 ```
+
+**Đính chính (`COR-R5.1R1-02`, `S141`):** bản ghi trước của bảng này gộp cả
+`DEC-204` §5 vào một dòng "GIỮ NGUYÊN", nhưng §5 có HAI câu — câu sentinel
+(vẫn đúng) và câu "không gộp đồng nghĩa" (đã bị chính §4 dưới đây đảo ngược
+có chủ đích, vì lúc `DEC-204` được ban hành Tracking chưa có cấu hình gộp
+nào; từ điển `NHOM` giờ CHÍNH LÀ cấu hình đó). Không có gì bị che giấu — §4
+dưới đây đã lập luận tường minh cho việc gộp, và task §6 đã ghi
+`AR-R5.1-03 ĐÃ ĐÓNG` từ trước; chỉ riêng dòng tóm tắt của bảng này là thiếu
+chính xác. Sửa ở đây, không sửa `DEC-204`.
 
 `DEC-204` **KHÔNG bị sửa**. Nó là artifact lịch sử của một quyết định đã ban
 hành, và lập luận trong nó — kể cả lập luận đã loại phương án "danh sách trắng
@@ -12802,3 +12813,153 @@ References:
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
 - `PROJECT/PROJECT_DECISIONS.md` → `DEC-204` (quyết định bị thay thế một phần)
 - `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3
+
+---
+
+## DEC-206
+
+Title:
+`R5.1` — Owner chốt ba alias taxonomy còn lại cho `category_label` sau
+Independent Review vòng 2 (`S141`): `Máy lạnh`/`Điều hòa`/`Điều hoà` →
+`"Điều hoà"`; `TV`/`Ti vi`/`Tivi` → `"Tivi"`; `Máy giặt sấy` → `"Máy giặt"`.
+Đóng `OWNER_DECISION_REQUIRED` (`§6.3` của review vòng 2) và `AR-R5.1R1-05`.
+
+Date:
+2026-09-09
+
+Authority:
+Chỉ thị trực tiếp của Owner: "Owner-approved taxonomy completion + controlled
+merge cho R5.1", nguyên văn ba quyết định:
+
+```text
+Máy lạnh / Điều hòa / Điều hoà  →  nhãn canonical "Điều hoà"
+TV / Ti vi / Tivi               →  nhãn canonical "Tivi"
+Máy giặt sấy                    →  nhãn canonical "Máy giặt" (quy ước nghiệp
+                                    vụ: máy giặt sấy TÍNH VÀO nhóm Máy giặt,
+                                    không mở nhóm mới)
+```
+
+Context:
+
+Independent Review vòng 2 (`S141`, `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-
+REVIEW-2-RECORD.md`) đo lại toàn bộ `R5.1 REPAIR-1` trên exact HEAD
+`11a199b`/`83b1e07` và kết luận `ACCEPT_WITH_RECORDED_RISK` — **không**
+`REPAIR_REQUIRED**. Trong quá trình đó, review phát hiện:
+
+1. **`Máy lạnh`/`Điều hòa`/`Điều hoà` đã có trong từ điển từ `REPAIR-1`**
+   (`DEC-205` §4), với bằng chứng dữ liệu MẠNH: `Máy lạnh Test-2` trong
+   fixture golden ẩn danh của Reports, VÀ (điều `S141` sửa lại cho đúng —
+   `COR-R5.1R1-02`) `Điều hòa Daikin FTHF25XVMV` không nằm trong fixture
+   golden mà nằm trong `data/historical_confirmed/registry.jsonl` — một BẢN
+   GHI OWNER ĐÃ XÁC NHẬN (`confirmation_authority = OWNER`), bằng chứng còn
+   mạnh hơn một fixture ẩn danh. `config/adjustments.yaml`
+   (`air_conditioner_keywords`, `DEC-125`) cũng đã coi "điều hòa" là từ chỉ
+   mặt hàng này từ trước `R5.1`.
+
+2. **`TV`/`Ti vi` đã có trong từ điển, nhưng KHÔNG có bằng chứng dữ liệu nào
+   trong repo.** "TV" chỉ xuất hiện trong `public/kpi-demo.js` — một cấu hình
+   KPI demo (`{any:["tivi","tv"]}`), không phải một giá trị `cat` thật đã
+   từng được ghi. "Ti vi" không xuất hiện ở đâu trong cả hai repo. Review ghi
+   `OWNER_DECISION_REQUIRED` theo đúng chỉ thị của nó — **không coi đây là
+   lỗi code, không tự sửa từ điển.**
+
+3. **`Máy giặt sấy` CHƯA có trong từ điển**, và review tìm được một ca THẬT
+   (không phải giả định) trong đơn golden `BH62439`: `"Máy Giặt Sấy LG"`.
+   Trước quyết định này, chuỗi ấy phân tích thành `"Máy giặt"` (đoạn khớp) +
+   `"sấy"` (từ lạ, không phải hãng) ⟹ `null` theo đúng luật `DEC-205` — hỏng
+   về phía AN TOÀN (`ACCEPTED_RISK AR-R5.1R1-05`), không xếp nhầm vào bucket
+   sai.
+
+Owner đã xem xét cả ba và chốt gộp toàn bộ vào nhánh chính đã nêu ở trên.
+
+Decision:
+
+1. **Thêm `"Máy giặt sấy"` làm cách viết khác của canonical `"Máy giặt"`**
+   trong `NHOM` (`Tracking/src/index.js`). Đây là thay đổi MÃ duy nhất của
+   quyết định này — `TV`/`Ti vi`/`Máy lạnh`/`Điều hòa` đã có sẵn từ
+   `REPAIR-1` và không cần sửa.
+
+2. **Không nới luật phân tích trọn vẹn.** `"Máy giặt sấy kho anh Ba"` và
+   `"Máy giặt sấy 4K"` vẫn ra `null` — thêm một alias không mở thêm một cách
+   để chuỗi bẩn lọt qua.
+
+3. **`AR-R5.1R1-04` (nhắc lại cùng canonical ⟹ `null`, ví dụ `"Tivi TV"`) GIỮ
+   NGUYÊN, KHÔNG đóng.** Quyết định này chỉ chốt BA ALIAS, không yêu cầu sửa
+   thuật toán chọn đoạn khớp dài nhất khi hai span cùng độ dài trỏ về cùng
+   một canonical. Đây là một rủi ro riêng, review vòng 2 đã xếp đúng loại
+   (`ACCEPTED_RISK`, hỏng về phía an toàn), và không nằm trong phạm vi Owner
+   được hỏi ở đây.
+
+4. **`OWNER_DECISION_REQUIRED` (`§6.3` của review vòng 2) ĐÓNG.** Owner đã
+   xác nhận rõ cả ba alias là bucket báo cáo mong muốn, bằng chỉ thị này.
+
+5. **`AR-R5.1R1-05` ĐÓNG** — ca `"Máy Giặt Sấy LG"` nay có mapping tường
+   minh, không còn là một khoảng trống độ phủ chưa xử lý.
+
+6. **`AR-R5.1R1-01` (độ phủ giảm nói chung) GIỮ NGUYÊN**, thu hẹp phạm vi:
+   nó vẫn đúng cho những `cat` chưa có trong từ điển (`"Bàn ủi Philips"`,
+   `"Tủ đông Sanaky"`, `"Máy hút bụi"` — các ca review vòng 2 đo được, còn
+   `null`). Thêm alias khi có ca thật là cách sửa đúng của rủi ro này, không
+   phải bằng chứng nó đã hết.
+
+Reports: không đổi mã sản phẩm về mặt HÀNH VI. Hai chú thích đã lỗi thời (mô
+tả "lọc hình dạng" — luật đã bị `DEC-205` thay thế) được sửa cho khớp cơ chế
+thật (`COR-R5.1R1-01`): `app/web/catalog_display.py`,
+`tools/tracking/capture_tracking_catalog.py`.
+
+Quan hệ với các quyết định trước — bảng nối dài của `DEC-205`:
+
+```text
+DEC-204 §1,§2,§5(nửa đầu),§6   GIỮ NGUYÊN (xem DEC-205)
+DEC-204 §3,§4                  THAY THẾ bởi DEC-205 §1,§2
+DEC-204 §5 (nửa sau, "gộp      ĐÃ ĐẢO NGƯỢC bởi DEC-205 §4 — DEC-205 không
+  đồng nghĩa: KHÔNG làm")      ghi rõ điều này trong bảng quan hệ của nó
+                                (COR-R5.1R1-02); DEC-206 ghi bổ sung ở đây.
+DEC-205 §1–§6                  GIỮ NGUYÊN — DEC-206 KHÔNG thay thế DEC-205,
+                                chỉ HOÀN TẤT nội dung từ điển mà DEC-205 §3
+                                đã mở đường ("thêm một dòng khi cần")
+DEC-206                        Bổ sung 1 alias (`Máy giặt sấy`) + đóng
+                                OWNER_DECISION_REQUIRED cho 2 alias đã có sẵn
+                                (`TV`/`Ti vi`, `Máy lạnh`/`Điều hòa`)
+```
+
+`DEC-204` và `DEC-205` **KHÔNG bị sửa nội dung** — cả hai giữ nguyên văn làm
+bản ghi lịch sử.
+
+Checklist:
+
+```text
+CHECK-R51R1-17   PASS (E1) — Independent Review vòng 2 đã chạy đủ, kết luận
+                 ACCEPT_WITH_RECORDED_RISK, không tiêu repair cycle
+CHECK-R51-26     VẪN NOT_TESTED — Owner nghiệm thu production, KHÔNG phiên
+                 nào tự đóng, kể cả phiên merge này
+```
+
+Review Budget lineage `R5`: quyết định này KHÔNG mở repair cycle thứ ba — nó
+là bổ sung taxonomy CÓ CHỦ ĐÍCH sau một review kết luận `ACCEPT_WITH_
+RECORDED_RISK` (`REPAIR_REQUIRED = 0`), không phải một finding buộc sửa. Ngân
+sách giữ nguyên `2 allowed / 2 used / 0 remaining` — hết, nhưng không bị đụng
+tới thêm.
+
+Consequences:
+
+Tích cực: ba alias phổ biến nhất trong dữ liệu thật của Tín Phát (theo tên
+gọi miền Nam/miền Bắc và viết tắt) nay gộp đúng bucket, giảm rủi ro `R6`
+chia nhỏ báo cáo cơ cấu một cách giả tạo. `OWNER_DECISION_REQUIRED` đóng
+trước khi `category_label` được dùng làm khoá gộp — đúng khuyến nghị `§11.3`
+của review vòng 2.
+
+Tiêu cực, đã cân nhắc: `TV`/`Ti vi` được gộp dựa trên CHỈ THỊ CHÍNH SÁCH của
+Owner, không dựa trên bằng chứng dữ liệu in-repo — khác với `Máy lạnh` và
+`Máy giặt sấy`, cả hai đều có ca thật. Đây là quyết định ĐÚNG THẨM QUYỀN
+(Owner là người duy nhất có thể trả lời "TV có phải cùng Tivi không" khi
+repo không có dấu vết), không phải một khiếm khuyết — nhưng nó được ghi lại
+tường minh ở đây để không lẫn với hai alias có bằng chứng dữ liệu.
+
+References:
+- `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md` (`S141`) —
+  nguồn của `OWNER_DECISION_REQUIRED`, `AR-R5.1R1-04`, `AR-R5.1R1-05`,
+  `COR-R5.1R1-01`, `COR-R5.1R1-02`
+- `docs/sessions/S142-r51-owner-taxonomy-merge.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-205` (không thay thế, chỉ hoàn tất)
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6

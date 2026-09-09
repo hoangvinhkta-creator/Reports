@@ -248,6 +248,31 @@ def test_reports_keeps_no_category_vocabulary_of_its_own():
                 "Tracking (ADR-111 §3)")
 
 
+def test_dec206_owner_approved_labels_pass_through_unmodified(tmp_path):
+    """`DEC-206` — ba nhãn Owner chốt (`"Điều hoà"`, `"Tivi"`, `"Máy giặt"`)
+    đi qua Reports NGUYÊN VẸN, đúng như mọi nhãn khác từ từ điển Tracking.
+
+    Reports không có logic ĐẶC BIỆT cho ba nhãn này — chúng chỉ là những giá
+    trị chuỗi bình thường trong `category_label`. Bài này tồn tại để chứng
+    minh đúng điều đó: không rẽ nhánh nào, không case đặc cách nào.
+    """
+    path = write_capture(tmp_path / "cap.json", [
+        {"tracking_code": "TV-01", "present_in_board": True,
+         "name": "TV Samsung 55 inch", "brand": "Samsung",
+         "category_label": "Tivi"},
+        {"tracking_code": "MGS-01", "present_in_board": True,
+         "name": "Máy giặt sấy LG FV1412", "brand": "LG",
+         "category_label": "Máy giặt"},
+        {"tracking_code": "DH-01", "present_in_board": True,
+         "name": "Máy lạnh Casper", "brand": "Casper",
+         "category_label": "Điều hoà"},
+    ])
+    snapshot = load_tracking_catalog_capture(path)
+    assert snapshot.row_for("TV-01").category_label == "Tivi"
+    assert snapshot.row_for("MGS-01").category_label == "Máy giặt"
+    assert snapshot.row_for("DH-01").category_label == "Điều hoà"
+
+
 def test_reports_passes_the_label_through_without_sanitising_it(tmp_path):
     """Reports KHÔNG lọc lại nhãn — và đó là một quyết định, không phải sót.
 

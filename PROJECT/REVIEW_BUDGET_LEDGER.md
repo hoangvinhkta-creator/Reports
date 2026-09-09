@@ -3348,3 +3348,36 @@ chưa có `R5.1`; và 4 finding `REFERENCE INTEGRITY` đúng bằng 4 finding
 Bằng chứng nguyên văn:
 `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`,
 `docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+### `DEC-206` — Owner chốt taxonomy còn lại, merge có kiểm soát (`S142`, 2026-09-09)
+
+Owner CHỐT ba alias mà `S141` §6.3 hỏi (`OWNER_DECISION_REQUIRED`) và ghi
+`AR-R5.1R1-05` (`Máy giặt sấy`): xem `DEC-206`. Đây là **bổ sung taxonomy
+CÓ CHỦ ĐÍCH sau một review đã kết luận `ACCEPT_WITH_RECORDED_RISK`**
+(`REPAIR_REQUIRED = 0` ở `S141`), không phải một finding buộc sửa và không
+phải một repair cycle thứ ba.
+
+```text
+root lineage                     R5
+số dư trước S142                 2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi DEC-206    0  (bổ sung taxonomy, không phải repair)
+số dư sau S142                   2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Phân biệt với repair cycle: một repair cycle sửa một FINDING mà review đánh
+giá là buộc phải sửa trước khi chấp nhận (`REPAIR_REQUIRED`). Ở đây, `S141`
+đã CHẤP NHẬN hệ thống nguyên trạng (`ACCEPT_WITH_RECORDED_RISK`) — hai finding
+mới của nó (`AR-R5.1R1-04`, `AR-R5.1R1-05`) đều được xếp `ACCEPTED_RISK`, và
+`OWNER_DECISION_REQUIRED` là một câu hỏi CHÍNH SÁCH, không phải một lỗi kỹ
+thuật. Owner trả lời câu hỏi chính sách đó và bổ sung một dòng vào từ điển —
+đây là con đường mở rộng mà chính `DEC-205` §3 đã vạch sẵn ("thêm một dòng khi
+cần"), không phải một vòng sửa lỗi.
+
+Sau `DEC-206`, Tracking và Reports được MERGE vào nhánh mặc định — xem
+`docs/sessions/S142-r51-owner-taxonomy-merge.md` §5 cho SHA merge, thứ tự, và
+xác nhận `branch_authority_check.sh = AUTHORITY_OK` sau mỗi merge.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED` sau merge —
+không phiên nào tự đóng nó, kể cả phiên merge.
+
+Bằng chứng nguyên văn: `docs/sessions/S142-r51-owner-taxonomy-merge.md`.

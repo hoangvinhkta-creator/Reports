@@ -82,9 +82,9 @@ def main(argv=None) -> int:
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     board, alias = payload["board"], payload["alias"]
 
-    ok("mọi trường hợp §7 + REPAIR-1 đều có mặt", sorted(board),
-       ["55Q6FA", "BAN-01", "BAN-02", "BAN-03", "LA-01", "ML-01", "RT38",
-        "VS-01", "XUNG-01"])
+    ok("mọi trường hợp §7 + REPAIR-1 + DEC-206 đều có mặt", sorted(board),
+       ["55Q6FA", "BAN-01", "BAN-02", "BAN-03", "LA-01", "MGS-01", "ML-01",
+        "RT38", "TV-01", "VS-01", "XUNG-01"])
     ok("Tivi Samsung ⟹ category_label Tivi",
        board["55Q6FA"]["category_label"], "Tivi")
     ok("Tủ lạnh Samsung ⟹ category_label Tủ lạnh",
@@ -110,6 +110,13 @@ def main(argv=None) -> int:
     ok("cat hai hãng: nhóm hàng CHẮC CHẮN, hãng thì không",
        [board["XUNG-01"]["brand"], board["XUNG-01"]["category_label"]],
        [None, "Tivi"])
+
+    # --- DEC-206: ba alias Owner chốt sau Independent Review vòng 2 -------
+    ok('DEC-206: "TV" ⟹ category_label "Tivi"',
+       board["TV-01"]["category_label"], "Tivi")
+    ok('DEC-206: "Máy giặt sấy LG" ⟹ category "Máy giặt", brand "LG"',
+       [board["MGS-01"]["category_label"], board["MGS-01"]["brand"]],
+       ["Máy giặt", "LG"])
 
     # Mệnh đề trung tâm của REPAIR-1, đo trên payload thật: mọi nhãn đi qua
     # ranh giới đều thuộc từ điển đóng. Từ điển đọc NGƯỢC từ `src/index.js`
@@ -183,6 +190,12 @@ def main(argv=None) -> int:
        ba_truong("BAN-01")[2], None)
     ok("ML-01: nhãn canonical qua tới snapshot",
        ba_truong("ML-01")[2], "Điều hoà")
+    ok("DEC-206: TV-01 ⟹ Tivi qua tới snapshot", ba_truong("TV-01")[2], "Tivi")
+    # model_label ở đây là "FV1412" — modelCua() rút nó từ chính `name`
+    # ("Máy giặt sấy LG FV1412"), độc lập với category_label. Bài này chỉ
+    # canh CATEGORY và BRAND, đúng phạm vi của DEC-206.
+    ok("DEC-206: MGS-01 ⟹ category Máy giặt + brand LG qua tới snapshot",
+       (ba_truong("MGS-01")[1], ba_truong("MGS-01")[2]), ("LG", "Máy giặt"))
     ok("alias_map qua được nguyên vẹn",
        snapshot.alias_map(), {"CU-01": "55Q6FA"})
 
@@ -249,7 +262,11 @@ def main(argv=None) -> int:
     chieu = json.loads(display_path.read_text(encoding="utf-8"))
     ok("bản chiếu giữ mọi dòng CÓ ít nhất một trường",
        sorted(chieu),
-       ["55Q6FA", "BAN-01", "BAN-02", "ML-01", "RT38", "VS-01", "XUNG-01"])
+       ["55Q6FA", "BAN-01", "BAN-02", "MGS-01", "ML-01", "RT38", "TV-01",
+        "VS-01", "XUNG-01"])
+    ok("DEC-206: TV-01/MGS-01 hiện đúng nhãn trong bản chiếu",
+       [chieu["TV-01"]["category_label"], chieu["MGS-01"]["category_label"]],
+       ["Tivi", "Máy giặt"])
     ok("...và BAN-01/BAN-02 có mặt vì HÃNG, nhóm hàng của chúng vẫn None",
        [chieu["BAN-01"]["category_label"], chieu["BAN-02"]["category_label"]],
        [None, None])
