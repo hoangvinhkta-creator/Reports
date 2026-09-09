@@ -1,0 +1,99 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Phân tích kinh doanh{% endblock %}
+
+{% block content %}
+<h1>PHÂN TÍCH KINH DOANH</h1>
+<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán
+  đã nạp — cùng kết quả chính thức với trang BÁO CÁO, chỉ nhìn theo chiều khác.
+  Dòng đã bị loại và dòng tạm loại KHÔNG có mặt ở bất kỳ ô nào trên trang này.</p>
+
+<div class="module">
+  {{ r6.scope_picker(periods, scope, url_for('analytics_overview')) }}
+
+  <nav class="filter-row">
+    <a class="ghost btn-mini" href="{{ url_for('analytics_structure', ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}">Cơ cấu</a>
+    <a class="ghost btn-mini" href="{{ url_for('analytics_employee', ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}">Nhân viên</a>
+    <a class="ghost btn-mini" href="{{ url_for('analytics_basket', ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}">Giỏ hàng</a>
+    <a class="ghost btn-mini" href="{{ url_for('analytics_drilldown', ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}">Bảng kê đơn</a>
+  </nav>
+
+  {% if empty %}
+  <p class="empty" data-metric="analytics-empty">Phạm vi này chưa có dòng hàng nào.</p>
+  {% endif %}
+
+  {# Phép đối soát giữa hai module tính độc lập — chạy ở mỗi lần tải trang.
+     Nếu `dashboard_metrics` và `business_metrics` nói hai con số khác nhau về
+     cùng một lát dữ liệu thì một trong hai đang sai, và trang nói ra ngay. #}
+  <p class="insight{{ ' error' if not reconciliation.is_exact }}"
+     data-metric="totals-reconciliation"
+     data-reconciled="{{ 'yes' if reconciliation.is_exact else 'no' }}">
+    {% if reconciliation.is_exact %}
+    Số dòng, số đơn và doanh thu của trang này KHỚP TUYỆT ĐỐI với bộ chỉ tiêu
+    nghiệp vụ đã nghiệm thu của cùng phạm vi — hai đường tính độc lập gặp nhau
+    ở cùng con số.
+    {% else %}
+    ĐỐI SOÁT KHÔNG KHỚP với bộ chỉ tiêu nghiệp vụ của cùng phạm vi
+    (dòng: {{ 'khớp' if reconciliation.lines else 'LỆCH' }} ·
+    đơn: {{ 'khớp' if reconciliation.orders else 'LỆCH' }} ·
+    doanh thu: {{ 'khớp' if reconciliation.sales_revenue else 'LỆCH' }}).
+    Đây là lỗi hệ thống — đừng dùng trang này để ra quyết định cho tới khi nó
+    khớp lại.
+    {% endif %}</p>
+</div>
+
+<div class="module">
+  <h2>Chỉ tiêu của phạm vi <span class="cnt">{{ scope.label }}</span></h2>
+  <div class="kpi-row">
+    {% for card in cards %}{{ r6.metric_card(card) }}{% endfor %}
+  </div>
+</div>
+
+<div class="module">
+  <h2>Giỏ hàng <span class="cnt">bốn chỉ tiêu tách rời</span></h2>
+  <div class="kpi-row">
+    {% for card in basket_cards %}
+    <div class="kpi-card">
+      <span class="tp-label">{{ card.label }}</span>
+      <strong class="kpi-value" data-metric="{{ card.key }}">{{ card.value }}</strong>
+      <span class="tp-unit">đơn · {{ card.rate }} số đơn</span>
+      <span class="tp-unit r6-card-note">{{ card.note }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="chart-row">
+  {% if revenue_chart %}
+  {{ r6.paired_chart(revenue_chart, 'bieu-do-doanh-thu-r6', 'Doanh thu',
+     revenue_chart.total_kvnd ~ ' nghìn đồng',
+     revenue_chart.comparison_total_kvnd ~ ' nghìn đồng',
+     'analytics_overview', {'ky': scope.period_value}) }}
+  {% endif %}
+  {% if orders_chart %}
+  {{ r6.paired_chart(orders_chart, 'bieu-do-so-don', 'Số đơn',
+     orders_chart.total_text, orders_chart.comparison_total_text,
+     'analytics_overview', {'ky': scope.period_value}) }}
+  {% endif %}
+</div>
+{% if not revenue_chart and not orders_chart %}
+<div class="module">
+  <p class="insight" data-metric="chart-year-level">Mức gộp NĂM không có cửa sổ
+    so sánh — R5 cố ý không mở nó, và R6 không dựng một quy ước riêng để lấp
+    chỗ ấy. Chọn Ngày, Tuần, Tháng hoặc Quý để xem hai cửa sổ liền kề.</p>
+</div>
+{% endif %}
+
+{% if quality %}
+<div class="module">
+  <h2>Những chỗ phạm vi này CHƯA nói được</h2>
+  <ul class="reason-list" data-metric="data-quality">
+    {% for item in quality %}
+    <li><strong>{{ item.count }}</strong> {{ item.label }} — {{ item.note }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

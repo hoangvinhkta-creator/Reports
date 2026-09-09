@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Phân tích theo nhân viên{% endblock %}
+
+{% block content %}
+<h1>PHÂN TÍCH THEO NHÂN VIÊN</h1>
+<p class="insight">{{ biz.business_badge() }} Cùng aggregate với trang cơ cấu,
+  chạy trên lát dữ liệu của từng nhân viên. Trang này KHÔNG chấm điểm, KHÔNG
+  xếp hạng và KHÔNG suy ra một KPI nào — nó đặt cạnh nhau những con số đã có.</p>
+
+<div class="module">
+  {{ r6.scope_picker(periods, scope, url_for('analytics_employee')) }}
+
+  {% if empty %}
+  <p class="empty" data-metric="employee-empty">Phạm vi này chưa có dòng hàng nào.</p>
+  {% endif %}
+
+  <h2>Toàn phạm vi <span class="cnt">{{ scope.label }}</span></h2>
+  <div class="kpi-row">
+    {% for card in company[:4] %}{{ r6.metric_card(card) }}{% endfor %}
+  </div>
+</div>
+
+<div class="module">
+  <h2>Theo nhân viên <span class="cnt">{{ rows|length }} người</span></h2>
+  <div class="tp-scroll">
+  <table>
+    <tr>
+      <th>Nhân viên</th><th class="num">Doanh thu (nghìn)</th>
+      <th class="num">Tỉ trọng</th><th class="num">SL</th>
+      <th class="num">Chiết khấu (nghìn)</th><th class="num">Số đơn</th>
+      <th class="num">Số dòng</th><th class="num">Dòng / đơn</th><th>Cơ cấu</th>
+    </tr>
+    {% for row in rows %}
+    <tr data-kind="{{ 'employee' if row.resolved else 'unresolved' }}">
+      <td class="code" data-metric="employee">{{ row.employee }}</td>
+      <td class="num" data-metric="revenue"
+          title="{{ row.revenue.text }} đồng">{{ row.revenue.text_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.share.missing }}"
+          data-metric="share">{{ row.share.text }}</td>
+      <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+      <td class="num" data-metric="discount"
+          title="{{ row.discount.text }} đồng">{{ row.discount.text_kvnd }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="lines">{{ row.lines }}</td>
+      <td class="num" data-metric="lines-per-order">{{ row.lines_per_order }}</td>
+      <td><a class="ghost btn-mini"
+             href="{{ url_for('analytics_employee', ky=scope.period_value, **{'nhan-vien': row.key, 'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}"
+             >XEM</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <details class="how-to-read">
+    <summary>Cách đọc bảng này</summary>
+    <p class="insight" data-metric="employee-orders-note">Cột "Số đơn" đếm số
+      BH khác nhau có dòng của người này. Một đơn có hai nhân viên được đếm ở
+      cả hai — đúng sự thật nghiệp vụ, nên cột này KHÔNG cộng lại thành tổng số
+      đơn của phạm vi.</p>
+    <p class="insight" data-metric="employee-unresolved-note">Dòng chưa biết ai
+      bán nằm ở hàng "Chưa xác định nhân viên". Tiền của chúng vẫn nằm đủ trong
+      tổng của phạm vi, chỉ chưa vào bảng của ai.</p>
+  </details>
+</div>
+
+{% if block %}
+<div class="module" id="co-cau-nhan-vien">
+  <h2>Cơ cấu của {{ block.employee }}
+    <span class="cnt">{{ block.summary.dimension_label }}</span></h2>
+
+  <nav class="filter-row" data-metric="dimension-picker">
+    {% for item in dimensions %}
+    <a class="ghost btn-mini {{ 'on' if item.on }}" data-dimension="{{ item.key }}"
+       href="{{ url_for('analytics_employee', chieu=item.key, ky=scope.period_value, **{'nhan-vien': selected_employee, 'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}#co-cau-nhan-vien"
+       >{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+
+  {{ r6.reconcile_block(block.summary) }}
+
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 1 }}">{{ label }}</th>
+    {% endfor %}</tr>
+    {% for row in block.rows %}
+    <tr class="{{ 'row-total' if row.total_row }}"
+        data-kind="{{ 'known' if row.known else 'undecided' }}">
+      <td class="code" data-metric="bucket-label"
+          {% if row.reason %}title="{{ row.reason }}"{% endif %}>{{ row.label }}</td>
+      <td class="num" data-metric="revenue"
+          title="{{ row.revenue.text }} đồng">{{ row.revenue.text_kvnd }}</td>
+      <td class="num{{ ' empty-cell' if row.share.missing }}"
+          data-metric="share">{{ row.share.text }}</td>
+      <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+      <td class="num" data-metric="discount"
+          title="{{ row.discount.text }} đồng">{{ row.discount.text_kvnd }}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="lines">{{ row.lines }}</td>
+      <td class="num{{ ' empty-cell' if row.average_price.missing }}"
+          data-metric="average-price"
+          {% if row.average_price.reason %}title="{{ row.average_price.reason }}"{% endif %}
+          >{{ row.average_price.text }}</td>
+      <td class="num{{ ' empty-cell' if row.min_price.missing }}"
+          data-metric="min-price">{{ row.min_price.text }}</td>
+      <td class="num{{ ' empty-cell' if row.max_price.missing }}"
+          data-metric="max-price">{{ row.max_price.text }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="insight" data-metric="employee-share-note">Tỉ trọng trong bảng này
+    là tỉ trọng TRONG lát của chính nhân viên đó, không phải trong tổng công
+    ty — mẫu số là doanh thu của người này.</p>
+</div>
+{% endif %}
+{% endblock %}

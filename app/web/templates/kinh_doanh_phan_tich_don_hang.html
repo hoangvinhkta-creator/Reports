@@ -1,0 +1,45 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Bảng kê đơn{% endblock %}
+
+{% block content %}
+<h1>BẢNG KÊ ĐƠN</h1>
+<p class="insight">{{ biz.business_badge() }} Bảng kê đọc lại ĐÚNG lát dữ liệu
+  của phạm vi đang xem rồi lọc theo Số BH, nên nó không hiện một dòng nào mà
+  trang phân tích đang không tính.</p>
+
+<div class="module">
+  {{ r6.scope_picker(periods, scope, url_for('analytics_drilldown')) }}
+
+  <h2><span data-metric="drilldown-filter">{{ filter_label }}</span>
+    <span class="cnt"><span data-metric="drilldown-orders">{{ orders }}</span> đơn ·
+      <span data-metric="drilldown-lines">{{ rows|length }}</span> dòng</span></h2>
+
+  {# Hàng rào dữ liệu cá nhân của R6, nói ra trên chính trang chứ không giấu
+     trong mã: bảng này KHÔNG mở thêm một trường khách hàng nào. #}
+  <p class="insight" data-metric="drilldown-scope-note">{{ scope_note }}</p>
+</div>
+
+<div class="module">
+  {% if not rows %}
+  <p class="empty" data-metric="drilldown-empty">Không có dòng nào khớp bộ lọc
+    trong phạm vi đang xem.</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}<th>{{ label }}</th>{% endfor %}</tr>
+    {% for row in rows %}
+    <tr>
+      <td class="code" data-metric="order-key">{{ row.order_key }}</td>
+      <td data-metric="sale-date">{{ row.sale_date }}</td>
+      <td data-metric="employee">{{ row.employee }}</td>
+      <td data-metric="product">{{ row.product }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

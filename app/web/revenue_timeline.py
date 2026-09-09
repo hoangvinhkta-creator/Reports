@@ -640,6 +640,60 @@ def _bucket_span(key: str, granularity: str) -> Optional[tuple[date, date]]:
     return None
 
 
+def paired_window_span(
+    granularity: str, anchor: Optional[date],
+) -> Optional[tuple[date, date]]:
+    """`(ngày đầu cửa sổ SO SÁNH, ngày cuối cửa sổ HIỆN TẠI)`, hoặc `None`.
+
+    Repair `FIND-R6-IR-01`. Hàm này trả lời một câu mà `paired_series()` KHÔNG
+    trả lời được, và chính khoảng trống giữa hai câu ấy là chỗ lỗi đã sống:
+
+    ```text
+    paired_series()      "hai cửa sổ này gồm những MỐC nào, giá trị bao nhiêu"
+    paired_window_span() "muốn trả lời câu trên, phải ĐỌC dữ liệu từ ngày nào
+                          tới ngày nào"
+    ```
+
+    Tầng gọi trước đây tự trả lời câu thứ hai bằng cách đưa vào lát dữ liệu ĐÃ
+    LỌC theo phạm vi đang xem. Nhưng cửa sổ so sánh — theo định nghĩa — nằm
+    NGOÀI phạm vi ấy, và với các mức gộp thô hơn NGÀY thì ngay cả cửa sổ HIỆN
+    TẠI cũng lùi ra ngoài (12 tuần tính từ cuối tháng 9 chạm tới tháng 7). Mọi
+    mốc thiếu dữ liệu khi ấy hoặc thành khoảng trống, hoặc — tệ hơn — thành số
+    `0` mang cờ `ORIGIN_CURRENT` nếu ngày đó nằm trọn trong một sổ đã xác nhận
+    đầy đủ (`_covered_by_confirmed`). Một khoảng thời gian có tiền thật bị vẽ
+    thành "đã đo, bằng 0".
+
+    Khoảng trả về được dựng từ LỊCH, đúng cùng phép tính mà `window_slots` và
+    `comparison_anchor` đã dùng — nên nó phủ đúng `2 x size` mốc mà
+    `paired_series()` sẽ hỏi tới, không thừa một ngày, không thiếu một ngày.
+    Cận trên là ngày CUỐI của mốc chứa `anchor` (không phải chính `anchor`): mốc
+    cuối phải được phủ TRỌN, nếu không giá trị của nó sẽ nhỏ hơn giá trị mà
+    trang Báo cáo `R5` — vốn đọc toàn bộ dòng thời gian — hiện cho cùng mốc.
+
+    `None` khi mức gộp không có cửa sổ so sánh (Năm) hoặc không có gì để neo.
+    Ở hai trường hợp đó tầng gọi giữ nguyên lát của phạm vi đang xem: không có
+    cửa sổ thứ hai nào để phủ.
+
+    Đây KHÔNG phải một engine thời gian thứ hai. Nó không chia mốc, không tính
+    giá trị, không sắp xếp — nó chỉ cộng lại hai phép lùi mốc đã có và đọc cận
+    ngày của mốc đầu/cuối bằng `_bucket_span`, cùng hàm mà `paired_series()`
+    dùng để quyết định một mốc có nằm trọn trong khoảng đã xác nhận hay không.
+    """
+    size = COMPARISON_WINDOW_SIZES.get(granularity)
+    if size is None or anchor is None:
+        return None
+    current = window_slots(granularity, anchor, size)
+    previous = window_slots(
+        granularity, comparison_anchor(granularity, anchor, size), size)
+    if not current or not previous:
+        return None
+    low = _bucket_span(previous[0][0], granularity)
+    high = _bucket_span(current[-1][0], granularity)
+    if low is None or high is None:
+        return None
+    return low[0], high[1]
+
+
 def paired_series(
     points: Sequence[Point], *, granularity: str, anchor: Optional[date],
     confirmed_ranges: Sequence[tuple[date, date]] = (),
@@ -774,7 +828,7 @@ __all__ = [
     "COMPARISON_LEVELS", "COMPARISON_NOTE", "COMPARISON_WINDOW_LABEL",
     "COMPARISON_WINDOW_SIZES", "CURRENT_WINDOW_LABEL", "GAP_NOTE",
     "PairedSeries", "Slot", "anchor_date", "comparison_anchor",
-    "paired_series", "window_slots",
+    "paired_series", "paired_window_span", "window_slots",
     "CHART_NOTE", "CHART_SCOPE_NOTE", "DAY", "DEFAULT_GRANULARITY",
     "GRANULARITIES", "GRANULARITY_KEYS", "LEGACY_POINT_NOTE",
     "MIXED_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT",

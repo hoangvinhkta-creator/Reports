@@ -273,7 +273,12 @@
     <a class="ghost btn-mini" href="{{ url_for('business_brand') }}"
        data-metric="brand-link">THEO THƯƠNG HIỆU</a>
     <a class="ghost btn-mini" href="{{ url_for('business_composition') }}"
-       data-metric="composition-link">CƠ CẤU DOANH THU</a></p>
+       data-metric="composition-link">CƠ CẤU DOANH THU</a>
+    {# R6 — dashboard phân tích: cùng kết quả chính thức, thêm chiều số lượng,
+       chiết khấu, số đơn theo thời gian và giỏ hàng. Vẫn là KHUNG NHÌN CON mở
+       từ đây, không phải một tab chính mới. #}
+    <a class="ghost btn-mini" href="{{ url_for('analytics_overview', ky=selected_period) }}"
+       data-metric="analytics-link">PHÂN TÍCH KINH DOANH</a></p>
   {# R3 — hai việc làm VỚI bộ số này, không phải một chiều gộp khác của nó:
      mang nó ra ngoài (Excel), và duyệt nó (chốt kỳ). #}
   <p class="insight view-links">Với bộ số này:

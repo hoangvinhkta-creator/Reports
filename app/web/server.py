@@ -39,6 +39,7 @@ import time
 import uuid
 from dataclasses import replace
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -66,7 +67,9 @@ from app.modules.pricing.resolution.sources import (
 from app.history import coverage as history_coverage
 from app.history import models as history_models
 from app.modules.reporting import (
-    brand_metrics, business_metrics, contribution, line_type, reporting_sheets,
+    analysis_range, basket_metrics, brand_metrics, business_metrics,
+    contribution, dashboard_metrics, line_type, product_metrics,
+    reporting_sheets,
 )
 from app.modules.reporting.rate_routing import GIA_DUNG, gia_dung_workflow_applies
 from app.modules.exporting import business_export
@@ -74,9 +77,11 @@ from app.modules.reporting import evaluation
 from app.web import evaluation_presentation
 from app.web import (
     analytics_presentation, analytics_queries, brand_identity,
-    business_presentation, business_service, business_store, history_store,
+    business_presentation, business_service, business_store,
+    dashboard_presentation, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
-    line_identity, period_lock, revenue_timeline, run_registry,
+    line_identity, period_lock, product_taxonomy, revenue_timeline,
+    run_registry,
     catalog_display, sales_presentation, sales_queries, snapshot_presentation,
     storage_backend, workspace_imei, workspace_presentation,
 )
@@ -3264,6 +3269,458 @@ def create_app(
         return redirect(url_for(
             "business_gia_dung", ky=request.values.get("ky") or "tat-ca",
             **{"nhan-vien": context["selected_employee"], "da-luu": saved}))
+
+    # ------------------------------------------------------------------
+    # R6 — DASHBOARD PHÂN TÍCH KINH DOANH.
+    #
+    # Năm khung nhìn con nữa của Báo cáo, mở từ trang `/kinh-doanh` — KHÔNG
+    # một tab chính mới (`DEC-185` giữ thanh điều hướng đúng BA mục, và R6
+    # không xin mở lại quyết định đó).
+    #
+    # Bốn ranh giới được giữ bằng CẤU TẠO ở mọi route dưới đây:
+    #
+    # 1. **Một nguồn.** Mọi trang đọc `service.period(...)` — đúng lời gọi mà
+    #    Báo cáo, Nhân viên, bảng thương hiệu và biểu đồ doanh thu đã dùng.
+    #    Dòng Owner đã loại và dòng tạm loại KHÔNG có mặt trong `data.lines`,
+    #    nên chúng không thể lọt vào một tổng, một mốc, một bucket hay một giỏ
+    #    hàng nào của R6.
+    # 2. **Một phạm vi.** `analysis_range.resolve` trả về ĐÚNG một phạm vi cho
+    #    cả trang; mọi khối trên trang dùng chung `view["range"]`.
+    # 3. **Một engine thời gian.** Biểu đồ số đơn dựng `Point`/`PairedSeries`
+    #    bằng chính `revenue_timeline` của R5 — không hàm chia mốc thứ hai.
+    # 4. **Một thẩm quyền metadata.** Hãng/nhóm hàng/nhãn model chỉ đi qua
+    #    `product_taxonomy`, vốn chỉ đọc `line_identity` + log quyết định đã
+    #    CONFIRMED + bản chiếu danh mục Tracking.
+    #
+    # VỊ TRÍ của khối này trong file KHÔNG tuỳ ý. Khối mở đầu bằng các HÀM
+    # PHỤ chưa decorate, và `tests/test_phb07_advanced_analytics.py::
+    # route_source` cắt mã của một route bằng cách đọc tới `@app.` KẾ TIẾP —
+    # nên đặt khối này ngay sau `business_composition` sẽ làm mã của R6 bị
+    # đọc thành mã của route PHB-07 và làm đỏ một bài kiểm ranh giới của
+    # vertical khác. `tests/test_r6_dashboard_vertical.py::
+    # test_the_r6_block_never_sits_between_a_route_and_its_next_decorator`
+    # canh ràng buộc này để một lần dời khối về sau không âm thầm phá nó.
+    # ------------------------------------------------------------------
+
+    def _analysis_range() -> analysis_range.AnalysisRange:
+        """Phạm vi HIỆU LỰC của một trang phân tích — đọc MỘT LẦN cho cả trang.
+
+        `fallback_period` là tháng dương lịch hiện tại, cùng quyết định mà
+        `_workspace_period` đã ghi (`§2`, `§3`): một trang phân tích mở ra
+        trước lần nạp sổ đầu tiên của tháng vẫn phải mở đúng tháng ấy chứ
+        không rơi ngược về tháng trước.
+        """
+        return analysis_range.resolve(
+            period_raw=request.values.get("ky"),
+            from_raw=request.values.get("tu-ngay"),
+            to_raw=request.values.get("den-ngay"),
+            fallback_period=(_today().year, _today().month))
+
+    def _analysis_view() -> dict:
+        """Mọi thứ một trang phân tích cần, đọc ĐÚNG MỘT LẦN.
+
+        `metadata` là dãy song song với `data.details` (`product_taxonomy.
+        metadata_for`). Nó được giải ở đây — một lần cho cả trang — chứ không
+        ở từng bảng: ba chiều gộp, bảng giỏ hàng và bảng kê drill-down đều đọc
+        lại đúng dãy này, nên không có đường nào để hai khối cùng trang xếp
+        một dòng vào hai mặt hàng khác nhau.
+        """
+        service = _require_business()
+        scope = _analysis_range()
+        data = _guarded(service.period, date_from=scope.date_from,
+                        date_to=scope.date_to, period=scope.period)
+        metadata = product_taxonomy.metadata_for(
+            data.details, decisions=_identity_decisions(),
+            identities=identity_gateway.confirmed_identities(identity_store),
+            display=catalog_display.read())
+        return {
+            "service": service, "range": scope, "data": data,
+            "metadata": metadata,
+            # Repair `FIND-R6-IR-01` — NEO của cả hai biểu đồ, nói ra TƯỜNG
+            # MINH ở đây thay vì để mỗi biểu đồ tự gọi `anchor_date()`.
+            #
+            # `anchor_date(period, details)` rơi về "ngày bán MUỘN NHẤT thực sự
+            # có" khi `period is None`, và với R6 thì `period is None` nghĩa là
+            # phạm vi TỰ CHỌN — nên cửa sổ sẽ trôi theo dữ liệu: cùng một
+            # khoảng ngày người dùng gõ cho ra hai cửa sổ khác nhau ở hai lần
+            # nạp sổ khác nhau. `scope.date_to` là câu trả lời đúng cho CẢ HAI
+            # phạm vi: với `PERIOD` nó đúng bằng ngày cuối tháng — tức đúng
+            # giá trị `anchor_date()` trả về — còn với `CUSTOM` nó là chính
+            # `Đến ngày` người dùng gõ.
+            "anchor": scope.date_to,
+            "totals": dashboard_metrics.totals(data.details),
+            "periods": workspace_presentation.period_options(
+                _guarded(analytics_queries.available_periods,
+                         snapshot_repo.engine),
+                selected=scope.period or (_today().year, _today().month),
+                today=_today()),
+        }
+
+    def _analysis_scope_block(view: dict) -> dict:
+        """Mô hình hiển thị của bộ chọn phạm vi, dùng chung mọi trang R6."""
+        scope = view["range"]
+        return {
+            "label": scope.label,
+            "kind": scope.kind,
+            "is_custom": scope.is_custom,
+            "days": scope.days,
+            "period_value": scope.period_value,
+            "date_from": scope.date_from.isoformat(),
+            "date_to": scope.date_to.isoformat(),
+            "note": scope.note,
+            "scope_note": analysis_range.SCOPE_NOTE,
+        }
+
+    def _chart_details(view: dict, granularity: str) -> tuple[list, bool]:
+        """Lát dữ liệu hiệu lực PHỦ ĐỦ hai cửa sổ của biểu đồ, và cờ "đã mở rộng".
+
+        Repair `FIND-R6-IR-01`. Đây là chỗ DUY NHẤT của R6 đọc thêm dữ liệu
+        ngoài phạm vi đang xem, và nó đọc đúng bằng khoảng mà
+        `revenue_timeline.paired_window_span` nói là cần — không phải toàn bộ
+        dòng thời gian như trang Báo cáo `R5` đang làm.
+
+        Ba ràng buộc được giữ bằng CẤU TẠO:
+
+        1. **Chỉ biểu đồ.** Hàm này trả về một danh sách `details` và không
+           chạm `view`. Ô chỉ tiêu, bảng gộp, giỏ hàng và bảng kê vẫn đọc
+           `view["data"]` của phạm vi đang xem, nên chúng không thể lặng lẽ
+           nói về một khoảng thời gian khác cái người dùng vừa chọn.
+        2. **Vẫn là effective data.** Nó gọi ĐÚNG `service.period(...)` — cùng
+           lời gọi mà mọi trang nghiệp vụ dùng — nên dòng Owner đã loại và
+           dòng R5 tạm loại vẫn không có mặt, và giá nhập/nhân viên vẫn là
+           giá trị đã hợp nhất. Không đường nào ở đây đọc Excel, `ImportResult`
+           hay một giá "hiện tại" nào.
+        3. **KHÔNG mượn chốt kỳ.** `period=` cố ý KHÔNG được truyền: khoảng
+           hai cửa sổ hầu như không bao giờ là một tháng dương lịch, và mượn
+           trạng thái chốt của tháng chứa nó sẽ gán một `ClosedPeriod` cho một
+           khoảng chưa ai chốt. Biểu đồ không đọc `closed`, nên `None` ở đây
+           không mất thông tin nào.
+
+        Khi phạm vi đang xem ĐÃ phủ đủ khoảng cần thiết, hàm trả về chính lát
+        đã đọc — không có câu truy vấn thứ hai nào chạy.
+        """
+        span = revenue_timeline.paired_window_span(granularity, view["anchor"])
+        if span is None:
+            # Mức NĂM: không có cửa sổ so sánh, nên không có gì phải phủ thêm.
+            return view["data"].details, False
+        low, high = span
+        scope = view["range"]
+        if low >= scope.date_from and high <= scope.date_to:
+            return view["data"].details, False
+        return _guarded(view["service"].period,
+                        date_from=low, date_to=high).details, True
+
+    def _orders_chart(view: dict) -> Optional[dict]:
+        """Biểu đồ SỐ ĐƠN, hai cửa sổ liền kề — cùng engine với doanh thu.
+
+        Nó dựng `revenue_timeline.Point` mà trường `revenue` mang SỐ ĐƠN, rồi
+        gọi đúng `paired_series()` của R5. Không một dòng nào của
+        `revenue_timeline` bị sửa cho việc này, và vì thế hai biểu đồ trên
+        trang luôn cắt cùng những mốc thời gian.
+
+        `None` ở mức gộp Năm — R5 cố ý không có cửa sổ so sánh ở mức đó, và R6
+        không mở một quy ước riêng để lấp chỗ ấy.
+        """
+        granularity = revenue_timeline.parse_granularity(
+            request.args.get("muc"), default=revenue_timeline.DAY)
+        details, _widened = _chart_details(view, granularity)
+        buckets = dashboard_metrics.orders_by_bucket(
+            details, bucket_of=revenue_timeline.bucket_of,
+            granularity=granularity)
+        points = [
+            revenue_timeline.Point(
+                key=key, label=slot["label"],
+                revenue=Decimal(slot["orders"]),
+                origin=revenue_timeline.ORIGIN_CURRENT)
+            for key, slot in sorted(buckets.items())
+        ]
+        paired = revenue_timeline.paired_series(
+            points, granularity=granularity, anchor=view["anchor"],
+            confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
+            if snapshot_repo is not None else ())
+        if paired is None:
+            return None
+        return business_presentation.paired_count_chart(
+            paired, granularity=granularity,
+            undated_orders=view["totals"].orders_without_date)
+
+    def _revenue_chart_for_scope(view: dict) -> Optional[dict]:
+        """Biểu đồ DOANH THU của phạm vi đang xem, hai cửa sổ liền kề.
+
+        Đi qua đúng `revenue_timeline.series()` mà trang Báo cáo dùng, trên
+        đúng `data.details` của phạm vi này. Nguồn lịch sử (`legacy_months`/
+        `legacy_days`) KHÔNG được nối vào đây có chủ ý: trang phân tích trả
+        lời câu hỏi về SỔ ĐANG NẠP trong một phạm vi người dùng vừa chọn, và
+        trộn thêm các tháng chỉ có bản ghi lịch sử vào cửa sổ đó sẽ đặt hai
+        loại bằng chứng cạnh nhau trong cùng một phép so sánh mà không ô nào
+        trên trang nói ra. Dòng thời gian có lịch sử vẫn ở nguyên trang Báo
+        cáo, không bị xoá.
+        """
+        granularity = revenue_timeline.parse_granularity(
+            request.args.get("muc"), default=revenue_timeline.DAY)
+        details, _widened = _chart_details(view, granularity)
+        points = revenue_timeline.series(details, granularity=granularity)
+        paired = revenue_timeline.paired_series(
+            points, granularity=granularity, anchor=view["anchor"],
+            confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
+            if snapshot_repo is not None else ())
+        if paired is None:
+            return None
+        # `undated` vẫn đếm trên lát của PHẠM VI ĐANG XEM: nó là một tín hiệu
+        # chất lượng dữ liệu về cái người dùng đang xem, không về hai cửa sổ.
+        return business_presentation.paired_revenue_chart(
+            paired, granularity=granularity,
+            undated=revenue_timeline.undated_count(view["data"].details))
+
+    @app.get("/kinh-doanh/phan-tich")
+    def analytics_overview():
+        """R6 §2 — Tổng quan: chỉ tiêu nền, hai biểu đồ, bốn ô giỏ hàng.
+
+        Phép đối soát giữa `dashboard_metrics` và `business_metrics` CHẠY THẬT
+        ở mỗi lần tải trang và kết quả lên màn hình: hai module tính số dòng,
+        số đơn và doanh thu bằng hai đường độc lập, nên chúng gặp nhau ở cùng
+        con số là bằng chứng R6 không dựng một định nghĩa doanh thu thứ hai.
+        """
+        view = _analysis_view()
+        data = view["data"]
+        index = _basket_index(view)
+        return render_template(
+            "kinh_doanh_phan_tich.html",
+            periods=view["periods"],
+            scope=_analysis_scope_block(view),
+            cards=dashboard_presentation.totals_cards(view["totals"]),
+            quality=dashboard_presentation.data_quality(view["totals"]),
+            basket_cards=dashboard_presentation.basket_cards(
+                basket_metrics.counts(index)),
+            revenue_chart=_revenue_chart_for_scope(view),
+            orders_chart=_orders_chart(view),
+            reconciliation=dashboard_metrics.reconciliation(
+                view["totals"], data.totals),
+            empty=data.totals.lines == 0)
+
+    def _basket_index(view: dict) -> dict:
+        """Index giỏ hàng của phạm vi đang xem, dựng từ đúng lát dữ liệu."""
+        details = view["data"].details
+        metadata = view["metadata"]
+        return basket_metrics.build_index(
+            details,
+            product_buckets=product_taxonomy.buckets_for(
+                details, metadata,
+                dimension=product_taxonomy.DIMENSION_PRODUCT),
+            category_buckets=product_taxonomy.buckets_for(
+                details, metadata,
+                dimension=product_taxonomy.DIMENSION_CATEGORY))
+
+    def _group_block(view: dict, *, dimension: str, data=None,
+                     metadata=None) -> dict:
+        """Bảng gộp theo MỘT chiều, trên MỘT lát dữ liệu.
+
+        `data`/`metadata` mặc định là lát của cả phạm vi; trang Nhân viên
+        truyền vào lát `for_employee` của chính nó. Cùng một hàm cho cả hai là
+        điều kiện để bảng của một nhân viên và bảng của cả công ty không bao
+        giờ dùng hai phép gộp khác nhau (`R6 §4`).
+        """
+        data = view["data"] if data is None else data
+        metadata = view["metadata"] if metadata is None else metadata
+        buckets = product_taxonomy.buckets_for(
+            data.details, metadata, dimension=dimension)
+        rows = product_metrics.group_rows(data.lines, data.details, buckets)
+        company = dashboard_metrics.totals(data.details)
+        reconciled = product_metrics.reconciliation(rows, company)
+        return {
+            "rows": dashboard_presentation.group_rows(rows, company),
+            "summary": dashboard_presentation.group_summary(
+                reconciled, product_taxonomy.coverage(metadata),
+                dimension=dimension, scope_label=view["range"].label,
+                totals=company),
+        }
+
+    @app.get("/kinh-doanh/phan-tich/co-cau")
+    def analytics_structure():
+        """R6 §3 — Mặt hàng · Nhóm hàng · Hãng, MỘT engine gộp, ba chiều.
+
+        Ba chiều nằm trên MỘT trang với một nút chuyển, không phải ba trang:
+        ba trang gần giống nhau là ba chỗ để một cột được sửa ở hai chỗ và
+        quên ở chỗ thứ ba.
+        """
+        view = _analysis_view()
+        dimension = product_taxonomy.parse_dimension(request.args.get("chieu"))
+        block = _group_block(view, dimension=dimension)
+        return render_template(
+            "kinh_doanh_phan_tich_co_cau.html",
+            periods=view["periods"],
+            scope=_analysis_scope_block(view),
+            columns=dashboard_presentation.GROUP_COLUMNS,
+            dimensions=[
+                {"key": key, "label": label, "on": key == dimension}
+                for key, label in product_taxonomy.DIMENSIONS
+            ],
+            rows=block["rows"], summary=block["summary"])
+
+    @app.get("/kinh-doanh/phan-tich/nhan-vien")
+    def analytics_employee():
+        """R6 §4 — Nhân viên: cùng aggregate, trên lát `for_employee`.
+
+        KHÔNG có employee score, KHÔNG có xếp hạng quản trị, KHÔNG có một KPI
+        nào được suy ra ở đây. Trang chỉ đặt cạnh nhau những con số mà
+        `dashboard_metrics` đã tính cho từng lát — và cơ cấu theo mặt
+        hàng/hãng/nhóm hàng của một nhân viên đi qua ĐÚNG `_group_block` mà
+        trang cơ cấu dùng.
+        """
+        view = _analysis_view()
+        data = view["data"]
+        company = view["totals"]
+        # Thứ tự tên CỐ ĐỊNH (doanh thu giảm dần, rồi tên) để hai lần tải
+        # trang không đổi thứ tự hàng khi số không đổi.
+        names = sorted({line.employee for line in data.lines},
+                       key=lambda value: (value is None, value or ""))
+        rows = []
+        for name in names:
+            slice_data = data.for_employee(name)
+            slice_totals = dashboard_metrics.totals(slice_data.details)
+            rows.append({
+                "employee": name or business_service.bm_unknown_employee_label(),
+                "key": name or "",
+                "resolved": name is not None,
+                "revenue": dashboard_presentation.money_cell(
+                    slice_totals.sales_revenue),
+                "share": {
+                    "text": business_presentation.percent(
+                        product_metrics.share_percent(
+                            slice_totals.sales_revenue, company.sales_revenue)),
+                    "missing": product_metrics.share_percent(
+                        slice_totals.sales_revenue,
+                        company.sales_revenue) is None},
+                "quantity": legacy_presentation.format_number(
+                    slice_totals.total_quantity),
+                "discount": dashboard_presentation.money_cell(
+                    slice_totals.discount_total),
+                "orders": slice_totals.orders,
+                "lines": slice_totals.lines,
+                "lines_per_order": (
+                    "—" if slice_totals.lines_per_order is None
+                    else legacy_presentation.format_number(
+                        slice_totals.lines_per_order)),
+                # Khoá SẮP XẾP giữ nguyên `Decimal`, không đọc ngược từ chuỗi
+                # đã định dạng: `"1.234"` là một nghìn hai trăm ba tư ở cách
+                # viết của trang này và là một phẩy hai ba tư ở cách viết
+                # khác, và một bảng sắp sai thứ tự vì chuyện đó thì không ai
+                # nhìn ra bằng mắt.
+                "_revenue_sort": (slice_totals.sales_revenue
+                                  if slice_totals.sales_revenue is not None
+                                  else Decimal(0)),
+            })
+        rows.sort(key=lambda row: (row["resolved"] is False,
+                                   -row["_revenue_sort"], row["employee"]))
+        selected = request.args.get("nhan-vien")
+        block = None
+        if selected is not None:
+            chosen = selected or None
+            keep = [index for index, line in enumerate(data.lines)
+                    if line.employee == chosen]
+            slice_data = data.for_employee(chosen)
+            slice_metadata = [view["metadata"][index] for index in keep]
+            dimension = product_taxonomy.parse_dimension(
+                request.args.get("chieu"))
+            block = _group_block(view, dimension=dimension, data=slice_data,
+                                 metadata=slice_metadata)
+            block["dimension"] = dimension
+            block["employee"] = (
+                chosen or business_service.bm_unknown_employee_label())
+        return render_template(
+            "kinh_doanh_phan_tich_nhan_vien.html",
+            periods=view["periods"],
+            scope=_analysis_scope_block(view),
+            columns=dashboard_presentation.GROUP_COLUMNS,
+            dimensions=[
+                {"key": key, "label": label,
+                 "on": key == (block or {}).get("dimension")}
+                for key, label in product_taxonomy.DIMENSIONS
+            ],
+            rows=rows, block=block,
+            selected_employee=selected,
+            company=dashboard_presentation.totals_cards(company),
+            empty=data.totals.lines == 0)
+
+    @app.get("/kinh-doanh/phan-tich/gio-hang")
+    def analytics_basket():
+        """R6 §5 — Giỏ hàng: bốn ô tách rời, cặp xác định, attachment hai chiều."""
+        view = _analysis_view()
+        index = _basket_index(view)
+        dimension = request.args.get("chieu")
+        dimension = (product_taxonomy.DIMENSION_CATEGORY
+                     if dimension == product_taxonomy.DIMENSION_CATEGORY
+                     else product_taxonomy.DIMENSION_PRODUCT)
+        if dimension == product_taxonomy.DIMENSION_CATEGORY:
+            min_support = basket_metrics.DEFAULT_CATEGORY_MIN_SUPPORT
+            pairs = basket_metrics.category_pairs(index,
+                                                  min_support=min_support)
+        else:
+            min_support = basket_metrics.DEFAULT_PRODUCT_MIN_SUPPORT
+            pairs = basket_metrics.product_pairs(index, min_support=min_support)
+        counts = basket_metrics.counts(index)
+        return render_template(
+            "kinh_doanh_phan_tich_gio_hang.html",
+            periods=view["periods"],
+            scope=_analysis_scope_block(view),
+            columns=dashboard_presentation.PAIR_COLUMNS,
+            dimensions=[
+                {"key": key, "label": label, "on": key == dimension}
+                for key, label in product_taxonomy.DIMENSIONS
+                if key != product_taxonomy.DIMENSION_BRAND
+            ],
+            cards=dashboard_presentation.basket_cards(counts),
+            rows=dashboard_presentation.pair_rows(pairs),
+            summary=dashboard_presentation.basket_summary(
+                counts, dimension=dimension, scope_label=view["range"].label,
+                min_support=min_support, shown_pairs=len(pairs)),
+            dimension=dimension)
+
+    @app.get("/kinh-doanh/phan-tich/don-hang")
+    def analytics_drilldown():
+        """R6 §5 — Bảng kê drill-down của một bucket hoặc một cặp.
+
+        Nó đọc lại ĐÚNG lát dữ liệu của phạm vi đang xem rồi lọc theo
+        `order_key`, nên nó không thể hiện một dòng mà trang cha đang không
+        tính. Bốn cột, không một trường khách hàng nào — xem
+        `dashboard_presentation.drilldown_rows`.
+        """
+        view = _analysis_view()
+        index = _basket_index(view)
+        dimension = (product_taxonomy.DIMENSION_CATEGORY
+                     if request.args.get("chieu")
+                     == product_taxonomy.DIMENSION_CATEGORY
+                     else product_taxonomy.DIMENSION_PRODUCT)
+        left = request.args.get("a") or ""
+        right = request.args.get("b") or ""
+        basket_dimension = ("category"
+                            if dimension == product_taxonomy.DIMENSION_CATEGORY
+                            else "product")
+        if left and right:
+            order_keys = set(basket_metrics.orders_with_pair(
+                index, left=left, right=right, dimension=basket_dimension))
+            filter_label = f"Đơn chứa CẢ HAI: {left} · {right}"
+        elif left:
+            order_keys = set(basket_metrics.orders_containing(
+                index, member=left, dimension=basket_dimension))
+            filter_label = f"Đơn chứa: {left}"
+        else:
+            order_keys = {line.order_key for line in view["data"].lines}
+            filter_label = "Toàn bộ đơn của phạm vi"
+        keep = [index_ for index_, detail
+                in enumerate(view["data"].details)
+                if detail["order_key"] in order_keys]
+        details = [view["data"].details[index_] for index_ in keep]
+        metadata = [view["metadata"][index_] for index_ in keep]
+        return render_template(
+            "kinh_doanh_phan_tich_don_hang.html",
+            periods=view["periods"],
+            scope=_analysis_scope_block(view),
+            columns=dashboard_presentation.DRILLDOWN_COLUMNS,
+            rows=dashboard_presentation.drilldown_rows(details, metadata),
+            orders=len(order_keys),
+            filter_label=filter_label,
+            scope_note=dashboard_presentation.DRILLDOWN_SCOPE_NOTE)
 
     @app.post("/run")
     def run_report():

@@ -3438,3 +3438,302 @@ sạch; `git diff` RỖNG trên mọi đường tiền đã nghiệm thu.
 
 Bằng chứng nguyên văn:
 `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`.
+
+---
+
+## Root Task: R6
+
+```
+root_task: R6
+title: Dashboard phân tích kinh doanh
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
+repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
+review_round_2: PASS (S146, 2026-09-09) — CHECK-R6-31 = PASS trên HEAD 40807ef;
+             0 REPAIR_REQUIRED, 0 ACCEPTED_RISK mới, 0 repair cycle tiêu
+next_action: Owner — (1) quyết cờ V4.1 §8 INTEGRATION_DECISION_REQUIRED,
+             (2) CHECK-R6-30 trên sổ thật, (3) CHECK-R51-26, (4) CHECK-R6-32.
+             KHÔNG cần ESCALATE: vòng 2 không có REPAIR_REQUIRED.
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
+blast radius của chính `R6`**, KHÔNG sao chép ngân sách `2` của `R5` — `R5`
+là `HIGH` vì một lý do mà `R6` không có (xem ngay dưới).
+
+`R6` là một **ROOT TASK LINEAGE MỚI**, không phải sub-unit của `R5`/`R5.1`: nó
+không mở rộng hợp đồng metadata mà hai task kia dựng, mà dựng một tầng ĐỌC mới
+trên đầu ra của chúng. Nó cũng KHÔNG được tạo ra để reset ngân sách của lineage
+nào — lineage `R5` vẫn giữ nguyên `2 allowed / 2 used / 0 remaining`, và không
+finding nào của `R6` được phép tiêu vào đó.
+
+**Blast Radius chấm theo failure path** (`V4.1` §4). Failure path của `R6`:
+
+```text
+PeriodData hiệu lực → aggregate R6 → bảng / biểu đồ / giỏ hàng phân tích
+                    → quyết định kinh doanh của Owner
+```
+
+Nó DỪNG ở đó, và ba tính chất CẤU TẠO giữ nó không đi xa hơn:
+
+1. **Không có đường GHI.** Không route `POST`, không bảng, không store quyết
+   định, không migration (`alembic` giữ nguyên một head của `R3`). Một lỗi ở
+   đây không sửa được một bản ghi kế toán nào.
+2. **Không định nghĩa lại một con số đã nghiệm thu.** Doanh thu đọc
+   `BusinessLine.total_sales`; số dòng, số đơn và doanh thu được ĐỐI SOÁT
+   TUYỆT ĐỐI với `business_metrics` ở MỖI lần tải trang, và phép đối soát ấy
+   được chứng minh là BẮT ĐƯỢC một dòng bị bỏ rơi
+   (`tests/test_r6_dashboard_metrics.py::test_reconciliation_fails_loudly_
+   when_a_line_is_dropped`).
+3. **Không tầng nào tiêu thụ `R6`.** Không module nào ngoài đường trình bày
+   của chính `R6` import `dashboard_metrics`/`product_metrics`/
+   `basket_metrics`.
+
+`3/5`, KHÔNG phải `2/5`, vì hai lý do THẬT: một bucket gộp sai làm Owner đọc
+ra một cơ cấu hàng bán sai và ra quyết định mua hàng sai (brief xếp "gộp sai
+khó phát hiện" vào nhóm bắt buộc repair); và `R6` mở một bề mặt drill-down mới
+trên dữ liệu dòng, tức một đường rò tiềm năng nếu bảng kê ấy nới ra.
+
+`3/5`, KHÔNG phải `4/5` như `R5`: `R5` có quyền LOẠI dòng khỏi tập được cộng
+và vì thế đổi được vân tay chốt kỳ lẫn file export. `R6` không có quyền đó,
+không chạm `period_lock`, không chạm `business_export`.
+
+```
+Effective Risk = max(Local Risk 3, Blast Radius 3) = MEDIUM
+```
+
+**Golden Baseline KHÔNG được dùng để hạ bậc** (`V4.1` §4.1): không Golden test
+nào phủ failure path "aggregate phân tích → quyết định kinh doanh", nên không
+có gì để hạ. `R6` KHÔNG viện dẫn Golden để giảm risk.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S143` không sửa tiếp triển
+khai của `R5`/`R5.1` — nó ĐỌC một `R5.1` đã merge trên nhánh mặc định của cả
+hai repo (Tracking `dc98910`, Reports `a59936c`, cả hai xác nhận là ancestor).
+
+Một thay đổi nhỏ ở `app/web/business_presentation.py` (thêm `paired_count_
+chart`, `money_text`, `money_kvnd`; `_slot_title` nhận thêm tham số `unit` CÓ
+GIÁ TRỊ MẶC ĐỊNH) là mã MỚI của `R6` đặt cạnh mã cũ để dùng chung hàm dựng
+hình, KHÔNG phải một repair của `R5`: không hành vi cũ nào đổi, và toàn bộ
+test `R5`/`DEC-R5-02` chạy lại nguyên trạng.
+
+Việc dời khối route `R6` trong `server.py` ra sau `business_save_gia_dung` là
+một sửa chữa của CHÍNH `R6` (nó làm đỏ một bài kiểm ranh giới của `PHB-07` khi
+đặt sai chỗ), phát hiện và sửa TRONG cùng phiên triển khai — theo `V4.1` §3 nó
+thuộc cùng cycle đang mở, và cycle đó chưa được tiêu vì chưa có vòng review
+nào ra `REPAIR_REQUIRED`.
+
+**Số dư còn `1 remaining`.** Nếu vòng Independent Review đầu tiên ra
+`REPAIR_REQUIRED`, repair cycle duy nhất của lineage `R6` sẽ bị tiêu; một vòng
+`REPAIR_REQUIRED` thứ hai làm lineage hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở cycle thứ hai.
+
+```text
+CHECK-R6-30  NOT_TESTED — đối soát trên SỔ THẬT của Owner
+CHECK-R6-31  NOT_TESTED — Independent Review
+CHECK-R6-32  NOT_TESTED — Owner Acceptance
+CHECK-R51-26 NOT_TESTED — chặn MERGE/DEPLOY của R6 (xem DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md`.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED` (`S144`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+exact HEAD reviewed    56aca4c91bd788b1e14d7f71b9246d1577255c1a
+nền xác nhận           Reports  claude/extract-upload-repo-gq2ws4 @ 05f2b44
+                       Tracking main                             @ 66787c0
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03)
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu bởi PHIÊN REVIEW   0   (phiên review KHÔNG sửa mã)
+số dư sau S144         1 allowed / 0 used / 1 remaining
+CHECK-R6-31            NOT_TESTED → FAIL (vòng 1, E1)
+```
+
+Phiên review **KHÔNG tiêu** một cycle nào: `V4.1` §3 tính cycle theo VÒNG SỬA,
+và `S144` chỉ đọc/chạy/kiểm, không sửa một dòng mã sản phẩm. Cycle sẽ bị tiêu
+khi `REPAIR-1` chạy — cùng cách hạch toán mà lineage `R5` đã dùng ở `S135`.
+
+Hai finding `REPAIR_REQUIRED`:
+
+```text
+FIND-R6-IR-01  Cửa sổ so sánh của CẢ HAI biểu đồ trang phân tích vẽ SỐ 0 cho
+               một khoảng có doanh thu và số đơn THẬT. `_revenue_chart_for_scope`
+               và `_orders_chart` nạp cho `paired_series()` lát dữ liệu ĐÃ LỌC
+               theo phạm vi, trong khi cửa sổ liền trước theo định nghĩa nằm
+               NGOÀI phạm vi ấy; `_covered_by_confirmed` biến chỗ không có điểm
+               thành `Decimal(0)` mang `origin=ORIGIN_CURRENT`. Trang Báo cáo
+               của R5 đọc lại `service.period()` KHÔNG lọc chính vì lý do này.
+               Đo trên SERVER FLASK THẬT, cùng sổ/kỳ/mức gộp:
+                 R5 /kinh-doanh           10/08/2026 → 7.000.000 đồng
+                 R6 /kinh-doanh/phan-tich 10/08/2026 → 0 đồng / 0 đơn
+FIND-R6-IR-02  Bucket "Chưa xác định" đứng làm một NHÓM HÀNG HOÁ trong Basket:
+               nó làm tăng `multi_merchandise_category_orders` và sinh ra hàng
+               gợi ý bán chéo giữa hai lý do chưa xác định, trong khi
+               `pair_rows` không chở `known`/`reason` như `group_rows` và
+               template render hai cột y hệt một cặp thật.
+```
+
+Cả hai thuộc nhóm mà brief `R6` §7 đã liệt kê TRƯỚC là bắt buộc repair
+("sai tổng tiền, sai số đơn, … hoặc **gộp sai khó phát hiện**"), nên không có
+tranh cãi nào về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+`FIND-R6-IR-01` rơi thẳng vào failure path đã chấm ở trên
+(*"→ quyết định kinh doanh của Owner"*): nó dựng một tín hiệu tăng trưởng bịa
+trên đúng trang được làm ra để quyết định mua hàng.
+
+`AR-R6-IR-03` (mẫu số giá bán bình quân giữ số lượng của dòng thiếu
+`total_sales`) và `COR-R6-IR-01` (docstring dẫn một file test không tồn tại)
+là `RECOMMENDED` và tài liệu — chúng KHÔNG tự tiêu một cycle riêng, nhưng nên
+được xử lý trong cùng `REPAIR-1` vì lý do ngân sách ngay dưới.
+
+**Cảnh báo ngân sách.** `REPAIR-1` sẽ tiêu cycle DUY NHẤT của lineage `R6`
+(`1 allowed / 1 used / 0 remaining`). Vì thế `REPAIR-1` phải xử lý CẢ BỐN mục
+trong CÙNG một vòng — `V4.1` §3 tính theo vòng, nên gộp chúng lại không tốn
+thêm gì, còn tách ra sẽ tiêu hết ngân sách cho một nửa danh sách. Nếu vòng
+Independent Review thứ hai lại ra `REPAIR_REQUIRED`, `R6` KHÔNG được mở repair
+cycle thứ hai mà phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+```text
+CHECK-R6-30  NOT_TESTED — sổ Owner KHÔNG có mặt trong môi trường review
+                          (/Users/hoangvinh/… là đường dẫn trên máy Owner);
+                          công cụ đối soát ĐÃ được kiểm lại trong phiên này và
+                          tái tạo đủ tám con số vector Owner qua pipeline THẬT
+CHECK-R6-31  FAIL       — vòng 1, S144
+CHECK-R6-32  NOT_TESTED — phiên review KHÔNG tự đóng Owner Acceptance
+CHECK-R51-26 NOT_TESTED — vẫn chặn MERGE/DEPLOY của R6 (DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
+tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
+
+### REPAIR-1 (`S145`, 2026-09-09) — cycle DUY NHẤT đã tiêu
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED (S144)
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03) — sửa trong CÙNG vòng
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu      1
+số dư sau REPAIR-1     1 allowed / 1 used / 0 remaining   ← HẾT
+CHECK-R6-31            FAIL (vòng 1) → NOT_TESTED (chờ vòng 2 trên HEAD sau repair)
+```
+
+Đây là repair cycle ĐẦU TIÊN và DUY NHẤT của lineage `R6`. Nó tiêu đúng một
+cycle vì cả bốn mục thuộc CÙNG một vòng review và được sửa trong CÙNG một phiên
+— `V4.1` §3 tính theo LẦN SỬA, không theo số finding.
+
+`AR-R6-IR-03` là `RECOMMENDED` và tự nó KHÔNG tiêu một cycle riêng; nó được kéo
+vào cùng vòng theo đúng khuyến nghị của review §8, vì lineage chỉ có một cycle.
+
+**Ba việc phát sinh TRONG phiên repair, và cả ba nằm trong cumulative repair
+diff của cycle này** (`V4.1` §3 — defect do chính repair cycle tạo hoặc sửa
+thuộc CÙNG cycle, không mở cycle mới):
+
+1. Khối route `R6` trong `server.py` được dời (đã dời từ `S143`) — không phát
+   sinh thêm ở phiên này.
+2. `scripts/r6_crossrepo_smoke.py` có một bài đo sai điều tên gọi của nó gợi ra
+   — chính điểm mà review §7.2 đã ghi. Sau repair bài ấy ĐỎ và nó đúng khi đỏ;
+   đã sửa gốc phép chọn dòng để nó đo hai nhóm hàng THẬT.
+3. Bài kiểm mới của repair ban đầu gán thẳng vào module và làm rò trạng thái
+   sang `tests/test_tracking_live_pull.py`. Đã sửa bằng `pytest.MonkeyPatch()`
+   có `undo()`.
+
+**Đính chính phạm vi.** `REPAIR-1` chạm `app/web/revenue_timeline.py` — file mà
+Scope Lock của `R6` từng liệt kê là NGOÀI phạm vi. Thay đổi thuần THÊM
+(`paired_window_span`, +55/−1, dòng bị xoá duy nhất là chính dòng `__all__`
+được viết dài ra), và brief `REPAIR-1` cho phép tường minh: *"Dùng/làm rõ helper
+thuộc engine timeline hiện có nếu cần"*. Ràng buộc thật — KHÔNG dựng engine thời
+gian thứ hai — vẫn giữ. Ghi ở `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`
+§1 và `S145` §4.4 thay vì để một lần đọc diff sau này phát hiện.
+
+**Bất biến tiền:** `git diff` RỖNG trên `app/modules/pricing/`,
+`app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+`business_store.py`, `business_queries.py`, `business_service.py`,
+`business_metrics.py`, `tools/db/migrations/`, `config/`.
+
+**Kiểm chứng:** 48 bài mới (đỏ TRƯỚC, xanh SAU); full regression
+`1 failed / 3445 passed / 11 skipped` với bài đỏ là ĐÚNG baseline clone nông;
+smoke `R6` 29 PASS / 0 FAIL, smoke `R5.1` 63 PASS / 0 FAIL; Tracking
+`npm test` 2892 đạt / 0 hỏng và build OK (Tracking KHÔNG đổi code);
+validator governance = baseline; `git diff --check` sạch.
+
+**Số dư còn `0 remaining`.** Nếu vòng Independent Review thứ hai lại ra
+`REPAIR_REQUIRED`, lineage `R6` KHÔNG được mở repair cycle thứ hai mà phải
+escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
+
+`CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) VẪN `NOT_TESTED` và
+vẫn CHẶN merge/deploy `R6`.
+
+Bằng chứng nguyên văn: `docs/sessions/S145-r6-repair-1.md`.
+
+### Independent Review VÒNG 2 (`S146`, 2026-09-09) — `PASS`, 0 cycle tiêu
+
+Đối tượng: HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` (SAU `REPAIR-1`),
+detached, worktree sạch, `branch_authority_check.sh` → `AUTHORITY_OK`
+(`DETACHED_EXACT_TARGET`). Tracking = `origin/main` `66787c0`, không lệch một
+byte — dependency, không có thay đổi `R6`.
+
+```text
+kết luận vòng 2         PASS
+CHECK-R6-31             NOT_TESTED → PASS (E1)
+finding REPAIR_REQUIRED 0
+finding ACCEPTED_RISK   0
+ghi nhận tài liệu/hiệu năng  4   OBS-R6-IR2-01 … -04 (KHÔNG tiêu ngân sách)
+repair cycle tiêu       0
+số dư sau vòng 2        1 allowed / 1 used / 0 remaining   (KHÔNG đổi)
+ESCALATION              KHÔNG cần
+```
+
+Cả bốn mục của vòng 1 được xác nhận ĐÃ SỬA bằng bằng chứng ĐỘC LẬP — phiên
+review vòng 2 KHÔNG dùng lại một fixture nào của `REPAIR-1` và KHÔNG lấy một
+con số nào từ `S145` làm bằng chứng:
+
+```text
+FIND-R6-IR-01  ĐÃ SỬA  93 phép đo qua HTTP THẬT (app.run, cổng thật), oracle là
+                       trang Báo cáo R5 trên CÙNG server/sổ/kỳ/mức gộp. R6 khớp
+                       R5 TỪNG MỐC ở ngay/tuan/thang/quy và ở custom range; cửa
+                       sổ so sánh có tiền thật ở CẢ BỐN mức (đo trên một sổ
+                       trải từ 2023); số 0 chỉ ở mốc rỗng THẬT trong coverage
+                       đã xác nhận; lát mở rộng vẫn là effective data (dòng
+                       Owner loại KHÔNG quay lại); ô chỉ tiêu/bảng/giỏ hàng/
+                       bảng kê vẫn chỉ đọc phạm vi đang xem.
+FIND-R6-IR-02  ĐÃ SỬA  51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo
+                       (danh mục do producer Tracking THẬT sinh, phân loại qua
+                       route POST thật) và 1 DIFF trực tiếp 56aca4c vs HEAD
+                       trên cùng đầu vào: trước 5/5 đơn bị đếm multi và có cặp
+                       ('Tivi','__UNRESOLVED__'), ('__CONFLICT__',
+                       '__UNRESOLVED__'); sau còn đúng một cặp THẬT. Mọi thứ
+                       khác — cặp SẢN PHẨM, orders, multi_line, multi_product,
+                       service_attachment, tiền từng đơn — KHÔNG đổi.
+AR-R6-IR-03    ĐÃ SỬA  35 phép đo. Thiếu total_sales 5.000.000 → 10.000.000;
+                       quantity=0 6.500.000 → 5.000.000; thiếu quantity, hàng
+                       tặng giá 0 và ca bình thường đều đúng; mẫu số 0 ⟹ None
+                       KÈM LÝ DO; min/max và total_quantity nghiệp vụ KHÔNG bị
+                       thu hẹp; đối soát bảng nhóm khớp tuyệt đối.
+COR-R6-IR-01   ĐÃ SỬA  bài canh thật tồn tại và đo đúng HTML đã render; không
+                       còn tham chiếu nào coi file không tồn tại là bài canh.
+```
+
+**Regression:** full `pytest` `3445 passed / 12 skipped / 0 failed`; smoke `R6`
+`29 PASS / 0 FAIL`; smoke `R5.1` `63 PASS / 0 FAIL`; Tracking `2892 đạt /
+0 hỏng`; `git diff --check` sạch; validator = baseline; đối soát sổ Golden
+`3.562.310.000` KHỚP TOÀN BỘ. Bài đỏ ở lần chạy pytest ĐẦU
+(`TestG25GoldenBaselineUnchanged`, `bad object 740f396…`) là BASELINE của clone
+NÔNG: `R6` không chạm bài kiểm ấy, chạy riêng thì `41 passed`, và sau một
+`git fetch origin --prune` đầy đủ thì lần chạy thứ hai `0 failed` mà không ai
+sửa gì.
+
+**`INTEGRATION_DECISION_REQUIRED` VẪN MỞ.** Đo lại trong vòng 2:
+`cumulative LOC = 10.155` (`S145` ghi `10.100` vì đo tại `419391c`; chênh đúng
+57 dòng của commit tài liệu `40807ef`). Owner phải chọn theo V4.1 §8 TRƯỚC lần
+merge; phiên review KHÔNG chọn thay.
+
+**`R6` VẪN KHÔNG được merge hay deploy.** `CHECK-R51-26`, `CHECK-R6-30` và
+`CHECK-R6-32` đều `NOT_TESTED` và đều thuộc thẩm quyền Owner.
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`.
