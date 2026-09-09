@@ -413,6 +413,45 @@ cycle này, nên chúng không mở một cycle thứ hai (`V4.1` §3).
 
 ---
 
+## 8b. `INTEGRATION_DECISION_REQUIRED` — cần Owner quyết, KHÔNG do phiên này chọn
+
+`scripts/branch_authority_check.sh` trên HEAD sau repair:
+
+```text
+DEFAULT_BRANCH       claude/extract-upload-repo-gq2ws4
+DEFAULT_TIP          05f2b443e66ee4702d03c003d5f1f960b5765f8d
+HEAD_SHA             419391c723be30a027b43519c2e2fc890f5f6d61
+WORKTREE             CLEAN
+ahead  default       4 commit
+behind default       0 commit
+divergence days      0
+cumulative LOC       10100
+DIVERGENCE           INTEGRATION_DECISION_REQUIRED [ loc>5000 ]
+AUTHORITY            BRANCH_WITH_UPSTREAM
+RESULT               AUTHORITY_OK
+```
+
+`AUTHORITY_OK` — nhánh có upstream, working tree sạch, không lệch sau nhánh mặc
+định. NHƯNG `cumulative LOC = 10.100` vượt ngưỡng `5.000` của `V4.1` §8, nên
+cờ `INTEGRATION_DECISION_REQUIRED` đang MỞ.
+
+**Phiên này ghi nhận và KHÔNG tự chọn.** `V4.1` §8 quy định Owner phải chọn một
+trong ba: (A) integrate/merge sớm; (B) cắt scope; (C) tiếp tục divergence có lý
+do + ngày review — và nói rõ *"Không được tiếp tục im lặng"*.
+
+Ghi thêm cho trung thực: cờ này **đã mở từ trước phiên này** — phần lớn `10.100`
+LOC là của chính `R6` (`S143`), và `REPAIR-1` chỉ góp thêm `2.193` dòng. `S143`,
+`S144` và bản ghi Independent Review đều KHÔNG ghi lại cờ này; đây là một khoảng
+trống governance mà phiên repair phát hiện, không phải một cờ do repair sinh ra.
+
+Nó KHÔNG phải một finding về mã và KHÔNG chặn `REPAIR-1`: `R6` vốn không được
+merge trong phiên nào của lineage này cho tới khi `CHECK-R51-26` và
+`CHECK-R6-31` cùng `PASS`. Nhưng nó phải được đặt lên bàn Owner TRƯỚC lần merge
+đó, vì lựa chọn (A)/(B)/(C) là một quyết định về tích hợp, không phải một bước
+kỹ thuật.
+
+---
+
 ## 9. Việc kế tiếp, theo thứ tự
 
 1. **Independent Review vòng 2** trên exact HEAD của
@@ -422,7 +461,10 @@ cycle này, nên chúng không mở một cycle thứ hai (`V4.1` §3).
 2. **Owner nghiệm thu `R5.1` trên production** → `CHECK-R51-26` (chặn merge).
 3. **Owner chạy đối soát sổ thật** → `CHECK-R6-30`, một lệnh (xem §5).
 4. Chỉ khi (1) và (2) cùng `PASS`: merge `R6`. Chỉ Reports có gì để merge.
-5. Deploy và `CHECK-R6-32` sau merge.
+5. **Owner quyết `INTEGRATION_DECISION_REQUIRED`** theo `V4.1` §8 — (A)
+   integrate sớm, (B) cắt scope, hay (C) tiếp tục divergence có lý do + ngày
+   review. Xem §8b. Phải quyết TRƯỚC lần merge, không phải sau.
+6. Deploy và `CHECK-R6-32` sau merge.
 
 ---
 
@@ -443,6 +485,9 @@ Migration mới               0 — alembic giữ nguyên một head của R3
 Route GHI mới               0
 Tracking                    KHÔNG sửa một byte nào
 PR / merge / deploy         KHÔNG thực hiện
+branch_authority_check.sh   AUTHORITY_OK; DIVERGENCE
+                            INTEGRATION_DECISION_REQUIRED [loc>5000] — MỞ,
+                            cần Owner quyết theo V4.1 §8 (xem §8b)
 ```
 
 **R6 chỉ được merge/deploy sau khi `CHECK-R51-26` hoàn tất trên production VÀ

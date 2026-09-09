@@ -76,6 +76,16 @@ smoke xanh nhờ dòng chưa khớp mã chứ không nhờ hai nhóm hàng thậ
 review §7.2 đã ghi; và một bài kiểm mới làm rò trạng thái toàn cục sang
 `tests/test_tracking_live_pull.py`, đã sửa bằng `MonkeyPatch().undo()`.
 
+**CẦN OWNER QUYẾT — `INTEGRATION_DECISION_REQUIRED` (`V4.1` §8).**
+`scripts/branch_authority_check.sh` cho `AUTHORITY_OK` (nhánh có upstream,
+worktree sạch, không lệch sau nhánh mặc định) nhưng `cumulative LOC = 10.100`
+vượt ngưỡng `5.000`, nên cờ đang MỞ. Owner chọn một trong ba: (A) integrate/merge
+sớm; (B) cắt scope; (C) tiếp tục divergence có lý do + ngày review — `V4.1` §8
+nói rõ *"Không được tiếp tục im lặng"*. Cờ này đã mở TỪ TRƯỚC `REPAIR-1` (phần
+lớn LOC là của `S143`; repair góp `2.193` dòng) và `S143`/`S144`/bản ghi review
+đều không ghi lại — đây là khoảng trống governance mà phiên repair phát hiện,
+không phải cờ do repair sinh ra. Chi tiết: `S145` §8b.
+
 **`R6` chỉ được merge/deploy sau khi ĐỦ HAI điều: `CHECK-R51-26` hoàn tất trên
 production, VÀ `R6` qua Independent Review vòng 2 (`CHECK-R6-31`).**
 
