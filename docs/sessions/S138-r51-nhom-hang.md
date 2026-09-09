@@ -389,11 +389,27 @@ Phiên này **không** tự đánh dấu Independent Review hay Owner Acceptance
 ### Exact HEAD cuối phiên
 
 ```text
-Reports   0b8ac31bb138b08356699f70424cda5dbcb6017b
-          nhánh claude/r5-1-category-label-1nnct7
 Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
-          nhánh claude/r5-1-category-label-1nnct7
+          nhánh claude/r5-1-category-label-1nnct7 — commit MÃ cuối cùng;
+          không có commit tài liệu nào sau nó ở repo này.
+
+Reports   f98299537596095c822c9135ef698adcb8c46f43
+          nhánh claude/r5-1-category-label-1nnct7 — HEAD GỒM CẢ TÀI LIỆU.
+          Commit mã cuối cùng là 0b8ac31; f982995 thêm hợp đồng, task file,
+          `DEC-204`, ledger và chính bản bàn giao này. Vòng review kế tiếp
+          nên đọc SHA ở đây, không phải 0b8ac31.
 ```
+
+Ba commit của phiên:
+
+```text
+Tracking  39528ee  R5.1 §4: /api/xuat/board xuất thêm category_label chuẩn hoá
+Reports   0b8ac31  R5.1 §5: Reports đọc category_label từ hợp đồng catalog
+Reports   f982995  R5.1: hợp đồng, task/checklist, DEC-204, bàn giao S138
+```
+
+Cả hai nhánh đã `git push -u origin claude/r5-1-category-label-1nnct7`.
+KHÔNG mở pull request, KHÔNG merge, KHÔNG deploy.
 
 ### Ghi chú môi trường
 

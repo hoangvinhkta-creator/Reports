@@ -14,8 +14,9 @@ Nền đã merge (đầu phiên)
   Reports   claude/extract-upload-repo-gq2ws4 @ 3b35b7a  (chứa R5 merge f5e4e76)
   Tracking  main                              @ 918183c  (chứa R5 §5)
 
-HEAD cuối phiên (nhánh claude/r5-1-category-label-1nnct7 ở cả hai repo)
-  Reports   0b8ac31bb138b08356699f70424cda5dbcb6017b
+HEAD cuối phiên (nhánh claude/r5-1-category-label-1nnct7 ở cả hai repo,
+đã push, KHÔNG mở PR)
+  Reports   f98299537596095c822c9135ef698adcb8c46f43  (gồm cả tài liệu)
   Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
 
 Kiểm tra
