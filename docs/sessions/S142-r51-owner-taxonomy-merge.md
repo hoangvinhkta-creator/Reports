@@ -256,49 +256,89 @@ một trường hợp cụ thể.
 
 ## 5. Merge có kiểm soát
 
-**Điền sau khi PR merge — xem `git log` của nhánh mặc định để xác minh độc
-lập nếu bản ghi dưới đây thiếu.**
-
 ### 5.1 Tracking
 
 ```text
-PR                #___  hoangvinhkta-creator/Tracking
+PR                #27  hoangvinhkta-creator/Tracking
+                  https://github.com/hoangvinhkta-creator/Tracking/pull/27
 head → base       claude/r5-1-repair-1-taxonomy → main
-diff kiểm tra     src/index.js, kiem/nhom-hang.js, kiem/smoke/sinh-catalog-reports.mjs
-merge commit SHA  ________________________________________
-main HEAD sau merge  ________________________________________
+merge method      merge commit
+merge commit SHA  dc9891087687f25b6f92804f46eba2628ebe788b
+main HEAD sau merge  dc9891087687f25b6f92804f46eba2628ebe788b (main == merge SHA)
+```
+
+PR này mang TOÀN BỘ lineage `R5.1` (`main` trước đó chỉ có `R5 §5`
+`model_label`/`brand`, `39528ee`/`11a199b` chưa từng merge) — diff xác nhận
+đúng `src/index.js`, `kiem/nhom-hang.js`, `kiem/hang-va-model.js`,
+`kiem/xuat-baocao.js`, `kiem/smoke/sinh-catalog-reports.mjs`, không file nào
+ngoài dự kiến, không chạm `price-engine/`/`src/min-ngay.js`.
+
+Xác nhận sau merge:
+
+```text
+$ git fetch origin main    → 918183c..dc98910
+$ git checkout main && git pull    → fast-forward, sạch
+$ npm test    → 62 bộ · 2882 đạt · 0 hỏng · 2 bỏ qua
+$ npm run build    → OK, 658 KB → 411 KB
 ```
 
 ### 5.2 Reports
 
 ```text
-PR                #___  hoangvinhkta-creator/Reports
+PR                #13  hoangvinhkta-creator/Reports
+                  https://github.com/hoangvinhkta-creator/Reports/pull/13
 head → base       claude/r5-1-owner-taxonomy-merge → claude/extract-upload-repo-gq2ws4
-diff kiểm tra     2 file mã (chú thích), 2 file test, 7 file tài liệu
-merge commit SHA  ________________________________________
-default HEAD sau merge  ________________________________________
+merge method      merge commit
+merge commit SHA  a59936ce497ddcc9fb63a87dd0524729931a83f9
+default HEAD sau merge  a59936ce497ddcc9fb63a87dd0524729931a83f9 (== merge SHA)
 ```
 
-### 5.3 Xác nhận sau merge (cả hai repo)
+Cùng lý do với Tracking: `claude/extract-upload-repo-gq2ws4` trước đó dừng ở
+`3b35b7a` (`R5` merge), toàn bộ `R5.1`/`REPAIR-1`/review chưa từng merge. PR
+mang cả lineage; diff sản phẩm ngoài `category_label` tự nó chỉ 2 dòng chú
+thích (`app/web/catalog_display.py`, `tools/tracking/capture_tracking_catalog.py`)
+— xác nhận bằng `git diff --stat d89ecee..HEAD -- app/ tools/ config/`
+TRƯỚC khi tạo PR.
+
+### 5.3 Xác nhận sau merge
 
 ```text
-$ git fetch origin <nhánh mặc định>
-$ git merge-base --is-ancestor <SHA trước merge> <SHA sau merge> && echo YES
-$ git status --porcelain          → rỗng
-$ bash scripts/branch_authority_check.sh   → AUTHORITY_OK
+$ git fetch origin claude/extract-upload-repo-gq2ws4
+  3b35b7a..a59936c  claude/extract-upload-repo-gq2ws4 -> origin/...
+$ git checkout claude/extract-upload-repo-gq2ws4 && git pull
+$ git status --porcelain            → rỗng
+$ bash scripts/branch_authority_check.sh
+  HEAD_SHA a59936c...  AUTHORITY: BRANCH_WITH_UPSTREAM  RESULT: AUTHORITY_OK
+$ .venv/bin/python -m pytest tests/ -q
+  3260 passed, 11 skipped
+$ .venv/bin/python scripts/r51_crossrepo_smoke.py
+  KẾT QUẢ SMOKE: 63 PASS, 0 FAIL
+$ validate_structure / validate_project_state / validate_evidence /
+  validate_task_completion   → tất cả PASS
 ```
 
-Điền kết quả thật ở đây sau khi thực hiện.
+Toàn bộ kiểm chứng chạy TRÊN CHÍNH nhánh mặc định sau merge, không phải trên
+nhánh làm việc — đây là bằng chứng độc lập rằng merge không làm hỏng gì.
 
 ---
 
 ## 6. Deploy
 
-**KHÔNG deploy thủ công trong phiên này.** Nếu Reports có Render auto-deploy
-gắn với nhánh mặc định, merge PR #___ có thể đã kích hoạt một lần deploy tự
-động — phiên này CHỈ GHI NHẬN khả năng đó (nếu quan sát được từ bằng chứng
-gián tiếp), KHÔNG xác nhận production đã chạy đúng, và KHÔNG tuyên bố
-`CHECK-R51-26` đạt. Owner là người duy nhất nghiệm thu production.
+**KHÔNG deploy thủ công trong phiên này.** Repo có `render.yaml` (Render
+Blueprint, S071B) mô tả một Render Web Service trỏ vào nhánh mặc định
+`claude/extract-upload-repo-gq2ws4` — nhưng file blueprint không tự nói lên
+việc dịch vụ Render THẬT đã được Owner tạo và LIÊN KẾT với repo hay chưa
+(bước đó cần tài khoản Render + phương thức thanh toán, thực hiện bởi Owner
+ngoài phiên này — xem chú thích đầu `render.yaml`). Phiên này KHÔNG có
+credential/egress để truy vấn Render API và xác nhận trạng thái deploy —
+cùng giới hạn mà `S127`/`S130`/`S133`/`S137` đã ghi.
+
+Merge PR #13 vào `claude/extract-upload-repo-gq2ws4` **CÓ THỂ** đã kích hoạt
+một lần deploy tự động nếu dịch vụ đó đã được cấu hình và đang theo dõi
+nhánh này. Phiên này CHỈ GHI NHẬN khả năng đó, KHÔNG xác nhận production đã
+chạy đúng, và KHÔNG tuyên bố `CHECK-R51-26` đạt. Owner là người duy nhất
+nghiệm thu production — kiểm tra Render dashboard trực tiếp để biết trạng
+thái deploy thật.
 
 ---
 
@@ -352,7 +392,12 @@ COR-R5.1R1-02                ĐÃ SỬA (bảng quan hệ DEC-205)
 CHECK-R51R1-17               PASS (giữ nguyên từ S141)
 CHECK-R51-26                 NOT_TESTED (xem mục 7)
 Repair cycle tiêu bởi S142   0 — lineage R5 giữ 2 allowed / 2 used / 0 remaining
-Merge                        Tracking → main; Reports → claude/extract-upload-repo-gq2ws4
-Deploy thủ công               KHÔNG thực hiện
+Merge                        Tracking PR #27 → main (dc98910);
+                              Reports PR #13 → claude/extract-upload-repo-gq2ws4
+                              (a59936c)
+Xác nhận sau merge            branch_authority_check.sh = AUTHORITY_OK (cả hai);
+                              tests xanh TRÊN nhánh mặc định sau merge (cả hai)
+Deploy thủ công               KHÔNG thực hiện; Render auto-deploy (nếu có) KHÔNG
+                              xác nhận được từ phiên này
 R6                           KHÔNG thực hiện
 ```

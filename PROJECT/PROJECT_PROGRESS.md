@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐANG MERGE (`S142`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐÃ MERGE cả hai repo (`S142`, 2026-09-09)
 
 Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:
 
@@ -24,8 +24,12 @@ Kiểm tra trước merge
   Bất biến tiền  git diff xác nhận Reports chỉ đổi 2 dòng chú thích;
                  Tracking không đổi price-engine/ hay min-ngay.js
 
-Trạng thái merge — xem docs/sessions/S142-r51-owner-taxonomy-merge.md §5
-cho PR/SHA thật sau khi hoàn tất.
+Trạng thái merge:
+  Tracking  PR #27 → main, merge SHA dc9891087687f25b6f92804f46eba2628ebe788b
+  Reports   PR #13 → claude/extract-upload-repo-gq2ws4,
+            merge SHA a59936ce497ddcc9fb63a87dd0524729931a83f9
+  Cả hai xác nhận AUTHORITY_OK và tests xanh TRÊN nhánh mặc định sau merge.
+  Chi tiết: docs/sessions/S142-r51-owner-taxonomy-merge.md §5.
 
 CHECK-R51-26  VẪN NOT_TESTED — Owner nghiệm thu production, không phiên
               nào tự đóng, kể cả phiên merge này.
