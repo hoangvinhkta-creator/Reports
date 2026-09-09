@@ -10,20 +10,35 @@ Toàn bộ năm gói của `R5 Audit & Execution Brief — Đối soát sổ, bi
 HAI repo. Không migration mới, không schema mới, không bảng mới.
 
 `CHECK-R5-01` … `CHECK-R5-26` PASS (E1, bằng chứng nguyên văn ở
-`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`).
+`docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`; Independent Review vòng 1
+đã chạy lại toàn bộ 26 check trên exact HEAD được bàn giao và khớp).
 
-**Independent Review vòng 1 → `REPAIR_REQUIRED`; REPAIR-1 đã xong
-(`S135`, 2026-09-09).** Hai finding, cả hai đã sửa và có test tái hiện đi qua
-đường production: `FIND-R5-IR-01` (bấm `XONG` gán lại cả BH cho nhân viên đầu
-danh sách khi BH có 0 hoặc ≥2 nhân viên hiệu lực) và `FIND-R5-IR-02` (dòng
-quay lại không được khôi phục khi hai lần nạp rơi vào cùng một giây — mốc
-snapshot ghi ở độ phân giải giây, phép so ngặt). Thêm `AR-R5-IR-11` (docstring
-hứa một khẳng định không có trong thân bài) đã sửa. Chi tiết + bằng chứng:
+**Independent Review vòng 1 (`S135`, 2026-09-08) → `REPAIR_REQUIRED`.** Bản
+ghi: `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Hai finding bắt buộc,
+cả hai nằm trên đúng failure path chính của R5: `FIND-R5-IR-01` (bấm `XONG`
+gán lại cả BH cho nhân viên đầu danh sách khi BH có 0 hoặc ≥2 nhân viên hiệu
+lực) và `FIND-R5-IR-02` (dòng quay lại không được khôi phục khi hai lần nạp
+rơi vào cùng một giây — mốc snapshot ghi ở độ phân giải giây, phép so ngặt;
+tổng kỳ ở lại THẤP HƠN thực tế vĩnh viễn). Review đã HOÀN THÀNH đúng thẩm
+quyền của nó; implementation CHƯA được chấp nhận. Repair brief:
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`.
+
+**REPAIR-1 (`S135`, 2026-09-09) đã xong.** Cả hai finding đã sửa và có test
+tái hiện đi qua đường production; thêm `AR-R5-IR-11` (docstring hứa một
+khẳng định không có trong thân bài) cũng đã sửa. Chi tiết + bằng chứng:
 `docs/sessions/S135-r5-repair-1.md`.
 
-`CHECK-R5-27` (Independent Review) = `FAIL` ở vòng 1 và CHƯA được chạy lại
-trên HEAD sau repair — phiên repair KHÔNG tự đóng nó. `CHECK-R5-28` (Owner
-nghiệm thu) VẪN `NOT_TESTED`. Đúng kỷ luật đã áp cho R1, R2, R3 và R4.
+**`CHECK-R5-27` (Independent Review) = `FAIL` ở vòng 1, và CHƯA được chạy
+LẠI trên HEAD sau repair.** Phiên repair KHÔNG tự đóng nó — đúng kỷ luật đã
+áp cho R1, R2, R3 và R4, và đúng lời của chính review vòng 1: check này "chỉ
+chuyển sang `PASS` ở lần review thứ hai, sau khi `R5-REPAIR-1` xong." Một
+vòng review độc lập thứ hai, TRÊN CHÍNH HEAD SAU REPAIR, vẫn là việc CÒN
+PHẢI LÀM trước khi tích hợp — không phiên tích hợp/triển khai nào được thay
+thế nó bằng việc tự xác nhận rằng bản sửa "đúng" theo test của chính mình.
+
+`CHECK-R5-28` (Owner nghiệm thu) VẪN `NOT_TESTED`. Điều kiện tích hợp của
+`S133` (Owner nghiệm thu R3/R4 trên production trước khi R5 được merge) vẫn
+còn nguyên và không có bằng chứng nào cho thấy nó đã thoả.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -176,7 +191,7 @@ Tracking:
 | `CHECK-R5-24` | Tracking xuất `model_label`/`brand` đã chuẩn hoá; không lộ `cat`/giá/tồn/NCC/note/link | PASS | E1 |
 | `CHECK-R5-25` | Reports đọc CẢ artifact cũ lẫn mới; hash mới gồm hai trường; hai trường KHÔNG tham gia nhận diện | PASS | E1 |
 | `CHECK-R5-26` | IMEI chỉ ở route nhân viên; hai cột ẩn mặc định, nút chung, cột hẹp cắt một dòng; popover một ô tìm, tối đa một gợi ý | PASS | E1 |
-| `CHECK-R5-27` | Independent Review | FAIL (vòng 1) — chờ chạy lại sau REPAIR-1 | E1 |
+| `CHECK-R5-27` | Independent Review | FAIL (vòng 1) — chờ chạy lại trên HEAD sau REPAIR-1 | `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` (`S135`) |
 | `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
 | `CHECK-R5-29` | `XONG` không gán lại cả BH khi BH có 0 hoặc ≥2 nhân viên hiệu lực | PASS | E1 |
 | `CHECK-R5-30` | Mọi ô chọn nhân viên LUÔN có đúng một option được chọn | PASS | E1 |
@@ -187,9 +202,16 @@ Bằng chứng nguyên văn (lệnh + output):
 `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md` §4–§7.
 
 `CHECK-R5-27` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi bất kỳ phiên triển
-khai nào — kể cả một phiên REPAIR. `CHECK-R5-29` … `CHECK-R5-32` là các check
-MỚI do REPAIR-1 thêm, và chúng canh đúng hai finding mà review đã tìm ra;
-chúng KHÔNG thay thế `CHECK-R5-27`.
+khai nào — kể cả một phiên REPAIR hay một phiên TÍCH HỢP. `CHECK-R5-27` được
+đặt bởi phiên Independent Review `S135` (vòng 1) và chỉ chuyển sang `PASS`
+(hoặc `ACCEPT_WITH_RECORDED_RISK`) ở một lần review ĐỘC LẬP thứ hai, chạy
+trên HEAD sau repair — chưa phiên nào thực hiện lần review thứ hai đó.
+
+`CHECK-R5-29` … `CHECK-R5-32` là các check MỚI do REPAIR-1 thêm, và chúng
+canh đúng hai finding mà review vòng 1 đã tìm ra bằng test đi qua đường
+production. Chúng là bằng chứng CHO người review thứ hai đọc, KHÔNG thay thế
+việc review đó phải diễn ra: một phiên implementation tự kiểm bằng test của
+chính nó không phải là Independent Review.
 
 Bằng chứng REPAIR-1: `docs/sessions/S135-r5-repair-1.md` §2, §3, §6.
 
@@ -215,7 +237,9 @@ Bằng chứng REPAIR-1: `docs/sessions/S135-r5-repair-1.md` §2, §3, §6.
    chỗ; "Không có trên bảng giá" vẫn chạy. — `CHECK-R5-26`.
 8. Đối chiếu MIN ngày 03/09, lợi nhuận, export và kỳ chốt/drift để chắc R1–R4
    không đổi. — full regression + hai smoke, §7 của `S134`.
-9. Independent Review kết luận trên exact HEAD. — `CHECK-R5-27`, CHƯA CÓ.
+9. Independent Review kết luận trên exact HEAD. — `CHECK-R5-27`, vòng 1 ĐÃ
+   CHẠY (`S135`), kết luận `REPAIR_REQUIRED`. `R5-REPAIR-1` đã xong; VẪN
+   CHƯA thoả — cần một vòng review độc lập THỨ HAI trên HEAD sau repair.
 10. Owner nghiệm thu trên production. — `CHECK-R5-28`, CHƯA CÓ.
 
 ---
@@ -223,9 +247,26 @@ Bằng chứng REPAIR-1: `docs/sessions/S135-r5-repair-1.md` §2, §3, §6.
 ## 6. Rủi ro chấp nhận ghi nhận
 
 `AR-R5-01` … `AR-R5-05` — xem `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`
-§8. Không rủi ro nào trong số đó thuộc nhóm `REPAIR_REQUIRED` của brief §8.
+§8. Không rủi ro nào trong số đó thuộc nhóm `REPAIR_REQUIRED` của brief §8;
+Independent Review vòng 1 (`S135`) đã TÁI KIỂM CHỨNG cả năm và giữ nguyên mức
+`ACCEPTED_RISK`.
 
-`AR-R5-IR-12` (công cụ `r1_daily_min_smoke.py` crash với fixture có sẵn — lỗi
-baseline cũ, đo được trên `b6756fe`) và `AR-R5-IR-13` (bản ghi CŨ ghi mốc tới
-giây vẫn không phân giải được thứ tự; `>=` nghiêng về GIỮ TIỀN) — xem
+`AR-R5-IR-06` … `AR-R5-IR-12` — bảy rủi ro MỚI do Independent Review vòng 1
+(`S135`) ghi nhận, xem `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` §4.
+`AR-R5-IR-09` và `AR-R5-IR-12` là lỗi baseline có trước R5 (đo trên
+`b6756fe`), không sửa trong REPAIR-1 vì ngoài Scope Lock. Ba mục trong bảy đã
+được **REPAIR-1 sửa/đóng** thay vì chỉ ghi nhận:
+
+- `AR-R5-IR-10` (chú thích đã hết đúng ở `_with_absence_state`) — chú thích
+  viết lại làm một phần của bản sửa `FIND-R5-IR-02`.
+- `AR-R5-IR-11` (docstring hứa một khẳng định không có trong thân bài) —
+  thân bài nay kiểm đúng điều docstring hứa.
+
+`AR-R5-IR-06` … `AR-R5-IR-09`, `AR-R5-IR-12` giữ nguyên `ACCEPTED_RISK`,
+KHÔNG chạm trong REPAIR-1 (đúng Scope Lock của
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md` §1).
+
+`AR-R5-IR-13` (bản ghi CŨ ghi mốc tới giây vẫn không phân giải được thứ tự;
+`>=` nghiêng về GIỮ TIỀN cho những bản ghi ấy) — rủi ro MỚI do chính REPAIR-1
+ghi nhận, hệ quả trực tiếp của cách sửa `FIND-R5-IR-02`. Xem
 `docs/sessions/S135-r5-repair-1.md` §7.

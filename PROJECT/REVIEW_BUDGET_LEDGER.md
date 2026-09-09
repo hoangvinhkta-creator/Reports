@@ -3144,6 +3144,18 @@ mở rộng bán kính: nó gọi đúng `store.set_purchase_price` /
 thu, qua đúng những cửa cũ, và mọi ràng buộc của R2 §4.4 được thi hành ở đúng
 một chỗ cho mọi người gọi.
 
+**Independent Review lần 1 (`S135`, 2026-09-08): `REPAIR_REQUIRED`.**
+Bản ghi: `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Hai finding bắt
+buộc (`FIND-R5-IR-01`, `FIND-R5-IR-02`), cả hai nằm trên đúng failure path
+chính đã ghi ở trên. `CHECK-R5-27` = `FAIL`: review đã HOÀN THÀNH,
+implementation CHƯA được chấp nhận.
+
+Phiên review KHÔNG tiêu repair cycle nào — nó không sửa một dòng mã sản phẩm
+nào. Repair cycle **thứ 1** sẽ được tiêu bởi
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`; khi phiên đó
+xong, ngân sách trở thành `2 allowed / 1 used / 1 remaining` và con số ở khối
+trên phải được cập nhật bởi CHÍNH phiên repair, không phải bởi phiên review.
+
 **Repair cycles đã tiêu: 0.** Phiên triển khai `S134` KHÔNG sửa tiếp triển
 khai của R4 — nó ĐỌC một R4 đã merge vào nhánh mặc định (`b6756fe`). Bản sửa
 `r1_web_upload_smoke.py` (`dad8513`) là một sửa chữa CÔNG CỤ KIỂM, trên một
