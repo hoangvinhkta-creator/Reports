@@ -8,9 +8,13 @@ IMPLEMENTED
 Current Status Reason:
 Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1`
 (`S145`, 2026-09-09) đã sửa CẢ BỐN mục trong ĐÚNG MỘT repair cycle** — chi
-tiết ở §8 cuối file. Task trở lại `IMPLEMENTED`, chờ vòng review thứ hai trên
-HEAD sau repair; `CHECK-R6-31` vì thế trở về `NOT_TESTED` (kết luận `FAIL` của
-vòng 1 nói về một HEAD không còn là HEAD hiện tại).
+tiết ở §8 cuối file. **Independent Review vòng 2 (`S146`, 2026-09-09) trên
+exact HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` kết luận `PASS`:
+`CHECK-R6-31` = `PASS` (E1), `0` finding `REPAIR_REQUIRED`, `0`
+`ACCEPTED_RISK` mới, `0` repair cycle tiêu — xem §9.** Task ở `IMPLEMENTED` và
+chờ ba việc thuộc thẩm quyền Owner: `CHECK-R51-26`, `CHECK-R6-30`,
+`CHECK-R6-32` (và trước đó là quyết định V4.1 §8 cho cờ
+`INTEGRATION_DECISION_REQUIRED`).
 
 Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
 Không migration, không bảng mới, không warehouse, không materialized view,
@@ -26,15 +30,16 @@ trong môi trường phiên này. Công cụ đối soát đã viết và đã �
 trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); còn thiếu đúng một lần
 chạy trên sổ thật.
 
-`CHECK-R6-31` (Independent Review) — vòng 1 ĐÃ CHẠY ở `S144` (2026-09-09)
-trên exact HEAD `56aca4c91bd788b1e14d7f71b9246d1577255c1a` và kết luận
-**`REPAIR_REQUIRED`** (`FAIL`, E1). Sau `REPAIR-1` nó trở về `NOT_TESTED`:
-kết luận của vòng 1 vẫn ĐÚNG với HEAD nó đã review, và chính vì thế nó KHÔNG
-còn nói được gì về HEAD hiện tại. Nó KHÔNG được tự đánh dấu `PASS` bởi phiên
-repair.
+`CHECK-R6-31` (Independent Review) = **`PASS`** (vòng 2, `S146`, 2026-09-09,
+E1). Vòng 1 ĐÃ CHẠY ở `S144` trên exact HEAD
+`56aca4c91bd788b1e14d7f71b9246d1577255c1a` và kết luận **`REPAIR_REQUIRED`**
+(`FAIL`, E1) — kết luận ấy vẫn ĐÚNG với HEAD nó đã review và không được viết
+lại. Sau `REPAIR-1` nó trở về `NOT_TESTED` (phiên repair KHÔNG có thẩm quyền
+tự tuyên bố mình đã qua review), rồi vòng 2 chạy trên exact HEAD
+`40807efd50e675b71ccd1a14b5801394da4cafc1` và đóng nó là `PASS`.
 
 Finding của vòng 1 (hai mục BẮT BUỘC, hai mục nên làm) — **cả bốn ĐÃ SỬA ở
-`REPAIR-1`, xem §8**:
+`REPAIR-1` (§8) và ĐÃ ĐƯỢC XÁC NHẬN ĐỘC LẬP ở vòng 2 (§9)**:
 
 ```text
 FIND-R6-IR-01  cửa sổ so sánh của CẢ HAI biểu đồ vẽ số 0 cho một khoảng có
@@ -57,13 +62,19 @@ COR-R6-IR-01   (tài liệu) docstring `drilldown_rows` dẫn một file test kh
 Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
 tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
 
-**Ngân sách:** `R6` có `1 repair cycle`. `REPAIR-1` phải xử lý CẢ BỐN mục
-trên trong CÙNG một vòng — sau đó lineage hết ngân sách, và một
-`REPAIR_REQUIRED` thứ hai buộc phải escalate theo
-`governance/core/ESCALATION_PROTOCOL.md`.
+**Ngân sách:** `R6` có `1 repair cycle`. `REPAIR-1` đã xử lý CẢ BỐN mục trong
+CÙNG một vòng và tiêu cycle DUY NHẤT ấy. Vòng review thứ hai KHÔNG ra
+`REPAIR_REQUIRED` và tiêu `0` cycle, nên lineage KHÔNG phải escalate. Số dư
+giữ nguyên `1 allowed / 1 used / 0 remaining`: một `REPAIR_REQUIRED` phát sinh
+về sau vẫn buộc escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
 
-`CHECK-R6-32` (Owner Acceptance) vẫn `NOT_TESTED` — phiên review KHÔNG tự
-đóng nó.
+`CHECK-R6-32` (Owner Acceptance) vẫn `NOT_TESTED` — không phiên review nào tự
+đóng nó, kể cả vòng 2.
+
+**`INTEGRATION_DECISION_REQUIRED` vẫn MỞ.** Vòng 2 đo lại `cumulative LOC` từ
+nhánh mặc định tới HEAD = `10.155`, ngưỡng V4.1 §8 = `5.000`. Owner phải chọn
+(A) integrate sớm, (B) cắt scope, hay (C) tiếp tục divergence có lý do + ngày
+review, TRƯỚC lần merge.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -224,7 +235,8 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 [x] Smoke producer Tracking thật → capture thật → dashboard/drill-down
 [x] Full regression R1–R5.1 + validators governance + `git diff --check`
 [ ] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30)
-[!] Independent Review (CHECK-R6-31) — ĐÃ CHẠY vòng 1, kết luận REPAIR_REQUIRED
+[x] Independent Review (CHECK-R6-31) — vòng 1 REPAIR_REQUIRED → REPAIR-1 →
+    vòng 2 (S146, HEAD 40807ef) PASS
 [ ] Owner Acceptance (CHECK-R6-32)
 ```
 
@@ -264,13 +276,16 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 | `CHECK-R6-28` | Công cụ đối soát tái tạo ĐỦ tám con số vector Owner qua pipeline THẬT | PASS | E1 |
 | `CHECK-R6-29` | Smoke xuyên hai repo: producer Tracking THẬT → dashboard THẬT | PASS | E1 |
 | `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | NOT_TESTED | — |
-| `CHECK-R6-31` | Independent Review | NOT_TESTED | — |
+| `CHECK-R6-31` | Independent Review | PASS | E1 |
 | `CHECK-R6-32` | Owner Acceptance trên production | NOT_TESTED | — |
 
 `CHECK-R6-31` = `FAIL` là kết luận của vòng 1 trên HEAD `56aca4c`, và nó VẪN
 đúng với HEAD ấy. Sau `REPAIR-1` nó trở về `NOT_TESTED` chứ KHÔNG thành `PASS`:
-một phiên repair không có thẩm quyền tự tuyên bố mình đã qua review. Bản ghi
-vòng 1 giữ nguyên văn tại `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`.
+một phiên repair không có thẩm quyền tự tuyên bố mình đã qua review. `PASS` ở
+bảng trên là kết luận của **vòng 2** (`S146`, HEAD `40807ef`), do một phiên
+review độc lập đóng — không phải do phiên repair. Bản ghi vòng 1 giữ nguyên
+văn tại `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`; bản ghi vòng 2 tại
+`docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`.
 
 Check của `REPAIR-1` (`S145`) — mỗi check gắn với một finding của vòng 1:
 
@@ -444,3 +459,76 @@ tại `REPAIR-1`".
 2. `CHECK-R6-31` (Independent Review của `R6`) → `PASS`.
 
 Lý do đầy đủ: `docs/spec/R6-EXECUTION-BRIEF.md` §0.
+
+**Trạng thái sau vòng 2 (`S146`, 2026-09-09):** điều (2) ĐÃ THOẢ
+(`CHECK-R6-31` = `PASS`). Điều (1) VẪN CHƯA: `CHECK-R51-26` `NOT_TESTED`, nên
+`R6` VẪN KHÔNG được merge hay deploy. Ngoài hai điều trên còn một cờ governance
+phải đóng TRƯỚC lần merge: `INTEGRATION_DECISION_REQUIRED` (V4.1 §8,
+`cumulative LOC = 10.155` so với ngưỡng `5.000`) — Owner chọn (A) integrate
+sớm, (B) cắt scope, hay (C) tiếp tục divergence có lý do + ngày review.
+
+---
+
+## 9. Independent Review VÒNG 2 (`S146`, 2026-09-09) — `PASS`
+
+Đối tượng: exact HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1`, detached,
+worktree sạch; `branch_authority_check.sh` → `AUTHORITY_OK`
+(`DETACHED_EXACT_TARGET`). Tracking = `origin/main` `66787c0`, không lệch một
+byte — dependency, không có thay đổi `R6`.
+
+```text
+CHECK-R6-31             NOT_TESTED → PASS (E1)
+finding REPAIR_REQUIRED 0
+finding ACCEPTED_RISK   0
+ghi nhận tài liệu/hiệu năng  4   OBS-R6-IR2-01 … -04 (KHÔNG tiêu ngân sách)
+repair cycle tiêu       0
+số dư R6                1 allowed / 1 used / 0 remaining   (KHÔNG đổi)
+ESCALATION              KHÔNG cần
+```
+
+Vòng 2 xác nhận `CHECK-R6-33` … `CHECK-R6-54` bằng bằng chứng ĐỘC LẬP: phiên
+review KHÔNG dùng lại một fixture nào của `REPAIR-1` và KHÔNG lấy một con số
+nào từ `S145` làm bằng chứng. Tóm tắt phép đo:
+
+```text
+FIND-R6-IR-01  93 phép đo qua HTTP THẬT (app.run, cổng thật), oracle là trang
+               Báo cáo R5 trên CÙNG server/sổ/kỳ/mức gộp. R6 khớp R5 TỪNG MỐC
+               ở ngay/tuan/thang/quy và ở custom range; cửa sổ so sánh có tiền
+               thật ở CẢ BỐN mức; số 0 chỉ ở mốc rỗng THẬT nằm trọn trong
+               coverage đã xác nhận, ngoài coverage vẫn là khoảng trống; custom
+               range neo vào `Đến ngày` và KHÔNG mượn chốt kỳ; lát mở rộng vẫn
+               là effective data (dòng Owner loại KHÔNG quay lại); ô chỉ tiêu/
+               bảng gộp/giỏ hàng/bảng kê vẫn chỉ đọc phạm vi đang xem.
+FIND-R6-IR-02  51 phép đo: 1 probe TOÀN TRANG xuyên hai repo (danh mục do
+               producer Tracking THẬT sinh, phân loại qua route POST thật),
+               1 DIFF trực tiếp `56aca4c` vs HEAD trên cùng đầu vào, và 1 probe
+               phủ CẢ NĂM lý do + 10/10 tổ hợp hai lý do ở min_support=1.
+AR-R6-IR-03    34 phép đo, phần lớn là diff trực tiếp với `56aca4c`; năm ca
+               (thiếu doanh thu, thiếu SL, SL=0, hàng tặng giá 0, ca bình
+               thường) + hai ca `None` kèm lý do + bất biến min/max,
+               total_quantity, tổng doanh thu và đối soát bảng nhóm.
+COR-R6-IR-01   bài canh thật tồn tại và đo đúng HTML đã render; không còn tham
+               chiếu nào coi file không tồn tại là bài canh.
+```
+
+Regression đo trong vòng 2: full `pytest` `3445 passed / 12 skipped /
+0 failed`; smoke `R6` `29 PASS`; smoke `R5.1` `63 PASS`; Tracking `2892 đạt /
+0 hỏng`; `git diff --check` sạch; validator = baseline; đối soát sổ Golden
+`3.562.310.000` KHỚP TOÀN BỘ.
+
+Bốn ghi nhận KHÔNG tiêu ngân sách, dọn kèm ở lần chạm mã kế tiếp:
+
+```text
+OBS-R6-IR2-01  chuỗi "(repair AR-R6-IR-03)" — mã finding NỘI BỘ — lọt vào câu
+               chữ Owner đọc trong `dashboard_presentation.data_quality`.
+OBS-R6-IR2-02  docstring `drilldown_rows` thiếu "không phải": "…đo trên chính
+               HTML đã render CHỨ TRÊN kết quả của hàm này" — đọc ra ngược
+               nghĩa. Tham chiếu bài canh thì ĐÚNG.
+OBS-R6-IR2-03  §1 Scope Lock ghi `tests/test_r6_*.py MỚI (7 file)`; thực tế 9.
+OBS-R6-IR2-04  `_chart_details` chạy HAI LẦN mỗi lần nạp trang với CÙNG một
+               khoảng (mỗi biểu đồ một lần); ở `muc=quy` là 4 năm dữ liệu đọc
+               hai lần. Hiệu năng, không đúng/sai.
+```
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`.

@@ -1,6 +1,145 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R6 REPAIR-1: cả 4 finding ĐÃ SỬA, `IMPLEMENTED`, CHƯA merge (`S145`, 2026-09-09)
+## CANONICAL CURRENT STATE — R6 INDEPENDENT REVIEW VÒNG 2 = `PASS`, VẪN CHƯA merge (`S146`, 2026-09-09)
+
+Independent Review vòng 2 chạy trên exact HEAD
+`40807efd50e675b71ccd1a14b5801394da4cafc1` (SAU `REPAIR-1`), detached, worktree
+sạch, `branch_authority_check.sh` → `AUTHORITY_OK` (`DETACHED_EXACT_TARGET`).
+Tracking = `origin/main` `66787c0`, không lệch một byte — dependency, không có
+thay đổi `R6`.
+
+**Kết luận: `PASS`. `CHECK-R6-31` = `PASS` (E1). `0` finding
+`REPAIR_REQUIRED`, `0` `ACCEPTED_RISK` mới, `0` repair cycle tiêu — lineage
+`R6` KHÔNG phải escalate.**
+
+```text
+Lineage xác nhận bằng git (không tin bàn giao)
+  05f2b44 nền → 56aca4c R6 IMPLEMENTED → b3fa809 review vòng 1
+        → 419391c REPAIR-1 → 40807ef ghi nhận INTEGRATION_DECISION_REQUIRED
+  cả bốn SHA đề bài nêu đều là ancestor của HEAD: XÁC NHẬN
+
+Cả bốn mục vòng 1 — XÁC NHẬN ĐÃ SỬA bằng bằng chứng ĐỘC LẬP
+  (vòng 2 KHÔNG dùng lại fixture của REPAIR-1 và KHÔNG lấy số nào từ S145)
+  FIND-R6-IR-01  ĐÃ SỬA   93 phép đo qua HTTP THẬT, oracle = trang Báo cáo R5
+                          trên CÙNG server/sổ/kỳ/mức gộp
+  FIND-R6-IR-02  ĐÃ SỬA   51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo và
+                          1 DIFF trực tiếp 56aca4c vs HEAD trên cùng đầu vào
+  AR-R6-IR-03    ĐÃ SỬA   34 phép đo, phần lớn là diff trực tiếp với 56aca4c
+  COR-R6-IR-01   ĐÃ SỬA   bài canh thật tồn tại và đo đúng HTML đã render
+
+FIND-R6-IR-01 — điểm cốt lõi
+  R6 khớp R5 TỪNG MỐC trên CẢ HAI cửa sổ ở ngay/tuan/thang/quy và ở custom range
+  cửa sổ so sánh có TIỀN THẬT ở cả bốn mức (thang 2025-03 = 10.000.000;
+    quy 2023-Q4 = 8.000.000 và 2024-Q2 = 6.000.000 — sổ trải từ 2023)
+  số 0 CHỈ ở mốc rỗng THẬT nằm trọn trong coverage đã xác nhận; ngoài coverage
+    vẫn là KHOẢNG TRỐNG
+  custom range neo vào `Đến ngày` người dùng gõ — không trôi theo dữ liệu mới
+    nhất, không mượn chốt kỳ
+  ô chỉ tiêu/bảng gộp/giỏ hàng/bảng kê VẪN chỉ đọc phạm vi đang xem
+  lát MỞ RỘNG vẫn là effective data: dòng Owner đã loại KHÔNG quay lại
+
+FIND-R6-IR-02 — điểm cốt lõi
+  diff 56aca4c vs HEAD, cùng đầu vào: TRƯỚC 5/5 đơn bị đếm "nhiều nhóm hàng
+    hoá" và có cặp ('Tivi','__UNRESOLVED__') + ('__CONFLICT__','__UNRESOLVED__');
+    SAU còn đúng một cặp THẬT ('Tivi','Tủ lạnh')
+  KHÔNG ĐỔI: cặp SẢN PHẨM, orders, multi_line, multi_product,
+    service_attachment, tiền từng đơn, tổng
+  CẢ NĂM lý do chưa xác định đều ngoài chiều nhóm hàng; 10/10 tổ hợp hai lý do
+    KHÔNG sinh cặp (đo ở min_support=1)
+  dòng PHÍ/CHIẾT KHẤU không bị đếm là "chưa xác định nhóm hàng"; tiền vẫn đủ
+  UI nói ra số đơn/dòng bị để ngoài; KHÔNG rò một trường khách hàng nào
+
+AR-R6-IR-03 — điểm cốt lõi
+  thiếu total_sales  5.000.000 → 10.000.000 ; quantity=0  6.500.000 → 5.000.000
+  thiếu quantity, hàng tặng giá 0, ca bình thường: đúng và không đổi sai
+  mẫu số 0 ⟹ None KÈM LÝ DO, không bao giờ 0
+  min/max và total_quantity nghiệp vụ KHÔNG bị thu hẹp; đối soát bảng nhóm khớp
+
+R6 vẫn READ-ONLY (đo lại từ đầu)
+  alembic heads 0009_line_binding_period_close — đúng MỘT head, của R3
+  không migration, không bảng mới; route POST 18 ở cả ba SHA — KHÔNG đổi
+  5 route R6 đều @app.get; POST → 405 (đo bằng HTTP thật)
+  git diff RỖNG trên pricing/profit/kpi/period_lock/business_store/
+    business_queries/business_service/business_metrics/migrations/config —
+    cả từ 56aca4c LẪN từ nền 05f2b44
+  Tracking không lệch một byte; 37 file lineage R6 chạm đều trong Scope Lock
+  40 tổ hợp tham số URL hỏng/lạ trên 4 route → 200/200, không route nào 500
+
+Regression đo trong vòng 2
+  full pytest        3445 passed / 12 skipped / 0 failed
+  R6 repair-focused  48 passed        toàn bộ R6 (9 file)  186 passed
+  smoke R6           29 PASS / 0 FAIL     smoke R5.1  63 PASS / 0 FAIL
+  Tracking           62 bộ · 2892 đạt · 0 hỏng · 2 bỏ qua
+  git diff --check   sạch (cả 56aca4c..HEAD và 05f2b44..HEAD)
+  validator          structure/state/evidence/task_completion PASS;
+                     reference_integrity 4 đỏ — ĐÚNG 4 baseline cũ
+  đối soát sổ Golden 3.562.310.000 KHỚP TOÀN BỘ (số freeze TRƯỚC R6)
+
+  Bài đỏ ở lần chạy pytest ĐẦU (TestG25GoldenBaselineUnchanged,
+  "bad object 740f396…") là BASELINE của CLONE NÔNG, không phải của R6: R6
+  không chạm bài kiểm ấy hay artifact nó canh (git diff rỗng); chạy riêng file
+  → 41 passed; và sau khi branch_authority_check.sh thực hiện một
+  `git fetch origin --prune` đầy đủ, lần chạy THỨ HAI cho 0 failed mà không ai
+  sửa gì.
+
+Trạng thái check sau vòng 2
+  CHECK-R6-01 … -29  PASS (E1)
+  CHECK-R6-33 … -54  PASS (E1) — 22 check của REPAIR-1, xác nhận độc lập ở vòng 2
+  CHECK-R6-31        NOT_TESTED → PASS (vòng 2, E1)
+  CHECK-R6-30        VẪN NOT_TESTED — sổ thật của Owner không có trong môi
+                     trường (DEC-108); lệnh đã chạy đúng nguyên văn, EXIT=2
+  CHECK-R6-32        VẪN NOT_TESTED — Owner Acceptance, phiên review KHÔNG tự đóng
+  CHECK-R51-26       VẪN NOT_TESTED — VẪN CHẶN merge/deploy R6 (DEC-207 §10)
+
+Ngân sách
+  repair cycle tiêu bởi vòng 2   0
+  số dư R6                       1 allowed / 1 used / 0 remaining  (KHÔNG đổi)
+  ESCALATION                     KHÔNG cần
+```
+
+**`INTEGRATION_DECISION_REQUIRED` VẪN MỞ.** Vòng 2 đo lại: `cumulative LOC` từ
+nhánh mặc định (`05f2b44`) tới HEAD = `10.155`, ngưỡng V4.1 §8 = `5.000`.
+(`S145` ghi `10.100` vì đo tại `419391c`; chênh đúng 57 dòng của commit tài
+liệu `40807ef` — không mâu thuẫn.) Owner phải chọn (A) integrate sớm, (B) cắt
+scope, hay (C) tiếp tục divergence có lý do + ngày review. Phiên review KHÔNG
+chọn thay.
+
+**Bốn ghi nhận của vòng 2, KHÔNG mục nào tiêu ngân sách** (đều là tài liệu/hiệu
+năng, không đổi một con số nào trên màn hình, không thuộc lớp bắt buộc repair
+của brief `R6` §7) — dọn kèm ở lần chạm mã kế tiếp:
+
+```text
+OBS-R6-IR2-01  chuỗi "(repair AR-R6-IR-03)" — một mã finding NỘI BỘ — lọt vào
+               câu chữ Owner đọc (`dashboard_presentation.data_quality`).
+OBS-R6-IR2-02  docstring `drilldown_rows` thiếu "không phải": "…đo trên chính
+               HTML đã render CHỨ TRÊN kết quả của hàm này" — đọc ra ngược
+               nghĩa. Tham chiếu bài canh thì ĐÚNG, nên COR-R6-IR-01 vẫn ĐÃ SỬA.
+OBS-R6-IR2-03  Scope Lock ghi `tests/test_r6_*.py MỚI (7 file)`; thực tế 9 file.
+OBS-R6-IR2-04  `_chart_details` chạy HAI LẦN mỗi lần nạp trang với CÙNG một
+               khoảng; ở muc=quy là 4 năm dữ liệu đọc hai lần. Hiệu năng.
+```
+
+**`R6` VẪN KHÔNG được merge hay deploy.** Điều kiện §7 của task file: điều (2)
+`CHECK-R6-31` = `PASS` ĐÃ THOẢ; điều (1) `CHECK-R51-26` VẪN `NOT_TESTED`.
+
+Việc kế tiếp, theo thứ tự, đều thuộc Owner:
+
+1. Quyết cờ V4.1 §8 `INTEGRATION_DECISION_REQUIRED`.
+2. `CHECK-R6-30` — chạy đối soát trên sổ thật, trên HEAD `40807ef`.
+3. `CHECK-R51-26` — nghiệm thu `R5.1` trên production (đang chặn).
+4. `CHECK-R6-32` — Owner Acceptance `R6`.
+
+Phiên `S146` KHÔNG sửa một dòng mã nào, KHÔNG merge, KHÔNG mở PR, KHÔNG deploy,
+KHÔNG làm `R7`, KHÔNG tự đánh dấu Owner Acceptance, KHÔNG chọn thay Owner ở cờ
+V4.1 §8.
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`;
+ngân sách: `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+---
+
+## CANONICAL CURRENT STATE — R6 REPAIR-1: cả 4 finding ĐÃ SỬA, `IMPLEMENTED`, CHƯA merge (lịch sử, `S145`, 2026-09-09 — thay bởi khối `S146` ở đầu file)
 
 Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1` đã
 sửa CẢ BỐN mục trong ĐÚNG MỘT repair cycle** — cycle DUY NHẤT của lineage `R6`.
@@ -98,7 +237,7 @@ Tài liệu: `docs/sessions/S145-r6-repair-1.md` ·
 
 ---
 
-## CANONICAL CURRENT STATE — R6: Independent Review vòng 1 → `REPAIR_REQUIRED`, task `BLOCKED` (`S144`, 2026-09-09)
+## CANONICAL CURRENT STATE — R6: Independent Review vòng 1 → `REPAIR_REQUIRED`, task `BLOCKED` (lịch sử, `S144`, 2026-09-09 — thay bởi khối `S146` ở đầu file)
 
 **Phiên Independent Review. KHÔNG sửa một dòng mã sản phẩm nào, KHÔNG merge,
 KHÔNG deploy, KHÔNG làm `R7`, KHÔNG mở rộng phạm vi `R6`, KHÔNG tự đánh dấu

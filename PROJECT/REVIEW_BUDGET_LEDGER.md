@@ -3395,8 +3395,11 @@ repair_cycles_used: 1
 repair_cycles_remaining: 0
 review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
 repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
-next_action: Independent Review vòng 2 — HẾT ngân sách, một REPAIR_REQUIRED nữa
-             buộc ESCALATE theo governance/core/ESCALATION_PROTOCOL.md
+review_round_2: PASS (S146, 2026-09-09) — CHECK-R6-31 = PASS trên HEAD 40807ef;
+             0 REPAIR_REQUIRED, 0 ACCEPTED_RISK mới, 0 repair cycle tiêu
+next_action: Owner — (1) quyết cờ V4.1 §8 INTEGRATION_DECISION_REQUIRED,
+             (2) CHECK-R6-30 trên sổ thật, (3) CHECK-R51-26, (4) CHECK-R6-32.
+             KHÔNG cần ESCALATE: vòng 2 không có REPAIR_REQUIRED.
 ```
 
 Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
@@ -3609,3 +3612,71 @@ escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
 vẫn CHẶN merge/deploy `R6`.
 
 Bằng chứng nguyên văn: `docs/sessions/S145-r6-repair-1.md`.
+
+### Independent Review VÒNG 2 (`S146`, 2026-09-09) — `PASS`, 0 cycle tiêu
+
+Đối tượng: HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` (SAU `REPAIR-1`),
+detached, worktree sạch, `branch_authority_check.sh` → `AUTHORITY_OK`
+(`DETACHED_EXACT_TARGET`). Tracking = `origin/main` `66787c0`, không lệch một
+byte — dependency, không có thay đổi `R6`.
+
+```text
+kết luận vòng 2         PASS
+CHECK-R6-31             NOT_TESTED → PASS (E1)
+finding REPAIR_REQUIRED 0
+finding ACCEPTED_RISK   0
+ghi nhận tài liệu/hiệu năng  4   OBS-R6-IR2-01 … -04 (KHÔNG tiêu ngân sách)
+repair cycle tiêu       0
+số dư sau vòng 2        1 allowed / 1 used / 0 remaining   (KHÔNG đổi)
+ESCALATION              KHÔNG cần
+```
+
+Cả bốn mục của vòng 1 được xác nhận ĐÃ SỬA bằng bằng chứng ĐỘC LẬP — phiên
+review vòng 2 KHÔNG dùng lại một fixture nào của `REPAIR-1` và KHÔNG lấy một
+con số nào từ `S145` làm bằng chứng:
+
+```text
+FIND-R6-IR-01  ĐÃ SỬA  93 phép đo qua HTTP THẬT (app.run, cổng thật), oracle là
+                       trang Báo cáo R5 trên CÙNG server/sổ/kỳ/mức gộp. R6 khớp
+                       R5 TỪNG MỐC ở ngay/tuan/thang/quy và ở custom range; cửa
+                       sổ so sánh có tiền thật ở CẢ BỐN mức (đo trên một sổ
+                       trải từ 2023); số 0 chỉ ở mốc rỗng THẬT trong coverage
+                       đã xác nhận; lát mở rộng vẫn là effective data (dòng
+                       Owner loại KHÔNG quay lại); ô chỉ tiêu/bảng/giỏ hàng/
+                       bảng kê vẫn chỉ đọc phạm vi đang xem.
+FIND-R6-IR-02  ĐÃ SỬA  51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo
+                       (danh mục do producer Tracking THẬT sinh, phân loại qua
+                       route POST thật) và 1 DIFF trực tiếp 56aca4c vs HEAD
+                       trên cùng đầu vào: trước 5/5 đơn bị đếm multi và có cặp
+                       ('Tivi','__UNRESOLVED__'), ('__CONFLICT__',
+                       '__UNRESOLVED__'); sau còn đúng một cặp THẬT. Mọi thứ
+                       khác — cặp SẢN PHẨM, orders, multi_line, multi_product,
+                       service_attachment, tiền từng đơn — KHÔNG đổi.
+AR-R6-IR-03    ĐÃ SỬA  34 phép đo. Thiếu total_sales 5.000.000 → 10.000.000;
+                       quantity=0 6.500.000 → 5.000.000; thiếu quantity, hàng
+                       tặng giá 0 và ca bình thường đều đúng; mẫu số 0 ⟹ None
+                       KÈM LÝ DO; min/max và total_quantity nghiệp vụ KHÔNG bị
+                       thu hẹp; đối soát bảng nhóm khớp tuyệt đối.
+COR-R6-IR-01   ĐÃ SỬA  bài canh thật tồn tại và đo đúng HTML đã render; không
+                       còn tham chiếu nào coi file không tồn tại là bài canh.
+```
+
+**Regression:** full `pytest` `3445 passed / 12 skipped / 0 failed`; smoke `R6`
+`29 PASS / 0 FAIL`; smoke `R5.1` `63 PASS / 0 FAIL`; Tracking `2892 đạt /
+0 hỏng`; `git diff --check` sạch; validator = baseline; đối soát sổ Golden
+`3.562.310.000` KHỚP TOÀN BỘ. Bài đỏ ở lần chạy pytest ĐẦU
+(`TestG25GoldenBaselineUnchanged`, `bad object 740f396…`) là BASELINE của clone
+NÔNG: `R6` không chạm bài kiểm ấy, chạy riêng thì `41 passed`, và sau một
+`git fetch origin --prune` đầy đủ thì lần chạy thứ hai `0 failed` mà không ai
+sửa gì.
+
+**`INTEGRATION_DECISION_REQUIRED` VẪN MỞ.** Đo lại trong vòng 2:
+`cumulative LOC = 10.155` (`S145` ghi `10.100` vì đo tại `419391c`; chênh đúng
+57 dòng của commit tài liệu `40807ef`). Owner phải chọn theo V4.1 §8 TRƯỚC lần
+merge; phiên review KHÔNG chọn thay.
+
+**`R6` VẪN KHÔNG được merge hay deploy.** `CHECK-R51-26`, `CHECK-R6-30` và
+`CHECK-R6-32` đều `NOT_TESTED` và đều thuộc thẩm quyền Owner.
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`.
