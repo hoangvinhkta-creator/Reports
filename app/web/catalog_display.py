@@ -56,6 +56,7 @@ mất nó là một màn hình nói ít đi, không phải một màn hình nói
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -85,25 +86,106 @@ def rows_of(snapshot) -> dict:
     return out
 
 
-def write(snapshot, path: Optional[Path] = None) -> None:
+#: Mã lý do một lần ghi bản chiếu KHÔNG thành công. Tập ĐÓNG, và mỗi mã là một
+#: câu người đọc hành động được — không phải một mã lỗi kỹ thuật.
+REASON_NO_SNAPSHOT = "NO_SNAPSHOT"
+REASON_NO_METADATA = "NO_METADATA"
+REASON_WRITE_FAILED = "WRITE_FAILED"
+
+WRITE_REASONS = {
+    REASON_NO_SNAPSHOT: (
+        "Lần chạy này không có capture danh mục Tracking, nên không có gì để "
+        "ghi. Cột Hãng và Nhóm hàng sẽ hiện dấu gạch cho tới lần chạy có "
+        "capture danh mục."
+    ),
+    REASON_NO_METADATA: (
+        "Capture danh mục của lần chạy này KHÔNG mang trường hiển thị nào "
+        "(model/hãng/nhóm hàng) — thường là một artifact đời cũ. Bảng kê giữ "
+        "mã Tracking và dấu gạch; đây là trạng thái ĐÚNG, không phải lỗi."
+    ),
+    REASON_WRITE_FAILED: (
+        "KHÔNG ghi được bản chiếu hiển thị xuống đĩa (đĩa chỉ đọc hoặc hết "
+        "chỗ). Báo cáo và mọi con số vẫn đúng, nhưng cột Hãng/Nhóm hàng sẽ "
+        "hiện dấu gạch cho tới khi ghi được."
+    ),
+}
+
+
+MISSING_PROJECTION_NOTE = (
+    "Bản chiếu hiển thị của danh mục Tracking hiện KHÔNG đọc được, nên cột "
+    "Mặt hàng giữ tên trên sổ kế toán và cột Hãng/Nhóm hàng hiện dấu gạch — "
+    "kể cả với những dòng đã xác nhận mã. Mọi con số của báo cáo vẫn ĐÚNG: "
+    "bản chiếu chỉ mang NHÃN, không mang tiền. Chạy lại báo cáo là cách dựng "
+    "lại nó; nếu vẫn không có, xem trạng thái ghi bản chiếu trong bằng chứng "
+    "của lần chạy."
+)
+
+
+@dataclass(frozen=True)
+class WriteResult:
+    """Kết quả MỘT lần ghi bản chiếu — để tầng gọi NÓI RA thay vì đoán.
+
+    Trước `R5.1 REPAIR-2`, `write()` trả `None` và nuốt mọi thất bại. Với
+    luồng "mở bảng chọn" điều đó chấp nhận được (Owner đang đứng ngay đó và
+    thấy ngay), nhưng với luồng CHẠY BÁO CÁO thì không: bản chiếu là thứ duy
+    nhất làm cột Hãng/Nhóm hàng có nội dung, và một lần ghi thất bại im lặng
+    cho ra đúng triệu chứng production đã gặp — cả bảng chỉ có dấu gạch, không
+    một dòng nào giải thích vì sao.
+
+    `written=False` KHÔNG phải một lỗi cần dừng lần chạy: bản chiếu là NHÃN.
+    Nó là một sự thật cần ghi vào bằng chứng của run và cần nói trên màn hình.
+    """
+
+    written: bool
+    rows: int = 0
+    reason: Optional[str] = None
+
+    @property
+    def note(self) -> Optional[str]:
+        """Câu giải thích cho người đọc, hoặc `None` khi ghi thành công."""
+        return None if self.reason is None else WRITE_REASONS.get(self.reason)
+
+    def as_evidence(self) -> dict:
+        """Hình dạng đi vào `tracking_evidence` của một run.
+
+        Chỉ ba trường nguyên thuỷ, JSON được, không mirror một dòng danh mục
+        nào — thẩm quyền vẫn ở Tracking (`ADR-107`).
+        """
+        return {"written": self.written, "rows": self.rows,
+                "reason": self.reason}
+
+
+def write(snapshot, path: Optional[Path] = None) -> WriteResult:
     """Ghi bản chiếu hiển thị. Lỗi ghi KHÔNG được làm hỏng lần gọi đang chạy.
 
     Đây là một tác dụng phụ tiện ích của một thao tác khác (mở bảng chọn, chạy
     báo cáo). Nếu nó thất bại, thứ duy nhất mất đi là vài cái nhãn — biến điều
     đó thành một trang lỗi sẽ đánh đổi một tính năng chính lấy một tính năng
     phụ.
+
+    Nhưng nó KHÔNG còn thất bại im lặng: hàm trả về `WriteResult` để tầng gọi
+    ghi vào bằng chứng của run và hiện lên màn hình (`R5.1 REPAIR-2`). Những
+    nơi gọi cũ bỏ qua giá trị trả về vẫn chạy y như trước.
     """
     target = Path(path or DEFAULT_DISPLAY_PATH)
+    if snapshot is None:
+        return WriteResult(written=False, reason=REASON_NO_SNAPSHOT)
     rows = rows_of(snapshot)
     if not rows:
-        return
+        # Danh mục đọc được nhưng KHÔNG dòng nào có một trong ba trường hiển
+        # thị — artifact đời cũ. Giữ nguyên bản chiếu đang có (nếu có): ghi một
+        # file rỗng lên nó sẽ XOÁ nhãn của những mã mà một lần chạy trước đã
+        # đọc được, tức làm màn hình nói ÍT hơn vì một capture cũ.
+        return WriteResult(written=False, reason=REASON_NO_METADATA)
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
             json.dumps(rows, ensure_ascii=False, sort_keys=True),
             encoding="utf-8")
     except OSError:
-        return
+        return WriteResult(written=False, rows=len(rows),
+                           reason=REASON_WRITE_FAILED)
+    return WriteResult(written=True, rows=len(rows))
 
 
 def read(path: Optional[Path] = None) -> dict:
@@ -179,5 +261,8 @@ def label_of(display: dict, code: Optional[str]) -> Optional[str]:
     return (display.get(code) or {}).get("model_label")
 
 
-__all__ = ["DEFAULT_DISPLAY_PATH", "FIELDS", "brand_source", "category_of",
+__all__ = ["DEFAULT_DISPLAY_PATH", "FIELDS", "MISSING_PROJECTION_NOTE",
+           "REASON_NO_METADATA",
+           "REASON_NO_SNAPSHOT", "REASON_WRITE_FAILED", "WRITE_REASONS",
+           "WriteResult", "brand_source", "category_of",
            "label_of", "read", "rows_of", "write"]

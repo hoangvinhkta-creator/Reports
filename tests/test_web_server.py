@@ -627,7 +627,15 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
     assert live_result.cleanup_called == [True]
 
     record = client.application.config["RUN_REGISTRY"].get_run("report-20260901T080000Z")
-    assert record.tracking_evidence == {"catalog_capture_id": "LIVE-CAT-1"}
+    # `R5.1 REPAIR-2` — bằng chứng của run nay mang THÊM trạng thái ghi bản
+    # chiếu hiển thị. Ở bài này `tracking_catalog` là một đường dẫn giả không
+    # tồn tại, nên kết quả đúng là `NO_SNAPSHOT`: run vẫn thành công, và bằng
+    # chứng NÓI RA rằng không có nhãn nào được ghi thay vì im lặng.
+    assert record.tracking_evidence == {
+        "catalog_capture_id": "LIVE-CAT-1",
+        "catalog_display": {"written": False, "rows": 0,
+                            "reason": "NO_SNAPSHOT"},
+    }
 
 
 def test_run_fails_clearly_and_does_not_silently_fall_back_when_tracking_unavailable(
