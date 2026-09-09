@@ -14,8 +14,18 @@ là bên tiêu thụ, và điều đó nay được canh bằng test.
 `CHECK-R51R1-01` … `CHECK-R51R1-16` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S140-r51-repair-1.md`).
 
-`CHECK-R51R1-17` (Independent Review vòng 2) và `CHECK-R51-26` (Owner nghiệm
-thu production) VẪN `NOT_TESTED` — phiên repair KHÔNG tự đóng hai check này.
+`CHECK-R51R1-17` (Independent Review vòng 2) `PASS` (E1) — chạy ở `S141`
+(2026-09-09), kết luận `ACCEPT_WITH_RECORDED_RISK`, **0 finding
+`REPAIR_REQUIRED`**, không tiêu repair cycle nào. Bằng chứng:
+`docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`. Task vì thế
+GIỮ `IMPLEMENTED`, KHÔNG phải `DONE`: Exit Criteria còn một check REQUIRED
+chưa chạy, và nghiệm thu ấy là việc của Owner — không phiên nào tự đóng.
+
+Vòng review 2 để lại 2 `ACCEPTED_RISK` mới (`R5.1R1-04`, `R5.1R1-05`), 2 đính
+chính tài liệu (`COR-R5.1R1-01`, `COR-R5.1R1-02`) và một
+`OWNER_DECISION_REQUIRED` về alias taxonomy — xem mục 6 và mục 7.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -183,10 +193,19 @@ Bước 6 là chỗ bảo đảm được sinh ra: đầu ra không đến từ 
 | `CHECK-R51R1-14` | Reports KHÔNG giữ bản sao từ điển (canh bằng cấu trúc) | PASS | E1 |
 | `CHECK-R51R1-15` | Smoke xuyên hai repo: mọi nhãn qua ranh giới ∈ từ điển đọc từ `src/index.js` | PASS | E1 |
 | `CHECK-R51R1-16` | Tracking `npm test`/`build`; Reports full `pytest`; không hồi quy | PASS | E1 |
-| `CHECK-R51R1-17` | Independent Review vòng 2 | NOT_TESTED | — |
+| `CHECK-R51R1-17` | Independent Review vòng 2 | PASS | E1 |
 | `CHECK-R51-26` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md` §4.
+
+`CHECK-R51R1-17` chạy ở `S141` (2026-09-09) trên exact HEAD `11a199b`
+(Tracking) + `83b1e07` (Reports), kết luận `ACCEPT_WITH_RECORDED_RISK` với
+**0 finding `REPAIR_REQUIRED`** — nên phiên ấy KHÔNG tiêu repair cycle nào.
+Bằng chứng: `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`,
+`docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+`CHECK-R51-26` GIỮ `NOT_TESTED`: nghiệm thu production là việc của Owner, và
+không phiên review nào được tự đánh dấu.
 
 ---
 
@@ -212,6 +231,49 @@ mất.** "Tủ lạnh Hòa Phát" ra `null` chứ không phải "Tủ lạnh", v
 ("bỏ qua từ lạ nếu đã tìm được nhóm hàng") sẽ cho "Tivi kho anh Ba" ra "Tivi"
 — tức mở lại đúng lỗ vừa vá. Sửa đúng chỗ: thêm hãng vào `HANG`.
 
+`ACCEPTED_RISK R5.1R1-04` — **Nhắc lại cùng một nhóm trong `cat` ⟹ `null`.**
+Ghi bởi Independent Review vòng 2 (`S141`). `cat = "Tivi TV"`, `"TV Tivi"`,
+`"Máy lạnh Điều hoà"`, `"Nồi cơm Nồi cơm điện"` đều ra `null` dù nhóm hàng
+không hề mơ hồ: hai đoạn khớp cùng độ dài trỏ về CÙNG một canonical, phép chọn
+`nhat[0]` lấy đoạn đầu, và các từ của đoạn còn lại rơi xuống phép kiểm "mọi từ
+còn lại phải là hãng". Hiếm (phải gõ hai cách gọi cùng một nhóm trong một ô),
+chỉ giảm độ phủ, hiện rõ thành "—". Không tạo category giả, không rò dữ liệu,
+không sai gộp `R6`.
+
+`ACCEPTED_RISK R5.1R1-05` — **Ngành hàng GHÉP ⟹ `null`, và có ca THẬT.**
+Ghi bởi `S141`. `"Máy giặt sấy"` và `"Máy giặt sấy LG"` ra `null`: từ điển có
+`"Máy giặt"` và có `"Máy sấy"` nhưng không có mục ghép; đoạn dài nhất khớp là
+`"Máy giặt"`, còn `"sấy"` không phải hãng. Đây là `R5.1R1-01` với một ca có
+thật thay cho ví dụ giả định — đơn golden `BH62439` gồm `"Máy Giặt Sấy LG"`.
+Quan trọng: nó hỏng theo hướng AN TOÀN — KHÔNG xếp nhầm một máy giặt sấy vào
+bucket `"Máy giặt"`. Sửa đúng chỗ: thêm một dòng `['Máy giặt sấy', []]` vào
+`NHOM` (việc của Owner/phiên sau, không phải của review).
+
 `ACCEPTED_RISK R5.1-01` … `-04` của `R5.1` **giữ nguyên hiệu lực**, trừ
 `AR-R5.1-03` (không gộp đồng nghĩa) nay đã ĐÓNG: từ điển chính là cấu hình
 cho phép gộp, và "Máy lạnh"/"Điều hoà" đã gộp.
+
+---
+
+## 7. Đính chính và câu hỏi mở sau Independent Review vòng 2 (`S141`)
+
+`COR-R5.1R1-01` — hai chú thích mô tả LUẬT CŨ còn lại trong mã sản phẩm
+Reports, nay mâu thuẫn `DEC-205` và hợp đồng §4.6:
+`app/web/catalog_display.py:17-18` và
+`tools/tracking/capture_tracking_catalog.py:134-135` đều còn nói "lọc hình
+dạng"/"danh sách trắng hình dạng". Chỉ là chú thích — 0 tác động hành vi, 0
+test đổi. Phiên nào chạm mã Reports lần kế tiếp nên sửa; không mở phiên riêng.
+
+`COR-R5.1R1-02` — bảng quan hệ của `DEC-205` ghi `DEC-204 §5 → GIỮ NGUYÊN`,
+nhưng `§5` còn câu *"Gộp tên đồng nghĩa khác: KHÔNG làm"* mà `DEC-205` §4 đã
+đảo. Lập luận đảo có tường minh ở `DEC-205` §4 và ở mục 6 trên — chỉ DÒNG TÓM
+TẮT là thiếu chính xác. KHÔNG sửa `DEC-204` (artifact lịch sử).
+
+`OWNER_DECISION_REQUIRED` — **alias taxonomy chưa có Owner xác nhận rõ trong
+lịch sử.** `Máy lạnh → Điều hoà` có bằng chứng dữ liệu MẠNH nhưng thẩm quyền
+Owner chỉ tồn tại dưới dạng lời dẫn brief của phiên triển khai. `TV → Tivi` có
+bằng chứng YẾU (chỉ `Tracking/public/kpi-demo.js`, một cấu hình KPI chứ không
+phải giá trị `cat`). `Ti vi → Tivi` **không có bằng chứng in-repo nào** và
+không `CHECK` nào canh riêng. Đây là quyết định BUCKET BÁO CÁO, không phải
+thay đổi tiền, và không thể tạo category giả hay rò dữ liệu — nhưng nên đóng
+TRƯỚC khi `R6` dùng `category_label` làm khoá gộp.

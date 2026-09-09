@@ -3296,3 +3296,55 @@ và không tạo tiền lệ cho việc mở repair cycle miễn phí bằng cá
 một lần phân loại lại.
 
 Bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+
+### `R5.1 REPAIR-1` — Independent Review vòng 2 (`S141`, 2026-09-09)
+
+`CHECK-R51R1-17` — **ĐÃ CHẠY**, `S141`, 2026-09-09, trên exact HEAD
+`11a199b222ed1771558cefcdf664aad9de64cfa9` (Tracking) +
+`83b1e07c44b186fffaf1b71e40693485741f32eb` (Reports). Kết luận
+`ACCEPT_WITH_RECORDED_RISK` với **0 finding `REPAIR_REQUIRED`**, nên **KHÔNG
+tiêu cycle nào**.
+
+```text
+root lineage                 R5
+số dư trước S141             2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi S141   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S141               2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Điều này QUAN TRỌNG với lineage đã cạn ngân sách: cảnh báo của `S140` ("vòng
+review kế tiếp lại ra `REPAIR_REQUIRED` thì phải escalate") **không kích
+hoạt** — không có finding bắt buộc sửa nào, nên không có repair cycle thứ ba
+nào phải mở và **không có escalation nào phải mở**.
+
+Hai `ACCEPTED_RISK` mới được ghi thay vì mở repair, vì cả hai chỉ GIẢM ĐỘ PHỦ
+và hiện rõ thành `null`/`"—"`, không tạo được category giả, không rò dữ liệu,
+không sai gộp `R6` và không chạm một đồng nào:
+
+```text
+AR-R5.1R1-04  nhắc lại cùng một nhóm trong `cat` ⟹ null ("Tivi TV")
+AR-R5.1R1-05  ngành hàng GHÉP ⟹ null ("Máy giặt sấy"), có ca thật ở đơn
+              golden BH62439 — và hỏng theo hướng AN TOÀN, không xếp nhầm bucket
+```
+
+Hai đính chính tài liệu (`COR-R5.1R1-01` chú thích cũ trong mã Reports;
+`COR-R5.1R1-02` dòng tóm tắt `DEC-204 §5` trong `DEC-205`) là tài liệu, không
+phải hành vi — không tiêu ngân sách.
+
+Một `OWNER_DECISION_REQUIRED` được ghi cho alias taxonomy (`Máy lạnh →
+Điều hoà`, `TV → Tivi`, `Ti vi → Tivi`): đây là quyết định BUCKET BÁO CÁO của
+Owner, **không phải một finding kỹ thuật**, nên nó cũng không tiêu ngân sách.
+Nên đóng TRƯỚC khi `R6` dùng `category_label` làm khoá gộp.
+
+Hai lỗi đỏ trong lượt kiểm được tách rõ là **BASELINE của môi trường**, không
+phải hồi quy: một bài `pytest`
+(`TestG25GoldenBaselineUnchanged::test_protected_golden_artifacts_match_the_task_105e_review_base`)
+đỏ vì container review dùng clone NÔNG — tái hiện Y HỆT trên nền `3b35b7a`
+chưa có `R5.1`; và 4 finding `REFERENCE INTEGRITY` đúng bằng 4 finding
+`S139`/`S140` đã ghi là baseline.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn:
+`docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`,
+`docs/sessions/S141-r51-repair-1-independent-review-2.md`.

@@ -1,6 +1,75 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1 REPAIR-1: từ điển nhóm hàng, IMPLEMENTED, CHƯA merge (`S140`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1 REPAIR-1: ĐÃ QUA Independent Review vòng 2 (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S141`, 2026-09-09)
+
+**Phiên review, KHÔNG sửa mã, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+```text
+Đối tượng review (exact HEAD)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+  Reports   83b1e07c44b186fffaf1b71e40693485741f32eb
+  Nền CẢ HAI repo KHÔNG đổi kể từ S140 (main @ 918183c;
+  claude/extract-upload-repo-gq2ws4 @ 3b35b7a); không commit lạ.
+
+Kết luận                 ACCEPT_WITH_RECORDED_RISK
+  REPAIR_REQUIRED        0
+  ACCEPTED_RISK mới      2   AR-R5.1R1-04 (nhắc lại cùng nhóm ⟹ null)
+                             AR-R5.1R1-05 (ngành hàng ghép ⟹ null; ca thật
+                             "Máy Giặt Sấy LG" ở đơn golden BH62439)
+  Đính chính tài liệu    2   COR-R5.1R1-01 (2 chú thích cũ trong mã Reports)
+                             COR-R5.1R1-02 (dòng tóm tắt DEC-204 §5 trong DEC-205)
+  Cần Owner quyết        1   OWNER_DECISION_REQUIRED — alias taxonomy
+                             (Máy lạnh→Điều hoà, TV→Tivi, Ti vi→Tivi)
+
+Kiểm đã chạy (đo lại, không tin bàn giao S140)
+  Tracking  npm test 62 bộ · 2850 đạt · 0 hỏng · 2 bỏ qua; build OK   (khớp)
+  Reports   pytest test_r51_category_label.py  26 passed
+            pytest toàn bộ  1 failed, 3258 passed, 11 skipped
+                            — bài đỏ là BASELINE (clone nông), đã chứng minh
+                              bằng cách tái hiện Y HỆT trên nền 3b35b7a
+            smoke của dự án  58 PASS / 0 FAIL                          (khớp)
+  Probe ĐỘC LẬP của phiên  4 bộ; nhomCua()/chieuBoard() chạy qua module THẬT
+            (import, không new Function) — khớp kết quả producer của S140
+            fuzz 250 000 mẫu: mọi nhãn ∈ NHOM ∪ {null}, 0 vi phạm
+            A/B TOÀN TRANG: bản chiếu CÓ vs BỊ TƯỚC category_label cho HTML
+            giống hệt tới từng ký tự sau khi che riêng cột nhóm hàng ⟹ doanh
+            thu, MIN, giá nhập, lợi nhuận, độ phủ, vân tay đều KHÔNG đổi
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 finding — BASELINE, đúng 4 của S139/S140
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1) — tái kiểm chứng độc lập, giữ nguyên
+  CHECK-R51R1-17            NOT_TESTED → PASS (E1)   ← S141
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production (GIỮ NGUYÊN)
+  Repair cycle tiêu bởi S141  0 → lineage R5 vẫn 2 allowed / 2 used / 0 remaining
+  Escalation                  KHÔNG mở (REPAIR_REQUIRED = 0)
+```
+
+Task GIỮ `IMPLEMENTED`, KHÔNG phải `DONE`: `CHECK-R51-26` còn `NOT_TESTED`.
+
+**Cảnh báo ngân sách của `S140` KHÔNG kích hoạt** — vòng review vòng 2 ra 0
+finding bắt buộc sửa, nên không có repair cycle thứ ba nào phải mở. Cảnh báo
+vẫn còn hiệu lực cho tương lai: lineage `R5` không còn cycle nào.
+
+**Việc kế tiếp, theo thứ tự:** (1) Owner quyết `CHECK-R51-26` — merge trước
+nghiệm thu hay nghiệm thu staging trước; (2) merge **Tracking TRƯỚC, Reports
+SAU**; (3) đóng `OWNER_DECISION_REQUIRED` về alias TRƯỚC khi `R6` dùng
+`category_label` làm khoá gộp. Chi tiết: `S141` mục 7.
+
+Bản ghi review: `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`.
+Bàn giao: `docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+**Phiên này KHÔNG tự đánh dấu Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: từ điển nhóm hàng, IMPLEMENTED, CHƯA merge (`S140`, 2026-09-09)
+
+> **TRẠNG THÁI SAU `S141`.** Mục này là bản ghi của phiên repair và giữ NGUYÊN
+> VĂN. `CHECK-R51R1-17` bên dưới ghi `NOT_TESTED` là đúng TẠI THỜI ĐIỂM `S140`;
+> nay nó `PASS` (E1) — xem CANONICAL CURRENT STATE ở đầu file. Kết luận của
+> `S140` KHÔNG bị đảo: vòng review vòng 2 xác nhận lại toàn bộ số liệu bàn
+> giao và ra `ACCEPT_WITH_RECORDED_RISK` với 0 finding `REPAIR_REQUIRED`.
 
 **Phiên repair đầy đủ, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
 
