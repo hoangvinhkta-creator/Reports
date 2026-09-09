@@ -3104,3 +3104,113 @@ kiện duy nhất cho phép mở lại (tái hiện thành lỗi deploy/luồng 
 xảy ra. Ngân sách `R4` giữ nguyên `1 allowed / 0 used / 1 remaining`.
 
 Bằng chứng nguyên văn: `docs/sessions/S133-r4-integration-and-deployment.md`.
+
+---
+
+## Root Task: R5
+
+```
+root_task: R5
+title: Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH = 2`).
+
+**Blast Radius chấm theo failure path.** Failure path CHÍNH của R5 là:
+
+```text
+cờ vắng mặt → effective data → MỌI chỉ tiêu kinh doanh → vân tay chốt kỳ
+            → export Excel
+```
+
+Nó đi xa hơn R4 đúng một bậc (`4/5` thay vì `3/5`) vì R5 có quyền LOẠI dòng
+khỏi tập được cộng: một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN, và thấp hơn
+thì khó thấy hơn cao hơn — không ai đi tìm số tiền mình không biết là mình
+đang thiếu.
+
+Nó KHÔNG đạt `5/5`, và ba lý do đều là tính chất CẤU TẠO chứ không phải lời
+hứa: không đường nào của R5 ghi đè một bản ghi kế toán (việc loại xảy ra LÚC
+ĐỌC), không migration nào chạy (`alembic heads` vẫn là một head duy nhất của
+R3), và mọi phép loại đều đảo ngược được bằng một lần nạp sổ — trạng thái "còn
+hiệu lực" tính lại từ lịch sử membership ở mỗi lần đọc.
+
+R5 có một route GHI mới (`POST /kinh-doanh/nhan-vien/sua-bh`), nhưng nó không
+mở rộng bán kính: nó gọi đúng `store.set_purchase_price` /
+`clear_purchase_price` / `set_employee` mà `DEC-PHB02-02` và `OD-5` đã nghiệm
+thu, qua đúng những cửa cũ, và mọi ràng buộc của R2 §4.4 được thi hành ở đúng
+một chỗ cho mọi người gọi.
+
+**Independent Review lần 1 (`S135`, 2026-09-08): `REPAIR_REQUIRED`.**
+Bản ghi: `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Hai finding bắt
+buộc (`FIND-R5-IR-01`, `FIND-R5-IR-02`), cả hai nằm trên đúng failure path
+chính đã ghi ở trên. `CHECK-R5-27` = `FAIL`: review đã HOÀN THÀNH,
+implementation CHƯA được chấp nhận.
+
+Phiên review KHÔNG tiêu repair cycle nào — nó không sửa một dòng mã sản phẩm
+nào. Repair cycle **thứ 1** sẽ được tiêu bởi
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`; khi phiên đó
+xong, ngân sách trở thành `2 allowed / 1 used / 1 remaining` và con số ở khối
+trên phải được cập nhật bởi CHÍNH phiên repair, không phải bởi phiên review.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S134` KHÔNG sửa tiếp triển
+khai của R4 — nó ĐỌC một R4 đã merge vào nhánh mặc định (`b6756fe`). Bản sửa
+`r1_web_upload_smoke.py` (`dad8513`) là một sửa chữa CÔNG CỤ KIỂM, trên một
+lỗi có trước R5 và đo được là hỏng y hệt trên `b6756fe`; nó không phải một
+repair cycle của R4 và không tiêu ngân sách của lineage nào.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED`; REPAIR-1 (`S135`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+finding REPAIR         2  (FIND-R5-IR-01, FIND-R5-IR-02)
+finding ACCEPTED_RISK  1 sửa luôn (AR-R5-IR-11), 2 mới ghi (AR-R5-IR-12/13)
+repair cycle tiêu      1
+số dư sau REPAIR-1     2 allowed / 1 used / 1 remaining
+HEAD sau repair        d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2
+CHECK-R5-27            FAIL (vòng 1) — CHƯA chạy lại trên HEAD sau repair
+```
+
+Đây là repair cycle ĐẦU TIÊN và duy nhất bị tiêu trên lineage `R5`. Nó tiêu
+đúng một cycle vì cả hai finding thuộc CÙNG một vòng review và được sửa trong
+CÙNG một phiên — `V4.1` §3 tính theo VÒNG, không theo số finding.
+
+Cả hai finding đều thuộc nhóm `REPAIR_REQUIRED` mà brief R5 §8 đã liệt kê
+trước (`tổng sai khó thấy` và `sửa nhầm dòng/BH`), nên không có tranh cãi nào
+về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+
+Số dư còn `1 remaining`. Nếu vòng review kế tiếp lại ra `REPAIR_REQUIRED`,
+lineage `R5` hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
+
+Bằng chứng nguyên văn: `docs/sessions/S135-r5-repair-1.md`.
+
+### Tích hợp `S136` → Owner override `DEC-203` (`S137`, 2026-09-09) → merge
+
+`S136` (tích hợp) chạy lại toàn bộ kiểm tra kỹ thuật trên HEAD sau REPAIR-1
+gộp với tài liệu Independent Review vòng 1 (merge commit `cf345ac`) — TẤT CẢ
+PASS — nhưng KHÔNG merge, vì vòng review độc lập thứ hai chưa có artifact
+trong repo và `CHECK-R3-20`/`CHECK-R4-24` vẫn `NOT_TESTED`. Chi tiết:
+`docs/sessions/S136-r5-integration.md`.
+
+Ở `S137`, Owner xác nhận trực tiếp (không kèm artifact) rằng: (a) vòng
+Independent Review thứ hai đã chạy ở một công cụ khác (Codex); (b) Owner đã
+tự đối chiếu R3/R4 trên dữ liệu production. Owner chỉ thị merge ngay.
+**`DEC-203`** ghi lại đây là một GHI ĐÈ (override) có thẩm quyền Owner đối
+với hai điều kiện chặn còn lại — không phải kết quả của một repair cycle
+mới, không tiêu và không đổi số dư ngân sách `R5` (giữ nguyên
+`2 allowed / 1 used / 1 remaining`).
+
+```text
+kết luận vòng 2 (theo Owner)   thực hiện ở Codex, không artifact trong repo
+CHECK-R5-27 / CHECK-R5R1-09    ACCEPT_WITH_RECORDED_RISK (Owner override)
+CHECK-R3-20 / CHECK-R4-24      ACCEPTED_BY_OWNER_VERBAL (Owner override)
+repair cycle tiêu bởi override  0  (override KHÔNG phải repair cycle)
+số dư sau override             2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`),
+`docs/sessions/S137-r5-owner-override-merge.md`.

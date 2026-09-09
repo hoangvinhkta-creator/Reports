@@ -207,10 +207,18 @@ def main(argv: list[str]) -> int:
     web_server.TRACKING_TEMP_DIR = tmp / "tracking_live_tmp"
     beta_telemetry.record_run = lambda record, **kw: None
 
+    # Chỉ chuyển hướng `repo_root` vào thư mục tạm; MỌI tham số khác đi qua
+    # nguyên vẹn.
+    #
+    # Bản trước liệt kê tay `sales`/`captures` và vì thế ĐỨT lặng lẽ khi R2
+    # thêm `identity_store_view` vào lời gọi trong `server.py`: lambda ném
+    # `TypeError`, `server.py` nuốt nó ở nhánh "không tạo được báo cáo", và
+    # smoke trả về HTTP 400 — tức là smoke đo chính cái stub của mình chứ
+    # không đo hệ thống. `**kwargs` làm cho một tham số mới không bao giờ
+    # biến bài kiểm này thành một bài kiểm về lambda.
     real_run = owner_usability.run_owner_report
     web_server.run_owner_report = (
-        lambda *, sales, captures=None: real_run(
-            sales=sales, captures=captures, repo_root=tmp)
+        lambda **kwargs: real_run(repo_root=tmp, **kwargs)
     )
 
     app = web_server.create_app(db_path=tmp / "runs.db")

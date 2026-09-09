@@ -363,6 +363,54 @@ def candidates(snapshot, *, query: Optional[str] = None) -> list[Candidate]:
     return found
 
 
+def best_candidate(snapshot, *, query: Optional[str] = None):
+    """MỘT gợi ý tốt nhất, hoặc `None` (R5 §5).
+
+    Owner yêu cầu tối đa MỘT dòng gợi ý: một danh sách bốn mươi mã trong lòng
+    một popover không phải "tương tác nhỏ nhất có thể", và người dùng chỉ
+    chọn được đúng một mã.
+
+    Xếp hạng là một thứ tự CỐ ĐỊNH và kiểm được, không phải một điểm số:
+
+        1. mã Tracking khớp CHÍNH XÁC chuỗi tìm
+        2. mã Tracking BẮT ĐẦU bằng chuỗi tìm
+        3. tên hàng BẮT ĐẦU bằng chuỗi tìm
+        4. còn lại — theo đúng thứ tự dòng của snapshot
+
+    Ba bậc đầu là quan hệ neo ở ĐẦU chuỗi, không phải độ giống nhau: `INV-01`
+    cấm similarity và edit distance ở đường resolve, và một thứ tự gợi ý dựa
+    trên "giống bao nhiêu phần trăm" sẽ là cùng một phép đo ấy, chỉ đứng ở
+    một chỗ khác.
+
+    Xếp hạng KHÔNG phải xác nhận. Hàm này không ghi gì, và không có đường nào
+    từ nó tới `store.append()` mà không đi qua một cú click của Owner
+    (`§PI-05`, `BR-10`).
+
+    Chuỗi tìm RỖNG ⟹ `None`: gợi ý mã đầu tiên của danh mục cho một người
+    chưa gõ gì là mời họ bấm bừa.
+    """
+    needle = (query or "").strip()
+    if not needle:
+        return None
+    folded = needle.casefold()
+    best, best_rank = None, None
+    for item in candidates(snapshot, query=needle):
+        code, name = item.code.casefold(), (item.description or "").casefold()
+        if code == folded:
+            rank = 0
+        elif code.startswith(folded):
+            rank = 1
+        elif name.startswith(folded):
+            rank = 2
+        else:
+            rank = 3
+        if best_rank is None or rank < best_rank:
+            best, best_rank = item, rank
+        if best_rank == 0:
+            break
+    return best
+
+
 def confirm_identity(
     store, *, product_raw: str, tracking_code: str, snapshot,
     actor_id: str, affected_orders: tuple[str, ...] = (),

@@ -184,15 +184,30 @@ def test_phb06_adds_no_migration():
 
 
 def test_the_route_wires_only_the_canonical_brand_source():
-    """`BR-01`/`BR-10` — đường production đọc ĐÚNG `canonical_brand`.
+    """`BR-01`/`BR-10` — đường production đọc ĐÚNG MỘT nguồn canonical.
 
-    Tham số `brand_source` tồn tại để test dựng được một kỳ nhiều thương hiệu.
-    Test này là cái giá của tham số đó: nó khẳng định bằng mã nguồn rằng
-    `server.py` không truyền một nguồn nào khác.
+    Tham số `brand_source` tồn tại để test dựng được một kỳ nhiều thương
+    hiệu. Test này là cái giá của tham số đó: nó khẳng định bằng mã nguồn
+    rằng `server.py` không truyền một nguồn nào khác.
+
+    R5 §5 (`DEC-R5-04`) đổi nguồn từ `brand_identity.canonical_brand` sang
+    `catalog_display.brand_source` — một sửa đổi CÓ CHỦ ĐÍCH, và là đúng
+    đường thứ hai mà `PHB-06 §4` đã để ngỏ ("một read model canonical tương
+    đương"). Điều bộ test này canh KHÔNG đổi: đường production wire ĐÚNG MỘT
+    nguồn, và nguồn ấy chỉ tra `source_product_code` của một danh tính đã
+    CONFIRM trong bản chiếu mà TRACKING đã chuẩn hoá — không phải một bảng
+    ánh xạ của Reports, không phải một phép so chuỗi nào (`BR-02`, `BR-10`).
+
+    Vì sao không dùng `canonical_brand` nữa: nó đọc trường `brand` TRÊN chính
+    `CanonicalProductIdentity`, và thêm một trường hiển thị vào value object
+    đó sẽ phá `INV-18` (so sánh LUÔN bằng đủ tuple) — hai danh tính cùng mã
+    khác hãng sẽ thành hai danh tính KHÁC NHAU. Hàm ấy vẫn ở lại, vẫn là
+    đường đọc đúng nếu hợp đồng danh tính có ngày mang trường đó, và vẫn
+    được canh ở các test khác của chính file này.
     """
     source = inspect.getsource(web_server)
     calls = re.findall(r"brand_source=([A-Za-z_.]+)", source)
-    assert calls == ["brand_identity.canonical_brand"]
+    assert calls == ["catalog_display.brand_source"]
 
 
 def test_the_canonical_brand_reader_returns_nothing_today():

@@ -107,9 +107,10 @@ chứng, để trang không im lặng về chỗ nó không biết.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
 #: Origin của một điểm. Cùng từ vựng `DEC-166 E`, không phải một cặp nhãn mới.
 ORIGIN_CURRENT = "PIPELINE_GENERATED"
@@ -446,6 +447,244 @@ def series(
     return points
 
 
+# --- R5 §3: hai cửa sổ liền kề, cùng độ dài -------------------------------
+#
+# Quyết định Owner 08/09/2026 (`DEC-R5-02`): biểu đồ so HAI cửa sổ liền kề có
+# CÙNG độ dài — 30 ngày, 12 tuần, 12 tháng, 8 quý. Đây là một sửa đổi có chủ
+# đích với `window_bounds` của `TASK-OWNER-UIUX-003` §2 (cửa sổ theo CONTAINER
+# lịch: Ngày trong một tháng, Tuần trong một quý, Tháng trong một năm), và lý
+# do đổi nằm ở chính phép so sánh: hai container lịch liền nhau KHÔNG cùng độ
+# dài (tháng 2 có 28 ngày, tháng 3 có 31), nên đặt chúng cạnh nhau là mời
+# người đọc so hai con số không so được.
+#
+# `window_bounds`/`window_points` KHÔNG bị xoá: mức Năm vẫn dùng đường một
+# chuỗi cũ, và hai hàm ấy vẫn là bề mặt kiểm được của phép cắt cửa sổ.
+COMPARISON_WINDOW_SIZES: dict[str, int] = {
+    DAY: 30, WEEK: 12, MONTH: 12, QUARTER: 8,
+}
+
+#: Mức gộp có cửa sổ so sánh. Năm KHÔNG có: Owner không yêu cầu, và "8 năm so
+#: với 8 năm trước" là một câu hỏi mà sổ này chưa có bằng chứng để trả lời.
+COMPARISON_LEVELS: frozenset = frozenset(COMPARISON_WINDOW_SIZES)
+
+CURRENT_WINDOW_LABEL = "Cửa sổ hiện tại"
+COMPARISON_WINDOW_LABEL = "Cửa sổ so sánh (liền trước)"
+
+COMPARISON_NOTE = (
+    "Hai đường so HAI CỬA SỔ LIỀN KỀ có CÙNG độ dài: đường đậm là cửa sổ hiện "
+    "tại, đường mờ là cửa sổ ngay trước nó. Chúng dùng CHUNG một trục và một "
+    "thước đo, nên hai điểm cùng vị trí là hai mốc tương ứng của hai cửa sổ."
+)
+
+#: `F-E` ở chế độ hai cửa sổ — câu phải nói ĐÚNG phạm vi thật của biểu đồ.
+#: `F-E` sinh ra để không cho hai con số cạnh nhau nói hai điều mâu thuẫn mà
+#: không ai giải thích; cách giữ đúng tinh thần đó khi phạm vi đổi là ĐỔI CÂU
+#: theo phạm vi mới, không phải xoá câu đi.
+COMPARISON_SCOPE_TEXT = (
+    "Biểu đồ so hai cửa sổ liền kề cùng độ dài: {current} so với "
+    "{comparison} — chưa phải toàn bộ dữ liệu."
+)
+
+GAP_NOTE = (
+    "Chỗ đường bị ĐỨT là chỗ chưa có bằng chứng cho mốc đó — không phải doanh "
+    "thu bằng 0. Số 0 chỉ được vẽ khi khoảng ngày ấy nằm trong một sổ đã được "
+    "xác nhận đầy đủ, tức là hệ thống thật sự biết không có đơn nào."
+)
+
+
+def _shift_months(year: int, month: int, delta: int) -> tuple[int, int]:
+    """`(năm, tháng)` sau khi dịch `delta` tháng. `delta` âm là lùi."""
+    index = (year * 12 + month - 1) + delta
+    return index // 12, index % 12 + 1
+
+
+def _step_back(granularity: str, value: date, steps: int) -> date:
+    """Ngày ĐẠI DIỆN của mốc lùi `steps` bước từ mốc chứa `value`.
+
+    Trả về một ngày nằm TRONG mốc đích, không nhất thiết là ngày đầu mốc —
+    `bucket_of` sẽ chuẩn hoá lại. Với tháng/quý, ngày 1 luôn tồn tại ở mọi
+    tháng nên không có nhánh nào rơi vào một ngày không có thật (31/02).
+    """
+    if granularity == DAY:
+        return value - timedelta(days=steps)
+    if granularity == WEEK:
+        return _iso_week_start(value) - timedelta(days=7 * steps)
+    if granularity == MONTH:
+        year, month = _shift_months(value.year, value.month, -steps)
+        return date(year, month, 1)
+    if granularity == QUARTER:
+        start_month = (value.month - 1) // 3 * 3 + 1
+        year, month = _shift_months(value.year, start_month, -3 * steps)
+        return date(year, month, 1)
+    raise ValueError(f"Mức gộp không có cửa sổ so sánh: {granularity!r}")
+
+
+def window_slots(granularity: str, anchor: date, size: int) -> list[tuple[str, str]]:
+    """`size` mốc LIÊN TIẾP kết thúc tại mốc chứa `anchor`, từ cũ tới mới.
+
+    Dựng từ LỊCH, không từ dữ liệu. Đó là toàn bộ điểm của hàm này: một cửa
+    sổ dựng từ các mốc CÓ dữ liệu sẽ tự co lại quanh những ngày bán được, và
+    hai cửa sổ "cùng độ dài" khi ấy sẽ trải trên hai khoảng thời gian khác
+    nhau — đúng phép so sánh sai mà `DEC-R5-02` sinh ra để tránh.
+    """
+    slots = [bucket_of(_step_back(granularity, anchor, step), granularity)
+             for step in range(size - 1, -1, -1)]
+    return slots
+
+
+def comparison_anchor(granularity: str, anchor: date, size: int) -> date:
+    """Ngày neo của cửa sổ SO SÁNH — mốc ngay trước mốc đầu cửa sổ hiện tại."""
+    return _step_back(granularity, anchor, size)
+
+
+def anchor_date(
+    period: Optional[tuple[int, int]], details: Iterable[dict],
+) -> Optional[date]:
+    """Mốc kết thúc của cửa sổ hiện tại.
+
+    Đang xem một THÁNG ⟹ ngày cuối tháng đó: cửa sổ 30 ngày khi ấy phủ đúng
+    tháng đang xem (với tháng 30 ngày), và người đọc thấy cái họ vừa chọn.
+
+    Đang xem "Toàn bộ dữ liệu" ⟹ ngày bán MUỘN NHẤT thực sự có. Neo vào hôm
+    nay thay vào đó sẽ vẽ ra một cửa sổ trống trơn mỗi khi sổ chưa được nạp
+    vài ngày, và một biểu đồ trống đọc như "không bán được gì".
+
+    `None` khi không có kỳ và cũng không có dòng nào — không có gì để neo.
+    """
+    if period is not None:
+        year, month = period
+        return date(year, month, monthrange(year, month)[1])
+    dates = [detail["sale_date"] for detail in details
+             if detail.get("sale_date") is not None]
+    return max(dates) if dates else None
+
+
+@dataclass(frozen=True)
+class Slot:
+    """Một VỊ TRÍ trên trục X — nơi hai cửa sổ gặp nhau.
+
+    `index` là toạ độ tương đối dùng chung: điểm `index` của cửa sổ hiện tại
+    và điểm `index` của cửa sổ so sánh là hai mốc TƯƠNG ỨNG (ngày thứ n của
+    mỗi cửa sổ), và đó là toàn bộ ý nghĩa của việc vẽ chúng chồng lên nhau.
+
+    `revenue is None` là một KHOẢNG TRỐNG, không phải số 0 — xem `GAP_NOTE`.
+    """
+
+    index: int
+    key: str
+    label: str
+    revenue: Optional[Decimal]
+    origin: Optional[str] = None
+    #: `Point.partial` của mốc gốc — một quý dựng từ ít tháng hơn số tháng nó
+    #: bao trùm. Chở theo chứ không tính lại: nó là một sự thật về BẰNG CHỨNG
+    #: của mốc, và bỏ nó đi ở đây sẽ khiến một quý hai tháng trông ngang hàng
+    #: với một quý đủ ba tháng trên cùng một đường.
+    partial: bool = False
+
+    @property
+    def is_gap(self) -> bool:
+        return self.revenue is None
+
+
+@dataclass(frozen=True)
+class PairedSeries:
+    """Hai chuỗi cùng độ dài trên cùng một trục, và nhãn của chúng."""
+
+    current: tuple[Slot, ...]
+    comparison: tuple[Slot, ...]
+    current_label: str
+    comparison_label: str
+
+    @property
+    def size(self) -> int:
+        return len(self.current)
+
+
+def _covered_by_confirmed(key: str, granularity: str,
+                          confirmed_ranges: Sequence[tuple[date, date]]) -> bool:
+    """Mốc `key` có nằm TRỌN trong một khoảng đã xác nhận đầy đủ không?
+
+    "Trọn" chứ không "chạm": một sổ đã xác nhận đầy đủ cho 01–10/09 KHÔNG nói
+    được gì về phần còn lại của tháng 9, nên mốc THÁNG 09/2026 vẫn là một
+    khoảng trống chứ không phải số 0. Cùng ranh giới thẩm quyền mà
+    `reconciler.absent_keys` đã thi hành ở tầng dòng.
+    """
+    span = _bucket_span(key, granularity)
+    if span is None:
+        return False
+    start, end = span
+    return any(low <= start and end <= high for low, high in confirmed_ranges)
+
+
+def _bucket_span(key: str, granularity: str) -> Optional[tuple[date, date]]:
+    """`(ngày đầu, ngày cuối)` của mốc — cận trên BAO GỒM."""
+    try:
+        if granularity == DAY:
+            day = date.fromisoformat(key)
+            return day, day
+        if granularity == WEEK:
+            start = date.fromisoformat(key)
+            return start, start + timedelta(days=6)
+        if granularity == MONTH:
+            year, month = int(key[:4]), int(key[5:7])
+            return date(year, month, 1), date(year, month, monthrange(year, month)[1])
+        if granularity == QUARTER:
+            year, quarter = int(key[:4]), int(key[6:])
+            start_month = (quarter - 1) * 3 + 1
+            start = date(year, start_month, 1)
+            end_year, end_month = _shift_months(year, start_month, 2)
+            return start, date(end_year, end_month,
+                               monthrange(end_year, end_month)[1])
+    except (ValueError, IndexError):
+        return None
+    return None
+
+
+def paired_series(
+    points: Sequence[Point], *, granularity: str, anchor: Optional[date],
+    confirmed_ranges: Sequence[tuple[date, date]] = (),
+) -> Optional[PairedSeries]:
+    """Hai cửa sổ liền kề cùng độ dài, dựng từ MỘT chuỗi điểm đã tính.
+
+    `points` là kết quả của `series()` — KHÔNG tính lại doanh thu ở đây, và
+    đó là điều kiện để `DEC-R5-02` không dựng ra một công thức doanh thu thứ
+    hai. Hàm này chỉ CHỌN và XẾP: nó lấy các mốc lịch của hai cửa sổ, tra
+    giá trị đã có, và để trống chỗ không có.
+
+    `None` khi mức gộp không có cửa sổ so sánh (Năm) hoặc không có gì để neo.
+    """
+    size = COMPARISON_WINDOW_SIZES.get(granularity)
+    if size is None or anchor is None:
+        return None
+    by_key = {point.key: point for point in points}
+
+    def slots_of(window_anchor: date) -> tuple[Slot, ...]:
+        built = []
+        for index, (key, label) in enumerate(
+                window_slots(granularity, window_anchor, size)):
+            point = by_key.get(key)
+            if point is not None:
+                built.append(Slot(index=index, key=key, label=label,
+                                  revenue=point.revenue, origin=point.origin,
+                                  partial=point.partial))
+                continue
+            # Không có điểm: số 0 CHỈ khi phạm vi đã được xác nhận đầy đủ,
+            # tức hệ thống thật sự biết không có đơn nào. Mọi trường hợp còn
+            # lại là một khoảng trống, và khoảng trống phải nhìn ra được.
+            zero = _covered_by_confirmed(key, granularity, confirmed_ranges)
+            built.append(Slot(index=index, key=key, label=label,
+                              revenue=Decimal(0) if zero else None,
+                              origin=ORIGIN_CURRENT if zero else None))
+        return tuple(built)
+
+    return PairedSeries(
+        current=slots_of(anchor),
+        comparison=slots_of(comparison_anchor(granularity, anchor, size)),
+        current_label=CURRENT_WINDOW_LABEL,
+        comparison_label=COMPARISON_WINDOW_LABEL,
+    )
+
+
 def _quarter_bounds(year: int, month: int) -> tuple[date, date]:
     """`(ngày đầu quý, ngày đầu quý KẾ TIẾP)` chứa `(year, month)` — cận trên
     KHÔNG bao gồm, cùng quy ước với mọi cận trên khác trong module này."""
@@ -532,6 +771,10 @@ def totals_of(points: Iterable[Point]) -> Decimal:
 
 
 __all__ = [
+    "COMPARISON_LEVELS", "COMPARISON_NOTE", "COMPARISON_WINDOW_LABEL",
+    "COMPARISON_WINDOW_SIZES", "CURRENT_WINDOW_LABEL", "GAP_NOTE",
+    "PairedSeries", "Slot", "anchor_date", "comparison_anchor",
+    "paired_series", "window_slots",
     "CHART_NOTE", "CHART_SCOPE_NOTE", "DAY", "DEFAULT_GRANULARITY",
     "GRANULARITIES", "GRANULARITY_KEYS", "LEGACY_POINT_NOTE",
     "MIXED_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT",

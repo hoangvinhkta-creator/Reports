@@ -48,9 +48,15 @@
   <h2>Xác nhận sổ này đầy đủ</h2>
   <p class="insight">
     Hệ thống KHÔNG BAO GIỜ tự kết luận một sổ đã đầy đủ — không từ header, không từ
-    min/max ngày, không từ số dòng. Chỉ khi bạn xác nhận ở đây, hệ thống mới coi các
-    dòng hiện hành trong khoảng khai báo mà sổ này không có là ứng viên đã bị xoá khỏi
-    nguồn (đưa vào Review — <strong>không xoá, không huỷ, vẫn tính vào tổng</strong>).
+    min/max ngày, không từ số dòng. Chỉ khi bạn xác nhận ở đây, hệ thống mới có căn cứ
+    để nói rằng một dòng cũ trong khoảng ngày này đã không còn.
+  </p>
+  <p class="insight" data-metric="confirm-consequence">
+    Sau khi bạn xác nhận, các dòng cũ nằm trong khoảng ngày trên mà sổ này KHÔNG có sẽ
+    được <strong>tạm loại khỏi mọi con số kinh doanh</strong> (doanh thu, lợi nhuận,
+    DS quy đổi, Target, biểu đồ, file Excel) và chuyển sang danh sách cảnh báo riêng
+    "Không còn trong file đầy đủ" trên tab nhân viên. <strong>Lịch sử không bị xoá</strong>
+    — nạp lại một sổ có chứa dòng đó thì cảnh báo tự mất và các con số tự khôi phục.
   </p>
   <p class="tp-label">
     Phạm vi hệ thống phát hiện:
@@ -80,13 +86,18 @@
     <div><span class="label">Không đổi (SAME):</span> {{ snapshot.n_same }}</div>
     <div><span class="label">Nguồn đã sửa:</span> {{ snapshot.n_source_changed }}</div>
     <div><span class="label">Trùng khoá (chưa phân xử):</span> {{ snapshot.n_collision }}</div>
-    <div><span class="label">Không thấy trong sổ này:</span> {{ snapshot.n_not_seen }}</div>
-    <div><span class="label">Ứng viên đã xoá khỏi nguồn:</span> {{ snapshot.n_removed_candidate }}</div>
+    <div><span class="label">Không thấy trong sổ này (vẫn tính):</span> {{ snapshot.n_not_seen }}</div>
+    <div><span class="label">Không còn trong sổ đã xác nhận (đã tạm loại):</span>
+      {{ snapshot.n_removed_candidate }}</div>
   </div>
-  <p class="insight">
-    <strong>Không thấy</strong> KHÔNG có nghĩa là <strong>đã xoá</strong>. Cả hai loại cờ
-    vắng mặt đều chỉ là thông tin/Review: dòng liên quan vẫn là dòng hiện hành và vẫn
-    được tính vào mọi con số ở dưới.
+  <p class="insight" data-metric="absence-meaning">
+    Hai loại cờ vắng mặt nói hai câu KHÁC NHAU, và khác nhau ở đúng chỗ tiền bạc.
+    <strong>Không thấy trong sổ này</strong> đến từ một sổ CHƯA được xác nhận đầy đủ:
+    chưa đủ căn cứ để loại, nên các dòng đó <strong>vẫn đang được tính</strong> vào mọi
+    con số. <strong>Không còn trong sổ đã xác nhận đầy đủ</strong> đến từ một sổ mà
+    người dùng đã xác nhận: các dòng đó <strong>đã được tạm loại</strong> khỏi mọi con
+    số kinh doanh, nhưng bản ghi kế toán không bị xoá và chúng tự quay lại khi xuất
+    hiện trong một lần nạp sau.
   </p>
   <p class="insight">
     Dòng <strong>SAME</strong> KHÔNG tạo phiên bản nguồn mới và KHÔNG được cộng thêm
@@ -101,46 +112,64 @@
     <div><span class="label">Số dòng:</span> {{ totals.lines }}</div>
     <div><span class="label">Doanh thu (VND):</span> {{ '{:,.0f}'.format(totals.total_sales) }}</div>
   </div>
-  <p class="insight">
-    Số ở đây là TRẠNG THÁI HIỆN HÀNH (mỗi khoá đúng một lần), không phải tổng cộng dồn
-    mọi phiên bản lịch sử.
+  <p class="insight" data-metric="current-totals-scope">
+    Số ở đây là TRẠNG THÁI HIỆN HÀNH của kho lịch sử (mỗi khoá đúng một lần), không phải
+    tổng cộng dồn mọi phiên bản. Đây là con số ĐỐI CHIẾU KỸ THUẬT: nó đếm cả những dòng
+    đang bị tạm loại vì không còn trong một sổ đã xác nhận đầy đủ. Con số KINH DOANH
+    chính thức — đã trừ các dòng đó — nằm ở trang Kinh doanh và tab Nhân viên.
   </p>
 </div>
 
 <div class="module">
-  <h2>Cờ do snapshot này dựng <span class="cnt">{{ flags|length }}</span></h2>
-  {% if flags %}
+  <h2>Cần soi <span class="cnt" data-metric="review-source-changed">{{ review_count }}</span></h2>
+  <p class="insight" data-metric="review-note">{{ review_note }}</p>
+  {% if review_rows %}
   <div class="tp-scroll">
   <table>
-    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Phiên bản</th><th>Hiệu lực</th><th>Chi tiết</th></tr>
-    {% for flag in flags %}
-    <tr>
-      <td><span class="tag tag-defect">{{ flag.kind }}</span></td>
-      <td class="code">{{ flag.order_key }}</td>
-      <td class="num">#{{ flag.occurrence_index }}</td>
-      <td class="num">{{ flag.from_version_id or '—' }} → {{ flag.to_version_id or '—' }}</td>
+    {# `Phiên bản` (`from_version_id → to_version_id`) đã rời khỏi màn hình
+       ở R5 §2: hai ID ấy là provenance cho audit, không phải thông tin ai đó
+       đọc để quyết định làm gì. Chúng vẫn nằm nguyên trong bảng cờ dưới
+       database — `test_the_two_version_ids_are_still_in_the_audit_record`
+       canh đúng điều đó. #}
+    <tr><th>Loại</th><th>Số BH</th><th>Dòng</th><th>Nhân viên</th>
+      <th>Hiệu lực</th><th>Chi tiết</th></tr>
+    {% for row in review_rows %}
+    <tr data-metric="review-row">
+      <td><span class="tag tag-defect">{{ row.kind }}</span></td>
+      <td class="code">
+        {# Số BH là đường dẫn về ĐÚNG dòng: đúng tháng, đúng sheet, neo tại
+           `#bh-<Số BH>` trong bảng kê của tab nhân viên. Không tra được vị
+           trí hiện hành thì in chữ trơn — một liên kết dẫn tới một trang
+           không có dòng đó tệ hơn không có liên kết. #}
+        {% if row.located %}
+        <a data-metric="flag-link"
+           href="{{ url_for('business_employee', ky=row.period, sheet=row.sheet) }}#bh-{{ row.order_key }}"
+          >{{ row.order_key }}</a>
+        {% else %}{{ row.order_key }}{% endif %}
+      </td>
+      <td class="num">#{{ row.occurrence_index }}</td>
+      <td data-metric="flag-employee">{{ row.employee }}</td>
       <td>
-        {% if flag.is_active is none %}—
-        {% elif flag.is_active %}Còn hiệu lực
+        {% if row.is_active is none %}—
+        {% elif row.is_active %}Còn hiệu lực
         {% else %}Đã xuất hiện lại ở
-          <a href="{{ url_for('snapshot_detail', snapshot_id=flag.seen_again_in_snapshot_id) }}">{{ flag.seen_again_in_snapshot_id }}</a>
+          <a href="{{ url_for('snapshot_detail', snapshot_id=row.seen_again_in_snapshot_id) }}">{{ row.seen_again_in_snapshot_id }}</a>
         {% endif %}
       </td>
       <td>
-        {% if flag.detail_json %}
-        {% for field, change in flag.detail_json.items() %}
-        <div><span class="label">{{ field }}:</span>
-          {% if change is mapping %}{{ change.old }} → {{ change.new }}{% else %}{{ change }}{% endif %}
-        </div>
+        {% for field, change in row.changes.items() %}
+        <div data-metric="flag-change"><span class="label">{{ field }}:</span>
+          {{ change.old }} → {{ change.new }}</div>
+        {% else %}
+        {{ row.detail_text or '—' }}
         {% endfor %}
-        {% else %}—{% endif %}
       </td>
     </tr>
     {% endfor %}
   </table>
   </div>
   {% else %}
-  <p class="empty">Không có cờ nào — mọi dòng đối chiếu sạch.</p>
+  <p class="empty">Không có việc nào cần soi — mọi dòng đối chiếu sạch.</p>
   {% endif %}
 </div>
 {% endblock %}

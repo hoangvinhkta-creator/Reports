@@ -1302,6 +1302,77 @@ class SnapshotRepository:
             for row in self._read(statement.order_by(reconciliation_flag.c.id).limit(limit))
         ])
 
+    def confirmed_ranges(self) -> list:
+        """Các khoảng ngày đã được người dùng xác nhận là ĐẦY ĐỦ (R5 §3).
+
+        Đây là bằng chứng duy nhất cho phép biểu đồ vẽ số 0 thay vì để trống:
+        trong một khoảng đã xác nhận đầy đủ, "không có dòng nào" là một sự
+        thật đo được, không phải một chỗ chưa nạp sổ. Mọi khoảng khác đều là
+        khoảng trống, và một khoảng trống phải nhìn ra được.
+
+        Trả về `[(start, end)]`, cận trên BAO GỒM — cùng quy ước với
+        `confirmed_range_start`/`confirmed_range_end` đã lưu.
+        """
+        return [
+            (row["confirmed_range_start"], row["confirmed_range_end"])
+            for row in self._read(
+                select(source_snapshot.c.confirmed_range_start,
+                       source_snapshot.c.confirmed_range_end)
+                .where(source_snapshot.c.coverage_state
+                       == history_models.CONFIRMED_COMPLETE,
+                       source_snapshot.c.confirmed_range_start.is_not(None),
+                       source_snapshot.c.confirmed_range_end.is_not(None))
+            )
+        ]
+
+    def removed_candidate_keys(self) -> dict:
+        """Khoá dòng ĐANG BỊ TẠM LOẠI khỏi dữ liệu hiệu lực (`DEC-R5-01`).
+
+        Đây là bề mặt DUY NHẤT mà tầng nghiệp vụ hỏi câu "dòng nào đã biến mất
+        khỏi một sổ đã được xác nhận đầy đủ, và còn đang biến mất". Nó KHÔNG
+        đọc gì thêm ngoài đúng bảng cờ mà PRA-002 slice B đã ghi, và nó KHÔNG
+        ghi một byte nào: việc tạm loại xảy ra LÚC ĐỌC, đúng chỗ và đúng cách
+        mà override giá nhập và phân loại Gia dụng đã làm từ PHB-03.
+
+        Hai bộ lọc, và cả hai đều bắt buộc:
+
+        1. ``kind == REMOVED_IN_SOURCE_CANDIDATE``. Cờ ``NOT_SEEN_IN_LATEST_
+           SNAPSHOT`` của một sổ CHƯA xác nhận đầy đủ KHÔNG có mặt ở đây —
+           nó vẫn chỉ là cảnh báo, đúng như trước R5. Phân biệt này là toàn
+           bộ khác biệt giữa "chưa đủ căn cứ loại" và "đã đủ".
+        2. ``is_active``. Một cờ mô tả đúng cái snapshot đã dựng nó và không
+           bao giờ sai; nhưng nếu dòng đã quay lại ở một sổ nạp SAU đó thì nó
+           thôi mô tả hiện tại. Trạng thái ấy do ``_with_absence_state`` tính
+           lúc đọc từ chính lịch sử membership — nên "dòng quay lại thì tổng
+           tự khôi phục" đúng theo cấu tạo, không nhờ ai nhớ gỡ cờ.
+
+        Trả về ``{(order_key, product_key, occurrence_index): bằng chứng}``.
+        Bằng chứng đi kèm để màn hình cảnh báo nói được VÌ SAO một dòng bị
+        loại (sổ nào, khoảng nào, lúc nào) mà không phải hỏi lại database.
+        """
+        flags = self._with_absence_state([
+            _decode(row, ("detail_json",))
+            for row in self._read(
+                select(reconciliation_flag)
+                .where(reconciliation_flag.c.kind
+                       == history_models.FLAG_REMOVED_CANDIDATE)
+                .order_by(reconciliation_flag.c.id)
+            )
+        ])
+        removed: dict = {}
+        for flag in flags:
+            if not flag.get("is_active"):
+                continue
+            detail = flag.get("detail_json") or {}
+            removed[(flag["order_key"], flag["product_key"],
+                     flag["occurrence_index"])] = {
+                "raised_by_snapshot_id": flag["raised_by_snapshot_id"],
+                "confirmed_at": flag["created_at"],
+                "range_start": detail.get("range_start"),
+                "range_end": detail.get("range_end"),
+            }
+        return removed
+
     def _with_absence_state(self, flags: list[dict]) -> list[dict]:
         """Gắn ``is_active`` cho cờ vắng mặt — DẪN XUẤT, không sửa lịch sử.
 
@@ -1326,16 +1397,39 @@ class SnapshotRepository:
         for flag in absence:
             key = (flag["order_key"], flag["product_key"], flag["occurrence_index"])
             seen, anchor = latest.get(key), raised_at.get(flag["raised_by_snapshot_id"])
-            # So sánh NGẶT: chỉ một snapshot có ``created_at`` LỚN HƠN hẳn mới
-            # được coi là "dòng đã quay lại". Hai snapshot cùng một giây không
-            # có thứ tự đáng tin (``snapshot_id`` sắp theo fingerprint, không
-            # theo thời gian), và ở đây nghiêng về phía an toàn có nghĩa là
-            # GIỮ cờ ở trạng thái còn hiệu lực: một cảnh báo thừa để người dùng
-            # tự kiểm còn hơn âm thầm giấu một sự vắng mặt thật. Không con số
-            # nghiệp vụ nào phụ thuộc vào nhãn này (hiện trạng và tổng tiền
-            # không bao giờ do cờ quyết định).
+            # `FIND-R5-IR-02` — CHIỀU AN TOÀN ĐÃ ĐẢO, và phép so phải đảo
+            # theo.
+            #
+            # Bản trước so NGẶT (`>`) và nói rõ vì sao ngặt là an toàn: *"Không
+            # con số nghiệp vụ nào phụ thuộc vào nhãn này"*. Câu đó đúng cho
+            # tới R5. Từ R5 §1, một cờ "còn hiệu lực" LOẠI dòng khỏi doanh
+            # thu — nên "giữ cờ khi không chắc" thôi là một cảnh báo thừa và
+            # trở thành việc TRỪ TIỀN của một dòng có thật, vĩnh viễn, không
+            # có nút khôi phục, trong khi màn hình vẫn hứa ngược lại.
+            #
+            # Nay ngưỡng là `>=`, và nó chỉ có tác dụng ở đúng một chỗ: những
+            # bản ghi CŨ ghi mốc ở độ phân giải giây (mốc mới đã là micro-giây
+            # — xem `history_writer._now_iso`). Ở đó, bằng nhau nghĩa là không
+            # phân giải được thứ tự, và hai cách sai không ngang giá nhau:
+            #
+            #     giữ cờ khi thực ra dòng đã quay lại  ⟹ mất tiền, im lặng,
+            #                                            không đường quay lại
+            #     bỏ cờ khi thực ra dòng vẫn vắng      ⟹ giữ tiền như TRƯỚC
+            #                                            R5; câu xác nhận nói
+            #                                            "đã tạm loại N dòng"
+            #                                            còn tổng không đổi,
+            #                                            nên người dùng thấy
+            #                                            ngay và nạp lại được
+            #
+            # Nghiêng về phía thứ hai là cùng một kỷ luật mà R5 §3 đã áp cho
+            # biểu đồ: chỗ nào chưa có bằng chứng thì để trống, không tự điền
+            # một con số bất lợi.
+            #
+            # `seen` KHÔNG BAO GIỜ là chính snapshot đã dựng cờ: `_latest_
+            # membership` chỉ xét các snapshot CHỨA khoá, và snapshot dựng cờ
+            # là snapshot KHÔNG chứa nó.
             reappeared = (
-                seen is not None and anchor is not None and seen[0] > anchor
+                seen is not None and anchor is not None and seen[0] >= anchor
             )
             flag["is_active"] = not reappeared
             flag["seen_again_in_snapshot_id"] = seen[1] if reappeared else None

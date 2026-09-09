@@ -116,6 +116,75 @@
 
   {% if chart.empty %}
   <p class="empty" data-metric="chart-empty">{{ chart.empty_note }}</p>
+  {% elif chart.paired %}
+  {# R5 §3 (`DEC-R5-02`) — HAI cửa sổ liền kề cùng độ dài trên MỘT trục và
+     MỘT trần tròn. Trục X là TƯƠNG ĐỐI ("mốc thứ mấy của cửa sổ"), nên hai
+     khoảng thời gian khác nhau chồng được lên nhau; nhãn trục đọc từ cửa
+     sổ hiện tại, còn cửa sổ so sánh nói tên mốc của nó trong tooltip.
+     Đường bị CẮT tại mỗi khoảng trống — nối thẳng qua một mốc chưa có bằng
+     chứng là vẽ ra một con số chưa ai đo. #}
+  <div class="chart-legend" data-metric="chart-legend">
+    <span class="chart-legend-item chart-legend-current"
+          data-metric="chart-legend-current">{{ chart.current_label }}: {{ chart.current_range }}
+      <strong>{{ chart.total_kvnd }} nghìn đồng</strong></span>
+    <span class="chart-legend-item chart-legend-prev"
+          data-metric="chart-legend-comparison">{{ chart.comparison_label }}: {{ chart.comparison_range }}
+      <strong>{{ chart.comparison_total_kvnd }} nghìn đồng</strong></span>
+  </div>
+  <div class="rev-chart-row">
+    <div class="rev-chart-yaxis" style="height: {{ chart.svg_height }}px">
+      {% for tick in chart.y_axis %}
+      <span class="rev-chart-ytick" style="top: {{ tick.y }}px">{{ tick.label }}</span>
+      {% endfor %}
+    </div>
+    <div class="rev-chart-plot">
+      <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
+        <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
+             preserveAspectRatio="none" role="img"
+             aria-label="Doanh thu {{ chart.current_label }} so với {{ chart.comparison_label }}">
+          {% for tick in chart.y_axis %}
+          <line class="rev-line-grid" x1="0" x2="{{ chart.svg_width }}"
+                y1="{{ tick.y }}" y2="{{ tick.y }}"/>
+          {% endfor %}
+          {% for segment in chart.comparison_polylines %}
+          <polyline class="rev-line-path rev-line-prev" points="{{ segment }}"/>
+          {% endfor %}
+          {% for segment in chart.polylines %}
+          <polyline class="rev-line-path" points="{{ segment }}"/>
+          {% endfor %}
+          {% for bar in chart.comparison_bars %}
+          <circle class="rev-line-dot rev-line-dot-prev"
+                  cx="{{ bar.x }}" cy="{{ bar.y }}" r="3"><title>{{ bar.title }}</title></circle>
+          {% endfor %}
+          {% for bar in chart.bars %}
+          <circle class="rev-line-dot{{ ' rev-line-legacy' if bar.legacy }}"
+                  cx="{{ bar.x }}" cy="{{ bar.y }}" r="4"><title>{{ bar.title }}</title></circle>
+          {% endfor %}
+        </svg>
+        <div class="rev-line-points">
+          {% for bar in chart.comparison_bars %}
+          <span class="rev-line-point rev-line-point-prev" style="left: {{ bar.x_pct }}%"
+                title="{{ bar.title }}"
+                data-metric="chart-bar-prev" data-key="{{ bar.key }}"
+                data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
+          {% endfor %}
+          {% for bar in chart.bars %}
+          <span class="rev-line-point" style="left: {{ bar.x_pct }}%"
+                title="{{ bar.title }}"
+                data-metric="chart-bar" data-key="{{ bar.key }}"
+                data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
+          {% endfor %}
+        </div>
+        <div class="rev-chart-xaxis">
+          {% for tick in chart.x_ticks %}
+          <span class="rev-chart-xtick" style="left: {{ tick.x_pct }}%">{{ tick.label }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
   {% else %}
   {# `TASK-OWNER-UIUX-004` §1 — `viewBox` CỐ ĐỊNH, co giãn 100% bề rộng
      card qua CSS thay vì bề rộng SVG tăng theo số điểm: card luôn ĐẦY dù

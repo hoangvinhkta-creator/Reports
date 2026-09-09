@@ -31,8 +31,15 @@ và ba trường đó nằm sẵn trong chính sổ kế toán đang nạp (`raw
 5/6/7). Không CRM, không ghép danh tính liên hệ thống.
 
 Cột VẪN KHÔNG được đọc ở đây (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`):
-`imei`, `note_raw`, `employee_raw`. Danh sách này được
+mã máy, `note_raw`, `employee_raw`. Danh sách này được
 `tests/test_business_boundaries.py` canh bằng chính mã nguồn.
+
+R5 §5 (`DEC-R5-03`) mở mã máy trên ĐÚNG bảng kê của tab nhân viên — và cố ý
+KHÔNG mở nó ở đây. Tầng này là đầu vào của MỌI trang dùng `PeriodData` (tổng
+hợp, cơ cấu, thương hiệu, đánh giá, export); thêm một cột vào đây là trao nó
+cho tất cả cùng lúc, kể cả những trang chưa được viết. Cánh cửa hẹp nằm ở
+`app/web/workspace_imei.py`, và `tests/test_r5_imei_boundary.py` canh rằng
+chỉ `server.py` mở nó.
 """
 
 from __future__ import annotations
@@ -57,6 +64,10 @@ from tools.db.schema import (
 _RESULT = order_line_result_version.c
 _SOURCE = order_line_source_version.c
 _CURRENT = order_line_current.c
+
+#: Số khoá tối đa nhét vào một mệnh đề `IN` — cùng giới hạn mà
+#: `history_store` đã dùng, và cùng lý do: SQLite có trần tham số.
+_KEY_CHUNK = 500
 
 
 def _joined():
@@ -212,6 +223,35 @@ def periods_for_product(engine: Engine, product_key: str) -> set:
                  .where(_CURRENT.product_key == product_key,
                         _CURRENT.sale_date.is_not(None)))
     return {(row["sale_date"].year, row["sale_date"].month) for row in rows}
+
+
+def sale_dates_of(engine: Engine, keys) -> dict:
+    """`{khoá dòng: sale_date}` cho các khoá hỏi tới (R5 §2).
+
+    Chỉ đọc `order_line_current` — không join sang version nào, vì câu hỏi
+    duy nhất ở đây là "dòng này thuộc kỳ nào". Lọc theo `order_key` NGAY
+    TRONG SQL rồi mới đối chiếu đủ ba thành phần khoá trong Python: khoá là
+    một bộ ba, và SQLite/PostgreSQL không có cùng cách viết `IN` cho tuple.
+
+    Khoá không còn hiện hành cố ý VẮNG khỏi kết quả, không mang `None` —
+    "không có dòng" và "có dòng nhưng chưa biết ngày bán" là hai sự thật
+    khác nhau, và người gọi phân biệt được chúng.
+    """
+    wanted = {tuple(key) for key in keys}
+    order_keys = sorted({key[0] for key in wanted})
+    if not order_keys:
+        return {}
+    found: dict = {}
+    for start in range(0, len(order_keys), _KEY_CHUNK):
+        rows = _read(engine, select(
+            _CURRENT.order_key, _CURRENT.product_key,
+            _CURRENT.occurrence_index, _CURRENT.sale_date,
+        ).where(_CURRENT.order_key.in_(order_keys[start:start + _KEY_CHUNK])))
+        for row in rows:
+            key = (row["order_key"], row["product_key"], row["occurrence_index"])
+            if key in wanted:
+                found[key] = row["sale_date"]
+    return found
 
 
 def undated_lines(engine: Engine) -> int:

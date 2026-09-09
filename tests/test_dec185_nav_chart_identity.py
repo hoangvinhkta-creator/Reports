@@ -274,6 +274,23 @@ def chart_bars(html: str) -> dict[str, Decimal]:
     }
 
 
+def chart_bars_prev(html: str) -> dict[str, Decimal]:
+    """Doanh thu của từng mốc thuộc CỬA SỔ SO SÁNH (R5 §3).
+
+    Cửa sổ so sánh mang `data-metric="chart-bar-prev"` chứ không dùng chung
+    `chart-bar` với cửa sổ hiện tại: mọi bất biến đã nghiệm thu của `DEC-185`
+    (tổng của các cột bằng chỉ tiêu kỳ, một mốc một origin, không bịa ngày)
+    nói về ĐƯỜNG HIỆN TẠI, và trộn hai cửa sổ vào một `data-metric` sẽ làm
+    chúng cộng hai lần.
+    """
+    return {
+        key: Decimal(value)
+        for key, value in re.findall(
+            r'data-metric="chart-bar-prev" data-key="([^"]+)"[^>]*'
+            r'data-revenue="([^"]+)"', html)
+    }
+
+
 def test_chart_04_day_values_equal_the_authoritative_daily_revenue(
     repository, service, client
 ):
@@ -335,24 +352,34 @@ def test_chart_10_a_legacy_month_without_daily_evidence_invents_no_days(
 ):
     """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra.
 
-    `TASK-OWNER-UIUX-003` §2 khoanh biểu đồ mức Tháng về đúng NĂM của kỳ
-    đang xem (chủ dự án yêu cầu trực tiếp, xem `window_bounds` trong
-    `app/web/revenue_timeline.py`) — nên câu hỏi "tháng có xuất hiện không"
-    giờ phải hỏi đúng kỳ mà kỳ đó thuộc về (`ky=2025-06`), không còn hỏi ở
-    kỳ mặc định (09/2026, khác năm). Bằng chứng KHÔNG bị giấu — nó vẫn ở
-    đúng một cú bấm điều hướng kỳ, không mất, chỉ không còn hiện xen giữa
-    một năm khác theo mặc định nữa.
+    R5 §3 (`DEC-R5-02`) đổi cách khoanh: hai cửa sổ liền kề CÙNG ĐỘ DÀI
+    (30 ngày · 12 tuần · 12 tháng · 8 quý) thay cho cửa sổ theo container
+    lịch của `TASK-OWNER-UIUX-003` §2. Đây là một sửa đổi có chủ đích, và
+    lý do nằm ở chính phép so sánh: hai container lịch liền nhau không cùng
+    độ dài (tháng 2 có 28 ngày, tháng 3 có 31), nên đặt chúng cạnh nhau là
+    mời người đọc so hai con số không so được.
+
+    Mệnh đề của `CHART-10` KHÔNG đổi và vẫn là mệnh đề chính ở đây: một
+    tổng tháng không sinh ra ngày nào. Chỗ tìm bằng chứng thì đổi theo cửa
+    sổ mới — 06/2025 cách dữ liệu mới nhất (09/2026) mười lăm tháng, nên ở
+    mức THÁNG nó rơi vào CỬA SỔ SO SÁNH (10/2024 → 09/2025), và ở mức QUÝ
+    nó nằm ngay trong cửa sổ hiện tại (8 quý = Q4/2024 → Q3/2026). Bằng
+    chứng không bị giấu ở đâu cả.
     """
     persist(repository, [line("BH1", "43F6000", day=5)])
     seed_legacy_month_total_only(engine, year=2025, month=6, vnd=30000000)
 
-    days = chart_bars(body(client, "/kinh-doanh?muc=ngay&ky=2025-06"))
-    assert not any(key.startswith("2025-06") for key in days), (
+    day_html = body(client, "/kinh-doanh?muc=ngay&ky=2025-06")
+    assert not any(key.startswith("2025-06")
+                   for key in (*chart_bars(day_html),
+                               *chart_bars_prev(day_html))), (
         "một tổng tháng KHÔNG được chia đều thành 30 ngày")
-    # Nhưng ở mức THÁNG, trong đúng năm của nó, nó xuất hiện — bằng chứng có
-    # thật không bị giấu, chỉ khoanh theo năm đang xem.
-    months = chart_bars(body(client, "/kinh-doanh?muc=thang&ky=2025-06"))
+    # Mức THÁNG: nằm trong cửa sổ so sánh.
+    months = chart_bars_prev(body(client, "/kinh-doanh?muc=thang"))
     assert months["2025-06"] == Decimal("30000000")
+    # Mức QUÝ: nằm trong cửa sổ hiện tại.
+    quarters = chart_bars(body(client, "/kinh-doanh?muc=quy"))
+    assert quarters["2025-Q2"] == Decimal("30000000")
 
 
 def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
@@ -395,15 +422,15 @@ def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
         assert forbidden not in chart, (
             f"{forbidden!r} là một nhãn nguồn — biểu đồ nói về THỜI GIAN")
 
-    # Xuyên NĂM: không mất, không cần một bộ chọn nguồn — chỉ đổi kỳ đang
-    # xem (`ky=2025-06`) là năm 2025 mở ra, vẫn cùng MỘT biểu đồ, cùng MỘT
-    # route, không route/route con thứ hai nào cho "Số Cũ".
-    html_2025 = body(client, "/kinh-doanh?muc=thang&ky=2025-06")
-    bars_2025 = chart_bars(html_2025)
+    # Xuyên NĂM: không mất, không cần một bộ chọn nguồn. Sau R5 §3 nó đọc
+    # được ngay trên CÙNG biểu đồ đó — 06/2025 nằm trong cửa sổ so sánh của
+    # mức Tháng, cạnh 06/2026 của cửa sổ hiện tại, cùng một trục, cùng một
+    # route, vẫn không có toggle nguồn nào.
+    bars_2025 = chart_bars_prev(html)
     assert "2025-06" in bars_2025
     origins_2025 = dict(re.findall(
-        r'data-metric="chart-bar" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
-        html_2025))
+        r'data-metric="chart-bar-prev" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
+        html))
     assert origins_2025["2025-06"] == "LEGACY_REFERENCE"
 
 
@@ -481,17 +508,29 @@ def test_pi_04_and_07_to_09_classifying_flips_the_line_to_thieu_gia(
     detail = next(iter(service.period(**SEPTEMBER).details))
 
     # `PI-04` — bấm vào mã mở bảng chọn NGAY trong sheet.
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
-                 f"&order_key=BH73877&product_key={detail['product_key']}"
-                 f"&occurrence_index={detail['occurrence_index']}")
+    #
+    # R5 §5 đổi bảng chọn thành một popover có ĐÚNG một ô tìm và TỐI ĐA MỘT
+    # dòng gợi ý (`DEC-R5-03`): chưa gõ gì thì chưa gợi ý gì, vì gợi ý mã đầu
+    # tiên của danh mục cho một người chưa gõ gì là mời họ bấm bừa. Mệnh đề
+    # của `PI-04` không đổi — bảng chọn mở TẠI CHỖ và đi qua thẩm quyền
+    # Tracking — chỉ cách hỏi là đổi.
+    keys = (f"&order_key=BH73877&product_key={detail['product_key']}"
+            f"&occurrence_index={detail['occurrence_index']}")
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1" + keys)
     assert 'data-metric="identify-panel"' in panel
-    # Khẳng định trên chính Ô CHỌN, không trên cả trang: tên hàng thô của
-    # dòng này CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh
-    # ngay cả khi danh mục Tracking hoàn toàn không đọc được.
-    options = re.search(r'data-metric="identify-select".*?</select>',
-                        panel, re.S)
-    assert options is not None, "phải có ô chọn mặt hàng Tracking"
-    assert 'value="EWF1143R7SC"' in options.group(0)
+    assert 'data-metric="identify-search"' in panel
+    assert 'data-metric="identify-confirm"' not in panel, (
+        "chưa gõ gì thì chưa gợi ý gì")
+
+    # Gõ tìm ⟹ đúng MỘT gợi ý, và chính nó là cái nút xác nhận. Khẳng định
+    # trên chính DÒNG GỢI Ý, không trên cả trang: tên hàng thô của dòng này
+    # CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh ngay cả
+    # khi danh mục Tracking hoàn toàn không đọc được.
+    found = body(client,
+                 "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF" + keys)
+    suggestions = re.findall(
+        r'data-metric="identify-confirm"[^>]*data-code="([^"]+)"', found)
+    assert suggestions == ["EWF1143R7SC"], "tối đa MỘT gợi ý, và đúng mã đó"
 
     # `PI-05` — xác nhận đi qua thẩm quyền Tracking.
     response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
@@ -900,7 +939,8 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
 
     target = next(item for item in service.period(**SEPTEMBER).details
                   if item["product_raw"].startswith("Máy giặt"))
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
+    # R5 §5 — popover có một ô tìm; gõ vào đó mới có gợi ý.
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF"
                  f"&order_key=BH50&product_key={target['product_key']}"
                  f"&occurrence_index={target['occurrence_index']}")
     assert 'value="EWF1143R7SC"' in panel

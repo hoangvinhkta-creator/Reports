@@ -12303,3 +12303,249 @@ Mở lại điểm 8 nếu Owner đặt một ngưỡng "biên thấp" tường 
 nếu Owner tạo một bảng target cấp công ty THẬT (không phải một tổng suy ra).
 Mở lại giới hạn `AR-R4-01` (trạng thái MIN `FINAL`/`PROVISIONAL`) khi đường
 NHẬP lưu `day_status` xuống dữ liệu hiệu lực.
+
+---
+
+## DEC-202
+
+Title:
+R5 — sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi số liệu; hai cửa sổ
+liền kề cùng độ dài; một lần bấm lưu cả BH; hãng/model do Tracking chuẩn hoá và
+IMEI mở đúng một route
+
+Date:
+2026-09-08
+
+Status:
+ACCEPTED (Owner Decision — `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §1, xác nhận
+08/09/2026)
+
+Context:
+
+R5 đóng năm khoảng cách mà R1–R4 để lại, và bốn trong năm cái là những khoảng
+cách giữa *điều màn hình nói* với *điều hệ thống biết*.
+
+Cái đắt nhất nằm ở đối soát sổ. `TASK-PRA-002` slice B dựng đúng một bất biến
+an toàn — *"không thấy" KHÔNG BAO GIỜ tự động trở thành "đã xoá"* — và nó đúng
+tuyệt đối khi file mới có thể là một file một phần. Nhưng slice B cũng dựng một
+nút "xác nhận sổ này đầy đủ cho khoảng ngày", và sau khi người dùng bấm nút ấy,
+hệ thống vẫn xử sự y như trước: `REMOVED_IN_SOURCE_CANDIDATE` chỉ là một dòng
+trong bảng cờ, và doanh thu của một đơn đã huỷ vẫn nằm trong tổng. Người dùng
+đã cung cấp đúng căn cứ mà hệ thống nói là nó còn thiếu, rồi không có gì xảy ra.
+
+Bốn khoảng cách còn lại cùng một hình dạng: trang snapshot liệt kê mọi thay đổi
+kể cả những thay đổi không ai cần soi, làm chìm mất cái cần soi; biểu đồ vẽ một
+đường và bắt người đọc nhớ kỳ trước bằng đầu; nút `XONG` của màn hình sửa BH chỉ
+ĐÓNG chứ không lưu; và cột sản phẩm in nguyên tên trên sổ kể cả sau khi Owner đã
+phân loại xong.
+
+Decision:
+
+1. **Sổ đã xác nhận đầy đủ TẠM LOẠI dòng vắng mặt khỏi dữ liệu hiệu lực.** Chỉ
+   cờ `REMOVED_IN_SOURCE_CANDIDATE` phát sinh từ một snapshot `CONFIRMED_
+   COMPLETE` và CÒN HIỆU LỰC mới loại. Cờ `NOT_SEEN_IN_LATEST_SNAPSHOT` của
+   một sổ chưa xác nhận KHÔNG đổi một đồng nào — biên đó là biên cũ và nó giữ
+   nguyên.
+
+   Đây là một sửa đổi CÓ CHỦ ĐÍCH với câu "cờ không bao giờ ảnh hưởng tổng"
+   của `TASK-PRA-002` slice B, không phải một vi phạm âm thầm: điều slice B
+   thật sự bảo vệ là *hệ thống không được tự kết luận*, và ở đây kết luận đến
+   từ một hành động tường minh của con người.
+
+2. **Việc loại xảy ra LÚC ĐỌC, không phải lúc ghi.** Không hard-delete, không
+   đổi con trỏ hiện hành, không migration. `PeriodData` tách chúng sang
+   `removed_in_source` theo đúng cấu tạo mà `excluded` (`DEC-PHB02-08` §30) đã
+   dùng, nên mọi chỉ tiêu — kể cả những chỉ tiêu chưa được viết ra — đúng vì
+   tập bị loại không nằm trong tập được cộng.
+
+3. **Tái xuất hiện khôi phục TỰ ĐỘNG.** Trạng thái "còn hiệu lực" tính lúc đọc
+   từ lịch sử membership (`_with_absence_state`), nên không ai phải nhớ gỡ cờ,
+   và không có bản ghi nào bị sửa để đạt được điều đó.
+
+4. **Danh sách cảnh báo riêng KHÔNG mang một ô tiền nào**, và KHÔNG có nút
+   khôi phục: đường quay lại duy nhất là nạp một sổ có chứa dòng đó, và một
+   cái nút ở đó sẽ hứa một điều Reports không làm được.
+
+5. **`delivery_cost`/`imei` ở lại trong fingerprint; chỉ TẦNG TRÌNH BÀY lọc.**
+   Bỏ chúng khỏi vân tay sẽ làm một lần bổ sung IMEI không sinh source version
+   và giá trị ấy im lặng biến mất giữa hai lần nạp. Con số "cần soi" trên màn
+   hình và con số `n_source_changed` trong bản ghi có quyền khác nhau: một cái
+   trả lời "còn bao nhiêu việc cho tôi", cái kia trả lời "hệ thống đã thấy bao
+   nhiêu dòng đổi nguồn".
+
+6. **Cửa sổ biểu đồ là HAI cửa sổ liền kề CÙNG ĐỘ DÀI: 30 ngày, 12 tuần, 12
+   tháng, 8 quý.** Đây là một sửa đổi có chủ đích với `TASK-OWNER-UIUX-003` §2
+   (cửa sổ theo container lịch), và lý do nằm ở chính phép so sánh: hai
+   container lịch liền nhau không cùng độ dài (tháng 2 có 28 ngày, tháng 3 có
+   31). Mức Năm giữ một chuỗi. Thiếu bằng chứng là KHOẢNG TRỐNG; số 0 chỉ được
+   vẽ khi mốc nằm TRỌN trong một khoảng đã xác nhận đầy đủ.
+
+7. **Một form cấp BH, `XONG` là nút gửi duy nhất.** Kiểm toàn bộ trước khi
+   ghi; chỉ ô THẬT SỰ ĐỔI mới sinh một quyết định. Ràng buộc R2 §4.4 không
+   được nới: giá AUTO vẫn đọc lại từ server, actor vẫn đọc từ môi trường, và
+   thay một giá AUTO vẫn phải có lý do — chỉ chỗ gõ lý do gộp về một ô cho cả
+   BH, và nó chỉ bắt buộc khi lần gửi ấy thật sự chứa một override.
+
+8. **Hãng và model do TRACKING chuẩn hoá.** Reports không có, và không được
+   có, một parser hãng/model từ `product_raw`. Tracking ghép theo một danh
+   sách hãng ĐÓNG và ghép NGUYÊN TỪ; khớp nhiều hơn một hãng ⟹ `null`. `null`
+   là câu trả lời hợp lệ, không phải một khiếm khuyết cần vá.
+
+9. **`PHB-06` mở lại qua một read model canonical**, không qua một trường mới
+   trên `CanonicalProductIdentity`: `INV-18` bắt so sánh bằng đủ tuple, nên
+   một trường hiển thị ở đó sẽ làm hai danh tính cùng mã khác hãng thành hai
+   danh tính KHÁC NHAU. Không có bảng brand nào của riêng Reports.
+
+10. **IMEI mở trên ĐÚNG bảng kê tab nhân viên** (`DEC-R5-03` trong ngôn ngữ
+    của brief). Đây là một sửa đổi có chủ đích với hàng rào dữ liệu cá nhân
+    của `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`, và phạm vi của nó
+    phải đọc được từ MÃ NGUỒN: `app/web/workspace_imei.py` là cánh cửa duy
+    nhất, `business_queries` vẫn không biết `imei` tồn tại, và không trang chỉ
+    tiêu / bản xuất / trang snapshot / dòng nhật ký nào mang nó.
+
+11. **Dòng CHƯA phân loại giữ TÊN THÔ.** Chỉ dòng `MATCHED_TRACKING` mới hiện
+    model canonical (fallback mã Tracking). Tên thô là thứ duy nhất cho người
+    dùng biết dòng này chưa được xử lý; thay nó bằng một nhãn gọn gàng làm một
+    việc còn treo trông như đã xong.
+
+12. **Gợi ý phân loại là GỢI Ý.** Tối đa MỘT candidate, xếp hạng theo một thứ
+    tự CỐ ĐỊNH (khớp chính xác → mã bắt đầu bằng → tên bắt đầu bằng), không
+    phải một điểm số: `INV-01` cấm similarity ở đường resolve, và một thứ tự
+    dựa trên "giống bao nhiêu phần trăm" là cùng phép đo ấy đứng ở chỗ khác.
+    Chuỗi tìm rỗng ⟹ không gợi ý gì. Chỉ một cú click của Owner mới ghi.
+
+Reversal Cost:
+
+TRUNG BÌNH. Không migration nào được thêm, và không bản ghi nào bị xoá — điểm
+1–4 đảo lại là gỡ một phép lọc lúc đọc, và mọi con số quay về đúng giá trị cũ ở
+lần tải trang kế tiếp. Điểm 6–7 và 11–12 là trình bày/luồng thao tác, đảo lại rẻ.
+
+Điểm 8–9 rẻ ở phía Reports (hai trường tùy chọn, artifact cũ vẫn đọc được) và
+TRUNG BÌNH ở phía Tracking: hợp đồng `/api/xuat/board` đã phát thêm hai trường,
+nên rút chúng lại là một thay đổi hợp đồng phải báo trước.
+
+Điểm 10 là điểm đắt nhất để đảo theo nghĩa chính sách, không theo nghĩa kỹ
+thuật: một khi mã máy đã hiện trên màn hình vận hành, việc rút nó lại là một
+quyết định về quyền truy cập chứ không phải một lần xoá code.
+
+Can Revisit After:
+
+Mở lại điểm 6 nếu Owner muốn một độ dài cửa sổ khác, hoặc muốn mức Năm cũng có
+cửa sổ so sánh. Mở lại điểm 8 khi danh sách hãng cần thêm mục — thêm một dòng
+vào danh sách đóng là đúng cách, nới quy tắc ghép thì không. Mở lại điểm 9 nếu
+hợp đồng Product Identity có ngày mang trường `brand` trên chính nó và `INV-18`
+được xem xét lại.
+
+---
+
+## DEC-203
+
+Title:
+R5 — Owner ghi đè (override) hai điều kiện chặn merge còn lại của phiên tích
+hợp `S136`: bỏ qua yêu cầu artifact Independent Review vòng 2 trong repo (đã
+thực hiện ở công cụ khác — Codex — không lưu artifact tại đây) và bỏ qua điều
+kiện `CHECK-R3-20`/`CHECK-R4-24` (Owner tự xác nhận đã tự kiểm R3/R4 trên
+production ở nơi khác); cho phép merge cả hai PR chuẩn bị sẵn và chấp nhận
+Render tự động deploy production ngay sau merge.
+
+Date:
+2026-09-09
+
+Authority:
+`HANDOFF_DIRECTIVE` bằng lời, trực tiếp trong phiên `S136`/`S137`, sau khi
+phiên đã báo cáo đầy đủ hai điều kiện `NOT_TESTED`/thiếu artifact (xem
+`docs/sessions/S136-r5-integration.md` §2, §5). Nguyên văn ba lượt trao đổi:
+
+```text
+Owner: "tôi đã Independent Review vòng 2 ở codex. hãy bỏ qua và merge luôn
+        vào công cụ để tôi sử dụng trực tiếp"
+[phiên hỏi lại riêng CHECK-R3-20/24 có nằm trong "bỏ qua" không, và xác nhận
+ merge sẽ kích hoạt Render tự deploy]
+Owner: "tôi đã tự kiểm R3 R4 xong rồi nên hãy bỏ qua"
+Owner: "Merge và chấp nhận Render tự deploy luôn"
+```
+
+Context:
+
+Phiên `S136` (tích hợp) đã hoàn tất toàn bộ kiểm tra kỹ thuật của R5 (full
+`pytest -q` 3232 passed/12 skipped/0 failed, governance validator PASS trừ
+baseline `TASK-REM-T06`, `branch_authority_check.sh` → `AUTHORITY_OK`, smoke
+xuyên hai repo 29/29 PASS, Tracking `npm test`/`npm run build` PASS) nhưng
+KHÔNG merge, vì hai điều kiện do chính brief mở phiên đặt ra chưa đạt:
+
+1. `CHECK-R3-20`/`CHECK-R4-24` (Owner nghiệm thu R3/R4 trên production) —
+   `NOT_TESTED`, không có artifact nào trong lịch sử git repo này.
+2. Independent Review vòng 2 của R5 — không có artifact nào trong repo này
+   (chỉ có vòng 1, kết luận `REPAIR_REQUIRED`, đã sửa ở REPAIR-1).
+
+Owner xác nhận trực tiếp trong phiên kế tiếp (`S137`) rằng: (a) Independent
+Review vòng 2 ĐÃ được thực hiện, nhưng ở một công cụ khác (Codex), nên không
+để lại artifact trong repo Reports; (b) Owner đã tự đối chiếu R3/R4 trên dữ
+liệu production ở nơi khác. Cả hai xác nhận đều bằng lời, không kèm file
+review/số liệu đối chiếu nào được đưa vào repo tại thời điểm quyết định này.
+
+Đây KHÔNG phải trường hợp phiên tự đánh dấu Independent Review hay tự đánh
+dấu Owner Acceptance — chính Owner, người có thẩm quyền nghiệm thu, là người
+đưa ra xác nhận và chỉ thị merge. Việc ghi `CHECK-R5-27`/`CHECK-R5R1-09`/
+`CHECK-R3-20`/`CHECK-R4-24` là `PASS` dựa trên xác nhận bằng lời của Owner,
+không có bằng chứng thực thi được (E1/E2) đi kèm trong repo, là một khoảng
+cách CÓ THẬT giữa `governance/core/EVIDENCE_STANDARD.md` (đòi hỏi bằng chứng thực thi được)
+và thực tế quyết định này — được ghi lại tường minh ở đây thay vì che giấu
+bằng cách gắn nhãn `PASS` như thể có bằng chứng E1/E2 thật.
+
+Decision:
+
+1. **Merge cả hai PR chuẩn bị sẵn từ `S136`**: Tracking
+   `hoangvinhkta-creator/Tracking#26` (`f958226` → `main`) TRƯỚC, rồi Reports
+   `hoangvinhkta-creator/Reports#12` (`claude/r5-integration-vinh` @
+   `cf345ac`/`ce3df88` → `claude/extract-upload-repo-gq2ws4`) SAU — đúng thứ
+   tự đã đề xuất ở `S136` §6 (Tracking không phụ thuộc ngược vào Reports).
+
+2. **`CHECK-R5-27`** chuyển từ `FAIL (vòng 1)` sang
+   `ACCEPT_WITH_RECORDED_RISK (Owner override — vòng 2 thực hiện ngoài repo,
+   không có artifact)`. **`CHECK-R5R1-09`** chuyển từ `NOT_TESTED` sang cùng
+   trạng thái, cùng chú thích. Đây KHÔNG phải `PASS` với ý nghĩa "đã xác minh
+   được trong repo" — ghi rõ nguồn là xác nhận bằng lời của Owner, không phải
+   một bản ghi review có thể audit lại.
+
+3. **`CHECK-R3-20`** và **`CHECK-R4-24`** chuyển từ `NOT_TESTED` sang
+   `ACCEPTED_BY_OWNER_VERBAL (không có bằng chứng đối chiếu trong repo)` —
+   không dùng nhãn `PASS` trơn, để không lẫn với một `PASS` có E1/E2 thật.
+
+4. **Ngân sách repair của lineage `R5`** (`PROJECT/REVIEW_BUDGET_LEDGER.md`)
+   giữ nguyên `2 allowed / 1 used / 1 remaining` — quyết định này không mở
+   hay tiêu thêm một repair cycle nào; nó là một override GATE, không phải
+   một vòng review/repair mới.
+
+5. **Render tự động build+deploy production** ngay sau mỗi merge (cả hai
+   repo dùng Blueprint tự kích hoạt khi có commit mới trên nhánh liên kết) —
+   Owner đã xác nhận chấp nhận điều này ("Merge và chấp nhận Render tự
+   deploy luôn"). Phiên không có egress/credential tới Render nên KHÔNG xác
+   nhận được deploy đã Live — giống hạn chế đã ghi nhận xuyên suốt
+   `S127`/`S130`/`S133`.
+
+6. **`CHECK-R5-28`** (Owner nghiệm thu R5 trên production sau khi deploy)
+   VẪN `NOT_TESTED` — quyết định này KHÔNG bao gồm nghiệm thu R5 trên
+   production, vì R5 chưa từng chạy trên production trước thời điểm merge
+   này. Owner cần tự nghiệm thu sau khi xác nhận Render deploy xong (checklist
+   ở `S136` §7, mục 7–8, và `S137` khi phiên đó được viết).
+
+Risk:
+
+Rủi ro CHÍNH của quyết định này là: nếu Independent Review vòng 2 thật trên
+Codex (không quan sát được từ phiên này) đã bỏ sót một finding nghiêm trọng,
+hoặc nếu R3/R4 trên production thực ra có sai lệch mà Owner đối chiếu không
+phát hiện, thì R5 lên production mà không có lớp phòng vệ thứ hai đã được
+thiết kế xuyên suốt dự án (Independent Review độc lập + Owner nghiệm thu
+production trước khi tích hợp). Giảm nhẹ duy nhất là: toàn bộ kiểm tra kỹ
+thuật tự động của `S136` (bao gồm smoke xuyên hai repo mới, có tính đối
+chứng cao hơn fixture giả lập) đã PASS, và cơ chế loại-lúc-đọc/khôi phục-tự-
+động của R5 (`DEC-202`) vẫn đảo ngược được bằng một lần nạp lại sổ nếu có sai
+sót bị phát hiện sau merge.
+
+Can Revisit After:
+
+Nếu Owner muốn bổ sung artifact review vòng 2 (xuất từ Codex) vào repo sau
+merge, phiên sau nên thêm nó vào `docs/reviews/` và nâng `CHECK-R5-27`/
+`CHECK-R5R1-09` từ `ACCEPT_WITH_RECORDED_RISK (Owner override)` lên một
+trạng thái có bằng chứng E1/E2 thật, thay vì để mãi ở trạng thái override.

@@ -878,7 +878,31 @@ td[data-group] { white-space: nowrap; }
 .rev-line-dot { fill: var(--tp-blue); stroke: #fff; stroke-width: 1.5; cursor: pointer; }
 /* Mốc đến từ SỔ CŨ: rỗng ruột, phân biệt được cả khi in đen trắng. */
 .rev-line-legacy { fill: #fff; stroke: var(--tp-mut); stroke-width: 2; }
+/* R5 §3 (`DEC-R5-02`) — CỬA SỔ SO SÁNH. Nó phải phân biệt được với cửa sổ
+   hiện tại mà KHÔNG cần màu: nét đứt + mảnh hơn + mờ hơn đọc được cả khi in
+   đen trắng và cả với người không phân biệt được màu. Nó cũng nằm DƯỚI đường
+   hiện tại trong thứ tự vẽ (template đặt nó trước), vì câu hỏi chính của
+   người đọc là về cửa sổ hiện tại. */
+.rev-line-prev {
+  stroke: var(--tp-mut); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .75;
+}
+.rev-line-dot-prev { fill: var(--tp-mut); stroke: #fff; stroke-width: 1; opacity: .8; }
+.chart-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 2px 0 6px;
+  font-size: 12px; color: var(--tp-mut);
+}
+.chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+/* Mẫu đường đứng ngay trước chữ — cùng hình dạng với đường thật trên biểu đồ,
+   nên chú thích không phải nói "đường đậm/đường mờ" bằng lời rồi để người đọc
+   tự đoán cái nào là cái nào. */
+.chart-legend-item::before {
+  content: ""; width: 18px; height: 0; border-top: 2.5px solid var(--tp-blue);
+}
+.chart-legend-prev::before {
+  border-top: 1.5px dashed var(--tp-mut);
+}
 .rev-line-points { position: absolute; inset: 0; }
+.rev-line-point-prev { z-index: 0; }
 .rev-line-point {
   position: absolute; top: 0; bottom: 0; transform: translateX(-50%);
   width: 1px; display: flex; align-items: flex-end; justify-content: center;
@@ -978,3 +1002,36 @@ td[data-group] { white-space: nowrap; }
      `.kpi-row` đã lo phần này, ở đây chỉ giữ chữ lý do không bị tràn. */
   .kpi-reason, .kpi-partial { overflow-wrap: break-word; }
 }
+
+
+/* --- R5 §5: hai cột đối chiếu Hãng & IMEI --------------------------------
+   Mặc định ẨN, và ẩn bằng CSS dựa trên một thuộc tính trên chính `<table>` —
+   không phải bằng JavaScript sau khi trang đã vẽ. Nhờ vậy trạng thái mặc
+   định đúng ngay ở khung hình đầu tiên: không có cú "nháy" hai cột hiện ra
+   rồi biến mất, và trang không JavaScript vẫn hiện đúng một bảng gọn.
+
+   Khi mở, hai cột phải HẸP và cắt MỘT DÒNG. Một mã máy mười lăm chữ số xuống
+   dòng làm cả hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao
+   khác nhau thì không còn dò theo hàng được nữa — đúng thứ nền xen kẽ theo
+   ngày (`§38`) sinh ra để giữ. Chữ đầy đủ đọc qua `title`. */
+.sheet-table[data-optional-hidden] .col-optional { display: none; }
+.sheet-table .col-narrow {
+  max-width: 96px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+/* --- R5 §5: popover phân loại -------------------------------------------
+   `is-anchored` do JavaScript gắn, và CHỈ khi nó đã tính được toạ độ. Không
+   có JS (hoặc mở bằng bàn phím/URL, khi không có toạ độ click nào) thì khối
+   này giữ nguyên hình dạng cũ — một `.module` đứng trong luồng trang, dùng
+   được bình thường. Trạng thái mặc định vì thế là trạng thái AN TOÀN. */
+.identify-pop.is-anchored {
+  position: fixed; z-index: 60; margin: 0;
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(60vh, 420px); overflow: auto;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
+}
+.identify-result { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Gợi ý LÀ cái nút: bấm vào nó là xác nhận, không có bước nào ở giữa. */
+.identify-result .act { text-align: left; max-width: 100%; white-space: normal; }

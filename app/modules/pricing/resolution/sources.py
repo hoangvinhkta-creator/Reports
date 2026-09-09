@@ -265,12 +265,27 @@ def load_tracking_catalog_capture(
                 f"{path}: dòng #{number} 'alt' phải là một danh sách.",
                 reason="malformed_alt",
             )
+        # R5 §5 — hai trường TÙY CHỌN. Vắng mặt (artifact cũ) và `null`
+        # (Tracking không khẳng định) đều đọc thành `None`; sai KIỂU thì
+        # từ chối chứ không ép — một con số ép thành chuỗi sẽ hiện lên màn
+        # hình như một cái tên hãng.
+        optional: dict[str, Optional[str]] = {}
+        for field in ("model_label", "brand"):
+            value = raw.get(field)
+            if value is not None and not isinstance(value, str):
+                raise InvalidTrackingCatalogCaptureFileError(
+                    f"{path}: dòng #{number} {field!r} phải là chuỗi hoặc "
+                    "vắng mặt.",
+                    reason=f"malformed_{field}",
+                )
+            optional[field] = (value.strip() or None) if value else None
         rows.append(
             TrackingCatalogRow(
                 tracking_code=code,
                 present_in_board=present,
                 name=raw.get("name"),
                 alt=tuple(str(a) for a in alt),
+                **optional,
             )
         )
 

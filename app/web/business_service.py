@@ -22,6 +22,7 @@ quy đổi nào (PHB-05 §21).
 
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
@@ -38,7 +39,9 @@ from app.modules.reporting import reporting_sheets
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web import business_queries
 from app.web.binding_exceptions import BindingExceptionStore
+from app.web import business_store
 from app.web.business_store import BusinessDecisionStore
+from app.web.history_store import SnapshotRepository
 from app.web.period_lock import (
     ClosedPeriod, PeriodCloseStore, PeriodClosedError, content_fingerprint,
 )
@@ -75,12 +78,28 @@ class PeriodData:
     `excluded` giữ RIÊNG các dòng đó, để màn hình khôi phục được chúng
     (`§56` CASE EX-07). Nó cố ý không phải một phần của `lines`: một danh sách
     mà "có mặt nhưng không tính" là đúng lớp lỗi mà việc tách này đóng lại.
+
+    R5 (`DEC-R5-01`) thêm `removed_in_source` theo ĐÚNG hình dạng đó, và có
+    chủ ý dùng lại cấu tạo ấy chứ không phát minh một cơ chế thứ hai: một
+    dòng không còn trong một sổ ĐÃ ĐƯỢC XÁC NHẬN ĐẦY ĐỦ cũng là một dòng
+    "có mặt trong lịch sử nhưng không được tính", và mọi chỉ tiêu chưa được
+    viết ra hôm nay sẽ tự đúng vì nó không nằm trong `lines`.
+
+    Khác biệt DUY NHẤT giữa hai danh sách là ai ra quyết định: `excluded` do
+    Owner bấm, `removed_in_source` do chính người dùng xác nhận "sổ này đầy
+    đủ" rồi sổ đó không chứa dòng. Cái sau tự đảo ngược khi dòng quay lại;
+    cái trước cần một lần bấm KHÔI PHỤC.
     """
 
     lines: list
     details: list
     totals: bm.BusinessTotals
     excluded: list = field(default_factory=list)
+    #: R5 §1 — dòng bị TẠM LOẠI vì không còn trong một sổ đã xác nhận đầy đủ.
+    #: Chỉ để tra cứu (Số BH · ngày cũ · sản phẩm · nhân viên); KHÔNG mang một
+    #: ô tổng tiền nào, vì cộng tiền của chúng ở bất cứ đâu là mời người đọc
+    #: cộng nhầm đúng số vừa được trừ ra.
+    removed_in_source: list = field(default_factory=list)
     # R3 §1 — `khoá dòng → ngoại lệ gắn dòng còn mở`. Đi CÙNG kỳ chứ không
     # được tra riêng ở từng route: bảng nhân viên, tổng kỳ và hàng đợi ngoại
     # lệ phải đọc cùng một ảnh chụp, nếu không hai màn hình sẽ nói hai câu về
@@ -120,6 +139,27 @@ class PeriodData:
             for detail in self.details
         ]
 
+    def removed_for_sheet(self, sheet: reporting_sheets.Sheet) -> list:
+        """Dòng đã TẠM LOẠI thuộc đúng sheet này (R5 §1).
+
+        Không đi qua `_slice`: những dòng này KHÔNG có mặt trong `lines`, nên
+        không có chỉ số nào để cắt và cũng không được phép có — cắt chúng
+        thành một `PeriodData` sẽ tạo ra một đối tượng mà `totals` của nó
+        cộng đúng những con số vừa bị trừ ra.
+
+        Sheet của một dòng vẫn tính bằng ĐÚNG `sheet_key_of` mà phân hoạch
+        chính đang dùng, chứ không bằng một quy tắc gần đúng: nếu một cảnh
+        báo hiện ở sheet khác với sheet mà dòng ấy từng góp số, người đọc sẽ
+        đi tìm khoản tiền thiếu ở sai chỗ.
+        """
+        return [
+            detail for detail in self.removed_in_source
+            if reporting_sheets.sheet_key_of(
+                employee=detail["line"].employee,
+                employee_group=detail["line"].employee_group,
+                product_group=detail["classified_product_group"]) == sheet.key
+        ]
+
     def for_sheet(self, sheet: reporting_sheets.Sheet) -> "PeriodData":
         """Lát cắt của MỘT sheet — cùng cấu trúc, cùng code trình bày.
 
@@ -139,6 +179,14 @@ def bm_unknown_employee_label() -> str:
     duy nhất cái nhãn ấy được đặt cho đường xuất file.
     """
     return "Chưa xác định nhân viên"
+
+
+def _month_bounds(year: int, month: int) -> tuple[date, date]:
+    """`(ngày đầu tháng, ngày cuối tháng)` — cùng quy ước với
+    `analytics_queries.month_bounds`, viết lại ở đây để tầng dịch vụ không
+    phải import tầng truy vấn analytics chỉ vì hai phép cộng ngày."""
+    last = monthrange(year, month)[1]
+    return date(year, month, 1), date(year, month, last)
 
 
 def snapshot_of(totals: bm.BusinessTotals) -> dict:
@@ -170,6 +218,66 @@ def _text(value) -> Optional[str]:
     return None if value is None else str(value)
 
 
+class OrderNotFoundError(LookupError):
+    """Không có dòng nào của BH này trong kỳ đang xem.
+
+    Một khoá do trình duyệt gửi lên chỉ trở thành thật sau khi tìm thấy nó
+    trong kỳ — nếu không, một form dựng tay ghi được quyết định lên một đơn
+    không tồn tại, và bản ghi đó nằm lại trong database mãi mãi.
+    """
+
+
+@dataclass(frozen=True)
+class OrderEditPlan:
+    """MỘT lần sửa BH, đã kiểm xong và chưa ghi gì (R5 §4).
+
+    Đây là đối tượng làm cho "không có thành công một phần" đúng theo cấu
+    tạo: nó hoặc mang `errors` (và khi đó không có đường nào ghi), hoặc mang
+    một danh sách hữu hạn các phép ghi đã biết trước là hợp lệ.
+
+    `price_writes`/`price_clears`/`employee` chỉ chứa những thứ THẬT SỰ ĐỔI.
+    Ô người dùng không chạm vào không có mặt ở đây, nên nó không thể sinh ra
+    một quyết định trong audit trail.
+    """
+
+    order_key: str
+    details: tuple
+    errors: tuple[str, ...] = ()
+    employee: Optional[str] = None
+    employee_group: Optional[str] = None
+    price_writes: tuple = ()
+    price_clears: tuple = ()
+    reason: Optional[str] = None
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    @property
+    def changes_nothing(self) -> bool:
+        return not (self.price_writes or self.price_clears
+                    or self.employee is not None)
+
+    def summary(self) -> str:
+        """Câu nói ra ĐÚNG những gì vừa được ghi, không nhiều hơn.
+
+        Người dùng vừa bấm một nút duy nhất cho cả đơn, nên câu trả lời phải
+        liệt kê được từng phần — nếu không, "đã lưu" trở thành một lời hứa mà
+        họ không kiểm được.
+        """
+        parts = []
+        if self.price_writes:
+            parts.append(f"{len(self.price_writes)} giá nhập")
+        if self.price_clears:
+            parts.append(f"gỡ {len(self.price_clears)} giá tay")
+        if self.employee is not None:
+            parts.append(f"nhân viên của cả đơn → {self.employee} "
+                         f"({len(self.details)} dòng)")
+        if not parts:
+            return f"{self.order_key}: không có gì thay đổi."
+        return f"Đã lưu {self.order_key}: " + ", ".join(parts) + "."
+
+
 class BusinessReportService:
     def __init__(
         self, *, engine, store: BusinessDecisionStore,
@@ -179,6 +287,7 @@ class BusinessReportService:
         line_types_path: Optional[Path] = None,
         period_store: Optional[PeriodCloseStore] = None,
         binding_store: Optional[BindingExceptionStore] = None,
+        snapshot_repo=None,
     ) -> None:
         self._engine = engine
         self._store = store
@@ -190,6 +299,9 @@ class BusinessReportService:
         # và các con số nó chốt phải nằm trong cùng một database.
         self._period_store = period_store or PeriodCloseStore(engine)
         self._binding_store = binding_store or BindingExceptionStore(engine)
+        # R5 §1 — cùng `Engine`, cùng lý do như hai store trên: tập dòng bị
+        # tạm loại và các con số trừ chúng ra phải đến từ một database.
+        self._snapshot_repo = snapshot_repo or SnapshotRepository(engine)
 
     @property
     def store(self) -> BusinessDecisionStore:
@@ -291,10 +403,25 @@ class BusinessReportService:
             line_classifications=line_classifications)
 
         exclusions = self._store.line_exclusions()
-        kept, dropped = [], []
+        # R5 §1 — tập bị TẠM LOẠI vì sổ đã xác nhận đầy đủ không còn chứa
+        # dòng. Đọc MỘT lần cho cả kỳ, cùng lượt với các lớp phủ khác: nếu
+        # tra riêng ở từng route, một màn hình sẽ cộng dòng mà màn hình bên
+        # cạnh vừa trừ ra.
+        removed = self._removed_in_source()
+        kept, dropped, vanished = [], [], []
         for detail in details:
             key = (detail["order_key"], detail["product_key"],
                    detail["occurrence_index"])
+            # Thứ tự kiểm là một quyết định: "không còn trong sổ đầy đủ" đứng
+            # TRƯỚC "Owner đã loại". Cả hai đều đưa dòng ra khỏi tổng, nên
+            # con số không phụ thuộc thứ tự; nhưng một dòng vừa bị Owner loại
+            # vừa biến mất khỏi nguồn thì lời giải thích ĐÚNG là cái sau —
+            # bấm KHÔI PHỤC sẽ không đưa nó trở lại, và danh sách khôi phục
+            # hứa điều ngược lại.
+            gone = removed.get(key)
+            if gone is not None:
+                vanished.append({**detail, "removed": gone})
+                continue
             excluded = exclusions.get(key)
             if excluded is None:
                 kept.append(detail)
@@ -303,7 +430,7 @@ class BusinessReportService:
         kept_lines = [detail["line"] for detail in kept]
         return PeriodData(
             lines=kept_lines, details=kept, totals=bm.totals(kept_lines),
-            excluded=dropped,
+            excluded=dropped, removed_in_source=vanished,
             # Ba lớp phủ của R3, đọc MỘT lần cho cả kỳ. Chúng nằm ở đây —
             # cùng chỗ, cùng lượt đọc với override giá nhập và phân loại — vì
             # đó là toàn bộ ý nghĩa của "một effective data": bảng nhân viên,
@@ -313,6 +440,66 @@ class BusinessReportService:
             closed=(None if period is None
                     else self._period_store.closed(year=period[0],
                                                    month=period[1])))
+
+    def locate_lines(self, keys) -> dict:
+        """`{khoá dòng: {employee, period, sheet}}` cho các dòng HIỆN HÀNH.
+
+        R5 §2 — bảng cờ của trang snapshot cần trả lời "dòng này của ai, và
+        mở ở đâu". Câu trả lời phải đến từ ĐÚNG effective data mà tab nhân
+        viên đang hiển thị, không phải từ `employee_normalized` mà pipeline
+        ghi lúc chạy: nếu Owner đã gán lại cả đơn cho người khác, hai nguồn
+        ấy nói hai tên và người đọc sẽ đi hỏi nhầm người.
+
+        Khoá KHÔNG tra được cố ý VẮNG khỏi kết quả thay vì mang một giá trị
+        rỗng. Ba nguyên nhân dẫn tới đó — Owner đã loại dòng, dòng đã bị tạm
+        loại vì không còn trong sổ đã xác nhận đầy đủ, hoặc dòng không có
+        ngày bán nên không thuộc kỳ nào — đều cho ra cùng một kết luận trên
+        màn hình: không còn dòng hiện hành để mở, và tầng trình bày nói ra
+        điều đó thay vì đoán.
+
+        Chi phí là một lần dựng kỳ cho mỗi THÁNG mà các khoá rơi vào; một
+        snapshot của sổ kế toán hầu như luôn nằm gọn trong một hoặc hai
+        tháng, nên đây không phải một vòng lặp theo số dòng.
+        """
+        wanted = {tuple(key) for key in keys}
+        if not wanted:
+            return {}
+        dates = business_queries.sale_dates_of(self._engine, wanted)
+        months = {(value.year, value.month) for value in dates.values()
+                  if value is not None}
+        located: dict = {}
+        for year, month in sorted(months):
+            bounds = _month_bounds(year, month)
+            data = self.period(date_from=bounds[0], date_to=bounds[1])
+            # `sheet_assignments()` là một dãy SONG SONG với `details` — cùng
+            # quy ước mà `for_sheet` dựa vào — nên ghép bằng `zip` chứ không
+            # tra lại theo khoá: một phép tra thứ hai mở ra khả năng hai màn
+            # hình xếp cùng một dòng vào hai sheet khác nhau.
+            for detail, (sheet_key, _employee) in zip(
+                    data.details, data.sheet_assignments()):
+                key = (detail["order_key"], detail["product_key"],
+                       detail["occurrence_index"])
+                if key not in wanted:
+                    continue
+                located[key] = {
+                    "employee": detail["line"].employee,
+                    "period": f"{year}-{month:02d}",
+                    "sheet": sheet_key,
+                }
+        return located
+
+    def _removed_in_source(self) -> dict:
+        """Khoá dòng đang bị tạm loại, hoặc RỖNG khi không có kho snapshot.
+
+        `SnapshotRepository` dựng trên CÙNG `Engine` với `business_queries` —
+        `order_line_current` và `reconciliation_flag` nằm trong cùng một
+        migration (`0002_snapshots`), nên một kỳ đọc được dòng thì cũng đọc
+        được cờ của nó. Không có nhánh "bỏ qua nếu lỗi": một lỗi database ở
+        đây phải nổi lên như mọi lỗi database khác của vertical, chứ không
+        âm thầm biến thành "không có dòng nào bị loại" — nhánh im lặng đó
+        làm tổng CAO hơn thực tế, đúng chiều sai mà R5 sinh ra để đóng.
+        """
+        return self._snapshot_repo.removed_candidate_keys()
 
     # --- R3 §5: chốt kỳ ------------------------------------------------
 
@@ -636,6 +823,138 @@ class BusinessReportService:
         if detail is None:
             return False, None
         return True, detail["line"].auto_purchase_price
+
+    # --- R5 §4: sửa cả BH bằng MỘT lần bấm -----------------------------
+
+    def plan_order_edit(
+        self, *, data: PeriodData, order_key: str, employee: Optional[str],
+        prices: dict, reason: Optional[str],
+    ) -> "OrderEditPlan":
+        """VALIDATE toàn bộ một lần sửa BH, KHÔNG ghi gì.
+
+        Tách hẳn khỏi việc ghi, và đó là toàn bộ điểm của R5 §4. Trước đây
+        mỗi ô giá là một lần POST độc lập: ô thứ hai hỏng thì ô thứ nhất đã
+        nằm trong database rồi, và người dùng nhìn một câu lỗi mà không biết
+        phần nào đã vào. Một hàm "kiểm hết rồi mới ghi" là cách duy nhất làm
+        cho "không có thành công một phần" đúng theo CẤU TẠO chứ nhờ mỗi
+        đường ghi tự nhớ kiểm.
+
+        `prices` là `{khoá dòng: chuỗi người gõ}`. Chuỗi RỖNG nghĩa là GỠ giá
+        tay — dòng trở lại giá tự động. Khoá vắng mặt nghĩa là ô đó không
+        được gửi lên và không ai nói gì về nó.
+
+        Chỉ ô THẬT SỰ ĐỔI đi vào kế hoạch. Một `MANUAL_OVERRIDE` dựng ra chỉ
+        vì Owner bấm nút là một lời khẳng định "giá tự động sai" mà không ai
+        từng nói ra, và nó sẽ nằm lại trong audit trail mãi mãi.
+
+        Lý do (`R2 §4.4`) bắt buộc khi và chỉ khi lần gửi này thật sự chứa ít
+        nhất một override — đó là cùng ràng buộc cũ, đọc ở cấp BH thay vì cấp
+        ô. Không ô nào được nới lỏng: nếu thiếu lý do thì KHÔNG ô nào được
+        ghi, kể cả những ô chỉ lấp một chỗ trống.
+        """
+        # `DEC-185` §F-02 — "cả BH" nghĩa là CẢ BH. `details` cố ý chỉ chứa
+        # các dòng CÒN được báo cáo, và đó là tập đúng cho mọi phép gộp;
+        # nhưng ở đây nó là tập SAI. Một dòng Owner đã loại (`§30`) hay một
+        # dòng đang tạm loại vì không còn trong sổ đã xác nhận đầy đủ (R5 §1)
+        # vẫn THUỘC về BH này — bỏ sót chúng khi gán nhân viên chỉ lộ ra sau
+        # khi dòng quay lại, lúc nó mang tên người bán CŨ cạnh các dòng anh
+        # em đã mang tên mới.
+        details = [detail for detail in (*data.details, *data.excluded,
+                                         *data.removed_in_source)
+                   if detail["order_key"] == order_key]
+        if not details:
+            raise OrderNotFoundError(order_key)
+
+        errors: list[str] = []
+        employee_group = None
+        if employee is not None:
+            groups = dict(self.assignable_employees())
+            if employee not in groups:
+                errors.append(
+                    f"{employee!r} không có trong danh sách nhân viên. Hãy chọn "
+                    "một tên trong danh sách.")
+            else:
+                employee_group = groups[employee]
+
+        price_writes: list[dict] = []
+        price_clears: list[dict] = []
+        for detail in details:
+            key = (detail["order_key"], detail["product_key"],
+                   detail["occurrence_index"])
+            if key not in prices:
+                continue
+            raw = prices[key]
+            line = detail["line"]
+            current, auto = line.purchase_price, line.auto_purchase_price
+            if not (raw or "").strip():
+                # Ô để trống: gỡ giá tay nếu đang có, ngược lại không nói gì.
+                if current is not None and current != auto:
+                    price_clears.append({"order_key": key[0], "product_key": key[1],
+                                         "occurrence_index": key[2]})
+                continue
+            try:
+                value = business_store.parse_purchase_price(raw)
+            except business_store.InvalidPurchasePriceError as exc:
+                errors.append(str(exc))
+                continue
+            if current is not None and value == current:
+                continue  # không đổi ⟹ không quyết định mới
+            price_writes.append({
+                "order_key": key[0], "product_key": key[1],
+                "occurrence_index": key[2], "price": value,
+                # Giá AUTO đọc lại từ SERVER, không nhận từ trình duyệt
+                # (`DEC-PHB02-02` §3) — nó quyết định provenance, và để
+                # client tự khai nó là mở đúng cánh cửa đã đóng.
+                "auto_price": auto,
+            })
+
+        overrides = [write for write in price_writes
+                     if write["auto_price"] is not None]
+        note = (reason or "").strip()
+        if overrides and not note:
+            errors.append(
+                "Có giá nhập đang được THAY một giá tự động. Hãy ghi lý do "
+                "chung cho lần sửa này — một con số ghi đè mà không có lý do "
+                "thì sau này không ai dựng lại được vì sao.")
+
+        change_employee = (
+            employee is not None and employee_group is not None
+            and any(detail["line"].employee != employee for detail in details))
+        return OrderEditPlan(
+            order_key=order_key, details=tuple(details), errors=tuple(errors),
+            employee=employee if change_employee else None,
+            employee_group=employee_group if change_employee else None,
+            price_writes=tuple(price_writes), price_clears=tuple(price_clears),
+            reason=note or None)
+
+    def apply_order_edit(self, plan: "OrderEditPlan", *,
+                         entered_by: Optional[str] = None) -> str:
+        """Ghi một kế hoạch ĐÃ hợp lệ và trả về câu tóm tắt cho người dùng.
+
+        Không kiểm lại gì: mọi cửa đã đóng ở `plan_order_edit`, và kiểm hai
+        lần ở hai chỗ là cách chắc chắn nhất để hai chỗ ấy trôi khỏi nhau.
+        Người gọi phải tự chặn `plan.errors` trước khi gọi hàm này.
+
+        Thứ tự ghi không quan trọng về mặt nghiệp vụ (mỗi đường chạm một bảng
+        khác nhau, trên những khoá khác nhau), nhưng vẫn cố định để câu tóm
+        tắt và audit trail đọc được theo cùng một trình tự mỗi lần.
+        """
+        for write in plan.price_writes:
+            # `entered_by` đến từ tầng route (đọc môi trường), KHÔNG từ form:
+            # một form dựng tay không được tự khai ai đã quyết định (R2 §4.4).
+            self._store.set_purchase_price(
+                entered_by=entered_by, reason=plan.reason, **write)
+        for clear in plan.price_clears:
+            self._store.clear_purchase_price(**clear)
+        if plan.employee is not None:
+            for detail in plan.details:
+                self._store.set_employee(
+                    order_key=detail["order_key"],
+                    product_key=detail["product_key"],
+                    occurrence_index=detail["occurrence_index"],
+                    employee=plan.employee, employee_group=plan.employee_group,
+                    source_employee=detail["line"].source_employee)
+        return plan.summary()
 
     @staticmethod
     def products(data: PeriodData) -> list[dict]:

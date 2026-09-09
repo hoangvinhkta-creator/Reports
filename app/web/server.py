@@ -34,6 +34,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import re
 import time
 import uuid
 from dataclasses import replace
@@ -76,7 +77,8 @@ from app.web import (
     business_presentation, business_service, business_store, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
     line_identity, period_lock, revenue_timeline, run_registry,
-    sales_presentation, sales_queries, storage_backend, workspace_presentation,
+    catalog_display, sales_presentation, sales_queries, snapshot_presentation,
+    storage_backend, workspace_imei, workspace_presentation,
 )
 import tools.db as history_db
 from tools.db import HistoryConfigurationError
@@ -531,6 +533,7 @@ def create_app(
     for _name in ("EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE",
                   "EXCLUDE_CONFIRM_POINTS", "EXCLUDE_CONFIRM_QUESTION",
                   "GIA_DUNG_CONFIRM_POINTS", "GIA_DUNG_CONFIRM_QUESTION",
+                  "REMOVED_IN_SOURCE_NOTE",
                   "PROGRESS_NOTE", "TARGET_KVND_NOTE",
                   "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL"):
         app.jinja_env.globals[_name] = getattr(workspace_presentation, _name)
@@ -656,9 +659,16 @@ def create_app(
     def _snapshot_page(snapshot_id: str, *, message=None, error=None, status=200):
         """Trang chỉ-đọc của MỘT snapshot: coverage, số đếm reconcile, cờ.
 
-        Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ và các
-        trường nghiệp vụ đã đổi — tên/SĐT/địa chỉ khách không có mặt trong bất
-        kỳ bảng nào của PRA-002 nên cũng không có đường nào ra tới đây.
+        Không hiển thị PII: bảng cờ chỉ mang khoá đơn/dòng, loại cờ, các
+        trường nghiệp vụ đã đổi và TÊN NHÂN VIÊN bán hàng — tên/SĐT/địa chỉ
+        khách không có mặt trong bất kỳ bảng nào của PRA-002 nên cũng không có
+        đường nào ra tới đây.
+
+        R5 §2 — `imei` cũng KHÔNG ra tới đây, dù nó nằm trong `detail_json`
+        của cờ dưới database: `snapshot_presentation.NOISE_FIELDS` cắt nó ở
+        tầng trình bày, và đó là một trong hai lý do danh sách trường ấy tồn
+        tại (lý do kia là nhiễu). `DEC-R5-03` mở IMEI ở ĐÚNG workspace nhân
+        viên, và trang này không nằm trong phạm vi đó.
         """
         if snapshot_repo is None:
             abort(503)
@@ -672,11 +682,32 @@ def create_app(
             date_from=snapshot["detected_date_min"], date_to=snapshot["detected_date_max"],
         )
         return _legacy_page(
-            "snapshot.html", snapshot=snapshot, flags=flags, totals=totals,
+            "snapshot.html", snapshot=snapshot, totals=totals,
+            review_rows=snapshot_presentation.review_rows(
+                flags, _flag_locations(flags)),
+            review_count=snapshot_presentation.review_count(flags),
+            review_note=snapshot_presentation.REVIEW_NOTE,
             coverage_label=history_coverage.coverage_label(snapshot["coverage_state"]),
             can_confirm=snapshot["coverage_state"] != history_models.CONFIRMED_COMPLETE,
             confirm_message=message, confirm_error=error,
         ), status
+
+    def _flag_locations(flags: list[dict]) -> dict:
+        """Vị trí hiện hành của các dòng mà bảng cờ nói tới (R5 §2).
+
+        Trả về `{}` khi vertical nghiệp vụ chưa dựng được — trang snapshot là
+        một trang ĐỐI CHIẾU và phải mở được kể cả khi phần báo cáo đang hỏng;
+        khi đó mỗi cờ hiện "không còn dòng hiện hành để mở", đúng câu mà tầng
+        trình bày dành sẵn cho trường hợp không tra được.
+        """
+        if business is None:
+            return {}
+        service = business
+        keys = [(flag["order_key"], flag["product_key"],
+                 flag["occurrence_index"])
+                for flag in flags
+                if not snapshot_presentation.is_noise_only(flag)]
+        return _guarded(service.locate_lines, keys)
 
     @app.get("/du-lieu/snapshot/<snapshot_id>")
     def snapshot_detail(snapshot_id: str):
@@ -712,11 +743,24 @@ def create_app(
             return _snapshot_page(snapshot_id, error=str(exc), status=400)
         return redirect(url_for(
             "snapshot_detail", snapshot_id=snapshot_id,
+            # R5 §1 — câu này phải nói ra HỆ QUẢ THẬT của cái nút vừa bấm.
+            # Câu cũ ("đã đưa vào Review, KHÔNG xoá và VẪN tính") mô tả đúng
+            # hành vi trước R5 và nay đã sai theo chiều nguy hiểm nhất: người
+            # dùng đọc nó rồi tin rằng tổng không đổi, trong khi tổng vừa
+            # giảm đúng số tiền của những dòng ấy.
             xac_nhan=(
-                f"Đã ghi nhận xác nhận đầy đủ cho {confirmation.confirmed_range_start} "
+                f"Đã xác nhận sổ này đầy đủ cho {confirmation.confirmed_range_start} "
                 f"→ {confirmation.confirmed_range_end}. "
-                f"{confirmation.removed_candidates} dòng hiện hành trong khoảng này không "
-                "có trong sổ vừa xác nhận — đã đưa vào Review, KHÔNG xoá và VẪN tính."
+                + (
+                    f"{confirmation.removed_candidates} dòng cũ trong khoảng này không "
+                    "còn trong sổ vừa xác nhận nên đã được TẠM LOẠI khỏi mọi con số "
+                    "kinh doanh; xem danh sách “Không còn trong file đầy đủ” trên tab "
+                    "nhân viên. Lịch sử KHÔNG bị xoá — nạp lại một sổ có chứa dòng đó "
+                    "thì cảnh báo tự mất và các con số tự khôi phục."
+                    if confirmation.removed_candidates
+                    else "Mọi dòng cũ trong khoảng này đều có mặt trong sổ vừa xác "
+                         "nhận — không dòng nào bị loại và không con số nào đổi."
+                )
             ),
         ))
 
@@ -1221,10 +1265,24 @@ def create_app(
         points = revenue_timeline.series(
             data.details, granularity=granularity,
             legacy_months=legacy_months, legacy_days=legacy_days)
-        # `TASK-OWNER-UIUX-003` §2 — `series()` ở trên vẫn tính TOÀN BỘ điểm
-        # (bất biến Σ = totals và mọi kiểm chứng origin không đổi); chỉ phần
-        # VẼ được khoanh lại quanh kỳ đang chọn ở ba mức mịn nhất, để "Ngày"
-        # không dàn trải hết lịch sử thành một hàng chấm không đọc nổi.
+        # R5 §3 (`DEC-R5-02`) — Ngày/Tuần/Tháng/Quý vẽ HAI cửa sổ liền kề
+        # cùng độ dài. `series()` ở trên vẫn tính TOÀN BỘ điểm bằng đúng
+        # engine doanh thu cũ (bất biến Σ = totals và mọi kiểm chứng origin
+        # không đổi); phần dưới đây chỉ CHỌN và XẾP các điểm đó vào hai cửa
+        # sổ — không một phép cộng doanh thu nào được viết lần thứ hai.
+        paired = revenue_timeline.paired_series(
+            points, granularity=granularity,
+            anchor=revenue_timeline.anchor_date(view["period"], data.details),
+            confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
+            if snapshot_repo is not None else ())
+        if paired is not None:
+            return business_presentation.paired_revenue_chart(
+                paired, granularity=granularity,
+                has_legacy_months=bool(legacy_months),
+                undated=revenue_timeline.undated_count(data.details))
+        # Mức NĂM giữ nguyên đường một chuỗi của `TASK-OWNER-UIUX-003` §2:
+        # Owner không yêu cầu cửa sổ so sánh ở mức đó, và "8 năm so với 8 năm
+        # trước" là một câu hỏi sổ này chưa có bằng chứng để trả lời.
         points = revenue_timeline.window_points(
             points, granularity=granularity, period=view["period"])
         return business_presentation.revenue_chart(
@@ -1685,6 +1743,28 @@ def create_app(
             confirmed=confirmed, out_of_catalog=out_of_catalog,
             conflict_resolved=conflict_resolved)
 
+    def _catalog_labels() -> dict:
+        """`{raw_identity_key: {tracking_code, model_label, brand}}` (R5 §5).
+
+        Ghép hai nguồn ĐÃ CÓ, không đọc mạng: log quyết định đã CONFIRMED nói
+        dòng nào trỏ tới mã Tracking nào, và bản chiếu hiển thị nói mã đó là
+        model gì của hãng nào. Bản chiếu vắng mặt ⟹ mỗi khoá vẫn có mã
+        Tracking để làm nhãn dự phòng, và hãng là `None` — đúng trạng thái
+        "chưa xác định", không phải một cái tên đoán ra.
+        """
+        display = catalog_display.read()
+        labels = {}
+        for key, identity in identity_gateway.confirmed_identities(
+                identity_store).items():
+            code = getattr(identity, "source_product_code", None)
+            if not code:
+                continue
+            row = display.get(code) or {}
+            labels[key] = {"tracking_code": code,
+                           "model_label": row.get("model_label"),
+                           "brand": row.get("brand")}
+        return labels
+
     def _tracking_snapshot():
         """Danh mục Tracking để CHỌN mặt hàng, hoặc `None` nếu không đọc được.
 
@@ -1698,7 +1778,12 @@ def create_app(
         if captures is None:
             return None
         try:
-            return load_tracking_catalog_capture(captures.tracking_catalog)
+            snapshot = load_tracking_catalog_capture(captures.tracking_catalog)
+            # R5 §5 — lần pull này đã được cho phép xảy ra vì một lý do khác
+            # (Owner vừa mở bảng chọn). Ghi lại ĐÚNG hai trường hiển thị để
+            # bảng kê không phải gọi mạng ở mỗi lần tải trang.
+            catalog_display.write(snapshot)
+            return snapshot
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
             return None
         finally:
@@ -1762,6 +1847,7 @@ def create_app(
             return None
         query = request.args.get("tim") or ""
         snapshot = _tracking_snapshot()
+        suggestion = identity_gateway.best_candidate(snapshot, query=query)
         # Phạm vi THẬT của lần xác nhận này: mọi dòng của kỳ dùng chung khoá
         # định danh, không riêng dòng vừa bấm (`INV-76`/`INV-87`).
         shared = [item for item in view["data"].details
@@ -1771,9 +1857,13 @@ def create_app(
             **keys,
             "product_raw": detail["product_raw"] or "",
             "query": query,
-            "candidates": [
-                {"code": item.code, "label": item.label}
-                for item in identity_gateway.candidates(snapshot, query=query)],
+            # R5 §5 — TỐI ĐA MỘT gợi ý. Danh sách bốn mươi mã trong lòng
+            # một popover không phải "tương tác nhỏ nhất có thể", và Owner
+            # chỉ chọn được đúng một mã. Gợi ý là GỢI Ý: nó chỉ trở thành
+            # một quyết định khi Owner bấm vào nó (`§PI-05`, `BR-10`).
+            "suggestion": (
+                None if suggestion is None
+                else {"code": suggestion.code, "label": suggestion.label}),
             "tracking_available": snapshot is not None,
             "no_tracking_note": identity_gateway.NO_TRACKING_NOTE,
             "shared_lines": len(shared),
@@ -1948,7 +2038,20 @@ def create_app(
             target=workspace_presentation.target_cell(target),
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
-                scoped.details, sheet=sheet, decisions=decisions),
+                scoped.details, sheet=sheet, decisions=decisions,
+                catalog=_catalog_labels(),
+                # `DEC-R5-03` — mã máy CHỈ được truy vấn ở đây, trên đúng
+                # route này. `workspace_imei` là cánh cửa duy nhất, và
+                # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
+                # mở nó.
+                imeis=_guarded(
+                    workspace_imei.imei_of, snapshot_repo.engine,
+                    [(d["order_key"], d["product_key"], d["occurrence_index"])
+                     for d in scoped.details])),
+            optional_columns=workspace_presentation.OPTIONAL_COLUMN_INDEXES,
+            show_optional_label=workspace_presentation.SHOW_OPTIONAL_LABEL,
+            hide_optional_label=workspace_presentation.HIDE_OPTIONAL_LABEL,
+            optional_columns_note=workspace_presentation.OPTIONAL_COLUMNS_NOTE,
             detail_totals=workspace_presentation.sheet_detail_totals(
                 scoped.details),
             # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
@@ -1958,8 +2061,19 @@ def create_app(
             identify=identify,
             unclassifiable_note=line_identity.UNCLASSIFIABLE_NOTE,
             excluded=workspace_presentation.excluded_rows(view["data"].excluded),
+            # R5 §1 — danh sách RIÊNG cho các dòng đã tạm loại vì không còn
+            # trong sổ đã xác nhận đầy đủ. Lọc theo đúng sheet đang xem, cùng
+            # cách `scoped` lọc mọi thứ khác: một cảnh báo của sheet khác nằm
+            # trên màn hình này là một việc không phải của người đang đọc.
+            removed_in_source=workspace_presentation.removed_in_source_rows(
+                view["data"].removed_for_sheet(sheet)),
+            # `FIND-R5-IR-01` — `keep_option=True` BẮT BUỘC ở đây và chỉ ở
+            # đây: đây là màn hình duy nhất mà ô chọn nhân viên đi cùng một
+            # nút gửi DÙNG CHUNG (`XONG` lưu cả giá lẫn nhân viên). Bảng kê
+            # chi tiết (route dưới) vẫn có nút gửi riêng nên vẫn không có
+            # mục trống, đúng `OD-5`.
             assignable=business_presentation.assignable_employee_options(
-                view["service"].assignable_employees()),
+                view["service"].assignable_employees(), keep_option=True),
             editing=request.args.get("sua") or "",
             editing_target=bool(request.args.get("sua-target")),
             confirm=confirm,
@@ -2015,6 +2129,14 @@ def create_app(
     def business_save_order_employee():
         """`§27` — đổi nhân viên cho TOÀN BỘ một BH bằng một thao tác.
 
+        R5 §4 — không gian làm việc KHÔNG còn nút `GÁN CẢ ĐƠN` gọi route
+        này: nhân viên nay đi cùng giá nhập qua một lần gửi duy nhất
+        (`business_save_order`). Route ở lại vì nó là bề mặt đã nghiệm thu
+        của `§27` và mang bằng chứng test của `DEC-185` §F-02. Nó KHÔNG phải
+        một thẩm quyền thứ hai: cả hai đường vào đều gọi đúng
+        `store.set_employee` trên đúng khoá nghiệp vụ của từng dòng, và cùng
+        đọc master `config/employees.yaml` để biết tên nào có thật.
+
         Đây KHÔNG phải một thẩm quyền gán nhân viên thứ hai: nó gọi đúng
         `BusinessDecisionStore.set_employee` mà `OD-5` đã nghiệm thu, một lần
         cho mỗi dòng của đơn. Ranh giới của `OD-5` vì thế còn nguyên — tên
@@ -2069,9 +2191,81 @@ def create_app(
             f"Đã gán {len(details)} dòng của {order_key} cho {chosen}{note}. "
             "Tổng của cả kỳ không đổi.")})
 
+    _PRICE_FIELD = re.compile(r"^gia_nhap__([0-9a-f]+)__(\d+)$")
+
+    def _submitted_prices(order_key: str) -> dict:
+        """`{khoá dòng: chuỗi người gõ}` đọc từ form sửa BH (R5 §4).
+
+        Tên ô mang ĐỦ khoá dòng (`gia_nhap__<product_key>__<occurrence>`) chứ
+        không mang một chỉ số hàng: một chỉ số hàng chỉ đúng cho đến khi thứ
+        tự dòng đổi, và R3 §1 đã trả giá một lần cho việc để vị trí làm danh
+        tính. `order_key` đến từ chính trường ẩn của form, nên ba thành phần
+        khoá luôn đi cùng nhau.
+
+        Tên ô sai dạng bị BỎ QUA chứ không đoán: một trường lạ trong form là
+        một trường không ai hứa gì về nó.
+        """
+        prices = {}
+        for name, value in request.form.items():
+            match = _PRICE_FIELD.match(name)
+            if match is None:
+                continue
+            prices[(order_key, match.group(1), int(match.group(2)))] = value
+        return prices
+
+    @app.post("/kinh-doanh/nhan-vien/sua-bh")
+    def business_save_order():
+        """R5 §4 — lưu TOÀN BỘ một BH bằng đúng một lần gửi.
+
+        Route này KHÔNG dựng một thẩm quyền nào mới. Nó gọi đúng
+        `store.set_purchase_price` / `clear_purchase_price` / `set_employee`
+        mà `DEC-PHB02-02` và `OD-5` đã nghiệm thu, và mọi ràng buộc của R2
+        §4.4 (giá AUTO đọc lại từ server, override phải có lý do, actor đọc
+        từ môi trường chứ không từ form) còn nguyên — chúng chỉ được kiểm
+        MỘT LƯỢT cho cả đơn thay vì từng ô một.
+
+        Hai bước, và thứ tự là hợp đồng: kiểm hết (`plan_order_edit`), rồi
+        mới ghi (`apply_order_edit`). Không có nhánh nào ghi một phần rồi
+        báo lỗi — đó chính là lớp lỗi mà `§4` sinh ra để đóng.
+        """
+        view = _workspace_view()
+        service = view["service"]
+        order_key = request.form.get("order_key") or ""
+        chosen = (request.form.get("nhan_vien_moi") or "").strip()
+        try:
+            plan = service.plan_order_edit(
+                data=view["data"], order_key=order_key,
+                employee=chosen or None,
+                prices=_submitted_prices(order_key),
+                reason=(request.form.get("ly_do") or None))
+        except business_service.OrderNotFoundError:
+            abort(404)
+        if not plan.ok:
+            # Giữ chế độ sửa MỞ: người dùng vừa gõ một màn hình dữ liệu, và
+            # đóng nó lại cùng lúc với việc báo lỗi là bắt họ gõ lại từ đầu.
+            return _workspace_redirect(sua=order_key,
+                                       loi=" ".join(plan.errors))
+        # Cửa kỳ đã chốt đứng SAU khi kiểm form và TRƯỚC khi ghi: một kỳ đã
+        # chốt phải chặn cả lần sửa hợp lệ, và chặn nó bằng cùng một câu mà
+        # mọi đường ghi khác của vertical đang dùng.
+        _guard_lines(service, *plan.details)
+        if plan.changes_nothing:
+            return _workspace_redirect(**{"da-luu": plan.summary()})
+        message = _guarded(service.apply_order_edit, plan,
+                           entered_by=identity_gateway.actor_of())
+        return _workspace_redirect(**{"da-luu": message})
+
     @app.post("/kinh-doanh/nhan-vien/gia-nhap")
     def business_save_line_purchase_price():
         """`§28` — sửa Giá nhập ngay trong ô của dòng, khi BH đang mở sửa.
+
+        R5 §4 — không gian làm việc KHÔNG còn nút `LƯU` từng ô gọi route
+        này; giá nhập nay đi qua form cấp BH (`business_save_order`). Route
+        ở lại vì nó là bề mặt đã nghiệm thu của R2 §4.4 và mang bằng chứng
+        test của cả vertical đó. Không có thẩm quyền giá nhập thứ hai nào
+        được dựng: cả hai đường vào đều đọc lại giá AUTO từ server rồi gọi
+        đúng `store.set_purchase_price`, nơi ràng buộc "override phải có lý
+        do" được thi hành MỘT lần cho mọi người gọi.
 
         Dùng LẠI nguyên vẹn thẩm quyền giá nhập của `DEC-PHB02-02`/PHB-03:
         cùng `parse_purchase_price`, cùng `auto_price_of` (giá AUTO luôn đọc
@@ -2221,10 +2415,19 @@ def create_app(
            đường này, nên gán lại nhân viên hay tick Gia dụng không thể làm
            đổi doanh thu của một thương hiệu (`BR-06`, `BR-07`).
 
-        3. **Thương hiệu chỉ ĐỌC từ thẩm quyền Product Identity.** Nguồn được
-           wire ở đây là `brand_identity.canonical_brand` và không gì khác —
-           không bảng ánh xạ của Reports, không phép so chuỗi con (`BR-02`,
-           `BR-10`).
+        3. **Thương hiệu chỉ ĐỌC từ thẩm quyền Product Identity.** R5 §5
+           (`DEC-R5-04`) mở lại PHB-06 CÓ CHỦ ĐÍCH: nguồn nay là
+           `catalog_display.brand_source`, tức chính hai trường mà TRACKING
+           đã chuẩn hoá và trả về qua `/api/xuat/board`. Đây là đường thứ hai
+           mà `PHB-06 §4` đã để ngỏ — một read model canonical tương đương —
+           chứ không phải một bảng ánh xạ của Reports: nó chỉ tra
+           `source_product_code` của một danh tính ĐÃ CONFIRM, và không có
+           nhánh nào suy thương hiệu từ tên hàng, mã máy hay một phép so
+           chuỗi nào (`BR-02`, `BR-10`).
+
+           `brand_identity.canonical_brand` KHÔNG bị xoá: nó vẫn là đường
+           đọc đúng nếu hợp đồng danh tính có ngày mang trường `brand` trên
+           chính nó, và `tests/test_phb06_brand_reporting.py` vẫn canh nó.
 
         Phép đối soát về tổng kỳ CHẠY THẬT ở mỗi lần tải trang và kết quả của
         nó lên màn hình. Một bảng cộng không khớp là lỗi hệ thống, và trang
@@ -2237,7 +2440,7 @@ def create_app(
         buckets = brand_identity.buckets_for(
             data.details, confirmed_keys=_confirmed_identity_keys(),
             identities=identity_gateway.confirmed_identities(identity_store),
-            brand_source=brand_identity.canonical_brand)
+            brand_source=catalog_display.brand_source(catalog_display.read()))
         grouped = brand_metrics.group_by_brand(data.lines, buckets)
         return render_template(
             "kinh_doanh_thuong_hieu.html",

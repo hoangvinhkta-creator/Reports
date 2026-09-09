@@ -691,7 +691,7 @@ def test_case_dt_06_to_dt_09_the_column_layout_matches_the_owner_decision(
     """
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh/nhan-vien")
-    header = re.search(r"<table class=\"sheet-table\">\s*<tr>(.*?)</tr>",
+    header = re.search(r"<table class=\"sheet-table\"[^>]*>\s*<tr>(.*?)</tr>",
                        html, re.S).group(1)
     labels = [text.strip() for text in re.findall(r"<th[^>]*>(.*?)</th>",
                                                   header, re.S)]
@@ -1355,7 +1355,7 @@ def test_case_gd_15_the_gia_dung_sheet_reuses_the_same_detail_table(
     assert metric(html, "customer-phone") == "0912000111"
     assert metric(html, "customer-address") == "12 Lê Lợi, Q1"
     assert metric(html, "line-employee") == "Vinh"
-    header = re.search(r"<table class=\"sheet-table\">\s*<tr>(.*?)</tr>",
+    header = re.search(r"<table class=\"sheet-table\"[^>]*>\s*<tr>(.*?)</tr>",
                        html, re.S).group(1)
     assert "Giá nhập" in header and "Giá bán" in header
 
@@ -1620,16 +1620,28 @@ def test_the_business_page_returns_503_without_a_history_store(
 def test_the_workspace_never_renders_a_prohibited_personal_field(
     repository, client
 ):
-    """Hàng rào cũ còn nguyên cho những trường KHÔNG ai yêu cầu.
+    """Hàng rào còn nguyên cho những trường KHÔNG ai yêu cầu.
 
-    `DEC-PHB02-08` mở đúng ba trường khách hàng. `imei`, `note_raw` và
+    `DEC-PHB02-08` mở đúng ba trường khách hàng, và `note_raw` /
     `employee_raw` ("Vũ Hạnh Ly 0912…") vẫn không có đường nào ra màn hình.
+
+    `imei` rời khỏi danh sách này ở R5 §5 theo `DEC-R5-03` — một sửa đổi CÓ
+    CHỦ ĐÍCH, và phạm vi của nó hẹp tới mức nó có bộ kiểm riêng
+    (`tests/test_r5_imei_boundary.py`): mã máy được mở trên ĐÚNG route này
+    và không đâu khác.
+
+    Điều VẪN phải đúng ở đây, và nay được khẳng định trong thân bài thay vì
+    chỉ hứa trong docstring (`AR-R5-IR-11`): sổ không ghi mã máy nào thì ô
+    mã máy trống, không có một dãy số nào được dựng ra để lấp chỗ.
     """
     persist(repository, three_line_order("BH1"))
     html = body(client, "/kinh-doanh/nhan-vien")
     assert "Vũ Hạnh Ly" not in html          # employee_raw của fixture
-    assert "imei" not in html.lower()
     assert "note_raw" not in html.lower()
+    imei_cells = metrics(html, "line-imei")
+    assert imei_cells, "phải có ô mã máy để mà kiểm — fixture dựng ba dòng"
+    assert set(imei_cells) == {"—"}, (
+        f"sổ không ghi mã máy nào nhưng ô mã máy có nội dung: {imei_cells}")
 
 
 # ==========================================================================

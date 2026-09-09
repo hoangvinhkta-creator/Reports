@@ -1,6 +1,261 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R4 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
+## CANONICAL CURRENT STATE — R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
+
+**Owner chỉ thị trực tiếp trong phiên:** đã tự thực hiện Independent Review
+vòng 2 ở một công cụ khác (Codex, không artifact trong repo Reports) và đã
+tự đối chiếu `CHECK-R3-20`/`CHECK-R4-24` trên dữ liệu production ở nơi khác;
+yêu cầu bỏ qua cả hai điều kiện chặn còn lại của `S136` và merge ngay, chấp
+nhận Render tự động deploy production sau merge. Quyết định đầy đủ, nguyên
+văn chỉ thị, và rủi ro được ghi tại **`PROJECT/PROJECT_DECISIONS.md` →
+`DEC-203`**; diễn biến phiên tại `docs/sessions/S137-r5-owner-override-merge.md`.
+
+```text
+CHECK-R5-27 / CHECK-R5R1-09   FAIL / NOT_TESTED → ACCEPT_WITH_RECORDED_RISK
+                              (Owner override, DEC-203 — KHÔNG có artifact
+                              review vòng 2 trong repo này)
+CHECK-R3-20 / CHECK-R4-24     NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+                              (DEC-203 — KHÔNG có bằng chứng đối chiếu
+                              production trong repo này)
+CHECK-R5-28                   VẪN NOT_TESTED — override KHÔNG bao gồm
+                              nghiệm thu R5 trên production
+```
+
+**Đây KHÔNG phải phiên tự đánh dấu Independent Review hay tự đánh dấu Owner
+Acceptance** — chính Owner là người xác nhận và chỉ thị. Nhưng đây CŨNG
+KHÔNG phải bằng chứng E1/E2 kiểm tra được trong repo — khoảng cách này được
+ghi lại tường minh, không che giấu bằng nhãn `PASS` trơn.
+
+Toàn bộ kiểm tra kỹ thuật (full `pytest -q` 3232 passed/12 skipped/0 failed,
+Tracking `npm test` 2767 passed + build OK, smoke xuyên hai repo 29/29 PASS,
+governance validator PASS trừ baseline `TASK-REM-T06`) đã PASS từ `S136` —
+không đổi, không chạy lại.
+
+Merge thực hiện theo thứ tự: Tracking PR #26 → `main`, rồi Reports PR #12
+(`claude/r5-integration-vinh`) → `claude/extract-upload-repo-gq2ws4`. SHA
+merge commit thật và trạng thái deploy (KHÔNG xác nhận được từ phiên này —
+không egress/credential Render, cùng giới hạn `S127`/`S130`/`S133`) nằm ở
+`docs/sessions/S137-r5-owner-override-merge.md` §4–§5.
+
+---
+
+## R5 tích hợp CHƯA MERGE: REPAIR-1 xong, chờ Independent Review vòng 2 + Owner nghiệm thu R3/R4 production (`S136`, 2026-09-09)
+
+**Phiên tích hợp (không phải triển khai, không phải review).** Dựng nhánh
+`claude/r5-integration-vinh` từ Reports repair HEAD `4278c3b`, gộp tài liệu
+Independent Review vòng 1 (`b7f5a07`, nhánh `claude/r5-independent-review-l59zyq`)
+vào đó, tạo merge commit `cf345acb0feb52b3fb41c16d9b8612723ba997e3`. Giải
+quyết sáu xung đột tài liệu thủ công (hai trong `PROJECT/PROJECT_PROGRESS.md`,
+bốn trong `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`), giữ đủ
+ba lớp bằng chứng: implementation gốc, Independent Review vòng 1
+(`REPAIR_REQUIRED`), và REPAIR-1 (đã sửa cả hai finding). Bốn file còn lại tự
+merge sạch hoặc là file mới. `git diff --stat` giữa hai nhánh nguồn: chỉ 6
+file `.md`, không một dòng mã nào.
+
+**Không merge trong phiên này — hai điều kiện chưa thoả, cả hai đều
+thuộc thẩm quyền Owner/reviewer độc lập, không phải thẩm quyền của một phiên
+tích hợp:**
+
+```text
+CHECK-R5-27  Independent Review    FAIL (vòng 1) — CHƯA có vòng 2 trên HEAD
+                                   sau repair. Không tìm thấy artifact nào
+                                   của một vòng review độc lập thứ hai trên
+                                   d8892af/4278c3b. Phiên này KHÔNG tự đóng
+                                   nó bằng cách tự xác nhận test của chính
+                                   mình — đó sẽ là tự đánh dấu Independent
+                                   Review, việc bị cấm rõ ràng.
+CHECK-R5-28  Owner nghiệm thu R5   NOT_TESTED
+CHECK-R3-20  Owner nghiệm thu R3   NOT_TESTED — không tìm thấy bằng chứng
+                                   nào ở bất kỳ commit/tài liệu nào của repo
+CHECK-R4-24  Owner nghiệm thu R4   NOT_TESTED — như trên
+```
+
+Điều kiện `S133` (Owner xác nhận R3/R4 Live + tự nghiệm thu trên dữ liệu
+THẬT trước khi R5 được tích hợp) là điều kiện CHẶN MERGE độc lập với kết quả
+Independent Review — cả hai đều phải thoả. Phiên này tìm bằng `git log --all
+--grep` trên toàn bộ lịch sử Reports và không thấy một commit nào đánh dấu
+`CHECK-R3-20`/`CHECK-R4-24` PASS.
+
+Mọi kiểm tra kỹ thuật khác đã chạy lại trên nhánh integration (full
+`pytest -q` 3232 passed/12 skipped/0 failed; Tracking `npm test` 2767
+passed/0 hỏng + `npm run build` OK; smoke xuyên hai repo 29/29 PASS; toàn bộ
+governance validator PASS trừ `reference_integrity` đúng ba baseline
+`TASK-REM-T06`; `branch_authority_check.sh` → `AUTHORITY_OK`) và bằng chứng
+đầy đủ nằm ở `docs/sessions/S136-r5-integration.md`. Nhánh
+`claude/r5-integration-vinh` đã được đẩy lên origin, kèm PR draft **KHÔNG
+merge** `hoangvinhkta-creator/Reports#12`; Tracking có PR draft **KHÔNG
+merge** tương ứng `hoangvinhkta-creator/Tracking#26`. Cả hai sẵn sàng để
+review và merge NGAY SAU KHI hai điều kiện trên thoả — không cần làm lại
+việc kỹ thuật.
+
+**Trạng thái cuối phiên `S136`: `INTEGRATION_READY_WAITING_FOR_OWNER_GATE`.**
+
+---
+
+## R5 = IMPLEMENTED sau REPAIR-1; Independent Review vòng 1 FAIL, chờ chạy lại (2026-09-09)
+
+**Independent Review vòng 1 kết luận `REPAIR_REQUIRED`. REPAIR-1 đã xong.**
+Hai finding, cả hai đã sửa và có test tái hiện đi qua đường production:
+
+```text
+FIND-R5-IR-01  bấm XONG gán lại CẢ BH cho nhân viên đầu danh sách khi BH có
+               0 hoặc ≥2 nhân viên hiệu lực — ô chọn không có mục "giữ
+               nguyên", nên không option nào `selected`, nên trình duyệt gửi
+               option ĐẦU TIÊN.   ['Quý','Vinh'] → ['Hiệp'];  [None] → ['Hiệp']
+
+FIND-R5-IR-02  dòng quay lại KHÔNG được khôi phục khi hai lần nạp rơi vào
+               cùng một giây — mốc snapshot ghi ở `timespec="seconds"`, phép
+               so ngặt. Tổng thấp hơn VĨNH VIỄN, không nút khôi phục.
+               CÙNG GIÂY (độ phân giải thật của production): 12tr → 8tr
+```
+
+Cả hai có CÙNG hình dạng, và nó là bài học chứ không phải hai lỗi rời rạc:
+**R5 lấy một cơ chế đã đúng ở ngữ cảnh cũ, đặt nó vào một ngữ cảnh nơi cái giá
+của sai lầm khác hẳn, và không tính lại chiều an toàn của nó.** Trong cả hai
+trường hợp, mã cũ có một chú thích nói rõ vì sao nó an toàn — và R5 làm cho
+chính câu chú thích ấy thôi đúng, mà không ai đọc lại nó.
+
+```text
+Reports  HEAD  d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2
+Tracking HEAD  f958226f6127e6055eb411e4c22e12c58d09654b   (KHÔNG đổi)
+Reports  test  3232 passed, 12 skipped   (trước repair: 3223)
+repair cycle   1 tiêu — R5 còn 2 allowed / 1 used / 1 remaining
+```
+
+`CHECK-R5-27` = `FAIL` (vòng 1) và CHƯA được chạy lại trên HEAD sau repair.
+`CHECK-R5-28`, `CHECK-R3-20`, `CHECK-R4-24` KHÔNG chạm. Bàn giao repair:
+`docs/sessions/S135-r5-repair-1.md`.
+
+Hai việc CHỈ Owner nghiệm thu bằng mắt được (phiên kiểm được DOM/CSS/JS,
+không kiểm được hình học thật): toạ độ popover trên màn hình thật, và hai cột
+Hãng/IMEI cắt đúng một dòng.
+
+`INTEGRATION_DECISION_REQUIRED` và điều kiện `S133` KHÔNG đổi. Reviewer khuyến
+nghị tích hợp NGUYÊN KHỐI sau repair — gói 3 và gói 4 đều đọc `PeriodData` mà
+gói 1 định nghĩa lại, nên tách gói tạo một tổ hợp chưa ai chạy. Quyết định vẫn
+thuộc Owner.
+
+---
+
+## R5 — Independent Review vòng 1 = REPAIR_REQUIRED (2026-09-08)
+
+**Independent Review của R5 (`S135`) đã chạy ĐỦ trên đúng exact HEAD được bàn
+giao và kết luận `REPAIR_REQUIRED`.** Bản ghi:
+`docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Bàn giao review:
+`docs/sessions/S135-r5-independent-review.md`. Repair brief:
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`.
+
+```text
+HEAD ĐÃ REVIEW  Reports   949e32df7a876d1f6f8003eb5df39e3d11dcc069
+                Tracking  f958226f6127e6055eb411e4c22e12c58d09654b
+NỀN             b6756fef4b43362201a88f8fe13c45488916d3dd
+CHECK-R5-27     FAIL — review ĐÃ HOÀN THÀNH, implementation CHƯA được chấp nhận
+CHECK-R5-28     NOT_TESTED — Owner nghiệm thu, không phiên nào tự đóng
+CHECK-R3-20     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+CHECK-R4-24     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+REPAIR CYCLE    0 đã tiêu (R5: 2 allowed / 0 used / 2 remaining)
+```
+
+Hai finding bắt buộc, cả hai tái hiện được bằng lệnh:
+
+1. `FIND-R5-IR-01` — R5 §4 gộp mọi thứ về MỘT nút gửi, nhưng ô chọn nhân viên
+   của form cấp BH không có mục "giữ nguyên". Một BH chưa có nhân viên, hoặc
+   có nhiều người, bị gán cho người ĐẦU danh sách ở mọi lần bấm `XONG` — kể
+   cả khi người dùng chỉ sửa một ô giá. Đây là dời doanh thu và KPI của cả
+   một BH sang một người khác.
+2. `FIND-R5-IR-02` — mốc snapshot chỉ có độ phân giải GIÂY
+   (`timespec="seconds"`), còn phép so "dòng đã quay lại chưa" là phép so
+   NGẶT. Hai lần nạp trong cùng một giây ⟹ dòng đã có mặt lại trong sổ vẫn ở
+   ngoài mọi con số **vĩnh viễn**, không có đường khôi phục thủ công, trong
+   khi màn hình vẫn hứa điều ngược lại. Trước R5 nhãn ấy chỉ là một cảnh báo;
+   R5 làm nó quyết định tổng tiền, và chiều "an toàn" của phép so đảo ngược
+   mà không ai tính lại.
+
+Bảy rủi ro mới `AR-R5-IR-06` … `AR-R5-IR-12` được ghi `ACCEPTED_RISK`; trong
+đó `AR-R5-IR-09` (`/run` nuốt mọi ngoại lệ thành HTTP 400, `server.py` không
+có một dòng log nào) và `AR-R5-IR-12` (`tools/smoke/r1_daily_min_smoke.py`
+sập giữa chừng) là **lỗi baseline có trước R5**, đo được là hỏng y hệt trên
+`b6756fe`. `AR-R5-01` … `AR-R5-05` đã tái kiểm chứng và giữ nguyên mức.
+
+`INTEGRATION_DECISION_REQUIRED [ loc>5000 ]` được phân loại là **quyết định
+governance**, không phải dấu hiệu code cần chia nhỏ (`cumulative LOC = 5336`,
+nhưng code+test chỉ `4220` — dưới ngưỡng; `RESULT = AUTHORITY_OK`).
+**Khuyến nghị: tích hợp NGUYÊN KHỐI sau repair** — gói 3 và gói 4 đều đọc
+`PeriodData` mà gói 1 định nghĩa lại, nên tách gói tạo ra một tổ hợp chưa ai
+chạy.
+
+Thứ tự việc tiếp theo: `R5-REPAIR-1` → Independent Review lần 2 → Owner
+nghiệm thu R3/R4 trên production → merge nguyên khối → deploy → Owner nghiệm
+thu R5.
+
+---
+
+## R5 = IMPLEMENTED — bàn giao triển khai gốc (2026-09-08)
+
+**R5 đã triển khai đầy đủ trên nền R4 đã merge (`b6756fe`), trên CẢ HAI repo.**
+Owner ban hành `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm`: đóng năm khoảng cách giữa
+*điều màn hình nói* và *điều hệ thống biết*. Quyết định: `DEC-202`. Task
+canonical: `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`. Bàn
+giao: `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`.
+
+```text
+Reports   HEAD  19b853f718e1ed6dbf700468105c9dd38ff4cc2d
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+Tracking  HEAD  f958226f6127e6055eb411e4c22e12c58d09654b
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+ALEMBIC_HEAD    0009_line_binding_period_close — KHÔNG ĐỔI, R5 không thêm
+                migration nào
+Reports test    3223 passed, 12 skipped   (baseline trước R5: 3146 passed)
+Tracking test   61 bộ · 2767 đạt · 0 hỏng · 2 bỏ qua; npm run build OK
+Smoke HTTP thật TẤT CẢ PASS
+```
+
+Việc quan trọng nhất của R5 sửa một khoảng cách mà người dùng đã tự tay đóng
+lại rồi mà hệ thống không nhận: sau khi họ bấm "sổ này đầy đủ cho khoảng ngày
+X", một đơn cũ trong X mà sổ đó không có VẪN được cộng vào doanh thu. Nay nó
+được TẠM LOẠI khỏi mọi số liệu, vào một danh sách cảnh báo riêng không mang
+tiền, và tự quay lại khi một lần nạp sau có nó. Không hard-delete, không
+migration — việc loại xảy ra LÚC ĐỌC.
+
+Blast Radius `4/5` (xa hơn R4 một bậc): R5 có quyền LOẠI dòng khỏi tập được
+cộng, và một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN — không ai đi tìm số
+tiền mình không biết là mình đang thiếu.
+
+`CHECK-R5-27` (Independent Review) và `CHECK-R5-28` (Owner nghiệm thu) VẪN
+`NOT_TESTED`. Phiên triển khai KHÔNG merge, KHÔNG deploy, và KHÔNG tự đóng hai
+check đó.
+
+### CONFLICT DETECTED — điều kiện mở R5
+
+Documentation:
+`S133` (mục "Tích hợp production R4" bên dưới) ghi: *"**R5 CHƯA `READY`** —
+chỉ mở sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên
+dữ liệu thật đạt."* Hai điều kiện đó CHƯA xảy ra: `CHECK-R3-20` và
+`CHECK-R4-24` vẫn `NOT_TESTED`.
+
+Implementation:
+`R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §0 đặt một điều kiện KHÁC và hẹp hơn: *"R5
+chỉ được mở sau khi nhánh mặc định của Reports chứa commit R4 trên và migration
+production hiện hành đã chạy thành công."* Cả hai điều kiện đó ĐÃ thoả và đã
+được đo ở đầu phiên `S134` (§1). Owner sau đó chỉ thị trực tiếp mở phiên triển
+khai R5 đầy đủ.
+
+Risk:
+R5 đã được xây trên một nền mà Owner CHƯA nghiệm thu trên dữ liệu thật. Nếu
+nghiệm thu R3/R4 phát hiện một lỗi cần sửa ở nền, phần R5 chồng lên nó có thể
+phải làm lại một phần — rủi ro cao nhất nằm ở gói 1 (nó đọc chính cơ chế cờ
+vắng mặt của PRA-002) và gói 3 (nó đọc chính engine doanh thu của R4).
+
+Recommended resolution:
+Giữ nguyên như phiên này đã làm: TRIỂN KHAI theo chỉ thị mới hơn của Owner,
+KHÔNG merge, KHÔNG deploy, và KHÔNG chạm `CHECK-R3-20`/`CHECK-R4-24` — chúng
+vẫn `NOT_TESTED`. Điều kiện của `S133` không bị xoá và không bị coi là đã
+thoả; nó chuyển từ "điều kiện mở R5" thành **điều kiện tích hợp R5**: R5 không
+được merge vào nhánh mặc định trước khi Owner nghiệm thu R3/R4 trên production.
+
+---
+
+## R4 — IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
 
 **R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
 `R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
@@ -146,6 +401,13 @@ bước, trên dữ liệu THẬT) ở `docs/sessions/S133-r4-integration-and-de
 `CHECK-R4-24` và `CHECK-R3-20` VẪN `NOT_TESTED`. **R5 CHƯA `READY`** — chỉ mở
 sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên dữ
 liệu thật đạt.
+
+> **Cập nhật 2026-09-08 (`S134`).** Owner sau đó chỉ thị trực tiếp mở phiên
+> triển khai R5 đầy đủ, trên điều kiện của chính brief R5 §0 (nhánh mặc định
+> chứa R4 HEAD + migration ở head) — cả hai đã
+> thoả. Câu trên KHÔNG bị xoá và KHÔNG bị coi là đã thoả: nó chuyển thành
+> **điều kiện TÍCH HỢP R5** (R5 không merge trước khi Owner nghiệm thu R3/R4
+> trên production). Xem "CONFLICT DETECTED — điều kiện mở R5" ở đầu file.
 
 ---
 
@@ -10331,6 +10593,13 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
     `ADMIN`, không `viewer`/`editor`/`employee_scope`. Đóng C12/C13/C14.
     ADR-105 §4/§5 viết lại, chuyển `Accepted`. Completion Gate TASK-203/204
     vẫn chưa freeze.
+  - **DEC-201** — R4: trang đánh giá CHỈ ĐỌC trên một effective data; không
+    chỉ tiêu dẫn xuất từ lợi nhuận nào được công bố khi coverage chưa đủ.
+  - **DEC-202** — R5: sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi
+    số liệu (loại LÚC ĐỌC, không hard-delete, tái xuất hiện tự khôi phục —
+    REPAIR-1 sửa đúng chỗ "tự khôi phục" này khi hai lần nạp cùng một giây);
+    biểu đồ hai cửa sổ liền kề cùng độ dài; một form cấp BH với `XONG` là nút
+    gửi duy nhất; hãng/model do Tracking chuẩn hoá và IMEI mở đúng một route.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 
