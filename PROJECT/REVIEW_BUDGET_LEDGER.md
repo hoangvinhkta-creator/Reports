@@ -3264,3 +3264,35 @@ vân tay chốt kỳ. Điều đó KHÔNG cấp thêm ngân sách — ngân sác
 lineage, không thuộc từng gói con.
 
 Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+
+### `R5.1 REPAIR-1` — từ điển nhóm hàng (`S140`, 2026-09-09)
+
+Vòng Independent Review của `R5.1` (`S139`) kết luận
+`ACCEPT_WITH_RECORDED_RISK` với `0 finding REPAIR_REQUIRED`, nên nó KHÔNG
+tiêu cycle nào. Ở `S140`, Owner **điều chỉnh** kết luận ấy thành
+`REPAIR_REQUIRED` cho mục tiêu dùng `category_label` ở `R6`, và chỉ thị sửa.
+
+Đây là một repair cycle THẬT theo `V4.1` §3: có finding bắt buộc sửa
+(`AR-R5.1-05`, `AR-R5.1-06`), và cả hai được sửa trong CÙNG một phiên — `V4.1`
+§3 tính theo VÒNG, không theo số finding.
+
+```text
+root lineage                 R5
+số dư trước S140             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S140   1
+số dư sau S140               2 allowed / 2 used / 0 remaining
+```
+
+**Lineage `R5` đã HẾT ngân sách review.** Nếu vòng Independent Review kế tiếp
+(`CHECK-R51R1-17`, trên HEAD sau repair) lại ra `REPAIR_REQUIRED`, lineage
+KHÔNG được mở một repair cycle thứ ba — phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+Ghi chú về cách tính: cycle này tiêu vì Owner nâng mức một finding đã có, chứ
+không phải vì một vòng review mới phát hiện thêm lỗi. Ghi theo hướng TIÊU
+(thay vì coi là "điều chỉnh phân loại, không tiêu") là lựa chọn bảo thủ có chủ
+đích — nó giữ cho ngân sách phản ánh đúng số lần triển khai đã phải sửa lại,
+và không tạo tiền lệ cho việc mở repair cycle miễn phí bằng cách gọi nó là
+một lần phân loại lại.
+
+Bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.

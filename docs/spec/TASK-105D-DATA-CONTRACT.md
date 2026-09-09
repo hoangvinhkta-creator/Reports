@@ -421,7 +421,7 @@ INV-16  Mã bị gộp trong Tracking (alias.map): resolver KHÔNG tự chuyển
 là **cơ chế đối phó**, không phải phủ nhận rủi ro: nó đảm bảo Reports replay
 được, nhưng không đảm bảo dữ liệu nguồn tại thời điểm capture là đúng.
 
-### 4.6 Metadata sản phẩm — thẩm quyền của TRACKING (R5 §5 + R5.1)
+### 4.6 Metadata sản phẩm — thẩm quyền của TRACKING (R5 §5 + R5.1 + REPAIR-1)
 
 **Ba trường trả lời BA câu khác nhau.** Giữ chúng tách bạch là một phần của
 hợp đồng, không phải một lựa chọn trình bày:
@@ -434,15 +434,66 @@ category_label   LOẠI HÀNG HOÁ gì            "Tivi"
 
 `category_label` vì thế **không bao giờ** chứa tên hãng, model, nhà cung cấp,
 giá hay tồn. "Tivi Samsung" là một `cat` nội bộ của Tracking, KHÔNG phải một
-`category_label` hợp lệ.
+`category_label` hợp lệ — nhãn hợp lệ cho dòng ấy là `"Tivi"`.
+
+#### `category_label` đến từ một TỪ ĐIỂN ĐÓNG (`R5.1 REPAIR-1`)
+
+Đây là mệnh đề mạnh nhất của `§4.6`, và nó thay thế cách phát biểu cũ ("cắt
+tên hãng rồi lọc hình dạng" — xem `DEC-205`):
+
+```text
+category_label  ∈  từ điển đóng của Tracking  ∪  {null}
+```
+
+Không có khả năng thứ ba. Tracking **chọn** một nhãn từ danh sách của nó; nó
+không cắt một lát từ `cat`. Hệ quả mà bên tiêu thụ được phép dựa vào:
+
+- **Không ký tự nào người dùng gõ đi qua ranh giới bằng trường này.** `cat` là
+  chuỗi gõ tay (ô "+ Ngành hàng mới..." của Tracking), nên đây không phải một
+  chi tiết triển khai — nó là điều làm trường này an toàn để làm **khoá gộp**
+  báo cáo.
+- **Một mặt hàng ⟹ một nhãn.** Nhãn luôn ở dạng canonical, nên "Điều hòa",
+  "Điều hoà" và "Máy lạnh" về cùng một giá trị. Bên tiêu thụ gộp bằng phép so
+  bằng chuỗi, không cần chuẩn hoá lại.
+- **Nhãn KHÔNG BAO GIỜ chứa hãng, NCC, ghi chú, giá hay tồn** — kể cả một hãng
+  chưa có trong danh sách hãng của Tracking. Trước `REPAIR-1` câu này mạnh hơn
+  hành vi thật (`AR-R5.1-05`, `AR-R5.1-06`); nay nó đúng theo cấu tạo.
 
 **`null` nghĩa là CHƯA ĐỦ CĂN CỨ**, không phải "chưa kịp làm". Tracking trả
 `null` khi mã chưa được xếp ngành hàng, khi ngành hàng đã xếp là một sentinel
-quy trình (`"Chưa phân loại"`, `"Không sử dụng"`), khi không tách được tên
-hãng một cách chắc chắn, hoặc khi chuỗi còn lại không lọt qua danh sách trắng
-hình dạng. Sai theo hướng "dám quá" tốn kém hơn hẳn hướng ngược lại: một nhãn
-đoán ra gom doanh thu thật vào sai nhóm trên một màn hình trông bình thường,
-còn `null` hiện ra thành "chưa phân loại" và không ai bị lừa.
+quy trình (`"Chưa phân loại"`, `"Không sử dụng"`), khi `cat` không phân tích
+được **trọn vẹn** thành `[một nhóm trong từ điển] + [không hoặc nhiều hãng đã
+biết]`, hoặc khi hai nhóm khác nhau cùng khớp. Sai theo hướng "dám quá" tốn
+kém hơn hẳn hướng ngược lại: một nhãn đoán ra gom doanh thu thật vào sai nhóm
+trên một màn hình trông bình thường, còn `null` hiện ra thành "chưa phân loại"
+và không ai bị lừa.
+
+```text
+cat                          brand      category_label
+Tivi Samsung                 Samsung    "Tivi"
+Tủ lạnh Samsung              Samsung    "Tủ lạnh"
+Tivi Vsmart                  Vsmart     "Tivi"
+Nồi cơm điện Sharp           Sharp      "Nồi cơm điện"
+Máy lạnh Casper              Casper     "Điều hoà"      (đồng nghĩa, gộp)
+Tivi Sony Samsung            null       "Tivi"          (nhóm chắc, hãng không)
+
+Tivi kho anh Ba              —          null            (ghi chú)
+Tủ lạnh nợ NCC               —          null            (ghi chú)
+Tivi Đất Việt                —          null            (NCC, không phải hãng)
+Tivi hàng gửi                —          null            (ghi chú)
+Tivi 4K                      —          null            (không trong từ điển)
+Điều hòa Inverter 2 chiều    —          null            (không trong từ điển)
+Tủ lạnh Hòa Phát             —          null            (hãng chưa khai báo)
+```
+
+**Nhóm hàng chưa có trong từ điển KHÔNG phải khiếm khuyết cần vá gấp.** Nó ra
+`null`, bên tiêu thụ hiện "chưa phân loại", và người ta thêm một dòng vào từ
+điển khi thật sự cần — cùng đường mở rộng mà danh sách hãng đã dùng. Nới quy
+tắc ghép để "bắt được nhiều hơn" mới là khiếm khuyết.
+
+**Bên tiêu thụ KHÔNG được giữ một bản sao từ điển để tự kiểm lại.** Hai bản sẽ
+trôi khỏi nhau, rồi một nhãn hợp lệ bị loại mà không màn hình nào nói vì sao.
+Bảo đảm sống ở nơi có bằng chứng; Reports đọc và trình bày.
 
 **Reports BỊ CẤM suy ba trường này từ tên trên sổ kế toán** (`product_raw`).
 `ADR-111 §3` đặt thẩm quyền ở Tracking vì bằng chứng nằm ở đó: `board/<mã>/

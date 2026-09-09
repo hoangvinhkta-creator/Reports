@@ -216,6 +216,60 @@ def test_no_branch_derives_the_category_from_product_raw():
                     "cấm")
 
 
+# --- 3b. REPAIR-1: thẩm quyền ở MỘT phía, và Reports không phải phía đó ---
+
+def test_reports_keeps_no_category_vocabulary_of_its_own():
+    """`R5.1 REPAIR-1` — từ điển nhóm hàng sống ở Tracking, và CHỈ ở đó.
+
+    Repair cycle này khoá `category_label` thành một từ điển đóng. Chỗ dễ sai
+    tiếp theo là "tiện tay" chép từ điển ấy sang Reports để tự kiểm tra lại —
+    và đó chính là cách dựng một thẩm quyền thứ hai mà `ADR-111` §3 và
+    `PHB-06 §3` cấm. Hai bản danh sách sẽ trôi khỏi nhau, rồi một nhãn hợp lệ
+    bên Tracking bị Reports loại mà không màn hình nào nói vì sao.
+
+    Bài này canh cấu trúc, không canh một trường hợp: một tên nhóm hàng cụ thể
+    KHÔNG được xuất hiện như dữ liệu trong mã sản phẩm của Reports.
+    """
+    NHOM_CUA_TRACKING = ("Tủ lạnh", "Máy giặt", "Điều hoà", "Nồi cơm điện",
+                         "Bình nóng lạnh", "Lò vi sóng", "Máy lọc không khí")
+    for path in ("app/web/catalog_display.py",
+                 "app/web/workspace_presentation.py",
+                 "app/web/server.py",
+                 "app/modules/product/identity/tracking_catalog.py",
+                 "app/modules/pricing/resolution/sources.py",
+                 "tools/tracking/capture_tracking_catalog.py"):
+        source = (REPO_ROOT / path).read_text(encoding="utf-8")
+        code = re.sub(r'""".*?"""', "", source, flags=re.S)
+        code = re.sub(r"^\s*#.*$", "", code, flags=re.M)
+        for ten in NHOM_CUA_TRACKING:
+            assert ten not in code, (
+                f"{path} mang tên nhóm hàng {ten!r} trong MÃ — Reports đang "
+                "dựng một từ điển nhóm hàng thứ hai; thẩm quyền thuộc về "
+                "Tracking (ADR-111 §3)")
+
+
+def test_reports_passes_the_label_through_without_sanitising_it(tmp_path):
+    """Reports KHÔNG lọc lại nhãn — và đó là một quyết định, không phải sót.
+
+    Sau `REPAIR-1`, bảo đảm "nhãn luôn thuộc từ điển đóng" nằm ở TRACKING, nơi
+    có bằng chứng (`board/<mã>/cat`) và nơi từ điển sống. Dựng thêm một phép
+    lọc ở đây sẽ cần một bản sao từ điển — xem bài ngay trên.
+
+    Nên nếu một Tracking hỏng gửi rác, Reports chở nguyên rác đó ra màn hình.
+    Bài này ghim hành vi ấy để nó là một lựa chọn ĐỌC ĐƯỢC, không phải một lỗ
+    hổng người sau phát hiện rồi vá nhầm chỗ. Phép đo thật của bảo đảm nằm ở
+    `scripts/r51_crossrepo_smoke.py`, chạy trên payload do chính mã Tracking
+    sinh, và nó đọc từ điển NGƯỢC từ `src/index.js` chứ không gõ lại.
+    """
+    path = write_capture(tmp_path / "cap.json", [
+        {"tracking_code": "X", "present_in_board": True,
+         "category_label": "Tivi kho anh Ba"},
+    ])
+    row = load_tracking_catalog_capture(path).row_for("X")
+    assert row.category_label == "Tivi kho anh Ba", (
+        "Reports là bên TIÊU THỤ: nó không sửa, không lọc, không đoán lại")
+
+
 # --- 4. Bản chiếu hiển thị -----------------------------------------------
 
 @pytest.fixture

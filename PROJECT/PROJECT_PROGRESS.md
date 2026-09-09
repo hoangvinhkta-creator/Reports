@@ -1,6 +1,61 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1: nhóm hàng `category_label`, ĐÃ QUA Independent Review (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S139`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1 REPAIR-1: từ điển nhóm hàng, IMPLEMENTED, CHƯA merge (`S140`, 2026-09-09)
+
+**Phiên repair đầy đủ, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+Owner điều chỉnh kết luận Independent Review của `R5.1` từ
+`ACCEPT_WITH_RECORDED_RISK` thành `REPAIR_REQUIRED` **cho mục tiêu dùng
+`category_label` ở `R6`**: luật hình dạng cũ cho `cat` bẩn ngữ nghĩa đi ra
+nguyên văn ("Tivi kho anh Ba", "Tủ lạnh nợ NCC", "Tivi Đất Việt"), và ở `R6`
+một nhãn như vậy không còn là ô xấu mà là một NHÓM HÀNG GIẢ trong báo cáo cơ
+cấu — tổng công ty vẫn đúng, nên không con số nào lệch để báo động.
+
+`category_label` nay được **CHỌN từ một từ điển đóng** trong `src/index.js`
+của Tracking, không cắt ra từ `cat`:
+
+```text
+đầu ra ∈ NHOM ∪ {null}
+⟺ không một ký tự nào người dùng gõ rời khỏi Tracking bằng trường này
+```
+
+```text
+Base phiên repair
+  Reports   dd7cd0461d3d5c8deff9465069bbd2cd0bf55120  (impl 2c2c139 + review docs)
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+  Nhánh mặc định CẢ HAI repo KHÔNG đổi kể từ S138.
+
+Kiểm tra
+  Tracking  npm test 2850 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3259 passed / 11 skipped / 0 failed
+            (3257 TRƯỚC khi thêm test mới — Reports không cần đổi mã)
+  Smoke xuyên hai repo  58 PASS / 0 FAIL, producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1)
+  CHECK-R51R1-17            NOT_TESTED — Independent Review vòng 2
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production
+  AR-R5.1-05 / -06 / -03    ĐÃ ĐÓNG
+  Repair cycle tiêu         1 → lineage R5 còn 2 allowed / 2 used / 0 remaining
+```
+
+**CẢNH BÁO NGÂN SÁCH:** lineage `R5` đã HẾT repair cycle. Vòng review kế tiếp
+ra `REPAIR_REQUIRED` thì phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`, không mở cycle thứ ba.
+
+Thẩm quyền: `DEC-205` (thay `DEC-204` §3 và §4; `DEC-204` giữ nguyên văn, có
+con trỏ hai chiều). `ADR-111` §3 KHÔNG đổi — repair này đổi *cách* Tracking
+dẫn xuất một trường, không đổi *ai* có thẩm quyền.
+
+Task + checklist: `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+Hợp đồng: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6.
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## R5.1: nhóm hàng `category_label`, ĐÃ QUA Independent Review (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S139`, 2026-09-09)
 
 **Phiên triển khai đầy đủ, KHÔNG merge, KHÔNG deploy** (brief `R5.1` §9).
 

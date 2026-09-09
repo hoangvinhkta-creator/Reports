@@ -1,5 +1,19 @@
 # R5.1 — Independent Review (bản ghi review ĐỘC LẬP)
 
+> **TRẠNG THÁI SAU PHIÊN NÀY (`S140`, 2026-09-09).** Owner đã điều chỉnh kết
+> luận của bản ghi này từ `ACCEPT_WITH_RECORDED_RISK` thành `REPAIR_REQUIRED`
+> **cho mục tiêu sử dụng `category_label` ở `R6`**, và `R5.1 REPAIR-1` đã sửa
+> xong. `AR-R5.1-05` và `AR-R5.1-06` **ĐÃ ĐÓNG** — không còn là rủi ro được
+> ghi nhận; `AR-R5.1-03` cũng đóng theo. Nội dung dưới đây giữ NGUYÊN VĂN làm
+> bản ghi lịch sử của vòng review — nó đo đúng hệ thống tại `2c2c139`, và
+> chính nó đã chỉ ra rằng phép sửa thật đòi mở lại `DEC-204`. Xem `DEC-205`,
+> `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md` và
+> `docs/sessions/S140-r51-repair-1.md`.
+>
+> `CHECK-R51-25` (vòng review NÀY) vẫn `PASS` — nó đã chạy đủ.
+> `CHECK-R51R1-17` (Independent Review vòng 2, trên HEAD sau repair) là
+> `NOT_TESTED`.
+
 Phiên này chỉ ĐỌC, CHẠY, TẠO PROBE và KIỂM. Không sửa một dòng mã sản phẩm
 nào, không merge, không deploy, không triển khai `R6`, không đánh dấu Owner
 Acceptance.

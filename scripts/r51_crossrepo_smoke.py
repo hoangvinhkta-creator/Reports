@@ -82,32 +82,71 @@ def main(argv=None) -> int:
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     board, alias = payload["board"], payload["alias"]
 
-    ok("bốn trường hợp §7 đều có mặt", sorted(board),
-       ["55Q6FA", "LA-01", "RT38", "XUNG-01"])
+    ok("mọi trường hợp §7 + REPAIR-1 đều có mặt", sorted(board),
+       ["55Q6FA", "BAN-01", "BAN-02", "BAN-03", "LA-01", "ML-01", "RT38",
+        "VS-01", "XUNG-01"])
     ok("Tivi Samsung ⟹ category_label Tivi",
        board["55Q6FA"]["category_label"], "Tivi")
     ok("Tủ lạnh Samsung ⟹ category_label Tủ lạnh",
        board["RT38"]["category_label"], "Tủ lạnh")
     ok("mã chưa xếp ngành hàng ⟹ null",
        board["LA-01"]["category_label"], None)
-    ok("mã cat hai hãng ⟹ null", board["XUNG-01"]["category_label"], None)
+
+    # --- REPAIR-1: `cat` bẩn NGỮ NGHĨA không còn đi qua ranh giới ---------
+    #
+    # Ba dòng này là chính các chuỗi `AR-R5.1-05` tái hiện được trên HEAD cũ.
+    # Chúng là lý do repair cycle này tồn tại, nên chúng được đo ở đây, trên
+    # payload do CHÍNH mã Tracking sinh — không phải trên một dict gõ tay.
+    ok('"Tivi kho anh Ba" ⟹ null', board["BAN-01"]["category_label"], None)
+    ok('"Tivi Đất Việt" (NCC) ⟹ null', board["BAN-02"]["category_label"], None)
+    ok('"Tủ lạnh Hòa Phát" (hãng ngoài HANG) ⟹ null',
+       board["BAN-03"]["category_label"], None)
+
+    ok("hãng đã thêm vào HANG ⟹ nhãn ra bình thường",
+       [board["VS-01"]["brand"], board["VS-01"]["category_label"]],
+       ["Vsmart", "Tivi"])
+    ok('đồng nghĩa gộp: "Máy lạnh" ⟹ "Điều hoà"',
+       board["ML-01"]["category_label"], "Điều hoà")
+    ok("cat hai hãng: nhóm hàng CHẮC CHẮN, hãng thì không",
+       [board["XUNG-01"]["brand"], board["XUNG-01"]["category_label"]],
+       [None, "Tivi"])
+
+    # Mệnh đề trung tâm của REPAIR-1, đo trên payload thật: mọi nhãn đi qua
+    # ranh giới đều thuộc từ điển đóng. Từ điển đọc NGƯỢC từ `src/index.js`
+    # chứ không gõ lại ở đây — gõ lại là hai danh sách trôi khỏi nhau.
+    tu_dien = set(re.findall(r"^  \['([^']+)',",
+                             (tracking / "src/index.js").read_text(encoding="utf-8"),
+                             re.M))
+    ok("từ điển đọc được từ src/index.js", len(tu_dien) > 0, True)
+    nhan = [v["category_label"] for v in board.values()
+            if v["category_label"] is not None]
+    ok("MỌI nhãn đi qua ranh giới đều thuộc từ điển đóng",
+       sorted(set(nhan) - tu_dien), [])
+
     ok("alias.map mang stale target, Tracking KHÔNG gộp sẵn (INV-16)",
        alias["map"], {"CU-01": "55Q6FA"})
 
     # Rò dữ liệu — soi chuỗi ĐÃ serialize, không soi dict.
     chu = json.dumps(payload, ensure_ascii=False)
-    for khoa, vi in [('"cat"', "khoá ngành hàng"), ("Tivi Samsung", "cat ghép hãng"),
+    # Mỗi marker dưới đây CHỈ xuất hiện trong `cat`/nhánh riêng tư của BOARD,
+    # không xuất hiện trong `name` của bất kỳ dòng nào — `name` là trường ĐƯỢC
+    # PHÉP đi ra, nên một marker trùng `name` sẽ báo rò một thứ không rò.
+    for khoa, vi in [('"cat"', "khoá ngành hàng"),
+                     ("kho anh Ba", "ghi chú trong cat"),
+                     ("Hòa Phát", "hãng lạ trong cat"),
                      ("Đất Việt", "tên NCC"), ('"p"', "giá vốn"),
                      ('"tp"', "giá chốt"), ('"_c"', "số Engine"),
                      ('"q"', "tồn kho"), ('"bb"', "giá bán buôn"),
                      ("tinphat.vn", "link nội bộ")]:
-        # `name` được phép đi ra, nên chỉ soi những chuỗi KHÔNG nằm trong name.
-        if khoa == "Tivi Samsung":
-            ok("không lộ " + vi,
-               any(khoa in json.dumps(v, ensure_ascii=False)
-                   for k, v in board.items() if k != "55Q6FA"), False)
-            continue
         ok("không lộ " + vi, khoa in chu, False)
+
+    # ĐỐI CHỨNG: các marker ấy CÓ trong dữ liệu thô mà producer đọc vào, nên
+    # phép thử trên đo được thật chứ không xanh vì marker không tồn tại.
+    tho = (tracking / "kiem/smoke/sinh-catalog-reports.mjs").read_text(
+        encoding="utf-8")
+    ok("đối chứng: marker có thật trong BOARD thô của producer",
+       [x for x in ("kho anh Ba", "Hòa Phát", "Đất Việt", "tinphat.vn")
+        if x not in tho], [])
 
     # === 2. Reports capture đọc ĐÚNG payload đó bằng mã capture thật =====
     print("\n2) Reports capture (mã thật) đọc payload do Tracking sinh")
@@ -138,7 +177,12 @@ def main(argv=None) -> int:
     ok("RT38: model + hãng + nhóm hàng đúng",
        ba_truong("RT38"), ("RT38", "Samsung", "Tủ lạnh"))
     ok("LA-01: cả ba đều None", ba_truong("LA-01"), (None, None, None))
-    ok("XUNG-01: cả ba đều None", ba_truong("XUNG-01"), (None, None, None))
+    ok("XUNG-01: hãng None, nhóm hàng Tivi",
+       ba_truong("XUNG-01"), (None, None, "Tivi"))
+    ok("BAN-01: `cat` bẩn ⟹ nhóm hàng None qua tới snapshot",
+       ba_truong("BAN-01")[2], None)
+    ok("ML-01: nhãn canonical qua tới snapshot",
+       ba_truong("ML-01")[2], "Điều hoà")
     ok("alias_map qua được nguyên vẹn",
        snapshot.alias_map(), {"CU-01": "55Q6FA"})
 
@@ -202,9 +246,14 @@ def main(argv=None) -> int:
     catalog_display.DEFAULT_DISPLAY_PATH = display_path
     # Bản chiếu được ghi từ CHÍNH snapshot do Tracking sinh — không gõ tay.
     catalog_display.write(snapshot)
-    ok("bản chiếu chỉ giữ dòng CÓ điều để nói",
-       sorted(json.loads(display_path.read_text(encoding="utf-8"))),
-       ["55Q6FA", "RT38"])
+    chieu = json.loads(display_path.read_text(encoding="utf-8"))
+    ok("bản chiếu giữ mọi dòng CÓ ít nhất một trường",
+       sorted(chieu),
+       ["55Q6FA", "BAN-01", "BAN-02", "ML-01", "RT38", "VS-01", "XUNG-01"])
+    ok("...và BAN-01/BAN-02 có mặt vì HÃNG, nhóm hàng của chúng vẫn None",
+       [chieu["BAN-01"]["category_label"], chieu["BAN-02"]["category_label"]],
+       [None, None])
+    ok("BAN-03 không có gì để nói nên không chiếm chỗ", "BAN-03" in chieu, False)
 
     engine = create_engine("sqlite://")
     history_db.create_all_for_test(engine)

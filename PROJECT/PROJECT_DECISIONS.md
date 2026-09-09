@@ -12554,6 +12554,14 @@ trạng thái có bằng chứng E1/E2 thật, thay vì để mãi ở trạng t
 
 ## DEC-204
 
+> **THAY THẾ MỘT PHẦN bởi `DEC-205` (2026-09-09).** Mục §3 (danh sách trắng
+> theo HÌNH DẠNG) và §4 (tách hãng) của quyết định này đã được thay bằng một
+> TỪ ĐIỂN ĐÓNG, sau khi Independent Review chứng minh luật hình dạng không
+> chặn được ô nhiễm ngữ nghĩa (`AR-R5.1-05`) và Owner nâng finding lên
+> `REPAIR_REQUIRED` cho mục tiêu dùng ở `R6`. Các mục §1, §2, §5, §6 **vẫn
+> còn hiệu lực**. Nội dung dưới đây giữ NGUYÊN VĂN làm bản ghi lịch sử —
+> không sửa để che sai khác; lập luận vì sao nó không còn đủ nằm ở `DEC-205`.
+
 Title:
 R5.1 — nhóm hàng (`category_label`) là thẩm quyền của Tracking, thừa hưởng
 `ADR-111` §3 chứ không mở một ADR mới; xuất qua danh sách trắng HÌNH DẠNG chứ
@@ -12647,4 +12655,150 @@ References:
 - `docs/tasks/R5-1-nhom-hang-category-label.md`
 - `docs/sessions/S138-r51-nhom-hang.md`
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6
+- `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3
+
+---
+
+## DEC-205
+
+Title:
+`R5.1 REPAIR-1` — `category_label` xuất từ một TỪ ĐIỂN ĐÓNG, không phải từ
+phần còn lại của `cat`. Quyết định này **thay thế `DEC-204` §3** (danh sách
+trắng theo HÌNH DẠNG); mọi mục khác của `DEC-204` giữ nguyên hiệu lực.
+
+Date:
+2026-09-09
+
+Authority:
+Brief `R5.1 REPAIR-1 — khóa category_label thành taxonomy an toàn cho R6` §1
+(Owner điều chỉnh kết luận Independent Review từ `ACCEPT_WITH_RECORDED_RISK`
+thành `REPAIR_REQUIRED` cho mục tiêu sử dụng ở `R6`) và §4 (bảng ví dụ chuẩn).
+
+Quan hệ với `DEC-204`:
+
+```text
+DEC-204 §1  thẩm quyền thuộc Tracking, Reports chỉ tiêu thụ    GIỮ NGUYÊN
+DEC-204 §2  nguồn là `cat`, KHÔNG đọc `name`                   GIỮ NGUYÊN
+DEC-204 §3  danh sách trắng theo HÌNH DẠNG (`HINH_NHOM`)       THAY THẾ ⟶ §1 dưới
+DEC-204 §4  chỉ tách hãng khi hãng canonical đã chắc chắn      THAY THẾ ⟶ §2 dưới
+DEC-204 §5  hai sentinel quy trình ra `null`                   GIỮ NGUYÊN
+DEC-204 §6  Reports không thêm cổng chặn mới                   GIỮ NGUYÊN, mở rộng
+```
+
+`DEC-204` **KHÔNG bị sửa**. Nó là artifact lịch sử của một quyết định đã ban
+hành, và lập luận trong nó — kể cả lập luận đã loại phương án "danh sách trắng
+theo GIÁ TRỊ" — là bản ghi đúng của điều đã được cân nhắc tại thời điểm ấy.
+Quyết định này ghi lại **vì sao lập luận đó không còn đủ**.
+
+Context:
+
+`DEC-204` §3 loại phương án danh sách trắng theo GIÁ TRỊ với hai lý do, và cả
+hai đều đúng **trong phạm vi mà R5.1 nhắm tới lúc đó**: nó là một taxonomy mới
+(`R5.1 §3.3` cấm phát minh taxonomy), và nó phải được duy trì mỗi lần người
+dùng thêm một ngành hàng.
+
+Điều `DEC-204` chưa cân tới là **hai giả định** mà Independent Review đã kiểm
+và bác:
+
+1. **"Luật hình dạng chặn được ô nhiễm."** `AR-R5.1-05` tái hiện trên exact
+   HEAD `39528ee` rằng nó chỉ chặn ô nhiễm mang chữ số, dấu câu hoặc độ dài.
+   Ô nhiễm NGỮ NGHĨA gồm toàn chữ cái đi qua nguyên văn:
+
+   ```text
+   cat="Tivi kho anh Ba"  ->  "Tivi kho anh Ba"
+   cat="Tủ lạnh nợ NCC"   ->  "Tủ lạnh nợ NCC"
+   cat="Tivi Đất Việt"    ->  "Tivi Đất Việt"     (Đất Việt là NCC có thật)
+   ```
+
+   Không luật hình dạng nào phân biệt được "Tủ lạnh" với "Tivi kho anh Ba":
+   cả hai đều toàn chữ cái, đều dưới bốn từ. Siết số từ xuống hai thì giết cả
+   "Nồi cơm điện". Đây không phải một tham số cần chỉnh — nó là giới hạn của
+   cả lớp giải pháp.
+
+2. **"Hậu quả dừng ở một ô nhãn."** Đúng khi `category_label` chỉ để ĐỌC trên
+   một cột mặc định ẩn — và đó là lý do review xếp nó `ACCEPTED_RISK`. Nhưng
+   `R6` sẽ dùng chính trường này làm **khoá gộp** doanh thu và Basket. Khi ấy
+   "Tivi kho anh Ba" không còn là một ô xấu; nó là một **nhóm hàng giả** đứng
+   ngang hàng với "Tivi" trong một báo cáo. Tổng của công ty vẫn đúng — và đó
+   chính là điều làm nó nguy hiểm: không con số nào lệch để báo động, chỉ có
+   một bảng cơ cấu sai mà trông hoàn toàn bình thường.
+
+Owner vì thế điều chỉnh kết luận review thành `REPAIR_REQUIRED` **cho mục tiêu
+sử dụng ở R6**. Điều này KHÔNG nói review đã sai: review đo đúng hệ thống tại
+thời điểm đó, và chính nó đã ghi rằng phép sửa thật "đòi mở lại `DEC-204` —
+việc của Owner, không phải của một repair cycle". Đây là lần mở lại đó.
+
+Decision:
+
+1. **`category_label` được CHỌN từ một từ điển đóng, không cắt ra từ `cat`.**
+   `cat` chỉ còn là câu hỏi tra cứu. Bảo đảm vì thế đổi LOẠI, không chỉ đổi độ
+   chặt:
+
+   ```text
+   đầu ra ∈ NHOM ∪ {null}
+   ⟺ không một ký tự nào người dùng gõ rời khỏi Tracking bằng trường này
+   ```
+
+   Đây là mức bảo đảm mà một khoá gộp báo cáo cần, và là mức mà không luật
+   hình dạng nào đạt được.
+
+2. **`cat` phải phân tích TRỌN VẸN** thành `[một nhóm trong từ điển] + [không
+   hoặc nhiều hãng trong HANG]`. Sót một từ lạ ⟹ `null`. Đoạn khớp dài nhất
+   thắng ("Nồi cơm điện" không bị đọc thành "Nồi cơm"); hai nhóm khác nhau
+   cùng khớp ⟹ `null`.
+
+   Điều này thay `DEC-204` §4: nhóm hàng không còn phụ thuộc việc `hangCua()`
+   có khẳng định được hãng hay không. `cat = "Tivi Sony Samsung"` nay ra
+   `"Tivi"` (trước là `null`) — nhóm hàng ở đó CHẮC CHẮN, chỉ hãng là không,
+   và `brand` vẫn `null`. Hai câu hỏi tách rời nhau.
+
+3. **Từ điển NGẮN, và mỗi mục phải có bằng chứng** trong repo (fixture golden
+   đã ẩn danh của Reports, bộ kiểm của hai repo) hoặc trong brief. Không mục
+   nào được thêm vì "chắc là cũng bán cái đó": một mục không ai dùng là một
+   mặt phẳng không được kiểm. Nhóm chưa có ra `null`, và thêm một dòng là cách
+   sửa — cùng đường mở rộng mà `HANG` đã dùng từ `R5 §5`.
+
+   Đây là chỗ `R5.1 §3.3` ("không phát minh taxonomy") vẫn được tôn trọng:
+   danh sách không được nghĩ ra, nó được ĐỌC RA từ dữ liệu đã có.
+
+4. **Đồng nghĩa được gộp, vì bây giờ đã có thẩm quyền để gộp.** `AR-R5.1-03`
+   ghi "không gộp đồng nghĩa" đúng vào lúc Tracking chưa có cấu hình nào; từ
+   điển này CHÍNH LÀ cấu hình đó. "Máy lạnh" và "Điều hoà" là cùng một mặt
+   hàng và fixture golden có cả hai cách gọi — để chúng thành hai bucket là
+   làm hỏng đúng phép gộp mà `R6` sinh ra để làm. Dấu tiếng Việt và chữ
+   hoa/thường không cần khai báo: `chuanSo()` lo.
+
+5. **Hãng ngoài `HANG` không còn nằm lại trong nhãn** (`AR-R5.1-06` đóng).
+   Trước đây "Tủ lạnh Hòa Phát" đi ra nguyên văn; nay ra `null`. Bảo thủ hơn,
+   nhưng hợp đồng và hành vi khớp nhau. Thêm `Vsmart` vào `HANG` theo bảng ví
+   dụ của brief; các hãng khác thêm khi cần, mỗi lần một dòng.
+
+6. **Reports vẫn KHÔNG kiểm lại, và nay điều đó được canh bằng test.** Chép từ
+   điển sang Reports để "cho chắc" là dựng đúng thẩm quyền thứ hai mà
+   `ADR-111` §3 cấm; hai bản sẽ trôi khỏi nhau và một nhãn hợp lệ sẽ bị loại
+   mà không màn hình nào nói vì sao. `test_reports_keeps_no_category_
+   vocabulary_of_its_own` canh điều này bằng cấu trúc.
+
+Consequences:
+
+Tích cực: `category_label` đủ điều kiện làm khoá gộp cho `R6` — mọi giá trị
+đi qua ranh giới đều thuộc một tập đóng, đã canonical hoá, không mang dữ liệu
+nội bộ. `AR-R5.1-05` và `AR-R5.1-06` đóng hẳn thay vì được ghi nhận.
+
+Tiêu cực, đã cân nhắc: **độ phủ giảm.** Mọi `cat` mà từ điển chưa biết nay ra
+`null`, kể cả những `cat` sạch sẽ mà luật cũ cho đi qua ("Bàn ủi Philips" nếu
+"Bàn ủi" chưa có trong từ điển). Đây là đánh đổi CÓ CHỦ ĐÍCH và đúng chiều:
+một ô trống là một câu hỏi cho người xếp ngành hàng, còn một nhóm hàng giả là
+một câu trả lời sai trong báo cáo. Cái giá được ghi thành
+`ACCEPTED_RISK R5.1R1-01` và giảm nhẹ bằng một đường mở rộng rẻ (một dòng).
+
+Từ điển giờ là một artifact phải bảo trì. `DEC-204` §3 đã nêu đúng điểm này
+khi loại phương án; điều đổi là ta nay biết cái giá của việc KHÔNG bảo trì nó.
+
+References:
+- `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md`
+- `docs/sessions/S140-r51-repair-1.md`
+- `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md` (`AR-R5.1-05`, `AR-R5.1-06`)
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-204` (quyết định bị thay thế một phần)
 - `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3
