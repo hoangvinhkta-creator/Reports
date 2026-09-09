@@ -383,6 +383,126 @@ def main(argv=None) -> int:
        cells(resp.get_data(as_text=True), "line-category"),
        ["Màn hình", "Tủ lạnh", "—", "—"])
 
+    # === 5. REPAIR-2: LUỒNG UPLOAD/RUN, KHÔNG mở bảng chọn ===============
+    #
+    # Bốn mục §4 ở trên đi qua route POST `phan-loai`, tức đúng cái luồng mà
+    # bản chiếu hiển thị VỐN ĐÃ được ghi. Lỗi production nằm ở luồng CÒN LẠI:
+    # Owner upload sổ rồi bấm chạy, KHÔNG mở bảng chọn của dòng nào — và trước
+    # `R5.1 REPAIR-2` thì bản chiếu không bao giờ được ghi trên đường đó.
+    #
+    # Mục này dựng lại đúng luồng ấy trên một app HOÀN TOÀN MỚI, với bản chiếu
+    # bị XOÁ trước khi chạy (mô phỏng đĩa ephemeral sau một lần deploy).
+    print("\n5) REPAIR-2: upload/run THẬT, KHÔNG mở bảng chọn phân loại")
+    import io as _io
+
+    from app import beta_telemetry, owner_usability
+    from tests.fixtures.synthetic_workbook import build_synthetic_workbook
+
+    run_tmp = tmp / "repair2"
+    run_tmp.mkdir(parents=True, exist_ok=True)
+    workbook = run_tmp / "so_ke_toan.xlsx"
+    build_synthetic_workbook(workbook)
+
+    # Cùng capture danh mục THẬT do producer Tracking sinh ở §1–§2, chỉ thêm
+    # một mã khớp đúng tên hàng của workbook tổng hợp để có gì mà hiển thị.
+    board_run = {**board, "MGS-01": {**board["MGS-01"],
+                                     "alt": ["Máy giặt Test-1"]}}
+    envelope_run = capture.build_capture(
+        lambda node: {"board": board_run, "alias": alias}[node],
+        capture_id="TRK-REPAIR2", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_run = run_tmp / "catalog.json"
+    cap_run.write_text(json.dumps(envelope_run, ensure_ascii=False),
+                       encoding="utf-8")
+    snapshot_run = load_tracking_catalog_capture(cap_run)
+
+    # §4 ở trên đã thay `_select_captures_for_run` bằng một lambda không nhận
+    # tham số; `run_report` gọi nó VỚI `sales=`/`identity_store_view=`, nên §5
+    # phải đặt lại nó cho đúng chữ ký. Nó trả về ĐÚNG capture danh mục mà
+    # producer Tracking vừa sinh — tức đúng thứ mà một lần chạy production có
+    # trong tay.
+    web_server._select_captures_for_run = (
+        lambda sales=None, identity_store_view=None: (
+            SelectedCaptures(
+                tracking_capture=None, tracking_catalog=cap_run,
+                tracking_inv_map=None, tracking_daily_min=None),
+            {"catalog_capture_id": "TRK-REPAIR2"}, None))
+    live_pull.is_configured = lambda env=None: True
+    web_server.load_tracking_catalog_capture = lambda path: snapshot_run
+    web_server.UPLOAD_DIR = run_tmp / "uploads"
+    web_server.ARTIFACT_DIR = (run_tmp / "outputs" / "reports").resolve()
+    web_server.TRACKING_TEMP_DIR = run_tmp / "tracking_live_tmp"
+    beta_telemetry.record_run = lambda record, **kw: None
+    _real_owner_run = owner_usability.run_owner_report
+    web_server.run_owner_report = (
+        lambda *, sales, captures=None, identity_store_view=None:
+        _real_owner_run(sales=sales, captures=captures, repo_root=run_tmp,
+                        identity_store_view=identity_store_view))
+
+    engine2 = create_engine("sqlite://")
+    history_db.create_all_for_test(engine2)
+    repo2 = history_store.SnapshotRepository(engine2)
+    store2 = fx.store(run_tmp)
+    identity_gateway.build_store = lambda: store2
+
+    app2 = web_server.create_app(
+        db_path=run_tmp / "runs.db",
+        history=history_store.LegacyRepository(engine2), snapshots=repo2)
+    app2.testing = True
+    client2 = app2.test_client()
+
+    # Xác nhận mapping qua ĐÚNG cổng identity_gateway, trên store mà app dùng.
+    identity_gateway.confirm_identity(
+        app2.config["IDENTITY_STORE"], product_raw="Máy giặt Test-1",
+        tracking_code="MGS-01", snapshot=snapshot_run,
+        actor_id="r51-repair2-smoke", affected_orders=("BH0001",),
+        affected_lines=1)
+
+    # Đĩa ephemeral: bản chiếu KHÔNG tồn tại trước khi chạy.
+    display_path.unlink(missing_ok=True)
+    ok("trước khi chạy: bản chiếu KHÔNG tồn tại", display_path.exists(), False)
+
+    resp = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("upload/run thành công (302)", resp.status_code, 302)
+    ok("run THÀNH CÔNG đã ghi bản chiếu", display_path.exists(), True)
+
+    record = app2.config["RUN_REGISTRY"].list_runs(limit=1)[0]
+    ok("bằng chứng của run ghi trạng thái bản chiếu",
+       (record.tracking_evidence or {}).get("catalog_display", {}).get("written"),
+       True)
+
+    def rows_of_sheet(employee):
+        r = client2.get(f"/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien={employee}")
+        assert r.status_code == 200, r.status_code
+        html = r.get_data(as_text=True)
+        import html as _H
+        def text(cell):
+            return " ".join(_H.unescape(re.sub(r"<[^>]+>", " ", cell)).split())
+        return {name: [text(v) for v in re.findall(
+            rf'data-metric="{name}"[^>]*>(.*?)</td>', html, re.S)]
+            for name in ("line-product", "line-brand", "line-category")}, html
+
+    seen, html_ly = rows_of_sheet("Ly")
+    ok("KHÔNG mở bảng chọn: cột Mặt hàng hiện MODEL NGẮN từ Tracking",
+       "FV1412" in seen["line-product"], True)
+    ok("...và tên dài trên sổ kế toán đã biến khỏi dòng đã xác nhận",
+       "Máy giặt Test-1" in seen["line-product"], False)
+    ok("cột Hãng hiện brand từ Tracking", "LG" in seen["line-brand"], True)
+    ok("cột Nhóm hàng hiện category_label", "Máy giặt" in seen["line-category"], True)
+    ok("dòng CHƯA xác nhận vẫn giữ tên gốc và dấu gạch",
+       ("Bình nóng lạnh Test-5" in seen["line-product"]
+        and "—" in seen["line-brand"]), True)
+    ok("bản chiếu lành ⟹ KHÔNG có cảnh báo",
+       'data-metric="catalog-projection-warning"' in html_ly, False)
+
+    # Mất bản chiếu ⟹ CẢNH BÁO, không im lặng.
+    display_path.unlink()
+    _seen2, html_missing = rows_of_sheet("Ly")
+    ok("mất bản chiếu ⟹ tab Nhân viên CẢNH BÁO",
+       'data-metric="catalog-projection-warning"' in html_missing, True)
+
     print(f"\nKẾT QUẢ SMOKE: {DAT} PASS, {HONG} FAIL")
     return 1 if HONG else 0
 

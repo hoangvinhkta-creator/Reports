@@ -1,5 +1,93 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — R5.1 REPAIR-2: luồng chạy báo cáo làm mới bản chiếu hiển thị, `IMPLEMENTED`, CHƯA merge (`S146`, 2026-09-09)
+
+**Lỗi LUỒNG CHÍNH trên production, Owner xác minh, KHÔNG phải accepted risk.**
+
+```text
+Triệu chứng   cột Nhóm hàng / Hãng / IMEI ĐÃ hiển thị, nhưng Hãng là "—" và
+              Mặt hàng còn tên DÀI trên sổ kế toán — kể cả dòng đã CONFIRMED
+Nguyên nhân   catalog_display CHỈ được ghi trong _tracking_snapshot(), tức chỉ
+              khi Owner mở bảng chọn phân loại MỘT dòng. Luồng POST /run không
+              ghi và không làm mới nó ⟹ trên đĩa ephemeral của Render, trạng
+              thái "chưa có nhãn" là VĨNH VIỄN
+Sửa           run_report gọi _refresh_catalog_display(owner_run.captures) trên
+              đường THÀNH CÔNG, dùng ĐÚNG capture danh mục của lần chạy đó —
+              KHÔNG gọi Tracking lần thứ hai chỉ để hiển thị
+Không im lặng catalog_display.write() trả WriteResult (3 mã lý do đóng); kết quả
+              vào tracking_evidence["catalog_display"]; tab Nhân viên cảnh báo
+              khi bản chiếu vắng mà sheet CÓ dòng đã xác nhận mã
+```
+
+`AR-R5.1-04` **ĐÓNG** — bị phân loại SAI: nó giả định mất bản chiếu là trạng
+thái TẠM tự thoát khi có "lần capture danh mục MỚI đầu tiên", nhưng luồng chính
+không bao giờ ghi bản chiếu. Xem `DEC-208` §6.
+
+```text
+Kiểm chứng
+  Test REPAIR-2      12 bài mới — 10 ĐỎ trước sửa, 12 XANH sau sửa, đi qua ĐÚNG
+                     POST /run rồi mở tab Nhân viên, KHÔNG mở bảng chọn
+  Full regression    3458 passed / 11 skipped / 0 failed
+                     (nền trước repair: 3446 passed / 11 skipped / 0 failed;
+                      +12 đúng bằng số bài repair thêm vào)
+  Smoke R5.1         74 PASS / 0 FAIL — §5 MỚI: producer Tracking THẬT →
+                     upload/run THẬT → bảng Nhân viên (nền 63)
+  Smoke R6           29 PASS / 0 FAIL — không hồi quy
+  Tracking           npm test 2892 đạt / 0 hỏng; build OK. KHÔNG đổi một byte
+  Bất biến nghiệp vụ git diff RỖNG trên pricing/profit/kpi/reporting/exporting/
+                     period_lock/business_store/business_queries/business_service/
+                     workspace_presentation/migrations/config; và đo bằng HÀNH VI:
+                     xoá bản chiếu ⟹ doanh thu, lợi nhuận, SL KPI, số đơn, số
+                     dòng GIỐNG HỆT
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1)
+  CHECK-R51R2-15         NOT_TESTED — Independent Review của REPAIR-2
+  CHECK-R51R2-16         NOT_TESTED — Owner nghiệm thu lại trên production
+  CHECK-R51-26           NOT_TESTED — nay nghiệm thu ĐƯỢC (lỗi này đã chặn nó),
+                         nhưng vẫn chỉ Owner đóng
+```
+
+**Baseline đổi, và nguyên nhân là MÔI TRƯỜNG, không phải một bản sửa.** `S145`
+ghi `1 failed` với bài `TestG25GoldenBaselineUnchanged` đỏ vì
+`fatal: bad object 740f396…` (clone nông). Object ấy nay CÓ trong repo cục bộ vì
+phiên này đã fetch thêm nhánh review, nên bài đó XANH. Từ đây baseline là
+**0 failed**.
+
+**CẦN OWNER/REVIEWER XÁC NHẬN — ngân sách repair cycle.** Lineage `R5` (chứa
+`R5.1`) đang `2 allowed / 2 used / 0 remaining`. Phiên này **KHÔNG tự tiêu** và
+**KHÔNG tự miễn** một cycle: defect do Owner phát hiện trên PRODUCTION SAU khi
+merge, không từ một vòng Independent Review (`CHECK-R51-25` đã `PASS` từ `S139`).
+Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review thì một tính
+năng đã merge sẽ không sửa được nữa khi lineage hết ngân sách. Nếu
+Owner/reviewer kết luận ngược lại, `R5` vượt ngân sách và phải escalate. Lập
+luận đầy đủ: `S146` §7 và `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" →
+REPAIR-2 production.
+
+**Escalation trigger ĐÃ MET và đã ghi** (`ESCALATION_PROTOCOL`: *"hành vi ở
+production khác biệt đáng kể so với các giả định đã được tài liệu hóa"*). Rà
+soát nguyên nhân gốc đã thực hiện; không có lần vá suy đoán nào.
+
+**`INTEGRATION_DECISION_REQUIRED` (`V4.1` §8) vẫn MỞ** trên nhánh này — xem
+`S145` §8b. `REPAIR-2` làm cumulative LOC tăng thêm.
+
+**Ba lỗi của chính bộ kiểm, tìm ra và sửa trong phiên** (`S146` §3.1): một bài
+XANH GIẢ vì mở sai sheet (bảng rỗng nên mọi khẳng định "không thấy" đều đúng); một
+regex đọc rỗng vì ô có thẻ `<a>`; và một lần monkeypatch `pathlib.Path.mkdir`
+toàn cục — đã thay bằng một thất bại ghi THẬT của hệ thống tệp.
+
+Tài liệu: `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md` ·
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` · `DEC-208` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5".
+
+**Phiên này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent Review hay
+Owner Acceptance.**
+
+---
+
 ## CANONICAL CURRENT STATE — R6 REPAIR-1: cả 4 finding ĐÃ SỬA, `IMPLEMENTED`, CHƯA merge (`S145`, 2026-09-09)
 
 Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1` đã

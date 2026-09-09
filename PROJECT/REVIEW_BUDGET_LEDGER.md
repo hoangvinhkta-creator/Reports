@@ -3384,6 +3384,62 @@ Bằng chứng nguyên văn: `docs/sessions/S142-r51-owner-taxonomy-merge.md`.
 
 ---
 
+### REPAIR-2 production (`S146`, 2026-09-09) — CẦN XÁC NHẬN ngân sách
+
+```text
+nguồn phát hiện     Owner, trên PRODUCTION, SAU khi merge (DEC-206)
+không phải          một vòng Independent Review (CHECK-R51-25 đã PASS từ S139)
+phân loại của phiên PRODUCTION DEFECT REPAIR
+repair cycle tiêu   KHÔNG TỰ TIÊU và KHÔNG TỰ MIỄN — cần Owner/reviewer xác nhận
+số dư R5 hiện tại   2 allowed / 2 used / 0 remaining   (KHÔNG đổi bởi S146)
+```
+
+**Lỗi.** `catalog_display` (bản chiếu `mã Tracking → model_label · brand ·
+category_label`) CHỈ được ghi trong `server._tracking_snapshot()`, tức chỉ khi
+Owner mở bảng chọn phân loại của MỘT dòng. Luồng chính `POST /run` không ghi và
+không làm mới nó, nên trên đĩa ephemeral của Render cột `Hãng` là `—` và cột
+`Mặt hàng` giữ tên dài trên sổ kế toán VĨNH VIỄN — kể cả với dòng đã CONFIRMED.
+
+**Sửa.** `run_report` gọi `_refresh_catalog_display(owner_run.captures)` trên
+đường THÀNH CÔNG, dùng ĐÚNG capture danh mục của lần chạy đó (không gọi Tracking
+lần thứ hai). `write()` trả `WriteResult` nên thất bại đi vào
+`tracking_evidence["catalog_display"]` và lên UI thay vì im lặng. Chi tiết:
+`DEC-208`; task: `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`.
+
+**`AR-R5.1-04` ĐÓNG** — nó bị phân loại SAI. Rủi ro ấy giả định mất bản chiếu là
+trạng thái TẠM, tự thoát khi có "lần capture danh mục MỚI đầu tiên"; nhưng luồng
+chính không bao giờ ghi bản chiếu, nên trạng thái ấy là VĨNH VIỄN. Xem
+`DEC-208` §6.
+
+**Vì sao phiên KHÔNG tự tiêu một cycle** (lập luận, để Owner/reviewer bác hoặc
+chuẩn y):
+
+- Ngân sách `V4.1` §2–§3 điều tiết việc đưa MỘT task qua Independent Review: nó
+  đếm các LẦN SỬA sau một vòng review ra finding `BLOCKING`.
+- `REPAIR-2` không đến từ một vòng review. `CHECK-R51-25` đã `PASS` từ `S139`,
+  và defect do Owner phát hiện trên production SAU khi merge.
+- Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review, một tính
+  năng đã merge sẽ KHÔNG sửa được nữa khi lineage hết ngân sách — đó không phải
+  điều `V4.1` §3 nói tới.
+
+**Nếu Owner/reviewer kết luận ngược lại**, lineage `R5` vượt ngân sách và phải
+escalate theo `governance/core/ESCALATION_PROTOCOL.md`. Quyết định ấy KHÔNG
+thuộc phiên repair, và phiên này cố ý không giả định nó theo chiều nào.
+
+**Escalation trigger ĐÃ MET và đã ghi:** *"hành vi ở production khác biệt đáng
+kể so với các giả định đã được tài liệu hóa"*. Rà soát nguyên nhân gốc đã thực
+hiện và ghi lại (`S146` §2); không có lần vá suy đoán nào.
+
+**Kiểm chứng:** 12 bài mới (10 đỏ trước sửa, 12 xanh sau); full regression
+`3458 passed / 11 skipped / 0 failed` (nền `3446 passed`); smoke `R5.1`
+`74 PASS / 0 FAIL` (nền 63, thêm §5 upload/run THẬT); smoke `R6`
+`29 PASS / 0 FAIL`; Tracking `npm test` 2892 đạt và build OK, KHÔNG đổi code;
+validator = baseline; `git diff --check` sạch; `git diff` RỖNG trên mọi đường
+tiền đã nghiệm thu.
+
+Bằng chứng nguyên văn:
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`.
+
 ## Root Task: R6
 
 ```
