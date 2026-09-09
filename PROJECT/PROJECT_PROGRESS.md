@@ -25,6 +25,10 @@ Base phiên repair
   Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
   Nhánh mặc định CẢ HAI repo KHÔNG đổi kể từ S138.
 
+HEAD cuối phiên (nhánh claude/r5-1-repair-1-taxonomy, đã push, KHÔNG mở PR)
+  Reports   (xem docs/sessions/S140-r51-repair-1.md §8 — gồm cả tài liệu)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+
 Kiểm tra
   Tracking  npm test 2850 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
   Reports   pytest 3259 passed / 11 skipped / 0 failed

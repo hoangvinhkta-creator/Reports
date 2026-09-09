@@ -321,7 +321,27 @@ tiếp lại ra `REPAIR_REQUIRED`, phải escalate theo
 
 ### Exact HEAD cuối phiên
 
-Điền sau khi commit tài liệu — xem mục cuối file.
+```text
+Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+          nhánh claude/r5-1-repair-1-taxonomy — commit MÃ, không có commit
+          tài liệu nào sau nó ở repo này.
+
+Reports   e993fb5a4a8a655d3cc02a680ea7470a1b5f6788
+          nhánh claude/r5-1-repair-1-taxonomy — HEAD GỒM CẢ TÀI LIỆU, và nó
+          mang cả ba lớp lịch sử: implementation R5.1 (2c2c139), tài liệu
+          Independent Review (dd7cd04), và repair này. Vòng review kế tiếp
+          đọc SHA ở đây.
+```
+
+Hai commit của phiên:
+
+```text
+Tracking  11a199b  R5.1 REPAIR-1 §4: category_label chọn từ từ điển đóng
+Reports   e993fb5  R5.1 REPAIR-1: hợp đồng từ điển đóng, DEC-205, bàn giao S140
+```
+
+Cả hai nhánh đã `git push -u origin claude/r5-1-repair-1-taxonomy`.
+KHÔNG mở pull request, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.
 
 ### Ghi chú môi trường
 
