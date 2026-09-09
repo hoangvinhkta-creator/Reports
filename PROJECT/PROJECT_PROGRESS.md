@@ -1,6 +1,56 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1 REPAIR-2: luồng chạy báo cáo làm mới bản chiếu hiển thị, `IMPLEMENTED`, CHƯA merge (`S146`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1 REPAIR-2 (vòng 2): cảnh báo khi bản chiếu CŨ một phần, `IMPLEMENTED`, CHƯA merge (`S147`, 2026-09-09)
+
+**Tiếp tục ĐÚNG task `REPAIR-2` đã mở ở `S146` — không phải task mới.** Trước
+khi mở Independent Review, Owner chỉ thị đóng thêm một ca mà vòng 1
+(`DEC-208`) chưa đóng: bản chiếu đã có dữ liệu THẬT, một mã MỚI được xác nhận
+SAU lần ghi thành công gần nhất, rồi lần chạy KẾ TIẾP trả `NO_METADATA` hoặc
+ghi thất bại (`WRITE_FAILED`) — hai câu chuyện đó và "Tracking chưa phân
+loại" (`AR-R5.1-01`, hợp lệ) cho ra CÙNG một `catalog_display.read()`, nên
+`DEC-208` §4 (chỉ cảnh báo khi VẮNG HOÀN TOÀN) im lặng đúng lúc cần nói.
+
+```text
+Sửa (DEC-209)  write() ghi thêm LỊCH SỬ của chính lần ghi gần nhất (file
+               trạng thái CẠNH bản chiếu, KHÔNG một khoá nhồi vào nó);
+               _catalog_projection_warning() thêm hình dạng 2 (kind="cu"),
+               gated trên bằng chứng đó — hình dạng 1 (kind="vang") GIỮ
+               NGUYÊN VĂN, vô điều kiện như DEC-208 §4
+Bất biến       KHÔNG đổi tên hàng, mapping, giá MIN, lợi nhuận, tổng tiền —
+               đo bằng HÀNH VI ở cả test và smoke, không chỉ bằng lý luận
+```
+
+```text
+Kiểm chứng vòng 2
+  Test mới           3 bài (12 → 15) — CHECK-R51R2-17/-18/-19, red→green
+                     xác nhận (tạm vô hiệu hoá nhánh mới ⟹ 2 ĐỎ đúng 2 bài)
+  Full regression    3461 passed / 11 skipped / 0 failed (+3 đúng số bài mới)
+  Smoke R5.1         83 PASS / 0 FAIL — §6 MỚI: bản chiếu CŨ qua producer
+                     Tracking THẬT (nền 74)
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ,
+                     không finding mới
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1) — vòng 1, không đổi
+  CHECK-R51R2-17          PASS (E1) — cảnh báo "cu" khi NO_METADATA
+  CHECK-R51R2-18          PASS (E1) — cảnh báo "cu" khi WRITE_FAILED
+  CHECK-R51R2-19          PASS (E1) — không over-fire khi làm mới đủ
+  CHECK-R51R2-15          NOT_TESTED — Independent Review (bao CẢ HAI vòng)
+  CHECK-R51R2-16          NOT_TESTED — Owner nghiệm thu lại trên production
+```
+
+Tài liệu vòng 2: `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+· `DEC-209`. Ngân sách review (xem block `S146` ngay dưới, §7) KHÔNG đổi bởi
+vòng 2 — vẫn cần Owner/reviewer xác nhận.
+
+**Phiên vòng 2 này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent
+Review hay Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-2 (vòng 1): luồng chạy báo cáo làm mới bản chiếu hiển thị, `IMPLEMENTED`, CHƯA merge (`S146`, 2026-09-09)
 
 **Lỗi LUỒNG CHÍNH trên production, Owner xác minh, KHÔNG phải accepted risk.**
 

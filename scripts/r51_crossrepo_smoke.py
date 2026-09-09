@@ -26,6 +26,7 @@ Tuỳ chọn `--tracking <đường dẫn>` nếu repo Tracking không ở `../T
 
 from __future__ import annotations
 
+from datetime import date
 import argparse
 import json
 import re
@@ -502,6 +503,115 @@ def main(argv=None) -> int:
     _seen2, html_missing = rows_of_sheet("Ly")
     ok("mất bản chiếu ⟹ tab Nhân viên CẢNH BÁO",
        'data-metric="catalog-projection-warning"' in html_missing, True)
+
+    # Dựng lại bản chiếu THẬT trước khi bước vào §6 — §6 kiểm ca "bản chiếu
+    # có dữ liệu CŨ", không phải ca "bản chiếu vắng" vừa đo ở trên.
+    resp_rebuild = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("dựng lại bản chiếu trước §6 (302)", resp_rebuild.status_code, 302)
+    ok("bản chiếu đã có dữ liệu THẬT trước §6", display_path.exists(), True)
+
+    # === 6. REPAIR-2 (lần 2): bản chiếu CŨ một phần — mã mới thiếu nhãn ====
+    #
+    # §5 đo cả hai đầu của trục "vắng": bản chiếu KHÔNG tồn tại trước lần
+    # chạy đầu, và bản chiếu bị XOÁ hẳn sau đó. Mục này đóng đầu CÒN LẠI, mà
+    # `AR-R5.1-01` (Tracking chưa phân loại) và ca này dễ nhầm lẫn nhất nếu
+    # chỉ đọc `catalog_display.read()` hiện tại mà không có lịch sử ghi: bản
+    # chiếu đã có dữ liệu THẬT (mã MGS-01 của §5), một mã MỚI được xác nhận
+    # SAU lần ghi thành công đó, rồi lần chạy KẾ TIẾP trả về capture KHÔNG
+    # mang trường hiển thị nào (`REASON_NO_METADATA`).
+    print("\n6) REPAIR-2 (lần 2): bản chiếu CŨ một phần — mã mới thiếu nhãn")
+
+    # "BNL-99" là một mã HOÀN TOÀN MỚI, KHÔNG có trong `board` thật của
+    # Tracking — khác `TV-01`/`MGS-01` (đã lên bản chiếu từ những lần chạy
+    # trước ở §5/§6), nên nó chưa từng có nhãn ở bất kỳ lần ghi nào trước
+    # đây. Dùng lại một mã thật (ví dụ `TV-01`) sẽ khiến bài kiểm "matched"
+    # giả — bản chiếu đã có nhãn của mã đó từ một lần chạy KHÁC, không phải
+    # từ mapping vừa xác nhận.
+    board_run2 = {**board_run, "BNL-99": {
+        "name": "Bình nóng lạnh Ariston 99L", "alt": ["Bình nóng lạnh Test-5"],
+        "model_label": "AR99", "brand": "Ariston", "category_label": "Gia dụng"}}
+    envelope_confirm2 = capture.build_capture(
+        lambda node: {"board": board_run2, "alias": alias}[node],
+        capture_id="TRK-REPAIR2-CONFIRM2", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_confirm2 = run_tmp / "catalog_confirm2.json"
+    cap_confirm2.write_text(json.dumps(envelope_confirm2, ensure_ascii=False),
+                            encoding="utf-8")
+    snapshot_confirm2 = load_tracking_catalog_capture(cap_confirm2)
+
+    # Xác nhận mã MỚI qua ĐÚNG cổng, SAU lần ghi bản chiếu thành công gần
+    # nhất — đúng thứ tự thời gian mà ca production gặp phải.
+    identity_gateway.confirm_identity(
+        app2.config["IDENTITY_STORE"], product_raw="Bình nóng lạnh Test-5",
+        tracking_code="BNL-99", snapshot=snapshot_confirm2,
+        actor_id="r51-repair2-smoke", affected_orders=("BH0002",),
+        affected_lines=1)
+
+    # Capture của lần chạy KẾ TIẾP: cùng board nhưng KHÔNG trường hiển thị
+    # nào — đúng hình dạng artifact đời cũ mà `NO_METADATA` đóng lại.
+    board_stale = {code: {**node, "model_label": None, "brand": None,
+                          "category_label": None}
+                   for code, node in board_run2.items()}
+    envelope_stale = capture.build_capture(
+        lambda node: {"board": board_stale, "alias": alias}[node],
+        capture_id="TRK-REPAIR2-STALE", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_stale = run_tmp / "catalog_stale.json"
+    cap_stale.write_text(json.dumps(envelope_stale, ensure_ascii=False),
+                         encoding="utf-8")
+    snapshot_stale = load_tracking_catalog_capture(cap_stale)
+
+    web_server._select_captures_for_run = (
+        lambda sales=None, identity_store_view=None: (
+            SelectedCaptures(
+                tracking_capture=None, tracking_catalog=cap_stale,
+                tracking_inv_map=None, tracking_daily_min=None),
+            {"catalog_capture_id": "TRK-REPAIR2-STALE"}, None))
+    web_server.load_tracking_catalog_capture = lambda path: snapshot_stale
+
+    resp_stale = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("lần chạy thứ hai (capture NO_METADATA) vẫn thành công (302)",
+       resp_stale.status_code, 302)
+
+    record_stale = app2.config["RUN_REGISTRY"].list_runs(limit=1)[0]
+    ok("run evidence ghi đúng lý do NO_METADATA",
+       (record_stale.tracking_evidence or {}).get("catalog_display", {}).get("reason"),
+       catalog_display.REASON_NO_METADATA)
+
+    # Bản chiếu CŨ (mã MGS-01 của §5) phải còn nguyên — NO_METADATA không
+    # được xoá nhãn đã có.
+    duoc_stale = json.loads(display_path.read_text(encoding="utf-8"))
+    ok("nhãn CŨ của MGS-01 còn nguyên sau lần chạy NO_METADATA",
+       [duoc_stale["MGS-01"]["brand"], duoc_stale["MGS-01"]["category_label"]],
+       ["LG", "Máy giặt"])
+
+    seen_stale, html_stale = rows_of_sheet("Ly")
+    ok("cảnh báo đúng hình dạng CŨ (kind=cu) xuất hiện",
+       'data-kind="cu"' in html_stale, True)
+    ok("dòng CŨ (MGS-01/FV1412) không bị cảnh báo này xoá nhãn",
+       ("FV1412" in seen_stale["line-product"]
+        and "LG" in seen_stale["line-brand"]), True)
+    ok("mã MỚI xác nhận fallback về mã Tracking, KHÔNG lộ tên thô/mapping đổi",
+       ("BNL-99" in seen_stale["line-product"]
+        and "Bình nóng lạnh Test-5" not in seen_stale["line-product"]), True)
+
+    # Tiền không đổi vì bản chiếu STALE — đúng ràng buộc bắt buộc của lần sửa
+    # này (không đổi giá MIN/lợi nhuận/tổng tiền).
+    from app.web import business_service, business_store
+    service2 = business_service.BusinessReportService(
+        engine=engine2, store=business_store.BusinessDecisionStore(engine2))
+    bounds2 = (date(2026, 1, 1), date(2026, 1, 31))
+    with_stale = service2.period(date_from=bounds2[0], date_to=bounds2[1])
+    display_path.unlink()
+    without_stale = service2.period(date_from=bounds2[0], date_to=bounds2[1])
+    ok("tổng tiền KHÔNG đổi vì bản chiếu CŨ/thiếu nhãn",
+       (with_stale.totals.sales_revenue == without_stale.totals.sales_revenue
+        and with_stale.totals.kpi_profit == without_stale.totals.kpi_profit),
+       True)
 
     print(f"\nKẾT QUẢ SMOKE: {DAT} PASS, {HONG} FAIL")
     return 1 if HONG else 0
