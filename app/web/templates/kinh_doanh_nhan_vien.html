@@ -335,11 +335,11 @@
   {% if not groups %}
   <p class="empty" data-metric="no-rows">{{ EMPTY_PERIOD_NOTE }}</p>
   {% else %}
-  {# R5 §5 — Hãng và IMEI mặc định ẨN, dùng CHUNG một nút. Chúng là thông
-     tin đối chiếu chứ không phải thông tin vận hành hằng ngày, và bắt cả
-     bảng hẹp lại vì hai cột ít dùng là đánh đổi sai. Trạng thái mở/đóng
-     nằm ở trình duyệt (`localStorage`, xem `app.js`), nên nó không đi qua
-     server và không thành một thiết lập phải lưu ở đâu cả. #}
+  {# R5 §5 + R5.1 §5 — Nhóm hàng, Hãng và IMEI mặc định ẨN, dùng CHUNG một
+     nút. Chúng là thông tin đối chiếu chứ không phải thông tin vận hành hằng
+     ngày, và bắt cả bảng hẹp lại vì mấy cột ít dùng là đánh đổi sai. Trạng
+     thái mở/đóng nằm ở trình duyệt (`localStorage`, xem `app.js`), nên nó
+     không đi qua server và không thành một thiết lập phải lưu ở đâu cả. #}
   <p class="filter-row">
     <button type="button" class="ghost btn-mini" data-metric="toggle-optional"
             data-optional-toggle
@@ -351,12 +351,13 @@
   </p>
   <div class="tp-scroll">
   <table class="sheet-table" data-optional-hidden="1">
-    {# Cột số: SL · Giá nhập · Giá bán · Lợi nhuận · DS quy đổi (vị trí 7–11
-       sau khi R5 §5 chen Hãng và IMEI vào sau Mặt hàng). Hai cột chen vào
-       mang `col-optional` — CSS ẩn chúng khi bảng còn `data-optional-hidden`,
-       nên trạng thái mặc định đúng ngay ở lần render đầu, không chờ JS. #}
+    {# Cột số: SL · Giá nhập · Giá bán · Lợi nhuận · DS quy đổi (vị trí 8–12
+       sau khi R5 §5 chen Hãng/IMEI và R5.1 §5 chen Nhóm hàng vào sau Mặt
+       hàng). Ba cột chen vào mang `col-optional` — CSS ẩn chúng khi bảng còn
+       `data-optional-hidden`, nên trạng thái mặc định đúng ngay ở lần render
+       đầu, không chờ JS. #}
     <tr>{% for label in columns %}
-      <th class="{{ 'num ' if loop.index in (7, 8, 9, 10, 11) }}{{ 'col-optional' if loop.index0 in optional_columns }}">{{ label }}</th>
+      <th class="{{ 'num ' if loop.index in (8, 9, 10, 11, 12) }}{{ 'col-optional' if loop.index0 in optional_columns }}">{{ label }}</th>
     {% endfor %}<th></th><th></th></tr>
     {# `TASK-OWNER-UIUX-004` §5 — hàng TỔNG ngay dưới tiêu đề cột, chủ dự án
        yêu cầu trực tiếp. Giá nhập/Giá bán cộng thẳng từ CÙNG tập dòng bảng
@@ -367,7 +368,7 @@
     <tr class="row-total" data-metric="sheet-totals">
       <td colspan="2" class="tp-label">TỔNG</td>
       <td></td>
-      <td class="col-optional"></td><td class="col-optional"></td>
+      <td class="col-optional"></td><td class="col-optional"></td><td class="col-optional"></td>
       <td></td><td></td>
       <td class="num" data-metric="totals-purchase">{{ detail_totals.purchase_price }}</td>
       <td class="num" data-metric="totals-sell">{{ detail_totals.sell_price }}</td>
@@ -485,13 +486,19 @@
         {%- endif %}
         {%- endif -%}
       </td>
-      {# R5 §5 — HÃNG và IMEI. Cột HẸP, một dòng, cắt bằng ellipsis và đọc
-         đủ qua `title`: một mã máy mười lăm chữ số xuống dòng sẽ làm CẢ
-         hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao khác
-         nhau thì không dò theo hàng được nữa.
+      {# R5 §5 + R5.1 §5 — NHÓM HÀNG, HÃNG và IMEI. Cột HẸP, một dòng, cắt
+         bằng ellipsis và đọc đủ qua `title`: một mã máy mười lăm chữ số
+         xuống dòng sẽ làm CẢ hàng cao gấp đôi, và một bảng kê mà mỗi hàng
+         một chiều cao khác nhau thì không dò theo hàng được nữa.
 
          `DEC-R5-03` — IMEI chỉ có mặt ở đây. Không trang chỉ tiêu nào,
-         không bản xuất nào, không dòng nhật ký nào mang nó. #}
+         không bản xuất nào, không dòng nhật ký nào mang nó.
+
+         Nhóm hàng trống hiện DẤU GẠCH, y như hãng: Tracking chưa xếp ngành
+         hàng cho mã này, và Reports không đoán một cái nhóm từ tên trên sổ.
+         Đây là ô mà `R5.1 §7` gọi là "dòng không rõ hiện category trống". #}
+      <td class="col-optional col-narrow" data-metric="line-category"
+          title="{{ row.category_label or '' }}">{{ row.category_label or '—' }}</td>
       <td class="col-optional col-narrow" data-metric="line-brand"
           title="{{ row.brand or '' }}">{{ row.brand or '—' }}</td>
       <td class="col-optional col-narrow code" data-metric="line-imei"

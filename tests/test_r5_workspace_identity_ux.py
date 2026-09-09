@@ -1,4 +1,4 @@
-"""R5 §5 — model canonical, hai cột đối chiếu, và popover phân loại.
+"""R5 §5 — model canonical, các cột đối chiếu, và popover phân loại.
 
 Ba mệnh đề, và cả ba nói về cùng một điều: màn hình phải nói ĐÚNG những gì
 hệ thống biết, không hơn.
@@ -77,10 +77,13 @@ def workspace(client) -> str:
 # --- 1. Bản chiếu hiển thị — đọc, ghi, và hỏng thì im lặng ---------------
 
 def test_the_display_projection_round_trips(display):
+    """R5.1 mở rộng bản chiếu thành BA trường — dòng không có gì để nói vẫn
+    không chiếm chỗ."""
     catalog_display.write(_snapshot([
         ("65S20M2", "K-65S20M2", "Sony"), ("X", None, None)]))
     assert catalog_display.read() == {
-        "65S20M2": {"model_label": "K-65S20M2", "brand": "Sony"}}
+        "65S20M2": {"model_label": "K-65S20M2", "brand": "Sony",
+                    "category_label": None}}
 
 
 def test_a_broken_projection_reads_as_empty_not_as_an_error(display):
@@ -159,17 +162,23 @@ def _classify(client, keys, code):
 
 # --- 3. Hai cột ẩn/hiện chung một nút, và cắt MỘT DÒNG ------------------
 
-def test_the_two_columns_are_hidden_by_default_behind_one_shared_button(
+def test_the_optional_columns_are_hidden_by_default_behind_one_shared_button(
     repository, client, display,
 ):
+    """R5.1 thêm "Nhóm hàng" vào ĐÚNG nút chung đã có, không dựng nút thứ hai.
+
+    Một cột đối chiếu thứ ba xứng đáng chung số phận với hai cột kia: hiếm
+    dùng, không phải thông tin vận hành hằng ngày, và mở ra thì bắt cả bảng
+    hẹp lại.
+    """
     persist(repository, [line("BH1", "43F6000", day=5)])
     html = workspace(client)
 
     assert html.count('data-metric="toggle-optional"') == 1, "MỘT nút chung"
-    assert "HIỆN HÃNG &amp; IMEI" in html
+    assert "HIỆN NHÓM HÀNG, HÃNG &amp; IMEI" in html
     assert 'data-optional-hidden="1"' in html, (
         "ẩn ngay từ khung hình đầu — không chờ JavaScript")
-    for label in ("Hãng", "IMEI"):
+    for label in ("Nhóm hàng", "Hãng", "IMEI"):
         assert f'col-optional">{label}</th>' in html
 
 

@@ -23,8 +23,9 @@ chị em):
 
 ```text
 GET <source_url>/api/xuat/board    → khoá node = mã, cùng `name`, `alt[]`,
-                                     và (R5 §5) `model_label`/`brand` đã
-                                     được TRACKING chuẩn hoá — có thể `null`
+                                     và `model_label`/`brand` (R5 §5) cùng
+                                     `category_label` (R5.1 §4) đã được
+                                     TRACKING chuẩn hoá — có thể `null`
 GET <source_url>/api/xuat/alias    → `map`: <mã cũ> → <mã chính>
 Header: X-Report-Key: <TRACKING_REPORT_API_KEY>
 ```
@@ -123,12 +124,17 @@ class MalformedSourceError(RuntimeError):
 
 
 def _rows_from_board(board: Any) -> list[dict[str, Any]]:
-    """`board` → `rows` theo `§4.4` + R5 §5: `name`, `alt`, `model_label`, `brand`.
+    """`board` → `rows`: `name`, `alt`, `model_label`, `brand`, `category_label`.
 
-    Bốn trường, và không hơn. Các nhánh giá riêng tư (`p`, `tp`, `_c`, `q`)
-    cùng ngành hàng (`cat`) có thể đi qua bộ nhớ tiến trình nếu một phiên bản
-    nguồn nào đó trả cả cây, nhưng chúng KHÔNG BAO GIỜ được ghi ra: mỗi dòng
-    chỉ được dựng từ danh sách trắng dưới đây, không phải từ một bản sao dict.
+    `§4.4` + R5 §5 + R5.1 §5. Năm trường, và không hơn. Các nhánh giá riêng tư
+    (`p`, `tp`, `_c`, `q`) cùng ngành hàng THÔ (`cat`) có thể đi qua bộ nhớ
+    tiến trình nếu một phiên bản nguồn nào đó trả cả cây, nhưng chúng KHÔNG
+    BAO GIỜ được ghi ra: mỗi dòng chỉ được dựng từ danh sách trắng dưới đây,
+    không phải từ một bản sao dict.
+
+    `category_label` là nhóm hàng ĐÃ CHUẨN HOÁ mà Tracking gửi sang — đã tách
+    tên hãng, đã qua danh sách trắng hình dạng của Tracking. Nó KHÔNG phải
+    `cat` thô, và công cụ này không đọc `cat` dù nguồn có gửi.
     """
     if not isinstance(board, dict):
         raise MalformedSourceError(
@@ -160,12 +166,12 @@ def _rows_from_board(board: Any) -> list[dict[str, Any]]:
             row["name"] = name
         if alt:
             row["alt"] = list(alt)
-        # R5 §5 — hai trường TÙY CHỌN của hợp đồng mở rộng. `null` (Tracking
-        # không khẳng định) và VẮNG MẶT (hợp đồng cũ) cho ra cùng một dòng:
-        # nhờ vậy một danh mục mà Tracking chưa biết hãng vẫn băm ra đúng
-        # cùng `content_hash` với chính nó ở hợp đồng cũ, và một lần nâng cấp
-        # hợp đồng không tự khai là một lần đổi danh mục.
-        for field in ("model_label", "brand"):
+        # R5 §5 + R5.1 §5 — ba trường TÙY CHỌN của hợp đồng mở rộng. `null`
+        # (Tracking không khẳng định) và VẮNG MẶT (hợp đồng cũ) cho ra cùng
+        # một dòng: nhờ vậy một danh mục mà Tracking chưa biết hãng/nhóm hàng
+        # vẫn băm ra đúng cùng `content_hash` với chính nó ở hợp đồng cũ, và
+        # một lần nâng cấp hợp đồng không tự khai là một lần đổi danh mục.
+        for field in ("model_label", "brand", "category_label"):
             value = raw.get(field)
             if value is None:
                 continue
