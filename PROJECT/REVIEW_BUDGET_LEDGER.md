@@ -3158,7 +3158,7 @@ finding REPAIR         2  (FIND-R5-IR-01, FIND-R5-IR-02)
 finding ACCEPTED_RISK  1 sửa luôn (AR-R5-IR-11), 2 mới ghi (AR-R5-IR-12/13)
 repair cycle tiêu      1
 số dư sau REPAIR-1     2 allowed / 1 used / 1 remaining
-HEAD sau repair        1d971de21a82f5a2ca367180de6ae257133a02b1
+HEAD sau repair        d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2
 CHECK-R5-27            FAIL (vòng 1) — CHƯA chạy lại trên HEAD sau repair
 ```
 

@@ -17,7 +17,8 @@ Trong cả hai trường hợp, mã cũ có một chú thích nói rõ vì sao n
 và R5 làm cho chính câu chú thích ấy thôi đúng, mà không ai đọc lại nó.
 
 ```text
-Reports HEAD  1d971de21a82f5a2ca367180de6ae257133a02b1
+Reports HEAD  1d971de21a82f5a2ca367180de6ae257133a02b1  (mã)
+              d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2  (gồm tài liệu)
 Tracking HEAD f958226f6127e6055eb411e4c22e12c58d09654b  (KHÔNG đổi)
 Reports test  3232 passed, 12 skipped   (trước repair: 3223)
 Tracking test 61 bộ · 2767 đạt · 0 hỏng · 2 bỏ qua      (KHÔNG đổi)
@@ -257,7 +258,7 @@ chiều sai RẺ HƠN hẳn chiều còn lại. Dữ liệu mới không có v�
 ## 8. Việc còn lại
 
 - `CHECK-R5-27` — Independent Review: thuộc phiên review độc lập kế tiếp, trên
-  exact HEAD `1d971de21a82f5a2ca367180de6ae257133a02b1`. Phiên repair KHÔNG tự
+  exact HEAD `d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2`. Phiên repair KHÔNG tự
   đóng nó.
 - `CHECK-R5-28`, `CHECK-R3-20`, `CHECK-R4-24` — không chạm.
 - Hai việc reviewer nêu là **chỉ Owner nghiệm thu bằng mắt được** (phiên này
