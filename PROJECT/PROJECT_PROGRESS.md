@@ -1,6 +1,6 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5.1: nhóm hàng `category_label`, IMPLEMENTED, CHƯA merge (`S138`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1: nhóm hàng `category_label`, ĐÃ QUA Independent Review (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S139`, 2026-09-09)
 
 **Phiên triển khai đầy đủ, KHÔNG merge, KHÔNG deploy** (brief `R5.1` §9).
 
@@ -27,10 +27,41 @@ Kiểm tra
 
 Trạng thái check
   CHECK-R51-01 … CHECK-R51-24   PASS (E1)
-  CHECK-R51-25 Independent Review        NOT_TESTED
+  CHECK-R51-25 Independent Review          PASS (E1) — ACCEPT_WITH_RECORDED_RISK
   CHECK-R51-26 Owner nghiệm thu production NOT_TESTED
   Repair cycle tiêu  0   (lineage R5 giữ nguyên 2 allowed / 1 used / 1 remaining)
 ```
+
+**Independent Review (`S139`, 2026-09-09) — `ACCEPT_WITH_RECORDED_RISK`.**
+Chạy trên exact HEAD `2c2c139` (Reports) + `39528ee` (Tracking), chế độ
+DETACHED, `branch_authority_check.sh` = `AUTHORITY_OK`. Năm chuỗi bắt buộc
+đều kiểm trực tiếp qua `nhomCua()`/`chieuBoard()` thật của Tracking và route
+Flask thật của Reports.
+
+```text
+REPAIR_REQUIRED   0 finding
+ACCEPTED_RISK mới 2  AR-R5.1-05 (`cat` bẩn ĐÚNG HÌNH DẠNG đi ra nguyên văn)
+                     AR-R5.1-06 (hãng ngoài `HANG` ở lại trong nhãn)
+Đính chính        1  COR-R5.1-01 (DEC-204 §3 phát biểu mạnh hơn hành vi thật)
+AR-R5.1-01..04       tái kiểm chứng — cả bốn GIỮ NGUYÊN
+
+Kiểm lại độc lập, KHÔNG tin số bàn giao
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3256 passed / 12 skipped / 0 failed
+            (bàn giao ghi 3257/11 — cùng tổng 3268; chênh đúng một bài skip
+             vì máy review không cài extra `storage`, khác biệt MÔI TRƯỜNG)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL (producer THẬT của Tracking)
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 reference — BASELINE, tái hiện y hệt
+              trên nền 3b35b7a; R5.1 không thêm reference hỏng nào
+```
+
+Không tìm được: category gắn sang mã khác · nhánh suy nhóm hàng từ
+`product_raw` · conflict/stale/OUT_OF_CATALOG/chưa phân loại nhận category
+của candidate · đồng tiền nào đổi · đường nào IMEI rời khỏi tab nhân viên.
+
+Bản ghi review: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`.
+Bàn giao review + bước merge/deploy kế tiếp: `docs/sessions/S139-r51-independent-review.md`.
 
 Thẩm quyền: `DEC-204` — nhóm hàng thừa hưởng `ADR-111` §3 (bằng chứng
 `board/<mã>/cat` không rời khỏi Tracking) chứ KHÔNG mở một ADR mới; điểm khác
@@ -41,7 +72,9 @@ Task + checklist: `docs/tasks/R5-1-nhom-hang-category-label.md`.
 Bàn giao + bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
 Hợp đồng + ví dụ payload: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6.
 
-**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+**Bước kế tiếp là MERGE + DEPLOY, và nó CHƯA xảy ra.** Phiên review KHÔNG
+merge, KHÔNG deploy, KHÔNG triển khai `R6`, và KHÔNG tự đánh dấu Owner
+Acceptance — `CHECK-R51-26` vẫn `NOT_TESTED`.
 
 ---
 

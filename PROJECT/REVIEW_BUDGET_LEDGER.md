@@ -3234,10 +3234,28 @@ repair cycle tiêu bởi S138   0
 số dư sau S138               2 allowed / 1 used / 1 remaining (không đổi)
 ```
 
-`CHECK-R51-25` (Independent Review) còn `NOT_TESTED`. Nếu vòng review đầu
-tiên của `R5.1` ra `REPAIR_REQUIRED`, nó tiêu **cycle cuối cùng** của lineage
-`R5` — sau đó lineage hết ngân sách và phải escalate theo
-`governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
+`CHECK-R51-25` (Independent Review) — **ĐÃ CHẠY**, `S139`, 2026-09-09, kết
+luận `ACCEPT_WITH_RECORDED_RISK` trên exact HEAD `2c2c139` (Reports) +
+`39528ee` (Tracking). 0 finding `REPAIR_REQUIRED`, nên **KHÔNG tiêu cycle
+nào** — cycle cuối cùng của lineage `R5` VẪN CÒN.
+
+```text
+root lineage                 R5
+số dư trước S139             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S139   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S139               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Hai `ACCEPTED_RISK` mới (`AR-R5.1-05` `cat` bẩn đúng hình dạng đi ra nguyên
+văn; `AR-R5.1-06` hãng ngoài `HANG` ở lại trong nhãn) được ghi thay vì mở
+repair, vì cả hai dừng ở MỘT ô nhãn trên cột mặc định ẩn và không chạm tiền,
+mapping hay vân tay chốt kỳ — và vì `AR-R5.1-05` không có phép sửa nào nằm
+trong kiến trúc `DEC-204` đã duyệt.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`,
+`docs/sessions/S139-r51-independent-review.md`.
 
 Effective Risk của `R5.1` là `LOW` (Blast Radius `2/5`), thấp hơn hẳn `R5`
 (`HIGH`, `4/5`): failure path của nó dừng ở MỘT ô trên bảng kê nhân viên và

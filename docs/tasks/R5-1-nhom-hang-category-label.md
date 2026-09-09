@@ -13,8 +13,16 @@ trường TÙY CHỌN thêm vào đúng hợp đồng catalog mà `R5` đang dù
 `CHECK-R51-01` … `CHECK-R51-24` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S138-r51-nhom-hang.md`).
 
-`CHECK-R51-25` (Independent Review) và `CHECK-R51-26` (Owner nghiệm thu trên
-production) VẪN `NOT_TESTED` — phiên triển khai KHÔNG tự đóng hai check này.
+`CHECK-R51-25` (Independent Review) — `PASS` (E1) từ 2026-09-09. Vòng review
+độc lập đầu tiên chạy trên exact HEAD `2c2c139` (Reports) + `39528ee`
+(Tracking) và kết luận **`ACCEPT_WITH_RECORDED_RISK`**: 0 finding
+`REPAIR_REQUIRED`, 2 `ACCEPTED_RISK` mới (`AR-R5.1-05`, `AR-R5.1-06`), 1 đính
+chính tài liệu (`COR-R5.1-01`). Bằng chứng nguyên văn:
+`docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`. Phiên review KHÔNG tiêu
+repair cycle nào.
+
+`CHECK-R51-26` (Owner nghiệm thu trên production) VẪN `NOT_TESTED` — KHÔNG
+phiên nào tự đóng check này, kể cả phiên review.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -203,7 +211,7 @@ mát" — Tracking chưa có thẩm quyền nào, nên R5.1 không làm.
 | `CHECK-R51-22` | Nhóm hàng KHÔNG tham gia identity matching | PASS | E1 |
 | `CHECK-R51-23` | Smoke xuyên hai repo bằng producer THẬT của Tracking | PASS | E1 |
 | `CHECK-R51-24` | Reports full `pytest` xanh, không hồi quy | PASS | E1 |
-| `CHECK-R51-25` | Independent Review | NOT_TESTED | — |
+| `CHECK-R51-25` | Independent Review | PASS | E1 |
 | `CHECK-R51-26` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md` §4.
@@ -231,6 +239,28 @@ nhiều hơn" — mở đúng đường rò mà `§4.5` của brief cấm.
 gộp vì Tracking chưa có cấu hình/thẩm quyền nào cho việc ấy, và `§3.3` cấm
 phát minh taxonomy mới. Phát hiện được bằng mắt trên chính bảng chọn ngành
 hàng của Tracking (`pickCat()` hiện số mã của từng nhóm).
+
+`ACCEPTED_RISK R5.1-05` — **`cat` bẩn nhưng ĐÚNG HÌNH DẠNG đi ra nguyên
+văn.** Ghi bởi Independent Review (2026-09-09). `HINH_NHOM` chặn ô nhiễm mang
+chữ số, dấu câu, quá 4 từ hay quá 40 ký tự, nhưng KHÔNG phân biệt được ô
+nhiễm NGỮ NGHĨA gồm toàn chữ cái: `cat = "Tivi kho anh Ba"`, `"Tủ lạnh nợ
+NCC"`, `"Tivi Đất Việt"` đi ra nguyên văn thành `category_label`. Đường vào
+là thật — `setCat()` ghi thẳng chuỗi `prompt()` vào `board/<mã>/cat` không
+qua phép kiểm nào. Chấp nhận vì hậu quả dừng ở MỘT ô nhãn trên cột mặc định
+ẨN: không đổi mapping, product_key, doanh thu, giá nhập, lợi nhuận, coverage
+hay vân tay chốt kỳ; giá vốn/giá chốt/tồn/NCC/note/link vẫn KHÔNG đi ra;
+nhận ra ngay bằng mắt và sửa được bên Tracking. Không có phép sửa nào nằm
+trong kiến trúc đã duyệt — một luật HÌNH DẠNG không thể phân biệt "Tủ lạnh"
+với "Tivi kho anh Ba", còn danh sách trắng theo GIÁ TRỊ đã bị `DEC-204` §3
+loại; siết thật sự đòi Owner mở lại `DEC-204`.
+
+`ACCEPTED_RISK R5.1-06` — **Hãng ngoài `HANG` ở lại trong nhãn nhóm hàng.**
+Ghi bởi Independent Review (2026-09-09). `HANG` là danh sách ĐÓNG 39 hãng, nên
+`cat = "Tivi Vsmart"` ra `"Tivi Vsmart"`. Hợp đồng §4.6 nói `category_label`
+"không bao giờ chứa tên hãng" — với hãng ngoài danh sách, câu ấy mạnh hơn
+hành vi thật (`COR-R5.1-01`). Không đổi tiền, không đổi mapping; `brand` của
+chính dòng đó là `None` nên màn hình không tự mâu thuẫn. Sửa đúng chỗ: thêm
+một dòng vào `HANG` bên Tracking.
 
 `ACCEPTED_RISK R5.1-04` — **Bản chiếu hiển thị sống trên đĩa ephemeral.** Mất
 file (deploy mới) ⟹ màn hình hiện ô trống cho tới lần pull kế tiếp. Đây là
