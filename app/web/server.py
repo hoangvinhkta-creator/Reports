@@ -1744,13 +1744,21 @@ def create_app(
             conflict_resolved=conflict_resolved)
 
     def _catalog_labels() -> dict:
-        """`{raw_identity_key: {tracking_code, model_label, brand}}` (R5 §5).
+        """`{raw_identity_key: {tracking_code, model_label, brand,
+        category_label}}` (R5 §5 + R5.1 §5).
 
         Ghép hai nguồn ĐÃ CÓ, không đọc mạng: log quyết định đã CONFIRMED nói
         dòng nào trỏ tới mã Tracking nào, và bản chiếu hiển thị nói mã đó là
-        model gì của hãng nào. Bản chiếu vắng mặt ⟹ mỗi khoá vẫn có mã
-        Tracking để làm nhãn dự phòng, và hãng là `None` — đúng trạng thái
-        "chưa xác định", không phải một cái tên đoán ra.
+        model gì, của hãng nào, thuộc nhóm hàng nào. Bản chiếu vắng mặt ⟹ mỗi
+        khoá vẫn có mã Tracking để làm nhãn dự phòng, còn hãng và nhóm hàng là
+        `None` — đúng trạng thái "chưa xác định", không phải một cái tên đoán
+        ra.
+
+        `confirmed_identities()` là cổng lọc, và nó là chỗ `§5.4` được thi
+        hành: CHỈ mapping đã CONFIRMED mới có mặt ở đây. Một dòng đang tranh
+        chấp, một dòng trỏ tới target đã cũ, một dòng OUT_OF_CATALOG hay chưa
+        phân loại đều KHÔNG có khoá trong bảng này, nên không có đường nào để
+        nhóm hàng của một candidate chảy vào chúng.
         """
         display = catalog_display.read()
         labels = {}
@@ -1761,8 +1769,8 @@ def create_app(
                 continue
             row = display.get(code) or {}
             labels[key] = {"tracking_code": code,
-                           "model_label": row.get("model_label"),
-                           "brand": row.get("brand")}
+                           **{field: row.get(field)
+                              for field in catalog_display.FIELDS}}
         return labels
 
     def _tracking_snapshot():
@@ -1779,9 +1787,9 @@ def create_app(
             return None
         try:
             snapshot = load_tracking_catalog_capture(captures.tracking_catalog)
-            # R5 §5 — lần pull này đã được cho phép xảy ra vì một lý do khác
-            # (Owner vừa mở bảng chọn). Ghi lại ĐÚNG hai trường hiển thị để
-            # bảng kê không phải gọi mạng ở mỗi lần tải trang.
+            # R5 §5 + R5.1 §5 — lần pull này đã được cho phép xảy ra vì một lý
+            # do khác (Owner vừa mở bảng chọn). Ghi lại ĐÚNG các trường hiển
+            # thị để bảng kê không phải gọi mạng ở mỗi lần tải trang.
             catalog_display.write(snapshot)
             return snapshot
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"

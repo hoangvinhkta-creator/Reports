@@ -1,6 +1,248 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
+## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐANG MERGE (`S142`, 2026-09-09)
+
+Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:
+
+```text
+Máy lạnh / Điều hòa / Điều hoà  →  "Điều hoà"
+TV / Ti vi / Tivi               →  "Tivi"
+Máy giặt sấy                    →  "Máy giặt" (không mở nhóm riêng)
+```
+
+Đây là bổ sung taxonomy CÓ CHỦ ĐÍCH sau một review đã kết luận
+`ACCEPT_WITH_RECORDED_RISK` (`REPAIR_REQUIRED = 0`) — KHÔNG phải repair cycle
+thứ ba. `OWNER_DECISION_REQUIRED` và `AR-R5.1R1-05` đã đóng; `AR-R5.1R1-04`
+giữ nguyên. Chi tiết + toàn bộ bằng chứng E1:
+`docs/sessions/S142-r51-owner-taxonomy-merge.md`; quyết định: `DEC-206`.
+
+```text
+Kiểm tra trước merge
+  Tracking  npm test 2882 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3260 passed / 11 skipped / 0 failed
+  Smoke xuyên hai repo  63 PASS / 0 FAIL
+  Bất biến tiền  git diff xác nhận Reports chỉ đổi 2 dòng chú thích;
+                 Tracking không đổi price-engine/ hay min-ngay.js
+
+Trạng thái merge — xem docs/sessions/S142-r51-owner-taxonomy-merge.md §5
+cho PR/SHA thật sau khi hoàn tất.
+
+CHECK-R51-26  VẪN NOT_TESTED — Owner nghiệm thu production, không phiên
+              nào tự đóng, kể cả phiên merge này.
+```
+
+**Phiên này KHÔNG tự đánh dấu Independent Review (đã PASS từ S141) hay Owner
+Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: ĐÃ QUA Independent Review vòng 2 (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S141`, 2026-09-09)
+
+**Phiên review, KHÔNG sửa mã, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+```text
+Đối tượng review (exact HEAD)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+  Reports   83b1e07c44b186fffaf1b71e40693485741f32eb
+  Nền CẢ HAI repo KHÔNG đổi kể từ S140 (main @ 918183c;
+  claude/extract-upload-repo-gq2ws4 @ 3b35b7a); không commit lạ.
+
+Kết luận                 ACCEPT_WITH_RECORDED_RISK
+  REPAIR_REQUIRED        0
+  ACCEPTED_RISK mới      2   AR-R5.1R1-04 (nhắc lại cùng nhóm ⟹ null)
+                             AR-R5.1R1-05 (ngành hàng ghép ⟹ null; ca thật
+                             "Máy Giặt Sấy LG" ở đơn golden BH62439)
+  Đính chính tài liệu    2   COR-R5.1R1-01 (2 chú thích cũ trong mã Reports)
+                             COR-R5.1R1-02 (dòng tóm tắt DEC-204 §5 trong DEC-205)
+  Cần Owner quyết        1   OWNER_DECISION_REQUIRED — alias taxonomy
+                             (Máy lạnh→Điều hoà, TV→Tivi, Ti vi→Tivi)
+
+Kiểm đã chạy (đo lại, không tin bàn giao S140)
+  Tracking  npm test 62 bộ · 2850 đạt · 0 hỏng · 2 bỏ qua; build OK   (khớp)
+  Reports   pytest test_r51_category_label.py  26 passed
+            pytest toàn bộ  1 failed, 3258 passed, 11 skipped
+                            — bài đỏ là BASELINE (clone nông), đã chứng minh
+                              bằng cách tái hiện Y HỆT trên nền 3b35b7a
+            smoke của dự án  58 PASS / 0 FAIL                          (khớp)
+  Probe ĐỘC LẬP của phiên  4 bộ; nhomCua()/chieuBoard() chạy qua module THẬT
+            (import, không new Function) — khớp kết quả producer của S140
+            fuzz 250 000 mẫu: mọi nhãn ∈ NHOM ∪ {null}, 0 vi phạm
+            A/B TOÀN TRANG: bản chiếu CÓ vs BỊ TƯỚC category_label cho HTML
+            giống hệt tới từng ký tự sau khi che riêng cột nhóm hàng ⟹ doanh
+            thu, MIN, giá nhập, lợi nhuận, độ phủ, vân tay đều KHÔNG đổi
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 finding — BASELINE, đúng 4 của S139/S140
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1) — tái kiểm chứng độc lập, giữ nguyên
+  CHECK-R51R1-17            NOT_TESTED → PASS (E1)   ← S141
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production (GIỮ NGUYÊN)
+  Repair cycle tiêu bởi S141  0 → lineage R5 vẫn 2 allowed / 2 used / 0 remaining
+  Escalation                  KHÔNG mở (REPAIR_REQUIRED = 0)
+```
+
+Task GIỮ `IMPLEMENTED`, KHÔNG phải `DONE`: `CHECK-R51-26` còn `NOT_TESTED`.
+
+**Cảnh báo ngân sách của `S140` KHÔNG kích hoạt** — vòng review vòng 2 ra 0
+finding bắt buộc sửa, nên không có repair cycle thứ ba nào phải mở. Cảnh báo
+vẫn còn hiệu lực cho tương lai: lineage `R5` không còn cycle nào.
+
+**Việc kế tiếp, theo thứ tự:** (1) Owner quyết `CHECK-R51-26` — merge trước
+nghiệm thu hay nghiệm thu staging trước; (2) merge **Tracking TRƯỚC, Reports
+SAU**; (3) đóng `OWNER_DECISION_REQUIRED` về alias TRƯỚC khi `R6` dùng
+`category_label` làm khoá gộp. Chi tiết: `S141` mục 7.
+
+Bản ghi review: `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`.
+Bàn giao: `docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+**Phiên này KHÔNG tự đánh dấu Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: từ điển nhóm hàng, IMPLEMENTED, CHƯA merge (`S140`, 2026-09-09)
+
+> **TRẠNG THÁI SAU `S141`.** Mục này là bản ghi của phiên repair và giữ NGUYÊN
+> VĂN. `CHECK-R51R1-17` bên dưới ghi `NOT_TESTED` là đúng TẠI THỜI ĐIỂM `S140`;
+> nay nó `PASS` (E1) — xem CANONICAL CURRENT STATE ở đầu file. Kết luận của
+> `S140` KHÔNG bị đảo: vòng review vòng 2 xác nhận lại toàn bộ số liệu bàn
+> giao và ra `ACCEPT_WITH_RECORDED_RISK` với 0 finding `REPAIR_REQUIRED`.
+
+**Phiên repair đầy đủ, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+Owner điều chỉnh kết luận Independent Review của `R5.1` từ
+`ACCEPT_WITH_RECORDED_RISK` thành `REPAIR_REQUIRED` **cho mục tiêu dùng
+`category_label` ở `R6`**: luật hình dạng cũ cho `cat` bẩn ngữ nghĩa đi ra
+nguyên văn ("Tivi kho anh Ba", "Tủ lạnh nợ NCC", "Tivi Đất Việt"), và ở `R6`
+một nhãn như vậy không còn là ô xấu mà là một NHÓM HÀNG GIẢ trong báo cáo cơ
+cấu — tổng công ty vẫn đúng, nên không con số nào lệch để báo động.
+
+`category_label` nay được **CHỌN từ một từ điển đóng** trong `src/index.js`
+của Tracking, không cắt ra từ `cat`:
+
+```text
+đầu ra ∈ NHOM ∪ {null}
+⟺ không một ký tự nào người dùng gõ rời khỏi Tracking bằng trường này
+```
+
+```text
+Base phiên repair
+  Reports   dd7cd0461d3d5c8deff9465069bbd2cd0bf55120  (impl 2c2c139 + review docs)
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+  Nhánh mặc định CẢ HAI repo KHÔNG đổi kể từ S138.
+
+HEAD cuối phiên (nhánh claude/r5-1-repair-1-taxonomy, đã push, KHÔNG mở PR)
+  Reports   (xem docs/sessions/S140-r51-repair-1.md §8 — gồm cả tài liệu)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+
+Kiểm tra
+  Tracking  npm test 2850 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3259 passed / 11 skipped / 0 failed
+            (3257 TRƯỚC khi thêm test mới — Reports không cần đổi mã)
+  Smoke xuyên hai repo  58 PASS / 0 FAIL, producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1)
+  CHECK-R51R1-17            NOT_TESTED — Independent Review vòng 2
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production
+  AR-R5.1-05 / -06 / -03    ĐÃ ĐÓNG
+  Repair cycle tiêu         1 → lineage R5 còn 2 allowed / 2 used / 0 remaining
+```
+
+**CẢNH BÁO NGÂN SÁCH:** lineage `R5` đã HẾT repair cycle. Vòng review kế tiếp
+ra `REPAIR_REQUIRED` thì phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`, không mở cycle thứ ba.
+
+Thẩm quyền: `DEC-205` (thay `DEC-204` §3 và §4; `DEC-204` giữ nguyên văn, có
+con trỏ hai chiều). `ADR-111` §3 KHÔNG đổi — repair này đổi *cách* Tracking
+dẫn xuất một trường, không đổi *ai* có thẩm quyền.
+
+Task + checklist: `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+Hợp đồng: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6.
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## R5.1: nhóm hàng `category_label`, ĐÃ QUA Independent Review (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S139`, 2026-09-09)
+
+**Phiên triển khai đầy đủ, KHÔNG merge, KHÔNG deploy** (brief `R5.1` §9).
+
+`category_label` được thêm vào đúng hợp đồng catalog mà `R5` đang dùng
+(`/api/xuat/board`), như một trường TÙY CHỌN thứ năm. Tracking chuẩn hoá và
+xuất; Reports chỉ đọc. Không endpoint thứ hai, không migration, không schema
+mới, không bảng mới, không product key mới.
+
+```text
+Nền đã merge (đầu phiên)
+  Reports   claude/extract-upload-repo-gq2ws4 @ 3b35b7a  (chứa R5 merge f5e4e76)
+  Tracking  main                              @ 918183c  (chứa R5 §5)
+
+HEAD cuối phiên (nhánh claude/r5-1-category-label-1nnct7 ở cả hai repo,
+đã push, KHÔNG mở PR)
+  Reports   f98299537596095c822c9135ef698adcb8c46f43  (gồm cả tài liệu)
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+
+Kiểm tra
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3257 passed / 11 skipped / 0 failed
+            (nền trước phiên 3233 passed — chênh đúng 24 bài mới)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL, dùng producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51-01 … CHECK-R51-24   PASS (E1)
+  CHECK-R51-25 Independent Review          PASS (E1) — ACCEPT_WITH_RECORDED_RISK
+  CHECK-R51-26 Owner nghiệm thu production NOT_TESTED
+  Repair cycle tiêu  0   (lineage R5 giữ nguyên 2 allowed / 1 used / 1 remaining)
+```
+
+**Independent Review (`S139`, 2026-09-09) — `ACCEPT_WITH_RECORDED_RISK`.**
+Chạy trên exact HEAD `2c2c139` (Reports) + `39528ee` (Tracking), chế độ
+DETACHED, `branch_authority_check.sh` = `AUTHORITY_OK`. Năm chuỗi bắt buộc
+đều kiểm trực tiếp qua `nhomCua()`/`chieuBoard()` thật của Tracking và route
+Flask thật của Reports.
+
+```text
+REPAIR_REQUIRED   0 finding
+ACCEPTED_RISK mới 2  AR-R5.1-05 (`cat` bẩn ĐÚNG HÌNH DẠNG đi ra nguyên văn)
+                     AR-R5.1-06 (hãng ngoài `HANG` ở lại trong nhãn)
+Đính chính        1  COR-R5.1-01 (DEC-204 §3 phát biểu mạnh hơn hành vi thật)
+AR-R5.1-01..04       tái kiểm chứng — cả bốn GIỮ NGUYÊN
+
+Kiểm lại độc lập, KHÔNG tin số bàn giao
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3256 passed / 12 skipped / 0 failed
+            (bàn giao ghi 3257/11 — cùng tổng 3268; chênh đúng một bài skip
+             vì máy review không cài extra `storage`, khác biệt MÔI TRƯỜNG)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL (producer THẬT của Tracking)
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 reference — BASELINE, tái hiện y hệt
+              trên nền 3b35b7a; R5.1 không thêm reference hỏng nào
+```
+
+Không tìm được: category gắn sang mã khác · nhánh suy nhóm hàng từ
+`product_raw` · conflict/stale/OUT_OF_CATALOG/chưa phân loại nhận category
+của candidate · đồng tiền nào đổi · đường nào IMEI rời khỏi tab nhân viên.
+
+Bản ghi review: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`.
+Bàn giao review + bước merge/deploy kế tiếp: `docs/sessions/S139-r51-independent-review.md`.
+
+Thẩm quyền: `DEC-204` — nhóm hàng thừa hưởng `ADR-111` §3 (bằng chứng
+`board/<mã>/cat` không rời khỏi Tracking) chứ KHÔNG mở một ADR mới; điểm khác
+biệt thật so với `brand` là `cat` do người dùng gõ tay, nên nó đi ra qua một
+danh sách trắng HÌNH DẠNG thay vì được chiếu nguyên văn.
+
+Task + checklist: `docs/tasks/R5-1-nhom-hang-category-label.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+Hợp đồng + ví dụ payload: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6.
+
+**Bước kế tiếp là MERGE + DEPLOY, và nó CHƯA xảy ra.** Phiên review KHÔNG
+merge, KHÔNG deploy, KHÔNG triển khai `R6`, và KHÔNG tự đánh dấu Owner
+Acceptance — `CHECK-R51-26` vẫn `NOT_TESTED`.
+
+---
+
+## R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
 
 **Owner chỉ thị trực tiếp trong phiên:** đã tự thực hiện Independent Review
 vòng 2 ở một công cụ khác (Codex, không artifact trong repo Reports) và đã

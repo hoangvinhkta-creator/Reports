@@ -3214,3 +3214,170 @@ số dư sau override             2 allowed / 1 used / 1 remaining (không đổ
 
 Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`),
 `docs/sessions/S137-r5-owner-override-merge.md`.
+
+### `R5.1` — nhóm hàng `category_label` (`S138`, 2026-09-09)
+
+`R5.1` KHÔNG mở một root lineage mới. Nó mở rộng đúng hợp đồng
+(`/api/xuat/board`) và đúng các module (`tracking_catalog`,
+`capture_tracking_catalog`, `catalog_display`, `_catalog_labels`) mà `R5` vừa
+dựng ra, và nó thừa hưởng thẩm quyền của `ADR-111` §3 thay vì mở một ADR mới
+(`DEC-204`). Theo `V4.1` §3, một mở rộng như vậy thuộc lineage của root task
+đã sinh ra nó.
+
+Phiên triển khai `S138` KHÔNG tiêu repair cycle nào: nó không sửa một finding
+review nào — nó là một phiên triển khai đầu tiên cho một gói việc mới.
+
+```text
+root lineage                 R5
+số dư trước S138             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S138   0
+số dư sau S138               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+`CHECK-R51-25` (Independent Review) — **ĐÃ CHẠY**, `S139`, 2026-09-09, kết
+luận `ACCEPT_WITH_RECORDED_RISK` trên exact HEAD `2c2c139` (Reports) +
+`39528ee` (Tracking). 0 finding `REPAIR_REQUIRED`, nên **KHÔNG tiêu cycle
+nào** — cycle cuối cùng của lineage `R5` VẪN CÒN.
+
+```text
+root lineage                 R5
+số dư trước S139             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S139   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S139               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Hai `ACCEPTED_RISK` mới (`AR-R5.1-05` `cat` bẩn đúng hình dạng đi ra nguyên
+văn; `AR-R5.1-06` hãng ngoài `HANG` ở lại trong nhãn) được ghi thay vì mở
+repair, vì cả hai dừng ở MỘT ô nhãn trên cột mặc định ẩn và không chạm tiền,
+mapping hay vân tay chốt kỳ — và vì `AR-R5.1-05` không có phép sửa nào nằm
+trong kiến trúc `DEC-204` đã duyệt.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`,
+`docs/sessions/S139-r51-independent-review.md`.
+
+Effective Risk của `R5.1` là `LOW` (Blast Radius `2/5`), thấp hơn hẳn `R5`
+(`HIGH`, `4/5`): failure path của nó dừng ở MỘT ô trên bảng kê nhân viên và
+không chạm tập dòng được cộng, MIN theo ngày bán, giá nhập tay, lợi nhuận hay
+vân tay chốt kỳ. Điều đó KHÔNG cấp thêm ngân sách — ngân sách thuộc về root
+lineage, không thuộc từng gói con.
+
+Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+
+### `R5.1 REPAIR-1` — từ điển nhóm hàng (`S140`, 2026-09-09)
+
+Vòng Independent Review của `R5.1` (`S139`) kết luận
+`ACCEPT_WITH_RECORDED_RISK` với `0 finding REPAIR_REQUIRED`, nên nó KHÔNG
+tiêu cycle nào. Ở `S140`, Owner **điều chỉnh** kết luận ấy thành
+`REPAIR_REQUIRED` cho mục tiêu dùng `category_label` ở `R6`, và chỉ thị sửa.
+
+Đây là một repair cycle THẬT theo `V4.1` §3: có finding bắt buộc sửa
+(`AR-R5.1-05`, `AR-R5.1-06`), và cả hai được sửa trong CÙNG một phiên — `V4.1`
+§3 tính theo VÒNG, không theo số finding.
+
+```text
+root lineage                 R5
+số dư trước S140             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S140   1
+số dư sau S140               2 allowed / 2 used / 0 remaining
+```
+
+**Lineage `R5` đã HẾT ngân sách review.** Nếu vòng Independent Review kế tiếp
+(`CHECK-R51R1-17`, trên HEAD sau repair) lại ra `REPAIR_REQUIRED`, lineage
+KHÔNG được mở một repair cycle thứ ba — phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+Ghi chú về cách tính: cycle này tiêu vì Owner nâng mức một finding đã có, chứ
+không phải vì một vòng review mới phát hiện thêm lỗi. Ghi theo hướng TIÊU
+(thay vì coi là "điều chỉnh phân loại, không tiêu") là lựa chọn bảo thủ có chủ
+đích — nó giữ cho ngân sách phản ánh đúng số lần triển khai đã phải sửa lại,
+và không tạo tiền lệ cho việc mở repair cycle miễn phí bằng cách gọi nó là
+một lần phân loại lại.
+
+Bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+
+### `R5.1 REPAIR-1` — Independent Review vòng 2 (`S141`, 2026-09-09)
+
+`CHECK-R51R1-17` — **ĐÃ CHẠY**, `S141`, 2026-09-09, trên exact HEAD
+`11a199b222ed1771558cefcdf664aad9de64cfa9` (Tracking) +
+`83b1e07c44b186fffaf1b71e40693485741f32eb` (Reports). Kết luận
+`ACCEPT_WITH_RECORDED_RISK` với **0 finding `REPAIR_REQUIRED`**, nên **KHÔNG
+tiêu cycle nào**.
+
+```text
+root lineage                 R5
+số dư trước S141             2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi S141   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S141               2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Điều này QUAN TRỌNG với lineage đã cạn ngân sách: cảnh báo của `S140` ("vòng
+review kế tiếp lại ra `REPAIR_REQUIRED` thì phải escalate") **không kích
+hoạt** — không có finding bắt buộc sửa nào, nên không có repair cycle thứ ba
+nào phải mở và **không có escalation nào phải mở**.
+
+Hai `ACCEPTED_RISK` mới được ghi thay vì mở repair, vì cả hai chỉ GIẢM ĐỘ PHỦ
+và hiện rõ thành `null`/`"—"`, không tạo được category giả, không rò dữ liệu,
+không sai gộp `R6` và không chạm một đồng nào:
+
+```text
+AR-R5.1R1-04  nhắc lại cùng một nhóm trong `cat` ⟹ null ("Tivi TV")
+AR-R5.1R1-05  ngành hàng GHÉP ⟹ null ("Máy giặt sấy"), có ca thật ở đơn
+              golden BH62439 — và hỏng theo hướng AN TOÀN, không xếp nhầm bucket
+```
+
+Hai đính chính tài liệu (`COR-R5.1R1-01` chú thích cũ trong mã Reports;
+`COR-R5.1R1-02` dòng tóm tắt `DEC-204 §5` trong `DEC-205`) là tài liệu, không
+phải hành vi — không tiêu ngân sách.
+
+Một `OWNER_DECISION_REQUIRED` được ghi cho alias taxonomy (`Máy lạnh →
+Điều hoà`, `TV → Tivi`, `Ti vi → Tivi`): đây là quyết định BUCKET BÁO CÁO của
+Owner, **không phải một finding kỹ thuật**, nên nó cũng không tiêu ngân sách.
+Nên đóng TRƯỚC khi `R6` dùng `category_label` làm khoá gộp.
+
+Hai lỗi đỏ trong lượt kiểm được tách rõ là **BASELINE của môi trường**, không
+phải hồi quy: một bài `pytest`
+(`TestG25GoldenBaselineUnchanged::test_protected_golden_artifacts_match_the_task_105e_review_base`)
+đỏ vì container review dùng clone NÔNG — tái hiện Y HỆT trên nền `3b35b7a`
+chưa có `R5.1`; và 4 finding `REFERENCE INTEGRITY` đúng bằng 4 finding
+`S139`/`S140` đã ghi là baseline.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn:
+`docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`,
+`docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+### `DEC-206` — Owner chốt taxonomy còn lại, merge có kiểm soát (`S142`, 2026-09-09)
+
+Owner CHỐT ba alias mà `S141` §6.3 hỏi (`OWNER_DECISION_REQUIRED`) và ghi
+`AR-R5.1R1-05` (`Máy giặt sấy`): xem `DEC-206`. Đây là **bổ sung taxonomy
+CÓ CHỦ ĐÍCH sau một review đã kết luận `ACCEPT_WITH_RECORDED_RISK`**
+(`REPAIR_REQUIRED = 0` ở `S141`), không phải một finding buộc sửa và không
+phải một repair cycle thứ ba.
+
+```text
+root lineage                     R5
+số dư trước S142                 2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi DEC-206    0  (bổ sung taxonomy, không phải repair)
+số dư sau S142                   2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Phân biệt với repair cycle: một repair cycle sửa một FINDING mà review đánh
+giá là buộc phải sửa trước khi chấp nhận (`REPAIR_REQUIRED`). Ở đây, `S141`
+đã CHẤP NHẬN hệ thống nguyên trạng (`ACCEPT_WITH_RECORDED_RISK`) — hai finding
+mới của nó (`AR-R5.1R1-04`, `AR-R5.1R1-05`) đều được xếp `ACCEPTED_RISK`, và
+`OWNER_DECISION_REQUIRED` là một câu hỏi CHÍNH SÁCH, không phải một lỗi kỹ
+thuật. Owner trả lời câu hỏi chính sách đó và bổ sung một dòng vào từ điển —
+đây là con đường mở rộng mà chính `DEC-205` §3 đã vạch sẵn ("thêm một dòng khi
+cần"), không phải một vòng sửa lỗi.
+
+Sau `DEC-206`, Tracking và Reports được MERGE vào nhánh mặc định — xem
+`docs/sessions/S142-r51-owner-taxonomy-merge.md` §5 cho SHA merge, thứ tự, và
+xác nhận `branch_authority_check.sh = AUTHORITY_OK` sau mỗi merge.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED` sau merge —
+không phiên nào tự đóng nó, kể cả phiên merge.
+
+Bằng chứng nguyên văn: `docs/sessions/S142-r51-owner-taxonomy-merge.md`.

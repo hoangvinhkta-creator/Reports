@@ -265,12 +265,16 @@ def load_tracking_catalog_capture(
                 f"{path}: dòng #{number} 'alt' phải là một danh sách.",
                 reason="malformed_alt",
             )
-        # R5 §5 — hai trường TÙY CHỌN. Vắng mặt (artifact cũ) và `null`
-        # (Tracking không khẳng định) đều đọc thành `None`; sai KIỂU thì
-        # từ chối chứ không ép — một con số ép thành chuỗi sẽ hiện lên màn
-        # hình như một cái tên hãng.
+        # R5 §5 + R5.1 §5 — ba trường TÙY CHỌN. Vắng mặt (artifact cũ) và
+        # `null` (Tracking không khẳng định) đều đọc thành `None`; sai KIỂU
+        # thì từ chối chứ không ép — một con số ép thành chuỗi sẽ hiện lên
+        # màn hình như một cái tên hãng hay một cái tên nhóm hàng.
+        #
+        # Một artifact R5 ghi TRƯỚC R5.1 không có `category_label`, và nó
+        # phải đọc được y như cũ: đó là mệnh đề backward-compatibility của
+        # `§5.2`, không phải một trường hợp lỗi.
         optional: dict[str, Optional[str]] = {}
-        for field in ("model_label", "brand"):
+        for field in ("model_label", "brand", "category_label"):
             value = raw.get(field)
             if value is not None and not isinstance(value, str):
                 raise InvalidTrackingCatalogCaptureFileError(

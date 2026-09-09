@@ -70,25 +70,29 @@ from app.web.legacy_presentation import format_number
 #: `Mặt hàng` thu hẹp lại: khi một dòng đã phân loại, tên hiển thị là model
 #: canonical ngắn ("K-65S20M2") chứ không còn cả câu tên hàng trên sổ.
 #:
-#: Hai cột này MẶC ĐỊNH ẨN và dùng chung một nút mở/đóng — chúng là thông tin
+#: Các cột này MẶC ĐỊNH ẨN và dùng chung một nút mở/đóng — chúng là thông tin
 #: đối chiếu, không phải thông tin vận hành hằng ngày, và bắt cả bảng hẹp lại
-#: vì hai cột ít dùng là đánh đổi sai. Trạng thái mở/đóng nằm ở trình duyệt
+#: vì mấy cột ít dùng là đánh đổi sai. Trạng thái mở/đóng nằm ở trình duyệt
 #: (`localStorage`), nên nó không đi qua server và không thành một thiết lập
 #: cần lưu ở đâu cả.
+#: R5.1 §5 — "Nhóm hàng" đứng CẠNH "Hãng", dưới cùng một nút ẩn/hiện. Nó là
+#: thông tin đối chiếu cùng loại: do Tracking khẳng định, chỉ để đọc, và
+#: không có đường sửa nào từ màn hình này.
 SHEET_DETAIL_COLUMNS: tuple[str, ...] = (
-    "Ngày", "Mã đơn", "Mặt hàng", "Hãng", "IMEI", "Nhân viên", "SL",
-    "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng", "Liên hệ",
+    "Ngày", "Mã đơn", "Mặt hàng", "Nhóm hàng", "Hãng", "IMEI", "Nhân viên",
+    "SL", "Giá nhập", "Giá bán", "Lợi nhuận", "DS quy đổi", "Khách hàng",
+    "Liên hệ",
 )
 
 #: Các cột ẩn/hiện chung một nút, theo VỊ TRÍ (0-based) trong bảng trên.
-OPTIONAL_COLUMN_INDEXES: tuple[int, ...] = (3, 4)
+OPTIONAL_COLUMN_INDEXES: tuple[int, ...] = (3, 4, 5)
 
-SHOW_OPTIONAL_LABEL = "HIỆN HÃNG & IMEI"
-HIDE_OPTIONAL_LABEL = "ẨN HÃNG & IMEI"
+SHOW_OPTIONAL_LABEL = "HIỆN NHÓM HÀNG, HÃNG & IMEI"
+HIDE_OPTIONAL_LABEL = "ẨN NHÓM HÀNG, HÃNG & IMEI"
 
 OPTIONAL_COLUMNS_NOTE = (
-    "Hãng và mã máy (IMEI) chỉ hiện trên trang này. Chúng không đi vào bất kỳ "
-    "trang chỉ tiêu, bản xuất hay bản ghi nhật ký nào."
+    "Nhóm hàng, hãng và mã máy (IMEI) chỉ hiện trên trang này. Chúng không đi "
+    "vào bất kỳ trang chỉ tiêu, bản xuất hay bản ghi nhật ký nào."
 )
 
 # --- Nhãn ngắn của cảnh báo (`§36`) ---------------------------------------
@@ -320,13 +324,18 @@ def _catalog_field(identity, catalog, field: str) -> Optional[str]:
     """Một trường HIỂN THỊ của danh mục Tracking cho dòng này, hoặc `None`.
 
     `catalog` là `{raw_identity_key: {"tracking_code", "model_label",
-    "brand"}}` — bản chiếu mà tầng route đã dựng từ log quyết định đã
-    CONFIRMED cộng với bản chiếu hiển thị của Tracking.
+    "brand", "category_label"}}` — bản chiếu mà tầng route đã dựng từ log
+    quyết định đã CONFIRMED cộng với bản chiếu hiển thị của Tracking.
 
     Chỉ dòng `MATCHED_TRACKING` mới được tra. Một dòng chưa phân loại chưa có
     mã Tracking nào; một dòng đang tranh chấp thì có hai; một dòng ngoài bảng
     giá thì cố ý không có. Cả ba phải giữ TÊN THÔ để người dùng còn biết mình
     cần xử lý gì (`§8`).
+
+    R5.1 §5.4 treo lên đúng cổng này: một dòng tranh chấp hay có target đã cũ
+    KHÔNG được nhận nhóm hàng của một candidate, và nó không nhận được vì nó
+    không đi qua được dòng `classification` ngay dưới — cùng một phép chặn đã
+    giữ `brand`, không phải một phép chặn thứ hai viết riêng cho nhóm hàng.
     """
     if not catalog or identity is None:
         return None
@@ -374,11 +383,18 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
         "occurrence_index": detail["occurrence_index"],
         "product_raw": (bm.DISCOUNT_DISPLAY_LABEL if synthetic
                         else _product_display(detail, identity, catalog)),
-        # R5 §5 — hai cột đối chiếu. `None` ⟹ ô hiện dấu gạch: một dòng chưa
-        # phân loại không có hãng, và một dòng sổ không ghi mã máy thì không
-        # có mã máy. Không nhánh nào đoán bù.
+        # R5 §5 + R5.1 §5 — ba cột đối chiếu. `None` ⟹ ô hiện dấu gạch: một
+        # dòng chưa phân loại không có hãng và không có nhóm hàng, và một dòng
+        # sổ không ghi mã máy thì không có mã máy. Không nhánh nào đoán bù —
+        # đặc biệt KHÔNG đọc `product_raw` để suy nhóm hàng khi metadata
+        # thiếu (`ADR-111` §3, `R5.1` §5.9).
         "brand": (None if synthetic
                   else _catalog_field(identity, catalog, "brand")),
+        # R5.1 §5.6 — nhóm hàng đi CÙNG dòng ở tầng read model, để R6 dựng
+        # được các phép gộp theo nhóm mà không phải mở lại đường đọc danh mục.
+        "category_label": (None if synthetic
+                           else _catalog_field(identity, catalog,
+                                               "category_label")),
         "imei": (None if synthetic or imeis is None
                  else imeis.get((detail["order_key"], detail["product_key"],
                                  detail["occurrence_index"]))),
