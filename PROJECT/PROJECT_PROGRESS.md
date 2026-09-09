@@ -5,10 +5,13 @@
 **Phiên tích hợp (không phải triển khai, không phải review).** Dựng nhánh
 `claude/r5-integration-vinh` từ Reports repair HEAD `4278c3b`, gộp tài liệu
 Independent Review vòng 1 (`b7f5a07`, nhánh `claude/r5-independent-review-l59zyq`)
-vào đó. Giải quyết bốn xung đột tài liệu thủ công (hai trong
-`PROJECT/PROJECT_PROGRESS.md`, hai trong task R5), giữ đủ ba lớp bằng chứng:
-implementation gốc, Independent Review vòng 1 (`REPAIR_REQUIRED`), và
-REPAIR-1 (đã sửa cả hai finding).
+vào đó, tạo merge commit `cf345acb0feb52b3fb41c16d9b8612723ba997e3`. Giải
+quyết sáu xung đột tài liệu thủ công (hai trong `PROJECT/PROJECT_PROGRESS.md`,
+bốn trong `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`), giữ đủ
+ba lớp bằng chứng: implementation gốc, Independent Review vòng 1
+(`REPAIR_REQUIRED`), và REPAIR-1 (đã sửa cả hai finding). Bốn file còn lại tự
+merge sạch hoặc là file mới. `git diff --stat` giữa hai nhánh nguồn: chỉ 6
+file `.md`, không một dòng mã nào.
 
 **Không merge trong phiên này — hai điều kiện chưa thoả, cả hai đều
 thuộc thẩm quyền Owner/reviewer độc lập, không phải thẩm quyền của một phiên
@@ -34,10 +37,19 @@ Independent Review — cả hai đều phải thoả. Phiên này tìm bằng `g
 --grep` trên toàn bộ lịch sử Reports và không thấy một commit nào đánh dấu
 `CHECK-R3-20`/`CHECK-R4-24` PASS.
 
-Mọi kiểm tra kỹ thuật khác đã chạy lại trên nhánh integration và bằng chứng
+Mọi kiểm tra kỹ thuật khác đã chạy lại trên nhánh integration (full
+`pytest -q` 3232 passed/12 skipped/0 failed; Tracking `npm test` 2767
+passed/0 hỏng + `npm run build` OK; smoke xuyên hai repo 29/29 PASS; toàn bộ
+governance validator PASS trừ `reference_integrity` đúng ba baseline
+`TASK-REM-T06`; `branch_authority_check.sh` → `AUTHORITY_OK`) và bằng chứng
 đầy đủ nằm ở `docs/sessions/S136-r5-integration.md`. Nhánh
-`claude/r5-integration-vinh` đã được đẩy lên origin, sẵn sàng để review và
-merge NGAY SAU KHI hai điều kiện trên thoả — không cần làm lại việc kỹ thuật.
+`claude/r5-integration-vinh` đã được đẩy lên origin, kèm PR draft **KHÔNG
+merge** `hoangvinhkta-creator/Reports#12`; Tracking có PR draft **KHÔNG
+merge** tương ứng `hoangvinhkta-creator/Tracking#26`. Cả hai sẵn sàng để
+review và merge NGAY SAU KHI hai điều kiện trên thoả — không cần làm lại
+việc kỹ thuật.
+
+**Trạng thái cuối phiên `S136`: `INTEGRATION_READY_WAITING_FOR_OWNER_GATE`.**
 
 ---
 
