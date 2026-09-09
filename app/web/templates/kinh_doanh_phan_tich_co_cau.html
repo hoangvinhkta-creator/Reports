@@ -24,8 +24,13 @@
         title="{{ row.discount.text }} đồng">{{ row.discount.text_kvnd }}</td>
     <td class="num" data-metric="orders">{{ row.orders }}</td>
     <td class="num" data-metric="lines">{{ row.lines }}</td>
+    {# Repair `AR-R6-IR-03` — ô giá bình quân trống phải NÓI RA vì sao. Hai lý
+       do khác nhau ("nhóm không có hàng hoá" và "chưa dòng nào đủ dữ liệu để
+       chia") cần hai câu, vì chỉ một trong hai có chỗ sửa. #}
     <td class="num{{ ' empty-cell' if row.average_price.missing }}"
-        data-metric="average-price">{{ row.average_price.text }}</td>
+        data-metric="average-price"
+        {% if row.average_price.reason %}title="{{ row.average_price.reason }}"{% endif %}
+        >{{ row.average_price.text }}</td>
     <td class="num{{ ' empty-cell' if row.min_price.missing }}"
         data-metric="min-price">{{ row.min_price.text }}</td>
     <td class="num{{ ' empty-cell' if row.max_price.missing }}"
@@ -86,10 +91,14 @@
     <p class="insight" data-metric="taxonomy-note">{{ summary.taxonomy_note }}</p>
     <p class="insight" data-metric="price-note">Giá BQ là
       <strong>tổng doanh thu chia tổng số lượng</strong> của các dòng HÀNG HOÁ
-      trong nhóm, không phải trung bình của các đơn giá. Dòng phí và dòng chiết
-      khấu không có giá bán hàng hoá nên ba cột giá hiện <strong>—</strong>;
-      doanh thu của chúng vẫn nằm đủ trong cột doanh thu. Giá 0 của hàng tặng
-      là giá bán THẬT và vẫn tham gia cột giá thấp nhất.</p>
+      trong nhóm, không phải trung bình của các đơn giá. Hai vế của phép chia
+      dùng ĐÚNG MỘT tập dòng — chỉ dòng có đủ cả doanh thu và số lượng hợp lệ —
+      nên một dòng chưa chốt doanh thu không kéo giá bình quân xuống. Dòng phí
+      và dòng chiết khấu không có giá bán hàng hoá nên ba cột giá hiện
+      <strong>—</strong>; doanh thu của chúng vẫn nằm đủ trong cột doanh thu.
+      Giá 0 của hàng tặng là giá bán THẬT và vẫn tham gia cả giá bình quân lẫn
+      cột giá thấp nhất. Cột giá thấp nhất/cao nhất đọc đơn giá của MỌI dòng
+      hàng hoá có đơn giá, kể cả dòng chưa chốt doanh thu.</p>
   </details>
 </div>
 {% endblock %}

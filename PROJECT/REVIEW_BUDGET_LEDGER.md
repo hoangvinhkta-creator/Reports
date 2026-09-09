@@ -3391,10 +3391,12 @@ root_task: R6
 title: Dashboard phân tích kinh doanh
 effective_risk: MEDIUM
 repair_cycles_allowed: 1
-repair_cycles_used: 0
-repair_cycles_remaining: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
 review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
-next_action: REPAIR-1 (sẽ tiêu cycle duy nhất) — xem mục cuối lineage này
+repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
+next_action: Independent Review vòng 2 — HẾT ngân sách, một REPAIR_REQUIRED nữa
+             buộc ESCALATE theo governance/core/ESCALATION_PROTOCOL.md
 ```
 
 Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
@@ -3547,3 +3549,63 @@ CHECK-R51-26 NOT_TESTED — vẫn chặn MERGE/DEPLOY của R6 (DEC-207 §10)
 
 Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
 tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
+
+### REPAIR-1 (`S145`, 2026-09-09) — cycle DUY NHẤT đã tiêu
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED (S144)
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03) — sửa trong CÙNG vòng
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu      1
+số dư sau REPAIR-1     1 allowed / 1 used / 0 remaining   ← HẾT
+CHECK-R6-31            FAIL (vòng 1) → NOT_TESTED (chờ vòng 2 trên HEAD sau repair)
+```
+
+Đây là repair cycle ĐẦU TIÊN và DUY NHẤT của lineage `R6`. Nó tiêu đúng một
+cycle vì cả bốn mục thuộc CÙNG một vòng review và được sửa trong CÙNG một phiên
+— `V4.1` §3 tính theo LẦN SỬA, không theo số finding.
+
+`AR-R6-IR-03` là `RECOMMENDED` và tự nó KHÔNG tiêu một cycle riêng; nó được kéo
+vào cùng vòng theo đúng khuyến nghị của review §8, vì lineage chỉ có một cycle.
+
+**Ba việc phát sinh TRONG phiên repair, và cả ba nằm trong cumulative repair
+diff của cycle này** (`V4.1` §3 — defect do chính repair cycle tạo hoặc sửa
+thuộc CÙNG cycle, không mở cycle mới):
+
+1. Khối route `R6` trong `server.py` được dời (đã dời từ `S143`) — không phát
+   sinh thêm ở phiên này.
+2. `scripts/r6_crossrepo_smoke.py` có một bài đo sai điều tên gọi của nó gợi ra
+   — chính điểm mà review §7.2 đã ghi. Sau repair bài ấy ĐỎ và nó đúng khi đỏ;
+   đã sửa gốc phép chọn dòng để nó đo hai nhóm hàng THẬT.
+3. Bài kiểm mới của repair ban đầu gán thẳng vào module và làm rò trạng thái
+   sang `tests/test_tracking_live_pull.py`. Đã sửa bằng `pytest.MonkeyPatch()`
+   có `undo()`.
+
+**Đính chính phạm vi.** `REPAIR-1` chạm `app/web/revenue_timeline.py` — file mà
+Scope Lock của `R6` từng liệt kê là NGOÀI phạm vi. Thay đổi thuần THÊM
+(`paired_window_span`, +55/−1, dòng bị xoá duy nhất là chính dòng `__all__`
+được viết dài ra), và brief `REPAIR-1` cho phép tường minh: *"Dùng/làm rõ helper
+thuộc engine timeline hiện có nếu cần"*. Ràng buộc thật — KHÔNG dựng engine thời
+gian thứ hai — vẫn giữ. Ghi ở `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`
+§1 và `S145` §4.4 thay vì để một lần đọc diff sau này phát hiện.
+
+**Bất biến tiền:** `git diff` RỖNG trên `app/modules/pricing/`,
+`app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+`business_store.py`, `business_queries.py`, `business_service.py`,
+`business_metrics.py`, `tools/db/migrations/`, `config/`.
+
+**Kiểm chứng:** 48 bài mới (đỏ TRƯỚC, xanh SAU); full regression
+`1 failed / 3445 passed / 11 skipped` với bài đỏ là ĐÚNG baseline clone nông;
+smoke `R6` 29 PASS / 0 FAIL, smoke `R5.1` 63 PASS / 0 FAIL; Tracking
+`npm test` 2892 đạt / 0 hỏng và build OK (Tracking KHÔNG đổi code);
+validator governance = baseline; `git diff --check` sạch.
+
+**Số dư còn `0 remaining`.** Nếu vòng Independent Review thứ hai lại ra
+`REPAIR_REQUIRED`, lineage `R6` KHÔNG được mở repair cycle thứ hai mà phải
+escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
+
+`CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) VẪN `NOT_TESTED` và
+vẫn CHẶN merge/deploy `R6`.
+
+Bằng chứng nguyên văn: `docs/sessions/S145-r6-repair-1.md`.

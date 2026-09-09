@@ -22,25 +22,59 @@ bình quân là một con số CHÍNH THỨC chịu gate coverage 100 %. Nó kh�
 giá bình quân là một phép chia trên hai cột đã có, không phải một kết luận về
 lợi nhuận.
 
-## Giá bán bình quân — GIA QUYỀN, và chỉ trên hàng hoá
+## Giá bán bình quân — GIA QUYỀN, trên MỘT tập dòng duy nhất
 
 ```text
-average_sell_price = Σ total_sales (dòng hàng hoá) / Σ quantity (dòng hàng hoá)
+average_sell_price = Σ total_sales / Σ quantity   trên CÙNG tập dòng "đủ dữ liệu"
 ```
+
+Repair `AR-R6-IR-03`. Trước repair, tử số loại các dòng thiếu `total_sales`
+trong khi mẫu số vẫn cộng số lượng của chính những dòng ấy — hai vế của một
+phép chia đọc hai tập dòng khác nhau:
+
+```text
+hai dòng, mỗi dòng 1 chiếc giá 10.000.000, MỘT dòng chưa có total_sales
+  tử số  = 10.000.000     (một dòng)
+  mẫu số = 2              (hai dòng)
+  giá BQ = 5.000.000      ← thấp đúng một nửa giá duy nhất quan sát được
+```
+
+Nặng hơn con số: `dashboard_presentation.data_quality` in ra cho người đọc rằng
+dòng chưa có doanh thu *"không được cộng như số 0 vào bất kỳ ô nào"* — và với
+đúng ô này mệnh đề ấy đã SAI. Trang khẳng định một bất biến mà mã không giữ.
+
+Tập "đủ dữ liệu" (`priced_lines`) là dòng HÀNG HOÁ có ĐỦ ba điều: `total_sales`
+không `None`, `quantity` không `None`, và `quantity > 0`. Điều kiện thứ ba
+không phải để làm đẹp: một dòng số lượng 0 mà có doanh thu sẽ góp vào tử số mà
+không góp gì vào mẫu số, tức đẩy giá bình quân LÊN — cùng lớp lỗi, chiều ngược
+lại.
+
+`min`/`max` KHÔNG bị thu hẹp theo tập ấy: chúng đọc `sell_price` của mọi dòng
+hàng hoá CÓ đơn giá. Một dòng chưa chốt doanh thu vẫn có một đơn giá quan sát
+được, và "giá bán thấp nhất của nhóm" là một sự thật về ĐƠN GIÁ, không về doanh
+thu. Hai câu hỏi khác nhau, hai tập dòng khác nhau — và đó là hợp đồng, không
+phải một chỗ bỏ quên: `PriceStats` nói ra cả hai bằng hai nhóm trường riêng.
 
 Chia tổng cho tổng, KHÔNG lấy trung bình của các đơn giá. Một bucket có một
 dòng 1 chiếc giá 30 triệu và một dòng 100 chiếc giá 200 nghìn thì trung bình
 đơn giá là 15,1 triệu — một con số không mô tả bất cứ thứ gì đã xảy ra. Phép
 chia gia quyền cho ra 494 nghìn, tức số tiền trung bình thật trên mỗi chiếc.
 
-`quantity == 0` ⟹ `None`, không phải `0`: chia cho 0 không có nghĩa, và một
-`0 đồng/chiếc` in ra sẽ đọc thành "hàng này bán không lấy tiền".
+Mẫu số bằng 0 ⟹ `None`, không phải `0`: chia cho 0 không có nghĩa, và một
+`0 đồng/chiếc` in ra sẽ đọc thành "hàng này bán không lấy tiền". `average_reason`
+đi kèm để trang nói ra VÌ SAO ô ấy trống, thay vì để người đọc tự đoán.
 
 `FEE`/`DISCOUNT`/`RETURN_CANCEL`/`UNDECIDED_DOCUMENT` KHÔNG tham gia phép chia
 (`dashboard_metrics.MERCHANDISE_TYPES` là tập duy nhất định nghĩa "hàng hoá").
-Một bucket không có dòng hàng hoá nào vì thế có `average_sell_price is None`
-và trang hiện `—`. Doanh thu của nó KHÔNG bị bỏ đi — nó vẫn nằm trong
-`revenue` và vẫn phải khớp khi đối soát, vì một khoản phí là tiền thật.
+Một bucket không có dòng hàng hoá nào vì thế có `average is None` và trang hiện
+`—`. Doanh thu của nó KHÔNG bị bỏ đi — nó vẫn nằm trong `revenue` và vẫn phải
+khớp khi đối soát, vì một khoản phí là tiền thật.
+
+`dashboard_metrics.total_quantity` — tổng số lượng NGHIỆP VỤ của một bucket —
+KHÔNG bị repair này chạm tới: nó vẫn đếm số lượng của MỌI dòng có số lượng, kể
+cả dòng chưa chốt doanh thu. Thu hẹp nó theo tập tính giá sẽ làm tổng số lượng
+của bảng thôi khớp với tổng của phạm vi, tức đánh đổi một phép đối soát để sửa
+một phép chia.
 
 ## Giá 0 của hàng tặng là giá THẬT
 
@@ -115,49 +149,115 @@ class GroupBucket:
         return self.kind == KIND_KNOWN
 
 
+#: Lý do một ô giá bình quân trống. Tập ĐÓNG, và mỗi giá trị là một câu người
+#: đọc hành động được — không phải một mã lỗi.
+NO_AVERAGE_NO_MERCHANDISE = "NO_MERCHANDISE"
+NO_AVERAGE_NO_PRICED_LINE = "NO_PRICED_LINE"
+
+AVERAGE_REASONS = {
+    NO_AVERAGE_NO_MERCHANDISE: (
+        "Nhóm này không có dòng hàng hoá nào (chỉ phí, chiết khấu, hoàn/hủy "
+        "hoặc chứng từ chưa định nghĩa), nên không có giá bán hàng hoá để "
+        "tính. Doanh thu của nhóm vẫn nằm đủ trong cột doanh thu."
+    ),
+    NO_AVERAGE_NO_PRICED_LINE: (
+        "Nhóm này có dòng hàng hoá, nhưng chưa dòng nào có ĐỦ cả doanh thu và "
+        "số lượng để tham gia phép chia. Ô trống ở đây nghĩa là CHƯA TÍNH "
+        "ĐƯỢC, không phải bằng 0."
+    ),
+}
+
+
 @dataclass(frozen=True)
 class PriceStats:
-    """Ba con số về GIÁ BÁN của một bucket, tính trên dòng hàng hoá.
+    """Các con số về GIÁ BÁN của một bucket, trên dòng hàng hoá.
 
-    `merchandise_lines == 0` ⟹ cả ba là `None`, và trang hiện `—`. Đó là câu
-    trả lời đúng cho một bucket chỉ gồm phí: nó không có giá bán hàng hoá nào,
-    và in ra một con số ở đó là bịa.
+    Hai NHÓM trường, hai câu hỏi khác nhau, và chúng cố ý không dùng chung một
+    tập dòng (xem đầu file):
+
+    ```text
+    priced_*            tập "đủ dữ liệu" — tử số VÀ mẫu số của giá bình quân
+    minimum / maximum   mọi dòng hàng hoá CÓ đơn giá
+    merchandise_lines   mọi dòng hàng hoá, để biết bucket có hàng hoá hay không
+    ```
+
+    `merchandise_lines == 0` ⟹ mọi con số là `None`, và trang hiện `—`. Đó là
+    câu trả lời đúng cho một bucket chỉ gồm phí: nó không có giá bán hàng hoá
+    nào, và in ra một con số ở đó là bịa.
     """
 
     merchandise_lines: int
-    merchandise_quantity: Decimal
-    merchandise_revenue: Optional[Decimal]
+    #: Số dòng hàng hoá CÓ ĐỦ doanh thu và số lượng hợp lệ — tập dùng cho CẢ
+    #: tử số và mẫu số của `average` (repair `AR-R6-IR-03`).
+    priced_lines: int
+    priced_quantity: Decimal
+    priced_revenue: Optional[Decimal]
     minimum: Optional[Decimal]
     maximum: Optional[Decimal]
 
     @property
     def average(self) -> Optional[Decimal]:
-        """`Σ total_sales / Σ quantity` của dòng hàng hoá, hoặc `None`."""
-        if self.merchandise_revenue is None or self.merchandise_quantity == 0:
+        """`Σ total_sales / Σ quantity` trên CÙNG tập dòng, hoặc `None`."""
+        if self.priced_revenue is None or self.priced_quantity <= 0:
             return None
-        return (Decimal(self.merchandise_revenue)
-                / Decimal(self.merchandise_quantity)).quantize(
+        return (Decimal(self.priced_revenue)
+                / Decimal(self.priced_quantity)).quantize(
                     _CENT, rounding=ROUND_HALF_UP)
+
+    @property
+    def average_reason(self) -> Optional[str]:
+        """VÌ SAO `average` là `None`, hoặc `None` khi nó có giá trị.
+
+        `None`-vì-không-có-hàng-hoá và `None`-vì-chưa-đủ-dữ-liệu cần hai câu
+        khác nhau: cái đầu là trạng thái ĐÚNG của một nhóm phí và không phải
+        việc phải sửa, cái sau là một khoảng trống dữ liệu có chỗ sửa thật.
+        """
+        if self.average is not None:
+            return None
+        if self.merchandise_lines == 0:
+            return AVERAGE_REASONS[NO_AVERAGE_NO_MERCHANDISE]
+        return AVERAGE_REASONS[NO_AVERAGE_NO_PRICED_LINE]
 
     @property
     def has_merchandise(self) -> bool:
         return self.merchandise_lines > 0
 
 
+def _priced(line: BusinessLine) -> bool:
+    """Dòng này có ĐỦ dữ liệu để tham gia phép chia giá bình quân?
+
+    Ba điều kiện, và cả ba đều cần (repair `AR-R6-IR-03`):
+
+    ```text
+    total_sales is not None   có tử số
+    quantity is not None      có mẫu số
+    quantity > 0              mẫu số dùng được — số lượng 0 góp tiền mà không
+                              góp chiếc, tức đẩy giá bình quân LÊN
+    ```
+    """
+    return (line.total_sales is not None and line.quantity is not None
+            and Decimal(line.quantity) > 0)
+
+
 def price_stats(lines: Sequence[BusinessLine]) -> PriceStats:
-    """`PriceStats` của một tập dòng — CHỈ đọc dòng hàng hoá."""
+    """`PriceStats` của một tập dòng — CHỈ đọc dòng hàng hoá.
+
+    Tử số và mẫu số của giá bình quân đọc CÙNG một danh sách `priced`, nên
+    chúng không thể trôi khỏi nhau: thêm hay bớt một điều kiện ở `_priced` đổi
+    cả hai vế cùng lúc.
+    """
     merchandise = [line for line in lines
                    if line.line_type in dmx.MERCHANDISE_TYPES]
     prices = [Decimal(line.sell_price) for line in merchandise
               if line.sell_price is not None]
-    revenues = [Decimal(line.total_sales) for line in merchandise
-                if line.total_sales is not None]
+    priced = [line for line in merchandise if _priced(line)]
+    revenues = [Decimal(line.total_sales) for line in priced]
     return PriceStats(
         merchandise_lines=len(merchandise),
-        merchandise_quantity=sum(
-            (Decimal(line.quantity) for line in merchandise
-             if line.quantity is not None), Decimal(0)),
-        merchandise_revenue=sum(revenues, Decimal(0)) if revenues else None,
+        priced_lines=len(priced),
+        priced_quantity=sum((Decimal(line.quantity) for line in priced),
+                            Decimal(0)),
+        priced_revenue=sum(revenues, Decimal(0)) if revenues else None,
         minimum=min(prices) if prices else None,
         maximum=max(prices) if prices else None,
     )
@@ -303,7 +403,8 @@ def reconciliation(rows: Sequence[GroupRow],
 
 
 __all__ = [
-    "GroupBucket", "GroupReconciliation", "GroupRow", "KINDS", "KIND_KNOWN",
-    "KIND_UNDECIDED", "PriceStats", "group_rows", "price_stats",
+    "AVERAGE_REASONS", "GroupBucket", "GroupReconciliation", "GroupRow",
+    "KINDS", "KIND_KNOWN", "KIND_UNDECIDED", "NO_AVERAGE_NO_MERCHANDISE",
+    "NO_AVERAGE_NO_PRICED_LINE", "PriceStats", "group_rows", "price_stats",
     "reconciliation", "share_percent",
 ]

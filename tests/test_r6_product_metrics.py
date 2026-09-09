@@ -81,9 +81,15 @@ def test_average_price_is_revenue_over_quantity_not_the_mean_of_unit_prices():
         (line("BH2", sell="200000", qty="100"), bucket("A")),
     ])
     stats = rows[0].prices
-    assert stats.merchandise_quantity == Decimal("101")
-    assert stats.merchandise_revenue == Decimal("50000000")
+    # Repair `AR-R6-IR-03` đổi TÊN hai trường (`merchandise_*` → `priced_*`) để
+    # nói ra rằng tử số và mẫu số đọc CÙNG một tập dòng. Giá trị KHÔNG đổi ở
+    # ca này — cả hai dòng đều đủ doanh thu và số lượng — nên bài kiểm vẫn đo
+    # đúng mệnh đề cũ, và thêm một mệnh đề mới: cả hai dòng thuộc tập tính giá.
+    assert stats.priced_lines == stats.merchandise_lines == 2
+    assert stats.priced_quantity == Decimal("101")
+    assert stats.priced_revenue == Decimal("50000000")
     assert stats.average == Decimal("495049.50")
+    assert stats.average_reason is None
 
 
 def test_average_price_is_none_when_quantity_is_zero_not_zero_dong():

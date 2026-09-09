@@ -181,13 +181,29 @@ def main(argv=None) -> int:
         if label not in ("TỔNG",) and "Chưa xác định" not in label], [])
 
     # Phân loại qua ĐÚNG route POST thật của R2/R5.
-    def classify(order, code):
+    def classify(product_raw, code):
+        """Phân loại dòng mang ĐÚNG tên hàng này, qua route POST thật.
+
+        Chọn theo TÊN HÀNG chứ không theo Số BH (repair `FIND-R6-IR-02`): danh
+        tính được khoá theo `raw_identity_key(product_raw)`, nên "phân loại
+        dòng đầu tiên của BH2" là một phép chọn KHÔNG XÁC ĐỊNH — sau khi tivi
+        của BH1 được khớp thì tivi của BH2 cũng khớp theo, và lời gọi kế tiếp
+        rơi vào dòng phí. Bản cũ vì thế đã gán một khoản phí vận chuyển cho mã
+        tủ lạnh, và ô "nhiều nhóm hàng hoá" của nó bằng 1 chỉ vì BH1 còn một
+        dòng CHƯA khớp — đúng chỗ mà review nói bài kiểm không đo được điều tên
+        gọi của nó gợi ra.
+        """
         html = html_of("/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
-        for href in re.findall(
-                r'data-metric="identity-open"[^>]*href="([^"]+)"', html):
+        for block in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
+            if product_raw not in block:
+                continue
+            href = re.search(
+                r'data-metric="identity-open"[^>]*href="([^"]+)"', block)
+            if href is None:
+                continue
             match = re.search(r"order_key=([^&\"]+).*?product_key=([0-9a-f]+)"
-                              r".*?occurrence_index=(\d+)", href)
-            if match is None or match.group(1) != order:
+                              r".*?occurrence_index=(\d+)", href.group(1))
+            if match is None:
                 continue
             resp = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
                 "ky": "2026-09", "sheet": "noi-thanh",
@@ -197,8 +213,10 @@ def main(argv=None) -> int:
                 return True
         return False
 
-    ok("phân loại BH1 → 55Q6FA", classify("BH1", "55Q6FA"), True)
-    ok("phân loại BH2 → RT38", classify("BH2", "RT38"), True)
+    ok("phân loại tivi → 55Q6FA (nhóm hàng Tivi)",
+       classify("Tivi Samsung QLED 55Q6FA", "55Q6FA"), True)
+    ok("phân loại tủ lạnh → RT38 (nhóm hàng Tủ lạnh)",
+       classify("Tủ lạnh Samsung RT38", "RT38"), True)
 
     after = html_of(STRUCTURE)
     ok("nhóm hàng canonical của Tracking lên đúng bảng R6",
@@ -231,18 +249,22 @@ def main(argv=None) -> int:
        [one(basket, "multi_product_orders"),
         one(basket, "service_attachment_orders")], ["1", "1"])
     # Phép đo ĐÚNG của mệnh đề "phí không làm tăng nhóm hàng hoá" là một phép
-    # SO SÁNH, không phải một con số 0: BH1 (hai mặt hàng, hai nhóm) là một đơn
-    # nhiều nhóm hàng THẬT và phải được đếm. Cái phải KHÔNG được đếm là BH2
-    # (một tivi + một khoản phí). Vì thế:
+    # SO SÁNH, không phải một con số 0 — và sau repair `FIND-R6-IR-02` nó còn
+    # phải dựa trên HAI NHÓM HÀNG THẬT, không phải một nhóm thật cộng một bucket
+    # chưa xác định:
     #
-    #     đơn nhiều dòng                = 2   (BH1 và BH2)
-    #     đơn nhiều nhóm hàng hoá       = 1   (chỉ BH1)
+    #     BH1  tivi (Tivi) + tủ lạnh (Tủ lạnh)   ⟹ nhiều nhóm hàng hoá THẬT
+    #     BH2  tivi (Tivi) + phí vận chuyển      ⟹ có dịch vụ kèm, KHÔNG nhiều nhóm
+    #     BH3  chưa khớp mã                       ⟹ ngoài chiều nhóm hàng
     #
-    # và chênh lệch đúng bằng đơn có phí. Một khẳng định "= 0" sẽ xanh khi
-    # engine hỏng theo hướng ngược lại (bỏ sót cả BH1) mà không ai thấy.
+    #     đơn nhiều dòng          = 2   (BH1 và BH2)
+    #     đơn nhiều nhóm hàng hoá = 1   (chỉ BH1)
+    #
+    # Chênh lệch đúng bằng đơn có phí. Một khẳng định "= 0" sẽ xanh khi engine
+    # hỏng theo hướng ngược lại (bỏ sót cả BH1) mà không ai thấy.
     ok("đơn nhiều dòng đếm cả BH1 lẫn BH2",
        one(basket, "multi_line_orders"), "2")
-    ok("phí KHÔNG làm tăng ô nhiều nhóm hàng hoá: chỉ BH1 được đếm",
+    ok("hai nhóm hàng THẬT ⟹ chỉ BH1 được đếm nhiều nhóm hàng hoá",
        one(basket, "multi_merchandise_category_orders"), "1")
 
     pairs = html_of(BASKET + "&chieu=nhom-hang")
@@ -251,6 +273,26 @@ def main(argv=None) -> int:
     ok("attachment có HAI cột riêng",
        len(cells(pairs, "attachment-left")) ==
        len(cells(pairs, "attachment-right")) >= 1, True)
+    # "Màn hình" chứ không "Tivi": §3 ngay trên đã ĐỔI `category_label` của
+    # 55Q6FA bên Tracking để chứng minh đổi nhóm hàng chỉ dời bucket mà không
+    # dời một đồng nào. Bảng cặp phải đọc theo giá trị MỚI — nếu nó vẫn nói
+    # "Tivi" thì nó đang đọc một bản chiếu cũ.
+    ok("cặp nhóm hàng là hai nhóm CHÍNH DANH, theo giá trị Tracking HIỆN TẠI",
+       sorted({*cells(pairs, "pair-left"), *cells(pairs, "pair-right")}),
+       ["Màn hình", "Tủ lạnh"])
+
+    # --- repair `FIND-R6-IR-02`: bucket chưa xác định KHÔNG là một nhóm hàng --
+    ok("KHÔNG cặp nhóm hàng nào chứa bucket chưa xác định",
+       "Chưa xác định" in "".join(
+           [*cells(pairs, "pair-left"), *cells(pairs, "pair-right")]), False)
+    ok("mọi ô của bảng cặp nhóm hàng đều chính danh",
+       sorted(set(re.findall(
+           r'data-metric="pair-(?:left|right)"[^>]*data-known="(\w+)"', pairs))),
+       ["yes"])
+    ok("BH3 (chưa khớp mã) hiện ở tín hiệu độ phủ, không ở bảng cặp",
+       one(pairs, "unknown-category-orders"), "1")
+    ok("...kèm số DÒNG là nguyên nhân",
+       one(pairs, "unknown-category-lines"), "1")
 
     drill = html_of("/kinh-doanh/phan-tich/don-hang?ky=2026-09")
     ok("drill-down KHÔNG rò tên khách hàng",

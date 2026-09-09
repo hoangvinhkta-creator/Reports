@@ -103,11 +103,29 @@ bị TỪ CHỐI kèm lý do hiển thị, không âm thầm thành một phạm
 Phạm vi `CUSTOM` mang `period = None`, nên `PeriodData.closed` là `None`: một
 khoảng ngày tự chọn KHÔNG mượn trạng thái chốt kỳ của tháng nào.
 
-Engine thời gian dùng lại nguyên vẹn `app/web/revenue_timeline.py` của `R5`:
-30 ngày · 12 tuần · 12 tháng · 8 quý, so với cửa sổ liền trước cùng độ dài.
-`R6` bổ sung series `orders` trên **đúng các bucket đó** bằng cách dựng
-`Point`/`PairedSeries` của `R5` với số đơn ở trường `revenue` — không một
-dòng nào của `revenue_timeline` bị sửa.
+Engine thời gian dùng lại `app/web/revenue_timeline.py` của `R5`: 30 ngày ·
+12 tuần · 12 tháng · 8 quý, so với cửa sổ liền trước cùng độ dài. `R6` bổ sung
+series `orders` trên **đúng các bucket đó** bằng cách dựng `Point`/`PairedSeries`
+của `R5` với số đơn ở trường `revenue`.
+
+**`REPAIR-1` (`FIND-R6-IR-01`).** Bản đầu của `R6` nạp cho cả hai biểu đồ lát
+dữ liệu ĐÃ LỌC theo phạm vi, trong khi cửa sổ so sánh nằm NGOÀI lát ấy — và
+`_covered_by_confirmed` biến các mốc không có điểm thành số `0` mang cờ "đã
+đo". Một khoảng thời gian có tiền thật vì thế bị vẽ thành 0.
+
+Từ `REPAIR-1`: `revenue_timeline` nhận thêm MỘT hàm công khai
+`paired_window_span(granularity, anchor)` — thuần THÊM, không sửa một dòng hành
+vi nào của engine cũ — và `server._chart_details()` đọc lại
+`service.period(...)` trên đúng khoảng hai cửa sổ đó. Khoảng ấy **bounded**,
+hẹp hơn hẳn cách trang Báo cáo `R5` đọc toàn bộ dòng thời gian.
+
+Neo của cả hai biểu đồ là `AnalysisRange.date_to`, nói ra tường minh: với
+phạm vi `PERIOD` nó bằng đúng `anchor_date()`, còn với `CUSTOM` thì
+`anchor_date()` sẽ rơi về "ngày bán muộn nhất CÓ dữ liệu" và làm cửa sổ trôi
+theo dữ liệu. Lát mở rộng KHÔNG truyền `period=`, nên nó không mượn chốt kỳ.
+
+**Chỉ dữ liệu cấp cho BIỂU ĐỒ được mở rộng.** Ô chỉ tiêu, bảng gộp, giỏ hàng
+và bảng kê vẫn đọc đúng phạm vi đang xem.
 
 **Một đơn thuộc đúng một mốc**: gán vào NGÀY NHỎ NHẤT trong các dòng hiệu lực
 của nó. Bất biến kiểm được ở CẢ NĂM mức gộp:
@@ -130,8 +148,15 @@ service_attachment_orders          có hàng hoá VÀ có FEE/dịch vụ
 
 - Cặp sản phẩm dùng **set** `product_key` trong từng đơn — mã lặp hai dòng chỉ
   tính một lần và không tự tạo cặp.
-- Cặp nhóm hàng dùng **set** `category_label`; bucket "chưa xác định" là một
-  bucket THẬT và không làm mất tiền.
+- Cặp nhóm hàng dùng **set** `category_label`, và **chỉ nhận nhóm CHÍNH DANH**
+  (`REPAIR-1`, `FIND-R6-IR-02`). Bucket "chưa xác định" là một TRẠNG THÁI QUY
+  TRÌNH, không phải nhóm hàng hoá: nó không làm tăng
+  `multi_merchandise_category_orders`, không tạo cặp, không sinh attachment hay
+  support giả. Tiền của nó KHÔNG mất — nó vẫn nằm đủ trong mọi ô doanh thu và
+  trong bảng cơ cấu theo nhóm hàng, nơi mọi dòng giữ bucket riêng để đối soát
+  khớp tuyệt đối. Phần bị để ngoài phân tích cặp được NÓI RA bằng con số
+  (`orders_with_unknown_category`, `unknown_category_lines`) trên chính trang
+  giỏ hàng.
 - `pair_orders` = số đơn chứa cả A và B.
 - `attachment A→B = pair_orders / orders_with_A`; `B→A` dùng **mẫu số riêng**.
 - `pair_revenue` cộng TOÀN BỘ doanh thu hiệu lực của đơn, mỗi đơn đúng một
@@ -148,6 +173,7 @@ service_attachment_orders          có hàng hoá VÀ có FEE/dịch vụ
 | 1 | Aggregate nền + hợp đồng filter | `app/modules/reporting/dashboard_metrics.py`, `app/modules/reporting/analysis_range.py` |
 | 2 | Tổng quan + hai biểu đồ hai cửa sổ | `app/web/server.py` (`analytics_overview`), `business_presentation.paired_count_chart` |
 | 3 | Mặt hàng · Nhóm hàng · Hãng | `app/modules/reporting/product_metrics.py`, `app/web/product_taxonomy.py` |
+| — | `REPAIR-1`: khoảng hai cửa sổ của biểu đồ | `app/web/revenue_timeline.py` (`paired_window_span`, thuần THÊM) |
 | 4 | Nhân viên (lát `for_employee`) | `app/web/server.py` (`analytics_employee`) |
 | 5 | Basket + drill-down | `app/modules/reporting/basket_metrics.py`, `app/web/server.py` (`analytics_basket`, `analytics_drilldown`) |
 
@@ -156,7 +182,9 @@ Trình bày: `app/web/dashboard_presentation.py` + năm template
 
 **KHÔNG có**: migration, bảng mới, warehouse, materialized view, external API,
 route GHI, product key thứ hai, engine thời gian thứ hai, taxonomy thứ hai,
-store quyết định thứ hai. `alembic` giữ nguyên một head của `R3`.
+store quyết định thứ hai. `alembic` giữ nguyên một head của `R3`. `REPAIR-1`
+không thêm một mục nào vào danh sách này: `paired_window_span` là một hàm
+THÊM VÀO engine thời gian đã có, không phải một engine thứ hai.
 
 ## 6. Hàng rào dữ liệu của drill-down
 
@@ -167,6 +195,18 @@ nên ràng buộc này đúng theo CẤU TẠO chứ không theo lời hứa, k�
 `PeriodData.details` mang sẵn tên/SĐT/địa chỉ cho bảng kê nghiệp vụ
 (`DEC-PHB02-08`).
 
+## 6b. Giá bán bình quân — một tập dòng cho cả hai vế (`REPAIR-1`)
+
+`AR-R6-IR-03`. Tử số và mẫu số của giá bán bình quân đọc CÙNG một tập dòng:
+dòng HÀNG HOÁ có đủ `total_sales`, `quantity`, và `quantity > 0`. Bản đầu loại
+dòng thiếu doanh thu khỏi tử số nhưng vẫn cộng số lượng của nó vào mẫu số, làm
+giá bình quân thấp đúng một nửa trong ca hai dòng cùng giá.
+
+`min`/`max` giữ tập cũ — mọi dòng hàng hoá CÓ đơn giá — vì chúng trả lời câu
+hỏi về ĐƠN GIÁ, không về doanh thu. `dashboard_metrics.total_quantity` (tổng số
+lượng nghiệp vụ) KHÔNG bị thu hẹp. Không đủ dữ liệu ⟹ `None` KÈM LÝ DO
+(`PriceStats.average_reason`), không bao giờ `0`.
+
 ## 7. Giới hạn chất lượng đã áp dụng
 
 Chỉ repair bắt buộc với lỗi có thể làm **sai tổng tiền, sai số đơn, mất
@@ -175,13 +215,16 @@ persistence/audit, rò dữ liệu, hoặc gộp sai khó phát hiện**. Các c
 ghi thành `ACCEPTED_RISK` kèm điều kiện kích hoạt — xem
 `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` §6.
 
-## 8. Trạng thái kết thúc phiên triển khai
+## 8. Trạng thái sau `REPAIR-1`
 
 ```text
 R6                     IMPLEMENTED
 CHECK-R6-01 … -29      PASS (E1)
+CHECK-R6-33 … -54      PASS (E1) — 22 check của REPAIR-1
 CHECK-R6-30            NOT_TESTED — đối soát trên SỔ THẬT của Owner
-CHECK-R6-31            NOT_TESTED — Independent Review
+CHECK-R6-31            NOT_TESTED — Independent Review vòng 2 (vòng 1 = FAIL
+                       trên HEAD 56aca4c, đã sửa; xem docs/reviews/)
 CHECK-R6-32            NOT_TESTED — Owner Acceptance
-Merge / PR / deploy    KHÔNG thực hiện trong phiên triển khai
+Repair cycle           1 allowed / 1 used / 0 remaining — HẾT ngân sách
+Merge / PR / deploy    KHÔNG thực hiện
 ```

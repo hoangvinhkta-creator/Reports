@@ -3201,6 +3201,18 @@ def create_app(
         return {
             "service": service, "range": scope, "data": data,
             "metadata": metadata,
+            # Repair `FIND-R6-IR-01` — NEO của cả hai biểu đồ, nói ra TƯỜNG
+            # MINH ở đây thay vì để mỗi biểu đồ tự gọi `anchor_date()`.
+            #
+            # `anchor_date(period, details)` rơi về "ngày bán MUỘN NHẤT thực sự
+            # có" khi `period is None`, và với R6 thì `period is None` nghĩa là
+            # phạm vi TỰ CHỌN — nên cửa sổ sẽ trôi theo dữ liệu: cùng một
+            # khoảng ngày người dùng gõ cho ra hai cửa sổ khác nhau ở hai lần
+            # nạp sổ khác nhau. `scope.date_to` là câu trả lời đúng cho CẢ HAI
+            # phạm vi: với `PERIOD` nó đúng bằng ngày cuối tháng — tức đúng
+            # giá trị `anchor_date()` trả về — còn với `CUSTOM` nó là chính
+            # `Đến ngày` người dùng gõ.
+            "anchor": scope.date_to,
             "totals": dashboard_metrics.totals(data.details),
             "periods": workspace_presentation.period_options(
                 _guarded(analytics_queries.available_periods,
@@ -3224,6 +3236,45 @@ def create_app(
             "scope_note": analysis_range.SCOPE_NOTE,
         }
 
+    def _chart_details(view: dict, granularity: str) -> tuple[list, bool]:
+        """Lát dữ liệu hiệu lực PHỦ ĐỦ hai cửa sổ của biểu đồ, và cờ "đã mở rộng".
+
+        Repair `FIND-R6-IR-01`. Đây là chỗ DUY NHẤT của R6 đọc thêm dữ liệu
+        ngoài phạm vi đang xem, và nó đọc đúng bằng khoảng mà
+        `revenue_timeline.paired_window_span` nói là cần — không phải toàn bộ
+        dòng thời gian như trang Báo cáo `R5` đang làm.
+
+        Ba ràng buộc được giữ bằng CẤU TẠO:
+
+        1. **Chỉ biểu đồ.** Hàm này trả về một danh sách `details` và không
+           chạm `view`. Ô chỉ tiêu, bảng gộp, giỏ hàng và bảng kê vẫn đọc
+           `view["data"]` của phạm vi đang xem, nên chúng không thể lặng lẽ
+           nói về một khoảng thời gian khác cái người dùng vừa chọn.
+        2. **Vẫn là effective data.** Nó gọi ĐÚNG `service.period(...)` — cùng
+           lời gọi mà mọi trang nghiệp vụ dùng — nên dòng Owner đã loại và
+           dòng R5 tạm loại vẫn không có mặt, và giá nhập/nhân viên vẫn là
+           giá trị đã hợp nhất. Không đường nào ở đây đọc Excel, `ImportResult`
+           hay một giá "hiện tại" nào.
+        3. **KHÔNG mượn chốt kỳ.** `period=` cố ý KHÔNG được truyền: khoảng
+           hai cửa sổ hầu như không bao giờ là một tháng dương lịch, và mượn
+           trạng thái chốt của tháng chứa nó sẽ gán một `ClosedPeriod` cho một
+           khoảng chưa ai chốt. Biểu đồ không đọc `closed`, nên `None` ở đây
+           không mất thông tin nào.
+
+        Khi phạm vi đang xem ĐÃ phủ đủ khoảng cần thiết, hàm trả về chính lát
+        đã đọc — không có câu truy vấn thứ hai nào chạy.
+        """
+        span = revenue_timeline.paired_window_span(granularity, view["anchor"])
+        if span is None:
+            # Mức NĂM: không có cửa sổ so sánh, nên không có gì phải phủ thêm.
+            return view["data"].details, False
+        low, high = span
+        scope = view["range"]
+        if low >= scope.date_from and high <= scope.date_to:
+            return view["data"].details, False
+        return _guarded(view["service"].period,
+                        date_from=low, date_to=high).details, True
+
     def _orders_chart(view: dict) -> Optional[dict]:
         """Biểu đồ SỐ ĐƠN, hai cửa sổ liền kề — cùng engine với doanh thu.
 
@@ -3237,8 +3288,9 @@ def create_app(
         """
         granularity = revenue_timeline.parse_granularity(
             request.args.get("muc"), default=revenue_timeline.DAY)
+        details, _widened = _chart_details(view, granularity)
         buckets = dashboard_metrics.orders_by_bucket(
-            view["data"].details, bucket_of=revenue_timeline.bucket_of,
+            details, bucket_of=revenue_timeline.bucket_of,
             granularity=granularity)
         points = [
             revenue_timeline.Point(
@@ -3248,9 +3300,7 @@ def create_app(
             for key, slot in sorted(buckets.items())
         ]
         paired = revenue_timeline.paired_series(
-            points, granularity=granularity,
-            anchor=revenue_timeline.anchor_date(
-                view["range"].period, view["data"].details),
+            points, granularity=granularity, anchor=view["anchor"],
             confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
             if snapshot_repo is not None else ())
         if paired is None:
@@ -3273,16 +3323,16 @@ def create_app(
         """
         granularity = revenue_timeline.parse_granularity(
             request.args.get("muc"), default=revenue_timeline.DAY)
-        points = revenue_timeline.series(
-            view["data"].details, granularity=granularity)
+        details, _widened = _chart_details(view, granularity)
+        points = revenue_timeline.series(details, granularity=granularity)
         paired = revenue_timeline.paired_series(
-            points, granularity=granularity,
-            anchor=revenue_timeline.anchor_date(
-                view["range"].period, view["data"].details),
+            points, granularity=granularity, anchor=view["anchor"],
             confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
             if snapshot_repo is not None else ())
         if paired is None:
             return None
+        # `undated` vẫn đếm trên lát của PHẠM VI ĐANG XEM: nó là một tín hiệu
+        # chất lượng dữ liệu về cái người dùng đang xem, không về hai cửa sổ.
         return business_presentation.paired_revenue_chart(
             paired, granularity=granularity,
             undated=revenue_timeline.undated_count(view["data"].details))

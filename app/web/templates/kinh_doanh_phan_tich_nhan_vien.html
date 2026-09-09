@@ -100,7 +100,9 @@
       <td class="num" data-metric="orders">{{ row.orders }}</td>
       <td class="num" data-metric="lines">{{ row.lines }}</td>
       <td class="num{{ ' empty-cell' if row.average_price.missing }}"
-          data-metric="average-price">{{ row.average_price.text }}</td>
+          data-metric="average-price"
+          {% if row.average_price.reason %}title="{{ row.average_price.reason }}"{% endif %}
+          >{{ row.average_price.text }}</td>
       <td class="num{{ ' empty-cell' if row.min_price.missing }}"
           data-metric="min-price">{{ row.min_price.text }}</td>
       <td class="num{{ ' empty-cell' if row.max_price.missing }}"

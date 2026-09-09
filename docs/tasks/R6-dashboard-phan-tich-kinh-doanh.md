@@ -3,11 +3,16 @@
 ## Metadata
 
 Status:
-BLOCKED
+IMPLEMENTED
 
 Current Status Reason:
-Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED` — chi tiết ngay
-dưới. Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
+Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1`
+(`S145`, 2026-09-09) đã sửa CẢ BỐN mục trong ĐÚNG MỘT repair cycle** — chi
+tiết ở §8 cuối file. Task trở lại `IMPLEMENTED`, chờ vòng review thứ hai trên
+HEAD sau repair; `CHECK-R6-31` vì thế trở về `NOT_TESTED` (kết luận `FAIL` của
+vòng 1 nói về một HEAD không còn là HEAD hiện tại).
+
+Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
 Không migration, không bảng mới, không warehouse, không materialized view,
 không API ngoài, không route GHI — `R6` là một tầng CHỈ ĐỌC dựng trên
 `PeriodData` hiệu lực của `R3`–`R5`.
@@ -21,13 +26,15 @@ trong môi trường phiên này. Công cụ đối soát đã viết và đã �
 trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); còn thiếu đúng một lần
 chạy trên sổ thật.
 
-`CHECK-R6-31` (Independent Review) — **ĐÃ CHẠY vòng 1** ở `S144`
-(2026-09-09) trên exact HEAD `56aca4c91bd788b1e14d7f71b9246d1577255c1a`.
-Kết luận **`REPAIR_REQUIRED`** → `CHECK-R6-31` = `FAIL` (E1). Task chuyển
-`IMPLEMENTED` → `BLOCKED` cho tới khi `REPAIR-1` xử lý xong finding và một
-vòng review thứ hai chạy lại trên HEAD sau repair.
+`CHECK-R6-31` (Independent Review) — vòng 1 ĐÃ CHẠY ở `S144` (2026-09-09)
+trên exact HEAD `56aca4c91bd788b1e14d7f71b9246d1577255c1a` và kết luận
+**`REPAIR_REQUIRED`** (`FAIL`, E1). Sau `REPAIR-1` nó trở về `NOT_TESTED`:
+kết luận của vòng 1 vẫn ĐÚNG với HEAD nó đã review, và chính vì thế nó KHÔNG
+còn nói được gì về HEAD hiện tại. Nó KHÔNG được tự đánh dấu `PASS` bởi phiên
+repair.
 
-Finding của vòng 1 (hai mục BẮT BUỘC, hai mục nên làm):
+Finding của vòng 1 (hai mục BẮT BUỘC, hai mục nên làm) — **cả bốn ĐÃ SỬA ở
+`REPAIR-1`, xem §8**:
 
 ```text
 FIND-R6-IR-01  cửa sổ so sánh của CẢ HAI biểu đồ vẽ số 0 cho một khoảng có
@@ -152,6 +159,8 @@ app/web/dashboard_presentation.py             MỚI
 app/web/business_presentation.py              THÊM paired_count_chart,
                                               money_text/money_kvnd; `_slot_title`
                                               nhận thêm tham số `unit` CÓ MẶC ĐỊNH
+app/web/revenue_timeline.py                   REPAIR-1: THÊM paired_window_span
+                                              (thuần THÊM — xem §8.4)
 app/web/server.py                             THÊM 5 route GET + hàm phụ
 app/web/templates/_r6_bits.html               MỚI
 app/web/templates/kinh_doanh_phan_tich*.html  MỚI (4 file)
@@ -170,10 +179,22 @@ app/modules/profit/**             lợi nhuận
 app/modules/kpi/**                KPI
 app/web/period_lock.py            chốt kỳ, fingerprint
 app/web/business_store.py         mọi đường GHI quyết định
-app/web/revenue_timeline.py       engine thời gian của R5
+app/web/business_queries.py       tầng truy vấn đọc
+app/web/business_service.py       PeriodData và effective data
+app/modules/reporting/business_metrics.py   ngữ nghĩa nghiệp vụ đã freeze
 tools/db/migrations/**            KHÔNG migration mới
 Tracking (toàn bộ repo)           CHỈ ĐỌC hợp đồng metadata đã merge
 ```
+
+**Đính chính phạm vi tại `REPAIR-1`.** Bản trước của mục này liệt kê
+`app/web/revenue_timeline.py` là NGOÀI phạm vi và "không file nào bị chạm".
+`REPAIR-1` **có** chạm file đó, và nói ra ở đây thay vì để một lần đọc diff
+sau này phát hiện: nó THÊM một hàm công khai `paired_window_span()` và mở rộng
+`__all__`, KHÔNG sửa một dòng hành vi nào của engine cũ (`git diff` xác nhận
+dòng bị xoá duy nhất là chính dòng `__all__` được viết dài ra — xem `S145`
+§4.4). Brief `REPAIR-1` cho phép tường minh: *"Dùng/làm rõ helper thuộc engine
+timeline hiện có nếu cần"*. Ràng buộc thật — KHÔNG dựng một engine thời gian
+thứ hai — vẫn được giữ, và `CHECK-R6-13`/`CHECK-R6-36` đo nó.
 
 ## 2. Ready Gate
 
@@ -243,8 +264,43 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 | `CHECK-R6-28` | Công cụ đối soát tái tạo ĐỦ tám con số vector Owner qua pipeline THẬT | PASS | E1 |
 | `CHECK-R6-29` | Smoke xuyên hai repo: producer Tracking THẬT → dashboard THẬT | PASS | E1 |
 | `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | NOT_TESTED | — |
-| `CHECK-R6-31` | Independent Review | FAIL | E1 |
+| `CHECK-R6-31` | Independent Review | NOT_TESTED | — |
 | `CHECK-R6-32` | Owner Acceptance trên production | NOT_TESTED | — |
+
+`CHECK-R6-31` = `FAIL` là kết luận của vòng 1 trên HEAD `56aca4c`, và nó VẪN
+đúng với HEAD ấy. Sau `REPAIR-1` nó trở về `NOT_TESTED` chứ KHÔNG thành `PASS`:
+một phiên repair không có thẩm quyền tự tuyên bố mình đã qua review. Bản ghi
+vòng 1 giữ nguyên văn tại `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`.
+
+Check của `REPAIR-1` (`S145`) — mỗi check gắn với một finding của vòng 1:
+
+| Check | Nội dung | Trạng thái | Evidence Level |
+|---|---|---|---|
+| `CHECK-R6-33` | `FIND-R6-IR-01` — cửa sổ so sánh của biểu đồ DOANH THU hiện giá trị THẬT, khác 0 | PASS | E1 |
+| `CHECK-R6-34` | `FIND-R6-IR-01` — cửa sổ so sánh của biểu đồ SỐ ĐƠN hiện giá trị THẬT, khác 0 | PASS | E1 |
+| `CHECK-R6-35` | `R5` và `R6` khớp TỪNG MỐC của cửa sổ so sánh, cùng sổ/kỳ/mức gộp, qua HTTP thật | PASS | E1 |
+| `CHECK-R6-36` | Bốn mức gộp có cửa sổ so sánh (`ngay`/`tuan`/`thang`/`quy`) đều nạp đủ dữ liệu thật | PASS | E1 |
+| `CHECK-R6-37` | Custom range neo cửa sổ vào `Đến ngày` của chính nó, KHÔNG mượn period lock | PASS | E1 |
+| `CHECK-R6-38` | Số 0 CHỈ hiện khi mốc thật sự rỗng VÀ nằm trọn trong khoảng đã xác nhận | PASS | E1 |
+| `CHECK-R6-39` | Ô chỉ tiêu, bảng gộp và giỏ hàng VẪN chỉ đọc phạm vi đang xem | PASS | E1 |
+| `CHECK-R6-40` | `FIND-R6-IR-02` — `Tivi + Chưa xác định` KHÔNG là đơn nhiều nhóm hàng hoá | PASS | E1 |
+| `CHECK-R6-41` | `FIND-R6-IR-02` — hai lý do chưa xác định KHÁC NHAU không tạo cặp | PASS | E1 |
+| `CHECK-R6-42` | CẢ NĂM lý do chưa xác định đều ngoài chiều nhóm hàng | PASS | E1 |
+| `CHECK-R6-43` | Hai nhóm hàng THẬT vẫn là đơn nhiều nhóm và vẫn tạo cặp | PASS | E1 |
+| `CHECK-R6-44` | Ngữ nghĩa cặp SẢN PHẨM KHÔNG đổi | PASS | E1 |
+| `CHECK-R6-45` | Tín hiệu data-quality nói ra số ĐƠN và số DÒNG bị để ngoài phân tích cặp | PASS | E1 |
+| `CHECK-R6-46` | Dòng phí KHÔNG bị đếm là "chưa xác định nhóm hàng" | PASS | E1 |
+| `CHECK-R6-47` | Tiền và đối soát bảng gộp KHÔNG đổi sau repair Basket | PASS | E1 |
+| `CHECK-R6-48` | Tín hiệu data-quality KHÔNG rò một trường khách hàng nào | PASS | E1 |
+| `CHECK-R6-49` | `AR-R6-IR-03` — tử số và mẫu số giá bình quân dùng CÙNG tập dòng | PASS | E1 |
+| `CHECK-R6-50` | Thiếu doanh thu / thiếu số lượng / số lượng 0 đều rời khỏi CẢ HAI vế | PASS | E1 |
+| `CHECK-R6-51` | Ca bình thường và hàng tặng giá 0 KHÔNG đổi kết quả | PASS | E1 |
+| `CHECK-R6-52` | Không đủ dữ liệu ⟹ `None` KÈM LÝ DO, không trả 0 | PASS | E1 |
+| `CHECK-R6-53` | `min`/`max` và `total_quantity` nghiệp vụ KHÔNG bị thu hẹp | PASS | E1 |
+| `CHECK-R6-54` | `COR-R6-IR-01` — docstring `drilldown_rows` dẫn đúng bài canh thật | PASS | E1 |
+
+Bằng chứng nguyên văn của `CHECK-R6-33` … `-54`:
+`docs/sessions/S145-r6-repair-1.md` §4.
 
 Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md` §4.
 
@@ -298,6 +354,85 @@ bản ghi lịch sử.
 *Vì sao chấp nhận:* trộn hai loại bằng chứng vào cùng một cửa sổ so sánh sẽ
 đặt một tổng tháng lịch sử cạnh các mốc ngày của sổ nạp mà không ô nào nói ra;
 dòng thời gian có lịch sử vẫn còn nguyên ở trang Báo cáo, không bị xoá.
+
+---
+
+## 8. REPAIR-1 (`S145`, 2026-09-09) — cả bốn finding, một repair cycle
+
+```text
+FIND-R6-IR-01  ĐÃ SỬA   CHECK-R6-33 … -39
+FIND-R6-IR-02  ĐÃ SỬA   CHECK-R6-40 … -48
+AR-R6-IR-03    ĐÃ SỬA   CHECK-R6-49 … -53
+COR-R6-IR-01   ĐÃ SỬA   CHECK-R6-54
+Repair cycle tiêu   1  ⟹ R6 còn 1 allowed / 1 used / 0 remaining
+```
+
+### 8.1 `FIND-R6-IR-01` — nạp đủ dữ liệu cho cả hai cửa sổ
+
+Thêm `revenue_timeline.paired_window_span(granularity, anchor)`: nó trả về
+`(ngày đầu cửa sổ SO SÁNH, ngày cuối cửa sổ HIỆN TẠI)` bằng đúng phép lùi mốc
+mà `window_slots`/`comparison_anchor` đã dùng. `server._chart_details()` đọc
+lại `service.period(...)` trên đúng khoảng đó — **bounded**, không phải toàn bộ
+dòng thời gian như trang Báo cáo `R5` đang làm — rồi cấp lát ấy cho CẢ HAI biểu
+đồ.
+
+Ba ràng buộc giữ bằng cấu tạo: chỉ biểu đồ được mở rộng (ô chỉ tiêu, bảng gộp
+và giỏ hàng vẫn đọc `view["data"]`); vẫn là effective data (cùng lời gọi
+`service.period` mà mọi trang nghiệp vụ dùng, nên dòng đã loại/tạm loại vẫn
+vắng); và `period=` cố ý KHÔNG truyền nên lát mở rộng không mượn chốt kỳ của
+tháng nào.
+
+Neo được nói ra tường minh là `scope.date_to` thay cho
+`revenue_timeline.anchor_date(...)`: với `PERIOD` hai giá trị bằng nhau, còn
+với `CUSTOM` thì `anchor_date` rơi về "ngày bán muộn nhất CÓ dữ liệu" và làm
+cửa sổ trôi theo dữ liệu — cùng một khoảng ngày người dùng gõ sẽ cho hai cửa
+sổ khác nhau ở hai lần nạp sổ khác nhau.
+
+### 8.2 `FIND-R6-IR-02` — chiều nhóm hàng chỉ nhận nhóm chính danh
+
+`basket_metrics.build_index` chỉ thêm vào `OrderBasket.categories` những bucket
+có `known is True`; dòng hàng hoá còn lại được đếm vào
+`unknown_category_lines`. `BasketCounts` vì thế có thêm
+`orders_with_unknown_category` + `unknown_category_lines`, và trang giỏ hàng
+hiện chúng thành một khối độ phủ CÓ CON SỐ, ngay cạnh bốn ô đếm.
+
+Ranh giới nằm ở ĐÚNG MỘT chỗ (`build_index`) — `category_pairs` cố ý KHÔNG có
+phép lọc thứ hai, vì hai phép lọc là hai chỗ để ô đếm và bảng cặp trôi khỏi
+nhau. Ngữ nghĩa cặp SẢN PHẨM không đổi (`CHECK-R6-44`); `Pair` chỉ nhận thêm
+hai cờ `left_known`/`right_known` CHỈ ĐỂ HIỂN THỊ, không tham gia một phép đếm
+nào.
+
+Bảng gộp theo nhóm hàng (`product_metrics`) KHÔNG bị chạm: nó vẫn giữ TOÀN BỘ
+dòng trong bucket riêng của chúng, và `CHECK-R6-47` đo rằng đối soát vẫn khớp
+tuyệt đối.
+
+### 8.3 `AR-R6-IR-03` — một tập dòng cho cả hai vế
+
+`PriceStats` đổi `merchandise_quantity`/`merchandise_revenue` thành
+`priced_quantity`/`priced_revenue` (thêm `priced_lines`), tính trên tập dòng
+hàng hoá có ĐỦ `total_sales`, `quantity` và `quantity > 0`. `min`/`max` giữ
+nguyên tập cũ (mọi dòng hàng hoá có đơn giá) vì chúng trả lời câu hỏi về ĐƠN
+GIÁ, không về doanh thu. `average_reason` nói ra vì sao ô trống, và trang chở
+nó lên tooltip.
+
+`dashboard_metrics.total_quantity` KHÔNG bị chạm — thu hẹp nó sẽ đánh đổi một
+phép đối soát để sửa một phép chia.
+
+### 8.4 Đính chính phạm vi
+
+`app/web/revenue_timeline.py` bị chạm (thuần THÊM). Xem §1 "Đính chính phạm vi
+tại `REPAIR-1`".
+
+### 8.5 Hai lỗi của chính bộ kiểm, tìm ra và sửa trong phiên
+
+- `scripts/r6_crossrepo_smoke.py` §4 có bài *"phí KHÔNG làm tăng ô nhiều nhóm
+  hàng hoá"* mà — đúng như review §7.2 đã ghi — xanh nhờ một dòng CHƯA KHỚP MÃ,
+  không nhờ hai nhóm hàng thật. Đã sửa để phân loại theo TÊN HÀNG (xác định)
+  và để `BH1` có hai nhóm hàng chính danh; smoke tăng từ 24 lên 29 phép thử.
+- Bài kiểm mới của `REPAIR-1` ban đầu gán thẳng vào module
+  (`live_pull.is_configured = ...`) và làm rò trạng thái sang
+  `tests/test_tracking_live_pull.py`. Đã sửa bằng `pytest.MonkeyPatch()` có
+  `undo()`.
 
 ---
 

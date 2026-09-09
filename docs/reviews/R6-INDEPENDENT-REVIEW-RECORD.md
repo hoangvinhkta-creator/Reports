@@ -21,6 +21,29 @@ Bản tóm tắt cho người đọc nhanh: `docs/sessions/S144-r6-independent-r
 
 ---
 
+> **TRẠNG THÁI SAU `REPAIR-1` (`S145`, 2026-09-09).** Bản ghi này giữ NGUYÊN
+> VĂN — nó đúng với HEAD `56aca4c` mà nó đã review, và không được viết lại để
+> giả như finding chưa từng tồn tại.
+>
+> Cả bốn mục ĐÃ ĐƯỢC SỬA trong đúng một repair cycle:
+>
+> ```text
+> FIND-R6-IR-01  ĐÃ SỬA   CHECK-R6-33 … -39
+> FIND-R6-IR-02  ĐÃ SỬA   CHECK-R6-40 … -48
+> AR-R6-IR-03    ĐÃ SỬA   CHECK-R6-49 … -53
+> COR-R6-IR-01   ĐÃ SỬA   CHECK-R6-54
+> ```
+>
+> `CHECK-R6-31` = `FAIL` ở §8 là kết luận của VÒNG 1 và vẫn đúng với HEAD ấy;
+> sau repair nó trở về `NOT_TESTED`, KHÔNG thành `PASS` — một phiên repair
+> không có thẩm quyền tự tuyên bố mình đã qua review.
+>
+> Ghi chú riêng cho §7.2: bài smoke mà mục ấy chỉ ra là "đúng tên gọi nhưng
+> không đo được điều tên gọi gợi ra" đã được sửa để đo đúng mệnh đề của nó —
+> xem `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` §8.5.
+>
+> Chi tiết repair: `docs/sessions/S145-r6-repair-1.md`.
+
 ## 0. Preflight — đúng đối tượng, đúng nền
 
 Phiên KHÔNG tin một SHA nào trong bàn giao `S143`; mọi mốc dưới đây được đo

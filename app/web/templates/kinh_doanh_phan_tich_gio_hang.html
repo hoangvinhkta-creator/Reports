@@ -30,6 +30,27 @@
     {% endfor %}
   </div>
   <p class="insight" data-metric="basket-metric-note">{{ summary.metric_note }}</p>
+
+  {# Repair `FIND-R6-IR-02` — ĐỘ PHỦ của chiều nhóm hàng, nói bằng con số ngay
+     cạnh các ô đếm chứ không giấu trong khối "cách đọc".
+
+     Dòng chưa xác định nhóm hàng bị để NGOÀI phân tích cặp (đúng), nhưng im
+     lặng về điều đó thì không: người đọc sẽ tưởng bảng cặp phủ hết phạm vi.
+     Hai con số là hai phép đếm trên khoá đơn và số dòng — không một trường
+     khách hàng nào đi qua đây. #}
+  {% if summary.category_coverage_complete %}
+  <p class="insight" data-metric="category-coverage-complete"
+     >{{ summary.unknown_category_coverage_note }}</p>
+  {% else %}
+  <p class="notice" data-metric="category-coverage-partial">
+    Có <strong data-metric="unknown-category-orders"
+      >{{ summary.unknown_category_orders }}</strong> đơn
+    ({{ summary.unknown_category_rate }} số đơn) chứa
+    <strong data-metric="unknown-category-lines"
+      >{{ summary.unknown_category_lines }}</strong> dòng hàng hoá CHƯA xác định
+    nhóm hàng. {{ summary.unknown_category_note }}
+    {{ summary.unknown_category_coverage_note }}</p>
+  {% endif %}
 </div>
 
 <div class="module">
@@ -57,8 +78,15 @@
     {% endfor %}<th>Bảng kê</th></tr>
     {% for row in rows %}
     <tr>
-      <td class="code" data-metric="pair-left">{{ row.left_label }}</td>
-      <td class="code" data-metric="pair-right">{{ row.right_label }}</td>
+      {# `data-known` cho người đọc — và cho test — phân biệt một ô là nhãn
+         canonical của Tracking với một tên thô chưa xác định. Ở chiều NHÓM
+         HÀNG mọi ô luôn `yes` theo cấu tạo (repair `FIND-R6-IR-02`). #}
+      <td class="code{{ ' empty-cell' if not row.left_known }}"
+          data-metric="pair-left" data-known="{{ 'yes' if row.left_known else 'no' }}"
+          >{{ row.left_label }}</td>
+      <td class="code{{ ' empty-cell' if not row.right_known }}"
+          data-metric="pair-right" data-known="{{ 'yes' if row.right_known else 'no' }}"
+          >{{ row.right_label }}</td>
       <td class="num" data-metric="pair-orders">{{ row.pair_orders }}</td>
       <td class="num" data-metric="attachment-left">{{ row.attachment_left }}</td>
       <td class="num" data-metric="attachment-right">{{ row.attachment_right }}</td>
@@ -80,6 +108,8 @@
     <p class="insight" data-metric="attachment-note">{{ summary.attachment_note }}</p>
     <p class="insight" data-metric="pair-revenue-note">{{ summary.pair_revenue_note }}</p>
     <p class="insight" data-metric="support-note">{{ summary.support_note }}</p>
+    <p class="insight" data-metric="unknown-category-note"
+       >{{ summary.unknown_category_note }}</p>
   </details>
 </div>
 {% endblock %}

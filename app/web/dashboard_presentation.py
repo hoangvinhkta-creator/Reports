@@ -47,6 +47,31 @@ TOTAL_ROW_NOTE = (
     "vì biến mất im lặng."
 )
 
+TOTAL_ROW_NO_PRICE_NOTE = (
+    "Hàng TỔNG cố ý không có giá bán bình quân: gộp giá của mọi nhóm lại cho ra "
+    "một con số không mô tả bất cứ mặt hàng nào."
+)
+
+UNKNOWN_CATEGORY_NOTE = (
+    "Phân tích CẶP NHÓM HÀNG chỉ dùng những dòng đã đọc được nhóm hàng từ "
+    "Tracking. Dòng chưa xác định nhóm hàng (chưa khớp mã, xung đột mã, mã đã "
+    "biến mất, ngoài bảng giá, hoặc Tracking chưa xếp) KHÔNG được coi là một "
+    "nhóm hàng hoá — nên chúng không tạo cặp, không làm tăng ô \"đơn nhiều nhóm "
+    "hàng hoá\", và không sinh ra attachment hay support giả. Tiền của chúng vẫn "
+    "nằm ĐỦ trong mọi ô doanh thu và trong bảng cơ cấu theo nhóm hàng."
+)
+
+UNKNOWN_CATEGORY_COVERAGE_NOTE = (
+    "Vì vậy phần phân tích bán chéo theo nhóm hàng CHƯA phủ hết phạm vi đang "
+    "xem. Cách mở rộng độ phủ nằm ở đúng nơi có thẩm quyền: phân loại mã sản "
+    "phẩm trên bảng kê nhân viên, hoặc xếp ngành hàng bên Tracking."
+)
+
+UNKNOWN_CATEGORY_COMPLETE_NOTE = (
+    "Mọi đơn của phạm vi đang xem đều đã đọc được nhóm hàng cho toàn bộ dòng "
+    "hàng hoá, nên phân tích cặp nhóm hàng phủ đủ phạm vi này."
+)
+
 DRILLDOWN_SCOPE_NOTE = (
     "Bảng kê này chỉ hiện Số BH, ngày bán, nhân viên, mặt hàng và phạm vi lọc "
     "đang áp dụng. Nó KHÔNG mở thêm một trường dữ liệu khách hàng nào — tên, "
@@ -101,11 +126,17 @@ def money_cell(value: Optional[Decimal]) -> dict:
             "missing": value is None}
 
 
-def price_cell(value: Optional[Decimal]) -> dict:
+def price_cell(value: Optional[Decimal], reason: Optional[str] = None) -> dict:
     """Một ô GIÁ. `None` ⟹ `—`, và `—` ở đây có nghĩa "không có giá bán hàng
     hoá để tính", KHÔNG có nghĩa "bằng 0". Một dòng phí hiện `—`; một nhóm có
-    hàng tặng giá 0 hiện `0`, vì `0` là giá bán THẬT của nó (`OD-4`)."""
-    return {"text": money_text(value), "missing": value is None}
+    hàng tặng giá 0 hiện `0`, vì `0` là giá bán THẬT của nó (`OD-4`).
+
+    `reason` là câu giải thích của CHÍNH ô ấy khi nó trống (repair
+    `AR-R6-IR-03`): "không có hàng hoá" và "chưa đủ dữ liệu để chia" là hai
+    trạng thái khác nhau, và chỉ một trong hai có chỗ sửa.
+    """
+    return {"text": money_text(value), "missing": value is None,
+            "reason": reason}
 
 
 def totals_cards(totals: dmx.DashboardTotals) -> list[dict]:
@@ -185,10 +216,11 @@ def data_quality(totals: dmx.DashboardTotals) -> list[dict]:
          "của biểu đồ số đơn."),
         (totals.lines_missing_revenue, "dòng chưa có doanh thu",
          "Chưa biết doanh thu KHÁC doanh thu bằng 0 — chúng không được cộng "
-         "như số 0 vào bất kỳ ô nào."),
+         "như số 0 vào bất kỳ ô nào, và cũng không tham gia MỘT VẾ NÀO của "
+         "phép chia giá bán bình quân (repair AR-R6-IR-03)."),
         (totals.lines_missing_quantity, "dòng chưa có số lượng",
-         "Chúng không góp vào Tổng SL và không góp vào mẫu số của giá bán "
-         "bình quân."),
+         "Chúng không góp vào Tổng SL, và không góp vào tử số lẫn mẫu số của "
+         "giá bán bình quân."),
         (totals.orders_with_multiple_sale_dates, "đơn có nhiều ngày bán",
          dmx.MULTI_DATE_NOTE),
     ]
@@ -216,9 +248,11 @@ def group_rows(
          "discount": money_cell(row.discount),
          "orders": format_number(Decimal(row.orders)),
          "lines": format_number(Decimal(row.lines)),
-         "average_price": price_cell(row.prices.average),
+         "average_price": price_cell(row.prices.average,
+                                     row.prices.average_reason),
          "min_price": price_cell(row.prices.minimum),
          "max_price": price_cell(row.prices.maximum),
+         "priced_lines": row.prices.priced_lines,
          "has_merchandise": row.prices.has_merchandise}
         for row in rows
     ]
@@ -235,9 +269,10 @@ def group_rows(
         # Hàng TỔNG KHÔNG có giá bán bình quân của riêng nó: gộp giá của mọi
         # nhóm lại cho ra một con số không mô tả bất cứ mặt hàng nào. Ba ô giá
         # ở hàng này cố ý để trống.
-        "average_price": price_cell(None),
+        "average_price": price_cell(None, TOTAL_ROW_NO_PRICE_NOTE),
         "min_price": price_cell(None),
         "max_price": price_cell(None),
+        "priced_lines": 0,
         "has_merchandise": False,
     })
     return out
@@ -296,10 +331,17 @@ def basket_cards(counts: bkm.BasketCounts) -> list[dict]:
 
 
 def pair_rows(pairs: list[bkm.Pair]) -> list[dict]:
-    """Bảng cặp — support ghi thành CỘT, hai chiều attachment tách rời."""
+    """Bảng cặp — support ghi thành CỘT, hai chiều attachment tách rời.
+
+    `left_known`/`right_known` đi kèm (repair `FIND-R6-IR-02`): ở chiều NHÓM
+    HÀNG chúng luôn `True` theo cấu tạo, còn ở chiều SẢN PHẨM chúng cho template
+    nói ra rằng một ô là tên thô CHƯA XÁC ĐỊNH thay vì để nó trông y hệt một
+    model canonical của Tracking. Hai cờ này KHÔNG tham gia một phép đếm nào.
+    """
     return [
         {"left": pair.left, "right": pair.right,
          "left_label": pair.left_label, "right_label": pair.right_label,
+         "left_known": pair.left_known, "right_known": pair.right_known,
          "pair_orders": format_number(Decimal(pair.pair_orders)),
          "support": pair.support,
          "attachment_left": percent(pair.attachment_left_to_right),
@@ -326,6 +368,17 @@ def basket_summary(counts: bkm.BasketCounts, *, dimension: str,
         "pair_revenue_note": bkm.PAIR_REVENUE_NOTE,
         "attachment_note": bkm.ATTACHMENT_NOTE,
         "support_note": bkm.SUPPORT_NOTE,
+        # Repair `FIND-R6-IR-02` — độ phủ của chiều nhóm hàng, nói bằng CON SỐ.
+        # Không một trường nào ở đây đến từ dữ liệu khách hàng: chúng là hai
+        # phép đếm trên khoá đơn và số dòng.
+        "unknown_category_orders": counts.orders_with_unknown_category,
+        "unknown_category_lines": counts.unknown_category_lines,
+        "unknown_category_rate": percent(counts.unknown_category_order_rate),
+        "category_coverage_complete": counts.category_coverage_complete,
+        "unknown_category_note": UNKNOWN_CATEGORY_NOTE,
+        "unknown_category_coverage_note": (
+            UNKNOWN_CATEGORY_COMPLETE_NOTE if counts.category_coverage_complete
+            else UNKNOWN_CATEGORY_COVERAGE_NOTE),
     }
 
 
@@ -336,8 +389,13 @@ def drilldown_rows(details: list[dict], metadata: list) -> list[dict]:
     thi hành bằng CẤU TẠO: dict trả về chỉ có bốn khoá, nên không template nào
     render được `customer_name`/`customer_phone`/`customer_address` — kể cả khi
     `details` mang sẵn ba trường đó (`business_queries` đọc chúng cho bảng kê
-    nghiệp vụ, `DEC-PHB02-08`). `tests/test_r6_drilldown_boundary.py` canh
-    điều đó trên chính kết quả của hàm.
+    nghiệp vụ, `DEC-PHB02-08`).
+
+    Bài canh thật là `tests/test_r6_dashboard_vertical.py::
+    test_the_drilldown_never_renders_a_customer_field`, và nó đo trên chính
+    HTML đã render chứ trên kết quả của hàm này (đính chính `COR-R6-IR-01`:
+    chú thích cũ dẫn một file `tests/test_r6_drilldown_boundary.py` KHÔNG tồn
+    tại).
 
     Nhãn mặt hàng đọc từ `LineMetadata` đã giải sẵn — không tra lại tầng
     taxonomy ở đây, vì một phép tra thứ hai là chỗ hai màn hình gọi cùng một
@@ -364,7 +422,9 @@ def drilldown_rows(details: list[dict], metadata: list) -> list[dict]:
 __all__ = [
     "BASKET_LABELS", "DRILLDOWN_COLUMNS", "DRILLDOWN_SCOPE_NOTE",
     "GROUP_COLUMNS", "PAIR_COLUMNS", "RECONCILED_NOTE",
-    "RECONCILE_FAILED_NOTE", "TOTAL_ROW_NOTE", "basket_cards",
+    "RECONCILE_FAILED_NOTE", "TOTAL_ROW_NOTE", "TOTAL_ROW_NO_PRICE_NOTE",
+    "UNKNOWN_CATEGORY_COMPLETE_NOTE", "UNKNOWN_CATEGORY_COVERAGE_NOTE",
+    "UNKNOWN_CATEGORY_NOTE", "basket_cards",
     "basket_summary", "data_quality", "drilldown_rows", "group_rows",
     "group_summary", "money_cell", "pair_rows", "price_cell", "totals_cards",
 ]

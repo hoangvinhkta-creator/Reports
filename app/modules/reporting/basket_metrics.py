@@ -30,6 +30,42 @@ theo những hướng có ý nghĩa nghiệp vụ riêng:
   phải một nhóm hàng hoá, và để nó làm tăng ô ấy sẽ biến mọi đơn có phí thành
   một lần bán chéo nhóm hàng.
 
+## Chiều NHÓM HÀNG chỉ nhận nhóm CHÍNH DANH
+
+Repair `FIND-R6-IR-02`. `product_taxonomy.category_bucket()` trả về một bucket
+"chưa xác định" (`__UNRESOLVED__`, `__CONFLICT__`, `__STALE_TARGET__`,
+`__OUT_OF_CATALOG__`, `__METADATA_ABSENT__`) cho mỗi dòng chưa đọc được nhóm
+hàng từ Tracking. Những bucket ấy là TRẠNG THÁI QUY TRÌNH, không phải nhóm hàng
+hoá — và trước repair chúng đi vào `OrderBasket.categories` như thành viên bình
+thường. Hai hệ quả đã đo được:
+
+```text
+đơn `Tivi` + một dòng chưa khớp mã   ⟹ đếm là "đơn nhiều nhóm hàng hoá"
+đơn có HAI lý do chưa xác định        ⟹ sinh cặp bán chéo
+                                        [xung đột mã] x [chưa khớp mã]
+                                        support 2, attachment 100 %/100 %
+```
+
+Từ repair này, `categories` CHỈ nhận bucket có `known is True`. Hệ quả:
+
+- `multi_merchandise_category_orders` chỉ đếm đơn có >= 2 nhóm hàng CHÍNH DANH;
+- không cặp nhóm hàng nào chứa một bucket chưa xác định, nên không có
+  attachment hay support giả;
+- TIỀN KHÔNG ĐỔI: `OrderBasket.revenue` vẫn cộng mọi dòng của đơn, và bảng gộp
+  theo nhóm hàng (`product_metrics`) vẫn giữ TOÀN BỘ dòng trong bucket riêng
+  của chúng để đối soát không mất một đồng nào. Repair chỉ đổi CHIỀU PHÂN
+  TÍCH, không đổi một phép cộng tiền nào.
+
+Việc loại ấy KHÔNG được im lặng: `unknown_category_lines` và
+`orders_with_unknown_category` đếm đúng phần bị để ngoài, để trang nói ra rằng
+phân tích bán chéo theo nhóm hàng CHƯA phủ hết. Một phân tích thu hẹp mà không
+khai ra là một phân tích người đọc tưởng đã đầy đủ.
+
+Chiều SẢN PHẨM KHÔNG đổi, và đó là một quyết định chứ không phải một chỗ bỏ
+quên: `product_key` là khoá phân tích tồn tại cho MỌI dòng, nên một dòng chưa
+khớp mã Tracking vẫn là một mặt hàng thật trong giỏ — chỉ cái NHÃN của nó là
+chưa xác định, không phải sự tồn tại của nó.
+
 ## Cặp — SET, không phải danh sách dòng
 
 Cặp sản phẩm dựng từ `set(product_key)` của TỪNG đơn. Một mã lặp ở hai dòng
@@ -68,7 +104,7 @@ chính bảng cặp chứ không nằm trong tài liệu.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Optional, Sequence
 
@@ -123,7 +159,9 @@ class OrderBasket:
     """
 
     order_key: str
+    #: Mọi `product_key` hàng hoá của đơn — KHÔNG lọc theo `known` (xem đầu file).
     products: frozenset
+    #: CHỈ nhóm hàng CHÍNH DANH (`GroupBucket.known`). Repair `FIND-R6-IR-02`.
     categories: frozenset
     line_types: frozenset
     lines: int
@@ -133,6 +171,17 @@ class OrderBasket:
     #: taxonomy: `{khoá thành viên: nhãn}`.
     product_labels: dict
     category_labels: dict
+    #: Số dòng HÀNG HOÁ của đơn mà nhóm hàng CHƯA xác định — tức phần bị để
+    #: ngoài chiều phân tích nhóm hàng. `0` = đơn này được phủ đủ.
+    #:
+    #: Dòng phí/chiết khấu/hoàn-hủy KHÔNG được đếm ở đây: chúng vốn không
+    #: thuộc chiều nhóm hàng hoá, nên gộp chúng vào con số này sẽ báo một vấn
+    #: đề chất lượng dữ liệu không tồn tại.
+    unknown_category_lines: int = 0
+    #: `{khoá mặt hàng: bucket có chính danh hay không}` — CHỈ để hiển thị.
+    #: Cặp sản phẩm vẫn sinh ra như trước; cờ này cho bảng nói ra rằng một ô
+    #: là tên thô chưa xác định, thay vì để nó trông như một model canonical.
+    product_known: dict = field(default_factory=dict)
 
     @property
     def multi_line(self) -> bool:
@@ -145,6 +194,11 @@ class OrderBasket:
     @property
     def multi_category(self) -> bool:
         return len(self.categories) >= 2
+
+    @property
+    def has_unknown_category(self) -> bool:
+        """Đơn có ít nhất một dòng hàng hoá chưa xác định nhóm hàng."""
+        return self.unknown_category_lines > 0
 
     @property
     def service_attachment(self) -> bool:
@@ -173,6 +227,11 @@ def build_index(
     chiết khấu, hoàn/hủy và chứng từ chưa định nghĩa vẫn góp vào `lines`,
     `line_types` và `revenue` — chúng là tiền thật và là bằng chứng thật, chỉ
     không phải mặt hàng.
+
+    Repair `FIND-R6-IR-02`: một dòng hàng hoá có bucket nhóm hàng KHÔNG chính
+    danh vẫn góp vào `lines`/`revenue`/`products`, nhưng KHÔNG góp vào
+    `categories` — nó được đếm vào `unknown_category_lines` thay vào đó. Xem
+    đầu file cho lập luận đầy đủ.
     """
     details = list(details)
     if not (len(details) == len(product_buckets) == len(category_buckets)):
@@ -186,7 +245,8 @@ def build_index(
         slot = slots.setdefault(line.order_key, {
             "products": set(), "categories": set(), "line_types": set(),
             "lines": 0, "merchandise_lines": 0, "revenue": [],
-            "product_labels": {}, "category_labels": {}})
+            "product_labels": {}, "category_labels": {},
+            "product_known": {}, "unknown_category_lines": 0})
         slot["lines"] += 1
         slot["line_types"].add(line.line_type)
         slot["revenue"].append(line.total_sales)
@@ -194,8 +254,17 @@ def build_index(
             slot["merchandise_lines"] += 1
             slot["products"].add(product.key)
             slot["product_labels"][product.key] = product.label
-            slot["categories"].add(category.key)
-            slot["category_labels"][category.key] = category.label
+            # Chỉ dòng CÓ bucket nhóm hàng chính danh mới là một thành viên của
+            # chiều nhóm hàng. `known` do `product_taxonomy` quyết định — ở đây
+            # KHÔNG có bản sao thứ hai nào của quy tắc ấy, chỉ một phép đọc.
+            slot["product_known"][product.key] = (
+                slot["product_known"].get(product.key, True)
+                and bool(getattr(product, "known", True)))
+            if getattr(category, "known", True):
+                slot["categories"].add(category.key)
+                slot["category_labels"][category.key] = category.label
+            else:
+                slot["unknown_category_lines"] += 1
     return {
         order_key: OrderBasket(
             order_key=order_key,
@@ -206,7 +275,9 @@ def build_index(
             merchandise_lines=slot["merchandise_lines"],
             revenue=dmx.sum_optional(slot["revenue"]),
             product_labels=dict(slot["product_labels"]),
-            category_labels=dict(slot["category_labels"]))
+            category_labels=dict(slot["category_labels"]),
+            unknown_category_lines=slot["unknown_category_lines"],
+            product_known=dict(slot["product_known"]))
         for order_key, slot in slots.items()
     }
 
@@ -220,6 +291,26 @@ class BasketCounts:
     multi_product_orders: int
     multi_merchandise_category_orders: int
     service_attachment_orders: int
+    #: Repair `FIND-R6-IR-02` — phần bị để NGOÀI chiều phân tích nhóm hàng.
+    #: Hai con số, không một: "bao nhiêu ĐƠN chưa được phủ đủ" và "bao nhiêu
+    #: DÒNG là nguyên nhân" trả lời hai câu khác nhau, và một đơn có năm dòng
+    #: chưa xác định vẫn chỉ là một đơn.
+    orders_with_unknown_category: int = 0
+    unknown_category_lines: int = 0
+
+    @property
+    def category_coverage_complete(self) -> bool:
+        """MỌI đơn của phạm vi đều được phủ đủ ở chiều nhóm hàng.
+
+        Phạm vi RỖNG ⟹ `False`: không có đơn nào thì cũng không có bằng chứng
+        nào cho một lời khẳng định "đã phủ đủ" — cùng kỷ luật fail-closed mà
+        `Coverage.is_complete` và `MetadataCoverage.is_complete` đã freeze.
+        """
+        return self.orders > 0 and self.orders_with_unknown_category == 0
+
+    @property
+    def unknown_category_order_rate(self) -> Optional[Decimal]:
+        return self._rate(self.orders_with_unknown_category)
 
     def _rate(self, part: int) -> Optional[Decimal]:
         if self.orders == 0:
@@ -254,6 +345,9 @@ def counts(index: dict) -> BasketCounts:
             1 for b in baskets if b.multi_category),
         service_attachment_orders=sum(
             1 for b in baskets if b.service_attachment),
+        orders_with_unknown_category=sum(
+            1 for b in baskets if b.has_unknown_category),
+        unknown_category_lines=sum(b.unknown_category_lines for b in baskets),
     )
 
 
@@ -273,6 +367,13 @@ class Pair:
     #: chứ không giữ dòng: drill-down đọc lại đúng lát dữ liệu của trang, nên
     #: nó không thể hiện một dòng mà trang đang không tính.
     order_keys: tuple = ()
+    #: CHỈ để hiển thị. Ở chiều NHÓM HÀNG hai cờ này luôn `True` theo cấu tạo
+    #: (bucket chưa xác định không vào `categories` — repair `FIND-R6-IR-02`);
+    #: ở chiều SẢN PHẨM chúng nói ra rằng một ô là tên thô chưa xác định, thay
+    #: vì để nó trông như một model canonical của Tracking. Chúng KHÔNG tham
+    #: gia một phép đếm nào: `pair_orders`, support và attachment không đổi.
+    left_known: bool = True
+    right_known: bool = True
 
     @property
     def support(self) -> int:
@@ -298,7 +399,7 @@ class Pair:
 
 
 def _pairs(
-    index: dict, *, members_of, labels_of, min_support: int,
+    index: dict, *, members_of, labels_of, min_support: int, known_of=None,
 ) -> list[Pair]:
     """Bộ khung dùng chung của cặp sản phẩm và cặp nhóm hàng.
 
@@ -307,13 +408,20 @@ def _pairs(
     """
     member_orders: dict[str, int] = {}
     labels: dict[str, str] = {}
+    known: dict[str, bool] = {}
     pair_orders: dict[tuple[str, str], list[str]] = {}
     pair_revenue: dict[tuple[str, str], list] = {}
     for basket in index.values():
         members = sorted(members_of(basket))
+        flags = {} if known_of is None else known_of(basket)
         for member in members:
             member_orders[member] = member_orders.get(member, 0) + 1
             labels.setdefault(member, labels_of(basket).get(member, member))
+            # `and`: một mặt hàng chính danh ở đơn này nhưng chưa xác định ở đơn
+            # khác vẫn phải hiện là chưa xác định — cờ mô tả cái NHÃN, và nhãn
+            # chỉ đáng tin khi nó đáng tin ở mọi đơn.
+            known[member] = known.get(member, True) and bool(
+                flags.get(member, True))
         for position, left in enumerate(members):
             for right in members[position + 1:]:
                 key = (left, right)
@@ -327,7 +435,9 @@ def _pairs(
              orders_with_left=member_orders.get(left, 0),
              orders_with_right=member_orders.get(right, 0),
              pair_revenue=dmx.sum_optional(pair_revenue[(left, right)]),
-             order_keys=tuple(sorted(order_keys)))
+             order_keys=tuple(sorted(order_keys)),
+             left_known=known.get(left, True),
+             right_known=known.get(right, True))
         for (left, right), order_keys in pair_orders.items()
         if len(order_keys) >= min_support
     ]
@@ -341,13 +451,20 @@ def product_pairs(
     """Cặp SẢN PHẨM (`product_key`), mặc định chỉ support >= 2."""
     return _pairs(index, members_of=lambda b: b.products,
                   labels_of=lambda b: b.product_labels,
+                  known_of=lambda b: b.product_known,
                   min_support=min_support)
 
 
 def category_pairs(
     index: dict, *, min_support: int = DEFAULT_CATEGORY_MIN_SUPPORT,
 ) -> list[Pair]:
-    """Cặp NHÓM HÀNG, mặc định hiện toàn bộ nhưng luôn ghi support."""
+    """Cặp NHÓM HÀNG, mặc định hiện toàn bộ nhưng luôn ghi support.
+
+    Repair `FIND-R6-IR-02`: `OrderBasket.categories` chỉ chứa nhóm CHÍNH DANH,
+    nên hàm này KHÔNG cần — và cố ý KHÔNG có — một phép lọc riêng. Ranh giới
+    được giữ ở ĐÚNG MỘT chỗ (`build_index`); một phép lọc thứ hai ở đây sẽ là
+    chỗ để hai bề mặt (ô đếm và bảng cặp) trôi khỏi nhau.
+    """
     return _pairs(index, members_of=lambda b: b.categories,
                   labels_of=lambda b: b.category_labels,
                   min_support=min_support)
