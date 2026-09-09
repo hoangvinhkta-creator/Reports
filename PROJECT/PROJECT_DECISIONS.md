@@ -13386,3 +13386,193 @@ Nguồn:
 - `docs/sessions/S146-r6-independent-review-round-2.md`
 - `PROJECT/PROJECT_DECISIONS.md` → `DEC-207` §10
 - `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6"
+
+## DEC-211
+
+Ngày: 2026-09-09
+Phiên: ba yêu cầu trực tiếp của Owner về hiển thị (`DEC-211`…`DEC-213`).
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Biểu đồ Xu hướng doanh thu (trang Báo cáo) so **kỳ này với CÙNG KỲ NĂM
+TRƯỚC**, ở CẢ NĂM mức gộp. Thay `DEC-R5-02` ("hai cửa sổ liền kề"), và bỏ
+luật "mức Năm không có đường so sánh".
+
+### §2. Độ dài cửa sổ, do Owner chốt trực tiếp
+
+```text
+Ngày    31 mốc   (một tháng — mép phải 10/9 thì mép trái 11/8)
+Tuần    13 mốc   (một quý)
+Tháng   12 mốc   (một năm)
+Quý      4 mốc   (một năm)
+Năm      5 mốc
+```
+
+### §3. Mép phải neo vào NGÀY CÓ DỮ LIỆU MỚI NHẤT
+
+Không neo vào ngày cuối kỳ như trước: chọn Tháng 9 khi sổ mới ghi tới 25/9
+sẽ vẽ năm ngày trắng ở mép phải, đúng thứ Owner gọi là "biểu đồ bị cụt".
+Cũng không neo vào HÔM NAY theo lịch — sổ chưa nạp vài ngày sẽ cho một dải
+trống đọc như "không bán được gì".
+
+Trang phân tích neo theo cùng quy tắc khi đang xem một KỲ, và giữ nguyên
+cận ngày tự gõ khi là một PHẠM VI TỰ CHỌN (hai cận ngày ấy là chỉ thị tường
+minh của người dùng). Nhờ vậy hai trang vẫn nói cùng một con số cho cùng
+một mốc.
+
+### §4. Thẩm quyền nguồn ở mức Ngày/Tuần giải theo NGÀY
+
+Owner: *"nếu số liệu mới và cũ bị tách khỏi nhau, hãy khớp lại với nhau
+thành 1 dải liên tục trừ khi ngày đó không có số liệu."*
+
+Trước đó, một THÁNG có dòng sổ nạp làm rơi TOÀN BỘ bằng chứng sổ cũ của
+tháng ấy. Với sổ thật của Owner — sổ kế toán nạp từ 04/09, sổ cũ có tới hết
+03/09 — ba ngày đầu tháng thành một lỗ trên đường vẽ dù bằng chứng của
+chúng vẫn còn. Cùng hình lỗi đã sửa cho Quý/Năm ở `revenue_timeline` §
+"Thẩm quyền được giải ở mức THÁNG", chỉ khác độ mịn.
+
+`DEC-180` §9 KHÔNG bị nới: không đơn vị thời gian nào nhận giá trị từ hai
+nguồn, và van chống-cộng-hai-nguồn nay kiểm ở ĐÚNG độ mịn đang vẽ. Một mốc
+TUẦN vắt qua ranh giới mang `ORIGIN_MIXED` và nói ra điều đó trong lời của
+chính nó — từ vựng `DEC-166 E` đã có, không phải một nhãn mới.
+
+### §5. Bằng chứng
+
+```text
+Full pytest    3466 passed / 12 skipped / 1 failed
+               (failure = test_protected_golden_artifacts_..., ĐỎ SẴN từ
+               trước thay đổi này: clone nông không có commit 740f396)
+Bất biến tiền  git diff RỖNG trên pricing/profit/kpi/period_lock/
+               business_store/business_queries/business_service/
+               business_metrics/config
+```
+
+## DEC-212
+
+Ngày: 2026-09-09
+Phiên: như `DEC-211`.
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+**MỌI số tiền trên MỌI trang** viết theo NGHÌN ĐỒNG, làm tròn tới nghìn gần
+nhất — kể cả ĐƠN GIÁ của từng dòng hàng. Owner nêu hai ví dụ:
+`13.550.000 → 13.550` và `57.272.727,27 → 57.273`.
+
+Mở rộng phạm vi của `R1` §9 (vốn chỉ áp cho các ô TỔNG của hai trang Báo
+cáo/Nhân viên) ra toàn repo: đơn giá từng dòng, giá TB/thấp nhất/cao nhất
+của trang phân tích, và các trang "sổ thô" (Tổng quan · Bán hàng · Sản phẩm
+· Nhân viên số cũ · Doanh số ngày · Lịch sử).
+
+Lý do là lý do cũ ở một chỗ đau hơn: một bảng mà cột tổng viết `13.550` còn
+cột giá bán ngay cạnh viết `13.550.000` bắt người đọc đổi đơn vị giữa hai
+cột kề nhau — đó là chỗ một con số bị đọc lệch một nghìn lần.
+
+### §2. Ngoại lệ DUY NHẤT: ô NHẬP giá giữ VND đầy đủ
+
+Rút gọn là một cách VIẾT RA; ô nhập là một cách ĐỌC VÀO, và hai chiều đó
+không đối xứng. Một ô hiện `5.000` mà lưu `5.000.000` sẽ có ngày ghi vào sổ
+một giá nhập sai đúng một nghìn lần, ở một trường mà cả lợi nhuận KPI lẫn
+DS quy đổi đều đọc. Không tooltip nào cứu được một con số đã ghi sai.
+Xem `business_presentation.PRICE_INPUT_NOTE`.
+
+### §3. MỘT hợp đồng ô tiền cho cả repo
+
+```text
+cell["text"]        VND ĐẦY ĐỦ — tooltip, và mọi phép cộng kiểm chứng
+cell["text_kvnd"]   NGHÌN ĐỒNG — bản in ra màn hình
+```
+
+Đây là hợp đồng `gated_cell`/`money_cell` đã dựng từ `R1` §9, nay áp cho
+MỌI ô tiền (`_derived_cell`, `price_cell`, `profit`, ô sổ cũ). Đảo hai tên
+này ở một chỗ là chỗ một `gated_cell` đi qua cùng một macro sẽ in bản đầy
+đủ trong khi hàng bên cạnh in bản rút gọn — lỗi đã thật sự xảy ra một lần
+ở hàng TỔNG của bảng kê trong chính phiên này, và được sửa tận gốc bằng
+cách hợp nhất hợp đồng thay vì vá ở macro.
+
+Các trường tiền dạng CHUỖI PHẲNG (không phải ô) dùng cặp
+`<tên>` / `<tên>_full` qua `business_presentation.price_pair`.
+
+### §4. Điều KHÔNG đổi
+
+Đây thuần tuý là cách VIẾT RA. `git diff` RỖNG trên `app/modules/pricing/`,
+`app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+`business_store.py`, `business_queries.py`, `business_service.py`,
+`business_metrics.py`, `config/` — không một đường TÍNH nào bị chạm. File
+Excel xuất ra KHÔNG đổi (Owner không yêu cầu).
+
+### §5. Hệ quả đã biết, đã nói ra trên trang Giải thích
+
+Số tiền dưới 500 đồng hiện `0` vì đó là số nghìn gần nhất. Giá trị thật
+không mất: nó ở tooltip và ở mọi phép tính. Sổ thật của Owner không có ô
+tiền nào ở độ lớn này.
+
+## DEC-213
+
+Ngày: 2026-09-09
+Phiên: như `DEC-211`.
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Áp **toàn bộ** ngôn ngữ thiết kế của Tracking sang Reports — font, cỡ chữ,
+màu, bo góc, icon, nền tối — để hai ứng dụng nhìn như MỘT hệ. Chỉ đổi giao
+diện; không sửa logic nghiệp vụ.
+
+### §2. `body.theme-finance` bị GỠ — thay thế, không phải bỏ sót
+
+Trước đó Reports mang HAI hệ màu cùng lúc: bộ token chép "có chọn lọc" từ
+Tracking (`TASK-PRA-000` mục E) cho phần lớn trang, và một lớp đè thứ hai
+(`TASK-OWNER-UIUX-005` §4) kéo đúng ba trang Owner xem hằng ngày về hệ
+đen/giấy của Finance. Hệ quả: cùng một tổ chức, ba giao diện.
+
+`TASK-OWNER-UIUX-005` §4 chọn Finance khi phạm vi câu hỏi là "ba trang này
+nên trông thế nào". Câu hỏi nay là "cả hệ nên trông thế nào", và với câu
+hỏi đó, một lớp đè chỉ áp ba trang chính là thứ tạo ra vấn đề.
+
+### §3. Điểm nghiệp vụ KHÔNG đi theo bản chép
+
+Tracking quy ước **tăng = đỏ** vì nó nói về GIÁ MUA VÀO. Reports nói về
+doanh thu/lợi nhuận nên giữ **tăng = xanh lá**. Đây là Ý NGHĨA, không phải
+thẩm mỹ.
+
+### §4. `TASK-UIUX-001` bị thay ở ĐÚNG một điểm
+
+Số trong bảng viết ĐẬM (600) và màu chữ chính, như Tracking, thay vì nét
+thường của tham chiếu Finance. Lý do của luật cũ ("khi mọi số đều đậm thì
+không số nào nổi bật") vẫn được tôn trọng bằng một phương tiện khác: cột SỐ
+đậm hơn cột CHỮ, và dòng TỔNG lại đậm hơn cột số — ba bậc, không phải hai.
+
+### §5. Vẫn là BẢN CHÉP TĨNH
+
+KHÔNG hot-link file nào của Tracking, KHÔNG runtime dependency, KHÔNG chép
+engine/JS/data contract của Tracking. Tracking chỉ là tham chiếu thị giác,
+chỉ đọc — Tracking KHÔNG bị sửa một dòng nào trong phiên này.
+
+### §6. Ba lỗi trực quan phát hiện khi soi ảnh chụp thật, sửa kèm
+
+```text
+Trục Y biểu đồ trôi khỏi lưới   `height:auto` + preserveAspectRatio="none"
+                                làm SVG lùn theo tỉ lệ viewBox khi card hẹp
+                                hơn 960px, cột nhãn thì cao cố định
+Hai nhãn cuối trục X chồng nhau mốc 28 và mốc 30 của cửa sổ 31 ngày
+Hàng TỔNG của bảng kê           rút gọn cạnh dòng chi tiết VND đầy đủ
+                                (hai bộ dựng hàng, `DEC-212` mới sửa một)
+```
+
+### §7. Bằng chứng
+
+```text
+Full pytest   3466 passed / 12 skipped / 1 failed (failure ĐỎ SẴN, xem
+              `DEC-211` §5)
+Kiểm thị giác ảnh chụp Chromium THẬT, nền sáng và nền tối, trên Báo cáo ·
+              Nhân viên · Dữ liệu · Tổng quan · Bảng kê chi tiết
+```
+
+Ba bài kiểm điều hướng trích nhãn tab bằng `>([^<]+)</a>` trở nên VÔ HIỆU
+khi có `<svg>` chen vào (luôn trả rỗng ⟹ xanh vĩnh viễn). Chúng được sửa để
+bóc thẻ con trước khi so, giữ nguyên mệnh đề cũ.

@@ -1,5 +1,46 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — ba yêu cầu hiển thị của Owner (`DEC-211`…`DEC-213`, 2026-09-09)
+
+Owner giao trực tiếp ba việc, đã hỏi lại và chốt đủ brief trước khi làm:
+
+```text
+DEC-211   Biểu đồ Xu hướng doanh thu so CÙNG KỲ NĂM TRƯỚC ở cả năm mức gộp.
+          Cửa sổ 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm; mép phải neo
+          vào NGÀY CÓ DỮ LIỆU MỚI NHẤT; số cũ và số mới nối thành MỘT dải
+          liên tục (thẩm quyền nguồn giải theo NGÀY ở mức Ngày/Tuần).
+DEC-212   MỌI số tiền viết theo NGHÌN ĐỒNG, kể cả đơn giá. Ô NHẬP giá là
+          ngoại lệ duy nhất, giữ VND đầy đủ.
+DEC-213   Áp toàn bộ ngôn ngữ thiết kế Tracking; gỡ lớp đè `theme-finance`;
+          thêm nền tối và bộ icon SVG.
+```
+
+Trạng thái: cả ba `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng (chạy tại HEAD sau khi hoàn tất cả ba):
+
+```text
+Full pytest      3466 passed / 12 skipped / 1 failed
+                 Failure DUY NHẤT là
+                 `test_protected_golden_artifacts_match_the_task_105e_review_base`,
+                 và nó ĐỎ SẴN TRƯỚC mọi thay đổi của phiên này: bài kiểm chạy
+                 `git diff --stat 740f396…`, mà clone nông của môi trường này
+                 không có commit đó (`fatal: bad object`). Đây là khiếm khuyết
+                 MÔI TRƯỜNG, không phải hồi quy — đã đo baseline trước khi sửa
+                 dòng mã đầu tiên và kết quả y hệt.
+Bất biến tiền    `git diff` RỖNG trên `app/modules/pricing/`,
+                 `app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+                 `business_store.py`, `business_queries.py`,
+                 `business_service.py`, `business_metrics.py`, `config/`
+Kiểm thị giác    ảnh chụp Chromium THẬT, nền sáng và nền tối, trên Báo cáo ·
+                 Nhân viên · Dữ liệu · Tổng quan · Bảng kê chi tiết
+Tracking         KHÔNG đổi một dòng nào (chỉ khảo sát, chỉ đọc)
+```
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-211`, `DEC-212`,
+`DEC-213`.
+
+
 ## CANONICAL CURRENT STATE — `R6` ĐÃ MERGE vào nhánh mặc định (`DEC-210`, 2026-09-09)
 
 Owner chốt: tích hợp `R6` nguyên khối sau khi Independent Review đã `PASS`.
