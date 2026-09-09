@@ -24,7 +24,7 @@ Cả bốn mục vòng 1 — XÁC NHẬN ĐÃ SỬA bằng bằng chứng ĐỘC
                           trên CÙNG server/sổ/kỳ/mức gộp
   FIND-R6-IR-02  ĐÃ SỬA   51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo và
                           1 DIFF trực tiếp 56aca4c vs HEAD trên cùng đầu vào
-  AR-R6-IR-03    ĐÃ SỬA   34 phép đo, phần lớn là diff trực tiếp với 56aca4c
+  AR-R6-IR-03    ĐÃ SỬA   35 phép đo, phần lớn là diff trực tiếp với 56aca4c
   COR-R6-IR-01   ĐÃ SỬA   bài canh thật tồn tại và đo đúng HTML đã render
 
 FIND-R6-IR-01 — điểm cốt lõi

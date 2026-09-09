@@ -38,7 +38,7 @@ branch authority   TARGET_SHA=40807ef… → DETACHED_EXACT_TARGET / AUTHORITY_O
 |---|---|---|
 | `FIND-R6-IR-01` — cửa sổ so sánh vẽ `0` cho khoảng có tiền thật | **ĐÃ SỬA** | 93 phép đo qua HTTP thật, 4 probe / 4 sổ khác nhau |
 | `FIND-R6-IR-02` — "Chưa xác định" đứng làm một nhóm hàng hoá | **ĐÃ SỬA** | 51 phép đo, có 1 probe toàn trang xuyên hai repo và 1 diff trực tiếp với `56aca4c` |
-| `AR-R6-IR-03` — hai vế phép chia giá BQ đọc hai tập dòng | **ĐÃ SỬA** | 34 phép đo, phần lớn là diff trực tiếp với `56aca4c` |
+| `AR-R6-IR-03` — hai vế phép chia giá BQ đọc hai tập dòng | **ĐÃ SỬA** | 35 phép đo, phần lớn là diff trực tiếp với `56aca4c` |
 | `COR-R6-IR-01` — docstring dẫn một file test không tồn tại | **ĐÃ SỬA** | bài canh thật tồn tại và đo đúng HTML đã render |
 
 Phiên này KHÔNG dùng lại một fixture nào của `REPAIR-1` và KHÔNG lấy một con

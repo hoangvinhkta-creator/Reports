@@ -461,7 +461,7 @@ phạm vi RỖNG → category_coverage_complete = False   (fail-closed, đúng k
 
 ## 4. `AR-R6-IR-03` — giá bán bình quân. **ĐÃ SỬA.**
 
-**34 phép đo, 34 PASS, 0 FAIL.** Phần lớn là DIFF trực tiếp với bản
+**35 phép đo, 35 PASS, 0 FAIL.** Phần lớn là DIFF trực tiếp với bản
 `product_metrics.py` của `56aca4c`, nạp song song từ `git show`.
 
 ### 4.1 Năm ca của phép chia

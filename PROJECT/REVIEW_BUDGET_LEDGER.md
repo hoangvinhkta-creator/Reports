@@ -3652,7 +3652,7 @@ FIND-R6-IR-02  ĐÃ SỬA  51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai re
                        '__UNRESOLVED__'); sau còn đúng một cặp THẬT. Mọi thứ
                        khác — cặp SẢN PHẨM, orders, multi_line, multi_product,
                        service_attachment, tiền từng đơn — KHÔNG đổi.
-AR-R6-IR-03    ĐÃ SỬA  34 phép đo. Thiếu total_sales 5.000.000 → 10.000.000;
+AR-R6-IR-03    ĐÃ SỬA  35 phép đo. Thiếu total_sales 5.000.000 → 10.000.000;
                        quantity=0 6.500.000 → 5.000.000; thiếu quantity, hàng
                        tặng giá 0 và ca bình thường đều đúng; mẫu số 0 ⟹ None
                        KÈM LÝ DO; min/max và total_quantity nghiệp vụ KHÔNG bị

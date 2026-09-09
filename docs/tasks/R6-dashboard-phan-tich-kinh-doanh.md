@@ -503,7 +503,7 @@ FIND-R6-IR-02  51 phép đo: 1 probe TOÀN TRANG xuyên hai repo (danh mục do
                producer Tracking THẬT sinh, phân loại qua route POST thật),
                1 DIFF trực tiếp `56aca4c` vs HEAD trên cùng đầu vào, và 1 probe
                phủ CẢ NĂM lý do + 10/10 tổ hợp hai lý do ở min_support=1.
-AR-R6-IR-03    34 phép đo, phần lớn là diff trực tiếp với `56aca4c`; năm ca
+AR-R6-IR-03    35 phép đo, phần lớn là diff trực tiếp với `56aca4c`; năm ca
                (thiếu doanh thu, thiếu SL, SL=0, hàng tặng giá 0, ca bình
                thường) + hai ca `None` kèm lý do + bất biến min/max,
                total_quantity, tổng doanh thu và đối soát bảng nhóm.
