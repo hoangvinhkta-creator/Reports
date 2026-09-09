@@ -60,6 +60,12 @@ CATEGORY = "Tivi"
 #: model ngắn. Nó phải trùng đúng một dòng của workbook tổng hợp.
 RAW_PRODUCT = "Máy lạnh Test-2"
 
+#: Dòng THỨ HAI của CÙNG đơn `BH0002`, cùng nhân viên "Hoàng" — cùng sheet với
+#: `RAW_PRODUCT`. Dùng để dựng ca "một mapping MỚI được xác nhận SAU lần ghi
+#: bản chiếu gần nhất thành công, rồi lần chạy KẾ TIẾP không làm mới được nó".
+SECOND_RAW_PRODUCT = "Tủ lạnh Test-3"
+SECOND_CODE = "RT38"
+
 
 def catalog_rows(*, with_metadata: bool = True) -> list[dict]:
     """Dòng danh mục của capture Tracking cho lần chạy này.
@@ -139,6 +145,48 @@ def live_catalog(tmp_path, monkeypatch) -> Path:
 
     monkeypatch.setattr(live_pull, "pull_live_captures", fake_pull)
     return catalog
+
+
+def switch_live_catalog(monkeypatch, tmp_path: Path, rows: list[dict], *,
+                        capture_id: str = "TRK-CAT-REPAIR2-2") -> Path:
+    """Đổi NỘI DUNG capture danh mục mà `live_pull` trả về, cho lần chạy KẾ
+    TIẾP — mô phỏng một lần pull Tracking khác (ví dụ một artifact đời cũ)
+    xảy ra SAU lần chạy đầu, trên CÙNG một app/CÙNG một bản chiếu.
+    """
+    catalog = write_catalog_capture(tmp_path / f"{capture_id}.json", rows)
+
+    def fake_pull(*, out_dir, sales=None, identity_store_view=None, **kwargs):
+        return live_pull.LiveSelectedCaptures(
+            tracking_capture=None, tracking_catalog=catalog,
+            tracking_inv_map=None, tracking_daily_min=None,
+            evidence={"tracking_catalog_capture_id": capture_id}, temp_paths=())
+
+    monkeypatch.setattr(live_pull, "pull_live_captures", fake_pull)
+    return catalog
+
+
+def force_next_write_failure(monkeypatch, target: Path) -> None:
+    """Ghi vào ĐÚNG `target` sẽ ném `OSError`; MỌI `Path.write_text` khác
+    (thư mục upload, artifact báo cáo, sqlite của run registry, ...) chạy
+    BÌNH THƯỜNG trong CÙNG request.
+
+    Đây LÀ một vá trên chính lớp `pathlib.Path` — không có cách nào vá riêng
+    một INSTANCE của nó — nhưng khác `unwritable_projection()` (vốn chặn
+    `mkdir` một cách KHÔNG chọn đường dẫn), nó CHỈ chặn đúng MỘT đường dẫn cụ
+    thể. Đây là điều bắt buộc để dựng ca "bản chiếu ĐÃ có dữ liệu cũ, ghi lại
+    LẦN NÀY thất bại": cha của `target` đã là một thư mục THẬT chứa nội dung
+    THẬT từ lần ghi trước, nên kỹ thuật "cha là một file" (không chọn đường
+    dẫn) sẽ không tái tạo được đúng tình huống này, và trong sandbox này tiến
+    trình chạy bằng root nên chmod không chặn được ghi.
+    """
+    real_write_text = Path.write_text
+
+    def guarded(self, *args, **kwargs):
+        if self == target:
+            raise OSError("mô phỏng ghi thất bại: đĩa chỉ đọc hoặc hết chỗ")
+        return real_write_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", guarded)
 
 
 @pytest.fixture
@@ -523,3 +571,174 @@ def test_no_warning_when_the_projection_is_healthy(
     confirm(identity_store)
     upload(client, workbook)
     assert 'data-metric="catalog-projection-warning"' not in employee_page(client)
+
+
+# --- 4. Bản chiếu CŨ một phần: mã MỚI xác nhận sau lần ghi gần nhất --------
+#
+# Ba bài dưới đây đóng đúng ca người dùng yêu cầu ở lần sửa THỨ HAI của
+# REPAIR-2: bản chiếu đã có dữ liệu THẬT từ một lần chạy trước (không rỗng —
+# khác hẳn §3 ở trên), một mã MỚI được xác nhận SAU lần ghi thành công gần
+# nhất, rồi lần chạy KẾ TIẾP không làm mới được bản chiếu — vì `NO_METADATA`
+# (capture đời cũ) hoặc `WRITE_FAILED` (ghi đĩa thất bại). Cả hai lý do phải
+# cho ra CÙNG một cảnh báo "cũ" (`kind="cu"`), khác cảnh báo "vắng" ở §3.
+#
+# Ràng buộc bắt buộc, kiểm ở CẢ BA bài: KHÔNG đổi tên hàng đã hiện, KHÔNG đổi
+# mapping (mã mới vẫn CONFIRMED, không lộ tên thô), KHÔNG đổi tiền.
+
+def test_the_employee_tab_warns_when_a_newly_confirmed_code_stays_unrefreshed_no_metadata(
+    client, workbook, live_catalog, projection_path, identity_store, engine,
+    tmp_path, monkeypatch,
+):
+    """Ca CHÍNH của lần sửa thứ hai: bản chiếu đã có dữ liệu THẬT (mã cũ), một
+    mã MỚI được xác nhận SAU đó, rồi lần chạy kế tiếp trả về capture KHÔNG có
+    trường hiển thị nào (`REASON_NO_METADATA`) — `write()` giữ nguyên dữ liệu
+    cũ (không xoá), nhưng mã MỚI không bao giờ có nhãn. Đây KHÔNG phải
+    "Tracking chưa phân loại" (`AR-R5.1-01`, hợp lệ và im lặng): lần ghi gần
+    nhất đã THẤT BẠI, nên bảng phải nói ra, không im lặng như một mã bình
+    thường chưa được Tracking chạm tới.
+
+    ĐỎ trước bản sửa lần 2: `_catalog_projection_warning` chỉ biết đọc
+    `catalog_display.read()` hiện tại, không có lịch sử ghi, nên không phân
+    biệt được ca này với ca "Tracking chưa phân loại" — bảng im lặng.
+    """
+    confirm(identity_store)
+    upload(client, workbook)
+    first = json.loads(projection_path.read_text(encoding="utf-8"))
+    assert first[TRACKING_CODE]["brand"] == BRAND
+
+    confirm(identity_store, product_raw=SECOND_RAW_PRODUCT, code=SECOND_CODE,
+            rows=[(SECOND_CODE, "Tủ lạnh LG Inverter RT38",
+                   (SECOND_RAW_PRODUCT,), True)])
+
+    switch_live_catalog(monkeypatch, tmp_path, catalog_rows(with_metadata=False))
+    upload(client, workbook)
+
+    # Bản chiếu CŨ phải còn nguyên — NO_METADATA không được xoá nhãn đã có.
+    still = json.loads(projection_path.read_text(encoding="utf-8"))
+    assert still[TRACKING_CODE]["brand"] == BRAND
+    assert still[TRACKING_CODE]["model_label"] == MODEL_LABEL
+
+    html = employee_page(client)
+    assert 'data-metric="catalog-projection-warning"' in html, (
+        "mã mới xác nhận thiếu nhãn sau một lần ghi NO_METADATA mà bảng im "
+        "lặng — đúng lỗi cần đóng ở lần sửa này")
+    assert 'data-kind="cu"' in html, (
+        "đây là bản chiếu CŨ một phần, không phải VẮNG hoàn toàn — phải dùng "
+        "đúng hình dạng cảnh báo thứ hai, không phải hình dạng của §3")
+
+    # Dòng CŨ (đã có nhãn từ trước) không bị cảnh báo này xoá mất — tên hàng
+    # và nhãn của nó KHÔNG đổi.
+    assert MODEL_LABEL in cells(html, "line-product")
+    assert brand_of(html, MODEL_LABEL) == BRAND
+
+    # Dòng MỚI: mapping vẫn CONFIRMED (không lộ tên thô), chỉ thiếu nhãn —
+    # đúng fallback đã có từ `R5` §5, KHÔNG phải hành vi mới của lần sửa này.
+    assert SECOND_CODE in cells(html, "line-product"), (
+        "mapping mới xác nhận phải fallback về mã Tracking như mọi mã thiếu "
+        "nhãn khác — không lộ tên thô và không đổi mapping")
+    assert SECOND_RAW_PRODUCT not in cells(html, "line-product")
+    assert brand_of(html, SECOND_CODE) == "—"
+
+    # Tiền không đổi vì bản chiếu — không do cảnh báo, không do NO_METADATA.
+    from app.web import business_service, business_store
+    service = business_service.BusinessReportService(
+        engine=engine, store=business_store.BusinessDecisionStore(engine))
+    bounds = (date(2026, 1, 1), date(2026, 1, 31))
+    with_projection = service.period(date_from=bounds[0], date_to=bounds[1])
+    projection_path.unlink()
+    without = service.period(date_from=bounds[0], date_to=bounds[1])
+    assert with_projection.totals.sales_revenue == without.totals.sales_revenue
+    assert with_projection.totals.kpi_profit == without.totals.kpi_profit
+    assert with_projection.totals.qualifying_quantity == without.totals.qualifying_quantity
+    assert with_projection.totals.orders == without.totals.orders
+    assert with_projection.totals.lines == without.totals.lines
+
+
+def test_the_employee_tab_warns_when_a_newly_confirmed_code_stays_unrefreshed_write_failed(
+    app, client, workbook, live_catalog, projection_path, identity_store, engine,
+    tmp_path, monkeypatch,
+):
+    """Cùng ca trên, nhưng lần chạy kế tiếp CÓ metadata — chỉ là GHI xuống đĩa
+    thất bại (`REASON_WRITE_FAILED`, ví dụ đĩa hết chỗ). Với người xem tab
+    Nhân viên, hai lý do kỹ thuật khác nhau (`NO_METADATA` vs `WRITE_FAILED`)
+    nhưng triệu chứng và mức độ nghiêm trọng là MỘT — bản chiếu đang CŨ — nên
+    phải cho ra ĐÚNG cùng hình dạng cảnh báo như bài trên.
+    """
+    confirm(identity_store)
+    upload(client, workbook)
+
+    confirm(identity_store, product_raw=SECOND_RAW_PRODUCT, code=SECOND_CODE,
+            rows=[(SECOND_CODE, "Tủ lạnh LG Inverter RT38",
+                   (SECOND_RAW_PRODUCT,), True)])
+
+    switch_live_catalog(monkeypatch, tmp_path, catalog_rows())
+    force_next_write_failure(monkeypatch, projection_path)
+    upload(client, workbook)
+
+    # Ghi thất bại xảy ra TRƯỚC khi file bị đụng tới — dữ liệu cũ còn nguyên.
+    still = json.loads(projection_path.read_text(encoding="utf-8"))
+    assert still[TRACKING_CODE]["brand"] == BRAND
+    assert still[TRACKING_CODE]["model_label"] == MODEL_LABEL
+
+    record = latest_run(app)
+    evidence = record.tracking_evidence or {}
+    status = evidence.get("catalog_display")
+    assert status is not None and status.get("written") is False
+    assert status.get("reason") == catalog_display.REASON_WRITE_FAILED
+
+    html = employee_page(client)
+    assert 'data-metric="catalog-projection-warning"' in html
+    assert 'data-kind="cu"' in html
+
+    assert MODEL_LABEL in cells(html, "line-product")
+    assert brand_of(html, MODEL_LABEL) == BRAND
+
+    assert SECOND_CODE in cells(html, "line-product")
+    assert SECOND_RAW_PRODUCT not in cells(html, "line-product")
+    assert brand_of(html, SECOND_CODE) == "—"
+
+    from app.web import business_service, business_store
+    service = business_service.BusinessReportService(
+        engine=engine, store=business_store.BusinessDecisionStore(engine))
+    bounds = (date(2026, 1, 1), date(2026, 1, 31))
+    with_projection = service.period(date_from=bounds[0], date_to=bounds[1])
+    projection_path.unlink()
+    without = service.period(date_from=bounds[0], date_to=bounds[1])
+    assert with_projection.totals.sales_revenue == without.totals.sales_revenue
+    assert with_projection.totals.kpi_profit == without.totals.kpi_profit
+    assert with_projection.totals.qualifying_quantity == without.totals.qualifying_quantity
+
+
+def test_no_stale_warning_when_the_second_run_refreshes_every_confirmed_code(
+    client, workbook, live_catalog, projection_path, identity_store, tmp_path,
+    monkeypatch,
+):
+    """Kiểm tra CHIỀU NGƯỢC LẠI: nhánh cảnh báo mới không được over-fire.
+
+    Khi lần chạy kế tiếp làm mới ĐỦ cho mọi mã đã xác nhận (kể cả mã mới),
+    cảnh báo "cũ" phải VẮNG — như bài `test_no_warning_when_the_projection_is_
+    healthy` ở §3, nhưng lần này có HAI mã, xác nhận ở HAI thời điểm khác
+    nhau, để chứng minh nhánh mới không nhầm một lần refresh thành công có
+    hai mã thành một ca "cũ một phần".
+    """
+    confirm(identity_store)
+    upload(client, workbook)
+
+    confirm(identity_store, product_raw=SECOND_RAW_PRODUCT, code=SECOND_CODE,
+            rows=[(SECOND_CODE, "Tủ lạnh LG Inverter RT38",
+                   (SECOND_RAW_PRODUCT,), True)])
+
+    rows = catalog_rows()
+    rows.append({"tracking_code": SECOND_CODE,
+                 "name": "Tủ lạnh LG Inverter RT38",
+                 "alt": [SECOND_RAW_PRODUCT], "present_in_board": True,
+                 "model_label": "RT38", "brand": "LG",
+                 "category_label": "Tủ lạnh"})
+    switch_live_catalog(monkeypatch, tmp_path, rows)
+    upload(client, workbook)
+
+    html = employee_page(client)
+    assert 'data-metric="catalog-projection-warning"' not in html, (
+        "cả hai mã đã được làm mới đầy đủ — không có gì để cảnh báo")
+    assert "RT38" in cells(html, "line-product")
+    assert "LG" in cells(html, "line-brand")

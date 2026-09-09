@@ -14,8 +14,18 @@ Owner KHÔNG phải mở bảng chọn phân loại.
 `CHECK-R51R2-01` … `CHECK-R51R2-14` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` §4).
 
-`CHECK-R51R2-15` (Independent Review của REPAIR-2) và `CHECK-R51R2-16` (Owner
-nghiệm thu lại trên production) `NOT_TESTED` — phiên repair KHÔNG tự đóng.
+**Vòng 2 (`S147`, `DEC-209`).** Trước khi mở Independent Review, Owner chỉ thị
+đóng thêm ca "bản chiếu đã có dữ liệu CŨ, lần chạy KẾ TIẾP không làm mới được
+nó" — khác ca "vắng hoàn toàn" mà vòng 1 đã đóng. `catalog_display.write()`
+nay ghi lại LỊCH SỬ của chính lần ghi gần nhất (`last_write_status()`), và tab
+Nhân viên hiện cảnh báo hình dạng thứ hai (`kind="cu"`) khi có bằng chứng lần
+ghi gần nhất `NO_METADATA`/`WRITE_FAILED` VÀ có mã CONFIRMED thiếu nhãn.
+`CHECK-R51R2-17` … `CHECK-R51R2-19` PASS (E1, bằng chứng nguyên văn ở
+`docs/sessions/S147-r51-repair-2-stale-projection-warning.md` §3–§5).
+
+`CHECK-R51R2-15` (Independent Review của REPAIR-2, bao CẢ HAI vòng) và
+`CHECK-R51R2-16` (Owner nghiệm thu lại trên production) `NOT_TESTED` — phiên
+repair KHÔNG tự đóng.
 
 `CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) VẪN `NOT_TESTED`. Nó
 là chính check mà lỗi này đã CHẶN: Owner không thể nghiệm thu một cột luôn hiện
@@ -104,10 +114,17 @@ app/web/server.py              `_refresh_catalog_display()` MỚI;
                                `run_report` gọi nó trên đường THÀNH CÔNG;
                                `_catalog_projection_warning()` MỚI cho tab NV
 app/web/templates/kinh_doanh_nhan_vien.html   một dòng cảnh báo (notice)
-scripts/r51_crossrepo_smoke.py §5 MỚI — upload/run THẬT
-tests/test_r51_repair2_run_refreshes_projection.py   MỚI (12 bài)
+scripts/r51_crossrepo_smoke.py §5 MỚI — upload/run THẬT; §6 MỚI (vòng 2) —
+                               bản chiếu CŨ một phần
+tests/test_r51_repair2_run_refreshes_projection.py   MỚI (12 bài; +3 vòng 2
+                               → 15 bài)
 tests/test_web_server.py       một assertion mở rộng theo bằng chứng mới
 ```
+
+Vòng 2 (`DEC-209`) mở rộng scope lock THÊM đúng ba chỗ, không chạm gì khác:
+`catalog_display.py` (`_status_path`/`_record_status`/`_finish`/`last_write_
+status`/`stale_metadata_note`), `server.py` (`_catalog_projection_warning()`
+hình dạng 2), `kinh_doanh_nhan_vien.html` (`data-kind`).
 
 NGOÀI phạm vi (và không file nào bị chạm):
 
@@ -141,11 +158,15 @@ Tracking (toàn bộ repo)       KHÔNG đổi một dòng code nào
 | `CHECK-R51R2-12` | Bản chiếu lành ⟹ KHÔNG có cảnh báo | PASS | E1 |
 | `CHECK-R51R2-13` | Smoke xuyên hai repo: producer Tracking THẬT → upload/run → bảng NV | PASS | E1 |
 | `CHECK-R51R2-14` | Full regression `R1`–`R6` xanh; validator = baseline; `git diff --check` sạch | PASS | E1 |
-| `CHECK-R51R2-15` | Independent Review của `REPAIR-2` | NOT_TESTED | — |
+| `CHECK-R51R2-17` | Vòng 2: bản chiếu CŨ + mã MỚI xác nhận + `NO_METADATA` ⟹ cảnh báo `kind="cu"`, tên/mapping/tiền KHÔNG đổi | PASS | E1 |
+| `CHECK-R51R2-18` | Vòng 2: cùng ca trên nhưng `WRITE_FAILED` ⟹ cùng cảnh báo | PASS | E1 |
+| `CHECK-R51R2-19` | Vòng 2: làm mới ĐỦ cho mọi mã ⟹ KHÔNG cảnh báo (không over-fire) | PASS | E1 |
+| `CHECK-R51R2-15` | Independent Review của `REPAIR-2` (bao CẢ HAI vòng) | NOT_TESTED | — |
 | `CHECK-R51R2-16` | Owner nghiệm thu lại trên production | NOT_TESTED | — |
 
 Bằng chứng nguyên văn:
-`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` §4.
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` §4 (vòng 1) và
+`docs/sessions/S147-r51-repair-2-stale-projection-warning.md` §3–§5 (vòng 2).
 
 ## 4. Exit Criteria
 
@@ -158,6 +179,8 @@ Bằng chứng nguyên văn:
 [x] Nghiệp vụ R1–R6 không đổi một đồng
 [x] Tương thích capture cũ, fallback an toàn, không crash
 [x] Test qua route web thật + smoke xuyên hai repo
+[x] Vòng 2: bản chiếu CŨ một phần ⟹ cảnh báo (kind="cu"), không đổi tên
+    hàng/mapping/giá MIN/lợi nhuận/tổng tiền
 [ ] Independent Review (CHECK-R51R2-15)
 [ ] Owner nghiệm thu lại trên production (CHECK-R51R2-16)
 ```

@@ -13077,3 +13077,96 @@ Nguồn:
 - `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
 - `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`
 - `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" → REPAIR-2 production
+
+## DEC-209
+
+Ngày: 2026-09-09
+Phiên: `S147` — `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+Thẩm quyền: Owner chỉ thị bổ sung, trước khi mở Independent Review cho
+`R5.1 REPAIR-2`: đóng thêm ca "bản chiếu đã có dữ liệu CŨ, lần chạy KẾ TIẾP
+không làm mới được nó" — phân biệt với ca "vắng hoàn toàn" mà `DEC-208` đã
+đóng.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge — vẫn thuộc cùng
+`R5.1 REPAIR-2`, không phải một repair cycle mới.
+
+### §1. Vì sao `DEC-208` chưa đủ
+
+`DEC-208` §4 cảnh báo đúng MỘT trạng thái: bản chiếu VẮNG HOÀN TOÀN
+(`display.get(code)` falsy cho MỌI mã đã xác nhận). Nó không phân biệt được
+hai câu chuyện sau, dù cả hai cho ra CÙNG một `read()` khi một mã CONFIRMED
+cụ thể thiếu nhãn:
+
+```text
+Tracking đơn giản CHƯA phân loại mã này         → hợp lệ, im lặng đúng
+                                                   (AR-R5.1-01)
+lần chạy GẦN NHẤT không làm mới được bản chiếu,
+nên nó đang hiện một bản CŨ có thể thiếu đúng
+mã MỚI xác nhận SAU lần ghi thành công cuối     → lỗi luồng chính, cần
+                                                   cảnh báo
+```
+
+Ca thứ hai xảy ra khi: bản chiếu đã có dữ liệu THẬT (từ một lần chạy trước),
+Owner xác nhận một mapping MỚI, rồi lần chạy kế tiếp trả về `NO_METADATA`
+(capture đời cũ) hoặc `WRITE_FAILED` (ghi đĩa thất bại) — write() giữ nguyên
+dữ liệu cũ có chủ đích (`DEC-208` §5), nên mã cũ vẫn có nhãn và `matched > 0`;
+`DEC-208` §4 chỉ cảnh báo khi `matched == 0`, nên nhánh đó im lặng đúng lúc cần
+nói.
+
+### §2. Lịch sử ghi, không chỉ nội dung đang có
+
+`catalog_display.write()` nay ghi thêm một file trạng thái CẠNH bản chiếu
+(`<target>.status.json`, qua `_status_path`/`_record_status`/`_finish`), và
+`last_write_status()` đọc lại nó. Đây là file RIÊNG, không phải một khoá nhồi
+vào bản chiếu: `read()` coi MỌI khoá top-level của bản chiếu là một mã
+Tracking, nên một khoá trạng thái nằm chung sẽ có nguy cơ va với một mã thật
+trùng tên.
+
+Ghi trạng thái là best-effort, cùng kỷ luật fail-safe của chính `write()`: lỗi
+ghi trạng thái KHÔNG làm hỏng lần gọi đang chạy và KHÔNG đổi giá trị `write()`
+trả về.
+
+### §3. Hai hình dạng cảnh báo, `_catalog_projection_warning()`
+
+```text
+kind="vang"   matched == 0 (vắng hoàn toàn)     GIỮ NGUYÊN — không cần bằng
+                                                 chứng lịch sử ghi, vô điều kiện
+                                                 như DEC-208 §4
+kind="cu"     matched > 0 và unmatched khác rỗng
+              VÀ last_write_status() nói lần ghi gần nhất KHÔNG thành công
+              vì NO_METADATA hoặc WRITE_FAILED    MỚI — DEC-209
+```
+
+Điều kiện `kind="cu"` được thu hẹp CÓ CHỦ ĐÍCH bằng bằng chứng lịch sử ghi,
+không chỉ bằng "có mã thiếu nhãn": nếu không có bằng chứng lần ghi gần nhất
+hỏng (`last_write_status() is None` hoặc `written=True`), im lặng — đó là ca
+`AR-R5.1-01` hợp lệ (Tracking chưa phân loại), không phải staleness.
+
+Cả hai hình dạng đi vào CÙNG một điểm render (`data-metric="catalog-
+projection-warning"`), với `data-kind` phân biệt — mẫu template chỉ thêm một
+thuộc tính, không nhân đôi khối HTML.
+
+### §4. Không đổi tên hàng, mapping, hay bất kỳ con số nào
+
+Giữ NGUYÊN VĂN mọi bất biến của `DEC-208` §3: phép chặn theo trạng thái mapping
+ở `workspace_presentation._catalog_field` KHÔNG bị chạm. Một mã CONFIRMED
+thiếu nhãn (dù vì lý do gì) vẫn fallback về đúng MÃ Tracking — hành vi đã có
+từ `R5` §5, không phải hành vi mới của `DEC-209`. `DEC-209` chỉ thêm một dòng
+NÓI RA, không thêm hay đổi một nhánh hiển thị tên/mapping nào.
+
+Đo bằng HÀNH VI, không chỉ bằng lý luận: `CHECK-R51R2-17`/`-18` khẳng định
+tường minh — dòng CŨ giữ nguyên model/hãng, dòng MỚI fallback về mã Tracking
+(không lộ tên thô, không đổi mapping), và tổng tiền/lợi nhuận giống hệt khi so
+kỳ có/không bản chiếu.
+
+### §5. Quan hệ với `DEC-208`
+
+`DEC-209` KHÔNG thay thế `DEC-208` — nó là một overlay hẹp trên đúng một hàm
+(`_catalog_projection_warning`) mà `DEC-208` đã mở, đóng thêm một ca mà
+`DEC-208` §4 để ngỏ. Ba mã lý do đóng (`NO_SNAPSHOT`/`NO_METADATA`/
+`WRITE_FAILED`), quy tắc "NO_METADATA giữ nguyên dữ liệu cũ" (`DEC-208` §5),
+và mọi bất biến nghiệp vụ ở `DEC-208` §3/§7 giữ NGUYÊN VĂN.
+
+Nguồn:
+- `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
+- `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-208`

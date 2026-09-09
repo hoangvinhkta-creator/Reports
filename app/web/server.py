@@ -1799,7 +1799,10 @@ def create_app(
                 live.cleanup()
 
     def _catalog_projection_warning(details) -> Optional[dict]:
-        """`R5.1 REPAIR-2` — cảnh báo khi bản chiếu VẮNG mà đáng ra phải có.
+        """`R5.1 REPAIR-2` — cảnh báo khi bản chiếu KHÔNG nói đủ những gì nó
+        đáng ra phải nói, ở HAI hình dạng khác nhau.
+
+        ## Hình dạng 1 — VẮNG hoàn toàn (bản sửa lần đầu)
 
         Điều kiện kích hoạt hẹp có chủ ý, và nó là điều làm cảnh báo này đáng
         đọc: nó chỉ hiện khi CẢ HAI điều đúng cùng lúc —
@@ -1810,17 +1813,33 @@ def create_app(
 
         Nếu chưa ai xác nhận mapping nào, cột `Hãng` là dấu gạch vì một lý do
         HOÀN TOÀN KHÁC (chưa phân loại), và một cảnh báo về bản chiếu ở đó sẽ
-        chỉ người đọc đi sai chỗ. Nếu bản chiếu nói được về một mã, nó đang
-        hoạt động — thiếu nhãn của một mã cụ thể là `AR-R5.1-04`, không phải
-        sự cố hạ tầng.
+        chỉ người đọc đi sai chỗ.
 
-        `None` = không có gì phải nói.
+        ## Hình dạng 2 — CŨ một phần (Owner báo lỗi lần 2)
+
+        Hình dạng 1 một mình có một lỗ hổng: nếu bản chiếu ĐÃ có dữ liệu từ
+        một lần chạy CŨ (nên `matched > 0`), phiên bản trước coi nó "đang hoạt
+        động" và im lặng — kể cả khi lần chạy GẦN NHẤT đã không làm mới được
+        nó (`NO_METADATA`/`WRITE_FAILED`, `DEC-208` §5) và một mapping MỚI
+        CONFIRMED sau lần ghi cuối cùng vẫn đang thiếu nhãn. Đó chính là "vẫn
+        còn — hiện dấu gạch mà không lời nào giải thích" tái diễn dưới một
+        hình dạng khác: lần đầu là vắng TOÀN BỘ, lần này là vắng MỘT PHẦN.
+
+        `read()` một mình không phân biệt được "Tracking đơn giản chưa phân
+        loại mã này" (hợp lệ, `AR-R5.1-01`, im lặng đúng) khỏi "bản chiếu
+        đang STALE vì lần chạy gần nhất hỏng" (lỗi, cần cảnh báo) — cả hai cho
+        `display.get(code)` falsy y hệt nhau. Chỉ `catalog_display.
+        last_write_status()` — LỊCH SỬ ghi, không phải NỘI DUNG đang có — tách
+        được hai câu đó, nên cảnh báo hình dạng 2 CHỈ nổi lên khi có bằng
+        chứng ghi thất bại, không suy đoán từ việc thiếu nhãn một mình.
+
+        `None` = không có gì phải nói, ở cả hai hình dạng.
         """
         identities = identity_gateway.confirmed_identities(identity_store)
         if not identities:
             return None
         decisions = _identity_decisions()
-        wanted, matched = set(), 0
+        wanted, matched, unmatched = set(), 0, set()
         display = catalog_display.read()
         for detail in details:
             state = line_identity.state_of(detail, decisions=decisions)
@@ -1833,11 +1852,32 @@ def create_app(
             wanted.add(code)
             if display.get(code):
                 matched += 1
-        if not wanted or matched:
+            else:
+                unmatched.add(code)
+        if not wanted:
+            return None
+        if not matched:
+            # Hình dạng 1 — GIỮ NGUYÊN hành vi đã nghiệm thu: không cần bằng
+            # chứng ghi thất bại, vắng toàn bộ là đủ để cảnh báo.
+            return {
+                "codes": len(wanted),
+                "note": catalog_display.MISSING_PROJECTION_NOTE,
+                "kind": "vang",
+            }
+        if not unmatched:
+            return None
+        # Hình dạng 2 — CHỈ cảnh báo khi có BẰNG CHỨNG lần ghi gần nhất hỏng
+        # vì một lý do có thể ảnh hưởng đúng những mã còn thiếu này.
+        status = catalog_display.last_write_status()
+        if status is None or status.written:
+            return None
+        if status.reason not in (catalog_display.REASON_NO_METADATA,
+                                 catalog_display.REASON_WRITE_FAILED):
             return None
         return {
-            "codes": len(wanted),
-            "note": catalog_display.MISSING_PROJECTION_NOTE,
+            "codes": len(unmatched),
+            "note": catalog_display.stale_metadata_note(status.reason),
+            "kind": "cu",
         }
 
     def _refresh_catalog_display(captures) -> catalog_display.WriteResult:
@@ -1875,13 +1915,16 @@ def create_app(
         """
         catalog_path = getattr(captures, "tracking_catalog", None)
         if catalog_path is None:
-            return catalog_display.WriteResult(
-                written=False, reason=catalog_display.REASON_NO_SNAPSHOT)
+            # `write(None)` thay vì tự dựng `WriteResult` tay: cả hai cho ra
+            # cùng giá trị, nhưng đi qua `write()` thì lần "không có gì để
+            # ghi" này CŨNG được `_record_status` lưu lại — nên `last_write_
+            # status()` phản ánh đúng lần chạy gần nhất, kể cả khi nó không
+            # có capture nào.
+            return catalog_display.write(None)
         try:
             snapshot = load_tracking_catalog_capture(catalog_path)
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
-            return catalog_display.WriteResult(
-                written=False, reason=catalog_display.REASON_NO_SNAPSHOT)
+            return catalog_display.write(None)
         return catalog_display.write(snapshot)
 
     def _tracking_inv_map_snapshot():
