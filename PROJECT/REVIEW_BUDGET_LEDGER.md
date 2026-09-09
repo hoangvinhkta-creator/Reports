@@ -3187,3 +3187,30 @@ lineage `R5` hết ngân sách và phải escalate theo
 `governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
 
 Bằng chứng nguyên văn: `docs/sessions/S135-r5-repair-1.md`.
+
+### Tích hợp `S136` → Owner override `DEC-203` (`S137`, 2026-09-09) → merge
+
+`S136` (tích hợp) chạy lại toàn bộ kiểm tra kỹ thuật trên HEAD sau REPAIR-1
+gộp với tài liệu Independent Review vòng 1 (merge commit `cf345ac`) — TẤT CẢ
+PASS — nhưng KHÔNG merge, vì vòng review độc lập thứ hai chưa có artifact
+trong repo và `CHECK-R3-20`/`CHECK-R4-24` vẫn `NOT_TESTED`. Chi tiết:
+`docs/sessions/S136-r5-integration.md`.
+
+Ở `S137`, Owner xác nhận trực tiếp (không kèm artifact) rằng: (a) vòng
+Independent Review thứ hai đã chạy ở một công cụ khác (Codex); (b) Owner đã
+tự đối chiếu R3/R4 trên dữ liệu production. Owner chỉ thị merge ngay.
+**`DEC-203`** ghi lại đây là một GHI ĐÈ (override) có thẩm quyền Owner đối
+với hai điều kiện chặn còn lại — không phải kết quả của một repair cycle
+mới, không tiêu và không đổi số dư ngân sách `R5` (giữ nguyên
+`2 allowed / 1 used / 1 remaining`).
+
+```text
+kết luận vòng 2 (theo Owner)   thực hiện ở Codex, không artifact trong repo
+CHECK-R5-27 / CHECK-R5R1-09    ACCEPT_WITH_RECORDED_RISK (Owner override)
+CHECK-R3-20 / CHECK-R4-24      ACCEPTED_BY_OWNER_VERBAL (Owner override)
+repair cycle tiêu bởi override  0  (override KHÔNG phải repair cycle)
+số dư sau override             2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`),
+`docs/sessions/S137-r5-owner-override-merge.md`.

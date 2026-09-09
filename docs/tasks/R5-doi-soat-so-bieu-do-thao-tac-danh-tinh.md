@@ -28,17 +28,24 @@ tái hiện đi qua đường production; thêm `AR-R5-IR-11` (docstring hứa m
 khẳng định không có trong thân bài) cũng đã sửa. Chi tiết + bằng chứng:
 `docs/sessions/S135-r5-repair-1.md`.
 
-**`CHECK-R5-27` (Independent Review) = `FAIL` ở vòng 1, và CHƯA được chạy
-LẠI trên HEAD sau repair.** Phiên repair KHÔNG tự đóng nó — đúng kỷ luật đã
-áp cho R1, R2, R3 và R4, và đúng lời của chính review vòng 1: check này "chỉ
-chuyển sang `PASS` ở lần review thứ hai, sau khi `R5-REPAIR-1` xong." Một
-vòng review độc lập thứ hai, TRÊN CHÍNH HEAD SAU REPAIR, vẫn là việc CÒN
-PHẢI LÀM trước khi tích hợp — không phiên tích hợp/triển khai nào được thay
-thế nó bằng việc tự xác nhận rằng bản sửa "đúng" theo test của chính mình.
+**`CHECK-R5-27` (Independent Review) = `ACCEPT_WITH_RECORDED_RISK (Owner
+override, `DEC-203`)`.** Phiên tích hợp `S136` KHÔNG tự đóng nó — check vẫn
+`FAIL (vòng 1)` cho tới khi `S136` kết thúc. Ở phiên kế tiếp (`S137`), Owner
+trực tiếp xác nhận đã tự chạy một vòng Independent Review thứ hai ở một công
+cụ khác (Codex) và chỉ thị merge — xác nhận này KHÔNG kèm artifact review
+nào được đưa vào repo. `DEC-203` ghi lại đây là một GHI ĐÈ (override) có
+thẩm quyền của Owner, không phải một `PASS` có bằng chứng E1/E2 kiểm tra
+được trong repo này. `CHECK-R5R1-09` (xem
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`) mang cùng trạng
+thái, cùng lý do.
 
-`CHECK-R5-28` (Owner nghiệm thu) VẪN `NOT_TESTED`. Điều kiện tích hợp của
-`S133` (Owner nghiệm thu R3/R4 trên production trước khi R5 được merge) vẫn
-còn nguyên và không có bằng chứng nào cho thấy nó đã thoả.
+`CHECK-R5-28` (Owner nghiệm thu R5 trên production) VẪN `NOT_TESTED` —
+`DEC-203` không bao gồm nghiệm thu R5 (R5 chưa từng chạy trên production
+trước khi quyết định này được đưa ra). Điều kiện `S133` cũ (Owner nghiệm thu
+R3/R4 trên production) được Owner tự xác nhận đã thoả bằng lời ở `S137`;
+`CHECK-R3-20`/`CHECK-R4-24` được cập nhật thành
+`ACCEPTED_BY_OWNER_VERBAL` theo đúng `DEC-203` — xem
+`PROJECT/PROJECT_PROGRESS.md` và `PROJECT/REVIEW_BUDGET_LEDGER.md`.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -191,7 +198,7 @@ Tracking:
 | `CHECK-R5-24` | Tracking xuất `model_label`/`brand` đã chuẩn hoá; không lộ `cat`/giá/tồn/NCC/note/link | PASS | E1 |
 | `CHECK-R5-25` | Reports đọc CẢ artifact cũ lẫn mới; hash mới gồm hai trường; hai trường KHÔNG tham gia nhận diện | PASS | E1 |
 | `CHECK-R5-26` | IMEI chỉ ở route nhân viên; hai cột ẩn mặc định, nút chung, cột hẹp cắt một dòng; popover một ô tìm, tối đa một gợi ý | PASS | E1 |
-| `CHECK-R5-27` | Independent Review | FAIL (vòng 1) — chờ chạy lại trên HEAD sau REPAIR-1 | `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` (`S135`) |
+| `CHECK-R5-27` | Independent Review | ACCEPT_WITH_RECORDED_RISK (Owner override, `DEC-203` — vòng 2 chạy ở Codex, không artifact trong repo) | `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`), `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` (`S135`, vòng 1) |
 | `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
 | `CHECK-R5-29` | `XONG` không gán lại cả BH khi BH có 0 hoặc ≥2 nhân viên hiệu lực | PASS | E1 |
 | `CHECK-R5-30` | Mọi ô chọn nhân viên LUÔN có đúng một option được chọn | PASS | E1 |
@@ -202,10 +209,13 @@ Bằng chứng nguyên văn (lệnh + output):
 `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md` §4–§7.
 
 `CHECK-R5-27` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi bất kỳ phiên triển
-khai nào — kể cả một phiên REPAIR hay một phiên TÍCH HỢP. `CHECK-R5-27` được
-đặt bởi phiên Independent Review `S135` (vòng 1) và chỉ chuyển sang `PASS`
-(hoặc `ACCEPT_WITH_RECORDED_RISK`) ở một lần review ĐỘC LẬP thứ hai, chạy
-trên HEAD sau repair — chưa phiên nào thực hiện lần review thứ hai đó.
+khai/REPAIR/TÍCH HỢP nào. `CHECK-R5-27` được đặt `FAIL` bởi phiên Independent
+Review `S135` (vòng 1), và giữ nguyên `FAIL` xuyên suốt toàn bộ phiên `S136`
+(tích hợp) — không phiên kỹ thuật nào tự đóng nó. Nó chuyển sang
+`ACCEPT_WITH_RECORDED_RISK` ở `S137` CHỈ vì Owner trực tiếp chỉ thị ghi đè
+(`DEC-203`), không phải vì một phiên tự xác nhận review độc lập thứ hai đã
+xảy ra trong repo này — vòng 2 thật (nếu có) chạy ở Codex, ngoài phạm vi
+quan sát được của bất kỳ phiên nào ở đây.
 
 `CHECK-R5-29` … `CHECK-R5-32` là các check MỚI do REPAIR-1 thêm, và chúng
 canh đúng hai finding mà review vòng 1 đã tìm ra bằng test đi qua đường
@@ -238,9 +248,13 @@ Bằng chứng REPAIR-1: `docs/sessions/S135-r5-repair-1.md` §2, §3, §6.
 8. Đối chiếu MIN ngày 03/09, lợi nhuận, export và kỳ chốt/drift để chắc R1–R4
    không đổi. — full regression + hai smoke, §7 của `S134`.
 9. Independent Review kết luận trên exact HEAD. — `CHECK-R5-27`, vòng 1 ĐÃ
-   CHẠY (`S135`), kết luận `REPAIR_REQUIRED`. `R5-REPAIR-1` đã xong; VẪN
-   CHƯA thoả — cần một vòng review độc lập THỨ HAI trên HEAD sau repair.
-10. Owner nghiệm thu trên production. — `CHECK-R5-28`, CHƯA CÓ.
+   CHẠY (`S135`), kết luận `REPAIR_REQUIRED`. `R5-REPAIR-1` đã xong; vòng 2
+   được Owner xác nhận đã chạy ở Codex nhưng không có artifact trong repo —
+   `DEC-203` ghi nhận đây là ghi đè có thẩm quyền Owner, không phải bằng
+   chứng E1/E2 kiểm tra được tại đây.
+10. Owner nghiệm thu trên production. — `CHECK-R5-28`, CHƯA CÓ (R5 chưa lên
+    production trước merge này). `CHECK-R3-20`/`CHECK-R4-24` (R3/R4 trên
+    production) được Owner tự xác nhận bằng lời — xem `DEC-203`.
 
 ---
 

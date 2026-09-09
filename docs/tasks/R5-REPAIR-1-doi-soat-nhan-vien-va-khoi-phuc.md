@@ -177,10 +177,14 @@ Bộ khung tái hiện của phiên review nằm nguyên văn trong
 | `CHECK-R5R1-06` | Smoke qua HTTP server thật: nạp lại sổ NGAY LẬP TỨC (không chờ) vẫn khôi phục tổng | NOT_TESTED | E1 |
 | `CHECK-R5R1-07` | Full regression Reports không có FAIL mới so với `949e32d` | NOT_TESTED | E1 |
 | `CHECK-R5R1-08` | `CHECK-R5-01` … `CHECK-R5-26` vẫn PASS | NOT_TESTED | E1 |
-| `CHECK-R5R1-09` | Independent Review lần 2 | NOT_TESTED | — |
+| `CHECK-R5R1-09` | Independent Review lần 2 | ACCEPT_WITH_RECORDED_RISK (Owner override, `DEC-203`) | `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`) |
 | `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
 
-`CHECK-R5R1-09` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi phiên repair.
+`CHECK-R5R1-09` và `CHECK-R5-28` KHÔNG được tự đánh dấu bởi phiên repair —
+và không được tự đánh dấu bởi phiên tích hợp `S136` (giữ nguyên `NOT_TESTED`
+xuyên suốt phiên đó). Trạng thái `ACCEPT_WITH_RECORDED_RISK` ở trên chỉ xuất
+hiện ở phiên kế tiếp (`S137`), bởi chỉ thị ghi đè trực tiếp của Owner
+(`DEC-203`) — không phải một phiên tự xác nhận Independent Review lần 2.
 
 ---
 

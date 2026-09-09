@@ -12435,3 +12435,117 @@ cửa sổ so sánh. Mở lại điểm 8 khi danh sách hãng cần thêm mục
 vào danh sách đóng là đúng cách, nới quy tắc ghép thì không. Mở lại điểm 9 nếu
 hợp đồng Product Identity có ngày mang trường `brand` trên chính nó và `INV-18`
 được xem xét lại.
+
+---
+
+## DEC-203
+
+Title:
+R5 — Owner ghi đè (override) hai điều kiện chặn merge còn lại của phiên tích
+hợp `S136`: bỏ qua yêu cầu artifact Independent Review vòng 2 trong repo (đã
+thực hiện ở công cụ khác — Codex — không lưu artifact tại đây) và bỏ qua điều
+kiện `CHECK-R3-20`/`CHECK-R4-24` (Owner tự xác nhận đã tự kiểm R3/R4 trên
+production ở nơi khác); cho phép merge cả hai PR chuẩn bị sẵn và chấp nhận
+Render tự động deploy production ngay sau merge.
+
+Date:
+2026-09-09
+
+Authority:
+`HANDOFF_DIRECTIVE` bằng lời, trực tiếp trong phiên `S136`/`S137`, sau khi
+phiên đã báo cáo đầy đủ hai điều kiện `NOT_TESTED`/thiếu artifact (xem
+`docs/sessions/S136-r5-integration.md` §2, §5). Nguyên văn ba lượt trao đổi:
+
+```text
+Owner: "tôi đã Independent Review vòng 2 ở codex. hãy bỏ qua và merge luôn
+        vào công cụ để tôi sử dụng trực tiếp"
+[phiên hỏi lại riêng CHECK-R3-20/24 có nằm trong "bỏ qua" không, và xác nhận
+ merge sẽ kích hoạt Render tự deploy]
+Owner: "tôi đã tự kiểm R3 R4 xong rồi nên hãy bỏ qua"
+Owner: "Merge và chấp nhận Render tự deploy luôn"
+```
+
+Context:
+
+Phiên `S136` (tích hợp) đã hoàn tất toàn bộ kiểm tra kỹ thuật của R5 (full
+`pytest -q` 3232 passed/12 skipped/0 failed, governance validator PASS trừ
+baseline `TASK-REM-T06`, `branch_authority_check.sh` → `AUTHORITY_OK`, smoke
+xuyên hai repo 29/29 PASS, Tracking `npm test`/`npm run build` PASS) nhưng
+KHÔNG merge, vì hai điều kiện do chính brief mở phiên đặt ra chưa đạt:
+
+1. `CHECK-R3-20`/`CHECK-R4-24` (Owner nghiệm thu R3/R4 trên production) —
+   `NOT_TESTED`, không có artifact nào trong lịch sử git repo này.
+2. Independent Review vòng 2 của R5 — không có artifact nào trong repo này
+   (chỉ có vòng 1, kết luận `REPAIR_REQUIRED`, đã sửa ở REPAIR-1).
+
+Owner xác nhận trực tiếp trong phiên kế tiếp (`S137`) rằng: (a) Independent
+Review vòng 2 ĐÃ được thực hiện, nhưng ở một công cụ khác (Codex), nên không
+để lại artifact trong repo Reports; (b) Owner đã tự đối chiếu R3/R4 trên dữ
+liệu production ở nơi khác. Cả hai xác nhận đều bằng lời, không kèm file
+review/số liệu đối chiếu nào được đưa vào repo tại thời điểm quyết định này.
+
+Đây KHÔNG phải trường hợp phiên tự đánh dấu Independent Review hay tự đánh
+dấu Owner Acceptance — chính Owner, người có thẩm quyền nghiệm thu, là người
+đưa ra xác nhận và chỉ thị merge. Việc ghi `CHECK-R5-27`/`CHECK-R5R1-09`/
+`CHECK-R3-20`/`CHECK-R4-24` là `PASS` dựa trên xác nhận bằng lời của Owner,
+không có bằng chứng thực thi được (E1/E2) đi kèm trong repo, là một khoảng
+cách CÓ THẬT giữa `governance/core/EVIDENCE_STANDARD.md` (đòi hỏi bằng chứng thực thi được)
+và thực tế quyết định này — được ghi lại tường minh ở đây thay vì che giấu
+bằng cách gắn nhãn `PASS` như thể có bằng chứng E1/E2 thật.
+
+Decision:
+
+1. **Merge cả hai PR chuẩn bị sẵn từ `S136`**: Tracking
+   `hoangvinhkta-creator/Tracking#26` (`f958226` → `main`) TRƯỚC, rồi Reports
+   `hoangvinhkta-creator/Reports#12` (`claude/r5-integration-vinh` @
+   `cf345ac`/`ce3df88` → `claude/extract-upload-repo-gq2ws4`) SAU — đúng thứ
+   tự đã đề xuất ở `S136` §6 (Tracking không phụ thuộc ngược vào Reports).
+
+2. **`CHECK-R5-27`** chuyển từ `FAIL (vòng 1)` sang
+   `ACCEPT_WITH_RECORDED_RISK (Owner override — vòng 2 thực hiện ngoài repo,
+   không có artifact)`. **`CHECK-R5R1-09`** chuyển từ `NOT_TESTED` sang cùng
+   trạng thái, cùng chú thích. Đây KHÔNG phải `PASS` với ý nghĩa "đã xác minh
+   được trong repo" — ghi rõ nguồn là xác nhận bằng lời của Owner, không phải
+   một bản ghi review có thể audit lại.
+
+3. **`CHECK-R3-20`** và **`CHECK-R4-24`** chuyển từ `NOT_TESTED` sang
+   `ACCEPTED_BY_OWNER_VERBAL (không có bằng chứng đối chiếu trong repo)` —
+   không dùng nhãn `PASS` trơn, để không lẫn với một `PASS` có E1/E2 thật.
+
+4. **Ngân sách repair của lineage `R5`** (`PROJECT/REVIEW_BUDGET_LEDGER.md`)
+   giữ nguyên `2 allowed / 1 used / 1 remaining` — quyết định này không mở
+   hay tiêu thêm một repair cycle nào; nó là một override GATE, không phải
+   một vòng review/repair mới.
+
+5. **Render tự động build+deploy production** ngay sau mỗi merge (cả hai
+   repo dùng Blueprint tự kích hoạt khi có commit mới trên nhánh liên kết) —
+   Owner đã xác nhận chấp nhận điều này ("Merge và chấp nhận Render tự
+   deploy luôn"). Phiên không có egress/credential tới Render nên KHÔNG xác
+   nhận được deploy đã Live — giống hạn chế đã ghi nhận xuyên suốt
+   `S127`/`S130`/`S133`.
+
+6. **`CHECK-R5-28`** (Owner nghiệm thu R5 trên production sau khi deploy)
+   VẪN `NOT_TESTED` — quyết định này KHÔNG bao gồm nghiệm thu R5 trên
+   production, vì R5 chưa từng chạy trên production trước thời điểm merge
+   này. Owner cần tự nghiệm thu sau khi xác nhận Render deploy xong (checklist
+   ở `S136` §7, mục 7–8, và `S137` khi phiên đó được viết).
+
+Risk:
+
+Rủi ro CHÍNH của quyết định này là: nếu Independent Review vòng 2 thật trên
+Codex (không quan sát được từ phiên này) đã bỏ sót một finding nghiêm trọng,
+hoặc nếu R3/R4 trên production thực ra có sai lệch mà Owner đối chiếu không
+phát hiện, thì R5 lên production mà không có lớp phòng vệ thứ hai đã được
+thiết kế xuyên suốt dự án (Independent Review độc lập + Owner nghiệm thu
+production trước khi tích hợp). Giảm nhẹ duy nhất là: toàn bộ kiểm tra kỹ
+thuật tự động của `S136` (bao gồm smoke xuyên hai repo mới, có tính đối
+chứng cao hơn fixture giả lập) đã PASS, và cơ chế loại-lúc-đọc/khôi phục-tự-
+động của R5 (`DEC-202`) vẫn đảo ngược được bằng một lần nạp lại sổ nếu có sai
+sót bị phát hiện sau merge.
+
+Can Revisit After:
+
+Nếu Owner muốn bổ sung artifact review vòng 2 (xuất từ Codex) vào repo sau
+merge, phiên sau nên thêm nó vào `docs/reviews/` và nâng `CHECK-R5-27`/
+`CHECK-R5R1-09` từ `ACCEPT_WITH_RECORDED_RISK (Owner override)` lên một
+trạng thái có bằng chứng E1/E2 thật, thay vì để mãi ở trạng thái override.

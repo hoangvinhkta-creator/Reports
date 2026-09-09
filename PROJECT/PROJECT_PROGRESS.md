@@ -1,6 +1,45 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — R5 tích hợp CHƯA MERGE: REPAIR-1 xong, chờ Independent Review vòng 2 + Owner nghiệm thu R3/R4 production (2026-09-09)
+## CANONICAL CURRENT STATE — R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
+
+**Owner chỉ thị trực tiếp trong phiên:** đã tự thực hiện Independent Review
+vòng 2 ở một công cụ khác (Codex, không artifact trong repo Reports) và đã
+tự đối chiếu `CHECK-R3-20`/`CHECK-R4-24` trên dữ liệu production ở nơi khác;
+yêu cầu bỏ qua cả hai điều kiện chặn còn lại của `S136` và merge ngay, chấp
+nhận Render tự động deploy production sau merge. Quyết định đầy đủ, nguyên
+văn chỉ thị, và rủi ro được ghi tại **`PROJECT/PROJECT_DECISIONS.md` →
+`DEC-203`**; diễn biến phiên tại `docs/sessions/S137-r5-owner-override-merge.md`.
+
+```text
+CHECK-R5-27 / CHECK-R5R1-09   FAIL / NOT_TESTED → ACCEPT_WITH_RECORDED_RISK
+                              (Owner override, DEC-203 — KHÔNG có artifact
+                              review vòng 2 trong repo này)
+CHECK-R3-20 / CHECK-R4-24     NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+                              (DEC-203 — KHÔNG có bằng chứng đối chiếu
+                              production trong repo này)
+CHECK-R5-28                   VẪN NOT_TESTED — override KHÔNG bao gồm
+                              nghiệm thu R5 trên production
+```
+
+**Đây KHÔNG phải phiên tự đánh dấu Independent Review hay tự đánh dấu Owner
+Acceptance** — chính Owner là người xác nhận và chỉ thị. Nhưng đây CŨNG
+KHÔNG phải bằng chứng E1/E2 kiểm tra được trong repo — khoảng cách này được
+ghi lại tường minh, không che giấu bằng nhãn `PASS` trơn.
+
+Toàn bộ kiểm tra kỹ thuật (full `pytest -q` 3232 passed/12 skipped/0 failed,
+Tracking `npm test` 2767 passed + build OK, smoke xuyên hai repo 29/29 PASS,
+governance validator PASS trừ baseline `TASK-REM-T06`) đã PASS từ `S136` —
+không đổi, không chạy lại.
+
+Merge thực hiện theo thứ tự: Tracking PR #26 → `main`, rồi Reports PR #12
+(`claude/r5-integration-vinh`) → `claude/extract-upload-repo-gq2ws4`. SHA
+merge commit thật và trạng thái deploy (KHÔNG xác nhận được từ phiên này —
+không egress/credential Render, cùng giới hạn `S127`/`S130`/`S133`) nằm ở
+`docs/sessions/S137-r5-owner-override-merge.md` §4–§5.
+
+---
+
+## R5 tích hợp CHƯA MERGE: REPAIR-1 xong, chờ Independent Review vòng 2 + Owner nghiệm thu R3/R4 production (`S136`, 2026-09-09)
 
 **Phiên tích hợp (không phải triển khai, không phải review).** Dựng nhánh
 `claude/r5-integration-vinh` từ Reports repair HEAD `4278c3b`, gộp tài liệu
