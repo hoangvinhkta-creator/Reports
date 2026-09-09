@@ -352,19 +352,19 @@ def test_chart_10_a_legacy_month_without_daily_evidence_invents_no_days(
 ):
     """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra.
 
-    R5 §3 (`DEC-R5-02`) đổi cách khoanh: hai cửa sổ liền kề CÙNG ĐỘ DÀI
-    (30 ngày · 12 tuần · 12 tháng · 8 quý) thay cho cửa sổ theo container
-    lịch của `TASK-OWNER-UIUX-003` §2. Đây là một sửa đổi có chủ đích, và
-    lý do nằm ở chính phép so sánh: hai container lịch liền nhau không cùng
-    độ dài (tháng 2 có 28 ngày, tháng 3 có 31), nên đặt chúng cạnh nhau là
-    mời người đọc so hai con số không so được.
+    R5 §3 (`DEC-R5-02`) đổi cách khoanh: hai cửa sổ CÙNG ĐỘ DÀI thay cho cửa
+    sổ theo container lịch của `TASK-OWNER-UIUX-003` §2. Đây là một sửa đổi có
+    chủ đích, và lý do nằm ở chính phép so sánh: hai container lịch liền nhau
+    không cùng độ dài (tháng 2 có 28 ngày, tháng 3 có 31), nên đặt chúng cạnh
+    nhau là mời người đọc so hai con số không so được. `DEC-211` giữ nguyên
+    điều đó và đổi cửa sổ so sánh thành CÙNG KỲ NĂM TRƯỚC ở cả năm mức, với
+    độ dài 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm.
 
     Mệnh đề của `CHART-10` KHÔNG đổi và vẫn là mệnh đề chính ở đây: một
     tổng tháng không sinh ra ngày nào. Chỗ tìm bằng chứng thì đổi theo cửa
     sổ mới — 06/2025 cách dữ liệu mới nhất (09/2026) mười lăm tháng, nên ở
-    mức THÁNG nó rơi vào CỬA SỔ SO SÁNH (10/2024 → 09/2025), và ở mức QUÝ
-    nó nằm ngay trong cửa sổ hiện tại (8 quý = Q4/2024 → Q3/2026). Bằng
-    chứng không bị giấu ở đâu cả.
+    cả mức THÁNG lẫn mức QUÝ nó rơi vào CỬA SỔ SO SÁNH. Bằng chứng không bị
+    giấu ở đâu cả.
     """
     persist(repository, [line("BH1", "43F6000", day=5)])
     seed_legacy_month_total_only(engine, year=2025, month=6, vnd=30000000)
@@ -377,8 +377,10 @@ def test_chart_10_a_legacy_month_without_daily_evidence_invents_no_days(
     # Mức THÁNG: nằm trong cửa sổ so sánh.
     months = chart_bars_prev(body(client, "/kinh-doanh?muc=thang"))
     assert months["2025-06"] == Decimal("30000000")
-    # Mức QUÝ: nằm trong cửa sổ hiện tại.
-    quarters = chart_bars(body(client, "/kinh-doanh?muc=quy"))
+    # Mức QUÝ: `DEC-211` rút cửa sổ Quý còn 4 mốc (một năm), neo vào ngày
+    # có dữ liệu mới nhất (05/09/2026) ⟹ Q4/2025 → Q3/2026. Q2/2025 vì thế
+    # rơi vào CỬA SỔ SO SÁNH (Q4/2024 → Q3/2025), không biến mất.
+    quarters = chart_bars_prev(body(client, "/kinh-doanh?muc=quy"))
     assert quarters["2025-Q2"] == Decimal("30000000")
 
 
@@ -905,31 +907,32 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     seed_legacy(engine, [(6, 10, 30000000)], year=2025)
 
     # --- 1. Báo cáo: đổi mức gộp Ngày → Tuần → Tháng → Quý → Năm ---------
-    # `TASK-OWNER-UIUX-003` §2 khoanh Ngày/Tuần/Tháng về đúng
-    # tháng/quý/năm của kỳ đang xem (chủ dự án yêu cầu trực tiếp); Quý/Năm
-    # giữ nguyên TOÀN BỘ dòng thời gian (`window_bounds` trong
-    # `app/web/revenue_timeline.py`). Kỳ đang xem là 09/2026 nên Ngày/Tuần/
-    # Tháng cùng PHẠM VI (chỉ dữ liệu 2026, không có tổng tháng lịch sử
-    # 06/2025) và phải cộng ra CÙNG một tổng với nhau; Quý/Năm không bị
-    # khoanh nên thấy thêm cả tổng tháng lịch sử đó, và vì vậy cộng ra một
-    # tổng LỚN HƠN — nhưng Quý và Năm vẫn phải khớp nhau, đúng bất biến "đổi
-    # mức gộp không đổi tổng" trong phạm vi KHÔNG bị khoanh.
+    # `DEC-211` — CẢ NĂM mức nay đều có cửa sổ, neo vào ngày có dữ liệu mới
+    # nhất (05/09/2026), độ dài 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm.
+    # Ngày/Tuần/Tháng/Quý đều chỉ với tới trong vòng một năm nên không mức nào
+    # chạm tổng tháng lịch sử 06/2025 trong CỬA SỔ HIỆN TẠI, và bốn mức ấy
+    # phải cộng ra CÙNG một tổng — đúng bất biến "đổi mức gộp không đổi tổng"
+    # bên trong một phạm vi. Mức NĂM với tới 2022 nên thấy thêm 06/2025.
+    #
+    # Bài kiểm đọc cả hai chuỗi ở mức Tháng để nói ra điều vừa nói: 06/2025
+    # không biến mất, nó chuyển sang đường so sánh.
     totals = {}
     for gran in ("ngay", "tuan", "thang", "quy", "nam"):
         html = body(client, f"/kinh-doanh?muc={gran}")
         assert html.count('data-metric="chart"') == 1, gran
         assert f'data-gran="{gran}"' in html
         totals[gran] = sum(chart_bars(html).values())
-    windowed = {totals["ngay"], totals["tuan"], totals["thang"]}
-    unwindowed = {totals["quy"], totals["nam"]}
-    assert len(windowed) == 1, (
-        f"Ngày/Tuần/Tháng (đều khoanh về kỳ 09/2026) phải cộng ra CÙNG một "
-        f"tổng: {totals}")
-    assert len(unwindowed) == 1, (
-        f"Quý/Năm (không khoanh) phải cộng ra CÙNG một tổng: {totals}")
-    assert next(iter(unwindowed)) > next(iter(windowed)), (
-        "Quý/Năm không khoanh phải thấy thêm tổng tháng lịch sử 06/2025 mà "
-        f"Ngày/Tuần/Tháng đã khoanh ra ngoài kỳ 09/2026: {totals}")
+    within_a_year = {totals["ngay"], totals["tuan"], totals["thang"],
+                     totals["quy"]}
+    assert len(within_a_year) == 1, (
+        f"Ngày/Tuần/Tháng/Quý (cửa sổ hiện tại đều trong vòng một năm) phải "
+        f"cộng ra CÙNG một tổng: {totals}")
+    assert totals["nam"] > next(iter(within_a_year)), (
+        "Mức Năm với tới 2022 nên phải thấy thêm tổng tháng lịch sử 06/2025 "
+        f"mà bốn mức kia chưa chạm tới: {totals}")
+    # …và 06/2025 vẫn đọc được ở mức Tháng, trên ĐƯỜNG SO SÁNH.
+    assert chart_bars_prev(
+        body(client, "/kinh-doanh?muc=thang"))["2025-06"] == Decimal("30000000")
 
     # --- 2. Nhân viên: tháng hiện tại, dòng chưa phân loại, phân loại ----
     sheet = body(client, "/kinh-doanh/nhan-vien")

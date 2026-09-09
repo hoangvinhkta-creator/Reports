@@ -47,9 +47,20 @@ Cách thoả cả hai, và là cách DUY NHẤT thoả được cả hai:
     một TRỤC thời gian · một chuỗi · KHÔNG bộ chọn nguồn
     nhưng MỖI THÁNG chỉ đến từ MỘT origin, không bao giờ từ hai cộng lại
 
-Một THÁNG đã có dòng pipeline thì lịch sử KHÔNG được chen vào đó — cùng thứ
-tự thẩm quyền mà `_legacy_previous_month` đã dùng. Lịch sử chỉ điền vào
-những tháng mà số mới hoàn toàn KHÔNG có dòng nào.
+Thẩm quyền được giải ở ĐÚNG độ mịn mà biểu đồ đang vẽ, không thô hơn:
+
+    Tháng · Quý · Năm   một THÁNG đã có dòng pipeline thì lịch sử không chen
+                        vào tháng đó — cùng thứ tự thẩm quyền mà
+                        `_legacy_previous_month` đã dùng.
+    Ngày · Tuần         một NGÀY đã có dòng pipeline thì lịch sử không chen
+                        vào ngày đó; ngày không có thì lịch sử điền vào
+                        (`DEC-211`, xem `_legacy_day_points`).
+
+Giải ở độ mịn thô hơn mốc đang vẽ là đúng lớp lỗi mà `§ Thẩm quyền được giải
+ở mức THÁNG` mô tả, chỉ đổi độ mịn: loại cả tháng 9 khỏi sổ cũ vì sổ nạp bắt
+đầu từ 04/09 sẽ làm ba ngày đầu tháng — vốn CÓ bằng chứng — thành một lỗ trên
+đường vẽ. Trong cả hai trường hợp, "MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá trị" vẫn
+đúng nguyên: không đơn vị thời gian nào nhận giá trị từ hai nguồn.
 
 ## Thẩm quyền được giải ở mức THÁNG, rồi mới gộp lên — không giải lại ở mức thô
 
@@ -307,9 +318,13 @@ def current_points(details: Iterable[dict], granularity: str) -> dict[str, dict]
         key, label = bucket_of(sale_date, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "origin": ORIGIN_CURRENT})
+                  "months": set(), "days": set(), "origin": ORIGIN_CURRENT})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((sale_date.year, sale_date.month))
+        # `DEC-211` — độ mịn NGÀY của cùng thẩm quyền. Ở mức Ngày/Tuần, thứ
+        # quyết định "mốc này thuộc nguồn nào" là NGÀY chứ không phải tháng
+        # chứa nó; xem `_legacy_day_points`.
+        slot["days"].add(sale_date)
     return buckets
 
 
@@ -338,27 +353,50 @@ def _legacy_month_points(
         key, label = _month_bucket(year, month, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "origin": ORIGIN_LEGACY})
+                  "months": set(), "days": set(), "origin": ORIGIN_LEGACY})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((year, month))
     return buckets
 
 
 def _legacy_day_points(
-    legacy_days: Iterable[dict], granularity: str, taken: set[tuple[int, int]],
+    legacy_days: Iterable[dict], granularity: str, taken_days: set,
 ) -> dict[str, dict]:
     """Điểm mức Ngày/Tuần dựng từ bằng chứng TỪNG NGÀY của sổ cũ.
 
-    Cùng luật "một kỳ một nguồn" ở độ mịn THÁNG: nếu tháng đó đã có dòng số
-    mới thì cả tháng đó thuộc về số mới, không trộn từng ngày một. Trộn ở mức
-    ngày sẽ tạo ra những tháng nửa nguồn này nửa nguồn kia mà không nhãn nào
-    đọc được.
+    ## Thẩm quyền ở mức Ngày/Tuần được giải theo NGÀY, không theo tháng
+
+    `DEC-211`, và đây là bản sửa một lỗ hổng Owner nhìn thấy trên màn hình
+    thật. Bản cũ loại cả tháng: một ngày sổ cũ bị vứt đi chỉ vì THÁNG chứa nó
+    đã có dòng sổ nạp. Với dữ liệu thật của Owner — sổ kế toán mới nạp từ
+    04/09, sổ cũ có tới hết 03/09 — hệ quả là:
+
+    ```text
+    01/09 → 03/09   có bằng chứng sổ cũ, nhưng THÁNG 9 đã "thuộc" sổ nạp
+                    ⟹ bị loại ⟹ ba mốc trống
+    04/09 → …       sổ nạp
+    ```
+
+    Đường vẽ bắt đầu ở 04/09 và ba ngày đầu tháng là một lỗ. Không phải vì
+    hệ thống không biết ba ngày đó — nó biết — mà vì nó hỏi câu hỏi thẩm
+    quyền ở sai độ mịn. Cùng hình lỗi đã sửa cho Quý/Năm ở `§ Thẩm quyền được
+    giải ở mức THÁNG`, chỉ khác độ mịn.
+
+    Ở mức Ngày/Tuần, mốc được vẽ là NGÀY, nên câu hỏi đúng là "ngày này thuộc
+    nguồn nào", và `taken_days` trả lời nó: một ngày đã có dòng sổ nạp thì
+    thuộc sổ nạp, ngày không có thì sổ cũ được điền vào. Bất biến `DEC-180`
+    §9 ("MỘT kỳ ⟹ MỘT nguồn ⟹ MỘT giá trị") KHÔNG bị nới: nó vẫn đúng, chỉ
+    được thi hành ở đúng độ mịn mà biểu đồ đang nói — không ngày nào nhận giá
+    trị từ hai nguồn, và `_merge_resolved` vẫn dừng hẳn nếu điều đó xảy ra.
+
+    Hệ quả nhìn thấy được: một mốc TUẦN vắt qua ranh giới ấy gồm cả ngày sổ
+    cũ lẫn ngày sổ nạp, nên nó mang `ORIGIN_MIXED` và nói ra điều đó trong
+    lời của chính nó — cùng từ vựng `DEC-166 E` đã có, không phải một nhãn
+    mới.
     """
     buckets: dict[str, dict] = {}
     for entry in legacy_days:
         year, month = int(entry["year"]), int(entry["month"])
-        if (year, month) in taken:
-            continue
         revenue = entry.get("sales_vnd")
         if revenue is None:
             continue
@@ -369,22 +407,32 @@ def _legacy_day_points(
             # của nguồn (`DEC-166 E`: known defects ghi metadata, không sửa).
             # Bỏ qua đúng ô đó, không bịa một ngày thay thế.
             continue
+        if when in taken_days:
+            continue
         key, label = bucket_of(when, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "origin": ORIGIN_LEGACY})
+                  "months": set(), "days": set(), "origin": ORIGIN_LEGACY})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((year, month))
+        slot["days"].add(when)
     return buckets
 
 
-def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict) -> None:
+def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict,
+                    *, unit: str = "months") -> None:
     """Gộp một mốc lịch sử vào chuỗi — CỘNG, không loại bỏ. Sửa `F-C`.
 
-    Phép cộng ở đây an toàn vì thẩm quyền ĐÃ được giải xong ở mức tháng
-    trước khi hàm này chạy: `taken` đã loại khỏi `slot` mọi tháng mà sổ nạp
-    có dòng, nên hai vế của phép cộng không bao giờ là hai nguồn của CÙNG
-    một tháng — chúng là những tháng khác nhau của cùng một quý/năm/tuần.
+    Phép cộng ở đây an toàn vì thẩm quyền ĐÃ được giải xong trước khi hàm này
+    chạy: tập đã bị sổ nạp chiếm đã được loại khỏi `slot`, nên hai vế của
+    phép cộng không bao giờ là hai nguồn của CÙNG một đơn vị thời gian —
+    chúng là những đơn vị khác nhau của cùng một mốc thô.
+
+    `unit` nói ĐỘ MỊN mà thẩm quyền vừa được giải ở đó, và vì thế cũng là độ
+    mịn phải kiểm chồng lấn: `"months"` cho Tháng/Quý/Năm, `"days"` cho
+    Ngày/Tuần (`DEC-211`, xem `_legacy_day_points`). Kiểm sai độ mịn thì
+    van này hoặc chặn nhầm một phép gộp đúng, hoặc — tệ hơn — bỏ lọt đúng
+    trường hợp nó sinh ra để chặn.
 
     Bản cũ dùng `setdefault` ở đây và vì thế im lặng VỨT BỎ cả một mốc lịch
     sử mỗi khi nó rơi trúng khoá thô mà sổ nạp đã chiếm: một tháng 9 có sổ
@@ -395,17 +443,18 @@ def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict) -> None:
     if existing is None:
         buckets[key] = slot
         return
-    overlap = existing["months"] & slot["months"]
+    overlap = existing[unit] & slot[unit]
     if overlap:
         # Không `assert`: một bất biến sổ sách không được biến mất khi ai đó
         # chạy Python với `-O`. Nếu điều này xảy ra, thứ tự thẩm quyền ở trên
         # đã hỏng và câu trả lời đúng là DỪNG, không phải một con số gấp đôi.
         raise ValueError(
-            f"tháng {sorted(overlap)} nhận giá trị từ hai origin trong cùng "
+            f"{unit} {sorted(overlap)} nhận giá trị từ hai origin trong cùng "
             f"mốc {key!r} — thẩm quyền phải đã giải xong trước khi gộp "
             "(DEC-180 §9)")
     existing["revenue"] += slot["revenue"]
     existing["months"] |= slot["months"]
+    existing["days"] |= slot["days"]
     if existing["origin"] != slot["origin"]:
         existing["origin"] = ORIGIN_MIXED
 
@@ -428,11 +477,16 @@ def series(
     taken = {month for slot in buckets.values() for month in slot["months"]}
 
     if granularity in _DAY_LEVEL:
-        legacy = _legacy_day_points(legacy_days or [], granularity, taken)
+        # `DEC-211` — ở mức Ngày/Tuần thẩm quyền giải theo NGÀY, nên cả
+        # phép lọc lẫn van chống-cộng-hai-nguồn đều đọc tập NGÀY.
+        taken_days = {day for slot in buckets.values() for day in slot["days"]}
+        legacy = _legacy_day_points(legacy_days or [], granularity, taken_days)
+        unit = "days"
     else:
         legacy = _legacy_month_points(legacy_months or [], granularity, taken)
+        unit = "months"
     for key, slot in legacy.items():
-        _merge_resolved(buckets, key, slot)
+        _merge_resolved(buckets, key, slot, unit=unit)
 
     span = _MONTHS_IN_BUCKET.get(granularity)
     points = []
@@ -459,21 +513,28 @@ def series(
 #
 # `window_bounds`/`window_points` KHÔNG bị xoá: mức Năm vẫn dùng đường một
 # chuỗi cũ, và hai hàm ấy vẫn là bề mặt kiểm được của phép cắt cửa sổ.
+#: `DEC-211` (Owner 09/09/2026) — độ dài cửa sổ của TỪNG mức gộp, tính
+#: bằng SỐ MỐC vẽ từ mép trái sang mép phải. Owner chốt trực tiếp: Ngày một
+#: tháng (31 mốc — mép phải 10/9 thì mép trái 11/8, đúng ví dụ Owner đưa),
+#: Tuần 13 (một quý), Tháng 12 (một năm), Quý 4 (một năm), Năm 5.
+#:
+#: Mức NĂM nay CÓ cửa sổ, khác `DEC-R5-02`: cùng quyết định Owner đó đã bỏ
+#: luật "Năm không có đường so sánh" — xem `COMPARISON_WINDOW_LABEL`.
 COMPARISON_WINDOW_SIZES: dict[str, int] = {
-    DAY: 30, WEEK: 12, MONTH: 12, QUARTER: 8,
+    DAY: 31, WEEK: 13, MONTH: 12, QUARTER: 4, YEAR: 5,
 }
 
-#: Mức gộp có cửa sổ so sánh. Năm KHÔNG có: Owner không yêu cầu, và "8 năm so
-#: với 8 năm trước" là một câu hỏi mà sổ này chưa có bằng chứng để trả lời.
+#: Mức gộp có cửa sổ so sánh — nay là TẤT CẢ, kể cả Năm (`DEC-211`).
 COMPARISON_LEVELS: frozenset = frozenset(COMPARISON_WINDOW_SIZES)
 
-CURRENT_WINDOW_LABEL = "Cửa sổ hiện tại"
-COMPARISON_WINDOW_LABEL = "Cửa sổ so sánh (liền trước)"
+CURRENT_WINDOW_LABEL = "Kỳ này"
+COMPARISON_WINDOW_LABEL = "Cùng kỳ năm trước"
 
 COMPARISON_NOTE = (
-    "Hai đường so HAI CỬA SỔ LIỀN KỀ có CÙNG độ dài: đường đậm là cửa sổ hiện "
-    "tại, đường mờ là cửa sổ ngay trước nó. Chúng dùng CHUNG một trục và một "
-    "thước đo, nên hai điểm cùng vị trí là hai mốc tương ứng của hai cửa sổ."
+    "Hai đường so KỲ NÀY với CÙNG KỲ NĂM TRƯỚC: đường đậm là kỳ hiện tại, "
+    "đường mờ là đúng khoảng thời gian ấy của năm trước. Chúng dùng CHUNG một "
+    "trục và một thước đo, nên hai điểm cùng vị trí là cùng một mốc lịch của "
+    "hai năm — ngày 05/09 năm nay nằm đúng trên ngày 05/09 năm ngoái."
 )
 
 #: `F-E` ở chế độ hai cửa sổ — câu phải nói ĐÚNG phạm vi thật của biểu đồ.
@@ -481,7 +542,7 @@ COMPARISON_NOTE = (
 #: không ai giải thích; cách giữ đúng tinh thần đó khi phạm vi đổi là ĐỔI CÂU
 #: theo phạm vi mới, không phải xoá câu đi.
 COMPARISON_SCOPE_TEXT = (
-    "Biểu đồ so hai cửa sổ liền kề cùng độ dài: {current} so với "
+    "Biểu đồ so kỳ này với cùng kỳ năm trước: {current} so với "
     "{comparison} — chưa phải toàn bộ dữ liệu."
 )
 
@@ -516,6 +577,55 @@ def _step_back(granularity: str, value: date, steps: int) -> date:
         start_month = (value.month - 1) // 3 * 3 + 1
         year, month = _shift_months(value.year, start_month, -3 * steps)
         return date(year, month, 1)
+    if granularity == YEAR:
+        return date(value.year - steps, 1, 1)
+    raise ValueError(f"Mức gộp không có cửa sổ so sánh: {granularity!r}")
+
+
+def _same_day_last_year(value: date) -> date:
+    """Cùng ngày dương lịch của năm trước. 29/02 lùi về 28/02.
+
+    Không có ngày 29/02 ở một năm không nhuận, và bịa ra 01/03 thay vào đó sẽ
+    đặt một ngày của tháng 3 lên đúng vị trí trục của một ngày tháng 2.
+    """
+    try:
+        return value.replace(year=value.year - 1)
+    except ValueError:
+        return date(value.year - 1, 2, 28)
+
+
+def _same_week_last_year(value: date) -> date:
+    """Ngày đầu của cùng TUẦN ISO ở năm ISO trước.
+
+    Đi qua số tuần ISO chứ không qua "lùi 52 tuần": một năm ISO có 52 hoặc 53
+    tuần, nên phép lùi cố định sẽ trôi dần khỏi cùng kỳ sau vài năm. Năm đích
+    chỉ có 52 tuần mà đang đứng ở tuần 53 thì rơi về tuần 52 — mốc gần nhất
+    thật sự tồn tại, không phải một tuần bịa ra.
+    """
+    iso_year, iso_week, _ = value.isocalendar()
+    target = iso_year - 1
+    try:
+        return date.fromisocalendar(target, iso_week, 1)
+    except ValueError:
+        return date.fromisocalendar(target, 52, 1)
+
+
+def _same_period_last_year(granularity: str, value: date) -> date:
+    """Ngày ĐẠI DIỆN của cùng mốc ấy ở năm trước.
+
+    `DEC-211` — Owner chốt: MỌI mức gộp so với cùng kỳ NĂM TRƯỚC, không phải
+    với cửa sổ liền kề như `DEC-R5-02`. Ngày so với ngày ấy năm ngoái, tuần
+    với tuần ISO ấy năm ngoái, tháng/quý/năm tương tự.
+
+    Trả về một ngày nằm TRONG mốc đích; `bucket_of` chuẩn hoá lại.
+    """
+    if granularity == DAY:
+        return _same_day_last_year(value)
+    if granularity == WEEK:
+        return _same_week_last_year(value)
+    if granularity in (MONTH, QUARTER, YEAR):
+        return _step_back(granularity, value, 1 if granularity == YEAR else
+                          (12 if granularity == MONTH else 4))
     raise ValueError(f"Mức gộp không có cửa sổ so sánh: {granularity!r}")
 
 
@@ -532,31 +642,51 @@ def window_slots(granularity: str, anchor: date, size: int) -> list[tuple[str, s
     return slots
 
 
-def comparison_anchor(granularity: str, anchor: date, size: int) -> date:
-    """Ngày neo của cửa sổ SO SÁNH — mốc ngay trước mốc đầu cửa sổ hiện tại."""
-    return _step_back(granularity, anchor, size)
+def comparison_anchor(granularity: str, anchor: date,
+                      size: Optional[int] = None) -> date:
+    """Ngày neo của cửa sổ SO SÁNH — cùng mốc ấy của NĂM TRƯỚC.
+
+    `DEC-211` thay `DEC-R5-02`: cửa sổ so sánh không còn là cửa sổ liền kề
+    lùi `size` mốc, mà là ĐÚNG khoảng thời gian ấy của năm trước. `size` giữ
+    lại trong chữ ký để mọi nơi gọi cũ không phải sửa, và cố ý KHÔNG được
+    dùng tới — cùng kỳ năm trước không phụ thuộc độ dài cửa sổ.
+
+    Hệ quả cần biết: ở mức Tháng (12 mốc) và Quý (4 mốc), một năm ĐÚNG BẰNG
+    một cửa sổ, nên hai cửa sổ vẫn liền kề và không chồng nhau như trước. Ở
+    mức Năm (5 mốc) chúng chồng nhau 4 năm — đó là đúng nghĩa "năm nay so với
+    năm ngoái" tại từng vị trí trục, không phải một lỗi.
+    """
+    return _same_period_last_year(granularity, anchor)
 
 
 def anchor_date(
     period: Optional[tuple[int, int]], details: Iterable[dict],
 ) -> Optional[date]:
-    """Mốc kết thúc của cửa sổ hiện tại.
+    """Mốc kết thúc của cửa sổ hiện tại — MÉP PHẢI của biểu đồ.
 
-    Đang xem một THÁNG ⟹ ngày cuối tháng đó: cửa sổ 30 ngày khi ấy phủ đúng
-    tháng đang xem (với tháng 30 ngày), và người đọc thấy cái họ vừa chọn.
+    `DEC-211` — Owner chốt: mép phải luôn là NGÀY CÓ DỮ LIỆU MỚI NHẤT, kể
+    cả khi đang chọn một kỳ. Trước đó, chọn một tháng sẽ neo vào ngày CUỐI
+    THÁNG, nên nửa cuối biểu đồ là một khoảng trắng của những ngày chưa tới —
+    Owner đọc khoảng trắng ấy như "biểu đồ bị cụt". Neo vào ngày cuối cùng có
+    số thì mọi pixel của trục đều là thời gian đã có sổ.
 
-    Đang xem "Toàn bộ dữ liệu" ⟹ ngày bán MUỘN NHẤT thực sự có. Neo vào hôm
-    nay thay vào đó sẽ vẽ ra một cửa sổ trống trơn mỗi khi sổ chưa được nạp
-    vài ngày, và một biểu đồ trống đọc như "không bán được gì".
+    Neo vào HÔM NAY theo lịch cũng bị loại vì lý do cũ: sổ chưa nạp vài ngày
+    sẽ vẽ ra một dải trống ở mép phải, và một biểu đồ trống đọc như "không
+    bán được gì".
+
+    `period` chỉ còn là đường lui khi lát dữ liệu không có dòng nào mang ngày
+    bán — khi ấy vẫn phải có một mép phải để dựng trục.
 
     `None` khi không có kỳ và cũng không có dòng nào — không có gì để neo.
     """
+    dates = [detail["sale_date"] for detail in details
+             if detail.get("sale_date") is not None]
+    if dates:
+        return max(dates)
     if period is not None:
         year, month = period
         return date(year, month, monthrange(year, month)[1])
-    dates = [detail["sale_date"] for detail in details
-             if detail.get("sale_date") is not None]
-    return max(dates) if dates else None
+    return None
 
 
 @dataclass(frozen=True)
@@ -635,6 +765,13 @@ def _bucket_span(key: str, granularity: str) -> Optional[tuple[date, date]]:
             end_year, end_month = _shift_months(year, start_month, 2)
             return start, date(end_year, end_month,
                                monthrange(end_year, end_month)[1])
+        if granularity == YEAR:
+            # `DEC-211` cho mức Năm một cửa sổ so sánh, nên mốc NĂM nay đi
+            # qua đây thật (trước đó không nhánh nào chạm tới). Thiếu nhánh
+            # này, mọi năm sẽ là "không nằm trọn trong khoảng đã xác nhận" và
+            # `paired_window_span` không đọc nổi cận ngày của cửa sổ.
+            year = int(key[:4])
+            return date(year, 1, 1), date(year, 12, 31)
     except (ValueError, IndexError):
         return None
     return None

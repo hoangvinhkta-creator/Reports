@@ -1315,7 +1315,11 @@ CHART_UNDATED_NOTE = (
 # đúng điểm dữ liệu cuối rồi dừng — phần còn lại để trống, không suy diễn.
 _CHART_PLOT_H = 160
 _CHART_VIEW_W = 960
-_CHART_PAD_X = 8
+#: `DEC-211` — Owner: "biểu đồ được thể hiện đầy đủ từ mép trái sang mép
+#: phải". Đệm bằng 0 để mốc đầu nằm ĐÚNG mép trái và mốc cuối ĐÚNG mép phải,
+#: thay vì thụt vào 8 đơn vị mỗi bên. Nhãn trục Y nằm ở một khối riêng ngoài
+#: `<svg>` nên không có gì bị cắt khi bỏ đệm.
+_CHART_PAD_X = 0
 
 #: Ngày cố định làm nhãn trục X ở mức Ngày — số tròn Owner yêu cầu, không
 #: phải MỌI ngày có dữ liệu. Ngày nào không tồn tại trong tháng đang xem

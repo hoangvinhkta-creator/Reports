@@ -31,6 +31,7 @@ Download chỉ được resolve từ ``run_id`` qua registry do chính server t�
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import io
 import os
@@ -672,7 +673,7 @@ def create_app(
         R5 §2 — `imei` cũng KHÔNG ra tới đây, dù nó nằm trong `detail_json`
         của cờ dưới database: `snapshot_presentation.NOISE_FIELDS` cắt nó ở
         tầng trình bày, và đó là một trong hai lý do danh sách trường ấy tồn
-        tại (lý do kia là nhiễu). `DEC-R5-03` mở IMEI ở ĐÚNG workspace nhân
+        tại (lý do kia là nhiễu). `DEC-211` mở IMEI ở ĐÚNG workspace nhân
         viên, và trang này không nằm trong phạm vi đó.
         """
         if snapshot_repo is None:
@@ -1239,6 +1240,26 @@ def create_app(
             rows.extend(_guarded(history_repo.query_daily, year, month))
         return rows
 
+    def _chart_anchor(period, details, legacy_months: list[dict]):
+        """Mép phải của biểu đồ — ngày MUỘN NHẤT có bằng chứng, bất kỳ nguồn nào.
+
+        `revenue_timeline.anchor_date` trả lời câu này cho sổ NẠP. Ở đây câu
+        hỏi rộng hơn đúng một vế: nếu tháng có bằng chứng muộn nhất chỉ còn
+        bản ghi lịch sử, mép phải vẫn phải là tháng đó — nếu không, một sổ
+        chưa nạp dòng nào sẽ vẽ ra một cửa sổ trống trơn.
+
+        Ngày đại diện của một tháng lịch sử là ngày CUỐI tháng: bằng chứng
+        tháng chỉ nói tổng của cả tháng, nên mọi ngày trong đó đều đúng như
+        nhau, và ngày cuối là ngày giữ trọn mốc tháng ấy trong cửa sổ.
+        """
+        anchor = revenue_timeline.anchor_date(period, details)
+        candidates = [anchor] if anchor is not None else []
+        for entry in legacy_months:
+            year, month = int(entry["year"]), int(entry["month"])
+            candidates.append(
+                date(year, month, calendar.monthrange(year, month)[1]))
+        return max(candidates) if candidates else None
+
     def _revenue_chart(view: dict) -> dict:
         """`DEC-185` — MỘT biểu đồ doanh thu theo thời gian cho trang Báo cáo.
 
@@ -1275,9 +1296,16 @@ def create_app(
         # engine doanh thu cũ (bất biến Σ = totals và mọi kiểm chứng origin
         # không đổi); phần dưới đây chỉ CHỌN và XẾP các điểm đó vào hai cửa
         # sổ — không một phép cộng doanh thu nào được viết lần thứ hai.
+        # `DEC-211` — mép phải là ngày có dữ liệu MỚI NHẤT của cả dòng thời
+        # gian, kể cả khi ngày đó chỉ có bản ghi lịch sử. `anchor_date` chỉ
+        # nhìn được `details` (sổ nạp); một sổ mới hoàn toàn chưa nạp gì thì
+        # nó trả về đường lui theo kỳ, và biểu đồ sẽ neo vào một tháng KHÔNG
+        # có mốc nào — đúng cái dải trống mà quyết định này bỏ đi. Nên mốc
+        # cuối của lịch sử được đưa vào cùng phép `max` ở đây, chứ không phải
+        # bằng một quy tắc neo thứ hai bên trong `revenue_timeline`.
+        anchor = _chart_anchor(view["period"], data.details, legacy_months)
         paired = revenue_timeline.paired_series(
-            points, granularity=granularity,
-            anchor=revenue_timeline.anchor_date(view["period"], data.details),
+            points, granularity=granularity, anchor=anchor,
             confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
             if snapshot_repo is not None else ())
         if paired is not None:
@@ -2182,7 +2210,7 @@ def create_app(
             groups=workspace_presentation.sheet_detail_groups(
                 scoped.details, sheet=sheet, decisions=decisions,
                 catalog=_catalog_labels(),
-                # `DEC-R5-03` — mã máy CHỈ được truy vấn ở đây, trên đúng
+                # `DEC-211` — mã máy CHỈ được truy vấn ở đây, trên đúng
                 # route này. `workspace_imei` là cánh cửa duy nhất, và
                 # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
                 # mở nó.
@@ -3347,7 +3375,20 @@ def create_app(
             # phạm vi: với `PERIOD` nó đúng bằng ngày cuối tháng — tức đúng
             # giá trị `anchor_date()` trả về — còn với `CUSTOM` nó là chính
             # `Đến ngày` người dùng gõ.
-            "anchor": scope.date_to,
+            # `DEC-211` — mép phải của hai biểu đồ. Một KỲ (`ky=2026-09`)
+            # là lối viết tắt cho "tháng ấy", nên mép phải của nó là chỗ sổ
+            # thật sự dừng lại: neo vào 30/09 khi sổ mới ghi tới 25/09 vẽ ra
+            # năm ngày trắng ở mép phải, đúng thứ Owner gọi là biểu đồ bị cụt.
+            # Một PHẠM VI TỰ GÕ thì ngược lại: hai cận ngày là chỉ thị tường
+            # minh của người dùng, và để dữ liệu kéo mép phải đi sẽ làm cùng
+            # một khoảng ngày cho ra hai cửa sổ khác nhau ở hai lần nạp sổ.
+            #
+            # Cùng quy tắc này giữ trang Báo cáo và trang phân tích nói CÙNG
+            # một con số cho cùng một mốc khi cả hai đang xem cùng một kỳ —
+            # bất biến mà `test_r5_and_r6_agree_on_every_comparison_bucket`
+            # canh.
+            "anchor": (revenue_timeline.anchor_date(scope.period, data.details)
+                       if scope.period is not None else scope.date_to),
             "totals": dashboard_metrics.totals(data.details),
             "periods": workspace_presentation.period_options(
                 _guarded(analytics_queries.available_periods,
