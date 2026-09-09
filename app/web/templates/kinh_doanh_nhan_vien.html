@@ -506,6 +506,14 @@
       <td data-metric="line-employee"
           class="{{ 'empty-cell' if not row.employee_resolved }}">
         {%- if first and open and assignable -%}
+        {# `FIND-R5-IR-01` — ô chọn này đi cùng nút gửi DÙNG CHUNG (`XONG`),
+           nên nó phải LUÔN có đúng một option được chọn. Không option nào
+           mang `selected` thì trình duyệt gửi option ĐẦU TIÊN — không phải
+           chuỗi rỗng — và cả đơn đổi chủ vì một cú bấm để lưu giá.
+
+           `group.employee_value` là chuỗi RỖNG khi BH chưa có nhân viên
+           hoặc đang chia cho nhiều người; mục "giữ nguyên" mang đúng giá
+           trị rỗng ấy, nên nó được chọn sẵn ở cả hai trường hợp. #}
         <select name="nhan_vien_moi" form="{{ form_id }}"
                 id="nv-{{ group.order_key }}"
                 aria-label="Nhân viên của cả đơn {{ group.order_key }}"

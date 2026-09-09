@@ -1397,16 +1397,39 @@ class SnapshotRepository:
         for flag in absence:
             key = (flag["order_key"], flag["product_key"], flag["occurrence_index"])
             seen, anchor = latest.get(key), raised_at.get(flag["raised_by_snapshot_id"])
-            # So sánh NGẶT: chỉ một snapshot có ``created_at`` LỚN HƠN hẳn mới
-            # được coi là "dòng đã quay lại". Hai snapshot cùng một giây không
-            # có thứ tự đáng tin (``snapshot_id`` sắp theo fingerprint, không
-            # theo thời gian), và ở đây nghiêng về phía an toàn có nghĩa là
-            # GIỮ cờ ở trạng thái còn hiệu lực: một cảnh báo thừa để người dùng
-            # tự kiểm còn hơn âm thầm giấu một sự vắng mặt thật. Không con số
-            # nghiệp vụ nào phụ thuộc vào nhãn này (hiện trạng và tổng tiền
-            # không bao giờ do cờ quyết định).
+            # `FIND-R5-IR-02` — CHIỀU AN TOÀN ĐÃ ĐẢO, và phép so phải đảo
+            # theo.
+            #
+            # Bản trước so NGẶT (`>`) và nói rõ vì sao ngặt là an toàn: *"Không
+            # con số nghiệp vụ nào phụ thuộc vào nhãn này"*. Câu đó đúng cho
+            # tới R5. Từ R5 §1, một cờ "còn hiệu lực" LOẠI dòng khỏi doanh
+            # thu — nên "giữ cờ khi không chắc" thôi là một cảnh báo thừa và
+            # trở thành việc TRỪ TIỀN của một dòng có thật, vĩnh viễn, không
+            # có nút khôi phục, trong khi màn hình vẫn hứa ngược lại.
+            #
+            # Nay ngưỡng là `>=`, và nó chỉ có tác dụng ở đúng một chỗ: những
+            # bản ghi CŨ ghi mốc ở độ phân giải giây (mốc mới đã là micro-giây
+            # — xem `history_writer._now_iso`). Ở đó, bằng nhau nghĩa là không
+            # phân giải được thứ tự, và hai cách sai không ngang giá nhau:
+            #
+            #     giữ cờ khi thực ra dòng đã quay lại  ⟹ mất tiền, im lặng,
+            #                                            không đường quay lại
+            #     bỏ cờ khi thực ra dòng vẫn vắng      ⟹ giữ tiền như TRƯỚC
+            #                                            R5; câu xác nhận nói
+            #                                            "đã tạm loại N dòng"
+            #                                            còn tổng không đổi,
+            #                                            nên người dùng thấy
+            #                                            ngay và nạp lại được
+            #
+            # Nghiêng về phía thứ hai là cùng một kỷ luật mà R5 §3 đã áp cho
+            # biểu đồ: chỗ nào chưa có bằng chứng thì để trống, không tự điền
+            # một con số bất lợi.
+            #
+            # `seen` KHÔNG BAO GIỜ là chính snapshot đã dựng cờ: `_latest_
+            # membership` chỉ xét các snapshot CHỨA khoá, và snapshot dựng cờ
+            # là snapshot KHÔNG chứa nó.
             reappeared = (
-                seen is not None and anchor is not None and seen[0] > anchor
+                seen is not None and anchor is not None and seen[0] >= anchor
             )
             flag["is_active"] = not reappeared
             flag["seen_again_in_snapshot_id"] = seen[1] if reappeared else None

@@ -1097,17 +1097,43 @@ def missing_price_rows(details: list[dict]) -> list[dict]:
     return detail_rows(details)
 
 
+#: Nhãn của mục "không đổi gì" trong ô chọn nhân viên (`FIND-R5-IR-01`).
+#: Có dấu gạch hai đầu để nó KHÔNG đọc như một cái tên người khi nằm giữa
+#: một danh sách tên người.
+KEEP_EMPLOYEE_LABEL = "— Giữ nguyên —"
+
+
 def assignable_employee_options(
-    employees: list[tuple[str, Optional[str]]]
+    employees: list[tuple[str, Optional[str]]], *, keep_option: bool = False,
 ) -> list[dict]:
     """Danh sách nhân viên trong ô chọn của bảng kê (`OD-5`).
 
-    KHÔNG có mục trống: ô này để GÁN một dòng cho ai đó. Muốn trả dòng về
-    trạng thái chưa xác định thì dùng nút GỠ, và nút đó nói rõ nó làm gì —
-    một mục trống lẫn giữa các tên người thì không.
+    Mặc định KHÔNG có mục trống: ở bảng kê chi tiết, ô này có nút gửi RIÊNG,
+    nên mở nó ra và bấm nó nghĩa là bạn muốn gán. Muốn trả dòng về trạng thái
+    chưa xác định thì dùng nút GỠ, và nút đó nói rõ nó làm gì — một mục trống
+    lẫn giữa các tên người thì không.
+
+    `keep_option=True` thêm MỘT mục "giữ nguyên" mang giá trị rỗng, và nó bắt
+    buộc ở mọi chỗ ô chọn này đi cùng một nút gửi DÙNG CHUNG với thứ khác
+    (R5 §4: `XONG` lưu cả giá lẫn nhân viên).
+
+    Vì sao nó bắt buộc ở đó, và đây là `FIND-R5-IR-01` nguyên văn: một `<select>`
+    mà KHÔNG option nào mang `selected` thì trình duyệt gửi option ĐẦU TIÊN —
+    không phải chuỗi rỗng, không phải "không có gì". Một BH chưa có nhân viên,
+    hay đang chia cho hai người, không có nhân viên hiệu lực DUY NHẤT để chọn
+    sẵn; trước R5 điều đó vô hại vì ô ấy có nút gửi riêng, còn sau R5 nó làm
+    cả đơn đổi chủ vì một cú bấm mà người dùng nghĩ là để lưu giá.
+
+    Mục "giữ nguyên" đứng ĐẦU danh sách một cách có chủ đích: nó cũng là thứ
+    trình duyệt rơi về nếu một ngày nào đó không option nào được chọn sẵn nữa.
+    Fail-safe là "không đổi gì", không phải "gán cho người đầu bảng chữ cái".
     """
-    return [{"value": name, "label": name, "group": group}
-            for name, group in employees]
+    options = [{"value": name, "label": name, "group": group}
+               for name, group in employees]
+    if not keep_option:
+        return options
+    return [{"value": "", "label": KEEP_EMPLOYEE_LABEL, "group": None},
+            *options]
 
 
 def target_cell(target: Optional[Decimal]) -> dict:
@@ -1756,6 +1782,7 @@ def _chart_bar_title(point) -> str:
 __all__ = [
     "ALL_DATA_LABEL", "CHART_EMPTY_NOTE", "CHART_PARTIAL_NOTE",
     "CHART_UNDATED_NOTE", "revenue_chart", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+    "KEEP_EMPLOYEE_LABEL",
     "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
     "DISCOUNT_PROVENANCE", "DISCOUNT_PROVENANCE_LABEL", "DISCOUNT_ROW_LABEL",
     "DISCOUNT_ROW_NOTE",

@@ -2067,8 +2067,13 @@ def create_app(
             # trên màn hình này là một việc không phải của người đang đọc.
             removed_in_source=workspace_presentation.removed_in_source_rows(
                 view["data"].removed_for_sheet(sheet)),
+            # `FIND-R5-IR-01` — `keep_option=True` BẮT BUỘC ở đây và chỉ ở
+            # đây: đây là màn hình duy nhất mà ô chọn nhân viên đi cùng một
+            # nút gửi DÙNG CHUNG (`XONG` lưu cả giá lẫn nhân viên). Bảng kê
+            # chi tiết (route dưới) vẫn có nút gửi riêng nên vẫn không có
+            # mục trống, đúng `OD-5`.
             assignable=business_presentation.assignable_employee_options(
-                view["service"].assignable_employees()),
+                view["service"].assignable_employees(), keep_option=True),
             editing=request.args.get("sua") or "",
             editing_target=bool(request.args.get("sua-target")),
             confirm=confirm,

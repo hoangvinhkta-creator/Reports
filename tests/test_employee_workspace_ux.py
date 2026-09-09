@@ -1628,13 +1628,20 @@ def test_the_workspace_never_renders_a_prohibited_personal_field(
     `imei` rời khỏi danh sách này ở R5 §5 theo `DEC-R5-03` — một sửa đổi CÓ
     CHỦ ĐÍCH, và phạm vi của nó hẹp tới mức nó có bộ kiểm riêng
     (`tests/test_r5_imei_boundary.py`): mã máy được mở trên ĐÚNG route này
-    và không đâu khác. Ở đây chỉ còn khẳng định điều vẫn đúng — không có
-    một giá trị mã máy nào lọt ra khi sổ không ghi mã máy nào.
+    và không đâu khác.
+
+    Điều VẪN phải đúng ở đây, và nay được khẳng định trong thân bài thay vì
+    chỉ hứa trong docstring (`AR-R5-IR-11`): sổ không ghi mã máy nào thì ô
+    mã máy trống, không có một dãy số nào được dựng ra để lấp chỗ.
     """
     persist(repository, three_line_order("BH1"))
     html = body(client, "/kinh-doanh/nhan-vien")
     assert "Vũ Hạnh Ly" not in html          # employee_raw của fixture
     assert "note_raw" not in html.lower()
+    imei_cells = metrics(html, "line-imei")
+    assert imei_cells, "phải có ô mã máy để mà kiểm — fixture dựng ba dòng"
+    assert set(imei_cells) == {"—"}, (
+        f"sổ không ghi mã máy nào nhưng ô mã máy có nội dung: {imei_cells}")
 
 
 # ==========================================================================

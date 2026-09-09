@@ -121,6 +121,18 @@ def _text(value) -> Optional[str]:
     return None if value is None else str(value)
 
 
+def _now_iso() -> str:
+    """Mốc UTC ở độ phân giải MICRO-giây.
+
+    Chuỗi ISO-8601 vẫn so sánh đúng bằng phép so chuỗi thông thường, kể cả
+    khi đứng cạnh những bản ghi cũ ghi ở độ phân giải giây:
+    ``"…T10:00:00"`` < ``"…T10:00:00.000001"``, và một mốc chỉ tới giây đúng
+    là mốc ĐẦU của giây ấy. Nên không có bước migrate nào cần chạy — dữ liệu
+    cũ và mới xếp cùng một trục.
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
 def write_run_history(
     repository: history_store.SnapshotRepository, *, demo_run, run_id: str,
     workbook_path: Path, display_name: str, tracking_evidence: Optional[dict] = None,
@@ -133,7 +145,17 @@ def write_run_history(
     header_text, sheet_data_rows, rows_without_order_id = scan_workbook(workbook_path)
     return repository.write_snapshot(
         run_id=run_id,
-        created_at=created_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        # `FIND-R5-IR-02` — MICRO-giây, không phải giây. Mốc này KHÔNG còn chỉ
+        # là một nhãn hiển thị: từ R5 §1 nó là thứ quyết định một dòng còn
+        # được tính vào doanh thu hay không (`_with_absence_state` so mốc của
+        # snapshot đã dựng cờ với mốc của snapshot mới nhất CHỨA dòng ấy).
+        #
+        # Ở độ phân giải giây, hai lần nạp sổ cách nhau vài trăm mili giây ghi
+        # ra hai mốc BẰNG NHAU, và phép so ngặt khi ấy kết luận "chưa quay
+        # lại" — dòng bị tạm loại vĩnh viễn, tổng thấp hơn mãi mãi, không có
+        # nút nào khôi phục. Đó là kịch bản production thật, không phải một
+        # trường hợp biên hiếm: hai lần bấm nạp liên tiếp là chuyện thường.
+        created_at=created_at or _now_iso(),
         source_file_name=display_name,
         file_fingerprint=file_fingerprint(workbook_path),
         file_size=workbook_path.stat().st_size,
