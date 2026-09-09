@@ -20,7 +20,9 @@ from app.modules.reporting import basket_metrics as bkm
 from app.modules.reporting import dashboard_metrics as dmx
 from app.modules.reporting import product_metrics as pmx
 from app.web import product_taxonomy
-from app.web.business_presentation import money_kvnd, money_text, percent
+from app.web.business_presentation import (
+    business_date, money_kvnd, money_text, percent,
+)
 from app.web.legacy_presentation import format_number
 
 EMPTY = "—"
@@ -341,7 +343,6 @@ def drilldown_rows(details: list[dict], metadata: list) -> list[dict]:
     taxonomy ở đây, vì một phép tra thứ hai là chỗ hai màn hình gọi cùng một
     mặt hàng bằng hai cái tên.
     """
-    from app.web.business_presentation import business_date
     if len(details) != len(metadata):
         raise ValueError(
             f"details ({len(details)}) và metadata ({len(metadata)}) phải cùng "

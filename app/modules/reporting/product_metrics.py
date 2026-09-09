@@ -63,6 +63,9 @@ from typing import Optional, Sequence
 from app.modules.reporting import dashboard_metrics as dmx
 from app.modules.reporting.business_metrics import BusinessLine, BusinessTotals
 from app.modules.reporting.business_metrics import totals as business_totals
+from app.modules.reporting.contribution import (
+    share_percent as _contribution_share,
+)
 
 _CENT = Decimal("0.01")
 
@@ -253,8 +256,7 @@ def share_percent(part: Optional[Decimal],
     một bản sao thứ hai sẽ làm tròn khác đi ở đúng những chỗ khó nhất, và hai
     trang cùng dự án sẽ hiện hai tỉ trọng cho cùng một bucket.
     """
-    from app.modules.reporting.contribution import share_percent as _share
-    return _share(part, whole)
+    return _contribution_share(part, whole)
 
 
 @dataclass(frozen=True)
@@ -291,7 +293,7 @@ def reconciliation(rows: Sequence[GroupRow],
     """
     return GroupReconciliation(
         lines=sum(row.lines for row in rows) == company.lines,
-        sales_revenue=dmx._sum_optional(row.revenue for row in rows)
+        sales_revenue=dmx.sum_optional(row.revenue for row in rows)
         == company.sales_revenue,
         quantity=sum((row.quantity for row in rows), Decimal(0))
         == company.total_quantity,

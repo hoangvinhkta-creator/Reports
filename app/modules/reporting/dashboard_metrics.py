@@ -125,13 +125,17 @@ QUANTITY_NOTE = (
 )
 
 
-def _sum_optional(values) -> Optional[Decimal]:
+def sum_optional(values) -> Optional[Decimal]:
     """Tổng của các giá trị KHÔNG `None`; tập rỗng ⟹ `None`, không phải `0`.
 
     Cùng kỷ luật `NULL ≠ 0` mà `business_metrics._sum` và
     `brand_metrics._sum_optional` đã freeze. Viết lại ở đây vì cả hai hàm kia
     là chi tiết cài đặt private của module khác, và một `import` xuyên qua dấu
     gạch dưới là một phụ thuộc mà không ai thấy khi sửa module bên kia.
+
+    CÔNG KHAI (không gạch dưới) vì `product_metrics` và `basket_metrics` gọi
+    nó: nếu nó private, hai module ấy sẽ phải làm đúng cái việc mà đoạn trên
+    vừa nói là không nên làm.
     """
     present = [Decimal(value) for value in values if value is not None]
     return sum(present, Decimal(0)) if present else None
@@ -234,7 +238,7 @@ def order_facts(details: Iterable[dict]) -> dict[str, OrderFacts]:
     return {
         order_key: OrderFacts(
             order_key=order_key, lines=slot["lines"],
-            revenue=_sum_optional(slot["revenue"]), discount=slot["discount"],
+            revenue=sum_optional(slot["revenue"]), discount=slot["discount"],
             quantity=slot["quantity"],
             sale_dates=frozenset(slot["sale_dates"]),
             merchandise_lines=slot["merchandise_lines"],
@@ -301,7 +305,7 @@ def totals(details: Iterable[dict]) -> DashboardTotals:
     return DashboardTotals(
         lines=len(lines),
         orders=len(facts),
-        sales_revenue=_sum_optional(line.total_sales for line in lines),
+        sales_revenue=sum_optional(line.total_sales for line in lines),
         discount_total=sum((Decimal(line.discount) for line in lines),
                            Decimal(0)),
         total_quantity=sum((Decimal(line.quantity) for line in lines
@@ -391,5 +395,6 @@ __all__ = [
     "DashboardTotals", "GROSS_DERIVED_NOTE", "MERCHANDISE_TYPES",
     "MULTI_DATE_NOTE", "OrderFacts", "QUANTITY_NOTE", "SERVICE_TYPES",
     "TotalsReconciliation", "order_facts", "orders_by_bucket",
+    "sum_optional",
     "reconciliation", "totals",
 ]

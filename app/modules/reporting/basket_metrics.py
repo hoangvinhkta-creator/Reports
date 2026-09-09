@@ -204,7 +204,7 @@ def build_index(
             line_types=frozenset(slot["line_types"]),
             lines=slot["lines"],
             merchandise_lines=slot["merchandise_lines"],
-            revenue=dmx._sum_optional(slot["revenue"]),
+            revenue=dmx.sum_optional(slot["revenue"]),
             product_labels=dict(slot["product_labels"]),
             category_labels=dict(slot["category_labels"]))
         for order_key, slot in slots.items()
@@ -326,7 +326,7 @@ def _pairs(
              pair_orders=len(order_keys),
              orders_with_left=member_orders.get(left, 0),
              orders_with_right=member_orders.get(right, 0),
-             pair_revenue=dmx._sum_optional(pair_revenue[(left, right)]),
+             pair_revenue=dmx.sum_optional(pair_revenue[(left, right)]),
              order_keys=tuple(sorted(order_keys)))
         for (left, right), order_keys in pair_orders.items()
         if len(order_keys) >= min_support
