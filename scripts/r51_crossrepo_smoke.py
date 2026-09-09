@@ -26,6 +26,7 @@ Tuỳ chọn `--tracking <đường dẫn>` nếu repo Tracking không ở `../T
 
 from __future__ import annotations
 
+from datetime import date
 import argparse
 import json
 import re
@@ -382,6 +383,235 @@ def main(argv=None) -> int:
     ok("sau create_app() mới vẫn đọc đúng",
        cells(resp.get_data(as_text=True), "line-category"),
        ["Màn hình", "Tủ lạnh", "—", "—"])
+
+    # === 5. REPAIR-2: LUỒNG UPLOAD/RUN, KHÔNG mở bảng chọn ===============
+    #
+    # Bốn mục §4 ở trên đi qua route POST `phan-loai`, tức đúng cái luồng mà
+    # bản chiếu hiển thị VỐN ĐÃ được ghi. Lỗi production nằm ở luồng CÒN LẠI:
+    # Owner upload sổ rồi bấm chạy, KHÔNG mở bảng chọn của dòng nào — và trước
+    # `R5.1 REPAIR-2` thì bản chiếu không bao giờ được ghi trên đường đó.
+    #
+    # Mục này dựng lại đúng luồng ấy trên một app HOÀN TOÀN MỚI, với bản chiếu
+    # bị XOÁ trước khi chạy (mô phỏng đĩa ephemeral sau một lần deploy).
+    print("\n5) REPAIR-2: upload/run THẬT, KHÔNG mở bảng chọn phân loại")
+    import io as _io
+
+    from app import beta_telemetry, owner_usability
+    from tests.fixtures.synthetic_workbook import build_synthetic_workbook
+
+    run_tmp = tmp / "repair2"
+    run_tmp.mkdir(parents=True, exist_ok=True)
+    workbook = run_tmp / "so_ke_toan.xlsx"
+    build_synthetic_workbook(workbook)
+
+    # Cùng capture danh mục THẬT do producer Tracking sinh ở §1–§2, chỉ thêm
+    # một mã khớp đúng tên hàng của workbook tổng hợp để có gì mà hiển thị.
+    board_run = {**board, "MGS-01": {**board["MGS-01"],
+                                     "alt": ["Máy giặt Test-1"]}}
+    envelope_run = capture.build_capture(
+        lambda node: {"board": board_run, "alias": alias}[node],
+        capture_id="TRK-REPAIR2", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_run = run_tmp / "catalog.json"
+    cap_run.write_text(json.dumps(envelope_run, ensure_ascii=False),
+                       encoding="utf-8")
+    snapshot_run = load_tracking_catalog_capture(cap_run)
+
+    # §4 ở trên đã thay `_select_captures_for_run` bằng một lambda không nhận
+    # tham số; `run_report` gọi nó VỚI `sales=`/`identity_store_view=`, nên §5
+    # phải đặt lại nó cho đúng chữ ký. Nó trả về ĐÚNG capture danh mục mà
+    # producer Tracking vừa sinh — tức đúng thứ mà một lần chạy production có
+    # trong tay.
+    web_server._select_captures_for_run = (
+        lambda sales=None, identity_store_view=None: (
+            SelectedCaptures(
+                tracking_capture=None, tracking_catalog=cap_run,
+                tracking_inv_map=None, tracking_daily_min=None),
+            {"catalog_capture_id": "TRK-REPAIR2"}, None))
+    live_pull.is_configured = lambda env=None: True
+    web_server.load_tracking_catalog_capture = lambda path: snapshot_run
+    web_server.UPLOAD_DIR = run_tmp / "uploads"
+    web_server.ARTIFACT_DIR = (run_tmp / "outputs" / "reports").resolve()
+    web_server.TRACKING_TEMP_DIR = run_tmp / "tracking_live_tmp"
+    beta_telemetry.record_run = lambda record, **kw: None
+    _real_owner_run = owner_usability.run_owner_report
+    web_server.run_owner_report = (
+        lambda *, sales, captures=None, identity_store_view=None:
+        _real_owner_run(sales=sales, captures=captures, repo_root=run_tmp,
+                        identity_store_view=identity_store_view))
+
+    engine2 = create_engine("sqlite://")
+    history_db.create_all_for_test(engine2)
+    repo2 = history_store.SnapshotRepository(engine2)
+    store2 = fx.store(run_tmp)
+    identity_gateway.build_store = lambda: store2
+
+    app2 = web_server.create_app(
+        db_path=run_tmp / "runs.db",
+        history=history_store.LegacyRepository(engine2), snapshots=repo2)
+    app2.testing = True
+    client2 = app2.test_client()
+
+    # Xác nhận mapping qua ĐÚNG cổng identity_gateway, trên store mà app dùng.
+    identity_gateway.confirm_identity(
+        app2.config["IDENTITY_STORE"], product_raw="Máy giặt Test-1",
+        tracking_code="MGS-01", snapshot=snapshot_run,
+        actor_id="r51-repair2-smoke", affected_orders=("BH0001",),
+        affected_lines=1)
+
+    # Đĩa ephemeral: bản chiếu KHÔNG tồn tại trước khi chạy.
+    display_path.unlink(missing_ok=True)
+    ok("trước khi chạy: bản chiếu KHÔNG tồn tại", display_path.exists(), False)
+
+    resp = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("upload/run thành công (302)", resp.status_code, 302)
+    ok("run THÀNH CÔNG đã ghi bản chiếu", display_path.exists(), True)
+
+    record = app2.config["RUN_REGISTRY"].list_runs(limit=1)[0]
+    ok("bằng chứng của run ghi trạng thái bản chiếu",
+       (record.tracking_evidence or {}).get("catalog_display", {}).get("written"),
+       True)
+
+    def rows_of_sheet(employee):
+        r = client2.get(f"/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien={employee}")
+        assert r.status_code == 200, r.status_code
+        html = r.get_data(as_text=True)
+        import html as _H
+        def text(cell):
+            return " ".join(_H.unescape(re.sub(r"<[^>]+>", " ", cell)).split())
+        return {name: [text(v) for v in re.findall(
+            rf'data-metric="{name}"[^>]*>(.*?)</td>', html, re.S)]
+            for name in ("line-product", "line-brand", "line-category")}, html
+
+    seen, html_ly = rows_of_sheet("Ly")
+    ok("KHÔNG mở bảng chọn: cột Mặt hàng hiện MODEL NGẮN từ Tracking",
+       "FV1412" in seen["line-product"], True)
+    ok("...và tên dài trên sổ kế toán đã biến khỏi dòng đã xác nhận",
+       "Máy giặt Test-1" in seen["line-product"], False)
+    ok("cột Hãng hiện brand từ Tracking", "LG" in seen["line-brand"], True)
+    ok("cột Nhóm hàng hiện category_label", "Máy giặt" in seen["line-category"], True)
+    ok("dòng CHƯA xác nhận vẫn giữ tên gốc và dấu gạch",
+       ("Bình nóng lạnh Test-5" in seen["line-product"]
+        and "—" in seen["line-brand"]), True)
+    ok("bản chiếu lành ⟹ KHÔNG có cảnh báo",
+       'data-metric="catalog-projection-warning"' in html_ly, False)
+
+    # Mất bản chiếu ⟹ CẢNH BÁO, không im lặng.
+    display_path.unlink()
+    _seen2, html_missing = rows_of_sheet("Ly")
+    ok("mất bản chiếu ⟹ tab Nhân viên CẢNH BÁO",
+       'data-metric="catalog-projection-warning"' in html_missing, True)
+
+    # Dựng lại bản chiếu THẬT trước khi bước vào §6 — §6 kiểm ca "bản chiếu
+    # có dữ liệu CŨ", không phải ca "bản chiếu vắng" vừa đo ở trên.
+    resp_rebuild = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("dựng lại bản chiếu trước §6 (302)", resp_rebuild.status_code, 302)
+    ok("bản chiếu đã có dữ liệu THẬT trước §6", display_path.exists(), True)
+
+    # === 6. REPAIR-2 (lần 2): bản chiếu CŨ một phần — mã mới thiếu nhãn ====
+    #
+    # §5 đo cả hai đầu của trục "vắng": bản chiếu KHÔNG tồn tại trước lần
+    # chạy đầu, và bản chiếu bị XOÁ hẳn sau đó. Mục này đóng đầu CÒN LẠI, mà
+    # `AR-R5.1-01` (Tracking chưa phân loại) và ca này dễ nhầm lẫn nhất nếu
+    # chỉ đọc `catalog_display.read()` hiện tại mà không có lịch sử ghi: bản
+    # chiếu đã có dữ liệu THẬT (mã MGS-01 của §5), một mã MỚI được xác nhận
+    # SAU lần ghi thành công đó, rồi lần chạy KẾ TIẾP trả về capture KHÔNG
+    # mang trường hiển thị nào (`REASON_NO_METADATA`).
+    print("\n6) REPAIR-2 (lần 2): bản chiếu CŨ một phần — mã mới thiếu nhãn")
+
+    # "BNL-99" là một mã HOÀN TOÀN MỚI, KHÔNG có trong `board` thật của
+    # Tracking — khác `TV-01`/`MGS-01` (đã lên bản chiếu từ những lần chạy
+    # trước ở §5/§6), nên nó chưa từng có nhãn ở bất kỳ lần ghi nào trước
+    # đây. Dùng lại một mã thật (ví dụ `TV-01`) sẽ khiến bài kiểm "matched"
+    # giả — bản chiếu đã có nhãn của mã đó từ một lần chạy KHÁC, không phải
+    # từ mapping vừa xác nhận.
+    board_run2 = {**board_run, "BNL-99": {
+        "name": "Bình nóng lạnh Ariston 99L", "alt": ["Bình nóng lạnh Test-5"],
+        "model_label": "AR99", "brand": "Ariston", "category_label": "Gia dụng"}}
+    envelope_confirm2 = capture.build_capture(
+        lambda node: {"board": board_run2, "alias": alias}[node],
+        capture_id="TRK-REPAIR2-CONFIRM2", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_confirm2 = run_tmp / "catalog_confirm2.json"
+    cap_confirm2.write_text(json.dumps(envelope_confirm2, ensure_ascii=False),
+                            encoding="utf-8")
+    snapshot_confirm2 = load_tracking_catalog_capture(cap_confirm2)
+
+    # Xác nhận mã MỚI qua ĐÚNG cổng, SAU lần ghi bản chiếu thành công gần
+    # nhất — đúng thứ tự thời gian mà ca production gặp phải.
+    identity_gateway.confirm_identity(
+        app2.config["IDENTITY_STORE"], product_raw="Bình nóng lạnh Test-5",
+        tracking_code="BNL-99", snapshot=snapshot_confirm2,
+        actor_id="r51-repair2-smoke", affected_orders=("BH0002",),
+        affected_lines=1)
+
+    # Capture của lần chạy KẾ TIẾP: cùng board nhưng KHÔNG trường hiển thị
+    # nào — đúng hình dạng artifact đời cũ mà `NO_METADATA` đóng lại.
+    board_stale = {code: {**node, "model_label": None, "brand": None,
+                          "category_label": None}
+                   for code, node in board_run2.items()}
+    envelope_stale = capture.build_capture(
+        lambda node: {"board": board_stale, "alias": alias}[node],
+        capture_id="TRK-REPAIR2-STALE", captured_by="r51-repair2-smoke",
+        source_system_ref="tracking/api/xuat")
+    cap_stale = run_tmp / "catalog_stale.json"
+    cap_stale.write_text(json.dumps(envelope_stale, ensure_ascii=False),
+                         encoding="utf-8")
+    snapshot_stale = load_tracking_catalog_capture(cap_stale)
+
+    web_server._select_captures_for_run = (
+        lambda sales=None, identity_store_view=None: (
+            SelectedCaptures(
+                tracking_capture=None, tracking_catalog=cap_stale,
+                tracking_inv_map=None, tracking_daily_min=None),
+            {"catalog_capture_id": "TRK-REPAIR2-STALE"}, None))
+    web_server.load_tracking_catalog_capture = lambda path: snapshot_stale
+
+    resp_stale = client2.post("/run", data={
+        "workbook": (_io.BytesIO(workbook.read_bytes()), workbook.name)},
+        content_type="multipart/form-data")
+    ok("lần chạy thứ hai (capture NO_METADATA) vẫn thành công (302)",
+       resp_stale.status_code, 302)
+
+    record_stale = app2.config["RUN_REGISTRY"].list_runs(limit=1)[0]
+    ok("run evidence ghi đúng lý do NO_METADATA",
+       (record_stale.tracking_evidence or {}).get("catalog_display", {}).get("reason"),
+       catalog_display.REASON_NO_METADATA)
+
+    # Bản chiếu CŨ (mã MGS-01 của §5) phải còn nguyên — NO_METADATA không
+    # được xoá nhãn đã có.
+    duoc_stale = json.loads(display_path.read_text(encoding="utf-8"))
+    ok("nhãn CŨ của MGS-01 còn nguyên sau lần chạy NO_METADATA",
+       [duoc_stale["MGS-01"]["brand"], duoc_stale["MGS-01"]["category_label"]],
+       ["LG", "Máy giặt"])
+
+    seen_stale, html_stale = rows_of_sheet("Ly")
+    ok("cảnh báo đúng hình dạng CŨ (kind=cu) xuất hiện",
+       'data-kind="cu"' in html_stale, True)
+    ok("dòng CŨ (MGS-01/FV1412) không bị cảnh báo này xoá nhãn",
+       ("FV1412" in seen_stale["line-product"]
+        and "LG" in seen_stale["line-brand"]), True)
+    ok("mã MỚI xác nhận fallback về mã Tracking, KHÔNG lộ tên thô/mapping đổi",
+       ("BNL-99" in seen_stale["line-product"]
+        and "Bình nóng lạnh Test-5" not in seen_stale["line-product"]), True)
+
+    # Tiền không đổi vì bản chiếu STALE — đúng ràng buộc bắt buộc của lần sửa
+    # này (không đổi giá MIN/lợi nhuận/tổng tiền).
+    from app.web import business_service, business_store
+    service2 = business_service.BusinessReportService(
+        engine=engine2, store=business_store.BusinessDecisionStore(engine2))
+    bounds2 = (date(2026, 1, 1), date(2026, 1, 31))
+    with_stale = service2.period(date_from=bounds2[0], date_to=bounds2[1])
+    display_path.unlink()
+    without_stale = service2.period(date_from=bounds2[0], date_to=bounds2[1])
+    ok("tổng tiền KHÔNG đổi vì bản chiếu CŨ/thiếu nhãn",
+       (with_stale.totals.sales_revenue == without_stale.totals.sales_revenue
+        and with_stale.totals.kpi_profit == without_stale.totals.kpi_profit),
+       True)
 
     print(f"\nKẾT QUẢ SMOKE: {DAT} PASS, {HONG} FAIL")
     return 1 if HONG else 0

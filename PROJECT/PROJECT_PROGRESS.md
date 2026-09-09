@@ -1,5 +1,166 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## Nhánh integration `claude/r51-repair-2-integration` — CHỈ mang `R5.1 REPAIR-2`
+
+Nhánh này TÁCH RIÊNG khỏi `claude/r6-business-analytics-dashboard-it73x5`: cắt
+từ đúng nhánh mặc định (`origin/claude/extract-upload-repo-gq2ws4` @ `05f2b44`),
+cherry-pick CHỈ hai commit repair (`a14df7c3`, `f891393`) mang `R5.1 REPAIR-2`
+— KHÔNG mang `R6` (không module/route/template/test/tài liệu/governance của
+`R6`; xem `git diff origin/claude/extract-upload-repo-gq2ws4...HEAD` để xác
+minh).
+
+Governance dưới đây (`S146`/`S147`/`DEC-208`/`DEC-209`) được giữ NGUYÊN VĂN từ
+hai commit đó — kể cả những đoạn viết trên nhánh `R6` gốc. Hai chỗ ĐÃ được
+lược bỏ vì chỉ mô tả trạng thái MÔI TRƯỜNG/nhánh `R6` gốc, không áp dụng cho
+nhánh integration này: đoạn giải thích baseline `1 failed → 0 failed` của
+`S145` (một vấn đề clone nông trên nhánh khác), và cờ
+`INTEGRATION_DECISION_REQUIRED` theo LOC tích luỹ của `R6` (`S145` §8b — nhánh
+này không tích luỹ LOC của `R6`).
+
+**Baseline THẬT của nhánh integration này** (đo lại từ đầu, KHÔNG suy từ số
+liệu `S146`/`S147` — những số đó là bản ghi lịch sử của nhánh `R6` gốc, có
+tập test khác hẳn):
+
+```text
+Full regression    3275 passed / 11 skipped / 0 failed
+Smoke R5.1          83 PASS / 0 FAIL (§5 trống + §6 cũ)
+Governance          structure/project_state/evidence/task_completion PASS;
+                    reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+git diff --check    sạch
+```
+
+Chi tiết đầy đủ: `docs/sessions/S148-r51-repair-2-integration-branch.md`.
+
+---
+
+## CANONICAL CURRENT STATE — R5.1 REPAIR-2 (vòng 2): cảnh báo khi bản chiếu CŨ một phần, `IMPLEMENTED`, CHƯA merge (`S147`, 2026-09-09)
+
+**Tiếp tục ĐÚNG task `REPAIR-2` đã mở ở `S146` — không phải task mới.** Trước
+khi mở Independent Review, Owner chỉ thị đóng thêm một ca mà vòng 1
+(`DEC-208`) chưa đóng: bản chiếu đã có dữ liệu THẬT, một mã MỚI được xác nhận
+SAU lần ghi thành công gần nhất, rồi lần chạy KẾ TIẾP trả `NO_METADATA` hoặc
+ghi thất bại (`WRITE_FAILED`) — hai câu chuyện đó và "Tracking chưa phân
+loại" (`AR-R5.1-01`, hợp lệ) cho ra CÙNG một `catalog_display.read()`, nên
+`DEC-208` §4 (chỉ cảnh báo khi VẮNG HOÀN TOÀN) im lặng đúng lúc cần nói.
+
+```text
+Sửa (DEC-209)  write() ghi thêm LỊCH SỬ của chính lần ghi gần nhất (file
+               trạng thái CẠNH bản chiếu, KHÔNG một khoá nhồi vào nó);
+               _catalog_projection_warning() thêm hình dạng 2 (kind="cu"),
+               gated trên bằng chứng đó — hình dạng 1 (kind="vang") GIỮ
+               NGUYÊN VĂN, vô điều kiện như DEC-208 §4
+Bất biến       KHÔNG đổi tên hàng, mapping, giá MIN, lợi nhuận, tổng tiền —
+               đo bằng HÀNH VI ở cả test và smoke, không chỉ bằng lý luận
+```
+
+```text
+Kiểm chứng vòng 2
+  Test mới           3 bài (12 → 15) — CHECK-R51R2-17/-18/-19, red→green
+                     xác nhận (tạm vô hiệu hoá nhánh mới ⟹ 2 ĐỎ đúng 2 bài)
+  Full regression    3461 passed / 11 skipped / 0 failed (+3 đúng số bài mới)
+  Smoke R5.1         83 PASS / 0 FAIL — §6 MỚI: bản chiếu CŨ qua producer
+                     Tracking THẬT (nền 74)
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ,
+                     không finding mới
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1) — vòng 1, không đổi
+  CHECK-R51R2-17          PASS (E1) — cảnh báo "cu" khi NO_METADATA
+  CHECK-R51R2-18          PASS (E1) — cảnh báo "cu" khi WRITE_FAILED
+  CHECK-R51R2-19          PASS (E1) — không over-fire khi làm mới đủ
+  CHECK-R51R2-15          NOT_TESTED — Independent Review (bao CẢ HAI vòng)
+  CHECK-R51R2-16          NOT_TESTED — Owner nghiệm thu lại trên production
+```
+
+Tài liệu vòng 2: `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+· `DEC-209`. Ngân sách review (xem block `S146` ngay dưới, §7) KHÔNG đổi bởi
+vòng 2 — vẫn cần Owner/reviewer xác nhận.
+
+**Phiên vòng 2 này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent
+Review hay Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-2 (vòng 1): luồng chạy báo cáo làm mới bản chiếu hiển thị, `IMPLEMENTED`, CHƯA merge (`S146`, 2026-09-09)
+
+**Lỗi LUỒNG CHÍNH trên production, Owner xác minh, KHÔNG phải accepted risk.**
+
+```text
+Triệu chứng   cột Nhóm hàng / Hãng / IMEI ĐÃ hiển thị, nhưng Hãng là "—" và
+              Mặt hàng còn tên DÀI trên sổ kế toán — kể cả dòng đã CONFIRMED
+Nguyên nhân   catalog_display CHỈ được ghi trong _tracking_snapshot(), tức chỉ
+              khi Owner mở bảng chọn phân loại MỘT dòng. Luồng POST /run không
+              ghi và không làm mới nó ⟹ trên đĩa ephemeral của Render, trạng
+              thái "chưa có nhãn" là VĨNH VIỄN
+Sửa           run_report gọi _refresh_catalog_display(owner_run.captures) trên
+              đường THÀNH CÔNG, dùng ĐÚNG capture danh mục của lần chạy đó —
+              KHÔNG gọi Tracking lần thứ hai chỉ để hiển thị
+Không im lặng catalog_display.write() trả WriteResult (3 mã lý do đóng); kết quả
+              vào tracking_evidence["catalog_display"]; tab Nhân viên cảnh báo
+              khi bản chiếu vắng mà sheet CÓ dòng đã xác nhận mã
+```
+
+`AR-R5.1-04` **ĐÓNG** — bị phân loại SAI: nó giả định mất bản chiếu là trạng
+thái TẠM tự thoát khi có "lần capture danh mục MỚI đầu tiên", nhưng luồng chính
+không bao giờ ghi bản chiếu. Xem `DEC-208` §6.
+
+```text
+Kiểm chứng
+  Test REPAIR-2      12 bài mới — 10 ĐỎ trước sửa, 12 XANH sau sửa, đi qua ĐÚNG
+                     POST /run rồi mở tab Nhân viên, KHÔNG mở bảng chọn
+  Full regression    3458 passed / 11 skipped / 0 failed
+                     (nền trước repair: 3446 passed / 11 skipped / 0 failed;
+                      +12 đúng bằng số bài repair thêm vào)
+  Smoke R5.1         74 PASS / 0 FAIL — §5 MỚI: producer Tracking THẬT →
+                     upload/run THẬT → bảng Nhân viên (nền 63)
+  Tracking           npm test 2892 đạt / 0 hỏng; build OK. KHÔNG đổi một byte
+  Bất biến nghiệp vụ git diff RỖNG trên pricing/profit/kpi/reporting/exporting/
+                     period_lock/business_store/business_queries/business_service/
+                     workspace_presentation/migrations/config; và đo bằng HÀNH VI:
+                     xoá bản chiếu ⟹ doanh thu, lợi nhuận, SL KPI, số đơn, số
+                     dòng GIỐNG HỆT
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1)
+  CHECK-R51R2-15         NOT_TESTED — Independent Review của REPAIR-2
+  CHECK-R51R2-16         NOT_TESTED — Owner nghiệm thu lại trên production
+  CHECK-R51-26           NOT_TESTED — nay nghiệm thu ĐƯỢC (lỗi này đã chặn nó),
+                         nhưng vẫn chỉ Owner đóng
+```
+
+**CẦN OWNER/REVIEWER XÁC NHẬN — ngân sách repair cycle.** Lineage `R5` (chứa
+`R5.1`) đang `2 allowed / 2 used / 0 remaining`. Phiên này **KHÔNG tự tiêu** và
+**KHÔNG tự miễn** một cycle: defect do Owner phát hiện trên PRODUCTION SAU khi
+merge, không từ một vòng Independent Review (`CHECK-R51-25` đã `PASS` từ `S139`).
+Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review thì một tính
+năng đã merge sẽ không sửa được nữa khi lineage hết ngân sách. Nếu
+Owner/reviewer kết luận ngược lại, `R5` vượt ngân sách và phải escalate. Lập
+luận đầy đủ: `S146` §7 và `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" →
+REPAIR-2 production.
+
+**Escalation trigger ĐÃ MET và đã ghi** (`ESCALATION_PROTOCOL`: *"hành vi ở
+production khác biệt đáng kể so với các giả định đã được tài liệu hóa"*). Rà
+soát nguyên nhân gốc đã thực hiện; không có lần vá suy đoán nào.
+
+**Ba lỗi của chính bộ kiểm, tìm ra và sửa trong phiên** (`S146` §3.1): một bài
+XANH GIẢ vì mở sai sheet (bảng rỗng nên mọi khẳng định "không thấy" đều đúng); một
+regex đọc rỗng vì ô có thẻ `<a>`; và một lần monkeypatch `pathlib.Path.mkdir`
+toàn cục — đã thay bằng một thất bại ghi THẬT của hệ thống tệp.
+
+Tài liệu: `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md` ·
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` · `DEC-208` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5".
+
+**Phiên này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent Review hay
+Owner Acceptance.**
+
+---
+
 ## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐÃ MERGE cả hai repo (`S142`, 2026-09-09)
 
 Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:

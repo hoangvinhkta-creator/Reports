@@ -12963,3 +12963,210 @@ References:
 - `docs/sessions/S142-r51-owner-taxonomy-merge.md`
 - `PROJECT/PROJECT_DECISIONS.md` → `DEC-205` (không thay thế, chỉ hoàn tất)
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
+---
+
+## DEC-208
+
+Ngày: 2026-09-09
+Phiên: `S146` — `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`
+Thẩm quyền: Owner báo lỗi trên production và chỉ thị sửa luồng chính.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge.
+
+### §1. Một lần chạy báo cáo THÀNH CÔNG là một lần làm mới bản chiếu hiển thị
+
+Từ `DEC-208`, luồng `POST /run` (upload sổ → chạy báo cáo) GHI/CẬP NHẬT bản
+chiếu `catalog_display` từ ĐÚNG capture danh mục Tracking của chính lần chạy
+đó. Trước đó bản chiếu CHỈ được ghi trong `server._tracking_snapshot()`, tức
+chỉ khi Owner mở bảng chọn phân loại của MỘT dòng.
+
+Hệ quả đo được trên production, và là lý do quyết định này tồn tại:
+
+```text
+cột Nhóm hàng / Hãng / IMEI   ĐÃ hiển thị (không bị ẩn)
+cột Hãng                       "—" cho MỌI dòng
+cột Mặt hàng                   tên DÀI trên sổ kế toán, kể cả dòng đã
+                               CONFIRMED mapping
+```
+
+Trên đĩa ephemeral của Render, bản chiếu biến mất sau mỗi lần deploy và KHÔNG
+có gì dựng lại nó. Owner phải mở bảng chọn của một dòng — một thao tác không
+liên quan gì tới việc xem báo cáo — để nhãn xuất hiện.
+
+### §2. Không gọi Tracking lần thứ hai chỉ để hiển thị
+
+Bản chiếu được dựng từ `OwnerRun.captures.tracking_catalog` — capture ĐÃ CÓ của
+lần chạy. Không lời gọi `live_pull` thứ hai, không lần pull nào thêm. Hai lý
+do, và cả hai đã được ghi từ trước: một lần pull giữ authority thô của Tracking
+trên đĩa máy chủ và phải được dọn ngay (`S071` §10), và một lần gọi mạng cho
+mỗi lần xem nhãn là một chi phí không ai yêu cầu.
+
+Đọc `OwnerRun.captures` chứ không đọc biến `captures` của route: khi
+`live_pull` chưa cấu hình (máy Owner), route truyền `None` và
+`run_owner_report` tự chọn capture cục bộ — `OwnerRun.captures` là nơi duy nhất
+biết capture nào ĐÃ THẬT SỰ được dùng.
+
+### §3. Phép chặn theo trạng thái mapping KHÔNG đổi
+
+Quy tắc hiển thị của `R5` §5 / `R5.1` §5.4 giữ NGUYÊN VĂN, và `DEC-208` không
+nới một vế nào:
+
+```text
+CONFIRMED + danh mục có model   ⟹ model_label ngắn ("55Q6FA")
+CONFIRMED + danh mục chưa nói   ⟹ mã Tracking
+chưa xác nhận · CONFLICT · stale target · OUT_OF_CATALOG · thiếu metadata
+                                ⟹ TÊN THÔ trên sổ + "—"
+```
+
+KHÔNG suy đoán hãng/nhóm hàng/model từ tên hàng kế toán. Bản chiếu chỉ làm cho
+NHÃN có mặt; nó không mở thêm một dòng nào được phép nhận nhãn.
+
+### §4. Bản chiếu không ghi được KHÔNG BAO GIỜ im lặng
+
+`catalog_display.write()` trả về `WriteResult` (thay cho `None`) với ba mã lý
+do đóng: `NO_SNAPSHOT`, `NO_METADATA`, `WRITE_FAILED`. Kết quả đi vào
+`tracking_evidence["catalog_display"]` của run, và tab Nhân viên hiện một dòng
+cảnh báo khi bản chiếu vắng mặt TRONG KHI sheet đang xem có dòng đã xác nhận mã.
+
+Điều kiện cảnh báo hẹp có chủ ý: nếu chưa ai xác nhận mapping nào thì cột `Hãng`
+là dấu gạch vì một lý do HOÀN TOÀN KHÁC (chưa phân loại), và một cảnh báo về
+bản chiếu ở đó sẽ chỉ người đọc đi sai chỗ.
+
+Một lần ghi thất bại KHÔNG làm hỏng lần chạy: bản chiếu là NHÃN, và đánh đổi cả
+một báo cáo cho một cái nhãn là sai chiều.
+
+### §5. `NO_METADATA` giữ nguyên bản chiếu đang có, không ghi rỗng lên nó
+
+Khi capture danh mục đọc được nhưng KHÔNG dòng nào mang một trong ba trường
+hiển thị (artifact đời cũ), `write()` KHÔNG ghi gì và trả `NO_METADATA`. Ghi một
+file rỗng lên bản chiếu sẽ XOÁ nhãn của những mã mà một lần chạy trước đã đọc
+được — tức làm màn hình nói ÍT hơn vì một capture cũ.
+
+### §6. `AR-R5.1-04` bị PHÂN LOẠI SAI — nay đóng lại
+
+`AR-R5.1-04` ("bản chiếu trên đĩa ephemeral — mất file ⟹ `—`, tiền không đổi")
+được ghi là `ACCEPTED_RISK` ở `R5.1` và giữ nguyên qua hai vòng Independent
+Review. Phân loại ấy SAI, và `DEC-208` nói ra thay vì lặng lẽ sửa mã:
+
+- Rủi ro đã ghi giả định mất bản chiếu là một trạng thái TẠM, tự thoát ra khi
+  có "lần capture danh mục MỚI đầu tiên". Nhưng luồng chính KHÔNG BAO GIỜ ghi
+  bản chiếu, nên trạng thái ấy là VĨNH VIỄN trên production — không có đường
+  thoát nào ngoài một thao tác không liên quan.
+- Vì vậy nó không phải một rủi ro chấp nhận được mà là một LỖI LUỒNG CHÍNH:
+  tính năng `R5.1` không bao giờ hiển thị trên đường người dùng thật.
+
+`AR-R5.1-04` nay ĐÓNG. Điều còn lại và VẪN là rủi ro chấp nhận được: giữa hai
+lần chạy, nếu đĩa bị xoá thì nhãn tạm mất — và nay có cảnh báo nói ra điều đó.
+
+### §7. Quan hệ với các quyết định trước
+
+```text
+DEC-204 · DEC-205 · DEC-206   GIỮ NGUYÊN — taxonomy vẫn thuộc Tracking, Reports
+                              không giữ bản sao và không sửa được nó
+DEC-R5-03  GIỮ NGUYÊN — IMEI vẫn CHỈ có ở bảng kê tab Nhân viên
+ADR-107    GIỮ NGUYÊN — không mirror payload Tracking; bản chiếu chỉ chở ĐÚNG
+           ba trường hiển thị mà hợp đồng đã định
+ADR-111 §3 GIỮ NGUYÊN — thẩm quyền metadata sản phẩm ở Tracking
+AR-R5.1-04 ĐÓNG (xem §6)
+```
+
+`DEC-208` KHÔNG thay thế quyết định nào ở trên và KHÔNG đổi một con số nghiệp
+vụ nào: MIN theo ngày bán, giá nhập, lợi nhuận, mapping, dữ liệu chốt kỳ, doanh
+thu và export giữ nguyên từng đồng.
+
+Nguồn:
+- `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
+- `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" → REPAIR-2 production
+
+## DEC-209
+
+Ngày: 2026-09-09
+Phiên: `S147` — `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+Thẩm quyền: Owner chỉ thị bổ sung, trước khi mở Independent Review cho
+`R5.1 REPAIR-2`: đóng thêm ca "bản chiếu đã có dữ liệu CŨ, lần chạy KẾ TIẾP
+không làm mới được nó" — phân biệt với ca "vắng hoàn toàn" mà `DEC-208` đã
+đóng.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge — vẫn thuộc cùng
+`R5.1 REPAIR-2`, không phải một repair cycle mới.
+
+### §1. Vì sao `DEC-208` chưa đủ
+
+`DEC-208` §4 cảnh báo đúng MỘT trạng thái: bản chiếu VẮNG HOÀN TOÀN
+(`display.get(code)` falsy cho MỌI mã đã xác nhận). Nó không phân biệt được
+hai câu chuyện sau, dù cả hai cho ra CÙNG một `read()` khi một mã CONFIRMED
+cụ thể thiếu nhãn:
+
+```text
+Tracking đơn giản CHƯA phân loại mã này         → hợp lệ, im lặng đúng
+                                                   (AR-R5.1-01)
+lần chạy GẦN NHẤT không làm mới được bản chiếu,
+nên nó đang hiện một bản CŨ có thể thiếu đúng
+mã MỚI xác nhận SAU lần ghi thành công cuối     → lỗi luồng chính, cần
+                                                   cảnh báo
+```
+
+Ca thứ hai xảy ra khi: bản chiếu đã có dữ liệu THẬT (từ một lần chạy trước),
+Owner xác nhận một mapping MỚI, rồi lần chạy kế tiếp trả về `NO_METADATA`
+(capture đời cũ) hoặc `WRITE_FAILED` (ghi đĩa thất bại) — write() giữ nguyên
+dữ liệu cũ có chủ đích (`DEC-208` §5), nên mã cũ vẫn có nhãn và `matched > 0`;
+`DEC-208` §4 chỉ cảnh báo khi `matched == 0`, nên nhánh đó im lặng đúng lúc cần
+nói.
+
+### §2. Lịch sử ghi, không chỉ nội dung đang có
+
+`catalog_display.write()` nay ghi thêm một file trạng thái CẠNH bản chiếu
+(`<target>.status.json`, qua `_status_path`/`_record_status`/`_finish`), và
+`last_write_status()` đọc lại nó. Đây là file RIÊNG, không phải một khoá nhồi
+vào bản chiếu: `read()` coi MỌI khoá top-level của bản chiếu là một mã
+Tracking, nên một khoá trạng thái nằm chung sẽ có nguy cơ va với một mã thật
+trùng tên.
+
+Ghi trạng thái là best-effort, cùng kỷ luật fail-safe của chính `write()`: lỗi
+ghi trạng thái KHÔNG làm hỏng lần gọi đang chạy và KHÔNG đổi giá trị `write()`
+trả về.
+
+### §3. Hai hình dạng cảnh báo, `_catalog_projection_warning()`
+
+```text
+kind="vang"   matched == 0 (vắng hoàn toàn)     GIỮ NGUYÊN — không cần bằng
+                                                 chứng lịch sử ghi, vô điều kiện
+                                                 như DEC-208 §4
+kind="cu"     matched > 0 và unmatched khác rỗng
+              VÀ last_write_status() nói lần ghi gần nhất KHÔNG thành công
+              vì NO_METADATA hoặc WRITE_FAILED    MỚI — DEC-209
+```
+
+Điều kiện `kind="cu"` được thu hẹp CÓ CHỦ ĐÍCH bằng bằng chứng lịch sử ghi,
+không chỉ bằng "có mã thiếu nhãn": nếu không có bằng chứng lần ghi gần nhất
+hỏng (`last_write_status() is None` hoặc `written=True`), im lặng — đó là ca
+`AR-R5.1-01` hợp lệ (Tracking chưa phân loại), không phải staleness.
+
+Cả hai hình dạng đi vào CÙNG một điểm render (`data-metric="catalog-
+projection-warning"`), với `data-kind` phân biệt — mẫu template chỉ thêm một
+thuộc tính, không nhân đôi khối HTML.
+
+### §4. Không đổi tên hàng, mapping, hay bất kỳ con số nào
+
+Giữ NGUYÊN VĂN mọi bất biến của `DEC-208` §3: phép chặn theo trạng thái mapping
+ở `workspace_presentation._catalog_field` KHÔNG bị chạm. Một mã CONFIRMED
+thiếu nhãn (dù vì lý do gì) vẫn fallback về đúng MÃ Tracking — hành vi đã có
+từ `R5` §5, không phải hành vi mới của `DEC-209`. `DEC-209` chỉ thêm một dòng
+NÓI RA, không thêm hay đổi một nhánh hiển thị tên/mapping nào.
+
+Đo bằng HÀNH VI, không chỉ bằng lý luận: `CHECK-R51R2-17`/`-18` khẳng định
+tường minh — dòng CŨ giữ nguyên model/hãng, dòng MỚI fallback về mã Tracking
+(không lộ tên thô, không đổi mapping), và tổng tiền/lợi nhuận giống hệt khi so
+kỳ có/không bản chiếu.
+
+### §5. Quan hệ với `DEC-208`
+
+`DEC-209` KHÔNG thay thế `DEC-208` — nó là một overlay hẹp trên đúng một hàm
+(`_catalog_projection_warning`) mà `DEC-208` đã mở, đóng thêm một ca mà
+`DEC-208` §4 để ngỏ. Ba mã lý do đóng (`NO_SNAPSHOT`/`NO_METADATA`/
+`WRITE_FAILED`), quy tắc "NO_METADATA giữ nguyên dữ liệu cũ" (`DEC-208` §5),
+và mọi bất biến nghiệp vụ ở `DEC-208` §3/§7 giữ NGUYÊN VĂN.
+
+Nguồn:
+- `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
+- `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-208`

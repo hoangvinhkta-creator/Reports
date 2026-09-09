@@ -1798,6 +1798,135 @@ def create_app(
             if live is not None:
                 live.cleanup()
 
+    def _catalog_projection_warning(details) -> Optional[dict]:
+        """`R5.1 REPAIR-2` — cảnh báo khi bản chiếu KHÔNG nói đủ những gì nó
+        đáng ra phải nói, ở HAI hình dạng khác nhau.
+
+        ## Hình dạng 1 — VẮNG hoàn toàn (bản sửa lần đầu)
+
+        Điều kiện kích hoạt hẹp có chủ ý, và nó là điều làm cảnh báo này đáng
+        đọc: nó chỉ hiện khi CẢ HAI điều đúng cùng lúc —
+
+        1. có ít nhất một dòng trên sheet đang xem đã có mapping `CONFIRMED`
+           trỏ tới một mã Tracking (tức có thứ để hiển thị), VÀ
+        2. bản chiếu không nói được gì về BẤT KỲ mã nào trong số đó.
+
+        Nếu chưa ai xác nhận mapping nào, cột `Hãng` là dấu gạch vì một lý do
+        HOÀN TOÀN KHÁC (chưa phân loại), và một cảnh báo về bản chiếu ở đó sẽ
+        chỉ người đọc đi sai chỗ.
+
+        ## Hình dạng 2 — CŨ một phần (Owner báo lỗi lần 2)
+
+        Hình dạng 1 một mình có một lỗ hổng: nếu bản chiếu ĐÃ có dữ liệu từ
+        một lần chạy CŨ (nên `matched > 0`), phiên bản trước coi nó "đang hoạt
+        động" và im lặng — kể cả khi lần chạy GẦN NHẤT đã không làm mới được
+        nó (`NO_METADATA`/`WRITE_FAILED`, `DEC-208` §5) và một mapping MỚI
+        CONFIRMED sau lần ghi cuối cùng vẫn đang thiếu nhãn. Đó chính là "vẫn
+        còn — hiện dấu gạch mà không lời nào giải thích" tái diễn dưới một
+        hình dạng khác: lần đầu là vắng TOÀN BỘ, lần này là vắng MỘT PHẦN.
+
+        `read()` một mình không phân biệt được "Tracking đơn giản chưa phân
+        loại mã này" (hợp lệ, `AR-R5.1-01`, im lặng đúng) khỏi "bản chiếu
+        đang STALE vì lần chạy gần nhất hỏng" (lỗi, cần cảnh báo) — cả hai cho
+        `display.get(code)` falsy y hệt nhau. Chỉ `catalog_display.
+        last_write_status()` — LỊCH SỬ ghi, không phải NỘI DUNG đang có — tách
+        được hai câu đó, nên cảnh báo hình dạng 2 CHỈ nổi lên khi có bằng
+        chứng ghi thất bại, không suy đoán từ việc thiếu nhãn một mình.
+
+        `None` = không có gì phải nói, ở cả hai hình dạng.
+        """
+        identities = identity_gateway.confirmed_identities(identity_store)
+        if not identities:
+            return None
+        decisions = _identity_decisions()
+        wanted, matched, unmatched = set(), 0, set()
+        display = catalog_display.read()
+        for detail in details:
+            state = line_identity.state_of(detail, decisions=decisions)
+            if state.classification != line_identity.CLASS_MATCHED_TRACKING:
+                continue
+            identity = identities.get(state.identity_key)
+            code = getattr(identity, "source_product_code", None)
+            if not code:
+                continue
+            wanted.add(code)
+            if display.get(code):
+                matched += 1
+            else:
+                unmatched.add(code)
+        if not wanted:
+            return None
+        if not matched:
+            # Hình dạng 1 — GIỮ NGUYÊN hành vi đã nghiệm thu: không cần bằng
+            # chứng ghi thất bại, vắng toàn bộ là đủ để cảnh báo.
+            return {
+                "codes": len(wanted),
+                "note": catalog_display.MISSING_PROJECTION_NOTE,
+                "kind": "vang",
+            }
+        if not unmatched:
+            return None
+        # Hình dạng 2 — CHỈ cảnh báo khi có BẰNG CHỨNG lần ghi gần nhất hỏng
+        # vì một lý do có thể ảnh hưởng đúng những mã còn thiếu này.
+        status = catalog_display.last_write_status()
+        if status is None or status.written:
+            return None
+        if status.reason not in (catalog_display.REASON_NO_METADATA,
+                                 catalog_display.REASON_WRITE_FAILED):
+            return None
+        return {
+            "codes": len(unmatched),
+            "note": catalog_display.stale_metadata_note(status.reason),
+            "kind": "cu",
+        }
+
+    def _refresh_catalog_display(captures) -> catalog_display.WriteResult:
+        """`R5.1 REPAIR-2` — làm mới bản chiếu hiển thị từ capture CỦA LẦN CHẠY.
+
+        ## Lỗi production mà hàm này đóng lại
+
+        Trước bản sửa, `catalog_display` CHỈ được ghi trong
+        `_tracking_snapshot()`, tức chỉ khi Owner mở bảng chọn phân loại của
+        MỘT dòng. Luồng chính — upload sổ rồi bấm chạy — không ghi và không làm
+        mới nó. Trên đĩa ephemeral của Render, bản chiếu biến mất sau mỗi lần
+        deploy và KHÔNG có gì dựng lại nó, nên tab Nhân viên hiện tên dài trên
+        sổ kế toán và cột Hãng chỉ có dấu gạch — kể cả với những dòng đã có
+        mapping `CONFIRMED`.
+
+        Đây KHÔNG phải `AR-R5.1-04`. Rủi ro đã ghi nhận ấy nói về việc *chờ lần
+        capture danh mục MỚI đầu tiên*; một lần chạy báo cáo THÀNH CÔNG chính
+        là một lần capture danh mục mới — nó chỉ không được dùng.
+
+        ## Không gọi Tracking lần thứ hai
+
+        Hàm nhận `captures` ĐÃ CÓ của lần chạy đó (`OwnerRun.captures`) và đọc
+        lại đúng file capture trên đĩa. Nó KHÔNG gọi `_select_captures_for_run`
+        và KHÔNG gọi `live_pull`: một lần pull thứ hai chỉ để lấy nhãn hiển thị
+        sẽ giữ authority thô của Tracking trên đĩa lâu hơn cần thiết (`S071`
+        §10) và thêm một lần gọi mạng cho mỗi lần chạy.
+
+        Nó phải chạy TRONG `try` của `run_report`, trước khi `finally` gọi
+        `live_handle.cleanup()` — sau đó file capture không còn.
+
+        Trả về `WriteResult` để `run_report` ghi vào `tracking_evidence`. Mọi
+        thất bại đều là `written=False` KÈM LÝ DO, không bao giờ một ngoại lệ:
+        bản chiếu là NHÃN, và làm hỏng một lần chạy báo cáo vì một cái nhãn là
+        đánh đổi sai chiều.
+        """
+        catalog_path = getattr(captures, "tracking_catalog", None)
+        if catalog_path is None:
+            # `write(None)` thay vì tự dựng `WriteResult` tay: cả hai cho ra
+            # cùng giá trị, nhưng đi qua `write()` thì lần "không có gì để
+            # ghi" này CŨNG được `_record_status` lưu lại — nên `last_write_
+            # status()` phản ánh đúng lần chạy gần nhất, kể cả khi nó không
+            # có capture nào.
+            return catalog_display.write(None)
+        try:
+            snapshot = load_tracking_catalog_capture(catalog_path)
+        except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
+            return catalog_display.write(None)
+        return catalog_display.write(snapshot)
+
     def _tracking_inv_map_snapshot():
         """`inv.map` hiện tại, hoặc `None` — dùng CHỈ khi giải mâu thuẫn.
 
@@ -2066,6 +2195,12 @@ def create_app(
             # `None`. Không có khối thứ hai, không có trang thứ hai.
             identity_warning=line_identity.sheet_warning(
                 scoped.details, decisions=decisions),
+            # `R5.1 REPAIR-2` — bản chiếu hiển thị vắng mặt trong khi CÓ mapping
+            # đã xác nhận. Không có dòng này thì cột Hãng/Nhóm hàng chỉ có dấu
+            # gạch mà không gì trên màn hình giải thích vì sao — đúng triệu
+            # chứng production đã gặp.
+            catalog_projection_warning=_catalog_projection_warning(
+                scoped.details),
             identify=identify,
             unclassifiable_note=line_identity.UNCLASSIFIABLE_NOTE,
             excluded=workspace_presentation.excluded_rows(view["data"].excluded),
@@ -3196,6 +3331,31 @@ def create_app(
                     error="Không thể tạo báo cáo. Kiểm tra workbook và thử lại.",
                     status=400,
                 )
+
+            # `R5.1 REPAIR-2` — làm mới bản chiếu hiển thị NGAY trên luồng
+            # chính, từ capture danh mục CỦA CHÍNH lần chạy này.
+            #
+            # Ưu tiên `owner_run.captures`, KHÔNG phải biến `captures` của
+            # route: khi `live_pull` chưa cấu hình (máy Owner), route truyền
+            # `None` và `run_owner_report` tự chọn capture cục bộ —
+            # `owner_run.captures` là nơi duy nhất biết capture nào ĐÃ THẬT SỰ
+            # được dùng.
+            #
+            # `getattr(...) or captures` là một hàng rào có chủ ý, không phải
+            # phòng thủ mù: hợp đồng của `run_owner_report` là một điểm nối mà
+            # nhiều bài kiểm thay bằng một đối tượng giả gọn hơn, và một tính
+            # năng NHÃN không được phép làm sập cả lần chạy báo cáo chỉ vì đối
+            # tượng ấy thiếu một trường. Cả hai vế `None` ⟹ `NO_SNAPSHOT`, và
+            # bằng chứng của run nói ra điều đó.
+            #
+            # Kết quả đi vào `tracking_evidence`, nên một lần ghi thất bại có
+            # mặt trong bằng chứng của run thay vì biến mất.
+            catalog_status = _refresh_catalog_display(
+                getattr(owner_run, "captures", None) or captures)
+            tracking_evidence = {
+                **(tracking_evidence or {}),
+                "catalog_display": catalog_status.as_evidence(),
+            }
 
             duration_ms = int((time.monotonic() - started) * 1000)
             summary = owner_run.demo_run.summary

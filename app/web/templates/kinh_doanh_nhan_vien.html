@@ -222,6 +222,28 @@
   </p>
   {% endif %}
 
+  {# `R5.1 REPAIR-2` — bản chiếu hiển thị của danh mục Tracking không nói đủ
+     những gì nó đáng ra phải nói, TRONG KHI sheet này có dòng đã xác nhận mã.
+     Hai hình dạng, cùng một chỗ hiện (`data-kind` phân biệt):
+
+       vang   bản chiếu KHÔNG nói được gì về BẤT KỲ mã nào — vắng toàn bộ
+       cu     bản chiếu có dữ liệu CŨ, nhưng lần chạy gần nhất không làm mới
+              được nó, và vẫn còn mã CONFIRMED thiếu nhãn (staleness)
+
+     Không có dòng này thì cột Hãng/Nhóm hàng chỉ có dấu gạch và không gì
+     trên màn hình nói vì sao — đúng triệu chứng production đã gặp, ở cả hai
+     hình dạng.
+
+     Giọng THÔNG BÁO (notice), không đỏ: đây là một trạng thái hạ tầng của
+     NHÃN, không phải một con số sai. Câu chữ nói thẳng điều đó, để không ai
+     đọc nó thành "báo cáo sai". #}
+  {% if catalog_projection_warning %}
+  <p class="notice" data-metric="catalog-projection-warning"
+     data-codes="{{ catalog_projection_warning.codes }}"
+     data-kind="{{ catalog_projection_warning.kind }}"
+     >{{ catalog_projection_warning.note }}</p>
+  {% endif %}
+
   {# `§PI-04` — bảng chọn mặt hàng của ĐÚNG MỘT dòng. Nó sống ngay trong
      module bảng kê: mở nó KHÔNG rời khỏi sheet, và đóng nó là bấm HUỶ. #}
   {% if identify %}
