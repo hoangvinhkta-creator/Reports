@@ -241,7 +241,10 @@ class TestDiscountDisplayDecomposition:
         rows = business_presentation.detail_rows(details)
         assert [(row["order_key"], row["synthetic"]) for row in rows] == [
             ("BH1", False), ("BH1", True), ("BH2", False), ("BH2", True)]
+        # `DEC-212` — ô đọc theo nghìn đồng; bản VND đầy đủ ở `text_full`.
+        assert rows[1]["total_sales"]["text_kvnd"] == "-100"
         assert rows[1]["total_sales"]["text"] == "-100.000"
+        assert rows[3]["total_sales"]["text_kvnd"] == "-250"
         assert rows[3]["total_sales"]["text"] == "-250.000"
 
     def test_the_discount_row_sits_immediately_after_its_parent(self):
@@ -304,7 +307,9 @@ class TestDiscountRowsNeverContaminatePHB03:
         assert len(synthetic) == 1
         assert synthetic[0]["pending"] is False
         assert synthetic[0]["blockers"] == []
-        assert synthetic[0]["purchase_price"] == "100.000", "là TIỀN chiết khấu"
+        # `DEC-212` — ô đọc theo nghìn đồng, bản VND đầy đủ ở `*_full`.
+        assert synthetic[0]["purchase_price"] == "100", "là TIỀN chiết khấu"
+        assert synthetic[0]["purchase_price_full"] == "100.000"
 
     def test_case_4_the_pending_filter_never_selects_a_discount_row(
         self, repository, client
@@ -380,7 +385,19 @@ class TestTheDisplayNeverSubtractsTheDiscountTwice:
 
     @staticmethod
     def _displayed(details, key):
-        """Cộng lại đúng những con số MÀN HÌNH đang hiện, đọc ngược từ text."""
+        """Cộng lại đúng những con số MÀN HÌNH đang hiện, đọc ngược từ text.
+
+        Đọc `text` (bản VND đầy đủ) chứ không `text_kvnd`: `DEC-212` cho
+        mỗi ô tiền HAI bản
+        đều nằm trên màn hình — bản NGHÌN ĐỒNG in ra, bản VND đầy đủ trong
+        tooltip — và chỉ bản đầy đủ mới cộng lại được thành một con số so
+        khớp. Tổng của các ô ĐÃ LÀM TRÒN không bao giờ bằng tổng đã làm tròn
+        (mỗi ô lệch tới nửa nghìn, N ô lệch tới N nửa nghìn), nên cộng bản
+        rút gọn sẽ đo phép LÀM TRÒN chứ không đo mệnh đề của bài kiểm này.
+
+        Mệnh đề ấy không đổi và vẫn là mệnh đề chính: chiết khấu bị trừ ĐÚNG
+        MỘT LẦN trên đường hiển thị.
+        """
         total = Decimal(0)
         for row in business_presentation.detail_rows(details):
             text = row[key]["text"]

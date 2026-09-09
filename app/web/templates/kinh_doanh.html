@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
+{% import "_icons.html" as icons %}
 {% import "_business_bits.html" as biz %}
 {% set active_tab = 'bao-cao' %}
-{% set theme = 'finance' %}
 {% block title %}Reports — Tổng hợp kinh doanh{% endblock %}
 
 {% block content %}
@@ -101,7 +101,7 @@
    đọc dữ liệu nào. #}
 <div class="chart-row">
 <div class="module chart-half" id="bieu-do-doanh-thu">
-  <h2>Xu hướng doanh thu
+  <h2>{{ icons.ico('xu-huong') }}Xu hướng doanh thu
     <span class="cnt" data-metric="chart-total">{{ chart.total_kvnd }} nghìn đồng</span>
     {% if not chart.empty %}{{ biz.chart_help(chart) }}{% endif %}</h2>
 
@@ -138,7 +138,8 @@
       {% endfor %}
     </div>
     <div class="rev-chart-plot">
-      <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
+      <div class="rev-line" style="--rev-h: {{ chart.svg_height }}px"
+           data-metric="chart" data-gran="{{ chart.granularity }}">
         <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
              preserveAspectRatio="none" role="img"
              aria-label="Doanh thu {{ chart.current_label }} so với {{ chart.comparison_label }}">
@@ -201,7 +202,8 @@
       {% endfor %}
     </div>
     <div class="rev-chart-plot">
-      <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
+      <div class="rev-line" style="--rev-h: {{ chart.svg_height }}px"
+           data-metric="chart" data-gran="{{ chart.granularity }}">
         <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
              preserveAspectRatio="none" role="img"
              aria-label="Xu hướng doanh thu theo {{ chart.granularity }}">
@@ -264,7 +266,7 @@
    (`DEC-127` §1). Tiêu đề vẫn là "Theo nhân viên": đây trước hết là bảng
    thành tích của con người. #}
 <div class="module">
-  <h2>Theo nhân viên
+  <h2>{{ icons.ico('nhan-vien') }}Theo nhân viên
     <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
   {# PHB-06 / PHB-07 — hai chiều gộp khác của CÙNG kết quả chính thức, mở từ
      đây chứ KHÔNG phải một tab chính mới (`DEC-185` giữ thanh điều hướng ba
@@ -326,7 +328,7 @@
    nó giữ giọng đỏ và KHÔNG bị gộp vào danh sách "cần kiểm tra" bên dưới. #}
 {% if summary.undated_lines %}
 <div class="module coverage-gap">
-  <h2>Dòng chưa có ngày bán</h2>
+  <h2>{{ icons.ico('canh-bao') }}Dòng chưa có ngày bán</h2>
   <p class="error" data-metric="undated-lines">
     Có <strong>{{ summary.undated_lines }}</strong> dòng hiện hành chưa có ngày bán.
     Chúng KHÔNG được tính vào bất kỳ kỳ nào ở trên.
@@ -342,7 +344,7 @@
    lớn đổi. Mỗi mục mở ra là thấy đúng lời giải thích và đúng cái nút cũ. #}
 {% if pending.count %}
 <div class="module pending" data-metric="pending">
-  <h2>Cần kiểm tra
+  <h2>{{ icons.ico('canh-bao') }}Cần kiểm tra
     <span class="cnt" data-metric="pending-total">{{ pending.count }}</span></h2>
   {% for item in pending['items'] %}
   {% if item.code == 'coverage' %}

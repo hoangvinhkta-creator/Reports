@@ -74,9 +74,15 @@ def report(client, path="/kinh-doanh?ky=2026-09"):
     return body(client, path)
 
 
+#: `DEC-213` đặt một `<svg class="tp-ico">` giữa `<h2>` và nhãn chữ,
+#: nên mọi neo phải cho phép phần tử ấy đứng xen vào. Neo vẫn là NHÃN,
+#: không phải thẻ mở — đổi tên khối vẫn làm các bài kiểm này đỏ.
+H2_THEO_NHAN_VIEN = r"<h2>(?:<svg[^>]*>.*?</svg>)?Theo nhân viên"
+
+
 def code_cells(html: str) -> list[str]:
     """Nhãn của cột đầu tiên trong bảng "Theo nhân viên", theo đúng thứ tự."""
-    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    table = re.search(H2_THEO_NHAN_VIEN + r".*?</table>", html, re.S).group(0)
     return [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", cell)).strip()
             for cell in re.findall(r'<td class="code">(.*?)</td>', table, re.S)]
 
@@ -257,7 +263,7 @@ def test_r8_a_true_error_state_is_not_hidden_inside_pending(
 def test_r9_the_section_is_still_called_theo_nhan_vien(repository, client):
     persist(repository, mixed_month())
     html = report(client)
-    assert "<h2>Theo nhân viên" in html
+    assert re.search(H2_THEO_NHAN_VIEN, html, re.S) is not None
     for renamed in ("Theo đơn vị báo cáo", "Reporting unit", "Business unit"):
         assert renamed not in html
 
@@ -306,7 +312,7 @@ def test_a_noi_thanh_line_reaches_the_noi_thanh_row_not_an_employee_row(
 ):
     persist(repository, mixed_month())
     html = report(client)
-    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    table = re.search(H2_THEO_NHAN_VIEN + r".*?</table>", html, re.S).group(0)
     row = re.search(r"<tr[^>]*>(?:(?!</tr>).)*?Nội thành.*?</tr>", table, re.S).group(0)
     revenue = re.search(r'data-metric="sales_revenue"[^>]*>([^<]+)<', row).group(1)
     # 6.000.000 + 5.000.000 + 4.000.000 = 15.000.000 đồng ⟹ 15.000 nghìn đồng
@@ -344,7 +350,7 @@ def test_r15_r16_r17_the_displayed_rows_sum_to_the_official_total(
     """Bất biến `§42` đọc trên chính HTML mà Owner nhìn thấy."""
     persist(repository, mixed_month())
     html = report(client)
-    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    table = re.search(H2_THEO_NHAN_VIEN + r".*?</table>", html, re.S).group(0)
     rows = re.findall(r"<tr[^>]*>.*?</tr>", table, re.S)[1:]  # bỏ hàng tiêu đề
 
     displayed, total_row = Decimal(0), None
@@ -391,7 +397,7 @@ def test_no_line_is_counted_twice_across_the_displayed_rows(
     """Đếm DÒNG, chỗ mà một phép gộp trùng sẽ lộ ra ngay lập tức."""
     persist(repository, mixed_month())
     html = report(client)
-    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    table = re.search(H2_THEO_NHAN_VIEN + r".*?</table>", html, re.S).group(0)
     rows = re.findall(r"<tr[^>]*>.*?</tr>", table, re.S)[1:]
     coverage = [re.search(r'data-metric="coverage"[^>]*>([^<]+)<', row).group(1)
                 for row in rows]

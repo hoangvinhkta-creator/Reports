@@ -11,7 +11,7 @@ Hai quy tắc bất di bất dịch của tầng này (TASK-PRA-001 §8, §19):
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from app.legacy.models import SUMMARY_COLUMN_FIELDS
@@ -21,7 +21,10 @@ ORIGIN_TITLE = "Số cũ từ workbook Excel, giữ nguyên trạng — không d
 
 UNIT_LABELS = {
     "kvnd": "nghìn đồng (số cũ)",
-    "vnd": "đồng (số cũ)",
+    # `DEC-212` — cột này ĐỌC ra nghìn đồng như mọi ô tiền khác của repo. Nhãn
+    # nói đơn vị người dùng đang NHÌN, không nói đơn vị nguồn lưu: nguồn vẫn
+    # là VND nguyên và `to_vnd()` vẫn đọc nó như thế ở mọi đường TÍNH.
+    "vnd": "nghìn đồng (số cũ, nguồn lưu VND)",
     "count": "số lượng (số cũ)",
     "ratio": "tỉ lệ (số cũ)",
 }
@@ -78,14 +81,37 @@ def format_ratio(value: Optional[Decimal]) -> str:
 
 
 def format_cell(value: Optional[Decimal], unit_kind: str) -> str:
-    return format_ratio(value) if unit_kind == "ratio" else format_number(value)
+    """Cách VIẾT một ô của sổ cũ.
+
+    `DEC-212` — `"vnd"` là đơn vị NGUỒN LƯU, không phải đơn vị đọc: ô ấy hiện
+    ra theo nghìn đồng như mọi ô tiền khác trên repo. `"kvnd"` KHÔNG bị chia
+    lần nữa — nguồn của nó đã là nghìn đồng, và chia hai lần cho ra một con số
+    nhỏ hơn một triệu lần mà vẫn trông hợp lý.
+    """
+    if unit_kind == "ratio":
+        return format_ratio(value)
+    if unit_kind == "vnd" and value is not None:
+        return format_number(
+            (Decimal(value) / Decimal(1000)).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP))
+    return format_number(value)
 
 
 def cell(row: dict, field: str, unit_kind: str) -> dict:
-    """Một ô hiển thị: giá trị đã định dạng + đơn vị + mã lỗi của đúng ô đó."""
+    """Một ô hiển thị: giá trị đã định dạng + đơn vị + mã lỗi của đúng ô đó.
+
+    Cùng HỢP ĐỒNG Ô TIỀN với phần còn lại của repo (`DEC-212`): `text` là bản
+    đầy đủ/nguyên gốc, `text_kvnd` là bản để IN RA. Ô không phải `"vnd"` không
+    có gì để rút, nên hai bản bằng nhau — bằng nhau chứ không để trống, để
+    template chỉ cần một đường đọc duy nhất.
+    """
     defects = (row.get("known_defects") or {}).get(FIELD_TO_COLUMN.get(field, ""), [])
+    raw = row.get(field)
+    full = format_number(raw) if unit_kind == "vnd" else format_cell(raw, unit_kind)
     return {
-        "text": format_cell(row.get(field), unit_kind),
+        "text": full,
+        "text_kvnd": format_cell(raw, unit_kind),
+        "text_full": full if unit_kind == "vnd" and raw is not None else None,
         "empty": row.get(field) is None,
         "unit": UNIT_LABELS[unit_kind],
         "defects": [{"code": code, "label": DEFECT_LABELS.get(code, code)} for code in defects],

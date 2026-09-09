@@ -911,7 +911,8 @@ def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
     persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
     html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
     # Doanh thu là con số kế toán đã ghi — có ngay cả khi chưa có giá nhập.
-    assert metric(html, "total-sales") == "8.000.000"
+    # `DEC-212` — ô đọc theo nghìn đồng (8.000.000 đồng ⟹ 8.000).
+    assert metric(html, "total-sales") == "8.000"
     # Hai ô suy ra còn lại: `—` KÈM lý do, KHÔNG BAO GIỜ một số 0 bịa.
     assert metric(html, "line-profit") == "—"
     assert metric(html, "line-converted") == "—"
@@ -925,13 +926,16 @@ def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
         "ky": "2026-01", "loc": "tat-ca", "gia_nhap": "6.000.000"})
 
     after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=tat-ca")
-    assert metric(after, "purchase_price") == "6.000.000"
+    assert metric(after, "purchase_price") == "6.000"  # nghìn đồng (DEC-212)
     assert metric(after, "provenance") == "Owner đã nhập"
-    assert metric(after, "line-profit") == "2.000.000"       # (8tr − 6tr) × 1
+    assert metric(after, "line-profit") == "2.000"           # (8tr − 6tr) × 1
     # DS quy đổi = 2.000.000 ÷ 2 % = 100.000.000 (phép CHIA, `DEC-PHB02-04`).
-    assert metric(after, "line-converted") == "100.000.000"
+    assert metric(after, "line-converted") == "100.000"
     # Doanh thu KHÔNG bị thay bằng số lượng × đơn giá tính lại.
-    assert metric(after, "total-sales") == "8.000.000"
+    assert metric(after, "total-sales") == "8.000"
+    # …và bản VND đầy đủ vẫn đọc được ở tooltip của đúng những ô ấy, nên
+    # phép rút gọn không giấu mất con số gốc.
+    assert "2.000.000 đồng" in after and "100.000.000 đồng" in after
 
 
 def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(

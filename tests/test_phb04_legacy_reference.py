@@ -170,7 +170,7 @@ class TestProvenanceIsExplicit:
             legacy_reference.reference_periods(repository.query_monthly_reference()))
         assert rows
         for row in rows:
-            assert row["cell"]["unit"] == "đồng (số cũ)"
+            assert row["cell"]["unit"] == "nghìn đồng (số cũ, nguồn lưu VND)"
 
     def test_the_page_never_claims_the_current_engine_produced_these_numbers(self, loaded):
         html = page(loaded)

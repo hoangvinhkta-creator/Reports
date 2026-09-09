@@ -202,8 +202,11 @@
 {# Một ô tiền SUY RA. Thiếu đầu vào ⟹ `—` kèm lý do, KHÔNG BAO GIỜ một số 0
    bịa: một ô `0` trông như đã tính xong và ra kết quả bằng không. #}
 {% macro derived_cell(cell, metric) -%}
-<td class="num{{ ' empty-cell' if cell.missing }}" data-metric="{{ metric }}"
-    {% if cell.reason %}title="{{ cell.reason }}"{% endif %}>{{ cell.text }}</td>
+<td class="num{{ ' empty-cell' if cell.missing }}{{ ' neg' if cell.text_kvnd[:1] == '-' }}"
+    data-metric="{{ metric }}"
+    {% if cell.reason %}title="{{ cell.reason }}"
+    {%- elif not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+    >{{ cell.text_kvnd }}</td>
 {%- endmacro %}
 
 {# Khoá nghiệp vụ + ngữ cảnh trang, dùng chung cho mọi form ghi trên một dòng.

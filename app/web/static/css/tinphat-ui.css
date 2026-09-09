@@ -1,206 +1,296 @@
-/* Reports — design language tham chiếu Tracking (TASK-PRA-000 mục E).
+/* Reports — NGÔN NGỮ THIẾT KẾ TÍN PHÁT, chép từ Tracking (`DEC-213`).
  *
- * Đây là BẢN CHÉP TĨNH có chọn lọc: token màu/khoảng cách/bo góc, tab, card,
- * bảng, badge. KHÔNG hot-link file nào của Tracking, KHÔNG có runtime
+ * Owner chốt 09/09/2026: áp TOÀN BỘ ngôn ngữ thiết kế của Tracking sang
+ * Reports — font, cỡ chữ, màu, bo góc, icon, nền tối — để hai ứng dụng nhìn
+ * như MỘT hệ. Trước đó file này chỉ chép "có chọn lọc" một phần token
+ * (`TASK-PRA-000` mục E), và ba trang Owner xem hằng ngày còn bị một lớp đè
+ * thứ hai (`body.theme-finance`, `TASK-OWNER-UIUX-005` §4) kéo về một hệ màu
+ * KHÁC hẳn — đen/giấy của Finance. Hệ quả: cùng một tổ chức, ba giao diện.
+ *
+ * `DEC-213` GỠ lớp `theme-finance` đó. Đây là một quyết định thay thế có chủ
+ * đích, không phải một sự bỏ sót: `TASK-OWNER-UIUX-005` §4 chọn Finance khi
+ * phạm vi câu hỏi là "ba trang này nên trông thế nào"; câu hỏi nay là "toàn
+ * bộ hệ nên trông thế nào", và với câu hỏi đó một lớp đè chỉ áp ba trang là
+ * chính thứ tạo ra vấn đề.
+ *
+ * Vẫn là BẢN CHÉP TĨNH: KHÔNG hot-link file nào của Tracking, KHÔNG runtime
  * dependency, KHÔNG chép engine/JS/data contract của Tracking. Tracking chỉ
  * là tham chiếu thị giác, chỉ đọc.
  *
- * Lưu ý kỹ thuật đã biết: --tp-card và --tp-line là màu TRONG SUỐT, chỉ đúng
- * khi nền trang được đặt bằng --tp-bg — nên body luôn khai nền tường minh.
+ * Lưu ý kỹ thuật đã biết: `--tp-card`/`--tp-line` là màu TRONG SUỐT, chỉ đúng
+ * khi nền trang được đặt bằng `--tp-bg` — nên `body` luôn khai nền tường minh.
  *
- * Khác Tracking ở một điểm nghiệp vụ, cố ý: Tracking quy ước tăng = đỏ vì nó
- * nói về GIÁ. Reports nói về doanh thu/lợi nhuận nên tăng = xanh lá.
+ * Khác Tracking ở một điểm NGHIỆP VỤ, cố ý giữ: Tracking quy ước tăng = đỏ vì
+ * nó nói về GIÁ MUA VÀO. Reports nói về doanh thu/lợi nhuận nên tăng = xanh
+ * lá. Đây là ý nghĩa, không phải thẩm mỹ, nên nó không đi theo bản chép.
  */
 
 :root {
-  --tp-ink: #16181d;
-  --tp-ink2: #3c4149;
-  --tp-mut: #6b7280;
+  /* Trung tính — 80% giao diện */
+  --tp-ink: #111827;
+  --tp-ink2: #3d4a63;
+  --tp-mut: #56637f;
   --tp-bg: #f7f7f5;
-  --tp-card: rgba(255, 255, 255, 0.86);
-  --tp-line: rgba(22, 24, 29, 0.10);
-  --tp-line2: rgba(22, 24, 29, 0.045);
-  --tp-blue: #1d5bea;
-  --tp-blue-d: #1546b8;
-  --tp-sky: #e8effd;
-  --tp-green: #0a7a2f;
-  --tp-green-bg: #e6f4ea;
-  --tp-gold: #8a6100;
-  --tp-gold-bg: #fdf2d8;
-  --tp-red: #b00020;
-  --tp-red-bg: #fdecef;
+  --tp-card: rgba(255, 255, 255, .62);
+  --tp-solid: #f4f5f3;
+  --tp-line: rgba(255, 255, 255, .55);
+  --tp-line2: rgba(17, 24, 39, .08);
 
-  --tp-r-sm: 4px;
-  --tp-r-md: 8px;
-  --tp-r-lg: 12px;
-  --tp-r-xl: 16px;
+  /* Kính mờ — đặc trưng giao diện Tracking/CRM */
+  --glass: rgba(255, 255, 255, .55);
+  --glass-strong: rgba(255, 255, 255, .80);
+  --glass-soft: rgba(255, 255, 255, .38);
+  --glass-blur: blur(22px) saturate(150%);
+
+  /* Thương hiệu — 20% */
+  --tp-blue: #1d5bea;
+  --tp-blue-d: #1544b8;
+  --tp-sky: rgba(29, 91, 234, .12);
+  --tp-navy: #2b3a75;
+
+  /* Trạng thái */
+  --tp-green: #0f9d58;
+  --tp-green-bg: rgba(15, 157, 88, .14);
+  --tp-gold: #8a5f10;
+  --tp-gold-bg: rgba(212, 160, 23, .18);
+  --tp-red: #c4361f;
+  --tp-red-bg: rgba(196, 54, 31, .13);
+
+  /* Bo góc — 5 bậc */
+  --tp-r-sm: 10px;
+  --tp-r-md: 12px;
+  --tp-r-lg: 16px;
+  --tp-r-xl: 20px;
   --tp-r-pill: 999px;
 
+  /* Khoảng cách — bậc 4px */
   --tp-s1: 4px;
   --tp-s2: 8px;
   --tp-s3: 12px;
   --tp-s4: 16px;
   --tp-s5: 20px;
   --tp-s6: 24px;
-  --tp-s8: 32px;
+  --tp-s7: 32px;
+  --tp-s8: 44px;
 
-  --tp-shadow: 0 1px 2px rgba(22, 24, 29, 0.06);
-  --tp-tr: 120ms ease;
+  /* Khung ứng dụng desktop-first */
+  --app-pad: 28px;
+  --hdr-h: 58px;
+  /* Mật độ bảng: thoải mái 40px · gọn 34px */
+  --row-y: 8px;
+
+  /* Đổ bóng — 1 bậc, chỉ khi nổi lên */
+  --tp-shadow: 0 8px 32px rgba(17, 24, 39, .14);
+  /* Chuyển động */
+  --tp-tr: .22s cubic-bezier(.2, .8, .3, 1);
 }
 
-/* `TASK-OWNER-UIUX-005` §4 — design system tham chiếu Finance
- * (hoangvinhkta-creator/finance), CÙNG nguyên tắc "bản chép tĩnh có chọn
- * lọc" đã ghi ở đầu file cho Tracking: chỉ đọc token màu/kiểu chữ, KHÔNG
- * hot-link, KHÔNG runtime dependency, KHÔNG chép layout/component/JS của
- * Finance. Theo đúng phạm vi chủ dự án chốt, khối này CHỈ áp dụng cho ba
- * trang Owner đang xem hằng ngày (Báo cáo/Nhân viên/Dữ liệu) — không đổi
- * mọi trang khác (Bán hàng, Sản phẩm, Tổng quan, các trang "sổ thô"...),
- * nên mọi override nằm dưới `body.theme-finance`, không sửa `:root`.
- * `layout.html` gắn class này khi template đọc được biến `theme == 'finance'`
- * (khai qua `{% set theme = 'finance' %}` ở ba template trên) — cùng cơ
- * chế `active_tab` đã dùng cho thanh tab, không route nào tự biết về nó.
- *
- * Ánh xạ: `--tp-blue` (màu CHỦ ĐẠO — tab đang chọn/link/nút/đường biểu đồ)
- * đổi từ xanh dương sang ĐEN như `--ink` của Finance — mọi component dùng
- * `var(--tp-blue)` (nút, tab, link, đường biểu đồ SVG...) tự đổi màu theo,
- * không phải sửa lại từng nơi. `--tp-green`/`--tp-gold`/`--tp-red` GIỮ
- * NGUYÊN Ý NGHĨA trạng thái (chính thức/cảnh báo/lỗi) nhưng lùi bớt độ
- * bão hoà cho hài hoà với nền giấy ấm của Finance thay vì các màu tươi
- * gốc. `--tp-gold-bg` dùng ĐÚNG giá trị `--tint` của Finance (nền kem nhạt
- * cho trạng thái "đang chờ"/CHƯA HOÀN CHỈNH). */
-body.theme-finance {
-  --tp-ink: #151515;
-  --tp-ink2: #3c3c3c;
-  --tp-mut: #8a8a8a;
-  --tp-bg: #f6f6f4;
-  --tp-card: #ffffff;
-  --tp-line: #e4e4e2;
-  --tp-line2: #efefed;
-  --tp-blue: #151515;
-  --tp-blue-d: #000000;
-  --tp-sky: #f1f1ef;
-  --tp-green: #3f6b4a;
-  --tp-green-bg: #eef3ec;
-  --tp-gold: #8a6a1f;
-  --tp-gold-bg: #f8f5ea;
-  --tp-red: #96342a;
-  --tp-red-bg: #f6ece9;
-  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  font-variant-numeric: tabular-nums;
+/* Ánh xạ lại trên `body`: `body.dark` đổi `--tp-*` ở NGAY TẦNG NÀY, nên mọi
+ * `var()` bên dưới mới lấy đúng màu theo chủ đề. Khai ở `:root` là hỏng nền
+ * tối — đúng cái bẫy mà Tracking đã ghi lại trong chính file của nó. */
+body.dark {
+  --tp-ink: #e8ecf3;
+  --tp-ink2: #b8c1d1;
+  --tp-mut: #8b96a8;
+  --tp-bg: #12151c;
+  --tp-card: rgba(30, 36, 48, .62);
+  --tp-solid: #191d27;
+  --tp-line: rgba(255, 255, 255, .10);
+  --tp-line2: rgba(255, 255, 255, .07);
+  --glass: rgba(30, 36, 48, .58);
+  --glass-strong: rgba(24, 29, 39, .86);
+  --glass-soft: rgba(255, 255, 255, .05);
+  --tp-blue: #5b8dff;
+  --tp-blue-d: #7ba4ff;
+  --tp-sky: #1c2740;
+  --tp-navy: #c3cdf0;
+  --tp-green: #34c77b;
+  --tp-green-bg: #14301f;
+  --tp-gold: #e0a83a;
+  --tp-gold-bg: #332711;
+  --tp-red: #f0705a;
+  --tp-red-bg: #331a16;
+  --tp-shadow: 0 8px 32px rgba(0, 0, 0, .42);
 }
-body.theme-finance h1,
-body.theme-finance h2,
-body.theme-finance h3 { letter-spacing: -.01em; }
-
-/* `TASK-OWNER-UIUX-007` §2 — bỏ đường viền kẻ 1px quanh card/button (chủ
-   dự án yêu cầu trực tiếp: "bỏ các viền bo quanh các button đi và tất cả
-   các card, các tag" — xác nhận lại chỉ bỏ ĐƯỜNG KẺ, GIỮ nguyên góc bo
-   tròn/`border-radius` khi hỏi lại). Đổi màu viền thành trong suốt thay vì
-   `border-width: 0` để không đổi kích thước hộp (tránh xê dịch layout do
-   `box-sizing: border-box` đã tính viền vào chiều rộng/cao). `.tag`/
-   `.tag-dot` vốn đã không có viền kẻ nào (chỉ nền màu/`::before`) nên
-   không cần rule riêng. Khoanh vùng đúng ba trang theme Finance — không
-   đụng nút/thẻ của các trang khác (Bán hàng, Sản phẩm, Tổng quan...). */
-body.theme-finance .module,
-body.theme-finance .kpi-card,
-body.theme-finance .kpi-period,
-body.theme-finance .sheet-tab,
-body.theme-finance .act,
-body.theme-finance .ghost,
-body.theme-finance button {
-  border-color: transparent;
-}
-body.theme-finance .act:hover,
-body.theme-finance button:hover { border-color: transparent; }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
+  /* Trình duyệt trên điện thoại tự phóng cỡ chữ của khối chữ dài ("text
+     inflation"), làm mọi bố cục tính theo px lệch hết. Khoá lại, cỡ chữ do
+     CSS quyết. */
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   background: var(--tp-bg);
   color: var(--tp-ink);
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
   font-size: 16px;
+  -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
+  transition: background var(--tp-tr), color var(--tp-tr);
 }
 
 a { color: var(--tp-blue); }
 a:hover { color: var(--tp-blue-d); }
+button:focus-visible, input:focus-visible, textarea:focus-visible,
+select:focus-visible, a:focus-visible {
+  outline: 2px solid var(--tp-blue); outline-offset: 2px;
+}
+
+/* Biểu tượng: SVG nét, 24×24, `stroke="currentColor"` — cùng bộ và cùng quy
+   ước với Tracking, nên một icon chép qua không phải chỉnh gì. */
+.tp-ico { display: inline-block; vertical-align: -.18em; flex-shrink: 0; line-height: 0; }
+
+/* --- Thanh trượt kiểu iOS (chép từ Tracking) --------------------------
+   Con trượt là một viên thuốc xám trong mờ, thụt vào khỏi mép nội dung;
+   rãnh trong suốt; không nút mũi tên. Cách thụt lề: viền TRONG SUỐT +
+   `background-clip: padding-box` — tô thẳng nền thì con trượt dính sát mép
+   và nhìn ra ngay thanh trượt của Windows.
+
+   Chỉ áp cho máy có CON TRỎ THẬT. Trên cảm ứng, iOS/Android đã sẵn một vạch
+   trượt nổi tự mờ đi; tạo hình vào đó là biến nó thành thanh chiếm chỗ cố
+   định, vừa xấu vừa ăn mất bề ngang vốn đã hẹp. */
+:root { --sb: rgba(60, 60, 67, .34); --sb-h: rgba(60, 60, 67, .52); --sb-a: rgba(60, 60, 67, .66); }
+/* Con trượt của khung cuộn TRANG đọc biến ở tầng `<html>`, mà lớp `.dark`
+   lại nằm ở `<body>` — không bắc cầu bằng `:has` thì trang ở nền tối vẫn
+   dùng màu nền sáng. */
+body.dark, html:has(body.dark) {
+  --sb: rgba(235, 235, 245, .32); --sb-h: rgba(235, 235, 245, .50);
+  --sb-a: rgba(235, 235, 245, .64);
+}
+@media (hover: hover) and (pointer: fine) {
+  *::-webkit-scrollbar { width: 11px; height: 11px; }
+  *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--sb); border: 3px solid transparent;
+    background-clip: padding-box; border-radius: 99px;
+    transition: background-color var(--tp-tr);
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--sb-h); background-clip: padding-box; }
+  *::-webkit-scrollbar-thumb:active { background: var(--sb-a); background-clip: padding-box; }
+  /* Ngắn quá thì khó tóm bằng chuột — đặt sàn theo đúng chiều của thanh. */
+  *::-webkit-scrollbar-thumb:vertical { min-height: 38px; }
+  *::-webkit-scrollbar-thumb:horizontal { min-width: 38px; }
+  *::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  /* Firefox không có `::-webkit-scrollbar`. Hai thuộc tính chuẩn này PHẢI
+     nằm trong `@supports`: Chrome 121+ hễ thấy `scrollbar-color` là bỏ luôn
+     toàn bộ phần tạo hình bên trên. Khối này Chrome/Safari không vào. */
+  @supports not selector(::-webkit-scrollbar) {
+    * { scrollbar-width: thin; scrollbar-color: var(--sb) transparent; }
+  }
+}
 
 /* --- Header + tab bar ------------------------------------------------- */
 
 .tp-header {
   position: sticky; top: 0; z-index: 20;
-  display: flex; align-items: center; gap: var(--tp-s4);
-  height: 58px; padding: 0 var(--tp-s5);
-  background: var(--tp-card); backdrop-filter: blur(8px);
+  display: flex; align-items: center; gap: var(--tp-s3);
+  height: var(--hdr-h); padding: 0 var(--app-pad);
+  background: var(--tp-card);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--tp-line);
 }
 
-.tp-brand { font-size: 15px; font-weight: 800; letter-spacing: .02em; }
+.tp-brand {
+  font-size: 17px; font-weight: 600; letter-spacing: -.018em;
+  color: var(--tp-navy);
+}
 
 .tp-label {
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--tp-mut);
+  font-size: 12.5px; font-weight: 400; text-transform: none;
+  letter-spacing: 0; color: var(--tp-mut);
 }
 
+/* Nút sáng/tối — đẩy về mép phải bằng `margin-left: auto`, cùng chỗ Tracking
+   đặt nó. */
+.tp-theme-btn {
+  margin-left: auto;
+  background: transparent; border: 1px solid var(--tp-line);
+  color: var(--tp-ink2); border-radius: var(--tp-r-sm);
+  width: 34px; height: 34px; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: var(--tp-tr);
+}
+.tp-theme-btn:hover { background: var(--tp-line2); color: var(--tp-ink); }
+.tp-theme-btn svg { width: 17px; height: 17px; }
+
 .ncc-tabs {
-  display: flex; gap: var(--tp-s4); overflow-x: auto;
-  padding: 0 var(--tp-s5); background: var(--tp-card);
+  display: flex; gap: 2px; overflow-x: auto;
+  padding: 0 var(--app-pad); background: var(--tp-card);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--tp-line);
-  position: sticky; top: 58px; z-index: 19; min-height: 38px;
+  position: sticky; top: var(--hdr-h); z-index: 19; min-height: 38px;
+  align-items: flex-end;
 }
 
 .ncc-tab {
-  padding: var(--tp-s2) var(--tp-s1); white-space: nowrap;
+  padding: 10px 15px 9px; white-space: nowrap;
   font-size: 14px; font-weight: 600; color: var(--tp-ink2);
   text-decoration: none; border-bottom: 2px solid transparent;
-  transition: color var(--tp-tr), border-color var(--tp-tr);
+  display: flex; align-items: center; gap: 7px; margin-bottom: -1px;
+  transition: var(--tp-tr);
 }
-.ncc-tab:hover { color: var(--tp-blue); }
-.ncc-tab.on { color: var(--tp-blue); border-bottom-color: var(--tp-blue); }
+.ncc-tab:hover { color: var(--tp-ink); background: var(--tp-line2); }
+.ncc-tab.on { color: var(--tp-blue); border-bottom-color: var(--tp-blue); background: transparent; }
 
-.tp-main { padding: var(--tp-s6) var(--tp-s5) var(--tp-s8); }
-h1 { font-size: 21px; margin: 0 0 var(--tp-s4); }
-h2 { font-size: 17px; margin: 0 0 var(--tp-s3); }
+.tp-main { padding: var(--tp-s5) var(--app-pad) 80px; }
+h1 { font-size: 21px; margin: 0 0 var(--tp-s4); letter-spacing: -.018em; }
+h2 { font-size: 17px; margin: 0 0 var(--tp-s3); letter-spacing: -.018em; }
+h3 { letter-spacing: -.01em; }
 
 /* --- Card ------------------------------------------------------------- */
 
 .module {
   background: var(--tp-card); border: 1px solid var(--tp-line);
   border-radius: var(--tp-r-xl); padding: var(--tp-s5);
-  margin-bottom: var(--tp-s5); box-shadow: var(--tp-shadow);
+  margin-bottom: var(--tp-s4); box-shadow: var(--tp-shadow);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
 }
-.module > h2 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--tp-s2); }
+.module > h2 {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--tp-s2);
+  font-size: 14px; font-weight: 600;
+}
+/* Icon trong tiêu đề khối: mờ đi một bậc để nó là một cái mốc cho mắt, chứ
+   không tranh chỗ với chính dòng chữ nó đứng cạnh. */
+.module > h2 .tp-ico { color: var(--tp-mut); }
 .cnt {
-  border-radius: var(--tp-r-pill); background: var(--tp-line2);
-  padding: 0 var(--tp-s2); font-size: 12px; font-weight: 700; color: var(--tp-ink2);
+  margin-left: auto; color: var(--tp-mut); font-size: 12.5px; font-weight: 400;
+  background: transparent; padding: 0; border-radius: 0;
 }
 
 /* --- Bảng ------------------------------------------------------------- */
 
 .tp-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  font-variant-numeric: tabular-nums; table-layout: auto;
+}
 th {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--tp-ink2); text-align: left;
-  background: var(--tp-line2); padding: var(--tp-s2) var(--tp-s3); white-space: nowrap;
+  letter-spacing: .05em; color: var(--tp-mut); text-align: left;
+  background: var(--tp-line2); padding: var(--tp-s2) 10px; white-space: nowrap;
 }
+.module table th { border-bottom: 1px solid var(--tp-line); }
 td {
-  padding: var(--tp-s2) var(--tp-s3); font-size: 14px;
-  border-bottom: 1px solid var(--tp-line2);
+  padding: var(--row-y) 10px; border-top: 1px solid var(--tp-line);
+  border-bottom: none; vertical-align: middle;
+  color: var(--tp-ink2); line-height: 1.4;
 }
 td.num, th.num { text-align: right; white-space: nowrap; }
-/* TASK-UIUX-001 — số trong bảng viết THƯỜNG; chỉ dòng TỔNG (row-total) và
-   giá trị ÂM được nhấn. Khi mọi số đều đậm thì không số nào nổi bật —
-   tham chiếu Finance: số thường, tổng đậm, âm có màu. */
-td.num { font-weight: 400; }
+/* `DEC-213` thay `TASK-UIUX-001` ở ĐÚNG một điểm: số trong bảng viết ĐẬM
+   (600) và màu chữ chính, như Tracking, thay vì nét thường của tham chiếu
+   Finance. Lý do của luật cũ ("khi mọi số đều đậm thì không số nào nổi
+   bật") vẫn được tôn trọng, chỉ bằng một phương tiện khác: cột SỐ đậm hơn
+   cột CHỮ, và dòng TỔNG lại đậm hơn cột số — ba bậc, không phải hai. */
+td.num { font-weight: 600; color: var(--tp-ink); }
 td.num.neg { color: var(--tp-red); }
-td.code { font-weight: 600; white-space: nowrap; }
+td.code {
+  font-weight: 600; white-space: nowrap; color: var(--tp-ink);
+  font-size: 15.5px; letter-spacing: .01em;
+}
 td.empty-cell { color: var(--tp-mut); font-weight: 400; }
-tbody tr:hover td { box-shadow: inset 0 0 0 1px var(--tp-line); }
+tbody tr:hover td { box-shadow: inset 0 0 0 1px var(--tp-line2); }
 tr.row-total td { background: var(--tp-line2); font-weight: 700; }
 
 /* Ẩn khỏi MẮT nhưng vẫn ở trong DOM — trình đọc màn hình và test đọc HTML
@@ -232,16 +322,29 @@ tr.row-total td { background: var(--tp-line2); font-weight: 700; }
 
 /* --- Nút, bộ lọc, trạng thái ----------------------------------------- */
 
+/* Ba bậc nút của Tracking: `act` đặc (việc chính) · `ghost` viền (việc phụ)
+   · `btn-mini` nhỏ (thao tác trong dòng). Cùng bo góc, cùng chuyển động. */
 .act, .ghost, button {
-  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
-  border-radius: var(--tp-r-md); padding: var(--tp-s2) var(--tp-s4);
-  border: 1px solid var(--tp-blue); background: var(--tp-blue); color: #fff;
-  transition: background var(--tp-tr);
+  font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer;
+  border-radius: var(--tp-r-md); padding: 11px 24px;
+  border: 1px solid transparent; background: var(--tp-blue); color: #fff;
+  display: inline-flex; align-items: center; gap: var(--tp-s2);
+  transition: var(--tp-tr);
 }
 .act:hover, button:hover { background: var(--tp-blue-d); }
-.ghost { background: transparent; color: var(--tp-blue); }
-.ghost:hover { background: var(--tp-sky); }
-.btn-mini { padding: 2px var(--tp-s2); font-size: 12px; }
+.ghost {
+  background: var(--tp-card); color: var(--tp-ink);
+  border: 1px solid var(--tp-line); padding: 11px 18px; font-size: 13.5px;
+}
+.ghost:hover { background: var(--tp-line2); color: var(--tp-ink); }
+.btn-mini {
+  background: var(--tp-card); border: 1px solid var(--tp-line);
+  color: var(--tp-ink2); border-radius: var(--tp-r-sm);
+  padding: 5px 11px; font-size: 12px; font-weight: 600; gap: 5px;
+}
+.btn-mini:hover { border-color: var(--tp-blue); color: var(--tp-blue); background: var(--tp-card); }
+.btn-mini.on { border-color: var(--tp-blue); color: var(--tp-blue); background: var(--tp-sky); }
+a.act, a.ghost, a.btn-mini { text-decoration: none; }
 
 /* Nút đang xử lý một request chậm (upload + chạy pipeline) — không có gì
    khác đổi trên trang trong lúc chờ, nên đây là dấu hiệu DUY NHẤT nói "đang
@@ -269,11 +372,12 @@ tr.row-total td { background: var(--tp-line2); font-weight: 700; }
 .kpi-period {
   display: inline-flex; align-items: center; gap: var(--tp-s2);
   border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
-  padding: var(--tp-s1) var(--tp-s2); background: #fff;
+  padding: var(--tp-s1) var(--tp-s2); background: var(--tp-card);
 }
 select, input[type="text"], input[type="file"], textarea {
   font: inherit; font-size: 14px; border: 1px solid var(--tp-line);
-  border-radius: var(--tp-r-sm); padding: var(--tp-s1) var(--tp-s2); background: #fff;
+  border-radius: var(--tp-r-sm); padding: var(--tp-s1) var(--tp-s2);
+  background: var(--tp-card); color: var(--tp-ink);
 }
 textarea { width: 100%; }
 
@@ -300,7 +404,8 @@ textarea { width: 100%; }
 .kpi-card {
   display: flex; flex-direction: column; gap: 2px;
   padding: var(--tp-s3) var(--tp-s4); border: 1px solid var(--tp-line);
-  border-radius: var(--tp-r-md); background: #fff;
+  border-radius: var(--tp-r-md); background: var(--tp-card);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
 }
 .kpi-value {
   font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;
@@ -378,8 +483,13 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
   /* Hai nền của nhóm ngày. Chúng phải phân biệt được nhưng KHÔNG được
      đọc như một cảnh báo — `row-pending` (vàng) và `row-loss` (đỏ) là
      những trạng thái có nghĩa, còn hai màu này chỉ là ranh giới ngày. */
-  --tp-shade-a: #ffffff;
-  --tp-shade-b: #f0f1f4;
+  --tp-shade-a: rgba(255, 255, 255, .55);
+  --tp-shade-b: rgba(17, 24, 39, .05);
+}
+/* Cùng hai ranh giới ấy trên nền tối — không đảo ý nghĩa, chỉ đảo độ sáng. */
+body.dark {
+  --tp-shade-a: rgba(255, 255, 255, .03);
+  --tp-shade-b: rgba(255, 255, 255, .08);
 }
 
 /* §4 — hàng sheet nằm TRÊN báo cáo. Nó cố ý KHÁC `.ncc-tabs` về hình
@@ -417,8 +527,8 @@ tr.row-discount td:first-child { padding-left: 1.4rem; }
 /* Hình dạng GIỐNG `.kpi-card` (`TASK-OWNER-UIUX-007` §3): cùng padding,
    cùng bo góc bốn phía, cùng nền trắng — khác `.kpi-card` ở chỗ đây là
    LIÊN KẾT bấm được, nên có thêm căn giữa chữ + trạng thái chọn/hover.
-   Viền theo ĐÚNG rule `.kpi-card` (xem `body.theme-finance .kpi-card` ở
-   đầu file) — trang này luôn có `theme-finance` nên viền vốn đã ẩn. */
+   Viền theo ĐÚNG rule `.kpi-card`. `DEC-213` gỡ lớp `theme-finance` từng
+   ẩn viền của cả hai, nên nay cả hai dùng chung một viền kính mờ. */
 .sheet-tab {
   display: flex; align-items: center; justify-content: center;
   padding: var(--tp-s3) var(--tp-s4);
@@ -613,7 +723,9 @@ a.tag-dot { cursor: pointer; text-decoration: none; }
 .kpi-hero {
   display: flex; flex-direction: column; gap: 2px;
   padding: var(--tp-s3) var(--tp-s4); margin: var(--tp-s3) 0 var(--tp-s3);
-  border: 1px solid var(--tp-line); border-radius: var(--tp-r-md); background: #fff;
+  border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
+  background: var(--tp-card);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
 }
 .kpi-hero-row {
   display: flex; flex-wrap: wrap; align-items: baseline;
@@ -791,7 +903,7 @@ td[data-group] { white-space: nowrap; }
 .kpi-help-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 15px; height: 15px; border-radius: 50%; cursor: help;
-  border: 1px solid var(--tp-line); background: #fff;
+  border: 1px solid var(--tp-line); background: var(--tp-card);
   color: var(--tp-mut); font-size: 10px; font-weight: 700; line-height: 1;
 }
 /* `TASK-OWNER-UIUX-005` §4 — icon SVG nét mảnh (tham chiếu Finance, xem
@@ -814,7 +926,9 @@ td[data-group] { white-space: nowrap; }
      width` vẫn chặn nó lại ở 300px khi câu quá dài. */
   display: none; position: absolute; z-index: 5; left: 0; top: 100%;
   width: max-content; max-width: 300px; margin-top: var(--tp-s1);
-  text-align: left; padding: var(--tp-s2) var(--tp-s3); background: #fff;
+  /* Nền ĐỤC (`--tp-solid`), không phải kính mờ: tooltip nổi ĐÈ lên nội dung,
+     và một nền trong suốt ở đây cho chữ chồng lên chữ. */
+  text-align: left; padding: var(--tp-s2) var(--tp-s3); background: var(--tp-solid);
   border: 1px solid var(--tp-line); border-radius: var(--tp-r-md);
   box-shadow: var(--tp-shadow); color: var(--tp-ink2);
   font-size: 12px; font-weight: 400; white-space: normal;
@@ -868,7 +982,18 @@ td[data-group] { white-space: nowrap; }
    cố định của chính SVG, nên điểm và nhãn không bao giờ lệch nhau. */
 .rev-chart-plot { flex: 1 1 auto; min-width: 0; }
 .rev-line { position: relative; }
-.rev-line-svg { display: block; overflow: visible; width: 100%; height: auto; }
+/* Chiều cao PHẢI khoá theo `--rev-h`, không để `auto`. `preserveAspectRatio=
+   "none"` cho SVG kéo giãn tự do, nhưng `height: auto` lại tính chiều cao
+   theo TỈ LỆ `viewBox` (160/960): card hẹp hơn 960px thì SVG lùn đi, trong
+   khi cột nhãn trục Y bên cạnh vẫn cao đúng `chart.svg_height`. Hệ quả nhìn
+   thấy được: các nhãn "20.000 / 15.000 / …" trôi khỏi chính đường lưới mà
+   chúng ghi tên, và ở card nửa bề rộng thì hai nhãn cuối rơi hẳn xuống dưới
+   trục X. Khoá chiều cao bằng cùng một con số mà cột nhãn dùng thì hai bên
+   luôn cao bằng nhau, dù card rộng bao nhiêu. */
+.rev-line-svg {
+  display: block; overflow: visible;
+  width: 100%; height: var(--rev-h, 160px);
+}
 .rev-line-grid { stroke: var(--tp-line); stroke-width: 1; }
 .rev-line-path {
   fill: none; stroke: var(--tp-blue); stroke-width: 2.5;

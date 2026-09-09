@@ -93,7 +93,8 @@
       {% endfor %}
     </div>
     <div class="rev-chart-plot">
-      <div class="rev-line" data-metric="chart" data-gran="{{ chart.granularity }}">
+      <div class="rev-line" style="--rev-h: {{ chart.svg_height }}px"
+           data-metric="chart" data-gran="{{ chart.granularity }}">
         <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
              preserveAspectRatio="none" role="img"
              aria-label="{{ title }} — {{ chart.current_label }} so với {{ chart.comparison_label }}">

@@ -75,8 +75,15 @@ def route_source(name: str) -> str:
 
 
 def primary_tabs(html: str) -> list[str]:
-    return [t.strip() for t in
-            re.findall(r'class="ncc-tab[^"]*"[^>]*>([^<]+)</a>', html)]
+    """Nhãn CHỮ của các mục điều hướng chính, đã bóc thẻ con.
+
+    `DEC-213` đặt một `<svg>` biểu tượng trước nhãn mỗi tab, nên biểu thức
+    cũ (`>([^<]+)</a>`) không còn khớp gì và bài kiểm "đúng ba mục" âm thầm
+    trở thành "đúng không mục nào" — xanh vĩnh viễn, canh không còn gì. Bóc
+    thẻ rồi mới so là cách giữ nguyên MỆNH ĐỀ khi lớp trình bày đổi.
+    """
+    return [re.sub(r"<[^>]+>", "", inner).strip() for inner in
+            re.findall(r'class="ncc-tab[^"]*"[^>]*>(.*?)</a>', html, re.S)]
 
 
 def assert_three_primary_tabs(html: str) -> None:

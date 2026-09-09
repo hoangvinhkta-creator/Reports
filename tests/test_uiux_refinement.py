@@ -61,7 +61,7 @@ def test_the_group_column_never_shows_an_engineering_code(repository, client):
     # cầu trực tiếp) — hàng của Vinh đọc thành hàng NHÓM "Nội thành" và
     # không còn cột nào để mang mã nhóm nữa. Điều quan trọng nhất của test
     # này giữ nguyên: KHÔNG mã máy nào lọt ra chữ người đọc, trên TRANG này.
-    table = re.search(r"<h2>Theo nhân viên.*?</table>", html, re.S).group(0)
+    table = re.search(r"<h2>(?:<svg[^>]*>.*?</svg>)?Theo nhân viên.*?</table>", html, re.S).group(0)
     assert "Nhóm" not in table and 'data-group="' not in table
     for code in ENGINEERING_CODES:
         assert not re.search(rf">[^<]*\b{code}\b[^<]*<", html), code
@@ -114,7 +114,8 @@ def test_the_undated_footnote_is_not_a_module_when_there_is_nothing_to_warn(
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh?ky=2026-09")
     assert 'class="footnote" data-metric="undated-lines"' in html
-    assert "<h2>Dòng chưa có ngày bán</h2>" not in html
+    assert re.search(r"<h2>(?:<svg[^>]*>.*?</svg>)?Dòng chưa có ngày bán</h2>",
+                     html, re.S) is None
 
 
 def test_every_table_scrolls_inside_its_card(repository, client):

@@ -40,16 +40,42 @@ from tools.tracking import live_pull
 
 from tests.test_employee_workspace_ux import line, persist
 
-#: Kỳ đang xem trên cả hai trang. Tháng 9 là kỳ "hiện tại"; tháng 8 nằm trong
-#: cửa sổ so sánh của mức NGÀY (30 ngày liền trước) và phải hiện số THẬT.
+#: Kỳ đang xem trên cả hai trang. Tháng 9/2026 là kỳ "hiện tại"; `DEC-211`
+#: đổi cửa sổ so sánh từ "liền trước" sang CÙNG KỲ NĂM TRƯỚC, nên mốc phải
+#: hiện số THẬT nay nằm ở tháng 8/2025 — vẫn NGOÀI lát dữ liệu của kỳ đang
+#: chọn, tức vẫn đúng hình dạng lỗi mà `FIND-R6-IR-01` mô tả.
 CURRENT_PERIOD = "2026-09"
 TODAY = date(2026, 9, 30)
+
+#: Mép phải THẬT của hai biểu đồ khi đang xem `CURRENT_PERIOD`. `DEC-211`
+#: neo vào ngày có dữ liệu MỚI NHẤT, không vào ngày cuối kỳ — sổ này ghi tới
+#: 25/09/2026, nên cửa sổ kết thúc ở đó chứ không ở 30/09. Mọi kỳ vọng dưới
+#: đây tính lại từ hằng số này, không hard-code cửa sổ.
+ANCHOR = date(2026, 9, 25)
+
+#: Mốc "có tiền thật trong cửa sổ so sánh" của mức NGÀY, sau `DEC-211`.
+#: Cửa sổ hiện tại 31 mốc kết thúc ở `ANCHOR` (25/09/2026) nên bắt đầu từ
+#: 26/08/2026; cửa sổ so sánh là đúng khoảng ấy của 2025. 10/09/2025 nằm giữa
+#: nó, và `book_2025` đặt một dòng có tiền thật đúng vào ngày đó.
+PREV_DAY_KEY = "2025-09-10"
+PREV_DAY_REVENUE = "7000000"
 
 #: Khoảng xác nhận đầy đủ phải BAO TRỌN dữ liệu của snapshot
 #: (`history_store.confirm_coverage` từ chối khoảng hẹp hơn) — nên nó phủ cả
 #: hai cửa sổ, và đó chính là điều kiện KHUẾCH ĐẠI mà §7.1 mô tả: mốc không có
 #: điểm sẽ thành số 0 "đã đo" thay vì một khoảng trống nhìn ra được.
-CONFIRMED_RANGE = {"start": date(2026, 7, 1), "end": date(2026, 9, 30)}
+#:
+#: `DEC-211` kéo cửa sổ so sánh lùi một năm, nên phải có HAI khoảng: một cho
+#: cửa sổ hiện tại (2026), một cho cửa sổ so sánh (2025). Không gộp được thành
+#: một khoảng: `history_coverage.MAX_CONFIRMED_RANGE_DAYS` chặn ở 366 ngày, và
+#: cái chặn đó là một van thật (nó bắt lỗi gõ nhầm năm), không phải một chi
+#: tiết của fixture để đi vòng. Vì thế sổ được nạp thành HAI snapshot, mỗi
+#: snapshot xác nhận trên đúng khoảng của năm mình — và `confirmed_ranges`
+#: gom cả hai, đúng như nó vẫn làm với sổ thật của Owner.
+CONFIRMED_RANGES = (
+    {"start": date(2025, 7, 1), "end": date(2025, 9, 30)},
+    {"start": date(2026, 7, 1), "end": date(2026, 9, 30)},
+)
 
 
 def book():
@@ -59,21 +85,47 @@ def book():
     so sánh của nó:
 
     ```text
-    mức    cửa sổ hiện tại (neo 30/09)   cửa sổ so sánh      mốc có tiền
-    ngay   01/09–30/09                   02/08–31/08         10/08  7.000.000
-    tuan   12 tuần tới 30/09             12 tuần trước đó    tuần 06/07
-    thang  10/2025–09/2026               10/2024–09/2025     không cần
-    quy    8 quý tới Q3/2026             8 quý trước đó      không cần
+    mức    cửa sổ hiện tại (neo 30/09/2026)  cửa sổ so sánh    mốc có tiền
+    ngay   31/08/2026–30/09/2026             31/08–30/09/2025  10/08? không —
+                                                               xem dưới
+    tuan   13 tuần tới 30/09/2026            13 tuần ấy /2025  tuần 07/07/2025
+    thang  10/2025–09/2026                   10/2024–09/2025   08/2025
+    quy    Q4/2025–Q3/2026                   Q4/2024–Q3/2025   Q3/2025
     ```
 
-    Mức `thang`/`quy` có cửa sổ so sánh dài hơn dữ liệu của sổ này, nên bài
-    kiểm của chúng canh mệnh đề khác: cửa sổ hiện tại phải CHỨA các tháng/quý
-    có tiền thật của sổ, thay vì chỉ chứa tháng đang chọn.
+    `DEC-211` — cửa sổ so sánh nay là CÙNG KỲ NĂM TRƯỚC, nên sổ phải có
+    tiền thật ở năm 2025 thì bài kiểm mới đo được điều nó định đo. Các dòng
+    2025 là bản sao đúng NGÀY–THÁNG của các dòng 2026, chỉ lùi một năm: nhờ
+    thế mỗi mốc của cửa sổ so sánh nằm đúng dưới mốc tương ứng của cửa sổ hiện
+    tại, và một sai lệch cửa sổ sẽ hiện ra thành một cặp lệch chỗ chứ không
+    thành một con số ngẫu nhiên.
+
+    Riêng mức NGÀY: cửa sổ hiện tại 31 mốc kết thúc 30/09/2026 bắt đầu từ
+    31/08/2026, nên mốc 10/08 KHÔNG còn nằm trong cửa sổ nào. Mốc mang tiền
+    thật của cửa sổ so sánh ở mức Ngày là `PREV_DAY_KEY` = 10/09/2025 — cùng
+    ngày-năm-trước của 10/09/2026.
     """
+    return [*book_2025(), *book_2026()]
+
+
+def book_2025():
+    """Phần sổ của cửa sổ SO SÁNH — nạp thành một snapshot riêng."""
     return [
-        # Tháng 7 — nằm trong cửa sổ so sánh của mức TUẦN.
+        line("BH2507", "43F6000", year=2025, month=7, day=8, sell="5000000"),
+        line("BH2508", "XP352AE-DS", year=2025, month=8, day=10, sell="7000000",
+             kpi_purchase="4000000", kpi_profit="3000000"),
+        # Mốc NGÀY có tiền thật của cửa sổ so sánh (`PREV_DAY_KEY`).
+        line("BH2509", "RT38", year=2025, month=9, day=10, sell="7000000",
+             kpi_purchase="4000000", kpi_profit="3000000"),
+    ]
+
+
+def book_2026():
+    """Phần sổ của cửa sổ HIỆN TẠI — snapshot thứ hai."""
+    return [
+        # Tháng 7 — nằm trong cửa sổ hiện tại của mức TUẦN/THÁNG/QUÝ.
         line("BH0701", "43F6000", month=7, day=8, sell="5000000"),
-        # Tháng 8 — nằm trong cửa sổ so sánh của mức NGÀY.
+        # Tháng 8.
         line("BH0810", "XP352AE-DS", month=8, day=10, sell="7000000",
              kpi_purchase="4000000", kpi_profit="3000000"),
         line("BH0820", "RT38", month=8, day=20, sell="9000000",
@@ -99,11 +151,17 @@ def live(tmp_path_factory):
     history_db.create_all_for_test(engine)
     repository = history_store.SnapshotRepository(engine)
 
-    outcome = persist(repository, book(), run_id="run-1",
-                      at="2026-10-01T00:00:00.000000")
-    repository.confirm_coverage(outcome.snapshot_id, confirmed=True,
-                               confirmed_at="2026-10-02T00:00:00",
-                               **CONFIRMED_RANGE)
+    # Hai snapshot, mỗi cái xác nhận trên khoảng của năm mình — xem
+    # `CONFIRMED_RANGES`. Nạp 2025 TRƯỚC để bước R của lần xác nhận sau không
+    # đọc các dòng 2025 như vừa biến mất khỏi sổ.
+    for index, (pairs, span) in enumerate(
+            zip((book_2025(), book_2026()), CONFIRMED_RANGES), start=1):
+        outcome = persist(repository, pairs, run_id=f"run-{index}",
+                          at=f"2026-10-0{index}T00:00:00.000000",
+                          fingerprint=f"fp-{index}")
+        repository.confirm_coverage(
+            outcome.snapshot_id, confirmed=True,
+            confirmed_at=f"2026-10-0{index + 2}T00:00:00", **span)
 
     # `monkeypatch` là fixture theo HÀM, còn server ở đây dựng một lần cho cả
     # module — nên phải dùng `MonkeyPatch` tường minh và HOÀN NGUYÊN ở `finally`.
@@ -190,6 +248,30 @@ def current_points(block: str) -> dict[str, str]:
         r'[^>]*data-revenue="([^"]+)"', block)}
 
 
+def window_spans(granularity: str, anchor: date):
+    """`[(đầu, cuối)]` của CỬA SỔ HIỆN TẠI và CỬA SỔ SO SÁNH, riêng từng cái.
+
+    `paired_window_span` trả về khoảng HỢP của hai cửa sổ — đúng câu hỏi "phải
+    đọc dữ liệu từ ngày nào tới ngày nào", nhưng sai câu hỏi "hai cửa sổ phủ
+    những ngày nào". Trước `DEC-211` hai câu ấy có cùng đáp án vì hai cửa sổ
+    liền kề nhau; nay chúng cách nhau đúng một năm, nên khoảng hợp còn chứa cả
+    quãng ở giữa mà biểu đồ KHÔNG vẽ.
+
+    Dựng từ chính `window_slots` + `_bucket_span` của engine, nên nó không mở
+    ra một phép tính cửa sổ thứ hai để trôi khỏi cái đang chạy thật.
+    """
+    size = revenue_timeline.COMPARISON_WINDOW_SIZES[granularity]
+    spans = []
+    for window_anchor in (anchor,
+                          revenue_timeline.comparison_anchor(
+                              granularity, anchor, size)):
+        slots = revenue_timeline.window_slots(granularity, window_anchor, size)
+        low = revenue_timeline._bucket_span(slots[0][0], granularity)[0]
+        high = revenue_timeline._bucket_span(slots[-1][0], granularity)[1]
+        spans.append((low, high))
+    return spans
+
+
 def comparison_range(block: str) -> str:
     match = re.search(r'data-metric="chart-legend-comparison"[^>]*>(.*?)</span>',
                       block, re.S)
@@ -205,7 +287,7 @@ def test_the_r5_report_page_shows_the_real_previous_window_value(live):
     port, _engine, _repository = live
     block = chart_block(get(port, f"/kinh-doanh?ky={CURRENT_PERIOD}&muc=ngay"),
                         "bieu-do-doanh-thu")
-    assert comparison_points(block).get("2026-08-10") == "7000000"
+    assert comparison_points(block).get(PREV_DAY_KEY) == PREV_DAY_REVENUE
 
 
 # --- IR-01: doanh thu -------------------------------------------------------
@@ -216,7 +298,7 @@ def test_the_revenue_chart_shows_the_real_previous_window_value(live):
     block = chart_block(
         get(port, f"/kinh-doanh/phan-tich?ky={CURRENT_PERIOD}&muc=ngay"),
         "bieu-do-doanh-thu-r6")
-    assert comparison_points(block).get("2026-08-10") == "7000000"
+    assert comparison_points(block).get(PREV_DAY_KEY) == PREV_DAY_REVENUE
 
 
 def test_r5_and_r6_agree_on_every_comparison_bucket_of_the_revenue_chart(live):
@@ -233,7 +315,7 @@ def test_r5_and_r6_agree_on_every_comparison_bucket_of_the_revenue_chart(live):
 
 
 def test_the_revenue_chart_previous_window_is_not_all_zero(live):
-    """Bài canh đúng hình dạng lỗi mà review đo được: `{'0': 30}`."""
+    """Bài canh đúng hình dạng lỗi mà review đo được: `{'0': 31}`."""
     port, _engine, _repository = live
     block = chart_block(
         get(port, f"/kinh-doanh/phan-tich?ky={CURRENT_PERIOD}&muc=ngay"),
@@ -250,7 +332,7 @@ def test_the_orders_chart_shows_the_real_previous_window_value(live):
     block = chart_block(
         get(port, f"/kinh-doanh/phan-tich?ky={CURRENT_PERIOD}&muc=ngay"),
         "bieu-do-so-don")
-    assert comparison_points(block).get("2026-08-10") == "1"
+    assert comparison_points(block).get(PREV_DAY_KEY) == "1"
 
 
 def test_the_orders_chart_previous_window_is_not_all_zero(live):
@@ -276,7 +358,8 @@ def test_the_two_charts_cut_the_same_comparison_window(live):
 
 # --- Bao phủ NGÀY · TUẦN · THÁNG · QUÝ --------------------------------------
 
-@pytest.mark.parametrize("granularity", ["ngay", "tuan", "thang", "quy"])
+@pytest.mark.parametrize("granularity",
+                         ["ngay", "tuan", "thang", "quy", "nam"])
 def test_every_granularity_with_a_comparison_window_loads_real_data(
     live, granularity,
 ):
@@ -295,18 +378,20 @@ def test_every_granularity_with_a_comparison_window_loads_real_data(
     charted = sum(Decimal(value) for value in
                   (*current_points(block).values(),
                    *comparison_points(block).values()))
-    span = revenue_timeline.paired_window_span(granularity, TODAY)
-    assert span is not None, f"{granularity} phải có cửa sổ so sánh"
-    low, high = span
+    spans = window_spans(granularity, ANCHOR)
+    # Tính TỪNG cửa sổ rồi cộng, không tính trên khoảng hợp: hai cửa sổ nay
+    # cách nhau một năm (`DEC-211`), và ở mức NĂM chúng còn CHỒNG nhau bốn
+    # năm — một mốc nằm trong cả hai cửa sổ được vẽ hai lần, đúng như "năm nay
+    # so với năm ngoái" đòi hỏi. Cộng từng cửa sổ phản ánh đúng cả hai điều đó.
     real = sum(
-        (Decimal(pair[0].total_sales_raw) for pair in book()
-         if low <= pair[0].sale_date <= high), Decimal(0))
+        (Decimal(pair[0].total_sales_raw) for low, high in spans
+         for pair in book() if low <= pair[0].sale_date <= high), Decimal(0))
     assert charted == real, (
-        f"{granularity}: biểu đồ vẽ {charted}, sổ có {real} trong "
-        f"{low}..{high}")
+        f"{granularity}: biểu đồ vẽ {charted}, sổ có {real} trong {spans}")
 
 
-@pytest.mark.parametrize("granularity", ["ngay", "tuan", "thang", "quy"])
+@pytest.mark.parametrize("granularity",
+                         ["ngay", "tuan", "thang", "quy", "nam"])
 def test_every_granularity_charts_the_real_order_count(live, granularity):
     port, _engine, _repository = live
     block = chart_block(
@@ -315,9 +400,10 @@ def test_every_granularity_charts_the_real_order_count(live, granularity):
     charted = sum(int(Decimal(value)) for value in
                   (*current_points(block).values(),
                    *comparison_points(block).values()))
-    low, high = revenue_timeline.paired_window_span(granularity, TODAY)
-    real = len({pair[0].key.order_key for pair in book()
-                if low <= pair[0].sale_date <= high})
+    real = sum(
+        len({pair[0].key.order_key for pair in book()
+             if low <= pair[0].sale_date <= high})
+        for low, high in window_spans(granularity, ANCHOR))
     assert charted == real
 
 
@@ -336,11 +422,12 @@ def test_a_custom_range_anchors_the_window_on_its_own_end_date(live):
                   "?tu-ngay=2026-09-01&den-ngay=2026-09-20&muc=ngay"),
         "bieu-do-doanh-thu-r6")
     current = current_points(block)
-    # Neo = 20/09 ⟹ cửa sổ hiện tại 22/08–20/09 ⟹ mốc 25/09 KHÔNG được có mặt.
+    # Neo = 20/09 ⟹ cửa sổ hiện tại 21/08–20/09 ⟹ mốc 25/09 KHÔNG được có mặt.
     assert "2026-09-25" not in current
     assert current.get("2026-09-05") == "11000000"
-    # …và cửa sổ so sánh (23/07–21/08) vẫn nạp đủ dữ liệu thật của nó.
-    assert comparison_points(block).get("2026-08-10") == "7000000"
+    # …và cửa sổ so sánh (21/08/2025–20/09/2025) vẫn nạp đủ dữ liệu thật của
+    # nó — `DEC-211`: cùng kỳ NĂM TRƯỚC, không phải cửa sổ liền trước.
+    assert comparison_points(block).get(PREV_DAY_KEY) == PREV_DAY_REVENUE
 
 
 def test_a_custom_range_never_borrows_a_period_lock(live):
@@ -359,33 +446,37 @@ def test_a_genuinely_empty_confirmed_bucket_is_still_drawn_as_zero(live):
     """Luật của `R5` không bị nới: một mốc nằm TRỌN trong khoảng đã xác nhận
     đầy đủ mà sổ thật sự không có đơn nào vẫn được vẽ `0`.
 
-    11/08 nằm trong `CONFIRMED_RANGE` và sổ không có dòng nào ngày đó.
+    11/09/2025 nằm trong khoảng xác nhận của năm 2025, thuộc cửa sổ so sánh,
+    và sổ không có dòng nào ngày đó.
     """
     port, _engine, _repository = live
     block = chart_block(
         get(port, f"/kinh-doanh/phan-tich?ky={CURRENT_PERIOD}&muc=ngay"),
         "bieu-do-doanh-thu-r6")
-    assert comparison_points(block).get("2026-08-11") == "0"
+    assert comparison_points(block).get("2025-09-11") == "0"
 
 
 def test_a_bucket_outside_any_confirmed_range_stays_a_gap_not_a_zero(live):
     """Ngoài khoảng đã xác nhận, một mốc không có dữ liệu phải là KHOẢNG TRỐNG
     — không có chấm nào — chứ không phải số 0.
 
-    `CONFIRMED_RANGE` bắt đầu 01/07/2026. Mức TUẦN neo 30/09 có cửa sổ so sánh
-    lùi tới tháng 4, tức NGOÀI khoảng xác nhận; những mốc ấy phải vắng mặt.
+    Khoảng xác nhận sớm nhất bắt đầu 01/07/2025. Mức TUẦN neo 30/09/2026 có
+    cửa sổ so sánh 13 tuần kết thúc đầu tháng 9/2025, nên nó lùi tới tháng 6 —
+    NGOÀI khoảng xác nhận; những mốc ấy phải vắng mặt.
     """
     port, _engine, _repository = live
     block = chart_block(
         get(port, f"/kinh-doanh/phan-tich?ky={CURRENT_PERIOD}&muc=tuan"),
         "bieu-do-doanh-thu-r6")
-    span = revenue_timeline.paired_window_span("tuan", TODAY)
+    span = revenue_timeline.paired_window_span("tuan", ANCHOR)
     charted = {*current_points(block), *comparison_points(block)}
-    before_confirmed = [key for key in
-                        (key for key, _label in revenue_timeline.window_slots(
-                            "tuan", revenue_timeline.comparison_anchor(
-                                "tuan", TODAY, 12), 12))
-                        if date.fromisoformat(key) < CONFIRMED_RANGE["start"]]
+    weeks = revenue_timeline.COMPARISON_WINDOW_SIZES["tuan"]
+    earliest = min(span["start"] for span in CONFIRMED_RANGES)
+    before_confirmed = [
+        key for key, _label in revenue_timeline.window_slots(
+            "tuan", revenue_timeline.comparison_anchor("tuan", ANCHOR, weeks),
+            weeks)
+        if date.fromisoformat(key) < earliest]
     assert before_confirmed, "fixture phải có mốc ngoài khoảng xác nhận"
     assert not (set(before_confirmed) & charted), (
         f"mốc ngoài khoảng xác nhận bị vẽ thành 0: "

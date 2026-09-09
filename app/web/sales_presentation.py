@@ -28,7 +28,7 @@ from typing import Optional
 
 from app.beta_presentation import REASON_DISPLAY_LABELS
 from app.web.analytics_presentation import (
-    UNKNOWN_EMPLOYEE, count, money, profit,
+    UNKNOWN_EMPLOYEE, count, money, price, price_full, profit,
 )
 
 STATUS_AUTO = "AUTO"
@@ -110,7 +110,8 @@ def order_row(row: dict) -> dict:
         "multi_date": row["sale_date_from"] != row["sale_date_to"],
         "lines": count(lines),
         "quantity": money(row["quantity"]),
-        "total_sales": money(row["total_sales"]),
+        "total_sales": price(row["total_sales"]),
+        "total_sales_full": price_full(row["total_sales"]),
         "kpi_profit": profit(row["kpi_profit"], row["kpi_lines"], lines),
         "accounting_profit": profit(
             row["accounting_profit"], row["accounting_lines"], lines),
@@ -144,13 +145,20 @@ def line_row(row: dict) -> dict:
     return {
         "product": row["product_raw"] or "—",
         "quantity": money(row["quantity"]),
-        "sell_price": money(row["sell_price"]),
-        "discount": money(row["discount"]),
-        "total_sales": money(row["total_sales"]),
-        "accounting_purchase_price": money(row["accounting_purchase_price"]),
-        "kpi_purchase_price": money(row["kpi_purchase_price"]),
-        "accounting_profit": money(row["accounting_profit"]),
-        "kpi_profit": money(row["eligible_kpi_profit"]),
+        "sell_price": price(row["sell_price"]),
+        "sell_price_full": price_full(row["sell_price"]),
+        "discount": price(row["discount"]),
+        "discount_full": price_full(row["discount"]),
+        "total_sales": price(row["total_sales"]),
+        "total_sales_full": price_full(row["total_sales"]),
+        "accounting_purchase_price": price(row["accounting_purchase_price"]),
+        "accounting_purchase_price_full": price_full(row["accounting_purchase_price"]),
+        "kpi_purchase_price": price(row["kpi_purchase_price"]),
+        "kpi_purchase_price_full": price_full(row["kpi_purchase_price"]),
+        "accounting_profit": price(row["accounting_profit"]),
+        "accounting_profit_full": price_full(row["accounting_profit"]),
+        "kpi_profit": price(row["eligible_kpi_profit"]),
+        "kpi_profit_full": price_full(row["eligible_kpi_profit"]),
         "status": status(review),
         "review": review,
         "reasons": reason_labels(row["reasons"]),
@@ -186,7 +194,8 @@ def product_row(row: dict) -> dict:
         "product_label": row["product_label"] or "—",
         "quantity": money(row["quantity"]),
         "order_count": count(row["order_count"]),
-        "total_sales": money(row["total_sales"]),
+        "total_sales": price(row["total_sales"]),
+        "total_sales_full": price_full(row["total_sales"]),
         "kpi_profit": profit(row["kpi_profit"], row["kpi_lines"], lines),
     }
 
@@ -206,7 +215,8 @@ def product_summary(rows: list[dict], totals: dict) -> dict:
     return {
         "item_count": count(len(rows)),
         "quantity": money(totals["quantity"]),
-        "total_sales": money(totals["total_sales"]),
+        "total_sales": price(totals["total_sales"]),
+        "total_sales_full": price_full(totals["total_sales"]),
         "kpi_profit": profit(totals["kpi_profit"], totals["kpi_lines"], totals["lines"]),
     }
 

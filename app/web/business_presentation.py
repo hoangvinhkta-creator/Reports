@@ -390,6 +390,38 @@ def money_kvnd(value: Optional[Decimal]) -> str:
     return _thousand_vnd(value)
 
 
+# `DEC-212` — Owner chốt 09/09/2026: MỌI con số tiền trên màn hình viết theo
+# NGHÌN ĐỒNG, kể cả ĐƠN GIÁ của từng dòng hàng, không riêng các ô tổng đã đổi
+# ở `R1` §9. Lý do là lý do cũ, chỉ mở rộng phạm vi: một bảng mà cột tổng viết
+# `13.550` còn cột giá bán ngay cạnh viết `13.550.000` bắt người đọc đổi đơn
+# vị giữa hai cột kề nhau, và đó là chỗ một con số bị đọc lệch một nghìn lần.
+#
+# Bản VND đầy đủ KHÔNG bị bỏ: nó chuyển sang tooltip, đúng hợp đồng mà
+# `gated_cell`/`money_cell` đã dựng — không đường nào mất khả năng xem lại số
+# gốc. Ô NHẬP LIỆU là ngoại lệ có chủ đích, xem `PRICE_INPUT_NOTE`.
+#: Vì sao Ô NHẬP giữ VND đầy đủ trong khi mọi ô ĐỌC đã rút gọn.
+#:
+#: Rút gọn là một cách VIẾT ra; ô nhập là một cách ĐỌC vào, và hai chiều đó
+#: không đối xứng. Một ô hiện `5.000` mà lưu `5.000.000` buộc Owner phải nhớ
+#: mình đang gõ đơn vị nào — và lần quên đầu tiên ghi vào sổ một giá nhập sai
+#: đúng một nghìn lần, ở một trường mà cả lợi nhuận KPI lẫn DS quy đổi đều
+#: đọc. Không có tooltip nào cứu được một con số đã ghi sai.
+PRICE_INPUT_NOTE = (
+    "Ô nhập giá vẫn dùng VND đầy đủ (13.550.000), khác các ô chỉ để đọc — "
+    "gõ vào và đọc ra là hai chiều khác nhau."
+)
+
+
+def price_pair(value: Optional[Decimal], key: str) -> dict:
+    """`{key: bản nghìn đồng, key + "_full": bản VND đầy đủ}`.
+
+    Trả về một `dict` để nơi gọi `**`-ghép thẳng vào hàng, giữ hai bản LUÔN
+    đi cùng nhau: tách chúng thành hai lệnh gán riêng là mở đường cho một
+    hàng có bản rút gọn mà không có bản đối chiếu.
+    """
+    return {key: _thousand_vnd(value), f"{key}_full": _decimal(value)}
+
+
 def percent(value: Optional[Decimal], *, sign: bool = False) -> str:
     """`None` ⟹ `—`. KHÔNG BAO GIỜ in vô cực hay một phần trăm bịa."""
     if value is None:
@@ -770,10 +802,17 @@ def _derived_cell(value: Optional[Decimal], blockers: tuple[str, ...]) -> dict:
     kết quả bằng không; một ô `—` kèm câu "chưa có giá nhập" nói đúng sự thật
     và chỉ luôn việc phải làm.
     """
+    # `DEC-212` — HỢP ĐỒNG Ô TIỀN của repo, giống hệt `gated_cell`/`money_cell`
+    # đã dựng từ `R1` §9 và KHÔNG được đảo: `text` là bản VND ĐẦY ĐỦ (dùng cho
+    # tooltip và cho mọi phép cộng kiểm chứng), `text_kvnd` là bản NGHÌN ĐỒNG
+    # để in ra. Đặt ngược hai tên này là chỗ một `gated_cell` đi qua cùng một
+    # macro sẽ in bản đầy đủ trong khi hàng bên cạnh in bản rút gọn — đúng lỗi
+    # đã xảy ra một lần ở hàng TỔNG của bảng kê.
     if value is not None:
-        return {"text": _decimal(value), "missing": False, "reason": ""}
+        return {"text": _decimal(value), "text_kvnd": _thousand_vnd(value),
+                "missing": False, "reason": ""}
     reason = profit_gate.label(blockers[0]) if blockers else ""
-    return {"text": "—", "missing": True, "reason": reason}
+    return {"text": "—", "text_kvnd": "—", "missing": True, "reason": reason}
 
 
 # `TASK-OWNER-UIUX-002` — bảng "Theo nhân viên" của trang Báo cáo đọc CHÍNH
@@ -955,8 +994,9 @@ def detail_rows(details: list[dict], *, decisions=None,
             "sale_date": business_date(detail["sale_date"]),
             "product_raw": detail["product_raw"] or "—",
             "quantity": _decimal(product.quantity),
-            "sell_price": _decimal(product.sell_price),
-            "purchase_price": _decimal(product.purchase_price),
+            **price_pair(product.sell_price, "sell_price"),
+            **price_pair(product.purchase_price, "purchase_price"),
+            # Ô NHẬP giữ VND ĐẦY ĐỦ (`PRICE_INPUT_NOTE`).
             "purchase_price_input": (
                 "" if line.purchase_price is None else format_number(line.purchase_price)),
             "provenance": provenance,
@@ -969,7 +1009,8 @@ def detail_rows(details: list[dict], *, decisions=None,
             # `R2` — bối cảnh của chính lần Owner sửa: giá tự động NGAY TRƯỚC
             # lần sửa đó, và lúc sửa. Chỉ có ở dòng MANUAL_OVERRIDE; dòng
             # MANUAL không có giá tự động nào để thay, nên `—`.
-            "auto_price_at_entry": _decimal(detail.get("override_auto_price_at_entry")),
+            **price_pair(detail.get("override_auto_price_at_entry"),
+                         "auto_price_at_entry"),
             "has_auto_price_at_entry": (
                 detail.get("override_auto_price_at_entry") is not None),
             "entered_at": detail.get("override_entered_at") or "",
@@ -1069,14 +1110,15 @@ def _discount_row(detail: dict, line: bm.BusinessLine,
         "sale_date": business_date(detail["sale_date"]),
         "product_raw": DISCOUNT_ROW_LABEL,
         "quantity": _decimal(part.quantity),
-        "sell_price": _decimal(part.sell_price),
-        "purchase_price": _decimal(part.purchase_price),
+        **price_pair(part.sell_price, "sell_price"),
+        **price_pair(part.purchase_price, "purchase_price"),
         "purchase_price_input": "",
         "provenance": DISCOUNT_PROVENANCE,
         "provenance_label": DISCOUNT_PROVENANCE_LABEL,
         "pending": False,
         "overridden": False,
         "auto_price_at_entry": "—",
+        "auto_price_at_entry_full": "—",
         "has_auto_price_at_entry": False,
         "entered_at": "",
         "entered_by": "",
@@ -1315,7 +1357,11 @@ CHART_UNDATED_NOTE = (
 # đúng điểm dữ liệu cuối rồi dừng — phần còn lại để trống, không suy diễn.
 _CHART_PLOT_H = 160
 _CHART_VIEW_W = 960
-_CHART_PAD_X = 8
+#: `DEC-211` — Owner: "biểu đồ được thể hiện đầy đủ từ mép trái sang mép
+#: phải". Đệm bằng 0 để mốc đầu nằm ĐÚNG mép trái và mốc cuối ĐÚNG mép phải,
+#: thay vì thụt vào 8 đơn vị mỗi bên. Nhãn trục Y nằm ở một khối riêng ngoài
+#: `<svg>` nên không có gì bị cắt khi bỏ đệm.
+_CHART_PAD_X = 0
 
 #: Ngày cố định làm nhãn trục X ở mức Ngày — số tròn Owner yêu cầu, không
 #: phải MỌI ngày có dữ liệu. Ngày nào không tồn tại trong tháng đang xem
@@ -1572,6 +1618,36 @@ def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str
     return " — ".join(parts)
 
 
+def _window_x_ticks(slots, *, size: int) -> list[dict]:
+    """Nhãn trục X của một cửa sổ — thưa đều, và KHÔNG chồng lên nhãn cuối.
+
+    Mốc CUỐI luôn có nhãn: nó là mép phải, tức là "đến bao giờ", và một biểu
+    đồ không nói được điều đó thì mọi mốc còn lại cũng mất chỗ neo. Nhưng mốc
+    cuối không rơi đúng bước thưa, nên nó hạ cánh sát ngay cạnh nhãn thưa gần
+    nhất: với cửa sổ 31 ngày, bước 4, hai nhãn cuối là mốc 28 và mốc 30 —
+    cách nhau 6% bề rộng trong khi mỗi nhãn rộng hơn thế, và chúng chồng lên
+    nhau thành một vệt chữ không đọc được.
+
+    Cách xử lý: nhãn thưa nào cách mốc cuối CHƯA ĐỦ MỘT BƯỚC thì bỏ đi. Bỏ
+    cái thưa chứ không bỏ cái cuối — mất mép phải là mất nhiều hơn. Khoảng
+    trống rộng hơn một bước ở cuối trục là cái giá đã biết, và nó nhỏ hơn
+    hẳn cái giá của hai nhãn đè lên nhau.
+    """
+    if size <= 0:
+        return []
+    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS))
+    last = size - 1
+    keep = [slot for slot in slots
+            if slot.index == last
+            or (slot.index % stride == 0 and last - slot.index >= stride)]
+    return [
+        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
+                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
+         "label": slot.label}
+        for slot in keep
+    ]
+
+
 def paired_revenue_chart(
     paired, *, granularity: str, has_legacy_months: bool = False,
     undated: int = 0,
@@ -1598,14 +1674,7 @@ def paired_revenue_chart(
     # Nhãn trục X đọc từ CỬA SỔ HIỆN TẠI — trục là tương đối, nên nó chỉ
     # mang được một bộ nhãn thời gian, và bộ đúng là bộ của cửa sổ người
     # dùng đang hỏi về. Cửa sổ so sánh nói tên mốc của nó trong tooltip.
-    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS)) if size else 1
-    x_ticks = [
-        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
-                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
-         "label": slot.label}
-        for slot in paired.current
-        if slot.index % stride == 0 or slot.index == size - 1
-    ]
+    x_ticks = _window_x_ticks(paired.current, size=size)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
@@ -1706,14 +1775,7 @@ def paired_count_chart(
         point["title"] = _slot_title(point, paired.current_label, unit=unit)
     for point in previous_bars:
         point["title"] = _slot_title(point, paired.comparison_label, unit=unit)
-    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS)) if size else 1
-    x_ticks = [
-        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
-                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
-         "label": slot.label}
-        for slot in paired.current
-        if slot.index % stride == 0 or slot.index == size - 1
-    ]
+    x_ticks = _window_x_ticks(paired.current, size=size)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison

@@ -102,13 +102,13 @@ def test_the_mixed_order_is_shown_as_review_on_the_list(client):
     assert cell(row, "status") == sp.STATUS_REVIEW
     assert cell(row, "lines") == "4"
     assert cell(row, "quantity") == "5"
-    assert cell(row, "total_sales") == "66.000.000"
+    assert cell(row, "total_sales") == "66.000"  # nghìn đồng (DEC-212)
 
 
 def test_the_pure_auto_order_is_shown_as_auto_on_the_list(client):
     row = order_row(body(client, "/ban-hang?ky=tat-ca"), "BH62063")
     assert cell(row, "status") == sp.STATUS_AUTO
-    assert cell(row, "total_sales") == "7.500.000"
+    assert cell(row, "total_sales") == "7.500"
 
 
 def test_every_profit_cell_on_the_list_carries_its_coverage(client):
@@ -134,7 +134,7 @@ def test_the_list_hides_accounting_profit_by_default(client):
 def test_the_mixed_order_shows_partial_coverage_on_the_list(client):
     """Không có đường nào hiện "lợi nhuận 500.000" mà giấu đi mẫu số 1/4."""
     row = order_row(body(client, "/ban-hang?ky=tat-ca"), "BH62439")
-    assert cell(row, "kpi_profit") == "400.000"
+    assert cell(row, "kpi_profit") == "400"
     assert cell(row, "kpi_profit-coverage") == "1 / 4 dòng"
 
 
@@ -147,8 +147,8 @@ def test_the_detail_page_of_the_mixed_order_reads_as_the_oracle(client):
     assert cell(html, "sale-date") == "08/01/2026"
     assert cell(html, "lines") == "4"
     assert cell(html, "quantity") == "5"
-    assert cell(html, "total_sales") == "66.000.000"
-    assert cell(html, "kpi_profit") == "400.000"
+    assert cell(html, "total_sales") == "66.000"
+    assert cell(html, "kpi_profit") == "400"
     assert cell(html, "kpi_profit-coverage") == "1 / 4 dòng"
 
 
@@ -164,8 +164,8 @@ def test_the_detail_page_hides_accounting_profit_and_purchase_price_by_default(c
 
 
 def test_the_detail_page_warns_that_the_profit_is_only_part_of_the_order(client):
-    """Owner nhìn "500.000" cạnh "66.000.000" sẽ tin đó là lãi của cả đơn nếu
-    trang không nói thẳng ra. Cảnh báo này là chính nó."""
+    """Owner nhìn "500" cạnh "66.000" sẽ tin đó là lãi của cả đơn nếu trang
+    không nói thẳng ra. Cảnh báo này là chính nó."""
     html = body(client, "/ban-hang/BH62439?ky=tat-ca")
     assert "KHÔNG phải" in cell(html, "partial-coverage")
 
@@ -191,11 +191,11 @@ def test_the_auto_line_shows_the_reference_purchase_price_and_kpi_profit(client)
     row = line_rows(body(client, "/ban-hang/BH62439?ky=tat-ca"))[2]
     assert cell(row, "status") == sp.STATUS_AUTO
     assert cell(row, "quantity") == "2"
-    assert cell(row, "sell_price") == "10.500.000"
-    assert cell(row, "discount") == "100.000"
-    assert cell(row, "total_sales") == "20.900.000"
-    assert cell(row, "kpi_purchase_price") == "10.250.000"
-    assert cell(row, "kpi_profit") == "400.000"
+    assert cell(row, "sell_price") == "10.500"
+    assert cell(row, "discount") == "100"
+    assert cell(row, "total_sales") == "20.900"
+    assert cell(row, "kpi_purchase_price") == "10.250"
+    assert cell(row, "kpi_profit") == "400"
 
 
 def test_the_pending_lines_show_a_dash_and_never_a_zero(client):
