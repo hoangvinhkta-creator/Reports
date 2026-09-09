@@ -3381,3 +3381,95 @@ xác nhận `branch_authority_check.sh = AUTHORITY_OK` sau mỗi merge.
 không phiên nào tự đóng nó, kể cả phiên merge.
 
 Bằng chứng nguyên văn: `docs/sessions/S142-r51-owner-taxonomy-merge.md`.
+
+---
+
+## Root Task: R6
+
+```
+root_task: R6
+title: Dashboard phân tích kinh doanh
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
+blast radius của chính `R6`**, KHÔNG sao chép ngân sách `2` của `R5` — `R5`
+là `HIGH` vì một lý do mà `R6` không có (xem ngay dưới).
+
+`R6` là một **ROOT TASK LINEAGE MỚI**, không phải sub-unit của `R5`/`R5.1`: nó
+không mở rộng hợp đồng metadata mà hai task kia dựng, mà dựng một tầng ĐỌC mới
+trên đầu ra của chúng. Nó cũng KHÔNG được tạo ra để reset ngân sách của lineage
+nào — lineage `R5` vẫn giữ nguyên `2 allowed / 2 used / 0 remaining`, và không
+finding nào của `R6` được phép tiêu vào đó.
+
+**Blast Radius chấm theo failure path** (`V4.1` §4). Failure path của `R6`:
+
+```text
+PeriodData hiệu lực → aggregate R6 → bảng / biểu đồ / giỏ hàng phân tích
+                    → quyết định kinh doanh của Owner
+```
+
+Nó DỪNG ở đó, và ba tính chất CẤU TẠO giữ nó không đi xa hơn:
+
+1. **Không có đường GHI.** Không route `POST`, không bảng, không store quyết
+   định, không migration (`alembic` giữ nguyên một head của `R3`). Một lỗi ở
+   đây không sửa được một bản ghi kế toán nào.
+2. **Không định nghĩa lại một con số đã nghiệm thu.** Doanh thu đọc
+   `BusinessLine.total_sales`; số dòng, số đơn và doanh thu được ĐỐI SOÁT
+   TUYỆT ĐỐI với `business_metrics` ở MỖI lần tải trang, và phép đối soát ấy
+   được chứng minh là BẮT ĐƯỢC một dòng bị bỏ rơi
+   (`tests/test_r6_dashboard_metrics.py::test_reconciliation_fails_loudly_
+   when_a_line_is_dropped`).
+3. **Không tầng nào tiêu thụ `R6`.** Không module nào ngoài đường trình bày
+   của chính `R6` import `dashboard_metrics`/`product_metrics`/
+   `basket_metrics`.
+
+`3/5`, KHÔNG phải `2/5`, vì hai lý do THẬT: một bucket gộp sai làm Owner đọc
+ra một cơ cấu hàng bán sai và ra quyết định mua hàng sai (brief xếp "gộp sai
+khó phát hiện" vào nhóm bắt buộc repair); và `R6` mở một bề mặt drill-down mới
+trên dữ liệu dòng, tức một đường rò tiềm năng nếu bảng kê ấy nới ra.
+
+`3/5`, KHÔNG phải `4/5` như `R5`: `R5` có quyền LOẠI dòng khỏi tập được cộng
+và vì thế đổi được vân tay chốt kỳ lẫn file export. `R6` không có quyền đó,
+không chạm `period_lock`, không chạm `business_export`.
+
+```
+Effective Risk = max(Local Risk 3, Blast Radius 3) = MEDIUM
+```
+
+**Golden Baseline KHÔNG được dùng để hạ bậc** (`V4.1` §4.1): không Golden test
+nào phủ failure path "aggregate phân tích → quyết định kinh doanh", nên không
+có gì để hạ. `R6` KHÔNG viện dẫn Golden để giảm risk.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S143` không sửa tiếp triển
+khai của `R5`/`R5.1` — nó ĐỌC một `R5.1` đã merge trên nhánh mặc định của cả
+hai repo (Tracking `dc98910`, Reports `a59936c`, cả hai xác nhận là ancestor).
+
+Một thay đổi nhỏ ở `app/web/business_presentation.py` (thêm `paired_count_
+chart`, `money_text`, `money_kvnd`; `_slot_title` nhận thêm tham số `unit` CÓ
+GIÁ TRỊ MẶC ĐỊNH) là mã MỚI của `R6` đặt cạnh mã cũ để dùng chung hàm dựng
+hình, KHÔNG phải một repair của `R5`: không hành vi cũ nào đổi, và toàn bộ
+test `R5`/`DEC-R5-02` chạy lại nguyên trạng.
+
+Việc dời khối route `R6` trong `server.py` ra sau `business_save_gia_dung` là
+một sửa chữa của CHÍNH `R6` (nó làm đỏ một bài kiểm ranh giới của `PHB-07` khi
+đặt sai chỗ), phát hiện và sửa TRONG cùng phiên triển khai — theo `V4.1` §3 nó
+thuộc cùng cycle đang mở, và cycle đó chưa được tiêu vì chưa có vòng review
+nào ra `REPAIR_REQUIRED`.
+
+**Số dư còn `1 remaining`.** Nếu vòng Independent Review đầu tiên ra
+`REPAIR_REQUIRED`, repair cycle duy nhất của lineage `R6` sẽ bị tiêu; một vòng
+`REPAIR_REQUIRED` thứ hai làm lineage hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở cycle thứ hai.
+
+```text
+CHECK-R6-30  NOT_TESTED — đối soát trên SỔ THẬT của Owner
+CHECK-R6-31  NOT_TESTED — Independent Review
+CHECK-R6-32  NOT_TESTED — Owner Acceptance
+CHECK-R51-26 NOT_TESTED — chặn MERGE/DEPLOY của R6 (xem DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md`.

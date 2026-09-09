@@ -1,5 +1,67 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — R6: Dashboard phân tích kinh doanh, `IMPLEMENTED`, CHƯA merge (`S143`, 2026-09-09)
+
+**Phiên triển khai đầy đủ: mã, test, tài liệu. KHÔNG mở PR, KHÔNG merge,
+KHÔNG deploy, KHÔNG sửa một byte nào của repo Tracking.**
+
+`R6` là một tầng **CHỈ ĐỌC** dựng trên `PeriodData` hiệu lực của `R3`–`R5`:
+không migration, không bảng mới, không warehouse, không materialized view,
+không API ngoài, không route GHI, không product key thứ hai, không engine thời
+gian thứ hai, không taxonomy thứ hai.
+
+```text
+Năm package đã triển khai
+  1 Aggregate nền + hợp đồng phạm vi   analysis_range.py · dashboard_metrics.py
+  2 Tổng quan + hai biểu đồ hai cửa sổ  analytics_overview · paired_count_chart
+  3 Mặt hàng · Nhóm hàng · Hãng         product_metrics.py · product_taxonomy.py
+  4 Nhân viên (lát for_employee)        analytics_employee
+  5 Giỏ hàng + drill-down               basket_metrics.py · analytics_basket/drilldown
+
+Kiểm chứng
+  Test R6            138 bài mới, 7 file, tất cả PASS
+  Full regression    1 failed, 3397 passed, 11 skipped
+                     (nền trước R6: 1 failed, 3259 passed, 11 skipped
+                      — CÙNG một bài đỏ, là BASELINE clone nông, không phải
+                      hồi quy; +138 đúng bằng số bài R6 thêm vào)
+  Smoke xuyên 2 repo 24 PASS / 0 FAIL — producer Tracking THẬT → capture THẬT
+                     → dashboard/drill-down THẬT
+  Đối soát sổ        công cụ scripts/r6_book_reconciliation.py chạy khớp trên
+                     sổ golden (3.562.310.000 — con số freeze TRƯỚC R6) và
+                     tái tạo ĐỦ 8 con số vector Owner trên sổ tổng hợp
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+  Bất biến tiền      git diff RỖNG trên pricing/profit/kpi/period_lock/
+                     business_store/revenue_timeline/migrations/config
+
+Trạng thái check
+  CHECK-R6-01 … -29  PASS (E1)
+  CHECK-R6-30        NOT_TESTED — đối soát trên SỔ THẬT của Owner (file không
+                     được commit theo DEC-108 và không có trong môi trường)
+  CHECK-R6-31        NOT_TESTED — Independent Review
+  CHECK-R6-32        NOT_TESTED — Owner Acceptance
+  CHECK-R51-26       NOT_TESTED — GIỮ NGUYÊN, và nó CHẶN merge/deploy R6
+
+Ngân sách review   lineage MỚI `R6`: MEDIUM ⟹ 1 allowed / 0 used / 1 remaining
+                   ĐO LẠI từ blast radius 3/5, KHÔNG sao chép ngân sách 2 của R5
+                   lineage R5 KHÔNG bị chạm: 2 allowed / 2 used / 0 remaining
+```
+
+**`R6` chỉ được merge/deploy sau khi ĐỦ HAI điều: `CHECK-R51-26` hoàn tất trên
+production, VÀ `R6` qua Independent Review (`CHECK-R6-31`).** Lý do: bảng
+"Nhóm hàng"/"Hãng" của `R6` gộp TIỀN theo đúng những nhãn mà `CHECK-R51-26`
+còn chưa xác nhận là đúng trên dữ liệu thật.
+
+Tài liệu: `docs/spec/R6-EXECUTION-BRIEF.md` ·
+`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` ·
+`docs/sessions/S143-r6-dashboard-phan-tich.md` · `DEC-207` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
 ## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐÃ MERGE cả hai repo (`S142`, 2026-09-09)
 
 Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:

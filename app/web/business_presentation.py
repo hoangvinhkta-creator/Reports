@@ -376,6 +376,20 @@ def _thousand_vnd(value: Optional[Decimal]) -> str:
         (value / Decimal(1000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+# R6 §2 — hai tên CÔNG KHAI cho đúng hai hàm viết tiền ở trên. Chúng không
+# thêm một cách viết thứ ba: chúng chỉ cho các trang R6 dùng lại ĐÚNG hai hàm
+# này thay vì import xuyên qua dấu gạch dưới hoặc — tệ hơn — viết lại phép
+# chia 1.000 ở một file khác và làm tròn lệch đi ở đúng những con số lớn nhất.
+def money_text(value: Optional[Decimal]) -> str:
+    """VND đầy đủ, `—` khi `None`."""
+    return _decimal(value)
+
+
+def money_kvnd(value: Optional[Decimal]) -> str:
+    """Nghìn đồng — CHỈ để hiển thị, không bao giờ ở một đường tính."""
+    return _thousand_vnd(value)
+
+
 def percent(value: Optional[Decimal], *, sign: bool = False) -> str:
     """`None` ⟹ `—`. KHÔNG BAO GIỜ in vô cực hay một phần trăm bịa."""
     if value is None:
@@ -1534,15 +1548,20 @@ def _slot_polylines(points: list[dict]) -> list[str]:
     return segments
 
 
-def _slot_title(point: dict, window_label: str) -> str:
+def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str:
     """Lời giải thích của MỘT chấm — nói rõ nó thuộc cửa sổ nào.
 
     Không nói rõ là đúng lớp lỗi mà hai đường sinh ra: hai chấm cùng vị trí,
     hai con số khác nhau, và không gì trên màn hình cho biết cái nào là kỳ
     này.
+
+    `unit` mặc định `"đồng"` để mọi nơi gọi cũ giữ nguyên từng ký tự. R6 dùng
+    lại ĐÚNG hàm này cho biểu đồ SỐ ĐƠN với `unit="đơn"` — một chuỗi tooltip
+    thứ hai sẽ là chỗ hai biểu đồ cùng trang mô tả cùng một mốc bằng hai giọng
+    khác nhau.
     """
     parts = [f"{window_label} · {point['label']}",
-             f"{point['revenue']} đồng"]
+             f"{point['revenue']} {unit}"]
     # Chiều origin của `DEC-166 E` vẫn phải đọc được, và vẫn chỉ đọc được ở
     # đây — trong lời của đúng cái mốc đó, bằng ngôn ngữ THỜI GIAN, không
     # bằng một bộ chọn nguồn.
@@ -1635,6 +1654,114 @@ def paired_revenue_chart(
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
     }
+
+
+# --- R6 §2: biểu đồ SỐ ĐƠN, cùng engine cửa sổ với biểu đồ doanh thu --------
+#
+# Nó nằm ở ĐÂY, cạnh `paired_revenue_chart`, chứ không ở một module trình bày
+# riêng của R6 — và đó là một quyết định về ranh giới, không phải sự tiện tay:
+# hai biểu đồ phải chia mốc, chọn cửa sổ, cắt đường tại khoảng trống và tính
+# trần tròn GIỐNG NHAU, nên chúng phải dùng chung đúng những hàm dựng hình đó.
+# Đặt bản sao thứ hai ở một file khác là mở đường cho hai trục X trôi khỏi
+# nhau, và khi ấy hai điểm cùng vị trí trên hai biểu đồ sẽ là hai mốc thời
+# gian khác nhau mà không gì trên trang nói ra.
+#
+# `revenue_timeline` KHÔNG được sửa một dòng nào cho việc này: R6 dựng
+# `Point`/`PairedSeries` bằng chính `paired_series()` của R5, chỉ với SỐ ĐƠN
+# thay cho số tiền ở trường `revenue`.
+
+COUNT_CHART_UNIT = "đơn"
+
+COUNT_CHART_EMPTY_NOTE = (
+    "Chưa có đơn nào rơi vào cửa sổ đang xem, nên không có gì để vẽ. Đây khác "
+    "\"không có đơn nào\": một mốc chỉ được vẽ số 0 khi khoảng ngày ấy nằm "
+    "trong một sổ đã được xác nhận đầy đủ."
+)
+
+
+def paired_count_chart(
+    paired, *, granularity: str, undated_orders: int = 0,
+    unit: str = COUNT_CHART_UNIT, title_note: str = "",
+) -> dict:
+    """Mô hình hiển thị của biểu đồ SỐ ĐƠN hai cửa sổ (`R6 §2`).
+
+    Cùng hình dạng dict với `paired_revenue_chart` để một macro template duy
+    nhất vẽ được cả hai, nhưng các ô CHỮ nói bằng đơn vị đếm: `total_text` là
+    "N đơn", không phải "N nghìn đồng". Trộn hai đơn vị vào cùng một ô là cách
+    một người đọc nhanh lấy số đơn làm số tiền.
+
+    `paired` là `revenue_timeline.PairedSeries` mà trường `revenue` của mỗi
+    `Slot` mang SỐ ĐƠN. Việc dùng lại đúng value object của R5 là điều kiện để
+    hai biểu đồ trên cùng trang có cùng cửa sổ, cùng trục và cùng quy ước
+    khoảng trống — xem chú thích ở đầu khối này.
+    """
+    both = [slot for slot in (*paired.current, *paired.comparison)
+            if not slot.is_gap]
+    peak = max((slot.revenue for slot in both), default=Decimal(0))
+    ceiling = _chart_nice_ceiling(peak)
+    size = paired.size
+    bars = _slot_points(paired.current, ceiling=ceiling, size=size)
+    previous_bars = _slot_points(paired.comparison, ceiling=ceiling, size=size)
+    for point in bars:
+        point["title"] = _slot_title(point, paired.current_label, unit=unit)
+    for point in previous_bars:
+        point["title"] = _slot_title(point, paired.comparison_label, unit=unit)
+    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS)) if size else 1
+    x_ticks = [
+        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
+                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
+         "label": slot.label}
+        for slot in paired.current
+        if slot.index % stride == 0 or slot.index == size - 1
+    ]
+    current_total = sum((slot.revenue for slot in paired.current
+                         if not slot.is_gap), Decimal(0))
+    comparison_total = sum((slot.revenue for slot in paired.comparison
+                            if not slot.is_gap), Decimal(0))
+    return {
+        "svg_width": _CHART_VIEW_W,
+        "svg_height": _CHART_PLOT_H,
+        "y_axis": _chart_y_axis(ceiling),
+        "x_ticks": x_ticks,
+        "fixed_x_axis": True,
+        "paired": True,
+        "unit": unit,
+        "polylines": _slot_polylines(bars),
+        "comparison_polylines": _slot_polylines(previous_bars),
+        "granularity": granularity,
+        "options": [
+            {"key": key, "label": label, "on": key == granularity}
+            for key, label in revenue_timeline.GRANULARITIES
+        ],
+        "bars": bars,
+        "comparison_bars": previous_bars,
+        "current_label": paired.current_label,
+        "comparison_label": paired.comparison_label,
+        "current_range": _window_range_text(paired.current),
+        "comparison_range": _window_range_text(paired.comparison),
+        "empty": not both,
+        "empty_note": COUNT_CHART_EMPTY_NOTE,
+        "note": title_note or revenue_timeline.CHART_NOTE,
+        "scope_note": revenue_timeline.COMPARISON_SCOPE_TEXT.format(
+            current=_window_range_text(paired.current),
+            comparison=_window_range_text(paired.comparison)),
+        "comparison_note": revenue_timeline.COMPARISON_NOTE,
+        "gap_note": revenue_timeline.GAP_NOTE,
+        "has_gap": any(slot.is_gap for slot in (*paired.current,
+                                                *paired.comparison)),
+        "windowed": True,
+        "total": format_number(current_total),
+        "total_text": f"{format_number(current_total)} {unit}",
+        "comparison_total_text": f"{format_number(comparison_total)} {unit}",
+        "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
+        "partial_note": CHART_PARTIAL_NOTE,
+        "no_daily_legacy_note": None,
+        "undated": undated_orders,
+        "undated_note": (
+            "đơn không có ngày bán nào, nên không rơi vào mốc nào của biểu đồ. "
+            "Chúng vẫn nằm đủ trong tổng số đơn của phạm vi."),
+    }
+
 
 
 def _window_range_text(slots) -> str:
@@ -1781,6 +1908,8 @@ def _chart_bar_title(point) -> str:
 
 __all__ = [
     "ALL_DATA_LABEL", "CHART_EMPTY_NOTE", "CHART_PARTIAL_NOTE",
+    "COUNT_CHART_EMPTY_NOTE", "COUNT_CHART_UNIT", "paired_count_chart",
+    "paired_revenue_chart",
     "CHART_UNDATED_NOTE", "revenue_chart", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
     "KEEP_EMPLOYEE_LABEL",
     "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
@@ -1803,6 +1932,7 @@ __all__ = [
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",
     "not_seen_warning", "percent",
+    "money_kvnd", "money_text", "share_cell",
     "period_label", "period_options", "period_value", "summary",
     "employee_target_block", "target_cell", "target_rows", "vs_target_cell",
 ]

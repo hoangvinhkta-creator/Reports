@@ -12963,3 +12963,142 @@ References:
 - `docs/sessions/S142-r51-owner-taxonomy-merge.md`
 - `PROJECT/PROJECT_DECISIONS.md` → `DEC-205` (không thay thế, chỉ hoàn tất)
 - `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
+
+---
+
+## DEC-207
+
+Ngày: 2026-09-09
+Phiên: `S143` — `docs/sessions/S143-r6-dashboard-phan-tich.md`
+Thẩm quyền: Brief `R6 — Dashboard phân tích kinh doanh` do Owner ban hành.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge.
+
+### §1. `R6` là một tầng CHỈ ĐỌC trên `PeriodData`, không phải một nguồn thứ hai
+
+Nguồn duy nhất của mọi con số `R6` là `PeriodData` hiệu lực của `R3`–`R5`.
+Không đường nào của `R6` đọc thẳng Excel hay `ImportResult` để tính một ô
+dashboard. Excel gốc chỉ còn ba việc: import, đối soát, và drill-down.
+
+Hệ quả CẤU TẠO, không phải lời hứa: quyết định Owner (loại dòng, override giá
+nhập, gán lại nhân viên, tick Gia dụng) và dòng bị tạm loại theo `DEC-R5-01`
+đã được giải xong TRƯỚC khi tới `R6`. Một chỉ tiêu `R6` chưa được viết ra hôm
+nay vẫn sẽ đúng, vì nó cộng trên một tập đã đúng.
+
+### §2. Doanh thu và chiết khấu — mỗi thứ MỘT trường, MỘT lần
+
+```text
+doanh thu        BusinessLine.total_sales        (KHÔNG tính lại DEC-114)
+chiết khấu       BusinessLine.discount           (cộng ĐÚNG MỘT LẦN, cấp dòng)
+"Doanh số bán"   doanh thu + chiết khấu          (DẪN XUẤT, chỉ để đối soát)
+```
+
+`R6` KHÔNG được tính lại `sell_price × quantity − discount`. Một phép tính thứ
+hai sẽ trôi khỏi phép tính thứ nhất ở đúng những dòng khó nhất (thiếu SL,
+thiếu đơn giá, chiết khấu ghi thành dòng riêng) và cho ra hai con số doanh thu
+trong cùng một sản phẩm.
+
+`Doanh số bán` KHÔNG phải một định nghĩa doanh thu thứ hai: không bảng, biểu
+đồ hay bucket nào cộng theo nó, và nó là `None` khi doanh thu chưa biết.
+
+### §3. `product_key` là khoá phân tích DUY NHẤT
+
+Không khoá normalize thứ hai. Nhãn đến từ metadata Tracking theo ba bậc:
+`model_label` → mã Tracking → (chỉ trên hàng ĐÃ tự khai là chưa xác định) tên
+trên sổ kế toán. Hãng và nhóm hàng CHỈ đọc từ hợp đồng metadata của Tracking
+qua một mã đã CONFIRMED — không suy từ tên thô, mã máy, hay bất kỳ phép so
+chuỗi nào (`PHB-06 §3`, `BR-02`, `BR-10`, `ADR-111` §3).
+
+Taxonomy canonical thuộc Tracking (`DEC-205`, `DEC-206`); Reports không giữ
+bản sao và không sửa được nó.
+
+### §4. Năm lý do "chưa xác định" là NĂM bucket, không phải một
+
+```text
+UNRESOLVED · CONFLICT · STALE_TARGET · OUT_OF_CATALOG · METADATA_ABSENT
+```
+
+Gộp chúng là gộp năm hành động sửa khác nhau vào một câu. `STALE_TARGET` được
+tách ra vì một lý do đo được: `line_identity.state_of` xếp một dòng như vậy là
+`MATCHED_TRACKING` (đúng — nó ĐÃ từng được khớp), nên nếu nó rơi chung vào
+`METADATA_ABSENT` thì Owner sẽ đi xếp ngành hàng cho một mã không còn tồn tại.
+
+`R6` ĐỌC mã lý do `MAPPING_STALE_TARGET_ABSENT` trực tiếp và KHÔNG sửa
+`line_identity` — không thêm một trạng thái nhận diện thứ hai.
+
+### §5. Một màn hình, ĐÚNG MỘT phạm vi thời gian
+
+Kỳ có sẵn HOẶC `Từ ngày`–`Đến ngày`. Không bao giờ cộng gộp, không bao giờ lấy
+phần chung. Một khoảng ngày không dùng được bị TỪ CHỐI kèm lý do hiển thị.
+
+Phạm vi tự chọn mang `period = None`, nên nó KHÔNG mượn trạng thái chốt kỳ của
+tháng nào. Đây KHÔNG phải một cơ chế chốt kỳ thứ hai và không nới lỏng cơ chế
+cũ: `period_lock` vẫn khoá theo `(năm, tháng)` như `R3` đã freeze.
+
+### §6. Engine thời gian dùng lại nguyên vẹn, KHÔNG dựng cái thứ hai
+
+30 ngày · 12 tuần · 12 tháng · 8 quý, so cửa sổ liền trước cùng độ dài —
+`revenue_timeline` của `R5`, không sửa một dòng. Series `orders` dựng bằng
+chính `Point`/`PairedSeries` ấy với số đơn ở trường `revenue`.
+
+Một đơn thuộc ĐÚNG MỘT mốc: NGÀY NHỎ NHẤT trong các dòng hiệu lực của nó. Đơn
+có dòng ở nhiều ngày được ĐẾM RIÊNG, không chia đôi và không đếm hai lần —
+một biểu đồ vượt tổng của chính nó là một biểu đồ không dùng được để ra quyết
+định.
+
+### §7. Basket — bốn chỉ tiêu tách rời
+
+```text
+multi_line_orders                  >= 2 DÒNG
+multi_product_orders               >= 2 product_key (SALE + ACCESSORY_GIFT)
+multi_merchandise_category_orders  >= 2 nhóm HÀNG HOÁ (loại FEE/DISCOUNT/
+                                   RETURN_CANCEL/UNDECIDED_DOCUMENT)
+service_attachment_orders          có hàng hoá VÀ có FEE
+```
+
+Bốn con số KHÔNG suy ra được từ nhau. Cặp dùng SET nên mã lặp hai dòng không
+tự tạo cặp. Attachment có HAI mẫu số riêng cho hai chiều. `pair_revenue` cộng
+toàn bộ doanh thu của đơn đúng một lần, và vì thế KHÔNG cộng lại thành doanh
+thu kỳ.
+
+FEE KHÔNG làm tăng `multi_merchandise_category_orders` — để nó làm tăng sẽ
+biến mọi đơn có phí lắp đặt thành một lần bán chéo nhóm hàng.
+
+### §8. Drill-down mở ĐÚNG bốn cột
+
+Số BH · ngày bán · nhân viên · mặt hàng, kèm nhãn phạm vi lọc. KHÔNG mở thêm
+một trường khách hàng nào, kể cả khi `PeriodData.details` mang sẵn tên/SĐT/địa
+chỉ cho bảng kê nghiệp vụ (`DEC-PHB02-08`). Ràng buộc thi hành bằng CẤU TẠO:
+dict trả về chỉ có bốn khoá.
+
+### §9. Quan hệ với các quyết định trước
+
+```text
+DEC-114   GIỮ NGUYÊN — R6 ĐỌC total_sales, không tính lại công thức
+DEC-143   GIỮ NGUYÊN — R6 không chạm cửa chặn lợi nhuận hay eligible costs
+DEC-180   GIỮ NGUYÊN — cảnh báo chiết khấu hai lần vẫn của R3, R6 chỉ chở lên
+DEC-185   GIỮ NGUYÊN — thanh điều hướng vẫn ĐÚNG BA mục; R6 là khung nhìn con
+DEC-R5-01 GIỮ NGUYÊN — dòng tạm loại không lọt vào R6, theo cấu tạo
+DEC-R5-02 GIỮ NGUYÊN — R6 dùng lại đúng engine cửa sổ, không sửa
+DEC-205   GIỮ NGUYÊN — taxonomy thuộc Tracking, Reports không giữ bản sao
+DEC-206   GIỮ NGUYÊN — ba alias là nhãn mà R6 gộp theo, không phải của R6
+DEC-PHB02-03  GIỮ NGUYÊN — `qualifying_quantity` KHÔNG bị đổi nghĩa; R6 thêm
+              `total_quantity` BÊN CẠNH nó
+OD-4      GIỮ NGUYÊN — giá 0 của hàng tặng là giá THẬT, vẫn tham gia min
+OD-2      GIỮ NGUYÊN — RETURN_CANCEL/UNDECIDED_DOCUMENT không được đoán là
+          hàng hoá
+```
+
+`DEC-207` KHÔNG thay thế quyết định nào ở trên.
+
+### §10. Điều kiện merge/deploy
+
+`R6` chỉ được merge/deploy sau khi ĐỦ hai điều: `CHECK-R51-26` (Owner nghiệm
+thu `R5.1` trên production) `PASS`, và `CHECK-R6-31` (Independent Review của
+`R6`) `PASS`. Bảng "Nhóm hàng"/"Hãng" của `R6` gộp TIỀN theo đúng những nhãn
+mà `CHECK-R51-26` còn chưa xác nhận trên dữ liệu thật.
+
+Nguồn:
+- `docs/spec/R6-EXECUTION-BRIEF.md`
+- `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`
+- `docs/sessions/S143-r6-dashboard-phan-tich.md`
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6"

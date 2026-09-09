@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Giỏ hàng{% endblock %}
+
+{% block content %}
+<h1>GIỎ HÀNG</h1>
+<p class="insight">{{ biz.business_badge() }} Bốn chỉ tiêu giỏ hàng đếm bốn tập
+  đơn KHÁC NHAU và không suy ra được từ nhau. Bảng cặp dựng từ tập mặt hàng của
+  từng đơn, nên một mã lặp hai dòng không tự tạo ra một cặp.</p>
+
+<div class="module">
+  {{ r6.scope_picker(periods, scope, url_for('analytics_basket')) }}
+
+  {% if summary.empty %}
+  <p class="empty" data-metric="basket-empty">Phạm vi này chưa có đơn nào.</p>
+  {% endif %}
+
+  <h2>{{ summary.scope_label }}
+    <span class="cnt"><span data-metric="basket-orders">{{ summary.orders }}</span> đơn</span></h2>
+  <div class="kpi-row">
+    {% for card in cards %}
+    <div class="kpi-card">
+      <span class="tp-label">{{ card.label }}</span>
+      <strong class="kpi-value" data-metric="{{ card.key }}">{{ card.value }}</strong>
+      <span class="tp-unit">đơn · {{ card.rate }} số đơn</span>
+      <span class="tp-unit r6-card-note">{{ card.note }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="insight" data-metric="basket-metric-note">{{ summary.metric_note }}</p>
+</div>
+
+<div class="module">
+  <h2>Cặp thường đi cùng nhau
+    <span class="cnt"><span data-metric="pair-count">{{ summary.shown_pairs }}</span> cặp
+      · support ≥ <span data-metric="min-support">{{ summary.min_support }}</span></span></h2>
+
+  <nav class="filter-row" data-metric="dimension-picker">
+    {% for item in dimensions %}
+    <a class="ghost btn-mini {{ 'on' if item.on }}" data-dimension="{{ item.key }}"
+       href="{{ url_for('analytics_basket', chieu=item.key, ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}"
+       >{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+
+  {% if not rows %}
+  <p class="empty" data-metric="pair-empty">Không có cặp nào đạt support tối
+    thiểu trong phạm vi này. Đó là một kết luận, không phải một trang hỏng:
+    trong phạm vi đang xem chưa có hai mặt hàng nào cùng xuất hiện đủ số lần.</p>
+  {% else %}
+  <div class="tp-scroll">
+  <table>
+    <tr>{% for label in columns %}
+      <th class="{{ 'num' if loop.index > 2 }}">{{ label }}</th>
+    {% endfor %}<th>Bảng kê</th></tr>
+    {% for row in rows %}
+    <tr>
+      <td class="code" data-metric="pair-left">{{ row.left_label }}</td>
+      <td class="code" data-metric="pair-right">{{ row.right_label }}</td>
+      <td class="num" data-metric="pair-orders">{{ row.pair_orders }}</td>
+      <td class="num" data-metric="attachment-left">{{ row.attachment_left }}</td>
+      <td class="num" data-metric="attachment-right">{{ row.attachment_right }}</td>
+      <td class="num" data-metric="orders-with-left">{{ row.orders_with_left }}</td>
+      <td class="num" data-metric="orders-with-right">{{ row.orders_with_right }}</td>
+      <td class="num" data-metric="pair-revenue"
+          title="{{ row.pair_revenue.text }} đồng">{{ row.pair_revenue.text_kvnd }}</td>
+      <td><a class="ghost btn-mini"
+             href="{{ url_for('analytics_drilldown', chieu=dimension, a=row.left, b=row.right, ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}"
+             >XEM</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% endif %}
+
+  <details class="how-to-read">
+    <summary>Cách đọc bảng này</summary>
+    <p class="insight" data-metric="attachment-note">{{ summary.attachment_note }}</p>
+    <p class="insight" data-metric="pair-revenue-note">{{ summary.pair_revenue_note }}</p>
+    <p class="insight" data-metric="support-note">{{ summary.support_note }}</p>
+  </details>
+</div>
+{% endblock %}
