@@ -1,6 +1,30 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — biểu đồ Số đơn lấp card "Biểu đồ khác" (`DEC-214`, 2026-09-10)
+## CANONICAL CURRENT STATE — trục X gọn DD/MM; chẩn đoán "cùng kỳ năm trước" trống (`DEC-215`, 2026-09-10)
+
+Owner báo cáo qua ảnh chụp: (1) không thấy đường "Cùng kỳ năm trước" của
+biểu đồ Xu hướng doanh thu, (2) trục X hiện ngày kèm năm lặp lại.
+
+(2) đã sửa: trục X mức Ngày/Tuần rút gọn còn DD/MM (Tháng/Quý/Năm giữ
+nguyên năm — cửa sổ của chúng vắt qua nhiều năm dương lịch). Tooltip và
+dòng "Kỳ này/Cùng kỳ năm trước" vẫn đầy đủ DD/MM/YYYY.
+
+(1) đã CHẨN ĐOÁN, chưa kết luận: phép tính cửa sổ so sánh ĐÚNG thiết kế
+`DEC-211`. Ô trống nhiều khả năng nhất là sổ cũ giai đoạn 2025 chỉ nạp
+TỔNG THÁNG, không có bằng chứng TỪNG NGÀY (`CHART-10`) — mức Ngày/Tuần vì
+thế không vẽ được, dù mức Tháng có thể vẫn có. Cách Owner tự kiểm: đổi
+sang mức Tháng, xem 08-09/2025 có số hay không. Chi tiết đầy đủ, gồm cách
+phân biệt ba khả năng, ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-215` §1.
+
+Trạng thái: (2) `DONE`, đã merge vào nhánh mặc định. (1) chờ Owner xác
+nhận dữ liệu trước khi có việc để làm ở phía code — hoặc xác nhận không
+phải lỗi.
+
+Bằng chứng: full pytest 3474 passed / 12 skipped (1 failure môi trường có
+sẵn); smoke R6 29/0; smoke R5.1 83/0; kiểm thị giác ảnh chụp Chromium
+thật xác nhận trục X đã gọn.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — biểu đồ Số đơn lấp card "Biểu đồ khác" (`DEC-214`, 2026-09-10)
 
 Owner hỏi có biểu đồ nào tích hợp được vào card bên phải của trang Báo cáo
 ("Biểu đồ khác — sắp có", để trống từ `TASK-OWNER-UIUX-003` §2). Trả lời

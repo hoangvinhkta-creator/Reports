@@ -1629,7 +1629,30 @@ def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str
     return " — ".join(parts)
 
 
-def _window_x_ticks(slots, *, size: int) -> list[dict]:
+#: `DEC-215` — Owner: trục X của biểu đồ hai-cửa-sổ lặp lại năm trên mỗi
+#: nhãn ("21/08/2026", "25/08/2026", …) trong khi dòng "Kỳ này: … → …" ngay
+#: trên biểu đồ đã nói năm một lần. Tám nhãn cùng năm là chữ thừa trên một
+#: trục hẹp. Rút gọn CHỈ ở đây — nhãn trục, không phải `bucket_of` hay
+#: tooltip (`_slot_title` vẫn dùng `slot.label` đầy đủ): một người rê chuột
+#: vào một chấm để tra cứu chính xác vẫn cần thấy năm, nhất là ở mức Tuần
+#: khi cửa sổ có thể vắt qua hai năm dương lịch (`DEC-211`).
+def _axis_tick_label(key: str, label: str, granularity: str) -> str:
+    """Nhãn trục X ngắn — DD/MM cho Ngày/Tuần, giữ nguyên `label` cho các
+    mức còn lại (Tháng/Quý/Năm đã đủ ngắn, và năm ở đó KHÔNG lặp vô nghĩa
+    — một cửa sổ 12 tháng thật sự trải qua hai năm dương lịch khác nhau).
+
+    Đọc lại NGÀY THẬT từ `key` (ISO) rồi viết lại, không cắt chuỗi
+    `label`: cắt chuỗi giả định một định dạng cụ thể và sẽ âm thầm sai nếu
+    `bucket_of` đổi cách viết nhãn; đọc lại ngày rồi viết lại luôn đúng bất
+    kể `label` được viết thế nào.
+    """
+    if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK):
+        day = date.fromisoformat(key)
+        return f"{day.day:02d}/{day.month:02d}"
+    return label
+
+
+def _window_x_ticks(slots, *, size: int, granularity: str) -> list[dict]:
     """Nhãn trục X của một cửa sổ — thưa đều, và KHÔNG chồng lên nhãn cuối.
 
     Mốc CUỐI luôn có nhãn: nó là mép phải, tức là "đến bao giờ", và một biểu
@@ -1654,7 +1677,7 @@ def _window_x_ticks(slots, *, size: int) -> list[dict]:
     return [
         {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
                    * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
-         "label": slot.label}
+         "label": _axis_tick_label(slot.key, slot.label, granularity)}
         for slot in keep
     ]
 
@@ -1685,7 +1708,7 @@ def paired_revenue_chart(
     # Nhãn trục X đọc từ CỬA SỔ HIỆN TẠI — trục là tương đối, nên nó chỉ
     # mang được một bộ nhãn thời gian, và bộ đúng là bộ của cửa sổ người
     # dùng đang hỏi về. Cửa sổ so sánh nói tên mốc của nó trong tooltip.
-    x_ticks = _window_x_ticks(paired.current, size=size)
+    x_ticks = _window_x_ticks(paired.current, size=size, granularity=granularity)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
@@ -1786,7 +1809,7 @@ def paired_count_chart(
         point["title"] = _slot_title(point, paired.current_label, unit=unit)
     for point in previous_bars:
         point["title"] = _slot_title(point, paired.comparison_label, unit=unit)
-    x_ticks = _window_x_ticks(paired.current, size=size)
+    x_ticks = _window_x_ticks(paired.current, size=size, granularity=granularity)
     current_total = sum((slot.revenue for slot in paired.current
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
