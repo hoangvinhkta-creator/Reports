@@ -492,6 +492,10 @@
          đó nay đọc qua MÀU (xanh, `§PI-03`) thay vì một tag cạnh tên hàng —
          tag chữ đứng ở ô Mã đơn rồi (trên), không lặp lại ở đây. #}
       <td data-metric="line-product"
+          {# `R5.3` §UI — tên trên sổ kế toán đọc đủ qua tooltip khi ô này
+             đang hiện model canonical của Tracking thay cho nó. Không đổi bố
+             cục cột: một thuộc tính, không một phần tử nào thêm. #}
+          {% if row.product_title %}title="{{ row.product_title }}"{% endif %}
           {% if row.identity_state %}data-identity="{{ row.identity_state }}"{% endif %}
           {% if row.identity_classification %}
           data-classification="{{ row.identity_classification }}"{% endif %}>

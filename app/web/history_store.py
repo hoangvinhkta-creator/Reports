@@ -38,7 +38,7 @@ from tools.db.schema import (
     legacy_monthly_reference, legacy_summary_row, line_binding_exception,
     line_exclusion, line_product_group_classification, order_line_current,
     order_line_result_version, order_line_source_version, reconciliation_flag,
-    snapshot_line, source_snapshot,
+    snapshot_line, source_snapshot, tracking_display_snapshot,
 )
 
 
@@ -1590,6 +1590,78 @@ class SnapshotRepository:
         if kind is not None:
             statement = statement.where(reconciliation_flag.c.kind == kind)
         return int(self._read(statement)[0]["total"] or 0)
+
+    # --- R5.3: nhãn hiển thị Tracking, BỀN theo từng lần chạy ------------
+    #
+    # Hai phương thức dưới đây KHÔNG đọc/ghi một con số nghiệp vụ nào. Chúng
+    # đứng ở repository này vì nhãn của một lần chạy phải sống đúng bằng vòng
+    # đời dữ liệu mà nó chú thích — cùng database, cùng `run_id`, cùng lần
+    # khôi phục — chứ không phải vì chúng thuộc phép đối chiếu.
+    #
+    # Xem `tools/db/schema.py` → `tracking_display_snapshot` cho lý do bảng
+    # này tồn tại và vì sao nó KHÔNG phải một danh mục thứ hai của Reports.
+
+    def write_tracking_display(
+        self, *, run_id: str, rows: dict, created_at: str,
+        capture_id: Optional[str] = None, captured_at: Optional[str] = None,
+    ) -> int:
+        """Ghi (hoặc ghi đè) bản chiếu nhãn của MỘT lần chạy. Trả số mã đã ghi.
+
+        Ghi đè theo `run_id` chứ không xếp chồng: một lần chạy có ĐÚNG một
+        capture danh mục, nên hai hàng cho cùng `run_id` chỉ có thể là cùng
+        một sự thật viết hai lần.
+
+        Repository này KHÔNG có ý kiến gì về `rows` rỗng — nó ghi đúng thứ
+        được đưa. Luật "capture không mang nhãn nào thì KHÔNG ghi đè" sống ở
+        tầng gọi (`server._persist_tracking_display`), cạnh đúng luật ấy của
+        cache đĩa (`catalog_display.write`), để hai nơi lưu không thể trôi
+        khỏi nhau.
+        """
+        payload = json.dumps(rows, ensure_ascii=False, sort_keys=True)
+        try:
+            with self._scope.begin() as connection:
+                connection.execute(
+                    tracking_display_snapshot.delete()
+                    .where(tracking_display_snapshot.c.run_id == run_id))
+                connection.execute(insert(tracking_display_snapshot).values(
+                    run_id=run_id, capture_id=capture_id,
+                    captured_at=captured_at, rows_json=payload,
+                    row_count=len(rows), created_at=created_at))
+        except SQLAlchemyError as exc:
+            raise HistoryUnavailableError(str(exc)) from exc
+        return len(rows)
+
+    def latest_tracking_display(self) -> Optional[dict]:
+        """Bản chiếu nhãn của lần chạy GẦN NHẤT, hoặc `None` khi chưa có hàng.
+
+        `None` nghĩa là CHƯA lần chạy nào ghi bản chiếu nào vào database này —
+        không phải "Tracking chưa phân loại". Một hàng có `rows` RỖNG là câu
+        thứ hai ("có capture, capture không mang nhãn nào"), và tầng gọi nói
+        ra đúng lý do đó thay vì gộp cả hai thành một dấu gạch không giải
+        thích.
+
+        Sắp theo `created_at` rồi `run_id` để hai lần chạy trùng đúng mốc thời
+        gian vẫn cho ra một thứ tự XÁC ĐỊNH — một bảng kê đổi nhãn giữa hai
+        lần tải trang mà dữ liệu không đổi là một lỗi khó tin hơn là khó gặp.
+        """
+        rows = self._read(
+            select(tracking_display_snapshot)
+            .order_by(tracking_display_snapshot.c.created_at.desc(),
+                      tracking_display_snapshot.c.run_id.desc())
+            .limit(1))
+        if not rows:
+            return None
+        row = dict(rows[0])
+        try:
+            payload = json.loads(row["rows_json"])
+        except (TypeError, ValueError):
+            # Hàng hỏng đọc thành "có lần chạy, không nhãn nào" — cùng kỷ luật
+            # fail-safe mà `catalog_display.read()` áp cho file trên đĩa: mọi
+            # hư hỏng dẫn tới một màn hình nói ÍT đi, không một màn hình nói
+            # sai.
+            payload = {}
+        row["rows"] = payload if isinstance(payload, dict) else {}
+        return row
 
 
 def _current_where(key):

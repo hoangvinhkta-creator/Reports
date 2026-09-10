@@ -631,10 +631,15 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
     # chiếu hiển thị. Ở bài này `tracking_catalog` là một đường dẫn giả không
     # tồn tại, nên kết quả đúng là `NO_SNAPSHOT`: run vẫn thành công, và bằng
     # chứng NÓI RA rằng không có nhãn nào được ghi thay vì im lặng.
+    #
+    # `R5.3` — thêm khoá `durable`: bản chiếu nay có HAI nơi lưu (cache trên
+    # đĩa ephemeral và bản BỀN theo `run_id` trong database), và bằng chứng
+    # phải nói ra từng nơi. `None` ở đây vì capture không đọc được thì cũng
+    # KHÔNG có gì để lưu bền — không phải vì nhánh bền im lặng.
     assert record.tracking_evidence == {
         "catalog_capture_id": "LIVE-CAT-1",
         "catalog_display": {"written": False, "rows": 0,
-                            "reason": "NO_SNAPSHOT"},
+                            "reason": "NO_SNAPSHOT", "durable": None},
     }
 
 

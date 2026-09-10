@@ -1,5 +1,65 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `R5.3`: nhãn Hãng/Nhóm hàng sống qua restart, `IMPLEMENTED`, CHƯA merge (`S150`, 2026-09-10)
+
+Owner báo lỗi đã xác minh trên PRODUCTION: *"sau upload sổ và chạy báo cáo,
+tab Nhân viên vẫn hiển thị `—` ở Model/Hãng/Nhóm hàng"*, kèm chỉ thị *"không
+được coi R5.1 cũ là đã hoạt động chỉ vì code hoặc test cũ từng xanh"*.
+
+```text
+Triệu chứng   cột Hãng và Nhóm hàng là "—" cho cả dòng đã CONFIRMED, và
+              trạng thái ấy KHÔNG tự thoát ra
+Audit         từng tầng đo lại trên đường THẬT — Tracking chieuBoard() ·
+              capture tool · loader · POST /run · _catalog_labels ·
+              _catalog_field — TẤT CẢ đều ĐÚNG. R5.1 REPAIR-2 thật sự đã
+              sửa đúng thứ nó nói là đã sửa.
+Nguyên nhân   chỗ đứt ở NƠI LƯU, không ở một tầng nào: nhãn sống trên đĩa
+              EPHEMERAL của Render (render.yaml: "KHÔNG có disk:"), tiền
+              sống trong PostgreSQL. Mỗi lần deploy/restart xoá nhãn và
+              KHÔNG có gì dựng lại nó.
+Đo được       TRUOC RESTART brand ['Samsung','—'] → SAU RESTART ['—','—']
+              (trên nền c46e458, trước khi sửa một dòng nào)
+Vì sao test   test_r51_repair2_* trỏ DEFAULT_DISPLAY_PATH vào tmp_path và
+cũ vẫn xanh   không bao giờ dọn nó — trong một tiến trình test, đĩa không
+              bao giờ biến mất
+Sửa           bảng mới tracking_display_snapshot (migration 0012, ADDITIVE
+              thuần) lưu nhãn BỀN theo run_id trong CHÍNH database giữ con
+              số của kỳ; server._tracking_display() dựng lại từ đó khi cache
+              đĩa rỗng rồi ghi lại cache. File trên đĩa xuống hạng CACHE.
+Không thêm    một lượt /run vẫn pull Tracking ĐÚNG 1 lần; đường dựng lại
+lời gọi nào   đọc DATABASE, không đọc Tracking (CHECK-R53-04/05)
+Không cửa     _catalog_labels()/_catalog_field() vẫn là hai cổng duy nhất
+mới để đoán   quyết định dòng nào được nhận nhãn — chưa khớp/xung đột/target
+              cũ/OUT_OF_CATALOG vẫn "—", trước VÀ sau restart
+Không đồng    bảng mới KHÔNG có một cột tiền nào (canh bằng test trên chính
+nào đổi       lược đồ); xoá/làm hỏng cache không đổi doanh thu, lợi nhuận,
+              SL, số dòng
+```
+
+```text
+CHECK-R53-01 … CHECK-R53-12   PASS (E1)
+CHECK-R53-13 Independent Review   NOT_TESTED — phiên này KHÔNG tự đóng
+CHECK-R53-14 Owner nghiệm thu     NOT_TESTED — chỉ Owner đóng
+Full pytest      3628 passed / 23 skipped / 0 failed (nền 3608 / 23 / 0)
+tests collected  3631 → 3651 (+20, KHÔNG bài nào bị xoá)
+Golden           58 passed / 2 skipped (KHỚP bản ghi R5.2)
+Smoke R5.3       25 PASS / 0 FAIL — producer Tracking THẬT
+Smoke R5.1       86 PASS / 0 FAIL (nền 83)
+Smoke R6         29 PASS / 0 FAIL (KHỚP bản ghi DEC-210)
+Validators       structure/project_state/evidence/task_completion PASS;
+                 reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+Tracking         KHÔNG đổi một dòng nào (main @ b7c5f3b, R5.2.2, đã xác minh
+                 là tổ tiên của origin/main hiện tại 0f7347b)
+Ngân sách R5     2 allowed / 2 used / 0 remaining — S150 KHÔNG tự tiêu và
+                 KHÔNG tự miễn; cần Owner/reviewer xác nhận
+```
+
+Chi tiết đầy đủ: `PROJECT/PROJECT_DECISIONS.md` → `DEC-217`;
+`docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md`;
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+---
+
 ## CANONICAL CURRENT STATE — lấp lỗ hổng "cùng kỳ năm trước" bằng nguồn vẽ riêng (`DEC-216`, 2026-09-10)
 
 Nối tiếp `DEC-215` §1: Owner xác nhận nguyên nhân (a) — sổ cũ chỉ có TỔNG

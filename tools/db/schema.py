@@ -886,6 +886,73 @@ mutation_request = Table(
 
 MUTATION_TABLES = (mutation_request,)
 
+
+# ---------------------------------------------------------------------------
+# R5.3 — bản chiếu NHÃN hiển thị của Tracking, lưu BỀN theo từng lần chạy
+# (migration ``0012_tracking_display_snapshot``).
+#
+# ## Vì sao một bảng, khi đã có `catalog_display` trên đĩa
+#
+# `R5` §5 / `R5.1 REPAIR-2` ghi bản chiếu `mã Tracking → model · hãng · nhóm
+# hàng` ra MỘT file trên đĩa máy chủ. Trên Render đĩa ấy là EPHEMERAL: mỗi lần
+# deploy hay restart, file biến mất. Con số của kỳ thì không — chúng nằm ở
+# đúng database này. Hệ quả đo được (`R5.3` §Audit): sau một lần restart, tab
+# Nhân viên hiện `—` ở cả Hãng lẫn Nhóm hàng cho MỌI dòng đã `CONFIRMED`, và
+# không có gì dựng lại chúng cho tới lần chạy báo cáo kế tiếp.
+#
+# Bảng này là nửa BỀN của chính bản chiếu ấy — không phải một danh mục thứ
+# hai, không phải một taxonomy của Reports:
+#
+#   * nội dung của nó là NGUYÊN VĂN những gì capture Tracking của LẦN CHẠY đó
+#     đã nói (`catalog_display.rows_of`), không một dòng nào được suy ra;
+#   * nó KHÔNG tham gia nhận diện — không đường resolve nào đọc nó, đúng cùng
+#     ranh giới mà `catalog_display` đã lập (`PHB-06 §3`, `ADR-111 §3`);
+#   * nó KHÔNG mang tiền. Xoá sạch bảng này không đổi một đồng nào của báo
+#     cáo, chỉ làm màn hình nói ít đi.
+#
+# Nó nằm cạnh `source_snapshot` (cùng `run_id`) một cách có chủ ý: nhãn của
+# một lần chạy phải sống đúng bằng vòng đời dữ liệu mà nó chú thích.
+#
+# ## Vì sao KHÔNG có khoá ngoại tới `source_snapshot`
+#
+# Ghi nhãn là một tác dụng phụ best-effort của lần chạy, và nó KHÔNG được
+# phép làm hỏng lần chạy. Một khoá ngoại biến thứ tự ghi thành một ràng buộc
+# cứng: ghi nhãn trước khi lịch sử được cam kết sẽ đổ vỡ, còn ghi sau thì
+# một lỗi ở đó lại rollback cả một transaction đã thành công. Không khoá
+# ngoại thì hai việc độc lập thật sự, và hàng mồ côi (lần chạy hỏng ở bước
+# lưu lịch sử) chỉ là vài cái nhãn bị lần chạy kế tiếp ghi đè.
+#
+# ## Vì sao KHÔNG nằm trong `OWNER_INPUT_TABLES`
+#
+# Cùng lý lẽ như `mutation_request`: nội dung ở đây tái tạo được (chạy lại
+# báo cáo là dựng lại nó từ capture mới), và mất nó không mất một con số nào.
+# `downgrade()` vì thế `DROP TABLE` thẳng, không cần két `owner_backup_name()`.
+tracking_display_snapshot = Table(
+    "tracking_display_snapshot", METADATA,
+    # Lần chạy đã tạo ra bản chiếu này. Khoá chính, nên chạy lại cùng một
+    # `run_id` ghi đè tại chỗ thay vì xếp chồng hai bản cho cùng một lần chạy.
+    Column("run_id", Text, primary_key=True),
+    # `capture_id` / `captured_at` của capture danh mục Tracking đã dùng cho
+    # lần chạy đó — bằng chứng nhãn này đến từ ĐÂU. `NULL` khi capture đời cũ
+    # không mang chúng; đó là một sự thật cần ghi, không phải chỗ để đoán.
+    Column("capture_id", Text, nullable=True),
+    Column("captured_at", Text, nullable=True),
+    # `{mã Tracking: {model_label, brand, category_label}}`, JSON, đúng hình
+    # dạng `catalog_display.rows_of()` ghi ra đĩa. Một cột JSON chứ không một
+    # bảng con: nó được đọc TRỌN GÓI ở mỗi lần dựng lại và không truy vấn nào
+    # lọc theo từng mã, nên một bảng con chỉ thêm join mà không thêm câu trả
+    # lời nào.
+    Column("rows_json", Text, nullable=False),
+    # Số mã có nhãn — đọc được ngay trong `psql` mà không phải parse JSON.
+    Column("row_count", Integer, nullable=False, server_default="0"),
+    Column("created_at", Text, nullable=False),
+    # "Bản chiếu của lần chạy GẦN NHẤT" là câu truy vấn DUY NHẤT của tầng
+    # trình bày, nên nó có index riêng.
+    Index("ix_tracking_display_created_at", "created_at"),
+)
+
+TRACKING_DISPLAY_TABLES = (tracking_display_snapshot,)
+
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES + WORKSPACE_TABLES
     + (period_close,)

@@ -1853,6 +1853,67 @@ def create_app(
             confirmed=confirmed, out_of_catalog=out_of_catalog,
             conflict_resolved=conflict_resolved)
 
+    def _durable_tracking_display() -> Optional[dict]:
+        """Bản chiếu nhãn BỀN của lần chạy gần nhất, hoặc `None`.
+
+        `R5.3` — nơi lưu bền là `tracking_display_snapshot`, CÙNG database với
+        con số của kỳ. Không lời gọi Tracking nào ở đây: hàng đã nằm sẵn trong
+        database từ lần chạy đã ghi nó.
+
+        Mọi lỗi đọc đều cho `None`, và nó KHÔNG đi qua `_guarded`: `_guarded`
+        biến một lỗi storage thành `503`, đúng cho một trang mất TIỀN, sai cho
+        một cái NHÃN. Một database vừa chớp mất không được phép làm cả bảng kê
+        không mở được — nó chỉ được phép làm ba cột hiển thị bớt nội dung.
+        """
+        if snapshot_repo is None:
+            return None
+        try:
+            return snapshot_repo.latest_tracking_display()
+        except Exception:  # noqa: BLE001 — xem docstring
+            return None
+
+    def _tracking_display() -> dict:
+        """Bản chiếu nhãn HIỆN HÀNH — cache đĩa trước, bản BỀN dựng lại sau.
+
+        ## Lỗi production mà hàm này đóng (`R5.3`)
+
+        `R5.1 REPAIR-2` đã bắt `POST /run` ghi bản chiếu từ capture của chính
+        lần chạy đó. Nhưng nó ghi ra một FILE trên đĩa máy chủ, và trên Render
+        đĩa ấy là EPHEMERAL: mỗi lần deploy/restart file biến mất. Con số của
+        kỳ thì không — chúng nằm trong database. Đo trực tiếp trên đường thật:
+        chạy báo cáo ⟹ tab Nhân viên hiện model ngắn + Hãng + Nhóm hàng; xoá
+        đĩa ephemeral (đúng việc Render làm) ⟹ CÙNG lần chạy ấy hiện `—` ở cả
+        ba ô, VĨNH VIỄN, vì không đường nào dựng lại được bản chiếu.
+
+        ## Thứ tự đọc, và vì sao nó là thứ tự này
+
+        1. **Cache đĩa.** Còn đọc được thì nó ĐÚNG là bản chiếu của lần chạy
+           gần nhất — chính `_refresh_catalog_display` vừa ghi nó từ capture
+           của lần chạy ấy. Đọc một file nhỏ rẻ hơn một lượt truy vấn.
+        2. **Bản BỀN của lần chạy.** Cache trống (deploy mới, đĩa bị dọn,
+           file hỏng) ⟹ dựng lại từ `tracking_display_snapshot`, rồi ghi lại
+           cache để lần tải trang sau không phải hỏi database nữa.
+
+        Cache RỖNG là điều kiện kích hoạt duy nhất, và nó hẹp có chủ ý. Một
+        cache CÓ dữ liệu nhưng thiếu vài mã mới xác nhận là một câu chuyện
+        KHÁC — `_catalog_projection_warning` hình dạng 2 đã đo và nói ra nó
+        bằng LỊCH SỬ ghi, không phải bằng nội dung. Dựng lại đè lên một cache
+        đang có sẽ xoá mất chính bằng chứng ấy.
+
+        Không nhánh nào ở đây gọi Tracking, và không nhánh nào suy một chữ từ
+        tên trên sổ kế toán (`ADR-111` §3).
+        """
+        display = catalog_display.read()
+        if display:
+            return display
+        durable = _durable_tracking_display()
+        if durable is None:
+            return {}
+        rows = catalog_display.normalise(durable.get("rows") or {})
+        # Ghi lại cache là best-effort THUẦN: hỏng thì lần sau dựng lại tiếp.
+        catalog_display.restore(rows)
+        return rows
+
     def _catalog_labels() -> dict:
         """`{raw_identity_key: {tracking_code, model_label, brand,
         category_label}}` (R5 §5 + R5.1 §5).
@@ -1870,7 +1931,7 @@ def create_app(
         phân loại đều KHÔNG có khoá trong bảng này, nên không có đường nào để
         nhóm hàng của một candidate chảy vào chúng.
         """
-        display = catalog_display.read()
+        display = _tracking_display()
         labels = {}
         for key, identity in identity_gateway.confirmed_identities(
                 identity_store).items():
@@ -1950,7 +2011,7 @@ def create_app(
             return None
         decisions = _identity_decisions()
         wanted, matched, unmatched = set(), 0, set()
-        display = catalog_display.read()
+        display = _tracking_display()
         for detail in details:
             state = line_identity.state_of(detail, decisions=decisions)
             if state.classification != line_identity.CLASS_MATCHED_TRACKING:
@@ -1990,7 +2051,9 @@ def create_app(
             "kind": "cu",
         }
 
-    def _refresh_catalog_display(captures) -> catalog_display.WriteResult:
+    def _refresh_catalog_display(
+        captures, *, run_id: Optional[str] = None,
+    ) -> tuple[catalog_display.WriteResult, Optional[dict]]:
         """`R5.1 REPAIR-2` — làm mới bản chiếu hiển thị từ capture CỦA LẦN CHẠY.
 
         ## Lỗi production mà hàm này đóng lại
@@ -2018,10 +2081,15 @@ def create_app(
         Nó phải chạy TRONG `try` của `run_report`, trước khi `finally` gọi
         `live_handle.cleanup()` — sau đó file capture không còn.
 
-        Trả về `WriteResult` để `run_report` ghi vào `tracking_evidence`. Mọi
-        thất bại đều là `written=False` KÈM LÝ DO, không bao giờ một ngoại lệ:
-        bản chiếu là NHÃN, và làm hỏng một lần chạy báo cáo vì một cái nhãn là
-        đánh đổi sai chiều.
+        Trả về `(WriteResult, bằng chứng ghi BỀN)` để `run_report` ghi cả hai
+        vào `tracking_evidence`. Mọi thất bại đều là `written=False` KÈM LÝ
+        DO, không bao giờ một ngoại lệ: bản chiếu là NHÃN, và làm hỏng một
+        lần chạy báo cáo vì một cái nhãn là đánh đổi sai chiều.
+
+        `R5.3` — vế thứ hai là bản lưu BỀN theo `run_id` (`tracking_display_
+        snapshot`). Nó là thứ dựng lại được ba cột hiển thị sau một lần
+        deploy/restart của Render, khi cache trên đĩa ephemeral đã biến mất.
+        `None` khi lần chạy không có capture nào để lưu.
         """
         catalog_path = getattr(captures, "tracking_catalog", None)
         if catalog_path is None:
@@ -2030,12 +2098,71 @@ def create_app(
             # ghi" này CŨNG được `_record_status` lưu lại — nên `last_write_
             # status()` phản ánh đúng lần chạy gần nhất, kể cả khi nó không
             # có capture nào.
-            return catalog_display.write(None)
+            return catalog_display.write(None), None
         try:
             snapshot = load_tracking_catalog_capture(catalog_path)
         except Exception:  # noqa: BLE001 — danh mục hỏng = "chưa đọc được"
-            return catalog_display.write(None)
-        return catalog_display.write(snapshot)
+            return catalog_display.write(None), None
+        result = catalog_display.write(snapshot)
+        durable = (None if run_id is None
+                   else _persist_tracking_display(snapshot, run_id=run_id))
+        return result, durable
+
+    def _persist_tracking_display(snapshot, *, run_id: str) -> dict:
+        """`R5.3` — lưu BỀN bản chiếu nhãn của ĐÚNG lần chạy này.
+
+        ## Vì sao cần một nơi thứ hai, khi đã có file trên đĩa
+
+        File trên đĩa là một CACHE trên đĩa EPHEMERAL của Render: nó biến mất
+        ở mỗi lần deploy/restart, trong khi con số của kỳ nằm trong database
+        và sống tiếp. Sau một lần restart, mọi dòng đã `CONFIRMED` hiện `—` ở
+        cả Hãng lẫn Nhóm hàng và KHÔNG có gì dựng lại chúng — đó là triệu
+        chứng production của `R5.3`. Hàng ghi ở đây là thứ `_tracking_display`
+        dựng lại từ đó.
+
+        ## Nó KHÔNG được phép làm hỏng lần chạy
+
+        Cùng kỷ luật đã nghiệm thu cho `catalog_display.write()`: đây là một
+        tác dụng phụ mang NHÃN, không mang tiền. Mọi thất bại đều trả về một
+        lý do trong bằng chứng của run, KHÔNG BAO GIỜ một ngoại lệ.
+
+        ## Capture KHÔNG mang nhãn nào ⟹ KHÔNG ghi đè
+
+        Cùng đúng luật mà `catalog_display.write()` đã nghiệm thu ở `R5.1
+        REPAIR-2`: một capture đời cũ (không trường hiển thị nào) không được
+        phép XOÁ nhãn mà một lần chạy trước đã đọc được — làm màn hình nói ÍT
+        hơn vì một artifact cũ là một hồi quy, không phải một phép thận trọng.
+        Hai nơi lưu phải theo CÙNG một luật ở đây; lệch nhau thì cùng một lần
+        chạy cho hai màn hình khác nhau tuỳ vào việc đĩa còn hay mất.
+
+        `REASON_NO_METADATA` được trả về (không phải một ngoại lệ), nên bằng
+        chứng của run vẫn nói ra rằng lần chạy này không đóng góp nhãn nào.
+
+        `captured_at` là mốc của CAPTURE (bằng chứng nhãn này đến từ đâu);
+        `created_at` là mốc Reports ghi hàng (khoá sắp xếp "lần chạy gần
+        nhất"). Hai mốc khác nhau và trộn chúng sẽ làm một capture cũ chụp
+        lại hôm nay trông như bản mới nhất.
+        """
+        if snapshot_repo is None:
+            return {"written": False, "rows": 0,
+                    "reason": catalog_display.REASON_NO_STORE}
+        rows = catalog_display.rows_of(snapshot)
+        if not rows:
+            return {"written": False, "rows": 0,
+                    "reason": catalog_display.REASON_NO_METADATA}
+        captured_at = getattr(snapshot, "captured_at", None)
+        try:
+            snapshot_repo.write_tracking_display(
+                run_id=run_id, rows=rows,
+                capture_id=getattr(snapshot, "capture_id", None),
+                captured_at=(captured_at.isoformat()
+                             if captured_at is not None else None),
+                created_at=datetime.now(timezone.utc).isoformat(
+                    timespec="seconds"))
+        except Exception:  # noqa: BLE001 — xem docstring
+            return {"written": False, "rows": len(rows),
+                    "reason": catalog_display.REASON_WRITE_FAILED}
+        return {"written": True, "rows": len(rows), "reason": None}
 
     def _tracking_inv_map_snapshot():
         """`inv.map` hiện tại, hoặc `None` — dùng CHỈ khi giải mâu thuẫn.
@@ -2693,7 +2820,7 @@ def create_app(
         buckets = brand_identity.buckets_for(
             data.details, confirmed_keys=_confirmed_identity_keys(),
             identities=identity_gateway.confirmed_identities(identity_store),
-            brand_source=catalog_display.brand_source(catalog_display.read()))
+            brand_source=catalog_display.brand_source(_tracking_display()))
         grouped = brand_metrics.group_by_brand(data.lines, buckets)
         return render_template(
             "kinh_doanh_thuong_hieu.html",
@@ -3437,7 +3564,7 @@ def create_app(
         metadata = product_taxonomy.metadata_for(
             data.details, decisions=_identity_decisions(),
             identities=identity_gateway.confirmed_identities(identity_store),
-            display=catalog_display.read())
+            display=_tracking_display())
         return {
             "service": service, "range": scope, "data": data,
             "metadata": metadata,
@@ -3948,17 +4075,30 @@ def create_app(
             #
             # Kết quả đi vào `tracking_evidence`, nên một lần ghi thất bại có
             # mặt trong bằng chứng của run thay vì biến mất.
-            catalog_status = _refresh_catalog_display(
-                getattr(owner_run, "captures", None) or captures)
+            #
+            # `R5.3` — `run_id` được tính TRƯỚC lời gọi này (nó chỉ là
+            # `output_path.stem`, không phụ thuộc gì ở dưới), vì bản lưu BỀN
+            # của nhãn được khoá theo chính lần chạy ấy: nhãn của một lần
+            # chạy phải sống đúng bằng vòng đời dữ liệu mà nó chú thích.
+            run_id = owner_run.output_path.stem
+            catalog_status, catalog_durable = _refresh_catalog_display(
+                getattr(owner_run, "captures", None) or captures,
+                run_id=run_id)
             tracking_evidence = {
                 **(tracking_evidence or {}),
-                "catalog_display": catalog_status.as_evidence(),
+                "catalog_display": {
+                    **catalog_status.as_evidence(),
+                    # `R5.3` — bằng chứng của NHÁNH BỀN, tách khỏi bằng chứng
+                    # của cache trên đĩa. Hai nơi lưu có thể thành công/thất
+                    # bại độc lập, và gộp chúng thành một cờ sẽ giấu đúng cái
+                    # nửa đang hỏng.
+                    "durable": catalog_durable,
+                },
             }
 
             duration_ms = int((time.monotonic() - started) * 1000)
             summary = owner_run.demo_run.summary
             dropped_lines = len(owner_run.demo_run.result.unmapped_lines)
-            run_id = owner_run.output_path.stem
 
             def _persist_run() -> None:
                 # save_artifact (R2: upload + verify + xoá temp; local: chỉ

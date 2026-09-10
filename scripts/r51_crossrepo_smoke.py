@@ -247,7 +247,7 @@ def main(argv=None) -> int:
 
     # === 4. Đi qua ĐÚNG route web thật ===================================
     print("\n4) Route web thật: capture → bản chiếu → bảng kê nhân viên")
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, text as _sql_text
 
     import tools.db as history_db
     from app.web import catalog_display, history_store, identity_gateway
@@ -498,11 +498,27 @@ def main(argv=None) -> int:
     ok("bản chiếu lành ⟹ KHÔNG có cảnh báo",
        'data-metric="catalog-projection-warning"' in html_ly, False)
 
-    # Mất bản chiếu ⟹ CẢNH BÁO, không im lặng.
+    # Mất CACHE ĐĨA ⟹ `R5.3` dựng lại nhãn từ bản lưu BỀN của chính lần chạy,
+    # nên KHÔNG còn gì để cảnh báo. Đây là chỗ `R5.3` đổi hành vi của
+    # `REPAIR-2`, và nó đổi theo đúng chiều: trước đây mất file là mất nhãn.
     display_path.unlink()
-    _seen2, html_missing = rows_of_sheet("Ly")
-    ok("mất bản chiếu ⟹ tab Nhân viên CẢNH BÁO",
-       'data-metric="catalog-projection-warning"' in html_missing, True)
+    seen_rebuilt, html_missing = rows_of_sheet("Ly")
+    ok("R5.3: mất cache đĩa ⟹ nhãn được DỰNG LẠI từ bản bền",
+       ["LG" in seen_rebuilt["line-brand"],
+        "Máy giặt" in seen_rebuilt["line-category"]], [True, True])
+    ok("...và vì không có gì hỏng nên KHÔNG có cảnh báo",
+       'data-metric="catalog-projection-warning"' in html_missing, False)
+    ok("...và cache đĩa được ghi lại để lần sau khỏi hỏi database",
+       display_path.exists(), True)
+
+    # Mất CẢ HAI nơi lưu ⟹ cảnh báo của `REPAIR-2` vẫn phải nổi lên. `R5.3`
+    # thêm một nơi lưu, KHÔNG gỡ một phép cảnh báo nào.
+    display_path.unlink()
+    with engine2.begin() as _connection:
+        _connection.execute(_sql_text("DELETE FROM tracking_display_snapshot"))
+    _seen2, html_missing_both = rows_of_sheet("Ly")
+    ok("mất CẢ HAI nơi lưu ⟹ tab Nhân viên CẢNH BÁO",
+       'data-metric="catalog-projection-warning"' in html_missing_both, True)
 
     # Dựng lại bản chiếu THẬT trước khi bước vào §6 — §6 kiểm ca "bản chiếu
     # có dữ liệu CŨ", không phải ca "bản chiếu vắng" vừa đo ở trên.

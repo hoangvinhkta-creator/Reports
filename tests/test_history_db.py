@@ -154,6 +154,22 @@ BINDING_TABLES = {"line_binding_exception"}
 # `0010_mutation_request` § "Vì sao KHÔNG nằm trong OWNER_INPUT_TABLES").
 MUTATION_TABLES = {"mutation_request"}
 
+# `R5.3` — bảng thứ mười hai, cùng LOẠI với `mutation_request` chứ không cùng
+# loại với các bảng quyết định: nó ghi NHÃN hiển thị mà capture Tracking của
+# một lần chạy đã nói (`mã → model · hãng · nhóm hàng`), không một quyết định
+# nghiệp vụ nào.
+#
+# Vì sao nó cần tồn tại: `R5.1 REPAIR-2` ghi bản chiếu ấy ra một FILE trên đĩa
+# máy chủ, và trên Render đĩa ấy ephemeral — mỗi lần deploy/restart file biến
+# mất, trong khi con số của kỳ nằm ở đúng database này. Sau restart, mọi dòng
+# đã `CONFIRMED` hiện `—` VĨNH VIỄN. Bảng này là nửa BỀN của cùng bản chiếu,
+# để tầng trình bày dựng lại được mà KHÔNG gọi Tracking lần nào.
+#
+# Nó ở một tập RIÊNG chứ không gộp vào `OWNER_INPUT_TABLES` vì nội dung của
+# nó tái tạo được (chạy lại báo cáo là dựng lại nó), nên `downgrade()` không
+# phải sao lưu nó — xem `0012_tracking_display_snapshot`.
+TRACKING_DISPLAY_TABLES = {"tracking_display_snapshot"}
+
 # Tám bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
 # này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
 OWNER_INPUT_TABLES = (
@@ -418,7 +434,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0008_purchase_price_reason.py",
                         "0009_line_binding_period_close.py",
                         "0010_mutation_request.py",
-                        "0011_mutation_request_state.py"]
+                        "0011_mutation_request_state.py",
+                        "0012_tracking_display_snapshot.py"]
     # Alembic mặc định tạo ``alembic_version.version_num`` VARCHAR(32) trên
     # PostgreSQL. Một revision dài hơn chỉ lộ khi deploy: DDL chạy xong nhưng
     # transaction rollback lúc Alembic ghi version. Giữ giới hạn ở đây để lỗi
@@ -429,7 +446,7 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
 def test_schema_declares_exactly_the_frozen_tables():
     assert set(schema.METADATA.tables) == (
         LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES | BINDING_TABLES
-        | MUTATION_TABLES)
+        | MUTATION_TABLES | TRACKING_DISPLAY_TABLES)
 
 
 def test_the_owner_backup_table_is_not_part_of_the_schema():

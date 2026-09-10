@@ -91,6 +91,11 @@ def rows_of(snapshot) -> dict:
 REASON_NO_SNAPSHOT = "NO_SNAPSHOT"
 REASON_NO_METADATA = "NO_METADATA"
 REASON_WRITE_FAILED = "WRITE_FAILED"
+#: `R5.3` — CHỈ dùng cho nhánh ghi BỀN (`tracking_display_snapshot`). Nó nói
+#: "không có nơi lưu bền nào được cấu hình cho môi trường này", tức máy dev
+#: chưa `alembic upgrade head`. Trên production nhánh này KHÔNG xảy ra:
+#: `REPORTS_REQUIRE_HISTORY_DB=1` làm container không lên nếu thiếu database.
+REASON_NO_STORE = "NO_STORE"
 
 WRITE_REASONS = {
     REASON_NO_SNAPSHOT: (
@@ -102,6 +107,12 @@ WRITE_REASONS = {
         "Capture danh mục của lần chạy này KHÔNG mang trường hiển thị nào "
         "(model/hãng/nhóm hàng) — thường là một artifact đời cũ. Bảng kê giữ "
         "mã Tracking và dấu gạch; đây là trạng thái ĐÚNG, không phải lỗi."
+    ),
+    REASON_NO_STORE: (
+        "Môi trường này chưa cấu hình nơi lưu bền cho lịch sử, nên nhãn của "
+        "lần chạy chỉ nằm trên đĩa máy chủ. Mọi con số vẫn ĐÚNG; nhưng nếu "
+        "máy chủ khởi động lại, cột Hãng/Nhóm hàng sẽ hiện dấu gạch cho tới "
+        "lần chạy báo cáo kế tiếp."
     ),
     REASON_WRITE_FAILED: (
         "KHÔNG ghi được bản chiếu hiển thị xuống đĩa (đĩa chỉ đọc hoặc hết "
@@ -303,18 +314,18 @@ def write(snapshot, path: Optional[Path] = None) -> WriteResult:
     return _finish(target, WriteResult(written=True, rows=len(rows)))
 
 
-def read(path: Optional[Path] = None) -> dict:
-    """Bản chiếu đã ghi, hoặc `{}`.
+def normalise(payload) -> dict:
+    """Một payload BẤT KỲ → đúng hình dạng bản chiếu, hoặc `{}`.
 
-    Mọi hư hỏng đều cho ra `{}` — file chưa có, JSON hỏng, kiểu sai. Cả ba
-    dẫn tới cùng một màn hình: tên thô và "chưa xác định". Phân biệt chúng ở
-    đây sẽ tạo ra ba nhánh mà không nhánh nào đổi được điều người dùng thấy.
+    `R5.3` tách phép vệ sinh này ra khỏi `read()` vì bản chiếu nay có HAI
+    nguồn đọc — file cache trên đĩa và bản lưu BỀN theo lần chạy — và cả hai
+    phải qua CÙNG một phép vệ sinh. Hai bản sao của cùng một luật là hai bản
+    sẽ trôi khỏi nhau, và chỗ chúng trôi khỏi nhau là chỗ một giá trị không
+    phải chuỗi lọt lên màn hình như một cái tên hãng.
+
+    Mọi hư hỏng đều cho ra `{}` hoặc `None` cho trường ấy — không nhánh nào
+    ép kiểu và không nhánh nào đoán bù.
     """
-    target = Path(path or DEFAULT_DISPLAY_PATH)
-    try:
-        payload = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
     if not isinstance(payload, dict):
         return {}
     out = {}
@@ -326,6 +337,56 @@ def read(path: Optional[Path] = None) -> dict:
             text = value.get(field)
             out[code][field] = text if isinstance(text, str) and text else None
     return out
+
+
+def read(path: Optional[Path] = None) -> dict:
+    """Bản chiếu đã ghi trên đĩa, hoặc `{}`.
+
+    Mọi hư hỏng đều cho ra `{}` — file chưa có, JSON hỏng, kiểu sai. Cả ba
+    dẫn tới cùng một màn hình: tên thô và "chưa xác định". Phân biệt chúng ở
+    đây sẽ tạo ra ba nhánh mà không nhánh nào đổi được điều người dùng thấy.
+
+    `R5.3` — từ bản này, `{}` KHÔNG còn là câu trả lời cuối cùng của hệ
+    thống: tầng gọi dựng lại bản chiếu từ bản lưu BỀN của lần chạy
+    (`restore()` ngay dưới). File này là một CACHE, không phải nguồn sự thật
+    duy nhất — xem `server._tracking_display()`.
+    """
+    target = Path(path or DEFAULT_DISPLAY_PATH)
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return normalise(payload)
+
+
+def restore(rows: dict, path: Optional[Path] = None) -> bool:
+    """Ghi LẠI cache đĩa từ một bản chiếu đã dựng lại. `True` khi ghi được.
+
+    Khác `write()` ở ba điểm, và cả ba là có chủ ý:
+
+    1. Nó nhận `rows` đã dựng sẵn, không nhận một snapshot — nguồn của nó là
+       bản lưu BỀN của chính lần chạy, không phải một capture mới.
+    2. Nó KHÔNG đụng file trạng thái (`_record_status`). Trạng thái ấy trả
+       lời "lần ghi từ CAPTURE gần nhất có thành công không", và đó là câu
+       mà `_catalog_projection_warning` hình dạng 2 dựa vào. Một lần khôi
+       phục cache không phải một lần ghi từ capture, nên nó không được phép
+       viết lại lịch sử ấy — làm thế sẽ xoá mất bằng chứng của một lần ghi
+       hỏng và làm cảnh báo STALE im lặng sai.
+    3. Thất bại là chuyện thường và KHÔNG được nói ra ở đâu: đĩa chỉ đọc thì
+       lần tải trang sau lại dựng lại từ bản bền, chậm hơn vài mili giây và
+       không sai một chữ nào.
+    """
+    if not rows:
+        return False
+    target = Path(path or DEFAULT_DISPLAY_PATH)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(rows, ensure_ascii=False, sort_keys=True),
+            encoding="utf-8")
+    except OSError:
+        return False
+    return True
 
 
 def brand_source(display: dict):
@@ -378,8 +439,8 @@ def label_of(display: dict, code: Optional[str]) -> Optional[str]:
 
 __all__ = ["DEFAULT_DISPLAY_PATH", "FIELDS", "MISSING_PROJECTION_NOTE",
            "REASON_NO_METADATA",
-           "REASON_NO_SNAPSHOT", "REASON_WRITE_FAILED",
+           "REASON_NO_SNAPSHOT", "REASON_NO_STORE", "REASON_WRITE_FAILED",
            "STALE_METADATA_NOTE_PREFIX", "WRITE_REASONS",
            "WriteResult", "brand_source", "category_of",
-           "label_of", "last_write_status", "read", "rows_of",
-           "stale_metadata_note", "write"]
+           "label_of", "last_write_status", "normalise", "read", "restore",
+           "rows_of", "stale_metadata_note", "write"]

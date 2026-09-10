@@ -13894,3 +13894,147 @@ Full pytest    3492 passed / 12 skipped / 1 deselected (test bị deselect là
 Smoke R6       29 PASS / 0 FAIL
 Smoke R5.1     83 PASS / 0 FAIL
 ```
+
+---
+
+## DEC-217
+
+Ngày: 2026-09-10
+Phiên: `S150` — `R5.3`, sau khi Owner báo lỗi đã xác minh trên PRODUCTION:
+*"sau upload sổ và chạy báo cáo, tab Nhân viên vẫn hiển thị `—` ở
+Model/Hãng/Nhóm hàng cho cả các dòng có mã sản phẩm rõ ràng"*, kèm chỉ thị
+*"không được coi R5.1 cũ là đã hoạt động chỉ vì code hoặc test cũ từng
+xanh"*.
+Thẩm quyền: Owner báo lỗi production (`OWNER_DECISION` về việc PHẢI sửa);
+quyết định kỹ thuật dưới đây là của phiên triển khai, chờ Independent Review.
+Trạng thái: BAN HÀNH, đã thực thi. `R5.3` = `IMPLEMENTED`, CHƯA merge.
+
+### §1. Quyết định
+
+**Nhãn hiển thị của Tracking (`model_label` · `brand` · `category_label`)
+được lưu BỀN theo từng `run_id`, trong chính database đang giữ con số của kỳ.
+File `data/product_identity/tracking_display.json` xuống hạng CACHE — nó
+không còn là nguồn sự thật duy nhất.**
+
+### §2. Vì sao `R5.1 REPAIR-2` chưa đủ, dù nó ĐÚNG
+
+`REPAIR-2` (`DEC-208`, `DEC-209`) sửa đúng thứ nó nói là đã sửa: `POST /run`
+nay ghi bản chiếu từ capture Tracking của chính lần chạy đó. Phiên `S150` đo
+lại toàn bộ chuỗi trên đường THẬT và xác nhận từng tầng đều đúng — producer
+Tracking, capture tool, loader, `/run`, `_catalog_labels`, `_catalog_field`.
+
+Chỗ đứt nằm ở NƠI LƯU, không ở một tầng nào:
+
+```text
+tiền (order_line_current, …)   PostgreSQL   sống qua deploy
+nhãn (tracking_display.json)   đĩa /app     CHẾT ở mỗi deploy
+```
+
+`render.yaml` nói rõ dịch vụ này KHÔNG có persistent disk (*"KHÔNG có `disk:`
+— S071B stateless"*). Nên sau MỖI lần deploy hay restart của Render, mọi dòng
+đã `CONFIRMED` hiện `—` ở cả Hãng lẫn Nhóm hàng, và không đường nào dựng lại
+được — cho tới khi có ai đó nạp lại sổ và chạy lại báo cáo.
+
+Đo trực tiếp trên đường thật, trên nền `c46e458` trước khi sửa một dòng nào:
+
+```text
+TRUOC RESTART brand  : ['Samsung', '—']
+TRUOC RESTART cat    : ['Tivi', '—']
+SAU  RESTART brand  : ['—', '—']
+SAU  RESTART cat    : ['—', '—']
+```
+
+### §3. Vì sao bộ kiểm cũ vẫn XANH — và đó là finding thật
+
+`tests/test_r51_repair2_run_refreshes_projection.py` trỏ
+`catalog_display.DEFAULT_DISPLAY_PATH` vào một `tmp_path` và KHÔNG bao giờ
+dọn nó giữa lúc chạy và lúc render. Trong một tiến trình test, đĩa không bao
+giờ biến mất — nên bộ kiểm không có một bài nào đo được điều mà Render làm
+với đĩa ở mỗi deploy.
+
+Đây đúng là điều chỉ thị của Owner cảnh báo. `R5.3` vì thế mô phỏng restart
+bằng cách dọn ĐÚNG những gì Render dọn (đĩa, KHÔNG đụng database), và bài
+kiểm ấy ĐỎ trên nền cũ.
+
+### §4. `AR-R5.1-...` bị phân loại sai lần thứ hai — nay đóng bằng cấu tạo
+
+`app/web/catalog_display.py` § "Đây KHÔNG phải một bảng danh mục của Reports",
+điểm 3, viết:
+
+> *"Mất file (deploy mới, đĩa ephemeral) ⟹ màn hình hiện TÊN THÔ và 'chưa xác
+> định' … Điểm 3 là lý do file này được phép sống trên đĩa ephemeral: cái giá
+> của việc mất nó là một màn hình nói ít đi, không phải một màn hình nói
+> sai."*
+
+Câu ấy ĐÚNG về mặt an toàn (không bao giờ nói SAI) nhưng nó ngầm giả định
+cái giá là TẠM THỜI. Đo được cho thấy nó VĨNH VIỄN. `R5.3` không bác câu ấy —
+nó giữ nguyên tính chất "mất thì nói ít đi, không nói sai" và bỏ chữ "vĩnh
+viễn" đi bằng một nơi lưu thứ hai có cùng vòng đời với con số.
+
+### §5. Hình dạng đã chọn, và ba lối đã loại
+
+Đã chọn: **một bảng mới `tracking_display_snapshot`, khoá chính `run_id`,
+trong history database** (migration `0012`, ADDITIVE thuần).
+
+Loại — **nhồi vào `source_snapshot.evidence_json`**: `source_snapshot` là bản
+ghi ĐỐI CHIẾU của một lần nạp sổ; mọi cột của nó tham gia coverage/reconcile.
+Nhét nhãn vào đó biến một trường hiển thị thành một phần của bản ghi đối
+chiếu, và một lần ghi nhãn thất bại sẽ rollback cả một lần nạp sổ đã đúng.
+
+Loại — **nhồi vào `tracking_evidence` của run registry**: `as_evidence()` cố ý
+chỉ mang ba trường nguyên thuỷ và *"không mirror một dòng danh mục nào"*.
+Bằng chứng nói về một lần ghi; nó không phải nơi CHỨA thứ được ghi.
+
+Loại — **đọc lại Tracking khi render**: `S071` §10 cấm, và nó thêm một lời gọi
+mạng cho mỗi lần bấm. `CHECK-R53-05` canh rằng đường dựng lại không gọi
+Tracking lần nào.
+
+### §6. Bốn ràng buộc thi hành bằng mã, không bằng lời hứa
+
+1. **Một lượt `/run` — MỘT lần pull Tracking.** Cả hai nơi lưu đọc từ CÙNG
+   một snapshot đã nạp, trong cùng một lời gọi `_refresh_catalog_display`
+   (`CHECK-R53-04`).
+2. **Điều kiện dựng lại là cache RỖNG**, không phải "cache thiếu vài mã". Một
+   cache thiếu một phần là ca mà `DEC-209` đã đo bằng LỊCH SỬ ghi
+   (`last_write_status()`); dựng lại đè lên nó sẽ xoá mất chính bằng chứng ấy
+   và làm cảnh báo `kind="cu"` im lặng sai.
+3. **Capture không mang nhãn nào ⟹ KHÔNG ghi đè, ở CẢ HAI nơi.** Hai nơi lưu
+   lệch luật sẽ cho hai màn hình khác nhau cho cùng một lần chạy, tuỳ vào việc
+   đĩa còn hay mất (`CHECK-R53-09`).
+4. **Không cửa nào mới để đoán.** Đường dựng lại trả về đúng cùng một `dict`
+   mà `catalog_display.read()` trả về; `_catalog_labels()` và
+   `_catalog_field()` vẫn là hai cổng duy nhất quyết định dòng nào được nhận
+   nhãn (`CHECK-R53-06`, `CHECK-R53-07`).
+
+### §7. Bảng mới KHÔNG mang tiền, và điều đó được canh bằng test
+
+`test_the_durable_store_holds_no_money_column` khẳng định tập cột của bảng
+bằng chính lược đồ. Đây là điều kiện để toàn bộ lý lẽ "mất bảng này chỉ làm
+màn hình nói ít đi" còn đứng vững — và để `downgrade()` được phép `DROP TABLE`
+thẳng mà không cần két `owner_backup_name()`.
+
+### §8. Ngân sách review — KHÔNG tự quyết
+
+Lineage `R5` còn `0 remaining`. Phiên `S150` giữ ĐÚNG posture của `S146`:
+không tự tiêu, không tự miễn. Lập luận và hệ quả của cả hai chiều đã ghi ở
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `R5` → mục `R5.3`.
+
+### §9. Bằng chứng
+
+```text
+Full pytest      3628 passed / 23 skipped / 0 failed
+                 (nền c46e458 cây sạch: 3608 passed / 23 skipped / 0 failed)
+tests collected  3631 → 3651 (+20, KHÔNG bài nào bị xoá)
+Bài mới ĐỎ trước 8 failed / 11 passed khi gỡ phần wiring của app/web/server.py
+Golden           58 passed / 2 skipped (KHỚP bản ghi R5.2)
+Smoke R5.3       25 PASS / 0 FAIL — producer Tracking THẬT
+Smoke R5.1       86 PASS / 0 FAIL (nền 83; §5 tách 1 khẳng định thành 4)
+Smoke R6         29 PASS / 0 FAIL (KHỚP bản ghi DEC-210)
+Validators       structure/project_state/evidence/task_completion PASS;
+                 reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+git diff --check sạch
+Tracking         KHÔNG đổi một dòng nào (chỉ đọc, chỉ chạy producer smoke)
+```
+
+Bằng chứng nguyên văn:
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.

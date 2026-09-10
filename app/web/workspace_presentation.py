@@ -364,6 +364,26 @@ def _product_display(detail: dict, identity, catalog) -> str:
     return detail["product_raw"] or "—"
 
 
+def _product_title(detail: dict, shown: str, *, synthetic: bool) -> Optional[str]:
+    """Tooltip của ô `Mặt hàng`: TÊN TRÊN SỔ, khi màn hình đang hiện tên khác.
+
+    `R5.3` §UI — ba cột đối chiếu phải đọc đủ được, và ô này là ô duy nhất
+    trong ba ô mà nội dung hiển thị có thể KHÁC nội dung nguồn: khi một dòng
+    đã xác nhận mã, `_product_display` thay tên dài trên sổ kế toán bằng model
+    canonical của Tracking. Đó là việc đúng (`R5` §5) nhưng nó lấy đi thứ
+    Owner dùng để đối chiếu với đơn thật, nên tên gốc phải còn đọc được ở đâu
+    đó — và `title` là chỗ không tốn một pixel nào của bảng kê.
+
+    `None` khi không có gì để nói thêm: dòng suy ra (chiết khấu), hoặc màn
+    hình đang hiện CHÍNH tên trên sổ. Một tooltip lặp lại đúng chữ đang hiện
+    là một tooltip dạy người đọc bỏ qua mọi tooltip khác.
+    """
+    if synthetic:
+        return None
+    raw = (detail.get("product_raw") or "").strip()
+    return raw if raw and raw != shown else None
+
+
 def _line_row(detail: dict, *, sheet, part, synthetic: bool,
               confirmed_keys=None, decisions=None,
               catalog=None, imeis=None) -> dict:
@@ -375,14 +395,19 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
     identity = (None if synthetic
                 else line_identity.state_of(
                     detail, confirmed_keys=confirmed_keys, decisions=decisions))
+    shown_product = (bm.DISCOUNT_DISPLAY_LABEL if synthetic
+                     else _product_display(detail, identity, catalog))
     return {
         "kind": part.kind,
         "synthetic": synthetic,
         "order_key": detail["order_key"],
         "product_key": detail["product_key"],
         "occurrence_index": detail["occurrence_index"],
-        "product_raw": (bm.DISCOUNT_DISPLAY_LABEL if synthetic
-                        else _product_display(detail, identity, catalog)),
+        "product_raw": shown_product,
+        # `R5.3` §UI — tên TRÊN SỔ, để đọc đủ qua tooltip khi ô đang hiện
+        # model canonical thay cho nó. Xem `_product_title`.
+        "product_title": _product_title(detail, shown_product,
+                                        synthetic=synthetic),
         # R5 §5 + R5.1 §5 — ba cột đối chiếu. `None` ⟹ ô hiện dấu gạch: một
         # dòng chưa phân loại không có hãng và không có nhóm hàng, và một dòng
         # sổ không ghi mã máy thì không có mã máy. Không nhánh nào đoán bù —

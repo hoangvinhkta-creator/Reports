@@ -274,6 +274,19 @@ def unwritable_projection(tmp_path: Path, monkeypatch) -> Path:
     return target
 
 
+def _wipe_durable_display(engine) -> None:
+    """Dọn bản lưu BỀN của nhãn — mô phỏng "chưa lần chạy nào ghi được nó".
+
+    `R5.3` tách hai nơi lưu, nên một bài muốn dựng ca "bản chiếu thật sự
+    VẮNG" phải dọn CẢ HAI. Xoá bằng SQL thô trên chính engine của app, không
+    qua repository: đây là một thao tác của bài kiểm để dựng trạng thái, không
+    phải một đường ghi mà production có.
+    """
+    from sqlalchemy import text as _sql_text
+    with engine.begin() as connection:
+        connection.execute(_sql_text("DELETE FROM tracking_display_snapshot"))
+
+
 def latest_run(app):
     """Bản ghi run gần nhất, đọc qua ĐÚNG store mà app đang dùng."""
     store = app.config["RUN_REGISTRY"]
@@ -550,17 +563,46 @@ def test_an_unwritable_projection_still_lets_the_run_succeed(
 
 
 def test_the_employee_tab_warns_when_the_projection_is_missing(
-    client, workbook, live_catalog, projection_path, identity_store,
+    client, workbook, live_catalog, projection_path, identity_store, engine,
 ):
     """Bản chiếu vắng mặt trong khi CÓ mapping đã xác nhận ⟹ tab Nhân viên
     phải cảnh báo, không để cả cột `Hãng` là `—` mà không lời nào giải thích.
+
+    `R5.3` đổi ĐIỀU KIỆN của bài này, không đổi mệnh đề của nó. Từ `R5.3`,
+    mất file cache trên đĩa KHÔNG còn là mất bản chiếu: nhãn được dựng lại từ
+    bản lưu BỀN của chính lần chạy (`tracking_display_snapshot`), nên không
+    còn gì để cảnh báo — đó là toàn bộ điều `R5.3` sửa. Ca "bản chiếu thật sự
+    VẮNG" mà bài này canh vì thế nay là: cache đĩa mất VÀ bản bền cũng không
+    có (chưa lần chạy nào ghi được nó, hoặc lịch sử đã bị dọn).
+
+    Không nới lỏng một phép chặn nào: mệnh đề vẫn là "vắng bản chiếu mà bảng
+    im lặng là lỗi", chỉ có định nghĩa của "vắng" là đúng hơn.
+    """
+    confirm(identity_store)
+    upload(client, workbook)
+    projection_path.unlink()
+    _wipe_durable_display(engine)
+    html = employee_page(client)
+    assert 'data-metric="catalog-projection-warning"' in html, (
+        "mất bản chiếu mà bảng im lặng — đúng lỗi production")
+
+
+def test_losing_only_the_disk_cache_rebuilds_the_labels_and_stays_silent(
+    client, workbook, live_catalog, projection_path, identity_store,
+):
+    """`R5.3` — mặt còn lại của bài ngay trên, và là mệnh đề TRUNG TÂM của nó.
+
+    Mất file cache trên đĩa (đúng việc Render làm ở mỗi deploy) KHÔNG được
+    làm mất nhãn: bản lưu bền của chính lần chạy dựng lại chúng, và vì không
+    có gì hỏng nên KHÔNG có cảnh báo nào.
     """
     confirm(identity_store)
     upload(client, workbook)
     projection_path.unlink()
     html = employee_page(client)
-    assert 'data-metric="catalog-projection-warning"' in html, (
-        "mất bản chiếu mà bảng im lặng — đúng lỗi production")
+    assert BRAND in cells(html, "line-brand")
+    assert CATEGORY in cells(html, "line-category")
+    assert 'data-metric="catalog-projection-warning"' not in html
 
 
 def test_no_warning_when_the_projection_is_healthy(

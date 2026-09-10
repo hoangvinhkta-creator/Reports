@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # Alembic mặc định khai ``alembic_version.version_num`` là VARCHAR(32) trên
 # PostgreSQL. Revision ID phải nằm trong giới hạn này; dài hơn sẽ khiến mọi DDL
 # đã chạy bị rollback khi Alembic ghi phiên bản cuối transaction.
-ALEMBIC_HEAD = "0011_mutation_request_state"
+ALEMBIC_HEAD = "0012_tracking_display_snapshot"
 
 # Alembic ghi phiên bản schema hiện tại vào bảng này; ``assert_schema_current``
 # đọc trực tiếp thay vì gọi alembic (alembic KHÔNG được import dưới app/).

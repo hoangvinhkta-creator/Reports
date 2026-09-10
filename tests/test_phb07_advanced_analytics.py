@@ -188,6 +188,11 @@ def test_phb07_adds_no_migration():
         # review độc lập (sổ chống lặp phải biết cả lần ghi đang bay) —
         # cùng lý do: phép khẳng định ở đây PIN thư mục.
         "0011_mutation_request_state.py",
+        # `0012_tracking_display_snapshot` là của `R5.3` (nhãn hiển thị
+        # Tracking sống qua restart) — cùng lý do như các dòng trên: phép
+        # khẳng định ở đây PIN thư mục. Bảng mới không lưu một kết quả phân
+        # tích nào và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0012_tracking_display_snapshot.py",
     ]
 
 

@@ -3441,6 +3441,64 @@ Bằng chứng nguyên văn:
 
 ---
 
+### R5.3 production (`S150`, 2026-09-10) — CẦN XÁC NHẬN ngân sách
+
+```text
+nguồn phát hiện     Owner, trên PRODUCTION, SAU khi merge R5.1 REPAIR-2
+không phải          một vòng Independent Review
+phân loại của phiên PRODUCTION DEFECT REPAIR
+repair cycle tiêu   KHÔNG TỰ TIÊU và KHÔNG TỰ MIỄN — cần Owner/reviewer xác nhận
+số dư R5 hiện tại   2 allowed / 2 used / 0 remaining   (KHÔNG đổi bởi S150)
+```
+
+**Lỗi.** `R5.1 REPAIR-2` ghi bản chiếu nhãn từ capture của chính lần chạy —
+đúng, và phiên `S150` đo lại từng tầng trên đường THẬT để xác nhận điều đó.
+Chỗ đứt nằm ở NƠI LƯU: bản chiếu sống trên đĩa EPHEMERAL của Render
+(`render.yaml`: *"KHÔNG có `disk:`"*), còn con số của kỳ sống trong
+PostgreSQL. Sau MỖI lần deploy/restart, mọi dòng đã `CONFIRMED` hiện `—` ở cả
+Hãng lẫn Nhóm hàng, VĨNH VIỄN, cho tới lần nạp sổ kế tiếp. Đo trực tiếp trên
+nền `c46e458`: `TRUOC RESTART brand ['Samsung','—']` →
+`SAU RESTART brand ['—','—']`.
+
+**Sửa.** Bảng mới `tracking_display_snapshot` (migration `0012`, ADDITIVE
+thuần) lưu nhãn BỀN theo `run_id` trong chính database giữ con số của kỳ;
+`server._tracking_display()` dựng lại bản chiếu từ đó khi cache đĩa rỗng, rồi
+ghi lại cache. Không lời gọi Tracking nào thêm. Chi tiết: `DEC-217`; task:
+`docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md`.
+
+**Vì sao phiên KHÔNG tự tiêu một cycle** (cùng lập luận đã ghi cho `S146`, để
+Owner/reviewer bác hoặc chuẩn y):
+
+- Ngân sách `V4.1` §2–§3 điều tiết việc đưa MỘT task qua Independent Review:
+  nó đếm các LẦN SỬA sau một vòng review ra finding `BLOCKING`.
+- `R5.3` không đến từ một vòng review — defect do Owner phát hiện trên
+  production, sau khi `CHECK-R51-26` đã `PASS` (`DEC-210`).
+- Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review, một
+  tính năng đã merge sẽ KHÔNG sửa được nữa khi lineage hết ngân sách — đó
+  không phải điều `V4.1` §3 nói tới.
+
+**Nếu Owner/reviewer kết luận ngược lại**, lineage `R5` vượt ngân sách và
+phải escalate theo `governance/core/ESCALATION_PROTOCOL.md`. Quyết định ấy
+KHÔNG thuộc phiên repair, và phiên này cố ý không giả định nó theo chiều nào.
+
+**Escalation trigger ĐÃ MET và đã ghi:** *"hành vi ở production khác biệt
+đáng kể so với các giả định đã được tài liệu hóa"* — tài liệu
+(`catalog_display.py` § điểm 3) giả định cái giá của việc mất bản chiếu là
+TẠM THỜI; đo được cho thấy nó VĨNH VIỄN. Rà soát nguyên nhân gốc đã thực hiện
+và ghi lại (`S150` §2); không có lần vá suy đoán nào.
+
+**Kiểm chứng:** 20 bài mới (8 đỏ trước sửa khi gỡ phần wiring, 20 xanh sau);
+full regression `3628 passed / 23 skipped / 0 failed` (nền `3608 passed /
+23 skipped`); Golden `58 passed / 2 skipped`; smoke `R5.3` `25 PASS / 0 FAIL`
+(producer Tracking THẬT); smoke `R5.1` `86 PASS / 0 FAIL`; smoke `R6`
+`29 PASS / 0 FAIL`; validator = baseline; `git diff --check` sạch; Tracking
+KHÔNG đổi một dòng nào.
+
+Bằng chứng nguyên văn:
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+---
+
 ## Root Task: R6
 
 ```
