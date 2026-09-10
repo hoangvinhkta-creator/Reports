@@ -1375,9 +1375,7 @@
     var save = body.querySelector('[data-metric="order-panel-save"]');
     if (save) save.addEventListener("click", function () { doSave(dialog); });
     var retry = body.querySelector('[data-metric="order-panel-retry"]');
-    if (retry) retry.addEventListener("click", function () {
-      doSave(dialog, { sameIntent: true });
-    });
+    if (retry) retry.addEventListener("click", function () { doSave(dialog); });
 
     var firstFocusable = body.querySelector(
       'input, select, button[data-metric="order-panel-save"]');
@@ -1403,14 +1401,21 @@
     return prices;
   }
 
-  /* `opts.sameIntent` — THỬ LẠI của một lần ghi CHƯA XÁC NHẬN (lỗi mạng):
-   * giữ NGUYÊN `idempotency_key`, để server nhận ra và không ghi hai lần
-   * (`STAB-03` của IIFE điều hướng chính, cùng nguyên tắc). Một lần GỬI
-   * LẠI sau `REVISION_CONFLICT` thì KHÁC — đó là một quyết định MỚI (server
-   * đã trả lời rõ ràng, không có gì mơ hồ để "thử lại"), nên nó luôn sinh
-   * mã mới (`resendAfterConflict`). */
-  function doSave(dialog, opts) {
-    opts = opts || {};
+  /* Giữ NGUYÊN `idempotency_key` hiện có của panel là hành vi MẶC ĐỊNH,
+   * VÔ ĐIỀU KIỆN của hàm này — không có tham số nào chọn giữa "giữ mã" và
+   * "sinh mã mới" ở đây. THỬ LẠI của một lần ghi CHƯA XÁC NHẬN (lỗi mạng)
+   * gọi thẳng `doSave(dialog)` nên tự động giữ mã cũ, để server nhận ra và
+   * không ghi hai lần (`STAB-03` của IIFE điều hướng chính, cùng nguyên
+   * tắc). Một lần GỬI LẠI sau `REVISION_CONFLICT` thì KHÁC — đó là một
+   * quyết định MỚI (server đã trả lời rõ ràng, không có gì mơ hồ để "thử
+   * lại") — nên nơi gọi (`applyConflict()`) tự sinh `panel.idempotencyKey`
+   * mới TRƯỚC khi gọi `doSave(dialog)`, thay vì hàm này tự phân nhánh.
+   *
+   * `REPAIR` (independent review, finding P2) — bản trước có tham số
+   * `opts.sameIntent` nhưng không đọc nó ở đâu cả; việc giữ mã "đúng" chỉ
+   * vì đây là hành vi MẶC ĐỊNH, không phải vì cờ đó. Xoá tham số chết thay
+   * vì để code và chú thích tiếp tục nói hai chuyện khác nhau. */
+  function doSave(dialog) {
     if (!panel || panel.dialog !== dialog) return;
     var prices = collectPrices(dialog);
     var employeeField = dialog.querySelector('[data-metric="order-panel-employee"]');
@@ -1458,15 +1463,42 @@
     setStatus(dialog, "unconfirmed");
   }
 
+  /* `REPAIR` (independent review, finding P0) — bản trước bọc TOÀN BỘ hàm
+   * này (kể cả nhánh `result.ok`) trong `if (!panel || panel.dialog !==
+   * dialog) return;`. Đóng panel (Escape/nút Đóng/mở panel khác) TRƯỚC KHI
+   * PATCH resolve làm `panel`/`panel.dialog` đổi trước khi response về —
+   * nhánh thành công khi đó `return` sớm, và `applySuccess()` (cùng
+   * `patchTableFromPayload()` bên trong nó) KHÔNG BAO GIỜ chạy dù server đã
+   * ghi thành công. Bảng nền giữ giá trị CŨ tới khi F5 — mâu thuẫn trực
+   * tiếp với chú thích "Bảng nền LUÔN được cập nhật" ngay trong
+   * `applySuccess()`.
+   *
+   * Sửa: `isCurrentDialog` chỉ gác phần UI CỦA CHÍNH panel đang mở (bật lại
+   * nút LƯU, và — bên trong các hàm dưới — vẽ trạng thái conflict/lỗi lên
+   * đúng dialog đó). Nhánh `result.ok` gọi `applySuccess()` VÔ ĐIỀU KIỆN:
+   * `applySuccess()` tự quyết định phần nào của NÓ cần `panel.dialog ===
+   * dialog` (cập nhật ô nhập/trạng thái của panel), còn việc vá bảng nền
+   * (`patchTableFromPayload()`) đứng NGOÀI điều kiện đó trong chính hàm ấy
+   * — đây là nơi lời hứa "PATCH không bao giờ bị mất vì panel đã đóng" thật
+   * sự đúng theo cấu tạo, không chỉ đúng trong chú thích. */
   function handleSaveResult(dialog, result) {
-    if (!panel || panel.dialog !== dialog) return;
-    var saveBtn = dialog.querySelector('[data-metric="order-panel-save"]');
-    if (saveBtn) saveBtn.disabled = false;
+    var isCurrentDialog = !!(panel && panel.dialog === dialog);
+    if (isCurrentDialog) {
+      var saveBtn = dialog.querySelector('[data-metric="order-panel-save"]');
+      if (saveBtn) saveBtn.disabled = false;
+    }
 
     if (result.ok) {
       applySuccess(dialog, result.payload);
       return;
     }
+
+    // Các nhánh dưới đây đều là cập nhật TRẠNG THÁI HIỂN THỊ của panel
+    // (conflict/lỗi + các nút đi kèm) — không có gì để vẽ khi panel đã đóng
+    // hoặc đã chuyển sang đơn khác, và `panel.orderRevision`/`panel.
+    // conflictCurrent` mà `applyConflict()` ghi PHẢI thuộc về đúng panel
+    // đang mở, không phải một panel đã đóng hay panel của đơn khác.
+    if (!isCurrentDialog) return;
 
     var err = result.payload && result.payload.error;
     var code = err && err.code;

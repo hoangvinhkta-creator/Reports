@@ -56,6 +56,68 @@ test('lưu thành công: vá đúng hàng trong bảng, không tải lại danh 
   await expect(tableCell).not.toHaveText(before || '');
 });
 
+test('đóng panel TRƯỚC KHI PATCH resolve — bảng nền vẫn được vá (repair, finding P0)', async ({ page }) => {
+  // `REPAIR` — independent review tìm ra `handleSaveResult()` bọc TOÀN BỘ
+  // hàm (kể cả nhánh `result.ok` → `applySuccess()`/`patchTableFromPayload()`)
+  // trong `if (!panel || panel.dialog !== dialog) return;`. Đóng panel
+  // trước khi PATCH resolve đổi `panel`/`panel.dialog`, nên nhánh thành
+  // công `return` sớm và KHÔNG bao giờ vá bảng — dù server đã ghi. Test
+  // này trì hoãn PATCH bằng route, đóng panel trong lúc nó còn bay, rồi
+  // xác nhận bảng nền (hàng đã đổi + hàng TỔNG) vẫn được vá đúng giá trị
+  // SERVER trả về khi response cuối cùng cũng tới.
+  await page.route('**/api/v1/orders/**', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'PATCH') return route.continue();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return route.continue();
+  });
+
+  const dialog = await openPanel(page, SIMPLE_ORDER);
+  const firstLine = dialog.locator('[data-metric="order-panel-line"]').first();
+  const productKey = await firstLine.getAttribute('data-product-key');
+  const occurrenceIndex = await firstLine.getAttribute('data-occurrence-index');
+
+  const tableCell = page.locator(
+    `tr[data-order="${SIMPLE_ORDER}"][data-product-key="${productKey}"]`
+    + `[data-occurrence-index="${occurrenceIndex}"] td[data-metric="purchase_price"]`);
+  const totalsCell = page.locator('td[data-metric="totals-purchase"]');
+  const beforeRow = await tableCell.textContent();
+  const beforeTotals = await totalsCell.textContent();
+
+  const priceInput = firstLine.locator('[data-metric="order-panel-price"]');
+  await priceInput.fill('6.543.000');
+  const reason = dialog.locator('[data-metric="order-panel-reason"]');
+  if (await reason.isVisible()) await reason.fill('kiểm tra đóng panel trước khi PATCH resolve');
+
+  const patchResponsePromise = page.waitForResponse((response) =>
+    response.request().method() === 'PATCH'
+    && /\/api\/v1\/orders\//.test(response.url()));
+  await dialog.locator('[data-metric="order-panel-save"]').click();
+  await expect(dialog.locator('[data-metric="order-panel-status"]'))
+    .toHaveAttribute('data-state', 'saving');
+
+  // Đóng panel NGAY — PATCH vẫn còn bị route trì hoãn 1s, chưa resolve.
+  // Đây là bước tái hiện đúng kịch bản finding: panel biến khỏi DOM TRƯỚC
+  // khi response về.
+  await dialog.locator('[data-metric="order-panel-close"]').click();
+  await expect(dialog).toBeHidden();
+
+  const patchResponse = await patchResponsePromise;
+  expect(patchResponse.status()).toBe(200);
+  const payload = await patchResponse.json();
+  const savedLine = payload.lines.find((line) =>
+    line.product_key === productKey
+    && String(line.occurrence_index) === String(occurrenceIndex));
+  expect(savedLine, 'response PATCH không chứa đúng dòng vừa sửa').toBeTruthy();
+
+  // Bảng nền phải khớp CHÍNH XÁC giá trị server trả về — không chỉ "khác
+  // giá trị cũ" — dù panel đã đóng trước khi response tới.
+  await expect(tableCell).toHaveText(savedLine.purchase_price.text);
+  await expect(totalsCell).toHaveText(payload.totals.sheet.row_totals.purchase_price);
+  expect(beforeRow).not.toBe(savedLine.purchase_price.text);
+  expect(beforeTotals).not.toBe(payload.totals.sheet.row_totals.purchase_price);
+});
+
 test('lỗi mạng: giữ nguyên draft, KHÔNG tự gửi lại — chỉ gửi khi bấm THỬ LẠI', async ({ page }) => {
   let patchAttempts = 0;
   await page.route('**/api/v1/orders/**', async (route) => {
