@@ -139,6 +139,21 @@ PERIOD_TABLES = {"period_close"}
 # phép xoá nó.
 BINDING_TABLES = {"line_binding_exception"}
 
+# `STAB-03` — bảng thứ mười một, và nó KHÔNG cùng loại với mười bảng trên.
+# Mười bảng kia ghi một QUYẾT ĐỊNH nghiệp vụ; bảng này ghi một sự kiện về
+# VẬN CHUYỂN: "lần gửi mang mã X đã được cam kết". Nó không có khoá nghiệp
+# vụ, không tham gia phép gộp nào, không đi vào vân tay chốt kỳ.
+#
+# Vì sao nó cần tồn tại: một lần POST có thể được ghi xong rồi response
+# thất lạc, và browser không phân biệt được điều đó với "server chưa nhận".
+# Nhánh tự gửi lại (`form.submit()` trong `catch`) đã bị gỡ, và nút THỬ LẠI
+# gửi ĐÚNG `request_id` cũ — bảng này là nơi mã ấy được nhận ra.
+#
+# Nó ở một tập RIÊNG chứ không gộp vào `OWNER_INPUT_TABLES` vì nội dung của
+# nó tái tạo được, nên `downgrade()` không phải sao lưu nó (xem
+# `0010_mutation_request` § "Vì sao KHÔNG nằm trong OWNER_INPUT_TABLES").
+MUTATION_TABLES = {"mutation_request"}
+
 # Tám bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
 # này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
 OWNER_INPUT_TABLES = (
@@ -376,6 +391,14 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     yêu cầu một quyết định giá nhập tay mang đủ provenance THỰC TẾ: ai, lúc
     nào, giá AUTO lúc đó là bao nhiêu — và VÌ SAO. Ba thứ đầu đã có cột; lý do
     thì chưa, và không suy ra được từ đâu cả.
+
+    `0010_mutation_request` gia nhập khi `STAB-03` gỡ nhánh tự gửi lại
+    mutation (`form.submit()` trong `catch` của `app.js`). Nhánh đó ghi lần
+    thứ hai một quyết định đã được ghi, khi server ghi xong rồi response
+    thất lạc — và một lỗi fetch không phân biệt được tình huống đó với
+    "server chưa nhận". Thay nó bằng một nút THỬ LẠI cần một chỗ để nhận ra
+    `request_id` cũ, và chỗ đó phải sống qua nhiều worker gunicorn cùng
+    nhiều lần restart. Một dict trong tiến trình không làm được cả hai.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
@@ -386,7 +409,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0006_employee_target.py",
                         "0007_employee_workspace.py",
                         "0008_purchase_price_reason.py",
-                        "0009_line_binding_period_close.py"]
+                        "0009_line_binding_period_close.py",
+                        "0010_mutation_request.py"]
     # Alembic mặc định tạo ``alembic_version.version_num`` VARCHAR(32) trên
     # PostgreSQL. Một revision dài hơn chỉ lộ khi deploy: DDL chạy xong nhưng
     # transaction rollback lúc Alembic ghi version. Giữ giới hạn ở đây để lỗi
@@ -396,7 +420,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
 
 def test_schema_declares_exactly_the_frozen_tables():
     assert set(schema.METADATA.tables) == (
-        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES | BINDING_TABLES)
+        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES | BINDING_TABLES
+        | MUTATION_TABLES)
 
 
 def test_the_owner_backup_table_is_not_part_of_the_schema():

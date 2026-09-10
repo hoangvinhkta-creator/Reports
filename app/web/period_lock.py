@@ -174,6 +174,18 @@ def _line_payload(detail: dict) -> tuple:
     )
 
 
+#: Tên CÔNG KHAI của hai hàm dưới. `app/web/order_revision.py` băm cùng
+#: payload này ở hai phạm vi khác (một đơn, một kỳ), và nó phải dùng LẠI
+#: `_LINE_FIELDS` chứ không dựng một danh sách trường thứ hai — hai danh
+#: sách sẽ trôi khỏi nhau, và khi trôi thì một trong hai mù đúng kiểu
+#: `FIND-R3-IR-01` đã trả giá một lần.
+#:
+#: Chúng là alias, không phải hàm mới: đổi cách tính ở `_line_payload`/
+#: `_text` đổi cả hai nơi gọi cùng lúc, đúng như phải vậy.
+line_payload = _line_payload
+canonical_text = _text
+
+
 def content_fingerprint(*, details, totals: dict) -> str:
     """Vân tay của CHÍNH bộ số đang được chốt.
 

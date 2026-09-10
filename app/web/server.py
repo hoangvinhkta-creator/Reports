@@ -81,8 +81,8 @@ from app.web import (
     business_presentation, business_service, business_store,
     chart_gapfill, dashboard_presentation, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
-    line_identity, period_lock, product_taxonomy, request_timing,
-    revenue_timeline, run_registry,
+    line_identity, mutation_guard, order_api, order_revision, period_lock,
+    product_taxonomy, request_timing, revenue_timeline, run_registry,
     catalog_display, sales_presentation, sales_queries, snapshot_presentation,
     storage_backend, workspace_imei, workspace_presentation,
 )
@@ -90,6 +90,18 @@ import tools.db as history_db
 from tools.db import HistoryConfigurationError
 from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
 from tools.tracking import live_pull
+
+#: `abort(<mã>)` trên đường `/api/` → mã lỗi ổn định của hợp đồng. Mã HTTP
+#: nào không có tên riêng ở đây rơi về `VALIDATION_ERROR`: client vẫn bật
+#: được nhánh, và mã HTTP thật vẫn có mặt trong trường `status`.
+_API_STATUS_CODES = {
+    400: mutation_guard.VALIDATION_ERROR,
+    403: mutation_guard.PERMISSION_DENIED,
+    404: mutation_guard.NOT_FOUND,
+    409: mutation_guard.PERIOD_CLOSED,
+    422: mutation_guard.VALIDATION_ERROR,
+    503: mutation_guard.SOURCE_PENDING,
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -4028,6 +4040,360 @@ def create_app(
             return _page(error="Loại phản hồi không hợp lệ.", run_id=run_id, status=400)
         beta_feedback.save_feedback(record)
         return redirect(url_for("index", run_id=run_id, feedback="ok"))
+
+    # ==================================================================
+    # `API-01`/`API-02` — chi tiết MỘT đơn, và một lần PATCH của nó.
+    #
+    # Vì sao hai route này tồn tại, bằng con số đo được ở
+    # `scripts/stab01_baseline.py`: mở chế độ sửa một đơn trên fixture
+    # 5.000 dòng trả ~14,5 MB HTML và 5.002 hàng `<tr>`, vì nó dựng lại CẢ
+    # bảng kê. Ngân sách của brief §6 cho chi tiết một đơn là dưới 50 KB.
+    #
+    # Chúng KHÔNG thay các route HTML. Route `?sua=` cũ còn nguyên, và đó
+    # là điều kiện của "lớp tăng cường": tắt JavaScript thì luồng sửa đơn
+    # vẫn chạy y như trước, qua form và POST thật.
+    #
+    # Cả hai KHÔNG dựng một thẩm quyền nghiệp vụ nào mới. Chúng gọi đúng
+    # `plan_order_edit`/`apply_order_edit` mà form HTML gọi, và đọc đúng
+    # `PeriodData` mà bảng HTML đọc — xem `app/web/order_api.py`
+    # § "Ranh giới cứng".
+    # ==================================================================
+
+    def _api_period_choice(periods: list[tuple[int, int]]):
+        """Kỳ của một request API — `period` trước, `ky` sau.
+
+        Không viết lại phép phân tích: `_business_period_choice` đọc
+        `request.values`, nên chỉ cần đảm bảo có một khoá `ky` để nó đọc.
+        Đường ngắn nhất làm được điều đó mà không sửa hàm cũ là phân tích
+        `period` ở đây theo CÙNG một câu, và trả về `None` cho cùng những
+        đầu vào mà hàm kia trả `None`.
+        """
+        raw = (request.values.get("period") or "").strip()
+        if not raw:
+            return _business_period_choice(periods)
+        year_text, _, month_text = raw.partition("-")
+        try:
+            chosen = (int(year_text), int(month_text))
+        except ValueError:
+            return None
+        return chosen if chosen in periods else None
+
+    def _api_error(code: str, message: str, *, status: int, **extra):
+        """Lỗi JSON có MÃ ỔN ĐỊNH. Client bật nhánh theo `code`, không theo chữ.
+
+        Câu chữ tiếng Việt được phép sửa cho dễ đọc; `code` thì không, vì
+        nó là hợp đồng (brief §API-02 liệt kê tập mã).
+        """
+        return {"error": {"code": code, "message": message, **extra},
+                "request_id": request_timing.request_id()}, status
+
+    def _api_order_view(order_key: str):
+        """`(view, lỗi)` — kỳ + dữ liệu cho một request API về một đơn.
+
+        Kỳ đọc từ `?period=YYYY-MM` (tên của brief §API-01) và cũng nhận
+        `?ky=` — cùng tên mà các route HTML dùng. Hai tên cho một thứ, và
+        đó là có chủ ý: hợp đồng API nói `period`, còn panel gửi lại chính
+        chuỗi nó nhận từ URL của màn hình, nơi tên là `ky`. Bắt panel dịch
+        tên giữa hai chỗ là mời một lần dịch sai.
+
+        Ngữ nghĩa của giá trị thì KHÔNG có bản thứ hai: nó đi qua đúng
+        `_business_period_choice`, nên một kỳ sai dạng hay không tồn tại
+        cho ra cùng kết quả `None` mà màn hình đang cho.
+        """
+        service = _require_business()
+        periods = _guarded(analytics_queries.available_periods,
+                           snapshot_repo.engine)
+        period = _api_period_choice(periods)
+        if period is None:
+            return None, _api_error(
+                mutation_guard.NOT_FOUND,
+                "Không đọc được kỳ. Hãy gửi `period=YYYY-MM` của một kỳ đã "
+                "có dữ liệu.", status=404)
+        bounds = analytics_queries.month_bounds(*period)
+        data = _guarded(service.period, date_from=bounds[0],
+                        date_to=bounds[1], period=period)
+        return {"service": service, "period": period, "data": data}, None
+
+    def _api_sheet(view, data):
+        """Sheet đang xem, hoặc `None` khi request không nói sheet nào.
+
+        `None` là một câu trả lời hợp lệ: PATCH từ một màn hình không có
+        sheet (khung nhìn toàn kỳ) vẫn ghi được, chỉ là response không kèm
+        tổng của sheet nào. Đoán một sheet ở đây sẽ trả về tổng của một
+        đơn vị báo cáo mà người gọi không hỏi.
+        """
+        key = request.values.get("sheet")
+        if not key:
+            return None
+        return reporting_sheets.find_sheet(view["service"].sheets(data), key)
+
+    @app.get("/api/v1/orders/<order_key>")
+    def api_order_detail(order_key: str):
+        """`API-01` — chi tiết của ĐÚNG một đơn, JSON gọn.
+
+        Không dựng workspace, không trả HTML của bảng, không đọc IMEI
+        (`DEC-R5-03`). Quyền và validation vẫn ở server: `can_edit` phản
+        ánh trạng thái chốt kỳ thật, và một client bỏ qua nó vẫn bị
+        `PATCH` từ chối.
+        """
+        view, failure = _api_order_view(order_key)
+        if failure is not None:
+            return failure
+        payload = order_api.detail_payload(
+            data=view["data"], order_key=order_key, period=view["period"],
+            service=view["service"],
+            # Quyền sửa = kỳ chưa chốt. Đây là cùng cửa mà `_guard_lines`
+            # áp lúc ghi, đọc trước để panel hiện đúng trạng thái ngay —
+            # nhưng cửa THẬT vẫn là `_guard_lines`, không phải cờ này.
+            can_edit=not view["service"].period_store.is_closed(view["period"]))
+        if payload is None:
+            return _api_error(
+                mutation_guard.NOT_FOUND,
+                f"Không có đơn {order_key} trong kỳ này.", status=404)
+        payload["request_id"] = request_timing.request_id()
+        return payload
+
+    @app.patch("/api/v1/orders/<order_key>")
+    def api_patch_order(order_key: str):
+        """`API-02` — lưu phần thay đổi của MỘT đơn, có revision + request_id.
+
+        Thứ tự các cửa là HỢP ĐỒNG, không phải một chi tiết triển khai.
+        Đảo bất kỳ hai bước nào cũng mở lại một lớp lỗi mà bước kia đóng:
+
+            1. `request_id` — đã ghi rồi thì TRẢ LẠI kết quả cũ. Đứng đầu
+               vì một lần THỬ LẠI phải thắng mọi cửa khác: người dùng gửi
+               lại vì họ KHÔNG BIẾT kết quả, và một lần thử lại mang
+               revision đã cũ (vì người khác vừa ghi) không được báo xung
+               đột — nó phải nhận lại đúng kết quả lần ghi trước của CHÍNH
+               nó.
+            2. `base_revision` — người gửi có đang nhìn đúng bản không.
+            3. `plan_order_edit` — validate toàn bộ, chưa ghi gì.
+            4. `_guard_lines` — kỳ đã chốt chặn cả một lần sửa hợp lệ.
+            5. ghi, rồi ĐỌC LẠI kỳ để trả revision MỚI.
+
+        Bước 5 đọc lại thật, không tính nhẩm: trả về revision cũ sẽ làm
+        panel gửi lần sau với một `base_revision` lỗi thời ngay từ lúc nó
+        nhận được, và người dùng thấy một xung đột do chính server tạo ra.
+        """
+        body = request.get_json(silent=True) or {}
+        try:
+            request_id = mutation_guard.MutationGuard.clean_request_id(
+                body.get("request_id"))
+        except mutation_guard.MissingRequestIdError as exc:
+            return _api_error(mutation_guard.VALIDATION_ERROR, str(exc),
+                              status=400, field="request_id")
+
+        guard = mutation_guard.MutationGuard(snapshot_repo.engine)
+
+        # CỬA 1 — lần gửi này đã được ghi chưa. Xem docstring về thứ tự.
+        replay = guard.replay_of(request_id)
+        if replay is not None:
+            payload = dict(replay.response)
+            payload["already_applied"] = True
+            payload["applied_at"] = replay.entered_at
+            payload["applied_by"] = replay.entered_by
+            payload["request_id"] = request_id
+            return payload
+
+        view, failure = _api_order_view(order_key)
+        if failure is not None:
+            return failure
+        service, data, period = view["service"], view["data"], view["period"]
+
+        current_revision = order_revision.of_order(data, order_key)
+        if current_revision is None:
+            return _api_error(
+                mutation_guard.NOT_FOUND,
+                f"Không có đơn {order_key} trong kỳ này.", status=404)
+
+        # CỬA 2 — bản người gửi đang nhìn. Trả về CẢ bản hiện tại và các
+        # dòng hiện tại (brief §UI-03: "khi revision cũ, trả bản hiện tại
+        # và trường đã thay đổi"), để panel so được mà không phải gọi thêm
+        # một lượt GET.
+        base_revision = body.get("base_revision")
+        if mutation_guard.MutationGuard.revision_conflict(
+                base_revision=base_revision,
+                current_revision=current_revision):
+            return _api_error(
+                mutation_guard.REVISION_CONFLICT,
+                "Đơn này đã được thay đổi từ lúc bạn mở nó. Bản nháp của "
+                "bạn vẫn còn — hãy so với bản mới rồi quyết định gửi lại "
+                "hay lấy giá trị mới.",
+                status=409,
+                order_revision=current_revision,
+                period_revision=order_revision.of_period(data, period),
+                current=order_api.detail_payload(
+                    data=data, order_key=order_key, period=period,
+                    service=service,
+                    can_edit=not service.period_store.is_closed(period)))
+
+        changes = body.get("changes") or {}
+        if not isinstance(changes, dict):
+            return _api_error(
+                mutation_guard.VALIDATION_ERROR,
+                "`changes` phải là một đối tượng.", status=400, field="changes")
+
+        # CỬA 3 — validate hết rồi mới ghi. `prices` mang khoá dòng ĐẦY ĐỦ
+        # ba phần, cùng quy ước `_submitted_prices` của form HTML: một chỉ
+        # số hàng chỉ đúng cho tới khi thứ tự dòng đổi (R3 §1).
+        try:
+            prices = _api_submitted_prices(order_key, changes.get("prices"))
+        except ValueError as exc:
+            return _api_error(mutation_guard.VALIDATION_ERROR, str(exc),
+                              status=400, field="changes.prices")
+        employee = changes.get("employee")
+        try:
+            plan = service.plan_order_edit(
+                data=data, order_key=order_key,
+                employee=(employee or None) if employee is not None else None,
+                prices=prices, reason=(body.get("reason") or None))
+        except business_service.OrderNotFoundError:
+            return _api_error(
+                mutation_guard.NOT_FOUND,
+                f"Không có đơn {order_key} trong kỳ này.", status=404)
+        if not plan.ok:
+            return _api_error(mutation_guard.VALIDATION_ERROR,
+                              " ".join(plan.errors), status=422,
+                              order_revision=current_revision)
+
+        # CỬA 4 — kỳ đã chốt. Đứng SAU validate và TRƯỚC ghi, đúng cùng
+        # thứ tự mà `business_save_order` dùng: một kỳ đã chốt phải chặn
+        # cả một lần sửa hợp lệ, và chặn nó bằng cùng một câu.
+        #
+        # Gọi `guard_line_open` TRỰC TIẾP thay vì qua `_guard_lines`: hàm
+        # đó bọc trong `_guarded`, và `_guarded` biến `PeriodClosedError`
+        # thành `abort(409)` — tức một trang HTML lỗi. Đúng cho một form,
+        # sai cho một endpoint JSON: client sẽ nhận HTML ở chỗ nó chờ một
+        # mã lỗi. Cùng CỬA, cùng câu chữ (`str(exc)` là câu của tầng chốt
+        # kỳ), chỉ khác cách nói ra.
+        try:
+            for detail in plan.details:
+                service.guard_line_open(detail)
+        except period_lock.PeriodClosedError as exc:
+            return _api_error(mutation_guard.PERIOD_CLOSED, str(exc),
+                              status=409, order_revision=current_revision)
+
+        sheet = _api_sheet(view, data)
+        if plan.changes_nothing:
+            # KHÔNG ghi gì, và KHÔNG nhớ `request_id`: không có lần ghi nào
+            # để nhận ra lại. Revision không đổi, nên panel giữ nguyên
+            # `base_revision` của nó và lần gửi sau vẫn hợp lệ.
+            payload = order_api.patch_payload(
+                data=data, order_key=order_key, period=period,
+                service=service, plan=plan, message=plan.summary(),
+                sheet=sheet)
+            payload["changed_nothing"] = True
+            payload["request_id"] = request_timing.request_id()
+            return payload
+
+        actor = identity_gateway.actor_of()
+        message = _guarded(service.apply_order_edit, plan, entered_by=actor)
+
+        # ĐỌC LẠI kỳ sau khi ghi — xem docstring, bước 5.
+        bounds = analytics_queries.month_bounds(*period)
+        fresh = _guarded(service.period, date_from=bounds[0],
+                         date_to=bounds[1], period=period)
+        fresh_sheet = _api_sheet(view, fresh)
+        payload = order_api.patch_payload(
+            data=fresh, order_key=order_key, period=period, service=service,
+            plan=plan, message=message, sheet=fresh_sheet)
+
+        # Nhớ lần ghi này SAU khi nó đã cam kết. Cửa sổ giữa hai lượt ghi
+        # được nói ra ở `mutation_guard` § "Vì sao KHÔNG có transaction
+        # chung" — nó hẹp bằng một lượt INSERT trên cùng database, thay cho
+        # cửa sổ cũ rộng bằng toàn bộ thời gian mạng của một request.
+        remembered = guard.remember(
+            request_id=request_id, route="api_patch_order",
+            subject=order_key, base_revision=base_revision,
+            response=payload, entered_by=actor)
+        payload["audit_id"] = remembered.request_id
+        payload["applied_at"] = remembered.entered_at
+        payload["applied_by"] = remembered.entered_by
+        payload["request_id"] = request_timing.request_id()
+        return payload
+
+    def _api_submitted_prices(order_key: str, raw) -> dict:
+        """`changes.prices` của JSON → `{khoá dòng: chuỗi người gõ}`.
+
+        Cùng hình dạng `_submitted_prices` trả về từ form HTML, nên
+        `plan_order_edit` nhận đúng một loại đầu vào từ cả hai đường. Đó là
+        điều giữ cho không có đường ghi thứ hai với luật riêng của nó.
+
+        Mỗi phần tử phải mang ĐỦ `product_key` + `occurrence_index`. Thiếu
+        một phần là TỪ CHỐI, không đoán: đoán ở đây nghĩa là ghi một giá
+        lên một dòng mà người gửi không chỉ định.
+
+        `value` là CHUỖI người gõ, không phải số — chuỗi rỗng nghĩa là GỠ
+        giá tay, và một `0` là một giá bằng không. `null`/số bị từ chối để
+        hai ý nghĩa đó không bị trộn ở tầng JSON.
+        """
+        if raw is None:
+            return {}
+        if not isinstance(raw, list):
+            raise ValueError("`changes.prices` phải là một danh sách.")
+        prices = {}
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                raise ValueError(f"`changes.prices[{index}]` phải là đối tượng.")
+            product_key = item.get("product_key")
+            occurrence = item.get("occurrence_index")
+            if not product_key or occurrence is None:
+                raise ValueError(
+                    f"`changes.prices[{index}]` thiếu product_key hoặc "
+                    "occurrence_index — khoá dòng phải đủ ba phần.")
+            try:
+                occurrence = int(occurrence)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"`changes.prices[{index}].occurrence_index` phải là số "
+                    "nguyên.") from None
+            value = item.get("value")
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"`changes.prices[{index}].value` phải là CHUỖI. Chuỗi "
+                    "rỗng nghĩa là gỡ giá tay; một số 0 là giá bằng không — "
+                    "hai ý nghĩa đó không được trộn.")
+            prices[(order_key, str(product_key), occurrence)] = value
+        return prices
+
+    # Lỗi trên đường `/api/` phải trả JSON, không trả TRANG.
+    #
+    # Vì sao cần hook riêng: các `errorhandler` bên dưới dựng `_page(...)`
+    # — đúng cho một người đang xem một trang, sai cho một `fetch()` đang
+    # chờ `{"error": {"code": …}}`. Một client nhận HTML ở chỗ nó chờ mã
+    # lỗi sẽ báo "lỗi phân tích JSON", và câu đó không nói gì về nguyên
+    # nhân thật (404, 409 hay 503).
+    #
+    # Bắt ở `HTTPException` chung chứ không từng mã: mọi `abort()` trên
+    # đường này — kể cả `abort(503)` từ `_guarded` mà route API không tự
+    # gọi — phải ra JSON. Mã HTTP giữ nguyên; chỉ VỎ đổi.
+    #
+    # Flask chọn handler theo mã CỤ THỂ trước, rồi mới tới lớp cha, nên
+    # `@errorhandler(404)`/`(500)`/`(409)`/`(503)` bên dưới vẫn thắng hàm
+    # này cho các trang. Hàm này vì thế chỉ thật sự chạy cho những mã
+    # KHÔNG có handler riêng (405, 400, 422…), và cho các đường `/api/`
+    # mà nó nhận diện bằng `request.path`.
+    #
+    # Đường KHÔNG phải API rơi về `exc.get_response()` — chính response
+    # mặc định của Werkzeug, tức đúng hành vi trước bản này. KHÔNG `raise
+    # exc` ở đây: một ngoại lệ ném ra từ trong error handler không quay
+    # lại danh sách handler, nó đi thẳng lên `handle_exception` và (khi
+    # `PROPAGATE_EXCEPTIONS` bật, như trong test) nổ ra ngoài — biến một
+    # 405 bình thường thành một lỗi không bắt được.
+    @app.errorhandler(HTTPException)
+    def _api_http_error(exc):
+        if not request.path.startswith("/api/"):
+            return exc.get_response()
+        return {
+            "error": {
+                "code": _API_STATUS_CODES.get(
+                    exc.code, mutation_guard.VALIDATION_ERROR),
+                "message": (exc.description
+                            or "Yêu cầu không thực hiện được."),
+                "status": exc.code,
+            },
+            "request_id": request_timing.request_id(),
+        }, exc.code
 
     @app.errorhandler(RequestEntityTooLarge)
     def _too_large(_exc):
