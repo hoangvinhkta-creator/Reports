@@ -544,20 +544,34 @@ Priority:
 REQUIRED
 
 Status:
-NOT_TESTED
+FAIL
 
 Evidence Level:
 E2
 
 Evidence:
-Independent Review của `R5.3` chưa mở. Phiên triển khai KHÔNG tự đóng check
-này.
+Independent Review đã chạy trên HEAD `cb7639f88efa8c9fb24f414ac1b6d9f93e58f02e`
+(nhánh `claude/r5-3-reports-metadata-review-8bp6be`, cùng commit với
+`claude/r5-3-reports-brand-category-j37izs`). Kết luận `REPAIR_REQUIRED`:
+`FIND-R53-01` — đường đọc bản chiếu nhãn (`_tracking_display`/
+`latest_tracking_display`) không phân biệt theo `run_id`/kỳ, luôn trả bản
+của lần chạy GẦN NHẤT toàn cục; đo được trực tiếp qua hai lần `/run` cho
+hai kỳ khác nhau với cùng mã Tracking bị đổi nhãn giữa hai lần chạy — kỳ CŨ
+hiện nhãn của kỳ MỚI, cả trước lẫn sau restart. Không đổi tiền/số dòng/MIN/
+coverage/vân tay chốt kỳ; ảnh hưởng gộp Nhóm hàng của `R6` cho kỳ lịch sử.
+Bốn chuỗi kiểm còn lại (luồng chính, restart/persistence, fail-closed,
+hồi quy) đều PASS. Chi tiết đầy đủ, bằng chứng lệnh và repair tối thiểu:
+`docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`. Lineage `R5` đã hết ngân
+sách repair-cycle (2/2, 0 remaining) — phiên review escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì tự mở repair cycle thứ ba;
+quyết định tiếp theo thuộc Owner.
 
 Executed By:
-—
+Independent Review session (Claude Code), nhánh
+`claude/r5-3-reports-metadata-review-8bp6be`
 
 Timestamp:
-—
+2026-09-10
 
 #### CHECK-R53-14
 Priority:

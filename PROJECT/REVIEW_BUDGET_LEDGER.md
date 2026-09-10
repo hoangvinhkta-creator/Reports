@@ -3497,6 +3497,56 @@ KHÔNG đổi một dòng nào.
 Bằng chứng nguyên văn:
 `docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
 
+### Independent Review `R5.3` — `REPAIR_REQUIRED`, ESCALATE (2026-09-10)
+
+```text
+kết luận             REPAIR_REQUIRED
+exact HEAD reviewed  cb7639f88efa8c9fb24f414ac1b6d9f93e58f02e
+nền xác nhận         origin/claude/extract-upload-repo-gq2ws4 @ c46e458
+                     Tracking main @ 0f7347b (>= b7c5f3b, không đổi)
+finding REPAIR       1  (FIND-R53-01)
+finding ACCEPTED_RISK mới  0
+repair cycle tiêu bởi PHIÊN REVIEW   0   (phiên review KHÔNG sửa mã)
+số dư trước review   2 allowed / 2 used / 0 remaining
+số dư sau review     2 allowed / 2 used / 0 remaining (KHÔNG đổi — review
+                     không tự mở repair cycle khi lineage đã cạn ngân sách)
+CHECK-R53-13         NOT_TESTED → FAIL (E2)
+ESCALATION           CÓ — xem dưới
+```
+
+**Xác nhận bookkeeping "CẦN XÁC NHẬN" của `S146`/`S150`.** Phiên review này
+XÁC NHẬN lập luận mà cả hai phiên repair sản xuất (`R5.1 REPAIR-2`, `R5.3`)
+đã tự ghi: một defect production được Owner phát hiện SAU khi Independent
+Review trước đó đã PASS không tiêu ngân sách repair-cycle của lineage, vì
+`V4.1` §2–§3 đếm theo VÒNG REVIEW ra `REPAIR_REQUIRED`, không theo mọi lần
+sửa lỗi. Số dư `R5` giữ nguyên `2/2 used, 0 remaining` qua cả `S146` và
+`S150` — không cần escalate vì việc này.
+
+**Nhưng finding của CHÍNH phiên review này thì khác.** `FIND-R53-01`
+(§3 và §6 của bản ghi review) đến từ một vòng Independent Review thật
+(`CHECK-R53-13`) kết luận `REPAIR_REQUIRED` — đúng loại sự kiện `V4.1` §3
+tính vào ngân sách nếu mở repair cycle để sửa nó. Lineage `R5` đang
+`0 remaining`; mở một repair cycle bình thường cho finding này sẽ là cycle
+thứ BA, vượt bảng ngân sách đã freeze (`HIGH = 2`, không có `HIGH = 3`).
+
+**Escalation trigger đã ghi** (`governance/core/ESCALATION_PROTOCOL.md`):
+ngân sách lineage `R5` đã cạn trước khi finding mới xuất hiện. Phiên review
+KHÔNG tự mở repair cycle thứ ba, KHÔNG tự chọn hướng giải quyết — bản ghi
+Escalation Record đầy đủ (Reason/Attempts/Evidence/Root cause/Scope/
+Recommended action) nằm ở
+`docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md` §7. Ba hướng Owner có thể
+chọn: (a) `OWNER_EXTENSION` cấp thêm cycle riêng cho `FIND-R53-01`;
+(b) Owner tự quyết định chấp nhận nó làm `ACCEPTED_RISK` MỚI (có ghi lại
+tường minh, khác với việc giữ nguyên `AR-R5.3-01` mô tả giảm nhẹ trong task
+file); (c) mở một lineage/task riêng ngoài `R5` để sửa (phạm vi sửa nằm gọn
+ở tầng đọc hiển thị, không mở rộng contract `R5`/`R5.1`).
+
+`FIND-R53-01` KHÔNG chạm tiền/MIN/coverage/vân tay chốt kỳ — phạm vi ảnh
+hưởng là hiển thị `Hãng`/`Nhóm hàng`/`Mặt hàng` cho các kỳ KHÔNG phải kỳ
+vừa `/run`, và gộp Nhóm hàng lịch sử của `R6`.
+
+Bằng chứng nguyên văn: `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`.
+
 ---
 
 ## Root Task: R6
