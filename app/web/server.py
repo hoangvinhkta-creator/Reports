@@ -79,7 +79,7 @@ from app.web import evaluation_presentation
 from app.web import (
     analytics_presentation, analytics_queries, brand_identity,
     business_presentation, business_service, business_store,
-    dashboard_presentation, history_store,
+    chart_gapfill, dashboard_presentation, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
     line_identity, period_lock, product_taxonomy, revenue_timeline,
     run_registry,
@@ -1285,12 +1285,19 @@ def create_app(
                 else _guarded(service.period))
         legacy_months = _legacy_month_totals()
         legacy_days = []
+        gapfill_days = ()
         if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK):
             legacy_days = _legacy_daily_rows(
                 [(item["year"], item["month"]) for item in legacy_months])
+            # `DEC-216` — nguồn lấp lỗ hổng CHỈ được nối ở đây, ở mức
+            # Ngày/Tuần, và chỉ cho biểu đồ doanh thu. Ở mức Tháng trở lên
+            # tổng tháng chính thức đã có mặt; nối thêm nó vào đó là cộng hai
+            # nguồn cho cùng một tháng.
+            gapfill_days = chart_gapfill.daily_rows()
         points = revenue_timeline.series(
             data.details, granularity=granularity,
-            legacy_months=legacy_months, legacy_days=legacy_days)
+            legacy_months=legacy_months, legacy_days=legacy_days,
+            gapfill_days=gapfill_days)
         # R5 §3 (`DEC-R5-02`) — Ngày/Tuần/Tháng/Quý vẽ HAI cửa sổ liền kề
         # cùng độ dài. `series()` ở trên vẫn tính TOÀN BỘ điểm bằng đúng
         # engine doanh thu cũ (bất biến Σ = totals và mọi kiểm chứng origin
@@ -3550,11 +3557,34 @@ def create_app(
         loại bằng chứng cạnh nhau trong cùng một phép so sánh mà không ô nào
         trên trang nói ra. Dòng thời gian có lịch sử vẫn ở nguyên trang Báo
         cáo, không bị xoá.
+
+        ## Vì sao nguồn LẤP LỖ HỔNG lại được nối, trong khi lịch sử thì không
+
+        `DEC-216`, và đây là chỗ hai luật gặp nhau nên nó được nói ra hết.
+        `FIND-R6-IR-01` để lại một bất biến đã nghiệm thu: hai trang cùng sản
+        phẩm, cùng sổ, cùng kỳ, CÙNG MỨC GỘP không được cho hai con số ở cửa
+        sổ so sánh. Ở mức Ngày/Tuần bất biến ấy đo được đúng nghĩa, vì bản ghi
+        lịch sử KHÔNG có điểm nào ở đó — nó chỉ lưu tổng tháng. Nói cách khác,
+        đoạn văn trên loại một thứ vốn đã vắng mặt ở mức này.
+
+        Nguồn lấp lỗ hổng thì CÓ điểm ở mức Ngày/Tuần. Nối nó vào trang Báo
+        cáo mà không nối vào đây sẽ làm hai trang vẽ hai đường "Cùng kỳ năm
+        trước" khác nhau cho cùng một câu hỏi — đúng thứ bất biến kia cấm, và
+        người đọc không có cách nào biết trang nào đang nói thật.
+
+        Ở mức Tháng trở lên nó không được truyền (`gapfill_days` chỉ nối ở
+        nhánh Ngày/Tuần), nên khác biệt lịch sử giữa hai trang ở các mức thô
+        vẫn nguyên như trước, không rộng thêm một chút nào.
         """
         granularity = revenue_timeline.parse_granularity(
             request.args.get("muc"), default=revenue_timeline.DAY)
         details, _widened = _chart_details(view, granularity)
-        points = revenue_timeline.series(details, granularity=granularity)
+        gapfill_days = (
+            chart_gapfill.daily_rows()
+            if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
+            else ())
+        points = revenue_timeline.series(details, granularity=granularity,
+                                         gapfill_days=gapfill_days)
         paired = revenue_timeline.paired_series(
             points, granularity=granularity, anchor=view["anchor"],
             confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)

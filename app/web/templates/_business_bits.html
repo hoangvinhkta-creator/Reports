@@ -101,6 +101,7 @@
     {% if chart.has_gap %}<p data-metric="chart-gap">{{ chart.gap_note }}</p>{% endif %}
     {% if chart.has_partial %}<p data-metric="chart-partial">{{ chart.partial_note }}</p>{% endif %}
     {% if chart.no_daily_legacy_note %}<p data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
+    {% if chart.gapfill_note %}<p data-metric="chart-gapfill">{{ chart.gapfill_note }}</p>{% endif %}
     {% if chart.undated %}
     <p data-metric="chart-undated">Có <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}.</p>
     {% endif %}

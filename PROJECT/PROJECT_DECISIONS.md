@@ -13761,3 +13761,136 @@ Kiểm thị giác  ảnh chụp Chromium thật xác nhận trục X: "26/08 ·
                03/09 · 07/09 · 11/09 · 15/09 · 19/09 · 25/09" — không còn
                năm lặp lại
 ```
+
+## DEC-216
+
+Ngày: 2026-09-10
+Phiên: Nối tiếp `DEC-215` §1. Owner xác nhận nguyên nhân (a) là đúng — sổ
+cũ chỉ có TỔNG THÁNG — và chốt một đường đi vòng để lấp lỗ hổng đường "Cùng
+kỳ năm trước" ở mức Ngày/Tuần.
+Thẩm quyền: Owner (`OWNER_DECISION`).
+Trạng thái: BAN HÀNH, đã thực thi.
+
+### §1. Yêu cầu, nguyên văn lời Owner
+
+> "tôi không yêu cầu bạn sử dụng file thô của tôi rồi tải lên report. tôi
+> muốn bạn đi đường vòng: đọc và xử lí trước số liệu file thô trong session
+> này, sau đó dùng số liệu đó (ngày + doanh số ngày) tạo thành 1 data không
+> phải legacy, chỉ phục vụ cho việc vẽ lấp lỗ hổng biểu đồ"
+
+> "hãy kiểm tra kĩ từng sheet của nhân viên, chỉ cần trích xuất doanh số
+> theo từng ngày của nhân viên rồi gộp lại doanh số ngày tổng của công ty"
+
+Ba tính từ trong câu đầu là ba ràng buộc, và cả ba đều được thi hành bằng
+mã, không bằng lời hứa — xem `§4`.
+
+### §2. Vì sao không thể lấp bằng thứ đang có
+
+`app/legacy/parser.py::parse_year_workbook` trả `daily_sales=[]`: 74 sheet
+chi tiết của workbook 2025 chỉ được ghi TÊN, không đọc một ô nào, theo
+`LEGACY_LINE_DETAIL_2025 = DEFERRED` — các sheet ấy chứa tên, số điện thoại
+và địa chỉ khách hàng (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`).
+`§CHART-10` cấm chia một tổng tháng ra thành ngày. `DEC-181`
+(`OWNER_DECISION`, đã freeze) cấm thêm nguồn legacy.
+
+Ba luật ấy cùng đúng, và cùng nhau chúng khoá chặt mọi lối lấp lỗ hổng
+BÊN TRONG đường legacy. Nên lối đi là một đường THỨ BA, nằm ngoài nó.
+
+### §3. `DEC-181` KHÔNG bị nới
+
+Ghi rõ vì đây là chỗ dễ đọc nhầm nhất của quyết định này. Lịch sử vẫn khoá
+ở đúng hai file nguồn đã chốt; `POST /du-lieu/legacy` vẫn trả 409 vô điều
+kiện; `legacy_reference.authoritative_period_sales` vẫn là thẩm quyền DUY
+NHẤT cho tổng một kỳ số cũ. Dữ liệu của `DEC-216` không đi vào bảng
+`legacy_*`, không qua route đó, không xuất hiện trong `legacy_reference`,
+và không được dùng để đối soát với bất kỳ con số nào.
+
+### §4. Ba ràng buộc, và chỗ mã nguồn thi hành từng cái
+
+```text
+"không phải legacy"   origin RIÊNG `CHART_GAPFILL` (`revenue_timeline`),
+                      không mượn nhãn `LEGACY_REFERENCE` — mượn nhãn sẽ
+                      làm hỏng đúng chiều `DEC-166 E` bắt phải đọc được
+"chỉ phục vụ vẽ"      bề mặt gọi DUY NHẤT là `server._revenue_chart`; KPI,
+                      bảng kê, bảng nhân viên, đối soát số cũ không đường
+                      nào đọc `app/web/chart_gapfill.py`
+"lấp lỗ hổng"         thứ tự thẩm quyền sổ nạp → sổ cũ → lấp lỗ hổng, giải
+                      ở ĐÚNG mức NGÀY (`_gapfill_day_points`); một ngày đã
+                      có nguồn khác thì nguồn này im lặng
+```
+
+Chỉ mức Ngày/Tuần được nối. Ở mức Tháng/Quý/Năm tổng tháng chính thức đã có
+mặt, và cộng thêm một nguồn thứ hai cho cùng một tháng là đúng thứ
+`_merge_resolved` sinh ra để chặn (`DEC-180` §9).
+
+### §5. Một origin thứ ba buộc phải mở rộng từ vựng "hỗn hợp"
+
+Với hai origin, một cờ boolean là đủ. Với ba thì `ORIGIN_MIXED` không còn
+nói được nó hỗn hợp GIỮA NHỮNG GÌ. Đây không phải chuyện lý thuyết: tuần
+31/08–06/09/2026 có cả ngày lấp lỗ hổng (31/08) lẫn ngày sổ nạp (04–06/09),
+và `MIXED_POINT_NOTE` cũ sẽ nói phần kia là "bản ghi lịch sử" — sai.
+
+Vì thế `Point`/`Slot` mang thêm `origins` (TẬP origin đã góp vào mốc), và
+có `MIXED_GAPFILL_POINT_NOTE` riêng. Mặc định `frozenset()` để mọi `Point`
+dựng tay trong test cũ giữ nguyên chữ ký.
+
+### §6. Dữ liệu: xuất xứ, luật trích, bất thường
+
+Toàn bộ nằm ở `data/chart_gapfill/PROVENANCE.md`. Tóm tắt phần Owner đã
+quyết trực tiếp:
+
+```text
+Đọc            CHỈ hai cột `Date` và `Tổng bán`; không đọc/lưu/in bất kỳ ô
+               dữ liệu cá nhân khách hàng nào
+Hệ số chia     đọc MÁY MÓC từ công thức ô hàng 1 của chính cột (`/2` ở các
+               sheet kênh là quy ước kế toán của Owner, không suy đoán)
+29 dòng không ngày      không đặt lên biểu đồ, báo riêng
+301 dòng lệch tháng     Owner chốt: giữ nguyên ngày đã ghi
+4 ngày bất khả thi      Owner chốt: nắn về năm+tháng của tên sheet
+3 sheet ngoài Summary   Owner chốt: loại, bám tổng tháng chính thức
+```
+
+### §7. Hai phát hiện về chính file nguồn của Owner
+
+Cả hai đã xác minh bằng mã, và cả hai KHÔNG phải khiếm khuyết của hệ thống:
+
+1. `Summary 2026` có khối tháng 8/2026 LẶP nguyên văn (hàng 68–73 lặp lại
+   thành 75–80, kể cả dòng `MONTH_TOTAL`). Hệ thống thật KHÔNG cộng đôi:
+   `_summary_month_total` lấy dòng khớp đầu tiên rồi dừng —
+   `authoritative_period_sales(2026, 8)` trả đúng 15.614.950 kVND.
+2. Năm 2026, `MONTH_TOTAL` chính thức KHÔNG bao gồm dòng `Gia dụng` — đúng
+   8/8 tháng, lệch bằng đúng giá trị dòng đó; năm 2025 không có hiện tượng
+   này. 8 sheet `Gia dụng` vì thế bị loại khỏi chuỗi ngày, để chuỗi ngày và
+   tổng tháng cùng nói một con số.
+
+### §8. Test không được âm thầm nhận dữ liệu thật
+
+`data/chart_gapfill/daily_revenue.jsonl` là dữ liệu THẬT đã commit, và
+`chart_gapfill.daily_rows()` đọc nó theo đường dẫn tuyệt đối tính từ gốc
+repo. Không cắt thì mọi test dựng workspace tổng hợp sẽ nhận thêm 579 ngày
+doanh số thật vào biểu đồ của nó — và 9 test đã hỏng đúng như thế trong lần
+chạy đầu, vì những lý do chẳng liên quan gì tới điều chúng khẳng định.
+
+Cách xử lý: fixture autouse trong `tests/conftest.py` trỏ đường dẫn sang một
+file không tồn tại; marker `chart_gapfill` là cách DUY NHẤT bật lại, và vì
+thế cũng là danh sách tường minh các test nói về chính đường dây ấy
+(`tests/test_dec216_chart_gapfill.py`). Đây KHÔNG phải làm nhẹ test: nó cắt
+một nguồn NGOÀI khỏi workspace tổng hợp, đúng kỷ luật "DI mặc định không nối
+gì" mà `app/pipeline.py` đã đặt.
+
+### §9. Bằng chứng
+
+```text
+Đối soát       gom theo THÁNG CỦA SHEET vs MONTH_TOTAL chính thức:
+               18/20 tháng khớp tuyệt đối; 2 tháng lệch, mỗi lệch bằng
+               ĐÚNG giá trị một sheet Owner đã chọn loại
+               (2025-02: −490.300 = `02.2025 Miền Bắc`;
+                2026-03: −114.800 = `03.2026 Fanpage`)
+Bộ dữ liệu     579 ngày · 2025-01-02 → 2026-08-31 · 362.170.585 nghìn đồng
+Full pytest    3492 passed / 12 skipped / 1 deselected (test bị deselect là
+               `test_protected_golden_artifacts_match_the_task_105e_review_base`
+               — ĐỎ SẴN từ trước mọi thay đổi của phiên này, xem DEC-211 §5:
+               shallow clone thiếu commit `740f396`, khiếm khuyết môi trường)
+Smoke R6       29 PASS / 0 FAIL
+Smoke R5.1     83 PASS / 0 FAIL
+```

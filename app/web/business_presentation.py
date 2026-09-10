@@ -1576,6 +1576,8 @@ def _slot_points(slots, *, ceiling: Decimal, size: int) -> list[dict]:
             "origin": slot.origin or revenue_timeline.ORIGIN_CURRENT,
             "legacy": slot.origin == revenue_timeline.ORIGIN_LEGACY,
             "mixed": slot.origin == revenue_timeline.ORIGIN_MIXED,
+            "gapfill": slot.origin == revenue_timeline.ORIGIN_GAPFILL,
+            "has_gapfill": slot.has_gapfill,
             "partial": slot.partial,
             "x": x,
             "x_pct": x / _CHART_VIEW_W * 100,
@@ -1625,7 +1627,17 @@ def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str
     if point["legacy"]:
         parts.append(revenue_timeline.LEGACY_POINT_NOTE)
     elif point["mixed"]:
-        parts.append(revenue_timeline.MIXED_POINT_NOTE)
+        # `DEC-216` — một mốc hỗn hợp CÓ phần lấp lỗ hổng không được mô tả
+        # bằng câu dành cho hỗn hợp sổ nạp + bản ghi lịch sử: phần không phải
+        # sổ nạp ở đây KHÔNG phải bản ghi lịch sử, và nói thế là nói sai về
+        # chính con số người đọc đang nhìn.
+        parts.append(revenue_timeline.MIXED_GAPFILL_POINT_NOTE
+                     if point.get("has_gapfill")
+                     else revenue_timeline.MIXED_POINT_NOTE)
+    elif point.get("gapfill"):
+        # Cùng chỗ, cùng giọng với hai câu trên. Một origin thứ ba mà im lặng
+        # ở đây là một mốc trông y hệt sổ nạp trên màn hình.
+        parts.append(revenue_timeline.GAPFILL_POINT_NOTE)
     return " — ".join(parts)
 
 
@@ -1713,6 +1725,10 @@ def paired_revenue_chart(
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
                             if not slot.is_gap), Decimal(0))
+    # `DEC-216` — đọc CẢ HAI cửa sổ. Lỗ hổng mà nguồn này sinh ra để lấp nằm
+    # ở cửa sổ SO SÁNH (cùng kỳ năm trước), nên chỉ soi `bars` là bỏ sót đúng
+    # trường hợp duy nhất mà câu chú thích cần xuất hiện.
+    has_gapfill = any(bar["has_gapfill"] for bar in (*bars, *previous_bars))
     return {
         "svg_width": _CHART_VIEW_W,
         "svg_height": _CHART_PLOT_H,
@@ -1749,11 +1765,19 @@ def paired_revenue_chart(
         "comparison_total_kvnd": _thousand_vnd(comparison_total),
         "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
         "partial_note": CHART_PARTIAL_NOTE,
+        # `DEC-216` — hai câu này LOẠI TRỪ NHAU. `NO_DAILY_LEGACY_NOTE` giải
+        # thích một khoảng trống ở mức Ngày/Tuần; khi nguồn lấp lỗ hổng đã
+        # điền vào đúng chỗ ấy thì không còn khoảng trống nào để giải thích,
+        # và câu cần nói đổi thành "số này ở đâu ra, và đừng dùng nó để đối
+        # soát".
         "no_daily_legacy_note": (
             revenue_timeline.NO_DAILY_LEGACY_NOTE
             if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
             and has_legacy_months and not any(bar["legacy"] for bar in bars)
+            and not has_gapfill
             else None),
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_CHART_NOTE if has_gapfill else None),
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
     }
@@ -1852,6 +1876,10 @@ def paired_count_chart(
         "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
         "partial_note": CHART_PARTIAL_NOTE,
         "no_daily_legacy_note": None,
+        # Biểu đồ SỐ ĐƠN không đọc nguồn lấp lỗ hổng (`DEC-216` chỉ nói về
+        # doanh số), nên ở đây nó LUÔN vắng — ghi ra `None` tường minh để hai
+        # biểu đồ cùng trang có cùng bộ khoá, thay vì để template phải đoán.
+        "gapfill_note": None,
         "undated": undated_orders,
         "undated_note": (
             "đơn không có ngày bán nào, nên không rơi vào mốc nào của biểu đồ. "
@@ -1906,6 +1934,8 @@ def revenue_chart(
             # đọc được.
             "origin": point.origin,
             "mixed": point.is_mixed,
+            "gapfill": point.is_gapfill,
+            "has_gapfill": point.has_gapfill,
             "partial": point.partial,
             "covered_months": point.covered_months,
             "span_months": point.span_months,
@@ -1972,7 +2002,11 @@ def revenue_chart(
             revenue_timeline.NO_DAILY_LEGACY_NOTE
             if day_level and has_legacy_months
             and not any(bar["legacy"] or bar["mixed"] for bar in bars)
+            and not any(bar["has_gapfill"] for bar in bars)
             else None),
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_CHART_NOTE
+            if any(bar["has_gapfill"] for bar in bars) else None),
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
     }
@@ -1990,7 +2024,11 @@ def _chart_bar_title(point) -> str:
     parts = [f"{point.label}: {format_number(point.revenue)} đồng"]
     if point.is_legacy:
         parts.append(revenue_timeline.LEGACY_POINT_NOTE)
-    if point.is_mixed:
+    if point.is_gapfill:
+        parts.append(revenue_timeline.GAPFILL_POINT_NOTE)
+    if point.is_mixed and point.has_gapfill:
+        parts.append(revenue_timeline.MIXED_GAPFILL_POINT_NOTE)
+    elif point.is_mixed:
         # Cùng chỗ, cùng giọng: một câu trong lời giải thích của ĐÚNG cột đó.
         # Không một điều khiển nào được thêm cho nó (`§11` — không bộ chọn
         # nguồn, không chuỗi thứ hai, không nhãn Số cũ/Số mới).
