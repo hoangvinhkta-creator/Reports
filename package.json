@@ -2,12 +2,14 @@
   "name": "reports-dom-tests",
   "version": "0.0.0",
   "private": true,
-  "description": "Chỉ để chạy bộ kiểm DOM ở tests/browser/ (P1-6). Reports là một ứng dụng Python/Flask — file này KHÔNG khai một runtime JavaScript nào cho production. app.js được server phục vụ như một file tĩnh, không qua bundler, không qua npm.",
+  "description": "Chỉ để chạy bộ kiểm DOM (P1-6) + Playwright (UI-01/UI-02) ở tests/browser*/. Reports là một ứng dụng Python/Flask — file này KHÔNG khai một runtime JavaScript nào cho production. app.js được server phục vụ như một file tĩnh, không qua bundler, không qua npm.",
   "type": "module",
   "scripts": {
-    "test": "node --test 'tests/browser/*.test.mjs'"
+    "test": "node --test 'tests/browser/*.test.mjs'",
+    "test:playwright": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "jsdom": "^26.1.0"
   }
 }
