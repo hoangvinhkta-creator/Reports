@@ -800,6 +800,92 @@ R3_TABLES = (line_binding_exception, period_close)
 # một bảng lưu tạm cùng database; ``upgrade()`` sau đó nạp lại. Không backup
 # subsystem, không file dump, không dịch vụ mới — một câu ``CREATE TABLE AS
 # SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
+# ---------------------------------------------------------------------------
+# `STAB-03` — CHỐNG LẶP MUTATION (`mutation_request`).
+#
+# Vấn đề mà bảng này đóng, và nó là một vấn đề THẬT chứ không lý thuyết:
+# một lần POST có thể được server ghi xong rồi response thất lạc trên
+# đường về (mạng đứt, proxy timeout, tab bị đóng). Browser KHÔNG phân biệt
+# được tình huống đó với "server chưa nhận", nên bất kỳ cơ chế nào tự gửi
+# lại đều có thể ghi lần thứ hai. `app/web/static/js/app.js` vì thế không
+# tự gửi lại nữa (xem `submitForm`), và người dùng được cho một nút THỬ
+# LẠI gửi ĐÚNG `request_id` cũ.
+#
+# Bảng này là nơi `request_id` ấy được nhận ra. Một hàng cho một lần ghi
+# đã CAM KẾT: khoá chính là `request_id`, nên lần gửi thứ hai của cùng mã
+# không tạo hàng mới — nó ĐỌC hàng cũ và trả lại kết quả cũ.
+#
+# ## Vì sao là một bảng SQL, không phải bộ nhớ tiến trình
+#
+# Production chạy gunicorn nhiều worker. Một dict trong tiến trình sẽ không
+# thấy lần ghi của worker khác, nên đúng cái request cần được nhận ra lại
+# sẽ là cái không được nhận ra. Nó cũng phải sống qua restart: một lần
+# deploy giữa hai lần thử của người dùng không được biến thành một lần ghi
+# trùng.
+#
+# ## Vì sao `response_json` chứ không chỉ một cờ "đã ghi"
+#
+# Người dùng gửi lại vì họ KHÔNG BIẾT kết quả. Trả về "đã ghi rồi" mà
+# không kèm kết quả buộc họ phải đi tìm ở chỗ khác, và cái họ đi tìm là
+# đúng thứ đã được ghi. Nên kết quả của lần ghi đầu được lưu nguyên và
+# trả lại — cùng nội dung, cùng ý nghĩa, chỉ thêm một cờ nói rằng đây là
+# bản đã lưu chứ không phải một lần ghi mới.
+#
+# ## Vì sao KHÔNG có TTL trong lược đồ
+#
+# Một cột hết hạn ở đây sẽ là một lời hứa phải có ai đó thực hiện, và
+# không có tiến trình dọn nào trong hệ. Bảng tăng theo số lần ghi của
+# Owner (vài chục một ngày), nên nó không phải một vấn đề dung lượng ở quy
+# mô này. Khi nào cần dọn thì `entered_at` đã đủ để viết câu `DELETE`.
+mutation_request = Table(
+    "mutation_request", METADATA,
+    # Mã của một LẦN GỬI, do browser sinh và giữ nguyên qua các lần thử
+    # lại. Khoá chính, và đó là toàn bộ cơ chế: `INSERT` thứ hai của cùng
+    # mã va vào khoá chính thay vì tạo một quyết định thứ hai.
+    Column("request_id", Text, primary_key=True),
+    # Đường ghi nào đã nhận mã này (`business_save_order`,
+    # `api_patch_order`, …). Cùng một `request_id` gửi tới hai route khác
+    # nhau là một dấu hiệu client sai, và cột này là chỗ nhìn ra điều đó.
+    Column("route", Text, nullable=False),
+    # Đối tượng bị ghi, ở dạng đọc được (`order_key` của lần sửa đơn).
+    # Không phải khoá ngoại: một `request_id` có thể thuộc về một thao tác
+    # không gắn với đơn nào, và một khoá ngoại ở đây sẽ chặn lần ghi đó.
+    Column("subject", Text, nullable=True),
+    # Bản của đối tượng mà người gửi ĐÃ NHÌN THẤY. Lưu lại để một lần điều
+    # tra sau này dựng lại được: người này đã sửa dựa trên bản nào.
+    Column("base_revision", Text, nullable=True),
+    # Kết quả của lần ghi ĐẦU TIÊN, nguyên văn, dạng JSON. Đây là thứ
+    # được trả lại cho lần gửi thứ hai.
+    # `STAB-03 REPAIR` — `NULL` khi lần ghi còn ĐANG BAY. Trước bản sửa,
+    # cột này `NOT NULL` và hàng chỉ được chèn SAU khi lần ghi nghiệp vụ đã
+    # commit — tức sổ chống lặp không biết gì về một lần ghi đang diễn ra,
+    # và hai request đồng thời cùng thấy sổ rỗng rồi cùng ghi (`P0-1`).
+    #
+    # Nay hàng được chèn TRƯỚC lần ghi, trong CÙNG transaction, với
+    # `state = 'in_flight'` và `response_json = NULL`; nó được cập nhật
+    # thành `'applied'` + payload ngay trước khi transaction commit. Khoá
+    # chính vì thế trở thành cửa loại trừ thật: request thứ hai mang cùng
+    # mã va khoá chính TRƯỚC KHI chạm một bảng nghiệp vụ nào.
+    Column("response_json", Text, nullable=True),
+    # `in_flight` | `applied`. Một hàng `in_flight` còn nhìn thấy được sau
+    # khi transaction kết thúc là điều KHÔNG THỂ xảy ra: hàng ấy được chèn
+    # trong chính transaction đó, nên rollback xoá nó cùng lần ghi nghiệp
+    # vụ. Đó là cách `P0-2` (crash trước khi nhớ) bị đóng — không còn cửa
+    # sổ nào giữa "đã ghi" và "đã nhớ", vì hai việc đó nay là một.
+    #
+    # Trạng thái vẫn được lưu tường minh thay vì suy ra từ `response_json IS
+    # NULL`: một cột nói ra ý nghĩa đọc được trong `psql`, còn một `NULL`
+    # thì phải đi tra code mới biết nó nghĩa gì.
+    Column("state", Text, nullable=False),
+    Column("entered_at", Text, nullable=False),
+    Column("entered_by", Text, nullable=True),
+    CheckConstraint(_in_check("state", ("in_flight", "applied")),
+                    name="ck_mutation_request_state"),
+    Index("ix_mutation_request_subject", "subject", "entered_at"),
+)
+
+MUTATION_TABLES = (mutation_request,)
+
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES + WORKSPACE_TABLES
     + (period_close,)

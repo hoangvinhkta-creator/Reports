@@ -63,11 +63,33 @@
   <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">{{ icons.ico('nhan-vien', 16) }}Nhân viên</a>
   <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">{{ icons.ico('du-lieu', 16) }}Dữ liệu</a>
 </nav>
-{% endif %}
+{# `STAB-04` — WRAPPER `<main id="app-content">` chỉ được dựng ở lần tải
+   trang THẬT. Trước bản này nó nằm NGOÀI khối `{% if not partial %}`, nên
+   mỗi response mảnh cũng mang theo một `<main id="app-content">`; `app.js`
+   gán chuỗi đó vào `innerHTML` của wrapper đang có, và sau một lần điều
+   hướng trong tab, DOM có HAI phần tử cùng `id`.
+
+   Hậu quả không chỉ là "HTML không hợp lệ": `document.getElementById()`
+   trả về phần tử ĐẦU TIÊN, nên lần thay mảnh KẾ TIẾP ghi vào wrapper
+   NGOÀI và bọc thêm một tầng nữa — mỗi lần điều hướng thêm một tầng, và
+   mọi selector `#app-content > …` của CSS lệch đi một tầng so với lần
+   trước.
+
+   Hợp đồng sau bản này, và `tests/test_stab04_fragment_contract.py` canh
+   đúng hai mệnh đề này:
+
+       response ĐẦY ĐỦ  → có ĐÚNG MỘT `id="app-content"`
+       response MẢNH    → KHÔNG có `id="app-content"` nào
+
+   Thẻ mở và thẻ đóng vì thế nằm trong hai khối `{% if %}` khác nhau. Jinja
+   không phân tích cú pháp HTML nên điều đó hợp lệ; đọc hơi lạ, nhưng nó
+   giữ được điều quan trọng hơn: KHÔNG route nào phải tự biết về `partial`
+   (xem chú thích đầu file). #}
 <main class="tp-main" id="app-content">
+{% endif %}
 {% block content %}{% endblock %}
-</main>
 {% if not partial %}
+</main>
 <script src="{{ url_for('static', filename='js/app.js') }}?v={{ JS_ASSET_VERSION }}"></script>
 </body>
 </html>

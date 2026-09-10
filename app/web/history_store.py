@@ -31,6 +31,7 @@ from app.history import reconciler as history_reconciler
 from app.legacy.models import (
     SOURCE_AUTHORITY_SNAPSHOT, SOURCE_AUTHORITY_YEAR, LegacyWorkbook,
 )
+from app.web import db_scope
 from tools.db.schema import (
     ORIGIN_LEGACY, ORIGIN_PIPELINE, employee_attribution_override,
     kpi_purchase_price_override, legacy_daily_sales, legacy_import,
@@ -601,14 +602,24 @@ def _key_of(row) -> history_models.LineKey:
 
 
 class SnapshotRepository:
-    """Đọc/ghi lịch sử snapshot của pipeline (origin ``PIPELINE_GENERATED``)."""
+    """Đọc/ghi lịch sử snapshot của pipeline (origin ``PIPELINE_GENERATED``).
 
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    `STAB-03 REPAIR` — nhận `Engine` hoặc `Connection`; xem
+    `app/web/db_scope.py`. Tập "dòng không còn trong sổ đã xác nhận đầy đủ"
+    (R5 §1) đọc qua đây và nó góp vào vân tay revision, nên nó phải đọc
+    được TRONG transaction ghi cùng với mọi thứ khác của cùng phép kiểm.
+    """
+
+    def __init__(self, engine) -> None:
+        self._scope = db_scope.of(engine)
 
     @property
     def engine(self) -> Engine:
-        return self._engine
+        return self._scope.engine
+
+    def bind(self, connection) -> "SnapshotRepository":
+        """Repo MỚI đọc/ghi bằng `connection` của người gọi."""
+        return SnapshotRepository(connection)
 
     # --- ghi ----------------------------------------------------------
 
@@ -629,7 +640,7 @@ class SnapshotRepository:
         detected = history_coverage.detected_range(line.sale_date for line in source_lines)
         header = history_coverage.parse_header(header_text)
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 duplicate_of = connection.execute(
                     select(source_snapshot.c.snapshot_id)
                     .where(source_snapshot.c.file_fingerprint == file_fingerprint)
@@ -1214,7 +1225,7 @@ class SnapshotRepository:
         không phải một quyết định nghiệp vụ (phân xử = PRA-004 + Owner).
         """
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 row = connection.execute(
                     select(source_snapshot).where(
                         source_snapshot.c.snapshot_id == snapshot_id)
@@ -1269,7 +1280,7 @@ class SnapshotRepository:
 
     def _read(self, statement) -> list[dict]:
         try:
-            with self._engine.connect() as connection:
+            with self._scope.connect() as connection:
                 return [dict(row._mapping) for row in connection.execute(statement)]
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc

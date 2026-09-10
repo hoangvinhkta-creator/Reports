@@ -153,7 +153,11 @@ def test_the_snapshot_page_carries_no_imei(repository, client):
     """Trang đối chiếu mang `imei` trong `detail_json` DƯỚI database, nhưng
     `snapshot_presentation.NOISE_FIELDS` cắt nó ở tầng trình bày (R5 §2)."""
     with_imei(repository)
+    # `.engine` (công khai) chứ `._engine`: `STAB-03 REPAIR` cho
+    # `SnapshotRepository` nhận `Engine` HOẶC `Connection`, nên trạng thái
+    # nội bộ nay là `_scope`. Thuộc tính công khai `engine` trả về `Engine`
+    # phía sau ở cả hai chế độ — xem `app/web/db_scope.py`.
     snapshots = history_store.SnapshotRepository(
-        repository._engine).list_snapshots()
+        repository.engine).list_snapshots()
     html = body(client, f"/du-lieu/snapshot/{snapshots[0]['snapshot_id']}")
     assert IMEI_VALUE not in html

@@ -22,6 +22,8 @@ quy đổi nào (PHB-05 §21).
 
 from __future__ import annotations
 
+import copy
+
 from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -302,6 +304,40 @@ class BusinessReportService:
         # R5 §1 — cùng `Engine`, cùng lý do như hai store trên: tập dòng bị
         # tạm loại và các con số trừ chúng ra phải đến từ một database.
         self._snapshot_repo = snapshot_repo or SnapshotRepository(engine)
+
+    def bind(self, connection) -> "BusinessReportService":
+        """Service MỚI đọc/ghi bằng `connection` của người gọi.
+
+        `STAB-03 REPAIR` — đây là mảnh cuối cho phép "đọc để kiểm" và "ghi"
+        nằm trong CÙNG transaction. Mọi cửa đọc của `period()` được bind:
+        `raw_lines` (qua `_engine`), bốn bảng quyết định (qua `_store`),
+        chốt kỳ (qua `_period_store`) và tập vắng mặt trong nguồn (qua
+        `_snapshot_repo`). Bỏ sót một cửa nào trong đó là để lại một ảnh
+        chụp đọc NGOÀI transaction, tức để lại đúng lớp lỗi `P0-3`.
+
+        `_binding_store` CŨNG được bind, và nó là mảnh dễ bỏ sót nhất:
+        `period()` đọc `open_keys()` của nó (dòng dưới, trong chính hàm
+        này), nên một `BindingExceptionStore` chưa bind sẽ đọc trên một
+        kết nối RIÊNG — tức đọc ngoài transaction, đúng lớp lỗi `P0-3`.
+        Bản đầu của `bind()` bỏ sót nó với một chú thích nói rằng nó
+        "không nằm trên đường ghi của một lần sửa đơn"; câu đó SAI, và
+        `tests/test_p0_single_transaction.py` canh rằng không đường nào
+        của `period()` còn mở một kết nối thứ hai.
+
+        `_router` và các đường dẫn cấu hình đi theo nguyên vẹn: chúng đọc
+        từ file, nên không có transaction nào để tham gia.
+
+        Trả về đối tượng MỚI, không đổi `self`: `self` là đối tượng dùng
+        chung của cả app. Xem `db_scope` § "Vì sao KHÔNG dùng một biến toàn
+        cục".
+        """
+        bound = copy.copy(self)
+        bound._engine = connection
+        bound._store = self._store.bind(connection)
+        bound._period_store = self._period_store.bind(connection)
+        bound._snapshot_repo = self._snapshot_repo.bind(connection)
+        bound._binding_store = self._binding_store.bind(connection)
+        return bound
 
     @property
     def store(self) -> BusinessDecisionStore:

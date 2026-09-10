@@ -46,7 +46,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from flask import (
-    Flask, abort, redirect, render_template, request, send_file, url_for,
+    Flask, abort, g, redirect, render_template, request, send_file, url_for,
 )
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
@@ -81,8 +81,8 @@ from app.web import (
     business_presentation, business_service, business_store,
     chart_gapfill, dashboard_presentation, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
-    line_identity, period_lock, product_taxonomy, revenue_timeline,
-    run_registry,
+    line_identity, mutation_guard, order_api, order_revision, period_lock,
+    product_taxonomy, request_timing, revenue_timeline, run_registry,
     catalog_display, sales_presentation, sales_queries, snapshot_presentation,
     storage_backend, workspace_imei, workspace_presentation,
 )
@@ -90,6 +90,18 @@ import tools.db as history_db
 from tools.db import HistoryConfigurationError
 from tools.storage.errors import CorruptRunRecordError, StorageUnavailableError
 from tools.tracking import live_pull
+
+#: `abort(<mã>)` trên đường `/api/` → mã lỗi ổn định của hợp đồng. Mã HTTP
+#: nào không có tên riêng ở đây rơi về `VALIDATION_ERROR`: client vẫn bật
+#: được nhánh, và mã HTTP thật vẫn có mặt trong trường `status`.
+_API_STATUS_CODES = {
+    400: mutation_guard.VALIDATION_ERROR,
+    403: mutation_guard.PERMISSION_DENIED,
+    404: mutation_guard.NOT_FOUND,
+    409: mutation_guard.PERIOD_CLOSED,
+    422: mutation_guard.VALIDATION_ERROR,
+    503: mutation_guard.SOURCE_PENDING,
+}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -311,9 +323,13 @@ def _select_captures_for_run(
     """
     if not live_pull.is_configured():
         return None, None, None
-    live = live_pull.pull_live_captures(
-        out_dir=TRACKING_TEMP_DIR, sales=sales,
-        identity_store_view=identity_store_view)
+    # `STAB-01` — đây là ĐÚNG một cửa duy nhất ra Tracking trên đường
+    # request (mọi caller đi qua hàm này), nên span `tracking` đặt ở đây
+    # đo đủ mà không cần rải mã đo khắp các route.
+    with request_timing.span("tracking"):
+        live = live_pull.pull_live_captures(
+            out_dir=TRACKING_TEMP_DIR, sales=sales,
+            identity_store_view=identity_store_view)
     captures = SelectedCaptures(
         tracking_capture=live.tracking_capture,
         tracking_catalog=live.tracking_catalog,
@@ -4025,31 +4041,611 @@ def create_app(
         beta_feedback.save_feedback(record)
         return redirect(url_for("index", run_id=run_id, feedback="ok"))
 
+    # ==================================================================
+    # `API-01`/`API-02` — chi tiết MỘT đơn, và một lần PATCH của nó.
+    #
+    # Vì sao hai route này tồn tại, bằng con số đo được ở
+    # `scripts/stab01_baseline.py`: mở chế độ sửa một đơn trên fixture
+    # 5.000 dòng trả ~14,5 MB HTML và 5.002 hàng `<tr>`, vì nó dựng lại CẢ
+    # bảng kê. Ngân sách của brief §6 cho chi tiết một đơn là dưới 50 KB.
+    #
+    # Chúng KHÔNG thay các route HTML. Route `?sua=` cũ còn nguyên, và đó
+    # là điều kiện của "lớp tăng cường": tắt JavaScript thì luồng sửa đơn
+    # vẫn chạy y như trước, qua form và POST thật.
+    #
+    # Cả hai KHÔNG dựng một thẩm quyền nghiệp vụ nào mới. Chúng gọi đúng
+    # `plan_order_edit`/`apply_order_edit` mà form HTML gọi, và đọc đúng
+    # `PeriodData` mà bảng HTML đọc — xem `app/web/order_api.py`
+    # § "Ranh giới cứng".
+    # ==================================================================
+
+    def _api_period_choice(periods: list[tuple[int, int]]):
+        """Kỳ của một request API — `period` trước, `ky` sau.
+
+        Không viết lại phép phân tích: `_business_period_choice` đọc
+        `request.values`, nên chỉ cần đảm bảo có một khoá `ky` để nó đọc.
+        Đường ngắn nhất làm được điều đó mà không sửa hàm cũ là phân tích
+        `period` ở đây theo CÙNG một câu, và trả về `None` cho cùng những
+        đầu vào mà hàm kia trả `None`.
+        """
+        raw = (request.values.get("period") or "").strip()
+        if not raw:
+            return _business_period_choice(periods)
+        year_text, _, month_text = raw.partition("-")
+        try:
+            chosen = (int(year_text), int(month_text))
+        except ValueError:
+            return None
+        return chosen if chosen in periods else None
+
+    def _api_error(code: str, message: str, *, status: int, **extra):
+        """Lỗi JSON có MÃ ỔN ĐỊNH, theo MỘT schema cho mọi đường `/api/`.
+
+            {"error": {"code": …, "message": …, "request_id": …, …}}
+
+        `request_id` nằm TRONG `error` (không cạnh nó) vì `P1-3` đòi một
+        schema duy nhất, và một client bắt lỗi chỉ phải đọc đúng một chỗ.
+        Giá trị của nó là `trace_id` do server sinh — không phải
+        `idempotency_key` của client (`P1-2`/`P1-4`).
+
+        Câu chữ tiếng Việt được phép sửa cho dễ đọc; `code` thì không, vì
+        nó là hợp đồng (brief §API-02 liệt kê tập mã).
+        """
+        return {"error": {"code": code, "message": message,
+                          "request_id": request_timing.trace_id(),
+                          **extra}}, status
+
+    def _api_order_view(order_key: str):
+        """`(view, lỗi)` — kỳ + dữ liệu cho một request API CHỈ ĐỌC.
+
+        Chỉ `api_order_detail` dùng hàm này. `api_patch_order` KHÔNG dùng:
+        nó phải đọc bên trong transaction ghi, qua `service.bind()` — xem
+        docstring của nó. Một hàm dựng dữ liệu ngoài transaction rồi cho
+        đường ghi mượn lại là đúng cách `P0-3` phát sinh.
+        """
+        service = _require_business()
+        periods = _guarded(analytics_queries.available_periods,
+                           snapshot_repo.engine)
+        period = _api_period_choice(periods)
+        if period is None:
+            return None, _api_error(
+                mutation_guard.NOT_FOUND,
+                "Không đọc được kỳ. Hãy gửi `period=YYYY-MM` của một kỳ đã "
+                "có dữ liệu.", status=404)
+        bounds = analytics_queries.month_bounds(*period)
+        data = _guarded(service.period, date_from=bounds[0],
+                        date_to=bounds[1], period=period)
+        return {"service": service, "period": period, "data": data}, None
+
+    @app.get("/api/v1/orders/<order_key>")
+    def api_order_detail(order_key: str):
+        """`API-01` — chi tiết của ĐÚNG một đơn, JSON gọn.
+
+        Không dựng workspace, không trả HTML của bảng, không đọc IMEI
+        (`DEC-R5-03`). Quyền và validation vẫn ở server: `can_edit` phản
+        ánh trạng thái chốt kỳ thật, và một client bỏ qua nó vẫn bị
+        `PATCH` từ chối.
+        """
+        view, failure = _api_order_view(order_key)
+        if failure is not None:
+            return failure
+        payload = order_api.detail_payload(
+            data=view["data"], order_key=order_key, period=view["period"],
+            service=view["service"],
+            # Quyền sửa = kỳ chưa chốt. Đây là cùng cửa mà `_guard_lines`
+            # áp lúc ghi, đọc trước để panel hiện đúng trạng thái ngay —
+            # nhưng cửa THẬT vẫn là `_guard_lines`, không phải cờ này.
+            can_edit=not view["service"].period_store.is_closed(view["period"]))
+        if payload is None:
+            return _api_error(
+                mutation_guard.NOT_FOUND,
+                f"Không có đơn {order_key} trong kỳ này.", status=404)
+        payload["trace_id"] = request_timing.trace_id()
+        return payload
+
+    @app.patch("/api/v1/orders/<order_key>")
+    def api_patch_order(order_key: str):
+        """`API-02` — lưu phần thay đổi của MỘT đơn, có CAS revision + at-most-once.
+
+        ## Bản trước SAI ở đâu
+
+        Bản trước xếp bốn cửa nối tiếp, mỗi cửa một transaction riêng:
+        `replay_of()` → kiểm revision → `apply_order_edit` → `remember()`.
+        Review độc lập chứng minh bằng probe trên PostgreSQL 16 rằng cách
+        xếp đó KHÔNG cho at-most-once: hai request đồng thời cùng
+        `request_id` gọi `set_purchase_price()` HAI lần, và một crash trước
+        `remember()` để lại lần ghi trong database với sổ chống lặp rỗng.
+
+        Vấn đề không phải thứ tự — nó là việc CÓ những khoảng giữa các cửa.
+
+        ## Bản này
+
+        MỘT transaction bao tất cả, mở bởi `guard.transaction()`. Bên
+        trong nó, theo đúng thứ tự mà `mutation_guard` thi hành:
+
+            INSERT sổ (khoá chính = cửa loại trừ)
+            → khoá theo đơn
+            → TÍNH LẠI revision trong khoá, so với `base_revision`  (CAS)
+            → validate + ghi nghiệp vụ qua store đã BIND vào transaction
+            → UPDATE sổ thành `applied` + payload
+
+        `service.bind(connection)` là mảnh làm cho "đọc để kiểm" và "ghi"
+        dùng CÙNG kết nối. Không có nó, phép kiểm revision đọc một ảnh
+        chụp ngoài transaction và mọi thứ khác chỉ là hình thức.
+
+        ## `period` được dựng MỘT lần, không hai
+
+        `P2-3` — bản trước dựng `PeriodData` hai lần (một để kiểm, một để
+        trả revision mới). Nay kỳ được dựng bên trong transaction, dùng
+        cho CẢ phép kiểm; và sau khi ghi, dựng lại đúng một lần nữa để
+        payload mang revision MỚI. Đọc lại là bắt buộc và không thay được
+        bằng tính nhẩm: trả về revision cũ sẽ làm panel gửi lần sau với
+        một `base_revision` lỗi thời ngay từ lúc nó nhận được.
+        """
+        body = request.get_json(silent=True) or {}
+        # `P1-4` — client gửi `idempotency_key`. Tên `request_id` vẫn được
+        # NHẬN để không phá client cũ, nhưng nó không còn là tên chính:
+        # bản trước dùng cùng một tên cho cả mã truy vết và mã chống lặp ở
+        # hai nhánh khác nhau của cùng một response.
+        try:
+            idempotency_key = mutation_guard.clean_idempotency_key(
+                body.get("idempotency_key") or body.get("request_id"))
+        except mutation_guard.MissingIdempotencyKeyError as exc:
+            return _api_error(mutation_guard.VALIDATION_ERROR, str(exc),
+                              status=400, field="idempotency_key")
+
+        service = _require_business()
+        guard = mutation_guard.MutationGuard(snapshot_repo.engine)
+
+        # Đường NGẮN cho một lần thử lại đã có kết quả. Đây là một phép
+        # ĐỌC, và nó KHÔNG phải cửa an toàn — cửa an toàn là khoá chính
+        # bên trong transaction. Nó chỉ tránh mở một transaction ghi cho
+        # một câu trả lời đã có sẵn.
+        settled = guard.applied(idempotency_key)
+        if settled is not None:
+            return _replayed(settled)
+
+        periods = _guarded(analytics_queries.available_periods,
+                           snapshot_repo.engine)
+        period = _api_period_choice(periods)
+        if period is None:
+            return _api_error(
+                mutation_guard.NOT_FOUND,
+                "Không đọc được kỳ. Hãy gửi `period=YYYY-MM` của một kỳ đã "
+                "có dữ liệu.", status=404)
+        bounds = analytics_queries.month_bounds(*period)
+        base_revision = body.get("base_revision")
+
+        changes = body.get("changes") or {}
+        if not isinstance(changes, dict):
+            return _api_error(
+                mutation_guard.VALIDATION_ERROR,
+                "`changes` phải là một đối tượng.", status=400, field="changes")
+        try:
+            prices = _api_submitted_prices(order_key, changes.get("prices"))
+        except ValueError as exc:
+            return _api_error(mutation_guard.VALIDATION_ERROR, str(exc),
+                              status=400, field="changes.prices")
+        employee = changes.get("employee")
+        actor = identity_gateway.actor_of()
+
+        # `outcome` được đặt bên trong transaction và đọc lại sau khi nó
+        # commit. Một biến chứ một `return` bên trong khối: `return` từ
+        # trong thân `with` sẽ bỏ qua bước chốt sổ ở `transaction()`.
+        outcome: dict = {}
+
+        def revision_inside(connection):
+            """Revision hiện tại, đọc qua CHÍNH kết nối của transaction.
+
+            Đây là nửa "read" của compare-and-swap, và nó phải đọc trong
+            transaction: một phép đọc ngoài sẽ trả ảnh chụp cũ và làm cả
+            cơ chế vô nghĩa (`P0-3`).
+            """
+            bound = service.bind(connection)
+            data = bound.period(date_from=bounds[0], date_to=bounds[1],
+                                period=period)
+            outcome["data"] = data
+            outcome["bound"] = bound
+            return order_revision.of_order(data, order_key)
+
+        try:
+            with guard.transaction(
+                idempotency_key=idempotency_key, route="api_patch_order",
+                subject=order_key, base_revision=base_revision,
+                revision_of=revision_inside, entered_by=actor,
+            ) as ctx:
+                bound, data = outcome["bound"], outcome["data"]
+                if ctx["current_revision"] is None:
+                    raise _ApiFailure(_api_error(
+                        mutation_guard.NOT_FOUND,
+                        f"Không có đơn {order_key} trong kỳ này.", status=404))
+
+                # Validate TOÀN BỘ rồi mới ghi — `plan_order_edit` không
+                # ghi gì, và nó đọc qua store đã bind.
+                try:
+                    plan = bound.plan_order_edit(
+                        data=data, order_key=order_key,
+                        employee=((employee or None) if employee is not None
+                                  else None),
+                        prices=prices, reason=(body.get("reason") or None))
+                except business_service.OrderNotFoundError:
+                    raise _ApiFailure(_api_error(
+                        mutation_guard.NOT_FOUND,
+                        f"Không có đơn {order_key} trong kỳ này.",
+                        status=404)) from None
+                if not plan.ok:
+                    raise _ApiFailure(_api_error(
+                        mutation_guard.VALIDATION_ERROR,
+                        " ".join(plan.errors), status=422,
+                        order_revision=ctx["current_revision"]))
+
+                # Kỳ đã chốt chặn cả một lần sửa hợp lệ (R3 §5). Gọi
+                # `guard_line_open` trực tiếp chứ không qua `_guard_lines`:
+                # hàm đó bọc `_guarded`, và `_guarded` biến
+                # `PeriodClosedError` thành `abort(409)` — một trang HTML,
+                # sai cho một endpoint JSON.
+                try:
+                    for detail in plan.details:
+                        bound.guard_line_open(detail)
+                except period_lock.PeriodClosedError as exc:
+                    raise _ApiFailure(_api_error(
+                        mutation_guard.PERIOD_CLOSED, str(exc), status=409,
+                        order_revision=ctx["current_revision"])) from None
+
+                sheet = _api_sheet_of(bound, data)
+                if plan.changes_nothing:
+                    # KHÔNG ghi gì. Sổ vẫn được chốt `applied` với payload
+                    # này, và đó là đúng: mã đã được dùng, nên một lần gửi
+                    # sau mang cùng mã phải nhận lại chính câu trả lời này
+                    # thay vì được ghi như một quyết định mới.
+                    ctx["response"] = {
+                        **order_api.patch_payload(
+                            data=data, order_key=order_key, period=period,
+                            service=bound, plan=plan, message=plan.summary(),
+                            sheet=sheet),
+                        "changed_nothing": True,
+                    }
+                    outcome["payload"] = ctx["response"]
+                    return _applied_response(ctx, outcome["payload"])
+
+                message = bound.apply_order_edit(plan, entered_by=actor)
+
+                # ĐỌC LẠI kỳ, vẫn TRONG transaction: revision mới phải
+                # phản ánh lần ghi vừa rồi, và lần ghi đó chưa commit nên
+                # chỉ kết nối này thấy được nó.
+                fresh = bound.period(date_from=bounds[0], date_to=bounds[1],
+                                     period=period)
+                ctx["response"] = order_api.patch_payload(
+                    data=fresh, order_key=order_key, period=period,
+                    service=bound, plan=plan, message=message,
+                    sheet=_api_sheet_of(bound, fresh))
+                outcome["payload"] = ctx["response"]
+                outcome["ctx"] = {"audit_id": ctx["audit_id"],
+                                  "entered_at": ctx["entered_at"],
+                                  "entered_by": ctx["entered_by"]}
+        except _ApiFailure as failure:
+            return failure.response
+        except mutation_guard.AlreadyApplied as hit:
+            # Một request khác mang cùng mã đã commit trong lúc ta đang
+            # chạy. Đây là cơ chế ĐANG HOẠT ĐỘNG, không phải lỗi.
+            return _replayed(hit.applied)
+        except mutation_guard.RequestInFlightError as exc:
+            # Cùng mã, request kia CHƯA commit. Không có kết quả để trả,
+            # và ghi lần thứ hai là đúng điều bị cấm. 409 + mã ổn định để
+            # client thử lại có kiểm soát.
+            return _api_error(mutation_guard.REQUEST_IN_FLIGHT, str(exc),
+                              status=409, retry_after_seconds=1)
+        except mutation_guard.RevisionConflict as conflict:
+            # Phát hiện BÊN TRONG transaction, sau khi đã giữ khoá đơn —
+            # nên `current_revision` là bản THẬT tại thời điểm từ chối.
+            # Transaction đã rollback, nên KHÔNG có gì được ghi.
+            return _revision_conflict_response(
+                order_key=order_key, period=period, bounds=bounds,
+                service=service, current_revision=conflict.current_revision)
+
+        return _applied_response(outcome.get("ctx", {}), outcome["payload"])
+
+    class _ApiFailure(Exception):
+        """Một lỗi API phát sinh BÊN TRONG transaction.
+
+        Ném thay vì `return`: `return` từ trong thân `with` của
+        `guard.transaction()` sẽ chạy tiếp bước chốt sổ và ghi nhận một
+        lần ghi chưa xảy ra. Ném thì transaction rollback — cả hàng sổ lẫn
+        mọi thứ khác — và route trả về response đã dựng sẵn.
+        """
+
+        def __init__(self, response) -> None:
+            super().__init__("api failure")
+            self.response = response
+
+    def _api_sheet_of(bound_service, data):
+        """Sheet đang xem, đọc qua service ĐÃ BIND. `None` khi không nói sheet.
+
+        `None` là câu trả lời hợp lệ: PATCH từ khung nhìn toàn kỳ vẫn ghi
+        được, chỉ là response không kèm tổng của sheet nào. Đoán một sheet
+        ở đây sẽ trả về tổng của một đơn vị báo cáo mà người gọi không hỏi.
+        """
+        key = request.values.get("sheet")
+        if not key:
+            return None
+        return reporting_sheets.find_sheet(bound_service.sheets(data), key)
+
+    def _applied_response(ctx: dict, payload: dict):
+        """Response thành công, mang đủ BA loại mã đúng nghĩa của chúng."""
+        return {
+            **payload,
+            # `P1-4` — ba tên, ba nghĩa. `audit_id` là mã LẦN GHI và nó có
+            # mặt ở CẢ nhánh này lẫn nhánh replay; `trace_id` là mã của
+            # REQUEST này và nó khác nhau ở hai lần thử lại.
+            "audit_id": ctx.get("audit_id"),
+            "applied_at": ctx.get("entered_at"),
+            "applied_by": ctx.get("entered_by"),
+            "trace_id": request_timing.trace_id(),
+        }
+
+    def _replayed(settled):
+        """Response của một lần THỬ LẠI đã có kết quả đã commit.
+
+        `P1-4` — `audit_id` được lấy từ payload đã lưu, nên nó có mặt ở
+        đây y như ở lần ghi gốc. Bản trước ghi sổ TRƯỚC khi gắn `audit_id`
+        vào payload, nên nhánh này trả về `audit_id: None` — và UI sẽ đọc
+        sai đúng chỗ đó.
+        """
+        return {
+            **settled.response,
+            "already_applied": True,
+            "audit_id": settled.audit_id or None,
+            "applied_at": settled.entered_at,
+            "applied_by": settled.entered_by,
+            "trace_id": request_timing.trace_id(),
+        }
+
+    def _revision_conflict_response(*, order_key, period, bounds, service,
+                                    current_revision):
+        """`REVISION_CONFLICT` kèm bản HIỆN TẠI của đơn.
+
+        Brief §UI-03: "khi revision cũ, trả bản hiện tại và trường đã thay
+        đổi… không âm thầm last-write-wins". Bản hiện tại được đọc SAU khi
+        transaction đã rollback, nên nó là một transaction đọc riêng —
+        đúng, vì lúc này không còn gì phải bảo vệ: ta đã từ chối ghi.
+        """
+        data = _guarded(service.period, date_from=bounds[0],
+                        date_to=bounds[1], period=period)
+        return _api_error(
+            mutation_guard.REVISION_CONFLICT,
+            "Đơn này đã được thay đổi từ lúc bạn mở nó. Bản nháp của bạn "
+            "vẫn còn — hãy so với bản mới rồi quyết định gửi lại hay lấy "
+            "giá trị mới.",
+            status=409,
+            order_revision=current_revision,
+            period_revision=order_revision.of_period(data, period),
+            current=order_api.detail_payload(
+                data=data, order_key=order_key, period=period,
+                service=service,
+                can_edit=not service.period_store.is_closed(period)))
+
+    def _api_submitted_prices(order_key: str, raw) -> dict:
+        """`changes.prices` của JSON → `{khoá dòng: chuỗi người gõ}`.
+
+        Cùng hình dạng `_submitted_prices` trả về từ form HTML, nên
+        `plan_order_edit` nhận đúng một loại đầu vào từ cả hai đường. Đó là
+        điều giữ cho không có đường ghi thứ hai với luật riêng của nó.
+
+        Mỗi phần tử phải mang ĐỦ `product_key` + `occurrence_index`. Thiếu
+        một phần là TỪ CHỐI, không đoán: đoán ở đây nghĩa là ghi một giá
+        lên một dòng mà người gửi không chỉ định.
+
+        `value` là CHUỖI người gõ, không phải số — chuỗi rỗng nghĩa là GỠ
+        giá tay, và một `0` là một giá bằng không. `null`/số bị từ chối để
+        hai ý nghĩa đó không bị trộn ở tầng JSON.
+        """
+        if raw is None:
+            return {}
+        if not isinstance(raw, list):
+            raise ValueError("`changes.prices` phải là một danh sách.")
+        prices = {}
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                raise ValueError(f"`changes.prices[{index}]` phải là đối tượng.")
+            product_key = item.get("product_key")
+            occurrence = item.get("occurrence_index")
+            if not product_key or occurrence is None:
+                raise ValueError(
+                    f"`changes.prices[{index}]` thiếu product_key hoặc "
+                    "occurrence_index — khoá dòng phải đủ ba phần.")
+            try:
+                occurrence = int(occurrence)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"`changes.prices[{index}].occurrence_index` phải là số "
+                    "nguyên.") from None
+            value = item.get("value")
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"`changes.prices[{index}].value` phải là CHUỖI. Chuỗi "
+                    "rỗng nghĩa là gỡ giá tay; một số 0 là giá bằng không — "
+                    "hai ý nghĩa đó không được trộn.")
+            prices[(order_key, str(product_key), occurrence)] = value
+        return prices
+
+    # --- `P1-3`: mọi lỗi trên `/api/` trả JSON, không trả TRANG --------
+    #
+    # Bản trước đăng ký MỘT handler cho `HTTPException` và tin rằng nó bắt
+    # được mọi mã. Review chứng minh nó không: Flask chọn handler theo mã
+    # CỤ THỂ trước, nên `@errorhandler(404)`/`(500)`/`(409)`/`(503)` bên
+    # dưới thắng nó — và đúng ba ca quan trọng nhất (`404` Flask, `500`
+    # exception, `abort(503)` từ `_guarded`) trả về một trang HTML cho một
+    # `fetch()` đang chờ `{"error": {"code": …}}`.
+    #
+    # Cách đóng: cửa kiểm `/api/` nằm TRONG TỪNG handler, không ở một
+    # handler bao ngoài. `_error_response()` là chỗ duy nhất quyết định
+    # JSON hay trang, nên không handler nào có thể quên — thêm một
+    # `errorhandler` mới mà gọi hàm này là đã đúng.
+    def _error_response(*, code: str, message: str, status: int):
+        """Lỗi cho CẢ hai loại người gọi, phân biệt bằng đường dẫn.
+
+        `/api/` → JSON theo đúng schema của `_api_error`:
+
+            {"error": {"code": …, "message": …, "request_id": …}}
+
+        Còn lại → trang HTML như trước, không đổi một chữ.
+        """
+        if request.path.startswith("/api/"):
+            return {"error": {"code": code, "message": message,
+                              "request_id": request_timing.trace_id()}}, status
+        return _page(error=message, status=status)
+
+    @app.errorhandler(HTTPException)
+    def _http_error(exc):  # noqa: C901 — một nhánh, hai loại người gọi
+        """Các mã KHÔNG có handler riêng (405, 400, 422…).
+
+        Đường không phải API rơi về `exc.get_response()` — chính response
+        mặc định của Werkzeug, tức đúng hành vi trước bản này. KHÔNG `raise
+        exc` ở đây: một ngoại lệ ném ra từ trong error handler không quay
+        lại danh sách handler, nó đi thẳng lên `handle_exception` và (khi
+        `PROPAGATE_EXCEPTIONS` bật, như trong test) nổ ra ngoài — biến một
+        405 bình thường thành một lỗi không bắt được.
+        """
+        if not request.path.startswith("/api/"):
+            return exc.get_response()
+        return _error_response(
+            code=_API_STATUS_CODES.get(exc.code,
+                                       mutation_guard.VALIDATION_ERROR),
+            message=(exc.description or "Yêu cầu không thực hiện được."),
+            status=exc.code or 500)
+
     @app.errorhandler(RequestEntityTooLarge)
     def _too_large(_exc):
-        return _page(
-            error="Workbook vượt quá giới hạn 25MB cho bản Beta. Hãy chọn file nhỏ hơn.",
-            status=413,
-        )
+        return _error_response(
+            code=mutation_guard.VALIDATION_ERROR,
+            message=("Workbook vượt quá giới hạn 25MB cho bản Beta. Hãy "
+                     "chọn file nhỏ hơn."),
+            status=413)
 
     @app.errorhandler(404)
     def _not_found(_exc):
-        return _page(error="Không tìm thấy tài nguyên yêu cầu.", status=404)
+        return _error_response(
+            code=mutation_guard.NOT_FOUND,
+            message="Không tìm thấy tài nguyên yêu cầu.", status=404)
 
     @app.errorhandler(500)
     def _server_error(_exc):
-        return _page(error="Có lỗi xử lý phía máy chủ. Vui lòng thử lại.", status=500)
+        """500 KHÔNG bao giờ nói ra nội dung exception.
+
+        Câu chữ là một hằng số, không phải `str(exc)`: một exception của
+        SQLAlchemy mang cả câu SQL và DSN (gồm mật khẩu) trong `str()` của
+        nó. Truy vết đi qua `trace_id` trong response và dòng log cùng mã
+        — đó là đường đúng để nối một lỗi người dùng thấy với nguyên nhân
+        trong log.
+        """
+        return _error_response(
+            code=mutation_guard.INTERNAL_ERROR,
+            message="Có lỗi xử lý phía máy chủ. Vui lòng thử lại.",
+            status=500)
 
     @app.errorhandler(409)
     def _history_source_conflict(exc):
         """Mâu thuẫn nguồn lịch sử — nói ĐÚNG cái đang mâu thuẫn."""
-        return _page(error=getattr(exc, "description", None)
-                     or "Nguồn lịch sử đang mâu thuẫn.", status=409)
+        return _error_response(
+            code=mutation_guard.REVISION_CONFLICT,
+            message=(getattr(exc, "description", None)
+                     or "Nguồn lịch sử đang mâu thuẫn."), status=409)
 
     @app.errorhandler(503)
     def _storage_unavailable(_exc):
-        return _page(
-            error="Lưu trữ tạm thời không khả dụng. Vui lòng thử lại.", status=503,
-        )
+        return _error_response(
+            code=mutation_guard.SOURCE_PENDING,
+            message="Lưu trữ tạm thời không khả dụng. Vui lòng thử lại.",
+            status=503)
+
+    # --- `STAB-01`: đo và truy vết thời gian ---------------------------
+    #
+    # Đặt CUỐI `create_app` để hai `after_request` hook không cần biết thứ
+    # tự đăng ký của nhau: Flask chạy `after_request` theo thứ tự NGƯỢC lại
+    # thứ tự đăng ký, nên hook đăng ký cuối cùng chạy TRƯỚC — và cái ta
+    # muốn là đo được cả những gì hook khác làm với response.
+    #
+    # `install_sql_counter` gắn vào đúng `Engine` mà app này dùng. Không có
+    # snapshot repo (môi trường chưa cấu hình database) thì không có SQL để
+    # đếm, và hàm tự im lặng.
+    if snapshot_repo is not None:
+        request_timing.install_sql_counter(snapshot_repo.engine)
+
+    # Chia đôi thời gian của một route bằng đúng cái mốc mà nó tự nhiên có:
+    # trước khi Jinja bắt đầu render, mọi thứ route làm là DỰNG view model
+    # (`presentation`); từ mốc đó tới khi render xong là `template`. Đo bằng
+    # signal của Flask nên không route nào phải tự bọc mã đo — và vì thế
+    # không route nào có thể quên.
+    #
+    # Template lồng nhau (`{% include %}`, `{% import %}`) KHÔNG phát signal
+    # này, chỉ template cấp cao nhất phát — nên `template` không bị cộng
+    # trùng.
+    from flask import before_render_template, template_rendered
+
+    @before_render_template.connect_via(app)
+    def _mark_render_start(_sender, **_extra):
+        """`P2-5` — `presentation` là thời gian RIÊNG, không phải tổng đã trôi.
+
+        Bản trước cộng "toàn bộ thời gian tới lúc bắt đầu render", tức nó
+        BAO GỒM cả `sql`, `r2` và `tracking`. Trong `Server-Timing` nó hiện
+        như một cột song song với những cột kia, nên dễ đọc thành các khoản
+        riêng — và phép đo 5.000 dòng cho thấy `pres 437,2 + tpl 793,9 =
+        1231 > total 1114`, một tổng lớn hơn cả tổng.
+
+        Nay trừ đi các span I/O đã đo, nên `presentation` là thời gian CPU
+        dựng view model và `pres + tpl + sql + r2 + tracking ≤ total`.
+        `tests/test_p2_5_timing_spans.py` canh chính bất đẳng thức đó.
+        """
+        data = request_timing.snapshot()
+        if data:
+            spans = data["spans"]
+            already = (spans["presentation"] + spans["sql"] + spans["r2"]
+                       + spans["tracking"] + spans["template"])
+            request_timing.add("presentation",
+                               max(0.0, data["total"] - already), count=1)
+            g._render_started = time.monotonic()
+
+    @template_rendered.connect_via(app)
+    def _mark_render_end(_sender, **_extra):
+        started = getattr(g, "_render_started", None)
+        if started is not None:
+            request_timing.add("template", time.monotonic() - started)
+            g._render_started = None
+
+    @app.after_request
+    def _emit_timing(response):
+        """Gắn `X-Request-Id` + `Server-Timing` và ghi MỘT dòng log.
+
+        `response.calculate_content_length()` chỉ đọc được độ dài khi
+        response không phải streaming (`direct_passthrough`) — file Excel
+        tải về đi đường đó, và ép đọc độ dài của nó sẽ nạp cả file vào bộ
+        nhớ. Nên bytes ở đó là `None`, và dòng log ghi `-` thay vì một số
+        bịa ra.
+        """
+        size = None
+        if not response.direct_passthrough:
+            try:
+                size = response.calculate_content_length()
+            except Exception:  # noqa: BLE001 — đo lường không được làm sập
+                size = None
+        data = request_timing.snapshot(response_bytes=size)
+        if not data:
+            return response
+        # `P1-2` — trả về `trace_id` do SERVER sinh, KHÔNG phải chuỗi
+        # client gửi. Trả lại chuỗi của client sẽ làm mọi công cụ tin rằng
+        # server đã chấp nhận nó làm mã truy vết.
+        response.headers[request_timing.REQUEST_ID_HEADER] = data["trace_id"]
+        response.headers["Server-Timing"] = \
+            request_timing.server_timing_header(data)
+        # `print` chứ không `logging`: gunicorn trên Render gom stdout của
+        # worker vào log của service, và một dòng ở đó là chỗ Owner đọc
+        # được ngay. Không thêm một cấu hình logging thứ hai vào hệ.
+        line = request_timing.log_line(
+            data, method=request.method, path=request.path,
+            status=response.status_code)
+        if data["total"] >= request_timing.SLOW_REQUEST_SECONDS:
+            line += " slow=1"
+        print(line, flush=True)
+        return response
 
     return app

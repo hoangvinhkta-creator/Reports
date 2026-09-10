@@ -85,6 +85,7 @@ from typing import Any, Iterator, Optional
 
 from app.modules.product.identity.journal import JournalWriteConflict
 from app.modules.product.identity.mapping import MappingIntegrityError
+from app.web import request_timing
 from tools.storage import r2_store
 from tools.storage.errors import RunAlreadyExistsError
 
@@ -139,6 +140,15 @@ class ObjectStoreIdentityJournal:
         còn lại thành một state một nửa — nó là lỗi, không phải một dữ liệu
         thiếu có thể bỏ qua.
         """
+        # `STAB-01` — mọi lượt đi ra object store của đường này được cộng
+        # vào span `r2`. Đặt quanh CẢ hàm (list + các lượt get) thay vì
+        # quanh từng lượt: cái Owner cần biết là "đường R2 tốn bao nhiêu
+        # của request này", và một lượt list chậm cộng mười lượt get nhanh
+        # là cùng một câu trả lời ấy.
+        with request_timing.span("r2"):
+            return self._pull_uncounted()
+
+    def _pull_uncounted(self) -> list[dict[str, Any]]:
         keys = r2_store.list_all_keys(
             EVENT_KEY_PREFIX, client=self._client, env=self._env)
         if len(keys) <= self._count:

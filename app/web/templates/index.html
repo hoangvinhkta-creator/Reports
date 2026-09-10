@@ -58,7 +58,9 @@
 </div>
 {% endif %}
 
-<p><a href="{{ url_for('download_artifact', run_id=run_id) }}"><button class="act" type="button">TẢI BÁO CÁO EXCEL</button></a></p>
+{# `STAB-02` — xem chú thích cùng tên ở `kinh_doanh.html`. #}
+<p><a href="{{ url_for('download_artifact', run_id=run_id) }}" download
+      data-metric="artifact-download"><button class="act" type="button">TẢI BÁO CÁO EXCEL</button></a></p>
 {% endif %}
 
 <div class="module">

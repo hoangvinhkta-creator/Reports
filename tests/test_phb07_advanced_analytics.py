@@ -178,6 +178,16 @@ def test_phb07_adds_no_migration():
         # kỳ) — cùng lý do như dòng trên: phép khẳng định ở đây PIN thư mục,
         # và điều nó chứng minh vẫn nguyên vẹn.
         "0009_line_binding_period_close.py",
+        # `0010_mutation_request` là của `STAB-03` (chống lặp mutation sau
+        # khi nhánh tự gửi lại bị gỡ) — cùng lý do như hai dòng trên: phép
+        # khẳng định ở đây PIN thư mục, và điều nó chứng minh vẫn nguyên
+        # vẹn. Bảng `mutation_request` không lưu một kết quả phân tích nào
+        # và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0010_mutation_request.py",
+        # `0011_mutation_request_state` là bản sửa hình dạng của `0010` sau
+        # review độc lập (sổ chống lặp phải biết cả lần ghi đang bay) —
+        # cùng lý do: phép khẳng định ở đây PIN thư mục.
+        "0011_mutation_request_state.py",
     ]
 
 
