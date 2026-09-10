@@ -1,6 +1,44 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — trục X gọn DD/MM; chẩn đoán "cùng kỳ năm trước" trống (`DEC-215`, 2026-09-10)
+## CANONICAL CURRENT STATE — lấp lỗ hổng "cùng kỳ năm trước" bằng nguồn vẽ riêng (`DEC-216`, 2026-09-10)
+
+Nối tiếp `DEC-215` §1: Owner xác nhận nguyên nhân (a) — sổ cũ chỉ có TỔNG
+THÁNG — và chốt một đường đi vòng. Doanh số TỪNG NGÀY được trích trong
+phiên từ các sheet chi tiết của hai workbook kế toán, chỉ hai cột `Date` và
+`Tổng bán`, rồi commit thành một nguồn riêng chỉ dùng để VẼ.
+
+```text
+Nguồn      data/chart_gapfill/daily_revenue.jsonl (579 ngày,
+           2025-01-02 → 2026-08-31, 362.170.585 nghìn đồng)
+Xuất xứ    data/chart_gapfill/PROVENANCE.md — luật trích, bất thường và
+           quyết định của Owner cho từng bất thường
+Origin     `CHART_GAPFILL`, KHÔNG mượn nhãn `LEGACY_REFERENCE`
+Thẩm quyền sổ nạp → sổ cũ → lấp lỗ hổng, giải ở mức NGÀY
+Phạm vi    chỉ mức Ngày/Tuần, chỉ biểu đồ doanh thu (cả trang Báo cáo lẫn
+           trang Phân tích, để hai trang không cho hai con số)
+```
+
+`DEC-181` KHÔNG bị nới: không đụng bảng `legacy_*`, `POST /du-lieu/legacy`
+vẫn trả 409 vô điều kiện, `authoritative_period_sales` vẫn là thẩm quyền
+duy nhất cho tổng một kỳ số cũ. Nguồn này không được dùng để đối soát, và
+mỗi mốc dựng từ nó tự khai điều đó trong lời giải thích của chính nó.
+
+Hai phát hiện về file nguồn của Owner, đã xác minh: khối tháng 8/2026 bị
+LẶP trong `Summary 2026` (hệ thống thật KHÔNG cộng đôi — lấy dòng đầu tiên
+rồi dừng), và `MONTH_TOTAL` năm 2026 KHÔNG bao gồm dòng `Gia dụng` (đúng
+8/8 tháng). Chi tiết ở `DEC-216` §7.
+
+Trạng thái: `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng: đối soát 18/20 tháng khớp tuyệt đối, 2 tháng lệch bằng đúng
+giá trị hai sheet Owner đã chọn loại; full pytest 3493 passed / 12 skipped
+(1 deselected — failure môi trường có sẵn, xem `DEC-211` §5); smoke R6
+29/0; smoke R5.1 83/0; kiểm thị giác ảnh chụp Chromium thật, mức Ngày và
+Tuần, đường "Cùng kỳ năm trước" đã liền.
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-216`.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — trục X gọn DD/MM; chẩn đoán "cùng kỳ năm trước" trống (`DEC-215`, 2026-09-10)
 
 Owner báo cáo qua ảnh chụp: (1) không thấy đường "Cùng kỳ năm trước" của
 biểu đồ Xu hướng doanh thu, (2) trục X hiện ngày kèm năm lặp lại.

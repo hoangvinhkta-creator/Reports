@@ -133,6 +133,13 @@ ORIGIN_LEGACY = "LEGACY_REFERENCE"
 #: ở mức đó (`§ Thẩm quyền được giải ở mức THÁNG`).
 ORIGIN_MIXED = "MIXED_AUTHORITY"
 
+#: `DEC-216` — bằng chứng TỪNG NGÀY dựng riêng để lấp lỗ hổng của biểu đồ ở
+#: mức Ngày/Tuần, KHÔNG phải một nguồn legacy (xem `app/web/chart_gapfill.py`).
+#: Nó có nhãn riêng chứ không mượn `ORIGIN_LEGACY`: mượn nhãn sẽ nói với người
+#: đọc rằng con số ấy đến từ sổ cũ đã chốt, trong khi sổ cũ không hề có ngày
+#: nào — và làm hỏng đúng chiều mà `DEC-166 E` bắt phải luôn đọc được.
+ORIGIN_GAPFILL = "CHART_GAPFILL"
+
 DAY = "ngay"
 WEEK = "tuan"
 MONTH = "thang"
@@ -173,6 +180,16 @@ MIXED_POINT_NOTE = (
     "tháng chỉ lấy từ MỘT nguồn, nên không tháng nào bị cộng hai lần."
 )
 
+#: `DEC-216` — bản của `MIXED_POINT_NOTE` cho mốc hỗn hợp CÓ phần lấp lỗ
+#: hổng. Dùng chung một câu cho cả hai kiểu hỗn hợp sẽ nói rằng phần không
+#: phải sổ nạp là "bản ghi lịch sử" — sai, và sai đúng ở chiều `DEC-166 E`
+#: bắt phải đọc được.
+MIXED_GAPFILL_POINT_NOTE = (
+    "Mốc này gồm cả ngày đã có sổ nạp lẫn ngày chỉ vẽ được từ bảng kê ngày "
+    "của sổ kế toán. Mỗi ngày chỉ lấy từ MỘT nguồn, nên không ngày nào bị "
+    "cộng hai lần."
+)
+
 #: `F-E` — phạm vi thời gian của biểu đồ, nói thành lời ngay cạnh biểu đồ.
 #:
 #: Ô chỉ tiêu ở trên trả lời "kỳ đang chọn ra sao"; biểu đồ trả lời "xu hướng
@@ -183,6 +200,25 @@ MIXED_POINT_NOTE = (
 CHART_SCOPE_NOTE = (
     "Biểu đồ xu hướng theo TOÀN BỘ dữ liệu khả dụng, không giới hạn trong "
     "Kỳ dữ liệu đang chọn ở trên."
+)
+
+#: `DEC-216` — câu của MỘT mốc lấp lỗ hổng. Nó phải nói ra hai điều trong
+#: cùng một hơi: con số này có thật (đọc từ bảng kê ngày của sổ kế toán), và
+#: nó KHÔNG phải sổ nạp cũng không phải bản ghi lịch sử đã chốt — nên đừng
+#: dùng nó để đối soát với ô chỉ tiêu ở trên.
+GAPFILL_POINT_NOTE = (
+    "Mốc này lấy từ bảng kê ngày của sổ kế toán, chỉ dùng để vẽ xu hướng — "
+    "không phải sổ nạp, cũng không phải bản ghi lịch sử dùng để đối soát."
+)
+
+#: `DEC-216` — câu nói cạnh biểu đồ khi có mốc lấy từ nguồn lấp lỗ hổng.
+#: Nó thay `NO_DAILY_LEGACY_NOTE` chứ không đứng cùng: câu kia giải thích một
+#: khoảng TRỐNG, và giữ nó lại bên cạnh một đường đã liền là nói với người đọc
+#: rằng chỗ họ đang nhìn thấy số vẫn đang trống.
+GAPFILL_CHART_NOTE = (
+    "Các mốc trước khi sổ nạp bắt đầu được vẽ từ bảng kê ngày của sổ kế toán, "
+    "chỉ để nhìn xu hướng. Con số ĐỐI SOÁT của các kỳ cũ vẫn là tổng tháng "
+    "của bản ghi lịch sử, không phải các mốc ngày này."
 )
 
 NO_DAILY_LEGACY_NOTE = (
@@ -233,6 +269,11 @@ class Point:
     covered_months: Optional[int] = None
     #: Tổng số tháng mà mốc này bao trùm theo lịch (`None` như trên).
     span_months: Optional[int] = None
+    #: Tập origin đã góp giá trị vào mốc này (`DEC-216`). Một phần tử với
+    #: mốc thuần; nhiều phần tử thì `origin` là `ORIGIN_MIXED` và tập này nói
+    #: hỗn hợp giữa NHỮNG GÌ. Mặc định rỗng để mọi `Point` dựng tay trong test
+    #: cũ giữ nguyên chữ ký.
+    origins: frozenset = frozenset()
 
     @property
     def is_legacy(self) -> bool:
@@ -248,6 +289,23 @@ class Point:
     @property
     def is_mixed(self) -> bool:
         return self.origin == ORIGIN_MIXED
+
+    @property
+    def is_gapfill(self) -> bool:
+        """Mốc này lấy TOÀN BỘ từ nguồn lấp lỗ hổng (`DEC-216`)."""
+        return self.origin == ORIGIN_GAPFILL
+
+    @property
+    def has_gapfill(self) -> bool:
+        """Mốc này CÓ PHẦN lấy từ nguồn lấp lỗ hổng — kể cả khi hỗn hợp.
+
+        Một tuần vắt qua ngày sổ nạp bắt đầu chạy gồm cả ngày lấp lỗ hổng lẫn
+        ngày sổ nạp, nên nó mang `ORIGIN_MIXED` và `is_gapfill` trả `False`.
+        Nhưng người đọc vẫn cần biết một phần con số ấy không dùng để đối
+        soát được, nên câu hỏi "có phần lấp lỗ hổng không" phải trả lời được
+        RIÊNG với câu hỏi "có thuần lấp lỗ hổng không".
+        """
+        return ORIGIN_GAPFILL in self.origins
 
     @property
     def partial(self) -> bool:
@@ -318,7 +376,8 @@ def current_points(details: Iterable[dict], granularity: str) -> dict[str, dict]
         key, label = bucket_of(sale_date, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "days": set(), "origin": ORIGIN_CURRENT})
+                  "months": set(), "days": set(), "origin": ORIGIN_CURRENT,
+                  "origins": {ORIGIN_CURRENT}})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((sale_date.year, sale_date.month))
         # `DEC-211` — độ mịn NGÀY của cùng thẩm quyền. Ở mức Ngày/Tuần, thứ
@@ -353,7 +412,8 @@ def _legacy_month_points(
         key, label = _month_bucket(year, month, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "days": set(), "origin": ORIGIN_LEGACY})
+                  "months": set(), "days": set(), "origin": ORIGIN_LEGACY,
+                  "origins": {ORIGIN_LEGACY}})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((year, month))
     return buckets
@@ -394,8 +454,26 @@ def _legacy_day_points(
     lời của chính nó — cùng từ vựng `DEC-166 E` đã có, không phải một nhãn
     mới.
     """
+    return _day_points(legacy_days, granularity, taken_days,
+                       origin=ORIGIN_LEGACY)
+
+
+def _day_points(rows: Iterable[dict], granularity: str, claimed_days: set,
+                *, origin: str) -> dict[str, dict]:
+    """Cơ chế dùng chung của mọi nguồn có bằng chứng TỪNG NGÀY.
+
+    Tách ra khỏi `_legacy_day_points` khi `DEC-216` thêm nguồn lấp lỗ hổng:
+    hai nguồn ấy khác nhau ở NHÃN và ở CHỖ ĐỨNG trong thứ tự thẩm quyền, chứ
+    không khác nhau ở phép gộp. Viết phép gộp lần thứ hai là mở cửa cho hai
+    đường vẽ cùng một biểu đồ bằng hai luật khác nhau — và sai lệch kiểu đó
+    chỉ lộ ra ở đúng những ngày hiếm mà hai nguồn cùng nói.
+
+    `claimed_days` là tập ngày đã có nguồn thẩm quyền CAO HƠN; ngày nằm trong
+    đó bị loại tại đây, để `_merge_resolved` không bao giờ phải cộng hai
+    nguồn cho cùng một ngày (`DEC-180` §9).
+    """
     buckets: dict[str, dict] = {}
-    for entry in legacy_days:
+    for entry in rows:
         year, month = int(entry["year"]), int(entry["month"])
         revenue = entry.get("sales_vnd")
         if revenue is None:
@@ -407,16 +485,37 @@ def _legacy_day_points(
             # của nguồn (`DEC-166 E`: known defects ghi metadata, không sửa).
             # Bỏ qua đúng ô đó, không bịa một ngày thay thế.
             continue
-        if when in taken_days:
+        if when in claimed_days:
             continue
         key, label = bucket_of(when, granularity)
         slot = buckets.setdefault(
             key, {"label": label, "revenue": Decimal(0),
-                  "months": set(), "days": set(), "origin": ORIGIN_LEGACY})
+                  "months": set(), "days": set(), "origin": origin,
+                  "origins": {origin}})
         slot["revenue"] += Decimal(revenue)
         slot["months"].add((year, month))
         slot["days"].add(when)
     return buckets
+
+
+def _gapfill_day_points(
+    gapfill_days: Iterable[dict], granularity: str, claimed_days: set,
+) -> dict[str, dict]:
+    """`DEC-216` — điểm mức Ngày/Tuần dựng từ nguồn LẤP LỖ HỔNG.
+
+    Nguồn này đứng CUỐI trong thứ tự thẩm quyền, sau cả sổ nạp lẫn sổ cũ:
+
+        sổ nạp  →  sổ cũ  →  lấp lỗ hổng
+
+    Một ngày mà sổ nạp hay sổ cũ đã nói tới thì nguồn này im lặng, kể cả khi
+    nó có con số cho ngày đó. Đây không phải một quy ước tuỳ ý mà là điều
+    kiện để `DEC-180` §9 còn đúng: MỘT ngày ⟹ MỘT nguồn ⟹ MỘT giá trị. Đặt
+    nó lên trước bất kỳ nguồn nào khác sẽ khiến một con số dựng để VẼ ghi đè
+    một con số dùng để ĐỐI SOÁT — và không màn hình nào cho thấy điều đó đã
+    xảy ra.
+    """
+    return _day_points(gapfill_days, granularity, claimed_days,
+                       origin=ORIGIN_GAPFILL)
 
 
 def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict,
@@ -455,6 +554,11 @@ def _merge_resolved(buckets: dict[str, dict], key: str, slot: dict,
     existing["revenue"] += slot["revenue"]
     existing["months"] |= slot["months"]
     existing["days"] |= slot["days"]
+    # `DEC-216` — giữ TẬP origin đã góp vào mốc này, không chỉ kết luận
+    # "hỗn hợp". Với hai nguồn thì một cờ boolean là đủ, nhưng với ba thì
+    # "hỗn hợp" không còn nói được nó hỗn hợp giữa những gì — và câu giải
+    # thích cạnh mốc sẽ phải đoán, tức là sẽ có lúc nói sai.
+    existing["origins"] |= slot["origins"]
     if existing["origin"] != slot["origin"]:
         existing["origin"] = ORIGIN_MIXED
 
@@ -463,6 +567,7 @@ def series(
     details: Iterable[dict], *, granularity: str,
     legacy_months: Optional[Iterable[dict]] = None,
     legacy_days: Optional[Iterable[dict]] = None,
+    gapfill_days: Optional[Iterable[dict]] = None,
 ) -> list[Point]:
     """Chuỗi điểm đã sắp theo thời gian — bề mặt DUY NHẤT của biểu đồ.
 
@@ -471,6 +576,12 @@ def series(
     là các dòng `legacy_daily_sales` (`{"year", "month", "day", "sales_vnd"}`,
     vốn đã là VND nguyên). Module này KHÔNG tự đổi đơn vị: quên hệ số 1.000
     một lần ở đây sẽ cho ra một đường cong trông như thật.
+
+    `gapfill_days` (`DEC-216`) cùng hình dạng với `legacy_days` nhưng đứng
+    CUỐI thứ tự thẩm quyền và CHỈ có tác dụng ở mức Ngày/Tuần. Ở mức Tháng
+    trở lên nó bị bỏ qua hoàn toàn — không phải vì tiết kiệm, mà vì ở đó tổng
+    tháng chính thức đã có mặt và cộng thêm một nguồn thứ hai cho cùng một
+    tháng là đúng thứ `_merge_resolved` sinh ra để chặn.
     """
     details = list(details)
     buckets = current_points(details, granularity)
@@ -481,12 +592,22 @@ def series(
         # phép lọc lẫn van chống-cộng-hai-nguồn đều đọc tập NGÀY.
         taken_days = {day for slot in buckets.values() for day in slot["days"]}
         legacy = _legacy_day_points(legacy_days or [], granularity, taken_days)
+        # `DEC-216` — nguồn lấp lỗ hổng chỉ nhận những ngày mà CẢ HAI nguồn
+        # trên đều không nói tới. Tập bị loại phải cộng cả ngày của sổ cũ vừa
+        # dựng ở trên, không chỉ ngày của sổ nạp: một ngày sổ cũ mà nguồn lấp
+        # cũng có sẽ thành hai giá trị trong cùng một mốc.
+        claimed = set(taken_days)
+        for slot in legacy.values():
+            claimed |= slot["days"]
+        resolved = [legacy,
+                    _gapfill_day_points(gapfill_days or [], granularity, claimed)]
         unit = "days"
     else:
-        legacy = _legacy_month_points(legacy_months or [], granularity, taken)
+        resolved = [_legacy_month_points(legacy_months or [], granularity, taken)]
         unit = "months"
-    for key, slot in legacy.items():
-        _merge_resolved(buckets, key, slot, unit=unit)
+    for group in resolved:
+        for key, slot in group.items():
+            _merge_resolved(buckets, key, slot, unit=unit)
 
     span = _MONTHS_IN_BUCKET.get(granularity)
     points = []
@@ -494,7 +615,7 @@ def series(
         slot = buckets[key]
         points.append(Point(
             key=key, label=slot["label"], revenue=slot["revenue"],
-            origin=slot["origin"],
+            origin=slot["origin"], origins=frozenset(slot["origins"]),
             covered_months=None if span is None else len(slot["months"]),
             span_months=span,
         ))
@@ -710,10 +831,17 @@ class Slot:
     #: của mốc, và bỏ nó đi ở đây sẽ khiến một quý hai tháng trông ngang hàng
     #: với một quý đủ ba tháng trên cùng một đường.
     partial: bool = False
+    #: `Point.origins` của mốc gốc (`DEC-216`) — chở theo vì lời giải thích
+    #: cạnh chấm phải nói đúng mốc ấy hỗn hợp giữa những gì.
+    origins: frozenset = frozenset()
 
     @property
     def is_gap(self) -> bool:
         return self.revenue is None
+
+    @property
+    def has_gapfill(self) -> bool:
+        return ORIGIN_GAPFILL in self.origins
 
 
 @dataclass(frozen=True)
@@ -857,7 +985,8 @@ def paired_series(
             if point is not None:
                 built.append(Slot(index=index, key=key, label=label,
                                   revenue=point.revenue, origin=point.origin,
-                                  partial=point.partial))
+                                  partial=point.partial,
+                                  origins=point.origins))
                 continue
             # Không có điểm: số 0 CHỈ khi phạm vi đã được xác nhận đầy đủ,
             # tức hệ thống thật sự biết không có đơn nào. Mọi trường hợp còn
@@ -968,7 +1097,9 @@ __all__ = [
     "paired_series", "paired_window_span", "window_slots",
     "CHART_NOTE", "CHART_SCOPE_NOTE", "DAY", "DEFAULT_GRANULARITY",
     "GRANULARITIES", "GRANULARITY_KEYS", "LEGACY_POINT_NOTE",
-    "MIXED_POINT_NOTE", "MONTH", "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT",
+    "GAPFILL_CHART_NOTE", "GAPFILL_POINT_NOTE", "MIXED_GAPFILL_POINT_NOTE",
+    "MIXED_POINT_NOTE", "MONTH",
+    "NO_DAILY_LEGACY_NOTE", "ORIGIN_CURRENT", "ORIGIN_GAPFILL",
     "ORIGIN_LEGACY", "ORIGIN_MIXED", "Point", "QUARTER", "WEEK", "YEAR",
     "bucket_of", "current_points", "parse_granularity", "series", "totals_of",
     "undated_count", "window_bounds", "window_label", "window_points",

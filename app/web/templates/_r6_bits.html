@@ -121,12 +121,14 @@
           {% for bar in chart.comparison_bars %}
           <span class="rev-line-point rev-line-point-prev" style="left: {{ bar.x_pct }}%"
                 title="{{ bar.title }}" data-metric="chart-bar-prev"
-                data-key="{{ bar.key }}" data-revenue="{{ bar.revenue_raw }}"></span>
+                data-key="{{ bar.key }}" data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
           {% endfor %}
           {% for bar in chart.bars %}
           <span class="rev-line-point" style="left: {{ bar.x_pct }}%"
                 title="{{ bar.title }}" data-metric="chart-bar"
-                data-key="{{ bar.key }}" data-revenue="{{ bar.revenue_raw }}"></span>
+                data-key="{{ bar.key }}" data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
           {% endfor %}
         </div>
         <div class="rev-chart-xaxis">
@@ -143,6 +145,10 @@
     <p class="insight" data-metric="chart-comparison">{{ chart.comparison_note }}</p>
     {% if chart.has_gap %}
     <p class="insight" data-metric="chart-gap">{{ chart.gap_note }}</p>{% endif %}
+    {% if chart.gapfill_note %}
+    <p class="insight" data-metric="chart-gapfill">{{ chart.gapfill_note }}</p>{% endif %}
+    {% if chart.no_daily_legacy_note %}
+    <p class="insight" data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
     {% if chart.undated %}
     <p class="insight" data-metric="chart-undated">Có
       <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}</p>{% endif %}

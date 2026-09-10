@@ -46,3 +46,29 @@ def legacy_repository(history_engine):
     from app.web import history_store
 
     return history_store.build(engine=history_engine)
+
+
+@pytest.fixture(autouse=True)
+def _chart_gapfill_disconnected(request, monkeypatch):
+    """`DEC-216` — nguồn lấp lỗ hổng KHÔNG tự nối vào workspace của test.
+
+    `data/chart_gapfill/daily_revenue.jsonl` là dữ liệu THẬT của một doanh
+    nghiệp cụ thể, đã commit, và `chart_gapfill.daily_rows()` đọc nó theo
+    đường dẫn tuyệt đối tính từ gốc repo. Không có fixture này thì mọi test
+    dựng một workspace tổng hợp sẽ âm thầm nhận thêm 579 ngày doanh số thật
+    vào biểu đồ của nó — và mệnh đề mà test ấy nói ra ("tháng 7 không sinh ra
+    ngày nào") sẽ hỏng vì một lý do chẳng liên quan gì tới nó.
+
+    Đây KHÔNG phải một cách làm nhẹ test: nó cắt một nguồn NGOÀI khỏi
+    workspace tổng hợp, đúng kỷ luật mà `app/pipeline.py` đã đặt ("DI mặc
+    định không nối gì"). Đường dây thật vẫn có test riêng —
+    `tests/test_dec216_chart_gapfill.py` bật lại nguồn này bằng marker
+    ``chart_gapfill`` và kiểm từ file đã commit ra tới HTML.
+    """
+    if request.node.get_closest_marker("chart_gapfill") is not None:
+        return
+    from app.web import chart_gapfill
+
+    monkeypatch.setattr(
+        chart_gapfill, "GAPFILL_DAILY_PATH",
+        Path(__file__).resolve().parent / "_khong_ton_tai_chart_gapfill.jsonl")

@@ -53,6 +53,14 @@ web-prod = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# `DEC-216` — test nào ĐƯỢC PHÉP đọc nguồn lấp lỗ hổng thật đã commit
+# (`data/chart_gapfill/daily_revenue.jsonl`). Mặc định mọi test đều bị cắt
+# khỏi nó bởi fixture autouse trong `tests/conftest.py`; marker này là cách
+# duy nhất bật lại, và vì thế cũng là danh sách tường minh các test nói về
+# chính đường dây ấy.
+markers = [
+    "chart_gapfill: test đọc nguồn lấp lỗ hổng thật đã commit (DEC-216)",
+]
 
 # Deployment-packaging repair: repo root có nhiều thư mục top-level không phải
 # Python package (config/ — data YAML runtime, PROJECT/ — governance, data/ —
