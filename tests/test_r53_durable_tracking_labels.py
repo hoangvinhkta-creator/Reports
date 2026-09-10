@@ -532,12 +532,18 @@ def test_an_out_of_catalog_line_gets_no_label_after_a_restart(
 def test_a_min_price_without_a_confirmed_mapping_earns_no_label(
     client, workbook, live_catalog, projection_path, identity_store,
 ):
-    """`R5.3` §4 — giá MIN có hay không KHÔNG quyết định việc hiện nhãn.
+    """`R5.3` §4 — bản chiếu CÓ nhãn của một mã KHÔNG đủ để dòng nhận nhãn.
 
-    Lần chạy này KHÔNG xác nhận mapping nào, nhưng bản chiếu VẪN được ghi đầy
-    đủ (nó mang mọi mã của capture, không chỉ mã đã xác nhận). Nếu điều kiện
-    hiển thị có lúc nào đó trượt từ "đã CONFIRMED" sang "có mặt trong bản
-    chiếu", bài này đỏ.
+    Lần chạy này KHÔNG xác nhận mapping nào và `RAW_FULL` cũng KHÔNG khớp tự
+    động (không `inv.map`, tên trên sổ không phải một mã), nên dòng CHƯA NHẬN
+    DIỆN — nhưng bản chiếu VẪN được ghi đầy đủ (nó mang mọi mã của capture).
+    Nếu điều kiện hiển thị có lúc nào đó trượt từ "dòng đã khớp" sang "có mặt
+    trong bản chiếu", bài này đỏ.
+
+    `R5.4` mở rộng "đã khớp" từ "mapping CONFIRMED" thành "mapping CONFIRMED
+    HOẶC mã lần chạy đã phân giải" — bài này vẫn đúng nguyên: dòng ở đây
+    không có cả hai. Ca "có mã lần chạy" nằm ở
+    `tests/test_r54_nhan_cho_dong_khop_tu_dong.py`.
     """
     upload(client, workbook)
     html = employee_page(client)

@@ -14250,3 +14250,59 @@ này"), và không một `DEC` nào sau đó (`DEC-207`…`DEC-219`) nhắc lạ
   → `ACCEPTED_BY_OWNER_VERBAL`.
 
 Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-221
+
+Ngày: 2026-09-10
+Phiên: `S152` — Owner báo lỗi production sau merge `R5.3`, chỉ thị điều tra
+rồi "xử lí luôn, tạo PR và merge".
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (`R5.4`).
+
+### §1. Vấn đề
+
+Sau `R5.3`, Owner đã phân loại hãng/ngành hàng bên Tracking cho hầu hết mã
+bán nhiều, nhưng tab Nhân viên vẫn hiện tên dài trên sổ và `—` ở Hãng/Nhóm
+hàng cho cả những dòng ĐÃ có giá MIN. Điều tra `S152` kết luận: mọi tầng
+producer/capture/bản chiếu đều đúng; chỗ đứt là ba cổng hiển thị nhãn chỉ
+tra mã qua `identity_gateway.confirmed_identities()` (mapping do người xác
+nhận trong Reports), trong khi đường sản xuất chính khớp dòng TỰ ĐỘNG
+(`alias.map`/`board`/`inv.map`) và cố ý không ghi mapping (`INV-70`).
+`CHECK-R53-07` đã chốt đúng hành vi sai này thành spec. Tái hiện E1 ghi ở
+`docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md` §1.
+
+### §2. Quyết định
+
+1. Mở task `R5.4` sửa NGAY trên Reports: nguồn mã cho nhãn = mapping
+   `CONFIRMED` (ưu tiên) HOẶC `canonical_product_code` mà lần chạy đã lưu
+   trên dòng (`line_identity.tracking_identity_of`). Không gọi Tracking
+   thêm, không suy từ tên sổ, không ghi mapping cho dòng khớp tự động, cổng
+   `MATCHED_TRACKING` không nới.
+2. `CHECK-R53-07` giữ nguyên PASS lịch sử, ghi chú "superseded by R5.4".
+   Không sửa lại bằng chứng cũ.
+3. Merge thẳng vào nhánh mặc định theo chỉ thị Owner, KHÔNG qua Independent
+   Review — Owner nhận rủi ro này tường minh. `CHECK-R54-11` (nghiệm thu
+   production) vẫn `NOT_TESTED`, chỉ Owner đóng.
+4. Hai vấn đề còn lại KHÔNG thuộc `R5.4` (ghi để theo dõi, không tự xử lý):
+   độ phủ "câu tên hàng → mã" là vận hành bên Tracking (màn "Phân loại theo
+   tên hàng"); giá MIN `—` ở 06/09 và 09/09 nghi thiếu bản ngày, cần đọc
+   `pending_reasons` trên production.
+
+### §3. Ngân sách và lineage
+
+Lineage `R5` đã hết repair cycle (2/2). `R5.4` KHÔNG phải repair cycle thứ
+ba của `R5`/`R5.3` mở bằng cách đổi tên: nó là root task MỚI do Owner mở
+trực tiếp cho một lỗi mà spec `R5.3` đã chốt sai so với brief `R5` §5 —
+tức lỗi của SPEC, không phải BLOCKING defect của repair cycle nào trước đó.
+Ghi tại `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5-4",
+`effective_risk: MEDIUM`, `repair_cycles_allowed: 1`, chưa dùng.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md` — MỚI, Status: DONE.
+- `docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md` — ghi chú
+  `CHECK-R53-07`.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — root task `R5-4`.
+- `PROJECT/PROJECT_PROGRESS.md` — CANONICAL CURRENT STATE `S152`.
+
+Bằng chứng nguyên văn: `docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`.

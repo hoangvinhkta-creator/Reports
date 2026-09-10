@@ -436,6 +436,13 @@ Evidence:
 Có MIN nhưng KHÔNG `CONFIRMED` ⟹ vẫn `—`, dù bản chiếu đã mang đủ nhãn của
 mã đó — `test_a_min_price_without_a_confirmed_mapping_earns_no_label`.
 
+*Cập nhật `R5.4` (2026-09-10, `DEC-221`):* mệnh đề trên là ĐÚNG theo spec
+lúc đó nhưng chính nó là lỗi production Owner báo sau merge: dòng khớp TỰ
+ĐỘNG với Tracking (có MIN) không bao giờ có mapping `CONFIRMED`, nên không
+bao giờ có nhãn. `R5.4` mở rộng điều kiện thành "mapping CONFIRMED HOẶC mã
+lần chạy đã phân giải". Bài test này vẫn xanh nguyên (dòng trong bài CHƯA
+khớp), chỉ docstring đổi. Xem `docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md`.
+
 Executed By:
 Claude Code (S150)
 

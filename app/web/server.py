@@ -1914,27 +1914,36 @@ def create_app(
         catalog_display.restore(rows)
         return rows
 
-    def _catalog_labels() -> dict:
+    def _catalog_labels(details) -> dict:
         """`{raw_identity_key: {tracking_code, model_label, brand,
-        category_label}}` (R5 §5 + R5.1 §5).
+        category_label}}` (R5 §5 + R5.1 §5, mở rộng `R5.4`).
 
-        Ghép hai nguồn ĐÃ CÓ, không đọc mạng: log quyết định đã CONFIRMED nói
-        dòng nào trỏ tới mã Tracking nào, và bản chiếu hiển thị nói mã đó là
+        Ghép các nguồn ĐÃ CÓ, không đọc mạng: `line_identity.tracking_
+        identity_of` nói dòng nào trỏ tới mã Tracking nào (mapping đã
+        CONFIRMED trong Reports THẮNG; không có thì mã mà LẦN CHẠY đã phân
+        giải và lưu trên dòng — `R5.4`), và bản chiếu hiển thị nói mã đó là
         model gì, của hãng nào, thuộc nhóm hàng nào. Bản chiếu vắng mặt ⟹ mỗi
         khoá vẫn có mã Tracking để làm nhãn dự phòng, còn hãng và nhóm hàng là
         `None` — đúng trạng thái "chưa xác định", không phải một cái tên đoán
         ra.
 
-        `confirmed_identities()` là cổng lọc, và nó là chỗ `§5.4` được thi
-        hành: CHỈ mapping đã CONFIRMED mới có mặt ở đây. Một dòng đang tranh
-        chấp, một dòng trỏ tới target đã cũ, một dòng OUT_OF_CATALOG hay chưa
-        phân loại đều KHÔNG có khoá trong bảng này, nên không có đường nào để
-        nhóm hàng của một candidate chảy vào chúng.
+        Trước `R5.4` bảng này CHỈ có khoá của mapping CONFIRMED, nên mọi dòng
+        khớp TỰ ĐỘNG với Tracking (đường sản xuất chính) hiện tên dài và `—`
+        dù đã có mã và có giá MIN. Cổng `§5.4` KHÔNG nới: `workspace_
+        presentation._catalog_field` vẫn chỉ tra bảng này cho dòng
+        `MATCHED_TRACKING`, nên một dòng đang tranh chấp, trỏ tới target đã
+        cũ, OUT_OF_CATALOG hay chưa phân loại vẫn không nhận nhãn nào — kể cả
+        khi cột đã lưu của nó còn mang một mã.
         """
         display = _tracking_display()
+        identities = identity_gateway.confirmed_identities(identity_store)
         labels = {}
-        for key, identity in identity_gateway.confirmed_identities(
-                identity_store).items():
+        for detail in details:
+            key = line_identity.identity_key_of(detail.get("product_raw"))
+            if key is None or key in labels:
+                continue
+            identity = line_identity.tracking_identity_of(
+                detail, identities=identities)
             code = getattr(identity, "source_product_code", None)
             if not code:
                 continue
@@ -2007,8 +2016,6 @@ def create_app(
         `None` = không có gì phải nói, ở cả hai hình dạng.
         """
         identities = identity_gateway.confirmed_identities(identity_store)
-        if not identities:
-            return None
         decisions = _identity_decisions()
         wanted, matched, unmatched = set(), 0, set()
         display = _tracking_display()
@@ -2016,7 +2023,10 @@ def create_app(
             state = line_identity.state_of(detail, decisions=decisions)
             if state.classification != line_identity.CLASS_MATCHED_TRACKING:
                 continue
-            identity = identities.get(state.identity_key)
+            # `R5.4` — cùng nguồn mã với `_catalog_labels`: dòng khớp TỰ ĐỘNG
+            # cũng "có thứ để hiển thị", nên cảnh báo phải đo cả chúng.
+            identity = line_identity.tracking_identity_of(
+                detail, identities=identities)
             code = getattr(identity, "source_product_code", None)
             if not code:
                 continue
@@ -2413,7 +2423,7 @@ def create_app(
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
             groups=workspace_presentation.sheet_detail_groups(
                 scoped.details, sheet=sheet, decisions=decisions,
-                catalog=_catalog_labels(),
+                catalog=_catalog_labels(scoped.details),
                 # `DEC-211` — mã máy CHỈ được truy vấn ở đây, trên đúng
                 # route này. `workspace_imei` là cánh cửa duy nhất, và
                 # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
