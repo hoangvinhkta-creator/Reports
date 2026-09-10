@@ -3737,3 +3737,171 @@ merge; phiên review KHÔNG chọn thay.
 
 Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
 tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`.
+
+---
+
+## Root Task: UI-01-UI-02
+
+```
+root_task: UI-01-UI-02
+title: Panel sửa đơn tại chỗ (thay `?sua=` dựng lại cả bảng)
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REQUEST CHANGES — trên HEAD `e95066a`; 1 finding P0
+             (BLOCKING), 1 finding P2 (khuyến nghị, không chặn)
+repair_1: ĐÃ HOÀN TẤT — cả hai finding, tiêu cycle DUY NHẤT của lineage này
+next_action: chờ vòng Independent Review kế tiếp trên HEAD `9f15eb9`. Nếu
+             vòng đó lại ra REQUEST CHANGES/REPAIR_REQUIRED: lineage HẾT
+             ngân sách, phải ESCALATE theo
+             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở repair
+             cycle thứ hai bằng cách đổi tên/tách nhánh/mở lineage mới.
+```
+
+Đây là ENTRY ĐẦU TIÊN của lineage này trong ledger — chưa từng có root task
+`UI-01`/`UI-02` nào được ghi trước repair cycle này, nên `effective_risk`
+được tự chấm ở đây lần đầu, theo `V4_1_POLICY_FREEZE.md` §4 (chấm theo
+FAILURE PATH, không theo tên file).
+
+**Failure path của finding P0** (finding duy nhất ảnh hưởng tới người dùng
+cuối — finding P2 chỉ là dọn code chết, không có failure path nào):
+
+```text
+PATCH ghi ĐÚNG vào database (server-side, at-most-once/CAS đã xác nhận ở
+lineage khác — P0-1..P0-3 của TASK-STAB-01, không bị finding này chạm tới)
+  → response về SAU KHI panel đã đóng (Escape/nút Đóng/mở panel khác)
+  → handleSaveResult() `return` sớm vì guard theo `panel.dialog`
+  → patchTableFromPayload() không chạy
+  → ô giá + hàng TỔNG trên bảng nền hiển thị giá trị CŨ
+  → Owner đọc SỐ SAI trên màn hình cho tới khi F5 (tải lại cả trang)
+  → có thể ra một quyết định/trao đổi dựa trên số hiển thị sai trong
+    khoảng thời gian đó
+```
+
+Path này DỪNG ở "hiển thị trên đúng một trình duyệt của đúng một phiên",
+với ba tính chất giới hạn nó, đúng cách `V4_1_POLICY_FREEZE.md` §4 đòi hỏi
+(chấm theo path thật, không đoán):
+
+1. **Không có ghi sai.** `MutationGuard.transaction()` (khoá + CAS revision
+   + ghi + đọc lại) hoàn toàn không bị finding này chạm tới — dữ liệu lưu
+   trữ (giá nhập, KPI profit, audit trail) ĐÚNG ngay từ đầu. Đây KHÔNG phải
+   một lỗi ghi đè/mất dữ liệu.
+2. **Tự khỏi khi tải lại.** Trạng thái sai chỉ sống trong DOM của phiên
+   trình duyệt đang mở; một lần F5 đọc lại đúng dữ liệu từ server —
+   `app_content` được dựng lại hoàn toàn, không có cache client nào giữ số
+   sai qua một lần tải trang thật.
+3. **Không lan sang export/chốt kỳ/người dùng khác.** Không chạm
+   `period_lock`, không chạm `business_export`, không đổi bất kỳ file hay
+   bản ghi nào người khác đọc được — khác hẳn lớp lỗi mà `R5` được chấm
+   `HIGH` (quyền LOẠI dòng đổi được vân tay chốt kỳ lẫn file export).
+
+**So sánh để hiệu chỉnh, không đoán suông:**
+- KHÔNG bằng `R5` (`HIGH`, 2 cycle): `R5` có quyền ghi/loại làm đổi vân tay
+  chốt kỳ và file export — một lỗi ở đó lan ra NGOÀI một phiên trình
+  duyệt. `UI-01/UI-02` P0 không có quyền đó.
+- Tương đương `R6` (`MEDIUM`, 1 cycle) về mức độ "hiển thị sai số tài
+  chính cho Owner", nhưng NHẸ HƠN về bản chất: `R6`'s `FIND-R6-IR-01` là
+  một phép tính SAI (cửa sổ so sánh vẽ số 0 cho một khoảng có doanh thu
+  thật — SAI ở NGUỒN, không tự khỏi khi tải lại vì mã tính vẫn sai). Bug
+  này là một CACHE/DOM lệch với nguồn đã ĐÚNG — tự khỏi khi tải lại. Giữ
+  `MEDIUM` (không hạ xuống `LOW`) vì: (a) dữ liệu tài chính hiển thị sai
+  vẫn là dữ liệu tài chính hiển thị sai, bất kể có tự khỏi hay không; (b)
+  kịch bản kích hoạt (đóng panel nhanh) không hiếm — bất kỳ ai quen bấm
+  Escape/click ra ngoài ngay sau khi bấm LƯU đều gặp.
+
+```
+Effective Risk = max(Local Risk, Blast Radius) = max(LOW, MEDIUM) = MEDIUM
+```
+
+Local Risk = LOW: thay đổi hoàn toàn trong `app/web/static/js/app.js`
+(một hàm điều phối client-side), không chạm `order_api.py`, không chạm
+business logic backend, không chạm schema/migration.
+
+**Golden Baseline KHÔNG được dùng để hạ bậc** (`V4.1` §4.1): không Golden
+test nào phủ failure path "panel đóng trước khi PATCH resolve → bảng nền
+lệch". `UI-01/UI-02` KHÔNG viện dẫn Golden để giảm risk.
+
+**Cấp `1` theo bảng đã freeze** (`MEDIUM = 1 blocking repair cycle`,
+`V4_1_POLICY_FREEZE.md` §2). Repair cycle DUY NHẤT của lineage này đã được
+tiêu ở `REPAIR-1` (cả finding P0 và P2 thuộc CÙNG một vòng sửa, `V4.1` §3
+tính theo LẦN SỬA chứ không theo số finding) — `0 remaining`.
+
+### Review round 1 → `REQUEST CHANGES` (Independent Review, trước phiên này)
+
+```text
+kết luận vòng 1        REQUEST CHANGES
+HEAD được review        e95066ad99496eb02df93e370206d93e02651776
+base xác nhận           origin/claude/extract-upload-repo-gq2ws4 @ c46e458
+finding P0 (BLOCKING)   1 — bảng nền không được vá khi panel đóng trước
+                        khi PATCH resolve (`handleSaveResult()` guard sai
+                        phạm vi)
+finding P2 (khuyến nghị) 1 — tham số chết `opts.sameIntent` trong doSave()
+repair cycle tiêu bởi PHIÊN REVIEW   0 (phiên review không sửa mã)
+```
+
+Toàn bộ test tự động (pytest 3568 passed/22 skipped, jsdom 25 passed,
+Playwright 13 passed — số liệu SAU repair, xem dưới) đều PASS ở HEAD được
+review; finding P0 KHÔNG bị bộ test hiện có bắt được tại thời điểm đó —
+review phải tự viết test mới để bắt đúng lỗi. Đây là lý do
+`repair_cycles_used` bắt đầu từ `1` ngay trong lần repair đầu, không phải
+dấu hiệu review kém — chính review NÀY là cách lỗi được phát hiện, đúng
+mục đích tồn tại của Independent Review.
+
+### REPAIR-1 (cycle DUY NHẤT đã tiêu)
+
+```text
+kết luận vòng 1         REQUEST CHANGES
+finding BLOCKING        1 (P0)
+finding khuyến nghị     1 (P2) — sửa trong CÙNG vòng, không tốn thêm cycle
+repair cycle tiêu       1
+số dư sau REPAIR-1      1 allowed / 1 used / 0 remaining   ← HẾT
+base_sha                e95066ad99496eb02df93e370206d93e02651776
+head_sha                9f15eb986b45f81a454d0add754e0c7bef9be360
+```
+
+Phạm vi sửa xác định bằng `git diff e95066a..9f15eb9 --name-only`:
+
+```text
+app/web/static/js/app.js
+tests/playwright/order-panel-save.spec.mjs
+```
+
+Không file nào khác bị chạm — đúng giới hạn brief của repair này (không
+đụng KPI strip, không đụng dòng Chiết khấu suy ra, không đụng
+`order_api.py`/business logic backend).
+
+**Test tái hiện lỗi, xác nhận fail-trước/pass-sau** (không chỉ viết rồi
+chạy một lần):
+
+```text
+tests/playwright/order-panel-save.spec.mjs::"đóng panel TRƯỚC KHI PATCH
+resolve — bảng nền vẫn được vá (repair, finding P0)"
+
+git stash push -- app/web/static/js/app.js   (lùi về code TRƯỚC sửa)
+  → chạy test         ✘ FAIL — PATCH 200 với giá mới, ô bảng nền vẫn "600"
+
+git stash pop                                 (khôi phục sửa)
+  → chạy lại test      ✓ PASS (2.2s)
+```
+
+**Regression — không test nào MỚI fail:**
+
+```text
+pytest (toàn repo, trừ test_105d_boundaries.py môi trường + -k "not postgres")
+                                      3568 passed, 22 skipped, 1 deselected
+tests/browser/ (jsdom, node --test)  25 passed  (không đổi so với trước)
+tests/playwright/ (Chromium thật)    13 passed  (12 cũ + 1 test mới)
+```
+
+`REPORTS_TEST_POSTGRES_URL` không đặt trong phiên này —
+`tests/test_p0_single_transaction.py` (11 test) bị skip, không liên quan
+tới phạm vi repair này (không chạm `MutationGuard`/CAS).
+
+**`UI-01/UI-02` VẪN KHÔNG được merge hay deploy.** Repair cycle đã hết
+(`0 remaining`) — một vòng Independent Review REQUEST CHANGES/
+REPAIR_REQUIRED tiếp theo trên HEAD `9f15eb9` buộc lineage này phải
+ESCALATE, không được tự mở cycle thứ hai.
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT
+STATE — UI-01/UI-02 REPAIR-1".
