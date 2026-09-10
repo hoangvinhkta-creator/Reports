@@ -1,5 +1,43 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `R5.4`: nhãn cho dòng KHỚP TỰ ĐỘNG với Tracking, `DONE`, merge theo chỉ thị Owner (`S152`, 2026-09-10)
+
+Tiếp nối `S151`. Owner báo lỗi production sau merge `R5.3`: đã phân loại
+hãng/ngành bên Tracking nhưng tab Nhân viên vẫn tên dài + `—`, kể cả dòng
+đã có giá MIN. Điều tra rồi sửa theo chỉ thị trực tiếp (`DEC-221`).
+
+```text
+Nguyên nhân   ba cổng nhãn (_catalog_labels · product_taxonomy.metadata_of ·
+              brand_identity.bucket_for) chỉ tra mã qua mapping CONFIRMED do
+              người xác nhận trong Reports; đường sản xuất chính khớp TỰ ĐỘNG
+              (alias.map/board/inv.map) và cố ý không ghi mapping (INV-70)
+              ⟹ dòng có mã, có MIN, vẫn không nhãn. CHECK-R53-07 đã chốt
+              đúng hành vi sai này thành spec.
+Sửa           line_identity.tracking_identity_of(): mapping CONFIRMED thắng,
+              không có thì canonical_product_code lần chạy đã lưu trên dòng
+              (cột ĐÃ CÓ từ TASK-105D, nay business_queries chở xuống).
+              Không gọi Tracking thêm, không suy từ tên sổ, không migration,
+              cổng MATCHED_TRACKING không nới.
+Không thuộc   độ phủ "câu tên hàng → mã" = vận hành bên Tracking; giá MIN
+R5.4          `—` theo ngày 06/09, 09/09 nghi thiếu bản ngày — chưa xác minh.
+```
+
+```text
+CHECK-R54-01 … CHECK-R54-10   PASS (E1)
+CHECK-R54-11 Owner nghiệm thu production   NOT_TESTED — chỉ Owner đóng
+tests/test_r54_*              16 passed (MỚI)
+Full pytest                   3640 passed / 23 skipped / 0 failed (nền S151: 3628 / 24 / 0; +16 bài mới, không bài nào bị xoá)
+Ngân sách                     root task MỚI R5-4 (MEDIUM, 1 cycle, chưa dùng)
+                              — KHÔNG phải cycle thứ ba của R5 (DEC-221 §3)
+Tracking                      KHÔNG đổi (main @ 0f7347b)
+```
+
+Chi tiết: `docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md`;
+`docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-221`.
+
+---
+
 ## CANONICAL CURRENT STATE — Owner đóng escalation `FIND-R53-01` + `CHECK-R5-28`; merge `R5.3` vào nhánh mặc định (`S151`, 2026-09-10)
 
 Tiếp nối `S150` (bên dưới). Independent Review của `R5.3` (trên nhánh

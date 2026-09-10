@@ -204,7 +204,9 @@ def metadata_of(
     """Metadata của MỘT dòng — ĐỌC, không suy luận.
 
     `identities` là `{raw_identity_key: CanonicalProductIdentity}` của
-    `identity_gateway.confirmed_identities`; `display` là bản chiếu
+    `identity_gateway.confirmed_identities` (ưu tiên); dòng không có mapping
+    CONFIRMED thì dùng mã lần chạy đã lưu trên chính dòng (`R5.4`, xem
+    `line_identity.tracking_identity_of`); `display` là bản chiếu
     `catalog_display.read()`. Cả hai đã được đọc MỘT LẦN cho cả trang bởi tầng
     gọi — tra lại ở từng dòng sẽ mở đúng một file cho mỗi dòng của kỳ.
     """
@@ -214,7 +216,10 @@ def metadata_of(
     if name != STATE_MATCHED:
         return LineMetadata(state=name, tracking_code=None, model_label=None,
                             brand=None, category_label=None)
-    identity = identities.get(state.identity_key)
+    # `R5.4` — mapping CONFIRMED thắng; không có thì mã LẦN CHẠY đã phân
+    # giải cho chính dòng này. Cổng `name == STATE_MATCHED` ở ngay trên vẫn
+    # là thứ quyết định dòng có được nhận nhãn hay không.
+    identity = line_identity.tracking_identity_of(detail, identities=identities)
     code = getattr(identity, "source_product_code", None) or None
     row = (display.get(code) or {}) if code else {}
     model_label = row.get("model_label")

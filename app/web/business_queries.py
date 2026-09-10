@@ -131,6 +131,15 @@ _COLUMNS = (
     # biết quyết định đó MỚI HƠN hay CŨ HƠN bằng chứng đang hiển thị — không
     # cột/bảng mới nào được thêm, đây là cột ĐÃ CÓ SẴN từ trước R2.
     _RESULT.created_at.label("result_created_at"),
+    # `R5.4` — mã Tracking mà LẦN CHẠY đã phân giải cho dòng này, cùng
+    # namespace của nó. Hai cột ĐÃ CÓ SẴN trong `order_line_result_version`
+    # từ `TASK-105D` (`history/extraction.py` ghi chúng ở mỗi lần chạy); chỉ
+    # đến `R5.4` tầng đọc mới chở chúng xuống dòng. CHỈ để `line_identity.
+    # tracking_identity_of` tra NHÃN (model/hãng/nhóm hàng) cho dòng đã khớp
+    # TỰ ĐỘNG với Tracking (`alias.map`/`board`/`inv.map`) — những dòng mà
+    # store Product Identity của Reports cố ý KHÔNG lưu mapping nào (resolve
+    # là phép đọc thuần, `INV-70`). Không phép tính tiền nào đọc hai cột này.
+    _RESULT.identity_namespace, _RESULT.canonical_product_code,
     _SOURCE.product_raw, _SOURCE.quantity, _SOURCE.sell_price, _SOURCE.discount,
     _SOURCE.customer_name, _SOURCE.customer_phone, _SOURCE.customer_address,
 )
@@ -451,6 +460,10 @@ def line_details(
             # ĐỌC LẠI trong `line_identity.state_of`; không phép tính nghiệp
             # vụ nào khác chạm vào trường này.
             "result_created_at": row.get("result_created_at"),
+            # `R5.4` — xem chú thích ở `_COLUMNS`. Chỉ `line_identity.
+            # tracking_identity_of` đọc hai trường này.
+            "identity_namespace": row.get("identity_namespace"),
+            "canonical_product_code": row.get("canonical_product_code"),
             "customer_name": row.get("customer_name"),
             "customer_phone": row.get("customer_phone"),
             "customer_address": row.get("customer_address"),

@@ -4060,3 +4060,34 @@ ESCALATE, không được tự mở cycle thứ hai.
 
 Bằng chứng nguyên văn: `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT
 STATE — UI-01/UI-02 REPAIR-1".
+
+## Root Task: R5-4
+
+```
+root_task: R5-4
+title: Nhãn Hãng/Nhóm hàng/Model cho dòng khớp TỰ ĐỘNG với Tracking
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: KHÔNG có — Owner chỉ thị merge thẳng (DEC-221 §2.3)
+next_action: Owner nghiệm thu production (CHECK-R54-11)
+```
+
+Root task MỚI theo chỉ thị Owner (`DEC-221` §3), KHÔNG phải repair cycle
+thứ ba của lineage `R5` (đã 2/2): lỗi nằm ở SPEC `R5.3` (`CHECK-R53-07`
+chốt sai so với brief `R5` §5), không phải BLOCKING defect do một repair
+cycle trước đó tạo ra.
+
+**Failure path** (chấm `MEDIUM`):
+
+```text
+canonical_product_code (cột đã có) → tracking_identity_of()
+  → nhãn 3 ô tab Nhân viên / gộp R6 theo nhóm-hãng / báo cáo thương hiệu
+```
+
+Chỉ NHÃN và phép gộp theo nhãn; không một phép tính tiền nào đọc hai cột
+mới chở xuống (`CHECK-R54-06`). Một mã sai gắn vào dòng sai chỉ có thể tới
+từ chính bằng chứng của pipeline (`Resolved`), và quyết định của người vẫn
+thắng nó (`CHECK-R54-04`). Không LOW vì R6 dùng `category_label` làm khoá
+gộp doanh thu theo nhóm — sai nhãn làm sai phép gộp, dù không sai tổng.

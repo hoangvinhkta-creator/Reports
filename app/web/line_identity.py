@@ -62,6 +62,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable, Optional
 
+from app.modules.product.identity.identity import (
+    CanonicalProductIdentity,
+    Namespace,
+)
 from app.modules.product.identity.keys import raw_identity_key
 
 #: Bốn mã của `PriceResolutionReason`/`TrackingHistoryReason` nói rằng máy
@@ -466,6 +470,52 @@ def sheet_warning(
     return {"orders": tuple(orders), "count": len(orders), "text": text}
 
 
+def tracking_identity_of(detail: dict, *, identities: dict):
+    """Danh tính Tracking HIỆU LỰC của một dòng để tra NHÃN, hoặc `None` (`R5.4`).
+
+    ## Lỗi production mà hàm này đóng
+
+    Trước `R5.4`, ba cổng hiển thị nhãn (`server._catalog_labels`,
+    `product_taxonomy.metadata_of`, `brand_identity.bucket_for`) chỉ tra mã
+    Tracking qua `identity_gateway.confirmed_identities()` — tức chỉ mapping
+    do NGƯỜI xác nhận trong Reports. Nhưng ở chế độ production, resolver khớp
+    phần lớn dòng TỰ ĐỘNG với Tracking (`alias.map`/`board` theo mã, `inv.map`
+    theo câu tên hàng — màn "Phân loại theo tên hàng" của Tracking) và cố ý
+    KHÔNG ghi mapping nào (resolve là phép đọc thuần, `INV-70`). Hệ quả đo
+    được trên production: dòng đã khớp, có mã, có giá MIN của đúng ngày, mà
+    vẫn hiện tên dài trên sổ và `—` ở Hãng/Nhóm hàng — trong khi bản chiếu
+    ĐÃ mang đủ nhãn của mã đó.
+
+    ## Thứ tự, và vì sao nó là thứ tự này
+
+    1. **Quyết định của người trong Reports** (`identities`, mapping
+       `CONFIRMED`) — mới nhất và có thẩm quyền cao nhất: Owner có thể đã
+       chọn một mã KHÁC mã mà lần chạy gần nhất phân giải.
+    2. **Mã LẦN CHẠY đã phân giải** (`canonical_product_code` lưu trong
+       `order_line_result_version`, chỉ khi `identity_namespace = TRACKING`)
+       — bằng chứng của pipeline, không phải một phép đoán: nó chỉ tồn tại
+       khi resolver đã trả `Resolved` cho dòng ấy.
+
+    KHÔNG có bước 3. Không nhánh nào suy mã từ tên trên sổ (`D-04`,
+    `ADR-111` §3), và hàm này KHÔNG quyết định dòng có được nhận nhãn hay
+    không — cổng đó vẫn là `classification == MATCHED_TRACKING` ở từng nơi
+    gọi: một dòng Owner đã đánh dấu `OUT_OF_CATALOG` hay đang `CONFLICT` sau
+    lần chạy vẫn KHÔNG nhận nhãn, dù cột đã lưu còn mang một mã.
+    """
+    key = identity_key_of(detail.get("product_raw"))
+    if key is not None:
+        confirmed = identities.get(key) if identities else None
+        if confirmed is not None:
+            return confirmed
+    if detail.get("identity_namespace") != Namespace.TRACKING.value:
+        return None
+    code = detail.get("canonical_product_code")
+    if not isinstance(code, str) or not code.strip():
+        return None
+    return CanonicalProductIdentity(
+        namespace=Namespace.TRACKING, source_product_code=code.strip())
+
+
 __all__ = [
     "CLASSIFICATIONS", "CLASSIFICATION_LABELS", "CLASSIFICATION_TITLES",
     "CLASS_CONFLICT", "CLASS_MATCHED_TRACKING", "CLASS_NEEDS_REVIEW",
@@ -474,5 +524,5 @@ __all__ = [
     "IdentityState", "LABEL_CONFLICT", "LABEL_MISSING_PRICE",
     "LABEL_OUT_OF_CATALOG", "LABEL_UNRESOLVED", "STATE_MISSING_PRICE",
     "STATE_OK", "STATE_UNRESOLVED", "UNCLASSIFIABLE_NOTE", "identity_key_of",
-    "sheet_warning", "state_of", "unresolved_orders",
+    "sheet_warning", "state_of", "tracking_identity_of", "unresolved_orders",
 ]

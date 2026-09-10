@@ -58,12 +58,22 @@ def source_line(order="BH1", product="Tủ lạnh", occurrence=1, *, row=6,
 
 
 def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="3000000",
-                price_source="TRACKING_PRICE_HISTORY"):
+                price_source="TRACKING_PRICE_HISTORY", tracking_code=None):
+    """Một dòng kết quả đã persist.
+
+    `tracking_code` (`R5.4`): mã Tracking mà lần chạy đã phân giải cho dòng.
+    Mặc định `None` — tức "lần chạy KHÔNG phân giải được danh tính" — vì kể từ
+    `R5.4` một mã đã lưu là một BẰNG CHỨNG mà tầng hiển thị đọc (dòng sẽ hiện
+    mã/nhãn Tracking thay cho tên trên sổ). Trước `R5.4` fixture này gắn mã
+    giả `A1` cho MỌI dòng mà không ai đọc nó; giữ nguyên sẽ làm mọi bài dựng
+    HTML hiện `A1` ở ô Mặt hàng. Bài nào cần một dòng đã khớp thì nói ra.
+    """
     return ResultLine(
         key=line.key, status=status, pending_reasons=() if status == "AUTO" else ("x",),
         total_sales=line.total_sales_raw, employee_normalized="VuHanhLy",
         employee_group="G1", lead_source_final="PERSONAL",
-        identity_namespace="TRACKING", canonical_product_code="A1",
+        identity_namespace=None if tracking_code is None else "TRACKING",
+        canonical_product_code=tracking_code,
         accounting_purchase_price=Decimal(purchase), price_source=price_source,
         composition_rule="TRACKING_HISTORY_AUTHORITY",
         accounting_profit=Decimal("3000000"), kpi_purchase_price=Decimal(purchase),
