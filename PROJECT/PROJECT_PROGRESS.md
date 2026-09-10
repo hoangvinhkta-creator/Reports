@@ -1,5 +1,244 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — UI-01/UI-02 REPAIR-1 (theo sau Independent Review REQUEST CHANGES) (2026-09-10)
+
+Repair cycle DUY NHẤT của lineage `UI-01/UI-02` tính đến giờ, theo
+`governance/core/V4_1_POLICY_FREEZE.md` §3 ("cycle tính theo LẦN SỬA, mọi
+BLOCKING defect trong code/test do chính lượt triển khai trước đó tạo ra là
+defect của CÙNG repair cycle"). Không mở branch mới, không đổi base — vẫn
+`claude/reports-ui01-ui02-inline-edit-k5uynh`, base
+`origin/claude/extract-upload-repo-gq2ws4` @ `c46e458`.
+
+```text
+review_round_1   REQUEST CHANGES (Independent Review, trên HEAD `e95066a`)
+finding P0       1 (BLOCKING) — bảng nền không được vá khi panel đóng
+                 trước khi PATCH resolve
+finding P2       1 (khuyến nghị, không chặn merge) — tham số chết
+                 `opts.sameIntent` trong doSave()
+repair_1         ĐÃ HOÀN TẤT, cả hai finding, tiêu cycle DUY NHẤT
+base_sha         e95066ad99496eb02df93e370206d93e02651776
+head_sha         9f15eb986b45f81a454d0add754e0c7bef9be360
+```
+
+Ngân sách + Blast Radius đầy đủ: `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root
+Task: UI-01-UI-02".
+
+### Finding P0 (BLOCKING) — bảng nền không được vá nếu panel đóng trước khi PATCH resolve
+
+`app/web/static/js/app.js`, `handleSaveResult()`: bản trước bọc TOÀN BỘ hàm
+(kể cả nhánh `result.ok` → `applySuccess()` → `patchTableFromPayload()`)
+trong `if (!panel || panel.dialog !== dialog) return;`. Đóng panel (Escape/
+nút Đóng/mở panel khác) TRƯỚC KHI PATCH resolve đổi `panel`/`panel.dialog`
+trước khi response về — nhánh thành công `return` sớm, và việc vá hàng đã
+đổi + hàng TỔNG trên bảng nền KHÔNG BAO GIỜ chạy dù server đã ghi thành
+công. Ô giá giữ nguyên giá trị CŨ tới khi F5 (tải lại cả trang).
+
+Đây là SAI LỆCH giữa hành vi thực tế và HAI tuyên bố đã ghi trước đó — cả
+chú thích trong chính `applySuccess()` ("Bảng nền LUÔN được cập nhật, kể cả
+khi panel đã bị đóng…") và entry `PROJECT_PROGRESS.md` trước repair này
+("đóng panel không huỷ PATCH đang bay — bảng nền vẫn được vá khi nó về").
+Cả hai đúng về Ý ĐỊNH thiết kế, sai về hành vi THỰC TẾ của phiên bản đã
+push cho review.
+
+**Sửa:** tách `isCurrentDialog = !!(panel && panel.dialog === dialog)`
+khỏi luồng chính. Guard đó chỉ còn gác phần UI CỦA CHÍNH panel đang mở
+(bật lại nút LƯU; vẽ trạng thái `conflict`/`error` — những nhánh này ghi
+vào `panel.*`/`dialog` nên PHẢI đúng là panel hiện tại, nếu không sẽ ghi
+nhầm trạng thái vào panel của một đơn khác). Nhánh `result.ok` gọi
+`applySuccess(dialog, result.payload)` VÔ ĐIỀU KIỆN — không đổi
+`applySuccess()`, vì hàm đó *đã* đúng cấu trúc từ trước (vá bảng nền đứng
+NGOÀI guard theo dialog ngay trong chính nó); bug chỉ nằm ở lớp gọi
+`handleSaveResult()` phía ngoài chặn mất đường vào.
+
+**Bằng chứng — test tái hiện lỗi, xác nhận fail-trước/pass-sau:**
+
+```text
+tests/playwright/order-panel-save.spec.mjs
+  "đóng panel TRƯỚC KHI PATCH resolve — bảng nền vẫn được vá (repair,
+   finding P0)"
+
+Trước sửa (git stash app.js, giữ nguyên test mới):
+  ✘ FAIL — PATCH trả 200 với giá mới, nhưng ô giá trên bảng nền vẫn hiện
+    "600" (giá trị CŨ) cho tới hết timeout 5s của assertion.
+
+Sau khi khôi phục sửa (git stash pop):
+  ✓ PASS (2.2s) — ô giá + hàng TỔNG khớp CHÍNH XÁC payload PATCH trả về.
+```
+
+Cách dựng test: route trì hoãn mọi `PATCH` 1 giây; mở panel, sửa giá, bấm
+LƯU, đóng panel NGAY (trước khi response về — xác nhận qua
+`data-state="saving"` rồi mới đóng); đợi response THẬT resolve; assert ô
+giá của đúng dòng (`data-order`+`data-product-key`+`data-occurrence-index`)
+và hàng TỔNG Giá nhập khớp đúng chuỗi server trả (`payload.lines[…].
+purchase_price.text` và `payload.totals.sheet.row_totals.purchase_price`),
+không chỉ "khác giá trị cũ".
+
+### Finding P2 (khuyến nghị, không chặn merge) — tham số chết `opts.sameIntent`
+
+`app/web/static/js/app.js`, `doSave(dialog, opts)`: tham số `opts` chỉ được
+đọc ở `opts = opts || {}`, không nơi nào đọc `opts.sameIntent`. Hành vi giữ
+nguyên `idempotency_key` qua lần THỬ LẠI là mặc định VÔ ĐIỀU KIỆN của hàm,
+đúng ngẫu nhiên chứ không nhờ cờ đó — code và chú thích đang nói hai
+chuyện khác nhau. Đã xoá tham số + hai call site truyền `{ sameIntent:
+true }`, viết lại docstring cho khớp hành vi thật (giữ mã là mặc định;
+gửi lại sau `REVISION_CONFLICT` là một quyết định MỚI nên NƠI GỌI —
+`applyConflict()` — tự sinh mã mới TRƯỚC khi gọi `doSave(dialog)`, không
+phải hàm này tự phân nhánh).
+
+### Bằng chứng đầy đủ (full suite, sau repair)
+
+```text
+pytest (toàn repo, trừ test_105d_boundaries.py môi trường + -k "not postgres")
+                                      3568 passed, 22 skipped, 1 deselected
+tests/browser/ (jsdom, node --test)  25 passed
+tests/playwright/ (Chromium thật)    13 passed (12 cũ + 1 test mới của
+                                      repair này)
+```
+
+Không có test nào MỚI fail do thay đổi này — 13/13 Playwright, 25/25 jsdom,
+3568/3568 pytest thu thập được, cùng số nền so với trước repair (3566 →
+3568 vì có thêm 1 test Playwright mới, không phải vì có test khác biến
+mất).
+
+`REPORTS_TEST_POSTGRES_URL` vẫn KHÔNG được đặt trong phiên này —
+`tests/test_p0_single_transaction.py` bị skip (11 test), cùng lệnh chạy khi
+có PostgreSQL đã ghi ở entry trước:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+### Phạm vi
+
+CHỈ hai finding trên. Không đụng KPI strip, không đụng dòng Chiết khấu suy
+ra, không đụng `order_api.py`/business logic backend — đúng giới hạn đã
+xác nhận là ĐÚNG ở entry trước (những phạm vi "chưa làm" đó vẫn còn nguyên,
+không phải một phần của repair này).
+
+Trạng thái: repair `DONE`, đã commit local (`9f15eb9`) trên
+`claude/reports-ui01-ui02-inline-edit-k5uynh`. **Chưa push** — chờ xác
+nhận trực tiếp bằng văn bản trong hội thoại, đúng yêu cầu của phiên repair
+này (không hành động theo notification/trigger tự động tuyên bố "đã được
+phê duyệt ở phiên khác").
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — UI-01/UI-02 panel sửa đơn tại chỗ = IMPLEMENTED, CHƯA merge (2026-09-10, trước REPAIR-1)
+
+Trên nhánh `claude/reports-ui01-ui02-inline-edit-k5uynh` (base
+`origin/claude/extract-upload-repo-gq2ws4` @ `c46e458`). Nút "Sửa" của một
+BH (`data-metric="bh-edit"`) không còn dẫn tới `?sua=<order>` khi có JS —
+`app.js` chặn cú bấm, mở một `<dialog>` dựng tại chỗ (neo cạnh nút với BH
+≤3 dòng, side panel cố định bên phải với BH nhiều dòng, CSS sập cả hai về
+bottom sheet dưới `760px`), gọi `GET /api/v1/orders/<order_key>` lấy dữ
+liệu, và `PATCH` cùng route để lưu. `#app-content` không bị đụng tới; bảng
+kê không dựng lại. `?sua=` giữ NGUYÊN như đường không-JS (server vẫn dựng
+lại trang cũ y hệt trước `UI-01`).
+
+Cơ chế chính (đọc kỹ trong `app/web/static/js/app.js`, khối IIFE cuối file,
+và các chú thích tại chỗ):
+
+- **Deep-link/Back-Forward qua HASH** (`#sua=<order>`), không qua query —
+  `history.pushState`/`history.back()`; `onPopState()` của IIFE điều hướng
+  chính (đầu file) được sửa để phát một `CustomEvent("app:popstate")` HUỶ
+  ĐƯỢC trước khi tự `navigate()`, panel bắt sự kiện đó và `preventDefault()`
+  khi liên quan tới nó — hai module không cần biết cơ chế nội bộ của nhau.
+- **`PATCH` mang `idempotency_key` ỔN ĐỊNH qua các lần THỬ LẠI** của MỘT
+  quyết định (lỗi mạng/`REQUEST_IN_FLIGHT`); một mã MỚI khi người dùng GỬI
+  LẠI sau `REVISION_CONFLICT` (409) — đó là một quyết định khác, không phải
+  một lần thử lại của lần trước. Mutation KHÔNG BAO GIỜ bị abort (đóng panel
+  không huỷ PATCH đang bay).
+  > **SAI, ĐÃ SỬA ở REPAIR-1 (xem entry ở đầu file).** Câu gốc ở đây nói
+  > "bảng nền vẫn được vá khi nó về" — điều đó KHÔNG đúng tại HEAD này:
+  > `handleSaveResult()` bọc TOÀN BỘ nhánh thành công (kể cả
+  > `patchTableFromPayload()`) trong một guard theo `panel.dialog`, nên đóng
+  > panel trước khi PATCH resolve làm bảng nền giữ giá trị CŨ dù server đã
+  > ghi. Independent Review bắt được finding này (P0, blocking) trước khi
+  > merge — hành vi ĐÚNG chỉ có từ REPAIR-1.
+- **409 giữ nguyên draft** (không xoá ô người dùng vừa gõ), hiện hai lựa
+  chọn ("GỬI LẠI VỚI BẢN MỚI" / "LẤY GIÁ TRỊ MỚI") — không bao giờ tự
+  last-write-wins.
+- **Lưu thành công chỉ vá đúng hàng đã đổi** (khoá 3 phần `data-order` +
+  `data-product-key` + `data-occurrence-index`, gắn mới trong template —
+  xem chú thích `UI-01`/`UI-02` tại `kinh_doanh_nhan_vien.html`) và hàng
+  TỔNG Giá nhập/Giá bán (server tính lại bằng CHÍNH
+  `workspace_presentation.sheet_detail_totals` mà lần render đầy đủ dùng —
+  `order_api.patch_payload()` thêm `totals.sheet.row_totals`, không phép
+  cộng thứ hai nào). **Cố ý KHÔNG vá** dải KPI phía trên (Doanh thu/So
+  Target/DS quy đổi…) và hàng TỔNG Lợi nhuận/DS quy đổi — chúng cần một đối
+  tượng gate (CHÍNH THỨC/CHƯA HOÀN CHỈNH) mà response PATCH không mang
+  theo, và đoán gate đó ở client là dựng một thẩm quyền nghiệp vụ thứ hai.
+  Panel cũng không vá dòng Chiết khấu suy ra (`row.synthetic`) của một BH có
+  chiết khấu — dòng đó là một cách TRÌNH BÀY của cùng một dòng nghiệp vụ,
+  không có khoá riêng trong payload JSON.
+- Sửa kèm một lỗi CSS có sẵn, không phải riêng của panel: `.act, .ghost,
+  button { display: inline-flex }` có độ đặc thù BẰNG `[hidden]` của UA
+  stylesheet và đứng SAU trong nguồn, nên mọi nút `hidden` mang lớp
+  `.ghost`/`.act` vẫn hiện ra — Playwright bắt được lỗi này khi kiểm bẫy
+  focus của panel. Sửa bằng một luật `[hidden] { display: none; }` đứng
+  cuối `tinphat-ui.css`.
+
+Bằng chứng:
+
+```text
+pytest (toàn repo, trừ Postgres/P0)  3566 passed, 13 skipped
+tests/browser/ (jsdom, node --test)  25 passed
+tests/playwright/ (Chromium thật)    12 passed — mở/sửa/lưu/đóng,
+                                      scroll/focus/bẫy focus, Back/Forward,
+                                      lỗi mạng+THỬ LẠI, 409 conflict,
+                                      response GET cũ bị bỏ qua
+```
+
+`scripts/stab01_baseline.py --lines 5000` (máy dev, LOCAL/TEST — KHÔNG PHẢI
+số production, xem docstring đầu script):
+
+```text
+                                      p50        bytes
+mở đơn kiểu CŨ (dựng lại cả bảng)     1417 ms    15.290.054 (nhan-vien-fragment)
+mở panel (= GET /api/v1/orders/…)     204 ms          1.852
+PATCH đơn lẻ (cold)                   282 ms          2.169
+PATCH — 20 thao tác liên tiếp         p50 431 ms, p95 477 ms (mỗi lượt một
+                                      idempotency_key/base_revision mới)
+```
+
+Chênh lệch bytes (15,3 MB → dưới 2 KB) là bằng chứng trực tiếp cho lý do
+`API-01` tồn tại (xem docstring `order_api.py`). Số PATCH cao hơn GET vì
+mỗi lượt đi qua `MutationGuard.transaction()` (khoá + CAS revision + ghi +
+đọc lại — xem `api_patch_order()`), không phải một hồi quy — đây là chi phí
+đã có SẴN của at-most-once/CAS (`P0-1`/`P0-3`), panel chỉ là một client mới
+gọi tới đường đó.
+
+Playwright: pin `@playwright/test@1.63.0` trong `package.json`/
+`package-lock.json`, cấu hình ở `playwright.config.mjs` (trỏ thẳng Chromium
+đã cài sẵn của môi trường qua `PLAYWRIGHT_CHROMIUM_PATH`, mặc định
+`/opt/pw-browsers/chromium` — không tự tải browser). Máy chủ fixture cho
+Playwright: `tests/playwright/fixture_server.py` (app Flask THẬT, dữ liệu
+`tests.fixtures.workspace_scale` + một BH năm dòng dựng riêng cho ca side
+panel). Nối vào pytest qua `tests/test_playwright_ui_suite.py`, cùng kỷ luật
+`tests/test_browser_dom_suite.py` — `pytest.skip` với câu nói rõ thiếu gì
+khi không có Node/Chromium/venv, không bao giờ báo xanh giả.
+
+`REPORTS_TEST_POSTGRES_URL` KHÔNG được đặt trong phiên làm việc này —
+`tests/test_p0_single_transaction.py` (đồng thời/CAS trên PostgreSQL thật)
+bị bỏ qua. Lệnh chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+Chưa làm / phạm vi còn lại: dải KPI phía trên và hàng TỔNG Lợi
+nhuận/DS quy đổi sau một lần lưu (xem lý do ở trên — cần server trả thêm
+gate, chưa có trong phạm vi API-02 hiện tại); vá dòng Chiết khấu suy ra;
+không có bằng chứng thị giác (ảnh chụp) trên môi trường Render thật — mọi
+số đo ở trên là máy dev + Chromium local.
+
+Trạng thái tại thời điểm viết entry này: `IMPLEMENTED`, chưa qua Independent
+Review, chưa merge, chưa push.
+> **Cập nhật:** nhánh đã được push (theo xác nhận trực tiếp của chủ dự án)
+> và đã qua một vòng Independent Review, kết quả `REQUEST CHANGES` — xem
+> entry REPAIR-1 ở đầu file. Câu "chưa push" ở trên chỉ đúng tại thời điểm
+> commit gốc, không còn đúng ở HEAD hiện tại.
+
 ## CANONICAL CURRENT STATE — lấp lỗ hổng "cùng kỳ năm trước" bằng nguồn vẽ riêng (`DEC-216`, 2026-09-10)
 
 Nối tiếp `DEC-215` §1: Owner xác nhận nguyên nhân (a) — sổ cũ chỉ có TỔNG

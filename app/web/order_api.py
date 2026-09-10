@@ -60,7 +60,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Optional
 
-from app.web import business_presentation, business_service, order_revision
+from app.web import (
+    business_presentation, business_service, order_revision,
+    workspace_presentation,
+)
 
 #: Version của CHÍNH hình dạng payload này. Client đọc nó để biết mình đang
 #: nói cùng một thứ tiếng với server; một lần đổi hình dạng không tương
@@ -300,8 +303,18 @@ def patch_payload(*, data, order_key: str, period, service,
         },
     }
     if sheet is not None:
+        sheet_data = data.for_sheet(sheet)
         payload["totals"]["sheet"] = {
             "key": sheet.key,
-            **business_service.snapshot_of(data.for_sheet(sheet).totals),
+            **business_service.snapshot_of(sheet_data.totals),
+            # `UI-01`/`UI-02` — hàng TỔNG Giá nhập/Giá bán của bảng kê (xem
+            # `kinh_doanh_nhan_vien.html`, `data-metric="totals-purchase"`/
+            # `"totals-sell"`) đọc CHÍNH hàm trình bày mà lần render đầy đủ
+            # dùng, trên ĐÚNG tập dòng (`sheet_data.details`) mà lần render
+            # đó cộng — không một phép cộng thứ hai nào được viết ở đây.
+            # Panel dùng giá trị này để cập nhật hàng TỔNG tại chỗ sau một
+            # lần lưu, không kéo theo việc dựng lại cả bảng.
+            "row_totals": workspace_presentation.sheet_detail_totals(
+                sheet_data.details),
         }
     return payload
