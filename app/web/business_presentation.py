@@ -1492,15 +1492,26 @@ def _chart_nice_ceiling(value: Decimal) -> Decimal:
     return (Decimal(10) * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
-def _chart_y_axis(ceiling: Decimal) -> list[dict]:
-    """Nhãn + toạ độ của các đường lưới ngang, từ đỉnh xuống đáy."""
+def _chart_y_axis(ceiling: Decimal, *, money: bool = True) -> list[dict]:
+    """Nhãn + toạ độ của các đường lưới ngang, từ đỉnh xuống đáy.
+
+    `money=True` (mặc định, biểu đồ Doanh thu) viết nhãn theo NGHÌN ĐỒNG.
+    `money=False` (biểu đồ SỐ ĐƠN — `paired_count_chart`) viết nguyên số
+    đếm: chia 1.000 một trần nhỏ như "3 đơn" cho ra toàn số 0 trên trục Y,
+    đúng lỗi từng có khi hai biểu đồ dùng chung hàm này mà không tách đơn
+    vị — sửa ở `DEC-214`.
+    """
     ticks = []
     for i in range(_CHART_Y_TICKS, -1, -1):
         fraction = Decimal(i) / Decimal(_CHART_Y_TICKS)
         value = (ceiling * fraction).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        if ceiling <= 0:
+            label = "0"
+        else:
+            label = _thousand_vnd(value) if money else format_number(value)
         ticks.append({
             "y": _CHART_PLOT_H - round(float(fraction) * _CHART_PLOT_H),
-            "label": _thousand_vnd(value) if ceiling > 0 else "0",
+            "label": label,
         })
     return ticks
 
@@ -1783,7 +1794,7 @@ def paired_count_chart(
     return {
         "svg_width": _CHART_VIEW_W,
         "svg_height": _CHART_PLOT_H,
-        "y_axis": _chart_y_axis(ceiling),
+        "y_axis": _chart_y_axis(ceiling, money=False),
         "x_ticks": x_ticks,
         "fixed_x_axis": True,
         "paired": True,

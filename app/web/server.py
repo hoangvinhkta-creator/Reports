@@ -1326,6 +1326,59 @@ def create_app(
                 granularity, view["period"]),
             period=view["period"])
 
+    def _orders_chart_summary(view: dict) -> Optional[dict]:
+        """`DEC-214` — biểu đồ SỐ ĐƠN cho card "Biểu đồ khác" của trang Báo
+        cáo, cùng engine với `_revenue_chart` ngay trên.
+
+        R6 đã có ĐÚNG bài toán này cho trang phân tích (`_orders_chart`), và
+        docstring của nó nói thẳng lý do dùng lại: *"không một dòng nào của
+        `revenue_timeline` bị sửa cho việc này, và vì thế hai biểu đồ trên
+        trang luôn cắt cùng những mốc thời gian"*. Hàm này KHÔNG gọi thẳng
+        `_orders_chart` vì hai trang dựng `view` khác hình dạng nhau (trang
+        phân tích có `view["anchor"]`/`view["range"]` sẵn từ
+        `_analysis_view`; trang Báo cáo dùng `_business_period`, không có
+        hai khoá đó) — nhưng cùng MỘT phép tính `data`/`anchor` mà
+        `_revenue_chart` dùng, để hai biểu đồ trên CHÍNH trang Báo cáo cũng
+        cắt cùng mốc thời gian với nhau.
+
+        KHÔNG merge sổ cũ: `legacy_summary`/`legacy_daily_sales` chỉ lưu
+        DOANH THU, không lưu SỐ ĐƠN — không có bằng chứng nào để vẽ thêm cho
+        những tháng chỉ còn bản ghi lịch sử. Mọi điểm ở đây là
+        `ORIGIN_CURRENT` (sổ nạp).
+        """
+        service = view["service"]
+        granularity = revenue_timeline.parse_granularity(
+            request.args.get("muc"), default=revenue_timeline.DAY)
+        # Cùng lát dữ liệu mà `_revenue_chart` dùng — TOÀN BỘ dòng thời
+        # gian, không riêng kỳ đang chọn — để hai biểu đồ luôn nói về cùng
+        # một phạm vi.
+        data = (view["data"] if view["period"] is None
+                else _guarded(service.period))
+        legacy_months = _legacy_month_totals()
+        buckets = dashboard_metrics.orders_by_bucket(
+            data.details, bucket_of=revenue_timeline.bucket_of,
+            granularity=granularity)
+        points = [
+            revenue_timeline.Point(
+                key=key, label=slot["label"],
+                revenue=Decimal(slot["orders"]),
+                origin=revenue_timeline.ORIGIN_CURRENT)
+            for key, slot in sorted(buckets.items())
+        ]
+        # Cùng `anchor` mà `_revenue_chart` tính cho ĐÚNG `data` này — mép
+        # phải của hai biểu đồ khớp nhau bằng cấu tạo, không phải trùng hợp.
+        anchor = _chart_anchor(view["period"], data.details, legacy_months)
+        paired = revenue_timeline.paired_series(
+            points, granularity=granularity, anchor=anchor,
+            confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)
+            if snapshot_repo is not None else ())
+        if paired is None:
+            return None
+        return business_presentation.paired_count_chart(
+            paired, granularity=granularity,
+            undated_orders=dashboard_metrics.totals(
+                data.details).orders_without_date)
+
     def _period_employees(view: dict):
         """Bộ chọn nhân viên của kỳ, ĐÃ tính cả những lần Owner gán lại.
 
@@ -1398,6 +1451,7 @@ def create_app(
             "kinh_doanh.html", periods=view["periods"],
             selected_period=view["selected_period"],
             chart=_revenue_chart(view),
+            orders_chart=_orders_chart_summary(view),
             not_seen=not_seen,
             summary=summary,
             pending=business_presentation.pending_items(

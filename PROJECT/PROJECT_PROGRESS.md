@@ -1,6 +1,27 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — ba yêu cầu hiển thị của Owner (`DEC-211`…`DEC-213`, 2026-09-09)
+## CANONICAL CURRENT STATE — biểu đồ Số đơn lấp card "Biểu đồ khác" (`DEC-214`, 2026-09-10)
+
+Owner hỏi có biểu đồ nào tích hợp được vào card bên phải của trang Báo cáo
+("Biểu đồ khác — sắp có", để trống từ `TASK-OWNER-UIUX-003` §2). Trả lời
+bằng cách triển khai: biểu đồ SỐ ĐƠN, dùng lại nguyên macro/hàm trình bày
+mà trang phân tích R6 đã kiểm chứng — không dựng biểu đồ thứ hai riêng.
+
+Nhân đó tìm và sửa một khiếm khuyết trình bày có sẵn (không phải do việc
+này gây ra): trục Y của biểu đồ Số đơn luôn hiện "0" vì hàm dùng chung
+chia 1.000 vô điều kiện. Sửa `_chart_y_axis` nhận `money: bool`, áp cho cả
+card mới lẫn `/kinh-doanh/phan-tich` sẵn có.
+
+Trạng thái: `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng: full pytest 3471 passed / 12 skipped (1 failure môi trường có
+sẵn, không phải hồi quy — xem `DEC-211` §5); smoke R6 29/0; smoke R5.1
+83/0; kiểm thị giác ảnh chụp Chromium thật, nền sáng/tối, cả hai trang
+dùng chung engine biểu đồ.
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-214`.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — ba yêu cầu hiển thị của Owner (`DEC-211`…`DEC-213`, 2026-09-09)
 
 Owner giao trực tiếp ba việc, đã hỏi lại và chốt đủ brief trước khi làm:
 

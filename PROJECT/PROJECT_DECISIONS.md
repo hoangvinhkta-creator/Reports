@@ -13576,3 +13576,92 @@ Kiểm thị giác ảnh chụp Chromium THẬT, nền sáng và nền tối, tr
 Ba bài kiểm điều hướng trích nhãn tab bằng `>([^<]+)</a>` trở nên VÔ HIỆU
 khi có `<svg>` chen vào (luôn trả rỗng ⟹ xanh vĩnh viễn). Chúng được sửa để
 bóc thẻ con trước khi so, giữ nguyên mệnh đề cũ.
+
+## DEC-214
+
+Ngày: 2026-09-10
+Phiên: người dùng hỏi "có biểu đồ nào có thể tích hợp ở card bên phải
+không" (card "Biểu đồ khác" của trang Báo cáo, để trống từ
+`TASK-OWNER-UIUX-003` §2).
+Thẩm quyền: Owner (câu hỏi trực tiếp, trả lời bằng cách triển khai vì
+lựa chọn rủi ro thấp và tái dùng nguyên hạ tầng đã kiểm chứng).
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Lấp card "Biểu đồ khác" bằng biểu đồ **SỐ ĐƠN**, dùng lại NGUYÊN macro
+`_r6_bits.html::paired_chart` và hàm trình bày `paired_count_chart` mà
+trang phân tích R6 (`/kinh-doanh/phan-tich`) đã kiểm chứng — không dựng
+một biểu đồ thứ hai riêng cho trang Báo cáo.
+
+Lý do chọn Số đơn thay vì một chỉ tiêu khác: nó là biểu đồ hai-cửa-sổ DUY
+NHẤT đã có sẵn ngoài Doanh thu, dùng chung `revenue_timeline.paired_series`
+— nên nó THỪA HƯỞNG toàn bộ `DEC-211` (cùng kỳ năm trước, neo ngày mới
+nhất, 5 mức gộp) mà không cần viết thêm một dòng logic thời gian nào.
+
+### §2. Hai biểu đồ đọc CÙNG một `anchor`, bằng cấu tạo
+
+`_orders_chart_summary` (server.py) tính `data`/`anchor` bằng ĐÚNG phép
+tính mà `_revenue_chart` dùng (cùng lát TOÀN BỘ dòng thời gian, cùng
+`_chart_anchor`) — không phải hai hàm trùng hợp cho ra cùng kết quả. Hệ
+quả kiểm được: đổi mức gộp ở BẤT KỲ biểu đồ nào trong hai biểu đồ đều đổi
+CẢ HAI, và chúng luôn cắt cùng một tập mốc thời gian
+(`test_chart_12_both_charts_share_the_same_anchor_and_window`).
+
+KHÔNG merge sổ cũ: `legacy_summary`/`legacy_daily_sales` chỉ lưu DOANH
+THU, không lưu SỐ ĐƠN — không có bằng chứng nào để vẽ thêm cho những
+tháng chỉ còn bản ghi lịch sử.
+
+### §3. Bug tìm thấy VÀ sửa: trục Y của biểu đồ Số đơn luôn hiện "0"
+
+`_chart_y_axis` (dùng chung cho cả hai biểu đồ) viết nhãn bằng
+`_thousand_vnd` — chia 1.000 — vô điều kiện. Đúng cho Doanh thu (nghìn
+đồng), sai cho Số đơn: một trần nhỏ như "3 đơn" chia 1.000 ra toàn số 0.
+Đây là khiếm khuyết TRÌNH BÀY đã có sẵn từ khi `paired_count_chart` được
+dựng cho trang phân tích R6 — không ai phát hiện vì không test nào khẳng
+định nội dung nhãn trục Y. Card mới trên trang Báo cáo khiến nó hiện rõ
+ngay lập tức.
+
+Sửa: `_chart_y_axis(ceiling, *, money: bool = True)` — `money=False` viết
+số nguyên (`format_number`), không chia 1.000. `paired_count_chart` gọi
+với `money=False`; `paired_revenue_chart` và `revenue_chart` giữ mặc định.
+Bằng chứng bằng mắt: `/kinh-doanh/phan-tich` (trang có sẵn từ trước) nay
+hiện đúng "1/1/1/0/0" thay vì "0/0/0/0/0" — xem ảnh chụp trong phiên.
+
+### §4. Bẫy test được tài liệu hoá VÀ chặn lại
+
+Hai biểu đồ dùng CHUNG `data-metric="chart-bar"`/`"chart-bar-prev"` (đúng
+thiết kế macro chung). Mọi test cũ đọc các thuộc tính này trên TOÀN TRANG
+`/kinh-doanh` (không scope theo card) sẽ ÂM THẦM đọc nhầm cột của biểu đồ
+này thành biểu đồ kia khi hai mốc trùng khoá — đúng lớp lỗi `S143` §4 đã
+gặp một lần và `test_r6_repair1_chart_windows.py::chart_block` đã có cách
+chặn cho trang phân tích. `chart_block`/`_CHART_ID_PREFIX` được đưa vào
+`tests/test_dec185_nav_chart_identity.py` (và tái dùng ở
+`test_identity_durability_and_timeline_aggregation.py` qua import), và
+MỌI bài kiểm cũ đọc bar/tổng số biểu đồ trên `/kinh-doanh` được rà lại để
+scope đúng khối Doanh thu — giữ nguyên mệnh đề gốc của từng bài, không
+đổi ý nghĩa.
+
+Năm bài kiểm MỚI (`CHART-12`) canh riêng biểu đồ Số đơn: card thay thế
+đúng ô trống, số đơn đúng số đơn thật (không phải số dòng), hai biểu đồ
+cắt cùng mốc thời gian, không merge sổ cũ, so cùng kỳ năm trước.
+
+### §5. Bằng chứng
+
+```text
+Full pytest       3471 passed / 12 skipped / 1 failed (failure ĐỎ SẴN,
+                  xem DEC-211 §5 — khiếm khuyết môi trường, không phải
+                  hồi quy)
+Smoke R6          29 PASS / 0 FAIL
+Smoke R5.1        83 PASS / 0 FAIL
+Kiểm thị giác     ảnh chụp Chromium THẬT, nền sáng và nền tối, ở cả
+                  /kinh-doanh (card mới) và /kinh-doanh/phan-tich
+                  (xác nhận bản sửa trục Y không phá trang cũ, còn sửa
+                  đúng lỗi có sẵn ở đó)
+```
+
+### §6. Điều KHÔNG đổi
+
+Không tạo thẩm quyền hay chỉ tiêu mới — `orders_chart` đọc lại đúng
+`dashboard_metrics.orders_by_bucket`/`totals` đã dùng ở trang phân tích.
+Tracking KHÔNG đổi. Không route mới, không tab mới.
