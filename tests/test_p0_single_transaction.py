@@ -37,7 +37,11 @@ from pathlib import Path
 
 import pytest
 
-from app.web import business_store, history_store, order_revision
+from sqlalchemy import text
+
+from app.web import (
+    business_store, history_store, mutation_guard, order_revision,
+)
 from app.web import server as web_server
 from tests.fixtures import workspace_scale as ws
 from tests.support import postgres
@@ -136,6 +140,91 @@ class _WriteCounter:
         `REVISION_CONFLICT`) và vì thế không bao giờ tới điểm hẹn.
         """
         self._barrier.abort()
+
+
+class _BackendProbe:
+    """Ghi lại BACKEND POSTGRESQL của từng transaction ghi, và khoá nó giữ.
+
+    Vì sao cần, và vì sao nó không phải một chi tiết trang trí. Mọi mệnh đề
+    "hai request đồng thời" ở file này chỉ có nghĩa nếu hai request ấy thật
+    sự nằm trên HAI transaction PostgreSQL khác nhau. Nếu vì một lý do nào
+    đó cả hai luồng dùng chung một `Connection` (pool trả về cùng một kết
+    nối vì luồng thứ hai đã chờ luồng thứ nhất nhả, hay một tầng nào đó
+    giữ một kết nối ở module-level), thì chúng chạy NỐI ĐUÔI trong cùng
+    một transaction — và khi ấy mọi test ở đây xanh vì không có race nào
+    xảy ra, chứ không vì cửa an toàn làm việc.
+
+    `pg_backend_pid()` là câu trả lời trực tiếp: một PID cho mỗi kết nối
+    server. Hai PID khác nhau ⟹ hai backend ⟹ hai transaction thật.
+
+    Cùng lượt đo, hàm này đọc `pg_locks` để trả lời câu thứ hai của review:
+    `pg_advisory_xact_lock` có thật sự được giữ TRONG transaction đang ghi
+    hay không. `locktype='advisory'` + `pid=pg_backend_pid()` + `granted`
+    là ba điều kiện đủ: một khoá advisory-xact chỉ xuất hiện ở đó khi
+    transaction hiện hành đang giữ nó, và nó tự nhả khi transaction kết
+    thúc — không có cách nào một `SELECT pg_advisory_xact_lock()` ở một
+    transaction KHÁC hiện ra trong dòng này.
+    """
+
+    def __init__(self, monkeypatch) -> None:
+        #: `[{thread, pid, advisory_locks, subject}]`, một mục mỗi lần khoá.
+        self.locks: list[dict] = []
+        #: `[{thread, pid}]`, một mục mỗi lần GHI nghiệp vụ.
+        self.writes: list[dict] = []
+        self._lock = threading.Lock()
+
+        original_lock = mutation_guard._lock_subject
+
+        def probed_lock(connection, subject):
+            original_lock(connection, subject)
+            # ĐỌC SAU khi khoá đã được xin: trước đó `pg_locks` chưa có gì
+            # để thấy, và một lượt đo trước khi khoá tồn tại sẽ luôn trả 0
+            # rồi làm test này trông như một cửa chặn đang hỏng.
+            row = connection.execute(text(
+                "SELECT pg_backend_pid() AS pid, ("
+                " SELECT count(*) FROM pg_locks"
+                " WHERE locktype = 'advisory'"
+                "   AND pid = pg_backend_pid() AND granted) AS held"
+            )).mappings().one()
+            with self._lock:
+                self.locks.append({
+                    "thread": threading.current_thread().name,
+                    "pid": row["pid"], "advisory_locks": row["held"],
+                    "subject": subject})
+
+        monkeypatch.setattr(mutation_guard, "_lock_subject", probed_lock)
+
+        original_write = business_store.BusinessDecisionStore.set_purchase_price
+
+        def probed_write(inner_self, **kwargs):
+            # `scope.connect()` ở chế độ Connection TRAO LẠI đúng kết nối
+            # của transaction ngoài — nên PID đọc được ở đây là PID của
+            # backend THẬT SỰ ghi dòng nghiệp vụ. Nếu tầng lưu tự mở một
+            # kết nối thứ hai, PID này sẽ KHÁC PID đã khoá ở trên, và test
+            # dưới bắt được đúng điều đó.
+            with inner_self._scope.connect() as connection:
+                pid = connection.execute(text("SELECT pg_backend_pid()")).scalar()
+            with self._lock:
+                self.writes.append({
+                    "thread": threading.current_thread().name, "pid": pid})
+            return original_write(inner_self, **kwargs)
+
+        monkeypatch.setattr(business_store.BusinessDecisionStore,
+                            "set_purchase_price", probed_write)
+
+    def report(self) -> str:
+        """Dòng in ra cho log CI — review đòi số PID phải ĐỌC ĐƯỢC."""
+        lines = ["backend PostgreSQL của từng transaction ghi:"]
+        for item in self.locks:
+            lines.append(
+                f"  khoá  thread={item['thread']:<12} "
+                f"pg_backend_pid={item['pid']:<8} "
+                f"advisory_locks_granted={item['advisory_locks']} "
+                f"subject={item['subject']}")
+        for item in self.writes:
+            lines.append(f"  ghi   thread={item['thread']:<12} "
+                         f"pg_backend_pid={item['pid']}")
+        return "\n".join(lines)
 
 
 def _fire(app, order_key: str, bodies: list[dict]) -> list[dict]:
@@ -475,3 +564,125 @@ def test_period_revision_and_order_revision_move_together_after_a_write(
     assert after["order_revision"] != before["order_revision"]
     assert after["period_revision"] != before["period_revision"]
     assert order_revision.REVISION_VERSION, "version tag phải có mặt"
+
+
+# --- Bằng chứng HẠ TẦNG: hai backend thật, khoá trong đúng transaction ---
+
+def test_each_concurrent_writer_gets_its_own_postgres_backend(
+        app, scene, monkeypatch, capsys):
+    """Mỗi luồng có `pg_backend_pid()` RIÊNG — không dùng chung connection.
+
+    Điều kiện nghiệm thu của review, và nó là điều kiện về Ý NGHĨA của cả
+    file này chứ không về một cửa an toàn nào: nếu hai luồng chạy trên
+    cùng một backend, chúng nối đuôi nhau trong cùng một transaction và
+    KHÔNG có race nào để đóng. Mọi test đồng thời ở trên khi ấy xanh vì
+    lý do sai.
+
+    Hai mã idempotency KHÁC nhau có chủ đích: với cùng một mã, luồng thứ
+    hai bị chặn ở cửa `INSERT` khoá chính TRƯỚC khi tới `_lock_subject`,
+    nên chỉ đo được một PID và mệnh đề "hai backend" không kiểm được. Hai
+    mã khác nhau cùng `base_revision` là ca duy nhất mà CẢ HAI luồng vào
+    tới bên trong transaction ghi.
+
+    `pg_advisory_xact_lock` cũng được kiểm ở đây, cùng lượt đo và trên
+    cùng kết nối: `pg_locks` phải thấy khoá advisory do CHÍNH backend ấy
+    giữ. Đó là bằng chứng khoá nằm trong transaction ĐANG GHI, không ở
+    một transaction phụ nào.
+    """
+    order_key, line, revision = scene
+    probe = _BackendProbe(monkeypatch)
+    results = _fire(app, order_key, [
+        _body(key=str(uuid.uuid4()), revision=revision, line=line,
+              value="1110000"),
+        _body(key=str(uuid.uuid4()), revision=revision, line=line,
+              value="2220000"),
+    ])
+    # In ra, không chỉ assert: review đòi số PID phải đọc được trong log.
+    with capsys.disabled():
+        print("\n" + probe.report())
+
+    assert len(probe.locks) == 2, (
+        "chỉ %d transaction vào tới cửa khoá — không đo được 'hai backend'"
+        % len(probe.locks) + "\n" + probe.report())
+
+    pids = [item["pid"] for item in probe.locks]
+    assert len(set(pids)) == 2, (
+        f"hai luồng dùng CHUNG backend PostgreSQL {pids[0]} — chúng chạy "
+        "nối đuôi trong cùng một transaction, nên mọi test đồng thời ở file "
+        "này không chứng minh gì\n" + probe.report())
+
+    for item in probe.locks:
+        assert item["advisory_locks"] >= 1, (
+            "transaction ghi KHÔNG giữ khoá advisory nào — "
+            "`pg_advisory_xact_lock` không chạy trong transaction này\n"
+            + probe.report())
+
+    # Và lần ghi nghiệp vụ dùng ĐÚNG backend đã khoá: nếu tầng lưu tự mở
+    # một kết nối thứ hai, khoá ở trên bảo vệ một transaction khác với
+    # transaction đang ghi — tức nó không bảo vệ gì.
+    assert len(probe.writes) == 1, (
+        f"{len(probe.writes)} lần ghi nghiệp vụ, phải đúng MỘT\n"
+        + probe.report())
+    assert probe.writes[0]["pid"] in set(pids), (
+        "lần ghi nghiệp vụ chạy trên một backend KHÁC mọi backend đã giữ "
+        "khoá — khoá và lần ghi ở hai transaction khác nhau\n"
+        + probe.report())
+
+    conflicts = [item for item in results
+                 if item["code"] == "REVISION_CONFLICT"]
+    assert len(conflicts) == 1, results
+
+
+def test_the_advisory_lock_really_serializes_the_two_backends(
+        app, scene, monkeypatch, capsys):
+    """Khoá advisory KHÔNG cho hai backend ở trong cùng lúc.
+
+    Test trên chứng minh hai backend riêng và mỗi backend giữ một khoá.
+    Nó KHÔNG chứng minh khoá loại trừ được nhau — hai backend cùng giữ một
+    khoá advisory *khác nhau* (khác `subject`) cũng cho cùng kết quả đó.
+
+    Bài này đóng khoảng ấy bằng cách đo THỜI ĐIỂM: luồng đầu tiên vào
+    được vùng khoá thì dừng lại ở đó một lúc, và mệnh đề là luồng thứ hai
+    KHÔNG vào được trong lúc ấy. Nếu khoá không loại trừ, hai mốc thời
+    gian sẽ chồng lên nhau.
+    """
+    order_key, line, revision = scene
+    inside = threading.Semaphore(0)
+    events: list[tuple[str, str]] = []
+    events_lock = threading.Lock()
+    first = threading.Event()
+
+    original_lock = mutation_guard._lock_subject
+
+    def slow_lock(connection, subject):
+        original_lock(connection, subject)
+        name = threading.current_thread().name
+        with events_lock:
+            events.append(("vào", name))
+        if not first.is_set():
+            first.set()
+            # Giữ vùng khoá trong 1,5s. Nếu khoá không loại trừ, luồng thứ
+            # hai sẽ kịp ghi một mục "vào" trước mục "ra" của luồng này.
+            inside.acquire(timeout=1.5)
+        with events_lock:
+            events.append(("ra", name))
+
+    monkeypatch.setattr(mutation_guard, "_lock_subject", slow_lock)
+
+    _fire(app, order_key, [
+        _body(key=str(uuid.uuid4()), revision=revision, line=line,
+              value="1110000"),
+        _body(key=str(uuid.uuid4()), revision=revision, line=line,
+              value="2220000"),
+    ])
+    with capsys.disabled():
+        print("\nthứ tự vào/ra vùng khoá: " + ", ".join(
+            f"{what}:{who}" for what, who in events))
+
+    assert len(events) == 4, f"không đủ hai lượt vào/ra: {events}"
+    # Không lồng nhau: mọi "vào" phải có "ra" của CHÍNH nó ngay sau đó.
+    for index in range(0, 4, 2):
+        assert events[index][0] == "vào" and events[index + 1][0] == "ra", (
+            f"hai backend ở trong vùng khoá cùng lúc: {events}")
+        assert events[index][1] == events[index + 1][1], (
+            f"vào/ra không cùng một luồng — vùng khoá bị chồng: {events}")

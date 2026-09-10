@@ -75,8 +75,8 @@ def _digest(scope: str, rows: Iterable[tuple]) -> str:
     `removed_in_source` là ba danh sách RỜI NHAU hôm nay, nhưng phép sắp
     không được phụ thuộc vào giả định đó — nếu một ngày một dòng có mặt ở
     hai danh sách, hai cách sắp khác nhau sẽ cho hai vân tay khác nhau cho
-    cùng một trạng thái. `tests/test_p1_1_revision_scope.py` canh chính
-    tính chất này.
+    cùng một trạng thái. `tests/test_p1_review_repairs.py` §P1-1 canh
+    chính tính chất này.
 
     Đổi một mệnh đề `ORDER BY` ở tầng truy vấn vẫn KHÔNG được biến thành
     "đơn này đã đổi" — đó là lý do phép sắp tồn tại.

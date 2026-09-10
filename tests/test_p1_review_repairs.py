@@ -367,6 +367,15 @@ def test_a_500_on_the_api_returns_json_without_leaking_the_exception(
     body = response.get_data(as_text=True)
     assert secret not in body, "nội dung exception lọt vào response"
     assert "sieu-mat" not in body
+    # Và không có dấu vết của một traceback nào. Flask ở chế độ debug in
+    # cả stack trace ra body; một lần bật debug trên production sẽ phát
+    # đường dẫn file và tên hàm ra ngoài, nên cửa này canh cả hình dạng
+    # đó chứ không chỉ canh chuỗi DSN.
+    for leak in ("Traceback", 'File "', "RuntimeError", "order_api",
+                 "site-packages"):
+        assert leak not in body, f"body rò dấu vết nội bộ: {leak!r}"
+    # `message` là câu HẰNG, không phải `str(exception)`.
+    assert secret not in error["message"], error["message"]
 
 
 def test_a_503_on_the_api_returns_json(client, pairs, monkeypatch):

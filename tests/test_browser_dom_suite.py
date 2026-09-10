@@ -76,3 +76,40 @@ def test_the_dom_suite_passes():
     assert "# pass 0" not in result.stdout, (
         "bộ kiểm DOM không chạy test nào — glob có thể đã sai:\n"
         + result.stdout[-2000:])
+
+
+#: Byte điều khiển ASCII, TRỪ tab/LF/CR — ba byte hợp lệ trong mã nguồn.
+CONTROL_BYTES = (bytes(range(0x00, 0x09)) + b"\x0b\x0c"
+                 + bytes(range(0x0e, 0x20)))
+
+
+def test_no_browser_test_file_contains_raw_control_bytes():
+    """Không file nào trong `tests/browser/` được chứa byte điều khiển THÔ.
+
+    Vì sao đây là một cửa chặn chứ một chuyện thẩm mỹ. `stab02_download`
+    nói về những byte mở đầu của một file .xlsx (`PK\\x03\\x04`), và cách
+    tự nhiên nhất để viết chúng là dán thẳng vào mã nguồn. Làm thế thì
+    file có một byte NUL, và git chuyển sang chế độ BINARY cho nó:
+
+        tests/browser/stab02_download.test.mjs | Bin 5344 -> 9901 bytes
+
+    Từ lúc đó không ai review được diff của chính file mang bằng chứng
+    `STAB-02`, và một thay đổi làm yếu bài kiểm sẽ đi qua mà không ai
+    thấy. Lỗi này đã xảy ra HAI lần trong đợt này — lần thứ hai vì công
+    cụ đọc file hiện byte điều khiển thành khoảng trắng, nên nó được dán
+    lại mà không ai nhận ra.
+
+    Cách viết đúng là escape của JavaScript (`"\\u0003"`): chuỗi lúc chạy
+    vẫn chứa đúng những byte ấy, nên bài kiểm vẫn nói về đúng thứ nó
+    định nói, mà file vẫn là text.
+    """
+    guilty = {}
+    for path in sorted(BROWSER_DIR.glob("*.mjs")):
+        raw = path.read_bytes()
+        found = sorted({byte for byte in CONTROL_BYTES if bytes([byte]) in raw})
+        if found:
+            guilty[path.name] = [f"0x{byte:02x}" for byte in found]
+    assert guilty == {}, (
+        f"byte điều khiển thô trong bộ kiểm DOM: {guilty}. git sẽ coi file "
+        "là binary và diff của nó thành không đọc được — hãy viết bằng "
+        "escape (\\uXXXX) thay vì dán byte thô.")

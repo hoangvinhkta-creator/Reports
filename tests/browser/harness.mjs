@@ -38,6 +38,35 @@ import { JSDOM, VirtualConsole } from "jsdom";
 
 const APP_JS = new URL("../../app/web/static/js/app.js", import.meta.url);
 
+/* Mọi DOM đã dựng trong test đang chạy.
+ *
+ * Vì sao là một sổ chung thay vì để từng test tự kiểm: một `TypeError`
+ * trong `app.js` phát ra `jsdomError`, và nếu không ai đọc nó thì test
+ * xanh một cách vô nghĩa. Bắt từng test nhớ gọi một hàm kiểm là bảo đảm
+ * sẽ có test quên — nên `installErrorGuard()` gắn MỘT `afterEach` cho cả
+ * file, và không test nào phải nhớ gì.
+ */
+const booted = [];
+
+/**
+ * Gắn `afterEach` kiểm lỗi jsdom cho cả file test. Gọi MỘT lần ở đầu file.
+ */
+export function installErrorGuard(afterEach) {
+  afterEach(() => {
+    const failures = [];
+    for (const app of booted) {
+      if (app.jsdomErrors.length) {
+        failures.push(...app.jsdomErrors);
+      }
+    }
+    booted.length = 0;
+    if (failures.length) {
+      throw new Error("app.js gây lỗi jsdom ngoài dự kiến:\n  "
+        + failures.join("\n  "));
+    }
+  });
+}
+
 /** HTML của một trang đã tải THẬT: có wrapper, có bảng, có form. */
 export const PAGE = `
 <header class="tp-header"><button id="btnTheme"></button></header>
@@ -48,12 +77,24 @@ export const PAGE = `
   <a id="loc-c" href="/kinh-doanh?loc=c">Lọc C</a>
   <a id="tai-excel" href="/kinh-doanh/xuat-excel?ky=2026-09" download>Tải Excel</a>
   <a id="tai-la" href="/bao-cao/khong-khai-type">Tải không khai type</a>
-  <form id="f-idem" method="post" action="/kinh-doanh/nhan-vien/sua-bh"
+  <!-- f-idem: form KHAI data-idempotent.
+     Route /kiem/idempotent-gia-lap là GIẢ LẬP, có chủ đích: hôm nay KHÔNG
+     template production nào khai data-idempotent, vì không route HTML nào
+     đọc idempotency_key. Trỏ form này vào một route thật sẽ ngụ ý route ấy
+     chống lặp được — đúng lời hứa sai mà P1-5 gỡ đi. Xem
+     tests/test_p1_5_html_form_idempotency.py.
+     LƯU Ý CÚ PHÁP: cả chuỗi PAGE này là một template literal của
+     JavaScript, nên KHÔNG được dùng dấu backtick ở đây (kể cả trong một
+     comment HTML) — nó kết thúc chuỗi giữa câu và cho một SyntaxError ở
+     một dòng chẳng liên quan gì. Dấu tiếng Việt thì vô hại. -->
+  <form id="f-idem" method="post" action="/kiem/idempotent-gia-lap"
         data-idempotent data-loading-label="Đang lưu…">
     <input name="gia_nhap" value="123">
     <button type="submit">XONG</button>
   </form>
-  <form id="f-plain" method="post" action="/upload"
+  <!-- f-plain: hình dạng THẬT của mọi form mutation HTML hôm nay — không
+     khai data-idempotent, nên không gửi mã và không mọc nút THỬ LẠI. -->
+  <form id="f-plain" method="post" action="/kinh-doanh/nhan-vien/sua-bh"
         data-loading-label="Đang chạy…">
     <button type="submit">CHẠY</button>
   </form>
@@ -66,7 +107,8 @@ export const PAGE = `
  * là `{status, headers, body, delayMs}` — `delayMs` là thứ làm test
  * "response cũ về sau" viết được mà không phụ thuộc thời gian thật.
  */
-export function boot({ html = PAGE, routes = {} } = {}) {
+export function boot({ html = PAGE, routes = {}, abortController = true }
+    = {}) {
   const calls = [];
   const navigations = [];
 
@@ -85,21 +127,35 @@ export function boot({ html = PAGE, routes = {} } = {}) {
    * điều hướng thật không, và tới route nào".
    */
   const virtualConsole = new VirtualConsole();
+  /* Lỗi jsdom KHÔNG được bỏ qua im lặng: một `TypeError` trong `app.js`
+   * sẽ làm mọi test xanh một cách vô nghĩa. Nhưng cũng KHÔNG `throw` ở
+   * đây — một ngoại lệ ném ra từ trong listener của `EventEmitter` không
+   * quay về được test đã gọi, nó đi thẳng lên uncaught và có thể bị nuốt.
+   *
+   * Nên chúng được GOM lại, và `assertNoUnexpectedErrors()` là chỗ test
+   * đọc chúng. Bản trước `throw` ở đây, và vì thế nó vừa không dừng được
+   * test vừa che mất lỗi thật. */
   virtualConsole.on("jsdomError", (error) => {
     const message = String(error && error.message);
     if (message.includes("Not implemented: navigation")) {
       navigations.push(lastIntent.url || "(không rõ)");
       return;
     }
-    // Lỗi khác của jsdom KHÔNG được im lặng: một `TypeError` trong
-    // `app.js` sẽ làm test xanh một cách vô nghĩa nếu ta bỏ qua nó.
-    throw error;
+    jsdomErrors.push(message);
   });
   // Bỏ hẳn tiếng ồn của `console.error` mà jsdom chuyển tiếp — nhưng
   // KHÔNG bỏ `jsdomError` ở trên.
   virtualConsole.on("error", () => {});
 
   const lastIntent = { url: null };
+  /* Lỗi jsdom KHÔNG phải navigation. Xem handler `jsdomError` ở trên. */
+  const jsdomErrors = [];
+  /* Vị trí cuộn mà `app.js` yêu cầu. jsdom KHÔNG hiện thực
+   * `window.scrollTo`, nên mỗi lần `swapContent()` gọi nó, jsdom phát một
+   * `jsdomError` — và bản trước của bộ khung này để lỗi đó lẫn vào cùng
+   * kênh với lỗi thật. Stub nó ở đây làm hai việc: dọn kênh lỗi, và cho
+   * test đọc được `app.js` đã cố giữ vị trí cuộn nào. */
+  const scrollCalls = [];
   /* Ghi lại số phận BODY của từng response giả: `read` khi `.text()`
    * được gọi, `cancel` khi `body.cancel()` được gọi. Đây là cách duy
    * nhất một test kiểm được `STAB-02` ("chặn TRƯỚC khi đọc body") và
@@ -113,6 +169,18 @@ export function boot({ html = PAGE, routes = {} } = {}) {
     virtualConsole,
   });
   const { window } = dom;
+
+  window.scrollTo = (x, y) => { scrollCalls.push([x, y]); };
+
+  /* `abortController: false` — mô phỏng browser KHÔNG có
+   * `AbortController` (Safari cũ, và `app.js` khai rõ nó hỗ trợ đường đó:
+   * `if (typeof AbortController === "function")`).
+   *
+   * Đây là cấu hình DUY NHẤT mà bộ đếm tuần tự phải tự làm hết việc —
+   * với `AbortController`, một lượt GET bị vượt luôn bị abort trước khi
+   * response về, nên nhánh "response cũ vừa về" không chạy tới. Muốn kiểm
+   * bộ đếm thì phải tắt abort. */
+  if (!abortController) delete window.AbortController;
 
   /* Ghi lại ý định điều hướng của mỗi cú bấm: `app.js` gọi
    * `window.location.href = link.href` cho link tải file, và đó là lượt
@@ -145,10 +213,16 @@ export function boot({ html = PAGE, routes = {} } = {}) {
     }
     const spec = make(path, opts) || {};
     const response = fakeResponse(spec, path, bodyEvents);
-    if (spec.reject) return Promise.reject(spec.reject);
+    /* `reject` + `delayMs` = một request THẤT BẠI CHẬM. Cần thiết cho các
+     * test `P2-2`: mệnh đề "nút của form B vẫn khoá trong khi request B
+     * còn bay" chỉ kiểm được nếu B vẫn đang bay lúc A thất bại, và một
+     * `reject` tức thì làm B xong trước A. */
+    if (spec.reject && !spec.delayMs) return Promise.reject(spec.reject);
     if (!spec.delayMs) return Promise.resolve(response);
     return new Promise((resolve, reject) => {
-      const timer = window.setTimeout(() => resolve(response), spec.delayMs);
+      const timer = window.setTimeout(
+        () => (spec.reject ? reject(spec.reject) : resolve(response)),
+        spec.delayMs);
       if (opts.signal) {
         opts.signal.addEventListener("abort", () => {
           window.clearTimeout(timer);
@@ -168,8 +242,12 @@ export function boot({ html = PAGE, routes = {} } = {}) {
   window.eval(readFileSync(APP_JS, "utf8"));
   window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
 
-  return { dom, window, document: window.document, calls, navigations,
-           pushes, bodyEvents };
+  const app = {
+    dom, window, document: window.document, calls, navigations, pushes,
+    bodyEvents, jsdomErrors, scrollCalls,
+  };
+  booted.push(app);
+  return app;
 }
 
 function fakeResponse(spec, path, bodyEvents) {

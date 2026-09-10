@@ -54,13 +54,20 @@ useradd -m pgtest
 su pgtest -c "mkdir -p /home/pgtest/pg/data /home/pgtest/pg/sock && \
   /usr/lib/postgresql/16/bin/initdb -D /home/pgtest/pg/data \
   -U postgres --auth=trust"
+# `-l` nhận một FILE, không phải thư mục — `pg_ctl` không tự tạo thư mục
+# cha, và một `-l .../log/server.log` khi `log` chưa tồn tại sẽ báo
+# "Directory nonexistent" rồi bỏ luôn lần khởi động.
+# `-h ""` tắt TCP: chỉ còn unix socket, đúng thứ URL dưới đây trỏ tới.
 su pgtest -c "/usr/lib/postgresql/16/bin/pg_ctl -D /home/pgtest/pg/data \
-  -o '-p 55432 -k /home/pgtest/pg/sock' -l /home/pgtest/pg/log start"
+  -o '-k /home/pgtest/pg/sock -h \"\"' -l /home/pgtest/pg/log start"
 chmod 755 /home/pgtest /home/pgtest/pg /home/pgtest/pg/sock
 
-export REPORTS_TEST_POSTGRES_URL="postgresql+psycopg://postgres@/postgres?host=/home/pgtest/pg/sock&port=55432"
-.venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+export REPORTS_TEST_POSTGRES_URL="postgresql+psycopg://postgres@/postgres?host=/home/pgtest/pg/sock&port=5432"
+.venv/bin/python -m pytest tests/test_p0_single_transaction.py -q -s
 ```
+
+`-s` để hai test hạ tầng in được số `pg_backend_pid` ra ngoài; không có nó
+pytest giữ output lại và bằng chứng chỉ hiện khi test đỏ.
 
 ## Cấu hình CI
 
@@ -85,7 +92,7 @@ env:
 
 ## Cái các test này chứng minh, và cái chúng KHÔNG
 
-**Chứng minh** (`tests/test_p0_single_transaction.py`, 9 test):
+**Chứng minh** (`tests/test_p0_single_transaction.py`, 11 test):
 
 - hai và bốn luồng, cùng `idempotency_key` → **đúng một** lần gọi
   `set_purchase_price()`, đúng một hàng `kpi_purchase_price_override`, và
@@ -97,6 +104,40 @@ env:
 - `revision` được tính lại **bên trong** transaction đang mở;
 - đường ghi **không mở kết nối thứ hai** nào (test canh cấu tạo — bản đầu
   của `bind()` bỏ sót `BindingExceptionStore`, xem `db_scope`).
+
+### Bằng chứng hạ tầng: hai backend thật, khoá trong đúng transaction
+
+Hai test cuối trả lời câu mà mọi test đồng thời ở trên **giả định** mà
+không kiểm: hai luồng ấy có thật sự nằm trên hai transaction PostgreSQL
+khác nhau hay không. Nếu chúng dùng chung một `Connection`, chúng chạy
+**nối đuôi** trong cùng một transaction — và khi ấy cả bộ test xanh vì
+không có race nào xảy ra, chứ không vì cửa an toàn làm việc.
+
+- `test_each_concurrent_writer_gets_its_own_postgres_backend` đọc
+  `pg_backend_pid()` **trên chính kết nối đang ghi**, ở bên trong vùng
+  khoá, và **in ra** số PID (review đòi số này phải đọc được trong log
+  CI). Nó bắt buộc hai PID **khác nhau**, bắt buộc `pg_locks` thấy mỗi
+  backend giữ ít nhất một khoá `advisory` đã `granted` — tức
+  `pg_advisory_xact_lock` chạy trong transaction **đang ghi**, không ở một
+  transaction phụ nào — và bắt buộc lần ghi nghiệp vụ chạy trên **đúng**
+  một trong hai backend đã khoá.
+- `test_the_advisory_lock_really_serializes_the_two_backends` đóng khoảng
+  còn lại: hai backend riêng, mỗi backend giữ một khoá, vẫn chưa chứng
+  minh hai khoá ấy **loại trừ nhau** (hai `subject` khác nhau cũng cho
+  cùng kết quả đo). Bài này giữ luồng thứ nhất ở trong vùng khoá 1,5s và
+  bắt buộc luồng thứ hai **không vào được** trong lúc ấy, bằng thứ tự
+  vào/ra được ghi lại và in ra.
+
+Bằng chứng của lần chạy đợt này (`pg_advisory_xact_lock` bị gỡ ⟹ **cả hai
+test đỏ**, nên chúng không phải mệnh đề rỗng):
+
+```
+backend PostgreSQL của từng transaction ghi:
+  khoá  thread=Thread-1 (run) pg_backend_pid=1938     advisory_locks_granted=1 subject=BH70002
+  khoá  thread=Thread-2 (run) pg_backend_pid=1941     advisory_locks_granted=1 subject=BH70002
+  ghi   thread=Thread-1 (run) pg_backend_pid=1938
+thứ tự vào/ra vùng khoá: vào:Thread-3, ra:Thread-3, vào:Thread-4, ra:Thread-4
+```
 
 **KHÔNG chứng minh** — và điều này cần nói ra thay vì để im:
 

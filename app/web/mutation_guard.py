@@ -61,9 +61,10 @@ SQLite, và điều đó được nói ra ở đây thay vì để người đ�
 có một khoá mà thật ra không có.
 
 Hệ quả phải nói rõ: bằng chứng at-most-once trên SQLite là bằng chứng YẾU
-hơn, vì khoá ghi toàn cục của nó che bớt race. `tests/test_stab03_
-concurrency.py` vì thế chạy trên PostgreSQL và tự bỏ qua nếu không có —
-xem docstring của file đó.
+hơn, vì khoá ghi toàn cục của nó che bớt race.
+`tests/test_p0_single_transaction.py` vì thế chạy trên PostgreSQL và tự bỏ
+qua nếu không có — xem docstring của file đó và
+`docs/testing/POSTGRES_CONCURRENCY.md`.
 """
 
 from __future__ import annotations
