@@ -1,5 +1,112 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — UI-01/UI-02 panel sửa đơn tại chỗ = IMPLEMENTED, CHƯA merge (2026-09-10)
+
+Trên nhánh `claude/reports-ui01-ui02-inline-edit-k5uynh` (base
+`origin/claude/extract-upload-repo-gq2ws4` @ `c46e458`). Nút "Sửa" của một
+BH (`data-metric="bh-edit"`) không còn dẫn tới `?sua=<order>` khi có JS —
+`app.js` chặn cú bấm, mở một `<dialog>` dựng tại chỗ (neo cạnh nút với BH
+≤3 dòng, side panel cố định bên phải với BH nhiều dòng, CSS sập cả hai về
+bottom sheet dưới `760px`), gọi `GET /api/v1/orders/<order_key>` lấy dữ
+liệu, và `PATCH` cùng route để lưu. `#app-content` không bị đụng tới; bảng
+kê không dựng lại. `?sua=` giữ NGUYÊN như đường không-JS (server vẫn dựng
+lại trang cũ y hệt trước `UI-01`).
+
+Cơ chế chính (đọc kỹ trong `app/web/static/js/app.js`, khối IIFE cuối file,
+và các chú thích tại chỗ):
+
+- **Deep-link/Back-Forward qua HASH** (`#sua=<order>`), không qua query —
+  `history.pushState`/`history.back()`; `onPopState()` của IIFE điều hướng
+  chính (đầu file) được sửa để phát một `CustomEvent("app:popstate")` HUỶ
+  ĐƯỢC trước khi tự `navigate()`, panel bắt sự kiện đó và `preventDefault()`
+  khi liên quan tới nó — hai module không cần biết cơ chế nội bộ của nhau.
+- **`PATCH` mang `idempotency_key` ỔN ĐỊNH qua các lần THỬ LẠI** của MỘT
+  quyết định (lỗi mạng/`REQUEST_IN_FLIGHT`); một mã MỚI khi người dùng GỬI
+  LẠI sau `REVISION_CONFLICT` (409) — đó là một quyết định khác, không phải
+  một lần thử lại của lần trước. Mutation KHÔNG BAO GIỜ bị abort (đóng panel
+  không huỷ PATCH đang bay — bảng nền vẫn được vá khi nó về, xem
+  `patchTableFromPayload`).
+- **409 giữ nguyên draft** (không xoá ô người dùng vừa gõ), hiện hai lựa
+  chọn ("GỬI LẠI VỚI BẢN MỚI" / "LẤY GIÁ TRỊ MỚI") — không bao giờ tự
+  last-write-wins.
+- **Lưu thành công chỉ vá đúng hàng đã đổi** (khoá 3 phần `data-order` +
+  `data-product-key` + `data-occurrence-index`, gắn mới trong template —
+  xem chú thích `UI-01`/`UI-02` tại `kinh_doanh_nhan_vien.html`) và hàng
+  TỔNG Giá nhập/Giá bán (server tính lại bằng CHÍNH
+  `workspace_presentation.sheet_detail_totals` mà lần render đầy đủ dùng —
+  `order_api.patch_payload()` thêm `totals.sheet.row_totals`, không phép
+  cộng thứ hai nào). **Cố ý KHÔNG vá** dải KPI phía trên (Doanh thu/So
+  Target/DS quy đổi…) và hàng TỔNG Lợi nhuận/DS quy đổi — chúng cần một đối
+  tượng gate (CHÍNH THỨC/CHƯA HOÀN CHỈNH) mà response PATCH không mang
+  theo, và đoán gate đó ở client là dựng một thẩm quyền nghiệp vụ thứ hai.
+  Panel cũng không vá dòng Chiết khấu suy ra (`row.synthetic`) của một BH có
+  chiết khấu — dòng đó là một cách TRÌNH BÀY của cùng một dòng nghiệp vụ,
+  không có khoá riêng trong payload JSON.
+- Sửa kèm một lỗi CSS có sẵn, không phải riêng của panel: `.act, .ghost,
+  button { display: inline-flex }` có độ đặc thù BẰNG `[hidden]` của UA
+  stylesheet và đứng SAU trong nguồn, nên mọi nút `hidden` mang lớp
+  `.ghost`/`.act` vẫn hiện ra — Playwright bắt được lỗi này khi kiểm bẫy
+  focus của panel. Sửa bằng một luật `[hidden] { display: none; }` đứng
+  cuối `tinphat-ui.css`.
+
+Bằng chứng:
+
+```text
+pytest (toàn repo, trừ Postgres/P0)  3566 passed, 13 skipped
+tests/browser/ (jsdom, node --test)  25 passed
+tests/playwright/ (Chromium thật)    12 passed — mở/sửa/lưu/đóng,
+                                      scroll/focus/bẫy focus, Back/Forward,
+                                      lỗi mạng+THỬ LẠI, 409 conflict,
+                                      response GET cũ bị bỏ qua
+```
+
+`scripts/stab01_baseline.py --lines 5000` (máy dev, LOCAL/TEST — KHÔNG PHẢI
+số production, xem docstring đầu script):
+
+```text
+                                      p50        bytes
+mở đơn kiểu CŨ (dựng lại cả bảng)     1417 ms    15.290.054 (nhan-vien-fragment)
+mở panel (= GET /api/v1/orders/…)     204 ms          1.852
+PATCH đơn lẻ (cold)                   282 ms          2.169
+PATCH — 20 thao tác liên tiếp         p50 431 ms, p95 477 ms (mỗi lượt một
+                                      idempotency_key/base_revision mới)
+```
+
+Chênh lệch bytes (15,3 MB → dưới 2 KB) là bằng chứng trực tiếp cho lý do
+`API-01` tồn tại (xem docstring `order_api.py`). Số PATCH cao hơn GET vì
+mỗi lượt đi qua `MutationGuard.transaction()` (khoá + CAS revision + ghi +
+đọc lại — xem `api_patch_order()`), không phải một hồi quy — đây là chi phí
+đã có SẴN của at-most-once/CAS (`P0-1`/`P0-3`), panel chỉ là một client mới
+gọi tới đường đó.
+
+Playwright: pin `@playwright/test@1.63.0` trong `package.json`/
+`package-lock.json`, cấu hình ở `playwright.config.mjs` (trỏ thẳng Chromium
+đã cài sẵn của môi trường qua `PLAYWRIGHT_CHROMIUM_PATH`, mặc định
+`/opt/pw-browsers/chromium` — không tự tải browser). Máy chủ fixture cho
+Playwright: `tests/playwright/fixture_server.py` (app Flask THẬT, dữ liệu
+`tests.fixtures.workspace_scale` + một BH năm dòng dựng riêng cho ca side
+panel). Nối vào pytest qua `tests/test_playwright_ui_suite.py`, cùng kỷ luật
+`tests/test_browser_dom_suite.py` — `pytest.skip` với câu nói rõ thiếu gì
+khi không có Node/Chromium/venv, không bao giờ báo xanh giả.
+
+`REPORTS_TEST_POSTGRES_URL` KHÔNG được đặt trong phiên làm việc này —
+`tests/test_p0_single_transaction.py` (đồng thời/CAS trên PostgreSQL thật)
+bị bỏ qua. Lệnh chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+Chưa làm / phạm vi còn lại: dải KPI phía trên và hàng TỔNG Lợi
+nhuận/DS quy đổi sau một lần lưu (xem lý do ở trên — cần server trả thêm
+gate, chưa có trong phạm vi API-02 hiện tại); vá dòng Chiết khấu suy ra;
+không có bằng chứng thị giác (ảnh chụp) trên môi trường Render thật — mọi
+số đo ở trên là máy dev + Chromium local.
+
+Trạng thái: `IMPLEMENTED`, chưa qua Independent Review, chưa merge, chưa
+push.
+
 ## CANONICAL CURRENT STATE — lấp lỗ hổng "cùng kỳ năm trước" bằng nguồn vẽ riêng (`DEC-216`, 2026-09-10)
 
 Nối tiếp `DEC-215` §1: Owner xác nhận nguyên nhân (a) — sổ cũ chỉ có TỔNG
