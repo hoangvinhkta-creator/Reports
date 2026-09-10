@@ -53,7 +53,11 @@ from app.web import period_lock
 #: mọi panel đang mở sẽ nhận `REVISION_CONFLICT` ở lần lưu kế tiếp và tải
 #: lại — đúng hành vi an toàn, vì bản họ đang giữ được tính theo một quy
 #: tắc khác.
-REVISION_VERSION = "R7-REV-1"
+#: `P1-1 REPAIR` — tăng từ `R7-REV-1` lên `R7-REV-2` khi `_scope` được đưa
+#: vào vân tay. Mọi panel đang mở nhận `REVISION_CONFLICT` ở lần lưu kế
+#: tiếp và tải lại — đúng hành vi an toàn, vì bản họ đang giữ được tính
+#: theo một quy tắc mù với quyết định loại dòng.
+REVISION_VERSION = "R7-REV-2"
 
 #: Độ dài chuỗi revision trả ra ngoài. Băm đủ dài để không đụng nhau trong
 #: một kỳ (16 hex = 64 bit), đủ ngắn để đọc được trong một URL/log.
@@ -63,9 +67,19 @@ _DIGEST_CHARS = 16
 def _digest(scope: str, rows: Iterable[tuple]) -> str:
     """Băm một tập dòng đã CHUẨN HOÁ, không phụ thuộc thứ tự đầu vào.
 
-    Sắp theo khoá dòng đầy đủ trước khi băm — cùng lý do và cùng cách
-    `period_lock.content_fingerprint` làm: đổi một mệnh đề `ORDER BY` là
-    một thay đổi kỹ thuật, và nó không được biến thành "đơn này đã đổi".
+    Sắp theo khoá dòng đầy đủ + NHÃN PHẠM VI trước khi băm. Khoá dòng là
+    ba trường đầu; nhãn phạm vi là trường cuối, do `order_lines()`/
+    `_scoped_rows()` gắn.
+
+    Vì sao thứ tự sắp phải gồm cả nhãn: `details`, `excluded` và
+    `removed_in_source` là ba danh sách RỜI NHAU hôm nay, nhưng phép sắp
+    không được phụ thuộc vào giả định đó — nếu một ngày một dòng có mặt ở
+    hai danh sách, hai cách sắp khác nhau sẽ cho hai vân tay khác nhau cho
+    cùng một trạng thái. `tests/test_p1_1_revision_scope.py` canh chính
+    tính chất này.
+
+    Đổi một mệnh đề `ORDER BY` ở tầng truy vấn vẫn KHÔNG được biến thành
+    "đơn này đã đổi" — đó là lý do phép sắp tồn tại.
     """
     digest = hashlib.sha256()
     digest.update(REVISION_VERSION.encode("utf-8"))
@@ -73,12 +87,35 @@ def _digest(scope: str, rows: Iterable[tuple]) -> str:
     digest.update(scope.encode("utf-8"))
     digest.update(b"\x1d")
     ordered = sorted(rows, key=lambda row: tuple(
-        period_lock.canonical_text(value) for value in row[:3]))
+        period_lock.canonical_text(value) for value in (*row[:3], row[-1])))
     for row in ordered:
         digest.update("\x1f".join(
             period_lock.canonical_text(value) for value in row).encode("utf-8"))
         digest.update(b"\x1e")
     return digest.hexdigest()[:_DIGEST_CHARS]
+
+
+def _scoped_rows(lines) -> Iterable[tuple]:
+    """`(…payload dòng…, nhãn phạm vi)` cho từng dòng đã mang `_scope`.
+
+    `P1-1 REPAIR` — đây là mảnh mà bản trước THIẾU, và review chứng minh
+    được hậu quả bằng một phép đo: loại một dòng làm tổng doanh thu đi từ
+    177.500.000 xuống 175.500.000 trong khi CẢ `order_revision` lẫn
+    `period_revision` không đổi một bit.
+
+    Nguyên nhân: `order_lines()` gắn `_scope` vào từng dòng, nhưng vân tay
+    băm qua `period_lock.line_payload` — và payload đó không có `_scope`
+    (nó không nên có: nó là payload của vân tay CHỐT KỲ, nơi phạm vi được
+    biểu diễn bằng việc dòng có mặt trong `details` hay không).
+
+    Nên nhãn được nối THÊM ở đây, sau payload, thay vì sửa `_LINE_FIELDS`
+    của `period_lock`: sửa file đó sẽ đổi vân tay của mọi kỳ ĐÃ CHỐT và
+    làm chúng báo drift vì một lý do không liên quan gì tới bộ số của
+    chúng.
+    """
+    for line in lines:
+        yield (*period_lock.line_payload(line),
+               line.get("_scope", SCOPE_REPORTED))
 
 
 #: Nhãn PHẠM VI gắn vào mỗi dòng khi gom (`_scope`). Ba trạng thái, và
@@ -129,8 +166,7 @@ def of_order(data, order_key: str) -> Optional[str]:
     lines = order_lines(data, order_key)
     if not lines:
         return None
-    return _digest(f"order:{order_key}",
-                   (period_lock.line_payload(line) for line in lines))
+    return _digest(f"order:{order_key}", _scoped_rows(lines))
 
 
 def of_period(data, period: Optional[tuple[int, int]]) -> str:
@@ -146,6 +182,20 @@ def of_period(data, period: Optional[tuple[int, int]]) -> str:
     """
     scope = "period:" + ("all" if period is None
                          else f"{period[0]:04d}-{period[1]:02d}")
-    rows = (period_lock.line_payload(detail) for detail in
-            (*data.details, *data.excluded, *data.removed_in_source))
-    return _digest(scope, rows)
+    return _digest(scope, _scoped_rows(_all_scoped(data)))
+
+
+def _all_scoped(data) -> list[dict]:
+    """MỌI dòng của kỳ, mỗi dòng mang `_scope` của danh sách nó đến từ.
+
+    Cùng phép gắn nhãn mà `order_lines()` làm cho một đơn, ở phạm vi cả
+    kỳ. Bản sao NÔNG, không đụng dict gốc của `PeriodData` — xem
+    `order_lines()` về lý do.
+    """
+    scoped: list[dict] = []
+    for lines, scope in ((data.details, SCOPE_REPORTED),
+                         (data.excluded, SCOPE_EXCLUDED),
+                         (data.removed_in_source, SCOPE_REMOVED_IN_SOURCE)):
+        for detail in lines:
+            scoped.append({**detail, "_scope": scope})
+    return scoped

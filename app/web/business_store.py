@@ -56,6 +56,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.web.history_store import HistoryUnavailableError
+from app.web import db_scope
 from tools.db.schema import (
     ORIGIN_PIPELINE, PURCHASE_PROVENANCE_MANUAL,
     PURCHASE_PROVENANCE_MANUAL_OVERRIDE, employee_attribution_override,
@@ -270,14 +271,47 @@ def _now() -> str:
 
 
 class BusinessDecisionStore:
-    """Đọc/ghi bốn bảng quyết định của Owner trên CÙNG engine history."""
+    """Đọc/ghi bốn bảng quyết định của Owner trên CÙNG engine history.
 
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    `STAB-03 REPAIR` — store nhận `Engine` HOẶC `Connection` (xem
+    `app/web/db_scope.py`). Hai chế độ, và khác biệt duy nhất là ai sở hữu
+    transaction:
+
+        `Engine`      mỗi lượt ghi tự mở và tự commit — hành vi cũ, không
+                      đổi một chút nào cho mọi nơi đang gọi
+        `Connection`  mọi lượt ghi dùng chính kết nối đó và KHÔNG commit;
+                      transaction thuộc về người gọi bên ngoài
+
+    Chế độ thứ hai là điều kiện để sổ chống lặp, phép kiểm revision và lần
+    ghi nghiệp vụ nằm trong MỘT transaction. Không có nó, ba thứ đó nằm
+    trong ba transaction và không cái nào bảo vệ được hai cái còn lại —
+    review độc lập đã chứng minh bằng probe trên PostgreSQL rằng
+    `set_purchase_price()` chạy hai lần cho cùng một `request_id`.
+    """
+
+    def __init__(self, engine: db_scope.EngineOrConnection) -> None:
+        self._scope = db_scope.of(engine)
 
     @property
     def engine(self) -> Engine:
-        return self._engine
+        """`Engine` phía sau, ở cả hai chế độ.
+
+        Nhiều nơi gọi đọc thuộc tính này để dựng một store/service khác
+        trên cùng database. Trả về `Engine` (không phải `Connection` đang
+        bind) là đúng: những đối tượng ấy có vòng đời riêng và không được
+        thừa hưởng transaction của người khác một cách âm thầm.
+        """
+        return self._scope.engine
+
+    def bind(self, connection) -> "BusinessDecisionStore":
+        """Store MỚI, ghi bằng `connection` của người gọi.
+
+        Trả về đối tượng mới chứ không đổi `self`: `self` là đối tượng dùng
+        chung của cả app, và gắn một transaction lên nó sẽ làm request này
+        ghi vào transaction của request kia. Xem `db_scope` § "Vì sao KHÔNG
+        dùng một biến toàn cục".
+        """
+        return BusinessDecisionStore(connection)
 
     # --- giá nhập ------------------------------------------------------
 
@@ -746,7 +780,7 @@ class BusinessDecisionStore:
         """
         conditions = [table.c[name] == value for name, value in keys.items()]
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 existing = connection.execute(
                     select(table.c[next(iter(keys))]).where(*conditions)
                 ).first()
@@ -761,14 +795,14 @@ class BusinessDecisionStore:
 
     def _execute(self, statement) -> None:
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 connection.execute(statement)
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
 
     def _read(self, statement) -> list[dict]:
         try:
-            with self._engine.connect() as connection:
+            with self._scope.connect() as connection:
                 return [dict(row._mapping) for row in connection.execute(statement)]
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc

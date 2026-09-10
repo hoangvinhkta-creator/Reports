@@ -399,6 +399,13 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     "server chưa nhận". Thay nó bằng một nút THỬ LẠI cần một chỗ để nhận ra
     `request_id` cũ, và chỗ đó phải sống qua nhiều worker gunicorn cùng
     nhiều lần restart. Một dict trong tiến trình không làm được cả hai.
+
+    `0011_mutation_request_state` gia nhập ngay sau đó vì hình dạng của
+    `0010` KHÔNG cho at-most-once: một sổ chỉ ghi những lần ghi ĐÃ XONG thì
+    không biết gì về một lần ghi đang diễn ra, nên hai request đồng thời
+    cùng thấy sổ rỗng rồi cùng ghi. Review độc lập chứng minh điều đó bằng
+    probe trên PostgreSQL. Cột `state` cho hàng được chèn TRƯỚC lần ghi,
+    trong cùng transaction, biến khoá chính thành một cửa loại trừ thật.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
@@ -410,7 +417,8 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0007_employee_workspace.py",
                         "0008_purchase_price_reason.py",
                         "0009_line_binding_period_close.py",
-                        "0010_mutation_request.py"]
+                        "0010_mutation_request.py",
+                        "0011_mutation_request_state.py"]
     # Alembic mặc định tạo ``alembic_version.version_num`` VARCHAR(32) trên
     # PostgreSQL. Một revision dài hơn chỉ lộ khi deploy: DDL chạy xong nhưng
     # transaction rollback lúc Alembic ghi version. Giữ giới hạn ở đây để lỗi

@@ -57,6 +57,7 @@ from app.modules.reporting import line_type as line_type_module
 from app.modules.reporting.business_metrics import BusinessLine
 from app.modules.reporting.rate_routing import ConversionRateRouter
 from app.web.history_store import HistoryUnavailableError
+from app.web import db_scope
 from tools.db.schema import (
     order_line_current, order_line_result_version, order_line_source_version,
 )
@@ -92,10 +93,16 @@ def _period(date_from: Optional[date], date_to: Optional[date]) -> list:
     return conditions
 
 
-def _read(engine: Engine, statement) -> list[dict]:
-    """Lỗi database KHÔNG BAO GIỜ được biến thành "chưa có dữ liệu"."""
+def _read(engine: db_scope.EngineOrConnection, statement) -> list[dict]:
+    """Lỗi database KHÔNG BAO GIỜ được biến thành "chưa có dữ liệu".
+
+    `STAB-03 REPAIR` — `engine` nay là `Engine` HOẶC `Connection`. Đọc qua
+    một `Connection` do người gọi mở là điều kiện để phép kiểm revision
+    nhìn thấy ĐÚNG trạng thái mà lần ghi sắp tới sẽ ghi lên, thay vì một
+    ảnh chụp đọc trước transaction (`P0-3`). Xem `app/web/db_scope.py`.
+    """
     try:
-        with engine.connect() as connection:
+        with db_scope.of(engine).connect() as connection:
             return [dict(row._mapping) for row in connection.execute(statement)]
     except SQLAlchemyError as exc:
         raise HistoryUnavailableError(str(exc)) from exc

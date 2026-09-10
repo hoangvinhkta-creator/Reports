@@ -43,6 +43,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.web.history_store import HistoryUnavailableError
+from app.web import db_scope
 from tools.db.schema import ORIGIN_PIPELINE, period_close
 
 
@@ -245,12 +246,20 @@ def content_fingerprint(*, details, totals: dict) -> str:
 class PeriodCloseStore:
     """Đọc/ghi các lần chốt kỳ. Nhỏ đúng bằng bốn việc nó làm."""
 
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    def __init__(self, engine) -> None:
+        # `STAB-03 REPAIR` — nhận `Engine` hoặc `Connection`; xem
+        # `app/web/db_scope.py`. Cửa chốt kỳ phải đọc được TRONG transaction
+        # ghi, nếu không một lần chốt xảy ra giữa cửa kiểm và lần ghi sẽ
+        # không chặn được lần ghi đó.
+        self._scope = db_scope.of(engine)
 
     @property
     def engine(self) -> Engine:
-        return self._engine
+        return self._scope.engine
+
+    def bind(self, connection) -> "PeriodCloseStore":
+        """Store MỚI đọc/ghi bằng `connection` của người gọi."""
+        return PeriodCloseStore(connection)
 
     def closed(self, *, year: int, month: int) -> Optional[ClosedPeriod]:
         """Lần chốt ĐANG hiệu lực của một kỳ, hoặc `None` (kỳ đang mở)."""
@@ -353,14 +362,14 @@ class PeriodCloseStore:
 
     def _execute(self, statement) -> None:
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 connection.execute(statement)
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
 
     def _read(self, statement) -> list[dict]:
         try:
-            with self._engine.connect() as connection:
+            with self._scope.connect() as connection:
                 return [dict(row._mapping) for row in connection.execute(statement)]
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc

@@ -29,6 +29,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.web.history_store import HistoryUnavailableError
+from app.web import db_scope
 from tools.db.schema import line_binding_exception
 
 
@@ -60,8 +61,17 @@ class BindingException:
 
 
 class BindingExceptionStore:
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    """`STAB-03 REPAIR` — nhận `Engine` hoặc `Connection` (`db_scope`)."""
+
+    def __init__(self, engine) -> None:
+        self._scope = db_scope.of(engine)
+
+    @property
+    def engine(self) -> Engine:
+        return self._scope.engine
+
+    def bind(self, connection) -> "BindingExceptionStore":
+        return BindingExceptionStore(connection)
 
     def open_exceptions(self, *, limit: int = 200) -> list[BindingException]:
         return self._list(
@@ -99,14 +109,14 @@ class BindingExceptionStore:
 
     def _execute(self, statement) -> None:
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 connection.execute(statement)
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
 
     def _read(self, statement) -> list[dict]:
         try:
-            with self._engine.connect() as connection:
+            with self._scope.connect() as connection:
                 return [dict(row._mapping) for row in connection.execute(statement)]
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc

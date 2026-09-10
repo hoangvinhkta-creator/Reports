@@ -85,6 +85,15 @@ def patch(client, order_key: str, body: dict):
                         json=body)
 
 
+def new_key() -> str:
+    """`idempotency_key` mới — UUID, vì `P1-2` chỉ nhận UUID.
+
+    Tên `new_key` chứ `key`: vài test dùng `key` làm biến cục bộ cho khoá
+    dòng, và một helper cùng tên sẽ bị che đúng ở những test đó.
+    """
+    return str(uuid.uuid4())
+
+
 def company_total(service) -> Decimal:
     """Tổng doanh thu của CẢ kỳ — bất biến của mọi test ghi ở file này."""
     data = service.period(**ws.PERIOD, period=(ws.YEAR, ws.MONTH))
@@ -185,7 +194,7 @@ def test_api_errors_are_json_not_html(client):
 
 # --- API-02: ghi ----------------------------------------------------------
 
-def test_patch_requires_a_request_id(client, pairs):
+def test_patch_requires_an_idempotency_key(client, pairs):
     order_key = multi_line_order(pairs)
     payload = detail(client, order_key)
     response = patch(client, order_key, {
@@ -193,7 +202,26 @@ def test_patch_requires_a_request_id(client, pairs):
     assert response.status_code == 400
     error = response.get_json()["error"]
     assert error["code"] == mutation_guard.VALIDATION_ERROR
-    assert error["field"] == "request_id"
+    assert error["field"] == "idempotency_key"
+
+
+def test_patch_refuses_a_non_uuid_idempotency_key(client, pairs):
+    """`P1-2` — mã tự do bị TỪ CHỐI, không chỉ bị cắt ngắn.
+
+    Bản trước nhận mọi chuỗi dưới 128 ký tự, và review chỉ ra hai hệ quả:
+    một mã chứa `key=value` chèn được trường giả vào dòng log, và một mã
+    tự chọn cho phép hai request cố tình dùng chung mã.
+    """
+    order_key = multi_line_order(pairs)
+    payload = detail(client, order_key)
+    for bad in ("khong-phai-uuid", "aaa status=200 attacker=1", "x" * 200,
+                "../../etc/passwd"):
+        response = patch(client, order_key, {
+            "idempotency_key": bad,
+            "base_revision": payload["order_revision"], "changes": {}})
+        assert response.status_code == 400, bad
+        assert response.get_json()["error"]["code"] == \
+            mutation_guard.VALIDATION_ERROR
 
 
 def test_patch_writes_the_price_and_returns_a_new_revision(
@@ -202,7 +230,7 @@ def test_patch_writes_the_price_and_returns_a_new_revision(
     before = detail(client, order_key)
     line = before["lines"][0]
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(line, "777000")]},
         "reason": "Đối chiếu lại hoá đơn nhập của nhà cung cấp.",
@@ -234,7 +262,7 @@ def test_patch_returns_period_totals_computed_on_the_whole_period(
     order_key = multi_line_order(pairs)
     before = detail(client, order_key)
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "555000")]},
         "reason": "Cập nhật theo hoá đơn nhập.",
@@ -255,7 +283,7 @@ def test_patch_does_not_move_company_sales_revenue(client, service, pairs):
     total_before = company_total(service)
     before = detail(client, order_key)
     patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "999000")]},
         "reason": "Đối chiếu hoá đơn.",
@@ -270,7 +298,7 @@ def test_patch_leaves_other_orders_untouched(client, service, pairs):
     snapshot = {key: detail(client, key)["order_revision"] for key in others}
     before = detail(client, order_key)
     patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "123000")]},
         "reason": "Đối chiếu hoá đơn.",
@@ -292,7 +320,7 @@ def test_patch_without_a_reason_is_refused_when_it_overrides_auto(
     assert before["reason_required"], (
         "fixture không có dòng nào mang giá AUTO — test này không nói gì")
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "111000")]},
     })
@@ -314,7 +342,7 @@ def test_patch_rejects_a_numeric_price_value(client, pairs):
     before = detail(client, order_key)
     line = before["lines"][0]
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [{"product_key": line["product_key"],
                                 "occurrence_index": line["occurrence_index"],
@@ -329,7 +357,7 @@ def test_patch_rejects_a_line_key_missing_its_occurrence(client, pairs):
     order_key = multi_line_order(pairs)
     before = detail(client, order_key)
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": before["order_revision"],
         "changes": {"prices": [
             {"product_key": before["lines"][0]["product_key"],
@@ -359,9 +387,9 @@ def test_replaying_the_same_request_id_does_not_write_twice(
 
     order_key = multi_line_order(pairs)
     before = detail(client, order_key)
-    request_id = str(uuid.uuid4())
+    idempotency_key = new_key()
     body = {
-        "request_id": request_id,
+        "idempotency_key": idempotency_key,
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "888000")]},
         "reason": "Đối chiếu hoá đơn nhập.",
@@ -400,14 +428,14 @@ def test_a_different_request_id_is_a_new_decision(client, pairs):
     order_key = multi_line_order(pairs)
     first = detail(client, order_key)
     patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": first["order_revision"],
         "changes": {"prices": [price_change(first["lines"][0], "222000")]},
         "reason": "Lần một.",
     })
     second = detail(client, order_key)
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": second["order_revision"],
         "changes": {"prices": [price_change(second["lines"][0], "333000")]},
         "reason": "Lần hai.",
@@ -418,30 +446,59 @@ def test_a_different_request_id_is_a_new_decision(client, pairs):
     assert "333000" in values, values
 
 
-def test_a_no_op_patch_is_not_remembered_as_a_write(client, pairs):
-    """Gửi một PATCH không đổi gì KHÔNG chiếm `request_id` cho một lần ghi.
+def test_a_no_op_patch_consumes_its_idempotency_key(client, pairs):
+    """Một PATCH không đổi gì VẪN chiếm mã của nó — và đó là chủ đích.
 
-    Nếu nó chiếm, thì lần gửi tiếp theo của cùng mã — lần mà người dùng
-    thật sự sửa gì đó — sẽ bị trả về kết quả "không có gì thay đổi" và
-    thay đổi của họ mất đi im lặng.
+    ## Đây là một THAY ĐỔI hành vi, không phải một chi tiết
+
+    Bản trước KHÔNG ghi sổ cho một lần gửi không đổi gì, với lập luận:
+    "nếu nó chiếm, lần gửi tiếp theo của cùng mã — lần người dùng thật sự
+    sửa gì đó — sẽ bị trả về 'không có gì thay đổi' và thay đổi của họ mất
+    đi im lặng".
+
+    Lập luận đó mô tả một tình huống mà client DÙNG LẠI một mã cho một
+    payload KHÁC. Đó chính là điều một idempotency key cấm: mã định danh
+    MỘT lần gửi, không phải một phiên. Nhận nó như một quyết định mới có
+    hậu quả tệ hơn hẳn — nó biến cơ chế chống lặp thành "chống lặp trừ khi
+    payload khác", và không client nào kiểm được điều kiện đó.
+
+    Hành vi đúng: mã đã dùng là mã đã dùng. Một lần gửi lại mang cùng mã
+    nhận lại CHÍNH câu trả lời cũ, kể cả khi payload mới khác. Client muốn
+    ghi một quyết định mới thì sinh một mã mới — và đó là điều `app.js`
+    làm (`clearRequestId()` sau mỗi lần server xác nhận).
     """
     order_key = multi_line_order(pairs)
     before = detail(client, order_key)
-    request_id = str(uuid.uuid4())
+    idempotency_key = new_key()
     empty = patch(client, order_key, {
-        "request_id": request_id,
+        "idempotency_key": idempotency_key,
         "base_revision": before["order_revision"], "changes": {}})
     assert empty.status_code == 200
     assert empty.get_json()["changed_nothing"] is True
 
-    real = patch(client, order_key, {
-        "request_id": request_id,
+    # Cùng mã, payload KHÁC — nhận lại câu trả lời cũ, KHÔNG ghi.
+    reused = patch(client, order_key, {
+        "idempotency_key": idempotency_key,
         "base_revision": before["order_revision"],
         "changes": {"prices": [price_change(before["lines"][0], "444000")]},
         "reason": "Đối chiếu hoá đơn.",
     })
-    assert real.status_code == 200
-    assert real.get_json().get("already_applied") is not True
+    assert reused.status_code == 200
+    assert reused.get_json()["already_applied"] is True
+    values = {item["purchase_price"]["value"]
+              for item in detail(client, order_key)["lines"]}
+    assert "444000" not in values, (
+        "một mã đã dùng vẫn ghi được — cơ chế chống lặp bị bỏ qua")
+
+    # Mã MỚI thì ghi được, như thường.
+    fresh = patch(client, order_key, {
+        "idempotency_key": new_key(),
+        "base_revision": before["order_revision"],
+        "changes": {"prices": [price_change(before["lines"][0], "444000")]},
+        "reason": "Đối chiếu hoá đơn.",
+    })
+    assert fresh.status_code == 200
+    assert fresh.get_json().get("already_applied") is not True
     values = {item["purchase_price"]["value"]
               for item in detail(client, order_key)["lines"]}
     assert "444000" in values, values
@@ -463,7 +520,7 @@ def test_a_stale_base_revision_is_a_conflict_not_a_silent_overwrite(
 
     # Người thứ nhất ghi.
     first = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()), "base_revision": stale,
+        "idempotency_key": new_key(), "base_revision": stale,
         "changes": {"prices": [price_change(seen_by_both["lines"][0],
                                             "101000")]},
         "reason": "Người thứ nhất.",
@@ -472,7 +529,7 @@ def test_a_stale_base_revision_is_a_conflict_not_a_silent_overwrite(
 
     # Người thứ hai ghi, vẫn dựa trên bản CŨ.
     second = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()), "base_revision": stale,
+        "idempotency_key": new_key(), "base_revision": stale,
         "changes": {"prices": [price_change(seen_by_both["lines"][0],
                                             "202000")]},
         "reason": "Người thứ hai.",
@@ -501,7 +558,7 @@ def test_a_missing_base_revision_still_writes(client, pairs):
     order_key = multi_line_order(pairs)
     before = detail(client, order_key)
     response = patch(client, order_key, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "changes": {"prices": [price_change(before["lines"][0], "606000")]},
         "reason": "Không có base_revision.",
     })
@@ -534,7 +591,7 @@ def test_period_revision_moves_when_any_order_changes(client, pairs):
     before = detail(client, other)["period_revision"]
     source = detail(client, target)
     patch(client, target, {
-        "request_id": str(uuid.uuid4()),
+        "idempotency_key": new_key(),
         "base_revision": source["order_revision"],
         "changes": {"prices": [price_change(source["lines"][0], "707000")]},
         "reason": "Đổi một đơn khác.",
@@ -570,34 +627,21 @@ def test_order_detail_stays_under_the_payload_budget_at_5000_lines(
 
 # --- Ranh giới của chính cơ chế ------------------------------------------
 
-def test_request_id_must_be_non_empty(engine):
-    guard = mutation_guard.MutationGuard(engine)
-    for bad in (None, "", "   "):
-        with pytest.raises(mutation_guard.MissingRequestIdError):
-            guard.clean_request_id(bad)
+def test_idempotency_key_must_be_a_uuid(engine):
+    for bad in (None, "", "   ", "khong-phai-uuid", "a b=c"):
+        with pytest.raises(mutation_guard.MissingIdempotencyKeyError):
+            mutation_guard.clean_idempotency_key(bad)
 
 
-def test_request_id_length_is_bounded(engine):
-    guard = mutation_guard.MutationGuard(engine)
-    with pytest.raises(mutation_guard.MissingRequestIdError):
-        guard.clean_request_id("x" * (mutation_guard.MAX_REQUEST_ID + 1))
+def test_idempotency_key_is_normalised_to_lower_case(engine):
+    """Cùng một UUID viết hoa/viết thường là CÙNG một mã.
 
-
-def test_remember_twice_returns_the_first_result(engine):
-    """Va khoá chính KHÔNG phải lỗi — nó là cơ chế đang hoạt động.
-
-    Hai worker cùng nhận một mã trong đúng cửa sổ giữa `replay_of()` và
-    `remember()`. Người thứ hai phải ĐỌC LẠI hàng của người thứ nhất và
-    trả nó về; ném lỗi ở đó sẽ biến một lần chống lặp THÀNH CÔNG thành
-    một trang lỗi.
+    Nếu không, một client đổi cách viết giữa hai lần thử lại sẽ được coi
+    là gửi một quyết định mới — tức chính lỗi ghi trùng, qua một cửa mà
+    không ai nghĩ tới.
     """
-    guard = mutation_guard.MutationGuard(engine)
-    first = guard.remember(request_id="r1", route="test",
-                           response={"n": 1}, entered_by="a")
-    second = guard.remember(request_id="r1", route="test",
-                            response={"n": 2}, entered_by="b")
-    assert second.response == {"n": 1}, "kết quả lần ghi thứ hai đã thắng"
-    assert second.entered_at == first.entered_at
+    raw = str(uuid.uuid4()).upper()
+    assert mutation_guard.clean_idempotency_key(raw) == raw.lower()
 
 
 def test_order_revision_is_none_for_an_unknown_order(service):

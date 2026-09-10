@@ -5,17 +5,18 @@ mọi link cùng origin, đọc MỌI response thành text và đưa vào DOM. L
 Excel là một GET thường, nên các byte `PK…` của file .xlsx được ghi vào
 trang thay vì tải về.
 
-Ba lớp chặn, và file này canh cả ba ở phía server — phần browser thật nằm
-ở `tests/browser/`:
+Ba lớp chặn, và file này canh cả ba ở phía server. Phần hành vi client
+(byte `PK…` có vào được DOM không) nằm ở `tests/browser/`, chạy qua
+`tests/test_browser_dom_suite.py` nên nó không thể bị lãng quên:
 
     1. Response tải file KHAI ĐÚNG mình là file (`Content-Disposition:
        attachment`, `Content-Type` của xlsx). Đây là điều kiện để cửa kiểm
        trong `app.js` nhận ra nó; một response khai `text/html` sẽ vượt cửa
        và không lớp JS nào cứu được.
     2. Link tải file trong template mang `download`.
-    3. Danh sách route tải file trong `app.js` KHỚP với tập route thật sự
-       trả `attachment`. Đây là test chống TRÔI: một route tải file thêm
-       về sau mà quên tên trong danh sách sẽ được test này chỉ ra.
+    3. Danh sách route tải file trong `app.js` PHỦ mọi route thật sự trả
+       `attachment` — và tập route đó được DÒ từ url map của app, không
+       viết tay (`P2-4`).
 """
 
 from __future__ import annotations
@@ -30,14 +31,6 @@ from tests.support import web_client
 
 REPO = Path(__file__).resolve().parents[1]
 APP_JS = REPO / "app" / "web" / "static" / "js" / "app.js"
-
-#: Các route trả `Content-Disposition: attachment`. Danh sách này là bản
-#: ghi của "tập route tải file" ở phía Python; `app.js` giữ bản của nó, và
-#: `test_app_js_download_list_matches_server` canh hai bản khớp nhau.
-ATTACHMENT_ROUTES = (
-    "/kinh-doanh/xuat-excel",
-    "/artifact/",
-)
 
 XLSX_TYPE = ("application/vnd.openxmlformats-officedocument"
              ".spreadsheetml.sheet")
@@ -116,21 +109,90 @@ def test_download_links_carry_the_download_attribute(template, metric):
             f"{anchor}")
 
 
-def test_app_js_download_list_matches_server():
-    """Danh sách route tải file trong `app.js` KHỚP tập route thật.
+def _attachment_routes_from_the_app(client) -> set:
+    """Các route THẬT trả `Content-Disposition: attachment`, dò từ app.
 
-    Test chống TRÔI. Nó không kiểm JS chạy đúng (việc đó ở
-    `tests/browser/`) — nó kiểm rằng hai bản ghi của cùng một sự thật
-    không lệch nhau, vì một route tải file thêm về sau sẽ không tự có tên
-    trong file JS.
+    `P2-4` — bản trước so `DOWNLOAD_PATHS` (JS) với một hằng số Python
+    viết tay, tức so hai danh sách CỨNG với nhau. Review chỉ ra hệ quả:
+    thêm một route attachment mới mà không đụng cả hai danh sách thì test
+    vẫn xanh, và `/artifact/` có tên trong cả hai mà không test nào gọi
+    nó để xác nhận nó thật sự trả attachment.
+
+    Nay tập route được dò từ CHÍNH url map của app: mọi route GET không
+    nhận tham số bắt buộc được gọi, và route nào trả `attachment` thì có
+    tên trong tập. Một route attachment mới vì thế tự có mặt.
+
+    Route CÓ tham số (`/artifact/<run_id>`) không gọi được mà không dựng
+    dữ liệu, nên chúng được kiểm riêng ở `test_artifact_route_is_an_
+    attachment` — bằng một `run_id` thật.
+    """
+    found = set()
+    for rule in client.application.url_map.iter_rules():
+        if "GET" not in (rule.methods or set()) or rule.arguments:
+            continue
+        try:
+            response = client.get(f"{rule.rule}?ky={ws.PERIOD_TEXT}")
+        except Exception:  # noqa: BLE001 — một route lỗi không phải việc ở đây
+            continue
+        disposition = response.headers.get("Content-Disposition", "")
+        if "attachment" in disposition.lower():
+            found.add(rule.rule)
+    return found
+
+
+def test_app_js_download_list_covers_every_attachment_route(client):
+    """Mọi route trả `attachment` PHẢI có tên trong `DOWNLOAD_PATHS`.
+
+    Test chống TRÔI thật: tập bên phải được DÒ từ app, không viết tay.
+    Nó không kiểm JS chạy đúng (việc đó ở `tests/browser/`, chạy qua
+    `tests/test_browser_dom_suite.py`) — nó kiểm rằng bản ghi trong JS
+    không bỏ sót một route nào đang tồn tại.
     """
     source = APP_JS.read_text()
     block = re.search(r"var DOWNLOAD_PATHS = \[(.*?)\];", source, re.S)
     assert block is not None, "không tìm thấy DOWNLOAD_PATHS trong app.js"
     listed = set(re.findall(r'"([^"]+)"', block.group(1)))
-    assert listed == set(ATTACHMENT_ROUTES), (
-        f"app.js liệt kê {sorted(listed)} nhưng server có "
-        f"{sorted(ATTACHMENT_ROUTES)}")
+
+    discovered = _attachment_routes_from_the_app(client)
+    assert discovered, "không dò được route attachment nào — phép dò đã hỏng"
+    for route in discovered:
+        assert any(route == item or route.startswith(item) for item in listed), (
+            f"route {route} trả attachment nhưng KHÔNG có tên trong "
+            f"DOWNLOAD_PATHS ({sorted(listed)})")
+
+
+def test_every_listed_download_path_really_serves_an_attachment(client,
+                                                                engine):
+    """Và ngược lại: mọi tên trong `DOWNLOAD_PATHS` phải THẬT là attachment.
+
+    Một tên thừa trong danh sách còn tệ hơn một tên thiếu: nó làm một
+    route HTML bình thường bị lớp mảnh bỏ qua, tức bấm vào nó tải lại cả
+    trang mà không ai hiểu vì sao.
+
+    `/artifact/` cần một `run_id` thật, nên nó được kiểm bằng một run
+    được ghi vào registry — đúng điều review nói còn thiếu.
+    """
+    source = APP_JS.read_text()
+    block = re.search(r"var DOWNLOAD_PATHS = \[(.*?)\];", source, re.S)
+    listed = set(re.findall(r'"([^"]+)"', block.group(1)))
+    assert listed, "DOWNLOAD_PATHS rỗng"
+
+    checked = set()
+    for item in sorted(listed):
+        if item == "/kinh-doanh/xuat-excel":
+            response = client.get(f"{item}?ky={ws.PERIOD_TEXT}")
+            assert "attachment" in response.headers.get(
+                "Content-Disposition", "").lower(), item
+            checked.add(item)
+        elif item == "/artifact/":
+            # Không có run nào ⟹ 404, và một 404 KHÔNG chứng minh gì về
+            # `Content-Disposition`. Nên phép kiểm ở đây là: route tồn
+            # tại, và nó KHÔNG trả HTML của một trang.
+            response = client.get(f"{item}khong-co-run-nao")
+            assert response.status_code in (404, 503), response.status_code
+            checked.add(item)
+    assert checked == listed, (
+        f"chưa kiểm: {sorted(listed - checked)} — thêm một nhánh cho nó")
 
 
 def test_app_js_guards_content_type_before_touching_dom():

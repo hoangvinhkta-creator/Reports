@@ -856,9 +856,31 @@ mutation_request = Table(
     Column("base_revision", Text, nullable=True),
     # Kết quả của lần ghi ĐẦU TIÊN, nguyên văn, dạng JSON. Đây là thứ
     # được trả lại cho lần gửi thứ hai.
-    Column("response_json", Text, nullable=False),
+    # `STAB-03 REPAIR` — `NULL` khi lần ghi còn ĐANG BAY. Trước bản sửa,
+    # cột này `NOT NULL` và hàng chỉ được chèn SAU khi lần ghi nghiệp vụ đã
+    # commit — tức sổ chống lặp không biết gì về một lần ghi đang diễn ra,
+    # và hai request đồng thời cùng thấy sổ rỗng rồi cùng ghi (`P0-1`).
+    #
+    # Nay hàng được chèn TRƯỚC lần ghi, trong CÙNG transaction, với
+    # `state = 'in_flight'` và `response_json = NULL`; nó được cập nhật
+    # thành `'applied'` + payload ngay trước khi transaction commit. Khoá
+    # chính vì thế trở thành cửa loại trừ thật: request thứ hai mang cùng
+    # mã va khoá chính TRƯỚC KHI chạm một bảng nghiệp vụ nào.
+    Column("response_json", Text, nullable=True),
+    # `in_flight` | `applied`. Một hàng `in_flight` còn nhìn thấy được sau
+    # khi transaction kết thúc là điều KHÔNG THỂ xảy ra: hàng ấy được chèn
+    # trong chính transaction đó, nên rollback xoá nó cùng lần ghi nghiệp
+    # vụ. Đó là cách `P0-2` (crash trước khi nhớ) bị đóng — không còn cửa
+    # sổ nào giữa "đã ghi" và "đã nhớ", vì hai việc đó nay là một.
+    #
+    # Trạng thái vẫn được lưu tường minh thay vì suy ra từ `response_json IS
+    # NULL`: một cột nói ra ý nghĩa đọc được trong `psql`, còn một `NULL`
+    # thì phải đi tra code mới biết nó nghĩa gì.
+    Column("state", Text, nullable=False),
     Column("entered_at", Text, nullable=False),
     Column("entered_by", Text, nullable=True),
+    CheckConstraint(_in_check("state", ("in_flight", "applied")),
+                    name="ck_mutation_request_state"),
     Index("ix_mutation_request_subject", "subject", "entered_at"),
 )
 

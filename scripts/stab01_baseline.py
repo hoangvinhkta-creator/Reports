@@ -18,9 +18,15 @@ số byte response, số hàng `<tr>` trong DOM.
 
 KHÔNG ĐO ĐƯỢC — thời gian mạng thật, thời gian browser parse/render, và
 cold open THẬT của Render. Cold open ở đây là "tiến trình Python vừa khởi
-động" (`--cold`), không phải "container Render vừa được đánh thức": phần
-sau gồm cả thời gian Render kéo image và mở cổng, và không mã nào trong
-repo đo được nó từ bên trong. Số đo browser nằm ở `tests/browser/`.
+động", không phải "container Render vừa được đánh thức": phần sau gồm cả
+thời gian Render kéo image và mở cổng, và không mã nào trong repo đo được
+nó từ bên trong.
+
+`tests/browser/` kiểm HÀNH VI của `app.js` trên một DOM thật (jsdom) —
+response nào vào DOM, response cũ có ghi đè response mới không. Nó KHÔNG
+đo parse/render/paint: việc đó cần Playwright và chưa có trong repo. Nên
+mọi con số script này in ra là THỜI GIAN MÁY CHỦ và SỐ BYTE, không phải
+tốc độ giao diện.
 
 ## Vì sao SQLite chứ không PostgreSQL
 

@@ -122,8 +122,20 @@
     var disposition = response.headers.get("Content-Disposition") || "";
     if (/attachment/i.test(disposition)) return false;
     var type = (response.headers.get("Content-Type") || "").toLowerCase();
-    if (!type) return true;
-    return type.indexOf("text/html") === 0 || type.indexOf("text/html") > -1;
+    /* `P2-1` — `Content-Type` RỖNG KHÔNG được coi là HTML.
+     *
+     * Bản trước trả `true` ở đây ("server cũ không khai"), và kiểm thử DOM
+     * (jsdom) chứng minh hậu quả: một response mang byte `PK…` mà không
+     * khai type đi thẳng vào `#app-content` — đúng lỗi mà `STAB-02` tồn
+     * tại để đóng, chỉ qua một cửa khác.
+     *
+     * Fail closed: không khai thì không được vào DOM. Cái mất đi là khả
+     * năng thay mảnh cho một response không khai type, và không có
+     * response nào như vậy trên đường này (`send_file` và `render_template`
+     * của Flask đều khai). Cái được là cửa không còn phụ thuộc vào việc
+     * mọi tầng trung gian đều giữ nguyên header. */
+    if (!type) return false;
+    return type.indexOf("text/html") > -1;
   }
 
   /* Lỗi mang cờ `isDownload` — người gọi phân biệt được "response này là
@@ -200,6 +212,17 @@
          * nhớ dưới dạng chuỗi, và chuỗi đó là thứ đã từng được ghi vào
          * trang. */
         if (!isHtmlFragment(response)) {
+          /* `P2-6` — HUỶ luồng body thay vì để nó chảy hết rồi vứt đi.
+           * Với một bản xuất Excel lớn, đọc-rồi-vứt là gấp đôi băng thông
+           * cho một file người dùng sẽ tải lại bằng điều hướng thật ngay
+           * sau đó.
+           *
+           * `response.body` có thể vắng (một số môi trường test, response
+           * 204), nên mọi thứ ở đây được bọc — một lần huỷ không được là
+           * lý do làm sập đường tải file. */
+          try {
+            if (response.body && !response.bodyUsed) response.body.cancel();
+          } catch (e) { /* không huỷ được: chỉ tốn băng thông, không sai */ }
           throw DownloadResponse(response.url || url);
         }
         return response.text().then(function (html) {
@@ -236,9 +259,14 @@
       .catch(function (error) {
         if (error && error.name === "AbortError") return false;
         /* Response là FILE: để trình duyệt tải nó bằng điều hướng thật.
-         * Đây không phải một lỗi của người dùng. */
+         * Đây không phải một lỗi của người dùng.
+         *
+         * `P2-6` — kiểm `isLatest` TRƯỚC khi điều hướng: một response tải
+         * file của lượt bấm CŨ không được cưỡng bức điều hướng sau khi
+         * người dùng đã đi tiếp. Cùng luật với mọi response khác (STAB-05);
+         * bản trước miễn cho nhánh này. */
         if (error && error.isDownload) {
-          window.location.href = error.url || url;
+          if (isLatest(ticket)) window.location.href = error.url || url;
           return false;
         }
         if (!isLatest(ticket)) return false;
@@ -354,11 +382,25 @@
       return navigate(action, { region: form.dataset.region || MAIN_REGION });
     }
 
-    /* STAB-03 — mọi mutation mang `request_id`. Gắn vào FormData chứ
-     * không vào URL: nó là một phần của lần ghi, và nó phải đi cùng body
-     * qua mọi proxy. */
-    var requestId = requestIdOf(form);
-    data.set("request_id", requestId);
+    /* `P1-5` — `idempotency_key` CHỈ được gắn cho form KHAI rằng route
+     * của nó đọc mã đó (`data-idempotent`).
+     *
+     * Bản trước gắn `request_id` vào MỌI form POST, và review chỉ ra rằng
+     * KHÔNG route HTML nào đọc nó: `business_save_order`, upload, target,
+     * chốt kỳ đều nhận thêm một trường bị bỏ qua. Hệ quả tệ hơn một
+     * trường thừa — câu trong giao diện ("server nhận ra và không ghi hai
+     * lần") thành một lời hứa không có gì đỡ, và người dùng bấm THỬ LẠI
+     * dựa trên lời hứa đó.
+     *
+     * Nay `showRetry()` chỉ mọc nút THỬ LẠI cho form có `data-idempotent`.
+     * Form không có nó vẫn giữ nguyên draft và vẫn nói "chưa xác nhận
+     * được kết quả", nhưng nó nói THÊM rằng phải tự kiểm tra — đó là sự
+     * thật về những route ấy hôm nay. */
+    var requestId = null;
+    if (form.hasAttribute("data-idempotent")) {
+      requestId = requestIdOf(form);
+      data.set("idempotency_key", requestId);
+    }
     /* `base_revision` chỉ được gắn khi form KHAI nó. Bịa một giá trị ở
      * đây sẽ làm server so với một bản không ai từng nhìn thấy. */
     if (form.dataset.baseRevision) {
@@ -379,6 +421,7 @@
           /* Một mutation trả về file (xuất Excel sau khi lưu) — để trình
            * duyệt tải, và KHÔNG gửi lại gì. */
           clearRequestId(form);
+          restorePendingButtons(form);
           window.location.href = error.url || action;
           return false;
         }
@@ -395,14 +438,24 @@
          * quyết định. `request_id` KHÔNG bị xoá: nút thử lại gửi lại đúng
          * mã đó, và server nhận ra nó.
          */
-        setSaveState(form, "unconfirmed",
-          "Dữ liệu bạn nhập vẫn còn. Bấm THỬ LẠI để gửi lại đúng lần ghi " +
-          "này (server nhận ra và không ghi hai lần), hoặc tải lại trang " +
-          "để xem trạng thái thật.");
-        /* Nút gửi được bật lại — nếu không, người dùng thấy một dòng
-         * "chưa xác nhận" cạnh một cái nút đã chết. Xem `onSlowSubmit`. */
-        restorePendingButtons();
-        showRetry(form);
+        /* Câu chữ nói ĐÚNG cái đang có, và nó khác nhau ở hai loại form —
+         * xem `P1-5` trong `submitForm()`. Hứa "server nhận ra và không
+         * ghi hai lần" cho một route không đọc mã nào là một lời hứa sai. */
+        if (form.hasAttribute("data-idempotent")) {
+          setSaveState(form, "unconfirmed",
+            "Dữ liệu bạn nhập vẫn còn. Bấm THỬ LẠI để gửi lại đúng lần ghi " +
+            "này — server nhận ra mã của lần gửi này và không ghi hai lần.");
+          showRetry(form);
+        } else {
+          setSaveState(form, "unconfirmed",
+            "Dữ liệu bạn nhập vẫn còn, nhưng KHÔNG rõ máy chủ đã ghi hay " +
+            "chưa. Hãy tải lại trang để xem trạng thái thật rồi quyết " +
+            "định — gửi lại từ đây có thể ghi lần thứ hai.");
+        }
+        /* Nút gửi của CHÍNH form này được bật lại — nếu không, người dùng
+         * thấy một dòng "chưa xác nhận" cạnh một cái nút đã chết. Xem
+         * `onSlowSubmit`. */
+        restorePendingButtons(form);
         return false;
       });
   }
@@ -552,23 +605,41 @@
    * đơn ở một tab khác), và một biến sẽ làm nút thứ nhất kẹt mãi. */
   var pendingButtons = [];
 
-  function restorePendingButtons() {
+  /* `P2-2` — phục hồi nút của ĐÚNG MỘT form, không phải của mọi form đang
+   * chờ.
+   *
+   * Bản trước bật lại tất cả, và kiểm thử DOM (jsdom) chứng minh hậu quả:
+   * hai form chậm cùng bay, form A thất bại, và nút của form B — request
+   * của nó VẪN đang chờ máy chủ — được bật lại. Bấm nó là gửi trùng B.
+   *
+   * `form` bắt buộc: gọi không tham số từng là mặc định "tất cả", và một
+   * mặc định như thế là cách lỗi trên quay lại mà không ai thấy. */
+  function restorePendingButtons(form) {
+    if (!form) return [];
     var still = [];
+    var restored = [];
     for (var i = 0; i < pendingButtons.length; i++) {
       var btn = pendingButtons[i];
       /* Nút đã rời DOM (`#app-content` bị thay sau một lần lưu thành
        * công): không có gì phải phục hồi, và giữ nó trong danh sách là
        * giữ một tham chiếu tới DOM đã chết. */
       if (!btn.isConnected) continue;
+      /* Nút của form KHÁC: để nguyên trạng thái "đang chạy" — request của
+       * nó chưa xong. `btn.form` là form mà trình duyệt gắn nút vào, kể cả
+       * khi nút dùng thuộc tính `form="…"` để trỏ ra ngoài bảng. */
+      if (btn.form !== form) {
+        still.push(btn);
+        continue;
+      }
       btn.disabled = false;
       if (btn.dataset.idleLabel !== undefined) {
         btn.textContent = btn.dataset.idleLabel;
         delete btn.dataset.idleLabel;
       }
-      still.push(btn);
+      restored.push(btn);
     }
-    pendingButtons = [];
-    return still;
+    pendingButtons = still;
+    return restored;
   }
 
   document.addEventListener("click", onClick);

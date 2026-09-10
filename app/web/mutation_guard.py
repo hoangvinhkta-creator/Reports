@@ -1,191 +1,376 @@
-"""`STAB-03` — chống lặp mutation và cửa kiểm `base_revision`.
+"""`STAB-03` — at-most-once và compare-and-swap revision, trong MỘT transaction.
 
-Hai ràng buộc của brief §STAB-03 sống ở đây, và chỉ ở đây:
+## Bản trước SAI ở đâu, và bằng chứng
 
-    "Khi response thất lạc, gửi lại cùng `request_id` phải trả được kết quả
-     cũ và không tạo ghi thứ hai."
-    "Mutation nhận `base_revision` của đối tượng."
+Bản đầu của file này xếp ba cửa theo thứ tự `replay_of()` → kiểm revision →
+ghi → `remember()`, mỗi bước một transaction riêng. Docstring của nó khẳng
+định lần ghi thứ hai "không xảy ra, vì cửa kiểm `replay_of()` đứng trước
+MỌI đường ghi nghiệp vụ". Review độc lập chứng minh câu đó sai, bằng probe
+trên PostgreSQL 16 với `threading.Barrier` đặt ngay trước `apply_order_edit`:
 
-## Vì sao hai việc này ở CÙNG một module
+    cùng `request_id`, hai request đồng thời    → set_purchase_price() 2 lần
+    cùng `base_revision`, hai request đồng thời → set_purchase_price() 2 lần
+    crash trước `remember()`                    → giá đã vào DB, sổ rỗng
 
-Chúng là hai nửa của một câu hỏi duy nhất: "lần gửi này có được phép ghi
-không?". `request_id` trả lời "đã ghi rồi chưa"; `base_revision` trả lời
-"người gửi có đang nhìn đúng bản không". Tách chúng ra hai chỗ sẽ để lọt
-tổ hợp mà cả hai đều phải cùng nói: một lần THỬ LẠI mang revision đã cũ
-(vì người khác vừa ghi) KHÔNG được báo xung đột — nó phải trả lại kết quả
-lần ghi trước của CHÍNH nó. Thứ tự vì thế cố định, và nó là hợp đồng:
+Cả ba là cùng MỘT lỗi: check-then-act. Giữa lúc ĐỌC ("chưa ai ghi", "bản
+vẫn khớp") và lúc GHI có một khoảng mà request khác chen vào được, và không
+có gì giữ khoảng đó.
 
-    1. `request_id` trước.
-    2. `base_revision` sau, và chỉ khi bước 1 không tìm thấy gì.
+## Bản này đóng lỗi bằng cấu tạo, không bằng thứ tự
 
-Đảo thứ tự này là mở lại đúng cái cửa mà cả hai cơ chế cùng đóng.
+MỘT transaction, và bốn việc bên trong nó theo thứ tự bắt buộc:
 
-## Vì sao KHÔNG có transaction chung với lần ghi nghiệp vụ
+    1. `INSERT mutation_request(state='in_flight')`
+       `request_id` là KHOÁ CHÍNH, nên đây là cửa loại trừ THẬT — không
+       phải một phép đọc. Request thứ hai mang cùng mã va khoá chính TRƯỚC
+       khi chạm một bảng nghiệp vụ nào. Đây là chỗ `P0-1` bị đóng.
 
-`remember()` được gọi SAU khi lần ghi nghiệp vụ đã cam kết. Giữa hai lượt
-ghi đó có một cửa sổ, và nó được nói ra thay vì để im: nếu tiến trình chết
-đúng trong cửa sổ ấy, lần ghi nghiệp vụ đã vào database nhưng `request_id`
-chưa được nhớ — một lần THỬ LẠI sẽ ghi lần thứ hai.
+    2. KHOÁ theo đối tượng (`_lock_subject`)
+       Mọi lần sửa cùng một đơn nối đuôi nhau. Sau khi giữ khoá này, không
+       writer nào khác có thể đổi đơn cho tới khi ta commit hoặc rollback.
 
-Đóng cửa sổ đó cần hai bảng nằm trong cùng một transaction, tức
-`BusinessDecisionStore` phải nhận một `Connection` từ bên ngoài thay vì tự
-mở. Đó là một thay đổi ở tầng lưu, và nó nằm ngoài phạm vi đợt này. Cửa sổ
-hiện tại rộng bằng một lượt `INSERT` trên cùng database ngay sau commit —
-hẹp hơn hẳn cửa sổ mà nó thay thế (toàn bộ thời gian mạng của một request),
-nên đây là một cải thiện thật, không phải một lời hứa hoàn hảo.
+    3. TÍNH LẠI revision, BÊN TRONG khoá, rồi so với `base_revision`
+       Vì bước 2 đã loại trừ mọi writer khác, phép đọc-rồi-so ở đây là một
+       compare-and-swap đúng nghĩa: không có khoảng nào để ai chen vào giữa
+       lần đọc và lần ghi. Đây là chỗ `P0-3` bị đóng.
 
-Ranh giới còn lại được ghi trong bàn giao, không giấu trong code.
+    4. GHI nghiệp vụ + `UPDATE … state='applied', response_json=…`
+       Cùng transaction, nên hai việc này thành công cùng nhau hoặc thất
+       bại cùng nhau. Không còn cửa sổ nào giữa "đã ghi" và "đã nhớ" — vì
+       chúng nay là MỘT việc. Đây là chỗ `P0-2` bị đóng.
+
+Rollback ở bất kỳ bước nào xoá cả hàng `mutation_request` lẫn lần ghi
+nghiệp vụ. Một lần THỬ LẠI sau đó là một lần đầu tiên hợp lệ, và nó tạo
+đúng một hiệu ứng.
+
+## `remember()` đã bị GỠ
+
+Không còn hàm nào ghi sổ sau commit. Đó là một hàm không thể đúng: nó chạy
+ở một thời điểm mà lần ghi nghiệp vụ đã không thể lấy lại được nữa.
+
+## Khoá ở bước 2 — hai dialect, một ngữ nghĩa
+
+PostgreSQL: `pg_advisory_xact_lock(key)`. Khoá theo transaction, tự nhả
+khi commit/rollback — không có đường nào để một khoá kẹt lại vì một tiến
+trình chết. Không cần bảng khoá, không cần dòng nào để `SELECT FOR UPDATE`.
+
+SQLite: không có advisory lock, và không cần — nó chỉ cho MỘT writer tại
+một thời điểm trên cả database, nên `BEGIN IMMEDIATE` của transaction ghi
+đã là cùng thứ loại trừ, chỉ rộng hơn. Hàm khoá vì thế không làm gì trên
+SQLite, và điều đó được nói ra ở đây thay vì để người đọc tưởng mình đang
+có một khoá mà thật ra không có.
+
+Hệ quả phải nói rõ: bằng chứng at-most-once trên SQLite là bằng chứng YẾU
+hơn, vì khoá ghi toàn cục của nó che bớt race. `tests/test_stab03_
+concurrency.py` vì thế chạy trên PostgreSQL và tự bỏ qua nếu không có —
+xem docstring của file đó.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
+import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Iterator, Optional
 
-from sqlalchemy import select
-from sqlalchemy.engine import Engine
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 
+from app.web import db_scope
 from tools.db.schema import mutation_request
 
-#: Mã lỗi ỔN ĐỊNH trả về cho client. Brief §API-02 liệt kê chúng, và chúng
-#: là một phần của hợp đồng: client bật nhánh xử lý theo mã, không theo câu
-#: chữ tiếng Việt (câu chữ được phép sửa cho dễ đọc, mã thì không).
+#: Mã lỗi ỔN ĐỊNH trả về cho client. Client bật nhánh theo mã, không theo
+#: câu chữ tiếng Việt (câu chữ được phép sửa cho dễ đọc, mã thì không).
 REVISION_CONFLICT = "REVISION_CONFLICT"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 PERMISSION_DENIED = "PERMISSION_DENIED"
 SOURCE_PENDING = "SOURCE_PENDING"
 REQUEST_ALREADY_APPLIED = "REQUEST_ALREADY_APPLIED"
+REQUEST_IN_FLIGHT = "REQUEST_IN_FLIGHT"
 NOT_FOUND = "NOT_FOUND"
 PERIOD_CLOSED = "PERIOD_CLOSED"
+INTERNAL_ERROR = "INTERNAL_ERROR"
 
-#: Độ dài tối đa của một `request_id` được nhận. Một mã dài hơn là dấu hiệu
-#: client sai hoặc ai đó đang thử làm phình bảng; cắt ở cửa vào chứ không ở
-#: cửa ghi, để câu lỗi nói đúng chỗ.
-MAX_REQUEST_ID = 128
+STATE_IN_FLIGHT = "in_flight"
+STATE_APPLIED = "applied"
+
+#: `P1-2` — `idempotency_key` nhận từ client CHỈ được là UUID.
+#:
+#: Bản trước nhận mọi chuỗi dưới 128 ký tự. Hai hệ quả review đã chỉ ra:
+#: một mã chứa khoảng trắng/`key=value` chèn được trường giả vào dòng log
+#: theo đúng định dạng grep, và một mã tự chọn cho phép hai request khác
+#: nhau cố tình dùng chung mã.
+#:
+#: UUID đóng cả hai: nó không chứa ký tự nào của định dạng log, độ dài cố
+#: định, và không gian đủ lớn để hai client không đụng nhau một cách tình
+#: cờ. Đây cũng chính là cái `crypto.randomUUID()` ở `app.js` đang sinh,
+#: nên không có client hợp lệ nào bị chặn.
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 
-class MissingRequestIdError(ValueError):
-    """Mutation không mang `request_id`. Đây là lỗi của CLIENT, không của người dùng."""
+class MissingIdempotencyKeyError(ValueError):
+    """Mutation không mang `idempotency_key` hợp lệ. Lỗi của CLIENT."""
+
+
+class RequestInFlightError(RuntimeError):
+    """Một request khác mang cùng mã ĐANG ghi, chưa commit.
+
+    Khác hẳn "đã ghi rồi": ta không biết nó sẽ commit hay rollback, nên
+    không có kết quả nào để trả lại và cũng KHÔNG được ghi lần thứ hai.
+    Đường đúng là nói cho client biết và để họ thử lại — lúc đó request kia
+    đã kết thúc, và cùng mã sẽ cho một câu trả lời dứt khoát.
+    """
 
 
 @dataclass(frozen=True)
-class Replay:
-    """Kết quả của một lần ghi ĐÃ CAM KẾT, đọc lại từ sổ.
+class Applied:
+    """Kết quả của một lần ghi ĐÃ COMMIT, đọc lại từ sổ."""
 
-    `response` là payload nguyên văn của lần ghi đầu tiên. Nó được trả lại
-    y nguyên, cộng thêm cờ `already_applied` — người dùng phải phân biệt
-    được "vừa lưu xong" với "cái này đã lưu từ trước", vì hai câu ấy dẫn
-    tới hai hành động khác nhau.
-    """
-
-    request_id: str
+    idempotency_key: str
+    audit_id: str
     response: dict
     entered_at: str
     entered_by: Optional[str]
 
 
-class MutationGuard:
-    """Sổ chống lặp trên một `Engine`. Không giữ trạng thái trong bộ nhớ.
+class RevisionConflict(Exception):
+    """`base_revision` không còn là bản hiện tại, phát hiện TRONG transaction.
 
-    Không cache: một `dict` ở đây sẽ chỉ đúng trong một worker, và
-    production chạy nhiều worker gunicorn — đúng cái tình huống bảng SQL
-    tồn tại để phục vụ.
+    Mang theo bản hiện tại để tầng route trả về cho client mà không phải
+    mở thêm một lượt đọc — và quan trọng hơn: bản đó được đọc bên trong
+    cùng transaction, nên nó là bản THẬT tại thời điểm từ chối, không phải
+    một ảnh chụp có thể đã cũ.
     """
 
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    def __init__(self, *, current_revision: Optional[str]) -> None:
+        super().__init__(current_revision or "")
+        self.current_revision = current_revision
 
-    # --- request_id ---------------------------------------------------
 
-    @staticmethod
-    def clean_request_id(raw: Optional[str]) -> str:
-        """Chuẩn hoá + kiểm `request_id`, hoặc ném `MissingRequestIdError`.
+def clean_idempotency_key(raw: Optional[str]) -> str:
+    """Chuẩn hoá + kiểm `idempotency_key`, hoặc ném lỗi.
 
-        Chuỗi rỗng bị TỪ CHỐI thay vì được coi là "không có mã": một
-        mutation không có mã là một mutation không chống lặp được, và cho
-        nó đi qua im lặng là bỏ hẳn cơ chế trong khi vẫn trông như có.
+    Chuỗi rỗng bị TỪ CHỐI thay vì được coi là "không có mã": một mutation
+    không có mã là một mutation không chống lặp được, và cho nó đi qua im
+    lặng là bỏ hẳn cơ chế trong khi vẫn trông như có.
+    """
+    text_value = (raw or "").strip().lower()
+    if not text_value:
+        raise MissingIdempotencyKeyError(
+            "Mutation thiếu idempotency_key. Mỗi lần gửi phải mang một mã "
+            "để server nhận ra khi bạn gửi lại — không có mã thì không phân "
+            "biệt được một lần thử lại với một quyết định mới.")
+    if not _UUID_PATTERN.match(text_value):
+        raise MissingIdempotencyKeyError(
+            "idempotency_key phải là một UUID (dạng "
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). Mã tự do bị từ chối vì "
+            "nó cho phép chèn ký tự vào dòng log và cho hai request khác "
+            "nhau dùng chung một mã.")
+    return text_value
+
+
+def new_audit_id() -> str:
+    """Mã của một lần ghi, do SERVER sinh. Không bao giờ nhận từ client.
+
+    `P1-4` — ba loại mã, ba nghĩa, và bản trước gộp hai trong số đó vào
+    cùng một tên trường:
+
+        `trace_id`         một REQUEST, phục vụ log/correlation
+                           (`request_timing`)
+        `idempotency_key`  một LẦN GỬI của client, giữ nguyên qua các lần
+                           thử lại
+        `audit_id`         một LẦN GHI nghiệp vụ, do server sinh
+
+    Chúng khác nhau ở vòng đời: hai lần thử lại có hai `trace_id`, cùng một
+    `idempotency_key`, và cùng một `audit_id` (vì chỉ có một lần ghi).
+    """
+    return uuid.uuid4().hex
+
+
+class MutationGuard:
+    """Cửa vào duy nhất của một lần ghi có chống lặp + CAS revision."""
+
+    def __init__(self, engine) -> None:
+        self._scope = db_scope.of(engine)
+
+    # --- đọc sổ (không ghi) -------------------------------------------
+
+    def applied(self, idempotency_key: str) -> Optional[Applied]:
+        """Lần ghi ĐÃ COMMIT của mã này, hoặc `None`.
+
+        Chỉ trả về hàng `applied`. Một hàng `in_flight` nhìn thấy được từ
+        NGOÀI transaction của nó là điều không thể xảy ra (nó chưa commit),
+        nên nếu thấy thì database đang ở trạng thái ta không hiểu — và trả
+        nó về như một kết quả sẽ là nói với người dùng rằng một lần ghi
+        chưa xong đã xong.
         """
-        text = (raw or "").strip()
-        if not text:
-            raise MissingRequestIdError(
-                "Mutation thiếu request_id. Mỗi lần gửi phải mang một mã để "
-                "server nhận ra khi bạn gửi lại — không có mã thì không "
-                "phân biệt được một lần thử lại với một quyết định mới.")
-        if len(text) > MAX_REQUEST_ID:
-            raise MissingRequestIdError(
-                f"request_id dài quá {MAX_REQUEST_ID} ký tự.")
-        return text
-
-    def replay_of(self, request_id: str) -> Optional[Replay]:
-        """Lần ghi đã cam kết của mã này, hoặc `None` nếu chưa có."""
-        with self._engine.connect() as connection:
+        with self._scope.connect() as connection:
             row = connection.execute(
                 select(mutation_request).where(
-                    mutation_request.c.request_id == request_id)
+                    mutation_request.c.request_id == idempotency_key,
+                    mutation_request.c.state == STATE_APPLIED)
             ).mappings().first()
         if row is None:
             return None
-        return Replay(
-            request_id=row["request_id"],
-            response=json.loads(row["response_json"]),
-            entered_at=row["entered_at"], entered_by=row["entered_by"])
+        return _to_applied(row)
 
-    def remember(self, *, request_id: str, route: str, response: dict,
-                 subject: Optional[str] = None,
-                 base_revision: Optional[str] = None,
-                 entered_by: Optional[str] = None) -> Replay:
-        """Ghi kết quả của một lần ghi VỪA CAM KẾT.
+    # --- ghi (một transaction cho tất cả) -----------------------------
 
-        Va khoá chính (`IntegrityError`) KHÔNG phải lỗi: nó nghĩa là một
-        request khác mang cùng mã đã ghi xong trước ta trong đúng cửa sổ
-        giữa `replay_of()` và chỗ này (hai lần bấm rất nhanh, hoặc hai
-        worker). Đúng việc phải làm khi đó là ĐỌC LẠI hàng của người kia và
-        trả nó về — chính là điều cơ chế này hứa. Ném lỗi ở đây sẽ biến một
-        lần chống lặp THÀNH CÔNG thành một trang lỗi.
+    @contextmanager
+    def transaction(
+        self, *, idempotency_key: str, route: str, subject: str,
+        base_revision: Optional[str],
+        revision_of: Callable[[object], Optional[str]],
+        entered_by: Optional[str] = None,
+    ) -> Iterator[dict]:
+        """MỘT transaction bao cả bốn bước. Xem docstring module.
 
-        Ghi chú về việc lần ghi nghiệp vụ có thể đã xảy ra HAI lần trong
-        tình huống ấy: nó không xảy ra, vì cửa kiểm `replay_of()` đứng
-        trước MỌI đường ghi nghiệp vụ. Cửa sổ hẹp còn lại được nói ra ở
-        docstring của module.
+        `revision_of(connection)` được gọi BÊN TRONG transaction, sau khi
+        khoá đối tượng đã được giữ. Nó nhận `Connection` và phải tính lại
+        revision hiện tại qua CHÍNH kết nối đó — một hàm đọc ngoài
+        transaction sẽ trả về ảnh chụp cũ và làm cả cơ chế vô nghĩa.
+
+        Khối `with` nhận một `dict` để đặt hai thứ:
+
+            `ctx["connection"]`  kết nối để ghi nghiệp vụ (bind store vào nó)
+            `ctx["response"]`    payload sẽ được lưu và trả về
+
+        Ngoại lệ trong thân `with` ⟹ rollback CẢ hàng sổ lẫn lần ghi.
+
+        Ném `IntegrityError` → chuyển thành `RequestInFlightError` hoặc trả
+        lại kết quả đã commit: xem `_on_key_taken`.
         """
-        payload = json.dumps(response, ensure_ascii=False, sort_keys=True)
-        entered_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        try:
-            with self._engine.begin() as connection:
+        with self._scope.begin() as connection:
+            now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            audit_id = new_audit_id()
+            # BƯỚC 1 — cửa loại trừ. Đứng TRƯỚC mọi thứ khác.
+            try:
                 connection.execute(mutation_request.insert().values(
-                    request_id=request_id, route=route, subject=subject,
-                    base_revision=base_revision, response_json=payload,
-                    entered_at=entered_at, entered_by=entered_by))
-        except IntegrityError:
-            existing = self.replay_of(request_id)
-            if existing is not None:
-                return existing
-            raise
-        return Replay(request_id=request_id, response=response,
-                      entered_at=entered_at, entered_by=entered_by)
+                    request_id=idempotency_key, route=route, subject=subject,
+                    base_revision=base_revision, response_json=None,
+                    state=STATE_IN_FLIGHT, entered_at=now,
+                    entered_by=entered_by))
+                # `flush` bằng một lượt đọc rẻ: trên PostgreSQL lỗi khoá
+                # chính đã nổ ngay ở `execute` trên, nhưng viết ra điều đó
+                # ở đây để không ai chuyển câu INSERT xuống dưới bước 2 vì
+                # tưởng thứ tự không quan trọng.
+            except IntegrityError as exc:
+                raise self._on_key_taken(idempotency_key) from exc
 
-    # --- base_revision ------------------------------------------------
+            # BƯỚC 2 — khoá đối tượng. Xem docstring module § khoá.
+            _lock_subject(connection, subject)
 
-    @staticmethod
-    def revision_conflict(*, base_revision: Optional[str],
-                          current_revision: Optional[str]) -> bool:
-        """`True` khi lần gửi này dựa trên một bản KHÔNG còn là bản hiện tại.
+            # BƯỚC 3 — CAS thật: tính lại rồi so, bên trong khoá.
+            current = revision_of(connection)
+            if base_revision is not None and base_revision != current:
+                raise RevisionConflict(current_revision=current)
 
-        `base_revision is None` ⟹ KHÔNG xung đột. Đây là một quyết định có
-        chủ ý và nó cần được nói ra: các form cũ (chưa khai `base_revision`)
-        vẫn phải ghi được, vì đợt này không viết lại mọi form của hệ. Chúng
-        mất lớp bảo vệ xung đột, và đó là hiện trạng của chúng từ trước —
-        không phải một sự nới lỏng mới. Panel sửa đơn của `UI-02` LUÔN gửi
-        `base_revision`, và `tests/test_stab03_mutation_guard.py` canh điều
-        đó ở chính nơi nó phải đúng.
+            ctx: dict = {"connection": connection, "audit_id": audit_id,
+                         "entered_at": now, "entered_by": entered_by,
+                         "current_revision": current, "response": None}
+            # BƯỚC 4a — thân `with`: người gọi ghi nghiệp vụ qua
+            # `ctx["connection"]` và đặt `ctx["response"]`.
+            yield ctx
 
-        `current_revision is None` ⟹ đối tượng không còn tồn tại trong kỳ.
-        Đó là xung đột, không phải "không sao": người dùng đang sửa một đơn
-        đã biến khỏi phạm vi họ nhìn thấy.
+            # BƯỚC 4b — chốt sổ, CÙNG transaction với lần ghi trên.
+            payload = json.dumps(
+                {**(ctx["response"] or {}), "audit_id": audit_id},
+                ensure_ascii=False, sort_keys=True)
+            connection.execute(
+                update(mutation_request)
+                .where(mutation_request.c.request_id == idempotency_key)
+                .values(response_json=payload, state=STATE_APPLIED))
+
+    def _on_key_taken(self, idempotency_key: str) -> Exception:
+        """Mã đã bị chiếm: đọc xem nó ĐÃ XONG hay ĐANG BAY.
+
+        Phép đọc này dùng một kết nối RIÊNG, không phải kết nối vừa nổ:
+        trên PostgreSQL một transaction đã gặp lỗi không chạy được câu nào
+        nữa cho tới khi rollback, nên đọc lại trên chính nó sẽ chỉ cho một
+        lỗi thứ hai.
+
+        Hai câu trả lời, và chúng khác nhau ở điều quan trọng nhất:
+
+            `applied`   có kết quả để trả lại → một lần THỬ LẠI hợp lệ
+            `in_flight` KHÔNG có kết quả, và cũng KHÔNG được ghi lần hai —
+                        ta không biết request kia sẽ commit hay rollback
         """
-        if base_revision is None:
-            return False
-        return base_revision != current_revision
+        engine = self._scope.engine
+        with engine.connect() as connection:
+            row = connection.execute(
+                select(mutation_request).where(
+                    mutation_request.c.request_id == idempotency_key)
+            ).mappings().first()
+        if row is None:
+            # Hàng biến mất giữa lúc INSERT nổ và lúc ta đọc lại: request
+            # kia đã rollback. Không có kết quả, và ta cũng không nên tự
+            # ghi tiếp trong transaction đã lỗi — để client thử lại.
+            return RequestInFlightError(
+                "Một lần gửi cùng mã vừa kết thúc mà không ghi được. Hãy "
+                "thử lại.")
+        if row["state"] == STATE_APPLIED:
+            return AlreadyApplied(_to_applied(row))
+        return RequestInFlightError(
+            "Một lần gửi cùng mã đang được xử lý. Chờ một chút rồi thử lại "
+            "— server sẽ trả về đúng kết quả của lần ghi đó.")
+
+
+class AlreadyApplied(Exception):
+    """Mã đã có kết quả ĐÃ COMMIT. Đây KHÔNG phải một lỗi.
+
+    Nó là cơ chế đang hoạt động: một lần THỬ LẠI được nhận ra, và kết quả
+    lần ghi gốc có sẵn để trả lại. Route bắt nó và trả 200 kèm cờ
+    `already_applied`, không phải một trang lỗi.
+
+    Là một ngoại lệ chứ không một giá trị trả về vì nó phát sinh ở giữa
+    `transaction()` — sau khi câu INSERT đã nổ — và đường duy nhất ra khỏi
+    một context manager ở đó là ném.
+    """
+
+    def __init__(self, applied: Applied) -> None:
+        super().__init__(applied.idempotency_key)
+        self.applied = applied
+
+
+def _to_applied(row) -> Applied:
+    payload = json.loads(row["response_json"]) if row["response_json"] else {}
+    return Applied(
+        idempotency_key=row["request_id"],
+        audit_id=payload.get("audit_id") or "",
+        response=payload, entered_at=row["entered_at"],
+        entered_by=row["entered_by"])
+
+
+def _lock_subject(connection, subject: str) -> None:
+    """Giữ khoá theo đối tượng trong phạm vi transaction. Xem docstring module.
+
+    PostgreSQL dùng `pg_advisory_xact_lock`, nhận một `bigint`. Khoá đến từ
+    băm SHA-256 của `subject` cắt còn 63 bit — dương, để không phải nghĩ về
+    dấu, và đủ rộng để hai mã đơn không đụng nhau. Một lần đụng băm chỉ làm
+    hai đơn khác nhau nối đuôi nhau một cách không cần thiết; nó KHÔNG làm
+    sai một con số nào, nên đây là đánh đổi đúng.
+    """
+    dialect = connection.engine.dialect.name
+    if dialect != "postgresql":
+        # SQLite: `BEGIN IMMEDIATE` của chính transaction ghi đã loại trừ
+        # mọi writer khác trên cả database. Không có gì để làm ở đây, và
+        # giả vờ làm gì đó sẽ tệ hơn.
+        return
+    digest = hashlib.sha256(subject.encode("utf-8")).digest()
+    key = int.from_bytes(digest[:8], "big") & ((1 << 63) - 1)
+    connection.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                       {"key": key})
+
+
+__all__ = [
+    "AlreadyApplied", "Applied", "INTERNAL_ERROR", "MissingIdempotencyKeyError", "MutationGuard",
+    "NOT_FOUND", "PERIOD_CLOSED", "PERMISSION_DENIED", "REQUEST_ALREADY_APPLIED",
+    "REQUEST_IN_FLIGHT", "REVISION_CONFLICT", "RequestInFlightError",
+    "RevisionConflict", "SOURCE_PENDING", "STATE_APPLIED", "STATE_IN_FLIGHT",
+    "VALIDATION_ERROR", "clean_idempotency_key", "new_audit_id",
+]
