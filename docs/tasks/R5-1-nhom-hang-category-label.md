@@ -21,8 +21,10 @@ chính tài liệu (`COR-R5.1-01`). Bằng chứng nguyên văn:
 `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`. Phiên review KHÔNG tiêu
 repair cycle nào.
 
-`CHECK-R51-26` (Owner nghiệm thu trên production) VẪN `NOT_TESTED` — KHÔNG
-phiên nào tự đóng check này, kể cả phiên review.
+`CHECK-R51-26` (Owner nghiệm thu trên production) — `NOT_TESTED` →
+`ACCEPTED_BY_OWNER_VERBAL` (`DEC-219`, 2026-09-10). Owner tự xác nhận bằng
+lời trực tiếp, không đính kèm bằng chứng E1/E2 cụ thể trong repo — không
+phiên kỹ thuật nào tự đóng check này.
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -212,7 +214,7 @@ mát" — Tracking chưa có thẩm quyền nào, nên R5.1 không làm.
 | `CHECK-R51-23` | Smoke xuyên hai repo bằng producer THẬT của Tracking | PASS | E1 |
 | `CHECK-R51-24` | Reports full `pytest` xanh, không hồi quy | PASS | E1 |
 | `CHECK-R51-25` | Independent Review | PASS | E1 |
-| `CHECK-R51-26` | Owner nghiệm thu trên production | NOT_TESTED | — |
+| `CHECK-R51-26` | Owner nghiệm thu trên production | ACCEPTED_BY_OWNER_VERBAL | `DEC-219` |
 
 Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md` §4.
 

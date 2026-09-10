@@ -36,9 +36,12 @@ skipped / 0 failed`, smoke `R5.1` `83 PASS / 0 FAIL`. Chi tiết:
 `CHECK-R51R2-16` (Owner nghiệm thu lại trên production) `NOT_TESTED` — phiên
 repair KHÔNG tự đóng.
 
-`CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) VẪN `NOT_TESTED`. Nó
-là chính check mà lỗi này đã CHẶN: Owner không thể nghiệm thu một cột luôn hiện
-dấu gạch. Sau `REPAIR-2` nó nghiệm thu được, nhưng vẫn chỉ Owner đóng nó.
+`CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) — `NOT_TESTED` →
+`ACCEPTED_BY_OWNER_VERBAL` (`DEC-219`, 2026-09-10). Nó là chính check mà lỗi
+này đã CHẶN: Owner không thể nghiệm thu một cột luôn hiện dấu gạch. Sau
+`REPAIR-2` nó nghiệm thu được, và Owner tự xác nhận bằng lời trong `S151`.
+`CHECK-R51R2-15`/`CHECK-R51R2-16` (Independent Review và Owner nghiệm thu
+RIÊNG của chính `REPAIR-2`) KHÔNG nằm trong `DEC-219` — vẫn `NOT_TESTED`.
 
 Phase:
 PHASE-01 — Engine tính toán

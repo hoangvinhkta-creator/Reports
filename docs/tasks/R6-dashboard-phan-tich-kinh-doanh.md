@@ -11,10 +11,13 @@ Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1`
 tiết ở §8 cuối file. **Independent Review vòng 2 (`S146`, 2026-09-09) trên
 exact HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` kết luận `PASS`:
 `CHECK-R6-31` = `PASS` (E1), `0` finding `REPAIR_REQUIRED`, `0`
-`ACCEPTED_RISK` mới, `0` repair cycle tiêu — xem §9.** Task ở `IMPLEMENTED` và
-chờ ba việc thuộc thẩm quyền Owner: `CHECK-R51-26`, `CHECK-R6-30`,
-`CHECK-R6-32` (và trước đó là quyết định V4.1 §8 cho cờ
-`INTEGRATION_DECISION_REQUIRED`).
+`ACCEPTED_RISK` mới, `0` repair cycle tiêu — xem §9.** Task ở `IMPLEMENTED`.
+**Cập nhật (`DEC-219`, 2026-09-10):** Owner tự xác nhận bằng lời đã nghiệm
+thu cả ba check thuộc thẩm quyền Owner — `CHECK-R51-26`, `CHECK-R6-30`,
+`CHECK-R6-32` — nay `ACCEPTED_BY_OWNER_VERBAL` (không phải `PASS` với bằng
+chứng E1/E2 trong repo). Quyết định `V4.1` §8 cho cờ
+`INTEGRATION_DECISION_REQUIRED` VẪN MỞ, độc lập với `DEC-219` — xem dòng
+dưới.
 
 Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
 Không migration, không bảng mới, không warehouse, không materialized view,
@@ -24,11 +27,13 @@ không API ngoài, không route GHI — `R6` là một tầng CHỈ ĐỌC dựn
 `CHECK-R6-01` … `CHECK-R6-29` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S143-r6-dashboard-phan-tich.md` §4).
 
-`CHECK-R6-30` (đối soát trên SỔ THẬT của Owner) `NOT_TESTED` — file
+`CHECK-R6-30` (đối soát trên SỔ THẬT của Owner) — `NOT_TESTED` →
+`ACCEPTED_BY_OWNER_VERBAL` (`DEC-219`, 2026-09-10). File
 `So_chi_tiet_ban_hang.xlsx` KHÔNG được commit (`DEC-108`) và KHÔNG có mặt
-trong môi trường phiên này. Công cụ đối soát đã viết và đã được kiểm chứng
-trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); còn thiếu đúng một lần
-chạy trên sổ thật.
+trong môi trường bất kỳ phiên nào — không phiên nào từng có khả năng tự
+kiểm E1/E2 cho check này. Công cụ đối soát đã viết và đã được kiểm chứng
+trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); Owner tự chạy trên sổ
+thật và xác nhận bằng lời trong phiên `S151`.
 
 `CHECK-R6-31` (Independent Review) = **`PASS`** (vòng 2, `S146`, 2026-09-09,
 E1). Vòng 1 ĐÃ CHẠY ở `S144` trên exact HEAD
@@ -68,8 +73,9 @@ CÙNG một vòng và tiêu cycle DUY NHẤT ấy. Vòng review thứ hai KHÔNG
 giữ nguyên `1 allowed / 1 used / 0 remaining`: một `REPAIR_REQUIRED` phát sinh
 về sau vẫn buộc escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
 
-`CHECK-R6-32` (Owner Acceptance) vẫn `NOT_TESTED` — không phiên review nào tự
-đóng nó, kể cả vòng 2.
+`CHECK-R6-32` (Owner Acceptance) — `NOT_TESTED` → `ACCEPTED_BY_OWNER_VERBAL`
+(`DEC-219`, 2026-09-10). Không phiên review nào tự đóng nó, kể cả vòng 2 —
+Owner tự xác nhận bằng lời trực tiếp trong phiên `S151`.
 
 **`INTEGRATION_DECISION_REQUIRED` vẫn MỞ.** Vòng 2 đo lại `cumulative LOC` từ
 nhánh mặc định tới HEAD = `10.155`, ngưỡng V4.1 §8 = `5.000`. Owner phải chọn
@@ -224,6 +230,15 @@ Task `DONE` khi và chỉ khi toàn bộ check `REQUIRED` PASS **và** ba check 
 lại (`CHECK-R6-30`, `-31`, `-32`) chuyển khỏi `NOT_TESTED`. Phiên triển khai
 kết thúc ở `IMPLEMENTED` theo đúng brief.
 
+**Cập nhật (`DEC-219`, 2026-09-10):** cả ba check đã chuyển khỏi `NOT_TESTED`
+(`CHECK-R6-31` = `PASS`; `CHECK-R6-30`/`-32` = `ACCEPTED_BY_OWNER_VERBAL`).
+Task VẪN giữ `IMPLEMENTED`, KHÔNG tự chuyển `DONE` — đúng tiền lệ đã áp cho
+`R3`/`CHECK-R3-20` (`DEC-203`): `ACCEPTED_BY_OWNER_VERBAL` là xác nhận bằng
+lời, không phải `PASS` với bằng chứng E1/E2 trong repo, nên không tự động
+thoả điều kiện "toàn bộ check REQUIRED PASS". Ngoài ra `INTEGRATION_DECISION_REQUIRED`
+(`V4.1` §8, xem dưới) vẫn MỞ và độc lập chặn bước merge, bất kể ba check
+Owner Acceptance đã đóng.
+
 ## 4. Exit Criteria
 
 ```text
@@ -234,10 +249,11 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 [x] Test route/web qua Flask thật
 [x] Smoke producer Tracking thật → capture thật → dashboard/drill-down
 [x] Full regression R1–R5.1 + validators governance + `git diff --check`
-[ ] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30)
+[x] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30) — ACCEPTED_BY_OWNER_VERBAL
+    (DEC-219)
 [x] Independent Review (CHECK-R6-31) — vòng 1 REPAIR_REQUIRED → REPAIR-1 →
     vòng 2 (S146, HEAD 40807ef) PASS
-[ ] Owner Acceptance (CHECK-R6-32)
+[x] Owner Acceptance (CHECK-R6-32) — ACCEPTED_BY_OWNER_VERBAL (DEC-219)
 ```
 
 ---
@@ -275,9 +291,9 @@ kết thúc ở `IMPLEMENTED` theo đúng brief.
 | `CHECK-R6-27` | Drill-down KHÔNG rò một trường khách hàng nào (đo trên HTML) | PASS | E1 |
 | `CHECK-R6-28` | Công cụ đối soát tái tạo ĐỦ tám con số vector Owner qua pipeline THẬT | PASS | E1 |
 | `CHECK-R6-29` | Smoke xuyên hai repo: producer Tracking THẬT → dashboard THẬT | PASS | E1 |
-| `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | NOT_TESTED | — |
+| `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | ACCEPTED_BY_OWNER_VERBAL | `DEC-219` |
 | `CHECK-R6-31` | Independent Review | PASS | E1 |
-| `CHECK-R6-32` | Owner Acceptance trên production | NOT_TESTED | — |
+| `CHECK-R6-32` | Owner Acceptance trên production | ACCEPTED_BY_OWNER_VERBAL | `DEC-219` |
 
 `CHECK-R6-31` = `FAIL` là kết luận của vòng 1 trên HEAD `56aca4c`, và nó VẪN
 đúng với HEAD ấy. Sau `REPAIR-1` nó trở về `NOT_TESTED` chứ KHÔNG thành `PASS`:

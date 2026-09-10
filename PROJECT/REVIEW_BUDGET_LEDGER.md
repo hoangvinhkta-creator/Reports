@@ -3547,6 +3547,45 @@ vừa `/run`, và gộp Nhóm hàng lịch sử của `R6`.
 
 Bằng chứng nguyên văn: `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`.
 
+### Owner Decision — `FIND-R53-01` đóng bằng `ACCEPTED_RISK` (`DEC-218`, 2026-09-10)
+
+```text
+hướng được chọn        ACCEPTED_RISK  (không OWNER_EXTENSION, không mở
+                        lineage riêng)
+CHECK-R53-13            FAIL → ACCEPT_WITH_RECORDED_RISK
+repair cycle tiêu       0  (không sửa mã sản phẩm)
+số dư R5 sau quyết định 2 allowed / 2 used / 0 remaining  (KHÔNG đổi)
+ESCALATION              ĐÓNG — Owner đã ra quyết định theo đúng ba hướng
+                        Escalation Record đã trình (§7 bản ghi review)
+```
+
+**Căn cứ — KHÔNG phải hạ nhẹ vì hành vi kế thừa.** Bản ghi Independent
+Review đã tường minh từ chối lý lẽ "cache cũ cũng vậy" (§3), và quyết định
+này không dùng lại lý lẽ đó. Căn cứ thật là bằng chứng vận hành phát sinh
+SAU thời điểm review: Tracking commit `1c36fa2` (cùng ngày 2026-09-10, sau
+`HEAD` mà review đã chốt) xoá đường sửa tay từng mã (Nhóm hàng/Hãng) khỏi
+UI — `data-viec="editR52"` không còn trong HTML, `boardRow()` không còn
+dựng ô cho hai cột này. Đường tự động còn lại (`r52ApDungBackfill`, nút
+"↻ Chuẩn hoá Nhóm/Hãng") tự loại trừ mọi mã có `category_provenance`/
+`brand_provenance = 'manual'` — tức mọi mã đã từng khoá tay không bao giờ
+bị nút này ghi đè nữa. Ba điều kiện phải cộng dồn để `FIND-R53-01` xảy ra
+thật (mã còn `auto` provenance, dữ liệu nguồn hashtag/category của nó bị
+sửa nơi khác, và ai đó bấm lại nút Chuẩn hoá) — xác suất trong quy trình
+vận hành thật hiện tại của Owner giảm mạnh so với lúc review đánh giá (review
+chỉ xét logic code, không có ngữ cảnh UI đã đổi cùng ngày).
+
+Cơ chế lỗi trong code (`_tracking_display`/`latest_tracking_display` không
+phân biệt `run_id`) KHÔNG đổi — quyết định này là chấp nhận rủi ro đã giảm
+xác suất, không phải xác nhận đã sửa. Repair tối thiểu vẫn giữ nguyên ở §6
+bản ghi review, mở lại được bất cứ lúc nào quy trình vận hành đổi.
+
+`R5.3` được phép tiếp tục sang merge/deploy. `CHECK-R53-14` (Owner nghiệm
+thu trên production) đứng độc lập, KHÔNG bị quyết định này thay thế — vẫn
+`NOT_TESTED`, chỉ Owner đóng được.
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` → `DEC-218`;
+`docs/sessions/S151-r53-owner-accepted-risk.md`.
+
 ---
 
 ## Root Task: R6
@@ -3562,9 +3601,14 @@ review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
 repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
 review_round_2: PASS (S146, 2026-09-09) — CHECK-R6-31 = PASS trên HEAD 40807ef;
              0 REPAIR_REQUIRED, 0 ACCEPTED_RISK mới, 0 repair cycle tiêu
-next_action: Owner — (1) quyết cờ V4.1 §8 INTEGRATION_DECISION_REQUIRED,
-             (2) CHECK-R6-30 trên sổ thật, (3) CHECK-R51-26, (4) CHECK-R6-32.
+next_action: Owner — (1) quyết cờ V4.1 §8 INTEGRATION_DECISION_REQUIRED.
              KHÔNG cần ESCALATE: vòng 2 không có REPAIR_REQUIRED.
+owner_acceptance (DEC-219, 2026-09-10): CHECK-R6-30, CHECK-R6-32,
+             CHECK-R51-26 — NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL. Owner tự
+             xác nhận bằng lời, không đính kèm bằng chứng E1/E2 vào phiên.
+             KHÔNG tự chuyển task DONE (đúng tiền lệ DEC-203/CHECK-R3-20) —
+             INTEGRATION_DECISION_REQUIRED vẫn là điều kiện MỞ, độc lập,
+             chặn merge.
 ```
 
 Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ

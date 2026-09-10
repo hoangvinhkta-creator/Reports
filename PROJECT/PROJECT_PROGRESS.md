@@ -1,5 +1,55 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — Owner đóng escalation `FIND-R53-01` + ba check Owner Acceptance của `R6`/`R5.1` (`S151`, 2026-09-10)
+
+Tiếp nối `S150` (bên dưới). Independent Review của `R5.3` (trên nhánh
+`claude/r5-3-reports-metadata-review-8bp6be`) kết luận `REPAIR_REQUIRED`
+với `FIND-R53-01` và escalate theo `governance/core/ESCALATION_PROTOCOL.md` vì lineage `R5`
+đã hết ngân sách repair-cycle (2/2, 0 remaining). Owner đã ra quyết định
+trực tiếp trong phiên này cho cả escalation đó và ba check Owner Acceptance
+đang treo của `R6`/`R5.1`.
+
+```text
+DEC-218   FIND-R53-01 → ACCEPTED_RISK (không OWNER_EXTENSION, không mở
+          lineage riêng). Căn cứ: bằng chứng vận hành MỚI — Tracking commit
+          1c36fa2 (R5.2.3, cùng ngày, SAU HEAD review đã chốt) xoá đường
+          sửa tay từng mã Nhóm hàng/Hãng khỏi UI, và r52ApDungBackfill (nút
+          "Chuẩn hoá" tự động còn sống) tự loại trừ mọi mã đã khoá
+          category_provenance/brand_provenance = 'manual'. KHÔNG phải hạ
+          nhẹ vì hành vi kế thừa (review đã tường minh bác lý lẽ đó) — cơ
+          chế lỗi trong code KHÔNG đổi, chỉ xác suất xảy ra trong quy trình
+          vận hành thật giảm mạnh. CHECK-R53-13: FAIL → ACCEPT_WITH_RECORDED_RISK.
+          Ngân sách R5 KHÔNG đổi: 2 allowed / 2 used / 0 remaining (không
+          sửa mã sản phẩm). R5.3 được phép tiếp tục sang merge/deploy;
+          CHECK-R53-14 (Owner nghiệm thu production) vẫn NOT_TESTED, đứng
+          độc lập.
+DEC-219   Owner tự xác nhận bằng lời đã nghiệm thu CHECK-R6-30 (đối soát sổ
+          thật), CHECK-R6-32 (Owner Acceptance R6), CHECK-R51-26 (Owner
+          nghiệm thu R5.1) — cả ba NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL,
+          đúng cơ chế đã dùng cho CHECK-R3-20/CHECK-R4-24 ở DEC-203. KHÔNG
+          phải PASS với bằng chứng E1/E2 trong repo. KHÔNG tự chuyển R6
+          sang DONE (đúng tiền lệ R3) — INTEGRATION_DECISION_REQUIRED
+          (V4.1 §8, cumulative LOC 10.155 > ngưỡng 5.000) VẪN MỞ, độc lập,
+          vẫn chặn merge của R6. CHECK-R5-28 (Owner nghiệm thu R5 gốc) và
+          CHECK-R53-14 KHÔNG nằm trong quyết định này.
+```
+
+Không sửa mã sản phẩm trong phiên này — chỉ cập nhật tài liệu governance
+(`PROJECT_DECISIONS.md`, `REVIEW_BUDGET_LEDGER.md`, ba file task liên quan).
+Nhánh: `claude/r5-3-owner-accepted-risk-find01` (dựng từ tip
+`claude/r5-3-reports-metadata-review-8bp6be`, tránh phân nhánh tài liệu
+governance).
+
+Việc còn lại: `CHECK-R5-28`, `CHECK-R53-14` (Owner nghiệm thu production,
+riêng của `R5` gốc và `R5.3`) vẫn `NOT_TESTED`; `INTEGRATION_DECISION_REQUIRED`
+của `R6` vẫn cần Owner chọn (A) merge sớm / (B) cắt scope / (C) tiếp tục
+divergence có lý do + ngày review, TRƯỚC khi merge `R6`.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-218`, `DEC-219`.
+
+---
+
 ## CANONICAL CURRENT STATE — `R5.3`: nhãn Hãng/Nhóm hàng sống qua restart, `IMPLEMENTED`, CHƯA merge (`S150`, 2026-09-10)
 
 Owner báo lỗi đã xác minh trên PRODUCTION: *"sau upload sổ và chạy báo cáo,

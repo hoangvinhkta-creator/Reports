@@ -258,6 +258,22 @@ chạy ghi đè), và nó là hành vi Owner đã nghiệm thu ở `CHECK-R51-26
 là hành vi ĐÚNG theo `R5.1` §4: sửa ngành hàng xảy ra bên Tracking, và lần
 capture kế tiếp chở giá trị mới sang.
 
+**Cập nhật (`DEC-218`, 2026-09-10).** Independent Review `R5.3` đã nâng rủi
+ro này thành `FIND-R53-01` (`REPAIR_REQUIRED`), đo được bằng hai probe HTTP
+độc lập — xem `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md` §3. Owner đã
+xem xét bằng chứng đó cộng một bằng chứng vận hành MỚI phát sinh sau thời
+điểm review: Tracking commit `1c36fa2` (cùng ngày) xoá đường sửa tay từng mã
+khỏi UI (`data-viec="editR52"` không còn trong HTML, `boardRow()` không còn
+dựng ô cho Nhóm hàng/Hãng), và đường tự động còn lại
+(`r52ApDungBackfill`) tự loại trừ mọi mã đã có `category_provenance`/
+`brand_provenance = 'manual'`. Điều kiện để `FIND-R53-01` xảy ra thật trong
+quy trình vận hành hiện tại của Owner nay hẹp lại đáng kể (chỉ còn qua nút
+Chuẩn hoá tự động, và chỉ với mã còn ở provenance `auto`). Owner quyết định
+`ACCEPTED_RISK` cho `FIND-R53-01` trên cơ sở này — **không phải** vì đây là
+hành vi kế thừa (lý lẽ đó đã bị review bác rõ ràng). Chi tiết đầy đủ:
+`DEC-218`. Cơ chế lỗi trong code KHÔNG đổi — quyết định này có thể cần xem
+lại nếu quy trình vận hành thay đổi (xem `DEC-218` §3).
+
 ### `AR-R5.3-02` — mất database là mất nhãn
 
 Bản BỀN sống trong cùng database với con số của kỳ. Mất database là mất cả
@@ -544,7 +560,7 @@ Priority:
 REQUIRED
 
 Status:
-FAIL
+ACCEPT_WITH_RECORDED_RISK
 
 Evidence Level:
 E2
@@ -566,12 +582,22 @@ sách repair-cycle (2/2, 0 remaining) — phiên review escalate theo
 `governance/core/ESCALATION_PROTOCOL.md` thay vì tự mở repair cycle thứ ba;
 quyết định tiếp theo thuộc Owner.
 
+**Cập nhật Owner Decision (`DEC-218`, 2026-09-10):** Owner chọn `ACCEPTED_RISK`
+cho `FIND-R53-01` (không `OWNER_EXTENSION`, không mở lineage riêng) — căn cứ
+trên bằng chứng vận hành mới (Tracking `1c36fa2` xoá đường sửa tay từng mã
+khỏi UI + khoá `manual provenance` trong `r52ApDungBackfill`), KHÔNG phải vì
+hạ nhẹ finding theo lý lẽ kế thừa. Chi tiết đầy đủ: `DEC-218`; risk ghi tại
+`AR-R5.3-01` (bổ sung). `R5.3` được phép tiếp tục sang merge/deploy.
+`CHECK-R53-14` (Owner nghiệm thu production) đứng độc lập, KHÔNG bị quyết
+định này thay thế.
+
 Executed By:
 Independent Review session (Claude Code), nhánh
-`claude/r5-3-reports-metadata-review-8bp6be`
+`claude/r5-3-reports-metadata-review-8bp6be`; Owner Decision (`DEC-218`)
+ghi lại bởi Claude Code, nhánh `claude/r5-3-owner-accepted-risk-find01`
 
 Timestamp:
-2026-09-10
+2026-09-10 (Independent Review); 2026-09-10 (Owner Decision)
 
 #### CHECK-R53-14
 Priority:
@@ -599,9 +625,12 @@ Timestamp:
 - [x] Không có lỗi nghiêm trọng chưa xử lý
 - [x] Tài liệu bắt buộc đã cập nhật (`PROJECT_PROGRESS`, `PROJECT_DECISIONS`,
       `REVIEW_BUDGET_LEDGER`, session handoff)
-- [ ] `CHECK-R53-13` Independent Review — CHƯA mở
+- [x] `CHECK-R53-13` Independent Review — ĐÃ chạy, `REPAIR_REQUIRED`
+      (`FIND-R53-01`); Owner đóng bằng `ACCEPTED_RISK` (`DEC-218`) →
+      `ACCEPT_WITH_RECORDED_RISK`
 - [ ] `CHECK-R53-14` Owner nghiệm thu production — CHƯA
-- [ ] Task `DONE` — KHÔNG. Trạng thái cuối của phiên này là `IMPLEMENTED`.
+- [ ] Task `DONE` — KHÔNG. `CHECK-R53-14` còn `NOT_TESTED`; trạng thái cuối
+      vẫn `IMPLEMENTED` cho tới khi Owner nghiệm thu trên production.
 
 ## 7. Đăng Ký File Đã Thay Đổi (Changed Files Registry)
 

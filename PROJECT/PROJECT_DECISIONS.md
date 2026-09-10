@@ -14038,3 +14038,155 @@ Tracking         KHÔNG đổi một dòng nào (chỉ đọc, chỉ chạy prod
 
 Bằng chứng nguyên văn:
 `docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+## DEC-218
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner quyết định hướng xử lý `FIND-R53-01` (escalation của
+Independent Review `R5.3`, ghi ở `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`
+§7 và `PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `R5` → mục "Independent
+Review `R5.3` — `REPAIR_REQUIRED`, ESCALATE").
+Thẩm quyền: `OWNER_DECISION` trực tiếp — ba hướng (`OWNER_EXTENSION`,
+`ACCEPTED_RISK` mới, mở lineage riêng) đã trình bày đầy đủ kèm bằng chứng
+`FIND-R53-01`; Owner chọn `ACCEPTED_RISK`.
+Trạng thái: BAN HÀNH, đã thực thi trong phiên này (chỉ sửa tài liệu, không
+sửa mã sản phẩm).
+
+### §1. Quyết định
+
+**`FIND-R53-01` được chấp nhận là `ACCEPTED_RISK`, không mở repair cycle
+(không tiêu ngân sách `R5`), không mở lineage riêng.** `CHECK-R53-13`
+chuyển từ `FAIL` sang `ACCEPT_WITH_RECORDED_RISK`. `R5.3` được phép tiếp
+tục sang bước merge/deploy; `CHECK-R53-14` (Owner nghiệm thu production)
+vẫn đứng độc lập, không bị quyết định này thay thế.
+
+### §2. Vì sao đây KHÔNG phải hạ nhẹ finding vì lý lẽ kế thừa
+
+Bản ghi Independent Review (`docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`
+§3) đã tường minh: *"Theo đúng chỉ dẫn của brief, tôi không hạ nhẹ finding
+này thành 'cache cũ cũng vậy'"* — và đúng, lý lẽ "hành vi kế thừa từ cache
+đĩa cũ" KHÔNG phải căn cứ cho quyết định này. `FIND-R53-01` vẫn là một lỗi
+thật, tái lập được, đúng như review đã đo (§3, hai probe HTTP độc lập).
+
+Căn cứ của `DEC-218` là **bằng chứng vận hành MỚI, phát sinh SAU thời điểm
+review**, không có trong phạm vi review đã xét: Tracking commit `1c36fa2`
+("R5.2.3: ẩn tạm 4 cột Hashtag/Phân khúc/Nhóm hàng/Hãng...", cùng ngày
+2026-09-10, sau `HEAD` mà Independent Review đã chốt) xoá đường sửa tay
+từng mã khỏi UI:
+
+```text
+$ git show 1c36fa2 --stat   # Tracking
+ kiem/bang-gia-cot-gon.js   | 138 ++++++++---
+ kiem/r52-bulk-chuan-hoa.js |  11 +-
+ public/index.html          | 115 ++++-------
+
+boardRow() không còn gọi ed("pk", ...)/r52Cell() — ô Nhóm hàng/Hãng không
+còn dựng trong DOM.
+data-viec="editR52" — 0 kết quả trong toàn bộ HTML (handler mở popover sửa
+đã mất chỗ gọi).
+editR52()/commitR52() còn trong mã nguồn nhưng "không còn ô nào gọi tới vì
+cột đã ẩn" (nguyên văn commit message).
+```
+
+Đường duy nhất còn sống là nút tự động "↻ Chuẩn hoá Nhóm/Hãng"
+(`r52ChuanHoaTatCa` → `r52ApDungBackfill`, `public/index.html:3623`), và nó
+tự loại trừ đúng những mã có nguy cơ (đã bị khoá tay):
+
+```js
+const catManual   = cur.category_provenance === 'manual';
+const brandManual = cur.brand_provenance === 'manual';
+...
+if(!catManual && goiY.category_label){ outCat = goiY.category_label; ... }
+if(!brandManual && goiY.brand){ outBrand = goiY.brand; ... }
+```
+
+Điều kiện để `FIND-R53-01` xảy ra thật (một mã ĐÃ dùng ở một lần chạy Reports
+trước đó bị đổi phân loại ở lần chạy sau) nay cần CẢ BA: (a) mã đó còn ở
+provenance `auto` (chưa từng khoá tay), VÀ (b) dữ liệu hashtag/category
+nguồn của nó bị sửa ở nơi khác, VÀ (c) ai đó bấm lại nút Chuẩn hoá sau khi
+sửa. Đường sửa tay trực tiếp một mã cụ thể — đường chắc chắn nhất để kích
+hoạt finding — không còn tồn tại trong UI.
+
+### §3. Phạm vi và giới hạn của quyết định này
+
+- Đây là đánh giá lại XÁC SUẤT xảy ra trong quy trình vận hành thật hiện
+  tại của Owner, KHÔNG phải khẳng định lỗi đã được sửa. Cơ chế lỗi mô tả ở
+  `FIND-R53-01` (đường đọc `_tracking_display()`/`latest_tracking_display()`
+  không phân biệt `run_id`) vẫn còn nguyên trong code.
+- Nếu quy trình vận hành đổi (ví dụ UI sửa tay được mở lại, hoặc nút Chuẩn
+  hoá được dùng thường xuyên hơn cho các mã `auto`), rủi ro này cần được
+  đánh giá lại — KHÔNG coi `DEC-218` là đóng vĩnh viễn.
+- Repair tối thiểu vẫn được ghi lại nguyên trạng ở
+  `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md` §6, cho lần nào cần mở
+  lại.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md` — `CHECK-R53-13`
+  → `ACCEPT_WITH_RECORDED_RISK`; `AR-R5.3-01` được bổ sung đoạn Owner
+  Decision.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — Root Task `R5`: escalation của
+  `FIND-R53-01` đóng bằng `ACCEPTED_RISK`, ngân sách giữ nguyên `2 allowed /
+  2 used / 0 remaining` (quyết định này không sửa code, không tiêu cycle).
+
+Bằng chứng nguyên văn (đọc code trực tiếp trên Tracking commit `1c36fa2`,
+thực hiện trong phiên `S151`): `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-219
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner tự xác nhận đã nghiệm thu ba check Owner Acceptance
+đang treo: `CHECK-R6-30`, `CHECK-R6-32`, `CHECK-R51-26`.
+Thẩm quyền: `OWNER_DECISION` — Owner tự tay xác nhận trực tiếp trong phiên,
+bằng lời, không đính kèm số liệu/ảnh chụp cụ thể vào phiên này.
+Trạng thái: BAN HÀNH, đã thực thi (chỉ sửa tài liệu).
+
+### §1. Quyết định
+
+**`CHECK-R6-30`, `CHECK-R6-32`, `CHECK-R51-26` chuyển từ `NOT_TESTED` sang
+`ACCEPTED_BY_OWNER_VERBAL`** — đúng cơ chế đã dùng cho `CHECK-R3-20`/
+`CHECK-R4-24` ở `DEC-203`. Đây KHÔNG phải `PASS` với bằng chứng E1/E2 kiểm
+được trong repo — đây là xác nhận bằng lời của Owner, được ghi lại tường
+minh là bằng lời, không giả vờ là bằng chứng kỹ thuật.
+
+```text
+CHECK-R6-30   Đối soát trên sổ thật So_chi_tiet_ban_hang.xlsx của Owner
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+CHECK-R6-32   Owner Acceptance của R6 trên production
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+CHECK-R51-26  Owner nghiệm thu R5.1 trên production
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+```
+
+### §2. Vì sao không phải E1/E2
+
+`CHECK-R6-30` đòi hỏi chạy công cụ đối soát trên file
+`So_chi_tiet_ban_hang.xlsx` — file này KHÔNG được commit vào repo (`DEC-108`,
+lý do bảo mật dữ liệu khách hàng/kế toán) và không có mặt trong môi trường
+bất kỳ phiên nào. Không phiên nào từng có khả năng tự kiểm E1/E2 cho check
+này — chỉ Owner, người có file thật, mới chạy và xác nhận được.
+`CHECK-R6-32`/`CHECK-R51-26` tương tự: nghiệm thu trên **production thật**
+(Render), ngoài tầm quan sát của mọi phiên chạy trong container review/dev.
+
+### §3. Phạm vi quyết định — KHÔNG tự động đóng những gì khác
+
+- `INTEGRATION_DECISION_REQUIRED` (`V4.1` §8, lineage `R6`, cumulative LOC
+  `10.155` > ngưỡng `5.000`) **VẪN MỞ** — đây là quyết định KHÁC, về việc
+  merge sớm/cắt scope/tiếp tục divergence có lý do (xem giải thích trong
+  bàn giao phiên). `DEC-219` không bao gồm quyết định này.
+- `CHECK-R5-28` (Owner nghiệm thu `R5` gốc) và `CHECK-R53-14` (Owner nghiệm
+  thu `R5.3`) KHÔNG nằm trong `DEC-219` — Owner chưa xác nhận hai check này
+  trong phiên.
+- Việc merge/deploy thật của `R6` vẫn cần thêm quyết định `INTEGRATION_DECISION_REQUIRED`
+  trước khi tiến hành, dù ba check Owner Acceptance liệt kê ở trên đã đóng.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-1-nhom-hang-category-label.md` — `CHECK-R51-26` →
+  `ACCEPTED_BY_OWNER_VERBAL`.
+- `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` — `CHECK-R6-30`,
+  `CHECK-R6-32` → `ACCEPTED_BY_OWNER_VERBAL`.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — Root Task `R6`: cập nhật next_action,
+  bỏ ba mục đã đóng, giữ nguyên `INTEGRATION_DECISION_REQUIRED`.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.
