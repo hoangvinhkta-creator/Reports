@@ -297,8 +297,13 @@
   {# R3 — hai việc làm VỚI bộ số này, không phải một chiều gộp khác của nó:
      mang nó ra ngoài (Excel), và duyệt nó (chốt kỳ). #}
   <p class="insight view-links">Với bộ số này:
+    {# `STAB-02` — `download` là lớp chặn RẺ NHẤT và nó phải có mặt: nó
+       nói với CẢ trình duyệt lẫn lớp điều hướng mảnh rằng đường này trả
+       file, trước khi có ai gọi mạng. Hai lớp còn lại (danh sách route và
+       cửa kiểm `Content-Type` trong `app.js`) là để đúng cả khi thuộc
+       tính này bị quên ở một link mới. #}
     <a class="ghost btn-mini" href="{{ url_for('business_export_excel', ky=selected_period) }}"
-       data-metric="export-link">TẢI EXCEL</a>
+       download data-metric="export-link">TẢI EXCEL</a>
     <a class="ghost btn-mini" href="{{ url_for('business_period_close', ky=selected_period) }}"
        data-metric="close-link">CHỐT KỲ</a></p>
   <div class="tp-scroll">

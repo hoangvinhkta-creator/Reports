@@ -46,7 +46,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from flask import (
-    Flask, abort, redirect, render_template, request, send_file, url_for,
+    Flask, abort, g, redirect, render_template, request, send_file, url_for,
 )
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
@@ -81,8 +81,8 @@ from app.web import (
     business_presentation, business_service, business_store,
     chart_gapfill, dashboard_presentation, history_store,
     history_writer, identity_gateway, legacy_presentation, legacy_reference,
-    line_identity, period_lock, product_taxonomy, revenue_timeline,
-    run_registry,
+    line_identity, period_lock, product_taxonomy, request_timing,
+    revenue_timeline, run_registry,
     catalog_display, sales_presentation, sales_queries, snapshot_presentation,
     storage_backend, workspace_imei, workspace_presentation,
 )
@@ -311,9 +311,13 @@ def _select_captures_for_run(
     """
     if not live_pull.is_configured():
         return None, None, None
-    live = live_pull.pull_live_captures(
-        out_dir=TRACKING_TEMP_DIR, sales=sales,
-        identity_store_view=identity_store_view)
+    # `STAB-01` — đây là ĐÚNG một cửa duy nhất ra Tracking trên đường
+    # request (mọi caller đi qua hàm này), nên span `tracking` đặt ở đây
+    # đo đủ mà không cần rải mã đo khắp các route.
+    with request_timing.span("tracking"):
+        live = live_pull.pull_live_captures(
+            out_dir=TRACKING_TEMP_DIR, sales=sales,
+            identity_store_view=identity_store_view)
     captures = SelectedCaptures(
         tracking_capture=live.tracking_capture,
         tracking_catalog=live.tracking_catalog,
@@ -4051,5 +4055,78 @@ def create_app(
         return _page(
             error="Lưu trữ tạm thời không khả dụng. Vui lòng thử lại.", status=503,
         )
+
+    # --- `STAB-01`: đo và truy vết thời gian ---------------------------
+    #
+    # Đặt CUỐI `create_app` để hai `after_request` hook không cần biết thứ
+    # tự đăng ký của nhau: Flask chạy `after_request` theo thứ tự NGƯỢC lại
+    # thứ tự đăng ký, nên hook đăng ký cuối cùng chạy TRƯỚC — và cái ta
+    # muốn là đo được cả những gì hook khác làm với response.
+    #
+    # `install_sql_counter` gắn vào đúng `Engine` mà app này dùng. Không có
+    # snapshot repo (môi trường chưa cấu hình database) thì không có SQL để
+    # đếm, và hàm tự im lặng.
+    if snapshot_repo is not None:
+        request_timing.install_sql_counter(snapshot_repo.engine)
+
+    # Chia đôi thời gian của một route bằng đúng cái mốc mà nó tự nhiên có:
+    # trước khi Jinja bắt đầu render, mọi thứ route làm là DỰNG view model
+    # (`presentation`); từ mốc đó tới khi render xong là `template`. Đo bằng
+    # signal của Flask nên không route nào phải tự bọc mã đo — và vì thế
+    # không route nào có thể quên.
+    #
+    # Template lồng nhau (`{% include %}`, `{% import %}`) KHÔNG phát signal
+    # này, chỉ template cấp cao nhất phát — nên `template` không bị cộng
+    # trùng.
+    from flask import before_render_template, template_rendered
+
+    @before_render_template.connect_via(app)
+    def _mark_render_start(_sender, **_extra):
+        data = request_timing.snapshot()
+        if data:
+            request_timing.add("presentation",
+                               max(0.0, data["total"] - data["spans"]["presentation"]),
+                               count=0)
+            g._render_started = time.monotonic()
+
+    @template_rendered.connect_via(app)
+    def _mark_render_end(_sender, **_extra):
+        started = getattr(g, "_render_started", None)
+        if started is not None:
+            request_timing.add("template", time.monotonic() - started)
+            g._render_started = None
+
+    @app.after_request
+    def _emit_timing(response):
+        """Gắn `X-Request-Id` + `Server-Timing` và ghi MỘT dòng log.
+
+        `response.calculate_content_length()` chỉ đọc được độ dài khi
+        response không phải streaming (`direct_passthrough`) — file Excel
+        tải về đi đường đó, và ép đọc độ dài của nó sẽ nạp cả file vào bộ
+        nhớ. Nên bytes ở đó là `None`, và dòng log ghi `-` thay vì một số
+        bịa ra.
+        """
+        size = None
+        if not response.direct_passthrough:
+            try:
+                size = response.calculate_content_length()
+            except Exception:  # noqa: BLE001 — đo lường không được làm sập
+                size = None
+        data = request_timing.snapshot(response_bytes=size)
+        if not data:
+            return response
+        response.headers[request_timing.REQUEST_ID_HEADER] = data["request_id"]
+        response.headers["Server-Timing"] = \
+            request_timing.server_timing_header(data)
+        # `print` chứ không `logging`: gunicorn trên Render gom stdout của
+        # worker vào log của service, và một dòng ở đó là chỗ Owner đọc
+        # được ngay. Không thêm một cấu hình logging thứ hai vào hệ.
+        line = request_timing.log_line(
+            data, method=request.method, path=request.path,
+            status=response.status_code)
+        if data["total"] >= request_timing.SLOW_REQUEST_SECONDS:
+            line += " slow=1"
+        print(line, flush=True)
+        return response
 
     return app

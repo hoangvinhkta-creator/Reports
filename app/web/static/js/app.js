@@ -11,6 +11,34 @@
  * Thanh tab chính (nav.ncc-tabs) đứng NGOÀI #app-content nên click vào đó
  * KHÔNG bị chặn ở đây — chuyển tab vẫn là điều hướng thật, đúng yêu cầu
  * "chuyển tab thì tải lại link, làm việc trong tab thì xử lý tĩnh".
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * ĐỢT STAB (STAB-02/03/05) đóng ba lớp lỗi của CHÍNH lớp điều hướng này.
+ * Chúng được kể ở đây một lần, rồi từng chỗ chỉ trỏ ngược lên:
+ *
+ * STAB-02 — TẢI FILE BỊ ĐỌC THÀNH TRANG. `onClick` chặn mọi link cùng
+ *   origin rồi `fetchFragment()` đọc MỌI response thành text và đưa vào
+ *   DOM. Link xuất Excel không mang `download` (nó là một GET trả
+ *   `Content-Disposition: attachment`, và HTML không có cách nào biết điều
+ *   đó trước khi gọi), nên các byte `PK…` của file .xlsx được ghi thẳng vào
+ *   trang thay vì tải về. Hai lớp chặn được thêm: một danh sách route tải
+ *   file mà bộ điều hướng KHÔNG chạm, và một cửa kiểm `Content-Type`/
+ *   `Content-Disposition` ở `fetchFragment()` — cửa sau là cửa thật, vì nó
+ *   đúng cho cả những route tải file chưa ai nghĩ tới.
+ *
+ * STAB-03 — TỰ ĐỘNG GỬI LẠI MUTATION. `submitForm()` gọi `form.submit()`
+ *   trong `catch`. Một lỗi fetch KHÔNG phân biệt được "server chưa nhận"
+ *   với "server đã ghi xong nhưng response thất lạc", nên nhánh đó có thể
+ *   gửi lần thứ hai một quyết định đã được ghi. Nay không có đường nào tự
+ *   gửi lại: draft giữ nguyên, người dùng thấy "chưa xác nhận được kết
+ *   quả", và nút thử lại gửi ĐÚNG `request_id` cũ — server nhận ra và trả
+ *   lại kết quả lần ghi trước thay vì ghi lần thứ hai.
+ *
+ * STAB-05 — RESPONSE CŨ GHI ĐÈ RESPONSE MỚI. Không có gì đánh số các lượt
+ *   fetch, nên đổi bộ lọc A → B → C mà B trả về cuối sẽ hiện B. Nay mỗi
+ *   vùng có một bộ đếm, và một response chỉ được swap khi nó là response
+ *   MỚI NHẤT của vùng đó; các lượt cũ bị `AbortController` huỷ.
+ * ────────────────────────────────────────────────────────────────────────
  */
 (function () {
   "use strict";
@@ -44,6 +72,107 @@
     return i === -1 ? url : url.slice(0, i);
   }
 
+  /* --- STAB-02: những đường KHÔNG bao giờ đi qua lớp mảnh -------------
+   *
+   * Đây là lớp chặn THỨ NHẤT (danh sách), rẻ và đọc được: một link tới
+   * những đường này giữ nguyên hành vi mặc định của trình duyệt, tức là
+   * tải file như trước khi có lớp JS nào.
+   *
+   * Nó KHÔNG phải lớp chặn duy nhất, và không được là lớp duy nhất: một
+   * route tải file thêm về sau sẽ không có tên ở đây. Cửa kiểm
+   * `Content-Type` trong `fetchFragment()` là cửa đúng cho mọi route, kể
+   * cả route chưa tồn tại. Hai lớp cùng tồn tại vì chúng trả lời hai câu
+   * khác nhau: danh sách này tránh gọi mạng một lần vô ích, còn cửa kiểm
+   * kia tránh đưa rác vào DOM.
+   */
+  var DOWNLOAD_PATHS = [
+    "/kinh-doanh/xuat-excel",
+    "/artifact/"
+  ];
+
+  function isDownloadUrl(url) {
+    var path;
+    try {
+      path = new URL(url, window.location.href).pathname;
+    } catch (e) {
+      return false;
+    }
+    for (var i = 0; i < DOWNLOAD_PATHS.length; i++) {
+      if (path === DOWNLOAD_PATHS[i] || path.indexOf(DOWNLOAD_PATHS[i]) === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* --- STAB-02: cửa kiểm nội dung trước khi chạm DOM ------------------
+   *
+   * `fetchFragment()` cũ đọc MỌI response thành text. Hàm này là điều kiện
+   * để một response được coi là HTML thay cho nội dung trang:
+   *
+   *   1. KHÔNG mang `Content-Disposition: attachment` — một response nói
+   *      "tôi là file để tải" thì nó là file để tải, kể cả khi nó cũng
+   *      khai là HTML.
+   *   2. `Content-Type` là `text/html` (hoặc rỗng — server cũ/response 204
+   *      không khai; ta chấp nhận và để bước sau xử lý).
+   *
+   * Trả `false` ⟹ người gọi phải điều hướng THẬT tới URL đó, không swap.
+   */
+  function isHtmlFragment(response) {
+    var disposition = response.headers.get("Content-Disposition") || "";
+    if (/attachment/i.test(disposition)) return false;
+    var type = (response.headers.get("Content-Type") || "").toLowerCase();
+    if (!type) return true;
+    return type.indexOf("text/html") === 0 || type.indexOf("text/html") > -1;
+  }
+
+  /* Lỗi mang cờ `isDownload` — người gọi phân biệt được "response này là
+   * file, hãy để trình duyệt tải nó" với "mạng lỗi". Hai việc phải làm
+   * khác nhau: một cái điều hướng thật, một cái KHÔNG được gửi lại gì. */
+  function DownloadResponse(url) {
+    var err = new Error("response không phải HTML — đây là file để tải");
+    err.isDownload = true;
+    err.url = url;
+    return err;
+  }
+
+  /* --- STAB-05: mỗi vùng một bộ đếm ----------------------------------
+   *
+   * `seq[region]` tăng ở MỖI lượt fetch của vùng đó. Response nào mang số
+   * nhỏ hơn số hiện tại là response CŨ, và nó bị bỏ — không swap, không
+   * báo lỗi. Đây là điều làm cho "đổi bộ lọc A → B → C luôn hiện C" đúng
+   * theo cấu tạo, chứ không nhờ may mắn về thứ tự mạng trả về.
+   *
+   * `AbortController` là phần thứ hai, và nó KHÔNG thay thế bộ đếm: abort
+   * chỉ giảm lưu lượng vô ích, còn cái quyết định "response nào được ghi"
+   * vẫn là bộ đếm. Một response đã về tới hàng đợi trước khi abort kịp
+   * chạy vẫn phải bị bộ đếm chặn lại.
+   *
+   * MUTATION KHÔNG BAO GIỜ BỊ ABORT. Huỷ một POST đang bay không huỷ được
+   * việc server đã ghi; nó chỉ làm ta không biết kết quả — đúng cái tình
+   * huống STAB-03 tồn tại để đóng. Nên `submitForm()` không dùng cơ chế
+   * này, và điều đó được nói lại ở chính chỗ ấy.
+   */
+  var seq = Object.create(null);
+  var inflight = Object.create(null);
+
+  function nextTicket(region) {
+    seq[region] = (seq[region] || 0) + 1;
+    var controller = null;
+    if (inflight[region]) {
+      try { inflight[region].abort(); } catch (e) { /* đã xong: bỏ qua */ }
+    }
+    if (typeof AbortController === "function") {
+      controller = new AbortController();
+      inflight[region] = controller;
+    }
+    return { region: region, n: seq[region], signal: controller && controller.signal };
+  }
+
+  function isLatest(ticket) {
+    return seq[ticket.region] === ticket.n;
+  }
+
   function swapContent(html, pushUrl) {
     var el = contentEl();
     if (!el) return false;
@@ -66,22 +195,140 @@
         if (!response.ok) {
           throw new Error("HTTP " + response.status);
         }
+        /* STAB-02 — cửa kiểm đứng TRƯỚC `response.text()`. Đọc body của
+         * một file .xlsx thành text đã là việc sai: nó nạp cả file vào bộ
+         * nhớ dưới dạng chuỗi, và chuỗi đó là thứ đã từng được ghi vào
+         * trang. */
+        if (!isHtmlFragment(response)) {
+          throw DownloadResponse(response.url || url);
+        }
         return response.text().then(function (html) {
           return { html: html, url: response.url };
         });
       });
   }
 
+  /* Vùng mặc định của điều hướng cả trang. Các panel/popover của đợt
+   * UI-02 dùng vùng riêng theo `order_key`, nên một lượt tải chi tiết đơn
+   * không huỷ lượt tải bảng đang chạy và ngược lại. */
+  var MAIN_REGION = "app-content";
+
   function navigate(url, options) {
     options = options || {};
     var fetchUrl = stripHash(url);
-    return fetchFragment(fetchUrl, { method: "GET" })
+    /* STAB-02 — link tải file không đi qua đây. Kiểm cả ở `onClick` (để
+     * không chặn hành vi mặc định) và ở đây (để mọi đường gọi
+     * `navigate()` bằng tay cũng an toàn). */
+    if (isDownloadUrl(fetchUrl)) {
+      window.location.href = url;
+      return Promise.resolve(false);
+    }
+    var ticket = nextTicket(options.region || MAIN_REGION);
+    return fetchFragment(fetchUrl, { method: "GET", signal: ticket.signal })
       .then(function (result) {
+        /* STAB-05 — response CŨ dừng ở đây. Không swap, không báo lỗi:
+         * người dùng đã đi tiếp, và một thông báo về một lượt tải họ đã
+         * bỏ là tiếng ồn. */
+        if (!isLatest(ticket)) return false;
         swapContent(result.html, options.push !== false ? result.url : null);
+        return true;
       })
-      .catch(function () {
+      .catch(function (error) {
+        if (error && error.name === "AbortError") return false;
+        /* Response là FILE: để trình duyệt tải nó bằng điều hướng thật.
+         * Đây không phải một lỗi của người dùng. */
+        if (error && error.isDownload) {
+          window.location.href = error.url || url;
+          return false;
+        }
+        if (!isLatest(ticket)) return false;
+        /* GET thất bại thì điều hướng thật là an toàn: một GET không ghi
+         * gì, nên gọi lại nó không tạo ra bản ghi thứ hai. Đây là chỗ
+         * KHÁC HẲN mutation — xem `submitForm()`. */
         window.location.href = url;
+        return false;
       });
+  }
+
+  /* --- STAB-03: mutation ---------------------------------------------
+   *
+   * Ba thứ mỗi mutation mang theo, và cả ba do CHỖ NÀY gắn vào chứ không
+   * do từng form tự nhớ:
+   *
+   *   `request_id`     mã của LẦN GỬI này. Giữ NGUYÊN qua các lần thử
+   *                    lại — đó là toàn bộ điểm của nó: server thấy lại
+   *                    cùng mã thì trả lại kết quả lần ghi trước thay vì
+   *                    ghi lần thứ hai.
+   *   `base_revision`  bản của đối tượng mà người dùng ĐÃ NHÌN THẤY khi
+   *                    bắt đầu sửa. Server so nó với bản hiện tại; lệch
+   *                    thì trả xung đột thay vì âm thầm ghi đè.
+   *   submitter        nút nào đã bấm. `new FormData(form)` không tự biết
+   *                    (xem chú thích trong hàm).
+   *
+   * `request_id` được nhớ TRÊN CHÍNH FORM (`dataset.requestId`), không
+   * sinh mới mỗi lần gọi: một lần thử lại sinh mã mới là một lần ghi thứ
+   * hai được cho phép, và đó đúng là lỗi cũ mặc một cái áo mới.
+   */
+  function uuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    /* Dự phòng cho browser không có `randomUUID` (Safari cũ, http không
+     * phải localhost). Không cần chất lượng mật mã: mã này chỉ cần KHÁC
+     * mã của các lần gửi khác trên cùng một máy. */
+    return "r" + Date.now().toString(36) + "-" +
+      Math.random().toString(36).slice(2, 10);
+  }
+
+  function requestIdOf(form) {
+    if (!form.dataset.requestId) form.dataset.requestId = uuid();
+    return form.dataset.requestId;
+  }
+
+  /* Sau khi server đã XÁC NHẬN, lần gửi kế tiếp là một quyết định MỚI và
+   * phải mang mã mới — nếu không, nó sẽ bị chính cơ chế chống lặp coi là
+   * lần thử lại của quyết định cũ và không được ghi. */
+  function clearRequestId(form) {
+    delete form.dataset.requestId;
+  }
+
+  /* Trạng thái lưu của MỘT form, hiện tại đúng chỗ nó thuộc về (`§UI-02`).
+   * Năm trạng thái của brief, và không có spinner toàn trang nào. */
+  var SAVE_STATES = {
+    dirty: "Đã thay đổi",
+    saving: "Đang lưu…",
+    saved: "Đã lưu",
+    conflict: "Có thay đổi mới từ người khác",
+    unconfirmed: "Chưa xác nhận được kết quả",
+    failed: "Chưa lưu được"
+  };
+
+  function statusHost(form) {
+    var host = form.querySelector("[data-save-status]");
+    if (host) return host;
+    /* Form chưa khai chỗ hiện trạng thái: dựng một chỗ ở cuối form thay
+     * vì im lặng. Một mutation không nói được nó đang ở đâu là lý do
+     * người dùng bấm lần thứ hai. */
+    host = document.createElement("span");
+    host.className = "tp-save-status";
+    host.setAttribute("data-save-status", "");
+    host.setAttribute("role", "status");
+    host.setAttribute("aria-live", "polite");
+    form.appendChild(host);
+    return host;
+  }
+
+  function setSaveState(form, state, extra) {
+    var host = statusHost(form);
+    var text = SAVE_STATES[state] || state;
+    if (state === "saved") {
+      var now = new Date();
+      text += " lúc " + String(now.getHours()).padStart(2, "0") + ":" +
+        String(now.getMinutes()).padStart(2, "0");
+    }
+    host.textContent = extra ? text + " — " + extra : text;
+    host.setAttribute("data-save-state", state);
+    form.setAttribute("data-save-state", state);
   }
 
   function submitForm(form, submitter) {
@@ -101,16 +348,81 @@
       var params = new URLSearchParams(data);
       var qs = params.toString();
       action = stripHash(action) + (qs ? "?" + qs : "");
-    } else {
-      opts.body = data;
+      /* GET không ghi gì ⟹ nó là điều hướng, và nó đi qua đúng cơ chế
+       * chống-response-cũ của `navigate()` (STAB-05). Đây là đường của
+       * ô chọn kỳ/sheet có `data-auto-submit`. */
+      return navigate(action, { region: form.dataset.region || MAIN_REGION });
     }
+
+    /* STAB-03 — mọi mutation mang `request_id`. Gắn vào FormData chứ
+     * không vào URL: nó là một phần của lần ghi, và nó phải đi cùng body
+     * qua mọi proxy. */
+    var requestId = requestIdOf(form);
+    data.set("request_id", requestId);
+    /* `base_revision` chỉ được gắn khi form KHAI nó. Bịa một giá trị ở
+     * đây sẽ làm server so với một bản không ai từng nhìn thấy. */
+    if (form.dataset.baseRevision) {
+      data.set("base_revision", form.dataset.baseRevision);
+    }
+    opts.body = data;
+    /* KHÔNG có `signal` ở đây, có chủ đích. Huỷ một POST đang bay không
+     * huỷ được việc server đã ghi — nó chỉ làm ta không biết kết quả. */
+    setSaveState(form, "saving");
     return fetchFragment(action, opts)
       .then(function (result) {
+        clearRequestId(form);
         swapContent(result.html, result.url);
+        return true;
       })
-      .catch(function () {
-        form.submit();
+      .catch(function (error) {
+        if (error && error.isDownload) {
+          /* Một mutation trả về file (xuất Excel sau khi lưu) — để trình
+           * duyệt tải, và KHÔNG gửi lại gì. */
+          clearRequestId(form);
+          window.location.href = error.url || action;
+          return false;
+        }
+        /* ĐÂY là chỗ `form.submit()` từng đứng, và vì sao nó bị gỡ:
+         *
+         * Một lỗi fetch KHÔNG phân biệt được ba tình huống — server chưa
+         * nhận, server đang ghi, server đã ghi xong rồi response thất
+         * lạc. `form.submit()` ở đây gửi lần thứ hai trong CẢ BA, nên nó
+         * ghi trùng trong tình huống thứ ba. Không có cách nào đọc được
+         * `error` để biết là tình huống nào.
+         *
+         * Nên nhánh này KHÔNG gửi gì. Nó giữ nguyên draft (DOM không bị
+         * thay), nói ra rằng kết quả chưa xác nhận được, và để người dùng
+         * quyết định. `request_id` KHÔNG bị xoá: nút thử lại gửi lại đúng
+         * mã đó, và server nhận ra nó.
+         */
+        setSaveState(form, "unconfirmed",
+          "Dữ liệu bạn nhập vẫn còn. Bấm THỬ LẠI để gửi lại đúng lần ghi " +
+          "này (server nhận ra và không ghi hai lần), hoặc tải lại trang " +
+          "để xem trạng thái thật.");
+        /* Nút gửi được bật lại — nếu không, người dùng thấy một dòng
+         * "chưa xác nhận" cạnh một cái nút đã chết. Xem `onSlowSubmit`. */
+        restorePendingButtons();
+        showRetry(form);
+        return false;
       });
+  }
+
+  /* Nút THỬ LẠI, dựng cạnh chỗ hiện trạng thái. Nó gửi lại CÙNG form với
+   * CÙNG `request_id` — không sinh mã mới, xem `requestIdOf`. */
+  function showRetry(form) {
+    var host = statusHost(form);
+    if (host.parentNode.querySelector("[data-save-retry]")) return;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost btn-mini";
+    button.setAttribute("data-save-retry", "");
+    button.setAttribute("data-metric", "save-retry");
+    button.textContent = "THỬ LẠI";
+    button.addEventListener("click", function () {
+      button.remove();
+      submitForm(form, null);
+    });
+    host.parentNode.insertBefore(button, host.nextSibling);
   }
 
   function onClick(event) {
@@ -123,8 +435,11 @@
     if (link.target && link.target !== "" && link.target !== "_self") return;
     if (link.hasAttribute("download")) return;
     if (!sameOrigin(link.href)) return;
+    /* STAB-02 — lớp chặn thứ nhất: không `preventDefault()`, nên trình
+     * duyệt xử lý link này y như khi không có JS. */
+    if (isDownloadUrl(link.href)) return;
     event.preventDefault();
-    navigate(link.href);
+    navigate(link.href, { region: link.dataset.region || MAIN_REGION });
   }
 
   function onSubmit(event) {
@@ -197,19 +512,31 @@
    * AJAX hay native, chỉ cần khoá nút lại trước khi request (dù đi đường
    * nào) bắt đầu chờ máy chủ.
    *
-   * KHÔNG tự bật lại nút: nhánh AJAX thành công thay nguyên `#app-content`
-   * (nút cũ biến mất cùng DOM cũ); nhánh native thành công thì trang tải
-   * lại hẳn. Nhánh AJAX THẤT BẠI rơi về `form.submit()` thật trong
-   * `submitForm()` — `HTMLFormElement.submit()` không tự phát sự kiện
-   * `submit` (đặc tả DOM), nên hàm này không chạy lại lần hai; nút giữ
-   * nguyên trạng thái "đang xử lý" đúng lúc request thật đang chờ, không
-   * có khoảng hở nào để bấm gửi trùng lần nữa. */
+   * `STAB-03` ĐỔI MỘT ĐIỀU Ở ĐÂY, và nó là một sửa lỗi chứ không phải một
+   * chi tiết: bản trước KHÔNG bật lại nút bao giờ, và lý do được ghi là
+   * "nhánh AJAX thất bại rơi về `form.submit()` thật, nên request thật vẫn
+   * đang chờ". Nhánh đó đã bị gỡ (xem `submitForm()`), nên lý do ấy không
+   * còn đúng: một lần gửi thất bại nay DỪNG LẠI ở browser, và một cái nút
+   * bị khoá vĩnh viễn sẽ khoá luôn đường thử lại của người dùng.
+   *
+   * Nên nút được bật lại ĐÚNG khi lần gửi kết thúc mà DOM vẫn còn nó:
+   *
+   *   thành công  → `#app-content` bị thay, nút cũ biến mất cùng DOM cũ,
+   *                 không có gì phải bật lại (và `restore` không tìm thấy
+   *                 nút nào — nó kiểm `isConnected`).
+   *   thất bại    → nút còn đó, được bật lại cùng nhãn cũ, cạnh dòng
+   *                 trạng thái "Chưa xác nhận được kết quả" và nút THỬ LẠI.
+   *   native      → trang tải lại hẳn, không ai còn nhìn nút cũ.
+   *
+   * Nhãn gốc được nhớ trong `dataset` chứ không đọc lại từ DOM: nội dung
+   * nút đã bị thay bằng spinner + nhãn "đang chạy" rồi. */
   function onSlowSubmit(event) {
     var form = event.target;
     if (!form || form.tagName !== "FORM" || !form.hasAttribute("data-loading-label")) return;
     var btn = (event.submitter && event.submitter.tagName === "BUTTON")
       ? event.submitter : form.querySelector("button[type=submit], button:not([type])");
     if (!btn || btn.disabled) return;
+    btn.dataset.idleLabel = btn.textContent;
     btn.disabled = true;
     var spin = document.createElement("span");
     spin.className = "tp-spinner";
@@ -217,6 +544,31 @@
     btn.textContent = "";
     btn.appendChild(spin);
     btn.appendChild(document.createTextNode(form.getAttribute("data-loading-label")));
+    pendingButtons.push(btn);
+  }
+
+  /* Các nút đang ở trạng thái "đang chạy". Một danh sách chứ không một
+   * biến: hai form chậm có thể cùng chờ (upload ở một tab nghiệp vụ, lưu
+   * đơn ở một tab khác), và một biến sẽ làm nút thứ nhất kẹt mãi. */
+  var pendingButtons = [];
+
+  function restorePendingButtons() {
+    var still = [];
+    for (var i = 0; i < pendingButtons.length; i++) {
+      var btn = pendingButtons[i];
+      /* Nút đã rời DOM (`#app-content` bị thay sau một lần lưu thành
+       * công): không có gì phải phục hồi, và giữ nó trong danh sách là
+       * giữ một tham chiếu tới DOM đã chết. */
+      if (!btn.isConnected) continue;
+      btn.disabled = false;
+      if (btn.dataset.idleLabel !== undefined) {
+        btn.textContent = btn.dataset.idleLabel;
+        delete btn.dataset.idleLabel;
+      }
+      still.push(btn);
+    }
+    pendingButtons = [];
+    return still;
   }
 
   document.addEventListener("click", onClick);

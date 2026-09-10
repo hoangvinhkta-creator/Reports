@@ -16,8 +16,9 @@
   <p>
     <a class="ghost btn-mini" href="{{ url_for('business_summary', ky=selected_period) }}"
       >← VỀ TRANG BÁO CÁO</a>
+    {# `STAB-02` — xem chú thích cùng tên ở `kinh_doanh.html`. #}
     <a class="ghost btn-mini" href="{{ url_for('business_export_excel', ky=selected_period) }}"
-       data-metric="close-export">TẢI EXCEL CỦA KỲ NÀY</a>
+       download data-metric="close-export">TẢI EXCEL CỦA KỲ NÀY</a>
   </p>
 </div>
 
