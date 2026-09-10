@@ -513,7 +513,21 @@
     if (form) submitForm(form);
   }
 
+  /* `UI-01`/`UI-02` — panel sửa đơn (khối script cuối file) mở/đóng bằng
+   * `history.pushState`/`history.back()` trên HASH của trang (`#sua=...`),
+   * không đụng tới `#app-content`. Popstate của MỘT trong hai lượt đó phải
+   * KHÔNG rơi vào `navigate()` ở dưới — làm vậy sẽ fetch lại cả mảnh và
+   * đóng panel một cách vô nghĩa, đúng lỗi mà panel tồn tại để tránh.
+   *
+   * Thay vì để module này BIẾT tên cơ chế panel (hai module theo hai lớp
+   * mối quan tâm khác nhau), một `CustomEvent` HUỶ ĐƯỢC (`cancelable`) được
+   * phát trước: panel nghe sự kiện này, và nếu chính nó xử lý popstate thì
+   * gọi `preventDefault()` — cùng giao thức `app:content-updated` đã dùng
+   * ở nơi khác trong file này. */
   function onPopState() {
+    var event = new window.CustomEvent("app:popstate", { cancelable: true });
+    document.dispatchEvent(event);
+    if (event.defaultPrevented) return;
     navigate(window.location.href, { push: false });
   }
 
@@ -943,4 +957,835 @@
   document.addEventListener("DOMContentLoaded", render);
   if (stored() === "toi") document.body.classList.add("dark");
   render();
+})();
+
+/*
+ * `UI-01`/`UI-02` — panel sửa MỘT ĐƠN tại chỗ, thay cho `?sua=` dựng lại
+ * cả bảng. Đây là lớp TĂNG CƯỜNG đúng kỷ luật đầu file: nút "Sửa" của mỗi
+ * BH vẫn là một `<a href="?sua=...">` THẬT — tắt JS thì nó vẫn mở đúng
+ * chế độ sửa cũ, dựng bởi server, y hệt trước `UI-01`. Có JS thì khối này
+ * `preventDefault()` cú bấm đó, mở một `<dialog>` dựng bởi CHÍNH JS ngay
+ * cạnh hàng/nút vừa bấm, gọi `GET /api/v1/orders/<order_key>` lấy dữ liệu,
+ * và `PATCH` cùng route đó để lưu — không một lần nào dựng lại `#app-content`.
+ *
+ * ## Ba hình dạng, một cơ chế
+ *
+ * `<dialog>` là MỘT phần tử cho cả ba hình dạng brief đòi (popover/side
+ * panel/bottom sheet); CSS (`tinphat-ui.css`, khối `.tp-order-panel`)
+ * quyết định nó TRÔNG như gì:
+ *
+ *   `--popover`  BH ít dòng: neo cạnh nút vừa bấm, như `.identify-pop`.
+ *   `--side`     BH nhiều dòng: cố định bên phải, cao hết màn hình.
+ *   mobile       CSS (`@media max-width: 760px`) ĐÈ cả hai thành bottom
+ *                sheet — JS không cần biết mình đang chạy trên máy nào,
+ *                đúng nguyên tắc "trạng thái mặc định đúng ngay ở khung
+ *                hình đầu tiên" mà khối toggle Hãng/IMEI phía trên đã dùng.
+ *
+ * `showModal()` cho CẢ BA: nền mờ + bẫy focus + phím Esc phát sự kiện
+ * `cancel` đều là cơ chế NỀN TẢNG của `<dialog>`, không phải thứ JS này tự
+ * dựng — cùng cách `target-edit-inline` đã dùng ở trên.
+ *
+ * ## Sâu liên kết qua HASH, không qua query `sua=`
+ *
+ * `?sua=<order_key>` VẪN LÀ đường không-JS — server đọc nó, dựng lại toàn
+ * trang ở chế độ sửa cũ. Panel KHÔNG dùng query đó (dùng nó sẽ khiến mọi
+ * điều hướng/refresh chạy lại đường dựng-lại-cả-bảng mà `UI-01` tồn tại để
+ * tránh). Panel ghi trạng thái của nó vào HASH (`#sua=<order_key>`) bằng
+ * `history.pushState`: Back/Forward đổi hash, `onPopState` (ở IIFE đầu
+ * file) phát `app:popstate` — panel bắt sự kiện đó, tự mở/đóng, và gọi
+ * `preventDefault()` để `onPopState` KHÔNG fetch lại mảnh.
+ *
+ * ## Vì sao `changed_nothing`/`already_applied` không đổi luồng UI
+ *
+ * `PATCH` có thể trả về mà KHÔNG ghi gì (`plan.changes_nothing`) hoặc là
+ * một lần THỬ LẠI đã có kết quả (`already_applied`) — cả hai vẫn là
+ * response THÀNH CÔNG (status 200, có đủ `lines`/`totals`), nên panel xử
+ * lý chúng y hệt một lần ghi thật: cập nhật hàng + trạng thái "Đã lưu".
+ * Phân biệt hai ca đó không đổi gì những gì người dùng cần thấy.
+ */
+(function () {
+  "use strict";
+
+  var MAIN_REGION_ID = "app-content";
+  var HASH_PREFIX = "#sua=";
+
+  function contentEl() { return document.getElementById(MAIN_REGION_ID); }
+
+  /* Thoát HTML của mọi chữ đến từ server (tên khách hàng, tên mặt hàng…)
+   * trước khi ghép vào `innerHTML` — panel này KHÔNG dùng `textContent`
+   * cho từng ô vì cấu trúc lồng khá sâu, nên mọi chỗ nội suy chữ động đều
+   * phải đi qua hàm này, không có ngoại lệ. */
+  function esc(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  /* Chuỗi thập phân CHÍNH XÁC do server gửi (`"5000000"`) → chữ có dấu
+   * chấm ngăn nghìn để GÕ VÀO ("5.000.000"), đúng quy ước `PRICE_INPUT_
+   * NOTE` mà ô giá của form HTML cũ dùng. Đây là ĐỊNH DẠNG CHỮ thuần tuý
+   * (chèn dấu chấm), không phải một phép tính — không vi phạm ranh giới
+   * "không tính lại con số nghiệp vụ nào ở client" mà `order_api.py` đặt
+   * ra, vì không có phép cộng/chia/làm tròn nào ở đây. */
+  function dottedInput(exact) {
+    if (!exact) return "";
+    var neg = exact.charAt(0) === "-";
+    var digits = neg ? exact.slice(1) : exact;
+    var dot = digits.indexOf(".");
+    var intPart = dot === -1 ? digits : digits.slice(0, dot);
+    var frac = dot === -1 ? "" : digits.slice(dot);
+    var withDots = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return (neg ? "-" : "") + withDots + frac;
+  }
+
+  function uuid() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return "p" + Date.now().toString(36) + "-" +
+      Math.random().toString(36).slice(2, 10);
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(value);
+    }
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  /* --- Vùng "response cũ" của lượt GET chi tiết đơn -----------------
+   * Cùng ý tưởng `STAB-05` của IIFE điều hướng chính, tự dựng lại ở đây vì
+   * hai module không chia sẻ trạng thái riêng của nhau (mỗi IIFE đóng kín).
+   * Mở panel A rồi B thật nhanh: response của A về SAU response của B phải
+   * bị bỏ, không được vẽ đè lên panel đang hiện B. */
+  var detailSeq = 0;
+  function nextDetailTicket() { detailSeq += 1; return detailSeq; }
+  function isLatestDetail(ticket) { return ticket === detailSeq; }
+
+  /* Trạng thái panel đang mở, hoặc `null`. Tại một thời điểm chỉ MỘT panel
+   * được mở — mở panel khác tự đóng panel cũ trước (`openPanel`). */
+  var panel = null;
+
+  var STATUS_TEXT = {
+    loading: "Đang tải…",
+    idle: "",
+    saving: "Đang lưu…",
+    saved: "Đã lưu",
+    conflict: "Đơn này đã được thay đổi từ lúc bạn mở nó.",
+    unconfirmed: "Chưa xác nhận được kết quả. Dữ liệu bạn nhập vẫn còn — " +
+      "bấm THỬ LẠI để gửi lại đúng lần ghi này.",
+    error: "Không mở được panel."
+  };
+
+  function setStatus(dialog, state, extra) {
+    var host = dialog.querySelector('[data-metric="order-panel-status"]');
+    if (!host) return;
+    var text = STATUS_TEXT[state] || state;
+    host.textContent = extra ? text + " " + extra : text;
+    host.setAttribute("data-state", state);
+    var retry = dialog.querySelector('[data-metric="order-panel-retry"]');
+    if (retry) retry.hidden = (state !== "unconfirmed" && state !== "conflict");
+  }
+
+  /* --- Mở panel -------------------------------------------------------- */
+
+  function orderKeyFromHash() {
+    var hash = window.location.hash;
+    if (hash.indexOf(HASH_PREFIX) !== 0) return null;
+    try { return decodeURIComponent(hash.slice(HASH_PREFIX.length)); }
+    catch (e) { return null; }
+  }
+
+  function openerFor(orderKey) {
+    var el = contentEl();
+    if (!el) return null;
+    return el.querySelector(
+      '[data-metric="bh-edit"][data-order="' + cssEscape(orderKey) + '"]');
+  }
+
+  function tableOf(orderKey) {
+    var opener = openerFor(orderKey);
+    return opener && opener.closest("table.sheet-table");
+  }
+
+  /* `orderKey` + tuỳ chọn `{opener, pushHistory}`. `pushHistory` sai khi
+   * lời gọi này ĐẾN TỪ một popstate (hash đã đổi rồi, đẩy thêm một lần
+   * nữa sẽ nhân đôi entry) hoặc từ việc khôi phục một deep-link lúc tải
+   * trang (hash đã có sẵn trên URL, không phải một cú bấm mới). */
+  function openPanel(orderKey, opts) {
+    opts = opts || {};
+    if (panel && panel.orderKey === orderKey) {
+      panel.dialog.focus();
+      return;
+    }
+    if (panel) teardownPanel();
+
+    var opener = opts.opener || openerFor(orderKey);
+    var table = tableOf(orderKey);
+    var period = table ? table.dataset.period : "";
+    var sheet = table ? table.dataset.sheet : "";
+
+    var dialog = document.createElement("dialog");
+    dialog.className = "tp-order-panel tp-order-panel--popover";
+    dialog.setAttribute("data-metric", "order-panel");
+    dialog.setAttribute("data-order", orderKey);
+    dialog.setAttribute("aria-label", "Sửa đơn " + orderKey);
+    dialog.innerHTML =
+      '<div class="tp-order-panel-head">' +
+        '<h3>Đơn <span data-metric="order-panel-title"></span></h3>' +
+        '<button type="button" class="ghost btn-mini" ' +
+          'data-metric="order-panel-close" aria-label="Đóng">&#10005;</button>' +
+      "</div>" +
+      '<div class="tp-order-panel-body" data-metric="order-panel-body">' +
+        '<p class="empty">Đang tải…</p>' +
+      "</div>";
+    dialog.querySelector('[data-metric="order-panel-title"]').textContent = orderKey;
+    document.body.appendChild(dialog);
+
+    panel = {
+      orderKey: orderKey, dialog: dialog, opener: opener || null,
+      period: period, sheet: sheet, pushedHistory: false, torn: false,
+      idempotencyKey: uuid(), orderRevision: null, periodRevision: null
+    };
+
+    if (opts.pushHistory) {
+      history.pushState({ tpPanel: orderKey }, "",
+        "#sua=" + encodeURIComponent(orderKey));
+      panel.pushedHistory = true;
+    }
+
+    wireDialogChrome(dialog);
+    try {
+      dialog.showModal();
+      positionPopover(dialog, opener);
+    } catch (e) {
+      /* Môi trường không hỗ trợ `showModal()` (jsdom cũ, browser rất cũ):
+       * vẫn hiện panel bằng thuộc tính `open` — không modal, nhưng dùng
+       * được, cùng lối dự phòng `upgradeDialogs()` đã dùng ở trên. */
+      dialog.setAttribute("open", "");
+    }
+
+    loadDetail(orderKey, period, dialog);
+  }
+
+  function wireDialogChrome(dialog) {
+    dialog.addEventListener("cancel", function (event) {
+      event.preventDefault();
+      requestClose();
+    });
+    dialog.addEventListener("click", function (event) {
+      if (event.target !== dialog) return;
+      var rect = dialog.getBoundingClientRect();
+      var outside = event.clientX < rect.left || event.clientX > rect.right ||
+        event.clientY < rect.top || event.clientY > rect.bottom;
+      if (outside) requestClose();
+    });
+    dialog.addEventListener("click", function (event) {
+      var close = event.target.closest &&
+        event.target.closest('[data-metric="order-panel-close"]');
+      if (close) requestClose();
+    });
+  }
+
+  /* Neo panel cạnh nút vừa bấm (chỉ hình dạng `--popover`; `--side` cố
+   * định bằng CSS, không cần toạ độ). Không có `opener` (deep-link tới một
+   * đơn không có mặt trên bảng đang hiện, hoặc mở bằng bàn phím) thì để
+   * CSS mặc định (giữa màn hình) — cùng quy ước `identify-pop` đã dùng. */
+  function positionPopover(dialog, opener) {
+    if (!opener || !dialog.classList.contains("tp-order-panel--popover")) return;
+    var pad = 8;
+    var anchor = opener.getBoundingClientRect();
+    var rect = dialog.getBoundingClientRect();
+    var x = anchor.left;
+    var y = anchor.bottom + 10;
+    if (x + rect.width > window.innerWidth - pad) {
+      x = window.innerWidth - rect.width - pad;
+    }
+    if (y + rect.height > window.innerHeight - pad) {
+      y = anchor.top - rect.height - 10;
+    }
+    dialog.classList.add("is-anchored");
+    dialog.style.left = Math.max(pad, x) + "px";
+    dialog.style.top = Math.max(pad, y) + "px";
+  }
+
+  /* Số dòng NGƯỠNG để coi một đơn là "đơn giản" (popover) hay "nhiều
+   * dòng" (side panel). Ba trở xuống là một BH điển hình của một hoá đơn
+   * lẻ; brief không cho một con số cứng nên đây là một lựa chọn trình bày,
+   * không phải một luật nghiệp vụ — đổi nó không ảnh hưởng gì tới dữ liệu. */
+  var SIMPLE_LINE_THRESHOLD = 3;
+
+  function upgradeShape(dialog, lineCount) {
+    if (lineCount <= SIMPLE_LINE_THRESHOLD) return;
+    dialog.classList.remove("tp-order-panel--popover");
+    dialog.classList.add("tp-order-panel--side");
+    dialog.classList.remove("is-anchored");
+    dialog.style.left = "";
+    dialog.style.top = "";
+  }
+
+  /* --- GET chi tiết đơn -------------------------------------------------- */
+
+  function loadDetail(orderKey, period, dialog) {
+    var ticket = nextDetailTicket();
+    var url = "/api/v1/orders/" + encodeURIComponent(orderKey) +
+      "?period=" + encodeURIComponent(period || "");
+    fetch(url, { headers: { Accept: "application/json" } })
+      .then(function (response) {
+        return response.json().then(function (body) {
+          return { ok: response.ok, body: body };
+        });
+      })
+      .then(function (result) {
+        if (!isLatestDetail(ticket) || !panel || panel.dialog !== dialog) return;
+        if (!result.ok) {
+          renderLoadError(dialog,
+            (result.body && result.body.error && result.body.error.message) ||
+            "Không mở được panel.");
+          return;
+        }
+        panel.orderRevision = result.body.order_revision;
+        panel.periodRevision = result.body.period_revision;
+        renderDetail(dialog, result.body);
+      })
+      .catch(function (error) {
+        if (error && error.name === "AbortError") return;
+        if (!isLatestDetail(ticket) || !panel || panel.dialog !== dialog) return;
+        renderLoadError(dialog,
+          "Không kết nối được máy chủ. Bấm THỬ LẠI để tải lại panel này.");
+      });
+  }
+
+  function renderLoadError(dialog, message) {
+    var body = dialog.querySelector('[data-metric="order-panel-body"]');
+    body.innerHTML =
+      '<p class="error" data-metric="order-panel-load-error">' + esc(message) +
+      "</p>" +
+      '<p><button type="button" class="ghost btn-mini" ' +
+        'data-metric="order-panel-load-retry">THỬ LẠI</button></p>';
+    body.querySelector('[data-metric="order-panel-load-retry"]')
+      .addEventListener("click", function () {
+        if (!panel) return;
+        body.innerHTML = '<p class="empty">Đang tải…</p>';
+        loadDetail(panel.orderKey, panel.period, dialog);
+      });
+  }
+
+  function employeeOptionsHtml(employees, selected) {
+    var html = "";
+    for (var i = 0; i < employees.length; i++) {
+      var opt = employees[i];
+      html += '<option value="' + esc(opt.value) + '"' +
+        (opt.value === selected ? " selected" : "") + ">" +
+        esc(opt.label) + "</option>";
+    }
+    return html;
+  }
+
+  function lineRowHtml(line, canEdit) {
+    var editable = canEdit && line.scope === "reported";
+    var priceCell = editable
+      ? '<input type="text" inputmode="numeric" class="op-price-input" ' +
+        'data-metric="order-panel-price" ' +
+        'value="' + esc(dottedInput(line.purchase_price_input)) + '" ' +
+        'aria-label="Giá nhập của ' + esc(line.product_raw) + '">'
+      : '<span title="' + esc(line.purchase_price.text) + '">' +
+        esc(line.purchase_price.text) + "</span>";
+    return (
+      '<tr data-metric="order-panel-line" ' +
+      'data-product-key="' + esc(line.product_key) + '" ' +
+      'data-occurrence-index="' + esc(line.occurrence_index) + '" ' +
+      'data-scope="' + esc(line.scope) + '">' +
+        '<td>' + esc(line.product_raw) +
+          (editable ? "" : ' <span class="tp-unit">(' +
+            (line.scope === "excluded" ? "đã loại" : "vắng trong sổ") +
+            ")</span>") +
+        "</td>" +
+        '<td class="num">' + esc(line.quantity) + "</td>" +
+        '<td class="num">' + priceCell + "</td>" +
+        '<td class="num">' + esc(line.sell_price.text) + "</td>" +
+        '<td class="num' + (line.kpi_profit.value == null ? " empty-cell" : "") +
+          '" data-metric="order-panel-profit">' + esc(line.kpi_profit.text) +
+          "</td>" +
+      "</tr>"
+    );
+  }
+
+  function renderDetail(dialog, payload) {
+    var body = dialog.querySelector('[data-metric="order-panel-body"]');
+    var reportedLines = payload.lines.filter(function (line) {
+      return line.scope === "reported";
+    });
+    var otherLines = payload.lines.filter(function (line) {
+      return line.scope !== "reported";
+    });
+    var canEdit = payload.permissions && payload.permissions.can_edit &&
+      reportedLines.length > 0;
+
+    var html = "";
+    html += '<p class="insight" data-metric="order-panel-customer">' +
+      esc(payload.customer_name || "—") +
+      (payload.customer_phone ? " · " + esc(payload.customer_phone) : "") +
+      (payload.customer_address ? " · " + esc(payload.customer_address) : "") +
+      "</p>";
+    if (payload.period_closed) {
+      html += '<p class="notice" data-metric="order-panel-closed">' +
+        "Kỳ đã chốt — panel chỉ để xem, không thể lưu.</p>";
+    }
+    html += '<div class="tp-scroll"><table class="tp-order-panel-lines">' +
+      "<tr><th>Mặt hàng</th><th>SL</th><th>Giá nhập</th><th>Giá bán</th>" +
+      "<th>Lợi nhuận</th></tr>";
+    for (var i = 0; i < reportedLines.length; i++) {
+      html += lineRowHtml(reportedLines[i], canEdit);
+    }
+    for (var j = 0; j < otherLines.length; j++) {
+      html += lineRowHtml(otherLines[j], canEdit);
+    }
+    html += "</table></div>";
+
+    if (canEdit) {
+      if (payload.employees && payload.employees.length) {
+        html += '<label class="tp-label">Nhân viên<br>' +
+          '<select data-metric="order-panel-employee">' +
+          employeeOptionsHtml(payload.employees, payload.employee_value) +
+          "</select></label>";
+      }
+      html += '<label class="tp-label" data-metric="order-panel-reason-wrap"' +
+        (payload.reason_required ? "" : ' hidden') + ">" +
+        "Lý do (chỉ cần khi thay một giá đã có)<br>" +
+        '<input type="text" data-metric="order-panel-reason" ' +
+        'placeholder="Vì sao thay giá tự động?"></label>';
+    }
+
+    html += '<div data-metric="order-panel-status" role="status" ' +
+      'aria-live="polite"></div>';
+    html += '<div class="tp-order-panel-actions">';
+    if (canEdit) {
+      html += '<button type="button" class="act btn-mini" ' +
+        'data-metric="order-panel-save">LƯU</button>';
+    }
+    html += '<button type="button" class="ghost btn-mini" hidden ' +
+      'data-metric="order-panel-retry">THỬ LẠI</button>';
+    html += "</div>";
+
+    body.innerHTML = html;
+    upgradeShape(dialog, reportedLines.length);
+    positionPopover(dialog, panel && panel.opener);
+
+    var save = body.querySelector('[data-metric="order-panel-save"]');
+    if (save) save.addEventListener("click", function () { doSave(dialog); });
+    var retry = body.querySelector('[data-metric="order-panel-retry"]');
+    if (retry) retry.addEventListener("click", function () { doSave(dialog); });
+
+    var firstFocusable = body.querySelector(
+      'input, select, button[data-metric="order-panel-save"]');
+    (firstFocusable || dialog).focus();
+  }
+
+  /* --- PATCH lưu --------------------------------------------------------- */
+
+  function collectPrices(dialog) {
+    var rows = dialog.querySelectorAll(
+      '[data-metric="order-panel-line"][data-scope="reported"]');
+    var prices = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var input = row.querySelector('[data-metric="order-panel-price"]');
+      if (!input) continue;
+      prices.push({
+        product_key: row.dataset.productKey,
+        occurrence_index: parseInt(row.dataset.occurrenceIndex, 10),
+        value: input.value
+      });
+    }
+    return prices;
+  }
+
+  /* Giữ NGUYÊN `idempotency_key` hiện có của panel là hành vi MẶC ĐỊNH,
+   * VÔ ĐIỀU KIỆN của hàm này — không có tham số nào chọn giữa "giữ mã" và
+   * "sinh mã mới" ở đây. THỬ LẠI của một lần ghi CHƯA XÁC NHẬN (lỗi mạng)
+   * gọi thẳng `doSave(dialog)` nên tự động giữ mã cũ, để server nhận ra và
+   * không ghi hai lần (`STAB-03` của IIFE điều hướng chính, cùng nguyên
+   * tắc). Một lần GỬI LẠI sau `REVISION_CONFLICT` thì KHÁC — đó là một
+   * quyết định MỚI (server đã trả lời rõ ràng, không có gì mơ hồ để "thử
+   * lại") — nên nơi gọi (`applyConflict()`) tự sinh `panel.idempotencyKey`
+   * mới TRƯỚC khi gọi `doSave(dialog)`, thay vì hàm này tự phân nhánh.
+   *
+   * `REPAIR` (independent review, finding P2) — bản trước có tham số
+   * `opts.sameIntent` nhưng không đọc nó ở đâu cả; việc giữ mã "đúng" chỉ
+   * vì đây là hành vi MẶC ĐỊNH, không phải vì cờ đó. Xoá tham số chết thay
+   * vì để code và chú thích tiếp tục nói hai chuyện khác nhau. */
+  function doSave(dialog) {
+    if (!panel || panel.dialog !== dialog) return;
+    var prices = collectPrices(dialog);
+    var employeeField = dialog.querySelector('[data-metric="order-panel-employee"]');
+    var reasonField = dialog.querySelector('[data-metric="order-panel-reason"]');
+    var changes = { prices: prices };
+    if (employeeField) changes.employee = employeeField.value;
+
+    var body = {
+      idempotency_key: panel.idempotencyKey,
+      base_revision: panel.orderRevision,
+      changes: changes,
+      reason: (reasonField && reasonField.value) || null
+    };
+
+    var saveBtn = dialog.querySelector('[data-metric="order-panel-save"]');
+    var retryBtn = dialog.querySelector('[data-metric="order-panel-retry"]');
+    if (saveBtn) saveBtn.disabled = true;
+    if (retryBtn) retryBtn.hidden = true;
+    setStatus(dialog, "saving");
+
+    var url = "/api/v1/orders/" + encodeURIComponent(panel.orderKey) +
+      "?period=" + encodeURIComponent(panel.period || "") +
+      "&sheet=" + encodeURIComponent(panel.sheet || "");
+
+    /* KHÔNG `signal` — mutation không bao giờ bị abort (đóng panel không
+     * huỷ lượt PATCH đang bay; xem `requestClose()`/`teardownPanel()`). */
+    fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body)
+    })
+      .then(function (response) {
+        return response.json().then(function (payload) {
+          return { status: response.status, ok: response.ok, payload: payload };
+        });
+      })
+      .then(function (result) { handleSaveResult(dialog, result); })
+      .catch(function () { handleSaveNetworkError(dialog); });
+  }
+
+  function handleSaveNetworkError(dialog) {
+    if (!panel || panel.dialog !== dialog) return;
+    var saveBtn = dialog.querySelector('[data-metric="order-panel-save"]');
+    if (saveBtn) saveBtn.disabled = false;
+    setStatus(dialog, "unconfirmed");
+  }
+
+  /* `REPAIR` (independent review, finding P0) — bản trước bọc TOÀN BỘ hàm
+   * này (kể cả nhánh `result.ok`) trong `if (!panel || panel.dialog !==
+   * dialog) return;`. Đóng panel (Escape/nút Đóng/mở panel khác) TRƯỚC KHI
+   * PATCH resolve làm `panel`/`panel.dialog` đổi trước khi response về —
+   * nhánh thành công khi đó `return` sớm, và `applySuccess()` (cùng
+   * `patchTableFromPayload()` bên trong nó) KHÔNG BAO GIỜ chạy dù server đã
+   * ghi thành công. Bảng nền giữ giá trị CŨ tới khi F5 — mâu thuẫn trực
+   * tiếp với chú thích "Bảng nền LUÔN được cập nhật" ngay trong
+   * `applySuccess()`.
+   *
+   * Sửa: `isCurrentDialog` chỉ gác phần UI CỦA CHÍNH panel đang mở (bật lại
+   * nút LƯU, và — bên trong các hàm dưới — vẽ trạng thái conflict/lỗi lên
+   * đúng dialog đó). Nhánh `result.ok` gọi `applySuccess()` VÔ ĐIỀU KIỆN:
+   * `applySuccess()` tự quyết định phần nào của NÓ cần `panel.dialog ===
+   * dialog` (cập nhật ô nhập/trạng thái của panel), còn việc vá bảng nền
+   * (`patchTableFromPayload()`) đứng NGOÀI điều kiện đó trong chính hàm ấy
+   * — đây là nơi lời hứa "PATCH không bao giờ bị mất vì panel đã đóng" thật
+   * sự đúng theo cấu tạo, không chỉ đúng trong chú thích. */
+  function handleSaveResult(dialog, result) {
+    var isCurrentDialog = !!(panel && panel.dialog === dialog);
+    if (isCurrentDialog) {
+      var saveBtn = dialog.querySelector('[data-metric="order-panel-save"]');
+      if (saveBtn) saveBtn.disabled = false;
+    }
+
+    if (result.ok) {
+      applySuccess(dialog, result.payload);
+      return;
+    }
+
+    // Các nhánh dưới đây đều là cập nhật TRẠNG THÁI HIỂN THỊ của panel
+    // (conflict/lỗi + các nút đi kèm) — không có gì để vẽ khi panel đã đóng
+    // hoặc đã chuyển sang đơn khác, và `panel.orderRevision`/`panel.
+    // conflictCurrent` mà `applyConflict()` ghi PHẢI thuộc về đúng panel
+    // đang mở, không phải một panel đã đóng hay panel của đơn khác.
+    if (!isCurrentDialog) return;
+
+    var err = result.payload && result.payload.error;
+    var code = err && err.code;
+    if (code === "REVISION_CONFLICT") {
+      applyConflict(dialog, err);
+      return;
+    }
+    if (code === "REQUEST_IN_FLIGHT") {
+      setStatus(dialog, "unconfirmed",
+        "Một lần gửi khác của chính lần lưu này đang xử lý — thử lại sau.");
+      return;
+    }
+    /* VALIDATION_ERROR/PERIOD_CLOSED/NOT_FOUND — lỗi RÕ RÀNG, không mơ hồ
+     * như lỗi mạng. Một lần GỬI LẠI ở đây (nếu người dùng sửa lại rồi bấm
+     * LƯU lần nữa) là một quyết định MỚI, không phải thử lại cùng một lần
+     * ghi — nên mã KHÔNG cần giữ nguyên qua nhánh này, và nút LƯU (không
+     * phải nút THỬ LẠI) là đường quay lại. */
+    setStatus(dialog, "error", (err && err.message) || "Lưu thất bại.");
+  }
+
+  function applyConflict(dialog, err) {
+    /* Draft (những gì người dùng đã gõ) GIỮ NGUYÊN trên input — không có
+     * dòng nào ở đây chạm vào `value` của ô giá/nhân viên/lý do. Chỉ trạng
+     * thái + hai đường lựa chọn được thêm vào. */
+    panel.orderRevision = err.order_revision;
+    panel.periodRevision = err.period_revision;
+    panel.conflictCurrent = err.current;
+    setStatus(dialog, "conflict", "Bản nháp của bạn vẫn còn.");
+
+    var actions = dialog.querySelector(".tp-order-panel-actions");
+    if (actions && !actions.querySelector('[data-metric="order-panel-conflict-reload"]')) {
+      var reload = document.createElement("button");
+      reload.type = "button";
+      reload.className = "ghost btn-mini";
+      reload.setAttribute("data-metric", "order-panel-conflict-reload");
+      reload.textContent = "LẤY GIÁ TRỊ MỚI";
+      reload.addEventListener("click", function () {
+        reload.remove();
+        applyServerValuesToDraft(dialog, panel.conflictCurrent);
+        setStatus(dialog, "idle");
+      });
+      actions.appendChild(reload);
+    }
+    var retry = dialog.querySelector('[data-metric="order-panel-retry"]');
+    if (retry) {
+      retry.hidden = false;
+      retry.textContent = "GỬI LẠI VỚI BẢN MỚI";
+      retry.onclick = function () {
+        /* Quyết định MỚI (`§doSave` giải thích vì sao) — mã chống lặp mới,
+         * `base_revision` đã được cập nhật ở trên. */
+        panel.idempotencyKey = uuid();
+        retry.textContent = "THỬ LẠI";
+        doSave(dialog);
+      };
+    }
+  }
+
+  function applyServerValuesToDraft(dialog, current) {
+    var rows = dialog.querySelectorAll('[data-metric="order-panel-line"]');
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var line = findLine(current.lines, row.dataset.productKey,
+        row.dataset.occurrenceIndex);
+      if (!line) continue;
+      var input = row.querySelector('[data-metric="order-panel-price"]');
+      if (input) input.value = dottedInput(line.purchase_price_input);
+    }
+    var employeeField = dialog.querySelector('[data-metric="order-panel-employee"]');
+    if (employeeField) employeeField.value = current.employee_value;
+  }
+
+  function findLine(lines, productKey, occurrenceIndex) {
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].product_key === productKey &&
+          String(lines[i].occurrence_index) === String(occurrenceIndex)) {
+        return lines[i];
+      }
+    }
+    return null;
+  }
+
+  function applySuccess(dialog, payload) {
+    if (panel && panel.dialog === dialog) {
+      panel.orderRevision = payload.order_revision;
+      panel.periodRevision = payload.period_revision;
+      panel.idempotencyKey = uuid(); // lần ghi kế tiếp là một quyết định MỚI
+      var reasonField = dialog.querySelector('[data-metric="order-panel-reason"]');
+      if (reasonField) reasonField.value = "";
+      setStatus(dialog, "saved");
+      for (var i = 0; i < payload.lines.length; i++) {
+        var line = payload.lines[i];
+        var row = dialog.querySelector(
+          '[data-metric="order-panel-line"][data-product-key="' +
+          cssEscape(line.product_key) + '"][data-occurrence-index="' +
+          cssEscape(line.occurrence_index) + '"]');
+        if (row) {
+          var input = row.querySelector('[data-metric="order-panel-price"]');
+          if (input) input.value = dottedInput(line.purchase_price_input);
+          var profit = row.querySelector('[data-metric="order-panel-profit"]');
+          if (profit) profit.textContent = line.kpi_profit.text;
+        }
+      }
+    }
+    /* Bảng nền LUÔN được cập nhật, kể cả khi panel đã bị đóng trong lúc
+     * PATCH còn bay (đóng panel không huỷ mutation — xem `requestClose()`).
+     * Đây là nơi item `§4` "chỉ cập nhật các hàng đã đổi" thật sự xảy ra
+     * trên trang, không phải bên trong panel. */
+    patchTableFromPayload(payload);
+  }
+
+  /* --- Vá lại BẢNG NỀN sau một lần lưu thành công ------------------------
+   *
+   * KHÔNG dựng lại `#app-content`. Mỗi dòng đã đổi được tìm bằng đúng khoá
+   * ổn định (`data-product-key`/`data-occurrence-index`, gắn ở template —
+   * xem `kinh_doanh_nhan_vien.html`), và chỉ những Ô đã có `data-metric`
+   * sẵn mới bị ghi — không dòng HTML nào bị dựng lại từ đầu.
+   *
+   * Hàng TỔNG (Giá nhập/Giá bán) được vá bằng `totals.sheet.row_totals` —
+   * SERVER tính, cùng hàm trình bày mà lần render đầy đủ dùng
+   * (`workspace_presentation.sheet_detail_totals`, xem `order_api.py`).
+   * Dải KPI phía trên (Doanh thu/DS quy đổi/So Target…) KHÔNG được vá:
+   * những ô đó mang nhãn CHÍNH THỨC/CHƯA HOÀN CHỈNH (`R-S7`) dựng từ một
+   * đối tượng gate mà response PATCH không mang theo, và đoán gate đó ở
+   * client là đúng lớp lỗi "dựng thẩm quyền nghiệp vụ thứ hai" mà
+   * `order_api.py` cấm ngay ở docstring đầu file — nên panel để nguyên,
+   * đúng như brief `§4` cho phép ("KPI/summary MÀ SERVER TRẢ VỀ").
+   */
+  function patchTableFromPayload(payload) {
+    var opener = openerFor(payload.order_key);
+    var table = opener ? opener.closest("table.sheet-table") : null;
+    if (!table) return;
+
+    for (var i = 0; i < payload.lines.length; i++) {
+      var line = payload.lines[i];
+      if (line.scope !== "reported") continue;
+      // `data-order` PHẢI có mặt trong selector: `product_key` định danh
+      // một MẶT HÀNG, không phải một dòng — hai đơn khác nhau đặt cùng một
+      // mặt hàng ở vị trí đầu tiên (`occurrence_index` = 1 của cả hai) là
+      // chuyện bình thường, và thiếu `data-order` sẽ vá NHẦM hàng của đơn
+      // khác (khớp phần tử ĐẦU TIÊN trong DOM, không phải phần tử ĐÚNG).
+      var row = table.querySelector(
+        'tr[data-order="' + cssEscape(payload.order_key) +
+        '"][data-product-key="' + cssEscape(line.product_key) +
+        '"][data-occurrence-index="' + cssEscape(line.occurrence_index) + '"]');
+      if (!row) continue;
+      patchPriceCell(row, line.purchase_price);
+      patchDerivedCell(row, "line-profit", line.kpi_profit);
+      patchDerivedCell(row, "line-converted", line.converted_sales);
+    }
+    // Nhân viên thuộc về CẢ đơn, không về từng dòng (`§27`) — vá MỘT lần
+    // cho cả BH bằng dòng đầu tiên, thay vì lặp lại việc này ở mỗi dòng.
+    if (payload.lines.length) {
+      var first = payload.lines[0];
+      patchEmployeeCells(table, payload.order_key, first.employee,
+        first.employee_resolved);
+    }
+
+    if (payload.totals && payload.totals.sheet && payload.totals.sheet.row_totals) {
+      var rt = payload.totals.sheet.row_totals;
+      patchTotalsCell(table, "totals-purchase", rt.purchase_price,
+        rt.purchase_price_full);
+      patchTotalsCell(table, "totals-sell", rt.sell_price, rt.sell_price_full);
+    }
+  }
+
+  function patchPriceCell(row, money) {
+    var cell = row.querySelector('td[data-metric="purchase_price"]');
+    if (!cell) return;
+    var span = cell.querySelector("span");
+    if (!span) { span = document.createElement("span"); cell.appendChild(span); }
+    span.textContent = money.text;
+    if (money.value != null) span.title = money.text + " đồng";
+    else span.removeAttribute("title");
+  }
+
+  function patchDerivedCell(row, metric, money) {
+    var cell = row.querySelector('td[data-metric="' + metric + '"]');
+    if (!cell) return;
+    cell.textContent = money.text;
+    cell.classList.toggle("empty-cell", money.value == null);
+    if (money.value != null) cell.title = money.text + " đồng";
+    else cell.removeAttribute("title");
+  }
+
+  function patchEmployeeCells(table, orderKey, employee, resolved) {
+    var rows = table.querySelectorAll(
+      'tr[data-order="' + cssEscape(orderKey) + '"]');
+    for (var i = 0; i < rows.length; i++) {
+      var cell = rows[i].querySelector('td[data-metric="line-employee"]');
+      if (!cell || cell.querySelector("select")) continue;
+      cell.textContent = employee || "";
+      cell.classList.toggle("empty-cell", !resolved);
+    }
+  }
+
+  function patchTotalsCell(table, metric, text, fullText) {
+    var cell = table.querySelector('td[data-metric="' + metric + '"]');
+    if (!cell) return;
+    cell.textContent = text;
+    cell.title = fullText + " đồng";
+  }
+
+  /* --- Đóng panel ---------------------------------------------------------
+   *
+   * Escape/nút Đóng/bấm ra ngoài đi qua `requestClose()`. Nếu panel này ĐÃ
+   * đẩy một history entry lúc mở (`pushedHistory`), đóng nó là LÙI một
+   * bước (`history.back()`) — popstate quay lại chạy `handlePanelPopState`
+   * và đó là nơi DOM thật sự bị gỡ (`teardownPanel`). Nếu panel không đẩy
+   * gì (khôi phục từ một deep-link đã có sẵn hash lúc tải trang), không có
+   * gì để lùi — gỡ DOM thẳng và tự xoá hash bằng `replaceState`. */
+  function requestClose() {
+    if (!panel) return;
+    if (panel.pushedHistory) { history.back(); return; }
+    teardownPanel();
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+
+  function teardownPanel() {
+    if (!panel || panel.torn) return;
+    var current = panel;
+    current.torn = true;
+    panel = null;
+    if (current.dialog.open) {
+      try { current.dialog.close(); } catch (e) { /* đã đóng: bỏ qua */ }
+    }
+    current.dialog.remove();
+    if (current.opener && current.opener.isConnected) current.opener.focus();
+  }
+
+  /* --- Móc vào cú bấm "Sửa" và vào popstate ------------------------------
+   *
+   * PHẢI đăng ký ở PHA "CAPTURE" (`true`), không phải bubble mặc định.
+   * `onClick()` của IIFE điều hướng chính (đầu file) cũng nghe `click` trên
+   * `document`, ở PHA BUBBLE, và nó chặn MỌI link cùng origin trong
+   * `#app-content` không phải đường tải file — kể cả link `bh-edit`. Đăng
+   * ký ở bubble (như ban đầu) khiến listener đó chạy TRƯỚC (nó đăng ký
+   * trước trong file), tự `preventDefault()` + `navigate()` rồi thay
+   * `#app-content` bằng trang chỉnh sửa CŨ — đúng lỗi mà `UI-01` tồn tại
+   * để đóng, chỉ đổi chỗ. Capture chạy TRƯỚC bubble bất kể thứ tự đăng ký,
+   * và `stopPropagation()` ở đây chặn hẳn listener bubble kia nhận được
+   * sự kiện. */
+  document.addEventListener("click", function (event) {
+    var el = contentEl();
+    if (!el) return;
+    var link = event.target.closest &&
+      event.target.closest('[data-metric="bh-edit"]');
+    if (!link || !el.contains(link)) return;
+    if (event.defaultPrevented || event.button !== 0 ||
+        event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    var orderKey = link.dataset.order;
+    if (orderKey) openPanel(orderKey, { opener: link, pushHistory: true });
+  }, true);
+
+  /* `app:popstate` — xem chú thích ở `onPopState()` của IIFE điều hướng
+   * chính. Panel xử lý một popstate khi hash MỚI mang một đơn (Back/
+   * Forward đưa người dùng vào một trạng thái "đang mở panel X"), HOẶC khi
+   * panel đang mở (Back/Forward đưa người dùng RA khỏi trạng thái đó) — cả
+   * hai đều `preventDefault()` để `navigate()` không chạy. */
+  document.addEventListener("app:popstate", function (event) {
+    var order = orderKeyFromHash();
+    if (!order && !panel) return; // popstate không liên quan gì tới panel
+    event.preventDefault();
+    if (order) {
+      if (!panel || panel.orderKey !== order) {
+        openPanel(order, { opener: openerFor(order), pushHistory: false });
+      }
+    } else if (panel) {
+      teardownPanel();
+    }
+  });
+
+  /* Điều hướng THẬT (đổi kỳ/sheet, bấm một tab khác…) thay cả
+   * `#app-content` — DOM của panel (nếu còn) tham chiếu tới những hàng
+   * không còn tồn tại. Đóng thẳng, không qua `requestClose()`: không có
+   * "lùi một bước" nào đúng nghĩa ở đây, `swapContent()` đã tự thay cả URL. */
+  document.addEventListener("app:content-updated", function () {
+    if (panel) teardownPanel();
+  });
+
+  /* Deep-link lúc tải trang: URL đã mang sẵn `#sua=...` (chia sẻ một liên
+   * kết, hoặc Back đưa thẳng vào trang này từ một trang khác). Không đẩy
+   * history — hash đã là hash HIỆN TẠI của URL, không phải một trạng thái
+   * mới. */
+  document.addEventListener("DOMContentLoaded", function () {
+    var order = orderKeyFromHash();
+    if (order) openPanel(order, { opener: openerFor(order), pushHistory: false });
+  });
 })();

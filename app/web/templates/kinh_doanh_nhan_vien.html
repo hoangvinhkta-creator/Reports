@@ -372,7 +372,11 @@
       >{{ optional_columns_note }}</span>
   </p>
   <div class="tp-scroll">
-  <table class="sheet-table" data-optional-hidden="1">
+  {# `UI-01`/`UI-02` — `data-period`/`data-sheet` cho panel sửa tại chỗ đọc
+     ngữ cảnh gọi API (`/api/v1/orders/<order_key>?period=…&sheet=…`) mà
+     không phải tự suy ra từ URL của trang. #}
+  <table class="sheet-table" data-optional-hidden="1"
+         data-period="{{ selected_period }}" data-sheet="{{ sheet.key }}">
     {# Cột số: SL · Giá nhập · Giá bán · Lợi nhuận · DS quy đổi (vị trí 8–12
        sau khi R5 §5 chen Hãng/IMEI và R5.1 §5 chen Nhóm hàng vào sau Mặt
        hàng). Ba cột chen vào mang `col-optional` — CSS ẩn chúng khi bảng còn
@@ -414,6 +418,15 @@
        "N dòng" bị bỏ theo yêu cầu trực tiếp của chủ dự án — số dòng đã tự
        hiện ra bằng chính số hàng của khối, không cần một ô nói lại điều đó.
        Nút sửa của cả BH (`bh-edit`) chuyển vào ô thao tác của dòng đầu. #}
+    {# `UI-01`/`UI-02` — `data-product-key`/`data-occurrence-index` là khoá
+       ỔN ĐỊNH của dòng (cùng ba phần `order_key`/`product_key`/
+       `occurrence_index` mà `order_api.line_payload` dùng), để panel sửa
+       tại chỗ tìm lại ĐÚNG `<tr>` sau một lần PATCH mà không dựng lại bảng.
+       Chỉ gắn khi KHÔNG synthetic: dòng Chiết khấu suy ra (`row.synthetic`)
+       không có mặt trong payload JSON của panel (nó là một cách TRÌNH BÀY
+       một dòng thành hai hàng, không phải một dòng nghiệp vụ thứ hai — xem
+       `order_api.py` §"Tiền được truyền..."), nên gắn khoá vào nó sẽ mời
+       JS ghi đè ô Chiết khấu bằng số của dòng chính. #}
     <tr class="{{ 'bh-head ' if first }}shade-{{ group.shade }}{{ ' row-loss' if row.loss }}{{ ' row-discount' if row.synthetic }}{{ ' bh-open' if open and first }}{{ ' bh-unresolved' if group.unresolved_identity and first }}"
         {% if first %}id="bh-{{ group.order_key }}"{% endif %}
         {% if first %}
@@ -423,6 +436,10 @@
         {% else %}
         data-metric="line-row" data-order="{{ row.order_key }}"
         {% if row.loss %}data-metric-loss="1"{% endif %}
+        {% endif %}
+        {% if not row.synthetic %}
+        data-product-key="{{ row.product_key }}"
+        data-occurrence-index="{{ row.occurrence_index }}"
         {% endif %}>
       {% if first %}
       <td rowspan="{{ group.lines }}" data-metric="bh-date">{{ group.date_text }}</td>
@@ -655,7 +672,12 @@
         <button class="act btn-mini" type="submit" form="{{ form_id }}"
                 data-metric="bh-save">XONG</button>
         {% else %}
-        <a class="ghost btn-mini" data-metric="bh-edit"
+        {# `UI-01` — href vẫn là `?sua=` THẬT (fallback không-JS nguyên vẹn,
+           server vẫn dựng lại toàn trang ở chế độ sửa cũ khi bấm link này
+           mà không có JS). Có JS, `app.js` `preventDefault()` click này và
+           mở panel tại chỗ thay vì điều hướng — xem khối script cuối file
+           này về panel sửa đơn (`§UI-01/UI-02`). #}
+        <a class="ghost btn-mini" data-metric="bh-edit" data-order="{{ group.order_key }}"
            href="{{ url_for('business_employee', ky=selected_period, sheet=sheet.key,
                             sua=group.order_key) }}"
            aria-label="Sửa đơn {{ group.order_key }}">{{ biz.icon('edit') }}</a>

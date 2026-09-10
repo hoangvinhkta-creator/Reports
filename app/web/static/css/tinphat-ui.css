@@ -1160,3 +1160,85 @@ td[data-group] { white-space: nowrap; }
 .identify-result { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 /* Gợi ý LÀ cái nút: bấm vào nó là xác nhận, không có bước nào ở giữa. */
 .identify-result .act { text-align: left; max-width: 100%; white-space: normal; }
+
+
+/* --- UI-01/UI-02: panel sửa đơn tại chỗ ----------------------------------
+   MỘT `<dialog>`, ba hình dạng — xem chú thích đầu khối script panel trong
+   `app.js`. `--popover` (mặc định, JS neo toạ độ qua `is-anchored`, cùng
+   quy ước `.identify-pop.is-anchored` ở trên) và `--side` (cố định bên
+   phải) chỉ khác nhau ở màn hình RỘNG; dưới `760px` cả hai sập về MỘT hình
+   dạng bottom sheet — JS không cần biết mình đang chạy trên máy nào. */
+.tp-order-panel {
+  margin: 0; padding: var(--tp-s4); border: 1px solid var(--tp-line);
+  border-radius: var(--tp-r-md); box-shadow: 0 8px 32px rgba(0, 0, 0, .18);
+  max-width: 96vw;
+}
+.tp-order-panel::backdrop { background: rgba(22, 24, 29, .4); }
+.tp-order-panel--popover[open] {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(460px, 94vw); max-height: min(72vh, 560px); overflow: auto;
+}
+.tp-order-panel--popover.is-anchored[open] {
+  top: 0; left: 0; transform: none; max-height: min(60vh, 480px);
+}
+.tp-order-panel--side[open] {
+  position: fixed; inset: 0 0 0 auto; margin: 0; top: 0; left: auto;
+  width: min(480px, 94vw); height: 100vh; max-height: 100vh;
+  border-radius: 0; overflow: auto;
+  animation: tp-panel-slide-in .15s ease-out;
+}
+@keyframes tp-panel-slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.tp-order-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--tp-s3); margin-bottom: var(--tp-s3);
+}
+.tp-order-panel-head h3 { margin: 0; font-size: 15px; }
+.tp-order-panel-body { display: flex; flex-direction: column; gap: var(--tp-s3); }
+.tp-order-panel-lines { width: 100%; border-collapse: collapse; }
+.tp-order-panel-lines th, .tp-order-panel-lines td {
+  padding: 6px 8px; border-bottom: 1px solid var(--tp-line2); text-align: left;
+}
+.tp-order-panel-lines .op-price-input { width: 110px; }
+.tp-order-panel-actions {
+  display: flex; flex-wrap: wrap; gap: var(--tp-s2); align-items: center;
+}
+[data-metric="order-panel-status"] { font-size: 13px; color: var(--tp-mut); }
+[data-metric="order-panel-status"][data-state="saved"] { color: var(--tp-green); }
+[data-metric="order-panel-status"][data-state="conflict"],
+[data-metric="order-panel-status"][data-state="unconfirmed"],
+[data-metric="order-panel-status"][data-state="error"] { color: var(--tp-red); }
+
+/* Bottom sheet: mọi hình dạng sập về DUY NHẤT hình dạng này dưới 760px —
+   toạ độ neo tính bằng JS ở màn hình rộng KHÔNG còn ý nghĩa gì trên một
+   màn hình hẹp, nơi ngón tay cái là cách bấm chính. */
+@media (max-width: 760px) {
+  .tp-order-panel[open] {
+    position: fixed; inset: auto 0 0 0; top: auto; left: 0; right: 0;
+    transform: none; margin: 0; width: 100%; max-width: 100%;
+    max-height: 85vh; border-radius: var(--tp-r-md) var(--tp-r-md) 0 0;
+    animation: tp-panel-slide-up .15s ease-out;
+  }
+}
+@keyframes tp-panel-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tp-order-panel--side[open], .tp-order-panel[open] { animation: none; }
+}
+
+/* `UI-02` — thuộc tính `hidden` bị chính `.act, .ghost, button { display:
+   inline-flex }` ở trên VÔ HIỆU HOÁ trên mọi nút mang lớp `.ghost`/`.act`:
+   độ đặc thù của `.ghost` (một lớp) BẰNG độ đặc thù của `[hidden]` trong
+   UA stylesheet (một thuộc tính), và luật khai SAU trong nguồn thắng khi
+   hoà — mà `.ghost` đứng sau. Kết quả là một nút `hidden` mang lớp `.ghost`
+   (như nút THỬ LẠI của panel sửa đơn, mặc định ẩn tới khi có lỗi) vẫn HIỆN
+   RA, bấm được — Playwright bắt được đúng lỗi này khi kiểm bẫy focus, vì
+   một nút "ẩn" mà vẫn nhận Tab không phải panel này mới có, đây là lỗi CHUNG
+   của mọi nút `hidden` trong hệ, chỉ chưa ai dùng `hidden` trên một `.ghost`
+   trước `UI-02` để lộ ra. Luật này đứng CUỐI file — thắng độ hoà bằng thứ tự
+   nguồn — nên không cần `!important`. */
+[hidden] { display: none; }

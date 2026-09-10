@@ -58,6 +58,13 @@ node_modules/
 dist/
 .vite/
 
+# `UI-01`/`UI-02` — output runtime của bộ kiểm Playwright (trace/screenshot
+# khi đỏ, báo cáo HTML). Bằng chứng của MỘT lần chạy cụ thể, không phải nội
+# dung repo — xem `tests/test_playwright_ui_suite.py`.
+test-results/
+playwright-report/
+blob-report/
+
 # --- Local config & secrets ---
 .env
 .env.*
