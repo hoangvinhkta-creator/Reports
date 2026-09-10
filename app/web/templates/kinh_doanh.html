@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% import "_icons.html" as icons %}
 {% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
 {% set active_tab = 'bao-cao' %}
 {% block title %}Reports — Tổng hợp kinh doanh{% endblock %}
 
@@ -96,9 +97,12 @@
    VÀ một `<title>` xem khi rê chuột, kể cả những mốc không hiện chữ dưới
    trục — chỉ CHỮ hiện ra là thưa lại, dữ liệu không mất mốc nào. #}
 {# `TASK-OWNER-UIUX-003` §2 — biểu đồ thu nhỏ về NỬA TRÁI, chừa nửa phải cho
-   một biểu đồ khác trong tương lai (loại nào — chưa quyết định, đây chỉ là
-   chỗ dành sẵn). Không tạo thẩm quyền hay chỉ tiêu mới: card bên phải không
-   đọc dữ liệu nào. #}
+   một biểu đồ khác trong tương lai. `DEC-214` lấp chỗ đó: biểu đồ SỐ ĐƠN,
+   dùng lại ĐÚNG macro `r6.paired_chart` mà trang phân tích đã kiểm chứng —
+   không phải một biểu đồ thứ hai được dựng riêng cho trang này. Không tạo
+   thẩm quyền hay chỉ tiêu mới: `orders_chart` đọc CÙNG một lát dữ liệu và
+   CÙNG một `anchor` với biểu đồ Doanh thu bên trái (`_orders_chart_summary`
+   trong `server.py`), nên hai biểu đồ luôn cắt cùng mốc thời gian. #}
 <div class="chart-row">
 <div class="module chart-half" id="bieu-do-doanh-thu">
   <h2>{{ icons.ico('xu-huong') }}Xu hướng doanh thu
@@ -253,10 +257,19 @@
   </div>
   {% endif %}
 </div>
+{% if orders_chart %}
+{{ r6.paired_chart(orders_chart, 'bieu-do-so-don', 'Số đơn',
+   orders_chart.total_text, orders_chart.comparison_total_text,
+   'business_summary', {'ky': selected_period}) }}
+{% else %}
+{# Chỉ chạm nhánh này khi kỳ đang xem hoàn toàn không có ngày bán nào để
+   neo (`anchor is None`) — cùng điều kiện mà biểu đồ Doanh thu bên trái
+   cũng rơi vào `chart.empty`. #}
 <div class="module chart-half chart-placeholder">
-  <h2>Biểu đồ khác</h2>
-  <p class="empty">Chỗ dành cho một biểu đồ khác — sắp có.</p>
+  <h2>{{ icons.ico('bang') }}Số đơn</h2>
+  <p class="empty">Chưa có đơn nào có ngày bán để vẽ.</p>
 </div>
+{% endif %}
 </div>
 
 {# `DEC-PHB02-08` — bảng này gộp theo ĐÚNG phân hoạch sheet của không gian

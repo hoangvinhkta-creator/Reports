@@ -53,7 +53,8 @@ from tests.fixtures.fake_r2_client import FakeR2Client
 from tools.storage import r2_store
 from tests.support import identity_fixtures as fx
 from tests.test_dec185_nav_chart_identity import (
-    UNRESOLVED, chart_bars, seed_legacy, seed_legacy_month_total_only,
+    UNRESOLVED, chart_block, chart_bars, seed_legacy,
+    seed_legacy_month_total_only,
 )
 from tests.test_employee_workspace_ux import TODAY, body, line, metric, metrics, persist
 from tools.tracking import live_pull
@@ -626,8 +627,12 @@ def test_a_mixed_quarter_declares_its_provenance_without_a_source_control(
         html))
     assert origins["2026-Q3"] == rt.ORIGIN_MIXED
 
-    chart = re.search(r'id="bieu-do-doanh-thu".*?(?=<div class="module")',
-                      html, re.S).group(0)
+    # `DEC-214` — regex biên cũ (`(?=<div class="module")`, KHÔNG khớp
+    # `class="module chart-half..."` vì có thêm chữ sau "module") vô tình
+    # chạy tràn qua cả card biểu đồ Số đơn mới thêm, tới tận module TIẾP
+    # THEO sau `.chart-row`. Dùng `chart_block` — cắt đúng ĐẦU đến ĐUÔI của
+    # MỘT card bằng chính `id`, không dò qua classlist.
+    chart = chart_block(html, "bieu-do-doanh-thu")
     for forbidden in ("Số cũ", "Số mới", "SỐ CŨ", "SỐ MỚI", "<select"):
         assert forbidden not in chart, f"{forbidden!r} là một điều khiển nguồn"
     # ĐÚNG MỘT cột cho quý đó — không có chuỗi thứ hai chạy song song.
@@ -773,10 +778,16 @@ def test_f_n03_chart_note_resolves_authority_by_month_not_by_bar(repository, wor
 
 
 def test_the_chart_stays_one_chart_with_no_new_page_or_filter(repository, worker):
-    """`§14` — chỉ sửa chỗ mập mờ, KHÔNG thêm trang hay hệ thống lọc mới."""
+    """`§14` — chỉ sửa chỗ mập mờ, KHÔNG thêm trang hay hệ thống lọc mới.
+
+    `DEC-214` thêm một card biểu đồ THỨ HAI có chủ đích (Số đơn) — không
+    phải điều `§14` cấm: nó không phải một biểu đồ Doanh thu thứ hai, không
+    thêm trang, không thêm hệ thống lọc. Vế "vẫn một biểu đồ" của bài kiểm
+    này giờ khẳng định trên đúng khối Doanh thu, chủ thể của `§14`.
+    """
     persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])
     client, _ = worker("a")
     html = body(client, "/kinh-doanh")
-    assert html.count('data-metric="chart"') == 1
+    assert chart_block(html, "bieu-do-doanh-thu").count('data-metric="chart"') == 1
     nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>', html, re.S).group(1)
     assert len(re.findall(r"<a\b", nav)) == 3, "thanh tab chính vẫn ba mục"
