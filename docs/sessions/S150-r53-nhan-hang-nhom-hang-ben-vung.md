@@ -24,7 +24,10 @@ Reports base           c46e458ef6e6653b7cba210dc4393e1160f158dd
                         `git remote show origin` → "HEAD branch", KHÔNG giả
                         định là "main")
 Reports nhánh làm việc claude/r5-3-reports-brand-category-j37izs
-Reports HEAD           (xem commit của phiên này trên nhánh trên)
+Reports HEAD           36312ea5805fb79c40e4af61e3501b47c8c7d1e8
+                       (commit triển khai R5.3; commit KẾ TIẾP trên
+                        cùng nhánh chỉ ghi lại chính SHA này vào bàn
+                        giao — không đổi một dòng mã nào)
 Tracking dependency    main @ b7c5f3b0ef13548e4d378e392b6ccd2f1be0d946 (R5.2.2)
                        — xác minh là TỔ TIÊN của origin/main hiện tại
                        (0f7347b, R5.2.3) bằng
