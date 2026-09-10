@@ -41,16 +41,31 @@ DEC-220   CHECK-R5-28 (Owner nghiệm thu R5 gốc trên production) — Owner t
 
 Owner chỉ thị: chọn lựa chọn (A) cho `INTEGRATION_DECISION_REQUIRED` (đã
 đóng sẵn từ `DEC-210`, xác nhận lại), và merge `R5.3` vào nhánh mặc định
-trong CÙNG một lần merge (`R6` đã có sẵn trên nhánh mặc định từ trước, nên
-chỉ còn `R5.3` cần merge thật). `CHECK-R53-14` để lại xử lý SAU khi deploy
-thật, đúng bản chất "chỉ Owner đóng được trên production".
+(`R6` đã có sẵn trên nhánh mặc định từ trước, nên chỉ còn `R5.3` cần merge
+thật). `CHECK-R53-14` để lại xử lý SAU khi deploy thật, đúng bản chất "chỉ
+Owner đóng được trên production".
 
-Nhánh chuẩn bị merge: `claude/r5-3-owner-accepted-risk-find01` (Reports).
-Tracking không đổi cho `R5.3`.
+**MERGE ĐÃ THỰC HIỆN.** Trước khi merge, đồng bộ nhánh phát hiện nhánh mặc
+định đã tiến thêm lineage `UI-01/UI-02` (panel sửa đơn tại chỗ, không liên
+quan `R5`/`R6`) kể từ `c46e458` — merge vào nhánh làm việc, giải quyết một
+xung đột tài liệu (giữ nguyên cả hai mục canonical). Full `pytest` sau khi
+unshallow (một object lịch sử thiếu do clone nông — lỗi môi trường đã biết,
+không phải regression): `3628 passed / 24 skipped / 0 failed`. Validators
+governance PASS (`reference_integrity` đúng 4 baseline cũ), `git diff
+--check` sạch. Push fast-forward:
 
-Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`;
-`PROJECT/PROJECT_DECISIONS.md` → `DEC-218`, `DEC-219` (+ đính chính §0),
-`DEC-220`.
+```text
+6c77961..5cfd000  claude/r5-3-owner-accepted-risk-find01 -> claude/extract-upload-repo-gq2ws4
+```
+
+Nhánh mặc định (`claude/extract-upload-repo-gq2ws4`) giờ tại `5cfd000`.
+Render tự động deploy sau push này — phiên KHÔNG có egress/credential tới
+Render nên KHÔNG xác nhận được deploy đã Live (cùng giới hạn các phiên
+merge trước). `CHECK-R53-14` chờ Owner nghiệm thu SAU khi deploy xong.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`
+§5–§8; `PROJECT/PROJECT_DECISIONS.md` → `DEC-218`, `DEC-219` (+ đính chính
+§0), `DEC-220`.
 
 ---
 

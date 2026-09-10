@@ -115,22 +115,100 @@ $ python3 governance/scripts/governance/validate_task_completion.py .
 (output đầy đủ — xem lệnh chạy trong phiên; không finding mới ngoài baseline
 `reference_integrity` đã biết từ trước).
 
-## 5. Trạng thái cuối
+## 5. ĐÍNH CHÍNH giữa phiên — `DEC-219` sai
 
-- `R5.3`: `IMPLEMENTED`, `CHECK-R53-13 = ACCEPT_WITH_RECORDED_RISK`,
-  `CHECK-R53-14` vẫn `NOT_TESTED`. Được phép tiếp tục sang merge/deploy.
-- `R6`: `IMPLEMENTED`, ba check Owner Acceptance đã đóng bằng
-  `ACCEPTED_BY_OWNER_VERBAL`, nhưng KHÔNG chuyển `DONE` —
-  `INTEGRATION_DECISION_REQUIRED` vẫn MỞ, vẫn chặn merge.
-- `R5` (gốc): `CHECK-R5-28` vẫn `NOT_TESTED`.
-- Không merge, không deploy trong phiên này.
+Sau khi ghi `DEC-219` (mục 2), phiên phát hiện: `CHECK-R6-30`/`CHECK-R6-32`/
+`CHECK-R51-26` và `INTEGRATION_DECISION_REQUIRED` của `R6` **đã đóng đúng
+từ trước** — `DEC-210` (2026-09-09, MỘT NGÀY TRƯỚC phiên này) đã đóng cả
+bốn mục với bằng chứng E1 thật (đối soát trực tiếp trên sổ Owner, khớp 8/8
+chỉ tiêu) và đã merge `R6` vào nhánh mặc định (commit `865b58e`). Nguyên
+nhân: `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` và mục "Root Task:
+R6" của `PROJECT/REVIEW_BUDGET_LEDGER.md` chưa từng được đồng bộ lại sau khi
+`DEC-210` thực thi — phiên này đọc narrative cũ đó mà không tìm
+`PROJECT/PROJECT_DECISIONS.md` trước. Đã đính chính tường minh (`DEC-219` §0),
+khôi phục đúng `PASS`/`DONE` ở mọi file liên quan. `R6` chuyển
+`Status: DONE`.
 
-## 6. Việc còn lại cho session sau
+Owner sau đó xác nhận thêm bằng lời `CHECK-R5-28` (Owner nghiệm thu `R5`
+gốc) — mục này KHÔNG bị ảnh hưởng bởi sai sót trên, ghi tại `DEC-220`.
 
-1. Owner chọn hướng cho `INTEGRATION_DECISION_REQUIRED` của `R6` (V4.1 §8):
-   (A) merge sớm, (B) cắt scope, (C) tiếp tục divergence có lý do + ngày
-   review.
-2. Merge `R5.3` (branch `claude/r5-3-reports-brand-category-j37izs`, đã
-   `ACCEPT_WITH_RECORDED_RISK`) vào nhánh mặc định, deploy, rồi Owner nghiệm
-   thu `CHECK-R53-14` trên production thật.
-3. `CHECK-R5-28` (Owner nghiệm thu `R5` gốc) vẫn treo — chưa ai xử lý.
+## 6. Merge `R5.3` vào nhánh mặc định — Owner chỉ thị trực tiếp
+
+Owner chọn lựa chọn (A) (xác nhận lại quyết định đã có sẵn ở `DEC-210`) và
+chỉ thị merge `R5.3` vào nhánh mặc định ngay (`R6` không cần merge lại — đã
+có sẵn từ `DEC-210`).
+
+**Đồng bộ nhánh trước khi merge** (đúng "Đồng Bộ Nhánh" của `CLAUDE.md`):
+`git fetch origin claude/extract-upload-repo-gq2ws4` phát hiện nhánh mặc
+định đã tiến thêm 8 commit kể từ `c46e458` — lineage `UI-01/UI-02` (panel
+sửa đơn tại chỗ, PR #15, `6c77961`), không liên quan `R5`/`R6`/`R7`. Merge
+`origin/claude/extract-upload-repo-gq2ws4` vào nhánh làm việc, xung đột DUY
+NHẤT ở `PROJECT/PROJECT_PROGRESS.md` (hai mục canonical chèn cùng vị trí đầu file)
+— giải quyết bằng cách giữ NGUYÊN cả hai mục, không mất nội dung nào. Tiện
+sửa luôn một link tài liệu hỏng có sẵn từ nhánh `UI-01/UI-02`: 3 chỗ trong
+`PROJECT/REVIEW_BUDGET_LEDGER.md` thiếu tiền tố thư mục trước tên file
+policy freeze, nay sửa thành đường dẫn đầy đủ
+`governance/core/V4_1_POLICY_FREEZE.md`.
+
+```text
+$ git merge-base --is-ancestor 865b58e c46e458 && echo OK   # R6 đã ở default
+OK
+
+$ pip3 install -e ".[dev,web,history,storage]"   # môi trường thiếu sẵn dependency
+$ python3 -m pytest -q
+1 failed, 3627 passed, 24 skipped   # TestG25GoldenBaselineUnchanged, "bad object
+                                    # 740f396a" — ĐÚNG lỗi môi trường clone nông đã
+                                    # biết từ S150 (không phải regression thật)
+
+$ git fetch --unshallow
+$ python3 -m pytest -q tests/test_105d_boundaries.py::TestG25GoldenBaselineUnchanged
+3 passed   # xác nhận đúng nguyên nhân
+
+$ python3 -m pytest -q   # chạy lại đầy đủ sau unshallow
+3628 passed, 24 skipped, 0 failed in 261.40s
+
+$ python3 governance/scripts/governance/validate_structure.py .        # PASS
+$ python3 governance/scripts/governance/validate_project_state.py .    # PASS
+$ python3 governance/scripts/governance/validate_evidence.py .         # PASS (161 record)
+$ python3 governance/scripts/governance/validate_task_completion.py .  # PASS (14 task)
+$ python3 governance/scripts/governance/validate_reference_integrity.py .
+# 4 finding — ĐÚNG 4 baseline cũ
+
+$ git diff --check
+(rỗng — sạch)
+
+$ git merge-base --is-ancestor origin/claude/extract-upload-repo-gq2ws4 HEAD && echo OK
+OK   # fast-forward an toàn, không mất commit nào
+
+$ git push origin claude/r5-3-owner-accepted-risk-find01:claude/extract-upload-repo-gq2ws4
+   6c77961..5cfd000  claude/r5-3-owner-accepted-risk-find01 -> claude/extract-upload-repo-gq2ws4
+```
+
+**Merge ĐÃ THỰC HIỆN.** Nhánh mặc định (`claude/extract-upload-repo-gq2ws4`)
+giờ tại `5cfd000`, mang đầy đủ: `R5.3` (implementation + Independent Review
++ `DEC-218` ACCEPTED_RISK), đính chính `DEC-219`, `DEC-220` (`CHECK-R5-28`),
+và `R6`/`UI-01-UI-02` đã có sẵn. Render tự động build+deploy ngay sau push
+này (Blueprint tự kích hoạt theo `render.yaml`) — phiên KHÔNG có
+egress/credential tới Render nên KHÔNG xác nhận được deploy đã Live, cùng
+giới hạn đã ghi nhận xuyên suốt các phiên merge trước (`S127`/`S130`/`S133`/
+`S137`).
+
+## 7. Trạng thái cuối
+
+- `R5.3`: `IMPLEMENTED` (KHÔNG tự chuyển `DONE`), `CHECK-R53-13 =
+  ACCEPT_WITH_RECORDED_RISK`, **đã merge vào nhánh mặc định**.
+  `CHECK-R53-14` (Owner nghiệm thu trên production, SAU khi deploy xong)
+  vẫn `NOT_TESTED` — chỉ Owner đóng được, để lại cho phiên/thời điểm sau.
+- `R6`: `DONE` (đính chính trong phiên này, theo đúng `DEC-210` đã có từ
+  trước) — đã merge, đã deploy từ `DEC-210`.
+- `R5` (gốc): `CHECK-R5-28` → `ACCEPTED_BY_OWNER_VERBAL` (`DEC-220`). VẪN
+  `IMPLEMENTED`, không tự chuyển `DONE` (xác nhận bằng lời, không phải
+  bằng chứng E1/E2).
+
+## 8. Việc còn lại cho session sau
+
+1. Owner tự nghiệm thu `CHECK-R53-14` trên production thật, SAU khi xác
+   nhận Render đã deploy xong bản `5cfd000` (upload sổ → `/run` → tab Nhân
+   viên → chờ một lần restart → mở lại, không chạy lại).
+2. Không còn việc nào khác treo cho `R5.3`/`R6` sau khi `CHECK-R53-14`
+   đóng — `R5.3` khi đó đủ điều kiện xét `DONE`.
