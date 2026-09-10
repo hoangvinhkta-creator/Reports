@@ -13665,3 +13665,99 @@ Kiểm thị giác     ảnh chụp Chromium THẬT, nền sáng và nền tối
 Không tạo thẩm quyền hay chỉ tiêu mới — `orders_chart` đọc lại đúng
 `dashboard_metrics.orders_by_bucket`/`totals` đã dùng ở trang phân tích.
 Tracking KHÔNG đổi. Không route mới, không tab mới.
+
+## DEC-215
+
+Ngày: 2026-09-10
+Phiên: Owner báo cáo hai việc trên biểu đồ Xu hướng doanh thu đã triển
+khai ở `DEC-211`: (1) không thấy số liệu cùng kỳ năm trước, (2) trục X
+hiện ngày đầy đủ kèm năm lặp lại, muốn rút gọn còn DD/MM.
+Thẩm quyền: Owner (báo cáo trực tiếp qua ảnh chụp màn hình sản phẩm thật).
+Trạng thái: Mục (2) BAN HÀNH, thực thi. Mục (1) ĐÃ CHẨN ĐOÁN — cần Owner
+xác nhận dữ liệu trước khi kết luận có phải khiếm khuyết hay không.
+
+### §1. Vì sao "Cùng kỳ năm trước" hiện "0 nghìn đồng" — chẩn đoán
+
+Đã xác minh cơ chế TÍNH CỬA SỔ so sánh là ĐÚNG thiết kế `DEC-211`: ảnh
+chụp cho thấy "Kỳ này: 21/08/2026 → 20/09/2026" và "Cùng kỳ năm trước:
+21/08/2025 → 20/09/2025" — đúng 31 ngày kết thúc CÙNG NGÀY DƯƠNG LỊCH của
+năm trước, khớp `revenue_timeline._same_day_last_year`. Không phải lỗi ở
+phép tính cửa sổ.
+
+`comparison_total_kvnd = 0` xảy ra khi MỌI mốc trong cửa sổ 21/08/2025 →
+20/09/2025 là KHOẢNG TRỐNG (`Slot.is_gap`), tức hệ thống KHÔNG có bằng
+chứng nào cho khoảng đó — không phải "đã xác nhận doanh thu bằng 0".
+`comparison_total_kvnd` không phân biệt hai trạng thái này trong ô tổng ở
+đầu card (đường ĐỨT trong biểu đồ có phân biệt, qua `GAP_NOTE`, nhưng ô
+tổng thì không) — đây là một điểm có thể gây hiểu lầm, ghi lại ở `§3`.
+
+Vì sao khoảng đó có thể KHÔNG có bằng chứng — ba khả năng, xếp theo khả
+năng xảy ra thật với dữ liệu Owner đang dùng:
+
+```text
+(a) Sổ cũ (`legacy_daily_sales`/`DataChart`) có nhập cho Tháng 8-9/2025
+    nhưng CHỈ ở dạng TỔNG THÁNG (`Summary`/`legacy_summary_row`), KHÔNG có
+    dòng từng ngày. Mức Ngày/Tuần CHỈ đọc bằng chứng từng ngày (`CHART-10`
+    — "một tổng tháng không sinh ra ngày nào"); mức Tháng/Quý thì đọc
+    được. → Đây là nguyên nhân PHỔ BIẾN NHẤT cho sổ cũ Việt Nam, vốn
+    thường chỉ lưu Summary theo tháng.
+(b) Không có sổ cũ nào cho giai đoạn 2025 được nạp vào hệ thống — không
+    phân biệt được với (a) qua ảnh chụp, cần kiểm ở tab Dữ liệu.
+(c) Doanh nghiệp thật sự không phát sinh doanh thu giai đoạn đó (mới hoạt
+    động từ 2026) — khi ấy hiển thị hiện tại là ĐÚNG, không phải lỗi.
+```
+
+**Cách Owner tự kiểm tra, không cần sửa code:** đổi biểu đồ sang mức
+**Tháng** và xem đường "Cùng kỳ năm trước" của Tháng 8-9/2025 có giá trị
+không:
+- CÓ giá trị ở mức Tháng nhưng KHÔNG có ở mức Ngày/Tuần ⟹ đúng khả năng
+  (a) — sổ cũ chỉ có tổng tháng, cần nạp lại kèm `DataChart` từng ngày
+  nếu muốn xem theo Ngày/Tuần.
+- KHÔNG có giá trị ở CẢ HAI mức ⟹ khả năng (b) hoặc (c) — kiểm tab
+  **Dữ liệu → Dữ liệu lịch sử** xem giai đoạn 2025 có được nạp không.
+
+Việc này KHÔNG sửa được từ phía code nếu nguyên nhân là (b)/(c): hệ thống
+không được bịa số cho một khoảng không có bằng chứng (`GAP_NOTE`,
+`DEC-180` §9). Nếu nguyên nhân là (a) và Owner có file `DataChart` từng
+ngày của giai đoạn đó, việc cần làm là NẠP LẠI qua tab Dữ liệu, không
+phải một thay đổi mã nguồn.
+
+### §2. Trục X biểu đồ Ngày/Tuần rút gọn còn DD/MM
+
+Quyết định: nhãn trục X (KHÔNG phải tooltip, KHÔNG phải dòng "Kỳ này: …")
+ở mức Ngày/Tuần bỏ năm — "21/08/2026" → "21/08". Mức Tháng/Quý/Năm GIỮ
+NGUYÊN năm trong nhãn: một cửa sổ 12 tháng/4 quý (`DEC-211`) thật sự vắt
+qua HAI năm dương lịch khác nhau, bỏ năm ở đó sẽ làm hai mốc khác năm
+trông như cùng một mốc.
+
+`_axis_tick_label` đọc lại NGÀY THẬT từ `Slot.key` (ISO) rồi viết lại,
+không cắt chuỗi `label` có sẵn — cắt chuỗi giả định một định dạng cụ thể
+và sẽ âm thầm sai nếu `bucket_of` đổi cách viết nhãn sau này.
+
+Tooltip của từng chấm (`_slot_title`, dùng `slot.label` gốc) và dòng "Kỳ
+này/Cùng kỳ năm trước: … → …" (`_window_range_text`) KHÔNG đổi — vẫn đầy
+đủ DD/MM/YYYY, đúng `DEC-184` §24 ("không bao giờ ISO trên màn hình" áp
+cho MỌI nơi HIỂN THỊ một ngày để tra cứu chính xác). Chỉ trục nhìn LƯỚT
+rút gọn.
+
+### §3. Ghi nhận, chưa xử lý trong phiên này
+
+Ô tổng "Cùng kỳ năm trước: … 0 nghìn đồng" không phân biệt "đã xác nhận
+bằng 0" với "không có bằng chứng" — trong khi đường vẽ (đứt đoạn) VÀ
+`GAP_NOTE` trong "Cách đọc biểu đồ này" CÓ phân biệt. Đây là một điểm có
+thể gây hiểu lầm ở đúng vị trí người đọc nhìn ĐẦU TIÊN (đầu card, trước
+khi mở "Cách đọc biểu đồ này"). Chưa sửa vì cần xác nhận trước với Owner
+đây có phải điều Owner muốn đổi hay không — xem CONFLICT tiềm năng với
+`R1`/`DEC-185` về việc ô tổng phải "ĐÚNG một con số, không kèm điều kiện".
+
+### §4. Bằng chứng
+
+```text
+Full pytest    3474 passed / 12 skipped / 1 failed (failure ĐỎ SẴN, xem
+               DEC-211 §5 — khiếm khuyết môi trường)
+Smoke R6       29 PASS / 0 FAIL
+Smoke R5.1     83 PASS / 0 FAIL
+Kiểm thị giác  ảnh chụp Chromium thật xác nhận trục X: "26/08 · 30/08 ·
+               03/09 · 07/09 · 11/09 · 15/09 · 19/09 · 25/09" — không còn
+               năm lặp lại
+```

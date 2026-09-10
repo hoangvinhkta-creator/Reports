@@ -589,6 +589,56 @@ def test_chart_12_the_order_chart_compares_against_the_same_period_last_year(
 
 
 # ==========================================================================
+# CHART-13 — trục X ngắn gọn: DD/MM, không lặp năm (`DEC-215`)
+# ==========================================================================
+
+def x_tick_labels(html: str, *, dom_id: str = "bieu-do-doanh-thu") -> list[str]:
+    return re.findall(r'class="rev-chart-xtick"[^>]*>([^<]+)<',
+                      chart_block(html, dom_id))
+
+
+def test_chart_13_day_and_week_axis_ticks_drop_the_year(repository, client):
+    """Mức Ngày/Tuần: nhãn trục X là DD/MM — năm đã nói một lần ở dòng
+    "Kỳ này: … → …" ngay trên biểu đồ, tám nhãn lặp lại năm là chữ thừa."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    day_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=ngay"))
+    assert day_ticks, "phải có ít nhất một nhãn trục"
+    assert all(re.fullmatch(r"\d{2}/\d{2}", label) for label in day_ticks), day_ticks
+
+    week_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=tuan"))
+    assert week_ticks
+    assert all(re.fullmatch(r"\d{2}/\d{2}", label) for label in week_ticks), week_ticks
+
+
+def test_chart_13_month_and_quarter_axis_ticks_keep_the_year(
+    repository, client
+):
+    """Tháng/Quý: GIỮ năm trong nhãn trục — một cửa sổ 12 tháng/4 quý
+    (`DEC-211`) thật sự vắt qua HAI năm dương lịch, bỏ năm ở đây sẽ làm
+    hai mốc khác năm trông như cùng một mốc."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    month_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=thang"))
+    assert month_ticks
+    assert any(re.fullmatch(r"\d{2}/\d{4}", label) for label in month_ticks), \
+        month_ticks
+
+    quarter_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=quy"))
+    assert quarter_ticks
+    assert any("Quý" in label and "/" in label for label in quarter_ticks), \
+        quarter_ticks
+
+
+def test_chart_13_the_tooltip_still_carries_the_full_date(repository, client):
+    """Trục rút gọn, nhưng CHẤM vẫn mang ngày ĐẦY ĐỦ trong `title` — rê
+    chuột để tra cứu chính xác không được mất năm, chỉ trục nhìn lướt mới
+    rút gọn."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    html = body(client, "/kinh-doanh?muc=ngay")
+    block = chart_block(html, "bieu-do-doanh-thu")
+    assert "05/09/2026" in block
+
+
+# ==========================================================================
 # PI-01…PI-12 — nhận diện sản phẩm, tại chỗ
 # ==========================================================================
 
