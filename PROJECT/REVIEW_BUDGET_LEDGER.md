@@ -3601,14 +3601,17 @@ review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
 repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
 review_round_2: PASS (S146, 2026-09-09) — CHECK-R6-31 = PASS trên HEAD 40807ef;
              0 REPAIR_REQUIRED, 0 ACCEPTED_RISK mới, 0 repair cycle tiêu
-next_action: Owner — (1) quyết cờ V4.1 §8 INTEGRATION_DECISION_REQUIRED.
+status: DONE. `DEC-210` (2026-09-09) đóng CHECK-R6-30/CHECK-R6-32/
+             CHECK-R51-26 = PASS (E1 thật — đối soát sổ Owner khớp 8/8 chỉ
+             tiêu; chi tiết DEC-210 §3/§5), đóng INTEGRATION_DECISION_REQUIRED
+             bằng lựa chọn (A), và merge R6 vào nhánh mặc định (865b58e).
              KHÔNG cần ESCALATE: vòng 2 không có REPAIR_REQUIRED.
-owner_acceptance (DEC-219, 2026-09-10): CHECK-R6-30, CHECK-R6-32,
-             CHECK-R51-26 — NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL. Owner tự
-             xác nhận bằng lời, không đính kèm bằng chứng E1/E2 vào phiên.
-             KHÔNG tự chuyển task DONE (đúng tiền lệ DEC-203/CHECK-R3-20) —
-             INTEGRATION_DECISION_REQUIRED vẫn là điều kiện MỞ, độc lập,
-             chặn merge.
+correction (S151, 2026-09-10): phiên S151 từng ghi nhầm ba check trên
+             thành ACCEPTED_BY_OWNER_VERBAL qua DEC-219 (đọc narrative cũ
+             của chính mục này — chưa từng đồng bộ lại sau DEC-210 — mà
+             không tìm PROJECT_DECISIONS.md để thấy DEC-210 đã giải quyết
+             từ một ngày trước). Đã sửa lại đúng trạng thái PASS/DONE ở
+             trên; xem PROJECT_DECISIONS.md → DEC-219 §0.
 ```
 
 Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ

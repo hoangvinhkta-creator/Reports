@@ -3,7 +3,7 @@
 ## Metadata
 
 Status:
-IMPLEMENTED
+DONE
 
 Current Status Reason:
 Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1`
@@ -11,13 +11,34 @@ Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1`
 tiết ở §8 cuối file. **Independent Review vòng 2 (`S146`, 2026-09-09) trên
 exact HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` kết luận `PASS`:
 `CHECK-R6-31` = `PASS` (E1), `0` finding `REPAIR_REQUIRED`, `0`
-`ACCEPTED_RISK` mới, `0` repair cycle tiêu — xem §9.** Task ở `IMPLEMENTED`.
-**Cập nhật (`DEC-219`, 2026-09-10):** Owner tự xác nhận bằng lời đã nghiệm
-thu cả ba check thuộc thẩm quyền Owner — `CHECK-R51-26`, `CHECK-R6-30`,
-`CHECK-R6-32` — nay `ACCEPTED_BY_OWNER_VERBAL` (không phải `PASS` với bằng
-chứng E1/E2 trong repo). Quyết định `V4.1` §8 cho cờ
-`INTEGRATION_DECISION_REQUIRED` VẪN MỞ, độc lập với `DEC-219` — xem dòng
-dưới.
+`ACCEPTED_RISK` mới, `0` repair cycle tiêu — xem §9.**
+
+**`DEC-210` (2026-09-09) đóng CẢ BA check Owner Acceptance còn lại với bằng
+chứng E1 thật, đóng cờ `INTEGRATION_DECISION_REQUIRED` bằng lựa chọn (A),
+và merge `R6` vào nhánh mặc định (commit `865b58e`):**
+
+```text
+CHECK-R6-30   PASS (E1) — đối soát trực tiếp trên sổ Owner thật
+              (49edea00-So_chi_tiet_ban_hang.xlsx), khớp cả 8 chỉ tiêu,
+              EXIT=0, chạy lặp lại 2 lần độc lập.
+CHECK-R51-26  PASS — Owner tự nghiệm thu R5.1 trên production, xác nhận
+              trực tiếp trong phiên merge.
+CHECK-R6-32   PASS — chỉ thị merge/deploy trực tiếp của Owner, sau khi
+              được trình bày đầy đủ trạng thái thật, CHÍNH LÀ Owner
+              Acceptance cho quyết định tích hợp.
+INTEGRATION_DECISION_REQUIRED  ĐÓNG bằng lựa chọn (A) — Owner chỉ thị
+              "merge R6 vào nhánh mặc định rồi deploy Reports".
+```
+
+Toàn bộ Exit Criteria đã thoả (§4) — Task chuyển `DONE`.
+
+**Đính chính (`S151`, 2026-09-10):** phiên `S151` từng ghi nhầm ba check
+trên thành `ACCEPTED_BY_OWNER_VERBAL` qua `DEC-219`, và ghi nhầm
+`INTEGRATION_DECISION_REQUIRED` là "vẫn MỞ" — do đọc narrative cũ của CHÍNH
+file này (chưa từng được đồng bộ lại sau khi `DEC-210` thực thi một ngày
+trước đó) mà không tìm `PROJECT/PROJECT_DECISIONS.md` để thấy `DEC-210` đã
+giải quyết từ trước. Đã sửa lại đúng ở đây; xem `PROJECT/PROJECT_DECISIONS.md`
+→ `DEC-219` §0 cho đầy đủ diễn biến lỗi và cách sửa.
 
 Toàn bộ năm package của brief `R6` đã triển khai trên repo Reports.
 Không migration, không bảng mới, không warehouse, không materialized view,
@@ -27,13 +48,13 @@ không API ngoài, không route GHI — `R6` là một tầng CHỈ ĐỌC dựn
 `CHECK-R6-01` … `CHECK-R6-29` PASS (E1, bằng chứng nguyên văn ở
 `docs/sessions/S143-r6-dashboard-phan-tich.md` §4).
 
-`CHECK-R6-30` (đối soát trên SỔ THẬT của Owner) — `NOT_TESTED` →
-`ACCEPTED_BY_OWNER_VERBAL` (`DEC-219`, 2026-09-10). File
-`So_chi_tiet_ban_hang.xlsx` KHÔNG được commit (`DEC-108`) và KHÔNG có mặt
-trong môi trường bất kỳ phiên nào — không phiên nào từng có khả năng tự
-kiểm E1/E2 cho check này. Công cụ đối soát đã viết và đã được kiểm chứng
-trên hai sổ khác (xem `CHECK-R6-27`/`CHECK-R6-28`); Owner tự chạy trên sổ
-thật và xác nhận bằng lời trong phiên `S151`.
+`CHECK-R6-30` (đối soát trên SỔ THẬT của Owner) = `PASS (E1)` (`DEC-210`,
+2026-09-09). File `So_chi_tiet_ban_hang.xlsx` KHÔNG được commit (`DEC-108`)
+nên không phiên tự động nào kiểm được — Owner tự gửi file thật trong phiên
+merge và công cụ đối soát chạy lặp lại 2 lần độc lập, khớp cả 8 chỉ tiêu
+(466 dòng · 345 BH · 338 BH dương · SL 626 · doanh số 4.500.085.001 ·
+chiết khấu 1.550.000 · doanh thu sau CK 4.498.535.001 · 85 BH nhiều dòng),
+EXIT=0. Chi tiết: `DEC-210` §3.
 
 `CHECK-R6-31` (Independent Review) = **`PASS`** (vòng 2, `S146`, 2026-09-09,
 E1). Vòng 1 ĐÃ CHẠY ở `S144` trên exact HEAD
@@ -73,14 +94,16 @@ CÙNG một vòng và tiêu cycle DUY NHẤT ấy. Vòng review thứ hai KHÔNG
 giữ nguyên `1 allowed / 1 used / 0 remaining`: một `REPAIR_REQUIRED` phát sinh
 về sau vẫn buộc escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
 
-`CHECK-R6-32` (Owner Acceptance) — `NOT_TESTED` → `ACCEPTED_BY_OWNER_VERBAL`
-(`DEC-219`, 2026-09-10). Không phiên review nào tự đóng nó, kể cả vòng 2 —
-Owner tự xác nhận bằng lời trực tiếp trong phiên `S151`.
+`CHECK-R6-32` (Owner Acceptance) = `PASS` (`DEC-210`, 2026-09-09). Không
+phiên review nào tự đóng nó, kể cả vòng 2 — chỉ thị merge/deploy trực tiếp
+của Owner, sau khi được trình bày đầy đủ trạng thái thật, CHÍNH LÀ Owner
+Acceptance cho quyết định tích hợp.
 
-**`INTEGRATION_DECISION_REQUIRED` vẫn MỞ.** Vòng 2 đo lại `cumulative LOC` từ
-nhánh mặc định tới HEAD = `10.155`, ngưỡng V4.1 §8 = `5.000`. Owner phải chọn
-(A) integrate sớm, (B) cắt scope, hay (C) tiếp tục divergence có lý do + ngày
-review, TRƯỚC lần merge.
+**`INTEGRATION_DECISION_REQUIRED` ĐÃ ĐÓNG bằng lựa chọn (A)** (`DEC-210`
+§4, 2026-09-09). Vòng 2 đo `cumulative LOC` từ nhánh mặc định tới HEAD =
+`10.155`, ngưỡng V4.1 §8 = `5.000`; Owner chỉ thị trực tiếp "merge R6 vào
+nhánh mặc định rồi deploy Reports" — cờ đóng, `R6` đã merge (commit
+`865b58e`, xác nhận là tổ tiên của nhánh mặc định hiện tại).
 
 Phase:
 PHASE-01 — Engine tính toán
@@ -227,17 +250,13 @@ thứ hai — vẫn được giữ, và `CHECK-R6-13`/`CHECK-R6-36` đo nó.
 ## 3. Completion Gate
 
 Task `DONE` khi và chỉ khi toàn bộ check `REQUIRED` PASS **và** ba check còn
-lại (`CHECK-R6-30`, `-31`, `-32`) chuyển khỏi `NOT_TESTED`. Phiên triển khai
-kết thúc ở `IMPLEMENTED` theo đúng brief.
+lại (`CHECK-R6-30`, `-31`, `-32`) chuyển khỏi `NOT_TESTED`.
 
-**Cập nhật (`DEC-219`, 2026-09-10):** cả ba check đã chuyển khỏi `NOT_TESTED`
-(`CHECK-R6-31` = `PASS`; `CHECK-R6-30`/`-32` = `ACCEPTED_BY_OWNER_VERBAL`).
-Task VẪN giữ `IMPLEMENTED`, KHÔNG tự chuyển `DONE` — đúng tiền lệ đã áp cho
-`R3`/`CHECK-R3-20` (`DEC-203`): `ACCEPTED_BY_OWNER_VERBAL` là xác nhận bằng
-lời, không phải `PASS` với bằng chứng E1/E2 trong repo, nên không tự động
-thoả điều kiện "toàn bộ check REQUIRED PASS". Ngoài ra `INTEGRATION_DECISION_REQUIRED`
-(`V4.1` §8, xem dưới) vẫn MỞ và độc lập chặn bước merge, bất kể ba check
-Owner Acceptance đã đóng.
+**`DEC-210` (2026-09-09) thoả điều kiện này với bằng chứng E1 thật:**
+`CHECK-R6-31` = `PASS`; `CHECK-R6-30`/`-32` = `PASS` (đối soát sổ Owner
+thật + chỉ thị merge/deploy trực tiếp của Owner — xem `DEC-210` §3/§5).
+`INTEGRATION_DECISION_REQUIRED` cũng đã đóng bằng lựa chọn (A) (`DEC-210`
+§4). Task chuyển `DONE`.
 
 ## 4. Exit Criteria
 
@@ -249,11 +268,10 @@ Owner Acceptance đã đóng.
 [x] Test route/web qua Flask thật
 [x] Smoke producer Tracking thật → capture thật → dashboard/drill-down
 [x] Full regression R1–R5.1 + validators governance + `git diff --check`
-[x] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30) — ACCEPTED_BY_OWNER_VERBAL
-    (DEC-219)
+[x] Đối soát trên SỔ THẬT của Owner (CHECK-R6-30) — PASS (E1, DEC-210)
 [x] Independent Review (CHECK-R6-31) — vòng 1 REPAIR_REQUIRED → REPAIR-1 →
     vòng 2 (S146, HEAD 40807ef) PASS
-[x] Owner Acceptance (CHECK-R6-32) — ACCEPTED_BY_OWNER_VERBAL (DEC-219)
+[x] Owner Acceptance (CHECK-R6-32) — PASS (DEC-210)
 ```
 
 ---
@@ -291,9 +309,9 @@ Owner Acceptance đã đóng.
 | `CHECK-R6-27` | Drill-down KHÔNG rò một trường khách hàng nào (đo trên HTML) | PASS | E1 |
 | `CHECK-R6-28` | Công cụ đối soát tái tạo ĐỦ tám con số vector Owner qua pipeline THẬT | PASS | E1 |
 | `CHECK-R6-29` | Smoke xuyên hai repo: producer Tracking THẬT → dashboard THẬT | PASS | E1 |
-| `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | ACCEPTED_BY_OWNER_VERBAL | `DEC-219` |
+| `CHECK-R6-30` | Đối soát trên SỔ THẬT `So_chi_tiet_ban_hang.xlsx` của Owner | PASS | E1 (`DEC-210`) |
 | `CHECK-R6-31` | Independent Review | PASS | E1 |
-| `CHECK-R6-32` | Owner Acceptance trên production | ACCEPTED_BY_OWNER_VERBAL | `DEC-219` |
+| `CHECK-R6-32` | Owner Acceptance trên production | PASS | `DEC-210` |
 
 `CHECK-R6-31` = `FAIL` là kết luận của vòng 1 trên HEAD `56aca4c`, và nó VẪN
 đúng với HEAD ấy. Sau `REPAIR-1` nó trở về `NOT_TESTED` chứ KHÔNG thành `PASS`:
@@ -335,12 +353,16 @@ Bằng chứng nguyên văn của `CHECK-R6-33` … `-54`:
 
 Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md` §4.
 
-`CHECK-R6-30` GIỮ `NOT_TESTED`, và đây là lý do CHÍNH XÁC: file sổ kế toán
-thật không được commit vào repo (`DEC-108`, ghi lại ở
-`tests/fixtures/synthetic_workbook.py`) và không có mặt trong môi trường phiên
-này (`/Users/hoangvinh/Downloads/` là đường dẫn trên máy Owner). Công cụ
+`CHECK-R6-30` GIỮ `NOT_TESTED` **tại thời điểm `S143`** — bản ghi gốc dưới
+đây, và đây là lý do CHÍNH XÁC lúc đó: file sổ kế toán thật không được
+commit vào repo (`DEC-108`, ghi lại ở `tests/fixtures/synthetic_workbook.py`)
+và không có mặt trong môi trường phiên này
+(`/Users/hoangvinh/Downloads/` là đường dẫn trên máy Owner). Công cụ
 `scripts/r6_book_reconciliation.py` đã sẵn sàng và đã được kiểm chứng trên hai
 sổ có thật; Owner chạy một lệnh để đóng check này — xem `S143` §8.
+
+**Cập nhật:** Owner đã chạy lệnh đó trong phiên merge (`DEC-210`,
+2026-09-09) — `CHECK-R6-30` = `PASS (E1)`, xem bảng ở trên và `DEC-210` §3.
 
 ---
 

@@ -14139,7 +14139,38 @@ Phiên: `S151` — Owner tự xác nhận đã nghiệm thu ba check Owner Accep
 đang treo: `CHECK-R6-30`, `CHECK-R6-32`, `CHECK-R51-26`.
 Thẩm quyền: `OWNER_DECISION` — Owner tự tay xác nhận trực tiếp trong phiên,
 bằng lời, không đính kèm số liệu/ảnh chụp cụ thể vào phiên này.
-Trạng thái: BAN HÀNH, đã thực thi (chỉ sửa tài liệu).
+Trạng thái: **RÚT LẠI TOÀN BỘ — SAI, xem `§0 ĐÍNH CHÍNH` bên dưới. Giữ
+nguyên văn bản gốc làm hồ sơ lịch sử (governance/core/V4_1_POLICY_FREEZE.md
+§10 cấm retro-fit/xoá tài liệu governance), KHÔNG áp dụng.**
+
+### §0. ĐÍNH CHÍNH (ghi ngay sau khi phát hiện, cùng ngày 2026-09-10)
+
+**`DEC-219` toàn bộ là SAI.** Ba check `CHECK-R6-30`, `CHECK-R6-32`,
+`CHECK-R51-26` **đã là `PASS (E1)` từ trước — đóng bởi `DEC-210` (2026-09-09),
+một ngày TRƯỚC phiên này** — với bằng chứng thật: đối soát trực tiếp trên
+sổ Owner `49edea00-So_chi_tiet_ban_hang.xlsx`, khớp cả 8 chỉ tiêu, EXIT=0
+(xem `DEC-210` §3). `R6` cũng ĐÃ merge vào nhánh mặc định từ `DEC-210`
+(commit `865b58e`) — xác nhận `git merge-base --is-ancestor 865b58e
+c46e458` → YES, `865b58e` là tổ tiên của chính commit nền `c46e458` mà
+phiên này đang làm việc. `INTEGRATION_DECISION_REQUIRED` cũng đã ĐÓNG bằng
+lựa chọn (A) ở `DEC-210` §4.
+
+**Nguyên nhân lỗi:** phiên `S151` đọc narrative cũ trong
+`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` và mục "Root Task: R6"
+của `PROJECT/REVIEW_BUDGET_LEDGER.md` — cả hai file này **chưa từng được
+đồng bộ lại sau khi `DEC-210` thực thi** (`git log 865b58e..c46e458 --
+<file>` cho cả hai file đều RỖNG — không commit nào sửa chúng sau merge).
+Đây là một lỗ hổng đồng bộ tài liệu CÓ THẬT, có TRƯỚC phiên `S151`, không
+phải do phiên này gây ra — nhưng phiên `S151` đã sai khi không tìm
+`PROJECT_DECISIONS.md` để tìm một quyết định giải quyết mới hơn trước khi
+kết luận ba check này "đang treo". Hạ ba check đã `PASS (E1)` thật xuống
+`ACCEPTED_BY_OWNER_VERBAL` là một bước LÙI về chất lượng bằng chứng, sai sự
+thật, và đã được sửa ngay trong cùng phiên khi phát hiện.
+
+**Sửa lại đúng, xem `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`,
+`PROJECT/REVIEW_BUDGET_LEDGER.md` — cả hai đã được đồng bộ lại đúng
+`DEC-210` trong cùng phiên này.** Không cần Owner ra quyết định gì thêm
+cho ba check này — chúng đã đóng đúng từ `DEC-210`.
 
 ### §1. Quyết định
 
@@ -14188,5 +14219,34 @@ này — chỉ Owner, người có file thật, mới chạy và xác nhận đ�
   `CHECK-R6-32` → `ACCEPTED_BY_OWNER_VERBAL`.
 - `PROJECT/REVIEW_BUDGET_LEDGER.md` — Root Task `R6`: cập nhật next_action,
   bỏ ba mục đã đóng, giữ nguyên `INTEGRATION_DECISION_REQUIRED`.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-220
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner tự xác nhận đã nghiệm thu `R5` gốc trên production.
+Thẩm quyền: `OWNER_DECISION` — Owner tự tay xác nhận trực tiếp trong phiên,
+bằng lời, không đính kèm số liệu/ảnh chụp cụ thể vào phiên này.
+Trạng thái: BAN HÀNH, đã thực thi (chỉ sửa tài liệu).
+
+### §1. Quyết định
+
+**`CHECK-R5-28` (Owner nghiệm thu `R5` gốc trên production) chuyển từ
+`NOT_TESTED` sang `ACCEPTED_BY_OWNER_VERBAL`** — đúng cơ chế đã dùng cho
+`CHECK-R3-20`/`CHECK-R4-24` (`DEC-203`) và `CHECK-R51-26` (`DEC-210`).
+Không phải `PASS` với bằng chứng E1/E2 kiểm được trong repo.
+
+Khác với sai sót ở `DEC-219`: check này CHƯA từng có quyết định nào trước
+đó — `DEC-203` (merge `R5` gốc) tường minh loại trừ nó ("`CHECK-R5-28` VẪN
+`NOT_TESTED` — quyết định này KHÔNG bao gồm nghiệm thu `R5` trên
+production, vì `R5` chưa từng chạy trên production trước thời điểm merge
+này"), và không một `DEC` nào sau đó (`DEC-207`…`DEC-219`) nhắc lại nó.
+`DEC-220` là quyết định ĐẦU TIÊN đóng check này.
+
+### §2. Cập nhật theo file
+
+- `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md` — `CHECK-R5-28`
+  → `ACCEPTED_BY_OWNER_VERBAL`.
 
 Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.

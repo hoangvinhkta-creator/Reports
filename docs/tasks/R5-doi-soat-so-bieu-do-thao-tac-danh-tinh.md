@@ -39,10 +39,13 @@ thẩm quyền của Owner, không phải một `PASS` có bằng chứng E1/E2 
 `docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`) mang cùng trạng
 thái, cùng lý do.
 
-`CHECK-R5-28` (Owner nghiệm thu R5 trên production) VẪN `NOT_TESTED` —
-`DEC-203` không bao gồm nghiệm thu R5 (R5 chưa từng chạy trên production
-trước khi quyết định này được đưa ra). Điều kiện `S133` cũ (Owner nghiệm thu
-R3/R4 trên production) được Owner tự xác nhận đã thoả bằng lời ở `S137`;
+`CHECK-R5-28` (Owner nghiệm thu R5 trên production) — `NOT_TESTED` →
+`ACCEPTED_BY_OWNER_VERBAL` (`DEC-220`, 2026-09-10). `DEC-203` không bao gồm
+nghiệm thu R5 (R5 chưa từng chạy trên production trước khi quyết định đó
+được đưa ra) — `DEC-220` là quyết định đầu tiên đóng check này, Owner tự
+xác nhận bằng lời trực tiếp, không đính kèm bằng chứng E1/E2 cụ thể. Điều
+kiện `S133` cũ (Owner nghiệm thu R3/R4 trên production) được Owner tự xác
+nhận đã thoả bằng lời ở `S137`;
 `CHECK-R3-20`/`CHECK-R4-24` được cập nhật thành
 `ACCEPTED_BY_OWNER_VERBAL` theo đúng `DEC-203` — xem
 `PROJECT/PROJECT_PROGRESS.md` và `PROJECT/REVIEW_BUDGET_LEDGER.md`.
@@ -199,7 +202,7 @@ Tracking:
 | `CHECK-R5-25` | Reports đọc CẢ artifact cũ lẫn mới; hash mới gồm hai trường; hai trường KHÔNG tham gia nhận diện | PASS | E1 |
 | `CHECK-R5-26` | IMEI chỉ ở route nhân viên; hai cột ẩn mặc định, nút chung, cột hẹp cắt một dòng; popover một ô tìm, tối đa một gợi ý | PASS | E1 |
 | `CHECK-R5-27` | Independent Review | ACCEPT_WITH_RECORDED_RISK (Owner override, `DEC-203` — vòng 2 chạy ở Codex, không artifact trong repo) | `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`), `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md` (`S135`, vòng 1) |
-| `CHECK-R5-28` | Owner nghiệm thu trên production | NOT_TESTED | — |
+| `CHECK-R5-28` | Owner nghiệm thu trên production | ACCEPTED_BY_OWNER_VERBAL | `DEC-220` |
 | `CHECK-R5-29` | `XONG` không gán lại cả BH khi BH có 0 hoặc ≥2 nhân viên hiệu lực | PASS | E1 |
 | `CHECK-R5-30` | Mọi ô chọn nhân viên LUÔN có đúng một option được chọn | PASS | E1 |
 | `CHECK-R5-31` | Dòng quay lại được khôi phục kể cả khi ba lần nạp cùng một giây | PASS | E1 |
