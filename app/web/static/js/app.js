@@ -668,7 +668,30 @@
    * Biểu đồ: tooltip khi rê chuột, thay vì phải ước lượng qua trục Y.
    * `<title>` gốc vẫn còn nguyên (không JS vẫn xem được, chỉ chậm hơn) —
    * đây chỉ là một lớp hiện nhanh hơn, không thay thế thông tin gốc.
-   * ------------------------------------------------------------------ */
+   *
+   * ────────────────────────────────────────────────────────────────────
+   * `UI-05` MỞ RỘNG chính cơ chế này, không dựng một cơ chế thứ hai:
+   *
+   *   RÊ CHUỘT   y hệt trước — `showTooltip`/`positionTooltip`/`hideTooltip`
+   *              không đổi một dòng nào, và đường cũ vẫn là đường mặc định.
+   *   BẤM        GHIM (`pinTooltip`): cùng phần tử `.rev-tooltip`, thêm lớp
+   *              `is-pinned`. Con trỏ rời đi, popover vẫn còn.
+   *   BẤM ĐIỂM   THAY NỘI DUNG ngay trong popover đang ghim — không đóng,
+   *   KHÁC       không mở lại, không giật bố cục.
+   *   BÀN PHÍM   Tab tới điểm, ←/→ sang điểm kế, Enter/Space ghim, Esc bỏ.
+   *
+   * Hai tầng dữ liệu, đúng thứ tự người đọc cần:
+   *
+   *   1. GIÁ TRỊ CƠ BẢN hiện NGAY, từ `title` mà server đã đặt sẵn trên
+   *      chính điểm dữ liệu — nó đã nằm trong trình duyệt, không request
+   *      nào phải chạy trước khi người dùng thấy con số họ vừa bấm vào.
+   *   2. PHÂN RÃ (ai đóng góp) tải NỀN vào đúng popover đang ghim, và chỉ
+   *      trên những biểu đồ khai `data-breakdown` (xem `_r6_bits.html`).
+   *
+   * Response phân rã của điểm TRƯỚC bị BỎ nếu nó về sau khi người dùng đã
+   * bấm điểm khác (`pinSeq`) — cùng `STAB-05`/latest-response-guard mà
+   * `UI-01` đã dùng cho lượt GET chi tiết đơn.
+   * ──────────────────────────────────────────────────────────────────── */
   var tooltip = null;
 
   function ensureTooltip() {
@@ -715,10 +738,12 @@
   }
 
   document.addEventListener("mouseover", function (event) {
+    if (pinned) return;               /* đang ghim: rê chuột không cướp chỗ */
     var point = chartPointTarget(event);
     if (point) showTooltip(point, event);
   });
   document.addEventListener("mousemove", function (event) {
+    if (pinned) return;
     if (tooltip && !tooltip.hidden) {
       var point = chartPointTarget(event);
       if (point) positionTooltip(tooltip, event);
@@ -726,10 +751,284 @@
     }
   });
   document.addEventListener("mouseout", function (event) {
+    if (pinned) return;
     var point = chartPointTarget(event);
     if (point && !event.relatedTarget) hideTooltip();
   });
-  document.addEventListener("app:content-updated", hideTooltip);
+  document.addEventListener("app:content-updated", function () {
+    unpinTooltip();
+    hideTooltip();
+  });
+
+  /* --- `UI-05`: GHIM ---------------------------------------------------- */
+
+  /* Điểm GHIM được là điểm mang `data-key` — tức các `<span class="rev-line-
+   * point">` do server dựng (`_r6_bits.html`). Các `<circle>` SVG là phần
+   * VẼ và không mang khoá mốc: rê chuột lên chúng vẫn hiện tooltip như
+   * trước, nhưng chúng không phải một lối vào của phân rã. */
+  function pinnablePoint(target) {
+    if (!target || !target.closest) return null;
+    var point = target.closest(".rev-line-point[data-key]");
+    return point && point.getAttribute("data-key") ? point : null;
+  }
+
+  function chartOf(point) { return point.closest("[data-metric='chart']"); }
+
+  var pinned = null;        /* điểm đang được ghim, hoặc `null` */
+  var pinSeq = 0;           /* vé của lượt tải phân rã mới nhất */
+
+  function unpinTooltip() {
+    if (!pinned) return;
+    pinned = null;
+    /* Vé tăng lên: response đang bay của điểm vừa bỏ ghim sẽ không còn là
+     * mới nhất, nên nó không vẽ vào một popover đã đóng. */
+    pinSeq += 1;
+    if (tooltip) {
+      tooltip.classList.remove("is-pinned");
+      tooltip.removeAttribute("tabindex");
+      tooltip.hidden = true;
+      tooltip.textContent = "";
+    }
+  }
+
+  /* Dựng phần KHUNG của popover đã ghim và điền GIÁ TRỊ CƠ BẢN.
+   *
+   * Chữ đi qua `textContent`, không `innerHTML`: `title` của điểm dữ liệu do
+   * server dựng nhưng nó chứa tên nhân viên/nhãn mốc, và không có lý do gì
+   * để một tooltip là HTML. */
+  function renderPinned(point) {
+    var tip = ensureTooltip();
+    tip.textContent = "";
+    tip.hidden = false;
+    tip.classList.add("is-pinned");
+    tip.setAttribute("tabindex", "-1");
+
+    var head = document.createElement("div");
+    head.className = "rev-tooltip-head";
+    var label = document.createElement("strong");
+    label.setAttribute("data-metric", "chart-pin-label");
+    label.textContent = pointLabel(point);
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "rev-tooltip-close";
+    close.setAttribute("data-metric", "chart-pin-close");
+    close.setAttribute("aria-label", "Bỏ ghim");
+    close.textContent = "×";
+    close.addEventListener("click", function () {
+      var opener = pinned;
+      unpinTooltip();
+      if (opener && opener.isConnected) opener.focus();
+    });
+    head.appendChild(label);
+    head.appendChild(close);
+    tip.appendChild(head);
+
+    var body = document.createElement("div");
+    body.setAttribute("data-metric", "chart-pin-breakdown");
+    /* Trạng thái ĐANG TẢI nói ra chứ không để trống: một popover trống
+     * trong nửa giây trông như một popover hỏng. */
+    var waiting = document.createElement("p");
+    waiting.className = "rev-tooltip-note";
+    waiting.setAttribute("data-metric", "chart-pin-loading");
+    waiting.textContent = "Đang tải phân rã…";
+    body.appendChild(waiting);
+    tip.appendChild(body);
+    return tip;
+  }
+
+  function placePinned(tip, point) {
+    var pad = 8;
+    var at = point.getBoundingClientRect();
+    var box = tip.getBoundingClientRect();
+    var x = at.left + at.width / 2 + 12;
+    var y = at.top;
+    if (x + box.width > window.innerWidth - pad) {
+      x = at.left - box.width - 12;
+    }
+    if (y + box.height > window.innerHeight - pad) {
+      y = window.innerHeight - box.height - pad;
+    }
+    tip.style.left = Math.max(pad, x) + "px";
+    tip.style.top = Math.max(pad, y) + "px";
+  }
+
+  function pinTooltip(point) {
+    /* Bấm ĐÚNG điểm đang ghim ⟹ bỏ ghim. Cùng cử chỉ, hai chiều. */
+    if (pinned === point) { unpinTooltip(); point.focus(); return; }
+    pinned = point;
+    pinSeq += 1;
+    var ticket = pinSeq;
+    var tip = renderPinned(point);
+    placePinned(tip, point);
+    loadBreakdown(point, ticket);
+  }
+
+  function loadBreakdown(point, ticket) {
+    var chart = chartOf(point);
+    var base = chart && chart.getAttribute("data-breakdown");
+    var host = tooltip && tooltip.querySelector(
+      '[data-metric="chart-pin-breakdown"]');
+    if (!host) return;
+    if (!base) {
+      /* Biểu đồ này không khai đường phân rã — nói thẳng, đừng để một ô
+       * "đang tải" quay mãi. */
+      host.textContent = "";
+      var none = document.createElement("p");
+      none.className = "rev-tooltip-note";
+      none.setAttribute("data-metric", "chart-pin-no-breakdown");
+      none.textContent = "Biểu đồ này chưa có phân rã theo nhân viên.";
+      host.appendChild(none);
+      return;
+    }
+    var params = new URLSearchParams(window.location.search);
+    params.set("muc", (chart.getAttribute("data-gran") || ""));
+    params.set("moc", point.getAttribute("data-key"));
+    fetch(base + "?" + params.toString(), {
+      headers: { Accept: "application/json" }
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (payload) {
+        /* LATEST-RESPONSE-GUARD. Người dùng đã bấm điểm khác (hoặc bỏ ghim)
+         * trong lúc request này còn bay ⟹ nó không còn là câu trả lời cho
+         * câu hỏi đang mở, và vẽ nó ra là vẽ số của một mốc khác vào một
+         * popover đang nói về mốc này. */
+        if (ticket !== pinSeq) return;
+        renderBreakdown(payload);
+      })
+      .catch(function () {
+        if (ticket !== pinSeq) return;
+        renderBreakdownProblem();
+      });
+  }
+
+  function renderBreakdown(payload) {
+    var host = tooltip && tooltip.querySelector(
+      '[data-metric="chart-pin-breakdown"]');
+    if (!host) return;
+    host.textContent = "";
+    var summary = document.createElement("p");
+    summary.className = "rev-tooltip-note";
+    summary.setAttribute("data-metric", "chart-pin-summary");
+    summary.textContent = payload.revenue.text_kvnd + " nghìn · " +
+      payload.orders + " đơn · " + payload.lines + " dòng";
+    host.appendChild(summary);
+
+    var list = document.createElement("ul");
+    list.className = "rev-tooltip-break";
+    (payload.rows || []).forEach(function (row) {
+      var item = document.createElement("li");
+      item.setAttribute("data-metric", "chart-pin-row");
+      var who = document.createElement("span");
+      who.textContent = row.employee;
+      var much = document.createElement("strong");
+      much.textContent = row.revenue.text_kvnd;
+      item.appendChild(who);
+      item.appendChild(much);
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    if (payload.hidden_employees) {
+      var rest = document.createElement("p");
+      rest.className = "rev-tooltip-note";
+      rest.setAttribute("data-metric", "chart-pin-hidden");
+      rest.textContent = "và " + payload.hidden_employees + " người nữa";
+      host.appendChild(rest);
+    }
+  }
+
+  function renderBreakdownProblem() {
+    var host = tooltip && tooltip.querySelector(
+      '[data-metric="chart-pin-breakdown"]');
+    if (!host) return;
+    host.textContent = "";
+    var problem = document.createElement("p");
+    problem.className = "rev-tooltip-note";
+    problem.setAttribute("data-metric", "chart-pin-error");
+    /* KHÔNG tự gọi lại: cùng nguyên tắc `STAB-03`. Giá trị cơ bản vẫn hiện
+     * ở đầu popover, nên người dùng không mất gì ngoài phần phân rã. */
+    problem.textContent = "Chưa tải được phân rã — bấm lại điểm này để thử.";
+    host.appendChild(problem);
+  }
+
+  /* Bấm một điểm: GHIM, hoặc THAY NỘI DUNG của popover đang ghim. Pha
+   * CAPTURE + `stopPropagation()`, cùng lý do đã viết ở khối panel sửa đơn:
+   * `onClick()` phía trên nghe ở pha bubble và chặn mọi link cùng origin. */
+  document.addEventListener("click", function (event) {
+    var point = pinnablePoint(event.target);
+    if (!point) {
+      /* Bấm ra ngoài (không phải vào chính popover) ⟹ bỏ ghim. */
+      if (pinned && tooltip && !tooltip.contains(event.target)) unpinTooltip();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    pinTooltip(point);
+  }, true);
+
+  /* --- `UI-05` §6: bàn phím -------------------------------------------- */
+
+  /* Điểm dữ liệu nhận được Tab. `tabindex` do JAVASCRIPT gắn, không do
+   * template: không có JavaScript thì bấm vào chúng không làm gì cả, và một
+   * phần tử nhận Tab mà không có hành vi là một cái bẫy cho người dùng bàn
+   * phím. */
+  function upgradePoints() {
+    var points = document.querySelectorAll(".rev-line-point[data-key]");
+    for (var i = 0; i < points.length; i++) {
+      if (points[i].getAttribute("tabindex") !== null) continue;
+      points[i].setAttribute("tabindex", "0");
+      points[i].setAttribute("role", "button");
+      var text = pointLabel(points[i]);
+      if (text) points[i].setAttribute("aria-label", text);
+    }
+  }
+
+  function siblingPoint(point, step) {
+    var chart = chartOf(point);
+    if (!chart) return null;
+    /* Chỉ trong CÙNG một đường: cửa sổ hiện tại và cửa sổ so sánh là hai
+     * dãy điểm chồng lên nhau, và ←/→ nhảy qua lại giữa hai dãy sẽ đi theo
+     * một thứ tự mà mắt không thấy. */
+    var metric = point.getAttribute("data-metric");
+    var row = chart.querySelectorAll(
+      '.rev-line-point[data-metric="' + metric + '"][data-key]');
+    for (var i = 0; i < row.length; i++) {
+      if (row[i] !== point) continue;
+      return row[i + step] || null;
+    }
+    return null;
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && pinned) {
+      event.preventDefault();
+      var opener = pinned;
+      unpinTooltip();
+      if (opener && opener.isConnected) opener.focus();
+      return;
+    }
+    var point = pinnablePoint(event.target);
+    if (!point) return;
+    if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      event.preventDefault();
+      pinTooltip(point);
+      return;
+    }
+    var step = 0;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") step = 1;
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") step = -1;
+    if (!step) return;
+    var next = siblingPoint(point, step);
+    if (!next) return;
+    event.preventDefault();
+    next.focus();
+    /* Đang ghim thì mũi tên ĐỔI NỘI DUNG của chính popover đang ghim —
+     * không đóng rồi mở lại. Không ghim thì nó chỉ dời focus. */
+    if (pinned) pinTooltip(next);
+  });
+
+  document.addEventListener("DOMContentLoaded", upgradePoints);
+  document.addEventListener("app:content-updated", upgradePoints);
+  upgradePoints();
 })();
 
 

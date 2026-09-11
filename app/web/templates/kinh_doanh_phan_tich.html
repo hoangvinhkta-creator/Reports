@@ -70,12 +70,14 @@
   {{ r6.paired_chart(revenue_chart, 'bieu-do-doanh-thu-r6', 'Doanh thu',
      revenue_chart.total_kvnd ~ ' nghìn đồng',
      revenue_chart.comparison_total_kvnd ~ ' nghìn đồng',
-     'analytics_overview', {'ky': scope.period_value}) }}
+     'analytics_overview', {'ky': scope.period_value},
+     breakdown=url_for('api_chart_breakdown')) }}
   {% endif %}
   {% if orders_chart %}
   {{ r6.paired_chart(orders_chart, 'bieu-do-so-don', 'Số đơn',
      orders_chart.total_text, orders_chart.comparison_total_text,
-     'analytics_overview', {'ky': scope.period_value}) }}
+     'analytics_overview', {'ky': scope.period_value},
+     breakdown=url_for('api_chart_breakdown')) }}
   {% endif %}
 </div>
 {% if not revenue_chart and not orders_chart %}

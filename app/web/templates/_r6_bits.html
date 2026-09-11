@@ -64,7 +64,8 @@
    ĐƠN VỊ, và nó đã nằm sẵn trong dict (`total_kvnd` + "nghìn đồng" cho tiền,
    `total_text` cho số đếm) nên template không phải tự biết mình đang vẽ cái
    gì. #}
-{% macro paired_chart(chart, dom_id, title, total_text, comparison_text, url, params) -%}
+{% macro paired_chart(chart, dom_id, title, total_text, comparison_text, url,
+                      params, breakdown=None) -%}
 <div class="module chart-half" id="{{ dom_id }}">
   <h2>{{ title }}
     <span class="cnt" data-metric="chart-total">{{ total_text }}</span></h2>
@@ -93,8 +94,15 @@
       {% endfor %}
     </div>
     <div class="rev-chart-plot">
+      {# `UI-05` — `data-breakdown` là ĐƯỜNG DẪN route đọc phần phân rã của
+         một mốc, và sự có mặt của nó LÀ cái công tắc: biểu đồ nào không
+         khai nó thì ghim được nhưng không tải phân rã. Trang Báo cáo (`R5`)
+         cố ý không khai — phạm vi của nó đọc bằng một bộ tham số khác, và
+         gửi tham số của trang này sang route kia sẽ phân rã một khoảng thời
+         gian mà người dùng không hề chọn. #}
       <div class="rev-line" style="--rev-h: {{ chart.svg_height }}px"
-           data-metric="chart" data-gran="{{ chart.granularity }}">
+           data-metric="chart" data-gran="{{ chart.granularity }}"
+           {% if breakdown %}data-breakdown="{{ breakdown }}"{% endif %}>
         <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
              preserveAspectRatio="none" role="img"
              aria-label="{{ title }} — {{ chart.current_label }} so với {{ chart.comparison_label }}">

@@ -3994,6 +3994,101 @@ def create_app(
             paired, granularity=granularity,
             undated=revenue_timeline.undated_count(view["data"].details))
 
+    # ==================================================================
+    # `UI-05` — PHÂN RÃ một mốc của biểu đồ, khi người dùng GHIM nó.
+    #
+    # Route GET, chỉ đọc. `R6` tự đặt cho mình luật "không API ngoài, không
+    # route GHI" (`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`) — một
+    # route ĐỌC nội bộ không chạm luật đó, nhưng nó chạm một luật khác và
+    # luật ấy được giữ bằng cấu tạo: KHÔNG một phép tính nào ở đây.
+    #
+    # `dashboard_metrics.totals()` cộng; `dashboard_presentation.money_cell()`
+    # định dạng; `revenue_timeline.bucket_of()` chia mốc. Cả ba là ĐÚNG những
+    # hàm mà trang phân tích gọi cho chính con số đang hiện trên biểu đồ, nên
+    # phần phân rã không thể cộng ra một tổng khác với cái chấm mà người dùng
+    # vừa bấm vào. Nếu ai đó viết một phép cộng ở đây, đó là lúc hai con số
+    # bắt đầu trôi khỏi nhau.
+    # ==================================================================
+
+    #: Số nhân viên hiện trong một lần phân rã. Đây là một TOOLTIP, không
+    #: phải một bảng: quá năm dòng thì nó che mất chính biểu đồ đang giải
+    #: thích. Phần còn lại được gộp thành một dòng "còn lại", không bị giấu.
+    BREAKDOWN_ROWS = 5
+
+    @app.get("/api/v1/analytics/chart-breakdown")
+    def api_chart_breakdown():
+        """`UI-05` — ai đóng góp vào MỘT mốc của biểu đồ.
+
+        Phạm vi (kỳ/khoảng ngày) đọc từ CHÍNH những tham số mà trang phân
+        tích đang mang trên URL, qua `_analysis_view()` — không có phép phân
+        tích phạm vi thứ hai ở đây, nên một mốc được phân rã trong đúng phạm
+        vi mà người dùng đang nhìn.
+
+        `muc` là mức gộp, `moc` là khoá mốc — cùng hai giá trị mà chính điểm
+        dữ liệu mang trong `data-gran`/`data-key`, do server dựng ở
+        `_r6_bits.html`. Client không tự dựng khoá mốc nào.
+        """
+        granularity = revenue_timeline.parse_granularity(
+            request.args.get("muc"), default=revenue_timeline.DAY)
+        key = (request.args.get("moc") or "").strip()
+        if not key:
+            return _api_error(
+                mutation_guard.VALIDATION_ERROR,
+                "Thiếu `moc` — khoá mốc của điểm dữ liệu.", status=400,
+                field="moc")
+        view = _analysis_view()
+        # ĐÚNG lát mà biểu đồ vẽ, kể cả cửa sổ so sánh của năm trước: một
+        # điểm `chart-bar-prev` nằm ngoài phạm vi đang xem, và đọc
+        # `view["data"]` sẽ trả về một phân rã RỖNG cho một cái chấm đang
+        # hiện một con số khác 0.
+        details, _widened = _chart_details(view, granularity)
+        bucket = [detail for detail in details
+                  if detail.get("sale_date") is not None
+                  and revenue_timeline.bucket_of(
+                      detail["sale_date"], granularity)[0] == key]
+
+        by_employee: dict = {}
+        for detail in bucket:
+            by_employee.setdefault(detail["line"].employee, []).append(detail)
+
+        rows = []
+        for name, slice_details in by_employee.items():
+            slice_totals = dashboard_metrics.totals(slice_details)
+            rows.append({
+                "employee": name or business_presentation.UNKNOWN_EMPLOYEE,
+                "resolved": name is not None,
+                "revenue": dashboard_presentation.money_cell(
+                    slice_totals.sales_revenue),
+                "orders": slice_totals.orders,
+                "lines": slice_totals.lines,
+                # Khoá SẮP XẾP giữ nguyên `Decimal`, không đọc ngược từ chuỗi
+                # đã định dạng — cùng lý do `analytics_employee` nêu: `"1.234"`
+                # là hai con số khác nhau ở hai cách viết.
+                "_sort": (slice_totals.sales_revenue
+                          if slice_totals.sales_revenue is not None
+                          else Decimal(0)),
+            })
+        rows.sort(key=lambda row: (-row["_sort"], row["employee"]))
+        shown = rows[:BREAKDOWN_ROWS]
+        for row in shown:
+            row.pop("_sort")
+        totals = dashboard_metrics.totals(bucket)
+        return {
+            "schema_version": workspace_presentation.WORKSPACE_SCHEMA_VERSION,
+            "granularity": granularity,
+            "key": key,
+            "label": (revenue_timeline.bucket_of(
+                bucket[0]["sale_date"], granularity)[1] if bucket else key),
+            "revenue": dashboard_presentation.money_cell(totals.sales_revenue),
+            "orders": totals.orders,
+            "lines": totals.lines,
+            "rows": shown,
+            # Số nhân viên KHÔNG hiện, nói ra chứ không giấu: một tooltip cắt
+            # bớt mà không nói là một tooltip khiến người đọc cộng thiếu.
+            "hidden_employees": max(0, len(rows) - len(shown)),
+            "trace_id": request_timing.trace_id(),
+        }
+
     @app.get("/kinh-doanh/phan-tich")
     def analytics_overview():
         """R6 §2 — Tổng quan: chỉ tiêu nền, hai biểu đồ, bốn ô giỏ hàng.
