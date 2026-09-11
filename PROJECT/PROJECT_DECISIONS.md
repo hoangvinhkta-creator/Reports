@@ -14474,3 +14474,87 @@ dấu ngoài bảng giá (ví dụ Tracking bổ sung mặt hàng đó vào danh
 một lối vào MỚI (route `?phan-loai=1&order_key=...` vẫn sống, chỉ cần một
 điểm bấm — ví dụ từ icon sửa dòng đã có ở cột thao tác) thay vì khôi phục
 lại tag cũ.
+
+## DEC-224
+
+Ngày: 2026-09-11
+Phiên: `S154` — Owner chọn hướng xử lý cho giá MIN của các ngày trước mốc
+`R1` (đã trình ba hướng ở `DEC-222` §4).
+Đánh số: phiên này ban đầu lấy `DEC-223`, nhưng `TASK-OWNER-UIUX-009` —
+một phiên độc lập, tách nhánh cùng lúc — đã merge trước và giữ số ấy. Số
+DEC là khoá DUY NHẤT của một quyết định, nên bên merge sau nhường: quyết
+định này là `DEC-224`. Không đổi nội dung, không đổi ngày.
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (bên Tracking; Reports chỉ thêm một bài
+kiểm hợp đồng).
+
+### §1. Quyết định của Owner
+
+> "chọn hướng 2 tracking backfill bản ngày cho các ngày trước 07/09 nếu
+> Engine còn dữ liệu"
+
+Tức hướng (2) của `DEC-222` §4. Hai hướng còn lại KHÔNG được chọn: (1) nhập
+tay, (3) mở lại nhánh dự phòng `tp/ton` — (3) sẽ đổi thẩm quyền giá đã chốt
+ở `R1` và vẫn cần một quyết định riêng nếu có ngày quay lại.
+
+### §2. "Engine còn dữ liệu" — có, và đây là bằng chứng
+
+Điều tra bên Tracking xác nhận hai nhật ký SỰ KIỆN đủ để dựng lại đầu vào
+của công thức Min cho một ngày đã qua:
+
+```text
+phist/<mã>/<NCC>/<ngày>        số > 0 = NCC báo giá hôm đó
+                               0      = NCC NGỪNG BÁN hôm đó (sentinel)
+                               vắng   = không đổi so với hôm trước
+purchase_price_history/<mã>    {prev, next, t} — t là thời gian MÁY CHỦ
+```
+
+Sentinel `0` là mấu chốt: `minCuaDong()` đọc TRẠNG THÁI còn/hết của từng NCC
+(`locGiaNcc` chỉ lấy `s === "ok"`; `hetHangHoanToan` quyết `OUT_OF_STOCK`),
+nên nếu nhật ký chỉ lưu giá mà không lưu trạng thái thì ngày cũ KHÔNG dựng
+lại được trung thực. Nó có lưu — do chính đường ghi bên `public/index.html`
+đặt ra cạnh `s:"gone"`.
+
+### §3. Triển khai (Tracking `R7`, PR #29 đã merge)
+
+`dungBangTaiNgay()` (thuần) dựng trạng thái bảng giá của đúng ngày ấy;
+`dungLaiMinNgay()` đưa nó qua CHÍNH Engine của lượt chụp rồi ghi bản ghi +
+bản ngày; `POST /api/min-ngay/dung-lai` (admin, đòi lý do bằng chữ, trần 14
+ngày/lượt). Lệnh cấm "chỉ chụp được hôm nay" của `R1 §3.2` KHÔNG bị nới:
+khác nhau ở NGUỒN ĐẦU VÀO, không ở công thức.
+
+### §4. Điểm chạm với Reports, và vì sao Reports gần như không đổi
+
+Bản ghi dựng lại tự khai bằng hai trường MỚI trong hợp đồng (`reconstructed`,
+`reconstruction_note`) cộng `recorded_by = "dung-lai:<ai>"`. Tracking cố ý
+KHÔNG thêm giá trị thứ ba vào `day_status`: enum ấy là tập ĐÓNG ở Reports và
+một giá trị lạ làm `snapshot._record` từ chối CẢ ẢNH CHỤP
+(`unknown_day_status`) — tức đường giá vốn của cả kỳ sập ngay lượt deploy bên
+kia. Thứ tự rollout vì thế an toàn theo cấu tạo: bên sản xuất thêm trường tuỳ
+chọn, bên đọc cũ hơn đi tiếp không sứt mẻ.
+
+Reports chỉ thêm MỘT bài kiểm ghim mặt còn lại của thoả thuận ấy
+(`test_a_newer_producer_may_add_fields_this_reader_does_not_know`): một bên
+sản xuất mới hơn được phép THÊM trường, và nếu sau này ai đó siết bộ đọc
+thành "từ chối khoá lạ" thì bài này đỏ TRƯỚC khi bản siết ra production.
+Không nới một milimet nào ở chiều ngược lại — trường bắt buộc THIẾU hay enum
+SAI vẫn bị từ chối như cũ.
+
+### §5. Giới hạn đã ghi, không giấu
+
+`meta.an` (danh sách NCC bị bỏ khỏi công thức Min) KHÔNG được lưu theo ngày.
+Một NCC nghỉ bán SAU ngày được dựng lại sẽ bị loại khỏi công thức của ngày ấy
+dù hôm đó họ còn bán. Vân tay danh sách đã dùng (`k`) được ghi vào bản ngày
+nên sai lệch này TRA LẠI ĐƯỢC; không sửa vì không có bằng chứng để sửa theo.
+Cùng lý do, một lần XOÁ TAY ô giá NCC không đi qua `phist`.
+
+### §6. Việc còn lại của Owner
+
+1. Sau khi Tracking deploy, gọi `POST /api/min-ngay/dung-lai` cho khoảng ngày
+   cần (ví dụ `2026-09-01` → `2026-09-06`) kèm lý do.
+2. Chạy lại báo cáo bên Reports rồi kiểm ô Giá nhập của các đơn đầu tháng 9.
+3. Nếu muốn thấy TRÊN MÀN HÌNH dòng nào là giá dựng lại (nay chỉ đọc được
+   trong dấu vết), đó là một task Reports riêng — cờ đã có sẵn trong dữ liệu
+   từ hôm nay, không cần Tracking deploy lại.
+
+Bằng chứng nguyên văn: mục "R7" trong tài liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này); PR Tracking #29.
