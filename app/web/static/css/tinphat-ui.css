@@ -1142,6 +1142,14 @@ td[data-group] { white-space: nowrap; }
    dòng làm cả hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao
    khác nhau thì không còn dò theo hàng được nữa — đúng thứ nền xen kẽ theo
    ngày (`§38`) sinh ra để giữ. Chữ đầy đủ đọc qua `title`. */
+/* `UI-04` — TẮT scroll anchoring của trình duyệt trên chính bảng kê.
+   Khi `app.js` gỡ các nhóm cũ nhất (`trimToBudget`), nó ĐO chiều cao vừa
+   mất rồi trả lại bằng `window.scrollBy` — một phép bù CHÍNH XÁC và giống
+   nhau ở mọi trình duyệt. Scroll anchoring của Chrome bù thêm một phần
+   nữa theo heuristic của nó, và hai phép bù chồng lên nhau cho ra một cú
+   nhảy nhỏ (đo được ~46 px ở `workspace-window.spec.mjs`). Một cơ chế bù,
+   không hai. */
+.sheet-table { overflow-anchor: none; }
 .sheet-table[data-optional-hidden] .col-optional { display: none; }
 .sheet-table .col-narrow {
   max-width: 96px; white-space: nowrap; overflow: hidden;
@@ -1232,6 +1240,56 @@ td[data-group] { white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   .tp-order-panel--side[open], .tp-order-panel[open] { animation: none; }
 }
+
+/* --- `UI-03`: hộp xác nhận neo cạnh nút vừa bấm --------------------------
+   CÙNG cơ chế `.identify-pop.is-anchored` ở trên, không phải một cơ chế thứ
+   hai: JavaScript gắn `is-anchored` sau khi tính được toạ độ, và không có
+   toạ độ thì khối giữ nguyên hình dạng `.module` bình thường. Dưới `760px`
+   nó sập về bottom sheet, cùng ngưỡng và cùng lý do với `.tp-order-panel`. */
+.tp-confirm-pop.is-anchored {
+  position: fixed; z-index: 61; margin: 0;
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(60vh, 420px); overflow: auto;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
+}
+.tp-confirm-pop h2 { margin-top: 0; font-size: 15px; }
+@media (max-width: 760px) {
+  .tp-confirm-pop.is-anchored {
+    inset: auto 0 0 0; top: auto; left: 0; right: 0;
+    width: 100%; max-width: 100%;
+    border-radius: var(--tp-r-md) var(--tp-r-md) 0 0;
+  }
+}
+
+/* --- `UI-05`: tooltip biểu đồ được GHIM ----------------------------------
+   `.rev-tooltip` (rê chuột) giữ nguyên như trước; `is-pinned` là trạng thái
+   THỨ HAI của CHÍNH phần tử ấy — bấm vào một điểm thì nó ở lại, nhận được
+   focus, và có chỗ cho phần phân rã tải nền. Không có phần tử thứ hai: hai
+   phần tử cho cùng một thông tin là hai chỗ để chúng nói lệch nhau. */
+.rev-tooltip.is-pinned {
+  z-index: 62; pointer-events: auto; cursor: default;
+  min-width: 220px; max-width: min(320px, calc(100vw - 16px));
+  padding: var(--tp-s3);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .24);
+}
+.rev-tooltip.is-pinned:focus-visible { outline: 2px solid var(--tp-blue); }
+.rev-tooltip-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--tp-s2);
+}
+.rev-tooltip-close {
+  background: none; border: 0; cursor: pointer; color: inherit;
+  font-size: 14px; line-height: 1; padding: 2px 4px;
+}
+.rev-tooltip-break { margin: var(--tp-s2) 0 0; padding: 0; list-style: none; }
+.rev-tooltip-break li {
+  display: flex; justify-content: space-between; gap: var(--tp-s3);
+  font-size: 12px; padding: 2px 0;
+}
+.rev-tooltip-note { font-size: 12px; opacity: .75; }
+/* Điểm dữ liệu nhận được Tab: `UI-05` §6. Viền focus phải THẤY ĐƯỢC trên
+   một phần tử vốn trong suốt, nên nó vẽ bằng outline chứ không bằng nền. */
+.rev-line-point:focus-visible { outline: 2px solid var(--tp-blue); outline-offset: 2px; }
 
 /* `UI-02` — thuộc tính `hidden` bị chính `.act, .ghost, button { display:
    inline-flex }` ở trên VÔ HIỆU HOÁ trên mọi nút mang lớp `.ghost`/`.act`:

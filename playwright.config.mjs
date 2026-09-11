@@ -14,6 +14,14 @@ import { defineConfig } from '@playwright/test';
 
 const PORT = Number(process.env.REPORTS_PLAYWRIGHT_PORT || 8931);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+// `UI-04` — máy chủ THỨ HAI, 5.000 dòng. Ngân sách DOM chỉ có nghĩa trên một
+// khối lượng đại diện: trên 90 dòng (máy chủ chính) mọi kiến trúc đều xanh,
+// kể cả kiến trúc dựng 5.002 hàng `<tr>` cho một màn hình bốn mươi hàng.
+// Hai máy chủ chứ không một: fixture 5.000 dòng làm mọi bài kiểm khác chậm
+// đi mà không thêm một mệnh đề nào cho chúng.
+const SCALE_PORT = Number(process.env.REPORTS_PLAYWRIGHT_SCALE_PORT || 8932);
+export const SCALE_URL = `http://127.0.0.1:${SCALE_PORT}`;
+export const SCALE_LINES = 5000;
 const CHROMIUM_PATH =
   process.env.PLAYWRIGHT_CHROMIUM_PATH || '/opt/pw-browsers/chromium';
 const PYTHON = process.env.REPORTS_PYTHON ||
@@ -36,12 +44,27 @@ export default defineConfig({
     launchOptions: CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {},
     trace: 'retain-on-failure',
   },
-  webServer: {
-    command: `${PYTHON} tests/playwright/fixture_server.py --port ${PORT}`,
-    url: `${BASE_URL}/kinh-doanh/nhan-vien?ky=2026-09`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  },
+  webServer: [
+    {
+      command: `${PYTHON} tests/playwright/fixture_server.py --port ${PORT}`,
+      url: `${BASE_URL}/kinh-doanh/nhan-vien?ky=2026-09`,
+      // `UI-03` GHI thật vào máy chủ fixture (phân loại, loại dòng). Dùng
+      // lại một máy chủ còn sống từ lần chạy trước ⟹ lần chạy thứ hai
+      // thấy dòng ĐÃ phân loại và các mệnh đề im lặng biến mất. Mỗi lần
+      // chạy phải khởi động một máy chủ SẠCH.
+      reuseExistingServer: false,
+      timeout: 60_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `${PYTHON} tests/playwright/fixture_server.py` +
+        ` --port ${SCALE_PORT} --lines ${SCALE_LINES} --no-extras`,
+      url: `${SCALE_URL}/kinh-doanh/nhan-vien?ky=2026-09`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  ],
 });

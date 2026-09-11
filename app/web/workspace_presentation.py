@@ -160,6 +160,12 @@ PROGRESS_NOTE = (
     "báo lịch. Nó KHÔNG tham gia Target, KPI hay bất kỳ con số kinh doanh nào."
 )
 
+#: `UI-03`/`UI-04` — version của HÌNH DẠNG payload JSON mà không gian làm
+#: việc trả về. Client đọc nó để biết mình đang nói cùng một thứ tiếng với
+#: server; một lần đổi hình dạng không tương thích phải tăng nó, và client cũ
+#: sẽ tải lại trang thay vì đọc sai. Cùng hợp đồng `order_api.SCHEMA_VERSION`.
+WORKSPACE_SCHEMA_VERSION = "R7-WORKSPACE-1"
+
 EMPTY_PERIOD_NOTE = "Chưa có đơn"
 
 EXCLUDED_NOTE = (
@@ -192,6 +198,17 @@ EXCLUDE_CONFIRM_POINTS = (
     "Không còn tính vào doanh thu",
     "Không còn tính vào lợi nhuận",
     "Sổ kế toán gốc giữ nguyên",
+)
+
+# `UI-03` §4 — KHÔI PHỤC cũng phải nói ra hậu quả TRƯỚC khi ghi. Đường HTML
+# không-JS không có bước này (nút KHÔI PHỤC gửi thẳng, đúng như trước
+# `UI-03` — không đổi hành vi của đường cũ); đường JS thì có, vì ở đó nút
+# nằm ngay cạnh danh sách và bấm nhầm rẻ hơn nhiều.
+RESTORE_CONFIRM_QUESTION = "Khôi phục dòng này vào báo cáo?"
+RESTORE_CONFIRM_POINTS = (
+    "Tính lại vào doanh thu",
+    "Tính lại vào lợi nhuận",
+    "Dòng trở lại đúng khối BH cũ",
 )
 
 
@@ -489,9 +506,47 @@ def _line_row(detail: dict, *, sheet, part, synthetic: bool,
 _NO_DATE_YET = object()
 
 
+def group_shades(details: list[dict]) -> dict[str, int]:
+    """`{order_key: shade}` theo ĐÚNG thứ tự hiển thị của bảng kê.
+
+    Nền xen kẽ tính theo NGÀY (`§38`, `§59`): mọi BH cùng một ngày dùng chung
+    một nền, ngày kế tiếp đổi nền. Đó là một tính chất của CẢ SHEET — nền của
+    một BH phụ thuộc vào ngày của BH đứng trước nó — chứ không của riêng nó.
+
+    Hàm này được TÁCH RA khỏi `sheet_detail_groups` vì `UI-03` (ghi tại chỗ)
+    và `UI-04` (tải thêm trang) dựng lại MỘT PHẦN của bảng: tính lại nền trên
+    một lát sẽ cho BH đầu lát nền `0` và cả phần vừa dựng lệch nhịp so với
+    phần đã nằm trên màn hình. `sheet_detail_groups` gọi CHÍNH hàm này, nên
+    chỉ tồn tại MỘT luật xen kẽ, không phải hai bản chép nhau.
+
+    Thứ tự khoá trả về LÀ thứ tự hiển thị (dict giữ thứ tự chèn), nên phân
+    trang đọc ranh giới BH từ đây thay vì tự sắp xếp lại một lần nữa.
+    """
+    first_date: dict[str, object] = {}
+    for detail in details:
+        first_date.setdefault(detail["order_key"], detail["sale_date"])
+    ordered_keys = sorted(
+        first_date,
+        key=lambda key: (first_date[key] is None, first_date[key], key))
+    # `_NO_DATE_YET` là một sentinel DÙNG CHUNG, không phải một `object()`
+    # dựng mới ở mỗi vòng: `x is not object()` luôn đúng (mỗi lời gọi tạo một
+    # đối tượng khác), nên viết như vậy sẽ đảo nền ngay ở nhóm ngày ĐẦU TIÊN
+    # và cả bảng lệch một nhịp.
+    shades: dict[str, int] = {}
+    shade, previous_date = 0, _NO_DATE_YET
+    for key in ordered_keys:
+        if first_date[key] != previous_date:
+            if previous_date is not _NO_DATE_YET:
+                shade = 1 - shade
+            previous_date = first_date[key]
+        shades[key] = shade
+    return shades
+
+
 def sheet_detail_groups(details: list[dict], *, sheet,
                         confirmed_keys=None, decisions=None,
-                        catalog=None, imeis=None) -> list[dict]:
+                        catalog=None, imeis=None,
+                        shades=None) -> list[dict]:
     """Bảng kê của một sheet, GỘP THEO BH và tô nền theo NGÀY (`§22`, `§38`).
 
     Cấu trúc phản chiếu chính sổ kế toán: một BH là một KHỐI, khách hàng thuộc
@@ -603,25 +658,147 @@ def sheet_detail_groups(details: list[dict], *, sheet,
             row.get("identity_classification") == line_identity.CLASS_NEEDS_REVIEW
             for row in group["rows"])
 
+    # Nền xen kẽ: `shades` được TRUYỀN VÀO khi người gọi chỉ dựng một LÁT của
+    # sheet (`UI-03`/`UI-04`) — nó phải là bảng nền của CẢ sheet, nếu không
+    # lát vừa dựng sẽ lệch nhịp với phần đang nằm trên màn hình. Không truyền
+    # ⟹ `details` chính là cả sheet, và hàm tự tính bằng ĐÚNG hàm đó.
+    shade_index = group_shades(details) if shades is None else shades
     ordered = sorted(
         groups.values(),
         key=lambda item: (item["sale_date"] is None, item["sale_date"],
                           item["order_key"]))
-    # `_NO_DATE_YET` là một sentinel DÙNG CHUNG, không phải một `object()`
-    # dựng mới ở mỗi vòng: `x is not object()` luôn đúng (mỗi lời gọi tạo một
-    # đối tượng khác), nên viết như vậy sẽ đảo nền ngay ở nhóm ngày ĐẦU TIÊN
-    # và cả bảng lệch một nhịp.
-    shade, previous_date = 0, _NO_DATE_YET
     for group in ordered:
-        if group["sale_date"] != previous_date:
-            if previous_date is not _NO_DATE_YET:
-                shade = 1 - shade
-            previous_date = group["sale_date"]
-        group["shade"] = shade
+        group["shade"] = shade_index.get(group["order_key"], 0)
         group["employee_value"] = (
             group["employees"][0] if len(group["employees"]) == 1 else "")
         group["lines"] = len(group["rows"])
     return ordered
+
+
+#: `UI-04` — số DÒNG của một trang bảng kê. Đây là kích thước của một lần
+#: TẢI, không phải ngân sách DOM: ngân sách DOM (`~200–300` hàng) được giữ ở
+#: client bằng cách GỠ các nhóm cũ nhất, và nó là một con số khác, lớn hơn.
+#:
+#: 100 chứ không phải "cả sheet": trên fixture 5.000 dòng, dựng cả bảng kê
+#: trả ~15 MB HTML và hơn 5.000 hàng `<tr>` cho một màn hình cao chừng bốn
+#: mươi hàng (`scripts/stab01_baseline.py`).
+WORKSPACE_PAGE_LINES = 100
+
+#: Trần cứng cho `limit` mà client gửi lên. Không có nó, một `limit=999999`
+#: biến route phân trang trở lại thành đúng cái nó tồn tại để thay thế.
+WORKSPACE_PAGE_LINES_MAX = 500
+
+
+def page_of_groups(details: list[dict], *, cursor: Optional[str] = None,
+                   limit: int = WORKSPACE_PAGE_LINES) -> dict:
+    """MỘT trang của bảng kê, cắt theo RANH GIỚI BH.
+
+    Trả về::
+
+        {"details": [...],        # các dòng thuộc trang này, đúng thứ tự gốc
+         "order_keys": [...],     # mã BH của trang, đúng thứ tự hiển thị
+         "shades": {...},         # nền của CẢ sheet (xem `group_shades`)
+         "cursor": str|None,      # con trỏ ĐÃ DÙNG để lấy trang này
+         "next_cursor": str|None, # con trỏ của trang kế, `None` khi hết
+         "total_orders": int, "total_lines": int}
+
+    ## Vì sao cắt theo BH chứ không theo dòng
+
+    Một BH là MỘT khối trên màn hình: khách hàng, ngày và mã đơn trải xuống
+    (`rowspan`) qua mọi dòng hàng của nó. Cắt giữa hai dòng của cùng một BH
+    sẽ để lại nửa khối mang `rowspan` trỏ vào những hàng không có mặt, và
+    người đọc mất đúng quan hệ "ba dòng này là một đơn" mà `§22` dựng cả cấu
+    trúc bảng để giữ. Nên `limit` là một NGƯỠNG, không phải một con số chính
+    xác: trang dừng ở BH đầu tiên khiến tổng số dòng CHẠM hoặc VƯỢT ngưỡng, và
+    một BH lớn hơn cả ngưỡng vẫn đi trọn trong một trang.
+
+    ## Con trỏ là mã BH, không phải chỉ số
+
+    `cursor` = mã của BH ĐẦU TIÊN của trang cần lấy. Một chỉ số (offset) sẽ
+    trỏ sai ngay khi một dòng bị loại/khôi phục giữa hai lần tải — đúng thao
+    tác mà `UI-03` làm trên cùng màn hình này. Mã BH không tồn tại (đã bị loại
+    hết dòng) ⟹ trang bắt đầu lại từ đầu sheet, chứ không ném lỗi vào mặt
+    người đang cuộn.
+    """
+    shades = group_shades(details)
+    order_keys = list(shades)
+    lines_of: dict[str, int] = {}
+    for detail in details:
+        lines_of[detail["order_key"]] = lines_of.get(detail["order_key"], 0) + 1
+
+    start = 0
+    if cursor:
+        try:
+            start = order_keys.index(cursor)
+        except ValueError:
+            start = 0
+
+    limit = max(1, min(int(limit), WORKSPACE_PAGE_LINES_MAX))
+    taken: list[str] = []
+    counted = 0
+    for key in order_keys[start:]:
+        taken.append(key)
+        counted += lines_of[key]
+        if counted >= limit:
+            break
+    end = start + len(taken)
+    chosen = set(taken)
+    return {
+        "details": [d for d in details if d["order_key"] in chosen],
+        "order_keys": taken,
+        "shades": shades,
+        "cursor": order_keys[start] if order_keys else None,
+        "next_cursor": order_keys[end] if end < len(order_keys) else None,
+        "total_orders": len(order_keys),
+        "total_lines": len(details),
+    }
+
+
+def groups_slice(details: list[dict], order_keys) -> dict:
+    """Một "trang" chỉ gồm các BH ĐƯỢC NÊU TÊN — cùng hình dạng `page_of_groups`.
+
+    `UI-03` dùng nó: sau một lần ghi, chỉ những BH thật sự bị ảnh hưởng mới
+    được dựng lại. Nền (`shades`) vẫn tính trên CẢ sheet, vì nền của một BH
+    là một tính chất của cả sheet (xem `group_shades`) — dựng lại một BH với
+    nền tính riêng sẽ làm đúng hàng vừa vá đổi màu so với hàng bên cạnh nó.
+
+    `cursor`/`next_cursor` là `None` có chủ ý: lát này KHÔNG phải một trang
+    của phép phân trang, và trả về một con trỏ ở đây sẽ mời người gọi dùng
+    nó làm vị trí cuộn.
+    """
+    wanted = set(order_keys)
+    shades = group_shades(details)
+    chosen = [d for d in details if d["order_key"] in wanted]
+    return {
+        "details": chosen,
+        "order_keys": [key for key in shades if key in wanted],
+        "shades": shades,
+        "cursor": None,
+        "next_cursor": None,
+        "total_orders": len(shades),
+        "total_lines": len(details),
+    }
+
+
+def cursor_for_order(details: list[dict], order_key: str, *,
+                     limit: int = WORKSPACE_PAGE_LINES) -> Optional[str]:
+    """Con trỏ của TRANG CHỨA `order_key`, hoặc `None` nếu nó ở trang đầu.
+
+    Dùng cho những liên kết trỏ tới một BH cụ thể (`#bh-…` của cảnh báo chưa
+    phân loại): sau `UI-04`, BH ấy có thể không nằm trên trang đang mở, và một
+    neo trỏ vào một phần tử không tồn tại là một liên kết chết. Phép đi tới là
+    CHÍNH `page_of_groups`, lặp trang này sang trang khác — không một phép
+    chia offset thứ hai nào, vì kích thước trang phụ thuộc số dòng của từng
+    BH chứ không cố định.
+    """
+    cursor = None
+    while True:
+        page = page_of_groups(details, cursor=cursor, limit=limit)
+        if order_key in page["order_keys"]:
+            return cursor
+        if page["next_cursor"] is None:
+            return None
+        cursor = page["next_cursor"]
 
 
 def sheet_detail_totals(details: list[dict]) -> dict:
@@ -775,15 +952,19 @@ def sheet_view(
 
 
 __all__ = [
-    "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
+    "WORKSPACE_SCHEMA_VERSION", "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
     "REMOVED_IN_SOURCE_NOTE", "removed_in_source_rows",
     "HIDE_OPTIONAL_LABEL", "OPTIONAL_COLUMNS_NOTE", "OPTIONAL_COLUMN_INDEXES",
     "SHOW_OPTIONAL_LABEL",
     "EXCLUDE_CONFIRM_QUESTION", "GIA_DUNG_CONFIRM_POINTS",
+    "RESTORE_CONFIRM_POINTS", "RESTORE_CONFIRM_QUESTION",
     "GIA_DUNG_CONFIRM_QUESTION", "LOSS_CODES", "MOM_NO_PREVIOUS",
     "PROGRESS_NOTE", "SHEET_DETAIL_COLUMNS", "SHORT_TAGS",
+    "WORKSPACE_PAGE_LINES", "WORKSPACE_PAGE_LINES_MAX",
+    "cursor_for_order", "groups_slice",
     "TARGET_KVND_NOTE", "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL",
-    "business_date", "excluded_rows", "period_options", "progress_cell",
+    "business_date", "excluded_rows", "group_shades", "period_options",
+    "page_of_groups", "progress_cell",
     "sheet_detail_groups", "sheet_detail_totals", "sheet_tabs", "sheet_view",
     "summary_strip", "target_cell", "vs_target_cell",
 ]
