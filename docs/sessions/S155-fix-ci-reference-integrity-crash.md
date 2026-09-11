@@ -59,10 +59,37 @@ sử /root/.ccr/README.md (không backtick — lý do như trên) vào
 
 ## 6. Rủi ro / vướng mắc
 
-Không có. Đây là sửa hẹp trên một script governance, không chạm code sản
-phẩm, không đổi hành vi báo cáo cho bất kỳ finding thật nào.
+Không có trên phạm vi sửa lỗi sập. Nhưng lưu ý quan trọng phát hiện khi xác
+nhận trên CI thật (PR #20): workflow `.github/workflows/governance.yml`
+chạy `set -euo pipefail` qua cả 5 validator liên tiếp — bất kỳ validator
+nào exit khác 0 (kể cả một `FAIL` sạch, không sập) đều làm cả job
+`governance / validate` báo `failure`. `validate_reference_integrity.py`
+đã, và VẪN SẼ, báo đúng 4 finding baseline đã biết (TASK-REM-T06 × 3, S136
+× 1 — xem DEC-189/DEC-193, `PROJECT/PROJECT_PROGRESS.md` dòng ~665) — một
+tình trạng đã được ghi nhận và CHẤP NHẬN xuyên suốt nhiều phiên/PR trước
+đây (ví dụ closeout DEC-189/DEC-193 đều xác nhận "đúng 3 reference hỏng có
+sẵn của TASK-REM-T06, không tăng thêm" thay vì yêu cầu về 0). Baseline này
+không phải lỗi của lượt sửa này, và việc giải quyết nó thật sự (tạo
+README.md/LICENSE ở gốc repo theo TASK-REM-T06) cần quyết định của chủ
+dự án về nội dung license — ngoài phạm vi MICRO của lượt sửa sập này.
+(README.md/LICENSE cố ý không đặt trong backtick ở đây — cùng lý do tránh
+tự tạo thêm reference nêu ở §2.)
 
-## 7. Session tiếp theo được khuyến nghị
+## 7. Xác nhận trên CI thật (PR #20)
 
-Xác nhận check `governance / validate` XANH trên PR kế tiếp — đây là điều
-kiện hoàn thành thật của việc sửa này, không chỉ chạy cục bộ.
+Push commit `d690ac2` lên PR #20 → job `validate` chạy xong SẠCH (không
+traceback, không `PermissionError`), in đúng:
+
+```text
+REFERENCE INTEGRITY: FAIL
+4 reference không phân giải được: ... (đúng 4 baseline TASK-REM-T06/S136)
+##[error]Process completed with exit code 1.
+```
+
+Đây LÀ điều kiện hoàn thành thật của lượt sửa này: KHÔNG CÒN SẬP, danh
+sách finding giống hệt baseline cục bộ đã biết trước khi sửa — không phải
+"check chuyển XANH", vì bản thân workflow không tha một `FAIL` sạch nào,
+kể cả FAIL đã biết trước và được chấp nhận theo tiền lệ dự án. Check
+`governance / validate` trên PR này (và trên default branch sau khi merge)
+sẽ tiếp tục hiện đỏ cho tới khi TASK-REM-T06 được hoàn thành riêng — đây
+là tình trạng đã biết, không phải regression của lượt sửa này.
