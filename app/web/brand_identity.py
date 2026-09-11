@@ -128,7 +128,11 @@ def bucket_for(
     state = line_identity.state_of(detail, confirmed_keys=confirmed_keys)
     if state.unresolved:
         return bmx.IDENTITY_UNRESOLVED_BUCKET
-    name = brand_source(identities.get(state.identity_key))
+    # `R5.4` — mapping CONFIRMED thắng; không có thì mã LẦN CHẠY đã phân
+    # giải cho chính dòng này (`line_identity.tracking_identity_of`). Bước 1
+    # ở trên vẫn chặn dòng chưa nhận diện trước khi tới đây.
+    name = brand_source(
+        line_identity.tracking_identity_of(detail, identities=identities))
     if name is None:
         return bmx.BRAND_ABSENT_BUCKET
     return bmx.brand_bucket(name)

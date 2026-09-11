@@ -670,12 +670,21 @@ class TestG26G27TrackingMissContinuesToPublicPurchase:
 class TestConfirmationActionDefinition:
     """§17.1 — đếm COMMAND, không đếm phím/click (`D-14`)."""
 
-    def test_exactly_four_command_types_are_counted(self):
+    def test_exactly_the_declared_command_types_are_counted(self):
+        """Danh sách ĐÓNG — thêm một mục là một quyết định, không phải một
+        chi tiết cài đặt.
+
+        `MARK_OUT_OF_CATALOG` vào danh sách ở R2 (`R2 Execution Brief` §4.3):
+        nó đổi state persistent và nó tốn đúng một lần con người phải nghĩ,
+        nên bỏ nó ra ngoài sẽ làm ngân sách thao tác của `G23`/`G24` đếm
+        thiếu đúng những lần bấm mà R2 thêm vào.
+        """
         assert {t.value for t in CONFIRMATION_ACTION_TYPES} == {
             "CONFIRM_MAPPING",
             "REJECT_CANDIDATE",
             "CONFIRM_CROSS_SYSTEM",
             "SET_PENDING",
+            "MARK_OUT_OF_CATALOG",
         }
 
     def test_viewing_candidates_is_not_a_confirmation_action(self):

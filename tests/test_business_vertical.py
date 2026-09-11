@@ -66,7 +66,7 @@ def pair(order, *, product="Tủ lạnh Panasonic", occurrence=1, day=5, month=1
          year=2026, employee="Vinh", group="NOI_THANH", lead="PERSONAL",
          status="AUTO", quantity="1", sell="8000000", discount="0",
          kpi_purchase="5000000", kpi_profit="3000000", rate="0.020",
-         product_group="DIEN_MAY", row=6, reasons=None):
+         product_group="DIEN_MAY", row=6, reasons=None, imei=None):
     """Một cặp (dòng nguồn, dòng kết quả) đã khớp khoá.
 
     `kpi_purchase=None` dựng đúng tình trạng của dữ liệu thật hôm nay: pipeline
@@ -80,7 +80,8 @@ def pair(order, *, product="Tủ lạnh Panasonic", occurrence=1, day=5, month=1
     """
     source = source_line(order, product, occurrence, row=row,
                          sale_date=date(year, month, day), sell_price=sell,
-                         quantity=Decimal(quantity), discount=Decimal(discount))
+                         quantity=Decimal(quantity), discount=Decimal(discount),
+                         imei=imei)
     if reasons is None:
         reasons = PRODUCTION_MISSING_PRICE_REASONS if kpi_purchase is None else ()
     if reasons and status == "AUTO":
@@ -177,7 +178,8 @@ def test_editing_an_auto_price_records_override_and_moves_the_number(
     assert service.store.set_purchase_price(
         order_key=detail["order_key"], product_key=detail["product_key"],
         occurrence_index=detail["occurrence_index"],
-        price=Decimal("4000000"), auto_price=auto) == "MANUAL_OVERRIDE"
+        price=Decimal("4000000"), auto_price=auto,
+        reason="Đối chiếu hoá đơn nhà cung cấp") == "MANUAL_OVERRIDE"
 
     data = service.period(**JANUARY)
     assert data.lines[0].purchase_provenance == bm.PROVENANCE_MANUAL_OVERRIDE
@@ -190,10 +192,15 @@ def test_the_stored_override_keeps_the_auto_price_it_replaced(repository, store)
     chỉ là một cái nhãn tự khai."""
     store.set_purchase_price(
         order_key="BH1", product_key="pk", occurrence_index=1,
-        price=Decimal("4000000"), auto_price=Decimal("5000000"))
+        price=Decimal("4000000"), auto_price=Decimal("5000000"),
+        entered_by="owner-web", reason="Đối chiếu hoá đơn nhà cung cấp")
     row = store.purchase_price_overrides()[("BH1", "pk", 1)]
     assert row["provenance"] == "MANUAL_OVERRIDE"
     assert row["auto_price_at_entry"] == Decimal("5000000")
+    # R2 §4.4 — provenance THỰC TẾ: ai, và vì sao. Không có hai trường này thì
+    # "override" vẫn chỉ là một cái nhãn tự khai, chỉ khác là có kèm con số.
+    assert row["entered_by"] == "owner-web"
+    assert row["reason"] == "Đối chiếu hoá đơn nhà cung cấp"
 
 
 def test_clearing_an_override_returns_the_line_to_the_engine_number(
@@ -203,7 +210,7 @@ def test_clearing_an_override_returns_the_line_to_the_engine_number(
     keys = dict(order_key="BH1", product_key=service.period(**JANUARY)
                 .details[0]["product_key"], occurrence_index=1)
     service.store.set_purchase_price(price=Decimal("1"), auto_price=Decimal("5000000"),
-                                     **keys)
+                                     reason="Nhập nhầm để kiểm tra", **keys)
     assert service.period(**JANUARY).totals.kpi_profit == Decimal("7999999")
 
     service.store.clear_purchase_price(**keys)
@@ -355,7 +362,10 @@ def test_the_summary_page_never_presents_a_partial_profit_as_official(
     assert metric(html, "state") == "CHƯA HOÀN CHỈNH"
     assert metric(html, "coverage") == "1 / 2 dòng"
     assert metric(html, "missing-price-lines") == "1"
-    assert "CHÍNH THỨC" not in metric(html, "coverage-note")
+    # `TASK-OWNER-UIUX-002` R3 — câu văn `coverage-note` bị bỏ theo yêu cầu
+    # trực tiếp của chủ dự án; trạng thái CHƯA chính thức vẫn nói ra được
+    # qua nhãn `state` (đã kiểm ở trên) và giọng cảnh báo của dòng coverage.
+    assert 'class="coverage-line coverage-line-warn"' in html
 
 
 def test_the_summary_page_marks_the_numbers_official_at_full_coverage(
@@ -533,16 +543,26 @@ def test_the_purchase_price_page_lets_the_owner_edit_an_auto_price(
 def test_the_business_pages_never_leak_pii(repository, client):
     """Hàng rào PII giống PRA-004: `product_raw` được phép, phần còn lại không.
 
-    `employee_raw` ("Mr Vinh 0912…") và `imei` là dữ liệu cá nhân; chúng không
-    có lý do gì xuất hiện trên một trang chỉ tiêu.
+    `employee_raw` ("Mr Vinh 0912…") là dữ liệu cá nhân và không có lý do gì
+    xuất hiện trên một trang chỉ tiêu.
+
+    R5 §5 (`DEC-R5-03`) mở `imei` trên ĐÚNG một route — bảng kê của tab nhân
+    viên — nên phép thử "chữ imei không xuất hiện" không còn nói đúng điều
+    cần nói ở đó (nhãn của cái nút mở/đóng có chữ ấy). Điều VẪN phải đúng, và
+    là điều thật sự quan trọng, được canh ở đây theo GIÁ TRỊ: không trang chỉ
+    tiêu nào mang một mã máy. Phạm vi đầy đủ của quyết định nằm ở
+    `tests/test_r5_imei_boundary.py`.
     """
-    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
+    persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None,
+                              imei="356938035643809")])
     for path in ("/kinh-doanh?ky=2026-01",
-                 "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh",
                  "/kinh-doanh/gia-nhap?ky=2026-01&tat-ca=1"):
         html = body(client, path)
         assert "Vũ Hạnh Ly" not in html  # employee_raw của fixture
         assert "imei" not in html.lower()
+        assert "356938035643809" not in html
+    workspace = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
+    assert "Vũ Hạnh Ly" not in workspace
 
 
 def test_the_business_pages_return_503_when_there_is_no_history_store(
@@ -663,7 +683,7 @@ def test_a_pending_line_with_a_valid_override_is_not_blocked_by_the_label(
     service.store.set_purchase_price(
         order_key="BH1", product_key=data.details[0]["product_key"],
         occurrence_index=1, price=Decimal("4000000"),
-        auto_price=Decimal("5000000"))
+        auto_price=Decimal("5000000"), reason="Giá tự động cao hơn hoá đơn")
 
     after = service.period(**JANUARY)
     line = after.lines[0]
@@ -694,16 +714,25 @@ def test_a_duplicate_line_keeps_both_its_revenue_and_its_profit(
 def test_a_zero_quantity_line_is_never_finalised_as_zero_profit(
     repository, service
 ):
-    """`OD-1` — ví dụ thật `BTL00300`: SL = 0, đơn giá 6.200.000."""
+    """`OD-1` — ví dụ thật `BTL00300`: SL = 0, đơn giá 6.200.000.
+
+    R3 §2 thêm MỘT mã chặn thứ hai cho đúng dòng này, và đó là một thay đổi
+    có chủ đích: `BTL` là một tiền tố chứng từ chưa có quyết định nào của
+    Owner (`config/line_types.yaml` để trống phần hoàn/hủy), nên dòng cũng
+    mang `LINE_TYPE_UNDECIDED`. Mệnh đề mà bài này canh KHÔNG đổi — số lượng
+    0 vẫn không bao giờ được chốt thành lãi 0 đồng.
+    """
     persist(repository, [pair(
         "BTL00300", product="Máy Giặt Panasonic NA-F10S10BRV", quantity="0",
         sell="6200000", kpi_purchase="5000000", kpi_profit=None,
         status="PENDING", reasons=("Suspicious",))])
     data = service.period(**JANUARY)
-    assert data.lines[0].profit_blockers == ("QUANTITY_ZERO",)
+    assert data.lines[0].profit_blockers == (
+        "LINE_TYPE_UNDECIDED", "QUANTITY_ZERO")
     assert data.lines[0].kpi_profit is None       # KHÔNG phải 0
     assert data.totals.kpi_profit is None
     assert data.totals.coverage.blocked("QUANTITY_ZERO") == 1
+    assert data.totals.coverage.blocked("LINE_TYPE_UNDECIDED") == 1
     assert data.totals.coverage.owner_fixable_lines == 0
 
 
@@ -882,7 +911,8 @@ def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
     persist(repository, [pair("BH1", kpi_purchase=None, kpi_profit=None)])
     html = body(client, "/kinh-doanh/gia-nhap?ky=2026-01")
     # Doanh thu là con số kế toán đã ghi — có ngay cả khi chưa có giá nhập.
-    assert metric(html, "total-sales") == "8.000.000"
+    # `DEC-212` — ô đọc theo nghìn đồng (8.000.000 đồng ⟹ 8.000).
+    assert metric(html, "total-sales") == "8.000"
     # Hai ô suy ra còn lại: `—` KÈM lý do, KHÔNG BAO GIỜ một số 0 bịa.
     assert metric(html, "line-profit") == "—"
     assert metric(html, "line-converted") == "—"
@@ -896,13 +926,16 @@ def test_the_detail_table_shows_derived_money_and_recalculates_after_a_save(
         "ky": "2026-01", "loc": "tat-ca", "gia_nhap": "6.000.000"})
 
     after = body(client, "/kinh-doanh/gia-nhap?ky=2026-01&loc=tat-ca")
-    assert metric(after, "purchase_price") == "6.000.000"
+    assert metric(after, "purchase_price") == "6.000"  # nghìn đồng (DEC-212)
     assert metric(after, "provenance") == "Owner đã nhập"
-    assert metric(after, "line-profit") == "2.000.000"       # (8tr − 6tr) × 1
+    assert metric(after, "line-profit") == "2.000"           # (8tr − 6tr) × 1
     # DS quy đổi = 2.000.000 ÷ 2 % = 100.000.000 (phép CHIA, `DEC-PHB02-04`).
-    assert metric(after, "line-converted") == "100.000.000"
+    assert metric(after, "line-converted") == "100.000"
     # Doanh thu KHÔNG bị thay bằng số lượng × đơn giá tính lại.
-    assert metric(after, "total-sales") == "8.000.000"
+    assert metric(after, "total-sales") == "8.000"
+    # …và bản VND đầy đủ vẫn đọc được ở tooltip của đúng những ô ấy, nên
+    # phép rút gọn không giấu mất con số gốc.
+    assert "2.000.000 đồng" in after and "100.000.000 đồng" in after
 
 
 def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(
@@ -916,8 +949,11 @@ def test_the_detail_table_never_lets_anyone_type_into_a_derived_column(
                      # `nhom` (`DEC-PHB02-08`) là một trường PHẠM VI như
                      # `nhan-vien`/`loc`: nó nói bảng kê đang thu hẹp về sheet
                      # nào, và không đi vào một phép tính nào.
-                     "nhan-vien", "nhom", "loc", "gia_nhap", "nhan_vien_moi",
-                     "hanh-dong"}
+                     # `ly_do` (R2 §4.4) là VĂN BẢN provenance đi kèm quyết
+                     # định giá, không phải một đầu vào của phép tính nào: nó
+                     # được lưu nguyên văn và không con số nào đọc nó.
+                     "nhan-vien", "nhom", "loc", "gia_nhap", "ly_do",
+                     "nhan_vien_moi", "hanh-dong"}
     for derived in ("loi_nhuan", "kpi_profit", "doanh_thu", "ds_quy_doi"):
         assert f'name="{derived}"' not in html
 

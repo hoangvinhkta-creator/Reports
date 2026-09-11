@@ -2883,3 +2883,1419 @@ DEPLOYED                      : NO
 `PHB-03` = `IMPLEMENTED_AWAITING_REVIEW` (KHÔNG phải `DONE` — chưa có
 Independent Review).
 `NEXT_VERTICAL_ACTION = Independent Review của PHB-03 implementation.`
+
+---
+
+## Root Task: R3
+
+```
+root_task: R3
+title: Từ nhập sổ tới bảng nhân viên, xuất Excel và chốt kỳ
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 1
+repair_cycles_remaining: 1
+```
+
+**Repair cycle #1 tiêu bởi Independent Review round 1.** Hai finding
+(`FIND-R3-IR-01` vân tay chốt kỳ false negative, `FIND-R3-IR-02` false
+positive) trên `period_lock.content_fingerprint`, cả hai sửa trong cùng một
+vòng repair (commit `7ffaf9a` + `5952ce8`, nền `8aa6626`). Kết luận review
+trên exact HEAD sau repair (`5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`):
+`ACCEPT_WITH_RECORDED_RISK` — không yêu cầu vòng repair thứ hai. Còn
+`1 repair cycle` dự phòng nếu một vòng review sau (production, hoặc một
+review khác trên cùng lineage) tìm thêm finding.
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo failure path: `khoá dòng khi nạp lại → quyết định của Owner gắn vào dòng
+nào → giá nhập KPI hiệu lực → EligibleKpiProfit → DS quy đổi → KPI/lương`,
+cộng một nhánh mới mà R3 tạo ra: `bộ số đã chốt`.
+
+Lineage RIÊNG, cùng cách đọc đã dùng cho `R1` và `R2`: R3 KHÔNG sửa tiếp
+triển khai của R2 — nó xây tiếp trên một R2 đã merge vào nhánh mặc định
+(`45f0e1b`, PR #7). Nó có Owner Authority riêng (chỉ thị R3, năm việc), phạm
+vi riêng, và bộ `CHECK-R3-01…20` riêng.
+
+Cùng `CONFLICT DETECTED` chưa giải quyết như R2 áp cho R3: phần đầu ledger này
+dùng chữ "R2" làm ví dụ sub-unit không có ngân sách riêng, và cách đọc đó nếu
+đúng thì cũng áp cho "R3". Phiên S129 KHÔNG tự chốt việc đó — nó là một quyết
+định về luật. Điều đúng theo CẢ HAI cách đọc: phiên S129 tiêu `0` repair
+cycle, nên số dư hiện tại không đổi dù đọc cách nào.
+
+Sub-unit (R3-§1, R3-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: R3-repair-1
+  base_sha: 8aa66268bd56f1d4fee7f621de3c9f658e1b5a4b
+  head_sha: 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c
+  findings: [FIND-R3-IR-01, FIND-R3-IR-02]
+  outcome: ACCEPT_WITH_RECORDED_RISK (Independent Review round 1)
+
+---
+
+## Root Task: R2
+
+```
+root_task: R2
+title: Phân loại sản phẩm và giá nhập tay
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo failure path: `quyết định phân loại → identity → giá nhập KPI →
+EligibleKpiProfit → DS quy đổi → KPI/lương`.
+
+### CONFLICT DETECTED — R2 là root lineage hay sub-unit?
+
+Documentation:
+Phần đầu ledger này (viết trước khi Owner ban hành `R2 Execution Brief`) liệt
+kê chữ "R2" trong ví dụ về sub-unit KHÔNG có ngân sách riêng: *"Sub-unit (ví
+dụ R1-A2, R1-B, R2…) không có ngân sách riêng…"*.
+
+Implementation:
+`R2 Execution Brief` là một Owner Authority riêng, có phạm vi riêng (§3), bộ
+`CHECK-R2-01…19` riêng (§7), prompt Independent Review riêng (§10) và checklist
+nghiệm thu riêng (§12). Nó KHÔNG sửa tiếp triển khai của R1; nó xây tiếp trên
+một R1 đã ACCEPT. Đó đúng là hình dạng mà `R1` đã được cấp lineage riêng vì
+(xem §"Root Task: R1").
+
+Risk:
+Nếu đọc R2 là sub-unit của R1 thì mọi repair cycle của R2 sẽ tiêu vào ngân
+sách còn lại của R1 (`2 remaining`), và một R1 cần sửa về sau sẽ hết ngân sách
+vì lý do không liên quan tới nó.
+
+Recommended resolution:
+Coi `R2` là root lineage RIÊNG như mục này ghi, và sửa câu ví dụ ở đầu ledger
+để nó không còn dùng "R2" làm ví dụ sub-unit. **Phiên S128 KHÔNG tự thực hiện
+việc sửa đó** — nó là một quyết định về luật, không phải một chi tiết triển
+khai.
+
+Điều đúng theo CẢ HAI cách đọc, và vì thế không cần chốt gấp: phiên S128 tiêu
+`0` repair cycle. Mở task không tiêu ngân sách (`V4.1` §2).
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
+## Root Task: R1
+
+```
+root_task: R1
+title: Giá MIN theo ngày bán (Tracking sở hữu, Reports tiêu thụ)
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH/CRITICAL = 2`). Blast Radius chấm
+theo data path, không theo tên module: `MIN → giá nhập → EligibleKpiProfit →
+DS quy đổi → KPI/lương`.
+
+Lineage RIÊNG, không dùng chung với `TASK-105E`/`TASK-105C`: R1 thay THẨM
+QUYỀN của nhánh giá (`DEC-199`/`ADR-110`), không phải sửa tiếp triển khai của
+hai task ấy. `TASK-105B` và `TASK-105C` giữ nguyên ngân sách và trạng thái của
+chúng.
+
+Sub-unit (R1-A, R1-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: (chưa mở — implementation hoàn thành trong 0 repair cycle tính đến
+  thời điểm ghi ledger này)
+  base_sha: N/A
+  head_sha: N/A
+
+---
+
+## Root Task: R4
+
+```
+root_task: R4
+title: Báo cáo đánh giá vận hành (chỉ ĐỌC effective data của R3)
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`).
+
+**Blast Radius chấm theo failure path, và đây là chỗ R4 khác hẳn R1–R3.**
+Failure path của R4 là:
+
+```text
+effective data của R3 → chỉ tiêu đánh giá → kết luận của Owner về kết quả tháng
+```
+
+Nó DỪNG ở đó. R4 không có route ghi nào, không chạm `business_store`, không
+migration, không schema mới — nên không lỗi nào của nó đi tiếp được vào
+`giá nhập KPI hiệu lực`, `EligibleKpiProfit`, `DS quy đổi` hay `bộ số đã
+chốt`. Bán kính `3/5` vì thế là một tính chất CẤU TẠO, không phải một lời
+hứa: `CHECK-R4-22` chạy một bài so tổng trước/sau khi mở trang, và route trả
+`405` cho `POST`.
+
+Đây cũng là lý do R4 KHÔNG được cấp `2` cycle như R1/R2/R3: một kết luận sai
+trên màn hình đánh giá là nghiêm trọng, nhưng nó không ghi một con số sai nào
+xuống database và không làm một kỳ đã phát hành đổi số.
+
+Lineage RIÊNG, cùng cách đọc đã dùng cho `R1`, `R2` và `R3`: R4 KHÔNG sửa tiếp
+triển khai của R3 — nó ĐỌC một R3 đã merge vào nhánh mặc định (`824b5d7`). Nó
+có Owner Authority riêng (brief R4, năm gói), phạm vi riêng, và bộ
+`CHECK-R4-01…24` riêng.
+
+Cùng `CONFLICT DETECTED` chưa giải quyết mà `R2`/`R3` đã ghi cũng áp cho `R4`:
+phần đầu ledger này dùng chữ "R2" làm ví dụ sub-unit không có ngân sách riêng,
+và cách đọc đó nếu đúng thì cũng áp cho "R4". Phiên S131 KHÔNG tự chốt việc đó
+— nó là một quyết định về luật. Điều đúng theo CẢ HAI cách đọc: phiên S131 tiêu
+`0` repair cycle, nên số dư hiện tại không đổi dù đọc cách nào.
+
+Sub-unit (R4-§1, R4-repair-1, …) KHÔNG có ngân sách riêng và KHÔNG reset ngân
+sách này.
+
+cycles:
+- id: (KHÔNG MỞ — Independent Review kết luận ACCEPT_WITH_RECORDED_RISK,
+  không repair cycle nào bị tiêu)
+  base_sha: 824b5d742dab07b8b0bd301d56748779e35076aa
+  head_sha: 63a066e9275919df92bceaee58876f2724cf9df0
+
+### Independent Review R4 — `S132` (2026-09-08)
+
+```text
+exact HEAD đã review   63a066e9275919df92bceaee58876f2724cf9df0
+nền                    824b5d742dab07b8b0bd301d56748779e35076aa
+kết luận               ACCEPT_WITH_RECORDED_RISK
+REPAIR_REQUIRED        0 finding
+ACCEPTED_RISK mới      AR-R4-04 … AR-R4-07
+repair cycle tiêu      0
+số dư sau review       1 allowed / 0 used / 1 remaining
+CHECK-R4-23            PASS   (phiên review đóng — không phải phiên triển khai)
+CHECK-R4-24            NOT_TESTED (Owner)
+```
+
+Vì kết luận là `ACCEPT_WITH_RECORDED_RISK` chứ không phải `REPAIR_REQUIRED`,
+**không repair cycle nào được mở**: ngân sách `MEDIUM = 1` của lineage `R4`
+còn nguyên. Bốn `ACCEPTED_RISK` mới được GHI, không được sửa trong lượt review
+— đúng kỷ luật đã áp cho `R2`/`R3`.
+
+Bằng chứng nguyên văn: `docs/sessions/S132-r4-independent-review.md`.
+
+### Tích hợp production R4 — `S133` (2026-09-08)
+
+```text
+PR                     #10 → MERGED
+merge commit           ab5e07d9807c591d6a04584556dacd72689a4ea8
+AR-R4-01…07 mở lại?     KHÔNG — không cái nào tái hiện thành lỗi deploy hay
+                        sai luồng chính trong phiên tích hợp
+repair cycle tiêu       0
+số dư sau tích hợp      1 allowed / 0 used / 1 remaining  (không đổi)
+deploy Render           KHÔNG XÁC NHẬN ĐƯỢC (không egress/credential)
+```
+
+Phiên tích hợp KHÔNG mở repair cho bất kỳ `ACCEPTED_RISK` nào của R4 — điều
+kiện duy nhất cho phép mở lại (tái hiện thành lỗi deploy/luồng chính) không
+xảy ra. Ngân sách `R4` giữ nguyên `1 allowed / 0 used / 1 remaining`.
+
+Bằng chứng nguyên văn: `docs/sessions/S133-r4-integration-and-deployment.md`.
+
+---
+
+## Root Task: R5
+
+```
+root_task: R5
+title: Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm
+effective_risk: HIGH
+repair_cycles_allowed: 2
+repair_cycles_used: 0
+repair_cycles_remaining: 2
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`HIGH = 2`).
+
+**Blast Radius chấm theo failure path.** Failure path CHÍNH của R5 là:
+
+```text
+cờ vắng mặt → effective data → MỌI chỉ tiêu kinh doanh → vân tay chốt kỳ
+            → export Excel
+```
+
+Nó đi xa hơn R4 đúng một bậc (`4/5` thay vì `3/5`) vì R5 có quyền LOẠI dòng
+khỏi tập được cộng: một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN, và thấp hơn
+thì khó thấy hơn cao hơn — không ai đi tìm số tiền mình không biết là mình
+đang thiếu.
+
+Nó KHÔNG đạt `5/5`, và ba lý do đều là tính chất CẤU TẠO chứ không phải lời
+hứa: không đường nào của R5 ghi đè một bản ghi kế toán (việc loại xảy ra LÚC
+ĐỌC), không migration nào chạy (`alembic heads` vẫn là một head duy nhất của
+R3), và mọi phép loại đều đảo ngược được bằng một lần nạp sổ — trạng thái "còn
+hiệu lực" tính lại từ lịch sử membership ở mỗi lần đọc.
+
+R5 có một route GHI mới (`POST /kinh-doanh/nhan-vien/sua-bh`), nhưng nó không
+mở rộng bán kính: nó gọi đúng `store.set_purchase_price` /
+`clear_purchase_price` / `set_employee` mà `DEC-PHB02-02` và `OD-5` đã nghiệm
+thu, qua đúng những cửa cũ, và mọi ràng buộc của R2 §4.4 được thi hành ở đúng
+một chỗ cho mọi người gọi.
+
+**Independent Review lần 1 (`S135`, 2026-09-08): `REPAIR_REQUIRED`.**
+Bản ghi: `docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Hai finding bắt
+buộc (`FIND-R5-IR-01`, `FIND-R5-IR-02`), cả hai nằm trên đúng failure path
+chính đã ghi ở trên. `CHECK-R5-27` = `FAIL`: review đã HOÀN THÀNH,
+implementation CHƯA được chấp nhận.
+
+Phiên review KHÔNG tiêu repair cycle nào — nó không sửa một dòng mã sản phẩm
+nào. Repair cycle **thứ 1** sẽ được tiêu bởi
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`; khi phiên đó
+xong, ngân sách trở thành `2 allowed / 1 used / 1 remaining` và con số ở khối
+trên phải được cập nhật bởi CHÍNH phiên repair, không phải bởi phiên review.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S134` KHÔNG sửa tiếp triển
+khai của R4 — nó ĐỌC một R4 đã merge vào nhánh mặc định (`b6756fe`). Bản sửa
+`r1_web_upload_smoke.py` (`dad8513`) là một sửa chữa CÔNG CỤ KIỂM, trên một
+lỗi có trước R5 và đo được là hỏng y hệt trên `b6756fe`; nó không phải một
+repair cycle của R4 và không tiêu ngân sách của lineage nào.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED`; REPAIR-1 (`S135`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+finding REPAIR         2  (FIND-R5-IR-01, FIND-R5-IR-02)
+finding ACCEPTED_RISK  1 sửa luôn (AR-R5-IR-11), 2 mới ghi (AR-R5-IR-12/13)
+repair cycle tiêu      1
+số dư sau REPAIR-1     2 allowed / 1 used / 1 remaining
+HEAD sau repair        d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2
+CHECK-R5-27            FAIL (vòng 1) — CHƯA chạy lại trên HEAD sau repair
+```
+
+Đây là repair cycle ĐẦU TIÊN và duy nhất bị tiêu trên lineage `R5`. Nó tiêu
+đúng một cycle vì cả hai finding thuộc CÙNG một vòng review và được sửa trong
+CÙNG một phiên — `V4.1` §3 tính theo VÒNG, không theo số finding.
+
+Cả hai finding đều thuộc nhóm `REPAIR_REQUIRED` mà brief R5 §8 đã liệt kê
+trước (`tổng sai khó thấy` và `sửa nhầm dòng/BH`), nên không có tranh cãi nào
+về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+
+Số dư còn `1 remaining`. Nếu vòng review kế tiếp lại ra `REPAIR_REQUIRED`,
+lineage `R5` hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở một repair cycle thứ ba.
+
+Bằng chứng nguyên văn: `docs/sessions/S135-r5-repair-1.md`.
+
+### Tích hợp `S136` → Owner override `DEC-203` (`S137`, 2026-09-09) → merge
+
+`S136` (tích hợp) chạy lại toàn bộ kiểm tra kỹ thuật trên HEAD sau REPAIR-1
+gộp với tài liệu Independent Review vòng 1 (merge commit `cf345ac`) — TẤT CẢ
+PASS — nhưng KHÔNG merge, vì vòng review độc lập thứ hai chưa có artifact
+trong repo và `CHECK-R3-20`/`CHECK-R4-24` vẫn `NOT_TESTED`. Chi tiết:
+`docs/sessions/S136-r5-integration.md`.
+
+Ở `S137`, Owner xác nhận trực tiếp (không kèm artifact) rằng: (a) vòng
+Independent Review thứ hai đã chạy ở một công cụ khác (Codex); (b) Owner đã
+tự đối chiếu R3/R4 trên dữ liệu production. Owner chỉ thị merge ngay.
+**`DEC-203`** ghi lại đây là một GHI ĐÈ (override) có thẩm quyền Owner đối
+với hai điều kiện chặn còn lại — không phải kết quả của một repair cycle
+mới, không tiêu và không đổi số dư ngân sách `R5` (giữ nguyên
+`2 allowed / 1 used / 1 remaining`).
+
+```text
+kết luận vòng 2 (theo Owner)   thực hiện ở Codex, không artifact trong repo
+CHECK-R5-27 / CHECK-R5R1-09    ACCEPT_WITH_RECORDED_RISK (Owner override)
+CHECK-R3-20 / CHECK-R4-24      ACCEPTED_BY_OWNER_VERBAL (Owner override)
+repair cycle tiêu bởi override  0  (override KHÔNG phải repair cycle)
+số dư sau override             2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` (`DEC-203`),
+`docs/sessions/S137-r5-owner-override-merge.md`.
+
+### `R5.1` — nhóm hàng `category_label` (`S138`, 2026-09-09)
+
+`R5.1` KHÔNG mở một root lineage mới. Nó mở rộng đúng hợp đồng
+(`/api/xuat/board`) và đúng các module (`tracking_catalog`,
+`capture_tracking_catalog`, `catalog_display`, `_catalog_labels`) mà `R5` vừa
+dựng ra, và nó thừa hưởng thẩm quyền của `ADR-111` §3 thay vì mở một ADR mới
+(`DEC-204`). Theo `V4.1` §3, một mở rộng như vậy thuộc lineage của root task
+đã sinh ra nó.
+
+Phiên triển khai `S138` KHÔNG tiêu repair cycle nào: nó không sửa một finding
+review nào — nó là một phiên triển khai đầu tiên cho một gói việc mới.
+
+```text
+root lineage                 R5
+số dư trước S138             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S138   0
+số dư sau S138               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+`CHECK-R51-25` (Independent Review) — **ĐÃ CHẠY**, `S139`, 2026-09-09, kết
+luận `ACCEPT_WITH_RECORDED_RISK` trên exact HEAD `2c2c139` (Reports) +
+`39528ee` (Tracking). 0 finding `REPAIR_REQUIRED`, nên **KHÔNG tiêu cycle
+nào** — cycle cuối cùng của lineage `R5` VẪN CÒN.
+
+```text
+root lineage                 R5
+số dư trước S139             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S139   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S139               2 allowed / 1 used / 1 remaining (không đổi)
+```
+
+Hai `ACCEPTED_RISK` mới (`AR-R5.1-05` `cat` bẩn đúng hình dạng đi ra nguyên
+văn; `AR-R5.1-06` hãng ngoài `HANG` ở lại trong nhãn) được ghi thay vì mở
+repair, vì cả hai dừng ở MỘT ô nhãn trên cột mặc định ẩn và không chạm tiền,
+mapping hay vân tay chốt kỳ — và vì `AR-R5.1-05` không có phép sửa nào nằm
+trong kiến trúc `DEC-204` đã duyệt.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`,
+`docs/sessions/S139-r51-independent-review.md`.
+
+Effective Risk của `R5.1` là `LOW` (Blast Radius `2/5`), thấp hơn hẳn `R5`
+(`HIGH`, `4/5`): failure path của nó dừng ở MỘT ô trên bảng kê nhân viên và
+không chạm tập dòng được cộng, MIN theo ngày bán, giá nhập tay, lợi nhuận hay
+vân tay chốt kỳ. Điều đó KHÔNG cấp thêm ngân sách — ngân sách thuộc về root
+lineage, không thuộc từng gói con.
+
+Bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+
+### `R5.1 REPAIR-1` — từ điển nhóm hàng (`S140`, 2026-09-09)
+
+Vòng Independent Review của `R5.1` (`S139`) kết luận
+`ACCEPT_WITH_RECORDED_RISK` với `0 finding REPAIR_REQUIRED`, nên nó KHÔNG
+tiêu cycle nào. Ở `S140`, Owner **điều chỉnh** kết luận ấy thành
+`REPAIR_REQUIRED` cho mục tiêu dùng `category_label` ở `R6`, và chỉ thị sửa.
+
+Đây là một repair cycle THẬT theo `V4.1` §3: có finding bắt buộc sửa
+(`AR-R5.1-05`, `AR-R5.1-06`), và cả hai được sửa trong CÙNG một phiên — `V4.1`
+§3 tính theo VÒNG, không theo số finding.
+
+```text
+root lineage                 R5
+số dư trước S140             2 allowed / 1 used / 1 remaining
+repair cycle tiêu bởi S140   1
+số dư sau S140               2 allowed / 2 used / 0 remaining
+```
+
+**Lineage `R5` đã HẾT ngân sách review.** Nếu vòng Independent Review kế tiếp
+(`CHECK-R51R1-17`, trên HEAD sau repair) lại ra `REPAIR_REQUIRED`, lineage
+KHÔNG được mở một repair cycle thứ ba — phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+Ghi chú về cách tính: cycle này tiêu vì Owner nâng mức một finding đã có, chứ
+không phải vì một vòng review mới phát hiện thêm lỗi. Ghi theo hướng TIÊU
+(thay vì coi là "điều chỉnh phân loại, không tiêu") là lựa chọn bảo thủ có chủ
+đích — nó giữ cho ngân sách phản ánh đúng số lần triển khai đã phải sửa lại,
+và không tạo tiền lệ cho việc mở repair cycle miễn phí bằng cách gọi nó là
+một lần phân loại lại.
+
+Bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+
+### `R5.1 REPAIR-1` — Independent Review vòng 2 (`S141`, 2026-09-09)
+
+`CHECK-R51R1-17` — **ĐÃ CHẠY**, `S141`, 2026-09-09, trên exact HEAD
+`11a199b222ed1771558cefcdf664aad9de64cfa9` (Tracking) +
+`83b1e07c44b186fffaf1b71e40693485741f32eb` (Reports). Kết luận
+`ACCEPT_WITH_RECORDED_RISK` với **0 finding `REPAIR_REQUIRED`**, nên **KHÔNG
+tiêu cycle nào**.
+
+```text
+root lineage                 R5
+số dư trước S141             2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi S141   0   (ACCEPT_WITH_RECORDED_RISK, không repair)
+số dư sau S141               2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Điều này QUAN TRỌNG với lineage đã cạn ngân sách: cảnh báo của `S140` ("vòng
+review kế tiếp lại ra `REPAIR_REQUIRED` thì phải escalate") **không kích
+hoạt** — không có finding bắt buộc sửa nào, nên không có repair cycle thứ ba
+nào phải mở và **không có escalation nào phải mở**.
+
+Hai `ACCEPTED_RISK` mới được ghi thay vì mở repair, vì cả hai chỉ GIẢM ĐỘ PHỦ
+và hiện rõ thành `null`/`"—"`, không tạo được category giả, không rò dữ liệu,
+không sai gộp `R6` và không chạm một đồng nào:
+
+```text
+AR-R5.1R1-04  nhắc lại cùng một nhóm trong `cat` ⟹ null ("Tivi TV")
+AR-R5.1R1-05  ngành hàng GHÉP ⟹ null ("Máy giặt sấy"), có ca thật ở đơn
+              golden BH62439 — và hỏng theo hướng AN TOÀN, không xếp nhầm bucket
+```
+
+Hai đính chính tài liệu (`COR-R5.1R1-01` chú thích cũ trong mã Reports;
+`COR-R5.1R1-02` dòng tóm tắt `DEC-204 §5` trong `DEC-205`) là tài liệu, không
+phải hành vi — không tiêu ngân sách.
+
+Một `OWNER_DECISION_REQUIRED` được ghi cho alias taxonomy (`Máy lạnh →
+Điều hoà`, `TV → Tivi`, `Ti vi → Tivi`): đây là quyết định BUCKET BÁO CÁO của
+Owner, **không phải một finding kỹ thuật**, nên nó cũng không tiêu ngân sách.
+Nên đóng TRƯỚC khi `R6` dùng `category_label` làm khoá gộp.
+
+Hai lỗi đỏ trong lượt kiểm được tách rõ là **BASELINE của môi trường**, không
+phải hồi quy: một bài `pytest`
+(`TestG25GoldenBaselineUnchanged::test_protected_golden_artifacts_match_the_task_105e_review_base`)
+đỏ vì container review dùng clone NÔNG — tái hiện Y HỆT trên nền `3b35b7a`
+chưa có `R5.1`; và 4 finding `REFERENCE INTEGRITY` đúng bằng 4 finding
+`S139`/`S140` đã ghi là baseline.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED`.
+
+Bằng chứng nguyên văn:
+`docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`,
+`docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+### `DEC-206` — Owner chốt taxonomy còn lại, merge có kiểm soát (`S142`, 2026-09-09)
+
+Owner CHỐT ba alias mà `S141` §6.3 hỏi (`OWNER_DECISION_REQUIRED`) và ghi
+`AR-R5.1R1-05` (`Máy giặt sấy`): xem `DEC-206`. Đây là **bổ sung taxonomy
+CÓ CHỦ ĐÍCH sau một review đã kết luận `ACCEPT_WITH_RECORDED_RISK`**
+(`REPAIR_REQUIRED = 0` ở `S141`), không phải một finding buộc sửa và không
+phải một repair cycle thứ ba.
+
+```text
+root lineage                     R5
+số dư trước S142                 2 allowed / 2 used / 0 remaining
+repair cycle tiêu bởi DEC-206    0  (bổ sung taxonomy, không phải repair)
+số dư sau S142                   2 allowed / 2 used / 0 remaining (không đổi)
+```
+
+Phân biệt với repair cycle: một repair cycle sửa một FINDING mà review đánh
+giá là buộc phải sửa trước khi chấp nhận (`REPAIR_REQUIRED`). Ở đây, `S141`
+đã CHẤP NHẬN hệ thống nguyên trạng (`ACCEPT_WITH_RECORDED_RISK`) — hai finding
+mới của nó (`AR-R5.1R1-04`, `AR-R5.1R1-05`) đều được xếp `ACCEPTED_RISK`, và
+`OWNER_DECISION_REQUIRED` là một câu hỏi CHÍNH SÁCH, không phải một lỗi kỹ
+thuật. Owner trả lời câu hỏi chính sách đó và bổ sung một dòng vào từ điển —
+đây là con đường mở rộng mà chính `DEC-205` §3 đã vạch sẵn ("thêm một dòng khi
+cần"), không phải một vòng sửa lỗi.
+
+Sau `DEC-206`, Tracking và Reports được MERGE vào nhánh mặc định — xem
+`docs/sessions/S142-r51-owner-taxonomy-merge.md` §5 cho SHA merge, thứ tự, và
+xác nhận `branch_authority_check.sh = AUTHORITY_OK` sau mỗi merge.
+
+`CHECK-R51-26` (Owner nghiệm thu production) VẪN `NOT_TESTED` sau merge —
+không phiên nào tự đóng nó, kể cả phiên merge.
+
+Bằng chứng nguyên văn: `docs/sessions/S142-r51-owner-taxonomy-merge.md`.
+
+---
+
+### REPAIR-2 production (`S146`, 2026-09-09) — CẦN XÁC NHẬN ngân sách
+
+```text
+nguồn phát hiện     Owner, trên PRODUCTION, SAU khi merge (DEC-206)
+không phải          một vòng Independent Review (CHECK-R51-25 đã PASS từ S139)
+phân loại của phiên PRODUCTION DEFECT REPAIR
+repair cycle tiêu   KHÔNG TỰ TIÊU và KHÔNG TỰ MIỄN — cần Owner/reviewer xác nhận
+số dư R5 hiện tại   2 allowed / 2 used / 0 remaining   (KHÔNG đổi bởi S146)
+```
+
+**Lỗi.** `catalog_display` (bản chiếu `mã Tracking → model_label · brand ·
+category_label`) CHỈ được ghi trong `server._tracking_snapshot()`, tức chỉ khi
+Owner mở bảng chọn phân loại của MỘT dòng. Luồng chính `POST /run` không ghi và
+không làm mới nó, nên trên đĩa ephemeral của Render cột `Hãng` là `—` và cột
+`Mặt hàng` giữ tên dài trên sổ kế toán VĨNH VIỄN — kể cả với dòng đã CONFIRMED.
+
+**Sửa.** `run_report` gọi `_refresh_catalog_display(owner_run.captures)` trên
+đường THÀNH CÔNG, dùng ĐÚNG capture danh mục của lần chạy đó (không gọi Tracking
+lần thứ hai). `write()` trả `WriteResult` nên thất bại đi vào
+`tracking_evidence["catalog_display"]` và lên UI thay vì im lặng. Chi tiết:
+`DEC-208`; task: `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`.
+
+**`AR-R5.1-04` ĐÓNG** — nó bị phân loại SAI. Rủi ro ấy giả định mất bản chiếu là
+trạng thái TẠM, tự thoát khi có "lần capture danh mục MỚI đầu tiên"; nhưng luồng
+chính không bao giờ ghi bản chiếu, nên trạng thái ấy là VĨNH VIỄN. Xem
+`DEC-208` §6.
+
+**Vì sao phiên KHÔNG tự tiêu một cycle** (lập luận, để Owner/reviewer bác hoặc
+chuẩn y):
+
+- Ngân sách `V4.1` §2–§3 điều tiết việc đưa MỘT task qua Independent Review: nó
+  đếm các LẦN SỬA sau một vòng review ra finding `BLOCKING`.
+- `REPAIR-2` không đến từ một vòng review. `CHECK-R51-25` đã `PASS` từ `S139`,
+  và defect do Owner phát hiện trên production SAU khi merge.
+- Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review, một tính
+  năng đã merge sẽ KHÔNG sửa được nữa khi lineage hết ngân sách — đó không phải
+  điều `V4.1` §3 nói tới.
+
+**Nếu Owner/reviewer kết luận ngược lại**, lineage `R5` vượt ngân sách và phải
+escalate theo `governance/core/ESCALATION_PROTOCOL.md`. Quyết định ấy KHÔNG
+thuộc phiên repair, và phiên này cố ý không giả định nó theo chiều nào.
+
+**Escalation trigger ĐÃ MET và đã ghi:** *"hành vi ở production khác biệt đáng
+kể so với các giả định đã được tài liệu hóa"*. Rà soát nguyên nhân gốc đã thực
+hiện và ghi lại (`S146` §2); không có lần vá suy đoán nào.
+
+**Kiểm chứng:** 12 bài mới (10 đỏ trước sửa, 12 xanh sau); full regression
+`3458 passed / 11 skipped / 0 failed` (nền `3446 passed`); smoke `R5.1`
+`74 PASS / 0 FAIL` (nền 63, thêm §5 upload/run THẬT); Tracking `npm test`
+2892 đạt và build OK, KHÔNG đổi code; validator = baseline; `git diff --check`
+sạch; `git diff` RỖNG trên mọi đường tiền đã nghiệm thu.
+
+Bằng chứng nguyên văn:
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`.
+
+---
+
+### R5.3 production (`S150`, 2026-09-10) — CẦN XÁC NHẬN ngân sách
+
+```text
+nguồn phát hiện     Owner, trên PRODUCTION, SAU khi merge R5.1 REPAIR-2
+không phải          một vòng Independent Review
+phân loại của phiên PRODUCTION DEFECT REPAIR
+repair cycle tiêu   KHÔNG TỰ TIÊU và KHÔNG TỰ MIỄN — cần Owner/reviewer xác nhận
+số dư R5 hiện tại   2 allowed / 2 used / 0 remaining   (KHÔNG đổi bởi S150)
+```
+
+**Lỗi.** `R5.1 REPAIR-2` ghi bản chiếu nhãn từ capture của chính lần chạy —
+đúng, và phiên `S150` đo lại từng tầng trên đường THẬT để xác nhận điều đó.
+Chỗ đứt nằm ở NƠI LƯU: bản chiếu sống trên đĩa EPHEMERAL của Render
+(`render.yaml`: *"KHÔNG có `disk:`"*), còn con số của kỳ sống trong
+PostgreSQL. Sau MỖI lần deploy/restart, mọi dòng đã `CONFIRMED` hiện `—` ở cả
+Hãng lẫn Nhóm hàng, VĨNH VIỄN, cho tới lần nạp sổ kế tiếp. Đo trực tiếp trên
+nền `c46e458`: `TRUOC RESTART brand ['Samsung','—']` →
+`SAU RESTART brand ['—','—']`.
+
+**Sửa.** Bảng mới `tracking_display_snapshot` (migration `0012`, ADDITIVE
+thuần) lưu nhãn BỀN theo `run_id` trong chính database giữ con số của kỳ;
+`server._tracking_display()` dựng lại bản chiếu từ đó khi cache đĩa rỗng, rồi
+ghi lại cache. Không lời gọi Tracking nào thêm. Chi tiết: `DEC-217`; task:
+`docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md`.
+
+**Vì sao phiên KHÔNG tự tiêu một cycle** (cùng lập luận đã ghi cho `S146`, để
+Owner/reviewer bác hoặc chuẩn y):
+
+- Ngân sách `V4.1` §2–§3 điều tiết việc đưa MỘT task qua Independent Review:
+  nó đếm các LẦN SỬA sau một vòng review ra finding `BLOCKING`.
+- `R5.3` không đến từ một vòng review — defect do Owner phát hiện trên
+  production, sau khi `CHECK-R51-26` đã `PASS` (`DEC-210`).
+- Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review, một
+  tính năng đã merge sẽ KHÔNG sửa được nữa khi lineage hết ngân sách — đó
+  không phải điều `V4.1` §3 nói tới.
+
+**Nếu Owner/reviewer kết luận ngược lại**, lineage `R5` vượt ngân sách và
+phải escalate theo `governance/core/ESCALATION_PROTOCOL.md`. Quyết định ấy
+KHÔNG thuộc phiên repair, và phiên này cố ý không giả định nó theo chiều nào.
+
+**Escalation trigger ĐÃ MET và đã ghi:** *"hành vi ở production khác biệt
+đáng kể so với các giả định đã được tài liệu hóa"* — tài liệu
+(`catalog_display.py` § điểm 3) giả định cái giá của việc mất bản chiếu là
+TẠM THỜI; đo được cho thấy nó VĨNH VIỄN. Rà soát nguyên nhân gốc đã thực hiện
+và ghi lại (`S150` §2); không có lần vá suy đoán nào.
+
+**Kiểm chứng:** 20 bài mới (8 đỏ trước sửa khi gỡ phần wiring, 20 xanh sau);
+full regression `3628 passed / 23 skipped / 0 failed` (nền `3608 passed /
+23 skipped`); Golden `58 passed / 2 skipped`; smoke `R5.3` `25 PASS / 0 FAIL`
+(producer Tracking THẬT); smoke `R5.1` `86 PASS / 0 FAIL`; smoke `R6`
+`29 PASS / 0 FAIL`; validator = baseline; `git diff --check` sạch; Tracking
+KHÔNG đổi một dòng nào.
+
+Bằng chứng nguyên văn:
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+### Independent Review `R5.3` — `REPAIR_REQUIRED`, ESCALATE (2026-09-10)
+
+```text
+kết luận             REPAIR_REQUIRED
+exact HEAD reviewed  cb7639f88efa8c9fb24f414ac1b6d9f93e58f02e
+nền xác nhận         origin/claude/extract-upload-repo-gq2ws4 @ c46e458
+                     Tracking main @ 0f7347b (>= b7c5f3b, không đổi)
+finding REPAIR       1  (FIND-R53-01)
+finding ACCEPTED_RISK mới  0
+repair cycle tiêu bởi PHIÊN REVIEW   0   (phiên review KHÔNG sửa mã)
+số dư trước review   2 allowed / 2 used / 0 remaining
+số dư sau review     2 allowed / 2 used / 0 remaining (KHÔNG đổi — review
+                     không tự mở repair cycle khi lineage đã cạn ngân sách)
+CHECK-R53-13         NOT_TESTED → FAIL (E2)
+ESCALATION           CÓ — xem dưới
+```
+
+**Xác nhận bookkeeping "CẦN XÁC NHẬN" của `S146`/`S150`.** Phiên review này
+XÁC NHẬN lập luận mà cả hai phiên repair sản xuất (`R5.1 REPAIR-2`, `R5.3`)
+đã tự ghi: một defect production được Owner phát hiện SAU khi Independent
+Review trước đó đã PASS không tiêu ngân sách repair-cycle của lineage, vì
+`V4.1` §2–§3 đếm theo VÒNG REVIEW ra `REPAIR_REQUIRED`, không theo mọi lần
+sửa lỗi. Số dư `R5` giữ nguyên `2/2 used, 0 remaining` qua cả `S146` và
+`S150` — không cần escalate vì việc này.
+
+**Nhưng finding của CHÍNH phiên review này thì khác.** `FIND-R53-01`
+(§3 và §6 của bản ghi review) đến từ một vòng Independent Review thật
+(`CHECK-R53-13`) kết luận `REPAIR_REQUIRED` — đúng loại sự kiện `V4.1` §3
+tính vào ngân sách nếu mở repair cycle để sửa nó. Lineage `R5` đang
+`0 remaining`; mở một repair cycle bình thường cho finding này sẽ là cycle
+thứ BA, vượt bảng ngân sách đã freeze (`HIGH = 2`, không có `HIGH = 3`).
+
+**Escalation trigger đã ghi** (`governance/core/ESCALATION_PROTOCOL.md`):
+ngân sách lineage `R5` đã cạn trước khi finding mới xuất hiện. Phiên review
+KHÔNG tự mở repair cycle thứ ba, KHÔNG tự chọn hướng giải quyết — bản ghi
+Escalation Record đầy đủ (Reason/Attempts/Evidence/Root cause/Scope/
+Recommended action) nằm ở
+`docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md` §7. Ba hướng Owner có thể
+chọn: (a) `OWNER_EXTENSION` cấp thêm cycle riêng cho `FIND-R53-01`;
+(b) Owner tự quyết định chấp nhận nó làm `ACCEPTED_RISK` MỚI (có ghi lại
+tường minh, khác với việc giữ nguyên `AR-R5.3-01` mô tả giảm nhẹ trong task
+file); (c) mở một lineage/task riêng ngoài `R5` để sửa (phạm vi sửa nằm gọn
+ở tầng đọc hiển thị, không mở rộng contract `R5`/`R5.1`).
+
+`FIND-R53-01` KHÔNG chạm tiền/MIN/coverage/vân tay chốt kỳ — phạm vi ảnh
+hưởng là hiển thị `Hãng`/`Nhóm hàng`/`Mặt hàng` cho các kỳ KHÔNG phải kỳ
+vừa `/run`, và gộp Nhóm hàng lịch sử của `R6`.
+
+Bằng chứng nguyên văn: `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`.
+
+### Owner Decision — `FIND-R53-01` đóng bằng `ACCEPTED_RISK` (`DEC-218`, 2026-09-10)
+
+```text
+hướng được chọn        ACCEPTED_RISK  (không OWNER_EXTENSION, không mở
+                        lineage riêng)
+CHECK-R53-13            FAIL → ACCEPT_WITH_RECORDED_RISK
+repair cycle tiêu       0  (không sửa mã sản phẩm)
+số dư R5 sau quyết định 2 allowed / 2 used / 0 remaining  (KHÔNG đổi)
+ESCALATION              ĐÓNG — Owner đã ra quyết định theo đúng ba hướng
+                        Escalation Record đã trình (§7 bản ghi review)
+```
+
+**Căn cứ — KHÔNG phải hạ nhẹ vì hành vi kế thừa.** Bản ghi Independent
+Review đã tường minh từ chối lý lẽ "cache cũ cũng vậy" (§3), và quyết định
+này không dùng lại lý lẽ đó. Căn cứ thật là bằng chứng vận hành phát sinh
+SAU thời điểm review: Tracking commit `1c36fa2` (cùng ngày 2026-09-10, sau
+`HEAD` mà review đã chốt) xoá đường sửa tay từng mã (Nhóm hàng/Hãng) khỏi
+UI — `data-viec="editR52"` không còn trong HTML, `boardRow()` không còn
+dựng ô cho hai cột này. Đường tự động còn lại (`r52ApDungBackfill`, nút
+"↻ Chuẩn hoá Nhóm/Hãng") tự loại trừ mọi mã có `category_provenance`/
+`brand_provenance = 'manual'` — tức mọi mã đã từng khoá tay không bao giờ
+bị nút này ghi đè nữa. Ba điều kiện phải cộng dồn để `FIND-R53-01` xảy ra
+thật (mã còn `auto` provenance, dữ liệu nguồn hashtag/category của nó bị
+sửa nơi khác, và ai đó bấm lại nút Chuẩn hoá) — xác suất trong quy trình
+vận hành thật hiện tại của Owner giảm mạnh so với lúc review đánh giá (review
+chỉ xét logic code, không có ngữ cảnh UI đã đổi cùng ngày).
+
+Cơ chế lỗi trong code (`_tracking_display`/`latest_tracking_display` không
+phân biệt `run_id`) KHÔNG đổi — quyết định này là chấp nhận rủi ro đã giảm
+xác suất, không phải xác nhận đã sửa. Repair tối thiểu vẫn giữ nguyên ở §6
+bản ghi review, mở lại được bất cứ lúc nào quy trình vận hành đổi.
+
+`R5.3` được phép tiếp tục sang merge/deploy. `CHECK-R53-14` (Owner nghiệm
+thu trên production) đứng độc lập, KHÔNG bị quyết định này thay thế — vẫn
+`NOT_TESTED`, chỉ Owner đóng được.
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` → `DEC-218`;
+`docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+---
+
+## Root Task: R6
+
+```
+root_task: R6
+title: Dashboard phân tích kinh doanh
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REPAIR_REQUIRED (S144, 2026-09-09) — CHECK-R6-31 = FAIL
+repair_1: ĐÃ HOÀN TẤT (S145, 2026-09-09) — cả 4 finding, tiêu cycle DUY NHẤT
+review_round_2: PASS (S146, 2026-09-09) — CHECK-R6-31 = PASS trên HEAD 40807ef;
+             0 REPAIR_REQUIRED, 0 ACCEPTED_RISK mới, 0 repair cycle tiêu
+status: DONE. `DEC-210` (2026-09-09) đóng CHECK-R6-30/CHECK-R6-32/
+             CHECK-R51-26 = PASS (E1 thật — đối soát sổ Owner khớp 8/8 chỉ
+             tiêu; chi tiết DEC-210 §3/§5), đóng INTEGRATION_DECISION_REQUIRED
+             bằng lựa chọn (A), và merge R6 vào nhánh mặc định (865b58e).
+             KHÔNG cần ESCALATE: vòng 2 không có REPAIR_REQUIRED.
+correction (S151, 2026-09-10): phiên S151 từng ghi nhầm ba check trên
+             thành ACCEPTED_BY_OWNER_VERBAL qua DEC-219 (đọc narrative cũ
+             của chính mục này — chưa từng đồng bộ lại sau DEC-210 — mà
+             không tìm PROJECT_DECISIONS.md để thấy DEC-210 đã giải quyết
+             từ một ngày trước). Đã sửa lại đúng trạng thái PASS/DONE ở
+             trên; xem PROJECT_DECISIONS.md → DEC-219 §0.
+```
+
+Cấp theo bảng đã freeze `V4.1` §2 (`MEDIUM = 1`). Con số này được **ĐO LẠI từ
+blast radius của chính `R6`**, KHÔNG sao chép ngân sách `2` của `R5` — `R5`
+là `HIGH` vì một lý do mà `R6` không có (xem ngay dưới).
+
+`R6` là một **ROOT TASK LINEAGE MỚI**, không phải sub-unit của `R5`/`R5.1`: nó
+không mở rộng hợp đồng metadata mà hai task kia dựng, mà dựng một tầng ĐỌC mới
+trên đầu ra của chúng. Nó cũng KHÔNG được tạo ra để reset ngân sách của lineage
+nào — lineage `R5` vẫn giữ nguyên `2 allowed / 2 used / 0 remaining`, và không
+finding nào của `R6` được phép tiêu vào đó.
+
+**Blast Radius chấm theo failure path** (`V4.1` §4). Failure path của `R6`:
+
+```text
+PeriodData hiệu lực → aggregate R6 → bảng / biểu đồ / giỏ hàng phân tích
+                    → quyết định kinh doanh của Owner
+```
+
+Nó DỪNG ở đó, và ba tính chất CẤU TẠO giữ nó không đi xa hơn:
+
+1. **Không có đường GHI.** Không route `POST`, không bảng, không store quyết
+   định, không migration (`alembic` giữ nguyên một head của `R3`). Một lỗi ở
+   đây không sửa được một bản ghi kế toán nào.
+2. **Không định nghĩa lại một con số đã nghiệm thu.** Doanh thu đọc
+   `BusinessLine.total_sales`; số dòng, số đơn và doanh thu được ĐỐI SOÁT
+   TUYỆT ĐỐI với `business_metrics` ở MỖI lần tải trang, và phép đối soát ấy
+   được chứng minh là BẮT ĐƯỢC một dòng bị bỏ rơi
+   (`tests/test_r6_dashboard_metrics.py::test_reconciliation_fails_loudly_
+   when_a_line_is_dropped`).
+3. **Không tầng nào tiêu thụ `R6`.** Không module nào ngoài đường trình bày
+   của chính `R6` import `dashboard_metrics`/`product_metrics`/
+   `basket_metrics`.
+
+`3/5`, KHÔNG phải `2/5`, vì hai lý do THẬT: một bucket gộp sai làm Owner đọc
+ra một cơ cấu hàng bán sai và ra quyết định mua hàng sai (brief xếp "gộp sai
+khó phát hiện" vào nhóm bắt buộc repair); và `R6` mở một bề mặt drill-down mới
+trên dữ liệu dòng, tức một đường rò tiềm năng nếu bảng kê ấy nới ra.
+
+`3/5`, KHÔNG phải `4/5` như `R5`: `R5` có quyền LOẠI dòng khỏi tập được cộng
+và vì thế đổi được vân tay chốt kỳ lẫn file export. `R6` không có quyền đó,
+không chạm `period_lock`, không chạm `business_export`.
+
+```
+Effective Risk = max(Local Risk 3, Blast Radius 3) = MEDIUM
+```
+
+**Golden Baseline KHÔNG được dùng để hạ bậc** (`V4.1` §4.1): không Golden test
+nào phủ failure path "aggregate phân tích → quyết định kinh doanh", nên không
+có gì để hạ. `R6` KHÔNG viện dẫn Golden để giảm risk.
+
+**Repair cycles đã tiêu: 0.** Phiên triển khai `S143` không sửa tiếp triển
+khai của `R5`/`R5.1` — nó ĐỌC một `R5.1` đã merge trên nhánh mặc định của cả
+hai repo (Tracking `dc98910`, Reports `a59936c`, cả hai xác nhận là ancestor).
+
+Một thay đổi nhỏ ở `app/web/business_presentation.py` (thêm `paired_count_
+chart`, `money_text`, `money_kvnd`; `_slot_title` nhận thêm tham số `unit` CÓ
+GIÁ TRỊ MẶC ĐỊNH) là mã MỚI của `R6` đặt cạnh mã cũ để dùng chung hàm dựng
+hình, KHÔNG phải một repair của `R5`: không hành vi cũ nào đổi, và toàn bộ
+test `R5`/`DEC-R5-02` chạy lại nguyên trạng.
+
+Việc dời khối route `R6` trong `server.py` ra sau `business_save_gia_dung` là
+một sửa chữa của CHÍNH `R6` (nó làm đỏ một bài kiểm ranh giới của `PHB-07` khi
+đặt sai chỗ), phát hiện và sửa TRONG cùng phiên triển khai — theo `V4.1` §3 nó
+thuộc cùng cycle đang mở, và cycle đó chưa được tiêu vì chưa có vòng review
+nào ra `REPAIR_REQUIRED`.
+
+**Số dư còn `1 remaining`.** Nếu vòng Independent Review đầu tiên ra
+`REPAIR_REQUIRED`, repair cycle duy nhất của lineage `R6` sẽ bị tiêu; một vòng
+`REPAIR_REQUIRED` thứ hai làm lineage hết ngân sách và phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md` thay vì mở cycle thứ hai.
+
+```text
+CHECK-R6-30  NOT_TESTED — đối soát trên SỔ THẬT của Owner
+CHECK-R6-31  NOT_TESTED — Independent Review
+CHECK-R6-32  NOT_TESTED — Owner Acceptance
+CHECK-R51-26 NOT_TESTED — chặn MERGE/DEPLOY của R6 (xem DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/sessions/S143-r6-dashboard-phan-tich.md`.
+
+### Independent Review vòng 1 → `REPAIR_REQUIRED` (`S144`, 2026-09-09)
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED
+exact HEAD reviewed    56aca4c91bd788b1e14d7f71b9246d1577255c1a
+nền xác nhận           Reports  claude/extract-upload-repo-gq2ws4 @ 05f2b44
+                       Tracking main                             @ 66787c0
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03)
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu bởi PHIÊN REVIEW   0   (phiên review KHÔNG sửa mã)
+số dư sau S144         1 allowed / 0 used / 1 remaining
+CHECK-R6-31            NOT_TESTED → FAIL (vòng 1, E1)
+```
+
+Phiên review **KHÔNG tiêu** một cycle nào: `V4.1` §3 tính cycle theo VÒNG SỬA,
+và `S144` chỉ đọc/chạy/kiểm, không sửa một dòng mã sản phẩm. Cycle sẽ bị tiêu
+khi `REPAIR-1` chạy — cùng cách hạch toán mà lineage `R5` đã dùng ở `S135`.
+
+Hai finding `REPAIR_REQUIRED`:
+
+```text
+FIND-R6-IR-01  Cửa sổ so sánh của CẢ HAI biểu đồ trang phân tích vẽ SỐ 0 cho
+               một khoảng có doanh thu và số đơn THẬT. `_revenue_chart_for_scope`
+               và `_orders_chart` nạp cho `paired_series()` lát dữ liệu ĐÃ LỌC
+               theo phạm vi, trong khi cửa sổ liền trước theo định nghĩa nằm
+               NGOÀI phạm vi ấy; `_covered_by_confirmed` biến chỗ không có điểm
+               thành `Decimal(0)` mang `origin=ORIGIN_CURRENT`. Trang Báo cáo
+               của R5 đọc lại `service.period()` KHÔNG lọc chính vì lý do này.
+               Đo trên SERVER FLASK THẬT, cùng sổ/kỳ/mức gộp:
+                 R5 /kinh-doanh           10/08/2026 → 7.000.000 đồng
+                 R6 /kinh-doanh/phan-tich 10/08/2026 → 0 đồng / 0 đơn
+FIND-R6-IR-02  Bucket "Chưa xác định" đứng làm một NHÓM HÀNG HOÁ trong Basket:
+               nó làm tăng `multi_merchandise_category_orders` và sinh ra hàng
+               gợi ý bán chéo giữa hai lý do chưa xác định, trong khi
+               `pair_rows` không chở `known`/`reason` như `group_rows` và
+               template render hai cột y hệt một cặp thật.
+```
+
+Cả hai thuộc nhóm mà brief `R6` §7 đã liệt kê TRƯỚC là bắt buộc repair
+("sai tổng tiền, sai số đơn, … hoặc **gộp sai khó phát hiện**"), nên không có
+tranh cãi nào về phân loại: chúng KHÔNG đủ điều kiện ghi thành `ACCEPTED_RISK`.
+`FIND-R6-IR-01` rơi thẳng vào failure path đã chấm ở trên
+(*"→ quyết định kinh doanh của Owner"*): nó dựng một tín hiệu tăng trưởng bịa
+trên đúng trang được làm ra để quyết định mua hàng.
+
+`AR-R6-IR-03` (mẫu số giá bán bình quân giữ số lượng của dòng thiếu
+`total_sales`) và `COR-R6-IR-01` (docstring dẫn một file test không tồn tại)
+là `RECOMMENDED` và tài liệu — chúng KHÔNG tự tiêu một cycle riêng, nhưng nên
+được xử lý trong cùng `REPAIR-1` vì lý do ngân sách ngay dưới.
+
+**Cảnh báo ngân sách.** `REPAIR-1` sẽ tiêu cycle DUY NHẤT của lineage `R6`
+(`1 allowed / 1 used / 0 remaining`). Vì thế `REPAIR-1` phải xử lý CẢ BỐN mục
+trong CÙNG một vòng — `V4.1` §3 tính theo vòng, nên gộp chúng lại không tốn
+thêm gì, còn tách ra sẽ tiêu hết ngân sách cho một nửa danh sách. Nếu vòng
+Independent Review thứ hai lại ra `REPAIR_REQUIRED`, `R6` KHÔNG được mở repair
+cycle thứ hai mà phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+```text
+CHECK-R6-30  NOT_TESTED — sổ Owner KHÔNG có mặt trong môi trường review
+                          (/Users/hoangvinh/… là đường dẫn trên máy Owner);
+                          công cụ đối soát ĐÃ được kiểm lại trong phiên này và
+                          tái tạo đủ tám con số vector Owner qua pipeline THẬT
+CHECK-R6-31  FAIL       — vòng 1, S144
+CHECK-R6-32  NOT_TESTED — phiên review KHÔNG tự đóng Owner Acceptance
+CHECK-R51-26 NOT_TESTED — vẫn chặn MERGE/DEPLOY của R6 (DEC-207 §10)
+```
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md`;
+tóm tắt: `docs/sessions/S144-r6-independent-review.md`.
+
+### REPAIR-1 (`S145`, 2026-09-09) — cycle DUY NHẤT đã tiêu
+
+```text
+kết luận vòng 1        REPAIR_REQUIRED (S144)
+finding REPAIR         2  (FIND-R6-IR-01, FIND-R6-IR-02)
+finding RECOMMENDED    1  (AR-R6-IR-03) — sửa trong CÙNG vòng
+đính chính tài liệu    1  (COR-R6-IR-01)
+repair cycle tiêu      1
+số dư sau REPAIR-1     1 allowed / 1 used / 0 remaining   ← HẾT
+CHECK-R6-31            FAIL (vòng 1) → NOT_TESTED (chờ vòng 2 trên HEAD sau repair)
+```
+
+Đây là repair cycle ĐẦU TIÊN và DUY NHẤT của lineage `R6`. Nó tiêu đúng một
+cycle vì cả bốn mục thuộc CÙNG một vòng review và được sửa trong CÙNG một phiên
+— `V4.1` §3 tính theo LẦN SỬA, không theo số finding.
+
+`AR-R6-IR-03` là `RECOMMENDED` và tự nó KHÔNG tiêu một cycle riêng; nó được kéo
+vào cùng vòng theo đúng khuyến nghị của review §8, vì lineage chỉ có một cycle.
+
+**Ba việc phát sinh TRONG phiên repair, và cả ba nằm trong cumulative repair
+diff của cycle này** (`V4.1` §3 — defect do chính repair cycle tạo hoặc sửa
+thuộc CÙNG cycle, không mở cycle mới):
+
+1. Khối route `R6` trong `server.py` được dời (đã dời từ `S143`) — không phát
+   sinh thêm ở phiên này.
+2. `scripts/r6_crossrepo_smoke.py` có một bài đo sai điều tên gọi của nó gợi ra
+   — chính điểm mà review §7.2 đã ghi. Sau repair bài ấy ĐỎ và nó đúng khi đỏ;
+   đã sửa gốc phép chọn dòng để nó đo hai nhóm hàng THẬT.
+3. Bài kiểm mới của repair ban đầu gán thẳng vào module và làm rò trạng thái
+   sang `tests/test_tracking_live_pull.py`. Đã sửa bằng `pytest.MonkeyPatch()`
+   có `undo()`.
+
+**Đính chính phạm vi.** `REPAIR-1` chạm `app/web/revenue_timeline.py` — file mà
+Scope Lock của `R6` từng liệt kê là NGOÀI phạm vi. Thay đổi thuần THÊM
+(`paired_window_span`, +55/−1, dòng bị xoá duy nhất là chính dòng `__all__`
+được viết dài ra), và brief `REPAIR-1` cho phép tường minh: *"Dùng/làm rõ helper
+thuộc engine timeline hiện có nếu cần"*. Ràng buộc thật — KHÔNG dựng engine thời
+gian thứ hai — vẫn giữ. Ghi ở `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`
+§1 và `S145` §4.4 thay vì để một lần đọc diff sau này phát hiện.
+
+**Bất biến tiền:** `git diff` RỖNG trên `app/modules/pricing/`,
+`app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+`business_store.py`, `business_queries.py`, `business_service.py`,
+`business_metrics.py`, `tools/db/migrations/`, `config/`.
+
+**Kiểm chứng:** 48 bài mới (đỏ TRƯỚC, xanh SAU); full regression
+`1 failed / 3445 passed / 11 skipped` với bài đỏ là ĐÚNG baseline clone nông;
+smoke `R6` 29 PASS / 0 FAIL, smoke `R5.1` 63 PASS / 0 FAIL; Tracking
+`npm test` 2892 đạt / 0 hỏng và build OK (Tracking KHÔNG đổi code);
+validator governance = baseline; `git diff --check` sạch.
+
+**Số dư còn `0 remaining`.** Nếu vòng Independent Review thứ hai lại ra
+`REPAIR_REQUIRED`, lineage `R6` KHÔNG được mở repair cycle thứ hai mà phải
+escalate theo `governance/core/ESCALATION_PROTOCOL.md`.
+
+`CHECK-R51-26` (Owner nghiệm thu `R5.1` trên production) VẪN `NOT_TESTED` và
+vẫn CHẶN merge/deploy `R6`.
+
+Bằng chứng nguyên văn: `docs/sessions/S145-r6-repair-1.md`.
+
+### Independent Review VÒNG 2 (`S146`, 2026-09-09) — `PASS`, 0 cycle tiêu
+
+Đối tượng: HEAD `40807efd50e675b71ccd1a14b5801394da4cafc1` (SAU `REPAIR-1`),
+detached, worktree sạch, `branch_authority_check.sh` → `AUTHORITY_OK`
+(`DETACHED_EXACT_TARGET`). Tracking = `origin/main` `66787c0`, không lệch một
+byte — dependency, không có thay đổi `R6`.
+
+```text
+kết luận vòng 2         PASS
+CHECK-R6-31             NOT_TESTED → PASS (E1)
+finding REPAIR_REQUIRED 0
+finding ACCEPTED_RISK   0
+ghi nhận tài liệu/hiệu năng  4   OBS-R6-IR2-01 … -04 (KHÔNG tiêu ngân sách)
+repair cycle tiêu       0
+số dư sau vòng 2        1 allowed / 1 used / 0 remaining   (KHÔNG đổi)
+ESCALATION              KHÔNG cần
+```
+
+Cả bốn mục của vòng 1 được xác nhận ĐÃ SỬA bằng bằng chứng ĐỘC LẬP — phiên
+review vòng 2 KHÔNG dùng lại một fixture nào của `REPAIR-1` và KHÔNG lấy một
+con số nào từ `S145` làm bằng chứng:
+
+```text
+FIND-R6-IR-01  ĐÃ SỬA  93 phép đo qua HTTP THẬT (app.run, cổng thật), oracle là
+                       trang Báo cáo R5 trên CÙNG server/sổ/kỳ/mức gộp. R6 khớp
+                       R5 TỪNG MỐC ở ngay/tuan/thang/quy và ở custom range; cửa
+                       sổ so sánh có tiền thật ở CẢ BỐN mức (đo trên một sổ
+                       trải từ 2023); số 0 chỉ ở mốc rỗng THẬT trong coverage
+                       đã xác nhận; lát mở rộng vẫn là effective data (dòng
+                       Owner loại KHÔNG quay lại); ô chỉ tiêu/bảng/giỏ hàng/
+                       bảng kê vẫn chỉ đọc phạm vi đang xem.
+FIND-R6-IR-02  ĐÃ SỬA  51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo
+                       (danh mục do producer Tracking THẬT sinh, phân loại qua
+                       route POST thật) và 1 DIFF trực tiếp 56aca4c vs HEAD
+                       trên cùng đầu vào: trước 5/5 đơn bị đếm multi và có cặp
+                       ('Tivi','__UNRESOLVED__'), ('__CONFLICT__',
+                       '__UNRESOLVED__'); sau còn đúng một cặp THẬT. Mọi thứ
+                       khác — cặp SẢN PHẨM, orders, multi_line, multi_product,
+                       service_attachment, tiền từng đơn — KHÔNG đổi.
+AR-R6-IR-03    ĐÃ SỬA  35 phép đo. Thiếu total_sales 5.000.000 → 10.000.000;
+                       quantity=0 6.500.000 → 5.000.000; thiếu quantity, hàng
+                       tặng giá 0 và ca bình thường đều đúng; mẫu số 0 ⟹ None
+                       KÈM LÝ DO; min/max và total_quantity nghiệp vụ KHÔNG bị
+                       thu hẹp; đối soát bảng nhóm khớp tuyệt đối.
+COR-R6-IR-01   ĐÃ SỬA  bài canh thật tồn tại và đo đúng HTML đã render; không
+                       còn tham chiếu nào coi file không tồn tại là bài canh.
+```
+
+**Regression:** full `pytest` `3445 passed / 12 skipped / 0 failed`; smoke `R6`
+`29 PASS / 0 FAIL`; smoke `R5.1` `63 PASS / 0 FAIL`; Tracking `2892 đạt /
+0 hỏng`; `git diff --check` sạch; validator = baseline; đối soát sổ Golden
+`3.562.310.000` KHỚP TOÀN BỘ. Bài đỏ ở lần chạy pytest ĐẦU
+(`TestG25GoldenBaselineUnchanged`, `bad object 740f396…`) là BASELINE của clone
+NÔNG: `R6` không chạm bài kiểm ấy, chạy riêng thì `41 passed`, và sau một
+`git fetch origin --prune` đầy đủ thì lần chạy thứ hai `0 failed` mà không ai
+sửa gì.
+
+**`INTEGRATION_DECISION_REQUIRED` VẪN MỞ.** Đo lại trong vòng 2:
+`cumulative LOC = 10.155` (`S145` ghi `10.100` vì đo tại `419391c`; chênh đúng
+57 dòng của commit tài liệu `40807ef`). Owner phải chọn theo V4.1 §8 TRƯỚC lần
+merge; phiên review KHÔNG chọn thay.
+
+**`R6` VẪN KHÔNG được merge hay deploy.** `CHECK-R51-26`, `CHECK-R6-30` và
+`CHECK-R6-32` đều `NOT_TESTED` và đều thuộc thẩm quyền Owner.
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`.
+
+---
+
+## Root Task: UI-01-UI-02
+
+```
+root_task: UI-01-UI-02
+title: Panel sửa đơn tại chỗ (thay `?sua=` dựng lại cả bảng)
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REQUEST CHANGES — trên HEAD `e95066a`; 1 finding P0
+             (BLOCKING), 1 finding P2 (khuyến nghị, không chặn)
+repair_1: ĐÃ HOÀN TẤT — cả hai finding, tiêu cycle DUY NHẤT của lineage này
+next_action: chờ vòng Independent Review kế tiếp trên HEAD `9f15eb9`. Nếu
+             vòng đó lại ra REQUEST CHANGES/REPAIR_REQUIRED: lineage HẾT
+             ngân sách, phải ESCALATE theo
+             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở repair
+             cycle thứ hai bằng cách đổi tên/tách nhánh/mở lineage mới.
+```
+
+Đây là ENTRY ĐẦU TIÊN của lineage này trong ledger — chưa từng có root task
+`UI-01`/`UI-02` nào được ghi trước repair cycle này, nên `effective_risk`
+được tự chấm ở đây lần đầu, theo `governance/core/V4_1_POLICY_FREEZE.md` §4 (chấm theo
+FAILURE PATH, không theo tên file).
+
+**Failure path của finding P0** (finding duy nhất ảnh hưởng tới người dùng
+cuối — finding P2 chỉ là dọn code chết, không có failure path nào):
+
+```text
+PATCH ghi ĐÚNG vào database (server-side, at-most-once/CAS đã xác nhận ở
+lineage khác — P0-1..P0-3 của TASK-STAB-01, không bị finding này chạm tới)
+  → response về SAU KHI panel đã đóng (Escape/nút Đóng/mở panel khác)
+  → handleSaveResult() `return` sớm vì guard theo `panel.dialog`
+  → patchTableFromPayload() không chạy
+  → ô giá + hàng TỔNG trên bảng nền hiển thị giá trị CŨ
+  → Owner đọc SỐ SAI trên màn hình cho tới khi F5 (tải lại cả trang)
+  → có thể ra một quyết định/trao đổi dựa trên số hiển thị sai trong
+    khoảng thời gian đó
+```
+
+Path này DỪNG ở "hiển thị trên đúng một trình duyệt của đúng một phiên",
+với ba tính chất giới hạn nó, đúng cách `governance/core/V4_1_POLICY_FREEZE.md` §4 đòi hỏi
+(chấm theo path thật, không đoán):
+
+1. **Không có ghi sai.** `MutationGuard.transaction()` (khoá + CAS revision
+   + ghi + đọc lại) hoàn toàn không bị finding này chạm tới — dữ liệu lưu
+   trữ (giá nhập, KPI profit, audit trail) ĐÚNG ngay từ đầu. Đây KHÔNG phải
+   một lỗi ghi đè/mất dữ liệu.
+2. **Tự khỏi khi tải lại.** Trạng thái sai chỉ sống trong DOM của phiên
+   trình duyệt đang mở; một lần F5 đọc lại đúng dữ liệu từ server —
+   `app_content` được dựng lại hoàn toàn, không có cache client nào giữ số
+   sai qua một lần tải trang thật.
+3. **Không lan sang export/chốt kỳ/người dùng khác.** Không chạm
+   `period_lock`, không chạm `business_export`, không đổi bất kỳ file hay
+   bản ghi nào người khác đọc được — khác hẳn lớp lỗi mà `R5` được chấm
+   `HIGH` (quyền LOẠI dòng đổi được vân tay chốt kỳ lẫn file export).
+
+**So sánh để hiệu chỉnh, không đoán suông:**
+- KHÔNG bằng `R5` (`HIGH`, 2 cycle): `R5` có quyền ghi/loại làm đổi vân tay
+  chốt kỳ và file export — một lỗi ở đó lan ra NGOÀI một phiên trình
+  duyệt. `UI-01/UI-02` P0 không có quyền đó.
+- Tương đương `R6` (`MEDIUM`, 1 cycle) về mức độ "hiển thị sai số tài
+  chính cho Owner", nhưng NHẸ HƠN về bản chất: `R6`'s `FIND-R6-IR-01` là
+  một phép tính SAI (cửa sổ so sánh vẽ số 0 cho một khoảng có doanh thu
+  thật — SAI ở NGUỒN, không tự khỏi khi tải lại vì mã tính vẫn sai). Bug
+  này là một CACHE/DOM lệch với nguồn đã ĐÚNG — tự khỏi khi tải lại. Giữ
+  `MEDIUM` (không hạ xuống `LOW`) vì: (a) dữ liệu tài chính hiển thị sai
+  vẫn là dữ liệu tài chính hiển thị sai, bất kể có tự khỏi hay không; (b)
+  kịch bản kích hoạt (đóng panel nhanh) không hiếm — bất kỳ ai quen bấm
+  Escape/click ra ngoài ngay sau khi bấm LƯU đều gặp.
+
+```
+Effective Risk = max(Local Risk, Blast Radius) = max(LOW, MEDIUM) = MEDIUM
+```
+
+Local Risk = LOW: thay đổi hoàn toàn trong `app/web/static/js/app.js`
+(một hàm điều phối client-side), không chạm `order_api.py`, không chạm
+business logic backend, không chạm schema/migration.
+
+**Golden Baseline KHÔNG được dùng để hạ bậc** (`V4.1` §4.1): không Golden
+test nào phủ failure path "panel đóng trước khi PATCH resolve → bảng nền
+lệch". `UI-01/UI-02` KHÔNG viện dẫn Golden để giảm risk.
+
+**Cấp `1` theo bảng đã freeze** (`MEDIUM = 1 blocking repair cycle`,
+`governance/core/V4_1_POLICY_FREEZE.md` §2). Repair cycle DUY NHẤT của lineage này đã được
+tiêu ở `REPAIR-1` (cả finding P0 và P2 thuộc CÙNG một vòng sửa, `V4.1` §3
+tính theo LẦN SỬA chứ không theo số finding) — `0 remaining`.
+
+### Review round 1 → `REQUEST CHANGES` (Independent Review, trước phiên này)
+
+```text
+kết luận vòng 1        REQUEST CHANGES
+HEAD được review        e95066ad99496eb02df93e370206d93e02651776
+base xác nhận           origin/claude/extract-upload-repo-gq2ws4 @ c46e458
+finding P0 (BLOCKING)   1 — bảng nền không được vá khi panel đóng trước
+                        khi PATCH resolve (`handleSaveResult()` guard sai
+                        phạm vi)
+finding P2 (khuyến nghị) 1 — tham số chết `opts.sameIntent` trong doSave()
+repair cycle tiêu bởi PHIÊN REVIEW   0 (phiên review không sửa mã)
+```
+
+Toàn bộ test tự động (pytest 3568 passed/22 skipped, jsdom 25 passed,
+Playwright 13 passed — số liệu SAU repair, xem dưới) đều PASS ở HEAD được
+review; finding P0 KHÔNG bị bộ test hiện có bắt được tại thời điểm đó —
+review phải tự viết test mới để bắt đúng lỗi. Đây là lý do
+`repair_cycles_used` bắt đầu từ `1` ngay trong lần repair đầu, không phải
+dấu hiệu review kém — chính review NÀY là cách lỗi được phát hiện, đúng
+mục đích tồn tại của Independent Review.
+
+### REPAIR-1 (cycle DUY NHẤT đã tiêu)
+
+```text
+kết luận vòng 1         REQUEST CHANGES
+finding BLOCKING        1 (P0)
+finding khuyến nghị     1 (P2) — sửa trong CÙNG vòng, không tốn thêm cycle
+repair cycle tiêu       1
+số dư sau REPAIR-1      1 allowed / 1 used / 0 remaining   ← HẾT
+base_sha                e95066ad99496eb02df93e370206d93e02651776
+head_sha                9f15eb986b45f81a454d0add754e0c7bef9be360
+```
+
+Phạm vi sửa xác định bằng `git diff e95066a..9f15eb9 --name-only`:
+
+```text
+app/web/static/js/app.js
+tests/playwright/order-panel-save.spec.mjs
+```
+
+Không file nào khác bị chạm — đúng giới hạn brief của repair này (không
+đụng KPI strip, không đụng dòng Chiết khấu suy ra, không đụng
+`order_api.py`/business logic backend).
+
+**Test tái hiện lỗi, xác nhận fail-trước/pass-sau** (không chỉ viết rồi
+chạy một lần):
+
+```text
+tests/playwright/order-panel-save.spec.mjs::"đóng panel TRƯỚC KHI PATCH
+resolve — bảng nền vẫn được vá (repair, finding P0)"
+
+git stash push -- app/web/static/js/app.js   (lùi về code TRƯỚC sửa)
+  → chạy test         ✘ FAIL — PATCH 200 với giá mới, ô bảng nền vẫn "600"
+
+git stash pop                                 (khôi phục sửa)
+  → chạy lại test      ✓ PASS (2.2s)
+```
+
+**Regression — không test nào MỚI fail:**
+
+```text
+pytest (toàn repo, trừ test_105d_boundaries.py môi trường + -k "not postgres")
+                                      3568 passed, 22 skipped, 1 deselected
+tests/browser/ (jsdom, node --test)  25 passed  (không đổi so với trước)
+tests/playwright/ (Chromium thật)    13 passed  (12 cũ + 1 test mới)
+```
+
+`REPORTS_TEST_POSTGRES_URL` không đặt trong phiên này —
+`tests/test_p0_single_transaction.py` (11 test) bị skip, không liên quan
+tới phạm vi repair này (không chạm `MutationGuard`/CAS).
+
+**`UI-01/UI-02` VẪN KHÔNG được merge hay deploy.** Repair cycle đã hết
+(`0 remaining`) — một vòng Independent Review REQUEST CHANGES/
+REPAIR_REQUIRED tiếp theo trên HEAD `9f15eb9` buộc lineage này phải
+ESCALATE, không được tự mở cycle thứ hai.
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT
+STATE — UI-01/UI-02 REPAIR-1".
+
+## Root Task: R5-4
+
+```
+root_task: R5-4
+title: Nhãn Hãng/Nhóm hàng/Model cho dòng khớp TỰ ĐỘNG với Tracking
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: KHÔNG có — Owner chỉ thị merge thẳng (DEC-221 §2.3)
+next_action: Owner nghiệm thu production (CHECK-R54-11)
+```
+
+Root task MỚI theo chỉ thị Owner (`DEC-221` §3), KHÔNG phải repair cycle
+thứ ba của lineage `R5` (đã 2/2): lỗi nằm ở SPEC `R5.3` (`CHECK-R53-07`
+chốt sai so với brief `R5` §5), không phải BLOCKING defect do một repair
+cycle trước đó tạo ra.
+
+**Failure path** (chấm `MEDIUM`):
+
+```text
+canonical_product_code (cột đã có) → tracking_identity_of()
+  → nhãn 3 ô tab Nhân viên / gộp R6 theo nhóm-hãng / báo cáo thương hiệu
+```
+
+Chỉ NHÃN và phép gộp theo nhãn; không một phép tính tiền nào đọc hai cột
+mới chở xuống (`CHECK-R54-06`). Một mã sai gắn vào dòng sai chỉ có thể tới
+từ chính bằng chứng của pipeline (`Resolved`), và quyết định của người vẫn
+thắng nó (`CHECK-R54-04`). Không LOW vì R6 dùng `category_label` làm khoá
+gộp doanh thu theo nhóm — sai nhãn làm sai phép gộp, dù không sai tổng.
+
+---
+
+## Root Task: UI-03-UI-04-UI-05
+
+```
+root_task: UI-03-UI-04-UI-05
+title: Thao tác tại chỗ trên bảng kê · bảng theo trang + ngân sách DOM ·
+       ghim tooltip biểu đồ + phân rã
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REQUEST CHANGES — trên HEAD `c60ae08`; 1 finding F-02
+             (BLOCKING), 1 finding F-01 (bắt buộc sửa, không chặn merge
+             — làm validator FAIL), 1 finding F-05 (INFO — ledger thiếu
+             trường base_sha/head_sha, xem `cycles:` bên dưới)
+repair_1: ĐÃ HOÀN TẤT — F-02 và F-01, tiêu cycle DUY NHẤT của lineage này
+next_action: chờ vòng Independent Review kế tiếp trên HEAD `05daf76`. Nếu
+             vòng đó lại ra REQUEST CHANGES/REPAIR_REQUIRED: lineage HẾT
+             ngân sách, phải ESCALATE theo
+             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở repair
+             cycle thứ hai bằng cách đổi tên/tách nhánh/mở lineage mới.
+```
+
+cycles:
+- id: UI345-RC-1
+  base_sha: c60ae081fe2bd7c61dd835b66044a8ff41e0da18
+  head_sha: 05daf76c22a8b66e4a77826d5203cb9d30c32616
+  finding: F-02 (BLOCKING) — `_workspace_write_payload()`
+    (`app/web/server.py`) gọi `_workspace_context(view, only_orders=
+    order_keys)`, và hàm đó lọc `scoped = view["data"].for_sheet(sheet)`
+    THEO SHEET ĐANG XEM trước khi cắt `only_orders`. Một `order_key`
+    thuộc sheet khác không khớp group nào trong `scoped` — không phải vì
+    nó đã bị loại khỏi báo cáo, mà đơn giản vì nó không nằm trên trang
+    đang mở. Bản trước đọc sự vắng mặt ấy thành "đã xoá"
+    (`removed_order_keys`) và đếm thiếu `affected.lines`. Tái hiện +
+    fail-trước/pass-sau: `tests/test_ui030405_workspace_json.py::
+    test_a_decision_reaching_another_sheet_is_not_reported_as_removed`.
+  fix: `removed_order_keys` kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+    details`, không qua `scoped`); `affected.lines` nhận tham số `lines`
+    tường minh từ nơi gọi (`len(shared)` ở hai route xác nhận/ngoài-bảng-
+    giá, mặc định `len(order_keys)` cho route loại/khôi phục).
+  finding_2: F-01 — 3 tham chiếu ghi TÊN FILE TRẦN (thiếu đường dẫn thư
+    mục — hai file governance cốt lõi và một file quy trình phiên) trong
+    `docs/sessions/S154-ui030405-thao-tac-tai-cho.md` §12 làm
+    `validate_reference_integrity.py` FAIL.
+  fix_2: sửa thành đường dẫn đầy đủ (`governance/core/
+    00_SESSION_ORCHESTRATION.md`, `PROJECT/PROJECT_PROGRESS.md`,
+    `PROJECT/REVIEW_BUDGET_LEDGER.md`) sau khi xác nhận đúng ba đường dẫn
+    thật trong repo. `validate_reference_integrity.py`: 7 → 4 lỗi (4 lỗi
+    baseline cũ, không liên quan lineage này).
+  finding_3: F-05 (INFO) — entry ledger của lineage này chưa từng ghi
+    `cycles:`/`base_sha`/`head_sha`, khác định dạng đã dùng cho các
+    lineage khác (`UI-01-UI-02`, `PRA-002`). Sửa NGAY trong repair này:
+    khối `cycles:` này chính là bản vá cho F-05.
+  evidence: `pytest 3681 passed/23 skipped/0 failed` (+1 so với trước
+    repair, đúng test mới của F-02); `tests/browser/ 25 passed` (không
+    đổi); `tests/playwright/ 35 passed` (không đổi); validators governance
+    khác PASS.
+
+Đây là ENTRY ĐẦU TIÊN của lineage này. `effective_risk` được tự chấm lần
+đầu ở đây, theo `governance/core/V4_1_POLICY_FREEZE.md` §4 — chấm theo
+FAILURE PATH, KHÔNG theo tên file.
+
+**Đây là root task MỚI, KHÔNG phải cycle thứ hai của `UI-01-UI-02`.** Lineage
+`UI-01-UI-02` đã `1 allowed / 1 used / 0 remaining`. Ba lát dọc ở đây là ba
+TÍNH NĂNG MỚI theo roadmap Release 2, không phải sửa một BLOCKING defect do
+repair cycle của `UI-01/UI-02` tạo ra — đúng ranh giới `V4.1` §3 ("vùng code
+mới chỉ mở cycle mới khi nó nằm ngoài CUMULATIVE REPAIR DIFF của cycle hiện
+tại"). `git diff e95066a..9f15eb9 --name-only` của `REPAIR-1` chạm đúng hai
+file (`app/web/static/js/app.js`, `tests/playwright/order-panel-save.spec.
+mjs`); `app.js` có bị chạm lại ở đây, nhưng bởi các khối IIFE MỚI, không
+bởi một lần sửa lại `handleSaveResult()`/`doSave()`. Kiểm được:
+
+```text
+$ git diff 9f15eb9..HEAD -- app/web/static/js/app.js | grep "^-"
+--- a/app/web/static/js/app.js
+-   * ------------------------------------------------------------------ */
+-  document.addEventListener("app:content-updated", hideTooltip);
+```
+
+ĐÚNG HAI dòng bị xoá trong toàn bộ file, cả hai thuộc khối tooltip biểu đồ
+(`UI-05` thay chúng bằng một chú thích dài hơn và một listener gọi thêm
+`unpinTooltip()`). Không một dòng nào của `handleSaveResult()`/`doSave()`
+bị chạm.
+
+**Failure path đầy đủ** (đường dữ liệu thật, không phải import graph):
+
+```text
+workspace_presentation.sheet_detail_groups()
+  → _workspace_table.html (bản dựng DUY NHẤT của một hàng bảng kê)
+       ├─ kinh_doanh_nhan_vien.html            (trang đầy đủ, không-JS)
+       ├─ GET /api/v1/periods/<kỳ>/workspace   (UI-04, trang kế)
+       └─ nhánh JSON của ba đường ghi          (UI-03, vá tại chỗ)
+  → MÀN HÌNH của một phiên trình duyệt
+```
+
+Path này DỪNG Ở MÀN HÌNH, với bốn tính chất CẤU TẠO, mỗi tính chất kiểm
+được:
+
+1. **Không đường ghi mới.** Ba route ghi giữ nguyên thân hàm và vẫn gọi
+   nguyên `identity_gateway`/`store`; chỉ câu trả lời rẽ đôi ở dòng cuối.
+   Một lỗi ở đây không GHI sai được — nó chỉ TRẢ LỜI sai về một quyết định
+   đã ghi đúng. Đường không-JS trả `302` y hệt trước, canh bằng
+   `test_the_browser_path_still_redirects_exactly_as_before`.
+2. **Không phép tính mới.** `page_of_groups` chỉ CHỌN dòng. Hàng TỔNG và
+   dải KPI vẫn tính trên `scoped.details` của CẢ kỳ, canh bằng
+   `workspace-window.spec.mjs`::"TỔNG hiển thị là số của TOÀN KỲ…".
+3. **Không chạm export / chốt kỳ.** `grep -rn "sheet_detail_groups\|
+   sheet_detail_totals" app/ --include=*.py` cho đúng hai nơi gọi:
+   `server.py` (bảng kê nhân viên) và `order_api.py` (hàng TỔNG của panel
+   sửa đơn). `business_export` và `period_lock` KHÔNG gọi chúng.
+4. **Không migration, không cột mới, không schema đổi.**
+
+**So sánh để hiệu chỉnh, không đoán suông:**
+
+- KHÔNG bằng `R5` (`HIGH`, 2 cycle): ở `R5`, quyền LOẠI dòng đổi được vân
+  tay chốt kỳ và file Excel — một lỗi ở đó LAN RA NGOÀI một phiên trình
+  duyệt. Ba lát này không có quyền đó và không chạm hai bề mặt ấy.
+- NẶNG HƠN `UI-01-UI-02` (`MEDIUM`, nhưng nhờ "tự khỏi khi tải lại"): bug
+  P0 của lineage đó là một CACHE DOM lệch với nguồn đã ĐÚNG. Ở đây, một lỗi
+  trong `page_of_groups` hoặc trong macro `detail_rows` là SAI Ở NGUỒN — nó
+  GIẤU MẤT một dòng có thật khỏi mắt Owner, ở MỌI lần tải, và không tự khỏi.
+  Đó là lớp lỗi của `FIND-R6-IR-01` (cũng `MEDIUM`).
+- Không lên `HIGH` vì: hàng TỔNG vẫn là số TOÀN KỲ, nên một dòng bị giấu
+  tạo ra một MÂU THUẪN NHÌN THẤY ĐƯỢC ngay trên cùng màn hình (tổng không
+  khớp các dòng đang hiện), và không con số nào rời khỏi màn hình.
+
+```
+Local Risk   = 2/5  (không chạm tầng tính toán, không schema, không migration)
+Blast Radius = 3/5  (bản dựng DUY NHẤT của bảng kê vận hành; sai ở nguồn,
+                     không tự khỏi khi tải lại; dừng ở màn hình)
+Effective Risk = max(2, 3) = 3/5 → MEDIUM → 1 blocking repair cycle
+```
+
+**Golden Baseline KHÔNG được viện dẫn để hạ bậc** (`V4.1` §4.1): không
+Golden test nào phủ đường "một trang bảng kê" hay "vá một BH tại chỗ".
+Lineage này KHÔNG dùng Golden để giảm risk.
+
+### Trạng thái test tại thời điểm mở ledger
+
+```text
+pytest (toàn repo, trừ bọc Playwright)  3662 passed, 23 skipped, 0 failed
+                                        (nền đo TRƯỚC khi sửa, cùng phiên,
+                                         cùng máy: 3643 passed, 23 skipped)
+tests/browser/ (jsdom, node --test)     25 passed
+tests/playwright/ (Chromium thật)       35 passed (13 cũ + 22 mới)
+```
+
+`REPORTS_TEST_POSTGRES_URL` KHÔNG được đặt trong phiên này —
+`tests/test_p0_single_transaction.py` (11 bài) bị skip. Đây là một khoản NỢ
+KIỂM CHỨNG KẾ THỪA, không phải của lineage này: nó chưa từng chạy được qua
+toàn bộ vòng đời `UI-01`/`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2).
+Ba lát ở đây không chạm `MutationGuard`/CAS. Xem `CHECK-UI345-27`.
+
+### Đã push, đã tích hợp nhánh mặc định; chưa merge vào nhánh mặc định
+
+Commit giữ LOCAL đến khi chủ dự án xác nhận trực tiếp bằng văn bản trong
+hội thoại (đúng yêu cầu ban đầu) — sau đó đã `git push -u origin
+claude/ui-03-04-05-reports-px1u9l`.
+
+Ngay sau push, `scripts/branch_authority_check.sh` báo `DIVERGENCE:
+INTEGRATION_DECISION_REQUIRED [loc>5000]` (`governance/core/
+V4_1_POLICY_FREEZE.md` §8): nhánh mặc định đã tiến 5 commit
+(`TASK-OWNER-UIUX-009` + `R7`, hai lineage khác merge trong lúc phiên này
+chạy) với cumulative LOC 5.393, và có xung đột THẬT ở 4 file
+(`kinh_doanh_nhan_vien.html`, `_r6_bits.html`, `server.py`,
+`tinphat-ui.css`). Chủ dự án chọn lựa chọn (A) của §8: tích hợp ngay.
+`git merge origin/claude/extract-upload-repo-gq2ws4` đã thực hiện — 3/4
+file xung đột tự merge sạch, `kinh_doanh_nhan_vien.html` giải tay (nhận
+quyết định `TASK-OWNER-UIUX-009`, bỏ khoá `"identity-warning"` khỏi
+`_workspace_regions()`). Toàn bộ test chạy lại SAU tích hợp: `pytest 3680
+passed/23 skipped`, `Playwright 35 passed`, `jsdom 25 passed`.
+
+`branch_authority_check.sh` hiện báo `behind default: 0 commit` (đã đồng
+bộ) — `DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]` vẫn còn hiện
+vì cờ này đo tổng LOC khác biệt với nhánh mặc định (5.422, phần lớn là
+chính công của lineage `UI-03-UI-04-UI-05`), không đo việc đồng bộ — nó tự
+hết khi lineage này merge vào nhánh mặc định, không phải một việc cần sửa
+riêng.
+
+**Chưa merge vào nhánh mặc định** (chưa tạo PR — không ai yêu cầu) và
+**chưa deploy**. Bằng chứng nguyên văn: `docs/tasks/UI-03-04-05-thao-tac-
+tai-cho-windowing-ghim-bieu-do.md`; `docs/sessions/S154-ui030405-thao-tac-
+tai-cho.md`; `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE —
+UI-03/UI-04/UI-05".
+
+---
+
+## Root Task: R7
+
+```
+root_task: R7
+title: Làm mới liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: KHÔNG có — Owner chỉ thị merge thẳng (DEC-222 §2.5)
+next_action: Owner nghiệm thu production (CHECK-R7-13)
+```
+
+Root task MỚI theo chỉ thị Owner (`DEC-222`). Failure path dài nhất là §A
+(UPDATE ba cột liên hệ trên version hiện hành): không fingerprint, không
+tiền, không quyết định Owner nào đọc ba cột này, và canh AST giữ nó ở đúng
+một hàm/ba cột. §C/§D chỉ trình bày và nguồn vẽ. Không LOW vì §A chạm bảng
+version vốn bất biến — dù chỉ ba cột hiển thị.

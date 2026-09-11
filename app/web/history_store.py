@@ -18,22 +18,27 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Mapping, Optional
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import bindparam, func, insert, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 import tools.db as history_db
 from app.history import coverage as history_coverage
 from app.history import models as history_models
+from app.history import keys as history_keys
+from app.history import line_binding as history_line_binding
 from app.history import reconciler as history_reconciler
 from app.legacy.models import (
     SOURCE_AUTHORITY_SNAPSHOT, SOURCE_AUTHORITY_YEAR, LegacyWorkbook,
 )
+from app.web import db_scope
 from tools.db.schema import (
-    ORIGIN_LEGACY, ORIGIN_PIPELINE, legacy_daily_sales, legacy_import,
-    legacy_monthly_reference, legacy_summary_row, order_line_current,
+    ORIGIN_LEGACY, ORIGIN_PIPELINE, employee_attribution_override,
+    kpi_purchase_price_override, legacy_daily_sales, legacy_import,
+    legacy_monthly_reference, legacy_summary_row, line_binding_exception,
+    line_exclusion, line_product_group_classification, order_line_current,
     order_line_result_version, order_line_source_version, reconciliation_flag,
-    snapshot_line, source_snapshot,
+    snapshot_line, source_snapshot, tracking_display_snapshot,
 )
 
 
@@ -564,6 +569,12 @@ class SnapshotWriteResult:
     counts: dict
     duplicate_of_snapshot_id: Optional[str]
     not_seen: int = 0
+    #: R3 §1 — số chỗ hệ thống TỪ CHỐI tự ghép dòng vào khoá cũ. `0` là kết
+    #: quả bình thường; khác `0` nghĩa là có việc đang chờ Owner.
+    ambiguous_bindings: int = 0
+    #: `R7` — số dòng ``SAME`` mà ba trường liên hệ (Tên KH · SĐT · Địa chỉ)
+    #: được LÀM MỚI tại chỗ từ sổ đang nạp. Xem ``_refresh_contact_fields``.
+    contact_refreshed: int = 0
 
 
 @dataclass(frozen=True)
@@ -594,14 +605,24 @@ def _key_of(row) -> history_models.LineKey:
 
 
 class SnapshotRepository:
-    """Đọc/ghi lịch sử snapshot của pipeline (origin ``PIPELINE_GENERATED``)."""
+    """Đọc/ghi lịch sử snapshot của pipeline (origin ``PIPELINE_GENERATED``).
 
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
+    `STAB-03 REPAIR` — nhận `Engine` hoặc `Connection`; xem
+    `app/web/db_scope.py`. Tập "dòng không còn trong sổ đã xác nhận đầy đủ"
+    (R5 §1) đọc qua đây và nó góp vào vân tay revision, nên nó phải đọc
+    được TRONG transaction ghi cùng với mọi thứ khác của cùng phép kiểm.
+    """
+
+    def __init__(self, engine) -> None:
+        self._scope = db_scope.of(engine)
 
     @property
     def engine(self) -> Engine:
-        return self._engine
+        return self._scope.engine
+
+    def bind(self, connection) -> "SnapshotRepository":
+        """Repo MỚI đọc/ghi bằng `connection` của người gọi."""
+        return SnapshotRepository(connection)
 
     # --- ghi ----------------------------------------------------------
 
@@ -622,7 +643,7 @@ class SnapshotRepository:
         detected = history_coverage.detected_range(line.sale_date for line in source_lines)
         header = history_coverage.parse_header(header_text)
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 duplicate_of = connection.execute(
                     select(source_snapshot.c.snapshot_id)
                     .where(source_snapshot.c.file_fingerprint == file_fingerprint)
@@ -630,6 +651,25 @@ class SnapshotRepository:
                     .limit(1)
                 ).scalar()
                 current = self._load_current(connection, source_lines)
+                # R3 §1 — GẮN DÒNG trước khi reconcile, và chỉ ở đây.
+                #
+                # `build_source_lines` đánh `occurrence_index` theo vị trí
+                # dòng trong file, vì tầng đó là hàm thuần và không biết
+                # database. Vị trí là một mỏ neo YẾU: kế toán đảo hai dòng
+                # cùng tên hàng trong một đơn là đủ để một quyết định giá nhập
+                # trôi sang dòng khác. Đây là chỗ DUY NHẤT biết đủ ba thứ để
+                # sửa: các dòng vào, hiện trạng theo khoá, và những khoá nào
+                # đang mang quyết định của Owner.
+                binding = history_line_binding.bind_occurrences(
+                    source_lines,
+                    self._existing_occurrences(connection, current),
+                )
+                source_lines = list(binding.lines)
+                # Trục KẾT QUẢ phải đi theo cùng phép đổi khoá; nếu không,
+                # `_insert_result_versions` sẽ ghi kết quả vào một khoá không
+                # có trong `versions` và cả snapshot đổ vỡ (hoặc tệ hơn: ghi
+                # kết quả của dòng này lên dòng kia).
+                result_lines = binding.rebound_results(result_lines)
                 outcome = history_reconciler.reconcile(source_lines, current)
                 counts = outcome.counts()
                 # Bước 4 (mục 8): khoá hiện hành NẰM TRONG khoảng đo được của
@@ -674,6 +714,9 @@ class SnapshotRepository:
                 versions = self._insert_source_versions(
                     connection, snapshot_id, created_at, outcome.decisions, current,
                 )
+                contact_refreshed = self._refresh_contact_fields(
+                    connection, outcome.decisions, current,
+                )
                 self._insert_membership(connection, snapshot_id, outcome.decisions, versions)
                 results = self._insert_result_versions(
                     connection, snapshot_id, run_id, created_at, result_lines,
@@ -693,11 +736,18 @@ class SnapshotRepository:
                     version_ids=absent_versions, scope="DETECTED",
                     start=detected[0], end=detected[1],
                 )
+                self._insert_binding_exceptions(
+                    connection, snapshot_id=snapshot_id, run_id=run_id,
+                    created_at=created_at, ambiguities=binding.ambiguities,
+                )
                 if on_persisted is not None:
                     on_persisted()
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
-        return SnapshotWriteResult(snapshot_id, counts, duplicate_of, len(absent))
+        return SnapshotWriteResult(
+            snapshot_id, counts, duplicate_of, len(absent),
+            len(binding.ambiguities), contact_refreshed,
+        )
 
     @staticmethod
     def _next_snapshot_id(connection, created_at: str, file_fingerprint: str) -> str:
@@ -718,6 +768,91 @@ class SnapshotRepository:
             candidate = f"{base}-{suffix:02d}"
             suffix += 1
         return candidate
+
+    #: Bốn bảng quyết định của Owner, và NHÃN của mỗi loại quyết định. Nhãn đi
+    #: thẳng ra ngoại lệ để Owner đọc được "đang treo giá nhập tay" chứ không
+    #: chỉ "có gì đó". Đọc CHỈ ĐỌC ở đây là hợp lệ: `SnapshotRepository` không
+    #: ghi vào bảng nào trong số này, nó chỉ hỏi "khoá này có ai đã quyết chưa".
+    _OWNER_DECISION_TABLES = (
+        (kpi_purchase_price_override, "giá nhập tay"),
+        (employee_attribution_override, "gán nhân viên"),
+        (line_product_group_classification, "phân loại Gia dụng của dòng"),
+        (line_exclusion, "loại dòng khỏi báo cáo"),
+    )
+
+    def _owner_decisions(self, connection, order_keys) -> dict:
+        """``khoá dòng → nhãn các quyết định đang treo trên nó``.
+
+        Đây là dữ kiện quyết định `line_binding` được phép dùng mỏ neo vị trí
+        hay phải dựng một ngoại lệ. Không có nó, hoặc mọi lần đổi thứ tự dòng
+        đều thành ngoại lệ (nhiễu tới mức Owner học cách bỏ qua), hoặc không
+        lần nào thành ngoại lệ (đúng lỗi cần đóng).
+        """
+        decisions: dict = {}
+        keys = sorted(set(order_keys))
+        for start in range(0, len(keys), _KEY_CHUNK):
+            chunk = keys[start:start + _KEY_CHUNK]
+            for table, label in self._OWNER_DECISION_TABLES:
+                rows = connection.execute(
+                    select(table.c.order_key, table.c.product_key,
+                           table.c.occurrence_index)
+                    .where(table.c.order_key.in_(chunk))
+                )
+                for row in rows:
+                    key = (row.order_key, row.product_key,
+                           int(row.occurrence_index))
+                    decisions.setdefault(key, []).append(label)
+        return decisions
+
+    def _existing_occurrences(self, connection, current: dict) -> dict:
+        """``(order_key, product_key) → các khoá đang hiện hành của nhóm``.
+
+        `current` đã được `_load_current` đọc theo ĐÚNG các `order_key` của
+        snapshot mới, nên nó chứa đủ mọi occurrence của mọi nhóm liên quan —
+        kể cả những occurrence mà snapshot mới không có dòng nào tương ứng,
+        vốn chính là các khoá mà phép gắn phải cân nhắc.
+
+        IMEI đọc từ `fingerprint_values`, không từ một câu truy vấn thứ hai:
+        `FINGERPRINT_FIELDS` đã chở nó sẵn (vị trí 7) và mở thêm một đường đọc
+        thứ hai cho cùng một giá trị là mở thêm một chỗ để hai bên lệch nhau.
+        """
+        imei_at = history_keys.FINGERPRINT_FIELDS.index("imei")
+        decisions = self._owner_decisions(
+            connection, (key.order_key for key in current))
+        grouped: dict = {}
+        for key, state in current.items():
+            values = state.fingerprint_values or ()
+            grouped.setdefault((key.order_key, key.product_key), []).append(
+                history_line_binding.ExistingOccurrence(
+                    occurrence_index=key.occurrence_index,
+                    fingerprint=state.fingerprint,
+                    imei=values[imei_at] if len(values) > imei_at else None,
+                    owner_decisions=tuple(decisions.get(
+                        (key.order_key, key.product_key, key.occurrence_index),
+                        ())),
+                ))
+        return grouped
+
+    @staticmethod
+    def _insert_binding_exceptions(
+        connection, *, snapshot_id, run_id, created_at, ambiguities,
+    ) -> None:
+        """Ghi các chỗ hệ thống từ chối đoán. Rỗng ⟹ không câu lệnh nào."""
+        if not ambiguities:
+            return
+        connection.execute(insert(line_binding_exception), [
+            {
+                "order_key": item.order_key,
+                "product_key": item.product_key,
+                "assigned_occurrence_index": item.assigned_occurrence_index,
+                "raised_by_snapshot_id": snapshot_id,
+                "run_id": run_id,
+                "source_row": item.source_row,
+                "detail_json": _json(item.detail()),
+                "created_at": created_at,
+            }
+            for item in ambiguities
+        ])
 
     def _load_current(self, connection, source_lines) -> dict:
         """Hiện trạng của ĐÚNG các khoá đơn xuất hiện trong snapshot mới.
@@ -777,6 +912,10 @@ class SnapshotRepository:
                     order_line_source_version.c.note_raw,
                     order_line_source_version.c.employee_raw,
                     order_line_source_version.c.source_profit,
+                    # `R7` — xem `CurrentState.contact_values`.
+                    order_line_source_version.c.customer_name,
+                    order_line_source_version.c.customer_phone,
+                    order_line_source_version.c.customer_address,
                     order_line_result_version.c.id.label("result_version_id"),
                     order_line_result_version.c.result_fingerprint,
                     order_line_result_version.c.status,
@@ -805,6 +944,10 @@ class SnapshotRepository:
                     result_values=(
                         row.status, row.accounting_purchase_price,
                         row.eligible_kpi_profit,
+                    ),
+                    contact_values=(
+                        row.customer_name, row.customer_phone,
+                        row.customer_address,
                     ),
                 )
         return state
@@ -857,6 +1000,76 @@ class SnapshotRepository:
             if not decision.creates_version:
                 versions[decision.line.key] = current[decision.line.key].source_version_id
         return versions
+
+    @staticmethod
+    def _refresh_contact_fields(connection, decisions, current) -> int:
+        """`R7` — làm mới Tên KH · SĐT · Địa chỉ của dòng ``SAME`` từ sổ đang nạp.
+
+        ## Lỗi production mà hàm này đóng
+
+        Owner báo (kèm ảnh chụp, 2026-09-11): tab Nhân viên hiện `—` ở Khách
+        hàng và Liên hệ cho một số đơn đầu tháng 9, trong khi chính sổ kế toán
+        tháng 9 đang nạp CÓ đủ tên và số điện thoại ở đúng những dòng đó
+        (đối chiếu trực tiếp trên file: BH73884, BH73914, BH73700, BH73922,
+        BH73923 — không dòng nào trống).
+
+        Cơ chế: ba trường liên hệ KHÔNG thuộc ``FINGERPRINT_FIELDS`` — đúng
+        theo thiết kế, vì chúng không phải nội dung nghiệp vụ của dòng (không
+        đổi tiền, không đổi danh tính). Hệ quả là một dòng đã có version từ
+        một lần nạp trước được reconcile thành ``SAME`` và GIỮ NGUYÊN version
+        cũ, kể cả khi version ấy được ghi lúc liên hệ còn trống (sổ xuất sớm
+        chưa điền, hoặc một bản đọc cũ hơn). Sổ nạp lần sau có đủ liên hệ
+        cũng không bao giờ đưa được nó lên màn hình, và không cờ nào bật —
+        vì theo mọi phép đo đang có, dòng "không đổi".
+
+        ## Vì sao UPDATE tại chỗ, không tạo version mới
+
+        Đây là nơi THỨ HAI của tầng này được UPDATE (nơi thứ nhất là bảng con
+        trỏ), và nó hẹp có chủ ý: chỉ ba cột liên hệ, chỉ trên version ĐANG
+        hiện hành, chỉ cho dòng ``SAME``. Tạo một version mới với CÙNG
+        fingerprint sẽ đụng đúng hợp đồng ``SAME`` mà slice A của PRA-002 đã
+        nghiệm thu ("``SAME`` là nhánh DUY NHẤT không ghi source version
+        mới"), làm lệch ``version_no`` và mọi bằng chứng "sổ có đổi hay
+        không". Ba cột này không tham gia fingerprint, không tham gia một
+        quyết định nào của Owner, không đi vào một phép tính tiền nào — nên
+        làm mới chúng tại chỗ không đổi một bản ghi nghiệp vụ nào.
+
+        ## Không xoá thứ đang có bằng một ô trống
+
+        Chỉ ghi khi sổ đang nạp CÓ ít nhất một giá trị VÀ bộ ba khác bộ ba
+        đang lưu. Một sổ xuất vội với cột liên hệ trống không được phép xoá
+        tên khách hàng mà lần nạp trước đã đọc được: làm màn hình nói ÍT hơn
+        vì một file thiếu là một hồi quy, không phải một phép thận trọng.
+        Trả về số dòng đã làm mới, để ``SnapshotWriteResult`` nói ra.
+        """
+        updates = []
+        for decision in decisions:
+            if decision.creates_version or not decision.becomes_current:
+                continue
+            state = current.get(decision.line.key)
+            if state is None:
+                continue
+            incoming = (decision.line.customer_name, decision.line.customer_phone,
+                        decision.line.customer_address)
+            if not any(value for value in incoming):
+                continue
+            if state.contact_values is not None and tuple(state.contact_values) == incoming:
+                continue
+            updates.append({
+                "version_id": state.source_version_id,
+                "customer_name": incoming[0], "customer_phone": incoming[1],
+                "customer_address": incoming[2],
+            })
+        if updates:
+            connection.execute(
+                update(order_line_source_version)
+                .where(order_line_source_version.c.id == bindparam("version_id"))
+                .values(customer_name=bindparam("customer_name"),
+                        customer_phone=bindparam("customer_phone"),
+                        customer_address=bindparam("customer_address")),
+                updates,
+            )
+        return len(updates)
 
     @staticmethod
     def _insert_membership(connection, snapshot_id, decisions, versions) -> None:
@@ -1096,7 +1309,7 @@ class SnapshotRepository:
         không phải một quyết định nghiệp vụ (phân xử = PRA-004 + Owner).
         """
         try:
-            with self._engine.begin() as connection:
+            with self._scope.begin() as connection:
                 row = connection.execute(
                     select(source_snapshot).where(
                         source_snapshot.c.snapshot_id == snapshot_id)
@@ -1151,7 +1364,7 @@ class SnapshotRepository:
 
     def _read(self, statement) -> list[dict]:
         try:
-            with self._engine.connect() as connection:
+            with self._scope.connect() as connection:
                 return [dict(row._mapping) for row in connection.execute(statement)]
         except SQLAlchemyError as exc:
             raise HistoryUnavailableError(str(exc)) from exc
@@ -1184,6 +1397,77 @@ class SnapshotRepository:
             for row in self._read(statement.order_by(reconciliation_flag.c.id).limit(limit))
         ])
 
+    def confirmed_ranges(self) -> list:
+        """Các khoảng ngày đã được người dùng xác nhận là ĐẦY ĐỦ (R5 §3).
+
+        Đây là bằng chứng duy nhất cho phép biểu đồ vẽ số 0 thay vì để trống:
+        trong một khoảng đã xác nhận đầy đủ, "không có dòng nào" là một sự
+        thật đo được, không phải một chỗ chưa nạp sổ. Mọi khoảng khác đều là
+        khoảng trống, và một khoảng trống phải nhìn ra được.
+
+        Trả về `[(start, end)]`, cận trên BAO GỒM — cùng quy ước với
+        `confirmed_range_start`/`confirmed_range_end` đã lưu.
+        """
+        return [
+            (row["confirmed_range_start"], row["confirmed_range_end"])
+            for row in self._read(
+                select(source_snapshot.c.confirmed_range_start,
+                       source_snapshot.c.confirmed_range_end)
+                .where(source_snapshot.c.coverage_state
+                       == history_models.CONFIRMED_COMPLETE,
+                       source_snapshot.c.confirmed_range_start.is_not(None),
+                       source_snapshot.c.confirmed_range_end.is_not(None))
+            )
+        ]
+
+    def removed_candidate_keys(self) -> dict:
+        """Khoá dòng ĐANG BỊ TẠM LOẠI khỏi dữ liệu hiệu lực (`DEC-R5-01`).
+
+        Đây là bề mặt DUY NHẤT mà tầng nghiệp vụ hỏi câu "dòng nào đã biến mất
+        khỏi một sổ đã được xác nhận đầy đủ, và còn đang biến mất". Nó KHÔNG
+        đọc gì thêm ngoài đúng bảng cờ mà PRA-002 slice B đã ghi, và nó KHÔNG
+        ghi một byte nào: việc tạm loại xảy ra LÚC ĐỌC, đúng chỗ và đúng cách
+        mà override giá nhập và phân loại Gia dụng đã làm từ PHB-03.
+
+        Hai bộ lọc, và cả hai đều bắt buộc:
+
+        1. ``kind == REMOVED_IN_SOURCE_CANDIDATE``. Cờ ``NOT_SEEN_IN_LATEST_
+           SNAPSHOT`` của một sổ CHƯA xác nhận đầy đủ KHÔNG có mặt ở đây —
+           nó vẫn chỉ là cảnh báo, đúng như trước R5. Phân biệt này là toàn
+           bộ khác biệt giữa "chưa đủ căn cứ loại" và "đã đủ".
+        2. ``is_active``. Một cờ mô tả đúng cái snapshot đã dựng nó và không
+           bao giờ sai; nhưng nếu dòng đã quay lại ở một sổ nạp SAU đó thì nó
+           thôi mô tả hiện tại. Trạng thái ấy do ``_with_absence_state`` tính
+           lúc đọc từ chính lịch sử membership — nên "dòng quay lại thì tổng
+           tự khôi phục" đúng theo cấu tạo, không nhờ ai nhớ gỡ cờ.
+
+        Trả về ``{(order_key, product_key, occurrence_index): bằng chứng}``.
+        Bằng chứng đi kèm để màn hình cảnh báo nói được VÌ SAO một dòng bị
+        loại (sổ nào, khoảng nào, lúc nào) mà không phải hỏi lại database.
+        """
+        flags = self._with_absence_state([
+            _decode(row, ("detail_json",))
+            for row in self._read(
+                select(reconciliation_flag)
+                .where(reconciliation_flag.c.kind
+                       == history_models.FLAG_REMOVED_CANDIDATE)
+                .order_by(reconciliation_flag.c.id)
+            )
+        ])
+        removed: dict = {}
+        for flag in flags:
+            if not flag.get("is_active"):
+                continue
+            detail = flag.get("detail_json") or {}
+            removed[(flag["order_key"], flag["product_key"],
+                     flag["occurrence_index"])] = {
+                "raised_by_snapshot_id": flag["raised_by_snapshot_id"],
+                "confirmed_at": flag["created_at"],
+                "range_start": detail.get("range_start"),
+                "range_end": detail.get("range_end"),
+            }
+        return removed
+
     def _with_absence_state(self, flags: list[dict]) -> list[dict]:
         """Gắn ``is_active`` cho cờ vắng mặt — DẪN XUẤT, không sửa lịch sử.
 
@@ -1208,16 +1492,39 @@ class SnapshotRepository:
         for flag in absence:
             key = (flag["order_key"], flag["product_key"], flag["occurrence_index"])
             seen, anchor = latest.get(key), raised_at.get(flag["raised_by_snapshot_id"])
-            # So sánh NGẶT: chỉ một snapshot có ``created_at`` LỚN HƠN hẳn mới
-            # được coi là "dòng đã quay lại". Hai snapshot cùng một giây không
-            # có thứ tự đáng tin (``snapshot_id`` sắp theo fingerprint, không
-            # theo thời gian), và ở đây nghiêng về phía an toàn có nghĩa là
-            # GIỮ cờ ở trạng thái còn hiệu lực: một cảnh báo thừa để người dùng
-            # tự kiểm còn hơn âm thầm giấu một sự vắng mặt thật. Không con số
-            # nghiệp vụ nào phụ thuộc vào nhãn này (hiện trạng và tổng tiền
-            # không bao giờ do cờ quyết định).
+            # `FIND-R5-IR-02` — CHIỀU AN TOÀN ĐÃ ĐẢO, và phép so phải đảo
+            # theo.
+            #
+            # Bản trước so NGẶT (`>`) và nói rõ vì sao ngặt là an toàn: *"Không
+            # con số nghiệp vụ nào phụ thuộc vào nhãn này"*. Câu đó đúng cho
+            # tới R5. Từ R5 §1, một cờ "còn hiệu lực" LOẠI dòng khỏi doanh
+            # thu — nên "giữ cờ khi không chắc" thôi là một cảnh báo thừa và
+            # trở thành việc TRỪ TIỀN của một dòng có thật, vĩnh viễn, không
+            # có nút khôi phục, trong khi màn hình vẫn hứa ngược lại.
+            #
+            # Nay ngưỡng là `>=`, và nó chỉ có tác dụng ở đúng một chỗ: những
+            # bản ghi CŨ ghi mốc ở độ phân giải giây (mốc mới đã là micro-giây
+            # — xem `history_writer._now_iso`). Ở đó, bằng nhau nghĩa là không
+            # phân giải được thứ tự, và hai cách sai không ngang giá nhau:
+            #
+            #     giữ cờ khi thực ra dòng đã quay lại  ⟹ mất tiền, im lặng,
+            #                                            không đường quay lại
+            #     bỏ cờ khi thực ra dòng vẫn vắng      ⟹ giữ tiền như TRƯỚC
+            #                                            R5; câu xác nhận nói
+            #                                            "đã tạm loại N dòng"
+            #                                            còn tổng không đổi,
+            #                                            nên người dùng thấy
+            #                                            ngay và nạp lại được
+            #
+            # Nghiêng về phía thứ hai là cùng một kỷ luật mà R5 §3 đã áp cho
+            # biểu đồ: chỗ nào chưa có bằng chứng thì để trống, không tự điền
+            # một con số bất lợi.
+            #
+            # `seen` KHÔNG BAO GIỜ là chính snapshot đã dựng cờ: `_latest_
+            # membership` chỉ xét các snapshot CHỨA khoá, và snapshot dựng cờ
+            # là snapshot KHÔNG chứa nó.
             reappeared = (
-                seen is not None and anchor is not None and seen[0] > anchor
+                seen is not None and anchor is not None and seen[0] >= anchor
             )
             flag["is_active"] = not reappeared
             flag["seen_again_in_snapshot_id"] = seen[1] if reappeared else None
@@ -1367,6 +1674,78 @@ class SnapshotRepository:
         if kind is not None:
             statement = statement.where(reconciliation_flag.c.kind == kind)
         return int(self._read(statement)[0]["total"] or 0)
+
+    # --- R5.3: nhãn hiển thị Tracking, BỀN theo từng lần chạy ------------
+    #
+    # Hai phương thức dưới đây KHÔNG đọc/ghi một con số nghiệp vụ nào. Chúng
+    # đứng ở repository này vì nhãn của một lần chạy phải sống đúng bằng vòng
+    # đời dữ liệu mà nó chú thích — cùng database, cùng `run_id`, cùng lần
+    # khôi phục — chứ không phải vì chúng thuộc phép đối chiếu.
+    #
+    # Xem `tools/db/schema.py` → `tracking_display_snapshot` cho lý do bảng
+    # này tồn tại và vì sao nó KHÔNG phải một danh mục thứ hai của Reports.
+
+    def write_tracking_display(
+        self, *, run_id: str, rows: dict, created_at: str,
+        capture_id: Optional[str] = None, captured_at: Optional[str] = None,
+    ) -> int:
+        """Ghi (hoặc ghi đè) bản chiếu nhãn của MỘT lần chạy. Trả số mã đã ghi.
+
+        Ghi đè theo `run_id` chứ không xếp chồng: một lần chạy có ĐÚNG một
+        capture danh mục, nên hai hàng cho cùng `run_id` chỉ có thể là cùng
+        một sự thật viết hai lần.
+
+        Repository này KHÔNG có ý kiến gì về `rows` rỗng — nó ghi đúng thứ
+        được đưa. Luật "capture không mang nhãn nào thì KHÔNG ghi đè" sống ở
+        tầng gọi (`server._persist_tracking_display`), cạnh đúng luật ấy của
+        cache đĩa (`catalog_display.write`), để hai nơi lưu không thể trôi
+        khỏi nhau.
+        """
+        payload = json.dumps(rows, ensure_ascii=False, sort_keys=True)
+        try:
+            with self._scope.begin() as connection:
+                connection.execute(
+                    tracking_display_snapshot.delete()
+                    .where(tracking_display_snapshot.c.run_id == run_id))
+                connection.execute(insert(tracking_display_snapshot).values(
+                    run_id=run_id, capture_id=capture_id,
+                    captured_at=captured_at, rows_json=payload,
+                    row_count=len(rows), created_at=created_at))
+        except SQLAlchemyError as exc:
+            raise HistoryUnavailableError(str(exc)) from exc
+        return len(rows)
+
+    def latest_tracking_display(self) -> Optional[dict]:
+        """Bản chiếu nhãn của lần chạy GẦN NHẤT, hoặc `None` khi chưa có hàng.
+
+        `None` nghĩa là CHƯA lần chạy nào ghi bản chiếu nào vào database này —
+        không phải "Tracking chưa phân loại". Một hàng có `rows` RỖNG là câu
+        thứ hai ("có capture, capture không mang nhãn nào"), và tầng gọi nói
+        ra đúng lý do đó thay vì gộp cả hai thành một dấu gạch không giải
+        thích.
+
+        Sắp theo `created_at` rồi `run_id` để hai lần chạy trùng đúng mốc thời
+        gian vẫn cho ra một thứ tự XÁC ĐỊNH — một bảng kê đổi nhãn giữa hai
+        lần tải trang mà dữ liệu không đổi là một lỗi khó tin hơn là khó gặp.
+        """
+        rows = self._read(
+            select(tracking_display_snapshot)
+            .order_by(tracking_display_snapshot.c.created_at.desc(),
+                      tracking_display_snapshot.c.run_id.desc())
+            .limit(1))
+        if not rows:
+            return None
+        row = dict(rows[0])
+        try:
+            payload = json.loads(row["rows_json"])
+        except (TypeError, ValueError):
+            # Hàng hỏng đọc thành "có lần chạy, không nhãn nào" — cùng kỷ luật
+            # fail-safe mà `catalog_display.read()` áp cho file trên đĩa: mọi
+            # hư hỏng dẫn tới một màn hình nói ÍT đi, không một màn hình nói
+            # sai.
+            payload = {}
+        row["rows"] = payload if isinstance(payload, dict) else {}
+        return row
 
 
 def _current_where(key):

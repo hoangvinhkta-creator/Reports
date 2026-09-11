@@ -21,6 +21,9 @@ phải nhiễu.
 
 from __future__ import annotations
 
+import calendar
+import math
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
@@ -29,12 +32,13 @@ from app.modules.reporting import brand_metrics as bmx
 from app.modules.reporting import contribution
 from app.modules.reporting import business_metrics as bm
 from app.modules.reporting import profit_gate
+from app.modules.reporting import reporting_sheets
 from app.web.analytics_presentation import (
-    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, group_label, money, period_label,
-    period_options, period_value, previous_period,
+    ALL_DATA_LABEL, UNKNOWN_EMPLOYEE, count, employee_master_rank, group_label,
+    money, period_label, period_options, period_value, previous_period,
 )
 from app.web.legacy_presentation import format_number
-from app.web import brand_identity, revenue_timeline
+from app.web import brand_identity, line_identity, revenue_timeline
 
 ORIGIN_BADGE = "SỐ MỚI"
 
@@ -65,6 +69,10 @@ PROVENANCE_LABELS = {
     bm.PROVENANCE_AUTO: "Tự động",
     bm.PROVENANCE_MANUAL: "Owner đã nhập",
     bm.PROVENANCE_MANUAL_OVERRIDE: "Owner đã sửa",
+    # R3 §2 — giá `0` do CHÍNH SÁCH loại dòng quy định (`OD-105B-01` §3), không
+    # do một nguồn giá nào trả về. Nhãn riêng vì "Tự động" sẽ khiến một dòng
+    # phí trông như đã tra ra giá 0 từ Tracking.
+    bm.PROVENANCE_POLICY_ZERO: "Chính sách (dòng phụ)",
     bm.PROVENANCE_PENDING: "Chưa có",
 }
 
@@ -102,6 +110,11 @@ QUALIFYING_QUANTITY_NOTE = (
     "Tổng số SP chỉ cộng số lượng của những dòng có ĐƠN GIÁ BÁN trên "
     "1.000.000 đồng, để loại giá treo, chân kê và phụ kiện giá trị thấp."
 )
+KPI_PROFIT_NOTE = (
+    "Lợi nhuận KPI cộng lợi nhuận đủ điều kiện của từng dòng hàng trong kỳ. "
+    "Dòng chưa có giá nhập chưa tính được lợi nhuận, nên khi còn dòng như vậy "
+    "con số này mang nhãn CHƯA HOÀN CHỈNH."
+)
 CONVERTED_SALES_NOTE = (
     "DS quy đổi = lợi nhuận KPI CHIA cho tỉ lệ quy đổi của từng dòng, rồi "
     "cộng lại. Tỉ lệ có thể khác nhau ngay trong cùng một nhân viên."
@@ -111,8 +124,14 @@ ORDER_COLUMN_NOTE = (
     "cột Đơn cộng lại có thể lớn hơn tổng đơn của kỳ."
 )
 
+# `TASK-OWNER-UIUX-002` R2 — cột Nhóm bị bỏ khỏi bảng NÀY theo yêu cầu trực
+# tiếp của chủ dự án: tên nhóm (Kinh doanh tiêu chuẩn/Kênh Nội thành) không
+# đổi việc đọc bảng, và hàng "Nội thành"/"Gia dụng" đã tự nói tên nhóm của
+# nó qua chính nhãn hàng. Dữ liệu nhóm (`employee_group`/`employee_group_code`)
+# vẫn được `reporting_rows` tính — chỉ không render ở đây; bảng Target vẫn
+# hiện cột Nhóm vì đó là màn hình khác, không bị chỉ thị này chạm tới.
 EMPLOYEE_COLUMNS: tuple[str, ...] = (
-    "Nhân viên", "Nhóm", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
+    "Nhân viên", "Đơn", QUALIFYING_QUANTITY_LABEL, "Doanh thu",
     "Lợi nhuận KPI", "DS quy đổi", "Đã tính được lợi nhuận",
 )
 
@@ -357,6 +376,52 @@ def _thousand_vnd(value: Optional[Decimal]) -> str:
         (value / Decimal(1000)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
+# R6 §2 — hai tên CÔNG KHAI cho đúng hai hàm viết tiền ở trên. Chúng không
+# thêm một cách viết thứ ba: chúng chỉ cho các trang R6 dùng lại ĐÚNG hai hàm
+# này thay vì import xuyên qua dấu gạch dưới hoặc — tệ hơn — viết lại phép
+# chia 1.000 ở một file khác và làm tròn lệch đi ở đúng những con số lớn nhất.
+def money_text(value: Optional[Decimal]) -> str:
+    """VND đầy đủ, `—` khi `None`."""
+    return _decimal(value)
+
+
+def money_kvnd(value: Optional[Decimal]) -> str:
+    """Nghìn đồng — CHỈ để hiển thị, không bao giờ ở một đường tính."""
+    return _thousand_vnd(value)
+
+
+# `DEC-212` — Owner chốt 09/09/2026: MỌI con số tiền trên màn hình viết theo
+# NGHÌN ĐỒNG, kể cả ĐƠN GIÁ của từng dòng hàng, không riêng các ô tổng đã đổi
+# ở `R1` §9. Lý do là lý do cũ, chỉ mở rộng phạm vi: một bảng mà cột tổng viết
+# `13.550` còn cột giá bán ngay cạnh viết `13.550.000` bắt người đọc đổi đơn
+# vị giữa hai cột kề nhau, và đó là chỗ một con số bị đọc lệch một nghìn lần.
+#
+# Bản VND đầy đủ KHÔNG bị bỏ: nó chuyển sang tooltip, đúng hợp đồng mà
+# `gated_cell`/`money_cell` đã dựng — không đường nào mất khả năng xem lại số
+# gốc. Ô NHẬP LIỆU là ngoại lệ có chủ đích, xem `PRICE_INPUT_NOTE`.
+#: Vì sao Ô NHẬP giữ VND đầy đủ trong khi mọi ô ĐỌC đã rút gọn.
+#:
+#: Rút gọn là một cách VIẾT ra; ô nhập là một cách ĐỌC vào, và hai chiều đó
+#: không đối xứng. Một ô hiện `5.000` mà lưu `5.000.000` buộc Owner phải nhớ
+#: mình đang gõ đơn vị nào — và lần quên đầu tiên ghi vào sổ một giá nhập sai
+#: đúng một nghìn lần, ở một trường mà cả lợi nhuận KPI lẫn DS quy đổi đều
+#: đọc. Không có tooltip nào cứu được một con số đã ghi sai.
+PRICE_INPUT_NOTE = (
+    "Ô nhập giá vẫn dùng VND đầy đủ (13.550.000), khác các ô chỉ để đọc — "
+    "gõ vào và đọc ra là hai chiều khác nhau."
+)
+
+
+def price_pair(value: Optional[Decimal], key: str) -> dict:
+    """`{key: bản nghìn đồng, key + "_full": bản VND đầy đủ}`.
+
+    Trả về một `dict` để nơi gọi `**`-ghép thẳng vào hàng, giữ hai bản LUÔN
+    đi cùng nhau: tách chúng thành hai lệnh gán riêng là mở đường cho một
+    hàng có bản rút gọn mà không có bản đối chiếu.
+    """
+    return {key: _thousand_vnd(value), f"{key}_full": _decimal(value)}
+
+
 def percent(value: Optional[Decimal], *, sign: bool = False) -> str:
     """`None` ⟹ `—`. KHÔNG BAO GIỜ in vô cực hay một phần trăm bịa."""
     if value is None:
@@ -541,6 +606,27 @@ def _state_note(totals: bm.BusinessTotals) -> str:
     return OFFICIAL_NOTE if totals.coverage.is_complete else INCOMPLETE_NOTE
 
 
+def close_summary(totals: bm.BusinessTotals) -> dict:
+    """R3 §5 — bộ số SẮP ĐƯỢC DUYỆT, viết ra để người duyệt đọc trước khi ký.
+
+    Cố ý dùng lại `_metrics` — đúng bộ chỉ tiêu mà trang Báo cáo hiện. Trang
+    chốt kỳ mà tính riêng một bộ số sẽ cho người duyệt ký vào một con số họ
+    chưa từng nhìn thấy ở đâu khác.
+
+    `can_close` là một mệnh đề, không phải một lời khuyên: chốt một kỳ chưa
+    đủ coverage nghĩa là duyệt một bộ số mà chính hệ thống từ chối gọi là
+    CHÍNH THỨC (`R-S7`).
+    """
+    return {
+        **_metrics(totals),
+        "state": totals.state,
+        "state_label": STATE_LABELS.get(totals.state, totals.state),
+        "official": totals.coverage.is_complete,
+        "coverage": coverage_cell(totals.coverage),
+        "can_close": totals.lines > 0,
+    }
+
+
 def employee_rows(by_employee: list[tuple], company: bm.BusinessTotals) -> list[dict]:
     """Bảng nhân viên + dòng `TỔNG`.
 
@@ -716,13 +802,147 @@ def _derived_cell(value: Optional[Decimal], blockers: tuple[str, ...]) -> dict:
     kết quả bằng không; một ô `—` kèm câu "chưa có giá nhập" nói đúng sự thật
     và chỉ luôn việc phải làm.
     """
+    # `DEC-212` — HỢP ĐỒNG Ô TIỀN của repo, giống hệt `gated_cell`/`money_cell`
+    # đã dựng từ `R1` §9 và KHÔNG được đảo: `text` là bản VND ĐẦY ĐỦ (dùng cho
+    # tooltip và cho mọi phép cộng kiểm chứng), `text_kvnd` là bản NGHÌN ĐỒNG
+    # để in ra. Đặt ngược hai tên này là chỗ một `gated_cell` đi qua cùng một
+    # macro sẽ in bản đầy đủ trong khi hàng bên cạnh in bản rút gọn — đúng lỗi
+    # đã xảy ra một lần ở hàng TỔNG của bảng kê.
     if value is not None:
-        return {"text": _decimal(value), "missing": False, "reason": ""}
+        return {"text": _decimal(value), "text_kvnd": _thousand_vnd(value),
+                "missing": False, "reason": ""}
     reason = profit_gate.label(blockers[0]) if blockers else ""
-    return {"text": "—", "missing": True, "reason": reason}
+    return {"text": "—", "text_kvnd": "—", "missing": True, "reason": reason}
 
 
-def detail_rows(details: list[dict]) -> list[dict]:
+# `TASK-OWNER-UIUX-002` — bảng "Theo nhân viên" của trang Báo cáo đọc CHÍNH
+# phân hoạch mà không gian làm việc đã dùng từ `DEC-PHB02-08`
+# (`reporting_sheets.sheet_key_of`), thay vì gộp lại theo `employee` một lần
+# nữa ở đây. Đó là lý do bảng này KHÔNG phát minh ra một quy tắc cộng nào:
+#
+#     Vinh · Quý · Hiệp   nhóm `NOI_THANH` ⟹ dòng của họ nằm trên sheet
+#                         Nội thành (hoặc Gia dụng nếu dòng là hàng gia dụng)
+#     Gia dụng            bucket `ProductGroup` đã có từ ADR-106
+#     mọi người còn lại   sheet của chính họ, giữ nguyên tên
+#
+# `sheet_key_of` là hàm TOÀN PHẦN, nên mỗi dòng thuộc ĐÚNG MỘT hàng của bảng
+# và tổng các hàng luôn đúng bằng tổng kỳ (`§42`) — không hàng nào đếm hai
+# lần, và Nội thành không bao giờ đứng cạnh Vinh/Quý/Hiệp.
+#
+# Thứ tự đọc: nhân viên theo thứ tự khai báo trong master (Tín Phát trước),
+# rồi "chưa xác định", rồi Nội thành, cuối cùng là Gia dụng. Thứ tự là điều
+# DUY NHẤT file này quyết định thêm; nó không đổi một con số nào.
+_ROW_ORDER_EMPLOYEE = 0
+_ROW_ORDER_UNRESOLVED = 1
+_ROW_ORDER_NOI_THANH = 2
+_ROW_ORDER_GIA_DUNG = 3
+
+_SHEET_ROW_ORDER = {
+    reporting_sheets.NOI_THANH_SHEET: _ROW_ORDER_NOI_THANH,
+    reporting_sheets.GIA_DUNG_SHEET: _ROW_ORDER_GIA_DUNG,
+    reporting_sheets.UNRESOLVED_SHEET: _ROW_ORDER_UNRESOLVED,
+}
+
+
+def sheet_display_order(sheet) -> tuple:
+    """Khoá sắp xếp DÙNG CHUNG cho mọi màn hình liệt kê sheet: nhân viên theo
+    thứ tự master (`config/employees.yaml`) trước, "chưa xác định" sau, rồi
+    Nội thành, cuối cùng Gia dụng (`TASK-OWNER-UIUX-002` §5). Trang Báo cáo
+    (`reporting_rows`) và thanh tab của không gian làm việc
+    (`workspace_presentation.sheet_tabs`) đều sort theo ĐÚNG một hàm này —
+    một nguồn thứ tự duy nhất, nên hai màn hình không bao giờ lệch nhau."""
+    if sheet.employee:
+        return (_ROW_ORDER_EMPLOYEE, employee_master_rank(sheet.employee),
+                sheet.employee)
+    return (_SHEET_ROW_ORDER[sheet.key], 0, "")
+
+
+# `TASK-OWNER-UIUX-002` — MỘT khối "Cần kiểm tra" ở CUỐI trang, thay cho hai
+# thẻ lớn từng chen giữa các chỉ tiêu. Hàm này KHÔNG quyết định điều kiện cảnh
+# báo nào: nó nhận đúng hai mô hình đã dựng sẵn (`not_seen_warning` và
+# `coverage_cell`) và chỉ xếp chúng thành danh sách. Không đếm lại số dòng,
+# không đọc lại coverage, không thêm ngưỡng.
+#
+# Ba mức giọng giữ nguyên nghĩa của `DEC-190` §2 và KHÔNG bị hạ cấp: một tình
+# trạng LỖI thật vẫn là `error` khi nằm trong danh sách này.
+def pending_items(*, not_seen: Optional[dict], coverage: dict,
+                  coverage_url: str) -> dict:
+    """Danh sách việc cần soi, đã sắp theo mức nghiêm trọng giảm dần."""
+    items = []
+    if not_seen:
+        items.append({
+            "code": "not-seen",
+            "title": "Sổ nạp gần nhất không thấy lại một số dòng",
+            # `data-metric` của hai con số này là ĐÚNG tên cũ: khối cảnh báo
+            # dời chỗ, nhưng thứ đọc được bằng máy thì không được dời theo.
+            "count": str(not_seen["lines"]),
+            "count_metric": "not-seen-lines",
+            "count_unit": "dòng",
+            "severity": "error",
+            "note": not_seen["note"],
+            "note_metric": "not-seen-warning",
+            "action_label": "MỞ SỔ NẠP GẦN NHẤT",
+            "snapshot_id": not_seen["snapshot_id"],
+            "url": "",
+        })
+    if not coverage["complete"]:
+        items.append({
+            "code": "coverage",
+            "title": "Còn dòng chưa tính được lợi nhuận",
+            # `coverage`/`coverage-percent`/`coverage-note` ở lại dòng trạng
+            # thái cạnh chính hai ô chỉ tiêu chúng quyết định; ở đây chỉ nhắc
+            # lại con số cho người đang đọc danh sách việc phải làm.
+            "count": coverage["text"],
+            "count_metric": "pending-count",
+            "count_unit": "",
+            "severity": "warn",
+            # `TASK-OWNER-UIUX-002` R3 — câu giải thích dài (`INCOMPLETE_NOTE`)
+            # bị bỏ theo yêu cầu trực tiếp của chủ dự án: tiêu đề + số + danh
+            # sách "thiếu cái gì, sửa ở đâu" (`coverage_reasons` bên dưới) đã
+            # đủ để hành động, không cần thêm một đoạn văn giải thích.
+            "note": "",
+            "note_metric": "pending-note",
+            "action_label": "MỞ BẢNG KÊ CHI TIẾT",
+            "snapshot_id": None,
+            "url": coverage_url,
+        })
+    return {"items": items, "count": len(items),
+            "has_error": any(item["severity"] == "error" for item in items)}
+
+
+def reporting_rows(sheet_totals: list[tuple], company: bm.BusinessTotals,
+                   *, groups: dict) -> list[dict]:
+    """Một hàng cho mỗi sheet của kỳ, cộng thêm hàng TỔNG.
+
+    `sheet_totals` là `(Sheet, BusinessTotals)` của từng sheet — tầng route
+    dựng chúng bằng `PeriodData.for_sheet`, tức là cùng một phép chiếu mà
+    không gian làm việc dùng. `groups` là master `{tên: mã nhóm}`; cột Nhóm
+    chỉ có nghĩa với một CON NGƯỜI, nên hàng nhóm/chưa xác định để `—`.
+    """
+    rows = []
+    for sheet, totals in sorted(sheet_totals,
+                                key=lambda item: sheet_display_order(item[0])):
+        rows.append({
+            "employee": sheet.label or UNKNOWN_EMPLOYEE,
+            "key": sheet.employee or "",
+            "sheet_key": sheet.key,
+            "is_employee": bool(sheet.employee),
+            "employee_group": (group_label(groups.get(sheet.employee))
+                               if sheet.employee else "—"),
+            "employee_group_code": (groups.get(sheet.employee) or ""
+                                    if sheet.employee else ""),
+            "total_row": False,
+            **_metrics(totals),
+        })
+    rows.append({"employee": "TỔNG", "key": "", "sheet_key": "",
+                 "is_employee": False, "employee_group": "",
+                 "employee_group_code": "", "total_row": True,
+                 **_metrics(company)})
+    return rows
+
+
+def detail_rows(details: list[dict], *, decisions=None,
+                binding_exceptions: Optional[dict] = None) -> list[dict]:
     """Bảng kê chi tiết — một dòng hàng là một dòng, sửa được ngay tại chỗ.
 
     Đây là "trang tính" mà chỉ thị `ORDER DETAIL TABLE` mô tả, và nó cố ý
@@ -738,10 +958,27 @@ def detail_rows(details: list[dict]) -> list[dict]:
 
     Danh sách gồm CẢ dòng đã đủ giá: quyền sửa một giá tự động phải có chỗ
     thực hiện, và Owner cần nhìn thấy cả kỳ chứ không chỉ phần lỗi.
+
+    `binding_exceptions` (R3 §1) là `{khoá dòng: ngoại lệ gắn dòng còn mở}`.
+    Nó đi cùng dòng chứ không ở một trang riêng, vì hành động Owner cần làm là
+    một hành động TRÊN DÒNG ĐÓ (gõ lại giá cho khoá mới, hay loại dòng cũ khỏi
+    báo cáo) — một danh sách ngoại lệ tách khỏi bảng kê sẽ bắt Owner mở hai
+    trang để làm một việc. `None`/rỗng cho ra chính xác hành vi trước R3.
+
+    `decisions` (R2 §Gói 4) mang trạng thái phân loại HIỆU LỰC vào từng dòng,
+    để bảng này vừa là bảng kê vừa là HÀNG ĐỢI XỬ LÝ: một dòng thiếu giá vì
+    chưa phân loại và một dòng thiếu giá vì ngoài bảng giá hiện cùng một ô
+    trống, nhưng cần hai hành động khác nhau. `None` cho ra chính xác hành vi
+    trước R2.
     """
+    binding_exceptions = binding_exceptions or {}
     rows = []
     for detail in details:
         line = detail["line"]
+        identity = line_identity.state_of(detail, decisions=decisions)
+        raised = binding_exceptions.get((
+            detail["order_key"], detail["product_key"],
+            detail["occurrence_index"]))
         provenance = line.purchase_provenance
         blockers = line.profit_blockers
         # `S121` — một dòng hàng cho ra MỘT dòng bảng khi không có chiết khấu,
@@ -757,22 +994,46 @@ def detail_rows(details: list[dict]) -> list[dict]:
             "sale_date": business_date(detail["sale_date"]),
             "product_raw": detail["product_raw"] or "—",
             "quantity": _decimal(product.quantity),
-            "sell_price": _decimal(product.sell_price),
-            "purchase_price": _decimal(product.purchase_price),
+            **price_pair(product.sell_price, "sell_price"),
+            **price_pair(product.purchase_price, "purchase_price"),
+            # Ô NHẬP giữ VND ĐẦY ĐỦ (`PRICE_INPUT_NOTE`).
             "purchase_price_input": (
                 "" if line.purchase_price is None else format_number(line.purchase_price)),
             "provenance": provenance,
-            "provenance_label": PROVENANCE_LABELS[provenance],
+            # `.get(...)` chứ không `[...]`: một provenance chưa có nhãn phải
+            # hiện NGUYÊN VĂN mã của nó, không làm sập cả trang bảng kê.
+            "provenance_label": PROVENANCE_LABELS.get(provenance, provenance),
             "pending": line.purchase_price is None,
             "overridden": provenance in (
                 bm.PROVENANCE_MANUAL, bm.PROVENANCE_MANUAL_OVERRIDE),
             # `R2` — bối cảnh của chính lần Owner sửa: giá tự động NGAY TRƯỚC
             # lần sửa đó, và lúc sửa. Chỉ có ở dòng MANUAL_OVERRIDE; dòng
             # MANUAL không có giá tự động nào để thay, nên `—`.
-            "auto_price_at_entry": _decimal(detail.get("override_auto_price_at_entry")),
+            **price_pair(detail.get("override_auto_price_at_entry"),
+                         "auto_price_at_entry"),
             "has_auto_price_at_entry": (
                 detail.get("override_auto_price_at_entry") is not None),
             "entered_at": detail.get("override_entered_at") or "",
+            # R2 §4.4 — hai nửa còn lại của provenance giá tay.
+            "entered_by": detail.get("override_entered_by") or "",
+            "override_reason": detail.get("override_reason") or "",
+            # --- R2 §4.1: trạng thái phân loại HIỆU LỰC của dòng --------
+            # Bốn giá trị, và mỗi giá trị dẫn tới một hành động khác nhau ở
+            # cột thao tác. Gộp chúng lại sẽ làm hàng đợi xử lý mất nghĩa.
+            "identity_classification": identity.classification,
+            "identity_label": identity.label,
+            "identity_title": identity.title,
+            "identity_key": identity.identity_key,
+            "can_identify": identity.classifiable,
+            # --- R3 §1: ngoại lệ gắn dòng còn mở trên chính dòng này -----
+            "binding_exception_id": None if raised is None else raised.id,
+            "binding_exception_note": (
+                "" if raised is None else _binding_note(raised)),
+            "can_mark_out_of_catalog": bool(
+                identity.identity_key is not None
+                and identity.classification in (
+                    line_identity.CLASS_NEEDS_REVIEW,
+                    line_identity.CLASS_CONFLICT)),
             # --- ba ô SUY RA -------------------------------------------
             # Có chiết khấu ⟹ đây là số TRƯỚC chiết khấu; dòng "Chiết khấu"
             # ngay dưới mang phần âm, và hai dòng cộng lại đúng bằng canonical.
@@ -799,6 +1060,23 @@ def detail_rows(details: list[dict]) -> list[dict]:
         for part in discount_parts:
             rows.append(_discount_row(detail, line, part))
     return rows
+
+
+def _binding_note(raised) -> str:
+    """Một câu nói ĐỦ để Owner quyết, không phải một mã lỗi.
+
+    Nó phải trả lời được ba câu: hệ thống đang phân vân giữa những khoá nào,
+    quyết định nào đang treo ở đó, và vì sao dòng này lại mang một khoá mới.
+    """
+    decisions = ", ".join(raised.protected_decisions) or "một quyết định"
+    candidates = ", ".join(str(index)
+                           for index in raised.candidate_occurrence_indexes)
+    return (
+        f"Khi nạp lại sổ, hệ thống KHÔNG ghép chắc chắn được dòng này với các "
+        f"khoá cũ ({candidates}) của cùng đơn và cùng mặt hàng — ở đó đang "
+        f"treo {decisions}. Dòng nhận một khoá mới và không quyết định nào bị "
+        f"gắn nhầm. Hãy kiểm tra rồi bấm ĐÃ XỬ LÝ."
+    )
 
 
 def _discount_row(detail: dict, line: bm.BusinessLine,
@@ -832,16 +1110,27 @@ def _discount_row(detail: dict, line: bm.BusinessLine,
         "sale_date": business_date(detail["sale_date"]),
         "product_raw": DISCOUNT_ROW_LABEL,
         "quantity": _decimal(part.quantity),
-        "sell_price": _decimal(part.sell_price),
-        "purchase_price": _decimal(part.purchase_price),
+        **price_pair(part.sell_price, "sell_price"),
+        **price_pair(part.purchase_price, "purchase_price"),
         "purchase_price_input": "",
         "provenance": DISCOUNT_PROVENANCE,
         "provenance_label": DISCOUNT_PROVENANCE_LABEL,
         "pending": False,
         "overridden": False,
         "auto_price_at_entry": "—",
+        "auto_price_at_entry_full": "—",
         "has_auto_price_at_entry": False,
         "entered_at": "",
+        "entered_by": "",
+        "override_reason": "",
+        # Dòng "Chiết khấu" là số suy ra từ sổ, không phải một mặt hàng — nó
+        # không có trạng thái phân loại nào và không được mời Owner xử lý.
+        "identity_classification": None,
+        "identity_label": None,
+        "identity_title": None,
+        "identity_key": None,
+        "can_identify": False,
+        "can_mark_out_of_catalog": False,
         # Lý do "—" (nếu có) đã hiện ở dòng cha ngay trên; lặp lại nó ở đây
         # chỉ làm màn hình nói cùng một việc hai lần.
         "total_sales": _derived_cell(part.total_sales, ()),
@@ -864,17 +1153,43 @@ def missing_price_rows(details: list[dict]) -> list[dict]:
     return detail_rows(details)
 
 
+#: Nhãn của mục "không đổi gì" trong ô chọn nhân viên (`FIND-R5-IR-01`).
+#: Có dấu gạch hai đầu để nó KHÔNG đọc như một cái tên người khi nằm giữa
+#: một danh sách tên người.
+KEEP_EMPLOYEE_LABEL = "— Giữ nguyên —"
+
+
 def assignable_employee_options(
-    employees: list[tuple[str, Optional[str]]]
+    employees: list[tuple[str, Optional[str]]], *, keep_option: bool = False,
 ) -> list[dict]:
     """Danh sách nhân viên trong ô chọn của bảng kê (`OD-5`).
 
-    KHÔNG có mục trống: ô này để GÁN một dòng cho ai đó. Muốn trả dòng về
-    trạng thái chưa xác định thì dùng nút GỠ, và nút đó nói rõ nó làm gì —
-    một mục trống lẫn giữa các tên người thì không.
+    Mặc định KHÔNG có mục trống: ở bảng kê chi tiết, ô này có nút gửi RIÊNG,
+    nên mở nó ra và bấm nó nghĩa là bạn muốn gán. Muốn trả dòng về trạng thái
+    chưa xác định thì dùng nút GỠ, và nút đó nói rõ nó làm gì — một mục trống
+    lẫn giữa các tên người thì không.
+
+    `keep_option=True` thêm MỘT mục "giữ nguyên" mang giá trị rỗng, và nó bắt
+    buộc ở mọi chỗ ô chọn này đi cùng một nút gửi DÙNG CHUNG với thứ khác
+    (R5 §4: `XONG` lưu cả giá lẫn nhân viên).
+
+    Vì sao nó bắt buộc ở đó, và đây là `FIND-R5-IR-01` nguyên văn: một `<select>`
+    mà KHÔNG option nào mang `selected` thì trình duyệt gửi option ĐẦU TIÊN —
+    không phải chuỗi rỗng, không phải "không có gì". Một BH chưa có nhân viên,
+    hay đang chia cho hai người, không có nhân viên hiệu lực DUY NHẤT để chọn
+    sẵn; trước R5 điều đó vô hại vì ô ấy có nút gửi riêng, còn sau R5 nó làm
+    cả đơn đổi chủ vì một cú bấm mà người dùng nghĩ là để lưu giá.
+
+    Mục "giữ nguyên" đứng ĐẦU danh sách một cách có chủ đích: nó cũng là thứ
+    trình duyệt rơi về nếu một ngày nào đó không option nào được chọn sẵn nữa.
+    Fail-safe là "không đổi gì", không phải "gán cho người đầu bảng chữ cái".
     """
-    return [{"value": name, "label": name, "group": group}
-            for name, group in employees]
+    options = [{"value": name, "label": name, "group": group}
+               for name, group in employees]
+    if not keep_option:
+        return options
+    return [{"value": "", "label": KEEP_EMPLOYEE_LABEL, "group": None},
+            *options]
 
 
 def target_cell(target: Optional[Decimal]) -> dict:
@@ -1032,30 +1347,647 @@ CHART_UNDATED_NOTE = (
     "dòng chưa có ngày bán, nên không nằm trong mốc nào của biểu đồ"
 )
 
-#: Chiều cao tối thiểu của một cột KHÁC 0, tính bằng phần trăm. Một cột nhỏ
-#: xíu vẫn phải nhìn thấy được: vẽ nó cao 0 % sẽ đọc thành "tháng đó không
-#: bán được gì", một câu khác hẳn "tháng đó bán được ít".
-_MIN_BAR_PERCENT = 2
+# Hình học của biểu đồ ĐƯỜNG (`TASK-OWNER-UIUX-002` R4), đơn vị SVG.
+#
+# `TASK-OWNER-UIUX-004` §1 đổi từ bề rộng TĂNG THEO SỐ ĐIỂM (mỗi điểm
+# `_CHART_STEP_X` cũ = 64px, nên 6 điểm ra một biểu đồ bé tí giữa một card
+# rộng) sang một `viewBox` CỐ ĐỊNH (`_CHART_VIEW_W`), co giãn 100% bề rộng
+# card qua CSS (`width: 100%` trên `<svg>`, `preserveAspectRatio="none"` đã
+# có sẵn). Card luôn ĐẦY, và khi kỳ đang xem CHƯA đi hết, đường chỉ vẽ tới
+# đúng điểm dữ liệu cuối rồi dừng — phần còn lại để trống, không suy diễn.
+_CHART_PLOT_H = 160
+_CHART_VIEW_W = 960
+#: `DEC-211` — Owner: "biểu đồ được thể hiện đầy đủ từ mép trái sang mép
+#: phải". Đệm bằng 0 để mốc đầu nằm ĐÚNG mép trái và mốc cuối ĐÚNG mép phải,
+#: thay vì thụt vào 8 đơn vị mỗi bên. Nhãn trục Y nằm ở một khối riêng ngoài
+#: `<svg>` nên không có gì bị cắt khi bỏ đệm.
+_CHART_PAD_X = 0
+
+#: Ngày cố định làm nhãn trục X ở mức Ngày — số tròn Owner yêu cầu, không
+#: phải MỌI ngày có dữ liệu. Ngày nào không tồn tại trong tháng đang xem
+#: (vd 30 của tháng 2) tự động bị lọc bởi điều kiện `<= days_in_month`.
+_CHART_DAY_TICKS = (5, 10, 15, 20, 25, 30)
+
+
+def _chart_day_container(period: Optional[tuple[int, int]]):
+    """`(days_in_month)` của kỳ đang xem — trục X mức Ngày cần con số này để
+    đặt vị trí LỊCH của từng điểm (ngày mấy trên tổng bao nhiêu ngày), chứ
+    không phải thứ tự điểm thứ mấy trong danh sách bằng chứng có được."""
+    if period is None:
+        return None
+    year, month = period
+    return calendar.monthrange(year, month)[1]
+
+
+def _chart_quarter_container(period: Optional[tuple[int, int]]):
+    """`(ngày đầu quý, tổng số ngày của quý)` chứa kỳ đang xem — dùng
+    `window_bounds(WEEK, ...)` đã có sẵn thay vì tính lại ranh giới quý."""
+    if period is None:
+        return None
+    bounds = revenue_timeline.window_bounds(revenue_timeline.WEEK, period)
+    if bounds is None:
+        return None
+    start = date.fromisoformat(bounds[0])
+    end = date.fromisoformat(bounds[1])
+    return start, (end - start).days
+
+
+def _chart_x_fraction(key: str, granularity: str, period: Optional[tuple[int, int]],
+                       index: int, count: int) -> float:
+    """Vị trí NGANG (0..1) của một điểm trên trục X.
+
+    Ngày/Tuần/Tháng có một CONTAINER cố định (tháng/quý/năm của kỳ đang
+    xem) nên vị trí tính theo LỊCH — đúng ngày/tuần/tháng nào trong
+    container đó — thay vì theo thứ tự điểm. Quý/Năm không bị khoanh
+    (`TASK-OWNER-UIUX-003` §2), không có container cố định để so, nên giữ
+    cách chia đều theo THỨ TỰ điểm như cũ.
+    """
+    if granularity == revenue_timeline.DAY:
+        days_in_month = _chart_day_container(period)
+        if days_in_month:
+            day = int(key[8:10])
+            return (day - 1) / max(days_in_month - 1, 1)
+    elif granularity == revenue_timeline.WEEK:
+        container = _chart_quarter_container(period)
+        if container:
+            start, quarter_days = container
+            elapsed = (date.fromisoformat(key) - start).days
+            return max(0.0, min(1.0, elapsed / max(quarter_days - 1, 1)))
+    elif granularity == revenue_timeline.MONTH:
+        if period is not None:
+            month = int(key[5:7])
+            return (month - 1) / 11
+    return index / max(count - 1, 1)
+
+
+def _chart_x_ticks(granularity: str, period: Optional[tuple[int, int]]) -> list[dict]:
+    """Nhãn trục X CỐ ĐỊNH theo lịch (Ngày/Tuần/Tháng) — tách khỏi điểm dữ
+    liệu thật: một mốc lịch tròn (5, 10, 15...) hiện ra dù kỳ đó chưa có
+    dòng nào, và một điểm dữ liệu không rơi đúng mốc tròn vẫn được vẽ (bằng
+    chấm), chỉ không mang nhãn riêng — tránh "một bức tường chữ" của
+    `_CHART_MAX_X_LABELS` cũ mà vẫn không bịa thêm dữ liệu nào.
+    """
+    if period is None:
+        return []
+    if granularity == revenue_timeline.DAY:
+        days_in_month = _chart_day_container(period)
+        if not days_in_month:
+            return []
+        return [
+            {"x_pct": (day - 1) / max(days_in_month - 1, 1) * 100,
+             "label": f"{day:02d}"}
+            for day in _CHART_DAY_TICKS if day <= days_in_month
+        ]
+    if granularity == revenue_timeline.WEEK:
+        container = _chart_quarter_container(period)
+        if not container:
+            return []
+        start, quarter_days = container
+        ticks = []
+        cursor = start
+        for _ in range(3):
+            elapsed = (cursor - start).days
+            ticks.append({
+                "x_pct": max(0.0, min(1.0, elapsed / max(quarter_days - 1, 1))) * 100,
+                "label": f"{cursor.day:02d}/{cursor.month:02d}",
+            })
+            next_month = cursor.month + 1
+            next_year = cursor.year
+            if next_month > 12:
+                next_month, next_year = 1, next_year + 1
+            cursor = date(next_year, next_month, 1)
+        return ticks
+    if granularity == revenue_timeline.MONTH:
+        return [
+            {"x_pct": month / 11 * 100, "label": f"Th{month + 1}"}
+            for month in range(12)
+        ]
+    return []
+#: Số đường lưới ngang, KHÔNG kể đường đáy (0). Bốn đường + đáy = năm mốc,
+#: đủ để đọc độ lớn tương đối mà không dày đặc như một tờ kẻ ô ly.
+_CHART_Y_TICKS = 4
+#: Trần hiển thị của Ox: quá nhiều mốc thì MỖI nhãn dưới MỖI điểm là một bức
+#: tường chữ không ai đọc nổi (đúng thứ Owner gọi là "kinh khủng"). Mọi điểm
+#: vẫn có dữ liệu đầy đủ để máy đọc và để rê chuột xem — chỉ chữ hiện dưới
+#: trục là thưa lại.
+_CHART_MAX_X_LABELS = 8
+
+
+def _chart_nice_ceiling(value: Decimal) -> Decimal:
+    """Trần "tròn" phía trên `value`, dùng làm đỉnh trục Y.
+
+    Neo lưới vào chính đỉnh dữ liệu sẽ luôn vẽ đường ra chạm mép trên — không
+    khoảng thở, và đường lưới trên cùng không mang một con số tròn để đọc
+    nhẩm. Tham chiếu đúng cách các thư viện biểu đồ vẫn làm: làm tròn LÊN một
+    trong các bậc 1/2/2,5/5/10 nhân luỹ thừa của 10 gần `value` nhất.
+    """
+    if value <= 0:
+        return Decimal(0)
+    magnitude = math.floor(math.log10(float(value)))
+    scale = Decimal(10) ** magnitude
+    normalized = value / scale
+    for step in (Decimal("1"), Decimal("2"), Decimal("2.5"), Decimal("5"), Decimal(10)):
+        if normalized <= step:
+            return (step * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return (Decimal(10) * scale).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def _chart_y_axis(ceiling: Decimal, *, money: bool = True) -> list[dict]:
+    """Nhãn + toạ độ của các đường lưới ngang, từ đỉnh xuống đáy.
+
+    `money=True` (mặc định, biểu đồ Doanh thu) viết nhãn theo NGHÌN ĐỒNG.
+    `money=False` (biểu đồ SỐ ĐƠN — `paired_count_chart`) viết nguyên số
+    đếm: chia 1.000 một trần nhỏ như "3 đơn" cho ra toàn số 0 trên trục Y,
+    đúng lỗi từng có khi hai biểu đồ dùng chung hàm này mà không tách đơn
+    vị — sửa ở `DEC-214`.
+    """
+    ticks = []
+    for i in range(_CHART_Y_TICKS, -1, -1):
+        fraction = Decimal(i) / Decimal(_CHART_Y_TICKS)
+        value = (ceiling * fraction).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        if ceiling <= 0:
+            label = "0"
+        else:
+            label = _thousand_vnd(value) if money else format_number(value)
+        ticks.append({
+            "y": _CHART_PLOT_H - round(float(fraction) * _CHART_PLOT_H),
+            "label": label,
+        })
+    return ticks
+
+
+#: `TASK-OWNER-UIUX-003` §2 — câu chữ của `F-E` khi biểu đồ bị KHOANH cửa sổ
+#: quanh kỳ đang chọn (Ngày/Tuần/Tháng). Không windowed (Quý/Năm, hoặc đang
+#: xem "Toàn bộ dữ liệu") vẫn dùng nguyên `revenue_timeline.CHART_SCOPE_NOTE`
+#: — F-E không bị bỏ, chỉ ĐỔI CÂU theo đúng phạm vi thật của từng trường hợp,
+#: để không câu nào trên trang nói sai biểu đồ đang nhìn xa tới đâu.
+_CHART_WINDOW_SCOPE_TEXT = {
+    revenue_timeline.DAY: (
+        "Ở mức Ngày, biểu đồ chỉ hiện các ngày trong tháng {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+    revenue_timeline.WEEK: (
+        "Ở mức Tuần, biểu đồ chỉ hiện các tuần trong {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+    revenue_timeline.MONTH: (
+        "Ở mức Tháng, biểu đồ chỉ hiện các tháng trong {label} — "
+        "chưa phải toàn bộ dữ liệu."),
+}
+
+
+def _chart_scope_note(granularity: str, window_label: str) -> str:
+    if window_label:
+        return _CHART_WINDOW_SCOPE_TEXT[granularity].format(label=window_label)
+    return revenue_timeline.CHART_SCOPE_NOTE
+
+
+def _slot_x(index: int, size: int) -> float:
+    """Toạ độ X của vị trí thứ `index` trong một cửa sổ `size` mốc.
+
+    Trục X của R5 §3 là trục TƯƠNG ĐỐI: nó đo "mốc thứ mấy của cửa sổ", không
+    đo ngày tháng. Đó là điều kiện để hai cửa sổ khác thời gian nằm chồng
+    được lên nhau — và cũng là lý do `_chart_x_fraction` (toạ độ theo vị trí
+    lịch trong container) không dùng được ở chế độ hai đường.
+    """
+    if size <= 1:
+        return 0.0
+    return index / (size - 1)
+
+
+def _slot_points(slots, *, ceiling: Decimal, size: int) -> list[dict]:
+    """Toạ độ + nhãn của từng vị trí có dữ liệu. Khoảng trống KHÔNG có mặt.
+
+    Một mốc chưa có bằng chứng không sinh ra phần tử nào: không chấm, không
+    ô rê chuột, không `data-revenue`. Vẽ nó thành một chấm ở đáy là vẽ ra
+    con số 0 mà không ai đo được.
+    """
+    out = []
+    for slot in slots:
+        if slot.is_gap:
+            continue
+        x = _CHART_PAD_X + _slot_x(slot.index, size) * (_CHART_VIEW_W - 2 * _CHART_PAD_X)
+        y_fraction = float(slot.revenue / ceiling) if ceiling > 0 else 0.0
+        out.append({
+            "index": slot.index,
+            "key": slot.key,
+            "label": slot.label,
+            "revenue_raw": format(slot.revenue, "f"),
+            "revenue": format_number(slot.revenue),
+            "revenue_kvnd": _thousand_vnd(slot.revenue),
+            "origin": slot.origin or revenue_timeline.ORIGIN_CURRENT,
+            "legacy": slot.origin == revenue_timeline.ORIGIN_LEGACY,
+            "mixed": slot.origin == revenue_timeline.ORIGIN_MIXED,
+            "gapfill": slot.origin == revenue_timeline.ORIGIN_GAPFILL,
+            "has_gapfill": slot.has_gapfill,
+            "partial": slot.partial,
+            "x": x,
+            "x_pct": x / _CHART_VIEW_W * 100,
+            "y": _CHART_PLOT_H - round(y_fraction * _CHART_PLOT_H),
+        })
+    return out
+
+
+def _slot_polylines(points: list[dict]) -> list[str]:
+    """Đường vẽ, CẮT tại mỗi khoảng trống.
+
+    Trả về nhiều đoạn thay vì một chuỗi: nối thẳng qua một mốc không có bằng
+    chứng sẽ vẽ ra một đoạn dốc mà người đọc hiểu thành "doanh thu đi từ đây
+    tới kia", trong khi sự thật là hệ thống không biết ở giữa có gì.
+    """
+    segments, run = [], []
+    previous = None
+    for point in points:
+        if previous is not None and point["index"] != previous + 1:
+            if len(run) > 1:
+                segments.append(" ".join(run))
+            run = []
+        run.append(f"{point['x']},{point['y']}")
+        previous = point["index"]
+    if len(run) > 1:
+        segments.append(" ".join(run))
+    return segments
+
+
+def _slot_title(point: dict, window_label: str, *, unit: str = "đồng") -> str:
+    """Lời giải thích của MỘT chấm — nói rõ nó thuộc cửa sổ nào.
+
+    Không nói rõ là đúng lớp lỗi mà hai đường sinh ra: hai chấm cùng vị trí,
+    hai con số khác nhau, và không gì trên màn hình cho biết cái nào là kỳ
+    này.
+
+    `unit` mặc định `"đồng"` để mọi nơi gọi cũ giữ nguyên từng ký tự. R6 dùng
+    lại ĐÚNG hàm này cho biểu đồ SỐ ĐƠN với `unit="đơn"` — một chuỗi tooltip
+    thứ hai sẽ là chỗ hai biểu đồ cùng trang mô tả cùng một mốc bằng hai giọng
+    khác nhau.
+    """
+    parts = [f"{window_label} · {point['label']}",
+             f"{point['revenue']} {unit}"]
+    # Chiều origin của `DEC-166 E` vẫn phải đọc được, và vẫn chỉ đọc được ở
+    # đây — trong lời của đúng cái mốc đó, bằng ngôn ngữ THỜI GIAN, không
+    # bằng một bộ chọn nguồn.
+    if point["legacy"]:
+        parts.append(revenue_timeline.LEGACY_POINT_NOTE)
+    elif point["mixed"]:
+        # `DEC-216` — một mốc hỗn hợp CÓ phần lấp lỗ hổng không được mô tả
+        # bằng câu dành cho hỗn hợp sổ nạp + bản ghi lịch sử: phần không phải
+        # sổ nạp ở đây KHÔNG phải bản ghi lịch sử, và nói thế là nói sai về
+        # chính con số người đọc đang nhìn.
+        parts.append(revenue_timeline.MIXED_GAPFILL_POINT_NOTE
+                     if point.get("has_gapfill")
+                     else revenue_timeline.MIXED_POINT_NOTE)
+    elif point.get("gapfill"):
+        # Cùng chỗ, cùng giọng với hai câu trên. Một origin thứ ba mà im lặng
+        # ở đây là một mốc trông y hệt sổ nạp trên màn hình.
+        parts.append(revenue_timeline.GAPFILL_POINT_NOTE)
+    return " — ".join(parts)
+
+
+#: `DEC-215` — Owner: trục X của biểu đồ hai-cửa-sổ lặp lại năm trên mỗi
+#: nhãn ("21/08/2026", "25/08/2026", …) trong khi dòng "Kỳ này: … → …" ngay
+#: trên biểu đồ đã nói năm một lần. Tám nhãn cùng năm là chữ thừa trên một
+#: trục hẹp. Rút gọn CHỈ ở đây — nhãn trục, không phải `bucket_of` hay
+#: tooltip (`_slot_title` vẫn dùng `slot.label` đầy đủ): một người rê chuột
+#: vào một chấm để tra cứu chính xác vẫn cần thấy năm, nhất là ở mức Tuần
+#: khi cửa sổ có thể vắt qua hai năm dương lịch (`DEC-211`).
+def _axis_tick_label(key: str, label: str, granularity: str) -> str:
+    """Nhãn trục X ngắn — DD/MM cho Ngày/Tuần, giữ nguyên `label` cho các
+    mức còn lại (Tháng/Quý/Năm đã đủ ngắn, và năm ở đó KHÔNG lặp vô nghĩa
+    — một cửa sổ 12 tháng thật sự trải qua hai năm dương lịch khác nhau).
+
+    Đọc lại NGÀY THẬT từ `key` (ISO) rồi viết lại, không cắt chuỗi
+    `label`: cắt chuỗi giả định một định dạng cụ thể và sẽ âm thầm sai nếu
+    `bucket_of` đổi cách viết nhãn; đọc lại ngày rồi viết lại luôn đúng bất
+    kể `label` được viết thế nào.
+    """
+    if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK):
+        day = date.fromisoformat(key)
+        return f"{day.day:02d}/{day.month:02d}"
+    return label
+
+
+def _window_x_ticks(slots, *, size: int, granularity: str) -> list[dict]:
+    """Nhãn trục X của một cửa sổ — thưa đều, và KHÔNG chồng lên nhãn cuối.
+
+    Mốc CUỐI luôn có nhãn: nó là mép phải, tức là "đến bao giờ", và một biểu
+    đồ không nói được điều đó thì mọi mốc còn lại cũng mất chỗ neo. Nhưng mốc
+    cuối không rơi đúng bước thưa, nên nó hạ cánh sát ngay cạnh nhãn thưa gần
+    nhất: với cửa sổ 31 ngày, bước 4, hai nhãn cuối là mốc 28 và mốc 30 —
+    cách nhau 6% bề rộng trong khi mỗi nhãn rộng hơn thế, và chúng chồng lên
+    nhau thành một vệt chữ không đọc được.
+
+    Cách xử lý: nhãn thưa nào cách mốc cuối CHƯA ĐỦ MỘT BƯỚC thì bỏ đi. Bỏ
+    cái thưa chứ không bỏ cái cuối — mất mép phải là mất nhiều hơn. Khoảng
+    trống rộng hơn một bước ở cuối trục là cái giá đã biết, và nó nhỏ hơn
+    hẳn cái giá của hai nhãn đè lên nhau.
+    """
+    if size <= 0:
+        return []
+    stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS))
+    # `R7 §C` — mốc ĐỆM (cửa sổ ngắn hơn được kéo cho bằng cửa sổ kia) không
+    # có khoá lịch, nên không có nhãn; mốc thật cuối cùng là "mép phải".
+    slots = [slot for slot in slots
+             if not slot.key.startswith(revenue_timeline.PAD_KEY_PREFIX)]
+    last = max((slot.index for slot in slots), default=-1)
+    keep = [slot for slot in slots
+            if slot.index == last
+            or (slot.index % stride == 0 and last - slot.index >= stride)]
+    return [
+        {"x_pct": (_CHART_PAD_X + _slot_x(slot.index, size)
+                   * (_CHART_VIEW_W - 2 * _CHART_PAD_X)) / _CHART_VIEW_W * 100,
+         "label": _axis_tick_label(slot.key, slot.label, granularity)}
+        for slot in keep
+    ]
+
+
+#: `R7 §C` — tên container theo mức gộp, để câu dự phóng nói "cuối THÁNG",
+#: "cuối QUÝ" … đúng như Owner hỏi ("cuối tháng sẽ đạt được bao nhiêu %").
+_CONTAINER_NAMES = {
+    revenue_timeline.DAY: "tháng", revenue_timeline.WEEK: "quý",
+    revenue_timeline.MONTH: "năm", revenue_timeline.QUARTER: "năm",
+    revenue_timeline.YEAR: "năm",
+}
+
+PROJECTION_GAP_NOTE = (
+    "cùng kỳ năm trước còn {gaps} mốc chưa có bằng chứng, nên phần trăm "
+    "này so với một con số chưa đủ"
+)
+
+
+def _projection_view(paired, *, granularity: str, unit: str,
+                     money: bool) -> Optional[dict]:
+    """Mô hình hiển thị của `revenue_timeline.project()` (`R7 §C`).
+
+    Ba con số và một câu: đã có tới mốc neo · dự phóng hết container · % so
+    với cùng kỳ năm trước (trọn kỳ), kèm % "đến cùng thời điểm". `None` khi
+    không có gì để dự phóng — template không vẽ dòng nào, không vẽ một dòng
+    "— %" trông như một kết quả.
+    """
+    projection = revenue_timeline.project(paired)
+    if projection is None:
+        return None
+    fmt = (_thousand_vnd if money
+           else (lambda value: f"{format_number(value)} {unit}"))
+    unit_text = "nghìn đồng" if money else unit
+    anchor = paired.anchor
+    percent = projection.projected_percent
+    to_date = projection.to_date_percent
+    container = _CONTAINER_NAMES.get(granularity, "kỳ")
+    return {
+        "anchor_text": business_date(anchor),
+        "container": container,
+        "elapsed_units": projection.elapsed_units,
+        "total_units": projection.total_units,
+        "current_to_date": fmt(projection.current_to_date),
+        "current_to_date_raw": format(projection.current_to_date, "f"),
+        "projected": fmt(projection.projected_total),
+        "projected_raw": format(projection.projected_total, "f"),
+        "comparison_total": fmt(projection.comparison_total),
+        "comparison_to_date": fmt(projection.comparison_to_date),
+        "percent": None if percent is None else format_number(percent),
+        "percent_raw": None if percent is None else format(percent, "f"),
+        "to_date_percent": (None if to_date is None
+                            else format_number(to_date)),
+        "unit_text": unit_text,
+        "comparison_gaps": projection.comparison_gaps,
+        "gap_note": (PROJECTION_GAP_NOTE.format(gaps=projection.comparison_gaps)
+                     if projection.comparison_gaps else None),
+    }
+
+
+def paired_revenue_chart(
+    paired, *, granularity: str, has_legacy_months: bool = False,
+    undated: int = 0,
+) -> dict:
+    """Mô hình hiển thị của biểu đồ HAI CỬA SỔ (`DEC-R5-02`).
+
+    Hai chuỗi, MỘT trục, MỘT trần tròn. Trần dùng chung là điều bắt buộc, chứ
+    không phải một lựa chọn thẩm mỹ: hai đường tự chuẩn hoá theo đỉnh riêng
+    sẽ trông ngang nhau kể cả khi một cửa sổ bán gấp ba cửa sổ kia — và cả
+    biểu đồ tồn tại để trả lời đúng câu đó.
+    """
+    both = [slot for slot in (*paired.current, *paired.comparison)
+            if not slot.is_gap]
+    peak = max((slot.revenue for slot in both), default=Decimal(0))
+    ceiling = _chart_nice_ceiling(peak)
+    size = paired.size
+    bars = _slot_points(paired.current, ceiling=ceiling, size=size)
+    previous_bars = _slot_points(paired.comparison, ceiling=ceiling, size=size)
+    for point in bars:
+        point["title"] = _slot_title(point, paired.current_label)
+    for point in previous_bars:
+        point["title"] = _slot_title(point, paired.comparison_label)
+
+    # Nhãn trục X đọc từ CỬA SỔ HIỆN TẠI — trục là tương đối, nên nó chỉ
+    # mang được một bộ nhãn thời gian, và bộ đúng là bộ của cửa sổ người
+    # dùng đang hỏi về. Cửa sổ so sánh nói tên mốc của nó trong tooltip.
+    x_ticks = _window_x_ticks(paired.current, size=size, granularity=granularity)
+    current_total = sum((slot.revenue for slot in paired.current
+                         if not slot.is_gap), Decimal(0))
+    comparison_total = sum((slot.revenue for slot in paired.comparison
+                            if not slot.is_gap), Decimal(0))
+    # `DEC-216` — đọc CẢ HAI cửa sổ. Lỗ hổng mà nguồn này sinh ra để lấp nằm
+    # ở cửa sổ SO SÁNH (cùng kỳ năm trước), nên chỉ soi `bars` là bỏ sót đúng
+    # trường hợp duy nhất mà câu chú thích cần xuất hiện.
+    has_gapfill = any(bar["has_gapfill"] for bar in (*bars, *previous_bars))
+    return {
+        "svg_width": _CHART_VIEW_W,
+        "svg_height": _CHART_PLOT_H,
+        "y_axis": _chart_y_axis(ceiling),
+        "x_ticks": x_ticks,
+        "fixed_x_axis": True,
+        "paired": True,
+        "polylines": _slot_polylines(bars),
+        "comparison_polylines": _slot_polylines(previous_bars),
+        "granularity": granularity,
+        "options": [
+            {"key": key, "label": label, "on": key == granularity}
+            for key, label in revenue_timeline.GRANULARITIES
+        ],
+        "bars": bars,
+        "comparison_bars": previous_bars,
+        "current_label": paired.current_label,
+        "comparison_label": paired.comparison_label,
+        "current_range": _window_range_text(paired.current),
+        "comparison_range": _window_range_text(paired.comparison),
+        "empty": not both,
+        "empty_note": CHART_EMPTY_NOTE,
+        "note": revenue_timeline.CHART_NOTE,
+        "scope_note": revenue_timeline.COMPARISON_SCOPE_TEXT.format(
+            current=_window_range_text(paired.current),
+            comparison=_window_range_text(paired.comparison)),
+        "comparison_note": revenue_timeline.COMPARISON_NOTE,
+        "gap_note": revenue_timeline.GAP_NOTE,
+        "has_gap": any(slot.is_gap for slot in (*paired.current,
+                                                *paired.comparison)),
+        "windowed": True,
+        "total": format_number(current_total),
+        "total_kvnd": _thousand_vnd(current_total),
+        "comparison_total_kvnd": _thousand_vnd(comparison_total),
+        "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
+        "partial_note": CHART_PARTIAL_NOTE,
+        # `DEC-216` — hai câu này LOẠI TRỪ NHAU. `NO_DAILY_LEGACY_NOTE` giải
+        # thích một khoảng trống ở mức Ngày/Tuần; khi nguồn lấp lỗ hổng đã
+        # điền vào đúng chỗ ấy thì không còn khoảng trống nào để giải thích,
+        # và câu cần nói đổi thành "số này ở đâu ra, và đừng dùng nó để đối
+        # soát".
+        "no_daily_legacy_note": (
+            revenue_timeline.NO_DAILY_LEGACY_NOTE
+            if granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
+            and has_legacy_months and not any(bar["legacy"] for bar in bars)
+            and not has_gapfill
+            else None),
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_CHART_NOTE if has_gapfill else None),
+        "undated": undated,
+        "undated_note": CHART_UNDATED_NOTE,
+        # `R7 §C` — dự phóng hết container theo nhịp hiện tại.
+        "projection": _projection_view(paired, granularity=granularity,
+                                       unit="đồng", money=True),
+    }
+
+
+# --- R6 §2: biểu đồ SỐ ĐƠN, cùng engine cửa sổ với biểu đồ doanh thu --------
+#
+# Nó nằm ở ĐÂY, cạnh `paired_revenue_chart`, chứ không ở một module trình bày
+# riêng của R6 — và đó là một quyết định về ranh giới, không phải sự tiện tay:
+# hai biểu đồ phải chia mốc, chọn cửa sổ, cắt đường tại khoảng trống và tính
+# trần tròn GIỐNG NHAU, nên chúng phải dùng chung đúng những hàm dựng hình đó.
+# Đặt bản sao thứ hai ở một file khác là mở đường cho hai trục X trôi khỏi
+# nhau, và khi ấy hai điểm cùng vị trí trên hai biểu đồ sẽ là hai mốc thời
+# gian khác nhau mà không gì trên trang nói ra.
+#
+# `revenue_timeline` KHÔNG được sửa một dòng nào cho việc này: R6 dựng
+# `Point`/`PairedSeries` bằng chính `paired_series()` của R5, chỉ với SỐ ĐƠN
+# thay cho số tiền ở trường `revenue`.
+
+COUNT_CHART_UNIT = "đơn"
+
+COUNT_CHART_EMPTY_NOTE = (
+    "Chưa có đơn nào rơi vào cửa sổ đang xem, nên không có gì để vẽ. Đây khác "
+    "\"không có đơn nào\": một mốc chỉ được vẽ số 0 khi khoảng ngày ấy nằm "
+    "trong một sổ đã được xác nhận đầy đủ."
+)
+
+
+def paired_count_chart(
+    paired, *, granularity: str, undated_orders: int = 0,
+    unit: str = COUNT_CHART_UNIT, title_note: str = "",
+) -> dict:
+    """Mô hình hiển thị của biểu đồ SỐ ĐƠN hai cửa sổ (`R6 §2`).
+
+    Cùng hình dạng dict với `paired_revenue_chart` để một macro template duy
+    nhất vẽ được cả hai, nhưng các ô CHỮ nói bằng đơn vị đếm: `total_text` là
+    "N đơn", không phải "N nghìn đồng". Trộn hai đơn vị vào cùng một ô là cách
+    một người đọc nhanh lấy số đơn làm số tiền.
+
+    `paired` là `revenue_timeline.PairedSeries` mà trường `revenue` của mỗi
+    `Slot` mang SỐ ĐƠN. Việc dùng lại đúng value object của R5 là điều kiện để
+    hai biểu đồ trên cùng trang có cùng cửa sổ, cùng trục và cùng quy ước
+    khoảng trống — xem chú thích ở đầu khối này.
+    """
+    both = [slot for slot in (*paired.current, *paired.comparison)
+            if not slot.is_gap]
+    peak = max((slot.revenue for slot in both), default=Decimal(0))
+    ceiling = _chart_nice_ceiling(peak)
+    size = paired.size
+    bars = _slot_points(paired.current, ceiling=ceiling, size=size)
+    previous_bars = _slot_points(paired.comparison, ceiling=ceiling, size=size)
+    for point in bars:
+        point["title"] = _slot_title(point, paired.current_label, unit=unit)
+    for point in previous_bars:
+        point["title"] = _slot_title(point, paired.comparison_label, unit=unit)
+    x_ticks = _window_x_ticks(paired.current, size=size, granularity=granularity)
+    current_total = sum((slot.revenue for slot in paired.current
+                         if not slot.is_gap), Decimal(0))
+    comparison_total = sum((slot.revenue for slot in paired.comparison
+                            if not slot.is_gap), Decimal(0))
+    # `R7 §D` — biểu đồ Số đơn nay CÓ nguồn lấp lỗ hổng riêng; soi cả hai
+    # cửa sổ như `paired_revenue_chart`, vì lỗ hổng nằm ở cùng kỳ năm trước.
+    has_gapfill = any(bar["has_gapfill"] for bar in (*bars, *previous_bars))
+    return {
+        "svg_width": _CHART_VIEW_W,
+        "svg_height": _CHART_PLOT_H,
+        "y_axis": _chart_y_axis(ceiling, money=False),
+        "x_ticks": x_ticks,
+        "fixed_x_axis": True,
+        "paired": True,
+        "unit": unit,
+        "polylines": _slot_polylines(bars),
+        "comparison_polylines": _slot_polylines(previous_bars),
+        "granularity": granularity,
+        "options": [
+            {"key": key, "label": label, "on": key == granularity}
+            for key, label in revenue_timeline.GRANULARITIES
+        ],
+        "bars": bars,
+        "comparison_bars": previous_bars,
+        "current_label": paired.current_label,
+        "comparison_label": paired.comparison_label,
+        "current_range": _window_range_text(paired.current),
+        "comparison_range": _window_range_text(paired.comparison),
+        "empty": not both,
+        "empty_note": COUNT_CHART_EMPTY_NOTE,
+        "note": title_note or revenue_timeline.CHART_NOTE,
+        "scope_note": revenue_timeline.COMPARISON_SCOPE_TEXT.format(
+            current=_window_range_text(paired.current),
+            comparison=_window_range_text(paired.comparison)),
+        "comparison_note": revenue_timeline.COMPARISON_NOTE,
+        "gap_note": revenue_timeline.GAP_NOTE,
+        "has_gap": any(slot.is_gap for slot in (*paired.current,
+                                                *paired.comparison)),
+        "windowed": True,
+        "total": format_number(current_total),
+        "total_text": f"{format_number(current_total)} {unit}",
+        "comparison_total_text": f"{format_number(comparison_total)} {unit}",
+        "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
+        "partial_note": CHART_PARTIAL_NOTE,
+        "no_daily_legacy_note": None,
+        # `R7 §D` — trước đây LUÔN `None` vì `DEC-216` chỉ nói về doanh số;
+        # nay số đơn có nguồn lấp riêng (`chart_gapfill.daily_order_rows`) và
+        # câu chú thích riêng, không mượn câu của doanh số.
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_COUNT_CHART_NOTE if has_gapfill else None),
+        "undated": undated_orders,
+        "undated_note": (
+            "đơn không có ngày bán nào, nên không rơi vào mốc nào của biểu đồ. "
+            "Chúng vẫn nằm đủ trong tổng số đơn của phạm vi."),
+        # `R7 §C` — dự phóng hết container theo nhịp hiện tại, đơn vị ĐƠN.
+        "projection": _projection_view(paired, granularity=granularity,
+                                       unit=unit, money=False),
+    }
+
+
+
+def _window_range_text(slots) -> str:
+    """`"<mốc đầu> → <mốc cuối>"` của một cửa sổ, theo LỊCH.
+
+    Đọc từ mốc đầu và mốc cuối của cửa sổ chứ không từ mốc đầu/cuối CÓ dữ
+    liệu: cửa sổ là một khoảng thời gian cố định, và thu nó lại quanh phần
+    có số sẽ nói sai về khoảng mà biểu đồ đang nhìn.
+    """
+    if not slots:
+        return ""
+    return f"{slots[0].label} → {slots[-1].label}"
 
 
 def revenue_chart(
     points, *, granularity: str, has_legacy_months: bool = False,
-    undated: int = 0,
+    undated: int = 0, window_label: str = "",
+    period: Optional[tuple[int, int]] = None,
 ) -> dict:
-    """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp."""
+    """Mô hình hiển thị của biểu đồ — MỘT biểu đồ, năm nút đổi mức gộp.
+
+    `period` là kỳ ĐANG XEM (không phải kỳ của từng điểm) — chỉ dùng để
+    dựng CONTAINER lịch cho trục X ở mức Ngày/Tuần/Tháng (`§1`). `None` khi
+    không có kỳ nào đang chọn ("Toàn bộ dữ liệu"): trục X khi đó rơi về
+    cách chia đều theo thứ tự điểm như trước `TASK-OWNER-UIUX-004`.
+    """
     peak = max((point.revenue for point in points), default=Decimal(0))
+    ceiling = _chart_nice_ceiling(peak)
     bars = []
     for point in points:
-        if peak > 0:
-            share = (point.revenue / peak * Decimal(100)).quantize(
-                Decimal("1"), rounding=ROUND_HALF_UP)
-            height = max(int(share), _MIN_BAR_PERCENT if point.revenue > 0 else 0)
-        else:
-            height = 0
         bars.append({
             "key": point.key,
             "label": point.label,
-            "height": height,
             # Giá trị MÁY đọc, không định dạng: `data-revenue` là chỗ test
             # và công cụ ngoài đọc con số, và một dấu chấm phân nhóm hàng
             # nghìn trong đó buộc mỗi bên đọc phải tự gỡ định dạng vi-VN ra
@@ -1071,13 +2003,52 @@ def revenue_chart(
             # đọc được.
             "origin": point.origin,
             "mixed": point.is_mixed,
+            "gapfill": point.is_gapfill,
+            "has_gapfill": point.has_gapfill,
             "partial": point.partial,
             "covered_months": point.covered_months,
             "span_months": point.span_months,
             "title": _chart_bar_title(point),
         })
     day_level = granularity in (revenue_timeline.DAY, revenue_timeline.WEEK)
+    # `TASK-OWNER-UIUX-004` §1 — hình học của ĐƯỜNG, tính ở tầng trình bày và
+    # vẽ bằng SVG tĩnh: không JavaScript, không thư viện, in ra giấy vẫn
+    # đúng (JS ở `app.js` chỉ THÊM tooltip khi rê chuột — không đổi hình học
+    # gốc). Toạ độ Y so với TRẦN TRÒN (`ceiling`), không so với đỉnh dữ liệu
+    # — nên đường lưới và đường doanh thu luôn cùng một thước đo. Toạ độ X
+    # nay theo VỊ TRÍ LỊCH trong container của kỳ đang xem (`_chart_x_
+    # fraction`), không theo thứ tự điểm — nên khi kỳ chưa đi hết, đường
+    # dừng đúng chỗ và phần còn lại của card để trống, không co giãn ra cho
+    # vừa đủ mấy điểm đang có.
+    count = len(bars)
+    fixed_x_axis = (
+        period is not None
+        and granularity in (revenue_timeline.DAY, revenue_timeline.WEEK,
+                            revenue_timeline.MONTH))
+    for index, (point, bar) in enumerate(zip(points, bars)):
+        y_fraction = float(point.revenue / ceiling) if ceiling > 0 else 0.0
+        x_fraction = _chart_x_fraction(point.key, granularity, period, index, count)
+        bar["x"] = _CHART_PAD_X + x_fraction * (_CHART_VIEW_W - 2 * _CHART_PAD_X)
+        bar["x_pct"] = bar["x"] / _CHART_VIEW_W * 100
+        bar["y"] = _CHART_PLOT_H - round(y_fraction * _CHART_PLOT_H)
+    # Nhãn dưới TỪNG điểm chỉ còn dùng khi trục X KHÔNG có lưới cố định
+    # (Quý/Năm, không container) — Ngày/Tuần/Tháng đọc nhãn từ `x_ticks`
+    # thay vào, tách khỏi việc điểm đó có dữ liệu hay không (`§1`). Mốc ĐẦU
+    # và mốc CUỐI của chuỗi thưa vẫn luôn hiện, để biết biểu đồ bắt đầu và
+    # kết thúc ở đâu.
+    stride = max(1, math.ceil(count / _CHART_MAX_X_LABELS)) if bars else 1
+    for index, bar in enumerate(bars):
+        bar["show_label"] = (
+            not fixed_x_axis
+            and ((index % stride == 0) or index == count - 1))
     return {
+        "svg_width": _CHART_VIEW_W,
+        "svg_height": _CHART_PLOT_H,
+        "y_axis": _chart_y_axis(ceiling),
+        "x_ticks": _chart_x_ticks(granularity, period) if fixed_x_axis else [],
+        "fixed_x_axis": fixed_x_axis,
+        "polyline": " ".join(f"{bar['x']},{bar['y']}" for bar in bars),
+        "single_point": len(bars) == 1,
         "granularity": granularity,
         "options": [
             {"key": key, "label": label, "on": key == granularity}
@@ -1088,7 +2059,8 @@ def revenue_chart(
         "empty_note": CHART_EMPTY_NOTE,
         "note": revenue_timeline.CHART_NOTE,
         # `F-E` — phạm vi thời gian của biểu đồ, nói cạnh chính biểu đồ.
-        "scope_note": revenue_timeline.CHART_SCOPE_NOTE,
+        "scope_note": _chart_scope_note(granularity, window_label),
+        "windowed": bool(window_label),
         "total": format_number(revenue_timeline.totals_of(points)),
         "total_kvnd": _thousand_vnd(revenue_timeline.totals_of(points)),
         "has_partial": any(bar["partial"] for bar in bars),
@@ -1099,7 +2071,11 @@ def revenue_chart(
             revenue_timeline.NO_DAILY_LEGACY_NOTE
             if day_level and has_legacy_months
             and not any(bar["legacy"] or bar["mixed"] for bar in bars)
+            and not any(bar["has_gapfill"] for bar in bars)
             else None),
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_CHART_NOTE
+            if any(bar["has_gapfill"] for bar in bars) else None),
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
     }
@@ -1117,7 +2093,11 @@ def _chart_bar_title(point) -> str:
     parts = [f"{point.label}: {format_number(point.revenue)} đồng"]
     if point.is_legacy:
         parts.append(revenue_timeline.LEGACY_POINT_NOTE)
-    if point.is_mixed:
+    if point.is_gapfill:
+        parts.append(revenue_timeline.GAPFILL_POINT_NOTE)
+    if point.is_mixed and point.has_gapfill:
+        parts.append(revenue_timeline.MIXED_GAPFILL_POINT_NOTE)
+    elif point.is_mixed:
         # Cùng chỗ, cùng giọng: một câu trong lời giải thích của ĐÚNG cột đó.
         # Không một điều khiển nào được thêm cho nó (`§11` — không bộ chọn
         # nguồn, không chuỗi thứ hai, không nhãn Số cũ/Số mới).
@@ -1131,7 +2111,10 @@ def _chart_bar_title(point) -> str:
 
 __all__ = [
     "ALL_DATA_LABEL", "CHART_EMPTY_NOTE", "CHART_PARTIAL_NOTE",
+    "COUNT_CHART_EMPTY_NOTE", "COUNT_CHART_UNIT", "paired_count_chart",
+    "paired_revenue_chart",
     "CHART_UNDATED_NOTE", "revenue_chart", "CONVERTED_SALES_NOTE", "DERIVED_COLUMNS_NOTE",
+    "KEEP_EMPLOYEE_LABEL",
     "DETAIL_COLUMNS", "EMPLOYEE_COLUMNS", "GIA_DUNG_COLUMNS", "INCOMPLETE_NOTE",
     "DISCOUNT_PROVENANCE", "DISCOUNT_PROVENANCE_LABEL", "DISCOUNT_ROW_LABEL",
     "DISCOUNT_ROW_NOTE",
@@ -1146,10 +2129,13 @@ __all__ = [
     "ORIGIN_BADGE", "PROVENANCE_LABELS", "QUALIFYING_QUANTITY_LABEL",
     "QUALIFYING_QUANTITY_NOTE", "STATE_LABELS", "UNKNOWN_EMPLOYEE",
     "UNRESOLVED_EMPLOYEE_NOTE",
-    "assignable_employee_options", "coverage_cell", "detail_rows",
+    "assignable_employee_options", "close_summary", "coverage_cell",
+    "detail_rows",
+    "KPI_PROFIT_NOTE", "pending_items", "reporting_rows", "sheet_display_order",
     "employee_detail", "employee_options", "employee_rows", "gated_cell",
     "gia_dung_rows", "missing_price_rows", "month_over_month",
     "not_seen_warning", "percent",
+    "money_kvnd", "money_text", "share_cell",
     "period_label", "period_options", "period_value", "summary",
     "employee_target_block", "target_cell", "target_rows", "vs_target_cell",
 ]

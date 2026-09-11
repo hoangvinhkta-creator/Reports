@@ -30,8 +30,8 @@ REASON_DISPLAY_LABELS = {
     "Pending.accounting_profit": "Thiếu lợi nhuận kế toán",
     "Pending.eligible_kpi_profit": "Thiếu lợi nhuận KPI",
     "Suspicious": "Bất thường",
-    # TASK-PRA-004 — phần còn lại của vũ trụ mã ĐÓNG (10 giá trị
-    # `PriceResolutionReason` ∪ 8 `validation.models.CATEGORIES` ∪ 3 chuỗi
+    # TASK-PRA-004 — phần còn lại của vũ trụ mã ĐÓNG (12 giá trị
+    # `PriceResolutionReason` từ R1 ∪ 8 `validation.models.CATEGORIES` ∪ 3 chuỗi
     # `Pending.<field>`). KHÔNG phải taxonomy mới: tập mã đã đóng sẵn ở tầng
     # engine, đây chỉ là đặt tên tiếng Việt cho phần chưa có tên, để trang
     # Bán hàng không phải hiện một mã tiếng Anh cho người đọc nghiệp vụ.
@@ -41,6 +41,16 @@ REASON_DISPLAY_LABELS = {
     "IDENTITY_SOURCES_UNAVAILABLE": "Chưa có dữ liệu để nhận diện sản phẩm",
     "IDENTITY_REQUIRES_CONFIRMATION": "Sản phẩm cần người xác nhận trước khi lấy giá",
     "TRACKING_HISTORY_SOURCE_UNAVAILABLE": "Chưa có nguồn giá lịch sử Tracking",
+    # R1 — hai mã của nhánh MIN theo ngày bán. Tách bạch "chưa nối nguồn" với
+    # "đã hỏi và Tracking không trả được": cái thứ nhất là việc của người vận
+    # hành (chạy công cụ chụp), cái thứ hai là việc của người kiểm dữ liệu.
+    "TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE": "Chưa có dữ liệu giá nhập theo ngày",
+    "TRACKING_DAILY_MIN_PENDING": "Chưa có giá nhập cho đúng ngày bán",
+    # R2 — hai mã của luồng phân loại. Cả hai đều là câu trả lời ĐÃ CÓ NGƯỜI
+    # QUYẾT ĐỊNH, không phải "chưa biết": nhãn phải nói ra điều đó, nếu không
+    # Owner sẽ đi phân loại lại thứ mình vừa phân loại xong.
+    "IDENTITY_OUT_OF_CATALOG": "Hàng ngoài bảng giá — cần nhập giá tay",
+    "IDENTITY_CONFLICT": "Mã Tracking đang mâu thuẫn — cần chọn lại",
     "VENDOR_SOURCE_NOT_AUTHORIZED": "Nguồn giá nhà cung cấp chưa được cho phép dùng",
     "PUBLIC_PURCHASE_SOURCE_UNAVAILABLE": "Chưa có bảng giá PP",
     "PUBLIC_PURCHASE_NO_PRICE_AT_SALE_DATE": "Thiếu giá PP tại ngày bán",

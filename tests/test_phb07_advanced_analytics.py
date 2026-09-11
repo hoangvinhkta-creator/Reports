@@ -75,8 +75,15 @@ def route_source(name: str) -> str:
 
 
 def primary_tabs(html: str) -> list[str]:
-    return [t.strip() for t in
-            re.findall(r'class="ncc-tab[^"]*"[^>]*>([^<]+)</a>', html)]
+    """Nhãn CHỮ của các mục điều hướng chính, đã bóc thẻ con.
+
+    `DEC-213` đặt một `<svg>` biểu tượng trước nhãn mỗi tab, nên biểu thức
+    cũ (`>([^<]+)</a>`) không còn khớp gì và bài kiểm "đúng ba mục" âm thầm
+    trở thành "đúng không mục nào" — xanh vĩnh viễn, canh không còn gì. Bóc
+    thẻ rồi mới so là cách giữ nguyên MỆNH ĐỀ khi lớp trình bày đổi.
+    """
+    return [re.sub(r"<[^>]+>", "", inner).strip() for inner in
+            re.findall(r'class="ncc-tab[^"]*"[^>]*>(.*?)</a>', html, re.S)]
 
 
 def assert_three_primary_tabs(html: str) -> None:
@@ -161,6 +168,31 @@ def test_phb07_adds_no_migration():
         "0001_legacy.py", "0002_snapshots.py", "0003_business.py",
         "0004_employee_attribution.py", "0005_legacy_source_authority.py",
         "0006_employee_target.py", "0007_employee_workspace.py",
+        # `0008_purchase_price_reason` là của R2 (`R2 Execution Brief` §4.4),
+        # KHÔNG phải của vertical này. Nó có mặt trong danh sách vì phép
+        # khẳng định ở đây là một phép PIN thư mục; điều nó chứng minh vẫn
+        # nguyên vẹn — không có bản migration nào mang tên hay nội dung của
+        # vertical này.
+        "0008_purchase_price_reason.py",
+        # `0009_line_binding_period_close` là của R3 (§1 gắn dòng, §5 chốt
+        # kỳ) — cùng lý do như dòng trên: phép khẳng định ở đây PIN thư mục,
+        # và điều nó chứng minh vẫn nguyên vẹn.
+        "0009_line_binding_period_close.py",
+        # `0010_mutation_request` là của `STAB-03` (chống lặp mutation sau
+        # khi nhánh tự gửi lại bị gỡ) — cùng lý do như hai dòng trên: phép
+        # khẳng định ở đây PIN thư mục, và điều nó chứng minh vẫn nguyên
+        # vẹn. Bảng `mutation_request` không lưu một kết quả phân tích nào
+        # và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0010_mutation_request.py",
+        # `0011_mutation_request_state` là bản sửa hình dạng của `0010` sau
+        # review độc lập (sổ chống lặp phải biết cả lần ghi đang bay) —
+        # cùng lý do: phép khẳng định ở đây PIN thư mục.
+        "0011_mutation_request_state.py",
+        # `0012_tracking_display_snapshot` là của `R5.3` (nhãn hiển thị
+        # Tracking sống qua restart) — cùng lý do như các dòng trên: phép
+        # khẳng định ở đây PIN thư mục. Bảng mới không lưu một kết quả phân
+        # tích nào và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0012_tracking_display_snapshot.py",
     ]
 
 

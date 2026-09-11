@@ -100,6 +100,30 @@ def test_index_shows_live_readiness_when_tracking_configured(client, monkeypatch
     assert "live".encode() in resp.data.lower()
 
 
+def test_the_upload_form_shows_loading_feedback_and_never_double_submits(client):
+    """Bấm CHẠY BÁO CÁO xong không có gì trên trang đổi cho tới khi máy chủ
+    trả lời — với một request giờ gọi Tracking đồng bộ nhiều lượt (R1), vài
+    chục giây im lặng đó trông y hệt một trang treo. Hai thuộc tính dưới đây
+    là toàn bộ cơ chế báo "đang chạy":
+
+    - `data-loading-label`: app.js khoá nút + hiện spinner ngay khi submit.
+    - `data-no-ajax`: form đi native, KHÔNG qua fetch() của app.js — nhánh
+      lỗi mạng của `submitForm()` tự gửi lại bằng `form.submit()` thật khi
+      fetch() thất bại; với một form vừa tạo báo cáo mới vừa không rẻ để
+      chạy lại, để nó tự gửi trùng chỉ vì mạng trục trặc (trong khi máy chủ
+      có thể vẫn đang xử lý xong lượt đầu) là đúng loại lỗi âm thầm cần
+      tránh. Mất một trong hai thuộc tính đều là mất một lớp bảo vệ khác
+      nhau; bài này ghim cả hai.
+    """
+    resp = client.get("/du-lieu/chay-bao-cao")
+    html = resp.data.decode("utf-8")
+    form_start = html.index("<form", html.index('action="/run"') - 200)
+    form_end = html.index(">", form_start)
+    form_tag = html[form_start:form_end]
+    assert "data-no-ajax" in form_tag
+    assert 'data-loading-label="ĐANG TẢI LÊN VÀ CHẠY BÁO CÁO…"' in form_tag
+
+
 def test_unknown_run_id_in_query_is_fail_safe_not_found(client):
     resp = client.get("/du-lieu/chay-bao-cao?run_id=does-not-exist")
     assert resp.status_code == 200
@@ -124,7 +148,7 @@ def test_upload_is_saved_under_a_server_generated_name_not_client_filename(
 ):
     captured = {}
 
-    def fake_run_owner_report(*, sales, captures=None):
+    def fake_run_owner_report(*, sales, captures=None, identity_store_view=None):
         captured["sales"] = sales
         raise OwnerUsabilityError("stop after capturing path")
 
@@ -146,7 +170,7 @@ def test_upload_is_saved_under_a_server_generated_name_not_client_filename(
 def test_temp_upload_is_deleted_after_run_regardless_of_outcome(client, monkeypatch, tmp_path):
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: (_ for _ in ()).throw(OwnerUsabilityError("boom")),
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(OwnerUsabilityError("boom")),
     )
     client.post("/run", data=_upload("a.xlsx"), content_type="multipart/form-data")
     assert list((tmp_path / "uploads").glob("*.xlsx")) == []
@@ -155,7 +179,7 @@ def test_temp_upload_is_deleted_after_run_regardless_of_outcome(client, monkeypa
 def test_owner_usability_error_is_shown_verbatim_truthfully(client, monkeypatch):
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: (_ for _ in ()).throw(
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(
             OwnerUsabilityError("Báo cáo không đối chiếu đủ đơn hàng.")
         ),
     )
@@ -167,7 +191,7 @@ def test_owner_usability_error_is_shown_verbatim_truthfully(client, monkeypatch)
 def test_generic_exception_never_leaks_traceback_or_message(client, monkeypatch):
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: (_ for _ in ()).throw(RuntimeError("secret-internal-detail-9f3a")),
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(RuntimeError("secret-internal-detail-9f3a")),
     )
     resp = client.post("/run", data=_upload("a.xlsx"), content_type="multipart/form-data")
     assert resp.status_code == 400
@@ -184,7 +208,7 @@ def test_successful_run_redirects_with_run_id_and_records_telemetry_once(
     client, monkeypatch, tmp_path
 ):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     telemetry_calls = []
     monkeypatch.setattr(
         beta_telemetry, "record_run", lambda record, **kw: telemetry_calls.append(record)
@@ -203,7 +227,7 @@ def test_result_page_renders_authoritative_summary_and_reason_labels(
     client, monkeypatch, tmp_path
 ):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -222,7 +246,7 @@ def test_result_page_renders_authoritative_summary_and_reason_labels(
 
 def test_business_severity_is_never_labelled_as_error(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -234,7 +258,7 @@ def test_business_severity_is_never_labelled_as_error(client, monkeypatch, tmp_p
 
 def test_dropped_lines_count_is_shown(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path, unmapped_lines=[object(), object()])
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -252,7 +276,7 @@ def test_download_requires_a_known_run_id(client):
 
 def test_download_serves_the_exact_artifact_of_that_run(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -289,7 +313,7 @@ def test_download_rejects_a_relative_traversal_artifact_path(client, app):
 
 def test_browser_never_receives_an_absolute_filesystem_path(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -316,7 +340,7 @@ def test_index_response_contains_no_secret_or_authority_payload(client):
 
 def test_result_response_contains_no_secret_or_authority_payload(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -328,7 +352,7 @@ def test_result_response_contains_no_secret_or_authority_payload(client, monkeyp
 
 def test_history_response_contains_no_secret_or_authority_payload(client, monkeypatch, tmp_path):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
@@ -385,7 +409,7 @@ def test_refreshing_the_result_page_never_records_telemetry_again(
     client, monkeypatch, tmp_path
 ):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     calls = []
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: calls.append(record))
 
@@ -426,11 +450,11 @@ def test_413_over_limit_response_is_short_and_actionable(client, app):
 def test_history_page_lists_runs_newest_first(client, monkeypatch, tmp_path):
     monkeypatch.setattr(beta_telemetry, "record_run", lambda record, **kw: None)
     owner_run_a = _fake_owner_run(tmp_path, output_name="report-A.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_a)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run_a)
     client.post("/run", data=_upload("first.xlsx"), content_type="multipart/form-data")
 
     owner_run_b = _fake_owner_run(tmp_path, output_name="report-B.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_b)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run_b)
     client.post("/run", data=_upload("second.xlsx"), content_type="multipart/form-data")
 
     resp = client.get("/du-lieu")
@@ -460,7 +484,7 @@ def test_run_and_artifact_survive_a_simulated_server_restart(monkeypatch, tmp_pa
     app1 = web_server.create_app(db_path=db_path)
     app1.testing = True
     owner_run = _fake_owner_run(tmp_path, output_name="report-restart.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     app1.test_client().post(
         "/run", data=_upload("real.xlsx"), content_type="multipart/form-data"
     )
@@ -500,7 +524,7 @@ def test_a_second_viewer_reads_the_same_persisted_run_not_a_process_local_copy(
     viewer_a_app = web_server.create_app(db_path=db_path)
     viewer_a_app.testing = True
     owner_run = _fake_owner_run(tmp_path, output_name="report-shared.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     viewer_a_app.test_client().post(
         "/run", data=_upload("real.xlsx"), content_type="multipart/form-data"
     )
@@ -527,7 +551,7 @@ def test_registry_write_failure_after_report_generation_is_reported_not_hidden(
     client, app, monkeypatch, tmp_path
 ):
     owner_run = _fake_owner_run(tmp_path)
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
 
     def _boom(**kwargs):
         raise sqlite3_error()
@@ -557,21 +581,29 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
         tracking_capture=tmp_path / "live-history.json",
         tracking_catalog=tmp_path / "live-catalog.json",
         tracking_inv_map=None,
+        tracking_daily_min=tmp_path / "live-daily-min.json",
         evidence={"catalog_capture_id": "LIVE-CAT-1"},
         cleanup_called=[],
     )
     live_result.tracking_capture.write_text("{}")
     live_result.tracking_catalog.write_text("{}")
+    live_result.tracking_daily_min.write_text("{}")
 
     def fake_cleanup():
         live_result.cleanup_called.append(True)
 
     live_result.cleanup = fake_cleanup
-    monkeypatch.setattr(web_server.live_pull, "pull_live_captures", lambda **kw: live_result)
+    pulled = {}
+
+    def fake_pull(**kw):
+        pulled.update(kw)
+        return live_result
+
+    monkeypatch.setattr(web_server.live_pull, "pull_live_captures", fake_pull)
 
     captured = {}
 
-    def fake_run_owner_report(*, sales, captures=None):
+    def fake_run_owner_report(*, sales, captures=None, identity_store_view=None):
         captured["captures"] = captures
         owner_run = _fake_owner_run(tmp_path)
         return owner_run
@@ -584,35 +616,107 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
     assert resp.status_code == 302
     assert captured["captures"] is not None
     assert captured["captures"].tracking_capture == live_result.tracking_capture
+    # R1: ảnh chụp MIN theo ngày bán phải ĐI TIẾP tới lượt chạy. Thiếu bước
+    # này thì mọi dòng Tracking Pending, và báo cáo vẫn tạo ra bình thường —
+    # một báo cáo không có giá vốn nào, trông y hệt một báo cáo có.
+    assert captured["captures"].tracking_daily_min == live_result.tracking_daily_min
+    # Và workbook của CHÍNH lần chạy này phải tới được lớp pull: kế hoạch hỏi
+    # giá (tập mã + khoảng ngày) chỉ dựng được từ nó.
+    assert pulled["sales"] is not None
+    assert Path(pulled["sales"]).suffix == ".xlsx"
     assert live_result.cleanup_called == [True]
 
     record = client.application.config["RUN_REGISTRY"].get_run("report-20260901T080000Z")
-    assert record.tracking_evidence == {"catalog_capture_id": "LIVE-CAT-1"}
+    # `R5.1 REPAIR-2` — bằng chứng của run nay mang THÊM trạng thái ghi bản
+    # chiếu hiển thị. Ở bài này `tracking_catalog` là một đường dẫn giả không
+    # tồn tại, nên kết quả đúng là `NO_SNAPSHOT`: run vẫn thành công, và bằng
+    # chứng NÓI RA rằng không có nhãn nào được ghi thay vì im lặng.
+    #
+    # `R5.3` — thêm khoá `durable`: bản chiếu nay có HAI nơi lưu (cache trên
+    # đĩa ephemeral và bản BỀN theo `run_id` trong database), và bằng chứng
+    # phải nói ra từng nơi. `None` ở đây vì capture không đọc được thì cũng
+    # KHÔNG có gì để lưu bền — không phải vì nhánh bền im lặng.
+    assert record.tracking_evidence == {
+        "catalog_capture_id": "LIVE-CAT-1",
+        "catalog_display": {"written": False, "rows": 0,
+                            "reason": "NO_SNAPSHOT", "durable": None},
+    }
 
 
 def test_run_fails_clearly_and_does_not_silently_fall_back_when_tracking_unavailable(
-    client, monkeypatch
+    client, monkeypatch, capsys
 ):
     monkeypatch.setattr(live_pull, "is_configured", lambda env=None: True)
 
     def _raise(**kwargs):
         raise live_pull.TrackingUnavailableError(
-            "mô phỏng lỗi mạng", node="purchase_price_history", reason="TIMEOUT",
+            "mô phỏng lỗi mạng", node="daily_min",
+            reason="không gọi được /api/min-ngay: HTTPError: HTTP 409 ly=nguon-dang-ghi",
         )
 
     monkeypatch.setattr(web_server.live_pull, "pull_live_captures", _raise)
     run_owner_report_called = []
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: run_owner_report_called.append(True),
+        lambda *, sales, captures=None, identity_store_view=None: run_owner_report_called.append(True),
     )
 
     resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
     assert resp.status_code == 503
-    assert "Tracking" in resp.data.decode()
+    body = resp.data.decode()
+    assert "Tracking" in body
+    # Sự cố 2026-09-11: banner chỉ nói "nguồn: daily_min" và log chỉ nói
+    # `tracking_ms` — lý do thật (409 cron đang ghi / timeout / 403 WAF)
+    # không đi đâu cả. Nay banner mang LÝ DO và stdout có một dòng grep được.
+    assert "nguồn: daily_min" in body
+    assert "HTTP 409 ly=nguon-dang-ghi" in body
+    log = capsys.readouterr().out
+    dong = [l for l in log.splitlines() if l.startswith("reports.tracking_failed ")]
+    assert len(dong) == 1
+    assert "node=daily_min" in dong[0]
+    assert 'reason="không gọi được /api/min-ngay: HTTPError: HTTP 409 ly=nguon-dang-ghi"' in dong[0]
+    assert "trace=" in dong[0]
     # KHÔNG được âm thầm tiếp tục chạy report bằng nguồn nào khác.
     assert run_owner_report_called == []
+
+
+def test_a_successful_pull_logs_what_the_price_contract_answered(client, monkeypatch, capsys):
+    """Đối xứng với bài trên: một lần chạy THÀNH CÔNG mà mọi dòng Tracking `—`
+    phải để lại một dòng nói hợp đồng trả bao nhiêu bản ghi, bao nhiêu lỗi
+    theo lý do, và những ngày Tracking chưa quan sát."""
+    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: True)
+    live_result = SimpleNamespace(
+        tracking_capture=None, tracking_catalog=None, tracking_inv_map=None,
+        tracking_daily_min=None, temp_paths=(),
+        evidence={
+            "daily_min_status": "COMPLETE", "daily_min_product_codes": 78,
+            "daily_min_date_from": "2026-09-01", "daily_min_date_to": "2026-09-03",
+            "daily_min_records": 0, "daily_min_errors": 156,
+            "daily_min_error_reasons": {"SOURCE_UNAVAILABLE": 156},
+            "daily_min_unobserved_dates": ["2026-09-01", "2026-09-03"],
+            "purchase_price_history_status": "COMPLETE", "inv_map_status": "COMPLETE",
+        },
+        cleanup=lambda: None,
+    )
+    monkeypatch.setattr(web_server.live_pull, "pull_live_captures",
+                        lambda **kwargs: live_result)
+    monkeypatch.setattr(
+        web_server, "run_owner_report",
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(
+            OwnerUsabilityError("dừng sau khi kéo — bài này chỉ đo dòng log")),
+    )
+
+    client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
+
+    dong = [l for l in capsys.readouterr().out.splitlines()
+            if l.startswith("reports.tracking_pull ")]
+    assert len(dong) == 1
+    assert "daily_min_status=COMPLETE" in dong[0]
+    assert "codes=78" in dong[0]
+    assert "records=0" in dong[0]
+    assert "reasons=SOURCE_UNAVAILABLE:156" in dong[0]
+    assert "unobserved_dates=2026-09-01,2026-09-03" in dong[0]
 
 
 def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_path):
@@ -621,6 +725,7 @@ def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_pat
         tracking_capture=tmp_path / "live-history.json",
         tracking_catalog=tmp_path / "live-catalog.json",
         tracking_inv_map=None,
+        tracking_daily_min=tmp_path / "live-daily-min.json",
         evidence={},
         cleanup_called=[],
     )
@@ -628,7 +733,7 @@ def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_pat
     monkeypatch.setattr(web_server.live_pull, "pull_live_captures", lambda **kw: live_result)
     monkeypatch.setattr(
         web_server, "run_owner_report",
-        lambda *, sales, captures=None: (_ for _ in ()).throw(OwnerUsabilityError("boom")),
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(OwnerUsabilityError("boom")),
     )
 
     client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
@@ -662,7 +767,7 @@ def test_r2_run_then_download_round_trips(monkeypatch, tmp_path):
     app = _r2_app(monkeypatch, tmp_path)
     client = app.test_client()
     owner_run = _fake_owner_run(tmp_path, output_name="report-r2.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
 
     resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
     assert resp.status_code == 302
@@ -681,7 +786,7 @@ def test_r2_second_viewer_reads_the_same_persisted_run(monkeypatch, tmp_path):
     shared_client = FakeR2Client()
     viewer_a = _r2_app(monkeypatch, tmp_path, r2_client=shared_client).test_client()
     owner_run = _fake_owner_run(tmp_path, output_name="report-shared-r2.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     viewer_a.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
     viewer_b = _r2_app(monkeypatch, tmp_path, r2_client=shared_client).test_client()
@@ -698,11 +803,11 @@ def test_r2_two_runs_created_close_together_both_land_independently(monkeypatch,
     client = app.test_client()
 
     owner_run_a = _fake_owner_run(tmp_path, output_name="report-conc-A.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_a)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run_a)
     client.post("/run", data=_upload("first.xlsx"), content_type="multipart/form-data")
 
     owner_run_b = _fake_owner_run(tmp_path, output_name="report-conc-B.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run_b)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run_b)
     client.post("/run", data=_upload("second.xlsx"), content_type="multipart/form-data")
 
     runs = app.config["RUN_REGISTRY"].list_runs(limit=10)
@@ -714,7 +819,7 @@ def test_r2_artifact_upload_failure_does_not_create_a_visible_run(monkeypatch, t
     app = _r2_app(monkeypatch, tmp_path, r2_client=client_obj)
     client = app.test_client()
     owner_run = _fake_owner_run(tmp_path, output_name="report-fail.xlsx")
-    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None: owner_run)
+    monkeypatch.setattr(web_server, "run_owner_report", lambda *, sales, captures=None, identity_store_view=None: owner_run)
     client_obj.fail["put_object"] = FakeClientError("503", "R2 unavailable")
 
     resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")

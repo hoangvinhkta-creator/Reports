@@ -1,15 +1,46 @@
+{# `TASK-OWNER-UIUX-004` §6 — chuyển TAB (thanh dưới) vẫn là điều hướng
+   trang thật; làm việc TRONG một tab thì không tải lại. Ranh giới đó là
+   CHÍNH khối `{% if not partial %}` bên dưới: mọi thứ trong đó (doctype,
+   head, thanh tab) chỉ dựng khi tải trang THẬT; khi `app.js` xin một mảnh
+   (`X-Fragment: 1`, đọc thành `partial` qua context_processor ở
+   `server.py`) thì response CHỈ còn đúng nội dung của `{% block content %}`
+   — không route nào phải tự biết về `partial`, tất cả nằm ở ĐÚNG một chỗ. #}
+{% import "_icons.html" as icons %}
+{% if not partial %}
 <!doctype html>
 <html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Reports{% endblock %}</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/tinphat-ui.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tinphat-ui.css') }}?v={{ ASSET_VERSION }}">
 </head>
+{# `DEC-213` — MỘT ngôn ngữ thiết kế cho cả hệ, nên `body` không còn mang
+   lớp theme theo trang (`theme-finance` của `TASK-OWNER-UIUX-005` §4 đã
+   được gỡ). Lớp duy nhất còn lại là CHỦ ĐỀ SÁNG/TỐI, và nó do người dùng
+   chọn chứ không do trang quyết định.
+
+   Lớp `dark` được đặt bởi một đoạn script NGẮN chạy TRƯỚC khi trang vẽ
+   (xem dưới) chứ không bởi `app.js` cuối trang: đặt muộn thì người dùng
+   nền tối thấy một nháy trắng ở mỗi lần tải trang. #}
 <body>
+<script>
+  /* Đọc lựa chọn đã lưu và đặt lớp NGAY, trước lần vẽ đầu tiên. Bọc
+     try/catch vì `localStorage` ném lỗi ở chế độ ẩn danh của vài trình
+     duyệt — một tuỳ chọn giao diện không được làm hỏng cả trang. */
+  try {
+    if (localStorage.getItem('tp_theme') === 'toi') {
+      document.body.classList.add('dark');
+    }
+  } catch (e) { /* không có bộ nhớ cục bộ: dùng chủ đề sáng mặc định */ }
+</script>
 <header class="tp-header">
   <span class="tp-brand">REPORTS</span>
   <span class="tp-label">Shared Online Beta</span>
+  {# Nút sáng/tối — cùng vị trí và cùng cách nói của Tracking: vẽ biểu tượng
+     của việc SẼ XẢY RA khi bấm, không phải trạng thái đang có. #}
+  <button type="button" class="tp-theme-btn" id="btnTheme"
+          data-metric="theme-toggle" aria-label="Đổi giao diện sáng/tối"></button>
 </header>
 <nav class="ncc-tabs">
   {# R1 (`GỠ TRÙNG UX`) rút thanh tab chính còn 4 mục; `DEC-185` rút tiếp còn
@@ -24,12 +55,42 @@
      Các trang sâu hơn (Tổng quan, Bán hàng, Sản phẩm, Nhân viên số cũ, Lịch
      sử, Chạy báo cáo) vẫn còn nguyên route — không bị xoá — chỉ không còn là
      tab thường trực (§5). #}
-  <a class="ncc-tab {{ 'on' if active_tab == 'bao-cao' }}" href="{{ url_for('business_summary') }}">Báo cáo</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">Nhân viên</a>
-  <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">Dữ liệu</a>
+  {# `DEC-213` — mỗi tab mang một biểu tượng đứng TRƯỚC nhãn, như Tracking.
+     Icon KHÔNG thay chữ và không mang thông tin riêng: nó là một cái mốc
+     để mắt tìm lại đúng tab, nên nó `aria-hidden` và nhãn chữ giữ nguyên
+     từng ký tự. #}
+  <a class="ncc-tab {{ 'on' if active_tab == 'bao-cao' }}" href="{{ url_for('business_summary') }}">{{ icons.ico('bao-cao', 16) }}Báo cáo</a>
+  <a class="ncc-tab {{ 'on' if active_tab == 'nhan-vien' }}" href="{{ url_for('business_employee') }}">{{ icons.ico('nhan-vien', 16) }}Nhân viên</a>
+  <a class="ncc-tab {{ 'on' if active_tab == 'du-lieu' }}" href="{{ url_for('data_tab') }}">{{ icons.ico('du-lieu', 16) }}Dữ liệu</a>
 </nav>
-<main class="tp-main">
+{# `STAB-04` — WRAPPER `<main id="app-content">` chỉ được dựng ở lần tải
+   trang THẬT. Trước bản này nó nằm NGOÀI khối `{% if not partial %}`, nên
+   mỗi response mảnh cũng mang theo một `<main id="app-content">`; `app.js`
+   gán chuỗi đó vào `innerHTML` của wrapper đang có, và sau một lần điều
+   hướng trong tab, DOM có HAI phần tử cùng `id`.
+
+   Hậu quả không chỉ là "HTML không hợp lệ": `document.getElementById()`
+   trả về phần tử ĐẦU TIÊN, nên lần thay mảnh KẾ TIẾP ghi vào wrapper
+   NGOÀI và bọc thêm một tầng nữa — mỗi lần điều hướng thêm một tầng, và
+   mọi selector `#app-content > …` của CSS lệch đi một tầng so với lần
+   trước.
+
+   Hợp đồng sau bản này, và `tests/test_stab04_fragment_contract.py` canh
+   đúng hai mệnh đề này:
+
+       response ĐẦY ĐỦ  → có ĐÚNG MỘT `id="app-content"`
+       response MẢNH    → KHÔNG có `id="app-content"` nào
+
+   Thẻ mở và thẻ đóng vì thế nằm trong hai khối `{% if %}` khác nhau. Jinja
+   không phân tích cú pháp HTML nên điều đó hợp lệ; đọc hơi lạ, nhưng nó
+   giữ được điều quan trọng hơn: KHÔNG route nào phải tự biết về `partial`
+   (xem chú thích đầu file). #}
+<main class="tp-main" id="app-content">
+{% endif %}
 {% block content %}{% endblock %}
+{% if not partial %}
 </main>
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ JS_ASSET_VERSION }}"></script>
 </body>
 </html>
+{% endif %}

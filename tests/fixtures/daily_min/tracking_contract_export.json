@@ -1,0 +1,363 @@
+{
+  "capture_id": "DMIN-20260906T020000Z-e2e00001",
+  "captured_at": "2026-09-06T02:00:00+00:00",
+  "captured_by": "kiem-xuyen-suot",
+  "source_system_ref": "tracking/api/min-ngay",
+  "capture_status": "COMPLETE",
+  "data": {
+    "schema_version": "daily-min-v1",
+    "business_timezone": "Asia/Ho_Chi_Minh",
+    "currency_unit": "VND_THOUSAND",
+    "date_from": "2026-09-03",
+    "date_to": "2026-09-05",
+    "generated_at": "2026-09-06T02:00:00.000Z",
+    "query_revision": "44ad1354-a2d0-4f57-b503-59fbebf533e1",
+    "pages": 1,
+    "records": [
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-A",
+        "effective_date": "2026-09-03",
+        "min_price": 6800,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "cc441b8f9291f407",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-cc441b8f9291f407",
+        "observed_on": "2026-09-03",
+        "carried_from": null
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-A",
+        "effective_date": "2026-09-04",
+        "min_price": 6000,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "35f93dae93229e60",
+        "recorded_at": "2026-09-04T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-04-35f93dae93229e60",
+        "observed_on": "2026-09-04",
+        "carried_from": null
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-A",
+        "effective_date": "2026-09-05",
+        "min_price": 6000,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "PROVISIONAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "35f93dae93229e60",
+        "recorded_at": "2026-09-04T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-04-35f93dae93229e60",
+        "observed_on": "2026-09-04",
+        "carried_from": "2026-09-04"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-B",
+        "effective_date": "2026-09-03",
+        "min_price": 5000,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "INVENTORY",
+            "source_id": "TON_KHO"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "67073e4d9f134d10",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-67073e4d9f134d10",
+        "observed_on": "2026-09-03",
+        "carried_from": null
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-B",
+        "effective_date": "2026-09-04",
+        "min_price": 5000,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "INVENTORY",
+            "source_id": "TON_KHO"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "67073e4d9f134d10",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-67073e4d9f134d10",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-B",
+        "effective_date": "2026-09-05",
+        "min_price": 5000,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "INVENTORY",
+            "source_id": "TON_KHO"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "PROVISIONAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "67073e4d9f134d10",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-67073e4d9f134d10",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-C",
+        "effective_date": "2026-09-03",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "OUT_OF_STOCK",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1605bc745c8d4d5f",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1605bc745c8d4d5f",
+        "observed_on": "2026-09-03",
+        "carried_from": null
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-C",
+        "effective_date": "2026-09-04",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "OUT_OF_STOCK",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1605bc745c8d4d5f",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1605bc745c8d4d5f",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-C",
+        "effective_date": "2026-09-05",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "OUT_OF_STOCK",
+        "day_status": "PROVISIONAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1605bc745c8d4d5f",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1605bc745c8d4d5f",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-D",
+        "effective_date": "2026-09-03",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "NO_DATA",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1c2c8a86896d3561",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1c2c8a86896d3561",
+        "observed_on": "2026-09-03",
+        "carried_from": null
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-D",
+        "effective_date": "2026-09-04",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "NO_DATA",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1c2c8a86896d3561",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1c2c8a86896d3561",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-D",
+        "effective_date": "2026-09-05",
+        "min_price": null,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [],
+        "price_status": "NO_DATA",
+        "day_status": "PROVISIONAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "1c2c8a86896d3561",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-1c2c8a86896d3561",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03"
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-E",
+        "effective_date": "2026-09-03",
+        "min_price": 9500,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "82cf3dc593b66db8",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-82cf3dc593b66db8",
+        "observed_on": "2026-09-03",
+        "carried_from": null,
+        "excluded_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Đất Việt",
+            "price": 150,
+            "reference_price": 9500,
+            "rule": "ABNORMAL_LOW"
+          }
+        ]
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-E",
+        "effective_date": "2026-09-04",
+        "min_price": 9500,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "FINAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "82cf3dc593b66db8",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-82cf3dc593b66db8",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03",
+        "excluded_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Đất Việt",
+            "price": 150,
+            "reference_price": 9500,
+            "rule": "ABNORMAL_LOW"
+          }
+        ]
+      },
+      {
+        "schema_version": "daily-min-v1",
+        "product_code": "TRK-E",
+        "effective_date": "2026-09-05",
+        "min_price": 9500,
+        "currency_unit": "VND_THOUSAND",
+        "min_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Tuấn Ngoan"
+          }
+        ],
+        "price_status": "AVAILABLE",
+        "day_status": "PROVISIONAL",
+        "rule_version": "min-1",
+        "source_fingerprint": "82cf3dc593b66db8",
+        "recorded_at": "2026-09-03T04:00:00.000Z",
+        "recorded_by": "cron",
+        "revision": "R-2026-09-03-82cf3dc593b66db8",
+        "observed_on": "2026-09-03",
+        "carried_from": "2026-09-03",
+        "excluded_sources": [
+          {
+            "source_type": "SUPPLIER",
+            "source_id": "Đất Việt",
+            "price": 150,
+            "reference_price": 9500,
+            "rule": "ABNORMAL_LOW"
+          }
+        ]
+      }
+    ],
+    "errors": [
+      {
+        "product_code": "TRK-KHONG-CO",
+        "effective_date": "2026-09-03",
+        "reason": "NO_DATA"
+      },
+      {
+        "product_code": "TRK-KHONG-CO",
+        "effective_date": "2026-09-04",
+        "reason": "NO_DATA"
+      },
+      {
+        "product_code": "TRK-KHONG-CO",
+        "effective_date": "2026-09-05",
+        "reason": "NO_DATA"
+      }
+    ]
+  }
+}

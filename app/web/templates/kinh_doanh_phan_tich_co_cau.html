@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% import "_r6_bits.html" as r6 %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Cơ cấu {{ summary.dimension_label }}{% endblock %}
+
+{% macro group_table(columns, rows) -%}
+<div class="tp-scroll">
+<table>
+  <tr>{% for label in columns %}
+    <th class="{{ 'num' if loop.index > 1 }}">{{ label }}</th>
+  {% endfor %}</tr>
+  {% for row in rows %}
+  <tr class="{{ 'row-total' if row.total_row }}"
+      data-kind="{{ 'known' if row.known else 'undecided' }}">
+    <td class="code" data-metric="bucket-label"
+        {% if row.reason %}title="{{ row.reason }}"{% endif %}>{{ row.label }}</td>
+    <td class="num" data-metric="revenue"
+        title="{{ row.revenue.text }} đồng">{{ row.revenue.text_kvnd }}</td>
+    <td class="num{{ ' empty-cell' if row.share.missing }}"
+        data-metric="share">{{ row.share.text }}</td>
+    <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+    <td class="num" data-metric="discount"
+        title="{{ row.discount.text }} đồng">{{ row.discount.text_kvnd }}</td>
+    <td class="num" data-metric="orders">{{ row.orders }}</td>
+    <td class="num" data-metric="lines">{{ row.lines }}</td>
+    {# Repair `AR-R6-IR-03` — ô giá bình quân trống phải NÓI RA vì sao. Hai lý
+       do khác nhau ("nhóm không có hàng hoá" và "chưa dòng nào đủ dữ liệu để
+       chia") cần hai câu, vì chỉ một trong hai có chỗ sửa. #}
+    <td class="num{{ ' empty-cell' if row.average_price.missing }}"
+        data-metric="average-price"
+        {% if row.average_price.reason %}title="{{ row.average_price.reason }}"
+        {%- elif not row.average_price.missing %}title="{{ row.average_price.text }} đồng"{% endif %}
+        >{{ row.average_price.text_kvnd }}</td>
+    <td class="num{{ ' empty-cell' if row.min_price.missing }}"
+        data-metric="min-price"
+        {% if not row.min_price.missing %}title="{{ row.min_price.text }} đồng"{% endif %}
+        >{{ row.min_price.text_kvnd }}</td>
+    <td class="num{{ ' empty-cell' if row.max_price.missing }}"
+        data-metric="max-price"
+        {% if not row.max_price.missing %}title="{{ row.max_price.text }} đồng"{% endif %}
+        >{{ row.max_price.text_kvnd }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{%- endmacro %}
+
+{% block content %}
+<h1>CƠ CẤU THEO {{ summary.dimension_label|upper }}</h1>
+<p class="insight">{{ biz.business_badge() }} Cùng kết quả chính thức với trang
+  BÁO CÁO, chỉ gộp theo chiều khác. Bảng chỉ PHÂN HOẠCH — không có công thức
+  doanh thu, số lượng hay chiết khấu thứ hai ở đâu trong đường này.</p>
+
+<div class="module">
+  {{ r6.scope_picker(periods, scope, url_for('analytics_structure')) }}
+
+  <nav class="filter-row" data-metric="dimension-picker">
+    {% for item in dimensions %}
+    <a class="ghost btn-mini {{ 'on' if item.on }}" data-dimension="{{ item.key }}"
+       href="{{ url_for('analytics_structure', chieu=item.key, ky=scope.period_value, **{'tu-ngay': scope.date_from if scope.is_custom else '', 'den-ngay': scope.date_to if scope.is_custom else ''}) }}"
+       >{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+
+  <h2>{{ summary.scope_label }}
+    <span class="cnt"><span data-metric="matched-lines">{{ summary.matched_lines }}</span>
+      / <span data-metric="total-lines">{{ summary.total_lines }}</span>
+      dòng đã khớp mã Tracking</span></h2>
+
+  <p class="insight" data-metric="taxonomy-authority">{{ summary.source_note }}</p>
+
+  {% if summary.empty %}
+  <p class="empty" data-metric="structure-empty">Phạm vi này chưa có dòng hàng nào.</p>
+  {% endif %}
+
+  {{ r6.reconcile_block(summary) }}
+</div>
+
+<div class="module">
+  <h2>Bảng {{ summary.dimension_label|lower }}
+    <span class="cnt">{{ rows|length - 1 }} nhóm</span></h2>
+  {{ group_table(columns, rows) }}
+
+  {# Mỗi bucket "chưa xác định" tự nói lý do và chỗ sửa của CHÍNH nó — một câu
+     chung sẽ chỉ Owner đi sửa nhầm chỗ ở phần lớn số dòng. #}
+  {% for item in summary.undecided %}
+  <p class="insight" data-metric="undecided-note" data-state="{{ item.state }}">
+    <strong>{{ item.label }}</strong> — {{ item.count }} dòng. {{ item.reason }}</p>
+  {% endfor %}
+
+  <details class="how-to-read">
+    <summary>Cách đọc bảng này</summary>
+    <p class="insight" data-metric="orders-column-note">{{ summary.orders_note }}</p>
+    <p class="insight" data-metric="total-row-note">{{ summary.total_row_note }}</p>
+    <p class="insight" data-metric="taxonomy-note">{{ summary.taxonomy_note }}</p>
+    <p class="insight" data-metric="price-note">Giá BQ là
+      <strong>tổng doanh thu chia tổng số lượng</strong> của các dòng HÀNG HOÁ
+      trong nhóm, không phải trung bình của các đơn giá. Hai vế của phép chia
+      dùng ĐÚNG MỘT tập dòng — chỉ dòng có đủ cả doanh thu và số lượng hợp lệ —
+      nên một dòng chưa chốt doanh thu không kéo giá bình quân xuống. Dòng phí
+      và dòng chiết khấu không có giá bán hàng hoá nên ba cột giá hiện
+      <strong>—</strong>; doanh thu của chúng vẫn nằm đủ trong cột doanh thu.
+      Giá 0 của hàng tặng là giá bán THẬT và vẫn tham gia cả giá bình quân lẫn
+      cột giá thấp nhất. Cột giá thấp nhất/cao nhất đọc đơn giá của MỌI dòng
+      hàng hoá có đơn giá, kể cả dòng chưa chốt doanh thu.</p>
+  </details>
+</div>
+{% endblock %}

@@ -452,6 +452,17 @@ kpi_purchase_price_override = Table(
     Column("auto_price_at_entry", ExactNumeric, nullable=True),
     Column("entered_at", Text, nullable=False),
     Column("entered_by", Text, nullable=True),
+    # R2 §4.4 — LÝ DO của quyết định giá. Bắt buộc ở tầng nghiệp vụ khi lần ghi
+    # này THAY một giá AUTO đang có (``MANUAL_OVERRIDE``); tuỳ chọn khi nó chỉ
+    # LẤP một chỗ trống (``MANUAL``), nơi một lý do mặc định ngắn là đủ.
+    #
+    # ``nullable=True`` ở tầng cột là có chủ ý và KHÔNG mâu thuẫn với câu trên:
+    # mọi bản ghi đã tồn tại trước R2 không có lý do, và một ``NOT NULL`` ở đây
+    # sẽ buộc phải bịa một chuỗi cho chúng — tức ghi vào audit trail một câu mà
+    # không người nào từng nói. Ràng buộc nghiệp vụ sống ở
+    # ``BusinessDecisionStore.set_purchase_price``, nơi nó biết được lần ghi
+    # này là MANUAL hay MANUAL_OVERRIDE.
+    Column("reason", Text, nullable=True),
     CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_price_override_origin"),
     CheckConstraint(_in_check("provenance", STORED_PURCHASE_PROVENANCES),
                     name="ck_price_override_provenance"),
@@ -684,6 +695,98 @@ WORKSPACE_TABLES = (
 )
 
 # ---------------------------------------------------------------------------
+# R3 §1 — NGOẠI LỆ GẮN DÒNG (`line_binding_exception`).
+#
+# Bảng này ghi những chỗ hệ thống TỪ CHỐI ĐOÁN khi nạp lại một sổ đã sửa: một
+# nhóm ``(đơn, mặt hàng)`` có nhiều dòng, thứ tự dòng trong file đã đổi, không
+# mỏ neo nào (IMEI, fingerprint) khớp được, VÀ một quyết định của Owner đang
+# treo trên một trong các khoá cũ. Ghép bừa ở đó là gắn giá nhập của dòng này
+# sang dòng khác — sai một con số mà không cờ nào bật.
+#
+# ## Vì sao KHÔNG dùng lại `reconciliation_flag`
+#
+# Hai bảng nói hai loại câu khác nhau. `reconciliation_flag` là bằng chứng
+# APPEND-ONLY của một lần chạy: "snapshot này đã thấy điều đó". Bản ghi ở đây
+# là một VIỆC CÒN TREO của con người — nó có vòng đời (mở → đã xử lý), và cột
+# ``resolved_at`` là thứ `reconciliation_flag` cố ý không có (`acknowledged_at`
+# ở đó là "đã đọc", không phải "đã xử lý").
+#
+# Đổi CHECK constraint của `reconciliation_flag.kind` để nhét thêm một loại
+# cũng sẽ buộc phải dựng lại cả bảng đó trên SQLite — một thao tác rủi ro trên
+# đúng bảng chứa lịch sử đối soát, để đổi lấy một ngữ nghĩa không khớp.
+line_binding_exception = Table(
+    "line_binding_exception", METADATA,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("order_key", Text, nullable=False),
+    Column("product_key", Text, nullable=False),
+    # Chỉ số MỚI đã cấp cho dòng vào. Các khoá cũ KHÔNG bị đụng tới — chúng
+    # chỉ vắng mặt ở snapshot này, đúng cơ chế `absent_keys` của PRA-002.
+    Column("assigned_occurrence_index", Integer, nullable=False),
+    Column("raised_by_snapshot_id", Text,
+           ForeignKey("source_snapshot.snapshot_id"), nullable=False),
+    Column("run_id", Text, nullable=True),
+    Column("source_row", Integer, nullable=True),
+    # Các khoá cũ ứng viên + khoá nào đang mang quyết định của người, dạng JSON.
+    Column("detail_json", Text, nullable=True),
+    Column("created_at", Text, nullable=False),
+    Column("resolved_at", Text, nullable=True),
+    Column("resolved_by", Text, nullable=True),
+    Column("resolution_note", Text, nullable=True),
+    Index("ix_line_binding_exception_order_key", "order_key"),
+    Index("ix_line_binding_exception_open", "resolved_at"),
+)
+
+# ---------------------------------------------------------------------------
+# R3 §5 — CHỐT KỲ (`period_close`).
+#
+# Chốt một kỳ là nói: "bộ số của tháng này đã được duyệt; từ giờ mọi thay đổi
+# phải đi qua một lần MỞ LẠI có ghi chép". Nó KHÔNG xoá và KHÔNG đóng băng dữ
+# liệu — sổ vẫn nạp lại được, pipeline vẫn chạy — nó khoá đúng ĐƯỜNG GHI
+# QUYẾT ĐỊNH của Owner cho kỳ đó, và giữ lại một bản chụp con số tại thời
+# điểm chốt để so về sau.
+#
+# ## Vì sao có ``version_no`` chứ không một cột ``closed`` nhị phân
+#
+# Một kỳ có thể chốt, mở lại vì phát hiện sai, rồi chốt lần nữa. Một cột nhị
+# phân sẽ ghi đè lịch sử đó và câu hỏi "bộ số nào đã được duyệt hồi tháng
+# trước" không còn trả lời được. Mỗi lần chốt là một PHIÊN BẢN, append-only;
+# lần chốt ĐANG hiệu lực là bản có ``version_no`` lớn nhất mà ``reopened_at``
+# còn rỗng.
+#
+# ``totals_json`` là bản chụp chỉ tiêu tại thời điểm chốt — bằng chứng, không
+# phải nguồn để đọc ra báo cáo. Màn hình vẫn tính từ dữ liệu hiện hành; đối
+# chiếu hai bên là cách phát hiện "có gì đó đã đổi sau khi chốt".
+period_close = Table(
+    "period_close", METADATA,
+    Column("year", Integer, primary_key=True),
+    Column("month", Integer, primary_key=True),
+    Column("version_no", Integer, primary_key=True),
+    _pipeline_origin_column(),
+    Column("closed_at", Text, nullable=False),
+    Column("closed_by", Text, nullable=True),
+    Column("note", Text, nullable=True),
+    # Bản chụp chỉ tiêu + số dòng tại thời điểm chốt.
+    Column("totals_json", Text, nullable=True),
+    Column("line_count", Integer, nullable=True),
+    # Vân tay của tập dòng hiện hành + quyết định Owner đã dùng để ra bộ số
+    # trên. Hai lần chốt cùng vân tay ⟹ không gì đổi giữa chúng.
+    Column("content_fingerprint", Text, nullable=True),
+    Column("reopened_at", Text, nullable=True),
+    Column("reopened_by", Text, nullable=True),
+    Column("reopen_reason", Text, nullable=True),
+    CheckConstraint("month >= 1 AND month <= 12", name="ck_period_close_month"),
+    CheckConstraint("version_no >= 1", name="ck_period_close_version"),
+    CheckConstraint(_ORIGIN_PIPELINE_CHECK, name="ck_period_close_origin"),
+    Index("ix_period_close_period", "year", "month"),
+)
+
+#: Hai bảng của R3. `line_binding_exception` là bằng chứng dẫn xuất (dựng lại
+#: được bằng cách nạp lại sổ), nên nó KHÔNG thuộc `OWNER_INPUT_TABLES`.
+#: `period_close` thì CÓ: một lần chốt kỳ là một quyết định của Owner và không
+#: có chỗ nào khác lấy lại được nó.
+R3_TABLES = (line_binding_exception, period_close)
+
+# ---------------------------------------------------------------------------
 # B04 — ROLLBACK KHÔNG ĐƯỢC XOÁ DỮ LIỆU OWNER TỰ NHẬP
 # ---------------------------------------------------------------------------
 # Bốn bảng dưới đây chứa thứ DUY NHẤT trong toàn bộ database không tái tạo
@@ -697,8 +800,162 @@ WORKSPACE_TABLES = (
 # một bảng lưu tạm cùng database; ``upgrade()`` sau đó nạp lại. Không backup
 # subsystem, không file dump, không dịch vụ mới — một câu ``CREATE TABLE AS
 # SELECT`` chạy được trên cả SQLite lẫn PostgreSQL (ADR-108).
+# ---------------------------------------------------------------------------
+# `STAB-03` — CHỐNG LẶP MUTATION (`mutation_request`).
+#
+# Vấn đề mà bảng này đóng, và nó là một vấn đề THẬT chứ không lý thuyết:
+# một lần POST có thể được server ghi xong rồi response thất lạc trên
+# đường về (mạng đứt, proxy timeout, tab bị đóng). Browser KHÔNG phân biệt
+# được tình huống đó với "server chưa nhận", nên bất kỳ cơ chế nào tự gửi
+# lại đều có thể ghi lần thứ hai. `app/web/static/js/app.js` vì thế không
+# tự gửi lại nữa (xem `submitForm`), và người dùng được cho một nút THỬ
+# LẠI gửi ĐÚNG `request_id` cũ.
+#
+# Bảng này là nơi `request_id` ấy được nhận ra. Một hàng cho một lần ghi
+# đã CAM KẾT: khoá chính là `request_id`, nên lần gửi thứ hai của cùng mã
+# không tạo hàng mới — nó ĐỌC hàng cũ và trả lại kết quả cũ.
+#
+# ## Vì sao là một bảng SQL, không phải bộ nhớ tiến trình
+#
+# Production chạy gunicorn nhiều worker. Một dict trong tiến trình sẽ không
+# thấy lần ghi của worker khác, nên đúng cái request cần được nhận ra lại
+# sẽ là cái không được nhận ra. Nó cũng phải sống qua restart: một lần
+# deploy giữa hai lần thử của người dùng không được biến thành một lần ghi
+# trùng.
+#
+# ## Vì sao `response_json` chứ không chỉ một cờ "đã ghi"
+#
+# Người dùng gửi lại vì họ KHÔNG BIẾT kết quả. Trả về "đã ghi rồi" mà
+# không kèm kết quả buộc họ phải đi tìm ở chỗ khác, và cái họ đi tìm là
+# đúng thứ đã được ghi. Nên kết quả của lần ghi đầu được lưu nguyên và
+# trả lại — cùng nội dung, cùng ý nghĩa, chỉ thêm một cờ nói rằng đây là
+# bản đã lưu chứ không phải một lần ghi mới.
+#
+# ## Vì sao KHÔNG có TTL trong lược đồ
+#
+# Một cột hết hạn ở đây sẽ là một lời hứa phải có ai đó thực hiện, và
+# không có tiến trình dọn nào trong hệ. Bảng tăng theo số lần ghi của
+# Owner (vài chục một ngày), nên nó không phải một vấn đề dung lượng ở quy
+# mô này. Khi nào cần dọn thì `entered_at` đã đủ để viết câu `DELETE`.
+mutation_request = Table(
+    "mutation_request", METADATA,
+    # Mã của một LẦN GỬI, do browser sinh và giữ nguyên qua các lần thử
+    # lại. Khoá chính, và đó là toàn bộ cơ chế: `INSERT` thứ hai của cùng
+    # mã va vào khoá chính thay vì tạo một quyết định thứ hai.
+    Column("request_id", Text, primary_key=True),
+    # Đường ghi nào đã nhận mã này (`business_save_order`,
+    # `api_patch_order`, …). Cùng một `request_id` gửi tới hai route khác
+    # nhau là một dấu hiệu client sai, và cột này là chỗ nhìn ra điều đó.
+    Column("route", Text, nullable=False),
+    # Đối tượng bị ghi, ở dạng đọc được (`order_key` của lần sửa đơn).
+    # Không phải khoá ngoại: một `request_id` có thể thuộc về một thao tác
+    # không gắn với đơn nào, và một khoá ngoại ở đây sẽ chặn lần ghi đó.
+    Column("subject", Text, nullable=True),
+    # Bản của đối tượng mà người gửi ĐÃ NHÌN THẤY. Lưu lại để một lần điều
+    # tra sau này dựng lại được: người này đã sửa dựa trên bản nào.
+    Column("base_revision", Text, nullable=True),
+    # Kết quả của lần ghi ĐẦU TIÊN, nguyên văn, dạng JSON. Đây là thứ
+    # được trả lại cho lần gửi thứ hai.
+    # `STAB-03 REPAIR` — `NULL` khi lần ghi còn ĐANG BAY. Trước bản sửa,
+    # cột này `NOT NULL` và hàng chỉ được chèn SAU khi lần ghi nghiệp vụ đã
+    # commit — tức sổ chống lặp không biết gì về một lần ghi đang diễn ra,
+    # và hai request đồng thời cùng thấy sổ rỗng rồi cùng ghi (`P0-1`).
+    #
+    # Nay hàng được chèn TRƯỚC lần ghi, trong CÙNG transaction, với
+    # `state = 'in_flight'` và `response_json = NULL`; nó được cập nhật
+    # thành `'applied'` + payload ngay trước khi transaction commit. Khoá
+    # chính vì thế trở thành cửa loại trừ thật: request thứ hai mang cùng
+    # mã va khoá chính TRƯỚC KHI chạm một bảng nghiệp vụ nào.
+    Column("response_json", Text, nullable=True),
+    # `in_flight` | `applied`. Một hàng `in_flight` còn nhìn thấy được sau
+    # khi transaction kết thúc là điều KHÔNG THỂ xảy ra: hàng ấy được chèn
+    # trong chính transaction đó, nên rollback xoá nó cùng lần ghi nghiệp
+    # vụ. Đó là cách `P0-2` (crash trước khi nhớ) bị đóng — không còn cửa
+    # sổ nào giữa "đã ghi" và "đã nhớ", vì hai việc đó nay là một.
+    #
+    # Trạng thái vẫn được lưu tường minh thay vì suy ra từ `response_json IS
+    # NULL`: một cột nói ra ý nghĩa đọc được trong `psql`, còn một `NULL`
+    # thì phải đi tra code mới biết nó nghĩa gì.
+    Column("state", Text, nullable=False),
+    Column("entered_at", Text, nullable=False),
+    Column("entered_by", Text, nullable=True),
+    CheckConstraint(_in_check("state", ("in_flight", "applied")),
+                    name="ck_mutation_request_state"),
+    Index("ix_mutation_request_subject", "subject", "entered_at"),
+)
+
+MUTATION_TABLES = (mutation_request,)
+
+
+# ---------------------------------------------------------------------------
+# R5.3 — bản chiếu NHÃN hiển thị của Tracking, lưu BỀN theo từng lần chạy
+# (migration ``0012_tracking_display_snapshot``).
+#
+# ## Vì sao một bảng, khi đã có `catalog_display` trên đĩa
+#
+# `R5` §5 / `R5.1 REPAIR-2` ghi bản chiếu `mã Tracking → model · hãng · nhóm
+# hàng` ra MỘT file trên đĩa máy chủ. Trên Render đĩa ấy là EPHEMERAL: mỗi lần
+# deploy hay restart, file biến mất. Con số của kỳ thì không — chúng nằm ở
+# đúng database này. Hệ quả đo được (`R5.3` §Audit): sau một lần restart, tab
+# Nhân viên hiện `—` ở cả Hãng lẫn Nhóm hàng cho MỌI dòng đã `CONFIRMED`, và
+# không có gì dựng lại chúng cho tới lần chạy báo cáo kế tiếp.
+#
+# Bảng này là nửa BỀN của chính bản chiếu ấy — không phải một danh mục thứ
+# hai, không phải một taxonomy của Reports:
+#
+#   * nội dung của nó là NGUYÊN VĂN những gì capture Tracking của LẦN CHẠY đó
+#     đã nói (`catalog_display.rows_of`), không một dòng nào được suy ra;
+#   * nó KHÔNG tham gia nhận diện — không đường resolve nào đọc nó, đúng cùng
+#     ranh giới mà `catalog_display` đã lập (`PHB-06 §3`, `ADR-111 §3`);
+#   * nó KHÔNG mang tiền. Xoá sạch bảng này không đổi một đồng nào của báo
+#     cáo, chỉ làm màn hình nói ít đi.
+#
+# Nó nằm cạnh `source_snapshot` (cùng `run_id`) một cách có chủ ý: nhãn của
+# một lần chạy phải sống đúng bằng vòng đời dữ liệu mà nó chú thích.
+#
+# ## Vì sao KHÔNG có khoá ngoại tới `source_snapshot`
+#
+# Ghi nhãn là một tác dụng phụ best-effort của lần chạy, và nó KHÔNG được
+# phép làm hỏng lần chạy. Một khoá ngoại biến thứ tự ghi thành một ràng buộc
+# cứng: ghi nhãn trước khi lịch sử được cam kết sẽ đổ vỡ, còn ghi sau thì
+# một lỗi ở đó lại rollback cả một transaction đã thành công. Không khoá
+# ngoại thì hai việc độc lập thật sự, và hàng mồ côi (lần chạy hỏng ở bước
+# lưu lịch sử) chỉ là vài cái nhãn bị lần chạy kế tiếp ghi đè.
+#
+# ## Vì sao KHÔNG nằm trong `OWNER_INPUT_TABLES`
+#
+# Cùng lý lẽ như `mutation_request`: nội dung ở đây tái tạo được (chạy lại
+# báo cáo là dựng lại nó từ capture mới), và mất nó không mất một con số nào.
+# `downgrade()` vì thế `DROP TABLE` thẳng, không cần két `owner_backup_name()`.
+tracking_display_snapshot = Table(
+    "tracking_display_snapshot", METADATA,
+    # Lần chạy đã tạo ra bản chiếu này. Khoá chính, nên chạy lại cùng một
+    # `run_id` ghi đè tại chỗ thay vì xếp chồng hai bản cho cùng một lần chạy.
+    Column("run_id", Text, primary_key=True),
+    # `capture_id` / `captured_at` của capture danh mục Tracking đã dùng cho
+    # lần chạy đó — bằng chứng nhãn này đến từ ĐÂU. `NULL` khi capture đời cũ
+    # không mang chúng; đó là một sự thật cần ghi, không phải chỗ để đoán.
+    Column("capture_id", Text, nullable=True),
+    Column("captured_at", Text, nullable=True),
+    # `{mã Tracking: {model_label, brand, category_label}}`, JSON, đúng hình
+    # dạng `catalog_display.rows_of()` ghi ra đĩa. Một cột JSON chứ không một
+    # bảng con: nó được đọc TRỌN GÓI ở mỗi lần dựng lại và không truy vấn nào
+    # lọc theo từng mã, nên một bảng con chỉ thêm join mà không thêm câu trả
+    # lời nào.
+    Column("rows_json", Text, nullable=False),
+    # Số mã có nhãn — đọc được ngay trong `psql` mà không phải parse JSON.
+    Column("row_count", Integer, nullable=False, server_default="0"),
+    Column("created_at", Text, nullable=False),
+    # "Bản chiếu của lần chạy GẦN NHẤT" là câu truy vấn DUY NHẤT của tầng
+    # trình bày, nên nó có index riêng.
+    Index("ix_tracking_display_created_at", "created_at"),
+)
+
+TRACKING_DISPLAY_TABLES = (tracking_display_snapshot,)
+
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES + EMPLOYEE_TABLES + TARGET_TABLES + WORKSPACE_TABLES
+    + (period_close,)
 )
 
 #: Hậu tố của bảng lưu tạm. Nó nằm NGOÀI ``METADATA`` một cách có chủ đích:

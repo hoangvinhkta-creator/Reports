@@ -249,7 +249,10 @@ def test_case_9_the_coverage_state_tag_is_still_visible(repository, client):
     ])
     html = body(client, "/kinh-doanh?ky=2026-01")
     assert metric(html, "state") == "CHƯA HOÀN CHỈNH"
-    assert "CHÍNH THỨC" not in metric(html, "coverage-note")
+    # `TASK-OWNER-UIUX-002` R3 bỏ câu văn `coverage-note`; trạng thái CHƯA
+    # chính thức vẫn đọc được qua nhãn `state` và giọng cảnh báo của dòng
+    # coverage cạnh nó.
+    assert 'class="coverage-line coverage-line-warn"' in html
 
 
 # ==========================================================================
@@ -260,14 +263,20 @@ def test_case_9_the_coverage_state_tag_is_still_visible(repository, client):
 def test_case_10_the_pipeline_badge_no_longer_repeats_on_the_report_pages(
     repository, client,
 ):
+    """`R1` từng bắt huy hiệu PIPELINE còn ĐÚNG MỘT lần trên mỗi trang (trước
+    đó: hai lần). `TASK-OWNER-UIUX-003` §3/§4 đi xa hơn theo yêu cầu trực
+    tiếp của chủ dự án: bỏ hẳn câu "SỐ MỚI — Số do Reports tính từ sổ kế
+    toán đã nạp" khỏi CẢ HAI trang này — không còn instance nào để đếm.
+    Tinh thần của R1 (không lặp lại một nhãn hệ thống nhiều lần) vẫn đúng,
+    chỉ mức cắt sâu hơn."""
     persist(repository, [pair("BH1", kpi_purchase="5000000", kpi_profit="3000000")])
     summary_html = body(client, "/kinh-doanh?ky=2026-01")
-    assert summary_html.count('tag-pipeline') == 1, (
-        "huy hiệu PIPELINE chỉ còn một lần trên trang BÁO CÁO (trước R1: hai lần)")
+    assert summary_html.count('tag-pipeline') == 0, (
+        "huy hiệu PIPELINE không còn trên trang BÁO CÁO")
 
     employee_html = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
-    assert employee_html.count('tag-pipeline') == 1, (
-        "huy hiệu PIPELINE chỉ còn một lần trên trang NHÂN VIÊN (trước R1: hai lần)")
+    assert employee_html.count('tag-pipeline') == 0, (
+        "huy hiệu PIPELINE không còn trên trang NHÂN VIÊN")
 
 
 def test_case_10_required_warnings_still_render_when_triggered(repository, client):
@@ -280,7 +289,10 @@ def test_case_10_required_warnings_still_render_when_triggered(repository, clien
              kpi_purchase="5000000", kpi_profit="3000000"),
     ])
     html = body(client, "/kinh-doanh?ky=2026-01")
-    assert 'data-metric="coverage-note"' in html
+    # `TASK-OWNER-UIUX-002` R3 bỏ câu văn `coverage-note` khỏi trang này —
+    # dòng trạng thái coverage (`coverage`/`coverage-percent`) vẫn luôn có
+    # mặt, đó là cảnh báo bắt buộc còn lại ở đây.
+    assert 'data-metric="coverage"' in html
     assert 'data-metric="attribution-note"' in html
     assert 'data-metric="unresolved-employee-lines"' in html
 

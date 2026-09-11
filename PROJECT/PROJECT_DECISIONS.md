@@ -10785,3 +10785,3979 @@ Can Revisit After:
 Ba mục hoãn ở §7 chờ chủ dự án. Nếu sau này Owner muốn một dòng Target /
 Lợi nhuận KPI trên cùng biểu đồ (`DEC-185` "Can Revisit After"), ô chủ đạo
 là chỗ tự nhiên để đặt thêm một dòng so sánh — không cần một module mới.
+
+## DEC-191
+
+Title:
+`TASK-OWNER-UIUX-002` — Trang Báo cáo đọc theo thứ tự của người quản lý: mở
+sẵn tháng hiện tại, bốn chỉ tiêu trên một hàng với chú giải sau dấu (?), biểu
+đồ ĐƯỜNG mở ở mức Ngày, việc cần soi lùi xuống cuối trang, và bảng "Theo nhân
+viên" đọc theo đúng phân hoạch sheet đã được nghiệm thu.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (chỉ thị trực tiếp của chủ dự án về UX trang Báo cáo).
+Chỉ tầng trình bày; không một quyết định nghiệp vụ nào bị đảo.
+
+Supersedes:
+Không đảo ngược quyết định nào. `DEC-185` (ba tab, MỘT biểu đồ), `DEC-190`
+(ba giọng lỗi/cảnh báo/thông báo, một quy ước ngày), `DEC-PHB02-02`/`R-S7`
+(CHÍNH THỨC / CHƯA HOÀN CHỈNH), `DEC-PHB02-07` (mọi nhánh "không so được"
+có CHỮ), `DEC-127` §1 (Vinh · Quý · Hiệp là ba con người, không phải một
+Employee giả) và R1 §9 (nghìn đồng + tooltip VND) giữ nguyên và được kiểm
+lại bằng test.
+
+### 1. Kỳ mở đầu của trang Báo cáo
+
+Mở `/kinh-doanh` không kèm tham số ⟹ THÁNG DƯƠNG LỊCH HIỆN TẠI, nếu tháng
+đó có trong dữ liệu. Ba ràng buộc giữ cho đây chỉ là một MẶC ĐỊNH:
+
+```text
+1. Chỉ khi tham số `ky` VẮNG MẶT. `ky=` rỗng là Owner đã chủ động chọn
+   "Toàn bộ dữ liệu" — một mặc định không được ghi đè một lựa chọn.
+2. Chỉ khi tháng hiện tại THẬT SỰ có dòng. Mở sẵn một tháng rỗng đầu tháng
+   sẽ cho Owner một trang trắng thay vì tình hình kinh doanh.
+3. Không thoả ⟹ giữ nguyên hành vi cũ ("Toàn bộ dữ liệu").
+```
+
+Các trang `gia-nhap` / `gia-dung` / `target` KHÔNG đi qua đường này: chúng
+có form POST mang `ky` trong body và ngữ nghĩa kỳ của chúng không đổi.
+
+### 2. Hàng chỉ tiêu và chú giải sau dấu (?)
+
+Bốn chỉ tiêu (Doanh thu · Tổng số SP · Lợi nhuận KPI · DS quy đổi) nằm trên
+MỘT hàng; doanh thu vẫn đọc trước (số lớn hơn, chênh lệch so tháng trước
+ngay dưới) nhưng không còn là một dải riêng phía trên. Định nghĩa của từng
+chỉ tiêu lùi vào `<details class="kpi-help">` của chính ô đó — cùng hằng số
+cũ (`NET_SALES_NOTE`, `QUALIFYING_QUANTITY_NOTE`, `CONVERTED_SALES_NOTE`),
+thêm `KPI_PROFIT_NOTE` cho ô duy nhất chưa có câu định nghĩa nào.
+
+Trạng thái coverage ở lại CÙNG CHỖ với hai ô chỉ tiêu nó quyết định, nhưng
+bằng MỘT DÒNG (`7 / 8 dòng · 87,5%`); câu `INCOMPLETE_NOTE`/`OFFICIAL_NOTE`
+nằm sau một lần bấm. `coverage`, `coverage-percent`, `coverage-note`,
+`state` giữ nguyên tên và nội dung.
+
+### 3. Biểu đồ: ĐƯỜNG, mở ở mức NGÀY
+
+Cột → đường, vẽ bằng SVG tĩnh với toạ độ tính ở tầng trình bày từ đúng tỉ
+lệ so với đỉnh. Vẫn KHÔNG JavaScript, không thư viện; năm nút mức gộp vẫn
+là năm URL. `DEFAULT_GRANULARITY` của `revenue_timeline` KHÔNG đổi (vẫn là
+Tháng) — trang Báo cáo tự chọn Ngày qua tham số `default` mới của
+`parse_granularity`, nên không trang nào khác đổi theo.
+
+Ô nhãn của mỗi mốc là phần tử MANG DỮ LIỆU (`chart-bar`, `data-key`,
+`data-origin`, `data-revenue` thô, tooltip); chấm SVG chỉ vẽ. Mỗi mốc vẫn
+có ĐÚNG MỘT phần tử mang khoá của nó.
+
+### 4. "Cần kiểm tra" ở cuối trang
+
+Hai thẻ lớn cũ ("Cần soi trước khi tin vào tổng", "Đã tính được lợi nhuận
+cho bao nhiêu dòng?") thành MỘT khối gọn ở cuối, mỗi mục là một hàng mở
+được. Điều kiện cảnh báo, số dòng, ngữ nghĩa coverage và các đường dẫn hành
+động GIỮ NGUYÊN — kể cả tên `data-metric` (`not-seen-lines`,
+`not-seen-warning`, `missing-price-lines`, `owner-fixable-lines`,
+`coverage-blocker`).
+
+Dòng thiếu ngày bán KHÔNG vào đây: đó là một tình trạng SAI thật sự, nên nó
+giữ khối đỏ riêng (`R-S5`).
+
+### 5. Bảng "Theo nhân viên" — KHÔNG có quy tắc gộp mới
+
+Bảng đọc CHÍNH phân hoạch `reporting_sheets.sheet_key_of` mà không gian làm
+việc đã dùng từ `DEC-PHB02-08`:
+
+```text
+Vinh · Quý · Hiệp   nhóm NOI_THANH ⟹ hàng "Nội thành" (hoặc "Gia dụng" với
+                    dòng hàng gia dụng) — đúng như sheet của họ
+Gia dụng            bucket ProductGroup đã có từ ADR-106, hàng CUỐI
+mọi người còn lại   một hàng riêng, giữ nguyên tên
+```
+
+`sheet_key_of` là hàm TOÀN PHẦN, nên mỗi dòng thuộc ĐÚNG MỘT hàng: tổng các
+hàng luôn bằng tổng kỳ và không hàng nào đếm hai lần — đúng theo cấu tạo,
+không theo lời hứa. Tiêu đề vẫn là "Theo nhân viên"; danh tính ba con người
+Nội thành không mất (mở sheet Nội thành là thấy cột Nhân viên ghi đúng tên
+từng dòng — `DEC-127` §1).
+
+Thứ tự đọc là thứ DUY NHẤT được quyết định thêm, và nó lấy từ thứ tự khai
+báo trong master `config/employees.yaml` (nên Tín Phát đứng đầu vì master
+viết vậy, không vì một tên bị đóng cứng trong mã):
+
+```text
+nhân viên theo thứ tự master → chưa xác định → Nội thành → Gia dụng
+```
+
+Impact:
+Chỉ tầng trình bày: 2 template, `tinphat-ui.css`, 3 module `*_presentation.py`
+(nhãn/thứ tự/hình học), `revenue_timeline.parse_granularity` (thêm tham số
+`default`, mặc định module KHÔNG đổi), `server.py` (kỳ mở đầu + đăng ký một
+biến template). Không file nào dưới `app/modules/`, `tools/db/`, `config/`.
+Không migration, không route mới, không endpoint ghi mới, không tab mới,
+không JavaScript, không thư viện, không token màu mới.
+
+Evidence:
+Suite đầy đủ `2722 passed, 11 skipped, 0 failed` (nền `4b98f6a`:
+`2696 passed, 11 skipped`; chênh lệch đúng bằng 26 test mới của
+`tests/test_owner_report_overview.py`). Golden `58 passed, 2 skipped` —
+KHÔNG đổi. So render nền ↔ sau sửa trên cùng một bộ dữ liệu: mọi chỉ tiêu
+đầu trang, hàng TỔNG của bảng nhân viên, và MỌI con số hiện ra trên 10
+trang còn lại GIỐNG HỆT. Không trang nào tràn ngang ở 1440/834/390px.
+
+Ba test trình bày của `TASK-UIUX-001` được CHỈNH LẠI ĐÍCH (không hạ chuẩn):
+chúng neo vào cấu trúc `.kpi-hero`/`.kpi-grid` mà chính chỉ thị này thay
+bằng `.kpi-row`, và vào việc `NOI_THANH` xuất hiện ở cột Nhóm — điều không
+còn đúng khi ba người đó đọc thành một hàng nhóm. Câu hỏi của cả ba giữ
+nguyên: thẻ có nhãn chưa, chênh lệch có đứng cạnh con số nó so không, và
+KHÔNG mã máy nào lọt ra chữ người đọc.
+
+Can Revisit After:
+Chưa có dòng Gia dụng thật trong dữ liệu mẫu nên hàng đó hiện `—` (chưa
+tính được), đúng quy ước "ô trống khác 0". Khi có dữ liệu gia dụng thật,
+kiểm lại bằng mắt một lần.
+
+## DEC-192
+
+Title:
+`TASK-OWNER-UIUX-002` R2 — Năm sửa trực tiếp trên trang Báo cáo theo phản hồi
+bằng mắt của chủ dự án: bốn thẻ chỉ tiêu luôn trên MỘT hàng, chú giải (?)
+đổi từ bấm sang rê-chuột/lia-tới (sửa lỗi gãy dòng nhãn "Doanh thu bán
+hàng"), bỏ câu văn coverage dài, biểu đồ ĐƯỜNG có trục Y + lưới kiểu tham
+chiếu Owner đưa (không còn liệt kê số dưới từng điểm), bỏ cột Nhóm và
+"Cách đọc bảng này" khỏi bảng Theo nhân viên.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng ảnh chụp màn hình + văn bản
+của chủ dự án sau khi xem `DEC-191` trên môi trường thật). Chỉ tầng trình
+bày; không một quyết định nghiệp vụ nào bị đảo.
+
+Supersedes:
+Không đảo ngược quyết định nào đã có, kể cả `DEC-191` — nó SỬA cách trình
+bày `DEC-191` vừa dựng, không đổi thẩm quyền nào bên dưới. `F-E`/`F-N03`
+(chú giải phạm vi + cách giải thẩm quyền của biểu đồ bắt buộc có mặt trên
+trang) và `DEC-166 E` (origin của mỗi mốc phải phân biệt được) đều GIỮ
+NGUYÊN — chỉ đổi CHỖ ĐỨNG của câu chữ đó (xem mục 3).
+
+### 1. Bốn thẻ chỉ tiêu — MỘT hàng thật, không phụ thuộc bề rộng cửa sổ
+
+`.kpi-row` đổi từ `1.4fr 1fr 1fr 1fr` (bất đối xứng, gãy hàng dưới 900px)
+sang `repeat(4, minmax(0, 1fr))` bốn cột bằng nhau, giữ một hàng tới ~760px;
+Doanh thu vẫn đọc trước nhờ cỡ chữ (26px) chứ không nhờ chiếm thêm cột.
+
+### 2. Chú giải (?) — rê chuột/lia tới, không bấm
+
+`kpi_help(note)` đổi từ `<details>/<summary>` sang một `<span class="kpi-
+help" tabindex="0">`, hiện `.kpi-help-tip` qua `:hover`/`:focus-within`.
+
+Nguyên nhân sửa: `<details>` là phần tử BLOCK theo mặc định của trình
+duyệt; đặt nó bên trong `<span class="tp-label">` làm nhãn "DOANH THU BÁN
+HÀNG" gãy xuống dòng ngay trước dấu (?), đúng lỗi Owner chụp màn hình gửi
+lại. Một `<span>` không có vấn đề đó. Câu chữ của từng ghi chú không đổi —
+vẫn đúng hằng số cũ (`NET_SALES_NOTE`, `QUALIFYING_QUANTITY_NOTE`,
+`KPI_PROFIT_NOTE`, `CONVERTED_SALES_NOTE`).
+
+Sự cố kèm theo lúc sửa, đã kiểm bằng `getBoundingClientRect`: hộp tooltip
+ban đầu co về đúng bề rộng của TỪ dài nhất (khung định vị `.kpi-help` chỉ
+rộng bằng biểu tượng) — sửa bằng `width: max-content` (thay `auto`) cộng
+`max-width: 300px`.
+
+### 3. Câu văn coverage dài — bỏ khỏi trang Báo cáo
+
+`INCOMPLETE_NOTE`/`OFFICIAL_NOTE` (đoạn "Còn dòng hàng của kỳ chưa tính
+được lợi nhuận…") không còn render trên `/kinh-doanh`, ở cả dòng trạng thái
+cạnh KPI (nay là một `<p class="coverage-line">` không bấm được, chỉ còn
+con số + phần trăm) LẪN mục "Cần kiểm tra" ở cuối trang (chỉ còn tiêu đề +
+số + danh sách "thiếu cái gì, sửa ở đâu" từ `coverage_reasons`). Trạng thái
+CHƯA chính thức vẫn đọc được qua nhãn `state` (CHÍNH THỨC/CHƯA HOÀN CHỈNH)
+và giọng vàng của `coverage-line-warn`.
+
+Hai module `OFFICIAL_NOTE`/`INCOMPLETE_NOTE` KHÔNG bị xoá khỏi hệ thống —
+`biz.coverage_block` (dùng ở `kinh_doanh_gia_nhap.html`,
+`kinh_doanh_nhan_vien.html`) vẫn hiện chúng nguyên vẹn; đây là một chỉ thị
+riêng cho ĐÚNG một trang.
+
+### 4. Biểu đồ — ĐƯỜNG có trục Y + lưới, không còn liệt kê số dưới từng điểm
+
+Owner gửi kèm ảnh tham chiếu (biểu đồ đường có trục Y giá trị + lưới ngang
++ trục X thưa). `revenue_chart()` thêm:
+
+- `_chart_nice_ceiling(peak)`: làm tròn LÊN đỉnh dữ liệu tới một trong các
+  bậc 1/2/2,5/5/10 × luỹ thừa 10 — cùng thuật toán các thư viện biểu đồ vẫn
+  dùng để đường lưới trên cùng mang một con số tròn.
+- `_chart_y_axis(ceiling)`: 5 mốc lưới (kể đáy 0), toạ độ VÀ nhãn tiền tính
+  sẵn ở tầng trình bày — vẫn "nghìn đồng" (R1 §9), không đổi đơn vị.
+- Toạ độ Y của mỗi điểm nay so với `ceiling` (trần tròn), KHÔNG so với đỉnh
+  dữ liệu như bản `DEC-191` — hai thứ phải cùng một thước đo, nếu không
+  đường sẽ chạm mép trên trong khi lưới trên cùng mang một số khác giá trị
+  thật của điểm cao nhất.
+- `show_label` (thưa lại theo `_CHART_MAX_X_LABELS = 8`, stride =
+  `ceil(n/8)`, mốc đầu/cuối luôn hiện): CHỮ dưới trục X thưa lại khi nhiều
+  điểm, nhưng MỌI điểm vẫn giữ đủ `data-metric`/`data-key`/`data-origin`/
+  `data-revenue` VÀ một `<title>` xem khi rê chuột — không mốc nào mất dữ
+  liệu, chỉ chữ hiện ra là được chọn lọc. Đo trên 112 điểm (dữ liệu tám
+  tháng theo ngày): 9 nhãn hiện ra thay vì 112.
+- Con số doanh thu KHÔNG còn hiện dưới mỗi điểm (`rev-line-value` bị bỏ) —
+  xem qua trục Y (ước lượng) hoặc `<title>` khi rê chuột (chính xác).
+
+`F-E`/`F-N03`/`DEC-166 E` — phạm vi biểu đồ (TOÀN BỘ dữ liệu, không giới
+hạn theo kỳ đang chọn), cách giải thẩm quyền theo THÁNG (không theo "mốc"),
+mốc chưa trọn kỳ, sổ cũ không có dòng theo ngày, dòng chưa có ngày bán:
+CẢ NĂM câu này vẫn có mặt trên trang — dời từ một `<details>` "Cách đọc
+biểu đồ này" (chiếm một khối riêng dưới biểu đồ) vào MỘT biểu tượng (?)
+cạnh tiêu đề "Xu hướng doanh thu", cùng cơ chế mục 2. Owner nói "bỏ luôn
+phải giải thích cách đọc biểu đồ" — quyết định ở đây là bỏ KHỐI GIẢI THÍCH,
+không bỏ NỘI DUNG giải thích: `data-metric="chart-scope"`/`"chart-note"`
+vẫn render đúng chữ cũ (test `F-E`/`F-N03` xác nhận), lý do là hai câu đó
+chặn một cách đọc SAI thật sự (Owner tưởng biểu đồ giới hạn theo kỳ đang
+chọn trong khi nó luôn là toàn bộ dữ liệu) — xoá hẳn sẽ mở lại đúng lỗ hổng
+mà `F-E` được viết ra để đóng.
+
+### 5. Bảng "Theo nhân viên" — bỏ cột Nhóm + "Cách đọc bảng này"
+
+`business_presentation.EMPLOYEE_COLUMNS` bỏ `"Nhóm"` (còn 7 cột thay vì 8);
+`reporting_rows` vẫn TÍNH `employee_group`/`employee_group_code` (không xoá
+khỏi mô hình dữ liệu) — chỉ template không render cột đó nữa. Khối
+`<details class="how-to-read">Cách đọc bảng này</details>` (chứa
+`BUSINESS_ORDER_COLUMN_NOTE`) bị bỏ hẳn khỏi trang này — không tính, không
+tổng số dòng nào phụ thuộc câu đó, và không test nào từng bắt nó có mặt
+trên chính trang Báo cáo.
+
+Bảng `kinh_doanh_target.html` KHÔNG bị chạm — vẫn hiện cột Nhóm bằng chữ
+("Kênh Nội thành"/"Kinh doanh tiêu chuẩn"), vì đó là màn hình khác.
+
+Impact:
+Chỉ tầng trình bày: 1 template (`kinh_doanh.html`), `_business_bits.html`
+(3 macro sửa/thêm), `tinphat-ui.css`, `business_presentation.py` (hình học
+biểu đồ + `EMPLOYEE_COLUMNS` + ghi chú `pending_items`). Không file nào
+dưới `app/modules/`, `tools/db/`, `config/`. Không migration, không route
+mới, không endpoint ghi mới, không JavaScript, không thư viện.
+
+Evidence:
+Suite đầy đủ `2722 passed, 11 skipped, 0 failed` (nền `7b54d84`: cùng
+`2722 passed, 11 skipped` — KHÔNG có test mới, bốn file test được CHỈNH LẠI
+ĐÍCH theo cấu trúc markup mới, không hạ chuẩn). Golden `58 passed, 2
+skipped`, KHÔNG đổi. So render `7b54d84` ↔ sau sửa trên cùng bộ dữ liệu:
+mọi chỉ tiêu đầu trang, hàng TỔNG, và MỌI con số trên 10/11 trang giống
+hệt; trang Báo cáo chỉ khác đúng ở CHỖ hiện số của biểu đồ (số dưới từng
+điểm bị bỏ, số trên trục Y thay vào — không có số MỚI nào phát sinh, không
+số CŨ nào biến mất khỏi khả năng xem, vì `<title>` mỗi điểm vẫn mang giá
+trị chính xác). Không trang nào tràn ngang ở 1440/834/390px — kiểm cả
+trường hợp 112 điểm dữ liệu ngày (tám tháng), trục X thưa còn 9 nhãn.
+Routes, số endpoint POST và thanh điều hướng chính không đổi.
+
+Can Revisit After:
+Không có mục hoãn mới.
+
+## DEC-193
+
+Title:
+`TASK-OWNER-UIUX-003` — vòng sửa thứ ba theo phản hồi bằng ảnh chụp màn hình
++ văn bản của chủ dự án trên `DEC-192`: rút gọn chú giải MoM SỐ CŨ, thu nhỏ
+biểu đồ về nửa trái + khoanh cửa sổ hiển thị theo mức gộp (Ngày→tháng,
+Tuần→quý, Tháng→năm) + card dự phòng bên phải, bỏ badge "SỐ MỚI" ở cả hai
+trang Báo cáo/Nhân viên, gộp hàng sheet vào chung card với Kỳ dữ liệu, chia
+lại 5 thẻ chỉ tiêu của không gian làm việc về một hàng, gỡ card Target đứng
+riêng thay bằng icon sửa cạnh dòng tiêu đề sheet, và gộp bảng kê ledger từ
+hai tầng (hàng nhóm + hàng dòng hàng) về một tầng bằng `rowspan`.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng hai ảnh chụp màn hình có khoanh
+đỏ + bảy yêu cầu bằng văn bản của chủ dự án sau khi xem `DEC-192` trên môi
+trường thật). Mục 2 dưới đây REVISE trực tiếp một phần của `F-E` (xem lý do
+tại mục đó); các mục còn lại thuần tầng trình bày, không đảo quyết định
+nghiệp vụ nào.
+
+Supersedes:
+Mục 2 REVISE có chủ đích phần "biểu đồ mức Tháng luôn nhìn TOÀN BỘ dữ liệu,
+không giới hạn theo năm" của `F-E`/`DEC-185` (CHART-10/CHART-11) — xem lý do
+và phạm vi revise tại mục 2. Phần còn lại của `F-E` (biểu đồ RỘNG HƠN ô chỉ
+tiêu, cách giải thẩm quyền theo THÁNG, `DEC-166 E` mỗi mốc một origin) GIỮ
+NGUYÊN. Không đảo `DEC-190`/`DEC-191`/`DEC-192`.
+
+### 1. MoM "SỐ CŨ" — rút gọn chú giải, dời câu dài vào tooltip
+
+`_business_bits.html` macro `mom_inline`: tag "SỐ CŨ" (`mom.origin`) và
+đoạn giải thích dài (`mom.source`/`mom.note`, nguyên văn `DEC-180` §9) không
+còn đứng thẳng trên trang — chúng lùi vào một `kpi-help`-style tooltip
+(`.mom-legacy-help`, rê chuột/lia tới, cùng cơ chế mục 2 của `DEC-192`).
+Chữ hiện thẳng trên trang khi CÓ mốc so là đúng một câu ngắn: "so với
+{previous_label}". Nội dung `mom-source`/`mom-note` KHÔNG đổi, KHÔNG mất —
+chỉ đổi CHỖ ĐỨNG, đúng cùng lý do đã áp dụng cho khối giải thích biểu đồ ở
+`DEC-192` mục 4 (Owner đọc trang không phải đọc tài liệu; câu dài vẫn có
+mặt cho ai cần).
+
+### 2. Biểu đồ — nửa trái + khoanh cửa sổ theo mức gộp + card dự phòng
+
+Owner: biểu đồ chiếm cả hàng ngang là quá to so với thông tin nó mang, và
+Ngày/Tuần/Tháng dàn trải hết toàn bộ dòng thời gian nhiều năm là khó đọc so
+với việc chỉ xem trong phạm vi kỳ Owner đang quan tâm.
+
+- Layout: `kinh_doanh.html` bọc module biểu đồ (`#bieu-do-doanh-thu`,
+  KHÔNG đổi id/nội dung bên trong) và một module `chart-placeholder` mới
+  (rỗng, "Chỗ dành cho một biểu đồ khác — sắp có.") trong một
+  `.chart-row` (flex, `.chart-half { flex: 1 1 0 }`), gập dọc dưới 900px
+  (`tinphat-ui.css`). Placeholder KHÔNG có route, KHÔNG có dữ liệu — thuần
+  chỗ trống dành sẵn theo đúng yêu cầu, không dựng trước một tính năng chưa
+  được xác nhận.
+
+- Khoanh cửa sổ (`app/web/revenue_timeline.py`, hàm mới `window_bounds`/
+  `window_label`/`window_points`, thuần bổ sung — không sửa `series()`):
+  Ngày → khoanh về đúng THÁNG của kỳ đang chọn; Tuần → khoanh về đúng QUÝ
+  (dùng `_quarter_bounds`, xử lý đúng biên năm khi quý tràn sang tháng 1
+  năm sau); Tháng → khoanh về đúng NĂM. Quý và Năm KHÔNG bị khoanh — vẫn
+  TOÀN BỘ dòng thời gian như `F-E` gốc. `window_points()` là một PHÉP LỌC
+  áp SAU khi `series()` đã tính đầy đủ trên toàn bộ điểm — mọi bất biến của
+  `series()` (tổng điểm = tổng thật, `DEC-166E` phân biệt origin, `F-N03`
+  giải thẩm quyền theo tháng) không đổi trên tập điểm ĐẦY ĐỦ; chỉ tập điểm
+  HIỂN THỊ bị cắt. `server._revenue_chart` gọi `window_points` ngay sau
+  `series`, truyền `window_label` vào `business_presentation.revenue_chart`
+  để dựng đúng câu giải thích phạm vi mới.
+
+  Chú giải phạm vi (`business_presentation._chart_scope_note`) đổi theo
+  mức gộp: có `window_label` (Ngày/Tuần/Tháng) → câu nói RÕ phạm vi đang
+  khoanh ("Ở mức Tháng, biểu đồ chỉ hiện các tháng trong Năm 2026 — chưa
+  phải toàn bộ dữ liệu."); không có (Quý/Năm, hoặc `period=None` — "Toàn bộ
+  dữ liệu") → giữ nguyên `CHART_SCOPE_NOTE` cũ của `F-E`. Không bao giờ nói
+  "TOÀN BỘ" khi phạm vi đã bị khoanh — đúng lý do `F-E` được viết ra (không
+  để hai con số khác phạm vi đứng cạnh nhau mà không ai nói rõ).
+
+  **REVISE `F-E`/`DEC-185` CHART-10/CHART-11 tại mức THÁNG**: trước bản
+  này, biểu đồ mức Tháng bảo đảm MỘT dòng thời gian liên tục xuyên NĂM,
+  xuyên nguồn (Số Cũ + Số Mới), không cần bộ chọn nguồn — đây là điều
+  `CHART-10`/`CHART-11`/E2E của `test_dec185_nav_chart_identity.py` kiểm.
+  Owner đã được hỏi thẳng đánh đổi này (khoanh Tháng theo Năm sẽ làm dữ
+  liệu năm khác biến mất khỏi mặc định) và CHỌN đánh đổi đó. Ba test trên
+  được SỬA LẠI để phản ánh đúng: "một dòng thời gian, không bộ chọn nguồn"
+  vẫn đúng NGUYÊN VĂN TRONG PHẠM VI MỘT NĂM (Số Cũ + Số Mới cùng năm đứng
+  chung một trục), và XUYÊN năm vẫn liền mạch — không mất, không có toggle
+  nguồn nào cả, chỉ cần đổi kỳ đang xem (`ky=`) sang năm khác là dữ liệu
+  năm đó mở ra, trên ĐÚNG route/ĐÚNG biểu đồ đó, không phải một trang thứ
+  hai. `DEC-166E` (mỗi cột một origin) và `F-N03` (giải thẩm quyền theo
+  tháng) không đổi ở bất kỳ năm nào.
+
+### 3. Bỏ badge "SỐ MỚI" khỏi Báo cáo và Nhân viên
+
+`kinh_doanh.html`: bỏ dòng `<p class="insight">{{ biz.business_badge() }}
+Số do Reports tính từ sổ kế toán đã nạp.</p>` sau `<h1>`. `kinh_doanh_nhan_
+vien.html`: bỏ đoạn giải thích "Mỗi sheet ở dưới là một đơn vị báo cáo.
+Sheet Nội thành gộp cả nhóm thành một, nhưng cột Nhân viên trong bảng vẫn
+ghi đúng người bán." sau `<h1>`. Cả hai theo yêu cầu trực tiếp của chủ dự
+án — tên sheet ("Nội thành"/"Gia dụng") trên chính tab đã đủ để đọc.
+`test_case_10_the_pipeline_badge_no_longer_repeats_on_the_report_pages`
+(`tests/test_r1_navigation.py`) đổi từ "không lặp lại" (`== 1`) sang "không
+còn nữa" (`== 0`) trên cả hai trang — leo thang đúng từ quy tắc `R1` cũ
+sang chỉ thị mới, không lặng lẽ hạ chuẩn.
+
+### 4. Gộp hàng SHEET vào chung card với Kỳ dữ liệu
+
+`kinh_doanh_nhan_vien.html`: form chọn Kỳ dữ liệu và `<nav class="sheet-
+tabs">` đứng chung một `<div class="module workspace-period-card">` thay vì
+hai module rời — đỡ diện tích dọc, thứ tự Kỳ dữ liệu trước/hàng sheet sau
+không đổi (`§4`/`UX-05`).
+
+`workspace_presentation.sheet_tabs()` đổi khoá sắp xếp sang
+`business_presentation.sheet_display_order` (đổi tên công khai từ
+`_reporting_row_key`) — CÙNG một khoá sắp xếp `reporting_rows()` của trang
+Báo cáo đang dùng, nên thứ tự sheet ở tab Nhân viên nay khớp đúng thứ tự
+hàng ở bảng Theo nhân viên (nhân viên theo thứ tự master → chưa xác định →
+Nội thành → Gia dụng), theo đúng yêu cầu trực tiếp của chủ dự án.
+
+### 5. Năm thẻ chỉ tiêu của không gian làm việc — về một hàng
+
+`tinphat-ui.css` thêm `.kpi-grid.strip { grid-template-columns: repeat(5,
+minmax(0,1fr)) }` (gập 3 cột dưới 900px, 2 cột dưới 560px) — Doanh thu · DS
+quy đổi · So Target · So tháng trước · Tiến độ đứng cùng một hàng ở độ rộng
+màn hình còn hợp lý, cùng lối làm với `.kpi-row` bốn thẻ của `DEC-192` mục
+1. Lợi nhuận KPI (hàng `.kpi-grid-one` riêng, đã có từ trước) không bị
+đụng — đây không phải một trong năm thẻ Owner liệt kê.
+
+### 6. Target — gỡ card đứng riêng, thay bằng icon sửa cạnh dòng tiêu đề
+
+Yêu cầu trực tiếp của chủ dự án: bỏ card "TARGET CỦA SHEET" đứng riêng,
+thay bằng đúng MỘT icon sửa cạnh dòng "Nội thành 181 đơn · 250 dòng · 260
+SP", bấm vào mới hiện ô nhập (nhỏ, gọn).
+
+`kinh_doanh_nhan_vien.html`: con số Target (`employee-target`) đọc thẳng
+trên dòng tiêu đề `<h2>` của sheet, cạnh "... SP". Icon bút (`&#9998;`,
+`data-metric="target-edit"`) nối query param mới `sua-target=1`; bấm vào
+đổi thành nút "XONG" (`target-edit-close`) quay lại URL không có tham số
+đó — CÙNG mẫu URL-là-trạng-thái với `sua=<mã đơn>` đã dùng cho sửa BH. Ô
+nhập (`target-input`) và nút LƯU chỉ dựng trong DOM khi `sua-target=1`
+(`.target-edit-inline`, gọn — không kéo theo card lớn).
+
+`server.py`: `business_employee()` đọc thêm `editing_target =
+bool(request.args.get("sua-target"))`. `business_save_sheet_target()` giữ
+`sua-target=1` qua MỌI nhánh redirect (`reopen` dict) — LƯU xong panel vẫn
+mở, thấy ngay kết quả, không phải bấm sửa lại lần hai (cùng mẫu `sua=
+order_key` giữ mở sau khi lưu Giá nhập).
+
+Đường dẫn sang màn hình Target đầy đủ (`business_target`, `/kinh-doanh/
+target` — đặt Target cho NHIỀU người một lúc, tính năng khác hẳn, có `PHB-
+05` + 51 test riêng bảo vệ) KHÔNG bị gỡ: liên kết "ĐẶT / SỬA TARGET" dời ra
+khỏi card cũ nhưng vẫn đứng ngay dưới dòng tiêu đề, luôn hiện — Owner nói
+"bỏ card này" (card Target CỦA SHEET, đứng ở không gian làm việc), không
+nói bỏ đường dẫn sang màn hình Target đầy đủ; xoá hẳn liên kết đó sẽ làm
+mất khả năng mở một tính năng còn dùng được mà không ai yêu cầu bỏ.
+
+`tests/test_employee_workspace_ux.py`: hai test giả định `target-input`
+luôn có mặt không cần `sua-target`
+(`test_case_ux_02_the_current_month_opens_even_with_no_sales_at_all`,
+`test_case_tg_03_the_round_trip_holds_over_the_real_http_path`) và một test
+E2E (`test_the_owner_runs_a_full_month_through_the_workspace`) được SỬA lại
+để mở panel bằng `sua-target=1` trước khi kiểm ô nhập — ý nghĩa nghiệp vụ
+giữ nguyên (Target vẫn mở được ngay cả tháng rỗng, round-trip vẫn đúng),
+chỉ đường vào ô nhập đổi theo `§6`.
+
+### 7. Bảng kê ledger — gộp hai tầng thành một tầng bằng `rowspan`
+
+Owner: hàng nhóm ("Ngày · Mã đơn · Khách hàng · N dòng · sửa") đứng RIÊNG
+phía trên các dòng hàng là thừa — không cần một ô nói "N dòng" mới biết một
+đơn có mấy dòng, con số hàng đã tự nói điều đó.
+
+`kinh_doanh_nhan_vien.html`: vòng lặp `{% for row in group.rows %}` giờ tự
+quyết định hàng ĐẦU (`loop.first`) mang Ngày/Mã đơn/Khách hàng bằng
+`rowspan="{{ group.lines }}"`, trải xuống các dòng hàng còn lại của CÙNG
+một BH (các dòng đó không render lại ba ô đó — HTML `rowspan` che chúng).
+Ô đếm "N dòng" (`bh-count`, `colspan="7"`) bị BỎ HẲN, không thay bằng gì
+khác. Icon sửa cả BH (`bh-edit`/`bh-edit-close`) chuyển vào ô thao tác
+(`.line-actions`) của dòng hàng ĐẦU, đứng cạnh (không thay thế) hai thao
+tác dòng (chuyển Gia dụng / loại dòng) của chính dòng hàng đó. Hàng "NHÂN
+VIÊN CỦA CẢ ĐƠN" (chế độ sửa) đứng ngay sau hàng đầu đã gộp, trước khi sang
+các dòng hàng còn lại — vị trí không đổi so với trước.
+
+`data-metric="bh-head"` vẫn chỉ đứng trên ĐÚNG một `<tr>` mỗi BH (nay là
+hàng đầu đã gộp, không phải một hàng riêng) — `data-order`/`data-shade`
+theo cùng thứ tự thuộc tính như cũ, giữ nguyên mọi test đọc nền theo ngày
+(`VIS-01…03`) sau khi cập nhật quy tắc rơi vào hàng nào mang metric gì. Số
+`<tr>` mỗi BH giữ nguyên (bằng đúng `group.lines`) — chỉ gộp NỘI DUNG cột,
+không gộp SỐ hàng.
+
+`app/web/static/css/tinphat-ui.css`: `tr.bh-head td { font-weight }` thu
+hẹp còn đúng ba ô định danh (`bh-date`/`bh-order`/`bh-customer`) — không
+còn đậm luôn cả Mặt hàng/Nhân viên/... của chính dòng hàng đầu, việc đó sẽ
+đậm khác các dòng hàng còn lại của cùng BH một cách vô lý. Ba ô đó thêm
+`vertical-align: top` để canh đúng lên đầu khi BH có nhiều dòng.
+
+`test_the_bh_head_count_is_plain_text_not_a_pill_cell`
+(`tests/test_uiux_refinement.py`) bị GỠ, không sửa lại — toàn bộ tiền đề
+của nó (ô đếm "N dòng") không còn tồn tại. `tests/test_employee_workspace_
+ux.py`: quy tắc đọc shade theo ngày (VIS-01) và trích khoá dòng theo tên
+mặt hàng (`_keys_from_html`) cập nhật để chấp nhận CẢ HAI giá trị
+`data-metric` (`bh-head` hoặc `line-row`) tuỳ dòng đó có phải dòng đầu của
+BH hay không — ý nghĩa kiểm (nền theo ngày, khoá nghiệp vụ đúng dòng) không
+đổi.
+
+Impact:
+Tầng trình bày + một hàm tính thuần (`window_bounds`/`window_label`/
+`window_points` trong `revenue_timeline.py`, KHÔNG sửa `series()`) + một
+route param mới (`sua-target`, đọc trong `business_employee()`, không route
+mới, không endpoint ghi mới). Không file nào dưới `app/modules/`,
+`tools/db/`, `config/`. Không migration, không JavaScript, không thư viện
+mới.
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` (nền `c18be98`: `2722
+passed, 11 skipped` — chênh đúng 1 vì `test_the_bh_head_count_is_plain_
+text_not_a_pill_cell` bị GỠ theo mục 7, không có test nào khác biến mất
+hay bị hạ chuẩn). Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance
+validator: `validate_evidence`/`validate_project_state`/`validate_
+structure`/`validate_task_completion` đều PASS (`validate_reference_
+integrity` FAIL với đúng 3 tham chiếu vỡ từ trước, không liên quan tới
+round này — `docs/tasks/TASK-REM-T06-repository-root-hygiene.md` trỏ tới
+`/README.md`/`CODE_OF_CONDUCT.md`/`CONTRIBUTING.md`). Playwright trên
+1440/820/390px xác nhận: 4 KPI Báo cáo một hàng, biểu đồ nửa trái + card dự
+phòng bên phải (gập dọc dưới 900px), 5 KPI Nhân viên một hàng (gập 3/2 cột
+theo bề rộng), panel Target inline mở/đóng đúng qua `sua-target=1`, bảng kê
+ledger một tầng với `rowspan` đúng shade/nhóm ngày, không trang nào tràn
+ngang.
+
+Can Revisit After:
+Không có mục hoãn mới. Module "Biểu đồ khác" ở mục 2 là chỗ trống — chưa có
+task nào định nghĩa nó sẽ hiển thị gì.
+
+## DEC-194
+
+Title:
+`TASK-OWNER-UIUX-004` — vòng sửa thứ tư theo phản hồi trực tiếp của chủ dự
+án trên `DEC-193`: đưa JavaScript vào sản phẩm lần đầu tiên (điều hướng
+trong tab không tải lại trang, biểu đồ tương tác) — biểu đồ vẽ lại hoàn
+toàn (viewBox cố định, toạ độ X theo lịch, lưới trục cố định, tooltip khi
+rê chuột), gộp hàng chọn kỳ, hộp thoại Target thật, và bảng kê xếp lại cột
++ hàng tổng + tag gọn.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (phản hồi trực tiếp bằng ba ảnh chụp màn hình có khoanh
+đỏ + sáu yêu cầu bằng văn bản của chủ dự án sau khi xem `DEC-193` trên môi
+trường thật, cùng phần trả lời bốn câu hỏi làm rõ qua `AskUserQuestion`
+trước khi triển khai — xem mục 0). Mục 1/2/6 REVISE trực tiếp nguyên tắc
+kiến trúc "không JavaScript" đã tuyên bố xuyên suốt `DEC-PHB02-08` và nhiều
+quyết định trước đó; phần còn lại thuần tầng trình bày.
+
+Supersedes:
+**REVISE có chủ đích** nguyên tắc "Reports không có JavaScript" (nêu tường
+minh trong docstring `kinh_doanh_nhan_vien.html`, nhiều bình luận
+`business_presentation.py`/`tinphat-ui.css`, và ngầm định trong toàn bộ
+kiến trúc URL-là-trạng-thái của `DEC-PHB02-08`). Owner yêu cầu trực tiếp,
+bằng văn bản, đưa JavaScript vào để điều hướng trong một tab không tải lại
+trang và biểu đồ tương tác — đây KHÔNG phải một quyết định kỹ thuật tự ý.
+Mọi bất biến nghiệp vụ bên dưới (F-E/F-N03/DEC-166E/DEC-185/PHB-05...)
+KHÔNG đổi; JavaScript chỉ thêm ở TẦNG VẬN CHUYỂN (`fetch` thay vì điều
+hướng trình duyệt) và TẦNG HIỂN THỊ biểu đồ, không thêm quyền ghi hay
+đường tính nào mới. `DEC-190`/`191`/`192`/`193` giữ nguyên các quyết định
+trình bày trước đó trừ phần bị mục 1/2 ở đây REVISE tường minh.
+
+### 0. Bốn câu hỏi làm rõ trước khi triển khai
+
+Trước khi sửa, đã hỏi lại chủ dự án qua `AskUserQuestion` (đúng yêu cầu
+"hãy hỏi lại tôi nếu chưa chắc chắn" của Owner) và nhận bốn câu trả lời:
+
+1. JS áp dụng cho TOÀN BỘ thao tác trong tab, kể cả form GHI số liệu (sửa
+   giá nhập, gán nhân viên, phân loại mặt hàng, loại dòng...) — không chỉ
+   điều hướng.
+2. Biểu đồ tương tác bằng JavaScript THUẦN, không thêm thư viện ngoài.
+3. "Đường biểu đồ không kéo dài hết khung khi kỳ chưa đi hết" áp dụng cho
+   MỌI mức gộp (không riêng mức Ngày).
+4. Nhãn trục cố định (5/10/15/20/25/30) áp dụng cho Ngày; Tuần/Tháng dùng
+   lưới cố định tương tự (Quý/Năm giữ nguyên cách thưa nhãn cũ, không có
+   container cố định để so).
+
+### 1. Lớp điều hướng AJAX — TĂNG CƯỜNG, không phải kiến trúc mới
+
+`app/web/static/js/app.js` (mới, thuần, không thư viện) + `layout.html` +
+`server.py` (`_inject_fragment_flag` context processor). Nguyên tắc:
+**progressive enhancement** — mọi liên kết/form trong `#app-content` vẫn
+là URL/method HTTP thật do server dựng; tắt JavaScript thì mọi thứ hoạt
+động Y HỆT trước đây (điều hướng thật, tải lại trang, `<noscript>` trả lại
+nút bấm cho các ô tự-nộp). Có JavaScript thì CÙNG những liên kết/form đó
+được gửi qua `fetch()` mang header `X-Fragment: 1`; server (qua
+`context_processor`, không route nào tự biết về việc này) trả về ĐÚNG nội
+dung `{% block content %}` thay vì cả trang; JS thay thế `#app-content` và
+gọi `history.pushState` — không tải lại trang, không mất vị trí cuộn của
+thanh điều hướng chính.
+
+Ranh giới rõ ràng theo đúng câu 6 gốc: `nav.ncc-tabs` (ba tab chính) đứng
+NGOÀI `#app-content` trong `layout.html`, nên click vào đó KHÔNG bị chặn —
+chuyển tab vẫn là điều hướng trang thật. Mọi liên kết/form BÊN TRONG một
+tab (câu trả lời 1 ở mục 0) đều được `app.js` chặn bằng `addEventListener`
+UỶ QUYỀN (delegated trên `document`, không gắn riêng từng phần tử — DOM
+thay đổi sau mỗi lần fetch không làm mất listener). `<select data-auto-
+submit>` (bộ chọn kỳ) gọi `form.requestSubmit()` khi đổi giá trị, đi qua
+đúng lớp chặn submit — không còn `onchange="this.form.submit()"` nội tuyến
+cũ (gọi trực tiếp `.submit()` sẽ KHÔNG bắn sự kiện `submit`, bỏ qua lớp
+chặn — một cạm bẫy API đã tránh được bằng `requestSubmit()`).
+
+Một nút submit mang `name`/`value` riêng (`hanh-dong=khoi-phuc` của "KHÔI
+PHỤC", khác `value` với "LOẠI" trên cùng route) chỉ được trình duyệt gộp
+vào dữ liệu gửi đi khi CHÍNH nút đó kích hoạt submit — `submitForm()`
+truyền `event.submitter` vào `new FormData(form, submitter)` (chữ ký hai
+tham số), nếu không hai hành động khác nhau trên cùng route sẽ gửi thiếu
+đúng trường quyết định hành động nào (phát hiện qua kiểm thử Playwright
+thực tế trên nút KHÔI PHỤC, xem Evidence).
+
+Hộp thoại Target (`kinh_doanh_nhan_vien.html`, `TASK-OWNER-UIUX-003` §6)
+đổi từ panel nội tuyến sang `<dialog>` THẬT: server dựng sẵn thuộc tính
+`open` khi `sua-target=1` (không JS vẫn đọc/sửa được, chỉ không nổi thành
+modal); `app.js` gỡ `open` rồi gọi `showModal()` (gọi thẳng trên một dialog
+đã mang `open` sẽ ném `InvalidStateError` — một cạm bẫy API thứ hai đã
+tránh được) để vào chế độ modal thật: nền mờ, bẫy focus, phím Esc đóng
+(bắt sự kiện `cancel`, gọi lại đúng liên kết ĐÓNG qua AJAX thay vì để trình
+duyệt tự đóng). Liên kết "ĐẶT / SỬA TARGET" (dẫn sang `/kinh-doanh/target`,
+màn hình đặt target NHIỀU người một lúc — `PHB-05`) bị GỠ khỏi trang này
+theo yêu cầu trực tiếp "nút ... bị thừa hãy bỏ đi" — route không bị xoá,
+vẫn phục vụ đầy đủ khi gõ thẳng URL, chỉ không còn nút bấm riêng ở không
+gian làm việc (`test_case_17...` đổi tên + nội dung trong
+`test_phb05_employee_target.py`, xem Evidence).
+
+Đổi kỳ báo cáo (Báo cáo + Nhân viên) không còn cần nút XEM: `<noscript>`
+trả nó lại khi không có JS, xem `_business_bits.html`.
+
+### 2. Biểu đồ — vẽ lại hoàn toàn theo phản hồi bằng ảnh của Owner
+
+Owner: biểu đồ "xấu", không đầy khung dù mức gộp nào; muốn trục cố định
+gọn (5/10/15/20/25/30, không ghi năm); tooltip khi rê chuột thay vì phải
+ước lượng; đổi mức gộp không tải lại trang.
+
+`business_presentation.py` (`revenue_chart`, hàm mới `_chart_x_fraction`/
+`_chart_x_ticks`/`_chart_day_container`/`_chart_quarter_container`):
+
+- **Bề rộng cố định, co giãn 100% card**: `viewBox` đổi từ TĂNG THEO SỐ
+  ĐIỂM (`_CHART_STEP_X` cũ = 64px/điểm — 6 điểm ra một biểu đồ bé tí giữa
+  card rộng) sang `_CHART_VIEW_W = 960` cố định, SVG có `width: 100%` qua
+  CSS. Card luôn ĐẦY bất kể có bao nhiêu điểm.
+- **Toạ độ X theo LỊCH, không theo thứ tự điểm**: Ngày → vị trí = (ngày-1)/
+  (số ngày trong tháng-1); Tuần → vị trí = số ngày đã trôi qua trong QUÝ
+  chứa kỳ đang xem / tổng số ngày của quý (dùng lại `window_bounds(WEEK,
+  ...)` đã có, không tính lại ranh giới quý); Tháng → vị trí =
+  (tháng-1)/11. Quý/Năm (không bị khoanh theo `DEC-193` §2) giữ nguyên
+  cách chia đều theo THỨ TỰ điểm — không có container cố định để so.
+  **Hệ quả đúng câu trả lời 3 ở mục 0 mà KHÔNG cần logic "kỳ chưa đi hết"
+  riêng**: một điểm dữ liệu ở ngày 24 của tháng 30 ngày tự nhiên rơi vào
+  80% bề rộng card — 20% còn lại để TRỐNG vì không có dữ liệu thật ở đó,
+  không phải một nhánh code đặc biệt.
+- **Trục X cố định, tách khỏi điểm dữ liệu**: Ngày → nhãn tại 5/10/15/20/
+  25/30 (lọc theo `<= days_in_month`); Tuần → 3 nhãn tại đầu mỗi tháng của
+  quý (câu trả lời 4); Tháng → 12 nhãn Th1..Th12; Quý/Năm giữ nguyên cách
+  thưa nhãn cũ (`_CHART_MAX_X_LABELS`/`show_label`, không có container cố
+  định). Nhãn CỐ ĐỊNH này độc lập với điểm dữ liệu thật — một mốc lịch
+  tròn hiện ra dù kỳ đó chưa có dòng nào, và một điểm không rơi đúng mốc
+  tròn vẫn được vẽ bằng chấm.
+- **Tooltip khi rê chuột** (`app.js`, JavaScript thuần — câu trả lời 2):
+  nghe `mouseover`/`mousemove`/`mouseout` uỷ quyền trên
+  `.rev-line-dot`/`.rev-line-point`, đọc lại đúng `title` đã có (không tính
+  lại gì) và hiện trong một hộp `position: fixed` bám theo con trỏ.
+  `<title>` gốc trên SVG `<circle>` vẫn còn — không JS vẫn xem được, chỉ
+  chậm hơn.
+
+Hình học VẪN vẽ bằng SVG tĩnh ở tầng trình bày (không đổi triết lý "server
+tính sẵn toạ độ" của `DEC-192` mục 4) — JavaScript chỉ THÊM tương tác
+(tooltip, không tải lại khi đổi mức gộp qua lớp AJAX ở mục 1), không thay
+thế cách tính. Mọi bất biến của `F-E`/`F-N03`/`DEC-166E`/`DEC-185` (phạm
+vi, cách giải thẩm quyền, phân biệt origin, `covered_months`/`span_months`)
+không đổi — `series()`/`window_points()` của `DEC-193` không bị chạm; chỉ
+CÁCH ĐẶT toạ độ và trục thay đổi.
+
+### 3. Gộp hàng chọn kỳ
+
+`kinh_doanh.html`: bộ chọn "KỲ BÁO CÁO" và dòng "Tháng X · N đơn · N dòng"
+đứng CHUNG một hàng (`.period-header-row`) thay vì hai hàng tách rời.
+`kinh_doanh_nhan_vien.html`: bộ chọn "KỲ DỮ LIỆU" dời hẳn LÊN cùng hàng với
+`<h1>NHÂN VIÊN — ...</h1>`; hàng sheet-tabs dời lên NGAY SAU đó — card
+"Kỳ dữ liệu" đứng riêng của `DEC-193` §4 bị GỠ HẲN (không còn khối bọc
+nào), theo đúng ảnh khoanh đỏ Owner gửi (mục các ô sheet cần "dồn lên
+trên"). Thứ tự đọc không đổi: Kỳ dữ liệu trước, hàng sheet sau, năm chỉ
+tiêu sau cùng (`DEC-PHB02-08` §1/§2).
+
+### 4. Bảng kê — xếp lại cột, hàng tổng, tag gọn (kế tiếp `DEC-193` §7)
+
+`workspace_presentation.py`:
+
+- `SHEET_DETAIL_COLUMNS` đổi thứ tự: Khách hàng dời ra SAU DS quy đổi
+  (trước cột thao tác) thay vì đứng ngay sau Mã đơn — cụm cột nghiệp vụ
+  của dòng hàng đọc liền mạch trước, thông tin khách hàng đọc sau cùng.
+- `sheet_detail_totals()` (hàm mới, thuần): tổng Giá nhập/Giá bán cộng
+  thẳng từ CÙNG tập dòng bảng đang hiện. Lợi nhuận KPI/DS quy đổi của hàng
+  tổng KHÔNG tính lại — dùng LẠI đúng `sheet.kpi_profit`/`strip.converted_
+  sales` (đã có gate, hiện trong dải KPI phía trên) để không có hai con số
+  khác nhau cho cùng một khái niệm trên cùng một trang.
+- `sheet_detail_groups()`: thêm `group["identity_tags"]` — gộp "Thiếu
+  giá"/"Chưa phân loại" (trước đây đứng cạnh tên hàng ở ô Mặt hàng của
+  TỪNG dòng) thành tag DUY NHẤT mỗi NHÃN, hiện ở ô Mã đơn cùng với
+  `SHORT_TAGS` sẵn có — Mặt hàng nhờ vậy chỉ còn tên hàng, đọc trọn trên
+  MỘT dòng (không xuống hàng giữa chừng). "Chưa phân loại" đổi màu XANH
+  (`.tag-unresolved`, dùng `--tp-green`/`--tp-green-bg` — trước đây xanh
+  dương) theo đúng yêu cầu "chỉ cần hiện xanh là được". Bấm vào tag (khi
+  còn phân loại được) vẫn mở đúng bảng chọn mặt hàng của dòng ĐẦU TIÊN
+  mang trạng thái đó — không mất khả năng phân loại tại chỗ của `§PI-04`.
+
+  **`data-metric="identity-label"` VẪN render đủ cho MỌI dòng bị gắn cờ** —
+  bộ test PI-01…PI-12 (`test_dec185_nav_chart_identity.py`,
+  `test_identity_durability_and_timeline_aggregation.py`) đọc đúng thuộc
+  tính này bất kể `bh-tag`/`SHORT_TAGS` có nói gì, và không được bỏ qua dù
+  trùng CHỮ với một `bh-tag` khác (`LABEL_MISSING_PRICE` "Thiếu giá" trùng
+  chữ với `SHORT_TAGS[BLOCK_PURCHASE_PRICE_MISSING]`, hai module tính khác
+  nhau). Khi trùng chữ, phần tử vẫn ở trong DOM (đủ cho test + trình đọc
+  màn hình) nhưng ẩn khỏi mắt Owner bằng `.sr-only` (mới, chuẩn visually-
+  hidden) để không thấy "THIẾU GIÁ · THIẾU GIÁ" hai lần liền nhau cho
+  cùng một sự thật — phát hiện và sửa qua vòng kiểm bằng ảnh chụp trong
+  chính phiên này (xem Problem Solving/Evidence).
+- CSS: `.tag` thu nhỏ (padding/font-size), `.code`/`td[data-metric="bh-
+  order"]` giới hạn `max-width: 110px`, `td[data-metric="line-product"]`
+  `white-space: nowrap` — cột Mã đơn gọn lại, cột Mặt hàng đọc trọn một
+  dòng, đúng yêu cầu trực tiếp của chủ dự án.
+
+Impact:
+Lần đầu tiên đưa JavaScript vào sản phẩm (`app/web/static/js/app.js`,
+~200 dòng thuần, không thư viện/CDN, không build step) — một REVISE kiến
+trúc có chủ đích, không phải scope drift (xem Authority/Supersedes). Một
+route param đọc thêm (`X-Fragment` header qua context processor, không
+route nào tự sửa). Không migration, không endpoint ghi mới, không thư
+viện ngoài. `business_presentation.py`/`workspace_presentation.py`/
+`tinphat-ui.css`/ba template (`layout.html`, `kinh_doanh.html`,
+`kinh_doanh_nhan_vien.html`) thay đổi; không file nào dưới
+`app/modules/`, `tools/db/`, `config/`.
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` (nền `9bfccb8`: cùng
+`2721/11` — 0 test mới, hai file test PHB-05/PI-xx chỉnh lại ĐÍCH theo
+markup mới sau khi dồn tag về Mã đơn + gỡ liên kết Target thừa, không hạ
+chuẩn). Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance validator:
+structure/project_state/task_completion/evidence PASS; reference_integrity
+FAIL với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (đã ghi ở DEC-189)
+sau khi thêm 3 exempt pair cho chính đoạn trích dẫn nguyên văn ba tên file
+đó trong Evidence của DEC-193 (`governance/scripts/governance/validate_
+reference_integrity.py`, cùng khuôn với exempt pair OPTIONAL_ENFORCEMENT_
+LAYER.md đã có từ DEC-011) — không reference nào của lượt này.
+
+Kiểm bằng Playwright trên máy chủ Flask thật (không phải bản dump tĩnh —
+AJAX cần vòng round-trip HTTP thật): xác nhận KHÔNG một hành động nào
+trong tab tải lại trang bằng cách gài `window.__marker` trước và sau mỗi
+thao tác rồi so sánh (context JS sống sót qua điều hướng = không reload
+thật) — mở/lưu/đóng hộp thoại Target, sửa Giá nhập tại chỗ, chuyển Gia
+dụng + xác nhận, loại dòng + xác nhận + KHÔI PHỤC (phát hiện lỗi thiếu
+`event.submitter` ở chính bước này, đã sửa), đổi mức gộp biểu đồ, chuyển
+tab sheet, đổi kỳ báo cáo qua auto-submit, mở bảng chọn mặt hàng
+"Chưa phân loại" + tìm kiếm + huỷ. Tooltip biểu đồ xác nhận đọc đúng
+"05/09/2026: 12.500.000 đồng" khi rê chuột vào điểm. Chart geometry xác
+nhận bằng ảnh chụp ở cả năm mức gộp: Ngày (trục 05-30, đường dừng đúng
+ngày cuối có dữ liệu), Tuần (3 mốc đầu tháng trong quý), Tháng (Th1-Th12),
+Quý/Năm (giữ nguyên hành vi cũ, co giãn responsive). Bảng kê xác nhận bằng
+ảnh chụp: Khách hàng đứng sau DS quy đổi, hàng TỔNG đúng vị trí cột, tag
+"THIẾU GIÁ"/"CHƯA PHÂN LOẠI" gộp về Mã đơn không trùng lặp, Mặt hàng đọc
+trọn một dòng kể cả tên dài. Responsive 1440/820/390px không trang nào
+tràn ngang.
+
+Can Revisit After:
+Module "Biểu đồ khác" (chỗ trống, `DEC-193` §2) vẫn chưa có task định
+nghĩa. Việc mở rộng lớp AJAX sang các trang KHÁC ngoài Báo cáo/Nhân viên
+(Dữ liệu, các trang sâu hơn) chưa được yêu cầu — `layout.html`/`app.js`
+đã hỗ trợ SẴN cho bất kỳ trang nào extend `layout.html`, nên mở rộng khi
+cần không đòi hỏi sửa lại nền tảng, chỉ cần các trang đó tự đúng cấu trúc
+form/link hiện có.
+
+## DEC-195
+
+Title:
+`TASK-OWNER-UIUX-005` — vòng sửa thứ năm theo phản hồi trực tiếp của chủ
+dự án trên `DEC-194`: hai ảnh chụp màn hình trang Nhân viên + bốn yêu cầu
+bằng văn bản — tag cảnh báo xuống dưới số BH, "Lợi nhuận KPI" lên ngang
+hàng năm ô KPI đầu, cột icon sửa đơn tách riêng cuối bảng, và ÁP DỤNG
+CÓ CHỌN LỌC ngôn ngữ thiết kế (màu sắc/icon/hiển thị) của repo
+`hoangvinhkta-creator/Finance` cho ba trang người xem (Báo cáo/Nhân
+viên/Dữ liệu) — không chạm layout/kiến trúc/hành vi.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (hai ảnh chụp màn hình + bốn yêu cầu bằng văn bản của
+chủ dự án, cùng ba câu trả lời làm rõ qua `AskUserQuestion` trước khi
+triển khai — xem mục 0, đúng yêu cầu "hỏi lại tôi trước khi bắt tay xử
+lí"). Mục 4 (theme Finance) là REVISE có chủ đích bảng màu mặc định của
+`tinphat-ui.css` — bản thân stylesheet đã tự nhận là "bản chép tĩnh có
+chọn lọc" của một hệ thiết kế tham chiếu khác ("Tracking"); DEC-195 làm
+lại đúng khuôn mẫu đó với Finance làm nguồn tham chiếu thứ hai, KHOANH
+VÙNG bằng cơ chế mới (`body.theme-finance`) chứ không thay thế bảng màu
+gốc.
+
+Supersedes:
+Không supersede quyết định nghiệp vụ nào. REVISE có chủ đích phần trình
+bày của `DEC-194` §1/§4 (bố cục ô Mã đơn, dải KPI, cột thao tác bảng kê)
+— các bất biến nghiệp vụ (`F-E`/`F-N03`/`DEC-166E`/`DEC-185`/`PHB-05`)
+không đổi.
+
+### 0. Ba câu hỏi làm rõ trước khi triển khai
+
+1. Phạm vi áp dụng theme Finance → "chỉ áp dụng cho những trang hiện hữu
+   với người xem (báo cáo - nhân viên - dữ liệu)" — không áp dụng cho các
+   trang sâu hơn (Bán hàng, Sản phẩm, Tổng quan, Lịch sử...).
+2. Cách áp icon → "Vẽ icon SVG mới cùng phong cách cho MỌI thao tác"
+   (khuyến nghị) — không chỉ chép icon Finance sẵn có (Finance vốn chỉ
+   dùng icon cho nav + chevron tháng; thao tác dòng bảng của chính
+   Finance là nút chữ thường "sửa"/"xoá", không phải icon).
+3. Cách áp màu → "Đổi màu CHỦ ĐẠO sang đen, GIỮ nghĩa màu trạng thái"
+   (khuyến nghị) — xanh dương (`--tp-blue`) hiện tại đổi sang đen/xám đậm
+   kiểu Finance, còn xanh lá (thành công/AUTO)/vàng (CHƯA HOÀN CHỈNH)/đỏ
+   (lỗi/defect) giữ nguyên Ý NGHĨA, chỉ đổi sắc độ cho khớp tông trung
+   tính của Finance.
+
+### 1. Tag cảnh báo xuống dưới số BH
+
+`kinh_doanh_nhan_vien.html`, ô Mã đơn: trước đây `data-metric="bh-order"`
+nằm thẳng trên `<td>`, tag tràn ra cạnh/xuống dòng chồng lên số BH khi
+đơn mang từ hai tag trở lên. Nay tách hai lớp rõ ràng trong cùng ô: một
+`<span class="bh-order-code" data-metric="bh-order">` mang riêng chữ mã
+đơn, và một `<div class="bh-order-tags">` (flex-wrap) chứa MỌI tag
+(`group.tags` + `group.identity_tags`) đứng NGAY DƯỚI. `data-metric=
+"bh-order"` dời theo xuống `<span>` — ba selector CSS cũ neo theo
+`td[data-metric="bh-order"]` (bôi đậm hàng `bh-head`, `vertical-align`,
+`max-width`) đổi sang neo `td.code` (attribute đã không còn ở `<td>`,
+nếu không sửa ba rule này sẽ lặng lẽ không khớp gì).
+
+### 2. Lợi nhuận KPI lên ngang hàng — Tiến độ dời xuống
+
+Owner: "card lợi nhuận KPI lên ngang hàng với 4 card ở trên và kích cỡ 5
+card này bằng nhau". `kinh_doanh_nhan_vien.html`: `Lợi nhuận KPI` dời
+VÀO `.kpi-grid.strip` (cùng Doanh thu/DS quy đổi/So Target/So tháng
+trước — năm ô CHỈ TIÊU kinh doanh, cùng lưới `.kpi-grid.strip` nên tự
+động bằng kích cỡ, không cần CSS riêng). `Tiến độ` — vốn đứng ở đúng chỗ
+Lợi nhuận KPI vừa rời đi — dời XUỐNG khối `.kpi-grid.kpi-grid-one` một ô
+riêng, tách khỏi hàng năm ô chính.
+
+**Diễn giải một cách hiểu ngầm, CHƯA hỏi lại bằng văn bản**: câu Owner
+viết ("4 card ở trên") không khớp số học với năm ô nhìn thấy trong chính
+ảnh chụp Owner gửi — suy luận Owner không tính "Tiến độ" là một CHỈ TIÊU
+(đúng bình luận có sẵn trong code trước đó: Tiến độ "§15 — chỉ báo LỊCH,
+không đổi Target/KPI/doanh thu nào"), nên năm ô CHỈ TIÊU tiền/phần trăm
+đứng CHUNG một hàng bằng nhau, còn Tiến độ (chỉ báo lịch, không phải chỉ
+tiêu) đứng RIÊNG. Đây là suy luận hợp lý nhất đọc được từ ảnh + văn bản,
+không phải một câu Owner đã xác nhận trực tiếp — **cần Owner xem lại kết
+quả và xác nhận cách hiểu này đúng ý.**
+
+### 3. Icon sửa đơn — cột riêng, cuối bảng
+
+Owner: "cho icon sửa đơn thành 1 cột riêng biệt, nằm cuối cùng". Trước
+đây nút SỬA/XONG của đơn nằm CHUNG `<td class="line-actions">` với icon
+đổi Gia dụng/loại dòng của TỪNG dòng hàng — khó phân biệt hành động ở
+CẤP ĐƠN với hành động ở CẤP DÒNG. Nay `<td class="line-actions
+bh-order-actions" rowspan="{{ group.lines }}">` tách RIÊNG, đặt SAU CÙNG
+mọi cột (bảng từ 11 lên 12 cột: header thêm `<th></th>` thứ hai,
+`bh-edit-row` đổi `colspan="11"` → `colspan="12"`, hàng TỔNG thêm một
+`<td></td>` thứ ba). Icon dùng macro mới ở mục kế tiếp thay cho chữ "SỬA
+ĐƠN" trần trước đây (Owner dùng đúng chữ "icon").
+
+### 4. Bộ icon SVG mới (`_business_bits.html`)
+
+Theo câu trả lời 2 ở mục 0: macro `icon(name)` mới, sáu icon
+(`help`/`edit`/`trash`/`swap`/`undo`/`restore`), vẽ THEO PHONG CÁCH
+Finance (`stroke-width: 1.5`, `stroke-linecap`/`stroke-linejoin: round`,
+`fill: none`, tô màu qua `currentColor`) nhưng KHÔNG chép trực tiếp path
+nào của Finance ngoại trừ icon `swap` (mượn đúng path mũi tên hai chiều
+của mục "Công nợ" trong nav Finance — hình dáng khớp nghĩa "đổi/chuyển").
+CSS mới `.tp-ic`/`.tp-ic-sm` (16px/11px, `stroke: currentColor`). Áp
+dụng: nút sửa đơn (mục 3), swap/trash trong `.line-actions` (thay text
+"Nội thành"/text loại dòng bằng icon + nhãn), nút "KHÔI PHỤC" (icon +
+chữ), và dấu hỏi trợ giúp `kpi_help`/`chart_help` (thay `?` trần bằng
+icon `help` — 2 chỗ dùng chung một macro sẵn có, không macro mới).
+
+### 5. Theme Finance — CHỈ màu/icon/hiển thị, khoanh vùng ba trang
+
+Theo câu trả lời 1 và 3 ở mục 0. Cơ chế: `layout.html` đọc biến Jinja
+`theme` (đặt `{% set theme = 'finance' %}` CHỈ ở đầu ba template
+`kinh_doanh.html`/`kinh_doanh_nhan_vien.html`/`du_lieu.html` — đúng cơ
+chế `active_tab` đã dùng cho thanh tab, biến top-level của template con
+đọc được từ `layout.html` khi render) để gắn class `theme-finance` lên
+`<body>`; MỌI template khác (kể cả `/ban-hang`, `/lich-su`, các trang sâu
+hơn) không khai `theme` nên KHÔNG bị ảnh hưởng.
+
+`tinphat-ui.css` thêm khối `body.theme-finance { --tp-blue: #151515;
+--tp-blue-d: #000000; --tp-ink/--tp-bg/--tp-card/--tp-line/--tp-line2/
+--tp-sky: ...; --tp-green/--tp-gold/--tp-red (+ nền): sắc độ trung tính
+hơn nhưng GIỮ Ý NGHĨA trạng thái; font-family + `font-variant-numeric:
+tabular-nums` kiểu Finance }` — GHI ĐÈ đúng những custom property
+`tinphat-ui.css` đã dùng SẴN xuyên suốt (nav, nút, liên kết, SVG biểu đồ,
+tag, viền — ~21 rule), nên mọi thành phần tự đổi màu theo mà KHÔNG cần
+sửa từng component riêng lẻ. Border-radius/spacing/layout token KHÔNG bị
+đụng — đúng giới hạn "chỉ ngôn ngữ và màu sắc thiết kế, icon, hiển thị,
+ngoài ra không áp dụng bất cứ thứ gì khác" Owner chốt bằng văn bản.
+
+Repo Finance (`hoangvinhkta-creator/finance`, clone riêng đọc-only tại
+phiên này, KHÔNG gắn push credential, KHÔNG phải nguồn code chạy được
+đưa vào Reports) chỉ dùng làm THAM CHIẾU THỊ GIÁC — không kéo theo bất kỳ
+route/kiến trúc/hành vi/dependency nào của Finance vào Reports.
+
+Impact:
+Không đổi business logic, không đổi database/migration, không đổi write
+authority (không route/endpoint mới), không đổi navigation chính
+(`nav.ncc-tabs` vẫn ngoài `#app-content`). `kinh_doanh.html`/
+`kinh_doanh_nhan_vien.html`/`du_lieu.html`/`layout.html`/
+`_business_bits.html`/`tinphat-ui.css` thay đổi; không file nào dưới
+`app/modules/`, `tools/db/`, `config/`. `SHEET_DETAIL_COLUMNS` không đổi
+số cột dữ liệu — chỉ số cột HTML (thêm 1 cột thao tác cấp đơn).
+
+Evidence:
+Suite đầy đủ `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền
+`73fa960` (DEC-194), 0 test mới hỏng, 0 test phải sửa đích. Golden `58
+passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (đã ghi từ DEC-189,
+không tăng thêm ở lượt này).
+
+Kiểm bằng Playwright dump tĩnh (Flask test client) + ảnh chụp toàn trang:
+- Trang Nhân viên: tag "THIẾU GIÁ" nằm đúng một dòng riêng DƯỚI "BH72803"
+  (không chồng chữ); năm ô KPI (Doanh thu/DS quy đổi/So Target/So tháng
+  trước/Lợi nhuận KPI) cùng hàng, cùng kích cỡ; Tiến độ đứng riêng một ô
+  bên dưới; icon bút chì sửa đơn hiện đúng MỘT cột riêng cuối bảng,
+  rowspan đúng theo số dòng của đơn BH72707 (3 dòng).
+- Trang Báo cáo, trang Nhân viên, trang Dữ liệu (ảnh chụp toàn trang):
+  tab đang chọn/liên kết/nút đổi từ xanh dương sang đen, đường biểu đồ +
+  chấm đổi màu đen, nền thẻ "CHƯA HOÀN CHỈNH" giữ tông vàng kem ấm, icon
+  trợ giúp hiện đúng hình tròn nhỏ SVG thay vì dấu hỏi trần.
+- Trang Bán hàng (`/ban-hang`, NGOÀI phạm vi đã chốt): ảnh chụp xác nhận
+  VẪN giữ nguyên màu xanh dương gốc (`--tp-blue: #1d5bea`) — bằng chứng
+  trực tiếp cơ chế `body.theme-finance` khoanh vùng đúng ba trang, không
+  rò rỉ sang trang khác.
+
+Can Revisit After:
+Mục 2 (giao hàng "Tiến độ" xuống hàng riêng, "Lợi nhuận KPI" lên hàng
+chính) là một diễn giải suy luận từ ảnh + văn bản Owner, chưa được Owner
+xác nhận trực tiếp bằng lời — cần Owner xem kết quả và xác nhận, hoặc chỉ
+định lại nếu ý ban đầu khác. Việc mở rộng theme Finance sang các trang
+sâu hơn (Bán hàng, Sản phẩm, Tổng quan, Lịch sử...) chưa được yêu cầu —
+cơ chế `theme-finance` đã sẵn cho bất kỳ template nào muốn dùng, chỉ cần
+thêm đúng một dòng `{% set theme = 'finance' %}`.
+
+## DEC-196
+
+Title:
+`TASK-OWNER-UIUX-006` — chủ dự án xác nhận lại cách hiểu ở `DEC-195` §2:
+card "Tiến độ" của mỗi nhân viên CŨNG lên ngang hàng với năm card KPI ở
+trên, thay vì đứng tách riêng một hàng.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản: "cho card tiến độ của
+mỗi nhân viên lên ngang hàng với 5 card ở trên"). Đây chính là câu trả lời
+Owner cho mục "Can Revisit After" mà `DEC-195` đã chủ động nêu ra — DEC-195
+tự nhận diễn giải "Tiến độ tách hàng riêng" là MỘT SUY LUẬN chưa xác nhận,
+và Owner nay xác nhận theo hướng NGƯỢC LẠI.
+
+Supersedes:
+Đảo lại đúng phần bố cục của `DEC-195` §2 (Tiến độ đứng ở `.kpi-grid.
+kpi-grid-one` tách riêng). Không chạm phần còn lại của DEC-195 (tag dưới
+BH, cột icon sửa đơn riêng, theme Finance) hay bất kỳ bất biến nghiệp vụ
+nào — thuần bố cục.
+
+### 1. Sáu ô KPI cùng một hàng, cùng kích cỡ
+
+`kinh_doanh_nhan_vien.html`: card Tiến độ dời từ khối `.kpi-grid.
+kpi-grid-one` riêng VÀO thẳng `.kpi-grid.strip`, đứng sau Lợi nhuận KPI —
+markup của card (nhãn, `data-metric="month-progress"`, ghi chú) giữ
+NGUYÊN, chỉ đổi khối cha. Khối `.kpi-grid.kpi-grid-one` (chỉ còn card Tiến
+độ) bị gỡ hẳn khỏi trang.
+
+`tinphat-ui.css`: `.kpi-grid.strip` đổi `grid-template-columns` từ
+`repeat(5, minmax(0, 1fr))` sang `repeat(6, minmax(0, 1fr))`; hai
+breakpoint hẹp hơn giữ nguyên bố cục 3 cột (≤900px) rồi 2 cột (≤560px) —
+sáu ô chia đều 3+3 rồi 2+2+2, không xuất hiện hàng lẻ 1 ô. Class
+`.kpi-grid.strip` chỉ dùng trong đúng một template (`kinh_doanh_nhan_
+vien.html`) nên đổi số cột không ảnh hưởng trang nào khác (`kinh_doanh.
+html`/`ban_hang_chi_tiet.html`/`san_pham.html`/`tong_quan.html` dùng
+`.kpi-grid` KHÔNG có class `strip`, không đọc rule này).
+
+Impact:
+Thuần trình bày — không đổi business logic/database/write authority/
+navigation chính. Hai file thay đổi: `kinh_doanh_nhan_vien.html`,
+`tinphat-ui.css`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `9ed604a`
+(DEC-195), không test nào phải sửa đích (không test nào phụ thuộc cấu
+trúc `.kpi-grid.kpi-grid-one` riêng cho Tiến độ). Golden `58 passed, 2
+skipped`, KHÔNG đổi. Governance validator: structure/project_state/
+task_completion/evidence PASS; reference_integrity FAIL với ĐÚNG 3
+reference hỏng có sẵn của TASK-REM-T06 (xác nhận bằng cách chạy validator
+với `.venv` cục bộ — tạo khi cài môi trường test, gitignored, không phải
+nội dung repo — tạm dời sang ngoài để loại nhiễu do chính `.venv` gây ra
+lúc quét toàn bộ file `.md`).
+
+Ảnh chụp (Playwright trên bản dump tĩnh từ Flask test client thật, viewport
+1440px và 900px): sáu ô Doanh thu/DS quy đổi/So Target/So tháng trước/Lợi
+nhuận KPI/Tiến độ cùng một hàng, cùng chiều rộng ở 1440px; chia đều 3+3 ở
+900px, không ô nào bị kéo giãn khác thường.
+
+Can Revisit After:
+Không còn mục nào treo lại từ vòng UIUX-004/005/006. Việc mở rộng theme
+Finance sang các trang sâu hơn (nêu ở DEC-195 Can Revisit After) vẫn chưa
+được yêu cầu.
+
+## DEC-197
+
+Title:
+`TASK-OWNER-UIUX-007` — ba yêu cầu trực tiếp của chủ dự án trên trang
+Nhân viên: (1) tag cảnh báo đổi thành CHẤM MÀU, hiện NGANG HÀNG với số BH
+thay vì xuống hàng riêng (đảo lại `DEC-195` §1); (2) bỏ đường viền kẻ
+quanh card/button (giữ bo góc); (3) tab sheet nhân viên đổi hình dạng
+giống card số liệu, xếp một hàng đầy đủ thay vì cụm nhỏ kiểu folder-tab.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, ba mục đánh số).
+Trước khi triển khai đã hỏi lại chủ dự án qua `AskUserQuestion` ba câu làm
+rõ (màu của sáu mã cảnh báo không được nêu tên, phạm vi "bỏ viền", và
+nghĩa chính xác của "giống card số liệu") — xem mục 0.
+
+Supersedes:
+Đảo lại bố cục của `DEC-195` §1 (tag xuống hàng riêng dưới mã đơn) —
+CHỈ vị trí hiển thị, không đổi tập hợp trạng thái cảnh báo nào hay bất
+biến nghiệp vụ (`§35`/`§36`/`§PI-*`). Không supersede quyết định nào khác.
+
+### 0. Ba câu hỏi làm rõ trước khi triển khai
+
+1. Sáu mã cảnh báo KHÔNG được Owner nêu tên (Trùng khóa, Chưa rõ NV,
+   Thiếu giá bán, Thiếu SL, SL bằng 0, SL âm, Cấu hình hỏng) dùng màu gì?
+   → "tất cả các mã còn lại dùng màu đen" (câu trả lời tự do, không khớp
+   3 lựa chọn gợi ý — Owner chọn MỘT màu thứ TƯ riêng cho nhóm này thay vì
+   gộp vào vàng hoặc đỏ).
+2. "Bỏ viền bo quanh" — bỏ đúng phần nào? → "Chỉ bỏ đường viền kẻ (1px),
+   giữ góc bo tròn" (giữ `border-radius`, chỉ mất `border` kẻ).
+3. Tab sheet "giống card số liệu" nghĩa là gì? → "Đổi hẳn thành ô như
+   `.kpi-card`, xếp một hàng ngang đầy đủ" (không phải chỉ đổi màu nền của
+   dải folder-tab cũ).
+
+### 1. Tag cảnh báo → chấm màu, ngang hàng với số BH
+
+`workspace_presentation.py`: thêm `TAG_COLORS` (map mã `profit_gate` →
+`yellow`/`red`/`black`) — `BLOCK_PURCHASE_PRICE_MISSING` = vàng,
+`WARN_PIPELINE_REVIEW` = đỏ, sáu mã còn lại = đen (câu trả lời 1).
+`_short_tags()` gắn `color` vào mỗi tag; `sheet_detail_groups()` gắn
+`color` vào mỗi `identity_tags` entry — `line_identity.LABEL_UNRESOLVED`
+("Chưa phân loại") = xanh, `LABEL_MISSING_PRICE` ("Thiếu giá") = ĐÚNG màu
+vàng của `TAG_COLORS` (cùng một sự thật với `bh-tag`, không phát minh màu
+thứ năm).
+
+`kinh_doanh_nhan_vien.html`: bỏ khối `.bh-order-tags` (div riêng dưới mã
+đơn của `DEC-195` §1); chấm nay render NGAY SAU `.bh-order-code` trên
+CÙNG một dòng. Mỗi chấm giữ NGUYÊN chữ nhãn làm nội dung TRỰC TIẾP của
+phần tử mang `data-metric="bh-tag"`/`"identity-label"` — bộ test
+`metrics()` đọc đúng quy ước "chữ ngay sau dấu >" không đổi
+(`test_case_wr_03`, PI-01…PI-12 KHÔNG cần sửa đích). Chữ bị ẩn khỏi mắt
+Owner bằng `font-size: 0` trên CHÍNH phần tử đó — không lồng thêm
+`<span>` con (sẽ chen `<` trước chữ và làm quy ước đọc hỏng); chấm tròn tự
+nó render qua `::before` (CSS thuần, không nằm trong HTML, không ảnh
+hưởng quy ước đọc). Cơ chế khử trùng lặp `duplicate_text`/`sr-only` sẵn có
+từ `DEC-194` giữ nguyên (chấm trùng nghĩa bị ẩn HẲN, không chỉ ẩn chữ).
+
+CSS (`tinphat-ui.css`): `.tag-short`/`.tag-unresolved` (không còn template
+nào dùng sau đổi này) bỏ hẳn, thay bằng `.tag-dot`/`.tag-dot-{yellow,red,
+green,black}`.
+
+### 2. Bỏ đường viền kẻ quanh card/button (giữ bo góc)
+
+Khoanh vùng dưới `body.theme-finance` (ba trang Báo cáo/Nhân viên/Dữ liệu
+— đúng phạm vi `DEC-195` §4 đã chốt, KHÔNG lan sang Bán hàng/Sản phẩm/
+Tổng quan): `.module`, `.kpi-card`, `.kpi-period`, `.sheet-tab`, `.act`,
+`.ghost`, `button` đổi `border-color: transparent` (không đổi
+`border-width` — tránh xê dịch layout do `box-sizing: border-box`).
+`.tag`/`.tag-dot` vốn không có viền kẻ nào từ trước (chỉ nền màu/`::
+before`) nên không cần rule riêng.
+
+### 3. Tab sheet nhân viên → hình dạng card, một hàng đầy đủ
+
+`.sheet-tabs` đổi từ `flex` (dải tab dính liền, rộng theo chữ) sang
+`grid` (`repeat(auto-fit, minmax(110px, 1fr))`, giống `.kpi-grid` — không
+dùng số cột cố định như `.kpi-grid.strip` vì số sheet đổi theo số nhân
+viên). `.sheet-tab` đổi padding/bo góc/nền để GIỐNG `.kpi-card` (bốn góc
+bo tròn thay vì chỉ hai góc trên, nền trắng thay vì xám, không còn
+`border-bottom: none` kiểu folder-tab); trạng thái chọn (`.on`) và hover
+đổi từ "đổi màu viền" (sẽ vô hình khi viền đã trong suốt theo mục 2) sang
+nền `--tp-sky` — vẫn phân biệt được sheet đang xem mà không cần viền.
+Sheet NHÓM (Nội thành/Gia dụng) giữ nguyên chữ nghiêng để phân biệt với
+sheet của một người.
+
+Impact:
+Thuần trình bày (CSS + cấu trúc HTML của một `<td>`, không đổi
+`SHEET_DETAIL_COLUMNS`/route/database/write authority). `workspace_
+presentation.py`, `kinh_doanh_nhan_vien.html`, `tinphat-ui.css` thay đổi.
+Không file nào dưới `app/modules/`, `tools/db/`, `config/`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `f6d7347`
+(DEC-196), 0 test mới hỏng, 0 test phải sửa đích (`test_case_wr_03_*`,
+PI-01…PI-12, `test_identity_durability_and_timeline_aggregation.py` chạy
+riêng lại lần nữa sau khi sửa để xác nhận: 217 passed, 2 skipped). Golden
+`58 passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (không tăng thêm, xác
+nhận bằng cách dời `.venv` cục bộ ra ngoài trước khi chạy).
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật, dữ liệu
+fixture riêng dựng đủ bốn màu — `Missing.PurchasePrice` cho vàng,
+`SomePipelineNote` (mã lạ, không thuộc `PIPELINE_REASONS_SUBSUMED_BY_
+PURCHASE_PRICE`) cho `WARN_PIPELINE_REVIEW` đỏ, `Duplicate` cho `WARN_
+POSSIBLE_DUPLICATE` đen, `("IDENTITY_UNRESOLVED", "Missing.PurchasePrice")`
+đúng khuôn PI-01 cho `line_identity` xanh): xác nhận cả bốn màu chấm hiện
+đúng trên bảng kê thật, chấm đứng NGAY SAU số BH trên cùng dòng (không còn
+xuống hàng riêng); một BH mang cả tag "Chưa phân loại" (xanh, `<a>` bấm
+được) VÀ "Thiếu giá" (vàng, từ `SHORT_TAGS`) cùng lúc hiện ĐÚNG hai chấm
+khác màu (hai nhãn KHÁC chữ, không phải trường hợp `duplicate_text`); một
+BH khác có CẢ "Thiếu giá" lẫn "Chưa phân loại" trùng CHỮ ("Thiếu giá" từ
+cả `line_identity` và `SHORT_TAGS`) xác nhận đúng MỘT chấm vàng hiện ra,
+chấm thứ hai vẫn trong HTML (`sr-only`) nhưng không hiện — cơ chế khử
+trùng lặp của `DEC-194` còn nguyên. Ảnh chụp cột thao tác xác nhận icon
+sửa/đổi/xoá không còn khung viền bao quanh, chỉ còn icon trần. Ảnh chụp
+`.sheet-tabs` xác nhận năm sheet (Tín Phát/Ly/Kiên/Nội thành/Gia dụng)
+hiện thành năm ô bo góc bốn phía đều nhau, xếp đầy một hàng ngang, sheet
+đang chọn nổi bật bằng nền xám nhạt thay vì viền màu. Ảnh chụp Báo cáo
+xác nhận card cũng bỏ viền đúng theo khoanh vùng `theme-finance`; ảnh
+chụp `/ban-hang` (ngoài phạm vi) xác nhận nút "XEM" vẫn giữ viền xanh
+dương gốc — bằng chứng khoanh vùng không rò rỉ.
+
+Can Revisit After:
+Không còn mục nào treo lại. Nếu Owner muốn cùng cách hiển thị (chấm màu,
+bỏ viền, tab dạng card) áp dụng sang các trang sâu hơn ngoài phạm vi
+theme Finance, cần yêu cầu riêng — cơ chế hiện tại khoanh vùng đúng ba
+trang đã chốt.
+
+## DEC-198
+
+Title:
+`TASK-OWNER-UIUX-008` — hai yêu cầu trực tiếp của chủ dự án trên bảng kê
+Nhân viên: (1) nới rộng cột Mã đơn để BH mang đủ ba chấm cảnh báo vẫn
+thấy rõ cả ba; (2) tách cột Khách hàng thành HAI cột bằng nhau, hẹp hơn,
+mỗi cột CẮT một dòng (không xuống dòng) để mọi hàng của bảng giữ ĐÚNG một
+chiều cao.
+
+Date:
+2026-09-06
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, hai mục đánh số).
+Không có điểm mơ hồ cần hỏi lại — cả hai yêu cầu đều cụ thể, không hỏi
+thêm câu nào trước khi triển khai.
+
+Supersedes:
+Không supersede quyết định nghiệp vụ nào — thuần chỉnh kích thước/cấu
+trúc trình bày, tiếp nối trực tiếp `DEC-197` §1 (chấm màu) và `DEC-194`
+§4/`TASK-UIUX-001` (cột Khách hàng gộp một ô hai dòng).
+
+### 1. Mở rộng cột Mã đơn
+
+`tinphat-ui.css`: `.sheet-table td.code` — `max-width` từ 110px (đặt ở
+`DEC-194` §4, trước khi có chấm màu) lên 150px. Đủ chỗ cho số BH (7 ký
+tự, in đậm) cộng ba `.tag-dot` (8px mỗi chấm) không tràn/chồng — kiểm
+chứng bằng fixture riêng dựng một BH mang cả ba màu (vàng+đen+đỏ) cùng
+lúc (xem Evidence).
+
+### 2. Khách hàng → hai cột bằng nhau, cắt một dòng
+
+`workspace_presentation.py`: `SHEET_DETAIL_COLUMNS` thêm nhãn cột "Liên
+hệ" ngay sau "Khách hàng" (10 cột → 11 cột dữ liệu; không đổi vị trí các
+cột số 5-9 nên rule `'num' if loop.index in (5,6,7,8,9)` ở template không
+cần sửa).
+
+`kinh_doanh_nhan_vien.html`: `<td data-metric="bh-customer">` (một ô,
+tên + `.bh-customer-meta` chồng dòng dưới) tách thành HAI `<td>` riêng —
+`data-metric="bh-customer-name"` (chứa `<span data-metric="customer-
+name">`) và `data-metric="bh-customer-contact"` (chứa `<span data-metric=
+"customer-phone">` · `<span data-metric="customer-address">`), cả hai
+đều `rowspan="{{ group.lines }}"` và mang `title` đầy đủ (đọc được khi
+chữ bị cắt). Header `<th>`/hàng TỔNG thêm đúng một cột (`<td></td>` thứ
+tư ở cuối hàng TỔNG); `bh-edit-row` `colspan` 12 → 13. Ba `data-metric`
+con (`customer-name`/`customer-phone`/`customer-address`) giữ NGUYÊN —
+không test nào cần sửa đích (`test_case_...` đọc đúng ba metric này, ĐÚNG
+CHỮ ngay sau dấu `>`, không quan tâm cấu trúc `<td>` cha).
+
+`tinphat-ui.css`: `.customer-name-cell`/`.customer-contact-cell` dùng
+CHUNG `width: 130px; max-width: 130px` (luôn bằng nhau, hẹp hơn 220px cũ)
+cộng `overflow: hidden; white-space: nowrap; text-overflow: ellipsis` —
+CẮT một dòng thay vì xuống dòng, nên mọi hàng của một BH giữ ĐÚNG một
+chiều cao dù khách hàng có địa chỉ dài hay ngắn (khớp đúng yêu cầu "làm
+sao mà mỗi dòng mã hàng sẽ là 1 dòng và các dòng phải có kích thước như
+nhau"). Cột Liên hệ giữ màu chữ nhạt/cỡ nhỏ như dòng meta cũ
+(`color: var(--tp-mut); font-size: 12px`) — `.bh-customer-meta` (không
+còn template nào dùng) bị gỡ.
+
+Impact:
+Thuần trình bày (CSS + cấu trúc `<td>`, không đổi route/database/write
+authority). `workspace_presentation.py`, `kinh_doanh_nhan_vien.html`,
+`tinphat-ui.css` thay đổi. Không file nào dưới `app/modules/`, `tools/
+db/`, `config/`.
+
+Evidence:
+Full suite `2721 passed, 11 skipped, 0 failed` — GIỐNG HỆT nền `251bdcc`
+(DEC-197), 0 test mới hỏng, 0 test phải sửa đích
+(`test_employee_workspace_ux.py` chạy riêng lại: 146 passed, 2 skipped).
+Golden `58 passed, 2 skipped`, KHÔNG đổi. Governance validator: structure/
+project_state/task_completion/evidence PASS; reference_integrity FAIL
+với ĐÚNG 3 reference hỏng có sẵn của TASK-REM-T06 (không tăng thêm, xác
+nhận bằng cách dời `.venv` cục bộ ra ngoài trước khi chạy).
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật): dựng
+fixture một BH có `kpi_purchase=None` (chặn "Thiếu giá", vàng) +
+`reasons=("Duplicate", "SomeOtherPipelineNote")` (ra cả `WARN_POSSIBLE_
+DUPLICATE` đen và `WARN_PIPELINE_REVIEW` đỏ) — ảnh chụp cận cảnh ô Mã đơn
+xác nhận CẢ BA chấm (vàng/đen/đỏ) hiện rõ, tách biệt, không chồng lên số
+BH hay lên nhau. Cùng fixture, một khách hàng tên rất dài + địa chỉ rất
+dài ("Nguyễn Thị Bích Ngọc Phương Anh Thảo Vy" / "Số 128/45A Đường Nguyễn
+Văn Trỗi, Phường 8, Quận Phú Nhuận, TP.HCM") đặt CẠNH một khách hàng tên
+2 ký tự ("An"/"Q1") trong CÙNG bảng — ảnh chụp xác nhận cả hai BH có
+CHIỀU CAO HÀNG bằng nhau (không co giãn vì nội dung dài), cột Khách hàng
+và Liên hệ hiện đúng hai cột riêng bằng nhau về bề rộng, nội dung dài bị
+CẮT bằng dấu "…" thay vì xuống dòng.
+
+Can Revisit After:
+Không còn mục nào treo lại từ vòng UIUX-004…008.
+
+---
+
+## DEC-199
+
+Title:
+R1 — giá nhập tự động của Reports là MIN theo NGÀY BÁN do Tracking tính;
+lịch sử `tp/ton` thôi làm nguồn giá mặc định
+
+Date:
+2026-09-07
+
+Status:
+ACCEPTED (Owner Decision — `R1 Execution Brief — Giá MIN theo ngày bán`)
+
+CONFLICT DETECTED:
+Documentation:
+`ADR-107` (Accepted 2026-08-30) chốt "Public Purchase = … và là
+`KpiPurchasePrice`". `PROJECT/PROJECT_PROGRESS.md` ghi
+`PRICE_AUTHORITY = TRACKING_PP_AT_SALE_DATE_ONLY`, và gọi con số ấy ở
+nghiệp vụ là "Giá mua tham chiếu".
+
+Implementation:
+`app/modules/pricing/tracking_history/` dựng lại `board/<mã>/tp/ton` tại
+khoảng ngày bán; `composition._tracking_branch` dùng nó làm nguồn giá của
+mọi identity `TRACKING`. Mã khớp đúng tài liệu — không có sai lệch nội bộ.
+
+Owner (R1 brief §1, §3.1):
+"Tracking sở hữu việc tính và lưu giá MIN theo ngày. Reports dùng giá MIN
+của đúng ngày bán để tính giá nhập KPI." — "Trong R1, giá nhập tự động duy
+nhất là MIN do Tracking tính."
+
+Risk:
+Giá công khai (`tp/ton`) và MIN là HAI đại lượng khác nhau, cùng đơn vị
+tiền, cùng gắn với một mã và một ngày, cùng đến từ Tracking. Owner đặt giá
+công khai CAO HƠN giá vốn thật một cách có chủ đích (`ADR-107` Context).
+Dùng nó làm giá nhập là báo cáo một biên lợi nhuận thấp hơn thực tế, đều
+đặn, trên mọi dòng — và không có gì đỏ lên, vì cả hai đều là số tiền hợp lệ.
+
+Resolution:
+Áp yêu cầu Owner. `ADR-110` ghi lại quyết định kiến trúc và supersede ĐÚNG
+một mệnh đề của `ADR-107` ("Public Purchase … là `KpiPurchasePrice`"); mọi
+phần còn lại của `ADR-107` giữ nguyên hiệu lực. Bản ghi lịch sử của
+`ADR-107` và `DEC-165` KHÔNG được viết lại — chúng đúng với thông tin có
+lúc đó.
+
+Decision:
+1. **Nguồn giá nhập tự động = MIN của đúng ngày bán**, do Tracking tính,
+   lưu theo ngày, xuất qua hợp đồng `daily-min-v1`. Nhãn nguồn riêng:
+   `price_source = TRACKING_DAILY_MIN`.
+2. **Reports KHÔNG tính một MIN thứ hai.** Luật MIN (danh sách nhà cung cấp
+   bị bỏ, ngưỡng giá bất thường, sentinel hết hàng, ô Tồn tham gia) ở lại
+   Tracking. Engine trả thêm nguồn thắng; kết quả GIÁ không đổi (`pe-6`).
+3. **`MIN = 0` không bao giờ ra ngoài như một giá.** Sentinel hết-hàng đổi
+   thành `OUT_OF_STOCK` + `min_price = null` ngay tại biên xuất bản.
+4. **Không fallback sai ngày.** Không lấy bản của ngày sau, không lấy giá
+   tại thời điểm nạp file, không lấy giá 0. Kế thừa trạng thái từ ngày
+   trước CHỈ hợp lệ khi Tracking chứng minh được đã quan sát bảng giá mọi
+   ngày ở giữa (`min_ngay_ngay`); Reports không tự suy ra.
+5. **`PROVISIONAL`/`FINAL` gắn với NGÀY.** Reports dùng được giá của ngày
+   chưa chốt nhưng phải giữ trạng thái ấy; kỳ còn dùng bản tạm thì chưa
+   được gọi là chốt (`PriceResolutionReport.prices_are_final`).
+6. **Nhánh `TrackingPriceHistory` KHÔNG bị xoá và KHÔNG đổi nghĩa**, chỉ
+   thôi làm mặc định. Bật lại phải tường minh
+   (`legacy_tracking_history_authority=True`), và không có đường rơi từ MIN
+   sang nó — kể cả khi ảnh chụp MIN chưa được nối.
+7. **Không backfill.** Không dựng lịch sử MIN từ `tp/ton` hay từ bảng giá
+   hôm nay. Lịch sử MIN có thẩm quyền bắt đầu từ lượt chụp đầu tiên.
+
+Reason:
+Điểm mấu chốt giống hệt `ADR-107` nhưng ở một cặp khái niệm khác: hai đại
+lượng khác nhau tình cờ cùng đơn vị tiền. Nhầm chúng không tạo ra ngoại lệ
+nào, không làm đỏ ô nào, và chỉ hiện ra ở cuối tháng dưới dạng một biên lợi
+nhuận "hơi khác mọi khi". Cách duy nhất chống lại lớp lỗi ấy là gọi tên nó
+ở tầng dữ liệu: mỗi nguồn một nhãn riêng, mỗi bản ghi mang nguồn thắng và
+revision, không nhánh nào rơi từ nguồn này sang nguồn kia.
+
+Impact:
+Tracking — `price-engine/src/nghiepvu.js` (`nguonGiuMin`, `tinhMinNgay`,
+`PHIEN_BAN_MIN`), `src/min-ngay.js` (mới), `src/index.js` (route + cron),
+`public/index.html` (đăng `meta.an`), `firebase-database.rules.json`
+(bốn nhánh mới, client KHÔNG ghi được), `wrangler.toml` (cron thứ ba).
+Reports — `app/modules/pricing/daily_min/` (mới),
+`tools/tracking/capture_daily_min.py` (mới), `composition.py`/`sources.py`
+(nhánh + cờ legacy), `demo.py`/`owner_usability.py` (đầu vào tuỳ chọn),
+`excel_exporter.py` (hai cột provenance trỏ về nguồn ĐÃ QUYẾT ĐỊNH),
+`beta_presentation.py`/`profit_gate.py` (hai mã lý do mới).
+Vũ trụ reason code đóng: 19 → 21 mã sinh mới, 21 → 23 mã UI phải hiển thị.
+
+Evidence:
+Tracking `npm test`: 60 bộ · 2687 đạt · 0 hỏng · 2 bỏ qua (nền: 59 · 2594 ·
+0 · 2). `npm run build` dựng `./dist` thành công.
+Reports `python -m pytest -q`: `2776 passed, 12 skipped` (nền `2720 passed,
+12 skipped`) — 56 bài mới, 0 bài cũ hỏng.
+Governance validator: structure / project_state / evidence (161 REQUIRED
+PASS) / task_completion (14 DONE) PASS; reference_integrity FAIL với ĐÚNG
+3 reference `TASK-REM-T06` đã biết — baseline KHÔNG đổi.
+Kiểm xuyên suốt: `tests/test_daily_min_vertical.py` chạy trên fixture do
+CHÍNH mã Tracking sinh (`nghiepvu.js` → `min-ngay.js` → phong bì capture),
+xác nhận đơn bán 03/09 ra 6.800.000 VND trong khi ảnh chụp có 6.000 ở
+04/09, lợi nhuận 2.200.000 VND, provenance trỏ đúng revision của Tracking.
+
+Amendment (07/09/2026, lượt Independent Review vòng 1 — bản ghi gốc bên trên
+GIỮ NGUYÊN, không viết lại):
+- Điểm 4, mệnh đề "mọi ngày ở giữa": SIẾT LẠI thành **mốc `R ≤ D` hợp lệ cho
+  ngày `D` khi và chỉ khi ĐÚNG ngày `D` có bản ngày**. Luật cũ khoá VĨNH VIỄN
+  mọi mã giá ổn định sau một ngày lỡ. Luật mới đúng được là NHỜ một bất biến
+  phía ghi (`chupMinNgay` fail-closed: bản ngày chỉ ghi khi engine trả đủ mọi
+  mã), nên hai điều này đi liền nhau — xem `ADR-110` §2.
+- Điểm 5, tên cờ: `prices_are_final` → **`resolved_prices_are_final`**, và
+  thêm một cổng riêng `period_is_final`. Tên cũ mời cách đọc sai: một kỳ TOÀN
+  Pending, hay một kỳ rỗng, đều trả `True` cho nó.
+- Bổ sung điểm 8: **mọi trang của một lần chụp phải cùng `query_revision`.**
+  Con trỏ phân trang không đóng băng dữ liệu; Tracking đổi token này sau mọi
+  lượt ghi và trả nó trên từng trang, Reports TỪ CHỐI gộp khi lệch.
+- Bổ sung điểm 9: **đường upload web tự lập kế hoạch hỏi giá** (đọc sổ →
+  resolve identity → tập mã + khoảng ngày bán) rồi gọi hợp đồng MỘT lượt cho
+  lần chạy ấy. Ảnh chụp MIN phụ thuộc kỳ, nên chọn "capture mới nhất" là sai:
+  luồng cục bộ chọn ảnh chụp PHỦ ĐÚNG kỳ, không có thì `None` + Pending.
+
+Amendment (07/09/2026, lượt Independent Review vòng 2 — review CHƯA ACCEPT):
+- Điểm 8 (phân trang): SIẾT thành **đọc lạc quan HAI ĐẦU** (token → dữ liệu →
+  token, chỉ trả khi bằng nhau) cộng **con trỏ mang theo token**. Chỉ đọc một
+  đầu thì mù với lượt ghi xen vào giữa các lệnh đọc của MỘT trang.
+- Điểm 9 (ảnh chụp theo kỳ): kỳ rộng hơn trần hợp đồng được **CHIA thành các
+  đoạn ≤ 62 ngày**, gộp chỉ khi mọi đoạn cùng `query_revision`; quá trần đoạn
+  mỗi lần chạy thì TỪ CHỐI kèm hướng dẫn tách kỳ. Bỏ qua lượt hỏi giá là ra
+  một báo cáo đầy đủ hình thức mà không một giá vốn nào.
+  Phép chọn ảnh chụp cục bộ hỏi **từng cặp `(mã, ngày)`**, không chỉ khoảng
+  ngày: hai ảnh chụp cùng kỳ có thể được chụp cho hai tập mã khác nhau.
+- Bổ sung điểm 10: **`purchase_price_history` thôi là đầu vào BẮT BUỘC.** Từ R1
+  nó không quyết định giá nào; giữ nó REQUIRED là bắt báo cáo hôm nay phụ thuộc
+  vào một nguồn hôm nay không dùng. Vẫn chụp, vẫn vào bằng chứng, vắng mặt thì
+  bằng chứng nói ra. Danh mục Tracking VẪN REQUIRED.
+- Bổ sung điểm 11: **một lần chạy hỏng không để lại capture tạm trên đĩa**
+  (`S071 §10`) — kể cả khi lỗi đến từ một chỗ không lường trước.
+
+Can Revisit After:
+Mở lại nếu Owner đổi định nghĩa giá nhập tự động, hoặc khi `TASK-105C`
+(giá nhà cung cấp lịch sử) được cấp phép và cần một thứ tự ưu tiên mới.
+Điểm 6 mở lại khi không còn kết quả cũ nào cần đọc bằng nhánh `tp/ton`.
+
+---
+
+## DEC-200
+
+Title:
+R2 — bốn trạng thái nhận diện hiệu lực, `OUT_OF_CATALOG` là phân loại HOÀN
+TẤT, và quyết định của người phải tới được resolver production
+
+Date:
+2026-09-07
+
+Status:
+ACCEPTED (Owner Decision — `R2 Execution Brief — Phân loại sản phẩm và giá
+nhập tay`)
+
+Context:
+
+R1 trả lời được "giá vốn của ngày bán là bao nhiêu" cho những dòng máy đã biết
+là mặt hàng nào. Phần còn lại — dòng chưa nhận diện và dòng thật sự không có
+trên bảng giá — chưa có đường đi tới đâu cả.
+
+Đáng chú ý hơn: bề mặt phân loại của `DEC-185` đã tồn tại và ĐÃ CHẠY ĐÚNG phần
+việc của nó (ghi `ConfirmMapping` vào log, đổi màn hình), nhưng quyết định ấy
+KHÔNG tới được đường chạy báo cáo. Hai mối nối đứt, cả hai đều im lặng — chi
+tiết ở `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay.md` §2.
+
+Decision:
+
+1. **Bốn trạng thái nhận diện hiệu lực, tách bạch ở model, persistence, UI và
+   test:** `MATCHED_TRACKING` · `NEEDS_REVIEW` · `OUT_OF_CATALOG` · `CONFLICT`.
+
+2. **`OUT_OF_CATALOG` là một KẾT QUẢ PHÂN LOẠI HOÀN TẤT**, không phải một biến
+   thể của Pending. Dòng rời khỏi hàng đợi "chưa phân loại", GIỮ NGUYÊN doanh
+   thu/số lượng/chiết khấu, và chờ một giá nhập tay. Nó KHÔNG đồng nghĩa hết
+   hàng, không đồng nghĩa Tracking chưa trả được giá, và không loại dòng khỏi
+   báo cáo. Chỉ một thao tác tường minh của người mới tạo ra nó.
+
+3. **`CONFLICT` là trạng thái SUY RA, không phải trạng thái LƯU.** Nó là quan
+   hệ giữa một quyết định đã lưu của Reports và authority của Tracking tại một
+   capture cụ thể; lưu nó xuống sẽ đóng băng một quan hệ mà lần capture sau có
+   thể tự giải. Khi mâu thuẫn xảy ra, hệ thống KHÔNG chọn bên thắng.
+
+4. **Mâu thuẫn phải kết thúc được.** Lựa chọn của người dùng khi họ ĐÃ ĐƯỢC
+   CHO XEM cả hai mã được ghi bằng `MappingSource.HUMAN_CONFLICT_RESOLUTION`,
+   có `reason`, có actor, có audit event. Không có nhãn đó thì mỗi lần chạy
+   lại suy ra đúng mâu thuẫn ấy và hỏi lại — mãi mãi. Đây KHÔNG phải
+   last-write-wins.
+
+5. **Thứ tự ưu tiên giá nhập KPI (giữ nguyên, nay có test canh):** giá tay →
+   MIN đúng `sale_date` → Pending có lý do. Giá AUTO xuất hiện hoặc đổi về sau
+   KHÔNG tự đè giá tay.
+
+6. **Provenance của một quyết định giá tay phải đủ để mở lại:** `entered_by`,
+   `entered_at`, `auto_price_at_entry` (khi có) và `reason`. `reason` BẮT BUỘC
+   khi lần ghi thay một giá AUTO đang có; tuỳ chọn khi nó lấp một chỗ trống.
+   Ràng buộc sống ở tầng nghiệp vụ, không ở tầng cột — xem
+   `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md` §4.4.
+
+7. **Nơi lưu quyết định là một, và đường chạy báo cáo phải đọc đúng nơi đó.**
+   `identity_gateway.build_store()` là chỗ DUY NHẤT quyết định log thật nằm ở
+   đâu; `/run` đọc MỘT ảnh chụp đóng băng và truyền nó vào cả kế hoạch hỏi giá
+   lẫn pipeline. Không nơi nào khác được tự mở một store thứ hai.
+
+Reversal Cost:
+
+TRUNG BÌNH-CAO. Điểm 2 thêm một giá trị vào một enum ĐÓNG đã persist
+(`MappingStatus`), nên hạ cấp code sau khi Owner đã dùng nút "ngoài bảng giá"
+là một thao tác MỘT CHIỀU: log append-only vẫn chứa bản ghi ấy và bản đọc cũ
+sẽ từ chối nó. Chi tiết + đường xử lý ở `S128` §8. Điểm 5–6 đảo lại rẻ (một
+migration bỏ cột, tiền không mất). Điểm 7 đảo lại là quay về đúng lỗi mà R2
+sửa, nên không có lý do nào để đảo.
+
+Can Revisit After:
+
+Mở lại điểm 3 nếu Owner muốn một mâu thuẫn được LƯU để theo dõi qua nhiều lần
+chạy. Mở lại điểm 6 nếu Owner quyết định cấm hẳn giá nhập tay `0` (xem `S128`
+§7 `AR-R2-03`).
+
+---
+
+## DEC-201
+
+Title:
+R4 — báo cáo đánh giá là một trang CHỈ ĐỌC trên một effective data, và không
+chỉ tiêu nào dẫn xuất từ lợi nhuận được công bố khi coverage chưa đủ
+
+Date:
+2026-09-08
+
+Status:
+ACCEPTED (Owner Decision — `R4 Execution Brief — Báo cáo đánh giá vận hành`)
+
+Context:
+
+Sau R1–R3, Reports đã có đủ số để trả lời câu hỏi cuối tháng, nhưng người dùng
+phải mở bốn màn hình và tự cộng trong đầu. Người dùng chính là 2–3 người, nên
+câu trả lời KHÔNG phải là dựng một hệ BI — mà là gom bốn câu hỏi (*kết quả ra
+sao · đạt bao nhiêu phần target · phần nào tạo ra kết quả · số này đã đủ tin
+chưa*) vào MỘT trang.
+
+Rủi ro lớn nhất của một trang như vậy không phải là thiếu chỉ tiêu. Nó là
+**công bố một kết quả một phần như kết luận cả kỳ**: khi còn dòng chưa có giá
+nhập, tổng phần đã biết vẫn là một con số hợp lệ về hình thức, và một biên lợi
+nhuận tính từ nó trông giống hệt một biên thật.
+
+Decision:
+
+1. **`PeriodData` của R3 là nguồn DUY NHẤT.** Không đọc `ImportResult`,
+   snapshot cũ hay Excel thô. Mọi chỉ tiêu cộng được đi qua
+   `business_metrics.totals` của cùng lát dữ liệu mà trang Báo cáo và không
+   gian làm việc đang hiển thị. R4 KHÔNG tính lại con số nào của R1–R3.
+
+2. **Trang chỉ ĐỌC.** Không route ghi, không chạm `business_store`, không
+   migration, không schema mới. Đây là điều quyết định Blast Radius của R4
+   (`3/5` thay vì `5/5`), và nó là một tính chất CẤU TẠO kiểm được bằng test
+   (`CHECK-R4-22`), không phải một lời hứa.
+
+3. **Cổng coverage 100 % áp cho MỌI chỉ tiêu dẫn xuất từ lợi nhuận** — Lợi
+   nhuận KPI, Biên KPI, Lãi/đơn, DS quy đổi và % target. Coverage chưa đủ ⟹ cả
+   năm hiện `—` kèm lý do. Con số một phần vẫn hiện, nhưng ở vị trí BẰNG CHỨNG
+   ("đã tính được…"), không bao giờ ở vị trí kết quả.
+
+4. **`None` không bao giờ thành `0`.** Mọi ô không có số mang MỘT mã lý do
+   thuộc tập đóng. Bất biến này được canh ở constructor (`evaluation.Kpi`),
+   nên vi phạm nó là một `ValueError` lúc dựng chứ không phải một ô trống trên
+   màn hình.
+
+5. **Không có target cấp công ty.** Target chỉ tồn tại ở nhân viên hoặc sheet
+   nhóm. Phạm vi "Cả kỳ" không hiện ô target nào; hàng TỔNG của bảng đơn vị
+   báo cáo để trống hai cột target. Cộng target các đơn vị lên sẽ cho ra một
+   con số chưa ai đặt và không ai chịu trách nhiệm (`DEC-PHB02-08` §7).
+
+6. **So kỳ trước của tháng đang chạy dùng CÙNG SỐ NGÀY LỊCH cho cả hai vế.**
+   Tháng trước ngắn hơn thì cắt CẢ HAI ở ngày ngắn hơn — cắt hai vế ở hai số
+   ngày khác nhau thì phép so không còn là "cùng số ngày lịch", và tháng ngắn
+   sẽ luôn trông kém hơn. Dòng không có ngày bán bị loại khỏi cả hai vế và
+   được đếm riêng.
+
+7. **Forecast chỉ là RUN-RATE, luôn mang nhãn "ước tính nếu tốc độ hiện tại
+   giữ nguyên".** Không mô hình, không mùa vụ, không nguyên nhân, không cam
+   kết. Nó từ chối chạy khi kỳ đã kết thúc, khi chỉ tiêu nền chưa chính thức,
+   khi không có dòng mang ngày bán, và khi chưa có ngày nào trôi qua.
+
+8. **Không nhãn phán quyết trên bảng đóng góp.** "Biên KPI thấp nhất" là một
+   THỨ TỰ SẮP XẾP; không có ngưỡng "biên thấp" nào được đặt ra, vì ngưỡng đó
+   là một quyết định của Owner. Không hàng nào mang nhãn `top`, `tốt` hay
+   `kém`, và trang không viết một câu nguyên nhân nào.
+
+9. **Mặt hàng gộp bằng `product_key`** — khoá đã được repo công nhận, cùng
+   khoá và cùng quy ước nhãn (`min(product_raw)`) mà `sales_queries.
+   product_totals` và `BusinessReportService.products` dùng. Không dựng khoá
+   gộp thứ hai.
+
+10. **Drill-down dùng lại bảng kê chi tiết ĐÃ CÓ**, giữ kỳ + phạm vi + bộ lọc,
+    và bảng kê NÓI RA phạm vi nó vừa thu hẹp về. Không dựng màn hình chi tiết
+    thứ hai, không lộ trường dữ liệu nào mới. Một khoá thu hẹp không khớp gì
+    cho ra bảng RỖNG chứ không im lặng mở rộng về "tất cả".
+
+11. **Ngày nghiệp vụ đọc theo `Asia/Ho_Chi_Minh`**, không theo đồng hồ máy chủ
+    — cùng múi giờ mà hợp đồng `daily-min-v1` đã freeze cho ranh giới ngày của
+    giá MIN. Ngày bán và ngày báo cáo phải cắt theo cùng một ranh giới.
+
+12. **Không thêm tab top-level.** `DEC-185` rút thanh tab còn ba mục có chủ
+    đích; trang đánh giá mở từ một đường dẫn trên trang Báo cáo, mang theo kỳ
+    đang chọn. Đổi thanh tab là một quyết định điều hướng riêng.
+
+Reversal Cost:
+
+THẤP. R4 không ghi gì và không có migration, nên gỡ nó là xoá một route, một
+template và hai module thuần — không dữ liệu nào mất, không con số nào đổi.
+Ngoại lệ duy nhất là điểm 11 (`_today()` theo múi giờ nghiệp vụ): đảo lại nó là
+quay về đúng lỗi lệch một ngày mỗi tối mà nó sửa, nên không có lý do nào để
+đảo.
+
+Can Revisit After:
+
+Mở lại điểm 8 nếu Owner đặt một ngưỡng "biên thấp" tường minh. Mở lại điểm 5
+nếu Owner tạo một bảng target cấp công ty THẬT (không phải một tổng suy ra).
+Mở lại giới hạn `AR-R4-01` (trạng thái MIN `FINAL`/`PROVISIONAL`) khi đường
+NHẬP lưu `day_status` xuống dữ liệu hiệu lực.
+
+---
+
+## DEC-202
+
+Title:
+R5 — sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi số liệu; hai cửa sổ
+liền kề cùng độ dài; một lần bấm lưu cả BH; hãng/model do Tracking chuẩn hoá và
+IMEI mở đúng một route
+
+Date:
+2026-09-08
+
+Status:
+ACCEPTED (Owner Decision — `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §1, xác nhận
+08/09/2026)
+
+Context:
+
+R5 đóng năm khoảng cách mà R1–R4 để lại, và bốn trong năm cái là những khoảng
+cách giữa *điều màn hình nói* với *điều hệ thống biết*.
+
+Cái đắt nhất nằm ở đối soát sổ. `TASK-PRA-002` slice B dựng đúng một bất biến
+an toàn — *"không thấy" KHÔNG BAO GIỜ tự động trở thành "đã xoá"* — và nó đúng
+tuyệt đối khi file mới có thể là một file một phần. Nhưng slice B cũng dựng một
+nút "xác nhận sổ này đầy đủ cho khoảng ngày", và sau khi người dùng bấm nút ấy,
+hệ thống vẫn xử sự y như trước: `REMOVED_IN_SOURCE_CANDIDATE` chỉ là một dòng
+trong bảng cờ, và doanh thu của một đơn đã huỷ vẫn nằm trong tổng. Người dùng
+đã cung cấp đúng căn cứ mà hệ thống nói là nó còn thiếu, rồi không có gì xảy ra.
+
+Bốn khoảng cách còn lại cùng một hình dạng: trang snapshot liệt kê mọi thay đổi
+kể cả những thay đổi không ai cần soi, làm chìm mất cái cần soi; biểu đồ vẽ một
+đường và bắt người đọc nhớ kỳ trước bằng đầu; nút `XONG` của màn hình sửa BH chỉ
+ĐÓNG chứ không lưu; và cột sản phẩm in nguyên tên trên sổ kể cả sau khi Owner đã
+phân loại xong.
+
+Decision:
+
+1. **Sổ đã xác nhận đầy đủ TẠM LOẠI dòng vắng mặt khỏi dữ liệu hiệu lực.** Chỉ
+   cờ `REMOVED_IN_SOURCE_CANDIDATE` phát sinh từ một snapshot `CONFIRMED_
+   COMPLETE` và CÒN HIỆU LỰC mới loại. Cờ `NOT_SEEN_IN_LATEST_SNAPSHOT` của
+   một sổ chưa xác nhận KHÔNG đổi một đồng nào — biên đó là biên cũ và nó giữ
+   nguyên.
+
+   Đây là một sửa đổi CÓ CHỦ ĐÍCH với câu "cờ không bao giờ ảnh hưởng tổng"
+   của `TASK-PRA-002` slice B, không phải một vi phạm âm thầm: điều slice B
+   thật sự bảo vệ là *hệ thống không được tự kết luận*, và ở đây kết luận đến
+   từ một hành động tường minh của con người.
+
+2. **Việc loại xảy ra LÚC ĐỌC, không phải lúc ghi.** Không hard-delete, không
+   đổi con trỏ hiện hành, không migration. `PeriodData` tách chúng sang
+   `removed_in_source` theo đúng cấu tạo mà `excluded` (`DEC-PHB02-08` §30) đã
+   dùng, nên mọi chỉ tiêu — kể cả những chỉ tiêu chưa được viết ra — đúng vì
+   tập bị loại không nằm trong tập được cộng.
+
+3. **Tái xuất hiện khôi phục TỰ ĐỘNG.** Trạng thái "còn hiệu lực" tính lúc đọc
+   từ lịch sử membership (`_with_absence_state`), nên không ai phải nhớ gỡ cờ,
+   và không có bản ghi nào bị sửa để đạt được điều đó.
+
+4. **Danh sách cảnh báo riêng KHÔNG mang một ô tiền nào**, và KHÔNG có nút
+   khôi phục: đường quay lại duy nhất là nạp một sổ có chứa dòng đó, và một
+   cái nút ở đó sẽ hứa một điều Reports không làm được.
+
+5. **`delivery_cost`/`imei` ở lại trong fingerprint; chỉ TẦNG TRÌNH BÀY lọc.**
+   Bỏ chúng khỏi vân tay sẽ làm một lần bổ sung IMEI không sinh source version
+   và giá trị ấy im lặng biến mất giữa hai lần nạp. Con số "cần soi" trên màn
+   hình và con số `n_source_changed` trong bản ghi có quyền khác nhau: một cái
+   trả lời "còn bao nhiêu việc cho tôi", cái kia trả lời "hệ thống đã thấy bao
+   nhiêu dòng đổi nguồn".
+
+6. **Cửa sổ biểu đồ là HAI cửa sổ liền kề CÙNG ĐỘ DÀI: 30 ngày, 12 tuần, 12
+   tháng, 8 quý.** Đây là một sửa đổi có chủ đích với `TASK-OWNER-UIUX-003` §2
+   (cửa sổ theo container lịch), và lý do nằm ở chính phép so sánh: hai
+   container lịch liền nhau không cùng độ dài (tháng 2 có 28 ngày, tháng 3 có
+   31). Mức Năm giữ một chuỗi. Thiếu bằng chứng là KHOẢNG TRỐNG; số 0 chỉ được
+   vẽ khi mốc nằm TRỌN trong một khoảng đã xác nhận đầy đủ.
+
+7. **Một form cấp BH, `XONG` là nút gửi duy nhất.** Kiểm toàn bộ trước khi
+   ghi; chỉ ô THẬT SỰ ĐỔI mới sinh một quyết định. Ràng buộc R2 §4.4 không
+   được nới: giá AUTO vẫn đọc lại từ server, actor vẫn đọc từ môi trường, và
+   thay một giá AUTO vẫn phải có lý do — chỉ chỗ gõ lý do gộp về một ô cho cả
+   BH, và nó chỉ bắt buộc khi lần gửi ấy thật sự chứa một override.
+
+8. **Hãng và model do TRACKING chuẩn hoá.** Reports không có, và không được
+   có, một parser hãng/model từ `product_raw`. Tracking ghép theo một danh
+   sách hãng ĐÓNG và ghép NGUYÊN TỪ; khớp nhiều hơn một hãng ⟹ `null`. `null`
+   là câu trả lời hợp lệ, không phải một khiếm khuyết cần vá.
+
+9. **`PHB-06` mở lại qua một read model canonical**, không qua một trường mới
+   trên `CanonicalProductIdentity`: `INV-18` bắt so sánh bằng đủ tuple, nên
+   một trường hiển thị ở đó sẽ làm hai danh tính cùng mã khác hãng thành hai
+   danh tính KHÁC NHAU. Không có bảng brand nào của riêng Reports.
+
+10. **IMEI mở trên ĐÚNG bảng kê tab nhân viên** (`DEC-R5-03` trong ngôn ngữ
+    của brief). Đây là một sửa đổi có chủ đích với hàng rào dữ liệu cá nhân
+    của `governance/product/17_DATA_GOVERNANCE_PRIVACY.md`, và phạm vi của nó
+    phải đọc được từ MÃ NGUỒN: `app/web/workspace_imei.py` là cánh cửa duy
+    nhất, `business_queries` vẫn không biết `imei` tồn tại, và không trang chỉ
+    tiêu / bản xuất / trang snapshot / dòng nhật ký nào mang nó.
+
+11. **Dòng CHƯA phân loại giữ TÊN THÔ.** Chỉ dòng `MATCHED_TRACKING` mới hiện
+    model canonical (fallback mã Tracking). Tên thô là thứ duy nhất cho người
+    dùng biết dòng này chưa được xử lý; thay nó bằng một nhãn gọn gàng làm một
+    việc còn treo trông như đã xong.
+
+12. **Gợi ý phân loại là GỢI Ý.** Tối đa MỘT candidate, xếp hạng theo một thứ
+    tự CỐ ĐỊNH (khớp chính xác → mã bắt đầu bằng → tên bắt đầu bằng), không
+    phải một điểm số: `INV-01` cấm similarity ở đường resolve, và một thứ tự
+    dựa trên "giống bao nhiêu phần trăm" là cùng phép đo ấy đứng ở chỗ khác.
+    Chuỗi tìm rỗng ⟹ không gợi ý gì. Chỉ một cú click của Owner mới ghi.
+
+Reversal Cost:
+
+TRUNG BÌNH. Không migration nào được thêm, và không bản ghi nào bị xoá — điểm
+1–4 đảo lại là gỡ một phép lọc lúc đọc, và mọi con số quay về đúng giá trị cũ ở
+lần tải trang kế tiếp. Điểm 6–7 và 11–12 là trình bày/luồng thao tác, đảo lại rẻ.
+
+Điểm 8–9 rẻ ở phía Reports (hai trường tùy chọn, artifact cũ vẫn đọc được) và
+TRUNG BÌNH ở phía Tracking: hợp đồng `/api/xuat/board` đã phát thêm hai trường,
+nên rút chúng lại là một thay đổi hợp đồng phải báo trước.
+
+Điểm 10 là điểm đắt nhất để đảo theo nghĩa chính sách, không theo nghĩa kỹ
+thuật: một khi mã máy đã hiện trên màn hình vận hành, việc rút nó lại là một
+quyết định về quyền truy cập chứ không phải một lần xoá code.
+
+Can Revisit After:
+
+Mở lại điểm 6 nếu Owner muốn một độ dài cửa sổ khác, hoặc muốn mức Năm cũng có
+cửa sổ so sánh. Mở lại điểm 8 khi danh sách hãng cần thêm mục — thêm một dòng
+vào danh sách đóng là đúng cách, nới quy tắc ghép thì không. Mở lại điểm 9 nếu
+hợp đồng Product Identity có ngày mang trường `brand` trên chính nó và `INV-18`
+được xem xét lại.
+
+---
+
+## DEC-203
+
+Title:
+R5 — Owner ghi đè (override) hai điều kiện chặn merge còn lại của phiên tích
+hợp `S136`: bỏ qua yêu cầu artifact Independent Review vòng 2 trong repo (đã
+thực hiện ở công cụ khác — Codex — không lưu artifact tại đây) và bỏ qua điều
+kiện `CHECK-R3-20`/`CHECK-R4-24` (Owner tự xác nhận đã tự kiểm R3/R4 trên
+production ở nơi khác); cho phép merge cả hai PR chuẩn bị sẵn và chấp nhận
+Render tự động deploy production ngay sau merge.
+
+Date:
+2026-09-09
+
+Authority:
+`HANDOFF_DIRECTIVE` bằng lời, trực tiếp trong phiên `S136`/`S137`, sau khi
+phiên đã báo cáo đầy đủ hai điều kiện `NOT_TESTED`/thiếu artifact (xem
+`docs/sessions/S136-r5-integration.md` §2, §5). Nguyên văn ba lượt trao đổi:
+
+```text
+Owner: "tôi đã Independent Review vòng 2 ở codex. hãy bỏ qua và merge luôn
+        vào công cụ để tôi sử dụng trực tiếp"
+[phiên hỏi lại riêng CHECK-R3-20/24 có nằm trong "bỏ qua" không, và xác nhận
+ merge sẽ kích hoạt Render tự deploy]
+Owner: "tôi đã tự kiểm R3 R4 xong rồi nên hãy bỏ qua"
+Owner: "Merge và chấp nhận Render tự deploy luôn"
+```
+
+Context:
+
+Phiên `S136` (tích hợp) đã hoàn tất toàn bộ kiểm tra kỹ thuật của R5 (full
+`pytest -q` 3232 passed/12 skipped/0 failed, governance validator PASS trừ
+baseline `TASK-REM-T06`, `branch_authority_check.sh` → `AUTHORITY_OK`, smoke
+xuyên hai repo 29/29 PASS, Tracking `npm test`/`npm run build` PASS) nhưng
+KHÔNG merge, vì hai điều kiện do chính brief mở phiên đặt ra chưa đạt:
+
+1. `CHECK-R3-20`/`CHECK-R4-24` (Owner nghiệm thu R3/R4 trên production) —
+   `NOT_TESTED`, không có artifact nào trong lịch sử git repo này.
+2. Independent Review vòng 2 của R5 — không có artifact nào trong repo này
+   (chỉ có vòng 1, kết luận `REPAIR_REQUIRED`, đã sửa ở REPAIR-1).
+
+Owner xác nhận trực tiếp trong phiên kế tiếp (`S137`) rằng: (a) Independent
+Review vòng 2 ĐÃ được thực hiện, nhưng ở một công cụ khác (Codex), nên không
+để lại artifact trong repo Reports; (b) Owner đã tự đối chiếu R3/R4 trên dữ
+liệu production ở nơi khác. Cả hai xác nhận đều bằng lời, không kèm file
+review/số liệu đối chiếu nào được đưa vào repo tại thời điểm quyết định này.
+
+Đây KHÔNG phải trường hợp phiên tự đánh dấu Independent Review hay tự đánh
+dấu Owner Acceptance — chính Owner, người có thẩm quyền nghiệm thu, là người
+đưa ra xác nhận và chỉ thị merge. Việc ghi `CHECK-R5-27`/`CHECK-R5R1-09`/
+`CHECK-R3-20`/`CHECK-R4-24` là `PASS` dựa trên xác nhận bằng lời của Owner,
+không có bằng chứng thực thi được (E1/E2) đi kèm trong repo, là một khoảng
+cách CÓ THẬT giữa `governance/core/EVIDENCE_STANDARD.md` (đòi hỏi bằng chứng thực thi được)
+và thực tế quyết định này — được ghi lại tường minh ở đây thay vì che giấu
+bằng cách gắn nhãn `PASS` như thể có bằng chứng E1/E2 thật.
+
+Decision:
+
+1. **Merge cả hai PR chuẩn bị sẵn từ `S136`**: Tracking
+   `hoangvinhkta-creator/Tracking#26` (`f958226` → `main`) TRƯỚC, rồi Reports
+   `hoangvinhkta-creator/Reports#12` (`claude/r5-integration-vinh` @
+   `cf345ac`/`ce3df88` → `claude/extract-upload-repo-gq2ws4`) SAU — đúng thứ
+   tự đã đề xuất ở `S136` §6 (Tracking không phụ thuộc ngược vào Reports).
+
+2. **`CHECK-R5-27`** chuyển từ `FAIL (vòng 1)` sang
+   `ACCEPT_WITH_RECORDED_RISK (Owner override — vòng 2 thực hiện ngoài repo,
+   không có artifact)`. **`CHECK-R5R1-09`** chuyển từ `NOT_TESTED` sang cùng
+   trạng thái, cùng chú thích. Đây KHÔNG phải `PASS` với ý nghĩa "đã xác minh
+   được trong repo" — ghi rõ nguồn là xác nhận bằng lời của Owner, không phải
+   một bản ghi review có thể audit lại.
+
+3. **`CHECK-R3-20`** và **`CHECK-R4-24`** chuyển từ `NOT_TESTED` sang
+   `ACCEPTED_BY_OWNER_VERBAL (không có bằng chứng đối chiếu trong repo)` —
+   không dùng nhãn `PASS` trơn, để không lẫn với một `PASS` có E1/E2 thật.
+
+4. **Ngân sách repair của lineage `R5`** (`PROJECT/REVIEW_BUDGET_LEDGER.md`)
+   giữ nguyên `2 allowed / 1 used / 1 remaining` — quyết định này không mở
+   hay tiêu thêm một repair cycle nào; nó là một override GATE, không phải
+   một vòng review/repair mới.
+
+5. **Render tự động build+deploy production** ngay sau mỗi merge (cả hai
+   repo dùng Blueprint tự kích hoạt khi có commit mới trên nhánh liên kết) —
+   Owner đã xác nhận chấp nhận điều này ("Merge và chấp nhận Render tự
+   deploy luôn"). Phiên không có egress/credential tới Render nên KHÔNG xác
+   nhận được deploy đã Live — giống hạn chế đã ghi nhận xuyên suốt
+   `S127`/`S130`/`S133`.
+
+6. **`CHECK-R5-28`** (Owner nghiệm thu R5 trên production sau khi deploy)
+   VẪN `NOT_TESTED` — quyết định này KHÔNG bao gồm nghiệm thu R5 trên
+   production, vì R5 chưa từng chạy trên production trước thời điểm merge
+   này. Owner cần tự nghiệm thu sau khi xác nhận Render deploy xong (checklist
+   ở `S136` §7, mục 7–8, và `S137` khi phiên đó được viết).
+
+Risk:
+
+Rủi ro CHÍNH của quyết định này là: nếu Independent Review vòng 2 thật trên
+Codex (không quan sát được từ phiên này) đã bỏ sót một finding nghiêm trọng,
+hoặc nếu R3/R4 trên production thực ra có sai lệch mà Owner đối chiếu không
+phát hiện, thì R5 lên production mà không có lớp phòng vệ thứ hai đã được
+thiết kế xuyên suốt dự án (Independent Review độc lập + Owner nghiệm thu
+production trước khi tích hợp). Giảm nhẹ duy nhất là: toàn bộ kiểm tra kỹ
+thuật tự động của `S136` (bao gồm smoke xuyên hai repo mới, có tính đối
+chứng cao hơn fixture giả lập) đã PASS, và cơ chế loại-lúc-đọc/khôi phục-tự-
+động của R5 (`DEC-202`) vẫn đảo ngược được bằng một lần nạp lại sổ nếu có sai
+sót bị phát hiện sau merge.
+
+Can Revisit After:
+
+Nếu Owner muốn bổ sung artifact review vòng 2 (xuất từ Codex) vào repo sau
+merge, phiên sau nên thêm nó vào `docs/reviews/` và nâng `CHECK-R5-27`/
+`CHECK-R5R1-09` từ `ACCEPT_WITH_RECORDED_RISK (Owner override)` lên một
+trạng thái có bằng chứng E1/E2 thật, thay vì để mãi ở trạng thái override.
+
+---
+
+## DEC-204
+
+> **THAY THẾ MỘT PHẦN bởi `DEC-205` (2026-09-09).** Mục §3 (danh sách trắng
+> theo HÌNH DẠNG) và §4 (tách hãng) của quyết định này đã được thay bằng một
+> TỪ ĐIỂN ĐÓNG, sau khi Independent Review chứng minh luật hình dạng không
+> chặn được ô nhiễm ngữ nghĩa (`AR-R5.1-05`) và Owner nâng finding lên
+> `REPAIR_REQUIRED` cho mục tiêu dùng ở `R6`. Các mục §1, §2, §5, §6 **vẫn
+> còn hiệu lực**. Nội dung dưới đây giữ NGUYÊN VĂN làm bản ghi lịch sử —
+> không sửa để che sai khác; lập luận vì sao nó không còn đủ nằm ở `DEC-205`.
+
+Title:
+R5.1 — nhóm hàng (`category_label`) là thẩm quyền của Tracking, thừa hưởng
+`ADR-111` §3 chứ không mở một ADR mới; xuất qua danh sách trắng HÌNH DẠNG chứ
+không chiếu `cat` thô.
+
+Date:
+2026-09-09
+
+Authority:
+Brief `R5.1 — bổ sung category_label vào hợp đồng metadata sản phẩm Tracking
+→ Reports`, §2 (Tracking là nguồn chính thức duy nhất của `tracking_code`,
+`model_label`, `brand`, `category_label`), §3 (quy tắc chuẩn hoá), §4.5
+(không xuất trường category nội bộ nguyên bản).
+
+Context:
+
+`ADR-111` §3 đặt thẩm quyền thương hiệu ở Tracking với một lập luận về BẰNG
+CHỨNG: `board/<mã>/cat` là ngành hàng do người của Tracking tự tay xếp, nó
+mang tên hãng ("Tivi Sony"), và nó không được phép rời khỏi Tracking — nên
+phép chuẩn hoá phải xảy ra trước ranh giới.
+
+Nhóm hàng đến từ **đúng trường ấy**. Vì thế câu hỏi "ai có thẩm quyền nói
+dòng này thuộc loại hàng gì" đã được `ADR-111` §3 trả lời rồi, chỉ là chưa
+được rút ra thành lời. Mở một ADR thứ hai cho cùng một lập luận trên cùng một
+trường sẽ tạo hai văn bản có thể trôi khỏi nhau.
+
+Nhưng có MỘT khác biệt thật giữa `brand` và `category_label`, và nó không
+nhỏ:
+
+```text
+brand           ra từ HANG — một danh sách ĐÓNG. Thứ đi qua ranh giới luôn là
+                một trong khoảng ba mươi tám từ đã biết trước.
+category_label  ra từ `cat` — một chuỗi NGƯỜI DÙNG GÕ TAY qua ô "+ Ngành hàng
+                mới..." của `pickCat()`. Không có gì ràng buộc nội dung.
+```
+
+Một `cat` thật có thể là "Tivi - hàng NCC Đất Việt 5.000k". Chiếu nó ra ngoài
+sau khi chỉ cắt tên hãng là tin rằng chuỗi ấy luôn sạch, và điều đó biến
+`/api/xuat/board` thành một đường rò dữ liệu ra khỏi Tracking — đúng thứ danh
+sách trắng của `chieuBoard()` sinh ra để chặn.
+
+Decision:
+
+1. **Thẩm quyền:** Tracking là nguồn duy nhất của `category_label`. Reports
+   chỉ tiêu thụ. Không parser, không bảng taxonomy riêng, không suy từ
+   `product_raw`. Đây là `ADR-111` §3 áp cho một trường thứ ba, KHÔNG phải
+   một quyết định kiến trúc mới — R5.1 không mở ADR.
+
+2. **Nguồn là `cat`, và chỉ `cat`.** `name` không được đọc để suy nhóm hàng
+   (`D-04`/`DEC-147` §4). Mã chưa xếp ngành hàng ra `null`, kể cả khi tên
+   hàng nói rõ nó là gì (`ACCEPTED_RISK R5.1-01`).
+
+3. **Danh sách trắng theo HÌNH DẠNG (`HINH_NHOM`), không phải theo giá trị.**
+   Phần còn lại sau khi tách hãng phải là 1–4 từ, chỉ chữ cái (kể cả dấu
+   tiếng Việt), tối đa 40 ký tự. Không lọt ⟹ `null`, KHÔNG đi ra nguyên văn.
+   Một danh sách trắng theo GIÁ TRỊ (liệt kê sẵn các nhóm hợp lệ) bị loại: nó
+   là một taxonomy mới, đúng thứ `§3.3` của brief cấm, và nó phải được duy
+   trì mỗi lần người dùng thêm một ngành hàng.
+
+4. **Tách hãng chỉ khi hãng canonical đã chắc chắn** (`§3.2`). `cat` mang tên
+   hãng mà `hangCua()` không khẳng định được là hãng nào ⟹ `null`, vì phần
+   còn lại phụ thuộc vào việc cắt cái nào.
+
+5. **Bảng ánh xạ giới hạn ở hai sentinel đã có thẩm quyền:** `"Chưa phân
+   loại"` và `CAT_JUNK = "Không sử dụng"` ⟹ `null` (chúng là trạng thái quy
+   trình, không phải tên loại hàng hoá). Gộp tên đồng nghĩa khác: KHÔNG làm —
+   Tracking chưa có cấu hình/thẩm quyền nào (`ACCEPTED_RISK R5.1-03`).
+
+6. **Reports không thêm cổng chặn mới cho `§5.4`.** `confirmed_identities()`
+   và `_catalog_field()` — hai cổng đã giữ `brand` — giữ luôn nhóm hàng. Một
+   cổng thứ hai viết riêng sẽ trôi khỏi cổng thứ nhất.
+
+Consequences:
+
+Tích cực: báo cáo cơ cấu hàng bán có nguồn chính danh đầu tiên, đến từ đúng
+hệ thống sở hữu bằng chứng; sửa ngành hàng bên Tracking hiện ra ở lần capture
+kế tiếp mà không ai phải phân loại lại mã sản phẩm; không có bảng taxonomy
+nào của Reports được sinh ra để rồi trôi khỏi Tracking.
+
+Tiêu cực, đã cân nhắc: quy tắc hình dạng bảo thủ nên một nhóm hàng thật có
+chữ số trong tên ("Tivi 4K") ra `null` (`ACCEPTED_RISK R5.1-02`). Đánh đổi
+ngược lại — nới luật để bắt được nhiều hơn — mở đúng đường rò mà `§4.5` cấm,
+và cái giá của nới là một dòng dữ liệu nội bộ trên màn hình nhân viên, còn
+cái giá của chặt là một ô trống.
+
+Blast radius của R5.1 là `2/5`: failure path dừng ở MỘT ô trên bảng kê nhân
+viên, không chạm tập dòng được cộng, MIN theo ngày bán, giá nhập tay, lợi
+nhuận hay vân tay chốt kỳ.
+
+References:
+- `docs/tasks/R5-1-nhom-hang-category-label.md`
+- `docs/sessions/S138-r51-nhom-hang.md`
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6
+- `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3
+
+---
+
+## DEC-205
+
+Title:
+`R5.1 REPAIR-1` — `category_label` xuất từ một TỪ ĐIỂN ĐÓNG, không phải từ
+phần còn lại của `cat`. Quyết định này **thay thế `DEC-204` §3** (danh sách
+trắng theo HÌNH DẠNG); mọi mục khác của `DEC-204` giữ nguyên hiệu lực.
+
+Date:
+2026-09-09
+
+Authority:
+Brief `R5.1 REPAIR-1 — khóa category_label thành taxonomy an toàn cho R6` §1
+(Owner điều chỉnh kết luận Independent Review từ `ACCEPT_WITH_RECORDED_RISK`
+thành `REPAIR_REQUIRED` cho mục tiêu sử dụng ở `R6`) và §4 (bảng ví dụ chuẩn).
+
+Quan hệ với `DEC-204`:
+
+```text
+DEC-204 §1  thẩm quyền thuộc Tracking, Reports chỉ tiêu thụ    GIỮ NGUYÊN
+DEC-204 §2  nguồn là `cat`, KHÔNG đọc `name`                   GIỮ NGUYÊN
+DEC-204 §3  danh sách trắng theo HÌNH DẠNG (`HINH_NHOM`)       THAY THẾ ⟶ §1 dưới
+DEC-204 §4  chỉ tách hãng khi hãng canonical đã chắc chắn      THAY THẾ ⟶ §2 dưới
+DEC-204 §5, câu 1: hai sentinel quy trình ra `null`            GIỮ NGUYÊN
+DEC-204 §5, câu 2: "gộp tên đồng nghĩa khác: KHÔNG làm"        ĐÃ ĐẢO NGƯỢC
+                                                                ⟶ §4 dưới
+DEC-204 §6  Reports không thêm cổng chặn mới                   GIỮ NGUYÊN, mở rộng
+```
+
+**Đính chính (`COR-R5.1R1-02`, `S141`):** bản ghi trước của bảng này gộp cả
+`DEC-204` §5 vào một dòng "GIỮ NGUYÊN", nhưng §5 có HAI câu — câu sentinel
+(vẫn đúng) và câu "không gộp đồng nghĩa" (đã bị chính §4 dưới đây đảo ngược
+có chủ đích, vì lúc `DEC-204` được ban hành Tracking chưa có cấu hình gộp
+nào; từ điển `NHOM` giờ CHÍNH LÀ cấu hình đó). Không có gì bị che giấu — §4
+dưới đây đã lập luận tường minh cho việc gộp, và task §6 đã ghi
+`AR-R5.1-03 ĐÃ ĐÓNG` từ trước; chỉ riêng dòng tóm tắt của bảng này là thiếu
+chính xác. Sửa ở đây, không sửa `DEC-204`.
+
+`DEC-204` **KHÔNG bị sửa**. Nó là artifact lịch sử của một quyết định đã ban
+hành, và lập luận trong nó — kể cả lập luận đã loại phương án "danh sách trắng
+theo GIÁ TRỊ" — là bản ghi đúng của điều đã được cân nhắc tại thời điểm ấy.
+Quyết định này ghi lại **vì sao lập luận đó không còn đủ**.
+
+Context:
+
+`DEC-204` §3 loại phương án danh sách trắng theo GIÁ TRỊ với hai lý do, và cả
+hai đều đúng **trong phạm vi mà R5.1 nhắm tới lúc đó**: nó là một taxonomy mới
+(`R5.1 §3.3` cấm phát minh taxonomy), và nó phải được duy trì mỗi lần người
+dùng thêm một ngành hàng.
+
+Điều `DEC-204` chưa cân tới là **hai giả định** mà Independent Review đã kiểm
+và bác:
+
+1. **"Luật hình dạng chặn được ô nhiễm."** `AR-R5.1-05` tái hiện trên exact
+   HEAD `39528ee` rằng nó chỉ chặn ô nhiễm mang chữ số, dấu câu hoặc độ dài.
+   Ô nhiễm NGỮ NGHĨA gồm toàn chữ cái đi qua nguyên văn:
+
+   ```text
+   cat="Tivi kho anh Ba"  ->  "Tivi kho anh Ba"
+   cat="Tủ lạnh nợ NCC"   ->  "Tủ lạnh nợ NCC"
+   cat="Tivi Đất Việt"    ->  "Tivi Đất Việt"     (Đất Việt là NCC có thật)
+   ```
+
+   Không luật hình dạng nào phân biệt được "Tủ lạnh" với "Tivi kho anh Ba":
+   cả hai đều toàn chữ cái, đều dưới bốn từ. Siết số từ xuống hai thì giết cả
+   "Nồi cơm điện". Đây không phải một tham số cần chỉnh — nó là giới hạn của
+   cả lớp giải pháp.
+
+2. **"Hậu quả dừng ở một ô nhãn."** Đúng khi `category_label` chỉ để ĐỌC trên
+   một cột mặc định ẩn — và đó là lý do review xếp nó `ACCEPTED_RISK`. Nhưng
+   `R6` sẽ dùng chính trường này làm **khoá gộp** doanh thu và Basket. Khi ấy
+   "Tivi kho anh Ba" không còn là một ô xấu; nó là một **nhóm hàng giả** đứng
+   ngang hàng với "Tivi" trong một báo cáo. Tổng của công ty vẫn đúng — và đó
+   chính là điều làm nó nguy hiểm: không con số nào lệch để báo động, chỉ có
+   một bảng cơ cấu sai mà trông hoàn toàn bình thường.
+
+Owner vì thế điều chỉnh kết luận review thành `REPAIR_REQUIRED` **cho mục tiêu
+sử dụng ở R6**. Điều này KHÔNG nói review đã sai: review đo đúng hệ thống tại
+thời điểm đó, và chính nó đã ghi rằng phép sửa thật "đòi mở lại `DEC-204` —
+việc của Owner, không phải của một repair cycle". Đây là lần mở lại đó.
+
+Decision:
+
+1. **`category_label` được CHỌN từ một từ điển đóng, không cắt ra từ `cat`.**
+   `cat` chỉ còn là câu hỏi tra cứu. Bảo đảm vì thế đổi LOẠI, không chỉ đổi độ
+   chặt:
+
+   ```text
+   đầu ra ∈ NHOM ∪ {null}
+   ⟺ không một ký tự nào người dùng gõ rời khỏi Tracking bằng trường này
+   ```
+
+   Đây là mức bảo đảm mà một khoá gộp báo cáo cần, và là mức mà không luật
+   hình dạng nào đạt được.
+
+2. **`cat` phải phân tích TRỌN VẸN** thành `[một nhóm trong từ điển] + [không
+   hoặc nhiều hãng trong HANG]`. Sót một từ lạ ⟹ `null`. Đoạn khớp dài nhất
+   thắng ("Nồi cơm điện" không bị đọc thành "Nồi cơm"); hai nhóm khác nhau
+   cùng khớp ⟹ `null`.
+
+   Điều này thay `DEC-204` §4: nhóm hàng không còn phụ thuộc việc `hangCua()`
+   có khẳng định được hãng hay không. `cat = "Tivi Sony Samsung"` nay ra
+   `"Tivi"` (trước là `null`) — nhóm hàng ở đó CHẮC CHẮN, chỉ hãng là không,
+   và `brand` vẫn `null`. Hai câu hỏi tách rời nhau.
+
+3. **Từ điển NGẮN, và mỗi mục phải có bằng chứng** trong repo (fixture golden
+   đã ẩn danh của Reports, bộ kiểm của hai repo) hoặc trong brief. Không mục
+   nào được thêm vì "chắc là cũng bán cái đó": một mục không ai dùng là một
+   mặt phẳng không được kiểm. Nhóm chưa có ra `null`, và thêm một dòng là cách
+   sửa — cùng đường mở rộng mà `HANG` đã dùng từ `R5 §5`.
+
+   Đây là chỗ `R5.1 §3.3` ("không phát minh taxonomy") vẫn được tôn trọng:
+   danh sách không được nghĩ ra, nó được ĐỌC RA từ dữ liệu đã có.
+
+4. **Đồng nghĩa được gộp, vì bây giờ đã có thẩm quyền để gộp.** `AR-R5.1-03`
+   ghi "không gộp đồng nghĩa" đúng vào lúc Tracking chưa có cấu hình nào; từ
+   điển này CHÍNH LÀ cấu hình đó. "Máy lạnh" và "Điều hoà" là cùng một mặt
+   hàng và fixture golden có cả hai cách gọi — để chúng thành hai bucket là
+   làm hỏng đúng phép gộp mà `R6` sinh ra để làm. Dấu tiếng Việt và chữ
+   hoa/thường không cần khai báo: `chuanSo()` lo.
+
+5. **Hãng ngoài `HANG` không còn nằm lại trong nhãn** (`AR-R5.1-06` đóng).
+   Trước đây "Tủ lạnh Hòa Phát" đi ra nguyên văn; nay ra `null`. Bảo thủ hơn,
+   nhưng hợp đồng và hành vi khớp nhau. Thêm `Vsmart` vào `HANG` theo bảng ví
+   dụ của brief; các hãng khác thêm khi cần, mỗi lần một dòng.
+
+6. **Reports vẫn KHÔNG kiểm lại, và nay điều đó được canh bằng test.** Chép từ
+   điển sang Reports để "cho chắc" là dựng đúng thẩm quyền thứ hai mà
+   `ADR-111` §3 cấm; hai bản sẽ trôi khỏi nhau và một nhãn hợp lệ sẽ bị loại
+   mà không màn hình nào nói vì sao. `test_reports_keeps_no_category_
+   vocabulary_of_its_own` canh điều này bằng cấu trúc.
+
+Consequences:
+
+Tích cực: `category_label` đủ điều kiện làm khoá gộp cho `R6` — mọi giá trị
+đi qua ranh giới đều thuộc một tập đóng, đã canonical hoá, không mang dữ liệu
+nội bộ. `AR-R5.1-05` và `AR-R5.1-06` đóng hẳn thay vì được ghi nhận.
+
+Tiêu cực, đã cân nhắc: **độ phủ giảm.** Mọi `cat` mà từ điển chưa biết nay ra
+`null`, kể cả những `cat` sạch sẽ mà luật cũ cho đi qua ("Bàn ủi Philips" nếu
+"Bàn ủi" chưa có trong từ điển). Đây là đánh đổi CÓ CHỦ ĐÍCH và đúng chiều:
+một ô trống là một câu hỏi cho người xếp ngành hàng, còn một nhóm hàng giả là
+một câu trả lời sai trong báo cáo. Cái giá được ghi thành
+`ACCEPTED_RISK R5.1R1-01` và giảm nhẹ bằng một đường mở rộng rẻ (một dòng).
+
+Từ điển giờ là một artifact phải bảo trì. `DEC-204` §3 đã nêu đúng điểm này
+khi loại phương án; điều đổi là ta nay biết cái giá của việc KHÔNG bảo trì nó.
+
+References:
+- `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md`
+- `docs/sessions/S140-r51-repair-1.md`
+- `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md` (`AR-R5.1-05`, `AR-R5.1-06`)
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-204` (quyết định bị thay thế một phần)
+- `docs/adr/ADR-111-absence-effective-data-imei-scope-and-brand-authority.md` §3
+
+---
+
+## DEC-206
+
+Title:
+`R5.1` — Owner chốt ba alias taxonomy còn lại cho `category_label` sau
+Independent Review vòng 2 (`S141`): `Máy lạnh`/`Điều hòa`/`Điều hoà` →
+`"Điều hoà"`; `TV`/`Ti vi`/`Tivi` → `"Tivi"`; `Máy giặt sấy` → `"Máy giặt"`.
+Đóng `OWNER_DECISION_REQUIRED` (`§6.3` của review vòng 2) và `AR-R5.1R1-05`.
+
+Date:
+2026-09-09
+
+Authority:
+Chỉ thị trực tiếp của Owner: "Owner-approved taxonomy completion + controlled
+merge cho R5.1", nguyên văn ba quyết định:
+
+```text
+Máy lạnh / Điều hòa / Điều hoà  →  nhãn canonical "Điều hoà"
+TV / Ti vi / Tivi               →  nhãn canonical "Tivi"
+Máy giặt sấy                    →  nhãn canonical "Máy giặt" (quy ước nghiệp
+                                    vụ: máy giặt sấy TÍNH VÀO nhóm Máy giặt,
+                                    không mở nhóm mới)
+```
+
+Context:
+
+Independent Review vòng 2 (`S141`, `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-
+REVIEW-2-RECORD.md`) đo lại toàn bộ `R5.1 REPAIR-1` trên exact HEAD
+`11a199b`/`83b1e07` và kết luận `ACCEPT_WITH_RECORDED_RISK` — **không**
+`REPAIR_REQUIRED**. Trong quá trình đó, review phát hiện:
+
+1. **`Máy lạnh`/`Điều hòa`/`Điều hoà` đã có trong từ điển từ `REPAIR-1`**
+   (`DEC-205` §4), với bằng chứng dữ liệu MẠNH: `Máy lạnh Test-2` trong
+   fixture golden ẩn danh của Reports, VÀ (điều `S141` sửa lại cho đúng —
+   `COR-R5.1R1-02`) `Điều hòa Daikin FTHF25XVMV` không nằm trong fixture
+   golden mà nằm trong `data/historical_confirmed/registry.jsonl` — một BẢN
+   GHI OWNER ĐÃ XÁC NHẬN (`confirmation_authority = OWNER`), bằng chứng còn
+   mạnh hơn một fixture ẩn danh. `config/adjustments.yaml`
+   (`air_conditioner_keywords`, `DEC-125`) cũng đã coi "điều hòa" là từ chỉ
+   mặt hàng này từ trước `R5.1`.
+
+2. **`TV`/`Ti vi` đã có trong từ điển, nhưng KHÔNG có bằng chứng dữ liệu nào
+   trong repo.** "TV" chỉ xuất hiện trong `public/kpi-demo.js` — một cấu hình
+   KPI demo (`{any:["tivi","tv"]}`), không phải một giá trị `cat` thật đã
+   từng được ghi. "Ti vi" không xuất hiện ở đâu trong cả hai repo. Review ghi
+   `OWNER_DECISION_REQUIRED` theo đúng chỉ thị của nó — **không coi đây là
+   lỗi code, không tự sửa từ điển.**
+
+3. **`Máy giặt sấy` CHƯA có trong từ điển**, và review tìm được một ca THẬT
+   (không phải giả định) trong đơn golden `BH62439`: `"Máy Giặt Sấy LG"`.
+   Trước quyết định này, chuỗi ấy phân tích thành `"Máy giặt"` (đoạn khớp) +
+   `"sấy"` (từ lạ, không phải hãng) ⟹ `null` theo đúng luật `DEC-205` — hỏng
+   về phía AN TOÀN (`ACCEPTED_RISK AR-R5.1R1-05`), không xếp nhầm vào bucket
+   sai.
+
+Owner đã xem xét cả ba và chốt gộp toàn bộ vào nhánh chính đã nêu ở trên.
+
+Decision:
+
+1. **Thêm `"Máy giặt sấy"` làm cách viết khác của canonical `"Máy giặt"`**
+   trong `NHOM` (`Tracking/src/index.js`). Đây là thay đổi MÃ duy nhất của
+   quyết định này — `TV`/`Ti vi`/`Máy lạnh`/`Điều hòa` đã có sẵn từ
+   `REPAIR-1` và không cần sửa.
+
+2. **Không nới luật phân tích trọn vẹn.** `"Máy giặt sấy kho anh Ba"` và
+   `"Máy giặt sấy 4K"` vẫn ra `null` — thêm một alias không mở thêm một cách
+   để chuỗi bẩn lọt qua.
+
+3. **`AR-R5.1R1-04` (nhắc lại cùng canonical ⟹ `null`, ví dụ `"Tivi TV"`) GIỮ
+   NGUYÊN, KHÔNG đóng.** Quyết định này chỉ chốt BA ALIAS, không yêu cầu sửa
+   thuật toán chọn đoạn khớp dài nhất khi hai span cùng độ dài trỏ về cùng
+   một canonical. Đây là một rủi ro riêng, review vòng 2 đã xếp đúng loại
+   (`ACCEPTED_RISK`, hỏng về phía an toàn), và không nằm trong phạm vi Owner
+   được hỏi ở đây.
+
+4. **`OWNER_DECISION_REQUIRED` (`§6.3` của review vòng 2) ĐÓNG.** Owner đã
+   xác nhận rõ cả ba alias là bucket báo cáo mong muốn, bằng chỉ thị này.
+
+5. **`AR-R5.1R1-05` ĐÓNG** — ca `"Máy Giặt Sấy LG"` nay có mapping tường
+   minh, không còn là một khoảng trống độ phủ chưa xử lý.
+
+6. **`AR-R5.1R1-01` (độ phủ giảm nói chung) GIỮ NGUYÊN**, thu hẹp phạm vi:
+   nó vẫn đúng cho những `cat` chưa có trong từ điển (`"Bàn ủi Philips"`,
+   `"Tủ đông Sanaky"`, `"Máy hút bụi"` — các ca review vòng 2 đo được, còn
+   `null`). Thêm alias khi có ca thật là cách sửa đúng của rủi ro này, không
+   phải bằng chứng nó đã hết.
+
+Reports: không đổi mã sản phẩm về mặt HÀNH VI. Hai chú thích đã lỗi thời (mô
+tả "lọc hình dạng" — luật đã bị `DEC-205` thay thế) được sửa cho khớp cơ chế
+thật (`COR-R5.1R1-01`): `app/web/catalog_display.py`,
+`tools/tracking/capture_tracking_catalog.py`.
+
+Quan hệ với các quyết định trước — bảng nối dài của `DEC-205`:
+
+```text
+DEC-204 §1,§2,§5(nửa đầu),§6   GIỮ NGUYÊN (xem DEC-205)
+DEC-204 §3,§4                  THAY THẾ bởi DEC-205 §1,§2
+DEC-204 §5 (nửa sau, "gộp      ĐÃ ĐẢO NGƯỢC bởi DEC-205 §4 — DEC-205 không
+  đồng nghĩa: KHÔNG làm")      ghi rõ điều này trong bảng quan hệ của nó
+                                (COR-R5.1R1-02); DEC-206 ghi bổ sung ở đây.
+DEC-205 §1–§6                  GIỮ NGUYÊN — DEC-206 KHÔNG thay thế DEC-205,
+                                chỉ HOÀN TẤT nội dung từ điển mà DEC-205 §3
+                                đã mở đường ("thêm một dòng khi cần")
+DEC-206                        Bổ sung 1 alias (`Máy giặt sấy`) + đóng
+                                OWNER_DECISION_REQUIRED cho 2 alias đã có sẵn
+                                (`TV`/`Ti vi`, `Máy lạnh`/`Điều hòa`)
+```
+
+`DEC-204` và `DEC-205` **KHÔNG bị sửa nội dung** — cả hai giữ nguyên văn làm
+bản ghi lịch sử.
+
+Checklist:
+
+```text
+CHECK-R51R1-17   PASS (E1) — Independent Review vòng 2 đã chạy đủ, kết luận
+                 ACCEPT_WITH_RECORDED_RISK, không tiêu repair cycle
+CHECK-R51-26     VẪN NOT_TESTED — Owner nghiệm thu production, KHÔNG phiên
+                 nào tự đóng, kể cả phiên merge này
+```
+
+Review Budget lineage `R5`: quyết định này KHÔNG mở repair cycle thứ ba — nó
+là bổ sung taxonomy CÓ CHỦ ĐÍCH sau một review kết luận `ACCEPT_WITH_
+RECORDED_RISK` (`REPAIR_REQUIRED = 0`), không phải một finding buộc sửa. Ngân
+sách giữ nguyên `2 allowed / 2 used / 0 remaining` — hết, nhưng không bị đụng
+tới thêm.
+
+Consequences:
+
+Tích cực: ba alias phổ biến nhất trong dữ liệu thật của Tín Phát (theo tên
+gọi miền Nam/miền Bắc và viết tắt) nay gộp đúng bucket, giảm rủi ro `R6`
+chia nhỏ báo cáo cơ cấu một cách giả tạo. `OWNER_DECISION_REQUIRED` đóng
+trước khi `category_label` được dùng làm khoá gộp — đúng khuyến nghị `§11.3`
+của review vòng 2.
+
+Tiêu cực, đã cân nhắc: `TV`/`Ti vi` được gộp dựa trên CHỈ THỊ CHÍNH SÁCH của
+Owner, không dựa trên bằng chứng dữ liệu in-repo — khác với `Máy lạnh` và
+`Máy giặt sấy`, cả hai đều có ca thật. Đây là quyết định ĐÚNG THẨM QUYỀN
+(Owner là người duy nhất có thể trả lời "TV có phải cùng Tivi không" khi
+repo không có dấu vết), không phải một khiếm khuyết — nhưng nó được ghi lại
+tường minh ở đây để không lẫn với hai alias có bằng chứng dữ liệu.
+
+References:
+- `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md` (`S141`) —
+  nguồn của `OWNER_DECISION_REQUIRED`, `AR-R5.1R1-04`, `AR-R5.1R1-05`,
+  `COR-R5.1R1-01`, `COR-R5.1R1-02`
+- `docs/sessions/S142-r51-owner-taxonomy-merge.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-205` (không thay thế, chỉ hoàn tất)
+- `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6
+---
+
+## DEC-208
+
+Ngày: 2026-09-09
+Phiên: `S146` — `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`
+Thẩm quyền: Owner báo lỗi trên production và chỉ thị sửa luồng chính.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge.
+
+### §1. Một lần chạy báo cáo THÀNH CÔNG là một lần làm mới bản chiếu hiển thị
+
+Từ `DEC-208`, luồng `POST /run` (upload sổ → chạy báo cáo) GHI/CẬP NHẬT bản
+chiếu `catalog_display` từ ĐÚNG capture danh mục Tracking của chính lần chạy
+đó. Trước đó bản chiếu CHỈ được ghi trong `server._tracking_snapshot()`, tức
+chỉ khi Owner mở bảng chọn phân loại của MỘT dòng.
+
+Hệ quả đo được trên production, và là lý do quyết định này tồn tại:
+
+```text
+cột Nhóm hàng / Hãng / IMEI   ĐÃ hiển thị (không bị ẩn)
+cột Hãng                       "—" cho MỌI dòng
+cột Mặt hàng                   tên DÀI trên sổ kế toán, kể cả dòng đã
+                               CONFIRMED mapping
+```
+
+Trên đĩa ephemeral của Render, bản chiếu biến mất sau mỗi lần deploy và KHÔNG
+có gì dựng lại nó. Owner phải mở bảng chọn của một dòng — một thao tác không
+liên quan gì tới việc xem báo cáo — để nhãn xuất hiện.
+
+### §2. Không gọi Tracking lần thứ hai chỉ để hiển thị
+
+Bản chiếu được dựng từ `OwnerRun.captures.tracking_catalog` — capture ĐÃ CÓ của
+lần chạy. Không lời gọi `live_pull` thứ hai, không lần pull nào thêm. Hai lý
+do, và cả hai đã được ghi từ trước: một lần pull giữ authority thô của Tracking
+trên đĩa máy chủ và phải được dọn ngay (`S071` §10), và một lần gọi mạng cho
+mỗi lần xem nhãn là một chi phí không ai yêu cầu.
+
+Đọc `OwnerRun.captures` chứ không đọc biến `captures` của route: khi
+`live_pull` chưa cấu hình (máy Owner), route truyền `None` và
+`run_owner_report` tự chọn capture cục bộ — `OwnerRun.captures` là nơi duy nhất
+biết capture nào ĐÃ THẬT SỰ được dùng.
+
+### §3. Phép chặn theo trạng thái mapping KHÔNG đổi
+
+Quy tắc hiển thị của `R5` §5 / `R5.1` §5.4 giữ NGUYÊN VĂN, và `DEC-208` không
+nới một vế nào:
+
+```text
+CONFIRMED + danh mục có model   ⟹ model_label ngắn ("55Q6FA")
+CONFIRMED + danh mục chưa nói   ⟹ mã Tracking
+chưa xác nhận · CONFLICT · stale target · OUT_OF_CATALOG · thiếu metadata
+                                ⟹ TÊN THÔ trên sổ + "—"
+```
+
+KHÔNG suy đoán hãng/nhóm hàng/model từ tên hàng kế toán. Bản chiếu chỉ làm cho
+NHÃN có mặt; nó không mở thêm một dòng nào được phép nhận nhãn.
+
+### §4. Bản chiếu không ghi được KHÔNG BAO GIỜ im lặng
+
+`catalog_display.write()` trả về `WriteResult` (thay cho `None`) với ba mã lý
+do đóng: `NO_SNAPSHOT`, `NO_METADATA`, `WRITE_FAILED`. Kết quả đi vào
+`tracking_evidence["catalog_display"]` của run, và tab Nhân viên hiện một dòng
+cảnh báo khi bản chiếu vắng mặt TRONG KHI sheet đang xem có dòng đã xác nhận mã.
+
+Điều kiện cảnh báo hẹp có chủ ý: nếu chưa ai xác nhận mapping nào thì cột `Hãng`
+là dấu gạch vì một lý do HOÀN TOÀN KHÁC (chưa phân loại), và một cảnh báo về
+bản chiếu ở đó sẽ chỉ người đọc đi sai chỗ.
+
+Một lần ghi thất bại KHÔNG làm hỏng lần chạy: bản chiếu là NHÃN, và đánh đổi cả
+một báo cáo cho một cái nhãn là sai chiều.
+
+### §5. `NO_METADATA` giữ nguyên bản chiếu đang có, không ghi rỗng lên nó
+
+Khi capture danh mục đọc được nhưng KHÔNG dòng nào mang một trong ba trường
+hiển thị (artifact đời cũ), `write()` KHÔNG ghi gì và trả `NO_METADATA`. Ghi một
+file rỗng lên bản chiếu sẽ XOÁ nhãn của những mã mà một lần chạy trước đã đọc
+được — tức làm màn hình nói ÍT hơn vì một capture cũ.
+
+### §6. `AR-R5.1-04` bị PHÂN LOẠI SAI — nay đóng lại
+
+`AR-R5.1-04` ("bản chiếu trên đĩa ephemeral — mất file ⟹ `—`, tiền không đổi")
+được ghi là `ACCEPTED_RISK` ở `R5.1` và giữ nguyên qua hai vòng Independent
+Review. Phân loại ấy SAI, và `DEC-208` nói ra thay vì lặng lẽ sửa mã:
+
+- Rủi ro đã ghi giả định mất bản chiếu là một trạng thái TẠM, tự thoát ra khi
+  có "lần capture danh mục MỚI đầu tiên". Nhưng luồng chính KHÔNG BAO GIỜ ghi
+  bản chiếu, nên trạng thái ấy là VĨNH VIỄN trên production — không có đường
+  thoát nào ngoài một thao tác không liên quan.
+- Vì vậy nó không phải một rủi ro chấp nhận được mà là một LỖI LUỒNG CHÍNH:
+  tính năng `R5.1` không bao giờ hiển thị trên đường người dùng thật.
+
+`AR-R5.1-04` nay ĐÓNG. Điều còn lại và VẪN là rủi ro chấp nhận được: giữa hai
+lần chạy, nếu đĩa bị xoá thì nhãn tạm mất — và nay có cảnh báo nói ra điều đó.
+
+### §7. Quan hệ với các quyết định trước
+
+```text
+DEC-204 · DEC-205 · DEC-206   GIỮ NGUYÊN — taxonomy vẫn thuộc Tracking, Reports
+                              không giữ bản sao và không sửa được nó
+DEC-R5-03  GIỮ NGUYÊN — IMEI vẫn CHỈ có ở bảng kê tab Nhân viên
+ADR-107    GIỮ NGUYÊN — không mirror payload Tracking; bản chiếu chỉ chở ĐÚNG
+           ba trường hiển thị mà hợp đồng đã định
+ADR-111 §3 GIỮ NGUYÊN — thẩm quyền metadata sản phẩm ở Tracking
+AR-R5.1-04 ĐÓNG (xem §6)
+```
+
+`DEC-208` KHÔNG thay thế quyết định nào ở trên và KHÔNG đổi một con số nghiệp
+vụ nào: MIN theo ngày bán, giá nhập, lợi nhuận, mapping, dữ liệu chốt kỳ, doanh
+thu và export giữ nguyên từng đồng.
+
+Nguồn:
+- `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
+- `docs/sessions/S146-r51-repair-2-run-refreshes-projection.md`
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" → REPAIR-2 production
+
+## DEC-209
+
+Ngày: 2026-09-09
+Phiên: `S147` — `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+Thẩm quyền: Owner chỉ thị bổ sung, trước khi mở Independent Review cho
+`R5.1 REPAIR-2`: đóng thêm ca "bản chiếu đã có dữ liệu CŨ, lần chạy KẾ TIẾP
+không làm mới được nó" — phân biệt với ca "vắng hoàn toàn" mà `DEC-208` đã
+đóng.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge — vẫn thuộc cùng
+`R5.1 REPAIR-2`, không phải một repair cycle mới.
+
+### §1. Vì sao `DEC-208` chưa đủ
+
+`DEC-208` §4 cảnh báo đúng MỘT trạng thái: bản chiếu VẮNG HOÀN TOÀN
+(`display.get(code)` falsy cho MỌI mã đã xác nhận). Nó không phân biệt được
+hai câu chuyện sau, dù cả hai cho ra CÙNG một `read()` khi một mã CONFIRMED
+cụ thể thiếu nhãn:
+
+```text
+Tracking đơn giản CHƯA phân loại mã này         → hợp lệ, im lặng đúng
+                                                   (AR-R5.1-01)
+lần chạy GẦN NHẤT không làm mới được bản chiếu,
+nên nó đang hiện một bản CŨ có thể thiếu đúng
+mã MỚI xác nhận SAU lần ghi thành công cuối     → lỗi luồng chính, cần
+                                                   cảnh báo
+```
+
+Ca thứ hai xảy ra khi: bản chiếu đã có dữ liệu THẬT (từ một lần chạy trước),
+Owner xác nhận một mapping MỚI, rồi lần chạy kế tiếp trả về `NO_METADATA`
+(capture đời cũ) hoặc `WRITE_FAILED` (ghi đĩa thất bại) — write() giữ nguyên
+dữ liệu cũ có chủ đích (`DEC-208` §5), nên mã cũ vẫn có nhãn và `matched > 0`;
+`DEC-208` §4 chỉ cảnh báo khi `matched == 0`, nên nhánh đó im lặng đúng lúc cần
+nói.
+
+### §2. Lịch sử ghi, không chỉ nội dung đang có
+
+`catalog_display.write()` nay ghi thêm một file trạng thái CẠNH bản chiếu
+(`<target>.status.json`, qua `_status_path`/`_record_status`/`_finish`), và
+`last_write_status()` đọc lại nó. Đây là file RIÊNG, không phải một khoá nhồi
+vào bản chiếu: `read()` coi MỌI khoá top-level của bản chiếu là một mã
+Tracking, nên một khoá trạng thái nằm chung sẽ có nguy cơ va với một mã thật
+trùng tên.
+
+Ghi trạng thái là best-effort, cùng kỷ luật fail-safe của chính `write()`: lỗi
+ghi trạng thái KHÔNG làm hỏng lần gọi đang chạy và KHÔNG đổi giá trị `write()`
+trả về.
+
+### §3. Hai hình dạng cảnh báo, `_catalog_projection_warning()`
+
+```text
+kind="vang"   matched == 0 (vắng hoàn toàn)     GIỮ NGUYÊN — không cần bằng
+                                                 chứng lịch sử ghi, vô điều kiện
+                                                 như DEC-208 §4
+kind="cu"     matched > 0 và unmatched khác rỗng
+              VÀ last_write_status() nói lần ghi gần nhất KHÔNG thành công
+              vì NO_METADATA hoặc WRITE_FAILED    MỚI — DEC-209
+```
+
+Điều kiện `kind="cu"` được thu hẹp CÓ CHỦ ĐÍCH bằng bằng chứng lịch sử ghi,
+không chỉ bằng "có mã thiếu nhãn": nếu không có bằng chứng lần ghi gần nhất
+hỏng (`last_write_status() is None` hoặc `written=True`), im lặng — đó là ca
+`AR-R5.1-01` hợp lệ (Tracking chưa phân loại), không phải staleness.
+
+Cả hai hình dạng đi vào CÙNG một điểm render (`data-metric="catalog-
+projection-warning"`), với `data-kind` phân biệt — mẫu template chỉ thêm một
+thuộc tính, không nhân đôi khối HTML.
+
+### §4. Không đổi tên hàng, mapping, hay bất kỳ con số nào
+
+Giữ NGUYÊN VĂN mọi bất biến của `DEC-208` §3: phép chặn theo trạng thái mapping
+ở `workspace_presentation._catalog_field` KHÔNG bị chạm. Một mã CONFIRMED
+thiếu nhãn (dù vì lý do gì) vẫn fallback về đúng MÃ Tracking — hành vi đã có
+từ `R5` §5, không phải hành vi mới của `DEC-209`. `DEC-209` chỉ thêm một dòng
+NÓI RA, không thêm hay đổi một nhánh hiển thị tên/mapping nào.
+
+Đo bằng HÀNH VI, không chỉ bằng lý luận: `CHECK-R51R2-17`/`-18` khẳng định
+tường minh — dòng CŨ giữ nguyên model/hãng, dòng MỚI fallback về mã Tracking
+(không lộ tên thô, không đổi mapping), và tổng tiền/lợi nhuận giống hệt khi so
+kỳ có/không bản chiếu.
+
+### §5. Quan hệ với `DEC-208`
+
+`DEC-209` KHÔNG thay thế `DEC-208` — nó là một overlay hẹp trên đúng một hàm
+(`_catalog_projection_warning`) mà `DEC-208` đã mở, đóng thêm một ca mà
+`DEC-208` §4 để ngỏ. Ba mã lý do đóng (`NO_SNAPSHOT`/`NO_METADATA`/
+`WRITE_FAILED`), quy tắc "NO_METADATA giữ nguyên dữ liệu cũ" (`DEC-208` §5),
+và mọi bất biến nghiệp vụ ở `DEC-208` §3/§7 giữ NGUYÊN VĂN.
+
+Nguồn:
+- `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md`
+- `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-208`
+
+---
+
+## DEC-207
+
+Ngày: 2026-09-09
+Phiên: `S143` — `docs/sessions/S143-r6-dashboard-phan-tich.md`
+Thẩm quyền: Brief `R6 — Dashboard phân tích kinh doanh` do Owner ban hành.
+Trạng thái: BAN HÀNH, triển khai đầy đủ, CHƯA merge.
+
+### §1. `R6` là một tầng CHỈ ĐỌC trên `PeriodData`, không phải một nguồn thứ hai
+
+Nguồn duy nhất của mọi con số `R6` là `PeriodData` hiệu lực của `R3`–`R5`.
+Không đường nào của `R6` đọc thẳng Excel hay `ImportResult` để tính một ô
+dashboard. Excel gốc chỉ còn ba việc: import, đối soát, và drill-down.
+
+Hệ quả CẤU TẠO, không phải lời hứa: quyết định Owner (loại dòng, override giá
+nhập, gán lại nhân viên, tick Gia dụng) và dòng bị tạm loại theo `DEC-R5-01`
+đã được giải xong TRƯỚC khi tới `R6`. Một chỉ tiêu `R6` chưa được viết ra hôm
+nay vẫn sẽ đúng, vì nó cộng trên một tập đã đúng.
+
+### §2. Doanh thu và chiết khấu — mỗi thứ MỘT trường, MỘT lần
+
+```text
+doanh thu        BusinessLine.total_sales        (KHÔNG tính lại DEC-114)
+chiết khấu       BusinessLine.discount           (cộng ĐÚNG MỘT LẦN, cấp dòng)
+"Doanh số bán"   doanh thu + chiết khấu          (DẪN XUẤT, chỉ để đối soát)
+```
+
+`R6` KHÔNG được tính lại `sell_price × quantity − discount`. Một phép tính thứ
+hai sẽ trôi khỏi phép tính thứ nhất ở đúng những dòng khó nhất (thiếu SL,
+thiếu đơn giá, chiết khấu ghi thành dòng riêng) và cho ra hai con số doanh thu
+trong cùng một sản phẩm.
+
+`Doanh số bán` KHÔNG phải một định nghĩa doanh thu thứ hai: không bảng, biểu
+đồ hay bucket nào cộng theo nó, và nó là `None` khi doanh thu chưa biết.
+
+### §3. `product_key` là khoá phân tích DUY NHẤT
+
+Không khoá normalize thứ hai. Nhãn đến từ metadata Tracking theo ba bậc:
+`model_label` → mã Tracking → (chỉ trên hàng ĐÃ tự khai là chưa xác định) tên
+trên sổ kế toán. Hãng và nhóm hàng CHỈ đọc từ hợp đồng metadata của Tracking
+qua một mã đã CONFIRMED — không suy từ tên thô, mã máy, hay bất kỳ phép so
+chuỗi nào (`PHB-06 §3`, `BR-02`, `BR-10`, `ADR-111` §3).
+
+Taxonomy canonical thuộc Tracking (`DEC-205`, `DEC-206`); Reports không giữ
+bản sao và không sửa được nó.
+
+### §4. Năm lý do "chưa xác định" là NĂM bucket, không phải một
+
+```text
+UNRESOLVED · CONFLICT · STALE_TARGET · OUT_OF_CATALOG · METADATA_ABSENT
+```
+
+Gộp chúng là gộp năm hành động sửa khác nhau vào một câu. `STALE_TARGET` được
+tách ra vì một lý do đo được: `line_identity.state_of` xếp một dòng như vậy là
+`MATCHED_TRACKING` (đúng — nó ĐÃ từng được khớp), nên nếu nó rơi chung vào
+`METADATA_ABSENT` thì Owner sẽ đi xếp ngành hàng cho một mã không còn tồn tại.
+
+`R6` ĐỌC mã lý do `MAPPING_STALE_TARGET_ABSENT` trực tiếp và KHÔNG sửa
+`line_identity` — không thêm một trạng thái nhận diện thứ hai.
+
+### §5. Một màn hình, ĐÚNG MỘT phạm vi thời gian
+
+Kỳ có sẵn HOẶC `Từ ngày`–`Đến ngày`. Không bao giờ cộng gộp, không bao giờ lấy
+phần chung. Một khoảng ngày không dùng được bị TỪ CHỐI kèm lý do hiển thị.
+
+Phạm vi tự chọn mang `period = None`, nên nó KHÔNG mượn trạng thái chốt kỳ của
+tháng nào. Đây KHÔNG phải một cơ chế chốt kỳ thứ hai và không nới lỏng cơ chế
+cũ: `period_lock` vẫn khoá theo `(năm, tháng)` như `R3` đã freeze.
+
+### §6. Engine thời gian dùng lại nguyên vẹn, KHÔNG dựng cái thứ hai
+
+30 ngày · 12 tuần · 12 tháng · 8 quý, so cửa sổ liền trước cùng độ dài —
+`revenue_timeline` của `R5`, không sửa một dòng. Series `orders` dựng bằng
+chính `Point`/`PairedSeries` ấy với số đơn ở trường `revenue`.
+
+Một đơn thuộc ĐÚNG MỘT mốc: NGÀY NHỎ NHẤT trong các dòng hiệu lực của nó. Đơn
+có dòng ở nhiều ngày được ĐẾM RIÊNG, không chia đôi và không đếm hai lần —
+một biểu đồ vượt tổng của chính nó là một biểu đồ không dùng được để ra quyết
+định.
+
+### §7. Basket — bốn chỉ tiêu tách rời
+
+```text
+multi_line_orders                  >= 2 DÒNG
+multi_product_orders               >= 2 product_key (SALE + ACCESSORY_GIFT)
+multi_merchandise_category_orders  >= 2 nhóm HÀNG HOÁ (loại FEE/DISCOUNT/
+                                   RETURN_CANCEL/UNDECIDED_DOCUMENT)
+service_attachment_orders          có hàng hoá VÀ có FEE
+```
+
+Bốn con số KHÔNG suy ra được từ nhau. Cặp dùng SET nên mã lặp hai dòng không
+tự tạo cặp. Attachment có HAI mẫu số riêng cho hai chiều. `pair_revenue` cộng
+toàn bộ doanh thu của đơn đúng một lần, và vì thế KHÔNG cộng lại thành doanh
+thu kỳ.
+
+FEE KHÔNG làm tăng `multi_merchandise_category_orders` — để nó làm tăng sẽ
+biến mọi đơn có phí lắp đặt thành một lần bán chéo nhóm hàng.
+
+### §8. Drill-down mở ĐÚNG bốn cột
+
+Số BH · ngày bán · nhân viên · mặt hàng, kèm nhãn phạm vi lọc. KHÔNG mở thêm
+một trường khách hàng nào, kể cả khi `PeriodData.details` mang sẵn tên/SĐT/địa
+chỉ cho bảng kê nghiệp vụ (`DEC-PHB02-08`). Ràng buộc thi hành bằng CẤU TẠO:
+dict trả về chỉ có bốn khoá.
+
+### §9. Quan hệ với các quyết định trước
+
+```text
+DEC-114   GIỮ NGUYÊN — R6 ĐỌC total_sales, không tính lại công thức
+DEC-143   GIỮ NGUYÊN — R6 không chạm cửa chặn lợi nhuận hay eligible costs
+DEC-180   GIỮ NGUYÊN — cảnh báo chiết khấu hai lần vẫn của R3, R6 chỉ chở lên
+DEC-185   GIỮ NGUYÊN — thanh điều hướng vẫn ĐÚNG BA mục; R6 là khung nhìn con
+DEC-R5-01 GIỮ NGUYÊN — dòng tạm loại không lọt vào R6, theo cấu tạo
+DEC-R5-02 GIỮ NGUYÊN — R6 dùng lại đúng engine cửa sổ, không sửa
+DEC-205   GIỮ NGUYÊN — taxonomy thuộc Tracking, Reports không giữ bản sao
+DEC-206   GIỮ NGUYÊN — ba alias là nhãn mà R6 gộp theo, không phải của R6
+DEC-PHB02-03  GIỮ NGUYÊN — `qualifying_quantity` KHÔNG bị đổi nghĩa; R6 thêm
+              `total_quantity` BÊN CẠNH nó
+OD-4      GIỮ NGUYÊN — giá 0 của hàng tặng là giá THẬT, vẫn tham gia min
+OD-2      GIỮ NGUYÊN — RETURN_CANCEL/UNDECIDED_DOCUMENT không được đoán là
+          hàng hoá
+```
+
+`DEC-207` KHÔNG thay thế quyết định nào ở trên.
+
+### §10. Điều kiện merge/deploy
+
+`R6` chỉ được merge/deploy sau khi ĐỦ hai điều: `CHECK-R51-26` (Owner nghiệm
+thu `R5.1` trên production) `PASS`, và `CHECK-R6-31` (Independent Review của
+`R6`) `PASS`. Bảng "Nhóm hàng"/"Hãng" của `R6` gộp TIỀN theo đúng những nhãn
+mà `CHECK-R51-26` còn chưa xác nhận trên dữ liệu thật.
+
+Nguồn:
+- `docs/spec/R6-EXECUTION-BRIEF.md`
+- `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`
+- `docs/sessions/S143-r6-dashboard-phan-tich.md`
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6"
+
+---
+
+## DEC-210
+
+Ngày: 2026-09-09
+Phiên: merge/deploy `R6`, theo chỉ thị trực tiếp của Owner.
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Owner chốt: **tích hợp `R6` nguyên khối vào nhánh mặc định, sau khi Independent
+Review đã `PASS`.** Không cắt scope, không tiếp tục divergence.
+
+### §2. Hai điều kiện merge/deploy của `DEC-207` §10 — cả hai ĐÃ ĐỦ
+
+```text
+CHECK-R6-31   PASS (E1) — Independent Review vòng 2, `S146`
+              (`docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`).
+              Xác minh LẠI trong phiên merge: nhánh
+              `claude/r6-independent-review-round-2-dycl6b` @ `0ffb943` có
+              thật trên origin, lineage đúng hậu duệ của `40807ef`, diff
+              CHỈ tài liệu (0 dòng mã), worktree sạch. Full pytest chạy lại
+              cho `3445 passed / 12 skipped / 0 failed` — khớp CHÍNH XÁC con
+              số bản ghi. Smoke `r6_crossrepo_smoke.py` chạy lại cho
+              `29 PASS / 0 FAIL` — khớp chính xác. `git diff --check` sạch.
+
+CHECK-R51-26  PASS — Owner tự nghiệm thu `R5.1` trên production, xác nhận
+              trực tiếp trong phiên này (2026-09-09). Đây là điều kiện chỉ
+              Owner đóng được (hành vi production thật), không phiên nào
+              đóng thay được.
+```
+
+### §3. `CHECK-R6-30` — đối soát sổ Owner thật
+
+Đóng trong CHÍNH phiên này, KHÔNG phải bàn giao lại của `S144`/`S146`: chạy
+`scripts/r6_book_reconciliation.py --so-cua-owner` tại đúng HEAD `40807ef`
+với file sổ thật của Owner (`49edea00-So_chi_tiet_ban_hang.xlsx`, do Owner
+gửi trực tiếp trong phiên). Chạy LẶP LẠI hai lần độc lập, cả hai lần:
+
+```text
+Nguồn ↔ Aggregate ↔ Kỳ vọng (466 dòng · 345 BH · 338 BH dương · SL 626 ·
+doanh số 4.500.085.001 · chiết khấu 1.550.000 · doanh thu sau CK
+4.498.535.001 · 85 BH nhiều dòng) — KHỚP TOÀN BỘ cả 8 chỉ tiêu, EXIT=0.
+```
+
+`CHECK-R6-30` → `PASS (E1)`.
+
+### §4. `INTEGRATION_DECISION_REQUIRED` (`V4.1` §8) — giải quyết bằng lựa chọn (A)
+
+Cờ mở từ `S145` (`cumulative LOC = 10.100`, đo lại ở `S146` = `10.155`, vượt
+ngưỡng `5.000`). Ba lựa chọn đã đưa ra: (A) integrate/merge sớm, (B) cắt
+scope, (C) tiếp tục divergence có lý do + ngày review. **Owner chọn (A)** —
+chỉ thị trực tiếp "merge R6 vào nhánh mặc định rồi deploy Reports". Cờ ĐÓNG.
+
+### §5. `CHECK-R6-32` — Owner Acceptance
+
+Chỉ thị merge/deploy trực tiếp của Owner, SAU khi đã được trình bày đầy đủ
+trạng thái thật (`CHECK-R6-31` từng `FAIL` rồi mới `PASS` ở vòng 2; hai
+gate `DEC-207` §10; cờ `INTEGRATION_DECISION_REQUIRED`), CHÍNH LÀ Owner
+Acceptance cho quyết định tích hợp. `CHECK-R6-32` → `PASS`.
+
+### §6. Điều KHÔNG đổi
+
+Merge KHÔNG mang `R7` hay bất kỳ công việc nào khác `R6` + `R5.1 REPAIR-2`
+đã có sẵn trên nhánh mặc định. `git diff` RỖNG trên
+`app/modules/pricing/`, `app/modules/profit/`, `app/modules/kpi/`,
+`period_lock.py`, `business_store.py`, `business_queries.py`,
+`business_service.py`, `business_metrics.py`, `tools/db/migrations/`,
+`config/` — xác nhận lại trong phiên merge. Tracking KHÔNG đổi.
+
+Nguồn:
+- `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`
+- `docs/sessions/S146-r6-independent-review-round-2.md`
+- `PROJECT/PROJECT_DECISIONS.md` → `DEC-207` §10
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6"
+
+## DEC-211
+
+Ngày: 2026-09-09
+Phiên: ba yêu cầu trực tiếp của Owner về hiển thị (`DEC-211`…`DEC-213`).
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Biểu đồ Xu hướng doanh thu (trang Báo cáo) so **kỳ này với CÙNG KỲ NĂM
+TRƯỚC**, ở CẢ NĂM mức gộp. Thay `DEC-R5-02` ("hai cửa sổ liền kề"), và bỏ
+luật "mức Năm không có đường so sánh".
+
+### §2. Độ dài cửa sổ, do Owner chốt trực tiếp
+
+```text
+Ngày    31 mốc   (một tháng — mép phải 10/9 thì mép trái 11/8)
+Tuần    13 mốc   (một quý)
+Tháng   12 mốc   (một năm)
+Quý      4 mốc   (một năm)
+Năm      5 mốc
+```
+
+### §3. Mép phải neo vào NGÀY CÓ DỮ LIỆU MỚI NHẤT
+
+Không neo vào ngày cuối kỳ như trước: chọn Tháng 9 khi sổ mới ghi tới 25/9
+sẽ vẽ năm ngày trắng ở mép phải, đúng thứ Owner gọi là "biểu đồ bị cụt".
+Cũng không neo vào HÔM NAY theo lịch — sổ chưa nạp vài ngày sẽ cho một dải
+trống đọc như "không bán được gì".
+
+Trang phân tích neo theo cùng quy tắc khi đang xem một KỲ, và giữ nguyên
+cận ngày tự gõ khi là một PHẠM VI TỰ CHỌN (hai cận ngày ấy là chỉ thị tường
+minh của người dùng). Nhờ vậy hai trang vẫn nói cùng một con số cho cùng
+một mốc.
+
+### §4. Thẩm quyền nguồn ở mức Ngày/Tuần giải theo NGÀY
+
+Owner: *"nếu số liệu mới và cũ bị tách khỏi nhau, hãy khớp lại với nhau
+thành 1 dải liên tục trừ khi ngày đó không có số liệu."*
+
+Trước đó, một THÁNG có dòng sổ nạp làm rơi TOÀN BỘ bằng chứng sổ cũ của
+tháng ấy. Với sổ thật của Owner — sổ kế toán nạp từ 04/09, sổ cũ có tới hết
+03/09 — ba ngày đầu tháng thành một lỗ trên đường vẽ dù bằng chứng của
+chúng vẫn còn. Cùng hình lỗi đã sửa cho Quý/Năm ở `revenue_timeline` §
+"Thẩm quyền được giải ở mức THÁNG", chỉ khác độ mịn.
+
+`DEC-180` §9 KHÔNG bị nới: không đơn vị thời gian nào nhận giá trị từ hai
+nguồn, và van chống-cộng-hai-nguồn nay kiểm ở ĐÚNG độ mịn đang vẽ. Một mốc
+TUẦN vắt qua ranh giới mang `ORIGIN_MIXED` và nói ra điều đó trong lời của
+chính nó — từ vựng `DEC-166 E` đã có, không phải một nhãn mới.
+
+### §5. Bằng chứng
+
+```text
+Full pytest    3466 passed / 12 skipped / 1 failed
+               (failure = test_protected_golden_artifacts_..., ĐỎ SẴN từ
+               trước thay đổi này: clone nông không có commit 740f396)
+Bất biến tiền  git diff RỖNG trên pricing/profit/kpi/period_lock/
+               business_store/business_queries/business_service/
+               business_metrics/config
+```
+
+## DEC-212
+
+Ngày: 2026-09-09
+Phiên: như `DEC-211`.
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+**MỌI số tiền trên MỌI trang** viết theo NGHÌN ĐỒNG, làm tròn tới nghìn gần
+nhất — kể cả ĐƠN GIÁ của từng dòng hàng. Owner nêu hai ví dụ:
+`13.550.000 → 13.550` và `57.272.727,27 → 57.273`.
+
+Mở rộng phạm vi của `R1` §9 (vốn chỉ áp cho các ô TỔNG của hai trang Báo
+cáo/Nhân viên) ra toàn repo: đơn giá từng dòng, giá TB/thấp nhất/cao nhất
+của trang phân tích, và các trang "sổ thô" (Tổng quan · Bán hàng · Sản phẩm
+· Nhân viên số cũ · Doanh số ngày · Lịch sử).
+
+Lý do là lý do cũ ở một chỗ đau hơn: một bảng mà cột tổng viết `13.550` còn
+cột giá bán ngay cạnh viết `13.550.000` bắt người đọc đổi đơn vị giữa hai
+cột kề nhau — đó là chỗ một con số bị đọc lệch một nghìn lần.
+
+### §2. Ngoại lệ DUY NHẤT: ô NHẬP giá giữ VND đầy đủ
+
+Rút gọn là một cách VIẾT RA; ô nhập là một cách ĐỌC VÀO, và hai chiều đó
+không đối xứng. Một ô hiện `5.000` mà lưu `5.000.000` sẽ có ngày ghi vào sổ
+một giá nhập sai đúng một nghìn lần, ở một trường mà cả lợi nhuận KPI lẫn
+DS quy đổi đều đọc. Không tooltip nào cứu được một con số đã ghi sai.
+Xem `business_presentation.PRICE_INPUT_NOTE`.
+
+### §3. MỘT hợp đồng ô tiền cho cả repo
+
+```text
+cell["text"]        VND ĐẦY ĐỦ — tooltip, và mọi phép cộng kiểm chứng
+cell["text_kvnd"]   NGHÌN ĐỒNG — bản in ra màn hình
+```
+
+Đây là hợp đồng `gated_cell`/`money_cell` đã dựng từ `R1` §9, nay áp cho
+MỌI ô tiền (`_derived_cell`, `price_cell`, `profit`, ô sổ cũ). Đảo hai tên
+này ở một chỗ là chỗ một `gated_cell` đi qua cùng một macro sẽ in bản đầy
+đủ trong khi hàng bên cạnh in bản rút gọn — lỗi đã thật sự xảy ra một lần
+ở hàng TỔNG của bảng kê trong chính phiên này, và được sửa tận gốc bằng
+cách hợp nhất hợp đồng thay vì vá ở macro.
+
+Các trường tiền dạng CHUỖI PHẲNG (không phải ô) dùng cặp
+`<tên>` / `<tên>_full` qua `business_presentation.price_pair`.
+
+### §4. Điều KHÔNG đổi
+
+Đây thuần tuý là cách VIẾT RA. `git diff` RỖNG trên `app/modules/pricing/`,
+`app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+`business_store.py`, `business_queries.py`, `business_service.py`,
+`business_metrics.py`, `config/` — không một đường TÍNH nào bị chạm. File
+Excel xuất ra KHÔNG đổi (Owner không yêu cầu).
+
+### §5. Hệ quả đã biết, đã nói ra trên trang Giải thích
+
+Số tiền dưới 500 đồng hiện `0` vì đó là số nghìn gần nhất. Giá trị thật
+không mất: nó ở tooltip và ở mọi phép tính. Sổ thật của Owner không có ô
+tiền nào ở độ lớn này.
+
+## DEC-213
+
+Ngày: 2026-09-09
+Phiên: như `DEC-211`.
+Thẩm quyền: Owner.
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Áp **toàn bộ** ngôn ngữ thiết kế của Tracking sang Reports — font, cỡ chữ,
+màu, bo góc, icon, nền tối — để hai ứng dụng nhìn như MỘT hệ. Chỉ đổi giao
+diện; không sửa logic nghiệp vụ.
+
+### §2. `body.theme-finance` bị GỠ — thay thế, không phải bỏ sót
+
+Trước đó Reports mang HAI hệ màu cùng lúc: bộ token chép "có chọn lọc" từ
+Tracking (`TASK-PRA-000` mục E) cho phần lớn trang, và một lớp đè thứ hai
+(`TASK-OWNER-UIUX-005` §4) kéo đúng ba trang Owner xem hằng ngày về hệ
+đen/giấy của Finance. Hệ quả: cùng một tổ chức, ba giao diện.
+
+`TASK-OWNER-UIUX-005` §4 chọn Finance khi phạm vi câu hỏi là "ba trang này
+nên trông thế nào". Câu hỏi nay là "cả hệ nên trông thế nào", và với câu
+hỏi đó, một lớp đè chỉ áp ba trang chính là thứ tạo ra vấn đề.
+
+### §3. Điểm nghiệp vụ KHÔNG đi theo bản chép
+
+Tracking quy ước **tăng = đỏ** vì nó nói về GIÁ MUA VÀO. Reports nói về
+doanh thu/lợi nhuận nên giữ **tăng = xanh lá**. Đây là Ý NGHĨA, không phải
+thẩm mỹ.
+
+### §4. `TASK-UIUX-001` bị thay ở ĐÚNG một điểm
+
+Số trong bảng viết ĐẬM (600) và màu chữ chính, như Tracking, thay vì nét
+thường của tham chiếu Finance. Lý do của luật cũ ("khi mọi số đều đậm thì
+không số nào nổi bật") vẫn được tôn trọng bằng một phương tiện khác: cột SỐ
+đậm hơn cột CHỮ, và dòng TỔNG lại đậm hơn cột số — ba bậc, không phải hai.
+
+### §5. Vẫn là BẢN CHÉP TĨNH
+
+KHÔNG hot-link file nào của Tracking, KHÔNG runtime dependency, KHÔNG chép
+engine/JS/data contract của Tracking. Tracking chỉ là tham chiếu thị giác,
+chỉ đọc — Tracking KHÔNG bị sửa một dòng nào trong phiên này.
+
+### §6. Ba lỗi trực quan phát hiện khi soi ảnh chụp thật, sửa kèm
+
+```text
+Trục Y biểu đồ trôi khỏi lưới   `height:auto` + preserveAspectRatio="none"
+                                làm SVG lùn theo tỉ lệ viewBox khi card hẹp
+                                hơn 960px, cột nhãn thì cao cố định
+Hai nhãn cuối trục X chồng nhau mốc 28 và mốc 30 của cửa sổ 31 ngày
+Hàng TỔNG của bảng kê           rút gọn cạnh dòng chi tiết VND đầy đủ
+                                (hai bộ dựng hàng, `DEC-212` mới sửa một)
+```
+
+### §7. Bằng chứng
+
+```text
+Full pytest   3466 passed / 12 skipped / 1 failed (failure ĐỎ SẴN, xem
+              `DEC-211` §5)
+Kiểm thị giác ảnh chụp Chromium THẬT, nền sáng và nền tối, trên Báo cáo ·
+              Nhân viên · Dữ liệu · Tổng quan · Bảng kê chi tiết
+```
+
+Ba bài kiểm điều hướng trích nhãn tab bằng `>([^<]+)</a>` trở nên VÔ HIỆU
+khi có `<svg>` chen vào (luôn trả rỗng ⟹ xanh vĩnh viễn). Chúng được sửa để
+bóc thẻ con trước khi so, giữ nguyên mệnh đề cũ.
+
+## DEC-214
+
+Ngày: 2026-09-10
+Phiên: người dùng hỏi "có biểu đồ nào có thể tích hợp ở card bên phải
+không" (card "Biểu đồ khác" của trang Báo cáo, để trống từ
+`TASK-OWNER-UIUX-003` §2).
+Thẩm quyền: Owner (câu hỏi trực tiếp, trả lời bằng cách triển khai vì
+lựa chọn rủi ro thấp và tái dùng nguyên hạ tầng đã kiểm chứng).
+Trạng thái: BAN HÀNH, thực thi.
+
+### §1. Quyết định
+
+Lấp card "Biểu đồ khác" bằng biểu đồ **SỐ ĐƠN**, dùng lại NGUYÊN macro
+`_r6_bits.html::paired_chart` và hàm trình bày `paired_count_chart` mà
+trang phân tích R6 (`/kinh-doanh/phan-tich`) đã kiểm chứng — không dựng
+một biểu đồ thứ hai riêng cho trang Báo cáo.
+
+Lý do chọn Số đơn thay vì một chỉ tiêu khác: nó là biểu đồ hai-cửa-sổ DUY
+NHẤT đã có sẵn ngoài Doanh thu, dùng chung `revenue_timeline.paired_series`
+— nên nó THỪA HƯỞNG toàn bộ `DEC-211` (cùng kỳ năm trước, neo ngày mới
+nhất, 5 mức gộp) mà không cần viết thêm một dòng logic thời gian nào.
+
+### §2. Hai biểu đồ đọc CÙNG một `anchor`, bằng cấu tạo
+
+`_orders_chart_summary` (server.py) tính `data`/`anchor` bằng ĐÚNG phép
+tính mà `_revenue_chart` dùng (cùng lát TOÀN BỘ dòng thời gian, cùng
+`_chart_anchor`) — không phải hai hàm trùng hợp cho ra cùng kết quả. Hệ
+quả kiểm được: đổi mức gộp ở BẤT KỲ biểu đồ nào trong hai biểu đồ đều đổi
+CẢ HAI, và chúng luôn cắt cùng một tập mốc thời gian
+(`test_chart_12_both_charts_share_the_same_anchor_and_window`).
+
+KHÔNG merge sổ cũ: `legacy_summary`/`legacy_daily_sales` chỉ lưu DOANH
+THU, không lưu SỐ ĐƠN — không có bằng chứng nào để vẽ thêm cho những
+tháng chỉ còn bản ghi lịch sử.
+
+### §3. Bug tìm thấy VÀ sửa: trục Y của biểu đồ Số đơn luôn hiện "0"
+
+`_chart_y_axis` (dùng chung cho cả hai biểu đồ) viết nhãn bằng
+`_thousand_vnd` — chia 1.000 — vô điều kiện. Đúng cho Doanh thu (nghìn
+đồng), sai cho Số đơn: một trần nhỏ như "3 đơn" chia 1.000 ra toàn số 0.
+Đây là khiếm khuyết TRÌNH BÀY đã có sẵn từ khi `paired_count_chart` được
+dựng cho trang phân tích R6 — không ai phát hiện vì không test nào khẳng
+định nội dung nhãn trục Y. Card mới trên trang Báo cáo khiến nó hiện rõ
+ngay lập tức.
+
+Sửa: `_chart_y_axis(ceiling, *, money: bool = True)` — `money=False` viết
+số nguyên (`format_number`), không chia 1.000. `paired_count_chart` gọi
+với `money=False`; `paired_revenue_chart` và `revenue_chart` giữ mặc định.
+Bằng chứng bằng mắt: `/kinh-doanh/phan-tich` (trang có sẵn từ trước) nay
+hiện đúng "1/1/1/0/0" thay vì "0/0/0/0/0" — xem ảnh chụp trong phiên.
+
+### §4. Bẫy test được tài liệu hoá VÀ chặn lại
+
+Hai biểu đồ dùng CHUNG `data-metric="chart-bar"`/`"chart-bar-prev"` (đúng
+thiết kế macro chung). Mọi test cũ đọc các thuộc tính này trên TOÀN TRANG
+`/kinh-doanh` (không scope theo card) sẽ ÂM THẦM đọc nhầm cột của biểu đồ
+này thành biểu đồ kia khi hai mốc trùng khoá — đúng lớp lỗi `S143` §4 đã
+gặp một lần và `test_r6_repair1_chart_windows.py::chart_block` đã có cách
+chặn cho trang phân tích. `chart_block`/`_CHART_ID_PREFIX` được đưa vào
+`tests/test_dec185_nav_chart_identity.py` (và tái dùng ở
+`test_identity_durability_and_timeline_aggregation.py` qua import), và
+MỌI bài kiểm cũ đọc bar/tổng số biểu đồ trên `/kinh-doanh` được rà lại để
+scope đúng khối Doanh thu — giữ nguyên mệnh đề gốc của từng bài, không
+đổi ý nghĩa.
+
+Năm bài kiểm MỚI (`CHART-12`) canh riêng biểu đồ Số đơn: card thay thế
+đúng ô trống, số đơn đúng số đơn thật (không phải số dòng), hai biểu đồ
+cắt cùng mốc thời gian, không merge sổ cũ, so cùng kỳ năm trước.
+
+### §5. Bằng chứng
+
+```text
+Full pytest       3471 passed / 12 skipped / 1 failed (failure ĐỎ SẴN,
+                  xem DEC-211 §5 — khiếm khuyết môi trường, không phải
+                  hồi quy)
+Smoke R6          29 PASS / 0 FAIL
+Smoke R5.1        83 PASS / 0 FAIL
+Kiểm thị giác     ảnh chụp Chromium THẬT, nền sáng và nền tối, ở cả
+                  /kinh-doanh (card mới) và /kinh-doanh/phan-tich
+                  (xác nhận bản sửa trục Y không phá trang cũ, còn sửa
+                  đúng lỗi có sẵn ở đó)
+```
+
+### §6. Điều KHÔNG đổi
+
+Không tạo thẩm quyền hay chỉ tiêu mới — `orders_chart` đọc lại đúng
+`dashboard_metrics.orders_by_bucket`/`totals` đã dùng ở trang phân tích.
+Tracking KHÔNG đổi. Không route mới, không tab mới.
+
+## DEC-215
+
+Ngày: 2026-09-10
+Phiên: Owner báo cáo hai việc trên biểu đồ Xu hướng doanh thu đã triển
+khai ở `DEC-211`: (1) không thấy số liệu cùng kỳ năm trước, (2) trục X
+hiện ngày đầy đủ kèm năm lặp lại, muốn rút gọn còn DD/MM.
+Thẩm quyền: Owner (báo cáo trực tiếp qua ảnh chụp màn hình sản phẩm thật).
+Trạng thái: Mục (2) BAN HÀNH, thực thi. Mục (1) ĐÃ CHẨN ĐOÁN — cần Owner
+xác nhận dữ liệu trước khi kết luận có phải khiếm khuyết hay không.
+
+### §1. Vì sao "Cùng kỳ năm trước" hiện "0 nghìn đồng" — chẩn đoán
+
+Đã xác minh cơ chế TÍNH CỬA SỔ so sánh là ĐÚNG thiết kế `DEC-211`: ảnh
+chụp cho thấy "Kỳ này: 21/08/2026 → 20/09/2026" và "Cùng kỳ năm trước:
+21/08/2025 → 20/09/2025" — đúng 31 ngày kết thúc CÙNG NGÀY DƯƠNG LỊCH của
+năm trước, khớp `revenue_timeline._same_day_last_year`. Không phải lỗi ở
+phép tính cửa sổ.
+
+`comparison_total_kvnd = 0` xảy ra khi MỌI mốc trong cửa sổ 21/08/2025 →
+20/09/2025 là KHOẢNG TRỐNG (`Slot.is_gap`), tức hệ thống KHÔNG có bằng
+chứng nào cho khoảng đó — không phải "đã xác nhận doanh thu bằng 0".
+`comparison_total_kvnd` không phân biệt hai trạng thái này trong ô tổng ở
+đầu card (đường ĐỨT trong biểu đồ có phân biệt, qua `GAP_NOTE`, nhưng ô
+tổng thì không) — đây là một điểm có thể gây hiểu lầm, ghi lại ở `§3`.
+
+Vì sao khoảng đó có thể KHÔNG có bằng chứng — ba khả năng, xếp theo khả
+năng xảy ra thật với dữ liệu Owner đang dùng:
+
+```text
+(a) Sổ cũ (`legacy_daily_sales`/`DataChart`) có nhập cho Tháng 8-9/2025
+    nhưng CHỈ ở dạng TỔNG THÁNG (`Summary`/`legacy_summary_row`), KHÔNG có
+    dòng từng ngày. Mức Ngày/Tuần CHỈ đọc bằng chứng từng ngày (`CHART-10`
+    — "một tổng tháng không sinh ra ngày nào"); mức Tháng/Quý thì đọc
+    được. → Đây là nguyên nhân PHỔ BIẾN NHẤT cho sổ cũ Việt Nam, vốn
+    thường chỉ lưu Summary theo tháng.
+(b) Không có sổ cũ nào cho giai đoạn 2025 được nạp vào hệ thống — không
+    phân biệt được với (a) qua ảnh chụp, cần kiểm ở tab Dữ liệu.
+(c) Doanh nghiệp thật sự không phát sinh doanh thu giai đoạn đó (mới hoạt
+    động từ 2026) — khi ấy hiển thị hiện tại là ĐÚNG, không phải lỗi.
+```
+
+**Cách Owner tự kiểm tra, không cần sửa code:** đổi biểu đồ sang mức
+**Tháng** và xem đường "Cùng kỳ năm trước" của Tháng 8-9/2025 có giá trị
+không:
+- CÓ giá trị ở mức Tháng nhưng KHÔNG có ở mức Ngày/Tuần ⟹ đúng khả năng
+  (a) — sổ cũ chỉ có tổng tháng, cần nạp lại kèm `DataChart` từng ngày
+  nếu muốn xem theo Ngày/Tuần.
+- KHÔNG có giá trị ở CẢ HAI mức ⟹ khả năng (b) hoặc (c) — kiểm tab
+  **Dữ liệu → Dữ liệu lịch sử** xem giai đoạn 2025 có được nạp không.
+
+Việc này KHÔNG sửa được từ phía code nếu nguyên nhân là (b)/(c): hệ thống
+không được bịa số cho một khoảng không có bằng chứng (`GAP_NOTE`,
+`DEC-180` §9). Nếu nguyên nhân là (a) và Owner có file `DataChart` từng
+ngày của giai đoạn đó, việc cần làm là NẠP LẠI qua tab Dữ liệu, không
+phải một thay đổi mã nguồn.
+
+### §2. Trục X biểu đồ Ngày/Tuần rút gọn còn DD/MM
+
+Quyết định: nhãn trục X (KHÔNG phải tooltip, KHÔNG phải dòng "Kỳ này: …")
+ở mức Ngày/Tuần bỏ năm — "21/08/2026" → "21/08". Mức Tháng/Quý/Năm GIỮ
+NGUYÊN năm trong nhãn: một cửa sổ 12 tháng/4 quý (`DEC-211`) thật sự vắt
+qua HAI năm dương lịch khác nhau, bỏ năm ở đó sẽ làm hai mốc khác năm
+trông như cùng một mốc.
+
+`_axis_tick_label` đọc lại NGÀY THẬT từ `Slot.key` (ISO) rồi viết lại,
+không cắt chuỗi `label` có sẵn — cắt chuỗi giả định một định dạng cụ thể
+và sẽ âm thầm sai nếu `bucket_of` đổi cách viết nhãn sau này.
+
+Tooltip của từng chấm (`_slot_title`, dùng `slot.label` gốc) và dòng "Kỳ
+này/Cùng kỳ năm trước: … → …" (`_window_range_text`) KHÔNG đổi — vẫn đầy
+đủ DD/MM/YYYY, đúng `DEC-184` §24 ("không bao giờ ISO trên màn hình" áp
+cho MỌI nơi HIỂN THỊ một ngày để tra cứu chính xác). Chỉ trục nhìn LƯỚT
+rút gọn.
+
+### §3. Ghi nhận, chưa xử lý trong phiên này
+
+Ô tổng "Cùng kỳ năm trước: … 0 nghìn đồng" không phân biệt "đã xác nhận
+bằng 0" với "không có bằng chứng" — trong khi đường vẽ (đứt đoạn) VÀ
+`GAP_NOTE` trong "Cách đọc biểu đồ này" CÓ phân biệt. Đây là một điểm có
+thể gây hiểu lầm ở đúng vị trí người đọc nhìn ĐẦU TIÊN (đầu card, trước
+khi mở "Cách đọc biểu đồ này"). Chưa sửa vì cần xác nhận trước với Owner
+đây có phải điều Owner muốn đổi hay không — xem CONFLICT tiềm năng với
+`R1`/`DEC-185` về việc ô tổng phải "ĐÚNG một con số, không kèm điều kiện".
+
+### §4. Bằng chứng
+
+```text
+Full pytest    3474 passed / 12 skipped / 1 failed (failure ĐỎ SẴN, xem
+               DEC-211 §5 — khiếm khuyết môi trường)
+Smoke R6       29 PASS / 0 FAIL
+Smoke R5.1     83 PASS / 0 FAIL
+Kiểm thị giác  ảnh chụp Chromium thật xác nhận trục X: "26/08 · 30/08 ·
+               03/09 · 07/09 · 11/09 · 15/09 · 19/09 · 25/09" — không còn
+               năm lặp lại
+```
+
+## DEC-216
+
+Ngày: 2026-09-10
+Phiên: Nối tiếp `DEC-215` §1. Owner xác nhận nguyên nhân (a) là đúng — sổ
+cũ chỉ có TỔNG THÁNG — và chốt một đường đi vòng để lấp lỗ hổng đường "Cùng
+kỳ năm trước" ở mức Ngày/Tuần.
+Thẩm quyền: Owner (`OWNER_DECISION`).
+Trạng thái: BAN HÀNH, đã thực thi.
+
+### §1. Yêu cầu, nguyên văn lời Owner
+
+> "tôi không yêu cầu bạn sử dụng file thô của tôi rồi tải lên report. tôi
+> muốn bạn đi đường vòng: đọc và xử lí trước số liệu file thô trong session
+> này, sau đó dùng số liệu đó (ngày + doanh số ngày) tạo thành 1 data không
+> phải legacy, chỉ phục vụ cho việc vẽ lấp lỗ hổng biểu đồ"
+
+> "hãy kiểm tra kĩ từng sheet của nhân viên, chỉ cần trích xuất doanh số
+> theo từng ngày của nhân viên rồi gộp lại doanh số ngày tổng của công ty"
+
+Ba tính từ trong câu đầu là ba ràng buộc, và cả ba đều được thi hành bằng
+mã, không bằng lời hứa — xem `§4`.
+
+### §2. Vì sao không thể lấp bằng thứ đang có
+
+`app/legacy/parser.py::parse_year_workbook` trả `daily_sales=[]`: 74 sheet
+chi tiết của workbook 2025 chỉ được ghi TÊN, không đọc một ô nào, theo
+`LEGACY_LINE_DETAIL_2025 = DEFERRED` — các sheet ấy chứa tên, số điện thoại
+và địa chỉ khách hàng (`governance/product/17_DATA_GOVERNANCE_PRIVACY.md`).
+`§CHART-10` cấm chia một tổng tháng ra thành ngày. `DEC-181`
+(`OWNER_DECISION`, đã freeze) cấm thêm nguồn legacy.
+
+Ba luật ấy cùng đúng, và cùng nhau chúng khoá chặt mọi lối lấp lỗ hổng
+BÊN TRONG đường legacy. Nên lối đi là một đường THỨ BA, nằm ngoài nó.
+
+### §3. `DEC-181` KHÔNG bị nới
+
+Ghi rõ vì đây là chỗ dễ đọc nhầm nhất của quyết định này. Lịch sử vẫn khoá
+ở đúng hai file nguồn đã chốt; `POST /du-lieu/legacy` vẫn trả 409 vô điều
+kiện; `legacy_reference.authoritative_period_sales` vẫn là thẩm quyền DUY
+NHẤT cho tổng một kỳ số cũ. Dữ liệu của `DEC-216` không đi vào bảng
+`legacy_*`, không qua route đó, không xuất hiện trong `legacy_reference`,
+và không được dùng để đối soát với bất kỳ con số nào.
+
+### §4. Ba ràng buộc, và chỗ mã nguồn thi hành từng cái
+
+```text
+"không phải legacy"   origin RIÊNG `CHART_GAPFILL` (`revenue_timeline`),
+                      không mượn nhãn `LEGACY_REFERENCE` — mượn nhãn sẽ
+                      làm hỏng đúng chiều `DEC-166 E` bắt phải đọc được
+"chỉ phục vụ vẽ"      bề mặt gọi DUY NHẤT là `server._revenue_chart`; KPI,
+                      bảng kê, bảng nhân viên, đối soát số cũ không đường
+                      nào đọc `app/web/chart_gapfill.py`
+"lấp lỗ hổng"         thứ tự thẩm quyền sổ nạp → sổ cũ → lấp lỗ hổng, giải
+                      ở ĐÚNG mức NGÀY (`_gapfill_day_points`); một ngày đã
+                      có nguồn khác thì nguồn này im lặng
+```
+
+Chỉ mức Ngày/Tuần được nối. Ở mức Tháng/Quý/Năm tổng tháng chính thức đã có
+mặt, và cộng thêm một nguồn thứ hai cho cùng một tháng là đúng thứ
+`_merge_resolved` sinh ra để chặn (`DEC-180` §9).
+
+### §5. Một origin thứ ba buộc phải mở rộng từ vựng "hỗn hợp"
+
+Với hai origin, một cờ boolean là đủ. Với ba thì `ORIGIN_MIXED` không còn
+nói được nó hỗn hợp GIỮA NHỮNG GÌ. Đây không phải chuyện lý thuyết: tuần
+31/08–06/09/2026 có cả ngày lấp lỗ hổng (31/08) lẫn ngày sổ nạp (04–06/09),
+và `MIXED_POINT_NOTE` cũ sẽ nói phần kia là "bản ghi lịch sử" — sai.
+
+Vì thế `Point`/`Slot` mang thêm `origins` (TẬP origin đã góp vào mốc), và
+có `MIXED_GAPFILL_POINT_NOTE` riêng. Mặc định `frozenset()` để mọi `Point`
+dựng tay trong test cũ giữ nguyên chữ ký.
+
+### §6. Dữ liệu: xuất xứ, luật trích, bất thường
+
+Toàn bộ nằm ở `data/chart_gapfill/PROVENANCE.md`. Tóm tắt phần Owner đã
+quyết trực tiếp:
+
+```text
+Đọc            CHỈ hai cột `Date` và `Tổng bán`; không đọc/lưu/in bất kỳ ô
+               dữ liệu cá nhân khách hàng nào
+Hệ số chia     đọc MÁY MÓC từ công thức ô hàng 1 của chính cột (`/2` ở các
+               sheet kênh là quy ước kế toán của Owner, không suy đoán)
+29 dòng không ngày      không đặt lên biểu đồ, báo riêng
+301 dòng lệch tháng     Owner chốt: giữ nguyên ngày đã ghi
+4 ngày bất khả thi      Owner chốt: nắn về năm+tháng của tên sheet
+3 sheet ngoài Summary   Owner chốt: loại, bám tổng tháng chính thức
+```
+
+### §7. Hai phát hiện về chính file nguồn của Owner
+
+Cả hai đã xác minh bằng mã, và cả hai KHÔNG phải khiếm khuyết của hệ thống:
+
+1. `Summary 2026` có khối tháng 8/2026 LẶP nguyên văn (hàng 68–73 lặp lại
+   thành 75–80, kể cả dòng `MONTH_TOTAL`). Hệ thống thật KHÔNG cộng đôi:
+   `_summary_month_total` lấy dòng khớp đầu tiên rồi dừng —
+   `authoritative_period_sales(2026, 8)` trả đúng 15.614.950 kVND.
+2. Năm 2026, `MONTH_TOTAL` chính thức KHÔNG bao gồm dòng `Gia dụng` — đúng
+   8/8 tháng, lệch bằng đúng giá trị dòng đó; năm 2025 không có hiện tượng
+   này. 8 sheet `Gia dụng` vì thế bị loại khỏi chuỗi ngày, để chuỗi ngày và
+   tổng tháng cùng nói một con số.
+
+### §8. Test không được âm thầm nhận dữ liệu thật
+
+`data/chart_gapfill/daily_revenue.jsonl` là dữ liệu THẬT đã commit, và
+`chart_gapfill.daily_rows()` đọc nó theo đường dẫn tuyệt đối tính từ gốc
+repo. Không cắt thì mọi test dựng workspace tổng hợp sẽ nhận thêm 579 ngày
+doanh số thật vào biểu đồ của nó — và 9 test đã hỏng đúng như thế trong lần
+chạy đầu, vì những lý do chẳng liên quan gì tới điều chúng khẳng định.
+
+Cách xử lý: fixture autouse trong `tests/conftest.py` trỏ đường dẫn sang một
+file không tồn tại; marker `chart_gapfill` là cách DUY NHẤT bật lại, và vì
+thế cũng là danh sách tường minh các test nói về chính đường dây ấy
+(`tests/test_dec216_chart_gapfill.py`). Đây KHÔNG phải làm nhẹ test: nó cắt
+một nguồn NGOÀI khỏi workspace tổng hợp, đúng kỷ luật "DI mặc định không nối
+gì" mà `app/pipeline.py` đã đặt.
+
+### §9. Bằng chứng
+
+```text
+Đối soát       gom theo THÁNG CỦA SHEET vs MONTH_TOTAL chính thức:
+               18/20 tháng khớp tuyệt đối; 2 tháng lệch, mỗi lệch bằng
+               ĐÚNG giá trị một sheet Owner đã chọn loại
+               (2025-02: −490.300 = `02.2025 Miền Bắc`;
+                2026-03: −114.800 = `03.2026 Fanpage`)
+Bộ dữ liệu     579 ngày · 2025-01-02 → 2026-08-31 · 362.170.585 nghìn đồng
+Full pytest    3492 passed / 12 skipped / 1 deselected (test bị deselect là
+               `test_protected_golden_artifacts_match_the_task_105e_review_base`
+               — ĐỎ SẴN từ trước mọi thay đổi của phiên này, xem DEC-211 §5:
+               shallow clone thiếu commit `740f396`, khiếm khuyết môi trường)
+Smoke R6       29 PASS / 0 FAIL
+Smoke R5.1     83 PASS / 0 FAIL
+```
+
+---
+
+## DEC-217
+
+Ngày: 2026-09-10
+Phiên: `S150` — `R5.3`, sau khi Owner báo lỗi đã xác minh trên PRODUCTION:
+*"sau upload sổ và chạy báo cáo, tab Nhân viên vẫn hiển thị `—` ở
+Model/Hãng/Nhóm hàng cho cả các dòng có mã sản phẩm rõ ràng"*, kèm chỉ thị
+*"không được coi R5.1 cũ là đã hoạt động chỉ vì code hoặc test cũ từng
+xanh"*.
+Thẩm quyền: Owner báo lỗi production (`OWNER_DECISION` về việc PHẢI sửa);
+quyết định kỹ thuật dưới đây là của phiên triển khai, chờ Independent Review.
+Trạng thái: BAN HÀNH, đã thực thi. `R5.3` = `IMPLEMENTED`, CHƯA merge.
+
+### §1. Quyết định
+
+**Nhãn hiển thị của Tracking (`model_label` · `brand` · `category_label`)
+được lưu BỀN theo từng `run_id`, trong chính database đang giữ con số của kỳ.
+File `data/product_identity/tracking_display.json` xuống hạng CACHE — nó
+không còn là nguồn sự thật duy nhất.**
+
+### §2. Vì sao `R5.1 REPAIR-2` chưa đủ, dù nó ĐÚNG
+
+`REPAIR-2` (`DEC-208`, `DEC-209`) sửa đúng thứ nó nói là đã sửa: `POST /run`
+nay ghi bản chiếu từ capture Tracking của chính lần chạy đó. Phiên `S150` đo
+lại toàn bộ chuỗi trên đường THẬT và xác nhận từng tầng đều đúng — producer
+Tracking, capture tool, loader, `/run`, `_catalog_labels`, `_catalog_field`.
+
+Chỗ đứt nằm ở NƠI LƯU, không ở một tầng nào:
+
+```text
+tiền (order_line_current, …)   PostgreSQL   sống qua deploy
+nhãn (tracking_display.json)   đĩa /app     CHẾT ở mỗi deploy
+```
+
+`render.yaml` nói rõ dịch vụ này KHÔNG có persistent disk (*"KHÔNG có `disk:`
+— S071B stateless"*). Nên sau MỖI lần deploy hay restart của Render, mọi dòng
+đã `CONFIRMED` hiện `—` ở cả Hãng lẫn Nhóm hàng, và không đường nào dựng lại
+được — cho tới khi có ai đó nạp lại sổ và chạy lại báo cáo.
+
+Đo trực tiếp trên đường thật, trên nền `c46e458` trước khi sửa một dòng nào:
+
+```text
+TRUOC RESTART brand  : ['Samsung', '—']
+TRUOC RESTART cat    : ['Tivi', '—']
+SAU  RESTART brand  : ['—', '—']
+SAU  RESTART cat    : ['—', '—']
+```
+
+### §3. Vì sao bộ kiểm cũ vẫn XANH — và đó là finding thật
+
+`tests/test_r51_repair2_run_refreshes_projection.py` trỏ
+`catalog_display.DEFAULT_DISPLAY_PATH` vào một `tmp_path` và KHÔNG bao giờ
+dọn nó giữa lúc chạy và lúc render. Trong một tiến trình test, đĩa không bao
+giờ biến mất — nên bộ kiểm không có một bài nào đo được điều mà Render làm
+với đĩa ở mỗi deploy.
+
+Đây đúng là điều chỉ thị của Owner cảnh báo. `R5.3` vì thế mô phỏng restart
+bằng cách dọn ĐÚNG những gì Render dọn (đĩa, KHÔNG đụng database), và bài
+kiểm ấy ĐỎ trên nền cũ.
+
+### §4. `AR-R5.1-...` bị phân loại sai lần thứ hai — nay đóng bằng cấu tạo
+
+`app/web/catalog_display.py` § "Đây KHÔNG phải một bảng danh mục của Reports",
+điểm 3, viết:
+
+> *"Mất file (deploy mới, đĩa ephemeral) ⟹ màn hình hiện TÊN THÔ và 'chưa xác
+> định' … Điểm 3 là lý do file này được phép sống trên đĩa ephemeral: cái giá
+> của việc mất nó là một màn hình nói ít đi, không phải một màn hình nói
+> sai."*
+
+Câu ấy ĐÚNG về mặt an toàn (không bao giờ nói SAI) nhưng nó ngầm giả định
+cái giá là TẠM THỜI. Đo được cho thấy nó VĨNH VIỄN. `R5.3` không bác câu ấy —
+nó giữ nguyên tính chất "mất thì nói ít đi, không nói sai" và bỏ chữ "vĩnh
+viễn" đi bằng một nơi lưu thứ hai có cùng vòng đời với con số.
+
+### §5. Hình dạng đã chọn, và ba lối đã loại
+
+Đã chọn: **một bảng mới `tracking_display_snapshot`, khoá chính `run_id`,
+trong history database** (migration `0012`, ADDITIVE thuần).
+
+Loại — **nhồi vào `source_snapshot.evidence_json`**: `source_snapshot` là bản
+ghi ĐỐI CHIẾU của một lần nạp sổ; mọi cột của nó tham gia coverage/reconcile.
+Nhét nhãn vào đó biến một trường hiển thị thành một phần của bản ghi đối
+chiếu, và một lần ghi nhãn thất bại sẽ rollback cả một lần nạp sổ đã đúng.
+
+Loại — **nhồi vào `tracking_evidence` của run registry**: `as_evidence()` cố ý
+chỉ mang ba trường nguyên thuỷ và *"không mirror một dòng danh mục nào"*.
+Bằng chứng nói về một lần ghi; nó không phải nơi CHỨA thứ được ghi.
+
+Loại — **đọc lại Tracking khi render**: `S071` §10 cấm, và nó thêm một lời gọi
+mạng cho mỗi lần bấm. `CHECK-R53-05` canh rằng đường dựng lại không gọi
+Tracking lần nào.
+
+### §6. Bốn ràng buộc thi hành bằng mã, không bằng lời hứa
+
+1. **Một lượt `/run` — MỘT lần pull Tracking.** Cả hai nơi lưu đọc từ CÙNG
+   một snapshot đã nạp, trong cùng một lời gọi `_refresh_catalog_display`
+   (`CHECK-R53-04`).
+2. **Điều kiện dựng lại là cache RỖNG**, không phải "cache thiếu vài mã". Một
+   cache thiếu một phần là ca mà `DEC-209` đã đo bằng LỊCH SỬ ghi
+   (`last_write_status()`); dựng lại đè lên nó sẽ xoá mất chính bằng chứng ấy
+   và làm cảnh báo `kind="cu"` im lặng sai.
+3. **Capture không mang nhãn nào ⟹ KHÔNG ghi đè, ở CẢ HAI nơi.** Hai nơi lưu
+   lệch luật sẽ cho hai màn hình khác nhau cho cùng một lần chạy, tuỳ vào việc
+   đĩa còn hay mất (`CHECK-R53-09`).
+4. **Không cửa nào mới để đoán.** Đường dựng lại trả về đúng cùng một `dict`
+   mà `catalog_display.read()` trả về; `_catalog_labels()` và
+   `_catalog_field()` vẫn là hai cổng duy nhất quyết định dòng nào được nhận
+   nhãn (`CHECK-R53-06`, `CHECK-R53-07`).
+
+### §7. Bảng mới KHÔNG mang tiền, và điều đó được canh bằng test
+
+`test_the_durable_store_holds_no_money_column` khẳng định tập cột của bảng
+bằng chính lược đồ. Đây là điều kiện để toàn bộ lý lẽ "mất bảng này chỉ làm
+màn hình nói ít đi" còn đứng vững — và để `downgrade()` được phép `DROP TABLE`
+thẳng mà không cần két `owner_backup_name()`.
+
+### §8. Ngân sách review — KHÔNG tự quyết
+
+Lineage `R5` còn `0 remaining`. Phiên `S150` giữ ĐÚNG posture của `S146`:
+không tự tiêu, không tự miễn. Lập luận và hệ quả của cả hai chiều đã ghi ở
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `R5` → mục `R5.3`.
+
+### §9. Bằng chứng
+
+```text
+Full pytest      3628 passed / 23 skipped / 0 failed
+                 (nền c46e458 cây sạch: 3608 passed / 23 skipped / 0 failed)
+tests collected  3631 → 3651 (+20, KHÔNG bài nào bị xoá)
+Bài mới ĐỎ trước 8 failed / 11 passed khi gỡ phần wiring của app/web/server.py
+Golden           58 passed / 2 skipped (KHỚP bản ghi R5.2)
+Smoke R5.3       25 PASS / 0 FAIL — producer Tracking THẬT
+Smoke R5.1       86 PASS / 0 FAIL (nền 83; §5 tách 1 khẳng định thành 4)
+Smoke R6         29 PASS / 0 FAIL (KHỚP bản ghi DEC-210)
+Validators       structure/project_state/evidence/task_completion PASS;
+                 reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+git diff --check sạch
+Tracking         KHÔNG đổi một dòng nào (chỉ đọc, chỉ chạy producer smoke)
+```
+
+Bằng chứng nguyên văn:
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+## DEC-218
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner quyết định hướng xử lý `FIND-R53-01` (escalation của
+Independent Review `R5.3`, ghi ở `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`
+§7 và `PROJECT/REVIEW_BUDGET_LEDGER.md` → Root Task `R5` → mục "Independent
+Review `R5.3` — `REPAIR_REQUIRED`, ESCALATE").
+Thẩm quyền: `OWNER_DECISION` trực tiếp — ba hướng (`OWNER_EXTENSION`,
+`ACCEPTED_RISK` mới, mở lineage riêng) đã trình bày đầy đủ kèm bằng chứng
+`FIND-R53-01`; Owner chọn `ACCEPTED_RISK`.
+Trạng thái: BAN HÀNH, đã thực thi trong phiên này (chỉ sửa tài liệu, không
+sửa mã sản phẩm).
+
+### §1. Quyết định
+
+**`FIND-R53-01` được chấp nhận là `ACCEPTED_RISK`, không mở repair cycle
+(không tiêu ngân sách `R5`), không mở lineage riêng.** `CHECK-R53-13`
+chuyển từ `FAIL` sang `ACCEPT_WITH_RECORDED_RISK`. `R5.3` được phép tiếp
+tục sang bước merge/deploy; `CHECK-R53-14` (Owner nghiệm thu production)
+vẫn đứng độc lập, không bị quyết định này thay thế.
+
+### §2. Vì sao đây KHÔNG phải hạ nhẹ finding vì lý lẽ kế thừa
+
+Bản ghi Independent Review (`docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md`
+§3) đã tường minh: *"Theo đúng chỉ dẫn của brief, tôi không hạ nhẹ finding
+này thành 'cache cũ cũng vậy'"* — và đúng, lý lẽ "hành vi kế thừa từ cache
+đĩa cũ" KHÔNG phải căn cứ cho quyết định này. `FIND-R53-01` vẫn là một lỗi
+thật, tái lập được, đúng như review đã đo (§3, hai probe HTTP độc lập).
+
+Căn cứ của `DEC-218` là **bằng chứng vận hành MỚI, phát sinh SAU thời điểm
+review**, không có trong phạm vi review đã xét: Tracking commit `1c36fa2`
+("R5.2.3: ẩn tạm 4 cột Hashtag/Phân khúc/Nhóm hàng/Hãng...", cùng ngày
+2026-09-10, sau `HEAD` mà Independent Review đã chốt) xoá đường sửa tay
+từng mã khỏi UI:
+
+```text
+$ git show 1c36fa2 --stat   # Tracking
+ kiem/bang-gia-cot-gon.js   | 138 ++++++++---
+ kiem/r52-bulk-chuan-hoa.js |  11 +-
+ public/index.html          | 115 ++++-------
+
+boardRow() không còn gọi ed("pk", ...)/r52Cell() — ô Nhóm hàng/Hãng không
+còn dựng trong DOM.
+data-viec="editR52" — 0 kết quả trong toàn bộ HTML (handler mở popover sửa
+đã mất chỗ gọi).
+editR52()/commitR52() còn trong mã nguồn nhưng "không còn ô nào gọi tới vì
+cột đã ẩn" (nguyên văn commit message).
+```
+
+Đường duy nhất còn sống là nút tự động "↻ Chuẩn hoá Nhóm/Hãng"
+(`r52ChuanHoaTatCa` → `r52ApDungBackfill`, `public/index.html:3623`), và nó
+tự loại trừ đúng những mã có nguy cơ (đã bị khoá tay):
+
+```js
+const catManual   = cur.category_provenance === 'manual';
+const brandManual = cur.brand_provenance === 'manual';
+...
+if(!catManual && goiY.category_label){ outCat = goiY.category_label; ... }
+if(!brandManual && goiY.brand){ outBrand = goiY.brand; ... }
+```
+
+Điều kiện để `FIND-R53-01` xảy ra thật (một mã ĐÃ dùng ở một lần chạy Reports
+trước đó bị đổi phân loại ở lần chạy sau) nay cần CẢ BA: (a) mã đó còn ở
+provenance `auto` (chưa từng khoá tay), VÀ (b) dữ liệu hashtag/category
+nguồn của nó bị sửa ở nơi khác, VÀ (c) ai đó bấm lại nút Chuẩn hoá sau khi
+sửa. Đường sửa tay trực tiếp một mã cụ thể — đường chắc chắn nhất để kích
+hoạt finding — không còn tồn tại trong UI.
+
+### §3. Phạm vi và giới hạn của quyết định này
+
+- Đây là đánh giá lại XÁC SUẤT xảy ra trong quy trình vận hành thật hiện
+  tại của Owner, KHÔNG phải khẳng định lỗi đã được sửa. Cơ chế lỗi mô tả ở
+  `FIND-R53-01` (đường đọc `_tracking_display()`/`latest_tracking_display()`
+  không phân biệt `run_id`) vẫn còn nguyên trong code.
+- Nếu quy trình vận hành đổi (ví dụ UI sửa tay được mở lại, hoặc nút Chuẩn
+  hoá được dùng thường xuyên hơn cho các mã `auto`), rủi ro này cần được
+  đánh giá lại — KHÔNG coi `DEC-218` là đóng vĩnh viễn.
+- Repair tối thiểu vẫn được ghi lại nguyên trạng ở
+  `docs/reviews/R5-3-INDEPENDENT-REVIEW-RECORD.md` §6, cho lần nào cần mở
+  lại.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md` — `CHECK-R53-13`
+  → `ACCEPT_WITH_RECORDED_RISK`; `AR-R5.3-01` được bổ sung đoạn Owner
+  Decision.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — Root Task `R5`: escalation của
+  `FIND-R53-01` đóng bằng `ACCEPTED_RISK`, ngân sách giữ nguyên `2 allowed /
+  2 used / 0 remaining` (quyết định này không sửa code, không tiêu cycle).
+
+Bằng chứng nguyên văn (đọc code trực tiếp trên Tracking commit `1c36fa2`,
+thực hiện trong phiên `S151`): `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-219
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner tự xác nhận đã nghiệm thu ba check Owner Acceptance
+đang treo: `CHECK-R6-30`, `CHECK-R6-32`, `CHECK-R51-26`.
+Thẩm quyền: `OWNER_DECISION` — Owner tự tay xác nhận trực tiếp trong phiên,
+bằng lời, không đính kèm số liệu/ảnh chụp cụ thể vào phiên này.
+Trạng thái: **RÚT LẠI TOÀN BỘ — SAI, xem `§0 ĐÍNH CHÍNH` bên dưới. Giữ
+nguyên văn bản gốc làm hồ sơ lịch sử (governance/core/V4_1_POLICY_FREEZE.md
+§10 cấm retro-fit/xoá tài liệu governance), KHÔNG áp dụng.**
+
+### §0. ĐÍNH CHÍNH (ghi ngay sau khi phát hiện, cùng ngày 2026-09-10)
+
+**`DEC-219` toàn bộ là SAI.** Ba check `CHECK-R6-30`, `CHECK-R6-32`,
+`CHECK-R51-26` **đã là `PASS (E1)` từ trước — đóng bởi `DEC-210` (2026-09-09),
+một ngày TRƯỚC phiên này** — với bằng chứng thật: đối soát trực tiếp trên
+sổ Owner `49edea00-So_chi_tiet_ban_hang.xlsx`, khớp cả 8 chỉ tiêu, EXIT=0
+(xem `DEC-210` §3). `R6` cũng ĐÃ merge vào nhánh mặc định từ `DEC-210`
+(commit `865b58e`) — xác nhận `git merge-base --is-ancestor 865b58e
+c46e458` → YES, `865b58e` là tổ tiên của chính commit nền `c46e458` mà
+phiên này đang làm việc. `INTEGRATION_DECISION_REQUIRED` cũng đã ĐÓNG bằng
+lựa chọn (A) ở `DEC-210` §4.
+
+**Nguyên nhân lỗi:** phiên `S151` đọc narrative cũ trong
+`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` và mục "Root Task: R6"
+của `PROJECT/REVIEW_BUDGET_LEDGER.md` — cả hai file này **chưa từng được
+đồng bộ lại sau khi `DEC-210` thực thi** (`git log 865b58e..c46e458 --
+<file>` cho cả hai file đều RỖNG — không commit nào sửa chúng sau merge).
+Đây là một lỗ hổng đồng bộ tài liệu CÓ THẬT, có TRƯỚC phiên `S151`, không
+phải do phiên này gây ra — nhưng phiên `S151` đã sai khi không tìm
+`PROJECT_DECISIONS.md` để tìm một quyết định giải quyết mới hơn trước khi
+kết luận ba check này "đang treo". Hạ ba check đã `PASS (E1)` thật xuống
+`ACCEPTED_BY_OWNER_VERBAL` là một bước LÙI về chất lượng bằng chứng, sai sự
+thật, và đã được sửa ngay trong cùng phiên khi phát hiện.
+
+**Sửa lại đúng, xem `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md`,
+`PROJECT/REVIEW_BUDGET_LEDGER.md` — cả hai đã được đồng bộ lại đúng
+`DEC-210` trong cùng phiên này.** Không cần Owner ra quyết định gì thêm
+cho ba check này — chúng đã đóng đúng từ `DEC-210`.
+
+### §1. Quyết định
+
+**`CHECK-R6-30`, `CHECK-R6-32`, `CHECK-R51-26` chuyển từ `NOT_TESTED` sang
+`ACCEPTED_BY_OWNER_VERBAL`** — đúng cơ chế đã dùng cho `CHECK-R3-20`/
+`CHECK-R4-24` ở `DEC-203`. Đây KHÔNG phải `PASS` với bằng chứng E1/E2 kiểm
+được trong repo — đây là xác nhận bằng lời của Owner, được ghi lại tường
+minh là bằng lời, không giả vờ là bằng chứng kỹ thuật.
+
+```text
+CHECK-R6-30   Đối soát trên sổ thật So_chi_tiet_ban_hang.xlsx của Owner
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+CHECK-R6-32   Owner Acceptance của R6 trên production
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+CHECK-R51-26  Owner nghiệm thu R5.1 trên production
+              NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+```
+
+### §2. Vì sao không phải E1/E2
+
+`CHECK-R6-30` đòi hỏi chạy công cụ đối soát trên file
+`So_chi_tiet_ban_hang.xlsx` — file này KHÔNG được commit vào repo (`DEC-108`,
+lý do bảo mật dữ liệu khách hàng/kế toán) và không có mặt trong môi trường
+bất kỳ phiên nào. Không phiên nào từng có khả năng tự kiểm E1/E2 cho check
+này — chỉ Owner, người có file thật, mới chạy và xác nhận được.
+`CHECK-R6-32`/`CHECK-R51-26` tương tự: nghiệm thu trên **production thật**
+(Render), ngoài tầm quan sát của mọi phiên chạy trong container review/dev.
+
+### §3. Phạm vi quyết định — KHÔNG tự động đóng những gì khác
+
+- `INTEGRATION_DECISION_REQUIRED` (`V4.1` §8, lineage `R6`, cumulative LOC
+  `10.155` > ngưỡng `5.000`) **VẪN MỞ** — đây là quyết định KHÁC, về việc
+  merge sớm/cắt scope/tiếp tục divergence có lý do (xem giải thích trong
+  bàn giao phiên). `DEC-219` không bao gồm quyết định này.
+- `CHECK-R5-28` (Owner nghiệm thu `R5` gốc) và `CHECK-R53-14` (Owner nghiệm
+  thu `R5.3`) KHÔNG nằm trong `DEC-219` — Owner chưa xác nhận hai check này
+  trong phiên.
+- Việc merge/deploy thật của `R6` vẫn cần thêm quyết định `INTEGRATION_DECISION_REQUIRED`
+  trước khi tiến hành, dù ba check Owner Acceptance liệt kê ở trên đã đóng.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-1-nhom-hang-category-label.md` — `CHECK-R51-26` →
+  `ACCEPTED_BY_OWNER_VERBAL`.
+- `docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` — `CHECK-R6-30`,
+  `CHECK-R6-32` → `ACCEPTED_BY_OWNER_VERBAL`.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — Root Task `R6`: cập nhật next_action,
+  bỏ ba mục đã đóng, giữ nguyên `INTEGRATION_DECISION_REQUIRED`.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-220
+
+Ngày: 2026-09-10
+Phiên: `S151` — Owner tự xác nhận đã nghiệm thu `R5` gốc trên production.
+Thẩm quyền: `OWNER_DECISION` — Owner tự tay xác nhận trực tiếp trong phiên,
+bằng lời, không đính kèm số liệu/ảnh chụp cụ thể vào phiên này.
+Trạng thái: BAN HÀNH, đã thực thi (chỉ sửa tài liệu).
+
+### §1. Quyết định
+
+**`CHECK-R5-28` (Owner nghiệm thu `R5` gốc trên production) chuyển từ
+`NOT_TESTED` sang `ACCEPTED_BY_OWNER_VERBAL`** — đúng cơ chế đã dùng cho
+`CHECK-R3-20`/`CHECK-R4-24` (`DEC-203`) và `CHECK-R51-26` (`DEC-210`).
+Không phải `PASS` với bằng chứng E1/E2 kiểm được trong repo.
+
+Khác với sai sót ở `DEC-219`: check này CHƯA từng có quyết định nào trước
+đó — `DEC-203` (merge `R5` gốc) tường minh loại trừ nó ("`CHECK-R5-28` VẪN
+`NOT_TESTED` — quyết định này KHÔNG bao gồm nghiệm thu `R5` trên
+production, vì `R5` chưa từng chạy trên production trước thời điểm merge
+này"), và không một `DEC` nào sau đó (`DEC-207`…`DEC-219`) nhắc lại nó.
+`DEC-220` là quyết định ĐẦU TIÊN đóng check này.
+
+### §2. Cập nhật theo file
+
+- `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md` — `CHECK-R5-28`
+  → `ACCEPTED_BY_OWNER_VERBAL`.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`.
+
+## DEC-221
+
+Ngày: 2026-09-10
+Phiên: `S152` — Owner báo lỗi production sau merge `R5.3`, chỉ thị điều tra
+rồi "xử lí luôn, tạo PR và merge".
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (`R5.4`).
+
+### §1. Vấn đề
+
+Sau `R5.3`, Owner đã phân loại hãng/ngành hàng bên Tracking cho hầu hết mã
+bán nhiều, nhưng tab Nhân viên vẫn hiện tên dài trên sổ và `—` ở Hãng/Nhóm
+hàng cho cả những dòng ĐÃ có giá MIN. Điều tra `S152` kết luận: mọi tầng
+producer/capture/bản chiếu đều đúng; chỗ đứt là ba cổng hiển thị nhãn chỉ
+tra mã qua `identity_gateway.confirmed_identities()` (mapping do người xác
+nhận trong Reports), trong khi đường sản xuất chính khớp dòng TỰ ĐỘNG
+(`alias.map`/`board`/`inv.map`) và cố ý không ghi mapping (`INV-70`).
+`CHECK-R53-07` đã chốt đúng hành vi sai này thành spec. Tái hiện E1 ghi ở
+`docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md` §1.
+
+### §2. Quyết định
+
+1. Mở task `R5.4` sửa NGAY trên Reports: nguồn mã cho nhãn = mapping
+   `CONFIRMED` (ưu tiên) HOẶC `canonical_product_code` mà lần chạy đã lưu
+   trên dòng (`line_identity.tracking_identity_of`). Không gọi Tracking
+   thêm, không suy từ tên sổ, không ghi mapping cho dòng khớp tự động, cổng
+   `MATCHED_TRACKING` không nới.
+2. `CHECK-R53-07` giữ nguyên PASS lịch sử, ghi chú "superseded by R5.4".
+   Không sửa lại bằng chứng cũ.
+3. Merge thẳng vào nhánh mặc định theo chỉ thị Owner, KHÔNG qua Independent
+   Review — Owner nhận rủi ro này tường minh. `CHECK-R54-11` (nghiệm thu
+   production) vẫn `NOT_TESTED`, chỉ Owner đóng.
+4. Hai vấn đề còn lại KHÔNG thuộc `R5.4` (ghi để theo dõi, không tự xử lý):
+   độ phủ "câu tên hàng → mã" là vận hành bên Tracking (màn "Phân loại theo
+   tên hàng"); giá MIN `—` ở 06/09 và 09/09 nghi thiếu bản ngày, cần đọc
+   `pending_reasons` trên production.
+
+### §3. Ngân sách và lineage
+
+Lineage `R5` đã hết repair cycle (2/2). `R5.4` KHÔNG phải repair cycle thứ
+ba của `R5`/`R5.3` mở bằng cách đổi tên: nó là root task MỚI do Owner mở
+trực tiếp cho một lỗi mà spec `R5.3` đã chốt sai so với brief `R5` §5 —
+tức lỗi của SPEC, không phải BLOCKING defect của repair cycle nào trước đó.
+Ghi tại `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5-4",
+`effective_risk: MEDIUM`, `repair_cycles_allowed: 1`, chưa dùng.
+
+### §4. Cập nhật theo file
+
+- `docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md` — MỚI, Status: DONE.
+- `docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md` — ghi chú
+  `CHECK-R53-07`.
+- `PROJECT/REVIEW_BUDGET_LEDGER.md` — root task `R5-4`.
+- `PROJECT/PROJECT_PROGRESS.md` — CANONICAL CURRENT STATE `S152`.
+
+Bằng chứng nguyên văn: `docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`.
+
+## DEC-222
+
+Ngày: 2026-09-11
+Phiên: `S153` — Owner giao ba việc kèm ba sổ thô (2025, 2026 01–08, tháng
+9 đang nạp) và ảnh chụp tab Nhân viên.
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (`R7`).
+
+### §1. Yêu cầu nguyên văn
+
+> "1. giá nhập các mã cũ vẫn chưa đọc được. Kiểm tra lại giúp tôi phần truy
+> xuất mã từ lịch sử giá min đang gặp vấn đề gì, ngoài ra cả thông tin
+> khách hàng và số điện thoại cũng đang không truy xuất được
+> 2. biểu đồ ngày: hiển thị trên biểu đồ là dải 30 ngày sửa lại từ 1 đến
+> cuối tháng, hiển thị đường doanh số tháng này kì trước và tháng này kì này
+> đến hiện tại. Thể hiện với tốc độ này thì cuối tháng sẽ đạt được bao nhiêu
+> % so với kì trước — áp dụng cho cả tuần - tháng - quý - năm
+> Biểu đồ số đơn: kiểm tra 2 file thô này, lọc ra duy nhất thông tin số đơn
+> để bổ sung dữ liệu cho biểu đồ để có đầy đủ thông số"
+
+### §2. Quyết định
+
+1. **Liên hệ (`R7 §A`)** — sửa: dòng `SAME` được làm mới ba cột liên hệ tại
+   chỗ từ sổ đang nạp. Đây là ngoại lệ hẹp thứ hai của luật append-only
+   (sau bảng con trỏ), canh bằng AST: chỉ một hàm, chỉ ba cột, không xoá.
+2. **Giá MIN (`R7 §B`)** — KHÔNG sửa code. Kết luận: ngày bán trước khi
+   Tracking bắt đầu chụp MIN ngày (R1, 2026-09-07) không có bản ngày ⟹
+   `SOURCE_UNAVAILABLE` ⟹ `—`, đúng thiết kế R1 (không nhánh dự phòng).
+3. **Biểu đồ (`R7 §C`)** — cửa sổ đổi từ "N mốc kết thúc ở mép phải"
+   (`DEC-211`) sang CONTAINER LỊCH; so sánh vẫn cùng kỳ NĂM TRƯỚC (đọc
+   "tháng này kì trước" là tháng này của năm trước — đúng đường gapfill 2025
+   mà `DEC-216` đã mở cho mục đích này); đường hiện tại dừng ở mốc neo; thêm
+   dự phóng hết kỳ (trình bày, không chỉ tiêu). Áp dụng Ngày/Tuần/Tháng/
+   Quý; Năm giữ 5 mốc, dự phóng năm nay so năm trước.
+4. **Số đơn (`R7 §D`)** — nguồn lấp lỗ hổng thứ hai `daily_orders.jsonl`,
+   cùng ba ràng buộc của `DEC-216`, nối ở mọi mức gộp (không có tổng tháng
+   lịch sử nào cho số đơn). Sổ tháng 9 đang nạp KHÔNG đưa vào nguồn.
+5. Merge thẳng theo chỉ thị Owner; `CHECK-R7-13` chờ Owner.
+
+### §3. Ngân sách
+
+Root task MỚI `R7` (`PROJECT/REVIEW_BUDGET_LEDGER.md`), `effective_risk:
+MEDIUM`, 1 cycle, chưa dùng. Không thuộc lineage `R5`/`R6`.
+
+### §4. Việc để lại cho Owner quyết (giá MIN trước 07/09)
+
+- (1) Chấp nhận: nhập tay giá cho đơn trước 07/09 (đường có sẵn).
+- (2) Tracking backfill bản ngày cho các ngày trước 07/09 nếu Engine còn dữ
+  liệu lịch sử — việc bên Tracking.
+- (3) Mở lại nhánh dự phòng `tp/ton` cho ngày không có bản ngày — đổi thẩm
+  quyền giá đã chốt ở R1, cần một DEC riêng.
+- 06/09 và 09/09 `—` dù sau 07/09: cần đọc nhật ký cron `min-ngay-chu-ky`
+  bên Tracking; chưa xác minh trong phiên này.
+
+Bằng chứng nguyên văn: `docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`.
+
+---
+
+---
+
+## DEC-223
+
+Title:
+`TASK-OWNER-UIUX-009` — ba yêu cầu trực tiếp của chủ dự án trên trang Nhân
+viên: (1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn (coi như đã phân
+loại xong); (2) bỏ khối "Đã tính được lợi nhuận: N/M dòng" + khối cảnh báo
+"có mã chưa được phân loại" khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG,
+HÃNG & IMEI" lên góc trên bên phải tiêu đề "Bảng kê", cùng hàng.
+
+Date:
+2026-09-11
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, ba mục, kèm ảnh chụp
+màn hình production thật). Không hỏi lại việc 3; việc 2 đã hỏi lại phạm vi
+(bỏ một khối hay cả hai) — chủ dự án chọn bỏ CẢ HAI.
+
+Supersedes:
+- `§4.3` của `R2 Execution Brief` (`docs/tasks/...` R2) — trước đây MỘT
+  finding chặn của Independent Review yêu cầu tag "Ngoài bảng giá" phải
+  BẤM ĐƯỢC ("một nhãn không bấm được là một quyết định không có đường đảo
+  ngược"). Chủ dự án chấp nhận đánh đổi này TƯỜNG MINH: mất lối vào từ
+  bảng kê để "Nối lại Tracking" một dòng đã đánh dấu ngoài bảng giá — route
+  `phan-loai=1&order_key=...` vẫn còn sống trong code, chỉ không còn cách
+  bấm tới nó từ UI.
+- `R-S7`/`DEC-PHB02-02` §4 ("không gian làm việc không được làm mất khối
+  coverage") — CHỈ ở tầng hiển thị của trang Nhân viên; `sheet.coverage`
+  vẫn tính đúng, trang Báo cáo (`kinh_doanh.html`) không đổi.
+- `DEC-185` §13/§PI-10/§PI-11 (dòng cảnh báo gộp "có mã chưa phân loại")
+  — cơ chế `sheet_warning()`/`unresolved_orders()` trong
+  `app/web/line_identity.py` GIỮ NGUYÊN, chỉ không còn render ở trang này.
+
+### 1. `OUT_OF_CATALOG` không còn chữ riêng
+
+`app/web/line_identity.py::IdentityState.label` — nhánh
+`if self.classification == CLASS_OUT_OF_CATALOG: return (LABEL_OUT_OF_
+CATALOG if self.state == STATE_MISSING_PRICE else None)` đổi thành LUÔN
+`return None`. Hệ quả: `identity_tags` (nơi dựng tag cạnh mã đơn,
+`workspace_presentation.py`) không còn phần tử nào cho dòng `OUT_OF_
+CATALOG`, bất kể còn thiếu giá hay không. Tag "Thiếu giá" chung
+(`SHORT_TAGS`/`profit_gate`, vàng) KHÔNG bị đụng — nếu dòng thật sự còn
+thiếu giá, tín hiệu đó vẫn hiện, chỉ không còn nhãn RIÊNG cho việc "ngoài
+bảng giá" nữa.
+
+`CLASSIFICATION_LABELS`/`CLASSIFICATION_TITLES` (dùng ở popover phân loại,
+không phải tag cạnh mã đơn) giữ nguyên — Owner vẫn thấy câu giải thích đầy
+đủ khi MỞ popover, chỉ không còn tag mời bấm NGOÀI popover.
+
+### 2. Bỏ hai khối cảnh báo đầu trang
+
+`app/web/templates/kinh_doanh_nhan_vien.html`:
+- Xoá `<p class="insight">Đã tính được lợi nhuận: ...</p>` +
+  `{{ biz.coverage_breakdown(sheet.coverage) }}` (macro `_business_bits.
+  html`, không đổi — vẫn dùng ở trang Báo cáo).
+- Xoá khối `{% if identity_warning %}...{% endif %}` (`data-metric=
+  "identity-warning"`).
+
+Không đổi `app/web/server.py`/`workspace_presentation.py` — cả hai giá trị
+(`sheet.coverage`, `identity_warning`) vẫn được tính, chỉ không truyền
+vào phần template còn render nữa (thực ra vẫn truyền vào context, chỉ
+template không đọc — không dọn tham số context để giữ diff nhỏ, không có
+side effect vì Jinja bỏ qua biến không dùng).
+
+### 3. Dời nút hiện cột optional vào tiêu đề "Bảng kê"
+
+`<button data-metric="toggle-optional">` + `<span data-metric="optional-
+columns-note">` dời từ một `<p class="filter-row">` riêng (nằm dưới, giữa
+banner cảnh báo cũ và bảng) vào bên TRONG `<h2>Bảng kê ...</h2>`, bọc
+trong `<span class="cnt bh-optional-toggle">` (class `.cnt` có sẵn:
+`margin-left: auto` trong `.module > h2 { display:flex }` — đúng cơ chế
+đã dùng để đẩy phần tử cuối flex-row sang phải, xem `tinphat-ui.css`).
+Vẫn chỉ render khi `groups` không rỗng (có bảng để mà bật/tắt cột) —
+hành vi ẩn/hiện, `localStorage`, KHÔNG đổi.
+
+Impact:
+Thuần trình bày + MỘT thay đổi hành vi nghiệp vụ có chủ đích (mục 1 —
+mất lối bấm lại "Nối lại Tracking" từ bảng kê, route vẫn còn nếu gọi
+thẳng URL). Không đổi `app/modules/pricing/`, `period_lock.py`,
+resolver/product-identity, `tools/db/migrations/`. `app/web/line_
+identity.py`, `app/web/templates/kinh_doanh_nhan_vien.html` thay đổi.
+
+Evidence:
+Full suite `3643 passed, 24 skipped, 0 failed` (nền sau `R5.4` merge —
+không giảm số bài, không bài nào bị xoá; 6 bài cập nhật đích để phản ánh
+đúng hành vi mới thay vì test hành vi cũ: `test_dec185_nav_chart_identity.py`
+×3, `test_employee_workspace_ux.py` ×3, `test_phb03_followup_repairs.py`
+×1, `test_phb05_employee_target.py` ×1, `test_r2_web_workflow.py` ×2 —
+xem comment `TASK-OWNER-UIUX-009` tại mỗi chỗ sửa). Validators governance
+structure/project_state/evidence/task_completion PASS; reference_integrity
+đúng 4 baseline cũ. `git diff --check` sạch.
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật, CSS/JS
+thật): (a) trang Nhân viên bình thường — khối "Đã tính được lợi nhuận" và
+banner "có mã chưa được phân loại" biến mất hoàn toàn; nút "HIỆN NHÓM
+HÀNG, HÃNG & IMEI" + ghi chú hiện ĐÚNG một hàng với tiêu đề "Bảng kê Tháng
+09/2026", đẩy sát mép phải card; ở màn hẹp (420px) nút xuống hàng dưới
+tiêu đề một cách gọn gàng (flex-wrap có sẵn), không tràn/vỡ layout; (b)
+kịch bản một dòng đã đánh dấu "Không có trên bảng giá" (còn thiếu giá) —
+ảnh chụp xác nhận KHÔNG còn tag "Ngoài bảng giá" nào cạnh mã đơn (chỉ còn
+chấm tròn nhỏ của tag "Thiếu giá" chung, không phải nhãn identity riêng).
+
+Can Revisit After:
+Nếu chủ dự án sau này cần lại đường "Nối lại Tracking" cho dòng đã đánh
+dấu ngoài bảng giá (ví dụ Tracking bổ sung mặt hàng đó vào danh mục), cần
+một lối vào MỚI (route `?phan-loai=1&order_key=...` vẫn sống, chỉ cần một
+điểm bấm — ví dụ từ icon sửa dòng đã có ở cột thao tác) thay vì khôi phục
+lại tag cũ.
+
+## DEC-224
+
+Ngày: 2026-09-11
+Phiên: `S154` — Owner chọn hướng xử lý cho giá MIN của các ngày trước mốc
+`R1` (đã trình ba hướng ở `DEC-222` §4).
+Đánh số: phiên này ban đầu lấy `DEC-223`, nhưng `TASK-OWNER-UIUX-009` —
+một phiên độc lập, tách nhánh cùng lúc — đã merge trước và giữ số ấy. Số
+DEC là khoá DUY NHẤT của một quyết định, nên bên merge sau nhường: quyết
+định này là `DEC-224`. Không đổi nội dung, không đổi ngày.
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (bên Tracking; Reports chỉ thêm một bài
+kiểm hợp đồng).
+
+### §1. Quyết định của Owner
+
+> "chọn hướng 2 tracking backfill bản ngày cho các ngày trước 07/09 nếu
+> Engine còn dữ liệu"
+
+Tức hướng (2) của `DEC-222` §4. Hai hướng còn lại KHÔNG được chọn: (1) nhập
+tay, (3) mở lại nhánh dự phòng `tp/ton` — (3) sẽ đổi thẩm quyền giá đã chốt
+ở `R1` và vẫn cần một quyết định riêng nếu có ngày quay lại.
+
+### §2. "Engine còn dữ liệu" — có, và đây là bằng chứng
+
+Điều tra bên Tracking xác nhận hai nhật ký SỰ KIỆN đủ để dựng lại đầu vào
+của công thức Min cho một ngày đã qua:
+
+```text
+phist/<mã>/<NCC>/<ngày>        số > 0 = NCC báo giá hôm đó
+                               0      = NCC NGỪNG BÁN hôm đó (sentinel)
+                               vắng   = không đổi so với hôm trước
+purchase_price_history/<mã>    {prev, next, t} — t là thời gian MÁY CHỦ
+```
+
+Sentinel `0` là mấu chốt: `minCuaDong()` đọc TRẠNG THÁI còn/hết của từng NCC
+(`locGiaNcc` chỉ lấy `s === "ok"`; `hetHangHoanToan` quyết `OUT_OF_STOCK`),
+nên nếu nhật ký chỉ lưu giá mà không lưu trạng thái thì ngày cũ KHÔNG dựng
+lại được trung thực. Nó có lưu — do chính đường ghi bên `public/index.html`
+đặt ra cạnh `s:"gone"`.
+
+### §3. Triển khai (Tracking `R7`, PR #29 đã merge)
+
+`dungBangTaiNgay()` (thuần) dựng trạng thái bảng giá của đúng ngày ấy;
+`dungLaiMinNgay()` đưa nó qua CHÍNH Engine của lượt chụp rồi ghi bản ghi +
+bản ngày; `POST /api/min-ngay/dung-lai` (admin, đòi lý do bằng chữ, trần 14
+ngày/lượt). Lệnh cấm "chỉ chụp được hôm nay" của `R1 §3.2` KHÔNG bị nới:
+khác nhau ở NGUỒN ĐẦU VÀO, không ở công thức.
+
+### §4. Điểm chạm với Reports, và vì sao Reports gần như không đổi
+
+Bản ghi dựng lại tự khai bằng hai trường MỚI trong hợp đồng (`reconstructed`,
+`reconstruction_note`) cộng `recorded_by = "dung-lai:<ai>"`. Tracking cố ý
+KHÔNG thêm giá trị thứ ba vào `day_status`: enum ấy là tập ĐÓNG ở Reports và
+một giá trị lạ làm `snapshot._record` từ chối CẢ ẢNH CHỤP
+(`unknown_day_status`) — tức đường giá vốn của cả kỳ sập ngay lượt deploy bên
+kia. Thứ tự rollout vì thế an toàn theo cấu tạo: bên sản xuất thêm trường tuỳ
+chọn, bên đọc cũ hơn đi tiếp không sứt mẻ.
+
+Reports chỉ thêm MỘT bài kiểm ghim mặt còn lại của thoả thuận ấy
+(`test_a_newer_producer_may_add_fields_this_reader_does_not_know`): một bên
+sản xuất mới hơn được phép THÊM trường, và nếu sau này ai đó siết bộ đọc
+thành "từ chối khoá lạ" thì bài này đỏ TRƯỚC khi bản siết ra production.
+Không nới một milimet nào ở chiều ngược lại — trường bắt buộc THIẾU hay enum
+SAI vẫn bị từ chối như cũ.
+
+### §5. Giới hạn đã ghi, không giấu
+
+`meta.an` (danh sách NCC bị bỏ khỏi công thức Min) KHÔNG được lưu theo ngày.
+Một NCC nghỉ bán SAU ngày được dựng lại sẽ bị loại khỏi công thức của ngày ấy
+dù hôm đó họ còn bán. Vân tay danh sách đã dùng (`k`) được ghi vào bản ngày
+nên sai lệch này TRA LẠI ĐƯỢC; không sửa vì không có bằng chứng để sửa theo.
+Cùng lý do, một lần XOÁ TAY ô giá NCC không đi qua `phist`.
+
+### §6. Việc còn lại của Owner
+
+1. Sau khi Tracking deploy, gọi `POST /api/min-ngay/dung-lai` cho khoảng ngày
+   cần (ví dụ `2026-09-01` → `2026-09-06`) kèm lý do.
+2. Chạy lại báo cáo bên Reports rồi kiểm ô Giá nhập của các đơn đầu tháng 9.
+3. Nếu muốn thấy TRÊN MÀN HÌNH dòng nào là giá dựng lại (nay chỉ đọc được
+   trong dấu vết), đó là một task Reports riêng — cờ đã có sẵn trong dữ liệu
+   từ hôm nay, không cần Tracking deploy lại.
+
+Bằng chứng nguyên văn: mục "R7" trong tài liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này); PR Tracking #29.
+
+## DEC-225
+
+Ngày: 2026-09-11
+Phiên: `S155` — Owner yêu cầu trực tiếp: "sửa lỗi CI giúp tôi".
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi.
+
+### §1. Lỗi
+
+`governance/scripts/governance/validate_reference_integrity.py` sập với
+`PermissionError` (thay vì báo một finding) khi một tài liệu trích dẫn
+nguyên văn đường dẫn tuyệt đối /root/.ccr/README.md (cố ý không đặt trong
+dấu backtick ở đây — xem `REF_PATTERN` trong chính file validator, tránh
+tự tạo thêm reference cho chính đoạn văn xuôi này) — ba file lịch sử
+(`docs/sessions/S071-shared-online-beta.md`,
+`docs/sessions/S133-r4-integration-and-deployment.md`,
+`docs/deployment/S071_DEPLOYMENT.md`). Trên GitHub Actions runner (user
+`runner`, không phải root), `Path.exists()` trên một đường dẫn có thư mục
+cha chặn quyền (`/root`, mode `0700`) NÉM lỗi thay vì trả `False` — pathlib
+tự nuốt `FileNotFoundError`/`ELOOP` nhưng không nuốt `PermissionError`. Lỗi
+này đã làm sập check CI duy nhất của repo trên MỌI lần chạy kể từ tích hợp
+R4, che tín hiệu qua ít nhất bốn pull request liên tiếp (#16, #17, #18, #19).
+
+### §2. Xác nhận nguyên nhân trước khi sửa
+
+Tái hiện được CỤC BỘ bằng cách chạy validator dưới user `daemon` (không
+phải root) trong chính môi trường phiên này — `chmod 700` trên `/root` đã
+đủ, không cần mô phỏng gì thêm:
+
+```text
+runuser -u daemon -- python3 governance/scripts/governance/validate_reference_integrity.py
+→ PermissionError: [Errno 13] Permission denied: '/root/.ccr/README.md'
+```
+
+Chạy bằng root (như trong phiên này) thì KHÔNG tái hiện — root bỏ qua kiểm
+tra quyền POSIX, nên `.exists()` đi qua êm. Đây là lý do lỗi không lộ ra khi
+kiểm cục bộ trong các phiên trước, chỉ lộ trên CI thật.
+
+### §3. Sửa
+
+Hai thay đổi trong `validate_reference_integrity.py`:
+
+1. `resolves()` bọc mỗi lần gọi `.exists()` qua `_exists_safe()` — bắt
+   `OSError` (bao trùm `PermissionError`) và coi là "không phân giải được
+   từ vị trí đó", cùng ý nghĩa với `False` bình thường. Không nuốt lỗi câm:
+   một đường dẫn không đọc được VẪN bị báo là một finding — nó chỉ không
+   còn làm SẬP cả lượt quét.
+2. Ba cặp `(file, "/root/.ccr/README.md")` được thêm vào `KNOWN_EXEMPT_PAIRS`
+   — cùng khuôn với `OPTIONAL_ENFORCEMENT_LAYER.md` đã có: trích dẫn nguyên
+   văn một token bằng chứng lịch sử, không phải một liên kết cần còn sống.
+   Không có bước này, kết luận của validator sẽ phụ thuộc UID đang chạy nó
+   (root: 0 finding cho ba file này; CI: 3 finding mới) — một sự thật về
+   MÔI TRƯỜNG, không phải về nội dung repo, không nên đổi kết quả kiểm tra.
+
+### §4. Bằng chứng — fail trước / pass sau, ở cả hai điều kiện UID
+
+`governance/scripts/governance/fixtures/regression_permission_denied_reference.py`
+(mới): dựng một thư mục con `chmod(0)`, chạy validator như subprocess (tự
+hạ quyền qua `nobody`/`daemon` nếu tiến trình gọi đang là root). Chạy trên
+bản TRƯỚC sửa (dưới cả root-đã-hạ-quyền lẫn `daemon` trực tiếp):
+
+```text
+PermissionError: [Errno 13] Permission denied: '.../khong_doc_duoc/bi_khoa.md'
+REGRESSION PERMISSION DENIED REFERENCE: FAIL (3/4 khẳng định đỏ)
+```
+
+Sau khi khôi phục bản sửa, cùng fixture, cả hai điều kiện UID:
+
+```text
+REFERENCE INTEGRITY: FAIL
+1 reference không phân giải được: docs/trich_dan.md -> .../khong_doc_duoc/bi_khoa.md
+REGRESSION PERMISSION DENIED REFERENCE: PASS (4/4)
+```
+
+### §5. Không đổi kết luận về repo
+
+Bốn validator còn lại vẫn PASS. `validate_reference_integrity.py` vẫn báo
+đúng 4 finding baseline đã biết (`TASK-REM-T06` × 3, `S136` × 1) khi chạy
+bằng root TRONG PHIÊN NÀY, và khi chạy bằng `daemon` (mô phỏng CI) trong
+cùng phiên — số finding không còn phụ thuộc UID. Full `pytest`:
+`3659 passed, 23 skipped, 4 deselected in 263.38s (0:04:23)`.
+
+Bằng chứng nguyên văn: `docs/sessions/S155-fix-ci-reference-integrity-crash.md`.
+
+## DEC-226
+
+Ngày: 2026-09-11
+Phiên: `S156` — Owner: "kiểm tra vấn đề thực sự ở đâu thay vì đoán" (hai
+ảnh banner đỏ `nguồn: daily_min` / `nguồn: catalog`, và sổ nhẹ 01–03/09
+chạy xong mà không dòng Tracking nào có giá MIN).
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (phần Reports); phần Tracking là một
+việc vận hành của Owner (mục §5).
+
+### §1. Điều đã XÁC MINH từ code — không phải suy đoán
+
+**1a. Hai banner đỏ giấu mất lý do, và log cũng không giữ.**
+`app/web/server.py` bắt `TrackingUnavailableError` rồi chỉ đưa `exc.node`
+vào banner; `exc.reason` (chuỗi `failure_reason` của lượt capture) không
+đi vào banner, không đi vào dòng `reports.timing`, không được `print` ở
+đâu cả. Thêm nữa, khi Tracking từ chối bằng một mã HTTP (409
+`nguon-dang-ghi` lúc cron chụp Min đang mở khoảng `WRITING`; 409
+`trang-doc-khong-nhat-quan`; 413 `khoang-ngay-qua-dai`; 403 từ WAF), `urllib`
+ném `HTTPError` và cả hai client (`tools/tracking/capture_purchase_price_history.py`
+cho `catalog`/`alias`/`inv_map`/`purchase_price_history`,
+`tools/tracking/capture_daily_min.py` cho `daily_min`) chỉ ghi
+`HTTP Error 409: Conflict` — thân phản hồi `{"ok": false, "ly": "..."}` bị
+vứt. Hệ quả: một timeout, một 409 do cron và một 403 do WAF để lại ĐÚNG
+cùng một dấu vết. Lý do của hai lần thất bại trong ảnh Owner gửi **không
+còn truy lại được** — không phải vì thiếu log, mà vì hệ thống chưa từng
+ghi nó. Đây là lỗi thật của Reports, sửa ở §3.
+
+**1b. Sổ 01–03/09 không có giá MIN — đúng hợp đồng, và lý do là một
+việc vận hành chưa làm.** Hợp đồng `daily-min-v1` (Tracking, hàm
+`xuatMinNgay()` trong src/min-ngay.js bên đó) trả `SOURCE_UNAVAILABLE` cho
+MỌI mã ở một ngày không có bản ngày `PROVISIONAL`/`FINAL` (`coQuanSat(d)`).
+Bản ngày do cron chụp chỉ tồn tại từ mốc R1 (07/09/2026 — `DEC-222` §4,
+`S153`). Với 01–03/09, cách DUY NHẤT để có bản ngày là lượt dựng lại `R7`
+bên Tracking: `POST /api/min-ngay/dung-lai` — admin, cần header
+`Authorization: Bearer <Firebase ID token>`, KHÔNG có nút nào trên giao
+diện Tracking gọi nó (đã quét toàn bộ mã giao diện), tài liệu tiến độ bên
+Tracking ghi "Cách chạy (admin, sau khi deploy)" và khối canonical `S154`
+ở `PROJECT/PROJECT_PROGRESS.md` ghi rõ đây là "Việc của Owner". Không có
+bằng chứng nào cho thấy nó đã được gọi. Đọc file Owner gửi bằng chính
+`app/modules/importing/raw_reader.py`: 139 dòng, 104 đơn, đúng hai ngày
+`2026-09-01` (56) và `2026-09-03` (83), 102 tên hàng khác nhau — sổ này
+KHÔNG chạm ngày nào ≥ 07/09, nên không dòng Tracking nào có thể có giá
+chừng nào lượt dựng lại chưa chạy.
+
+**1c. Màn hình không phân biệt được hai chuyện khác hẳn nhau.** Reports
+gói cả `SOURCE_UNAVAILABLE` (Tracking chưa có bản ngày) lẫn `NO_DATA` (có
+bản ngày, mã không có mốc) vào cùng một `pending_reasons` =
+`TRACKING_DAILY_MIN_PENDING` ("Chưa có giá nhập cho đúng ngày bán") —
+`app/modules/pricing/resolution/composition.py` `_daily_min_branch()`. Chi
+tiết phân biệt chỉ nằm trong `unresolved_detail`, không hiển thị, và file
+capture bị xoá ngay sau lần chạy (`S071 §10`). Nên kể cả khi Owner mở tab
+Giá nhập cũng không biết phải đi làm gì: gọi dựng lại, hay tra mã.
+
+**1d. Điều KHÔNG xác minh được từ đây** (nói ra, không đoán): lượt dựng
+lại đã được gọi hay chưa; lý do cụ thể của hai banner trong ảnh (đã mất
+theo 1a); Tracking `main` sau `PR #31` (đọc mã song song theo lô) đã lên
+production chưa — build check trên PR xanh, còn deploy của `main` không
+đọc được từ phiên này.
+
+### §2. Ranh giới sửa
+
+MICRO, chỉ Reports, chỉ khả năng chẩn đoán: không đổi luật giá, không đổi
+hợp đồng, không thử lại tự động (thiết kế `gop_khoang()` cố ý không thử
+lại — giữ nguyên; nay lý do 409 hiện ra thì "thử lại" là hành động có căn
+cứ chứ không phải phản xạ).
+
+### §3. Sửa
+
+1. `mo_ta_loi_http()` (`tools/tracking/capture_purchase_price_history.py`,
+   dùng chung với `tools/tracking/capture_daily_min.py`): với `HTTPError`,
+   đọc thân phản hồi có trần 2048 byte, lấy `ly` nếu là JSON → thông điệp
+   `HTTP 409 ly=nguon-dang-ghi`; thân không phải JSON (trang HTML của WAF)
+   → chỉ `HTTP 403`, không kéo trang HTML vào. Thân là của máy chủ, không
+   mang header, nên không mang secret.
+2. `tom_tat_tra_loi()` (`tools/tracking/live_pull.py`): bằng chứng lần chạy
+   nay có `daily_min_records`, `daily_min_errors`,
+   `daily_min_error_reasons` (đếm theo lý do), `daily_min_unobserved_dates`
+   (những ngày mà MỌI mã đều `SOURCE_UNAVAILABLE` — chính là danh sách ngày
+   Tracking chưa quan sát).
+3. `app/web/server.py`: hai dòng stdout mới, cùng chỗ Owner đọc
+   `reports.timing` trên Render —
+   `reports.tracking_pull trace=… daily_min_status=… codes=… records=…
+   errors=… reasons=SOURCE_UNAVAILABLE:156 unobserved_dates=2026-09-01,…`
+   sau mỗi lượt kéo thành công, và
+   `reports.tracking_failed trace=… node=… reason="…"` khi thất bại.
+   Banner đỏ mang thêm lý do sau tên node.
+
+### §4. Bằng chứng
+
+Sáu bài kiểm mới (`tests/test_tracking_contract_client.py` ×3,
+`tests/test_daily_min_orchestration.py` ×1, `tests/test_web_server.py` ×2)
+— chạy trên bản TRƯỚC sửa (`git stash` bốn file nguồn): 7 hỏng (kể cả bài
+cũ được siết thêm); sau sửa: cả file pass. Full `pytest`: 3665 passed, 23 skipped, 4 deselected in 205.28s (0:03:25).
+
+### §5. Việc của Owner — theo thứ tự
+
+1. **Gọi lượt dựng lại** (một lần cho 01–06/09; trần 14 ngày mỗi lượt):
+   mở app Tracking (price.tinphatcrm.com) đã đăng nhập tài khoản admin →
+   Console của trình duyệt → chạy:
+   ```js
+   const tok = await FBUSER.getIdToken();
+   const r = await fetch("/api/min-ngay/dung-lai", {
+     method: "POST",
+     headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+     body: JSON.stringify({ tu: "2026-09-01", den: "2026-09-06", ly: "Backfill trước mốc R1 07/09" }),
+   });
+   console.log(r.status, await r.json());
+   ```
+   Kỳ vọng `{ok: true, nNgay: 6, nGhi: …, ngays: […]}`; một ngày đã có bản
+   ngày sẽ hiện `bo: "da-co-ban-ngay"` (bị bỏ qua, đúng thiết kế).
+2. Chạy lại sổ 01–03/09. Trên Render, đọc dòng `reports.tracking_pull`:
+   `records` phải > 0 và `unobserved_dates=-`. Nếu vẫn `reasons=NO_DATA:…`
+   thì đó là mã không có mốc giá trong nhật ký — chuyện KHÁC, tra theo mã.
+3. Lần tới gặp banner đỏ: đọc dòng `reports.tracking_failed` — `ly=nguon-dang-ghi`
+   là cron đang ghi (thử lại sau vài giây); `HTTP 403`/không có `ly` là
+   WAF/cấu hình; `TimeoutError`/`timed out` là Tracking chậm (xem `PR #31`
+   bên Tracking đã lên production chưa).

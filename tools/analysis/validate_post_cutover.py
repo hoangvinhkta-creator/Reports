@@ -535,6 +535,8 @@ def freeze_sources(
     public_purchase: Path,
     identity_store: Path,
     tracking_identity_authority: bool = True,
+    tracking_daily_min: Optional[Path] = None,
+    legacy_tracking_history_authority: bool = False,
 ) -> SourceFreeze:
     """Nạp mọi nguồn giá QUA ĐÚNG loader production, đúng một lần.
 
@@ -561,13 +563,29 @@ def freeze_sources(
         for key, value in paths.items()
         if key != "config_dir"
     }
+    kwargs = {}
+    if tracking_daily_min is not None:
+        paths["tracking_daily_min_capture"] = str(tracking_daily_min)
+        statuses["tracking_daily_min_capture"] = (
+            "PRESENT" if tracking_daily_min.exists() else "SOURCE_NOT_CAPTURED"
+        )
+        hashes["tracking_daily_min_capture"] = (
+            sha256_of(tracking_daily_min) if tracking_daily_min.is_file() else "ABSENT"
+        )
+        kwargs["tracking_daily_min_path"] = tracking_daily_min
     sources = load_price_resolution_sources(
         config_dir=config_dir,
         tracking_price_history_path=tracking_capture,
         tracking_catalog_path=tracking_catalog,
         public_purchase_path=public_purchase,
         identity_store_log_path=identity_store,
+        **kwargs,
     )
+    if legacy_tracking_history_authority:
+        # R1 — nhánh lịch sử `board/<mã>/tp/ton` KHÔNG còn là nguồn giá mặc
+        # định. Bật lại chỉ để đối chiếu các kết quả đã sinh trước R1; công cụ
+        # này mặc định chạy đúng thẩm quyền production hiện hành.
+        sources = replace(sources, legacy_tracking_history_authority=True)
     if not tracking_identity_authority:
         # Chỉ dành cho regression fixture dựng trước S068. Owner workflow và
         # production loader giữ strict Tracking alias.map + board authority.
@@ -1135,6 +1153,8 @@ def analyze(
     cohort_size: int = DEFAULT_COHORT_SIZE,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
     tracking_identity_authority: bool = True,
+    tracking_daily_min: Optional[Path] = None,
+    legacy_tracking_history_authority: bool = False,
 ) -> ValidationRun:
     """Một lần kiểm định đầy đủ: đông lạnh → chạy production → đọc kết quả."""
     cohort = select_post_cutover_cohort(sales_path, cohort_size)
@@ -1145,6 +1165,8 @@ def analyze(
         public_purchase=public_purchase,
         identity_store=identity_store,
         tracking_identity_authority=tracking_identity_authority,
+        tracking_daily_min=tracking_daily_min,
+        legacy_tracking_history_authority=legacy_tracking_history_authority,
     )
     cohort_ids = set(cohort.order_ids)
     classified = classify_orders_by_cutover(sales_path)

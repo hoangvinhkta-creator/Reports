@@ -79,6 +79,8 @@ class EventType(str, Enum):
     BOOTSTRAP_MAPPING = "BOOTSTRAP_MAPPING"
     MARK_STALE = "MARK_STALE"
     REPIN_REPORT = "REPIN_REPORT"
+    #: R2 §4.3 — người dùng xác nhận mặt hàng KHÔNG có trên bảng giá Tracking.
+    MARK_OUT_OF_CATALOG = "MARK_OUT_OF_CATALOG"
 
 
 CONFIRMATION_ACTION_TYPES: frozenset[EventType] = frozenset(
@@ -87,6 +89,11 @@ CONFIRMATION_ACTION_TYPES: frozenset[EventType] = frozenset(
         EventType.REJECT_CANDIDATE,
         EventType.CONFIRM_CROSS_SYSTEM,
         EventType.SET_PENDING,
+        # R2 — "không có trên bảng giá" là một QUYẾT ĐỊNH của người, đúng
+        # cùng hạng với `SET_PENDING`: nó đổi state persistent và nó tốn đúng
+        # một lần con người phải nghĩ. Bỏ nó ra khỏi đây sẽ làm ngân sách thao
+        # tác của `G23`/`G24` đếm thiếu đúng những lần bấm mà R2 thêm vào.
+        EventType.MARK_OUT_OF_CATALOG,
     }
 )
 """ĐÚNG BỐN loại được đếm là `confirmation_action` (§17.1, `D-14`).

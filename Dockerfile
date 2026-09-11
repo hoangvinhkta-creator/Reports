@@ -72,4 +72,20 @@ EXPOSE 8080
 # thất bại → container không start (fail closed): thà không deploy còn hơn
 # chạy lên với schema cũ/chưa có rồi hiển thị lịch sử rỗng như thể chưa ai
 # nhập gì. Migration idempotent nên chạy lại ở mỗi lần deploy là an toàn.
-CMD ["sh", "-c", "alembic upgrade head && gunicorn --workers 2 --threads 4 --bind 0.0.0.0:${PORT} --timeout 120 app.web.wsgi:application"]
+#
+# `--timeout 300` (R1, trước là 120): một lượt `/run` giờ gọi Tracking ĐỒNG
+# BỘ nhiều lượt trước khi trả lời — purchase_price_history, catalog, inv_map
+# (mỗi lượt tự timeout ở 60s, `tools/tracking/capture_purchase_price_
+# history.py`), RỒI daily-min theo từng đoạn ≤ 62 ngày (mỗi lượt tự timeout
+# ở 120s, `tools/tracking/capture_daily_min.py`). Ba lượt đầu chạy TUẦN TỰ,
+# không song song (`tools/tracking/live_pull.py::_pull`), nên riêng chúng đã
+# cộng dồn tới 180s ở kịch bản xấu — VƯỢT timeout 120s cũ của chính gunicorn.
+# Khi đó gunicorn SIGKILL worker giữa chừng: trình duyệt nhận một kết nối bị
+# ngắt đột ngột, không phải một lỗi HTTP tử tế — và JS phía client (app.js)
+# đọc đó là lỗi mạng rồi tự gửi lại request thật lần hai (đã chặn cho riêng
+# form upload bằng `data-no-ajax`, xem app/web/templates/index.html, nhưng
+# gunicorn timeout quá ngắn vẫn là vấn đề gốc cần sửa ở đây). 300s đủ dư cho
+# 180s legacy + một cửa sổ daily-min timeout hết 120s + biên độ xử lý pipeline
+# thật (vài giây tới vài chục giây), mà không giữ một worker (trong tổng 2
+# worker × 4 luồng) treo quá lâu nếu Tracking thật sự hỏng hẳn.
+CMD ["sh", "-c", "alembic upgrade head && gunicorn --workers 2 --threads 4 --bind 0.0.0.0:${PORT} --timeout 300 app.web.wsgi:application"]

@@ -24,7 +24,8 @@
     {{ pipeline.kpi('Nhân viên', order.employees, 'employees') }}
     {{ pipeline.kpi('Dòng hàng', order.lines, 'lines') }}
     {{ pipeline.kpi('Tổng số lượng', order.quantity, 'quantity') }}
-    {{ pipeline.kpi('Doanh thu (net)', order.total_sales, 'total_sales', 'đồng') }}
+    {{ pipeline.kpi('Doanh thu (net)', order.total_sales, 'total_sales',
+                    'nghìn đồng', full=order.total_sales_full) }}
     {{ pipeline.profit_kpi('Lợi nhuận KPI', order.kpi_profit, 'kpi_profit') }}
   </div>
 
@@ -56,10 +57,18 @@
     {% for line in order.lines_detail %}
     <tr data-line="{{ loop.index }}">
       <td data-metric="product">{{ line.product }}</td>
+      {# `DEC-212` — năm cột tiền viết theo NGHÌN ĐỒNG, bản VND đầy đủ nằm ở
+         tooltip (`<metric>_full`). Cột `quantity` là SỐ ĐẾM nên không có bản
+         đầy đủ nào, và vòng lặp nhận ra điều đó qua chính sự vắng mặt của
+         khoá `_full` — không cần một danh sách "cột nào là tiền" thứ hai để
+         trôi khỏi danh sách này. #}
       {% for metric in ['quantity', 'sell_price', 'discount', 'total_sales',
                         'kpi_purchase_price', 'kpi_profit'] %}
       <td class="num{{ ' empty-cell' if line[metric] == '—' }}"
-          data-metric="{{ metric }}">{{ line[metric] }}</td>
+          data-metric="{{ metric }}"
+          {%- set full = line[metric ~ '_full'] %}
+          {% if full and full != '—' %}title="{{ full }} đồng"{% endif %}
+          >{{ line[metric] }}</td>
       {% endfor %}
       <td class="num">
         <span class="tag {{ 'tag-review' if line.review else 'tag-auto' }}"

@@ -1,0 +1,425 @@
+{% extends "layout.html" %}
+{% import "_business_bits.html" as biz %}
+{% set active_tab = 'bao-cao' %}
+{% block title %}Reports — Báo cáo đánh giá{% endblock %}
+
+{#- R4 — MỘT trang trả lời bốn câu hỏi, theo đúng thứ tự Owner hỏi. Không
+    biểu đồ trang trí, không tab top-level mới: trang này mở từ trang Báo cáo
+    và quay về đó bằng đúng một đường dẫn.
+
+    Mọi ô "—" trên trang đều đi kèm MỘT câu lý do — bất biến này được canh ở
+    `evaluation.Kpi.__post_init__` (tầng ngữ nghĩa) và ở `kpi_cell` (tầng
+    trình bày); template chỉ việc in ra cả hai. -#}
+
+{% macro eval_kpi(cell) -%}
+<div class="kpi-card{{ ' kpi-incomplete' if not cell.available }}">
+  <span class="tp-label">{{ cell.label }}{{ biz.kpi_help(cell.note) }}</span>
+  {% if cell.url %}<a class="kpi-drill" href="{{ cell.url }}">{% endif %}
+  <strong class="kpi-value{{ ' empty-cell' if not cell.available }}"
+          data-metric="eval-{{ cell.key }}"
+          {% if cell.full %}title="{{ cell.full }}"{% endif %}>{{ cell.text }}</strong>
+  {% if cell.url %}</a>{% endif %}
+  {% if cell.unit == 'VND' and cell.available %}<span class="tp-unit">nghìn đồng</span>{% endif %}
+  {% if not cell.available %}
+  <span class="kpi-reason" data-metric="eval-{{ cell.key }}-reason"
+        data-reason="{{ cell.reason }}">{{ cell.reason_label }}</span>
+  {% endif %}
+  {% if cell.partial %}
+  <span class="kpi-partial" data-metric="eval-{{ cell.key }}-partial"
+        title="{{ cell.partial_full }}">Đã tính được: {{ cell.partial }} nghìn đồng
+    — đây là phần đã biết, KHÔNG phải kết quả cả kỳ.</span>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro group_table(caption, rows, metric, note='', show_target=False) -%}
+<div class="module">
+  <h2>{{ caption }} <span class="cnt">{{ rows|length - 1 }} dòng</span></h2>
+  <div class="tp-scroll">
+  <table data-metric="{{ metric }}">
+    <tr>
+      <th>Đơn vị</th><th class="num">Đơn</th><th class="num">Dòng</th>
+      <th class="num">SL đủ ĐK</th><th class="num">Doanh thu (nghìn)</th>
+      <th class="num">Tỉ trọng</th><th class="num">LN KPI (nghìn)</th>
+      <th class="num">Biên KPI</th><th class="num">Coverage</th>
+      {% if show_target %}<th class="num">Target (nghìn)</th><th class="num">% target</th>{% endif %}
+    </tr>
+    {% for row in rows %}
+    <tr class="{{ 'row-total' if row.total_row }}">
+      <td class="code">{% if row.url %}<a href="{{ row.url }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}</td>
+      <td class="num" data-metric="orders">{{ row.orders }}</td>
+      <td class="num" data-metric="lines">{{ row.lines }}</td>
+      <td class="num" data-metric="quantity">{{ row.quantity }}</td>
+      <td class="num" data-metric="revenue" title="{{ row.revenue_full }}">{{ row.revenue }}</td>
+      <td class="num" data-metric="share">{{ row.share }}</td>
+      <td class="num{{ ' empty-cell' if not row.profit_available }}"
+          data-metric="profit"
+          {% if row.profit_available %}title="{{ row.profit_full }}"{% endif %}>{{ row.profit }}</td>
+      <td class="num{{ ' empty-cell' if row.margin == '—' }}" data-metric="margin"
+          {% if row.margin_reason_label %}title="{{ row.margin_reason_label }}"{% endif %}>{{ row.margin }}</td>
+      <td class="num" data-metric="coverage">{{ row.coverage.text }}</td>
+      {% if show_target %}
+      {# Hàng TỔNG KHÔNG có target: không có target cấp công ty, và cộng
+         target các đơn vị lên sẽ cho ra một con số chưa ai đặt (`§7`). Hai ô
+         này vì thế để TRỐNG ở hàng TỔNG thay vì hiện một tổng bịa. #}
+      {% if row.total_row %}
+      <td class="num empty-cell" data-metric="row-target">—</td>
+      <td class="num empty-cell" data-metric="row-target-percent"
+          title="{{ TARGET_SCOPE_NOTE }}">—</td>
+      {% else %}
+      <td class="num{{ ' empty-cell' if not row.target.has_target }}"
+          data-metric="row-target"
+          {% if row.target.has_target %}title="{{ row.target.target_full }}"{% endif %}
+          >{{ row.target.target if row.target.has_target else '—' }}</td>
+      <td class="num{{ ' empty-cell' if row.target.reason }}" data-metric="row-target-percent"
+          {% if row.target.reason %}title="{{ row.target.reason_label }}"
+          data-reason="{{ row.target.reason }}"{% endif %}>{{ row.target.percent }}</td>
+      {% endif %}
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="insight" data-metric="{{ metric }}-orders-note">{{ ORDERS_NOT_ADDITIVE_NOTE }}</p>
+  {% if note %}<p class="insight" data-metric="{{ metric }}-note">{{ note }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<h1>{{ PAGE_TITLE }}</h1>
+<p class="insight">{{ biz.business_badge() }} Số do Reports tính từ sổ kế toán
+  đã nạp — cùng một effective data với trang BÁO CÁO và không gian làm việc
+  NHÂN VIÊN. Trang này chỉ ĐỌC: không nút nào ở đây sửa một con số nào.
+  <a href="{{ url_for('business_summary', ky=selected_period) }}">← Về trang Báo cáo</a></p>
+
+<div class="module">
+  <div class="period-header-row">
+    {{ biz.period_picker(periods, selected_period,
+                         url_for('business_evaluation'),
+                         extra={'nhom': selected_sheet}) }}
+    <h2>{{ period_label }} — {{ scope_label }}
+      <span class="cnt" data-metric="as-of">Số tính đến {{ as_of }}</span></h2>
+  </div>
+
+  {# Phạm vi: cả kỳ, hay một đơn vị báo cáo. Đây là cùng phân hoạch sheet mà
+     `DEC-PHB02-08` đã freeze — không có cách chia thứ hai. #}
+  <form class="filter-row" method="get" action="{{ url_for('business_evaluation') }}">
+    <input type="hidden" name="ky" value="{{ selected_period }}">
+    <span class="kpi-period">
+      <label class="tp-label" for="nhom">Phạm vi</label>
+      <select name="nhom" id="nhom" data-auto-submit>
+        <option value="" {{ 'selected' if not selected_sheet }}>Cả kỳ</option>
+        {% for sheet in sheets %}
+        <option value="{{ sheet.key }}" {{ 'selected' if sheet.key == selected_sheet }}>
+          {{ sheet.label or 'Chưa xác định nhân viên' }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <noscript><button class="ghost btn-mini" type="submit">XEM</button></noscript>
+  </form>
+
+  {% if running %}
+  <p class="insight">Tháng đang chạy — đã qua
+    <strong data-metric="elapsed-days">{{ elapsed_days }}</strong>/<span
+      data-metric="month-days">{{ month_days }}</span> ngày lịch
+    (tính cả hôm nay).</p>
+  {% endif %}
+
+  <div class="kpi-row">
+    {% for cell in cells[:4] %}{{ eval_kpi(cell) }}{% endfor %}
+  </div>
+  <div class="kpi-row">
+    {% for cell in cells[4:] %}{{ eval_kpi(cell) }}{% endfor %}
+  </div>
+  <p class="insight" data-metric="money-unit-note">{{ MONEY_UNIT_NOTE }}</p>
+</div>
+
+{# --- 2. Target, tiến độ, xu hướng ------------------------------------ #}
+<div class="module">
+  <h2>Target và tiến độ <span class="cnt">{{ target.scope_label }}</span></h2>
+
+  {% if not has_target_scope %}
+  <p class="insight" data-metric="target-company-note">{{ TARGET_SCOPE_NOTE }}
+    Chọn một đơn vị báo cáo ở ô <strong>Phạm vi</strong> phía trên để xem
+    target của đơn vị đó.</p>
+  {% else %}
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <span class="tp-label">Target</span>
+      <strong class="kpi-value{{ ' empty-cell' if not target.has_target }}"
+              data-metric="target-value"
+              {% if target.has_target %}title="{{ target.target_full }}"{% endif %}
+              >{{ target.target if target.has_target else '—' }}</strong>
+      {% if target.has_target %}<span class="tp-unit">nghìn đồng</span>{% endif %}
+    </div>
+    <div class="kpi-card{{ ' kpi-incomplete' if target.reason }}">
+      <span class="tp-label">% đạt target</span>
+      <strong class="kpi-value{{ ' empty-cell' if target.reason }}"
+              data-metric="target-percent">{{ target.percent }}</strong>
+      {% if target.reason %}
+      <span class="kpi-reason" data-metric="target-reason"
+            data-reason="{{ target.reason }}">{{ target.reason_label }}</span>
+      {% endif %}
+      {% if target.partial_actual %}
+      <span class="kpi-partial" data-metric="target-partial">Đã tính được
+        {{ target.partial_actual }} nghìn đồng DS quy đổi — chưa được phép
+        công bố làm kết quả kỳ.</span>
+      {% endif %}
+    </div>
+    <div class="kpi-card">
+      <span class="tp-label">Còn thiếu</span>
+      <strong class="kpi-value{{ ' empty-cell' if target.shortfall == '—' }}"
+              data-metric="target-shortfall"
+              {% if target.shortfall_full %}title="{{ target.shortfall_full }}"{% endif %}
+              >{{ target.shortfall }}</strong>
+      {% if target.achieved %}
+      <span class="kpi-reason" data-metric="target-achieved">Đã đạt/vượt target.</span>
+      {% endif %}
+    </div>
+    <div class="kpi-card{{ ' kpi-incomplete' if target.required_reason }}">
+      <span class="tp-label">Cần đạt mỗi ngày còn lại</span>
+      <strong class="kpi-value{{ ' empty-cell' if target.required_reason }}"
+              data-metric="target-required-per-day"
+              {% if target.required_per_day_full %}title="{{ target.required_per_day_full }}"{% endif %}
+              >{{ target.required_per_day }}</strong>
+      <span class="tp-unit" data-metric="target-days-remaining"
+        >còn {{ target.days_remaining }} ngày</span>
+      {% if target.required_reason %}
+      <span class="kpi-reason" data-metric="target-required-reason"
+            data-reason="{{ target.required_reason }}">{{ target.required_reason_label }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <p class="insight" data-metric="target-scope-note">{{ TARGET_SCOPE_NOTE }}</p>
+
+  {% if target.run_rate %}
+  <p class="insight{{ ' empty-cell' if not target.run_rate.available }}"
+     data-metric="target-run-rate" data-reason="{{ target.run_rate.reason }}">
+    <strong>{{ target.run_rate.label }}</strong> — DS quy đổi cả tháng:
+    <strong data-metric="target-run-rate-value"
+      {% if target.run_rate.full %}title="{{ target.run_rate.full }}"{% endif %}
+      >{{ target.run_rate.text }}</strong>
+    {% if target.run_rate.available %}nghìn đồng{% else %}({{ target.run_rate.reason_label }}){% endif %}
+  </p>
+  {% endif %}
+  {% endif %}
+
+  <p class="insight{{ ' empty-cell' if not revenue_run_rate.available }}"
+     data-metric="revenue-run-rate" data-reason="{{ revenue_run_rate.reason }}">
+    <strong>{{ revenue_run_rate.label }}</strong> — doanh thu cả tháng:
+    <strong data-metric="revenue-run-rate-value"
+      {% if revenue_run_rate.full %}title="{{ revenue_run_rate.full }}"{% endif %}
+      >{{ revenue_run_rate.text }}</strong>
+    {% if revenue_run_rate.available %}nghìn đồng{% else %}({{ revenue_run_rate.reason_label }}){% endif %}
+  </p>
+  <p class="insight" data-metric="run-rate-note">{{ RUN_RATE_NOTE }}</p>
+</div>
+
+{# --- So kỳ trước theo CÙNG số ngày lịch ------------------------------ #}
+<div class="module">
+  <h2>So với {{ comparison.previous_label }}
+    <span class="cnt" data-metric="compare-window">
+      {% if comparison.full_month %}trọn tháng{% else %}ngày 01–{{ comparison.day_cutoff_label }} của cả hai tháng{% endif %}</span></h2>
+  <div class="kpi-row">
+    <div class="kpi-card kpi-strong">
+      <span class="tp-label">Chênh lệch doanh thu</span>
+      <strong class="kpi-value{{ ' empty-cell' if not comparison.available }}"
+              data-metric="compare-percent">{{ comparison.percent }}</strong>
+      {% if not comparison.available %}
+      <span class="kpi-reason" data-metric="compare-reason"
+            data-reason="{{ comparison.reason }}">{{ comparison.reason_label }}</span>
+      {% endif %}
+    </div>
+    <div class="kpi-card">
+      <span class="tp-label">Kỳ này (01–{{ comparison.day_cutoff_label }})</span>
+      <strong class="kpi-value" data-metric="compare-current"
+              title="{{ comparison.current_full }}">{{ comparison.current }}</strong>
+      <span class="tp-unit">nghìn đồng</span>
+    </div>
+    <div class="kpi-card">
+      <span class="tp-label">{{ comparison.previous_label }} (01–{{ comparison.day_cutoff_label }})</span>
+      <strong class="kpi-value" data-metric="compare-previous"
+              title="{{ comparison.previous_full }}">{{ comparison.previous }}</strong>
+      <span class="tp-unit">nghìn đồng</span>
+    </div>
+  </div>
+  {% if comparison.shortened %}
+  <p class="insight" data-metric="compare-shortened">Tháng trước ngắn hơn nên
+    phép so cắt cả hai vế ở ngày {{ comparison.day_cutoff_label }} thay vì ngày
+    {{ comparison.as_of_day_label }} — cắt hai vế ở hai số ngày khác nhau sẽ không
+    còn là so cùng số ngày lịch.</p>
+  {% endif %}
+  {% if comparison.excluded_undated_lines %}
+  <p class="insight" data-metric="compare-excluded">Đã loại
+    <strong>{{ comparison.excluded_undated_lines }}</strong> dòng không có
+    ngày bán khỏi phép so này.</p>
+  {% endif %}
+  <p class="insight" data-metric="compare-note">{{ comparison.note }}</p>
+</div>
+
+{# --- 3. Phân tích đóng góp -------------------------------------------- #}
+{{ group_table('Theo đơn vị báo cáo', sheet_rows, 'eval-sheets',
+               note=sheet_scope_note, show_target=True) }}
+{{ group_table('Theo mặt hàng', product_rows, 'eval-products') }}
+{{ group_table('Theo nhóm hàng', product_group_rows, 'eval-product-groups') }}
+{{ group_table('Theo nguồn đơn', lead_source_rows, 'eval-lead-sources') }}
+
+<div class="module">
+  <h2>Biên KPI thấp nhất <span class="cnt">{{ lowest_margin|length }} mặt hàng</span></h2>
+  {% if lowest_margin %}
+  <div class="tp-scroll">
+  <table data-metric="eval-lowest-margin">
+    <tr><th>Mặt hàng</th><th class="num">Doanh thu (nghìn)</th>
+      <th class="num">LN KPI (nghìn)</th><th class="num">Biên KPI</th></tr>
+    {% for row in lowest_margin %}
+    <tr>
+      <td class="code"><a href="{{ row.url }}">{{ row.label }}</a></td>
+      <td class="num" title="{{ row.revenue_full }}">{{ row.revenue }}</td>
+      <td class="num" title="{{ row.profit_full }}">{{ row.profit }}</td>
+      <td class="num" data-metric="margin">{{ row.margin }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {% else %}
+  <p class="empty" data-metric="eval-lowest-margin-empty">Chưa có mặt hàng nào
+    đủ coverage để tính được biên KPI.</p>
+  {% endif %}
+  <p class="insight" data-metric="lowest-margin-note">{{ LOWEST_MARGIN_NOTE }}</p>
+</div>
+
+<div class="module">
+  <h2>Chiết khấu</h2>
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <span class="tp-label">Tổng chiết khấu</span>
+      <a class="kpi-drill" href="{{ discount.url }}">
+        <strong class="kpi-value" data-metric="discount-total"
+                title="{{ discount.total_full }}">{{ discount.total }}</strong></a>
+      <span class="tp-unit">nghìn đồng</span>
+    </div>
+    <div class="kpi-card{{ ' kpi-incomplete' if not discount.percent_available }}">
+      <span class="tp-label">Trên doanh thu trước chiết khấu</span>
+      <strong class="kpi-value{{ ' empty-cell' if not discount.percent_available }}"
+              data-metric="discount-percent">{{ discount.percent_of_gross }}</strong>
+    </div>
+    <div class="kpi-card">
+      <span class="tp-label">Dòng có chiết khấu</span>
+      <strong class="kpi-value" data-metric="discount-lines">{{ discount.lines_with_discount }}</strong>
+      <span class="tp-unit">{{ discount.orders_with_discount }} đơn</span>
+    </div>
+  </div>
+  {% if discount.double_count_orders %}
+  <p class="insight error" data-metric="discount-double-count">
+    <strong>{{ discount.double_count_orders|length }}</strong> đơn vừa có cột
+    chiết khấu vừa có dòng "Chiết khấu" riêng — nguy cơ trừ hai lần:
+    {{ discount.double_count_orders|join(', ') }}. Con số vẫn giữ nguyên; đây
+    là một ngoại lệ cần Owner quyết cách ghi.</p>
+  {% endif %}
+  <p class="insight" data-metric="discount-note">{{ discount.note }}</p>
+</div>
+
+<div class="module">
+  <h2>Dòng lỗ <span class="cnt" data-metric="loss-scope">đã xét {{ loss.scope_text }}</span></h2>
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <span class="tp-label">Số dòng lỗ</span>
+      <a class="kpi-drill" href="{{ loss.url }}">
+        <strong class="kpi-value" data-metric="loss-lines">{{ loss.lines }}</strong></a>
+      <span class="tp-unit">{{ loss.orders }} đơn</span>
+    </div>
+    <div class="kpi-card">
+      <span class="tp-label">Tổng lỗ</span>
+      <strong class="kpi-value{{ ' empty-cell' if loss.total == '—' }}"
+              data-metric="loss-total" title="{{ loss.total_full }}">{{ loss.total }}</strong>
+      {% if loss.total != '—' %}<span class="tp-unit">nghìn đồng</span>{% endif %}
+    </div>
+  </div>
+  {% if not loss.complete_scope %}
+  <p class="insight" data-metric="loss-partial-scope">Coverage chưa đủ — danh
+    sách này chỉ nói về {{ loss.scope_text }} đã tính được lợi nhuận, KHÔNG
+    phải toàn bộ đơn lỗ của kỳ.</p>
+  {% endif %}
+  <p class="insight" data-metric="loss-note">{{ loss.note }}</p>
+</div>
+
+{# --- 4. Đủ dữ liệu để kết luận? --------------------------------------- #}
+<div class="module">
+  <h2>Đủ dữ liệu để kết luận?
+    <span class="cnt" data-metric="quality-verdict"
+          data-sufficient="{{ 'yes' if quality.sufficient else 'no' }}"
+      >{{ 'ĐỦ' if quality.sufficient else 'CHƯA ĐỦ' }}</span></h2>
+
+  <p class="coverage-line{{ '' if quality.sufficient else ' coverage-line-warn' }}">
+    Đã tính được lợi nhuận:
+    <a href="{{ quality.coverage_url }}"><strong data-metric="quality-coverage"
+      >{{ quality.coverage.text }}</strong></a>
+    <span class="tp-unit" data-metric="quality-coverage-percent">{{ quality.coverage.percent }}</span>
+  </p>
+  {{ biz.coverage_reasons(quality.coverage) }}
+
+  <h3>Thẩm quyền giá nhập của từng dòng</h3>
+  <div class="tp-scroll">
+  <table data-metric="quality-provenance">
+    <tr><th>Nguồn giá nhập KPI</th><th class="num">Số dòng</th></tr>
+    {% for item in quality.provenance %}
+    <tr><td class="code" data-code="{{ item.code }}">{{ item.label }}</td>
+      <td class="num" data-metric="provenance-lines">{{ item.lines }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <h3>Nguồn giá mà lần chạy pipeline đã dùng</h3>
+  <div class="tp-scroll">
+  <table data-metric="quality-price-sources">
+    <tr><th>Thẩm quyền giá</th><th class="num">Số dòng</th></tr>
+    {% for item in quality.price_sources %}
+    <tr><td class="code" data-code="{{ item.code }}">{{ item.label }}</td>
+      <td class="num" data-metric="price-source-lines">{{ item.lines }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <p class="insight" data-metric="min-status-note">{{ quality.min_status_note }}</p>
+
+  <h3>Hàng đợi cần xử lý</h3>
+  <ul class="quality-queues">
+    <li>Thiếu giá nhập:
+      <strong data-metric="queue-missing-price"
+        >{{ quality.identity.missing_price }}</strong> dòng —
+      <a href="{{ quality.coverage_url }}">mở danh sách</a></li>
+    <li>Chưa phân loại mã:
+      <strong data-metric="queue-needs-review"
+        >{{ quality.identity.needs_review }}</strong> dòng</li>
+    <li>Ngoài bảng giá:
+      <strong data-metric="queue-out-of-catalog"
+        >{{ quality.identity.out_of_catalog }}</strong> dòng</li>
+    <li>Xung đột mã:
+      <strong data-metric="queue-conflict"
+        >{{ quality.identity.conflict }}</strong> dòng</li>
+    <li>Ngoại lệ gắn dòng:
+      <strong data-metric="queue-binding"
+        >{{ quality.binding_exceptions }}</strong> dòng</li>
+  </ul>
+
+  <h3>Ngày dữ liệu và trạng thái kỳ</h3>
+  <ul class="quality-queues">
+    <li>Ngày bán mới nhất trong phạm vi:
+      <strong data-metric="quality-latest-sale"
+        >{{ quality.latest_sale_date }}</strong></li>
+    <li>Dòng KHÔNG có ngày bán (toàn bộ dữ liệu):
+      <strong data-metric="quality-undated"
+        >{{ quality.undated_lines }}</strong> — chúng rơi khỏi MỌI kỳ và
+      không góp vào con số nào trên trang này.</li>
+    {% if quality.closed %}
+    <li data-metric="quality-closed">Kỳ ĐÃ CHỐT (lần {{ quality.closed.version_no }})
+      — trang này hiển thị dữ liệu hiện hành của kỳ đã chốt.</li>
+    <li data-metric="quality-drift" data-drift="{{ 'yes' if quality.drift else 'no' }}">
+      {% if quality.drift %}<strong>CẢNH BÁO:</strong> bộ số hiện tại đã KHÁC bộ
+      số lúc chốt. Bản đã phát hành không tự đổi — xem
+      <a href="{{ url_for('business_period_close', ky=selected_period) }}">trang Chốt kỳ</a>
+      để đối chiếu.{% else %}Chưa phát hiện sai lệch so với bộ số lúc chốt.{% endif %}</li>
+    {% else %}
+    <li data-metric="quality-closed" data-closed="no">Kỳ CHƯA chốt.</li>
+    {% endif %}
+  </ul>
+</div>
+{% endblock %}

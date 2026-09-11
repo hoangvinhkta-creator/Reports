@@ -23,7 +23,7 @@ liệu — quy ước viết số của Owner không đổi theo việc số đ�
 from __future__ import annotations
 
 import functools
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Optional
 
@@ -62,6 +62,36 @@ def group_label(code: Optional[str]) -> str:
     if not code:
         return "—"
     return _group_names().get(code, code)
+
+
+# TASK-OWNER-UIUX-002 — THỨ TỰ ĐỌC của các nhân viên, lấy từ chính thứ tự khai
+# báo trong master `config/employees.yaml`. Đây KHÔNG phải một quy tắc nghiệp
+# vụ mới: nó không đổi một con số nào, không đổi ai thuộc nhóm nào, và không
+# quyết định dòng nào cộng vào đâu — nó chỉ trả lời "ai đọc trước" bằng một
+# thứ tự mà chủ dự án đã tự viết ra và sửa được. Người không có trong master
+# (ví dụ một cái tên vừa được gán lại) xếp SAU, theo alphabet.
+@functools.lru_cache(maxsize=1)
+def _master_order() -> dict[str, int]:
+    try:
+        data = load_yaml(_EMPLOYEES_PATH)
+    except (OSError, yaml.YAMLError):
+        return {}
+    order: dict[str, int] = {}
+    for item in data.get("employees", []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("normalized")
+        if isinstance(name, str) and name.strip():
+            order.setdefault(name.strip(), len(order))
+    return order
+
+
+def employee_master_rank(name: Optional[str]) -> int:
+    """Hạng đọc của một nhân viên. Không có trong master ⟹ xếp sau tất cả."""
+    if not name:
+        return len(_master_order()) + 1
+    return _master_order().get(name, len(_master_order()) + 1)
+
 
 ORIGIN_BADGE = "SỐ MỚI"
 ORIGIN_TITLE = "Số do Reports tính từ sổ kế toán đã nạp"
@@ -123,7 +153,35 @@ EMPLOYEE_COLUMNS: tuple[str, ...] = (
 
 
 def money(value: Optional[Decimal]) -> str:
-    """Tiền/số lượng. ``None`` ⟹ ``—``; KHÔNG BAO GIỜ ``0``."""
+    """SỐ ĐẾM (số lượng) và mọi con số KHÔNG phải tiền. ``None`` ⟹ ``—``.
+
+    Tên giữ nguyên vì nhiều nơi gọi, nhưng từ `DEC-212` nó KHÔNG còn là hàm
+    viết tiền: tiền đi qua `price`/`price_full`. Xem chú thích ở đó.
+    """
+    return format_number(value)
+
+
+# `DEC-212` — Owner chốt: mọi con số TIỀN trên màn hình viết theo NGHÌN ĐỒNG.
+# Các trang "sổ thô" (Tổng quan · Bán hàng · Sản phẩm · Nhân viên số cũ) nằm
+# trong phạm vi đó y như các trang chỉ tiêu: chúng là những tab người dùng mở
+# được, và một tab viết `13.550.000` cạnh một tab viết `13.550` cho cùng một
+# con số là chỗ hai màn hình đọc như hai sự thật.
+#
+# `money` ở trên KHÔNG bị đổi hành vi: nó vẫn là hàm viết SỐ ĐẾM, và số lượng
+# thì không có đơn vị nghìn để rút. Tách hai hàm chứ không thêm một tham số cờ
+# vào một hàm: một cờ ở nơi gọi đọc như một tuỳ chọn trình bày, còn "cái này
+# là tiền hay không" là một mệnh đề về chính con số.
+def price(value: Optional[Decimal]) -> str:
+    """Tiền, viết theo NGHÌN ĐỒNG — chỉ để hiển thị."""
+    if value is None:
+        return format_number(None)
+    return format_number(
+        (Decimal(value) / Decimal(1000)).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def price_full(value: Optional[Decimal]) -> str:
+    """Cùng con số, VND đầy đủ — bản đối chiếu đi kèm mỗi ô rút gọn."""
     return format_number(value)
 
 
@@ -145,7 +203,8 @@ def coverage(covered: int, total: int) -> str:
 def profit(value: Optional[Decimal], covered: int, total: int) -> dict:
     """Một ô lợi nhuận LUÔN đi kèm coverage (quy tắc P4) — không có đường nào
     render con số lợi nhuận mà thiếu mẫu số của nó."""
-    return {"text": money(value), "coverage": coverage(covered, total),
+    return {"text": price_full(value), "text_kvnd": price(value),
+            "coverage": coverage(covered, total),
             "missing": value is None}
 
 
@@ -196,7 +255,8 @@ def overview(totals: dict, previous: Optional[dict], *, period, undated: int) ->
         "orders": count(totals["orders"]),
         "lines": count(lines),
         "quantity": money(totals["quantity"]),
-        "total_sales": money(totals["total_sales"]),
+        "total_sales": price(totals["total_sales"]),
+        "total_sales_full": price_full(totals["total_sales"]),
         "kpi_profit": profit(totals["kpi_profit"], totals["kpi_lines"], lines),
         "accounting_profit": profit(
             totals["accounting_profit"], totals["accounting_lines"], lines),
@@ -249,7 +309,8 @@ def _employee_row(row: dict) -> dict:
         "orders": count(row["orders"]),
         "lines": count(lines),
         "quantity": money(row["quantity"]),
-        "total_sales": money(row["total_sales"]),
+        "total_sales": price(row["total_sales"]),
+        "total_sales_full": price_full(row["total_sales"]),
         "kpi_profit": profit(row["kpi_profit"], row["kpi_lines"], lines),
         "accounting_profit": profit(
             row["accounting_profit"], row["accounting_lines"], lines),
@@ -260,7 +321,7 @@ def _employee_row(row: dict) -> dict:
 __all__ = [
     "ALL_DATA_LABEL", "BOTH_SOURCES_NOTE", "EMPLOYEE_COLUMNS", "NO_PREVIOUS_PERIOD",
     "ORDER_COLUMN_NOTE", "ORIGIN_BADGE", "ORIGIN_NOTE", "ORIGIN_TITLE",
-    "group_label",
+    "employee_master_rank", "group_label",
     "QUANTITY_LABEL", "QUANTITY_NOTE", "UNKNOWN_EMPLOYEE", "count", "coverage",
     "delta", "employee_rows", "money", "overview", "period_label", "period_options",
     "period_value", "previous_period", "profit",

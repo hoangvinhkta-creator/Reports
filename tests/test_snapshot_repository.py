@@ -58,12 +58,22 @@ def source_line(order="BH1", product="Tủ lạnh", occurrence=1, *, row=6,
 
 
 def result_line(line: SourceLine, *, status="AUTO", purchase="5000000", kpi="3000000",
-                price_source="TRACKING_PRICE_HISTORY"):
+                price_source="TRACKING_PRICE_HISTORY", tracking_code=None):
+    """Một dòng kết quả đã persist.
+
+    `tracking_code` (`R5.4`): mã Tracking mà lần chạy đã phân giải cho dòng.
+    Mặc định `None` — tức "lần chạy KHÔNG phân giải được danh tính" — vì kể từ
+    `R5.4` một mã đã lưu là một BẰNG CHỨNG mà tầng hiển thị đọc (dòng sẽ hiện
+    mã/nhãn Tracking thay cho tên trên sổ). Trước `R5.4` fixture này gắn mã
+    giả `A1` cho MỌI dòng mà không ai đọc nó; giữ nguyên sẽ làm mọi bài dựng
+    HTML hiện `A1` ở ô Mặt hàng. Bài nào cần một dòng đã khớp thì nói ra.
+    """
     return ResultLine(
         key=line.key, status=status, pending_reasons=() if status == "AUTO" else ("x",),
         total_sales=line.total_sales_raw, employee_normalized="VuHanhLy",
         employee_group="G1", lead_source_final="PERSONAL",
-        identity_namespace="TRACKING", canonical_product_code="A1",
+        identity_namespace=None if tracking_code is None else "TRACKING",
+        canonical_product_code=tracking_code,
         accounting_purchase_price=Decimal(purchase), price_source=price_source,
         composition_rule="TRACKING_HISTORY_AUTHORITY",
         accounting_profit=Decimal("3000000"), kpi_purchase_price=Decimal(purchase),
@@ -334,9 +344,48 @@ def test_the_write_path_contains_no_delete_and_updates_only_the_pointer_table():
     # UPDATE bảng con trỏ của chính nó, và — CHỈ TỪ SLICE B — các cột xác nhận
     # coverage trên `source_snapshot` (mục 4 của task cho phép đúng ngoại lệ
     # này). Ràng buộc hẹp hơn nằm ở hai test ngay dưới đây.
+    # `R7` — thêm ĐÚNG một ngoại lệ hẹp: ba cột liên hệ (Tên KH · SĐT · Địa
+    # chỉ) của version ĐANG hiện hành được làm mới tại chỗ cho dòng `SAME`
+    # (`_refresh_contact_fields`). Ràng buộc "chỉ ba cột, chỉ một hàm" nằm ở
+    # `test_only_the_contact_refresh_updates_a_source_version` ngay dưới.
     assert _called_with(store, "update") <= {
         "legacy_import", "order_line_current", "source_snapshot",
+        "order_line_source_version",
     }
+
+
+CONTACT_COLUMNS = {"customer_name", "customer_phone", "customer_address"}
+
+
+def test_only_the_contact_refresh_updates_a_source_version():
+    """`R7` — `order_line_source_version` là bảng version bất biến; ngoại lệ
+    DUY NHẤT là ba cột liên hệ, và chỉ `_refresh_contact_fields` được chạm.
+
+    Đọc AST như bài ngay dưới: một `update(order_line_source_version)` lọt
+    vào chỗ khác (hay sửa thêm một cột tiền/fingerprint) sẽ đỏ ở đây trước
+    khi nó kịp ghi đè bằng chứng của một lần chạy.
+    """
+    store = REPO_ROOT / "app/web/history_store.py"
+    tree = ast.parse(store.read_text(encoding="utf-8"))
+    refresh = _function_named(tree, "_refresh_contact_fields")
+    inside = {id(node) for node in ast.walk(refresh)}
+    updates = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id == "update" and node.args
+        and getattr(node.args[0], "id", None) == "order_line_source_version"
+    ]
+    assert updates, "phải có đúng đường làm mới liên hệ"
+    assert all(id(node) in inside for node in updates), (
+        "chỉ `_refresh_contact_fields` được UPDATE order_line_source_version")
+    written = {
+        keyword.arg
+        for node in ast.walk(refresh)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "values"
+        for keyword in node.keywords
+    }
+    assert written == CONTACT_COLUMNS, "không cột nào khác của version được sửa"
 
 
 CONFIRM_COLUMNS = {

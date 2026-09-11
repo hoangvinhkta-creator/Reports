@@ -119,6 +119,10 @@ class TestClosedEnums:
             "AWAITING_HUMAN_CONFIRMATION",
             "PENDING_HISTORICAL_CONFIRMATION",
             "TRACKING_INV_MAP_EXPLICIT_IGNORE",
+            # R2 (`R2 Execution Brief` §4.1) — hai ngữ nghĩa mới, cả hai đều là
+            # KẾT QUẢ của một quyết định đã có, không phải "chưa biết".
+            "OUT_OF_CATALOG_CONFIRMED",
+            "IDENTITY_CONFLICT",
         }
 
     def test_mapping_status_matches_the_contract_exactly(self):
@@ -128,11 +132,16 @@ class TestClosedEnums:
             "SUPERSEDED",
             "CONFLICT",
             "STALE",
+            # R2 §4.3 — phân loại HOÀN TẤT "không có trên bảng giá".
+            "OUT_OF_CATALOG",
         }
 
     def test_mapping_source_matches_the_contract_exactly(self):
         assert {s.value for s in MappingSource} == {
             "HUMAN_CONFIRMATION",
+            # R2 §4.2 — người dùng đã NHÌN THẤY mâu thuẫn và vẫn chọn. Không có
+            # nhãn này thì mỗi lần chạy lại phát hiện lại cùng mâu thuẫn ấy.
+            "HUMAN_CONFLICT_RESOLUTION",
             "DETERMINISTIC_CATALOG_MATCH",
             "OWNER_BOOTSTRAP",
             "HISTORICAL_CONFIRMED_REPORT",

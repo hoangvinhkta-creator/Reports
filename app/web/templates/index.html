@@ -12,7 +12,19 @@
 {% endif %}
 
 <div class="module">
-  <form class="filter-row" action="{{ url_for('run_report') }}" method="post" enctype="multipart/form-data">
+  {# `data-no-ajax`: form này KHÔNG đi qua fetch() của app.js. Lý do không
+     phải hiệu năng — đây là hành động MỘT LẦN, chạy chậm (upload + gọi
+     Tracking đồng bộ + dựng báo cáo), và nhánh lỗi mạng của `submitForm()`
+     tự động gửi lại bằng `form.submit()` thật khi fetch() thất bại
+     (app.js). Với một form vừa tạo dữ liệu mới vừa không rẻ để chạy lại,
+     tự động gửi trùng khi chỉ MẠNG trục trặc — trong khi máy chủ có thể
+     vẫn đang xử lý xong lượt đầu — là đúng loại lỗi âm thầm cần tránh
+     (chạy hai báo cáo cho một lần bấm). Submit thật, một lần, không có
+     nhánh gửi lại ngầm nào. `data-loading-label` vẫn hoạt động bình
+     thường trên form native — xem `onSlowSubmit` trong app.js. #}
+  <form class="filter-row" action="{{ url_for('run_report') }}" method="post"
+        enctype="multipart/form-data" data-no-ajax
+        data-loading-label="ĐANG TẢI LÊN VÀ CHẠY BÁO CÁO…">
     <input type="file" name="workbook" accept=".xlsx" required>
     <button class="act" type="submit">CHẠY BÁO CÁO</button>
   </form>
@@ -46,7 +58,9 @@
 </div>
 {% endif %}
 
-<p><a href="{{ url_for('download_artifact', run_id=run_id) }}"><button class="act" type="button">TẢI BÁO CÁO EXCEL</button></a></p>
+{# `STAB-02` — xem chú thích cùng tên ở `kinh_doanh.html`. #}
+<p><a href="{{ url_for('download_artifact', run_id=run_id) }}" download
+      data-metric="artifact-download"><button class="act" type="button">TẢI BÁO CÁO EXCEL</button></a></p>
 {% endif %}
 
 <div class="module">

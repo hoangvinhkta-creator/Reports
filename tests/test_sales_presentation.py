@@ -116,20 +116,34 @@ def line(**overrides) -> dict:
 
 # --- Vũ trụ reason code (CHECK-PRA004-04) --------------------------------
 
-def test_the_reason_universe_derived_from_source_is_closed_at_19_codes():
-    """O-D1 + DEC-PAN-001 — 10 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
+def test_the_reason_universe_derived_from_source_is_closed_at_23_codes():
+    """O-D1 + DEC-PAN-001 — 12 ``PriceResolutionReason`` + 8 ``CATEGORIES`` +
     1 ``Pending``.
 
     Trước DEC-PAN-001 vòng lặp sinh ba mã ``Pending.<field>`` (vũ trụ 21).
     ``accounting_purchase_price``/``accounting_profit`` đã bị gỡ khỏi đường
     sinh reason: Reports không có nguồn giá nhập kế toán độc lập, nên hai mã
     ấy chỉ nhân bản MỘT nguyên nhân gốc đã có mã actionable riêng.
+
+    R1 (2026-09-07) nâng 10 → 12: nhánh MIN theo ngày bán thêm
+    ``TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE`` (chưa nối nguồn) và
+    ``TRACKING_DAILY_MIN_PENDING`` (đã hỏi, Tracking không trả được giá của
+    đúng ngày ấy). Hai mã, không phải một: cái thứ nhất là việc của người vận
+    hành, cái thứ hai là việc của người kiểm dữ liệu — gộp lại thì màn hình
+    bảo người ta đi làm sai việc.
+
+    R2 (`R2 Execution Brief` §4.1/§4.2) nâng 12 → 14: `IDENTITY_OUT_OF_CATALOG`
+    (người dùng đã xác nhận hàng KHÔNG có trên bảng giá — phân loại XONG, chỉ
+    còn thiếu giá) và `IDENTITY_CONFLICT` (hai nguồn mapping đã xác nhận chỏi
+    nhau). Cả hai đều PHẢI tách khỏi `IDENTITY_UNRESOLVED`: gộp lại thì màn
+    hình đẩy dòng về hàng đợi "chưa phân loại" và hỏi Owner phân loại lại đúng
+    thứ họ vừa phân loại xong.
     """
     universe = reason_universe()
-    assert len(PriceResolutionReason) == 10
+    assert len(PriceResolutionReason) == 14
     assert len(CATEGORIES) == 8
     assert pending_fields_from_source() == {"eligible_kpi_profit"}
-    assert len(universe) == 19
+    assert len(universe) == 23
 
 
 def test_the_two_retired_accounting_codes_are_no_longer_generated():
@@ -140,9 +154,9 @@ def test_the_two_retired_accounting_codes_are_no_longer_generated():
 
 
 def test_the_renderable_universe_still_covers_persisted_history():
-    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 19 mã sinh mới + 2 mã
-    đã nghỉ = 21 mã UI có thể phải hiển thị. Không backfill, không migration."""
-    assert len(renderable_universe()) == 21
+    """DEC-PAN-001 — lịch sử đã persist vẫn đọc được: 23 mã sinh mới + 2 mã
+    đã nghỉ = 25 mã UI có thể phải hiển thị. Không backfill, không migration."""
+    assert len(renderable_universe()) == 25
 
 
 def test_the_label_table_covers_the_whole_closed_universe():
@@ -322,10 +336,17 @@ def test_an_auto_line_shows_both_purchase_prices_and_both_profits():
     trong hai vĩnh viễn không kiểm được (mục 12.C)."""
     row = sp.line_row(line())
     assert row["status"] == "AUTO"
-    assert row["accounting_purchase_price"] == "10.250.000"
-    assert row["kpi_purchase_price"] == "10.250.000"
-    assert row["accounting_profit"] == "500.000"
-    assert row["kpi_profit"] == "400.000"
+    # `DEC-212` — ô đọc viết theo NGHÌN ĐỒNG; bản VND đầy đủ đi kèm ở `*_full`
+    # và phải giữ NGUYÊN con số cũ. Kiểm cả hai: chỉ kiểm bản rút gọn sẽ để
+    # lọt một lỗi chia 1.000 hai lần.
+    assert row["accounting_purchase_price"] == "10.250"
+    assert row["accounting_purchase_price_full"] == "10.250.000"
+    assert row["kpi_purchase_price"] == "10.250"
+    assert row["kpi_purchase_price_full"] == "10.250.000"
+    assert row["accounting_profit"] == "500"
+    assert row["accounting_profit_full"] == "500.000"
+    assert row["kpi_profit"] == "400"
+    assert row["kpi_profit_full"] == "400.000"
     assert row["reasons"] == []
 
 
@@ -407,7 +428,14 @@ def test_the_product_summary_reuses_the_accepted_period_totals_verbatim():
     summary = sp.product_summary(rows, totals())
     assert summary["item_count"] == "2"
     assert summary["quantity"] == "5"
-    assert summary["total_sales"] == "30"
+    # Fixture dùng những con số bé (30 đồng, 3 đồng) để phép TÁI DỤNG nhìn ra
+    # ngay bằng mắt. Ở `DEC-212` chúng rút xuống nghìn đồng thành `0` — đúng
+    # phép làm tròn, và bản `*_full` vẫn giữ con số gốc, nên bài kiểm vẫn canh
+    # đúng mệnh đề của nó: tổng của trang bằng ĐÚNG tổng của kỳ, không tính
+    # lại. Sổ thật của Owner không có ô tiền nào ở độ lớn này.
+    assert summary["total_sales"] == "0"
+    assert summary["total_sales_full"] == "30"
+    assert summary["kpi_profit"]["text_kvnd"] == "0"
     assert summary["kpi_profit"]["text"] == "3"
     assert summary["kpi_profit"]["coverage"] == "1 / 3 dòng"
 

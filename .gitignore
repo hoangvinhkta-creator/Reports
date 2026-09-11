@@ -32,6 +32,14 @@ data/tracking_live_tmp/
 data/history/
 *.jsonl.lock
 
+# DEC-208/DEC-209 — bản chiếu HIỂN THỊ `catalog_display` (mã Tracking →
+# model/hãng/nhóm hàng) và file trạng thái ghi cạnh nó. Cả hai là cache runtime
+# của MỘT lần chạy báo cáo cụ thể, sống trên đĩa ephemeral ở production
+# (xem docstring `app/web/catalog_display.py`), không phải dữ liệu repo — khác
+# `mappings.jsonl` (log quyết định Product Identity, dữ liệu THẬT, có commit).
+data/product_identity/tracking_display.json
+data/product_identity/tracking_display.status.json
+
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -49,6 +57,13 @@ htmlcov/
 node_modules/
 dist/
 .vite/
+
+# `UI-01`/`UI-02` — output runtime của bộ kiểm Playwright (trace/screenshot
+# khi đỏ, báo cáo HTML). Bằng chứng của MỘT lần chạy cụ thể, không phải nội
+# dung repo — xem `tests/test_playwright_ui_suite.py`.
+test-results/
+playwright-report/
+blob-report/
 
 # --- Local config & secrets ---
 .env

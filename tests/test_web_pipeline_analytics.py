@@ -110,16 +110,29 @@ def test_the_overview_matches_the_independent_golden_oracle(client, golden_loade
     html = body(client, "/tong-quan?ky=tat-ca")
 
     assert cell(html, "quantity") == _formatted(expected["money"]["quantity_total"][0])
-    assert cell(html, "total_sales") == _formatted(
+    assert cell(html, "total_sales") == _formatted_money(
         expected["money"]["sales_normalized"][0])
     assert cell(html, "orders") == _formatted(expected["counts"]["orders"])
     assert cell(html, "lines") == _formatted(expected["counts"]["lines"])
 
 
 def _formatted(value) -> str:
+    """Một SỐ ĐẾM (đơn, dòng, số lượng) viết như trang viết nó."""
     from app.web.legacy_presentation import format_number
 
     return format_number(Decimal(str(value)))
+
+
+def _formatted_money(value) -> str:
+    """Một ô TIỀN viết như trang viết nó — nghìn đồng (`DEC-212`).
+
+    Đi qua chính hàm của tầng trình bày chứ không chia 1.000 tại chỗ: một phép
+    làm tròn viết lại ở đây sẽ trôi khỏi phép làm tròn đang chạy thật, và khi
+    ấy bài kiểm xanh trong khi màn hình sai.
+    """
+    from app.web.analytics_presentation import price
+
+    return price(Decimal(str(value)))
 
 
 def test_the_golden_period_reports_the_coverage_it_actually_has(client, golden_loaded):
@@ -172,7 +185,8 @@ def test_the_golden_employee_table_has_exactly_one_employee_row(client, golden_l
     assert cell(html, "lines") == _formatted(expected["lines"])
     assert cell(html, "orders") == _formatted(expected["orders"])
     assert cell(html, "quantity") == _formatted(expected["quantity"][0])
-    assert cell(html, "total_sales") == _formatted(expected["sales_normalized"][0])
+    assert cell(html, "total_sales") == _formatted_money(
+        expected["sales_normalized"][0])
 
 
 def test_the_employee_new_view_hides_accounting_profit_but_keeps_kpi(
@@ -238,7 +252,7 @@ def test_an_unknown_period_falls_back_to_the_whole_dataset_not_a_page_of_zeros(
     html = body(client, "/tong-quan?ky=1999-13")
 
     assert ap.ALL_DATA_LABEL in html
-    assert cell(html, "total_sales") == "1.500.000"
+    assert cell(html, "total_sales") == "1.500"
 
 
 def test_an_empty_database_renders_the_overview_without_raising(client):

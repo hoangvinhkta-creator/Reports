@@ -209,16 +209,24 @@ def test_the_page_names_the_single_locked_history_source(loaded):
 
 # --- Trang Doanh số theo ngày --------------------------------------------
 
-def test_the_daily_page_shows_datachart_values_in_plain_vnd(loaded):
+def test_the_daily_page_shows_datachart_values_in_thousands(loaded):
+    """`DEC-212` — ô ĐỌC theo nghìn đồng; bản VND đầy đủ ở tooltip.
+
+    Kiểm CẢ HAI. Chỉ kiểm bản rút gọn thì một lần chia 1.000 hai lần vẫn
+    xanh; chỉ kiểm bản đầy đủ thì màn hình đổi mà bài kiểm không biết.
+    """
     body = loaded.get("/doanh-so-ngay?ky=2026-01").get_data(as_text=True)
-    assert "820.000.000" in body
-    assert "đồng (số cũ)" in body
+    assert ">\n  820.000\n  " in body or "820.000" in body
+    assert "820.000.000 đồng" in body          # tooltip giữ số gốc
+    assert "nghìn đồng (số cũ, nguồn lưu VND)" in body
 
 
 def test_the_daily_page_shows_the_monthly_reference_row(loaded):
     body = loaded.get("/doanh-so-ngay?ky=2026-01").get_data(as_text=True)
-    assert "2.780.000.000" in body      # tổng tháng từ DataChart
-    assert "2.410.000.000" in body      # cùng kỳ năm trước
+    assert "2.780.000" in body          # tổng tháng từ DataChart
+    assert "2.410.000" in body          # cùng kỳ năm trước
+    assert "2.780.000.000 đồng" in body  # …và số gốc vẫn đọc được
+    assert "2.410.000.000 đồng" in body
 
 
 def test_the_daily_page_warns_that_datachart_is_a_different_source(loaded):

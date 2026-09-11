@@ -1,0 +1,201 @@
+{# R6 — các mảnh dùng chung của dashboard phân tích.
+
+   Chúng nằm ở một file riêng chứ không thêm vào `_business_bits.html` vì lý
+   do phạm vi: mọi trang nghiệp vụ cũ import `_business_bits`, nên mỗi macro
+   thêm vào đó là một macro trao cho tất cả cùng lúc, kể cả những trang chưa
+   được viết. Bốn macro dưới đây chỉ có nghĩa với các trang R6. #}
+
+{# BỘ CHỌN PHẠM VI — kỳ có sẵn HOẶC khoảng ngày, không bao giờ cả hai.
+
+   Hai ô ngày và ô kỳ nằm trong CÙNG một form, và đó là chủ ý: server nhận đủ
+   ba giá trị rồi `analysis_range.resolve` quyết định ĐÚNG MỘT phạm vi, thay vì
+   để hai form khác nhau lần lượt ghi đè lên nhau và người dùng phải đoán cái
+   nào đang thắng. `scope.note` nói ra khi một khoảng ngày đã bị TỪ CHỐI. #}
+{% macro scope_picker(periods, scope, action) -%}
+<form class="filter-row r6-scope" method="get" action="{{ action }}">
+  <span class="kpi-period">
+    <label class="tp-label" for="ky">Kỳ báo cáo</label>
+    <select name="ky" id="ky">
+      {% for option in periods %}
+      <option value="{{ option.value }}"
+              {{ 'selected' if option.value == scope.period_value }}>
+        {{ option.label }}</option>
+      {% endfor %}
+    </select>
+  </span>
+  <span class="kpi-period">
+    <label class="tp-label" for="tu-ngay">Từ ngày</label>
+    <input type="date" name="tu-ngay" id="tu-ngay"
+           value="{{ scope.date_from if scope.is_custom }}">
+  </span>
+  <span class="kpi-period">
+    <label class="tp-label" for="den-ngay">Đến ngày</label>
+    <input type="date" name="den-ngay" id="den-ngay"
+           value="{{ scope.date_to if scope.is_custom }}">
+  </span>
+  <button class="ghost btn-mini" type="submit">XEM</button>
+</form>
+<p class="insight" data-metric="scope-label" data-kind="{{ scope.kind }}">
+  Phạm vi đang xem: <strong>{{ scope.label }}</strong>
+  ({{ scope.days }} ngày). {{ scope.scope_note }}</p>
+{% if scope.note %}
+<p class="notice" data-metric="scope-rejected">{{ scope.note }}</p>
+{% endif %}
+{%- endmacro %}
+
+{# Một ô chỉ tiêu của R6 — giá trị, đơn vị, và lời giải thích của CHÍNH nó.
+   Lời giải thích đi cùng ô chứ không gom vào một chú thích chung ở cuối
+   trang: bốn ô giỏ hàng đếm bốn tập đơn khác nhau, và một chú thích chung
+   sẽ được đọc là chú thích cho ô đầu tiên. #}
+{% macro metric_card(card) -%}
+<div class="kpi-card{{ ' kpi-incomplete' if card.missing }}">
+  <span class="tp-label">{{ card.label }}</span>
+  <strong class="kpi-value" data-metric="{{ card.key }}"
+          {% if card.raw %}title="{{ card.raw }} đồng"{% endif %}>{{ card.value }}</strong>
+  {% if card.unit %}<span class="tp-unit">{{ card.unit }}</span>{% endif %}
+  <span class="tp-unit r6-card-note">{{ card.note }}</span>
+</div>
+{%- endmacro %}
+
+{# Biểu đồ hai cửa sổ — dùng chung cho DOANH THU và SỐ ĐƠN.
+
+   Một macro cho cả hai vì cả hai là cùng một hình: cùng trục tương đối, cùng
+   trần tròn, cùng quy ước cắt đường tại khoảng trống. Khác biệt duy nhất là
+   ĐƠN VỊ, và nó đã nằm sẵn trong dict (`total_kvnd` + "nghìn đồng" cho tiền,
+   `total_text` cho số đếm) nên template không phải tự biết mình đang vẽ cái
+   gì. #}
+{% macro paired_chart(chart, dom_id, title, total_text, comparison_text, url,
+                      params, breakdown=None) -%}
+<div class="module chart-half" id="{{ dom_id }}">
+  <h2>{{ title }}
+    <span class="cnt" data-metric="chart-total">{{ total_text }}</span></h2>
+  <nav class="filter-row chart-gran">
+    {% for option in chart.options %}
+    <a class="ghost btn-mini {{ 'on' if option.on }}" data-gran="{{ option.key }}"
+       href="{{ url_for(url, muc=option.key, **params) }}#{{ dom_id }}"
+       >{{ option.label }}</a>
+    {% endfor %}
+  </nav>
+  {% if chart.empty %}
+  <p class="empty" data-metric="chart-empty">{{ chart.empty_note }}</p>
+  {% else %}
+  <div class="chart-legend" data-metric="chart-legend">
+    <span class="chart-legend-item chart-legend-current"
+          data-metric="chart-legend-current">{{ chart.current_label }}:
+      {{ chart.current_range }} <strong>{{ total_text }}</strong></span>
+    <span class="chart-legend-item chart-legend-prev"
+          data-metric="chart-legend-comparison">{{ chart.comparison_label }}:
+      {{ chart.comparison_range }} <strong>{{ comparison_text }}</strong></span>
+  </div>
+  {% if chart.projection %}
+  {# `R7 §C` — dự phóng hết container theo nhịp hiện tại. Ba con số đều đọc
+     được để người đọc kiểm lại phép chia; đây là trình bày, không phải chỉ
+     tiêu. #}
+  <p class="chart-projection" data-metric="chart-projection"
+     data-projected="{{ chart.projection.projected_raw }}"
+     data-percent="{{ chart.projection.percent_raw or '' }}">
+    Đến {{ chart.projection.anchor_text }} ({{ chart.projection.elapsed_units }}/{{ chart.projection.total_units }} ngày của {{ chart.projection.container }}):
+    <strong>{{ chart.projection.current_to_date }}</strong>{% if chart.projection.to_date_percent %}
+    — bằng {{ chart.projection.to_date_percent }}% cùng thời điểm năm trước{% endif %}.
+    Với tốc độ này, cuối {{ chart.projection.container }} đạt khoảng
+    <strong>{{ chart.projection.projected }}</strong>{% if chart.projection.percent %}
+    — <strong>{{ chart.projection.percent }}%</strong> so với cùng kỳ năm trước
+    ({{ chart.projection.comparison_total }}){% else %}
+    — cùng kỳ năm trước chưa có số để so{% endif %}{% if chart.projection.gap_note %};
+    {{ chart.projection.gap_note }}{% endif %}.
+  </p>
+  {% endif %}
+  <div class="rev-chart-row">
+    <div class="rev-chart-yaxis" style="height: {{ chart.svg_height }}px">
+      {% for tick in chart.y_axis %}
+      <span class="rev-chart-ytick" style="top: {{ tick.y }}px">{{ tick.label }}</span>
+      {% endfor %}
+    </div>
+    <div class="rev-chart-plot">
+      {# `UI-05` — `data-breakdown` là ĐƯỜNG DẪN route đọc phần phân rã của
+         một mốc, và sự có mặt của nó LÀ cái công tắc: biểu đồ nào không
+         khai nó thì ghim được nhưng không tải phân rã. Trang Báo cáo (`R5`)
+         cố ý không khai — phạm vi của nó đọc bằng một bộ tham số khác, và
+         gửi tham số của trang này sang route kia sẽ phân rã một khoảng thời
+         gian mà người dùng không hề chọn. #}
+      <div class="rev-line" style="--rev-h: {{ chart.svg_height }}px"
+           data-metric="chart" data-gran="{{ chart.granularity }}"
+           {% if breakdown %}data-breakdown="{{ breakdown }}"{% endif %}>
+        <svg class="rev-line-svg" viewBox="0 0 {{ chart.svg_width }} {{ chart.svg_height }}"
+             preserveAspectRatio="none" role="img"
+             aria-label="{{ title }} — {{ chart.current_label }} so với {{ chart.comparison_label }}">
+          {% for tick in chart.y_axis %}
+          <line class="rev-line-grid" x1="0" x2="{{ chart.svg_width }}"
+                y1="{{ tick.y }}" y2="{{ tick.y }}"/>
+          {% endfor %}
+          {% for segment in chart.comparison_polylines %}
+          <polyline class="rev-line-path rev-line-prev" points="{{ segment }}"/>
+          {% endfor %}
+          {% for segment in chart.polylines %}
+          <polyline class="rev-line-path" points="{{ segment }}"/>
+          {% endfor %}
+          {% for bar in chart.comparison_bars %}
+          <circle class="rev-line-dot rev-line-dot-prev" cx="{{ bar.x }}"
+                  cy="{{ bar.y }}" r="3"><title>{{ bar.title }}</title></circle>
+          {% endfor %}
+          {% for bar in chart.bars %}
+          <circle class="rev-line-dot" cx="{{ bar.x }}" cy="{{ bar.y }}" r="4"
+                  ><title>{{ bar.title }}</title></circle>
+          {% endfor %}
+        </svg>
+        <div class="rev-line-points">
+          {% for bar in chart.comparison_bars %}
+          <span class="rev-line-point rev-line-point-prev" style="left: {{ bar.x_pct }}%"
+                title="{{ bar.title }}" data-metric="chart-bar-prev"
+                data-key="{{ bar.key }}" data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
+          {% endfor %}
+          {% for bar in chart.bars %}
+          <span class="rev-line-point" style="left: {{ bar.x_pct }}%"
+                title="{{ bar.title }}" data-metric="chart-bar"
+                data-key="{{ bar.key }}" data-origin="{{ bar.origin }}"
+                data-revenue="{{ bar.revenue_raw }}"></span>
+          {% endfor %}
+        </div>
+        <div class="rev-chart-xaxis">
+          {% for tick in chart.x_ticks %}
+          <span class="rev-chart-xtick" style="left: {{ tick.x_pct }}%">{{ tick.label }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <details class="how-to-read">
+    <summary>Cách đọc biểu đồ này</summary>
+    <p class="insight" data-metric="chart-scope">{{ chart.scope_note }}</p>
+    <p class="insight" data-metric="chart-comparison">{{ chart.comparison_note }}</p>
+    {% if chart.has_gap %}
+    <p class="insight" data-metric="chart-gap">{{ chart.gap_note }}</p>{% endif %}
+    {% if chart.gapfill_note %}
+    <p class="insight" data-metric="chart-gapfill">{{ chart.gapfill_note }}</p>{% endif %}
+    {% if chart.no_daily_legacy_note %}
+    <p class="insight" data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
+    {% if chart.undated %}
+    <p class="insight" data-metric="chart-undated">Có
+      <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}</p>{% endif %}
+  </details>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# Khối ĐỐI SOÁT — kết quả một phép so ĐÃ CHẠY trên chính các con số đang
+   hiện, không phải một lời khẳng định viết sẵn. #}
+{% macro reconcile_block(summary) -%}
+<p class="insight{{ ' error' if not summary.reconciled }}"
+   data-metric="reconciliation"
+   data-reconciled="{{ 'yes' if summary.reconciled else 'no' }}"
+   >{{ summary.reconcile_note }}</p>
+{% if not summary.reconciled %}
+<ul class="reason-list" data-metric="reconcile-detail">
+  {% for item in summary.reconcile_detail %}
+  <li data-metric="reconcile-item" data-ok="{{ 'yes' if item.ok else 'no' }}">
+    {{ item.metric }}: {{ 'KHỚP' if item.ok else 'LỆCH' }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{%- endmacro %}

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Optional
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -225,7 +226,10 @@ def export_report(
     raw_rows: list[RawRow],
     *,
     sales_path: Path,
-    tracking_capture: Path,
+    #: `None` khi lịch sử `tp/ton` không được nối cho lần chạy này (từ R1 nó
+    #: không quyết định giá nào — `ADR-110` §6). Ô tóm tắt nói thẳng điều đó
+    #: chứ không để trống: một ô trống ở đây đọc thành "quên ghi".
+    tracking_capture: Optional[Path],
     tracking_catalog: Path,
     output_path: Path,
     processed_at: datetime,
@@ -268,6 +272,29 @@ def export_report(
         identity = record.identity if record else None
         evidence = record.evidence if record else None
         reconstruction = record.tracking_reconstruction if record else None
+        daily_min = record.daily_min_resolution if record else None
+        # R1 — hai cột "Capture giá" và "Tracking reason" nói về NGUỒN ĐÃ QUYẾT
+        # ĐỊNH dòng này, không phải về một nhánh cố định. Từ R1 nhánh mặc định
+        # là MIN theo ngày bán; nhánh lịch sử `tp/ton` chỉ chạy khi được bật
+        # tường minh. Ghim cứng vào nhánh cũ sẽ để trống đúng hai ô mà người
+        # kiểm cần nhất, trên mọi dòng của mọi báo cáo mới.
+        #
+        # KHÔNG thêm cột: thiết kế lại sheet xuất thuộc vòng sau (R3/R4), và
+        # một cột mới ở đây sẽ đổi hình dạng artifact mà chưa ai duyệt.
+        price_capture_id = (
+            evidence.tracking_daily_min_capture_id
+            if evidence and daily_min is not None
+            else (evidence.tracking_price_history_capture_id if evidence else None)
+        )
+        source_reason = (
+            daily_min.reason.value
+            if daily_min is not None and daily_min.reason
+            else (
+                reconstruction.reason.value
+                if reconstruction and reconstruction.reason
+                else None
+            )
+        )
         _append(review_sheet, (
             line.date, line.order_id, employee, line.product_raw, view.status,
             "\n".join(view.reasons), "\n".join(view.details), line.raw.source_file,
@@ -276,10 +303,10 @@ def export_report(
             identity.source_product_code if identity else None,
             record.raw_identity_key if record else None, line.price_source,
             record.rule.value if record else None,
-            evidence.tracking_price_history_capture_id if evidence else None,
+            price_capture_id,
             evidence.tracking_catalog_capture_id if evidence else None,
             evidence.identity_store_revision if evidence else None,
-            reconstruction.reason.value if reconstruction and reconstruction.reason else None,
+            source_reason,
             record.fallback_blocked_by.value if record and record.fallback_blocked_by else None,
             record.fallback_blocked_detail if record else None,
             line.kpi_purchase_price_provenance,
@@ -313,7 +340,8 @@ def export_report(
         ("Dòng chưa xác định doanh thu", len(views) - len(revenues)),
         ("Dòng cần Review Queue", summary.review_lines),
         ("Finding cấp lô cần xem", len(batch_items)),
-        ("Capture giá đầu vào", tracking_capture.name),
+        ("Capture giá đầu vào (lịch sử tp/ton, LEGACY)",
+         tracking_capture.name if tracking_capture is not None else "Không nối"),
         ("Capture danh mục đầu vào", tracking_catalog.name),
         ("Đọc trạng thái", "AUTO: mọi dòng trong đơn có kết quả và không có finding cần xem. "
          "Review Queue: ít nhất một dòng cần kiểm tra. REVIEW_BATCH không tính vào số đơn."),

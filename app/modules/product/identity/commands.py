@@ -159,6 +159,31 @@ class SetPending(MappingCommand):
 
 
 @dataclass(frozen=True)
+class MarkOutOfCatalog(MappingCommand):
+    """`confirmation_action` — R2 §4.3. "Hàng này KHÔNG có trên bảng giá."
+
+    Đây là một kết quả phân loại HOÀN TẤT, không phải một `SetPending` đổi
+    tên. Ba khác biệt, và cả ba đều kiểm được:
+
+    1. Nó KHÔNG mang `target` — không có mã Tracking nào để mang. Vì thế nó
+       không thể lọt vào một nhánh giá nào (`INV-24`).
+    2. Sau nó, dòng KHÔNG còn nằm trong hàng đợi "chưa phân loại" (§4.3), khác
+       hẳn `SetPending` vốn giữ dòng ở đó.
+    3. `reason` KHÔNG bắt buộc: người dùng bấm "không có trên bảng giá" chính
+       là lý do. Bắt gõ thêm một câu ở đây là thêm ma sát cho thao tác thường
+       gặp nhất của R2.
+
+    Đảo lại quyết định này KHÔNG có command riêng: người dùng chọn một mã
+    Tracking (`ConfirmMapping`), và `store._next_mapping` đã supersede bản ghi
+    cũ bất kể trạng thái cũ là gì. Một command "gỡ" thứ hai sẽ là một đường ghi
+    thứ hai cho cùng một phép chuyển, tức đúng thứ `INV-66` cấm.
+    """
+
+    evidence: Optional[Evidence] = None
+    event_type: EventType = EventType.MARK_OUT_OF_CATALOG
+
+
+@dataclass(frozen=True)
 class BootstrapMapping(MappingCommand):
     """Nạp bảng mapping do Owner cung cấp lúc migration (§14 `M1`).
 

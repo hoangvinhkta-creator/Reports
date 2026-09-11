@@ -1,5 +1,3033 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `S156`: banner Tracking đỏ + sổ 01–03/09 không có giá MIN — xác minh từ code, hệ thống nay tự nói lý do (2026-09-11)
+
+Tiếp nối `S154`/`S155`. Owner gửi ảnh hai banner đỏ (`nguồn: daily_min`,
+`nguồn: catalog`) và một sổ nhẹ 01–03/09 chạy xong mà mọi dòng Tracking
+đều `—`; yêu cầu "kiểm tra vấn đề thực sự thay vì đoán" (`DEC-226`).
+
+```text
+Banner đỏ     LỖI THẬT của Reports: exc.reason không vào banner/log; HTTPError
+              vứt thân {"ok":false,"ly":…} của Tracking ⟹ 409 cron đang ghi,
+              403 WAF, timeout để lại cùng dấu vết. Lý do hai lần trong ảnh
+              KHÔNG truy lại được. Sửa: mo_ta_loi_http() (HTTP 409 ly=…),
+              dòng stdout reports.tracking_failed, banner mang lý do.
+Sổ 01–03/09   ĐÚNG hợp đồng: không bản ngày ⟹ SOURCE_UNAVAILABLE mọi mã; bản
+              ngày cron chỉ từ 07/09. Cách duy nhất: POST /api/min-ngay/dung-lai
+              (admin, Bearer token, không có nút) — "Việc của Owner" ở S154,
+              chưa có bằng chứng đã gọi. Sửa phía Reports: bằng chứng +
+              dòng reports.tracking_pull nay đếm records/errors theo lý do
+              và nêu unobserved_dates, để lần chạy tự nói cần làm gì.
+Tracking      PR #31 (đọc mã song song theo lô 20 trong xuatMinNgay(), sửa
+              524 khi chạy report) đã merge main; deploy chưa xác nhận.
+```
+
+```text
+Bài kiểm mới     6 (fail-trước 7 / pass-sau), full pytest 3665 passed, 23 skipped, 4 deselected in 205.28s (0:03:25)
+Việc của Owner   chạy đoạn Console ở DEC-226 §5 → chạy lại sổ → đọc dòng
+                 reports.tracking_pull trên Render (records > 0,
+                 unobserved_dates=-)
+```
+
+Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-226`;
+`docs/sessions/S156-chan-doan-tracking-khong-doan.md`.
+---
+
+## CANONICAL CURRENT STATE — UI-03-UI-04-UI-05 REPAIR-1 (theo sau Independent Review REQUEST CHANGES) (`S154`, 2026-09-11)
+
+Repair cycle DUY NHẤT của lineage `UI-03-UI-04-UI-05` tính đến giờ, theo
+`governance/core/V4_1_POLICY_FREEZE.md` §3. Không mở nhánh mới, không đổi
+base — vẫn `claude/ui-03-04-05-reports-px1u9l`, base `c60ae08` (HEAD đã
+push, đã tích hợp nhánh mặc định — xem entry bên dưới).
+
+```text
+review_round_1   REQUEST CHANGES (Independent Review, trên HEAD c60ae08)
+finding F-02     1 (BLOCKING) — removed_order_keys/affected.lines sai khi
+                 một quyết định phân loại chạm BH ở SHEET KHÁC
+finding F-01     1 (không chặn merge nhưng bắt buộc sửa) — 3 tham chiếu
+                 trần làm validate_reference_integrity FAIL
+repair_1         ĐÃ HOÀN TẤT, cả hai finding, tiêu cycle DUY NHẤT
+base_sha         c60ae081fe2bd7c61dd835b66044a8ff41e0da18
+head_sha         05daf76
+```
+
+Ngân sách + Blast Radius đầy đủ: `PROJECT/REVIEW_BUDGET_LEDGER.md` →
+"Root Task: UI-03-UI-04-UI-05".
+
+### Finding F-02 (BLOCKING) — `removed_order_keys`/`affected.lines` sai khi một quyết định phân loại chạm BH ở SHEET KHÁC
+
+`app/web/server.py`, `_workspace_write_payload()`: hàm gọi
+`_workspace_context(view, only_orders=order_keys)`, và hàm đó lọc `scoped
+= view["data"].for_sheet(sheet)` THEO SHEET ĐANG XEM trước khi cắt
+`only_orders` qua `groups_slice`. Một `order_key` thuộc sheet khác không
+khớp group nào trong `scoped` — không phải vì nó đã bị loại khỏi báo cáo,
+mà đơn giản vì nó không nằm trên trang đang mở. Bản trước đọc sự vắng mặt
+ấy thành "đã xoá" (`removed_order_keys`) và đếm thiếu `affected.lines`
+(chỉ cộng `group["lines"]` của các group tìm thấy trong `scoped`).
+
+**Sửa (cả hai hướng review nêu):**
+- `removed_order_keys` giờ kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+  details`, không qua `scoped`): một BH chỉ "đã xoá" khi không còn dòng
+  nào trong CẢ kỳ, không phải chỉ khi nó không còn trên sheet đang xem.
+- `affected.lines` nhận tham số `lines` TƯỜNG MINH từ nơi gọi —
+  `len(shared)` ở `business_confirm_identity`/`business_mark_out_of_
+  catalog` (một BH có thể mang NHIỀU dòng cùng khoá định danh), mặc định
+  `len(order_keys)` cho `business_exclude_line` (luôn đúng một dòng một
+  BH — hành vi không đổi).
+
+**Bằng chứng — test tái hiện lỗi, xác nhận fail-trước/pass-sau:**
+
+```text
+tests/test_ui030405_workspace_json.py::
+  test_a_decision_reaching_another_sheet_is_not_reported_as_removed
+
+Fixture riêng: hai dòng cùng product_raw CHƯA PHÂN LOẠI, một BH ở sheet
+noi-thanh, một BH ở sheet gia-dung (đẩy sang gia-dung bằng ĐÚNG con đường
+service.store.set_line_product_group() mà route Gia dụng dùng — sheet
+được tính từ QUYẾT ĐỊNH đã lưu qua effective_product_group(), KHÔNG đọc
+thẳng product_group_final của pipeline).
+
+Trước sửa:
+  ✘ FAIL — payload["affected"]["lines"] == 1 (đúng 1, thiếu 1)
+
+Sau sửa:
+  ✓ PASS — affected.lines == 2, order_keys == {BH90001, BH90002},
+    BH90002 KHÔNG có mặt trong removed_order_keys, và đọc lại sheet
+    gia-dung qua route HTML thật xác nhận BH90002 vẫn còn nguyên trên
+    báo cáo (không nằm trong danh sách "đã loại").
+```
+
+### Finding F-01 — 3 tham chiếu trần làm `validate_reference_integrity` FAIL
+
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` (§12, phụ lục push/tích
+hợp) ghi ba tên file TRẦN ("00_SESSION_ORCHESTRATION.md",
+"PROJECT_PROGRESS.md", "REVIEW_BUDGET_LEDGER.md") thay vì đường dẫn đầy
+đủ. Xác nhận đúng ba đường dẫn thật trong repo trước khi sửa (không
+đoán): `governance/core/00_SESSION_ORCHESTRATION.md`, `PROJECT/
+PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+### Bằng chứng đầy đủ (full suite, SAU repair)
+
+```text
+pytest (toàn repo)                   3681 passed, 23 skipped, 0 failed
+                                     (+1 so với trước repair — đúng test
+                                      mới của F-02, không bài nào bị xoá)
+tests/browser/ (jsdom, node --test)  25 passed (không đổi)
+tests/playwright/ (Chromium thật)    35 passed (không đổi)
+validate_reference_integrity         7 → 4 lỗi (4 lỗi còn lại là baseline
+                                      cũ, không liên quan lineage này)
+Validators khác                      structure/project_state/evidence/
+                                      task_completion PASS
+```
+
+### Phạm vi
+
+CHỈ hai finding trên. Không chạm `identity_gateway`/`line_identity` ở
+tầng tính toán — F-02 thuần là lỗi ở lớp build response JSON, đúng phạm
+vi review khoanh. F-01 chỉ sửa văn bản tham chiếu trong một file tài
+liệu.
+
+Trạng thái: repair `DONE`, đã commit local trên
+`claude/ui-03-04-05-reports-px1u9l` (`05daf76`). Chi tiết đầy đủ:
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` §13.
+
+---
+
+## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S154`, 2026-09-11)
+
+Ba lát dọc tiếp theo của Release 2 (roadmap Render), nối trực tiếp
+`UI-01`/`UI-02`. Nhánh `claude/ui-03-04-05-reports-px1u9l`, base
+`origin/claude/extract-upload-repo-gq2ws4` @ `a224e6f`.
+
+**Cập nhật cùng phiên (`S154`, sau khi push):** chủ dự án xác nhận trực
+tiếp bằng văn bản việc push, rồi `scripts/branch_authority_check.sh` báo
+`DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]` — nhánh mặc định đã
+tiến thêm 5 commit (`TASK-OWNER-UIUX-009` + `R7`, xem hai mục ngay dưới
+đây) trong lúc phiên này chạy, với xung đột THẬT ở 4 file
+(`kinh_doanh_nhan_vien.html`, `_r6_bits.html`, `server.py`,
+`tinphat-ui.css` — dò bằng `git merge-tree`, không ghi gì vào repo). Theo
+`governance/core/V4_1_POLICY_FREEZE.md` §8, chủ dự án chọn lựa chọn (A):
+merge nhánh mặc định vào ngay, giải xung đột, chạy lại toàn bộ test, rồi
+mới giao Independent Review. Merge đã thực hiện; hai file mã nguồn
+(`server.py`, `_r6_bits.html`, `tinphat-ui.css`) merge TỰ ĐỘNG sạch —
+`kinh_doanh_nhan_vien.html` xung đột thật (đè lên đúng vùng `identity_
+warning` mà `TASK-OWNER-UIUX-009` đã bỏ hiển thị), giải bằng cách NHẬN
+quyết định của `TASK-OWNER-UIUX-009` (bỏ vùng cảnh báo) và bỏ luôn khoá
+`"identity-warning"` khỏi `_workspace_regions()` — gửi HTML cho một vùng
+không còn host DOM là dữ liệu chết. Toàn bộ test chạy lại SAU merge, xem
+mục "Bằng chứng SAU tích hợp" bên dưới.
+
+**Chưa PR, chưa merge vào nhánh mặc định** — nhánh làm việc đã push, đã
+tích hợp với nhánh mặc định, chờ Independent Review.
+
+```text
+UI-03  Phân loại / loại / khôi phục NGAY TRONG bảng kê. Ba đường ghi giữ
+       NGUYÊN thân hàm và vẫn gọi nguyên identity_gateway/store — KHÔNG
+       route ghi mới nào. Chỉ CÂU TRẢ LỜI rẽ đôi ở dòng cuối
+       (_workspace_answer): trình duyệt không-JS nhận redirect y hệt trước,
+       client JS nhận payload vá tại chỗ.
+UI-04  Bảng kê dựng MỘT TRANG (100 dòng) + `XEM TIẾP` là liên kết THẬT
+       (`?tu=<mã BH>`). Có JS: trang kế lấy qua route JSON và NỐI thêm;
+       vượt 300 hàng thì GỠ các nhóm cũ nhất. Cắt theo RANH GIỚI BH.
+UI-05  Bấm một điểm biểu đồ ⟹ GHIM tooltip; bấm điểm khác ⟹ thay nội dung
+       NGAY TRONG popover đang ghim. Giá trị cơ bản hiện NGAY từ dữ liệu đã
+       có trong trình duyệt; phân rã theo nhân viên tải NỀN.
+```
+
+### Lát nền phải làm trước cả ba
+
+Markup của một hàng bảng kê trước đây chỉ tồn tại bên trong vòng lặp của
+`kinh_doanh_nhan_vien.html`. Cả `UI-03` lẫn `UI-04` cần đúng những `<tr>` ấy
+ở giữa một vòng đời khác, và đường sai là dựng chúng bằng JavaScript — tức
+một BẢN THỨ HAI của bảng kê (rowspan theo số dòng BH, ba cột tuỳ chọn ẩn
+bằng CSS, bốn loại nhãn, ô nhập thuộc `<form>` đứng ngoài bảng) sẽ lệch khỏi
+bản thứ nhất ở lần đầu ai đó thêm một cột, trong khi CẢ HAI đều "đúng" theo
+chính nó. Markup được chuyển NGUYÊN VĂN vào `_workspace_table.html`; trang
+đầy đủ và các route JSON gọi CÙNG những macro đó. Client KHÔNG dựng một thẻ
+`<tr>` nào.
+
+Bằng chứng refactor không đổi gì — render cùng trang trước/sau, bỏ thụt đầu
+dòng và dòng trống:
+
+```text
+$ diff <(sed 's/^[[:space:]]*//; /^$/d' /tmp/before.html) \
+       <(sed 's/^[[:space:]]*//; /^$/d' /tmp/after.html)
+77c77
+< <div class="kpi-grid strip">
+---
+> <div class="kpi-grid strip" data-region="kpi-strip">
+142a143,144
+> <div data-region="identity-warning">
+> </div>
+171c173,174
+< <tr class="row-total" data-metric="sheet-totals">
+---
+> <tr class="row-total" data-metric="sheet-totals"
+> data-region="sheet-totals">
+```
+
+Ba khác biệt, cả ba là thuộc tính `data-region` CỐ Ý thêm.
+
+### Hai lỗi tự phát hiện và đã sửa trong phiên
+
+```text
+trimToBudget    đo chiều cao vừa mất trên chính cái BẢNG — mép trên bảng
+                nằm PHÍA TRÊN chỗ bị gỡ nên nó không nhúc nhích, phép bù ra
+                0. Đo được: lệch 4.777 px. Đo trên hàng sống sót ĐẦU TIÊN
+                vẫn lệch 46,5 px (bố cục AUTO đổi chiều cao các hàng còn
+                lại). Nay neo vào hàng ĐẦU TIÊN CÒN TRONG KHUNG NHÌN →
+                dưới 4 px, canh bằng bài kiểm mới.
+<template>      nội dung template nằm THẬT trong tài liệu, nên phép tìm
+                `confirm-question` bắt được bản trong template TRƯỚC bản
+                đang hiển thị — hai bài của hộp xác nhận không-JS đỏ vì
+                đúng chuyện đó. Đổi thành `line-confirm-question`/
+                `line-confirm-point`: hai hộp, hai tên.
+```
+
+### Bằng chứng
+
+```text
+CHECK-UI345-01 … CHECK-UI345-24   PASS (E1)
+CHECK-UI345-25 Independent Review NOT_TESTED — phiên này KHÔNG tự đóng
+CHECK-UI345-26 Owner nghiệm thu   NOT_TESTED — chỉ Owner đóng
+CHECK-UI345-27 Postgres concurrency  BLOCKED — nợ kiểm chứng, xem dưới
+Full pytest      3662 passed / 23 skipped / 0 failed
+                 (nền CÙNG PHIÊN, CÙNG MÁY, trước khi sửa: 3643 / 23 / 0;
+                  +19 = đúng số bài mới, không bài nào bị xoá)
+jsdom            25 passed (không đổi)
+Playwright       35 passed (13 cũ + 22 mới, Chromium thật)
+Ngân sách        root task MỚI `UI-03-UI-04-UI-05` (MEDIUM, 1 cycle, CHƯA
+                 dùng) — KHÔNG phải cycle thứ hai của `UI-01-UI-02`
+                 (đã 1/1, 0 remaining); `git diff 9f15eb9..HEAD --
+                 app/web/static/js/app.js` xoá ĐÚNG hai dòng, cả hai thuộc
+                 khối tooltip, không dòng nào của handleSaveResult()/doSave()
+```
+
+### Số đo — `scripts/stab01_baseline.py --lines 5000`
+
+Máy dev, LOCAL/TEST — **KHÔNG PHẢI số production** (xem docstring đầu
+script).
+
+```text
+                                    p50        bytes      <tr>
+nhan-vien-full                    254,7 ms    322.214      103
+  bản ghi UI-01/UI-02, cùng script, cùng fixture:
+                                  1.417 ms 15.290.054    5.002
+ui03-mo-popover-phan-loai         160,7 ms        126        0
+  đường CŨ cho cùng việc (nhan-vien-fragment):
+                                  263,4 ms    319.736      103
+ui04-mot-trang-windowing          222,4 ms    343.321      101
+ui05-phan-ra-mot-moc              346,3 ms        399        0
+```
+
+`ui05` cao hơn vì `_chart_details()` có thể mở một lượt đọc kỳ THỨ HAI để
+phủ cửa sổ so sánh năm trước — chi phí ĐÃ CÓ SẴN của `R6`, không phải hồi
+quy; và nó chạy NỀN sau khi giá trị cơ bản đã hiện.
+
+### NỢ KIỂM CHỨNG (kế thừa, KHÔNG phải của ba lát này)
+
+`tests/test_p0_single_transaction.py` (11 bài — đồng thời/CAS trên
+PostgreSQL THẬT) **CHƯA TỪNG chạy được** qua toàn bộ vòng đời `UI-01`/
+`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2) lẫn phiên này, vì
+`REPORTS_TEST_POSTGRES_URL` không được đặt trong bất kỳ môi trường nào đã
+dùng. Ba lát ở đây KHÔNG chạm `MutationGuard`/CAS nên đây không phải lỗi
+của chúng — nhưng nó phải nằm trong bản ghi chính thức để không bị quên
+trước khi lên production. Lệnh cần chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+### Cố ý CHƯA làm
+
+Dải KPI/hàng TỔNG sau một lần PATCH của panel sửa đơn (giới hạn `UI-01`/
+`UI-02` còn nguyên, không mở rộng payload `api_patch_order`); bước xác nhận
+cho KHÔI PHỤC ở đường KHÔNG-JS (đổi hành vi một luồng đã nghiệm thu, ngoài
+Scope Lock); ghim/phân rã ở biểu đồ trang Báo cáo `R5` (phạm vi đọc bằng bộ
+tham số khác); đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md` (không trạng thái
+`DONE`/`CURRENT` nào đổi — việc đó thuộc phiên MERGE, cùng tiền lệ
+`UI-01`/`UI-02`); bằng chứng thị giác trên Render thật.
+
+Chi tiết đầy đủ:
+`docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`;
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md`;
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: UI-03-UI-04-UI-05".
+
+---
+
+## CANONICAL CURRENT STATE — Owner chọn hướng (2): Tracking DỰNG LẠI Min cho ngày trước mốc `R1` (`S154`, 2026-09-11)
+
+Tiếp nối `S153` và `TASK-OWNER-UIUX-009` (bên dưới). `DEC-222` §4 để lại ba hướng cho giá MIN của đơn bán trước
+07/09; Owner chọn hướng (2) — backfill bên Tracking nếu Engine còn dữ liệu.
+Điều tra xác nhận CÓ đủ dữ liệu, và việc đã làm xong bên Tracking.
+
+```text
+Bằng chứng    phist/<mã>/<NCC>/<ngày> — số > 0 là giá, 0 là NGỪNG BÁN, vắng
+              là không đổi; cộng purchase_price_history cho ô Tồn. Sentinel 0
+              là mấu chốt: minCuaDong() đọc trạng thái còn/hết của từng NCC.
+Tracking R7   dungBangTaiNgay() dựng trạng thái của đúng ngày ấy;
+              dungLaiMinNgay() đưa qua CHÍNH Engine của lượt chụp rồi ghi;
+              POST /api/min-ngay/dung-lai (admin, đòi lý do, trần 14 ngày).
+              R1 §3.2 KHÔNG bị nới — khác ở nguồn đầu vào, không ở công thức.
+Reports       gần như KHÔNG đổi. Bản ghi dựng lại mang hai trường MỚI
+              (reconstructed, reconstruction_note) + recorded_by="dung-lai:…".
+              Tracking cố ý không thêm giá trị vào enum day_status vì Reports
+              từ chối CẢ ảnh chụp khi gặp giá trị lạ. Thêm MỘT bài kiểm ghim
+              rằng bên sản xuất mới hơn được phép thêm trường.
+Giới hạn      meta.an không lưu theo ngày — ghi rõ ở DEC-224 §5, tra lại được
+              bằng vân tay k trên bản ngày.
+```
+
+```text
+Tracking npm test   69 bộ · 3253 đạt · 0 hỏng (bộ mới dung-lai-min-ngay.js,
+                    61 khẳng định) — PR #29 đã merge, CI xanh cả 5 check
+Reports full pytest 3659 passed / 23 skipped / 0 failed (nền S153: 3658 / 23 / 0; +1 bài kiểm hợp đồng)
+Việc của Owner      deploy Tracking → gọi /api/min-ngay/dung-lai → chạy lại
+                    báo cáo → kiểm ô Giá nhập đơn đầu tháng 9
+```
+
+Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-224`; mục "R7" trong tài
+liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này).
+
+---
+
+## CANONICAL CURRENT STATE — `TASK-OWNER-UIUX-009`: bỏ tag "Ngoài bảng giá" + hai khối cảnh báo, dời nút toggle (2026-09-11)
+
+Tiếp nối `S153`/`R7` (bên dưới). Ba yêu cầu trực tiếp của Owner trên
+trang Nhân viên (`DEC-223` — đánh số lại từ `DEC-222` để tránh trùng với
+`DEC-222` của `R7`, hai phiên độc lập cùng lấy số kế tiếp lúc tách nhánh):
+(1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn — coi như đã phân
+loại xong, đảo lại `§4.3` cũ của `R2` (Owner chấp nhận mất lối bấm "Nối
+lại Tracking" từ bảng kê, route vẫn sống nếu gọi thẳng URL); (2) bỏ khối
+"Đã tính được lợi nhuận: N/M dòng" + banner "có mã chưa được phân loại"
+khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG, HÃNG & IMEI" vào tiêu đề
+"Bảng kê", góc trên bên phải.
+
+Nhánh: `claude/reports-uiux-009-hide-tags-move-toggle`, dựng từ tip nhánh
+mặc định SAU khi `R5.4` đã merge, rồi đồng bộ lại lần nữa sau khi `R7`
+merge — đúng "Đồng Bộ Nhánh". Full suite `3643 passed, 24 skipped, 0
+failed` trên nền trước `R7`; 6 file test cập nhật đích theo hành vi mới
+(không xoá bài, không giảm coverage). Kiểm bằng Playwright trên bản dump
+tĩnh (CSS/JS thật, Flask test client thật) xác nhận cả ba thay đổi đúng
+như yêu cầu, kể cả ở màn hẹp 420px.
+
+Owner đã xác nhận merge sau khi được trình bày rõ đánh đổi ở mục (1).
+Chi tiết đầy đủ + bằng chứng: `PROJECT/PROJECT_DECISIONS.md` → `DEC-223`.
+
+---
+
+## CANONICAL CURRENT STATE — `R7`: liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng, `DONE`, merge theo chỉ thị Owner (`S153`, 2026-09-11)
+
+Tiếp nối `S152`. Owner giao ba việc kèm ba sổ thô và ảnh chụp (`DEC-222`).
+
+```text
+§A Liên hệ    5 đơn đầu tháng 9 hiện `—` dù sổ CÓ tên/SĐT ⟹ dòng SAME giữ
+              version cũ (ba cột liên hệ ngoài fingerprint). Sửa:
+              _refresh_contact_fields — làm mới tại chỗ 3 cột cho dòng SAME,
+              không version mới, không xoá bằng ô trống, canh AST.
+§B Giá MIN    KHÔNG sửa code. Ngày bán trước 07/09 (R1 Tracking) không có
+              bản ngày ⟹ `—` đúng thiết kế. Owner chọn hướng (DEC-222 §4).
+§C Biểu đồ    cửa sổ = CONTAINER LỊCH (Ngày 01→cuối tháng · Tuần trong quý ·
+              Tháng/Quý trong năm · Năm 5 mốc); so sánh = container năm
+              trước; đường hiện tại dừng ở mốc neo; dự phóng hết kỳ (% so
+              trọn cùng kỳ + % đến cùng thời điểm) ở cả hai biểu đồ, hai trang.
+§D Số đơn     nguồn lấp lỗ hổng thứ hai daily_orders.jsonl (579 ngày, 2025-01
+              → 2026-08, 29.883 đơn; chỉ ngày + số đếm), nối ở mọi mức gộp.
+```
+
+```text
+CHECK-R7-01 … CHECK-R7-12   PASS (E1)
+CHECK-R7-13 Owner nghiệm thu production   NOT_TESTED — chỉ Owner đóng
+Full pytest                 3658 passed / 23 skipped / 0 failed (nền S152: 3640 / 23 / 0; +18 bài mới, không bài nào bị xoá)
+Ngân sách                   root task MỚI R7 (MEDIUM, 1 cycle, chưa dùng)
+Tracking                    KHÔNG đổi
+```
+
+Chi tiết: `docs/tasks/R7-lien-he-bieu-do-container-so-don.md`;
+`docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-222`.
+
+---
+
+## CANONICAL CURRENT STATE — `R5.4`: nhãn cho dòng KHỚP TỰ ĐỘNG với Tracking, `DONE`, merge theo chỉ thị Owner (`S152`, 2026-09-10)
+
+Tiếp nối `S151`. Owner báo lỗi production sau merge `R5.3`: đã phân loại
+hãng/ngành bên Tracking nhưng tab Nhân viên vẫn tên dài + `—`, kể cả dòng
+đã có giá MIN. Điều tra rồi sửa theo chỉ thị trực tiếp (`DEC-221`).
+
+```text
+Nguyên nhân   ba cổng nhãn (_catalog_labels · product_taxonomy.metadata_of ·
+              brand_identity.bucket_for) chỉ tra mã qua mapping CONFIRMED do
+              người xác nhận trong Reports; đường sản xuất chính khớp TỰ ĐỘNG
+              (alias.map/board/inv.map) và cố ý không ghi mapping (INV-70)
+              ⟹ dòng có mã, có MIN, vẫn không nhãn. CHECK-R53-07 đã chốt
+              đúng hành vi sai này thành spec.
+Sửa           line_identity.tracking_identity_of(): mapping CONFIRMED thắng,
+              không có thì canonical_product_code lần chạy đã lưu trên dòng
+              (cột ĐÃ CÓ từ TASK-105D, nay business_queries chở xuống).
+              Không gọi Tracking thêm, không suy từ tên sổ, không migration,
+              cổng MATCHED_TRACKING không nới.
+Không thuộc   độ phủ "câu tên hàng → mã" = vận hành bên Tracking; giá MIN
+R5.4          `—` theo ngày 06/09, 09/09 nghi thiếu bản ngày — chưa xác minh.
+```
+
+```text
+CHECK-R54-01 … CHECK-R54-10   PASS (E1)
+CHECK-R54-11 Owner nghiệm thu production   NOT_TESTED — chỉ Owner đóng
+tests/test_r54_*              16 passed (MỚI)
+Full pytest                   3640 passed / 23 skipped / 0 failed (nền S151: 3628 / 24 / 0; +16 bài mới, không bài nào bị xoá)
+Ngân sách                     root task MỚI R5-4 (MEDIUM, 1 cycle, chưa dùng)
+                              — KHÔNG phải cycle thứ ba của R5 (DEC-221 §3)
+Tracking                      KHÔNG đổi (main @ 0f7347b)
+```
+
+Chi tiết: `docs/tasks/R5-4-nhan-cho-dong-khop-tu-dong.md`;
+`docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-221`.
+
+---
+
+## CANONICAL CURRENT STATE — Owner đóng escalation `FIND-R53-01` + `CHECK-R5-28`; merge `R5.3` vào nhánh mặc định (`S151`, 2026-09-10)
+
+Tiếp nối `S150` (bên dưới). Independent Review của `R5.3` (trên nhánh
+`claude/r5-3-reports-metadata-review-8bp6be`) kết luận `REPAIR_REQUIRED`
+với `FIND-R53-01` và escalate theo `governance/core/ESCALATION_PROTOCOL.md`
+vì lineage `R5` đã hết ngân sách repair-cycle (2/2, 0 remaining). Owner đã
+ra quyết định trực tiếp trong phiên này.
+
+```text
+DEC-218   FIND-R53-01 → ACCEPTED_RISK (không OWNER_EXTENSION, không mở
+          lineage riêng). Căn cứ: bằng chứng vận hành MỚI — Tracking commit
+          1c36fa2 (R5.2.3, cùng ngày, SAU HEAD review đã chốt) xoá đường
+          sửa tay từng mã Nhóm hàng/Hãng khỏi UI, và r52ApDungBackfill (nút
+          "Chuẩn hoá" tự động còn sống) tự loại trừ mọi mã đã khoá
+          category_provenance/brand_provenance = 'manual'. KHÔNG phải hạ
+          nhẹ vì hành vi kế thừa (review đã tường minh bác lý lẽ đó) — cơ
+          chế lỗi trong code KHÔNG đổi, chỉ xác suất xảy ra trong quy trình
+          vận hành thật giảm mạnh. CHECK-R53-13: FAIL → ACCEPT_WITH_RECORDED_RISK.
+          Ngân sách R5 KHÔNG đổi: 2 allowed / 2 used / 0 remaining (không
+          sửa mã sản phẩm). R5.3 được phép tiếp tục sang merge/deploy;
+          CHECK-R53-14 (Owner nghiệm thu production) vẫn NOT_TESTED, đứng
+          độc lập — chỉ đóng được SAU khi deploy thật.
+DEC-219   RÚT LẠI — SAI. Phiên này từng ghi nhầm CHECK-R6-30/CHECK-R6-32/
+          CHECK-R51-26 thành ACCEPTED_BY_OWNER_VERBAL, và ghi nhầm
+          INTEGRATION_DECISION_REQUIRED là "vẫn MỞ". Thực tế: cả bốn mục
+          đã đóng đúng bằng PASS (E1)/lựa chọn (A) từ DEC-210 (2026-09-09,
+          MỘT NGÀY TRƯỚC phiên này) — do đọc narrative cũ của
+          docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md và
+          REVIEW_BUDGET_LEDGER.md (cả hai CHƯA từng đồng bộ lại sau
+          DEC-210) mà không tìm PROJECT_DECISIONS.md trước. Đã sửa lại
+          đúng trong cùng phiên — xem DEC-219 §0 cho đầy đủ diễn biến.
+          R6 chuyển Status: DONE (Exit Criteria đã thoả từ DEC-210, chỉ
+          chưa được ghi lại đúng chỗ).
+DEC-220   CHECK-R5-28 (Owner nghiệm thu R5 gốc trên production) — Owner tự
+          xác nhận bằng lời trực tiếp trong phiên: NOT_TESTED →
+          ACCEPTED_BY_OWNER_VERBAL. Đây LÀ mục hợp lệ, KHÔNG trùng với sai
+          sót ở DEC-219 — CHECK-R5-28 chưa từng có quyết định nào trước đó.
+```
+
+Owner chỉ thị: chọn lựa chọn (A) cho `INTEGRATION_DECISION_REQUIRED` (đã
+đóng sẵn từ `DEC-210`, xác nhận lại), và merge `R5.3` vào nhánh mặc định
+(`R6` đã có sẵn trên nhánh mặc định từ trước, nên chỉ còn `R5.3` cần merge
+thật). `CHECK-R53-14` để lại xử lý SAU khi deploy thật, đúng bản chất "chỉ
+Owner đóng được trên production".
+
+**MERGE ĐÃ THỰC HIỆN.** Trước khi merge, đồng bộ nhánh phát hiện nhánh mặc
+định đã tiến thêm lineage `UI-01/UI-02` (panel sửa đơn tại chỗ, không liên
+quan `R5`/`R6`) kể từ `c46e458` — merge vào nhánh làm việc, giải quyết một
+xung đột tài liệu (giữ nguyên cả hai mục canonical). Full `pytest` sau khi
+unshallow (một object lịch sử thiếu do clone nông — lỗi môi trường đã biết,
+không phải regression): `3628 passed / 24 skipped / 0 failed`. Validators
+governance PASS (`reference_integrity` đúng 4 baseline cũ), `git diff
+--check` sạch. Push fast-forward:
+
+```text
+6c77961..5cfd000  claude/r5-3-owner-accepted-risk-find01 -> claude/extract-upload-repo-gq2ws4
+```
+
+Nhánh mặc định (`claude/extract-upload-repo-gq2ws4`) giờ tại `5cfd000`.
+Render tự động deploy sau push này — phiên KHÔNG có egress/credential tới
+Render nên KHÔNG xác nhận được deploy đã Live (cùng giới hạn các phiên
+merge trước). `CHECK-R53-14` chờ Owner nghiệm thu SAU khi deploy xong.
+
+Bằng chứng nguyên văn: `docs/sessions/S151-r53-owner-accepted-risk.md`
+§5–§8; `PROJECT/PROJECT_DECISIONS.md` → `DEC-218`, `DEC-219` (+ đính chính
+§0), `DEC-220`.
+
+---
+
+## CANONICAL CURRENT STATE — `R5.3`: nhãn Hãng/Nhóm hàng sống qua restart, `IMPLEMENTED`, CHƯA merge (`S150`, 2026-09-10)
+
+Owner báo lỗi đã xác minh trên PRODUCTION: *"sau upload sổ và chạy báo cáo,
+tab Nhân viên vẫn hiển thị `—` ở Model/Hãng/Nhóm hàng"*, kèm chỉ thị *"không
+được coi R5.1 cũ là đã hoạt động chỉ vì code hoặc test cũ từng xanh"*.
+
+```text
+Triệu chứng   cột Hãng và Nhóm hàng là "—" cho cả dòng đã CONFIRMED, và
+              trạng thái ấy KHÔNG tự thoát ra
+Audit         từng tầng đo lại trên đường THẬT — Tracking chieuBoard() ·
+              capture tool · loader · POST /run · _catalog_labels ·
+              _catalog_field — TẤT CẢ đều ĐÚNG. R5.1 REPAIR-2 thật sự đã
+              sửa đúng thứ nó nói là đã sửa.
+Nguyên nhân   chỗ đứt ở NƠI LƯU, không ở một tầng nào: nhãn sống trên đĩa
+              EPHEMERAL của Render (render.yaml: "KHÔNG có disk:"), tiền
+              sống trong PostgreSQL. Mỗi lần deploy/restart xoá nhãn và
+              KHÔNG có gì dựng lại nó.
+Đo được       TRUOC RESTART brand ['Samsung','—'] → SAU RESTART ['—','—']
+              (trên nền c46e458, trước khi sửa một dòng nào)
+Vì sao test   test_r51_repair2_* trỏ DEFAULT_DISPLAY_PATH vào tmp_path và
+cũ vẫn xanh   không bao giờ dọn nó — trong một tiến trình test, đĩa không
+              bao giờ biến mất
+Sửa           bảng mới tracking_display_snapshot (migration 0012, ADDITIVE
+              thuần) lưu nhãn BỀN theo run_id trong CHÍNH database giữ con
+              số của kỳ; server._tracking_display() dựng lại từ đó khi cache
+              đĩa rỗng rồi ghi lại cache. File trên đĩa xuống hạng CACHE.
+Không thêm    một lượt /run vẫn pull Tracking ĐÚNG 1 lần; đường dựng lại
+lời gọi nào   đọc DATABASE, không đọc Tracking (CHECK-R53-04/05)
+Không cửa     _catalog_labels()/_catalog_field() vẫn là hai cổng duy nhất
+mới để đoán   quyết định dòng nào được nhận nhãn — chưa khớp/xung đột/target
+              cũ/OUT_OF_CATALOG vẫn "—", trước VÀ sau restart
+Không đồng    bảng mới KHÔNG có một cột tiền nào (canh bằng test trên chính
+nào đổi       lược đồ); xoá/làm hỏng cache không đổi doanh thu, lợi nhuận,
+              SL, số dòng
+```
+
+```text
+CHECK-R53-01 … CHECK-R53-12   PASS (E1)
+CHECK-R53-13 Independent Review   NOT_TESTED — phiên này KHÔNG tự đóng
+CHECK-R53-14 Owner nghiệm thu     NOT_TESTED — chỉ Owner đóng
+Full pytest      3628 passed / 23 skipped / 0 failed (nền 3608 / 23 / 0)
+tests collected  3631 → 3651 (+20, KHÔNG bài nào bị xoá)
+Golden           58 passed / 2 skipped (KHỚP bản ghi R5.2)
+Smoke R5.3       25 PASS / 0 FAIL — producer Tracking THẬT
+Smoke R5.1       86 PASS / 0 FAIL (nền 83)
+Smoke R6         29 PASS / 0 FAIL (KHỚP bản ghi DEC-210)
+Validators       structure/project_state/evidence/task_completion PASS;
+                 reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+Tracking         KHÔNG đổi một dòng nào (main @ b7c5f3b, R5.2.2, đã xác minh
+                 là tổ tiên của origin/main hiện tại 0f7347b)
+Ngân sách R5     2 allowed / 2 used / 0 remaining — S150 KHÔNG tự tiêu và
+                 KHÔNG tự miễn; cần Owner/reviewer xác nhận
+```
+
+Chi tiết đầy đủ: `PROJECT/PROJECT_DECISIONS.md` → `DEC-217`;
+`docs/tasks/R5-3-nhan-hang-nhom-hang-song-qua-restart.md`;
+`docs/sessions/S150-r53-nhan-hang-nhom-hang-ben-vung.md`.
+
+---
+
+## CANONICAL CURRENT STATE — UI-01/UI-02 REPAIR-1 (theo sau Independent Review REQUEST CHANGES) (2026-09-10)
+
+Repair cycle DUY NHẤT của lineage `UI-01/UI-02` tính đến giờ, theo
+`governance/core/V4_1_POLICY_FREEZE.md` §3 ("cycle tính theo LẦN SỬA, mọi
+BLOCKING defect trong code/test do chính lượt triển khai trước đó tạo ra là
+defect của CÙNG repair cycle"). Không mở branch mới, không đổi base — vẫn
+`claude/reports-ui01-ui02-inline-edit-k5uynh`, base
+`origin/claude/extract-upload-repo-gq2ws4` @ `c46e458`.
+
+```text
+review_round_1   REQUEST CHANGES (Independent Review, trên HEAD `e95066a`)
+finding P0       1 (BLOCKING) — bảng nền không được vá khi panel đóng
+                 trước khi PATCH resolve
+finding P2       1 (khuyến nghị, không chặn merge) — tham số chết
+                 `opts.sameIntent` trong doSave()
+repair_1         ĐÃ HOÀN TẤT, cả hai finding, tiêu cycle DUY NHẤT
+base_sha         e95066ad99496eb02df93e370206d93e02651776
+head_sha         9f15eb986b45f81a454d0add754e0c7bef9be360
+```
+
+Ngân sách + Blast Radius đầy đủ: `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root
+Task: UI-01-UI-02".
+
+### Finding P0 (BLOCKING) — bảng nền không được vá nếu panel đóng trước khi PATCH resolve
+
+`app/web/static/js/app.js`, `handleSaveResult()`: bản trước bọc TOÀN BỘ hàm
+(kể cả nhánh `result.ok` → `applySuccess()` → `patchTableFromPayload()`)
+trong `if (!panel || panel.dialog !== dialog) return;`. Đóng panel (Escape/
+nút Đóng/mở panel khác) TRƯỚC KHI PATCH resolve đổi `panel`/`panel.dialog`
+trước khi response về — nhánh thành công `return` sớm, và việc vá hàng đã
+đổi + hàng TỔNG trên bảng nền KHÔNG BAO GIỜ chạy dù server đã ghi thành
+công. Ô giá giữ nguyên giá trị CŨ tới khi F5 (tải lại cả trang).
+
+Đây là SAI LỆCH giữa hành vi thực tế và HAI tuyên bố đã ghi trước đó — cả
+chú thích trong chính `applySuccess()` ("Bảng nền LUÔN được cập nhật, kể cả
+khi panel đã bị đóng…") và entry `PROJECT_PROGRESS.md` trước repair này
+("đóng panel không huỷ PATCH đang bay — bảng nền vẫn được vá khi nó về").
+Cả hai đúng về Ý ĐỊNH thiết kế, sai về hành vi THỰC TẾ của phiên bản đã
+push cho review.
+
+**Sửa:** tách `isCurrentDialog = !!(panel && panel.dialog === dialog)`
+khỏi luồng chính. Guard đó chỉ còn gác phần UI CỦA CHÍNH panel đang mở
+(bật lại nút LƯU; vẽ trạng thái `conflict`/`error` — những nhánh này ghi
+vào `panel.*`/`dialog` nên PHẢI đúng là panel hiện tại, nếu không sẽ ghi
+nhầm trạng thái vào panel của một đơn khác). Nhánh `result.ok` gọi
+`applySuccess(dialog, result.payload)` VÔ ĐIỀU KIỆN — không đổi
+`applySuccess()`, vì hàm đó *đã* đúng cấu trúc từ trước (vá bảng nền đứng
+NGOÀI guard theo dialog ngay trong chính nó); bug chỉ nằm ở lớp gọi
+`handleSaveResult()` phía ngoài chặn mất đường vào.
+
+**Bằng chứng — test tái hiện lỗi, xác nhận fail-trước/pass-sau:**
+
+```text
+tests/playwright/order-panel-save.spec.mjs
+  "đóng panel TRƯỚC KHI PATCH resolve — bảng nền vẫn được vá (repair,
+   finding P0)"
+
+Trước sửa (git stash app.js, giữ nguyên test mới):
+  ✘ FAIL — PATCH trả 200 với giá mới, nhưng ô giá trên bảng nền vẫn hiện
+    "600" (giá trị CŨ) cho tới hết timeout 5s của assertion.
+
+Sau khi khôi phục sửa (git stash pop):
+  ✓ PASS (2.2s) — ô giá + hàng TỔNG khớp CHÍNH XÁC payload PATCH trả về.
+```
+
+Cách dựng test: route trì hoãn mọi `PATCH` 1 giây; mở panel, sửa giá, bấm
+LƯU, đóng panel NGAY (trước khi response về — xác nhận qua
+`data-state="saving"` rồi mới đóng); đợi response THẬT resolve; assert ô
+giá của đúng dòng (`data-order`+`data-product-key`+`data-occurrence-index`)
+và hàng TỔNG Giá nhập khớp đúng chuỗi server trả (`payload.lines[…].
+purchase_price.text` và `payload.totals.sheet.row_totals.purchase_price`),
+không chỉ "khác giá trị cũ".
+
+### Finding P2 (khuyến nghị, không chặn merge) — tham số chết `opts.sameIntent`
+
+`app/web/static/js/app.js`, `doSave(dialog, opts)`: tham số `opts` chỉ được
+đọc ở `opts = opts || {}`, không nơi nào đọc `opts.sameIntent`. Hành vi giữ
+nguyên `idempotency_key` qua lần THỬ LẠI là mặc định VÔ ĐIỀU KIỆN của hàm,
+đúng ngẫu nhiên chứ không nhờ cờ đó — code và chú thích đang nói hai
+chuyện khác nhau. Đã xoá tham số + hai call site truyền `{ sameIntent:
+true }`, viết lại docstring cho khớp hành vi thật (giữ mã là mặc định;
+gửi lại sau `REVISION_CONFLICT` là một quyết định MỚI nên NƠI GỌI —
+`applyConflict()` — tự sinh mã mới TRƯỚC khi gọi `doSave(dialog)`, không
+phải hàm này tự phân nhánh).
+
+### Bằng chứng đầy đủ (full suite, sau repair)
+
+```text
+pytest (toàn repo, trừ test_105d_boundaries.py môi trường + -k "not postgres")
+                                      3568 passed, 22 skipped, 1 deselected
+tests/browser/ (jsdom, node --test)  25 passed
+tests/playwright/ (Chromium thật)    13 passed (12 cũ + 1 test mới của
+                                      repair này)
+```
+
+Không có test nào MỚI fail do thay đổi này — 13/13 Playwright, 25/25 jsdom,
+3568/3568 pytest thu thập được, cùng số nền so với trước repair (3566 →
+3568 vì có thêm 1 test Playwright mới, không phải vì có test khác biến
+mất).
+
+`REPORTS_TEST_POSTGRES_URL` vẫn KHÔNG được đặt trong phiên này —
+`tests/test_p0_single_transaction.py` bị skip (11 test), cùng lệnh chạy khi
+có PostgreSQL đã ghi ở entry trước:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+### Phạm vi
+
+CHỈ hai finding trên. Không đụng KPI strip, không đụng dòng Chiết khấu suy
+ra, không đụng `order_api.py`/business logic backend — đúng giới hạn đã
+xác nhận là ĐÚNG ở entry trước (những phạm vi "chưa làm" đó vẫn còn nguyên,
+không phải một phần của repair này).
+
+Trạng thái: repair `DONE`, đã commit local (`9f15eb9`) trên
+`claude/reports-ui01-ui02-inline-edit-k5uynh`. **Chưa push** — chờ xác
+nhận trực tiếp bằng văn bản trong hội thoại, đúng yêu cầu của phiên repair
+này (không hành động theo notification/trigger tự động tuyên bố "đã được
+phê duyệt ở phiên khác").
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — UI-01/UI-02 panel sửa đơn tại chỗ = IMPLEMENTED, CHƯA merge (2026-09-10, trước REPAIR-1)
+
+Trên nhánh `claude/reports-ui01-ui02-inline-edit-k5uynh` (base
+`origin/claude/extract-upload-repo-gq2ws4` @ `c46e458`). Nút "Sửa" của một
+BH (`data-metric="bh-edit"`) không còn dẫn tới `?sua=<order>` khi có JS —
+`app.js` chặn cú bấm, mở một `<dialog>` dựng tại chỗ (neo cạnh nút với BH
+≤3 dòng, side panel cố định bên phải với BH nhiều dòng, CSS sập cả hai về
+bottom sheet dưới `760px`), gọi `GET /api/v1/orders/<order_key>` lấy dữ
+liệu, và `PATCH` cùng route để lưu. `#app-content` không bị đụng tới; bảng
+kê không dựng lại. `?sua=` giữ NGUYÊN như đường không-JS (server vẫn dựng
+lại trang cũ y hệt trước `UI-01`).
+
+Cơ chế chính (đọc kỹ trong `app/web/static/js/app.js`, khối IIFE cuối file,
+và các chú thích tại chỗ):
+
+- **Deep-link/Back-Forward qua HASH** (`#sua=<order>`), không qua query —
+  `history.pushState`/`history.back()`; `onPopState()` của IIFE điều hướng
+  chính (đầu file) được sửa để phát một `CustomEvent("app:popstate")` HUỶ
+  ĐƯỢC trước khi tự `navigate()`, panel bắt sự kiện đó và `preventDefault()`
+  khi liên quan tới nó — hai module không cần biết cơ chế nội bộ của nhau.
+- **`PATCH` mang `idempotency_key` ỔN ĐỊNH qua các lần THỬ LẠI** của MỘT
+  quyết định (lỗi mạng/`REQUEST_IN_FLIGHT`); một mã MỚI khi người dùng GỬI
+  LẠI sau `REVISION_CONFLICT` (409) — đó là một quyết định khác, không phải
+  một lần thử lại của lần trước. Mutation KHÔNG BAO GIỜ bị abort (đóng panel
+  không huỷ PATCH đang bay).
+  > **SAI, ĐÃ SỬA ở REPAIR-1 (xem entry ở đầu file).** Câu gốc ở đây nói
+  > "bảng nền vẫn được vá khi nó về" — điều đó KHÔNG đúng tại HEAD này:
+  > `handleSaveResult()` bọc TOÀN BỘ nhánh thành công (kể cả
+  > `patchTableFromPayload()`) trong một guard theo `panel.dialog`, nên đóng
+  > panel trước khi PATCH resolve làm bảng nền giữ giá trị CŨ dù server đã
+  > ghi. Independent Review bắt được finding này (P0, blocking) trước khi
+  > merge — hành vi ĐÚNG chỉ có từ REPAIR-1.
+- **409 giữ nguyên draft** (không xoá ô người dùng vừa gõ), hiện hai lựa
+  chọn ("GỬI LẠI VỚI BẢN MỚI" / "LẤY GIÁ TRỊ MỚI") — không bao giờ tự
+  last-write-wins.
+- **Lưu thành công chỉ vá đúng hàng đã đổi** (khoá 3 phần `data-order` +
+  `data-product-key` + `data-occurrence-index`, gắn mới trong template —
+  xem chú thích `UI-01`/`UI-02` tại `kinh_doanh_nhan_vien.html`) và hàng
+  TỔNG Giá nhập/Giá bán (server tính lại bằng CHÍNH
+  `workspace_presentation.sheet_detail_totals` mà lần render đầy đủ dùng —
+  `order_api.patch_payload()` thêm `totals.sheet.row_totals`, không phép
+  cộng thứ hai nào). **Cố ý KHÔNG vá** dải KPI phía trên (Doanh thu/So
+  Target/DS quy đổi…) và hàng TỔNG Lợi nhuận/DS quy đổi — chúng cần một đối
+  tượng gate (CHÍNH THỨC/CHƯA HOÀN CHỈNH) mà response PATCH không mang
+  theo, và đoán gate đó ở client là dựng một thẩm quyền nghiệp vụ thứ hai.
+  Panel cũng không vá dòng Chiết khấu suy ra (`row.synthetic`) của một BH có
+  chiết khấu — dòng đó là một cách TRÌNH BÀY của cùng một dòng nghiệp vụ,
+  không có khoá riêng trong payload JSON.
+- Sửa kèm một lỗi CSS có sẵn, không phải riêng của panel: `.act, .ghost,
+  button { display: inline-flex }` có độ đặc thù BẰNG `[hidden]` của UA
+  stylesheet và đứng SAU trong nguồn, nên mọi nút `hidden` mang lớp
+  `.ghost`/`.act` vẫn hiện ra — Playwright bắt được lỗi này khi kiểm bẫy
+  focus của panel. Sửa bằng một luật `[hidden] { display: none; }` đứng
+  cuối `tinphat-ui.css`.
+
+Bằng chứng:
+
+```text
+pytest (toàn repo, trừ Postgres/P0)  3566 passed, 13 skipped
+tests/browser/ (jsdom, node --test)  25 passed
+tests/playwright/ (Chromium thật)    12 passed — mở/sửa/lưu/đóng,
+                                      scroll/focus/bẫy focus, Back/Forward,
+                                      lỗi mạng+THỬ LẠI, 409 conflict,
+                                      response GET cũ bị bỏ qua
+```
+
+`scripts/stab01_baseline.py --lines 5000` (máy dev, LOCAL/TEST — KHÔNG PHẢI
+số production, xem docstring đầu script):
+
+```text
+                                      p50        bytes
+mở đơn kiểu CŨ (dựng lại cả bảng)     1417 ms    15.290.054 (nhan-vien-fragment)
+mở panel (= GET /api/v1/orders/…)     204 ms          1.852
+PATCH đơn lẻ (cold)                   282 ms          2.169
+PATCH — 20 thao tác liên tiếp         p50 431 ms, p95 477 ms (mỗi lượt một
+                                      idempotency_key/base_revision mới)
+```
+
+Chênh lệch bytes (15,3 MB → dưới 2 KB) là bằng chứng trực tiếp cho lý do
+`API-01` tồn tại (xem docstring `order_api.py`). Số PATCH cao hơn GET vì
+mỗi lượt đi qua `MutationGuard.transaction()` (khoá + CAS revision + ghi +
+đọc lại — xem `api_patch_order()`), không phải một hồi quy — đây là chi phí
+đã có SẴN của at-most-once/CAS (`P0-1`/`P0-3`), panel chỉ là một client mới
+gọi tới đường đó.
+
+Playwright: pin `@playwright/test@1.63.0` trong `package.json`/
+`package-lock.json`, cấu hình ở `playwright.config.mjs` (trỏ thẳng Chromium
+đã cài sẵn của môi trường qua `PLAYWRIGHT_CHROMIUM_PATH`, mặc định
+`/opt/pw-browsers/chromium` — không tự tải browser). Máy chủ fixture cho
+Playwright: `tests/playwright/fixture_server.py` (app Flask THẬT, dữ liệu
+`tests.fixtures.workspace_scale` + một BH năm dòng dựng riêng cho ca side
+panel). Nối vào pytest qua `tests/test_playwright_ui_suite.py`, cùng kỷ luật
+`tests/test_browser_dom_suite.py` — `pytest.skip` với câu nói rõ thiếu gì
+khi không có Node/Chromium/venv, không bao giờ báo xanh giả.
+
+`REPORTS_TEST_POSTGRES_URL` KHÔNG được đặt trong phiên làm việc này —
+`tests/test_p0_single_transaction.py` (đồng thời/CAS trên PostgreSQL thật)
+bị bỏ qua. Lệnh chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+Chưa làm / phạm vi còn lại: dải KPI phía trên và hàng TỔNG Lợi
+nhuận/DS quy đổi sau một lần lưu (xem lý do ở trên — cần server trả thêm
+gate, chưa có trong phạm vi API-02 hiện tại); vá dòng Chiết khấu suy ra;
+không có bằng chứng thị giác (ảnh chụp) trên môi trường Render thật — mọi
+số đo ở trên là máy dev + Chromium local.
+
+Trạng thái tại thời điểm viết entry này: `IMPLEMENTED`, chưa qua Independent
+Review, chưa merge, chưa push.
+> **Cập nhật:** nhánh đã được push (theo xác nhận trực tiếp của chủ dự án)
+> và đã qua một vòng Independent Review, kết quả `REQUEST CHANGES` — xem
+> entry REPAIR-1 ở đầu file. Câu "chưa push" ở trên chỉ đúng tại thời điểm
+> commit gốc, không còn đúng ở HEAD hiện tại.
+
+## CANONICAL CURRENT STATE — lấp lỗ hổng "cùng kỳ năm trước" bằng nguồn vẽ riêng (`DEC-216`, 2026-09-10)
+
+Nối tiếp `DEC-215` §1: Owner xác nhận nguyên nhân (a) — sổ cũ chỉ có TỔNG
+THÁNG — và chốt một đường đi vòng. Doanh số TỪNG NGÀY được trích trong
+phiên từ các sheet chi tiết của hai workbook kế toán, chỉ hai cột `Date` và
+`Tổng bán`, rồi commit thành một nguồn riêng chỉ dùng để VẼ.
+
+```text
+Nguồn      data/chart_gapfill/daily_revenue.jsonl (579 ngày,
+           2025-01-02 → 2026-08-31, 362.170.585 nghìn đồng)
+Xuất xứ    data/chart_gapfill/PROVENANCE.md — luật trích, bất thường và
+           quyết định của Owner cho từng bất thường
+Origin     `CHART_GAPFILL`, KHÔNG mượn nhãn `LEGACY_REFERENCE`
+Thẩm quyền sổ nạp → sổ cũ → lấp lỗ hổng, giải ở mức NGÀY
+Phạm vi    chỉ mức Ngày/Tuần, chỉ biểu đồ doanh thu (cả trang Báo cáo lẫn
+           trang Phân tích, để hai trang không cho hai con số)
+```
+
+`DEC-181` KHÔNG bị nới: không đụng bảng `legacy_*`, `POST /du-lieu/legacy`
+vẫn trả 409 vô điều kiện, `authoritative_period_sales` vẫn là thẩm quyền
+duy nhất cho tổng một kỳ số cũ. Nguồn này không được dùng để đối soát, và
+mỗi mốc dựng từ nó tự khai điều đó trong lời giải thích của chính nó.
+
+Hai phát hiện về file nguồn của Owner, đã xác minh: khối tháng 8/2026 bị
+LẶP trong `Summary 2026` (hệ thống thật KHÔNG cộng đôi — lấy dòng đầu tiên
+rồi dừng), và `MONTH_TOTAL` năm 2026 KHÔNG bao gồm dòng `Gia dụng` (đúng
+8/8 tháng). Chi tiết ở `DEC-216` §7.
+
+Trạng thái: `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng: đối soát 18/20 tháng khớp tuyệt đối, 2 tháng lệch bằng đúng
+giá trị hai sheet Owner đã chọn loại; full pytest 3493 passed / 12 skipped
+(1 deselected — failure môi trường có sẵn, xem `DEC-211` §5); smoke R6
+29/0; smoke R5.1 83/0; kiểm thị giác ảnh chụp Chromium thật, mức Ngày và
+Tuần, đường "Cùng kỳ năm trước" đã liền.
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-216`.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — trục X gọn DD/MM; chẩn đoán "cùng kỳ năm trước" trống (`DEC-215`, 2026-09-10)
+
+Owner báo cáo qua ảnh chụp: (1) không thấy đường "Cùng kỳ năm trước" của
+biểu đồ Xu hướng doanh thu, (2) trục X hiện ngày kèm năm lặp lại.
+
+(2) đã sửa: trục X mức Ngày/Tuần rút gọn còn DD/MM (Tháng/Quý/Năm giữ
+nguyên năm — cửa sổ của chúng vắt qua nhiều năm dương lịch). Tooltip và
+dòng "Kỳ này/Cùng kỳ năm trước" vẫn đầy đủ DD/MM/YYYY.
+
+(1) đã CHẨN ĐOÁN, chưa kết luận: phép tính cửa sổ so sánh ĐÚNG thiết kế
+`DEC-211`. Ô trống nhiều khả năng nhất là sổ cũ giai đoạn 2025 chỉ nạp
+TỔNG THÁNG, không có bằng chứng TỪNG NGÀY (`CHART-10`) — mức Ngày/Tuần vì
+thế không vẽ được, dù mức Tháng có thể vẫn có. Cách Owner tự kiểm: đổi
+sang mức Tháng, xem 08-09/2025 có số hay không. Chi tiết đầy đủ, gồm cách
+phân biệt ba khả năng, ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-215` §1.
+
+Trạng thái: (2) `DONE`, đã merge vào nhánh mặc định. (1) chờ Owner xác
+nhận dữ liệu trước khi có việc để làm ở phía code — hoặc xác nhận không
+phải lỗi.
+
+Bằng chứng: full pytest 3474 passed / 12 skipped (1 failure môi trường có
+sẵn); smoke R6 29/0; smoke R5.1 83/0; kiểm thị giác ảnh chụp Chromium
+thật xác nhận trục X đã gọn.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — biểu đồ Số đơn lấp card "Biểu đồ khác" (`DEC-214`, 2026-09-10)
+
+Owner hỏi có biểu đồ nào tích hợp được vào card bên phải của trang Báo cáo
+("Biểu đồ khác — sắp có", để trống từ `TASK-OWNER-UIUX-003` §2). Trả lời
+bằng cách triển khai: biểu đồ SỐ ĐƠN, dùng lại nguyên macro/hàm trình bày
+mà trang phân tích R6 đã kiểm chứng — không dựng biểu đồ thứ hai riêng.
+
+Nhân đó tìm và sửa một khiếm khuyết trình bày có sẵn (không phải do việc
+này gây ra): trục Y của biểu đồ Số đơn luôn hiện "0" vì hàm dùng chung
+chia 1.000 vô điều kiện. Sửa `_chart_y_axis` nhận `money: bool`, áp cho cả
+card mới lẫn `/kinh-doanh/phan-tich` sẵn có.
+
+Trạng thái: `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng: full pytest 3471 passed / 12 skipped (1 failure môi trường có
+sẵn, không phải hồi quy — xem `DEC-211` §5); smoke R6 29/0; smoke R5.1
+83/0; kiểm thị giác ảnh chụp Chromium thật, nền sáng/tối, cả hai trang
+dùng chung engine biểu đồ.
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-214`.
+
+## CANONICAL CURRENT STATE (LỊCH SỬ) — ba yêu cầu hiển thị của Owner (`DEC-211`…`DEC-213`, 2026-09-09)
+
+Owner giao trực tiếp ba việc, đã hỏi lại và chốt đủ brief trước khi làm:
+
+```text
+DEC-211   Biểu đồ Xu hướng doanh thu so CÙNG KỲ NĂM TRƯỚC ở cả năm mức gộp.
+          Cửa sổ 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm; mép phải neo
+          vào NGÀY CÓ DỮ LIỆU MỚI NHẤT; số cũ và số mới nối thành MỘT dải
+          liên tục (thẩm quyền nguồn giải theo NGÀY ở mức Ngày/Tuần).
+DEC-212   MỌI số tiền viết theo NGHÌN ĐỒNG, kể cả đơn giá. Ô NHẬP giá là
+          ngoại lệ duy nhất, giữ VND đầy đủ.
+DEC-213   Áp toàn bộ ngôn ngữ thiết kế Tracking; gỡ lớp đè `theme-finance`;
+          thêm nền tối và bộ icon SVG.
+```
+
+Trạng thái: cả ba `DONE`, đã merge vào nhánh mặc định.
+
+Bằng chứng (chạy tại HEAD sau khi hoàn tất cả ba):
+
+```text
+Full pytest      3466 passed / 12 skipped / 1 failed
+                 Failure DUY NHẤT là
+                 `test_protected_golden_artifacts_match_the_task_105e_review_base`,
+                 và nó ĐỎ SẴN TRƯỚC mọi thay đổi của phiên này: bài kiểm chạy
+                 `git diff --stat 740f396…`, mà clone nông của môi trường này
+                 không có commit đó (`fatal: bad object`). Đây là khiếm khuyết
+                 MÔI TRƯỜNG, không phải hồi quy — đã đo baseline trước khi sửa
+                 dòng mã đầu tiên và kết quả y hệt.
+Bất biến tiền    `git diff` RỖNG trên `app/modules/pricing/`,
+                 `app/modules/profit/`, `app/modules/kpi/`, `period_lock.py`,
+                 `business_store.py`, `business_queries.py`,
+                 `business_service.py`, `business_metrics.py`, `config/`
+Kiểm thị giác    ảnh chụp Chromium THẬT, nền sáng và nền tối, trên Báo cáo ·
+                 Nhân viên · Dữ liệu · Tổng quan · Bảng kê chi tiết
+Tracking         KHÔNG đổi một dòng nào (chỉ khảo sát, chỉ đọc)
+```
+
+Chi tiết đầy đủ ở `PROJECT/PROJECT_DECISIONS.md` → `DEC-211`, `DEC-212`,
+`DEC-213`.
+
+
+## CANONICAL CURRENT STATE — `R6` ĐÃ MERGE vào nhánh mặc định (`DEC-210`, 2026-09-09)
+
+Owner chốt: tích hợp `R6` nguyên khối sau khi Independent Review đã `PASS`.
+Merge `--no-ff` nhánh `claude/r6-independent-review-round-2-dycl6b` @ `0ffb943`
+(= `R6` `IMPLEMENTED` + `REPAIR-1` + Independent Review vòng 2 `PASS`, KHÔNG
+mang `R5.1 REPAIR-2` — hai commit REPAIR-2 từng phát triển tạm trên nhánh `R6`
+gốc đã được S148 tách riêng và merge trước đó qua lineage khác) vào nhánh mặc
+định `claude/extract-upload-repo-gq2ws4`, trên đúng tip sau `R5.1 REPAIR-2`
+(`6f768ea`).
+
+```text
+CHECK-R6-31    PASS (E1) — Independent Review vòng 2, xác minh LẠI trong
+               phiên merge: nhánh review có thật trên origin, lineage đúng
+               hậu duệ 40807ef, diff CHỈ tài liệu, full pytest 3445 passed /
+               12 skipped / 0 failed KHỚP bản ghi, smoke R6 29 PASS/0 FAIL
+               KHỚP bản ghi, git diff --check sạch
+CHECK-R6-30    PASS (E1) — đối soát sổ Owner THẬT (49edea00-...xlsx) tại HEAD
+               40807ef, chạy 2 lần độc lập trong phiên: Nguồn ↔ Aggregate ↔
+               Kỳ vọng KHỚP TOÀN BỘ cả 8 chỉ tiêu, EXIT=0
+CHECK-R51-26   PASS — Owner tự nghiệm thu R5.1 trên production, xác nhận
+               trực tiếp trong phiên
+CHECK-R6-32    PASS — Owner Acceptance, qua chỉ thị merge/deploy trực tiếp
+               SAU khi được trình bày đầy đủ trạng thái thật
+INTEGRATION_DECISION_REQUIRED   ĐÓNG — Owner chọn (A) integrate/merge sớm
+```
+
+Kiểm chứng SAU merge, trên chính cây đã merge (không phải bàn giao lại):
+
+```text
+Full pytest         3461 passed / 11 skipped / 0 failed
+                     (= 3275 của R5.1 REPAIR-2 + 186 của toàn bộ R6)
+Smoke R6             29 PASS / 0 FAIL — producer Tracking THẬT
+Smoke R5.1           83 PASS / 0 FAIL — xác nhận REPAIR-2 không hồi quy
+git diff --check     sạch
+Bất biến tiền        git diff RỖNG trên pricing/profit/kpi/period_lock/
+                     business_store/business_queries/business_service/
+                     business_metrics/migrations/config — so với nền 05f2b44
+Governance           structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+                     (S136, TASK-REM-T06), KHÔNG có reference mới hỏng
+```
+
+Bằng chứng nguyên văn: `PROJECT/PROJECT_DECISIONS.md` → `DEC-210`.
+
+---
+
+## Nhánh integration `claude/r51-repair-2-integration` — CHỈ mang `R5.1 REPAIR-2`
+
+Nhánh này TÁCH RIÊNG khỏi `claude/r6-business-analytics-dashboard-it73x5`: cắt
+từ đúng nhánh mặc định (`origin/claude/extract-upload-repo-gq2ws4` @ `05f2b44`),
+cherry-pick CHỈ hai commit repair (`a14df7c3`, `f891393`) mang `R5.1 REPAIR-2`
+— KHÔNG mang `R6` (không module/route/template/test/tài liệu/governance của
+`R6`; xem `git diff origin/claude/extract-upload-repo-gq2ws4...HEAD` để xác
+minh).
+
+Governance dưới đây (`S146`/`S147`/`DEC-208`/`DEC-209`) được giữ NGUYÊN VĂN từ
+hai commit đó — kể cả những đoạn viết trên nhánh `R6` gốc. Hai chỗ ĐÃ được
+lược bỏ vì chỉ mô tả trạng thái MÔI TRƯỜNG/nhánh `R6` gốc, không áp dụng cho
+nhánh integration này: đoạn giải thích baseline `1 failed → 0 failed` của
+`S145` (một vấn đề clone nông trên nhánh khác), và cờ
+`INTEGRATION_DECISION_REQUIRED` theo LOC tích luỹ của `R6` (`S145` §8b — nhánh
+này không tích luỹ LOC của `R6`).
+
+**Baseline THẬT của nhánh integration này** (đo lại từ đầu, KHÔNG suy từ số
+liệu `S146`/`S147` — những số đó là bản ghi lịch sử của nhánh `R6` gốc, có
+tập test khác hẳn):
+
+```text
+Full regression    3275 passed / 11 skipped / 0 failed
+Smoke R5.1          83 PASS / 0 FAIL (§5 trống + §6 cũ)
+Governance          structure/project_state/evidence/task_completion PASS;
+                    reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+git diff --check    sạch
+```
+
+Chi tiết đầy đủ: `docs/sessions/S148-r51-repair-2-integration-branch.md`.
+
+---
+
+## CANONICAL CURRENT STATE — R5.1 REPAIR-2 (vòng 2): cảnh báo khi bản chiếu CŨ một phần, `IMPLEMENTED`, CHƯA merge (`S147`, 2026-09-09)
+
+**Tiếp tục ĐÚNG task `REPAIR-2` đã mở ở `S146` — không phải task mới.** Trước
+khi mở Independent Review, Owner chỉ thị đóng thêm một ca mà vòng 1
+(`DEC-208`) chưa đóng: bản chiếu đã có dữ liệu THẬT, một mã MỚI được xác nhận
+SAU lần ghi thành công gần nhất, rồi lần chạy KẾ TIẾP trả `NO_METADATA` hoặc
+ghi thất bại (`WRITE_FAILED`) — hai câu chuyện đó và "Tracking chưa phân
+loại" (`AR-R5.1-01`, hợp lệ) cho ra CÙNG một `catalog_display.read()`, nên
+`DEC-208` §4 (chỉ cảnh báo khi VẮNG HOÀN TOÀN) im lặng đúng lúc cần nói.
+
+```text
+Sửa (DEC-209)  write() ghi thêm LỊCH SỬ của chính lần ghi gần nhất (file
+               trạng thái CẠNH bản chiếu, KHÔNG một khoá nhồi vào nó);
+               _catalog_projection_warning() thêm hình dạng 2 (kind="cu"),
+               gated trên bằng chứng đó — hình dạng 1 (kind="vang") GIỮ
+               NGUYÊN VĂN, vô điều kiện như DEC-208 §4
+Bất biến       KHÔNG đổi tên hàng, mapping, giá MIN, lợi nhuận, tổng tiền —
+               đo bằng HÀNH VI ở cả test và smoke, không chỉ bằng lý luận
+```
+
+```text
+Kiểm chứng vòng 2
+  Test mới           3 bài (12 → 15) — CHECK-R51R2-17/-18/-19, red→green
+                     xác nhận (tạm vô hiệu hoá nhánh mới ⟹ 2 ĐỎ đúng 2 bài)
+  Full regression    3461 passed / 11 skipped / 0 failed (+3 đúng số bài mới)
+  Smoke R5.1         83 PASS / 0 FAIL — §6 MỚI: bản chiếu CŨ qua producer
+                     Tracking THẬT (nền 74)
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ,
+                     không finding mới
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1) — vòng 1, không đổi
+  CHECK-R51R2-17          PASS (E1) — cảnh báo "cu" khi NO_METADATA
+  CHECK-R51R2-18          PASS (E1) — cảnh báo "cu" khi WRITE_FAILED
+  CHECK-R51R2-19          PASS (E1) — không over-fire khi làm mới đủ
+  CHECK-R51R2-15          NOT_TESTED — Independent Review (bao CẢ HAI vòng)
+  CHECK-R51R2-16          NOT_TESTED — Owner nghiệm thu lại trên production
+```
+
+Tài liệu vòng 2: `docs/sessions/S147-r51-repair-2-stale-projection-warning.md`
+· `DEC-209`. Ngân sách review (xem block `S146` ngay dưới, §7) KHÔNG đổi bởi
+vòng 2 — vẫn cần Owner/reviewer xác nhận.
+
+**Phiên vòng 2 này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent
+Review hay Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-2 (vòng 1): luồng chạy báo cáo làm mới bản chiếu hiển thị, `IMPLEMENTED`, CHƯA merge (`S146`, 2026-09-09)
+
+**Lỗi LUỒNG CHÍNH trên production, Owner xác minh, KHÔNG phải accepted risk.**
+
+```text
+Triệu chứng   cột Nhóm hàng / Hãng / IMEI ĐÃ hiển thị, nhưng Hãng là "—" và
+              Mặt hàng còn tên DÀI trên sổ kế toán — kể cả dòng đã CONFIRMED
+Nguyên nhân   catalog_display CHỈ được ghi trong _tracking_snapshot(), tức chỉ
+              khi Owner mở bảng chọn phân loại MỘT dòng. Luồng POST /run không
+              ghi và không làm mới nó ⟹ trên đĩa ephemeral của Render, trạng
+              thái "chưa có nhãn" là VĨNH VIỄN
+Sửa           run_report gọi _refresh_catalog_display(owner_run.captures) trên
+              đường THÀNH CÔNG, dùng ĐÚNG capture danh mục của lần chạy đó —
+              KHÔNG gọi Tracking lần thứ hai chỉ để hiển thị
+Không im lặng catalog_display.write() trả WriteResult (3 mã lý do đóng); kết quả
+              vào tracking_evidence["catalog_display"]; tab Nhân viên cảnh báo
+              khi bản chiếu vắng mà sheet CÓ dòng đã xác nhận mã
+```
+
+`AR-R5.1-04` **ĐÓNG** — bị phân loại SAI: nó giả định mất bản chiếu là trạng
+thái TẠM tự thoát khi có "lần capture danh mục MỚI đầu tiên", nhưng luồng chính
+không bao giờ ghi bản chiếu. Xem `DEC-208` §6.
+
+```text
+Kiểm chứng
+  Test REPAIR-2      12 bài mới — 10 ĐỎ trước sửa, 12 XANH sau sửa, đi qua ĐÚNG
+                     POST /run rồi mở tab Nhân viên, KHÔNG mở bảng chọn
+  Full regression    3458 passed / 11 skipped / 0 failed
+                     (nền trước repair: 3446 passed / 11 skipped / 0 failed;
+                      +12 đúng bằng số bài repair thêm vào)
+  Smoke R5.1         74 PASS / 0 FAIL — §5 MỚI: producer Tracking THẬT →
+                     upload/run THẬT → bảng Nhân viên (nền 63)
+  Tracking           npm test 2892 đạt / 0 hỏng; build OK. KHÔNG đổi một byte
+  Bất biến nghiệp vụ git diff RỖNG trên pricing/profit/kpi/reporting/exporting/
+                     period_lock/business_store/business_queries/business_service/
+                     workspace_presentation/migrations/config; và đo bằng HÀNH VI:
+                     xoá bản chiếu ⟹ doanh thu, lợi nhuận, SL KPI, số đơn, số
+                     dòng GIỐNG HỆT
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R51R2-01 … -14   PASS (E1)
+  CHECK-R51R2-15         NOT_TESTED — Independent Review của REPAIR-2
+  CHECK-R51R2-16         NOT_TESTED — Owner nghiệm thu lại trên production
+  CHECK-R51-26           NOT_TESTED — nay nghiệm thu ĐƯỢC (lỗi này đã chặn nó),
+                         nhưng vẫn chỉ Owner đóng
+```
+
+**CẦN OWNER/REVIEWER XÁC NHẬN — ngân sách repair cycle.** Lineage `R5` (chứa
+`R5.1`) đang `2 allowed / 2 used / 0 remaining`. Phiên này **KHÔNG tự tiêu** và
+**KHÔNG tự miễn** một cycle: defect do Owner phát hiện trên PRODUCTION SAU khi
+merge, không từ một vòng Independent Review (`CHECK-R51-25` đã `PASS` từ `S139`).
+Nếu mọi defect production sau nghiệm thu đều tiêu ngân sách review thì một tính
+năng đã merge sẽ không sửa được nữa khi lineage hết ngân sách. Nếu
+Owner/reviewer kết luận ngược lại, `R5` vượt ngân sách và phải escalate. Lập
+luận đầy đủ: `S146` §7 và `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5" →
+REPAIR-2 production.
+
+**Escalation trigger ĐÃ MET và đã ghi** (`ESCALATION_PROTOCOL`: *"hành vi ở
+production khác biệt đáng kể so với các giả định đã được tài liệu hóa"*). Rà
+soát nguyên nhân gốc đã thực hiện; không có lần vá suy đoán nào.
+
+**Ba lỗi của chính bộ kiểm, tìm ra và sửa trong phiên** (`S146` §3.1): một bài
+XANH GIẢ vì mở sai sheet (bảng rỗng nên mọi khẳng định "không thấy" đều đúng); một
+regex đọc rỗng vì ô có thẻ `<a>`; và một lần monkeypatch `pathlib.Path.mkdir`
+toàn cục — đã thay bằng một thất bại ghi THẬT của hệ thống tệp.
+
+Tài liệu: `docs/tasks/R5-1-REPAIR-2-run-refreshes-catalog-display.md` ·
+`docs/sessions/S146-r51-repair-2-run-refreshes-projection.md` · `DEC-208` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5".
+
+**Phiên này KHÔNG merge, KHÔNG deploy, KHÔNG tự đánh dấu Independent Review hay
+Owner Acceptance.**
+
+---
+
+## CANONICAL CURRENT STATE — R6 INDEPENDENT REVIEW VÒNG 2 = `PASS`, VẪN CHƯA merge (`S146`, 2026-09-09)
+
+Independent Review vòng 2 chạy trên exact HEAD
+`40807efd50e675b71ccd1a14b5801394da4cafc1` (SAU `REPAIR-1`), detached, worktree
+sạch, `branch_authority_check.sh` → `AUTHORITY_OK` (`DETACHED_EXACT_TARGET`).
+Tracking = `origin/main` `66787c0`, không lệch một byte — dependency, không có
+thay đổi `R6`.
+
+**Kết luận: `PASS`. `CHECK-R6-31` = `PASS` (E1). `0` finding
+`REPAIR_REQUIRED`, `0` `ACCEPTED_RISK` mới, `0` repair cycle tiêu — lineage
+`R6` KHÔNG phải escalate.**
+
+```text
+Lineage xác nhận bằng git (không tin bàn giao)
+  05f2b44 nền → 56aca4c R6 IMPLEMENTED → b3fa809 review vòng 1
+        → 419391c REPAIR-1 → 40807ef ghi nhận INTEGRATION_DECISION_REQUIRED
+  cả bốn SHA đề bài nêu đều là ancestor của HEAD: XÁC NHẬN
+
+Cả bốn mục vòng 1 — XÁC NHẬN ĐÃ SỬA bằng bằng chứng ĐỘC LẬP
+  (vòng 2 KHÔNG dùng lại fixture của REPAIR-1 và KHÔNG lấy số nào từ S145)
+  FIND-R6-IR-01  ĐÃ SỬA   93 phép đo qua HTTP THẬT, oracle = trang Báo cáo R5
+                          trên CÙNG server/sổ/kỳ/mức gộp
+  FIND-R6-IR-02  ĐÃ SỬA   51 phép đo, gồm 1 probe TOÀN TRANG xuyên hai repo và
+                          1 DIFF trực tiếp 56aca4c vs HEAD trên cùng đầu vào
+  AR-R6-IR-03    ĐÃ SỬA   35 phép đo, phần lớn là diff trực tiếp với 56aca4c
+  COR-R6-IR-01   ĐÃ SỬA   bài canh thật tồn tại và đo đúng HTML đã render
+
+FIND-R6-IR-01 — điểm cốt lõi
+  R6 khớp R5 TỪNG MỐC trên CẢ HAI cửa sổ ở ngay/tuan/thang/quy và ở custom range
+  cửa sổ so sánh có TIỀN THẬT ở cả bốn mức (thang 2025-03 = 10.000.000;
+    quy 2023-Q4 = 8.000.000 và 2024-Q2 = 6.000.000 — sổ trải từ 2023)
+  số 0 CHỈ ở mốc rỗng THẬT nằm trọn trong coverage đã xác nhận; ngoài coverage
+    vẫn là KHOẢNG TRỐNG
+  custom range neo vào `Đến ngày` người dùng gõ — không trôi theo dữ liệu mới
+    nhất, không mượn chốt kỳ
+  ô chỉ tiêu/bảng gộp/giỏ hàng/bảng kê VẪN chỉ đọc phạm vi đang xem
+  lát MỞ RỘNG vẫn là effective data: dòng Owner đã loại KHÔNG quay lại
+
+FIND-R6-IR-02 — điểm cốt lõi
+  diff 56aca4c vs HEAD, cùng đầu vào: TRƯỚC 5/5 đơn bị đếm "nhiều nhóm hàng
+    hoá" và có cặp ('Tivi','__UNRESOLVED__') + ('__CONFLICT__','__UNRESOLVED__');
+    SAU còn đúng một cặp THẬT ('Tivi','Tủ lạnh')
+  KHÔNG ĐỔI: cặp SẢN PHẨM, orders, multi_line, multi_product,
+    service_attachment, tiền từng đơn, tổng
+  CẢ NĂM lý do chưa xác định đều ngoài chiều nhóm hàng; 10/10 tổ hợp hai lý do
+    KHÔNG sinh cặp (đo ở min_support=1)
+  dòng PHÍ/CHIẾT KHẤU không bị đếm là "chưa xác định nhóm hàng"; tiền vẫn đủ
+  UI nói ra số đơn/dòng bị để ngoài; KHÔNG rò một trường khách hàng nào
+
+AR-R6-IR-03 — điểm cốt lõi
+  thiếu total_sales  5.000.000 → 10.000.000 ; quantity=0  6.500.000 → 5.000.000
+  thiếu quantity, hàng tặng giá 0, ca bình thường: đúng và không đổi sai
+  mẫu số 0 ⟹ None KÈM LÝ DO, không bao giờ 0
+  min/max và total_quantity nghiệp vụ KHÔNG bị thu hẹp; đối soát bảng nhóm khớp
+
+R6 vẫn READ-ONLY (đo lại từ đầu)
+  alembic heads 0009_line_binding_period_close — đúng MỘT head, của R3
+  không migration, không bảng mới; route POST 18 ở cả ba SHA — KHÔNG đổi
+  5 route R6 đều @app.get; POST → 405 (đo bằng HTTP thật)
+  git diff RỖNG trên pricing/profit/kpi/period_lock/business_store/
+    business_queries/business_service/business_metrics/migrations/config —
+    cả từ 56aca4c LẪN từ nền 05f2b44
+  Tracking không lệch một byte; 37 file lineage R6 chạm đều trong Scope Lock
+  40 tổ hợp tham số URL hỏng/lạ trên 4 route → 200/200, không route nào 500
+
+Regression đo trong vòng 2
+  full pytest        3445 passed / 12 skipped / 0 failed
+  R6 repair-focused  48 passed        toàn bộ R6 (9 file)  186 passed
+  smoke R6           29 PASS / 0 FAIL     smoke R5.1  63 PASS / 0 FAIL
+  Tracking           62 bộ · 2892 đạt · 0 hỏng · 2 bỏ qua
+  git diff --check   sạch (cả 56aca4c..HEAD và 05f2b44..HEAD)
+  validator          structure/state/evidence/task_completion PASS;
+                     reference_integrity 4 đỏ — ĐÚNG 4 baseline cũ
+  đối soát sổ Golden 3.562.310.000 KHỚP TOÀN BỘ (số freeze TRƯỚC R6)
+
+  Bài đỏ ở lần chạy pytest ĐẦU (TestG25GoldenBaselineUnchanged,
+  "bad object 740f396…") là BASELINE của CLONE NÔNG, không phải của R6: R6
+  không chạm bài kiểm ấy hay artifact nó canh (git diff rỗng); chạy riêng file
+  → 41 passed; và sau khi branch_authority_check.sh thực hiện một
+  `git fetch origin --prune` đầy đủ, lần chạy THỨ HAI cho 0 failed mà không ai
+  sửa gì.
+
+Trạng thái check sau vòng 2
+  CHECK-R6-01 … -29  PASS (E1)
+  CHECK-R6-33 … -54  PASS (E1) — 22 check của REPAIR-1, xác nhận độc lập ở vòng 2
+  CHECK-R6-31        NOT_TESTED → PASS (vòng 2, E1)
+  CHECK-R6-30        VẪN NOT_TESTED — sổ thật của Owner không có trong môi
+                     trường (DEC-108); lệnh đã chạy đúng nguyên văn, EXIT=2
+  CHECK-R6-32        VẪN NOT_TESTED — Owner Acceptance, phiên review KHÔNG tự đóng
+  CHECK-R51-26       VẪN NOT_TESTED — VẪN CHẶN merge/deploy R6 (DEC-207 §10)
+
+Ngân sách
+  repair cycle tiêu bởi vòng 2   0
+  số dư R6                       1 allowed / 1 used / 0 remaining  (KHÔNG đổi)
+  ESCALATION                     KHÔNG cần
+```
+
+**`INTEGRATION_DECISION_REQUIRED` VẪN MỞ.** Vòng 2 đo lại: `cumulative LOC` từ
+nhánh mặc định (`05f2b44`) tới HEAD = `10.155`, ngưỡng V4.1 §8 = `5.000`.
+(`S145` ghi `10.100` vì đo tại `419391c`; chênh đúng 57 dòng của commit tài
+liệu `40807ef` — không mâu thuẫn.) Owner phải chọn (A) integrate sớm, (B) cắt
+scope, hay (C) tiếp tục divergence có lý do + ngày review. Phiên review KHÔNG
+chọn thay.
+
+**Bốn ghi nhận của vòng 2, KHÔNG mục nào tiêu ngân sách** (đều là tài liệu/hiệu
+năng, không đổi một con số nào trên màn hình, không thuộc lớp bắt buộc repair
+của brief `R6` §7) — dọn kèm ở lần chạm mã kế tiếp:
+
+```text
+OBS-R6-IR2-01  chuỗi "(repair AR-R6-IR-03)" — một mã finding NỘI BỘ — lọt vào
+               câu chữ Owner đọc (`dashboard_presentation.data_quality`).
+OBS-R6-IR2-02  docstring `drilldown_rows` thiếu "không phải": "…đo trên chính
+               HTML đã render CHỨ TRÊN kết quả của hàm này" — đọc ra ngược
+               nghĩa. Tham chiếu bài canh thì ĐÚNG, nên COR-R6-IR-01 vẫn ĐÃ SỬA.
+OBS-R6-IR2-03  Scope Lock ghi `tests/test_r6_*.py MỚI (7 file)`; thực tế 9 file.
+OBS-R6-IR2-04  `_chart_details` chạy HAI LẦN mỗi lần nạp trang với CÙNG một
+               khoảng; ở muc=quy là 4 năm dữ liệu đọc hai lần. Hiệu năng.
+```
+
+**`R6` VẪN KHÔNG được merge hay deploy.** Điều kiện §7 của task file: điều (2)
+`CHECK-R6-31` = `PASS` ĐÃ THOẢ; điều (1) `CHECK-R51-26` VẪN `NOT_TESTED`.
+
+Việc kế tiếp, theo thứ tự, đều thuộc Owner:
+
+1. Quyết cờ V4.1 §8 `INTEGRATION_DECISION_REQUIRED`.
+2. `CHECK-R6-30` — chạy đối soát trên sổ thật, trên HEAD `40807ef`.
+3. `CHECK-R51-26` — nghiệm thu `R5.1` trên production (đang chặn).
+4. `CHECK-R6-32` — Owner Acceptance `R6`.
+
+Phiên `S146` KHÔNG sửa một dòng mã nào, KHÔNG merge, KHÔNG mở PR, KHÔNG deploy,
+KHÔNG làm `R7`, KHÔNG tự đánh dấu Owner Acceptance, KHÔNG chọn thay Owner ở cờ
+V4.1 §8.
+
+Bằng chứng nguyên văn: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD-ROUND-2.md`;
+tóm tắt: `docs/sessions/S146-r6-independent-review-round-2.md`;
+ngân sách: `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+---
+
+## CANONICAL CURRENT STATE — R6 REPAIR-1: cả 4 finding ĐÃ SỬA, `IMPLEMENTED`, CHƯA merge (lịch sử, `S145`, 2026-09-09 — thay bởi khối `S146` ở đầu file)
+
+Independent Review vòng 1 (`S144`) kết luận `REPAIR_REQUIRED`. **`REPAIR-1` đã
+sửa CẢ BỐN mục trong ĐÚNG MỘT repair cycle** — cycle DUY NHẤT của lineage `R6`.
+
+```text
+FIND-R6-IR-01  ĐÃ SỬA  cửa sổ so sánh của CẢ HAI biểu đồ vẽ số 0 cho khoảng có
+                       tiền THẬT. Nguyên nhân: hai biểu đồ được nạp lát dữ liệu
+                       ĐÃ LỌC theo phạm vi, trong khi cửa sổ liền trước nằm
+                       NGOÀI lát ấy. Sửa: thêm helper CÔNG KHAI
+                       `revenue_timeline.paired_window_span()` (thuần THÊM) và
+                       `server._chart_details()` đọc lại `service.period(...)`
+                       trên đúng khoảng hai cửa sổ — bounded, không phải toàn
+                       bộ dòng thời gian.
+FIND-R6-IR-02  ĐÃ SỬA  bucket "Chưa xác định" thôi đứng làm một NHÓM HÀNG HOÁ
+                       trong Basket: `categories` chỉ nhận nhóm chính danh, nên
+                       không còn đơn `Tivi + Chưa xác định` bị đếm là nhiều nhóm
+                       và không còn cặp giữa hai lý do chưa xác định. Phần bị để
+                       ngoài được NÓI RA bằng con số trên chính trang.
+AR-R6-IR-03    ĐÃ SỬA  tử số và mẫu số giá bán bình quân dùng CÙNG một tập dòng
+                       (`priced_*`); `min`/`max` và `total_quantity` nghiệp vụ
+                       KHÔNG bị thu hẹp; không đủ dữ liệu ⟹ `None` KÈM LÝ DO.
+COR-R6-IR-01   ĐÃ SỬA  docstring `drilldown_rows` dẫn đúng bài canh thật.
+```
+
+```text
+Kiểm chứng
+  Test REPAIR-1      48 bài mới — ĐỎ trước sửa (34 đỏ), XANH sau sửa
+  Nhóm R6            186 passed
+  Full regression    1 failed, 3445 passed, 11 skipped
+                     (nền trước repair: 1 failed, 3397 passed, 11 skipped
+                      — CÙNG một bài đỏ, là BASELINE clone nông; +48 đúng bằng
+                      số bài repair thêm vào)
+  IR-01 đo qua HTTP THẬT, oracle là trang Báo cáo R5 trên CÙNG server:
+                     R5 10/08 = 7.000.000 · R6 10/08 = 7.000.000 (trước: 0)
+                     R6 số đơn 10/08 = 1 đơn (trước: 0)
+                     và KHỚP TỪNG MỐC trên cả 30 mốc cửa sổ so sánh
+  Bao phủ mức gộp    ngay · tuan · thang · quy + một custom range
+  Luật R5 không nới  số 0 CHỈ khi mốc rỗng VÀ nằm trọn trong khoảng đã xác nhận;
+                     ngoài khoảng ấy vẫn là KHOẢNG TRỐNG
+  Smoke R6           29 PASS / 0 FAIL (trước repair 24 — thêm 4 bài canh IR-02)
+  Smoke R5.1         63 PASS / 0 FAIL — không hồi quy
+  Tracking           npm test 2892 đạt / 0 hỏng; build OK. KHÔNG đổi một byte
+  Đối soát sổ        golden khớp toàn bộ (3.562.310.000 — số freeze TRƯỚC R6)
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+  Bất biến tiền      git diff RỖNG trên pricing/profit/kpi/period_lock/
+                     business_store/business_queries/business_service/
+                     business_metrics/migrations/config
+
+Trạng thái check
+  CHECK-R6-01 … -29  PASS (E1)
+  CHECK-R6-33 … -54  PASS (E1) — 22 check của REPAIR-1
+  CHECK-R6-30        NOT_TESTED — sổ thật của Owner không có trong môi trường
+                     (DEC-108); lệnh đã chạy đúng nguyên văn, thoát mã 2
+  CHECK-R6-31        FAIL (vòng 1, HEAD 56aca4c) → NOT_TESTED. KHÔNG thành PASS:
+                     một phiên repair không tự tuyên bố mình đã qua review
+  CHECK-R6-32        NOT_TESTED — Owner Acceptance
+  CHECK-R51-26       NOT_TESTED — GIỮ NGUYÊN, và nó CHẶN merge/deploy R6
+
+Ngân sách review   lineage R6: 1 allowed / 1 used / 0 remaining — HẾT
+                   Một REPAIR_REQUIRED nữa buộc ESCALATE, không mở cycle thứ hai
+                   lineage R5 KHÔNG bị chạm: 2 allowed / 2 used / 0 remaining
+```
+
+**Đính chính phạm vi:** `REPAIR-1` chạm `app/web/revenue_timeline.py` — file mà
+Scope Lock của `R6` từng ghi là NGOÀI phạm vi. Thay đổi thuần THÊM (+55/−1,
+dòng bị xoá duy nhất là chính dòng `__all__` được viết dài ra), và brief
+`REPAIR-1` cho phép tường minh. Ghi rõ ở task file §1 và `S145` §4.4.
+
+**Hai lỗi của chính bộ kiểm, tìm ra và sửa trong phiên** (`S145` §6): một bài
+smoke xanh nhờ dòng chưa khớp mã chứ không nhờ hai nhóm hàng thật — đúng điểm
+review §7.2 đã ghi; và một bài kiểm mới làm rò trạng thái toàn cục sang
+`tests/test_tracking_live_pull.py`, đã sửa bằng `MonkeyPatch().undo()`.
+
+**CẦN OWNER QUYẾT — `INTEGRATION_DECISION_REQUIRED` (`V4.1` §8).**
+`scripts/branch_authority_check.sh` cho `AUTHORITY_OK` (nhánh có upstream,
+worktree sạch, không lệch sau nhánh mặc định) nhưng `cumulative LOC = 10.100`
+vượt ngưỡng `5.000`, nên cờ đang MỞ. Owner chọn một trong ba: (A) integrate/merge
+sớm; (B) cắt scope; (C) tiếp tục divergence có lý do + ngày review — `V4.1` §8
+nói rõ *"Không được tiếp tục im lặng"*. Cờ này đã mở TỪ TRƯỚC `REPAIR-1` (phần
+lớn LOC là của `S143`; repair góp `2.193` dòng) và `S143`/`S144`/bản ghi review
+đều không ghi lại — đây là khoảng trống governance mà phiên repair phát hiện,
+không phải cờ do repair sinh ra. Chi tiết: `S145` §8b.
+
+**`R6` chỉ được merge/deploy sau khi ĐỦ HAI điều: `CHECK-R51-26` hoàn tất trên
+production, VÀ `R6` qua Independent Review vòng 2 (`CHECK-R6-31`).**
+
+Tài liệu: `docs/sessions/S145-r6-repair-1.md` ·
+`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` §8 ·
+`docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md` (annotate, nguyên văn giữ nguyên) ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## CANONICAL CURRENT STATE — R6: Independent Review vòng 1 → `REPAIR_REQUIRED`, task `BLOCKED` (lịch sử, `S144`, 2026-09-09 — thay bởi khối `S146` ở đầu file)
+
+**Phiên Independent Review. KHÔNG sửa một dòng mã sản phẩm nào, KHÔNG merge,
+KHÔNG deploy, KHÔNG làm `R7`, KHÔNG mở rộng phạm vi `R6`, KHÔNG tự đánh dấu
+Owner Acceptance.**
+
+Đối tượng: Reports `claude/r6-business-analytics-dashboard-it73x5`
+@ `56aca4c91bd788b1e14d7f71b9246d1577255c1a`, trên nền
+`claude/extract-upload-repo-gq2ws4` @ `05f2b44` (đã xác minh là ancestor) và
+Tracking `main` @ `66787c0` (chứa `dc98910`). Worktree CLEAN cả hai repo.
+Nhánh mặc định THẬT của Reports được xác định bằng `git remote show origin`,
+**không** giả định là `main`.
+
+```text
+Kết luận            REPAIR_REQUIRED
+CHECK-R6-31         NOT_TESTED → FAIL (vòng 1, E1)
+Task R6             IMPLEMENTED → BLOCKED
+
+Finding
+  FIND-R6-IR-01  REPAIR_REQUIRED — cửa sổ so sánh của CẢ HAI biểu đồ trang
+                 phân tích vẽ SỐ 0 cho một khoảng có doanh thu và số đơn THẬT.
+                 Hai biểu đồ được nạp lát dữ liệu ĐÃ LỌC theo phạm vi, trong
+                 khi cửa sổ liền trước nằm NGOÀI phạm vi ấy; trang Báo cáo của
+                 R5 đọc lại service.period() KHÔNG lọc chính vì lý do này.
+                 Đo trên SERVER FLASK THẬT, cùng sổ/kỳ/mức gộp:
+                   R5 /kinh-doanh           10/08/2026 → 7.000.000 đồng
+                   R6 /kinh-doanh/phan-tich 10/08/2026 → 0 đồng / 0 đơn
+  FIND-R6-IR-02  REPAIR_REQUIRED — bucket "Chưa xác định" đứng làm một NHÓM
+                 HÀNG HOÁ trong Basket: làm tăng ô "đơn nhiều nhóm hàng hoá"
+                 và sinh ra hàng gợi ý bán chéo giữa hai lý do chưa xác định,
+                 trong khi pair_rows không chở known/reason như group_rows.
+  AR-R6-IR-03    RECOMMENDED — mẫu số giá bán bình quân giữ số lượng của dòng
+                 thiếu total_sales trong khi tử số đã loại dòng ấy.
+  COR-R6-IR-01   tài liệu — docstring drilldown_rows dẫn một file test không
+                 tồn tại.
+
+Sáu chuỗi của brief review
+  1 Effective data và phạm vi     PASS
+  2 Tiền, SL, chiết khấu, số đơn  REPAIR_REQUIRED (FIND-R6-IR-01, AR-R6-IR-03)
+  3 Product, hãng, nhóm hàng      PASS
+  4 Basket                        REPAIR_REQUIRED (FIND-R6-IR-02)
+  5 Web, drill-down, riêng tư     PASS
+  6 Bất biến R1–R5.1              PASS
+
+Kiểm đã chạy LẠI trong phiên review (không tin số bàn giao S143)
+  Full regression    3397 passed, 12 skipped, 0 failed
+                     (bài đỏ ở lần chạy đầu là BASELINE clone nông; sau
+                      `git fetch origin 740f396…` → 41 passed)
+  Smoke R5.1         63 PASS / 0 FAIL — khớp đúng số S142 §4.5
+  Smoke xuyên 2 repo 24 PASS / 0 FAIL — producer Tracking THẬT, node v22.22.2
+  Server Flask THẬT  app.run(127.0.0.1:8971) + curl: 8 route/biến thể → 200;
+                     12 tham số hỏng → 200 (không route nào 500); POST → 405
+  Riêng tư           7 chuỗi khách hàng quét trên 8 trang: KHÔNG chuỗi nào lộ
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+
+Trạng thái check
+  CHECK-R6-01 … -29  PASS (E1) — xác nhận lại, không check nào đổi trạng thái
+  CHECK-R6-30        NOT_TESTED — sổ Owner không có trong môi trường review;
+                     công cụ đối soát ĐÃ được kiểm lại và tái tạo ĐỦ 8 con số
+                     vector Owner qua pipeline THẬT (KHỚP TOÀN BỘ, EXIT=0)
+  CHECK-R6-31        FAIL — vòng 1, S144
+  CHECK-R6-32        NOT_TESTED — Owner Acceptance
+  CHECK-R51-26       NOT_TESTED — GIỮ NGUYÊN, và nó VẪN CHẶN merge/deploy R6
+
+Ngân sách review   R6: 1 allowed / 0 used / 1 remaining
+                   phiên review KHÔNG tiêu cycle nào (V4.1 §3 tính theo VÒNG
+                   SỬA); REPAIR-1 sẽ tiêu cycle DUY NHẤT
+                   lineage R5 KHÔNG bị chạm: 2 allowed / 2 used / 0 remaining
+```
+
+**Bước kế tiếp: `REPAIR-1`, và nó phải xử lý CẢ BỐN mục trong CÙNG một vòng.**
+`V4.1` §3 tính cycle theo vòng, nên gộp chúng không tốn thêm gì, còn tách ra
+sẽ tiêu hết ngân sách cho một nửa danh sách. Sau `REPAIR-1` lineage `R6` hết
+ngân sách; một `REPAIR_REQUIRED` thứ hai buộc phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`.
+
+**`R6` vẫn KHÔNG được merge/deploy:** `CHECK-R51-26` còn `NOT_TESTED` VÀ
+`CHECK-R6-31` vừa `FAIL`.
+
+Tài liệu: `docs/reviews/R6-INDEPENDENT-REVIEW-RECORD.md` ·
+`docs/sessions/S144-r6-independent-review.md` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+---
+
+## R6: Dashboard phân tích kinh doanh, `IMPLEMENTED`, CHƯA merge (`S143`, 2026-09-09)
+
+**Phiên triển khai đầy đủ: mã, test, tài liệu. KHÔNG mở PR, KHÔNG merge,
+KHÔNG deploy, KHÔNG sửa một byte nào của repo Tracking.**
+
+`R6` là một tầng **CHỈ ĐỌC** dựng trên `PeriodData` hiệu lực của `R3`–`R5`:
+không migration, không bảng mới, không warehouse, không materialized view,
+không API ngoài, không route GHI, không product key thứ hai, không engine thời
+gian thứ hai, không taxonomy thứ hai.
+
+```text
+Năm package đã triển khai
+  1 Aggregate nền + hợp đồng phạm vi   analysis_range.py · dashboard_metrics.py
+  2 Tổng quan + hai biểu đồ hai cửa sổ  analytics_overview · paired_count_chart
+  3 Mặt hàng · Nhóm hàng · Hãng         product_metrics.py · product_taxonomy.py
+  4 Nhân viên (lát for_employee)        analytics_employee
+  5 Giỏ hàng + drill-down               basket_metrics.py · analytics_basket/drilldown
+
+Kiểm chứng
+  Test R6            138 bài mới, 7 file, tất cả PASS
+  Full regression    1 failed, 3397 passed, 11 skipped
+                     (nền trước R6: 1 failed, 3259 passed, 11 skipped
+                      — CÙNG một bài đỏ, là BASELINE clone nông, không phải
+                      hồi quy; +138 đúng bằng số bài R6 thêm vào)
+  Smoke xuyên 2 repo 24 PASS / 0 FAIL — producer Tracking THẬT → capture THẬT
+                     → dashboard/drill-down THẬT
+  Đối soát sổ        công cụ scripts/r6_book_reconciliation.py chạy khớp trên
+                     sổ golden (3.562.310.000 — con số freeze TRƯỚC R6) và
+                     tái tạo ĐỦ 8 con số vector Owner trên sổ tổng hợp
+  Governance         structure/project_state/evidence/task_completion PASS;
+                     reference_integrity 4 finding — ĐÚNG 4 baseline cũ
+  git diff --check   sạch
+  Bất biến tiền      git diff RỖNG trên pricing/profit/kpi/period_lock/
+                     business_store/revenue_timeline/migrations/config
+
+Trạng thái check
+  CHECK-R6-01 … -29  PASS (E1)
+  CHECK-R6-30        NOT_TESTED — đối soát trên SỔ THẬT của Owner (file không
+                     được commit theo DEC-108 và không có trong môi trường)
+  CHECK-R6-31        NOT_TESTED — Independent Review
+  CHECK-R6-32        NOT_TESTED — Owner Acceptance
+  CHECK-R51-26       NOT_TESTED — GIỮ NGUYÊN, và nó CHẶN merge/deploy R6
+
+Ngân sách review   lineage MỚI `R6`: MEDIUM ⟹ 1 allowed / 0 used / 1 remaining
+                   ĐO LẠI từ blast radius 3/5, KHÔNG sao chép ngân sách 2 của R5
+                   lineage R5 KHÔNG bị chạm: 2 allowed / 2 used / 0 remaining
+```
+
+**`R6` chỉ được merge/deploy sau khi ĐỦ HAI điều: `CHECK-R51-26` hoàn tất trên
+production, VÀ `R6` qua Independent Review (`CHECK-R6-31`).** Lý do: bảng
+"Nhóm hàng"/"Hãng" của `R6` gộp TIỀN theo đúng những nhãn mà `CHECK-R51-26`
+còn chưa xác nhận là đúng trên dữ liệu thật.
+
+Tài liệu: `docs/spec/R6-EXECUTION-BRIEF.md` ·
+`docs/tasks/R6-dashboard-phan-tich-kinh-doanh.md` ·
+`docs/sessions/S143-r6-dashboard-phan-tich.md` · `DEC-207` ·
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R6".
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## CANONICAL CURRENT STATE — R5.1: taxonomy Owner chốt (`DEC-206`), ĐÃ MERGE cả hai repo (`S142`, 2026-09-09)
+
+Owner đã CHỐT ba alias cho `category_label` sau Independent Review vòng 2:
+
+```text
+Máy lạnh / Điều hòa / Điều hoà  →  "Điều hoà"
+TV / Ti vi / Tivi               →  "Tivi"
+Máy giặt sấy                    →  "Máy giặt" (không mở nhóm riêng)
+```
+
+Đây là bổ sung taxonomy CÓ CHỦ ĐÍCH sau một review đã kết luận
+`ACCEPT_WITH_RECORDED_RISK` (`REPAIR_REQUIRED = 0`) — KHÔNG phải repair cycle
+thứ ba. `OWNER_DECISION_REQUIRED` và `AR-R5.1R1-05` đã đóng; `AR-R5.1R1-04`
+giữ nguyên. Chi tiết + toàn bộ bằng chứng E1:
+`docs/sessions/S142-r51-owner-taxonomy-merge.md`; quyết định: `DEC-206`.
+
+```text
+Kiểm tra trước merge
+  Tracking  npm test 2882 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3260 passed / 11 skipped / 0 failed
+  Smoke xuyên hai repo  63 PASS / 0 FAIL
+  Bất biến tiền  git diff xác nhận Reports chỉ đổi 2 dòng chú thích;
+                 Tracking không đổi price-engine/ hay min-ngay.js
+
+Trạng thái merge:
+  Tracking  PR #27 → main, merge SHA dc9891087687f25b6f92804f46eba2628ebe788b
+  Reports   PR #13 → claude/extract-upload-repo-gq2ws4,
+            merge SHA a59936ce497ddcc9fb63a87dd0524729931a83f9
+  Cả hai xác nhận AUTHORITY_OK và tests xanh TRÊN nhánh mặc định sau merge.
+  Chi tiết: docs/sessions/S142-r51-owner-taxonomy-merge.md §5.
+
+CHECK-R51-26  VẪN NOT_TESTED — Owner nghiệm thu production, không phiên
+              nào tự đóng, kể cả phiên merge này.
+```
+
+**Phiên này KHÔNG tự đánh dấu Independent Review (đã PASS từ S141) hay Owner
+Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: ĐÃ QUA Independent Review vòng 2 (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S141`, 2026-09-09)
+
+**Phiên review, KHÔNG sửa mã, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+```text
+Đối tượng review (exact HEAD)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+  Reports   83b1e07c44b186fffaf1b71e40693485741f32eb
+  Nền CẢ HAI repo KHÔNG đổi kể từ S140 (main @ 918183c;
+  claude/extract-upload-repo-gq2ws4 @ 3b35b7a); không commit lạ.
+
+Kết luận                 ACCEPT_WITH_RECORDED_RISK
+  REPAIR_REQUIRED        0
+  ACCEPTED_RISK mới      2   AR-R5.1R1-04 (nhắc lại cùng nhóm ⟹ null)
+                             AR-R5.1R1-05 (ngành hàng ghép ⟹ null; ca thật
+                             "Máy Giặt Sấy LG" ở đơn golden BH62439)
+  Đính chính tài liệu    2   COR-R5.1R1-01 (2 chú thích cũ trong mã Reports)
+                             COR-R5.1R1-02 (dòng tóm tắt DEC-204 §5 trong DEC-205)
+  Cần Owner quyết        1   OWNER_DECISION_REQUIRED — alias taxonomy
+                             (Máy lạnh→Điều hoà, TV→Tivi, Ti vi→Tivi)
+
+Kiểm đã chạy (đo lại, không tin bàn giao S140)
+  Tracking  npm test 62 bộ · 2850 đạt · 0 hỏng · 2 bỏ qua; build OK   (khớp)
+  Reports   pytest test_r51_category_label.py  26 passed
+            pytest toàn bộ  1 failed, 3258 passed, 11 skipped
+                            — bài đỏ là BASELINE (clone nông), đã chứng minh
+                              bằng cách tái hiện Y HỆT trên nền 3b35b7a
+            smoke của dự án  58 PASS / 0 FAIL                          (khớp)
+  Probe ĐỘC LẬP của phiên  4 bộ; nhomCua()/chieuBoard() chạy qua module THẬT
+            (import, không new Function) — khớp kết quả producer của S140
+            fuzz 250 000 mẫu: mọi nhãn ∈ NHOM ∪ {null}, 0 vi phạm
+            A/B TOÀN TRANG: bản chiếu CÓ vs BỊ TƯỚC category_label cho HTML
+            giống hệt tới từng ký tự sau khi che riêng cột nhóm hàng ⟹ doanh
+            thu, MIN, giá nhập, lợi nhuận, độ phủ, vân tay đều KHÔNG đổi
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 finding — BASELINE, đúng 4 của S139/S140
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1) — tái kiểm chứng độc lập, giữ nguyên
+  CHECK-R51R1-17            NOT_TESTED → PASS (E1)   ← S141
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production (GIỮ NGUYÊN)
+  Repair cycle tiêu bởi S141  0 → lineage R5 vẫn 2 allowed / 2 used / 0 remaining
+  Escalation                  KHÔNG mở (REPAIR_REQUIRED = 0)
+```
+
+Task GIỮ `IMPLEMENTED`, KHÔNG phải `DONE`: `CHECK-R51-26` còn `NOT_TESTED`.
+
+**Cảnh báo ngân sách của `S140` KHÔNG kích hoạt** — vòng review vòng 2 ra 0
+finding bắt buộc sửa, nên không có repair cycle thứ ba nào phải mở. Cảnh báo
+vẫn còn hiệu lực cho tương lai: lineage `R5` không còn cycle nào.
+
+**Việc kế tiếp, theo thứ tự:** (1) Owner quyết `CHECK-R51-26` — merge trước
+nghiệm thu hay nghiệm thu staging trước; (2) merge **Tracking TRƯỚC, Reports
+SAU**; (3) đóng `OWNER_DECISION_REQUIRED` về alias TRƯỚC khi `R6` dùng
+`category_label` làm khoá gộp. Chi tiết: `S141` mục 7.
+
+Bản ghi review: `docs/reviews/R5-1-REPAIR-1-INDEPENDENT-REVIEW-2-RECORD.md`.
+Bàn giao: `docs/sessions/S141-r51-repair-1-independent-review-2.md`.
+
+**Phiên này KHÔNG tự đánh dấu Owner Acceptance.**
+
+---
+
+## R5.1 REPAIR-1: từ điển nhóm hàng, IMPLEMENTED, CHƯA merge (`S140`, 2026-09-09)
+
+> **TRẠNG THÁI SAU `S141`.** Mục này là bản ghi của phiên repair và giữ NGUYÊN
+> VĂN. `CHECK-R51R1-17` bên dưới ghi `NOT_TESTED` là đúng TẠI THỜI ĐIỂM `S140`;
+> nay nó `PASS` (E1) — xem CANONICAL CURRENT STATE ở đầu file. Kết luận của
+> `S140` KHÔNG bị đảo: vòng review vòng 2 xác nhận lại toàn bộ số liệu bàn
+> giao và ra `ACCEPT_WITH_RECORDED_RISK` với 0 finding `REPAIR_REQUIRED`.
+
+**Phiên repair đầy đủ, KHÔNG merge, KHÔNG deploy, KHÔNG làm `R6`.**
+
+Owner điều chỉnh kết luận Independent Review của `R5.1` từ
+`ACCEPT_WITH_RECORDED_RISK` thành `REPAIR_REQUIRED` **cho mục tiêu dùng
+`category_label` ở `R6`**: luật hình dạng cũ cho `cat` bẩn ngữ nghĩa đi ra
+nguyên văn ("Tivi kho anh Ba", "Tủ lạnh nợ NCC", "Tivi Đất Việt"), và ở `R6`
+một nhãn như vậy không còn là ô xấu mà là một NHÓM HÀNG GIẢ trong báo cáo cơ
+cấu — tổng công ty vẫn đúng, nên không con số nào lệch để báo động.
+
+`category_label` nay được **CHỌN từ một từ điển đóng** trong `src/index.js`
+của Tracking, không cắt ra từ `cat`:
+
+```text
+đầu ra ∈ NHOM ∪ {null}
+⟺ không một ký tự nào người dùng gõ rời khỏi Tracking bằng trường này
+```
+
+```text
+Base phiên repair
+  Reports   dd7cd0461d3d5c8deff9465069bbd2cd0bf55120  (impl 2c2c139 + review docs)
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+  Nhánh mặc định CẢ HAI repo KHÔNG đổi kể từ S138.
+
+HEAD cuối phiên (nhánh claude/r5-1-repair-1-taxonomy, đã push, KHÔNG mở PR)
+  Reports   (xem docs/sessions/S140-r51-repair-1.md §8 — gồm cả tài liệu)
+  Tracking  11a199b222ed1771558cefcdf664aad9de64cfa9
+
+Kiểm tra
+  Tracking  npm test 2850 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3259 passed / 11 skipped / 0 failed
+            (3257 TRƯỚC khi thêm test mới — Reports không cần đổi mã)
+  Smoke xuyên hai repo  58 PASS / 0 FAIL, producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51R1-01 … -16      PASS (E1)
+  CHECK-R51R1-17            NOT_TESTED — Independent Review vòng 2
+  CHECK-R51-26              NOT_TESTED — Owner nghiệm thu production
+  AR-R5.1-05 / -06 / -03    ĐÃ ĐÓNG
+  Repair cycle tiêu         1 → lineage R5 còn 2 allowed / 2 used / 0 remaining
+```
+
+**CẢNH BÁO NGÂN SÁCH:** lineage `R5` đã HẾT repair cycle. Vòng review kế tiếp
+ra `REPAIR_REQUIRED` thì phải escalate theo
+`governance/core/ESCALATION_PROTOCOL.md`, không mở cycle thứ ba.
+
+Thẩm quyền: `DEC-205` (thay `DEC-204` §3 và §4; `DEC-204` giữ nguyên văn, có
+con trỏ hai chiều). `ADR-111` §3 KHÔNG đổi — repair này đổi *cách* Tracking
+dẫn xuất một trường, không đổi *ai* có thẩm quyền.
+
+Task + checklist: `docs/tasks/R5-1-REPAIR-1-tu-dien-nhom-hang.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S140-r51-repair-1.md`.
+Hợp đồng: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.6.
+
+**Phiên này KHÔNG tự đánh dấu Independent Review hay Owner Acceptance.**
+
+---
+
+## R5.1: nhóm hàng `category_label`, ĐÃ QUA Independent Review (`ACCEPT_WITH_RECORDED_RISK`), CHƯA merge (`S139`, 2026-09-09)
+
+**Phiên triển khai đầy đủ, KHÔNG merge, KHÔNG deploy** (brief `R5.1` §9).
+
+`category_label` được thêm vào đúng hợp đồng catalog mà `R5` đang dùng
+(`/api/xuat/board`), như một trường TÙY CHỌN thứ năm. Tracking chuẩn hoá và
+xuất; Reports chỉ đọc. Không endpoint thứ hai, không migration, không schema
+mới, không bảng mới, không product key mới.
+
+```text
+Nền đã merge (đầu phiên)
+  Reports   claude/extract-upload-repo-gq2ws4 @ 3b35b7a  (chứa R5 merge f5e4e76)
+  Tracking  main                              @ 918183c  (chứa R5 §5)
+
+HEAD cuối phiên (nhánh claude/r5-1-category-label-1nnct7 ở cả hai repo,
+đã push, KHÔNG mở PR)
+  Reports   f98299537596095c822c9135ef698adcb8c46f43  (gồm cả tài liệu)
+  Tracking  39528ee5260f4cd5a6bdf92c7f020ad5ecbda362
+
+Kiểm tra
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3257 passed / 11 skipped / 0 failed
+            (nền trước phiên 3233 passed — chênh đúng 24 bài mới)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL, dùng producer THẬT của Tracking
+
+Trạng thái check
+  CHECK-R51-01 … CHECK-R51-24   PASS (E1)
+  CHECK-R51-25 Independent Review          PASS (E1) — ACCEPT_WITH_RECORDED_RISK
+  CHECK-R51-26 Owner nghiệm thu production NOT_TESTED
+  Repair cycle tiêu  0   (lineage R5 giữ nguyên 2 allowed / 1 used / 1 remaining)
+```
+
+**Independent Review (`S139`, 2026-09-09) — `ACCEPT_WITH_RECORDED_RISK`.**
+Chạy trên exact HEAD `2c2c139` (Reports) + `39528ee` (Tracking), chế độ
+DETACHED, `branch_authority_check.sh` = `AUTHORITY_OK`. Năm chuỗi bắt buộc
+đều kiểm trực tiếp qua `nhomCua()`/`chieuBoard()` thật của Tracking và route
+Flask thật của Reports.
+
+```text
+REPAIR_REQUIRED   0 finding
+ACCEPTED_RISK mới 2  AR-R5.1-05 (`cat` bẩn ĐÚNG HÌNH DẠNG đi ra nguyên văn)
+                     AR-R5.1-06 (hãng ngoài `HANG` ở lại trong nhãn)
+Đính chính        1  COR-R5.1-01 (DEC-204 §3 phát biểu mạnh hơn hành vi thật)
+AR-R5.1-01..04       tái kiểm chứng — cả bốn GIỮ NGUYÊN
+
+Kiểm lại độc lập, KHÔNG tin số bàn giao
+  Tracking  npm test 2825 đạt / 0 hỏng / 2 bỏ qua; npm run build OK
+  Reports   pytest 3256 passed / 12 skipped / 0 failed
+            (bàn giao ghi 3257/11 — cùng tổng 3268; chênh đúng một bài skip
+             vì máy review không cài extra `storage`, khác biệt MÔI TRƯỜNG)
+  Smoke xuyên hai repo  45 PASS / 0 FAIL (producer THẬT của Tracking)
+  Governance  structure/project_state/evidence/task_completion PASS
+              reference_integrity 4 reference — BASELINE, tái hiện y hệt
+              trên nền 3b35b7a; R5.1 không thêm reference hỏng nào
+```
+
+Không tìm được: category gắn sang mã khác · nhánh suy nhóm hàng từ
+`product_raw` · conflict/stale/OUT_OF_CATALOG/chưa phân loại nhận category
+của candidate · đồng tiền nào đổi · đường nào IMEI rời khỏi tab nhân viên.
+
+Bản ghi review: `docs/reviews/R5-1-INDEPENDENT-REVIEW-RECORD.md`.
+Bàn giao review + bước merge/deploy kế tiếp: `docs/sessions/S139-r51-independent-review.md`.
+
+Thẩm quyền: `DEC-204` — nhóm hàng thừa hưởng `ADR-111` §3 (bằng chứng
+`board/<mã>/cat` không rời khỏi Tracking) chứ KHÔNG mở một ADR mới; điểm khác
+biệt thật so với `brand` là `cat` do người dùng gõ tay, nên nó đi ra qua một
+danh sách trắng HÌNH DẠNG thay vì được chiếu nguyên văn.
+
+Task + checklist: `docs/tasks/R5-1-nhom-hang-category-label.md`.
+Bàn giao + bằng chứng nguyên văn: `docs/sessions/S138-r51-nhom-hang.md`.
+Hợp đồng + ví dụ payload: `docs/spec/TASK-105D-DATA-CONTRACT.md` §4.4, §4.6.
+
+**Bước kế tiếp là MERGE + DEPLOY, và nó CHƯA xảy ra.** Phiên review KHÔNG
+merge, KHÔNG deploy, KHÔNG triển khai `R6`, và KHÔNG tự đánh dấu Owner
+Acceptance — `CHECK-R51-26` vẫn `NOT_TESTED`.
+
+---
+
+## R5: Owner ghi đè (`DEC-203`) hai điều kiện chặn của `S136`, ĐANG MERGE (`S137`, 2026-09-09)
+
+**Owner chỉ thị trực tiếp trong phiên:** đã tự thực hiện Independent Review
+vòng 2 ở một công cụ khác (Codex, không artifact trong repo Reports) và đã
+tự đối chiếu `CHECK-R3-20`/`CHECK-R4-24` trên dữ liệu production ở nơi khác;
+yêu cầu bỏ qua cả hai điều kiện chặn còn lại của `S136` và merge ngay, chấp
+nhận Render tự động deploy production sau merge. Quyết định đầy đủ, nguyên
+văn chỉ thị, và rủi ro được ghi tại **`PROJECT/PROJECT_DECISIONS.md` →
+`DEC-203`**; diễn biến phiên tại `docs/sessions/S137-r5-owner-override-merge.md`.
+
+```text
+CHECK-R5-27 / CHECK-R5R1-09   FAIL / NOT_TESTED → ACCEPT_WITH_RECORDED_RISK
+                              (Owner override, DEC-203 — KHÔNG có artifact
+                              review vòng 2 trong repo này)
+CHECK-R3-20 / CHECK-R4-24     NOT_TESTED → ACCEPTED_BY_OWNER_VERBAL
+                              (DEC-203 — KHÔNG có bằng chứng đối chiếu
+                              production trong repo này)
+CHECK-R5-28                   VẪN NOT_TESTED — override KHÔNG bao gồm
+                              nghiệm thu R5 trên production
+```
+
+**Đây KHÔNG phải phiên tự đánh dấu Independent Review hay tự đánh dấu Owner
+Acceptance** — chính Owner là người xác nhận và chỉ thị. Nhưng đây CŨNG
+KHÔNG phải bằng chứng E1/E2 kiểm tra được trong repo — khoảng cách này được
+ghi lại tường minh, không che giấu bằng nhãn `PASS` trơn.
+
+Toàn bộ kiểm tra kỹ thuật (full `pytest -q` 3232 passed/12 skipped/0 failed,
+Tracking `npm test` 2767 passed + build OK, smoke xuyên hai repo 29/29 PASS,
+governance validator PASS trừ baseline `TASK-REM-T06`) đã PASS từ `S136` —
+không đổi, không chạy lại.
+
+Merge thực hiện theo thứ tự: Tracking PR #26 → `main`, rồi Reports PR #12
+(`claude/r5-integration-vinh`) → `claude/extract-upload-repo-gq2ws4`. SHA
+merge commit thật và trạng thái deploy (KHÔNG xác nhận được từ phiên này —
+không egress/credential Render, cùng giới hạn `S127`/`S130`/`S133`) nằm ở
+`docs/sessions/S137-r5-owner-override-merge.md` §4–§5.
+
+---
+
+## R5 tích hợp CHƯA MERGE: REPAIR-1 xong, chờ Independent Review vòng 2 + Owner nghiệm thu R3/R4 production (`S136`, 2026-09-09)
+
+**Phiên tích hợp (không phải triển khai, không phải review).** Dựng nhánh
+`claude/r5-integration-vinh` từ Reports repair HEAD `4278c3b`, gộp tài liệu
+Independent Review vòng 1 (`b7f5a07`, nhánh `claude/r5-independent-review-l59zyq`)
+vào đó, tạo merge commit `cf345acb0feb52b3fb41c16d9b8612723ba997e3`. Giải
+quyết sáu xung đột tài liệu thủ công (hai trong `PROJECT/PROJECT_PROGRESS.md`,
+bốn trong `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`), giữ đủ
+ba lớp bằng chứng: implementation gốc, Independent Review vòng 1
+(`REPAIR_REQUIRED`), và REPAIR-1 (đã sửa cả hai finding). Bốn file còn lại tự
+merge sạch hoặc là file mới. `git diff --stat` giữa hai nhánh nguồn: chỉ 6
+file `.md`, không một dòng mã nào.
+
+**Không merge trong phiên này — hai điều kiện chưa thoả, cả hai đều
+thuộc thẩm quyền Owner/reviewer độc lập, không phải thẩm quyền của một phiên
+tích hợp:**
+
+```text
+CHECK-R5-27  Independent Review    FAIL (vòng 1) — CHƯA có vòng 2 trên HEAD
+                                   sau repair. Không tìm thấy artifact nào
+                                   của một vòng review độc lập thứ hai trên
+                                   d8892af/4278c3b. Phiên này KHÔNG tự đóng
+                                   nó bằng cách tự xác nhận test của chính
+                                   mình — đó sẽ là tự đánh dấu Independent
+                                   Review, việc bị cấm rõ ràng.
+CHECK-R5-28  Owner nghiệm thu R5   NOT_TESTED
+CHECK-R3-20  Owner nghiệm thu R3   NOT_TESTED — không tìm thấy bằng chứng
+                                   nào ở bất kỳ commit/tài liệu nào của repo
+CHECK-R4-24  Owner nghiệm thu R4   NOT_TESTED — như trên
+```
+
+Điều kiện `S133` (Owner xác nhận R3/R4 Live + tự nghiệm thu trên dữ liệu
+THẬT trước khi R5 được tích hợp) là điều kiện CHẶN MERGE độc lập với kết quả
+Independent Review — cả hai đều phải thoả. Phiên này tìm bằng `git log --all
+--grep` trên toàn bộ lịch sử Reports và không thấy một commit nào đánh dấu
+`CHECK-R3-20`/`CHECK-R4-24` PASS.
+
+Mọi kiểm tra kỹ thuật khác đã chạy lại trên nhánh integration (full
+`pytest -q` 3232 passed/12 skipped/0 failed; Tracking `npm test` 2767
+passed/0 hỏng + `npm run build` OK; smoke xuyên hai repo 29/29 PASS; toàn bộ
+governance validator PASS trừ `reference_integrity` đúng ba baseline
+`TASK-REM-T06`; `branch_authority_check.sh` → `AUTHORITY_OK`) và bằng chứng
+đầy đủ nằm ở `docs/sessions/S136-r5-integration.md`. Nhánh
+`claude/r5-integration-vinh` đã được đẩy lên origin, kèm PR draft **KHÔNG
+merge** `hoangvinhkta-creator/Reports#12`; Tracking có PR draft **KHÔNG
+merge** tương ứng `hoangvinhkta-creator/Tracking#26`. Cả hai sẵn sàng để
+review và merge NGAY SAU KHI hai điều kiện trên thoả — không cần làm lại
+việc kỹ thuật.
+
+**Trạng thái cuối phiên `S136`: `INTEGRATION_READY_WAITING_FOR_OWNER_GATE`.**
+
+---
+
+## R5 = IMPLEMENTED sau REPAIR-1; Independent Review vòng 1 FAIL, chờ chạy lại (2026-09-09)
+
+**Independent Review vòng 1 kết luận `REPAIR_REQUIRED`. REPAIR-1 đã xong.**
+Hai finding, cả hai đã sửa và có test tái hiện đi qua đường production:
+
+```text
+FIND-R5-IR-01  bấm XONG gán lại CẢ BH cho nhân viên đầu danh sách khi BH có
+               0 hoặc ≥2 nhân viên hiệu lực — ô chọn không có mục "giữ
+               nguyên", nên không option nào `selected`, nên trình duyệt gửi
+               option ĐẦU TIÊN.   ['Quý','Vinh'] → ['Hiệp'];  [None] → ['Hiệp']
+
+FIND-R5-IR-02  dòng quay lại KHÔNG được khôi phục khi hai lần nạp rơi vào
+               cùng một giây — mốc snapshot ghi ở `timespec="seconds"`, phép
+               so ngặt. Tổng thấp hơn VĨNH VIỄN, không nút khôi phục.
+               CÙNG GIÂY (độ phân giải thật của production): 12tr → 8tr
+```
+
+Cả hai có CÙNG hình dạng, và nó là bài học chứ không phải hai lỗi rời rạc:
+**R5 lấy một cơ chế đã đúng ở ngữ cảnh cũ, đặt nó vào một ngữ cảnh nơi cái giá
+của sai lầm khác hẳn, và không tính lại chiều an toàn của nó.** Trong cả hai
+trường hợp, mã cũ có một chú thích nói rõ vì sao nó an toàn — và R5 làm cho
+chính câu chú thích ấy thôi đúng, mà không ai đọc lại nó.
+
+```text
+Reports  HEAD  d8892af5fe252ecbaafba1a7b0d3a835bfd1aee2
+Tracking HEAD  f958226f6127e6055eb411e4c22e12c58d09654b   (KHÔNG đổi)
+Reports  test  3232 passed, 12 skipped   (trước repair: 3223)
+repair cycle   1 tiêu — R5 còn 2 allowed / 1 used / 1 remaining
+```
+
+`CHECK-R5-27` = `FAIL` (vòng 1) và CHƯA được chạy lại trên HEAD sau repair.
+`CHECK-R5-28`, `CHECK-R3-20`, `CHECK-R4-24` KHÔNG chạm. Bàn giao repair:
+`docs/sessions/S135-r5-repair-1.md`.
+
+Hai việc CHỈ Owner nghiệm thu bằng mắt được (phiên kiểm được DOM/CSS/JS,
+không kiểm được hình học thật): toạ độ popover trên màn hình thật, và hai cột
+Hãng/IMEI cắt đúng một dòng.
+
+`INTEGRATION_DECISION_REQUIRED` và điều kiện `S133` KHÔNG đổi. Reviewer khuyến
+nghị tích hợp NGUYÊN KHỐI sau repair — gói 3 và gói 4 đều đọc `PeriodData` mà
+gói 1 định nghĩa lại, nên tách gói tạo một tổ hợp chưa ai chạy. Quyết định vẫn
+thuộc Owner.
+
+---
+
+## R5 — Independent Review vòng 1 = REPAIR_REQUIRED (2026-09-08)
+
+**Independent Review của R5 (`S135`) đã chạy ĐỦ trên đúng exact HEAD được bàn
+giao và kết luận `REPAIR_REQUIRED`.** Bản ghi:
+`docs/reviews/R5-INDEPENDENT-REVIEW-RECORD.md`. Bàn giao review:
+`docs/sessions/S135-r5-independent-review.md`. Repair brief:
+`docs/tasks/R5-REPAIR-1-doi-soat-nhan-vien-va-khoi-phuc.md`.
+
+```text
+HEAD ĐÃ REVIEW  Reports   949e32df7a876d1f6f8003eb5df39e3d11dcc069
+                Tracking  f958226f6127e6055eb411e4c22e12c58d09654b
+NỀN             b6756fef4b43362201a88f8fe13c45488916d3dd
+CHECK-R5-27     FAIL — review ĐÃ HOÀN THÀNH, implementation CHƯA được chấp nhận
+CHECK-R5-28     NOT_TESTED — Owner nghiệm thu, không phiên nào tự đóng
+CHECK-R3-20     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+CHECK-R4-24     NOT_TESTED — điều kiện tích hợp S133 CÒN NGUYÊN
+REPAIR CYCLE    0 đã tiêu (R5: 2 allowed / 0 used / 2 remaining)
+```
+
+Hai finding bắt buộc, cả hai tái hiện được bằng lệnh:
+
+1. `FIND-R5-IR-01` — R5 §4 gộp mọi thứ về MỘT nút gửi, nhưng ô chọn nhân viên
+   của form cấp BH không có mục "giữ nguyên". Một BH chưa có nhân viên, hoặc
+   có nhiều người, bị gán cho người ĐẦU danh sách ở mọi lần bấm `XONG` — kể
+   cả khi người dùng chỉ sửa một ô giá. Đây là dời doanh thu và KPI của cả
+   một BH sang một người khác.
+2. `FIND-R5-IR-02` — mốc snapshot chỉ có độ phân giải GIÂY
+   (`timespec="seconds"`), còn phép so "dòng đã quay lại chưa" là phép so
+   NGẶT. Hai lần nạp trong cùng một giây ⟹ dòng đã có mặt lại trong sổ vẫn ở
+   ngoài mọi con số **vĩnh viễn**, không có đường khôi phục thủ công, trong
+   khi màn hình vẫn hứa điều ngược lại. Trước R5 nhãn ấy chỉ là một cảnh báo;
+   R5 làm nó quyết định tổng tiền, và chiều "an toàn" của phép so đảo ngược
+   mà không ai tính lại.
+
+Bảy rủi ro mới `AR-R5-IR-06` … `AR-R5-IR-12` được ghi `ACCEPTED_RISK`; trong
+đó `AR-R5-IR-09` (`/run` nuốt mọi ngoại lệ thành HTTP 400, `server.py` không
+có một dòng log nào) và `AR-R5-IR-12` (`tools/smoke/r1_daily_min_smoke.py`
+sập giữa chừng) là **lỗi baseline có trước R5**, đo được là hỏng y hệt trên
+`b6756fe`. `AR-R5-01` … `AR-R5-05` đã tái kiểm chứng và giữ nguyên mức.
+
+`INTEGRATION_DECISION_REQUIRED [ loc>5000 ]` được phân loại là **quyết định
+governance**, không phải dấu hiệu code cần chia nhỏ (`cumulative LOC = 5336`,
+nhưng code+test chỉ `4220` — dưới ngưỡng; `RESULT = AUTHORITY_OK`).
+**Khuyến nghị: tích hợp NGUYÊN KHỐI sau repair** — gói 3 và gói 4 đều đọc
+`PeriodData` mà gói 1 định nghĩa lại, nên tách gói tạo ra một tổ hợp chưa ai
+chạy.
+
+Thứ tự việc tiếp theo: `R5-REPAIR-1` → Independent Review lần 2 → Owner
+nghiệm thu R3/R4 trên production → merge nguyên khối → deploy → Owner nghiệm
+thu R5.
+
+---
+
+## R5 = IMPLEMENTED — bàn giao triển khai gốc (2026-09-08)
+
+**R5 đã triển khai đầy đủ trên nền R4 đã merge (`b6756fe`), trên CẢ HAI repo.**
+Owner ban hành `R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm`: đóng năm khoảng cách giữa
+*điều màn hình nói* và *điều hệ thống biết*. Quyết định: `DEC-202`. Task
+canonical: `docs/tasks/R5-doi-soat-so-bieu-do-thao-tac-danh-tinh.md`. Bàn
+giao: `docs/sessions/S134-r5-doi-soat-va-danh-tinh.md`.
+
+```text
+Reports   HEAD  19b853f718e1ed6dbf700468105c9dd38ff4cc2d
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+Tracking  HEAD  f958226f6127e6055eb411e4c22e12c58d09654b
+                nhánh claude/r5-reports-tracking-deploy-o77n7t
+ALEMBIC_HEAD    0009_line_binding_period_close — KHÔNG ĐỔI, R5 không thêm
+                migration nào
+Reports test    3223 passed, 12 skipped   (baseline trước R5: 3146 passed)
+Tracking test   61 bộ · 2767 đạt · 0 hỏng · 2 bỏ qua; npm run build OK
+Smoke HTTP thật TẤT CẢ PASS
+```
+
+Việc quan trọng nhất của R5 sửa một khoảng cách mà người dùng đã tự tay đóng
+lại rồi mà hệ thống không nhận: sau khi họ bấm "sổ này đầy đủ cho khoảng ngày
+X", một đơn cũ trong X mà sổ đó không có VẪN được cộng vào doanh thu. Nay nó
+được TẠM LOẠI khỏi mọi số liệu, vào một danh sách cảnh báo riêng không mang
+tiền, và tự quay lại khi một lần nạp sau có nó. Không hard-delete, không
+migration — việc loại xảy ra LÚC ĐỌC.
+
+Blast Radius `4/5` (xa hơn R4 một bậc): R5 có quyền LOẠI dòng khỏi tập được
+cộng, và một lỗi ở đó làm tổng SAI THEO HƯỚNG THẤP HƠN — không ai đi tìm số
+tiền mình không biết là mình đang thiếu.
+
+`CHECK-R5-27` (Independent Review) và `CHECK-R5-28` (Owner nghiệm thu) VẪN
+`NOT_TESTED`. Phiên triển khai KHÔNG merge, KHÔNG deploy, và KHÔNG tự đóng hai
+check đó.
+
+### CONFLICT DETECTED — điều kiện mở R5
+
+Documentation:
+`S133` (mục "Tích hợp production R4" bên dưới) ghi: *"**R5 CHƯA `READY`** —
+chỉ mở sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên
+dữ liệu thật đạt."* Hai điều kiện đó CHƯA xảy ra: `CHECK-R3-20` và
+`CHECK-R4-24` vẫn `NOT_TESTED`.
+
+Implementation:
+`R5 Audit & Execution Brief — Đối soát sổ, biểu đồ so sánh, thao tác đơn và danh tính sản phẩm` §0 đặt một điều kiện KHÁC và hẹp hơn: *"R5
+chỉ được mở sau khi nhánh mặc định của Reports chứa commit R4 trên và migration
+production hiện hành đã chạy thành công."* Cả hai điều kiện đó ĐÃ thoả và đã
+được đo ở đầu phiên `S134` (§1). Owner sau đó chỉ thị trực tiếp mở phiên triển
+khai R5 đầy đủ.
+
+Risk:
+R5 đã được xây trên một nền mà Owner CHƯA nghiệm thu trên dữ liệu thật. Nếu
+nghiệm thu R3/R4 phát hiện một lỗi cần sửa ở nền, phần R5 chồng lên nó có thể
+phải làm lại một phần — rủi ro cao nhất nằm ở gói 1 (nó đọc chính cơ chế cờ
+vắng mặt của PRA-002) và gói 3 (nó đọc chính engine doanh thu của R4).
+
+Recommended resolution:
+Giữ nguyên như phiên này đã làm: TRIỂN KHAI theo chỉ thị mới hơn của Owner,
+KHÔNG merge, KHÔNG deploy, và KHÔNG chạm `CHECK-R3-20`/`CHECK-R4-24` — chúng
+vẫn `NOT_TESTED`. Điều kiện của `S133` không bị xoá và không bị coi là đã
+thoả; nó chuyển từ "điều kiện mở R5" thành **điều kiện tích hợp R5**: R5 không
+được merge vào nhánh mặc định trước khi Owner nghiệm thu R3/R4 trên production.
+
+---
+
+## R4 — IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER xác nhận (2026-09-08)
+
+**R4 đã triển khai đầy đủ trên nền R3 đã merge (`824b5d7`).** Owner ban hành
+`R4 Execution Brief — Báo cáo đánh giá vận hành`: biến Reports từ nơi xem số
+liệu thành màn báo cáo tháng trả lời bốn câu — kết quả bán hàng, mức đạt
+target, phần nào tạo ra kết quả, và dữ liệu nào còn chưa đủ để kết luận. Quyết
+định: `DEC-201`. Task canonical: `docs/tasks/R4-bao-cao-danh-gia.md`. Bàn giao:
+`docs/sessions/S131-r4-bao-cao-danh-gia.md`. Đặc tả chỉ tiêu:
+`docs/spec/R4-DAC-TA-KPI.md`.
+
+**R4 là một trang CHỈ ĐỌC, và đó là tính chất quan trọng nhất của nó.** Không
+route ghi, không chạm `business_store`, KHÔNG MIGRATION, không schema mới —
+`ALEMBIC_HEAD` vẫn `0009_line_binding_period_close`. Mọi chỉ tiêu cộng được
+vẫn do `business_metrics.totals` cho ra trên ĐÚNG một `PeriodData` của R3;
+R4 chỉ thêm ba phép CHIA hai con số đã có (`Doanh thu/đơn`, `Biên KPI`,
+`Lãi/đơn`), gom về đúng một hàm. Vì vậy Blast Radius là `3/5` chứ không `5/5`:
+failure path dừng ở `kết luận của Owner`, không đi tiếp vào giá nhập KPI,
+`EligibleKpiProfit`, DS quy đổi hay bộ số đã chốt.
+
+**Cửa quan trọng nhất: một kết quả MỘT PHẦN không bao giờ là kết luận cả kỳ.**
+Coverage chưa đủ 100 % ⟹ Lợi nhuận KPI · Biên KPI · Lãi/đơn · DS quy đổi · %
+target ĐỀU hiện `—` kèm mã lý do. Con số một phần vẫn đọc được, nhưng ở vị trí
+BẰNG CHỨNG ("đã tính được…"), cỡ chữ nhỏ hơn, kèm câu "KHÔNG phải kết quả cả
+kỳ". Bất biến "có số ⟺ không có lý do" được canh ở CONSTRUCTOR
+(`evaluation.Kpi.__post_init__`), nên một ô trống không giải thích được là một
+`ValueError` lúc dựng chứ không phải một ô trống trên màn hình.
+
+**So kỳ trước của tháng đang chạy cắt CẢ HAI vế ở cùng số ngày lịch** (01–08/09
+với 01–08/08); tháng trước ngắn hơn thì cắt cả hai ở ngày ngắn hơn. Smoke thật
+chứng minh điều này bằng một dòng `30.000.000` bán ngày 28/08: nó KHÔNG lọt
+vào mốc so sánh — nếu cửa sổ sai, tỉ lệ sẽ là `−34,7 %` thay vì `+291,67 %`.
+
+**Không có target cấp công ty.** Target chỉ đọc `employee_target`/`group_target`
+đã có; phạm vi "Cả kỳ" không hiện ô target nào và hàng TỔNG để trống hai cột
+target. Forecast chỉ là RUN-RATE, luôn mang nhãn "ước tính nếu tốc độ hiện tại
+giữ nguyên", và từ chối chạy khi kỳ đã kết thúc / chỉ tiêu nền chưa chính thức
+/ không có dòng mang ngày bán.
+
+**Một repair ngoài năm gói, trên luồng chính.** `server._today()` trả
+`date.today()` — ngày theo đồng hồ MÁY CHỦ. Container production chạy UTC nên
+từ 17:00 giờ Việt Nam tới nửa đêm nó trả về NGÀY HÔM TRƯỚC: `as_of` lệch một
+ngày, "còn thiếu mỗi ngày" chia sai, cửa sổ "cùng số ngày lịch" lệch, và tháng
+mặc định của không gian làm việc sai vào tối ngày cuối tháng — tức một Target
+có thể ghi vào THÁNG SAI. Không triệu chứng nào. Nay đọc theo
+`Asia/Ho_Chi_Minh`, đúng múi giờ nghiệp vụ mà `daily-min-v1` đã freeze cho
+ranh giới ngày của giá MIN.
+
+```text
+STATUS                      = IMPLEMENTED — R4 triển khai đầy đủ, chỉ ĐỌC,
+                              không migration. Independent Review và Owner
+                              nghiệm thu CHƯA có. KHÔNG DONE.
+Current Task Mode:            MAJOR
+BASE_HEAD (Reports, trước triển khai)   = 824b5d7 (production, PR #9)
+BRANCH phát triển                       = claude/r4-reports-evaluation-u3vs4d
+BRANCH production Reports               = claude/extract-upload-repo-gq2ws4
+
+R4 STATUS   = IMPLEMENTED (exact HEAD mã nguồn 86cee4097194460955fe806a05e3a919a20a0e95)
+              CHECK-R4-01 … CHECK-R4-22 = PASS (E1)
+              CHECK-R4-23 (Independent Review) = PASS
+                  ACCEPT_WITH_RECORDED_RISK trên exact HEAD
+                  63a066e9275919df92bceaee58876f2724cf9df0 (phiên S132)
+              CHECK-R4-24 (Owner nghiệm thu)   = NOT_TESTED
+              Full regression: 3146 passed, 12 skipped
+              (baseline trước R4 cùng môi trường: 3058 passed, 12 skipped)
+              88 bài mới; migration KHÔNG CÓ; route ghi mới KHÔNG CÓ.
+              Smoke qua HTTP THẬT cho cả ba luồng nghiệm thu, cộng kỳ đã
+              chốt/drift/chặn ghi 409 (S131 §5).
+```
+
+Ba rủi ro ghi nhận (`AR-R4-01` … `AR-R4-03`) ở `S131` §8 và
+`docs/tasks/R4-bao-cao-danh-gia.md` §9; đáng chú ý nhất là `AR-R4-01` —
+trạng thái MIN `FINAL`/`PROVISIONAL` KHÔNG được lưu trên từng dòng (nó sống
+trong ảnh chụp `daily-min-v1` lúc chạy), nên R4 NÓI RA giới hạn đó trên màn
+hình thay vì đoán, và đưa bảng thẩm quyền giá của pipeline làm thứ gần nhất
+mà dữ liệu hiệu lực trả lời được.
+
+R4 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
+luật đã áp cho R1, R2 và R3. R4 cũng KHÔNG chạm tới `CHECK-R3-20`: Owner
+nghiệm thu R3 trên production VẪN `NOT_TESTED`.
+
+**Independent Review R4 (`S132`) — `ACCEPT_WITH_RECORDED_RISK`.** Phiên review
+độc lập kiểm trên exact HEAD `63a066e9`, tự đo lại cả hai vế regression
+(`3146 passed, 12 skipped` trên HEAD; `3058 passed, 12 skipped` trên nền
+`824b5d7` trong worktree riêng — `+88`, `0` hồi quy), tự tính lại độc lập tám
+chỉ tiêu đầu trang, một phép so cùng ngày, run-rate và đối soát drill-down,
+cộng smoke qua HTTP THẬT (`werkzeug.serving.make_server` + `curl`, không phải
+test client) cho cả ba luồng nghiệm thu.
+
+```text
+REPAIR_REQUIRED  0 finding
+ACCEPTED_RISK    AR-R4-04  run-rate nhân từ giá trị CẢ KỲ, không phải "đến as_of"
+                           (chỉ lệch khi kỳ có dòng ghi ngày TƯƠNG LAI; con số
+                            mang nhãn ước tính và không đi vào chỉ tiêu nào)
+                 AR-R4-05  "Ngoại lệ gắn dòng" là con số TOÀN CỤC đứng cạnh bốn
+                           hàng đợi đã thu hẹp — bề mặt MỚI của AR-R3-05
+                 AR-R4-06  khối "so kỳ trước" in "01–00" ở khung nhìn Toàn bộ
+                           dữ liệu (chữ vô nghĩa, không con số nào sai)
+                 AR-R4-07  khoá `nhom` lạ rơi về "Cả kỳ" im lặng, trái docstring
+REPAIR CYCLE     0 tiêu — ngân sách R4 vẫn 1 allowed / 0 used / 1 remaining
+```
+
+Không finding nào thuộc sáu loại bắt buộc repair (lỗi luồng chính · số sai
+trông hợp lệ · coverage trình bày sai · target/cutoff sai · drill-down không
+khớp · mất trạng thái chốt/audit). Ba rủi ro `AR-R4-01` … `AR-R4-03` của
+`S131` được reviewer GIỮ NGUYÊN; điều kiện của brief cho `AR-R4-01` (giao diện
+nói rõ không có dữ liệu trạng thái, không suy đoán) đã thoả. Bằng chứng nguyên
+văn: `docs/sessions/S132-r4-independent-review.md`.
+
+`CHECK-R4-24` (Owner nghiệm thu R4 trên production) VẪN `NOT_TESTED`. Phiên
+review KHÔNG merge, KHÔNG deploy, và KHÔNG chuyển R4 sang `VERIFYING`/`DONE`.
+
+**Tích hợp production R4 (`S133`) — ĐÃ MERGE, `MERGED_DEPLOY_NOT_VERIFIED`.**
+Phiên tích hợp/deploy (không phải một vòng review mới, không chạm R5) mở
+PR #10 từ `claude/r4-independent-review-4fbga6` vào nhánh mặc định thật
+`claude/extract-upload-repo-gq2ws4`, xác nhận lại toàn bộ gate (test + năm
+validator + `branch_authority_check.sh`) trên chính exact HEAD `ed419cd` rồi
+mới merge.
+
+```text
+PR                #10  https://github.com/hoangvinhkta-creator/Reports/pull/10
+MERGE COMMIT      ab5e07d9807c591d6a04584556dacd72689a4ea8
+Nền trước merge   824b5d742dab07b8b0bd301d56748779e35076aa
+Deploy Render     KHÔNG XÁC NHẬN ĐƯỢC — phiên không có egress/credential tới
+                  api.render.com, dashboard.render.com hay
+                  reports.tinphatcrm.com (curl 403 + WebFetch EGRESS_BLOCKED)
+Migration         0009_line_binding_period_close vẫn là head; R4 không thêm
+                  migration; Dockerfile fail-closed (alembic upgrade head
+                  && gunicorn ...) — không đổi
+Smoke production  KHÔNG THỰC HIỆN ĐƯỢC — cùng lý do egress ở trên
+```
+
+Check CI duy nhất của repo (`governance` workflow) đỏ trên PR head — đã xác
+minh KHÔNG phải lỗi mới: cùng traceback (`PermissionError: /root/.ccr/
+README.md` trong `validate_reference_integrity.py`, chạy dưới quyền non-root
+của GitHub Actions runner) xuất hiện Y HỆT trên chính commit nền `824b5d7`
+(và trên mọi merge PR #6/#8/#9 trước đó của R1–R3) — một crash CI đã biết,
+không phải branch protection bắt buộc, không chặn tiền lệ R1–R3.
+
+`AR-R4-01` … `AR-R4-07` giữ nguyên `ACCEPTED_RISK` — không cái nào tái hiện
+thành lỗi deploy hay sai luồng chính trong phiên tích hợp này nên không có
+finding nào được mở lại thành repair. Bằng chứng đầy đủ + checklist Owner (6
+bước, trên dữ liệu THẬT) ở `docs/sessions/S133-r4-integration-and-deployment.md`.
+
+`CHECK-R4-24` và `CHECK-R3-20` VẪN `NOT_TESTED`. **R5 CHƯA `READY`** — chỉ mở
+sau khi Owner xác nhận Render deploy Live VÀ tự nghiệm thu R3/R4 trên dữ
+liệu thật đạt.
+
+> **Cập nhật 2026-09-08 (`S134`).** Owner sau đó chỉ thị trực tiếp mở phiên
+> triển khai R5 đầy đủ, trên điều kiện của chính brief R5 §0 (nhánh mặc định
+> chứa R4 HEAD + migration ở head) — cả hai đã
+> thoả. Câu trên KHÔNG bị xoá và KHÔNG bị coi là đã thoả: nó chuyển thành
+> **điều kiện TÍCH HỢP R5** (R5 không merge trước khi Owner nghiệm thu R3/R4
+> trên production). Xem "CONFLICT DETECTED — điều kiện mở R5" ở đầu file.
+
+---
+
+## R3 = IMPLEMENTED, ĐÃ MERGE vào production branch, deploy platform CHỜ OWNER (2026-09-08)
+
+**R3 đã triển khai đầy đủ, Independent Review `ACCEPT_WITH_RECORDED_RISK`, và
+ĐÃ MERGE vào nhánh mặc định** (PR #8 → `ff1a6d3`, trên nền R2 đã merge trước
+đó ở `45f0e1b`, PR #7). Owner giao năm việc: củng cố import/idempotency và
+khoá dòng; chuẩn hoá loại dòng và công thức; gom mọi màn hình về một effective
+data; hoàn thiện xuất Excel; thêm cơ chế chốt kỳ/phiên bản. Task canonical:
+`docs/tasks/R3-nhap-so-den-chot-ky.md`. Bàn giao phát triển:
+`docs/sessions/S129-r3-nhap-so-den-chot-ky.md`; bàn giao tích hợp/deploy:
+`docs/sessions/S130-r3-integration-and-deployment-attempt.md`. R3 KHÔNG xây
+giá thực nhập,
+KHÔNG thêm nguồn giá nào, KHÔNG sửa công thức MIN, KHÔNG sửa `ADR-110`, và
+KHÔNG định nghĩa ngữ nghĩa hoàn/hủy.
+
+**Lỗi trung tâm — không có triệu chứng, tái hiện được.** `occurrence_index`
+của một dòng hàng được đánh theo VỊ TRÍ dòng trong file
+(`extraction.build_source_lines`: sắp theo `source_row` rồi đếm 1..n trong
+`(order_key, product_key)`). Sổ gốc CÓ đơn chứa hai dòng cùng tên hàng — chính
+docstring của hàm đó nêu ví dụ "Chi phí vận chuyển". Kế toán đảo hai dòng ấy
+trong file là đủ để giá nhập Owner đã gõ cho dòng này lặng lẽ chuyển sang dòng
+kia; không cờ nào bật, màn hình không đổi, con số thì sai. Nay khoá dòng đi
+theo NỘI DUNG qua ba mỏ neo (`IMEI` → `FINGERPRINT` → vị trí CÓ ĐIỀU KIỆN,
+`app/history/line_binding.py`); khi không kết luận chắc chắn được thì hệ thống
+dựng một NGOẠI LỆ thay vì đoán, và khoá cũ KHÔNG bị xoá hay hủy.
+
+**`TASK-105B-Q3` đã đóng.** `OD-105B-01` §3 ký câu trả lời cho dòng phụ từ lâu
+(`AccountingPurchasePrice = 0 BY DEFINITION`, provenance
+`Policy:SupplementaryExpenseZeroPurchasePrice`), nhưng thiếu một tầng phân
+loại có thẩm quyền để biết dòng nào thuộc nhóm đó — đúng thứ mà `TASK-105B-Q3`
+bị `BLOCKED_BY [TASK-103]` chờ. `app/modules/reporting/line_type.py` là tầng
+đó, đặt ĐÚNG chỗ `OD-105B-01` §C yêu cầu (BÊN TRÊN provider, không nằm trong
+`FilePriceProvider`). Đo trên dữ liệu thật: 22 dòng phí (kỳ 01/2026) và 14
+dòng (kỳ 06/2026) không còn khoá coverage vĩnh viễn.
+
+**Giá nhập KPI hiệu lực nay có BA thẩm quyền theo thứ tự cố định:** giá tay →
+giá tự động (MIN theo ngày bán) → chính sách loại dòng. Chính sách đứng CUỐI:
+một nguồn giá thật vẫn thắng con số `0` của chính sách. Và `0` theo chính sách
+KHÁC `0` thay cho thiếu — hàng bán thiếu giá VẪN Pending (`OD-105B-01` §3 câu
+2), kể cả quà tặng kèm.
+
+**Xuất Excel nay đọc effective data**, không đọc `ImportResult`: một file xuất
+từ kết quả pipeline là ảnh chụp trạng thái TRƯỚC mọi quyết định của Owner —
+trông đầy đủ, cân, và nói một bộ số khác màn hình mà không có gì báo rằng nó
+cũ. Đúng MỘT cột `Giá nhập KPI`, ô trống nghĩa là CHƯA CÓ GIÁ.
+
+**Chốt kỳ** (`app/web/period_lock.py`, bảng `period_close`) là một PHIÊN BẢN
+append-only, mở lại được và BẮT BUỘC kèm lý do. Nó TỪ CHỐI (HTTP 409) mọi
+đường ghi quyết định của kỳ, chặn theo NGÀY BÁN của chính dòng chứ không theo
+kỳ đang xem. Migration additive `0009_line_binding_period_close`;
+`ALEMBIC_HEAD` chuyển từ `0008_purchase_price_reason` sang
+`0009_line_binding_period_close`.
+
+```text
+R3 STATUS   = IMPLEMENTED (Independent Review ACCEPT_WITH_RECORDED_RISK,
+              exact HEAD 5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c)
+              CHECK-R3-01 … CHECK-R3-18 = PASS (E1)
+              CHECK-R3-18a/-18b (vân tay chốt kỳ) = PASS (E1)
+              CHECK-R3-19 (Independent Review) = PASS (E1)
+              CHECK-R3-20 (Owner nghiệm thu)   = NOT_TESTED
+              Full regression: 3058 passed, 12 skipped (sau repair IR;
+              trước repair 3043 passed, 12 skipped)
+              (baseline trước R3 cùng môi trường: 2946 passed, 12 skipped)
+              Đối soát trên hai kỳ nghiệp vụ THẬT đã ẩn danh: nạp lại cùng
+              file và nạp lại file ĐẢO THỨ TỰ DÒNG đều cho 0 INSERT /
+              0 SOURCE_CHANGED / 0 khoá dòng mới / 0 ngoại lệ; tổng kỳ ==
+              Σ nhân viên == Σ sheet; file xuất == màn hình.
+              Migration 0009 upgrade + downgrade + re-upgrade đã chạy thật;
+              CẢ giá nhập Owner gõ tay LẪN lần chốt kỳ sống sót qua rollback
+              (S129 §5.5).
+```
+
+**Repair sau Independent Review (2026-09-08, nền `8aa6626`).** Hai finding
+ACCEPTED, cả hai trên CÙNG một hàm (`period_lock.content_fingerprint`) và hỏng
+theo hai chiều NGƯỢC NHAU. `FIND-R3-IR-01` (FALSE NEGATIVE): payload chỉ có
+sáu trường mỗi dòng, nên nó mù với phần lớn kết quả tài chính đã được duyệt —
+Owner tick Gia dụng làm tỉ lệ quy đổi đi 2 % → 8 % và DS quy đổi rơi từ
+150.000.000 xuống 37.500.000, mà vân tay không đổi một bit và kỳ đã chốt báo
+"không có gì đổi"; danh tính dòng cũng thiếu `product_key`/`occurrence_index`
+nên hai dòng khác nhau của cùng một đơn cho ra hai khối byte giống hệt.
+`FIND-R3-IR-02` (FALSE POSITIVE): payload cộng `len(purchase_price_overrides())`
+— số override của TOÀN DATABASE — nên một giá tay tháng 02 làm tháng 01 đã
+chốt báo drift dù không dòng nào của tháng 01 đổi.
+
+Sửa tận gốc: payload mới gồm bản chụp chỉ tiêu SẼ ĐƯỢC LƯU cộng 19 trường của
+TỪNG DÒNG (danh tính đầy đủ · đầu vào · giá vốn · kết quả gồm
+`conversion_rate`/`converted_sales`/`profit_blockers` · quy thuộc), sắp theo
+khoá dòng nên không phụ thuộc thứ tự truy vấn; phụ thuộc toàn cục bị gỡ hẳn và
+KHÔNG có gì thay chỗ nó. Không `ACCEPTED_RISK` mới, KHÔNG migration mới
+(schema không đổi), không đụng công thức MIN, không thêm fallback, không sửa
+Tracking — diff đúng hai file mã nguồn. Chi tiết, evidence và test tái hiện
+(6 bài ĐỎ trước sửa, 15 XANH sau sửa — gồm hai bài chạy CHÍNH thuật toán cũ
+cạnh bản mới để finding tái hiện được về sau): `S129` §11.
+
+Hai mục review nêu được ghi thành `ACCEPTED_RISK` và KHÔNG sửa trong vòng này
+theo đúng yêu cầu: `AR-R3-05` (ngoại lệ gắn dòng chưa lọc tuyệt đối theo kỳ —
+chỉ ô ĐẾM ở trang chốt kỳ rộng hơn sự thật, không con số tiền nào sai) và
+`AR-R3-06` (`PeriodData._slice` chưa chiếu `excluded`/cảnh báo theo lát).
+
+Task VẪN `IMPLEMENTED`. `CHECK-R3-19` (Independent Review) VẪN `NOT_TESTED` —
+phiên repair KHÔNG tự đánh dấu nó PASS; reviewer kết luận lại trên commit
+repair.
+
+**Independent Review — kết luận (2026-09-08, exact HEAD
+`5952ce8cc2d8d1e3a3bebc59cd6701a027f9f98c`).** `ACCEPT_WITH_RECORDED_RISK`.
+Reviewer tự chạy lại toàn bộ bằng chứng: R3 focused 111 passed, full
+regression 3058 passed/12 skipped, cả hai finding (`FIND-R3-IR-01`,
+`FIND-R3-IR-02`) tái hiện được rồi xác nhận đã repair, và
+`branch_authority_check.sh` trên exact HEAD → `AUTHORITY_OK`. `CHECK-R3-19`
+chuyển `PASS`. `CHECK-R3-20` (Owner Acceptance trên production) GIỮ NGUYÊN
+`NOT_TESTED` — không session tích hợp/deploy nào có thẩm quyền tự đóng nó.
+Hai rủi ro `AR-R3-05`/`AR-R3-06` được CHẤP NHẬN GHI NHẬN, không repair thêm,
+không đổi tổng tiền nào. Chi tiết: `docs/tasks/R3-nhap-so-den-chot-ky.md` §8b,
+`S129` §12.
+
+Task R3 VẪN `IMPLEMENTED` cho tới khi Owner xác nhận nghiệm thu trên
+production (`CHECK-R3-20`) — KHÔNG chuyển `DONE` trước đó, kể cả sau khi merge
+và deploy thành công.
+
+**Tích hợp production (2026-09-08, `S130`).** PR #8 (`claude/r3-import-to-
+period-close-nakk8e` @ `f576333`, tức `5952ce8` + đúng một commit doc-only) đã
+MERGE vào nhánh mặc định (không squash — chuỗi commit là bằng chứng governance
+tham chiếu trực tiếp). Production branch `claude/extract-upload-repo-gq2ws4`
+nay ở `ff1a6d3`, xác nhận bằng `git fetch` sạch. CI đỏ ở
+`validate_reference_integrity` (3 reference `TASK-REM-T06` đã biết, xác minh
+lại tồn tại y hệt trên `45f0e1b` trước khi merge) — không phải lỗi R3, đã ghi
+bình luận trên PR trước khi merge.
+
+**Deploy Render tại source `dd369e5` đã FAIL-CLOSED (2026-09-08).** Log
+production xác nhận Alembic từ chối ghi revision cũ dài 34 ký tự vào
+`alembic_version.version_num VARCHAR(32)`; container mới không mở cổng. Repair
+đang chờ deploy đổi revision thành `0009_line_binding_period_close` (30 ký tự)
+và thêm test canh giới hạn. Không nghiệm thu Owner trên release lỗi này.
+
+Phiên tích hợp ban đầu không thể tự thao tác Render/Cloudflare vì không có
+credential, CLI hay egress tới các endpoint quản trị. **Khác R1**:
+R3 có migration `0009_line_binding_period_close` chạm schema production
+thật — sao lưu database TRƯỚC migration là yêu cầu bắt buộc mà phiên này
+KHÔNG có cách nào tự thực hiện hay tự xác nhận. Dockerfile production đã có
+sẵn cơ chế fail-closed (`alembic upgrade head && gunicorn …`) nên migration
+lỗi sẽ chặn container khởi động chứ không phục vụ traffic sai schema — nhưng
+điều đó KHÔNG thay thế được bước sao lưu thủ công. Checklist đầy đủ cho Owner
+(kiểm Render Events/Logs, xác nhận/tạo backup Postgres, chín mục smoke test)
+nằm ở `S130` §6–§7. `CHECK-R3-20` VẪN `NOT_TESTED` — không tự tuyên bố PASS,
+không tuyên bố `R3 = DONE`.
+
+R3 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai — cùng kỷ
+luật đã áp cho R1 và R2. Bốn rủi ro giữ lại (`AR-R3-01` … `AR-R3-04`) ở `S129`
+§7; đáng chú ý nhất là `AR-R3-01` (phân loại mã sản phẩm là quyết định TOÀN
+CỤC nên không đi qua cửa chặn kỳ đã chốt — giảm nhẹ bằng `period_drift`, thay
+đổi không bị chặn nhưng không bao giờ im lặng) và `AR-R3-02` (`BTL` vẫn chưa
+có nghĩa; 4 dòng trên hai kỳ golden đang giữ coverage dưới 100 %, chờ đúng một
+quyết định của Owner).
+
+Một lỗi lộ ra từ chính bộ test R3 và đã sửa trong cùng phiên:
+`business_presentation.PROVENANCE_LABELS` tra bằng `[...]` và thiếu mục
+`POLICY_ZERO`, nên trang bảng kê chi tiết ném `KeyError`/HTTP 500 ngay khi kỳ
+có MỘT dòng phí — tức ở mọi kỳ trên dữ liệu thật. Chi tiết: `S129` §6.
+
+---
+
+## R2 = IMPLEMENTED (đã merge vào nhánh mặc định), R1 = VERIFYING (2026-09-07)
+
+**R2 đã triển khai đầy đủ trên nền R1 đã ACCEPT.** Owner ban hành `R2
+Execution Brief — Phân loại sản phẩm và giá nhập tay`: hoàn thiện đường xử lý
+cho các dòng chưa tự nhận diện hoặc chưa có giá nhập KPI. Quyết định:
+`DEC-200`. Task canonical: `docs/tasks/R2-phan-loai-va-gia-nhap-tay.md`. Bàn
+giao: `docs/sessions/S128-r2-phan-loai-va-gia-nhap-tay.md`. R2 KHÔNG thay công
+thức MIN của Tracking, KHÔNG xây giá thực nhập, và KHÔNG sửa `ADR-110`.
+
+**Hai mối nối bị ĐỨT đã được tái hiện và sửa** — cả hai đều không có triệu
+chứng, tức màn hình phân loại chạy đúng, log ghi đúng, và báo cáo không đổi
+một chữ:
+
+1. `ProductIdentityResolver._tracking_authoritative()` — đường production —
+   KHÔNG hỏi store quyết định của Reports một câu nào. Nhánh duy nhất đọc nó
+   (`_alias_exact`) chỉ chạy ở chế độ legacy, và đó cũng là chế độ mà fixture
+   test cũ dùng, nên mọi bộ test vẫn xanh trong khi production hỏng.
+2. `app/demo.py`, `app/owner_usability.py` và `tools/tracking/live_pull.py`
+   mỗi bên tự mở một `JsonlProductIdentityStore` trên
+   `data/product_identity/mappings.jsonl` — đĩa EPHEMERAL của container, trong
+   khi log thật của bản Web nằm ở R2 object store. Cả ba luôn đọc ra store
+   RỖNG.
+
+Hệ quả cộng lại: Owner chọn một mặt hàng trên giao diện, và mã ấy không bao
+giờ tới được resolver LẪN không bao giờ lọt vào tập mã đi hỏi `daily-min`.
+Nay `/run` đọc MỘT ảnh chụp đóng băng qua `identity_gateway.store_view()` và
+truyền vào cả hai đường.
+
+**Bốn trạng thái nhận diện hiệu lực** nay tách bạch ở model, persistence, UI
+và test: `MATCHED_TRACKING` · `NEEDS_REVIEW` · `OUT_OF_CATALOG` (mới, là một
+phân loại HOÀN TẤT — dòng vẫn trong báo cáo, vẫn giữ doanh thu, chờ giá tay)
+· `CONFLICT` (suy ra tại lần chạy, KHÔNG lưu, và không bên nào tự thắng).
+
+**Giá nhập tay** nay có đủ provenance thực tế: `entered_by`, `entered_at`,
+`auto_price_at_entry` và `reason` — `reason` BẮT BUỘC khi thay một giá AUTO.
+Migration additive `0008_purchase_price_reason`; `ALEMBIC_HEAD` chuyển từ
+`0007_employee_workspace` sang `0008_purchase_price_reason`.
+
+```text
+R2 STATUS   = IMPLEMENTED (repair FIND-R2-IR-03, HEAD f8225d3)
+              CHECK-R2-01 … CHECK-R2-17 = PASS (E1)
+              CHECK-R2-18 (Independent Review)  = NOT_TESTED
+              CHECK-R2-19 (Owner nghiệm thu)    = NOT_TESTED
+              Full regression: 2947 passed, 11 skipped
+              (baseline trước repair IR-03: 2943 passed, 11 skipped)
+              Migration 0008 upgrade + downgrade + re-upgrade đã chạy thật;
+              giá nhập Owner gõ tay SỐNG SÓT qua rollback (S128 §5.3).
+```
+
+**Repair sau Independent Review (2026-09-07, HEAD `e7ffaf6`, nền `cccdb58`).**
+Hai finding ACCEPTED, cả hai trên chuỗi CONFLICT (`§4.2`): `FIND-R2-IR-01`
+(một mapping CONFIRMED cũ — từ TRƯỚC khi mâu thuẫn xuất hiện — luôn che mất
+`IDENTITY_CONFLICT` của lần chạy hiện hành, vì `state_of()` kiểm quyết định đã
+lưu TRƯỚC khi đọc mã lý do) và `FIND-R2-IR-02` (một lần giải mâu thuẫn miễn
+trừ MỌI bất đồng tương lai thay vì chỉ đúng đối thủ đã thấy — Tracking đổi
+tiếp sang mã thứ ba thì hệ thống lặng lẽ tiếp tục dùng mã cũ). Khi verify
+finding thứ hai bằng test đi hết, phát lộ thêm một lỗi vòng hai ở tầng store
+(idempotency không tính mã đối lập, khiến "chọn lại đúng mã cũ cho một mâu
+thuẫn MỚI" bị coi là không đổi gì) — sửa trong cùng commit. Cả ba đều sửa tận
+gốc, không `ACCEPTED_RISK` nào phát sinh. Chi tiết, evidence và test tái
+hiện+PASS: `S128` §9b. Task VẪN `IMPLEMENTED` — không tự đánh dấu Independent
+Review PASS.
+
+**Repair riêng lẻ (2026-09-08, HEAD `f8225d3`, nền `b75bf84`) —
+`FIND-R2-IR-03`.** Cùng chuỗi CONFLICT, một finding thứ ba: `conflict_resolved`
+là một tập khoá trần, nên một lần giải A-vs-B (Owner chọn A) miễn trừ VĨNH
+VIỄN mọi `IDENTITY_CONFLICT` tương lai của cùng khoá — kể cả một A-vs-C hoàn
+toàn khác mà resolver/composition (đã sửa ở `FIND-R2-IR-02`) đúng đắn phát
+hiện lại. Sửa tận gốc bằng so sánh mốc thời gian: `Decisions.conflict_resolved`
+đổi từ `frozenset[key]` sang `dict{key: confirmed_at}`; `state_of()` chỉ cho
+quyết định thắng ngay khi mốc giải MỚI HƠN mốc lần chạy đã tính ra dòng đang
+hiển thị (`result_created_at`, cột đã có sẵn, không thêm schema). Không đụng
+Tracking/công thức MIN/fallback/giá tay/rủi ro đã chấp nhận. Chi tiết, evidence
+và test (domain + route Flask thật, đi hết toàn bộ chuỗi A-vs-B → không đổi →
+A-vs-C → chọn lại → sống qua restart): `S128` §9c. Task VẪN `IMPLEMENTED` —
+không tự đánh dấu Independent Review hay Owner Acceptance PASS.
+
+R2 KHÔNG được chuyển `VERIFYING` hay `DONE` trong phiên triển khai: Brief §9
+cấm tự tuyên bố Independent Review và Owner Acceptance. Ba rủi ro giữ lại
+(`AR-R2-01` … `AR-R2-03`) ở `S128` §7 — đáng chú ý nhất là `AR-R2-01`, một lỗi
+CÓ TRƯỚC R2 làm log identity không đọc được nếu một `SetPending` bị theo sau
+bởi một `ConfirmMapping` trên cùng khoá (chỉ CLI phát được, giao diện web
+không có đường tới).
+
+---
+
+## R1 = VERIFYING (2026-09-07)
+
+**Thẩm quyền giá nhập ĐÃ ĐỔI.** Owner ban hành `R1 Execution Brief — Giá MIN
+theo ngày bán`: giá nhập tự động của Reports là **MIN của đúng ngày bán**, do
+Tracking tính và lưu, đọc qua hợp đồng `daily-min-v1`. Nhánh cũ (lịch sử
+`board/<mã>/tp/ton`, tức giá nhập công khai Owner đặt tay) KHÔNG bị xoá, KHÔNG
+đổi nghĩa, và THÔI làm nguồn giá mặc định.
+
+Đây là một `CONFLICT DETECTED` đã được giải quyết theo quy trình, không phải
+một thay đổi âm thầm: quyết định ở `DEC-199`, kiến trúc ở
+`docs/adr/ADR-110-daily-min-price-authority.md` (supersede ĐÚNG một mệnh đề
+của `ADR-107`). Task canonical: `docs/tasks/R1-daily-min-theo-ngay-ban.md`;
+bàn giao phát triển: `docs/sessions/S126-r1-daily-min-theo-ngay-ban.md`; bàn
+giao triển khai production: `docs/sessions/S127-r1-production-deployment.md`.
+
+**Independent Review kết luận ACCEPT (07/09/2026) trên SOURCE LOCK Tracking
+`f9caaa036cc6fbc9a021aeea99158ba6fce9d20e` / Reports
+`eafcb08eb56ca89068d4e91e0c0a126dbab906df`.** `CHECK-R1-24` = PASS. Cùng
+phiên đó, SOURCE LOCK đã được fast-forward vào nhánh production của cả hai
+repo và xác nhận trên GitHub bằng fetch sạch: Tracking `main` = `f9caaa0`,
+Reports `claude/extract-upload-repo-gq2ws4` = `6e2620e` (SOURCE LOCK + đúng
+một commit tài liệu cập nhật `CHECK-R1-24`). Cổng trước deploy chạy lại xanh
+ở đúng SOURCE LOCK: Tracking 60 bộ/2737 đạt/0 hỏng + build `./dist` thành
+công; Reports 2880 passed/12 skipped + 176 bài nhóm daily-min + hai smoke
+R1 (19/19, 13/13) đều PASS.
+
+**Deploy thật (Cloudflare Worker build, publish Firebase rules, Render
+deploy) KHÔNG xác nhận được từ phiên triển khai** — phiên không có credential
+Cloudflare/Render/Firebase (đúng giới hạn đã ghi từ `S071`), và egress mạng
+của phiên bị chặn ở tầng proxy đối với CẢ HAI domain production (`price.
+tinphatcrm.com`, `reports.tinphatcrm.com` — `CONNECT tunnel failed, response
+403`, đối chứng `api.github.com` vẫn `200` cùng lúc, nên đây là chặn theo
+domain chứ không phải server đích lỗi). Checklist đầy đủ cho Owner (Cloudflare
+Secret/binding/cron, publish Firebase rules, mở app Bảng giá, xác nhận Render
+env, ba smoke production) nằm ở `S127` mục 8. `CHECK-R1-23` (Owner nghiệm thu
+trên dữ liệu thật) VẪN `NOT_TESTED` — không tự tuyên bố PASS, không tuyên bố
+`R1 = DONE`.
+
+**Reports đã được review ACCEPT tại `4b6006e`.** Finding cuối của R1 nằm hoàn
+toàn phía Tracking (`f9caaa0`): nhánh revision nay có trạng thái
+`WRITING`/`READY` — đánh dấu `WRITING` TRƯỚC lượt ghi dữ liệu đầu tiên, công bố
+token mới + `READY` sau lượt ghi cuối, và bên đọc TỪ CHỐI khi thấy `WRITING`.
+Chỉ có token là chưa đủ: dữ liệu ghi trước rồi token đổi sau thì cả hai lần đọc
+token đều cho ra giá trị CŨ trong khi trang sau đã đọc trúng dữ liệu MỚI. Mọi
+kết quả ghi nay được kiểm, kể cả con trỏ của `suaBanGhi`. Chi tiết + rủi ro
+chấp nhận được: `S126` §13.
+
+**Đã qua Independent Review vòng 2 (cùng ngày) — review CHƯA ACCEPT.** Năm
+finding, tất cả đã xử lý; chi tiết ở `S126` §12. Đáng chú ý nhất: kỳ rộng hơn
+trần 62 ngày của hợp đồng trước đây bỏ qua lượt hỏi giá, nên lần chạy vẫn ra
+một báo cáo đầy đủ hình thức mà KHÔNG một giá vốn nào — kết cục tệ hơn cả một
+lỗi vì nó trông giống thành công. Nay kỳ được CHIA thành các đoạn ≤ 62 ngày và
+chỉ gộp khi cùng `query_revision`; rộng quá trần đoạn thì TỪ CHỐI (400) kèm
+hướng dẫn tách kỳ. Bốn finding còn lại: dọn capture tạm khi lần chạy hỏng, đọc
+lạc quan HAI ĐẦU + con trỏ mang revision, chọn ảnh chụp theo TỪNG CẶP
+`(mã, ngày)`, và lịch sử `tp/ton` thôi là nguồn REQUIRED.
+`CHECK-R1-37` … `CHECK-R1-41` đã PASS. `CHECK-R1-24` VẪN `NOT_TESTED`.
+
+**Đã qua một lượt Independent Review vòng 1 (cùng ngày).** Sáu finding, tất
+cả đã xử lý và kiểm chứng — chi tiết ở `S126` §11. Finding tệ nhất:
+`app/web/server.py` KHÔNG hề truyền ảnh chụp MIN vào lượt chạy, nên đường
+upload web làm mọi mã Tracking Pending trong khi 2.776 bài kiểm đều xanh (mọi
+bài đều NHẬN sẵn một capture, không bài nào đi qua chỗ người dùng bấm nút).
+Nay điều phối tự lập kế hoạch hỏi giá từ chính sổ, gọi hợp đồng một lượt, đóng
+băng capture cho lần chạy và dọn trong `finally`. `CHECK-R1-30` …
+`CHECK-R1-36` đã PASS. Trạng thái R1 KHÔNG đổi: vẫn `IMPLEMENTED`.
+
+**Đã qua một lượt kiểm thử/sửa lỗi riêng (cùng ngày).** Bảy chỗ sửa, tất cả
+thuộc cùng một lớp: KHÔNG ném ngoại lệ, chỉ cho ra một con số tiền trông hoàn
+toàn bình thường — bốn chốt fail-closed cho `chupMinNgay` phía Tracking, hai
+bất biến toàn vẹn ảnh chụp phía Reports, và một luật đọc được viết lại
+(`CARRY_FORWARD_RULE` bên dưới). Chi tiết từng chỗ: `S126` §5.1. Năm check mới
+`CHECK-R1-25` … `CHECK-R1-29` đã PASS.
+
+```text
+STATUS                      = VERIFYING — Independent Review ACCEPT,
+                              CHECK-R1-24 PASS. SOURCE LOCK đã fast-forward
+                              vào nhánh production (Git) ở cả hai repo. Deploy
+                              thật (Cloudflare/Firebase/Render) CHƯA xác nhận
+                              được — không credential, egress mạng bị chặn
+                              domain production. Chờ Owner hoàn tất S127 mục 8
+                              + CHECK-R1-23. KHÔNG DONE.
+Current Task Mode:            MAJOR
+BASE_HEAD (Reports, trước triển khai) = a4c00501d559bda8ec70d8fe1dc1f8e54b46d592
+BASE_HEAD (Tracking, trước triển khai) = 598b4b1390cc96e552455ab85e2c48d78198b89c
+PRODUCTION_HEAD (Reports, SAU triển khai) = 6e2620e3eedf7ad7ae4b4b29ddacd21c97ab70dd
+PRODUCTION_HEAD (Tracking, SAU triển khai) = f9caaa036cc6fbc9a021aeea99158ba6fce9d20e
+BRANCH phát triển (cả hai repo)         = claude/kiem-tra-tham-chieu-gia-nhap-c57d7z
+BRANCH production Tracking              = main
+BRANCH production Reports               = claude/extract-upload-repo-gq2ws4
+
+PRICE_AUTHORITY             = TRACKING_DAILY_MIN_AT_SALE_DATE
+                              (thay TRACKING_PP_AT_SALE_DATE_ONLY)
+PRICE_SOURCE_LABEL          = TRACKING_DAILY_MIN — nhãn RIÊNG, không dùng
+                              lại TRACKING_PRICE_HISTORY
+LEGACY_TP_TON_PATH          = GIỮ NGUYÊN, thôi mặc định; bật lại phải nêu rõ
+                              `legacy_tracking_history_authority=True`
+FALLBACK_TU_MIN_SANG_CU     = KHÔNG TỒN TẠI, kể cả khi nguồn mới chưa nối
+BACKFILL                    = KHÔNG. Lịch sử MIN bắt đầu từ lượt chụp đầu tiên
+
+CONTRACT                    = daily-min-v1 · đơn vị VND_THOUSAND · múi giờ
+                              Asia/Ho_Chi_Minh · POST /api/min-ngay
+                              (X-Report-Key, batch, phân trang)
+TRACKING_STORAGE            = min_ngay/<mã>/<ngày> (chỉ ghi khi đổi) ·
+                              min_ngay_ngay/<ngày> (bằng chứng ĐÃ QUAN SÁT
+                              + PROVISIONAL/FINAL) · min_ngay_dau ·
+                              min_ngay_sua — cả bốn: client KHÔNG ghi được
+CARRY_FORWARD_RULE          = mốc R ≤ D hợp lệ cho D khi và chỉ khi ĐÚNG
+                              NGÀY D có bản ngày (bản ngày chỉ ghi được khi
+                              engine trả đủ MỌI mã của bảng — CHECK-R1-25);
+                              D không có bản ngày ⇒ SOURCE_UNAVAILABLE
+PAGINATION_CONSISTENCY      = min_ngay_rev có TRẠNG THÁI WRITING/READY:
+                              WRITING trước lượt ghi dữ liệu đầu, token mới +
+                              READY sau lượt ghi cuối; bên đọc TỪ CHỐI khi
+                              WRITING (409 nguon-dang-ghi). Token đổi sau MỌI
+                              lượt ghi. Đọc
+                              lạc quan HAI ĐẦU (token → dữ liệu → token, chỉ
+                              trả khi bằng nhau; lệch ⇒ 409). Con trỏ mang
+                              theo token (<rev>:<vị trí>); lệch ⇒ 409. Reports
+                              TỪ CHỐI gộp trang HOẶC đoạn ngày khi lệch
+KY_RONG_HON_HOP_DONG        = chia thành đoạn ≤ 62 ngày, gộp CHỈ khi mọi đoạn
+                              cùng query_revision; rộng quá 12 đoạn ⇒ 400 kèm
+                              hướng dẫn tách kỳ. KHÔNG bao giờ ra một báo cáo
+                              thiếu toàn bộ giá vốn
+LEGACY_TP_TON_REQUIRED      = KHÔNG. Từ R1 nó không quyết định giá nào, nên
+                              sự cố ở nhánh ấy không chặn báo cáo; vẫn chụp,
+                              vẫn vào bằng chứng, vắng mặt thì NÓI RA.
+                              Danh mục Tracking VẪN REQUIRED
+DAILY_MIN_LA_THEO_KY        = ảnh chụp MIN phụ thuộc tập mã + khoảng ngày.
+                              Web: tự lập kế hoạch từ sổ rồi gọi hợp đồng.
+                              Cục bộ: chọn ảnh chụp trả lời được TỪNG CẶP
+                              (mã, ngày) của kỳ — không phải "mới nhất", và
+                              không chỉ theo khoảng ngày; không có thì None
+                              + Pending. Cặp nằm ở errors VẪN là đã trả lời
+PERIOD_FINAL_GATE           = period_is_final (có dữ liệu + không Pending +
+                              không PROVISIONAL). resolved_prices_are_final
+                              là chỉ số HẸP hơn, không phải cổng chốt kỳ
+MIN_0_SENTINEL              = dừng ở biên xuất bản → OUT_OF_STOCK + null
+UNIT_CONVERSION             = ×1000 đúng MỘT lần, daily_min/provider.py
+
+REASON_UNIVERSE             = 19 → 21 mã sinh mới; 21 → 23 mã UI hiển thị
+                              (thêm TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE và
+                              TRACKING_DAILY_MIN_PENDING — hai việc khác nhau
+                              của hai người khác nhau, không gộp)
+
+TRACKING_TESTS              = 60 bộ · 2737 đạt · 0 hỏng · 2 bỏ qua
+                              (nền: 59 · 2594 · 0 · 2)
+TRACKING_BUILD              = `npm run build` dựng ./dist thành công
+REPORTS_TESTS               = 2880 passed, 12 skipped, 0 failed
+                              (nền: 2720 passed, 12 skipped) — 160 bài mới
+SMOKE_HAI_HE_THONG          = kiem/smoke/xuat-thang-min.mjs (Tracking) →
+                              tools/smoke/r1_daily_min_smoke.py (Reports):
+                              19/19 khẳng định PASS, output trích nguyên văn
+                              tại docs/sessions/S126 §6
+SMOKE_UPLOAD_WEB            = tools/smoke/r1_web_upload_smoke.py: POST /run
+                              thật, HTTP thật, /api/min-ngay do CHÍNH mã
+                              Tracking trả lời (node kiem/smoke/tra-loi-min-
+                              ngay.mjs), rồi mở file .xlsx đọc con số.
+                              13/13 PASS — docs/sessions/S126 §11.4
+GOVERNANCE_VALIDATORS       = structure / project_state / evidence (161
+                              REQUIRED PASS) / task_completion (14 DONE)
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference TASK-REM-T06 đã biết (baseline
+                              KHÔNG đổi)
+E2E                         = tests/test_daily_min_vertical.py chạy trên
+                              fixture do CHÍNH mã Tracking sinh: đơn bán
+                              03/09 ra 6.800.000 VND trong khi ảnh chụp có
+                              6.000 (nghìn) ở 04/09; lợi nhuận 2.200.000;
+                              provenance trỏ đúng revision của Tracking
+SMOKE_BA_LUONG              = (1) đơn 03/09 nạp 30/09 → 6.800.000, trong khi
+                              CÙNG ảnh chụp có giá 30/09 = 5.200 và lịch sử
+                              tp/ton cũ = 4.444, cả hai KHÔNG được dùng ·
+                              (2) TRK-A nguồn SUPPLIER:Tuấn Ngoan, TRK-B
+                              nguồn INVENTORY:TON_KHO (5.000.000) ·
+                              (3) TRK-C hết hàng và TRK-D chưa có dữ liệu →
+                              giá None, lợi nhuận None, Pending với HAI lý do
+                              khác nhau; sentinel 0 KHÔNG thành giá vốn 0
+
+BLOCKING_FINDINGS           = 0
+KNOWN_GAPS                  = (1) không backfill được lịch sử MIN trước lượt
+                              chụp đầu · (2) đường web pull-on-run chưa lấy
+                              MIN theo ngày (cần tập mã sau resolve identity
+                              — thuộc R2) · (3) lượt chụp cần `meta.an` do
+                              trình duyệt Tracking đăng; chưa có thì bản ngày
+                              SOURCE_UNAVAILABLE và tự khỏi ở lần mở app kế
+DEPLOYED                    = NO (brief §2 loại trừ triển khai production)
+SCOPE_DRIFT                 = NO
+NEXT_VERTICAL_ACTION        = Independent Review của R1, rồi Owner chạy lượt
+                              chụp đầu tiên và nghiệm thu trên dữ liệu thật
+```
+
+Khối `TASK-OWNER-UIUX-008` ngay bên dưới được **GIỮ NGUYÊN như bản ghi lịch sử
+đúng tại thời điểm của nó**. Khi nó mâu thuẫn với mục này về trạng thái *hiện
+tại* của thẩm quyền giá, mục này đúng.
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-008 = DONE (2026-09-06)
+
+Hai yêu cầu trực tiếp của chủ dự án trên bảng kê Nhân viên: nới rộng cột
+Mã đơn để đủ chỗ ba chấm cảnh báo, và tách cột Khách hàng thành hai cột
+bằng nhau (tên riêng, liên hệ riêng) — mỗi cột CẮT một dòng thay vì xuống
+dòng, để mọi hàng bảng giữ đúng một chiều cao. Quyết định: `DEC-198`.
+Không có điểm mơ hồ cần hỏi lại.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = 251bdcc50dba28863af2009888d0ab86e21a1451
+Current Task Mode:            MICRO (hai sửa kích thước/cấu trúc trình bày)
+CHANGES                      = (1) `.sheet-table td.code` max-width 110px
+                              → 150px (đủ chỗ 3 chấm cảnh báo không tràn)
+                              · (2) cột Khách hàng (một ô, tên+meta chồng
+                              2 dòng) tách thành HAI `<td>` bằng nhau
+                              (`bh-customer-name`/`bh-customer-contact`,
+                              mỗi ô 130px, `text-overflow: ellipsis` —
+                              cắt 1 dòng, không xuống dòng) — header/
+                              hàng TỔNG/`bh-edit-row` colspan (12→13) cập
+                              nhật theo; ba `data-metric` con (customer-
+                              name/phone/address) giữ nguyên, 0 test sửa
+                              đích
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `251bdcc`: GIỐNG HỆT 2721/11) · GOLDEN
+                              58 passed / 2 skipped, KHÔNG đổi ·
+                              `test_employee_workspace_ux.py` riêng: 146
+                              passed, 2 skipped
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (không tăng thêm)
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-007 = DONE (2026-09-06)
+
+Ba yêu cầu trực tiếp của chủ dự án trên trang Nhân viên: tag cảnh báo đổi
+thành CHẤM MÀU ngang hàng với số BH (đảo lại `DEC-195` §1), bỏ đường viền
+kẻ quanh card/button (giữ bo góc), tab sheet đổi hình dạng giống card số
+liệu xếp một hàng đầy đủ. Quyết định: `DEC-197`. Ba câu hỏi làm rõ qua
+`AskUserQuestion` trước khi triển khai (màu 6 mã cảnh báo không nêu tên
+→ ĐEN, phạm vi bỏ viền → chỉ đường kẻ giữ bo góc, hình dạng tab → hẳn
+thành card).
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = f6d73479618e82df7746a692871e83e9efce5591
+Current Task Mode:            MICRO (ba sửa trình bày trên MAJOR vừa DONE)
+CHANGES                      = (1) tag cảnh báo → chấm tròn màu (vàng=
+                              thiếu giá, đỏ=bất thường, xanh=chưa phân
+                              loại, đen=6 mã còn lại — `TAG_COLORS` mới
+                              trong `workspace_presentation.py`), NGAY SAU
+                              số BH trên cùng dòng, không còn khối
+                              `.bh-order-tags` riêng bên dưới · chữ nhãn
+                              vẫn là nội dung trực tiếp của phần tử mang
+                              `data-metric` (ẩn bằng `font-size:0`, KHÔNG
+                              lồng span con) — chấm tự vẽ qua CSS `::
+                              before`, không ảnh hưởng quy ước đọc test ·
+                              (2) bỏ `border` kẻ (giữ `border-radius`) của
+                              `.module`/`.kpi-card`/`.kpi-period`/
+                              `.sheet-tab`/`.act`/`.ghost`/`button`, khoanh
+                              vùng dưới `body.theme-finance` (3 trang) ·
+                              (3) `.sheet-tabs` đổi `flex` → `grid`
+                              (`auto-fit`/`minmax(110px,1fr)`), `.sheet-tab`
+                              đổi hình dạng giống `.kpi-card` (bo bốn góc,
+                              nền trắng), trạng thái chọn dùng nền
+                              `--tp-sky` thay viền màu (viền đã trong suốt)
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `f6d7347`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi · các file test
+                              `bh-tag`/`identity-label`/PI-01…12 chạy
+                              riêng lại xác nhận (217 passed, 2 skipped)
+THEME_SCOPE_VERIFIED        = ảnh chụp xác nhận `/ban-hang` (ngoài phạm
+                              vi) vẫn giữ viền xanh dương gốc — bỏ viền
+                              không rò rỉ ngoài ba trang theme Finance
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (không tăng thêm)
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-006 = DONE (2026-09-06)
+
+Chủ dự án xác nhận lại cách hiểu ở `DEC-195` §2 (mục "Can Revisit After"
+DEC-195 tự nêu ra): card "Tiến độ" của mỗi nhân viên CŨNG lên ngang hàng
+với năm card KPI ở trên, thay vì tách riêng một hàng. Quyết định:
+`DEC-196`. Thuần bố cục — không đổi business logic/database/write
+authority/navigation chính.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+BASE_HEAD                   = 9ed604a701be5e68bd821c1d4ba5d680181539f2
+Current Task Mode:            MICRO (một sửa bố cục trên MAJOR vừa DONE)
+CHANGES                      = Tiến độ dời từ `.kpi-grid.kpi-grid-one`
+                              (khối riêng) vào thẳng `.kpi-grid.strip`,
+                              đứng sau Lợi nhuận KPI · CSS `.kpi-grid.
+                              strip` đổi `repeat(5,...)` → `repeat(6,...)`
+                              (breakpoint 900px/560px giữ 3 cột/2 cột) ·
+                              markup từng card KHÔNG đổi, chỉ đổi khối cha
+BUSINESS_LOGIC_CHANGED      = NO · DATABASE_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO · PRIMARY_NAV_CHANGED = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `9ed604a`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (đã ghi từ DEC-189, không tăng
+                              thêm — xác nhận bằng cách dời `.venv` cục bộ
+                              [gitignored, không phải nội dung repo] ra
+                              ngoài trước khi chạy validator để loại nhiễu)
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-005 = DONE (2026-09-06)
+
+Vòng sửa thứ năm theo phản hồi bằng hai ảnh chụp màn hình trang Nhân
+viên + bốn yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-194` trên
+môi trường thật — ba câu hỏi làm rõ được đặt qua `AskUserQuestion` trước
+khi triển khai. Quyết định: `DEC-195`. Lần đầu tiên đưa một hệ thiết kế
+tham chiếu THỨ HAI (`hoangvinhkta-creator/Finance`, đọc-only, không gắn
+push credential) vào Reports — CHỈ áp dụng màu sắc/icon/hiển thị, KHOANH
+VÙNG ba trang (Báo cáo/Nhân viên/Dữ liệu) qua `body.theme-finance`.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 73fa960e993e4a56c497e5f205acf3776716dedf
+Current Task Mode:            MICRO (bốn sửa trực tiếp trên MAJOR vừa DONE)
+ARCHITECTURE_REVISED         = KHÔNG (không route/kiến trúc/hành vi mới) —
+                              chỉ REVISE bảng màu MẶC ĐỊNH của
+                              `tinphat-ui.css` bằng cơ chế ghi đè custom
+                              property qua class `body.theme-finance`,
+                              khoanh vùng ba template khai `{% set theme =
+                              'finance' %}` (cùng cơ chế `active_tab`)
+CHANGES                      = (1) tag cảnh báo dời XUỐNG DƯỚI số BH thay
+                              vì chồng cạnh (`data-metric="bh-order"` dời
+                              vào span con) · (2) "Lợi nhuận KPI" lên
+                              NGANG HÀNG bốn ô KPI chính (5 ô cùng lưới
+                              `.kpi-grid.strip`, cùng kích cỡ), "Tiến độ"
+                              dời XUỐNG ô riêng — DIỄN GIẢI SUY LUẬN từ
+                              ảnh + văn bản, CHƯA Owner xác nhận trực
+                              tiếp (xem DEC-195 §2, Can Revisit After) ·
+                              (3) icon sửa đơn tách CỘT RIÊNG cuối bảng
+                              kê (11→12 cột, rowspan theo số dòng đơn) ·
+                              (4) bộ icon SVG mới (`_business_bits.html`:
+                              help/edit/trash/swap/undo/restore, phong
+                              cách Finance) thay chữ trần/dấu hỏi cũ ·
+                              (5) theme Finance: `--tp-blue` đen/xám đậm,
+                              giữ Ý NGHĨA màu trạng thái (xanh lá/vàng/đỏ),
+                              font-family + tabular-nums kiểu Finance —
+                              CHỈ 3 trang, không đụng border-radius/
+                              spacing/layout token
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+                              (`SHEET_DETAIL_COLUMNS` không đổi số cột dữ
+                              liệu, chỉ đổi số cột HTML trình bày)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (không route/endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO (nav.ncc-tabs vẫn ngoài #app-content)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `73fa960`: GIỐNG HỆT 2721/11 — 0 test
+                              mới, 0 test sửa đích) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+THEME_SCOPE_VERIFIED        = ảnh chụp toàn trang xác nhận Báo cáo/Nhân
+                              viên/Dữ liệu đổi màu (xanh dương → đen);
+                              `/ban-hang` (NGOÀI phạm vi) xác nhận VẪN
+                              giữ nguyên `--tp-blue: #1d5bea` gốc — bằng
+                              chứng cơ chế khoanh vùng không rò rỉ
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/
+                              evidence PASS · reference_integrity FAIL
+                              với ĐÚNG 3 reference hỏng có sẵn của
+                              TASK-REM-T06 (đã ghi từ DEC-189, không tăng
+                              thêm ở lượt này)
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-004 = DONE (2026-09-06)
+
+Vòng sửa thứ tư theo phản hồi bằng ba ảnh chụp màn hình (khoanh đỏ) + sáu
+yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-193` trên môi trường
+thật — bốn câu hỏi làm rõ được đặt qua `AskUserQuestion` trước khi triển
+khai. Quyết định: `DEC-194`. Đây là lần đầu tiên JavaScript được đưa vào
+sản phẩm — một REVISE kiến trúc có chủ đích, theo yêu cầu trực tiếp của
+Owner, không phải scope drift.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 9bfccb878d89e019bf9b24c76e5568bd9b2cc641
+Current Task Mode:            MICRO (sáu sửa trực tiếp trên MAJOR vừa DONE)
+ARCHITECTURE_REVISED         = CÓ — "không JavaScript" REVISE có chủ đích
+                              (Owner yêu cầu trực tiếp qua văn bản). Lớp
+                              tăng cường AJAX (`app/web/static/js/app.js`,
+                              thuần, không thư viện): điều hướng TRONG một
+                              tab không tải lại trang (period picker, sheet
+                              tab, granularity biểu đồ, mọi form ghi —
+                              price/gán NV/phân loại/loại dòng/Target),
+                              chuyển TAB chính vẫn tải lại trang. Tắt JS ⟹
+                              mọi thứ hoạt động như cũ (điều hướng thật,
+                              `<noscript>` trả lại nút XEM)
+CHANGES                     = biểu đồ vẽ lại hoàn toàn (viewBox cố định co
+                              giãn 100% card, toạ độ X theo LỊCH trong kỳ
+                              đang xem thay vì theo thứ tự điểm, trục X cố
+                              định tách khỏi dữ liệu — Ngày 5/10/15/20/25/
+                              30, Tuần 3 mốc đầu tháng trong quý, Tháng
+                              Th1-Th12, tooltip khi rê chuột) · gộp hàng
+                              chọn kỳ ở cả Báo cáo và Nhân viên, bỏ nút XEM
+                              · hộp thoại Target thật (`<dialog>` + 
+                              `showModal()`), bỏ liên kết "ĐẶT/SỬA TARGET"
+                              thừa · bảng kê xếp lại cột (Khách hàng ra sau
+                              DS quy đổi), thêm hàng TỔNG Giá nhập/Giá bán/
+                              Lợi nhuận/DS quy đổi, gộp tag "Thiếu giá"/
+                              "Chưa phân loại" về ô Mã đơn (đổi màu xanh),
+                              Mã đơn thu gọn + Mặt hàng đọc trọn một dòng
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO (biểu đồ
+                              vẫn vẽ bằng SVG tĩnh tính sẵn ở tầng trình
+                              bày; JS chỉ thêm tương tác — tooltip, vận
+                              chuyển AJAX — không thay cách tính. `series()`/
+                              `window_points()` của DEC-193 không bị chạm)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi — X-Fragment
+                              là một header đọc qua context processor,
+                              không phải endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO (nav.ncc-tabs đứng ngoài #app-content,
+                              chuyển tab vẫn là điều hướng trang thật)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `9bfccb8`: cùng 2721/11 — 0 test mới,
+                              test PHB-05/PI-01..12 chỉnh lại ĐÍCH theo
+                              markup mới, xem DEC-194 Evidence) · GOLDEN 58
+                              passed / 2 skipped, KHÔNG đổi
+AJAX_VERIFIED               = Playwright trên Flask thật (không phải dump
+                              tĩnh): xác nhận KHÔNG tải lại trang qua
+                              window.__marker sống sót qua mở/lưu/đóng
+                              Target, sửa Giá nhập, Gia dụng + xác nhận,
+                              loại dòng + xác nhận + KHÔI PHỤC (phát hiện
+                              và sửa lỗi thiếu `event.submitter` ở đây),
+                              đổi mức gộp biểu đồ, đổi kỳ, đổi sheet tab,
+                              mở bảng chọn mặt hàng "Chưa phân loại"
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/820/390px
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189) sau khi thêm exempt pair cho
+                              đoạn trích dẫn nguyên văn 3 tên file đó trong
+                              Evidence của DEC-193 — xem DEC-194 Evidence
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-003 = DONE (2026-09-06)
+
+Vòng sửa thứ ba theo phản hồi bằng hai ảnh chụp màn hình (khoanh đỏ) + bảy
+yêu cầu bằng văn bản của chủ dự án, sau khi xem `DEC-192` trên môi trường
+thật. Quyết định: `DEC-193`. Ba khối `TASK-OWNER-UIUX-002 R2`/`REPORT
+OVERVIEW`/`TASK-UIUX-001` và Reports Phase B bên dưới GIỮ NGUYÊN thẩm quyền
+— lượt này sửa tiếp trên cùng các trang đó.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = c18be98e266aa1b6b8c842617043e765a1194cfb
+Current Task Mode:            MICRO (bảy sửa trực tiếp trên MAJOR vừa DONE)
+CHANGES                     = chú giải MoM "SỐ CŨ" rút gọn còn "so với
+                              {tháng trước}", câu dài lùi vào tooltip · biểu
+                              đồ thu nửa trái + card "Biểu đồ khác" dự
+                              phòng bên phải + khoanh cửa sổ hiển thị theo
+                              mức gộp (Ngày→tháng, Tuần→quý, Tháng→năm; Quý/
+                              Năm không khoanh) · bỏ badge "SỐ MỚI" khỏi cả
+                              Báo cáo và Nhân viên · gộp hàng sheet vào
+                              chung card với Kỳ dữ liệu, sắp cùng thứ tự
+                              với bảng Theo nhân viên · 5 thẻ chỉ tiêu không
+                              gian làm việc về một hàng · card Target đứng
+                              riêng gỡ bỏ, thay bằng icon sửa cạnh dòng tiêu
+                              đề sheet (mở panel nhỏ qua `sua-target=1`) ·
+                              bảng kê ledger gộp hai tầng (hàng nhóm + hàng
+                              dòng hàng) thành một tầng bằng `rowspan`, bỏ ô
+                              đếm "N dòng"
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (`window_points` là phép lọc HIỂN THỊ áp
+                              sau khi `series()` đã tính đầy đủ; mọi bất
+                              biến tính toán không đổi trên tập điểm ĐẦY ĐỦ)
+F_E_REVISED                 = CÓ, một phần — biểu đồ mức THÁNG nay khoanh
+                              theo NĂM của kỳ đang chọn thay vì luôn TOÀN
+                              BỘ dữ liệu (chủ dự án được hỏi thẳng đánh đổi
+                              này qua AskUserQuestion và CHỌN áp dụng); Quý/
+                              Năm giữ nguyên TOÀN BỘ dòng thời gian như `F-
+                              E` gốc. Xem `DEC-193` mục 2 và `DEC-185`
+                              CHART-10/CHART-11 (test sửa lại để phản ánh:
+                              liên tục trong phạm vi một năm, xuyên năm vẫn
+                              liền mạch qua điều hướng kỳ, không mất, không
+                              cần bộ chọn nguồn)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi — `sua-
+                              target` là một query param đọc thêm ở route
+                              GET đã có, không phải endpoint ghi mới)
+PRIMARY_NAV_CHANGED         = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2721 passed / 11 skipped / 0 failed
+                              (nền `c18be98`: 2722/11 — chênh đúng 1 vì
+                              `test_the_bh_head_count_is_plain_text_not_a_
+                              pill_cell` bị GỠ, tiền đề của nó không còn
+                              tồn tại; không test nào khác mất hay bị hạ
+                              chuẩn, xem DEC-193 mục 7) · GOLDEN 58 passed /
+                              2 skipped, KHÔNG đổi
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/820/390px —
+                              biểu đồ gập dọc dưới 900px, KPI 5 thẻ gập 3/2
+                              cột, bảng kê cuộn trong card
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189), không reference nào của lượt
+                              này
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 R2 (REVISION) = DONE (2026-09-06)
+
+Năm sửa trực tiếp trên trang BÁO CÁO theo phản hồi bằng mắt của chủ dự án
+sau khi xem `DEC-191` trên môi trường thật. Quyết định: `DEC-192`. Khối
+`TASK-OWNER-UIUX-002` gốc (`DEC-191`) và Reports Phase B bên dưới GIỮ
+NGUYÊN — lượt này SỬA cách trình bày `DEC-191` vừa dựng, không đổi thẩm
+quyền nào bên dưới, không con số nghiệp vụ nào đổi.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 7b54d849f8c9098f49c2373b6fb3b19ace2eb520
+Current Task Mode:            MICRO (sửa trực tiếp trên MAJOR vừa DONE)
+CHANGES                     = 4 thẻ chỉ tiêu luôn MỘT hàng (repeat(4,1fr)) ·
+                              chú giải (?) đổi bấm → rê chuột/lia tới, sửa
+                              lỗi gãy dòng nhãn "Doanh thu bán hàng" · bỏ
+                              câu văn coverage dài khỏi trang này · biểu đồ
+                              ĐƯỜNG có trục Y + lưới (trần tròn phía trên
+                              đỉnh dữ liệu), trục X thưa (tối đa 8 nhãn,
+                              stride động), bỏ số hiện dưới từng điểm · bỏ
+                              cột Nhóm + "Cách đọc bảng này" khỏi bảng Theo
+                              nhân viên
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (so render nền `7b54d84` ↔ sau sửa: mọi
+                              chỉ tiêu đầu trang, hàng TỔNG, và mọi con số
+                              trên 10/11 trang giống hệt; trang Báo cáo chỉ
+                              khác đúng ở CHỖ hiện số của biểu đồ, không số
+                              nào mới phát sinh hay biến mất khỏi khả năng
+                              xem — `<title>` mỗi điểm vẫn mang giá trị
+                              chính xác)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi)
+PRIMARY_NAV_CHANGED         = NO
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2722 passed / 11 skipped / 0 failed
+                              (nền: cùng 2722/11 — 0 test mới, 4 file test
+                              chỉnh lại ĐÍCH theo markup mới, xem DEC-192
+                              Evidence) · GOLDEN 58 passed / 2 skipped,
+                              KHÔNG đổi
+RESPONSIVE                  = không trang nào tràn ngang ở 1440/834/390px,
+                              kiểm cả biểu đồ 112 điểm (dữ liệu ngày, tám
+                              tháng) — trục X thưa còn 9 nhãn
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã
+                              ghi ở DEC-189), không reference nào của lượt
+                              này
+```
+
+
+## CANONICAL CURRENT STATE — TASK-OWNER-UIUX-002 REPORT OVERVIEW = DONE (2026-09-06)
+
+Tinh chỉnh trình bày trang BÁO CÁO theo chỉ thị trực tiếp của chủ dự án, sau
+`TASK-UIUX-001`. Quyết định: `DEC-191`. Hai khối bên dưới (`TASK-UIUX-001`,
+Reports Phase B) GIỮ NGUYÊN — không con số nghiệp vụ nào đổi vì lượt này.
+
+```text
+STATUS                      = DONE, đã tích hợp thẳng vào nhánh canonical
+                              (chủ dự án chỉ định: không review độc lập)
+BASE_HEAD                   = 4b98f6a6098828639617b6b13224ea6d65228bd1
+Current Task Mode:            MAJOR
+CHANGES                     = kỳ mở đầu = tháng hiện tại · 4 chỉ tiêu một
+                              hàng + chú giải sau dấu (?) · biểu đồ ĐƯỜNG mở
+                              ở mức Ngày · "Cần kiểm tra" gọn ở cuối trang ·
+                              bảng "Theo nhân viên" đọc theo phân hoạch sheet
+                              (Vinh/Quý/Hiệp ⟹ một hàng Nội thành; Gia dụng
+                              hàng cuối; Tín Phát đầu theo thứ tự master)
+BUSINESS_LOGIC_CHANGED      = NO · BUSINESS_FORMULA_CHANGED = NO
+BUSINESS_TOTALS_UNCHANGED   = YES (so render nền ↔ sau sửa: mọi chỉ tiêu đầu
+                              trang, hàng TỔNG, và mọi con số trên 10 trang
+                              còn lại giống hệt)
+EMPLOYEE_SECTION_DOUBLE_COUNT = NO (phân hoạch `sheet_key_of` là hàm toàn phần)
+DATABASE_CHANGED            = NO · MIGRATION_CHANGED = NO
+WRITE_AUTHORITY_CHANGED     = NO (14 endpoint POST, không đổi)
+PRIMARY_NAV_CHANGED         = NO (`layout.html` không bị chạm)
+NEW_FEATURE_CREATED         = NO · SCOPE_DRIFT = NO
+REGRESSION_RESULT           = FULL 2722 passed / 11 skipped / 0 failed
+                              (nền: 2696 passed / 11 skipped) · GOLDEN 58
+                              passed / 2 skipped, KHÔNG đổi · 26 test mới
+                              (`tests/test_owner_report_overview.py`) · 3 test
+                              trình bày của TASK-UIUX-001 chỉnh lại đích, xem
+                              `DEC-191` Evidence
+RESPONSIVE                  = không trang nào tràn ngang ở 1440 / 834 / 390px
+GOVERNANCE_VALIDATORS       = structure/project_state/task_completion/evidence
+                              PASS · reference_integrity FAIL với ĐÚNG 3
+                              reference hỏng CÓ SẴN của TASK-REM-T06 (đã ghi
+                              ở `DEC-189`), không reference nào của lượt này
+```
+
+
 ## CANONICAL CURRENT STATE — TASK-UIUX-001 UI/UX REFINEMENT = DONE (2026-09-06, S125)
 
 Lượt TINH CHỈNH TRÌNH BÀY toàn bộ web Reports cho người đọc quản trị (chủ
@@ -9324,6 +12352,13 @@ E1 — đã chạy `git mv`, `ls` xác nhận `CLAUDE.md`, `PROJECT/`, `docs/`,
     `ADMIN`, không `viewer`/`editor`/`employee_scope`. Đóng C12/C13/C14.
     ADR-105 §4/§5 viết lại, chuyển `Accepted`. Completion Gate TASK-203/204
     vẫn chưa freeze.
+  - **DEC-201** — R4: trang đánh giá CHỈ ĐỌC trên một effective data; không
+    chỉ tiêu dẫn xuất từ lợi nhuận nào được công bố khi coverage chưa đủ.
+  - **DEC-202** — R5: sổ đã xác nhận đầy đủ TẠM LOẠI dòng biến mất khỏi mọi
+    số liệu (loại LÚC ĐỌC, không hard-delete, tái xuất hiện tự khôi phục —
+    REPAIR-1 sửa đúng chỗ "tự khôi phục" này khi hai lần nạp cùng một giây);
+    biểu đồ hai cửa sổ liền kề cùng độ dài; một form cấp BH với `XONG` là nút
+    gửi duy nhất; hãng/model do Tracking chuẩn hoá và IMEI mở đúng một route.
 - Xem `docs/audit/DECISIONS.md` — DEC-001 đến DEC-016 (track Governance,
   dải số riêng, xem DEC-117 về lý do tách).
 

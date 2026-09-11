@@ -10,8 +10,8 @@ không tính giá. Mọi con số đều đến từ một nguồn đã được
 
 ```text
 identity TRACKING:<mã>
+    ---  Tracking Daily MIN (R1)              → giá của ĐÚNG ngày bán, hoặc Pending
     P01  HistoricalVendorMin (TASK-105C)      → NGUỒN CHƯA ĐƯỢC CẤP PHÉP
-    ---  Tracking Price History (S060)        → giá, hoặc Pending
     P03  fallback Public Purchase             → BỊ CHẶN (xem dưới)
     P11  Pending
 
@@ -19,6 +19,18 @@ identity PUBLIC_PURCHASE:<mã>
     P04/P05  bảng giá Public Purchase theo `sale_date`  → giá
     P06      không có giá hợp lệ tại ngày bán           → Pending
 ```
+
+## R1 (2026-09-07) — nhánh TRACKING đổi thẩm quyền
+
+Nguồn giá nhập tự động của một mã Tracking nay là **MIN của ngày bán**, do
+Tracking tính và lưu (`pricing/daily_min/`). Trước R1, nhánh này đọc lịch sử
+`board/<mã>/tp/ton` (`pricing/tracking_history/`) — tức **giá nhập công khai**
+Owner đặt tay, một đại lượng khác. Owner đã chốt rằng giá nhập tự động là MIN.
+
+Đường cũ KHÔNG bị xoá và giữ nguyên nghĩa cũ, nhưng chỉ chạy khi caller nêu rõ
+`legacy_tracking_history_authority=True`. Không có nhánh nào rơi từ MIN sang
+nó: hai đại lượng đều là số tiền hợp lệ, nên một lần rơi nhầm sẽ trông hoàn
+toàn bình thường trên mọi bảng.
 
 ## P01/P03 — vì sao fallback Public Purchase KHÔNG được chạy hôm nay
 
@@ -66,9 +78,15 @@ from app.modules.domain.models import (
     PRICE_SOURCE_PENDING,
     PRICE_SOURCE_PUBLIC_PURCHASE_NO_TRACKING,
     PRICE_SOURCE_PUBLIC_PURCHASE_NO_VENDOR_PRICE,
+    PRICE_SOURCE_TRACKING_DAILY_MIN,
     PRICE_SOURCE_TRACKING_PRICE_HISTORY,
     WorkingLine,
 )
+from app.modules.pricing.daily_min.provider import (
+    DailyMinResolution,
+    TrackingDailyMinProvider,
+)
+from app.modules.pricing.daily_min.snapshot import DayStatus
 from app.modules.pricing.file_price_provider import FilePriceProvider
 from app.modules.pricing.resolution.sources import (
     PriceEvidenceSnapshot,
@@ -85,6 +103,7 @@ from app.modules.product.identity.identity import (
     CanonicalProductIdentity,
     Namespace,
     PendingProduct,
+    PendingReason,
     RequiresConfirmation,
     Resolved,
 )
@@ -93,6 +112,7 @@ from app.modules.product.identity.keys import (
     raw_identity_key,
 )
 from app.modules.product.identity.resolver import (
+    CONFLICT_MAPPING_SOURCE,
     ProductIdentityResolver,
     SalesRowRef,
 )
@@ -108,6 +128,12 @@ __all__ = [
     "PriceResolutionStatus",
     "VENDOR_SOURCE_NOT_AUTHORIZED_DETAIL",
 ]
+
+TRACKING_DAILY_MIN_HINT = "tools/tracking/capture_daily_min.py"
+"""Nhắc đúng công cụ phải chạy khi nguồn chưa nối.
+
+Một thông điệp Pending chỉ nói "nguồn chưa có" bắt người đọc đi tìm; nói luôn
+tên công cụ thì nó thành một việc làm được ngay."""
 
 VENDOR_SOURCE_NOT_AUTHORIZED_DETAIL = (
     "P01 `HistoricalVendorMin` (TASK-105C) = BLOCKED / NOT AUTHORIZED — nguồn "
@@ -134,6 +160,7 @@ class PriceResolutionStatus(str, Enum):
 class CompositionRule(str, Enum):
     """Nhánh nào của `DEC-154` §7 đã quyết định dòng này."""
 
+    TRACKING_DAILY_MIN = "TRACKING_DAILY_MIN"
     TRACKING_HISTORY_AUTHORITY = "TRACKING_HISTORY_AUTHORITY"
     PUBLIC_PURCHASE_DIRECT = "PUBLIC_PURCHASE_DIRECT"  # P04/P05/P08
     PUBLIC_PURCHASE_VENDOR_FALLBACK = "PUBLIC_PURCHASE_VENDOR_FALLBACK"  # P03/P09
@@ -142,6 +169,7 @@ class CompositionRule(str, Enum):
 
 PRICE_SOURCE_BY_RULE.update(
     {
+        CompositionRule.TRACKING_DAILY_MIN: PRICE_SOURCE_TRACKING_DAILY_MIN,
         CompositionRule.TRACKING_HISTORY_AUTHORITY: (
             PRICE_SOURCE_TRACKING_PRICE_HISTORY
         ),
@@ -164,6 +192,16 @@ class PriceResolutionReason(str, Enum):
     IDENTITY_SOURCES_UNAVAILABLE = "IDENTITY_SOURCES_UNAVAILABLE"
     IDENTITY_UNRESOLVED = "IDENTITY_UNRESOLVED"
     IDENTITY_REQUIRES_CONFIRMATION = "IDENTITY_REQUIRES_CONFIRMATION"
+    #: R2 §4.3 — người dùng đã xác nhận hàng KHÔNG có trên bảng giá Tracking.
+    #: Phân loại ĐÃ XONG; dòng chỉ còn thiếu GIÁ, và giá đó nhập tay được.
+    #: Tách khỏi `IDENTITY_UNRESOLVED` là toàn bộ điểm của trạng thái này:
+    #: gộp lại sẽ đẩy dòng về hàng đợi "chưa phân loại" mãi mãi.
+    IDENTITY_OUT_OF_CATALOG = "IDENTITY_OUT_OF_CATALOG"
+    #: R2 §4.2 — mapping đã xác nhận của Reports và authority của Tracking
+    #: chỉ về hai mã khác nhau. Không bên nào tự thắng.
+    IDENTITY_CONFLICT = "IDENTITY_CONFLICT"
+    TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE = "TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE"
+    TRACKING_DAILY_MIN_PENDING = "TRACKING_DAILY_MIN_PENDING"
     TRACKING_HISTORY_SOURCE_UNAVAILABLE = "TRACKING_HISTORY_SOURCE_UNAVAILABLE"
     TRACKING_HISTORY_PENDING = "TRACKING_HISTORY_PENDING"
     VENDOR_SOURCE_NOT_AUTHORIZED = "VENDOR_SOURCE_NOT_AUTHORIZED"
@@ -196,6 +234,11 @@ class PriceResolutionRecord:
     fallback_blocked_by: Optional[PriceResolutionReason] = None
     fallback_blocked_detail: str = ""
     tracking_reconstruction: Optional[PriceReconstruction] = None
+    #: R1 — kết quả đầy đủ của lần tra MIN theo ngày, kể cả khi Pending.
+    #: `WorkingLine` chỉ có chỗ cho một con số và một nhãn nguồn, nên nguồn
+    #: giữ MIN, revision, phiên bản luật và trạng thái chốt của ngày đi BÊN
+    #: CẠNH dữ liệu — đúng khuôn `tracking_reconstruction` ngay trên.
+    daily_min_resolution: Optional[DailyMinResolution] = None
 
     def __post_init__(self) -> None:
         if self.status is PriceResolutionStatus.RESOLVED:
@@ -238,6 +281,77 @@ class PriceResolutionReport:
     def pending_count(self) -> int:
         return sum(1 for r in self.records if not r.is_resolved)
 
+    @property
+    def provisional_records(self) -> tuple[PriceResolutionRecord, ...]:
+        """Những dòng lấy giá từ một NGÀY CHƯA CHỐT.
+
+        Ngày chưa chốt nghĩa là Tracking còn có thể ghi thêm một mốc giá cho
+        ngày ấy trước khi nó kết thúc. Con số hiện tại DÙNG ĐƯỢC — nó là trạng
+        thái quan sát được mới nhất, và bắt người ta chờ hết ngày mới xem được
+        báo cáo là vô ích. Nhưng nó chưa phải con số cuối cùng.
+        """
+        return tuple(
+            r
+            for r in self.records
+            if r.daily_min_resolution is not None
+            and r.daily_min_resolution.is_resolved
+            and r.daily_min_resolution.provenance.day_status is DayStatus.PROVISIONAL
+        )
+
+    @property
+    def provisional_count(self) -> int:
+        return len(self.provisional_records)
+
+    @property
+    def resolved_prices_are_final(self) -> bool:
+        """Mọi giá ĐÃ RESOLVE của lần import này có đến từ ngày đã chốt không.
+
+        Cố ý chỉ nói về những dòng CÓ giá, và tên của nó nói đúng điều đó. Một
+        report rỗng hay một report toàn Pending đều trả `True` ở đây — hoàn
+        toàn đúng theo nghĩa hẹp này ("không có giá nào đến từ ngày chưa
+        chốt"), và hoàn toàn SAI nếu ai đó đọc nó thành "kỳ đã chốt".
+
+        Bản trước tên là `prices_are_final`, và cái tên ấy mời đúng cách đọc
+        sai kia: một kỳ chưa nối nguồn giá — mọi dòng Pending — sẽ trả `True`
+        và một cổng "kỳ đã chốt" xây trên nó sẽ mở ra cho một kỳ chưa có lấy
+        một giá vốn nào. Cổng đúng là `period_is_final` ngay bên dưới.
+        """
+        return self.provisional_count == 0
+
+    @property
+    def has_priceable_lines(self) -> bool:
+        """Lần import này có dòng nào để chốt không.
+
+        Một report RỖNG không phải một kỳ đã hoàn tất; nó là một kỳ chưa có gì.
+        Hai chuyện ấy dẫn tới hai việc khác nhau (trình bày kết quả, hay đi tìm
+        xem sổ bán hàng đâu), nên chúng không được gộp.
+        """
+        return bool(self.records)
+
+    @property
+    def period_is_final(self) -> bool:
+        """CỔNG HOÀN TẤT CẤP KỲ — ba điều kiện, không phải một.
+
+        Một kỳ chỉ được gọi là đã chốt khi:
+
+        1. CÓ dữ liệu cần chốt (`has_priceable_lines`) — kỳ rỗng không phải kỳ
+           đã xong;
+        2. KHÔNG còn dòng Pending (`pending_count == 0`) — một dòng chưa có giá
+           vốn là một con số còn thiếu trong lợi nhuận của kỳ, và nó sẽ xuất
+           hiện SAU khi ai đó đã chốt sổ;
+        3. KHÔNG còn giá đến từ ngày `PROVISIONAL` (`provisional_count == 0`) —
+           Tracking còn có thể ghi thêm một mốc cho ngày ấy.
+
+        Cờ này vẫn KHÔNG chặn việc xem báo cáo và cố ý không tự gắn vào một
+        cổng UI nào ở đây: `PriceResolutionReport` là bản ghi bằng chứng, không
+        phải nơi ra quyết định trình bày.
+        """
+        return (
+            self.has_priceable_lines
+            and self.pending_count == 0
+            and self.provisional_count == 0
+        )
+
 
 class PostCutoverPriceComposition:
     """Áp composition giá cho các dòng không có registry đã xác nhận.
@@ -267,6 +381,15 @@ class PostCutoverPriceComposition:
             FilePriceProvider(pp.validated_price_rows()) if pp is not None else None
         )
 
+        # `require_complete()` chạy NGAY tại đây: một ảnh chụp FAILED là LỖI
+        # CỨNG lúc dựng, không phải Pending ở tầng dưới (`INV-12`) — cùng cách
+        # `TrackingPriceHistoryReader` đã làm ngay trên.
+        self._daily_min_snapshot = (
+            sources.tracking_daily_min.require_complete()
+            if sources.tracking_daily_min is not None
+            else None
+        )
+
     # ------------------------------------------------------------------
 
     @property
@@ -276,6 +399,20 @@ class PostCutoverPriceComposition:
     @property
     def records(self) -> tuple[PriceResolutionRecord, ...]:
         return tuple(self._records)
+
+    @property
+    def report(self) -> PriceResolutionReport:
+        """Toàn bộ bằng chứng đã tích luỹ của lần import này.
+
+        `apply()` trả report của ĐÚNG lượt gọi ấy; pipeline gọi nó một lần rồi
+        bỏ, và thứ còn lại là `records`. Nhưng câu hỏi vận hành ("kỳ này còn
+        dùng giá của ngày chưa chốt không") hỏi về CẢ lần import, không phải
+        về một lượt gọi. Dựng ở đây để không ai phải tự gom lại — tự gom là
+        chỗ để quên một lượt.
+        """
+        return PriceResolutionReport(
+            evidence=self._evidence, records=tuple(self._records)
+        )
 
     # ------------------------------------------------------------------
 
@@ -412,6 +549,7 @@ class PostCutoverPriceComposition:
                 identity_index[resolution.identity.raw_identity_key] = outcome.identity
 
         tracking_provider = self._build_tracking_provider(identity_index)
+        daily_min_provider = self._build_daily_min_provider(identity_index)
 
         records: list[PriceResolutionRecord] = []
         for line, key in eligible:
@@ -420,30 +558,69 @@ class PostCutoverPriceComposition:
                 identity = outcome.identity
                 if identity.namespace is Namespace.TRACKING:
                     records.append(
-                        self._tracking_branch(line, key, identity, tracking_provider)
+                        self._tracking_branch(
+                            line, key, identity, daily_min_provider, tracking_provider
+                        )
                     )
                 else:
                     records.append(self._public_purchase_branch(line, key, identity))
             elif isinstance(outcome, RequiresConfirmation):
+                # R2 §4.2 — hai lý do KHÁC NHAU cùng đi qua `RequiresConfirmation`
+                # (union `ResolutionOutcome` ĐÓNG, không có biến thể thứ năm),
+                # và chúng cần hai câu khác nhau trên màn hình: "chưa đủ căn cứ,
+                # hãy chọn" so với "hai nguồn đã xác nhận đang chỏi nhau, hãy
+                # chọn lại". Nhãn nằm ở provenance, nên union vẫn đóng.
+                conflict = (
+                    outcome.provenance is not None
+                    and outcome.provenance.mapping_source == CONFLICT_MAPPING_SOURCE
+                )
                 records.append(
                     self._pending(
                         line,
                         key,
                         None,
-                        PriceResolutionReason.IDENTITY_REQUIRES_CONFIRMATION,
-                        "Identity còn AMBIGUOUS — cần đúng một quyết định của "
-                        "người. Composition không chọn hộ giữa các candidate.",
+                        (
+                            PriceResolutionReason.IDENTITY_CONFLICT
+                            if conflict
+                            else PriceResolutionReason.IDENTITY_REQUIRES_CONFIRMATION
+                        ),
+                        (
+                            "Mapping đã xác nhận của Reports và authority của "
+                            "Tracking chỉ về hai mã khác nhau. Composition KHÔNG "
+                            "chọn bên thắng — người dùng phải chọn lại."
+                            if conflict
+                            else "Identity còn AMBIGUOUS — cần đúng một quyết định "
+                            "của người. Composition không chọn hộ giữa các "
+                            "candidate."
+                        ),
                     )
                 )
             elif isinstance(outcome, PendingProduct):
+                # `OUT_OF_CATALOG_CONFIRMED` là một Pending về GIÁ, không phải
+                # về NHẬN DIỆN. Trộn nó vào `IDENTITY_UNRESOLVED` sẽ làm màn
+                # hình hỏi Owner phân loại lại đúng thứ họ vừa phân loại xong.
+                out_of_catalog = (
+                    outcome.reason_code is PendingReason.OUT_OF_CATALOG_CONFIRMED
+                )
                 records.append(
                     self._pending(
                         line,
                         key,
                         None,
-                        PriceResolutionReason.IDENTITY_UNRESOLVED,
-                        f"TASK-105D trả PENDING_PRODUCT ({outcome.reason_code.value}); "
-                        "không có identity nào để hỏi giá.",
+                        (
+                            PriceResolutionReason.IDENTITY_OUT_OF_CATALOG
+                            if out_of_catalog
+                            else PriceResolutionReason.IDENTITY_UNRESOLVED
+                        ),
+                        (
+                            "Người dùng đã xác nhận mặt hàng này KHÔNG có trên "
+                            "bảng giá Tracking. Phân loại đã xong; dòng vẫn nằm "
+                            "trong báo cáo và chờ một giá nhập tay."
+                            if out_of_catalog
+                            else f"TASK-105D trả PENDING_PRODUCT "
+                            f"({outcome.reason_code.value}); không có identity "
+                            "nào để hỏi giá."
+                        ),
                     )
                 )
             else:  # pragma: no cover — union ĐÓNG, nhánh này không tồn tại
@@ -452,6 +629,15 @@ class PostCutoverPriceComposition:
                     f"{type(outcome).__name__}"
                 )
         return records
+
+    def _build_daily_min_provider(
+        self, identity_index: dict[str, CanonicalProductIdentity]
+    ) -> Optional[TrackingDailyMinProvider]:
+        if self._daily_min_snapshot is None:
+            return None
+        return TrackingDailyMinProvider(
+            self._daily_min_snapshot, identity_index=identity_index
+        )
 
     def _build_tracking_provider(
         self, identity_index: dict[str, CanonicalProductIdentity]
@@ -471,8 +657,25 @@ class PostCutoverPriceComposition:
         line: WorkingLine,
         key: str,
         identity: CanonicalProductIdentity,
+        daily_min: Optional[TrackingDailyMinProvider],
         provider: Optional[TrackingHistoryPriceProvider],
     ) -> PriceResolutionRecord:
+        """R1 — giá nhập tự động của một mã Tracking là MIN CỦA NGÀY BÁN.
+
+        Đây là điểm thay đổi thẩm quyền của R1, và nó cố ý KHÔNG có nhánh dự
+        phòng. Khi nguồn MIN theo ngày chưa được nối, dòng này Pending với đúng
+        lý do ấy — nó KHÔNG rơi về lịch sử `board/<mã>/tp/ton`, không rơi về
+        bảng giá công khai, không lấy giá hiện tại, không lấy giá của một ngày
+        khác. Mỗi nhánh dự phòng như vậy đều trả về một con số tiền hợp lệ cho
+        một câu hỏi chưa được trả lời, và một giá vốn sai thì không có gì đỏ
+        lên — nó chỉ đi thẳng vào lợi nhuận rồi vào lương.
+
+        Đường lịch sử `tp/ton` chỉ còn chạy khi caller NÊU RÕ
+        `legacy_tracking_history_authority=True` (fixture/đối chiếu kết quả
+        cũ). Xem `PriceResolutionSources.legacy_tracking_history_authority`.
+        """
+        if not self._sources.legacy_tracking_history_authority:
+            return self._daily_min_branch(line, key, identity, daily_min)
         if provider is None:
             missing = []
             if self._reader is None:
@@ -514,6 +717,50 @@ class PostCutoverPriceComposition:
             reconstruction=reconstruction,
             fallback_blocked_by=PriceResolutionReason.VENDOR_SOURCE_NOT_AUTHORIZED,
             fallback_blocked_detail=VENDOR_SOURCE_NOT_AUTHORIZED_DETAIL,
+        )
+
+    def _daily_min_branch(
+        self,
+        line: WorkingLine,
+        key: str,
+        identity: CanonicalProductIdentity,
+        provider: Optional[TrackingDailyMinProvider],
+    ) -> PriceResolutionRecord:
+        if provider is None:
+            return self._pending(
+                line,
+                key,
+                identity,
+                PriceResolutionReason.TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE,
+                "Chưa nối ảnh chụp MIN theo ngày của Tracking "
+                f"({TRACKING_DAILY_MIN_HINT}). Nguồn CHƯA CÓ khác 'mặt hàng "
+                "không có giá' — không giá nào được dựng và không nguồn nào "
+                "khác được hỏi thay.",
+            )
+
+        resolution = provider.resolve(line.product_raw, line.date)
+        if resolution.is_resolved:
+            # `price_vnd` ĐÃ được provider quy đổi nghìn VND → VND đúng một lần
+            # (`THOUSAND_VND_TO_VND`). Composition KHÔNG nhân lại.
+            return self._resolved(
+                line,
+                key,
+                identity,
+                CompositionRule.TRACKING_DAILY_MIN,
+                resolution.price_vnd,
+                daily_min=resolution,
+            )
+
+        reason = resolution.reason
+        return self._pending(
+            line,
+            key,
+            identity,
+            PriceResolutionReason.TRACKING_DAILY_MIN_PENDING,
+            "MIN theo ngày bán trả Pending "
+            f"({reason.value if reason else '?'}): "
+            f"{resolution.provenance.unresolved_detail or ''}",
+            daily_min=resolution,
         )
 
     def _public_purchase_branch(
@@ -567,6 +814,7 @@ class PostCutoverPriceComposition:
         price: Decimal,
         *,
         reconstruction: Optional[PriceReconstruction] = None,
+        daily_min: Optional[DailyMinResolution] = None,
     ) -> PriceResolutionRecord:
         price_source = PRICE_SOURCE_BY_RULE[rule]
         line.accounting_purchase_price = price
@@ -583,6 +831,7 @@ class PostCutoverPriceComposition:
             price_source=price_source,
             evidence=self._evidence,
             tracking_reconstruction=reconstruction,
+            daily_min_resolution=daily_min,
         )
 
     def _pending(
@@ -596,6 +845,7 @@ class PostCutoverPriceComposition:
         reconstruction: Optional[PriceReconstruction] = None,
         fallback_blocked_by: Optional[PriceResolutionReason] = None,
         fallback_blocked_detail: str = "",
+        daily_min: Optional[DailyMinResolution] = None,
     ) -> PriceResolutionRecord:
         line.accounting_purchase_price = None
         line.price_source = PRICE_SOURCE_PENDING
@@ -615,4 +865,5 @@ class PostCutoverPriceComposition:
             fallback_blocked_by=fallback_blocked_by,
             fallback_blocked_detail=fallback_blocked_detail,
             tracking_reconstruction=reconstruction,
+            daily_min_resolution=daily_min,
         )

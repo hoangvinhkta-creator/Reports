@@ -209,8 +209,12 @@ def test_case_ux_02_the_current_month_opens_even_with_no_sales_at_all(
     html = body(client, "/kinh-doanh/nhan-vien")
     assert "Tháng 09/2026" in html
     assert metric(html, "no-rows") == wp.EMPTY_PERIOD_NOTE
-    # Ô nhập Target vẫn có mặt — đó là toàn bộ lý do không lùi tháng.
-    assert 'data-metric="target-input"' in html
+    # Ô nhập Target vẫn mở được (sau icon sửa) — đó là toàn bộ lý do không
+    # lùi tháng. `TASK-OWNER-UIUX-003` §6 ẩn ô nhập sau `sua-target=1` mặc
+    # định để đỡ diện tích, nhưng nó vẫn phải mở được ngay khi bấm sửa.
+    assert 'data-metric="target-input"' not in html
+    assert 'data-metric="target-input"' in body(
+        client, "/kinh-doanh/nhan-vien?sua-target=1")
     # Và tiến độ lịch vẫn nói đúng ngày hôm nay.
     assert metric(html, "month-progress") == "10%"
 
@@ -286,8 +290,10 @@ def test_case_wr_04_month_progress_changes_no_business_number(
     nếu Tiến độ có đường nào chạm vào phép tính, hai bộ số sẽ lệch.
     """
     persist(repository, three_line_order())
+    # `coverage` không còn render ở trang này nữa (`TASK-OWNER-UIUX-009` §2,
+    # chủ dự án yêu cầu trực tiếp) — bỏ khỏi danh sách theo dõi.
     watched = ("sales_revenue", "converted_sales", "kpi_profit",
-               "lines", "orders", "coverage")
+               "lines", "orders")
     before = {name: metric(body(client, "/kinh-doanh/nhan-vien"), name)
               for name in watched}
     totals_before = service.period(**SEPTEMBER).totals
@@ -490,7 +496,7 @@ def test_case_tg_03_the_round_trip_holds_over_the_real_http_path(
     sheet = reporting_sheets.Sheet(
         key=reporting_sheets.NOI_THANH_SHEET, label="Nội thành")
     for _ in range(3):
-        html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+        html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
         typed = re.search(r'data-metric="target-input"[^>]*', html)
         current = (re.search(r'value="([^"]*)"',
                              re.search(r'<input[^>]*data-metric="target-input"[^>]*>',
@@ -501,7 +507,7 @@ def test_case_tg_03_the_round_trip_holds_over_the_real_http_path(
         assert typed is not None
     assert service.sheet_target(sheet=sheet, period=(2026, 9)) == Decimal(
         "500000000")
-    html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+    html = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
     assert 'value="500,000"' in html
     assert metric(html, "employee-target") == "500.000"      # nghìn đồng
     assert "500.000.000 đồng" in html                        # VND đầy đủ
@@ -589,7 +595,9 @@ def test_a_target_never_changes_a_single_business_number(
 ):
     """`§60` — đặt/sửa Target chỉ đổi Target và So Target, không gì khác."""
     persist(repository, three_line_order())
-    watched = ("sales_revenue", "converted_sales", "kpi_profit", "coverage",
+    # `coverage` không còn render ở trang này nữa (`TASK-OWNER-UIUX-009` §2,
+    # chủ dự án yêu cầu trực tiếp) — bỏ khỏi danh sách theo dõi.
+    watched = ("sales_revenue", "converted_sales", "kpi_profit",
                "lines", "orders", "qualifying_quantity")
     before = {name: metric(body(client, "/kinh-doanh/nhan-vien"), name)
               for name in watched}
@@ -687,7 +695,7 @@ def test_case_dt_06_to_dt_09_the_column_layout_matches_the_owner_decision(
     """
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh/nhan-vien")
-    header = re.search(r"<table class=\"sheet-table\">\s*<tr>(.*?)</tr>",
+    header = re.search(r"<table class=\"sheet-table\"[^>]*>\s*<tr>(.*?)</tr>",
                        html, re.S).group(1)
     labels = [text.strip() for text in re.findall(r"<th[^>]*>(.*?)</th>",
                                                   header, re.S)]
@@ -717,8 +725,10 @@ def test_case_37_the_four_filter_buttons_are_gone_but_the_states_remain(
     for label in ("CHƯA CÓ GIÁ NHẬP", "CHƯA XÁC ĐỊNH NHÂN VIÊN",
                   "DÒNG TÔI ĐÃ SỬA"):
         assert label not in html, label
-    # Trạng thái đúng đắn thì vẫn còn: coverage vẫn nói còn dòng chưa đủ.
-    assert metric(html, "coverage") == "0 / 1 dòng"
+    # Trạng thái đúng đắn thì vẫn còn: dòng thiếu giá vẫn tự nói ra ngay
+    # cạnh mã đơn của nó, dù dòng tổng "coverage" đầu trang đã bỏ
+    # (`TASK-OWNER-UIUX-009` §2, chủ dự án yêu cầu trực tiếp).
+    assert "Thiếu giá" in set(metrics(html, "bh-tag"))
     # Và bảng kê đầy đủ vẫn mở được từ chính sheet này.
     assert 'data-metric="employee-detail-link"' in html
 
@@ -754,10 +764,15 @@ def test_case_vis_01_to_vis_03_the_background_alternates_by_date_group(
     assert shades["BH-A"] == "0"
 
     # VIS-01 chặt hơn: cả BỐN dòng của ngày 1 dùng chung một nền, không phải
-    # zebra theo dòng.
+    # zebra theo dòng. Dòng hàng ĐẦU của một BH mang `data-metric="bh-head"`
+    # (đã gộp Ngày/Mã đơn/Khách hàng — `TASK-OWNER-UIUX-003` §7), các dòng
+    # sau vẫn mang `data-metric="line-row"` như cũ; cả hai loại đều phải
+    # cùng nền với nhau vì cùng thuộc BH-A/ngày 1.
     rows_of_first_date = re.findall(
-        r'<tr class="shade-(\d)[^"]*"\s+data-metric="line-row"\s+'
-        r'data-order="BH-A"', html, re.S)
+        r'<tr class="(?:bh-head )?shade-(\d)[^"]*"\s+'
+        r'(?:id="bh-[^"]*"\s+)?'
+        r'data-metric="(?:bh-head|line-row)"\s+data-order="BH-A"',
+        html, re.S)
     assert len(rows_of_first_date) == 3, rows_of_first_date
     assert set(rows_of_first_date) == {shades["BH-A"]}
 
@@ -917,7 +932,9 @@ def test_case_ed_03_to_ed_05_the_purchase_price_is_editable_inline(
     keys = keys_of(service, "BH72707", "43F6000")
     response = client.post("/kinh-doanh/nhan-vien/gia-nhap", data={
         "ky": "2026-09", "sheet": "noi-thanh", **keys,
-        "gia_nhap": "4.000.000"})
+        # R2 §4.4 — dòng này ĐANG có giá tự động, nên đây là một
+        # `MANUAL_OVERRIDE` và lý do là BẮT BUỘC.
+        "gia_nhap": "4.000.000", "ly_do": "Đối chiếu hoá đơn"})
     assert response.status_code == 302
 
     data = service.period(**SEPTEMBER)
@@ -1236,8 +1253,16 @@ def test_case_gd_16_and_gd_17_each_bucket_measures_against_its_own_target(
 
 
 def _keys_from_html(html: str, product: str) -> dict:
-    """Khoá nghiệp vụ của dòng mang tên hàng này, đọc từ chính bảng đang hiện."""
-    for row in re.findall(r"<tr[^>]*data-metric=\"line-row\".*?</tr>", html, re.S):
+    """Khoá nghiệp vụ của dòng mang tên hàng này, đọc từ chính bảng đang hiện.
+
+    Dòng hàng ĐẦU của một BH mang `data-metric="bh-head"` chứ không phải
+    `"line-row"` (đã gộp Ngày/Mã đơn/Khách hàng — `TASK-OWNER-UIUX-003` §7),
+    nên phải khớp cả hai giá trị để tìm đúng mặt hàng bất kể nó nằm ở dòng
+    thứ mấy trong khối.
+    """
+    for row in re.findall(
+        r'<tr[^>]*data-metric="(?:bh-head|line-row)".*?</tr>', html, re.S
+    ):
         if f">{product}<" not in row and f"{product}</td>" not in row:
             continue
         match = re.search(
@@ -1336,7 +1361,7 @@ def test_case_gd_15_the_gia_dung_sheet_reuses_the_same_detail_table(
     assert metric(html, "customer-phone") == "0912000111"
     assert metric(html, "customer-address") == "12 Lê Lợi, Q1"
     assert metric(html, "line-employee") == "Vinh"
-    header = re.search(r"<table class=\"sheet-table\">\s*<tr>(.*?)</tr>",
+    header = re.search(r"<table class=\"sheet-table\"[^>]*>\s*<tr>(.*?)</tr>",
                        html, re.S).group(1)
     assert "Giá nhập" in header and "Giá bán" in header
 
@@ -1601,16 +1626,28 @@ def test_the_business_page_returns_503_without_a_history_store(
 def test_the_workspace_never_renders_a_prohibited_personal_field(
     repository, client
 ):
-    """Hàng rào cũ còn nguyên cho những trường KHÔNG ai yêu cầu.
+    """Hàng rào còn nguyên cho những trường KHÔNG ai yêu cầu.
 
-    `DEC-PHB02-08` mở đúng ba trường khách hàng. `imei`, `note_raw` và
+    `DEC-PHB02-08` mở đúng ba trường khách hàng, và `note_raw` /
     `employee_raw` ("Vũ Hạnh Ly 0912…") vẫn không có đường nào ra màn hình.
+
+    `imei` rời khỏi danh sách này ở R5 §5 theo `DEC-R5-03` — một sửa đổi CÓ
+    CHỦ ĐÍCH, và phạm vi của nó hẹp tới mức nó có bộ kiểm riêng
+    (`tests/test_r5_imei_boundary.py`): mã máy được mở trên ĐÚNG route này
+    và không đâu khác.
+
+    Điều VẪN phải đúng ở đây, và nay được khẳng định trong thân bài thay vì
+    chỉ hứa trong docstring (`AR-R5-IR-11`): sổ không ghi mã máy nào thì ô
+    mã máy trống, không có một dãy số nào được dựng ra để lấp chỗ.
     """
     persist(repository, three_line_order("BH1"))
     html = body(client, "/kinh-doanh/nhan-vien")
     assert "Vũ Hạnh Ly" not in html          # employee_raw của fixture
-    assert "imei" not in html.lower()
     assert "note_raw" not in html.lower()
+    imei_cells = metrics(html, "line-imei")
+    assert imei_cells, "phải có ô mã máy để mà kiểm — fixture dựng ba dòng"
+    assert set(imei_cells) == {"—"}, (
+        f"sổ không ghi mã máy nào nhưng ô mã máy có nội dung: {imei_cells}")
 
 
 # ==========================================================================
@@ -1661,7 +1698,7 @@ def test_the_owner_runs_a_full_month_through_the_workspace(
     keys_43f = keys_of(service, "BH72707", "43F6000")
     client.post("/kinh-doanh/nhan-vien/gia-nhap", data={
         "ky": "2026-09", "sheet": "noi-thanh", **keys_43f,
-        "gia_nhap": "4.000.000"})
+        "gia_nhap": "4.000.000", "ly_do": "Đối chiếu hoá đơn"})
 
     # 5. Chuyển ĐÚNG MỘT dòng sang Gia dụng.
     keys_xp = keys_of(service, "BH72707", "XP352AE-DS")
@@ -1683,7 +1720,7 @@ def test_the_owner_runs_a_full_month_through_the_workspace(
     assert service.period(**SEPTEMBER).totals.sales_revenue == expected_revenue
 
     # 7. Tải lại — mọi thứ giữ nguyên.
-    reloaded = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh")
+    reloaded = body(client, "/kinh-doanh/nhan-vien?sheet=noi-thanh&sua-target=1")
     assert 'value="500,000"' in reloaded
     assert set(metrics(reloaded, "line-employee")) == {"Hiệp"}
 

@@ -163,26 +163,66 @@ def test_no_brand_table_or_column_exists_anywhere_in_the_schema():
 
 
 def test_phb06_adds_no_migration():
-    """`BR-13` — `NEW_MIGRATION = NONE`. Thư mục version giữ nguyên 7 bản."""
+    """`BR-13` — `NEW_MIGRATION = NONE`: PHB-06 không thêm bản migration nào."""
     versions = sorted(
         p.name for p in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py"))
     assert versions == [
         "0001_legacy.py", "0002_snapshots.py", "0003_business.py",
         "0004_employee_attribution.py", "0005_legacy_source_authority.py",
         "0006_employee_target.py", "0007_employee_workspace.py",
+        # `0008_purchase_price_reason` là của R2 (`R2 Execution Brief` §4.4),
+        # KHÔNG phải của vertical này. Nó có mặt trong danh sách vì phép
+        # khẳng định ở đây là một phép PIN thư mục; điều nó chứng minh vẫn
+        # nguyên vẹn — không có bản migration nào mang tên hay nội dung của
+        # vertical này.
+        "0008_purchase_price_reason.py",
+        # `0009_line_binding_period_close` là của R3 (§1 gắn dòng, §5 chốt
+        # kỳ) — cùng lý do như dòng trên: phép khẳng định ở đây PIN thư mục,
+        # và điều nó chứng minh vẫn nguyên vẹn.
+        "0009_line_binding_period_close.py",
+        # `0010_mutation_request` là của `STAB-03` (chống lặp mutation sau
+        # khi nhánh tự gửi lại bị gỡ) — cùng lý do như hai dòng trên: phép
+        # khẳng định ở đây PIN thư mục, và điều nó chứng minh vẫn nguyên
+        # vẹn. Bảng `mutation_request` không lưu một kết quả phân tích nào
+        # và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0010_mutation_request.py",
+        # `0011_mutation_request_state` là bản sửa hình dạng của `0010` sau
+        # review độc lập (sổ chống lặp phải biết cả lần ghi đang bay) —
+        # cùng lý do: phép khẳng định ở đây PIN thư mục.
+        "0011_mutation_request_state.py",
+        # `0012_tracking_display_snapshot` là của `R5.3` (nhãn hiển thị
+        # Tracking sống qua restart) — cùng lý do như các dòng trên: phép
+        # khẳng định ở đây PIN thư mục. Bảng mới không lưu một kết quả phân
+        # tích nào và không thêm một thẩm quyền ghi nghiệp vụ nào.
+        "0012_tracking_display_snapshot.py",
     ]
 
 
 def test_the_route_wires_only_the_canonical_brand_source():
-    """`BR-01`/`BR-10` — đường production đọc ĐÚNG `canonical_brand`.
+    """`BR-01`/`BR-10` — đường production đọc ĐÚNG MỘT nguồn canonical.
 
-    Tham số `brand_source` tồn tại để test dựng được một kỳ nhiều thương hiệu.
-    Test này là cái giá của tham số đó: nó khẳng định bằng mã nguồn rằng
-    `server.py` không truyền một nguồn nào khác.
+    Tham số `brand_source` tồn tại để test dựng được một kỳ nhiều thương
+    hiệu. Test này là cái giá của tham số đó: nó khẳng định bằng mã nguồn
+    rằng `server.py` không truyền một nguồn nào khác.
+
+    R5 §5 (`DEC-R5-04`) đổi nguồn từ `brand_identity.canonical_brand` sang
+    `catalog_display.brand_source` — một sửa đổi CÓ CHỦ ĐÍCH, và là đúng
+    đường thứ hai mà `PHB-06 §4` đã để ngỏ ("một read model canonical tương
+    đương"). Điều bộ test này canh KHÔNG đổi: đường production wire ĐÚNG MỘT
+    nguồn, và nguồn ấy chỉ tra `source_product_code` của một danh tính đã
+    CONFIRM trong bản chiếu mà TRACKING đã chuẩn hoá — không phải một bảng
+    ánh xạ của Reports, không phải một phép so chuỗi nào (`BR-02`, `BR-10`).
+
+    Vì sao không dùng `canonical_brand` nữa: nó đọc trường `brand` TRÊN chính
+    `CanonicalProductIdentity`, và thêm một trường hiển thị vào value object
+    đó sẽ phá `INV-18` (so sánh LUÔN bằng đủ tuple) — hai danh tính cùng mã
+    khác hãng sẽ thành hai danh tính KHÁC NHAU. Hàm ấy vẫn ở lại, vẫn là
+    đường đọc đúng nếu hợp đồng danh tính có ngày mang trường đó, và vẫn
+    được canh ở các test khác của chính file này.
     """
     source = inspect.getsource(web_server)
     calls = re.findall(r"brand_source=([A-Za-z_.]+)", source)
-    assert calls == ["brand_identity.canonical_brand"]
+    assert calls == ["catalog_display.brand_source"]
 
 
 def test_the_canonical_brand_reader_returns_nothing_today():
@@ -634,8 +674,10 @@ def test_the_primary_navigation_is_unchanged(client, repository):
     three_brand_period(repository)
     for path in ("/kinh-doanh", "/kinh-doanh/thuong-hieu"):
         html = body(client, path)
-        tabs = re.findall(r'class="ncc-tab[^"]*"[^>]*>([^<]+)</a>', html)
-        assert [t.strip() for t in tabs] == ["Báo cáo", "Nhân viên", "Dữ liệu"]
+        # Bóc thẻ con trước khi so: `DEC-213` đặt một `<svg>` trước nhãn.
+        tabs = re.findall(r'class="ncc-tab[^"]*"[^>]*>(.*?)</a>', html, re.S)
+        assert [re.sub(r"<[^>]+>", "", t).strip() for t in tabs] == [
+            "Báo cáo", "Nhân viên", "Dữ liệu"]
 
 
 def test_the_brand_page_is_reachable_from_bao_cao(client, repository):

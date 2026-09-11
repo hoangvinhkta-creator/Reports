@@ -14,6 +14,7 @@ from app import demo
 from app.modules.exporting.excel_exporter import ReportIntegrityError, export_report
 from app.modules.importing.raw_reader import read_raw_rows
 from tests.fixtures.synthetic_workbook import HEADER
+from tests.support import daily_min_fixtures as dmin
 from tests.test_105e_price_composition import write_catalog_capture, write_history_capture
 from tests.test_tracking_history_reader import build_export, event
 
@@ -43,6 +44,17 @@ def inputs(tmp_path):
         {"tracking_code": code, "name": code, "alt": [], "present_in_board": True}
         for code in ("A1", "B1")
     ])
+    # R1 — nguồn giá nhập TỰ ĐỘNG của production là MIN theo ngày bán. Fixture
+    # này giữ NGUYÊN hai kết cục mà bản trước dựng bằng lịch sử `tp/ton`:
+    # A1 có giá ở ngày bán, B1 hết hàng hoàn toàn ⇒ Pending. `tracking_capture`
+    # vẫn được truyền và vẫn đi vào bằng chứng, nhưng không còn quyết định giá.
+    daily_min = dmin.write_capture(tmp_path, dmin.contract(
+        date_from="2026-09-05", date_to="2026-09-05",
+        records=[
+            dmin.record("A1", "2026-09-05", min_price=7000),
+            dmin.record("B1", "2026-09-05", price_status="OUT_OF_STOCK"),
+        ],
+    ))
     sales = write_sales(tmp_path / "sales.xlsx", [
         ("AUTO-1", "A1", date(2026, 9, 5), 1, 8_000_000),
         ("MIXED", "A1", date(2026, 9, 5), 2, 8_000_000),
@@ -51,7 +63,7 @@ def inputs(tmp_path):
         ("AUTO-1", "A1", date(2026, 9, 5), 3, 8_000_000),
     ])
     return dict(sales=sales, tracking_capture=history, tracking_catalog=catalog,
-                output=tmp_path / "report.xlsx")
+                tracking_daily_min=daily_min, output=tmp_path / "report.xlsx")
 
 
 def values(sheet):
@@ -84,19 +96,33 @@ def test_full_production_export_preserves_mixed_lines_and_duplicate_record_keys(
     assert record.reason.value in review[8][5]
     assert record.detail in review[8][6]
     assert review[8][10:12] == ("TRACKING", "B1")
-    assert review[8][18] == record.tracking_reconstruction.reason.value
-    assert review[8][15] == record.evidence.tracking_price_history_capture_id
+    # R1 — nguồn quyết định dòng B1 nay là MIN theo ngày bán, nên hai cột
+    # "Capture giá"/"Tracking reason" phải trỏ về ĐÚNG nguồn ấy. Nếu chúng còn
+    # trỏ về capture lịch sử `tp/ton` thì người kiểm mở đúng file không liên
+    # quan để tìm hiểu vì sao dòng này chưa có giá.
+    assert review[8][18] == record.daily_min_resolution.reason.value
+    assert review[8][15] == record.evidence.tracking_daily_min_capture_id
     assert workbook["Summary"]["B12"].value == 6_000_000
     assert workbook["Order Lines"]["G3"].data_type == "n"
     assert workbook["Order Lines"].freeze_panes == "E2"
     workbook.close()
 
 
-def test_capture_before_sale_is_truthful_pending(inputs):
-    path = inputs["tracking_capture"]
-    data = json.loads(path.read_text())
-    data["captured_at"] = "2026-08-31T08:00:38+00:00"
-    path.write_text(json.dumps(data))
+def test_capture_before_sale_is_truthful_pending(inputs, tmp_path):
+    """Ảnh chụp KHÔNG phủ ngày bán thì không dòng nào có giá.
+
+    R1 — cùng tính chất, nguồn mới. Trước R1 nó được dựng bằng một capture
+    lịch sử `tp/ton` chụp TRƯỚC ngày bán; nay nguồn giá là MIN theo ngày bán,
+    và điều tương đương là một khoảng chụp kết thúc trước ngày bán. Cả hai
+    cùng nói một điều: một lần chụp hẹp hơn kỳ báo cáo là một khoảng trống của
+    BẰNG CHỨNG, không phải một kết luận rằng hàng không có giá.
+    """
+    inputs["tracking_daily_min"] = dmin.write_capture(
+        tmp_path, dmin.contract(
+            date_from="2026-08-30", date_to="2026-08-31",
+            records=[dmin.record("A1", "2026-08-31", min_price=7000)],
+        ), name="daily_min_truoc_ngay_ban.json",
+    )
     run = demo.run_demo(**inputs)
     assert run.summary.auto_orders == 0
     assert run.summary.review_orders == 3

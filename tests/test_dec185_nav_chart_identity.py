@@ -227,24 +227,60 @@ def test_nav_03_the_old_route_still_answers_for_compatibility(client):
 # CHART-01…CHART-11 — MỘT biểu đồ, năm mức gộp
 # ==========================================================================
 
+#: Tiền tố `id` của MỌI khối biểu đồ trên trang Báo cáo — dùng để CẮT ĐUÔI
+#: một khối, không chỉ để tìm đầu nó. `DEC-214` thêm biểu đồ SỐ ĐƠN
+#: (`id="bieu-do-so-don"`) cạnh biểu đồ Doanh thu (`id="bieu-do-doanh-thu"`),
+#: dùng CHUNG macro `r6.paired_chart` — tức chung cả `data-metric="chart-bar"`
+#: / `"chart-bar-prev"`. Đọc `re.findall` trên TOÀN TRANG như trước đây sẽ gom
+#: cả hai biểu đồ vào một `dict`, và với các khoá trùng nhau (cùng ngày vừa có
+#: doanh thu vừa có đơn) giá trị của biểu đồ render SAU sẽ ÂM THẦM đè lên biểu
+#: đồ render trước — đúng cái bẫy `S143` §4 đã gặp và `test_r6_repair1_
+#: chart_windows.py::chart_block` đã có cách chặn. Cắt khối trước khi đọc là
+#: cách duy nhất giữ đúng ý nghĩa gốc của mọi bài kiểm dưới đây.
+_CHART_ID_PREFIX = 'id="bieu-do-'
+
+
+def chart_block(html: str, dom_id: str = "bieu-do-doanh-thu") -> str:
+    """Đúng khối HTML của MỘT biểu đồ, CÓ cắt đuôi. Mặc định biểu đồ Doanh thu
+    — chủ thể của mọi test trong file này từ trước `DEC-214`."""
+    assert f'id="{dom_id}"' in html, f"không thấy khối {dom_id}"
+    tail = html.split(f'id="{dom_id}"', 1)[1]
+    nxt = tail.find(_CHART_ID_PREFIX)
+    return tail if nxt < 0 else tail[:nxt]
+
+
 def test_chart_01_and_03_bao_cao_has_exactly_one_revenue_chart(repository, client):
+    """`DEC-214` thêm ĐÚNG MỘT biểu đồ thứ hai (Số đơn, `id="bieu-do-so-don"`)
+    — mệnh đề gốc "không phải một cái cho mỗi mức gộp" vẫn phải đúng cho
+    TỪNG biểu đồ, nên bài kiểm khẳng định cả hai vế: mỗi card có đúng một
+    `data-metric="chart"` bên trong nó, và tổng cả trang là đúng hai card."""
     persist(repository, [line("BH1", "43F6000", day=5)])
     html = body(client, "/kinh-doanh")
-    assert html.count('data-metric="chart"') == 1, (
-        "phải có ĐÚNG MỘT biểu đồ — không phải một cái cho mỗi mức gộp")
+    assert chart_block(html, "bieu-do-doanh-thu").count('data-metric="chart"') == 1, (
+        "biểu đồ Doanh thu phải có ĐÚNG MỘT — không phải một cái cho mỗi mức gộp")
+    assert chart_block(html, "bieu-do-so-don").count('data-metric="chart"') == 1, (
+        "biểu đồ Số đơn phải có ĐÚNG MỘT — không phải một cái cho mỗi mức gộp")
+    assert html.count('data-metric="chart"') == 2, (
+        "trang Báo cáo có ĐÚNG HAI biểu đồ (Doanh thu + Số đơn), không hơn")
 
 
 def test_chart_02_the_selector_offers_five_granularities(repository, client):
     persist(repository, [line("BH1", "43F6000", day=5)])
     html = body(client, "/kinh-doanh")
-    grans = re.findall(r'class="ghost btn-mini[^"]*"\s*\n?\s*data-gran="([^"]+)"', html)
+    grans = re.findall(
+        r'class="ghost btn-mini[^"]*"\s*\n?\s*data-gran="([^"]+)"',
+        chart_block(html, "bieu-do-doanh-thu"))
     assert grans == ["ngay", "tuan", "thang", "quy", "nam"]
 
 
 def test_chart_03_one_chart_changes_grouping_instead_of_duplicating(
     repository, client
 ):
-    """Đổi mức gộp đổi SỐ CỘT của cùng một biểu đồ, không thêm biểu đồ."""
+    """Đổi mức gộp đổi SỐ CỘT của cùng một biểu đồ, không thêm biểu đồ.
+
+    Về đúng biểu đồ Doanh thu — `chart_block` cắt khối trước khi đếm, nên
+    biểu đồ Số đơn cạnh nó (`DEC-214`) không lẫn cột của nó vào phép đếm này.
+    """
     persist(repository, [
         line("BH1", "43F6000", day=1, sell="1000000", kpi_profit="100000"),
         line("BH2", "XP352", day=2, sell="2000000", kpi_profit="100000"),
@@ -252,25 +288,46 @@ def test_chart_03_one_chart_changes_grouping_instead_of_duplicating(
     by_gran = {}
     for gran in ("ngay", "thang"):
         html = body(client, f"/kinh-doanh?muc={gran}")
-        assert html.count('data-metric="chart"') == 1
-        by_gran[gran] = re.findall(r'data-metric="chart-bar"', html)
+        block = chart_block(html, "bieu-do-doanh-thu")
+        assert block.count('data-metric="chart"') == 1
+        by_gran[gran] = re.findall(r'data-metric="chart-bar"', block)
     assert len(by_gran["ngay"]) == 2
     assert len(by_gran["thang"]) == 1
 
 
-def chart_bars(html: str) -> dict[str, Decimal]:
+def chart_bars(html: str, *, dom_id: str = "bieu-do-doanh-thu") -> dict[str, Decimal]:
     """Doanh thu của từng cột, đọc từ giá trị MÁY chứ không từ nhãn.
 
     `data-revenue` cố ý không định dạng theo vi-VN: đọc lại một con số đã
     chèn dấu phân nhóm buộc test phải gỡ định dạng, và phép gỡ đó sẽ hỏng
     ngay khi một dòng có phần thập phân — nghĩa là test sẽ vỡ vì một lý do
     không liên quan gì tới điều nó đang khẳng định.
+
+    Đọc trên `chart_block(html, dom_id)`, không trên cả trang — xem chú
+    thích ở `_CHART_ID_PREFIX`.
     """
     return {
         key: Decimal(value)
         for key, value in re.findall(
             r'data-metric="chart-bar" data-key="([^"]+)"[^>]*'
-            r'data-revenue="([^"]+)"', html)
+            r'data-revenue="([^"]+)"', chart_block(html, dom_id))
+    }
+
+
+def chart_bars_prev(html: str, *, dom_id: str = "bieu-do-doanh-thu") -> dict[str, Decimal]:
+    """Doanh thu của từng mốc thuộc CỬA SỔ SO SÁNH (R5 §3).
+
+    Cửa sổ so sánh mang `data-metric="chart-bar-prev"` chứ không dùng chung
+    `chart-bar` với cửa sổ hiện tại: mọi bất biến đã nghiệm thu của `DEC-185`
+    (tổng của các cột bằng chỉ tiêu kỳ, một mốc một origin, không bịa ngày)
+    nói về ĐƯỜNG HIỆN TẠI, và trộn hai cửa sổ vào một `data-metric` sẽ làm
+    chúng cộng hai lần. Đọc trên `chart_block`, cùng lý do như `chart_bars`.
+    """
+    return {
+        key: Decimal(value)
+        for key, value in re.findall(
+            r'data-metric="chart-bar-prev" data-key="([^"]+)"[^>]*'
+            r'data-revenue="([^"]+)"', chart_block(html, dom_id))
     }
 
 
@@ -333,16 +390,38 @@ def test_chart_09_an_excluded_line_leaves_the_official_chart(
 def test_chart_10_a_legacy_month_without_daily_evidence_invents_no_days(
     engine, repository, client
 ):
-    """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra."""
+    """`CHART-10` — chỉ có tổng tháng ⟹ KHÔNG có cột ngày nào được bịa ra.
+
+    R5 §3 (`DEC-R5-02`) đổi cách khoanh: hai cửa sổ CÙNG ĐỘ DÀI thay cho cửa
+    sổ theo container lịch của `TASK-OWNER-UIUX-003` §2. Đây là một sửa đổi có
+    chủ đích, và lý do nằm ở chính phép so sánh: hai container lịch liền nhau
+    không cùng độ dài (tháng 2 có 28 ngày, tháng 3 có 31), nên đặt chúng cạnh
+    nhau là mời người đọc so hai con số không so được. `DEC-211` giữ nguyên
+    điều đó và đổi cửa sổ so sánh thành CÙNG KỲ NĂM TRƯỚC ở cả năm mức, với
+    độ dài 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm.
+
+    Mệnh đề của `CHART-10` KHÔNG đổi và vẫn là mệnh đề chính ở đây: một
+    tổng tháng không sinh ra ngày nào. Chỗ tìm bằng chứng thì đổi theo cửa
+    sổ mới — 06/2025 cách dữ liệu mới nhất (09/2026) mười lăm tháng, nên ở
+    cả mức THÁNG lẫn mức QUÝ nó rơi vào CỬA SỔ SO SÁNH. Bằng chứng không bị
+    giấu ở đâu cả.
+    """
     persist(repository, [line("BH1", "43F6000", day=5)])
     seed_legacy_month_total_only(engine, year=2025, month=6, vnd=30000000)
 
-    days = chart_bars(body(client, "/kinh-doanh?muc=ngay"))
-    assert not any(key.startswith("2025-06") for key in days), (
+    day_html = body(client, "/kinh-doanh?muc=ngay&ky=2025-06")
+    assert not any(key.startswith("2025-06")
+                   for key in (*chart_bars(day_html),
+                               *chart_bars_prev(day_html))), (
         "một tổng tháng KHÔNG được chia đều thành 30 ngày")
-    # Nhưng ở mức THÁNG nó xuất hiện — bằng chứng có thật thì không bị giấu.
-    months = chart_bars(body(client, "/kinh-doanh?muc=thang"))
+    # Mức THÁNG: nằm trong cửa sổ so sánh.
+    months = chart_bars_prev(body(client, "/kinh-doanh?muc=thang"))
     assert months["2025-06"] == Decimal("30000000")
+    # Mức QUÝ: `DEC-211` rút cửa sổ Quý còn 4 mốc (một năm), neo vào ngày
+    # có dữ liệu mới nhất (05/09/2026) ⟹ Q4/2025 → Q3/2026. Q2/2025 vì thế
+    # rơi vào CỬA SỔ SO SÁNH (Q4/2024 → Q3/2025), không biến mất.
+    quarters = chart_bars_prev(body(client, "/kinh-doanh?muc=quy"))
+    assert quarters["2025-Q2"] == Decimal("30000000")
 
 
 def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
@@ -352,18 +431,31 @@ def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
 
     Và `DEC-166 E` vẫn đúng: mỗi cột chỉ đến từ MỘT origin, và origin đó đọc
     lại được — nó chỉ không còn là một cái nút bấm.
+
+    `TASK-OWNER-UIUX-003` §2 khoanh biểu đồ mức Tháng về đúng NĂM của kỳ
+    đang xem, theo yêu cầu trực tiếp của chủ dự án (revised deliberately —
+    xem `window_bounds` trong `app/web/revenue_timeline.py`). "Một dòng thời
+    gian, không bộ chọn nguồn" vẫn đúng NGUYÊN VĂN trong phạm vi một năm
+    (Số Cũ và Số Mới của CÙNG năm 2026 đứng chung một trục, không nút gạt
+    nguồn nào cả); xuyên NĂM vẫn liền mạch — không có toggle nguồn nào để
+    bật/tắt, chỉ đổi kỳ đang xem là sang năm khác, và `DEC-166 E` vẫn đúng
+    ở từng năm: mỗi cột chỉ đến từ MỘT origin.
     """
     persist(repository, [line("BH1", "43F6000", day=5, month=9, sell="8000000")])
-    seed_legacy(engine, [(6, 10, 30000000)], year=2025)
+    seed_legacy(engine, [(6, 10, 30000000)], year=2026)
+    seed_legacy(engine, [(6, 10, 9000000)], year=2025, import_id="imp-2025b")
 
-    html = body(client, "/kinh-doanh?muc=thang")
+    # Trong CÙNG một năm (2026): Số Cũ (tháng 6) và Số Mới (tháng 9) đứng
+    # chung một trục, không cái toggle nguồn nào chắn giữa hai origin.
+    html = body(client, "/kinh-doanh?muc=thang&ky=2026-09")
     bars = chart_bars(html)
-    assert "2025-06" in bars and "2026-09" in bars, "một dòng thời gian liên tục"
+    assert "2026-06" in bars and "2026-09" in bars, (
+        "một dòng thời gian liên tục trong năm đang xem")
 
     origins = dict(re.findall(
         r'data-metric="chart-bar" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
         html))
-    assert origins["2025-06"] == "LEGACY_REFERENCE"
+    assert origins["2026-06"] == "LEGACY_REFERENCE"
     assert origins["2026-09"] == "PIPELINE_GENERATED"
 
     chart = re.search(r'id="bieu-do-doanh-thu".*?(?=<div class="module")',
@@ -371,6 +463,17 @@ def test_chart_11_legacy_and_current_share_one_timeline_without_a_source_toggle(
     for forbidden in ("Số cũ", "Số mới", "SỐ CŨ", "SỐ MỚI"):
         assert forbidden not in chart, (
             f"{forbidden!r} là một nhãn nguồn — biểu đồ nói về THỜI GIAN")
+
+    # Xuyên NĂM: không mất, không cần một bộ chọn nguồn. Sau R5 §3 nó đọc
+    # được ngay trên CÙNG biểu đồ đó — 06/2025 nằm trong cửa sổ so sánh của
+    # mức Tháng, cạnh 06/2026 của cửa sổ hiện tại, cùng một trục, cùng một
+    # route, vẫn không có toggle nguồn nào.
+    bars_2025 = chart_bars_prev(html)
+    assert "2025-06" in bars_2025
+    origins_2025 = dict(re.findall(
+        r'data-metric="chart-bar-prev" data-key="([^"]+)"[^>]*data-origin="([^"]+)"',
+        html))
+    assert origins_2025["2025-06"] == "LEGACY_REFERENCE"
 
 
 def test_chart_never_adds_two_origins_into_one_bucket(engine, repository, client):
@@ -380,6 +483,159 @@ def test_chart_never_adds_two_origins_into_one_bucket(engine, repository, client
     bars = chart_bars(body(client, "/kinh-doanh?muc=thang"))
     assert bars["2026-09"] == Decimal("8000000"), (
         "kỳ đã có dòng số mới KHÔNG được cộng thêm bản ghi lịch sử")
+
+
+# ==========================================================================
+# CHART-12 — biểu đồ SỐ ĐƠN cạnh biểu đồ Doanh thu (`DEC-214`)
+# ==========================================================================
+#
+# Card bên phải từng để trống ("Biểu đồ khác — sắp có"), `DEC-214` lấp bằng
+# ĐÚNG biểu đồ Số đơn mà R6 đã kiểm chứng trên trang phân tích, dùng lại
+# nguyên macro `r6.paired_chart` — không phải một biểu đồ thứ hai dựng
+# riêng cho trang này. Ba mệnh đề dưới đây là mệnh đề MỚI mà việc thêm card
+# này phải giữ đúng.
+
+def order_bars(html: str) -> dict[str, Decimal]:
+    """Số đơn của từng cột trên biểu đồ Số đơn — đọc trên `chart_block`,
+    KHÔNG trên `chart_bars` (vốn mặc định đọc khối Doanh thu).
+
+    Regex KHÔNG đặt khoảng trắng cứng giữa `chart-bar"` và `data-key`
+    (dùng `[^>]*`, cùng quy ước `test_r6_repair1_chart_windows.py` đã
+    dùng): macro dùng chung `_r6_bits.html::paired_chart` xuống dòng giữa
+    hai thuộc tính đó, khác cách viết một dòng của `kinh_doanh.html` cho
+    biểu đồ Doanh thu mà `chart_bars` ở trên nhắm tới.
+    """
+    return {
+        key: Decimal(value)
+        for key, value in re.findall(
+            r'data-metric="chart-bar"[^>]*data-key="([^"]+)"[^>]*'
+            r'data-revenue="([^"]+)"', chart_block(html, "bieu-do-so-don"))
+    }
+
+
+def test_chart_12_the_order_count_chart_sits_next_to_the_revenue_chart(
+    repository, client
+):
+    """Card "Biểu đồ khác" nay là biểu đồ Số đơn, không còn ô trống."""
+    persist(repository, [line("BH1", "43F6000", day=5)])
+    html = body(client, "/kinh-doanh")
+    assert "Biểu đồ khác" not in html
+    assert "chart-placeholder" not in html
+    assert 'id="bieu-do-so-don"' in html
+    assert "Số đơn" in chart_block(html, "bieu-do-so-don")
+
+
+def test_chart_12_order_counts_equal_the_real_number_of_orders_per_day(
+    repository, service, client
+):
+    """Cột NGÀY bằng đúng SỐ ĐƠN thật của ngày đó — hai dòng cùng BH vẫn là
+    MỘT đơn, hai BH khác nhau cùng ngày là HAI đơn."""
+    persist(repository, [
+        line("BH1", "43F6000", day=5, sell="8000000"),
+        line("BH1", "XP352", occurrence=2, day=5, sell="2000000"),
+        line("BH2", "Giá treo", day=5, sell="500000"),
+        line("BH3", "43F6000", day=7, sell="1000000"),
+    ])
+    bars = order_bars(body(client, "/kinh-doanh?muc=ngay"))
+    assert bars["2026-09-05"] == Decimal(2), "BH1 (2 dòng) + BH2 = hai đơn"
+    assert bars["2026-09-07"] == Decimal(1)
+    assert sum(bars.values()) == service.period(**SEPTEMBER).totals.orders
+
+
+def test_chart_12_both_charts_share_the_same_anchor_and_window(
+    repository, client
+):
+    """Hai biểu đồ đọc CÙNG một lát dữ liệu và CÙNG một `anchor`
+    (`_orders_chart_summary` dùng lại đúng phép tính của `_revenue_chart`)
+    — nên chúng phải cắt CÙNG một tập mốc thời gian, ở mọi mức gộp."""
+    persist(repository, [
+        line("BH1", "43F6000", day=5, sell="8000000"),
+        line("BH2", "XP352", day=20, sell="3000000"),
+    ])
+    for gran in ("ngay", "tuan", "thang", "quy", "nam"):
+        html = body(client, f"/kinh-doanh?muc={gran}")
+        revenue_keys = set(chart_bars(html))
+        order_keys = set(order_bars(html))
+        assert revenue_keys == order_keys, (
+            f"mức {gran}: hai biểu đồ cắt hai tập mốc khác nhau — "
+            f"doanh thu {revenue_keys} · số đơn {order_keys}")
+
+
+def test_chart_12_the_order_chart_never_merges_legacy_evidence(
+    engine, repository, client
+):
+    """Sổ cũ chỉ lưu DOANH THU, không lưu SỐ ĐƠN — biểu đồ Số đơn không được
+    bịa một điểm lịch sử nào, và không được mang huy hiệu sổ cũ."""
+    persist(repository, [line("BH1", "43F6000", day=5, month=9, sell="8000000")])
+    seed_legacy(engine, [(6, 10, 30000000)], year=2025)
+    html = body(client, "/kinh-doanh?muc=nam")
+    block = chart_block(html, "bieu-do-so-don")
+    assert "rev-line-legacy" not in block
+    assert "Số cũ" not in block and "SỐ CŨ" not in block
+
+
+def test_chart_12_the_order_chart_compares_against_the_same_period_last_year(
+    repository, client
+):
+    """`DEC-211` (cùng kỳ năm trước) áp cho CẢ hai biểu đồ — không phải một
+    quy ước riêng của biểu đồ Doanh thu."""
+    persist(repository, [
+        line("BH1", "43F6000", day=5, month=9, year=2025, sell="1000000"),
+        line("BH2", "XP352", day=5, month=9, year=2026, sell="2000000"),
+    ])
+    html = body(client, "/kinh-doanh?muc=thang")
+    block = chart_block(html, "bieu-do-so-don")
+    assert "Cùng kỳ năm trước" in block
+
+
+# ==========================================================================
+# CHART-13 — trục X ngắn gọn: DD/MM, không lặp năm (`DEC-215`)
+# ==========================================================================
+
+def x_tick_labels(html: str, *, dom_id: str = "bieu-do-doanh-thu") -> list[str]:
+    return re.findall(r'class="rev-chart-xtick"[^>]*>([^<]+)<',
+                      chart_block(html, dom_id))
+
+
+def test_chart_13_day_and_week_axis_ticks_drop_the_year(repository, client):
+    """Mức Ngày/Tuần: nhãn trục X là DD/MM — năm đã nói một lần ở dòng
+    "Kỳ này: … → …" ngay trên biểu đồ, tám nhãn lặp lại năm là chữ thừa."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    day_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=ngay"))
+    assert day_ticks, "phải có ít nhất một nhãn trục"
+    assert all(re.fullmatch(r"\d{2}/\d{2}", label) for label in day_ticks), day_ticks
+
+    week_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=tuan"))
+    assert week_ticks
+    assert all(re.fullmatch(r"\d{2}/\d{2}", label) for label in week_ticks), week_ticks
+
+
+def test_chart_13_month_and_quarter_axis_ticks_keep_the_year(
+    repository, client
+):
+    """Tháng/Quý: GIỮ năm trong nhãn trục — một cửa sổ 12 tháng/4 quý
+    (`DEC-211`) thật sự vắt qua HAI năm dương lịch, bỏ năm ở đây sẽ làm
+    hai mốc khác năm trông như cùng một mốc."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    month_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=thang"))
+    assert month_ticks
+    assert any(re.fullmatch(r"\d{2}/\d{4}", label) for label in month_ticks), \
+        month_ticks
+
+    quarter_ticks = x_tick_labels(body(client, "/kinh-doanh?muc=quy"))
+    assert quarter_ticks
+    assert any("Quý" in label and "/" in label for label in quarter_ticks), \
+        quarter_ticks
+
+
+def test_chart_13_the_tooltip_still_carries_the_full_date(repository, client):
+    """Trục rút gọn, nhưng CHẤM vẫn mang ngày ĐẦY ĐỦ trong `title` — rê
+    chuột để tra cứu chính xác không được mất năm, chỉ trục nhìn lướt mới
+    rút gọn."""
+    persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
+    html = body(client, "/kinh-doanh?muc=ngay")
+    block = chart_block(html, "bieu-do-doanh-thu")
+    assert "05/09/2026" in block
 
 
 # ==========================================================================
@@ -447,17 +703,29 @@ def test_pi_04_and_07_to_09_classifying_flips_the_line_to_thieu_gia(
     detail = next(iter(service.period(**SEPTEMBER).details))
 
     # `PI-04` — bấm vào mã mở bảng chọn NGAY trong sheet.
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
-                 f"&order_key=BH73877&product_key={detail['product_key']}"
-                 f"&occurrence_index={detail['occurrence_index']}")
+    #
+    # R5 §5 đổi bảng chọn thành một popover có ĐÚNG một ô tìm và TỐI ĐA MỘT
+    # dòng gợi ý (`DEC-R5-03`): chưa gõ gì thì chưa gợi ý gì, vì gợi ý mã đầu
+    # tiên của danh mục cho một người chưa gõ gì là mời họ bấm bừa. Mệnh đề
+    # của `PI-04` không đổi — bảng chọn mở TẠI CHỖ và đi qua thẩm quyền
+    # Tracking — chỉ cách hỏi là đổi.
+    keys = (f"&order_key=BH73877&product_key={detail['product_key']}"
+            f"&occurrence_index={detail['occurrence_index']}")
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1" + keys)
     assert 'data-metric="identify-panel"' in panel
-    # Khẳng định trên chính Ô CHỌN, không trên cả trang: tên hàng thô của
-    # dòng này CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh
-    # ngay cả khi danh mục Tracking hoàn toàn không đọc được.
-    options = re.search(r'data-metric="identify-select".*?</select>',
-                        panel, re.S)
-    assert options is not None, "phải có ô chọn mặt hàng Tracking"
-    assert 'value="EWF1143R7SC"' in options.group(0)
+    assert 'data-metric="identify-search"' in panel
+    assert 'data-metric="identify-confirm"' not in panel, (
+        "chưa gõ gì thì chưa gợi ý gì")
+
+    # Gõ tìm ⟹ đúng MỘT gợi ý, và chính nó là cái nút xác nhận. Khẳng định
+    # trên chính DÒNG GỢI Ý, không trên cả trang: tên hàng thô của dòng này
+    # CHỨA mã "EWF1143R7SC", nên một phép tìm trên cả trang sẽ xanh ngay cả
+    # khi danh mục Tracking hoàn toàn không đọc được.
+    found = body(client,
+                 "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF" + keys)
+    suggestions = re.findall(
+        r'data-metric="identify-confirm"[^>]*data-code="([^"]+)"', found)
+    assert suggestions == ["EWF1143R7SC"], "tối đa MỘT gợi ý, và đúng mã đó"
 
     # `PI-05` — xác nhận đi qua thẩm quyền Tracking.
     response = client.post("/kinh-doanh/nhan-vien/phan-loai", data={
@@ -525,31 +793,34 @@ def test_a_code_missing_from_the_board_is_not_offered(snapshot):
 def test_pi_10_and_11_one_compact_warning_points_into_the_same_sheet(
     repository, client
 ):
-    """`PI-10`/`PI-11` — MỘT dòng cảnh báo, và nó dẫn vào chính bảng này."""
+    """`PI-10`/`PI-11` — bàn giao gốc: MỘT dòng cảnh báo, dẫn vào chính bảng.
+
+    `TASK-OWNER-UIUX-009` §2 (chủ dự án yêu cầu trực tiếp, 2026-09-11): dòng
+    cảnh báo này đã bỏ khỏi trang Nhân viên cho gọn. `sheet_warning()` trong
+    `app/web/line_identity.py` vẫn tính đúng như cũ (bài unit test riêng của
+    module đó còn bảo vệ) — chỉ không còn render ở đây. Trạng thái "chưa
+    phân loại" vẫn thấy được qua tag xanh ngay cạnh từng mã đơn.
+    """
     persist(repository, [unresolved_line("BH1"), unresolved_line("BH2"),
                          line("BH3", "43F6000", day=5)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09")
-    assert html.count('data-metric="identity-warning"') == 1, (
-        "đúng MỘT cảnh báo, không phải một danh sách")
-    warning = metric(html, "identity-warning-link")
-    assert "BH1" in warning and "BH2" in warning
-    # `PI-11` — đích của đường dẫn là một khối BH của CHÍNH bảng này.
-    target = re.search(r'data-metric="identity-warning-link"[^>]*', html).group(0)
-    anchor = re.search(r'href="#(bh-[^"]+)"',
-                       re.search(r'data-metric="identity-warning".*?</p>',
-                                 html, re.S).group(0)).group(1)
-    assert f'id="{anchor}"' in html, "đường dẫn phải trỏ tới một khối có thật"
-    assert target
+    assert 'data-metric="identity-warning"' not in html
+    assert line_identity.LABEL_UNRESOLVED in metrics(html, "identity-label")
 
 
 def test_the_warning_counts_bh_and_stays_one_line_when_there_are_many(
     repository, client
 ):
-    """`§13` — nhiều BH ⟹ ĐẾM, không liệt kê. Cảnh báo vẫn là một dòng."""
+    """`§13` bàn giao gốc: nhiều BH ⟹ ĐẾM, không liệt kê.
+
+    `TASK-OWNER-UIUX-009` §2 — dòng cảnh báo tổng hợp này đã bỏ khỏi trang
+    (xem test trên). Bài này giữ lại để canh: dù có tới 7 BH chưa phân loại,
+    trang vẫn không hiện dòng cảnh báo nào.
+    """
     persist(repository, [unresolved_line(f"BH{index}") for index in range(1, 8)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09")
-    assert "Có 7 BH chứa mã chưa được phân loại." in html
-    assert html.count('data-metric="identity-warning"') == 1
+    assert "Có 7 BH chứa mã chưa được phân loại." not in html
+    assert 'data-metric="identity-warning"' not in html
 
 
 def test_no_warning_at_all_when_every_line_is_identified(repository, client):
@@ -735,8 +1006,14 @@ def test_f03_06_the_old_sellers_page_no_longer_lights_the_nhan_vien_tab(
     persist(repository, [line("BH1", "43F6000", day=5)])
     nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>',
                     body(client, "/nhan-vien?nguon=moi"), re.S).group(1)
-    on = re.findall(r'class="ncc-tab on"[^>]*>([^<]+)<', nav)
+    # Khớp trên CHÍNH thuộc tính `class`, không trên nội dung thẻ: `DEC-213`
+    # đặt một `<svg>` ngay sau `>`, nên một biểu thức đọc nội dung sẽ trả về
+    # rỗng KỂ CẢ khi có tab đang sáng — bài kiểm khi ấy xanh vĩnh viễn.
+    on = re.findall(r'class="ncc-tab on"', nav)
     assert on == [], "trang sổ thô không làm sáng tab nghiệp vụ nào"
+    # …và biểu thức ấy PHẢI bắt được một tab sáng khi có, nếu không nó chỉ
+    # đang mô tả chính sự vắng mặt của mình.
+    assert re.findall(r'class="ncc-tab on"', '<a class="ncc-tab on">x</a>')
 
 
 def test_the_official_business_screens_are_all_exclusion_aware(
@@ -832,24 +1109,49 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     seed_legacy(engine, [(6, 10, 30000000)], year=2025)
 
     # --- 1. Báo cáo: đổi mức gộp Ngày → Tuần → Tháng → Quý → Năm ---------
+    # `DEC-211` — CẢ NĂM mức nay đều có cửa sổ, neo vào ngày có dữ liệu mới
+    # nhất (05/09/2026), độ dài 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm.
+    # Ngày/Tuần/Tháng/Quý đều chỉ với tới trong vòng một năm nên không mức nào
+    # chạm tổng tháng lịch sử 06/2025 trong CỬA SỔ HIỆN TẠI, và bốn mức ấy
+    # phải cộng ra CÙNG một tổng — đúng bất biến "đổi mức gộp không đổi tổng"
+    # bên trong một phạm vi. Mức NĂM với tới 2022 nên thấy thêm 06/2025.
+    #
+    # Bài kiểm đọc cả hai chuỗi ở mức Tháng để nói ra điều vừa nói: 06/2025
+    # không biến mất, nó chuyển sang đường so sánh.
     totals = {}
     for gran in ("ngay", "tuan", "thang", "quy", "nam"):
         html = body(client, f"/kinh-doanh?muc={gran}")
-        assert html.count('data-metric="chart"') == 1, gran
+        # `DEC-214` — trang nay có hai biểu đồ (Doanh thu + Số đơn); khẳng
+        # định đúng vế của bất biến gốc ("một biểu đồ, không nhân theo mức
+        # gộp") bằng cách đếm RIÊNG khối Doanh thu, chủ thể của test này.
+        assert chart_block(html, "bieu-do-doanh-thu").count(
+            'data-metric="chart"') == 1, gran
         assert f'data-gran="{gran}"' in html
         totals[gran] = sum(chart_bars(html).values())
-    assert len(set(totals.values())) == 1, (
-        f"năm mức gộp phải cộng ra CÙNG một tổng: {totals}")
+    within_a_year = {totals["ngay"], totals["tuan"], totals["thang"],
+                     totals["quy"]}
+    assert len(within_a_year) == 1, (
+        f"Ngày/Tuần/Tháng/Quý (cửa sổ hiện tại đều trong vòng một năm) phải "
+        f"cộng ra CÙNG một tổng: {totals}")
+    assert totals["nam"] > next(iter(within_a_year)), (
+        "Mức Năm với tới 2022 nên phải thấy thêm tổng tháng lịch sử 06/2025 "
+        f"mà bốn mức kia chưa chạm tới: {totals}")
+    # …và 06/2025 vẫn đọc được ở mức Tháng, trên ĐƯỜNG SO SÁNH.
+    assert chart_bars_prev(
+        body(client, "/kinh-doanh?muc=thang"))["2025-06"] == Decimal("30000000")
 
     # --- 2. Nhân viên: tháng hiện tại, dòng chưa phân loại, phân loại ----
     sheet = body(client, "/kinh-doanh/nhan-vien")
     assert "Tháng 09/2026" in sheet or "09/2026" in sheet
     assert line_identity.LABEL_UNRESOLVED in metrics(sheet, "identity-label")
-    assert 'data-metric="identity-warning"' in sheet
+    # `TASK-OWNER-UIUX-009` §2 — dòng cảnh báo tổng hợp đầu sheet đã bỏ;
+    # trạng thái "chưa phân loại" vẫn thấy được qua tag xanh ở dòng trên.
+    assert 'data-metric="identity-warning"' not in sheet
 
     target = next(item for item in service.period(**SEPTEMBER).details
                   if item["product_raw"].startswith("Máy giặt"))
-    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1"
+    # R5 §5 — popover có một ô tìm; gõ vào đó mới có gợi ý.
+    panel = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&phan-loai=1&tim=EWF"
                  f"&order_key=BH50&product_key={target['product_key']}"
                  f"&occurrence_index={target['occurrence_index']}")
     assert 'value="EWF1143R7SC"' in panel
@@ -864,7 +1166,7 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     assert line_identity.LABEL_UNRESOLVED not in metrics(after, "identity-label")
     assert line_identity.LABEL_MISSING_PRICE in metrics(after, "identity-label")
     assert 'data-metric="identity-warning"' not in after, (
-        "hết dòng chưa phân loại ⟹ cảnh báo biến mất")
+        "cảnh báo tổng hợp đã bỏ khỏi trang (TASK-OWNER-UIUX-009 §2)")
 
     # --- 3. Cùng BH: loại dòng → gán lại BH → khôi phục ------------------
     hidden = next(item for item in service.period(**SEPTEMBER).details

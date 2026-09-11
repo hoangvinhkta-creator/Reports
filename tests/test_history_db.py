@@ -129,10 +129,52 @@ WORKSPACE_TABLES = {
     "line_product_group_classification", "line_exclusion", "group_target",
 }
 
-# Bảy bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
+# R3 §5 — bảng thứ tám của cùng loại: một lần CHỐT KỲ. Chạy lại pipeline từ
+# file sổ gốc không dựng lại được "tháng 01 đã được duyệt ngày nào, bởi ai,
+# trên bộ số nào", nên nó thuộc nhóm không được `DROP` thẳng lúc rollback.
+PERIOD_TABLES = {"period_close"}
+
+# R3 §1 — bảng DẪN XUẤT, cố ý KHÔNG nằm trong `OWNER_INPUT_TABLES`: một ngoại
+# lệ gắn dòng dựng lại được bằng cách nạp lại đúng sổ đó, nên rollback được
+# phép xoá nó.
+BINDING_TABLES = {"line_binding_exception"}
+
+# `STAB-03` — bảng thứ mười một, và nó KHÔNG cùng loại với mười bảng trên.
+# Mười bảng kia ghi một QUYẾT ĐỊNH nghiệp vụ; bảng này ghi một sự kiện về
+# VẬN CHUYỂN: "lần gửi mang mã X đã được cam kết". Nó không có khoá nghiệp
+# vụ, không tham gia phép gộp nào, không đi vào vân tay chốt kỳ.
+#
+# Vì sao nó cần tồn tại: một lần POST có thể được ghi xong rồi response
+# thất lạc, và browser không phân biệt được điều đó với "server chưa nhận".
+# Nhánh tự gửi lại (`form.submit()` trong `catch`) đã bị gỡ, và nút THỬ LẠI
+# gửi ĐÚNG `request_id` cũ — bảng này là nơi mã ấy được nhận ra.
+#
+# Nó ở một tập RIÊNG chứ không gộp vào `OWNER_INPUT_TABLES` vì nội dung của
+# nó tái tạo được, nên `downgrade()` không phải sao lưu nó (xem
+# `0010_mutation_request` § "Vì sao KHÔNG nằm trong OWNER_INPUT_TABLES").
+MUTATION_TABLES = {"mutation_request"}
+
+# `R5.3` — bảng thứ mười hai, cùng LOẠI với `mutation_request` chứ không cùng
+# loại với các bảng quyết định: nó ghi NHÃN hiển thị mà capture Tracking của
+# một lần chạy đã nói (`mã → model · hãng · nhóm hàng`), không một quyết định
+# nghiệp vụ nào.
+#
+# Vì sao nó cần tồn tại: `R5.1 REPAIR-2` ghi bản chiếu ấy ra một FILE trên đĩa
+# máy chủ, và trên Render đĩa ấy ephemeral — mỗi lần deploy/restart file biến
+# mất, trong khi con số của kỳ nằm ở đúng database này. Sau restart, mọi dòng
+# đã `CONFIRMED` hiện `—` VĨNH VIỄN. Bảng này là nửa BỀN của cùng bản chiếu,
+# để tầng trình bày dựng lại được mà KHÔNG gọi Tracking lần nào.
+#
+# Nó ở một tập RIÊNG chứ không gộp vào `OWNER_INPUT_TABLES` vì nội dung của
+# nó tái tạo được (chạy lại báo cáo là dựng lại nó), nên `downgrade()` không
+# phải sao lưu nó — xem `0012_tracking_display_snapshot`.
+TRACKING_DISPLAY_TABLES = {"tracking_display_snapshot"}
+
+# Tám bảng chứa thứ DUY NHẤT không tái tạo lại được từ file sổ gốc. Danh sách
 # này là đầu vào của test rollback-an-toàn bên dưới (`B04`).
 OWNER_INPUT_TABLES = (
     BUSINESS_TABLES | EMPLOYEE_TABLES | TARGET_TABLES | WORKSPACE_TABLES
+    | PERIOD_TABLES
 )
 
 
@@ -201,6 +243,14 @@ _SEED_EXCLUSION = (
     " VALUES ('BTL00300', 'pk-thue-nguoi', 1, 'PIPELINE_GENERATED', NULL,"
     "         '2026-09-04T09:00:00', 'owner')"
 )
+_SEED_PERIOD_CLOSE = (
+    "INSERT INTO period_close"
+    " (year, month, version_no, origin, closed_at, closed_by, note,"
+    "  totals_json, line_count, content_fingerprint)"
+    " VALUES (2026, 1, 1, 'PIPELINE_GENERATED', '2026-09-08T02:00:00',"
+    "         'owner-web', 'Đã duyệt tháng 01', '{\"sales_revenue\": \"1\"}',"
+    "         351, 'fp-01')"
+)
 _SEED_GROUP_TARGET = (
     "INSERT INTO group_target"
     " (year, month, group_key, origin, target_vnd, updated_at, updated_by)"
@@ -228,7 +278,7 @@ def test_rollback_never_destroys_what_the_owner_typed_in(tmp_path):
     with engine.begin() as connection:
         for statement in (_SEED_PRICE, _SEED_GROUP, _SEED_EMPLOYEE,
                           _SEED_TARGET, _SEED_LINE_GROUP, _SEED_EXCLUSION,
-                          _SEED_GROUP_TARGET):
+                          _SEED_GROUP_TARGET, _SEED_PERIOD_CLOSE):
             connection.exec_driver_sql(statement)
     engine.dispose()
 
@@ -352,6 +402,26 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
     việc Nhân viên: ba trường khách hàng của chính sổ đang nạp, phân loại Gia
     dụng ở cấp DÒNG, việc loại một dòng khỏi báo cáo, và Target của NHÓM báo
     cáo. Bốn khẳng định đó không có chỗ nào trong lược đồ cũ để lưu.
+
+    `0008_purchase_price_reason` gia nhập khi R2 (`R2 Execution Brief` §4.4)
+    yêu cầu một quyết định giá nhập tay mang đủ provenance THỰC TẾ: ai, lúc
+    nào, giá AUTO lúc đó là bao nhiêu — và VÌ SAO. Ba thứ đầu đã có cột; lý do
+    thì chưa, và không suy ra được từ đâu cả.
+
+    `0010_mutation_request` gia nhập khi `STAB-03` gỡ nhánh tự gửi lại
+    mutation (`form.submit()` trong `catch` của `app.js`). Nhánh đó ghi lần
+    thứ hai một quyết định đã được ghi, khi server ghi xong rồi response
+    thất lạc — và một lỗi fetch không phân biệt được tình huống đó với
+    "server chưa nhận". Thay nó bằng một nút THỬ LẠI cần một chỗ để nhận ra
+    `request_id` cũ, và chỗ đó phải sống qua nhiều worker gunicorn cùng
+    nhiều lần restart. Một dict trong tiến trình không làm được cả hai.
+
+    `0011_mutation_request_state` gia nhập ngay sau đó vì hình dạng của
+    `0010` KHÔNG cho at-most-once: một sổ chỉ ghi những lần ghi ĐÃ XONG thì
+    không biết gì về một lần ghi đang diễn ra, nên hai request đồng thời
+    cùng thấy sổ rỗng rồi cùng ghi. Review độc lập chứng minh điều đó bằng
+    probe trên PostgreSQL. Cột `state` cho hàng được chèn TRƯỚC lần ghi,
+    trong cùng transaction, biến khoá chính thành một cửa loại trừ thật.
     """
     versions = sorted(
         path.name for path in (REPO_ROOT / "tools/db/migrations/versions").glob("*.py")
@@ -360,12 +430,23 @@ def test_migration_chain_is_exactly_the_frozen_revisions():
                         "0003_business.py", "0004_employee_attribution.py",
                         "0005_legacy_source_authority.py",
                         "0006_employee_target.py",
-                        "0007_employee_workspace.py"]
+                        "0007_employee_workspace.py",
+                        "0008_purchase_price_reason.py",
+                        "0009_line_binding_period_close.py",
+                        "0010_mutation_request.py",
+                        "0011_mutation_request_state.py",
+                        "0012_tracking_display_snapshot.py"]
+    # Alembic mặc định tạo ``alembic_version.version_num`` VARCHAR(32) trên
+    # PostgreSQL. Một revision dài hơn chỉ lộ khi deploy: DDL chạy xong nhưng
+    # transaction rollback lúc Alembic ghi version. Giữ giới hạn ở đây để lỗi
+    # được bắt ở test local.
+    assert len(history_db.ALEMBIC_HEAD) <= 32
 
 
 def test_schema_declares_exactly_the_frozen_tables():
     assert set(schema.METADATA.tables) == (
-        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES)
+        LEGACY_TABLES | PIPELINE_TABLES | OWNER_INPUT_TABLES | BINDING_TABLES
+        | MUTATION_TABLES | TRACKING_DISPLAY_TABLES)
 
 
 def test_the_owner_backup_table_is_not_part_of_the_schema():

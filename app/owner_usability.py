@@ -14,9 +14,15 @@ from pathlib import Path
 from typing import Callable, Iterable, TypeVar
 
 from app import demo
-from app.modules.pricing.resolution.sources import (
-    load_tracking_catalog_capture, load_tracking_inv_map_capture,
+from app.modules.pricing.daily_min.capture_file import load_daily_min_capture
+from app.modules.pricing.daily_min.planning import (
+    UnreadableSalesWorkbookError, plan_daily_min_request_for_workbook,
 )
+from app.modules.pricing.resolution.sources import (
+    IDENTITY_STORE_LOG_PATH, load_tracking_catalog_capture,
+    load_tracking_inv_map_capture,
+)
+from app.modules.product.identity.store import JsonlProductIdentityStore
 from app.modules.pricing.tracking_history.capture_file import (
     load_tracking_price_history_capture,
 )
@@ -29,6 +35,7 @@ HISTORY_CAPTURE_DIRECTORIES = (
 )
 CATALOG_CAPTURE_DIRECTORIES = (Path("data/tracking_catalog"),)
 INV_MAP_CAPTURE_DIRECTORIES = (Path("data/tracking_inv_map"),)
+DAILY_MIN_CAPTURE_DIRECTORIES = (Path("data/tracking_daily_min"),)
 
 
 class OwnerUsabilityError(RuntimeError):
@@ -37,9 +44,18 @@ class OwnerUsabilityError(RuntimeError):
 
 @dataclass(frozen=True)
 class SelectedCaptures:
-    tracking_capture: Path
+    #: Lịch sử `tp/ton` — TUỲ CHỌN kể từ lượt review vòng 2. Từ R1 nó không
+    #: quyết định giá nào (`ADR-110` §6): nhánh của một mã Tracking đi qua
+    #: MIN theo ngày bán, và đường lịch sử chỉ chạy khi caller nêu rõ
+    #: `legacy_tracking_history_authority=True`. Vắng mặt ⇒ vẫn chạy.
+    tracking_capture: Path | None
     tracking_catalog: Path
     tracking_inv_map: Path | None = None
+    #: R1 — ảnh chụp MIN theo ngày bán. TUỲ CHỌN cùng khuôn `tracking_inv_map`:
+    #: vắng mặt = "chưa nối", và mọi dòng Tracking Pending với đúng lý do ấy.
+    #: KHÔNG bắt buộc vì nó phụ thuộc kỳ báo cáo (danh sách mã + khoảng ngày),
+    #: nên nó không phải một capture "chụp một lần dùng mãi" như hai cái kia.
+    tracking_daily_min: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -70,12 +86,19 @@ def _latest_complete_capture(
     loader: Callable[[Path], Snapshot | None],
     label: str,
     required: bool = True,
+    accepts: Callable[[Snapshot], bool] | None = None,
 ) -> Path | None:
     """Trả về capture COMPLETE mới nhất theo ``captured_at`` đã được loader kiểm.
 
     Các file FAILED, hỏng hoặc không phải capture đúng loại đều bị loại. Không
     fallback sang file mới nhất theo tên hay mtime, vì hai thuộc tính đó không
     chứng minh được trạng thái capture.
+
+    ``accepts`` lọc thêm theo NỘI DUNG trước khi so "mới nhất". Nó có mặt vì
+    một loại capture không phải lúc nào cũng trả lời được mọi câu hỏi: ảnh chụp
+    MIN theo ngày bán chỉ chứa những cặp (mã, ngày) mà lần chụp ấy đã hỏi, nên
+    "mới nhất" là tiêu chí SAI cho nó — một ảnh chụp tháng 9 mới hơn ảnh chụp
+    tháng 8, và hoàn toàn vô dụng khi mở lại sổ tháng 8.
     """
     candidates: list[tuple[datetime, Path]] = []
     for path in _capture_paths(directories):
@@ -84,6 +107,8 @@ def _latest_complete_capture(
             if snapshot is None:
                 continue
             snapshot.require_complete()
+            if accepts is not None and not accepts(snapshot):
+                continue
             captured_at = snapshot.captured_at
             if captured_at.tzinfo is None or captured_at.utcoffset() is None:
                 # Catalog loader cũ chỉ yêu cầu ISO-8601. Không dùng một giờ
@@ -105,13 +130,30 @@ def _latest_complete_capture(
     return max(candidates, key=lambda candidate: (candidate[0], str(candidate[1])))[1]
 
 
-def select_latest_valid_captures(*, repo_root: Path = REPO_ROOT) -> SelectedCaptures:
-    """Chọn hai đầu vào Tracking hoàn chỉnh mới nhất từ các kho cục bộ chuẩn."""
+def select_latest_valid_captures(
+    *, repo_root: Path = REPO_ROOT, sales: Path | None = None,
+    identity_store_view=None,
+) -> SelectedCaptures:
+    """Chọn các đầu vào Tracking hoàn chỉnh từ các kho capture cục bộ chuẩn.
+
+    ``sales`` (R1) là workbook sắp chạy. Nó cần cho MỘT quyết định duy nhất:
+    ảnh chụp MIN theo ngày bán nào trả lời được kỳ này. Ba capture kia là ảnh
+    chụp của cả một nhánh dữ liệu nên "mới nhất" là tiêu chí đúng cho chúng;
+    ảnh chụp MIN thì chỉ chứa những cặp (mã, ngày) mà lần chụp ấy đã hỏi, nên
+    "mới nhất" là tiêu chí SAI — mở lại sổ tháng 8 sẽ vớ phải ảnh chụp tháng 9
+    và mọi dòng ra ngoài cửa sổ, tức Pending hàng loạt với một lý do trỏ nhầm
+    hướng.
+
+    Không có ``sales`` thì KHÔNG chọn ảnh chụp MIN nào: không có kỳ thì không
+    có tiêu chí, và chọn bừa một cái là đúng lỗi vừa mô tả.
+    """
     root = Path(repo_root).expanduser().resolve()
+    # Lịch sử `tp/ton`: TUỲ CHỌN — xem chú thích ở `SelectedCaptures`.
     history = _latest_complete_capture(
         directories=tuple(root / path for path in HISTORY_CAPTURE_DIRECTORIES),
         loader=load_tracking_price_history_capture,
         label="lịch sử giá Tracking",
+        required=False,
     )
     catalog = _latest_complete_capture(
         directories=tuple(root / path for path in CATALOG_CAPTURE_DIRECTORIES),
@@ -126,9 +168,70 @@ def select_latest_valid_captures(*, repo_root: Path = REPO_ROOT) -> SelectedCapt
         label="inv.map Tracking",
         required=False,
     )
+    # MIN theo ngày bán — TUỲ CHỌN, cùng lý do đã ghi ở `SelectedCaptures`,
+    # nhưng chọn theo KỲ chứ không theo "mới nhất".
+    daily_min = _select_daily_min_capture(
+        root=root, sales=sales, catalog=catalog, inv_map=inv_map,
+        identity_store_view=identity_store_view)
     return SelectedCaptures(
         tracking_capture=history, tracking_catalog=catalog, tracking_inv_map=inv_map,
+        tracking_daily_min=daily_min,
     )
+
+
+def _select_daily_min_capture(
+    *, root: Path, sales: Path | None, catalog: Path, inv_map: Path | None,
+    identity_store_view=None,
+) -> Path | None:
+    """Ảnh chụp MIN phủ ĐÚNG kỳ của workbook này, hoặc ``None``.
+
+    ``None`` nghĩa là "chưa có ảnh chụp nào trả lời được kỳ này" — và nó dẫn
+    tới Pending kèm lý do nguồn chưa nối, một câu đúng. Cái KHÔNG được làm là
+    đưa ra một ảnh chụp của kỳ khác: khi ấy mọi dòng vẫn Pending, nhưng với lý
+    do `SALE_DATE_OUTSIDE_CAPTURE`, và người đọc sẽ đi sửa nhầm chỗ.
+    """
+    if sales is None:
+        return None
+    try:
+        plan = plan_daily_min_request_for_workbook(
+            Path(sales),
+            tracking_catalog=load_tracking_catalog_capture(catalog),
+            identity_store_view=(
+                _identity_store_view(root) if identity_store_view is None
+                else identity_store_view),
+            tracking_inv_map=(
+                load_tracking_inv_map_capture(inv_map) if inv_map is not None else None
+            ),
+            tracking_identity_authority=True,
+        )
+    except UnreadableSalesWorkbookError:
+        # Không nuốt lỗi: đường nhập sổ ngay sau đây đọc lại ĐÚNG file này và
+        # sẽ báo lỗi ở nơi người dùng hiểu được. Ở đây chỉ có nghĩa là không
+        # lập được kế hoạch, nên không chọn ảnh chụp nào.
+        return None
+    if plan is None:
+        # Lần chạy này không có dòng nào mang identity Tracking, nên không có
+        # câu hỏi nào để một ảnh chụp trả lời.
+        return None
+    return _latest_complete_capture(
+        directories=tuple(root / path for path in DAILY_MIN_CAPTURE_DIRECTORIES),
+        loader=load_daily_min_capture,
+        label="MIN theo ngày bán của Tracking",
+        required=False,
+        accepts=plan.covered_by,
+    )
+
+
+def _identity_store_view(root: Path):
+    """Log quyết định Product Identity trên ĐĨA CỤC BỘ.
+
+    Đây là nhánh của máy Owner: đĩa thật, một tiến trình, bền qua khởi động
+    lại. Trên bản Web nó KHÔNG đúng — log thật nằm ở R2 — nên
+    `app/web/server.py` truyền `identity_store_view` vào và hàm này không
+    được gọi. Xem `run_owner_report`.
+    """
+    store = JsonlProductIdentityStore(log_path=root / IDENTITY_STORE_LOG_PATH)
+    return store.read_at_revision(store.current_revision())
 
 
 def default_output_path(*, repo_root: Path = REPO_ROOT,
@@ -148,11 +251,16 @@ def default_output_path(*, repo_root: Path = REPO_ROOT,
 
 def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
                      now: datetime | None = None,
-                     captures: SelectedCaptures | None = None) -> OwnerRun:
+                     captures: SelectedCaptures | None = None,
+                     identity_store_view=None) -> OwnerRun:
     """Gọi đúng Demo V1 sau khi chọn đầu vào Owner cần thấy.
 
     ``run_demo`` vẫn là đường production duy nhất; lớp này không truyền bất
     kỳ quyết định nghiệp vụ nào ngoài hai capture COMPLETE đã chọn.
+
+    ``identity_store_view`` (R2): ảnh chụp đã đóng băng của log quyết định
+    Product Identity. Bản Web truyền vào vì log thật của nó nằm ở R2, không
+    trên đĩa container; ``None`` giữ nguyên nhánh log cục bộ của máy Owner.
 
     ``captures`` (S071): khi bên gọi đã tự chọn captures — ví dụ Reports Web
     Shared Beta pull-on-run LIVE từ Tracking thay vì đọc capture cục bộ trên
@@ -164,7 +272,9 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
     if not sales.is_file() or sales.suffix.lower() != ".xlsx":
         raise OwnerUsabilityError("Hãy chọn một workbook kế toán có đuôi .xlsx.")
     if captures is None:
-        captures = select_latest_valid_captures(repo_root=repo_root)
+        captures = select_latest_valid_captures(
+            repo_root=repo_root, sales=sales,
+            identity_store_view=identity_store_view)
     output = default_output_path(repo_root=repo_root, now=now)
     output.parent.mkdir(parents=True, exist_ok=True)
     run = demo.run_demo(
@@ -172,7 +282,9 @@ def run_owner_report(*, sales: Path, repo_root: Path = REPO_ROOT,
         tracking_capture=captures.tracking_capture,
         tracking_catalog=captures.tracking_catalog,
         tracking_inv_map=captures.tracking_inv_map,
+        tracking_daily_min=captures.tracking_daily_min,
         output=output,
+        identity_store_view=identity_store_view,
     )
     if run.summary.input_orders != run.summary.accounted_orders:
         raise OwnerUsabilityError(

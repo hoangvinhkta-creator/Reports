@@ -4,6 +4,34 @@
    đường nào render một con số lợi nhuận/DS quy đổi mà rơi mất nhãn CHÍNH
    THỨC / CHƯA HOÀN CHỈNH (`R-S7`). Không macro nào ở đây làm phép tính. #}
 
+{# `TASK-OWNER-UIUX-005` §4 — bộ icon SVG nét mảnh, tham chiếu thị giác
+   design system của repo Finance (chỉ đọc, không hot-link, không runtime
+   dependency — cùng nguyên tắc "bản chép tĩnh có chọn lọc" đã ghi ở đầu
+   `tinphat-ui.css` cho bảng màu/khoảng cách của Tracking). Mỗi icon là một
+   `viewBox="0 0 18 18"` vẽ tay bằng path/circle/rect đơn giản, tô màu qua
+   `currentColor` (`.tp-ic`, xem CSS) — không phải một bộ icon ngoài, không
+   file `.svg` rời, không thư viện. Finance là app khác lĩnh vực (ví tiền cá
+   nhân) nên không có sẵn icon cho các thao tác đặc thù của Reports (chuyển
+   Gia dụng, phân loại mặt hàng...) — những icon đó vẽ mới, giữ ĐÚNG quy tắc
+   kỹ thuật của bộ icon Finance (nét 1.5px, bo tròn đầu/góc nối), một icon
+   (`swap`) dùng lại chính hình dạng mũi tên hai chiều của mục "Công nợ" bên
+   Finance vì đúng ý nghĩa "chuyển sang nhóm khác". #}
+{% macro icon(name) -%}
+{%- if name == 'help' -%}
+<svg class="tp-ic tp-ic-sm" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7"/><path d="M6.8 7c.2-1.3 1.4-2.1 2.7-1.9 1.2.2 2.1 1.2 1.9 2.3-.2 1-1.2 1.4-1.9 1.9-.5.4-.7.8-.7 1.3"/><circle cx="9" cy="13.1" r=".2" fill="currentColor" stroke="none"/></svg>
+{%- elif name == 'edit' -%}
+<svg class="tp-ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M11.6 3.4l3 3L6.3 14.7l-3.9 1 1-3.9z"/><path d="M10.1 4.9l3 3"/></svg>
+{%- elif name == 'trash' -%}
+<svg class="tp-ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 5.5h10M7.3 5.5V4a1 1 0 011-1h1.4a1 1 0 011 1v1.5"/><path d="M5.4 5.5l.6 8.1a1 1 0 001 .9h4a1 1 0 001-.9l.6-8.1"/><path d="M7.6 8.3v4M10.4 8.3v4"/></svg>
+{%- elif name == 'swap' -%}
+<svg class="tp-ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 6h11M11 3l3 3-3 3M15 12H4M7 9l-3 3 3 3"/></svg>
+{%- elif name == 'undo' -%}
+<svg class="tp-ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4L3 8l4 4"/><path d="M3 8h8a4 4 0 010 8h-2"/></svg>
+{%- elif name == 'restore' -%}
+<svg class="tp-ic" viewBox="0 0 18 18" aria-hidden="true"><path d="M14 9a5 5 0 11-1.6-3.7"/><path d="M14 3.3v3.7h-3.7"/></svg>
+{%- endif -%}
+{%- endmacro %}
+
 {% macro business_badge() -%}
 <span class="tag tag-pipeline" title="{{ PIPELINE_BADGE_TITLE }}">{{ PIPELINE_BADGE }}</span>
 {%- endmacro %}
@@ -42,7 +70,100 @@
    Ô đếm cũ gộp mọi thứ vào hai con số, trong đó một con số luôn bằng 0 theo
    cấu tạo và con số kia nói "nhập giá không cứu được" cho gần hết số dòng —
    ngược hẳn sự thật (B02/B03). Nay mỗi cửa chặn tự nói tên mình. #}
-{% macro coverage_breakdown(coverage) -%}
+{# `TASK-OWNER-UIUX-002` R2 — chú giải của MỘT chỉ tiêu, hiện khi RÊ CHUỘT
+   hoặc LIA TỚI bằng bàn phím (`:hover`/`:focus-within`), KHÔNG cần bấm.
+   Một `<span>` thường, không `<details>`: `<details>` là phần tử BLOCK theo
+   mặc định của trình duyệt, và đặt nó bên trong nhãn chỉ tiêu (`<span
+   class="tp-label">`) từng làm nhãn gãy xuống dòng giữa chừng. Câu chữ
+   KHÔNG đổi — vẫn đúng hằng số cũ; chỉ cách hiện ra đổi. #}
+{% macro kpi_help(note) -%}
+{% if note %}
+<span class="kpi-help" tabindex="0" aria-label="Giải thích chỉ tiêu này">
+  <span class="kpi-help-icon" aria-hidden="true">{{ icon('help') }}</span>
+  <span class="kpi-help-tip" data-metric="kpi-help">{{ note }}</span>
+</span>
+{% endif %}
+{%- endmacro %}
+
+{# Chú giải của biểu đồ — cùng cơ chế rê chuột/lia tới như `kpi_help`, nhưng
+   gộp NHIỀU đoạn (phạm vi, cách giải thẩm quyền, mốc chưa trọn kỳ, sổ cũ
+   không có dòng theo ngày, dòng chưa có ngày bán). Không đoạn nào bị BỎ —
+   `F-E`/`F-N03`/`DEC-166 E` vẫn bắt buộc những câu này có mặt trên trang;
+   chúng chỉ lùi sau một biểu tượng (?) thay vì chiếm một khối riêng dưới
+   biểu đồ. #}
+{% macro chart_help(chart) -%}
+<span class="kpi-help chart-help" tabindex="0" aria-label="Cách đọc biểu đồ này">
+  <span class="kpi-help-icon" aria-hidden="true">{{ icon('help') }}</span>
+  <span class="kpi-help-tip">
+    <p data-metric="chart-scope">{{ chart.scope_note }}</p>
+    <p data-metric="chart-note">{{ chart.note }}</p>
+    {% if chart.comparison_note %}<p data-metric="chart-comparison">{{ chart.comparison_note }}</p>{% endif %}
+    {% if chart.has_gap %}<p data-metric="chart-gap">{{ chart.gap_note }}</p>{% endif %}
+    {% if chart.has_partial %}<p data-metric="chart-partial">{{ chart.partial_note }}</p>{% endif %}
+    {% if chart.no_daily_legacy_note %}<p data-metric="chart-no-daily-legacy">{{ chart.no_daily_legacy_note }}</p>{% endif %}
+    {% if chart.gapfill_note %}<p data-metric="chart-gapfill">{{ chart.gapfill_note }}</p>{% endif %}
+    {% if chart.undated %}
+    <p data-metric="chart-undated">Có <strong>{{ chart.undated }}</strong> {{ chart.undated_note }}.</p>
+    {% endif %}
+  </span>
+</span>
+{%- endmacro %}
+
+{# Thẻ chỉ tiêu của HÀNG TÓM TẮT. Cùng `data-metric`, cùng con số, cùng
+   tooltip VND đầy đủ (R1 §9) như `kpi`/`gated_kpi`; khác đúng hai chỗ:
+   chú giải nằm sau dấu (?), và thẻ doanh thu mang thêm chênh lệch so tháng
+   trước ngay dưới con số. #}
+{% macro kpi_cell(label, value, metric, note='', full='', strong=False,
+                  cell=None, mom=None, previous_label='') -%}
+<div class="kpi-card{{ ' kpi-strong' if strong }}{{ ' kpi-incomplete' if cell and not cell.official }}">
+  <span class="tp-label">{{ label }}{% if cell %} {{ state_tag(cell) }}{% endif %}{{ kpi_help(note) }}</span>
+  {% if cell %}
+  <strong class="kpi-value{{ ' empty-cell' if cell.missing }}"
+          data-metric="{{ metric }}"
+          {% if not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+          >{{ cell.text_kvnd }}</strong>
+  {% else %}
+  <strong class="kpi-value" data-metric="{{ metric }}"
+          {% if full %}title="{{ full }}"{% endif %}>{{ value }}</strong>
+  {% endif %}
+  {% if mom is not none %}<span class="kpi-mom">{{ mom_inline(mom, previous_label) }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{# MỘT việc cần soi. Tiêu đề + số + mức nghiêm trọng đọc được ngay; giải
+   thích và đường dẫn hành động nằm sau một lần bấm. Điều kiện cảnh báo,
+   số dòng và đường dẫn đều do tầng trình bày dựng sẵn — macro này không
+   tính lại gì. #}
+{% macro pending_row(item, action_url, breakdown=None) -%}
+<details class="pending-item" data-metric="pending-item" data-code="{{ item.code }}"
+         data-severity="{{ item.severity }}">
+  <summary>
+    <span class="pending-dot pending-{{ item.severity }}" aria-hidden="true"></span>
+    <span class="pending-title">{{ item.title }}</span>
+    <span class="cnt"><span data-metric="{{ item.count_metric }}"
+      >{{ item.count }}</span>{% if item.count_unit %} {{ item.count_unit }}{% endif %}</span>
+  </summary>
+  {% if item.note %}
+  <p class="{{ item.severity }}" data-metric="{{ item.note_metric }}">{{ item.note }}</p>
+  {% endif %}
+  {% if breakdown %}{{ coverage_reasons(breakdown) }}{% endif %}
+  {% if action_url %}
+  <p><a class="ghost btn-mini" data-metric="pending-action"
+        href="{{ action_url }}">{{ item.action_label }}</a></p>
+  {% endif %}
+</details>
+{%- endmacro %}
+
+{# `TASK-OWNER-UIUX-002` tách `coverage_breakdown` làm hai mảnh mà trước đây
+   luôn đi cùng nhau, vì trang Báo cáo cần chúng ở HAI CHỖ KHÁC NHAU: danh
+   sách việc phải làm lùi xuống khối "Cần kiểm tra" ở cuối trang, còn câu về
+   dòng chưa biết của ai ở lại cạnh khối phân bổ lợi nhuận — nó nói về THẨM
+   QUYỀN NHÂN VIÊN, không phải về giá nhập.
+
+   `coverage_breakdown` vẫn ghép đúng hai mảnh đó theo đúng thứ tự cũ, nên
+   hai trang còn lại (`kinh_doanh_nhan_vien`, `kinh_doanh_gia_nhap`) render
+   ra y hệt như trước — không một `data-metric` nào đổi chỗ hay biến mất. #}
+{% macro coverage_reasons(coverage) -%}
 {% if not coverage.complete %}
 <ul class="reason-list" data-metric="coverage-breakdown">
   {# TASK-UIUX-001 — "0 dòng chưa có giá nhập" không phải một việc để làm; chỉ
@@ -62,6 +183,9 @@
   {% endfor %}
 </ul>
 {% endif %}
+{%- endmacro %}
+
+{% macro unresolved_employee_note(coverage) -%}
 {% if coverage.unresolved_employee_lines %}
 <p class="insight" data-metric="unresolved-employee-note">
   <strong data-metric="unresolved-employee-lines">{{ coverage.unresolved_employee_lines }}</strong>
@@ -71,11 +195,19 @@
 {% endif %}
 {%- endmacro %}
 
+{% macro coverage_breakdown(coverage) -%}
+{{ coverage_reasons(coverage) }}
+{{- unresolved_employee_note(coverage) }}
+{%- endmacro %}
+
 {# Một ô tiền SUY RA. Thiếu đầu vào ⟹ `—` kèm lý do, KHÔNG BAO GIỜ một số 0
    bịa: một ô `0` trông như đã tính xong và ra kết quả bằng không. #}
 {% macro derived_cell(cell, metric) -%}
-<td class="num{{ ' empty-cell' if cell.missing }}" data-metric="{{ metric }}"
-    {% if cell.reason %}title="{{ cell.reason }}"{% endif %}>{{ cell.text }}</td>
+<td class="num{{ ' empty-cell' if cell.missing }}{{ ' neg' if cell.text_kvnd[:1] == '-' }}"
+    data-metric="{{ metric }}"
+    {% if cell.reason %}title="{{ cell.reason }}"
+    {%- elif not cell.missing %}title="{{ cell.text }} đồng"{% endif %}
+    >{{ cell.text_kvnd }}</td>
 {%- endmacro %}
 
 {# Khoá nghiệp vụ + ngữ cảnh trang, dùng chung cho mọi form ghi trên một dòng.
@@ -117,7 +249,16 @@
    `DEC-PHB02-07` vẫn có CHỮ (`mom-note`); nhãn nguồn `DEC-180` §9
    (`mom-origin`/`mom-source`) vẫn hiện đúng khi mốc so đến từ SỐ CŨ.
    Dấu +/− luôn có mặt; màu chỉ bổ sung. Chỉ so DOANH THU BÁN HÀNG — câu đó
-   nằm trong tooltip của chính con số. #}
+   nằm trong tooltip của chính con số.
+
+   `TASK-OWNER-UIUX-003` §1 — câu giải thích đầy đủ của `DEC-180` §9
+   ("SỐ CŨ — dòng Tổng tháng của sheet Summary..." + `MOM_LEGACY_PREVIOUS_
+   NOTE`) quá dài để đứng thẳng trên trang, theo yêu cầu trực tiếp của chủ
+   dự án. Nó KHÔNG bị xoá — `mom-source`/`mom-note` vẫn là hai phần tử mang
+   đúng nội dung cũ — chỉ lùi vào tooltip của chính cái tag "SỐ CŨ", cùng cơ
+   chế rê-chuột/lia-tới như `kpi_help`. Nhánh KHÔNG có origin (Toàn bộ dữ
+   liệu / chưa có tháng trước / tháng trước bằng 0) không đổi: câu đó NGẮN
+   và là thông tin duy nhất thay cho một con số, nên vẫn hiện thẳng. #}
 {% macro mom_inline(mom, previous_label) -%}
 {% set sign = '' if mom.missing else mom.percent[:1] %}
 <span class="kpi-delta{{ ' empty-cell' if mom.missing }}{{ ' up' if sign == '+' }}{{ ' down' if sign == '-' }}"
@@ -126,10 +267,14 @@
       >{{ mom.percent }}</span>
 {% if not mom.missing %}<span class="tp-unit">so với {{ previous_label or 'tháng trước' }}</span>{% endif %}
 {% if mom.origin %}
-<span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
-<span class="tp-unit" data-metric="mom-source">{{ mom.source }}</span>
-{% endif %}
-{% if mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+<span class="kpi-help mom-legacy-help" tabindex="0" aria-label="Nguồn mốc so sánh">
+  <span class="tag tag-legacy" data-metric="mom-origin">{{ mom.origin }}</span>
+  <span class="kpi-help-tip">
+    <span data-metric="mom-source">{{ mom.source }}</span>
+    {% if mom.note %}<span data-metric="mom-note">{{ mom.note }}</span>{% endif %}
+  </span>
+</span>
+{% elif mom.note %}<span class="tp-unit" data-metric="mom-note">{{ mom.note }}</span>{% endif %}
 {%- endmacro %}
 
 {# Ô CHỦ ĐẠO: con số trả lời câu hỏi đầu tiên của người đọc quản trị, to hơn
@@ -147,6 +292,12 @@
 </div>
 {%- endmacro %}
 
+{# `TASK-OWNER-UIUX-004` §2 — đổi kỳ chạy NGAY khi chọn, không cần bấm XEM.
+   `data-auto-submit` là móc cho `app.js` (nghe `change`, gọi
+   `form.requestSubmit()` rồi chặn AJAX y hệt một submit thường — xem
+   `app.js`); KHÔNG có JS thì ô chọn chỉ đứng yên, nên nút XEM vẫn phải có
+   một đường lùi — `<noscript>` hiện nó lại đúng lúc đó, không xoá khả năng
+   vận hành khi JS tắt. #}
 {% macro period_picker(periods, selected, action, extra={}) -%}
 <form class="filter-row" method="get" action="{{ action }}">
   {% for name, value in extra.items() %}{% if value %}
@@ -154,14 +305,14 @@
   {% endif %}{% endfor %}
   <span class="kpi-period">
     <label class="tp-label" for="ky">Kỳ báo cáo</label>
-    <select name="ky" id="ky" onchange="this.form.submit()">
+    <select name="ky" id="ky" data-auto-submit>
       {% for option in periods %}
       <option value="{{ option.value }}" {{ 'selected' if option.value == selected }}>
         {{ option.label }}</option>
       {% endfor %}
     </select>
   </span>
-  <button class="ghost btn-mini" type="submit">XEM</button>
+  <noscript><button class="ghost btn-mini" type="submit">XEM</button></noscript>
 </form>
 {%- endmacro %}
 

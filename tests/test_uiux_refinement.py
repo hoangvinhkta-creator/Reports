@@ -6,12 +6,20 @@ Mỗi test dưới đây canh một điều mà bản audit UI/UX phát hiện l
     thẻ KPI không nhãn · mã enum nội bộ lộ ra màn hình · chênh lệch so tháng
     trước đứng xa con số nó so · số âm không phân biệt được · thẻ "không có
     vấn đề" to bằng thẻ có vấn đề · bảng sổ thô kéo cả trang sang ngang ·
-    ô đếm dòng hoá thành một viên pill dài · khoảng trống nguồn thương hiệu
-    đọc như một lỗi hệ thống · hai màn hình viết ngày theo hai quy ước
+    khoảng trống nguồn thương hiệu đọc như một lỗi hệ thống · hai màn hình
+    viết ngày theo hai quy ước
 
 Không test nào ở đây hỏi về một con số nghiệp vụ: chúng chỉ hỏi con số đó
 ĐƯỢC TRÌNH BÀY như thế nào. Bộ test nghiệp vụ hiện có vẫn là thẩm quyền về
 giá trị của các con số.
+
+`test_the_bh_head_count_is_plain_text_not_a_pill_cell` (từng canh ô đếm
+"N dòng") đã bị GỠ, không chỉ sửa lại: `TASK-OWNER-UIUX-003` §7 bỏ hẳn ô đó
+theo yêu cầu trực tiếp của chủ dự án — số dòng của một BH giờ tự hiện ra
+bằng chính số hàng của khối (Ngày/Mã đơn/Khách hàng gộp bằng `rowspan` qua
+các hàng đó), nên không còn "viên pill dài" nào để kiểm hình dạng của nó.
+Bộ test `tests/test_employee_workspace_ux.py` giữ vai trò kiểm cấu trúc
+bảng kê sau khi gộp hàng.
 """
 
 from __future__ import annotations
@@ -32,11 +40,15 @@ def test_the_qualifying_quantity_card_carries_its_label(repository, client):
     nhãn chưa từng được đăng ký với Jinja nên render thành chuỗi rỗng."""
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh?ky=2026-09")
-    card = re.search(
-        r'<span class="tp-label">([^<]*)</span>\s*'
-        r'<strong class="kpi-value" data-metric="qualifying_quantity"', html)
-    assert card is not None
-    assert card.group(1).strip() == "Tổng số SP"
+    # `TASK-OWNER-UIUX-002` dời bốn thẻ vào MỘT hàng và thêm biểu tượng (?)
+    # rê-chuột giữa nhãn và con số (KHÔNG còn `<details>` — xem R2); câu hỏi
+    # của test này KHÔNG đổi: thẻ đó có tên chưa.
+    card_html = re.search(
+        r'<div class="kpi-card">.*?data-metric="qualifying_quantity".*?</div>',
+        html, re.S).group(0)
+    label = re.search(r'<span class="tp-label">([^<]*)', card_html)
+    assert label is not None
+    assert label.group(1).strip() == "Tổng số SP"
 
 
 def test_the_group_column_never_shows_an_engineering_code(repository, client):
@@ -45,15 +57,19 @@ def test_the_group_column_never_shows_an_engineering_code(repository, client):
         line("BH2", "Tivi", employee="Ly", group="STANDARD_SALES", row=7),
     ])
     html = body(client, "/kinh-doanh?ky=2026-09")
-    cells = re.findall(r'<td data-group="([^"]*)">([^<]*)</td>', html)
-    assert {code for code, _ in cells} >= {"NOI_THANH", "STANDARD_SALES"}
-    for code, text in cells:
-        if not code:
-            continue  # dòng TỔNG không thuộc nhóm nào — ô để trống là đúng
-        assert text.strip(), code
-        assert text.strip() not in ENGINEERING_CODES, code
+    # `TASK-OWNER-UIUX-002` R5 bỏ hẳn cột Nhóm khỏi bảng NÀY (chủ dự án yêu
+    # cầu trực tiếp) — hàng của Vinh đọc thành hàng NHÓM "Nội thành" và
+    # không còn cột nào để mang mã nhóm nữa. Điều quan trọng nhất của test
+    # này giữ nguyên: KHÔNG mã máy nào lọt ra chữ người đọc, trên TRANG này.
+    table = re.search(r"<h2>(?:<svg[^>]*>.*?</svg>)?Theo nhân viên.*?</table>", html, re.S).group(0)
+    assert "Nhóm" not in table and 'data-group="' not in table
+    for code in ENGINEERING_CODES:
+        assert not re.search(rf">[^<]*\b{code}\b[^<]*<", html), code
+    # Bảng Target vẫn liệt kê TỪNG NGƯỜI, và tên nhóm ở đó vẫn viết bằng chữ.
     target = body(client, "/kinh-doanh/target?ky=2026-09")
-    assert "STANDARD_SALES" not in target and "NOI_THANH" not in target
+    assert "Kênh Nội thành" in target
+    for code in ENGINEERING_CODES:
+        assert not re.search(rf">[^<]*\b{code}\b[^<]*<", target), code
 
 
 def test_group_label_reads_the_master_and_never_invents_a_name():
@@ -64,20 +80,23 @@ def test_group_label_reads_the_master_and_never_invents_a_name():
     assert ap.group_label("") == "—"
 
 
-def test_month_over_month_sits_in_the_hero_not_in_a_trailing_module(
+def test_month_over_month_sits_beside_the_revenue_not_in_a_trailing_module(
     repository, client
 ):
+    """`TASK-OWNER-UIUX-002` dời ô chủ đạo vào hàng bốn chỉ tiêu; chênh lệch
+    so tháng trước vẫn phải đứng trong CÙNG một thẻ với con số nó so."""
     persist(repository, [
         line("BH1", "Tủ lạnh", month=8, sell="1000000"),
         line("BH2", "Tủ lạnh", month=9, sell="1200000", row=7),
     ])
     html = body(client, "/kinh-doanh?ky=2026-09")
-    hero = re.search(r'<div class="kpi-hero"[^>]*>(.*?)<div class="kpi-grid">',
-                     html, re.S).group(1)
-    assert 'data-metric="sales_revenue"' in hero
-    assert 'data-metric="mom"' in hero
+    card = re.search(
+        r'<div class="kpi-card kpi-strong[^"]*">(.*?)</div>\s*\n\s*<div class="kpi-card',
+        html, re.S).group(1)
+    assert 'data-metric="sales_revenue"' in card
+    assert 'data-metric="mom"' in card
     assert metric(html, "mom") == "+20%"
-    assert "kpi-delta up" in hero
+    assert "kpi-delta up" in card
     assert html.index('data-metric="mom"') < html.index('data-metric="chart"')
     assert "<h2>So với" not in html
 
@@ -95,7 +114,8 @@ def test_the_undated_footnote_is_not_a_module_when_there_is_nothing_to_warn(
     persist(repository, three_line_order())
     html = body(client, "/kinh-doanh?ky=2026-09")
     assert 'class="footnote" data-metric="undated-lines"' in html
-    assert "<h2>Dòng chưa có ngày bán</h2>" not in html
+    assert re.search(r"<h2>(?:<svg[^>]*>.*?</svg>)?Dòng chưa có ngày bán</h2>",
+                     html, re.S) is None
 
 
 def test_every_table_scrolls_inside_its_card(repository, client):
@@ -108,13 +128,6 @@ def test_every_table_scrolls_inside_its_card(repository, client):
         for match in re.finditer(r"<table", html):
             before = html[max(0, match.start() - 160):match.start()]
             assert 'class="tp-scroll"' in before, path
-
-
-def test_the_bh_head_count_is_plain_text_not_a_pill_cell(repository, client):
-    persist(repository, three_line_order())
-    html = body(client, "/kinh-doanh/nhan-vien")
-    assert re.search(r'<td colspan="7" class="bh-count">3 dòng</td>', html)
-    assert 'colspan="7" class="cnt"' not in html
 
 
 def test_the_brand_gap_reads_as_a_notice_not_an_error(repository, client):

@@ -114,3 +114,18 @@ kỳ vọng — chứ không chỉ FAIL vì thiếu required path.
 ```bash
 python3 governance/scripts/governance/fixtures/regression_nested_layout.py
 ```
+
+### `fixtures/regression_permission_denied_reference.py`
+Regression test cho lỗi CI đã biết: `validate_reference_integrity.py` sập
+với `PermissionError` (thay vì báo một finding) khi tài liệu trích dẫn một
+đường dẫn tuyệt đối nằm trong thư mục mà người dùng đang chạy không đọc
+được (ví dụ `/root/...` trên GitHub Actions runner) — lỗi này đã che mất
+tín hiệu CI trên nhiều pull request liên tiếp kể từ tích hợp R4. Dựng một
+cây thư mục tạm có một file `.md` trích dẫn một đường dẫn nằm trong thư
+mục bị `chmod(0)`, chạy validator như subprocess (tự hạ quyền xuống một
+user không đặc quyền nếu đang chạy bằng root, vì root bỏ qua kiểm tra
+quyền POSIX), và xác nhận nó KHÔNG sập mà báo cáo đúng một finding.
+
+```bash
+python3 governance/scripts/governance/fixtures/regression_permission_denied_reference.py
+```

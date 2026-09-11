@@ -77,6 +77,7 @@ from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
+from app.modules.reporting import line_type as line_type_module
 from app.modules.reporting import profit_gate
 
 # `DEC-PHB02-03` — ngưỡng GIÁ, cố ý không phải một taxonomy sản phẩm. Hệ quả
@@ -89,6 +90,11 @@ PROVENANCE_AUTO = "AUTO"
 PROVENANCE_MANUAL = "MANUAL"
 PROVENANCE_MANUAL_OVERRIDE = "MANUAL_OVERRIDE"
 PROVENANCE_PENDING = "PENDING"
+# R3 §2 — giá nhập bằng 0 do CHÍNH SÁCH quy định (`OD-105B-01` §3), không do
+# một nguồn giá nào trả về và không do người nào gõ. Nó là một provenance
+# RIÊNG chứ không phải `AUTO`: gộp nó vào `AUTO` sẽ khiến một dòng phí trông
+# như đã tra ra giá 0 từ Tracking, tức nói sai chỗ con số đến từ đâu.
+PROVENANCE_POLICY_ZERO = "POLICY_ZERO"
 
 # Khoá của nhóm "chưa xác định nhân viên" trong mọi phân hoạch theo người.
 # `None`, không phải chuỗi rỗng: một chuỗi rỗng ngồi cạnh các tên thật trong
@@ -143,13 +149,41 @@ class BusinessLine:
     source_employee: Optional[str] = None
     # `SOURCE` = do pipeline gán · `MANUAL` = do Owner phân loại lại.
     employee_provenance: str = "SOURCE"
+    # R3 §2 — loại dòng HIỆU LỰC (`line_type.LINE_TYPES`). Mặc định `SALE` giữ
+    # nguyên nghĩa cũ cho mọi nơi dựng dòng bằng tay: trước R3 mọi dòng được
+    # đối xử như hàng bán, nên `SALE` là hành vi cũ chứ không phải một giả định
+    # mới. Tầng truy vấn tính nó bằng `line_type.classify` và truyền vào.
+    line_type: str = line_type_module.TYPE_SALE
+
+    @property
+    def policy_purchase_price(self) -> Optional[Decimal]:
+        """Giá nhập mà CHÍNH SÁCH loại dòng quy định, hoặc `None` (R3 §2).
+
+        `None` không phải `0`: xem `line_type.policy_purchase_price`.
+        """
+        return line_type_module.policy_purchase_price(self.line_type)
 
     @property
     def purchase_price(self) -> Optional[Decimal]:
-        """Giá nhập KPI HIỆU LỰC: quyết định của người thắng giá trị tự động."""
+        """Giá nhập KPI HIỆU LỰC — MỘT con số, ba thẩm quyền, thứ tự cố định.
+
+            1. người gõ tay        `manual_purchase_price`   (`DEC-PHB02-02`)
+            2. nguồn giá tự động   `auto_purchase_price`     (MIN theo ngày bán, `ADR-110`)
+            3. chính sách loại dòng `policy_purchase_price`  (`OD-105B-01` §3)
+
+        Chính sách đứng CUỐI chứ không đứng đầu, và điều đó có hệ quả thật:
+        nếu một nguồn giá thật trả lời được cho một dòng phí, con số thật đó
+        thắng con số 0 của chính sách. Chính sách là chỗ dựa khi không ai trả
+        lời, không phải một lệnh ghi đè.
+
+        `None` ⟹ chưa có giá nhập hiệu lực. KHÔNG BAO GIỜ là `0` thay cho
+        thiếu (`OD-105B-01` §3 câu thứ hai).
+        """
         if self.manual_purchase_price is not None:
             return self.manual_purchase_price
-        return self.auto_purchase_price
+        if self.auto_purchase_price is not None:
+            return self.auto_purchase_price
+        return self.policy_purchase_price
 
     @property
     def purchase_provenance(self) -> str:
@@ -162,6 +196,8 @@ class BusinessLine:
             return self.manual_provenance or PROVENANCE_MANUAL
         if self.auto_purchase_price is not None:
             return PROVENANCE_AUTO
+        if self.policy_purchase_price is not None:
+            return PROVENANCE_POLICY_ZERO
         return PROVENANCE_PENDING
 
     @property
@@ -178,6 +214,8 @@ class BusinessLine:
             quantity=self.quantity,
             purchase_price=self.purchase_price,
             kpi_authority_valid=self.kpi_authority_valid,
+            line_type_undecided=(
+                self.line_type in line_type_module.UNDECIDED_TYPES),
         )
 
     @property
@@ -675,6 +713,37 @@ def totals(lines: list[BusinessLine]) -> BusinessTotals:
 
 
 
+def discount_double_count_orders(lines: list[BusinessLine]) -> tuple[str, ...]:
+    """Các đơn có NGUY CƠ trừ chiết khấu hai lần (R3 §2). Rỗng = không có.
+
+    `DEC-180` đã ghi rõ hai CÁCH GHI của cùng một nghiệp vụ:
+
+        sổ tay cũ    một DÒNG âm tên "Chiết khấu" đứng sau dòng hàng
+        sổ hiện hành một CỘT `discount`, pipeline đã trừ (`DEC-114`)
+
+    Một đơn mang CẢ HAI là chỗ duy nhất phép trừ có thể xảy ra hai lần: cột
+    `discount` của dòng hàng đã trừ một lần trong `total_sales`/lợi nhuận, và
+    dòng "Chiết khấu" riêng trừ thêm một lần nữa bằng doanh thu âm của chính nó.
+
+    Hàm này KHÔNG tự sửa và KHÔNG tự bỏ dòng nào. Nó chỉ NÊU TÊN đơn, vì hai
+    cách sửa có thật (bỏ cột, hay bỏ dòng) là hai khẳng định khác nhau về sổ
+    gốc và không cái nào hệ thống có thẩm quyền tự chọn. Con số vẫn ra như cũ;
+    Owner nhận một ngoại lệ đọc được.
+
+    Đây cũng là lý do phép kiểm nằm ở TẦNG ĐƠN chứ không tầng dòng: một dòng
+    "Chiết khấu" đứng một mình trong một đơn không có cột `discount` nào khác
+    là cách ghi cũ hoàn toàn hợp lệ, không phải một lỗi.
+    """
+    with_discount_line: set = set()
+    with_discount_column: set = set()
+    for line in lines:
+        if line.line_type == line_type_module.TYPE_DISCOUNT:
+            with_discount_line.add(line.order_key)
+        elif line.discount is not None and line.discount != 0:
+            with_discount_column.add(line.order_key)
+    return tuple(sorted(with_discount_line & with_discount_column))
+
+
 def group_by_employee(
     lines: list[BusinessLine],
 ) -> list[tuple[Optional[str], Optional[str], BusinessTotals]]:
@@ -716,10 +785,12 @@ __all__ = [
     "DISCOUNT_DISPLAY_SELL_PRICE", "display_contributions",
     "UNRESOLVED_EMPLOYEE",
     "PROVENANCE_AUTO", "PROVENANCE_MANUAL", "PROVENANCE_MANUAL_OVERRIDE",
-    "PROVENANCE_PENDING", "QUALIFYING_SALE_PRICE_THRESHOLD",
+    "PROVENANCE_PENDING", "PROVENANCE_POLICY_ZERO",
+    "QUALIFYING_SALE_PRICE_THRESHOLD",
     "STATE_INCOMPLETE", "STATE_OFFICIAL",
     "TARGET_NO_ACTUAL", "TARGET_UNSET", "TARGET_ZERO",
-    "converted_sales", "for_employee", "group_by_employee",
+    "converted_sales", "discount_double_count_orders", "for_employee",
+    "group_by_employee",
     "month_over_month_percent", "totals", "vs_target_percent",
     "vs_target_reason",
 ]

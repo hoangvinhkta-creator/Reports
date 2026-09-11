@@ -40,6 +40,8 @@ from typing import Any, Optional
 import yaml
 
 from app.modules.config.loader import load_yaml
+from app.modules.pricing.daily_min.capture_file import load_daily_min_capture
+from app.modules.pricing.daily_min.snapshot import DailyMinSnapshot
 from app.modules.pricing.tracking_history.capture_file import (
     load_tracking_price_history_capture,
 )
@@ -73,6 +75,7 @@ __all__ = [
     "PriceResolutionSources",
     "PUBLIC_PURCHASE_SOURCE_PATH",
     "TRACKING_CATALOG_CAPTURE_PATH",
+    "TRACKING_DAILY_MIN_CAPTURE_PATH",
     "TRACKING_INV_MAP_CAPTURE_PATH",
     "TRACKING_PRICE_HISTORY_CAPTURE_PATH",
     "IDENTITY_STORE_LOG_PATH",
@@ -89,6 +92,7 @@ TRACKING_PRICE_HISTORY_CAPTURE_PATH = Path(
 )
 TRACKING_CATALOG_CAPTURE_PATH = Path("data/tracking_catalog/capture.json")
 TRACKING_INV_MAP_CAPTURE_PATH = Path("data/tracking_inv_map/capture.json")
+TRACKING_DAILY_MIN_CAPTURE_PATH = Path("data/tracking_daily_min/capture.json")
 PUBLIC_PURCHASE_SOURCE_PATH = Path("data/public_purchase/source_version.yaml")
 IDENTITY_STORE_LOG_PATH = Path("data/product_identity/mappings.jsonl")
 
@@ -261,12 +265,31 @@ def load_tracking_catalog_capture(
                 f"{path}: dòng #{number} 'alt' phải là một danh sách.",
                 reason="malformed_alt",
             )
+        # R5 §5 + R5.1 §5 — ba trường TÙY CHỌN. Vắng mặt (artifact cũ) và
+        # `null` (Tracking không khẳng định) đều đọc thành `None`; sai KIỂU
+        # thì từ chối chứ không ép — một con số ép thành chuỗi sẽ hiện lên
+        # màn hình như một cái tên hãng hay một cái tên nhóm hàng.
+        #
+        # Một artifact R5 ghi TRƯỚC R5.1 không có `category_label`, và nó
+        # phải đọc được y như cũ: đó là mệnh đề backward-compatibility của
+        # `§5.2`, không phải một trường hợp lỗi.
+        optional: dict[str, Optional[str]] = {}
+        for field in ("model_label", "brand", "category_label"):
+            value = raw.get(field)
+            if value is not None and not isinstance(value, str):
+                raise InvalidTrackingCatalogCaptureFileError(
+                    f"{path}: dòng #{number} {field!r} phải là chuỗi hoặc "
+                    "vắng mặt.",
+                    reason=f"malformed_{field}",
+                )
+            optional[field] = (value.strip() or None) if value else None
         rows.append(
             TrackingCatalogRow(
                 tracking_code=code,
                 present_in_board=present,
                 name=raw.get("name"),
                 alt=tuple(str(a) for a in alt),
+                **optional,
             )
         )
 
@@ -454,6 +477,17 @@ class PriceEvidenceSnapshot:
     business_timezone_label: str
     business_timezone_provenance: str
     vendor_price_source: str
+    #: R1 — nguồn giá nhập tự động hiện hành. `None` nghĩa là ảnh chụp MIN theo
+    #: ngày CHƯA ĐƯỢC NỐI, không phải "không có giá": nhánh TRACKING sẽ Pending
+    #: với đúng lý do ấy, và hai câu đó dẫn tới hai hành động khác nhau của
+    #: Owner (chạy công cụ capture / đi phân loại mặt hàng).
+    tracking_daily_min_capture_id: Optional[str] = None
+    tracking_daily_min_schema_version: Optional[str] = None
+    tracking_daily_min_date_from: Optional[_dt.date] = None
+    tracking_daily_min_date_to: Optional[_dt.date] = None
+    #: Nhánh lịch sử `board/<mã>/tp/ton` có được dùng làm giá trong lần import
+    #: này không. Từ R1 mặc định là KHÔNG — xem `PriceResolutionSources`.
+    legacy_tracking_history_authority: bool = False
     """`TASK-105C HistoricalVendorMin` (P01). Chuỗi này KHÔNG BAO GIỜ là một
     absence đã xác định — xem `composition.py`, mục "P01/P03"."""
 
@@ -484,9 +518,36 @@ class PriceResolutionSources:
     minh; loader production và Owner workflow luôn dùng mặc định `True`.
     """
 
+    tracking_daily_min: Optional[DailyMinSnapshot] = None
+    """R1 — MIN theo NGÀY BÁN, nguồn giá nhập TỰ ĐỘNG duy nhất từ nay.
+
+    Vắng mặt = "chưa nối", cùng khuôn mọi capture khác. Nhánh TRACKING sẽ
+    Pending với `TRACKING_DAILY_MIN_SOURCE_UNAVAILABLE`, KHÔNG rơi về một
+    nguồn giá khác — xem `composition.py`.
+    """
+
+    legacy_tracking_history_authority: bool = False
+    """Có cho phép lịch sử `board/<mã>/tp/ton` làm nguồn GIÁ trong lần này không.
+
+    Mặc định `False` từ R1. Đây là thay đổi thẩm quyền có chủ đích, không phải
+    một cờ tiện tay:
+
+    `TrackingPriceHistory` dựng lại **giá nhập công khai** — con số Owner đặt
+    tay ở tab Tồn kho của Tracking. `TrackingDailyMin` là **giá vốn rẻ nhất
+    mua được** của ngày bán, do engine Tracking tính từ giá nhà cung cấp còn
+    hàng và ô Tồn. Hai đại lượng khác nhau, cùng đơn vị tiền, và Owner đã chốt
+    (R1 §3.1) rằng giá nhập tự động của Reports là cái thứ hai.
+
+    Module `pricing/tracking_history/` KHÔNG bị xoá: nó vẫn đúng, vẫn có test
+    riêng, và vẫn cần cho việc mở lại các kết quả cũ. Nhưng nó không còn tham
+    gia đường giá mặc định, và một fixture muốn dùng nó phải NÊU RÕ — cùng
+    tiền lệ `tracking_identity_authority` ngay trên.
+    """
+
     @property
     def evidence_snapshot(self) -> PriceEvidenceSnapshot:
         history = self.tracking_price_history
+        daily_min = self.tracking_daily_min
         catalog = self.tracking_catalog
         inv_map = self.tracking_inv_map
         pp = self.public_purchase
@@ -509,6 +570,15 @@ class PriceResolutionSources:
             business_timezone_label=self.business_timezone.label,
             business_timezone_provenance=self.business_timezone.provenance,
             vendor_price_source=VENDOR_SOURCE_NOT_AUTHORIZED,
+            tracking_daily_min_capture_id=(
+                daily_min.capture_id if daily_min else None
+            ),
+            tracking_daily_min_schema_version=(
+                daily_min.schema_version if daily_min else None
+            ),
+            tracking_daily_min_date_from=daily_min.date_from if daily_min else None,
+            tracking_daily_min_date_to=daily_min.date_to if daily_min else None,
+            legacy_tracking_history_authority=self.legacy_tracking_history_authority,
         )
 
 
@@ -518,6 +588,7 @@ def load_price_resolution_sources(
     tracking_price_history_path: Path = TRACKING_PRICE_HISTORY_CAPTURE_PATH,
     tracking_catalog_path: Path = TRACKING_CATALOG_CAPTURE_PATH,
     tracking_inv_map_path: Path = TRACKING_INV_MAP_CAPTURE_PATH,
+    tracking_daily_min_path: Path = TRACKING_DAILY_MIN_CAPTURE_PATH,
     public_purchase_path: Path = PUBLIC_PURCHASE_SOURCE_PATH,
     identity_store_log_path: Path = IDENTITY_STORE_LOG_PATH,
 ) -> PriceResolutionSources:
@@ -538,6 +609,7 @@ def load_price_resolution_sources(
         ),
         tracking_catalog=load_tracking_catalog_capture(tracking_catalog_path),
         tracking_inv_map=load_tracking_inv_map_capture(tracking_inv_map_path),
+        tracking_daily_min=load_daily_min_capture(tracking_daily_min_path),
         public_purchase=load_public_purchase_source(public_purchase_path),
         identity_store_view=store.read_at_revision(store.current_revision()),
     )

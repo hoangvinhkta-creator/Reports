@@ -53,7 +53,8 @@ from tests.fixtures.fake_r2_client import FakeR2Client
 from tools.storage import r2_store
 from tests.support import identity_fixtures as fx
 from tests.test_dec185_nav_chart_identity import (
-    UNRESOLVED, chart_bars, seed_legacy, seed_legacy_month_total_only,
+    UNRESOLVED, chart_block, chart_bars, seed_legacy,
+    seed_legacy_month_total_only,
 )
 from tests.test_employee_workspace_ux import TODAY, body, line, metric, metrics, persist
 from tools.tracking import live_pull
@@ -626,8 +627,12 @@ def test_a_mixed_quarter_declares_its_provenance_without_a_source_control(
         html))
     assert origins["2026-Q3"] == rt.ORIGIN_MIXED
 
-    chart = re.search(r'id="bieu-do-doanh-thu".*?(?=<div class="module")',
-                      html, re.S).group(0)
+    # `DEC-214` — regex biên cũ (`(?=<div class="module")`, KHÔNG khớp
+    # `class="module chart-half..."` vì có thêm chữ sau "module") vô tình
+    # chạy tràn qua cả card biểu đồ Số đơn mới thêm, tới tận module TIẾP
+    # THEO sau `.chart-row`. Dùng `chart_block` — cắt đúng ĐẦU đến ĐUÔI của
+    # MỘT card bằng chính `id`, không dò qua classlist.
+    chart = chart_block(html, "bieu-do-doanh-thu")
     for forbidden in ("Số cũ", "Số mới", "SỐ CŨ", "SỐ MỚI", "<select"):
         assert forbidden not in chart, f"{forbidden!r} là một điều khiển nguồn"
     # ĐÚNG MỘT cột cho quý đó — không có chuỗi thứ hai chạy song song.
@@ -704,11 +709,20 @@ def test_daily_legacy_evidence_joins_the_same_week_without_touching_its_month():
 def test_f_e_the_chart_says_it_is_not_limited_to_the_selected_period(
     engine, repository, worker
 ):
-    """`§14` — ô chỉ tiêu là KỲ ĐANG CHỌN, biểu đồ là toàn bộ dữ liệu.
+    """`§14` — ô chỉ tiêu là KỲ ĐANG CHỌN, biểu đồ là một phạm vi RỘNG HƠN.
 
-    Không sửa phạm vi (đó là một quyết định đã có), chỉ sửa chỗ mập mờ: hai
+    Không sửa phạm vi gốc (đó là quyết định `F-E`), chỉ sửa chỗ mập mờ: hai
     con số khác nhau đứng cạnh nhau mà không ai nói ra sẽ đọc thành hai con
     số mâu thuẫn.
+
+    `TASK-OWNER-UIUX-003` §2 REVISE lại đúng phần "biểu đồ luôn nhìn TOÀN BỘ
+    dữ liệu" của `F-E` (chủ dự án yêu cầu trực tiếp), và R5 §3 (`DEC-R5-02`)
+    REVISE tiếp một lần nữa: ở mức Tháng, biểu đồ nay khoanh về HAI cửa sổ
+    12 tháng liền kề thay vì một năm dương lịch. Cả hai lần đều đổi PHẠM VI,
+    và cả hai lần `F-E` vẫn nguyên vẹn ở đúng chỗ nó có ý nghĩa: biểu đồ vẫn
+    RỘNG HƠN ô chỉ tiêu (hai mươi bốn tháng so với một tháng), và câu giải
+    thích dưới biểu đồ vẫn phải nói ĐÚNG phạm vi đang áp dụng — nói ra hai
+    khoảng thời gian thật, và vẫn không nói "TOÀN BỘ" khi nó không đúng.
     """
     persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])
     seed_legacy(engine, [(7, 10, 50000000)], import_id="imp-2026", year=2026)
@@ -717,10 +731,16 @@ def test_f_e_the_chart_says_it_is_not_limited_to_the_selected_period(
     html = body(client, "/kinh-doanh?ky=2026-09&muc=thang")
 
     scope = metric(html, "chart-scope")
-    assert "TOÀN BỘ" in scope and "Kỳ dữ liệu" in scope
+    # `R7 §C` — container là NĂM dương lịch của kỳ đang xem.
+    assert "01/2026 → 12/2026" in scope, "phải nói ra cửa sổ hiện tại"
+    assert "01/2025 → 12/2025" in scope, "và cửa sổ so sánh"
+    assert "chưa phải toàn bộ dữ liệu" in scope
+    assert "TOÀN BỘ" not in scope, (
+        "khoanh theo năm rồi thì câu giải thích không được nói TOÀN BỘ nữa")
 
     # Và sự khác nhau là THẬT trên chính trang này: ô chỉ tiêu chỉ có tháng 9,
-    # biểu đồ có cả tháng 7 — nên câu giải thích không phải một câu thừa.
+    # biểu đồ có cả tháng 7 (cùng năm 2026) — nên câu giải thích không phải
+    # một câu thừa.
     bars = chart_bars(html)
     assert set(bars) == {"2026-07", "2026-09"}
     assert Decimal(metric(html, "sales_revenue").replace(".", "")) < \
@@ -759,10 +779,16 @@ def test_f_n03_chart_note_resolves_authority_by_month_not_by_bar(repository, wor
 
 
 def test_the_chart_stays_one_chart_with_no_new_page_or_filter(repository, worker):
-    """`§14` — chỉ sửa chỗ mập mờ, KHÔNG thêm trang hay hệ thống lọc mới."""
+    """`§14` — chỉ sửa chỗ mập mờ, KHÔNG thêm trang hay hệ thống lọc mới.
+
+    `DEC-214` thêm một card biểu đồ THỨ HAI có chủ đích (Số đơn) — không
+    phải điều `§14` cấm: nó không phải một biểu đồ Doanh thu thứ hai, không
+    thêm trang, không thêm hệ thống lọc. Vế "vẫn một biểu đồ" của bài kiểm
+    này giờ khẳng định trên đúng khối Doanh thu, chủ thể của `§14`.
+    """
     persist(repository, [revenue_line(9, 5, "1000000", "BH-T9")])
     client, _ = worker("a")
     html = body(client, "/kinh-doanh")
-    assert html.count('data-metric="chart"') == 1
+    assert chart_block(html, "bieu-do-doanh-thu").count('data-metric="chart"') == 1
     nav = re.search(r'<nav class="ncc-tabs">(.*?)</nav>', html, re.S).group(1)
     assert len(re.findall(r"<a\b", nav)) == 3, "thanh tab chính vẫn ba mục"
