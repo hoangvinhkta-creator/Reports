@@ -537,18 +537,22 @@ def test_case_14_the_report_pages_render_the_same_numbers_after_a_target_edit(
         selling("BH1", month=9),
         selling("BH2", month=9, row=7, kpi_purchase=None, kpi_profit=None),
     ])
-    watched = ("sales_revenue", "qualifying_quantity", "kpi_profit",
-               "converted_sales", "coverage", "coverage-percent", "orders",
-               "lines", "state")
-    paths = ("/kinh-doanh?ky=2026-09",
-             "/kinh-doanh/nhan-vien?ky=2026-09&nhan-vien=Ly")
+    common = ("sales_revenue", "qualifying_quantity", "kpi_profit",
+              "converted_sales", "orders", "lines", "state")
+    # `coverage`/`coverage-percent` không còn render ở trang Nhân viên nữa
+    # (`TASK-OWNER-UIUX-009` §2, chủ dự án yêu cầu trực tiếp) — trang Báo cáo
+    # vẫn còn, nên vẫn canh riêng cho đúng trang đó.
+    watched_by_path = {
+        "/kinh-doanh?ky=2026-09": common + ("coverage", "coverage-percent"),
+        "/kinh-doanh/nhan-vien?ky=2026-09&nhan-vien=Ly": common,
+    }
     before = {path: {name: metric(body(client, path), name) for name in watched}
-              for path in paths}
+              for path, watched in watched_by_path.items()}
 
     save_target(client, period="2026-09", employee="Ly", value="500000000")
 
     after = {path: {name: metric(body(client, path), name) for name in watched}
-             for path in paths}
+             for path, watched in watched_by_path.items()}
     assert after == before
 
 
