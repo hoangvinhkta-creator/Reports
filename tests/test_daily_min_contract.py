@@ -342,6 +342,53 @@ def test_a_record_may_not_carry_a_currency_unit_of_its_own(tmp_path):
 # ======================================================================
 
 
+# ======================================================================
+# 9. Trường MỚI của một bên SẢN XUẤT mới hơn — bỏ qua, KHÔNG từ chối
+# ======================================================================
+
+
+def test_a_newer_producer_may_add_fields_this_reader_does_not_know(tmp_path):
+    """Tracking `R7` (11/09/2026) — bản ghi DỰNG LẠI mang hai trường mới.
+
+    ## Vì sao bài này tồn tại
+
+    Tracking bắt đầu chụp Min theo ngày từ `R1` (07/09/2026), nên đơn bán
+    TRƯỚC mốc ấy không có bản ngày nào và ô Giá nhập là một dấu gạch vĩnh
+    viễn. `R7` bên Tracking dựng lại những ngày đó từ hai nhật ký sự kiện đã
+    có (`phist`, `purchase_price_history`) và đánh dấu kết quả bằng
+    `reconstructed` + `reconstruction_note` — hai trường mà BỘ ĐỌC NÀY chưa
+    biết.
+
+    Tracking cố ý KHÔNG thêm một giá trị thứ ba vào `day_status`: enum ấy là
+    tập ĐÓNG ở đây và một giá trị lạ làm `_record` từ chối CẢ ẢNH CHỤP
+    (`unknown_day_status`) — tức là đường giá vốn của cả kỳ sập ngay lượt
+    deploy bên kia. Bài này ghim mặt còn lại của thoả thuận ấy: bên sản xuất
+    mới hơn được phép THÊM trường, và bên đọc cũ hơn phải đi tiếp.
+
+    Nếu sau này ai đó siết bộ đọc thành "từ chối khoá lạ", bài này đỏ TRƯỚC
+    khi bản siết ấy ra production và làm câm một capability của repo kia.
+
+    Chiều ngược lại — trường bắt buộc THIẾU hay enum SAI vẫn phải bị từ chối —
+    do các bài ở mục 5–8 canh; bài này không nới một milimet nào ở đó.
+    """
+    raw = dmin.record("TRK-A", "2026-09-02", min_price=6500,
+                      recorded_by="dung-lai:owner@tinphat")
+    raw["reconstructed"] = True
+    raw["reconstruction_note"] = "Bản ghi DỰNG LẠI từ nhật ký sự kiện."
+    raw["mot_truong_hoan_toan_la"] = {"long": ["hơn", "nữa"]}
+
+    p = provider(tmp_path, dmin.contract(
+        date_from="2026-09-02", date_to="2026-09-02", records=[raw]))
+    kq = p.resolve(RAW_NAME, date(2026, 9, 2))
+
+    assert kq.price_vnd == Decimal("6500000")
+    # `recorded_by` là trường BẮT BUỘC của hợp đồng và nó mang dấu vết đường
+    # đã sinh ra bản ghi — nên "dựng lại hay quan sát" vẫn đọc được ở đây kể
+    # cả khi bộ đọc chưa biết cờ `reconstructed`.
+    assert kq.provenance.recorded_by == "dung-lai:owner@tinphat"
+    assert kq.provenance.day_status is DayStatus.FINAL
+
+
 def test_an_unsupported_schema_is_refused_not_partially_read(tmp_path):
     with pytest.raises(UnsupportedDailyMinSchemaError):
         snapshot(tmp_path, dmin.contract(schema_version="daily-min-v2"))

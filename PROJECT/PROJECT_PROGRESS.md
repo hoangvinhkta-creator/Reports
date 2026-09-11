@@ -1,5 +1,41 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — Owner chọn hướng (2): Tracking DỰNG LẠI Min cho ngày trước mốc `R1` (`S154`, 2026-09-11)
+
+Tiếp nối `S153`. `DEC-222` §4 để lại ba hướng cho giá MIN của đơn bán trước
+07/09; Owner chọn hướng (2) — backfill bên Tracking nếu Engine còn dữ liệu.
+Điều tra xác nhận CÓ đủ dữ liệu, và việc đã làm xong bên Tracking.
+
+```text
+Bằng chứng    phist/<mã>/<NCC>/<ngày> — số > 0 là giá, 0 là NGỪNG BÁN, vắng
+              là không đổi; cộng purchase_price_history cho ô Tồn. Sentinel 0
+              là mấu chốt: minCuaDong() đọc trạng thái còn/hết của từng NCC.
+Tracking R7   dungBangTaiNgay() dựng trạng thái của đúng ngày ấy;
+              dungLaiMinNgay() đưa qua CHÍNH Engine của lượt chụp rồi ghi;
+              POST /api/min-ngay/dung-lai (admin, đòi lý do, trần 14 ngày).
+              R1 §3.2 KHÔNG bị nới — khác ở nguồn đầu vào, không ở công thức.
+Reports       gần như KHÔNG đổi. Bản ghi dựng lại mang hai trường MỚI
+              (reconstructed, reconstruction_note) + recorded_by="dung-lai:…".
+              Tracking cố ý không thêm giá trị vào enum day_status vì Reports
+              từ chối CẢ ảnh chụp khi gặp giá trị lạ. Thêm MỘT bài kiểm ghim
+              rằng bên sản xuất mới hơn được phép thêm trường.
+Giới hạn      meta.an không lưu theo ngày — ghi rõ ở DEC-223 §5, tra lại được
+              bằng vân tay k trên bản ngày.
+```
+
+```text
+Tracking npm test   69 bộ · 3253 đạt · 0 hỏng (bộ mới dung-lai-min-ngay.js,
+                    61 khẳng định) — PR #29 đã merge, CI xanh cả 5 check
+Reports full pytest 3659 passed / 23 skipped / 0 failed (nền S153: 3658 / 23 / 0; +1 bài kiểm hợp đồng)
+Việc của Owner      deploy Tracking → gọi /api/min-ngay/dung-lai → chạy lại
+                    báo cáo → kiểm ô Giá nhập đơn đầu tháng 9
+```
+
+Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-223`; mục "R7" trong tài
+liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này).
+
+---
+
 ## CANONICAL CURRENT STATE — `R7`: liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng, `DONE`, merge theo chỉ thị Owner (`S153`, 2026-09-11)
 
 Tiếp nối `S152`. Owner giao ba việc kèm ba sổ thô và ảnh chụp (`DEC-222`).
