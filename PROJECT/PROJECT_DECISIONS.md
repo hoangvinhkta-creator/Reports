@@ -14558,3 +14558,87 @@ Cùng lý do, một lần XOÁ TAY ô giá NCC không đi qua `phist`.
    từ hôm nay, không cần Tracking deploy lại.
 
 Bằng chứng nguyên văn: mục "R7" trong tài liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này); PR Tracking #29.
+
+## DEC-225
+
+Ngày: 2026-09-11
+Phiên: `S155` — Owner yêu cầu trực tiếp: "sửa lỗi CI giúp tôi".
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi.
+
+### §1. Lỗi
+
+`governance/scripts/governance/validate_reference_integrity.py` sập với
+`PermissionError` (thay vì báo một finding) khi một tài liệu trích dẫn
+nguyên văn đường dẫn tuyệt đối /root/.ccr/README.md (cố ý không đặt trong
+dấu backtick ở đây — xem `REF_PATTERN` trong chính file validator, tránh
+tự tạo thêm reference cho chính đoạn văn xuôi này) — ba file lịch sử
+(`docs/sessions/S071-shared-online-beta.md`,
+`docs/sessions/S133-r4-integration-and-deployment.md`,
+`docs/deployment/S071_DEPLOYMENT.md`). Trên GitHub Actions runner (user
+`runner`, không phải root), `Path.exists()` trên một đường dẫn có thư mục
+cha chặn quyền (`/root`, mode `0700`) NÉM lỗi thay vì trả `False` — pathlib
+tự nuốt `FileNotFoundError`/`ELOOP` nhưng không nuốt `PermissionError`. Lỗi
+này đã làm sập check CI duy nhất của repo trên MỌI lần chạy kể từ tích hợp
+R4, che tín hiệu qua ít nhất bốn pull request liên tiếp (#16, #17, #18, #19).
+
+### §2. Xác nhận nguyên nhân trước khi sửa
+
+Tái hiện được CỤC BỘ bằng cách chạy validator dưới user `daemon` (không
+phải root) trong chính môi trường phiên này — `chmod 700` trên `/root` đã
+đủ, không cần mô phỏng gì thêm:
+
+```text
+runuser -u daemon -- python3 governance/scripts/governance/validate_reference_integrity.py
+→ PermissionError: [Errno 13] Permission denied: '/root/.ccr/README.md'
+```
+
+Chạy bằng root (như trong phiên này) thì KHÔNG tái hiện — root bỏ qua kiểm
+tra quyền POSIX, nên `.exists()` đi qua êm. Đây là lý do lỗi không lộ ra khi
+kiểm cục bộ trong các phiên trước, chỉ lộ trên CI thật.
+
+### §3. Sửa
+
+Hai thay đổi trong `validate_reference_integrity.py`:
+
+1. `resolves()` bọc mỗi lần gọi `.exists()` qua `_exists_safe()` — bắt
+   `OSError` (bao trùm `PermissionError`) và coi là "không phân giải được
+   từ vị trí đó", cùng ý nghĩa với `False` bình thường. Không nuốt lỗi câm:
+   một đường dẫn không đọc được VẪN bị báo là một finding — nó chỉ không
+   còn làm SẬP cả lượt quét.
+2. Ba cặp `(file, "/root/.ccr/README.md")` được thêm vào `KNOWN_EXEMPT_PAIRS`
+   — cùng khuôn với `OPTIONAL_ENFORCEMENT_LAYER.md` đã có: trích dẫn nguyên
+   văn một token bằng chứng lịch sử, không phải một liên kết cần còn sống.
+   Không có bước này, kết luận của validator sẽ phụ thuộc UID đang chạy nó
+   (root: 0 finding cho ba file này; CI: 3 finding mới) — một sự thật về
+   MÔI TRƯỜNG, không phải về nội dung repo, không nên đổi kết quả kiểm tra.
+
+### §4. Bằng chứng — fail trước / pass sau, ở cả hai điều kiện UID
+
+`governance/scripts/governance/fixtures/regression_permission_denied_reference.py`
+(mới): dựng một thư mục con `chmod(0)`, chạy validator như subprocess (tự
+hạ quyền qua `nobody`/`daemon` nếu tiến trình gọi đang là root). Chạy trên
+bản TRƯỚC sửa (dưới cả root-đã-hạ-quyền lẫn `daemon` trực tiếp):
+
+```text
+PermissionError: [Errno 13] Permission denied: '.../khong_doc_duoc/bi_khoa.md'
+REGRESSION PERMISSION DENIED REFERENCE: FAIL (3/4 khẳng định đỏ)
+```
+
+Sau khi khôi phục bản sửa, cùng fixture, cả hai điều kiện UID:
+
+```text
+REFERENCE INTEGRITY: FAIL
+1 reference không phân giải được: docs/trich_dan.md -> .../khong_doc_duoc/bi_khoa.md
+REGRESSION PERMISSION DENIED REFERENCE: PASS (4/4)
+```
+
+### §5. Không đổi kết luận về repo
+
+Bốn validator còn lại vẫn PASS. `validate_reference_integrity.py` vẫn báo
+đúng 4 finding baseline đã biết (`TASK-REM-T06` × 3, `S136` × 1) khi chạy
+bằng root TRONG PHIÊN NÀY, và khi chạy bằng `daemon` (mô phỏng CI) trong
+cùng phiên — số finding không còn phụ thuộc UID. Full `pytest`:
+`3659 passed, 23 skipped, 4 deselected in 263.38s (0:04:23)`.
+
+Bằng chứng nguyên văn: `docs/sessions/S155-fix-ci-reference-integrity-crash.md`.
