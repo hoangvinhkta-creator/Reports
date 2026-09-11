@@ -289,6 +289,66 @@ def test_no_error_message_ever_carries_the_secret(monkeypatch):
     assert SECRET not in str(error.value)
 
 
+def _http_error_with_body(url: str, code: int, body: bytes):
+    """`HTTPError` như `urllib` thật ném: thân phản hồi đọc được qua `.read()`."""
+    import io
+    import urllib.error
+
+    return urllib.error.HTTPError(url, code, "Conflict", {}, io.BytesIO(body))
+
+
+@pytest.mark.parametrize("ly", ["nguon-dang-ghi", "trang-doc-khong-nhat-quan"])
+def test_the_error_message_carries_trackings_own_reason_from_the_body(monkeypatch, ly):
+    """Tracking từ chối bằng `{"ok": false, "ly": "..."}` kèm mã 409 — `ly` là
+    phần DUY NHẤT phân biệt "cron đang ghi, thử lại ngay" với "WAF chặn, đi
+    kiểm tra cấu hình". Nó phải đi vào `failure_reason`, không được rơi mất
+    thành `HTTP Error 409: Conflict` trần trụi."""
+    install_transport(
+        monkeypatch,
+        lambda request: (_ for _ in ()).throw(_http_error_with_body(
+            request.full_url, 409,
+            json.dumps({"ok": False, "ly": ly}).encode("utf-8"))),
+    )
+    with pytest.raises(CaptureError) as error:
+        _http_fetcher(SOURCE_URL, SECRET)("board")
+    assert "HTTP 409" in str(error.value)
+    assert f"ly={ly}" in str(error.value)
+
+
+def test_the_daily_min_poster_carries_trackings_reason_too(monkeypatch):
+    """Cùng một cách đọc thân lỗi cho client `daily-min-v1` — đây là hợp đồng
+    có 409 thật (cron chụp Min mỗi 20 phút mở một khoảng `WRITING`)."""
+    from tools.tracking.capture_daily_min import _http_poster
+
+    install_transport(
+        monkeypatch,
+        lambda request: (_ for _ in ()).throw(_http_error_with_body(
+            request.full_url, 409,
+            json.dumps({"ok": False, "ly": "nguon-dang-ghi"}).encode("utf-8"))),
+    )
+    with pytest.raises(CaptureError) as error:
+        _http_poster(SOURCE_URL, SECRET)({"product_codes": ["A"],
+                                          "date_from": "2026-09-01",
+                                          "date_to": "2026-09-01"})
+    assert "HTTP 409 ly=nguon-dang-ghi" in str(error.value)
+    assert SECRET not in str(error.value)
+
+
+def test_a_non_json_error_body_still_yields_the_status_code(monkeypatch):
+    """Một trang HTML lỗi (WAF/Cloudflare) không có `ly` — thông điệp vẫn mang
+    mã trạng thái, và KHÔNG kéo cả trang HTML vào."""
+    install_transport(
+        monkeypatch,
+        lambda request: (_ for _ in ()).throw(_http_error_with_body(
+            request.full_url, 403, b"<!doctype html>" + b"x" * 10_000)),
+    )
+    with pytest.raises(CaptureError) as error:
+        _http_fetcher(SOURCE_URL, SECRET)("board")
+    assert "HTTP 403" in str(error.value)
+    assert "ly=" not in str(error.value)
+    assert len(str(error.value)) < 500
+
+
 # ======================================================================
 # 3. Không còn phụ thuộc Firebase trong operational path
 # ======================================================================

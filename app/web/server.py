@@ -330,6 +330,7 @@ def _select_captures_for_run(
         live = live_pull.pull_live_captures(
             out_dir=TRACKING_TEMP_DIR, sales=sales,
             identity_store_view=identity_store_view)
+    _log_tracking_pull(live.evidence)
     captures = SelectedCaptures(
         tracking_capture=live.tracking_capture,
         tracking_catalog=live.tracking_catalog,
@@ -337,6 +338,60 @@ def _select_captures_for_run(
         tracking_daily_min=live.tracking_daily_min,
     )
     return captures, live.evidence, live
+
+
+def _mot_dong_log(text: object, *, toi_da: int = 300) -> str:
+    """Một giá trị đi vào dòng log: không xuống dòng, không dấu nháy kép,
+    có trần độ dài. Không đi qua `request_timing._log_value` vì thông điệp ở
+    đây là văn xuôi tiếng Việt do CHÍNH Reports viết (tên node, mã HTTP, `ly`
+    của Tracking) — thay từng ký tự ngoài ASCII bằng `.` sẽ xoá đúng phần
+    người vận hành cần đọc."""
+    mot_dong = " ".join(str(text).split()).replace('"', "'")
+    return mot_dong[:toi_da]
+
+
+def _log_tracking_pull(evidence: Optional[dict]) -> None:
+    """Một dòng stdout cho mỗi lượt kéo Tracking THÀNH CÔNG — nói hợp đồng
+    giá đã trả lời gì.
+
+    Cùng lý do với dòng `reports.timing`: log của service trên Render là chỗ
+    duy nhất Owner đọc được ngay, và file capture đã bị xoá sau lần chạy.
+    Không có dòng này, một báo cáo mà mọi dòng Tracking đều `—` chỉ để lại
+    `tracking_ms` — một con số nói rằng Tracking đã trả lời, không nói nó trả
+    lời gì.
+    """
+    if not evidence or "daily_min_status" not in evidence:
+        return
+    ly_do = evidence.get("daily_min_error_reasons") or {}
+    ngay = evidence.get("daily_min_unobserved_dates") or []
+    fields = [
+        f"trace={request_timing.trace_id()}",
+        f"daily_min_status={evidence.get('daily_min_status')}",
+        f"daily_min_skip_reason={evidence.get('daily_min_skip_reason') or '-'}",
+        f"codes={evidence.get('daily_min_product_codes', '-')}",
+        f"date_from={evidence.get('daily_min_date_from', '-')}",
+        f"date_to={evidence.get('daily_min_date_to', '-')}",
+        f"records={evidence.get('daily_min_records', '-')}",
+        f"errors={evidence.get('daily_min_errors', '-')}",
+        "reasons=" + (",".join(f"{k}:{v}" for k, v in sorted(ly_do.items())) or "-"),
+        "unobserved_dates=" + (",".join(ngay) or "-"),
+        f"pph_status={evidence.get('purchase_price_history_status') or '-'}",
+        f"inv_map_status={evidence.get('inv_map_status') or '-'}",
+    ]
+    print("reports.tracking_pull " + " ".join(fields), flush=True)
+
+
+def _log_tracking_failed(exc: "live_pull.TrackingUnavailableError") -> None:
+    """Một dòng stdout cho mỗi lượt kéo Tracking THẤT BẠI — mang `node` VÀ
+    `reason`. Trước đây `reason` không đi đâu cả: banner chỉ nói tên node,
+    `reports.timing` chỉ nói mất bao lâu, nên một timeout, một 409 do cron
+    đang ghi và một 403 do WAF để lại đúng cùng một dấu vết."""
+    print(
+        "reports.tracking_failed "
+        f"trace={request_timing.trace_id()} node={exc.node} "
+        f'reason="{_mot_dong_log(exc.reason)}"',
+        flush=True,
+    )
 
 
 def _build_history(env=None) -> Optional[history_store.LegacyRepository]:
@@ -4038,11 +4093,17 @@ def create_app(
                     status=400,
                 )
             except live_pull.TrackingUnavailableError as exc:
+                _log_tracking_failed(exc)
+                # Banner mang cả LÝ DO, không chỉ tên node: đây là beta vận
+                # hành nội bộ, người đọc banner là người phải quyết "thử lại
+                # ngay" (409 cron đang ghi) hay "đi kiểm tra Tracking/WAF"
+                # (403, timeout), và hai việc ấy không phân biệt được bằng
+                # tên node.
                 return _page(
                     error=(
                         "Không lấy được dữ liệu Tracking trực tiếp (nguồn: "
-                        f"{exc.node}). Đây KHÔNG phải lỗi của workbook — vui "
-                        "lòng thử lại sau."
+                        f"{exc.node} — {_mot_dong_log(exc.reason, toi_da=200)}). "
+                        "Đây KHÔNG phải lỗi của workbook — vui lòng thử lại sau."
                     ),
                     status=503,
                 )

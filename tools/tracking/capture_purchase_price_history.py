@@ -116,6 +116,43 @@ class CaptureError(RuntimeError):
     """Lần capture thất bại. Không bao giờ trở thành một file COMPLETE rỗng."""
 
 
+#: Đọc tối đa chừng này byte của thân một phản hồi lỗi — đủ cho một phong bì
+#: `{"ok": false, "ly": "..."}` của Tracking, và không đủ để một trang HTML
+#: lỗi dài kéo cả thông điệp lỗi phình ra.
+TRAN_THAN_LOI = 2048
+
+
+def mo_ta_loi_http(exc: "urllib.error.HTTPError") -> str:
+    """Một dòng nói ĐÚNG Tracking đã trả lời gì khi nó từ chối.
+
+    `urllib` gói mọi mã ≠ 2xx thành `HTTPError`, và `str(exc)` chỉ là
+    `HTTP Error 409: Conflict` — mất luôn thân phản hồi, nơi Tracking nói lý
+    do thật (`{"ok": false, "ly": "nguon-dang-ghi"}`: đang có lượt cron ghi;
+    `"trang-doc-khong-nhat-quan"`: trang đọc trúng lúc database đổi;
+    `"khoang-ngay-qua-dai"`; …). Không có `ly` thì một 409 do cron, một 502
+    do Firebase và một 403 do WAF trông y hệt nhau trong log, và người vận
+    hành chỉ còn cách đoán. Đọc thân có trần, lấy `ly` nếu là JSON, còn
+    không thì chỉ ghi mã trạng thái — thân phản hồi là của máy chủ, không
+    mang header nên không mang secret.
+    """
+    code = getattr(exc, "code", "?")
+    ly: Optional[str] = None
+    try:
+        raw = exc.read(TRAN_THAN_LOI)
+    except Exception:  # noqa: BLE001 — mô tả lỗi không được ném lỗi thứ hai
+        raw = b""
+    if raw:
+        try:
+            payload = json.loads(raw.decode("utf-8", errors="replace"))
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and isinstance(payload.get("ly"), str):
+            ly = payload["ly"]
+    if ly:
+        return f"HTTP {code} ly={ly}"
+    return f"HTTP {code}"
+
+
 def _http_fetcher(source_url: str, api_key: Optional[str]) -> Fetcher:
     """Client DUY NHẤT của Tracking Data Contract V1 trong cả repo Reports.
 
@@ -170,6 +207,13 @@ def _http_fetcher(source_url: str, api_key: Optional[str]) -> Fetcher:
                         f"nhận {content_type!r}"
                     )
                 return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # Thông điệp mang `node` + mã + `ly` của Tracking, KHÔNG mang
+            # header — secret không đi ra log.
+            raise CaptureError(
+                f"không đọc được node {node!r} qua hợp đồng Tracking: "
+                f"{type(exc).__name__}: {mo_ta_loi_http(exc)}"
+            ) from exc
         except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
             # Thông điệp mang `node`, KHÔNG mang header — secret không đi ra log.
             raise CaptureError(

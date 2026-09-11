@@ -644,13 +644,14 @@ def test_run_uses_live_pull_captures_when_tracking_is_configured(
 
 
 def test_run_fails_clearly_and_does_not_silently_fall_back_when_tracking_unavailable(
-    client, monkeypatch
+    client, monkeypatch, capsys
 ):
     monkeypatch.setattr(live_pull, "is_configured", lambda env=None: True)
 
     def _raise(**kwargs):
         raise live_pull.TrackingUnavailableError(
-            "mô phỏng lỗi mạng", node="purchase_price_history", reason="TIMEOUT",
+            "mô phỏng lỗi mạng", node="daily_min",
+            reason="không gọi được /api/min-ngay: HTTPError: HTTP 409 ly=nguon-dang-ghi",
         )
 
     monkeypatch.setattr(web_server.live_pull, "pull_live_captures", _raise)
@@ -663,9 +664,59 @@ def test_run_fails_clearly_and_does_not_silently_fall_back_when_tracking_unavail
     resp = client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
 
     assert resp.status_code == 503
-    assert "Tracking" in resp.data.decode()
+    body = resp.data.decode()
+    assert "Tracking" in body
+    # Sự cố 2026-09-11: banner chỉ nói "nguồn: daily_min" và log chỉ nói
+    # `tracking_ms` — lý do thật (409 cron đang ghi / timeout / 403 WAF)
+    # không đi đâu cả. Nay banner mang LÝ DO và stdout có một dòng grep được.
+    assert "nguồn: daily_min" in body
+    assert "HTTP 409 ly=nguon-dang-ghi" in body
+    log = capsys.readouterr().out
+    dong = [l for l in log.splitlines() if l.startswith("reports.tracking_failed ")]
+    assert len(dong) == 1
+    assert "node=daily_min" in dong[0]
+    assert 'reason="không gọi được /api/min-ngay: HTTPError: HTTP 409 ly=nguon-dang-ghi"' in dong[0]
+    assert "trace=" in dong[0]
     # KHÔNG được âm thầm tiếp tục chạy report bằng nguồn nào khác.
     assert run_owner_report_called == []
+
+
+def test_a_successful_pull_logs_what_the_price_contract_answered(client, monkeypatch, capsys):
+    """Đối xứng với bài trên: một lần chạy THÀNH CÔNG mà mọi dòng Tracking `—`
+    phải để lại một dòng nói hợp đồng trả bao nhiêu bản ghi, bao nhiêu lỗi
+    theo lý do, và những ngày Tracking chưa quan sát."""
+    monkeypatch.setattr(live_pull, "is_configured", lambda env=None: True)
+    live_result = SimpleNamespace(
+        tracking_capture=None, tracking_catalog=None, tracking_inv_map=None,
+        tracking_daily_min=None, temp_paths=(),
+        evidence={
+            "daily_min_status": "COMPLETE", "daily_min_product_codes": 78,
+            "daily_min_date_from": "2026-09-01", "daily_min_date_to": "2026-09-03",
+            "daily_min_records": 0, "daily_min_errors": 156,
+            "daily_min_error_reasons": {"SOURCE_UNAVAILABLE": 156},
+            "daily_min_unobserved_dates": ["2026-09-01", "2026-09-03"],
+            "purchase_price_history_status": "COMPLETE", "inv_map_status": "COMPLETE",
+        },
+        cleanup=lambda: None,
+    )
+    monkeypatch.setattr(web_server.live_pull, "pull_live_captures",
+                        lambda **kwargs: live_result)
+    monkeypatch.setattr(
+        web_server, "run_owner_report",
+        lambda *, sales, captures=None, identity_store_view=None: (_ for _ in ()).throw(
+            OwnerUsabilityError("dừng sau khi kéo — bài này chỉ đo dòng log")),
+    )
+
+    client.post("/run", data=_upload("real.xlsx"), content_type="multipart/form-data")
+
+    dong = [l for l in capsys.readouterr().out.splitlines()
+            if l.startswith("reports.tracking_pull ")]
+    assert len(dong) == 1
+    assert "daily_min_status=COMPLETE" in dong[0]
+    assert "codes=78" in dong[0]
+    assert "records=0" in dong[0]
+    assert "reasons=SOURCE_UNAVAILABLE:156" in dong[0]
+    assert "unobserved_dates=2026-09-01,2026-09-03" in dong[0]
 
 
 def test_cleanup_runs_even_when_owner_report_raises(client, monkeypatch, tmp_path):

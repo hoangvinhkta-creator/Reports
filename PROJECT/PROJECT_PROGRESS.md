@@ -1,5 +1,39 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `S156`: banner Tracking đỏ + sổ 01–03/09 không có giá MIN — xác minh từ code, hệ thống nay tự nói lý do (2026-09-11)
+
+Tiếp nối `S154`/`S155`. Owner gửi ảnh hai banner đỏ (`nguồn: daily_min`,
+`nguồn: catalog`) và một sổ nhẹ 01–03/09 chạy xong mà mọi dòng Tracking
+đều `—`; yêu cầu "kiểm tra vấn đề thực sự thay vì đoán" (`DEC-226`).
+
+```text
+Banner đỏ     LỖI THẬT của Reports: exc.reason không vào banner/log; HTTPError
+              vứt thân {"ok":false,"ly":…} của Tracking ⟹ 409 cron đang ghi,
+              403 WAF, timeout để lại cùng dấu vết. Lý do hai lần trong ảnh
+              KHÔNG truy lại được. Sửa: mo_ta_loi_http() (HTTP 409 ly=…),
+              dòng stdout reports.tracking_failed, banner mang lý do.
+Sổ 01–03/09   ĐÚNG hợp đồng: không bản ngày ⟹ SOURCE_UNAVAILABLE mọi mã; bản
+              ngày cron chỉ từ 07/09. Cách duy nhất: POST /api/min-ngay/dung-lai
+              (admin, Bearer token, không có nút) — "Việc của Owner" ở S154,
+              chưa có bằng chứng đã gọi. Sửa phía Reports: bằng chứng +
+              dòng reports.tracking_pull nay đếm records/errors theo lý do
+              và nêu unobserved_dates, để lần chạy tự nói cần làm gì.
+Tracking      PR #31 (đọc mã song song theo lô 20 trong xuatMinNgay(), sửa
+              524 khi chạy report) đã merge main; deploy chưa xác nhận.
+```
+
+```text
+Bài kiểm mới     6 (fail-trước 7 / pass-sau), full pytest 3665 passed, 23 skipped, 4 deselected in 205.28s (0:03:25)
+Việc của Owner   chạy đoạn Console ở DEC-226 §5 → chạy lại sổ → đọc dòng
+                 reports.tracking_pull trên Render (records > 0,
+                 unobserved_dates=-)
+```
+
+Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-226`;
+`docs/sessions/S156-chan-doan-tracking-khong-doan.md`.
+
+---
+
 ## CANONICAL CURRENT STATE — Owner chọn hướng (2): Tracking DỰNG LẠI Min cho ngày trước mốc `R1` (`S154`, 2026-09-11)
 
 Tiếp nối `S153` và `TASK-OWNER-UIUX-009` (bên dưới). `DEC-222` §4 để lại ba hướng cho giá MIN của đơn bán trước
