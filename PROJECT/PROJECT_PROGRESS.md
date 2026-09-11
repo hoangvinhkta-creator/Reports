@@ -2,7 +2,7 @@
 
 ## CANONICAL CURRENT STATE — Owner chọn hướng (2): Tracking DỰNG LẠI Min cho ngày trước mốc `R1` (`S154`, 2026-09-11)
 
-Tiếp nối `S153`. `DEC-222` §4 để lại ba hướng cho giá MIN của đơn bán trước
+Tiếp nối `S153` và `TASK-OWNER-UIUX-009` (bên dưới). `DEC-222` §4 để lại ba hướng cho giá MIN của đơn bán trước
 07/09; Owner chọn hướng (2) — backfill bên Tracking nếu Engine còn dữ liệu.
 Điều tra xác nhận CÓ đủ dữ liệu, và việc đã làm xong bên Tracking.
 
@@ -19,7 +19,7 @@ Reports       gần như KHÔNG đổi. Bản ghi dựng lại mang hai trườn
               Tracking cố ý không thêm giá trị vào enum day_status vì Reports
               từ chối CẢ ảnh chụp khi gặp giá trị lạ. Thêm MỘT bài kiểm ghim
               rằng bên sản xuất mới hơn được phép thêm trường.
-Giới hạn      meta.an không lưu theo ngày — ghi rõ ở DEC-223 §5, tra lại được
+Giới hạn      meta.an không lưu theo ngày — ghi rõ ở DEC-224 §5, tra lại được
               bằng vân tay k trên bản ngày.
 ```
 
@@ -31,8 +31,33 @@ Việc của Owner      deploy Tracking → gọi /api/min-ngay/dung-lai → ch�
                     báo cáo → kiểm ô Giá nhập đơn đầu tháng 9
 ```
 
-Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-223`; mục "R7" trong tài
+Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-224`; mục "R7" trong tài
 liệu tiến độ của repo Tracking (TIEN-DO.md bên đó, KHÔNG phải repo này).
+
+---
+
+## CANONICAL CURRENT STATE — `TASK-OWNER-UIUX-009`: bỏ tag "Ngoài bảng giá" + hai khối cảnh báo, dời nút toggle (2026-09-11)
+
+Tiếp nối `S153`/`R7` (bên dưới). Ba yêu cầu trực tiếp của Owner trên
+trang Nhân viên (`DEC-223` — đánh số lại từ `DEC-222` để tránh trùng với
+`DEC-222` của `R7`, hai phiên độc lập cùng lấy số kế tiếp lúc tách nhánh):
+(1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn — coi như đã phân
+loại xong, đảo lại `§4.3` cũ của `R2` (Owner chấp nhận mất lối bấm "Nối
+lại Tracking" từ bảng kê, route vẫn sống nếu gọi thẳng URL); (2) bỏ khối
+"Đã tính được lợi nhuận: N/M dòng" + banner "có mã chưa được phân loại"
+khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG, HÃNG & IMEI" vào tiêu đề
+"Bảng kê", góc trên bên phải.
+
+Nhánh: `claude/reports-uiux-009-hide-tags-move-toggle`, dựng từ tip nhánh
+mặc định SAU khi `R5.4` đã merge, rồi đồng bộ lại lần nữa sau khi `R7`
+merge — đúng "Đồng Bộ Nhánh". Full suite `3643 passed, 24 skipped, 0
+failed` trên nền trước `R7`; 6 file test cập nhật đích theo hành vi mới
+(không xoá bài, không giảm coverage). Kiểm bằng Playwright trên bản dump
+tĩnh (CSS/JS thật, Flask test client thật) xác nhận cả ba thay đổi đúng
+như yêu cầu, kể cả ở màn hẹp 420px.
+
+Owner đã xác nhận merge sau khi được trình bày rõ đánh đổi ở mục (1).
+Chi tiết đầy đủ + bằng chứng: `PROJECT/PROJECT_DECISIONS.md` → `DEC-223`.
 
 ---
 

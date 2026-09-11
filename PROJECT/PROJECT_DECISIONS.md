@@ -14363,12 +14363,127 @@ MEDIUM`, 1 cycle, chưa dùng. Không thuộc lineage `R5`/`R6`.
 
 Bằng chứng nguyên văn: `docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`.
 
+---
+
+---
 
 ## DEC-223
+
+Title:
+`TASK-OWNER-UIUX-009` — ba yêu cầu trực tiếp của chủ dự án trên trang Nhân
+viên: (1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn (coi như đã phân
+loại xong); (2) bỏ khối "Đã tính được lợi nhuận: N/M dòng" + khối cảnh báo
+"có mã chưa được phân loại" khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG,
+HÃNG & IMEI" lên góc trên bên phải tiêu đề "Bảng kê", cùng hàng.
+
+Date:
+2026-09-11
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, ba mục, kèm ảnh chụp
+màn hình production thật). Không hỏi lại việc 3; việc 2 đã hỏi lại phạm vi
+(bỏ một khối hay cả hai) — chủ dự án chọn bỏ CẢ HAI.
+
+Supersedes:
+- `§4.3` của `R2 Execution Brief` (`docs/tasks/...` R2) — trước đây MỘT
+  finding chặn của Independent Review yêu cầu tag "Ngoài bảng giá" phải
+  BẤM ĐƯỢC ("một nhãn không bấm được là một quyết định không có đường đảo
+  ngược"). Chủ dự án chấp nhận đánh đổi này TƯỜNG MINH: mất lối vào từ
+  bảng kê để "Nối lại Tracking" một dòng đã đánh dấu ngoài bảng giá — route
+  `phan-loai=1&order_key=...` vẫn còn sống trong code, chỉ không còn cách
+  bấm tới nó từ UI.
+- `R-S7`/`DEC-PHB02-02` §4 ("không gian làm việc không được làm mất khối
+  coverage") — CHỈ ở tầng hiển thị của trang Nhân viên; `sheet.coverage`
+  vẫn tính đúng, trang Báo cáo (`kinh_doanh.html`) không đổi.
+- `DEC-185` §13/§PI-10/§PI-11 (dòng cảnh báo gộp "có mã chưa phân loại")
+  — cơ chế `sheet_warning()`/`unresolved_orders()` trong
+  `app/web/line_identity.py` GIỮ NGUYÊN, chỉ không còn render ở trang này.
+
+### 1. `OUT_OF_CATALOG` không còn chữ riêng
+
+`app/web/line_identity.py::IdentityState.label` — nhánh
+`if self.classification == CLASS_OUT_OF_CATALOG: return (LABEL_OUT_OF_
+CATALOG if self.state == STATE_MISSING_PRICE else None)` đổi thành LUÔN
+`return None`. Hệ quả: `identity_tags` (nơi dựng tag cạnh mã đơn,
+`workspace_presentation.py`) không còn phần tử nào cho dòng `OUT_OF_
+CATALOG`, bất kể còn thiếu giá hay không. Tag "Thiếu giá" chung
+(`SHORT_TAGS`/`profit_gate`, vàng) KHÔNG bị đụng — nếu dòng thật sự còn
+thiếu giá, tín hiệu đó vẫn hiện, chỉ không còn nhãn RIÊNG cho việc "ngoài
+bảng giá" nữa.
+
+`CLASSIFICATION_LABELS`/`CLASSIFICATION_TITLES` (dùng ở popover phân loại,
+không phải tag cạnh mã đơn) giữ nguyên — Owner vẫn thấy câu giải thích đầy
+đủ khi MỞ popover, chỉ không còn tag mời bấm NGOÀI popover.
+
+### 2. Bỏ hai khối cảnh báo đầu trang
+
+`app/web/templates/kinh_doanh_nhan_vien.html`:
+- Xoá `<p class="insight">Đã tính được lợi nhuận: ...</p>` +
+  `{{ biz.coverage_breakdown(sheet.coverage) }}` (macro `_business_bits.
+  html`, không đổi — vẫn dùng ở trang Báo cáo).
+- Xoá khối `{% if identity_warning %}...{% endif %}` (`data-metric=
+  "identity-warning"`).
+
+Không đổi `app/web/server.py`/`workspace_presentation.py` — cả hai giá trị
+(`sheet.coverage`, `identity_warning`) vẫn được tính, chỉ không truyền
+vào phần template còn render nữa (thực ra vẫn truyền vào context, chỉ
+template không đọc — không dọn tham số context để giữ diff nhỏ, không có
+side effect vì Jinja bỏ qua biến không dùng).
+
+### 3. Dời nút hiện cột optional vào tiêu đề "Bảng kê"
+
+`<button data-metric="toggle-optional">` + `<span data-metric="optional-
+columns-note">` dời từ một `<p class="filter-row">` riêng (nằm dưới, giữa
+banner cảnh báo cũ và bảng) vào bên TRONG `<h2>Bảng kê ...</h2>`, bọc
+trong `<span class="cnt bh-optional-toggle">` (class `.cnt` có sẵn:
+`margin-left: auto` trong `.module > h2 { display:flex }` — đúng cơ chế
+đã dùng để đẩy phần tử cuối flex-row sang phải, xem `tinphat-ui.css`).
+Vẫn chỉ render khi `groups` không rỗng (có bảng để mà bật/tắt cột) —
+hành vi ẩn/hiện, `localStorage`, KHÔNG đổi.
+
+Impact:
+Thuần trình bày + MỘT thay đổi hành vi nghiệp vụ có chủ đích (mục 1 —
+mất lối bấm lại "Nối lại Tracking" từ bảng kê, route vẫn còn nếu gọi
+thẳng URL). Không đổi `app/modules/pricing/`, `period_lock.py`,
+resolver/product-identity, `tools/db/migrations/`. `app/web/line_
+identity.py`, `app/web/templates/kinh_doanh_nhan_vien.html` thay đổi.
+
+Evidence:
+Full suite `3643 passed, 24 skipped, 0 failed` (nền sau `R5.4` merge —
+không giảm số bài, không bài nào bị xoá; 6 bài cập nhật đích để phản ánh
+đúng hành vi mới thay vì test hành vi cũ: `test_dec185_nav_chart_identity.py`
+×3, `test_employee_workspace_ux.py` ×3, `test_phb03_followup_repairs.py`
+×1, `test_phb05_employee_target.py` ×1, `test_r2_web_workflow.py` ×2 —
+xem comment `TASK-OWNER-UIUX-009` tại mỗi chỗ sửa). Validators governance
+structure/project_state/evidence/task_completion PASS; reference_integrity
+đúng 4 baseline cũ. `git diff --check` sạch.
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật, CSS/JS
+thật): (a) trang Nhân viên bình thường — khối "Đã tính được lợi nhuận" và
+banner "có mã chưa được phân loại" biến mất hoàn toàn; nút "HIỆN NHÓM
+HÀNG, HÃNG & IMEI" + ghi chú hiện ĐÚNG một hàng với tiêu đề "Bảng kê Tháng
+09/2026", đẩy sát mép phải card; ở màn hẹp (420px) nút xuống hàng dưới
+tiêu đề một cách gọn gàng (flex-wrap có sẵn), không tràn/vỡ layout; (b)
+kịch bản một dòng đã đánh dấu "Không có trên bảng giá" (còn thiếu giá) —
+ảnh chụp xác nhận KHÔNG còn tag "Ngoài bảng giá" nào cạnh mã đơn (chỉ còn
+chấm tròn nhỏ của tag "Thiếu giá" chung, không phải nhãn identity riêng).
+
+Can Revisit After:
+Nếu chủ dự án sau này cần lại đường "Nối lại Tracking" cho dòng đã đánh
+dấu ngoài bảng giá (ví dụ Tracking bổ sung mặt hàng đó vào danh mục), cần
+một lối vào MỚI (route `?phan-loai=1&order_key=...` vẫn sống, chỉ cần một
+điểm bấm — ví dụ từ icon sửa dòng đã có ở cột thao tác) thay vì khôi phục
+lại tag cũ.
+
+## DEC-224
 
 Ngày: 2026-09-11
 Phiên: `S154` — Owner chọn hướng xử lý cho giá MIN của các ngày trước mốc
 `R1` (đã trình ba hướng ở `DEC-222` §4).
+Đánh số: phiên này ban đầu lấy `DEC-223`, nhưng `TASK-OWNER-UIUX-009` —
+một phiên độc lập, tách nhánh cùng lúc — đã merge trước và giữ số ấy. Số
+DEC là khoá DUY NHẤT của một quyết định, nên bên merge sau nhường: quyết
+định này là `DEC-224`. Không đổi nội dung, không đổi ngày.
 Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
 Trạng thái: BAN HÀNH, đã thực thi (bên Tracking; Reports chỉ thêm một bài
 kiểm hợp đồng).

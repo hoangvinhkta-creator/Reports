@@ -136,7 +136,10 @@ class TestOutOfCatalogThroughTheWeb:
 
         html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
         labels = metrics(html, "identity-label")
-        assert line_identity.LABEL_OUT_OF_CATALOG in labels
+        # `TASK-OWNER-UIUX-009` §1 — "Ngoài bảng giá" không còn chữ riêng
+        # (chủ dự án yêu cầu trực tiếp): quyết định này đã xong, không còn gì
+        # để hiện cạnh mã đơn.
+        assert line_identity.LABEL_OUT_OF_CATALOG not in labels
         assert line_identity.LABEL_UNRESOLVED not in labels
         # `§4.3` — dòng thôi nằm trong danh sách chưa phân loại, nên cảnh báo
         # đầu sheet biến mất thay vì tiếp tục gọi Owner đi phân loại lại.
@@ -178,15 +181,18 @@ class TestOutOfCatalogThroughTheWeb:
         assert line_after.kpi_profit == Decimal("500000")
         assert line_after.purchase_provenance == bm.PROVENANCE_MANUAL
 
-    def test_an_out_of_catalog_line_keeps_a_door_back_to_tracking(
+    def test_an_out_of_catalog_line_no_longer_shows_a_tag_but_the_relink_route_still_works(
         self, repository, service, client
     ):
-        """`§4.3` — "Nối lại Tracking" phải BẤM ĐƯỢC.
+        """`TASK-OWNER-UIUX-009` §1 — đảo lại `§4.3` cũ theo yêu cầu trực tiếp
+        của chủ dự án: "Không có trên bảng giá" LÀ đã phân loại xong, nên
+        không còn tag cạnh mã đơn mời bấm lại nữa (bài cũ từng canh ngược lại,
+        coi việc KHÔNG bấm được là finding chặn — chủ dự án chấp nhận đánh
+        đổi này: mất lối vào từ bảng kê).
 
-        Một quyết định không có đường đảo ngược là đúng thứ mà §8 của Brief
-        gọi là finding chặn ("mất audit cần thiết để sửa quyết định"). Bài này
-        đi đúng đường người dùng đi: mở lại bảng chọn từ chính nhãn trên bảng
-        kê, rồi xác nhận một mã có thật.
+        Route "nối lại Tracking" (`?phan-loai=1&order_key=...`) vẫn còn sống
+        trong code — chỉ không còn cách bấm tới nó từ tag nữa. Bài này canh
+        cả hai vế: tag biến mất, route vẫn mở đúng khi gọi thẳng URL.
         """
         persist(repository, unpriced_order())
         keys = keys_of(service, "BH72707", RAW)
@@ -194,13 +200,10 @@ class TestOutOfCatalogThroughTheWeb:
             "ky": "2026-09", "sheet": "noi-thanh", **keys})
 
         html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh")
-        # Nhãn "Ngoài bảng giá" là một LIÊN KẾT, không phải một chữ chết.
-        assert re.search(
-            r'<a[^>]*data-metric="identity-label"[^>]*>\s*'
-            + re.escape(line_identity.LABEL_OUT_OF_CATALOG),
-            html), "nhãn Ngoài bảng giá phải mở lại được bảng chọn"
+        assert 'data-metric="identity-label"' not in html, (
+            "Ngoài bảng giá không còn tag nào cạnh mã đơn")
 
-        # Và bảng chọn mở ra ở đúng chế độ "nối lại".
+        # Route vẫn mở đúng chế độ "nối lại" khi gọi thẳng URL.
         panel = body(
             client,
             "/kinh-doanh/nhan-vien?ky=2026-09&sheet=noi-thanh&phan-loai=1"
