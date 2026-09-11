@@ -4209,17 +4209,37 @@ KIỂM CHỨNG KẾ THỪA, không phải của lineage này: nó chưa từng c
 toàn bộ vòng đời `UI-01`/`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2).
 Ba lát ở đây không chạm `MutationGuard`/CAS. Xem `CHECK-UI345-27`.
 
-### Chưa merge, chưa push
+### Đã push, đã tích hợp nhánh mặc định; chưa merge vào nhánh mặc định
 
-Commit giữ LOCAL trên `claude/ui-03-04-05-reports-px1u9l` theo yêu cầu trực
-tiếp bằng văn bản của chủ dự án trong phiên. `scripts/branch_authority_
-check.sh` báo `BRANCH AUTHORITY UNRESOLVED` cho nhánh này vì nó chưa có
-upstream — đó là HỆ QUẢ TRỰC TIẾP của yêu cầu "không push", không phải một
-lỗi cần sửa bằng cách push.
+Commit giữ LOCAL đến khi chủ dự án xác nhận trực tiếp bằng văn bản trong
+hội thoại (đúng yêu cầu ban đầu) — sau đó đã `git push -u origin
+claude/ui-03-04-05-reports-px1u9l`.
 
-Bằng chứng nguyên văn: `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-
-ghim-bieu-do.md`; `docs/sessions/S154-ui030405-thao-tac-tai-cho.md`;
-`PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE — UI-03/UI-04/UI-05".
+Ngay sau push, `scripts/branch_authority_check.sh` báo `DIVERGENCE:
+INTEGRATION_DECISION_REQUIRED [loc>5000]` (`governance/core/
+V4_1_POLICY_FREEZE.md` §8): nhánh mặc định đã tiến 5 commit
+(`TASK-OWNER-UIUX-009` + `R7`, hai lineage khác merge trong lúc phiên này
+chạy) với cumulative LOC 5.393, và có xung đột THẬT ở 4 file
+(`kinh_doanh_nhan_vien.html`, `_r6_bits.html`, `server.py`,
+`tinphat-ui.css`). Chủ dự án chọn lựa chọn (A) của §8: tích hợp ngay.
+`git merge origin/claude/extract-upload-repo-gq2ws4` đã thực hiện — 3/4
+file xung đột tự merge sạch, `kinh_doanh_nhan_vien.html` giải tay (nhận
+quyết định `TASK-OWNER-UIUX-009`, bỏ khoá `"identity-warning"` khỏi
+`_workspace_regions()`). Toàn bộ test chạy lại SAU tích hợp: `pytest 3680
+passed/23 skipped`, `Playwright 35 passed`, `jsdom 25 passed`.
+
+`branch_authority_check.sh` hiện báo `behind default: 0 commit` (đã đồng
+bộ) — `DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]` vẫn còn hiện
+vì cờ này đo tổng LOC khác biệt với nhánh mặc định (5.422, phần lớn là
+chính công của lineage `UI-03-UI-04-UI-05`), không đo việc đồng bộ — nó tự
+hết khi lineage này merge vào nhánh mặc định, không phải một việc cần sửa
+riêng.
+
+**Chưa merge vào nhánh mặc định** (chưa tạo PR — không ai yêu cầu) và
+**chưa deploy**. Bằng chứng nguyên văn: `docs/tasks/UI-03-04-05-thao-tac-
+tai-cho-windowing-ghim-bieu-do.md`; `docs/sessions/S154-ui030405-thao-tac-
+tai-cho.md`; `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE —
+UI-03/UI-04/UI-05".
 
 ---
 

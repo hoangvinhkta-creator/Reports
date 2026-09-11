@@ -7,14 +7,18 @@ IMPLEMENTED
 
 Current Status Reason:
 Ba lát dọc đã triển khai đầy đủ và có bằng chứng browser THẬT
-(`22` bài Playwright mới trên Chromium, `19` bài pytest mới). CHƯA qua
-Independent Review, CHƯA merge, CHƯA push — commit giữ local theo đúng yêu
-cầu trực tiếp của chủ dự án trong phiên. `CHECK-UI345-25` (Independent
-Review) và `CHECK-UI345-26` (Owner nghiệm thu production) là hai check
-REQUIRED duy nhất còn `NOT_TESTED`, và phiên này KHÔNG tự đóng được cái
-nào. `CHECK-UI345-27` (Postgres concurrency) là một khoản NỢ KIỂM CHỨNG
-kế thừa, `BLOCKED` vì thiếu biến môi trường — xem chi tiết ở chính check
-đó.
+(`22` bài Playwright mới trên Chromium, `19` bài pytest mới). Đã push
+(`claude/ui-03-04-05-reports-px1u9l`) sau xác nhận trực tiếp bằng văn bản
+của chủ dự án; đã tích hợp nhánh mặc định (`TASK-OWNER-UIUX-009` + `R7`,
+merge trong lúc phiên chạy — xem `PROJECT/REVIEW_BUDGET_LEDGER.md` §"Đã
+push, đã tích hợp…") và chạy lại toàn bộ test SAU tích hợp (`pytest 3680
+passed`, `Playwright 35 passed`). CHƯA qua Independent Review, CHƯA merge
+vào nhánh mặc định, CHƯA tạo PR (không ai yêu cầu). `CHECK-UI345-25`
+(Independent Review) và `CHECK-UI345-26` (Owner nghiệm thu production) là
+hai check REQUIRED duy nhất còn `NOT_TESTED`, và phiên này KHÔNG tự đóng
+được cái nào. `CHECK-UI345-27` (Postgres concurrency) là một khoản NỢ
+KIỂM CHỨNG kế thừa, `BLOCKED` vì thiếu biến môi trường — xem chi tiết ở
+chính check đó.
 
 Phase:
 PHASE-03 — Giao diện vận hành (Release 2 — thao tác tại chỗ)

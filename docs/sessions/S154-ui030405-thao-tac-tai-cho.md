@@ -265,3 +265,80 @@ review được từng phần độc lập.
 2. Sau khi PASS: quyết định tích hợp + merge; phiên merge đồng bộ
    `PROJECT/LO_TRINH_DE_HIEU.md`.
 3. Trả nợ `CHECK-UI345-27` khi có PostgreSQL.
+
+## 12. Phụ lục — push + tích hợp nhánh mặc định (cùng phiên, sau §11)
+
+Chủ dự án xác nhận trực tiếp bằng văn bản việc push. Đã
+`git push -u origin claude/ui-03-04-05-reports-px1u9l` → `99b727e`.
+
+Ngay sau đó, đồng bộ lại theo `00_SESSION_ORCHESTRATION.md` phát hiện
+nhánh mặc định đã tiến 5 commit (`TASK-OWNER-UIUX-009` + `R7`, hai lineage
+độc lập merge trong lúc phiên này chạy), `branch_authority_check.sh` báo
+`DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]`
+(`governance/core/V4_1_POLICY_FREEZE.md` §8). Dò bằng `git merge-tree`
+(không ghi gì vào repo) xác nhận xung đột THẬT ở 4 file:
+
+```text
+kinh_doanh_nhan_vien.html   TASK-OWNER-UIUX-009 bỏ hẳn vùng hiển thị
+                             identity_warning — đè lên đúng chỗ commit
+                             `defa0fb` bọc data-region="identity-warning"
+_r6_bits.html                R7 chèn khối chart.projection ngay sau
+                             chart-legend — sát chỗ UI-05 thêm
+                             data-breakdown
+server.py                    R7 đổi orders_by_bucket() → count_series()
+                             ở hai route biểu đồ số đơn — không đụng route
+                             breakdown của UI-05, chỉ gần trong file
+tinphat-ui.css                thêm .chart-projection sát .tp-confirm-pop/
+                             .rev-tooltip.is-pinned
+```
+
+Được hỏi qua `AskUserQuestion` (ba lựa chọn theo đúng V4.1 §8: A/tích hợp
+ngay, C/giao review trên nhánh cũ + ghi ledger, hoặc tự xem trước) — chủ
+dự án chọn **(A) tích hợp ngay**.
+
+`git merge origin/claude/extract-upload-repo-gq2ws4 --no-edit` → chỉ
+`kinh_doanh_nhan_vien.html` + hai file governance (`PROJECT_PROGRESS.md`,
+`REVIEW_BUDGET_LEDGER.md`) xung đột thật; `server.py`/`tinphat-ui.css`/
+`_r6_bits.html` tự merge sạch bằng 3-way merge thật (đủ xa nhau trong file
+dù `merge-tree` preview lo ngại gần nhau).
+
+Giải xung đột:
+- `kinh_doanh_nhan_vien.html` — NHẬN quyết định `TASK-OWNER-UIUX-009` (đã
+  merge, là quyết định chính thức). Bỏ khoá `"identity-warning"` khỏi
+  `_workspace_regions()` (`server.py`) vì không còn host DOM nào để vá
+  vào — gửi HTML cho vùng đó là dữ liệu chết. Macro `identity_warning_
+  block` KHÔNG xoá khỏi `_workspace_table.html` (một trang khác cần lại
+  gọi được ngay). Cập nhật `test_the_write_payload_carries_the_server_
+  built_regions`.
+- `PROJECT_PROGRESS.md`/`REVIEW_BUDGET_LEDGER.md` — xung đột cơ học (ai
+  đứng đầu file, do cấu trúc fenced code block giống nhau đánh lừa thuật
+  toán diff theo dòng). Giữ CẢ BA entry nguyên vẹn; đối chiếu bằng
+  `git diff origin/...:file file` xác nhận không mất nội dung của R7/
+  UIUX-009.
+- Đổi số phiên `S153` → `S154` (trùng `S153-r7-...` đã có trên nhánh mặc
+  định — hai phiên độc lập cùng lấy số kế tiếp lúc tách nhánh, cùng tình
+  huống `DEC-222`→`DEC-223` mà `TASK-OWNER-UIUX-009` đã gặp và tự sửa).
+
+Test SAU tích hợp (không phải trước):
+
+```text
+pytest (toàn repo)              3680 passed, 23 skipped, 0 failed
+tests/browser/ (jsdom)          25 passed
+tests/playwright/ (Chromium)    35 passed (không đổi so với trước tích hợp)
+Validators governance           structure/project_state/evidence/
+                                task_completion PASS; reference_integrity
+                                đúng 4 baseline cũ
+```
+
+Commit merge: `97b47dc` (merge commit thật, hai cha — không rebase, không
+squash). `branch_authority_check.sh` sau tích hợp:
+`behind default: 0 commit` (đã đồng bộ); `DIVERGENCE: INTEGRATION_
+DECISION_REQUIRED [loc>5000]` vẫn còn hiện vì cờ này đo TỔNG LOC khác biệt
+với nhánh mặc định (bao gồm chính công của lineage này), không đo việc
+đồng bộ — nó tự hết khi lineage merge vào nhánh mặc định.
+
+Đã push lại: `git push origin claude/ui-03-04-05-reports-px1u9l` → `97b47dc`.
+
+**Trạng thái cuối cùng của phụ lục này:** đã push, đã tích hợp, sẵn sàng
+giao Independent Review trên `97b47dc`. Chưa tạo PR (không ai yêu cầu),
+chưa merge vào nhánh mặc định, chưa deploy.
