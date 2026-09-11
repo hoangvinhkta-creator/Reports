@@ -31,6 +31,268 @@ Việc của Owner   chạy đoạn Console ở DEC-226 §5 → chạy lại s�
 
 Chi tiết: `PROJECT/PROJECT_DECISIONS.md` → `DEC-226`;
 `docs/sessions/S156-chan-doan-tracking-khong-doan.md`.
+---
+
+## CANONICAL CURRENT STATE — UI-03-UI-04-UI-05 REPAIR-1 (theo sau Independent Review REQUEST CHANGES) (`S154`, 2026-09-11)
+
+Repair cycle DUY NHẤT của lineage `UI-03-UI-04-UI-05` tính đến giờ, theo
+`governance/core/V4_1_POLICY_FREEZE.md` §3. Không mở nhánh mới, không đổi
+base — vẫn `claude/ui-03-04-05-reports-px1u9l`, base `c60ae08` (HEAD đã
+push, đã tích hợp nhánh mặc định — xem entry bên dưới).
+
+```text
+review_round_1   REQUEST CHANGES (Independent Review, trên HEAD c60ae08)
+finding F-02     1 (BLOCKING) — removed_order_keys/affected.lines sai khi
+                 một quyết định phân loại chạm BH ở SHEET KHÁC
+finding F-01     1 (không chặn merge nhưng bắt buộc sửa) — 3 tham chiếu
+                 trần làm validate_reference_integrity FAIL
+repair_1         ĐÃ HOÀN TẤT, cả hai finding, tiêu cycle DUY NHẤT
+base_sha         c60ae081fe2bd7c61dd835b66044a8ff41e0da18
+head_sha         05daf76
+```
+
+Ngân sách + Blast Radius đầy đủ: `PROJECT/REVIEW_BUDGET_LEDGER.md` →
+"Root Task: UI-03-UI-04-UI-05".
+
+### Finding F-02 (BLOCKING) — `removed_order_keys`/`affected.lines` sai khi một quyết định phân loại chạm BH ở SHEET KHÁC
+
+`app/web/server.py`, `_workspace_write_payload()`: hàm gọi
+`_workspace_context(view, only_orders=order_keys)`, và hàm đó lọc `scoped
+= view["data"].for_sheet(sheet)` THEO SHEET ĐANG XEM trước khi cắt
+`only_orders` qua `groups_slice`. Một `order_key` thuộc sheet khác không
+khớp group nào trong `scoped` — không phải vì nó đã bị loại khỏi báo cáo,
+mà đơn giản vì nó không nằm trên trang đang mở. Bản trước đọc sự vắng mặt
+ấy thành "đã xoá" (`removed_order_keys`) và đếm thiếu `affected.lines`
+(chỉ cộng `group["lines"]` của các group tìm thấy trong `scoped`).
+
+**Sửa (cả hai hướng review nêu):**
+- `removed_order_keys` giờ kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+  details`, không qua `scoped`): một BH chỉ "đã xoá" khi không còn dòng
+  nào trong CẢ kỳ, không phải chỉ khi nó không còn trên sheet đang xem.
+- `affected.lines` nhận tham số `lines` TƯỜNG MINH từ nơi gọi —
+  `len(shared)` ở `business_confirm_identity`/`business_mark_out_of_
+  catalog` (một BH có thể mang NHIỀU dòng cùng khoá định danh), mặc định
+  `len(order_keys)` cho `business_exclude_line` (luôn đúng một dòng một
+  BH — hành vi không đổi).
+
+**Bằng chứng — test tái hiện lỗi, xác nhận fail-trước/pass-sau:**
+
+```text
+tests/test_ui030405_workspace_json.py::
+  test_a_decision_reaching_another_sheet_is_not_reported_as_removed
+
+Fixture riêng: hai dòng cùng product_raw CHƯA PHÂN LOẠI, một BH ở sheet
+noi-thanh, một BH ở sheet gia-dung (đẩy sang gia-dung bằng ĐÚNG con đường
+service.store.set_line_product_group() mà route Gia dụng dùng — sheet
+được tính từ QUYẾT ĐỊNH đã lưu qua effective_product_group(), KHÔNG đọc
+thẳng product_group_final của pipeline).
+
+Trước sửa:
+  ✘ FAIL — payload["affected"]["lines"] == 1 (đúng 1, thiếu 1)
+
+Sau sửa:
+  ✓ PASS — affected.lines == 2, order_keys == {BH90001, BH90002},
+    BH90002 KHÔNG có mặt trong removed_order_keys, và đọc lại sheet
+    gia-dung qua route HTML thật xác nhận BH90002 vẫn còn nguyên trên
+    báo cáo (không nằm trong danh sách "đã loại").
+```
+
+### Finding F-01 — 3 tham chiếu trần làm `validate_reference_integrity` FAIL
+
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` (§12, phụ lục push/tích
+hợp) ghi ba tên file TRẦN ("00_SESSION_ORCHESTRATION.md",
+"PROJECT_PROGRESS.md", "REVIEW_BUDGET_LEDGER.md") thay vì đường dẫn đầy
+đủ. Xác nhận đúng ba đường dẫn thật trong repo trước khi sửa (không
+đoán): `governance/core/00_SESSION_ORCHESTRATION.md`, `PROJECT/
+PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+### Bằng chứng đầy đủ (full suite, SAU repair)
+
+```text
+pytest (toàn repo)                   3681 passed, 23 skipped, 0 failed
+                                     (+1 so với trước repair — đúng test
+                                      mới của F-02, không bài nào bị xoá)
+tests/browser/ (jsdom, node --test)  25 passed (không đổi)
+tests/playwright/ (Chromium thật)    35 passed (không đổi)
+validate_reference_integrity         7 → 4 lỗi (4 lỗi còn lại là baseline
+                                      cũ, không liên quan lineage này)
+Validators khác                      structure/project_state/evidence/
+                                      task_completion PASS
+```
+
+### Phạm vi
+
+CHỈ hai finding trên. Không chạm `identity_gateway`/`line_identity` ở
+tầng tính toán — F-02 thuần là lỗi ở lớp build response JSON, đúng phạm
+vi review khoanh. F-01 chỉ sửa văn bản tham chiếu trong một file tài
+liệu.
+
+Trạng thái: repair `DONE`, đã commit local trên
+`claude/ui-03-04-05-reports-px1u9l` (`05daf76`). Chi tiết đầy đủ:
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` §13.
+
+---
+
+## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S154`, 2026-09-11)
+
+Ba lát dọc tiếp theo của Release 2 (roadmap Render), nối trực tiếp
+`UI-01`/`UI-02`. Nhánh `claude/ui-03-04-05-reports-px1u9l`, base
+`origin/claude/extract-upload-repo-gq2ws4` @ `a224e6f`.
+
+**Cập nhật cùng phiên (`S154`, sau khi push):** chủ dự án xác nhận trực
+tiếp bằng văn bản việc push, rồi `scripts/branch_authority_check.sh` báo
+`DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]` — nhánh mặc định đã
+tiến thêm 5 commit (`TASK-OWNER-UIUX-009` + `R7`, xem hai mục ngay dưới
+đây) trong lúc phiên này chạy, với xung đột THẬT ở 4 file
+(`kinh_doanh_nhan_vien.html`, `_r6_bits.html`, `server.py`,
+`tinphat-ui.css` — dò bằng `git merge-tree`, không ghi gì vào repo). Theo
+`governance/core/V4_1_POLICY_FREEZE.md` §8, chủ dự án chọn lựa chọn (A):
+merge nhánh mặc định vào ngay, giải xung đột, chạy lại toàn bộ test, rồi
+mới giao Independent Review. Merge đã thực hiện; hai file mã nguồn
+(`server.py`, `_r6_bits.html`, `tinphat-ui.css`) merge TỰ ĐỘNG sạch —
+`kinh_doanh_nhan_vien.html` xung đột thật (đè lên đúng vùng `identity_
+warning` mà `TASK-OWNER-UIUX-009` đã bỏ hiển thị), giải bằng cách NHẬN
+quyết định của `TASK-OWNER-UIUX-009` (bỏ vùng cảnh báo) và bỏ luôn khoá
+`"identity-warning"` khỏi `_workspace_regions()` — gửi HTML cho một vùng
+không còn host DOM là dữ liệu chết. Toàn bộ test chạy lại SAU merge, xem
+mục "Bằng chứng SAU tích hợp" bên dưới.
+
+**Chưa PR, chưa merge vào nhánh mặc định** — nhánh làm việc đã push, đã
+tích hợp với nhánh mặc định, chờ Independent Review.
+
+```text
+UI-03  Phân loại / loại / khôi phục NGAY TRONG bảng kê. Ba đường ghi giữ
+       NGUYÊN thân hàm và vẫn gọi nguyên identity_gateway/store — KHÔNG
+       route ghi mới nào. Chỉ CÂU TRẢ LỜI rẽ đôi ở dòng cuối
+       (_workspace_answer): trình duyệt không-JS nhận redirect y hệt trước,
+       client JS nhận payload vá tại chỗ.
+UI-04  Bảng kê dựng MỘT TRANG (100 dòng) + `XEM TIẾP` là liên kết THẬT
+       (`?tu=<mã BH>`). Có JS: trang kế lấy qua route JSON và NỐI thêm;
+       vượt 300 hàng thì GỠ các nhóm cũ nhất. Cắt theo RANH GIỚI BH.
+UI-05  Bấm một điểm biểu đồ ⟹ GHIM tooltip; bấm điểm khác ⟹ thay nội dung
+       NGAY TRONG popover đang ghim. Giá trị cơ bản hiện NGAY từ dữ liệu đã
+       có trong trình duyệt; phân rã theo nhân viên tải NỀN.
+```
+
+### Lát nền phải làm trước cả ba
+
+Markup của một hàng bảng kê trước đây chỉ tồn tại bên trong vòng lặp của
+`kinh_doanh_nhan_vien.html`. Cả `UI-03` lẫn `UI-04` cần đúng những `<tr>` ấy
+ở giữa một vòng đời khác, và đường sai là dựng chúng bằng JavaScript — tức
+một BẢN THỨ HAI của bảng kê (rowspan theo số dòng BH, ba cột tuỳ chọn ẩn
+bằng CSS, bốn loại nhãn, ô nhập thuộc `<form>` đứng ngoài bảng) sẽ lệch khỏi
+bản thứ nhất ở lần đầu ai đó thêm một cột, trong khi CẢ HAI đều "đúng" theo
+chính nó. Markup được chuyển NGUYÊN VĂN vào `_workspace_table.html`; trang
+đầy đủ và các route JSON gọi CÙNG những macro đó. Client KHÔNG dựng một thẻ
+`<tr>` nào.
+
+Bằng chứng refactor không đổi gì — render cùng trang trước/sau, bỏ thụt đầu
+dòng và dòng trống:
+
+```text
+$ diff <(sed 's/^[[:space:]]*//; /^$/d' /tmp/before.html) \
+       <(sed 's/^[[:space:]]*//; /^$/d' /tmp/after.html)
+77c77
+< <div class="kpi-grid strip">
+---
+> <div class="kpi-grid strip" data-region="kpi-strip">
+142a143,144
+> <div data-region="identity-warning">
+> </div>
+171c173,174
+< <tr class="row-total" data-metric="sheet-totals">
+---
+> <tr class="row-total" data-metric="sheet-totals"
+> data-region="sheet-totals">
+```
+
+Ba khác biệt, cả ba là thuộc tính `data-region` CỐ Ý thêm.
+
+### Hai lỗi tự phát hiện và đã sửa trong phiên
+
+```text
+trimToBudget    đo chiều cao vừa mất trên chính cái BẢNG — mép trên bảng
+                nằm PHÍA TRÊN chỗ bị gỡ nên nó không nhúc nhích, phép bù ra
+                0. Đo được: lệch 4.777 px. Đo trên hàng sống sót ĐẦU TIÊN
+                vẫn lệch 46,5 px (bố cục AUTO đổi chiều cao các hàng còn
+                lại). Nay neo vào hàng ĐẦU TIÊN CÒN TRONG KHUNG NHÌN →
+                dưới 4 px, canh bằng bài kiểm mới.
+<template>      nội dung template nằm THẬT trong tài liệu, nên phép tìm
+                `confirm-question` bắt được bản trong template TRƯỚC bản
+                đang hiển thị — hai bài của hộp xác nhận không-JS đỏ vì
+                đúng chuyện đó. Đổi thành `line-confirm-question`/
+                `line-confirm-point`: hai hộp, hai tên.
+```
+
+### Bằng chứng
+
+```text
+CHECK-UI345-01 … CHECK-UI345-24   PASS (E1)
+CHECK-UI345-25 Independent Review NOT_TESTED — phiên này KHÔNG tự đóng
+CHECK-UI345-26 Owner nghiệm thu   NOT_TESTED — chỉ Owner đóng
+CHECK-UI345-27 Postgres concurrency  BLOCKED — nợ kiểm chứng, xem dưới
+Full pytest      3662 passed / 23 skipped / 0 failed
+                 (nền CÙNG PHIÊN, CÙNG MÁY, trước khi sửa: 3643 / 23 / 0;
+                  +19 = đúng số bài mới, không bài nào bị xoá)
+jsdom            25 passed (không đổi)
+Playwright       35 passed (13 cũ + 22 mới, Chromium thật)
+Ngân sách        root task MỚI `UI-03-UI-04-UI-05` (MEDIUM, 1 cycle, CHƯA
+                 dùng) — KHÔNG phải cycle thứ hai của `UI-01-UI-02`
+                 (đã 1/1, 0 remaining); `git diff 9f15eb9..HEAD --
+                 app/web/static/js/app.js` xoá ĐÚNG hai dòng, cả hai thuộc
+                 khối tooltip, không dòng nào của handleSaveResult()/doSave()
+```
+
+### Số đo — `scripts/stab01_baseline.py --lines 5000`
+
+Máy dev, LOCAL/TEST — **KHÔNG PHẢI số production** (xem docstring đầu
+script).
+
+```text
+                                    p50        bytes      <tr>
+nhan-vien-full                    254,7 ms    322.214      103
+  bản ghi UI-01/UI-02, cùng script, cùng fixture:
+                                  1.417 ms 15.290.054    5.002
+ui03-mo-popover-phan-loai         160,7 ms        126        0
+  đường CŨ cho cùng việc (nhan-vien-fragment):
+                                  263,4 ms    319.736      103
+ui04-mot-trang-windowing          222,4 ms    343.321      101
+ui05-phan-ra-mot-moc              346,3 ms        399        0
+```
+
+`ui05` cao hơn vì `_chart_details()` có thể mở một lượt đọc kỳ THỨ HAI để
+phủ cửa sổ so sánh năm trước — chi phí ĐÃ CÓ SẴN của `R6`, không phải hồi
+quy; và nó chạy NỀN sau khi giá trị cơ bản đã hiện.
+
+### NỢ KIỂM CHỨNG (kế thừa, KHÔNG phải của ba lát này)
+
+`tests/test_p0_single_transaction.py` (11 bài — đồng thời/CAS trên
+PostgreSQL THẬT) **CHƯA TỪNG chạy được** qua toàn bộ vòng đời `UI-01`/
+`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2) lẫn phiên này, vì
+`REPORTS_TEST_POSTGRES_URL` không được đặt trong bất kỳ môi trường nào đã
+dùng. Ba lát ở đây KHÔNG chạm `MutationGuard`/CAS nên đây không phải lỗi
+của chúng — nhưng nó phải nằm trong bản ghi chính thức để không bị quên
+trước khi lên production. Lệnh cần chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+### Cố ý CHƯA làm
+
+Dải KPI/hàng TỔNG sau một lần PATCH của panel sửa đơn (giới hạn `UI-01`/
+`UI-02` còn nguyên, không mở rộng payload `api_patch_order`); bước xác nhận
+cho KHÔI PHỤC ở đường KHÔNG-JS (đổi hành vi một luồng đã nghiệm thu, ngoài
+Scope Lock); ghim/phân rã ở biểu đồ trang Báo cáo `R5` (phạm vi đọc bằng bộ
+tham số khác); đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md` (không trạng thái
+`DONE`/`CURRENT` nào đổi — việc đó thuộc phiên MERGE, cùng tiền lệ
+`UI-01`/`UI-02`); bằng chứng thị giác trên Render thật.
+
+Chi tiết đầy đủ:
+`docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`;
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md`;
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: UI-03-UI-04-UI-05".
 
 ---
 
