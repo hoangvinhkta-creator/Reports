@@ -1,6 +1,7 @@
-"""`STAB-01`/`UI-01`/`UI-02` — đo cold/warm và ghi số đo TRƯỚC/SAU của các
+"""`STAB-01`/`UI-01`…`UI-05` — đo cold/warm và ghi số đo TRƯỚC/SAU của các
 đường request, KỂ CẢ panel sửa đơn tại chỗ (`GET`/`PATCH` của
-`/api/v1/orders/<order_key>`).
+`/api/v1/orders/<order_key>`), bảng chọn phân loại (`UI-03`), một trang
+windowing (`UI-04`) và một lần ghim điểm biểu đồ (`UI-05`).
 
 Chạy (từ gốc repo):
 
@@ -90,6 +91,59 @@ def routes(order_key: str) -> list[tuple[str, str, bool]]:
         ("api-order-detail (= panel-open, UI-01/UI-02)",
          f"/api/v1/orders/{order_key}?period={period}", False),
     ]
+
+
+def ui030405_routes(keys: dict, bucket: str) -> list[tuple[str, str, bool]]:
+    """Ba đường mà `UI-03`/`UI-04`/`UI-05` thêm vào, đo cùng một cách.
+
+    `keys` là khoá ba phần của MỘT dòng có thật trên bảng kê; `bucket` là
+    khoá mốc của MỘT điểm có thật trên biểu đồ. Cả hai được đọc từ chính
+    trang đang chạy (`_first_line_keys`/`_first_chart_bucket`), không dựng
+    tay: một khoá bịa ra sẽ cho một số đo của nhánh "không tìm thấy", và
+    nhánh ấy nhanh hơn nhánh thật đúng bằng phần việc nó không làm.
+    """
+    period = ws.PERIOD_TEXT
+    return [
+        # `UI-03` — MỞ bảng chọn phân loại. So với dòng `nhan-vien-fragment`
+        # ở trên: trước `UI-03`, mở nó đi qua đúng lượt fragment ấy, tức
+        # dựng lại CẢ bảng kê để hiện một hộp nhỏ cạnh con trỏ chuột.
+        ("ui03-mo-popover-phan-loai",
+         f"/api/v1/periods/{period}/identify?sheet=noi-thanh&phan-loai=1"
+         f"&order_key={keys['order_key']}&product_key={keys['product_key']}"
+         f"&occurrence_index={keys['occurrence_index']}", False),
+        # `UI-04` — MỘT trang windowing. So với `nhan-vien-full`: cùng bảng,
+        # một trang thay vì cả sheet.
+        ("ui04-mot-trang-windowing",
+         f"/api/v1/periods/{period}/workspace?sheet=noi-thanh", False),
+        # `UI-05` — phân rã MỘT mốc biểu đồ, tức phần tải NỀN sau khi ghim.
+        ("ui05-phan-ra-mot-moc",
+         f"/api/v1/analytics/chart-breakdown?ky={period}&muc=ngay"
+         f"&moc={bucket}", False),
+    ]
+
+
+def _first_line_keys(client) -> dict:
+    """Khoá ba phần của dòng ĐẦU TIÊN trên bảng kê, đọc từ chính HTML."""
+    html = client.get(
+        f"/kinh-doanh/nhan-vien?ky={ws.PERIOD_TEXT}&sheet=noi-thanh"
+    ).get_data(as_text=True)
+    match = re.search(
+        r'data-order="(BH\d+)"\s*\n\s*data-product-key="([0-9a-f]+)"\s*\n\s*'
+        r'data-occurrence-index="(\d+)"', html)
+    if match is None:
+        return {}
+    return {"order_key": match.group(1), "product_key": match.group(2),
+            "occurrence_index": match.group(3)}
+
+
+def _first_chart_bucket(client) -> str:
+    """Khoá mốc của một điểm CÓ THẬT trên biểu đồ doanh thu R6."""
+    html = client.get(
+        f"/kinh-doanh/phan-tich?ky={ws.PERIOD_TEXT}&muc=ngay"
+    ).get_data(as_text=True)
+    keys = re.findall(r'<span class="rev-line-point"[^>]*?data-key="([^"]+)"',
+                      html, re.S)
+    return keys[len(keys) // 2] if keys else ""
 
 
 def build_client(engine, *, today=None):
@@ -271,6 +325,26 @@ def main(argv=None) -> int:
               f"{row['bytes']:>10} {row['tr_rows']:>7} {row['sql_n']:>5} "
               f"{row['sql_ms']:>7.1f} {row['presentation_ms']:>7.1f} "
               f"{row['template_ms']:>7.1f} {row['app_content_count']:>5}")
+
+    # `UI-03`/`UI-04`/`UI-05` — ba đường MỚI, đo cùng cách và in cùng bảng
+    # WARM để so thẳng với các dòng ở trên. Khoá dòng/khoá mốc đọc từ chính
+    # trang đang chạy, xem `ui030405_routes`.
+    line_keys = _first_line_keys(client)
+    bucket = _first_chart_bucket(client)
+    if line_keys and bucket:
+        print(f"\nUI-03/04/05 (p50/p95 trên {args.repeat} lần) — "
+              "MÁY LOCAL/TEST, KHÔNG PHẢI SỐ PRODUCTION")
+        print(f"  {'đường':<30} {'p50':>8} {'p95':>8} {'bytes':>10} "
+              f"{'<tr>':>7} {'sql':>5} {'sql_ms':>7}")
+        for name, path, fragment in ui030405_routes(line_keys, bucket):
+            row = measure(client, path, fragment=fragment, repeat=args.repeat)
+            results["routes"].setdefault(name, {})["warm"] = row
+            print(f"  {name:<30} {row['p50_ms']:>8.1f} {row['p95_ms']:>8.1f} "
+                  f"{row['bytes']:>10} {row['tr_rows']:>7} {row['sql_n']:>5} "
+                  f"{row['sql_ms']:>7.1f}")
+    else:
+        print("\nUI-03/04/05: BỎ QUA — không đọc được khoá dòng/khoá mốc từ "
+              "trang đang chạy. Đây là một phép đo THIẾU, không phải một số 0.")
 
     print("\nGhi chú đọc số:")
     print("  main = số lần chuỗi id=\"app-content\" xuất hiện. Fragment phải")

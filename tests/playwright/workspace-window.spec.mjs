@@ -165,3 +165,55 @@ test('fixture đúng là 5.000 dòng — ngân sách nói về một khối lư�
     expect(total).toBe(SCALE_LINES);
     expect(total).toBeGreaterThan(ROW_BUDGET * 10);
   });
+
+test('gỡ nhóm cũ KHÔNG làm mất vị trí cuộn của người đang xem', async ({ page }) => {
+  // Tải đủ trang để `trimToBudget` thật sự phải gỡ — nếu không, bài này
+  // xanh mà không kiểm gì.
+  for (let i = 0; i < 3; i += 1) {
+    const more = page.locator('[data-metric="workspace-more"]');
+    if (await more.count() === 0) break;
+    const before = await dataRows(page).count();
+    await more.click();
+    await expect
+      .poll(async () => (await dataRows(page).count()) !== before
+        || (await page.locator('[data-metric="workspace-more"]').count()) === 0,
+        { timeout: 10_000 })
+      .toBe(true);
+  }
+  expect(await dataRows(page).count()).toBeGreaterThan(ROW_BUDGET / 2);
+
+  // Cuộn xuống gần cuối, rồi lấy hàng ĐANG NẰM TRONG KHUNG NHÌN làm mốc:
+  // mệnh đề nói về chỗ người dùng đang NHÌN, không về một hàng bất kỳ.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight - 900));
+  const key = await page.evaluate(() => {
+    var rows = document.querySelectorAll('table.sheet-table tr[data-order]');
+    for (var i = 0; i < rows.length; i++) {
+      var box = rows[i].getBoundingClientRect();
+      if (box.top > 40 && box.bottom < window.innerHeight) {
+        return rows[i].getAttribute('data-order');
+      }
+    }
+    return null;
+  });
+  expect(key).not.toBeNull();
+  const marker = page.locator(
+    `table.sheet-table tr[data-order="${key}"]`).first();
+  const topBefore = (await marker.boundingBox()).y;
+
+  const more = page.locator('[data-metric="workspace-more"]');
+  const rowsBefore = await dataRows(page).count();
+  await more.click();
+  await expect
+    .poll(async () => (await dataRows(page).count()) !== rowsBefore,
+      { timeout: 10_000 })
+    .toBe(true);
+
+  // Hàng mốc VẪN CÒN (nó thuộc phần mới, không phải phần bị gỡ) và nó vẫn
+  // ở gần đúng chỗ cũ trên màn hình: `trimToBudget` đo chiều cao vừa gỡ và
+  // trả lại đúng bằng `scrollBy`.
+  const after = page.locator(
+    `table.sheet-table tr[data-order="${key}"]`).first();
+  await expect(after).toBeAttached();
+  const topAfter = (await after.boundingBox()).y;
+  expect(Math.abs(topAfter - topBefore)).toBeLessThan(4);
+});

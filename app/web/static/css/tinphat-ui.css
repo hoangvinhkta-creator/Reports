@@ -1139,6 +1139,14 @@ td[data-group] { white-space: nowrap; }
    dòng làm cả hàng cao gấp đôi, và một bảng kê mà mỗi hàng một chiều cao
    khác nhau thì không còn dò theo hàng được nữa — đúng thứ nền xen kẽ theo
    ngày (`§38`) sinh ra để giữ. Chữ đầy đủ đọc qua `title`. */
+/* `UI-04` — TẮT scroll anchoring của trình duyệt trên chính bảng kê.
+   Khi `app.js` gỡ các nhóm cũ nhất (`trimToBudget`), nó ĐO chiều cao vừa
+   mất rồi trả lại bằng `window.scrollBy` — một phép bù CHÍNH XÁC và giống
+   nhau ở mọi trình duyệt. Scroll anchoring của Chrome bù thêm một phần
+   nữa theo heuristic của nó, và hai phép bù chồng lên nhau cho ra một cú
+   nhảy nhỏ (đo được ~46 px ở `workspace-window.spec.mjs`). Một cơ chế bù,
+   không hai. */
+.sheet-table { overflow-anchor: none; }
 .sheet-table[data-optional-hidden] .col-optional { display: none; }
 .sheet-table .col-narrow {
   max-width: 96px; white-space: nowrap; overflow: hidden;

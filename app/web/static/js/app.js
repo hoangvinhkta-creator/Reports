@@ -1006,6 +1006,29 @@
       if (opener && opener.isConnected) opener.focus();
       return;
     }
+
+    /* `UI-05` §6 "focus tooltip". Popover đã ghim được gắn vào cuối
+     * `<body>`, nên Tab từ một điểm dữ liệu sẽ đi tới điểm KẾ TIẾP chứ
+     * không vào popover — thứ tự DOM không phản ánh quan hệ "cái này giải
+     * thích cái kia". Hai phím dưới đây nối hai bên lại:
+     *
+     *     Tab trên điểm ĐANG GHIM  → vào popover (nút bỏ ghim)
+     *     Tab / Shift+Tab trong popover → quay lại đúng điểm ấy
+     *
+     * Đây KHÔNG phải một bẫy focus không lối ra: Escape bỏ ghim và trả
+     * focus về điểm, và nó được xử lý ngay ở khối trên. */
+    if (event.key === "Tab" && pinned && tooltip) {
+      if (tooltip.contains(event.target)) {
+        event.preventDefault();
+        if (pinned.isConnected) pinned.focus();
+        return;
+      }
+      if (event.target === pinned && !event.shiftKey) {
+        var close = tooltip.querySelector('[data-metric="chart-pin-close"]');
+        if (close) { event.preventDefault(); close.focus(); return; }
+      }
+    }
+
     var point = pinnablePoint(event.target);
     if (!point) return;
     if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
@@ -2493,15 +2516,21 @@
 
   /* Gỡ các NHÓM cũ nhất cho tới khi số hàng về trong ngân sách.
    *
-   * Vị trí cuộn: gỡ những hàng nằm TRƯỚC phần người dùng đang nhìn sẽ kéo
-   * nội dung lên đúng bằng chiều cao của chúng. Nên chiều cao bị mất được
-   * đo và trả lại bằng `window.scrollBy` ngay trong cùng một khung hình —
-   * người dùng không thấy màn hình nhảy. */
+   * Gỡ theo NHÓM, không theo hàng lẻ: một BH mang `rowspan` trải qua mọi
+   * dòng hàng của nó, nên gỡ nửa khối để lại `rowspan` trỏ vào những hàng
+   * không còn tồn tại.
+   *
+   * VỊ TRÍ CUỘN. Những hàng bị gỡ nằm TRƯỚC phần người dùng đang nhìn, nên
+   * mọi thứ phía dưới chúng bị kéo LÊN đúng bằng tổng chiều cao vừa mất.
+   * Phép bù phải đo trên một hàng CÒN LẠI (hàng đầu tiên sống sót), không
+   * trên chính cái bảng: mép trên của bảng nằm PHÍA TRÊN chỗ bị gỡ nên nó
+   * không nhúc nhích, và đo ở đó cho ra `shift = 0` — tức không bù gì cả,
+   * đúng lỗi mà bài kiểm cuộn của `workspace-window.spec.mjs` bắt được
+   * (lệch ~4.700 px). */
   function trimToBudget(table) {
     var rows = table.querySelectorAll("tr[data-order]");
     var excess = rows.length - ROW_BUDGET;
     if (excess <= 0) return;
-    var top = table.getBoundingClientRect().top;
     var seen = {};
     var order = [];
     for (var i = 0; i < rows.length; i++) {
@@ -2509,14 +2538,45 @@
       if (!seen[key]) { seen[key] = []; order.push(key); }
       seen[key].push(rows[i]);
     }
-    var removed = 0;
-    for (var j = 0; j < order.length && removed < excess; j++) {
-      var group = seen[order[j]];
-      for (var k = 0; k < group.length; k++) group[k].remove();
-      removed += group.length;
+    var doomed = [];
+    var dropped = 0;
+    var j = 0;
+    for (; j < order.length && dropped < excess; j++) {
+      doomed = doomed.concat(seen[order[j]]);
+      dropped += seen[order[j]].length;
     }
-    var shift = top - table.getBoundingClientRect().top;
-    if (shift) window.scrollBy(0, -shift);
+    if (!doomed.length) return;
+
+    /* Mốc đo là hàng SỐNG SÓT ĐẦU TIÊN CÒN NHÌN THẤY ĐƯỢC, không phải hàng
+     * sống sót đầu tiên nói chung.
+     *
+     * Vì sao khác nhau, và vì sao khác biệt ấy đo được: `<table>` dùng bố
+     * cục AUTO — bề rộng cột tính từ MỌI hàng. Gỡ một trăm hàng có thể đổi
+     * cột rộng nhất, đổi cách chữ xuống dòng, và do đó đổi chiều cao của
+     * những hàng CÒN LẠI, mỗi hàng một chút. Bù theo một hàng nằm ngoài
+     * khung nhìn nên chính xác ở CHỖ ẤY và lệch dần xuống dưới — đo được
+     * ~46 px ở chỗ người dùng đang nhìn. Neo vào đúng hàng người dùng đang
+     * nhìn thì phần lệch rơi vào chỗ không ai nhìn. */
+    var survivors = [];
+    for (var s = j; s < order.length; s++) {
+      survivors = survivors.concat(seen[order[s]]);
+    }
+    var keeper = null;
+    for (var m = 0; m < survivors.length; m++) {
+      if (survivors[m].getBoundingClientRect().bottom > 0) {
+        keeper = survivors[m];
+        break;
+      }
+    }
+    if (!keeper) keeper = survivors[0] || null;
+    var before = keeper ? keeper.getBoundingClientRect().top : null;
+    for (var k = 0; k < doomed.length; k++) doomed[k].remove();
+    if (keeper && keeper.isConnected) {
+      var after = keeper.getBoundingClientRect().top;
+      /* `after < before` (nội dung đi lên) ⟹ cuộn NGƯỢC lên đúng khoảng
+       * ấy, và hàng mốc trở lại đúng chỗ cũ trên màn hình. */
+      if (after !== before) window.scrollBy(0, after - before);
+    }
   }
 
   function loadNextPage(cursor, done) {
@@ -2652,7 +2712,9 @@
       if (!cursor) return;
       event.preventDefault();
       event.stopPropagation();
-      more.disabled = true;
+      /* Không cần vô hiệu hoá `more`: nó là một `<a>` (thuộc tính `disabled`
+       * không có nghĩa trên thẻ ấy), và cửa chặn bấm-hai-lần thật nằm ở cờ
+       * `loading` bên trong `loadNextPage`. */
       loadNextPage(cursor, null);
       return;
     }

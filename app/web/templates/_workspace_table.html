@@ -572,13 +572,20 @@
    Hộp xác nhận của đường KHÔNG-JS vẫn nguyên vẹn ở chỗ cũ
    (`?xac-nhan=loai`, khối `confirm` trong `kinh_doanh_nhan_vien.html`) —
    đây là một bản THỨ HAI của câu chữ ấy trên cùng một trang, nhưng cả hai
-   đọc CÙNG một hằng số, nên chúng không lệch nhau được. #}
+   đọc CÙNG một hằng số, nên chúng không lệch nhau được.
+
+   `data-metric` mang tiền tố `line-confirm-` chứ không dùng lại
+   `confirm-question`/`confirm-point` của hộp không-JS, và đó KHÔNG phải
+   chuyện thẩm mỹ: nội dung `<template>` nằm thật trong tài liệu, nên mọi
+   phép "tìm phần tử mang `data-metric` này" sẽ bắt được bản trong template
+   trước bản đang hiển thị — bộ test của hộp không-JS đã đỏ đúng vì chuyện
+   đó. Hai hộp là hai phần tử khác nhau và mang hai tên khác nhau. #}
 <template data-metric="confirm-copy" data-kind="loai">
   <div class="module confirm-box tp-confirm-pop" data-metric="line-confirm">
-    <h2 data-metric="confirm-question">{{ EXCLUDE_CONFIRM_QUESTION }}</h2>
+    <h2 data-metric="line-confirm-question">{{ EXCLUDE_CONFIRM_QUESTION }}</h2>
     <ul class="reason-list">
       {% for point in EXCLUDE_CONFIRM_POINTS %}
-      <li data-metric="confirm-point">{{ point }}</li>
+      <li data-metric="line-confirm-point">{{ point }}</li>
       {% endfor %}
     </ul>
     <p class="filter-row">
@@ -592,10 +599,10 @@
 </template>
 <template data-metric="confirm-copy" data-kind="khoi-phuc">
   <div class="module confirm-box tp-confirm-pop" data-metric="line-confirm">
-    <h2 data-metric="confirm-question">{{ RESTORE_CONFIRM_QUESTION }}</h2>
+    <h2 data-metric="line-confirm-question">{{ RESTORE_CONFIRM_QUESTION }}</h2>
     <ul class="reason-list">
       {% for point in RESTORE_CONFIRM_POINTS %}
-      <li data-metric="confirm-point">{{ point }}</li>
+      <li data-metric="line-confirm-point">{{ point }}</li>
       {% endfor %}
     </ul>
     <p class="filter-row">

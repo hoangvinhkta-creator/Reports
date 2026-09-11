@@ -143,3 +143,51 @@ test('bấm lại ĐÚNG điểm đang ghim thì bỏ ghim', async ({ page }) =>
   await point.click();
   await expect(tip).toBeHidden();
 });
+
+test('giá trị cơ bản hiện NGAY, trước khi phân rã về', async ({ page }) => {
+  // Phân rã về CHẬM 1,5 giây. Mệnh đề `UI-05` §3: giá trị cơ bản có sẵn
+  // trong trình duyệt (server đã đặt nó trên chính điểm dữ liệu), nên nó
+  // KHÔNG được chờ một request nào.
+  await page.route('**/api/v1/analytics/chart-breakdown*', async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+  const point = page.locator(POINT).nth(10);
+  await point.click();
+
+  const tip = page.locator('.rev-tooltip');
+  // Ngay lập tức (mặc định expect timeout 5s, nhưng nội dung này có sẵn
+  // đồng bộ): con số tiền của mốc đã nằm trong popover.
+  await expect(tip.locator('[data-metric="chart-pin-label"]'))
+    .toContainText('đồng', { timeout: 1000 });
+  // …trong khi phần phân rã vẫn còn đang tải.
+  await expect(tip.locator('[data-metric="chart-pin-loading"]')).toBeVisible();
+  // Rồi nó về và thay đúng chỗ ấy.
+  await expect(tip.locator('[data-metric="chart-pin-summary"]')).toBeVisible();
+  await expect(tip.locator('[data-metric="chart-pin-loading"]')).toHaveCount(0);
+});
+
+test('Tab từ điểm đang ghim đi VÀO popover, và quay lại được', async ({ page }) => {
+  const point = page.locator(POINT).nth(10);
+  await point.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.rev-tooltip')).toHaveClass(/is-pinned/);
+
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(
+    () => document.activeElement.getAttribute('data-metric')))
+    .toBe('chart-pin-close');
+
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(
+    () => document.activeElement.getAttribute('data-metric')))
+    .toBe('chart-bar');
+
+  // Nút trong popover bỏ ghim được và trả focus về đúng điểm.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.rev-tooltip')).toBeHidden();
+  expect(await page.evaluate(
+    () => document.activeElement.getAttribute('data-metric')))
+    .toBe('chart-bar');
+});

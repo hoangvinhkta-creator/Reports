@@ -118,7 +118,7 @@ test('loại một dòng: hộp xác nhận nói hậu quả TRƯỚC, rồi dò
     const box = page.locator('[data-metric="line-confirm"]');
     await expect(box).toBeVisible();
     await expect(box).toHaveClass(/is-anchored/);
-    await expect(box.locator('[data-metric="confirm-point"]').first())
+    await expect(box.locator('[data-metric="line-confirm-point"]').first())
       .toContainText('doanh thu');
     // Chưa ghi gì: dòng vẫn còn nguyên trên bảng.
     await expect(page.locator(rowSelector)).toHaveCount(1);
