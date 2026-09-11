@@ -181,6 +181,13 @@ class CurrentState:
     result_version_id: Optional[int] = None
     result_fingerprint: Optional[str] = None
     result_values: Optional[tuple] = None
+    #: `R7` — ``(customer_name, customer_phone, customer_address)`` ĐANG lưu
+    #: trên version hiện hành. Ba trường này KHÔNG thuộc ``FINGERPRINT_FIELDS``
+    #: (chúng không phải nội dung nghiệp vụ của dòng), nên một dòng ``SAME``
+    #: giữ nguyên version cũ kể cả khi sổ nạp lần này mang liên hệ khác. Mang
+    #: giá trị đang lưu ra đây để ``_refresh_contact_fields`` so được và chỉ
+    #: ghi khi thật sự khác. ``None`` = chưa đọc (mọi nơi dựng object bằng tay).
+    contact_values: Optional[tuple] = None
 
     @property
     def next_version_no(self) -> int:

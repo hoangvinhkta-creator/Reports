@@ -14306,3 +14306,59 @@ Ghi tại `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5-4",
 - `PROJECT/PROJECT_PROGRESS.md` — CANONICAL CURRENT STATE `S152`.
 
 Bằng chứng nguyên văn: `docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`.
+
+## DEC-222
+
+Ngày: 2026-09-11
+Phiên: `S153` — Owner giao ba việc kèm ba sổ thô (2025, 2026 01–08, tháng
+9 đang nạp) và ảnh chụp tab Nhân viên.
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (`R7`).
+
+### §1. Yêu cầu nguyên văn
+
+> "1. giá nhập các mã cũ vẫn chưa đọc được. Kiểm tra lại giúp tôi phần truy
+> xuất mã từ lịch sử giá min đang gặp vấn đề gì, ngoài ra cả thông tin
+> khách hàng và số điện thoại cũng đang không truy xuất được
+> 2. biểu đồ ngày: hiển thị trên biểu đồ là dải 30 ngày sửa lại từ 1 đến
+> cuối tháng, hiển thị đường doanh số tháng này kì trước và tháng này kì này
+> đến hiện tại. Thể hiện với tốc độ này thì cuối tháng sẽ đạt được bao nhiêu
+> % so với kì trước — áp dụng cho cả tuần - tháng - quý - năm
+> Biểu đồ số đơn: kiểm tra 2 file thô này, lọc ra duy nhất thông tin số đơn
+> để bổ sung dữ liệu cho biểu đồ để có đầy đủ thông số"
+
+### §2. Quyết định
+
+1. **Liên hệ (`R7 §A`)** — sửa: dòng `SAME` được làm mới ba cột liên hệ tại
+   chỗ từ sổ đang nạp. Đây là ngoại lệ hẹp thứ hai của luật append-only
+   (sau bảng con trỏ), canh bằng AST: chỉ một hàm, chỉ ba cột, không xoá.
+2. **Giá MIN (`R7 §B`)** — KHÔNG sửa code. Kết luận: ngày bán trước khi
+   Tracking bắt đầu chụp MIN ngày (R1, 2026-09-07) không có bản ngày ⟹
+   `SOURCE_UNAVAILABLE` ⟹ `—`, đúng thiết kế R1 (không nhánh dự phòng).
+3. **Biểu đồ (`R7 §C`)** — cửa sổ đổi từ "N mốc kết thúc ở mép phải"
+   (`DEC-211`) sang CONTAINER LỊCH; so sánh vẫn cùng kỳ NĂM TRƯỚC (đọc
+   "tháng này kì trước" là tháng này của năm trước — đúng đường gapfill 2025
+   mà `DEC-216` đã mở cho mục đích này); đường hiện tại dừng ở mốc neo; thêm
+   dự phóng hết kỳ (trình bày, không chỉ tiêu). Áp dụng Ngày/Tuần/Tháng/
+   Quý; Năm giữ 5 mốc, dự phóng năm nay so năm trước.
+4. **Số đơn (`R7 §D`)** — nguồn lấp lỗ hổng thứ hai `daily_orders.jsonl`,
+   cùng ba ràng buộc của `DEC-216`, nối ở mọi mức gộp (không có tổng tháng
+   lịch sử nào cho số đơn). Sổ tháng 9 đang nạp KHÔNG đưa vào nguồn.
+5. Merge thẳng theo chỉ thị Owner; `CHECK-R7-13` chờ Owner.
+
+### §3. Ngân sách
+
+Root task MỚI `R7` (`PROJECT/REVIEW_BUDGET_LEDGER.md`), `effective_risk:
+MEDIUM`, 1 cycle, chưa dùng. Không thuộc lineage `R5`/`R6`.
+
+### §4. Việc để lại cho Owner quyết (giá MIN trước 07/09)
+
+- (1) Chấp nhận: nhập tay giá cho đơn trước 07/09 (đường có sẵn).
+- (2) Tracking backfill bản ngày cho các ngày trước 07/09 nếu Engine còn dữ
+  liệu lịch sử — việc bên Tracking.
+- (3) Mở lại nhánh dự phòng `tp/ton` cho ngày không có bản ngày — đổi thẩm
+  quyền giá đã chốt ở R1, cần một DEC riêng.
+- 06/09 và 09/09 `—` dù sau 07/09: cần đọc nhật ký cron `min-ngay-chu-ky`
+  bên Tracking; chưa xác minh trong phiên này.
+
+Bằng chứng nguyên văn: `docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`.

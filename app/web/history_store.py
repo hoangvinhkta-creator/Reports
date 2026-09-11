@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Mapping, Optional
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import bindparam, func, insert, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -572,6 +572,9 @@ class SnapshotWriteResult:
     #: R3 §1 — số chỗ hệ thống TỪ CHỐI tự ghép dòng vào khoá cũ. `0` là kết
     #: quả bình thường; khác `0` nghĩa là có việc đang chờ Owner.
     ambiguous_bindings: int = 0
+    #: `R7` — số dòng ``SAME`` mà ba trường liên hệ (Tên KH · SĐT · Địa chỉ)
+    #: được LÀM MỚI tại chỗ từ sổ đang nạp. Xem ``_refresh_contact_fields``.
+    contact_refreshed: int = 0
 
 
 @dataclass(frozen=True)
@@ -711,6 +714,9 @@ class SnapshotRepository:
                 versions = self._insert_source_versions(
                     connection, snapshot_id, created_at, outcome.decisions, current,
                 )
+                contact_refreshed = self._refresh_contact_fields(
+                    connection, outcome.decisions, current,
+                )
                 self._insert_membership(connection, snapshot_id, outcome.decisions, versions)
                 results = self._insert_result_versions(
                     connection, snapshot_id, run_id, created_at, result_lines,
@@ -740,7 +746,7 @@ class SnapshotRepository:
             raise HistoryUnavailableError(str(exc)) from exc
         return SnapshotWriteResult(
             snapshot_id, counts, duplicate_of, len(absent),
-            len(binding.ambiguities),
+            len(binding.ambiguities), contact_refreshed,
         )
 
     @staticmethod
@@ -906,6 +912,10 @@ class SnapshotRepository:
                     order_line_source_version.c.note_raw,
                     order_line_source_version.c.employee_raw,
                     order_line_source_version.c.source_profit,
+                    # `R7` — xem `CurrentState.contact_values`.
+                    order_line_source_version.c.customer_name,
+                    order_line_source_version.c.customer_phone,
+                    order_line_source_version.c.customer_address,
                     order_line_result_version.c.id.label("result_version_id"),
                     order_line_result_version.c.result_fingerprint,
                     order_line_result_version.c.status,
@@ -934,6 +944,10 @@ class SnapshotRepository:
                     result_values=(
                         row.status, row.accounting_purchase_price,
                         row.eligible_kpi_profit,
+                    ),
+                    contact_values=(
+                        row.customer_name, row.customer_phone,
+                        row.customer_address,
                     ),
                 )
         return state
@@ -986,6 +1000,76 @@ class SnapshotRepository:
             if not decision.creates_version:
                 versions[decision.line.key] = current[decision.line.key].source_version_id
         return versions
+
+    @staticmethod
+    def _refresh_contact_fields(connection, decisions, current) -> int:
+        """`R7` — làm mới Tên KH · SĐT · Địa chỉ của dòng ``SAME`` từ sổ đang nạp.
+
+        ## Lỗi production mà hàm này đóng
+
+        Owner báo (kèm ảnh chụp, 2026-09-11): tab Nhân viên hiện `—` ở Khách
+        hàng và Liên hệ cho một số đơn đầu tháng 9, trong khi chính sổ kế toán
+        tháng 9 đang nạp CÓ đủ tên và số điện thoại ở đúng những dòng đó
+        (đối chiếu trực tiếp trên file: BH73884, BH73914, BH73700, BH73922,
+        BH73923 — không dòng nào trống).
+
+        Cơ chế: ba trường liên hệ KHÔNG thuộc ``FINGERPRINT_FIELDS`` — đúng
+        theo thiết kế, vì chúng không phải nội dung nghiệp vụ của dòng (không
+        đổi tiền, không đổi danh tính). Hệ quả là một dòng đã có version từ
+        một lần nạp trước được reconcile thành ``SAME`` và GIỮ NGUYÊN version
+        cũ, kể cả khi version ấy được ghi lúc liên hệ còn trống (sổ xuất sớm
+        chưa điền, hoặc một bản đọc cũ hơn). Sổ nạp lần sau có đủ liên hệ
+        cũng không bao giờ đưa được nó lên màn hình, và không cờ nào bật —
+        vì theo mọi phép đo đang có, dòng "không đổi".
+
+        ## Vì sao UPDATE tại chỗ, không tạo version mới
+
+        Đây là nơi THỨ HAI của tầng này được UPDATE (nơi thứ nhất là bảng con
+        trỏ), và nó hẹp có chủ ý: chỉ ba cột liên hệ, chỉ trên version ĐANG
+        hiện hành, chỉ cho dòng ``SAME``. Tạo một version mới với CÙNG
+        fingerprint sẽ đụng đúng hợp đồng ``SAME`` mà slice A của PRA-002 đã
+        nghiệm thu ("``SAME`` là nhánh DUY NHẤT không ghi source version
+        mới"), làm lệch ``version_no`` và mọi bằng chứng "sổ có đổi hay
+        không". Ba cột này không tham gia fingerprint, không tham gia một
+        quyết định nào của Owner, không đi vào một phép tính tiền nào — nên
+        làm mới chúng tại chỗ không đổi một bản ghi nghiệp vụ nào.
+
+        ## Không xoá thứ đang có bằng một ô trống
+
+        Chỉ ghi khi sổ đang nạp CÓ ít nhất một giá trị VÀ bộ ba khác bộ ba
+        đang lưu. Một sổ xuất vội với cột liên hệ trống không được phép xoá
+        tên khách hàng mà lần nạp trước đã đọc được: làm màn hình nói ÍT hơn
+        vì một file thiếu là một hồi quy, không phải một phép thận trọng.
+        Trả về số dòng đã làm mới, để ``SnapshotWriteResult`` nói ra.
+        """
+        updates = []
+        for decision in decisions:
+            if decision.creates_version or not decision.becomes_current:
+                continue
+            state = current.get(decision.line.key)
+            if state is None:
+                continue
+            incoming = (decision.line.customer_name, decision.line.customer_phone,
+                        decision.line.customer_address)
+            if not any(value for value in incoming):
+                continue
+            if state.contact_values is not None and tuple(state.contact_values) == incoming:
+                continue
+            updates.append({
+                "version_id": state.source_version_id,
+                "customer_name": incoming[0], "customer_phone": incoming[1],
+                "customer_address": incoming[2],
+            })
+        if updates:
+            connection.execute(
+                update(order_line_source_version)
+                .where(order_line_source_version.c.id == bindparam("version_id"))
+                .values(customer_name=bindparam("customer_name"),
+                        customer_phone=bindparam("customer_phone"),
+                        customer_address=bindparam("customer_address")),
+                updates,
+            )
+        return len(updates)
 
     @staticmethod
     def _insert_membership(connection, snapshot_id, decisions, versions) -> None:

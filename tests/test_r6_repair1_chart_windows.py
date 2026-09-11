@@ -260,16 +260,18 @@ def window_spans(granularity: str, anchor: date):
     Dựng từ chính `window_slots` + `_bucket_span` của engine, nên nó không mở
     ra một phép tính cửa sổ thứ hai để trôi khỏi cái đang chạy thật.
     """
-    size = revenue_timeline.COMPARISON_WINDOW_SIZES[granularity]
-    spans = []
-    for window_anchor in (anchor,
-                          revenue_timeline.comparison_anchor(
-                              granularity, anchor, size)):
-        slots = revenue_timeline.window_slots(granularity, window_anchor, size)
-        low = revenue_timeline._bucket_span(slots[0][0], granularity)[0]
-        high = revenue_timeline._bucket_span(slots[-1][0], granularity)[1]
-        spans.append((low, high))
-    return spans
+    # `R7 §C` — cửa sổ là CONTAINER LỊCH; đường hiện tại dừng ở mốc neo nên
+    # cận trên của cửa sổ hiện tại là cuối MỐC chứa `anchor`, không phải cuối
+    # container.
+    slots = revenue_timeline.container_slots(granularity, anchor)
+    low = revenue_timeline._bucket_span(slots[0][0], granularity)[0]
+    high = revenue_timeline._bucket_span(
+        revenue_timeline.bucket_of(anchor, granularity)[0], granularity)[1]
+    previous = revenue_timeline.container_slots(
+        granularity, revenue_timeline.comparison_anchor(granularity, anchor))
+    prev_low = revenue_timeline._bucket_span(previous[0][0], granularity)[0]
+    prev_high = revenue_timeline._bucket_span(previous[-1][0], granularity)[1]
+    return [(low, high), (prev_low, prev_high)]
 
 
 def comparison_range(block: str) -> str:
@@ -422,7 +424,8 @@ def test_a_custom_range_anchors_the_window_on_its_own_end_date(live):
                   "?tu-ngay=2026-09-01&den-ngay=2026-09-20&muc=ngay"),
         "bieu-do-doanh-thu-r6")
     current = current_points(block)
-    # Neo = 20/09 ⟹ cửa sổ hiện tại 21/08–20/09 ⟹ mốc 25/09 KHÔNG được có mặt.
+    # Neo = 20/09 ⟹ đường hiện tại DỪNG ở 20/09 (`R7 §C`) ⟹ mốc 25/09 KHÔNG
+    # được có mặt dù nó nằm trong container tháng 9.
     assert "2026-09-25" not in current
     assert current.get("2026-09-05") == "11000000"
     # …và cửa sổ so sánh (21/08/2025–20/09/2025) vẫn nạp đủ dữ liệu thật của
@@ -470,12 +473,10 @@ def test_a_bucket_outside_any_confirmed_range_stays_a_gap_not_a_zero(live):
         "bieu-do-doanh-thu-r6")
     span = revenue_timeline.paired_window_span("tuan", ANCHOR)
     charted = {*current_points(block), *comparison_points(block)}
-    weeks = revenue_timeline.COMPARISON_WINDOW_SIZES["tuan"]
     earliest = min(span["start"] for span in CONFIRMED_RANGES)
     before_confirmed = [
-        key for key, _label in revenue_timeline.window_slots(
-            "tuan", revenue_timeline.comparison_anchor("tuan", ANCHOR, weeks),
-            weeks)
+        key for key, _label in revenue_timeline.container_slots(
+            "tuan", revenue_timeline.comparison_anchor("tuan", ANCHOR))
         if date.fromisoformat(key) < earliest]
     assert before_confirmed, "fixture phải có mốc ngoài khoảng xác nhận"
     assert not (set(before_confirmed) & charted), (

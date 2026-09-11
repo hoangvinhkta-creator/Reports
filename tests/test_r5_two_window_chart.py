@@ -5,10 +5,12 @@ theo container lịch của kỳ đang xem, Quý nhìn toàn bộ dòng thời g
 có gì để so với cái gì — người đọc phải nhớ tháng trước bằng đầu.
 
 Quyết định Owner 08/09/2026 (`DEC-R5-02`) dựng hai cửa sổ LIỀN KỀ cùng độ
-dài. Quyết định Owner 09/09/2026 (`DEC-211`) giữ nguyên "cùng độ dài" — vẫn
-là lý do bỏ cách khoanh theo container lịch, vì tháng 2 có 28 ngày còn tháng 3
-có 31 — nhưng đổi cửa sổ so sánh sang CÙNG KỲ NĂM TRƯỚC ở CẢ NĂM mức, và đổi
-độ dài thành 31 ngày · 13 tuần · 12 tháng · 4 quý · 5 năm.
+dài. Quyết định Owner 09/09/2026 (`DEC-211`) giữ nguyên "cùng độ dài" nhưng đổi
+cửa sổ so sánh sang CÙNG KỲ NĂM TRƯỚC ở CẢ NĂM mức. Quyết định Owner
+11/09/2026 (`R7 §C`, `DEC-222`) đổi cửa sổ thành CONTAINER LỊCH — Ngày trong
+một tháng (01 → cuối tháng), Tuần trong một quý, Tháng/Quý trong một năm, Năm
+5 mốc — so với đúng container ấy của năm trước; đường hiện tại dừng ở mốc neo
+("đến hiện tại"), và có dự phóng hết kỳ.
 
 Hai bất biến phải sống sót qua thay đổi này, và cả hai được canh ở đây:
 
@@ -67,60 +69,82 @@ def bars(html: str, metric_name: str = "chart-bar") -> dict:
     }
 
 
-# --- 1. Bốn mức đều có hai đường, cửa sổ đúng độ dài ----------------------
+# --- 1. Năm mức đều có hai đường, cửa sổ là CONTAINER LỊCH (`R7 §C`) -------
 
 GRAN_KEYS = {"ngay": rt.DAY, "tuan": rt.WEEK, "thang": rt.MONTH,
              "quy": rt.QUARTER, "nam": rt.YEAR}
 
 
 @pytest.mark.parametrize("gran,size", [
-    ("ngay", 31), ("tuan", 13), ("thang", 12), ("quy", 4), ("nam", 5),
+    ("ngay", 30), ("tuan", 14), ("thang", 12), ("quy", 4), ("nam", 5),
 ])
-def test_every_granularity_draws_two_windows_of_the_same_length(
+def test_every_granularity_draws_two_windows_on_the_calendar_container(
     repository, client, gran, size,
 ):
-    """`DEC-211` — CẢ NĂM mức có đường so sánh, kể cả Năm."""
+    """`R7 §C` — Owner: "dải 30 ngày sửa lại từ 1 đến cuối tháng", áp dụng
+    cho cả tuần/tháng/quý/năm. Neo 30/09/2026: Ngày = 30 ngày của tháng 9,
+    Tuần = 14 tuần ISO chạm Quý 3 (29/06 → 28/09), Tháng = 12, Quý = 4,
+    Năm = 5 (không có container trên năm)."""
     persist(repository, [line("BH1", "43F6000", day=5, sell="8000000")])
     html = body(client, f"/kinh-doanh?muc={gran}&ky=2026-09")
 
-    assert rt.COMPARISON_WINDOW_SIZES[GRAN_KEYS[gran]] == size
     assert 'data-metric="chart-legend-current"' in html
     assert 'data-metric="chart-legend-comparison"' in html
-    # Trục X mang đúng `size` vị trí, và cả hai cửa sổ dùng chung nó.
-    slots = rt.window_slots(GRAN_KEYS[gran], date(2026, 9, 30), size)
+    slots = rt.container_slots(GRAN_KEYS[gran], date(2026, 9, 30))
     assert len(slots) == size
 
 
-@pytest.mark.parametrize("gran,size", [
-    ("ngay", 31), ("tuan", 13), ("thang", 12), ("quy", 4), ("nam", 5),
-])
-def test_the_comparison_window_is_the_same_period_one_year_earlier(gran, size):
-    """`DEC-211` — không còn "cửa sổ liền trước": lùi ĐÚNG một năm.
+def test_the_day_window_runs_from_the_first_to_the_last_day_of_the_month():
+    slots = rt.container_slots(rt.DAY, date(2026, 9, 10))
+    assert slots[0][0] == "2026-09-01" and slots[-1][0] == "2026-09-30"
+    assert len(rt.container_slots(rt.DAY, date(2026, 2, 10))) == 28
+    assert len(rt.container_slots(rt.DAY, date(2028, 2, 10))) == 29
 
-    Kiểm ở mức giá trị thuần, trên chính hai hàm dựng cửa sổ, nên nó nói về
-    LUẬT chứ không về một lần dựng trang cụ thể.
-    """
+
+@pytest.mark.parametrize("gran", ["ngay", "tuan", "thang", "quy", "nam"])
+def test_the_comparison_window_is_the_same_container_one_year_earlier(gran):
+    """`DEC-211` giữ nguyên ở điểm này: cùng kỳ NĂM TRƯỚC, không phải cửa sổ
+    liền trước — nay là container của năm trước."""
     key = GRAN_KEYS[gran]
     anchor = date(2026, 9, 10)
-    current = rt.window_slots(key, anchor, size)
-    comparison = rt.window_slots(
-        key, rt.comparison_anchor(key, anchor, size), size)
-
-    assert len(current) == len(comparison) == size
-    # Mốc cuối của cửa sổ so sánh là chính mốc ấy, lùi một năm.
-    assert comparison[-1][0] == rt.bucket_of(
-        rt._same_period_last_year(key, anchor), key)[0]
-    # ...và mốc đầu cũng vậy: hai cửa sổ lệch nhau ĐÚNG một năm, không phải
-    # một cửa sổ.
-    first_anchor = rt._step_back(key, anchor, size - 1)
-    assert comparison[0][0] == rt.bucket_of(
-        rt._same_period_last_year(key, first_anchor), key)[0]
+    current = rt.container_slots(key, anchor)
+    comparison = rt.container_slots(key, rt.comparison_anchor(key, anchor))
+    # Mốc "cùng ngày năm trước" của mốc neo nằm TRONG container so sánh.
+    assert rt.bucket_of(rt._same_period_last_year(key, anchor), key)[0] in {
+        slot_key for slot_key, _label in comparison}
+    low, high = rt.container_bounds(key, anchor)
+    prev_low, prev_high = rt.container_bounds(key, rt.comparison_anchor(key, anchor))
+    assert (low.year - prev_low.year, high.year - prev_high.year) == (1, 1)
+    assert len(current) - len(comparison) in (-1, 0, 1)
 
 
-def test_the_month_window_compares_against_the_same_twelve_months_last_year(
+def test_a_leap_february_pads_the_shorter_window_with_a_blank_slot():
+    """Hai container lệch một mốc ⟹ cửa sổ ngắn hơn được ĐỆM một mốc trống,
+    không mang số, không mang khoá lịch — hai đường vẫn chung một trục."""
+    paired = rt.paired_series([], granularity=rt.DAY, anchor=date(2028, 2, 29))
+    assert paired.size == 29
+    pad = paired.comparison[-1]
+    assert pad.is_gap and pad.key.startswith(rt.PAD_KEY_PREFIX) and pad.label == ""
+    assert not any(slot.key.startswith(rt.PAD_KEY_PREFIX) for slot in paired.current)
+
+
+def test_the_current_line_stops_at_the_anchor_and_the_comparison_runs_the_whole_container():
+    """"Tháng này đến hiện tại" so với "tháng này năm trước TRỌN tháng"."""
+    points = [rt.Point(key=f"2026-09-{day:02d}", label="", revenue=Decimal(1),
+                       origin=rt.ORIGIN_CURRENT) for day in (5, 10, 25)]
+    points += [rt.Point(key=f"2025-09-{day:02d}", label="", revenue=Decimal(1),
+                        origin=rt.ORIGIN_CURRENT) for day in (5, 25)]
+    paired = rt.paired_series(points, granularity=rt.DAY, anchor=date(2026, 9, 20))
+    drawn = {slot.key for slot in paired.current if not slot.is_gap}
+    assert drawn == {"2026-09-05", "2026-09-10"}, "25/09 nằm SAU mốc neo"
+    previous = {slot.key for slot in paired.comparison if not slot.is_gap}
+    assert previous == {"2025-09-05", "2025-09-25"}
+
+
+def test_the_month_window_compares_against_the_same_year_last_year(
     repository, client,
 ):
-    """Ở mức Tháng, một năm ĐÚNG BẰNG một cửa sổ — hai cửa sổ vẫn không chồng."""
+    """Ở mức Tháng container là NĂM: 01→12/2026 so với 01→12/2025."""
     persist(repository, [
         line("BH1", "43F6000", month=9, day=5, sell="8000000"),
         line("BH2", "XP352", month=6, day=5, sell="3000000"),
@@ -130,8 +154,8 @@ def test_the_month_window_compares_against_the_same_twelve_months_last_year(
     assert set(current) & set(previous) == set(), "hai cửa sổ không được chồng nhau"
     assert "2026-09" in current and "2026-06" in current
     scope = metric(html, "chart-scope")
-    assert "10/2025 → 09/2026" in scope
-    assert "10/2024 → 09/2025" in scope
+    assert "01/2026 → 12/2026" in scope
+    assert "01/2025 → 12/2025" in scope
 
 
 # --- 2. Một engine doanh thu, không công thức thứ hai --------------------
@@ -194,8 +218,8 @@ def test_a_confirmed_complete_range_does_turn_an_empty_day_into_a_real_zero(
 
     current = bars(body(client, "/kinh-doanh?muc=ngay&ky=2026-09"))
     assert current["2026-09-05"] == Decimal("8000000")
-    # `DEC-211` neo mép phải vào ngày có dữ liệu MỚI NHẤT (05/09), nên ngày
-    # trống được kiểm phải nằm TRONG cửa sổ 31 ngày kết thúc ở đó.
+    # Mốc neo là ngày có dữ liệu MỚI NHẤT (05/09); ngày trống được kiểm phải
+    # nằm TRƯỚC nó trong container tháng 9 (`R7 §C`: sau mốc neo là trống).
     assert current["2026-09-04"] == Decimal("0"), (
         "đã xác nhận đầy đủ ⟹ ngày trống là số 0 THẬT, không phải khoảng trống")
 
