@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -448,6 +449,38 @@ def _pull_daily_min(
         "daily_min_product_codes": len(plan.product_codes),
         "daily_min_windows": len(parts),
         "daily_min_query_revision": data.get("query_revision"),
+        **tom_tat_tra_loi(data, so_ma=len(plan.product_codes)),
+    }
+
+
+def tom_tat_tra_loi(data: dict[str, Any], *, so_ma: int) -> dict[str, Any]:
+    """Tóm tắt hợp đồng đã TRẢ LỜI gì — để một báo cáo đủ hình thức mà không có
+    giá vốn tự nói ra vì sao.
+
+    File capture bị xoá ngay sau lần chạy (`S071 §10`), còn `pending_reasons`
+    trên từng dòng chỉ ghi `TRACKING_DAILY_MIN_PENDING` cho CẢ hai trường hợp
+    khác hẳn nhau: Tracking không có bản ngày cho ngày ấy (`SOURCE_UNAVAILABLE`
+    — cron chưa chụp/chưa dựng lại ngày đó) và Tracking có bản ngày nhưng mã
+    ấy không có mốc giá (`NO_DATA`). Hai chuyện ấy cần hai hành động khác
+    nhau, và không cái nào đọc ra được từ màn hình. Ghi thẳng vào bằng chứng
+    của lần chạy: bao nhiêu bản ghi, bao nhiêu lỗi theo từng lý do, và những
+    NGÀY mà mọi mã đều `SOURCE_UNAVAILABLE` — đó chính là danh sách ngày
+    Tracking chưa quan sát.
+    """
+    records = data.get("records") or []
+    errors = [e for e in (data.get("errors") or []) if isinstance(e, dict)]
+    ly_do: Counter = Counter(str(e.get("reason") or "?") for e in errors)
+    chua_quan_sat: Counter = Counter(
+        str(e.get("effective_date"))
+        for e in errors if e.get("reason") == "SOURCE_UNAVAILABLE"
+    )
+    return {
+        "daily_min_records": len(records),
+        "daily_min_errors": len(errors),
+        "daily_min_error_reasons": dict(sorted(ly_do.items())),
+        "daily_min_unobserved_dates": sorted(
+            ngay for ngay, n in chua_quan_sat.items() if so_ma and n >= so_ma
+        ),
     }
 
 

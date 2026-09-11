@@ -14642,3 +14642,122 @@ cùng phiên — số finding không còn phụ thuộc UID. Full `pytest`:
 `3659 passed, 23 skipped, 4 deselected in 263.38s (0:04:23)`.
 
 Bằng chứng nguyên văn: `docs/sessions/S155-fix-ci-reference-integrity-crash.md`.
+
+## DEC-226
+
+Ngày: 2026-09-11
+Phiên: `S156` — Owner: "kiểm tra vấn đề thực sự ở đâu thay vì đoán" (hai
+ảnh banner đỏ `nguồn: daily_min` / `nguồn: catalog`, và sổ nhẹ 01–03/09
+chạy xong mà không dòng Tracking nào có giá MIN).
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (phần Reports); phần Tracking là một
+việc vận hành của Owner (mục §5).
+
+### §1. Điều đã XÁC MINH từ code — không phải suy đoán
+
+**1a. Hai banner đỏ giấu mất lý do, và log cũng không giữ.**
+`app/web/server.py` bắt `TrackingUnavailableError` rồi chỉ đưa `exc.node`
+vào banner; `exc.reason` (chuỗi `failure_reason` của lượt capture) không
+đi vào banner, không đi vào dòng `reports.timing`, không được `print` ở
+đâu cả. Thêm nữa, khi Tracking từ chối bằng một mã HTTP (409
+`nguon-dang-ghi` lúc cron chụp Min đang mở khoảng `WRITING`; 409
+`trang-doc-khong-nhat-quan`; 413 `khoang-ngay-qua-dai`; 403 từ WAF), `urllib`
+ném `HTTPError` và cả hai client (`tools/tracking/capture_purchase_price_history.py`
+cho `catalog`/`alias`/`inv_map`/`purchase_price_history`,
+`tools/tracking/capture_daily_min.py` cho `daily_min`) chỉ ghi
+`HTTP Error 409: Conflict` — thân phản hồi `{"ok": false, "ly": "..."}` bị
+vứt. Hệ quả: một timeout, một 409 do cron và một 403 do WAF để lại ĐÚNG
+cùng một dấu vết. Lý do của hai lần thất bại trong ảnh Owner gửi **không
+còn truy lại được** — không phải vì thiếu log, mà vì hệ thống chưa từng
+ghi nó. Đây là lỗi thật của Reports, sửa ở §3.
+
+**1b. Sổ 01–03/09 không có giá MIN — đúng hợp đồng, và lý do là một
+việc vận hành chưa làm.** Hợp đồng `daily-min-v1` (Tracking, hàm
+`xuatMinNgay()` trong src/min-ngay.js bên đó) trả `SOURCE_UNAVAILABLE` cho
+MỌI mã ở một ngày không có bản ngày `PROVISIONAL`/`FINAL` (`coQuanSat(d)`).
+Bản ngày do cron chụp chỉ tồn tại từ mốc R1 (07/09/2026 — `DEC-222` §4,
+`S153`). Với 01–03/09, cách DUY NHẤT để có bản ngày là lượt dựng lại `R7`
+bên Tracking: `POST /api/min-ngay/dung-lai` — admin, cần header
+`Authorization: Bearer <Firebase ID token>`, KHÔNG có nút nào trên giao
+diện Tracking gọi nó (đã quét toàn bộ mã giao diện), tài liệu tiến độ bên
+Tracking ghi "Cách chạy (admin, sau khi deploy)" và khối canonical `S154`
+ở `PROJECT/PROJECT_PROGRESS.md` ghi rõ đây là "Việc của Owner". Không có
+bằng chứng nào cho thấy nó đã được gọi. Đọc file Owner gửi bằng chính
+`app/modules/importing/raw_reader.py`: 139 dòng, 104 đơn, đúng hai ngày
+`2026-09-01` (56) và `2026-09-03` (83), 102 tên hàng khác nhau — sổ này
+KHÔNG chạm ngày nào ≥ 07/09, nên không dòng Tracking nào có thể có giá
+chừng nào lượt dựng lại chưa chạy.
+
+**1c. Màn hình không phân biệt được hai chuyện khác hẳn nhau.** Reports
+gói cả `SOURCE_UNAVAILABLE` (Tracking chưa có bản ngày) lẫn `NO_DATA` (có
+bản ngày, mã không có mốc) vào cùng một `pending_reasons` =
+`TRACKING_DAILY_MIN_PENDING` ("Chưa có giá nhập cho đúng ngày bán") —
+`app/modules/pricing/resolution/composition.py` `_daily_min_branch()`. Chi
+tiết phân biệt chỉ nằm trong `unresolved_detail`, không hiển thị, và file
+capture bị xoá ngay sau lần chạy (`S071 §10`). Nên kể cả khi Owner mở tab
+Giá nhập cũng không biết phải đi làm gì: gọi dựng lại, hay tra mã.
+
+**1d. Điều KHÔNG xác minh được từ đây** (nói ra, không đoán): lượt dựng
+lại đã được gọi hay chưa; lý do cụ thể của hai banner trong ảnh (đã mất
+theo 1a); Tracking `main` sau `PR #31` (đọc mã song song theo lô) đã lên
+production chưa — build check trên PR xanh, còn deploy của `main` không
+đọc được từ phiên này.
+
+### §2. Ranh giới sửa
+
+MICRO, chỉ Reports, chỉ khả năng chẩn đoán: không đổi luật giá, không đổi
+hợp đồng, không thử lại tự động (thiết kế `gop_khoang()` cố ý không thử
+lại — giữ nguyên; nay lý do 409 hiện ra thì "thử lại" là hành động có căn
+cứ chứ không phải phản xạ).
+
+### §3. Sửa
+
+1. `mo_ta_loi_http()` (`tools/tracking/capture_purchase_price_history.py`,
+   dùng chung với `tools/tracking/capture_daily_min.py`): với `HTTPError`,
+   đọc thân phản hồi có trần 2048 byte, lấy `ly` nếu là JSON → thông điệp
+   `HTTP 409 ly=nguon-dang-ghi`; thân không phải JSON (trang HTML của WAF)
+   → chỉ `HTTP 403`, không kéo trang HTML vào. Thân là của máy chủ, không
+   mang header, nên không mang secret.
+2. `tom_tat_tra_loi()` (`tools/tracking/live_pull.py`): bằng chứng lần chạy
+   nay có `daily_min_records`, `daily_min_errors`,
+   `daily_min_error_reasons` (đếm theo lý do), `daily_min_unobserved_dates`
+   (những ngày mà MỌI mã đều `SOURCE_UNAVAILABLE` — chính là danh sách ngày
+   Tracking chưa quan sát).
+3. `app/web/server.py`: hai dòng stdout mới, cùng chỗ Owner đọc
+   `reports.timing` trên Render —
+   `reports.tracking_pull trace=… daily_min_status=… codes=… records=…
+   errors=… reasons=SOURCE_UNAVAILABLE:156 unobserved_dates=2026-09-01,…`
+   sau mỗi lượt kéo thành công, và
+   `reports.tracking_failed trace=… node=… reason="…"` khi thất bại.
+   Banner đỏ mang thêm lý do sau tên node.
+
+### §4. Bằng chứng
+
+Sáu bài kiểm mới (`tests/test_tracking_contract_client.py` ×3,
+`tests/test_daily_min_orchestration.py` ×1, `tests/test_web_server.py` ×2)
+— chạy trên bản TRƯỚC sửa (`git stash` bốn file nguồn): 7 hỏng (kể cả bài
+cũ được siết thêm); sau sửa: cả file pass. Full `pytest`: 3665 passed, 23 skipped, 4 deselected in 205.28s (0:03:25).
+
+### §5. Việc của Owner — theo thứ tự
+
+1. **Gọi lượt dựng lại** (một lần cho 01–06/09; trần 14 ngày mỗi lượt):
+   mở app Tracking (price.tinphatcrm.com) đã đăng nhập tài khoản admin →
+   Console của trình duyệt → chạy:
+   ```js
+   const tok = await FBUSER.getIdToken();
+   const r = await fetch("/api/min-ngay/dung-lai", {
+     method: "POST",
+     headers: { "Authorization": "Bearer " + tok, "Content-Type": "application/json" },
+     body: JSON.stringify({ tu: "2026-09-01", den: "2026-09-06", ly: "Backfill trước mốc R1 07/09" }),
+   });
+   console.log(r.status, await r.json());
+   ```
+   Kỳ vọng `{ok: true, nNgay: 6, nGhi: …, ngays: […]}`; một ngày đã có bản
+   ngày sẽ hiện `bo: "da-co-ban-ngay"` (bị bỏ qua, đúng thiết kế).
+2. Chạy lại sổ 01–03/09. Trên Render, đọc dòng `reports.tracking_pull`:
+   `records` phải > 0 và `unobserved_dates=-`. Nếu vẫn `reasons=NO_DATA:…`
+   thì đó là mã không có mốc giá trong nhật ký — chuyện KHÁC, tra theo mã.
+3. Lần tới gặp banner đỏ: đọc dòng `reports.tracking_failed` — `ly=nguon-dang-ghi`
+   là cron đang ghi (thử lại sau vài giây); `HTTP 403`/không có `ly` là
+   WAF/cấu hình; `TimeoutError`/`timed out` là Tracking chậm (xem `PR #31`
+   bên Tracking đã lên production chưa).

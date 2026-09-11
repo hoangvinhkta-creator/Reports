@@ -485,6 +485,62 @@ def test_the_web_pull_asks_the_contract_once_for_the_whole_period(monkeypatch, t
     assert live.evidence["daily_min_query_revision"] == dmin.QUERY_REVISION
 
 
+def test_the_evidence_says_what_the_contract_answered(monkeypatch, tmp_path):
+    """Sự cố 2026-09-11: sổ ngày 01–03/09 chạy xong, mọi dòng Tracking `—`, và
+    không đâu nói vì sao. `pending_reasons` chỉ ghi `TRACKING_DAILY_MIN_PENDING`
+    cho cả `SOURCE_UNAVAILABLE` (Tracking chưa có bản ngày) lẫn `NO_DATA` (có
+    bản ngày, mã không có mốc). Bằng chứng của lần chạy phải đếm từng lý do và
+    nêu đúng những NGÀY mà mọi mã đều `SOURCE_UNAVAILABLE`."""
+    posts: list = []
+    post = fake_tracking(monkeypatch, tmp_path, posts=posts)
+
+    def post_tra_loi_mot_phan(body):
+        posts.append(body)
+        codes = body["product_codes"]
+        d = body["date_from"]
+        return {
+            **dmin.contract(
+                date_from=d, date_to=d,
+                records=[dmin.record(codes[0], d, min_price=6800)],
+                errors=[dmin.error(c, d, "NO_DATA") for c in codes[1:2]]
+                + [dmin.error(c, d, "SOURCE_UNAVAILABLE") for c in codes[2:]],
+            ),
+            "next_cursor": None,
+        }
+
+    live = live_pull.pull_live_captures(
+        out_dir=tmp_path / "tmp", source_url="https://tracking.test", api_key="k",
+        fetch=lambda node: {}, sales=write_sales(tmp_path / "s.xlsx", ROWS, day=SEP),
+        post=post_tra_loi_mot_phan,
+    )
+    ev = live.evidence
+    assert ev["daily_min_records"] == 1
+    assert ev["daily_min_errors"] == 4
+    assert ev["daily_min_error_reasons"] == {"NO_DATA": 1, "SOURCE_UNAVAILABLE": 3}
+    # 3/5 mã SOURCE_UNAVAILABLE — KHÔNG phải cả ngày: ngày này vẫn có quan sát.
+    assert ev["daily_min_unobserved_dates"] == []
+
+    def post_ngay_chua_quan_sat(body):
+        d = body["date_from"]
+        return {
+            **dmin.contract(
+                date_from=d, date_to=d, records=[],
+                errors=[dmin.error(c, d, "SOURCE_UNAVAILABLE")
+                        for c in body["product_codes"]],
+            ),
+            "next_cursor": None,
+        }
+
+    live = live_pull.pull_live_captures(
+        out_dir=tmp_path / "tmp2", source_url="https://tracking.test", api_key="k",
+        fetch=lambda node: {}, sales=write_sales(tmp_path / "s2.xlsx", ROWS, day=SEP),
+        post=post_ngay_chua_quan_sat,
+    )
+    assert live.evidence["daily_min_records"] == 0
+    assert live.evidence["daily_min_error_reasons"] == {"SOURCE_UNAVAILABLE": 5}
+    assert live.evidence["daily_min_unobserved_dates"] == [SEP.isoformat()]
+
+
 def test_the_pulled_capture_is_frozen_for_this_run_and_then_removed(monkeypatch, tmp_path):
     """`S071 §10`: authority thô của Tracking không ở lại trên đĩa máy chủ lâu
     hơn một lần chạy."""

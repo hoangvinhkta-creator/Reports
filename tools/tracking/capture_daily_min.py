@@ -81,6 +81,7 @@ from tools.tracking.capture_purchase_price_history import (
     JSON_CONTENT_TYPE,
     MISSING_API_KEY,
     CaptureError,
+    mo_ta_loi_http,
     write_capture,
 )
 
@@ -160,6 +161,14 @@ def _http_poster(source_url: str, api_key: Optional[str]) -> Poster:
                         f"{content_type!r}"
                     )
                 return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            # Mang mã + `ly` của Tracking (409 `nguon-dang-ghi` khi cron đang
+            # ghi, 409 `trang-doc-khong-nhat-quan`, 413 `khoang-ngay-qua-dai`
+            # …), KHÔNG mang header — secret không đi ra log.
+            raise CaptureError(
+                f"không gọi được {CONTRACT_PATH}: {type(exc).__name__}: "
+                f"{mo_ta_loi_http(exc)}"
+            ) from exc
         except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
             # Thông điệp KHÔNG mang header — secret không đi ra log.
             raise CaptureError(
