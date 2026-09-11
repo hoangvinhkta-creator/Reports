@@ -1707,8 +1707,14 @@ def create_app(
     # đồng cho toàn bộ nhân viên trong một bảng.
     # ------------------------------------------------------------------
 
-    def _workspace_period() -> tuple[int, int]:
+    def _workspace_period(raw: Optional[str] = None) -> tuple[int, int]:
         """Tháng đang xem của không gian làm việc. LUÔN là một tháng thật.
+
+        `raw` cho phép người gọi đưa thẳng chuỗi `YYYY-MM` vào (route JSON
+        `UI-04` mang kỳ trong ĐƯỜNG DẪN, không trong query `ky`). Không truyền
+        ⟹ đọc `ky` như trước. Một tham số chứ không một hàm phân tích thứ hai:
+        hai chỗ đọc cùng một định dạng theo hai cách là hai chỗ để một tháng
+        hợp lệ ở đường này bị từ chối ở đường kia.
 
         Khác `_business_period_choice` ở đúng hai điểm, và cả hai là quyết
         định của Owner:
@@ -1722,7 +1728,7 @@ def create_app(
         Ranh giới an toàn giữ nguyên: tháng phải là `1..12` và năm phải nằm
         trong khoảng có nghĩa, nếu không rơi về tháng hiện tại.
         """
-        raw = request.values.get("ky") or ""
+        raw = (request.values.get("ky") or "") if raw is None else raw
         year_text, _, month_text = raw.partition("-")
         try:
             year, month = int(year_text), int(month_text)
@@ -1760,10 +1766,10 @@ def create_app(
             return reporting_sheets.NOI_THANH_SHEET
         return None
 
-    def _workspace_view() -> dict:
+    def _workspace_view(period_text: Optional[str] = None) -> dict:
         """Mọi thứ một màn hình không gian làm việc cần, đọc đúng một lần."""
         service = _require_business()
-        period = _workspace_period()
+        period = _workspace_period(period_text)
         bounds = analytics_queries.month_bounds(*period)
         data = _guarded(service.period, date_from=bounds[0], date_to=bounds[1],
                         period=period)
@@ -2379,10 +2385,44 @@ def create_app(
         return _workspace_redirect(
             **{"da-luu": identity_gateway.OUT_OF_CATALOG_OK_NOTE})
 
-    @app.get("/kinh-doanh/nhan-vien")
-    def business_employee():
-        """Không gian làm việc theo SHEET — `DEC-PHB02-08` §4/§5/§14/§22."""
-        view = _workspace_view()
+    def _workspace_groups(view: dict, scoped, decisions, page: dict) -> list:
+        """Các nhóm BH của ĐÚNG một trang bảng kê.
+
+        Đây là lời gọi `sheet_detail_groups` DUY NHẤT của sản phẩm cho bảng
+        kê nhân viên — trang đầy đủ, trang kế (`UI-04`) và các lượt vá sau một
+        lần ghi (`UI-03`) đều đi qua đây. `catalog`/`imeis` được tra cho đúng
+        các dòng của TRANG, không cho cả sheet: chúng chỉ phục vụ những ô sắp
+        được vẽ, và tra cả sheet cho một trang trăm dòng là trả lại đúng chi
+        phí mà `UI-04` tồn tại để bỏ đi.
+
+        `shades` thì NGƯỢC LẠI — nó là bảng nền của CẢ sheet (xem
+        `workspace_presentation.group_shades`): nền xen kẽ theo ngày chỉ đúng
+        khi biết BH đứng TRƯỚC lát này rơi vào ngày nào.
+        """
+        details = page["details"]
+        return workspace_presentation.sheet_detail_groups(
+            details, sheet=view["sheet"], decisions=decisions,
+            catalog=_catalog_labels(details),
+            # `DEC-211` — mã máy CHỈ được truy vấn ở đây, trên đúng
+            # route này. `workspace_imei` là cánh cửa duy nhất, và
+            # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
+            # mở nó.
+            imeis=_guarded(
+                workspace_imei.imei_of, snapshot_repo.engine,
+                [(d["order_key"], d["product_key"], d["occurrence_index"])
+                 for d in details]),
+            shades=page["shades"])
+
+    def _workspace_context(view: dict, *, cursor: Optional[str] = None,
+                           limit: Optional[int] = None) -> dict:
+        """Ngữ cảnh ĐẦY ĐỦ của trang không gian làm việc.
+
+        Tách khỏi `business_employee` vì `UI-03` cần dựng lại MỘT SỐ vùng của
+        chính trang này sau một lần ghi, bằng CHÍNH những giá trị mà lần
+        render đầy đủ dùng. Một hàm dựng ngữ cảnh riêng cho đường JSON sẽ là
+        một bản thứ hai của trang — và bản thứ hai sẽ lệch ở đúng cái ô mà
+        không ai nhìn.
+        """
         sheet, period = view["sheet"], view["period"]
         scoped = view["data"].for_sheet(sheet)
         target = view["service"].sheet_target(sheet=sheet, period=period)
@@ -2405,8 +2445,26 @@ def create_app(
         if request.args.get("phan-loai"):
             identify = _identify_panel(view, scoped, decisions)
 
-        return render_template(
-            "kinh_doanh_nhan_vien.html",
+        # `UI-04` — MỘT TRANG của bảng kê, cắt theo ranh giới BH.
+        page = workspace_presentation.page_of_groups(
+            scoped.details, cursor=cursor,
+            limit=(workspace_presentation.WORKSPACE_PAGE_LINES
+                   if limit is None else limit))
+
+        # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc `None`.
+        # Nó đếm trên CẢ sheet, không trên trang đang mở: một cảnh báo im đi
+        # vì Owner chưa cuộn tới chỗ có vấn đề là một cảnh báo nói dối.
+        identity_warning = line_identity.sheet_warning(
+            scoped.details, decisions=decisions)
+        # …nên neo `#bh-…` của nó có thể nằm ở một trang khác. Liên kết mang
+        # theo con trỏ của ĐÚNG trang chứa BH ấy, nếu không nó là một neo trỏ
+        # vào một phần tử không tồn tại trên màn hình (`UI-04`).
+        warning_cursor = (
+            workspace_presentation.cursor_for_order(
+                scoped.details, identity_warning["orders"][0])
+            if identity_warning and identity_warning.get("orders") else None)
+
+        return dict(
             periods=workspace_presentation.period_options(
                 _guarded(analytics_queries.available_periods,
                          snapshot_repo.engine),
@@ -2421,27 +2479,20 @@ def create_app(
                 target=target, today=today),
             target=workspace_presentation.target_cell(target),
             columns=workspace_presentation.SHEET_DETAIL_COLUMNS,
-            groups=workspace_presentation.sheet_detail_groups(
-                scoped.details, sheet=sheet, decisions=decisions,
-                catalog=_catalog_labels(scoped.details),
-                # `DEC-211` — mã máy CHỈ được truy vấn ở đây, trên đúng
-                # route này. `workspace_imei` là cánh cửa duy nhất, và
-                # `tests/test_r5_imei_boundary.py` canh rằng chỉ file này
-                # mở nó.
-                imeis=_guarded(
-                    workspace_imei.imei_of, snapshot_repo.engine,
-                    [(d["order_key"], d["product_key"], d["occurrence_index"])
-                     for d in scoped.details])),
+            groups=_workspace_groups(view, scoped, decisions, page),
+            page=page,
+            warning_cursor=warning_cursor,
             optional_columns=workspace_presentation.OPTIONAL_COLUMN_INDEXES,
             show_optional_label=workspace_presentation.SHOW_OPTIONAL_LABEL,
             hide_optional_label=workspace_presentation.HIDE_OPTIONAL_LABEL,
             optional_columns_note=workspace_presentation.OPTIONAL_COLUMNS_NOTE,
+            # `UI-04` — hàng TỔNG vẫn cộng trên CẢ sheet (`scoped.details`),
+            # không trên trang đang tải. Một hàng tổng cộng theo những dòng
+            # đã tải sẽ nhỏ dần theo đúng phần người dùng chưa cuộn tới, và
+            # không có ô nào trên màn hình nói ra điều đó.
             detail_totals=workspace_presentation.sheet_detail_totals(
                 scoped.details),
-            # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc
-            # `None`. Không có khối thứ hai, không có trang thứ hai.
-            identity_warning=line_identity.sheet_warning(
-                scoped.details, decisions=decisions),
+            identity_warning=identity_warning,
             # `R5.1 REPAIR-2` — bản chiếu hiển thị vắng mặt trong khi CÓ mapping
             # đã xác nhận. Không có dòng này thì cột Hãng/Nhóm hàng chỉ có dấu
             # gạch mà không gì trên màn hình giải thích vì sao — đúng triệu
@@ -2471,6 +2522,21 @@ def create_app(
             error=request.args.get("loi") or None,
         )
 
+    @app.get("/kinh-doanh/nhan-vien")
+    def business_employee():
+        """Không gian làm việc theo SHEET — `DEC-PHB02-08` §4/§5/§14/§22.
+
+        `UI-04` — trang này dựng MỘT TRANG của bảng kê, vẫn hoàn toàn ở
+        server. Không JavaScript, `XEM TIẾP` ở cuối bảng là một liên kết
+        THẬT (`?tu=<mã BH>`) và mọi dòng của sheet vẫn tới được. Có
+        JavaScript, `app.js` chặn liên kết đó, gọi route JSON
+        `/api/v1/periods/<kỳ>/workspace` và NỐI thêm các hàng vào bảng —
+        không tải lại trang, không dựng lại `#app-content`.
+        """
+        view = _workspace_view()
+        return render_template(
+            "kinh_doanh_nhan_vien.html",
+            **_workspace_context(view, cursor=request.args.get("tu") or None))
     @app.post("/kinh-doanh/nhan-vien/target")
     def business_save_sheet_target():
         """Đặt/gỡ Target của SHEET đang xem, nhập theo NGHÌN ĐỒNG (`§17`).
