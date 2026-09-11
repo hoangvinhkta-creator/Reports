@@ -1682,7 +1682,11 @@ def _window_x_ticks(slots, *, size: int, granularity: str) -> list[dict]:
     if size <= 0:
         return []
     stride = max(1, math.ceil(size / _CHART_MAX_X_LABELS))
-    last = size - 1
+    # `R7 §C` — mốc ĐỆM (cửa sổ ngắn hơn được kéo cho bằng cửa sổ kia) không
+    # có khoá lịch, nên không có nhãn; mốc thật cuối cùng là "mép phải".
+    slots = [slot for slot in slots
+             if not slot.key.startswith(revenue_timeline.PAD_KEY_PREFIX)]
+    last = max((slot.index for slot in slots), default=-1)
     keep = [slot for slot in slots
             if slot.index == last
             or (slot.index % stride == 0 and last - slot.index >= stride)]
@@ -1692,6 +1696,61 @@ def _window_x_ticks(slots, *, size: int, granularity: str) -> list[dict]:
          "label": _axis_tick_label(slot.key, slot.label, granularity)}
         for slot in keep
     ]
+
+
+#: `R7 §C` — tên container theo mức gộp, để câu dự phóng nói "cuối THÁNG",
+#: "cuối QUÝ" … đúng như Owner hỏi ("cuối tháng sẽ đạt được bao nhiêu %").
+_CONTAINER_NAMES = {
+    revenue_timeline.DAY: "tháng", revenue_timeline.WEEK: "quý",
+    revenue_timeline.MONTH: "năm", revenue_timeline.QUARTER: "năm",
+    revenue_timeline.YEAR: "năm",
+}
+
+PROJECTION_GAP_NOTE = (
+    "cùng kỳ năm trước còn {gaps} mốc chưa có bằng chứng, nên phần trăm "
+    "này so với một con số chưa đủ"
+)
+
+
+def _projection_view(paired, *, granularity: str, unit: str,
+                     money: bool) -> Optional[dict]:
+    """Mô hình hiển thị của `revenue_timeline.project()` (`R7 §C`).
+
+    Ba con số và một câu: đã có tới mốc neo · dự phóng hết container · % so
+    với cùng kỳ năm trước (trọn kỳ), kèm % "đến cùng thời điểm". `None` khi
+    không có gì để dự phóng — template không vẽ dòng nào, không vẽ một dòng
+    "— %" trông như một kết quả.
+    """
+    projection = revenue_timeline.project(paired)
+    if projection is None:
+        return None
+    fmt = (_thousand_vnd if money
+           else (lambda value: f"{format_number(value)} {unit}"))
+    unit_text = "nghìn đồng" if money else unit
+    anchor = paired.anchor
+    percent = projection.projected_percent
+    to_date = projection.to_date_percent
+    container = _CONTAINER_NAMES.get(granularity, "kỳ")
+    return {
+        "anchor_text": business_date(anchor),
+        "container": container,
+        "elapsed_units": projection.elapsed_units,
+        "total_units": projection.total_units,
+        "current_to_date": fmt(projection.current_to_date),
+        "current_to_date_raw": format(projection.current_to_date, "f"),
+        "projected": fmt(projection.projected_total),
+        "projected_raw": format(projection.projected_total, "f"),
+        "comparison_total": fmt(projection.comparison_total),
+        "comparison_to_date": fmt(projection.comparison_to_date),
+        "percent": None if percent is None else format_number(percent),
+        "percent_raw": None if percent is None else format(percent, "f"),
+        "to_date_percent": (None if to_date is None
+                            else format_number(to_date)),
+        "unit_text": unit_text,
+        "comparison_gaps": projection.comparison_gaps,
+        "gap_note": (PROJECTION_GAP_NOTE.format(gaps=projection.comparison_gaps)
+                     if projection.comparison_gaps else None),
+    }
 
 
 def paired_revenue_chart(
@@ -1780,6 +1839,9 @@ def paired_revenue_chart(
             revenue_timeline.GAPFILL_CHART_NOTE if has_gapfill else None),
         "undated": undated,
         "undated_note": CHART_UNDATED_NOTE,
+        # `R7 §C` — dự phóng hết container theo nhịp hiện tại.
+        "projection": _projection_view(paired, granularity=granularity,
+                                       unit="đồng", money=True),
     }
 
 
@@ -1838,6 +1900,9 @@ def paired_count_chart(
                          if not slot.is_gap), Decimal(0))
     comparison_total = sum((slot.revenue for slot in paired.comparison
                             if not slot.is_gap), Decimal(0))
+    # `R7 §D` — biểu đồ Số đơn nay CÓ nguồn lấp lỗ hổng riêng; soi cả hai
+    # cửa sổ như `paired_revenue_chart`, vì lỗ hổng nằm ở cùng kỳ năm trước.
+    has_gapfill = any(bar["has_gapfill"] for bar in (*bars, *previous_bars))
     return {
         "svg_width": _CHART_VIEW_W,
         "svg_height": _CHART_PLOT_H,
@@ -1876,14 +1941,18 @@ def paired_count_chart(
         "has_partial": any(bar["partial"] for bar in (*bars, *previous_bars)),
         "partial_note": CHART_PARTIAL_NOTE,
         "no_daily_legacy_note": None,
-        # Biểu đồ SỐ ĐƠN không đọc nguồn lấp lỗ hổng (`DEC-216` chỉ nói về
-        # doanh số), nên ở đây nó LUÔN vắng — ghi ra `None` tường minh để hai
-        # biểu đồ cùng trang có cùng bộ khoá, thay vì để template phải đoán.
-        "gapfill_note": None,
+        # `R7 §D` — trước đây LUÔN `None` vì `DEC-216` chỉ nói về doanh số;
+        # nay số đơn có nguồn lấp riêng (`chart_gapfill.daily_order_rows`) và
+        # câu chú thích riêng, không mượn câu của doanh số.
+        "gapfill_note": (
+            revenue_timeline.GAPFILL_COUNT_CHART_NOTE if has_gapfill else None),
         "undated": undated_orders,
         "undated_note": (
             "đơn không có ngày bán nào, nên không rơi vào mốc nào của biểu đồ. "
             "Chúng vẫn nằm đủ trong tổng số đơn của phạm vi."),
+        # `R7 §C` — dự phóng hết container theo nhịp hiện tại, đơn vị ĐƠN.
+        "projection": _projection_view(paired, granularity=granularity,
+                                       unit=unit, money=False),
     }
 
 

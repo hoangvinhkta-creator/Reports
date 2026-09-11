@@ -264,13 +264,24 @@ def test_the_current_window_stays_pipeline_only(repository_client):
 
 
 @pytest.mark.chart_gapfill
-def test_the_orders_chart_does_not_read_the_gapfill_source(repository_client):
-    """`DEC-214` — biểu đồ Số đơn nói về SỐ ĐƠN, và nguồn lấp lỗ hổng không
-    có đơn nào. Một mốc số đơn dựng từ nó sẽ là một con số bịa."""
+def test_the_orders_chart_reads_its_own_gapfill_source(repository_client):
+    """`R7 §D` — trước đây biểu đồ Số đơn KHÔNG đọc nguồn lấp lỗ hổng vì nguồn
+    doanh số không có đơn nào. Nay số đơn có nguồn RIÊNG
+    (`data/chart_gapfill/daily_orders.jsonl`, chỉ ngày + số chứng từ), và
+    đường "Cùng kỳ năm trước" của nó phải có mốc — tự khai là lấp lỗ hổng."""
     html = body(repository_client, "/kinh-doanh?muc=ngay")
     block = chart_block(html, "bieu-do-so-don")
     assert 'data-metric="chart"' in block, "biểu đồ Số đơn vẫn phải có mặt"
-    assert rt.ORIGIN_GAPFILL not in block
+    previous = dict(re.findall(
+        r'data-metric="chart-bar-prev"[^>]*data-key="([^"]+)"[^>]*'
+        r'data-origin="([^"]+)"', block))
+    assert previous and set(previous.values()) == {rt.ORIGIN_GAPFILL}
+    assert rt.GAPFILL_COUNT_CHART_NOTE[:40] in block
+    # Ngày sổ nạp đã nói tới (03/09/2026) vẫn là của sổ nạp, không bị lấp.
+    current = dict(re.findall(
+        r'data-metric="chart-bar"[^>]*data-key="([^"]+)"[^>]*'
+        r'data-origin="([^"]+)"', block))
+    assert current.get("2026-09-03") == rt.ORIGIN_CURRENT
 
 
 @pytest.mark.chart_gapfill
