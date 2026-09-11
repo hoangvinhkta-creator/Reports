@@ -1,5 +1,105 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — UI-03-UI-04-UI-05 REPAIR-1 (theo sau Independent Review REQUEST CHANGES) (`S154`, 2026-09-11)
+
+Repair cycle DUY NHẤT của lineage `UI-03-UI-04-UI-05` tính đến giờ, theo
+`governance/core/V4_1_POLICY_FREEZE.md` §3. Không mở nhánh mới, không đổi
+base — vẫn `claude/ui-03-04-05-reports-px1u9l`, base `c60ae08` (HEAD đã
+push, đã tích hợp nhánh mặc định — xem entry bên dưới).
+
+```text
+review_round_1   REQUEST CHANGES (Independent Review, trên HEAD c60ae08)
+finding F-02     1 (BLOCKING) — removed_order_keys/affected.lines sai khi
+                 một quyết định phân loại chạm BH ở SHEET KHÁC
+finding F-01     1 (không chặn merge nhưng bắt buộc sửa) — 3 tham chiếu
+                 trần làm validate_reference_integrity FAIL
+repair_1         ĐÃ HOÀN TẤT, cả hai finding, tiêu cycle DUY NHẤT
+base_sha         c60ae081fe2bd7c61dd835b66044a8ff41e0da18
+head_sha         05daf76
+```
+
+Ngân sách + Blast Radius đầy đủ: `PROJECT/REVIEW_BUDGET_LEDGER.md` →
+"Root Task: UI-03-UI-04-UI-05".
+
+### Finding F-02 (BLOCKING) — `removed_order_keys`/`affected.lines` sai khi một quyết định phân loại chạm BH ở SHEET KHÁC
+
+`app/web/server.py`, `_workspace_write_payload()`: hàm gọi
+`_workspace_context(view, only_orders=order_keys)`, và hàm đó lọc `scoped
+= view["data"].for_sheet(sheet)` THEO SHEET ĐANG XEM trước khi cắt
+`only_orders` qua `groups_slice`. Một `order_key` thuộc sheet khác không
+khớp group nào trong `scoped` — không phải vì nó đã bị loại khỏi báo cáo,
+mà đơn giản vì nó không nằm trên trang đang mở. Bản trước đọc sự vắng mặt
+ấy thành "đã xoá" (`removed_order_keys`) và đếm thiếu `affected.lines`
+(chỉ cộng `group["lines"]` của các group tìm thấy trong `scoped`).
+
+**Sửa (cả hai hướng review nêu):**
+- `removed_order_keys` giờ kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+  details`, không qua `scoped`): một BH chỉ "đã xoá" khi không còn dòng
+  nào trong CẢ kỳ, không phải chỉ khi nó không còn trên sheet đang xem.
+- `affected.lines` nhận tham số `lines` TƯỜNG MINH từ nơi gọi —
+  `len(shared)` ở `business_confirm_identity`/`business_mark_out_of_
+  catalog` (một BH có thể mang NHIỀU dòng cùng khoá định danh), mặc định
+  `len(order_keys)` cho `business_exclude_line` (luôn đúng một dòng một
+  BH — hành vi không đổi).
+
+**Bằng chứng — test tái hiện lỗi, xác nhận fail-trước/pass-sau:**
+
+```text
+tests/test_ui030405_workspace_json.py::
+  test_a_decision_reaching_another_sheet_is_not_reported_as_removed
+
+Fixture riêng: hai dòng cùng product_raw CHƯA PHÂN LOẠI, một BH ở sheet
+noi-thanh, một BH ở sheet gia-dung (đẩy sang gia-dung bằng ĐÚNG con đường
+service.store.set_line_product_group() mà route Gia dụng dùng — sheet
+được tính từ QUYẾT ĐỊNH đã lưu qua effective_product_group(), KHÔNG đọc
+thẳng product_group_final của pipeline).
+
+Trước sửa:
+  ✘ FAIL — payload["affected"]["lines"] == 1 (đúng 1, thiếu 1)
+
+Sau sửa:
+  ✓ PASS — affected.lines == 2, order_keys == {BH90001, BH90002},
+    BH90002 KHÔNG có mặt trong removed_order_keys, và đọc lại sheet
+    gia-dung qua route HTML thật xác nhận BH90002 vẫn còn nguyên trên
+    báo cáo (không nằm trong danh sách "đã loại").
+```
+
+### Finding F-01 — 3 tham chiếu trần làm `validate_reference_integrity` FAIL
+
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` (§12, phụ lục push/tích
+hợp) ghi ba tên file TRẦN ("00_SESSION_ORCHESTRATION.md",
+"PROJECT_PROGRESS.md", "REVIEW_BUDGET_LEDGER.md") thay vì đường dẫn đầy
+đủ. Xác nhận đúng ba đường dẫn thật trong repo trước khi sửa (không
+đoán): `governance/core/00_SESSION_ORCHESTRATION.md`, `PROJECT/
+PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+### Bằng chứng đầy đủ (full suite, SAU repair)
+
+```text
+pytest (toàn repo)                   3681 passed, 23 skipped, 0 failed
+                                     (+1 so với trước repair — đúng test
+                                      mới của F-02, không bài nào bị xoá)
+tests/browser/ (jsdom, node --test)  25 passed (không đổi)
+tests/playwright/ (Chromium thật)    35 passed (không đổi)
+validate_reference_integrity         7 → 4 lỗi (4 lỗi còn lại là baseline
+                                      cũ, không liên quan lineage này)
+Validators khác                      structure/project_state/evidence/
+                                      task_completion PASS
+```
+
+### Phạm vi
+
+CHỈ hai finding trên. Không chạm `identity_gateway`/`line_identity` ở
+tầng tính toán — F-02 thuần là lỗi ở lớp build response JSON, đúng phạm
+vi review khoanh. F-01 chỉ sửa văn bản tham chiếu trong một file tài
+liệu.
+
+Trạng thái: repair `DONE`, đã commit local trên
+`claude/ui-03-04-05-reports-px1u9l` (`05daf76`). Chi tiết đầy đủ:
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` §13.
+
+---
+
 ## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S154`, 2026-09-11)
 
 Ba lát dọc tiếp theo của Release 2 (roadmap Render), nối trực tiếp

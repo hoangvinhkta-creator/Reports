@@ -342,3 +342,66 @@ với nhánh mặc định (bao gồm chính công của lineage này), không �
 **Trạng thái cuối cùng của phụ lục này:** đã push, đã tích hợp, sẵn sàng
 giao Independent Review trên `97b47dc`. Chưa tạo PR (không ai yêu cầu),
 chưa merge vào nhánh mặc định, chưa deploy.
+
+## 13. REPAIR-1 — đóng F-02 (blocking) + F-01 (reference integrity)
+
+Independent Review trên HEAD `c60ae08` kết luận `REQUEST CHANGES` với 2
+finding. Ngân sách repair của lineage `UI-03-UI-04-UI-05` còn nguyên
+`1 allowed/0 used/1 remaining` — vòng sửa này tiêu ĐÚNG cycle duy nhất đó,
+không cần `OWNER_EXTENSION`. Tiếp tục trên CHÍNH nhánh
+`claude/ui-03-04-05-reports-px1u9l`, không tạo nhánh mới, không reset base
+— đúng `governance/core/V4_1_POLICY_FREEZE.md` §3.
+
+### F-02 (BLOCKING)
+
+`_workspace_write_payload()` (`app/web/server.py`) gọi `_workspace_context(
+view, only_orders=order_keys)`, và hàm đó lọc `scoped = view["data"].
+for_sheet(sheet)` THEO SHEET ĐANG XEM trước khi cắt `only_orders` qua
+`groups_slice`. Một `order_key` thuộc sheet khác không khớp group nào
+trong `scoped` — không phải vì nó đã bị loại khỏi báo cáo, mà đơn giản vì
+nó không nằm trên trang đang mở. Bản trước đọc sự vắng mặt ấy thành "đã
+xoá" (`removed_order_keys`) và đếm thiếu `affected.lines`.
+
+Sửa theo cả hai hướng review nêu:
+- `removed_order_keys` kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+  details`), không qua `scoped`.
+- `affected.lines` nhận tham số `lines` tường minh từ nơi gọi —
+  `len(shared)` ở hai route xác nhận/ngoài-bảng-giá (một BH có thể mang
+  nhiều dòng cùng khoá định danh), mặc định `len(order_keys)` cho route
+  loại/khôi phục (luôn đúng một dòng một BH).
+
+Test tái hiện (`tests/test_ui030405_workspace_json.py::
+test_a_decision_reaching_another_sheet_is_not_reported_as_removed`):
+fixture riêng dựng hai dòng cùng `product_raw` chưa phân loại — một BH
+sheet `noi-thanh`, một BH sheet `gia-dung` (đẩy sang `gia-dung` bằng ĐÚNG
+con đường `service.store.set_line_product_group` mà route Gia dụng dùng;
+phát hiện giữa chừng: `sheet_key_of` đọc `classified_product_group` —
+kết quả của một QUYẾT ĐỊNH đã lưu — chứ không đọc thẳng `product_group_
+final` của pipeline, nên chỉ đặt trường đó trên dòng kết quả KHÔNG đủ để
+đẩy dòng sang sheet khác). Xác nhận FAIL trên code trước sửa
+(`affected.lines == 1`, đúng lỗi review mô tả), PASS sau khi sửa.
+
+### F-01
+
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md` (chính file này, §12)
+ghi ba tên file TRẦN thay vì đường dẫn đầy đủ. Xác nhận đúng ba đường dẫn
+thật trong repo (`ls` từng file) trước khi sửa — không đoán. Sửa thành
+`governance/core/00_SESSION_ORCHESTRATION.md`, `PROJECT/
+PROJECT_PROGRESS.md`, `PROJECT/REVIEW_BUDGET_LEDGER.md`.
+
+### Bằng chứng SAU cả hai sửa
+
+```text
+pytest (toàn repo)              3681 passed, 23 skipped, 0 failed
+                                (+1 so với trước repair — đúng test mới)
+tests/browser/ (jsdom)          25 passed
+tests/playwright/ (Chromium)    35 passed (không đổi)
+validate_reference_integrity    7 → 4 lỗi (4 lỗi baseline cũ, không đổi)
+Validators khác                 structure/project_state/evidence/
+                                task_completion PASS
+```
+
+Phạm vi repair diff (`git diff c60ae08..05daf76 --name-only`):
+`app/web/server.py`, `docs/sessions/S154-ui030405-thao-tac-tai-cho.md`,
+`tests/test_ui030405_workspace_json.py`. Commit repair:
+`05daf76` (`base_sha=c60ae08`, `head_sha=05daf76`).

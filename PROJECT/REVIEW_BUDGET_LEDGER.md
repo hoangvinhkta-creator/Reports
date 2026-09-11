@@ -4102,17 +4102,55 @@ title: Thao tác tại chỗ trên bảng kê · bảng theo trang + ngân sách
        ghim tooltip biểu đồ + phân rã
 effective_risk: MEDIUM
 repair_cycles_allowed: 1
-repair_cycles_used: 0
-repair_cycles_remaining: 1
-review_round_1: CHƯA CHẠY — `CHECK-UI345-25` còn NOT_TESTED
-next_action: Independent Review trên HEAD của nhánh
-             `claude/ui-03-04-05-reports-px1u9l`. Nếu vòng đó ra
-             REQUEST CHANGES/REPAIR_REQUIRED: repair cycle DUY NHẤT của
-             lineage này được tiêu ở đó. Một vòng thứ hai ra kết luận như
-             vậy nữa ⟹ lineage HẾT ngân sách, phải ESCALATE theo
-             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở cycle thứ
-             hai bằng cách đổi tên/tách nhánh/mở lineage mới.
+repair_cycles_used: 1
+repair_cycles_remaining: 0
+review_round_1: REQUEST CHANGES — trên HEAD `c60ae08`; 1 finding F-02
+             (BLOCKING), 1 finding F-01 (bắt buộc sửa, không chặn merge
+             — làm validator FAIL), 1 finding F-05 (INFO — ledger thiếu
+             trường base_sha/head_sha, xem `cycles:` bên dưới)
+repair_1: ĐÃ HOÀN TẤT — F-02 và F-01, tiêu cycle DUY NHẤT của lineage này
+next_action: chờ vòng Independent Review kế tiếp trên HEAD `05daf76`. Nếu
+             vòng đó lại ra REQUEST CHANGES/REPAIR_REQUIRED: lineage HẾT
+             ngân sách, phải ESCALATE theo
+             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở repair
+             cycle thứ hai bằng cách đổi tên/tách nhánh/mở lineage mới.
 ```
+
+cycles:
+- id: UI345-RC-1
+  base_sha: c60ae081fe2bd7c61dd835b66044a8ff41e0da18
+  head_sha: 05daf76c22a8b66e4a77826d5203cb9d30c32616
+  finding: F-02 (BLOCKING) — `_workspace_write_payload()`
+    (`app/web/server.py`) gọi `_workspace_context(view, only_orders=
+    order_keys)`, và hàm đó lọc `scoped = view["data"].for_sheet(sheet)`
+    THEO SHEET ĐANG XEM trước khi cắt `only_orders`. Một `order_key`
+    thuộc sheet khác không khớp group nào trong `scoped` — không phải vì
+    nó đã bị loại khỏi báo cáo, mà đơn giản vì nó không nằm trên trang
+    đang mở. Bản trước đọc sự vắng mặt ấy thành "đã xoá"
+    (`removed_order_keys`) và đếm thiếu `affected.lines`. Tái hiện +
+    fail-trước/pass-sau: `tests/test_ui030405_workspace_json.py::
+    test_a_decision_reaching_another_sheet_is_not_reported_as_removed`.
+  fix: `removed_order_keys` kiểm sự tồn tại trên TOÀN KỲ (`view["data"].
+    details`, không qua `scoped`); `affected.lines` nhận tham số `lines`
+    tường minh từ nơi gọi (`len(shared)` ở hai route xác nhận/ngoài-bảng-
+    giá, mặc định `len(order_keys)` cho route loại/khôi phục).
+  finding_2: F-01 — 3 tham chiếu ghi TÊN FILE TRẦN (thiếu đường dẫn thư
+    mục — hai file governance cốt lõi và một file quy trình phiên) trong
+    `docs/sessions/S154-ui030405-thao-tac-tai-cho.md` §12 làm
+    `validate_reference_integrity.py` FAIL.
+  fix_2: sửa thành đường dẫn đầy đủ (`governance/core/
+    00_SESSION_ORCHESTRATION.md`, `PROJECT/PROJECT_PROGRESS.md`,
+    `PROJECT/REVIEW_BUDGET_LEDGER.md`) sau khi xác nhận đúng ba đường dẫn
+    thật trong repo. `validate_reference_integrity.py`: 7 → 4 lỗi (4 lỗi
+    baseline cũ, không liên quan lineage này).
+  finding_3: F-05 (INFO) — entry ledger của lineage này chưa từng ghi
+    `cycles:`/`base_sha`/`head_sha`, khác định dạng đã dùng cho các
+    lineage khác (`UI-01-UI-02`, `PRA-002`). Sửa NGAY trong repair này:
+    khối `cycles:` này chính là bản vá cho F-05.
+  evidence: `pytest 3681 passed/23 skipped/0 failed` (+1 so với trước
+    repair, đúng test mới của F-02); `tests/browser/ 25 passed` (không
+    đổi); `tests/playwright/ 35 passed` (không đổi); validators governance
+    khác PASS.
 
 Đây là ENTRY ĐẦU TIÊN của lineage này. `effective_risk` được tự chấm lần
 đầu ở đây, theo `governance/core/V4_1_POLICY_FREEZE.md` §4 — chấm theo
