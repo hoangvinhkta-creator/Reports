@@ -18,15 +18,17 @@ Check CI duy nhất của repo (`governance` workflow) đã đỏ trên MỌI l�
 kể từ tích hợp R4 — kể cả trên chính nhánh mặc định — vì
 `validate_reference_integrity.py` sập với `PermissionError` thay vì báo
 một finding, khi gặp ba file trích dẫn nguyên văn đường dẫn tuyệt đối
-`/root/.ccr/README.md` làm bằng chứng lịch sử. Chi tiết đầy đủ, bằng chứng
+/root/.ccr/README.md (không đặt trong backtick ở đây, để không tự tạo
+thêm reference cho chính đoạn văn xuôi này) làm bằng chứng lịch sử. Chi
+tiết đầy đủ, bằng chứng
 tái hiện, và bản sửa: `PROJECT/PROJECT_DECISIONS.md` → `DEC-225`.
 
 ## 3. File đã thay đổi
 
 Modified:
 - `governance/scripts/governance/validate_reference_integrity.py` —
-  `_exists_safe()` bọc `.exists()`; ba cặp `/root/.ccr/README.md` vào
-  `KNOWN_EXEMPT_PAIRS`.
+  `_exists_safe()` bọc `.exists()`; ba cặp /root/.ccr/README.md (không
+  backtick — lý do như trên) vào `KNOWN_EXEMPT_PAIRS`.
 - `governance/scripts/governance/README.md` — tài liệu fixture mới.
 - `PROJECT/PROJECT_DECISIONS.md` — `DEC-225`.
 
@@ -52,8 +54,8 @@ git diff --check                   sạch
 ## 5. Quyết định chính
 
 `DEC-225` — bọc `OSError` trong `resolves()`; miễn trừ ba trích dẫn lịch
-sử `/root/.ccr/README.md` vào `KNOWN_EXEMPT_PAIRS` để kết luận không phụ
-thuộc UID chạy validator.
+sử /root/.ccr/README.md (không backtick — lý do như trên) vào
+`KNOWN_EXEMPT_PAIRS` để kết luận không phụ thuộc UID chạy validator.
 
 ## 6. Rủi ro / vướng mắc
 

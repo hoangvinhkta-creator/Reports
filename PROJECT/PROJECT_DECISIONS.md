@@ -14570,7 +14570,9 @@ Trạng thái: BAN HÀNH, đã thực thi.
 
 `governance/scripts/governance/validate_reference_integrity.py` sập với
 `PermissionError` (thay vì báo một finding) khi một tài liệu trích dẫn
-nguyên văn đường dẫn tuyệt đối `/root/.ccr/README.md` — ba file lịch sử
+nguyên văn đường dẫn tuyệt đối /root/.ccr/README.md (cố ý không đặt trong
+dấu backtick ở đây — xem `REF_PATTERN` trong chính file validator, tránh
+tự tạo thêm reference cho chính đoạn văn xuôi này) — ba file lịch sử
 (`docs/sessions/S071-shared-online-beta.md`,
 `docs/sessions/S133-r4-integration-and-deployment.md`,
 `docs/deployment/S071_DEPLOYMENT.md`). Trên GitHub Actions runner (user
