@@ -72,3 +72,8 @@ def _chart_gapfill_disconnected(request, monkeypatch):
     monkeypatch.setattr(
         chart_gapfill, "GAPFILL_DAILY_PATH",
         Path(__file__).resolve().parent / "_khong_ton_tai_chart_gapfill.jsonl")
+    # `R7 §D` — nguồn lấp lỗ hổng SỐ ĐƠN cũng là dữ liệu thật đã commit
+    # (579 ngày), và cũng phải bị cắt khỏi workspace tổng hợp vì cùng lý do.
+    monkeypatch.setattr(
+        chart_gapfill, "GAPFILL_ORDERS_PATH",
+        Path(__file__).resolve().parent / "_khong_ton_tai_chart_gapfill_orders.jsonl")

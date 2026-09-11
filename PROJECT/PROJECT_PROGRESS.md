@@ -1,5 +1,38 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `R7`: liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng, `DONE`, merge theo chỉ thị Owner (`S153`, 2026-09-11)
+
+Tiếp nối `S152`. Owner giao ba việc kèm ba sổ thô và ảnh chụp (`DEC-222`).
+
+```text
+§A Liên hệ    5 đơn đầu tháng 9 hiện `—` dù sổ CÓ tên/SĐT ⟹ dòng SAME giữ
+              version cũ (ba cột liên hệ ngoài fingerprint). Sửa:
+              _refresh_contact_fields — làm mới tại chỗ 3 cột cho dòng SAME,
+              không version mới, không xoá bằng ô trống, canh AST.
+§B Giá MIN    KHÔNG sửa code. Ngày bán trước 07/09 (R1 Tracking) không có
+              bản ngày ⟹ `—` đúng thiết kế. Owner chọn hướng (DEC-222 §4).
+§C Biểu đồ    cửa sổ = CONTAINER LỊCH (Ngày 01→cuối tháng · Tuần trong quý ·
+              Tháng/Quý trong năm · Năm 5 mốc); so sánh = container năm
+              trước; đường hiện tại dừng ở mốc neo; dự phóng hết kỳ (% so
+              trọn cùng kỳ + % đến cùng thời điểm) ở cả hai biểu đồ, hai trang.
+§D Số đơn     nguồn lấp lỗ hổng thứ hai daily_orders.jsonl (579 ngày, 2025-01
+              → 2026-08, 29.883 đơn; chỉ ngày + số đếm), nối ở mọi mức gộp.
+```
+
+```text
+CHECK-R7-01 … CHECK-R7-12   PASS (E1)
+CHECK-R7-13 Owner nghiệm thu production   NOT_TESTED — chỉ Owner đóng
+Full pytest                 3658 passed / 23 skipped / 0 failed (nền S152: 3640 / 23 / 0; +18 bài mới, không bài nào bị xoá)
+Ngân sách                   root task MỚI R7 (MEDIUM, 1 cycle, chưa dùng)
+Tracking                    KHÔNG đổi
+```
+
+Chi tiết: `docs/tasks/R7-lien-he-bieu-do-container-so-don.md`;
+`docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-222`.
+
+---
+
 ## CANONICAL CURRENT STATE — `R5.4`: nhãn cho dòng KHỚP TỰ ĐỘNG với Tracking, `DONE`, merge theo chỉ thị Owner (`S152`, 2026-09-10)
 
 Tiếp nối `S151`. Owner báo lỗi production sau merge `R5.3`: đã phân loại

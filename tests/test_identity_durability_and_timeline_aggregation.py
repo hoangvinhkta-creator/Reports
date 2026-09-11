@@ -731,8 +731,9 @@ def test_f_e_the_chart_says_it_is_not_limited_to_the_selected_period(
     html = body(client, "/kinh-doanh?ky=2026-09&muc=thang")
 
     scope = metric(html, "chart-scope")
-    assert "10/2025 → 09/2026" in scope, "phải nói ra cửa sổ hiện tại"
-    assert "10/2024 → 09/2025" in scope, "và cửa sổ so sánh"
+    # `R7 §C` — container là NĂM dương lịch của kỳ đang xem.
+    assert "01/2026 → 12/2026" in scope, "phải nói ra cửa sổ hiện tại"
+    assert "01/2025 → 12/2025" in scope, "và cửa sổ so sánh"
     assert "chưa phải toàn bộ dữ liệu" in scope
     assert "TOÀN BỘ" not in scope, (
         "khoanh theo năm rồi thì câu giải thích không được nói TOÀN BỘ nữa")

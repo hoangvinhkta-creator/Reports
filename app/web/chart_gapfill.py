@@ -82,34 +82,52 @@ GAPFILL_DAILY_PATH = _REPO_ROOT / "data" / "chart_gapfill" / "daily_revenue.json
 FIELD_SALES = "sales_vnd"
 FIELD_DATE = "date"
 
+#: `R7 §D` — nguồn lấp lỗ hổng SỐ ĐƠN: `{"date", "orders"}` mỗi dòng, trích
+#: bằng `tools/chart_gapfill/extract_daily_orders.py` từ chính sổ chi tiết
+#: bán hàng (chỉ giữ ngày + số chứng từ). Cùng ba ràng buộc với doanh số:
+#: không phải legacy, chỉ để vẽ, chỉ lấp ngày không nguồn nào khác nói tới.
+#: Khác doanh số ở một điểm: được nối ở MỌI mức gộp — xem
+#: `revenue_timeline.count_series`.
+GAPFILL_ORDERS_PATH = _REPO_ROOT / "data" / "chart_gapfill" / "daily_orders.jsonl"
+FIELD_ORDERS = "orders"
 
-def _parse_row(raw: str, line_no: int) -> dict:
+
+def _parse_row(raw: str, line_no: int, *, field: str = FIELD_SALES,
+               source: Optional[Path] = None) -> dict:
+    """Một dòng JSONL → `{"year", "month", "day", <field>}`.
+
+    `field` là `FIELD_SALES` (doanh số, `Decimal`) hay `FIELD_ORDERS` (số
+    đơn, số nguyên không âm — `R7 §D`). Cùng một bộ kiểm cho cả hai: sai định
+    dạng thì NỔ, âm thì NỔ; một dòng lỗi bị bỏ qua im lặng sẽ vẽ ra một đường
+    thấp hơn sự thật.
+    """
+    where = source or GAPFILL_DAILY_PATH
     try:
         row = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError(
-            f"{GAPFILL_DAILY_PATH}:{line_no} không phải JSON hợp lệ") from exc
+        raise ValueError(f"{where}:{line_no} không phải JSON hợp lệ") from exc
     if not isinstance(row, dict):
-        raise ValueError(f"{GAPFILL_DAILY_PATH}:{line_no} phải là một object")
+        raise ValueError(f"{where}:{line_no} phải là một object")
     try:
         when = date.fromisoformat(str(row[FIELD_DATE]))
     except (KeyError, ValueError) as exc:
         raise ValueError(
-            f"{GAPFILL_DAILY_PATH}:{line_no} thiếu hoặc sai trường "
-            f"{FIELD_DATE!r}") from exc
+            f"{where}:{line_no} thiếu hoặc sai trường {FIELD_DATE!r}") from exc
     try:
-        sales = Decimal(str(row[FIELD_SALES]))
+        value = Decimal(str(row[field]))
     except (KeyError, InvalidOperation) as exc:
         raise ValueError(
-            f"{GAPFILL_DAILY_PATH}:{line_no} thiếu hoặc sai trường "
-            f"{FIELD_SALES!r}") from exc
-    if sales < 0:
+            f"{where}:{line_no} thiếu hoặc sai trường {field!r}") from exc
+    if value < 0:
+        what = "số đơn âm" if field == FIELD_ORDERS else "doanh số âm"
         raise ValueError(
-            f"{GAPFILL_DAILY_PATH}:{line_no} doanh số âm ({sales}) — một ngày "
-            "bán hàng không có doanh số âm; đây là lỗi trích xuất, không phải "
-            "một sự thật kinh doanh")
+            f"{where}:{line_no} {what} ({value}) — một ngày bán hàng không có "
+            f"{what}; đây là lỗi trích xuất, không phải một sự thật kinh doanh")
+    if field == FIELD_ORDERS and value != value.to_integral_value():
+        raise ValueError(
+            f"{where}:{line_no} số đơn phải là số nguyên, nhận {value}")
     return {"year": when.year, "month": when.month, "day": when.day,
-            "sales_vnd": sales}
+            field: int(value) if field == FIELD_ORDERS else value}
 
 
 def load_daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
@@ -122,7 +140,11 @@ def load_daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
     File CÓ MẶT nhưng hỏng thì NỔ: một dòng sai định dạng mà bị bỏ qua trong
     im lặng sẽ vẽ ra một đường thấp hơn sự thật và không ai nhìn ra được.
     """
-    source = Path(path) if path is not None else GAPFILL_DAILY_PATH
+    return _load(Path(path) if path is not None else GAPFILL_DAILY_PATH,
+                 field=FIELD_SALES)
+
+
+def _load(source: Path, *, field: str) -> tuple[dict, ...]:
     if not source.exists():
         return ()
     rows: dict[date, dict] = {}
@@ -130,7 +152,7 @@ def load_daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
         for line_no, raw in enumerate(handle, start=1):
             if not raw.strip():
                 continue
-            row = _parse_row(raw, line_no)
+            row = _parse_row(raw, line_no, field=field, source=source)
             when = date(row["year"], row["month"], row["day"])
             if when in rows:
                 raise ValueError(
@@ -140,9 +162,17 @@ def load_daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
     return tuple(rows[when] for when in sorted(rows))
 
 
+def load_daily_order_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
+    """`R7 §D` — các dòng `{"year", "month", "day", "orders"}` đã sắp theo
+    ngày. Cùng hai luật với `load_daily_rows`: file vắng ⟹ tuple rỗng (biểu
+    đồ Số đơn về đúng hình dạng không lấp lỗ hổng), file hỏng ⟹ NỔ."""
+    return _load(Path(path) if path is not None else GAPFILL_ORDERS_PATH,
+                 field=FIELD_ORDERS)
+
+
 @lru_cache(maxsize=4)
-def _cached(source: str) -> tuple[dict, ...]:
-    return load_daily_rows(Path(source))
+def _cached(source: str, field: str) -> tuple[dict, ...]:
+    return _load(Path(source), field=field)
 
 
 def daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
@@ -152,8 +182,16 @@ def daily_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
     không đổi giữa hai lần deploy. `load_daily_rows` vẫn công khai để test
     đọc một file cụ thể mà không chạm vào cache.
     """
-    return _cached(str(Path(path) if path is not None else GAPFILL_DAILY_PATH))
+    return _cached(str(Path(path) if path is not None else GAPFILL_DAILY_PATH),
+                   FIELD_SALES)
 
 
-__all__ = ["FIELD_DATE", "FIELD_SALES", "GAPFILL_DAILY_PATH", "daily_rows",
-           "load_daily_rows"]
+def daily_order_rows(path: Optional[Path] = None) -> tuple[dict, ...]:
+    """Bản đã cache của `load_daily_order_rows` (`R7 §D`)."""
+    return _cached(str(Path(path) if path is not None else GAPFILL_ORDERS_PATH),
+                   FIELD_ORDERS)
+
+
+__all__ = ["FIELD_DATE", "FIELD_ORDERS", "FIELD_SALES", "GAPFILL_DAILY_PATH",
+           "GAPFILL_ORDERS_PATH", "daily_order_rows", "daily_rows",
+           "load_daily_order_rows", "load_daily_rows"]

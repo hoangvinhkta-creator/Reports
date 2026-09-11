@@ -93,3 +93,30 @@ Không còn lệch nào chưa giải thích được.
 (362.170.585.000 VND). Ngày không có dòng nào thì KHÔNG có bản ghi — một ngày
 vắng mặt là "không có bằng chứng", không phải số 0 (`GAP_NOTE`). Ví dụ
 2025-09-02 (Quốc khánh) không có mặt trong file.
+
+## Nguồn số đơn — `daily_orders.jsonl` (`R7 §D`, `DEC-222`)
+
+Cùng đường vòng, cùng ba ràng buộc (không phải legacy · chỉ để vẽ · chỉ lấp
+ngày không nguồn nào khác nói tới), cho biểu đồ SỐ ĐƠN — biểu đồ này trước
+`R7` không có đường "Cùng kỳ năm trước" vì bản ghi lịch sử chỉ lưu doanh thu.
+
+- **Nguồn:** hai sổ chi tiết bán hàng của chủ dự án — `Sổ chi tiết bán hàng`
+  năm 2025 (01/01 → 31/12/2025) và năm 2026 (01/01 → 31/08/2026). Sổ tháng
+  9/2026 (bản đang nạp lên Reports, xuất tới 20/09) được chủ dự án gửi cùng
+  nhưng KHÔNG đưa vào nguồn này: đó là sổ ĐANG NẠP, mọi ngày của nó do sổ
+  nạp nói, và một tháng mới đi được 20 ngày không phải bằng chứng "trọn tháng".
+- **Công cụ:** `tools/chart_gapfill/extract_daily_orders.py` — đọc sổ bằng
+  đúng `raw_reader.read_raw_rows` của pipeline, CHỈ giữ ngày và số chứng từ.
+- **Định nghĩa một đơn:** mượn nguyên `dashboard_metrics.order_facts` — một
+  số chứng từ = một đơn (kể cả chứng từ `BTL…`, đúng như sổ nạp đang đếm), xếp
+  vào NGÀY NHỎ NHẤT của các dòng của nó. Dòng không có số chứng từ bị bỏ
+  (như pipeline); không đơn nào thiếu ngày trong hai sổ này.
+- **Dữ liệu cá nhân:** file kết quả chỉ có `date` + `orders`. Tên, số điện
+  thoại, địa chỉ, tên hàng, tiền đi qua bộ nhớ tiến trình rồi bị bỏ.
+- **Khác doanh số ở một điểm:** được nối ở MỌI mức gộp (`revenue_timeline.
+  count_series`), vì không tồn tại tổng tháng lịch sử nào cho số đơn để "cộng
+  hai nguồn". Thẩm quyền vẫn giải theo NGÀY rồi gộp lên; một tháng nửa sổ nạp
+  nửa lấp là `MIXED_AUTHORITY` với `origins` nói rõ hai nửa.
+
+Kết quả: 579 ngày, 2025-01-01 → 2026-08-31, tổng 29.883 đơn. Ngày không có
+đơn nào thì KHÔNG có bản ghi (cùng luật với doanh số).

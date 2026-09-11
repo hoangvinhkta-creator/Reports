@@ -4091,3 +4091,22 @@ mới chở xuống (`CHECK-R54-06`). Một mã sai gắn vào dòng sai chỉ c
 từ chính bằng chứng của pipeline (`Resolved`), và quyết định của người vẫn
 thắng nó (`CHECK-R54-04`). Không LOW vì R6 dùng `category_label` làm khoá
 gộp doanh thu theo nhóm — sai nhãn làm sai phép gộp, dù không sai tổng.
+
+## Root Task: R7
+
+```
+root_task: R7
+title: Làm mới liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: KHÔNG có — Owner chỉ thị merge thẳng (DEC-222 §2.5)
+next_action: Owner nghiệm thu production (CHECK-R7-13)
+```
+
+Root task MỚI theo chỉ thị Owner (`DEC-222`). Failure path dài nhất là §A
+(UPDATE ba cột liên hệ trên version hiện hành): không fingerprint, không
+tiền, không quyết định Owner nào đọc ba cột này, và canh AST giữ nó ở đúng
+một hàm/ba cột. §C/§D chỉ trình bày và nguồn vẽ. Không LOW vì §A chạm bảng
+version vốn bất biến — dù chỉ ba cột hiển thị.
