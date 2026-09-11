@@ -1,12 +1,31 @@
 # TIẾN ĐỘ DỰ ÁN
 
-## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S153`, 2026-09-11)
+## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S154`, 2026-09-11)
 
 Ba lát dọc tiếp theo của Release 2 (roadmap Render), nối trực tiếp
 `UI-01`/`UI-02`. Nhánh `claude/ui-03-04-05-reports-px1u9l`, base
-`origin/claude/extract-upload-repo-gq2ws4` @ `a224e6f`. **Chưa push, chưa
-PR, chưa merge** — commit giữ local theo yêu cầu trực tiếp bằng văn bản của
-chủ dự án trong phiên.
+`origin/claude/extract-upload-repo-gq2ws4` @ `a224e6f`.
+
+**Cập nhật cùng phiên (`S154`, sau khi push):** chủ dự án xác nhận trực
+tiếp bằng văn bản việc push, rồi `scripts/branch_authority_check.sh` báo
+`DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]` — nhánh mặc định đã
+tiến thêm 5 commit (`TASK-OWNER-UIUX-009` + `R7`, xem hai mục ngay dưới
+đây) trong lúc phiên này chạy, với xung đột THẬT ở 4 file
+(`kinh_doanh_nhan_vien.html`, `_r6_bits.html`, `server.py`,
+`tinphat-ui.css` — dò bằng `git merge-tree`, không ghi gì vào repo). Theo
+`governance/core/V4_1_POLICY_FREEZE.md` §8, chủ dự án chọn lựa chọn (A):
+merge nhánh mặc định vào ngay, giải xung đột, chạy lại toàn bộ test, rồi
+mới giao Independent Review. Merge đã thực hiện; hai file mã nguồn
+(`server.py`, `_r6_bits.html`, `tinphat-ui.css`) merge TỰ ĐỘNG sạch —
+`kinh_doanh_nhan_vien.html` xung đột thật (đè lên đúng vùng `identity_
+warning` mà `TASK-OWNER-UIUX-009` đã bỏ hiển thị), giải bằng cách NHẬN
+quyết định của `TASK-OWNER-UIUX-009` (bỏ vùng cảnh báo) và bỏ luôn khoá
+`"identity-warning"` khỏi `_workspace_regions()` — gửi HTML cho một vùng
+không còn host DOM là dữ liệu chết. Toàn bộ test chạy lại SAU merge, xem
+mục "Bằng chứng SAU tích hợp" bên dưới.
+
+**Chưa PR, chưa merge vào nhánh mặc định** — nhánh làm việc đã push, đã
+tích hợp với nhánh mặc định, chờ Independent Review.
 
 ```text
 UI-03  Phân loại / loại / khôi phục NGAY TRONG bảng kê. Ba đường ghi giữ
@@ -139,8 +158,63 @@ tham số khác); đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md` (không trạng th�
 
 Chi tiết đầy đủ:
 `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`;
-`docs/sessions/S153-ui030405-thao-tac-tai-cho.md`;
+`docs/sessions/S154-ui030405-thao-tac-tai-cho.md`;
 `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: UI-03-UI-04-UI-05".
+## CANONICAL CURRENT STATE — `TASK-OWNER-UIUX-009`: bỏ tag "Ngoài bảng giá" + hai khối cảnh báo, dời nút toggle (2026-09-11)
+
+Tiếp nối `S153`/`R7` (bên dưới). Ba yêu cầu trực tiếp của Owner trên
+trang Nhân viên (`DEC-223` — đánh số lại từ `DEC-222` để tránh trùng với
+`DEC-222` của `R7`, hai phiên độc lập cùng lấy số kế tiếp lúc tách nhánh):
+(1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn — coi như đã phân
+loại xong, đảo lại `§4.3` cũ của `R2` (Owner chấp nhận mất lối bấm "Nối
+lại Tracking" từ bảng kê, route vẫn sống nếu gọi thẳng URL); (2) bỏ khối
+"Đã tính được lợi nhuận: N/M dòng" + banner "có mã chưa được phân loại"
+khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG, HÃNG & IMEI" vào tiêu đề
+"Bảng kê", góc trên bên phải.
+
+Nhánh: `claude/reports-uiux-009-hide-tags-move-toggle`, dựng từ tip nhánh
+mặc định SAU khi `R5.4` đã merge, rồi đồng bộ lại lần nữa sau khi `R7`
+merge — đúng "Đồng Bộ Nhánh". Full suite `3643 passed, 24 skipped, 0
+failed` trên nền trước `R7`; 6 file test cập nhật đích theo hành vi mới
+(không xoá bài, không giảm coverage). Kiểm bằng Playwright trên bản dump
+tĩnh (CSS/JS thật, Flask test client thật) xác nhận cả ba thay đổi đúng
+như yêu cầu, kể cả ở màn hẹp 420px.
+
+Owner đã xác nhận merge sau khi được trình bày rõ đánh đổi ở mục (1).
+Chi tiết đầy đủ + bằng chứng: `PROJECT/PROJECT_DECISIONS.md` → `DEC-223`.
+
+---
+
+## CANONICAL CURRENT STATE — `R7`: liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng, `DONE`, merge theo chỉ thị Owner (`S153`, 2026-09-11)
+
+Tiếp nối `S152`. Owner giao ba việc kèm ba sổ thô và ảnh chụp (`DEC-222`).
+
+```text
+§A Liên hệ    5 đơn đầu tháng 9 hiện `—` dù sổ CÓ tên/SĐT ⟹ dòng SAME giữ
+              version cũ (ba cột liên hệ ngoài fingerprint). Sửa:
+              _refresh_contact_fields — làm mới tại chỗ 3 cột cho dòng SAME,
+              không version mới, không xoá bằng ô trống, canh AST.
+§B Giá MIN    KHÔNG sửa code. Ngày bán trước 07/09 (R1 Tracking) không có
+              bản ngày ⟹ `—` đúng thiết kế. Owner chọn hướng (DEC-222 §4).
+§C Biểu đồ    cửa sổ = CONTAINER LỊCH (Ngày 01→cuối tháng · Tuần trong quý ·
+              Tháng/Quý trong năm · Năm 5 mốc); so sánh = container năm
+              trước; đường hiện tại dừng ở mốc neo; dự phóng hết kỳ (% so
+              trọn cùng kỳ + % đến cùng thời điểm) ở cả hai biểu đồ, hai trang.
+§D Số đơn     nguồn lấp lỗ hổng thứ hai daily_orders.jsonl (579 ngày, 2025-01
+              → 2026-08, 29.883 đơn; chỉ ngày + số đếm), nối ở mọi mức gộp.
+```
+
+```text
+CHECK-R7-01 … CHECK-R7-12   PASS (E1)
+CHECK-R7-13 Owner nghiệm thu production   NOT_TESTED — chỉ Owner đóng
+Full pytest                 3658 passed / 23 skipped / 0 failed (nền S152: 3640 / 23 / 0; +18 bài mới, không bài nào bị xoá)
+Ngân sách                   root task MỚI R7 (MEDIUM, 1 cycle, chưa dùng)
+Tracking                    KHÔNG đổi
+```
+
+Chi tiết: `docs/tasks/R7-lien-he-bieu-do-container-so-don.md`;
+`docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`;
+`PROJECT/PROJECT_DECISIONS.md` → `DEC-222`.
 
 ---
 

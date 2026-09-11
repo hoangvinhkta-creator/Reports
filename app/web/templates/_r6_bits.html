@@ -87,6 +87,24 @@
           data-metric="chart-legend-comparison">{{ chart.comparison_label }}:
       {{ chart.comparison_range }} <strong>{{ comparison_text }}</strong></span>
   </div>
+  {% if chart.projection %}
+  {# `R7 §C` — dự phóng hết container theo nhịp hiện tại. Ba con số đều đọc
+     được để người đọc kiểm lại phép chia; đây là trình bày, không phải chỉ
+     tiêu. #}
+  <p class="chart-projection" data-metric="chart-projection"
+     data-projected="{{ chart.projection.projected_raw }}"
+     data-percent="{{ chart.projection.percent_raw or '' }}">
+    Đến {{ chart.projection.anchor_text }} ({{ chart.projection.elapsed_units }}/{{ chart.projection.total_units }} ngày của {{ chart.projection.container }}):
+    <strong>{{ chart.projection.current_to_date }}</strong>{% if chart.projection.to_date_percent %}
+    — bằng {{ chart.projection.to_date_percent }}% cùng thời điểm năm trước{% endif %}.
+    Với tốc độ này, cuối {{ chart.projection.container }} đạt khoảng
+    <strong>{{ chart.projection.projected }}</strong>{% if chart.projection.percent %}
+    — <strong>{{ chart.projection.percent }}%</strong> so với cùng kỳ năm trước
+    ({{ chart.projection.comparison_total }}){% else %}
+    — cùng kỳ năm trước chưa có số để so{% endif %}{% if chart.projection.gap_note %};
+    {{ chart.projection.gap_note }}{% endif %}.
+  </p>
+  {% endif %}
   <div class="rev-chart-row">
     <div class="rev-chart-yaxis" style="height: {{ chart.svg_height }}px">
       {% for tick in chart.y_axis %}

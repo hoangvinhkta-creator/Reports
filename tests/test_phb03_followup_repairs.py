@@ -181,7 +181,9 @@ def test_the_employee_page_totals_count_every_line_not_only_the_pending_ones(
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-01&nhan-vien=Vinh")
     assert metric(html, "lines") == "2", "cả dòng đã đủ lẫn dòng còn thiếu"
     assert metric(html, "sales_revenue") == "16.000"
-    assert metric(html, "coverage") == "1 / 2 dòng"
+    # `coverage` không còn render ở trang này nữa (`TASK-OWNER-UIUX-009` §2,
+    # chủ dự án yêu cầu trực tiếp) — bất biến "TỔNG không bỏ sót dòng" vẫn
+    # được canh đủ bằng hai khẳng định `lines`/`sales_revenue` ở trên.
 
 
 def test_the_employee_page_opens_the_complete_list_of_that_employee(

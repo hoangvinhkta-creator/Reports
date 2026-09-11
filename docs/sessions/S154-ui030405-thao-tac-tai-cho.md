@@ -1,4 +1,4 @@
-# S153 — UI-03 / UI-04 / UI-05: thao tác tại chỗ, bảng theo trang, ghim biểu đồ
+# S154 — UI-03 / UI-04 / UI-05: thao tác tại chỗ, bảng theo trang, ghim biểu đồ
 
 Ngày: 2026-09-11
 Task: `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`

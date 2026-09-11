@@ -23,7 +23,7 @@ Task Mode:
 MAJOR (ba tính năng, chạm cả route backend lẫn trạng thái frontend)
 
 Primary Agent Tier:
-Claude Code (S153)
+Claude Code (S154)
 
 Escalation Tier:
 Owner
@@ -181,7 +181,7 @@ handle, không so nội dung) — `tests/playwright/workspace-inline.spec.mjs`
 ::"mở bảng chọn phân loại không dựng lại bảng kê".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -205,7 +205,7 @@ HTML riêng — `tests/test_ui030405_workspace_json.py`::
 `test_a_classification_answers_with_EVERY_affected_order`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -230,7 +230,7 @@ trỏ tới `/kinh-doanh/nhan-vien/ngoai-bang` — `workspace-inline.spec.mjs`
 `test_the_browser_path_still_redirects_exactly_as_before`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -252,7 +252,7 @@ hộp xác nhận nói hậu quả TRƯỚC…" và ::"HỦY trong hộp xác nh
 Câu chữ do server viết (`EXCLUDE_CONFIRM_*`/`RESTORE_CONFIRM_*`).
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -274,7 +274,7 @@ gửi; số dòng đã loại không đổi — `workspace-inline.spec.mjs`::"l�
 hộp xác nhận Ở LẠI, KHÔNG tự gửi lại".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -298,7 +298,7 @@ nó"; hình dạng payload: `test_a_classification_answers_with_EVERY_affected_
 order`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -319,7 +319,7 @@ CHỈNH` đi LIỀN con số trong cùng một mảnh HTML (không tách ra đ�
 ghép) — `test_the_write_payload_carries_the_server_built_regions`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -342,7 +342,7 @@ Mở bảng chọn phân loại KHÔNG mang cả trang: response không chứa
 `319.736` byte / `p50 263,4 ms` của lượt fragment mà đường cũ dùng.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -366,7 +366,7 @@ toàn repo), và `rows_html` mang đúng khoá ba phần của hàng —
 `test_the_json_page_route_reuses_the_same_row_markup`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -391,7 +391,7 @@ nhau, mọi khối bắt đầu bằng `bh-head` —
 trang".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -415,7 +415,7 @@ và hai trang KHÔNG chồng nhau —
 `test_the_no_js_more_link_really_serves_a_different_page`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -439,7 +439,7 @@ dưới ngân sách" + ::"trang đầu dựng ở SERVER và đã nằm trong ng
 DOM" + ::"fixture đúng là 5.000 dòng…".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -461,7 +461,7 @@ nguyên vị trí màn hình trong phạm vi `< 4 px` sau một lượt tải + 
 người đang xem".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -484,7 +484,7 @@ Phía server: `detail_totals`/`summary_strip` đọc `scoped.details` của cả
 kỳ, không đọc `page["details"]` (xem `_workspace_context`).
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -506,7 +506,7 @@ restarts_at_the_top`, `test_the_page_limit_is_clamped`,
 `test_the_json_page_route_never_exceeds_the_hard_limit`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -528,7 +528,7 @@ Nền xen kẽ theo NGÀY giữ đúng nhịp của CẢ sheet trên một lát 
 `test_cursor_for_order_finds_the_page_holding_an_order`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -552,7 +552,7 @@ mang `is-pinned`; rời con trỏ thì nó biến mất —
 KHÔNG bị ghim".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -575,7 +575,7 @@ không chỉ so nội dung, và popover không hề bị ẩn giữa chừng —
 nội dung NGAY TRONG popover đang ghim".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -597,7 +597,7 @@ trong popover trong vòng 1 s trong khi phần phân rã vẫn đang tải —
 `chart-pin.spec.mjs`::"giá trị cơ bản hiện NGAY, trước khi phân rã về".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -620,7 +620,7 @@ chính route, đã assert là khác nhau) —
 `chart-pin.spec.mjs`::"phân rã của điểm CŨ về muộn thì bị BỎ QUA".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -644,7 +644,7 @@ nội dung tại chỗ" và ::"Tab từ điểm đang ghim đi VÀO popover, và
 được".
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -667,7 +667,7 @@ theo nhân viên cộng lại đúng bằng tổng của mốc —
 ĐỌC: `POST` trả `405` — `test_the_breakdown_route_never_writes`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -692,7 +692,7 @@ xanh nguyên vẹn trong lần chạy đầy đủ `35 passed`. Bộ pytest toà
 `25 passed`.
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -710,10 +710,10 @@ E1
 Evidence:
 Việc tách macro KHÔNG đổi một byte nào của trang đầy đủ: render trước/sau
 refactor chỉ khác đúng các thuộc tính `data-region` mới thêm (diff hai bản
-HTML trên fixture 120 dòng — xem `docs/sessions/S153-*.md` §2).
+HTML trên fixture 120 dòng — xem `docs/sessions/S154-*.md` §2).
 
 Executed By:
-Claude Code (S153)
+Claude Code (S154)
 
 Timestamp:
 2026-09-11
@@ -809,7 +809,7 @@ Created:
 - `tests/playwright/chart-pin.spec.mjs`
 - `tests/test_ui030405_workspace_json.py`
 - `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`
-- `docs/sessions/S153-ui030405-thao-tac-tai-cho.md`
+- `docs/sessions/S154-ui030405-thao-tac-tai-cho.md`
 
 Modified:
 - `app/web/server.py`

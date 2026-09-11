@@ -290,8 +290,10 @@ def test_case_wr_04_month_progress_changes_no_business_number(
     nếu Tiến độ có đường nào chạm vào phép tính, hai bộ số sẽ lệch.
     """
     persist(repository, three_line_order())
+    # `coverage` không còn render ở trang này nữa (`TASK-OWNER-UIUX-009` §2,
+    # chủ dự án yêu cầu trực tiếp) — bỏ khỏi danh sách theo dõi.
     watched = ("sales_revenue", "converted_sales", "kpi_profit",
-               "lines", "orders", "coverage")
+               "lines", "orders")
     before = {name: metric(body(client, "/kinh-doanh/nhan-vien"), name)
               for name in watched}
     totals_before = service.period(**SEPTEMBER).totals
@@ -593,7 +595,9 @@ def test_a_target_never_changes_a_single_business_number(
 ):
     """`§60` — đặt/sửa Target chỉ đổi Target và So Target, không gì khác."""
     persist(repository, three_line_order())
-    watched = ("sales_revenue", "converted_sales", "kpi_profit", "coverage",
+    # `coverage` không còn render ở trang này nữa (`TASK-OWNER-UIUX-009` §2,
+    # chủ dự án yêu cầu trực tiếp) — bỏ khỏi danh sách theo dõi.
+    watched = ("sales_revenue", "converted_sales", "kpi_profit",
                "lines", "orders", "qualifying_quantity")
     before = {name: metric(body(client, "/kinh-doanh/nhan-vien"), name)
               for name in watched}
@@ -721,8 +725,10 @@ def test_case_37_the_four_filter_buttons_are_gone_but_the_states_remain(
     for label in ("CHƯA CÓ GIÁ NHẬP", "CHƯA XÁC ĐỊNH NHÂN VIÊN",
                   "DÒNG TÔI ĐÃ SỬA"):
         assert label not in html, label
-    # Trạng thái đúng đắn thì vẫn còn: coverage vẫn nói còn dòng chưa đủ.
-    assert metric(html, "coverage") == "0 / 1 dòng"
+    # Trạng thái đúng đắn thì vẫn còn: dòng thiếu giá vẫn tự nói ra ngay
+    # cạnh mã đơn của nó, dù dòng tổng "coverage" đầu trang đã bỏ
+    # (`TASK-OWNER-UIUX-009` §2, chủ dự án yêu cầu trực tiếp).
+    assert "Thiếu giá" in set(metrics(html, "bh-tag"))
     # Và bảng kê đầy đủ vẫn mở được từ chính sheet này.
     assert 'data-metric="employee-detail-link"' in html
 

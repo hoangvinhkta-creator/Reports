@@ -14306,3 +14306,171 @@ Ghi tại `PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: R5-4",
 - `PROJECT/PROJECT_PROGRESS.md` — CANONICAL CURRENT STATE `S152`.
 
 Bằng chứng nguyên văn: `docs/sessions/S152-r54-nhan-cho-dong-khop-tu-dong.md`.
+
+## DEC-222
+
+Ngày: 2026-09-11
+Phiên: `S153` — Owner giao ba việc kèm ba sổ thô (2025, 2026 01–08, tháng
+9 đang nạp) và ảnh chụp tab Nhân viên.
+Thẩm quyền: `OWNER_DECISION` — chỉ thị trực tiếp trong phiên.
+Trạng thái: BAN HÀNH, đã thực thi (`R7`).
+
+### §1. Yêu cầu nguyên văn
+
+> "1. giá nhập các mã cũ vẫn chưa đọc được. Kiểm tra lại giúp tôi phần truy
+> xuất mã từ lịch sử giá min đang gặp vấn đề gì, ngoài ra cả thông tin
+> khách hàng và số điện thoại cũng đang không truy xuất được
+> 2. biểu đồ ngày: hiển thị trên biểu đồ là dải 30 ngày sửa lại từ 1 đến
+> cuối tháng, hiển thị đường doanh số tháng này kì trước và tháng này kì này
+> đến hiện tại. Thể hiện với tốc độ này thì cuối tháng sẽ đạt được bao nhiêu
+> % so với kì trước — áp dụng cho cả tuần - tháng - quý - năm
+> Biểu đồ số đơn: kiểm tra 2 file thô này, lọc ra duy nhất thông tin số đơn
+> để bổ sung dữ liệu cho biểu đồ để có đầy đủ thông số"
+
+### §2. Quyết định
+
+1. **Liên hệ (`R7 §A`)** — sửa: dòng `SAME` được làm mới ba cột liên hệ tại
+   chỗ từ sổ đang nạp. Đây là ngoại lệ hẹp thứ hai của luật append-only
+   (sau bảng con trỏ), canh bằng AST: chỉ một hàm, chỉ ba cột, không xoá.
+2. **Giá MIN (`R7 §B`)** — KHÔNG sửa code. Kết luận: ngày bán trước khi
+   Tracking bắt đầu chụp MIN ngày (R1, 2026-09-07) không có bản ngày ⟹
+   `SOURCE_UNAVAILABLE` ⟹ `—`, đúng thiết kế R1 (không nhánh dự phòng).
+3. **Biểu đồ (`R7 §C`)** — cửa sổ đổi từ "N mốc kết thúc ở mép phải"
+   (`DEC-211`) sang CONTAINER LỊCH; so sánh vẫn cùng kỳ NĂM TRƯỚC (đọc
+   "tháng này kì trước" là tháng này của năm trước — đúng đường gapfill 2025
+   mà `DEC-216` đã mở cho mục đích này); đường hiện tại dừng ở mốc neo; thêm
+   dự phóng hết kỳ (trình bày, không chỉ tiêu). Áp dụng Ngày/Tuần/Tháng/
+   Quý; Năm giữ 5 mốc, dự phóng năm nay so năm trước.
+4. **Số đơn (`R7 §D`)** — nguồn lấp lỗ hổng thứ hai `daily_orders.jsonl`,
+   cùng ba ràng buộc của `DEC-216`, nối ở mọi mức gộp (không có tổng tháng
+   lịch sử nào cho số đơn). Sổ tháng 9 đang nạp KHÔNG đưa vào nguồn.
+5. Merge thẳng theo chỉ thị Owner; `CHECK-R7-13` chờ Owner.
+
+### §3. Ngân sách
+
+Root task MỚI `R7` (`PROJECT/REVIEW_BUDGET_LEDGER.md`), `effective_risk:
+MEDIUM`, 1 cycle, chưa dùng. Không thuộc lineage `R5`/`R6`.
+
+### §4. Việc để lại cho Owner quyết (giá MIN trước 07/09)
+
+- (1) Chấp nhận: nhập tay giá cho đơn trước 07/09 (đường có sẵn).
+- (2) Tracking backfill bản ngày cho các ngày trước 07/09 nếu Engine còn dữ
+  liệu lịch sử — việc bên Tracking.
+- (3) Mở lại nhánh dự phòng `tp/ton` cho ngày không có bản ngày — đổi thẩm
+  quyền giá đã chốt ở R1, cần một DEC riêng.
+- 06/09 và 09/09 `—` dù sau 07/09: cần đọc nhật ký cron `min-ngay-chu-ky`
+  bên Tracking; chưa xác minh trong phiên này.
+
+Bằng chứng nguyên văn: `docs/sessions/S153-r7-lien-he-bieu-do-so-don.md`.
+
+---
+
+---
+
+## DEC-223
+
+Title:
+`TASK-OWNER-UIUX-009` — ba yêu cầu trực tiếp của chủ dự án trên trang Nhân
+viên: (1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn (coi như đã phân
+loại xong); (2) bỏ khối "Đã tính được lợi nhuận: N/M dòng" + khối cảnh báo
+"có mã chưa được phân loại" khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG,
+HÃNG & IMEI" lên góc trên bên phải tiêu đề "Bảng kê", cùng hàng.
+
+Date:
+2026-09-11
+
+Authority:
+`HANDOFF_DIRECTIVE` (yêu cầu trực tiếp bằng văn bản, ba mục, kèm ảnh chụp
+màn hình production thật). Không hỏi lại việc 3; việc 2 đã hỏi lại phạm vi
+(bỏ một khối hay cả hai) — chủ dự án chọn bỏ CẢ HAI.
+
+Supersedes:
+- `§4.3` của `R2 Execution Brief` (`docs/tasks/...` R2) — trước đây MỘT
+  finding chặn của Independent Review yêu cầu tag "Ngoài bảng giá" phải
+  BẤM ĐƯỢC ("một nhãn không bấm được là một quyết định không có đường đảo
+  ngược"). Chủ dự án chấp nhận đánh đổi này TƯỜNG MINH: mất lối vào từ
+  bảng kê để "Nối lại Tracking" một dòng đã đánh dấu ngoài bảng giá — route
+  `phan-loai=1&order_key=...` vẫn còn sống trong code, chỉ không còn cách
+  bấm tới nó từ UI.
+- `R-S7`/`DEC-PHB02-02` §4 ("không gian làm việc không được làm mất khối
+  coverage") — CHỈ ở tầng hiển thị của trang Nhân viên; `sheet.coverage`
+  vẫn tính đúng, trang Báo cáo (`kinh_doanh.html`) không đổi.
+- `DEC-185` §13/§PI-10/§PI-11 (dòng cảnh báo gộp "có mã chưa phân loại")
+  — cơ chế `sheet_warning()`/`unresolved_orders()` trong
+  `app/web/line_identity.py` GIỮ NGUYÊN, chỉ không còn render ở trang này.
+
+### 1. `OUT_OF_CATALOG` không còn chữ riêng
+
+`app/web/line_identity.py::IdentityState.label` — nhánh
+`if self.classification == CLASS_OUT_OF_CATALOG: return (LABEL_OUT_OF_
+CATALOG if self.state == STATE_MISSING_PRICE else None)` đổi thành LUÔN
+`return None`. Hệ quả: `identity_tags` (nơi dựng tag cạnh mã đơn,
+`workspace_presentation.py`) không còn phần tử nào cho dòng `OUT_OF_
+CATALOG`, bất kể còn thiếu giá hay không. Tag "Thiếu giá" chung
+(`SHORT_TAGS`/`profit_gate`, vàng) KHÔNG bị đụng — nếu dòng thật sự còn
+thiếu giá, tín hiệu đó vẫn hiện, chỉ không còn nhãn RIÊNG cho việc "ngoài
+bảng giá" nữa.
+
+`CLASSIFICATION_LABELS`/`CLASSIFICATION_TITLES` (dùng ở popover phân loại,
+không phải tag cạnh mã đơn) giữ nguyên — Owner vẫn thấy câu giải thích đầy
+đủ khi MỞ popover, chỉ không còn tag mời bấm NGOÀI popover.
+
+### 2. Bỏ hai khối cảnh báo đầu trang
+
+`app/web/templates/kinh_doanh_nhan_vien.html`:
+- Xoá `<p class="insight">Đã tính được lợi nhuận: ...</p>` +
+  `{{ biz.coverage_breakdown(sheet.coverage) }}` (macro `_business_bits.
+  html`, không đổi — vẫn dùng ở trang Báo cáo).
+- Xoá khối `{% if identity_warning %}...{% endif %}` (`data-metric=
+  "identity-warning"`).
+
+Không đổi `app/web/server.py`/`workspace_presentation.py` — cả hai giá trị
+(`sheet.coverage`, `identity_warning`) vẫn được tính, chỉ không truyền
+vào phần template còn render nữa (thực ra vẫn truyền vào context, chỉ
+template không đọc — không dọn tham số context để giữ diff nhỏ, không có
+side effect vì Jinja bỏ qua biến không dùng).
+
+### 3. Dời nút hiện cột optional vào tiêu đề "Bảng kê"
+
+`<button data-metric="toggle-optional">` + `<span data-metric="optional-
+columns-note">` dời từ một `<p class="filter-row">` riêng (nằm dưới, giữa
+banner cảnh báo cũ và bảng) vào bên TRONG `<h2>Bảng kê ...</h2>`, bọc
+trong `<span class="cnt bh-optional-toggle">` (class `.cnt` có sẵn:
+`margin-left: auto` trong `.module > h2 { display:flex }` — đúng cơ chế
+đã dùng để đẩy phần tử cuối flex-row sang phải, xem `tinphat-ui.css`).
+Vẫn chỉ render khi `groups` không rỗng (có bảng để mà bật/tắt cột) —
+hành vi ẩn/hiện, `localStorage`, KHÔNG đổi.
+
+Impact:
+Thuần trình bày + MỘT thay đổi hành vi nghiệp vụ có chủ đích (mục 1 —
+mất lối bấm lại "Nối lại Tracking" từ bảng kê, route vẫn còn nếu gọi
+thẳng URL). Không đổi `app/modules/pricing/`, `period_lock.py`,
+resolver/product-identity, `tools/db/migrations/`. `app/web/line_
+identity.py`, `app/web/templates/kinh_doanh_nhan_vien.html` thay đổi.
+
+Evidence:
+Full suite `3643 passed, 24 skipped, 0 failed` (nền sau `R5.4` merge —
+không giảm số bài, không bài nào bị xoá; 6 bài cập nhật đích để phản ánh
+đúng hành vi mới thay vì test hành vi cũ: `test_dec185_nav_chart_identity.py`
+×3, `test_employee_workspace_ux.py` ×3, `test_phb03_followup_repairs.py`
+×1, `test_phb05_employee_target.py` ×1, `test_r2_web_workflow.py` ×2 —
+xem comment `TASK-OWNER-UIUX-009` tại mỗi chỗ sửa). Validators governance
+structure/project_state/evidence/task_completion PASS; reference_integrity
+đúng 4 baseline cũ. `git diff --check` sạch.
+
+Kiểm bằng Playwright trên bản dump tĩnh (Flask test client thật, CSS/JS
+thật): (a) trang Nhân viên bình thường — khối "Đã tính được lợi nhuận" và
+banner "có mã chưa được phân loại" biến mất hoàn toàn; nút "HIỆN NHÓM
+HÀNG, HÃNG & IMEI" + ghi chú hiện ĐÚNG một hàng với tiêu đề "Bảng kê Tháng
+09/2026", đẩy sát mép phải card; ở màn hẹp (420px) nút xuống hàng dưới
+tiêu đề một cách gọn gàng (flex-wrap có sẵn), không tràn/vỡ layout; (b)
+kịch bản một dòng đã đánh dấu "Không có trên bảng giá" (còn thiếu giá) —
+ảnh chụp xác nhận KHÔNG còn tag "Ngoài bảng giá" nào cạnh mã đơn (chỉ còn
+chấm tròn nhỏ của tag "Thiếu giá" chung, không phải nhãn identity riêng).
+
+Can Revisit After:
+Nếu chủ dự án sau này cần lại đường "Nối lại Tracking" cho dòng đã đánh
+dấu ngoài bảng giá (ví dụ Tracking bổ sung mặt hàng đó vào danh mục), cần
+một lối vào MỚI (route `?phan-loai=1&order_key=...` vẫn sống, chỉ cần một
+điểm bấm — ví dụ từ icon sửa dòng đã có ở cột thao tác) thay vì khôi phục
+lại tag cũ.

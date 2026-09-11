@@ -1379,16 +1379,12 @@ def create_app(
         data = (view["data"] if view["period"] is None
                 else _guarded(service.period))
         legacy_months = _legacy_month_totals()
-        buckets = dashboard_metrics.orders_by_bucket(
-            data.details, bucket_of=revenue_timeline.bucket_of,
-            granularity=granularity)
-        points = [
-            revenue_timeline.Point(
-                key=key, label=slot["label"],
-                revenue=Decimal(slot["orders"]),
-                origin=revenue_timeline.ORIGIN_CURRENT)
-            for key, slot in sorted(buckets.items())
-        ]
+        # `R7 §D` — số đơn của sổ nạp + nguồn lấp lỗ hổng số đơn cho những
+        # ngày sổ nạp không nói tới (`data/chart_gapfill/daily_orders.jsonl`),
+        # ở MỌI mức gộp — xem `revenue_timeline.count_series`.
+        points = revenue_timeline.count_series(
+            data.details, granularity=granularity,
+            gapfill_days=chart_gapfill.daily_order_rows())
         # Cùng `anchor` mà `_revenue_chart` tính cho ĐÚNG `data` này — mép
         # phải của hai biểu đồ khớp nhau bằng cấu tạo, không phải trùng hợp.
         anchor = _chart_anchor(view["period"], data.details, legacy_months)
@@ -2298,15 +2294,21 @@ def create_app(
         cùng lúc với con số (`R-S7`). Gửi riêng con số rồi để client tự ghép
         lại cái nhãn là dựng một thẩm quyền thứ hai cho đúng câu hỏi khó
         nhất của sản phẩm này — và nó sẽ nói sai đúng vào lúc dữ liệu thiếu.
+
+        KHÔNG có khoá `"identity-warning"` — `TASK-OWNER-UIUX-009` bỏ vùng
+        `data-region="identity-warning"` khỏi `kinh_doanh_nhan_vien.html`
+        (tích hợp lại ở đây sau khi lineage đó merge). Gửi HTML cho một
+        vùng không còn host DOM nào là dữ liệu chết, không phải markup thừa
+        vô hại — client sẽ không tìm thấy chỗ để vá vào (`applyRegions()`
+        no-op khi thiếu host), nhưng gửi nó vẫn là gửi sai ý định. Macro
+        `identity_warning_block` vẫn còn trong `_workspace_table.html`
+        (không xoá) cho một trang khác cần lại.
         """
         macros = _workspace_macros()
         return {
             "identify": str(macros.identify_panel(
                 context["identify"], context["selected_period"],
                 context["sheet"])),
-            "identity-warning": str(macros.identity_warning_block(
-                context["identity_warning"], context["selected_period"],
-                context["sheet"], context["warning_cursor"])),
             "kpi-strip": str(macros.kpi_strip(
                 context["strip"], context["sheet"])),
             "sheet-totals": str(macros.totals_row(
@@ -3923,16 +3925,11 @@ def create_app(
         granularity = revenue_timeline.parse_granularity(
             request.args.get("muc"), default=revenue_timeline.DAY)
         details, _widened = _chart_details(view, granularity)
-        buckets = dashboard_metrics.orders_by_bucket(
-            details, bucket_of=revenue_timeline.bucket_of,
-            granularity=granularity)
-        points = [
-            revenue_timeline.Point(
-                key=key, label=slot["label"],
-                revenue=Decimal(slot["orders"]),
-                origin=revenue_timeline.ORIGIN_CURRENT)
-            for key, slot in sorted(buckets.items())
-        ]
+        # `R7 §D` — cùng nguồn lấp lỗ hổng số đơn với trang Báo cáo, để hai
+        # trang vẽ cùng một đường "Cùng kỳ năm trước" (`FIND-R6-IR-01`).
+        points = revenue_timeline.count_series(
+            details, granularity=granularity,
+            gapfill_days=chart_gapfill.daily_order_rows())
         paired = revenue_timeline.paired_series(
             points, granularity=granularity, anchor=view["anchor"],
             confirmed_ranges=_guarded(snapshot_repo.confirmed_ranges)

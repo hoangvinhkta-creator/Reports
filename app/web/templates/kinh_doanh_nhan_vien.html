@@ -132,15 +132,12 @@
   {% endif %}
   <div data-region="kpi-strip">{{ wk.kpi_strip(strip, sheet) }}</div>
 
-  {# Coverage giá nhập — điều kiện để mọi con số ở trên được gọi là CHÍNH
-     THỨC (`R-S7`/`DEC-PHB02-02` §4). Không gian làm việc không được làm mất
-     nó: nếu chỉ còn cái nhãn CHƯA HOÀN CHỈNH mà không còn con số "bao nhiêu
-     dòng", Owner biết có vấn đề nhưng không biết còn bao nhiêu việc. #}
-  <p class="insight">Đã tính được lợi nhuận:
-    <strong data-metric="coverage">{{ sheet.coverage.text }}</strong>
-    <span class="tp-unit" data-metric="coverage-percent">{{ sheet.coverage.percent }}</span>
-  </p>
-  {{ biz.coverage_breakdown(sheet.coverage) }}
+  {# `TASK-OWNER-UIUX-009` §2 (chủ dự án yêu cầu trực tiếp) — bỏ khối
+     "Đã tính được lợi nhuận: N/M dòng" + phần giải thích coverage khỏi
+     trang này cho gọn. Đè lên chủ đích cũ của `R-S7`/`DEC-PHB02-02` §4
+     ("không gian làm việc không được làm mất nó") — CHỈ ở tầng hiển thị của
+     trang Nhân viên; `sheet.coverage` vẫn được tính và dùng ở nơi khác
+     (trang Báo cáo/`_business_bits.html::coverage_block`), không đổi. #}
 </div>
 
 {# --- HỘP XÁC NHẬN ----------------------------------------------------
@@ -179,15 +176,43 @@
    khối, các dòng hàng nằm bên trong (`§22`). Nền xen kẽ theo NGÀY, không
    theo dòng (`§38`). #}
 <div class="module">
-  <h2>{{ icons.ico('bang') }}Bảng kê {{ sheet.period_label }}</h2>
+  <h2>{{ icons.ico('bang') }}Bảng kê {{ sheet.period_label }}
+    {# `TASK-OWNER-UIUX-009` §3 (chủ dự án yêu cầu trực tiếp) — nút
+       hiện/ẩn Nhóm hàng·Hãng·IMEI dời vào NGAY tiêu đề, góc trên bên phải
+       của card (mẫu `.cnt`/`margin-left:auto` đã dùng cho các khối khác —
+       xem `tinphat-ui.css`). Vẫn chỉ render khi có bảng để mà bật/tắt cột. #}
+    {% if groups %}
+    <span class="cnt bh-optional-toggle">
+      <button type="button" class="ghost btn-mini" data-metric="toggle-optional"
+              data-optional-toggle
+              data-show-label="{{ show_optional_label }}"
+              data-hide-label="{{ hide_optional_label }}"
+              aria-pressed="false">{{ show_optional_label }}</button>
+      <span class="tp-label" data-metric="optional-columns-note"
+        >{{ optional_columns_note }}</span>
+    </span>
+    {% endif %}
+  </h2>
 
-  {# `DEC-185` §13/§PI-10 — ĐÚNG MỘT dòng cảnh báo, ở đầu chính sheet này.
+  {# `TASK-OWNER-UIUX-009` §2 (chủ dự án yêu cầu trực tiếp) — bỏ dòng cảnh
+     báo "có mã chưa được phân loại" khỏi đầu sheet cho gọn. Trước đây đây
+     là `DEC-185` §13/§PI-10 (đúng một dòng cảnh báo, bấm vào nhảy tới khối
+     BH đầu tiên có mã chưa phân loại) — cơ chế `sheet_warning`/
+     `identity_warning` trong `app/web/line_identity.py` + `server.py` vẫn
+     còn nguyên, chỉ không còn render ở trang này nữa. Dòng "Chưa phân
+     loại"/"Thiếu giá" vẫn hiện được ngay cạnh từng mã đơn trong bảng kê bên
+     dưới — Owner vẫn thấy được việc còn treo mà không cần dòng cảnh báo
+     riêng ở đầu trang.
 
-     Không có danh sách dài, không có khối thứ hai, không có trang "Mã chưa
-     nhận diện". Bấm vào cảnh báo là nhảy tới khối BH đầu tiên có mã chưa
-     phân loại — cùng một bảng, không rời màn hình (`§PI-11`). #}
-  <div data-region="identity-warning">{{ wk.identity_warning_block(identity_warning, selected_period,
-                               sheet, warning_cursor) }}</div>
+     `UI-03` (tích hợp lại sau `TASK-OWNER-UIUX-009`) — vùng
+     `data-region="identity-warning"` và macro `wk.identity_warning_block`
+     KHÔNG còn được gọi ở đây nữa, đúng quyết định trên. `_workspace_
+     regions()` (`server.py`) cũng bỏ khoá `"identity-warning"` khỏi payload
+     JSON — không có host DOM nào để vá vào thì gửi HTML đó là dữ liệu chết,
+     không phải chỉ là markup thừa vô hại. Macro `identity_warning_block`
+     vẫn còn định nghĩa trong `_workspace_table.html` (không xoá) — một
+     trang khác muốn hiện lại cảnh báo này gọi được ngay, không phải viết
+     lại. #}
 
   {# `R5.1 REPAIR-2` — bản chiếu hiển thị của danh mục Tracking không nói đủ
      những gì nó đáng ra phải nói, TRONG KHI sheet này có dòng đã xác nhận mã.
@@ -222,16 +247,9 @@
      nút. Chúng là thông tin đối chiếu chứ không phải thông tin vận hành hằng
      ngày, và bắt cả bảng hẹp lại vì mấy cột ít dùng là đánh đổi sai. Trạng
      thái mở/đóng nằm ở trình duyệt (`localStorage`, xem `app.js`), nên nó
-     không đi qua server và không thành một thiết lập phải lưu ở đâu cả. #}
-  <p class="filter-row">
-    <button type="button" class="ghost btn-mini" data-metric="toggle-optional"
-            data-optional-toggle
-            data-show-label="{{ show_optional_label }}"
-            data-hide-label="{{ hide_optional_label }}"
-            aria-pressed="false">{{ show_optional_label }}</button>
-    <span class="tp-label" data-metric="optional-columns-note"
-      >{{ optional_columns_note }}</span>
-  </p>
+     không đi qua server và không thành một thiết lập phải lưu ở đâu cả.
+     `TASK-OWNER-UIUX-009` §3 — nút + ghi chú đã dời lên tiêu đề module, đầu
+     file này; xem đó. #}
   <div class="tp-scroll">
   {# `UI-01`/`UI-02` — `data-period`/`data-sheet` cho panel sửa tại chỗ đọc
      ngữ cảnh gọi API (`/api/v1/orders/<order_key>?period=…&sheet=…`) mà

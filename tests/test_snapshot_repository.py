@@ -344,9 +344,48 @@ def test_the_write_path_contains_no_delete_and_updates_only_the_pointer_table():
     # UPDATE bảng con trỏ của chính nó, và — CHỈ TỪ SLICE B — các cột xác nhận
     # coverage trên `source_snapshot` (mục 4 của task cho phép đúng ngoại lệ
     # này). Ràng buộc hẹp hơn nằm ở hai test ngay dưới đây.
+    # `R7` — thêm ĐÚNG một ngoại lệ hẹp: ba cột liên hệ (Tên KH · SĐT · Địa
+    # chỉ) của version ĐANG hiện hành được làm mới tại chỗ cho dòng `SAME`
+    # (`_refresh_contact_fields`). Ràng buộc "chỉ ba cột, chỉ một hàm" nằm ở
+    # `test_only_the_contact_refresh_updates_a_source_version` ngay dưới.
     assert _called_with(store, "update") <= {
         "legacy_import", "order_line_current", "source_snapshot",
+        "order_line_source_version",
     }
+
+
+CONTACT_COLUMNS = {"customer_name", "customer_phone", "customer_address"}
+
+
+def test_only_the_contact_refresh_updates_a_source_version():
+    """`R7` — `order_line_source_version` là bảng version bất biến; ngoại lệ
+    DUY NHẤT là ba cột liên hệ, và chỉ `_refresh_contact_fields` được chạm.
+
+    Đọc AST như bài ngay dưới: một `update(order_line_source_version)` lọt
+    vào chỗ khác (hay sửa thêm một cột tiền/fingerprint) sẽ đỏ ở đây trước
+    khi nó kịp ghi đè bằng chứng của một lần chạy.
+    """
+    store = REPO_ROOT / "app/web/history_store.py"
+    tree = ast.parse(store.read_text(encoding="utf-8"))
+    refresh = _function_named(tree, "_refresh_contact_fields")
+    inside = {id(node) for node in ast.walk(refresh)}
+    updates = [
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id == "update" and node.args
+        and getattr(node.args[0], "id", None) == "order_line_source_version"
+    ]
+    assert updates, "phải có đúng đường làm mới liên hệ"
+    assert all(id(node) in inside for node in updates), (
+        "chỉ `_refresh_contact_fields` được UPDATE order_line_source_version")
+    written = {
+        keyword.arg
+        for node in ast.walk(refresh)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "values"
+        for keyword in node.keywords
+    }
+    assert written == CONTACT_COLUMNS, "không cột nào khác của version được sửa"
 
 
 CONFIRM_COLUMNS = {

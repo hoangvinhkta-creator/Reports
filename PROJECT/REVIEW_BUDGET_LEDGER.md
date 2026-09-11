@@ -4218,5 +4218,26 @@ upstream — đó là HỆ QUẢ TRỰC TIẾP của yêu cầu "không push", k
 lỗi cần sửa bằng cách push.
 
 Bằng chứng nguyên văn: `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-
-ghim-bieu-do.md`; `docs/sessions/S153-ui030405-thao-tac-tai-cho.md`;
+ghim-bieu-do.md`; `docs/sessions/S154-ui030405-thao-tac-tai-cho.md`;
 `PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE — UI-03/UI-04/UI-05".
+
+---
+
+## Root Task: R7
+
+```
+root_task: R7
+title: Làm mới liên hệ dòng SAME · biểu đồ container lịch + dự phóng · số đơn lấp lỗ hổng
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: KHÔNG có — Owner chỉ thị merge thẳng (DEC-222 §2.5)
+next_action: Owner nghiệm thu production (CHECK-R7-13)
+```
+
+Root task MỚI theo chỉ thị Owner (`DEC-222`). Failure path dài nhất là §A
+(UPDATE ba cột liên hệ trên version hiện hành): không fingerprint, không
+tiền, không quyết định Owner nào đọc ba cột này, và canh AST giữ nó ở đúng
+một hàm/ba cột. §C/§D chỉ trình bày và nguồn vẽ. Không LOW vì §A chạm bảng
+version vốn bất biến — dù chỉ ba cột hiển thị.

@@ -248,8 +248,10 @@ def test_the_write_payload_carries_the_server_built_regions(client):
         "/kinh-doanh/nhan-vien/loai-dong", data=keys,
         headers={"Accept": "application/json"}).get_json()
     regions = payload["regions"]
-    assert set(regions) == {"identify", "identity-warning", "kpi-strip",
-                            "sheet-totals", "excluded"}
+    # `identity-warning` KHÔNG có mặt: `TASK-OWNER-UIUX-009` (đã merge) bỏ
+    # vùng hiển thị cảnh báo này khỏi trang — gửi HTML cho một vùng không
+    # còn host DOM nào là dữ liệu chết (xem `_workspace_regions`).
+    assert set(regions) == {"identify", "kpi-strip", "sheet-totals", "excluded"}
     # Nhãn CHÍNH THỨC/CHƯA HOÀN CHỈNH đi LIỀN con số trong cùng một mảnh —
     # đó là lý do vùng này trả HTML chứ không trả con số trần.
     assert 'data-metric="sales_revenue"' in regions["kpi-strip"]

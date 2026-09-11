@@ -118,10 +118,12 @@ chứng, để trang không im lặng về chỗ nó không biết.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from calendar import monthrange
+from calendar import isleap, monthrange
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Optional, Sequence
+
+from app.modules.reporting import dashboard_metrics
 
 #: Origin của một điểm. Cùng từ vựng `DEC-166 E`, không phải một cặp nhãn mới.
 ORIGIN_CURRENT = "PIPELINE_GENERATED"
@@ -219,6 +221,16 @@ GAPFILL_CHART_NOTE = (
     "Các mốc trước khi sổ nạp bắt đầu được vẽ từ bảng kê ngày của sổ kế toán, "
     "chỉ để nhìn xu hướng. Con số ĐỐI SOÁT của các kỳ cũ vẫn là tổng tháng "
     "của bản ghi lịch sử, không phải các mốc ngày này."
+)
+
+#: `R7 §D` — bản của `GAPFILL_CHART_NOTE` cho biểu đồ SỐ ĐƠN: nguồn lấp lỗ
+#: hổng số đơn (`data/chart_gapfill/daily_orders.jsonl`) được trích từ chính
+#: sổ chi tiết bán hàng, chỉ giữ ngày + số chứng từ. Không có "tổng tháng của
+#: bản ghi lịch sử" nào cho số đơn, nên câu này không được mượn câu kia.
+GAPFILL_COUNT_CHART_NOTE = (
+    "Các mốc chưa có sổ nạp được đếm từ bảng kê ngày của sổ kế toán (chỉ ngày "
+    "và số chứng từ), chỉ để nhìn xu hướng số đơn. Chúng KHÔNG đi vào tổng số "
+    "đơn của kỳ ở phía trên."
 )
 
 NO_DAILY_LEGACY_NOTE = (
@@ -459,7 +471,7 @@ def _legacy_day_points(
 
 
 def _day_points(rows: Iterable[dict], granularity: str, claimed_days: set,
-                *, origin: str) -> dict[str, dict]:
+                *, origin: str, value_field: str = "sales_vnd") -> dict[str, dict]:
     """Cơ chế dùng chung của mọi nguồn có bằng chứng TỪNG NGÀY.
 
     Tách ra khỏi `_legacy_day_points` khi `DEC-216` thêm nguồn lấp lỗ hổng:
@@ -475,7 +487,10 @@ def _day_points(rows: Iterable[dict], granularity: str, claimed_days: set,
     buckets: dict[str, dict] = {}
     for entry in rows:
         year, month = int(entry["year"]), int(entry["month"])
-        revenue = entry.get("sales_vnd")
+        # `R7 §D` — `value_field` là "sales_vnd" (doanh số) hay "orders" (số
+        # đơn). Cùng MỘT phép gộp cho cả hai: khác nhau ở tên trường, không ở
+        # luật, đúng như chú thích ở trên đòi hỏi.
+        revenue = entry.get(value_field)
         if revenue is None:
             continue
         try:
@@ -622,6 +637,53 @@ def series(
     return points
 
 
+def count_series(
+    details: Iterable[dict], *, granularity: str,
+    gapfill_days: Optional[Iterable[dict]] = None,
+) -> list[Point]:
+    """`R7 §D` — chuỗi SỐ ĐƠN theo thời gian, có lấp lỗ hổng, MỌI mức gộp.
+
+    Số đơn của sổ nạp đếm bằng đúng `dashboard_metrics.order_facts` (một số
+    chứng từ = một đơn, xếp vào NGÀY NHỎ NHẤT của đơn) — không có định nghĩa
+    số đơn thứ hai ở đây. Nguồn lấp lỗ hổng (`chart_gapfill.daily_order_rows`)
+    chỉ nhận những NGÀY mà sổ nạp không nói tới, đúng luật `_gapfill_day_
+    points` của doanh số.
+
+    Khác `series()` ở một điểm, và điểm ấy có lý do: nguồn lấp được nối ở CẢ
+    Tháng/Quý/Năm. Với doanh số, ở các mức thô tổng tháng chính thức của bản
+    ghi lịch sử đã có mặt nên nối thêm là cộng hai nguồn cho cùng một tháng;
+    với SỐ ĐƠN không tồn tại bản ghi lịch sử nào (`_orders_chart_summary`:
+    "legacy chỉ lưu DOANH THU, không lưu SỐ ĐƠN"), nên ở mức Tháng một tháng
+    chưa nạp sổ chỉ có đúng một nguồn để hỏi. Thẩm quyền vẫn giải ở mức NGÀY
+    và gộp lên: một tháng nửa sổ nạp nửa lấp lỗ hổng là `ORIGIN_MIXED` với
+    `origins` nói rõ hai nửa — không ngày nào bị đếm hai lần.
+    """
+    buckets: dict[str, dict] = {}
+    claimed: set = set()
+    for fact in dashboard_metrics.order_facts(details).values():
+        when = fact.bucket_date
+        if when is None:
+            continue
+        claimed.add(when)
+        key, label = bucket_of(when, granularity)
+        slot = buckets.setdefault(
+            key, {"label": label, "revenue": Decimal(0), "months": set(),
+                  "days": set(), "origin": ORIGIN_CURRENT,
+                  "origins": {ORIGIN_CURRENT}})
+        slot["revenue"] += 1
+        slot["months"].add((when.year, when.month))
+        slot["days"].add(when)
+    filled = _day_points(gapfill_days or [], granularity, claimed,
+                         origin=ORIGIN_GAPFILL, value_field="orders")
+    for key, slot in filled.items():
+        _merge_resolved(buckets, key, slot, unit="days")
+    return [
+        Point(key=key, label=slot["label"], revenue=slot["revenue"],
+              origin=slot["origin"], origins=frozenset(slot["origins"]))
+        for key, slot in sorted(buckets.items())
+    ]
+
+
 # --- R5 §3: hai cửa sổ liền kề, cùng độ dài -------------------------------
 #
 # Quyết định Owner 08/09/2026 (`DEC-R5-02`): biểu đồ so HAI cửa sổ liền kề có
@@ -634,19 +696,39 @@ def series(
 #
 # `window_bounds`/`window_points` KHÔNG bị xoá: mức Năm vẫn dùng đường một
 # chuỗi cũ, và hai hàm ấy vẫn là bề mặt kiểm được của phép cắt cửa sổ.
-#: `DEC-211` (Owner 09/09/2026) — độ dài cửa sổ của TỪNG mức gộp, tính
-#: bằng SỐ MỐC vẽ từ mép trái sang mép phải. Owner chốt trực tiếp: Ngày một
-#: tháng (31 mốc — mép phải 10/9 thì mép trái 11/8, đúng ví dụ Owner đưa),
-#: Tuần 13 (một quý), Tháng 12 (một năm), Quý 4 (một năm), Năm 5.
+#: `R7 §C` (Owner 11/09/2026) — cửa sổ là CONTAINER LỊCH của mốc neo, KHÔNG
+#: còn là một dải cố định N mốc kết thúc ở mép phải (`DEC-211`). Owner nói
+#: thẳng về mức Ngày: *"dải 30 ngày sửa lại từ 1 đến cuối tháng"*, và "áp
+#: dụng cho cả tuần - tháng - quý - năm":
 #:
-#: Mức NĂM nay CÓ cửa sổ, khác `DEC-R5-02`: cùng quyết định Owner đó đã bỏ
-#: luật "Năm không có đường so sánh" — xem `COMPARISON_WINDOW_LABEL`.
-COMPARISON_WINDOW_SIZES: dict[str, int] = {
-    DAY: 31, WEEK: 13, MONTH: 12, QUARTER: 4, YEAR: 5,
-}
+#:     Ngày   → mọi ngày của THÁNG chứa mốc neo (01 → cuối tháng)
+#:     Tuần   → mọi tuần ISO chạm vào QUÝ chứa mốc neo
+#:     Tháng  → 12 tháng của NĂM chứa mốc neo
+#:     Quý    → 4 quý của NĂM chứa mốc neo
+#:     Năm    → 5 năm kết thúc ở năm chứa mốc neo (không có "container" nào
+#:              trên năm; giữ nguyên cửa sổ 5 mốc của `DEC-211`)
+#:
+#: Cửa sổ so sánh vẫn là CÙNG KỲ NĂM TRƯỚC (`DEC-211` không đổi ở điểm này):
+#: container ấy của năm trước. Hai container có thể lệch nhau một mốc (tháng
+#: 2 nhuận, quý 13/14 tuần) — cửa sổ ngắn hơn được đệm một mốc TRỐNG ở cuối
+#: để hai đường vẫn dùng chung một trục, và mốc đệm không bao giờ mang số.
+#:
+#: Phần bên phải mốc neo (những ngày CHƯA tới) là khoảng trống của đường
+#: hiện tại: đó chính là chỗ người đọc nhìn thấy "đến hiện tại" kết thúc ở
+#: đâu so với đường năm trước chạy hết container.
+CONTAINER_OF: dict[str, str] = {DAY: MONTH, WEEK: QUARTER, MONTH: YEAR,
+                                QUARTER: YEAR}
 
-#: Mức gộp có cửa sổ so sánh — nay là TẤT CẢ, kể cả Năm (`DEC-211`).
-COMPARISON_LEVELS: frozenset = frozenset(COMPARISON_WINDOW_SIZES)
+#: Số mốc của cửa sổ mức NĂM — mức duy nhất không có container lịch phía trên.
+YEAR_WINDOW_SIZE = 5
+
+#: Mức gộp có cửa sổ so sánh — TẤT CẢ, kể cả Năm (`DEC-211`).
+COMPARISON_LEVELS: frozenset = frozenset((DAY, WEEK, MONTH, QUARTER, YEAR))
+
+#: Khoá của một mốc ĐỆM (xem `CONTAINER_OF`). Không phải khoá lịch nào có
+#: thể sinh ra chuỗi này, nên `_bucket_span` trả `None` cho nó và không nhánh
+#: nào biến nó thành một số 0 "đã xác nhận".
+PAD_KEY_PREFIX = "__pad__"
 
 CURRENT_WINDOW_LABEL = "Kỳ này"
 COMPARISON_WINDOW_LABEL = "Cùng kỳ năm trước"
@@ -748,6 +830,52 @@ def _same_period_last_year(granularity: str, value: date) -> date:
         return _step_back(granularity, value, 1 if granularity == YEAR else
                           (12 if granularity == MONTH else 4))
     raise ValueError(f"Mức gộp không có cửa sổ so sánh: {granularity!r}")
+
+
+def container_bounds(granularity: str, anchor: date) -> tuple[date, date]:
+    """`(ngày đầu, ngày cuối)` — cận trên BAO GỒM — của CONTAINER chứa `anchor`
+    ở mức `granularity` (`R7 §C`, xem `CONTAINER_OF`).
+
+    Dựng từ LỊCH, không từ dữ liệu: cùng lý do `window_slots` đã ghi — một cửa
+    sổ co theo những ngày có số sẽ làm hai cửa sổ "cùng khung" trải trên hai
+    khoảng thời gian khác nhau.
+    """
+    if granularity == DAY:
+        return (date(anchor.year, anchor.month, 1),
+                date(anchor.year, anchor.month,
+                     monthrange(anchor.year, anchor.month)[1]))
+    if granularity == WEEK:
+        start, next_start = _quarter_bounds(anchor.year, anchor.month)
+        return start, next_start - timedelta(days=1)
+    if granularity in (MONTH, QUARTER):
+        return date(anchor.year, 1, 1), date(anchor.year, 12, 31)
+    return date(anchor.year - YEAR_WINDOW_SIZE + 1, 1, 1), date(anchor.year, 12, 31)
+
+
+def container_slots(granularity: str, anchor: date) -> list[tuple[str, str]]:
+    """Mọi mốc của CONTAINER chứa `anchor`, từ cũ tới mới (`R7 §C`).
+
+    Mức Tuần liệt kê mọi tuần ISO CHẠM vào quý — tuần đầu có thể bắt đầu ở
+    quý trước và tuần cuối kết thúc ở quý sau; đó là hình dạng thật của một
+    quý trên lịch tuần, và cắt bớt là làm mất vài ngày bán ở hai mép.
+    """
+    start, end = container_bounds(granularity, anchor)
+    if granularity == DAY:
+        return [bucket_of(start + timedelta(days=offset), DAY)
+                for offset in range((end - start).days + 1)]
+    if granularity == WEEK:
+        slots, cursor = [], _iso_week_start(start)
+        while cursor <= end:
+            slots.append(bucket_of(cursor, WEEK))
+            cursor += timedelta(days=7)
+        return slots
+    if granularity == MONTH:
+        return [bucket_of(date(anchor.year, month, 1), MONTH)
+                for month in range(1, 13)]
+    if granularity == QUARTER:
+        return [bucket_of(date(anchor.year, month, 1), QUARTER)
+                for month in (1, 4, 7, 10)]
+    return window_slots(YEAR, anchor, YEAR_WINDOW_SIZE)
 
 
 def window_slots(granularity: str, anchor: date, size: int) -> list[tuple[str, str]]:
@@ -852,10 +980,74 @@ class PairedSeries:
     comparison: tuple[Slot, ...]
     current_label: str
     comparison_label: str
+    #: `R7 §C` — mốc neo và mức gộp đã dựng nên hai cửa sổ, để `project()`
+    #: biết kỳ đã đi được bao xa. Mặc định để mọi `PairedSeries` dựng tay
+    #: trong test cũ giữ nguyên chữ ký.
+    anchor: Optional[date] = None
+    granularity: str = ""
 
     @property
     def size(self) -> int:
         return len(self.current)
+
+
+@dataclass(frozen=True)
+class Projection:
+    """`R7 §C` — "với tốc độ này thì hết kỳ đạt bao nhiêu % so với cùng kỳ".
+
+    Một phép chia ba số, và cả ba đều đọc được trên màn hình để người đọc
+    kiểm lại: `current_to_date` là tổng ĐÃ có của kỳ này tới mốc neo,
+    `elapsed_fraction` là phần lịch của container đã trôi qua tới mốc neo,
+    `comparison_total` là tổng TRỌN container của cùng kỳ năm trước. Dự phóng
+    = tổng đã có ÷ phần đã trôi qua — tức giữ đúng nhịp hiện tại tới hết kỳ.
+    Đây là một phép ngoại suy TRÌNH BÀY, không phải một chỉ tiêu: nó không
+    đi vào KPI, không vào bảng kê, không vào chốt kỳ.
+    """
+
+    current_to_date: Decimal
+    elapsed_units: int
+    total_units: int
+    comparison_total: Decimal
+    #: Tổng cùng kỳ năm trước tính ĐẾN CÙNG VỊ TRÍ mốc neo — để so "đến giờ
+    #: này năm ngoái được bao nhiêu" mà không cần đợi hết kỳ.
+    comparison_to_date: Decimal
+    #: Số mốc của cửa sổ so sánh KHÔNG có bằng chứng: khác 0 thì các phần
+    #: trăm dưới đây so với một con số chưa đủ, và trang phải nói ra.
+    comparison_gaps: int
+
+    @property
+    def elapsed_fraction(self) -> Decimal:
+        if self.total_units <= 0:
+            return Decimal(0)
+        return Decimal(self.elapsed_units) / Decimal(self.total_units)
+
+    @property
+    def projected_total(self) -> Decimal:
+        fraction = self.elapsed_fraction
+        if fraction <= 0:
+            return Decimal(0)
+        return (self.current_to_date / fraction).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP)
+
+    def _percent(self, value: Decimal) -> Optional[Decimal]:
+        if self.comparison_total <= 0:
+            return None
+        return (value / self.comparison_total * 100).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP)
+
+    @property
+    def projected_percent(self) -> Optional[Decimal]:
+        """Dự phóng hết kỳ ÷ trọn cùng kỳ năm trước, %. `None` khi năm trước
+        không có số để chia."""
+        return self._percent(self.projected_total)
+
+    @property
+    def to_date_percent(self) -> Optional[Decimal]:
+        """Đã có tới mốc neo ÷ cùng kỳ năm trước TỚI CÙNG MỐC, %."""
+        if self.comparison_to_date <= 0:
+            return None
+        return (self.current_to_date / self.comparison_to_date * 100).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP)
 
 
 def _covered_by_confirmed(key: str, granularity: str,
@@ -944,12 +1136,10 @@ def paired_window_span(
     ngày của mốc đầu/cuối bằng `_bucket_span`, cùng hàm mà `paired_series()`
     dùng để quyết định một mốc có nằm trọn trong khoảng đã xác nhận hay không.
     """
-    size = COMPARISON_WINDOW_SIZES.get(granularity)
-    if size is None or anchor is None:
+    if granularity not in COMPARISON_LEVELS or anchor is None:
         return None
-    current = window_slots(granularity, anchor, size)
-    previous = window_slots(
-        granularity, comparison_anchor(granularity, anchor, size), size)
+    current = container_slots(granularity, anchor)
+    previous = container_slots(granularity, comparison_anchor(granularity, anchor))
     if not current or not previous:
         return None
     low = _bucket_span(previous[0][0], granularity)
@@ -972,15 +1162,24 @@ def paired_series(
 
     `None` khi mức gộp không có cửa sổ so sánh (Năm) hoặc không có gì để neo.
     """
-    size = COMPARISON_WINDOW_SIZES.get(granularity)
-    if size is None or anchor is None:
+    if granularity not in COMPARISON_LEVELS or anchor is None:
         return None
     by_key = {point.key: point for point in points}
+    anchor_key = bucket_of(anchor, granularity)[0]
 
-    def slots_of(window_anchor: date) -> tuple[Slot, ...]:
+    def slots_of(window_anchor: date, *, cutoff: Optional[str]) -> list[Slot]:
         built = []
         for index, (key, label) in enumerate(
-                window_slots(granularity, window_anchor, size)):
+                container_slots(granularity, window_anchor)):
+            # `R7 §C` — đường HIỆN TẠI dừng ở mốc neo: phần bên phải của
+            # container là những mốc CHƯA tới (hoặc nằm ngoài phạm vi người
+            # dùng chọn), và chúng là khoảng trống — không phải số 0, cũng
+            # không phải một con số đã có trong sổ nhưng ngoài "đến hiện
+            # tại". Cửa sổ so sánh không có mốc neo: nó chạy trọn container.
+            if cutoff is not None and key > cutoff:
+                built.append(Slot(index=index, key=key, label=label,
+                                  revenue=None, origin=None))
+                continue
             point = by_key.get(key)
             if point is not None:
                 built.append(Slot(index=index, key=key, label=label,
@@ -995,13 +1194,81 @@ def paired_series(
             built.append(Slot(index=index, key=key, label=label,
                               revenue=Decimal(0) if zero else None,
                               origin=ORIGIN_CURRENT if zero else None))
-        return tuple(built)
+        return built
 
+    current = slots_of(anchor, cutoff=anchor_key)
+    comparison = slots_of(comparison_anchor(granularity, anchor), cutoff=None)
+    # `R7 §C` — hai container có thể lệch nhau một mốc (tháng 2 nhuận, quý
+    # 13/14 tuần). Đệm cửa sổ ngắn hơn bằng mốc TRỐNG ở cuối: không số, không
+    # nhãn, không khoá lịch — để hai đường vẫn chung một trục mà không mốc
+    # nào bị vẽ thành một con số chưa ai đo.
+    size = max(len(current), len(comparison))
+    for window in (current, comparison):
+        while len(window) < size:
+            window.append(Slot(index=len(window),
+                               key=f"{PAD_KEY_PREFIX}{len(window)}", label="",
+                               revenue=None, origin=None))
     return PairedSeries(
-        current=slots_of(anchor),
-        comparison=slots_of(comparison_anchor(granularity, anchor, size)),
+        current=tuple(current), comparison=tuple(comparison),
         current_label=CURRENT_WINDOW_LABEL,
         comparison_label=COMPARISON_WINDOW_LABEL,
+        anchor=anchor, granularity=granularity,
+    )
+
+
+def _elapsed_units(granularity: str, anchor: date) -> tuple[int, int]:
+    """`(số ngày đã trôi qua, tổng số ngày)` của container chứa `anchor`.
+
+    Đo bằng NGÀY ở mọi mức, kể cả Tháng/Quý: "tốc độ này" là tốc độ tính tới
+    hôm nay, và một tháng mới đi được 3 ngày không thể được tính là đã trôi
+    qua trọn 1/12 năm. Mức Năm đo trong chính năm chứa mốc neo (container
+    của nó là năm đó, cửa sổ 5 năm chỉ là bề rộng trục).
+    """
+    if granularity == YEAR:
+        start, end = date(anchor.year, 1, 1), date(anchor.year, 12, 31)
+    else:
+        start, end = container_bounds(granularity, anchor)
+    return (anchor - start).days + 1, (end - start).days + 1
+
+
+def project(paired: Optional[PairedSeries]) -> Optional[Projection]:
+    """Dự phóng hết kỳ của `paired`, hoặc `None` khi không có gì để dự phóng.
+
+    Chỉ CHỌN và CỘNG các mốc đã có — không đọc dữ liệu, không tính lại doanh
+    thu. Mức Năm chỉ so NĂM chứa mốc neo với NĂM TRƯỚC NÓ (mốc cuối của hai
+    cửa sổ), vì "5 năm so với 5 năm trước" không phải câu Owner hỏi.
+    """
+    if paired is None or paired.anchor is None or not paired.granularity:
+        return None
+    granularity, anchor = paired.granularity, paired.anchor
+    anchor_key = bucket_of(anchor, granularity)[0]
+
+    def real(slots):
+        return [slot for slot in slots
+                if not slot.key.startswith(PAD_KEY_PREFIX)]
+
+    if granularity == YEAR:
+        current = [slot for slot in real(paired.current) if slot.key == anchor_key]
+        comparison = [slot for slot in real(paired.comparison)
+                      if slot.key == bucket_of(
+                          comparison_anchor(YEAR, anchor), YEAR)[0]]
+        comparison_to_date = comparison
+    else:
+        current = [slot for slot in real(paired.current) if slot.key <= anchor_key]
+        comparison = real(paired.comparison)
+        cutoff = max((slot.index for slot in current), default=-1)
+        comparison_to_date = [slot for slot in comparison if slot.index <= cutoff]
+    if not current:
+        return None
+    total = lambda slots: sum((slot.revenue for slot in slots  # noqa: E731
+                               if not slot.is_gap), Decimal(0))
+    elapsed, units = _elapsed_units(granularity, anchor)
+    return Projection(
+        current_to_date=total(current),
+        elapsed_units=elapsed, total_units=units,
+        comparison_total=total(comparison),
+        comparison_to_date=total(comparison_to_date),
+        comparison_gaps=sum(1 for slot in comparison if slot.is_gap),
     )
 
 
@@ -1092,9 +1359,12 @@ def totals_of(points: Iterable[Point]) -> Decimal:
 
 __all__ = [
     "COMPARISON_LEVELS", "COMPARISON_NOTE", "COMPARISON_WINDOW_LABEL",
-    "COMPARISON_WINDOW_SIZES", "CURRENT_WINDOW_LABEL", "GAP_NOTE",
-    "PairedSeries", "Slot", "anchor_date", "comparison_anchor",
-    "paired_series", "paired_window_span", "window_slots",
+    "CONTAINER_OF", "CURRENT_WINDOW_LABEL", "GAP_NOTE",
+    "GAPFILL_COUNT_CHART_NOTE", "PAD_KEY_PREFIX", "PairedSeries",
+    "Projection", "Slot", "YEAR_WINDOW_SIZE", "anchor_date",
+    "comparison_anchor", "container_bounds", "container_slots",
+    "count_series", "paired_series", "paired_window_span", "project",
+    "window_slots",
     "CHART_NOTE", "CHART_SCOPE_NOTE", "DAY", "DEFAULT_GRANULARITY",
     "GRANULARITIES", "GRANULARITY_KEYS", "LEGACY_POINT_NOTE",
     "GAPFILL_CHART_NOTE", "GAPFILL_POINT_NOTE", "MIXED_GAPFILL_POINT_NOTE",
