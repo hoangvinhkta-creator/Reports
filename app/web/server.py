@@ -2318,7 +2318,7 @@ def create_app(
                 context["sheet"])),
         }
 
-    def _workspace_write_payload(*, note: str, order_keys) -> dict:
+    def _workspace_write_payload(*, note: str, order_keys, lines=None) -> dict:
         """Payload JSON của MỘT lần ghi trên bảng kê.
 
         `_workspace_view()` được gọi LẠI ở đây, sau khi ghi: payload phải
@@ -2331,31 +2331,51 @@ def create_app(
         client vá hết — vá mỗi dòng vừa bấm sẽ để những dòng còn lại hiện
         "Chưa phân loại" cho tới lần tải trang sau.
 
-        `removed_order_keys` là những BH KHÔNG còn dòng nào trong sheet sau
-        lần ghi (loại nốt dòng cuối của một đơn). Chúng khác hẳn "không đổi":
-        client phải GỠ chúng khỏi bảng, không phải để nguyên.
+        `lines` là SỐ DÒNG THẬT bị quyết định chạm tới — nơi gọi truyền vào
+        khi biết chính xác (`len(shared)` ở `business_confirm_identity`/
+        `business_mark_out_of_catalog`, nơi MỘT `order_key` có thể mang
+        NHIỀU dòng cùng khoá định danh). `None` ⟹ mặc định `len(order_keys)`,
+        đúng cho `business_exclude_line` (luôn đúng một dòng một BH).
+
+        repair `F-02` (Independent Review, REQUEST CHANGES) — bản trước tính
+        CẢ `affected.lines` LẪN `removed_order_keys` từ `context["groups"]`,
+        vốn chỉ chứa các BH tìm thấy trong LÁT ĐÃ LỌC THEO SHEET đang xem
+        (`_workspace_context` → `scoped = view["data"].for_sheet(sheet)`).
+        Một `order_key` thuộc SHEET KHÁC không khớp group nào trong lát đó
+        — không phải vì nó đã bị xoá khỏi báo cáo, mà đơn giản vì nó không
+        nằm trên trang đang mở. Bản trước đọc sự vắng mặt ấy thành "đã xoá"
+        và đếm thiếu số dòng bị ảnh hưởng.
+
+        `removed_order_keys` giờ kiểm sự tồn tại trên TOÀN KỲ
+        (`view["data"].details`, không qua `scoped`): một BH chỉ được coi
+        là "đã xoá" khi nó KHÔNG còn dòng nào trong CẢ kỳ, không phải chỉ
+        khi nó không còn trên sheet đang xem.
         """
         order_keys = list(dict.fromkeys(order_keys))
         view = _workspace_view()
         context = _workspace_context(view, only_orders=order_keys)
         groups = _workspace_group_html(context)
+        present_order_keys = {detail["order_key"]
+                              for detail in view["data"].details}
         return {
             "schema_version": workspace_presentation.WORKSPACE_SCHEMA_VERSION,
             "message": note,
             "affected": {
                 "order_keys": order_keys,
-                "lines": sum(group["lines"] for group in context["groups"]),
+                "lines": len(order_keys) if lines is None else lines,
             },
             "groups": groups,
             "removed_order_keys": [key for key in order_keys
-                                   if key not in groups],
+                                   if key not in groups
+                                   and key not in present_order_keys],
             "regions": _workspace_regions(context),
             "trace_id": request_timing.trace_id(),
         }
 
     def _workspace_answer(*, note: Optional[str] = None,
                           error: Optional[str] = None,
-                          order_keys=(), status: int = 422, **extra):
+                          order_keys=(), lines=None, status: int = 422,
+                          **extra):
         """Câu trả lời của một đường ghi — HTML redirect HOẶC JSON.
 
         Một hàm chứ hai `return` rải khắp ba route: cửa phân biệt client
@@ -2369,7 +2389,8 @@ def create_app(
         if error is not None:
             return _api_error(mutation_guard.VALIDATION_ERROR, error,
                               status=status)
-        return _workspace_write_payload(note=note, order_keys=order_keys)
+        return _workspace_write_payload(note=note, order_keys=order_keys,
+                                        lines=lines)
 
     def _identify_panel(view: dict, scoped, decisions) -> Optional[dict]:
         """Bảng chọn mặt hàng Tracking cho ĐÚNG MỘT dòng (`§PI-04`).
@@ -2497,9 +2518,16 @@ def create_app(
         # chung khoá định danh, không riêng BH vừa bấm. `shared` đã được đếm
         # ở trên cho chính `affected_orders` mà gateway ghi vào log; payload
         # trả về đúng tập ấy nên client vá đủ, không sót dòng nào.
+        #
+        # repair `F-02` — `lines=len(shared)` truyền TƯỜNG MINH: một BH có
+        # thể mang NHIỀU dòng cùng khoá định danh, và `affected.lines` phải
+        # đếm đúng SỐ DÒNG, không phải suy từ số BH tìm thấy trên sheet
+        # đang xem (một BH ở sheet khác không tìm thấy KHÔNG có nghĩa là nó
+        # đóng góp `0` dòng).
         return _workspace_answer(
             note=note,
-            order_keys=sorted({item["order_key"] for item in shared}))
+            order_keys=sorted({item["order_key"] for item in shared}),
+            lines=len(shared))
 
     @app.post("/kinh-doanh/nhan-vien/ngoai-bang")
     def business_mark_out_of_catalog():
@@ -2549,9 +2577,11 @@ def create_app(
             return _workspace_answer(
                 error=f"Chưa ghi được quyết định ngoài bảng giá: {exc}",
                 status=500)
+        # repair `F-02` — xem chú thích tại `business_confirm_identity`.
         return _workspace_answer(
             note=identity_gateway.OUT_OF_CATALOG_OK_NOTE,
-            order_keys=sorted({item["order_key"] for item in shared}))
+            order_keys=sorted({item["order_key"] for item in shared}),
+            lines=len(shared))
 
     def _workspace_groups(view: dict, scoped, decisions, page: dict) -> list:
         """Các nhóm BH của ĐÚNG một trang bảng kê.

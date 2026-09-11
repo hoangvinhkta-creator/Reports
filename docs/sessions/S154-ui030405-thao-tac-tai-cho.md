@@ -271,7 +271,7 @@ review được từng phần độc lập.
 Chủ dự án xác nhận trực tiếp bằng văn bản việc push. Đã
 `git push -u origin claude/ui-03-04-05-reports-px1u9l` → `99b727e`.
 
-Ngay sau đó, đồng bộ lại theo `00_SESSION_ORCHESTRATION.md` phát hiện
+Ngay sau đó, đồng bộ lại theo `governance/core/00_SESSION_ORCHESTRATION.md` phát hiện
 nhánh mặc định đã tiến 5 commit (`TASK-OWNER-UIUX-009` + `R7`, hai lineage
 độc lập merge trong lúc phiên này chạy), `branch_authority_check.sh` báo
 `DIVERGENCE: INTEGRATION_DECISION_REQUIRED [loc>5000]`
@@ -297,8 +297,8 @@ ngay, C/giao review trên nhánh cũ + ghi ledger, hoặc tự xem trước) —
 dự án chọn **(A) tích hợp ngay**.
 
 `git merge origin/claude/extract-upload-repo-gq2ws4 --no-edit` → chỉ
-`kinh_doanh_nhan_vien.html` + hai file governance (`PROJECT_PROGRESS.md`,
-`REVIEW_BUDGET_LEDGER.md`) xung đột thật; `server.py`/`tinphat-ui.css`/
+`kinh_doanh_nhan_vien.html` + hai file governance (`PROJECT/PROJECT_PROGRESS.md`,
+`PROJECT/REVIEW_BUDGET_LEDGER.md`) xung đột thật; `server.py`/`tinphat-ui.css`/
 `_r6_bits.html` tự merge sạch bằng 3-way merge thật (đủ xa nhau trong file
 dù `merge-tree` preview lo ngại gần nhau).
 
@@ -310,7 +310,7 @@ Giải xung đột:
   block` KHÔNG xoá khỏi `_workspace_table.html` (một trang khác cần lại
   gọi được ngay). Cập nhật `test_the_write_payload_carries_the_server_
   built_regions`.
-- `PROJECT_PROGRESS.md`/`REVIEW_BUDGET_LEDGER.md` — xung đột cơ học (ai
+- `PROJECT/PROJECT_PROGRESS.md`/`PROJECT/REVIEW_BUDGET_LEDGER.md` — xung đột cơ học (ai
   đứng đầu file, do cấu trúc fenced code block giống nhau đánh lừa thuật
   toán diff theo dòng). Giữ CẢ BA entry nguyên vẹn; đối chiếu bằng
   `git diff origin/...:file file` xác nhận không mất nội dung của R7/

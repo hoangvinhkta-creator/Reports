@@ -242,6 +242,131 @@ def test_a_classification_answers_with_EVERY_affected_order(client, engine):
         assert f'data-order="{order}"' in payload["groups"][order]["html"]
 
 
+@pytest.fixture
+def two_sheet_client(engine, monkeypatch, tmp_path):
+    """App thật + HAI dòng dùng CHUNG một `product_raw` CHƯA PHÂN LOẠI,
+    nằm ở HAI SHEET KHÁC NHAU (`noi-thanh` và `gia-dung`) của CÙNG một kỳ.
+
+    Fixture tái hiện `F-02` (Independent Review, REQUEST CHANGES): phạm vi
+    THẬT của một quyết định phân loại (`shared`, tính trên `view["data"].
+    details` — TOÀN KỲ, không lọc sheet) có thể chạm một BH KHÔNG nằm trên
+    sheet đang xem.
+
+    `sheet_key_of` (`reporting_sheets.py`) đọc `classified_product_group`
+    — kết quả của `effective_product_group()`, đọc QUYẾT ĐỊNH đã lưu trong
+    `line_product_group_classification`/`product_group_classification`,
+    KHÔNG đọc thẳng `product_group_final` của pipeline (`None` ⟹ giữ
+    nguyên giá trị pipeline, không tự suy ra Gia dụng từ đó — `DEC-PHB02-05`
+    cấm suy Gia dụng từ nhãn). Nên BH90002 phải được đẩy sang sheet
+    `gia-dung` bằng ĐÚNG con đường mà `business_classify_line_gia_dung`
+    dùng: gọi thẳng `service.store.set_line_product_group(...)` sau khi
+    ghi snapshot — không phải chỉ đặt `product_group_final` trên dòng kết
+    quả.
+    """
+    from app.web import history_store, server as web_server
+    from app.history import keys as history_keys
+    from tests.test_snapshot_repository import result_line, source_line, write
+
+    monkeypatch.setattr(web_server.identity_gateway, "DEFAULT_LOG_PATH",
+                        tmp_path / "mappings.jsonl")
+    monkeypatch.setattr(web_server.identity_gateway, "DEFAULT_INDEX_PATH",
+                        tmp_path / "index.json")
+
+    repo = history_store.SnapshotRepository(engine)
+    product_raw = "SP DUNG CHUNG HAI SHEET CHUA PHAN LOAI"
+    product_code = "SP-F02"
+    orders = ("BH90001", "BH90002")
+    pairs = []
+    for index, order in enumerate(orders):
+        source = source_line(
+            order, product_code, 1, row=90_000 + index,
+            sale_date=date(2026, 9, 5), sell_price="2000000",
+            quantity=Decimal("1"), discount=Decimal("0"),
+            customer_name=f"Khách {order}", customer_phone="0909000000",
+            customer_address="1 Test, Q1", product_raw=product_raw)
+        base = result_line(source, status="PENDING")
+        fields = {name: getattr(base, name) for name in base.__dataclass_fields__}
+        fields.update({
+            "status": "PENDING",
+            # "Chưa phân loại", KHÔNG "thiếu giá" — mở được cả hai route
+            # `ngoai-bang`/`phan-loai` mà F-02 mô tả.
+            "pending_reasons": ("IDENTITY_UNRESOLVED",),
+            "employee_normalized": "Vinh", "employee_group": "NOI_THANH",
+            "lead_source_final": "PERSONAL",
+            "total_sales": Decimal("2000000"),
+            "kpi_purchase_price": None, "eligible_kpi_profit": None,
+            "product_group_final": "DIEN_MAY",
+            "conversion_rate_final": Decimal("0.02"),
+        })
+        pairs.append((source, type(base)(**fields)))
+    write(repo, [pair[0] for pair in pairs], run_id="run-f02",
+          created_at="2026-10-01T00:00:03", fingerprint="fp-f02",
+          results=[pair[1] for pair in pairs])
+
+    # Đẩy BH90002 sang sheet `gia-dung` bằng ĐÚNG con đường quyết định cấp
+    # dòng — xem docstring ở trên.
+    service = web_client.make_service(engine)
+    service.store.set_line_product_group(
+        order_key="BH90002", product_key=history_keys.product_key(product_code),
+        occurrence_index=1, product_group="GIA_DUNG")
+
+    return web_client.make_client(engine, monkeypatch, tmp_path)
+
+
+def test_a_decision_reaching_another_sheet_is_not_reported_as_removed(
+        two_sheet_client):
+    """`F-02` — một BH ở SHEET KHÁC không được liệt kê vào
+    `removed_order_keys`, và `affected.lines` phải đếm ĐỦ (2), không chỉ
+    phần dòng nằm trên sheet đang xem (1).
+
+    Trước sửa: BH90002 (sheet `gia-dung`) không khớp group nào trong lát
+    đã lọc theo sheet `noi-thanh` đang xem ⟹ rơi vào `removed_order_keys`
+    dù nó CHƯA hề bị loại khỏi báo cáo — nó chỉ không nằm trên trang đang
+    mở. `affected.lines` khi đó cũng chỉ đếm `1` (dòng của BH90001), không
+    phải `2` (số dòng THẬT bị quyết định này chạm tới).
+    """
+    html = body(two_sheet_client, WORKSPACE)
+    assert 'data-order="BH90001"' in html
+    assert 'data-order="BH90002"' not in html      # đúng: khác sheet
+
+    import re
+    # `.*?` không tham lam + `re.S`: giữa `data-order` và `data-product-key`
+    # còn có thể chen `data-unresolved-identity="1"` (dòng này CHƯA phân
+    # loại) — khác các fixture khác của file, nơi khối đó vắng mặt.
+    match = re.search(
+        r'data-order="BH90001".*?data-product-key="([0-9a-f]+)".*?'
+        r'data-occurrence-index="(\d+)"', html, re.S)
+    assert match, "không tìm được dòng BH90001 trên sheet noi-thanh"
+    keys = {"ky": "2026-09", "sheet": "noi-thanh", "order_key": "BH90001",
+            "product_key": match.group(1), "occurrence_index": match.group(2)}
+
+    response = two_sheet_client.post(
+        "/kinh-doanh/nhan-vien/ngoai-bang", data=keys,
+        headers={"Accept": "application/json"})
+    assert response.status_code == 200
+    payload = response.get_json()
+
+    # Phạm vi THẬT: cả hai BH, cả hai dòng — không riêng dòng vừa bấm.
+    assert set(payload["affected"]["order_keys"]) == {"BH90001", "BH90002"}
+    assert payload["affected"]["lines"] == 2
+
+    # BH90002 KHÔNG bị coi là "đã xoá": nó chưa hề rời khỏi báo cáo, chỉ
+    # không nằm trên sheet đang xem. `groups` (những gì client vá được trên
+    # trang này) chỉ chứa BH90001; BH90002 không ở trong CẢ HAI — đúng ngữ
+    # nghĩa "không có gì để làm với nó ở đây", không phải "đã xoá".
+    assert "BH90002" not in payload["removed_order_keys"]
+    assert "BH90001" in payload["groups"]
+    assert "BH90002" not in payload["groups"]
+
+    # Dòng ở sheet KHÁC vẫn còn nguyên trên báo cáo — kiểm bằng cách đọc
+    # LẠI sheet của nó qua route HTML thật, không suy diễn từ payload.
+    gia_dung_html = body(
+        two_sheet_client,
+        "/kinh-doanh/nhan-vien?ky=2026-09&sheet=gia-dung")
+    assert 'data-order="BH90002"' in gia_dung_html
+    assert 'data-metric="excluded-row" data-order="BH90002"'         not in gia_dung_html
+
+
 def test_the_write_payload_carries_the_server_built_regions(client):
     keys = line_keys(client)
     payload = client.post(
