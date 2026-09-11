@@ -1,5 +1,149 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `UI-03`/`UI-04`/`UI-05`: thao tác tại chỗ · bảng theo trang · ghim biểu đồ = `IMPLEMENTED`, CHƯA merge (`S153`, 2026-09-11)
+
+Ba lát dọc tiếp theo của Release 2 (roadmap Render), nối trực tiếp
+`UI-01`/`UI-02`. Nhánh `claude/ui-03-04-05-reports-px1u9l`, base
+`origin/claude/extract-upload-repo-gq2ws4` @ `a224e6f`. **Chưa push, chưa
+PR, chưa merge** — commit giữ local theo yêu cầu trực tiếp bằng văn bản của
+chủ dự án trong phiên.
+
+```text
+UI-03  Phân loại / loại / khôi phục NGAY TRONG bảng kê. Ba đường ghi giữ
+       NGUYÊN thân hàm và vẫn gọi nguyên identity_gateway/store — KHÔNG
+       route ghi mới nào. Chỉ CÂU TRẢ LỜI rẽ đôi ở dòng cuối
+       (_workspace_answer): trình duyệt không-JS nhận redirect y hệt trước,
+       client JS nhận payload vá tại chỗ.
+UI-04  Bảng kê dựng MỘT TRANG (100 dòng) + `XEM TIẾP` là liên kết THẬT
+       (`?tu=<mã BH>`). Có JS: trang kế lấy qua route JSON và NỐI thêm;
+       vượt 300 hàng thì GỠ các nhóm cũ nhất. Cắt theo RANH GIỚI BH.
+UI-05  Bấm một điểm biểu đồ ⟹ GHIM tooltip; bấm điểm khác ⟹ thay nội dung
+       NGAY TRONG popover đang ghim. Giá trị cơ bản hiện NGAY từ dữ liệu đã
+       có trong trình duyệt; phân rã theo nhân viên tải NỀN.
+```
+
+### Lát nền phải làm trước cả ba
+
+Markup của một hàng bảng kê trước đây chỉ tồn tại bên trong vòng lặp của
+`kinh_doanh_nhan_vien.html`. Cả `UI-03` lẫn `UI-04` cần đúng những `<tr>` ấy
+ở giữa một vòng đời khác, và đường sai là dựng chúng bằng JavaScript — tức
+một BẢN THỨ HAI của bảng kê (rowspan theo số dòng BH, ba cột tuỳ chọn ẩn
+bằng CSS, bốn loại nhãn, ô nhập thuộc `<form>` đứng ngoài bảng) sẽ lệch khỏi
+bản thứ nhất ở lần đầu ai đó thêm một cột, trong khi CẢ HAI đều "đúng" theo
+chính nó. Markup được chuyển NGUYÊN VĂN vào `_workspace_table.html`; trang
+đầy đủ và các route JSON gọi CÙNG những macro đó. Client KHÔNG dựng một thẻ
+`<tr>` nào.
+
+Bằng chứng refactor không đổi gì — render cùng trang trước/sau, bỏ thụt đầu
+dòng và dòng trống:
+
+```text
+$ diff <(sed 's/^[[:space:]]*//; /^$/d' /tmp/before.html) \
+       <(sed 's/^[[:space:]]*//; /^$/d' /tmp/after.html)
+77c77
+< <div class="kpi-grid strip">
+---
+> <div class="kpi-grid strip" data-region="kpi-strip">
+142a143,144
+> <div data-region="identity-warning">
+> </div>
+171c173,174
+< <tr class="row-total" data-metric="sheet-totals">
+---
+> <tr class="row-total" data-metric="sheet-totals"
+> data-region="sheet-totals">
+```
+
+Ba khác biệt, cả ba là thuộc tính `data-region` CỐ Ý thêm.
+
+### Hai lỗi tự phát hiện và đã sửa trong phiên
+
+```text
+trimToBudget    đo chiều cao vừa mất trên chính cái BẢNG — mép trên bảng
+                nằm PHÍA TRÊN chỗ bị gỡ nên nó không nhúc nhích, phép bù ra
+                0. Đo được: lệch 4.777 px. Đo trên hàng sống sót ĐẦU TIÊN
+                vẫn lệch 46,5 px (bố cục AUTO đổi chiều cao các hàng còn
+                lại). Nay neo vào hàng ĐẦU TIÊN CÒN TRONG KHUNG NHÌN →
+                dưới 4 px, canh bằng bài kiểm mới.
+<template>      nội dung template nằm THẬT trong tài liệu, nên phép tìm
+                `confirm-question` bắt được bản trong template TRƯỚC bản
+                đang hiển thị — hai bài của hộp xác nhận không-JS đỏ vì
+                đúng chuyện đó. Đổi thành `line-confirm-question`/
+                `line-confirm-point`: hai hộp, hai tên.
+```
+
+### Bằng chứng
+
+```text
+CHECK-UI345-01 … CHECK-UI345-24   PASS (E1)
+CHECK-UI345-25 Independent Review NOT_TESTED — phiên này KHÔNG tự đóng
+CHECK-UI345-26 Owner nghiệm thu   NOT_TESTED — chỉ Owner đóng
+CHECK-UI345-27 Postgres concurrency  BLOCKED — nợ kiểm chứng, xem dưới
+Full pytest      3662 passed / 23 skipped / 0 failed
+                 (nền CÙNG PHIÊN, CÙNG MÁY, trước khi sửa: 3643 / 23 / 0;
+                  +19 = đúng số bài mới, không bài nào bị xoá)
+jsdom            25 passed (không đổi)
+Playwright       35 passed (13 cũ + 22 mới, Chromium thật)
+Ngân sách        root task MỚI `UI-03-UI-04-UI-05` (MEDIUM, 1 cycle, CHƯA
+                 dùng) — KHÔNG phải cycle thứ hai của `UI-01-UI-02`
+                 (đã 1/1, 0 remaining); `git diff 9f15eb9..HEAD --
+                 app/web/static/js/app.js` xoá ĐÚNG hai dòng, cả hai thuộc
+                 khối tooltip, không dòng nào của handleSaveResult()/doSave()
+```
+
+### Số đo — `scripts/stab01_baseline.py --lines 5000`
+
+Máy dev, LOCAL/TEST — **KHÔNG PHẢI số production** (xem docstring đầu
+script).
+
+```text
+                                    p50        bytes      <tr>
+nhan-vien-full                    254,7 ms    322.214      103
+  bản ghi UI-01/UI-02, cùng script, cùng fixture:
+                                  1.417 ms 15.290.054    5.002
+ui03-mo-popover-phan-loai         160,7 ms        126        0
+  đường CŨ cho cùng việc (nhan-vien-fragment):
+                                  263,4 ms    319.736      103
+ui04-mot-trang-windowing          222,4 ms    343.321      101
+ui05-phan-ra-mot-moc              346,3 ms        399        0
+```
+
+`ui05` cao hơn vì `_chart_details()` có thể mở một lượt đọc kỳ THỨ HAI để
+phủ cửa sổ so sánh năm trước — chi phí ĐÃ CÓ SẴN của `R6`, không phải hồi
+quy; và nó chạy NỀN sau khi giá trị cơ bản đã hiện.
+
+### NỢ KIỂM CHỨNG (kế thừa, KHÔNG phải của ba lát này)
+
+`tests/test_p0_single_transaction.py` (11 bài — đồng thời/CAS trên
+PostgreSQL THẬT) **CHƯA TỪNG chạy được** qua toàn bộ vòng đời `UI-01`/
+`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2) lẫn phiên này, vì
+`REPORTS_TEST_POSTGRES_URL` không được đặt trong bất kỳ môi trường nào đã
+dùng. Ba lát ở đây KHÔNG chạm `MutationGuard`/CAS nên đây không phải lỗi
+của chúng — nhưng nó phải nằm trong bản ghi chính thức để không bị quên
+trước khi lên production. Lệnh cần chạy khi có PostgreSQL:
+
+```bash
+REPORTS_TEST_POSTGRES_URL=postgresql://... \
+  .venv/bin/python -m pytest tests/test_p0_single_transaction.py -q
+```
+
+### Cố ý CHƯA làm
+
+Dải KPI/hàng TỔNG sau một lần PATCH của panel sửa đơn (giới hạn `UI-01`/
+`UI-02` còn nguyên, không mở rộng payload `api_patch_order`); bước xác nhận
+cho KHÔI PHỤC ở đường KHÔNG-JS (đổi hành vi một luồng đã nghiệm thu, ngoài
+Scope Lock); ghim/phân rã ở biểu đồ trang Báo cáo `R5` (phạm vi đọc bằng bộ
+tham số khác); đồng bộ `PROJECT/LO_TRINH_DE_HIEU.md` (không trạng thái
+`DONE`/`CURRENT` nào đổi — việc đó thuộc phiên MERGE, cùng tiền lệ
+`UI-01`/`UI-02`); bằng chứng thị giác trên Render thật.
+
+Chi tiết đầy đủ:
+`docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-ghim-bieu-do.md`;
+`docs/sessions/S153-ui030405-thao-tac-tai-cho.md`;
+`PROJECT/REVIEW_BUDGET_LEDGER.md` → "Root Task: UI-03-UI-04-UI-05".
+
+---
+
 ## CANONICAL CURRENT STATE — `R5.4`: nhãn cho dòng KHỚP TỰ ĐỘNG với Tracking, `DONE`, merge theo chỉ thị Owner (`S152`, 2026-09-10)
 
 Tiếp nối `S151`. Owner báo lỗi production sau merge `R5.3`: đã phân loại

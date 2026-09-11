@@ -4091,3 +4091,132 @@ mới chở xuống (`CHECK-R54-06`). Một mã sai gắn vào dòng sai chỉ c
 từ chính bằng chứng của pipeline (`Resolved`), và quyết định của người vẫn
 thắng nó (`CHECK-R54-04`). Không LOW vì R6 dùng `category_label` làm khoá
 gộp doanh thu theo nhóm — sai nhãn làm sai phép gộp, dù không sai tổng.
+
+---
+
+## Root Task: UI-03-UI-04-UI-05
+
+```
+root_task: UI-03-UI-04-UI-05
+title: Thao tác tại chỗ trên bảng kê · bảng theo trang + ngân sách DOM ·
+       ghim tooltip biểu đồ + phân rã
+effective_risk: MEDIUM
+repair_cycles_allowed: 1
+repair_cycles_used: 0
+repair_cycles_remaining: 1
+review_round_1: CHƯA CHẠY — `CHECK-UI345-25` còn NOT_TESTED
+next_action: Independent Review trên HEAD của nhánh
+             `claude/ui-03-04-05-reports-px1u9l`. Nếu vòng đó ra
+             REQUEST CHANGES/REPAIR_REQUIRED: repair cycle DUY NHẤT của
+             lineage này được tiêu ở đó. Một vòng thứ hai ra kết luận như
+             vậy nữa ⟹ lineage HẾT ngân sách, phải ESCALATE theo
+             `governance/core/ESCALATION_PROTOCOL.md`, KHÔNG mở cycle thứ
+             hai bằng cách đổi tên/tách nhánh/mở lineage mới.
+```
+
+Đây là ENTRY ĐẦU TIÊN của lineage này. `effective_risk` được tự chấm lần
+đầu ở đây, theo `governance/core/V4_1_POLICY_FREEZE.md` §4 — chấm theo
+FAILURE PATH, KHÔNG theo tên file.
+
+**Đây là root task MỚI, KHÔNG phải cycle thứ hai của `UI-01-UI-02`.** Lineage
+`UI-01-UI-02` đã `1 allowed / 1 used / 0 remaining`. Ba lát dọc ở đây là ba
+TÍNH NĂNG MỚI theo roadmap Release 2, không phải sửa một BLOCKING defect do
+repair cycle của `UI-01/UI-02` tạo ra — đúng ranh giới `V4.1` §3 ("vùng code
+mới chỉ mở cycle mới khi nó nằm ngoài CUMULATIVE REPAIR DIFF của cycle hiện
+tại"). `git diff e95066a..9f15eb9 --name-only` của `REPAIR-1` chạm đúng hai
+file (`app/web/static/js/app.js`, `tests/playwright/order-panel-save.spec.
+mjs`); `app.js` có bị chạm lại ở đây, nhưng bởi các khối IIFE MỚI, không
+bởi một lần sửa lại `handleSaveResult()`/`doSave()`. Kiểm được:
+
+```text
+$ git diff 9f15eb9..HEAD -- app/web/static/js/app.js | grep "^-"
+--- a/app/web/static/js/app.js
+-   * ------------------------------------------------------------------ */
+-  document.addEventListener("app:content-updated", hideTooltip);
+```
+
+ĐÚNG HAI dòng bị xoá trong toàn bộ file, cả hai thuộc khối tooltip biểu đồ
+(`UI-05` thay chúng bằng một chú thích dài hơn và một listener gọi thêm
+`unpinTooltip()`). Không một dòng nào của `handleSaveResult()`/`doSave()`
+bị chạm.
+
+**Failure path đầy đủ** (đường dữ liệu thật, không phải import graph):
+
+```text
+workspace_presentation.sheet_detail_groups()
+  → _workspace_table.html (bản dựng DUY NHẤT của một hàng bảng kê)
+       ├─ kinh_doanh_nhan_vien.html            (trang đầy đủ, không-JS)
+       ├─ GET /api/v1/periods/<kỳ>/workspace   (UI-04, trang kế)
+       └─ nhánh JSON của ba đường ghi          (UI-03, vá tại chỗ)
+  → MÀN HÌNH của một phiên trình duyệt
+```
+
+Path này DỪNG Ở MÀN HÌNH, với bốn tính chất CẤU TẠO, mỗi tính chất kiểm
+được:
+
+1. **Không đường ghi mới.** Ba route ghi giữ nguyên thân hàm và vẫn gọi
+   nguyên `identity_gateway`/`store`; chỉ câu trả lời rẽ đôi ở dòng cuối.
+   Một lỗi ở đây không GHI sai được — nó chỉ TRẢ LỜI sai về một quyết định
+   đã ghi đúng. Đường không-JS trả `302` y hệt trước, canh bằng
+   `test_the_browser_path_still_redirects_exactly_as_before`.
+2. **Không phép tính mới.** `page_of_groups` chỉ CHỌN dòng. Hàng TỔNG và
+   dải KPI vẫn tính trên `scoped.details` của CẢ kỳ, canh bằng
+   `workspace-window.spec.mjs`::"TỔNG hiển thị là số của TOÀN KỲ…".
+3. **Không chạm export / chốt kỳ.** `grep -rn "sheet_detail_groups\|
+   sheet_detail_totals" app/ --include=*.py` cho đúng hai nơi gọi:
+   `server.py` (bảng kê nhân viên) và `order_api.py` (hàng TỔNG của panel
+   sửa đơn). `business_export` và `period_lock` KHÔNG gọi chúng.
+4. **Không migration, không cột mới, không schema đổi.**
+
+**So sánh để hiệu chỉnh, không đoán suông:**
+
+- KHÔNG bằng `R5` (`HIGH`, 2 cycle): ở `R5`, quyền LOẠI dòng đổi được vân
+  tay chốt kỳ và file Excel — một lỗi ở đó LAN RA NGOÀI một phiên trình
+  duyệt. Ba lát này không có quyền đó và không chạm hai bề mặt ấy.
+- NẶNG HƠN `UI-01-UI-02` (`MEDIUM`, nhưng nhờ "tự khỏi khi tải lại"): bug
+  P0 của lineage đó là một CACHE DOM lệch với nguồn đã ĐÚNG. Ở đây, một lỗi
+  trong `page_of_groups` hoặc trong macro `detail_rows` là SAI Ở NGUỒN — nó
+  GIẤU MẤT một dòng có thật khỏi mắt Owner, ở MỌI lần tải, và không tự khỏi.
+  Đó là lớp lỗi của `FIND-R6-IR-01` (cũng `MEDIUM`).
+- Không lên `HIGH` vì: hàng TỔNG vẫn là số TOÀN KỲ, nên một dòng bị giấu
+  tạo ra một MÂU THUẪN NHÌN THẤY ĐƯỢC ngay trên cùng màn hình (tổng không
+  khớp các dòng đang hiện), và không con số nào rời khỏi màn hình.
+
+```
+Local Risk   = 2/5  (không chạm tầng tính toán, không schema, không migration)
+Blast Radius = 3/5  (bản dựng DUY NHẤT của bảng kê vận hành; sai ở nguồn,
+                     không tự khỏi khi tải lại; dừng ở màn hình)
+Effective Risk = max(2, 3) = 3/5 → MEDIUM → 1 blocking repair cycle
+```
+
+**Golden Baseline KHÔNG được viện dẫn để hạ bậc** (`V4.1` §4.1): không
+Golden test nào phủ đường "một trang bảng kê" hay "vá một BH tại chỗ".
+Lineage này KHÔNG dùng Golden để giảm risk.
+
+### Trạng thái test tại thời điểm mở ledger
+
+```text
+pytest (toàn repo, trừ bọc Playwright)  3662 passed, 23 skipped, 0 failed
+                                        (nền đo TRƯỚC khi sửa, cùng phiên,
+                                         cùng máy: 3643 passed, 23 skipped)
+tests/browser/ (jsdom, node --test)     25 passed
+tests/playwright/ (Chromium thật)       35 passed (13 cũ + 22 mới)
+```
+
+`REPORTS_TEST_POSTGRES_URL` KHÔNG được đặt trong phiên này —
+`tests/test_p0_single_transaction.py` (11 bài) bị skip. Đây là một khoản NỢ
+KIỂM CHỨNG KẾ THỪA, không phải của lineage này: nó chưa từng chạy được qua
+toàn bộ vòng đời `UI-01`/`UI-02` (review vòng 1, `REPAIR-1`, review vòng 2).
+Ba lát ở đây không chạm `MutationGuard`/CAS. Xem `CHECK-UI345-27`.
+
+### Chưa merge, chưa push
+
+Commit giữ LOCAL trên `claude/ui-03-04-05-reports-px1u9l` theo yêu cầu trực
+tiếp bằng văn bản của chủ dự án trong phiên. `scripts/branch_authority_
+check.sh` báo `BRANCH AUTHORITY UNRESOLVED` cho nhánh này vì nó chưa có
+upstream — đó là HỆ QUẢ TRỰC TIẾP của yêu cầu "không push", không phải một
+lỗi cần sửa bằng cách push.
+
+Bằng chứng nguyên văn: `docs/tasks/UI-03-04-05-thao-tac-tai-cho-windowing-
+ghim-bieu-do.md`; `docs/sessions/S153-ui030405-thao-tac-tai-cho.md`;
+`PROJECT/PROJECT_PROGRESS.md` → "CANONICAL CURRENT STATE — UI-03/UI-04/UI-05".
