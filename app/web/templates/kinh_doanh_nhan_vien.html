@@ -54,8 +54,13 @@
   </form>
 </div>
 
-{% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
-{% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
+{# `UI-03` — vùng THÔNG BÁO. Sau một lần ghi qua JSON, `app.js` viết câu
+   server trả về vào đây thay vì để nó đi qua một vòng redirect + tải lại. #}
+<div data-region="flash">
+  {% if message %}<p class="insight" data-metric="saved">{{ message }}</p>{% endif %}
+  {% if error %}<p class="error" data-metric="error">{{ error }}</p>{% endif %}
+</div>
+{{ wk.confirm_templates() }}
 
 <nav class="sheet-tabs sheet-tabs-top" data-metric="sheet-tabs">
   {% for tab in tabs %}
@@ -125,7 +130,7 @@
        >ĐÓNG</a></p>
   </dialog>
   {% endif %}
-  {{ wk.kpi_strip(strip, sheet) }}
+  <div data-region="kpi-strip">{{ wk.kpi_strip(strip, sheet) }}</div>
 
   {# Coverage giá nhập — điều kiện để mọi con số ở trên được gọi là CHÍNH
      THỨC (`R-S7`/`DEC-PHB02-02` §4). Không gian làm việc không được làm mất
@@ -331,5 +336,6 @@
    tác đó phải đảo ngược được. Danh sách này KHÔNG mang một ô tiền nào: một
    dòng đã bị loại không góp vào chỉ tiêu nào, và hiện số của nó cạnh số của
    kỳ chỉ mời gọi người đọc cộng nhầm. #}
-{{ wk.excluded_block(excluded, selected_period, sheet) }}
+<div data-region="excluded"
+  >{{ wk.excluded_block(excluded, selected_period, sheet) }}</div>
 {% endblock %}

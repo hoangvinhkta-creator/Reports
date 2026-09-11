@@ -874,6 +874,12 @@
   });
 
   document.addEventListener("app:content-updated", sync);
+  /* `UI-03` — popover nay còn được dán vào chỗ bằng một lượt fetch nhỏ
+   * (route `/api/v1/periods/<kỳ>/identify`) thay vì bằng một lần dựng lại
+   * cả `#app-content`. Sự kiện RIÊNG cho đúng việc đó: `app:content-updated`
+   * mang nghĩa "cả vùng nội dung vừa bị thay" và kéo theo những việc khác
+   * (đóng panel sửa đơn, ẩn tooltip) không đúng ở đây. */
+  document.addEventListener("app:identify-updated", sync);
   document.addEventListener("DOMContentLoaded", sync);
   sync();
 })();
@@ -1788,4 +1794,572 @@
     var order = orderKeyFromHash();
     if (order) openPanel(order, { opener: openerFor(order), pushHistory: false });
   });
+})();
+
+/*
+ * `UI-03`/`UI-04` — GHI TẠI CHỖ và TẢI THEO TRANG trên bảng kê nhân viên.
+ *
+ * Cùng kỷ luật "lớp tăng cường" của cả file: mọi lối vào ở đây là một
+ * `<a href>` hoặc một `<form method="post">` THẬT do server dựng. Tắt
+ * JavaScript thì phân loại, loại dòng, khôi phục dòng và xem trang kế đều
+ * chạy y như trước — qua điều hướng thật và POST thật. Có JavaScript thì
+ * khối này chặn cú bấm và gửi CÙNG những request ấy bằng `fetch`, rồi dán
+ * lại đúng những mảnh HTML mà server trả về.
+ *
+ * ## Client KHÔNG dựng một hàng bảng kê nào
+ *
+ * Đây là ràng buộc trung tâm, và nó quyết định hình dạng của mọi payload ở
+ * đây. Một hàng bảng kê mang `rowspan` theo số dòng của BH, ba cột tuỳ chọn
+ * ẩn bằng CSS, bốn loại nhãn trạng thái, hai đường vào phân loại và một ô
+ * nhập thuộc về một `<form>` đứng NGOÀI bảng. Ghép lại tất cả những thứ đó
+ * bằng JavaScript là dựng một BẢN THỨ HAI của bảng kê — và bản thứ hai sẽ
+ * lệch khỏi bản thứ nhất ở lần đầu ai đó thêm một cột, không test template
+ * nào soi tới. Nên server trả về CHÍNH những `<tr>` ấy (dựng bởi
+ * `_workspace_table.html`, cùng macro mà trang đầy đủ gọi) và ở đây chỉ có
+ * `insertBefore` + `remove`.
+ *
+ * Thứ duy nhất khối này tự dựng là CHROME: một thẻ `<p>` mang câu thông báo
+ * của server (`flash`), và hộp xác nhận — mà cả CÂU CHỮ của hộp ấy cũng do
+ * server viết, nằm sẵn trong trang dưới dạng `<template>`.
+ *
+ * ## Ba nguyên tắc kế thừa từ `UI-02`, không được nới ở đây
+ *
+ * 1. KHÔNG tự gửi lại. Một lỗi mạng không phân biệt được "server chưa nhận"
+ *    với "server đã ghi xong nhưng response thất lạc" (`STAB-03`). Popover
+ *    giữ nguyên, câu lỗi hiện ra, người dùng bấm lại bằng tay.
+ * 2. KHÔNG abort một mutation đang bay. Đóng popover không huỷ request; kết
+ *    quả của nó vẫn được áp vào bảng khi nó về.
+ * 3. Response CŨ không ghi đè response MỚI cho các lượt ĐỌC (`STAB-05`) —
+ *    xem `pageSeq`/`identifySeq` bên dưới.
+ */
+(function () {
+  "use strict";
+
+  var MAIN_REGION_ID = "app-content";
+  var SCHEMA = "R7-WORKSPACE-1";
+
+  /* Ngân sách hàng `<tr>` gắn trong DOM cùng lúc. Vượt ngưỡng thì các NHÓM
+   * cũ nhất bị GỠ (`trimToBudget`) — nhóm, không phải hàng lẻ: gỡ nửa một BH
+   * để lại `rowspan` trỏ vào những hàng không còn tồn tại.
+   *
+   * 300 chứ không phải 100 (= một trang): người dùng vừa tải trang kế phải
+   * còn thấy phần cuối trang trước ngay phía trên, nếu không mỗi lần tải là
+   * một lần màn hình nhảy. Ba trang là khoảng đệm nhỏ nhất cho điều đó. */
+  var ROW_BUDGET = 300;
+
+  var NETWORK_NOTE = "Chưa xác nhận được kết quả — hãy bấm lại.";
+
+  function contentEl() { return document.getElementById(MAIN_REGION_ID); }
+
+  function tableEl() {
+    var el = contentEl();
+    return el ? el.querySelector("table.sheet-table") : null;
+  }
+
+  function regionEl(name) {
+    var el = contentEl();
+    return el ? el.querySelector('[data-region="' + name + '"]') : null;
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(value);
+    }
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  /* `<tr>` KHÔNG phân tích được ngoài ngữ cảnh bảng: gán thẳng vào
+   * `innerHTML` của một `<div>` thì trình duyệt vứt bỏ các thẻ hàng và chỉ
+   * giữ lại phần chữ. `<template>` thì phân tích đúng nội dung bảng, nên nó
+   * là cách duy nhất đọc được một chuỗi `<tr>` do server trả về. */
+  function parseRows(html) {
+    var host = document.createElement("template");
+    host.innerHTML = "<table><tbody>" + html + "</tbody></table>";
+    var body = host.content.querySelector("tbody");
+    var frag = document.createDocumentFragment();
+    while (body && body.firstChild) frag.appendChild(body.firstChild);
+    return frag;
+  }
+
+  function groupRows(table, orderKey) {
+    return table.querySelectorAll(
+      'tr[data-order="' + cssEscape(orderKey) + '"]');
+  }
+
+  /* Đặt (thay HOẶC chèn) một khối BH vào bảng.
+   *
+   * Ba nhánh, và nhánh thứ hai là một ca CÓ THẬT chứ không phải phòng xa:
+   * khôi phục dòng CUỐI CÙNG của một đơn vừa bị loại — khi ấy cả khối đã
+   * biến mất khỏi bảng, nên không có hàng nào để thay, phải CHÈN. Chỗ chèn
+   * đọc từ `spec.before`/`spec.after` (server gửi, xem `_workspace_group_
+   * html`), không suy ra ở client: thứ tự hiển thị là thứ tự theo NGÀY của
+   * cả sheet, và client chỉ giữ một cửa sổ của nó.
+   *
+   * Cả hai hàng xóm đều vắng ⟹ BH này nằm NGOÀI cửa sổ đang tải. Không chèn
+   * gì: nối nó vào cuối bảng sẽ đặt một đơn của ngày 3 xuống dưới một đơn
+   * của ngày 28 — sai thứ tự mà không ô nào trên màn hình nói ra. */
+  function placeGroup(table, orderKey, spec) {
+    var rows = groupRows(table, orderKey);
+    if (rows.length) {
+      var anchor = rows[0];
+      anchor.parentNode.insertBefore(parseRows(spec.html), anchor);
+      for (var i = 0; i < rows.length; i++) rows[i].remove();
+      return true;
+    }
+    var before = spec.before ? groupRows(table, spec.before) : [];
+    if (before.length) {
+      before[0].parentNode.insertBefore(parseRows(spec.html), before[0]);
+      return true;
+    }
+    var after = spec.after ? groupRows(table, spec.after) : [];
+    if (after.length) {
+      var last = after[after.length - 1];
+      last.parentNode.insertBefore(parseRows(spec.html), last.nextSibling);
+      return true;
+    }
+    return false;
+  }
+
+  function dropGroup(table, orderKey) {
+    var rows = groupRows(table, orderKey);
+    for (var i = 0; i < rows.length; i++) rows[i].remove();
+  }
+
+  /* --- Vùng HTML do server dựng ---------------------------------------- */
+
+  function applyRegions(regions) {
+    Object.keys(regions || {}).forEach(function (name) {
+      if (name === "sheet-totals") {
+        /* Hàng TỔNG là một `<tr>`: nó không có vùng bọc nào để thay
+         * `innerHTML` (một `<div>` giữa `<table>` và `<tr>` không hợp lệ),
+         * nên nó được thay bằng chính nó. */
+        var table = tableEl();
+        var row = table && table.querySelector('tr[data-metric="sheet-totals"]');
+        if (!row) return;
+        row.parentNode.insertBefore(parseRows(regions[name]), row);
+        row.remove();
+        return;
+      }
+      var host = regionEl(name);
+      if (host) host.innerHTML = regions[name];
+    });
+    if (regions && Object.prototype.hasOwnProperty.call(regions, "identify")) {
+      /* Popover phân loại vừa đổi chỗ trong DOM — khối neo popover (ở trên
+       * trong file này) tự đặt lại toạ độ khi nghe sự kiện này. Một sự kiện
+       * RIÊNG chứ không dùng `app:content-updated`: sự kiện kia có nghĩa
+       * "cả `#app-content` vừa bị thay", và nó đóng panel sửa đơn đang mở. */
+      document.dispatchEvent(new CustomEvent("app:identify-updated"));
+    }
+  }
+
+  function flash(message, kind) {
+    var host = regionEl("flash");
+    if (!host) return;
+    host.textContent = "";
+    if (!message) return;
+    var line = document.createElement("p");
+    line.className = kind === "error" ? "error" : "insight";
+    line.setAttribute("data-metric", kind === "error" ? "error" : "saved");
+    /* `textContent`, không `innerHTML`: câu này đến từ server nhưng nó đi
+     * qua đúng một đường mà một tên hàng do người dùng gõ có thể lọt vào
+     * (`IdentityGatewayError`), và không có lý do gì để nó là HTML. */
+    line.textContent = message;
+    host.appendChild(line);
+  }
+
+  /* --- Ngữ cảnh của bảng đang mở --------------------------------------- */
+
+  function tableContext() {
+    var table = tableEl();
+    if (!table) return null;
+    return {
+      table: table,
+      period: table.getAttribute("data-period") || "",
+      sheet: table.getAttribute("data-sheet") || ""
+    };
+  }
+
+  function bodyFor(fields) {
+    var ctx = tableContext();
+    var body = new URLSearchParams();
+    body.set("ky", ctx ? ctx.period : "");
+    body.set("sheet", ctx ? ctx.sheet : "");
+    Object.keys(fields).forEach(function (name) {
+      body.set(name, fields[name] == null ? "" : String(fields[name]));
+    });
+    return body;
+  }
+
+  function errorText(payload) {
+    var err = payload && payload.error;
+    return (err && err.message) || "Không ghi được thay đổi.";
+  }
+
+  /* --- Một lần GHI ------------------------------------------------------
+   *
+   * KHÔNG `signal`: mutation không bao giờ bị abort (nguyên tắc 2 ở đầu
+   * khối). KHÔNG nhánh `catch` nào gửi lại (nguyên tắc 1). */
+  function sendWrite(url, fields, onDone, onFail) {
+    fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+      },
+      body: bodyFor(fields).toString()
+    })
+      .then(function (response) {
+        return response.json().then(function (payload) {
+          return { ok: response.ok, payload: payload };
+        }, function () {
+          /* Không phải JSON (một trang lỗi HTML của `abort(400/404)`):
+           * cùng cách xử lý như một lỗi rõ ràng, KHÔNG gửi lại. */
+          return { ok: false, payload: null };
+        });
+      })
+      .then(function (result) {
+        if (result.ok && result.payload) {
+          applyWrite(result.payload);
+          onDone();
+          return;
+        }
+        onFail(result.payload ? errorText(result.payload)
+                              : "Máy chủ từ chối thao tác này.");
+      })
+      .catch(function () { onFail(NETWORK_NOTE); });
+  }
+
+  function applyWrite(payload) {
+    if (payload.schema_version !== SCHEMA) {
+      /* Server nói một thứ tiếng khác — tải lại thay vì đọc sai. Cùng hợp
+       * đồng `order_api.SCHEMA_VERSION` mà panel sửa đơn dùng. */
+      window.location.reload();
+      return;
+    }
+    var table = tableEl();
+    if (table) {
+      var groups = payload.groups || {};
+      Object.keys(groups).forEach(function (key) {
+        placeGroup(table, key, groups[key]);
+      });
+      (payload.removed_order_keys || []).forEach(function (key) {
+        dropGroup(table, key);
+      });
+    }
+    applyRegions(payload.regions);
+    flash(payload.message);
+  }
+
+  /* --- Hộp xác nhận neo cạnh nút vừa bấm (`UI-03` §4) ------------------- */
+
+  var confirmBox = null;
+
+  function closeConfirm() {
+    if (confirmBox && confirmBox.parentNode) confirmBox.remove();
+    confirmBox = null;
+  }
+
+  function anchorTo(node, opener) {
+    var pad = 8;
+    node.classList.add("is-anchored");
+    var box = node.getBoundingClientRect();
+    var at = opener.getBoundingClientRect();
+    var x = at.left;
+    var y = at.bottom + 8;
+    if (x + box.width > window.innerWidth - pad) {
+      x = window.innerWidth - box.width - pad;
+    }
+    if (y + box.height > window.innerHeight - pad) {
+      y = at.top - box.height - 8;
+    }
+    node.style.left = Math.max(pad, x) + "px";
+    node.style.top = Math.max(pad, y) + "px";
+  }
+
+  /* `kind` = `"loai"` | `"khoi-phuc"`. Trả `false` khi trang không mang
+   * `<template>` câu chữ — khi đó nơi gọi để nguyên hành vi mặc định của
+   * trình duyệt, tức đi đúng đường HTML thật. */
+  function askConfirm(kind, opener, onYes) {
+    var tpl = document.querySelector(
+      'template[data-metric="confirm-copy"][data-kind="' + kind + '"]');
+    if (!tpl || !tpl.content.firstElementChild) return false;
+    closeConfirm();
+    confirmBox = tpl.content.firstElementChild.cloneNode(true);
+    document.body.appendChild(confirmBox);
+    anchorTo(confirmBox, opener);
+
+    var ok = confirmBox.querySelector('[data-metric="line-confirm-ok"]');
+    var cancel = confirmBox.querySelector('[data-metric="line-confirm-cancel"]');
+    var problem = confirmBox.querySelector('[data-metric="line-confirm-error"]');
+    var box = confirmBox;
+    if (cancel) cancel.addEventListener("click", function () { closeConfirm(); });
+    if (ok) {
+      ok.addEventListener("click", function () {
+        ok.disabled = true;
+        if (problem) { problem.hidden = true; problem.textContent = ""; }
+        onYes(
+          function () { if (box === confirmBox) closeConfirm(); },
+          function (message) {
+            /* `UI-03` §5 — popover Ở LẠI, nút bật lại, KHÔNG tự gửi lần
+             * thứ hai. Người dùng quyết định có bấm lại hay không. */
+            ok.disabled = false;
+            if (problem) { problem.hidden = false; problem.textContent = message; }
+          });
+      });
+    }
+    (ok || box).focus();
+    return true;
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && confirmBox) {
+      event.preventDefault();
+      closeConfirm();
+    }
+  });
+
+  document.addEventListener("click", function (event) {
+    if (!confirmBox || confirmBox.contains(event.target)) return;
+    closeConfirm();
+  });
+
+  /* --- Khoá nghiệp vụ của một dòng, đọc từ URL của lối vào -------------- */
+
+  function lineKeysFromHref(href) {
+    var url;
+    try { url = new URL(href, window.location.href); } catch (e) { return null; }
+    var order = url.searchParams.get("order_key");
+    var product = url.searchParams.get("product_key");
+    var occurrence = url.searchParams.get("occurrence_index");
+    if (!order || !product || occurrence == null) return null;
+    return {
+      order_key: order, product_key: product, occurrence_index: occurrence
+    };
+  }
+
+  function lineKeysFromForm(form) {
+    function field(name) {
+      var el = form.querySelector('[name="' + name + '"]');
+      return el ? el.value : null;
+    }
+    var order = field("order_key");
+    var product = field("product_key");
+    var occurrence = field("occurrence_index");
+    if (!order || !product || occurrence == null) return null;
+    return {
+      order_key: order, product_key: product, occurrence_index: occurrence
+    };
+  }
+
+  /* --- Bảng chọn phân loại: MỞ bằng một lượt fetch nhỏ ------------------ */
+
+  var identifySeq = 0;
+
+  function openIdentify(href) {
+    var ctx = tableContext();
+    var keys = lineKeysFromHref(href);
+    if (!ctx || !keys) return false;
+    identifySeq += 1;
+    var ticket = identifySeq;
+    var url = "/api/v1/periods/" + encodeURIComponent(ctx.period) +
+      "/identify?sheet=" + encodeURIComponent(ctx.sheet) +
+      "&phan-loai=1" +
+      "&order_key=" + encodeURIComponent(keys.order_key) +
+      "&product_key=" + encodeURIComponent(keys.product_key) +
+      "&occurrence_index=" + encodeURIComponent(keys.occurrence_index);
+    fetch(url, { headers: { Accept: "application/json" } })
+      .then(function (response) { return response.json(); })
+      .then(function (payload) {
+        /* `STAB-05` — bấm nhanh hai dòng khác nhau: response của dòng thứ
+         * nhất về SAU không được vẽ đè lên popover của dòng thứ hai. */
+        if (ticket !== identifySeq) return;
+        applyRegions(payload.regions);
+      })
+      .catch(function () {
+        if (ticket !== identifySeq) return;
+        flash("Chưa mở được bảng chọn mặt hàng — hãy thử lại.", "error");
+      });
+    return true;
+  }
+
+  function closeIdentify() {
+    var host = regionEl("identify");
+    if (host) host.textContent = "";
+  }
+
+  /* --- `UI-04`: tải trang kế và giữ ngân sách DOM ----------------------- */
+
+  var pageSeq = 0;
+  var loading = false;
+
+  /* Gỡ các NHÓM cũ nhất cho tới khi số hàng về trong ngân sách.
+   *
+   * Vị trí cuộn: gỡ những hàng nằm TRƯỚC phần người dùng đang nhìn sẽ kéo
+   * nội dung lên đúng bằng chiều cao của chúng. Nên chiều cao bị mất được
+   * đo và trả lại bằng `window.scrollBy` ngay trong cùng một khung hình —
+   * người dùng không thấy màn hình nhảy. */
+  function trimToBudget(table) {
+    var rows = table.querySelectorAll("tr[data-order]");
+    var excess = rows.length - ROW_BUDGET;
+    if (excess <= 0) return;
+    var top = table.getBoundingClientRect().top;
+    var seen = {};
+    var order = [];
+    for (var i = 0; i < rows.length; i++) {
+      var key = rows[i].getAttribute("data-order");
+      if (!seen[key]) { seen[key] = []; order.push(key); }
+      seen[key].push(rows[i]);
+    }
+    var removed = 0;
+    for (var j = 0; j < order.length && removed < excess; j++) {
+      var group = seen[order[j]];
+      for (var k = 0; k < group.length; k++) group[k].remove();
+      removed += group.length;
+    }
+    var shift = top - table.getBoundingClientRect().top;
+    if (shift) window.scrollBy(0, -shift);
+  }
+
+  function loadNextPage(cursor, done) {
+    var ctx = tableContext();
+    if (!ctx || !cursor || loading) { if (done) done(); return; }
+    loading = true;
+    pageSeq += 1;
+    var ticket = pageSeq;
+    var url = "/api/v1/periods/" + encodeURIComponent(ctx.period) +
+      "/workspace?sheet=" + encodeURIComponent(ctx.sheet) +
+      "&cursor=" + encodeURIComponent(cursor);
+    fetch(url, { headers: { Accept: "application/json" } })
+      .then(function (response) { return response.json(); })
+      .then(function (payload) {
+        loading = false;
+        if (ticket !== pageSeq) return;
+        if (payload.schema_version !== SCHEMA) {
+          window.location.reload();
+          return;
+        }
+        var table = tableEl();
+        if (!table) return;
+        var body = table.tBodies[0] || table;
+        body.appendChild(parseRows(payload.rows_html));
+        table.setAttribute("data-next-cursor", payload.next_cursor || "");
+        applyRegions(payload.regions);
+        trimToBudget(table);
+      })
+      .catch(function () {
+        loading = false;
+        if (ticket !== pageSeq) return;
+        /* Không tự gọi lại: `XEM TIẾP` vẫn nằm đó, người dùng bấm lại. */
+        flash("Chưa tải được trang kế — hãy bấm XEM TIẾP lần nữa.", "error");
+      })
+      .then(function () { if (done) done(); });
+  }
+
+  /* --- Móc vào các cú bấm ----------------------------------------------
+   *
+   * PHA CAPTURE, cùng lý do đã viết ở khối panel sửa đơn: `onClick()` của
+   * bộ điều hướng chính (đầu file) nghe `click` ở pha BUBBLE và chặn MỌI
+   * link cùng origin trong `#app-content`. Capture chạy trước bubble bất
+   * kể thứ tự đăng ký, và `stopPropagation()` ở đây chặn hẳn listener kia.
+   *
+   * Khối neo popover phân loại (cũng ở file này, đăng ký capture TRƯỚC khối
+   * này) vẫn nhận được cú bấm và vẫn ghi lại toạ độ: `stopPropagation()`
+   * không chặn các listener khác trên CÙNG một nút. */
+  document.addEventListener("click", function (event) {
+    var el = contentEl();
+    if (!el || !event.target.closest) return;
+    if (event.defaultPrevented || event.button !== 0 ||
+        event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    var target = event.target;
+
+    /* 1. MỞ bảng chọn phân loại (tên hàng xanh, hoặc nhãn trạng thái). */
+    var opener = target.closest(
+      "[data-metric='identity-open'], [data-metric='identity-label']");
+    if (opener && el.contains(opener) && opener.getAttribute("href")) {
+      if (openIdentify(opener.getAttribute("href"))) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
+
+    /* 2. ĐÓNG bảng chọn. */
+    var cancel = target.closest("[data-metric='identify-cancel']");
+    if (cancel && el.contains(cancel)) {
+      event.preventDefault();
+      event.stopPropagation();
+      closeIdentify();
+      return;
+    }
+
+    /* 3. XÁC NHẬN một mã Tracking, hoặc "không có trên bảng giá". Hai nút
+     *    khác nhau, hai route khác nhau, cùng một cách gửi. */
+    var confirmBtn = target.closest(
+      "[data-metric='identify-confirm'], " +
+      "[data-metric='identify-out-of-catalog-confirm']");
+    if (confirmBtn && el.contains(confirmBtn)) {
+      var form = confirmBtn.form || confirmBtn.closest("form");
+      var keys = form && lineKeysFromForm(form);
+      if (!form || !keys) return;      /* thiếu khoá ⟹ để form thật chạy */
+      event.preventDefault();
+      event.stopPropagation();
+      var fields = keys;
+      var code = form.querySelector('[name="ma_tracking"]');
+      if (code) fields = Object.assign({}, keys, { ma_tracking: code.value });
+      confirmBtn.disabled = true;
+      sendWrite(form.getAttribute("action"), fields,
+        function () { /* popover được đóng bởi chính `regions.identify` rỗng */ },
+        function (message) {
+          /* `UI-03` §5 — popover Ở LẠI nguyên trạng, nút bật lại. */
+          confirmBtn.disabled = false;
+          flash(message, "error");
+        });
+      return;
+    }
+
+    /* 4. LOẠI một dòng — qua hộp xác nhận neo cạnh cái thùng rác. */
+    var exclude = target.closest("[data-metric='line-exclude']");
+    if (exclude && el.contains(exclude) && exclude.getAttribute("href")) {
+      var excludeKeys = lineKeysFromHref(exclude.getAttribute("href"));
+      if (!excludeKeys) return;
+      var asked = askConfirm("loai", exclude, function (done, fail) {
+        sendWrite("/kinh-doanh/nhan-vien/loai-dong", excludeKeys, done, fail);
+      });
+      if (asked) { event.preventDefault(); event.stopPropagation(); }
+      return;
+    }
+
+    /* 5. KHÔI PHỤC một dòng — cùng hộp xác nhận, câu chữ khác. */
+    var restore = target.closest("[data-metric='line-restore']");
+    if (restore && el.contains(restore)) {
+      var restoreForm = restore.form || restore.closest("form");
+      var restoreKeys = restoreForm && lineKeysFromForm(restoreForm);
+      if (!restoreKeys) return;
+      var fieldsWithAction = Object.assign(
+        {}, restoreKeys, { "hanh-dong": "khoi-phuc" });
+      var askedRestore = askConfirm("khoi-phuc", restore, function (done, fail) {
+        sendWrite("/kinh-doanh/nhan-vien/loai-dong", fieldsWithAction,
+                  done, fail);
+      });
+      if (askedRestore) { event.preventDefault(); event.stopPropagation(); }
+      return;
+    }
+
+    /* 6. XEM TIẾP — nối thêm một trang vào chính bảng đang mở. */
+    var more = target.closest("[data-metric='workspace-more']");
+    if (more && el.contains(more)) {
+      var cursor = more.getAttribute("data-next-cursor");
+      if (!cursor) return;
+      event.preventDefault();
+      event.stopPropagation();
+      more.disabled = true;
+      loadNextPage(cursor, null);
+      return;
+    }
+  }, true);
+
+  /* Điều hướng thật (đổi kỳ/sheet) thay cả `#app-content` — hộp xác nhận
+   * đang mở trỏ tới một dòng không còn tồn tại. */
+  document.addEventListener("app:content-updated", closeConfirm);
 })();

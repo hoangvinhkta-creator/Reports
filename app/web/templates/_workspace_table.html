@@ -27,7 +27,7 @@
    thay vì vá từng ô: nhãn CHÍNH THỨC/CHƯA HOÀN CHỈNH của `gated_kpi` và
    con số đi cùng nó là MỘT quyết định của server (`R-S7`), và vá riêng
    con số mà để nguyên nhãn là cách hai thứ ấy nói hai chuyện khác nhau. #}
-  <div class="kpi-grid strip" data-region="kpi-strip">
+  <div class="kpi-grid strip">
     {{ biz.kpi('Doanh thu', strip.sales_revenue_kvnd, 'sales_revenue',
                'nghìn đồng', full=strip.sales_revenue ~ ' đồng') }}
     {{ biz.gated_kpi('DS quy đổi', strip.converted_sales, 'converted_sales') }}
@@ -90,8 +90,7 @@
 {% macro totals_row(detail_totals, sheet, strip) -%}
 {# Hàng TỔNG ngay dưới tiêu đề cột. Loại/khôi phục một dòng đổi cả bốn ô
    này, nên nó là một vùng thay được — cùng lý do dải KPI ở trên. #}
-    <tr class="row-total" data-metric="sheet-totals"
-        data-region="sheet-totals">
+    <tr class="row-total" data-metric="sheet-totals">
       <td colspan="2" class="tp-label">TỔNG</td>
       <td></td>
       <td class="col-optional"></td><td class="col-optional"></td><td class="col-optional"></td>
@@ -558,4 +557,54 @@
       >Đang hiện {{ page.order_keys|length }} trong {{ page.total_orders }} BH
        của sheet này. Mọi TỔNG và chỉ tiêu ở trên vẫn tính trên toàn kỳ.</span>
     {% endif %}
+{%- endmacro %}
+
+{% macro confirm_templates() -%}
+{# `UI-03` §4 — CÂU CHỮ của hai hộp xác nhận, do SERVER viết, nằm sẵn trong
+   trang dưới dạng `<template>`.
+
+   Vì sao không để `app.js` tự viết hai câu ấy: chúng là câu chữ NGHIỆP VỤ
+   (`EXCLUDE_CONFIRM_*`/`RESTORE_CONFIRM_*` của `workspace_presentation`), và
+   một bản chép trong JavaScript sẽ đứng lại đúng chỗ cũ ở lần đầu ai đó sửa
+   câu ở Python. `<template>` không được vẽ và không tốn gì cho người không
+   bật JavaScript.
+
+   Hộp xác nhận của đường KHÔNG-JS vẫn nguyên vẹn ở chỗ cũ
+   (`?xac-nhan=loai`, khối `confirm` trong `kinh_doanh_nhan_vien.html`) —
+   đây là một bản THỨ HAI của câu chữ ấy trên cùng một trang, nhưng cả hai
+   đọc CÙNG một hằng số, nên chúng không lệch nhau được. #}
+<template data-metric="confirm-copy" data-kind="loai">
+  <div class="module confirm-box tp-confirm-pop" data-metric="line-confirm">
+    <h2 data-metric="confirm-question">{{ EXCLUDE_CONFIRM_QUESTION }}</h2>
+    <ul class="reason-list">
+      {% for point in EXCLUDE_CONFIRM_POINTS %}
+      <li data-metric="confirm-point">{{ point }}</li>
+      {% endfor %}
+    </ul>
+    <p class="filter-row">
+      <button class="ghost btn-mini" type="button"
+              data-metric="line-confirm-cancel">HỦY</button>
+      <button class="act btn-mini" type="button"
+              data-metric="line-confirm-ok">LOẠI DÒNG</button>
+    </p>
+    <p class="error" data-metric="line-confirm-error" hidden></p>
+  </div>
+</template>
+<template data-metric="confirm-copy" data-kind="khoi-phuc">
+  <div class="module confirm-box tp-confirm-pop" data-metric="line-confirm">
+    <h2 data-metric="confirm-question">{{ RESTORE_CONFIRM_QUESTION }}</h2>
+    <ul class="reason-list">
+      {% for point in RESTORE_CONFIRM_POINTS %}
+      <li data-metric="confirm-point">{{ point }}</li>
+      {% endfor %}
+    </ul>
+    <p class="filter-row">
+      <button class="ghost btn-mini" type="button"
+              data-metric="line-confirm-cancel">HỦY</button>
+      <button class="act btn-mini" type="button"
+              data-metric="line-confirm-ok">KHÔI PHỤC</button>
+    </p>
+    <p class="error" data-metric="line-confirm-error" hidden></p>
+  </div>
+</template>
 {%- endmacro %}

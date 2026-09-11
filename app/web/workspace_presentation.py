@@ -160,6 +160,12 @@ PROGRESS_NOTE = (
     "báo lịch. Nó KHÔNG tham gia Target, KPI hay bất kỳ con số kinh doanh nào."
 )
 
+#: `UI-03`/`UI-04` — version của HÌNH DẠNG payload JSON mà không gian làm
+#: việc trả về. Client đọc nó để biết mình đang nói cùng một thứ tiếng với
+#: server; một lần đổi hình dạng không tương thích phải tăng nó, và client cũ
+#: sẽ tải lại trang thay vì đọc sai. Cùng hợp đồng `order_api.SCHEMA_VERSION`.
+WORKSPACE_SCHEMA_VERSION = "R7-WORKSPACE-1"
+
 EMPTY_PERIOD_NOTE = "Chưa có đơn"
 
 EXCLUDED_NOTE = (
@@ -192,6 +198,17 @@ EXCLUDE_CONFIRM_POINTS = (
     "Không còn tính vào doanh thu",
     "Không còn tính vào lợi nhuận",
     "Sổ kế toán gốc giữ nguyên",
+)
+
+# `UI-03` §4 — KHÔI PHỤC cũng phải nói ra hậu quả TRƯỚC khi ghi. Đường HTML
+# không-JS không có bước này (nút KHÔI PHỤC gửi thẳng, đúng như trước
+# `UI-03` — không đổi hành vi của đường cũ); đường JS thì có, vì ở đó nút
+# nằm ngay cạnh danh sách và bấm nhầm rẻ hơn nhiều.
+RESTORE_CONFIRM_QUESTION = "Khôi phục dòng này vào báo cáo?"
+RESTORE_CONFIRM_POINTS = (
+    "Tính lại vào doanh thu",
+    "Tính lại vào lợi nhuận",
+    "Dòng trở lại đúng khối BH cũ",
 )
 
 
@@ -737,6 +754,32 @@ def page_of_groups(details: list[dict], *, cursor: Optional[str] = None,
     }
 
 
+def groups_slice(details: list[dict], order_keys) -> dict:
+    """Một "trang" chỉ gồm các BH ĐƯỢC NÊU TÊN — cùng hình dạng `page_of_groups`.
+
+    `UI-03` dùng nó: sau một lần ghi, chỉ những BH thật sự bị ảnh hưởng mới
+    được dựng lại. Nền (`shades`) vẫn tính trên CẢ sheet, vì nền của một BH
+    là một tính chất của cả sheet (xem `group_shades`) — dựng lại một BH với
+    nền tính riêng sẽ làm đúng hàng vừa vá đổi màu so với hàng bên cạnh nó.
+
+    `cursor`/`next_cursor` là `None` có chủ ý: lát này KHÔNG phải một trang
+    của phép phân trang, và trả về một con trỏ ở đây sẽ mời người gọi dùng
+    nó làm vị trí cuộn.
+    """
+    wanted = set(order_keys)
+    shades = group_shades(details)
+    chosen = [d for d in details if d["order_key"] in wanted]
+    return {
+        "details": chosen,
+        "order_keys": [key for key in shades if key in wanted],
+        "shades": shades,
+        "cursor": None,
+        "next_cursor": None,
+        "total_orders": len(shades),
+        "total_lines": len(details),
+    }
+
+
 def cursor_for_order(details: list[dict], order_key: str, *,
                      limit: int = WORKSPACE_PAGE_LINES) -> Optional[str]:
     """Con trỏ của TRANG CHỨA `order_key`, hoặc `None` nếu nó ở trang đầu.
@@ -909,15 +952,16 @@ def sheet_view(
 
 
 __all__ = [
-    "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
+    "WORKSPACE_SCHEMA_VERSION", "EMPTY_PERIOD_NOTE", "EXCLUDED_NOTE", "EXCLUDE_CONFIRM_POINTS",
     "REMOVED_IN_SOURCE_NOTE", "removed_in_source_rows",
     "HIDE_OPTIONAL_LABEL", "OPTIONAL_COLUMNS_NOTE", "OPTIONAL_COLUMN_INDEXES",
     "SHOW_OPTIONAL_LABEL",
     "EXCLUDE_CONFIRM_QUESTION", "GIA_DUNG_CONFIRM_POINTS",
+    "RESTORE_CONFIRM_POINTS", "RESTORE_CONFIRM_QUESTION",
     "GIA_DUNG_CONFIRM_QUESTION", "LOSS_CODES", "MOM_NO_PREVIOUS",
     "PROGRESS_NOTE", "SHEET_DETAIL_COLUMNS", "SHORT_TAGS",
     "WORKSPACE_PAGE_LINES", "WORKSPACE_PAGE_LINES_MAX",
-    "cursor_for_order",
+    "cursor_for_order", "groups_slice",
     "TARGET_KVND_NOTE", "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL",
     "business_date", "excluded_rows", "group_shades", "period_options",
     "page_of_groups", "progress_cell",

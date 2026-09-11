@@ -556,6 +556,7 @@ def create_app(
                   "EXCLUDE_CONFIRM_POINTS", "EXCLUDE_CONFIRM_QUESTION",
                   "GIA_DUNG_CONFIRM_POINTS", "GIA_DUNG_CONFIRM_QUESTION",
                   "REMOVED_IN_SOURCE_NOTE",
+                  "RESTORE_CONFIRM_POINTS", "RESTORE_CONFIRM_QUESTION",
                   "PROGRESS_NOTE", "TARGET_KVND_NOTE",
                   "TARGET_NOT_KVND_NOTE", "TARGET_UNIT_LABEL"):
         app.jinja_env.globals[_name] = getattr(workspace_presentation, _name)
@@ -2215,6 +2216,159 @@ def create_app(
             "business_employee",
             **{k: v for k, v in args.items() if v}, **extra))
 
+    # ==================================================================
+    # `UI-03` — CÙNG những đường ghi, HAI cách trả lời.
+    #
+    # Không có route ghi mới nào ở đây, và đó là điểm chính: một route JSON
+    # song song sẽ là một bản thứ hai của cùng một quyết định nghiệp vụ, và
+    # hai bản sẽ lệch nhau ở đúng cái nhánh mà không ai chạy thử. Ba đường
+    # ghi của bảng kê (`phan-loai`, `ngoai-bang`, `loai-dong`) giữ NGUYÊN
+    # thân hàm, gọi NGUYÊN `identity_gateway`/`store` như trước; chỉ CÂU TRẢ
+    # LỜI là rẽ đôi ở dòng cuối:
+    #
+    #     trình duyệt (form thật, không JS) → `_workspace_redirect` như cũ
+    #     client JS (`Accept: application/json`) → payload dưới đây
+    #
+    # Tắt JavaScript thì không một byte nào của trang đổi khác so với trước
+    # `UI-03` — đó là điều kiện để gọi đây là một lớp TĂNG CƯỜNG.
+    # ==================================================================
+
+    def _workspace_wants_json() -> bool:
+        """Người gọi có muốn JSON hơn HTML không.
+
+        So SÁNH hai mức ưu tiên thay vì tìm chuỗi `"application/json"` trong
+        header: trình duyệt gửi `Accept: text/html,…,*/*;q=0.8` cho một form
+        POST thật, và `*/*` khớp cả JSON. Tìm chuỗi thì đúng, so mức ưu tiên
+        thì đúng VÀ không phụ thuộc vào việc trình duyệt nào viết header ra
+        sao.
+        """
+        accept = request.accept_mimetypes
+        return (accept["application/json"] > accept["text/html"])
+
+    def _workspace_macros():
+        """Bộ macro dựng các vùng của không gian làm việc.
+
+        ĐÚNG những macro mà `kinh_doanh_nhan_vien.html` gọi — xem chú thích
+        đầu `_workspace_table.html`. Không có bản dựng thứ hai nào ở đây, và
+        client không ghép một thẻ `<tr>` nào.
+        """
+        return app.jinja_env.get_template("_workspace_table.html").module
+
+    def _workspace_group_html(context: dict) -> dict:
+        """`{mã BH: {html, after, before}}` cho lát đang dựng.
+
+        `after`/`before` là mã BH ĐỨNG NGAY TRƯỚC và NGAY SAU nó trong thứ
+        tự hiển thị của CẢ sheet, hoặc `None` ở hai đầu. Client cần chúng cho
+        một ca có thật: khôi phục một dòng mà BH của nó KHÔNG còn hàng nào
+        trong bảng (dòng cuối của đơn vừa bị loại ⟹ cả khối đã biến mất). Khi
+        ấy không có hàng cũ nào để thay — phải CHÈN, và chỗ chèn đúng là một
+        tính chất của thứ tự toàn sheet, không phải thứ client suy ra được từ
+        những hàng nó đang giữ.
+
+        Không gửi cả danh sách thứ tự: với 5.000 dòng đó là vài nghìn mã cho
+        một lần ghi chạm một dòng. Hai hàng xóm là đủ, và khi cả hai đều
+        không nằm trong cửa sổ đang tải thì BH ấy cũng không nằm trong cửa
+        sổ — client bỏ qua, đúng như nó bỏ qua mọi hàng chưa tải.
+        """
+        macros = _workspace_macros()
+        order = list(context["page"]["shades"])
+        position = {key: index for index, key in enumerate(order)}
+        payload = {}
+        for group in context["groups"]:
+            key = group["order_key"]
+            index = position.get(key)
+            payload[key] = {
+                "html": str(macros.detail_rows(
+                    [group], context["selected_period"], context["sheet"],
+                    context["editing"], context["assignable"],
+                    context["unclassifiable_note"])),
+                "after": (order[index - 1]
+                          if index is not None and index > 0 else None),
+                "before": (order[index + 1]
+                           if index is not None and index + 1 < len(order)
+                           else None),
+            }
+        return payload
+
+    def _workspace_regions(context: dict) -> dict:
+        """Các vùng NGOÀI bảng kê mà một lần ghi có thể làm đổi.
+
+        Vì sao trả HTML chứ không trả con số: ô `DS quy đổi`/`Lợi nhuận KPI`
+        mang một NHÃN (`CHÍNH THỨC`/`CHƯA HOÀN CHỈNH`) do server quyết định
+        cùng lúc với con số (`R-S7`). Gửi riêng con số rồi để client tự ghép
+        lại cái nhãn là dựng một thẩm quyền thứ hai cho đúng câu hỏi khó
+        nhất của sản phẩm này — và nó sẽ nói sai đúng vào lúc dữ liệu thiếu.
+        """
+        macros = _workspace_macros()
+        return {
+            "identify": str(macros.identify_panel(
+                context["identify"], context["selected_period"],
+                context["sheet"])),
+            "identity-warning": str(macros.identity_warning_block(
+                context["identity_warning"], context["selected_period"],
+                context["sheet"], context["warning_cursor"])),
+            "kpi-strip": str(macros.kpi_strip(
+                context["strip"], context["sheet"])),
+            "sheet-totals": str(macros.totals_row(
+                context["detail_totals"], context["sheet"], context["strip"])),
+            "excluded": str(macros.excluded_block(
+                context["excluded"], context["selected_period"],
+                context["sheet"])),
+        }
+
+    def _workspace_write_payload(*, note: str, order_keys) -> dict:
+        """Payload JSON của MỘT lần ghi trên bảng kê.
+
+        `_workspace_view()` được gọi LẠI ở đây, sau khi ghi: payload phải
+        mang trạng thái SAU quyết định, và dùng lại bản đọc trước khi ghi sẽ
+        trả về đúng màn hình cũ kèm một câu "đã lưu".
+
+        `order_keys` là phạm vi THẬT của quyết định, không phải dòng vừa bấm.
+        Một lần xác nhận phân loại áp cho MỌI dòng của kỳ dùng chung khoá
+        định danh (`INV-76`/`INV-87`), nên payload trả về đủ các BH ấy và
+        client vá hết — vá mỗi dòng vừa bấm sẽ để những dòng còn lại hiện
+        "Chưa phân loại" cho tới lần tải trang sau.
+
+        `removed_order_keys` là những BH KHÔNG còn dòng nào trong sheet sau
+        lần ghi (loại nốt dòng cuối của một đơn). Chúng khác hẳn "không đổi":
+        client phải GỠ chúng khỏi bảng, không phải để nguyên.
+        """
+        order_keys = list(dict.fromkeys(order_keys))
+        view = _workspace_view()
+        context = _workspace_context(view, only_orders=order_keys)
+        groups = _workspace_group_html(context)
+        return {
+            "schema_version": workspace_presentation.WORKSPACE_SCHEMA_VERSION,
+            "message": note,
+            "affected": {
+                "order_keys": order_keys,
+                "lines": sum(group["lines"] for group in context["groups"]),
+            },
+            "groups": groups,
+            "removed_order_keys": [key for key in order_keys
+                                   if key not in groups],
+            "regions": _workspace_regions(context),
+            "trace_id": request_timing.trace_id(),
+        }
+
+    def _workspace_answer(*, note: Optional[str] = None,
+                          error: Optional[str] = None,
+                          order_keys=(), status: int = 422, **extra):
+        """Câu trả lời của một đường ghi — HTML redirect HOẶC JSON.
+
+        Một hàm chứ hai `return` rải khắp ba route: cửa phân biệt client
+        phải giống hệt nhau ở mọi đường ghi, nếu không sẽ có đúng một route
+        trả HTML cho một lượt fetch và panel treo im lặng.
+        """
+        if not _workspace_wants_json():
+            if error is not None:
+                return _workspace_redirect(loi=error, **extra)
+            return _workspace_redirect(**{"da-luu": note}, **extra)
+        if error is not None:
+            return _api_error(mutation_guard.VALIDATION_ERROR, error,
+                              status=status)
+        return _workspace_write_payload(note=note, order_keys=order_keys)
+
     def _identify_panel(view: dict, scoped, decisions) -> Optional[dict]:
         """Bảng chọn mặt hàng Tracking cho ĐÚNG MỘT dòng (`§PI-04`).
 
@@ -2291,7 +2445,7 @@ def create_app(
         product_raw = detail["product_raw"] or ""
         identity_key = line_identity.identity_key_of(product_raw)
         if identity_key is None:
-            return _workspace_redirect(loi=line_identity.UNCLASSIFIABLE_NOTE)
+            return _workspace_answer(error=line_identity.UNCLASSIFIABLE_NOTE)
         shared = [item for item in view["data"].details
                   if line_identity.identity_key_of(item.get("product_raw"))
                   == identity_key]
@@ -2320,20 +2474,30 @@ def create_app(
                     _tracking_inv_map_snapshot() if state.conflict else None),
             )
         except identity_gateway.IdentityGatewayError as exc:
-            return _workspace_redirect(loi=str(exc), **{
+            # Bảng chọn mở LẠI ở đúng dòng đó trên đường HTML (người dùng
+            # còn việc phải làm ở đây); đường JSON giữ popover đang mở y
+            # nguyên và chỉ hiện câu lỗi — `UI-03` §5: không tự gửi lại,
+            # không tự đóng, người dùng bấm lại bằng tay.
+            return _workspace_answer(error=str(exc), **{
                 "phan-loai": "1", "order_key": keys["order_key"],
                 "product_key": keys["product_key"],
                 "occurrence_index": keys["occurrence_index"]})
         except Exception as exc:  # noqa: BLE001 — xung đột version/log hỏng
-            return _workspace_redirect(loi=(
-                f"Chưa ghi được phân loại: {exc}"))
+            return _workspace_answer(
+                error=f"Chưa ghi được phân loại: {exc}", status=500)
         if state.conflict:
             note = identity_gateway.CONFLICT_OK_NOTE
         elif state.out_of_catalog:
             note = identity_gateway.RELINK_OK_NOTE
         else:
             note = identity_gateway.CONFIRM_OK_NOTE
-        return _workspace_redirect(**{"da-luu": note})
+        # `UI-03` §2 — phạm vi THẬT của quyết định này là MỌI BH có dòng dùng
+        # chung khoá định danh, không riêng BH vừa bấm. `shared` đã được đếm
+        # ở trên cho chính `affected_orders` mà gateway ghi vào log; payload
+        # trả về đúng tập ấy nên client vá đủ, không sót dòng nào.
+        return _workspace_answer(
+            note=note,
+            order_keys=sorted({item["order_key"] for item in shared}))
 
     @app.post("/kinh-doanh/nhan-vien/ngoai-bang")
     def business_mark_out_of_catalog():
@@ -2364,7 +2528,7 @@ def create_app(
         product_raw = detail["product_raw"] or ""
         identity_key = line_identity.identity_key_of(product_raw)
         if identity_key is None:
-            return _workspace_redirect(loi=line_identity.UNCLASSIFIABLE_NOTE)
+            return _workspace_answer(error=line_identity.UNCLASSIFIABLE_NOTE)
         shared = [item for item in view["data"].details
                   if line_identity.identity_key_of(item.get("product_raw"))
                   == identity_key]
@@ -2378,12 +2542,14 @@ def create_app(
                 reason=(request.form.get("ly_do") or None),
             )
         except identity_gateway.IdentityGatewayError as exc:
-            return _workspace_redirect(loi=str(exc))
+            return _workspace_answer(error=str(exc))
         except Exception as exc:  # noqa: BLE001 — xung đột version/log hỏng
-            return _workspace_redirect(loi=(
-                f"Chưa ghi được quyết định ngoài bảng giá: {exc}"))
-        return _workspace_redirect(
-            **{"da-luu": identity_gateway.OUT_OF_CATALOG_OK_NOTE})
+            return _workspace_answer(
+                error=f"Chưa ghi được quyết định ngoài bảng giá: {exc}",
+                status=500)
+        return _workspace_answer(
+            note=identity_gateway.OUT_OF_CATALOG_OK_NOTE,
+            order_keys=sorted({item["order_key"] for item in shared}))
 
     def _workspace_groups(view: dict, scoped, decisions, page: dict) -> list:
         """Các nhóm BH của ĐÚNG một trang bảng kê.
@@ -2414,7 +2580,8 @@ def create_app(
             shades=page["shades"])
 
     def _workspace_context(view: dict, *, cursor: Optional[str] = None,
-                           limit: Optional[int] = None) -> dict:
+                           limit: Optional[int] = None,
+                           only_orders=None) -> dict:
         """Ngữ cảnh ĐẦY ĐỦ của trang không gian làm việc.
 
         Tách khỏi `business_employee` vì `UI-03` cần dựng lại MỘT SỐ vùng của
@@ -2446,10 +2613,16 @@ def create_app(
             identify = _identify_panel(view, scoped, decisions)
 
         # `UI-04` — MỘT TRANG của bảng kê, cắt theo ranh giới BH.
-        page = workspace_presentation.page_of_groups(
-            scoped.details, cursor=cursor,
-            limit=(workspace_presentation.WORKSPACE_PAGE_LINES
-                   if limit is None else limit))
+        # `only_orders` (`UI-03`) là một lát KHÁC: chỉ những BH vừa bị một
+        # lần ghi làm đổi, để vá tại chỗ thay vì dựng lại cả trang.
+        if only_orders is None:
+            page = workspace_presentation.page_of_groups(
+                scoped.details, cursor=cursor,
+                limit=(workspace_presentation.WORKSPACE_PAGE_LINES
+                       if limit is None else limit))
+        else:
+            page = workspace_presentation.groups_slice(
+                scoped.details, only_orders)
 
         # `§13`/`§PI-10` — ĐÚNG MỘT dòng cảnh báo cho cả sheet, hoặc `None`.
         # Nó đếm trên CẢ sheet, không trên trang đang mở: một cảnh báo im đi
@@ -2826,16 +2999,21 @@ def create_app(
                 abort(404)
             _guard_lines(service, item)
             _guarded(service.store.restore_line, **keys)
-            return _workspace_redirect(**{"da-luu": (
-                "Đã khôi phục dòng. Nó được tính lại vào báo cáo từ bây giờ.")})
+            return _workspace_answer(
+                note="Đã khôi phục dòng. Nó được tính lại vào báo cáo từ bây giờ.",
+                order_keys=[keys["order_key"]])
         detail = service.detail_of(data=view["data"], **keys)
         if detail is None:
             abort(404)
         _guard_lines(service, detail)
         _guarded(service.store.exclude_line, **keys)
-        return _workspace_redirect(**{"da-luu": (
-            "Đã loại dòng này khỏi báo cáo. Sổ kế toán gốc giữ nguyên — bấm "
-            "KHÔI PHỤC ở cuối trang là dòng trở lại.")})
+        # Một BH có thể MẤT HẲN khỏi bảng khi đây là dòng cuối của nó —
+        # `_workspace_write_payload` phát hiện điều đó bằng cách dựng lại lát
+        # và thấy BH không còn nhóm nào, rồi trả `removed_order_keys`.
+        return _workspace_answer(
+            note=("Đã loại dòng này khỏi báo cáo. Sổ kế toán gốc giữ nguyên — "
+                  "bấm KHÔI PHỤC ở cuối trang là dòng trở lại."),
+            order_keys=[keys["order_key"]])
 
     # --- PHB-05: Target tháng của nhân viên (DEC-PHB02-06) ---------------
 
@@ -4560,6 +4738,105 @@ def create_app(
                 service=service, current_revision=conflict.current_revision)
 
         return _applied_response(outcome.get("ctx", {}), outcome["payload"])
+
+    # ==================================================================
+    # `UI-04` — MỘT TRANG của bảng kê, và `UI-03` — bảng chọn phân loại.
+    #
+    # Cả hai là route CHỈ ĐỌC, và cả hai trả về HTML do CHÍNH những macro
+    # mà trang đầy đủ dùng dựng ra (`_workspace_table.html`), gói trong một
+    # phong bì JSON. Đây là một quyết định có chủ ý và nó đi ngược một trực
+    # giác phổ biến ("API thì phải trả dữ liệu, không trả HTML"), nên lý do
+    # được viết ra ở đây:
+    #
+    # Một hàng bảng kê mang `rowspan` theo số dòng của BH, ba cột tuỳ chọn
+    # ẩn bằng CSS, bốn loại nhãn trạng thái, hai đường vào phân loại, một ô
+    # nhập thuộc về một `<form>` đứng ngoài bảng. Trả dữ liệu thô rồi để
+    # `app.js` ghép lại tất cả những thứ đó = một BẢN DỰNG THỨ HAI của bảng
+    # kê, bằng một ngôn ngữ khác, không có test template nào soi tới. Bản
+    # thứ hai ấy sẽ lệch khỏi bản thứ nhất ở lần đầu tiên ai đó thêm một
+    # cột — và cả hai sẽ "đúng" theo chính nó.
+    #
+    # Con SỐ thì vẫn là JSON thật (`total_lines`, `next_cursor`, `lines`):
+    # client cần chúng để quyết định tải tiếp hay dừng, và chúng không phải
+    # markup.
+    # ==================================================================
+
+    def _api_page_limit() -> int:
+        """`limit` client gửi, đã kẹp về khoảng dùng được."""
+        try:
+            value = int(request.args.get("limit") or "")
+        except ValueError:
+            return workspace_presentation.WORKSPACE_PAGE_LINES
+        return max(1, min(value, workspace_presentation.WORKSPACE_PAGE_LINES_MAX))
+
+    @app.get("/api/v1/periods/<period>/workspace")
+    def api_workspace_page(period: str):
+        """`UI-04` — trang kế của bảng kê, theo con trỏ BH.
+
+        Kỳ nằm trong ĐƯỜNG DẪN (`/api/v1/periods/2026-09/workspace`), sheet
+        và con trỏ trong query — cùng hình dạng `/api/v1/orders/<order_key>`
+        đã dùng: thứ định danh tài nguyên đi vào path, thứ lọc/phân trang đi
+        vào query.
+
+        Route này KHÔNG ghi gì và KHÔNG tính lại một con số nào: nó gọi đúng
+        `_workspace_context` mà trang đầy đủ gọi, chỉ với một con trỏ khác.
+        """
+        view = _workspace_view(period)
+        context = _workspace_context(
+            view, cursor=(request.args.get("cursor") or None),
+            limit=_api_page_limit())
+        page = context["page"]
+        macros = _workspace_macros()
+        return {
+            "schema_version": workspace_presentation.WORKSPACE_SCHEMA_VERSION,
+            "period": view["selected_period"],
+            "sheet": view["sheet"].key,
+            "cursor": page["cursor"],
+            "next_cursor": page["next_cursor"],
+            "order_keys": page["order_keys"],
+            "lines": len(page["details"]),
+            # Hai con số của CẢ sheet, không của trang: client dùng chúng để
+            # biết còn bao nhiêu mà không phải đếm thứ nó chưa tải.
+            "total_lines": page["total_lines"],
+            "total_orders": page["total_orders"],
+            "rows_html": str(macros.detail_rows(
+                context["groups"], context["selected_period"],
+                context["sheet"], context["editing"], context["assignable"],
+                context["unclassifiable_note"])),
+            "regions": {
+                "page-more": str(macros.page_more(
+                    page, context["selected_period"], context["sheet"])),
+            },
+            "trace_id": request_timing.trace_id(),
+        }
+
+    @app.get("/api/v1/periods/<period>/identify")
+    def api_identify_panel(period: str):
+        """`UI-03` — bảng chọn mặt hàng của ĐÚNG MỘT dòng, không dựng lại trang.
+
+        Trước `UI-03`, mở bảng chọn đi qua lớp mảnh (`X-Fragment`) và thay
+        CẢ `#app-content` — tức dựng lại toàn bộ bảng kê để hiện một hộp nhỏ
+        cạnh con trỏ chuột. Route này trả về đúng khối ấy và không gì khác.
+
+        `None` (dòng đã phân loại xong, hoặc không tồn tại) trả về chuỗi
+        rỗng chứ không 404: "không có gì để mở ở đây" là một câu trả lời
+        hợp lệ của chính màn hình này (xem `_identify_panel`), không phải
+        một lỗi.
+        """
+        view = _workspace_view(period)
+        scoped = view["data"].for_sheet(view["sheet"])
+        decisions = _identity_decisions()
+        identify = _identify_panel(view, scoped, decisions)
+        macros = _workspace_macros()
+        return {
+            "schema_version": workspace_presentation.WORKSPACE_SCHEMA_VERSION,
+            "found": identify is not None,
+            "regions": {
+                "identify": str(macros.identify_panel(
+                    identify, view["selected_period"], view["sheet"])),
+            },
+            "trace_id": request_timing.trace_id(),
+        }
 
     class _ApiFailure(Exception):
         """Một lỗi API phát sinh BÊN TRONG transaction.
