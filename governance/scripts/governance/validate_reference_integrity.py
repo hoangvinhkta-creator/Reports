@@ -19,6 +19,22 @@ Loại trừ theo subtask 03.4 của TASK-REM-T03:
 - Reference chứa `*` (glob pattern, ví dụ `docs/tasks/TASK-REM-*.md`) — không
   phải một đường dẫn cụ thể, bỏ qua.
 
+Phân giải một reference tuyệt đối (bắt đầu bằng `/`, ví dụ `/root/.ccr/
+README.md`) đi qua đúng cùng `resolves()` như mọi reference khác — nó
+resolve được hay không phụ thuộc việc file đó có THẬT SỰ tồn tại trên máy
+đang chạy, không phải một quy tắc riêng. Nhưng `Path.exists()` trên một
+đường dẫn tuyệt đối ngoài repo có thể NÉM `PermissionError` thay vì trả
+`False`, khi thư mục cha (ví dụ `/root`, mode `0700`) chặn cả việc TRUY CẬP
+vào nó đối với người dùng không phải chủ thư mục — không phải vì file có
+tồn tại hay không. Trên máy dev (thường chạy bằng root) phép `.exists()`
+này đi qua êm; trên GitHub Actions runner (`runner`, không phải root) nó
+ném lỗi và làm sập cả validator, tức là làm im lặng luôn 4 finding thật —
+lỗi hạ tầng phát biểu thay cho nội dung, đúng lớp lỗi mà chính bộ validator
+này (`STRUCTURE`, `EVIDENCE`) đã lập ra để tránh ở nơi khác trong repo. Sửa
+tại `resolves()`: một `PermissionError`/`OSError` khi thử `.exists()` được
+coi là "không phân giải được TỪ VỊ TRÍ ĐÓ", cùng ý nghĩa với việc file
+không tồn tại — không phải một lý do để dừng cả lượt quét.
+
 Usage:
     python3 validate_reference_integrity.py [ROOT_DIR]
 
@@ -109,6 +125,18 @@ KNOWN_EXEMPT_PAIRS = {
     ("PROJECT/PROJECT_DECISIONS.md", "/README.md"),
     ("PROJECT/PROJECT_DECISIONS.md", "CODE_OF_CONDUCT.md"),
     ("PROJECT/PROJECT_DECISIONS.md", "CONTRIBUTING.md"),
+    # Ba file trích dẫn NGUYÊN VĂN đường dẫn tuyệt đối `/root/.ccr/README.md`
+    # làm bằng chứng lịch sử (S071 dò ra chính sách egress; S133 dẫn lại
+    # bằng chứng đó; S071_DEPLOYMENT trỏ người đọc tới cùng file để tra cứu
+    # policy) — không phải một reference sống cần resolve trong repo này.
+    # File đó (nếu có) nằm trên MÁY CHẠY, ngoài repo, và việc nó "resolve
+    # được" hay không phụ thuộc UID đang chạy validator (root thấy được
+    # `/root`, runner CI thì không) — một sự thật về môi trường, không phải
+    # về nội dung repo. Cùng khuôn với `OPTIONAL_ENFORCEMENT_LAYER.md` ở
+    # trên: trích dẫn token lỗi lịch sử, không phải liên kết cần còn sống.
+    ("docs/sessions/S071-shared-online-beta.md", "/root/.ccr/README.md"),
+    ("docs/sessions/S133-r4-integration-and-deployment.md", "/root/.ccr/README.md"),
+    ("docs/deployment/S071_DEPLOYMENT.md", "/root/.ccr/README.md"),
 }
 
 
@@ -145,10 +173,24 @@ def is_excluded(rel_path: str) -> bool:
     return any(rel_path.startswith(prefix) for prefix in EXCLUDED_DIR_PREFIXES)
 
 
+def _exists_safe(path: Path) -> bool:
+    """`Path.exists()` mà không để một `OSError` của hệ thống file (ví dụ
+    `PermissionError` khi thư mục cha chặn truy cập, thường gặp với các
+    đường dẫn tuyệt đối ngoài repo như `/root/...` trên một CI runner không
+    chạy bằng root) làm sập cả lượt quét. Không truy cập được một đường dẫn
+    và đường dẫn không tồn tại là hai sự thật khác nhau, nhưng ở đây chúng
+    dẫn tới CÙNG một kết luận hữu ích: "không phân giải được từ vị trí này"
+    — cùng ý nghĩa như một `False` bình thường của `resolves()`."""
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 def resolves(ref: str, root: Path, referencing_file_dir: Path) -> bool:
-    if (root / ref).exists():
+    if _exists_safe(root / ref):
         return True
-    if (referencing_file_dir / ref).exists():
+    if _exists_safe(referencing_file_dir / ref):
         return True
     return False
 
