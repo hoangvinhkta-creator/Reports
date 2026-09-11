@@ -248,16 +248,23 @@ class IdentityState:
     def label(self) -> Optional[str]:
         """Chữ hiện cạnh mã đơn. `None` = không có gì đáng nói.
 
-        `CONFLICT` và `OUT_OF_CATALOG` có chữ RIÊNG: dán "Chưa phân loại" lên
-        một dòng đã xác nhận ngoài bảng giá sẽ mời Owner đi phân loại lại đúng
-        thứ họ vừa phân loại xong, còn dán nó lên một mâu thuẫn sẽ giấu mất
-        chuyện có hai mã đang chỏi nhau.
+        `CONFLICT` có chữ RIÊNG: dán "Chưa phân loại" lên một mâu thuẫn sẽ
+        giấu mất chuyện có hai mã đang chỏi nhau.
+
+        `TASK-OWNER-UIUX-009` §1 (chủ dự án yêu cầu trực tiếp) —
+        `OUT_OF_CATALOG` KHÔNG còn chữ riêng nữa, kể cả khi còn thiếu giá:
+        "Không có trên bảng giá" LÀ một quyết định phân loại đã xong, và
+        Owner không muốn nó tiếp tục hiện như một việc còn dở. Trước đây nó
+        trả `LABEL_OUT_OF_CATALOG` khi thiếu giá, đúng ý "còn bấm lại được để
+        Nối lại Tracking sau này" (`§4.3`) — đổi lại có nghĩa là MẤT lối vào
+        duy nhất để nối lại một dòng đã đánh dấu ngoài bảng giá qua tag cạnh
+        mã đơn; đường `business_mark_out_of_catalog`/nối lại vẫn còn trong
+        code, chỉ không còn cách bấm vào từ đây nữa.
         """
         if self.classification == CLASS_CONFLICT:
             return LABEL_CONFLICT
         if self.classification == CLASS_OUT_OF_CATALOG:
-            return (LABEL_OUT_OF_CATALOG if self.state == STATE_MISSING_PRICE
-                    else None)
+            return None
         if self.state == STATE_UNRESOLVED:
             return LABEL_UNRESOLVED
         if self.state == STATE_MISSING_PRICE:

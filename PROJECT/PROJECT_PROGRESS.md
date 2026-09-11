@@ -1,5 +1,29 @@
 # TIẾN ĐỘ DỰ ÁN
 
+## CANONICAL CURRENT STATE — `TASK-OWNER-UIUX-009`: bỏ tag "Ngoài bảng giá" + hai khối cảnh báo, dời nút toggle (2026-09-11)
+
+Tiếp nối `S152`. Ba yêu cầu trực tiếp của Owner trên trang Nhân viên
+(`DEC-222`): (1) dòng "Ngoài bảng giá" không còn tag cạnh mã đơn — coi
+như đã phân loại xong, đảo lại `§4.3` cũ của `R2` (Owner chấp nhận mất
+lối bấm "Nối lại Tracking" từ bảng kê, route vẫn sống nếu gọi thẳng URL);
+(2) bỏ khối "Đã tính được lợi nhuận: N/M dòng" + banner "có mã chưa được
+phân loại" khỏi đầu trang; (3) dời nút "HIỆN NHÓM HÀNG, HÃNG & IMEI" vào
+tiêu đề "Bảng kê", góc trên bên phải.
+
+Nhánh: `claude/reports-uiux-009-hide-tags-move-toggle`, dựng từ tip nhánh
+mặc định SAU khi `R5.4` (`DEC-221`) đã merge — đồng bộ trước khi tách
+nhánh, đúng "Đồng Bộ Nhánh". Full suite `3643 passed, 24 skipped, 0
+failed`; 6 file test cập nhật đích theo hành vi mới (không xoá bài, không
+giảm coverage). Kiểm bằng Playwright trên bản dump tĩnh (CSS/JS thật,
+Flask test client thật) xác nhận cả ba thay đổi đúng như yêu cầu, kể cả ở
+màn hẹp 420px.
+
+**CHƯA merge vào nhánh mặc định.** Mục (1) là một thay đổi hành vi thật
+(không chỉ trình bày) — Owner cần xác nhận trước khi đẩy lên production.
+Chi tiết đầy đủ + bằng chứng: `PROJECT/PROJECT_DECISIONS.md` → `DEC-222`.
+
+---
+
 ## CANONICAL CURRENT STATE — `R5.4`: nhãn cho dòng KHỚP TỰ ĐỘNG với Tracking, `DONE`, merge theo chỉ thị Owner (`S152`, 2026-09-10)
 
 Tiếp nối `S151`. Owner báo lỗi production sau merge `R5.3`: đã phân loại

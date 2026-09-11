@@ -793,31 +793,34 @@ def test_a_code_missing_from_the_board_is_not_offered(snapshot):
 def test_pi_10_and_11_one_compact_warning_points_into_the_same_sheet(
     repository, client
 ):
-    """`PI-10`/`PI-11` — MỘT dòng cảnh báo, và nó dẫn vào chính bảng này."""
+    """`PI-10`/`PI-11` — bàn giao gốc: MỘT dòng cảnh báo, dẫn vào chính bảng.
+
+    `TASK-OWNER-UIUX-009` §2 (chủ dự án yêu cầu trực tiếp, 2026-09-11): dòng
+    cảnh báo này đã bỏ khỏi trang Nhân viên cho gọn. `sheet_warning()` trong
+    `app/web/line_identity.py` vẫn tính đúng như cũ (bài unit test riêng của
+    module đó còn bảo vệ) — chỉ không còn render ở đây. Trạng thái "chưa
+    phân loại" vẫn thấy được qua tag xanh ngay cạnh từng mã đơn.
+    """
     persist(repository, [unresolved_line("BH1"), unresolved_line("BH2"),
                          line("BH3", "43F6000", day=5)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09")
-    assert html.count('data-metric="identity-warning"') == 1, (
-        "đúng MỘT cảnh báo, không phải một danh sách")
-    warning = metric(html, "identity-warning-link")
-    assert "BH1" in warning and "BH2" in warning
-    # `PI-11` — đích của đường dẫn là một khối BH của CHÍNH bảng này.
-    target = re.search(r'data-metric="identity-warning-link"[^>]*', html).group(0)
-    anchor = re.search(r'href="#(bh-[^"]+)"',
-                       re.search(r'data-metric="identity-warning".*?</p>',
-                                 html, re.S).group(0)).group(1)
-    assert f'id="{anchor}"' in html, "đường dẫn phải trỏ tới một khối có thật"
-    assert target
+    assert 'data-metric="identity-warning"' not in html
+    assert line_identity.LABEL_UNRESOLVED in metrics(html, "identity-label")
 
 
 def test_the_warning_counts_bh_and_stays_one_line_when_there_are_many(
     repository, client
 ):
-    """`§13` — nhiều BH ⟹ ĐẾM, không liệt kê. Cảnh báo vẫn là một dòng."""
+    """`§13` bàn giao gốc: nhiều BH ⟹ ĐẾM, không liệt kê.
+
+    `TASK-OWNER-UIUX-009` §2 — dòng cảnh báo tổng hợp này đã bỏ khỏi trang
+    (xem test trên). Bài này giữ lại để canh: dù có tới 7 BH chưa phân loại,
+    trang vẫn không hiện dòng cảnh báo nào.
+    """
     persist(repository, [unresolved_line(f"BH{index}") for index in range(1, 8)])
     html = body(client, "/kinh-doanh/nhan-vien?ky=2026-09")
-    assert "Có 7 BH chứa mã chưa được phân loại." in html
-    assert html.count('data-metric="identity-warning"') == 1
+    assert "Có 7 BH chứa mã chưa được phân loại." not in html
+    assert 'data-metric="identity-warning"' not in html
 
 
 def test_no_warning_at_all_when_every_line_is_identified(repository, client):
@@ -1141,7 +1144,9 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     sheet = body(client, "/kinh-doanh/nhan-vien")
     assert "Tháng 09/2026" in sheet or "09/2026" in sheet
     assert line_identity.LABEL_UNRESOLVED in metrics(sheet, "identity-label")
-    assert 'data-metric="identity-warning"' in sheet
+    # `TASK-OWNER-UIUX-009` §2 — dòng cảnh báo tổng hợp đầu sheet đã bỏ;
+    # trạng thái "chưa phân loại" vẫn thấy được qua tag xanh ở dòng trên.
+    assert 'data-metric="identity-warning"' not in sheet
 
     target = next(item for item in service.period(**SEPTEMBER).details
                   if item["product_raw"].startswith("Máy giặt"))
@@ -1161,7 +1166,7 @@ def test_e2e_the_owner_walks_the_whole_slice_in_one_session(
     assert line_identity.LABEL_UNRESOLVED not in metrics(after, "identity-label")
     assert line_identity.LABEL_MISSING_PRICE in metrics(after, "identity-label")
     assert 'data-metric="identity-warning"' not in after, (
-        "hết dòng chưa phân loại ⟹ cảnh báo biến mất")
+        "cảnh báo tổng hợp đã bỏ khỏi trang (TASK-OWNER-UIUX-009 §2)")
 
     # --- 3. Cùng BH: loại dòng → gán lại BH → khôi phục ------------------
     hidden = next(item for item in service.period(**SEPTEMBER).details
